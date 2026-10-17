@@ -1,17 +1,26 @@
-// src/shared/naming-tracking.js —— S2（#452）从 naming-guardian.js 拆出之值比对锁、跟踪态与状态机、失败重试、计划单。
+// src/shared/naming-tracking.ts —— S2（#452）从 naming-guardian.js 拆出之值比对锁、跟踪态与状态机、失败重试、计划单。
 // 接线：不引用标题与归属文件（墙要求）；编号分支要用的标题合成小函数在文件内放一份（tracking 前缀），与 naming-titles.js 同源，改动两处同改。
 
 /**
- * src/shared/naming-tracking.js — 命名守护跟踪推进半（#264/#267 · 从 naming-guardian.js 拆出，S2 #452）。
+ * src/shared/naming-tracking.ts — 命名守护跟踪推进半（#264/#267 · 从 naming-guardian.js 拆出，S2 #452）。
  * 契约（#264 · 单缝原则）：本文件是跟踪推进的真源 —— 值比对锁、分歧归因、跟踪态与分档状态机、计划单、失败重试。
  * 标题合成见 naming-titles.js，编号归属见 naming-attribution.js；三文件互不引用，宿主半运行时引用本文件，界面半由
  * scripts/build.mjs 拼回 src/client/index.js 闭包（一源两物）。纯函数，Node 可直跑。
  * 生效 2026-08-28，以 #264 规约 + #260 五决议 + ADR 20260827 为基线，未来定版以未来为准。
  */
 
+// 下面两行把运行环境里可能缺席的全局量照实声明出来：Node 下有 Buffer 而浏览器闭包里没有，
+// TextEncoder 在浏览器里有而老 Node 里没有。真正用之前一律沿用原文的 typeof 守卫写法，
+// 所以声明成「可能缺席」才是实话，写成必在反而是撒谎。
+declare const Buffer: { byteLength(s: string, encoding?: string): number } | undefined;
+type TextEncoderCtor = new () => { encode(s: string): Uint8Array };
+declare const TextEncoder: TextEncoderCtor | undefined;
+
 /** 值比对真检测（#264 D3/F5）：@returns 'unlocked' | 'locked' | 'unknown' —— 机器写过就与 lastMachineTitle 比，
  * 没写过就与注册基准比，两条都不等即判手改；当前标题不可读（null/空串）→ unknown（调用方跳过本轮，不盲写）。 */
-export function evaluateRenameLock({ currentTitle, lastMachineTitle, baselineTitle }) {
+export type RenameLock = 'unlocked' | 'locked' | 'unknown'
+// 三态缺一不可：unknown 表示“没信息”，调用方遇到它必须跳过本轮，绝不能当成 unlocked 去改名。
+export function evaluateRenameLock({ currentTitle, lastMachineTitle, baselineTitle }: { currentTitle: unknown; lastMachineTitle: unknown; baselineTitle: unknown }): RenameLock {
   const cur = currentTitle == null ? null : String(currentTitle)
   if (cur === null || cur === '') return 'unknown'
   const last = lastMachineTitle == null ? null : String(lastMachineTitle)
@@ -25,10 +34,11 @@ export function evaluateRenameLock({ currentTitle, lastMachineTitle, baselineTit
 // ============ 原生首句标题免锁（#746 · 0.1.7 底座行为）============
 // 底座在首条用户消息发出后会把首句裁剪成会话标题（与机器、用户都无关）；旧判据把它当手改永久
 // 锁定。免锁只认派生关系：现名等于首句，或以首句开头且不短于下限（归一空白后比）。真手改仍锁定。
-function normTitleLine(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+function normTitleLine(s: unknown): string { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
 // 首句截断那条路的最小长度（见 isNativeAutoTitle 里的理由）。
 export const NATIVE_TITLE_MIN_CHARS = 20
-export function isNativeAutoTitle({ currentTitle, firstUserText }) {
+// 下限卡的是长度不是内容：用户手改的短名再像首句也不认，宁可多出一单也不盖掉用户的命名。
+export function isNativeAutoTitle({ currentTitle, firstUserText }: { currentTitle: unknown; firstUserText: unknown }): boolean {
   const cur = normTitleLine(currentTitle), first = normTitleLine(firstUserText)
   if (!cur || !first) return false
   if (cur === first) return true
@@ -50,8 +60,13 @@ export const DIVERGENCE = {
   HAND_EDIT: 'hand-edit',
   UNKNOWN_TITLE: 'unknown-title',
 }
+export type DivergenceKind = typeof DIVERGENCE[keyof typeof DIVERGENCE]
 
-export function classifyDivergence({ currentTitle, lastMachineTitle, baselineTitle, baselineIsOurs, firstUserText, targetTitle, titleSource }) {
+// 第一问必须是「这条名是不是我们自己写的」：少了这一问，宿主改完名后客户端会把正确名判成手改。
+export function classifyDivergence({ currentTitle, lastMachineTitle, baselineTitle, baselineIsOurs, firstUserText, targetTitle, titleSource }: {
+  currentTitle: unknown; lastMachineTitle: unknown; baselineTitle: unknown; baselineIsOurs: unknown;
+  firstUserText: unknown; targetTitle: unknown; titleSource: unknown;
+}): DivergenceKind {
   try {
     const cur = normTitleLine(currentTitle)
     if (!cur) return DIVERGENCE.UNKNOWN_TITLE
@@ -63,7 +78,7 @@ export function classifyDivergence({ currentTitle, lastMachineTitle, baselineTit
     if (ours) return DIVERGENCE.IN_PLACE
     if (baselineIsOurs === false && lastMachineTitle == null) return DIVERGENCE.NEVER_WROTE
     // 事实优先：宿主随单下发的「这条名是谁写的」；与现名逐字对上才采信，对不上（标题已变）当没有。
-    const ts = titleSource
+    const ts = titleSource as { title?: unknown; kind?: unknown } | null | undefined
     if (ts && typeof ts === 'object' && normTitleLine(ts.title) === cur) {
       const k = String(ts.kind || '')
       return (k === 'fallback' || k === 'provider') ? DIVERGENCE.AUTO_TITLE : DIVERGENCE.HAND_EDIT
@@ -80,8 +95,9 @@ export const NAMING_STAGES = {
   PLACEHOLDER: 'placeholder',
   DRAFT: 'draft',
   NUMBERED: 'numbered',
-  REFINED: 'refined',   // P3 精修档：一期仅占位（#264 Out of Scope · #260 决议「实现分期」）
+  REFINED: 'refined',   // P3 精修档（一期仅占位 · #264 Out of Scope · #260 决议「实现分期」）
 }
+export type NamingStage = typeof NAMING_STAGES[keyof typeof NAMING_STAGES]
 
 // ---- P3 精修二期预留（#267）----
 // 本期不含存量回填（#261 否决）也不含 LLM 精修；REFINED 零消费，planOrderFor 对它恒不出单。二期接缝：① reducer 增 'refined' 入账；② planOrderFor 出 kind:'refined' 单；③ 界面半按 kind 分派。
@@ -89,20 +105,32 @@ export const NAMING_STAGES = {
 // 线索宽限：先裸档后升级语义，注册后即出裸档单；后到线索可再升级一次（用完即记 lastDraftHint）。
 export const NAMING_HINT_GRACE_MS = 0
 
-export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd, baselineIsOurs }) {
+export type TrackingState = {
+  sessionId: string; stage: NamingStage; lastMachineTitle: string | null;
+  baselineTitle: string; baselineIsOurs: boolean; locked: boolean; hint: string | null;
+  repoKey: string | null; cwd: string | null; number: number | null; numberText?: string;
+  numberTitle: string | null; numberedDone: boolean; lastDraftHint: string | null;
+  failCount: number; lastFailAt: number | null; lastError: string | null;
+  summaryOnce: boolean; summaryFailed: boolean; createdAt: number; updatedAt: number;
+  [k: string]: unknown;
+}
+// 旧账没 baselineIsOurs 字段时按 true 容错：加字段之前行为就是放行，缺字段不能反过来变严格。
+export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd, baselineIsOurs }: {
+  sessionId: unknown; baselineTitle: unknown; repoKey?: unknown; cwd?: unknown; baselineIsOurs?: unknown;
+}): TrackingState {
   const now = Date.now()
   return {
     sessionId: String(sessionId || ''),
     stage: NAMING_STAGES.PLACEHOLDER,
     lastMachineTitle: null,
     baselineTitle: String(baselineTitle || ''),
-    // 基线这条名是不是我们自己写的（注册那次改名成功即 true）。旧账没这个字段按 true 容错，行为与加它之前一致。
+    // 基线这条名是不是我们自己写的（注册那次改名成功即 true）。旧账没有这个字段按 true 容错，行为与加它之前一致。
     baselineIsOurs: baselineIsOurs === false ? false : true,
     locked: false,
     hint: null,
-    repoKey: repoKey || null,
+    repoKey: (repoKey as string | null) || null,
     // #266 追加：cwd（索引快照执行上下文）、number/numberTitle（获号信息）、numberedDone（编号档 rename 已落定，防重复出单/循环）——盘上旧账兼容。
-    cwd: cwd || null,
+    cwd: (cwd as string | null) || null,
     number: null,
     numberTitle: null,
     numberedDone: false,
@@ -120,13 +148,15 @@ export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd, ba
   }
 }
 
+export type TrackingEvent = { type: string; [k: string]: unknown }
 /**
  * 分档状态机（纯 reducer）：所有信号（注册/认领推送线索/机器改名单回报/手改锁定/编号预留）
  * 都汇入同一入口 —— #264 US14「所有信号汇入同一个分档状态机」。
  */
-export function reduceTrackingState(state, event) {
+// reducer 收到不认识的事件只回原态：调用方发错事件名时静默无事，比抛错更不容易把跟踪账写坏。
+export function reduceTrackingState(state: TrackingState | null | undefined, event: TrackingEvent | null | undefined): TrackingState | null | undefined {
   if (!state) return state
-  const ev = event || {}
+  const ev = event || ({} as TrackingEvent)
   const next = Object.assign({}, state)
   if (ev.type === 'signal') {
     if (ev.hint && !next.locked) {
@@ -209,8 +239,14 @@ export const NAMING_RETRY_MAX = 3
  *  拼进界面闭包时构建剥掉 import 这一行，名字由闭包里另一片 timeConfig 提供。 */
 import { NAMING_RETRY_COOLDOWN_MS } from './time-config/values.js'
 
+export type NamingFailureInfo = {
+  sessionId: string; stage: NamingStage; kind: 'numbered' | 'draft'; hint: string | null;
+  number: number | null; numberTitle: string; error: string; count: number; lastFailAt: number | null;
+  lock: { lastMachineTitle: string | null; baselineTitle: string; locked: boolean };
+}
+// 未达预算就回 null：面板只在定败后才挂横幅，连败中途不打扰用户。
 /** 定败画像（供面板呈现 + 协商化解判定）；未达预算上限 / 已锁 → null。 */
-export function namingFailureInfo(state) {
+export function namingFailureInfo(state: TrackingState | null | undefined): NamingFailureInfo | null {
   if (!state || state.locked) return null
   if ((state.failCount || 0) < NAMING_RETRY_MAX) return null
   return {
@@ -232,7 +268,7 @@ export function namingFailureInfo(state) {
 }
 
 // 订单里那份锁信息（值比对锁 + 归因要用的基准事实）。三处出单共用一份，免得各写各的漏字段。
-function orderLockOf(state) {
+function orderLockOf(state: TrackingState): { lastMachineTitle: string | null; baselineTitle: string; baselineIsOurs: boolean; locked: boolean } {
   return {
     lastMachineTitle: state.lastMachineTitle,
     baselineTitle: state.baselineTitle,
@@ -241,13 +277,19 @@ function orderLockOf(state) {
   }
 }
 
+export type PlanOrder = {
+  sessionId: string; kind: 'numbered' | 'draft'; number?: number; numberText?: string;
+  title?: string; hint?: string | null; lock: { lastMachineTitle?: unknown; baselineTitle?: unknown; baselineIsOurs?: boolean; locked?: unknown };
+  [k: string]: unknown;
+}
 /**
  * 待办改名计划单（纯函数产出）：locked / 非占位档 → 无单（草稿档后到不同线索除外）；
  * 有线索 → 携线索；无线索但过线索宽限 → 裸档；未过宽限 → 等待；
  * 草稿档落定后后到不同线索 → 再升级一次（#746）。
  * 订单只携带会话标识与目标语义段信息，不含语言相关字面量（#264 D2）。
  */
-export function planOrderFor(state, now, hintGraceMs, currentTitle) {
+// 出单前先过三道门：锁了不出、连败到顶不出、冷却窗内不出，剩下的才是真要改的名。
+export function planOrderFor(state: TrackingState | null | undefined, now: unknown, hintGraceMs: unknown, currentTitle: unknown): PlanOrder | null {
   if (!state) return null
   if (state.locked) return null
   // #267：有限重试门控 —— 连败达预算上限 → 定败不再出单（面板呈现接管）；
@@ -262,7 +304,7 @@ export function planOrderFor(state, now, hintGraceMs, currentTitle) {
   if (state.stage === NAMING_STAGES.NUMBERED) {
     if (state.number == null) return null
     const title = state.numberTitle || ''
-    let target = null
+    let target: string | null = null
     try { target = trackingNewSessionTitle({ number: state.number, numberText: state.numberText, title: title }) } catch (e) { return null }
     const cur = (typeof currentTitle === 'string' && currentTitle) ? currentTitle : null
     if (cur === target) return null
@@ -311,7 +353,7 @@ export function planOrderFor(state, now, hintGraceMs, currentTitle) {
 // 同一个界面闭包时与标题文件重名。逻辑与 naming-titles.js 内同名函数逐行一致。
 const TRACKING_SESSION_TITLE_MAX_BYTES = 120
 
-function trackingCleanTitleText(s) {
+function trackingCleanTitleText(s: unknown): string {
   let t = String(s || '')
   t = t.replace(/\x1B\][^\x07]*\x07/g, '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\x1B[^\x5B\x5D\x07]/g, '')
   t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
@@ -320,12 +362,12 @@ function trackingCleanTitleText(s) {
   return t
 }
 
-function trackingUtf8Bytes(str) {
+function trackingUtf8Bytes(str: string): number {
   if (typeof Buffer !== 'undefined' && Buffer.byteLength) return Buffer.byteLength(str, 'utf8')
-  try { return new TextEncoder().encode(str).length } catch (e) { return str.length }
+  try { return new (TextEncoder as TextEncoderCtor)().encode(str).length } catch (e) { return str.length }
 }
 
-function trackingTruncateTitleUtf8(prefix, title, maxBytes) {
+function trackingTruncateTitleUtf8(prefix: string, title: string, maxBytes: number): string {
   const sep = ' '
   const base = prefix + sep
   const baseBytes = trackingUtf8Bytes(base)
@@ -341,7 +383,7 @@ function trackingTruncateTitleUtf8(prefix, title, maxBytes) {
   return out.trimEnd() + ellipsis
 }
 
-function trackingNewSessionTitle(t) {
+function trackingNewSessionTitle(t: { number?: unknown; numberText?: unknown; title?: unknown }): string {
   const n = ((t && t.numberText != null && String(t.numberText).trim()) ? String(t.numberText).trim() : String(t && t.number != null ? t.number : '')).trim()
   if (!/^\d+$/.test(n)) throw new Error('newSessionTitle: invalid number ' + n)
   const prefix = '[' + '#' + n + ']'

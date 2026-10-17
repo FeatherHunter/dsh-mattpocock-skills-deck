@@ -282,7 +282,7 @@ const PERMANENT: PermanentRow[] = [
   { file: 'src/shared/refresh/src/budget.ts', snippet: 'HOUR_MS = 3_600_000', reason: '单位换算（1 小时），不是旋钮，调它没有意义' },
   { file: 'src/client/views/shared/truthLines.js', snippet: 'TRUTH_MINUTE_MS = 60000', reason: '单位换算（1 分钟），只做“多久”折人话的刻度，不是旋钮' },
   // —— 0 表示“还没有 / 关掉”（状态初值与开关，不是时长） ——
-  { file: 'src/shared/naming-tracking.js', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
+  { file: 'src/shared/naming-tracking.ts', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
   { file: 'src/client/kernel/attention-heartbeat.js', snippet: "intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0", reason: '心跳计划的状态初值（0 = 还没定下节拍 / 还没跳过），真值由刷新预算注入，不是新参数' },
   { file: 'src/client/kernel/router.js', snippet: 'commitMs: -1, fitMs: 0', reason: '面板时钟的状态初值（-1 / 0 = 还没提交过），不是可调时长' },
   { file: 'src/shared/tracker/indexWindow.js', snippet: 'sinceMs: 0', reason: '还没有水位时从头全量（0 = 没有上次扫到哪儿），不是可调时长' },
@@ -370,7 +370,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/gitCredentialExec.js', name: 'lowSpeedSeconds', reason: '派生变量：由已登记的 GIT_LOW_SPEED_TIMEOUT_MS 除以 1000 得到（git 的 lowSpeedTime 只认秒），除数不是时长' },
   { file: 'src/host/gitCredentialExec.js', name: 'deadline', reason: '算出来的截止时刻（Date.now() 加整趟预算），不是可调参数' },
   { file: 'src/host/namingGuardian.js', name: 'delay', reason: '派生变量：缺省接已登记的 NAMING_SWEEP_SOON_MS，正常路径用调用方给的 delayMs' },
-  { file: 'src/shared/naming-tracking.js', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
+  { file: 'src/shared/naming-tracking.ts', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
   { file: 'src/shared/refresh/src/backoff.ts', name: 'delay', reason: '派生变量：backoffDelayMs(state) 算出来的本次等待时长，序列本身已登记为 chainBackoffMs' },
   { file: 'src/tracker/rooms/github/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
   { file: 'src/tracker/rooms/gitlab/client.ts', name: 'timeout', reason: '同上，透传参数' },

@@ -582,7 +582,7 @@ const SHARED_SPLICE = [
   // 所以这份零依赖清单必须拼进界面闭包 —— 客户端半边今天没有任何对 src/shared 的运行时 import。
   { marker: '// ==== shared:guideSteps (spliced by build) ====', file: 'src/shared/tracker/guide-steps.js' },
   { marker: '// ==== shared:namingTitles (spliced by build) ====', file: 'src/shared/naming-titles.ts' },
-  { marker: '// ==== shared:namingTracking (spliced by build) ====', file: 'src/shared/naming-tracking.js' },
+  { marker: '// ==== shared:namingTracking (spliced by build) ====', file: 'src/shared/naming-tracking.ts' },
   { marker: '// ==== shared:namingAttribution (spliced by build) ====', file: 'src/shared/naming-attribution.js' },
   { marker: '// ==== shared:trackerSync (spliced by build) ====', file: 'src/shared/tracker/sync.js' },
   { marker: '// ==== shared:slots (spliced by build) ====', file: 'src/shared/ui/slots.js' },
