@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T08:40:54.562Z",
+  "generatedAt": "2026-10-17T08:57:01.636Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 293,
   "gateCount": 293,
@@ -2044,6 +2044,7 @@
         "src/client/kernel/prompts.js",
         "src/client/statusbar/StatusBackend.js",
         "src/client/statusbar/bannerChain.js",
+        "src/shared/time-config/values.js",
         "src/shared/tracker/guide-steps.js",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -2054,6 +2055,7 @@
         "package/lib",
         "src/client/kernel",
         "src/client/statusbar",
+        "src/shared/time-config",
         "src/shared/tracker",
         "src/tracker/rooms/github",
         "src/tracker/rooms/markdown",
@@ -2063,7 +2065,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 14 条"
     },
     {
       "step": "node tests/verify-666-subws-mark-root.ts",
@@ -2374,17 +2376,19 @@
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/prompts.js",
+        "src/shared/time-config/values.js",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
+        "src/shared/time-config",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-686-accept.ts",
@@ -2394,6 +2398,7 @@
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/prompts.js",
+        "src/shared/time-config/values.js",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -2401,6 +2406,7 @@
       ],
       "dirs": [
         "src/client/kernel",
+        "src/shared/time-config",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
@@ -2410,7 +2416,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-689-counts-ui.ts",
@@ -7634,10 +7640,13 @@
     "src/shared/time-config": [
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-655-setup-layout.ts",
+      "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-mirror-write.ts",
+      "node tests/verify-685-healthcheck-button.ts",
+      "node tests/verify-686-accept.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-818-version-control-view.ts",
