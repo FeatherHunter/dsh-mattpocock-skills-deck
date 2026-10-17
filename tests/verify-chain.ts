@@ -1,6 +1,6 @@
-// tests/verify-chain.js — 契约层 chain.js 纯函数校验（#225 验收）
+// tests/verify-chain.ts — 契约层 chain.js 纯函数校验（#225 验收）
 // 规约：D3 检查项/链条形状 + D5 动作词汇表 + 求值器（纯函数，无 IO，不启 DSH）
-// 用法：node tests/verify-chain.js
+// 用法：node tests/verify-chain.ts
 import { createRequire } from 'node:module'
 const req = createRequire(import.meta.url)
 

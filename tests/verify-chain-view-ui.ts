@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-chain-view-ui.js — 「每个会话在处理哪些票」这一块的浏览器门禁
+ * verify-chain-view-ui.ts — 「每个会话在处理哪些票」这一块的浏览器门禁
  * （2026-09-24 维护者改口径：展示面**暂时下线**，能力保留）
  *
  * 维护者的原话：「我的意思是 UI 上先不显示这个，但是能力层面还具备这个能力，未来会根据之前的
@@ -34,7 +34,7 @@
  *   求值出来（与 scripts/build.mjs 同一套做法），写在模板字符串里层数太深、容易被转义绊住。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
- * 运行：node tests/verify-chain-view-ui.js（先 node scripts/build.mjs 生成产物）
+ * 运行：node tests/verify-chain-view-ui.ts（先 node scripts/build.mjs 生成产物）
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'

@@ -1,5 +1,5 @@
-// tests/verify-chain-env-e2e.js —— 门禁：**进工作区之后「环境」那一格真的被检测过一次**（#724）
-// 用法：在插件根目录执行 node tests/verify-chain-env-e2e.js，可独立运行。
+// tests/verify-chain-env-e2e.ts —— 门禁：**进工作区之后「环境」那一格真的被检测过一次**（#724）
+// 用法：在插件根目录执行 node tests/verify-chain-env-e2e.ts，可独立运行。
 //
 // 为什么要有这一条：真机上出过一次「D:\ilife 工作区的状态栏那一格恒为红色 `--`（未知）」，宿主日志
 // 里查不出原因 —— 因为查问题的路径完全在界面那一侧：客户端报了 107 次 `wf.chain` 全败，宿主这边

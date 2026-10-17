@@ -120,7 +120,7 @@
       "ticket": "#1125"
     },
     {
-      "file": "tests/verify-chain-renderer.js",
+      "file": "tests/verify-chain-renderer.ts",
       "reason": "待修门禁：4 处旧锚（必填硬字、模板搬家、谓词改名），重锚后进链",
       "ticket": "#1125"
     },

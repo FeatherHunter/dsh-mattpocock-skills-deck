@@ -1,5 +1,5 @@
-// verify-chain-view.js —— 门禁：处理链展示面「每个会话在处理哪些票」（票 #721 / T17）
-// 用法：在插件根目录执行 node tests/verify-chain-view.js（比产物新鲜度那几条不查产物，可独立运行）
+// verify-chain-view.ts —— 门禁：处理链展示面「每个会话在处理哪些票」（票 #721 / T17）
+// 用法：在插件根目录执行 node tests/verify-chain-view.ts（比产物新鲜度那几条不查产物，可独立运行）
 //
 // 2026-09-24 维护者改口径：这一块的**展示面暂时下线** —— UI 上先不显示，能力全留着
 //   （去向与原因写在 src/client/views/shared/sessionChainView.js 文件头那段指针里）。

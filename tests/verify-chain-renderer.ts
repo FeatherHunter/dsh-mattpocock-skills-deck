@@ -1,12 +1,12 @@
 /**
- * tests/verify-chain-renderer.js — #228 UI 链渲染器与动作分发器门禁
+ * tests/verify-chain-renderer.ts — #228 UI 链渲染器与动作分发器门禁
  *
  * 验收（#228）：
  * - jsdom 冒烟：给定链数据渲染出对应横幅/表单；动作五种类型各执行一次；未知类型显示 unsupported
  * - 真机：Markdown 不出现红卡；GitHub gh 未登录按钮=注入 prompt；登录成功后挂载点自动推进（重求值）
  * - 形态：蓝/黄/红条同源渲染（互斥 42px Tab可达）、步进条、Form 内嵌、refresh 联动
  *
- * 运行：node tests/verify-chain-renderer.js
+ * 运行：node tests/verify-chain-renderer.ts
  */
 
 import { readFileSync, existsSync } from 'node:fs'
