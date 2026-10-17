@@ -8,7 +8,6 @@
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
     "tests/verify-bundled-trio-matrix.js",
-    "tests/verify-detail-levels.js",
     "tests/verify-panel-workspace-isolation.js"
   ]
 }

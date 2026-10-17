@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T08:29:37.233Z",
+  "generatedAt": "2026-10-17T08:30:56.951Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -4249,8 +4249,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-detail-levels.js",
-      "file": "tests/verify-detail-levels.js",
+      "step": "node tests/verify-detail-levels.ts",
+      "file": "tests/verify-detail-levels.ts",
       "guards": [
         "src/host/index.ts"
       ],
@@ -7419,7 +7419,7 @@
       "node tests/verify-config-store-migration.ts",
       "node tests/verify-config-store-package.ts",
       "node tests/verify-delta-wiring.ts",
-      "node tests/verify-detail-levels.js",
+      "node tests/verify-detail-levels.ts",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-detection-log-reach.ts",
       "node tests/verify-gh-gateway.ts",
