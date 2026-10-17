@@ -1,4 +1,4 @@
-// src/shared/tracker/backendWritePermissions.js —— 「这个后端不用问远端也知道写得了吗」的唯一判断（#992 收口）。
+// src/shared/tracker/backendWritePermissions.ts —— 「这个后端不用问远端也知道写得了吗」的唯一判断（#992 收口）。
 //
 // 为什么要有这个文件：
 //   面板要如实告诉人「这个仓库只读，标签与写操作不可用」，先得知道仓库的写权限。三个后端的答案来路不同：
@@ -16,14 +16,18 @@
 //   三个后端房间与工具层都可以引用它。
 
 /** 票就存在本地文件里的后端 id：这类后端没有远端权限模型。 */
-const LOCAL_FILE_BACKEND_IDS = new Set(['markdown'])
+const LOCAL_FILE_BACKEND_IDS: ReadonlySet<string> = new Set(['markdown'])
+
+// 不用问远端就能确定的写权限：只有票文本直接落在本地文件的后端才能在这里下定论。
+// 约定：有远端权限模型的后端一律返回 null 交给调用方去问真值；反例是把 GitHub 也写成恒可写，面板会把只读仓库说成可写。
+type KnownWritePermissions = { push: boolean, triage: boolean } | null
 
 /**
  * 不用问远端就能确定的写权限。
  * @param {string} backendId 当前后端 id
  * @returns {{push: boolean, triage: boolean}|null} 不用问远端就是这一份；要问远端、或按未知处理时回 null
  */
-export function knownWritePermissions(backendId) {
+export function knownWritePermissions(backendId: string | null | undefined): KnownWritePermissions {
   const id = (backendId === null || backendId === undefined) ? '' : String(backendId)
   return LOCAL_FILE_BACKEND_IDS.has(id) ? { push: true, triage: true } : null
 }
