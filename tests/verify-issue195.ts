@@ -55,7 +55,9 @@ function check(file) {
     if (src.includes("ghCliBad")) problems.push("UI: 又出现手写优先级读数 ghCliBad（横幅应读共享清单）")
     // 缺 gh 时那颗按钮必须真的给得出东西：#716 起客户端只带「去查哪条提示词」的键名，
     //   那句话本身住在 GitHub 后端声明里（下一步在那边直断它还在，两边合起来才算「点一下给得出话」）。
-    if (src.indexOf("'cliInstall'") < 0) problems.push("UI: 客户端产物里没有 cliInstall 这个提示词键（缺 gh 时那颗按钮不知道该去问哪条文案）")
+    // 产物引号口径：手写源码里的单引号经 esbuild 进产物统一变双引号（slots 门禁 :271 同款），
+    // 判的是「键名在产物里」不是「引号形状」，两种都认。
+    if (src.indexOf("'cliInstall'") < 0 && src.indexOf('"cliInstall"') < 0) problems.push("UI: 客户端产物里没有 cliInstall 这个提示词键（缺 gh 时那颗按钮不知道该去问哪条文案）")
   }
 
   // 2026-10-17 先修：路径判据从旧的 backends/<id>/index.js 改成今天的 src/tracker/rooms/github/index.ts
