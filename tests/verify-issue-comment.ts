@@ -1,7 +1,7 @@
-// verify-issue-comment.js — #255 四缝验证：契约缝 + 集成差异冒烟（宿主透传冒烟见 smoke-comment-passthrough）
+// verify-issue-comment.ts — #255 四缝验证：契约缝 + 集成差异冒烟（宿主透传冒烟见 smoke-comment-passthrough）
 // - 契约缝：canComment 显隐谓词对三形状（MISSING / EMPTY 数组 / EMPTY nodes）的行为断言（从构建产物提取真源表达式求值）
 // - 集成差异冒烟：diffSnapshots 对「纯评论变化（updatedAt bump）」产出行闪烁——根票（孤儿票）补口 + 子票元组扩展
-// 用法: node tests/verify-issue-comment.js
+// 用法: node tests/verify-issue-comment.ts
 // 2026-10-17 先修（三处，判据一条没放宽）：
 //   ① 谓词锚原来要求那行以「)」加换行结尾，而产物今天以「);」结尾（构建把整句收成一行加一个分号），
 //      锚于是匹配不上、谓词那一条恒假。改成容忍行尾分号。

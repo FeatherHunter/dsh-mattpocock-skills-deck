@@ -85,11 +85,6 @@
       "ticket": "#1125"
     },
     {
-      "file": "tests/verify-issue-comment.js",
-      "reason": "隔离待查：挂正确跑法仍红（谓词分拣加沙箱缺身份键），先修代码再进链",
-      "ticket": "#1227"
-    },
-    {
       "file": "tests/verify-skill-probe-redcard-and-waiting.ts",
       "reason": "隔离待查：14/55 行为失败（坏名片分拣语义），先修代码再进链",
       "ticket": "#1227"

@@ -1,5 +1,5 @@
-// verify-issue195.js — BUG #195 修复契约（原「第二轮：分层多态正确架构」）
-// 用法: node tests/verify-issue195.js [file...]
+// verify-issue195.ts — BUG #195 修复契约（原「第二轮：分层多态正确架构」）
+// 用法: node tests/verify-issue195.ts [file...]
 //
 // #663 改写说明（这张票把这门禁收回了 npm run verify 链上，之前它因为几条与代码脱节的断言一直是红的）：
 //   #195 当初要的是「缺 gh cli 时点一下按钮，要给出能照着做的安装指引」。这条要求在首开引导链定版（#661）

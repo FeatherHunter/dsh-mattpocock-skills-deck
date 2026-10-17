@@ -11,8 +11,6 @@
     "tests/verify-bug-entry.js",
     "tests/verify-bundled-trio-matrix.js",
     "tests/verify-detail-levels.js",
-    "tests/verify-issue-comment.js",
-    "tests/verify-issue195.js",
     "tests/verify-issue22-ui.js",
     "tests/verify-labels-sync.js",
     "tests/verify-panel-workspace-isolation.js"

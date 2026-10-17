@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:50:27.286Z",
+  "generatedAt": "2026-10-17T07:59:12.345Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 291,
-  "gateCount": 291,
-  "attributedGates": 256,
+  "chainLength": 292,
+  "gateCount": 292,
+  "attributedGates": 257,
   "unattributedGates": 35,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
@@ -4844,8 +4844,28 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-issue195.js",
-      "file": "tests/verify-issue195.js",
+      "step": "node tests/verify-issue-comment.ts",
+      "file": "tests/verify-issue-comment.ts",
+      "guards": [
+        "package/lib/client.js",
+        "src/tracker/kernel/identity-keys.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "package/lib",
+        "src/tracker/kernel",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-issue195.ts",
+      "file": "tests/verify-issue195.ts",
       "guards": [
         "package/lib/client.js",
         "package/lib/index.js",
@@ -6874,7 +6894,8 @@
       "node tests/verify-handoff-isolation-787.ts",
       "node tests/verify-handoff-split.ts",
       "node tests/verify-hovertip.ts",
-      "node tests/verify-issue195.js",
+      "node tests/verify-issue-comment.ts",
+      "node tests/verify-issue195.ts",
       "node tests/verify-issue22-popovers.ts",
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-kernel.ts",
@@ -7690,7 +7711,7 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts",
-      "node tests/verify-issue195.js",
+      "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.js",
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-locale-completeness.ts"
@@ -7725,6 +7746,7 @@
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts",
+      "node tests/verify-issue-comment.ts",
       "node tests/verify-map-drill.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts"
@@ -7794,7 +7816,7 @@
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-issue195.js",
+      "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.js",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
@@ -7980,6 +8002,7 @@
       "node tests/verify-handoff-split.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-inject-trailing-newline.ts",
+      "node tests/verify-issue-comment.ts",
       "node tests/verify-issue529-checks-i18n.ts",
       "node tests/verify-issue60-cwd.ts",
       "node tests/verify-label-color-core.ts",
