@@ -420,23 +420,23 @@
     {
       "file": "src/host/index.ts",
       "spec": "./refresh/wiring.js",
-      "resolved": "src/host/refresh/wiring.js",
+      "resolved": "src/host/refresh/wiring.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#723 接线：刷新机制在宿主里真的装起来那一处（闸 + 账本 + 写事件订阅 + 视野模型 + 会话↔票处理链）。入口文件 src/host/index.js 的行数余量很薄（350 行上限；#837 起 339 行、已移出零增长基线，但仍不许再往里堆装配），所以加载器与装配整段收在 wiring.js，入口只留一行调用 —— 与既有 25 处「入口动态加载某模块」同形（见本清单里 index.js 的其余条目）。"
+      "note": "#723 接线：刷新机制在宿主里真的装起来那一处（闸 + 账本 + 写事件订阅 + 视野模型 + 会话↔票处理链）。入口文件 src/host/index.js 的行数余量很薄（350 行上限；#837 起 339 行、已移出零增长基线，但仍不许再往里堆装配），所以加载器与装配整段收在 wiring.ts，入口只留一行调用 —— 与既有 25 处「入口动态加载某模块」同形（见本清单里 index.js 的其余条目）。2026-10-17 校正：wiring 转成 TypeScript 之后这里的两处路径名还写着 .js，边本身没变，只是基线里的旧名与新源码名对不上（#1215）。"
     },
     {
-      "file": "src/host/refresh/wiring.js",
+      "file": "src/host/refresh/wiring.ts",
       "spec": "./ledger.js",
       "resolved": "src/host/refresh/ledger.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#723 接线：wiring.js 是刷新机制在宿主里的装配点 —— 闸、账本、写事件订阅、视野模型、会话↔票处理链这五件的产物在这里拼起来，所以它必然要引用这五个模块。同层互引门禁管的是「干活的文件互相引用造成环」，装配点是它明许的例外方向（本清单里 index.js、platformChannel.js、tracker/index.js 三处装配扇入都是同一条先例）。把装配搬回 index.js 会顶破那个文件的 350 行上限。"
+      "note": "#723 接线：wiring.ts 是刷新机制在宿主里的装配点 —— 闸、账本、写事件订阅、视野模型、会话↔票处理链这五件的产物在这里拼起来，所以它必然要引用这五个模块。同层互引门禁管的是「干活的文件互相引用造成环」，装配点是它明许的例外方向（本清单里 index.js、platformChannel.js、tracker/index.js 三处装配扇入都是同一条先例）。把装配搬回 index.js 会顶破那个文件的 350 行上限。"
     },
     {
-      "file": "src/host/refresh/wiring.js",
+      "file": "src/host/refresh/wiring.ts",
       "spec": "./gate.js",
       "resolved": "src/host/refresh/gate.ts",
       "layer": "host",
@@ -445,7 +445,7 @@
       "note": "#723 接线：装配点造闸（createGate({ ledger })）并把它交给写事件订阅与 deck 工具的壳。同 ledger.js 那一条。"
     },
     {
-      "file": "src/host/refresh/wiring.js",
+      "file": "src/host/refresh/wiring.ts",
       "spec": "./writeEvents.js",
       "resolved": "src/host/refresh/writeEvents.js",
       "layer": "host",
@@ -454,7 +454,7 @@
       "note": "#723 接线：装配点建写事件订阅（createWriteEvents(...).attach(ctx)），并把判定过的那一笔喂给处理链。同 ledger.js 那一条。"
     },
     {
-      "file": "src/host/refresh/wiring.js",
+      "file": "src/host/refresh/wiring.ts",
       "spec": "./sessionTickets.js",
       "resolved": "src/host/refresh/sessionTickets.js",
       "layer": "host",
@@ -463,7 +463,7 @@
       "note": "#723 接线：装配点建会话↔票处理链（createSessionTickets()）—— 喂数据的是写事件订阅，读数是下面那一条。同 ledger.js 那一条。"
     },
     {
-      "file": "src/host/refresh/wiring.js",
+      "file": "src/host/refresh/wiring.ts",
       "spec": "./sessionChainReadout.js",
       "resolved": "src/host/refresh/sessionChainReadout.js",
       "layer": "host",
@@ -472,7 +472,7 @@
       "note": "#723 接线：装配点把处理链转成界面读数（buildSessionChainReadout），快照回包挂的就是它。同 ledger.js 那一条。"
     },
     {
-      "file": "src/host/refresh/wiring.js",
+      "file": "src/host/refresh/wiring.ts",
       "spec": "./attention.js",
       "resolved": "src/host/refresh/attention.js",
       "layer": "host",

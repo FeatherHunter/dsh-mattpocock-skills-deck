@@ -149,10 +149,9 @@
               }
             } catch (eApply) {}
           } catch (eRun) {}
-          // 宿主用异步方式写草稿，第一帧可能还在旧值，最多补一次（120 毫秒），窗口很小，避免抢用户后续输入
-          if (attempts < 2) {
-            try { if (typeof setTimeout === 'function') setTimeout(run, DRAFT_REFOCUS_RETRY_MS) } catch (eT3) {}
-          }
+          // 宿主用异步方式写草稿，第一帧可能还在旧值，最多补一次，窗口很小（120 毫秒那条值住
+          // config/intervals.yaml 的 draftRefocusRetryMs），避免抢用户后续输入。
+          if (attempts < 2) { try { if (typeof setTimeout === 'function') setTimeout(run, DRAFT_REFOCUS_RETRY_MS) } catch (eT3) {} }
         }
         try {
           if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { try { setTimeout(run, 0) } catch (e0) { try { run() } catch (e1) {} } })
