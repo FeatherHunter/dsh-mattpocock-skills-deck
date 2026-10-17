@@ -4,11 +4,18 @@ const nodePath = require('path');
 const nodeOs = require('os');
 const { pathToFileURL } = require('url');
 // 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— S3/S4 里每一条 runGh 都按档位排下一个预算
-//（读 12 秒、写 30 秒、探活 15 秒），命令几十毫秒就回来了，那些预算没人清掉，于是进程要空等 30 秒才肯退出。
-// 压缩成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是 12 / 30 / 15 秒：S4「读档等 12 秒、写档等 30 秒、
-// 探活档等 15 秒」这几条按记录下来的预算值判，S4「15500 毫秒的探活比 15000 毫秒的预算慢、超时归网络档」这一条
-// 靠的是虚拟队列按到期时间排队（15000 毫秒那个先到），S3「60 毫秒就回、没有一条等满超时」也照旧成立。断言一条没动；
+//（读 12 秒、写 60 秒、探活 15 秒），命令几十毫秒就回来了，那些预算没人清掉，于是进程要空等一整档才肯退出。
+// 压缩成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是那三个档位值：S4「读档等 12 秒、写档等 60 秒、
+// 探活档等 15 秒」这几条按记录下来的预算值判，S4「比探活预算慢、超时归网络档」这一条
+// 靠的是虚拟队列按到期时间排队（探活那一档先到），S3「60 毫秒就回、没有一条等满超时」也照旧成立。断言一条没动；
 // 理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+//
+// 三个档位的毫秒数只有中央一个来源（src/shared/time-config/values.js）：这里不手抄数字，
+// 免得配置一调（例如 #1245 把写档从 30 秒放宽到 60 秒）门禁就假红。
+const centralTime = require('../src/shared/time-config/values.js');
+const READ_BUDGET_MS = centralTime.OUTBOUND_READ_TIMEOUT_MS;
+const WRITE_BUDGET_MS = centralTime.OUTBOUND_WRITE_TIMEOUT_MS;
+const PROBE_BUDGET_MS = centralTime.OUTBOUND_PROBE_TIMEOUT_MS;
 const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js');
 installTimeCompression();
 const WT = nodePath.resolve(__dirname, '..');
@@ -144,16 +151,16 @@ async function main() {
     for (const r of spy.rows) allEvents.add(r.event); }
   title('S4 分档：读/探活/写各等各的，超时归网络档');
   { const spy = makeSpy();
-    const g = await makeRunGh(spy, { delayFor: (argv) => (argv[1] === 'auth' ? 15500 : 60) });
+    const g = await makeRunGh(spy, { delayFor: (argv) => (argv[1] === 'auth' ? PROBE_BUDGET_MS + 500 : 60) });
     await g.runGh(['issue', 'list', '--limit', '5'], 'D:/repo');
     await g.runGh(['issue', 'create', '--title', 't', '--body', 'b'], 'D:/repo');
-    must(g.timeouts.includes(12000), '读档等 12 秒', JSON.stringify(g.timeouts));
-    must(g.timeouts.includes(30000), '写档等 30 秒', JSON.stringify(g.timeouts));
+    must(g.timeouts.includes(READ_BUDGET_MS), '读档等 ' + READ_BUDGET_MS / 1000 + ' 秒', JSON.stringify(g.timeouts));
+    must(g.timeouts.includes(WRITE_BUDGET_MS), '写档等 ' + WRITE_BUDGET_MS / 1000 + ' 秒（#1245 从 30 秒放宽到 60 秒，值取自中央常量）', JSON.stringify(g.timeouts));
     const slow = await g.runGh(['auth', 'status'], 'D:/repo');
     spy.dump(['gh.timeout', 'gh.exec']);
-    must(g.timeouts.includes(15000), '探活档等 15 秒（#1160 从 3 秒提到 15 秒）', JSON.stringify(g.timeouts));
+    must(g.timeouts.includes(PROBE_BUDGET_MS), '探活档等 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160 从 3 秒提到 15 秒）', JSON.stringify(g.timeouts));
     must(slow.ok === false && slow.kind === 'network', '探活超时归网络档（未知稍后，不说没登录）', JSON.stringify(slow));
-    must(spy.count('gh.timeout', (f) => f && f.timeoutMs === 15000) === 1, '超时行记的分档值 15000');
+    must(spy.count('gh.timeout', (f) => f && f.timeoutMs === PROBE_BUDGET_MS) === 1, '超时行记的分档值 ' + PROBE_BUDGET_MS);
     for (const r of spy.rows) allEvents.add(r.event); }
   title('S5 技能：平时三项，重查全量，记住的走缓存');
   { const spy = makeSpy(); const w = await makeScopedDetect(spy);
