@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T05:52:24.020Z",
+  "generatedAt": "2026-10-17T05:54:52.803Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 298,
-  "gateCount": 298,
-  "attributedGates": 260,
-  "unattributedGates": 38,
+  "chainLength": 294,
+  "gateCount": 294,
+  "attributedGates": 257,
+  "unattributedGates": 37,
   "buildOutputOnlyGates": 24,
   "completionRecordedGates": 6,
   "smokeLength": 5,
@@ -4829,17 +4829,6 @@
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-issue212-213-214.js",
-      "file": "tests/verify-issue212-213-214.js",
-      "guards": [],
-      "dirs": [],
-      "unattributed": true,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "它没有读也没有导入本仓库的文件，只用自己带的夹具或真机页面自检，算不出它守着哪条源码路径；这类门禁在挑选时不会被选中，真实例子见 docs/agents/verification.md 的「已知漏洞」一节"
-    },
-    {
       "step": "node tests/verify-issue22-popovers.js",
       "file": "tests/verify-issue22-popovers.js",
       "guards": [
@@ -6349,23 +6338,6 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-success-failure-contract.js",
-      "file": "tests/verify-success-failure-contract.js",
-      "guards": [
-        "package/lib/client.js",
-        "src/tracker/rooms/github/index.ts"
-      ],
-      "dirs": [
-        "package/lib",
-        "src/tracker/rooms/github"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 2 条"
-    },
-    {
       "step": "node tests/verify-t1-getrepokey.js",
       "file": "tests/verify-t1-getrepokey.js",
       "guards": [
@@ -6437,23 +6409,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
-    },
-    {
-      "step": "node tests/verify-takeable-menu.js",
-      "file": "tests/verify-takeable-menu.js",
-      "guards": [
-        "src/client/kernel/locale-panel.js",
-        "tests/lib/source-text.ts"
-      ],
-      "dirs": [
-        "src/client/kernel",
-        "tests/lib"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-tracker-contract.js",
@@ -6574,21 +6529,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 2 条"
-    },
-    {
-      "step": "node tests/verify-update-mirror-hint.js",
-      "file": "tests/verify-update-mirror-hint.js",
-      "guards": [
-        "src/client/kernel/locale-flow.js"
-      ],
-      "dirs": [
-        "src/client/kernel"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-update-panel.ts",
@@ -7023,7 +6963,6 @@
       "node tests/verify-setup-describe.js",
       "node tests/verify-skill-tooltip.js",
       "node tests/verify-statusbar-filter-reset.js",
-      "node tests/verify-success-failure-contract.js",
       "node tests/verify-t1-getrepokey.js",
       "node tests/verify-t1-initpublish.js",
       "node tests/verify-t3-locale.ts",
@@ -7245,8 +7184,6 @@
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.js",
-      "node tests/verify-takeable-menu.js",
-      "node tests/verify-update-mirror-hint.js",
       "node tests/verify-visible-truth.js",
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-locale-completeness.js"
@@ -7925,7 +7862,6 @@
       "node tests/verify-labels-sync.js",
       "node tests/verify-prompts.js",
       "node tests/verify-rest-fallback-reason.ts",
-      "node tests/verify-success-failure-contract.js",
       "node tests/verify-tracker-contract.js"
     ],
     "src/tracker/rooms/gitlab": [
@@ -8137,7 +8073,6 @@
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.js",
-      "node tests/verify-takeable-menu.js",
       "node tests/verify-visible-truth.js",
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-locale-completeness.js"
