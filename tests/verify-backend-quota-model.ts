@@ -1,5 +1,5 @@
-// verify-backend-quota-model.js —— 门禁：每个后端的额度桶形状与「按后端算价」（#719 T15 收口）
-// 用法：在插件根目录执行 node tests/verify-backend-quota-model.js，可独立运行。
+// verify-backend-quota-model.ts —— 门禁：每个后端的额度桶形状与「按后端算价」（#719 T15 收口）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-backend-quota-model.ts，可独立运行。
 //
 // 守着三件事（定稿第九章最后一条与第十四章「它其余的处置」）：
 //   ① GitHub 有两个互相独立的桶（REST 数请求条数、GraphQL 数点数），两桶互不折算；
@@ -16,10 +16,10 @@ const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 async function main() {
   console.log('后端额度模型门禁（#719 T15：三个后端的桶形状不同，按后端算价）')

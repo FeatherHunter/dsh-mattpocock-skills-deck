@@ -1,5 +1,5 @@
-// tests/verify-957-workspace-writer.js —— 工作区文件写器门禁（957 规格验收）
-// 用法：在插件根目录执行 node tests/verify-957-workspace-writer.js，可独立运行。
+// tests/verify-957-workspace-writer.ts —— 工作区文件写器门禁（957 规格验收）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-957-workspace-writer.ts，可独立运行。
 //
 // 盯一块（写器，不含读链；读链见 verify-947-workspace-file.js）：
 //   B 首绑落盘：人选 backendId 落盘（来源 user），显式无后端不写，文件已在不覆盖，写失败不回滚绑定但如实回。
@@ -8,16 +8,16 @@ const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const check = (ok: boolean, msg: string, detail?: unknown): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 
-function makeTemp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'wf957-')) }
-function posix(p) { return String(p || '').replace(/\\/g, '/') }
+function makeTemp(): string { return fs.mkdtempSync(path.join(os.tmpdir(), 'wf957-')) }
+function posix(p: unknown): string { return String(p || '').replace(/\\/g, '/') }
 
-function platformFor(dir, opts) {
+function platformFor(dir: string, opts?: any) {
   opts = opts || {}
   const failWrite = !!opts.failWrite
   return {

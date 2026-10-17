@@ -1,17 +1,17 @@
-// verify-config-store-migration.js — 配置迁移门禁（#1012 落地）
+// verify-config-store-migration.ts — 配置迁移门禁（#1012 落地）
 // 盯四件事（宿主适配器 + 内存假文件系统，不碰真实磁盘）：
 //   M1 老 `.json` 能读：只有老文件时照读，from 记 json（调用方决定何时迁移）。
 //   M2 新老并存时以新为准：from 记 yaml，并带一条迁移遗留警告（调用方用已有事件记日志）。
 //   M3 写新删老：写成功后老文件被删掉；删不掉只警告，不影响主流程。
 //   M4 版本过高：读成功标只读，写明确拒绝；两个文件都没有时回 missing（界面引导去选）。
-// 用法：node tests/verify-config-store-migration.js（在仓库根目录）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-config-store-migration.ts
 const path = require('path')
 const { pathToFileURL } = require('url')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: boolean, msg: string, detail?: unknown): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : '')))
   if (!ok) failed = true

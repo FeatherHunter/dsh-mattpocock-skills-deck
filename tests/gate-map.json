@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T03:52:41.683Z",
+  "generatedAt": "2026-10-17T03:59:16.371Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 297,
   "gateCount": 297,
@@ -3457,8 +3457,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-957-workspace-writer.js",
-      "file": "tests/verify-957-workspace-writer.js",
+      "step": "node tests/verify-957-workspace-writer.ts",
+      "file": "tests/verify-957-workspace-writer.ts",
       "guards": [
         "docs/agents",
         "docs/agents/workspace.yaml",
@@ -3526,8 +3526,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-968-skill-ondemand.js",
-      "file": "tests/verify-968-skill-ondemand.js",
+      "step": "node tests/verify-968-skill-ondemand.ts",
+      "file": "tests/verify-968-skill-ondemand.ts",
       "guards": [
         "src/host/bootstrap.js",
         "src/host/platformChannel.ts",
@@ -3782,8 +3782,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-backend-quota-model.js",
-      "file": "tests/verify-backend-quota-model.js",
+      "step": "node tests/verify-backend-quota-model.ts",
+      "file": "tests/verify-backend-quota-model.ts",
       "guards": [
         "src/shared/refresh/backend-quota.js"
       ],
@@ -4080,8 +4080,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-config-store-migration.js",
-      "file": "tests/verify-config-store-migration.js",
+      "step": "node tests/verify-config-store-migration.ts",
+      "file": "tests/verify-config-store-migration.ts",
       "guards": [
         "src/host/configStore.js"
       ],
@@ -6874,7 +6874,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-947-workspace-file.ts",
-      "node tests/verify-957-workspace-writer.js",
+      "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-detection-cascade.js",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-github-label-colors.js",
@@ -7377,7 +7377,7 @@
       "node tests/verify-908-progress-replace.ts",
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
-      "node tests/verify-957-workspace-writer.js",
+      "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-detection-log-reach.ts"
     ],
     "src/deck/tools": [
@@ -7442,13 +7442,13 @@
       "node tests/verify-849-fs-absence.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-927-gate-injection.ts",
-      "node tests/verify-957-workspace-writer.js",
+      "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-963-log-order.ts",
-      "node tests/verify-968-skill-ondemand.js",
+      "node tests/verify-968-skill-ondemand.ts",
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-config-store-comments.ts",
       "node tests/verify-config-store-core.js",
-      "node tests/verify-config-store-migration.js",
+      "node tests/verify-config-store-migration.ts",
       "node tests/verify-config-store-package.ts",
       "node tests/verify-delta-wiring.js",
       "node tests/verify-detection-evidence.ts",
@@ -7551,7 +7551,7 @@
       "node tests/verify-927-gate-injection.ts",
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
-      "node tests/verify-957-workspace-writer.js",
+      "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-998-half-open.ts",
@@ -7589,7 +7589,7 @@
       "node tests/verify-948-feedback-map.ts",
       "node tests/verify-952-short-text.ts",
       "node tests/verify-955-alignment.ts",
-      "node tests/verify-968-skill-ondemand.js",
+      "node tests/verify-968-skill-ondemand.ts",
       "node tests/verify-matt-skills-sync.js",
       "node tests/verify-naming-e2e.js",
       "node tests/verify-naming-guardian.js",
@@ -7652,13 +7652,13 @@
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
-      "node tests/verify-957-workspace-writer.js",
+      "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.js",
-      "node tests/verify-backend-quota-model.js",
+      "node tests/verify-backend-quota-model.ts",
       "node tests/verify-budget-page-upper-bound.js",
       "node tests/verify-budget-worstcase.js",
       "node tests/verify-delta-patch.js",
@@ -7729,7 +7729,7 @@
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
-      "node tests/verify-968-skill-ondemand.js",
+      "node tests/verify-968-skill-ondemand.ts",
       "node tests/verify-delta-patch.js",
       "node tests/verify-delta-wiring.js",
       "node tests/verify-dirwritable.js",
@@ -7801,7 +7801,7 @@
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-947-workspace-file.ts",
-      "node tests/verify-957-workspace-writer.js",
+      "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-detection-cascade.js",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-normalize-log.ts",

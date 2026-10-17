@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-968-skill-ondemand.js —— 技能按需门禁（票 #968，地图 #963）。
+ * verify-968-skill-ondemand.ts —— 技能按需门禁（票 #968，地图 #963）。
  *
  * 治的是什么：此前每一次探测都把二十多项技能从头串行问一遍，没有短时记住问到的结果，
  * 技能变化广播一来就把整机缓存全清掉，同时问同一项的人各问各的。改完后：检查链条上
@@ -19,26 +19,26 @@
  * 测法：真跑 createSkillProbe（计数注册表查询次数）、真跑 detectionService 接真 platformChannel
  * 闭包（计数实际问了哪些技能名）；不断言内部 Map 形状，只看外部行为。
  *
- * 用法：node tests/verify-968-skill-ondemand.js（在插件根目录执行）
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-968-skill-ondemand.ts
  */
 const fsx = require('fs')
 const nodePath = require('path')
 const nodeOs = require('os')
 const { pathToFileURL } = require('url')
 
-const ROOT = nodePath.resolve(__dirname, '..')
-const url = (rel) => pathToFileURL(nodePath.join(ROOT, rel)).href
+const ROOT: string = nodePath.resolve(__dirname, '..')
+const url = (rel: string): string => pathToFileURL(nodePath.join(ROOT, rel)).href
 
 let total = 0
-const broken = []
-function must(cond, invariant, detail) {
+const broken: string[] = []
+function must(cond: boolean, invariant: string, detail?: string): void {
   total++
   if (cond) { console.log('  PASS ' + invariant); return }
   const line = '  FAIL 不变式破了 —— ' + invariant + (detail ? '【实测：' + detail + '】' : '')
   console.log(line)
   broken.push(line.replace(/^\s+/, ''))
 }
-function title(t) { console.log('\n' + t) }
+function title(t: string): void { console.log('\n' + t) }
 
 // 链条要的三项（字面期望，真源是 src/shared/tracker/check-catalog-views.js 的链目录）。
 const CHAIN_THREE = ['wayfinder', 'setup-matt-pocock-skills', 'ask-matt']
