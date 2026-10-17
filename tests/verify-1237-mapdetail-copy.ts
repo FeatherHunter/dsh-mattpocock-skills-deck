@@ -151,5 +151,22 @@ function renderMap(tickets: any[], copyFlash: any) {
   check(countOf(htmlFog, 'tip.copyLink') === 1, 'D2 被雾盖住的票不画复制按钮（雾态动作区为空，没雾的那张不受影响）')
 }
 
+// ---- E 组：编号徽章与标题（2026-10-17 从 verify-t14-detail-badge 搬来） ----
+// 来历：旧的那扇门禁从构建产物里切字符串，注释锚点随 #691 拆组件漂移，四个锚点全死、整扇红着。
+// 这里改成渲染真组件再断 DOM 事实——同样是那三条契约（徽章在行首、文本是 #+编号、紫色且不缩放，
+// 标题挂 dsws-mtitle 并有全文提示），但判据打在行为上，形态怎么重构都不会假红。
+{
+  const html = renderMap([openTicket()], null)
+  const iBadge = html.indexOf('dsws-idnum')
+  const iTitle = html.indexOf('dsws-mtitle')
+  check(iBadge >= 0 && iTitle > iBadge, 'E1 编号徽章画在标题之前（行首那颗）')
+  const badge = html.slice(iBadge, html.indexOf('</span>', iBadge))
+  check(badge.includes('#1228'), 'E2 徽章文本是 # 加编号（实得 ' + badge.replace(/<[^>]*>/g, '') + '）')
+  check(/color:\s*#c084fc/i.test(badge) && /flex:\s*none/i.test(badge), 'E3 徽章紫色且不参与伸缩（flex:none）')
+  const title = html.slice(iTitle, iTitle + 400)
+  check(title.includes('dsws-tt-wrap'), 'E4 标题块挂了全文提示的包裹类')
+  check(title.includes('地图'), 'E5 标题块里是地图标题正文')
+}
+
 console.log(failures ? `\n#1237 门禁失败 ${failures} 项（共 ${total} 条）` : `\n#1237 门禁全部通过（共 ${total} 条）`)
 process.exit(failures ? 1 : 0)

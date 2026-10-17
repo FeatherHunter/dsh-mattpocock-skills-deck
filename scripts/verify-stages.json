@@ -85,11 +85,6 @@
       "ticket": "#1125"
     },
     {
-      "file": "tests/verify-t2-repokey-ui.js",
-      "reason": "只动手点：要真机加 playwright，同上",
-      "ticket": "#1125"
-    },
-    {
       "file": "tests/verify-issue-comment.js",
       "reason": "隔离待查：挂正确跑法仍红（谓词分拣加沙箱缺身份键），先修代码再进链",
       "ticket": "#1227"
@@ -127,17 +122,6 @@
     {
       "file": "tests/verify-detail-levels.js",
       "reason": "待修门禁：同上",
-      "ticket": "#1125"
-    },
-    {
-      "file": "tests/verify-map-subissues-352.js",
-      "reason": "待修门禁：版本 pin 过期（断言 v14，源码已 v17），改兼容后进链",
-      "ticket": "#1125"
-    },
-    
-    {
-      "file": "tests/verify-t14-detail-badge.js",
-      "reason": "待修门禁：注释锚点漂移，按徽章重锚后进链",
       "ticket": "#1125"
     },
     {

@@ -22,11 +22,9 @@
     "tests/verify-issue22-ui.js",
     "tests/verify-labels-sync.js",
     "tests/verify-map-drill.js",
-    "tests/verify-map-subissues-352.js",
     "tests/verify-no-mixed-session.js",
     "tests/verify-no-title.js",
     "tests/verify-panel-workspace-isolation.js",
-    "tests/verify-panel-workspace-shared.js",
     "tests/verify-rest-fallback-banner.js",
     "tests/verify-session-title.js",
     "tests/verify-setup-describe.js",
@@ -34,8 +32,6 @@
     "tests/verify-skill-probe-redcard-and-waiting.js",
     "tests/verify-statusbar-filter-reset.js",
     "tests/verify-subdir-first-frame.js",
-    "tests/verify-t14-detail-badge.js",
-    "tests/verify-t2-repokey-ui.js",
     "tests/verify-tabs-narrow.js"
   ]
 }
