@@ -216,7 +216,6 @@
     "src/shared/tracker/chain-evaluate.js",
     "src/shared/tracker/chain-types.js",
     "src/shared/tracker/chain-validate.js",
-    "src/shared/tracker/check-catalog-views.js",
     "src/shared/tracker/guide-steps.js",
     "src/shared/tracker/list-dedupe.js",
     "src/shared/tracker/shape.js",

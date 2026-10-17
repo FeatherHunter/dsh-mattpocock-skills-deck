@@ -1,4 +1,4 @@
-// src/shared/tracker/check-catalog-views.js —— S3（#453）从 check-catalog.js 拆出之链视图与目录转检查项、形状校验，纯结构、行为零变化。
+// src/shared/tracker/check-catalog-views.ts —— S3（#453）从 check-catalog.js 拆出之链视图与目录转检查项、形状校验，纯结构、行为零变化。
 // 以后谁改它：改链视图、展示文案、转换与形状校验的人。预估约150行，超 350 打回。
 // 接线：不引用类型、校验、求值与目录文件（墙要求）；动作类型、检测原语与 chain-types.js 同源，改动时一起改；拼接标记不新设。
 
@@ -32,8 +32,15 @@ const PRIMITIVE_KIND = Object.freeze({
  * 通用检查只读探测，失败返回而非抛；注册表验形状不验内容（与 tracker registry 哲学一致）。
  */
 
+// Show/Action 文案对的静态形态：pass 与 fail 各一套展示，动作为空数组或动作表。
+// 约定：文案只描述状态，不承诺修复，推进靠 actions 里的动作；反例是在 fallback 里写“点击即可修复”，动作词汇表里并没有承诺修复的动作。
+type ShowPair = {
+  pass: { show: { i18nKey: string, fallback: string, level?: string }, actions: unknown[] }
+  fail: { show: { i18nKey: string, fallback: string, level: string, hint?: string | undefined }, actions: unknown[] }
+}
+
 // CatalogItem → CheckItem 的映射（Show/Action 的契约级文案，i18nKey 单源）
-function showFor(id, passTitle, failTitle, failLevel, failHint) {
+function showFor(id: string, passTitle: string, failTitle: string, failLevel: string, failHint?: string): ShowPair {
   return {
     pass: { show: { i18nKey: 'check.' + id + '.pass', fallback: passTitle }, actions: [] },
     fail: { show: { i18nKey: 'check.' + id + '.fail', fallback: failTitle, level: failLevel, hint: failHint || undefined }, actions: [] },
@@ -43,7 +50,7 @@ function showFor(id, passTitle, failTitle, failLevel, failHint) {
 // 通用检查项的链视图（契约层形态，含展示与动作；全部只读探测，无写操作）
 // 动作词汇表：inject-prompt（推进型，配合重求值）/ open-url（信息型）/ rpc / form / refresh（执行型）
 // 原则：动作不承诺修复，检查才判定状态；未知类型 = 诚实 unsupported。
-export const GENERIC_CHECK_ITEMS = Object.freeze([
+export const GENERIC_CHECK_ITEMS: readonly import('./chain-types.js').CheckItem[] = Object.freeze([
   {
     id: 'skill:wayfinder',
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'wayfinder' },
@@ -109,7 +116,10 @@ export const GENERIC_GATE_CHAIN = Object.freeze([
     group: 'gate',
   },
   GENERIC_CHECK_ITEMS.find(c => c.id === 'tracker:initialized'),
-].filter(Boolean))
+  // find 可能找不到（类型是 CheckItem|undefined）：过滤必须写类型谓词，
+  // 否则链里会混进 undefined，后面 .find(c => c.id) 在严格模式下直接红。
+  // Boolean 直传不收窄数组元素类型，这里只能手写。
+].filter((c): c is import('./chain-types.js').CheckItem => c !== undefined))
 
 /** 环境链通用分区（c7-c9 等后端无关环境就绪度，全部只读探测）。 */
 export const GENERIC_ENV_CHAIN = Object.freeze(GENERIC_CHECK_ITEMS.filter(c => c.group === 'env'))
@@ -117,12 +127,24 @@ export const GENERIC_ENV_CHAIN = Object.freeze(GENERIC_CHECK_ITEMS.filter(c => c
 /** 通用链全量（gate + env），任意后端下输出一致（#226 验收）。 */
 export const GENERIC_CHAIN = Object.freeze([...GENERIC_GATE_CHAIN, ...GENERIC_ENV_CHAIN])
 
+// 目录项输入的静态形态：转换函数只读这四个字段，其余字段原样不看。
+// 约定：后端目录项复用时只补默认展示，不改原 check 描述；反例是重写 check，会把目录里定好的谓词口径换掉。
+type CatalogItemInput = {
+  id: string
+  label: string
+  scope: string
+  check: import('./chain-types.js').Check
+}
+
 /**
  * CatalogItem → CheckItem 转换（供后端目录复用，验形状不验内容）。
+ *
+ * 约定：通用目录里能找到的直接复用原项，不重建，后端目录项才补默认展示；反例是给通用项也重建，通用项上写好的安装引导动作会被默认动作覆盖掉。
+ *
  * @param {import('./chain-types.js').Check} catalogItem
  * @returns {import('./chain-types.js').CheckItem}
  */
-export function catalogItemToCheckItem(catalogItem) {
+export function catalogItemToCheckItem(catalogItem: CatalogItemInput): import('./chain-types.js').CheckItem {
   if (!catalogItem || typeof catalogItem !== 'object') throw new Error('catalogItem must be object')
   const found = GENERIC_CHECK_ITEMS.find(c => c.id === catalogItem.id) || GENERIC_GATE_CHAIN.find(c => c.id === catalogItem.id)
   if (found) return found
@@ -140,10 +162,13 @@ export function catalogItemToCheckItem(catalogItem) {
 
 /**
  * 验形状（目录项形状校验，供 predicateRegistry 与 tracker registry 同哲学）。
+ *
+ * 约定：只查字段在不在，不查技能名与文件路径是真是假，真假是谓词运行时的事；反例是在这里查 skill 是否存在，会把形状校验变成需要文件系统的重操作。
+ *
  * @param {import('./chain-types.js').CheckItem} item
  * @returns {string[]} errors 为空即形状合法
  */
-export function validateGenericShape(item) {
+export function validateGenericShape(item: import('./chain-types.js').CheckItem | null | undefined): string[] {
   if (!item || typeof item !== 'object') return ['item must be object']
   if (typeof item.id !== 'string' || !item.id) return ['id must be non-empty string']
   if (!item.check || typeof item.check !== 'object') return ['check must be object']
