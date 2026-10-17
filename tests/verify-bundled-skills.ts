@@ -11,24 +11,24 @@
  *  4) package/package.json:files 含 bundled-skills（漏发硬卡）
  *  5) 增量体积：npm pack --dry-run 的 unpacked size 差值 ≤ 5MB（阈值硬卡，需显式改阈豁免）；空 bundled 期跳过
  *
- * 用法：node tests/verify-bundled-skills.js
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-bundled-skills.ts
  * 退出码 0 = 通过；1 = 失败
  */
 const { readFileSync, existsSync, readdirSync, statSync } = require('node:fs')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
-const ROOT = path.resolve(__dirname, '..')
-const BUNDLED_DIR = path.join(ROOT, 'package/bundled-skills')
-const PKG_JSON = path.join(ROOT, 'package/package.json')
-const THRESHOLD_BYTES = 5 * 1024 * 1024 // 5MB
+const ROOT: string = path.resolve(__dirname, '..')
+const BUNDLED_DIR: string = path.join(ROOT, 'package/bundled-skills')
+const PKG_JSON: string = path.join(ROOT, 'package/package.json')
+const THRESHOLD_BYTES: number = 5 * 1024 * 1024 // 5MB
 
 let failures = 0
-function check(cond, msg) { if (!cond) { console.log('[FAIL]', msg); failures++ } else { console.log('[PASS]', msg) } }
-function warn(msg) { console.log('[WARN]', msg) }
-function note(msg) { console.log('[note]', msg) }
+function check(cond: boolean, msg: string): void { if (!cond) { console.log('[FAIL]', msg); failures++ } else { console.log('[PASS]', msg) } }
+function warn(msg: string): void { console.log('[WARN]', msg) }
+function note(msg: string): void { console.log('[note]', msg) }
 
-function extractFrontmatterName(md) {
+function extractFrontmatterName(md: string): string | null {
   const firstEnd = md.indexOf('\n')
   if (firstEnd === -1) return null
   if (md.slice(0, firstEnd).replace(/\r$/, '') !== '---') return null
@@ -49,7 +49,7 @@ function extractFrontmatterName(md) {
   if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
   return v.trim()
 }
-function extractDescription(md) {
+function extractDescription(md: string): string | null {
   const firstEnd = md.indexOf('\n')
   if (firstEnd === -1) return null
   if (md.slice(0, firstEnd).replace(/\r$/, '') !== '---') return null
@@ -76,7 +76,7 @@ if (!existsSync(BUNDLED_DIR)) {
   process.exit(0)
 }
 
-let bundledNames = []
+let bundledNames: string[] = []
 try { bundledNames = readdirSync(BUNDLED_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort() } catch (e) { bundledNames = [] }
 check(bundledNames.length === 27, `bundled 目录含 27 技能（当前 ${bundledNames.length}）`)
 
@@ -131,7 +131,7 @@ if (existsSync(PKG_JSON)) {
 // 此处采用轻量口径：统计 bundled 目录实际占用 < 5MB 即通过，超阈再用 npm pack 精确复核
 try {
   let total = 0
-  function walk(dir) {
+  function walk(dir: string): void {
     for (const ent of readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, ent.name)
       if (ent.isDirectory()) walk(p)
@@ -144,7 +144,7 @@ try {
   console.log(`[info] bundled 目录实际占用 ${(total/1024/1024).toFixed(2)} MB（阈值 ${(THRESHOLD_BYTES/1024/1024).toFixed(0)} MB）`)
   check(total <= THRESHOLD_BYTES, `bundled 增量 ≤ 5MB（当前 ${(total/1024/1024).toFixed(2)} MB）`)
   if (total > THRESHOLD_BYTES) {
-    console.log('[hint] 超阈需显式改 tests/verify-bundled-skills.js 的 THRESHOLD_BYTES 并说明理由')
+    console.log('[hint] 超阈需显式改 tests/verify-bundled-skills.ts 的 THRESHOLD_BYTES 并说明理由')
   }
   // 额外：npm pack --dry-run 精确校验（若 npm 可用）
   // 这一行有两个坑，2026-10-17 一起修掉：

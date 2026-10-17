@@ -252,7 +252,6 @@
     "tests/verify-bug-entry.js",
     "tests/verify-build-artifacts.js",
     "tests/verify-bundled-discovery.js",
-    "tests/verify-bundled-skills.js",
     "tests/verify-bundled-trio-matrix.js",
     "tests/verify-cap-fold-browser.js",
     "tests/verify-cards-dir.js",

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T04:08:09.744Z",
+  "generatedAt": "2026-10-17T04:30:18.259Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 297,
   "gateCount": 297,
@@ -3870,8 +3870,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
-      "step": "node tests/verify-bundled-skills.js",
-      "file": "tests/verify-bundled-skills.js",
+      "step": "node tests/verify-bundled-skills.ts",
+      "file": "tests/verify-bundled-skills.ts",
       "guards": [
         "package/bundled-skills",
         "package/package.json"
@@ -6902,7 +6902,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-bundled-discovery.js",
-      "node tests/verify-bundled-skills.js",
+      "node tests/verify-bundled-skills.ts",
       "node tests/verify-bundled-trio-matrix.js",
       "node tests/verify-config-store-package.ts",
       "node tests/verify-ctx.ts",
@@ -6919,7 +6919,7 @@
     "package/bundled-skills": [
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-bundled-discovery.js",
-      "node tests/verify-bundled-skills.js",
+      "node tests/verify-bundled-skills.ts",
       "node tests/verify-bundled-trio-matrix.js",
       "node tests/verify-matt-skills-sync.js"
     ],
