@@ -97,7 +97,7 @@ let WORKSPACE_ROOT = "";
  * 这条规则与宿主同一条（出处：票 #649 定版、架构决定记录 docs/adr/20260918-subworkspace-identity-root.md，
  * 宿主侧实现在 src/host/workspaceKey.js 的 resolveWorkspaceRoot）。脚本要能单跑、不依赖仓库源码，
  * 所以这里是一份自包含的副本——两份是否给出同一结论由 tests/verify-wire-subissues-script.js 与
- * tests/verify-issue-body-script.js 的子目录用例钉住。
+ * tests/verify-issue-body-script.ts 的子目录用例钉住。
  * @returns {{ root: string, found: boolean }} found=false 表示一路上一个标记都没有（root 就是 startDir 本身）。
  */
 function findWorkspaceRoot(startDir) {

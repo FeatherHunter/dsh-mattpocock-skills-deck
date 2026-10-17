@@ -87,7 +87,7 @@
 **规则 4：改的是门禁或测试自己。** `tests/**` 已经在规则 1 里命中，整条链都会跑，那扇测试自然在里头。
 
 **规则 5：只验构建产物的门禁跟着源码一起跑。** 有 20 扇门禁只读 `package/` 下的产物
-（例如 `tests/verify-958-label-name-visible.js` 读 `package/lib/client.js`）。
+（例如 `tests/verify-958-label-name-visible.ts` 读 `package/lib/client.js`）。
 脚本看不出产物是哪个源码文件编出来的，所以只要这次动到了源码，这 20 扇一律跟着跑。
 
 补充两条边界：改动清单为空（比如你没传参数）按全链处理；传进来的路径既支持

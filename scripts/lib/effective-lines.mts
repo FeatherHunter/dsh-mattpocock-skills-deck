@@ -1,6 +1,6 @@
 // effective-lines.mts —— 门禁共用的「有效行数」口径（#1017 立）
 //
-// 为什么单独放一份：文件行数这条尺子有两处门禁在读（tests/verify-file-granularity.js 判全树、
+// 为什么单独放一份：文件行数这条尺子有两处门禁在读（tests/verify-file-granularity.ts 判全树、
 // tests/verify-leaves.js 判叶子清单），按 AGENTS.md 的规矩，同一个判定不许在两处各写一遍——
 // 一处改了另一处没改，症状是「本机全绿、另一条门禁红」。所以口径本体住这里，两个门禁都 require 它。
 //

@@ -86,7 +86,7 @@ function redactLocalPaths(text) {
  * 的目录就是工作区根；两种标记同等优先、谁近听谁；一路到磁盘根都没有，就用 startDir 本身。
  * 这条规则与宿主同一条（出处：票 #649 定版、架构决定记录 docs/adr/20260918-subworkspace-identity-root.md，
  * 宿主侧实现在 src/host/workspaceKey.js 的 resolveWorkspaceRoot）。脚本要能单跑、不依赖仓库源码，
- * 所以这里是一份自包含的副本——两份是否给出同一结论由 tests/verify-issue-body-script.js 与
+ * 所以这里是一份自包含的副本——两份是否给出同一结论由 tests/verify-issue-body-script.ts 与
  * tests/verify-wire-subissues-script.js 的子目录用例钉住。
  * @returns {{ root: string, found: boolean }} found=false 表示一路上一个标记都没有（root 就是 startDir 本身）。
  */
@@ -217,7 +217,7 @@ function requireGithub(startDir) {
 /**
  * 校正正文写法。返回 { text, changes, realNewlines, literalEscapes }。
  * 阈值与 src/shared/parser.js 的 normalizeBody 完全一致，本文件是它的独立副本（脚本要能单跑，
- * 不依赖仓库源码目录与 Node 的模块探测），两者是否一致由 tests/verify-issue-body-script.js 差分钉住。
+ * 不依赖仓库源码目录与 Node 的模块探测），两者是否一致由 tests/verify-issue-body-script.ts 差分钉住。
  */
 function normalizeForWrite(raw) {
   const changes = [];

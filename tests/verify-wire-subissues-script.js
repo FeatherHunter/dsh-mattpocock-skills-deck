@@ -778,9 +778,9 @@ console.log('子议题关联脚本门禁（#572 · 命令行黑盒）')
   const { planGates } = require('../scripts/lib/discover-gates.ts')
   const plan = planGates(ROOT)
   const mine = plan.find((s) => s.file === 'tests/verify-wire-subissues-script.js')
-  const sister = plan.find((s) => s.file === 'tests/verify-issue-body-script.js')
+  const sister = plan.find((s) => s.file === 'tests/verify-issue-body-script.ts')
   check(!!mine, '21.1 verify 链已纳入本门禁（规划函数里有它）')
-  check(!!sister && !!mine && sister.stage === mine.stage, '21.2 本门禁与姊妹门禁 tests/verify-issue-body-script.js 同处 ' + (mine ? mine.stage : '?') + ' 段')
+  check(!!sister && !!mine && sister.stage === mine.stage, '21.2 本门禁与姊妹门禁 tests/verify-issue-body-script.ts 同处 ' + (mine ? mine.stage : '?') + ' 段')
 }
 
 // ——— 22) 子目录里跑：一路向上找到工作区根，命令也在根上跑（#654） ———

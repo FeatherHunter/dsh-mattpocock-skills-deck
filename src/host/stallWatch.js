@@ -5,7 +5,7 @@
 // 补的是 #839 留下的缺口：那里只有两种兜底 —— git 自己的 GIT_HTTP_LOW_SPEED_*（对端彻底不回包时有效）
 // 与预算强杀（会把「只是慢」也杀掉）；看门狗是第三种：比预算更早，又不会被「一直慢慢喂字节」骗过去。
 //
-// 为什么单独一个文件：versionControl.js 贴着 350 行上限（tests/verify-file-granularity.js 的零增长基线），
+// 为什么单独一个文件：versionControl.js 贴着 350 行上限（tests/verify-file-granularity.ts 的零增长基线），
 // 照仓库先例（#500 logStore→logPhones、#821 versionControl→versionControlFiles）把整段搬成自包含叶子，
 // 依赖从参数进来、本文件不 import 任何别的宿主文件（单向引用，同层互引那条基线记在 versionControl.js 那一侧）。
 //

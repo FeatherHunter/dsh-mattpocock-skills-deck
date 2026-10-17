@@ -1,7 +1,7 @@
 /**
  * tracker/contract-page.js — contract.js 的续篇：按页取票这条操作的语义（#690 新加，2026-09-22）。
  *
- * 为什么单独一份：contract.js 受「每个文件不超 350 行」这条仓库门禁管（tests/verify-file-granularity.js）。
+ * 为什么单独一份：contract.js 受「每个文件不超 350 行」这条仓库门禁管（tests/verify-file-granularity.ts）。
  *   #689 往契约里加「计数」那条操作时撞上了上限，按仓库既有做法把标签配色那两条的正文挪到了同目录的
  *   contract-label-colors.js（一个字没改）；本文件接着承载 #690 新加的这条。以后改这条操作的语义，改本文件。
  *

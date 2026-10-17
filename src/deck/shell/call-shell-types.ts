@@ -1,7 +1,7 @@
 // src/deck/shell/call-shell-types.ts —— 工具壳的契约形状（#1040 拆出来）
 //
 // 为什么单独一个文件：call-shell.ts 补完类型标注之后有效行数冲到 461，越过了「单文件 350 行」
-// 那条上限（tests/verify-file-granularity.js）。壳里「外面递进来的东西长什么样」与「壳发出去的东西
+// 那条上限（tests/verify-file-granularity.ts）。壳里「外面递进来的东西长什么样」与「壳发出去的东西
 // 长什么样」是一件事，收在这份文件里；机制（取会话、选后端、过闸、拼信封）留在 call-shell.ts。
 // 拆开的唯一原因就是那条行数上限，不是为了分层 —— 与同目录 rules/ 那几份文件头的口径一致。
 //

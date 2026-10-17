@@ -75,7 +75,7 @@ const LEAF_EXPORTS = [
 // 两份 props 契约（只有类型，不会被转译，也不进闭包）。
 const CONTRACTS = ['cardBits.d.ts', 'cardProps.d.ts']
 
-// 本仓真实标签配色（与 tests/verify-958-label-name-visible.js 里那份 GitHub 标签表同源）：
+// 本仓真实标签配色（与 tests/verify-958-label-name-visible.ts 里那份 GitHub 标签表同源）：
 // 卡片拿到的 colorOf 就是「标签名 → 颜色」这张表，配色断言用它才代表真机。
 const LABEL_COLORS = {
   'bug': 'd73a4a', 'needs-triage': 'fbca04', 'ready-for-agent': '0e8a16', 'ready-for-human': 'b60205',

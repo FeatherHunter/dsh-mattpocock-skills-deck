@@ -22,7 +22,7 @@ const TS_ADR_REL = 'docs/adr/20260913-builtin-ts-shape.md'
 /** 六条不变量各自在 ADR 里必须出现的那一句判据标题。 */
 const INVARIANTS = [
   { id: 'I1', needle: '唯一出口：对 GitHub 的每一次调用都必须经过闸', gate: 'tests/verify-gh-gateway.ts' },
-  { id: 'I2', needle: '后台零定时器', gate: 'tests/verify-attention-model.js' },
+  { id: 'I2', needle: '后台零定时器', gate: 'tests/verify-attention-model.ts' },
   { id: 'I3', needle: '首屏只付行数据的钱', gate: 'budget.js' },
   { id: 'I4', needle: '用量与工作区数量无关', gate: 'tests/verify-event-budget.ts' },
   { id: 'I5', needle: '失败必可见、必退避', gate: 'backoff' },
@@ -78,11 +78,11 @@ async function main() {
   // ③b 上面那句必须与代码当场对得上——去读那条门禁和它记的基线，不许只信文档。
   //   #1017 之前这里核的是「门禁只扫 .js、没把 refresh 纳进去」；换轨之后那句话反了过来：
   //   门禁确实读 .ts 了，所以这句话的对照组变成「超线的那份真的冻结在基线里」。
-  const granularity = fs.readFileSync(path.join(ROOT, 'tests', 'verify-file-granularity.js'), 'utf8')
+  const granularity = fs.readFileSync(path.join(ROOT, 'tests', 'verify-file-granularity.ts'), 'utf8')
   const scansSrc = /const SRC = path\.join\(ROOT, 'src'\)/.test(granularity)
   const readsTs = /\.ts/.test(granularity) && granularity.indexOf('effective-lines') >= 0
   check(scansSrc && readsTs,
-    '当场核一遍：tests/verify-file-granularity.js 扫的确实是 src 那棵树，而且真的把 .ts 真源读进来（#1017 换轨后）')
+    '当场核一遍：tests/verify-file-granularity.ts 扫的确实是 src 那棵树，而且真的把 .ts 真源读进来（#1017 换轨后）')
   const frozenRel = 'src/shared/refresh/src/chain.ts'
   let frozenAt = null
   let frozenMetric = null

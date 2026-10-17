@@ -238,7 +238,7 @@ export function createAttention(deps) {
 /**
  * 造一条可以直接交给 harness.handle 的 wf.focus 处理器。
  *
- * 为什么要有这一层：`src/host/index.js` 贴着一行都不能超的 350 行上限（tests/verify-file-granularity.js
+ * 为什么要有这一层：`src/host/index.js` 贴着一行都不能超的 350 行上限（tests/verify-file-granularity.ts
  * 的零增长基线），所以那条接线上只留一行注册，把「懒加载 + 幂等建实例 + 把依赖接过去」整段收在这里。
  * 这是本仓库既有的做法（每个宿主模块都导出一个 create* 工厂，入口那侧只负责传依赖）。
  * 用具名导出而不是默认导出：根构建脚本的逐文件转译那一段只认具名导出。

@@ -5,7 +5,7 @@
  * 契约：本文件是一段 CSS 文本（ESM 导出）；scripts/build.mjs 去掉行首 export 后拼进 src/client/index.js
  *   的拼接标记处，与 kernel/styles.js 同一套做法（一源两物）。注入仍走同一个 styles.insert 接缝
  *   （index.js 里紧接着再 insert 一次），没有第二个 <style>，也没有新的注入机制。
- * 为什么是独立叶子：kernel/styles.js 已经 350/350 行、在 tests/verify-file-granularity.js 里是冻结基线。
+ * 为什么是独立叶子：kernel/styles.js 已经 350/350 行、在 tests/verify-file-granularity.ts 里是冻结基线。
  *
  * 这一版换的是**皮肤**（颜色、圆角、行距、字距），布局那一层是 #854 的「视图切换」。
  *

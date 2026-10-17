@@ -20,7 +20,7 @@ const realPath = (rel: string): string => sourcePath(rel)
 let failed = false
 const check = (ok: unknown, msg: string): void => { console.log(((ok ? '  PASS ' : '  FAIL ') + msg) as string); if (!ok) failed = true }
 
-/** 零增长基线（#845）：在册文件按基线值判，不在册的按 350 判；与 verify-file-granularity.js 同一份文件。 */
+/** 零增长基线（#845）：在册文件按基线值判，不在册的按 350 判；与 verify-file-granularity.ts 同一份文件。 */
 const GRANULARITY_BASELINE: Record<string, number> = (function (): Record<string, number> {
   try {
     const data = JSON.parse(fs.readFileSync(path.join(__dirname, 'file-granularity-baseline.json'), 'utf8'))
@@ -148,7 +148,7 @@ function main(): void {
     const lines = countEffectiveLines(src)
     // #845：这条断言原来写死「全员 350」，但 3ccef80 起仓库有一份零增长基线
     //   （tests/file-granularity-baseline.json：门禁落地时已超标的文件把当时行数记进去，只许减不许增）。
-    //   判据改成与 verify-file-granularity.js 同一口径：在基线里的文件 ≤ 基线值，不在基线的 ≤350。
+    //   判据改成与 verify-file-granularity.ts 同一口径：在基线里的文件 ≤ 基线值，不在基线的 ≤350。
     // #1017：口径换成**有效行**（注释与空行不计），实现与那条门禁共用 scripts/lib/effective-lines.mts。
     //   同一份文件按总行数算是 359 行、按有效行算是 233 行，两处口径不一致会让这条断言凭空变红。
     //   基线表按仓库相对路径查：一直查的是 LEAVES 里登记的那条路径（对转过的文件就是那个 .js 名字），

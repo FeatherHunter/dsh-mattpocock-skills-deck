@@ -13,7 +13,7 @@
  *
  * 为什么单独一个文件：这一族读写原先住在 kernel/store-prefs.js 里，那份文件在搬出这一族之前
  *   （父提交 3a7063b9，即 #1012 落地那次提交的上一提交）按门禁算法已经 317 行（文件粒度门禁上限 350 行，
- *   见 tests/verify-file-granularity.js），本票要加的「读文档、合并着写、旧表过渡」三件事塞不进去，
+ *   见 tests/verify-file-granularity.ts），本票要加的「读文档、合并着写、旧表过渡」三件事塞不进去，
  *   所以照仓库惯例搬成一个自包含的内核片段；store-prefs.js 只留调用与旧表那几行。
  * 为什么写成 JavaScript 而不是 TypeScript：内核模块的运行时形状来自拼接 —— scripts/build.mjs 把本文件的
  *   声明体拼进 src/client/index.js 的闭包，tsconfig 不覆盖内核这几片；写成 TypeScript 既进不了类型检查也

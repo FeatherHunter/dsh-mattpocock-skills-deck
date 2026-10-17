@@ -1,7 +1,7 @@
 /**
  * tracker/contract-label-colors.js — contract.js 的续篇：标签配色两条操作的语义（#627 定版，2026-09-13）。
  *
- * 为什么单独一份：contract.js 受「每个文件不超 350 行」这条仓库门禁管（tests/verify-file-granularity.js），
+ * 为什么单独一份：contract.js 受「每个文件不超 350 行」这条仓库门禁管（tests/verify-file-granularity.ts），
  *   #689 往契约里加「计数」那条操作时撞上了上限，于是按仓库既有做法把 #627 这两条操作的正文原样挪到
  *   这里（一个字没改），contract.js 里只留一句指向本文件的话。以后改这两条操作的语义，改本文件。
  *

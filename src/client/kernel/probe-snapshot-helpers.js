@@ -1,7 +1,7 @@
 /**
  * src/client/kernel/probe-snapshot-helpers.js — 内核模块（#707 由 probe-snapshot.js 按行数门禁拆出）
  *
- * 为什么拆：probe-snapshot.js 拆到这里之前已经 349 行，而 tests/verify-file-granularity.js 的上限是 350 行
+ * 为什么拆：probe-snapshot.js 拆到这里之前已经 349 行，而 tests/verify-file-granularity.ts 的上限是 350 行
  * （超一行即红），#707（视野模型）与 #708、#709 都还要改那个文件，已经没有下脚的地方。
  * 这里搬出来的是三类跟「下载快照」本身无关的小东西，就地不动、一行都没改行为：
  *   ① 颜色两个小函数（hexA / darken）：标签配色渲染用；

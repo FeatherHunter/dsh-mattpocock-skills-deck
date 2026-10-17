@@ -1,6 +1,6 @@
 // src/host/snapshotBuild.ts —— 面板快照组装与地图详情拉取（从 issueDetail.ts 拆出，#599）。
 //
-// 为什么拆：issueDetail.js 当时 349 行，紧贴「src 文件 ≤350 行」的门禁（tests/verify-file-granularity.js），
+// 为什么拆：issueDetail.js 当时 349 行，紧贴「src 文件 ≤350 行」的门禁（tests/verify-file-granularity.ts），
 // 而本票要在那张文件里给「已合并」补状态归一，加不进去。按仓库既有做法（拆分管线的先例见
 // tests/same-layer-baseline.json：入口 src/host/index.js 引用同层模块共 25 条）把两件事分开：
 //   本文件 = 「按工作区组装整份快照」：拉地图详情与子票、拼 maps/issues/labels、报选择与仓库身份；

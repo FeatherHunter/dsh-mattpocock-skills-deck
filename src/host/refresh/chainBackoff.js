@@ -13,7 +13,7 @@
 // 动作、写入成功之后）。人亲手点的那一次（trigger 为 'user-recheck'）永不降档，无论退到第几档都照做。
 //
 // 为什么单独一个文件而不是塞进 detectChain.js：那个文件已经 286 行，仓库单文件上限是 350 行
-//（tests/verify-file-granularity.js），再塞六十行就顶格了。
+//（tests/verify-file-granularity.ts），再塞六十行就顶格了。
 export function createChainBackoff(deps) {
   const { logCtx } = deps || {}
 

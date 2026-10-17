@@ -1,6 +1,6 @@
 /*
- * tests/verify-issue-body-script.js —— #571 正文写回脚本门禁（命令行黑盒）
- * 用法: node tests/verify-issue-body-script.js（在插件根目录；不联网、不碰真票）
+ * tests/verify-issue-body-script.ts —— #571 正文写回脚本门禁（命令行黑盒）
+ * 用法: node tests/verify-issue-body-script.ts（在插件根目录；不联网、不碰真票）
  *
  * 测什么（契约 #576 定的测试缝：只测最高的一道——脚本命令行黑盒，参数进、回包加退出码出）：
  *   1) 正常正文：不改写、无告警、回包 command 走 --body-file 且不出现内联 --body；

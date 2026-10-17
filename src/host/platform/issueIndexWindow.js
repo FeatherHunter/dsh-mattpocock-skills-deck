@@ -1,6 +1,6 @@
 // src/host/platform/issueIndexWindow.js —— 「远端有没有变」那套状态与水印的持有者（#723 T19c · 第 E 件）
 //
-// 这一块从 src/host/issueList.js 里搬出来，只为一个原因：那个文件贴着 350 行上限（tests/verify-file-granularity.js），
+// 这一块从 src/host/issueList.js 里搬出来，只为一个原因：那个文件贴着 350 行上限（tests/verify-file-granularity.ts），
 // 水印收口那一段加进去就超了。搬运时行为一个字没改，只是把三个注入点（getRepoKey / readDiskCache / fetchIssueIndex）
 // 变成构造参数。为什么这个文件住在 src/host/platform/：同层互引门禁把 src/host/ 整棵树算作宿主层，
 // 而本文件的调用方 issueList.js 也在宿主层里 —— 搬进任何一个宿主层目录都要新增一条同层引用边。

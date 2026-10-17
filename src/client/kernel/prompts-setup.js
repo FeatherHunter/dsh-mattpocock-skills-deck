@@ -2,7 +2,7 @@
  * kernel/prompts-setup.js — 「初始化那段文案该不该注入、先问还是先给」的决策（#698 由 prompts.js 拆出）。
  *
  * 为什么拆：这段决策在 #698 之后长到了 55 行，prompts.js 被顶到 373 行、超了 350 行上限
- *   （门禁 tests/verify-file-granularity.js 是零增长基线，不许留超标文件）。它与「提示词模板表」
+ *   （门禁 tests/verify-file-granularity.ts 是零增长基线，不许留超标文件）。它与「提示词模板表」
  *   本来就是两件事：prompts.js 管模板文本，本文件管「什么时候把哪一段给出去」。
  *
  * 这一份判据是整个注入路径的唯一入口，四个出口都汇聚在它上面：

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:26:47.722Z",
+  "generatedAt": "2026-10-17T06:34:42.783Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -3486,8 +3486,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 8 条"
     },
     {
-      "step": "node tests/verify-958-label-name-visible.js",
-      "file": "tests/verify-958-label-name-visible.js",
+      "step": "node tests/verify-958-label-name-visible.ts",
+      "file": "tests/verify-958-label-name-visible.ts",
       "guards": [
         "package/lib/client.js",
         "tests/lib/browser-pool.ts"
@@ -3790,8 +3790,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-attention-model.js",
-      "file": "tests/verify-attention-model.js",
+      "step": "node tests/verify-attention-model.ts",
+      "file": "tests/verify-attention-model.ts",
       "guards": [
         "src/host/refresh/attention.js",
         "src/shared/refresh/attention.js",
@@ -4464,8 +4464,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-file-granularity.js",
-      "file": "tests/verify-file-granularity.js",
+      "step": "node tests/verify-file-granularity.ts",
+      "file": "tests/verify-file-granularity.ts",
       "guards": [
         "scripts/lib/effective-lines.mts",
         "src",
@@ -4803,8 +4803,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-issue-body-script.js",
-      "file": "tests/verify-issue-body-script.js",
+      "step": "node tests/verify-issue-body-script.ts",
+      "file": "tests/verify-issue-body-script.ts",
       "guards": [
         "docs/agents",
         "docs/agents/issue-tracker.md",
@@ -5850,9 +5850,9 @@
         "src/shared/refresh/src/budget.ts",
         "src/shared/refresh/src/chain.ts",
         "tests/file-granularity-baseline.json",
-        "tests/verify-attention-model.js",
+        "tests/verify-attention-model.ts",
         "tests/verify-event-budget.ts",
-        "tests/verify-file-granularity.js",
+        "tests/verify-file-granularity.ts",
         "tests/verify-gate-accounting.ts",
         "tests/verify-gh-gateway.ts"
       ],
@@ -6648,7 +6648,7 @@
         "scripts/fix-issue-body.mjs",
         "scripts/lib/discover-gates.ts",
         "scripts/wire-subissues.mjs",
-        "tests/verify-issue-body-script.js",
+        "tests/verify-issue-body-script.ts",
         "tests/verify-wire-subissues-script.js"
       ],
       "dirs": [
@@ -6852,7 +6852,7 @@
       "node tests/verify-detection-cascade.ts",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-github-label-colors.ts",
-      "node tests/verify-issue-body-script.js",
+      "node tests/verify-issue-body-script.ts",
       "node tests/verify-wire-subissues-script.js"
     ],
     "docs/releases": [
@@ -6926,7 +6926,7 @@
       "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
-      "node tests/verify-958-label-name-visible.js",
+      "node tests/verify-958-label-name-visible.ts",
       "node tests/verify-bug-entry.js",
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-cap-fold-browser.ts",
@@ -7012,7 +7012,7 @@
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-issue-body-script.js",
+      "node tests/verify-issue-body-script.ts",
       "node tests/verify-kernel.ts",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-client.js",
@@ -7063,7 +7063,7 @@
       "node tests/verify-729-force-dedup.ts",
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-972-title-body.ts",
-      "node tests/verify-file-granularity.js",
+      "node tests/verify-file-granularity.ts",
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-map-drill.js",
@@ -7081,7 +7081,7 @@
       "node tests/verify-gate-map.js",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
-      "node tests/verify-file-granularity.js",
+      "node tests/verify-file-granularity.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-strict-module-syntax.ts"
     ],
@@ -7529,7 +7529,7 @@
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-998-half-open.ts",
-      "node tests/verify-attention-model.js",
+      "node tests/verify-attention-model.ts",
       "node tests/verify-budget-page-upper-bound.ts",
       "node tests/verify-delta-patch.js",
       "node tests/verify-delta-wiring.js",
@@ -7632,7 +7632,7 @@
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-998-half-open.ts",
-      "node tests/verify-attention-model.js",
+      "node tests/verify-attention-model.ts",
       "node tests/verify-backend-quota-model.ts",
       "node tests/verify-budget-page-upper-bound.ts",
       "node tests/verify-budget-worstcase.ts",
@@ -7668,11 +7668,11 @@
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-998-half-open.ts",
-      "node tests/verify-attention-model.js",
+      "node tests/verify-attention-model.ts",
       "node tests/verify-budget-worstcase.ts",
       "node tests/verify-delta-patch.js",
       "node tests/verify-event-budget.ts",
-      "node tests/verify-file-granularity.js",
+      "node tests/verify-file-granularity.ts",
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-log-client.js",
       "node tests/verify-log-selfmon.ts",
@@ -7691,7 +7691,7 @@
       "node tests/verify-locale-completeness.js"
     ],
     "src/shared/time-config/src": [
-      "node tests/verify-file-granularity.js"
+      "node tests/verify-file-granularity.ts"
     ],
     "src/shared/tracker": [
       "node tests/verify-663-banner-chain.ts",
@@ -7741,7 +7741,7 @@
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-error-single-source.ts",
-      "node tests/verify-issue-body-script.js",
+      "node tests/verify-issue-body-script.ts",
       "node tests/verify-labels-sync.js",
       "node tests/verify-log-count.js",
       "node tests/verify-log-fields.js",
@@ -8034,7 +8034,7 @@
       "node tests/verify-926-capfold-gate.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-934-935-invariants.ts",
-      "node tests/verify-958-label-name-visible.js",
+      "node tests/verify-958-label-name-visible.ts",
       "node tests/verify-963-log-order.ts",
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.ts",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-958-label-name-visible.js — 真浏览器门禁：标签配色弹窗里的字必须真的看得见（#958）
+ * verify-958-label-name-visible.ts — 真浏览器门禁：标签配色弹窗里的字必须真的看得见（#958）
  *
  * 为什么另开一份：这个弹窗长在面板头部那颗调色盘入口图标里面，而入口外面那层 span 写着
  *   lineHeight: 0（写它的用意只是把图标自己的行盒压没，见 src/client/panel/Dock.js 那颗图标）。
@@ -15,7 +15,7 @@
  *   I3 门禁自己是活的（反证）：把弹窗的行高按回 0，同一把尺子必须量出「行盒塌了」，否则这道门在装绿。
  *
  * 依赖：playwright（含 chromium），本仓 devDependencies。跑之前先 node scripts/build.mjs 出产物。
- * 运行：node tests/verify-958-label-name-visible.js
+ * 运行：node tests/verify-958-label-name-visible.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'

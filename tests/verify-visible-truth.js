@@ -20,7 +20,7 @@
 const fs = require('fs')
 const path = require('path')
 // 转译参数从仓库唯一那一份取（scripts/lib/transpile-unit.mjs 写明这组参数只在那处写、别处各抄一份会静默分叉）；
-// 从 CJS require 一个 .mjs，与 tests/verify-file-granularity.js 里 require('../scripts/lib/effective-lines.mts') 是同一种用法。
+// 从 CJS require 一个 .mjs，与 tests/verify-file-granularity.ts 里 require('../scripts/lib/effective-lines.mts') 是同一种用法。
 const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
 const { compileFn } = require('./lib/eval-probe.js')
 // 中央时间真值：拼进闭包的几片（budget.js 的 freshnessLevel/lagPromiseFor、truthLines 那片）在门禁里

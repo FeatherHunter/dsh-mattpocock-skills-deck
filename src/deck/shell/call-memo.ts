@@ -1,7 +1,7 @@
 // src/deck/shell/call-memo.ts —— 一次调用里的记忆：读缓存 + 票关系名册 + 脏票集合（#1040 从 call-budget.ts 拆出）
 //
 // 为什么单独一个文件：call-budget.ts 补完类型标注之后有效行数冲到 428，越过了「单文件 350 行」
-// 那条上限（tests/verify-file-granularity.js）。这里装的是纯数据结构与它们的键（怎么存、怎么作废），
+// 那条上限（tests/verify-file-granularity.ts）。这里装的是纯数据结构与它们的键（怎么存、怎么作废），
 // 那边装的是预算与钳制（怎么看钟、怎么中止）。拆开的唯一原因就是那条行数上限，不是为了分层。
 //
 // 谁用它：同目录的 call-budget.ts（门面每次读写都过这里）；后端房间经 ctx.memo 读同一份东西

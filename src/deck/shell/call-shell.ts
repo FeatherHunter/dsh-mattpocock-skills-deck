@@ -11,7 +11,7 @@
 // （做法与宿主侧的 gate.js / ledger.js、纯函数层的 policy.ts / backoff.ts 一致）。
 // 唯一的 import 是 ./call-shell-types.js，而且是 `import type`：只借形状，运行时不留一条边。
 // 为什么要拆出那份形状文件：这个文件补完类型标注之后有效行数到了 461，越过了「单文件 350 行」那条上限
-// （tests/verify-file-granularity.js）。拆开的唯一原因就是那条上限，不是为了分层 —— 与同目录 rules/ 那几份的口径一致。
+// （tests/verify-file-granularity.ts）。拆开的唯一原因就是那条上限，不是为了分层 —— 与同目录 rules/ 那几份的口径一致。
 //
 // 这个壳守住四条硬要求（票面点名的三条 + 加固补充里那条）：
 //   1. 每次后端调用都过宿主闸：选后端那一次探测与真正的读写各过一次闸，走 AI 那一档
@@ -60,7 +60,7 @@ export const REFUSAL_REASONS = Object.freeze({
 
 // 落点表（EDGE_LANDING）与它的判定（landingOf / classifyEdgeLanding / edgeEvidence / childrenOf / statusOfItems）
 // 住在同目录的 rules/ 里：那边写的是「规矩」，这里写的是「机制」（会话怎么取、闸怎么过、信封怎么拼）。
-// 拆成两个文件的唯一原因是 350 行的单文件上限（tests/verify-file-granularity.js），不是为了分层。
+// 拆成两个文件的唯一原因是 350 行的单文件上限（tests/verify-file-granularity.ts），不是为了分层。
 
 // 会话、额度、算账结论、仓库身份、选后端结论、闸与注册表、日志出口、建壳依赖、三态信封、调用上下文
 // 这些形状都搬到了同目录的 call-shell-types.ts（只借形状，不留运行时边），这里不再重复声明。

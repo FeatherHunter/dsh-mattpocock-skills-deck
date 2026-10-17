@@ -2,7 +2,7 @@
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js 的 leaf 标记处（一源两物）。
 //
 // 为什么单独一份：本页有三处「还能显示更多」——改动页每个文件分组一句、工作树页一句、提交历史页一句。
-//   入口组件（VersionControlTab.js）贴着 350 行上限（tests/verify-file-granularity.js），塞不下第三段观察器；
+//   入口组件（VersionControlTab.js）贴着 350 行上限（tests/verify-file-granularity.ts），塞不下第三段观察器；
 //   而三处各写一套必然漂移（#997 之前就是两套：提交历史用 IntersectionObserver，工作树页只能点）。
 //
 // 规则只有一条：**这句话在视野里、而且还有没显示出来的，就接着显示下一批**；显示完再判一次，

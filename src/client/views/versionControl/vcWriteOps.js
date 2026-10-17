@@ -1,7 +1,7 @@
 // views/versionControl/vcWriteOps.js —— 写操作的动作层（#842）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.js 的 leaf 标记处（一源两物）。
 //
-// 把「点了按钮之后发生什么」从入口组件里搬出来，好让组件那一份守住 350 行（tests/verify-file-granularity.js）。
+// 把「点了按钮之后发生什么」从入口组件里搬出来，好让组件那一份守住 350 行（tests/verify-file-granularity.ts）。
 // 这一层拿到的都是组件给的东西（ui / setUi / callHost / cwd / readsRef / setReads / screen），
 // 自己做四件事：读核心 judge 算四个动作的判定、发预检拿票、发那一条写电话、成功后按设计重读。
 // 一条只读电话都不在这里发（重读走 vcData.js 的既有读法），也不排任何定时器。

@@ -1,5 +1,5 @@
-// verify-attention-model.js —— #707（T3 第二批）视野模型 + 心跳 + 客户端节拍的门禁
-// 用法：在仓库根目录执行 node tests/verify-attention-model.js，可独立运行。
+// verify-attention-model.ts —— #707（T3 第二批）视野模型 + 心跳 + 客户端节拍的门禁
+// 用法：在仓库根目录执行 node tests/verify-attention-model.ts，可独立运行。
 //
 // 它验四条票面点名的验收，外加一条反证要用的计时器仿真：
 //   一、**后台零定时器**：不在活跃集合里的工作区一个定时器都没有；刚离开的那个最多一个收尾节拍，

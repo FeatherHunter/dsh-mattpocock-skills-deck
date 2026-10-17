@@ -1,4 +1,4 @@
-// verify-file-granularity.js — src/ 文件粒度门禁（地图 #336 首批·尺子 #438；#1017 换轨：两种源码一起读）
+// verify-file-granularity.ts — src/ 文件粒度门禁（地图 #336 首批·尺子 #438；#1017 换轨：两种源码一起读）
 // 规则（G1 #339 + G2 #340 第 3 条，零增长基线锁形态）：
 //   1) 每个 src/ 下的源文件都不超 350 有效行；超 500 有效行的失败信息多写一句严重并阻断发布。
 //   2) 谁算源文件：.ts/.mts/.cts（含 .d.ts）一律算；.js/.mjs/.cjs 只在**旁边没有同名新语言文件**时才算。
@@ -14,8 +14,8 @@
 //   5) 防假绿：扫到的源文件数低于 MIN_FILES 直接失败。原门禁扫到 0 个文件也照样打「共扫 0 个 src/ 文件」
 //      然后判绿——树被改名、被搬走、扫描根写错，全会静默变成「没有超标文件」。这是 #1017 点名要修的洞。
 //   6) 拆分票让某个文件达标后，必须同票重录基线把它移出，否则门禁会失败提醒。
-// 用法: node tests/verify-file-granularity.js（在插件根目录）
-//      node tests/verify-file-granularity.js --record-baseline（重录基线：只记录当前超标文件）
+// 用法: node tests/verify-file-granularity.ts（在插件根目录）
+//      node tests/verify-file-granularity.ts --record-baseline（重录基线：只记录当前超标文件）
 //
 // 为什么口径要记在文件里：基线是「一批数字 + 一个口径」的合体。数字换了口径还接着用，
 // 就会出现「359 行的文件在新口径下只有 233 行」这种条目——门禁会把它当成「已达标」清理掉，
@@ -114,12 +114,12 @@ if (process.argv.includes('--record-baseline')) {
 function main() {
   const baseline = loadBaseline()
   if (!baseline || !baseline.files) {
-    check(false, '基线文件缺失：请先运行 node tests/verify-file-granularity.js --record-baseline')
+    check(false, '基线文件缺失：请先运行 node tests/verify-file-granularity.ts --record-baseline')
     process.exit(1)
   }
   if (baseline.metric !== EFFECTIVE_LINES_METRIC) {
     check(false, '基线口径过期：文件里记的是 ' + JSON.stringify(baseline.metric) + '，本门禁按 '
-      + EFFECTIVE_LINES_METRIC + ' 判（注释与空行不计）。请运行 node tests/verify-file-granularity.js --record-baseline 重录')
+      + EFFECTIVE_LINES_METRIC + ' 判（注释与空行不计）。请运行 node tests/verify-file-granularity.ts --record-baseline 重录')
     process.exit(1)
   }
   const files = listSourceFiles()
