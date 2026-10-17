@@ -1,6 +1,7 @@
+// 2026-10-17 从 JavaScript 转成 TypeScript：只改文件名、用法行与自指路径，判据与断言一条没动。
 /*
- * verify-prompt-newlines.js — 提示词模板换行契约校验（#430 根因门禁）
- * 用法: node tests/verify-prompt-newlines.js
+ * verify-prompt-newlines.ts — 提示词模板换行契约校验（#430 根因门禁）
+ * 用法: node tests/verify-prompt-newlines.ts
  *
  * 契约（#603 修订、#725 收口）：任何提示词模板文本（client PROMPTS 注册表 / host *_PROMPT 常量 /
  *   host 后端模块 prompts 字典的 zh/en 字面量）都不得含字面 \n 序列（两个字符：反斜杠 + n）。

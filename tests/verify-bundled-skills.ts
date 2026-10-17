@@ -2,7 +2,10 @@
 /**
  * tests/verify-bundled-skills.js — 包内捆绑自洽与体积门禁（#387 G2）
  *
- * 职责：包内自洽（存在性、有效性、LICENSE/VERSION、增量体积），与 verify-matt-skills-sync 的跨源一致性正交。
+ * 职责：包内自洽（存在性、有效性、LICENSE/VERSION、增量体积）＋随包目录集合与单源名单的双向差集。
+ * 第 6 段（2026-10-17 从已删的 tests/verify-matt-skills-sync.js 第 7a 段搬来）：随包目录集合
+ *   与 src/shared/matt-skills.js 的 MATT_SKILL_PROBE_NAMES 双向差集必须为 0——本文件其余段落只查
+ *   每个目录自身是否自洽，查不出「漏发一个技能」或「多发一个单源里没有的目录」。
  *
  * 检查（空目录期跳过体积段）：
  *  1) package/bundled-skills 存在且含 27 个子目录，每个含有效 SKILL.md（frontmatter name: 与目录名一致，含 description）
@@ -175,6 +178,33 @@ try {
   }
 } catch (e) {
   note('体积校验跳过：' + e.message)
+}
+
+// 6) bundled 目录集合与单源 MATT_SKILL_PROBE_NAMES 双向差集为 0（2026-10-17 从 tests/verify-matt-skills-sync.js 第 7a 段搬来）
+// 为什么留这一条：本文件其余段落只查「每个目录自身是否自洽」，查不出「随包目录漏了一个技能、
+// 或者多出一个单源里没有的目录」——那种漂移只有和单源名单对集合才看得见。
+// 单源真源是 src/shared/matt-skills.js（不是本文件里任何字面量），所以这里读它、按名单比。
+const SRC_MATT_SKILLS = path.join(ROOT, 'src/shared/matt-skills.js')
+if (existsSync(BUNDLED_DIR) && existsSync(SRC_MATT_SKILLS)) {
+  const bundledDirs = readdirSync(BUNDLED_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .sort()
+  const sharedText = readFileSync(SRC_MATT_SKILLS, 'utf8')
+  const m = sharedText.match(/export const MATT_SKILL_PROBE_NAMES\s*=\s*\[([\s\S]*?)\]/)
+  if (!m) {
+    check(false, 'src/shared/matt-skills.js 里没有 MATT_SKILL_PROBE_NAMES 清单，无法比对随包目录集合')
+  } else {
+    const probeNames = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort()
+    const missing = probeNames.filter((n) => !bundledDirs.includes(n))
+    const extra = bundledDirs.filter((n) => !probeNames.includes(n))
+    check(
+      missing.length === 0 && extra.length === 0,
+      `bundled 目录集合与单源双向差集 0（缺 ${missing.join(',') || '无'}；多 ${extra.join(',') || '无'}）`,
+    )
+  }
+} else if (!existsSync(SRC_MATT_SKILLS)) {
+  check(false, 'src/shared/matt-skills.js 缺失（随包目录集合没有可比对的单源）')
 }
 
 console.log('\n=== verify-bundled-skills ===')

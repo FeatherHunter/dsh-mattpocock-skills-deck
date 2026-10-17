@@ -11,7 +11,7 @@
  * 本文件的判定只有一条（票面验收）：
  *   **Markdown 房给出的票地址，要么是空串，要么指向盘上真实存在的文件；不许再出现按编号猜出来的规范名。**
  * 出口有两处，本文件钉「后端自己现算地址」这一处：模块对象上的 `issueAddress`，以及注册表转发它的那一层。
- * 另一处「票自己带的 url」由 `tests/verify-markdown-backend.js` 的第 ⑨ 节钉着（#1142），本文件不重抄一遍
+ * 另一处「票自己带的 url」由 `tests/verify-markdown-backend.ts` 的第 ⑨ 节钉着（#1142），本文件不重抄一遍
  * （仓里的规矩：同一个判断不写两遍，一处改了另一处要跟着改）。
  *
  * 运行：node tests/verify-1144-markdown-issue-address.ts（挂在 verify 长串上，npm test 会跑到）

@@ -9,7 +9,7 @@
  *       同一次 list 仍按既有口径静默少一行 —— 证明这次只让 counts 这条路如实报错，没动 list。
  *   五、一个票都没有的空工作区 → {open:0, closed:0, total:0}。
  *
- * 全程在系统临时目录里造工作区，用与 tests/verify-markdown-backend.js 第 89-106 行同一套
+ * 全程在系统临时目录里造工作区，用与 tests/verify-markdown-backend.ts 第 89-106 行同一套
  * fs/platform 适配器形状；不打真网、不碰真实工作区（临时目录用完即删）。
  * 「读不动」是让适配器在读指定文件名时抛错，效果与真机上「权限不足 / 读到时已被删 / 被锁住」相同。
  *
@@ -41,7 +41,7 @@ const check = (ok: unknown, msg: string): void => {
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 const countsText = (r: CountsOut): string => (r.ok ? '三个键都对=' + same(Object.keys(r.data).sort(), ['closed', 'open', 'total']) + ' open=' + r.data.open + ' closed=' + r.data.closed + ' total=' + r.data.total : JSON.stringify(r))
 
-/** 与 tests/verify-markdown-backend.js 同一套适配器形状；unreadable 里的文件名在读的时候抛错。 */
+/** 与 tests/verify-markdown-backend.ts 同一套适配器形状；unreadable 里的文件名在读的时候抛错。 */
 function makeCtx (cwd: string, unreadable: string[] = []): MdCtx {
   const plat = {
     path: path.posix,

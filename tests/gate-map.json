@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:58:45.401Z",
+  "generatedAt": "2026-10-17T07:06:58.755Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 293,
-  "gateCount": 293,
+  "chainLength": 292,
+  "gateCount": 292,
   "attributedGates": 257,
-  "unattributedGates": 36,
-  "buildOutputOnlyGates": 23,
+  "unattributedGates": 35,
+  "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
@@ -3902,17 +3902,19 @@
       "file": "tests/verify-bundled-skills.ts",
       "guards": [
         "package/bundled-skills",
-        "package/package.json"
+        "package/package.json",
+        "src/shared/matt-skills.js"
       ],
       "dirs": [
         "package",
-        "package/bundled-skills"
+        "package/bundled-skills",
+        "src/shared"
       ],
-      "unattributed": true,
-      "buildOutputOnly": true,
+      "unattributed": false,
+      "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
       "step": "node tests/verify-bundled-trio-matrix.js",
@@ -5260,8 +5262,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
-      "step": "node tests/verify-markdown-backend.js",
-      "file": "tests/verify-markdown-backend.js",
+      "step": "node tests/verify-markdown-backend.ts",
+      "file": "tests/verify-markdown-backend.ts",
       "guards": [
         "src/tracker/rooms/markdown/comments.ts",
         "src/tracker/rooms/markdown/counts.ts",
@@ -5292,8 +5294,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 9 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-markdown-label-colors.js",
-      "file": "tests/verify-markdown-label-colors.js",
+      "step": "node tests/verify-markdown-label-colors.ts",
+      "file": "tests/verify-markdown-label-colors.ts",
       "guards": [
         "src/host/workspaceCwd.ts",
         "src/shared/label-color/colors.js",
@@ -5350,33 +5352,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "读到的路径都落在 docs、package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
-    },
-    {
-      "step": "node tests/verify-matt-skills-sync.js",
-      "file": "tests/verify-matt-skills-sync.js",
-      "guards": [
-        "package/bundled-skills",
-        "scripts/build.mjs",
-        "src/client/index.js",
-        "src/client/kernel/prompts.js",
-        "src/client/kernel/router.js",
-        "src/host/bootstrap.js",
-        "src/host/index.ts",
-        "src/shared/matt-skills.js"
-      ],
-      "dirs": [
-        "package/bundled-skills",
-        "scripts",
-        "src/client",
-        "src/client/kernel",
-        "src/host",
-        "src/shared"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
     },
     {
       "step": "node tests/verify-multi-effort-panel.ts",
@@ -5754,8 +5729,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-prompt-newlines.js",
-      "file": "tests/verify-prompt-newlines.js",
+      "step": "node tests/verify-prompt-newlines.ts",
+      "file": "tests/verify-prompt-newlines.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/prompts.js",
@@ -6877,8 +6852,7 @@
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-bundled-skills.ts",
-      "node tests/verify-bundled-trio-matrix.js",
-      "node tests/verify-matt-skills-sync.js"
+      "node tests/verify-bundled-trio-matrix.js"
     ],
     "package/deck": [
       "node tests/verify-build-artifacts.js"
@@ -6941,7 +6915,7 @@
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-platform-contract.ts",
-      "node tests/verify-prompt-newlines.js",
+      "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-release-contract.ts",
       "node tests/verify-rest-fallback-banner.js",
@@ -6999,7 +6973,6 @@
       "node tests/verify-kernel.ts",
       "node tests/verify-log-artifacts.ts",
       "node tests/verify-log-client.ts",
-      "node tests/verify-matt-skills-sync.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-platform-contract.ts",
@@ -7083,7 +7056,6 @@
       "node tests/verify-log-client.ts",
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts",
-      "node tests/verify-matt-skills-sync.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-reuse.js",
       "node tests/verify-settings-debug.ts",
@@ -7152,7 +7124,6 @@
       "node tests/verify-log-statusbar.ts",
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.js",
-      "node tests/verify-matt-skills-sync.js",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-naming-e2e.js",
       "node tests/verify-naming-guardian.js",
@@ -7161,7 +7132,7 @@
       "node tests/verify-newsession-preset-guard.js",
       "node tests/verify-newsession-workspace-fallback.js",
       "node tests/verify-panel-workspace-shared.js",
-      "node tests/verify-prompt-newlines.js",
+      "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-reuse.js",
@@ -7417,12 +7388,11 @@
       "node tests/verify-log-fields.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-store.ts",
-      "node tests/verify-markdown-label-colors.js",
-      "node tests/verify-matt-skills-sync.js",
+      "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-multi-effort.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-progress.ts",
-      "node tests/verify-prompt-newlines.js",
+      "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.js",
@@ -7545,7 +7515,7 @@
       "node tests/verify-952-short-text.ts",
       "node tests/verify-955-alignment.ts",
       "node tests/verify-968-skill-ondemand.ts",
-      "node tests/verify-matt-skills-sync.js",
+      "node tests/verify-bundled-skills.ts",
       "node tests/verify-naming-e2e.js",
       "node tests/verify-naming-guardian.js",
       "node tests/verify-naming-isolation-315.js",
@@ -7572,7 +7542,7 @@
       "node tests/verify-generated-no-shadow.ts",
       "node tests/verify-kernel.ts",
       "node tests/verify-label-color-core.ts",
-      "node tests/verify-markdown-label-colors.js"
+      "node tests/verify-markdown-label-colors.ts"
     ],
     "src/shared/label-color/src": [
       "node tests/verify-label-color-core.ts"
@@ -7746,7 +7716,7 @@
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue195.js",
       "node tests/verify-labels-sync.js",
-      "node tests/verify-markdown-label-colors.js",
+      "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-locale-completeness.js"
     ],
     "src/tracker/detection": [
@@ -7815,7 +7785,7 @@
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-1182-log-emit-single-source.ts",
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-prompt-newlines.js",
+      "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.js"
     ],
     "src/tracker/rooms/github": [
@@ -7895,8 +7865,8 @@
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-markdown-backend.js",
-      "node tests/verify-markdown-label-colors.js",
+      "node tests/verify-markdown-backend.ts",
+      "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.js",
       "node tests/verify-refresh-workspace-key.ts"
@@ -7942,7 +7912,7 @@
       "node tests/verify-gh-gateway.ts"
     ],
     "tests/fixtures/markdown-sample": [
-      "node tests/verify-markdown-backend.js"
+      "node tests/verify-markdown-backend.ts"
     ],
     "tests/fixtures/version-control": [
       "node tests/verify-818-version-control-view.ts",
@@ -8052,7 +8022,7 @@
       "node tests/verify-newsession-workspace-fallback.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-progress.ts",
-      "node tests/verify-prompt-newlines.js",
+      "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-rest-fallback-banner.js",
@@ -8070,11 +8040,11 @@
     "tests/tracker-contract": [
       "node tests/verify-1179-gitlab-endpoint-coverage.ts",
       "node tests/verify-1182-docs-paths.ts",
-      "node tests/verify-markdown-backend.js",
+      "node tests/verify-markdown-backend.ts",
       "node tests/verify-tracker-contract.js"
     ],
     "tests/tracker-contract/fixtures": [
-      "node tests/verify-markdown-backend.js",
+      "node tests/verify-markdown-backend.ts",
       "node tests/verify-tracker-contract.js"
     ],
     "tests/tracker-contract/runner": [

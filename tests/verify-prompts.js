@@ -402,7 +402,7 @@ const auditExemptTable = function (list, surfaceIds, opts) {
 //
 //   ① stripTypeSyntax：只摘类型写法，**一个字面量都不动**（声明上的 `: PromptRegistry` → 去掉，
 //      收尾的 `} satisfies X;` → `};`）。按文本形状扫描的那几条判据（单行正则解析注册表、
-//      与 tests/verify-prompt-newlines.js 的跨门禁一致性、L2 注入的两处文本锚点）用的就是它，
+//      与 tests/verify-prompt-newlines.ts 的跨门禁一致性、L2 注入的两处文本锚点）用的就是它，
 //      因为它们认的是「真源当前长什么样」——换成转译后的排版，条目会被压成一行或换引号，判据当场失真。
 //   ② transpileForEval：整段转译成 JavaScript，**只给求值用**（S1 求值、渲染入口 prime、兜底常量提取）。
 //      vm.compileFunction 只吃纯 JS，文件里那些 type / interface 声明与带标注的变量声明它一个都不认识；
@@ -503,7 +503,7 @@ const auditRegistryShape = function (src, reg) {
   })
   return out
 }
-// S2 正则解析（产物是整包，求值不现实）：忠实还原源码字符串字面量（与 tests/verify-prompt-newlines.js 同口径）
+// S2 正则解析（产物是整包，求值不现实）：忠实还原源码字符串字面量（与 tests/verify-prompt-newlines.ts 同口径）
 const unescapeLiteral = function (s) {
   let out = ''
   for (let i = 0; i < s.length; i++) {
@@ -523,7 +523,7 @@ const unescapeLiteral = function (s) {
   }
   return out
 }
-// tests/verify-prompt-newlines.js:71 用的同一条单行正则（跨门禁一致性断言用；#588 起转义感知：
+// tests/verify-prompt-newlines.ts:71 用的同一条单行正则（跨门禁一致性断言用；#588 起转义感知：
 // 第 ① 步命令含 require.resolve('...') 内层单引号，源码写成 \'，[^']* 会提前截断少扫）
 //
 //   #1209 起这份真源是 .ts，同一条正则要同时认两种排版：
@@ -1195,7 +1195,9 @@ const contractChecksInner = function (reg, src) {
   } else fail('缺条目 fixate')
   // installSkills（#74 + #fix-banner 修正）
   //   #573 修正（原 SKILL_NAMES_10 清单已过时）：技能名真源是 src/shared/matt-skills.js（25 项），
-  //   由已在 verify 链里的 tests/verify-matt-skills-sync.js 第 4 条卡住「installSkills prompt 用 {probeList} + {probeCount} 占位符」；
+  //   占位符那条原来由 tests/verify-matt-skills-sync.js 第 4 条卡着；该门禁 2026-10-17 已删
+  //   （它十处判据里九处是文本在场扫描，独有的一条「随包目录集合与单源双向差集为 0」已搬进
+  //   tests/verify-bundled-skills.ts 第 6 段）。今天这份「占位符有没有被用上」由下面的断言守着。
   //   本门禁只断言模板侧的两个占位符与安装目录，不重复维护技能名清单（避免第二份名单漂移）。
   const is = reg['installSkills']
   if (is) {
@@ -1675,12 +1677,12 @@ const selfDigest = function () {
 //      但「六个字段必须同一种引号、一条一行」这两条硬口径没放松；
 //   ④ L2 注入探针的扩展名跟着真源走（.ts），内容锚点认 `.ts` 的写法（`const PROMPTS: X = {` 与 `} satisfies X`）。
 //   夹具文件一个字没动，只有本文件改了，自摘要跟着重算。
-// #1209：ENTRY_RE 与 verify-prompt-newlines.js 的孪生正则同步改成定界符感知（产物双引号排版含 ' 原文时不再静默少扫），自摘要跟着重算。
+// #1209：ENTRY_RE 与 verify-prompt-newlines.ts 的孪生正则同步改成定界符感知（产物双引号排版含 ' 原文时不再静默少扫），自摘要跟着重算。
 // #1125：自注册改问规划函数（不再读 package.json 长串），自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'f77b6a014adee96fd1a585565bae6bbfd71184e52096a25045ec3659cfde52b9',
+  'tests/verify-prompts.js': '263589ae8cddac621ec7ba1eb04cc5082cad354e6d46f24ffcc382e9e8e79199',
 }
 // ---- LOCK-END ----
 
@@ -1743,11 +1745,11 @@ try {
 if (reg) {
   const pS1 = problems.length
   check(s1Ids.length === EXPECT_REGISTRY_ENTRIES, 'S1 注册表条目数 ' + s1Ids.length + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '）——解析层不许静默少扫')
-  // 跨门禁一致性：tests/verify-prompt-newlines.js 的单行正则必须解析到同样多的条目（拆行/换引号会让它静默少 1 条）
+  // 跨门禁一致性：tests/verify-prompt-newlines.ts 的单行正则必须解析到同样多的条目（拆行/换引号会让它静默少 1 条）
   const byRegex = parseRegistryByRegex(stripTypeSyntax(readS1Source()))
   const regexIds = Object.keys(byRegex)
   check(regexIds.length === s1Ids.length, '跨门禁不一致：单行正则解析到 ' + regexIds.length + ' 条，S1 求值解析到 ' + s1Ids.length +
-    ' 条（条目被拆行或换了引号；tests/verify-prompt-newlines.js 会静默少扫）')
+    ' 条（条目被拆行或换了引号；tests/verify-prompt-newlines.ts 会静默少扫）')
   const idDiff = s1Ids.filter(function (x) { return !byRegex[x] })
   if (idDiff.length) fail('跨门禁不一致：单行正则漏了 ' + idDiff.join(', '))
   // 后端 subIssue 声明值（S5 渲染面用）

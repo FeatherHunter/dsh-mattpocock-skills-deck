@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import pathMod from 'node:path'
 // 完成记录（#1178）：本冒烟已在归属表里开闸，收尾要交一行 GATE-RESULT，
 // 好让 npm run test:smoke 那条路（走 scripts/verify-chain.js --script smoke）判「跑完了没有」。
-// 显式写 .ts：说明符指到真源，不依赖装载钩子那一步（仓里既有写法，见 tests/verify-markdown-backend.js）。
+// 显式写 .ts：说明符指到真源，不依赖装载钩子那一步（仓里既有写法，见 tests/verify-markdown-backend.ts）。
 import { printGateResult } from './lib/gate-result.ts'
 
 const origCwd = process.cwd()

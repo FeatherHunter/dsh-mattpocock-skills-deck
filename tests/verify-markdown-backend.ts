@@ -1,12 +1,13 @@
+// 2026-10-17 从 JavaScript 转成 TypeScript：只改文件名、用法行与自指路径，判据与断言一条没动。
 /**
- * tests/verify-markdown-backend.js — Markdown 后端对齐契约的 G4 + 回环验证（#142 验收①②④）。
+ * tests/verify-markdown-backend.ts — Markdown 后端对齐契约的 G4 + 回环验证（#142 验收①②④）。
  *
  * 验收：
  *  ① harness 以真实适配器运行 + 合规断言全 PASS（G4）
  *  ② 回环：deck 创建票 → 技能集可读（同一文件集）；技能集写的文件 → 后端可归一（用 tests/fixtures/markdown-sample 里随仓库走的样例）
  *  ④ 无旧字段（number/subIssues/blocking/布尔 capabilities/detect）
  *
- * 运行：node tests/verify-markdown-backend.js
+ * 运行：node tests/verify-markdown-backend.ts
  */
 
 import runContractTests from './tracker-contract/harness.js'

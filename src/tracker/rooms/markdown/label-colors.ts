@@ -229,7 +229,7 @@ export function defaultLabelColorsText(): string {
  *  见 dsh-fs-local 的 writeFileAtomic），所以真实宿主里走的是这条退路——一次调用写完整份内容，
  *  同样是整份替换、不会留下半截文件。两条路都写完整份内容，都不做「边算边往目标上写」。
  *  #1182 起这份实现搬到了 write.js 的 publishTextFile，票文件那一族与这里共用同一份：
- *  同一件事两处各写一遍，迟早只剩一处是对的（配色那份是门禁 `tests/verify-markdown-label-colors.js`
+ *  同一件事两处各写一遍，迟早只剩一处是对的（配色那份是门禁 `tests/verify-markdown-label-colors.ts`
  *  逐条走到的，票文件那份由 `tests/verify-1182-ticket-file-publish.ts` 走到）。 */
 async function publishAtomically(ctx: CtxWithPolicy, targetPath: string, text: string): Promise<string> {
   // 本次调用的政策由宿主按当前会话算好放在上下文里（见 src/host/workspaceCwd.js 的 resolveSandboxPolicy）。
