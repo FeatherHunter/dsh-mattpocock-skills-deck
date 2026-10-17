@@ -1,5 +1,5 @@
-// verify-issue22-ui.js - issue #22 real Chrome regression
-// Usage: node tests/verify-issue22-ui.js [url]
+// verify-issue22-ui.ts - issue #22 real Chrome regression
+// Usage: node --import ./scripts/ts-hook.mjs tests/verify-issue22-ui.ts [url]
 // Requires the running DSH web GUI and Chrome.
 // 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时照旧自己起「真 Chrome、带头、最大化窗口」那一只；
 //   设了就共用 scripts/browser-host.mjs 起的那一只（那一只是无头的，这一门要在真窗口里看界面时别设这个变量）。
