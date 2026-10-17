@@ -16,7 +16,19 @@
 // 能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 // 本文件选 compileFn 手法：五处沙箱都是把真源码文本当函数体造函数，依赖一律按参数名显式传进去，不靠外层作用域。
-const { compileFn } = require('./lib/eval-probe.js')
+const { compileFn: compileFnRaw } = require('./lib/eval-probe.js')
+
+// #1215 之后的必修：api 源码里新加了模块级 import（api-new-session.js 的会话 tick / 交接延迟、
+//   api-io.ts 的草稿重聚焦重试毫秒）。沙箱是 new Function 拼出来的，吃不下 import 语句，
+//   以前会当场 SyntaxError、整条门禁红。修法不是删掉那些 import 了事，而是：拼给沙箱的文本里
+//   先把模块级 import 行摘掉，再把 src/shared/time-config/values.js 里**真实导出**的数值按同名
+//   常量注进沙箱体——数字仍然只有中央那一个来源，门禁不手抄。
+const timeValues = require('../src/shared/time-config/values.js')
+const SANDBOX_CONSTS = ['CLIENT_SESSION_TICK_MS', 'CLIENT_HANDOFF_DELAY_MS', 'DRAFT_REFOCUS_RETRY_MS']
+  .map((name) => `const ${name} = ${timeValues[name]};`)
+  .join('\n')
+const stripModuleImports = (text) => String(text).replace(/^\s*import\s[^\n]*$/gm, '')
+const compileFn = (paramNames, body) => compileFnRaw(paramNames, SANDBOX_CONSTS + '\n' + stripModuleImports(body))
 
 const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.ts', 'src/client/kernel/api-preset-guard.js'] // #457 K4 + #478 + #636：api 拆分文件 + 预设守卫模块 + 工作区查找模块，src 侧读五文件拼合（守卫块经独立锚点提取；api-io 于 #1111 转成 .ts，锚点写在源码里）
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js+api-preset-guard.js（拼合）', 'package/lib/client.js']

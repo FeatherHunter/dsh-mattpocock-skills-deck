@@ -16,7 +16,19 @@
 // 本测试不复制 openTextInNewSession 逻辑：从目标文件提取真实函数源码并在沙箱以忠实替身执行
 // （与 verify-b2-map-newsession.js 同范式），能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
-const { compileFn } = require('./lib/eval-probe.js')
+const { compileFn: compileFnRaw } = require('./lib/eval-probe.js')
+
+// #1215 之后的必修：api 源码里新加了模块级 import（api-new-session.js 的会话 tick / 交接延迟、
+//   api-io.ts 的草稿重聚焦重试毫秒）。沙箱是 new Function 拼出来的，吃不下 import 语句，
+//   以前会当场 SyntaxError、整条门禁红。修法不是删掉那些 import 了事，而是：拼给沙箱的文本里
+//   先把模块级 import 行摘掉，再把 src/shared/time-config/values.js 里**真实导出**的数值按同名
+//   常量注进沙箱体——数字仍然只有中央那一个来源，门禁不手抄。
+const timeValues = require('../src/shared/time-config/values.js')
+const SANDBOX_CONSTS = ['CLIENT_SESSION_TICK_MS', 'CLIENT_HANDOFF_DELAY_MS', 'DRAFT_REFOCUS_RETRY_MS']
+  .map((name) => `const ${name} = ${timeValues[name]};`)
+  .join('\n')
+const stripModuleImports = (text) => String(text).replace(/^\s*import\s[^\n]*$/gm, '')
+const compileFn = (paramNames, body) => compileFnRaw(paramNames, SANDBOX_CONSTS + '\n' + stripModuleImports(body))
 
 const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.ts'] // #457 K4 + #636：api 拆分文件 + 工作区查找模块，src 侧读四文件拼合（api-io 于 #1111 转成 .ts；产物 .js 被构建去掉注释，终止锚点只在源码里）
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
