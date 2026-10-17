@@ -36,10 +36,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.7.51）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.51 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.9.0-beta.2）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.2 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.51 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.2 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
@@ -203,11 +203,13 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) 等议题，[PR #287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287)/[PR #275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275)/[PR #106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) 连交三份修复，弹窗和 macOS 体验都顺了
 
+[@zhengcookie](https://github.com/zhengcookie)🌹🌹🌹 — [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) 报出桌面端启动早期把安装目录当成工作区、改色弹窗误报没有后端，[#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁，[#1160](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1160) 又抓到 gh 登录态因为 3 秒探活超时被判成网络异常、反复误报
+
+[@anupamme](https://github.com/anupamme)🌹🌹🌹 — [PR #727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727)/[PR #728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) 主动给数据通道加两道安全锁（两份已关闭），[PR #1156](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1156) 又指出模板脚本里写死的密钥（还在评审）
+
 [@9agj](https://github.com/9agj)🌹🌹🌹 — [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) 指出只读仓库下标签能力静默降级、README 也没写明任务板仓库要有 push 权限，[#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) 抓住建仓失败分类把真实 git 报错说成「权限不足」，[#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) 报出属主与运行用户不一致的工作区建仓必然失败（Android /sdcard 场景）；三张的修复都已合入
 
 [@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 揪出本地后端静默写坏票的暗坑，[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 亲手修好已合入
-
-[@anupamme](https://github.com/anupamme)🌹🌹 — [PR #727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727)/[PR #728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) 主动给数据通道加两道安全锁（待评审）
 
 [@hyperion2144](https://github.com/hyperion2144)🌹🌹 — [#110](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/110) 报出环境检查问题，[#646](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/646) 还指了条原生侧边栏的明路
 
@@ -215,7 +217,11 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@angenet](https://github.com/angenet)🌹🌹 — [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295)/[#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) 两轮 macOS 实测，环境检测更稳了
 
-[@zhengcookie](https://github.com/zhengcookie)🌹🌹 — [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) 报出桌面端启动早期把安装目录当成工作区、改色弹窗误报没有后端，[#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁
+[@WDXXZH](https://github.com/WDXXZH)🌹 — [#1137](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1137) 指出 setup 向导的布局文案还写着 CONTEXT.md，而它随即调用的技能只认 GLOSSARY.md
+
+[@Drayee](https://github.com/Drayee)🌹 — [#1101](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1101) 一次报出两个问题并附上根因与改法：gh 路径一旦探到就永不刷新，堆到队列满时面板整体超时；提问场景只往对话里注入一句话，没有一种动作真的弹出问答框
+
+[@30892096](https://github.com/30892096)🌹 — [#1100](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1100) 指出 GitHub 后端回读原生关系时，已经落地的父子边与阻塞边会被报成失败，阻塞边批量写还会因为一条 422 整批中止
 
 [@fishke22](https://github.com/fishke22)🌹 — [PR #1000](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1000) 把「新增 BUG 单」入口表单的四项改成必填、删掉引导空表单直接建单的旧文案，已合入
 
@@ -233,9 +239,9 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@SbDonger](https://github.com/SbDonger)🌹 — [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) 一眼发现状态栏与输入框错位
 
-[@dis0neplay](https://github.com/dis0neplay)🌹 — [PR #493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) 出手修好 CI 与页面跳转
-
 [@snmtg1008](https://github.com/snmtg1008)🌹 — [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) 留下本地目录误报的完整自救方案
+
+[@dis0neplay](https://github.com/dis0neplay)🌹 — [PR #493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) 出手修好 CI 与页面跳转
 
 [@xiSage](https://github.com/xiSage)🌹 — [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) 报出自托管仓库无法识别，还在讨论区 [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) 出了按区关闭的好主意
 

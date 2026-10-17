@@ -37,8 +37,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.7.51):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.51 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.9.0-beta.2):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.2 --registry https://registry.npmjs.org
 
 # ③ That's it — the panel opens in DSH's own right sidebar (no third-party plugin needed)
 ```
@@ -72,7 +72,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.51 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.2 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
@@ -216,35 +216,53 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 
 [@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106 🌹🌹🌹🌹
 
-[@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs) 🌹
+[@zhengcookie](https://github.com/zhengcookie) — reported #1003 (on desktop the install directory was mistaken for the workspace early in startup, so the colour dialog wrongly said there was no backend) and #960 (pinned the desktop crash-and-reload on the missing concurrency admission for outbound gh calls, with a verified patch), then #1160 (gh auth status read as a network failure because a 3 s liveness probe timed out, so the login banner kept coming back) 🌹🌹🌹
 
-[@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks 🌹🌹
+[@anupamme](https://github.com/anupamme) — opened PRs #727, #728 (two hardening suggestions for rpcChannel.js: prototype-pollution guard and resource limits, both closed) and PR #1156 (a hardcoded secret in template.sh, under review) 🌹🌹🌹
+
+[@9agj](https://github.com/9agj) — reported #992 (label actions silently degraded on read-only repos, and the README never said the board repo needs push access), #993 (repo-creation failures reported real git errors as "permission denied") and #994 (creating a workspace necessarily failed when the owner and the running user differ, e.g. Android /sdcard); all three fixes have landed 🌹🌹🌹
+
+[@qq1393950873-bit](https://github.com/qq1393950873-bit) — reported #970 (the local backend silently corrupted tickets) and opened PR #974, which fixed it (merged) 🌹🌹
 
 [@hyperion2144](https://github.com/hyperion2144) — reported #110 on environment checks and #646 (register the DSH native sidebar directly instead of going through better-sidebar) 🌹🌹
 
-[@tafcear](https://github.com/tafcear) — reported #422 (a quieter statusbar for non-coding workspaces) — thanks for freeing non-coding workspaces from the setup banner 🌹
-
-[@271912980](https://github.com/271912980) — suggested in #257 that sessions become stable, addressable endpoints (session ID + semantic name)
-
-[@xiSage](https://github.com/xiSage) — reported #435 (self-hosted GitLab repos not recognized) and started discussion #436 (turning the plugin off for one workspace) 🌹
-
-[@dis0neplay](https://github.com/dis0neplay) — opened PR #493 (fix CI and the Pages root redirect; closed at the requester's direction) 🌹
-
-[@snmtg1008](https://github.com/snmtg1008) — left a self-tested fix for the false "local data directory is not writable" report on #476
-
 [@arnold117](https://github.com/arnold117) — reported #574 (in the local Markdown backend several work units collided under one number, so only the first was visible and comments landed in the wrong file) and opened PR #575, which fixed it (merged) — thanks for letting multiple work units in one repo read and write their own files 🌹🌹
 
-[@SbDonger](https://github.com/SbDonger) — reported #640 (statusbar and input box misaligned, leaving a wide band above the input) 🌹
+[@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks 🌹🌹
 
-[@anupamme](https://github.com/anupamme) — opened PRs #727, #728 (two hardening suggestions for rpcChannel.js: prototype-pollution guard and resource limits, under review) 🌹🌹
+[@WDXXZH](https://github.com/WDXXZH) — reported #1137 (the setup wizard's layout copy still said CONTEXT.md while the skill it calls only knows GLOSSARY.md) 🌹
 
-[@seameafst](https://github.com/seameafst) — reported #793 (pressing the new-requirement entry then Enter sends an empty template because the requirement text is never collected, with full root cause and two fix options) 🌹
+[@Drayee](https://github.com/Drayee) — reported #1101 (two problems with root causes and fixes: the gh path cache never refreshes, so the panel times out once its queue fills; and no action in the check chain ever opens the question dialog, it only injects a prompt) 🌹
 
-[@zerocodefast](https://github.com/zerocodefast) — opened #823 (invited this plugin to the awesome-ai-plugins list with a suggested entry) 🌹
+[@30892096](https://github.com/30892096) — reported #1100 (the GitHub backend reads native relations back blind: landed parent and blocked-by edges are reported as failed, and a blocked-by batch write aborts entirely on one 422) 🌹
+
+[@fishke22](https://github.com/fishke22) — opened PR #1000 (made the four fields of the new-bug form required and dropped the old copy that built a ticket from an empty form; merged) 🌹
+
+[@jack2jiehua](https://github.com/jack2jiehua) — reported #930 (a write landing on the wrong backend, and the write probe stuck grey) 🌹
+
+[@asesr](https://github.com/asesr) — reported #926 (used real measurements to pin down the statusbar stutter, with a verified patch) 🌹
+
+[@SKADI0718](https://github.com/SKADI0718) — opened #856 (later withdrawn by the author) 🌹
 
 [@li873582595](https://github.com/li873582595) — reported #835 (the official desktop build keeps disconnecting and reconnecting during init with the plugin installed, gone after uninstall) 🌹
 
-[@SKADI0718](https://github.com/SKADI0718) — opened #856 (later withdrawn by the author) 🌹
+[@zerocodefast](https://github.com/zerocodefast) — opened #823 (invited this plugin to the awesome-ai-plugins list with a suggested entry) 🌹
+
+[@seameafst](https://github.com/seameafst) — reported #793 (pressing the new-requirement entry then Enter sends an empty template because the requirement text is never collected, with full root cause and two fix options) 🌹
+
+[@SbDonger](https://github.com/SbDonger) — reported #640 (statusbar and input box misaligned, leaving a wide band above the input) 🌹
+
+[@snmtg1008](https://github.com/snmtg1008) — left a self-tested fix for the false "local data directory is not writable" report on #476 🌹
+
+[@dis0neplay](https://github.com/dis0neplay) — opened PR #493 (fix CI and the Pages root redirect; closed at the requester's direction) 🌹
+
+[@xiSage](https://github.com/xiSage) — reported #435 (self-hosted GitLab repos not recognized) and started discussion #436 (turning the plugin off for one workspace) 🌹
+
+[@tafcear](https://github.com/tafcear) — reported #422 (a quieter statusbar for non-coding workspaces) — thanks for freeing non-coding workspaces from the setup banner 🌹
+
+[@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs) 🌹
+
+[@271912980](https://github.com/271912980) — suggested in #257 that sessions become stable, addressable endpoints (session ID + semantic name) 🌹
 
 And thanks to everyone who left thoughts in comments and discussions. If you hit a problem or have an idea, feel free to open an issue or start a discussion.
 
