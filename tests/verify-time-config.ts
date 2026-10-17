@@ -285,7 +285,7 @@ const PERMANENT: PermanentRow[] = [
   { file: 'src/shared/naming-tracking.ts', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
   { file: 'src/client/kernel/attention-heartbeat.js', snippet: "intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0", reason: '心跳计划的状态初值（0 = 还没定下节拍 / 还没跳过），真值由刷新预算注入，不是新参数' },
   { file: 'src/client/kernel/router.js', snippet: 'commitMs: -1, fitMs: 0', reason: '面板时钟的状态初值（-1 / 0 = 还没提交过），不是可调时长' },
-  { file: 'src/shared/tracker/indexWindow.js', snippet: 'sinceMs: 0', reason: '还没有水位时从头全量（0 = 没有上次扫到哪儿），不是可调时长' },
+  { file: 'src/shared/tracker/indexWindow.ts', snippet: 'sinceMs: 0', reason: '还没有水位时从头全量（0 = 没有上次扫到哪儿），不是可调时长' },
   // —— 单位不是毫秒（调它等于改语义，不是调时间） ——
   { file: 'src/shared/refresh/src/backoff.ts', snippet: 'MIN_BACKOFF_STEPS = 2', reason: '退避步数下限（几档）：只有一档就没有「退」这件事，门禁按它核对序列；改它等于改校验语义' },
 ]
@@ -387,7 +387,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/tracker/snapshot.js', name: 'depsTtl', reason: '同上' },
   { file: 'src/host/versionControl.js', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.js', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
-  { file: 'src/shared/tracker/indexWindow.js', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
+  { file: 'src/shared/tracker/indexWindow.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/client/kernel/probe-auto.js', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },
   { file: 'src/client/kernel/probe-auto.js', name: 'FOCUS_PROBE_MIN_MS', reason: '派生变量，取 SYNC.FOCUS_PROBE_MIN_MS（已登记为 syncFocusProbeMinMs），兜底取拼进闭包的 SYNC_FOCUS_PROBE_MIN_MS；引用即跟随' },

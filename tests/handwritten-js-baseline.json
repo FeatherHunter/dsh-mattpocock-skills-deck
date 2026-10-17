@@ -220,7 +220,6 @@
     "src/shared/tracker/check-catalog-dirs.js",
     "src/shared/tracker/check-catalog-views.js",
     "src/shared/tracker/guide-steps.js",
-    "src/shared/tracker/indexWindow.js",
     "src/shared/tracker/list-dedupe.js",
     "src/shared/tracker/shape.js",
     "src/shared/tracker/sync.js",
