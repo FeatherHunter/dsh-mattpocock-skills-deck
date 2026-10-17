@@ -1,5 +1,5 @@
 /**
- * tests/verify-multi-effort-panel.js — 面板层的多 effort 门禁（2026-09-09 定版）
+ * tests/verify-multi-effort-panel.ts — 面板层的多 effort 门禁（2026-09-09 定版）
  *
  * 与 verify-multi-effort.js（宿主数据层）互补。本文件跑的是**面板源码里原文截出来的真函数**：
  *  ① ListTabRow 的 findMap：两张地图编号相同时，每张票各自解析到自己 effort 的地图；
@@ -10,7 +10,7 @@
  * 2026-10-12：原来还有两节拿正则和字符串匹配去核对 MapDetail / IssueDetail / ListTab / store-snapshot
  * 的源码文本里写着哪一行调用、有哪个筛选字段，已按维护者口径删掉（断的是代码写法，等价重构就会红）。
  *
- * 运行：node tests/verify-multi-effort-panel.js
+ * 运行：node tests/verify-multi-effort-panel.ts
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'

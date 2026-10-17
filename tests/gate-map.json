@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:55:00.429Z",
+  "generatedAt": "2026-10-17T06:58:45.401Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 293,
   "gateCount": 293,
@@ -5379,8 +5379,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
     },
     {
-      "step": "node tests/verify-multi-effort-panel.js",
-      "file": "tests/verify-multi-effort-panel.js",
+      "step": "node tests/verify-multi-effort-panel.ts",
+      "file": "tests/verify-multi-effort-panel.ts",
       "guards": [
         "scripts/lib/transpile-unit.mjs",
         "src/client/kernel/store-derived.js",
@@ -6097,8 +6097,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 17 条"
     },
     {
-      "step": "node tests/verify-settings-phones.js",
-      "file": "tests/verify-settings-phones.js",
+      "step": "node tests/verify-settings-phones.ts",
+      "file": "tests/verify-settings-phones.ts",
       "guards": [
         "src/host/configStore.js",
         "src/host/index.ts",
@@ -6114,8 +6114,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 2 条"
     },
     {
-      "step": "node tests/verify-settings-templates.js",
-      "file": "tests/verify-settings-templates.js",
+      "step": "node tests/verify-settings-templates.ts",
+      "file": "tests/verify-settings-templates.ts",
       "guards": [
         "package/lib/client.js",
         "scripts/build.mjs",
@@ -6153,8 +6153,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 11 条"
     },
     {
-      "step": "node tests/verify-settings-view.js",
-      "file": "tests/verify-settings-view.js",
+      "step": "node tests/verify-settings-view.ts",
+      "file": "tests/verify-settings-view.ts",
       "guards": [
         "package/lib/client.js",
         "scripts/build.mjs",
@@ -6947,8 +6947,8 @@
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-statusbar-filter-reset.js",
       "node tests/verify-t1-getrepokey.js",
@@ -7007,8 +7007,8 @@
       "node tests/verify-release-contract.ts",
       "node tests/verify-release-template.ts",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-typecheck.mts",
       "node tests/verify-wire-subissues-script.js",
@@ -7051,7 +7051,7 @@
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-market-tarball.ts",
-      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-unmigrated-tests.ts",
@@ -7087,8 +7087,8 @@
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-reuse.js",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-tabsfold-leaf.js"
     ],
@@ -7153,7 +7153,7 @@
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-matt-skills-sync.js",
-      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-naming-e2e.js",
       "node tests/verify-naming-guardian.js",
       "node tests/verify-nav-stack.js",
@@ -7167,8 +7167,8 @@
       "node tests/verify-reuse.js",
       "node tests/verify-session-title.js",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.js",
@@ -7228,11 +7228,11 @@
       "node tests/verify-hovertip.js",
       "node tests/verify-issue529-checks-i18n.js",
       "node tests/verify-map-drill.js",
-      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-reuse.js",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-update-panel.ts"
     ],
     "src/client/views/cards": [
@@ -7427,9 +7427,9 @@
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.js",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-phones.js",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-phones.ts",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-ui-description-single-source.ts",
@@ -7527,7 +7527,7 @@
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
-      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.js"
     ],
     "src/seam": [
@@ -7553,8 +7553,8 @@
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-session-title.js",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-locale-completeness.js"
     ],
@@ -7664,8 +7664,8 @@
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts",
@@ -7780,7 +7780,7 @@
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-map-drill.js",
-      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.js"
     ],
     "src/tracker/registry": [
@@ -7897,7 +7897,7 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-markdown-backend.js",
       "node tests/verify-markdown-label-colors.js",
-      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.js",
       "node tests/verify-refresh-workspace-key.ts"
     ],
@@ -8043,7 +8043,7 @@
       "node tests/verify-log-switch-597.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-markdown.ts",
-      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-naming-guardian.js",
       "node tests/verify-naming-title-fact.ts",
       "node tests/verify-nav-stack.js",
@@ -8058,8 +8058,8 @@
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.js",
-      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.js",

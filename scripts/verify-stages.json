@@ -139,11 +139,7 @@
       "reason": "待修门禁：版本 pin 过期（断言 v14，源码已 v17），改兼容后进链",
       "ticket": "#1125"
     },
-    {
-      "file": "tests/verify-panel.js",
-      "reason": "待修门禁：同 detail-fog，h.wf.refresh 约定跟随",
-      "ticket": "#1125"
-    },
+    
     {
       "file": "tests/verify-t14-detail-badge.js",
       "reason": "待修门禁：注释锚点漂移，按徽章重锚后进链",

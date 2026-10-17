@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// verify-settings-phones.js —— 本机设置两条电话的门禁（共享板 task-7 落地）。
+// verify-settings-phones.ts —— 本机设置两条电话的门禁（共享板 task-7 落地）。
 //
 // 这份门禁只量五件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
 // 第一件事是缺席：文件不在时按没有处理，两种失败码都要认。
@@ -8,7 +8,7 @@
 // 第四件事是行数：新叶子与宿主入口各自都不超过三百五十行。
 // 第五件事是真跑日志：读与写两条电话各成功跑一次、各失败跑一次，每一次都恰好落一行，事件名与电话名与类型都对得上。
 //
-// 用法：在插件根目录执行 node tests/verify-settings-phones.js，可独立运行。
+// 用法：在插件根目录执行 node tests/verify-settings-phones.ts，可独立运行。
 const fs = require('fs')
 const os = require('os')
 const path = require('path')

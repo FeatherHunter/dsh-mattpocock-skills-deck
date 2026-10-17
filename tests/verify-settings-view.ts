@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-settings-view.js —— 客户端「按工作区的观看状态」搬到本机设置文件的门禁（#1012）。
+ * verify-settings-view.ts —— 客户端「按工作区的观看状态」搬到本机设置文件的门禁（#1012）。
  *
  * 这一份门禁只量十五件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是缺席时回退旧表读：设置文件还没建出来的时候，读到的值要与改动前一样来自 localStorage 那两个旧键。
@@ -49,7 +49,7 @@
  *   自动展开那三档判决走的是 SubworkspaceMark.js 里那个纯函数 subwsMarkAutoDecide 的真源码，不另写一份仿制品。
  * 本门禁自己先跑一次 node scripts/build.mjs：客户端那几片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
  *
- * 用法：node tests/verify-settings-view.js（在插件根目录；本脚本自己会先构建）
+ * 用法：node tests/verify-settings-view.ts（在插件根目录；本脚本自己会先构建）
  */
 const fs = require('fs')
 const os = require('os')

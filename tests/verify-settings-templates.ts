@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-settings-templates.js —— 11 条动作模板搬进本机设置文件 templates 节的门禁（#1012 第 4 步）。
+ * verify-settings-templates.ts —— 11 条动作模板搬进本机设置文件 templates 节的门禁（#1012 第 4 步）。
  *
  * 这一份门禁只量八件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是文件里那一格有非空文字时以文件为准：文档到手之后读口给出的就是文件里那一份。
@@ -24,7 +24,7 @@
  *   内存里的 localStorage 与「可以按需制造写失败」的那层文件包装是替身。
  * 本门禁自己先跑一次 node scripts/build.mjs：这一片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
  *
- * 用法：node tests/verify-settings-templates.js（在插件根目录；本脚本自己会先构建）
+ * 用法：node tests/verify-settings-templates.ts（在插件根目录；本脚本自己会先构建）
  */
 const fs = require('fs')
 const os = require('os')
