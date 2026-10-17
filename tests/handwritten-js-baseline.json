@@ -224,7 +224,6 @@
     "src/shared/tracker/list-dedupe.js",
     "src/shared/tracker/shape.js",
     "src/shared/tracker/sync.js",
-    "src/shared/ui/slots.js",
     "src/shared/version-control/exec-envelope.js",
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",

@@ -268,7 +268,7 @@ try{
   check(sr.includes('ensureFormModal') && sr.includes('st._formModalQueue'), 'slotRenderer ensureFormModal 含队列（wizard 占 1 位）')
   check(sr.includes('_normSteps') && sr.includes('steps'), 'slotRenderer _normSteps 归一化')
   // shared / chain 多步契约
-  check(shared.includes('getWizardSteps') && shared.includes("title: typeof s.title === 'string'"), 'shared getWizardSteps 归一化 title')
+  check(shared.includes('getWizardSteps') && (shared.includes("title: typeof s.title === 'string'") || shared.includes('title: typeof s.title === "string"')), 'shared getWizardSteps 归一化 title')
   check(chain.includes("ACTION_TYPE.WIZARD") && chain.includes('wizard'), 'chain-types 含 WIZARD 类型')
   // 多步 shape 校验（至少两步）
   try{
