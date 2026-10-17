@@ -24,6 +24,13 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 // 直接读 .js 会读到构建产物（或读不到），而且朴素拼文本过不了转译（类型标注与 satisfies 会把 eval 噎死）。
 // 共用入口先按全仓唯一口径转译再给可拼接文本；没转的文件走同一条，原样返回。
 const { spliceableJs } = require('./lib/source-text.ts')
+// 中央时间真值：locale-flow.js 的界面文案改成按中央参数现算（提交 2d0a3f85）之后，拼出来的模块里会用到
+// SETTINGS_DEBUG_PUSH_WAIT_MS 等常量；模块级 import 在拼接文本里非法，改成先把 values.js 的数值导出
+// 整批挂到 globalThis（裸标识符回落全局），以后再有新常量也不会当场 ReferenceError。
+const centralTime = require('../src/shared/time-config/values.js')
+for (const [k, v] of Object.entries(centralTime)) {
+  if (typeof v === 'number' && globalThis[k] === undefined) globalThis[k] = v
+}
 
 // 与 scripts/build.mjs 同一条拼接思路：可拼接的 JavaScript 文本按顺序拼在一起，
 // 只在最后把要用的那几个名字导出来。这样跑的是真实现，不是另写一份。

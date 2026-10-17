@@ -22,6 +22,13 @@ const { compileFn } = require('./lib/eval-probe.js')
 // 「可以直接当函数体求值」的 JavaScript 文本（.ts 会先按构建那份口径转译，引号与换行会被重排，
 // 所以只扫关键字的判据用 sourceText、要拿去求值的用 spliceableJs，别混着用）。
 const { sourceText, spliceableJs } = require('./lib/source-text.ts')
+// 中央时间真值：locale-flow.js 的界面文案改成按中央参数现算（提交 2d0a3f85）之后，真词表模块一加载就会用到
+// SETTINGS_DEBUG_PUSH_WAIT_MS 等常量（模块作用域求值，import 时就炸）；改成先把 values.js 的数值导出
+// 整批挂到 globalThis（裸标识符回落全局），以后再有新常量也不会当场 ReferenceError。
+const centralTime = require('../src/shared/time-config/values.js')
+for (const [k, v] of Object.entries(centralTime)) {
+  if (typeof v === 'number' && globalThis[k] === undefined) globalThis[k] = v
+}
 
 const root = path.resolve(__dirname, '..')
 let failed = false

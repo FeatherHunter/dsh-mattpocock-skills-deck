@@ -5,7 +5,7 @@
 ## 第一性原理
 
 - 契约说真话：完整数据形状（`src/shared/tracker/shape.js`）+ 22 条操作集（`src/tracker/contract/index.ts`）+ capability-by-fill + registry 三级联，已由 #124-#128 定稿。
-- 骨架已自洽：门禁 `620 passed / 4 failed / CONTRACT SKELETON OK`（退出码 0）证明“桩能过、违规能逮”，测的是 `fixtures/compliant.js` 与 `violating.js`，不是真实适配器。那 4 条失败是 `violating` 桩里刻意埋的错，门禁要求它们**必须出现**（按名字点名，见 `verify-tracker-contract.js` 末尾的 `VIOLATING_EXPECTED_FAILURES`）；数字会随票据增长，判据不是数字本身。其中 `sections/labels.ts`（#627 标签配色契约）是 85 条。
+- 骨架已自洽：门禁 `620 passed / 4 failed / CONTRACT SKELETON OK`（退出码 0）证明“桩能过、违规能逮”，测的是 `fixtures/compliant.ts` 与 `violating.js`，不是真实适配器。那 4 条失败是 `violating` 桩里刻意埋的错，门禁要求它们**必须出现**（按名字点名，见 `verify-tracker-contract.ts` 末尾的 `VIOLATING_EXPECTED_FAILURES`）；数字会随票据增长，判据不是数字本身。其中 `sections/labels.ts`（#627 标签配色契约）是 85 条。
 - 真实适配器这一层另有门禁：`sections/labels.ts` 里有对着**真实 GitHub 与本地 Markdown 后端模块**的探针（把真实模块注册进注册表真调用），判据是「要么诚实地说做不到（unsupported），要么把这两条操作做到契约要求」；今天两个后端都还没实现，走前一条，下游一实现这一段自动变成真验收。
 - 平台可测：#131 的 145+32 方法论（注入可判真 + 零手拼 + 双闸）已让次缝（平台层）单机判三端；主缝需复用同一方法论，但对象改为“后端适配器”。
 
@@ -38,7 +38,7 @@ tests/tracker-contract/
 Runner 的不变量：**工厂 ctx 注入 + platform 实例**。
 
 ```js
-import { createRunnerContext, runWithAdapter, runPlayback } from './tests/tracker-contract/runner/index.js'
+import { createRunnerContext, runWithAdapter, runPlayback } from './tests/tracker-contract/runner/index.ts'
 import { githubModule } from './src/tracker/rooms/github/index.ts'
 
 // 1) 造 BackendContext（含已解析的 platform 实例，符合 #129 三底座可测性）
@@ -93,7 +93,7 @@ node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-ski
 ### Markdown / GitLab
 
 - Markdown：采样为本地 `.scratch/<effort>/` 目录的真实 markdown 票据（Status/Type/Blocked by/Comments/Answer），生成脚本复用 `scripts/generate-markdown-fixtures.js`（待 #115 落地时提供），采样目录 `fixtures/markdown-real/`。
-- GitLab：采样为 `glab api` 或 REST 的 `iid/title/state/description/labels/milestone`，生成脚本 `scripts/generate-gitlab-fixtures.js`（待 #116 落地时提供），采样目录 `fixtures/gitlab-real/`。能力响应（free vs premium）由同一 harness 的 `implementedFields/missingFields` 区分。
+- GitLab：采样为 `glab api` 或 REST 的 `iid/title/state/description/labels/milestone`，生成脚本 `scripts/generate-gitlab-fixtures.ts`（待 #116 落地时提供），采样目录 `fixtures/gitlab-real/`。能力响应（free vs premium）由同一 harness 的 `implementedFields/missingFields` 区分。
 
 ## 接入门槛（验收③）
 
@@ -102,14 +102,14 @@ node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-ski
 1. `src/tracker/rooms/<id>/` 适配器（`index.ts` 导出 BackendModule，22 条操作按需实现，缺的由注册表补 `unsupported` 的桩）
 2. `tests/tracker-contract/fixtures/<id>-real/` 采样固件 + `metadata.json`（来源/脱敏/时间/字段）
 3. `scripts/generate-<id>-fixtures.js` 生成脚本（可复现，记录来源/脱敏）
-4. `verify-tracker-contract` 集成（`tests/verify-tracker-contract.js` 中 `runContractTests(<id>Fixture)` + `runPlayback`），并保持门禁**红线的形状**不回归：合规桩全 PASS、违规桩那 4 条预期失败都在、各行为段全 PASS（含 `sections/labels.ts` 里对着真实后端模块的探针）、`CONTRACT SKELETON OK` 且退出码 0（验收④）。断言总数每张票都会长，**不要照抄某个数字当门槛**：现值是 620 passed / 4 failed（`sections/labels.ts` 85 条），判断标准是上面这几条形状，不是数字。
+4. `verify-tracker-contract` 集成（`tests/verify-tracker-contract.ts` 中 `runContractTests(<id>Fixture)` + `runPlayback`），并保持门禁**红线的形状**不回归：合规桩全 PASS、违规桩那 4 条预期失败都在、各行为段全 PASS（含 `sections/labels.ts` 里对着真实后端模块的探针）、`CONTRACT SKELETON OK` 且退出码 0（验收④）。断言总数每张票都会长，**不要照抄某个数字当门槛**：现值是 620 passed / 4 failed（`sections/labels.ts` 85 条），判断标准是上面这几条形状，不是数字。
 
 ## 门禁（验收④）
 
 既有门禁不变：
 
 ```bash
-node tests/verify-tracker-contract.js
+node tests/verify-tracker-contract.ts
 # 期望：620 passed, 4 failed，CONTRACT SKELETON OK, exit 0
 # （4 条失败是 violating 桩里刻意埋的错，按名字点名要求必须出现；总数会随票据增长，别把数字当门槛）
 # 回归红线：compliant 全 PASS、violating 那 4 条预期失败都在、github/gitlab normalize 全 PASS、
@@ -119,8 +119,8 @@ node tests/verify-tracker-contract.js
 新增 Runner 的门禁（同文件末尾，新增段）：
 
 ```bash
-node tests/verify-tracker-contract.js  # 已集成 playback 段：github-real playback 全 PASS
-# 或单独：node tests/tracker-contract/runner/smoke.js
+node tests/verify-tracker-contract.ts  # 已集成 playback 段：github-real playback 全 PASS
+# 跑器本身没有单独的入口：契约门禁就是 tests/verify-tracker-contract.ts（runner/index.ts 是它 import 的实现）
 ```
 
 新增后端未提供采样/脚本/门禁集成，视为未达接入门槛。
@@ -135,5 +135,5 @@ node tests/verify-tracker-contract.js  # 已集成 playback 段：github-real pl
 
 - 契约定版：#124/#125/#126/#127/#128
 - 骨架落地：#132（当时的 `src/host/tracker/*` 今天在 `src/tracker/`，`tests/tracker-contract/*` 未搬家）
-- 平台可测性：#131（`src/host/platform/index.js` + `tests/verify-platform-contract.js`）
+- 平台可测性：#131（`src/host/platform/index.ts` + `tests/verify-platform-contract.ts`）
 - 后端落地：#114/#115/#116（各后端首验收 = “本后端真实适配器过 harness”）

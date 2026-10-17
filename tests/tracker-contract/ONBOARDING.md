@@ -81,13 +81,13 @@
 
 参考实现：`scripts/generate-github-fixtures.js`（GitHub 已落地）。
 
-### ④ 门禁集成且不回归 — `tests/verify-tracker-contract.js`
+### ④ 门禁集成且不回归 — `tests/verify-tracker-contract.ts`
 
-- 在 `verify-tracker-contract.js` 追加：
+- 在 `verify-tracker-contract.ts` 追加：
 
   ```js
   import { myFixture } from './tracker-contract/fixtures/<id>.js' // 或直接测 normalize
-  import { runPlayback } from './tracker-contract/runner/index.js'
+  import { runPlayback } from './tracker-contract/runner/index.ts'
   // 1) normalize 形状：runContractTests(myFixture) 必须全 PASS
   results.push(...runContractTests(myFixture))
   // 2) playback：采样固件形状（无网络亦可）
@@ -108,7 +108,7 @@
 node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-skills-deck --issue 173
 
 # 纯形状门禁（无网络亦可）
-node tests/verify-tracker-contract.js
+node tests/verify-tracker-contract.ts
 # 期望：620 passed, 4 failed, CONTRACT SKELETON OK
 # 新增段：github-playback · metadata exists 等全 PASS
 ```
@@ -122,4 +122,4 @@ node tests/verify-tracker-contract.js
 
 ## 参考
 
-- 契约：#124/#125/#126/#127/#128；目录架构：#132；平台可测：#131；Runner：`tests/tracker-contract/runner/index.js`
+- 契约：#124/#125/#126/#127/#128；目录架构：#132；平台可测：#131；Runner：`tests/tracker-contract/runner/index.ts`

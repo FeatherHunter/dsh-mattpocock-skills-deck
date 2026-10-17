@@ -13,7 +13,12 @@ const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
 // 中央时间真值：相对时间窗口只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
-globalThis.VC_RELATIVE_WINDOW_MS = centralTime.VC_RELATIVE_WINDOW_MS
+// 2026-10-17：locale-flow.js 的界面文案改成按中央时间参数现算（提交 2d0a3f85）之后，闭包里会用到
+// SETTINGS_DEBUG_PUSH_WAIT_MS 等好几个常量；只预埋一个已经不够，改成把 values.js 里的数值导出整批挂到
+// globalThis 上（ESM 裸标识符回落全局），以后再有新常量进来也不会当场 ReferenceError。
+for (const [k, v] of Object.entries(centralTime)) {
+  if (typeof v === 'number' && globalThis[k] === undefined) globalThis[k] = v
+}
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
 const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
