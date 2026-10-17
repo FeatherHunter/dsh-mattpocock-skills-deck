@@ -103,9 +103,12 @@ const assert = (condition, message) => {
     assert(bridged.pop, 'skill popup closed while crossing trigger-to-portal bridge')
     await page.locator('.dsws-skillpop > div').first().click()
     await waitFor(page, () => !document.querySelector('.dsws-skillpop'))
-    const draft = await page.locator('textarea.uV2eYG_input').inputValue()
+    // 2026-10-17 先修：原来用宿主 CSS module 的哈希类名 `textarea.uV2eYG_input` 定位输入框，宿主换一次构建哈希
+    // 这里就假红（类名是构建期生成的，不是契约）。改成按语义定位页面里唯一的那个对话输入框，不依赖类名。
+    const composer = page.locator('textarea:visible').first()
+    const draft = await composer.inputValue()
     assert(draft.includes('/ask-matt'), 'clicking ask-matt did not inject its command into the input')
-    await page.locator('textarea.uV2eYG_input').fill('')
+    await composer.fill('')
 
     // Move to the BUG segment and verify the second overlay follows the same contract.
     const bugPoint = await page.evaluate(() => {
