@@ -1,5 +1,6 @@
-// tests/verify-972-title-body.js —— 门禁：同时传标题与正文时标题不丢（#972）
-// 用法：在插件根目录执行 node tests/verify-972-title-body.js，可独立运行。
+// tests/verify-972-title-body.ts —— 门禁：同时传标题与正文时标题不丢（#972）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-972-title-body.ts，可独立运行。
+// （2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注；下面 ⑤ 那条自指字面量随改名同步成 .ts，判据本身没动。）
 //
 // 守的是什么：票更新操作原来先换标题、再按正文整份覆盖。一次同时传新标题与含旧标题
 // 的整份正文时，刚换好的新标题会被整份盖回去，调用还返回成功。现在标题分支挪到正文
@@ -13,7 +14,7 @@ import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const h1 = (t) => (String(t).match(/^#\s+/gm) || []).length
 const firstH1 = (t) => String(t).split('\n').find((l) => /^#\s+/.test(l)) || ''
 
@@ -99,7 +100,7 @@ const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) =
 
 // —— ⑤ 本门禁已挂进验证链（#1125 起问规划函数，不再读 package.json 长串） ——
 {
-  check(isGatePlanned(process.cwd(), 'tests/verify-972-title-body.js'), '⑤ 验证链里能找到本门禁（规划函数里有它）')
+  check(isGatePlanned(process.cwd(), 'tests/verify-972-title-body.ts'), '⑤ 验证链里能找到本门禁（规划函数里有它）')
 }
 
 console.log(failed ? '\n\u5b58\u5728\u5931\u8d25 — verify-972-title-body \u672a\u901a\u8fc7' : '\n\u5168\u90e8\u901a\u8fc7 — \u540c\u4f20\u6807\u9898\u4e0e\u6b63\u6587\u65f6\u6807\u9898\u4e0d\u4e22\uff08' + total + ' \u9879\u65ad\u8a00\uff09')

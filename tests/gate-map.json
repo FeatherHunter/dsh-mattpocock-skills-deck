@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T05:40:47.274Z",
+  "generatedAt": "2026-10-17T05:44:09.846Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 298,
   "gateCount": 298,
@@ -3627,12 +3627,12 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
-      "step": "node tests/verify-972-title-body.js",
-      "file": "tests/verify-972-title-body.js",
+      "step": "node tests/verify-972-title-body.ts",
+      "file": "tests/verify-972-title-body.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/verify-972-title-body.js"
+        "tests/verify-972-title-body.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -7118,7 +7118,7 @@
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-729-force-dedup.ts",
       "node tests/verify-970-whole-document.ts",
-      "node tests/verify-972-title-body.js",
+      "node tests/verify-972-title-body.ts",
       "node tests/verify-file-granularity.js",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-log-selfmon.js",
@@ -7965,7 +7965,7 @@
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-971-markdown-parent.ts",
-      "node tests/verify-972-title-body.js",
+      "node tests/verify-972-title-body.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
@@ -7994,7 +7994,7 @@
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-970-whole-document.ts",
-      "node tests/verify-972-title-body.js",
+      "node tests/verify-972-title-body.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-log-selfmon.js",
