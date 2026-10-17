@@ -16,8 +16,6 @@
     "tests/verify-997-vc-sight.js",
     "tests/verify-attention-model.js",
     "tests/verify-b2-map-newsession.js",
-    "tests/verify-budget-page-upper-bound.js",
-    "tests/verify-budget-worstcase.js",
     "tests/verify-bug-entry.js",
     "tests/verify-build-artifacts.js",
     "tests/verify-bundled-discovery.js",

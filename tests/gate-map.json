@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T04:30:18.259Z",
+  "generatedAt": "2026-10-17T04:34:20.985Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 297,
   "gateCount": 297,
@@ -3797,8 +3797,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-budget-page-upper-bound.js",
-      "file": "tests/verify-budget-page-upper-bound.js",
+      "step": "node tests/verify-budget-page-upper-bound.ts",
+      "file": "tests/verify-budget-page-upper-bound.ts",
       "guards": [
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
@@ -3815,8 +3815,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
-      "step": "node tests/verify-budget-worstcase.js",
-      "file": "tests/verify-budget-worstcase.js",
+      "step": "node tests/verify-budget-worstcase.ts",
+      "file": "tests/verify-budget-worstcase.ts",
       "guards": [
         "src/shared/refresh/budget.js",
         "src/shared/refresh/page-budget.js",
@@ -7556,7 +7556,7 @@
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.js",
-      "node tests/verify-budget-page-upper-bound.js",
+      "node tests/verify-budget-page-upper-bound.ts",
       "node tests/verify-delta-patch.js",
       "node tests/verify-delta-wiring.js",
       "node tests/verify-gate-accounting.js",
@@ -7659,8 +7659,8 @@
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.js",
       "node tests/verify-backend-quota-model.ts",
-      "node tests/verify-budget-page-upper-bound.js",
-      "node tests/verify-budget-worstcase.js",
+      "node tests/verify-budget-page-upper-bound.ts",
+      "node tests/verify-budget-worstcase.ts",
       "node tests/verify-delta-patch.js",
       "node tests/verify-delta-wiring.js",
       "node tests/verify-event-budget.js",
@@ -7693,7 +7693,7 @@
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.js",
-      "node tests/verify-budget-worstcase.js",
+      "node tests/verify-budget-worstcase.ts",
       "node tests/verify-delta-patch.js",
       "node tests/verify-event-budget.js",
       "node tests/verify-file-granularity.js",

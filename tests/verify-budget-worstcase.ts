@@ -1,5 +1,5 @@
-// verify-budget-worstcase.js —— 门禁：定时那一半的最坏每小时用量远低于闸的上限（#706 T2 第二批）
-// 用法：在插件根目录执行 node tests/verify-budget-worstcase.js，可独立运行。
+// verify-budget-worstcase.ts —— 门禁：定时那一半的最坏每小时用量远低于闸的上限（#706 T2 第二批）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-budget-worstcase.ts，可独立运行。
 //
 // 断言文字（依据定稿第五章「算一遍：终局方案的最坏情况」那三条证明方式的第一条）：
 // 把「多久跑一次 × 每次几条」按 budget.js 里的常量折成每小时，两桶（REST 数请求条数、GraphQL 数点数）
@@ -25,16 +25,16 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 const { PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, QUOTA_SYNC_INTERVAL_MS } = require('../src/shared/time-config/values.js')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 /**
  * 重建那几页的单价，全部从 budget.js 取（门禁里不写任何一个额度或单价数字）。
  * 交给 shared/refresh/page-budget.js 的纯函数算账，与账本走同一个算式。
  */
-const PAGE_PRICES_OF = (b) => ({
+const PAGE_PRICES_OF = (b: any) => ({
   listPagePoints: b.PAGE_COST_POINTS,
   listPageRequests: b.LIST_PAGE_COST_REQUESTS,
   prPagePoints: b.PR_PAGE_COST_POINTS,
@@ -52,7 +52,7 @@ const PAGE_PRICES_OF = (b) => ({
  * 定稿第十四章写的是「最坏用量按页数上界算」，典型值只用来讲清「一次重建约 13 点」这件事。
  * 页数取「实测（这里没有实测，按 0）与上界里大的那个」，算式只此一处（page-budget.js）。
  */
-function hourlyBound(b, pb) {
+function hourlyBound(b: any, pb: any) {
   const perHour = (intervalMs) => (intervalMs > 0 ? Math.floor(b.HOUR_MS / intervalMs) : Infinity)
   const rebuild = pb.worstCaseRebuildCost(0, b.MAX_PAGES, PAGE_PRICES_OF(b))
   // 变化探测：正在看的一个走快档，刚离开的那个走慢档（活跃上限 2）。
@@ -74,7 +74,7 @@ function hourlyBound(b, pb) {
 }
 
 /** 同一套判据跑一套常量，返回结论与一句话（真常量、坏变体、好变体共用它）。 */
-function judge(b, pb) {
+function judge(b: any, pb: any) {
   const bound = hourlyBound(b, pb)
   const restCap = b.PLUGIN_HOURLY_CAP
   const readCap = b.READ_HOURLY_CAP

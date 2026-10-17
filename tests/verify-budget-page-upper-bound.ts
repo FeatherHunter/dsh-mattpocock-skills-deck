@@ -1,5 +1,5 @@
-// verify-budget-page-upper-bound.js —— 门禁：最坏用量按页数上界算，账本记每个仓库的实测页数（#719 T15 收口）
-// 用法：在插件根目录执行 node tests/verify-budget-page-upper-bound.js，可独立运行。
+// verify-budget-page-upper-bound.ts —— 门禁：最坏用量按页数上界算，账本记每个仓库的实测页数（#719 T15 收口）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-budget-page-upper-bound.ts，可独立运行。
 //
 // 这一条守着定稿第十四章那句话：「账本记每个仓库的实测页数；最坏用量按页数上界（MAX_PAGES = 10）算」。
 // 它拆成两件互不混淆的事：
@@ -15,13 +15,13 @@
 const path = require('path')
 const { pathToFileURL } = require('url')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 /** 每一页的单价，全部从 budget.js 取；本门禁不写任何额度或单价数字。 */
-const pricesOf = (b) => ({
+const pricesOf = (b: any) => ({
   listPagePoints: b.PAGE_COST_POINTS,
   listPageRequests: b.LIST_PAGE_COST_REQUESTS,
   prPagePoints: b.PR_PAGE_COST_POINTS,
