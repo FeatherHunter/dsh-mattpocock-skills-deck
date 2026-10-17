@@ -1,5 +1,5 @@
-// verify-971-markdown-parent.js —— #971 防回归：本地后端父边与快照按文件顶注释计数
-// 用法：在插件根目录执行 node tests/verify-971-markdown-parent.js，可独立运行。
+// verify-971-markdown-parent.ts —— #971 防回归：本地后端父边与快照按文件顶注释计数
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-971-markdown-parent.ts，可独立运行。
 //
 // 为什么要这一段：建票把父写进文件顶注释，读回与列举却永远填固定值 00，改父同目录直接说做不到。
 // 扁平布局里地图是 01 号，固定值永远对不上，按地图筛选恒为 0，快照 0/0，只能人肉逐张读回。
@@ -16,11 +16,11 @@ const { pathToFileURL } = require('url')
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 
 function makePlat() {
   return {

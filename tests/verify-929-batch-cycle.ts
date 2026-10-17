@@ -1,6 +1,6 @@
 import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
-// tests/verify-929-batch-cycle.js —— 门禁：同一批并发补阻塞边不许造出环（#929）
-// 用法：在插件根目录执行 node tests/verify-929-batch-cycle.js，可独立运行。
+// tests/verify-929-batch-cycle.ts —— 门禁：同一批并发补阻塞边不许造出环（#929）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-929-batch-cycle.ts，可独立运行。
 //
 // 守的是什么：deck_map_link 一批里按票分组、组间并行；每一组建边之前的成环检查读的是**已经落盘**的图，
 // 看不见同批里另一组还没落盘的边 —— 两条互指的边同批发出时两边都会通过、盘上留下环（#921 复核发现，
@@ -21,16 +21,16 @@ import { createRequire } from 'node:module'
 import { makeDecideStub, chooseWorkspace } from './lib/deck-decide-stub.js'
 
 const require = createRequire(import.meta.url)
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const ROOT: string = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 const transports = require('./deck-tools-matrix-transports.js')
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const sleep = (ms: number): Promise<unknown> => new Promise((r) => setTimeout(r, ms))
 const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
 const EXEC = { agent: { session: { cwd: '/ws/github', id: 's-929' } } }
 
 let failed = 0
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 const registryMod = await imp('src/tracker/registry/core.ts')
 const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule

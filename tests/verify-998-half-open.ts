@@ -1,5 +1,5 @@
-// verify-998-half-open.js —— 门禁：连续失败那把「自锁」必须留一个出口（#998，2026-10-10 真机故障）
-// 用法：在插件根目录执行 node tests/verify-998-half-open.js，可独立运行。
+// verify-998-half-open.ts —— 门禁：连续失败那把「自锁」必须留一个出口（#998，2026-10-10 真机故障）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-998-half-open.ts，可独立运行。
 //
 // 真机故障是什么（2026-10-10 实测，见票 #998）：闸对「连续失败」的处置是「到门槛就一律推迟」，
 // 而推迟既不算失败、也不算成功 —— 连续失败计数只有「真跑成功一次」才归零（gate.js 里唯一那处归零）。
@@ -21,10 +21,10 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 const { CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS } = require('../src/shared/time-config/values.js')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 async function main() {
   console.log('闸的连续失败出口门禁（#998：到门槛必须留一笔探针，不许自锁）')
