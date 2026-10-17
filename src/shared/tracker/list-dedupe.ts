@@ -1,5 +1,5 @@
 /**
- * src/shared/tracker/list-dedupe.js —— 面板列表数组按身份去重（#589）。
+ * src/shared/tracker/list-dedupe.ts —— 面板列表数组按身份去重（#589）。
  *
  * 以后谁改它：改面板主列表“同一身份只出现一行”口径的人。纯函数，无依赖，
  * 宿主经动态 import 引用（D7 禁止静态 import），测试直接引用。
@@ -14,6 +14,18 @@
  */
 
 /**
+ * 池内条目的最小形状：只读身份相关的四个字段，多余字段原样留在条目里。
+ * 字段全是可选的——无该字段的后端省略该字段（保持裸 key），缺 key 与 number
+ * 的条目指认不出身份，poolIdOf 返回空，由调用方原样保留。
+ */
+type PoolEntry = {
+  key?: unknown
+  number?: unknown
+  effortId?: unknown
+  isPullRequest?: unknown
+}
+
+/**
  * 池内身份：与快照组装层同规则——同 key 但是否为拉取请求不同，是两个东西，
  * 不互相吞。无该字段的后端省略该字段（保持裸 key）；字段在但不是布尔值单独隔离。
  * key 缺失时回落 number；两者都没有的条目指认不出身份，返回空，由调用方原样保留。
@@ -21,7 +33,7 @@
  * effort 维度：身份含工作单元——不同工作单元的同号票是两张票，不许互相吞
  * （单工作单元后端 effortId 为空或缺失，退化成老口径，行为不变）。
  */
-export function poolIdOf(entry) {
+export function poolIdOf(entry: PoolEntry | null | undefined): string | null {
   if (!entry || (entry.key == null && entry.number == null)) return null
   const e = entry.effortId === undefined || entry.effortId === null ? '' : String(entry.effortId)
   const k = String(entry.key != null ? entry.key : entry.number)
@@ -37,10 +49,12 @@ export function poolIdOf(entry) {
  * 调用方须保持三段拼接顺序（地图容器在前、子票和孤儿票在后），
  * 先到先留即等于地图容器优先；不改输入数组。
  */
-export function dedupeListByPool(list) {
+// 返回类型带着 null | undefined：第一行的 Array.isArray 守卫就是为了收容调错的空输入，
+// 空进来原样回空（原来行为）；收窄成非空数组会把这句守卫判成死代码，反而撒谎。
+export function dedupeListByPool(list: Array<PoolEntry | null | undefined> | null | undefined): Array<PoolEntry | null | undefined> | null | undefined {
   if (!Array.isArray(list)) return list
-  const seen = {}
-  const out = []
+  const seen: Record<string, boolean> = {}
+  const out: Array<PoolEntry | null | undefined> = []
   for (let i = 0; i < list.length; i++) {
     const it = list[i]
     if (!it) continue
