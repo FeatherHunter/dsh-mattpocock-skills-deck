@@ -59,12 +59,20 @@ _research/
 # import 的是域表层 values.js（转译产物），tsc 靠这份声明才认得那些名字，不入库。
 /src/shared/time-config/values.d.ts
 /src/shared/*/*.js
+# #1256：散文件根上 9 份（naming-*、workspaceKey、matt-skills、feedback-map、session-cwd、
+# skill-probe-channels、refresh-workspace-key）转成 .ts 之后，同名 .js 同样是构建产物
+# （scripts/build.mjs 的 shared-ts 那一段转译，真源是同名 .ts），与子目录那条规则同理，不入库。
+# 手写时代这 9 份在库里是被跟踪的，ignore 只拦新建（跟踪中的不受影响）；转写提交里用 git rm 删掉它们，
+# 之后构建写下的同名产物就落在这条忽略里。
+/src/shared/*.js
 # #1153 顺带清理：原来这两行上面还有两条放行——!/src/shared/refresh/chain-ride.js 与
 # !/src/shared/refresh/refusal-text.js（#1023 第三刀写这时，它们还是停在产物位上的手写 .js）。
 # 这两份的真身后来搬去 src/host/refresh/chain-ride.ts 与 src/host/refresh/refusal-text.ts，
 # 产物位上已经没有同名 .js，两条放行命不中任何文件。死条目和死规则一样会骗人——留着会让人
-# 以为产物位上有主，所以删掉；今天这一组例外只剩下面这一条。
-!/src/shared/version-control/exec-envelope.js
+# 以为产物位上有主，所以删掉。
+# #1256：原来这里还有第三条放行 !/src/shared/version-control/exec-envelope.js（它是当时唯一住在
+# 域目录根上的手写 .js）。本票把它转成 exec-envelope.ts 之后，同名 .js 是 shared-ts 段的转译产物，
+# 与子目录那条规则同理，不入库——所以这条放行也一并删掉，今天这一组例外一条不剩。
 /src/tracker/contract/vocabulary.js
 /src/client/kernel/locale-cards.js
 /src/client/kernel/locale-skilldetail.js
