@@ -1,4 +1,4 @@
-// verify-log-switch-597.js —— #597 门禁：配置页的调试日志开关点得开，失败时说清是哪一类。
+// verify-log-switch-597.ts —— #597 门禁：配置页的调试日志开关点得开，失败时说清是哪一类。
 //
 // 为什么要有这条：这条开关走的是「配置页 → 客户端 setLogSwitch → 宿主 wf.logSetSwitch」的链路。
 //   曾经整条链路静默断掉（两个派生分块里的同名助手函数互相顶掉，电话名算成 undefined），
@@ -15,7 +15,7 @@
 //   二到五还各自要求：这一类文案与通用兜底文案、与另外几类文案都不一样
 //   （语言不限——文案从 locale 表读，中英哪一种生效都能判定）。
 //
-// 用法：node tests/verify-log-switch-597.js（在插件根目录；先跑 node scripts/build.mjs 出产物）
+// 用法：node tests/verify-log-switch-597.ts（在插件根目录；先跑 node scripts/build.mjs 出产物）
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'

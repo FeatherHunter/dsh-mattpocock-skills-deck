@@ -1,5 +1,5 @@
 /**
- * tests/verify-dirwritable.js — dirWritable 原语契约（2026-08-29 研究实锤「md:scratchWritable 名不符实」修复验收）
+ * tests/verify-dirwritable.ts — dirWritable 原语契约（2026-08-29 研究实锤「md:scratchWritable 名不符实」修复验收）
  *
  * 背景：md:scratchWritable 原用 FILE_EXISTS 只判「存在」、从不测「可写」（research 笔记
  *   docs/research/environment-checks-platform-layer-20260829.md）；新增 PRIMITIVE_KIND.DIR_WRITABLE
@@ -13,7 +13,7 @@
  *   D5 声明层：catalogFor('markdown').md:scratchWritable 的 check 已切换为 dirWritable
  *   D6 契约层 validateCheckItem 对 dirWritable 形状校验通过（非空 path）
  *
- * 运行：node tests/verify-dirwritable.js（已接入 npm run verify）
+ * 运行：node tests/verify-dirwritable.ts（已接入 npm run verify）
  */
 const assert = require('node:assert/strict')
 

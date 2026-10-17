@@ -1,5 +1,5 @@
-// verify-log-switch-526.js —— #526 开关写失败分类行门禁（TDD 红灯先行）。
-// 用法：node tests/verify-log-switch-526.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）。
+// verify-log-switch-526.ts —— #526 开关写失败分类行门禁（TDD 红灯先行）。
+// 用法：node tests/verify-log-switch-526.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）。
 // 背景：设置页点调试开关只弹“开关保存失败”提示，失败到底是哪一类（宿主不可用、
 //   宿主拒收、调用抛错）没有任何日志行留下，事后导出日志也看不出原因。
 // 要求：写开关函数的三条失败路各落一条告警级分类行，复用现成常驻事件

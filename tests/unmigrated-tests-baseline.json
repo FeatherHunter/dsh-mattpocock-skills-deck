@@ -31,9 +31,6 @@
     "tests/verify-delta-patch.js",
     "tests/verify-delta-wiring.js",
     "tests/verify-detail-levels.js",
-    "tests/verify-detection-cascade.js",
-    "tests/verify-dirwritable.js",
-    "tests/verify-event-budget.js",
     "tests/verify-file-granularity.js",
     "tests/verify-gate-accounting.js",
     "tests/verify-gate-map.js",
@@ -65,10 +62,6 @@
     "tests/verify-log-count.js",
     "tests/verify-log-exec-606.js",
     "tests/verify-log-fields.js",
-    "tests/verify-log-selfmon.js",
-    "tests/verify-log-store.js",
-    "tests/verify-log-switch-526.js",
-    "tests/verify-log-switch-597.js",
     "tests/verify-map-drill.js",
     "tests/verify-map-subissues-352.js",
     "tests/verify-markdown-backend.js",
@@ -123,7 +116,6 @@
     "tests/verify-visible-truth.js",
     "tests/verify-wire-subissues-script.js",
     "tests/verify-wizard-exit-609.js",
-    "tests/verify-workspace-file-note.js",
-    "tests/verify-write-detect.js"
+    "tests/verify-workspace-file-note.js"
   ]
 }

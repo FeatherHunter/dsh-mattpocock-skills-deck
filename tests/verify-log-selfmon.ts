@@ -1,5 +1,5 @@
-// verify-log-selfmon.js —— #499 日志管道自监控门禁（附录第 4 节断言九）。
-// 用法：在插件根目录执行 node tests/verify-log-selfmon.js，可独立运行。
+// verify-log-selfmon.ts —— #499 日志管道自监控门禁（附录第 4 节断言九）。
+// 用法：在插件根目录执行 node tests/verify-log-selfmon.ts，可独立运行。
 // 断言文字：46～50 五个事件逐个在附录 1.6 里点名，附录末尾「枚举取值」段逐个登记齐全。
 // 做法：运行时复现四类故障（落盘失败、队列打满后的转发汇总、看门狗超时、导出失败两路散列）。
 // 原来还有「一～七」七段静态扫描：读 logStore.js、client/kernel/log.js、StatusLogMenu.js、SettingsPage.js、
@@ -61,7 +61,7 @@ const logSrc = readSrc(path.join('src', 'client', 'kernel', 'log.js'))
     check(enumNote.includes(w), '枚举 ' + w + ' 已在附录「枚举取值」段登记')
   }
   const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-  check(isGatePlanned(ROOT, 'tests/verify-log-selfmon.js'), '本门禁已接入 verify 链（规划函数里有它，#1125 起不再读 package.json 长串）')
+  check(isGatePlanned(ROOT, 'tests/verify-log-selfmon.ts'), '本门禁已接入 verify 链（规划函数里有它，#1125 起不再读 package.json 长串）')
 }
 
 async function main() {

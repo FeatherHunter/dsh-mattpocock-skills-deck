@@ -1,11 +1,11 @@
 /**
- * verify-detection-cascade.js — #152 acceptance ①②③ 轻量冒烟（本机可判真，无需真机三端）
+ * verify-detection-cascade.ts — #152 acceptance ①②③ 轻量冒烟（本机可判真，无需真机三端）
  * 覆盖：
  *  ① 两级联 matches>fallback + pending/multiHit 按 #125（「人选」那一层不在注册表里：
  *     人选住在工作区文件 docs/agents/workspace.yaml，由判定出口 backendDecision.ts 唯一作答，#1138）
  *  ② per-workspace 隔离（cwd A/B 各选后端，切换不串台）+ 覆盖层「用户说了算」（工作区文件里有人选）
  *  ③ 三步链路 Step1→2→3 冒烟 + installSkills 复验 + 无静默安装断言 + #59 登录引导经 AI 注入口（不测 UI，仅断言契约面）
- * 用法：node tests/verify-detection-cascade.js
+ * 用法：node tests/verify-detection-cascade.ts
  */
 import { parseIssueTracker } from '../src/tracker/detection/parseIssueTracker.ts'
 import { detectExplicit } from '../src/tracker/detection/explicitDetector.ts'

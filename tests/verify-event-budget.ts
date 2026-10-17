@@ -1,5 +1,5 @@
-// verify-event-budget.js —— 门禁：把事件驱动的花费也算进每小时上界（#706 T2 第二批）
-// 用法：在插件根目录执行 node tests/verify-event-budget.js，可独立运行。
+// verify-event-budget.ts —— 门禁：把事件驱动的花费也算进每小时上界（#706 T2 第二批）
+// 用法：在插件根目录执行 node tests/verify-event-budget.ts，可独立运行。
 //
 // 为什么光有 verify-budget-worstcase.js 不够（票面「门禁清单补全」那一句的原话）：
 // 原来那条最坏用量只算定时器，而**增长最快的花费全在事件那边**——你每小时来回切多少次、

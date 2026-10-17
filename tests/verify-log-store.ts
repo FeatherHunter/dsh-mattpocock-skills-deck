@@ -1,5 +1,5 @@
-// verify-log-store.js —— #490 host 日志底座门禁（设计 #335 第 4.3 节映射到 host 的断言先行）。
-// 用法：node tests/verify-log-store.js（在插件根目录）。
+// verify-log-store.ts —— #490 host 日志底座门禁（设计 #335 第 4.3 节映射到 host 的断言先行）。
+// 用法：node tests/verify-log-store.ts（在插件根目录）。
 // 覆盖 5 项：关闭时零调用、串行写盘不丢行、按天命名、失败只计数、双产物含 5 个电话名。
 // 外加 3 项底座自检：文件不超 350 行、防抖值 1000 毫秒、级别判断在 log 函数第一行。
 const fs = require('fs')
