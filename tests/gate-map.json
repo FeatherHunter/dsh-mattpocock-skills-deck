@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T05:28:34.964Z",
+  "generatedAt": "2026-10-17T05:35:21.217Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 297,
   "gateCount": 297,
@@ -3675,8 +3675,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 14 条"
     },
     {
-      "step": "node tests/verify-997-vc-sight-browser.js",
-      "file": "tests/verify-997-vc-sight-browser.js",
+      "step": "node tests/verify-997-vc-sight-browser.ts",
+      "file": "tests/verify-997-vc-sight-browser.ts",
       "guards": [
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
@@ -3702,12 +3702,14 @@
         "src/client/views/versionControl/vcWriteRun.js",
         "src/client/views/versionControl/vcWriteUi.js",
         "src/client/views/versionControl/vcWriteView.js",
+        "src/shared/time-config/values.js",
         "src/shared/version-control/rules.js",
         "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/views/versionControl",
+        "src/shared/time-config",
         "src/shared/version-control",
         "tests/lib"
       ],
@@ -3715,7 +3717,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 20 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 20 条"
     },
     {
       "step": "node tests/verify-997-vc-sight.ts",
@@ -7181,7 +7183,7 @@
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-891-setup-refresh.ts",
       "node tests/verify-907-chain-titles.ts",
-      "node tests/verify-997-vc-sight-browser.js",
+      "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-ctx.ts",
@@ -7330,7 +7332,7 @@
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.ts",
-      "node tests/verify-997-vc-sight-browser.js",
+      "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts"
     ],
     "src/deck": [
@@ -7691,6 +7693,7 @@
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-895-bulk-deadline.ts",
+      "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.js",
       "node tests/verify-budget-worstcase.ts",
@@ -7747,7 +7750,7 @@
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-976-pull-dirty-warn.js",
-      "node tests/verify-997-vc-sight-browser.js",
+      "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-version-control-parsers.js",
       "node tests/verify-version-control-rules.js"
     ],
@@ -8059,7 +8062,7 @@
       "node tests/verify-963-log-order.ts",
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.js",
-      "node tests/verify-997-vc-sight-browser.js",
+      "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
       "node tests/verify-cap-fold-browser.ts",
       "node tests/verify-cap-fold.ts",

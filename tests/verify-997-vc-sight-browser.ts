@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-997-vc-sight-browser.js —— 「滑到那句提示就接着显示」的真浏览器门禁（#997 落地）
+ * verify-997-vc-sight-browser.ts —— 「滑到那句提示就接着显示」的真浏览器门禁（#997 落地）
  *
  * 为什么要真浏览器：这件事的行为全在「节点有没有进入视野」与「插入新行之后用户的画面会不会跳」上，
  *   而仓库既有的渲染门禁走的是 renderToStaticMarkup —— effect 根本不执行（这也是原来那段自动续读
@@ -27,13 +27,13 @@ const { createServer } = require('http')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-const strip = (s) => s.replace(/^(\s*)export\s+/gm, '$1')
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const strip = (s: string): string => s.replace(/^(\s*)export\s+/gm, '$1')
 // 构建时注入的常量在真机上由 client.js 拼进同一段闭包；把叶子文件单独当模块加载时它们是自由变量。
 // 照 tests/verify-818-version-control-view.ts 与 842 的同一套办法：拼接前把 values.js 那行 import 摘掉，
 // 真值另外挂到 globalThis 与 window 上（main 里挂 Node 侧、pageFor 里挂页面侧）。
-const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const VC_FILES = [
   'src/shared/version-control/rules.js',
@@ -181,7 +181,7 @@ async function pageFor(browser, closureSrc, dict, css, relMs) {
 const settle = async (page, ms) => { await page.waitForTimeout(ms || 260) }
 const probe = (page) => page.evaluate(() => window.__probe__())
 
-async function run(browser, build) {
+async function run(browser: any, build: { closure: string, dict: Record<string, string>, css: string, relMs: number }) {
   const { page, close } = await pageFor(browser, build.closure, build.dict, build.css, build.relMs)
   try {
     // ---------- A. 短面板：滚到那句提示就自己接着显示 ----------
