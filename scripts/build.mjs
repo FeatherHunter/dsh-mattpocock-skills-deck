@@ -1121,6 +1121,42 @@ function deployMovedTrees() {
   auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker'])
 }
 
+/** 散文件投放（#1256）：src/shared 下不属于任何域的 .ts 转译进 package/shared。
+ *
+ * 为什么单独一段：collectMovedTs 只扫 src/host、src/deck、src/tracker 三棵新树，
+ * copySharedProducts 只复制 .js。散文件转成 .ts 之后两边都够不着——不补这一段，
+ * package/shared 里就没有它们，包内相对引用审计（tests/verify-build-artifacts.ts 4f）当场红。
+ * 口径与 src/shared/tsconfig.json 的 include 一致：根上 *.ts 加上没有 tsconfig 的
+ * 子目录里的 *.ts；带 tsconfig 的就是域，归 buildDomain 管，这里跳过。
+ * 转译口径与新树投放同一份（transpileMovedTs：只剥类型、不改写导出块），包内由 Node 直接加载。
+ */
+function deployLooseShared() {
+  const sharedAbs = resolve(ROOT, 'src/shared')
+  if (!existsSync(sharedAbs)) return
+  const rels = []
+  for (const ent of readdirSync(sharedAbs, { withFileTypes: true })) {
+    if (ent.isFile()) {
+      if (ent.name.endsWith('.ts') && !ent.name.endsWith('.d.ts')) rels.push('src/shared/' + ent.name)
+    } else if (ent.isDirectory()) {
+      // 有 tsconfig 的是域目录（findDomains 的认定），它的产物归域构建管，不在这里碰。
+      if (existsSync(join(sharedAbs, ent.name, 'tsconfig.json'))) continue
+      for (const f of readdirSync(join(sharedAbs, ent.name), { withFileTypes: true })) {
+        if (f.isFile() && f.name.endsWith('.ts') && !f.name.endsWith('.d.ts')) {
+          rels.push('src/shared/' + ent.name + '/' + f.name)
+        }
+      }
+    }
+  }
+  rels.sort()
+  for (const srcRel of rels) {
+    const outRel = 'package/shared/' + srcRel.slice('src/shared/'.length).replace(/\.ts$/, '.js')
+    const code = transpileMovedTs(srcRel)
+    mkdirSync(dirname(resolve(ROOT, outRel)), { recursive: true })
+    writeFileSync(resolve(ROOT, outRel), code, 'utf8')
+  }
+  console.log(`[散文件投放] ${rels.length} 份 TypeScript 进 package/shared`)
+}
+
 // ---------- 构建 host（方案 C 原样复制 · #136/#172） ----------
 async function buildHost({ version }) {
   // #1074（修：构建先行兼容）：宿主入口真源可能是手写 .js（转制前）或 .ts（转制后）。
@@ -1233,6 +1269,10 @@ async function buildHost({ version }) {
   // 放在复制之后、校验之前：投放失败（转译不过、引用落空）当场抛错，不进 fallback
   // （fallback 只管“复制工具不可用”这一种故障，内容问题重跑复制也一样）。
   deployMovedTrees()
+  // 散文件投放（#1256）：src/shared 下不属于任何域的 .ts 转译进 package/shared。
+  // 放在复制之后、新树投放之后：复制只收 .js（转制中的旧 .js 先过去），这一段把同位置的
+  // 转译产物盖上去——零变化转写保证两者语义一致；引用落空同样当场抛错，不进 fallback。
+  deployLooseShared()
   // 校验：入口一致性（#1074 修：跟真源走）。手写 .js 真源在时守旧不变量（包内入口与手写源逐字节一致）；
   //   .ts 真源在时守新不变量（包内入口 === 按同一条投放流水线重算一遍的结果，转译漏投放当场红）。
   try {

@@ -1,0 +1,31 @@
+{
+  // src/shared 散文件的类型检查配置（#1256 立）。
+  //
+  // 为什么单立一份：这 22 份散文件（根上 9 份、tracker/ 11 份、ui/ 1 份、version-control/ 1 份）
+  // 不住任何域目录里，没有域配置圈它们；类型检查的缺口断言只认「至少一份配置看到」，
+  // 没有这份配置，它们转成 .ts 当天就会被报成缺口。
+  //
+  // 为什么 include 只点这四个位置、不写 "**/*.ts"：src/shared 下面住着六个域
+  // （label-color、refresh、version-control、config-store、host-timer、time-config），
+  // 每个域的配置都声明了自己目录下的 src/**/*.ts；这里写成全树通配会把域源码再声明一遍，
+  // 撞上「同一份源码不许两份配置同时声明」那条，直接红。所以点名只圈散文件，
+  // 域源码的归属一字不动。新增散文件时把名字加进这里；散文件搬进域的那天把这一行删掉。
+  "allowJs": true,
+  "checkJs": false,
+  "compilerOptions": {
+    // 与其它域配置同一套保守保证：目标 ES2020，浏览器闭包与 Node 宿主两边都跑得动。
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // 只做类型检查不产出：客户端闭包要的片段由构建按转译口径现转现拼，
+    // 发布包要的模块由构建投放步骤转译写入，这份配置不管产物。
+    "noEmit": true,
+    "strict": true,
+    // 不挂任何类型包（与其它配置一致）。散文件里读 process / navigator 的地方，
+    // 按既有写法先 typeof 守再读，类型在用到的那份文件里照实声明成可能缺席。
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["*.ts", "tracker/*.ts", "ui/*.ts", "version-control/*.ts"]
+}
