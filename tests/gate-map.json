@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T03:14:40.963Z",
+  "generatedAt": "2026-10-17T03:45:12.470Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 301,
-  "gateCount": 301,
-  "attributedGates": 263,
+  "chainLength": 297,
+  "gateCount": 297,
+  "attributedGates": 259,
   "unattributedGates": 38,
   "buildOutputOnlyGates": 24,
   "completionRecordedGates": 6,
@@ -1692,42 +1692,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
-    },
-    {
-      "step": "node tests/verify-504-github-pr.ts",
-      "file": "tests/verify-504-github-pr.ts",
-      "guards": [
-        "src/tracker/rooms/github/issues.ts",
-        "src/tracker/rooms/github/normalize.ts"
-      ],
-      "dirs": [
-        "src/tracker/rooms/github"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 2 条"
-    },
-    {
-      "step": "node tests/verify-507-pr-offline.ts",
-      "file": "tests/verify-507-pr-offline.ts",
-      "guards": [
-        "src/host/tracker/snapshot.js",
-        "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/issues.ts",
-        "src/tracker/rooms/github/normalize.ts"
-      ],
-      "dirs": [
-        "src/host/tracker",
-        "src/tracker/registry",
-        "src/tracker/rooms/github"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-524-pr-detail.ts",
@@ -3463,8 +3427,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-952-short-text.js",
-      "file": "tests/verify-952-short-text.js",
+      "step": "node tests/verify-952-short-text.ts",
+      "file": "tests/verify-952-short-text.ts",
       "guards": [
         "src/shared/feedback-map.js"
       ],
@@ -3539,8 +3503,8 @@
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-963-log-order.js",
-      "file": "tests/verify-963-log-order.js",
+      "step": "node tests/verify-963-log-order.ts",
+      "file": "tests/verify-963-log-order.ts",
       "guards": [
         "src/host/bootstrap.js",
         "src/host/detectChain.ts",
@@ -3560,41 +3524,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
-    },
-    {
-      "step": "node tests/verify-965-admission.ts",
-      "file": "tests/verify-965-admission.ts",
-      "guards": [
-        "src/host/outbound/admission.ts"
-      ],
-      "dirs": [
-        "src/host/outbound"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
-    },
-    {
-      "step": "node tests/verify-967-measure.ts",
-      "file": "tests/verify-967-measure.ts",
-      "guards": [
-        "scripts/measure-967-outbound.js",
-        "src/client/statusbar/bannerChain.js",
-        "src/client/views/ChecksTab.js",
-        "src/client/views/NoRepoCard.js"
-      ],
-      "dirs": [
-        "scripts",
-        "src/client/statusbar",
-        "src/client/views"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-968-skill-ondemand.js",
@@ -7109,7 +7038,6 @@
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-640-dock-width-browser.ts",
-      "node tests/verify-967-measure.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue-body-script.js",
@@ -7321,7 +7249,6 @@
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-926-capfold-gate.ts",
-      "node tests/verify-967-measure.ts",
       "node tests/verify-cap-fold.js",
       "node tests/verify-reuse.js",
       "node tests/verify-subdir-first-frame.js"
@@ -7345,7 +7272,6 @@
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-763-detail-fold.ts",
-      "node tests/verify-967-measure.ts",
       "node tests/verify-hovertip.js",
       "node tests/verify-issue529-checks-i18n.js",
       "node tests/verify-map-drill.js",
@@ -7517,7 +7443,7 @@
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-927-gate-injection.ts",
       "node tests/verify-957-workspace-writer.js",
-      "node tests/verify-963-log-order.js",
+      "node tests/verify-963-log-order.ts",
       "node tests/verify-968-skill-ondemand.js",
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-config-store-comments.ts",
@@ -7559,8 +7485,7 @@
     ],
     "src/host/outbound": [
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-963-log-order.js",
-      "node tests/verify-965-admission.ts"
+      "node tests/verify-963-log-order.ts"
     ],
     "src/host/platform": [
       "node tests/verify-deck-tools-matrix.js",
@@ -7642,7 +7567,6 @@
     ],
     "src/host/tracker": [
       "node tests/verify-344-chain-auto-refresh.ts",
-      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-934-935-invariants.ts",
@@ -7663,7 +7587,7 @@
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-948-feedback-map.ts",
-      "node tests/verify-952-short-text.js",
+      "node tests/verify-952-short-text.ts",
       "node tests/verify-955-alignment.ts",
       "node tests/verify-968-skill-ondemand.js",
       "node tests/verify-matt-skills-sync.js",
@@ -7906,7 +7830,6 @@
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-1144-markdown-issue-address.ts",
       "node tests/verify-1150-plan-store-durable.ts",
-      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-683-host-wiring.ts",
@@ -7943,8 +7866,6 @@
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
-      "node tests/verify-504-github-pr.ts",
-      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -8135,7 +8056,7 @@
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-958-label-name-visible.js",
-      "node tests/verify-963-log-order.js",
+      "node tests/verify-963-log-order.ts",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-997-vc-sight-browser.js",

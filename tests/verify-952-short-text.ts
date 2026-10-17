@@ -1,5 +1,5 @@
-// tests/verify-952-short-text.js —— #952 短等待文字与轻效果门禁（948 图第三批）
-// 用法：在插件根目录执行 node tests/verify-952-short-text.js，可独立运行。
+// tests/verify-952-short-text.ts —— #952 短等待文字与轻效果门禁（948 图第三批）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-952-short-text.ts，可独立运行。
 //
 // 只留行为断言：把共享映射 src/shared/feedback-map.js 加载起来，按「短等待 / 中等代价 /
 // 宽按钮」问一次，看它给出的备用过程是不是圆点与呼吸这两条。
@@ -9,10 +9,10 @@
 const path = require('path')
 const { pathToFileURL } = require('url')
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT: string = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
+const check = (ok: boolean, msg: string, detail?: unknown): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
 
 async function main() {
   console.log('948 第三批门禁：短等待文字与轻效果（#952，只留行为断言）')

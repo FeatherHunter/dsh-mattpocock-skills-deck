@@ -65,18 +65,18 @@
       "ticket": "#1161"
     },
     {
-      "file": "tests/verify-964-same-key-ride.js",
-      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
+      "file": "tests/verify-964-same-key-ride.ts",
+      "reason": "已转 TypeScript，保持原状：仍不自动进链（要不要上链是 #964 自己的决定，不由改名顺手带进去）",
       "ticket": "#964"
     },
     {
-      "file": "tests/verify-965-admission.js",
-      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
+      "file": "tests/verify-965-admission.ts",
+      "reason": "已转 TypeScript，保持原状：仍不自动进链（要不要上链是 #965 自己的决定，不由改名顺手带进去）",
       "ticket": "#965"
     },
     {
-      "file": "tests/verify-967-measure.js",
-      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
+      "file": "tests/verify-967-measure.ts",
+      "reason": "已转 TypeScript，保持原状：仍不自动进链（要不要上链是 #967 自己的决定，不由改名顺手带进去）",
       "ticket": "#967"
     },
     {
@@ -110,12 +110,12 @@
       "ticket": "#1215"
     },
     {
-      "file": "tests/verify-504-github-pr.js",
+      "file": "tests/verify-504-github-pr.ts",
       "reason": "隔离待查：雾证据与坏节点行为失败，先定是回归还是门禁过期再进链",
       "ticket": "#1227"
     },
     {
-      "file": "tests/verify-507-pr-offline.js",
+      "file": "tests/verify-507-pr-offline.ts",
       "reason": "隔离待查：9过2败，先定性再进链",
       "ticket": "#1227"
     },

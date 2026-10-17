@@ -12,20 +12,24 @@ const { pathToFileURL } = require('url');
 const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js');
 installTimeCompression();
 const WT = nodePath.resolve(__dirname, '..');
-const url = (rel) => pathToFileURL(nodePath.join(WT, rel)).href;
-let total = 0; const broken = [];
-function must(c, inv, det) { total++; if (c) { console.log('  PASS ' + inv); } else { console.log('  FAIL ' + inv + (det ? ' → ' + det : '')); broken.push(inv); } }
-function title(t) { console.log('\n== ' + t + ' =='); }
-function makeSpy() {
-  const t0 = Date.now(); const rows = [];
-  const ctx = { fire: (level, event, fields) => { try { rows.push({ t: Date.now() - t0, level, event, fields: (typeof fields === 'function') ? fields() : fields }); } catch (e) {} }, isEnabled: () => true };
+// 事件行的一条记录：t 是相对起点（t0）的毫秒数，fields 记事件负载。
+interface LogRow { t: number; level: string; event: string; fields: any }
+const url = (rel: string): string => pathToFileURL(nodePath.join(WT, rel)).href;
+let total = 0; const broken: string[] = [];
+function must(c: boolean, inv: string, det?: string): void { total++; if (c) { console.log('  PASS ' + inv); } else { console.log('  FAIL ' + inv + (det ? ' → ' + det : '')); broken.push(inv); } }
+function title(t: string): void { console.log('\n== ' + t + ' =='); }
+// 假日志上下文：收下每一行事件，并提供按名字查首次出现位置、按名字数行数这两件查询。
+// idx() 是这扇门禁的核心手段——它按行序返回位置，S1 就靠比大小来守「先 miss 开跑、后搭车记命中」。
+function makeSpy(): { rows: LogRow[]; ctx: { fire: (level: string, event: string, fields: any) => void; isEnabled: () => boolean }; dump: (evts?: string[]) => void; idx: (event: string, pred?: (f: any) => boolean) => number; count: (event: string, pred?: (f: any) => boolean) => number } {
+  const t0 = Date.now(); const rows: LogRow[] = [];
+  const ctx = { fire: (level: string, event: string, fields: any) => { try { rows.push({ t: Date.now() - t0, level, event, fields: (typeof fields === 'function') ? fields() : fields }); } catch (e) {} }, isEnabled: () => true };
   return { rows, ctx,
-    dump: function (evts) { for (const r of rows) { if (evts && evts.indexOf(r.event) < 0) continue; console.log('  [+' + r.t + 'ms] ' + r.level + ' ' + r.event + ' ' + JSON.stringify(r.fields || {})); } },
-    idx: function (event, pred) { for (let i = 0; i < rows.length; i++) { if (rows[i].event === event && (!pred || pred(rows[i].fields))) return i; } return -1; },
-    count: function (event, pred) { return rows.filter((r) => r.event === event && (!pred || pred(r.fields))).length; } };
+    dump: function (evts?: string[]) { for (const r of rows) { if (evts && evts.indexOf(r.event) < 0) continue; console.log('  [+' + r.t + 'ms] ' + r.level + ' ' + r.event + ' ' + JSON.stringify(r.fields || {})); } },
+    idx: function (event: string, pred?: (f: any) => boolean) { for (let i = 0; i < rows.length; i++) { if (rows[i].event === event && (!pred || pred(rows[i].fields))) return i; } return -1; },
+    count: function (event: string, pred?: (f: any) => boolean) { return rows.filter((r) => r.event === event && (!pred || pred(r.fields))).length; } };
 }
 const PLATFORM = { os: 'win32', path: nodePath, getHome: async () => nodePath.join('D:', 'fakehome') };
-async function makeChain(spy, o) {
+async function makeChain(spy: ReturnType<typeof makeSpy>, o?: any) {
   o = o || {}; let evals = 0;
   const dcMod = await import(url('src/host/detectChain.ts'));
   const dh = dcMod.createDetectChain({
@@ -43,7 +47,7 @@ async function makeChain(spy, o) {
     logCtx: spy.ctx });
   return { dh, stats: () => ({ evals }) };
 }
-async function makeRunGh(spy, o) {
+async function makeRunGh(spy: ReturnType<typeof makeSpy>, o?: any) {
   o = o || {}; const timeouts = []; const spawns = []; let live = 0, peak = 0;
   const delayFor = o.delayFor || ((argv) => 60);
   let ghPath = null, ghErr = null;
@@ -68,7 +72,7 @@ async function makeRunGh(spy, o) {
     getChainBackoff: undefined, parseGithubRepo: undefined, logCtx: spy.ctx, gate: undefined, getGate: undefined });
   return { runGh: rk.runGh, spawns, timeouts, peak: () => peak };
 }
-async function makeSkillWorld(spy) {
+async function makeSkillWorld(spy: ReturnType<typeof makeSpy>) {
   const home = nodeOs.tmpdir();
   const platform = { os: 'win32', path: nodePath, getHome: async () => home };
   let calls = 0;
@@ -80,7 +84,7 @@ async function makeSkillWorld(spy) {
     resetChainCache: () => {}, logCtx: spy.ctx });
   return { probe, calls: () => calls };
 }
-async function makeScopedDetect(spy) {
+async function makeScopedDetect(spy: ReturnType<typeof makeSpy>) {
   const askedNames = []; const CHAIN3 = ['wayfinder', 'setup-matt-pocock-skills', 'ask-matt'];
   const fakeProbeSkill = async (name) => { askedNames.push(String(name)); return { ok: true, level: 'ok', detail: 'yes', hint: '' }; };
   const bootMod = await import(url('src/host/bootstrap.js'));
@@ -96,7 +100,7 @@ async function makeScopedDetect(spy) {
   return { svc, askedNames, CHAIN_THREE: CHAIN3 };
 }
 async function main() {
-  const allEvents = new Set();
+  const allEvents = new Set<string>();
   title('S1 同钥匙搭车：旧的没回新的不起，只等旧的');
   { const spy = makeSpy(); const c = await makeChain(spy, { detectMs: 120 });
     const a = { cwd: 'D:/repo', backendId: 'github', lang: 'zh' };

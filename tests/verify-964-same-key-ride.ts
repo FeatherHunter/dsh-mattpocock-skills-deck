@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-964-same-key-ride.js —— 同钥匙搭车门禁（票 #964，只做这一张票）。
+ * verify-964-same-key-ride.ts —— 同钥匙搭车门禁（票 #964，只做这一张票）。
  *
  * 治的是什么：同一个工作区用同一个后端看同一种语言时，旧的那一轮还没回来，
  * 新来的那一次不另起一轮，只等旧的那一轮。写过东西之后不搭旧车，旧的那一轮
@@ -14,31 +14,31 @@
  * 数一共求值了几次、退避记了几次、合并数涨了没有。只看外部行为这三样，
  * 不看里面那张在途表长什么样。
  *
- * 用法：node tests/verify-964-same-key-ride.js
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-964-same-key-ride.ts
  */
 const nodePath = require('path')
 const { pathToFileURL } = require('url')
 
-const ROOT = nodePath.resolve(__dirname, '..')
-const url = (rel) => pathToFileURL(nodePath.join(ROOT, rel)).href
+const ROOT: string = nodePath.resolve(__dirname, '..')
+const url = (rel: string): string => pathToFileURL(nodePath.join(ROOT, rel)).href
 
 let total = 0
-const broken = []
-function must(cond, invariant, detail) {
+const broken: string[] = []
+function must(cond: boolean, invariant: string, detail?: string): void {
   total++
   if (cond) { console.log('  PASS ' + invariant); return }
   const line = '  FAIL 不变式破了 —— ' + invariant + (detail ? '【实测：' + detail + '】' : '')
   console.log(line)
   broken.push(line.replace(/^\s+/, ''))
 }
-function title(t) { console.log('\n' + t) }
+function title(t: string): void { console.log('\n' + t) }
 
 const OS = process.platform === 'win32' ? 'win32' : (process.platform === 'darwin' ? 'darwin' : 'linux')
 const PLATFORM = { os: OS, path: nodePath, async getHome() { return require('os').homedir() } }
 
 function makeChainTable() {
-  const m = new Map()
-  function touch(k, v) { if (m.has(k)) m.delete(k); m.set(k, v); if (m.size > 20) m.delete(m.keys().next().value) }
+  const m = new Map<string, any>()
+  function touch(k: string, v: any) { if (m.has(k)) m.delete(k); m.set(k, v); if (m.size > 20) m.delete(m.keys().next().value) }
   return {
     map: m,
     getChainCache(key) { if (!key) return { ts: 0, key: null, value: null }; const k = String(key); const e = m.get(k); if (e) { m.delete(k); m.set(k, e); return e } return { ts: 0, key: k, value: null } },
@@ -48,12 +48,12 @@ function makeChainTable() {
 
 // 建一条真链，假后端每一轮睡一会儿，数求值几次与退避记几次。
 // opts: { detectMs 睡多久, nowMs 现在几点（可注入的钟）, failFirst 第一轮要不要失败 }
-async function makeChain(opts) {
+async function makeChain(opts?: any) {
   const o = opts || {}
   const table = makeChainTable()
   let detects = 0
   let backoffNotes = 0
-  const fires = []
+  const fires: any[] = []
   const { createDetectChain } = await import(url('src/host/detectChain.ts'))
   const failFirst = !!o.failFirst
   let evals = 0
