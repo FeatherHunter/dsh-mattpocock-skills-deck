@@ -30,6 +30,10 @@ let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const strip = (s) => s.replace(/^(\s*)export\s+/gm, '$1')
+// 构建时注入的常量在真机上由 client.js 拼进同一段闭包；把叶子文件单独当模块加载时它们是自由变量。
+// 照 tests/verify-818-version-control-view.ts 与 842 的同一套办法：拼接前把 values.js 那行 import 摘掉，
+// 真值另外挂到 globalThis 与 window 上（main 里挂 Node 侧、pageFor 里挂页面侧）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const VC_FILES = [
   'src/shared/version-control/rules.js',
@@ -156,14 +160,14 @@ window.__ready = true
 `
 }
 
-async function pageFor(browser, closureSrc, dict, css) {
+async function pageFor(browser, closureSrc, dict, css, relMs) {
   const esbuild = require('esbuild')
   const bundled = await esbuild.build({ stdin: { contents: entryOf(closureSrc, dict), resolveDir: ROOT, sourcefile: 'probe-997.js', loader: 'js' }, bundle: true, format: 'iife', platform: 'browser', target: 'chrome120', write: false, logLevel: 'error' })
   const probeJs = bundled.outputFiles[0].text
   const html = '<!doctype html><html><head><meta charset="utf-8"><style>' + css +
     'html,body{margin:0}#pane{display:flex;flex-direction:column;overflow-y:auto;background:var(--dsw-alias-bg-base,#151517);padding:0 12px}' +
     '</style></head><body data-ds-dark-theme><div id="pane"></div>' +
-    '<script>window.__SCREEN__=' + JSON.stringify(SCREEN) + ';window.__CLOSURE_SRC__=' + JSON.stringify(closureSrc) + ';window.__DICT__=' + JSON.stringify(dict) + ';window.__NOW__=' + Date.now() + ';</script>' +
+    '<script>window.VC_RELATIVE_WINDOW_MS=' + JSON.stringify(relMs) + ';window.__SCREEN__=' + JSON.stringify(SCREEN) + ';window.__CLOSURE_SRC__=' + JSON.stringify(closureSrc) + ';window.__DICT__=' + JSON.stringify(dict) + ';window.__NOW__=' + Date.now() + ';</script>' +
     '<script>' + probeJs + '</script></body></html>'
   const server = createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html) })
   await new Promise((r) => server.listen(0, '127.0.0.1', r))
@@ -178,7 +182,7 @@ const settle = async (page, ms) => { await page.waitForTimeout(ms || 260) }
 const probe = (page) => page.evaluate(() => window.__probe__())
 
 async function run(browser, build) {
-  const { page, close } = await pageFor(browser, build.closure, build.dict, build.css)
+  const { page, close } = await pageFor(browser, build.closure, build.dict, build.css, build.relMs)
   try {
     // ---------- A. 短面板：滚到那句提示就自己接着显示 ----------
     await page.evaluate(() => window.__render({ height: 240 }))
@@ -237,6 +241,11 @@ async function run(browser, build) {
 }
 
 ;(async () => {
+  // locale-* 这些产物里的 SETTINGS_DEBUG_PUSH_WAIT_MS 等常量，真机上是拼包时定义在同一段闭包里的；
+  // 单独 import 它们时是自由变量，会报 not defined。先把 values.js 的真值挂到 globalThis 上再加载。
+  const valuesMod = await import('file://' + path.join(ROOT, 'src/shared/time-config/values.js').replace(/\\/g, '/'))
+  for (const k of Object.keys(valuesMod)) { if (globalThis[k] === undefined) globalThis[k] = valuesMod[k] }
+  const relMs = Number(valuesMod.VC_RELATIVE_WINDOW_MS)
   const panel = await import('file://' + path.join(ROOT, 'src/client/kernel/locale-panel.js').replace(/\\/g, '/'))
   const flow = await import('file://' + path.join(ROOT, 'src/client/kernel/locale-flow.js').replace(/\\/g, '/'))
   const vcw = await import('file://' + path.join(ROOT, 'src/client/kernel/locale-vcwrite.js').replace(/\\/g, '/'))
@@ -245,15 +254,15 @@ async function run(browser, build) {
   const stylesVcMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcStyles.js').replace(/\\/g, '/'))
   const css = String(stylesMod.STYLE_TEXT || '') + String(stylesVcMod.VC_STYLE_TEXT || '')
 
-  const closure = VC_FILES.map((f) => strip(read(f))).join('\n')
+  const closure = VC_FILES.map((f) => strip(stripTimeConfigImport(read(f)))).join('\n')
   const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
   const browser = await getBrowser({ headless: true })
   try {
-    await run(browser, { closure, dict, css })
+    await run(browser, { closure, dict, css, relMs })
     // 反证：把三处 ref 接线摘掉，同样的滚动步骤必须一行都不涨。
     const broken = closure.replace(/ref: moreSight\.refOf\([^)]*\), /g, '')
     check(broken !== closure && broken.indexOf('moreSight.refOf') < 0, '反证自证：三处 ref 接线确实被摘掉了')
-    const { page, close } = await pageFor(browser, broken, dict, css)
+    const { page, close } = await pageFor(browser, broken, dict, css, relMs)
     try {
       await page.evaluate(() => window.__render({ height: 240 }))
       await page.waitForSelector('[data-vc-file]', { timeout: 5000 })
