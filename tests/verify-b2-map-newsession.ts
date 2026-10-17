@@ -1,5 +1,5 @@
-// verify-b2-map-newsession.js — dsh-waystation #456（v1.5 B2）行为契约测试
-// 用法: node tests/verify-b2-map-newsession.js [file...]（默认 client.js + package/lib/client.js 双源）
+// verify-b2-map-newsession.ts — dsh-waystation #456（v1.5 B2）行为契约测试
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-b2-map-newsession.ts [file...]（不给文件时读真源四份：prompts.ts / router.js / MapDetailTop.js）
 //
 // 验收标准（issue #456）：
 //   a) map 行新会话 prompt 首行即 /wayfinder+链接 —— AI 一开新会话即可定位对应 ISSUE（标识由首行承载，不再内嵌标识头）；

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T08:09:00.639Z",
+  "generatedAt": "2026-10-17T08:15:05.484Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 292,
-  "gateCount": 292,
-  "attributedGates": 258,
+  "chainLength": 293,
+  "gateCount": 293,
+  "attributedGates": 259,
   "unattributedGates": 34,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
@@ -3812,6 +3812,27 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
+      "step": "node tests/verify-b2-map-newsession.ts",
+      "file": "tests/verify-b2-map-newsession.ts",
+      "guards": [
+        "src/client/kernel/prompts.ts",
+        "src/client/kernel/router.js",
+        "src/client/views/MapDetailTop.js",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
+    },
+    {
       "step": "node tests/verify-backend-quota-model.ts",
       "file": "tests/verify-backend-quota-model.ts",
       "guards": [
@@ -7114,6 +7135,7 @@
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
+      "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-ctx.ts",
@@ -7199,6 +7221,7 @@
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-763-detail-fold.ts",
+      "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-issue529-checks-i18n.ts",
       "node tests/verify-labels-sync.ts",
@@ -8003,6 +8026,7 @@
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
+      "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-cap-fold-browser.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-capsule-layout.ts",

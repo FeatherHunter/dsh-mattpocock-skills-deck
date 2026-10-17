@@ -7,7 +7,6 @@
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
-    "tests/verify-b2-map-newsession.js",
     "tests/verify-bundled-trio-matrix.js",
     "tests/verify-detail-levels.js",
     "tests/verify-issue22-ui.js",
