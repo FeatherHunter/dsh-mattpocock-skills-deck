@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// verify-chain-capsule.js —— 门禁：状态栏胶囊里「这个会话在办哪张票」那一段
-// 用法：在插件根目录执行 node tests/verify-chain-capsule.js，可独立运行。
+// verify-chain-capsule.ts —— 门禁：状态栏胶囊里「这个会话在办哪张票」那一段
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-chain-capsule.ts，可独立运行。
 //
 // 这一段只做三件事，门禁按三组量：
 //   A 判据（纯函数，不开浏览器）：没快照/没记录/当前会话没记录 → 空；读坏了 → 原因透出；
@@ -24,12 +24,12 @@ import { compileFn } from './lib/eval-probe.js'
 //   产物不能从共用入口读（见 source-text.ts 文件头的规矩）。
 import { sourcePath } from './lib/source-text.ts'
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let passed = 0, failed = 0
-function ok(msg) { passed++; console.log('  PASS ' + msg) }
-function bad(msg) { failed++; console.log('  FAIL ' + msg) }
-function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
-const read = (rel) => {
+function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
+function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
+function check(cond: boolean, msg: string): void { if (cond) ok(msg); else bad(msg) }
+const read = (rel: string): string => {
   // 真源旁边有同名 .ts 时读 .ts 原文；产物（client.js 等）与还没迁移的 .js 原样读。
   let real = rel
   try { const p = sourcePath(rel); if (p !== rel) real = p } catch (e) { real = rel }
@@ -40,7 +40,7 @@ const LEAF = 'src/client/statusbar/SessionChainCapsule.js'
 if (!existsSync(resolve(ROOT, LEAF))) { console.log('缺文件 ' + LEAF); process.exit(1) }
 
 // 与构建同一套做法：剥行首 export，丢进同名桩那个作用域里跑（只动判据，不渲染组件）。
-function loadLeaf(rowsStub) {
+function loadLeaf(rowsStub: (st: any) => any[]) {
   const src = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
   // 这里选 compileFn：原来就是把九个依赖名逐个传给按文本造函数的写法，共用入口同样收参数名数组，造出来的函数接法不变。
   const factory = compileFn(

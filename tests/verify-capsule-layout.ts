@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-capsule-layout.js — 状态栏胶囊「图标与文字成整体、各项间隔均匀」的真机门禁（2026-09-24 维护者反馈）
+ * verify-capsule-layout.ts — 状态栏胶囊「图标与文字成整体、各项间隔均匀」的真机门禁（2026-09-24 维护者反馈）
  *
  * 维护者那一轮的两句原话（截图：降级横幅左边两个三角那次一起提的）：
  *   「胶囊中的几个按钮过于集中在右侧，应该均匀分布在状态胶囊栏中。」
@@ -37,9 +37,9 @@ import { resolve } from 'node:path'
 import { createServer } from 'node:http'
 
 let passed = 0, failed = 0
-function ok(msg) { passed++; console.log('  PASS ' + msg) }
-function bad(msg) { failed++; console.log('  FAIL ' + msg) }
-function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
+function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
+function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
+function check(cond: boolean, msg: string): void { if (cond) ok(msg); else bad(msg) }
 
 // 人工定的两个阈值（写进断言、也写进报告）：
 //   · 图标与它自己那串字之间的间隙，允许 3–8 像素（今天写的是 5）；

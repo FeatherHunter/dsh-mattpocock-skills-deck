@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-cap-fold.js — 状态栏胶囊那条横条「随宽度一格一格变短」的门禁（#725，维护者 2026-09-24 定）
+ * verify-cap-fold.ts — 状态栏胶囊那条横条「随宽度一格一格变短」的门禁（#725，维护者 2026-09-24 定）
  *
  * 维护者这一轮的真意（2026-09-24 晚真机反馈后回改）：「有位置就显示，宽度不够时它第一个让位」。
  *   他上一轮的原话是「品牌字默认折叠；内容平铺在这一条里；变窄时字一个一个减少（先消失非核心的），
@@ -40,11 +40,11 @@ import { createServer } from 'node:http'
 import { compileFn } from './lib/eval-probe.js'
 
 let passed = 0, failed = 0
-function ok(msg) { passed++; console.log('  PASS ' + msg) }
-function bad(msg) { failed++; console.log('  FAIL ' + msg) }
-function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
+function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
+function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
+function check(cond: boolean, msg: string): void { if (cond) ok(msg); else bad(msg) }
 
-const read = (rel) => readFileSync(resolve(rel), 'utf8')
+const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 const CAPFOLD = 'src/client/statusbar/capFold.js'
 const CAPMACHINE = 'src/client/statusbar/capFoldMachine.js'
 const STATUSBAR = 'src/client/statusbar/StatusBar.js'
