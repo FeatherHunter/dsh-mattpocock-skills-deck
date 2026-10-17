@@ -8,7 +8,6 @@
 // 五组断言：① 同传标题加含旧标题的状态正文（本缺陷：新标题落盘）；② 只传标题（行为不变）；
 // ③ 只传正文（行为不变：标题跟正文走）；④ 同传标题加片段（两边都生效）；⑤ 本门禁已挂进验证链。
 import nodePath from 'node:path'
-import fs from 'node:fs'
 import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
 import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
@@ -100,7 +99,6 @@ const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) =
 
 // —— ⑤ 本门禁已挂进验证链（#1125 起问规划函数，不再读 package.json 长串） ——
 {
-  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
   check(isGatePlanned(process.cwd(), 'tests/verify-972-title-body.js'), '⑤ 验证链里能找到本门禁（规划函数里有它）')
 }
 
