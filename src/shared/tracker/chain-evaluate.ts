@@ -1,6 +1,78 @@
-// src/shared/tracker/chain-evaluate.js —— S1（#451）从 chain.js 拆出之求值器与快照汇总，纯结构、行为零变化。
+// src/shared/tracker/chain-evaluate.ts —— S1（#451）从 chain.js 拆出之求值器与快照汇总，纯结构、行为零变化。
 // 以后谁改它：改求值推进、快照汇总、进度口径的人。预估约260行，超 350 打回。
 // 接线：不引用类型与校验文件（墙要求）；检查状态、形状版本、小助手与类型、校验文件同源，改动时一起改。
+
+/** 与 chain-types.ts 同源的最小形状（墙要求不互相引用；改动时两处同改）。 */
+type EvalCheckObject = {
+  id?: string
+  kind?: string
+  primitive?: string
+  command?: string
+  path?: string
+  key?: string
+  skill?: string
+}
+
+/** 检查谓词：string 标识是 backend kind 的简写，对象形态按 kind 区分三种来源。 */
+type EvalCheck = string | EvalCheckObject
+
+/** 展示数据：只读 fallback 与 title 做胶囊回落，多余字段透传不解读。 */
+type EvalShow = {
+  fallback?: string
+  title?: string
+  [key: string]: unknown
+}
+
+/** 动作声明：求值器只看「有没有动作」定 current 还是 fail，不解读动作内容。 */
+type EvalAction = {
+  [key: string]: unknown
+}
+
+/** 检查项：onPass/onFail 缺失按「无展示无动作」处理，不抛错。 */
+type EvalCheckItem = {
+  id?: unknown
+  check?: EvalCheck
+  onPass?: { show?: EvalShow | null; actions?: EvalAction[] }
+  onFail?: { show?: EvalShow | null; actions?: EvalAction[] }
+}
+
+/** 有序检查项序列（前步通过才进入下一步）。 */
+type EvalChain = EvalCheckItem[]
+
+/** 单步快照：detail 只在畸形项降级时出现，正常步骤没有该字段。 */
+type EvalStepSnapshot = {
+  id: string
+  check: unknown
+  status: string
+  show: EvalShow | null
+  actions: EvalAction[]
+  isApplicable: boolean
+  blockedBy: string | null
+  isCurrent?: boolean
+  isBlocking?: boolean
+  detail?: string
+}
+
+/** 链整体态：四态无 na，空链是 'empty' 而不是 'allDone'。 */
+type EvalChainState = 'allDone' | 'hasCurrent' | 'pending' | 'empty'
+
+/** 整条链的求值快照（含票面兼容别名，failedIndex 与 currentIndex 同值）。 */
+type EvalChainSnapshot = {
+  steps: EvalStepSnapshot[]
+  currentIndex: number | null
+  failedIndex: number | null
+  doneCount: number
+  applicableCount: number
+  totalCount: number
+  chainState: EvalChainState
+  version: string
+  isComplete: boolean
+  hasBlockingFailure: boolean
+  blockingCheck: string | null
+}
+
+/** 已求值的谓词结果：对象按 id 查，Map 按键查，函数按 id 调；缺位一律按 pending 处理。 */
+type PredicateResults = Record<string, unknown> | Map<string, unknown> | ((id: string) => unknown)
 
 // 与 chain-types.js 同源（墙要求不互相引用；改动时两处同改）。
 /** 契约形状版本（供日志/审计）。 */
@@ -17,9 +89,9 @@ const CHECK_STATE = Object.freeze({
 
 // ---------- 内部辅助 ----------
 
-function isPlainObject(v) { return v != null && typeof v === 'object' && !Array.isArray(v) }
+function isPlainObject(v: unknown): v is Record<string, unknown> { return v != null && typeof v === 'object' && !Array.isArray(v) }
 
-function deriveCheckId(item) {
+function deriveCheckId(item: EvalCheckItem | null | undefined): string {
   if (!item) throw new Error('CheckItem 必须为对象')
   if (typeof item.id === 'string' && item.id.trim()) return item.id.trim()
   // 回退用 check 字符串（票面简化形态）
@@ -34,7 +106,7 @@ function deriveCheckId(item) {
   throw new Error('CheckItem 需 id 或 string check 标识（链内唯一键）')
 }
 
-function normalizeResult(v) {
+function normalizeResult(v: { status?: unknown; ok?: unknown } | string | boolean | null | undefined): string {
   if (v === true || v === 'pass' || v === 'done' || v === 'PASS') return 'pass'
   if (v === false || v === 'fail' || v === 'FAIL') return 'fail'
   if (v == null) return 'pending'
@@ -62,12 +134,12 @@ function normalizeResult(v) {
  * @param {{backendId?: string}} [opts]
  * @returns {ChainSnapshot}
  */
-export function evaluateChain(chain, predicateResults = {}, opts = {}) {
+export function evaluateChain(chain: EvalChain, predicateResults: PredicateResults = {}, opts: { backendId?: string } = {}): EvalChainSnapshot {
   if (!Array.isArray(chain)) throw new Error('evaluateChain: chain must be array')
   const results = predicateResults
 
   // 统一取结果：支持 Map、对象、函数；键按 item.id 回退 check 字符串
-  const getVal = (item) => {
+  const getVal = (item: EvalCheckItem | null | undefined): unknown => {
     try {
       if (typeof results === 'function') {
         const id = deriveCheckId(item)
@@ -101,26 +173,26 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
     return undefined
   }
 
-  const steps = []
-  let currentIndex = null
+  const steps: EvalStepSnapshot[] = []
+  let currentIndex: number | null = null
   let doneCount = 0
   let foundHead = false
-  let headBlockedBy = null
+  let headBlockedBy: string | null = null
 
   for (let i=0;i<chain.length;i++) {
     const item = chain[i]
-    let id
+    let id: string
     try { id = deriveCheckId(item) } catch (e) {
       // B5 fix: 畸形项不抛崩整链，降级为 pending 单步，detail 透传供日志二分
       const badIdx = i
-      steps.push({ id: '__bad_'+badIdx, check: item && item.check || null, status: CHECK_STATE.PENDING, show: null, actions: [], isApplicable: true, blockedBy: foundHead ? headBlockedBy : null, detail: String((e && e.message) || e) })
+      steps.push({ id: '__bad_'+badIdx, check: item && item.check || null, status: CHECK_STATE.PENDING, show: null, actions: [], isApplicable: true, blockedBy: foundHead ? headBlockedBy : null, detail: String(((e as { message?: unknown }) || {}).message || e) })
       // 首个畸形即视为链头（pending），后续一律 pending
       if (!foundHead) { currentIndex = badIdx; foundHead = true; headBlockedBy = '__bad_'+badIdx }
       continue
     }
     const raw = getVal(item)
     // 归一化（2026-08-27 起无 na）
-    let norm = raw
+    let norm: unknown = raw
     if (raw === true) norm = 'pass'
     else if (raw === false) norm = 'fail'
     else if (raw == null) norm = 'pending'
@@ -138,11 +210,11 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
       norm = 'pending'
     }
 
-    let status
-    let show = null
-    let actions = []
+    let status: string
+    let show: EvalShow | null = null
+    let actions: EvalAction[] = []
     let isApplicable = true
-    let blockedBy = foundHead ? headBlockedBy : null
+    let blockedBy: string | null = foundHead ? headBlockedBy : null
     let isCurrent = false
     let isBlocking = false
 
@@ -188,7 +260,7 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
 
   const totalCount = chain.length
   const applicableCount = totalCount
-  let chainState = 'empty'
+  let chainState: EvalChainState = 'empty'
   if (totalCount === 0) chainState = 'empty'
   else if (currentIndex === null) chainState = 'allDone'
   else {
@@ -199,7 +271,10 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
 
   const isComplete = chainState === 'allDone'
   const hasBlockingFailure = currentIndex !== null
-  const blockingCheck = hasBlockingFailure ? (steps[currentIndex]?.id || (()=>{ try{ return deriveCheckId(chain[currentIndex]) } catch { return '__bad_'+currentIndex } })()) : null
+  // headIdx 与 currentIndex 同值：const 才能把「非空」收窄带进下面那个立即执行函数里
+  // （currentIndex 是 let，闭包里收窄会丢）。三目条件与 hasBlockingFailure 同义，行为不变。
+  const headIdx: number | null = currentIndex
+  const blockingCheck = headIdx === null ? null : (steps[headIdx]?.id || (() => { try { return deriveCheckId(chain[headIdx]) } catch { return '__bad_' + headIdx } })())
 
   return {
     steps,
@@ -219,19 +294,21 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
 
 /**
  * 便捷：判断链是否完成（全部 done，无阻塞，2026-08-27 起无 na）。
+ * 只看快照结论不重跑谓词：pending 的链在这里是 false，想推进必须重求值后再调 evaluateChain。
  * @param {ChainSnapshot} snap
  * @returns {boolean}
  */
-export function isChainComplete(snap) {
+export function isChainComplete(snap: EvalChainSnapshot | null | undefined): boolean {
   return !!(snap && (snap.isComplete || snap.chainState === 'allDone'))
 }
 
 /**
  * 取当前需展示的失败步（首个 isCurrent），无则 null。
+ * currentIndex 越界时回 null 而不是抛错：快照与链长度对不上说明调用处拼错了，这里只诚实回空。
  * @param {ChainSnapshot} snap
  * @returns {StepSnapshot|null}
  */
-export function currentStepOf(snap) {
+export function currentStepOf(snap: EvalChainSnapshot | null | undefined): EvalStepSnapshot | null {
   if (!snap || !Array.isArray(snap.steps) || snap.currentIndex == null || snap.currentIndex < 0) return null
   return snap.steps[snap.currentIndex] || null
 }
@@ -240,10 +317,11 @@ export function currentStepOf(snap) {
  * 就绪计数口径（契约层统一，供状态栏/胶囊/面板共用，2026-08-27 起无 na）。
  *  - 分子 = doneCount（不计 pending、fail/current）
  *  - 分母 = applicableCount（= total）
+ * 分母恒为适用项总数：删 na 之后分母等于全长，total 为 0 时 percent 直接给 100 而不是除零。
  * @param {ChainSnapshot} snap
  * @returns {{done:number, total:number, percent:number|null}}
  */
-export function chainProgress(snap) {
+export function chainProgress(snap: EvalChainSnapshot | null | undefined): { done: number; total: number; percent: number | null } {
   if (!snap || typeof snap.applicableCount !== 'number') return { done:0, total:0, percent:null }
   const done = snap.doneCount || 0
   const total = snap.applicableCount || 0
@@ -253,16 +331,22 @@ export function chainProgress(snap) {
 
 /**
  * 胶囊汇总口径：返回链状态的人读摘要（供 UI 胶囊/ badge 消费，纯数据）。
+ * 空链与判不出链头的链都走「检测中…」：胶囊只做展示，真正的推进状态以 evaluateChain 的 chainState 为准。
  * @param {ChainSnapshot} snap
  * @returns {{kind:'done'|'current'|'fail'|'pending'|'empty', labelKey:string, fallback:string}}
  */
-export function capsuleSummary(snap) {
+export function capsuleSummary(snap: EvalChainSnapshot | null | undefined): { kind: string; labelKey: string; fallback: string } {
   if (!snap || snap.totalCount===0) return { kind:'empty', labelKey:'chain.empty', fallback:'无检查' }
   if (snap.chainState==='allDone') return { kind:'done', labelKey:'chain.done', fallback:'全部就绪' }
   if (snap.chainState==='pending') return { kind:'pending', labelKey:'chain.pending', fallback:'检测中…'}
-  const cur = snap.steps[snap.currentIndex]
+  // currentIndex 为 null 时原来 steps[null] 得 undefined，走下面 !cur 那一支；
+  // 这里把同一分支显式写出来，行为不变（null 索引本来也只在类型层被禁，运行时就是 undefined）。
+  const cur = snap.currentIndex === null ? undefined : snap.steps[snap.currentIndex]
   if (!cur) return { kind:'pending', labelKey:'chain.pending', fallback:'检测中…'}
-  if (cur.status===CHECK_STATE.CURRENT) return { kind:'current', labelKey:'chain.current', fallback: cur.show && (cur.show.fallback || cur.show.title) ? (cur.show.fallback || cur.show.title) : '待处理' }
-  if (cur.status===CHECK_STATE.FAIL) return { kind:'fail', labelKey:'chain.fail', fallback: cur.show && (cur.show.fallback || cur.show.title) ? (cur.show.fallback || cur.show.title) : '未通过' }
-  return { kind: cur.status, labelKey:'chain.'+cur.status, fallback: cur.show && (cur.show.fallback || cur.show.title) ? (cur.show.fallback || cur.show.title) : String(cur.status) }
+  // 展示文案取 show.fallback 否则 show.title（两处都缺回默认串）：先把「有没有」算进 showText，
+  // 再用它选分支——原来是同一表达式在条件与分支里各写一遍，运行时值一样，类型层第二遍收不窄。
+  const showText: string | null | undefined = cur.show && (cur.show.fallback || cur.show.title)
+  if (cur.status===CHECK_STATE.CURRENT) return { kind:'current', labelKey:'chain.current', fallback: showText ? showText : '待处理' }
+  if (cur.status===CHECK_STATE.FAIL) return { kind:'fail', labelKey:'chain.fail', fallback: showText ? showText : '未通过' }
+  return { kind: cur.status, labelKey:'chain.'+cur.status, fallback: showText ? showText : String(cur.status) }
 }
