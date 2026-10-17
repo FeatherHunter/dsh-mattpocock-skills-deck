@@ -123,6 +123,9 @@ const KEYS = [
   ['probeAutoWaitMs', 'PROBE_AUTO_WAIT_MS', 'timeouts'],
   ['procProbeGraceMs', 'PROC_PROBE_GRACE_MS', 'timeouts'],
   ['procGraceMs', 'PROC_GRACE_MS', 'timeouts'],
+  // —— PATH 里找不到 gh 时那次兜底探活（`gh --version` 的等待上限；#1160 收尾自审补登记，
+  //    它当时写在 src/host/git-process.ts 里的 timer.timeout(2000)，单参写法漏过了门禁的正则）——
+  ['ghVersionProbeMs', 'GH_VERSION_PROBE_MS', 'timeouts'],
   // —— 检测链里的谓词超时（对抗式自查补登记：原来写在 option 对象里，名字是裸 timeout，两边都看不见）——
   ['predicateTimeoutMs', 'PREDICATE_TIMEOUT_MS', 'timeouts'],
   ['predicateFallbackTimeoutMs', 'PREDICATE_FALLBACK_TIMEOUT_MS', 'timeouts'],
@@ -167,6 +170,8 @@ const KEYS = [
   ['tipHideDelayMs', 'TIP_HIDE_DELAY_MS', 'intervals'],
   // —— 回填草稿后补焦点的重试延时（api-io.ts 的 setTimeout(run, 120)，单源头改造中新门禁扫出来）——
   ['draftRefocusRetryMs', 'DRAFT_REFOCUS_RETRY_MS', 'intervals'],
+  ['nativeTabRetryIntervalMs', 'NATIVE_TAB_RETRY_INTERVAL_MS', 'intervals'],
+  ['skillSkeletonDelayMs', 'SKILL_SKELETON_DELAY_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],
@@ -208,6 +213,9 @@ const KEYS = [
   ['commentResultFlashMs', 'COMMENT_RESULT_FLASH_MS', 'ttl'],
   ['commentsMoreLoadingMinMs', 'COMMENTS_MORE_LOADING_MIN_MS', 'ttl'],
   ['copyFlashMs', 'COPY_FLASH_MS', 'ttl'],
+  ['skillFloatCloseDelayMs', 'SKILL_FLOAT_CLOSE_DELAY_MS', 'ttl'],
+  ['labelCopyFlashMs', 'LABEL_COPY_FLASH_MS', 'ttl'],
+  ['skillDetailCopiedFlashMs', 'SKILL_DETAIL_COPIED_FLASH_MS', 'ttl'],
   // —— backoff：退避序列 ——
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
 ]

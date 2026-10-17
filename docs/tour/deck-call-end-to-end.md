@@ -310,12 +310,12 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 ### 7.1 GitHub 房间：最后是 `gh` 进程
 
-**唯一出口**：`src/tracker/rooms/github/client.ts`（`ghClient` :202 造执行器，`execGh` :277 起真正干活）。所有对 GitHub 的读写都从这里出去。房间里起 `gh` 进程的地方只有两处：真正干活的全在 `execGh`（:372），另一处是**找不到 `gh` 时的一次探活**（`gh --version`，:232，走 3 秒探活档，`GITHUB_PROBE_TIMEOUT_MS` 在 `src/shared/time-config/values.js:143`）。
+**唯一出口**：`src/tracker/rooms/github/client.ts`（`ghClient` :202 造执行器，`execGh` :277 起真正干活）。所有对 GitHub 的读写都从这里出去。房间里起 `gh` 进程的地方只有两处：真正干活的全在 `execGh`（:372），另一处是**找不到 `gh` 时的一次探活**（`gh --version`，:232，走探活档（15 秒），`GITHUB_PROBE_TIMEOUT_MS` 在 `src/shared/time-config/values.js:143`）。
 
 | 环节 | 行号 | 做什么 |
 | --- | --- | --- |
 | 分桶 | :287 | `isWriteGhArgs(args) ? 'write' : 'read'` |
-| 定档超时 | :289 | `timeoutForGhArgs(args)`：读 12 秒 / 写 30 秒 / 探活 3 秒（档位值在 `src/tracker/kernel/outbound-tiers.ts:8-9`，函数在 :89） |
+| 定档超时 | :289 | `timeoutForGhArgs(args)`：读 12 秒 / 写 30 秒 / 探活 15 秒（档位值在 `src/tracker/kernel/outbound-tiers.ts:8-9`，函数在 :89） |
 | 房内自己掐表 | :290-336 | 定时器在**拿名额之前**就起（拿名额在 :341），所以排队段也被盖住；到点算超时、被调用方取消算取消（原因见 :294） |
 | 拿名额 | :341 | `control.acquire({bucket, signal})`：满了就排队，「等」不算失败。出站控制面是契约 `src/tracker/contract/outbound.ts:39-51`（`acquire`/`noteWrite`），房内经 `getOutbound` 取（:160-162），没接上就按环境失败大声报出来、不发这一笔（:282-285） |
 | 报出站 | :370 | `reportOutbound(ctx, args)`——真要起进程了才报，排队中被取消的不进账 |
@@ -346,7 +346,7 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 **失败长什么样**
 
 - 命令没起来（`gh` 不在 PATH、没登录）：`kind: 'env'` 或 `'auth'`，`code: -1`。
-- 到点没回话：`kind: 'network'`，原文「gh 在 N 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 3 秒），这一笔已经中止」（:336）。
+- 到点没回话：`kind: 'network'`，原文「gh 在 N 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 15 秒），这一笔已经中止」（:336；括号里那三个秒数由 `src/tracker/kernel/outbound-tiers.ts` 的档位常量现算，改档时文案跟着走、不会漂）。
 - 排队中被取消：「已取消排队（出站准入等待中被取消），没有发出请求，可重试」（:350）。
 - 命令跑了但退出码非 0：按 `ghVerdictOf` 分类，事实与退出码一起交表（:393-399）。
 

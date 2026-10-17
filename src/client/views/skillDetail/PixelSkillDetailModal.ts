@@ -28,6 +28,8 @@ declare const PixelSkeleton: (props?: PixelSkeletonProps) => any;
 declare function pixelDocHeadings(md?: string): PixelHeading[];
 /** 详情栈上限，与取数那边同一个数（超过就挤掉最深的）。 */
 declare const PIXEL_STACK_MAX: number;
+/** 点「复制链接」之后「已复制」标记停留多久（拼进闭包的中央常量，值在 config/ttl.yaml 的 skillDetailCopiedFlashMs）。 */
+declare const SKILL_DETAIL_COPIED_FLASH_MS: number;
 /** 关一层：弹掉栈顶，露出来的就是上一层（栈空了就回到列表）。人拍板 2026-10-10。 */
 export const pixelCloseDetail = function (s: PixelStore | null | undefined): void {
   if (!s) return
@@ -52,7 +54,7 @@ export const pixelCopyDetailLink = function (s: PixelStore | null | undefined, t
       if (!s || s.pixelDetail !== d) return
       d.copied = false
       try { if (typeof emit === 'function') emit(s) } catch (e) { /* 画布外自测时没有 emit */ }
-    }, 1500)
+    }, SKILL_DETAIL_COPIED_FLASH_MS)
   }
   try {
     if (text && typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {

@@ -164,7 +164,7 @@ export const LabelColorDialog = (props) => {
         if (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function') {
           timer.timeout(function () {
             setCopyState(function (prev) { return prev.kind === 'ok' ? { kind: '', key: '', text: '' } : prev })
-          }, 2600)
+          }, LABEL_COPY_FLASH_MS)
         }
       } catch (e) { /* 自动收起这一步失败不影响已经显示出来的「已复制」 */ }
     })

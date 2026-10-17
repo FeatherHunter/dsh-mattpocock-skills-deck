@@ -15,6 +15,8 @@
  */
 import type { PixelStore, PixelSkillItem } from '../pixelProps';
 declare function pixelCloseDetail(s?: PixelStore | null): void;
+/** 取原文超过这么久还没回来就先摆骨架屏（拼进闭包的中央常量，值在 config/intervals.yaml 的 skillSkeletonDelayMs）。 */
+declare const SKILL_SKELETON_DELAY_MS: number;
 /** 取回来的原文与它的绝对路径按技能名留一份（本会话内存，不落盘）：再点同一篇直接出内容，不闪阶段话。 */
 export const pixelDetailCache: Record<string, { md: string; path: string; mdZh: string | null; pathZh: string | null }> = {}
 let pixelSkelTimer: any = null
@@ -60,7 +62,7 @@ const pixelLoad = function (st: PixelStore, created: any, name: string): void {
     if (!d || !pixelAlive(st, d) || d.phase !== 'loading') return
     d.showSkel = true
     try { if (typeof emit === 'function') emit(st) } catch (e) { /* 忽略 */ }
-  }, 2000)
+  }, SKILL_SKELETON_DELAY_MS)
   const t0 = Date.now()
   let pending: any = null
   try {

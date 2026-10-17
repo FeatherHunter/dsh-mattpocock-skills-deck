@@ -80,7 +80,8 @@ ttl:
   workspaceRootTtlMs: 30000
   # 等界面快照回来的上限：30 秒。等不到按没有快照继续。
   snapWaitMs: 30000
-  # 探测界面快照的超时：2.6 秒。它只是问一句“界面还在吗”，不该久等。
+  # 一次探测在界面上留下的高亮亮多久：2.6 秒。亮这么久就自己淡掉，不把痕迹一直挂在界面上。
+  # 注意这**不是**等快照回来的超时（那一条是上面的 snapWaitMs，30 秒）：名字里的 probe 说的是「探测留下的高亮」。
   snapshotProbeMs: 2600
   # 提示条自动消失的时间：2.8 秒。
   storeNoticeDismissMs: 2800
@@ -96,3 +97,9 @@ ttl:
   commentsMoreLoadingMinMs: 600
   # 复制成功提示的停留时间：1.3 秒。
   copyFlashMs: 1300
+  # 鼠标离开技能浮层之后隔多久才真的收起：160 毫秒。留这点时间，手从技能名移到浮层上时浮层不会先消失。
+  skillFloatCloseDelayMs: 160
+  # 调色盘弹窗里「已复制」提示的停留时间：2.6 秒。到时自动收起，不留在界面上。
+  labelCopyFlashMs: 2600
+  # 技能详情里点「复制链接」之后「已复制」标记停留多久：1.5 秒。
+  skillDetailCopiedFlashMs: 1500

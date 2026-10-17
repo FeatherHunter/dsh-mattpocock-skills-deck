@@ -11,7 +11,7 @@
 - `error-rules.ts` —— 判档规则表的唯一真源（哪句话归哪一档写在这里）
 - `identity-keys.ts` —— 票身份算法（`effortOf` / `idOfParts` 等）
 - `workspace-ownership.ts` —— 「这个工作区的属主是不是当前运行用户」的单一判断
-- `outbound-tiers.ts` —— 出站命令的档位策略（读 12 秒 / 写 30 秒 / 探活 3 秒的纯判定；房间起 gh 命令前
+- `outbound-tiers.ts` —— 出站命令的档位策略（读 12 秒 / 写 30 秒 / 探活 15 秒的纯判定；房间起 gh 命令前
   按它定超时，宿主起同一批命令时也按它定，所以它是两边共用的纯函数，不是宿主私有件）
 
 **不在这里的**：契约层（`src/tracker/contract/`，只有类型与数据）、具体后端的实现（`rooms/<名字>/`）、

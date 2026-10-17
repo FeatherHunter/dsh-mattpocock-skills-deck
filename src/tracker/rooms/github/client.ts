@@ -25,7 +25,7 @@ import { fail, rawText } from '../../kernel/preflight.js'
 // 记日志那层壳在内核一份（#1182 第 3 件）：本房只管给出级别、事件名与字段。
 import { guardEmit } from '../../kernel/log-emit.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { timeoutForGhArgs, isWriteGhArgs } from '../../kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
 // 默认超时住中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），这里只留别名。
 import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 // #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
@@ -290,7 +290,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     // #1007：房内自己掐表，而且计时从「拿名额」那一刻就开始。
     // 为什么必须盖住排队段：名额被卡住的调用占满时，新调用会在队列里一直等到外层调用钳制（30 秒）才结束，
     // 既没有上限也没有名字（日志里只看到「30 秒被取消」）。计时器盖住排队段之后，这一笔最多赔本档超时
-    // （读 12 秒 / 写 30 秒 / 探活 3 秒），而且如实归到「超时」，不再混进「被取消」。
+    // （读 12 秒 / 写 30 秒 / 探活 15 秒），而且如实归到「超时」，不再混进「被取消」。
     // 两种中止要分得开：房内到点 = 超时（算失败，归网络档）；调用方取消 = 取消（不算失败，照旧可重试）。
     const ctrl = (typeof AbortController === 'function') ? new AbortController() : null
     const laneSignal = ctrl ? ctrl.signal : signal
@@ -333,7 +333,8 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       emitGhExec('network', -1, t0, cwd, slotWaitedMs, opts.via)
       emitGhTimeout(timeout)
       // 房内到点时执行器还没有交回任何输出，这一处没有原文可交（空串是如实交代，不是漏填）。
-      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 3 秒），这一笔已经中止', code: -1, timedOut: true, raw: '' } }
+      // 括号里那三档按当前档位值现算（毫秒换秒）、不手抄：手抄的数字会在有人调 YAML 之后悄悄变成错的。
+      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 ' + Math.round(READ_TIMEOUT_MS / 1000) + ' 秒 / 写 ' + Math.round(WRITE_TIMEOUT_MS / 1000) + ' 秒 / 探活 ' + Math.round(PROBE_TIMEOUT_MS / 1000) + ' 秒），这一笔已经中止', code: -1, timedOut: true, raw: '' } }
     }
     // #965：先拿名额再起进程，满了就排队等（等不是失败）；排队中被调用方取消则按取消返回，不算失败。
     let release: (() => void) | null = null

@@ -41,7 +41,7 @@ export const SkillFloatList = function (props) {
   }
   const scheduleClose = function (ref, fn) {
     clearClose(ref)
-    ref.current = setTimeout(function () { ref.current = null; fn() }, 160)
+    ref.current = setTimeout(function () { ref.current = null; fn() }, SKILL_FLOAT_CLOSE_DELAY_MS)
   }
   const showSkillPop = function () {
     clearClose(skillCloseRef)

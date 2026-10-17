@@ -24,7 +24,7 @@
 
 /**
  * 出站分桶：读、写、探活各一桶。
- * 与 `src/tracker/kernel/outbound-tiers.ts` 的档位一一对应（读 12 秒 / 写 30 秒 / 探活 3 秒），
+ * 与 `src/tracker/kernel/outbound-tiers.ts` 的档位一一对应（读 12 秒 / 写 30 秒 / 探活 15 秒），
  * 两处名字必须一致 —— 改名要一起改，否则档位会静默对不上。
  */
 export type OutboundBucket = 'read' | 'write' | 'probe'

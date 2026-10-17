@@ -138,7 +138,7 @@
       const nativeTimer = setInterval(function () {
         nativeTries++
         if (registerNativeTabType()) { registerNativeTabSlots(); clearInterval(nativeTimer) } else if (nativeTries >= 10) clearInterval(nativeTimer)
-      }, 1000)
+      }, NATIVE_TAB_RETRY_INTERVAL_MS)
     }
     ctx.effect(function () {
       return function () {

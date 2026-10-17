@@ -147,7 +147,7 @@ async function main() {
 
   // 十二、复现 50：helper 两路（有散列函数走散列，无则记 unknown）。
   {
-    const body = logSrc.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
+    const body = stripTimeConfigImport(logSrc).split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
     // 这里选 compileFn：同上（四个依赖名逐个传，源码文本不变），取的导出只有三样。
     const factory = compileFn(['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
       body + '\nreturn { log, logQueue, logExportFail };')

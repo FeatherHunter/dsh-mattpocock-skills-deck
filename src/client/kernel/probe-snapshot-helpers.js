@@ -96,7 +96,7 @@
       if (timer === undefined) { _flashClearPending = false; return }
       // 这一次探测标出来的高亮留多久：亮这么久就自己淡掉（一次探测留下的痕迹不该一直挂在界面上），
       //   连着两次探测只排一个清除计时器、不堆积。
-      // 数值写在 config/ttl.yaml 的 snapshotProbeMs（「探测界面快照」那一档），构建时由生成器变成常量、随界面闭包一起进来。
+      // 数值写在 config/ttl.yaml 的 snapshotProbeMs（高亮停留那一档，2.6 秒），构建时由生成器变成常量、随界面闭包一起进来。
       timer.timeout(function () {
         _flashClearPending = false
         st.rowFlash = {}

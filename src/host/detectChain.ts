@@ -193,7 +193,7 @@ export function createDetectChain(deps: DetectChainDeps) {
       await gate.send({ source: source, kind: 'chain', workspaceKey: workspaceKey }, async function () { return { requests: 0, points: 0 } })
     } catch (e) { /* 记账不许把链求值带崩 */ }
   }
-  // #969：链上不再自带超时数字（分档由出站两路按命令认：读 12 秒、探活 3 秒；自带 30 秒会盖掉分档）。
+  // #969：链上不再自带超时数字（分档由出站两路按命令认：读 12 秒、探活 15 秒；自带 30 秒会盖掉分档）。
   function ghOptsFor(cwdIn: string): { cwd: string } { return { cwd: cwdIn } }
   // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/host/refresh/chainBackoff.js，
   // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。

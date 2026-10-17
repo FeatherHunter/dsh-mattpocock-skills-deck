@@ -209,6 +209,13 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/views/IssueDetailComments.ts', name: 'COMMENT_RESULT_FLASH_MS', key: 'commentResultFlashMs' },
   { file: 'src/client/views/IssueDetailComments.ts', name: 'COMMENTS_MORE_LOADING_MIN_MS', key: 'commentsMoreLoadingMinMs' },
   { file: 'src/client/views/ListTabRow.js', name: 'COPY_FLASH_MS', key: 'copyFlashMs' },
+  // #1160 收尾自审发现的一类漏网写法：回调带括号时旧正则看不见参数列表第二位上的数字
+  // （`setTimeout(function () {…}, 160)` 这种）。下面五处都是这类，现已收编成中央常量。
+  { file: 'src/client/floating/SkillFloatList.js', name: 'SKILL_FLOAT_CLOSE_DELAY_MS', key: 'skillFloatCloseDelayMs' },
+  { file: 'src/client/views/labels/LabelColorDialog.js', name: 'LABEL_COPY_FLASH_MS', key: 'labelCopyFlashMs' },
+  { file: 'src/client/views/skillDetail/PixelSkillDetailModal.ts', name: 'SKILL_DETAIL_COPIED_FLASH_MS', key: 'skillDetailCopiedFlashMs' },
+  { file: 'src/client/panelAssembly.js', name: 'NATIVE_TAB_RETRY_INTERVAL_MS', key: 'nativeTabRetryIntervalMs' },
+  { file: 'src/client/views/skillDetail/PixelSkillOps.ts', name: 'SKILL_SKELETON_DELAY_MS', key: 'skillSkeletonDelayMs' },
   // 这几处是「SYNC 缺席时的兜底」，正常路径取 tracker/sync.js 里那份已锁的值，
   // 兜底这一支也改成吃拼进闭包的中央常量，界面上不再有第二份数字。
   { file: 'src/client/kernel/probe-auto.js', name: 'SYNC_FALLBACK_PROBE_MS', key: 'syncFallbackProbeMs' },
@@ -541,7 +548,46 @@ async function main(): Promise<void> {
   const declNumRe = /^[ \t]*(?:export\s+)?const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(\d[\d_]*(\.\d+)?)\b/gm
   const propNumRe = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*(-?\d[\d_]*)(\s*\*\s*\d[\d_]*)*\s*[,}]/g
   const objNumRe = /([A-Za-z_$][\w$]*)\s*:\s*\{[^{}]*\d[^{}]*\}/g
-  const timerArgRe = /(setTimeout|setInterval|timer\.timeout)\s*\([^,()]*,\s*(\d[\d_]*)\s*[,)]/g
+  // 定时器参数位：先找调用点，再按括号配对取出这一整次调用的参数列表，逐个顶层参数看是不是裸数字。
+  // 从前只用一条正则、并且要求「逗号前面是没括号的回调」，于是下面两类写法整个漏过门禁：
+  //   · timer.timeout(2000)——仓里自己的定时口，延时可以是唯一的那个参数（#1160 收尾自审时真漏了一个：
+  //     src/host/git-process.ts 起 `gh --version` 那一次挂的是裸 2000）；
+  //   · setTimeout(() => {…}, 5000)——箭头回调自带括号，逗号前那一段被 [^,()]* 挡掉，匹配不上。
+  // 所以改成取整段参数再判：只认「某个顶层参数本身就是数字」这一种形态，
+  // 回调体内部的数字（timer.timeout(() => { i + 1 }, 5000) 里的 1）不算，免得凭空多报。
+  const TIMER_CALL_RE = /\b(?:setTimeout|setInterval|timer\.(?:timeout|sleep|wait))\s*\(/g
+  function timerArgHits(text: string): string[] {
+    const out: string[] = []
+    for (const m of text.matchAll(TIMER_CALL_RE)) {
+      const open = (m.index || 0) + m[0].length - 1
+      let depth = 0
+      let args = ''
+      for (let i = open; i < text.length; i++) {
+        const ch = text[i]
+        if (ch === '(') depth++
+        else if (ch === ')') { depth--; if (depth === 0) break }
+        if (depth >= 1) args += ch
+      }
+      // 顶层参数：按深度 1 的逗号切开（args 从最外层那个左括号起算，所以顶层深度是 1）。
+      const parts: string[] = []
+      let d = 0
+      let cur = ''
+      for (const ch of args) {
+        if (ch === '(') d++
+        else if (ch === ')') d--
+        if (ch === ',' && d === 1) { parts.push(cur); cur = ''; continue }
+        cur += ch
+      }
+      parts.push(cur)
+      for (const part of parts) {
+        const bare = part.replace(/[()]/g, '').trim()
+        if (!/^\d[\d_]*$/.test(bare)) continue
+        if (numVal(bare) === 0) continue
+        out.push('定时器参数位是数字：' + m[0].replace(/\s*\($/, '') + '(' + bare + ')')
+      }
+    }
+    return out
+  }
   const fallbackNumRe = /([A-Za-z_$][A-Za-z0-9_$.]*)\s*(\?\?|\|\|)\s*(\d[\d_]*)\b/g
   const ls4 = spawnSync('git', ['ls-files', 'src'], { cwd: ROOT, encoding: 'utf8' })
   check(ls4.status === 0, 'git ls-files 可用（无字面量扫描的前置条件）')
@@ -561,10 +607,7 @@ async function main(): Promise<void> {
     for (const m of text.matchAll(objNumRe)) {
       if (timeishLike(m[1])) hits.push('对象里藏数字：' + m[1] + ' : {…}')
     }
-    for (const m of text.matchAll(timerArgRe)) {
-      if (numVal(m[2]) === 0) continue
-      hits.push('定时器参数位是数字：' + m[1] + '(…, ' + m[2] + ')')
-    }
+    for (const hit of timerArgHits(text)) hits.push(hit)
     for (const m of text.matchAll(fallbackNumRe)) {
       if (numVal(m[3]) === 0 || numVal(m[3]) === -1) continue
       if (timeishLike(m[1].split('.').pop()!)) hits.push('缺省回落是数字：' + m[1] + ' ' + m[2] + ' ' + m[3])

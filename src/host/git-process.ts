@@ -12,7 +12,7 @@ import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tier
 import { getGhLane } from './outbound/admission.js'
 import { getChainRide } from './refresh/chain-ride.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS } from '../shared/time-config/values.js'
+import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../shared/time-config/values.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
@@ -177,7 +177,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         // #723（T19）：这一条 `gh --version` 探测也是一笔真实出站（虽然不扣配额），照记一笔。
         reportOutbound(['--version'])
         const probeHandle = subprocess.spawn({ argv: ['gh', '--version'], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: PROC_PROBE_GRACE_MS })
-        const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(2000).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
+        const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(GH_VERSION_PROBE_MS).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
         const outProbe = (probeHandle.collected && probeHandle.collected.stdout) ? probeHandle.collected.stdout.readFrom(0) : { text: '' }
         if (probeOutcome && probeOutcome.exitCode === 0 && String(outProbe.text||'').includes('gh version')) { setGhPath('gh'); setGhLastError(null); return 'gh' }
       } catch {}

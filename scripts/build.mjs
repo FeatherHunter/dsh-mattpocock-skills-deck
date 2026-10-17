@@ -1489,6 +1489,13 @@ const CLIENT_TIME_NAMES = [
   'QUOTA_SYNC_INTERVAL_MS',
   'FRESHNESS_YELLOW_MS',
   'FRESHNESS_RED_MS',
+  // 界面叶子里的三处停留与两处延时（SkillFloatList / LabelColorDialog / PixelSkillDetailModal /
+  // panelAssembly / PixelSkillOps）：import 行剥掉之后名字由这一片提供。
+  'SKILL_FLOAT_CLOSE_DELAY_MS',
+  'LABEL_COPY_FLASH_MS',
+  'SKILL_DETAIL_COPIED_FLASH_MS',
+  'NATIVE_TAB_RETRY_INTERVAL_MS',
+  'SKILL_SKELETON_DELAY_MS',
 ]
 function buildTimeConfigClientFragment() {
   const src = read('src/shared/time-config/values.js')

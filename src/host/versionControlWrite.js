@@ -57,7 +57,7 @@ export function createWritePhones(deps) {
     return await call.run({ args: fixedPrefix().concat(args), cwd: cwd, timeoutMs: timeoutMs, stdoutLimit: stdoutLimit })
   }
   async function readHead(cwd) {
-    // 读 HEAD 这一条：单条超时 5 秒（VC_READ_CMD_TIMEOUT_MS，这一条命令最多跑多久），
+    // 读 HEAD 这一条：单条超时 10 秒（VC_READ_CMD_TIMEOUT_MS，这一条命令最多跑多久），
     // 整趟预算 20 秒（VC_HEAD_CALL_BUDGET_MS，挂在读 HEAD 这一步上的所有命令合起来的上限）——两个数各管一件事。
     const r = await runOne(cwd, ['rev-parse', 'HEAD'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_HEAD_CALL_BUDGET_MS)
     return (r && r.ok === true) ? String(r.stdout || '').trim() : null

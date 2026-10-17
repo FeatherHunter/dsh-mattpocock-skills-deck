@@ -135,7 +135,7 @@ if (tiers) {
   // 超时杀掉后记超时行（gh.timeout），且超时那一次按网络档返回（不是没登录也不是找不到）
   check(/gh\.timeout/.test(src), '五、取数层超时记超时行（gh.timeout）')
   check(/signal\s*===\s*['"]timeout['"]/.test(src) && /network/.test(src), '五、超时信号归网络档（慢网显示未知）')
-  // 取数层按档取超时（读短写长探活最短），不是全仓一档写死
+  // 取数层按档取超时（读短写长探活最长：探活 15 秒比读档的 12 秒还久），不是全仓一档写死
   check(/gh-timeout-tiers|timeoutForGhArgs|tierForGhArgs|READ_TIMEOUT_MS|WRITE_TIMEOUT_MS|PROBE_TIMEOUT_MS/.test(src), '五、取数层按读写探活分档取超时（不是一档写死）')
 }
 
