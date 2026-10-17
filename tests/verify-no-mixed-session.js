@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 /**
- * verify-no-mixed-session.js �� �ỰԽ���Ž���#326 �н� #313 D4��
+ * verify-no-mixed-session.js —— 会话越界门禁（#326，承接 #313 的 D4 项）
  *
- * �ж�����PR ��ȫ���Ķ��嵥��base...head�����ǵ����ύ��
- * ����ھ����� src/tracker/rooms/<name>/** ���ڷ����ļ���
- *           tests/ ����Լ���Լо߲������κη��䡣
- * �޶ԱȻ�׼���� push ������֧��ʱ����������ʧ�ܡ�
- * ʧ��ʱ�������ķ����ļ��嵥��
+ * 判断一次改动（base...head 之间提交过的文件清单）有没有跨房间：
+ *   房间文件是指住在 src/tracker/rooms/<name>/** 里的文件（name 取 github / gitlab / markdown）；
+ *   tests/ 下的各种门禁与夹具不算任何房间。
+ * 拿不到对比基准时（例如直接 push 到主分支）跳过本门禁，不让它失败。
+ * 判定失败时打印命中的房间与各自文件清单，方便分票。
  *
- * �÷���node tests/verify-no-mixed-session.js
- * CI �豣֤ checkout �� fetch-depth: 0 ���ܶ�ȡ GITHUB_EVENT_PATH �е� base sha��
+ * 用法：node tests/verify-no-mixed-session.js
+ * CI 需要 checkout 带 fetch-depth: 0，才能读到 GITHUB_EVENT_PATH 里的 base sha。
+ *
+ * 2026-10-17 先修：这个文件里的中文原本整片是乱码（历史上某次以错误编码写入，原文已不可复原），
+ *   本笔按代码行为把注释与提示文案重写成人话；判据逻辑一个字没动。
  */
 const fs = require("fs");
 const path = require("path");
@@ -52,9 +55,9 @@ function detectMixedSession(changedFiles) {
   return { ok: roomList.length <= 1, rooms: roomList, filesByRoom: filesByRoom };
 }
 
-console.log("== verify-no-mixed-session���ỰԽ���Ž���#326�� ==");
+console.log("== verify-no-mixed-session：会话越界门禁（#326） ==");
 
-// ---- �Լ죺������ + ��ʱ git �ֿ� ----
+// ---- 自检：纯函数 + 临时 git 仓库 ----
 let selfFailed = false;
 function selfCheck(cond, msg, detail) {
   if (cond) console.log("  PASS " + msg);
@@ -62,36 +65,36 @@ function selfCheck(cond, msg, detail) {
 }
 
 {
-  // ������������
+  // 只改一个房间：应通过
   const r1 = detectMixedSession(["src/tracker/rooms/github/a.ts"]);
-  selfCheck(r1.ok && r1.rooms.length === 1 && r1.rooms[0] === "github", "����������ͨ��");
+  selfCheck(r1.ok && r1.rooms.length === 1 && r1.rooms[0] === "github", "只改一个房间应通过");
 }
 {
-  // ��������˫��
+  // 同时改两个房间：应失败
   const r2 = detectMixedSession(["src/tracker/rooms/github/a.ts", "src/tracker/rooms/gitlab/b.js"]);
-  selfCheck(!r2.ok && r2.rooms.length === 2, "������˫��Ӧʧ��");
+  selfCheck(!r2.ok && r2.rooms.length === 2, "同时改两个房间应失败");
 }
 {
-  // ���������������ļ�
+  // 房间外的共用文件（契约层、判定件）：不算任何房间
   const r3 = detectMixedSession(["src/tracker/contract/vocabulary.ts", "src/tracker/kernel/preflight.ts"]);
-  selfCheck(r3.ok && r3.rooms.length === 0, "�������������ļ�������");
+  selfCheck(r3.ok && r3.rooms.length === 0, "房间外的共用文件不算房间");
 }
 {
-  // ��������tests ������
+  // 改动里混着 tests/ 下的门禁：它不算房间，仍只算一个房间
   const r4 = detectMixedSession(["tests/verify-no-cross-import.js", "src/tracker/rooms/markdown/a.ts"]);
-  selfCheck(r4.ok && r4.rooms.length === 1, "������ tests �����뷿��");
+  selfCheck(r4.ok && r4.rooms.length === 1, "混入 tests 目录的改动仍算单个房间");
 }
 {
-  // ������������
+  // 一次动三个房间：应失败
   const r5 = detectMixedSession([
     "src/tracker/rooms/github/a.ts",
     "src/tracker/rooms/gitlab/b.js",
     "src/tracker/rooms/markdown/c.ts"
   ]);
-  selfCheck(!r5.ok && r5.rooms.length === 3, "����������Ӧʧ��");
+  selfCheck(!r5.ok && r5.rooms.length === 3, "同时改三个房间应失败");
 }
 
-// ��ʱ git �ֿ��Լ�
+// 临时 git 仓库自检
 {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "verify-mixed-"));
   try {
@@ -105,42 +108,42 @@ function selfCheck(cond, msg, detail) {
     execSync("git commit -q -m init", { cwd: tmp });
     const base = execSync("git rev-parse HEAD", { cwd: tmp, encoding: "utf8" }).trim();
 
-    // �����ύ��ֻ�� github
+    // 第一次提交：只改 github
     fs.writeFileSync(path.join(tmp, "src/tracker/rooms/github/a.ts"), "console.log(1)\n");
     execSync("git add .", { cwd: tmp });
     execSync("git commit -q -m \"github only\"", { cwd: tmp });
     const head1 = execSync("git rev-parse HEAD", { cwd: tmp, encoding: "utf8" }).trim();
     const diff1 = execSync("git diff --name-only " + base + ".." + head1, { cwd: tmp, encoding: "utf8" }).split("\n").map(s=>s.trim()).filter(Boolean);
     const res1 = detectMixedSession(diff1);
-    selfCheck(res1.ok, "��ʱ�ֿⵥ���ύͨ��", JSON.stringify(diff1));
+    selfCheck(res1.ok, "临时仓库里单房间的提交应通过", JSON.stringify(diff1));
 
-    // ˫���ύ���ٸ� gitlab
+    // 第二次提交：再加一个 gitlab
     fs.writeFileSync(path.join(tmp, "src/tracker/rooms/gitlab/b.js"), "console.log(2)\n");
     execSync("git add .", { cwd: tmp });
     execSync("git commit -q -m \"gitlab\"", { cwd: tmp });
     const head2 = execSync("git rev-parse HEAD", { cwd: tmp, encoding: "utf8" }).trim();
     const diff2 = execSync("git diff --name-only " + base + ".." + head2, { cwd: tmp, encoding: "utf8" }).split("\n").map(s=>s.trim()).filter(Boolean);
     const res2 = detectMixedSession(diff2);
-    selfCheck(!res2.ok && res2.rooms.length === 2, "��ʱ�ֿ�˫���ύӦʧ��", JSON.stringify(diff2));
+    selfCheck(!res2.ok && res2.rooms.length === 2, "临时仓库里跨两个房间的提交应失败", JSON.stringify(diff2));
 
-    // �޻�׼��ģ���� base ʱӦ�������˴�ֱ�Ӳ��� detectMixedSession �Կ����飩
+    // 空改动：没有房间，应通过（对应真实场景里拿到 base 但两次之间没改任何文件）
     const res3 = detectMixedSession([]);
-    selfCheck(res3.ok, "��ʱ�ֿ�ոĶ�Ӧͨ��");
+    selfCheck(res3.ok, "临时仓库里空改动应通过");
 
   } catch (e) {
-    selfCheck(false, "��ʱ�ֿ��Լ��쳣", String(e && e.message || e));
+    selfCheck(false, "临时仓库自检过程抛错", String(e && e.message || e));
   } finally {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
   }
 }
 
 if (selfFailed) {
-  console.log("\n�Լ�ʧ�� - �Ž�ʵ��δͨ��");
+  console.log("\n自检失败 - 门禁实现本身没通过");
   process.exit(1);
 }
-console.log("  PASS �Լ�ȫ��ͨ��");
+console.log("  PASS 自检全部通过");
 
-// ---- ��ʵ�ֿ��ж� ----
+// ---- 真实仓库判断 ----
 function getBaseSha() {
   if (process.env.GITHUB_BASE_SHA) {
     const s = process.env.GITHUB_BASE_SHA.trim();
@@ -154,7 +157,7 @@ function getBaseSha() {
         if (ev.pull_request && ev.pull_request.base && ev.pull_request.base.sha) {
           const sha = String(ev.pull_request.base.sha).trim();
           if (sha) {
-            // ���� push ������֧�����޻�׼
+            // 直接 push 到主分支时没有对比基准
             if (ev.pull_request.base.ref === "main" && process.env.GITHUB_EVENT_NAME === "push") {
               return null;
             }
@@ -162,14 +165,14 @@ function getBaseSha() {
           }
         }
         if (ev.before && ev.before !== "0000000000000000000000000000000000000000") {
-          // push �¼��� before ����������֧���ͣ��� ref �� main ����Ϊ�޻�׼
+          // push 事件：before 是这次推送的起点；ref 是 main 时同样视为没有基准
           if (ev.ref === "refs/heads/main") return null;
           return String(ev.before).trim();
         }
       }
     } catch {}
   }
-  // ��� GITHUB_REF �Ƿ�Ϊ push �� main
+  // 兜底：如果环境变量显示是 push 到 main
   if (process.env.GITHUB_EVENT_NAME === "push" && process.env.GITHUB_REF === "refs/heads/main") {
     return null;
   }
@@ -190,7 +193,7 @@ function getBaseSha() {
 
 function getChangedFiles(baseSha) {
   if (!baseSha) return null;
-  // ��� base �Ƿ����
+  // 先确认这个 base 在本地仓库里存在
   try { execSync("git cat-file -e " + baseSha, { stdio: "ignore" }); } catch { return null; }
   const head = (() => {
     try { return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim(); } catch { return "HEAD"; }
@@ -205,7 +208,7 @@ function getChangedFiles(baseSha) {
     try {
       const out = execSync(cmd, { encoding: "utf8" });
       const files = out.split("\n").map(s=>s.trim()).filter(Boolean);
-      // ������ɹ�����ʹΪ��Ҳ���أ��ձ�ʾ�޸Ķ��� base ��ͬ��
+      // 命令跑成功了就返回，哪怕是空清单（空表示改动与 base 相同）
       return files;
     } catch {}
   }
@@ -214,34 +217,34 @@ function getChangedFiles(baseSha) {
 
 const baseSha = getBaseSha();
 if (!baseSha) {
-  skip("�޶ԱȻ�׼���� push ������֧�� shallow���������Ự�Ž�");
+  skip("没有对比基准（例如 push 到主分支或 shallow 检出），跳过本会话门禁");
   console.log("\n[verify-no-mixed-session] PASS (SKIP)");
   process.exit(0);
 }
 
 const changedFiles = getChangedFiles(baseSha);
 if (changedFiles === null) {
-  skip("�޷���ȡ�Ķ��嵥���� shallow clone���������Ự�Ž�");
+  skip("读不到改动清单（可能是 shallow clone），跳过本会话门禁");
   console.log("\n[verify-no-mixed-session] PASS (SKIP)");
   process.exit(0);
 }
 
-console.log("  INFO ��׼: " + baseSha.slice(0,8) + " �Ķ��ļ�: " + changedFiles.length);
+console.log("  INFO 基准: " + baseSha.slice(0,8) + " 改动文件: " + changedFiles.length);
 
 const result = detectMixedSession(changedFiles);
 if (result.ok) {
-  ok("�Ựδ�緿������: " + (result.rooms.join(",") || "��") + "��");
+  ok("会话没有跨房间（命中: " + (result.rooms.join(",") || "无") + " 个）");
   if (changedFiles.length) {
     const roomFiles = changedFiles.filter(f=>getRoom(f));
-    if (roomFiles.length) console.log("    �����ļ�: " + roomFiles.join(", "));
+    if (roomFiles.length) console.log("    房间文件: " + roomFiles.join(", "));
   }
 } else {
-  bad("�Ự�緿������: " + result.rooms.join(", ") + "��");
+  bad("会话跨了多个房间（命中: " + result.rooms.join(", ") + " 个）");
   for (const room of result.rooms) {
     const list = result.filesByRoom[room] || [];
     console.log("    [" + room + "] " + list.join(", "));
   }
-  console.log("\n��ʾ��һ�λỰֻ��һ����ˣ������ɲ�Ʊ�ִ�ʵʩ��#326��");
+  console.log("\n提示：一次会话只动一个房间；要同时改多个房间请分票分次做（#326）");
 }
 
 console.log(failed ? "\n[verify-no-mixed-session] FAIL" : "\n[verify-no-mixed-session] PASS");
