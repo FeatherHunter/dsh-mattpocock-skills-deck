@@ -1,5 +1,5 @@
 /**
- * tracker/sync.js — 契约层 · 面板增量同步求值器（#232 · 纯函数 + 跨端常量单源）。
+ * tracker/sync.ts — 契约层 · 面板增量同步求值器（#232 · 纯函数 + 跨端常量单源）。
  *
  * 五层职责落位（CONTEXT.md 后端感知架构词条基线）：
  *   - 本模块 = 契约层：「远端索引已变更」谓词的形状定义与求值器（纯函数；host 与 client 共用，
@@ -28,6 +28,19 @@
  * 每个常量住哪份 YAML、哪个键，写在它自己那一行上，一致性由 tests/verify-time-config.ts 看守。
  */
 import { SYNC_EVAL_GAP_MS, SYNC_DIRTY_PROBE_DEBOUNCE_MS, SYNC_OVERLAP_SKEW_MS, SYNC_FAILURE_BACKOFF_MS, SYNC_DIRTY_ECHO_TTL_MS, SYNC_POLL_GRID_MS, SYNC_ACTION_PROBE_WINDOW_MS, SYNC_FALLBACK_PROBE_MS, SYNC_FOCUS_PROBE_MIN_MS, SYNC_SNAP_FRESH_MS, ATTENTION_HEARTBEAT_MS, SYNC_ISSUE_CACHE_TTL_MS } from '../time-config/values.js'
+
+/** 远端索引形状：键是票号的字符串，值是 `STATE|updatedAt` 比较串（与 fetchIssueIndex 同构）。 */
+type IndexEntries = Record<string, string>
+
+/** 求值态：baseline 为 null 表示还没建档（首看），建档后才参与脏判断。 */
+type SyncState = {
+  baseline: IndexEntries | null
+  maxUpd: string
+  lastEvalAt: number
+  failures: number
+  suspendedUntil: number
+  resolving: boolean
+}
 
 /** 同步节拍常量表（值一个字没改，要调时间请改对应的 YAML）。
  *  #1215 起 12 个时间属性真引中央时间参数：顶上那一行单行 import 提供绑定，
@@ -89,7 +102,7 @@ export const SYNC = Object.freeze({
 })
 
 /** 求值态工厂（Data Clumps 收敛：字段形状与 noteEval* 纯转移同住契约层）。 */
-export function createSyncState() {
+export function createSyncState(): SyncState {
   return { baseline: null, maxUpd: '', lastEvalAt: 0, failures: 0, suspendedUntil: 0, resolving: false }
 }
 
@@ -97,8 +110,8 @@ export function createSyncState() {
  * 解析 `gh api ... --jq '{number, state, updatedAt}'` JSON-Lines 输出 → 索引形状
  * { '42': 'OPEN|2026-08-27T04:43:54Z' }（与 fetchIssueIndex 的比较串同构）。
  */
-export function parseIndexEntries(text) {
-  const out = {}
+export function parseIndexEntries(text: unknown): IndexEntries {
+  const out: IndexEntries = {}
   const lines = String(text || '').split(/\r?\n/)
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -118,7 +131,7 @@ export function parseIndexEntries(text) {
  * nextEntries 是 since 视图的**增量集**而非全量 —— 禁止条目数对比，只检查
  * 「有票的 state|updatedAt 相对基线发生变化」。删除票的发现仍由 60s 全量探针兜底（有意保留）。
  */
-export function deriveDirty(prevIndex, nextEntries) {
+export function deriveDirty(prevIndex: IndexEntries | null | undefined, nextEntries: IndexEntries): boolean {
   if (!prevIndex) return false
   const keys = Object.keys(nextEntries || {})
   for (let i = 0; i < keys.length; i++) {
@@ -129,7 +142,7 @@ export function deriveDirty(prevIndex, nextEntries) {
 }
 
 /** 合并增量进基线（返回新对象不改入参；键覆盖即更新，updatedAt 以远端为准单调）。 */
-export function advanceBaseline(prevIndex, nextEntries) {
+export function advanceBaseline(prevIndex: IndexEntries | null | undefined, nextEntries: IndexEntries): IndexEntries {
   const merged = Object.assign({}, prevIndex || {})
   const keys = Object.keys(nextEntries || {})
   for (let i = 0; i < keys.length; i++) merged[keys[i]] = nextEntries[keys[i]]
@@ -140,7 +153,7 @@ export function advanceBaseline(prevIndex, nextEntries) {
  * 由最近一次成功求值的最大 updatedAt 推出本轮 since 下界（回看重叠消除边界漏检）。
  * 无基线/不可解析 → ''（调用方走全量建档路径）。
  */
-export function sinceFloor(maxUpdatedAt, overlapSkewMs) {
+export function sinceFloor(maxUpdatedAt: string | null | undefined, overlapSkewMs?: number): string {
   if (!maxUpdatedAt) return ''
   const t = Date.parse(String(maxUpdatedAt))
   if (!isFinite(t)) return ''
@@ -150,7 +163,7 @@ export function sinceFloor(maxUpdatedAt, overlapSkewMs) {
 
 /** 从 entries（值形如 'STATE|updatedAt'）提取最大 updatedAt 并推进水位（空集保持不变；
  *  坏/不可解析时刻不参与比较 —— 防止 'bad' 之类串按字典序把合法 ISO 水位顶掉）。 */
-export function bumpMaxUpdated(prevMax, entries) {
+export function bumpMaxUpdated(prevMax: string, entries: IndexEntries): string {
   let max = prevMax || ''
   const keys = Object.keys(entries || {})
   for (let i = 0; i < keys.length; i++) {
@@ -165,15 +178,17 @@ export function bumpMaxUpdated(prevMax, entries) {
 }
 
 /** 失败记账的纯转移（连续失败达阈值进入熔断窗口；宿主负责写回状态表）。 */
-export function noteEvalFailure(st, now) {
+// 返回名义上是完整 SyncState：空状态进来时只有三个记账字段（原来行为，宿主写回时合并补全，
+// 不是本函数造出 baseline）；as 只过类型层，运行时一字不动。
+export function noteEvalFailure(st: SyncState | null | undefined, now: number): SyncState {
   const failures = ((st && st.failures) || 0) + 1
   const suspendedUntil = failures >= SYNC.FAILURE_SUSPEND_AT ? now + SYNC.FAILURE_BACKOFF_MS : 0
-  return Object.assign({}, st || {}, { failures: failures, suspendedUntil: suspendedUntil, lastEvalAt: now })
+  return Object.assign({}, st || {}, { failures: failures, suspendedUntil: suspendedUntil, lastEvalAt: now }) as SyncState
 }
 
 /** 成功记账的纯转移（失败计数清零、解除熔断）。 */
-export function noteEvalSuccess(st, now) {
-  return Object.assign({}, st || {}, { failures: 0, suspendedUntil: 0, lastEvalAt: now })
+export function noteEvalSuccess(st: SyncState | null | undefined, now: number): SyncState {
+  return Object.assign({}, st || {}, { failures: 0, suspendedUntil: 0, lastEvalAt: now }) as SyncState
 }
 
 /**
@@ -183,11 +198,16 @@ export function noteEvalSuccess(st, now) {
  *   - resolving / 熔断中 / gap 内 → 本轮跳过；cap 限流；
  *   - 输出去重保序。混合了首看与常规候选时首看自然排前（输入顺序保证）。
  */
-export function pickSyncCandidates(items, stateById, now, opts) {
+export function pickSyncCandidates(
+  items: Array<{ cwd: string; id: string }> | null | undefined,
+  stateById: Record<string, SyncState> | null | undefined,
+  now: number,
+  opts?: { evalGapMs?: number; evalsPerTick?: number } | null,
+): string[] {
   const gap = (opts && opts.evalGapMs) || SYNC.EVAL_GAP_MS
   const cap = (opts && opts.evalsPerTick) || SYNC.EVALS_PER_TICK
-  const out = []
-  const seen = {}
+  const out: string[] = []
+  const seen: Record<string, boolean> = {}
   const list = Array.isArray(items) ? items : []
   for (let i = 0; i < list.length && out.length < cap; i++) {
     const it = list[i]

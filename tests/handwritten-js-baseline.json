@@ -218,7 +218,6 @@
     "src/shared/tracker/chain-validate.js",
     "src/shared/tracker/list-dedupe.js",
     "src/shared/tracker/shape.js",
-    "src/shared/tracker/sync.js",
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js"
