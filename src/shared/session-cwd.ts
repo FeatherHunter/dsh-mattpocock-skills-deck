@@ -1,4 +1,4 @@
-// src/shared/session-cwd.js —— 会话对象读目录的唯一真源（#730）。
+// src/shared/session-cwd.ts —— 会话对象读目录的唯一真源（#730）。
 // 以后谁改它：改“从会话对象里读目录”这条取法的人。两处调用方是
 //   src/host/sessionLifecycle.js 的电话体（wf.cwd）与
 //   src/host/workspaceCwd.js 的按工作区找会话（沙箱政策用）。
@@ -13,11 +13,14 @@
 // 放 shared 的理由：host 层内文件互引会被同层门禁记边，host 调 shared
 //   是跨层调用（与 refresh-workspace-key.js、list-dedupe.js 同例），不记边、
 //   不动基线；以后客户端收敛时也可调同一只函数。
-export function resolveSessionCwd(s) {
+
+// 会话对象是唯一可信的目录来源：只认会话头里选填的 cwd，读不到就回空串，由调用方按缺席显式失败。
+// 反例：头里没有目录时去拿 worktree 或 projectDir 凑数，两处调用方会读到两个不同的目录，写操作的沙箱政策就静默落错档。
+export function resolveSessionCwd(s: unknown): string {
   try {
     if (!s || typeof s !== 'object') return ''
-    const header = s.header
-    const cwd = header && header.cwd
+    const header: unknown = (s as { header?: unknown }).header
+    const cwd: unknown = (header as { cwd?: unknown } | null | undefined) && (header as { cwd?: unknown }).cwd
     if (typeof cwd === 'string' && cwd) return cwd
   } catch (e) {}
   return ''
