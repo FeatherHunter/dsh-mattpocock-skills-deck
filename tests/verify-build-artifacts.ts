@@ -278,7 +278,10 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //   （src/client/views、src/shared/refresh 等），是「搬家那条线」的正常中间态，与 tests 侧迁移无关。
   //   这次只按当前事实对齐数字、并留下这一天与依据；不放大也不缩小这条判据的守护面，
   //   以后新产物混进来时仍然会在 85 这个水位之上暴露。
-  const TRANSITIONAL_PRODUCTS_MAX = 85
+  // 2026-10-18 重新定数：上限定为 107。依据是 #1256 把 src/shared 散文件 22 件从手写 .js
+  //   转成 .ts（真源进 .ts，同名 .js 从此是 shared-ts 段的转译产物），过渡产物从 85 长到 85 + 22 = 107。
+  //   这是本票故意新增的产物，出处就是这一行；判据仍是「只许降不许升」，新产物混进来时会在 107 之上暴露。
+  const TRANSITIONAL_PRODUCTS_MAX = 107
   // 已知的、单列出来的产物：它们不进「过渡产物」的计数，理由是各自有出处可查，不是混进来的新产物。
   //   · src/tracker/contract/vocabulary.js —— #1018 拼闭包用的词汇表产物，归 #1026 带走。
   //   · src/client/kernel/api-io.js —— #1111：客户端内核的 api-io 由手写 .js 转成 .ts，同名 .js 从此是
