@@ -76,7 +76,11 @@ function moduleText(patch) {
   const body = FILES.map((f) => noExport(stripTimeConfigImport((patch && patch.file === f) ? patch.text : read(f)))).join('\n')
   // 门禁把源里那条中央耐心缩短成 0.9 秒，好把「死线先到、回包后到」那个次序造出来。
   //   下面这句注入就是本门禁跑起来的前提：源里换了写法（中央引用不在）时早点报错，别让它静悄悄地按中央值跑。
-  const TC_ANCHOR_RE = /^\s*import\s*\{[^}]*SNAP_WAIT_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/
+  // 2026-10-17 先修：这条锚原来少了 m 标志。probe-snapshot.js 第 1 行起是说明块、那条 import 在第 9 行，
+  //   不带 m 的 ^ 只认字符串下标 0，于是它永远匹配不上、门禁在 RUNNER ERROR 处整扇停住（主链今天的红之一）。
+  //   这条锚只是「本门禁的注入前提还在不在」的自检（中央引用的登记另由 tests/verify-time-config.ts 守），
+  //   所以只补 m，不顺手重构它。
+  const TC_ANCHOR_RE = /^\s*import\s*\{[^}]*SNAP_WAIT_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/m
   if (!TC_ANCHOR_RE.test(read('src/client/kernel/probe-snapshot.js'))) throw new Error('源里找不到快照等待的中央引用（SNAP_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
   return 'const SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS + '\n' + body
 }

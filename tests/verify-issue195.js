@@ -23,24 +23,14 @@ function check(file) {
   const src = fs.readFileSync(file, 'utf8')
   const problems = []
   const isClient = /client\.js$/.test(file)
-  // #716：后端房间的 index.js（backends/<id>/index.js）不是宿主入口，不按宿主那一套判。
-  const isHost = (/index\.js$/.test(file) || /host\.js$/.test(file)) && !/backends[\\/]/.test(file)
-  const isContract = /contract\.js$/.test(file)
-  const isPreflight = /preflight\.js$/.test(file)
-
-  if (isContract) {
-    if (!src.includes("prompt")) problems.push("Contract: PreflightResult 缺 prompt 字段")
-  }
-
-  if (isPreflight) {
-    // 这段预检长文（GH_INSTALL_PROMPT）只要还留着，就必须仍是能照着做的那一份；它整体退役（连同 noGhPrompt）
-    // 由 #664 办 —— 退役之后这一个分支自然不生效，不必再改本文件。
-    if (src.includes("GH_INSTALL_PROMPT")) {
-      if (!src.includes("prompt: GH_INSTALL_PROMPT")) problems.push("Backend: 带着 GH_INSTALL_PROMPT 却没把它放进预检结果（半截状态）")
-      if (!src.includes("winget") || !src.includes("brew")) problems.push("Backend: GH_INSTALL_PROMPT 缺 winget/brew（既留着就得是能照着做的那一份）")
-      if (!src.includes("gh --version")) problems.push("Backend: GH_INSTALL_PROMPT 缺 gh --version")
-    }
-  }
+  // #716：后端房间的入口不是宿主入口，不按宿主那一套判。
+  const isHost = (/index\.js$/.test(file) || /host\.js$/.test(file)) && !/rooms[\\/]/.test(file)
+  // 2026-10-17 先修：原来还有 isContract（钉「PreflightResult 缺 prompt 字段」）与 isPreflight
+  //   （钉 GH_INSTALL_PROMPT 三件套）两条分支，两个被测事实都已经退役：#664 把后端交给界面的那份
+  //   安装引导收成共享清单里的一句原话（contract 层的 prompt 字段随之删掉），GH_INSTALL_PROMPT 长文
+  //   也不再存在。判定文件仍然匹配 .ts，原判据只认 .js，今天必然空转；两条一起删掉，并把理由留在这里。
+  //   缺 gh 的文案这件事今天由下面 GitHub 后端那一支直断（原话必须还在后端声明里），行为金样在
+  //   tests/verify-663-gh-install-inject.ts。
 
   if (isHost) {
     if (/let ghPathError/.test(src)) problems.push("Host: 仍有 ghPathError 永久缓存")
@@ -68,7 +58,9 @@ function check(file) {
     if (src.indexOf("'cliInstall'") < 0) problems.push("UI: 客户端产物里没有 cliInstall 这个提示词键（缺 gh 时那颗按钮不知道该去问哪条文案）")
   }
 
-  if (/backends\/github\/index\.js$/.test(file)) {
+  // 2026-10-17 先修：路径判据从旧的 backends/<id>/index.js 改成今天的 src/tracker/rooms/github/index.ts
+  //   （房间入口在 #1159 那批搬进了 src/tracker/rooms/，旧路径在仓库里已经不存在，这一支原来必然空转）。
+  if (/rooms[\\/]github[\\/]index\.ts$/.test(file)) {
     if (src.indexOf(GH_INSTALL_ORIGINAL) < 0) problems.push("Backend: 缺 gh 时注入的那句原话不在 GitHub 后端声明里（点一下又等于什么都没给）")
   }
 

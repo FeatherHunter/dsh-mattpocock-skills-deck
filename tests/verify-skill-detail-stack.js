@@ -16,6 +16,14 @@ import { act } from 'react'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
 
+// 2026-10-17 先修：这两片像素叶子在加载时读中央时间常量 SKILL_SKELETON_DELAY_MS（#1215 引入，
+//   真源 src/shared/time-config/values.js，构建时由 buildTimeConfigClientFragment() 注入闭包）。
+//   门禁把叶子拼进 vm 求值时只供给上面那套 ctx，于是裸标识符未定义、0 条断言就抛出去（主链今天的红之一）。
+//   这里按单源头口径把这个常量从中央真值文件里读出来再拼进被求值的文本，绝不在这里另写一个数字
+//   （tests/verify-time-config.ts 盯着常量登记，硬编码会当场被判出来）。
+const centralTime = await import('./../src/shared/time-config/values.js')
+const SKILL_SKELETON_DELAY_MS = centralTime.SKILL_SKELETON_DELAY_MS
+
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1:59519/' })
 global.window = dom.window; global.document = dom.window.document
 try { global.navigator = dom.window.navigator } catch (e) {}
@@ -38,7 +46,7 @@ const files = [
   'src/client/views/skillDetail/PixelContents.js', 'src/client/views/skillDetail/PixelMarkdown.js',
   'src/client/views/skillDetail/PixelSkillOps.js', 'src/client/views/skillDetail/PixelSkillDetailModal.js',
 ]
-let lib = ''
+let lib = 'const SKILL_SKELETON_DELAY_MS = ' + JSON.stringify(SKILL_SKELETON_DELAY_MS) + ';\n'
 for (const f of files) lib += strip(f) + '\n'
 lib += ';globalThis.__o = { PixelSkillDetailModal, pixelOpenDetail, pixelCloseDetail, pixelRetryDetail };'
 vm.runInContext(lib, ctx)
