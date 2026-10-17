@@ -468,7 +468,7 @@ function collectCalls() {
 const found = collectCalls()
 const names = Object.keys(found).sort()
 
-// 一、允许表里每个事件都有埋点落点（83 个事件里自监控 #46 由 verify-log-selfmon.js 覆盖，退役的 3 个不在源码里）。
+// 一、允许表里每个事件都有埋点落点（允许表 104 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 3 个不在源码里）。
 // #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
 // 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
 if (!found['update.install.exec']) {
@@ -481,10 +481,11 @@ if (!found['update.install.exec']) {
     const fieldsOk = ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'].every((k) => near.includes(k))
     if (named && at >= 0 && fieldsOk) found['update.install.exec'] = { keys: { route: 1, ok: 1, exitCode: 1, durationMs: 1, pluginId: 1 }, sites: ['node_modules/dsh-plugin-update/dist/store.js（包内发射，常量名 LOG_EVENT_INSTALL_EXEC）'] }
   } catch {}
+}
+// 这一段必须留在上面的 if 之外：发射器今天在已安装的更新包里，条件为真时才会走进上面的委托核对；
+// 哪天发射器搬回本仓，found['update.install.exec'] 直接有值，这 104 条存在性断言仍然要一条不少地跑。
 for (const name of Object.keys(ALLOWED).sort()) {
   check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
-}
-
 }
 for (const name of names) {
   if (!ALLOWED[name]) check(false, '未知事件名须先更新附录与本门禁 ' + name + ' @ ' + found[name].sites.slice(0, 3).join('、'))
