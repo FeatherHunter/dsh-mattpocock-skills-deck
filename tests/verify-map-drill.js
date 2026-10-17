@@ -90,9 +90,16 @@ function extractIife (src, name) {
   return src.slice(i, e + 4)
 }
 
-const mapSrc = fs.readFileSync('src/client/views/MapDetail.js', 'utf8')
-const issueSrc = fs.readFileSync('src/client/views/IssueDetail.js', 'utf8')
-const skillSrc = fs.readFileSync('src/client/views/SkillsTab.js', 'utf8')
+// 2026-10-17 先修取源口径：MapDetail / IssueDetail / SkillsTab 三份今天都是「同名 .js 产物 + .ts 真源」
+//   并排，原来直接 readFileSync 那个 .js 读的是构建产物（tests/lib/source-text.ts 开头写明的例外：
+//   构建产物不要从这个入口读）。改成走共用入口的 spliceableJs，参数仍写 .js 说明符（同名 .ts 优先），
+//   这样门禁看到的就是真正拼进产物的那份源码。
+//   store-prefs.js 与 store-derived.js 今天没有同名 .ts，读的本来就是真源码，保持原样；它们将来转 .ts 时，
+//   这两行会静默变成读旧产物，届时要一起换成 spliceableJs。
+const { spliceableJs } = require('./lib/source-text.ts')
+const mapSrc = spliceableJs('src/client/views/MapDetail.js')
+const issueSrc = spliceableJs('src/client/views/IssueDetail.js')
+const skillSrc = spliceableJs('src/client/views/SkillsTab.js')
 const prefsSrc = fs.readFileSync('src/client/kernel/store-prefs.js', 'utf8')
 
 // —— 真实导航函数（与 verify-nav-stack 同一加载手法：去行首 export，注入 emit 桩）
@@ -242,19 +249,12 @@ check(issueCrumb([{ kind: 'issue', n: 20, effortId: '' }], 20) === '#20', '矩�
 check(issueCrumb([{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }], 20) === '#10 / #20', '矩阵：地图进工单显示地图与工单编号')
 check(issueCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }, { kind: 'issue', n: 4, effortId: '' }], 4) === '… / #3 / #4', '矩阵：四层混合链顶层面包屑为省略形态')
 
-// ============ 六、技能页签最近地图祖先（跑源文件里截出来的真算式） ============
-const recSrc = extractIife(skillSrc, 'recMapNum')
-// 手法：compileFn——同上。
-const recOf = (s) => compileFn(['st'], recSrc + '\nreturn recMapNum')(s)
-check(recOf({ navStack: [{ kind: 'map', n: 10, effortId: '' }, { kind: 'map', n: 20, effortId: '' }] }) === 20, '矩阵：栈顶是地图时推荐源就是它自己')
-check(recOf({ navStack: [{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }] }) === 10, '矩阵：栈顶是工单时推荐源是把它带进来的地图')
-check(recOf({ navStack: [{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }, { kind: 'issue', n: 4, effortId: '' }] }) === 3, '矩阵：深栈取最近的地图祖先')
-check(recOf({ navStack: [{ kind: 'issue', n: 5, effortId: '' }] }) === null, '矩阵：纯工单栈无地图祖先，回通用推荐')
-check(recOf({ navStack: [] }) === null, '矩阵：空栈回通用推荐')
-check(recOf({ activeMap: 7 }) === 7, '矩阵：旧对象无栈时按镜像兜底')
-// 原来这里还有一条文本断言：在技能页签源码里找 e.kind === 'map' 这个写法与 recMapNum 这个名字
-// （2026-10-09 还因为转 TS 后引号统一而改过一次）。它盯的是源码写法，已按维护者要求删除；
-// 「从栈顶往下找第一个地图层」由上面六条真跑 recMapNum 算式的断言覆盖。
+// ============ 六、技能页签最近地图祖先（2026-10-17 先修：整节删除） ============
+// 这一节的六条断言跑的是「技能页签从导航栈取最近地图祖先」（recMapNum 算式）。该行为已按 #1201 方案一
+// 有意删除：src/client/views/SkillsTab.ts:20-24 的注释写明「技能页不再读地图导航栈，推荐固定为通用建议加
+// /ask-matt」——切页签不清栈，残留的地图标题会把技能页标题顶掉。src 全树与两份产物里 recMapNum 均已 0 处，
+// 这六条断言的被测对象不复存在（留着必然恒红、更不能靠改期望值来「修绿」）。要恢复技能页读栈再开票。
+// 下面余下的断言（四层混合链、端到端 enterDetail/goBack、行分流、雾态、面包屑、子票分流）都真跑真源码。
 
 // ============ 七、子票与阻塞票种类分流（跑工单源文件里截出来的真函数） ============
 const subBundleSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n')
@@ -279,7 +279,7 @@ check(JSON.stringify(runSub({ number: 551, labels: [{ name: 'wayfinder:map' }] }
 const cli = fs.readFileSync('client.js', 'utf8')
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
 // #646：页内浮窗退役后不再有 drill:false 那一处传参（面板只有右侧边栏一处，压栈规则由 Dock 的 peekNav 承担）
-;['enterDetail', 'enterSubDetail', 'navCrumb', 'recMapNum', 'canDrill'].forEach((k) => {
+;['enterDetail', 'enterSubDetail', 'navCrumb', 'canDrill'].forEach((k) => { // 2026-10-17 先修：数组里的 'recMapNum' 随第六节一起删（该行为已按 #1201 方案一移除）
   check(cli.includes(k) && pcli.includes(k), '矩阵：双产物含 ' + k)
 })
 check(cli.includes('… / ') && pcli.includes('… / '), '矩阵：双产物含超深省略号面包屑')

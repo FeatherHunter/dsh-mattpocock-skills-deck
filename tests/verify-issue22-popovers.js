@@ -19,14 +19,18 @@ const check = function (file) {
   requireText(/PortalOverlay\(\{ className: 'dsws-skillpop-bridge'/, '技能列表未通过 PortalOverlay 渲染')
 
   // overlay 必须使用 viewport 定位和全局层级，不能继续使用 absolute + 9999。
-  requireText(/dsws-bugmenu[\s\S]{0,500}position:\s*'fixed'/, 'BUG 菜单缺 position:fixed')
-  requireText(/dsws-skillpop[\s\S]{0,500}position:\s*'fixed'/, '技能列表缺 position:fixed')
+  requireText(/dsws-bugmenu[\s\S]{0,500}position:\s*["']fixed["']/, 'BUG 菜单缺 position:fixed')
+  requireText(/dsws-skillpop[\s\S]{0,500}position:\s*["']fixed["']/, '技能列表缺 position:fixed')
   requireText(/dsws-bugmenu[\s\S]{0,500}zIndex:\s*2147483000/, 'BUG 菜单缺全局 z-index')
   requireText(/dsws-skillpop[\s\S]{0,500}zIndex:\s*2147483000/, '技能列表缺全局 z-index')
 
   // 定位必须从锚点 rect 得出，并在滚动/缩放后更新。
   // B1 #460：状态栏悬浮菜单旅程搬 StatusMenus.js（placeOverlay/placeBugMenu 改名 Status 前缀），拼合断言意图不变
-  requireText(/const place(Status)?Overlay\s*=\s*function[\s\S]{0,300}getBoundingClientRect\(\)/, '缺锚点 rect 定位')
+  // 2026-10-17 先修：原来一条 `place(Status)?Overlay` 同时兜住两处，状态栏那侧哪天不再从 rect 取位置，
+  //   也会被技能浮层里的同名函数顶住而假绿（真源 src/client/floating/SkillFloatList.js:17 与
+  //   src/client/statusbar/StatusMenus.js:10 是同构两件）。拆成两条，各守一处。
+  requireText(/const placeStatusOverlay\s*=\s*function[\s\S]{0,300}getBoundingClientRect\(\)/, '状态栏菜单缺锚点 rect 定位')
+  requireText(/const placeOverlay\s*=\s*function[\s\S]{0,300}getBoundingClientRect\(\)/, '技能浮层缺锚点 rect 定位')
   requireText(/const placeStatusBugMenu\s*=\s*function[\s\S]{0,450}bugMenuPos/, '缺 BUG 锚点位置状态')
   requireText(/const placeSkillPop\s*=\s*function[\s\S]{0,450}skillPopPos/, '缺技能锚点位置状态')
   requireText(/addEventListener\(['"]scroll['"][\s\S]{0,900}capture:\s*true/, '缺捕获阶段 scroll 重定位')
@@ -37,7 +41,7 @@ const check = function (file) {
   requireText(/clear(Status)?Close\([\s\S]{0,120}bugCloseRef|clear(Status)?Close\([\s\S]{0,120}skillCloseRef/, '缺 portal 弹层取消关闭')
 
   // 正常 portal 路径保留横向裁剪；没有 ReactDOM 时转 visible，避免 fallback 菜单被同一 wrapper 裁掉。
-  requireText(/overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/, 'wrapper 缺 RDOM 条件式裁剪/可用降级')
+  requireText(/overflow:\s*RDOM\s*\?\s*["']hidden["']\s*:\s*["']visible["']/, 'wrapper 缺 RDOM 条件式裁剪/可用降级')
 
   if (problems.length) {
     console.log('  FAIL', file, problems.join('；'))
