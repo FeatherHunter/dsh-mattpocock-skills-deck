@@ -32,7 +32,7 @@ export const definition = {
     properties: {
       title: { type: 'string', description: '地图票的标题' },
       body: { type: 'string', description: '地图正文；缺省时自动补五个区块' },
-      planId: { type: 'string', description: '这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续' },
+      planId: { type: 'string', description: '这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值' },
       children: {
         type: 'array',
         description: '要建的子票清单',
@@ -262,7 +262,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       const items = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
-      if (usingAutoPlanId) notes.push('这次没传 planId，用了自动计划标识（' + planId.slice(0, 80) + '）：重试时必须显式传回这个 planId，否则会被当成新计划建重复票。')
+      if (usingAutoPlanId) notes.push('这次没传 planId，用了自动计划标识（' + planId.slice(0, 80) + '）：重试时必须显式传回这个 planId，否则会被当成新计划建重复票；想建第二张内容相同的计划时，必须显式传一个不同的 planId，否则会被当成重试而复用旧票。')
       const storeDurable = store.durable !== false
       if (!storeDurable) notes.push('这次的中间态只记在本进程的内存里（没有注入落盘的存储器）：进程重启后重跑同一个 planId 会重新建票。')
       let stoppedEarly = false

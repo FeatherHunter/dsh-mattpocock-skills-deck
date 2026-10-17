@@ -1,11 +1,12 @@
 // verify-1245-plan-resume.ts —— #1245 回归门禁：建整图的外层掐断续跑（自动标识稳定加孤儿修复）。
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1245-plan-resume.ts，可独立运行。
 //
-// 这一段盯四件事（#1245 验收，均用内存游标加 stub 后端，几秒跑完；真 300 秒不等）：
+// 这一段盯五件事（#1245 验收，均用内存游标加 stub 后端，几秒跑完；真 300 秒不等）：
 //   ① 自动计划标识稳定：不传 planId 时同一份输入两次得到同一个标识，第二次零新建。
 //   ② 同计划标识续跑零重复：预算打满部分成功后，带同 planId 重跑无剩余、锚无重复。
 //   ③ 孤儿修复：已建跳过的子票父边缺失时续跑补挂，不再建新票。
-//   ④ 时间同源：单次远端钳制与 GitHub 房兜底同为 60 秒，游标读写为 15 秒。
+//   ④ 时间同源（对抗审查后）：单次钳制与房兜底同 30 秒，游标 10 秒；放宽未经测量，不做。
+//   ⑤ 故意建第二张：显式不同计划标识建新票，不复用旧票。
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
@@ -154,13 +155,30 @@ async function main() {
     check(tracker2.tickets.size === n1, '补挂不新建（' + n1 + ' 票不变）')
   }
 
-  // —— ④ 时间同源：钳制与房兜底同 60 秒，游标 15 秒 ——
+  // —— ④ 时间同源（#1245 对抗审查后：单次钳制与房兜底同 30 秒，游标 10 秒；放宽未经测量，不做） ——
   {
     const t = values.TIME_YAML || {}
-    check(t.perOpTimeoutMs === 60000, '单次远端钳制 60 秒（实 ' + t.perOpTimeoutMs + '）')
-    check(t.githubClientTimeoutMs === 60000, '房兜底 60 秒（实 ' + t.githubClientTimeoutMs + '）')
-    check(t.outboundWriteMs === 60000, '写档 60 秒（实 ' + t.outboundWriteMs + '）')
-    check(t.deckStoreMs === 15000, '游标 15 秒（实 ' + t.deckStoreMs + '）')
+    check(t.perOpTimeoutMs === 30000, '单次远端钳制 30 秒（实 ' + t.perOpTimeoutMs + '）')
+    check(t.githubClientTimeoutMs === 30000, '房兜底 30 秒（实 ' + t.githubClientTimeoutMs + '）')
+    check(t.outboundWriteMs === 30000, '写档 30 秒（实 ' + t.outboundWriteMs + '）')
+    check(t.deckStoreMs === 10000, '游标 10 秒（实 ' + t.deckStoreMs + '）')
+  }
+
+  // —— ⑤ 故意建第二张：显式不同计划标识建新票，不复用旧票 ——
+  {
+    const tracker = makeStubTracker({ latencyMs: 5 })
+    const mem = storeMod.createMemoryPlanStore()
+    const kids = [{ key: 'd1', title: '丁' }]
+    const pa = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 500 }))
+    const ra: any = await pa.run(execOf(), { title: '同名图', children: kids, planId: 'p1245-first' })
+    const va = ra.value || ra
+    const n1 = tracker.tickets.size
+    check(n1 === 2, '首张计划建出地图加子票（实 ' + n1 + ' 票）')
+    const pb = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 500 }))
+    const rb: any = await pb.run(execOf(), { title: '同名图', children: kids, planId: 'p1245-second' })
+    const vb = rb.value || rb
+    check(tracker.tickets.size === n1 + 2, '显式不同标识建出新计划（实 ' + tracker.tickets.size + ' 票）')
+    check(String((vb.data && vb.data.planId) || '') === 'p1245-second', '新计划回自己的标识')
   }
 
   console.log('\n共 ' + total + ' 条，' + (failed ? '有失败' : '全过'))
