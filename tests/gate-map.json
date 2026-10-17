@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T15:06:27.566Z",
+  "generatedAt": "2026-10-17T15:11:57.076Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -3588,6 +3588,7 @@
         "src/host/git-process.ts",
         "src/host/outbound/admission.ts",
         "src/host/platform/outbound-control.ts",
+        "src/shared/time-config/values.js",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/rooms/github/client.ts",
@@ -3597,6 +3598,7 @@
         "src/host",
         "src/host/outbound",
         "src/host/platform",
+        "src/shared/time-config",
         "src/tracker/contract",
         "src/tracker/kernel",
         "src/tracker/rooms/github"
@@ -3605,7 +3607,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 7 条"
+      "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-970-whole-document.ts",
@@ -7683,6 +7685,7 @@
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-963-log-order.ts",
+      "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.ts",

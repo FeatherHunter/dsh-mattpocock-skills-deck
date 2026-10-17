@@ -2,7 +2,7 @@
 // 为什么需要它：以前全仓只有一档 30000，读等得久拖住界面，写杀得早害用户不敢重试，
 // 探活本该最快却也要等满；慢网超时还可能被说成没登录，写超时还可能被自动重试写两遍。
 // 它守三件事（只看外部行为，不看内部队列数组长什么样）：
-//   一、读与写各走各的档（读 12000、写 30000、探活 3000，调用方显式传超时优先）；
+//   一、读与写各走各的档（三个档位的毫秒数取自 src/shared/time-config/values.js，调用方显式传超时优先）；
 //   二、慢网超时归网络档（未知、稍后），不报没登录；
 //   三、写超时只试一次就停，把超时原样交回调用方人工核对，不自动再发一次。
 // 用法：node --import ./scripts/ts-hook.mjs tests/verify-969-tiered-timeout.ts（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
@@ -11,6 +11,12 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
+
+// 三个档位的毫秒数只有中央一个来源（src/shared/time-config/values.js）：这里不手抄数字，
+// 免得配置一调（例如 #1245 把写档从 30 秒放宽到 60 秒）门禁就假红。
+const { OUTBOUND_READ_TIMEOUT_MS: READ_BUDGET_MS, OUTBOUND_WRITE_TIMEOUT_MS: WRITE_BUDGET_MS, OUTBOUND_PROBE_TIMEOUT_MS: PROBE_BUDGET_MS } =
+  await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/time-config/values.js')).href)
+
 let failed = false
 let total = 0
 const check = (ok: unknown, msg: string, detail?: unknown): void => {
@@ -19,7 +25,7 @@ const check = (ok: unknown, msg: string, detail?: unknown): void => {
   if (!ok) failed = true
 }
 
-console.log('== #969 分档超时（读12秒／写30秒／探活3秒） ==')
+console.log('== #969 分档超时（读 ' + READ_BUDGET_MS / 1000 + ' 秒／写 ' + WRITE_BUDGET_MS / 1000 + ' 秒／探活 ' + PROBE_BUDGET_MS / 1000 + ' 秒） ==')
 
 // #1159：房间的出站能力从「直接 import 宿主件」改成「宿主注入一份 ctx.outbound」，
 // 所以夹具里也得挂上那一份。这里用生产那份（src/host/platform/outbound-control.ts，只做转发），
@@ -36,25 +42,25 @@ try {
 }
 if (tiers) {
   const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier } = tiers
-  check(READ_TIMEOUT_MS === 12000, '一、读档是 12 秒（暂定值，终值等测量回填）', '实得 ' + String(READ_TIMEOUT_MS))
-  check(WRITE_TIMEOUT_MS === 30000, '一、写档是 30 秒（暂定值，写超时不提前杀）', '实得 ' + String(WRITE_TIMEOUT_MS))
-  check(PROBE_TIMEOUT_MS === 15000, '一、探活档是 15 秒（#1160：冷启动 keyring 加 TLS 经常超 3 秒，与谓词 15 秒对齐）', '实得 ' + String(PROBE_TIMEOUT_MS))
+  check(READ_TIMEOUT_MS === READ_BUDGET_MS, '一、读档是 ' + READ_BUDGET_MS / 1000 + ' 秒（暂定值，终值等测量回填）', '实得 ' + String(READ_TIMEOUT_MS))
+  check(WRITE_TIMEOUT_MS === WRITE_BUDGET_MS, '一、写档是 ' + WRITE_BUDGET_MS / 1000 + ' 秒（#1245 从 30 秒放宽到 60 秒，值取自中央常量）', '实得 ' + String(WRITE_TIMEOUT_MS))
+  check(PROBE_TIMEOUT_MS === PROBE_BUDGET_MS, '一、探活档是 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160：冷启动 keyring 加 TLS 经常超 3 秒，与谓词 15 秒对齐）', '实得 ' + String(PROBE_TIMEOUT_MS))
   // 读：列票与看票走读档
   check(tierForGhArgs(['issue', 'list', '--repo', 'a/b']) === 'read', '一、列票走读档')
-  check(timeoutForGhArgs(['issue', 'view', '1']) === 12000, '一、看票超时 12 秒')
+  check(timeoutForGhArgs(['issue', 'view', '1']) === READ_BUDGET_MS, '一、看票超时 ' + READ_BUDGET_MS / 1000 + ' 秒')
   // 写：建票改票走写档
   check(tierForGhArgs(['issue', 'create', '--title', 'x']) === 'write', '一、建票走写档')
-  check(timeoutForGhArgs(['issue', 'create', '--title', 'x']) === 30000, '一、建票超时 30 秒')
+  check(timeoutForGhArgs(['issue', 'create', '--title', 'x']) === WRITE_BUDGET_MS, '一、建票超时 ' + WRITE_BUDGET_MS / 1000 + ' 秒')
   check(tierForGhArgs(['issue', 'comment', '1', '--body', 'hi']) === 'write', '一、评论走写档')
   check(tierForGhArgs(['api', 'repos/a/b/issues', '--method', 'POST']) === 'write', '一、经接口写票（POST）走写档')
   check(tierForGhArgs(['api', 'repos/a/b/issues/1']) === 'read', '一、经接口读票（GET）走读档')
   // 探活：登录态与版本自检走探活档（#1160 起探活 15 秒，不再是三档里最短的）
   check(tierForGhArgs(['auth', 'status']) === 'probe', '一、查登录态走探活档')
-  check(timeoutForGhArgs(['auth', 'status']) === 15000, '一、查登录态超时 15 秒（#1160）')
+  check(timeoutForGhArgs(['auth', 'status']) === PROBE_BUDGET_MS, '一、查登录态超时 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160）')
   check(tierForGhArgs(['--version']) === 'probe', '一、查版本号走探活档')
   // 调用方显式传的超时优先，不被档位覆盖
   check(timeoutForGhArgs(['issue', 'list'], 5000) === 5000, '一、调用方显式传的超时优先')
-  check(timeoutForTier('write') === 30000 && timeoutForTier('probe') === 15000 && timeoutForTier('read') === 12000, '一、按档名取超时各走各的档')
+  check(timeoutForTier('write') === WRITE_BUDGET_MS && timeoutForTier('probe') === PROBE_BUDGET_MS && timeoutForTier('read') === READ_BUDGET_MS, '一、按档名取超时各走各的档')
 }
 
 // —— 二、慢网超时归网络档，不报没登录 ——
@@ -70,7 +76,7 @@ if (tiers) {
   check(k !== ERROR_KIND.AUTH, '二、超时不报没登录（归 ' + String(k) + '，不是 auth）')
 }
 
-// —— 三、执行层按档取超时：读 12 秒、写 30 秒、探活 15 秒（#1160）——
+// —— 三、执行层按档取超时：读、写、探活各按中央常量那一档（#1160、#1245）——
 {
   const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
   // 假执行器：只记调用方要它等多久，不真起进程
@@ -90,13 +96,13 @@ if (tiers) {
   const c = ghClient(fakeCtx)
   seen.length = 0
   await c.execGh(['issue', 'list', '--repo', 'a/b'], { cwd: '.' })
-  check(seen.length === 1 && seen[0].timeout === 12000, '三、读调用默认等 12 秒', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
+  check(seen.length === 1 && seen[0].timeout === READ_BUDGET_MS, '三、读调用默认等 ' + READ_BUDGET_MS / 1000 + ' 秒', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
   seen.length = 0
   await c.execGh(['issue', 'create', '--title', 'x'], { cwd: '.' })
-  check(seen.length === 1 && seen[0].timeout === 30000, '三、写调用默认等 30 秒', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
+  check(seen.length === 1 && seen[0].timeout === WRITE_BUDGET_MS, '三、写调用默认等 ' + WRITE_BUDGET_MS / 1000 + ' 秒', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
   seen.length = 0
   await c.execGh(['auth', 'status'], { cwd: '.' })
-  check(seen.length === 1 && seen[0].timeout === 15000, '三、探活调用默认等 15 秒（#1160）', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
+  check(seen.length === 1 && seen[0].timeout === PROBE_BUDGET_MS, '三、探活调用默认等 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160）', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
   // 调用方显式传的超时不被档位覆盖
   seen.length = 0
   await c.execGh(['issue', 'list'], { cwd: '.', timeout: 5000 })
