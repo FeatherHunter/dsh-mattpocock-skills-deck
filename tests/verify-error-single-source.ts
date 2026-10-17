@@ -168,8 +168,14 @@ function enclosingBrace(text, index) {
   return -1
 }
 
-/** 按最外层逗号切开参数表；串与注释已经被顶掉，括号深度按字符数即可。 */
-function splitTop(text) {
+/**
+ * 按最外层逗号切开参数表；串与注释已经被顶掉，括号深度按字符数即可。
+ * hadTrailingComma：这次调用的原文在收尾括号前就带逗号（`fail(a, b, c,)`）——
+ * 那种末段空白是排版习惯，不是第四个参数；反过来，不带尾随逗号时末段空白恰恰是
+ * 「第三段传了个空串」（`fail(kind, msg, '')`），必须照数：2026-10 实测把空串误当尾随逗号，
+ * 会把十处本来合规的调用点判红。
+ */
+function splitTop(text, hadTrailingComma = false) {
   if (text.trim() === '') return []
   const parts = []
   let depth = 0
@@ -181,6 +187,7 @@ function splitTop(text) {
     cur += c
   }
   parts.push(cur)
+  if (hadTrailingComma && parts.length > 1 && parts[parts.length - 1].trim() === '') parts.pop()
   return parts
 }
 
@@ -229,7 +236,8 @@ console.log('── A. fail(...) 一律三个参数（kind, message, raw）')
         violations.push({ file, line: lineOf(src, m.index), why: '括号没配平，扫不到这次调用的结尾', text: '' })
         continue
       }
-      const args = splitTop(noStrings.slice(open + 1, close))
+      const rawArgs = src.slice(open + 1, close)
+      const args = splitTop(noStrings.slice(open + 1, close), /,\s*$/.test(rawArgs))
       if (args.length !== 3) {
         violations.push({
           file, line: lineOf(src, m.index), why: '实得 ' + args.length + ' 个参数',
