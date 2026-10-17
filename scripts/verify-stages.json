@@ -80,11 +80,6 @@
       "ticket": "#967"
     },
     {
-      "file": "tests/verify-969-tiered-timeout.js",
-      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
-      "ticket": "#969"
-    },
-    {
       "file": "tests/verify-issue22-ui.js",
       "reason": "只动手点：要真机 DSH 图形界面加 Chrome（127.0.0.1:59519），链上跑不了，留给人动手验收",
       "ticket": "#1125"

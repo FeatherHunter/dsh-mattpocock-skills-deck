@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T05:35:21.217Z",
+  "generatedAt": "2026-10-17T05:40:07.390Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 297,
-  "gateCount": 297,
-  "attributedGates": 259,
+  "chainLength": 298,
+  "gateCount": 298,
+  "attributedGates": 260,
   "unattributedGates": 38,
   "buildOutputOnlyGates": 24,
   "completionRecordedGates": 6,
@@ -3545,6 +3545,32 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 5 条"
+    },
+    {
+      "step": "node tests/verify-969-tiered-timeout.js",
+      "file": "tests/verify-969-tiered-timeout.js",
+      "guards": [
+        "src/host/git-process.ts",
+        "src/host/outbound/admission.ts",
+        "src/host/platform/outbound-control.ts",
+        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
+        "src/tracker/rooms/github/client.ts",
+        "src/tracker/rooms/github/errors.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/host/outbound",
+        "src/host/platform",
+        "src/tracker/contract",
+        "src/tracker/kernel",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-970-whole-document.ts",
@@ -7447,6 +7473,7 @@
       "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-963-log-order.ts",
       "node tests/verify-968-skill-ondemand.ts",
+      "node tests/verify-969-tiered-timeout.js",
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-config-store-comments.ts",
       "node tests/verify-config-store-core.ts",
@@ -7487,7 +7514,8 @@
     ],
     "src/host/outbound": [
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-963-log-order.ts"
+      "node tests/verify-963-log-order.ts",
+      "node tests/verify-969-tiered-timeout.js"
     ],
     "src/host/platform": [
       "node tests/verify-deck-tools-matrix.js",
@@ -7500,6 +7528,7 @@
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.ts",
+      "node tests/verify-969-tiered-timeout.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-delta-wiring.js",
       "node tests/verify-error-raw-samples.ts",
@@ -7783,6 +7812,7 @@
       "node tests/verify-1059-issue-write.ts",
       "node tests/verify-1060-edge-log.ts",
       "node tests/verify-1182-docs-paths.ts",
+      "node tests/verify-969-tiered-timeout.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-capability-register.ts",
       "node tests/verify-detection-evidence.ts",
@@ -7818,6 +7848,7 @@
       "node tests/verify-1182-log-emit-single-source.ts",
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-544-standalone-blocked.ts",
+      "node tests/verify-969-tiered-timeout.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-rule-samples.ts",
@@ -7879,6 +7910,7 @@
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.ts",
+      "node tests/verify-969-tiered-timeout.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
