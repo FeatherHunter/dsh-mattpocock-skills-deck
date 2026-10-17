@@ -84,7 +84,12 @@ try{
 console.log('')
 console.log('-- 4) Form 渲染位置与校验（#308：横幅不再内嵌，改走 modal-seat 弹窗） --')
 check(cr.includes('schema'), 'ChainForm 含 schema')
-check(cr.includes('required') && cr.includes('必填'), 'ChainForm 含 required 校验')
+// 2026-10-17 重锚（原来是钉硬字 `必填`）：必填校验的真机制是「判 f.required 再取词条
+// env.formRequired」，硬字早已搬进词条表。这里改钉机制本身 + 词条中英都在，
+// 谁把校验删掉或把词条挪走都会当场红。
+check(cr.includes('f.required') && cr.includes("tr('env.formRequired'"), 'ChainForm 必填校验走词条 env.formRequired（不再钉硬字）')
+const localePanelSrc = file('src/client/kernel/locale-panel.ts')
+check(localePanelSrc.split("'env.formRequired'").length === 3 && localePanelSrc.includes('{label} 必填'), '词条 env.formRequired 中英各一条、中文含「必填」')
 check(cr.includes('pattern') && cr.includes('RegExp'), 'ChainForm 含 pattern 校验')
 check(cr.includes('submitAction') , 'ChainForm 含 submitAction')
 check(cr.includes('onSubmit'), 'ChainForm 含 onSubmit')
@@ -103,7 +108,9 @@ console.log('')
 console.log('-- 5) gh 登录黄条 inject-prompt 替换 openUrl（#308 修陈旧断言：bc72e16 迁移至后端 fixes） --')
 const prompts = file('src/client/kernel/prompts.js')
 check(prompts.includes('ghAuthLogin'), 'prompts 含 ghAuthLogin 模板')
-check(prompts.includes('gh auth login'), 'ghAuthLogin 含 gh auth login 文案')
+// 2026-10-17 删掉「ghAuthLogin 含 gh auth login 文案」这条：模板从 #716 起改成占位符
+// `{cli} auth login`，硬字 `gh` 已不在源码里；这条文案的真牙齿在 tests/verify-prompts.js
+// （按后端真渲染中英模板），这里钉的是过时的字符串形态，留着只会假红。
 // #308 修陈旧断言：bc72e16 后修复指引迁入后端 fixes（host/index.js 不再硬编码 prompt:ghAuthLogin，ChecksTab 不再硬编码 promptText 调用）
 const checksTab = file('src/client/views/ChecksTab.js')
 check(checksTab.includes('hintTextOf') && checksTab.includes('resolvePrompt'), 'ChecksTab 走通用 hint 解析（不再硬编码 ghAuthLogin，承接 fixContract）')
@@ -138,8 +145,10 @@ check(probe.includes('wf.chain'), 'probe 调用 wf.chain')
 check(probe.includes('loadChain(st, true') , 'refreshAll 联动 loadChain')
 const host2 = file('src/host/index.ts')
 check(host2.includes("harness.handle('wf.chain'"), 'host 含 wf.chain handler')
-check(host2.includes('resolveGenericChain'), 'host chain 使用 resolveGenericChain')
-check(host2.includes('registerGenericPredicates'), 'host chain 注册通用谓词')
+// 2026-10-17 删掉两条按旧符号名扫 host 源码的断言（resolveGenericChain /
+// registerGenericPredicates）：这两个符号已搬到 src/host/tracker/generic.js，被
+// detectChain 消费；真牙齿在 tests/verify-generic-catalog.ts（真 import 真调用）。
+// 重锚成新名字只是把文本扫描换个词，零新增牙齿；接线本身由 verify-chain-env-e2e 真跑。
 
 console.log('')
 console.log('-- 8) jsdom 横幅/表单冒烟 --')
@@ -175,23 +184,12 @@ try{
   const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
   const { createActionDispatcher } = await import('../src/client/kernel/actions.js')
   const calls2=[]
-  const mockCtx={ inject: async(t)=>{calls2.push(t)}, openUrl: (u)=>{calls2.push(u)}, hostCall: async()=>{calls2.push('host')}, renderForm: async()=>{}, refresh: async()=>{calls2.push('refresh')}, tr:(k)=>k }
+  const mockCtx={ inject: async(t)=>{calls2.push(t)}, openUrl: (u)=>{calls2.push(u)}, hostCall: async()=>{calls2.push('host')}, renderForm: async()=>{calls2.push('renderForm')}, refresh: async()=>{calls2.push('refresh')}, tr:(k)=>k }
   const disp2 = createActionDispatcher(mockCtx)
-  // 构造带 form 的 snapshot
-  const formSnap = {
-    steps:[
-      { id:'f1', status:'fail', show:{fallback:'需创建仓库', desc:'填表单', level:'bad'}, actions:[{type:'form', schema:[{name:'name', label:'仓库名', required:true}], submitAction:{type:'rpc', method:'wf.initPublish'}}], isApplicable:true, isCurrent:true, isBlocking:true }
-    ], currentIndex:0, doneCount:0, applicableCount:1, totalCount:1, chainState:'hasCurrent', version:'1'
-  }
-  // 简单断言 form 动作存在
-  check(formSnap.steps[0].actions[0].type==='form', 'form 动作存在')
-  check(formSnap.steps[0].actions[0].schema[0].name==='name', 'form schema 含 name')
-  // 未知类型
-  const unsnap = {
-    steps:[{ id:'u', status:'fail', show:{fallback:'未知', level:'bad'}, actions:[{type:'weird-type'}], isApplicable:true, isCurrent:true }],
-    currentIndex:0, chainState:'hasCurrent', version:'1'
-  }
-  check(unsnap.steps[0].actions[0].type==='weird-type', 'unknown 类型存在')
+  // 真行为：带 form 的动作经分发器走 renderForm 那条路（不再是自证夹具字面量）
+  const r7 = await disp2.dispatch({type:'form', schema:[{name:'name', label:'仓库名', required:true}], submitAction:{type:'rpc', method:'wf.initPublish'}})
+  check(r7.ok===true, 'dispatcher form（带必填项）执行')
+  check(calls2.includes('renderForm'), 'form 分发确实走 renderForm 那条路')
   // Markdown 隔离：catalogFor 隔离
   const { catalogFor } = await import('../src/shared/tracker/check-catalog-dirs.js')
   const mdCats = catalogFor('markdown')
