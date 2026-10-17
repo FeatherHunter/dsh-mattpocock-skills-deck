@@ -1,5 +1,5 @@
-// verify-labels-sync.js — #188 单源标签名子集校验（仅比 name，上游 19 中含 10 即 ok）
-// 用法: node tests/verify-labels-sync.js
+// verify-labels-sync.ts — #188 单源标签名子集校验（仅比 name，上游 19 中含 10 即 ok）
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-labels-sync.ts
 const fs = require('fs')
 const path = require('path')
 let failed=false

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:59:12.345Z",
+  "generatedAt": "2026-10-17T08:03:12.578Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 292,
   "gateCount": 292,
@@ -5031,11 +5031,12 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
-      "step": "node tests/verify-labels-sync.js",
-      "file": "tests/verify-labels-sync.js",
+      "step": "node tests/verify-labels-sync.ts",
+      "file": "tests/verify-labels-sync.ts",
       "guards": [
         "package/lib/client.js",
         "package/tracker/contract/canonical-labels.js",
+        "src/client/views/NoRepoCard.js",
         "src/tracker/contract/canonical-labels.ts",
         "src/tracker/label-names.ts",
         "src/tracker/rooms/github/index.ts"
@@ -5043,6 +5044,7 @@
       "dirs": [
         "package/lib",
         "package/tracker/contract",
+        "src/client/views",
         "src/tracker",
         "src/tracker/contract",
         "src/tracker/rooms/github"
@@ -5051,7 +5053,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
     },
     {
       "step": "node tests/verify-log-artifacts.ts",
@@ -6899,7 +6901,7 @@
       "node tests/verify-issue22-popovers.ts",
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-kernel.ts",
-      "node tests/verify-labels-sync.js",
+      "node tests/verify-labels-sync.ts",
       "node tests/verify-log-artifacts.ts",
       "node tests/verify-log-client.ts",
       "node tests/verify-log-store.ts",
@@ -6942,7 +6944,7 @@
       "node tests/verify-build-artifacts.ts"
     ],
     "package/tracker/contract": [
-      "node tests/verify-labels-sync.js"
+      "node tests/verify-labels-sync.ts"
     ],
     "research": [
       "node tests/verify-gate-map.ts",
@@ -7190,6 +7192,7 @@
       "node tests/verify-763-detail-fold.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-issue529-checks-i18n.ts",
+      "node tests/verify-labels-sync.ts",
       "node tests/verify-map-drill.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-prompts.ts",
@@ -7690,7 +7693,7 @@
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue-body-script.ts",
-      "node tests/verify-labels-sync.js",
+      "node tests/verify-labels-sync.ts",
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts",
       "node tests/verify-parse-leaf.ts",
@@ -7712,7 +7715,7 @@
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue195.ts",
-      "node tests/verify-labels-sync.js",
+      "node tests/verify-labels-sync.ts",
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-locale-completeness.ts"
     ],
@@ -7817,7 +7820,7 @@
       "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue195.ts",
-      "node tests/verify-labels-sync.js",
+      "node tests/verify-labels-sync.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-tracker-contract.ts"
