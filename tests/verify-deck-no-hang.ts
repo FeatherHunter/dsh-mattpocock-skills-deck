@@ -1,5 +1,5 @@
-// verify-deck-no-hang.js —— 门禁：九个 deck 工具的挂起对抗（无上限等待一律有竞速兜底）
-// 用法：在插件根目录执行 node tests/verify-deck-no-hang.js，可独立运行。
+// verify-deck-no-hang.ts —— 门禁：九个 deck 工具的挂起对抗（无上限等待一律有竞速兜底）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-deck-no-hang.ts，可独立运行。
 //
 // 为什么要这一段：线上曾出现 deck 工具“停在这边不动”——实测每次读 25～37 秒，
 // 尾部还有发出后无回包的一笔。排查结论不是无限死锁，而是串行远端调用的叠加

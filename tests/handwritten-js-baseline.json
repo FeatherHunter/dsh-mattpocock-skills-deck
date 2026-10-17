@@ -278,7 +278,6 @@
     "tests/verify-config-store-migration.js",
     "tests/verify-deck-event-gate.mjs",
     "tests/verify-deck-exec-phone.js",
-    "tests/verify-deck-no-hang.js",
     "tests/verify-deck-render-detail.js",
     "tests/verify-deck-thin-reads.js",
     "tests/verify-deck-tools-agent-register.js",

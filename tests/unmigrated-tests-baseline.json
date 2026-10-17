@@ -1,7 +1,7 @@
 {
   "version": 1,
   "metric": "unmigrated-old-language-test-files",
-  "recordedAt": "2026-10-16",
+  "recordedAt": "2026-10-17",
   "note": "未迁移的旧语言手写测试文件清单（tests/ 下 .js/.mjs/.cjs，旁边没有同名 .ts）。只许减不许增：新写的测试一律 .ts；确有必要新增旧语言文件（例如给门禁造 .js 夹具）时，重录本文件并把理由写进提交信息。",
   "files": [
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
@@ -47,7 +47,6 @@
     "tests/verify-config-store-migration.js",
     "tests/verify-deck-event-gate.mjs",
     "tests/verify-deck-exec-phone.js",
-    "tests/verify-deck-no-hang.js",
     "tests/verify-deck-render-detail.js",
     "tests/verify-deck-thin-reads.js",
     "tests/verify-deck-tools-agent-register.js",

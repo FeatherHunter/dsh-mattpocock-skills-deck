@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T22:38:17.643Z",
+  "generatedAt": "2026-10-17T03:14:40.963Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -419,8 +419,8 @@
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-deck-no-hang.js",
-      "file": "tests/verify-deck-no-hang.js",
+      "step": "node tests/verify-deck-no-hang.ts",
+      "file": "tests/verify-deck-no-hang.ts",
       "guards": [
         "src/deck/registration/host-assemble.ts",
         "src/deck/tools/context.ts",
@@ -431,6 +431,7 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
+        "src/shared/time-config/values.js",
         "tests/lib/deck-decide-stub.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
@@ -440,13 +441,14 @@
         "src/deck/tools",
         "src/host/refresh",
         "src/shared/refresh",
+        "src/shared/time-config",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 21,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-deck-parallel.ts",
@@ -7413,7 +7415,7 @@
     ],
     "src/deck/registration": [
       "node tests/verify-deck-exec-phone.js",
-      "node tests/verify-deck-no-hang.js",
+      "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-quota-sync.ts",
       "node tests/verify-deck-render-detail.js",
       "node tests/verify-deck-tools-agent-register.js",
@@ -7453,7 +7455,7 @@
       "node tests/verify-detection-log-reach.ts"
     ],
     "src/deck/tools": [
-      "node tests/verify-deck-no-hang.js",
+      "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-tools-agent-register.js",
@@ -7598,7 +7600,7 @@
     "src/host/refresh": [
       "node tests/verify-chain-view.js",
       "node tests/verify-deck-event-gate.mjs",
-      "node tests/verify-deck-no-hang.js",
+      "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-tools-matrix.js",
@@ -7700,7 +7702,7 @@
       "node tests/verify-chain-capsule.js",
       "node tests/verify-chain-view.js",
       "node tests/verify-contract-vocabulary.ts",
-      "node tests/verify-deck-no-hang.js",
+      "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-tools-matrix.js",
@@ -7755,6 +7757,7 @@
       "node tests/verify-write-detect.js"
     ],
     "src/shared/time-config": [
+      "node tests/verify-deck-no-hang.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-683-choice-rev.ts",
@@ -8073,7 +8076,7 @@
       "node tests/verify-chain-env-e2e.js",
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-chain-view.js",
-      "node tests/verify-deck-no-hang.js",
+      "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-repo-resolve.ts",
       "node tests/verify-deck-thin-reads.js",
