@@ -15,7 +15,10 @@ const bad = function (name) { failed = true; console.log('  FAIL', name) }
 const check = function (cond, name) { if (cond) ok(name); else bad(name) }
 const read = function (f) { return fs.readFileSync(path.join(root, f), 'utf8') }
 
-const checksTab = read('src/client/views/ChecksTab.js')
+// 2026-10-17（转 .ts 前先修）：ChecksTab 的真源是 .ts、同名 .js 是 esbuild 产物，产物会折行，
+//   从产物里抠那一行守卫会抠不到（或抠到被折过的半行）。走共用取源入口拿真源，取到的行与原意一致。
+const { sourceText } = require('./lib/source-text.ts')
+const checksTab = sourceText('src/client/views/ChecksTab.js')
 
 // 判据 4b：语言切换即时重取（面板开着切语言，说明行不许停留在旧语言）。
 //   判据不认字面、认行为：从前这里按字面找 `loadChain(st, true)`，而调用现在多了第三个参数

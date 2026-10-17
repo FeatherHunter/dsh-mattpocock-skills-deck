@@ -40,9 +40,11 @@ async function main() {
   // 1. 脏树拉取是 warn，不是 block（截图状态：未暂存 15、落后 2）。
   const dirty = rules.judge(base(), 'pull')
   check(dirty.verdict === 'warn' && dirty.reasons.includes('dirty-tree'), '脏树拉取只提醒不拦住（实得 ' + dirty.verdict + '/' + dirty.reasons.join(',') + '）')
-  // 反证：回到 block 的旧实现必须判红。
-  const oldBlock = { verdict: 'block', reasons: ['dirty-tree'] }
-  check(!(oldBlock.verdict === 'warn'), '反证：旧方向（block）在这条新断言下不成立')
+  // 反证那两条已删（2026-10-17，转 .ts 前先修）：原来写的是一条自造常量
+  //   `const oldBlock = { verdict: 'block' }` 再断言 `!(oldBlock.verdict === 'warn')`——
+  //   它比的是自己刚写下的字面量，产品代码怎么改都判不出来，属于白占一条的假断言。
+  //   真反证在门禁之外做：把 src/shared/version-control/rules.js 里脏树那条从 warn 改回 block，
+  //   上面第 1 条断言立刻判红（改回后即恢复），所以这条不需要在文件里留一条恒真的影子。
 
   // 2. 干净拉取仍放行，无警告。
   const clean = rules.judge(base({ unstaged: [], unstagedCount: 0 }), 'pull')

@@ -15,9 +15,13 @@ const ok = (cond, msg) => {
   else { console.log('  FAIL ' + msg); failed = true }
 }
 const must = (src, re, msg) => ok(re.test(src), msg + (re.test(src) ? '' : ' — 缺 ' + re))
+// 2026-10-17（转 .ts 前先修）：源码侧一律走共用取源入口——Views 那一族不少文件的真源已是 .ts、
+//   同名 .js 是 esbuild 产物，产物会把一行拆成多行，按「单行里同时出现 HoverTip 与 mode=mouse」
+//   这种正则去读产物就会假红（SettingsPage 就是这样被判红的）。产物侧的两条检查照旧直读文件。
+const { sourceText } = require('./lib/source-text.ts')
 const srcPath = 'src/client/views/primitives/HoverTip.js'
 let src = ''
-try { src = fs.readFileSync(srcPath, 'utf8') } catch (e) { console.log('  FAIL 缺真源 ' + srcPath + ': ' + e.message); failed = true; src = '' }
+try { src = sourceText(srcPath) } catch (e) { console.log('  FAIL 缺真源 ' + srcPath + ': ' + e.message); failed = true; src = '' }
 if (src) {
   console.log('[HoverTip 真源 ' + srcPath + ']')
   ok(src.includes('export const HoverTip'), '导出 HoverTip')
@@ -69,7 +73,7 @@ const migrants = [
 ]
 migrants.forEach(m => {
   try {
-    const raw = fs.readFileSync(m.file, 'utf8')
+    const raw = sourceText(m.file)
     const filtered = raw.split(/\r?\n/).filter(l => {
       const t = l.trim()
       return !(t.startsWith('//') || t.startsWith('*') || t.startsWith('/*'))

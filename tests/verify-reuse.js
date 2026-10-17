@@ -20,10 +20,18 @@ const ALLOWLIST = new Set([
 function collectFiles(dir, out) {
   const abs = path.resolve(dir)
   if (!fs.existsSync(abs)) return
-  for (const ent of fs.readdirSync(abs, { withFileTypes: true })) {
+  const ents = fs.readdirSync(abs, { withFileTypes: true })
+  const names = new Set(ents.map((e) => e.name))
+  for (const ent of ents) {
     const rel = path.posix.join(dir, ent.name)
     if (ent.isDirectory()) collectFiles(rel, out)
-    else if (ent.isFile() && rel.endsWith('.js')) out.push(rel)
+    else if (ent.isFile() && (rel.endsWith('.js') || rel.endsWith('.ts'))) {
+      // 2026-10-17（转 .ts 前先修）：原来只收 .js，而 #1209 之后不少视图的真源是 .ts、
+      // 同名 .js 是 esbuild 产物——写进 .ts 的重复样板会被漏扫、门禁假绿。
+      // 现在两种都收，但同名 .ts 在时跳过那份 .js（产物扫了也是同一段代码，还会把命中数算两遍）。
+      if (rel.endsWith('.js') && names.has(ent.name.slice(0, -3) + '.ts')) continue
+      out.push(rel)
+    }
   }
 }
 const primitives = []
