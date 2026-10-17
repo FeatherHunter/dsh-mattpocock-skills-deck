@@ -344,6 +344,14 @@ async function runLinux() {
     const plat = await createPlatform(ctx, 'linux')
     const h = await plat.getHome()
     check(h === null || (typeof h === 'string' && h.length > 0), 'linux G1 getHome 有值或null不抛')
+    // 真机严格版（2026-10-17 从 tests/verify-platform-linux.js 并进来）：linux 上 getHome 必须直通
+    // node:os.homedir()，不许自己读 HOME 第二真相、也不许吞成 null。win32/darwin 宿主上这行不生效。
+    // 注意：这里必须写 require('node:os')。先前写成裸标识符 nodeOs.homedir() 时，ReferenceError 被这个
+    // IIFE 自己的 catch 吞成 null，检查静默消失、门禁照旧全绿——那正是「假绿」的典型形状。
+    const realHome = (() => { try { return require('node:os').homedir() } catch { return null } })()
+    if (process.platform === 'linux' && realHome) {
+      check(h === realHome, `linux G1 直通 os.homedir 不许吞成 null：${h} vs ${realHome}`)
+    }
     if (process.platform === 'linux' && h) {
       check(h.startsWith('/'), `linux G1 getHome POSIX形态以/开头：${h}`)
       check(!h.includes('\\'), 'linux G1 getHome 不含反斜杠')
