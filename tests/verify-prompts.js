@@ -1615,6 +1615,8 @@ const runL2Injection = function () {
   return problems.length - before
 }
 
+// 2026-10-17（#1239）：门禁清单里 verify-progress 已改名成 .ts，本文件里那句 isGatePlanned 跟着改，
+//   自锁摘要按新内容重算（摘要住在 LOCK 区段里，区段算自摘要时整段挖空，改它不影响自摘要）。
 // ==================== 8b. 夹具自锁（sha256） ====================
 // 只给三个文件上锁：豁免登记表、L2 payload 夹具、门禁自身。改任意一个都必须同步改这里的摘要，
 // 否则门禁红 —— 这是「把 14 条 payload 全换成同一条 trivial 载荷仍然全绿」那条路的封堵点。
@@ -1678,7 +1680,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '5458525fbd1960cc34159fb2748d9942aad2c43de52aa3f92e1f6ad79ae6613a',
+  'tests/verify-prompts.js': 'f77b6a014adee96fd1a585565bae6bbfd71184e52096a25045ec3659cfde52b9',
 }
 // ---- LOCK-END ----
 
@@ -2086,7 +2088,7 @@ if (!IS_CHILD) {
   try {
     const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
     check(isGatePlanned(ROOT, 'tests/verify-prompts.js'), 'verify 链未纳入本门禁（tests/verify-prompts.js，规划函数里有它）')
-    check(isGatePlanned(ROOT, 'tests/verify-progress.js'), 'verify 链未纳入 tests/verify-progress.js（#573 总指挥 Q1 裁定，规划函数里有它）')
+    check(isGatePlanned(ROOT, 'tests/verify-progress.ts'), 'verify 链未纳入 tests/verify-progress.js（#573 总指挥 Q1 裁定，规划函数里有它）')
     if (problems.length === pReg) console.log('  PASS 自注册（verify 链含 verify-prompts.js + verify-progress.js）')
   } catch (e) { fail('读门禁规划失败：' + e.message) }
 }

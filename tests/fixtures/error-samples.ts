@@ -1,7 +1,7 @@
 /**
  * tests/fixtures/error-samples.js —— 错误判档的「真实原文」夹具（票 #1111）
  *
- * 这份表是门禁 `tests/verify-error-rule-samples.js` 的证据表：每条夹具是一段**真实出现过**的
+ * 这份表是门禁 `tests/verify-error-rule-samples.ts` 的证据表：每条夹具是一段**真实出现过**的
  * 报错原文，外加它应该被判成哪一档。门禁拿着它跑判档，档位对不上就红。
  *
  * 为什么每条都要标 `source`（来源）：这份表最容易出的事，是有人顺手编一句「看起来像」的英文

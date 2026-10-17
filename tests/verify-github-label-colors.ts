@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 /**
- * tests/verify-github-label-colors.js —— GitHub 房间「列标签 / 批量改色」两条契约操作的门禁（#620）。
+ * tests/verify-github-label-colors.ts —— GitHub 房间「列标签 / 批量改色」两条契约操作的门禁（#620）。
  *
  * 这一条守的是四件事（都能用假数据断言，不联网、不碰真仓库）：
  *   一、**调用了什么命令**：列标签必须传分页参数（`gh label list` 默认只回 30 条，不传就会静默少一截）；

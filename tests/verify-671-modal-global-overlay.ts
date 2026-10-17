@@ -19,7 +19,7 @@
  * 为什么不做「整条插件启起来再点横幅」那一版：状态栏组件经 `DswsCtx` 取会话状态，而那要跟产物共用同一个
  *   React 实例（两份 React 时 `useContext` 拿到的是各自那份 context 的默认值，界面读的是另一个状态对象）。
  *   本门要证的是「座位在哪一层、跟面板有没有关系」，上面这一版已经钉死；点按钮那一整条链由
- *   `tests/verify-665-fresh-workspace-chain.js` 在模块层钉着（含「点仓库那一段开的是哪个弹窗」）。
+ *   `tests/verify-665-fresh-workspace-chain.ts` 在模块层钉着（含「点仓库那一段开的是哪个弹窗」）。
  *
  * 用法：node tests/verify-671-modal-global-overlay.js
  */

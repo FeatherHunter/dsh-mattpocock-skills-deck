@@ -366,11 +366,11 @@
 <h3>门禁（这是"不退化"的保证，不是可选项）</h3>
 <ul>
   <li><code>tests/verify-budget-worstcase.js</code>：按 <code>budget.js</code> 的常量算出最坏小时的调用数，断言低于闸的上限。以后谁把节拍调快，这条先红。</li>
-  <li><code>tests/verify-gh-gateway.js</code>：静态扫描"所有对 gh 的调用点都在闸后面"，外加运行期"漏网调用数 == 0"的断言。新写的调用点绕过闸 → 红。</li>
+  <li><code>tests/verify-gh-gateway.ts</code>：静态扫描"所有对 gh 的调用点都在闸后面"，外加运行期"漏网调用数 == 0"的断言。新写的调用点绕过闸 → 红。</li>
   <li><code>tests/verify-attention-model.js</code>：断言后台档零定时器、活跃集合上限为 2、同一工作区根下的多个会话只产生一次探测、90 秒无信号后全部收摊。</li>
   <li><code>tests/verify-visible-truth.js</code>：断言"取数时刻 / 失败 / 降级"三处文案在界面代码里都有真实读取点（今天 <code>list.restFallback</code>、<code>panel.snapErr</code> 这类词条就是"写了没人读"的活例子）。</li>
-  <li><code>tests/verify-event-budget.js</code>：把<b>事件驱动的花费</b>也算上界——写事件次数 × 单价、切换次数 × 探测单价，断言加起来仍低于闸的上限。（原来的最坏用量只算定时器，而增长最快的花费全在事件那边。）</li>
-  <li><code>tests/verify-gate-accounting.js</code>：断言"闸的累计账 == 实际出站 HTTP 请求数"（含分页、重试、兜底链、扇出）；对不上就判红。</li>
+  <li><code>tests/verify-event-budget.ts</code>：把<b>事件驱动的花费</b>也算上界——写事件次数 × 单价、切换次数 × 探测单价，断言加起来仍低于闸的上限。（原来的最坏用量只算定时器，而增长最快的花费全在事件那边。）</li>
+  <li><code>tests/verify-gate-accounting.ts</code>：断言"闸的累计账 == 实际出站 HTTP 请求数"（含分页、重试、兜底链、扇出）；对不上就判红。</li>
   <li>日志门禁：三个新事件进 <code>research/489-appendix.md</code> 对照表，并跑通 <code>tests/verify-log-*</code> 三条自动检查。</li>
 </ul>
 

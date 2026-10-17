@@ -655,7 +655,7 @@ function checkSelectionShape(out, label) {
     ['package.json', true],
     ['tsconfig.client.json', true],
     ['scripts/build.mjs', true],
-    ['tests/verify-progress.js', true],
+    ['tests/verify-progress.ts', true],
     ['docs/agents/verification.md', true],
     ['research/489-appendix.md', true],
     ['README.md', true],

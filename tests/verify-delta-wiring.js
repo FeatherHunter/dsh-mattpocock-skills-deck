@@ -164,7 +164,7 @@ async function run() {
   check(r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs > seeded.delta.watermarkMs, '③水印在变化并进列表之后推进了（' + seeded.delta.watermarkMs + ' → ' + (r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs) + '）')
   check(logLines.some((l) => l.name === 'refresh.patch' && l.fields.mode === 'patch'), '补行这一步落了一行既有事件 refresh.patch（没有新造事件名）')
   const st1 = ledgerGate.stats()
-  check(st1.accounted.requests === 1, '①那一条薄查询是**经闸的 send** 发出去的（闸记下 ' + st1.accounted.requests + ' 条；探测索引那一条走的是存量出口，只报账不裁决，见 verify-gh-gateway.js）')
+  check(st1.accounted.requests === 1, '①那一条薄查询是**经闸的 send** 发出去的（闸记下 ' + st1.accounted.requests + ' 条；探测索引那一条走的是存量出口，只报账不裁决，见 verify-gh-gateway.ts）')
   check(st1.sent > 0 && st1.deferred === 0, '①这一次真的**放行**了（闸的裁决是 send 不是 defer）：sent=' + st1.sent + '、deferred=' + st1.deferred)
   check(seenKeys.length > 0 && seenKeys.every((k) => k.length === 8), '③两处用的是同一把钥匙：这条路上每一笔过的 workspaceKey 都是 8 位短散列（实得 ' + JSON.stringify(seenKeys.slice(0, 3)) + '…）')
   check(seenKeys.every((k) => k === wsKey), '③而且与活跃集合/写事件白名单里那一格**逐字相同**（' + wsKey + '）——层级不同、长度不同或空串都会让每一笔被判推迟')

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-gh-gateway.js —— 门禁：去 GitHub 的每一笔都从唯一出口闸过（#706 T2 第二批 · I1）
+ * verify-gh-gateway.ts —— 门禁：去 GitHub 的每一笔都从唯一出口闸过（#706 T2 第二批 · I1）
  *
  * 为什么需要它（依据 docs/architecture/refresh-budget-architecture.html 第一章 I1 与第三章）：
  * 从前「超限」治不住，根子不是哪个数字写大了，而是**没有出口**——探测、重建、检查链、命名守护、
@@ -24,11 +24,11 @@
  * 而且从今往后**任何一处新的出站调用点都必须当场接进闸**，没有「先登记、以后再接」这条路。
  *
  * 用法：
- *   node tests/verify-gh-gateway.js                       # 扫整个仓库（默认扫描根 = 本脚本上一级）
- *   node tests/verify-gh-gateway.js --root <目录>          # 换扫描根（例如探针样本目录）
- *   node tests/verify-gh-gateway.js --registry <文件>      # 追加一份登记表（JSON 数组）
- *   node tests/verify-gh-gateway.js --list                # 只列出扫到的调用点，不做判定
- * 挂钩子跑（必须）：node --import ./scripts/ts-hook.mjs tests/verify-gh-gateway.js —— 它动态 import 的 .ts
+ *   node tests/verify-gh-gateway.ts                       # 扫整个仓库（默认扫描根 = 本脚本上一级）
+ *   node tests/verify-gh-gateway.ts --root <目录>          # 换扫描根（例如探针样本目录）
+ *   node tests/verify-gh-gateway.ts --registry <文件>      # 追加一份登记表（JSON 数组）
+ *   node tests/verify-gh-gateway.ts --list                # 只列出扫到的调用点，不做判定
+ * 挂钩子跑（必须）：node --import ./scripts/ts-hook.mjs tests/verify-gh-gateway.ts —— 它动态 import 的 .ts
  *   真源靠装载钩子解析，裸跑会在跑完前三条样本断言后死在 ERR_MODULE_NOT_FOUND，容易被误读成通过。
  * 退出码：0 = 通过；1 = 有违规。
  */

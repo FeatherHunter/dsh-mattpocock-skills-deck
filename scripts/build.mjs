@@ -590,7 +590,7 @@ const SHARED_SPLICE = [
   { marker: '// ==== shared:workspaceKey (spliced by build) ====', file: 'src/shared/workspaceKey.js' },
   // #629 配色核心的两个产物：宿主半走普通相对 import，客户端半要按同一份口径判断
   // 用户填的颜色能不能用、颜色有没有变，所以把这两份零依赖产物一并拼进界面闭包。
-  // 它们的顶层名字由 tests/verify-generated-no-shadow.js 与既有的派生文件一起比对，
+  // 它们的顶层名字由 tests/verify-generated-no-shadow.ts 与既有的派生文件一起比对，
   // 产物里不许出现 __DSW_VERSION__ 与 __DSW_REPO_URL__（拼接发生在版本注入之后）。
   { marker: '// ==== shared:labelColors (spliced by build) ====', file: 'src/shared/label-color/colors.js' },
   { marker: '// ==== shared:labelColorPrompt (spliced by build) ====', file: 'src/shared/label-color/prompt.js' },

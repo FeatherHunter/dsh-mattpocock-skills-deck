@@ -2,7 +2,7 @@
 //
 // 起因：链的三条执行器（scripts/verify-chain.js、scripts/verify-parallel.mjs、scripts/verify-all.mjs）
 // 判定一扇门禁过没过，只看它的退出码。于是「跑到一半就收摊、退出码仍是 0」这种假绿没有任何东西能拦：
-// #1146 就是这么被发现的 —— tests/verify-deck-no-hang.js 的 21 条断言只跑到第 12 条就退出，退出码 0，
+// #1146 就是这么被发现的 —— tests/verify-deck-no-hang.ts 的 21 条断言只跑到第 12 条就退出，退出码 0，
 // 整条链判绿，没人知道少跑了 9 条。
 //
 // 这一份文件是那条判据的唯一来源：门禁自己交一份机读完成记录，执行器拿它跟归属表里记着的期望对数。
@@ -80,7 +80,7 @@ export function printGateResult(gate: string, assertions: number, failed: number
 }
 
 /**
- * 从文件路径取门禁名：`tests/verify-deck-no-hang.js` → `verify-deck-no-hang`。
+ * 从文件路径取门禁名：`tests/verify-deck-no-hang.ts` → `verify-deck-no-hang`。
  * 只看文件名，不看目录 —— 门禁名在全仓是唯一的，执行器与归属表都按这个名字对。
  * 冒烟那几条长这样：`smoke-host-dispatch.test.js` —— `.test` 是这类文件的命名习惯，不是门禁名的一部分，
  * 所以也去掉，名字才与 verify-* 那些一致（`smoke-host-dispatch`，而不是 `smoke-host-dispatch.test`）。

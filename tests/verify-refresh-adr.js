@@ -21,12 +21,12 @@ const TS_ADR_REL = 'docs/adr/20260913-builtin-ts-shape.md'
 
 /** 六条不变量各自在 ADR 里必须出现的那一句判据标题。 */
 const INVARIANTS = [
-  { id: 'I1', needle: '唯一出口：对 GitHub 的每一次调用都必须经过闸', gate: 'tests/verify-gh-gateway.js' },
+  { id: 'I1', needle: '唯一出口：对 GitHub 的每一次调用都必须经过闸', gate: 'tests/verify-gh-gateway.ts' },
   { id: 'I2', needle: '后台零定时器', gate: 'tests/verify-attention-model.js' },
   { id: 'I3', needle: '首屏只付行数据的钱', gate: 'budget.js' },
-  { id: 'I4', needle: '用量与工作区数量无关', gate: 'tests/verify-event-budget.js' },
+  { id: 'I4', needle: '用量与工作区数量无关', gate: 'tests/verify-event-budget.ts' },
   { id: 'I5', needle: '失败必可见、必退避', gate: 'backoff' },
-  { id: 'I6', needle: '花费可归因、可对账', gate: 'tests/verify-gate-accounting.js' },
+  { id: 'I6', needle: '花费可归因、可对账', gate: 'tests/verify-gate-accounting.ts' },
 ]
 
 /**

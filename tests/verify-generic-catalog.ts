@@ -1,6 +1,6 @@
-// tests/verify-generic-catalog.js — #226 验收（通用检查目录与谓词原语注册表 host）
+// tests/verify-generic-catalog.ts — #226 验收（通用检查目录与谓词原语注册表 host）
 // 规约：D6 开门链通用部分 + D7 c7-c9 通用技能探测；#224 v2 2026-08-28
-// 用法：node tests/verify-generic-catalog.js
+// 用法：node tests/verify-generic-catalog.ts
 // 覆盖：通用目录一致性 / 谓词只读不抛 / 验形状不验内容 / 目录产物进入链视图 / 无 na
 import { createRequire } from 'node:module'
 const req = createRequire(import.meta.url)

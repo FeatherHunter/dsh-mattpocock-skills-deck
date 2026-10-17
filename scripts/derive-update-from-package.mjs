@@ -94,7 +94,7 @@ function installedUpdateVersion() {
   return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version
 }
 
-/** 顶层声明名（只看无缩进的 function / var / let / const，export 前缀剥掉）——与 tests/verify-generated-no-shadow.js 同一口径。 */
+/** 顶层声明名（只看无缩进的 function / var / let / const，export 前缀剥掉）——与 tests/verify-generated-no-shadow.ts 同一口径。 */
 function topLevelNames(text) {
   const out = new Set()
   for (const line of text.split(/\r?\n/)) {
