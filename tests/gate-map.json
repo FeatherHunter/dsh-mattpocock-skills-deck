@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:09:45.098Z",
+  "generatedAt": "2026-10-17T07:15:40.916Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 292,
-  "gateCount": 292,
-  "attributedGates": 257,
+  "chainLength": 291,
+  "gateCount": 291,
+  "attributedGates": 256,
   "unattributedGates": 35,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
@@ -5461,23 +5461,6 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-naming-isolation-315.js",
-      "file": "tests/verify-naming-isolation-315.js",
-      "guards": [
-        "src/shared/naming-attribution.js",
-        "src/shared/naming-titles.js",
-        "src/shared/naming-tracking.js"
-      ],
-      "dirs": [
-        "src/shared"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 3 条"
-    },
-    {
       "step": "node tests/verify-naming-title-fact.ts",
       "file": "tests/verify-naming-title-fact.ts",
       "guards": [
@@ -5514,30 +5497,32 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-newsession-blank-seed-315.js",
-      "file": "tests/verify-newsession-blank-seed-315.js",
+      "step": "node tests/verify-newsession-blank-seed-315.ts",
+      "file": "tests/verify-newsession-blank-seed-315.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/api-io.ts",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
+        "src/shared/time-config/values.js",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/kernel",
+        "src/shared/time-config",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-newsession-preset-guard.js",
-      "file": "tests/verify-newsession-preset-guard.js",
+      "step": "node tests/verify-newsession-preset-guard.ts",
+      "file": "tests/verify-newsession-preset-guard.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/api-io.ts",
@@ -5545,40 +5530,44 @@
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-preset-guard.js",
         "src/client/kernel/api-workspace.js",
+        "src/shared/time-config/values.js",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/kernel",
+        "src/shared/time-config",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-newsession-workspace-fallback.js",
-      "file": "tests/verify-newsession-workspace-fallback.js",
+      "step": "node tests/verify-newsession-workspace-fallback.ts",
+      "file": "tests/verify-newsession-workspace-fallback.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/api-io.ts",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
+        "src/shared/time-config/values.js",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/kernel",
+        "src/shared/time-config",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-panel-workspace-isolation.js",
@@ -6908,9 +6897,9 @@
       "node tests/verify-map-drill.js",
       "node tests/verify-markdown.ts",
       "node tests/verify-multilevel-cache.ts",
-      "node tests/verify-newsession-blank-seed-315.js",
-      "node tests/verify-newsession-preset-guard.js",
-      "node tests/verify-newsession-workspace-fallback.js",
+      "node tests/verify-newsession-blank-seed-315.ts",
+      "node tests/verify-newsession-preset-guard.ts",
+      "node tests/verify-newsession-workspace-fallback.ts",
       "node tests/verify-panel-workspace-isolation.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-parse-leaf.js",
@@ -7128,9 +7117,9 @@
       "node tests/verify-naming-e2e.js",
       "node tests/verify-naming-guardian.js",
       "node tests/verify-nav-stack.js",
-      "node tests/verify-newsession-blank-seed-315.js",
-      "node tests/verify-newsession-preset-guard.js",
-      "node tests/verify-newsession-workspace-fallback.js",
+      "node tests/verify-newsession-blank-seed-315.ts",
+      "node tests/verify-newsession-preset-guard.ts",
+      "node tests/verify-newsession-workspace-fallback.ts",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.ts",
@@ -7518,7 +7507,6 @@
       "node tests/verify-bundled-skills.ts",
       "node tests/verify-naming-e2e.js",
       "node tests/verify-naming-guardian.js",
-      "node tests/verify-naming-isolation-315.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-session-title.js",
@@ -7630,6 +7618,9 @@
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-nav-stack.js",
+      "node tests/verify-newsession-blank-seed-315.ts",
+      "node tests/verify-newsession-preset-guard.ts",
+      "node tests/verify-newsession-workspace-fallback.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
@@ -8017,9 +8008,9 @@
       "node tests/verify-naming-guardian.js",
       "node tests/verify-naming-title-fact.ts",
       "node tests/verify-nav-stack.js",
-      "node tests/verify-newsession-blank-seed-315.js",
-      "node tests/verify-newsession-preset-guard.js",
-      "node tests/verify-newsession-workspace-fallback.js",
+      "node tests/verify-newsession-blank-seed-315.ts",
+      "node tests/verify-newsession-preset-guard.ts",
+      "node tests/verify-newsession-workspace-fallback.ts",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.ts",

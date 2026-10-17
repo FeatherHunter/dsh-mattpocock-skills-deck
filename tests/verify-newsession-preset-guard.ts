@@ -1,5 +1,5 @@
-// tests/verify-newsession-preset-guard.js — #362 可判定门禁 + #363 单点工厂（2026-09-01 定版）
-// 用法: node tests/verify-newsession-preset-guard.js [file...]（默认 src 源 + package/lib/client.js 双源）
+// tests/verify-newsession-preset-guard.ts — #362 可判定门禁 + #363 单点工厂（2026-09-01 定版）
+// 用法: node tests/verify-newsession-preset-guard.ts [file...]（默认 src 源 + package/lib/client.js 双源）
 //
 // 验收标准（#362 三判据合取 + #361 闸门 + #363 单点工厂）：
 //  d) 沙箱：buildCreateOpts(workspaceId,cwd) 两分支均返回携带 ptc 的入参
@@ -12,7 +12,7 @@
 //   等价重构（改写法、搬文件、改注释）就会变红，已连同只服务它们的读取语句与临时变量一并删掉。
 //   上面 d/e/g 是沙箱里真跑代码，h/i 是双源与创建后验，一条都没动。
 //
-// 本测试与 verify-newsession-blank-seed-315.js 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行，
+// 本测试与 verify-newsession-blank-seed-315.ts 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行，
 // 能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 // 本文件选 compileFn 手法：五处沙箱都是把真源码文本当函数体造函数，依赖一律按参数名显式传进去，不靠外层作用域。

@@ -1,5 +1,5 @@
-// tests/verify-newsession-workspace-fallback.js — #364 工作区回退与首条注入保真（兼容 alpha 新参）
-// 用法: node tests/verify-newsession-workspace-fallback.js [file...]（默认 src 源 + package/lib/client.js 双源）
+// tests/verify-newsession-workspace-fallback.ts — #364 工作区回退与首条注入保真（兼容 alpha 新参）
+// 用法: node tests/verify-newsession-workspace-fallback.ts [file...]（默认 src 源 + package/lib/client.js 双源）
 //
 // 验收标准（#364 = #363 之后剩余 40% 的“创时即正”三要素中，工作区回退矩阵与首条保真）：
 //  d) 沙箱：ensureWorkspaceId — 命中复用、未命中创建、创建失败回落、alpha path→cwd 回退、多形态 snapshot 兼容
@@ -11,7 +11,7 @@
 // 2026-10-12 修订：原来还有 a/b/c 三条「静態：源码必含某段字」的断言，它们读源码文本钉写法，等价重构就会变红，
 //   已连同只服务它们的读取语句与临时变量一并删掉；下面 d/e/f/g 四条沙箱断言是真跑代码，一条都没动。
 //
-// 与 verify-newsession-preset-guard.js 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行。
+// 与 verify-newsession-preset-guard.ts 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行。
 
 const fs = require('fs')
 const { compileFn: compileFnRaw } = require('./lib/eval-probe.js')

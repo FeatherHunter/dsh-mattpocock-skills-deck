@@ -1,5 +1,5 @@
-// tests/verify-newsession-blank-seed-315.js — #315 草稿体验守护（2026-08-30 回滚版）
-// 用法: node tests/verify-newsession-blank-seed-315.js [file...]（默认 src 源 + package/lib/client.js 双源）
+// tests/verify-newsession-blank-seed-315.ts — #315 草稿体验守护（2026-08-30 回滚版）
+// 用法: node tests/verify-newsession-blank-seed-315.ts [file...]（默认 src 源 + package/lib/client.js 双源）
 //
 // 背景：#315 曾因 openTextInNewSession 创建空白会话（pendingDraft-only）被壳复用为 provisional New Session row
 //   导致“新会话被自动改名”。2026-08-29 曾改为 face.prompt 自动发送使会话出生即非空白，但违背用户约束：
