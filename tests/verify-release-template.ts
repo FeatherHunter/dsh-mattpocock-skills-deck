@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tests/verify-release-template.js — 发布 Runbook 与双入口模板的验收门禁
+ * tests/verify-release-template.ts — 发布 Runbook 与双入口模板的验收门禁
  *
  * 验收标准（来自 #355）：
  * - [ ] 存在一份带生效日期的发布 runbook 文档，以后所有发布议题首行即引用它，冲突时以更新日期者为准
@@ -8,7 +8,7 @@
  * - [ ] 在对话中说“按发布规范发版 vX.Y.Z”可由 AI 代为创建同模板的发布议题，未给版本号时追问而非猜测
  * - [ ] 网页卡与对话创建的议题正文逐字一致且包含 8+4+2 清单
  *
- * 用法：node tests/verify-release-template.js
+ * 用法：node tests/verify-release-template.ts
  */
 
 import { readFileSync, existsSync } from "node:fs";

@@ -1,5 +1,5 @@
-// verify-version-control-parsers.js — 版本控制核心解析器门禁（#816 落地）
-// 用法：在插件根目录执行 node tests/verify-version-control-parsers.js，可独立运行。
+// verify-version-control-parsers.ts — 版本控制核心解析器门禁（#816 落地）
+// 用法：在插件根目录执行 node tests/verify-version-control-parsers.ts，可独立运行。
 //
 // 断言文字：只测外部行为——给定一段样本文本，断言产出的数据模型，不测实现细节。
 // 六组解析器各自：实采干净仓库能解出手写脏仓库中文重命名能解出、冲突不丢、游离与零提交

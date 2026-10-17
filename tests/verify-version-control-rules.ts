@@ -1,5 +1,5 @@
-// verify-version-control-rules.js — 版本控制核心判定规则门禁（#816 落地）
-// 用法：在插件根目录执行 node tests/verify-version-control-rules.js，可独立运行。
+// verify-version-control-rules.ts — 版本控制核心判定规则门禁（#816 落地）
+// 用法：在插件根目录执行 node tests/verify-version-control-rules.ts，可独立运行。
 //
 // 断言文字：只测外部行为——给定一份固定状态，断言判定结果（allow/warn/block + 理由标识符）。
 // 五个操作各一条底线：没东西暂存就拦暂存、没暂存就拦提交、脏树与冲突拦拉取、上游没了拦推拉、裸仓库拦更新；

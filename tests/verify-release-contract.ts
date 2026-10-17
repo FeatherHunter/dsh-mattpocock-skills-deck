@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tests/verify-release-contract.js — 单一高层的发布契约校验（#356）
+ * tests/verify-release-contract.ts — 单一高层的发布契约校验（#356）
  *
  * 定位：以单一 high-level gate 覆盖 8 项清单同源性与双入口一致性，任一失败即阻断发布，
  *       不为每项各起低层测试。向导在发布前调用本门禁，校验失败时给出待改清单。
@@ -14,9 +14,9 @@
  *   F. 向导契约 — wizard/template.sh 与 scripts/wizard-release.sh 存在且满足“分段清屏/进度/显式打开链接/确认/落盘与收尾”与“只扫码”旅程
  *
  * 用法：
- *   node tests/verify-release-contract.js
- *   node tests/verify-release-contract.js --version v1.7.9
- *   node tests/verify-release-contract.js --version 1.7.9  # 自动补 v
+ *   node tests/verify-release-contract.ts
+ *   node tests/verify-release-contract.ts --version v1.7.9
+ *   node tests/verify-release-contract.ts --version 1.7.9  # 自动补 v
  *
  * 已知代价（2026-10-17 补记）：D 段要跑 npm pack --dry-run 数包内文件，冷灶上（package/lib
  * 下的构建产物还没生成或已过期）会当场判红。那不是发布契约坏了，是构建没跑；先执行
@@ -352,7 +352,7 @@ if (wizardRelease) {
   assert(wizardRelease.includes("轮询") || wizardRelease.includes("poll"), `发布向导其余轮询与验证由工具在后台完成`);
   assert(wizardRelease.includes("可见") && wizardRelease.includes("窗口"), `发布向导显式处理可见窗口与后台无链接时的回退`);
   // 契约阻断
-  assert(wizardRelease.includes("verify-release-contract.js"), `发布向导调用单一高层校验（verify-release-contract.js）`);
+  assert(wizardRelease.includes("verify-release-contract.ts"), `发布向导调用单一高层校验（verify-release-contract.ts）`);
   assert(wizardRelease.includes("阻断") || wizardRelease.includes("exit 1"), `发布向导在校验失败时阻断后续步骤`);
   // 语法检查
   // bash -n 语法检查（Windows 上使用相对路径 + cwd，避免 D:/ 绝对路径在 Git Bash 中不被识别）
@@ -372,7 +372,7 @@ if (failures.length > 0) {
   console.log("\n待改清单（请逐项修复后重跑本校验与向导）：");
   failures.forEach((msg, idx) => console.log(`  ${idx+1}. ${msg}`));
   console.log("\n提示：本校验为单一高层 gate，任一失败即阻断发布（不为每项各起低层测试）。");
-  console.log(`下一步：按清单修复 → 同步版本号到 ${targetVersion} → 更新 CHANGELOG → 重跑 node tests/verify-release-contract.js --version ${targetVersion}`);
+  console.log(`下一步：按清单修复 → 同步版本号到 ${targetVersion} → 更新 CHANGELOG → 重跑 node tests/verify-release-contract.ts --version ${targetVersion}`);
   if (targetVersion !== "v" + (JSON.parse(read("package.json") || "{}").version || "")) {
     console.log(`当前根 package.json 版本为 v${JSON.parse(read("package.json") || "{}").version}，与目标 ${targetVersion} 不一致，需先同步 package.json 与 README 等 8 项清单。`);
   }

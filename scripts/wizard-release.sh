@@ -5,7 +5,7 @@
 # 体验：需要浏览器授权时在用户桌面弹出可见窗口并打开授权链接，用户仅需扫码一次，
 #       其余轮询与验证由工具在后台完成；可中断重跑，已落盘值被记住。
 # 原则：零手动命令 — 本向导由 AI 触发与步进（AI 执行 bash/scripts 与 git/npm/gh），人仅扫码；禁止要求人手动敲命令。
-# 发布契约：以单一高层 gate（tests/verify-release-contract.js）覆盖 8 项清单同源性与双入口一致性，
+# 发布契约：以单一高层 gate（tests/verify-release-contract.ts）覆盖 8 项清单同源性与双入口一致性，
 #           任一失败即阻断，不为每项各起低层测试。
 # 用法：
 #   bash scripts/wizard-release.sh [vX.Y.Z]          # 交互式向导
@@ -129,12 +129,12 @@ fi
 if [[ "$SKIP_CONTRACT" -eq 1 ]]; then
   warn "已跳过契约校验（--skip-contract），仅用于排障。"
 else
-  say "执行单一高层发布契约校验：node tests/verify-release-contract.js --version $VERSION"
+  say "执行单一高层发布契约校验：node tests/verify-release-contract.ts --version $VERSION"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     note "dry-run 模式：仍执行校验，但不阻断发布（仅演示）"
   fi
   echo ""
-  if node tests/verify-release-contract.js --version "$VERSION" 2>&1 | sed 's/^/  /' ; then
+  if node tests/verify-release-contract.ts --version "$VERSION" 2>&1 | sed 's/^/  /' ; then
     say "✓ 契约校验通过"
     write_env WIZARD_RELEASE_CONTRACT_OK "1"
   else

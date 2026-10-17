@@ -1,5 +1,5 @@
-// verify-version-control-host.js — 版本管理页签宿主取数层门禁（#817 落地）
-// 用法：在插件根目录执行 node tests/verify-version-control-host.js，可独立运行。
+// verify-version-control-host.ts — 版本管理页签宿主取数层门禁（#817 落地）
+// 用法：在插件根目录执行 node tests/verify-version-control-host.ts，可独立运行。
 //
 // 断言文字：离线可跑（这台机器上不装 git 也照样跑）——用假适配器喂「真机形状」的输出，断言三条电话的外部行为：
 //   1. 起进程的纪律：每条命令都有 -C 钉死目录与固定前缀、stdin 一律 ignore、stdout 有字节上限、

@@ -60,8 +60,6 @@
     "tests/verify-prompt-newlines.js",
     "tests/verify-prompts.js",
     "tests/verify-refresh-adr.js",
-    "tests/verify-release-contract.js",
-    "tests/verify-release-template.js",
     "tests/verify-reply-envelope-parity.js",
     "tests/verify-rest-fallback-banner.js",
     "tests/verify-reuse.js",
@@ -81,9 +79,6 @@
     "tests/verify-tabs-narrow.js",
     "tests/verify-tabsfold-leaf.js",
     "tests/verify-tracker-contract.js",
-    "tests/verify-version-control-host.js",
-    "tests/verify-version-control-parsers.js",
-    "tests/verify-version-control-rules.js",
     "tests/verify-wire-subissues-script.js",
     "tests/verify-wizard-exit-609.js",
     "tests/verify-workspace-file-note.js"

@@ -44,7 +44,7 @@
   gh issue list --repo FeatherHunter/dsh-mattpocock-skills-deck --state all --limit 2000 --json author --jq 'group_by(.author.login)[] | [.[0].author.login, length] | @tsv'
   gh pr list    --repo FeatherHunter/dsh-mattpocock-skills-deck --state all --limit 2000 --json author --jq 'group_by(.author.login)[] | [.[0].author.login, length] | @tsv'
   ```
-- 花数在中英两版与包内说明三处逐行一致：改完 `README.md` 跑 `node scripts/build.mjs` 重新生成 `package/README.md`（它是生成物，禁止手改），再跑 `node tests/verify-readme-sync.js` 与 `node tests/verify-release-contract.js` 确认没有变红。
+- 花数在中英两版与包内说明三处逐行一致：改完 `README.md` 跑 `node scripts/build.mjs` 重新生成 `package/README.md`（它是生成物，禁止手改），再跑 `node tests/verify-readme-sync.js` 与 `node tests/verify-release-contract.ts` 确认没有变红。
 - 安装命令版本同源：中文、英文 README 与包内说明的锁定版本号与本次发布同源，无旧版本残留（与第 1 节第 2–4 项同源，由发布契约门禁覆盖）。
 
 ---
@@ -102,7 +102,7 @@
 - 发布向导：`scripts/wizard-release.sh`（基于 `wizard/template.sh`，6 段旅程，可中断重跑，已落盘值在 `.wizard-release.env` 中被记住，重跑时自动回填）
 - 旅程覆盖：确认提交已推送与工作区干净 → 发布并弹浏览器完成 2FA → 官方源验证（后台轮询） → 已装形态验证与面板行为复核
 - 每一段只聚焦当前任务，可重复执行；落盘键为 `WIZARD_RELEASE_VERSION` 等，`--dry-run` 可仅演练门禁
-- 校验阻断：向导首段即调用 `tests/verify-release-contract.js` 单一高层校验，任一失败即阻断后续发布步骤
+- 校验阻断：向导首段即调用 `tests/verify-release-contract.ts` 单一高层校验，任一失败即阻断后续发布步骤
 - 技能指引：新建向导时遵循 `/wizard` 技能流程（定范围 → 定旅程 → 照 `template.sh` 写阶段 → 校验交接）；本仓库 `wizard/template.sh` 与 `scripts/wizard-release.sh` 分别是该技能的模板实例与发布实例
 
 ---
@@ -167,7 +167,7 @@
 
 > **执行主体：AI** — 本节校验由 AI 在隔离环境执行，人不敲 `node tests/...`；人仅在失败时看待改清单。
 
-- 发布校验以单一高层的发布契约校验覆盖全部 8 项清单与双入口的一致性，优于为每个清单项各自补低层测试。单一入口：`node tests/verify-release-contract.js --version vX.Y.Z`（亦可无参，自动取 `package.json` 当前版本，**由 AI 执行**）。
+- 发布校验以单一高层的发布契约校验覆盖全部 8 项清单与双入口的一致性，优于为每个清单项各自补低层测试。单一入口：`node tests/verify-release-contract.ts --version vX.Y.Z`（亦可无参，自动取 `package.json` 当前版本，**由 AI 执行**）。
 - 校验断言：版本同源、说明锁定、变更历史与 Release 同文、包白名单、模板与网页卡同源、向导契约（`wizard/template.sh` 与 `scripts/wizard-release.sh` 的只扫码旅程与落盘语义）；校验失败时给出待改清单且阻断后续发布（`exit 1`）。
 - 向导联动：`scripts/wizard-release.sh` 首段即调用本 gate，失败直接 `exit 1`，不进入 `npm publish`；`--dry-run` 仍执行校验但演示后续旅程。
 - 将被测试的模块：runbook 文档的存在性与引用关系、模板与网页卡的渲染一致性、向导脚本的语法与可执行性（`bash -n`）、隔离门禁链的闭环、双产物一致性；双入口一致性由 `tests/verify-release-template.js` 另行保障，两门禁均挂入 `npm run verify`。
@@ -177,7 +177,7 @@
 ## 附：修订记录
 
 - 2026-08-31 初版：以 map #353 的 Implementation Decisions 为基线固化，生效日期 2026-08-31。
-- 2026-08-31 增补 #356：落地 `wizard/template.sh` 统一向导库与 `scripts/wizard-release.sh` 只扫码向导（6 段旅程、分段清屏/进度/显式打开链接/确认/落盘与收尾、可中断重跑、浏览器授权页仅扫码一次、后台轮询验证），并新增单一高层发布契约校验 `tests/verify-release-contract.js`（覆盖版本同源等 6 类，失败给待改清单且阻断发布）。
+- 2026-08-31 增补 #356：落地 `wizard/template.sh` 统一向导库与 `scripts/wizard-release.sh` 只扫码向导（6 段旅程、分段清屏/进度/显式打开链接/确认/落盘与收尾、可中断重跑、浏览器授权页仅扫码一次、后台轮询验证），并新增单一高层发布契约校验 `tests/verify-release-contract.ts`（覆盖版本同源等 6 类，失败给待改清单且阻断发布）。
 - 2026-08-31 增补：全规范强调**零手动命令 — AI 全驱动，只扫码**（总则 + 第 5/6/7/8/10/11 节 + 模板/网页卡/向导头部），明确所有 `git`/`npm`/`gh`/`bash` 由 AI 执行，人仅浏览器扫码一次；偏离（要求人敲命令）即视为不合规需审查。
 - 2026-09-03 增补（v1.7.12 发布实测 #406）：§5 接入 `/npm-publish` 技能并写明交互终端真相（后台/重定向必 EOTP，Windows 用 `schtasks /it` 弹交互窗口；网页登录不能免发布口令；必须 `cd package`）；§6 说明与 `/wizard` 技能的关系；§7 把“只扫码”修正为交互窗口审批；§8 第 2 步对齐交互窗口命令；§9 接入 `/awesome-dsh-plugin-submit` 技能。本次为澄清性增补，不改 8+4+2 清单，生效日期保持 2026-08-31。
 - 2026-09-03 增补（#432 发布 v1.7.13）：第 2 节明确致谢名单随发布更新与安装命令版本同源，模板与网页卡备注同步。本次为备注级增补，不改 8+4+2 清单编号，生效日期保持 2026-08-31（沿 #406 前例，模板同源门禁硬编码该日期）。
@@ -185,7 +185,7 @@
 - 2026-09-12 缺陷修正（#609 实测，发布向导）：
   ① `open_url` 的「发射后不管」原来只做到一半——它把调起器的退出码交回给了调用处，而调用处多在 `set -e` 下，于是本机 `explorer.exe` 打开网址返回 1 时，发布向导在第 287 行（弹包主页）当场无声结束：退出码 1、最后一行停在「↗ opening …」、没有任何提示。现在 `wizard/template.sh` 的 `open_url` 一律返回 0，向导里四处调用（第 271、287、339、350 行）都不再受调起器返回值影响。
   ② `pause` / `confirm` 原来用 `read … || true`，读不到任何输入（后台运行、没人坐在终端前）时回复变量保持空串，向导据此静默走「否」分支，还把 `WIZARD_RELEASE_PUBLISHED` 写进落盘文件、退出码仍是 0——读这份台账的人会得到与事实相反的结论。现在判据写明为「读不到任何输入＝没有人应答」（空行仍算「有人按了回车」，人自己按回车走默认那条路不受影响）：没人应答时向导打印一行「向导已退出：没有人应答……本次没有发布任何东西」并以退出码 3 结束，全脚本每一处 `pause` / `confirm` 都走同一条判据，因此发布那一段在没人应答时也写不出 `WIZARD_RELEASE_PUBLISHED`。
-  ③ 新增门禁 `tests/verify-wizard-exit-609.js` 并挂进 `npm run verify`：它驱动真实脚本代码（把 `scripts/wizard-release.sh` 里每一处 `open_url` 调用与第 285–320 行的发布段原样抽出来跑，npm 与调起器都是桩），上面两条缺陷任一条回来都会当场变红；原先的 `tests/verify-release-contract.js` F 段只做关键字与语法检查，这两条它都拦不住。
+  ③ 新增门禁 `tests/verify-wizard-exit-609.js` 并挂进 `npm run verify`：它驱动真实脚本代码（把 `scripts/wizard-release.sh` 里每一处 `open_url` 调用与第 285–320 行的发布段原样抽出来跑，npm 与调起器都是桩），上面两条缺陷任一条回来都会当场变红；原先的 `tests/verify-release-contract.ts` F 段只做关键字与语法检查，这两条它都拦不住。
   本次为缺陷修正，不改 8+4+2 清单，生效日期保持 2026-08-31。
 - 2026-09-17 增补：第 2 节写明致谢区的花数规则与核对口径——一朵花对应本人提交的一次 Issue 或 PR（按「提交」算、不按「合入」算；只在评论区或讨论区留过言、没提过票的人不带花），并给出两条 `gh` 数花命令与「中英 README、包内说明三处逐行一致」的落地步骤。本次为备注级增补，不改 8+4+2 清单编号，生效日期保持 2026-08-31。
 - 2026-09-20 增补（市场里的预构建包链接接上最新版）：第 8 节第 5 步写明预构建包资产由新增的 `.github/workflows/release-tarball.yml` 在每次发布 Release 后自动附着，文件名固定为 `dsh-mattpocock-skills-deck.tgz`；第 9 节改掉「npm 包发布后可补 `npm:` 字段」这句错误指引（市场现在会拒绝该字段，包与仓库的关联改由发布包的 `repository` 自动判定），并写明预构建包链接的固定写法与「截图、README 改自家仓库即可、不用提 PR」。起因：市场条目里那条 `tarball` 还钉在 `v1.7.14`，而 npm 上已是 `1.7.22`——链接本身有效，但谁从市场点「预构建包安装」，装到的是九版之前的产物。本次为备注级增补，不改 8+4+2 清单编号，生效日期保持 2026-08-31。

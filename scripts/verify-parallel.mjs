@@ -53,7 +53,7 @@ function isBrowserStep(step) {
 }
 
 // 冲突组：同一组里的步骤不许同时跑，因为它们会抢同一个仓外资源。
-// 实测教训：verify-release-contract.js 与 verify-bundled-skills.js 都会跑 `npm pack --dry-run`，
+// 实测教训：verify-release-contract.ts 与 verify-bundled-skills.js 都会跑 `npm pack --dry-run`，
 // 并发时前者假红（单独跑 58 通过 0 失败）。这类假红会让人误以为代码坏了，所以宁可把它们排成一队。
 // 排法见下面 buildTasks：同一组的步骤合成一节车厢，由同一个工人依次跑完。
 function conflictGroupsOf(step) {

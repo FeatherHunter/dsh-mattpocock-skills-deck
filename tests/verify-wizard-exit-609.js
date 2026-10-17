@@ -1,6 +1,6 @@
 // verify-wizard-exit-609.js —— #609 门禁：向导不能因为「没人应答」或「调起器返回非零」就静默改变结论。
 //
-// 为什么要有这一条：tests/verify-release-contract.js 的 F 段只看关键字与 `bash -n` 语法，不跑真行为，
+// 为什么要有这一条：tests/verify-release-contract.ts 的 F 段只看关键字与 `bash -n` 语法，不跑真行为，
 //   所以下面两类缺陷从 2026-09-08 那次「修复」之后一直是绿的：
 //     一、`wizard/template.sh` 的 open_url 把调起器的退出码交回给调用处，于是 `set -e` 在「弹浏览器」这一步
 //         当场结束整个发布向导（本机 explorer.exe 打开网址稳定返回 1），屏幕停在「↗ opening …」，没有任何提示；
