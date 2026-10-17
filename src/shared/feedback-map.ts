@@ -1,4 +1,4 @@
-// src/shared/feedback-map.js —— 等待加代价加形状到反馈组合的映射（#949 · 948 图首批）
+// src/shared/feedback-map.ts —— 等待加代价加形状到反馈组合的映射（#949 · 948 图首批）
 //
 // 为什么单开一个文件：这是 #946 规格里唯一的判断口（等待时长定过程样式、
 // 操作代价定结果重量、控件形状定瞬间能不能用），样式与文字图标横幅的出现消失
@@ -13,32 +13,46 @@
 // 高危险不用弹跳扩散自动消失气泡；小图标不用缩小下沉倾斜；
 // 无真实时间与真实进度不显示倒计时与百分比；结果换字只给宽按钮。
 
-export const FEEDBACK_31 = [
+export const FEEDBACK_31: string[] = [
   'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A11', 'A12',
   'B1', 'B3', 'B4', 'B5', 'B6', 'B7', 'B9', 'B11', 'B12',
   'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12',
 ]
 
-export const DENIED_6 = ['A9', 'A10', 'B2', 'B8', 'B10', 'C13']
+export const DENIED_6: string[] = ['A9', 'A10', 'B2', 'B8', 'B10', 'C13']
 
 // 每类用到的种（同一种可在多类复用，如转圈既是短等待主力也是中长等待主力）。
-export const ALLOCATION = {
+export const ALLOCATION: Record<number, string[]> = {
   1: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A11', 'A12', 'C8', 'C10'],
   2: ['B1', 'B3', 'B4', 'B9', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C11', 'C12'],
   3: ['B1', 'B4', 'B5', 'B6', 'B7', 'B9', 'B11', 'B12', 'C8', 'C9'],
   4: ['B1', 'B4', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C9'],
 }
 
-const WAITS = ['instant', 'short', 'long']
-const COSTS = ['low', 'medium', 'high']
-const SHAPES = ['large-button', 'small-icon', 'pill', 'row', 'wide-button']
+// 等待三档的取值：instant 是瞬间（不给过程效果），short 是短等待（给转圈），long 是长等待（给转圈加阶段）。
+// 档位只认这三个字符串，拼错就由主入口抛错，不猜默认值（猜了就会把长等待画成瞬间，用户干等还没有提示）。
+type WaitTier = 'instant' | 'short' | 'long'
 
-function isOneOf(v, list) { return list.indexOf(v) !== -1 }
+// 操作代价三档的取值：代价决定结果的重量，低代价才给轻佻的成功圈与弹跳，高代价只给确认框加横幅留痕。
+// 反例：高危险操作配了弹跳，用户会觉得删库也像点赞一样轻，确认框就白做了。
+type CostTier = 'low' | 'medium' | 'high'
+
+// 控件形状五种的取值：形状决定按下瞬间的底座组合，小图标只给描边不给缩小下沉，大按钮才有缩小下沉与光泽。
+// 反例：给小图标加缩小下沉，图标会缩到看不见，用户会以为按钮坏了。
+type ShapeKind = 'large-button' | 'small-icon' | 'pill' | 'row' | 'wide-button'
+
+const WAITS: ReadonlyArray<WaitTier> = ['instant', 'short', 'long']
+const COSTS: ReadonlyArray<CostTier> = ['low', 'medium', 'high']
+const SHAPES: ReadonlyArray<ShapeKind> = ['large-button', 'small-icon', 'pill', 'row', 'wide-button']
+
+// 白名单判断只做一件事：给定的值在不在名单里（逐个比，大小写与前后空白都不宽容）。
+// 不在就回假，由调用方决定抛错还是走默认分支，这个函数自己不做决定。
+function isOneOf(v: unknown, list: ReadonlyArray<unknown>): boolean { return list.indexOf(v) !== -1 }
 
 // 按下瞬间的底座组合。深底按钮看不清加深时，用外圈描边代替（调用点按深浅二选一，
 // 规矩是描边与加深不同时开）。缩小下沉只给大按钮，倾斜只给弹窗里的大按钮。
-function momentOf(shape, dialog) {
-  const base = []
+function momentOf(shape: unknown, dialog: unknown): string[] {
+  const base: string[] = []
   if (shape === 'small-icon') {
     base.push('focus-ring', 'stroke-flash', 'ring-out')
     return base
@@ -56,7 +70,7 @@ function momentOf(shape, dialog) {
 
 // 结果组合。换字只给宽按钮，成功圈与弹跳只给低代价的复制类，
 // 高危险只用确认框加横幅留痕，不用轻佻效果。
-function resultOf(cls, shape, cost) {
+function resultOf(cls: unknown, shape: unknown, cost: unknown): string[] {
   if (cls === 1) return ['bubble', 'toast']
   if (cls === 3) return ['toast', 'banner']
   if (cls === 4) return ['confirm-box', 'check', 'cross', 'triangle', 'green-flash', 'red-flash', 'shake', 'banner']
@@ -66,12 +80,20 @@ function resultOf(cls, shape, cost) {
   return out
 }
 
+// 主入口的输入形状：wait、cost、shape 三个必填（错一个就抛错），dialog 与两个 has* 是选填（缺了按没有处理）。
+// hasRealTime 与 hasRealProgress 只认 true：传了别的值也当没有，不编数字骗人。
+type FeedbackInput = { wait?: unknown; cost?: unknown; shape?: unknown; dialog?: unknown; hasRealTime?: unknown; hasRealProgress?: unknown }
+
+// 主入口的返回形状：cls 是归宿类别（见 ALLOCATION），moment、process、detail、result、alt 五组效果一次给齐。
+// 调用方按这个形状直接画，不再二次判断（两处各判一次必然分叉，这正是单文件单源要防的事）。
+type FeedbackCombo = { cls: number; moment: string[]; process: string; detail: string[]; result: string[]; alt: string[] }
+
 // 主入口。hasRealTime/hasRealProgress 只认真实时间与真实进度，
 // 没有就不给倒计时与百分比，不编数字骗人。
 // alt 是短等待的备用过程（省略号圆点与呼吸）：只给没有转圈位子的文字按钮用
 // （弹窗提交等待中用圆点，评论分页加载中用呼吸），永不与转圈同开。
 // 非法输入诚实抛错，不猜默认值。
-export function feedbackComboOf(input) {
+export function feedbackComboOf(input: FeedbackInput | null | undefined): FeedbackCombo {
   const v = input || {}
   if (!isOneOf(v.wait, WAITS)) throw new Error('feedback-map: 未知等待档位 ' + String(v.wait))
   if (!isOneOf(v.cost, COSTS)) throw new Error('feedback-map: 未知代价档位 ' + String(v.cost))
@@ -81,7 +103,7 @@ export function feedbackComboOf(input) {
   let process = 'none'
   if (cls === 2 || cls === 4) process = 'spinner'
   if (cls === 3) process = 'spinner-stage'
-  const detail = []
+  const detail: string[] = []
   if (cls === 3) {
     if (v.hasRealTime === true) detail.push('countdown')
     if (v.hasRealProgress === true) detail.push('percent')
@@ -102,7 +124,7 @@ export function feedbackComboOf(input) {
 //   css 列的键是叶子 src/client/views/feedback/feedback-styles.js 里的动画时长；
 //   js  列的键是调用点自己排的自退时间（setTimeout）。
 // 不编数字：某档真实耗时给不出证据时，那一格写 null 并在 why 里说明为什么不演示。
-export const FB_DURATIONS = [
+export const FB_DURATIONS: FbDuration[] = [
   { fx: 'ripple', css: '.55s', tier: 'instant', why: '按下瞬间的点缀，跟着手指走，与接口耗时无关（真实调用：点一下就到，没有等待）' },
   { fx: 'ringout', css: '.6s', tier: 'instant', why: '小图标按下的外扩环，同上，属于按下那一瞬的确认' },
   { fx: 'sheen', css: '.5s', tier: 'instant', why: '光泽扫过是备用效果，只在弹窗大按钮上手动演示' },
@@ -121,18 +143,26 @@ export const FB_DURATIONS = [
   { fx: 'percent', js: null, tier: 'long', why: '百分比只在有真实进度时显示，数值取自真实进度' },
 ]
 
+// 演示秒数表里一行的形状：效果名、归属档位、为什么是这个数三项必有；时长只占一边，css 是叶子样式里的动画时长，js 是调用点自己排的自退毫秒数。
+// 两边都没有就写 js: null（没有写死的秒数，数值取自真实进度），不许两边同时有值（一个效果只有一个退场时钟）。
+type FbDuration = { fx: string; css?: string; js?: number | null; tier: string; why: string }
+
 // 二、结果三图标的尺寸表（叉号、三角与对勾同尺寸，一处一行）。
 // 尺寸指 Ic 的 size 参数（像素），同一条里的三个必须相等，门禁逐条核对。
-export const FB_ICON_SIZES = [
+export const FB_ICON_SIZES: FbIconSize[] = [
   { site: '发评论按钮', file: 'src/client/views/IssueDetailComments.js', size: 11, trio: ['check', 'x'] },
   { site: '行内复制按钮', file: 'src/client/views/ListTabRow.js', size: 13, trio: ['check', 'x'] },
   { site: '标签配色弹窗保存按钮', file: 'src/client/views/labels/LabelColorDialog.js', size: 12, trio: ['check', 'x', 'alert'] },
   { site: '清空日志留痕横幅', file: 'src/client/statusbar/LogDangerConfirm.js', size: 12, trio: ['check', 'x'] },
 ]
 
+// 结果三图标尺寸表里一行的形状：site 是界面位置，file 是画它的文件，size 是三个图标共用的像素尺寸，trio 是这一处实际用到的图标。
+// size 必须与 file 里写死的数字逐字相等，改一边不改另一边，门禁就会红。
+type FbIconSize = { site: string; file: string; size: number; trio: string[] }
+
 // 三、失败红逐路径清单（不设一个全局硬值：每一处用它所在界面的既有色调）。
 // 这份清单是「按路径逐处对齐」的证据，门禁核对每个色值在对应文件里真实存在。
-export const FB_FAIL_RED_PATHS = [
+export const FB_FAIL_RED_PATHS: FbFailRedPath[] = [
   { path: '失败横幅', file: 'src/client/kernel/styles.js', colors: ['#f87171', 'rgba(248,113,113,.12)', 'rgba(248,113,113,.45)'], note: '走到处：.dsws-banner.bad（清空日志留痕、仓库链失败横幅共用这一支）' },
   { path: '失败红闪', file: 'src/client/views/feedback/feedback-styles.js', colors: ['rgba(248,113,113,.55)'], note: '结果闪光是 #f87171 的透明版，不另立色值' },
   { path: '弹窗内联错误条', file: 'src/client/kernel/slotRenderer-modal-view.js', colors: ['#fca5a5', 'rgba(248,113,113,.45)', 'rgba(248,113,113,.10)'], note: '深底上用亮一档的红保证可读，底与边仍是 #f87171 的透明版' },
@@ -143,3 +173,6 @@ export const FB_FAIL_RED_PATHS = [
   { path: '原型占位红（不在反馈路径）', file: 'src/client/views/SubworkspaceMark.js', colors: ['#f85149'], note: '子工作区角标的既有红，保留原样；反馈路径一处都不用，也不许把它提成全局值' },
 ]
 
+// 失败红清单里一行的形状：path 是界面位置，file 是色值真实存在的文件，colors 是那一处用到的全部红色，note 说明这处红与别处红的关系。
+// colors 里每个值都必须在 file 里逐字找得到，找不到就是这行写错了，不是门禁误报。
+type FbFailRedPath = { path: string; file: string; colors: string[]; note: string }

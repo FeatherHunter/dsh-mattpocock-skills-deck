@@ -1,7 +1,7 @@
 // tests/verify-948-feedback-map.ts —— #949 瞬间底座与组合映射门禁（948 图首批）
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-948-feedback-map.ts。
-// 说明符 src/shared/feedback-map.js 要保持 .js：真源还是手写 JavaScript，
-// 等它自己转成 .ts 时由装载钩子的「同名 .ts 优先」接管，本文件不用改。
+// 说明符 src/shared/feedback-map.js 要保持 .js：真源已是同名 .ts，这里直读构建产物
+// （普通的 file:// 导入，不走装载钩子），产物与原来行为一致，所以本文件仍不用改。
 //
 // 盯住 #949 验收里的组合规矩（样式类的几条随「读源码文本钉形状」门禁一起删掉了，
 // 这里只留跑起来能验的部分）：
