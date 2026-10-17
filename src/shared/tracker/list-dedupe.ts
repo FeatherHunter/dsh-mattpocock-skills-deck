@@ -51,6 +51,10 @@ export function poolIdOf(entry: PoolEntry | null | undefined): string | null {
  */
 // 返回类型带着 null | undefined：第一行的 Array.isArray 守卫就是为了收容调错的空输入，
 // 空进来原样回空（原来行为）；收窄成非空数组会把这句守卫判成死代码，反而撒谎。
+// 重载让两边都诚实：空输入的调用方拿回空、数组输入的调用方按原元素类型拿回数组，
+// 四处宿主调用点传的都是本地拼好的非空数组，直接赋给 Row[]，宿主文件一个字不用改。
+export function dedupeListByPool(list: null | undefined): null | undefined
+export function dedupeListByPool<T extends PoolEntry | null | undefined>(rows: Array<T>): Array<T>
 export function dedupeListByPool(list: Array<PoolEntry | null | undefined> | null | undefined): Array<PoolEntry | null | undefined> | null | undefined {
   if (!Array.isArray(list)) return list
   const seen: Record<string, boolean> = {}

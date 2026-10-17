@@ -11,7 +11,6 @@ import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } f
 // 所以这一组类型就是「本文件按什么形状读它们」的书面约定，只列本文件真正读到的格子。
 // 标注只给编译器看，运行期形状一个字没改——产物逐字节比对是这条约定的验收办法。
 // 共享层的形状按「类型引用」取：那些文件是 JS + JSDoc，这种写法与他们自己的 JSDoc 一致。
-type Check = import('../shared/tracker/chain-types.js').Check
 type CheckItem = import('../shared/tracker/chain-types.js').CheckItem
 type Platform = import('./platform/index.js').Platform
 // 谓词上下文这一格不在上面那排「按类型引用取」里：predicatePrimitives.js 与本文件同属 host 层，
@@ -379,12 +378,12 @@ export function createDetectChain(deps: DetectChainDeps) {
             const catDirs = await import('../shared/tracker/check-catalog-dirs.js')
             const catViews = await import('../shared/tracker/check-catalog-views.js')
             const chainMod = await import('../shared/tracker/chain-validate.js')
-            // 这里把目录项按 unknown 转一手：check-catalog-views.js 的 catalogItemToCheckItem 把入参
-            // JSDoc 写成了 Check，可实现读的是目录项的 id/check/label 这些格子——两份形状没有交集，
-            // 编译器因此报「CatalogItem 与 Check 无共同属性」。转的是类型、不是值（运行期原样递进去）。
-            // 目录只认这三个后端的表（check-catalog-dirs.js 的 JSDoc 就是这么写的），别的 id 在表里没有格子；
+            // 目录项直递转换函数：catalogFor 给的是目录的 CatalogItem，catalogItemToCheckItem
+            // 要的是目录项输入形态（id/label/scope/check），两份都是与 chain-types 同源的本地形态，
+            // 格子逐字对齐，直接递进去，不转类型也不改值（运行期原样递进去）。
+            // 目录只认这三个后端的表（check-catalog-dirs.ts 的 JSDoc 就是这么写的），别的 id 在表里没有格子；
             // 这里只是把「已经认出来是某个后端」收成表认的那几个，转的是类型、值原样递进去。
-            let items = (catDirs.catalogFor ? catDirs.catalogFor(backendId as 'github' | 'markdown' | 'gitlab') : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catViews.catalogItemToCheckItem ? catViews.catalogItemToCheckItem(ci as unknown as Check) : null }).filter(Boolean) as CheckItem[]
+            let items = (catDirs.catalogFor ? catDirs.catalogFor(backendId as 'github' | 'markdown' | 'gitlab') : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catViews.catalogItemToCheckItem ? catViews.catalogItemToCheckItem(ci) : null }).filter(Boolean) as CheckItem[]
             // 修复契约（2026-08-28）：后端声明 fixes（hint + 修复动作）→ 按语言解析附到检查项 onFail——
             //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
             if (items.length) {
