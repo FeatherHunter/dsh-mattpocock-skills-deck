@@ -183,7 +183,8 @@ try {
 // 6) bundled 目录集合与单源 MATT_SKILL_PROBE_NAMES 双向差集为 0（2026-10-17 从 tests/verify-matt-skills-sync.js 第 7a 段搬来）
 // 为什么留这一条：本文件其余段落只查「每个目录自身是否自洽」，查不出「随包目录漏了一个技能、
 // 或者多出一个单源里没有的目录」——那种漂移只有和单源名单对集合才看得见。
-// 单源真源是 src/shared/matt-skills.js（不是本文件里任何字面量），所以这里读它、按名单比。
+// 单源真源是 src/shared/matt-skills.ts（不是本文件里任何字面量）；这里读的是构建产物
+// src/shared/matt-skills.js（esbuild 转译后字符串用双引号），所以下面的名字匹配要同时接受单双引号。
 const SRC_MATT_SKILLS = path.join(ROOT, 'src/shared/matt-skills.js')
 if (existsSync(BUNDLED_DIR) && existsSync(SRC_MATT_SKILLS)) {
   const bundledDirs = readdirSync(BUNDLED_DIR, { withFileTypes: true })
@@ -195,7 +196,7 @@ if (existsSync(BUNDLED_DIR) && existsSync(SRC_MATT_SKILLS)) {
   if (!m) {
     check(false, 'src/shared/matt-skills.js 里没有 MATT_SKILL_PROBE_NAMES 清单，无法比对随包目录集合')
   } else {
-    const probeNames = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort()
+    const probeNames = [...m[1].matchAll(/["']([^"']+)["']/g)].map((x) => x[1]).sort()
     const missing = probeNames.filter((n) => !bundledDirs.includes(n))
     const extra = bundledDirs.filter((n) => !probeNames.includes(n))
     check(

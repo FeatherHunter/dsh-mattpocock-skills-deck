@@ -1,5 +1,5 @@
 /**
- * shared/matt-skills.js — Matt Pocock 技能套件 单一真源（#280 · D10 · #fix-banner）
+ * shared/matt-skills.ts — Matt Pocock 技能套件 单一真源（#280 · D10 · #fix-banner）
  *
  * 契约：
  *   1) MATT_SKILL_PROBE_NAMES：host 半运行时 import() 用作正交探测清单（chain 链上「技能已安装」检查）；
@@ -18,7 +18,16 @@
  *                 再用 export const MATT_SKILL_CATALOG = SKILLS_DATA 与 export const SKILLS = SKILLS_DATA 双导出；
  *                 splice 后产物同时具备 MATT_SKILL_CATALOG 与 SKILLS 两种命名（兼容老 client 代码）。
  */
-export const MATT_SKILL_PROBE_NAMES = [
+
+// 技能状态档位只有这三个字面量：ok 表示就绪，warn 表示能用但要先看说明，alert 表示有问题先处理。
+// 状态栏胶囊颜色与设置页标签都按这三个字画，写错一个字母就会落到默认色，报警会被当成正常。
+type MattSkillLevel = 'ok' | 'warn' | 'alert'
+
+// 技能目录里的一行：name 是唯一键，level 决定颜色，use 是中文短描述（英文版在 locale 的 skilldesc.<name> 翻译里）。
+// name 必须与 MATT_SKILL_PROBE_NAMES 里同一个名字逐字相等，否则目录里会出现探测清单里没有的技能，两边又会分叉。
+type MattSkillEntry = { name: string; level: MattSkillLevel; use: string }
+
+export const MATT_SKILL_PROBE_NAMES: string[] = [
   'ask-matt',
   'code-review',
   'codebase-design',
@@ -48,7 +57,7 @@ export const MATT_SKILL_PROBE_NAMES = [
   'retro'
 ]
 
-const SKILLS_DATA = [
+const SKILLS_DATA: MattSkillEntry[] = [
   { name: 'ask-matt',                      level: 'warn', use: '技能路由器：不知道该用哪个 skill 时问它' },
   { name: 'setup-matt-pocock-skills',      level: 'ok',   use: '仓库初始化：issue tracker / 标签 / 文档路径' },
   { name: 'wayfinder',                     level: 'warn', use: '巨型项目决策地图（本插件服务的对象）' },
@@ -77,5 +86,5 @@ const SKILLS_DATA = [
   { name: 'wait-what',                     level: 'ok',   use: '用大白话重说上一轮你没接住的内容' },
   { name: 'writing-for-agents',            level: 'warn', use: '为 agent 写文档（skills / AGENTS.md）' },
 ]
-export const MATT_SKILL_CATALOG = SKILLS_DATA
-export const SKILLS = SKILLS_DATA
+export const MATT_SKILL_CATALOG: MattSkillEntry[] = SKILLS_DATA
+export const SKILLS: MattSkillEntry[] = SKILLS_DATA

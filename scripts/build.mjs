@@ -586,7 +586,7 @@ const SHARED_SPLICE = [
   { marker: '// ==== shared:namingAttribution (spliced by build) ====', file: 'src/shared/naming-attribution.ts' },
   { marker: '// ==== shared:trackerSync (spliced by build) ====', file: 'src/shared/tracker/sync.js' },
   { marker: '// ==== shared:slots (spliced by build) ====', file: 'src/shared/ui/slots.js' },
-  { marker: '// ==== shared:mattSkills (spliced by build) ====', file: 'src/shared/matt-skills.js' },
+  { marker: '// ==== shared:mattSkills (spliced by build) ====', file: 'src/shared/matt-skills.ts' },
   { marker: '// ==== shared:workspaceKey (spliced by build) ====', file: 'src/shared/workspaceKey.ts' },
   // #629 配色核心的两个产物：宿主半走普通相对 import，客户端半要按同一份口径判断
   // 用户填的颜色能不能用、颜色有没有变，所以把这两份零依赖产物一并拼进界面闭包。
