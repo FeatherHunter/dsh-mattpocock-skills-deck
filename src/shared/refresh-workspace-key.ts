@@ -1,4 +1,4 @@
-// src/shared/refresh-workspace-key.js —— 闸那一侧的工作区钥匙（短散列）单源。
+// src/shared/refresh-workspace-key.ts —— 闸那一侧的工作区钥匙（短散列）单源。
 //
 // 这是什么：把「一个工作区根」折成一把短钥匙（8 位十六进制小写字母数字），宿主那道刷新闸按它
 // 记活跃、记失败次数、记限流标记、记推迟队列。仓库里同一个工作区在闸里必须只有一格 —— 两把钥匙
@@ -22,7 +22,10 @@
 //   3. **只用于内存表与日志字段**：它不进任何白名单文件、不落盘成用户可见的数据。
 //
 // 形状：'0000000' + 散列值十六进制，取末 8 位（与仓库其它地方的短散列同款）。
-export function hash8(text) {
+
+// 短散列只做一件事：把洗过的工作区根折成 8 位十六进制小写，做法与仓库里其它短散列同款（5381 起步，遇错回全零）。
+// 输入必须是已经洗过的工作区根（宿主 canonicalKey 的产物）：这里再洗一遍会洗出另一种字符串，同一格就裂成两格。
+export function hash8(text: unknown): string {
   try {
     const t = String(text || '')
     let h = 5381
@@ -36,6 +39,6 @@ export function hash8(text) {
  * @param {string} root 已经洗过的工作区根（canonicalKey 的产物）
  * @returns {string} 8 位十六进制小写短散列
  */
-export function workspaceKeyOf(root) {
+export function workspaceKeyOf(root: unknown): string {
   return hash8(String(root || ''))
 }

@@ -213,7 +213,6 @@
     "src/seam/runtime.js",
     "src/seam/style.js",
     "src/seam/timer.js",
-    "src/shared/refresh-workspace-key.js",
     "src/shared/tracker/backendWritePermissions.js",
     "src/shared/tracker/chain-evaluate.js",
     "src/shared/tracker/chain-types.js",
