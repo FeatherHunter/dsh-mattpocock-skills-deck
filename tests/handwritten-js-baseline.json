@@ -215,7 +215,6 @@
     "src/seam/timer.js",
     "src/shared/feedback-map.js",
     "src/shared/matt-skills.js",
-    "src/shared/naming-attribution.js",
     "src/shared/refresh-workspace-key.js",
     "src/shared/session-cwd.js",
     "src/shared/skill-probe-channels.js",

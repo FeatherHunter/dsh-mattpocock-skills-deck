@@ -583,7 +583,7 @@ const SHARED_SPLICE = [
   { marker: '// ==== shared:guideSteps (spliced by build) ====', file: 'src/shared/tracker/guide-steps.js' },
   { marker: '// ==== shared:namingTitles (spliced by build) ====', file: 'src/shared/naming-titles.ts' },
   { marker: '// ==== shared:namingTracking (spliced by build) ====', file: 'src/shared/naming-tracking.ts' },
-  { marker: '// ==== shared:namingAttribution (spliced by build) ====', file: 'src/shared/naming-attribution.js' },
+  { marker: '// ==== shared:namingAttribution (spliced by build) ====', file: 'src/shared/naming-attribution.ts' },
   { marker: '// ==== shared:trackerSync (spliced by build) ====', file: 'src/shared/tracker/sync.js' },
   { marker: '// ==== shared:slots (spliced by build) ====', file: 'src/shared/ui/slots.js' },
   { marker: '// ==== shared:mattSkills (spliced by build) ====', file: 'src/shared/matt-skills.js' },

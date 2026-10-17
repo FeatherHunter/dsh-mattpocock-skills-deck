@@ -1,10 +1,10 @@
-// src/shared/naming-attribution.js —— S2（#452）从 naming-guardian.js 拆出之编号归属四个函数，纯结构、行为零变化。
+// src/shared/naming-attribution.ts —— S2（#452）从 naming-guardian.js 拆出之编号归属四个函数，纯结构、行为零变化。
 // 以后谁改它：改建号感知、编号归属、语义相关性判定的人。预估约150行，超 350 打回。
 // 接线：不引用标题与跟踪文件（墙要求）；语义相关性判定要用的清洗小函数与等待状态判定要用的档位常量在文件内各放一份
 //   （attribution 前缀），分别与 naming-titles.js、naming-tracking.js 同源，改动时一起改；拼接标记见 scripts/build.mjs 与 src/client/index.js。
 
 /**
- * src/shared/naming-attribution.js — 命名守护编号归属半（#266 建号感知 · 从 naming-guardian.js 拆出，S2 #452）。
+ * src/shared/naming-attribution.ts — 命名守护编号归属半（#266 建号感知 · 从 naming-guardian.js 拆出，S2 #452）。
  *
  * 契约：本文件是编号归属的真源 —— 当前索引相对上一快照的新增编号、等待编号状态判定、语义相关性判定、
  * 编号归属（纯函数，每仓库一次调用）。宿主半调用；界面半无编号来源，仅消费编号订单。标题合成见 naming-titles.js，
@@ -20,7 +20,7 @@
 // ---- 与 naming-titles.js 同源（墙要求不互相引用；改动时两处同改）----
 // 语义相关性判定要用的标题清洗小函数，改名前缀 attribution，避免三文件拼回同一个界面闭包时与标题文件重名。
 // 逻辑与 naming-titles.js 内 cleanTitleText 逐行一致。
-function attributionCleanTitleText(s) {
+function attributionCleanTitleText(s: unknown): string {
   let t = String(s || '')
   t = t.replace(/\x1B\][^\x07]*\x07/g, '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\x1B[^\x5B\x5D\x07]/g, '')
   t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
@@ -38,9 +38,10 @@ const ATTRIBUTION_NAMING_STAGES = { PLACEHOLDER: 'placeholder', DRAFT: 'draft', 
 // 最早仍处占位/草稿档的受踪会话（多候选歧义取最早；无可归者不入计划单）。判定的唯一
 // 真源 = 本模块（host 半调用；client 半无编号来源，仅消费 numbered 订单）。
 
+// prev 为空视为基线：第一次快照只记账不归属，否则历史编号会一次性全部分出去。
 /** 当前索引相对上一快照新增的编号（升序；prev 为空视为基线，无新增）。 */
-export function newNumbersSince(prevIndex, currIndex) {
-  const out = []
+export function newNumbersSince(prevIndex: Record<string, unknown> | null | undefined, currIndex: Record<string, unknown> | null | undefined): number[] {
+  const out: number[] = []
   if (!currIndex || typeof currIndex !== 'object') return out
   for (const k of Object.keys(currIndex)) {
     const n = Number(k)
@@ -52,11 +53,17 @@ export function newNumbersSince(prevIndex, currIndex) {
 }
 
 /** 是否仍处于「等待编号」状态：未锁、尚未获号、仍处占位/草稿档。 */
-export function isNumberAwaitStage(state) {
+export function isNumberAwaitStage(state: { locked?: unknown; number?: unknown; stage?: unknown } | null | undefined): boolean {
   return !!(state && !state.locked && state.number == null &&
     (state.stage === ATTRIBUTION_NAMING_STAGES.PLACEHOLDER || state.stage === ATTRIBUTION_NAMING_STAGES.DRAFT))
 }
 
+export type AttributeNewNumbersInput = {
+  prevIndex: Record<string, unknown> | null | undefined;
+  currIndex: Record<string, unknown> | null | undefined;
+  sessions: Array<{ sessionId?: unknown; hint?: unknown; createdAt?: unknown; updatedAt?: unknown; locked?: unknown; number?: unknown; stage?: unknown }> | null | undefined;
+}
+export type AttributedNumber = { sessionId: string; number: number; title: string }
 /**
  * 编号归属（纯函数 · 每仓库一次调用）：对新增编号（升序）逐一分配给候选受踪会话
  * （同仓库、最早者优先：createdAt → updatedAt → sessionId 三级排序保证确定性）；
@@ -74,11 +81,12 @@ export function isNumberAwaitStage(state) {
  * - 否则要求共享长度≥4 的连续子串（对中文/英文均有效）；
  * - 短串（<4）仅精确相等才算相关，避免 “111” 误配。
  */
-export function isHintRelatedToTitle(hint, title) {
+// 相关性宁严勿宽：错配一次（会话名张冠李戴）比漏配一次代价大，所以短串只认精确相等。
+export function isHintRelatedToTitle(hint: unknown, title: unknown): boolean {
   const hRaw = attributionCleanTitleText(hint || '');
   const tRaw = attributionCleanTitleText(title || '');
   if (!hRaw || !tRaw) return false;
-  const stripPrefix = function(s) { return String(s).replace(/^[^:：]{1,12}[:：]\s*/, '').trim(); };
+  const stripPrefix = function(s: string): string { return String(s).replace(/^[^:：]{1,12}[:：]\s*/, '').trim(); };
   const hStripped = stripPrefix(hRaw);
   const tStripped = stripPrefix(tRaw);
   const h = hStripped.toLowerCase();
@@ -99,29 +107,30 @@ export function isHintRelatedToTitle(hint, title) {
   return false;
 }
 
-export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
+// 两种编号两种配法：有标题的按语义配（对不上宁可空着），没标题的按先来后到，互不抢道。
+export function attributeNewNumbers({ prevIndex, currIndex, sessions }: AttributeNewNumbersInput): AttributedNumber[] {
   const nums = newNumbersSince(prevIndex, currIndex)
   if (!nums.length) return []
   // 先找出所有“查旧票”的会话：hint 与已有工单标题相关且该工单不是本次新号
-  const existingTitles = []
+  const existingTitles: string[] = []
   try {
     const allIdx = currIndex || {}
     for (const k of Object.keys(allIdx)) {
       if (nums.includes(Number(k))) continue
-      const v = allIdx[k]
+      const v = allIdx[k] as { title?: unknown } | string | null | undefined
       const t = v && typeof v === 'object' ? String(v.title || '') : String(v || '')
       if (t) existingTitles.push(t)
     }
     if (prevIndex) {
       for (const k of Object.keys(prevIndex)) {
         if (nums.includes(Number(k))) continue
-        const v = prevIndex[k]
+        const v = prevIndex[k] as { title?: unknown } | string | null | undefined
         const t = v && typeof v === 'object' ? String(v.title || '') : String(v || '')
         if (t && !existingTitles.includes(t)) existingTitles.push(t)
       }
     }
   } catch (e) {}
-  const isInvestigating = function (hint) {
+  const isInvestigating = function (hint: unknown): boolean {
     if (!hint) return false
     for (let i = 0; i < existingTitles.length; i++) {
       try { if (isHintRelatedToTitle(hint, existingTitles[i])) return true } catch (e) {}
@@ -141,18 +150,18 @@ export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
       if (ua !== ub) return ua - ub
       return String(a.sessionId || '').localeCompare(String(b.sessionId || ''))
     })
-  const out = []
-  const used = new Set()
+  const out: AttributedNumber[] = []
+  const used = new Set<string>()
   for (let i = 0; i < nums.length; i++) {
     const num = nums[i]
-    const info = (currIndex && currIndex[String(num)]) || null
-    const title = info ? String(info.title || info.state || '') : ''
-    const hasTitle = !!(info && typeof info === 'object' && info.title)
-    let picked = null
+    const info = (currIndex && (currIndex[String(num)] as { title?: unknown; state?: unknown } | null)) || null
+    const title = info ? String(info.title || (info as { state?: unknown }).state || '') : ''
+    const hasTitle = !!(info && typeof info === 'object' && (info as { title?: unknown }).title)
+    let picked: (typeof candidates)[number] | null = null
     if (hasTitle) {
       for (let j = 0; j < candidates.length; j++) {
         const c = candidates[j]
-        if (used.has(c.sessionId)) continue
+        if (used.has(c.sessionId as string)) continue
         const hint = c.hint
         if (!hint) continue
         try { if (isHintRelatedToTitle(hint, title)) { picked = c; break; } } catch (e) {}
@@ -161,12 +170,12 @@ export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
     } else {
       for (let j = 0; j < candidates.length; j++) {
         const c = candidates[j]
-        if (!used.has(c.sessionId)) { picked = c; break; }
+        if (!used.has(c.sessionId as string)) { picked = c; break; }
       }
       if (!picked) break
     }
-    used.add(picked.sessionId)
-    out.push({ sessionId: picked.sessionId, number: num, title: title })
+    used.add(picked.sessionId as string)
+    out.push({ sessionId: picked.sessionId as string, number: num, title: title })
   }
   return out
 }
