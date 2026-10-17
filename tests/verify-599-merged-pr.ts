@@ -285,7 +285,17 @@ if (!existsSync(PRODUCT)) {
   }
 
   function extractFn(src: string, header: string): string {
-    const i = src.indexOf(header)
+    let i = src.indexOf(header)
+    if (i < 0) {
+      /**
+       * 打包器换个版本就会把 `function (props)` 打成 `function(props)`（2026-10 这次就是这样），
+       * 锚点若只认一种空格写法，门禁会因为一个空格判红、而不是因为行为变了。
+       * 这里按空白宽松再找一次：找的仍是同一个函数，判据与断言一条不动。
+       */
+      const loose = new RegExp(header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*'))
+      const m = loose.exec(src)
+      if (m) i = m.index
+    }
     if (i < 0) throw new Error('产物里找不到：' + header)
     let depth = 0
     let started = false
