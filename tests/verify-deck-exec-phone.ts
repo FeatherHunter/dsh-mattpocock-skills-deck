@@ -1,5 +1,5 @@
-// verify-deck-exec-phone.js —— 门禁：宿主代执行电话 wf.deckExec（#758）
-// 用法：在插件根目录执行 node tests/verify-deck-exec-phone.js，可独立运行。
+// verify-deck-exec-phone.ts —— 门禁：宿主代执行电话 wf.deckExec（#758）
+// 用法：在插件根目录执行 node tests/verify-deck-exec-phone.ts，可独立运行。
 //
 // 这条电话只做一件事：替 agent 行把九个工具真正跑一次，
 // 跑的还是宿主那同一张表、同一份闸、同一个账，不另起一本账。

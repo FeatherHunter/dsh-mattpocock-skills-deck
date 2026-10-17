@@ -1,4 +1,4 @@
-// tests/verify-gitlab-single-write.js —— #722：GitLab 建票一次调用只做一次写尝试。
+// tests/verify-gitlab-single-write.ts —— #722：GitLab 建票一次调用只做一次写尝试。
 //
 // 这一条门禁盯的不是「有没有实现一个函数」，而是一件在界面上看不出来的事：
 // **一次建票调用里，到底有几条写请求真的发到了远端，发的是什么 URL 与 argv。**
@@ -18,7 +18,7 @@
 // 反证（✗ probe）分两层：判据本体不空转（把「两条路都试」的账本喂给判据，必须报违规）；
 // 把实现改回「两条路都试」或把幂等锚关掉，整条门禁必须变红（现场实验的输出原文见 T18 报告）。
 //
-// 用法（仓库根目录）：node tests/verify-gitlab-single-write.js
+// 用法（仓库根目录）：node tests/verify-gitlab-single-write.ts
 
 import { createRegistry } from '../src/tracker/registry/core.ts'
 import { gitlabBackend } from '../src/tracker/rooms/gitlab/index.ts'

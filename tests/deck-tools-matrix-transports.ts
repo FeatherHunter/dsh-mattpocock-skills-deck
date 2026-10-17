@@ -1,5 +1,5 @@
 // tests/deck-tools-matrix-transports.ts —— 三个后端的脚本化传输层（#713 第六批门禁的夹具）
-// 用法：被 tests/verify-deck-tools-matrix.js 等门禁引用（require './deck-tools-matrix-transports.js' 原样保留，
+// 用法：被 tests/verify-deck-tools-matrix.ts 等门禁引用（require './deck-tools-matrix-transports.js' 原样保留，
 //   装载钩子把同名 .js 说明符改指到本文件；其它 require 与 module.exports 也不动）。
 //
 // 为什么要这一段：这九个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：

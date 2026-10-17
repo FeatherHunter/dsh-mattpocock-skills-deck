@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// verify-deck-render-detail.js —— 渲染把明细交给模型的门禁（#809）
+// verify-deck-render-detail.ts —— 渲染把明细交给模型的门禁（#809）
 //
 // #809 之前，deckAgentRender 只把 value.text 那一句摘要交给模型，value.data 里的
 // 正文、评论、标签、子票清单、地图五区块、逐条边的落点证据，连同 value.notes 里
@@ -12,7 +12,7 @@
 // 的 data、items、readBack、notes 四格形状取自 src/deck/tools/*.ts），过一遍渲染，断言 AI 看得见。
 // 手写夹具不等于活体调用，形状对不齐的风险由 tests/verify-deck-tools.js 那侧兜。
 //
-// 用法：node tests/verify-deck-render-detail.js（在插件根目录）
+// 用法：node tests/verify-deck-render-detail.ts（在插件根目录）
 const path = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
@@ -42,7 +42,7 @@ async function main() {
   const all = (v) => (render({}, v) || []).map((b) => b.text).join('\n')
 
   // ── 1. 旧契约不破：只有状态与一句话时，仍然只回一块 ──
-  //     （verify-deck-tools-agent-register.js:172 断言的就是这一格）
+  //     （verify-deck-tools-agent-register.ts:172 断言的就是这一格）
   const bare = render({}, { status: 'ok', text: '你好' })
   check(Array.isArray(bare) && bare.length === 1 && bare[0].type === 'text' && bare[0].text === '你好',
     '只有摘要时仍然只回一块（旧的代理侧断言不破）')

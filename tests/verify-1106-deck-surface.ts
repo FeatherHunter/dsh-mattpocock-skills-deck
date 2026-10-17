@@ -248,7 +248,7 @@ async function main() {
   }
   {
     // 说明文本也是模型看到的样子：把「缺省 50」改个说法、给某个参数补一句、删掉一句，模型的选择就可能变。
-    // 长度由 tests/verify-deck-tools.js 盯着（≤350 字）、两处关键文案由 tests/verify-deck-thin-reads.js 盯着，
+    // 长度由 tests/verify-deck-tools.js 盯着（≤350 字）、两处关键文案由 tests/verify-deck-thin-reads.ts 盯着，
     // 但「谁把哪句话改了」原来没人盯（实测改一句参数说明是全绿），所以这里逐字冻住。
     const bad: string[] = []
     for (const [, , name] of TOOL_FILES) {

@@ -1,6 +1,6 @@
 const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
-// verify-deck-tools-matrix.js —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
-// 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.js，可独立运行。
+// verify-deck-tools-matrix.ts —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
+// 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.ts，可独立运行。
 //
 // 为什么要这一段：这九个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：
 //   GitHub：父子是它自己的原生 sub-issues 层级，阻塞是原生 dependencies 边；
@@ -323,7 +323,7 @@ function renderTable(table) {
     lines.push('| ' + ({ create: '建票', plan: '建整张地图骨架', link: '补边（父子 + 阻塞）', patch: '改票', read: '读回' })[act] + ' | ' + cells.join(' | ') + ' |')
   }
   lines.push('')
-  lines.push('说明：这张表由 `node tests/verify-deck-tools-matrix.js` 现场跑出来（三个后端都是真后端模块）：'
+  lines.push('说明：这张表由 `node tests/verify-deck-tools-matrix.ts` 现场跑出来（三个后端都是真后端模块）：'
     + 'GitHub 与 GitLab 用脚本化的 gh / glab，本地 Markdown 用真实临时工作区。'
     + '工具自己只报它看得到的证据（写后读回的结构字段与正文），分不出「原生层级」与「平级链接」时如实降一档；'
     + '表里那一列精确的落点是验收脚本按后端给出的。')

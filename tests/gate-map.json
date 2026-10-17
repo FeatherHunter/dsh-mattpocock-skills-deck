@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:16:48.907Z",
+  "generatedAt": "2026-10-17T06:18:44.414Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -400,8 +400,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-deck-exec-phone.js",
-      "file": "tests/verify-deck-exec-phone.js",
+      "step": "node tests/verify-deck-exec-phone.ts",
+      "file": "tests/verify-deck-exec-phone.ts",
       "guards": [
         "src/deck/registration/agent-row.ts",
         "src/deck/registration/host-delegate.ts",
@@ -496,8 +496,8 @@
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-deck-render-detail.js",
-      "file": "tests/verify-deck-render-detail.js",
+      "step": "node tests/verify-deck-render-detail.ts",
+      "file": "tests/verify-deck-render-detail.ts",
       "guards": [
         "src/deck/registration/register-options.ts"
       ],
@@ -568,8 +568,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 16 条"
     },
     {
-      "step": "node tests/verify-deck-thin-reads.js",
-      "file": "tests/verify-deck-thin-reads.js",
+      "step": "node tests/verify-deck-thin-reads.ts",
+      "file": "tests/verify-deck-thin-reads.ts",
       "guards": [
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/map-snapshot.ts",
@@ -591,8 +591,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-deck-tools-agent-register.js",
-      "file": "tests/verify-deck-tools-agent-register.js",
+      "step": "node tests/verify-deck-tools-agent-register.ts",
+      "file": "tests/verify-deck-tools-agent-register.ts",
       "guards": [
         "src/deck/registration/agent-row.ts",
         "src/deck/registration/register-options.ts",
@@ -619,8 +619,8 @@
       "reason": "归属来自：源码里的路径字面量 12 条"
     },
     {
-      "step": "node tests/verify-deck-tools-matrix.js",
-      "file": "tests/verify-deck-tools-matrix.js",
+      "step": "node tests/verify-deck-tools-matrix.ts",
+      "file": "tests/verify-deck-tools-matrix.ts",
       "guards": [
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
@@ -4640,8 +4640,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-gitlab-single-write.js",
-      "file": "tests/verify-gitlab-single-write.js",
+      "step": "node tests/verify-gitlab-single-write.ts",
+      "file": "tests/verify-gitlab-single-write.ts",
       "guards": [
         "src/shared/refresh/idempotency.js",
         "src/tracker/registry/core.ts",
@@ -4771,8 +4771,8 @@
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-index-window.js",
-      "file": "tests/verify-index-window.js",
+      "step": "node tests/verify-index-window.ts",
+      "file": "tests/verify-index-window.ts",
       "guards": [
         "src/shared/tracker/indexWindow.js"
       ],
@@ -7310,11 +7310,11 @@
       "node tests/verify-log-fields.js"
     ],
     "src/deck/registration": [
-      "node tests/verify-deck-exec-phone.js",
+      "node tests/verify-deck-exec-phone.ts",
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-quota-sync.ts",
-      "node tests/verify-deck-render-detail.js",
-      "node tests/verify-deck-tools-agent-register.js",
+      "node tests/verify-deck-render-detail.ts",
+      "node tests/verify-deck-tools-agent-register.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-dependency-rules.ts",
@@ -7327,11 +7327,11 @@
       "node tests/verify-1039-rules-pure.ts"
     ],
     "src/deck/shell": [
-      "node tests/verify-deck-exec-phone.js",
+      "node tests/verify-deck-exec-phone.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-quota-sync.ts",
       "node tests/verify-deck-repo-resolve.ts",
-      "node tests/verify-deck-tools-agent-register.js",
+      "node tests/verify-deck-tools-agent-register.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1003-single-outlet.ts",
@@ -7353,9 +7353,9 @@
     "src/deck/tools": [
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
-      "node tests/verify-deck-thin-reads.js",
-      "node tests/verify-deck-tools-agent-register.js",
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-thin-reads.ts",
+      "node tests/verify-deck-tools-agent-register.ts",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1106-deck-surface.ts",
@@ -7461,7 +7461,7 @@
       "node tests/verify-969-tiered-timeout.ts"
     ],
     "src/host/platform": [
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-497-slash.ts",
@@ -7501,8 +7501,8 @@
       "node tests/verify-deck-event-gate.mjs",
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
-      "node tests/verify-deck-thin-reads.js",
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-thin-reads.ts",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
@@ -7603,8 +7603,8 @@
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
-      "node tests/verify-deck-thin-reads.js",
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-thin-reads.ts",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.js",
@@ -7640,7 +7640,7 @@
       "node tests/verify-delta-wiring.js",
       "node tests/verify-event-budget.ts",
       "node tests/verify-gate-accounting.js",
-      "node tests/verify-gitlab-single-write.js",
+      "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-policy.js",
       "node tests/verify-refresh-adr.js",
@@ -7712,7 +7712,7 @@
       "node tests/verify-delta-wiring.js",
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.js",
-      "node tests/verify-index-window.js",
+      "node tests/verify-index-window.ts",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-subdir-first-frame.js"
     ],
@@ -7803,7 +7803,7 @@
       "node tests/verify-multi-effort.js"
     ],
     "src/tracker/registry": [
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1003-unified-decision.ts",
@@ -7824,7 +7824,7 @@
       "node tests/verify-detection-cascade.ts",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-github-label-colors.js",
-      "node tests/verify-gitlab-single-write.js",
+      "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue297.js",
       "node tests/verify-refresh-workspace-key.js",
@@ -7840,7 +7840,7 @@
     "src/tracker/rooms/github": [
       "node tests/verify-deck-repo-resolve.ts",
       "node tests/verify-deck-slots.ts",
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-1053-issue-write.ts",
@@ -7873,7 +7873,7 @@
       "node tests/verify-tracker-contract.js"
     ],
     "src/tracker/rooms/gitlab": [
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-1130-gitlab-marker-read.ts",
@@ -7884,12 +7884,12 @@
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-gh-gateway.js",
-      "node tests/verify-gitlab-single-write.js",
+      "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-tracker-contract.js",
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/tracker/rooms/markdown": [
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-1058-markdown-read-log.ts",
       "node tests/verify-1059-issue-write.ts",
@@ -7922,7 +7922,7 @@
     ],
     "tests": [
       "node tests/verify-contract-vocabulary.ts",
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.js",
       "node tests/verify-1125-gate-coverage.ts",
@@ -7979,8 +7979,8 @@
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-repo-resolve.ts",
-      "node tests/verify-deck-thin-reads.js",
-      "node tests/verify-deck-tools-matrix.js",
+      "node tests/verify-deck-thin-reads.ts",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-gate-map.js",
       "node tests/verify-1109-matches-timeout.ts",

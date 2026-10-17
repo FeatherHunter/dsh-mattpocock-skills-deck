@@ -1,5 +1,5 @@
-// verify-deck-thin-reads.js —— 门禁：按需取数（blocking=false 与 detail=thin）的诚实
-// 用法：在插件根目录执行 node tests/verify-deck-thin-reads.js，可独立运行。
+// verify-deck-thin-reads.ts —— 门禁：按需取数（blocking=false 与 detail=thin）的诚实
+// 用法：在插件根目录执行 node tests/verify-deck-thin-reads.ts，可独立运行。
 //
 // 为什么要这一段：单票读的反向边要扫全仓、快照的全量行带正文进度，回包大、慢、
 // 票多时还被截断。按需参数让调用方少拿：blocking=false 跳过反向扫描，

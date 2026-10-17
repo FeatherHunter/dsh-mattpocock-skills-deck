@@ -1,4 +1,4 @@
-// tests/verify-index-window.js
+// tests/verify-index-window.ts
 //
 // 门禁：增量索引的时间窗与水印（src/shared/tracker/indexWindow.js）
 //
