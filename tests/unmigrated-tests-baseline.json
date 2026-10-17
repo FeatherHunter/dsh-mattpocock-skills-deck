@@ -15,11 +15,6 @@
     "tests/verify-issue195.js",
     "tests/verify-issue22-ui.js",
     "tests/verify-labels-sync.js",
-    "tests/verify-panel-workspace-isolation.js",
-    "tests/verify-skill-detail-stack.js",
-    "tests/verify-skill-probe-redcard-and-waiting.js",
-    "tests/verify-statusbar-filter-reset.js",
-    "tests/verify-subdir-first-frame.js",
-    "tests/verify-tabs-narrow.js"
+    "tests/verify-panel-workspace-isolation.js"
   ]
 }

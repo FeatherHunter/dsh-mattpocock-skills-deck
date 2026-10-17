@@ -1,5 +1,5 @@
-// tests/verify-statusbar-filter-reset.js — “可接/诊断 不残留 BUG 标签”契约 · issue #397
-// 用法: node tests/verify-statusbar-filter-reset.js [file...]（默认 client.js + package/lib/client.js 双源）
+// tests/verify-statusbar-filter-reset.ts — “可接/诊断 不残留 BUG 标签”契约 · issue #397
+// 用法: node tests/verify-statusbar-filter-reset.ts [file...]（默认 client.js + package/lib/client.js 双源）
 //
 // 契约：
 //  - 状态栏胶囊 3 段的过滤切换必须互相独立，不得残留上一入口的标签维度

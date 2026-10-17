@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-subdir-first-frame.js — 子目录会话第一帧门禁（#727 验收）
+ * verify-subdir-first-frame.ts — 子目录会话第一帧门禁（#727 验收）
  *
  * 治的是什么（真机现场 2026-09-24，skill-calorie 会话目录 D:\ilife\packages\skill-calorie，工作区根 D:\ilife）：
  *   刚进会话时横幅写「该工作区还没有设置 — 点击选择后端」，而旁边「环境 10/10」是绿的、更新时间也是真实时刻；
@@ -27,7 +27,7 @@
  *   I3 迟到能落地 —— 超时之后迟到的成功回包到达时，selection（至少）必须装上；
  *   反向 —— 拆掉三条修法里的任意一条，上面某一式必须当场变红；会话真换走了（A → B）仍须判过期。
  *
- * 用法: node tests/verify-subdir-first-frame.js
+ * 用法: node tests/verify-subdir-first-frame.ts
  */
 const fs = require('fs')
 const path = require('path')

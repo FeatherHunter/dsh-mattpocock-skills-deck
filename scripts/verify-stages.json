@@ -90,7 +90,7 @@
       "ticket": "#1227"
     },
     {
-      "file": "tests/verify-skill-probe-redcard-and-waiting.js",
+      "file": "tests/verify-skill-probe-redcard-and-waiting.ts",
       "reason": "隔离待查：14/55 行为失败（坏名片分拣语义），先修代码再进链",
       "ticket": "#1227"
     },
@@ -122,11 +122,6 @@
     {
       "file": "tests/verify-detail-levels.js",
       "reason": "待修门禁：同上",
-      "ticket": "#1125"
-    },
-    {
-      "file": "tests/verify-tabs-narrow.js",
-      "reason": "待修门禁：计数断言脆弱（tabsRef 现 9 处），改挂载点断言后进链",
       "ticket": "#1125"
     }
   ],

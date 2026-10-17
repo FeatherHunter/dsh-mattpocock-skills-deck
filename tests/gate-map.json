@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:47:44.934Z",
+  "generatedAt": "2026-10-17T07:50:27.286Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 291,
   "gateCount": 291,
@@ -6173,8 +6173,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-skill-detail-stack.js",
-      "file": "tests/verify-skill-detail-stack.js",
+      "step": "node tests/verify-skill-detail-stack.ts",
+      "file": "tests/verify-skill-detail-stack.ts",
       "guards": [
         "src/client/views/pixel/PixelBanner.js",
         "src/client/views/pixel/PixelBtn.js",
@@ -6185,17 +6185,19 @@
         "src/client/views/skillDetail/PixelContents.js",
         "src/client/views/skillDetail/PixelMarkdown.js",
         "src/client/views/skillDetail/PixelSkillDetailModal.js",
-        "src/client/views/skillDetail/PixelSkillOps.js"
+        "src/client/views/skillDetail/PixelSkillOps.js",
+        "src/shared/time-config/values.js"
       ],
       "dirs": [
         "src/client/views/pixel",
-        "src/client/views/skillDetail"
+        "src/client/views/skillDetail",
+        "src/shared/time-config"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 10 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-snapshot-cache-first.ts",
@@ -6213,8 +6215,8 @@
       "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
-      "step": "node tests/verify-statusbar-filter-reset.js",
-      "file": "tests/verify-statusbar-filter-reset.js",
+      "step": "node tests/verify-statusbar-filter-reset.ts",
+      "file": "tests/verify-statusbar-filter-reset.ts",
       "guards": [
         "package/lib/client.js"
       ],
@@ -6243,8 +6245,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-subdir-first-frame.js",
-      "file": "tests/verify-subdir-first-frame.js",
+      "step": "node tests/verify-subdir-first-frame.ts",
+      "file": "tests/verify-subdir-first-frame.ts",
       "guards": [
         "src/client/kernel/probe-select.js",
         "src/client/kernel/probe-snapshot.js",
@@ -6898,7 +6900,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
-      "node tests/verify-statusbar-filter-reset.js",
+      "node tests/verify-statusbar-filter-reset.ts",
       "node tests/verify-t1-getrepokey.ts",
       "node tests/verify-t1-initpublish.ts",
       "node tests/verify-t3-locale.ts",
@@ -7111,7 +7113,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
-      "node tests/verify-subdir-first-frame.js",
+      "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.ts",
@@ -7144,7 +7146,7 @@
       "node tests/verify-926-capfold-gate.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-reuse.ts",
-      "node tests/verify-subdir-first-frame.js"
+      "node tests/verify-subdir-first-frame.ts"
     ],
     "src/client/views": [
       "node tests/verify-leaves.ts",
@@ -7192,7 +7194,7 @@
       "node tests/verify-label-color-core.ts"
     ],
     "src/client/views/pixel": [
-      "node tests/verify-skill-detail-stack.js"
+      "node tests/verify-skill-detail-stack.ts"
     ],
     "src/client/views/primitives": [
       "node tests/verify-no-title.ts",
@@ -7215,7 +7217,7 @@
       "node tests/verify-visible-truth.ts"
     ],
     "src/client/views/skillDetail": [
-      "node tests/verify-skill-detail-stack.js"
+      "node tests/verify-skill-detail-stack.ts"
     ],
     "src/client/views/versionControl": [
       "node tests/verify-leaves.ts",
@@ -7493,7 +7495,7 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-subdir-first-frame.js",
+      "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-locale-completeness.ts"
     ],
     "src/shared/config-store": [
@@ -7609,7 +7611,8 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
-      "node tests/verify-subdir-first-frame.js",
+      "node tests/verify-skill-detail-stack.ts",
+      "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts",
       "node tests/verify-locale-completeness.ts"
@@ -7638,7 +7641,7 @@
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-index-window.ts",
       "node tests/verify-issue232-sync.ts",
-      "node tests/verify-subdir-first-frame.js"
+      "node tests/verify-subdir-first-frame.ts"
     ],
     "src/shared/ui": [
       "node tests/verify-deck-slots.ts"
@@ -8006,7 +8009,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
-      "node tests/verify-subdir-first-frame.js",
+      "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.ts",

@@ -1,5 +1,5 @@
-// tests/verify-skill-detail-stack.js —— 详情栈的门禁（2026-10-10 人拍板：详情里点开另一篇就压一层，最多三层）
-// 用法：在插件根目录执行 node tests/verify-skill-detail-stack.js，可独立运行（jsdom + 真实 React，不联网）。
+// tests/verify-skill-detail-stack.ts —— 详情栈的门禁（2026-10-10 人拍板：详情里点开另一篇就压一层，最多三层）
+// 用法：在插件根目录执行 node tests/verify-skill-detail-stack.ts，可独立运行（jsdom + 真实 React，不联网）。
 //
 // 守四件事：
 //   1) 压栈与栈顶别名：打开一篇是一层，st.pixelDetail 恒等于栈顶（外面原来的读法不用改）。
