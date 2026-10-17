@@ -1,4 +1,4 @@
-// src/shared/tracker/chain-types.js —— S1（#451）从 chain.js 拆出之枚举与形状，纯结构、行为零变化。
+// src/shared/tracker/chain-types.ts —— S1（#451）从 chain.js 拆出之枚举与形状，纯结构、行为零变化。
 // 以后谁改它：改枚举、形状、展示等级、归一函数、契约常量的人。预估约230行，超 350 打回。
 // 接线：纯定义，零运行时引用；不引用校验与求值文件（墙要求）；调用方按名字改路径（见 #443 接线图）。
 
@@ -54,7 +54,7 @@ export const ACTION_TYPE = Object.freeze({
 
 /** 别名：动作词汇表枚举（兼容票面命名 ACTION_TYPES）。 */
 export const ACTION_TYPES = ACTION_TYPE
-export const KNOWN_ACTION_TYPES = Object.freeze(Object.values(ACTION_TYPE))
+export const KNOWN_ACTION_TYPES: readonly string[] = Object.freeze(Object.values(ACTION_TYPE))
 
 /** 检测原语枚举（通用目录可用；后端目录可用 backend/preflight 种类）。 */
 export const PRIMITIVE_KIND = Object.freeze({
@@ -75,8 +75,8 @@ export const SHOW_LEVELS = Object.freeze({
   BAD: 'bad',
 })
 
-/** 归一展示等级（容 ok→info, error→bad）。 */
-export function normalizeShowLevel(level) {
+/** 归一展示等级（容 ok→info, error→bad）。未知等级回落 info 而不是抛错：传进来的是各后端自填的字符串，先收敛到已知档位才能渲染。 */
+export function normalizeShowLevel(level: unknown): string {
   const s = String(level || '').trim().toLowerCase()
   if (s === 'info' || s === 'warn' || s === 'bad') return s
   if (s === 'ok') return SHOW_LEVELS.INFO
@@ -84,8 +84,8 @@ export function normalizeShowLevel(level) {
   return SHOW_LEVELS.INFO
 }
 
-/** 是否为已知动作类型。 */
-export function isKnownActionType(type) {
+/** 是否为已知动作类型。比对前先清掉首尾空白：后端声明里多一个空格不能算未知类型。 */
+export function isKnownActionType(type: unknown): boolean {
   return KNOWN_ACTION_TYPES.includes(String(type || '').trim())
 }
 
@@ -101,6 +101,10 @@ export function isKnownActionType(type) {
  * @property {'primitive'|'backend'|'preflight'} [kind]
  * // 兼容：string 形态直接视为谓词标识
  */
+export type Check = {
+  kind?: 'primitive' | 'backend' | 'preflight'
+  [key: string]: unknown
+}
 
 /**
  * Show — 检查项的展示数据（i18n 单信源，UI 透传渲染；兼容票面 {title,desc,level} 直写形态）。
@@ -113,6 +117,15 @@ export function isKnownActionType(type) {
  * @property {string} [fallback] 回落文案（无 i18n 时展示）
  * @property {string} [hint] 辅助提示（可含多态 prompt 透传）
  */
+export type Show = {
+  i18nKey?: string
+  title?: string
+  desc?: string
+  level?: string
+  params?: Record<string, string>
+  fallback?: string
+  hint?: string
+}
 
 /**
  * FieldSchema — form 动作的字段模式（v1 完整，含校验元数据）。
@@ -128,6 +141,18 @@ export function isKnownActionType(type) {
  * @property {string} [defaultValue]
  * @property {string} [pattern]
  */
+export type FieldSchema = {
+  name: string
+  type?: 'text' | 'number' | 'date' | 'single' | 'multi' | 'directory' | 'file'
+  label?: string
+  labelKey?: string
+  required?: boolean
+  options?: string[]
+  placeholderKey?: string
+  placeholder?: string
+  defaultValue?: string
+  pattern?: string
+}
 
 /**
  * Action — 动作词汇表的判别联合（契约层只定义形状，执行在 UI 层）。
@@ -157,6 +182,23 @@ export function isKnownActionType(type) {
  * // refresh
  * @property {'chain'|'snapshot'} [target] 刷新目标（type=refresh 时）
  */
+export type Action = {
+  type: string
+  prompt?: string
+  promptId?: string
+  args?: Record<string, string>
+  params?: unknown
+  url?: string
+  method?: string
+  endpoint?: string
+  schema?: FieldSchema[]
+  fields?: FieldSchema[]
+  submitAction?: Action
+  submit?: { type?: string; endpoint?: string; method?: string }
+  steps?: Array<{ title?: string; schema: FieldSchema[] }>
+  form?: { title?: string; desc?: string; fields?: FieldSchema[]; submit?: { type?: string; endpoint?: string; method?: string } }
+  target?: 'chain' | 'snapshot'
+}
 
 /**
  * CheckItem — 检查项一等公民。
@@ -168,11 +210,20 @@ export function isKnownActionType(type) {
  * @property {string} [label] 人读标签（可选，仅调试/日志）
  * @property {string} [group] 可选分组（'gate'|'env' 等，供编排链分段用；不驱动求值）
  */
+export type CheckItem = {
+  id?: string
+  check: string | Check
+  onPass: { show: Show | null; actions: Action[] }
+  onFail: { show: Show | null; actions: Action[] }
+  label?: string
+  group?: string
+}
 
 /**
  * Chain — 有序检查项序列（前步通过才进入下一步）。
  * @typedef {CheckItem[]} Chain
  */
+export type Chain = CheckItem[]
 
 /**
  * StepSnapshot — 链条求值后单步快照（UI 直接消费渲染）。
@@ -187,6 +238,17 @@ export function isKnownActionType(type) {
  * @property {boolean} isCurrent 是否为链头当前步（仅一处 true）
  * @property {boolean} isBlocking 是否阻塞后续
  */
+export type StepSnapshot = {
+  id: string
+  check: string | Check
+  status: (typeof CHECK_STATE)[keyof typeof CHECK_STATE]
+  show: Show | null
+  actions: Action[]
+  isApplicable: boolean
+  blockedBy: string | null
+  isCurrent: boolean
+  isBlocking: boolean
+}
 
 /**
  * ChainSnapshot — 整条链的求值快照（纯函数产出，宿主计算一次，UI 无脑渲染）。
@@ -205,16 +267,32 @@ export function isKnownActionType(type) {
  * @property {boolean} hasBlockingFailure
  * @property {string|null} blockingCheck
  */
+export type ChainSnapshot = {
+  steps: StepSnapshot[]
+  currentIndex: number | null
+  doneCount: number
+  applicableCount: number
+  totalCount: number
+  chainState: 'allDone' | 'hasCurrent' | 'pending' | 'empty'
+  version: string
+  failedIndex: number
+  isComplete: boolean
+  hasBlockingFailure: boolean
+  blockingCheck: string | null
+}
 
 // 与校验文件内的同名集合同源（墙要求不互相引用；改动时两处同改）。
-const VALID_ACTION_TYPES = new Set(Object.values(ACTION_TYPE))
+// 为什么是 Set<string> 而不是字面量并集的 Set：VALID 集合的职责是「收容运行时洗进来的任意字符串」
+// （normalizeAction 先把未知类型拦成 unsupported），字面量 Set 的 .has 只收那六个字面量，
+// 传 String(action.type) 当场红。字符串集合与原来同一个 Set，行为一字不变。
+const VALID_ACTION_TYPES = new Set<string>(Object.values(ACTION_TYPE))
 
 /**
  * 归一动作展示（诚实 unsupported：未知类型原样透传，由 UI 层判 unsupported 展示）。
  * @param {Action} action
  * @returns {{supported: boolean, action: Action}}
  */
-export function normalizeAction(action) {
+export function normalizeAction(action: Action | null | undefined): { supported: boolean; action: Action | null | undefined } {
   if (!action || typeof action !== 'object' || !action.type) return { supported: false, action }
   const t = String(action.type).trim()
   if (!VALID_ACTION_TYPES.has(t)) return { supported: false, action }
