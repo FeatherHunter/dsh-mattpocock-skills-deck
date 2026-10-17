@@ -1,5 +1,5 @@
-// verify-log-client.js —— #490 client 日志底座门禁（设计 #335 第 1、4 章映射到 client 的断言）。
-// 用法：node tests/verify-log-client.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）。
+// verify-log-client.ts —— #490 client 日志底座门禁（设计 #335 第 1、4 章映射到 client 的断言）。
+// 用法：node tests/verify-log-client.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）。
 // 覆盖 3 组：开关持久化（新键 dsws.debug、默认关闭、不动 dsws.cfg）、
 //   对账（启动本地秒显、宿主为准、失败保持本地不回退开启）、广播（沿 broadcastCfg 同构）。
 // 外加 4 项底座自检：统一接口同名同参、体内兜底第一行、批量字面、双产物含新电话名。

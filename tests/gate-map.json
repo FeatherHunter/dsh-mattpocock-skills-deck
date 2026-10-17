@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:34:42.783Z",
+  "generatedAt": "2026-10-17T06:39:26.996Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -5012,8 +5012,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
-      "step": "node tests/verify-log-artifacts.js",
-      "file": "tests/verify-log-artifacts.js",
+      "step": "node tests/verify-log-artifacts.ts",
+      "file": "tests/verify-log-artifacts.ts",
       "guards": [
         "package/lib",
         "package/lib/client.js",
@@ -5037,8 +5037,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-log-client.js",
-      "file": "tests/verify-log-client.js",
+      "step": "node tests/verify-log-client.ts",
+      "file": "tests/verify-log-client.ts",
       "guards": [
         "package/lib/client.js",
         "scripts/build.mjs",
@@ -5064,8 +5064,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-log-count.js",
-      "file": "tests/verify-log-count.js",
+      "step": "node tests/verify-log-count.ts",
+      "file": "tests/verify-log-count.ts",
       "guards": [
         "research/489-appendix.md",
         "src/client",
@@ -5087,8 +5087,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
-      "step": "node tests/verify-log-exec-606.js",
-      "file": "tests/verify-log-exec-606.js",
+      "step": "node tests/verify-log-exec-606.ts",
+      "file": "tests/verify-log-exec-606.ts",
       "guards": [
         "src/client/kernel/router.js",
         "src/host/git-process.ts",
@@ -5108,8 +5108,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-log-fields.js",
-      "file": "tests/verify-log-fields.js",
+      "step": "node tests/verify-log-fields.ts",
+      "file": "tests/verify-log-fields.ts",
       "guards": [
         "src/client",
         "src/deck",
@@ -6945,8 +6945,8 @@
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-kernel.ts",
       "node tests/verify-labels-sync.js",
-      "node tests/verify-log-artifacts.js",
-      "node tests/verify-log-client.js",
+      "node tests/verify-log-artifacts.ts",
+      "node tests/verify-log-client.ts",
       "node tests/verify-log-store.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-markdown.ts",
@@ -6994,7 +6994,7 @@
       "node tests/verify-gate-map.js",
       "node tests/verify-733-unknown-endpoint.ts",
       "node tests/verify-error-normalize-log.ts",
-      "node tests/verify-log-count.js",
+      "node tests/verify-log-count.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-settings-debug.ts"
     ],
@@ -7014,8 +7014,8 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue-body-script.ts",
       "node tests/verify-kernel.ts",
-      "node tests/verify-log-artifacts.js",
-      "node tests/verify-log-client.js",
+      "node tests/verify-log-artifacts.ts",
+      "node tests/verify-log-client.ts",
       "node tests/verify-matt-skills-sync.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-parse-leaf.js",
@@ -7096,10 +7096,10 @@
       "node tests/verify-ctx.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-kernel.ts",
-      "node tests/verify-log-artifacts.js",
-      "node tests/verify-log-client.js",
-      "node tests/verify-log-count.js",
-      "node tests/verify-log-fields.js",
+      "node tests/verify-log-artifacts.ts",
+      "node tests/verify-log-client.ts",
+      "node tests/verify-log-count.ts",
+      "node tests/verify-log-fields.ts",
       "node tests/verify-matt-skills-sync.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-reuse.js",
@@ -7162,9 +7162,9 @@
       "node tests/verify-inject-trailing-newline.ts",
       "node tests/verify-issue60-cwd.ts",
       "node tests/verify-label-color-core.ts",
-      "node tests/verify-log-artifacts.js",
-      "node tests/verify-log-client.js",
-      "node tests/verify-log-exec-606.js",
+      "node tests/verify-log-artifacts.ts",
+      "node tests/verify-log-client.ts",
+      "node tests/verify-log-exec-606.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-statusbar.ts",
       "node tests/verify-log-switch-526.ts",
@@ -7306,8 +7306,8 @@
     "src/deck": [
       "node tests/verify-build-artifacts.js",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-log-count.js",
-      "node tests/verify-log-fields.js"
+      "node tests/verify-log-count.ts",
+      "node tests/verify-log-fields.ts"
     ],
     "src/deck/registration": [
       "node tests/verify-deck-exec-phone.ts",
@@ -7428,10 +7428,10 @@
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-handoff-latest-sort.js",
       "node tests/verify-issue232-sync.ts",
-      "node tests/verify-log-artifacts.js",
-      "node tests/verify-log-count.js",
-      "node tests/verify-log-exec-606.js",
-      "node tests/verify-log-fields.js",
+      "node tests/verify-log-artifacts.ts",
+      "node tests/verify-log-count.ts",
+      "node tests/verify-log-exec-606.ts",
+      "node tests/verify-log-fields.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-store.ts",
       "node tests/verify-markdown-label-colors.js",
@@ -7674,7 +7674,7 @@
       "node tests/verify-event-budget.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-gate-accounting.ts",
-      "node tests/verify-log-client.js",
+      "node tests/verify-log-client.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.js",
@@ -7743,8 +7743,8 @@
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue-body-script.ts",
       "node tests/verify-labels-sync.js",
-      "node tests/verify-log-count.js",
-      "node tests/verify-log-fields.js",
+      "node tests/verify-log-count.ts",
+      "node tests/verify-log-fields.ts",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-setup-describe.js",
       "node tests/verify-ui-description-single-source.ts"
@@ -8055,8 +8055,8 @@
       "node tests/verify-issue529-checks-i18n.js",
       "node tests/verify-issue60-cwd.ts",
       "node tests/verify-label-color-core.ts",
-      "node tests/verify-log-client.js",
-      "node tests/verify-log-exec-606.js",
+      "node tests/verify-log-client.ts",
+      "node tests/verify-log-exec-606.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-log-switch-597.ts",

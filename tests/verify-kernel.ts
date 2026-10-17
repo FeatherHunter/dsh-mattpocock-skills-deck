@@ -1,7 +1,7 @@
 // verify-kernel.ts — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分 + #458 K5 拆分 + #621 localeLabels 增补 + #636 api-workspace 拆分）
 // 验证：
 //   1) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
-//      —— 2026-10-17 记实：这半边已由 tests/verify-log-artifacts.js:62-64 用整行正则接手，覆盖面更宽、
+//      —— 2026-10-17 记实：这半边已由 tests/verify-log-artifacts.ts:62-64 用整行正则接手，覆盖面更宽、
 //         也比这里的裸子串更准（产物里 ``kernel:… (spliced`` 子串有两处是 update 模块正则里的巧合文本）。
 //   2) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-ctx 同口径）
 //      —— 这半边今天仍是本门禁独有：38 个 kernel 源「改了没重建」只有这里拦得住。

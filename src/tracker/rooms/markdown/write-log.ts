@@ -11,7 +11,7 @@
  * 有没有写不成的步），结论只在一处推导。同一件事两处写，迟早对不上；内层也就没有 reason 可写。
  *
  * 隐私：只记计数、枚举与耗时；票号、标题正文、标签名、文件名、路径、上游报错原文一个字都不记
- * （它们在工具返回值与 `error.normalize` 那一条里）。字段白名单由 tests/verify-log-fields.js 守着，
+ * （它们在工具返回值与 `error.normalize` 那一条里）。字段白名单由 tests/verify-log-fields.ts 守着，
  * 字段与「这一趟到底写没写下去」的实况由 tests/verify-1059-issue-write.ts 守着。
  *
  * 记日志那层壳（`guardEmit`）、以及从返回里读结论的两件小事（`outcomeOf` / `failReason`）搬去了

@@ -1,5 +1,5 @@
-// verify-log-artifacts.js —— #494 第三件事：日志门禁之双产物（#489 附录第 4 节断言八）。
-// 用法：在插件根目录执行 node tests/verify-log-artifacts.js，可独立运行，
+// verify-log-artifacts.ts —— #494 第三件事：日志门禁之双产物（#489 附录第 4 节断言八）。
+// 用法：在插件根目录执行 node tests/verify-log-artifacts.ts，可独立运行，
 // 运行前先执行 node scripts/build.mjs 生成产物。
 // 断言文字：新增电话名在开发产物与打包产物同时存在，只改一处即红。
 // 做法：客户端事件在两个客户端产物里逐个点名；宿主事件在打包镜像里逐个点名

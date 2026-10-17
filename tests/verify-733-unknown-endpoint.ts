@@ -79,7 +79,7 @@ const call = async (endpoint: string, payload: unknown): Promise<any> => {
 }
 
 // ---------- ④ 附录登记 ----------
-// 只登记形状，不新增事件名，所以计数仍是常驻 38 条（verify-log-count.js 钉着）。
+// 只登记形状，不新增事件名，所以计数仍是常驻 38 条（verify-log-count.ts 钉着）。
 {
   const appendix = src('research/489-appendix.md')
   check(appendix.includes('unknown-endpoint'), '附录登记了 unknown-endpoint 形状')

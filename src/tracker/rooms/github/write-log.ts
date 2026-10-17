@@ -16,7 +16,7 @@
  *
  * 隐私：只记计数、布尔、枚举与耗时；票号、标题正文、标签名、颜色值、仓库地址、命令原文、上游报错
  * 原文一个字都不记（它们在工具返回值与 gh.exec / gh.timeout 那两条里）。字段白名单由
- * tests/verify-log-fields.js 守着，字段与「走了哪条路」的实况由 tests/verify-1053-issue-write.ts 守着。
+ * tests/verify-log-fields.ts 守着，字段与「走了哪条路」的实况由 tests/verify-1053-issue-write.ts 守着。
  *
  * 记日志那层壳（`guardEmit`）、以及从返回里读结论的两件小事（`outcomeOf` / `failReason`）搬去了
  * `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：三座房的读出口、两座房的写出口抄的是同一副

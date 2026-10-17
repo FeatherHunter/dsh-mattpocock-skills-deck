@@ -243,7 +243,7 @@
     //   读这一侧收口（viewFlagSettle）也要按同一个算法，把等在路上的那几笔放进队列。
     const viewFlagJournalKeyOf = function (key, name) { return key + '\u0000' + name }
     // 一笔值写不进内存文档时记一行（沿用既有的 storage.fail，不新开事件名；字段只有 key 与 op 两个，
-    //   与全库其余 storage.fail 一致，见 tests/verify-log-fields.js 的字段白名单）。
+    //   与全库其余 storage.fail 一致，见 tests/verify-log-fields.ts 的字段白名单）。
     //   key 记一个固定的记号，不记工作区路径：日志纪律不许把工作区原始路径写进日志。
     const viewFlagLogDocFail = function () {
       try { log('warn', 'storage.fail', { key: 'settings.workspaces', op: 'write' }) } catch (eL) {}

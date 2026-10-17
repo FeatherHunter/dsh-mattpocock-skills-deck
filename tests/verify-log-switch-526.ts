@@ -23,7 +23,7 @@ globalThis.LOG_WATCHDOG_MS = centralTime.LOG_WATCHDOG_MS
 const LOG_SRC = path.join(ROOT, 'src', 'client', 'kernel', 'log.js')
 const src = fs.readFileSync(LOG_SRC, 'utf8')
 
-// ---- 运行夹具：与 verify-log-client.js 同构（去行首 export 载入，配假宿主与假存储） ----
+// ---- 运行夹具：与 verify-log-client.ts 同构（去行首 export 载入，配假宿主与假存储） ----
 function makeLocalStorage(preset) {
   const map = new Map(Object.entries(preset || {}))
   return {

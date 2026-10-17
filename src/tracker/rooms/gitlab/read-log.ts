@@ -12,7 +12,7 @@
  *
  * ── 事件名沿用全仓已登记的那两个，不新开 ────────────────────────────────────────
  * 本文件落的是**已有事件**：常驻 #108 `read.degraded` 与常驻 #109 `preflight.gate`
- * （登记见 `research/489-appendix.md` 第 1 章，字段白名单见 `tests/verify-log-fields.js`）。
+ * （登记见 `research/489-appendix.md` 第 1 章，字段白名单见 `tests/verify-log-fields.ts`）。
  * 刻意不新开一条 `glab.*`：新事件要动附录对照表与三份门禁的字面，那是跨房的账（#1063 定的边界
  * 是只动本房）。本条只做「新增落点」，字段形状与 GitHub 房逐格相同，门禁照旧放行。
  *

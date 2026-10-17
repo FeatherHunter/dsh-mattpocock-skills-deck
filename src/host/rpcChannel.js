@@ -83,7 +83,7 @@ export function createRpcChannel(deps) {
   const fireLog = deps.fireLog
   const dispatchMeta = deps.dispatchMeta
   // 记账出口的第二个名字（#724）：本文件里两条自监控错误行沿用 fireLog（tests/verify-log-selfmon.js
-  // 按那个形状逐字点名），新加的那条常驻告警走 log(...) —— 日志字段门禁（tests/verify-log-fields.js）
+  // 按那个形状逐字点名），新加的那条常驻告警走 log(...) —— 日志字段门禁（tests/verify-log-fields.ts）
   // 照 `log('级别', '事件名', {…})` 这个形状扫落点，写成 fireLog 它扫不到，那一条事件就成了没登记的野点。
   const log = deps.fireLog
 

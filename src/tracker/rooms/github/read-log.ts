@@ -8,7 +8,7 @@
  * 而 `fail` 是纯函数、不记日志，于是事后拿导出包的人在这些路上看到的是「什么都没有」——
  * 分不清「没跑这条路」还是「跑了、折在中间」。
  *
- * 两个事件（都在 #489 附录里登记，字段白名单见 tests/verify-log-fields.js）：
+ * 两个事件（都在 #489 附录里登记，字段白名单见 tests/verify-log-fields.ts）：
  *  - `read.degraded`（警告级，常驻）：一条读操作本来能成、这一趟没成，或者成得不完整。一趟一行。
  *    字段 `{op, reason, latencyMs}`；`op` 取 READ_DEGRADED_OPS 里的值，`reason` 取 READ_DEGRADED_REASONS 里的值。
  *    写成警告级的理由：warning 始终落盘，查「这张地图怎么空了」的人不会先打开调试开关。

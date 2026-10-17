@@ -41,7 +41,7 @@ function adjacencyOfRoster(roster: RosterLike | null | undefined): Map<string, S
  * complete 进这一趟时名册是不是「已经拿全」（没有名册时记 false）、dirty 名册外待定向重读的票数、
  * latencyMs 这一趟花了多久。票号、目录路径一个字都不记。
  * 为什么这个键叫 source 而不叫 path：字段白名单门禁把 path 列为「原文类键名」一律不许作键
- * （见 tests/verify-log-fields.js 第四段），这里要表达的本来就是「来源」而不是路径。
+ * （见 tests/verify-log-fields.ts 第四段），这里要表达的本来就是「来源」而不是路径。
  */
 function emitEdgeRoster(ctx: OpContext, source: string, complete: boolean, dirty: number, t0: number): void {
   guardEmit(ctx, (c) => {

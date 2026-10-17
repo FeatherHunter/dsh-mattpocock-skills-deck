@@ -31,7 +31,7 @@
  *
  * 隐私：只记枚举、布尔与计数；票号、文件名、路径、父票编号、上游报错原文一个字都不记
  * （票号在工具返回值里，报错原文在失败结果的 raw 与 `error.normalize` 那一条里）。
- * 字段白名单由 tests/verify-log-fields.js 守着，每一档取值由 tests/verify-1060-edge-log.ts 逐条走到。
+ * 字段白名单由 tests/verify-log-fields.ts 守着，每一档取值由 tests/verify-1060-edge-log.ts 逐条走到。
  */
 
 import type { OpContext } from '../../contract/contexts.js'

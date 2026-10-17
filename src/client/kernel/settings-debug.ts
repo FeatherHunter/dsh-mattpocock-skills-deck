@@ -156,7 +156,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
     export const settingsDebugLegacyWrite = function (): boolean {
       try { persistLocalDebugSwitch(logSwitch); return true } catch (e) { return false }
     }
-    // 与包里 logSwitchSetFail 同一档错误分类（那份代码没导出，这里照抄一遍判据）：日志事件名、字段名、kind 前缀都与包一致，不新增事件名（tests/verify-log-fields.js 的字段白名单钉着 method/kind/errorHash）。
+    // 与包里 logSwitchSetFail 同一档错误分类（那份代码没导出，这里照抄一遍判据）：日志事件名、字段名、kind 前缀都与包一致，不新增事件名（tests/verify-log-fields.ts 的字段白名单钉着 method/kind/errorHash）。
     const settingsDebugThrowKind = function (e: any): string {
       const msg = String((e && typeof e === 'object' && ('code' in e || 'message' in e) ? e.code || e.message : e) || '')
       if (/unknown endpoint/i.test(msg)) return 'throw-unknown-endpoint'

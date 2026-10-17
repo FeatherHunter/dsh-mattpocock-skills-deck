@@ -14,8 +14,8 @@
  *     却仍跑真源，等于这道反证是假的（#669 那道门禁整改过一次，这里照它的写法）。
  *
  * 日志点为什么不在这份门禁里：那几条事件（读到没有、写失败、文件坏、被更旧的顶回、淘汰）
- * 要跟 research/489-appendix.md 第 1 章的对照表、tests/verify-log-count.js 与
- * tests/verify-log-fields.js 同一个提交改完才不许红 —— 所以它们随「接上判定链」那一步一起落地，
+ * 要跟 research/489-appendix.md 第 1 章的对照表、tests/verify-log-count.ts 与
+ * tests/verify-log-fields.ts 同一个提交改完才不许红 —— 所以它们随「接上判定链」那一步一起落地，
  * 那一步的主门禁里量（见 #683 的落地清单）。
  *
  * 用法：node tests/verify-683-choice-store.js
