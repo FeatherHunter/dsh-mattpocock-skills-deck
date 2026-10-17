@@ -5,6 +5,14 @@
 > 验证脚本：`tests/verify-bundled-discovery.js`（98 项） + `tests/verify-bundled-trio-matrix.js`（33 项）  
 > 结论：空 HOME 首通道已绿，无需在 `lightProbeReason` 回退分支补 bundled；三态均回归通过，默认零污染
 
+> **后记（2026-10-17）**：本文提到的 `tests/verify-bundled-trio-matrix.js` 已删除。它量的是自己手抄的七个产品函数副本，
+> 在没有 `src/` 的假根里照样 30 条全绿，对抗式审查判定它没有牙齿。其中真正值钱的两条——「无效名片按红牌分拣」
+> （`isSkillCardValid`）与「证据文案如实写无效／未找到」（`evidenceSummary`）——已搬进在链上的门禁
+> `tests/verify-968-skill-ondemand.ts` 第 8 节，改读真模块 `src/shared/skill-probe-channels.js`，改坏产品会判红；
+> 「从会话目录逐层向上找最近一层自带 `.git` 的目录」（projectRootUpward）今天**全仓无人守**，作为已知空档记在
+> 地图票 [#1239](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1239) 的评论里。
+> 下面的矩阵表格与日志是 2026-09-01 当时的交付记录，按「带日期的历史记录不动」的规矩原样保留。
+
 ## 矩阵（wf.detect / wf.chain 三检查）
 
 | 场景 | ~/.agents/skills 状态 | 技能三检查（wayfinder / setup-matt-pocock-skills / ask-matt） | 来源 rank | 结果 | 证据 |

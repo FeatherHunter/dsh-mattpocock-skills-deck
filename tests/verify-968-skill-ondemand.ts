@@ -328,6 +328,23 @@ async function main() {
     must(JSON.stringify(fallbackSel) === JSON.stringify(all), '未知范围回落全量（宁可多问，不漏判）', 'N=' + fallbackSel.length)
   }
 
+  // 无效名片红牌分拣与证据文案（2026-10-17 从已删的 tests/verify-bundled-trio-matrix.js 搬来）。
+  // 那扇门禁量的是它自己手抄的七个产品函数副本，在没有 src/ 的假根里照样 30 条全绿；
+  // 这里改成真模块、真函数，判据一样，但改坏产品会让它红。
+  {
+    const ch = await import(url('src/shared/skill-probe-channels.js'))
+    const good = '---\nname: demo-skill\n---\n\n正文\n'
+    const bad = '---\nname: other-skill\n---\n\n正文\n'
+    must(ch.isSkillCardValid(good, 'demo-skill') === true, '名片 frontmatter 名字对上算有效')
+    must(ch.isSkillCardValid(bad, 'demo-skill') === false, '名字对不上算无效（红牌分拣）')
+    must(ch.isSkillCardValid('\uFEFF' + good, 'demo-skill') === true, '开头带 BOM 的名片仍算有效（#295）')
+    const zhBad = ch.evidenceSummary([{ channel: 'registry', root: 'x', result: 'invalid' }, { channel: 'fs', root: 'y', result: 'missing' }], 'zh')
+    must(String(zhBad).includes('无效'), '无效名片在证据文案里点名「无效」', String(zhBad))
+    must(String(zhBad).includes('未找到'), '没找到的通道也如实写进证据文案', String(zhBad))
+    const zhGood = ch.evidenceSummary([{ channel: 'registry', root: 'x', result: 'valid' }], 'zh')
+    must(String(zhGood).includes('命中') && !String(zhGood).includes('无效'), '有效名片不会被证据文案说成无效', String(zhGood))
+  }
+
   console.log('\n' + (broken.length ? ('968 门禁失败 ' + broken.length + '/' + total) : ('968 门禁全部通过 ' + total + '/' + total)))
   process.exit(broken.length ? 1 : 0)
 }

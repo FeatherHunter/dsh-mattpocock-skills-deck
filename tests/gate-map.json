@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T08:38:09.402Z",
+  "generatedAt": "2026-10-17T08:40:54.562Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 294,
-  "gateCount": 294,
+  "chainLength": 293,
+  "gateCount": 293,
   "attributedGates": 261,
-  "unattributedGates": 33,
-  "buildOutputOnlyGates": 20,
+  "unattributedGates": 32,
+  "buildOutputOnlyGates": 19,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
@@ -3535,6 +3535,7 @@
         "src/host/platformChannel.ts",
         "src/host/skillProbe.js",
         "src/shared/matt-skills.js",
+        "src/shared/skill-probe-channels.js",
         "src/shared/tracker/check-catalog-views.js"
       ],
       "dirs": [
@@ -3546,7 +3547,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 5 条"
+      "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-969-tiered-timeout.ts",
@@ -3946,23 +3947,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
-    },
-    {
-      "step": "node tests/verify-bundled-trio-matrix.js",
-      "file": "tests/verify-bundled-trio-matrix.js",
-      "guards": [
-        "package",
-        "package/bundled-skills"
-      ],
-      "dirs": [
-        "package",
-        "package/bundled-skills"
-      ],
-      "unattributed": true,
-      "buildOutputOnly": true,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
       "step": "node tests/verify-cap-fold-browser.ts",
@@ -6878,7 +6862,6 @@
       "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-bundled-discovery.ts",
       "node tests/verify-bundled-skills.ts",
-      "node tests/verify-bundled-trio-matrix.js",
       "node tests/verify-config-store-package.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-kernel.ts",
@@ -6894,8 +6877,7 @@
     "package/bundled-skills": [
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-bundled-discovery.ts",
-      "node tests/verify-bundled-skills.ts",
-      "node tests/verify-bundled-trio-matrix.js"
+      "node tests/verify-bundled-skills.ts"
     ],
     "package/deck": [
       "node tests/verify-build-artifacts.ts"
