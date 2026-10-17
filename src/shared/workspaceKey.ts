@@ -1,5 +1,5 @@
 /**
- * src/shared/workspaceKey.js — 工作区键单源（#301 / #324 规格）
+ * src/shared/workspaceKey.ts — 工作区键单源（#301 / #324 规格）
  *
  * 共享语义：同一工作区的所有会话共享同一份面板数据，判定“同一工作区”的唯一钥匙
  * 就是本文件的 keyOf 纯函数。客户端全部按工作区归一的抽屉（快照缓存、
@@ -17,19 +17,26 @@
  *  - 空值：返回 ''，调用方回退到默认目录
  */
 
-export function keyOf(raw, os) {
+// 下面两行把运行环境里可能缺席的全局量照实声明出来：浏览器闭包里没有 process，
+// Node 直跑时没有 navigator。真正用之前一律沿用原文的 typeof 守卫写法，
+// 所以声明成「可能缺席」才是实话，写成必在反而是撒谎。
+declare const process: { platform: string } | undefined;
+declare const navigator: { platform: string } | undefined;
+
+// 同一工作区的两种写法必须落到同一个键：大小写、斜杠方向、尾斜杠不同只是写法不同，不是两个地方。
+export function keyOf(raw: unknown, os?: unknown): string {
   if (raw == null) return '';
   let s = String(raw).trim();
   if (!s) return '';
   // 判定操作系统：显式 os 参数优先，否则按全局环境或路径形态推断
-  let isWin;
+  let isWin: boolean | undefined;
   if (typeof os === 'string' && os) {
     isWin = os === 'win32';
   } else {
     try {
-      if (typeof navigator !== 'undefined' && navigator.platform && /Win/i.test(navigator.platform)) {
+      if (typeof navigator !== 'undefined' && navigator && (navigator as { platform?: unknown }).platform && /Win/i.test(String((navigator as { platform?: unknown }).platform))) {
         isWin = true;
-      } else if (typeof process !== 'undefined' && process.platform === 'win32') {
+      } else if (typeof process !== 'undefined' && process && process.platform === 'win32') {
         isWin = true;
       } else {
         // 启发式：含反斜杠或盘符形态则按 win 处理，否则按 posix
@@ -83,15 +90,16 @@ export function keyOf(raw, os) {
   }
 }
 
+// currentOs 只做一件事：告诉 keyOf 第二个参数该传什么，判不准时回 linux（POSIX 那半不分大小写）。
 // 便捷：返回当前运行时的操作系统标识，供客户端调用 keyOf 时传入
-export function currentOs() {
+export function currentOs(): string {
   try {
-    if (typeof navigator !== 'undefined' && navigator.platform) {
-      if (/Win/i.test(navigator.platform)) return 'win32';
-      if (/Mac/i.test(navigator.platform)) return 'darwin';
+    if (typeof navigator !== 'undefined' && navigator && (navigator as { platform?: unknown }).platform) {
+      if (/Win/i.test(String((navigator as { platform?: unknown }).platform))) return 'win32';
+      if (/Mac/i.test(String((navigator as { platform?: unknown }).platform))) return 'darwin';
       return 'linux';
     }
-    if (typeof process !== 'undefined' && process.platform) {
+    if (typeof process !== 'undefined' && process && process.platform) {
       if (process.platform === 'win32') return 'win32';
       if (process.platform === 'darwin') return 'darwin';
       return 'linux';
@@ -100,10 +108,12 @@ export function currentOs() {
   return 'linux';
 }
 
+// normalizeWorkspacePath 只是旧名的包装：宿主侧历史导入不断，行为与 keyOf 完全一致。
 // 兼容宿主侧旧导入：normalizeWorkspacePath(raw, platform) 包装 keyOf
-export function normalizeWorkspacePath(raw, platform) {
-  const os = platform && platform.os ? platform.os : (typeof platform === 'string' ? platform : undefined);
+export function normalizeWorkspacePath(raw: unknown, platform?: { os?: unknown } | string): string {
+  const os = platform && typeof platform === 'object' ? (platform as { os?: unknown }).os : (typeof platform === 'string' ? platform : undefined);
   return keyOf(raw, os);
 }
 
-// default export removed for splice compatibility — use named imports
+// 只有具名导出、没有默认导出：原文就没有，拼接（剥行首 export 拼进闭包）与文本直读门禁都只认行首具名形态，
+// 调用方按名字引用即可。
