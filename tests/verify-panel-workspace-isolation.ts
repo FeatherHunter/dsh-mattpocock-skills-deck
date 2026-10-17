@@ -1,26 +1,36 @@
-// verify-panel-workspace-isolation.js — #45 多工作区隔离回归
+// verify-panel-workspace-isolation.ts — #45 多工作区隔离回归
 // 量什么：客户端探查链路（src/client/kernel/probe-auto.js）在多工作区下不许串台 ——
 //   按工作区键分组、组内共用一次重建、组间零污染；兜底路径按 sessionId→cwd 精确映射，不许把首个 cwd 错绑给所有空 store。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-panel-workspace-isolation.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-panel-workspace-isolation.ts
 //
 // 2026-10-17 重写（先修后转的第一笔）：原来读的是构建产物 client.js / package/lib/client.js，
 //   两份产物都不在 git 里，别人改完源码不重建时这里量的还是旧行为；其中一条断言还写成了
 //   「或含 keyOf(...) 字样」，把判据放宽到恒真（把 `===` 反向改坏它也照样绿）。
 //   现在读真源，每条判据都配一个「把源码改坏必须判红」的变异自检：跑不红就说明判据没牙，门禁自己判红。
 // 只看文本形状，不执行产品代码；整行注释先剥掉，免得注释里的旧写法把判据带偏。
+// 第二笔改名成 TypeScript（2026-10-17）：只加类型标注、把 process.exit 换成 process.exitCode
+//   （装载钩子下加载的 .ts 里硬退出会撞 libuv 断言崩溃），判据与文案一个字没动。
 const fs = require('fs')
 const path = require('path')
+
+/**
+ * 一条判据：名字给人和日志看，bad 判断「这段源码不合规」。
+ * 写成函数而不是正则字面量，是因为有几条判据要多处合看（例如 sidToCwd 既要建表、也要真的拿来赋值）。
+ */
+type IsolationRule = { name: string; bad: (src: string) => boolean }
+/** 变异：把源码里 from 换成 to，对应判据必须因此报红。 */
+type RuleMutation = { rule: string; from: string; to: string }
 
 const SRC_REL = 'src/client/kernel/probe-auto.js'
 const ROOT = path.join(__dirname, '..')
 
 // 剥掉整行注释（源码里诸如「从前这一行下面一律 loadSnapshot(primary, true, true)」这类说明，
 // 是历史记录，不该被当成今天的调用点）。
-function stripLineComments(src) {
+function stripLineComments(src: string): string {
   return src.replace(/^[ \t]*\/\/.*$/gm, '')
 }
 
-const RULES = [
+const RULES: IsolationRule[] = [
   {
     name: '存在 refreshGroup(cwd) 按组刷新辅助',
     bad: src => !/const\s+refreshGroup\s*=\s*function\s*\(\s*cwd\s*\)/.test(src),
@@ -64,7 +74,7 @@ const RULES = [
 ]
 
 // 每个判据配一个变异：改坏之后这条判据必须报红。
-const MUTATIONS = [
+const MUTATIONS: RuleMutation[] = [
   { rule: '存在 refreshGroup(cwd) 按组刷新辅助', from: 'const refreshGroup = function (cwd)', to: 'const refreshGroupX = function (cwd)' },
   { rule: '分组前先把 cwd 归一成工作区键（normWanted = wsKeyOf(cwd)）', from: 'const normWanted = wsKeyOf(cwd)', to: 'const normWanted = cwd' },
   { rule: 'shared 只在与探查工作区同键时入组', from: 'wsKeyOf(shared.cwd) === normWanted', to: 'true' },
@@ -77,32 +87,35 @@ const MUTATIONS = [
 ]
 
 let failed = 0
-const ok = (cond, msg) => { console.log((cond ? '  PASS ' : '  FAIL ') + msg); if (!cond) { failed++; console.error('    ✗', msg) } }
+const ok = (cond: unknown, msg: string): void => { console.log((cond ? '  PASS ' : '  FAIL ') + msg); if (!cond) { failed++; console.error('    ✗', msg) } }
 
 const abs = path.join(ROOT, SRC_REL)
 if (!fs.existsSync(abs)) {
   console.error('找不到真源 ' + SRC_REL + '：先确认它没被改名或搬家')
-  process.exit(1)
-}
-const raw = fs.readFileSync(abs, 'utf8')
-const src = stripLineComments(raw)
+  // 退出码只给 0/1；这里用 exitCode 而不是 process.exit()：在装载钩子下加载的 .ts 里，
+  // 处理函数还在场时硬退出会撞上 libuv 断言（Windows 上实测 0xC0000409 崩溃，输出已打完才崩）。
+  process.exitCode = 1
+} else {
+  const raw = fs.readFileSync(abs, 'utf8')
+  const src = stripLineComments(raw)
 
-console.log('=== #45 工作区隔离（读真源 ' + SRC_REL + '）===')
-for (const rule of RULES) ok(!rule.bad(src), rule.name)
+  console.log('=== #45 工作区隔离（读真源 ' + SRC_REL + '）===')
+  for (const rule of RULES) ok(!rule.bad(src), rule.name)
 
-console.log('\n=== 变异自检：把源码改坏一处，对应判据必须报红 ===')
-for (const mut of MUTATIONS) {
-  const rule = RULES.find(r => r.name === mut.rule)
-  // 在剥掉注释后的文本上做变异：否则第一处命中可能落在注释里的历史写法上，
-  // 真正跑的那行没被动到，自检就会假装判据没牙（或反过来假装变异没落地）。
-  const mutated = src.split(mut.from).join(mut.to)
-  if (mutated === src) {
-    ok(false, '变异没落地（源码里找不到片段：' + mut.from + '）——判据锚点已过期，请同步')
-    continue
+  console.log('\n=== 变异自检：把源码改坏一处，对应判据必须报红 ===')
+  for (const mut of MUTATIONS) {
+    const rule = RULES.find(r => r.name === mut.rule)
+    // 在剥掉注释后的文本上做变异：否则第一处命中可能落在注释里的历史写法上，
+    // 真正跑的那行没被动到，自检就会假装判据没牙（或反过来假装变异没落地）。
+    const mutated = src.split(mut.from).join(mut.to)
+    if (mutated === src) {
+      ok(false, '变异没落地（源码里找不到片段：' + mut.from + '）——判据锚点已过期，请同步')
+      continue
+    }
+    ok(rule.bad(mutated) === true, '改坏后判红：' + mut.rule)
   }
-  ok(rule.bad(mutated) === true, '改坏后判红：' + mut.rule)
-}
 
-console.log('\n=== 汇总 ===')
-if (failed === 0) { console.log('全部通过 ✅ — #45 隔离判据在真源上成立，且每条判据都改得红'); process.exit(0) }
-console.log('存在失败 ❌ — 共 ' + failed + ' 项'); process.exit(1)
+  console.log('\n=== 汇总 ===')
+  if (failed === 0) { console.log('全部通过 ✅ — #45 隔离判据在真源上成立，且每条判据都改得红'); process.exitCode = 0 }
+  else { console.log('存在失败 ❌ — 共 ' + failed + ' 项'); process.exitCode = 1 }
+}

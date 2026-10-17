@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T08:30:56.951Z",
+  "generatedAt": "2026-10-17T08:38:09.402Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
-  "attributedGates": 260,
-  "unattributedGates": 34,
-  "buildOutputOnlyGates": 21,
+  "attributedGates": 261,
+  "unattributedGates": 33,
+  "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
@@ -5656,19 +5656,19 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-panel-workspace-isolation.js",
-      "file": "tests/verify-panel-workspace-isolation.js",
+      "step": "node tests/verify-panel-workspace-isolation.ts",
+      "file": "tests/verify-panel-workspace-isolation.ts",
       "guards": [
-        "package/lib/client.js"
+        "src/client/kernel/probe-auto.js"
       ],
       "dirs": [
-        "package/lib"
+        "src/client/kernel"
       ],
-      "unattributed": true,
-      "buildOutputOnly": true,
+      "unattributed": false,
+      "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
+      "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-parse-leaf.ts",
@@ -6954,7 +6954,6 @@
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
-      "node tests/verify-panel-workspace-isolation.js",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-platform-contract.ts",
       "node tests/verify-prompt-newlines.ts",
@@ -7173,6 +7172,7 @@
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
+      "node tests/verify-panel-workspace-isolation.ts",
       "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-banner.ts",
