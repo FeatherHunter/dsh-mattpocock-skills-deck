@@ -51,15 +51,18 @@ function checkItem(rel, buf) {
 }
 
 // ---- src 树 ----
+// 2026-10-17（转 .ts 前先修）：扫描面原来只收 .js，而 src/client 下已有 57 份 .ts 真源
+//   （#1209 之后视图真源陆续转过去），只扫 .js 等于漏掉一半源码——写进 .ts 的硬编码照样漏网。
+//   现在两种都扫（同名 .js 是产物也照扫：产物里出现同样字样同样算问题，宁可多报不可漏报）。
 const items = []
 ;(function walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name)
     if (e.isDirectory()) walk(p)
-    else if (e.name.endsWith('.js')) items.push([path.relative(root, p), fs.readFileSync(p, 'utf8')])
+    else if (e.name.endsWith('.js') || e.name.endsWith('.ts')) items.push([path.relative(root, p), fs.readFileSync(p, 'utf8')])
   }
 })(path.join(root, 'src', 'client'))
-console.log('-- src/client/**/*.js --')
+console.log('-- src/client/**/*.{js,ts} --')
 items.forEach(function (it) { checkItem(it[0], it[1]) })
 
 // ---- 双产物 ----

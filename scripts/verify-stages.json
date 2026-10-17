@@ -130,11 +130,6 @@
       "ticket": "#1125"
     },
     {
-      "file": "tests/verify-github-rest-fallback.js",
-      "reason": "待修门禁：夹具缺 ctx.outbound，补上后进链",
-      "ticket": "#1125"
-    },
-    {
       "file": "tests/verify-map-subissues-352.js",
       "reason": "待修门禁：版本 pin 过期（断言 v14，源码已 v17），改兼容后进链",
       "ticket": "#1125"

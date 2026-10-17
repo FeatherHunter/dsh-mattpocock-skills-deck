@@ -20,7 +20,19 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 const PRODUCTS = ['host.js', 'package/lib/index.js']
 // H2 #446：宿主侧实现分散在两处（解析三函数搬到 mapBody.js，分组两函数留守 index.js）；产物侧同理跟随，意图不变。
 // #450 H6：分组两函数搬入 ticketGrouping.js（三处合流：mapBody + ticketGrouping + index）；新鲜度与抽取同理跟随。
-const SOURCES = ['src/host/index.js', 'src/host/mapBody.js', 'src/host/ticketGrouping.js', 'src/host/issueList.js', 'src/host/issueDetail.js', 'scripts/build.mjs', 'package/package.json']
+// 2026-10-17（转 .ts 前先修）：src/host 下已有文件改成 .ts 真源（旁边留同名 .js 产物或干脆没有 .js），
+//   写死 .js 路径会让新鲜度检查 existsSync 落空、静默跳过——产物明明旧了却判绿。改走共用取源入口，
+//   按「同名 .ts 优先、否则原路径」解析，缺文件也会照实报出来。
+const { sourcePath } = require('./lib/source-text.ts')
+const SOURCES = [
+  sourcePath('src/host/index.js'),
+  sourcePath('src/host/mapBody.js'),
+  sourcePath('src/host/ticketGrouping.js'),
+  sourcePath('src/host/issueList.js'),
+  sourcePath('src/host/issueDetail.js'),
+  'scripts/build.mjs',
+  'package/package.json',
+]
 
 function productStale(prod) {
   if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'

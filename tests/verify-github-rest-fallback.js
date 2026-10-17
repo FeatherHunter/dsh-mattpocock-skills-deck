@@ -30,8 +30,15 @@ const all = []
 for (let n = 1; n <= 149; n++) all.push(makeIssue(n))
 all.push(makeIssue(414)) // 外部建票 414（模拟现场：它在第 2 页）
 
+// 2026-10-17（转 .ts 前先修）：出站控制面改成必填之后，夹具只给 platform/exec 会被挡在门口
+//   （「出站控制面没有接上」，9 条断言全红）。按生产同一形状补上 ctx.outbound：装配点造房那一处
+//   走 platformChannel 的 backendCtxForRooms、当次操作走 ctx.outbound，门禁夹具走后者。
+//   名额闸给足、取消判定恒 false、搭车账本照记——这几条替身只为了让请求真的发出去。
+const { createOutboundControl } = await import(pathToFileURL(resolve(ROOT, 'src/host/platform/outbound-control.ts')).href)
+
 const ctx = {
   cwd: ROOT,
+  outbound: createOutboundControl(),
   platform: { resolveExecutable: async (name) => name === 'gh' ? 'gh' : null },
   exec: async function (cmd, args, opts) {
     const joined = (args || []).join(' ')
