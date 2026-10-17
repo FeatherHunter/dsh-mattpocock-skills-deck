@@ -8,6 +8,9 @@
  * 键口径：sd.* 全是详情页自己的话术。按钮只转圈不换字，所以没有“加载中”这种键；
  * 缺文那段不带正文短描述——短描述是每篇自己的 use，由调用方当 prop 传进来。
  */
+// 「超过 2 秒」那句里的秒数不手抄：排版骨架的判定阈值住中央时间参数（config/intervals.yaml 的 skillSkeletonDelayMs）。
+// 构建时把那份片段拼进界面闭包（见上面“一源两物”契约），tsc 单独检查本文件时看不到它，所以在这里按名字声明类型。
+declare const SKILL_SKELETON_DELAY_MS: number
 export const L_SKILLDETAIL: { zh: Record<string, string>; en: Record<string, string> } = {
   zh: {
     'sd.listTitle': '■ 技能',
@@ -25,7 +28,7 @@ export const L_SKILLDETAIL: { zh: Record<string, string>; en: Record<string, str
     'sd.fetch': '正在取文件…',
     'sd.parse': '正在解析…',
     'sd.layout': '正在排版…',
-    'sd.layoutSlow': '正在排版…（超过 2 秒）',
+    'sd.layoutSlow': '正在排版…（超过 ' + (SKILL_SKELETON_DELAY_MS / 1000) + ' 秒）',
     'sd.ready': '内容已到',
     'sd.readyHit': '内容已到（缓存命中）',
     'sd.fail': '没能读到这一篇的原文（可以点重试再试一次）',
@@ -54,7 +57,7 @@ export const L_SKILLDETAIL: { zh: Record<string, string>; en: Record<string, str
     'sd.fetch': 'Fetching file…',
     'sd.parse': 'Parsing…',
     'sd.layout': 'Laying out…',
-    'sd.layoutSlow': 'Laying out… (over 2s)',
+    'sd.layoutSlow': 'Laying out… (over ' + (SKILL_SKELETON_DELAY_MS / 1000) + 's)',
     'sd.ready': 'Ready',
     'sd.readyHit': 'Ready (cache hit)',
     'sd.fail': 'Could not read this skill text (retry to try again)',
