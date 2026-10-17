@@ -1,0 +1,12 @@
+# 本文件的注释由插件生成；你自己加的注释会在下次写入时被替换。
+# 这份文件随仓库走：提交之后就团队共享，改动会影响所有人。
+version: 2
+# 这条工作区用哪个后端
+backendId: github
+# 这次选择发生的时间（毫秒）
+pickedAt: 1792139519906
+# 这条选择是谁做的：user=人在面板里亲手选的；migrated=从老版本机记忆搬来的；detected=插件按声明文件或自动识别生成的
+source: user
+# 域文档布局：single=单上下文（各部分共用一套用语，根目录一份 GLOSSARY.md）；
+# multi=多上下文（各有各的用语，子项目各一份 GLOSSARY.md，根目录一份 GLOSSARY-MAP.md指过去）
+layout: single
