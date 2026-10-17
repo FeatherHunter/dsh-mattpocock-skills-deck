@@ -196,9 +196,6 @@ async function main() {
     check(got && typeof got.status === 'string' && typeof got.text === 'string' && got.text.length > 0, t.name + ' 执行通，回包带状态与一句话')
   }
   const throwing = stubTable(seven, 'deck_map_link')
-  const svc2 = stubToolsSvc()
-  await agent.registerDeckAgentTools(svc2, table, realDefineTool)
-  const link = svc2.registered.filter((t) => t.name === 'deck_map_link')[0]
   // 注意这里故意用会抛的表执行：工具永不抛，炸了也要包成信封。
   const svc3 = stubToolsSvc()
   await agent.registerDeckAgentTools(svc3, throwing, realDefineTool)

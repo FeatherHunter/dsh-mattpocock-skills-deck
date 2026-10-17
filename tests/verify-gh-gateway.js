@@ -28,6 +28,8 @@
  *   node tests/verify-gh-gateway.js --root <目录>          # 换扫描根（例如探针样本目录）
  *   node tests/verify-gh-gateway.js --registry <文件>      # 追加一份登记表（JSON 数组）
  *   node tests/verify-gh-gateway.js --list                # 只列出扫到的调用点，不做判定
+ * 挂钩子跑（必须）：node --import ./scripts/ts-hook.mjs tests/verify-gh-gateway.js —— 它动态 import 的 .ts
+ *   真源靠装载钩子解析，裸跑会在跑完前三条样本断言后死在 ERR_MODULE_NOT_FOUND，容易被误读成通过。
  * 退出码：0 = 通过；1 = 有违规。
  */
 const fs = require('fs')

@@ -28,7 +28,7 @@ const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 const SRC = fs.readFileSync(path.join(ROOT, 'src/deck/registration/register-options.ts'), 'utf8')
 const limitOf = (name) => {
   const m = SRC.match(new RegExp('const ' + name + ' = (\\d+)'))
-  if (!m) { console.log('  FAIL 源文件里读不到 ' + name + '，这条门禁得跟着改'); failed = true; return 1 }
+  if (!m) throw new Error('源文件 src/deck/registration/register-options.ts 里读不到 ' + name + '：这条门禁的上限就是从那里抠出来的，抠不到先来改这里，别让断言拿 0 去比。')
   return Number(m[1])
 }
 const DETAIL_STRING_CAP = limitOf('DETAIL_STRING_CAP')

@@ -31,7 +31,9 @@ const assert = require('assert')
 // 本文件选 compileFn 手法：这段只是把真源里切出来的两个助手函数文本当函数体造函数，没有外层变量要显式传。
 const { compileFn } = require('./lib/eval-probe.js')
 
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['host.js', 'package/lib/index.js']
+// 2026-10-17 重锚：host.js 与 package/lib/index.js 两个旧产物已下架，handoff 挑选逻辑的真身
+//   搬进 src/host/handoffClaim.js（可用 argv 传别的源文件覆盖，默认就取它）。
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/host/handoffClaim.js']
 
 // ---- Part A：静态契约 ----
 const statChecks = function (src, tag) {

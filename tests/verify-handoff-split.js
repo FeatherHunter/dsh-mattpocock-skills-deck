@@ -113,7 +113,8 @@ const runHarness = function (fnSrc, opt) {
   // 手法：compileFn——这里把引导门那几段真源拼成文本后造函数，参数名收进数组交给共用入口，位置传参的顺序不变。
   const $ = compileFn(
     ['st', 'ctx', 'host', 'conn', 'rpcCall', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
-    'extractHandoffFile', 'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'pendingDraft', 'handoffFile', 'handoffTs', 'mockOpen'],
+    'extractHandoffFile', 'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'pendingDraft', 'handoffFile', 'handoffTs', 'mockOpen',
+    'CLIENT_SESSION_TICK_MS', 'CLIENT_HANDOFF_DELAY_MS'],
     fnSrcWithMock + '\n; return { probeHandoffReady: probeHandoffReady, doHandoff: doHandoff, doHandoffOpen: doHandoffOpen }'
   )
   const fns = $(
@@ -132,7 +133,8 @@ const runHarness = function (fnSrc, opt) {
     null,
     opt.handoffFile === undefined ? null : opt.handoffFile,
     null,
-    mockOpen
+    mockOpen,
+    1000, 2000 // 复刻 client.js 里由 bundler 注入的 CLIENT_SESSION_TICK_MS / CLIENT_HANDOFF_DELAY_MS（config/intervals.yaml）
   )
   const invoke = function (fn, arg) { const r = fn(arg); return r === undefined ? Promise.resolve() : Promise.resolve(r) }
   return invoke(opt.via === 'open' ? fns.doHandoffOpen : opt.via === 'probe' ? fns.probeHandoffReady : fns.doHandoff, st).then(function () {

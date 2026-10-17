@@ -88,7 +88,8 @@ function runHandoffSandbox(fnSrc, opt) {
   //   依赖本来就全部显式传参（切出来的代码读不到本文件作用域），与共用入口用法一一对应。
   const $ = compileFn(
     ['st', 'ctx', 'host', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
-      'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'mockOpen', 'storeOfStub'],
+      'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'mockOpen', 'storeOfStub',
+      'CLIENT_SESSION_TICK_MS', 'CLIENT_HANDOFF_DELAY_MS'],
     prelude + fnSrc + '\n; return { probeHandoffReady: probeHandoffReady, doHandoff: doHandoff, doHandoffOpen: doHandoffOpen }'
   )
   const fns = $(
@@ -102,7 +103,8 @@ function runHandoffSandbox(fnSrc, opt) {
     function (k) { return k },
     function (st_, text, msg) { copied.push({ text: text, msg: msg }) },
     function (file) { return '/read .scratch/handoff/' + (file || 'latest.md') },
-    mockOpen, storeOfStub
+    mockOpen, storeOfStub,
+    1000, 2000 // 复刻 client.js 里由 bundler 注入的 CLIENT_SESSION_TICK_MS / CLIENT_HANDOFF_DELAY_MS（即 config/intervals.yaml 的 1000/2000）
   )
   const invoke = function (which) {
     if (which === 'open') return fns.doHandoffOpen(st)

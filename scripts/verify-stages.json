@@ -125,11 +125,6 @@
       "ticket": "#1125"
     },
     {
-      "file": "tests/verify-detail-fog.js",
-      "reason": "待修门禁：仍按旧约定取 h.wf.refresh（已改注册制），跟随后进链",
-      "ticket": "#1125"
-    },
-    {
       "file": "tests/verify-detail-levels.js",
       "reason": "待修门禁：同上",
       "ticket": "#1125"
@@ -157,11 +152,6 @@
     {
       "file": "tests/verify-tabs-narrow.js",
       "reason": "待修门禁：计数断言脆弱（tabsRef 现 9 处），改挂载点断言后进链",
-      "ticket": "#1125"
-    },
-    {
-      "file": "tests/verify-handoff-latest-sort.js",
-      "reason": "待修门禁：守的老地址（host.js），真身已搬进 src/host/handoffClaim.js，重锚后进链",
       "ticket": "#1125"
     }
   ],

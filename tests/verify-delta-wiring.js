@@ -226,7 +226,6 @@ async function run() {
   check(/lastIndexWatermarkByRepo\[rk\]\s*=\s*win\.nextWatermark\(/.test(stripComments("  lastIndexWatermarkByRepo[rk] = win.nextWatermark(startedMs) // 探到就推")), '✗ probe：同一套判据认得出「探测一回来就推水印」这种写法（夹具不空转）')
 
   console.log('\n' + (failed ? '存在失败 — 增量接线门禁未通过' : '全部通过 — 客户端吃增量结果、水印只有一个所有者（' + total + ' 条断言）'))
-  console.log('提示：本门禁还没有挂进 package.json 的 verify 链，请统筹者接一行（见交付报告第 5 节）。')
   process.exit(failed ? 1 : 0)
 }
 

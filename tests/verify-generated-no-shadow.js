@@ -1,5 +1,6 @@
 // verify-generated-no-shadow.js —— #597 门禁：拼进同一个客户端闭包的各个分块，顶层声明不得重名。
-// 用法：在插件根目录执行 node tests/verify-generated-no-shadow.js，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-generated-no-shadow.js。
+//   （不能裸跑：它 require 的 ./lib/eval-probe.js 今天只有同名 .ts，靠装载钩子改指。）
 // 为什么要有这条：客户端闭包是把「日志包派生的 logKernel.derived.js」与「更新包派生的 updateClient.derived.js」、
 //   内置 TypeScript 核定下的共享拼接文件（#629 起加了 src/shared/label-color/colors.js 与 prompt.js），
 //   还有手写叶子，按顺序拼成一份源码。函数声明被提升到闭包顶部，后拼的分块会顶掉先拼的同名函数。

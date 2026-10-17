@@ -30,7 +30,6 @@
     "tests/verify-deck-tools.js",
     "tests/verify-delta-patch.js",
     "tests/verify-delta-wiring.js",
-    "tests/verify-detail-fog.js",
     "tests/verify-detail-levels.js",
     "tests/verify-detection-cascade.js",
     "tests/verify-dirwritable.js",

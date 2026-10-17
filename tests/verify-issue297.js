@@ -6,6 +6,8 @@
 //   ② 缓存里那条选择：工作区已空 → 这份缓存不作数，重算。
 // 2026-09-21 的收窄（#669 第 1 件：空目录里当场报上来的 hint 要算数）已随 #1003 老路径删除而退役 ——
 //   上报一律忽略，空目录 + hint 如实未知；下面 A/C/D 三组按退役后改准，B 组（记忆过期）原样保留。
+// 跑法：node --import ./scripts/ts-hook.mjs tests/verify-issue297.js（或走 verify 链）。它 import 的四条 .ts 源码
+//   靠装载钩子解析，裸跑会 ERR_MODULE_NOT_FOUND 并崩在 libuv 断言上（退出码不是 1，看日志的人容易误判）。
 import { createRegistry } from '../src/tracker/registry/core.ts'; // V1 #461：registry.js 已拆为三块
 import { createDetectionService } from '../src/tracker/detection/detectionService.ts';
 import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/tracker/detection/backendDecision.ts';

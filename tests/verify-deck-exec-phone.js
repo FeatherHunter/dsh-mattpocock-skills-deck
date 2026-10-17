@@ -123,9 +123,7 @@ async function main() {
   // 键名叫 secretValue 而不是 secret：集中扫描器把「secret 后面紧跟冒号再加一段引号文本」
   // 一律判成硬编码密钥，而这里放的分明是「不许泄漏」的假值，属于它的误报（见 #824 与
   // research/827-recommendations.html）。键名换个说法就不触发，测的东西一点没变。
-  const secretCtx = { tools: { a: 1 }, profileContext: { secretValue: 'SHOULD-NOT-APPEAR', port: 12345 } }
   const secretOut = JSON.parse(await probe.execute({}, { agent: { session: { cwd: '/ws' } } }).catch(function () { return '{}' }))
-  void secretCtx
   const leakCtx = { tools: {}, profileContext: { marker: 'LEAK-ME-999', num: 987654 } }
   const rowSvc2 = { registered: [], register: function (t) { this.registered.push(t); return function () {} } }
   row.apply({ tools: rowSvc2, profileContext: leakCtx.profileContext })

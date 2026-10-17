@@ -3,7 +3,8 @@
 //   A) 契约层纯函数单元（src/shared/tracker/sync.js 直接 import）
 //   C) 宿主分发端到端（stub gh 索引差值：建档不判脏 → gap 内静默 → 差值命中回执 dirtyCwds）
 //   #232 追加：视线门控（R1–R4）节拍单源断言 + 脏信号回执持久性端到端
-// 用法: node tests/verify-issue232-sync.js（C 段需要先 node scripts/build.mjs 生成 package/lib）
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-issue232-sync.js（必须挂 ts-hook；C 段今天整段 SKIP ——
+//   wf.issuePathPoll 分发通道已随 #345 退役，不必再先跑 node scripts/build.mjs 生成 package/lib）
 
 const fs = require('fs')
 const path = require('path')

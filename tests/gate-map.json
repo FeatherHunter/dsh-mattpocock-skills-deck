@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:03:39.409Z",
+  "generatedAt": "2026-10-17T06:12:22.850Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 293,
-  "gateCount": 293,
-  "attributedGates": 257,
+  "chainLength": 294,
+  "gateCount": 294,
+  "attributedGates": 258,
   "unattributedGates": 36,
   "buildOutputOnlyGates": 23,
   "completionRecordedGates": 6,
@@ -4174,21 +4174,19 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/delta.js",
         "src/shared/time-config/values.js",
-        "src/shared/tracker",
-        "src/tracker"
+        "src/shared/tracker/indexWindow.js"
       ],
       "dirs": [
         "src/host/refresh",
         "src/shared/refresh",
         "src/shared/time-config",
-        "src/shared/tracker",
-        "src/tracker"
+        "src/shared/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-delta-wiring.js",
@@ -4716,6 +4714,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+    },
+    {
+      "step": "node tests/verify-handoff-latest-sort.js",
+      "file": "tests/verify-handoff-latest-sort.js",
+      "guards": [
+        "src/host/handoffClaim.js",
+        "tests/lib/eval-probe.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-handoff-split.js",
@@ -7409,6 +7424,7 @@
       "node tests/verify-detection-log-reach.ts",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-github-label-colors.js",
+      "node tests/verify-handoff-latest-sort.js",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-count.js",
@@ -7721,7 +7737,6 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-663-gh-install-inject.ts",
-      "node tests/verify-delta-patch.js",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue-body-script.js",
       "node tests/verify-labels-sync.js",
@@ -8031,6 +8046,7 @@
       "node tests/verify-generated-no-shadow.js",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-handoff-isolation-787.js",
+      "node tests/verify-handoff-latest-sort.js",
       "node tests/verify-handoff-split.js",
       "node tests/verify-inject-trailing-newline.ts",
       "node tests/verify-issue529-checks-i18n.js",
