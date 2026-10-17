@@ -70,6 +70,14 @@ function parseSkillRaw(raw) {
 function isValidSkillName(n) { try { return /^[\p{L}0-9]+(?:-[\p{L}0-9]+)*$/u.test(n) } catch { return /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(n) } }
 
 function findBundledDir() {
+  // 2026-10-17 先修：这份门禁要守的是**仓库里**那份随包技能，原来在 cwd 往上找四层之后，会退到
+  //   ~/.dsh/profiles/*/node_modules/... 里那份已安装的副本——仓库里那份坏掉时它照样绿（假绿）。
+  //   现在按仓库根定位（本文件住在 tests/ 下，所以往上一层就是仓库根），找到就直接用；
+  //   只有仓库里确实没有时才退回原来的候选与已安装副本（并留下一条日志说明用的是哪一份）。
+  const repoCand = path.join(path.resolve(__dirname, '..'), 'package', 'bundled-skills')
+  try {
+    if (statSync(repoCand).isDirectory() && existsSync(path.join(repoCand, 'wayfinder', 'SKILL.md'))) return repoCand
+  } catch {}
   for (const cand of BUNDLED_DIR_CANDIDATES) {
     try { if (statSync(cand).isDirectory() && existsSync(path.join(cand, 'wayfinder', 'SKILL.md'))) return cand } catch {}
   }
@@ -308,7 +316,13 @@ async function main() {
       const plugin = hostMod.default || hostMod
       if (plugin && typeof plugin.apply === 'function') {
         plugin.apply(mockCtx)
-        await new Promise(r=>setTimeout(r, 400))
+        // 2026-10-17 先修：原来固定等 400 毫秒。注册要走三次动态 import 加上读 ~/.dsh/profiles 目录，
+        //   冷启动时经常超过 400 毫秒，于是这一条偶发假红（实测 1/17）。改成轮询到捕获为止（最多 5 秒，
+        //   每 20 毫秒看一眼）——真出问题时仍然红，只是不再靠一个猜出来的等待时长。
+        const deadline = Date.now() + 5000
+        while (!capturedProviderFactory && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 20))
+        }
         check(!!capturedProviderFactory, 'host apply 已调用 registerProvider（捕获工厂） evidence bundled registerProvider')
         if (capturedProviderFactory) {
           hostProbePass = true
