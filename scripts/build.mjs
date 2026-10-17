@@ -580,7 +580,7 @@ const SHARED_SPLICE = [
   // #668：首开引导链的步骤清单是「一份顺序、三处读它」里的那一份真源（规格见 #662「定版一」）。
   // 宿主按它给链快照排序（src/host/detectChain.js）；状态栏横幅与注入决策（#663 / #664）也要读它，
   // 所以这份零依赖清单必须拼进界面闭包 —— 客户端半边今天没有任何对 src/shared 的运行时 import。
-  { marker: '// ==== shared:guideSteps (spliced by build) ====', file: 'src/shared/tracker/guide-steps.js' },
+  { marker: '// ==== shared:guideSteps (spliced by build) ====', file: 'src/shared/tracker/guide-steps.ts' },
   { marker: '// ==== shared:namingTitles (spliced by build) ====', file: 'src/shared/naming-titles.ts' },
   { marker: '// ==== shared:namingTracking (spliced by build) ====', file: 'src/shared/naming-tracking.ts' },
   { marker: '// ==== shared:namingAttribution (spliced by build) ====', file: 'src/shared/naming-attribution.ts' },

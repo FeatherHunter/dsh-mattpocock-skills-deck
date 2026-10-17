@@ -1,4 +1,4 @@
-// src/shared/tracker/guide-steps.js —— 首开引导链的顺序真源（#668 落地，规格见 #662「定版一」）。
+// src/shared/tracker/guide-steps.ts —— 首开引导链的顺序真源（#668 落地，规格见 #662「定版一」）。
 // 以后谁改它：改首开引导链有哪些步骤、步骤之间谁先谁后的人。预估约 130 行，超 350 打回。
 // 它是「一份顺序、三处读它」里的那一份：宿主按它给链快照排序（src/host/detectChain.js），
 // 状态栏横幅与注入决策（#663 / #664）从它读「下一步该给什么」。这三处都不许自己再抄一份顺序。
@@ -48,12 +48,32 @@ const BANNER = Object.freeze({
   repo: Object.freeze({ text: 'banner.repo', btn: 'banner.repoBtn', tone: 'warn' }),
 })
 
+/** 横幅声明：三个字段都是 locale 词条键名，界面按它们查文案，不许在这里写死中文。 */
+type GuideBanner = { text: string; btn: string; tone: string }
+
+/** 缺失动作声明：type 定分发去向；prompt 键名注入走后端提示词，text 固定原话走清单直给（今天没有用 text 的步骤，留着是给将来别的后端备的）。 */
+type GuideMissing = { type: string; prompt?: string; text?: string }
+
+/** 清单里的一步：ready 为 'gate' 的步骤不读链快照，排序时自动跳过（见 orderStepsByGuide）。 */
+type GuideStep = {
+  id: string
+  checks: string[]
+  backends: string[]
+  ready: string
+  banner: GuideBanner | null
+  missing: GuideMissing | null
+  blocksSetup: boolean
+}
+
+/** 链快照里一步的最小形状：本文件只读 id 与 status，多余字段原样留在快照里。 */
+type ChainStepRef = { id: string; status: string }
+
 /**
  * 首开引导链的步骤清单（顺序即维护者 2026-09-19 定的那一条）。
  * 每一步的字段见 #662「定版一」：id / checks / backends / ready / banner / missing / blocksSetup。
  * 通用步骤三个后端都写；GitHub 专属的只写 ['github']（GitLab 与本地 Markdown 本轮不插仓库那一段）。
  */
-export const GUIDE_STEPS = Object.freeze([
+export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
   {
     // 第 1 步：后端还没选定。链快照常常比后端选择先到，照快照判会让全新工作区闪一下
     // 「尚未初始化／技能缺失」黄条再跳回蓝条，所以这一步读本地门控状态，不读链快照。
@@ -120,10 +140,11 @@ export const GUIDE_STEPS = Object.freeze([
 
 /**
  * 按后端过滤出适用的步骤，顺序不变。
+ * 后端还没选定（空串或未知 id）时返回空数组而不是抛错：调用处在这种时候仍会照常渲染，只是没有适用步骤。
  * @param {string|null} backendId 'github' | 'markdown' | 'gitlab'（为空或未知则返回空数组）
  * @returns {ReadonlyArray<Object>}
  */
-export function guideStepsFor(backendId) {
+export function guideStepsFor(backendId: string | null | undefined): GuideStep[] {
   try {
     const id = String(backendId || '')
     if (!id) return []
@@ -140,12 +161,12 @@ export function guideStepsFor(backendId) {
  * @param {Array<{id:string,status:string}>} chainSteps 链快照里的步骤（st.chainSnapshot.steps）
  * @returns {boolean}
  */
-export function guideStepDone(step, chainSteps) {
+export function guideStepDone(step: GuideStep | null | undefined, chainSteps: Array<ChainStepRef> | null | undefined): boolean {
   try {
     const ids = step && Array.isArray(step.checks) ? step.checks : []
     if (!ids.length) return false
     const list = Array.isArray(chainSteps) ? chainSteps : []
-    const statusOf = {}
+    const statusOf: Record<string, string> = {}
     for (let i = 0; i < list.length; i++) {
       const it = list[i]
       if (it && it.id != null) statusOf[String(it.id)] = String((it && it.status) || '')
@@ -165,12 +186,12 @@ export function guideStepDone(step, chainSteps) {
  * @param {Array<{id:string,status:string}>} chainSteps 链快照里的步骤
  * @returns {'done'|'failed'|'pending'|'absent'}
  */
-export function guideStepState(step, chainSteps) {
+export function guideStepState(step: GuideStep | null | undefined, chainSteps: Array<ChainStepRef> | null | undefined): 'done' | 'failed' | 'pending' | 'absent' {
   try {
     const ids = step && Array.isArray(step.checks) ? step.checks : []
     if (!ids.length) return 'absent'
     const list = Array.isArray(chainSteps) ? chainSteps : []
-    const statusOf = {}
+    const statusOf: Record<string, string> = {}
     for (let i = 0; i < list.length; i++) {
       const it = list[i]
       if (it && it.id != null) statusOf[String(it.id)] = String((it && it.status) || '')
@@ -187,7 +208,7 @@ export function guideStepState(step, chainSteps) {
  * 这一步今天该出哪一条横幅：默认就是清单里配的那条；只有登录那一步在查不到
  * （pending）时换成中性那一条（#916）。选哪一步仍由 guideBannerStep 定，这里只定文案。
  */
-export function guideBannerOf(step, chainSteps) {
+export function guideBannerOf(step: GuideStep | null | undefined, chainSteps: Array<ChainStepRef> | null | undefined): GuideBanner | null {
   try {
     if (step && String(step.id) === 'gh:authed' && guideStepState(step, chainSteps) === 'pending') return BANNER.ghAuthUnknown
     return (step && step.banner) || null
@@ -198,7 +219,7 @@ export function guideBannerOf(step, chainSteps) {
  * 这一步的按钮点下去该干什么：默认就是清单里配的那一种；只有登录那一步在查不到
  * 时改成强制重查（#916，不注入登录指引）。
  */
-export function guideMissingOf(step, chainSteps) {
+export function guideMissingOf(step: GuideStep | null | undefined, chainSteps: Array<ChainStepRef> | null | undefined): GuideMissing | null {
   try {
     if (step && String(step.id) === 'gh:authed' && guideStepState(step, chainSteps) === 'pending') return MISSING.ghAuthRecheck
     return (step && step.missing) || null
@@ -214,7 +235,7 @@ export function guideMissingOf(step, chainSteps) {
  * @param {string} stepId 步骤 id（例如 'gh:installed'）
  * @returns {string}
  */
-export function guideInjectTextOf(stepId) {
+export function guideInjectTextOf(stepId: string | null | undefined): string {
   try {
     const id = String(stepId == null ? '' : stepId)
     if (!id) return ''
@@ -234,7 +255,7 @@ export function guideInjectTextOf(stepId) {
  * @param {string} stepId 步骤 id（例如 'gh:installed'）
  * @returns {string} 提示词键名（例如 'cliInstall'）；这一步不按提示词键注入时是空串
  */
-export function guideInjectPromptOf(stepId) {
+export function guideInjectPromptOf(stepId: string | null | undefined): string {
   try {
     const id = String(stepId == null ? '' : stepId)
     if (!id) return ''
@@ -254,16 +275,16 @@ export function guideInjectPromptOf(stepId) {
  * @param {Array<Object>} chainSteps 链快照里的步骤
  * @returns {Array<Object>} 排好序的新数组（不改动入参）
  */
-export function orderStepsByGuide(guideSteps, chainSteps) {
+export function orderStepsByGuide(guideSteps: ReadonlyArray<GuideStep> | null | undefined, chainSteps: Array<Record<string, unknown>> | null | undefined): Array<Record<string, unknown>> {
   const list = Array.isArray(chainSteps) ? chainSteps : []
   const steps = Array.isArray(guideSteps) ? guideSteps : []
-  const byId = {}
+  const byId: Record<string, Record<string, unknown>> = {}
   for (let i = 0; i < list.length; i++) {
     const it = list[i]
     if (it && it.id != null && !byId[String(it.id)]) byId[String(it.id)] = it
   }
-  const out = []
-  const taken = {}
+  const out: Array<Record<string, unknown>> = []
+  const taken: Record<string, boolean> = {}
   for (let g = 0; g < steps.length; g++) {
     const step = steps[g]
     if (!step || step.ready === STEP_READY.GATE) continue
