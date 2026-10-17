@@ -1,5 +1,5 @@
-// verify-issue22-popovers.js — issue #22 浮层脱离状态栏裁剪契约
-// 用法: node tests/verify-issue22-popovers.js [file...]
+// verify-issue22-popovers.ts — issue #22 浮层脱离状态栏裁剪契约
+// 用法: node tests/verify-issue22-popovers.ts [file...]
 //
 // 行为 seam：BUG 新增菜单与技能列表必须是 body-level overlay；
 // 布局 wrapper 继续保留横向裁剪职责，但不得再承载向上展开的弹层。
