@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T14:12:37.504Z",
+  "generatedAt": "2026-10-17T15:06:27.566Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -3544,18 +3544,20 @@
         "src/host/outbound/admission.ts",
         "src/host/platformChannel.ts",
         "src/host/skillProbe.js",
+        "src/shared/time-config/values.js",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/host",
         "src/host/outbound",
+        "src/shared/time-config",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-968-skill-ondemand.ts",
@@ -7680,6 +7682,7 @@
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-895-bulk-deadline.ts",
+      "node tests/verify-963-log-order.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.ts",
