@@ -1,11 +1,11 @@
-// tests/verify-969-tiered-timeout.js —— 门禁：分档超时暂定值（#969）
+// tests/verify-969-tiered-timeout.ts —— 门禁：分档超时暂定值（#969）
 // 为什么需要它：以前全仓只有一档 30000，读等得久拖住界面，写杀得早害用户不敢重试，
 // 探活本该最快却也要等满；慢网超时还可能被说成没登录，写超时还可能被自动重试写两遍。
 // 它守三件事（只看外部行为，不看内部队列数组长什么样）：
 //   一、读与写各走各的档（读 12000、写 30000、探活 3000，调用方显式传超时优先）；
 //   二、慢网超时归网络档（未知、稍后），不报没登录；
 //   三、写超时只试一次就停，把超时原样交回调用方人工核对，不自动再发一次。
-// 用法：node tests/verify-969-tiered-timeout.js
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-969-tiered-timeout.ts（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
 import nodePath from 'node:path'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url'
 const ROOT = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: unknown, msg: string, detail?: unknown): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : ' — ' + detail))
   if (!ok) failed = true
@@ -28,7 +28,7 @@ const { createOutboundControl } = await import(pathToFileURL(nodePath.join(ROOT,
 const outbound = createOutboundControl()
 
 // —— 一、纯函数分档：读的短、写的长、探活的最短 ——
-let tiers = null
+let tiers: any = null
 try {
   tiers = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts')).href)
 } catch (e) {
@@ -146,7 +146,7 @@ if (tiers) {
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
 
   // 执行器卡住、连取消都不理：promise 永不落地。房内不能因此被无限拖住。
-  const hangExec = () => new Promise(() => {})
+  const hangExec = (): Promise<never> => new Promise(() => {})
   const events = []
   const hangCtx = {
     outbound,
@@ -180,7 +180,7 @@ if (tiers) {
   check(queued < 2000, '六、排队段到点即返回', '实耗 ' + queued + 'ms')
 
   // ③ 调用方取消照旧算「取消」，不算失败（生产里的执行器会因信号而落地，这里照实模拟）
-  const signalAwareExec = (cmd, args, opts) => new Promise((resolve, reject) => {
+  const signalAwareExec = (cmd: unknown, args: unknown, opts: any) => new Promise((resolve, reject) => {
     const s = opts && opts.signal
     if (s && typeof s.addEventListener === 'function') {
       s.addEventListener('abort', () => { const e = new Error('aborted by caller'); e.aborted = true; reject(e) }, { once: true })

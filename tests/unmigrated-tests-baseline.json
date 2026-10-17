@@ -8,7 +8,6 @@
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
     "tests/verify-958-label-name-visible.js",
-    "tests/verify-969-tiered-timeout.js",
     "tests/verify-972-title-body.js",
     "tests/verify-976-pull-dirty-warn.js",
     "tests/verify-992-readonly-labels.js",
