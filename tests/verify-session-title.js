@@ -11,21 +11,15 @@ const eq = (a, b, msg) => {
   ok(cond, msg);
 };
 
-// ---- 1) 文件级契约：共享核心含所需导出与正则（#265 起命名真源 = src/shared/naming-titles.js，S2 #452 拆出）----
-const src = ['naming-titles.js', 'naming-tracking.js', 'naming-attribution.js'].map((f) => fs.readFileSync(path.join(__dirname, '..', 'src/shared', f), 'utf8')).join('\n');
-ok(src.includes('SESSION_TITLE_MAX_BYTES'), '命名标题文件含 SESSION_TITLE_MAX_BYTES');
-ok(src.includes('SESSION_TITLE_RE'), '命名标题文件含 SESSION_TITLE_RE');
-ok(src.includes('cleanTitleText'), '命名标题文件含 cleanTitleText');
-ok(src.includes('truncateTitleUtf8'), '命名标题文件含 truncateTitleUtf8');
-ok(src.includes('newSessionTitle'), '命名标题文件含 newSessionTitle');
-ok(!src.includes("SESSION_TITLE_PREFIX = '[MattSkills]'"), '无 [MattSkills] 旧前缀');
-ok(src.includes('SESSION_TITLE_MAX_BYTES = 120'), 'MAX_BYTES=120');
-ok(src.includes('/^\\[#\\d+\\] .+/'), '#n 正则存在');
-ok(src.includes('…'), '截断用 … 省略号');
-
-// router.js 侧确认已迁空（无第二处真源）
-const routerSrc = fs.readFileSync(path.join(__dirname, '..', 'src/client/kernel/router.js'), 'utf8');
-ok(!/export\s+(const|function)\s+(SESSION_TITLE_MAX_BYTES|cleanTitleText|newSessionTitle)\b/.test(routerSrc), 'router.js 已不再声明标题真源（#265 迁移）');
+// ---- 1) 文件级契约：只留契约数值这一钉（2026-10-17 删掉十条读源码文本的在场断言）----
+// 删的理由：那十条断的是「源码里有没有这个词、长成什么样」（含 router.js「无第二处真源」的正则扫描），
+// 等价重构就会假红，而它们想守的事都被下面第 2 节的十二例行为断言真跑覆盖了。仓库口径同
+// verify-naming-guardian 第 7 节「单一真源守卫（已删）」那一节。
+// 留下的这一条是契约数值本身：120 字节是产品对外承诺的边界，改它属于改契约，必须有人看见。
+// 取源走共用入口（源码优先、不读构建产物），等这几个命名模块转 .ts 那天也不会读到双引号产物。
+const { sourceText } = require('./lib/source-text.ts');
+const namingSrc = sourceText('src/shared/naming-titles.js');
+ok(namingSrc.includes('SESSION_TITLE_MAX_BYTES = 120'), '命名标题真源里 MAX_BYTES = 120（契约数值）');
 
 (async () => {
   // ---- 2) 功能级：直接复跑共享核心实现（与产物同源的同一份文本）----

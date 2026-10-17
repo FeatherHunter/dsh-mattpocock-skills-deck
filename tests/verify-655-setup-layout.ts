@@ -74,6 +74,14 @@ const fUrl = (f: string) => require('url').pathToFileURL(path.join(root, f)).hre
 async function loadLocale(): Promise<LocalePair> {
   const { pathToFileURL } = require('url')
   const url = (f: string) => pathToFileURL(path.join(root, f)).href
+  // 2026-10-17 先修装载方式（判据一条没动）：locale-flow 片段引用了构建期才拼接出来的
+  //   SETTINGS_DEBUG_PUSH_WAIT_MS（真源 src/shared/time-config/values.js），单独 import 会
+  //   ReferenceError。照 tests/verify-locale-completeness.ts 的先例，先把中央时间真值的数值导出
+  //   挂到 globalThis（ESM 裸标识符会回落到全局），不手抄数字。
+  const centralTimeValues: Record<string, unknown> = await import(url('src/shared/time-config/values.js'))
+  for (const k of Object.keys(centralTimeValues)) {
+    if (typeof centralTimeValues[k] === 'number' && (globalThis as any)[k] === undefined) (globalThis as any)[k] = centralTimeValues[k]
+  }
   const P = await import(url('src/client/kernel/locale-panel.js'))
   const F = await import(url('src/client/kernel/locale-flow.js'))
   const W = await import(url('src/client/kernel/locale-word.js'))

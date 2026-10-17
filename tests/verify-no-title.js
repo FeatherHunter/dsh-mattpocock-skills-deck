@@ -117,10 +117,18 @@ if (fs.existsSync(tipPath)){
   check(lines<=50, lines<=50?'ok':'error', '粒度 ' + tipPath + ' ' + lines + ' 行 ' + (lines<=50?'≤50（通过）':'>50（超限）'))
   const hasHoverTip = /HoverTip/.test(src)
   check(hasHoverTip, hasHoverTip?'ok':'error', 'Tip 消费 HoverTip（经闭包，直连 HoverTip）')
-  const hasPreset = /500/.test(src) && /160/.test(src) && /220/.test(src) && /2147483000/.test(src) && /mouse/.test(src)
-  check(hasPreset, hasPreset?'ok':'error', 'Tip 预设含 500/160/220/2147483000/mouse（薄预设完整）')
-  const hasImport = /^\s*import\s/m.test(src)
-  check(!hasImport, !hasImport?'ok':'error', 'Tip 零横向 import（同层禁互 import）')
+  // 2026-10-17 先修两条陈旧断言：
+  //   ① 「薄预设」原来写死 500/160，而这两个等待毫秒已经搬进中央时间真值 config/intervals.yaml
+  //      （由 tests/verify-time-config.ts 反向锁着 Tip.js 的两个常量导入），在门禁里再写一遍数字
+  //      正是仓库明令不要的「第二份数字」。改成按今天的真形态断：鼠标模式、最大宽度 220、
+  //      层级 2147483000，延迟走两个中央常量而不是字面量。
+  const hasPreset = /mode:\s*'mouse'/.test(src) && /maxWidth:\s*220/.test(src) && /2147483000/.test(src) &&
+    /TIP_SHOW_DELAY_MS/.test(src) && /TIP_HIDE_DELAY_MS/.test(src) && !/\b(500|160)\b/.test(src)
+  check(hasPreset, hasPreset?'ok':'error', 'Tip 预设按今天的薄形态：mouse/220/2147483000，延迟走中央时间常量、不写第二份数字')
+  //   ② 「零横向 import」原来禁一切 import，比真规则（同层禁互引）严，而 Tip 从共享层取中央时间常量
+  //      是必要的 import，于是恒假。这条不变量已由 tests/verify-dependency-rules.ts 与
+  //      tests/same-layer-baseline.json 真守，这里只把假断言删掉留一行说明。
+  //   （曾经写在这里的 const hasImport = /^\s*import\s/m.test(src) 已随本次修复删除。）
 } else {
   check(false, 'error', '缺真源 ' + tipPath + '（Tip 未落地）')
 }

@@ -91,6 +91,14 @@ async function main() {
   const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale.js'].map((f) => sourceText(f)).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，src 侧读五文件拼合（panel 含 setup 全家，合并器无键仅合并逻辑）；#698 起布局那一问的四条键在 locale-pages.js（panel 贴着 350 行上限）；#1209 起取源走共用入口拿 .ts 真源
 
   const P = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/prompts.js'))).href)
+  // 2026-10-17 先修装载方式（判据一条没动）：locale-flow 等片段引用了构建期才拼接出来的
+  //   SETTINGS_DEBUG_PUSH_WAIT_MS（真源 src/shared/time-config/values.js），单独 import 片段时
+  //   裸标识符未定义会当场 ReferenceError（同根受害的还有 tests/verify-655-setup-layout.ts）。
+  //   照 tests/verify-locale-completeness.ts 的先例：先把中央时间真值的数值导出挂到 globalThis。
+  const centralTimeValues = await import(pathToFileURL(path.join(root, sourcePath('src/shared/time-config/values.js'))).href)
+  for (const k of Object.keys(centralTimeValues)) {
+    if (typeof centralTimeValues[k] === 'number' && globalThis[k] === undefined) globalThis[k] = centralTimeValues[k]
+  }
   const LOCALE_PANEL = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-panel.js'))).href) // #458 K5：合并器在构建闭包内才可见三片段，单文件 import 拿不到 L，故此处直引三片段按合并器同逻辑拼出 L
   const LOCALE_FLOW = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-flow.js'))).href)
   const LOCALE_WORD = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-word.js'))).href)
