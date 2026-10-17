@@ -108,11 +108,6 @@
       "file": "tests/verify-chain-renderer.ts",
       "reason": "待修门禁：4 处旧锚（必填硬字、模板搬家、谓词改名），重锚后进链",
       "ticket": "#1125"
-    },
-    {
-      "file": "tests/verify-detail-levels.js",
-      "reason": "待修门禁：同上",
-      "ticket": "#1125"
     }
   ],
   "_已删除": "2026-10-16 删掉 2 扇复刻自测（把源码逻辑抄进门禁里再断言，源码坏了照样绿， maintainer 同意去无价值门禁）：tests/verify-blocked-filter.js、tests/verify-t2b-templates.js。两处棘轮基线已同步（unmigrated 重录 318，handwritten 删行）。",

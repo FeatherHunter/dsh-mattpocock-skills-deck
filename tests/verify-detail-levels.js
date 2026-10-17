@@ -1,15 +1,16 @@
 // verify-detail-levels.js — 分层 MapDetail 数据层验证（T1 #442）
 // 断言：wf.snapshot 每个 map 的 stats.levels 结构正确 + 每张票带 level + DAG 分层语义自洽
-// 用法: node tests/verify-detail-levels.js <仓库根目录>
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-detail-levels.js <仓库根目录>
+// 为什么不再读根目录的 host.js：那是 gitignore 的构建产物，别人改完 src 没重建时这里量到的是旧行为
+//   （2026-10-17 之前它就红在这上面：宿主改成 apply 内部自己收注册、经 /api/dsws 分发之后，
+//   老的「假 harness 收 handler」写法一个 handler 都收不到）。现在直接 import 真源 src/host/index.ts，
+//   再照客户端的样子发一次真信封，走的就是生产那一条通路。
 const fsx = require('fs')
 const fsp = fsx.promises
 const path = require('path')
 const { spawn } = require('child_process')
-// 本文件按文本求值统一走共用入口 compileFn：把 host 产物文本配假 harness/ctx 造成插件（理由与用法见 tests/lib/eval-probe.js 文件头）。
-const { compileFn } = require('./lib/eval-probe.js')
 
 const REPO_CWD = process.argv[2] || process.cwd()
-const HOST_JS = path.join(__dirname, '..', 'host.js')
 
 const subprocess = {
   async resolveExecutable(name) {
@@ -44,15 +45,67 @@ const fsSvc = {
   async readText(t) { return fsp.readFile(t, 'utf8') },
   processPath(t) { return t },
 }
+// 宿主今天的样子（2026-10-17 核对 src/host/index.ts 与 src/host/rpcChannel.js）：
+//   apply 内部自己造 harness 表，把 59 条电话注册进一张 Map，再把这张表交给 RPC 通道；
+//   通道用 ctx.get('connection').fetch.register 挂一条精确路由 /api/dsws，
+//   端点名在请求体里（wf. 前缀在注册时被剥掉），调用要走真实信封。
+// 所以这里不再用「假 harness 收 handler」那种老写法（那样一个 handler 也收不到，
+// 门禁会红在 h['wf.refresh'] is not a function 上），改成把 connection.fetch.register 接下来，
+// 再照客户端的样子发一次 POST 信封。这条通路正是生产走的那一条。
+const HOST_ROUTE = '/api/dsws'
+const RPC_ID = 'verify-detail-levels'
+const ROUTE_WAIT_MS = 5000
+
 function loadPlugin(services) {
-  const handlers = {}
-  const harness = { handle: (name, fn) => { handlers[name] = fn } }
-  const ctx = { get: n => services[n], effect: fn => { const d = fn(); return typeof d === 'function' ? d : () => {} } }
-  // 产物是一段可执行文本：改走共用入口 compileFn，两个参数名照原样列出。
-  const fn = compileFn(['harness', 'ctx'], fsx.readFileSync(HOST_JS, 'utf8'))
-  const plugin = fn(harness, ctx)
-  plugin.apply(ctx)
-  return handlers
+  let routeFetch = null
+  const connection = {
+    fetch: {
+      register(spec) { routeFetch = spec.fetch; return function () {} },
+    },
+  }
+  const ctx = {
+    get: name => (name === 'connection' ? connection : services[name]),
+    effect: fn => { const d = fn(); return typeof d === 'function' ? d : function () {} },
+    inject: () => {},
+  }
+
+  // 通道注册是异步的（宿主内部动态 import 通道模块）：等到路由出现为止；等不到就直说失败。
+  // 不能静默略过——「一条断言都没跑却退出 0」正是这扇门禁最容易骗人的地方。
+  async function waitRoute() {
+    const t0 = Date.now()
+    while (routeFetch === null && Date.now() - t0 < ROUTE_WAIT_MS) await new Promise(r => setTimeout(r, 20))
+    if (routeFetch === null) {
+      throw new Error('宿主没有把 RPC 通道注册进来（等了 ' + ROUTE_WAIT_MS + 'ms）：先确认 src/host/rpcChannel.js 还在、connection.fetch.register 的形状没变')
+    }
+    return routeFetch
+  }
+
+  // 一次真调用：照 src/seam/rpc.js 的信封形状发 POST，取 result.value；失败信封原样报出来。
+  async function callEndpoint(endpoint, payload) {
+    const route = await waitRoute()
+    const req = new Request('http://dsh.internal' + HOST_ROUTE, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: RPC_ID, payload: { method: endpoint, payload } }),
+    })
+    const res = await route(req)
+    const env = await res.json()
+    const result = env && env.result
+    if (!result || result.ok !== true) {
+      throw new Error('端点 ' + endpoint + ' 没回成功：' + JSON.stringify((result && result.error) || result))
+    }
+    return result.value
+  }
+
+  async function start() {
+    // 真源是 TypeScript：显式 .ts 说明符，装载钩子会按同名优先规则处理它内部的 .js 说明符。
+    const mod = await import('../src/host/index.ts')
+    const plugin = mod.default
+    plugin.apply(ctx)
+    return { callEndpoint }
+  }
+
+  return { start, callEndpoint }
 }
 
 async function main() {
@@ -63,8 +116,9 @@ async function main() {
     else console.log('  ✓', name)
   }
 
-  const h = loadPlugin({ subprocess, timer, fs: fsSvc })
-  const snap = await h['wf.refresh']({ cwd: REPO_CWD })
+  const { start, callEndpoint } = loadPlugin({ subprocess, timer, fs: fsSvc })
+  await start()
+  const snap = await callEndpoint('refresh', { cwd: REPO_CWD })
   expect('快照 ok', snap && snap.ok === true)
   const maps = (snap && Array.isArray(snap.maps)) ? snap.maps : []
 
