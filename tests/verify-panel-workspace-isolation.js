@@ -1,92 +1,108 @@
 // verify-panel-workspace-isolation.js — #45 多工作区隔离回归
-// 验证 client.js 的 probeNow 已按 cwd 分组隔离，禁止跨工作区广播
-// 用法: node tests/verify-panel-workspace-isolation.js
+// 量什么：客户端探查链路（src/client/kernel/probe-auto.js）在多工作区下不许串台 ——
+//   按工作区键分组、组内共用一次重建、组间零污染；兜底路径按 sessionId→cwd 精确映射，不许把首个 cwd 错绑给所有空 store。
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-panel-workspace-isolation.js
+//
+// 2026-10-17 重写（先修后转的第一笔）：原来读的是构建产物 client.js / package/lib/client.js，
+//   两份产物都不在 git 里，别人改完源码不重建时这里量的还是旧行为；其中一条断言还写成了
+//   「或含 keyOf(...) 字样」，把判据放宽到恒真（把 `===` 反向改坏它也照样绿）。
+//   现在读真源，每条判据都配一个「把源码改坏必须判红」的变异自检：跑不红就说明判据没牙，门禁自己判红。
+// 只看文本形状，不执行产品代码；整行注释先剥掉，免得注释里的旧写法把判据带偏。
 const fs = require('fs')
-const assert = require('assert')
+const path = require('path')
 
-function checkFile(path){
-  const src = fs.readFileSync(path, 'utf8')
-  const checks = []
-  const ok = (cond, msg)=> { checks.push({msg, pass: !!cond}); console.log((cond?'  PASS ':'  FAIL ')+msg+ ' :: '+path); if(!cond) console.error('    ✗',msg) }
-  // 1) 必须包含 refreshGroup 辅助（按 cwd 分组）
-  ok(/const refreshGroup\s*=\s*function\s*\(cwd\)/.test(src), '存在 refreshGroup(cwd) 按组刷新辅助')
-  // 2) 组收集必须精确匹配 cwd === 探查 cwd（#324 升级为归一键相等，兼容直接相等与 keyOf 相等）
-  ok(/if\s*\(\s*shared\.cwd\s*===\s*cwd\s*\)/.test(src) || /shared\.cwd\s*===\s*cwd/.test(src) || /keyOf\(shared\.cwd\)\s*===/.test(src) || /keyOf\(shared\.cwd\)/.test(src), 'shared 仅当 cwd === probed cwd 时入组（含归一键）')
-  ok(/if\s*\(\s*st\.cwd\s*===\s*cwd\s*\)/.test(src) || /st\.cwd\s*===\s*cwd/.test(src) || /keyOf\(st\.cwd\)/.test(src), 'stores 仅当 st.cwd === cwd 时入组（含归一键）')
-  // 3) 禁止旧全量广播模式：不应出现无条件 Object.keys(stores).forEach(... st2.snapshot = newSnap) 且中间无 cwd 过滤
-  // 我们检测旧缺陷指纹：if (cwd && !st2.cwd) st2.cwd = cwd 后直接全量赋值且无 cwd 过滤的连续段
-  const hasOldAssign = /if\s*\(\s*cwd\s*&&\s*!st2\.cwd\s*\)\s*st2\.cwd\s*=\s*cwd/.test(src)
-  ok(!hasOldAssign, '已移除旧“if(cwd && !st2.cwd) st2.cwd=cwd 后全量广播”缺陷指纹')
-  // 4) 空组时仅暖缓存不污染 UI
-  ok(/rpcCall\('refresh'/.test(src) || /host\.call\('wf\.refresh'/.test(src), '空组时暖 host 缓存（wf.refresh）而非误写 UI')
-  // 5) 兜底路径按 sid→cwd 精确映射，而非首个 cwd 统一赋值
-  ok(/sidToCwd/.test(src), '兜底路径建立 sidToCwd 精确映射')
-  ok(!/if\s*\(\s*shared\.cwd\s*!==\s*foundCwds\[0\]\s*\)\s*shared\.cwd\s*=\s*foundCwds\[0\]/.test(src), '已移除兜底“shared.cwd = foundCwds[0] 无条件首绑”缺陷')
-  // 6) 双源一致性：probeNow 结构在双源中同构
-  const hasHelperInBoth = /refreshGroup/.test(src)
-  ok(hasHelperInBoth, 'probeNow helper 在当前文件存在')
-  // 7) 确保 loadSnapshot 调用带正确 cwd（primary.cwd 已校验）
-  ok(/loadSnapshot\(primary/.test(src), '组内首个 primary 负责 loadSnapshot（正确 cwd）')
+const SRC_REL = 'src/client/kernel/probe-auto.js'
+const ROOT = path.join(__dirname, '..')
 
-  const failed = checks.filter(c=>!c.pass)
-  return {pass: failed.length===0, failed, checks}
+// 剥掉整行注释（源码里诸如「从前这一行下面一律 loadSnapshot(primary, true, true)」这类说明，
+// 是历史记录，不该被当成今天的调用点）。
+function stripLineComments(src) {
+  return src.replace(/^[ \t]*\/\/.*$/gm, '')
 }
 
-console.log('=== #45 工作区隔离静态校验 ===')
-let allPass = true
-for(const f of ['client.js','package/lib/client.js']){
-  console.log('\n-- 检查',f,'--')
-  const r = checkFile(f)
-  if(!r.pass) allPass = false
-}
+const RULES = [
+  {
+    name: '存在 refreshGroup(cwd) 按组刷新辅助',
+    bad: src => !/const\s+refreshGroup\s*=\s*function\s*\(\s*cwd\s*\)/.test(src),
+  },
+  {
+    name: '分组前先把 cwd 归一成工作区键（normWanted = wsKeyOf(cwd)）',
+    bad: src => !/const\s+normWanted\s*=\s*wsKeyOf\(cwd\)/.test(src),
+  },
+  {
+    name: 'shared 只在与探查工作区同键时入组',
+    bad: src => !/wsKeyOf\(shared\.cwd\)\s*===\s*normWanted/.test(src),
+  },
+  {
+    name: 'stores 只在与探查工作区同键时入组',
+    bad: src => !/st\.cwd\s*&&\s*wsKeyOf\(st\.cwd\)\s*===\s*normWanted/.test(src),
+  },
+  {
+    name: '已移除旧缺陷指纹：if (cwd && !st2.cwd) st2.cwd = cwd 之后无条件全量广播',
+    bad: src => /if\s*\(\s*cwd\s*&&\s*!st2\.cwd\s*\)\s*st2\.cwd\s*=\s*cwd/.test(src),
+  },
+  {
+    name: '空组时不发全量重建（#232 R3：无人观看的工作区静默放行）',
+    bad: src => {
+      const m = src.match(/if\s*\(\s*!group\.length\s*\)\s*\{([\s\S]*?)\n\s*\}/)
+      if (!m) return true
+      return /host\.call\(\s*'wf\.refresh'|rpcCall\(\s*'refresh'/.test(m[1])
+    },
+  },
+  {
+    name: '兜底路径按 sessionId→cwd 精确映射（sidToCwd 表要真的被用来赋值）',
+    bad: src => !(/sidToCwd\[st\.sessionId\]/.test(src) && /st\.cwd\s*=\s*sidToCwd\[/.test(src)),
+  },
+  {
+    name: '已移除首绑缺陷指纹：shared.cwd !== foundCwds[0] 时无条件改写',
+    bad: src => /if\s*\(\s*shared\.cwd\s*!==\s*foundCwds\[0\]\s*\)\s*shared\.cwd\s*=\s*foundCwds\[0\]/.test(src),
+  },
+  {
+    name: '组内首个 primary 负责 loadSnapshot（带正确 cwd）',
+    bad: src => !/loadSnapshot\(primary/.test(src),
+  },
+]
 
-// 8) 动态隔离模拟（与 repro-issue45 同模型，但用新 helper 逻辑平行验证）
-console.log('\n=== 动态隔离模拟（双工作区并发）===')
-function makeStore(cwd, title){
-  return { cwd, snapshot:{ ok:true, maps:[{number:1, title}], repo:{owner:'o',name:'r'} }, lastDiff:{}, rowFlash:{}, issueFlash:{}, snapMode:'real', snapError:null, sessionId:'sid-'+cwd }
-}
-function diffSnapshots(a,b){ return {added:[], removed:[], changed:[], issueFlash:{}} }
-function simulateFixed(cwdChanged, stores, shared){
-  const group=[]
-  if(shared.cwd===cwdChanged) group.push(shared)
-  Object.keys(stores).forEach(k=>{ if(stores[k].cwd===cwdChanged) group.push(stores[k]) })
-  if(!group.length) return false
-  const primary=group[0]
-  const snapshotNew={ ok:true, maps:[{number:99, title:'NEW '+cwdChanged}], repo:{owner:'o',name:'r'}, generatedMs: Date.now()}
-  primary.snapshot=snapshotNew
-  const rest=group.slice(1)
-  rest.forEach(st2=>{
-    st2.snapshot=snapshotNew
-  })
-  return true
-}
-const sA=makeStore('/repoA','A-init')
-const sB=makeStore('/repoB','B-init')
-const shared2=makeStore('/repoA','sharedA')
-const storesSim={sA, sB}
-console.log('  初始 sA', sA.snapshot.maps[0].title, 'sB', sB.snapshot.maps[0].title)
-simulateFixed('/repoA', storesSim, shared2)
-console.log('  变更 cwd=/repoA 后 sA', sA.snapshot.maps[0].title, 'sB', sB.snapshot.maps[0].title, 'shared', shared2.snapshot.maps[0].title)
-const dynPass = sA.snapshot.maps[0].title === 'NEW /repoA' && sB.snapshot.maps[0].title === 'B-init' && shared2.snapshot.maps[0].title === 'NEW /repoA'
-console.log((dynPass?'  PASS ':'  FAIL ')+'动态：仅同 cwd 组更新，异组保持不变')
-if(!dynPass) allPass=false
+// 每个判据配一个变异：改坏之后这条判据必须报红。
+const MUTATIONS = [
+  { rule: '存在 refreshGroup(cwd) 按组刷新辅助', from: 'const refreshGroup = function (cwd)', to: 'const refreshGroupX = function (cwd)' },
+  { rule: '分组前先把 cwd 归一成工作区键（normWanted = wsKeyOf(cwd)）', from: 'const normWanted = wsKeyOf(cwd)', to: 'const normWanted = cwd' },
+  { rule: 'shared 只在与探查工作区同键时入组', from: 'wsKeyOf(shared.cwd) === normWanted', to: 'true' },
+  { rule: 'stores 只在与探查工作区同键时入组', from: 'st.cwd && wsKeyOf(st.cwd) === normWanted', to: 'true' },
+  { rule: '已移除旧缺陷指纹：if (cwd && !st2.cwd) st2.cwd = cwd 之后无条件全量广播', from: 'const primary = group[0]', to: 'if (cwd && !st2.cwd) st2.cwd = cwd\n          const primary = group[0]' },
+  { rule: '空组时不发全量重建（#232 R3：无人观看的工作区静默放行）', from: 'if (!group.length) {', to: "if (!group.length) { host.call('wf.refresh', { cwd: cwd });" },
+  { rule: '兜底路径按 sessionId→cwd 精确映射（sidToCwd 表要真的被用来赋值）', from: 'st.cwd = sidToCwd[st.sessionId]', to: 'st.cwd = foundCwds[0]' },
+  { rule: '已移除首绑缺陷指纹：shared.cwd !== foundCwds[0] 时无条件改写', from: 'const foundCwds = Array.from(foundCwdsByNorm.values())', to: 'const foundCwds = Array.from(foundCwdsByNorm.values())\n          if (shared.cwd !== foundCwds[0]) shared.cwd = foundCwds[0]' },
+  { rule: '组内首个 primary 负责 loadSnapshot（带正确 cwd）', from: 'loadSnapshot(primary, true, true)', to: 'loadSnapshot(rest[0], true, true)' },
+]
 
-// 9) 验证旧 bug 模型确实会串台（对比）
-console.log('\n=== 对比：旧全量广播模型会串台 ===')
-function simulateBuggy(cwdChanged, stores, shared){
-  const snapshotNew={ ok:true, maps:[{number:99, title:'NEW '+cwdChanged}], repo:{owner:'o',name:'r'}}
-  Object.keys(stores).forEach(k=>{ stores[k].snapshot=snapshotNew })
-  shared.snapshot=snapshotNew
+let failed = 0
+const ok = (cond, msg) => { console.log((cond ? '  PASS ' : '  FAIL ') + msg); if (!cond) { failed++; console.error('    ✗', msg) } }
+
+const abs = path.join(ROOT, SRC_REL)
+if (!fs.existsSync(abs)) {
+  console.error('找不到真源 ' + SRC_REL + '：先确认它没被改名或搬家')
+  process.exit(1)
 }
-const sA2=makeStore('/repoA','A-init')
-const sB2=makeStore('/repoB','B-init')
-const sharedBug=makeStore('/repoA','sharedA')
-simulateBuggy('/repoA', {sA:sA2, sB:sB2}, sharedBug)
-const buggyPollutes = sB2.snapshot.maps[0].title === 'NEW /repoA'
-console.log('  buggy 后 sB title=', sB2.snapshot.maps[0].title, '是否污染', buggyPollutes, '(预期 true)')
-console.log((buggyPollutes?'  PASS ':'  FAIL ')+'旧模型确会污染（反证）')
-if(!buggyPollutes) allPass=false
+const raw = fs.readFileSync(abs, 'utf8')
+const src = stripLineComments(raw)
+
+console.log('=== #45 工作区隔离（读真源 ' + SRC_REL + '）===')
+for (const rule of RULES) ok(!rule.bad(src), rule.name)
+
+console.log('\n=== 变异自检：把源码改坏一处，对应判据必须报红 ===')
+for (const mut of MUTATIONS) {
+  const rule = RULES.find(r => r.name === mut.rule)
+  // 在剥掉注释后的文本上做变异：否则第一处命中可能落在注释里的历史写法上，
+  // 真正跑的那行没被动到，自检就会假装判据没牙（或反过来假装变异没落地）。
+  const mutated = src.split(mut.from).join(mut.to)
+  if (mutated === src) {
+    ok(false, '变异没落地（源码里找不到片段：' + mut.from + '）——判据锚点已过期，请同步')
+    continue
+  }
+  ok(rule.bad(mutated) === true, '改坏后判红：' + mut.rule)
+}
 
 console.log('\n=== 汇总 ===')
-if(allPass) { console.log('全部通过 ✅ — #45 隔离修复已生效且无回归'); process.exit(0) }
-else { console.log('存在失败 ❌'); process.exit(1) }
+if (failed === 0) { console.log('全部通过 ✅ — #45 隔离判据在真源上成立，且每条判据都改得红'); process.exit(0) }
+console.log('存在失败 ❌ — 共 ' + failed + ' 项'); process.exit(1)
