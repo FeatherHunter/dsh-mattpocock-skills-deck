@@ -8,7 +8,7 @@
 //   而门禁要求已冻结的文件只许减不许增——搬出来既过门禁，也让通道的注册与协议自成一页。
 import { readFileSync } from 'node:fs'
 
-// 通道名与载体（#596）。客户端 src/seam/rpc.js 调 conn.rpc.call('/api', 'dsws', { method, payload })，
+// 通道名与载体（#596）。客户端 src/seam/rpc.ts 调 conn.rpc.call('/api', 'dsws', { method, payload })，
 // DSH 据此拼出请求路径 /api/dsws，与本文件注册的精确路径一致；真正的端点名在请求体里。
 export const DSW_RPC_CHANNEL = 'dsws'
 export const DSW_RPC_ROUTE = '/api' + '/' + DSW_RPC_CHANNEL

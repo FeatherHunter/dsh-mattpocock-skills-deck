@@ -12,7 +12,7 @@
 //   · 真注册表 `src/tracker/registry/core.ts`（经 `src/host/platformChannel.js` 装起来，不另造一个）；
 //   · 真检查链 `src/host/detectChain.ts` 与真退避 `src/host/refresh/chainBackoff.js`（**不给替身**）；
 //   · 真客户端 `src/client/kernel/probe-chain.js` 的 `loadChain`（按 tests/verify-669-chain-after-pick.js
-//     同一套沙箱取真身）与真通道解包 `src/seam/rpc.js` 的 `createPkgHost`。
+//     同一套沙箱取真身）与真通道解包 `src/seam/rpc.ts` 的 `createPkgHost`。
 // 换掉的只有「外面那个世界」：起进程（`subprocess` 服务）与 gh / git 的答复、以及时基。界面那一层不碰。
 //
 // 它盯三件事（打勾的是这次故障里真的坏掉的那几条）：

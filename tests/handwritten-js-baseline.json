@@ -208,7 +208,6 @@
     "src/host/workspaceLabelColors.js",
     "src/seam/gate.js",
     "src/seam/index.js",
-    "src/seam/rpc.js",
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js"

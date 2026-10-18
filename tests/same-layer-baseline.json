@@ -141,7 +141,7 @@
     {
       "file": "src/seam/index.js",
       "spec": "./runtime.js",
-      "resolved": "src/seam/runtime.js",
+      "resolved": "src/seam/runtime.ts",
       "layer": "seam",
       "count": 1,
       "owner": "二批·seam拆分票（待开，聚合出口）",
@@ -150,7 +150,7 @@
     {
       "file": "src/seam/index.js",
       "spec": "./rpc.js",
-      "resolved": "src/seam/rpc.js",
+      "resolved": "src/seam/rpc.ts",
       "layer": "seam",
       "count": 1,
       "owner": "二批·seam拆分票（待开，聚合出口）",
@@ -159,7 +159,7 @@
     {
       "file": "src/seam/index.js",
       "spec": "./style.js",
-      "resolved": "src/seam/style.js",
+      "resolved": "src/seam/style.ts",
       "layer": "seam",
       "count": 1,
       "owner": "二批·seam拆分票（待开，聚合出口）",
@@ -168,7 +168,7 @@
     {
       "file": "src/seam/index.js",
       "spec": "./timer.js",
-      "resolved": "src/seam/timer.js",
+      "resolved": "src/seam/timer.ts",
       "layer": "seam",
       "count": 1,
       "owner": "二批·seam拆分票（待开，聚合出口）",
@@ -177,7 +177,7 @@
     {
       "file": "src/seam/index.js",
       "spec": "./editor.js",
-      "resolved": "src/seam/editor.js",
+      "resolved": "src/seam/editor.ts",
       "layer": "seam",
       "count": 1,
       "owner": "二批·seam拆分票（待开，聚合出口）",
