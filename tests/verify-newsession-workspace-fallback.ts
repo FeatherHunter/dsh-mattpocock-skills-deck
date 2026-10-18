@@ -14,6 +14,10 @@
 // 与 verify-newsession-preset-guard.ts 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行。
 
 const fs = require('fs')
+// 取源走共用入口（tests/lib/source-text.ts）：拼给沙箱的那几片要当场求值，所以走 spliceableJs ——
+//   它按「同名 .ts 优先」解到真源，再按构建同一份口径转译成可 eval 的 JavaScript（去类型标注、去注释、剥行首 export）。
+//   参数仍写 .js 说明符，读到的就是今天那份 .ts 真源。
+const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
 const { compileFn: compileFnRaw } = require('./lib/eval-probe.js')
 
 // #1215 之后的必修：api 源码里新加了模块级 import（api-new-session.js 的会话 tick / 交接延迟、
@@ -28,36 +32,48 @@ const SANDBOX_CONSTS = ['CLIENT_SESSION_TICK_MS', 'CLIENT_HANDOFF_DELAY_MS', 'DR
 const stripModuleImports = (text) => String(text).replace(/^\s*import\s[^\n]*$/gm, '')
 const compileFn = (paramNames, body) => compileFnRaw(paramNames, SANDBOX_CONSTS + '\n' + stripModuleImports(body))
 
-const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.ts'] // #457 K4 + #636：api 拆分文件 + 工作区查找模块，src 侧读四文件拼合（查找块经独立锚点提取；api-io 于 #1111 转成 .ts，锚点写在源码里）
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
-const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退/查找全量（跨 naming、workspace 与 new-session，单文件含不全）
-const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：四文件全存在才算存在
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-handoff.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4 + #636 + #1251：api 拆分文件 + 工作区查找模块 + 交接执行模块。src 侧读五文件拼合：查找块用独立锚点提取，它的终止锚点 probeHandoffReady 从 #1251 起住在 api-handoff.ts（api-io 于 #1111、api-handoff 于 #1251 转成 .ts，一律写 .js 说明符，由共用入口解到同名 .ts 真源）
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-handoff.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
+// #1251：拼合那一腿改走 spliceableJs（五片都按构建同一份口径转译成可 eval 的 JS）。原来直接 fs.readFileSync
+//   读真源，读到的 .ts 带类型标注与 declare 行，喂进 new Function 当场语法错；产物的注释又被剥掉，两端形状对不上。
+const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => spliceableJs(f)).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退/查找全量（跨 naming、workspace、handoff 与 new-session，单文件含不全）
+const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => { try { return fs.existsSync(sourcePath(f)) } catch (e) { return false } }) : fs.existsSync(file) // #457 K4：五文件全存在才算存在
+
+// 「命名守护」那一段的第一条语句：源码里它上面还压着几行说明注释，而注释经转译会被剥掉，
+//   所以「工厂块到哪儿为止」一律用代码锚点，不再用 `// ==== 命名守护` 那行注释当终点（#1251）。
+const NAMING_GUARD_ANCHOR = 'let _namingPullBusy = false'
 
 function extractOpenFn(src) {
-  const marker = 'const openTextInNewSession = function (st, text, title'
-  const src2 = src.indexOf(marker) >= 0 ? src : src.replace(/export const openTextInNewSession/, 'const openTextInNewSession')
-  const i = src2.indexOf(marker)
+  // 锚点按转译后的形状写：esbuild 把 `function (st: any, text: any, title: any, opts?: any)` 收成
+  //   `function(st, text, title, opts)` —— 函数关键字与括号之间没有空格，参数上的类型标注全没了。
+  //   源（.ts 经 spliceableJs 转译）与产物（package/lib/client.js）两条腿都是这个形状，一个锚点够用。
+  const marker = 'const openTextInNewSession = function(st, text, title'
+  const i = src.indexOf(marker)
   if (i < 0) throw new Error('起始锚点缺失: openTextInNewSession')
   // 终止锚点写成 `//!`（法律注释）：api-io 转成 TypeScript 之后由 esbuild 出产物，普通注释会被去掉，
   // 只有 `//!` 这一种能一路留到 package/lib/client.js，源与产物两条腿才能用同一个锚点（#1111）。
-  const j = src2.indexOf('//! #361 原入口：行级「在新会话打开」保留', i)
+  const j = src.indexOf('//! #361 原入口：行级「在新会话打开」保留', i)
   if (j < 0) throw new Error('终止锚点缺失: #361 注释')
-  return src2.slice(i, j)
+  return src.slice(i, j)
 }
 
 function extractFactoryBlock(src) {
-  const start = src.indexOf('// ============ 单点工厂 createPTCSession 原子化')
-  const end = src.indexOf('// ============ 命名守护', start)
+  // 起点 = 工厂那一段的第一条声明（getRowPreset，住在 api-naming.ts）；
+  // 终点 = 「命名守护」那一段的第一条语句。两端都是代码锚，源与产物同形。
+  const start = src.indexOf('const getRowPreset = function')
+  const end = src.indexOf(NAMING_GUARD_ANCHOR, start)
   if (start < 0 || end < 0) throw new Error('工厂块锚点缺失')
   return src.slice(start, end)
 }
 
 function extractEnsureWorkspaceId(src) {
-  const marker = 'const ensureWorkspaceId = function (cwd) {'
+  const marker = 'const ensureWorkspaceId = function(cwd) {'
   const i = src.indexOf(marker)
   if (i < 0) throw new Error('ensureWorkspaceId 起始缺失')
-  // 找到匹配的闭合：数括号层级，简化以 "      }\n      ensureCwd" 定位
-  const endMarker = '      ensureCwd().then'
+  // 终点是它在同文件里被调用的那一行（薄转发函数就在这一行之前收尾，闭合大括号留在切片里）。
+  // #1251：不再连行首缩进一起锚 —— esbuild 会把缩进重排（源码 6 空格 → 产物 2 空格），
+  //   只认 `ensureCwd().then` 这一段，源与产物两条腿同形。
+  const endMarker = 'ensureCwd().then'
   const j = src.indexOf(endMarker, i)
   if (j < 0) throw new Error('ensureWorkspaceId 终止缺失')
   return src.slice(i, j)
@@ -65,6 +81,8 @@ function extractEnsureWorkspaceId(src) {
 
 function extractWorkspaceBlock(src) {
   // #636 拆分：工作区查找住在 api-workspace.js（src 拼合里带 export 前缀，构建产物里已剥掉），起止锚点两边都有。
+  // #1251：终止锚点 probeHandoffReady 随「交接执行」那一族搬去了 api-handoff.ts；拼合清单里跟着加这一份，
+  //   两端的先后顺序与 src/client/index.js 里的拼接标记一致，切出来的仍是「工作区查找」那一段。
   const startMarker = 'const workspacePathOf = function'
   const endMarker = 'const probeHandoffReady = function'
   const i = src.indexOf(startMarker)
@@ -285,7 +303,7 @@ async function testFile(file) {
   try {
     let block = factoryBlock.replace(/^\s*export\s+/gm, '')
     const cStart = block.indexOf('const createPTCSession')
-    const cEnd = block.indexOf('// ============ 命名守护')
+    const cEnd = block.indexOf(NAMING_GUARD_ANCHOR)
     const createBlock = cStart>=0 ? block.slice(cStart, cEnd>=0 ? cEnd : block.length) : ''
     // 提取 buildCreateOpts 以供 createPTCSession 使用
     const buildSrc = block.slice(block.indexOf('const buildCreateOpts'), block.indexOf('const createPTCSession'))
@@ -363,7 +381,7 @@ async function testFile(file) {
     let open = openSrc
     open = open.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft')
     open = open.replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
-    const fullOpenHelpers = helpersSrc + ';\n' + factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf('// ============ 命名守护'))
+    const fullOpenHelpers = helpersSrc + ';\n' + factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf(NAMING_GUARD_ANCHOR))
 
     async function runOpen(stOverrides, sessionsStub, workspacesStub) {
       const rec = { created: null, opened: null, injected: null, flashed: null }
@@ -408,7 +426,7 @@ async function testFile(file) {
       openA = openA.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft')
       openA = openA.replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
       const helpers = helpersSrc
-      const factoryAll = factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf('// ============ 命名守护'))
+      const factoryAll = factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf(NAMING_GUARD_ANCHOR))
       const rec = { created:null, injected:null }
       const dbg = { pendingDraft:null, pendingDraftTargetSid:null }
       // 手法：compileFn——同上。
@@ -442,7 +460,7 @@ async function testFile(file) {
         create: async()=>{ throw new Error('create failed') }
       }
       const helpers = helpersSrc
-      const factoryAll = factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf('// ============ 命名守护'))
+      const factoryAll = factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf(NAMING_GUARD_ANCHOR))
       let openB = openSrc.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft').replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
       const rec = { created: null }
       const dbg = { pendingDraft:null, pendingDraftTargetSid:null }
@@ -482,7 +500,7 @@ async function testFile(file) {
       let openC = openSrc.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft').replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
       // 手法：compileFn——同上。
       const fn = compileFn(['st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick'],
-        wsPrelude + helpersSrc + ';\n' + factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf('// ============ 命名守护')) + ';\n' + openC + '; return openTextInNewSession')
+        wsPrelude + helpersSrc + ';\n' + factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf(NAMING_GUARD_ANCHOR)) + ';\n' + openC + '; return openTextInNewSession')
       const sessionsStub = {
         create: async (opts)=>{ rec.created=opts; return 'sid-wid' },
         scope:(sid)=>({sessionId:sid}), sessionOf:()=>({rename: async(t)=>({ok:true,value:{title:t}})}),

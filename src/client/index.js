@@ -222,6 +222,9 @@ export default {
     // ==== kernel:apiNaming (spliced by build) ====
     // ==== kernel:apiPresetGuard (spliced by build) ====
     // ==== kernel:apiWorkspace (spliced by build) ====
+    // #1251：交接执行那一族自成一个片段（原来住在 apiNewSession 里，那份文件有效行超 350 上限）；
+    //   标记留在 apiNewSession 之前，与拆出前的位置一致。
+    // ==== kernel:apiHandoff (spliced by build) ====
     // ==== kernel:apiNewSession (spliced by build) ====
     // ==== kernel:apiIo (spliced by build) ====
     // #690：历史票的页数据（已关闭票按需翻页）。排在 apiIo 之后 —— 它调的 fetchIssuesPage 住在 apiIo 里。

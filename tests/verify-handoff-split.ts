@@ -21,16 +21,23 @@ const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js
 // ---- Part A：静态契约 ----
 const statChecks = function (src, tag) {
   const ok = (name, cond) => { if (!cond) throw new Error(tag + ' · ' + name); console.log('  PASS ' + tag + ' · ' + name) }
-  ok('分割按钮容器 dsws-split', src.includes("className: 'dsws-split'"))
+  // #1251：手写源 src/client/** 从 .js 转成 .ts 之后，client.js 里这些字符串的引号由单引号变成双引号
+  // （esbuild 重新打印文本），所以下面凡断言「产物里拼出哪段带引号的文本」的，一律两种引号都认。
+  // 只用单引号会误报；否定断言若只排除单引号形态，在双引号产物上会恒真，等于偷偷改松，所以也走同一对函数。
+  const qHas = (t) => src.includes(t) || src.includes(t.replace(/'/g, '"'))
+  const qLacks = (t) => !src.includes(t) && !src.includes(t.replace(/'/g, '"'))
+  ok('分割按钮容器 dsws-split', qHas("className: 'dsws-split'"))
   ok('分割按钮左右半 dsws-split-part ×2', (src.match(/dsws-split-part/g) || []).length >= 2)
-  ok('细分隔线 dsws-split-div', src.includes("className: 'dsws-split-div'"))
+  ok('细分隔线 dsws-split-div', qHas("className: 'dsws-split-div'"))
   ok('分割按钮外框 hover 才有边框', src.includes(".dsws-split{display:inline-flex") && src.includes("border:1px solid transparent"))
   ok('分割按钮 hover 边框 + 分隔线浮现', src.includes('.dsws-split:hover{border-color') && src.includes('.dsws-split:hover .dsws-split-div{opacity:1'))
-  ok('左半点击区调用 doHandoff', src.includes('onClick: function (e) { e.stopPropagation(); doHandoff(s) }'))
-  ok('右半点击区调用 doHandoffOpen', src.includes('onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }'))
-  ok('右半未就绪禁用态：无系统红圈（cursor default）', src.includes("cursor: 'default'") && !src.includes("cursor: 'not-allowed'"))
-  ok('禁用态自定义 SVG 图标 handoff-off 定义', src.includes("case 'handoff-off'"))
-  ok('右半图标按就绪态切换（handoff-open / handoff-off）', src.includes("s.handoffReady ? 'handoff-open' : 'handoff-off'"))
+  // #1251：esbuild 会把「一行写完的处理函数」拆成多行、补上分号（`function(e) {\n e.stopPropagation();\n doHandoff(s);\n }`），
+  // 所以这里用容忍空白与分号的正则，仍然要求同一个处理函数里同时出现 stopPropagation 与调用 —— 与手写版判据同等强度。
+  ok('左半点击区调用 doHandoff', /onClick:\s*function\s*\(\s*e\s*\)\s*\{\s*e\.stopPropagation\(\)\s*;\s*doHandoff\(s\)\s*;?\s*\}/.test(src))
+  ok('右半点击区调用 doHandoffOpen', /onClick:\s*function\s*\(\s*e\s*\)\s*\{\s*e\.stopPropagation\(\)\s*;\s*doHandoffOpen\(s\)\s*;?\s*\}/.test(src))
+  ok('右半未就绪禁用态：无系统红圈（cursor default）', qHas("cursor: 'default'") && qLacks("cursor: 'not-allowed'"))
+  ok('禁用态自定义 SVG 图标 handoff-off 定义', qHas("case 'handoff-off'"))
+  ok('右半图标按就绪态切换（handoff-open / handoff-off）', /s\.handoffReady\s*\?\s*["']handoff-open["']\s*:\s*["']handoff-off["']/.test(src))
   ok('store 默认 handoffReady: false', src.includes('handoffReady: false'))
   ok('探测助手 probeHandoffReady 定义', src.includes('const probeHandoffReady'))
   ok('StatusBar 挂载即探测', src.includes('probeHandoffReady(s)'))
@@ -49,9 +56,9 @@ const statChecks = function (src, tag) {
   ok('r2 主路径：本会话 handoffFile 已设直接 done（不查磁盘）', src.includes('return Promise.resolve(done(st.handoffFile))'))
   ok('r2 主路径不再传 name（no `name: handoffFile` in probeHandoffReady）', !/name:\s*handoffFile\b/.test(src))
   ok('r2 副路径：handoffFile=null 走 handoffLatest', /handoffFile/.test(src) && /handoffLatest/.test(src))
-  ok('引导门：无 latest → toast.handoffGrey', src.includes("tr('toast.handoffGrey')"))
-  ok('糊涂分支已删：no finish(null, toast.copiedHandoffNoLatest)', !src.includes("finish(null, tr('toast.copiedHandoffNoLatest'))"))
-  ok('无历史兜底 toast 键残留（noLatest / handoffNotFound / copiedHandoffFail）', !src.includes("'toast.copiedHandoffNoLatest'") && !src.includes("'toast.handoffNotFound'") && !src.includes("'toast.copiedHandoffFail'"))
+  ok('引导门：无 latest → toast.handoffGrey', qHas("tr('toast.handoffGrey')"))
+  ok('糊涂分支已删：no finish(null, toast.copiedHandoffNoLatest)', qLacks("finish(null, tr('toast.copiedHandoffNoLatest'))"))
+  ok('无历史兜底 toast 键残留（noLatest / handoffNotFound / copiedHandoffFail）', qLacks("'toast.copiedHandoffNoLatest'") && qLacks("'toast.handoffNotFound'") && qLacks("'toast.copiedHandoffFail'"))
   // 构建产物的引号风格会变（esbuild 切双引号）：只认“键加中文前缀”，不钉引号。
   const localeHas = (key, prefix) => new RegExp('["\']' + key + '["\']\\s*:\\s*["\']' + prefix).test(src)
   ok('nav.handoffGreyTitle zh', localeHas('nav.handoffGreyTitle', '尚未生成交接文档'))
@@ -67,7 +74,11 @@ const extractBlock = function (src) {
   const starts = ['const handoffCwdMatches = function', 'const probeHandoffReady']
   let i = -1
   for (const m of starts) { i = src.indexOf(m); if (i >= 0) break }
-  const j = src.indexOf('// #361：在新会话中打开')
+  // #1251：终点锚点原来钉的是注释句 `// #361：在新会话中打开`，那句话在今天的真源与产物里都已经不存在
+  // （api-handoff.ts 转写时删掉了这条注释），再钉注释就会永远说「提取锚点缺失」。
+  // 改成钉紧跟在 doHandoffOpen 之后的那个函数定义 —— 它是同一份产物里代码级、跨模块边界的第一句，
+  // 既能切到 doHandoffOpen 收尾，又不会把 openTextInNewSession 的正文（doHandoffOpen 只调用它）带进来。
+  const j = src.indexOf('const openTextInNewSession = function', i + 1)
   if (i < 0 || j < 0 || j < i) throw new Error('提取锚点缺失')
   return src.slice(i, j)
 }

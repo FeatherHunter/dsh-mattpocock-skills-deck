@@ -68,6 +68,8 @@ const { pathToFileURL } = require('url')
 const { spawnSync } = require('child_process')
 const realFs = require('node:fs/promises')
 const { compileFn, evalInWindow } = require('./lib/eval-probe.js')
+// 手写真源按「同名 .ts 优先」解析（tests/lib/source-text.ts）；要读产物时才直接写 .js 路径。
+const { sourcePath } = require('./lib/source-text.ts')
 // 第十九件事要真跑一遍设置页：在开了 runScripts 的 jsdom 窗口里跑打包产物、用真 React 挂载真组件，
 //   与 tests/verify-log-switch-597.js 同一套手法（那一份是现成的样板，本门禁照抄它的桩形状）。
 const { JSDOM } = require('jsdom')
@@ -776,7 +778,11 @@ async function main(): Promise<void> {
     check(page.indexOf('hostPushed') >= 0 && page.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0 && page.indexOf("'cfg.dbgSwitchOffNoHost'") >= 0,
       '诊断日志模型按 hostPushed 与方向换文案：副本没跟上时拨成开、拨成关各一句，都不弹没限定语的那句。',
       JSON.stringify({ hostPushed: page.indexOf('hostPushed'), on: page.indexOf('cfg.dbgSwitchOnNoHost'), off: page.indexOf('cfg.dbgSwitchOffNoHost') }))
-    const localeSrc = readText('src/client/kernel/locale-flow.js')
+    // 词表读真源，不读同名 .js 产物：#1251 之后 src/client/kernel 下的同名 .js 是 esbuild 拼出来的
+    //   产物，产物里字符串统一印成双引号，而下面 localeOf 是按手写真源的 `'键'` 形状逐行扫的 —— 读产物
+    //   会四行全扫不到（中英各 0 条，就是这次判红的原因）。走 sourcePath 拿「这份词表今天住在哪个文件」
+    //   （今天是 locale-flow.ts，仍是手写单引号形状），扫描形状与断言一条不动。
+    const localeSrc = readText(sourcePath('src/client/kernel/locale-flow.js'))
     const localeOf = (key) => localeSrc.split(/\r?\n/).filter((l) => l.indexOf("'" + key + "'") >= 0)
     const zhOn = localeOf('cfg.dbgSwitchOnNoHost').find((l) => l.indexOf('调试日志已打开') >= 0) || ''
     const enOn = localeOf('cfg.dbgSwitchOnNoHost').find((l) => l.indexOf('Debug log on') >= 0) || ''

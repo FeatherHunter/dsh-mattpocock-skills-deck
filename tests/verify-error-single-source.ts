@@ -199,7 +199,11 @@ console.log('── A. fail(...) 一律三个参数（kind, message, raw）')
   // 只报出来给人看，不判红。本票范围内其余自造 fail 的文件都要判红。
   const LOCAL_FAIL_WHITELIST = [
     {
-      file: 'src/client/kernel/slotRenderer-repo-sync.js',
+      // #1251：手写真源已从 .js 改成 .ts，同名 .js 现在是构建产物；白名单必须跟着真源走。
+      // 这个文件今天写的是 `const fail: any = m && m.fail`（从注入的模块上取一份别名，不是自己定义 fail），
+      // A 段的「自造 fail」正则因此不再命中它；条目留着是为了记住 Lead 2026-10-14 的定夺，
+      // 哪天真在它里面重新定义 fail，仍然按白名单放行、不判红。
+      file: 'src/client/kernel/slotRenderer-repo-sync.ts',
       why: '界面自己那张失败卡（half-created）的局部 fail，交出去的不是 TrackerError、也不是后端通道的失败值，'
         + '没有后端原文可带；Lead 2026-10-14 定夺：报出来但不判红，本票不动它',
     },
@@ -318,11 +322,13 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       why: '同上（api-io.js 迁移成 TS 后的同一个落点；迁移期间两个扩展名都可能出现在盘上）',
     },
     {
-      file: 'src/client/kernel/actions.js',
+      // #1251：actions / issue-pages 已转成 TypeScript，.js 是 esbuild 产物（B 段本来就不扫产物）；
+      // 条目跟着手写真源改成 .ts，放行理由与「只放行这几个词」的口径一个字没改。
+      file: 'src/client/kernel/actions.ts',
       why: '客户端内核自己造的失败值：前端本地动作失败，不是后端失败、没有后端原文可带；本票客户端只动 api-io 那一段',
     },
     {
-      file: 'src/client/kernel/issue-pages.js',
+      file: 'src/client/kernel/issue-pages.ts',
       why: '同上：客户端内核自己造的失败值，本票客户端只动 api-io 那一段',
     },
     // ── 以下四条按「文件 + 具体字符串」放行（Lead 2026-10-14 定夺）：不是 TrackerError 档位，
@@ -348,12 +354,14 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       why: '票上的 parentError 子字段（挂父票失败的原因），不是 TrackerError 的档位；unknown 表示这次异常连原因都没拿到',
     },
     {
-      file: 'src/client/kernel/slotRenderer-repo-sync.js',
+      // #1251：slotRenderer-repo-sync 转成 .ts 后，half-created 这个界面词写在真源里，白名单跟到 .ts。
+      file: 'src/client/kernel/slotRenderer-repo-sync.ts',
       values: ['half-created'],
       why: '界面自己那张失败卡的词，不是 TrackerError；它既不是八档也不是后端档位，只放行这一个词',
     },
     {
-      file: 'src/client/kernel/api-preset-guard.js',
+      // 同上：api-preset-guard 的 unknown 也已经在 .ts 真源里。
+      file: 'src/client/kernel/api-preset-guard.ts',
       values: ['unknown'],
       why: '命名预设守卫的返回值，表示「没认出是哪一种预设」，不是 TrackerError 的档位',
     },
@@ -521,16 +529,20 @@ console.log('── D. 直接写出来的失败对象也要带原文（fail(...)
   // 界面层自己的失败值（Lead 2026-10-14 定夺）：客户端内核里的动作分发器与历史票页数据装配，
   // 失败都发生在本地（参数不对、上下文里没有注入能力），没有任何后端原文可带；它们产出的对象是给
   // 界面自己看的，不是后端通道交回来的 TrackerError。票面把「不重做界面」写进了 Out of Scope，
-  // 这两份文件又都是手写 JS（动它们就要按仓规先修后转），所以本票不动它们：报出来、不判红。
+  // 所以本票不动它们：报出来、不判红。
+  // #1251：这两份文件已从手写 JS 转成 TypeScript（先修后转，行为零变化），豁免条目跟着真源改成 .ts。
   // 以后真给它们补 raw 时，把下面的条目删掉即可；D3 会盯着这两份文件还在不在、还写不写失败值，
   // 防止白名单变成没人管的过期条目。
   const D_EXEMPT = [
-    { file: 'src/client/kernel/actions.js', why: '动作分发器：本地参数校验失败（action.type missing 等），没有后端原文' },
-    { file: 'src/client/kernel/issue-pages.js', why: '历史票页数据装配：本地拿不到数据时的失败值，没有后端原文' },
+    { file: 'src/client/kernel/actions.ts', why: '动作分发器：本地参数校验失败（action.type missing 等），没有后端原文' },
+    { file: 'src/client/kernel/issue-pages.ts', why: '历史票页数据装配：本地拿不到数据时的失败值，没有后端原文' },
   ]
   for (const rel of files) {
     if (D_EXEMPT.some((x) => x.file === rel)) continue
     const src = readSrc(rel)
+    // #1251：同名 .js 是 esbuild 构建产物，与 A/B 两段同一口径不进扫描 —— 产物里也有一份 ok:false
+    // 失败对象，扫进来会把同一件事数两遍，还会把「直接写出来的失败对象」这个数虚抬出去。
+    if (DERIVED_HEAD.test(src.slice(0, 400))) continue
     const { noStrings } = scan(src)
     const re = /ok\s*:\s*false/g
     let m

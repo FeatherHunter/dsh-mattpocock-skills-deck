@@ -74,18 +74,25 @@
  *   2) 需要「有 h 的那一支」这一处，按文本求值：走 tests/lib/eval-probe.js 的 compileFn（与
  *      tests/verify-683-choice-rev.js 对同一个文件的做法一致），把真身函数文本连同参数名
  *      （h / workspaceFileNoteOf）一起求值，仓库里不新增裸 eval 点。求值本身包在 try/catch 里，
- *      取不到函数体或求值抛错都按红报（见 D 组）。F 组不走这条路：它要的是真身函数本身，
- *      直接拿上面 import 进来的那个 —— 改回按文本求值，等于又把真源措辞请回来当依赖。
+ *      取不到函数体或求值抛错都按红报（见 D 组）。
+ *      #1251：这里切的那段文本改从 tests/lib/source-text.ts 的 spliceableJs 取 —— 真源已是 .ts，
+ *      求值要的是「与构建同一份转译参数」产出的 JavaScript；切片的锚点也按转译后的形状写
+ *      （没有行首 export、`function(` 之间没有空格、函数体收尾顶格）。锚取不到照样判红，不跳过。
+ *      F 组不走这条路：它要的是真身函数本身，直接拿上面 import 进来的那个 ——
+ *      改回按文本求值，等于又把真源措辞请回来当依赖。
  *
  * 用法：node tests/verify-workspace-file-note.ts
  *   本门禁已按目录约定自动进 verify 链（#1125；跑法见 scripts/verify-chain.js），
  *   也可以单跑：node tests/verify-workspace-file-note.ts。
  */
-import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 // 按文本求值统一走共用入口 compileFn（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
+// 取源走共用入口（#1207 立，见 tests/lib/source-text.ts）：#1251 把 store-prefs 的真源转成了 .ts，
+//   按 .js 路径直接读会读到真源旁边那份构建产物；而 D 组要切一段文本去求值，
+//   切下来的必须是「与构建同一份转译参数」产出的 JavaScript，所以走 spliceableJs。
+import { spliceableJs } from './lib/source-text.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PREFS_REL = 'src/client/kernel/store-prefs.js'
@@ -98,9 +105,10 @@ let failed = 0
 let skipped = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 const skip = (msg) => { console.log('  SKIP ' + msg); skipped++ }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-
-const prefsSrc = read(PREFS_REL)
+// #1251：D 组「有 h 的那一支」是「切一段文本再求值」，切下来的必须是能直接 eval 的 JavaScript ——
+//   走共用入口 spliceableJs 取「真源过 esbuild + 剥行首 export」的那份文本：注释与类型标注都没了，
+//   `function (` 被收成 `function(`，单行函数体被摊成多行。这里不再自己去读某一份文件。
+const prefsSrc = spliceableJs(PREFS_REL)
 
 // #1138：宿主今天不再回「跳过」那一档（那三种情况都不再静默跳过：没有后端名根本记不下来，如实报失败；
 //   后端没注册、注册表拿不到同理，也是如实报失败）。所以这里不再有「跳过取值」这份名单，
@@ -120,10 +128,12 @@ const looksOverwritten = (t) => isSentence(t) && anyOf(t, W_WORKSPACE) && anyOf(
 //   没写成：期望空串。为什么不再由这一行说「没写进去、绑定照旧有效」——见函数头注释（#1138）：
 //   那次失败由主线那条提示一条说清；再说一遍既重复，又容易让人以为「虽然报错但其实成了」。
 
-// 从真源里整段取出一个函数表达式（`export const 名字 = function (...) { ... }` 的 `function ...` 那一段）。
-//   写法与 tests/verify-683-choice-rev.js 取 currentBackendId 时同例：非贪婪取到行首四个空格那个闭括号。
+// 从真源（已按构建口径转译过的那份文本）里整段取出一个函数表达式
+//   （`const 名字 = function (...) { ... };` 里的 `function ... }` 那一段）。
+//   写法与 tests/verify-683-choice-rev.ts 取 currentBackendId 时同例：非贪婪切到转译产物里
+//   顶格收尾的那个 `};`（esbuild 排出来的函数体收尾都顶格，缩进不再保留源码里的四空格）。
 const fnExprOf = function (srcText, name) {
-  const re = new RegExp('export const ' + name + ' = (function \\([^)]*\\) \\{[\\s\\S]*?\\n    \\})')
+  const re = new RegExp('^const ' + name + ' = (function\\([^)]*\\) \\{[\\s\\S]*?\\n\\};)', 'm')
   const m = srcText.match(re)
   return m ? m[1] : ''
 }
@@ -288,23 +298,26 @@ check(elInNode === null, '纯 node 里没有 h，落到 catch 回 null —— �
 const fakeH = (tag, props, children) => ({ tag: tag, props: props, children: children })
 const elFnExpr = fnExprOf(prefsSrc, 'workspaceFileNoteEl')
 check(elFnExpr !== '', '从真源里整段取到 workspaceFileNoteEl 的函数表达式（取不到就红；下面五条拿不到真身，会跟着一起红 —— 上一版这里是个 if，静默跳过还打印全过）')
-// 形状校验：切出来的必须**只有一个**函数表达式，不能一路吞到后面另一个函数的收尾括号去。
-//   今天这个锚是非贪婪的「切到行首四个空格那个闭括号」（见 fnExprOf）；真源里那个函数被压成一行、
-//   或函数之间少了换行时，它会一直吞到下一个满足同样写法的行，把后面的导出一起圈进来。
-//   最省事的信号就是 export 这个词：一个函数表达式里不可能出现它。查的是「有没有 export」，
-//   不是「行首有没有」—— 真源里每个导出都缩进了四个空格，只看行首会漏掉这种吞法。
+// 形状校验：切出来的必须**只有一个**函数表达式，不能一路吞到后面另一个函数去。
+//   今天这个锚是非贪婪的「切到顶格收尾那个 `};`」（见 fnExprOf）；真源里那个函数被压成一行、
+//   或函数之间少了换行时，它会一直吞到下一个满足同样写法的行，把后面那个函数一起圈进来。
+//   #1251：转译产物里已经没有 export 这个词（行首 export 被 spliceableJs 剥掉了），原来那条
+//   「里面不出现 export」的信号在今天恒真、不再顶用；换用今天仍然顶用的同类信号 ——
+//   「顶格又起了一条 const 声明」：函数表达式内部不会出现顶格的 const（嵌在里面的都缩进着），
+//   锚一旦吞到下一个函数，切出来的文本里必然多出 `\nconst `。
 const elFnLines = elFnExpr === '' ? 0 : elFnExpr.split('\n').length
-const elFnShapeOk = elFnExpr !== '' && !/\bexport\b/.test(elFnExpr)
+const elFnSwallowedNext = /\nconst /.test(elFnExpr)
+const elFnShapeOk = elFnExpr !== '' && !elFnSwallowedNext
 check(
   elFnShapeOk,
-  '取到的那段文本形状对得上一个函数表达式（里面不出现 export 这个词；实得 ' + elFnLines + ' 行'
-  + (elFnExpr === '' ? '，因为压根没取到' : (/\bexport\b/.test(elFnExpr) ? '，里面有 export —— 说明锚一路吞到了下面的导出' : '')) + '）',
+  '取到的那段文本形状对得上一个函数表达式（里面不含顶格的 const 声明；实得 ' + elFnLines + ' 行'
+  + (elFnExpr === '' ? '，因为压根没取到' : (elFnSwallowedNext ? '，里面顶格又起了一条 const —— 说明锚一路吞到了下面的函数' : '')) + '）',
 )
 // 求值自己兜住：取不到函数体、形状不对、求值抛错，都不许再往外冒（上一版正是这里把进程带崩的）。
 let elFnEvalFail = ''
 let elWithH = null
 if (elFnExpr === '') elFnEvalFail = '取不到函数体：按现在的锚从真源里切不出 workspaceFileNoteEl 的函数表达式文本'
-else if (!elFnShapeOk) elFnEvalFail = '取不到函数体：切出来的文本把下面的导出也吞了进来（里面有 export），不是一个函数表达式'
+else if (!elFnShapeOk) elFnEvalFail = '取不到函数体：切出来的文本把下面的函数也吞了进来（顶格又起了一条 const），不是一个函数表达式'
 else {
   try {
     elWithH = compileFn(['h', 'workspaceFileNoteOf'], 'return ' + elFnExpr)(fakeH, noteOf)

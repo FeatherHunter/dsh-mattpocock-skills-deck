@@ -76,7 +76,13 @@ const check = (ok, msg, detail) => {
   if (ok) { console.log('  PASS ' + msg); passed += 1 } else { console.log('  FAIL ' + msg + (detail ? ' —— ' + String(detail).slice(0, 300) : '')); failed += 1 }
 }
 const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-const countLines = (rel) => readText(rel).split(/\r?\n/).length
+// 数行数读的是**手写真源**（sourcePath 按「同名 .ts 优先」解，例如 store-prefs.js → store-prefs.ts）：
+//   #1251 起同名 .js 是构建产物，esbuild 排版过的行数与真源无关（单行函数被摊成多行，产物反而更长），
+//   产物没构建时还会直接读不到。
+// 尺子是**有效行**（注释与空行不计）—— 与 tests/verify-file-granularity.ts 全树那把尺子同源（#1017），
+//   同片的 verify-settings-debug.ts 也已经是这把。为什么不是总行数：迁移按 AGENTS.md 第 3 条补了整段
+//   中文注释，用总行数等于「补注释反而顶破上限」；上限没放宽 —— 有效行仍必须 ≤350，约束的是真内容。
+const countLines = (rel) => countEffectiveLines(readText(sourcePath(rel)))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // 真实等待：虚拟时钟压不动真实的读盘写盘，凡是要等「一次真落盘」的地方都用这一条。
 const realSleep = (ms) => new Promise((r) => nativeSetTimeout(r, ms))
@@ -144,19 +150,30 @@ const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const UI_REL = 'src/client/kernel/settings-ui.js'
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
+// 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：
+//   spliceableJs —— 下面这一段要拼进 compileFn 的函数体当场求值，它按「同名 .ts 优先」解到真源，
+//     再按构建同一份口径转译成可 eval 的 JavaScript；
+//   sourcePath —— 下面数行数那件事要读的是**手写真源**（同名 .js 今天是构建产物）。
+const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
+// 行数尺子（#1017 立，实现住在 scripts/lib/effective-lines.mts）：只数有效行（注释与空行不计）。
+const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
 // 中央时间真值：写那一片的防抖窗从中央引用，门禁求值时走全局预埋（值就是中央导出的同一份）。
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.VIEW_FLAG_WRITE_DEBOUNCE_MS = centralTime.VIEW_FLAG_WRITE_DEBOUNCE_MS
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供）。
 const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
-// store-prefs.js 里「主列表偏好」那一段的真源码（LIST_PREFS_KEY / listPrefs / saveListPrefsLegacy / saveListPrefs）：
-//   界面偏好那一族要用的就是这一段。整份 store-prefs.js 还牵着面板高度、无仓库红卡、选中与仓库等别的东西，
+// store-prefs.ts 里「主列表偏好」那一段的真源码（LIST_PREFS_KEY / listPrefs / saveListPrefsLegacy / saveListPrefs）：
+//   界面偏好那一族要用的就是这一段。整份 store-prefs.ts 还牵着面板高度、无仓库红卡、选中与仓库等别的东西，
 //   所以只切这一段 —— 仍然是真源码，不另写仿制品。
+// #1251 之后同名 store-prefs.js 是构建产物、注释被 esbuild 剥光，原来那两条注释锚（// #374 / // #375）
+//   在产物里根本不存在，所以改用代码声明当锚：起点是 LIST_PREFS_KEY 那条声明，终点是紧随其后的
+//   LABEL_CLICKS_KEY 那条声明 —— 取的仍是同一段（#374 注释到 #375 注释之间），一个字没多没少。
+//   锚点只写到「const 名字 = 」，不写右边那个字符串字面量，是为了同时认手写旧形态的单引号与转译后的双引号。
 function listPrefsSlice() {
-  const src = readText('src/client/kernel/store-prefs.js')
-  const start = src.indexOf('// #374：主列表偏好')
-  const end = src.indexOf('// #375：label 点击记忆')
-  if (start < 0 || end <= start) throw new Error('store-prefs.js 里找不到主列表偏好那一段（#374 到 #375 之间）')
+  const src = spliceableJs('src/client/kernel/store-prefs.js')
+  const start = src.indexOf('const LIST_PREFS_KEY = ')
+  const end = src.indexOf('const LABEL_CLICKS_KEY = ')
+  if (start < 0 || end <= start) throw new Error('store-prefs.ts 里找不到主列表偏好那一段（#374 到 #375 之间）')
   return noExport(src.slice(start, end))
 }
 function makeView(env) {

@@ -77,10 +77,11 @@ console.log('== R1 只留一条路：本插件自己注册的类型 ==')
 for (const rel of SET_ROUTER) {
   const t = texts[rel]
   if (!t) continue
-  check(t.includes("DECK_NATIVE_TAB_KIND = 'dsh-mattpocock-skills-deck:deck-map'"), rel + ' 面板类型名仍是本插件自己那条')
+  // #1251：esbuild 产物统一双引号，两种形态都认（同 slots:271 做法）。
+  check(t.includes("DECK_NATIVE_TAB_KIND = 'dsh-mattpocock-skills-deck:deck-map'") || t.includes('DECK_NATIVE_TAB_KIND = "dsh-mattpocock-skills-deck:deck-map"'), rel + ' 面板类型名仍是本插件自己那条')
   check(t.includes('DECK_NATIVE_TYPE_ID'), rel + ' 类型 id 有自己的常量')
   const code = stripComments(t)
-  check(!code.includes("ctx.get('betterSidebar')"), rel + ' 代码里不再取 better-sidebar 的服务')
+  check(!code.includes("ctx.get('betterSidebar')") && !code.includes('ctx.get("betterSidebar")'), rel + ' 代码里不再取 better-sidebar 的服务')
   check(!/\bensureSidebarTab\b/.test(code), rel + ' 不再有 ensureSidebarTab（那条注册已整段删除）')
   check(!/\bopenInSidebar\b/.test(code), rel + ' 不再有 openInSidebar（第二个入口已整段删除）')
   check(!/\bsidebarTabDisposer\b/.test(code) && !/\bsidebarTabRetry\b/.test(code), rel + ' 不再有那条注册的 disposer 与重试定时器')
@@ -111,9 +112,9 @@ for (const rel of SET_ROUTER) {
   const body = from >= 0 ? t.slice(from, from + 1800) : ''
   check(body.length > 0 && body.includes('openInNativeRight(st)'), rel + ' openPanel 走原生右侧边栏那条')
   check(body.length > 0 && !body.includes('openInSidebar'), rel + ' openPanel 里不再有第二个入口')
-  check(!t.includes("cfg.openIn === 'sidebar'"), rel + ' 不再按配置二选一')
+  check(!t.includes("cfg.openIn === 'sidebar'") && !t.includes('cfg.openIn === "sidebar"'), rel + ' 不再按配置二选一')
   check(!/entry-fallback/.test(t), rel + ' 不再有「这个入口不行改走另一个」那条日志')
-  check(t.includes("ctx.get('sidebarRight')") && t.includes('openTabIn') && t.includes('api.openTab('), rel + ' 走原生控制器（含跨会话 openTabIn 与退路 openTab）')
+  check((t.includes("ctx.get('sidebarRight')") || t.includes('ctx.get("sidebarRight")')) && t.includes('openTabIn') && t.includes('api.openTab('), rel + ' 走原生控制器（含跨会话 openTabIn 与退路 openTab）')
   check(!t.includes('openPagePanel'), rel + ' 页内浮窗那条路已删（不再有 openPagePanel）')
   check(!t.includes('openDockPanel'), rel + ' details 列那条老路已删（不再有 openDockPanel）')
   check(!t.includes('openDetails'), rel + ' 不再调用 layout.openDetails（那个方法在当前 DSH 里不存在）')

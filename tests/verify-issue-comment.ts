@@ -38,8 +38,36 @@ if (predM) {
 check(predOk, '谓词行为：MISSING 隐 / EMPTY([]) 显 / EMPTY(nodes) 显 / 异形隐')
 
 // ============ 集成差异冒烟：从产物提取 diffSnapshots 真源求值 ============
+// 右界按「花括号配平扫到函数体闭合」算，不再拿后面的注释当尾巴：
+//   旧写法是 pcli.indexOf('// R5', dStart)，靠那段 `// R5：高亮定时清除` 注释紧跟在函数后面。今天
+//   diffSnapshots 的真源搬到了 src/client/kernel/probe-snapshot-helpers.ts，#1251 之后它经 esbuild
+//   拼进产物，函数前的手写注释被剥掉，而产物里唯一一处 `// R5`（由仍按原文拼接的手写 .js 带来）
+//   落在 130 万字符之外 —— 切出来的是「从函数头到另一个模块中间」的大半份文件，compileFn 求值直接抛
+//   Unexpected end of input，于是四条行为断言全部报红。按花括号配平切，切出来的就是这一个函数；
+//   锚点找不到、或函数体没闭合（fnEnd 返回 -1）时照样判红，没有退化成「随便切一段也算过」。
+function fnEnd(src: string, start: number): number {
+  if (start < 0) return -1
+  let depth = 0
+  let started = false
+  for (let k = start; k < src.length; k++) {
+    const c = src[k]
+    // 行注释、块注释、字符串字面量里出现的花括号不算函数体的层级，先整段跳过。
+    if (c === '/' && src[k + 1] === '/') { const nl = src.indexOf('\n', k); k = nl < 0 ? src.length : nl; continue }
+    if (c === '/' && src[k + 1] === '*') { const close = src.indexOf('*/', k + 2); k = close < 0 ? src.length : close + 1; continue }
+    if (c === '"' || c === "'" || c === '`') {
+      for (k++; k < src.length; k++) {
+        if (src[k] === '\\') { k++; continue }
+        if (src[k] === c) break
+      }
+      continue
+    }
+    if (c === '{') { depth++; started = true }
+    else if (c === '}') { depth--; if (started && depth === 0) return k + 1 }
+  }
+  return -1
+}
 const dStart = pcli.indexOf('const diffSnapshots = function')
-const dEnd = pcli.indexOf('// R5', dStart)
+const dEnd = fnEnd(pcli, dStart)
 let diffBehavior = false, orphans = false, ticketUpd = false, shortCircuit = false
 if (dStart > 0 && dEnd > dStart) {
   try {

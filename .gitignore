@@ -111,7 +111,10 @@ _research/
 # 全部转成 .ts，同名 .js 从此是 pixel-ts 那一段的构建产物（真源是同名 .ts），与上面各条同理，不入库。
 # 手写时代它们在库里是被跟踪的，ignore 只拦新建；转写提交里用 git rm 删掉它们，之后构建写下的同名
 # 产物就落在这组忽略里（逐份列出，不用通配：通配会把将来新建的手写 .js 也静默吞掉）。
+# 收口时 api-new-session.ts 里的「交接执行」那一段拆成独立真源 api-handoff.ts（有效行门禁的要求），
+# 它同名 .js 同样是构建产物，所以这一组里多出 api-handoff.js 一份。
 /src/client/kernel/actions.js
+/src/client/kernel/api-handoff.js
 /src/client/kernel/api-naming.js
 /src/client/kernel/api-new-session.js
 /src/client/kernel/api-preset-guard.js
@@ -209,6 +212,9 @@ _research/
 /.worktrees/
 /logs/
 /.dsh-vision-router/
+# 全链门禁的本地运行日志（node scripts/verify-all.mjs > .verify-all-<票号>.log）：一次几十万行，
+# 只是当次排查用的现场记录，换台机器重跑就有，不入库。
+/.verify-all-*.log
 
 # 测试树里两处遗留的临时仓库副本（tests/.tmp-repo-out 与 .tmp-repo-out2）：契约测试某次运行留下的
 # 产物，各两份（registry.js 与 backends/github/index.js），全仓没有任何测试在读或写它们。

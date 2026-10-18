@@ -444,14 +444,13 @@ function gateSingleDeclaration(code, label, names) {
 }
 
 // ---------- Ctx 模块组合（阶段 2 步骤 1 · #95） ----------
-/** 从 src/client/kernel/ctx.js 提取声明体（去每行行首 export 关键字）。
- *  注入 client 插件对象 apply 闭包顶部 —— 双产物同构，一源两物（与 seam shims 同模式）。 */
+/** 从 src/client/kernel/ctx.ts 提取声明体（.ts 先按全仓唯一口径转译再去行首 export）。
+ *  注入 client 插件对象 apply 闭包顶部 —— 双产物同构，一源两物（与 seam shims 同模式）。
+ *  #1251：旧真源 ctx.js 已删，这里改指新真源。读取一律走 spliceText（统一入口：转译 + 去行首
+ *  export + 补末尾换行），不再直调更底层的 readSpliceFragmentSource —— 那样会绕开补换行那一步，
+ *  也正是 tests/verify-1207-splice-ts.ts 判红的「除统一入口外还有别的读缝调用」。 */
 function extractCtxBlock() {
-  return read('src/client/kernel/ctx.js')
-    .split('\n')
-    .map((l) => l.replace(/^export\s+/, ''))
-    .join('\n')
-    .trim()
+  return spliceText('src/client/kernel/ctx.ts').trim()
 }
 function wireCtx(body) {
   const marker = 'apply(ctx) {'
@@ -465,46 +464,77 @@ function wireCtx(body) {
  *  index.js 中每模块原位置留标记 `// ==== kernel:<name> (spliced by build) ====`，
  *  构建时把模块文件声明体（去行首 export）拼回标记处 —— 闭包内原位，行为零变化。 */
 const KERNEL_MODULES = [
-  { name: 'backendList', file: 'src/client/kernel/builtin-backends.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'backendList', file: 'src/client/kernel/builtin-backends.ts' },
   { name: 'link', file: 'src/client/kernel/link.js' },
-  { name: 'styles', file: 'src/client/kernel/styles.js' },
-  { name: 'portal', file: 'src/client/kernel/portal.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'styles', file: 'src/client/kernel/styles.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'portal', file: 'src/client/kernel/portal.ts' },
   { name: 'localePanel', file: 'src/client/kernel/locale-panel.js' },
-  { name: 'localeFlow', file: 'src/client/kernel/locale-flow.js' },
-  { name: 'localeWord', file: 'src/client/kernel/locale-word.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'localeFlow', file: 'src/client/kernel/locale-flow.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'localeWord', file: 'src/client/kernel/locale-word.ts' },
   // #621 标签配色弹窗的中英词条：单独一份片段，由 locale.js 的合并器一起并进 L
-  { name: 'localeLabels', file: 'src/client/kernel/locale-labels.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'localeLabels', file: 'src/client/kernel/locale-labels.ts' },
   // #690 历史票按需翻页的五条文案：locale-flow.js 已贴 350 行上限，照 #621 的做法自成一个片段
   // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
   { name: 'localePages', file: 'src/client/kernel/locale-pages.ts' },
   // #842 写操作那一族的词条：locale-panel 与 locale-flow 都在上限上（后者还冻结在零增长基线里），照 #621/#690 的做法自成一个片段
-  { name: 'localeVcWrite', file: 'src/client/kernel/locale-vcwrite.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'localeVcWrite', file: 'src/client/kernel/locale-vcwrite.ts' },
   // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限（363 行超标），照 #621/#690/#842 的做法自成一个片段
-  { name: 'localeSkilldesc', file: 'src/client/kernel/locale-skilldesc.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'localeSkilldesc', file: 'src/client/kernel/locale-skilldesc.ts' },
   { name: 'localeSkilldetail', file: 'src/client/kernel/locale-skilldetail.js' },
   // S1/S6/S7 卡片词条：locale-panel.js 已贴 350 行上限，照 #879/#887 的做法自成一个片段。
   { name: 'localeCards', file: 'src/client/kernel/locale-cards.js' },
-  { name: 'locale', file: 'src/client/kernel/locale.js' },
-  { name: 'icons', file: 'src/client/kernel/icons.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'locale', file: 'src/client/kernel/locale.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'icons', file: 'src/client/kernel/icons.ts' },
   // #685：「体检」按钮的件数派生与开新会话注入（游离票口径见 #678、按钮形态见 #681）；
   //   它写的那条常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），所以单独一片。
-  { name: 'healthCheck', file: 'src/client/kernel/health-check.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'healthCheck', file: 'src/client/kernel/health-check.ts' },
   // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
   { name: 'prompts', file: 'src/client/kernel/prompts.ts' },
   // #698：初始化那段文案「该不该注入 / 先问还是先给」的决策（layoutCardShouldOpen / injectSetupDecision）
-  { name: 'promptsSetup', file: 'src/client/kernel/prompts-setup.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'promptsSetup', file: 'src/client/kernel/prompts-setup.ts' },
   // #698：弹窗表单字段那一串渲染（slotRenderer-modal-view.js 那时到了 404 行）
-  { name: 'modalFields', file: 'src/client/kernel/modal-fields.js' },
-  { name: 'config', file: 'src/client/kernel/config.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'modalFields', file: 'src/client/kernel/modal-fields.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'config', file: 'src/client/kernel/config.ts' },
   // #586 切更新包：面板要用的电话名与轮询间隔由更新包派生（改名或改间隔只改包，不在这里写死）
   { name: 'updateClient', file: 'scripts/generated/updateClient.derived.js' },
   // #876 入口件浏览器绑定包（已安装更新包 dist/entry.js 含内部 dialog 面板，摆法与关闭轮询约定走包默认）
   { name: 'updateEntryBundle', file: 'scripts/generated/updateEntryPanel.bundle.js' },
   { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
-  // 构建内核清单含日志模块（旧真源 src/client/kernel/log.js 原地只读留存，运行时拼入上面的派生文件，#564 留而不搬）
-  { name: 'storePrefs', file: 'src/client/kernel/store-prefs.js' },
+  // 构建内核清单含日志模块（运行时拼上面的派生文件，#564 留派生不搬；
+  //   #1251：旧手写真源 log.js 已删，同内容住在 src/client/kernel/log.ts，只供门禁经钩子直读）。
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'storePrefs', file: 'src/client/kernel/store-prefs.ts' },
   // #1012：按工作区的观看状态（横幅折叠、红文件夹标志自动展开过没有）从 localStorage 搬到本机设置文件。
   //   store-prefs.js 在搬出这一族之前（父提交 3a7063b9）按门禁算法已 317 行（上限 350），
   //   这一族读写照仓库惯例单独成片：
@@ -513,52 +543,109 @@ const KERNEL_MODULES = [
   //   上面那一片（settingsViewState）是这两片的前置：设置文档异步读来，「问完真源了没有」这两个口子
   //   （viewFlagReadyNow / viewFlagSubscribe）与状态对象都在它里面，标记必须排在本文这一行之前；
   //   写那一片又要用读这一片的键与文档工具，所以它的标记必须排在 settingsView 之后。
-  { name: 'settingsViewState', file: 'src/client/kernel/settings-view-state.js' },
-  { name: 'settingsView', file: 'src/client/kernel/settings-view.js' },
-  { name: 'settingsViewWrite', file: 'src/client/kernel/settings-view-write.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'settingsViewState', file: 'src/client/kernel/settings-view-state.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'settingsView', file: 'src/client/kernel/settings-view.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'settingsViewWrite', file: 'src/client/kernel/settings-view-write.ts' },
   // #1012 第 3 步：界面偏好那三格（列表筛选/排序键/排序方向）从 localStorage 搬到本机设置文件的 ui 节。
   //   与上面那一族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；
   //   旧键 dsws.listPrefs 那一条留着当过渡，读写两头的分工见该文件开头的说明。
-  { name: 'settingsUi', file: 'src/client/kernel/settings-ui.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'settingsUi', file: 'src/client/kernel/settings-ui.ts' },
   // #1012 第 4 步：11 条动作模板从 localStorage 的旧键 dsws.templates 搬到本机设置文件的 templates 节。
   //   与上面那两族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；
   //   旧键那一条留着当过渡（读先看文件、写成功就不写旧键），读写两头与拼接次序的理由见该文件开头的说明。
-  { name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.ts' },
   // #1012 第 8 条：调试开关的真源从宿主那份 log-switch.json（与旧键 dsws.debug）搬进本机设置文件的 debug 节。
   //   与上面三族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；它还要用运行时那份
   //   日志内核的名字（上面第 500 行的 log），所以必须排在 log 之后。
   { name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js' },
-  { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
-  { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },
-  { name: 'storeDerived', file: 'src/client/kernel/store-derived.js' },
-  { name: 'apiNaming', file: 'src/client/kernel/api-naming.js' },
-  { name: 'apiPresetGuard', file: 'src/client/kernel/api-preset-guard.js' },
-  { name: 'apiWorkspace', file: 'src/client/kernel/api-workspace.js' },
-  { name: 'apiNewSession', file: 'src/client/kernel/api-new-session.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'storeSwitch', file: 'src/client/kernel/store-switch.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'storeDerived', file: 'src/client/kernel/store-derived.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'apiNaming', file: 'src/client/kernel/api-naming.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'apiPresetGuard', file: 'src/client/kernel/api-preset-guard.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'apiWorkspace', file: 'src/client/kernel/api-workspace.ts' },
+  // #1251：交接执行那一族（探测交接文档、生成交接文档、带着交接文档开新会话）从下面 apiNewSession
+  //   里拆了出来 —— 拆的原因与 #636 拆 api-workspace 一样：原文件有效行超过 350 行上限。
+  //   标记排在 apiNewSession 之前，与拆出前这一族所在的位置一致：闭包内声明按标记先后求值，
+  //   保持原顺序就不必再论证「谁先谁后」（openTextInNewSession 在运行时调 probeHandoffReady）。
+  { name: 'apiHandoff', file: 'src/client/kernel/api-handoff.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'apiNewSession', file: 'src/client/kernel/api-new-session.ts' },
   { name: 'apiIo', file: 'src/client/kernel/api-io.js' },
   // #690：历史票的页数据（已关闭票按需翻页）—— 按工作区/后端/仓库/视图/筛选分桶、按身份去重、
   //   静默刷新不清空、内存最多留 10 页；单独一片是因为 storeSnapshot 已贴 350 行上限，塞不进去。
-  { name: 'issuePages', file: 'src/client/kernel/issue-pages.js' },
-  { name: 'actions', file: 'src/client/kernel/actions.js' },
-  { name: 'slots', file: 'src/client/kernel/slots.js' },
-  { name: 'slotRendererQueue', file: 'src/client/kernel/slotRenderer-queue.js' },
-  { name: 'slotRendererRepoSync', file: 'src/client/kernel/slotRenderer-repo-sync.js' },
-  { name: 'slotRendererModalView', file: 'src/client/kernel/slotRenderer-modal-view.js' },
-  { name: 'probeChain', file: 'src/client/kernel/probe-chain.js' },
-  { name: 'probeStale', file: 'src/client/kernel/probe-stale.js' },
-  { name: 'probeSnapshot', file: 'src/client/kernel/probe-snapshot.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'issuePages', file: 'src/client/kernel/issue-pages.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'actions', file: 'src/client/kernel/actions.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'slots', file: 'src/client/kernel/slots.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'slotRendererQueue', file: 'src/client/kernel/slotRenderer-queue.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'slotRendererRepoSync', file: 'src/client/kernel/slotRenderer-repo-sync.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'slotRendererModalView', file: 'src/client/kernel/slotRenderer-modal-view.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'probeChain', file: 'src/client/kernel/probe-chain.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'probeStale', file: 'src/client/kernel/probe-stale.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'probeSnapshot', file: 'src/client/kernel/probe-snapshot.ts' },
   // #727：「这个工作区用哪个后端」这条事实的两条专用轨迹（进工作区补问一次 wf.selection；
   //   那次快照超时之后、回包迟到时怎么落地那一小块）。理由与上一行的 #707 同一条：
   //   probe-snapshot.js 一直贴着 350 行上限，塞不进去。
-  { name: 'probeSelect', file: 'src/client/kernel/probe-select.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'probeSelect', file: 'src/client/kernel/probe-select.ts' },
   // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），已无下脚的地方，故把颜色小函数、
   //   数据层增量差异、高亮清除这三样与「下载快照」无关的东西搬成单独一片。
-  { name: 'probeSnapshotHelpers', file: 'src/client/kernel/probe-snapshot-helpers.js' },
-  { name: 'probeAuto', file: 'src/client/kernel/probe-auto.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'probeSnapshotHelpers', file: 'src/client/kernel/probe-snapshot-helpers.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'probeAuto', file: 'src/client/kernel/probe-auto.ts' },
   // #707：视野模型的客户端半边 —— 窗口标识（sessionStorage，不能放 localStorage）、焦点与可见性监听、
   //   面板可见时每 20 秒一次的本地心跳（零配额、不出网）、以及「只服务活跃工作区」那条探测节拍。
-  { name: 'attentionHeartbeat', file: 'src/client/kernel/attention-heartbeat.js' },
-  { name: 'router', file: 'src/client/kernel/router.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'attentionHeartbeat', file: 'src/client/kernel/attention-heartbeat.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { name: 'router', file: 'src/client/kernel/router.ts' },
 ]
 
 // ---------- 共享核心拼装（一源两物 · #265）----------
@@ -720,28 +807,64 @@ const LEAF_MODULES = [
   { id: 'updateEntryHost', file: 'src/client/views/UpdateEntryHost.js' }, // #876 更新入口挂载点：只挂包的入口件（含内部 dialog 面板），本仓不再自带按钮状态机与浮层弹窗
   { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' }, // 真源是同名 .ts（调试分组搬走后转成 TS）：构建先转出同名 .js 产物再拼，登记产物这一支（与 SkillsTab.js 同例）
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
-  { id: 'DockSync', file: 'src/client/panel/DockSync.js' },
-  { id: 'headFold', file: 'src/client/panel/headFold.js' }, // #667 新增：面板头部第一行的逐字折叠阶梯（纯函数，无组件）
-  { id: 'repoChipSkeleton', file: 'src/client/panel/RepoChipSkeleton.js' }, // 2026-09-24 由 Dock.js 拆出：快照还没回来时那条灰色占位骨架（组件，Dock 贴着 350 行上限）
-  { id: 'dock', file: 'src/client/panel/Dock.js' },
-  { id: 'namingFailBanner', file: 'src/client/panel/NamingFailBanner.js' },
-  { id: 'OverlayGate', file: 'src/client/panel/OverlayGate.js' },
-  { id: 'seg', file: 'src/client/statusbar/Seg.js' },
-  { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
-  { id: 'StatusMenus', file: 'src/client/statusbar/StatusMenus.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'DockSync', file: 'src/client/panel/DockSync.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'headFold', file: 'src/client/panel/headFold.ts' }, // #667 新增：面板头部第一行的逐字折叠阶梯（纯函数，无组件）
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'repoChipSkeleton', file: 'src/client/panel/RepoChipSkeleton.ts' }, // 2026-09-24 由 Dock.js 拆出：快照还没回来时那条灰色占位骨架（组件，Dock 贴着 350 行上限）
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'dock', file: 'src/client/panel/Dock.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'namingFailBanner', file: 'src/client/panel/NamingFailBanner.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'OverlayGate', file: 'src/client/panel/OverlayGate.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'seg', file: 'src/client/statusbar/Seg.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'checksums', file: 'src/client/statusbar/checksums.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'StatusMenus', file: 'src/client/statusbar/StatusMenus.ts' },
   // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
   { id: 'StatusBackend', file: 'src/client/statusbar/StatusBackend.ts' },
-  { id: 'capFold', file: 'src/client/statusbar/capFold.js' }, // #725 新增：状态栏胶囊那条横条的逐字折叠阶梯（纯函数，无组件）
-  { id: 'capFoldMachine', file: 'src/client/statusbar/capFoldMachine.js' }, // #725 新增：同一处的阶梯机（读写胶囊那一段 DOM；判据在上一项，接线在 statusBar）
-  { id: 'bannerChain', file: 'src/client/statusbar/bannerChain.js' }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条、那颗按钮点了做什么
-  { id: 'logDangerConfirm', file: 'src/client/statusbar/LogDangerConfirm.js' }, // #954 高危险动作的就近确认框与留痕横幅（从 StatusLogMenu 搬出，那份叶子贴 350 行粒度红线）
-  { id: 'StatusLogMenu', file: 'src/client/statusbar/StatusLogMenu.js' },
-  { id: 'statusBar', file: 'src/client/statusbar/StatusBar.js' },
-  { id: 'sessionChainCapsule', file: 'src/client/statusbar/SessionChainCapsule.js' }, // 胶囊里「这个会话在办哪张票」那一段（只读链读数里当前会话那一格，不进折叠阶梯）
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'capFold', file: 'src/client/statusbar/capFold.ts' }, // #725 新增：状态栏胶囊那条横条的逐字折叠阶梯（纯函数，无组件）
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'capFoldMachine', file: 'src/client/statusbar/capFoldMachine.ts' }, // #725 新增：同一处的阶梯机（读写胶囊那一段 DOM；判据在上一项，接线在 statusBar）
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'bannerChain', file: 'src/client/statusbar/bannerChain.ts' }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条、那颗按钮点了做什么
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'logDangerConfirm', file: 'src/client/statusbar/LogDangerConfirm.ts' }, // #954 高危险动作的就近确认框与留痕横幅（从 StatusLogMenu 搬出，那份叶子贴 350 行粒度红线）
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'StatusLogMenu', file: 'src/client/statusbar/StatusLogMenu.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'statusBar', file: 'src/client/statusbar/StatusBar.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'sessionChainCapsule', file: 'src/client/statusbar/SessionChainCapsule.ts' }, // 胶囊里「这个会话在办哪张票」那一段（只读链读数里当前会话那一格，不进折叠阶梯）
   { id: 'chainRenderer', file: 'src/client/views/shared/ChainRenderer.js' },
-  { id: 'skillFloatList', file: 'src/client/floating/SkillFloatList.js' },
-  { id: 'pop', file: 'src/client/floating/Pop.js' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'skillFloatList', file: 'src/client/floating/SkillFloatList.ts' },
+  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'pop', file: 'src/client/floating/Pop.ts' },
   { id: 'hostShim', file: 'src/client/hostShim.js' }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底加旧标签迁移）
   { id: 'panelAssembly', file: 'src/client/panelAssembly.js' }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾）
 ]

@@ -33,6 +33,8 @@ const { act } = require('react')
 const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 // 本文件三处手法不同：窗口里跑产物走 evalInWindow，取真源里一行函数表达式走 evalWithScope，拼闭包造模块走 compileFn。
 const { compileFn, evalWithScope, evalInWindow } = require('./lib/eval-probe.js')
+// #1251：userHintOf 取出来要当场求值 —— 走 spliceableJs（与构建同一口径，先转译去类型）。
+const { spliceableJs } = require('./lib/source-text.ts')
 // 中央时间真值：快照等待只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 ;(globalThis as unknown as Record<string, unknown>).SNAP_WAIT_MS = centralTime.SNAP_WAIT_MS
@@ -277,8 +279,9 @@ const makeSnap = function (srcText: string) {
     promptLang: () => 'zh',
     // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」——这条闸的真身在 store-prefs.js，
     //   这里取真身来判，所以 fixture 里的选择必须带 userPicked 才会上报后端（不带时请求上就没有 backendId）。
-    // 本处走 evalWithScope：只是把真源里那一行函数表达式求值出来，它不引用本文件的任何外层变量，scope 给空对象。
-    userHintOf: evalWithScope((read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || '').trim().replace(/^export const userHintOf = /, ''), {}),
+    // 本处走 evalWithScope：只是把真源里那段函数表达式求值出来，它不引用本文件的任何外层变量，scope 给空对象。
+    // #1251：esbuild 会把单行函数拆成多行，按行掐只掐到函数头 —— 按整段函数体取（锚行首收尾，见 669-precedence 同款）。
+    userHintOf: evalWithScope(((spliceableJs('src/client/kernel/store-prefs.js').match(/const userHintOf = function[\s\S]*?\n\}/) || [''])[0]).trim().replace(/^const userHintOf = /, ''), {}),
     timer: { timeout: (fn: () => void, ms: number) => setTimeout(fn, ms) },
     setTimeout, clearTimeout, AbortController,
     console: { log () {}, warn () {}, error () {} },
@@ -365,8 +368,9 @@ check(real.staleDropped === true, '现场 4：旧后端那份晚回来一个字�
 console.log('')
 console.log('== D 反证：把这两处做坏，C 里对应的那几条必须当场量不通过 ==')
 {
+  // #1251：反证字符串按产物当下的形态写（esbuild 统一双引号），意图不变。
   const variants = [
-    { label: '去重键改回「只按工作区」（不带后端）', patches: [["return wsKeyOf(cwd || '') + '|' + String(backendId || '')", "return wsKeyOf(cwd || '') + '|'"]], must: ['现场 1 发两次', '现场 1 问的是新后端', '现场 1 装新的', '现场 1 后端保持'] },
+    { label: '去重键改回「只按工作区」（不带后端）', patches: [['return wsKeyOf(cwd || "") + "|" + String(backendId || "")', 'return wsKeyOf(cwd || "") + "|"']], must: ['现场 1 发两次', '现场 1 问的是新后端', '现场 1 装新的', '现场 1 后端保持'] },
     { label: '回包守卫整段摘掉', patches: [['if (_snapRespStale(_reqNorm, _mine.seq, _mine.reqBackend, st)) {', 'if (false) {']], must: ['现场 1 后端保持', '现场 4 旧的不装'] },
   ]
   const worse = (key: string, got: Record<string, any>): boolean => {

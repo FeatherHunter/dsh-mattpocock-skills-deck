@@ -42,6 +42,9 @@ import { resolve } from 'node:path'
 import { createServer } from 'node:http'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// #1251：icons.js / headFold.js 手写真源已删，真源是同名 .ts —— 文本扫描走 sourceText 取原文，
+//   求值走 spliceableJs（同一份构建口径先转译，vm 只吃纯 JS）。
+import { sourceText, spliceableJs } from './lib/source-text.js'
 // 页面求值回调里出现的 window 只是浏览器侧的全局名，门禁进程里并没有它；这里声明成任意值，
 // 运行时与原来一样（这些回调只被序列化送进页面执行，从不在门禁进程里取值）。
 declare const window: any
@@ -73,7 +76,7 @@ console.log('G) 逐字阶梯的判据本身（纯函数，不开浏览器）：�
 // 维护者这一轮的核心要求是「一次让步最多少一个字符」，这条判据最该被逐档核对 —— 所以先不画界面：
 //   把 panel/headFold.js 那两个纯函数跑起来，喂一份与真机同形的数据（本仓那个长名 + 中文的刷新与时间），
 //   一档一档看每个元素少几个字。E 组在真浏览器里量的正是同一个判据，这里先给它一个快而稳的底座。
-const headFoldSrc = existsSync(resolve('src/client/panel/headFold.js')) ? readFileSync(resolve('src/client/panel/headFold.js'), 'utf8') : ''
+const headFoldSrc = (function () { try { return spliceableJs('src/client/panel/headFold.js') } catch (e) { return '' } })()
 const headFold = (function () {
   if (!headFoldSrc) return null
   try {
@@ -179,7 +182,7 @@ const SNAP = {
   selection: { backendId: 'github', source: 'explicit' },
 }
 // 罗盘图形那几笔从真源里读出来（不在这里另抄一份字面量）：头部不该再出现这段图形。
-const compassPoints = (/case 'compass':[\s\S]{0,220}?points:\s*'([^']+)'/.exec(existsSync(resolve(ICONS)) ? read(ICONS) : '') || [])[1] || ''
+const compassPoints = (/case 'compass':[\s\S]{0,220}?points:\s*'([^']+)'/.exec(sourceText(ICONS)) || [])[1] || ''
 check(!!compassPoints, '罗盘图形那几笔从 icons.js 真源里取到了（' + JSON.stringify(compassPoints) + '）')
 
 // 探针入口：浏览器里没有模块解析器，所以入口连同 React 一起打包成一段经典脚本。

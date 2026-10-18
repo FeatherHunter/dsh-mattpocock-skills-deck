@@ -17,6 +17,8 @@
 const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
+// #1251：locale-flow.js 手写真源已删，真源是同名 .ts；A 段按文本扫描取原文（单引号形态，valueOf 正则不动）。
+const { sourceText } = require('./lib/source-text.ts')
 const root = path.resolve(__dirname, '..')
 
 let failed = false
@@ -30,7 +32,7 @@ const read = function (rel: string): string { try { return fs.readFileSync(path.
 // 【已删除】原先这里读 locale-flow.js 的源码文本，用正则抠出中英文 type.issue / type.task /
 // type.map / type.research 的值并逐条断言。那是钉源码文本的门禁（等价改写法就会变红），撤掉。
 // 保留下面的 zhPart 与 valueOf：它们不再被单独断言，而是作为真词条喂给 B 段被测的 TypeChip。
-const locSrc = read('src/client/kernel/locale-flow.js')
+const locSrc = sourceText('src/client/kernel/locale-flow.js')
 const zhPart = locSrc.slice(locSrc.indexOf('zh: {'), locSrc.indexOf('en: {'))
 const valueOf = function (part: string, key: string): string | null {
   const m = part.match(new RegExp("'" + key.replace('.', '\\.') + "':\\s*'((?:[^'\\\\]|\\\\.)*)'"))
@@ -121,7 +123,8 @@ const artifacts = ['client.js', 'package/lib/client.js']
 for (const a of artifacts) {
   const buf = read(a)
   if (!buf) { bad('D. 产物缺失 ' + a + '（先跑 npm run build）'); continue }
-  check(buf.indexOf("'type.issue'") >= 0, "D. " + a + " 含词条 'type.issue'")
+  // #1251：esbuild 产物统一用双引号（手写 .js 时代是单引号），两种形态都认（同 slots:271 做法）。
+  check(buf.indexOf("'type.issue'") >= 0 || buf.indexOf('"type.issue"') >= 0, "D. " + a + " 含词条 'type.issue'")
   check(buf.indexOf('普通票') >= 0, 'D. ' + a + ' 含中文显示名「普通票」')
   check(buf.indexOf('dsws-chip-i') >= 0, 'D. ' + a + ' 含中性灰样式类')
 }

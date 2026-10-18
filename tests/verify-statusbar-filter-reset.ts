@@ -26,20 +26,23 @@ console.log('P1: 状态栏“可接/诊断”不残留 BUG 标签过滤契约 ·
 for (const file of files) {
   if (!fs.existsSync(file)) { check(false, file + ' 缺失（请先 build）'); continue }
   const src = fs.readFileSync(file, 'utf8')
+  // 下面这些段形状判据里的字面量一律写成 ['"]x["']（两种引号都认）：产物是构建出来的，esbuild 统一把
+  //   字符串输出成双引号；手写真源（src/client/statusbar/*.ts）写的是单引号。判据本身没放宽 ——
+  //   仍然要求同一个 handler 里同时出现这三样（stateFilter、lblFilters、go('list')），顺序与包含关系照旧。
   // 1) 可接 handler
   // 匹配 seg('target', ..., function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') } 的变体（允许空格、分号差异）
-  const frontierSeg = /seg\('target'[\s\S]{0,300}function\s*\(\)\s*\{[^}]*s\.stateFilter\s*=\s*'frontier'[^}]*s\.lblFilters\s*=\s*\[\][^}]*go\('list'\)[^}]*\}/
+  const frontierSeg = /seg\(['"]target['"][\s\S]{0,300}function\s*\(\)\s*\{[^}]*s\.stateFilter\s*=\s*['"]frontier['"][^}]*s\.lblFilters\s*=\s*\[\][^}]*go\(['"]list['"]\)[^}]*\}/
   check(frontierSeg.test(src), file + ' · 可接段含 s.stateFilter=frontier + s.lblFilters=[] + go(list)')
   // 反例：旧版仅设 stateFilter 未清 lblFilters
-  const frontierWithoutClear = /seg\('target'[\s\S]{0,200}function\s*\(\)\s*\{\s*s\.stateFilter\s*=\s*'frontier'\s*;\s*go\('list'\)/
+  const frontierWithoutClear = /seg\(['"]target['"][\s\S]{0,200}function\s*\(\)\s*\{\s*s\.stateFilter\s*=\s*['"]frontier['"]\s*;\s*go\(['"]list['"]\)/
   if (frontierWithoutClear.test(src) && !frontierSeg.test(src)) {
     check(false, file + ' · 可接段仍为旧版未清 lblFilters（仅 s.stateFilter=frontier; go(list)）')
   }
   // 2) BUG handler
-  const bugSeg = /seg\('alert'[\s\S]{0,300}s\.stateFilter\s*=\s*'open'[^}]*s\.lblFilters\s*=\s*\['bug'\][^}]*go\('list'\)/
+  const bugSeg = /seg\(['"]alert['"][\s\S]{0,300}s\.stateFilter\s*=\s*['"]open['"][^}]*s\.lblFilters\s*=\s*\[['"]bug['"]\][^}]*go\(['"]list['"]\)/
   check(bugSeg.test(src), file + ' · BUG 段含 s.stateFilter=open + s.lblFilters=[bug] + go(list)')
   // 3) 诊断 handler
-  const triageSeg = /seg\('search'[\s\S]{0,300}s\.stateFilter\s*=\s*'open'[^}]*s\.lblFilters\s*=\s*\['needs-triage'\][^}]*go\('list'\)/
+  const triageSeg = /seg\(['"]search['"][\s\S]{0,300}s\.stateFilter\s*=\s*['"]open['"][^}]*s\.lblFilters\s*=\s*\[['"]needs-triage['"]\][^}]*go\(['"]list['"]\)/
   check(triageSeg.test(src), file + ' · 诊断段含 s.stateFilter=open + s.lblFilters=[needs-triage] + go(list)')
 
   // 额外：确保 StatusBar 源码中三段都显式设定 lblFilters（而非依赖残留）

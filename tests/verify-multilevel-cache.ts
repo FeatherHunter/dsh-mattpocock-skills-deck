@@ -9,7 +9,8 @@
  *    loadSnapshot 内存未命中先查磁盘，命中秒显（不出现可见加载态）且照常发起网络校验
  *  - 双产物一致：client.js 与 package/lib/client.js 均含上述接线
  *
- * 说明：这里全部是「产物里还在不在」的在场检查（indexOf 判子串），不是行为证明——
+ * 说明：这里全部是「产物里还在不在」的在场检查（原来逐条 indexOf 判子串，现在找不到时再按
+ * 「去掉空白与注释、单引号折成双引号」比一遍，见下面 has() 的注释；仍是子串在场，不是行为证明——
  * 源码坏了但字面还在，它照样绿。2026-10-17 删掉了原来第 4 段「淘汰逻辑行为模拟」：
  * 那两条断言在门禁里自己造 30 条数据、自己排序，与被测代码无关，源码里真淘汰逻辑废掉它也全绿，
  * 属于一段冒充证据的复刻自测。真要守「超出上限按最旧淘汰」得另立一条行为级门禁（本票不写）。
@@ -32,7 +33,25 @@ function read(rel: string): string {
   }
   return fs.readFileSync(p, 'utf8')
 }
-const has = (src: string, needle: string, name: string, label: string): void => { (src.indexOf(needle) >= 0) ? ok(name + ' ' + label) : bad(name + ' ' + label) }
+const has = (src: string, needle: string, name: string, label: string): void => {
+  (src.indexOf(needle) >= 0 || squashed(src).indexOf(squash(needle)) >= 0) ? ok(name + ' ' + label) : bad(name + ' ' + label)
+}
+// 「这一段代码还在产物里」怎么认（#1251 之后产物形状变了，判据本身没放宽）：
+//   产物是 esbuild 拼出来的（同名 .js 就是构建产物），与手写真源有两处系统性差异 ——
+//   ① 字符串一律输出双引号（真源写单引号）；
+//   ② 行内会插标注注释（`const x = /* @__PURE__ */ new Map()`），`function ()` 印成 `function()`。
+//   所以比对分两级：先按字面原样找（与旧写法完全一致，命中就走），找不到再把两边都「去掉空白与
+//   注释、把单引号折成双引号」后找。折过之后比的仍是同一个 needle 的每个字符按原顺序出现，锚点词
+//   一个不少；真要把这段代码删掉、改名或换掉语义，两级都找不到，照样掀红。
+function squash(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, '').replace(/'/g, '"')
+}
+let squashFrom = ''
+let squashTo = ''
+function squashed(text: string): string {
+  if (text !== squashFrom) { squashFrom = text; squashTo = squash(text) }
+  return squashTo
+}
 
 console.log('=== #327 多级缓存与上次探测时间门禁 ===')
 

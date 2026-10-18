@@ -33,6 +33,13 @@ const { pathToFileURL } = require('url')
 const { spawnSync } = require('child_process')
 const realFs = require('node:fs/promises')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：
+//   spliceableJs —— 这一段要拼进 compileFn 的函数体当场求值，它按「同名 .ts 优先」解到真源，
+//     再按构建同一份口径转译成可 eval 的 JavaScript；
+//   sourcePath —— 下面数行数那件事要读的是**手写真源**（同名 .js 今天是构建产物）。
+const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
+// 行数尺子（#1017 立，实现住在 scripts/lib/effective-lines.mts）：只数有效行（注释与空行不计）。
+const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
 // 完成证据（#1158）：收尾交一行 GATE-RESULT，执行器据此判「跑完了没有」。
 const { printGateResult } = require('./lib/gate-result.ts')
 // 防抖窗口是五百毫秒，这一份门禁里有十几处等它落地；接上虚拟时钟把等待压成几毫秒，
@@ -47,7 +54,12 @@ const check = (ok, msg, detail) => {
   if (ok) { console.log('  PASS ' + msg); passed += 1 } else { console.log('  FAIL ' + msg + (detail ? ' —— ' + String(detail).slice(0, 300) : '')); failed += 1 }
 }
 const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-const countLines = (rel) => readText(rel).split(/\r?\n/).length
+// 数行数读的是**手写真源**（sourcePath 按「同名 .ts 优先」解，例如 settings-templates.js → settings-templates.ts）：
+//   #1251 起同名 .js 是构建产物，esbuild 排版过的行数与真源无关（单行函数被摊成多行），产物没构建时还会直接读不到。
+// 尺子是**有效行**（注释与空行不计）—— 与 tests/verify-file-granularity.ts 全树那把尺子同源（#1017）。
+//   为什么不是总行数：迁移按 AGENTS.md 第 3 条补了整段中文注释，用总行数等于「补注释反而顶破上限」；
+//   上限没放宽：有效行仍必须 ≤350，约束的是真内容。
+const countLines = (rel) => countEffectiveLines(readText(sourcePath(rel)))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-tpl-' + tag + '-'))
 const settingsPathIn = (home) => path.join(home, '.dsh', 'mattskillsdeck', 'settings.yaml')
@@ -101,13 +113,17 @@ function makeLocalStorage(initial) {
     dump: () => Object.assign({}, m),
   }
 }
-// store-prefs.js 里「主列表偏好」那一段的真源码（LIST_PREFS_KEY / listPrefs / saveListPrefsLegacy）：
+// store-prefs.ts 里「主列表偏好」那一段的真源码（LIST_PREFS_KEY / listPrefs / saveListPrefsLegacy）：
 //   与界面偏好那一族同住一片，拼这一个闭包时按构建次序要带上它（settings-ui.js 要用那两个名字）。
+// #1251 之后同名 store-prefs.js 是构建产物、注释被 esbuild 剥光，原来那两条注释锚（// #374 / // #375）
+//   在产物里根本不存在，所以改用代码声明当锚：起点是 LIST_PREFS_KEY 那条声明，终点是紧随其后的
+//   LABEL_CLICKS_KEY 那条声明 —— 取的仍是同一段（#374 注释到 #375 注释之间），一个字没多没少。
+//   锚点只写到「const 名字 = 」，不写右边那个字符串字面量，是为了同时认手写旧形态的单引号与转译后的双引号。
 function listPrefsSlice() {
-  const src = readText('src/client/kernel/store-prefs.js')
-  const start = src.indexOf('// #374：主列表偏好')
-  const end = src.indexOf('// #375：label 点击记忆')
-  if (start < 0 || end <= start) throw new Error('store-prefs.js 里找不到主列表偏好那一段（#374 到 #375 之间）')
+  const src = spliceableJs('src/client/kernel/store-prefs.js')
+  const start = src.indexOf('const LIST_PREFS_KEY = ')
+  const end = src.indexOf('const LABEL_CLICKS_KEY = ')
+  if (start < 0 || end <= start) throw new Error('store-prefs.ts 里找不到主列表偏好那一段（#374 到 #375 之间）')
   return noExport(src.slice(start, end))
 }
 // 被测那几片：按 scripts/build.mjs 那一次序拼（config.js 在设置文件那一族之前，模板那一片在写那一片之后）。
@@ -382,20 +398,22 @@ async function main() {
 
   // ── 第九件事：接线与行数 ──
   console.log('')
-  console.log('== 第九件事：接入列表与行数（构建清单登记了、文件都没超三百五十行） ==')
+  console.log('== 第九件事：接入列表与行数（构建清单登记了、文件都没超三百五十有效行） ==')
   {
-    check(readText('scripts/build.mjs').indexOf("{ name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.js' }") >= 0,
+    // #1251：清单里的登记项跟着真源走 —— 真源已是 .ts，构建清单也登记的是 .ts
+    //   （AGENTS.md：转完要把这份文件同步登记到 scripts/build.mjs 的清单，不登记就静默不编译）。
+    check(readText('scripts/build.mjs').indexOf("{ name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.ts' }") >= 0,
       'scripts/build.mjs 的清单里登记了这一片（不登记就静默不编译）。')
     const nTpl = countLines(TPL_REL)
-    check(nTpl <= 350, 'settings-templates.js 不超过三百五十行，实得 ' + nTpl + ' 行。')
+    check(nTpl <= 350, 'settings-templates 真源不超过三百五十有效行（注释与空行不计），实得 ' + nTpl + ' 行。')
     const nCfg = countLines(CONFIG_REL)
-    check(nCfg <= 350, 'config.js 不超过三百五十行，实得 ' + nCfg + ' 行。')
+    check(nCfg <= 350, 'config 真源不超过三百五十有效行，实得 ' + nCfg + ' 行。')
     const nView = countLines(VIEW_REL)
-    check(nView <= 350, 'settings-view.js 不超过三百五十行，实得 ' + nView + ' 行。')
+    check(nView <= 350, 'settings-view 真源不超过三百五十有效行，实得 ' + nView + ' 行。')
     const nWrite = countLines(VIEW_WRITE_REL)
-    check(nWrite <= 350, 'settings-view-write.js 不超过三百五十行，实得 ' + nWrite + ' 行。')
+    check(nWrite <= 350, 'settings-view-write 真源不超过三百五十有效行，实得 ' + nWrite + ' 行。')
     const nIdx = countLines('src/client/index.js')
-    check(nIdx <= 350, 'src/client/index.js 不超过三百五十行（新标记是并在原来那一行注释末尾的），实得 ' + nIdx + ' 行。')
+    check(nIdx <= 350, 'src/client/index.js 不超过三百五十有效行（拼接标记都是一行注释，注释不计入），实得 ' + nIdx + ' 行。')
   }
 
   console.log('')

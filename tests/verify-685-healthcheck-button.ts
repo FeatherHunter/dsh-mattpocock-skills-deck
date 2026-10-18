@@ -23,7 +23,9 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 // 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
 // 直接读 .js 会读到构建产物（或读不到），而且朴素拼文本过不了转译（类型标注与 satisfies 会把 eval 噎死）。
 // 共用入口先按全仓唯一口径转译再给可拼接文本；没转的文件走同一条，原样返回。
-const { spliceableJs } = require('./lib/source-text.ts')
+// 另外从同一入口拿 sourceText：下面「失败那一档确实存在」量的是 health-check 源码里那个三元分支，
+// #1251 转成 .ts 之后同名 .js 是 esbuild 产物（双引号），必须读真源才能按原判据断言。
+const { spliceableJs, sourceText } = require('./lib/source-text.ts')
 // 中央时间真值：locale-flow.js 的界面文案改成按中央参数现算（提交 2d0a3f85）之后，拼出来的模块里会用到
 // SETTINGS_DEBUG_PUSH_WAIT_MS 等常量；模块级 import 在拼接文本里非法，改成先把 values.js 的数值导出
 // 整批挂到 globalThis（裸标识符回落全局），以后再有新常量也不会当场 ReferenceError。
@@ -217,7 +219,8 @@ async function main() {
   check(!!logged[0] && logged[0].fields.backend === 'gitlab', '这一条也记下是哪个后端')
   opened.length = 0; logged.length = 0
   // 反向：渲染抛错时按失败记账（那两次调用都包着 catch，点一下绝不把面板带崩）
-  check(read(path.join('src', 'client', 'kernel', 'health-check.js')).indexOf("outcome: (injected ? 'ok' : 'fail')") >= 0, '失败那一档确实存在（渲染抛错时记 fail）')
+  // 读 .ts 真源：判据是「源码里存在 outcome 取 fail 的那一档」，不是构建产物里被改写后的样子。
+  check(sourceText('src/client/kernel/health-check.js').indexOf("outcome: (injected ? 'ok' : 'fail')") >= 0, '失败那一档确实存在（渲染抛错时记 fail）')
   check(hc.healthCheckCountOf(null) === null && hc.healthCheckVisible(undefined) === false, '传入空值不抛（面板点一下不会崩）')
 
   // 中英各跑一次，证明标题确实走词条、随语言变

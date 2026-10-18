@@ -8,6 +8,9 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// #1251：setupPendingOf 求值前必须已是纯 JS（.ts 原文带类型标注，vm 吃不了）—— 走 spliceableJs，
+//   与构建同一口径（esbuild + 行首 export 复原 + 剥 export），门禁看到的与拼进产物的同一份。
+import { spliceableJs } from './lib/source-text.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const ROOT = path.resolve(__dirname, '..')
@@ -15,14 +18,19 @@ let failed = false
 let total = 0
 const check = (ok, msg, detail='') => { total++; if (ok) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg + (detail ? ' \u2014 ' + detail : '')); } }
 console.log('== #891 setup \u9EC4\u6761\u81EA\u52A8\u91CD\u7B97 ==')
-const chainSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/probe-chain.js'), 'utf8')
+const chainSrc = spliceableJs('src/client/kernel/probe-chain.js')
 // 2. \u7EAF\u51FD\u6570\u884C\u4E3A\uFF1A\u62BD\u51FA\u6A21\u5757\u4E2D\u7684 setupPendingOf \u5355\u72EC\u6C42\u503C
 let setupPendingOf = null
 try {
-  const m = chainSrc.match(/export const setupPendingOf = function[\s\S]*?\n    \}/)
+  const m = chainSrc.match(/const setupPendingOf = function/)
   check(!!m, 'setupPendingOf \u6E90\u7801\u53EF\u63D0\u53D6')
   if (m) {
-    const fnSrc = m[0].replace(/^\s*export const setupPendingOf/, 'const setupPendingOf')
+    // #1251 注：转写把单行 try/catch 展开成多行（行为不变，缩进变了），按旧缩进掐会拦腰截断；
+    //   改锚函数尾行首 `};`（模块顶层函数结尾唯一是行首形态，内部块都有缩进）。
+    //   换行用 fromCharCode 拼，不在字面量里写转义，进 vm 的文本与看到的一致。
+    const tail = chainSrc.slice(m.index)
+    const end = tail.indexOf(String.fromCharCode(10) + '};')
+    const fnSrc = end > 0 ? tail.slice(0, end + 3) : ''
     // 把源码里抽出的纯函数体当函数体造函数，它的自由变量 chainSteps 显式当参数名，所以走 compileFn。
     const factory = compileFn(['chainSteps'], fnSrc + '\n;return setupPendingOf;')
     setupPendingOf = factory(null)

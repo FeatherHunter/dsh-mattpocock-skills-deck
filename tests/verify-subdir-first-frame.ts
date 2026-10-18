@@ -199,10 +199,11 @@ function bannerVariant(st) {
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // 真源里的几条接线（反证要能按字面把它们拆掉 / 改回原样；名字一改就红在这）。
-// 注意这几条正则都带 \r?\n：这几个内核文件在仓库里是 CRLF 换行的（门禁按原文读，不整篇改写行尾）。
+// #1251：这扇门禁读的是六份内核的构建产物（text 拼合直接求值），转写后 esbuild 把单行 try/catch 展开成多行、
+//   引号统一双引号 —— 两条反证正则按产物当下的形态写（语句级锚点，转译前后逐字相同，意图不变）。
 const NEW_GUARD_RE = /if \(_curNorm !== _reqNorm \&\& !_snapRequestKeyWas\(_reqNorm, st\)\) \{/
-const ASK_LINE_RE = /^[ \t]*try \{ if \(typeof askSelectionOnce === 'function'\) askSelectionOnce\(st\) \} catch \(eSelAsk\) \{\}\r?\n/m
-const LATE_LINE_RE = /^[ \t]*_rawP\.then\(function \(lateSnap\) \{ try \{ _installLateSnapshot\(st, lateSnap, _reqNorm, _mine\)[^\r\n]*\r?\n/m
+const ASK_LINE_RE = /^[ \t]*if \(typeof askSelectionOnce === "function"\) askSelectionOnce\(st\);\r?\n/m
+const LATE_LINE_RE = /^[ \t]*_installLateSnapshot\(st, lateSnap, _reqNorm, _mine\);\r?\n/m
 function cut(src, re, label) {
   const out = src.replace(re, '')
   ok(out !== src, '（前提）能在真源里拆掉 ' + label)

@@ -70,11 +70,14 @@ const bundle = readFileSync(PRODUCT, 'utf8')
 // 词条从产物里读真货（与线上同一份文字），门禁不另造一份
 const dict: Record<string, string> = {}
 function localeOf (key: string, expectLang?: string): string {
-  // 中英各一条：先出现的是中文（locale 源文件里中文半区在前），后出现的是英文
-  const re = new RegExp("'" + key.replace(/\./g, '\\.') + "':\\s*'((?:[^'\\\\]|\\\\.)*)'", 'g')
+  // 中英各一条：先出现的是中文（locale 源文件里中文半区在前），后出现的是英文。
+  // 引号两种都认：产物是构建出来的（#1251 起同名 .js 是 esbuild 产物），而 esbuild 统一把字符串
+  // 输出成双引号；真源那份词表今天写的是单引号。抓的仍是「这个键对应的那一条词条原文」，
+  // 前后引号用同一个反向引用配对，所以不会把「键 + 别的属性」误配成一条词条。
+  const re = new RegExp("['\"]" + key.replace(/\./g, '\\.') + "['\"]:\\s*(['\"])((?:[^'\"\\\\]|\\\\.)*)\\1", 'g')
   const hits: string[] = []
   let m: RegExpExecArray | null
-  while ((m = re.exec(bundle)) !== null) hits.push(m[1])
+  while ((m = re.exec(bundle)) !== null) hits.push(m[2])
   check(hits.length >= 2, '词条 ' + key + ' 在产物里中英各一条（实得 ' + hits.length + ' 条）')
   dict[key] = hits[0] || key
   return dict[key]

@@ -23,6 +23,8 @@ import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
+// 手写真源按「同名 .ts 优先」解析（tests/lib/source-text.ts）；产物才直接读文件。
+import { sourcePath, sourceText } from './lib/source-text.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let failed = 0
@@ -238,16 +240,21 @@ function prsOf(res: { ok: boolean; data: ListedPr[] } | null | undefined): Liste
 
   // 界面不认后端的私有字段（契约 docs/architecture/tracker-backend-design-contract.md 第 1、2 节：
   //   UI 不知道后端是谁；谁给界面递原生节点，谁先收成契约形状）
-  const kindSrc = readFileSync(resolve(ROOT, 'src/client/views/shared/stateKind.js'), 'utf8')
-  check(!kindSrc.includes('pull_request'), '判据不读后端私有字段（pull_request）：src/client/views/shared/stateKind.js')
+  // 这几条读的是手写真源，所以走 sourceText（它按「同名 .ts 优先」解析）：#1251 起 views 下的同名 .js
+  //   已是构建产物，直接读产物会把「界面不许自己判状态」这条判据押在构建新鲜度上——真源被改坏、产物
+  //   还是上一版时它会假绿。今天 stateKind 与 PrTab 还没有 .ts（sourcePath 原样返回 .js 那一份），
+  //   IssueDetail 已经转成 .ts，两种形态在这里走同一条道；报错信息点名今天真正读到的那个文件。
+  const kindSrc = sourceText('src/client/views/shared/stateKind.js')
+  check(!kindSrc.includes('pull_request'), '判据不读后端私有字段（pull_request）：' + sourcePath('src/client/views/shared/stateKind.js'))
   check(!kindSrc.includes('isPullRequest'), '判据不需要「是不是拉取请求」这个后端字段')
 
   for (const rel of ['src/client/views/PrTab.js', 'src/client/views/IssueDetail.js']) {
-    const src = readFileSync(resolve(ROOT, rel), 'utf8')
+    const src = sourceText(rel)
+    const shown = sourcePath(rel)
     // 连兜底分支里那份「不是 CLOSED 就当打开」也要查出来（上一版只查 !== 一种写法，漏过了兜底分支）
     const offenders = src.split(/\r?\n/).filter((l) => /toUpperCase\(\)[\s\S]*'CLOSED'/.test(l) || /'CLOSED'[\s\S]*toUpperCase\(\)/.test(l))
-    check(offenders.length === 0, '不再自己判「不是 CLOSED 就当打开」（含兜底分支）：' + rel + (offenders.length ? ' → ' + offenders[0].trim().slice(0, 80) : ''))
-    check(src.includes('prStateKind'), '用同一份判据：' + rel + ' 调 prStateKind')
+    check(offenders.length === 0, '不再自己判「不是 CLOSED 就当打开」（含兜底分支）：' + shown + (offenders.length ? ' → ' + offenders[0].trim().slice(0, 80) : ''))
+    check(src.includes('prStateKind'), '用同一份判据：' + shown + ' 调 prStateKind')
   }
 }
 
@@ -271,10 +278,16 @@ if (!existsSync(PRODUCT)) {
   // 词条从产物里读真货（与线上同一份文字），避免门禁自己造词
   const dict: Record<string, string> = {}
   for (const key of ['list.state.open', 'list.state.closed', 'list.state.merged']) {
-    const re = new RegExp("'" + key + "':\\s*'([^']*)'", 'g')
+    /**
+     * 产物是 esbuild 拼出来的（#1251 起同名 .js 都是构建产物），字符串一律输出双引号，而旧写法只认
+     * 单引号 `'key': 'value'`，于是三条词条一条都数不出来。改成 `'key': …` 与 `"key": …` 都认：
+     * 引号用配对回引（\1）锁住，数的仍然只可能是「这个键对应的那条词条」（键里的点也一并转义，
+     * 免得 `list.state.open` 里的点在正则里当通配符使）。计数判据（中英各一条 = 2）一条不动。
+     */
+    const re = new RegExp("['\"]" + key.replace(/\./g, '\\.') + "['\"]:\\s*(['\"])((?:[^'\"\\\\]|\\\\.)*)\\1", 'g')
     const hits: string[] = []
     let m: RegExpExecArray | null
-    while ((m = re.exec(bundle)) !== null) hits.push(m[1])
+    while ((m = re.exec(bundle)) !== null) hits.push(m[2])
     check(hits.length === 2, '词条 ' + key + ' 在产物里中英各一条（实得 ' + hits.length + ' 条）')
     dict[key] = hits[0]
   }

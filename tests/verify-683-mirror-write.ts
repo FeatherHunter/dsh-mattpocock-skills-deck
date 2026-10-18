@@ -4,8 +4,8 @@
  * 后端选择只认工作区文件，本地这张镜像表（dsws.selectionByCwd）不再读写；
  * 布局那张表（dsws.setupLayoutByCwd）保留读-改-写、跨窗口合并、写失败看得见（随 #1012 搬）。
  *
- * 做法：把 src/client/kernel/store-prefs.js 的真身文本喂进一个沙箱求值（真源、假 localStorage 与假 window），
- * 再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
+ * 做法：经共用入口 spliceableJs 从真源 src/client/kernel/store-prefs.ts 取出「与构建同一份转译参数」的
+ * 可 eval JS（真源、假 localStorage 与假 window）喂进沙箱求值，再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
  *
  * 用法：node tests/verify-683-mirror-write.js
  */
@@ -13,19 +13,23 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { compileFn } from './lib/eval-probe.js'
+import { spliceableJs } from './lib/source-text.ts'
 // 中央时间真值：缓存 TTL 只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 import { SYNC_ISSUE_CACHE_TTL_MS } from '../src/shared/time-config/values.js'
 ;(globalThis as unknown as Record<string, unknown>).SYNC_ISSUE_CACHE_TTL_MS = SYNC_ISSUE_CACHE_TTL_MS
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
 const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
-const ROOT = path.resolve(import.meta.dirname, '..')
 const PREFS_REL = 'src/client/kernel/store-prefs.js'
 let passed = 0
 let failed = 0
 const check = (ok: unknown, msg: string): void => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
-const prefsSrc = fs.readFileSync(path.join(ROOT, PREFS_REL), 'utf8')
+// #1251：真源已是 store-prefs.ts，这里走共用入口取的正是「按构建同一份转译参数」产出的可 eval JS：
+//   注释与行首 export 都被剥掉，`function (cwd: any)` 被收成 `function(cwd)`，单行函数体被摊成多行。
+//   下面 F 组反证的落点因此要按转译后的形状写（见各自注释）。
+const prefsSrc = spliceableJs(PREFS_REL)
+// 转译产物已经没有行首 export，这个剥除留着兼容未迁移的回退形态（对今天的输入是无害的空操作）。
 const stripExports = (s: string): string => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const TBL_SEL = 'dsws.selectionByCwd'
 const TBL_LAYOUT = 'dsws.setupLayoutByCwd'
@@ -126,14 +130,16 @@ const loadBroken = function (tag: string, from: string, to: string): { bad?: str
   return { src: fs.readFileSync(file, 'utf8') }
 }
 {
-  const b1 = loadBroken('sel-write-back', 'export const setCachedSelection = function (cwd, sel) {}', 'export const setCachedSelection = function (cwd, sel) { try { localStorage.setItem(SELECTION_BY_CWD_KEY, JSON.stringify(sel)) } catch (e) {} }')
+  // F1/F2 的落点按转译后的形状写：`function(cwd, sel) {` 之后是换行（as any 的类型标注与单行体都没了），
+  //   旧的手写形态 `export const … = function (cwd, sel) {}` 在真源里已不存在 —— 找不到落点必须判红。
+  const b1 = loadBroken('sel-write-back', 'const setCachedSelection = function(cwd, sel) {\n};', 'const setCachedSelection = function(cwd, sel) { try { localStorage.setItem(SELECTION_BY_CWD_KEY, JSON.stringify(sel)) } catch (e) {} }')
   check(!b1.bad, '反证 F1 的改法能落地（把选择写盘加回去）' + (b1.bad ? ' —— ' + b1.bad : ''))
   if (b1.src) {
     const h = makeHarness(b1.src, {})
     h.api.setCachedSelection('D:\\Mine', { backendId: 'github' })
     check(!!h.disk[TBL_SEL], '反证 F1 成立：加回写盘之后磁盘又脏了 —— 说明 A 组量的就是“不写盘”')
   }
-  const b2 = loadBroken('sel-read-back', 'export const getCachedSelection = function (cwd) { return null }', 'export const getCachedSelection = function (cwd) { return { backendId: "github" } }')
+  const b2 = loadBroken('sel-read-back', 'const getCachedSelection = function(cwd) {\n  return null;\n};', 'const getCachedSelection = function(cwd) { return { backendId: "github" } }')
   check(!b2.bad, '反证 F2 的改法能落地（把选择读数加回去）' + (b2.bad ? ' —— ' + b2.bad : ''))
   if (b2.src) {
     const h = makeHarness(b2.src, {})

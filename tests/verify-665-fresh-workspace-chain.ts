@@ -486,7 +486,12 @@ async function main() {
   const pkgBundle = read('package/lib/client.js')
   for (const pair of [['client.js', clientBundle], ['package/lib/client.js', pkgBundle]]) {
     ok(pair[1].indexOf('const guideBannerStep = function') >= 0, pair[0] + ' 里带着横幅那条链')
-    ok(pair[1].indexOf("'guide.inject'") >= 0, pair[0] + ' 里带着那条常驻注入日志')
+    // 「产物里带着那条常驻注入日志」判据不变，但查的是**发射那一处**（log('info', 'guide.inject', …)），
+    //   不是「哪个角落出现过这个键名」：事件名白名单里也有这一条，只查「出现过」会被白名单顶成假绿。
+    //   引号两种都认 —— 产物由 esbuild 拼出来（#1251 起同名 .js 是构建产物），esbuild 统一输出双引号，
+    //   真源那份写的是单引号（src/client/statusbar/bannerChain.ts 的 logGuideInject）。
+    ok(/log\(\s*['"][a-z]+['"]\s*,\s*['"]guide\.inject['"]/.test(pair[1]),
+      pair[0] + ' 里带着那条常驻注入日志（发射那一处真在产物里）')
   }
   // #716 起的现状：那句安装原话按「一个缺失状态只有一份说明」的口径挪回了后端声明（GitHub 模块的
   //   prompts.cliInstall），产物里因此不再有那句字面文本，只有它的键名；替身账本里也没有 GitHub 模块的

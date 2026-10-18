@@ -14,15 +14,26 @@ const check = function (file) {
   const requireText = (re, message) => { if (!re.test(src)) problems.push(message) }
 
   // 两个交互浮层都必须走既有的 body portal seam。
-  requireText(/const PortalOverlay\s*=\s*function[\s\S]{0,180}return portalTop\(h\('div'/, 'PortalOverlay 未委托给 portalTop')
-  requireText(/PortalOverlay\(\{ className: 'dsws-bugmenu'/, 'BUG 菜单未通过 PortalOverlay 渲染')
-  requireText(/PortalOverlay\(\{ className: 'dsws-skillpop-bridge'/, '技能列表未通过 PortalOverlay 渲染')
+  // 字面量写成 ['"]x["']（两种引号都认）：产物是构建出来的，esbuild 统一把字符串输出成双引号；
+  //   手写真源（src/client/floating/*.ts 与 src/client/statusbar/StatusMenus.ts）写的是单引号。
+  //   要求的三样（PortalOverlay → portalTop(h('div'))、两处 className 调 PortalOverlay）一个字没少。
+  requireText(/const PortalOverlay\s*=\s*function[\s\S]{0,180}return portalTop\(h\(["']div["']/, 'PortalOverlay 未委托给 portalTop')
+  requireText(/PortalOverlay\(\{\s*className:\s*["']dsws-bugmenu["']/, 'BUG 菜单未通过 PortalOverlay 渲染')
+  requireText(/PortalOverlay\(\{\s*className:\s*["']dsws-skillpop-bridge["']/, '技能列表未通过 PortalOverlay 渲染')
 
   // overlay 必须使用 viewport 定位和全局层级，不能继续使用 absolute + 9999。
   requireText(/dsws-bugmenu[\s\S]{0,500}position:\s*["']fixed["']/, 'BUG 菜单缺 position:fixed')
   requireText(/dsws-skillpop[\s\S]{0,500}position:\s*["']fixed["']/, '技能列表缺 position:fixed')
-  requireText(/dsws-bugmenu[\s\S]{0,500}zIndex:\s*2147483000/, 'BUG 菜单缺全局 z-index')
-  requireText(/dsws-skillpop[\s\S]{0,500}zIndex:\s*2147483000/, '技能列表缺全局 z-index')
+  // 全局层级这一条判据没变（仍然必须正好等于 2147483000），变的是比法：esbuild 会把 2147483000
+  //   印成数值等价的短写法 2147483e3，所以先把数字面量抓出来再用 Number() 比数值，而不是比字面文本。
+  //   这样层级被改小（例如退回 9999）照样掀红。
+  const GLOBAL_Z_INDEX = 2147483000
+  const zIndexOf = (slot) => {
+    const m = new RegExp(slot + '[\\s\\S]{0,500}zIndex:\\s*([0-9][0-9a-zA-Z.+-]*)').exec(src)
+    return m ? Number(m[1]) : NaN
+  }
+  if (zIndexOf('dsws-bugmenu') !== GLOBAL_Z_INDEX) problems.push('BUG 菜单缺全局 z-index')
+  if (zIndexOf('dsws-skillpop') !== GLOBAL_Z_INDEX) problems.push('技能列表缺全局 z-index')
 
   // 定位必须从锚点 rect 得出，并在滚动/缩放后更新。
   // B1 #460：状态栏悬浮菜单旅程搬 StatusMenus.js（placeOverlay/placeBugMenu 改名 Status 前缀），拼合断言意图不变

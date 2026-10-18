@@ -28,6 +28,8 @@ import { resolve } from 'node:path'
 import { createRequire } from 'node:module'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// #1251：只认文本形状的断言走 sourceText 取 .ts 原文（esbuild 产物语句逐行重排，单行形态对不上）。
+import { sourceText } from './lib/source-text.js'
 // jsdom 挂载要往 Node 全局上写浏览器对象，测试里按任意值处理；运行时与原来一样。
 declare const global: any
 
@@ -55,7 +57,10 @@ console.log('== A 源码层：座位只在状态栏（三支都带上），检�
   // #698：那个座位现在也管「域文档布局」那张小卡 —— 卡的界面在 views/SetupCard.js，
   //   座位里按 st.setupLayoutCardOpen 分派（同一时刻只画一张，不叠两层遮罩）。
   check(clientSrc.indexOf('const SetupLayoutCard = function') >= 0, '产物里还带着那张布局小卡的界面（#698 搬进座位的第二件东西）')
-  check(/setupLayoutCardOpen === true\) \{ try \{ return SetupLayoutCard\(/.test(clientSrc), '座位里按「卡开着」分派到那张卡（不只画表单弹窗）')
+  // #1251：esbuild 把单行语句逐行重排（`try {` 另起行），产物上不再是单行形态 ——
+  //   这条只认文本形状的断言改走 sourceText 取 .ts 原文（单行形态、单引号都在）。
+  const modalViewSrc = sourceText('src/client/kernel/slotRenderer-modal-view.js')
+  check(/setupLayoutCardOpen === true\) \{ try \{ return SetupLayoutCard\(/.test(modalViewSrc), '座位里按「卡开着」分派到那张卡（不只画表单弹窗）')
 }
 
 // —— B 组的取值口径：产物里那段弹窗渲染体，原样抽出来跑（不启动整条插件）——

@@ -17,14 +17,17 @@ const { compileFn } = require('./lib/eval-probe.js')
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 const readSrc = (f) => fs.readFileSync(f, 'utf8')
 
-// ---- 提取：交接执行块（含目录校验助手到 #361 开新会话入口之前）----
+// ---- 提取：交接执行块（含目录校验助手，到 #361 开新会话入口之前）----
+// 本门默认读的是两份构建产物（client.js 与 package/lib/client.js），所以锚点必须是「转译后仍在」的形状。
+// #1251：终止锚点从 `// #361：在新会话中打开` 那行注释换成下一条声明的开头 —— api-new-session.ts 转成
+//   TypeScript 后由 esbuild 出产物，普通注释在产物里已经被剥掉，而开新会话入口这条声明源与产物同形。
 function extractHandoffBlock(src) {
   const startMarkers = ['const handoffCwdMatches = function', 'const probeHandoffReady = function']
   let i = -1
   for (const m of startMarkers) { i = src.indexOf(m); if (i >= 0) break }
   if (i < 0) throw new Error('起始锚点缺失: handoffCwdMatches / probeHandoffReady')
-  const j = src.indexOf('// #361：在新会话中打开', i)
-  if (j < 0) throw new Error('终止锚点缺失: #361 注释')
+  const j = src.indexOf('const openTextInNewSession = function', i)
+  if (j < 0) throw new Error('终止锚点缺失: openTextInNewSession')
   return src.slice(i, j)
 }
 
@@ -32,8 +35,10 @@ function extractHandoffBlock(src) {
 function extractFactoryBlock(src) {
   const i = src.indexOf('const createPTCSession = function')
   if (i < 0) throw new Error('起始锚点缺失: createPTCSession')
-  const j = src.indexOf('命名守护', i)
-  if (j < 0) throw new Error('终止锚点缺失: 命名守护')
+  // #1251：终点从「命名守护」那行注释换成该段的第一条语句 —— 注释在产物里没有了（见上），
+  //   `let _namingPullBusy = false` 是命名守护段的第一条语句，两份产物里都在。
+  const j = src.indexOf('let _namingPullBusy = false', i)
+  if (j < 0) throw new Error('终止锚点缺失: 命名守护段首句')
   return src.slice(i, j)
 }
 

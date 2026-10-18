@@ -7,6 +7,10 @@ const fs = require('fs')
 const path = require('path')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// #1251：log 已从 .js 转成 .ts，同名 .js 是 esbuild 构建产物（双引号、行数也变了）。
+// 这一门的静态断言量的是「源码里写着哪个键、打哪支电话」，必须读 .ts 真源；
+// 运行夹具又需要可求值的 JavaScript（.ts 带类型标注），所以同一份真源再经 spliceableJs 转译一次。
+const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
 // 中央时间真值：发批间隔等时间数字只住 config/*.yaml，这里读同一份导出来比对，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 // 日志模块顶部那一行中央 import 在 compileFn 函数体里是非法的（函数体不许出现 import），
@@ -22,8 +26,11 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 console.log('client 日志底座门禁（#490：开关持久化、对账 winner 为宿主、广播同构）')
 
-const LOG_SRC = path.join(ROOT, 'src', 'client', 'kernel', 'log.js')
-const PROBE_SRC = path.join(ROOT, 'src', 'client', 'kernel', 'probe-snapshot.js')
+const LOG_REL = 'src/client/kernel/log.js'
+const LOG_SRC = path.join(ROOT, sourcePath(LOG_REL))
+const PROBE_SRC = path.join(ROOT, sourcePath('src/client/kernel/probe-snapshot.js'))
+// 运行夹具用转译后的同一份真源：类型标注会被剥掉，模块级 import 也被切成可拼接的文本。
+const evalSrc = spliceableJs(LOG_REL)
 
 // ---- 底座自检：文件行数、统一接口、体内兜底 ----
 const src = fs.readFileSync(LOG_SRC, 'utf8')
@@ -77,7 +84,8 @@ function makeTimer() {
 }
 function loadLog(options) {
   const opts = options || {}
-  const stripped = stripTimeConfigImport(src)
+  // 夹具吃的是转译后的真源（evalSrc），不是上面的静态文本：静态那份带类型标注，造函数会语法错。
+  const stripped = stripTimeConfigImport(evalSrc)
   const body = stripped.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
   // 日志模块（剥掉行首 export）整份当函数体造函数，宿主与计时器等四个依赖显式当参数名，所以走 compileFn。
   const factory = compileFn(

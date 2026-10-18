@@ -10,8 +10,13 @@
 // 只看文本形状，不执行产品代码；整行注释先剥掉，免得注释里的旧写法把判据带偏。
 // 第二笔改名成 TypeScript（2026-10-17）：只加类型标注、把 process.exit 换成 process.exitCode
 //   （装载钩子下加载的 .ts 里硬退出会撞 libuv 断言崩溃），判据与文案一个字没动。
+// 第三笔（#1251）：probe-auto 转成 TypeScript 后，同名 .js 变成 esbuild 构建产物，
+//   直接读它会读到大改过形态的文本（`function(cwd)`、类型被剥掉）。这里要的是「源码里有这个函数、
+//   有这个分支」，所以走 sourcePath 优先拿同名 .ts 真源；判据与变异片段跟着 .ts 的类型标注同步，
+//   仍然要求「改坏源码必须判红」，没有放松任何一条。
 const fs = require('fs')
 const path = require('path')
+const { sourcePath } = require('./lib/source-text.ts')
 
 /**
  * 一条判据：名字给人和日志看，bad 判断「这段源码不合规」。
@@ -21,7 +26,7 @@ type IsolationRule = { name: string; bad: (src: string) => boolean }
 /** 变异：把源码里 from 换成 to，对应判据必须因此报红。 */
 type RuleMutation = { rule: string; from: string; to: string }
 
-const SRC_REL = 'src/client/kernel/probe-auto.js'
+const SRC_REL = sourcePath('src/client/kernel/probe-auto.js')
 const ROOT = path.join(__dirname, '..')
 
 // 剥掉整行注释（源码里诸如「从前这一行下面一律 loadSnapshot(primary, true, true)」这类说明，
@@ -33,11 +38,14 @@ function stripLineComments(src: string): string {
 const RULES: IsolationRule[] = [
   {
     name: '存在 refreshGroup(cwd) 按组刷新辅助',
-    bad: src => !/const\s+refreshGroup\s*=\s*function\s*\(\s*cwd\s*\)/.test(src),
+    // .ts 真源在参数上带类型标注（cwd: any），所以参数名与右括号之间允许出现 `: 类型`；
+    // 仍然要求函数就是 `function (cwd ...)` 这个形状，不接受换成别的参数名或加参数。
+    bad: src => !/const\s+refreshGroup\s*=\s*function\s*\(\s*cwd\s*(?::[^)]*)?\)/.test(src),
   },
   {
     name: '分组前先把 cwd 归一成工作区键（normWanted = wsKeyOf(cwd)）',
-    bad: src => !/const\s+normWanted\s*=\s*wsKeyOf\(cwd\)/.test(src),
+    // 同理，`const normWanted: any = wsKeyOf(cwd)` 是转写后的真源形态。
+    bad: src => !/const\s+normWanted\s*(?::[^=]*)?=\s*wsKeyOf\(cwd\)/.test(src),
   },
   {
     name: 'shared 只在与探查工作区同键时入组',
@@ -74,15 +82,17 @@ const RULES: IsolationRule[] = [
 ]
 
 // 每个判据配一个变异：改坏之后这条判据必须报红。
+// 片段都取自 .ts 真源：源码里带类型标注的地方（`const x: any = ...`）就不再把这些标注抄进 from，
+// 只从等号或函数体这些两侧都稳定的位置切，避免下一次类型微调又让变异落空。
 const MUTATIONS: RuleMutation[] = [
-  { rule: '存在 refreshGroup(cwd) 按组刷新辅助', from: 'const refreshGroup = function (cwd)', to: 'const refreshGroupX = function (cwd)' },
-  { rule: '分组前先把 cwd 归一成工作区键（normWanted = wsKeyOf(cwd)）', from: 'const normWanted = wsKeyOf(cwd)', to: 'const normWanted = cwd' },
+  { rule: '存在 refreshGroup(cwd) 按组刷新辅助', from: 'refreshGroup = function (cwd', to: 'refreshGroupX = function (cwd' },
+  { rule: '分组前先把 cwd 归一成工作区键（normWanted = wsKeyOf(cwd)）', from: '= wsKeyOf(cwd)', to: '= cwd' },
   { rule: 'shared 只在与探查工作区同键时入组', from: 'wsKeyOf(shared.cwd) === normWanted', to: 'true' },
   { rule: 'stores 只在与探查工作区同键时入组', from: 'st.cwd && wsKeyOf(st.cwd) === normWanted', to: 'true' },
-  { rule: '已移除旧缺陷指纹：if (cwd && !st2.cwd) st2.cwd = cwd 之后无条件全量广播', from: 'const primary = group[0]', to: 'if (cwd && !st2.cwd) st2.cwd = cwd\n          const primary = group[0]' },
+  { rule: '已移除旧缺陷指纹：if (cwd && !st2.cwd) st2.cwd = cwd 之后无条件全量广播', from: '= group[0]', to: '= group[0]\n      if (cwd && !st2.cwd) st2.cwd = cwd' },
   { rule: '空组时不发全量重建（#232 R3：无人观看的工作区静默放行）', from: 'if (!group.length) {', to: "if (!group.length) { host.call('wf.refresh', { cwd: cwd });" },
   { rule: '兜底路径按 sessionId→cwd 精确映射（sidToCwd 表要真的被用来赋值）', from: 'st.cwd = sidToCwd[st.sessionId]', to: 'st.cwd = foundCwds[0]' },
-  { rule: '已移除首绑缺陷指纹：shared.cwd !== foundCwds[0] 时无条件改写', from: 'const foundCwds = Array.from(foundCwdsByNorm.values())', to: 'const foundCwds = Array.from(foundCwdsByNorm.values())\n          if (shared.cwd !== foundCwds[0]) shared.cwd = foundCwds[0]' },
+  { rule: '已移除首绑缺陷指纹：shared.cwd !== foundCwds[0] 时无条件改写', from: '= Array.from(foundCwdsByNorm.values())', to: '= Array.from(foundCwdsByNorm.values())\n      if (shared.cwd !== foundCwds[0]) shared.cwd = foundCwds[0]' },
   { rule: '组内首个 primary 负责 loadSnapshot（带正确 cwd）', from: 'loadSnapshot(primary, true, true)', to: 'loadSnapshot(rest[0], true, true)' },
 ]
 

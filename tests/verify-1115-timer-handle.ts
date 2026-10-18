@@ -27,6 +27,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { planGates } from '../scripts/lib/discover-gates.ts'
+import { sourcePath } from './lib/source-text.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -378,7 +379,9 @@ async function main() {
     await sleep(60)
     check(firedNum === 0, shimRel + '：页面自己那一档（数字或 Timeout 对象）也撤得掉（实得 ' + firedNum + ' 次）')
     // 真实调用点：设置那一族写盘前的防抖等待撤销要走它（原先拿全局 clearTimeout 撤宿主句柄，是空操作）。
-    const writeRel = 'src/client/kernel/settings-view-write.js'
+    // #1251：settings-view-write 已转成 .ts，同名 .js 是 esbuild 产物；这三条判据量的是源码里的写法，
+    // 所以经 sourcePath 拿同名 .ts 真源（产物里 `typeof timer.clearTimeout === "function"` 是另一套文本）。
+    const writeRel = sourcePath('src/client/kernel/settings-view-write.js')
     const writeSrc = fs.readFileSync(path.join(ROOT, writeRel), 'utf8')
     check(/viewFlagCancelTimer\(viewFlagState\.timer\)/.test(writeSrc), writeRel + '：撤销上一次排的那支等待走 viewFlagCancelTimer')
     check(!/clearTimeout\(viewFlagState\.timer\)/.test(writeSrc), writeRel + '：没有再做「拿全局 clearTimeout 撤宿主句柄」的旧写法')

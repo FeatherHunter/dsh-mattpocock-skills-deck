@@ -26,6 +26,10 @@ const path = require('path')
 // 完成证据（#1158）：收尾交一行 GATE-RESULT，三条执行器据此判「这一趟真的跑完了没有」。
 // 只看退出码会被「跑到一半就收摊、退出码仍是 0」骗过去（#1146 就是这么被发现的）。
 const { printGateResult } = require('./lib/gate-result.ts')
+// #1251：StatusBar 转成 TypeScript 后，同名 .js 是 esbuild 构建产物（注释被剥、引号统一成双引号）。
+// 这一门要从「收起态那一支」里读四个样式数值当 B 组输入，锚点 // #522 只存在于真源，
+// 所以经 sourcePath 拿同名 .ts；判据与数值一个没改。
+const { sourcePath } = require('./lib/source-text.ts')
 const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 const { JSDOM } = require('jsdom')
 const React = require('react')
@@ -37,7 +41,6 @@ const { evalInWindow } = require('./lib/eval-probe.js')
 declare const global: any
 
 const ROOT = path.resolve(__dirname, '..')
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 
 let failed = false
 let total = 0
@@ -47,13 +50,13 @@ const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok 
 // 抠法照 verify-640 的先例：值必须从真源里读出来，不许在门里另抄一份常量。
 const collapsedBranchOf = function (src: string): string {
   const at = src.indexOf('if (deckFolded) {')
-  if (at < 0) throw new Error('产物里找不到收起态那一支（if (deckFolded)）')
+  if (at < 0) throw new Error('真源里找不到收起态那一支（if (deckFolded)）')
   const end = src.indexOf('// #522', at)
   if (end < 0) throw new Error('找不到收起态那一支的结尾（锚点 // #522）')
   return src.slice(at, end)
 }
 const fieldOf = function (block: string, field: string): string | null {
-  // 数值型的字段在产物里是 `fontSize: 10`，带单位的那些是 `padding: '0 8px'`，两种都要认。
+  // 真源里数值型的字段写作 `fontSize: 10`，带单位的那些写作 `padding: '0 8px'`，两种都要认。
   const m = block.match(new RegExp(field + ":\\s*(?:'([^']+)'|(\\d+))"))
   return m ? (m[1] !== undefined ? m[1] : m[2]) : null
 }
@@ -73,14 +76,17 @@ const runStatic = function (src: string): CollapsedStyle {
   return { fontSize, padding, border, radius }
 }
 
-console.log('== 从产物里取出收起态那颗按钮的样式数值（B 组拿它当输入，这里不判任何东西） ==')
+console.log('== 从真源取出收起态那颗按钮的样式数值（B 组拿它当输入，这里不判任何东西） ==')
 let values: CollapsedStyle | null = null
-for (const file of files) {
-  const tag = file.indexOf('package/') >= 0 ? 'npm' : 'dyn'
-  console.log('=== ' + file + ' ===')
-  const src = fs.readFileSync(path.join(ROOT, file), 'utf8')
-  try { const v = runStatic(src); if (!values) values = v } catch (e) { failed = true; console.log('  FAIL ' + tag + ' — ' + e.message) }
+{
+  const rel = sourcePath('src/client/statusbar/StatusBar.js')
+  console.log('=== ' + rel + ' ===')
+  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+  try { values = runStatic(src) } catch (e: any) { failed = true; console.log('  FAIL ' + rel + ' — ' + ((e && e.message) || e)) }
 }
+// 读不到就不往下走：B 组拿这四个数当输入，值为空时再往后只会在渲染那边报一个看不懂的 TypeError，
+// 不如在这里把「锚点过期了」这句话直接说出来。
+if (!values) { console.log('  FAIL 读不到收起态那颗按钮的样式数值，B 组无法继续（判据锚点已过期，请同步）'); process.exit(1) }
 
 const main = async function () {
 console.log('')
@@ -405,15 +411,20 @@ console.log('== D 反证：把量到的东西做坏，C 里对应的那几条必
 {
   const code = fs.readFileSync(path.join(ROOT, 'package/lib/client.js'), 'utf8')
   // D1：给黄条整条挂上收起（模拟真机现场那一种「点一下黄条整条就没了」）
-  const NEEDLE = "return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }"
-  const d1 = code.replace(NEEDLE, "return h('div', { className: 'dsws-banner warn', onClick: foldBanner, style: { margin: 0, maxWidth: 560, cursor: 'default' } }")
+  // 产物由 esbuild 生成，字符串统一是双引号；这里按「两种引号都认」的写法找那一个 return，
+  // 再在 style 前面插入 onClick —— 判据本身没变，仍然要求这一改必须真的落到产物上。
+  const d1 = code.replace(
+    /return h\((['"])div\1, \{ className: (['"])dsws-banner warn\2, style: \{ margin: 0, maxWidth: 560, cursor: (['"])default\3 \} \}/,
+    (matched) => matched.replace('style: {', 'onClick: foldBanner, style: {')
+  )
   check(d1 !== code, '反证 D1：改动落到了产物上')
   const rows1 = await runSweep(d1)
   const broken = rows1.filter((r) => (r.want === 'keep') && (r.banner === false || r.capsule === false))
   check(broken.length > 0, '反证 D1：黄条整条一旦可收起C 组当场变红（红的有：' + (broken.map((b) => b.label).join('、') || '一处都没有 —— 这一门量不住这个毛病') + '）')
 
   // D2：把带字的「收起」塞回那三处触发，C 组那条「身上一个字都没有」必须红
-  const d2 = code.replace(/Ic\(\{\s*n:\s*'x',\s*size:\s*11\s*\}\)/g, "[Ic({ n: 'x', size: 11 }), h('span', null, tr('banner.foldShort'))]")
+  // 产物里那三处写成 Ic({ n: "x", size: 11 })，引号同样两种都认（#1251 之后这里是双引号）。
+  const d2 = code.replace(/Ic\(\{\s*n:\s*['"]x['"],\s*size:\s*11\s*\}\)/g, "[Ic({ n: 'x', size: 11 }), h('span', null, tr('banner.foldShort'))]")
   check(d2 !== code, '反证 D2：能把带字的写法塞回那三处收起')
   const live2 = await mountLive(d2)
   const btn2 = live2.container.querySelector('.dsws-banner-fold-x')

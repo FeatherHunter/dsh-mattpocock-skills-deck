@@ -88,7 +88,11 @@ if (HOST_BUNDLE && (!hostRootPad || !hostCardWidth || !hostCardMax)) {
 
 // ── 二、从插件真源里读「被测容器」的几何 ────────────────────────────────────
 function pullGeom(field) {
-  const m = statusSrc.match(new RegExp(field + ":\\s*'([^']+)'"));
+  // #1251：StatusBar 真源已从手写 .js 转成 .ts，本脚本读到的是构建产物（esbuild 转译），
+  //   字符串一律写成双引号；旧正则只认单引号，会把「字段明明在」误判成找不到。
+  //   这里两种引号都认，判据不放宽（值本身仍按原样取出、后面的哨兵照旧校验）。
+  //   本文件（scripts/ 下的手写 JavaScript）转成 TypeScript 由 scripts 转写那张票负责，不在本次动。
+  const m = statusSrc.match(new RegExp(field + ":\\s*['\"]([^'\"]+)['\"]"));
   if (!m) throw new Error('StatusBar.js 的 dswsStatusDockGeom 里找不到 ' + field);
   return m[1];
 }

@@ -45,8 +45,13 @@ const stripExports = (s: string): string => s.replace(/^[ \t]*export[ \t]+/gm, '
 const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
-const prefsSrc = read('src/client/kernel/store-prefs.js')
-const snapSrc = read('src/client/kernel/store-snapshot.js')
+// #1251：userHintOf / keepUserPick 取出来要当场求值（vm 只吃纯 JS）——
+//   走 spliceableJs（与构建同一口径，先转译去类型）；esbuild 会把单行函数拆成多行，
+//   所以按「整段函数体」取（锚行首收尾），不再按行掐。
+const prefsSrc = spliceableJs('src/client/kernel/store-prefs.js')
+// #1251：这三个函数在真源里是多行（转写还展开了单行块），旧正则在产物上对不上
+//   （esbuild 去空格、去多余括号、双引号）；改走 spliceableJs（与构建同一口径），锚行首收尾。
+const snapSrc = spliceableJs('src/client/kernel/store-snapshot.js')
 const switchSrc = read('src/client/kernel/store-switch.js')
 // 【已删除】原先这里还读两份源码文本 —— src/client/views/shared/SwitchConfirmModal.js 与
 //   src/client/kernel/locale-word.js，两份都只服务于上面整段删掉的 D 静态层，一并去掉。
@@ -112,24 +117,24 @@ console.log('== A 行为层（宿主）：上报即忽略，锚照旧说话；�
 console.log('')
 console.log('== B 行为层（客户端）：不上报 hint；合并照宿主回包来 ==')
 {
-  const hintLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
+  const hintLine = (prefsSrc.match(/const userHintOf = function[\s\S]*?\n\}/) || [''])[0]
   check(!!hintLine, '取到 store-prefs.js 里的 userHintOf（真身）')
   // 这里选 evalWithScope：取出来的就是那个函数表达式本身，它不引用本文件任何变量，所以作用域显式传空对象。
-  const userHintOf = evalWithScope(hintLine.trim().replace(/^export const userHintOf = /, ''), {})
+  const userHintOf = evalWithScope(hintLine.trim().replace(/^const userHintOf = /, ''), {})
   check(userHintOf({ backendId: 'markdown', userPicked: true }) === undefined, '亲手选的也不当 hint 上报（宿主读文件，不靠上报）')
   check(userHintOf({ backendId: 'markdown' }) === undefined, '派生出来的不上报')
   check(userHintOf({ backendId: null, userPicked: true }) === undefined, '没有后端 id 时不上报（诚实）')
   check(userHintOf(null) === undefined, '空选择不上报')
-  const keepLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const keepUserPick = function') >= 0)[0] || ''
+  const keepLine = (prefsSrc.match(/const keepUserPick = function[\s\S]*?\n\}/) || [''])[0]
   check(!!keepLine, '取到 store-prefs.js 里的 keepUserPick（真身）')
   // 这里选 evalWithScope：同上（函数表达式自带全部依赖，作用域传空）。
-  const keepUserPick = evalWithScope(keepLine.trim().replace(/^export const keepUserPick = /, ''), {})
+  const keepUserPick = evalWithScope(keepLine.trim().replace(/^const keepUserPick = /, ''), {})
   // 合并：宿主回什么就用什么，不再留标记
-  const mergeSrc = snapSrc.match(/export const mergeSelection = function \(st, incoming\) \{[\s\S]*?\n    \}/)![0]
+  const mergeSrc = snapSrc.match(/const mergeSelection = function\(st, incoming\) \{[\s\S]*?\n\}/)![0]
   const makeMerge = function () {
     const cache: any[] = []
     // 这里选 evalWithScope：原来这五个名字靠参数注入，现在在作用域里逐个写明，函数体一个字不动。
-    const fn = evalWithScope(mergeSrc.replace(/^export const mergeSelection = /, ''), {
+    const fn = evalWithScope(mergeSrc.replace(/^const mergeSelection = /, ''), {
       log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s: unknown) => s, setCachedSelection: (cwd: unknown, sel: unknown) => cache.push(sel), keepUserPick,
     })
     return { fn, cache }
@@ -148,19 +153,19 @@ console.log('== B 行为层（客户端）：不上报 hint；合并照宿主回
 console.log('')
 console.log('== B2 行为层（水合）：hydrateFromCache 不许把刚点的选择覆盖回旧后端 ==')
 {
-  const hydrateSrc = snapSrc.match(/export const hydrateFromCache = function \(st\) \{[\s\S]*?\n    \}/)![0]
-  const keepLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const keepUserPick = function') >= 0)[0] || ''
-  const mergeSrc2 = snapSrc.match(/export const mergeSelection = function \(st, incoming\) \{[\s\S]*?\n    \}/)![0]
-  const justSrc = snapSrc.match(/export const justPicked = function \(st, c\) \{[\s\S]*?\n    \}/)![0]
+  const hydrateSrc = snapSrc.match(/const hydrateFromCache = function\(st\) \{[\s\S]*?\n\}/)![0]
+  const keepLine = (prefsSrc.match(/const keepUserPick = function[\s\S]*?\n\}/) || [''])[0]
+  const mergeSrc2 = snapSrc.match(/const mergeSelection = function\(st, incoming\) \{[\s\S]*?\n\}/)![0]
+  const justSrc = snapSrc.match(/const justPicked = function\(st, c\) \{[\s\S]*?\n\}/)![0]
   const mkHydrate = function (patched: string[] | null) {
     const writes: any[] = []
     // 这里选 evalWithScope：函数表达式自带全部依赖，作用域传空。
-    const keepUserPick = evalWithScope(keepLine.trim().replace(/^export const keepUserPick = /, ''), {})
+    const keepUserPick = evalWithScope(keepLine.trim().replace(/^const keepUserPick = /, ''), {})
     // 这里选 evalWithScope：五个依赖名原来靠参数注入，现在写进作用域，函数体不动。
-    const mergeSelection = evalWithScope(mergeSrc2.replace(/^export const mergeSelection = /, ''), {
+    const mergeSelection = evalWithScope(mergeSrc2.replace(/^const mergeSelection = /, ''), {
       log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s: unknown) => s, setCachedSelection: (cwd: unknown, sel: unknown) => writes.push(sel), keepUserPick,
     })
-    const justPicked = justSrc ? evalWithScope(justSrc.replace(/^export const justPicked = /, ''), {}) : (() => false)
+    const justPicked = justSrc ? evalWithScope(justSrc.replace(/^const justPicked = /, ''), {}) : (() => false)
     const deps: Record<string, any> = {
       getCachedSnapshot: () => ({ generatedMs: 100, id: '缓存里那份切换前的快照', selection: { backendId: 'github', source: 'explicit' }, repository: { backend: 'github', name: 'r' } }),
       rememberWorkspaceRoot: () => {}, wsKeyOf: (p: unknown) => String(p || ''), snapshotByCwd: new Map(), touchLRUClient: () => {},
@@ -169,7 +174,7 @@ console.log('== B2 行为层（水合）：hydrateFromCache 不许把刚点的�
       justPicked, setCachedSelection: (cwd: unknown, sel: unknown) => writes.push(sel),
     }
     const names = Object.keys(deps)
-    const body = (patched ? hydrateSrc.replace(patched[0], patched[1]) : hydrateSrc).replace(/^export const hydrateFromCache = /, 'return ')
+    const body = (patched ? hydrateSrc.replace(patched[0], patched[1]) : hydrateSrc).replace(/^const hydrateFromCache = /, 'return ')
     // 这里选 compileFn：依赖名是运行时拼出来的数组，共用入口同样接数组，调用时逐个按原顺序传。
     const fn = compileFn(names, body)(...names.map((n) => deps[n]))
     return { fn, writes }
@@ -396,12 +401,15 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   // #698：这一段的反证落点跟着真源变了 —— 「已初始化」那一支现在不会当场注入 switchAlign，
   //   改成先开那张布局小卡。所以反证一改成：把「卡片已开」那个早返回摘掉，让它落回下面那条
   //   「直接注入 switchAlign」的老路 —— 那就是「问了却没用、答完又当没问」的重现。
-  const brokenC = switchSrc.replace("if (_kind === 'askLayout') {", 'if (false) {')
+  // #1251：esbuild 把同文件两个 `let _kind` 的第一个改名成 `_kind2`（防块作用域撞名），引号统一双引号 ——
+  //   反证字符串按产物当下的形态写（意图不变：摘掉「卡已开」那个早返回，让它落回直接注入的老路）。
+  const brokenC = switchSrc.replace('if (_kind2 === "askLayout") {', 'if (false) {')
   check(brokenC !== switchSrc, '反证 C 的改法能在真源里落地')
   const brC = await runSwitchScenario(brokenC, CHAIN_INITIALIZED)
   check(brC.inject.length === 1 && brC.decision.length === 1, '反证 C 成立：把「卡已开」那个早返回摘掉之后，已初始化那份现场既开了卡、又当场把 switchAlign 注了进去（问了却没用）—— 实得 inject=' + brC.inject.length + ' decision=' + brC.decision.length)
   // C 的反证二：把「决策器说这次什么都没给（blocked）」这一支当成「给了」—— 提示条就会骗人
-  const brokenC2 = switchSrc.replace("_kind === 'blocked' ? 'switch.bindOkNotReady' : (_kind === 'setup' ? 'switch.bindOkFresh' : 'switch.bindOkAskLayout')", "'switch.bindOkFresh'")
+  // #1251：esbuild 去了那对多余括号、引号统一双引号（意图不变：把 blocked 那一支当成成功，提示条就会骗人）。
+  const brokenC2 = switchSrc.replace('_kind === "blocked" ? "switch.bindOkNotReady"', '_kind === "blocked" ? "switch.bindOkFresh"')
   check(brokenC2 !== switchSrc, '反证 C2 的改法能在真源里落地')
   const brC2 = await runSwitchScenario(brokenC2, CHAIN_REPO_NOT_DONE, 'markdown', 'github')
   check(!/bindOkNotReady/.test(brC2.flash.map((f: any) => f.msg).join('|')) && /bindOkFresh/.test(brC2.flash.map((f: any) => f.msg).join('|')), '反证 C2 成立：把 blocked 当成功之后，仓库没就绪那一档的提示条也谎称「按提示完成初始化」—— 实得 ' + JSON.stringify(brC2.flash))

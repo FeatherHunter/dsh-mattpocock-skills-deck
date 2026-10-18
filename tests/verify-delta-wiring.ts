@@ -15,6 +15,9 @@
 const path = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
+// #1251：probe-auto 转成 TypeScript 之后，同名 .js 是 esbuild 构建产物。④ 量的是源码里「哪一支在前、
+// 哪一支还剩一处」这类形状，必须读 .ts 真源；读产物会读到被改写过的文本（引号、函数形态都变了）。
+const { sourcePath } = require('./lib/source-text.ts')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -207,7 +210,8 @@ async function run() {
 
   // ---- ④ 客户端那一侧：吃增量、不再无条件整池 ----
   const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-  const clientSrc = fs.readFileSync(path.join(ROOT, 'src', 'client', 'kernel', 'probe-auto.js'), 'utf8')
+  // 读 .ts 真源（sourcePath 在同名 .js/.ts 并存时优先 .ts）：判据里的单引号与分支顺序都是源码形态。
+  const clientSrc = fs.readFileSync(path.join(ROOT, sourcePath('src/client/kernel/probe-auto.js')), 'utf8')
   check(/res\.mode === 'deferred'/.test(clientSrc) && /res\.mode === 'stale-dropped'/.test(clientSrc), "④客户端认得出宿主那句「这一次没并进去」（deferred / stale-dropped），那一拍一个请求都不发")
   check(/res\.mode === 'patch'/.test(clientSrc) && /applySnap\(res\.snapshot\)/.test(clientSrc), '④客户端吃宿主补好的那一份（res.mode === patch → applySnap(res.snapshot)）')
   const clientCode = stripComments(clientSrc)

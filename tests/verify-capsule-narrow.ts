@@ -20,6 +20,9 @@ const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js
 // ---- Part A：CSS / JS 静态契约（双源同步） ----
 const statChecks = function (src, tag) {
   const ok = (name, cond) => { if (!cond) throw new Error(tag + ' · ' + name); console.log('  PASS ' + tag + ' · ' + name) }
+  // #1251：手写源 src/client/** 从 .js 转成 .ts 之后，esbuild 重新打印这些字符串——引号统一变双引号、
+  // 行内函数拆成多行并补分号。下面凡断言「产物里拼出哪段带引号的文本」的，一律两种引号都认；
+  // 否定断言也两种都排除（若只排除单引号形态，到了双引号产物上会恒真，等于把判据偷偷放松）。
 
   // 期望 1：胶囊禁止换行 + 跟随输入区宽
   ok('胶囊 .dsws-capsule CSS 含 flex-wrap:nowrap', /\.dsws-capsule\s*\{[^}]*flex-wrap:nowrap/.test(src))
@@ -39,33 +42,33 @@ const statChecks = function (src, tag) {
   // #640 改写：外层容器的几何收敛到 StatusBar.js 的 dswsStatusDockGeom 一处，三支容器都调它。
   //   原来这里断言的是「wrapper 内联 width:100% + boxSizing + overflow」这串属性，那是改造前的形状；
   //   那条断言在改造前就已经失效（主干上一直红着，且没挂进门禁链），所以这里改成断言真源关系。
-  ok('外层容器几何收敛到 dswsStatusDockGeom 一处（三支容器共用）', /const dswsStatusDockGeom = function \(\)/.test(src))
+  ok('外层容器几何收敛到 dswsStatusDockGeom 一处（三支容器共用）', /const dswsStatusDockGeom = function\s*\(\)/.test(src))
   ok('外层容器宽度取宿主「侧距」变量（不是内联 100%）',
-    /width:\s*'calc\(100%\s*-\s*2\s*\*\s*var\(--dsh-composer-side-clearance/.test(src))
+    /width:\s*["']calc\(100%\s*-\s*2\s*\*\s*var\(--dsh-composer-side-clearance/.test(src))
   ok('外层容器 max-width 取宿主卡宽变量（不再无约束铺满整列）',
-    /maxWidth:\s*'var\(--dsh-composer-card-max-width,\s*100%\)'/.test(src))
+    /maxWidth:\s*["']var\(--dsh-composer-card-max-width,\s*100%\)["']/.test(src))
   ok('外层容器不带横向内边距（否则胶囊会被再挤进来一层，与输入卡又对不上）',
-    /padding:\s*'3px 0 0'/.test(src))
+    /padding:\s*["']3px 0 0["']/.test(src))
   // 外层容器三支都必须**亲自**调用几何：原来这里只数「dswsStatusDockGeom() 出现次数 >= 3」，
   //   数次数会漏掉「某一支停止调用、别处多一次字符串」（独立复核的变异实验 c 就是这样漏过去的），
   //   所以改成每一支各断言一次结构（branchHits 由上面按三种锚点文本分别扫出来）。
   const helperCalls = (src.match(/dswsStatusDockGeom\(\)/g) || []).length
   ok('外层容器几何被调用（至少 3 次：收起态 / 无横幅 / 有横幅各一次）', helperCalls >= 3)
   const branchHits = [
-    ['收起态（justifyContent:center + 包裹内容居中那一支）', /Object\.assign\(\{ display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center',\s*alignSelf:\s*'center' \},\s*dswsStatusDockGeom\(\),\s*\{ width:\s*'auto' \}\)/],
-    ['无横幅那一支（gap: 2）', /Object\.assign\(\{ display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column',\s*alignItems:\s*'center',\s*gap:\s*2,[^}]*\},\s*dswsStatusDockGeom\(\)\)/],
+    ['收起态（justifyContent:center + 包裹内容居中那一支）', /Object\.assign\(\{ display:\s*["']flex["'],\s*flex:\s*["']none["'],\s*justifyContent:\s*["']center["'],\s*alignSelf:\s*["']center["'] \},\s*dswsStatusDockGeom\(\),\s*\{ width:\s*["']auto["'] \}\)/],
+    ['无横幅那一支（gap: 2）', /Object\.assign\(\{ display:\s*["']flex["'],\s*flex:\s*["']none["'],\s*flexDirection:\s*["']column["'],\s*alignItems:\s*["']center["'],\s*gap:\s*2,[^}]*\},\s*dswsStatusDockGeom\(\)\)/],
     // 这一支的属性顺序与另两支不同（flexDirection 排在 flex 前面），所以断言只钉住它独有的两个词
     // （gap: 4 + position: relative）与末尾的 helper 调用，不钉属性顺序。
-    ['有横幅那一支（gap: 4 + position:relative）', /Object\.assign\([\s\S]{0,240}gap:\s*4[\s\S]{0,120}position:\s*'relative'\s*\},\s*dswsStatusDockGeom\(\)\)/],
+    ['有横幅那一支（gap: 4 + position:relative）', /Object\.assign\([\s\S]{0,240}gap:\s*4[\s\S]{0,120}position:\s*["']relative["']\s*\},\s*dswsStatusDockGeom\(\)\)/],
   ]
   for (const [label, re] of branchHits) ok('几何套在这一支上：' + label, re.test(src))
   // 三支的横向内边距只由几何那一处给：断言几何的 padding 就是 '3px 0 0'，且三支都不再自己拼字面量。
   //   注意不要把范围放宽成「整个文件里不许出现 padding:'0 8px'」——那个写法在状态栏别处还有正当用途
   //   （折叠按钮等），一并禁掉会误伤。
-  ok('几何自带的 padding 就是不带横向内边距的 \'3px 0 0\'', /padding:\s*'3px 0 0'/.test(src))
-  ok('三支都不再各自硬写外层容器的横向内边距', !/gap:\s*2\s*,[^}]*padding:/.test(src) && !/gap:\s*4\s*,\s*position:\s*'relative'\s*,\s*padding:/.test(src))
+  ok('几何自带的 padding 就是不带横向内边距的 \'3px 0 0\'', /padding:\s*["']3px 0 0["']/.test(src))
+  ok('三支都不再各自硬写外层容器的横向内边距', !/gap:\s*2\s*,[^}]*padding:/.test(src) && !/gap:\s*4\s*,\s*position:\s*["']relative["']\s*,\s*padding:/.test(src))
   ok('外层容器正常路径仍保留 overflow:hidden 截胶囊溢出、缺 ReactDOM 时 visible 降级',
-    /overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/.test(src))
+    /overflow:\s*RDOM\s*\?\s*["']hidden["']\s*:\s*["']visible["']/.test(src))
   ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
   // 期望 2：children 保持不被挤压（2026-09-24 #725 起：品牌那一段与另两段的挤压规则各自写明）
   //   维护者这一轮定「内容平铺在这一条里」：胶囊两端分布，多出来的空间均分在**各项之间**。
@@ -90,28 +93,30 @@ const statChecks = function (src, tag) {
   //   .dsws-folded → 收到放得下为止）。同一行里那些「一串字」的元素（仓库名 / 刷新按钮的字 / 时间标签）
   //   不走这一条 —— 它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
   ok('V2 · CSS 折叠规则同时管胶囊与面板头部那几颗单字形小图标',
-    /'\.dsws-capsule \[data-fold-priority\]\.dsws-folded,\[data-head-fold\]\.dsws-folded\{display:none\}'/.test(src))
+    /["']\.dsws-capsule \[data-fold-priority\]\.dsws-folded,\[data-head-fold\]\.dsws-folded\{display:none\}["']/.test(src))
   // 3b. 12 个文字 span 的 priority 绑定（信息价值从小到大）：
   //     品牌(1) 更新字(2) 日期串(3) 环境字(4) 环境计数(5) 时间串(6) 沉淀(7) 交接(8) 可接(9) BUG(10) 诊断(11) 在办编号(12)
   const prio = function (n, re) { return ok('V2 · priority=' + n + ' 绑定 ' + (re.source || re), re.test(src)) }
-  prio(1, /'data-fold-priority':\s*1[\s\S]{0,40}tr\('panel\.title'\)/)
-  prio(2, /'data-fold-priority':\s*2[\s\S]{0,40}tr\('nav\.refresh'\)/)
-  prio(3, /'data-fold-priority':\s*3[\s\S]{0,100}\.date/)
-  prio(4, /'data-fold-priority':\s*4[\s\S]{0,40}tr\('nav\.env'\)/)
-  prio(5, /'data-fold-priority':\s*5[\s\S]{0,60}envLabel/)
-  prio(6, /'data-fold-priority':\s*6[\s\S]{0,100}\.time/)
-  prio(7, /'data-fold-priority':\s*7[\s\S]{0,40}tr\('nav\.word'\)/)
-  prio(8, /'data-fold-priority':\s*8[\s\S]{0,40}tr\('nav\.handoff'\)/)
-  prio(9, /'data-fold-priority':\s*9[\s\S]{0,40}tr\('nav\.takeable'\)/)
-  prio(10, /'data-fold-priority':\s*10[\s\S]{0,40}tr\('nav\.bug'\)/)
-  prio(11, /'data-fold-priority':\s*11[\s\S]{0,40}tr\('nav\.triage'\)/)
-  prio(12, /'data-fold-priority':\s*12[\s\S]{0,140}text/)
+  // 属性名与 tr 键的引号在产物里是双引号（#1251 转 .ts 后由 esbuild 重新打印），两种都认；
+  // 每条的字数上界（40/60/100/140）保持原样，不因为改引号而放宽「离得多远还算绑定」。
+  prio(1, /["']data-fold-priority["']:\s*1[\s\S]{0,40}tr\(["']panel\.title["']\)/)
+  prio(2, /["']data-fold-priority["']:\s*2[\s\S]{0,40}tr\(["']nav\.refresh["']\)/)
+  prio(3, /["']data-fold-priority["']:\s*3[\s\S]{0,100}\.date/)
+  prio(4, /["']data-fold-priority["']:\s*4[\s\S]{0,40}tr\(["']nav\.env["']\)/)
+  prio(5, /["']data-fold-priority["']:\s*5[\s\S]{0,60}envLabel/)
+  prio(6, /["']data-fold-priority["']:\s*6[\s\S]{0,100}\.time/)
+  prio(7, /["']data-fold-priority["']:\s*7[\s\S]{0,40}tr\(["']nav\.word["']\)/)
+  prio(8, /["']data-fold-priority["']:\s*8[\s\S]{0,40}tr\(["']nav\.handoff["']\)/)
+  prio(9, /["']data-fold-priority["']:\s*9[\s\S]{0,40}tr\(["']nav\.takeable["']\)/)
+  prio(10, /["']data-fold-priority["']:\s*10[\s\S]{0,40}tr\(["']nav\.bug["']\)/)
+  prio(11, /["']data-fold-priority["']:\s*11[\s\S]{0,40}tr\(["']nav\.triage["']\)/)
+  prio(12, /["']data-fold-priority["']:\s*12[\s\S]{0,140}text/)
   // 3c. 那台阶梯机的核心形状（2026-09-24 #725：机器搬进 statusbar/capFoldMachine.js —— 判据是
   //   statusbar/capFold.js 的纯函数，StatusBar.js 只留接线。这些断言量的是**产物里的代码**，
   //   搬了住处照样量得到；下面几句的判据一条没放松，只是把「谁在实现」写清楚了。）
   ok('V2 · applyFold 函数存在（接线：把胶囊与两张跨调用带着走的表交给阶梯机）', /const applyFold = function\s*\(\)\s*\{/.test(src))
-  ok('V2 · 单写路径：写某一档时只写字与折叠类、不读布局（写读不再交替，926）', /const writeTier = function \(tier\)[\s\S]{0,600}classList\.remove\(['"]dsws-folded['"]\)/.test(src) && (src.match(/void cap\.offsetWidth/g) || []).length <= 2)
-  ok('V2 · 阶梯按 priority 升序（小号先让位）', /sort\(function \(a, b\) \{ return a\.p - b\.p \}\)/.test(src))
+  ok('V2 · 单写路径：写某一档时只写字与折叠类、不读布局（写读不再交替，926）', /const writeTier = function\s*\(\s*tier\d*\s*\)[\s\S]{0,600}classList\.remove\(['"]dsws-folded['"]\)/.test(src) && (src.match(/void cap\.offsetWidth/g) || []).length <= 2)
+  ok('V2 · 阶梯按 priority 升序（小号先让位）', /sort\(function\s*\(\s*a\s*,\s*b\s*\)\s*\{\s*return a\.p - b\.p;?\s*\}\)/.test(src))
   ok('V2 · 溢出判定 scrollWidth ≤ clientWidth+1（放得下就停在这一档）', /scrollWidth\s*<=\s*cap\.clientWidth\s*\+\s*1/.test(src))
   ok('V2 · 首帧起始态仍收品牌段并加 .dsws-folded（默认折叠保持，926 未动）', /classList\.add\(['"]dsws-folded['"]\)[\s\S]{0,80}void cap\.offsetWidth/.test(src))
   ok('V2 · 记下 dataset.fold 折叠段数与 dataset.foldTier 档号（调试与门禁的锚点）',
@@ -119,7 +124,7 @@ const statChecks = function (src, tag) {
   // 3d. foldRef 挂 capsule + ResizeObserver 监听
   ok('V2 · capsule 根挂 ref: foldRef', /className:\s*['"]dsws-capsule['"][^}]*ref:\s*foldRef/.test(src))
   ok('V2 · foldRef = React.useRef(null)', /foldRef\s*=\s*React\.useRef\(null\)/.test(src))
-  ok('V2 · ResizeObserver 监听 foldRef.current 进合并队列（926 同帧只跑一次）', /new ResizeObserver\(function\s*\(\)\s*\{\s*scheduleFold\(\)\s*\}\)[\s\S]{0,200}roFold\.observe\(foldRef\.current\)/.test(src))
+  ok('V2 · ResizeObserver 监听 foldRef.current 进合并队列（926 同帧只跑一次）', /new ResizeObserver\(function\s*\(\)\s*\{\s*scheduleFold\(\)\s*;?\s*\}\)[\s\S]{0,200}roFold\.observe\(foldRef\.current\)/.test(src))
   ok('V2 · window resize 进合并队列（实时响应，926 起与观察器同一队列）', /window\.addEventListener\(['"]resize['"],\s*scheduleFold\)/.test(src))
   ok('V2 · fonts.ready 后重测（防字体宽差误判，走合并队列）', /document\.fonts\.ready\.then\(scheduleFold\)/.test(src))
 
@@ -134,21 +139,21 @@ const statChecks = function (src, tag) {
   ok('R13 · 胶囊 CSS 默认 width:100%（撑满 wrapper=输入区）', /\.dsws-capsule\{[^}]*width:100%/.test(src))
   ok('R13 · 胶囊 CSS box-sizing:border-box', /\.dsws-capsule\{[^}]*box-sizing:border-box/.test(src))
   ok('R13 · 胶囊 CSS max-width 复用宿主变量 --dsh-composer-card-max-width（与输入卡同源）', /--dsh-composer-card-max-width/.test(src))
-  ok('R13 · inline 胶囊 width:100%（不再用 iw 像素）', /className:\s*['"]dsws-capsule['"][\s\S]{0,120}width:\s*'100%'/.test(src))
+  ok('R13 · inline 胶囊 width:100%（不再用 iw 像素）', /className:\s*['"]dsws-capsule['"][\s\S]{0,120}width:\s*["']100%["']/.test(src))
   ok('R13 · inline 不再含 iw 像素（旧方案已退休）', !/width:\s*iw\s*\+\s*'px'/.test(src))
-  ok('R13 · 旧 fit-content 弃用', !/\.dsws-capsule\{[^}]*width:fit-content/.test(src) && !/style:\s*\{[^}]*width:\s*'fit-content'/.test(src))
+  ok('R13 · 旧 fit-content 弃用', !/\.dsws-capsule\{[^}]*width:fit-content/.test(src) && !/style:\s*\{[^}]*width:\s*["']fit-content["']/.test(src))
   ok('R9 · 第一性原理：不再查询特定 textarea 类名（已去耦）', !/textarea\.uV2eYG_input/.test(src))
-  ok('R9 · ResizeObserver 监听 foldRef 及其 parent（可用宽变化即折叠，走合并队列）', /new ResizeObserver\(function\s*\(\)\s*\{\s*scheduleFold\(\)\s*\}\)[\s\S]{0,300}roFold\.observe\(foldRef\.current\)/.test(src) && /roParent\.observe/.test(src))
+  ok('R9 · ResizeObserver 监听 foldRef 及其 parent（可用宽变化即折叠，走合并队列）', /new ResizeObserver\(function\s*\(\)\s*\{\s*scheduleFold\(\)\s*;?\s*\}\)[\s\S]{0,300}roFold\.observe\(foldRef\.current\)/.test(src) && /roParent\.observe/.test(src))
   ok('R9 · useEffect 清理断开 roFold/roParent（防泄漏）', /roFold\.disconnect\(\)[\s\S]{0,120}roParent\.disconnect\(\)/.test(src))
   // 2026-09-24（#725）：这条 2 秒轮询退役（维护者定：这一条横向随宽度一格一格变短，但不许挂自续定时器）。
   //   它原先兜的是「字被换掉了、尺寸没变，观察器不会响」那一种（React 重渲染会把收短的那串换回完整的一串），
   //   现在由「每次提交之后重算一次」那条副作用接管；真实表现由 tests/verify-cap-fold.js 的宽度扫描门禁钉住
   //   （含「改完宽度等 2200 毫秒再量一次，仍然正确」那条证据）。
   ok('R9 · 2 秒轮询已退役（#725），改由 ResizeObserver + 提交后重算 + fonts.ready 三条路接管',
-    !/setInterval\(applyAll, 2000\)/.test(src) && /React\.useEffect\(function \(\) \{ scheduleFold\(\) \}\)/.test(src))
-  ok('R12 · !firstBlock 分支 wrapper 含 flex:\'none\'（防 flex-shrink 压矮）', /display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center'/.test(src))
-  ok('R12 · firstBlock 分支 wrapper 含 flex:\'none\'（横幅 + 胶囊列布局同样防压缩）', /display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column'/.test(src))
-  ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}alignItems:\s*'stretch'/.test(src))
+    !/setInterval\(applyAll, 2000\)/.test(src) && /React\.useEffect\(function\s*\(\s*\)\s*\{\s*scheduleFold\(\)\s*;?\s*\}\)/.test(src))
+  ok('R12 · !firstBlock 分支 wrapper 含 flex:\'none\'（防 flex-shrink 压矮）', /display:\s*["']flex["'],\s*flex:\s*["']none["'],\s*justifyContent:\s*["']center["']/.test(src))
+  ok('R12 · firstBlock 分支 wrapper 含 flex:\'none\'（横幅 + 胶囊列布局同样防压缩）', /display:\s*["']flex["'],\s*flex:\s*["']none["'],\s*flexDirection:\s*["']column["']/.test(src))
+  ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*["']flex["'],\s*justifyContent:\s*["']center["'][\s\S]{0,200}alignItems:\s*["']stretch["']/.test(src))
 
   // 期望 4：点击事件契约
   ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
@@ -175,8 +180,8 @@ const statChecks = function (src, tag) {
   ok('nav.word zh = "沉淀"', new RegExp(q + 'nav\\.word' + q + ':\\s*' + q + '沉淀' + q).test(zhBlock))
   ok('nav.refresh zh = "更新"', new RegExp(q + 'nav\\.refresh' + q + ':\\s*' + q + '更新' + q).test(zhBlock))
   ok('nav.takeable / nav.bug / nav.triage / nav.env / nav.refresh / nav.handoff 键齐',
-    /'nav\.takeable'/.test(src) && /'nav\.bug'/.test(src) && /'nav\.triage'/.test(src) &&
-    /'nav\.env'/.test(src) && /'nav\.refresh'/.test(src) && /'nav\.handoff'/.test(src))
+    /["']nav\.takeable["']/.test(src) && /["']nav\.bug["']/.test(src) && /["']nav\.triage["']/.test(src) &&
+    /["']nav\.env["']/.test(src) && /["']nav\.refresh["']/.test(src) && /["']nav\.handoff["']/.test(src))
 }
 
 // ---- Part B（T5 #98 已移除）：双源镜像同步由一源两物构建保证，不再断言双源 byte-for-byte 一致 ----
@@ -188,9 +193,11 @@ const behaviorCheck = function (src, tag) {
   // 信息价值顺序（1=最先收）：品牌 → 更新字 → 时间串 → 无数字操作段（沉淀/交接）→ 有数字监控段（可接/BUG/诊断/环境字）→ 在办编号 → 环境计数
   // 断言：priority 升序 = 上述顺序；且 1..11 全部出现且唯一
   const prios = []
+  // #1251：产物里这个属性名由单引号变双引号，两种都数 —— 否则在这一步就会说「priority=1 缺失」。
+  // 「唯一」这条不变：两种引号合起来每个 priority 仍只允许出现一次。
+  const prioPat = "[\"']data-fold-priority[\"']:\\s*"
   for (let p = 1; p <= 12; p++) {
-    const re = new RegExp("'data-fold-priority':\\s*" + p + "\\b")
-    const m = src.match(new RegExp("'data-fold-priority':\\s*" + p + "\\b", 'g'))
+    const m = src.match(new RegExp(prioPat + p + "\\b", 'g'))
     if (!m) throw new Error('priority=' + p + ' 缺失')
     if (m.length !== 1) throw new Error('priority=' + p + ' 出现 ' + m.length + ' 次（应唯一）')
     prios.push(p)
@@ -199,18 +206,18 @@ const behaviorCheck = function (src, tag) {
   // 语义表：每个 priority 对应的文案来源（tr 键 / 时间戳 / 在办编号 / 环境计数），确保顺序与「信息价值」一致
   // （2026-09-27 定终版：品牌 → 更新字 → 日期串 → 环境字 → 环境计数 → 时间串 → 沉淀 → 交接 → 可接 → BUG → 诊断 → 在办编号）
   const sem = [
-    { p: 1, re: /'data-fold-priority':\s*1[\s\S]{0,50}panel\.title/, d: '品牌 MattSkills（纯装饰，最先收）' },
-    { p: 2, re: /'data-fold-priority':\s*2[\s\S]{0,40}nav\.refresh/, d: '更新字（图标留着，字先让）' },
-    { p: 3, re: /'data-fold-priority':\s*3[\s\S]{0,100}\.date/, d: '日期串（环境字前面先让，逐字）' },
-    { p: 4, re: /'data-fold-priority':\s*4[\s\S]{0,40}nav\.env/, d: '环境字（晚于日期早于时间）' },
-    { p: 5, re: /'data-fold-priority':\s*5[\s\S]{0,60}envLabel/, d: '环境计数（早于时间，逐字）' },
-    { p: 6, re: /'data-fold-priority':\s*6[\s\S]{0,100}\.time/, d: '时间串（撑后，逐字）' },
-    { p: 7, re: /'data-fold-priority':\s*7[\s\S]{0,50}nav\.word/, d: '沉淀（无数字操作段）' },
-    { p: 8, re: /'data-fold-priority':\s*8[\s\S]{0,50}nav\.handoff/, d: '交接（无数字操作段）' },
-    { p: 9, re: /'data-fold-priority':\s*9[\s\S]{0,50}nav\.takeable/, d: '可接（监控标签，数字保留）' },
-    { p: 10, re: /'data-fold-priority':\s*10[\s\S]{0,50}nav\.bug/, d: 'BUG（监控标签，数字保留）' },
-    { p: 11, re: /'data-fold-priority':\s*11[\s\S]{0,50}nav\.triage/, d: '诊断（监控标签，数字保留）' },
-    { p: 12, re: /'data-fold-priority':\s*12[\s\S]{0,140}text/, d: '在办编号（排在最后，逐字）' },
+    { p: 1, re: /["']data-fold-priority["']:\s*1[\s\S]{0,50}panel\.title/, d: '品牌 MattSkills（纯装饰，最先收）' },
+    { p: 2, re: /["']data-fold-priority["']:\s*2[\s\S]{0,40}nav\.refresh/, d: '更新字（图标留着，字先让）' },
+    { p: 3, re: /["']data-fold-priority["']:\s*3[\s\S]{0,100}\.date/, d: '日期串（环境字前面先让，逐字）' },
+    { p: 4, re: /["']data-fold-priority["']:\s*4[\s\S]{0,40}nav\.env/, d: '环境字（晚于日期早于时间）' },
+    { p: 5, re: /["']data-fold-priority["']:\s*5[\s\S]{0,60}envLabel/, d: '环境计数（早于时间，逐字）' },
+    { p: 6, re: /["']data-fold-priority["']:\s*6[\s\S]{0,100}\.time/, d: '时间串（撑后，逐字）' },
+    { p: 7, re: /["']data-fold-priority["']:\s*7[\s\S]{0,50}nav\.word/, d: '沉淀（无数字操作段）' },
+    { p: 8, re: /["']data-fold-priority["']:\s*8[\s\S]{0,50}nav\.handoff/, d: '交接（无数字操作段）' },
+    { p: 9, re: /["']data-fold-priority["']:\s*9[\s\S]{0,50}nav\.takeable/, d: '可接（监控标签，数字保留）' },
+    { p: 10, re: /["']data-fold-priority["']:\s*10[\s\S]{0,50}nav\.bug/, d: 'BUG（监控标签，数字保留）' },
+    { p: 11, re: /["']data-fold-priority["']:\s*11[\s\S]{0,50}nav\.triage/, d: '诊断（监控标签，数字保留）' },
+    { p: 12, re: /["']data-fold-priority["']:\s*12[\s\S]{0,140}text/, d: '在办编号（排在最后，逐字）' },
   ]
   for (const s of sem) {
     if (!s.re.test(src)) throw new Error('priority=' + s.p + ' 语义不符（' + s.d + '）')
@@ -225,10 +232,12 @@ const domSimCheck = function (src, tag) {
     const m = src.match(re)
     return m ? m[1] : null
   }
-  const capBody = findHandler(/onClick:\s*function\s*\(\)\s*\{\s*(openPanel\(s\))\s*\}/)
-  const cwBody = findHandler(/onClick:\s*function\s*\(e\)\s*\{\s*(e\.stopPropagation\(\);\s*togglePanel\(s\))\s*\}/)
-  const segBody = findHandler(/onClick:\s*function\s*\(e\)\s*\{\s*(e\.stopPropagation\(\);\s*onGo\(\))\s*\}/)
-  const tbBody = findHandler(/onClick:\s*function\s*\(e\)\s*\{\s*(e\.stopPropagation\(\);\s*refreshAll\(s\))\s*\}/)
+  // #1251：esbuild 把这些行内处理函数拆成多行并在语句末补分号（`onClick: function() {\n openPanel(s);\n }`），
+  // 所以取出处理体时允许「语句末分号 + 换行」；两边仍要求同一个处理函数里出现同样的语句，判据强度不变。
+  const capBody = findHandler(/onClick:\s*function\s*\(\)\s*\{\s*(openPanel\(s\))\s*;?\s*\}/)
+  const cwBody = findHandler(/onClick:\s*function\s*\(e\)\s*\{\s*(e\.stopPropagation\(\);\s*togglePanel\(s\))\s*;?\s*\}/)
+  const segBody = findHandler(/onClick:\s*function\s*\(e\)\s*\{\s*(e\.stopPropagation\(\);\s*onGo\(\))\s*;?\s*\}/)
+  const tbBody = findHandler(/onClick:\s*function\s*\(e\)\s*\{\s*(e\.stopPropagation\(\);\s*refreshAll\(s\))\s*;?\s*\}/)
   if (!capBody) throw new Error('capsule onClick handler 提取失败')
   if (!cwBody) throw new Error('capsule-word onClick handler 提取失败')
   if (!segBody) throw new Error('seg onClick handler 提取失败')

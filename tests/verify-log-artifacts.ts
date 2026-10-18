@@ -49,15 +49,23 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 // 二、客户端事件：两个客户端产物同时含（拼接一源两物，只改一处即红）。
 {
   const clientEvents = new Set()
-  for (const f of listJsFiles(path.join(ROOT, 'src', 'client'))) {
+  // 源侧读真源：加了 withTs 之后，同名 .js 是构建产物就跳过、直接读 .ts（#1251 起 src/client 下
+  //   kernel/panel/statusbar/floating 都是这个形态），没转 TS 的文件仍按 .js 读。今天两种读法
+  //   得到同一份事件集合（19 个），但只有读真源才不会被某份过期产物带偏。
+  for (const f of listJsFiles(path.join(ROOT, 'src', 'client'), true)) {
     for (const n of quotedEvents(fs.readFileSync(f, 'utf8'))) if (KNOWN.includes(n)) clientEvents.add(n)
   }
   check(clientEvents.size > 0, '客户端源码含日志事件（实得 ' + clientEvents.size + ' 个）')
   if (exists('client.js') && exists(path.join('package', 'lib', 'client.js'))) {
     const dev = fs.readFileSync(path.join(ROOT, 'client.js'), 'utf8')
     const pkg = fs.readFileSync(path.join(ROOT, 'package', 'lib', 'client.js'), 'utf8')
-    const devMiss = Array.from(clientEvents).filter((n) => !dev.includes("'" + n + "'"))
-    const pkgMiss = Array.from(clientEvents).filter((n) => !pkg.includes("'" + n + "'"))
+    // 产物里的事件名走同一套 quotedEvents：它剥掉注释、两种引号都认。判据没变 —— 仍是「产物里真有
+    //   这个事件名的字符串字面量」；换掉只认单引号的老写法，是因为 esbuild 统一输出双引号（#1251 起
+    //   同名 .js 是构建产物），而旧写法在双引号产物里一条都匹配不上、把 13 个事件全判成「缺」。
+    const devEvents = quotedEvents(dev)
+    const pkgEvents = quotedEvents(pkg)
+    const devMiss = Array.from(clientEvents).filter((n) => !devEvents.has(n))
+    const pkgMiss = Array.from(clientEvents).filter((n) => !pkgEvents.has(n))
     check(devMiss.length === 0, '开发产物含全部客户端事件（' + clientEvents.size + ' 个）' + (devMiss.length ? ' —— 缺：' + devMiss.join('、') : ''))
     check(pkgMiss.length === 0, '打包产物含全部客户端事件（' + clientEvents.size + ' 个）' + (pkgMiss.length ? ' —— 缺：' + pkgMiss.join('、') : ''))
     const markerLine = (t) => t.split('\n').filter((l) => /^\s*\/\/ ==== (kernel|leaf|shared):[^=]+\(spliced by build\) ====\s*$/.test(l))
@@ -95,9 +103,20 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 // 四、构建接线：日志模块在内核清单里，叶子登记覆盖四个渲染落点文件。
 {
   const build = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mjs'), 'utf8')
-  check(build.includes("name: 'log'") && build.includes('src/client/kernel/log.js'), '构建内核清单含日志模块')
-  for (const leaf of ['BackendSelector.js', 'SettingsPage.js', 'DockSync.js', 'StatusBar.js']) {
-    check(build.includes(leaf), '构建叶子清单含 ' + leaf)
+  // 日志模块的两种合法落点：派生文件（#564 起沿用）或新真源 log.ts（#1251 把旧手写真源 log.js 删了，
+  //   读源由 readSpliceFragmentSource 按扩展名分派，.ts 先转译再拼）。两种都算接线在；条目被删、
+  //   路径换成别处、或指向的文件不在盘上，都掀红。
+  const LOG_KERNEL_FILES = ['scripts/generated/logKernel.derived.js', 'src/client/kernel/log.ts']
+  const logEntry = /\{\s*name:\s*'log'\s*,\s*file:\s*'([^']+)'\s*\}/.exec(build)
+  const logEntryFile = logEntry ? logEntry[1] : ''
+  check(LOG_KERNEL_FILES.indexOf(logEntryFile) >= 0 && exists(logEntryFile),
+    '构建内核清单含日志模块（指向 ' + (logEntryFile || '（清单里找不到 name: log 条目）') + '）')
+  // 叶子登记逐个点名，扩展名两种都认：真源是 .ts（#1251 起 DockSync / StatusBar 就是），产物是 .js
+  //   （BackendSelector / SettingsPage 走「先转出同名 .js 产物再拼」那一支）。判据仍然是「这个叶子
+  //   文件在清单里登记过」，只是不再写死扩展名。
+  for (const leaf of ['BackendSelector', 'SettingsPage', 'DockSync', 'StatusBar']) {
+    const entry = new RegExp("file:\\s*'[^']*[/\\\\]" + leaf + "\\.(?:ts|js)'").exec(build)
+    check(entry !== null, '构建叶子清单含 ' + leaf + '（' + (entry ? entry[0] : '清单里找不到 file: …/' + leaf + '.(ts|js)') + '）')
   }
   check(build.includes('src/host') && build.includes('package/lib') && build.includes('cpSync'), '构建原样复制宿主树到打包目录')
 }

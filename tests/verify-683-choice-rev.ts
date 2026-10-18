@@ -11,17 +11,18 @@
  *   - G：R6b 的本地镜像不再垫底（秒显走快照缓存那条路）；
  *   - F：反证 —— 把实现做坏时上面该红的必须当场红（含 B 组那把扫描自己抓不抓得到漏改）。
  *
- * 做法：把 src/client/kernel/store-prefs.js 的真身文本喂进沙箱求值（真源 + 假 localStorage/window），
- *   再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
+ * 做法：经共用入口 spliceableJs 从真源 src/client/kernel/store-prefs.ts 取出「与构建同一份转译参数」的
+ *   可 eval JS 喂进沙箱求值（真源 + 假 localStorage/window），再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
  *
  * 用法：node tests/verify-683-choice-rev.js
  */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-// 取源走共用入口（#1207 立，见 tests/lib/source-text.ts）：#1209 把 prompts.js 与 StatusBackend.js
-// 的真源转成了 .ts，按 .js 路径直接读会读到真源旁边那份构建产物（esbuild 排版过，函数形状也变了）。
-import { sourcePath, spliceableJs } from './lib/source-text.ts'
+// 取源走共用入口（#1207 立，见 tests/lib/source-text.ts）：#1209/#1251 把 prompts、store-prefs 的真源转成了 .ts，
+// 按 .js 路径直接读会读到真源旁边那份构建产物；这里要的是「能直接求值的 JavaScript」，
+// 所以统一用 spliceableJs（真源过 esbuild + 剥行首 export），而不是自己去读某一份文件。
+import { spliceableJs } from './lib/source-text.ts'
 // 本文件按文本求值统一走共用入口 compileFn：把 store-prefs.js 真身与假 window/localStorage 一起求值（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
 // 中央时间真值：缓存 TTL 只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
@@ -35,7 +36,6 @@ const PREFS_REL = 'src/client/kernel/store-prefs.js'
 let passed = 0
 let failed = 0
 const check = (ok: unknown, msg: string): void => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
-const read = (rel: string): string => fs.readFileSync(path.join(ROOT, sourcePath(rel)), 'utf8')
 // #1003 收尾：版本位那根管子要拔净 —— 扫描一棵源码树下还有没有哪一处提到 baseRev，返回「文件:行号」清单。
 //   真源扫的是 src/（B 组）；反证 F4 拿它扫一份塞了 baseRev 的临时副本，证明这把扫描抓得到漏改。
 const scanBaseRev = function (rootDir: string): string[] {
@@ -52,7 +52,11 @@ const scanBaseRev = function (rootDir: string): string[] {
   return hits
 }
 
-const prefsSrc = read(PREFS_REL)
+// #1251：真源已是 store-prefs.ts，沙箱要吃的是可 eval 的 JavaScript，所以走共用入口取转译后文本
+//   （注释与行首 export 被剥、`undefined` 被 esbuild 印成 `void 0`、多余的括号被去掉、单行函数体摊成多行）。
+//   下面 F 组反证的落点要按这个形状写，找不到落点必须判红。
+const prefsSrc = spliceableJs(PREFS_REL)
+// 转译产物已经没有行首 export，这个剥除留着兼容未迁移的回退形态（对今天的输入是无害的空操作）。
 const stripExports = (s: string): string => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const wsKey = (p: unknown): string => String(p == null ? '' : p).replace(/\\/g, '/').toLowerCase()
 
@@ -157,16 +161,17 @@ const loadBroken = function (tag: string, from: string, to: string) {
   return { src: fs.readFileSync(file, 'utf8') }
 }
 {
-  // F1 构造函数里加回版本位 → A 组“无版本位”那条当场红
-  const b1 = loadBroken('has-rev', 'ref: (ref === undefined ? null : ref), pickedAt: Date.now()', 'ref: (ref === undefined ? null : ref), pickedAt: Date.now(), rev: 1')
+  // F1 构造函数里加回版本位 → A 组“无版本位”那条当场红。
+  //   落点按转译后的形状写：esbuild 把 `(ref === undefined ? null : ref)` 印成 `ref === void 0 ? null : ref`。
+  const b1 = loadBroken('has-rev', 'ref: ref === void 0 ? null : ref, pickedAt: Date.now()', 'ref: ref === void 0 ? null : ref, pickedAt: Date.now(), rev: 1')
   check(!b1.bad, '反证 F1 的改法能在真源里落地（给乐观选择加回版本位）' + (b1.bad ? ' —— ' + b1.bad : ''))
   if (b1.src) {
     const h = makeHarness(b1.src)
     const second = h.api.userPickSelection('github', null, { backendId: 'markdown' })
     check(second.rev === 1, '反证 F1 成立：加回去之后构造出来的选择又带版本位了 —— 说明 A 组量的就是“无版本位”')
   }
-  // F2 读数不再恒空
-  const b2 = loadBroken('read-back', 'export const getCachedSelection = function (cwd) { return null }', 'export const getCachedSelection = function (cwd) { return { backendId: "github" } }')
+  // F2 读数不再恒空。落点同理按转译后的形状写：类型标注没了、单行函数体摊成多行。
+  const b2 = loadBroken('read-back', 'const getCachedSelection = function(cwd) {\n  return null;\n};', 'const getCachedSelection = function(cwd) { return { backendId: "github" } }')
   check(!b2.bad, '反证 F2 的改法能在真源里落地（把选择读数加回去）' + (b2.bad ? ' —— ' + b2.bad : ''))
   if (b2.src) {
     const h = makeHarness(b2.src)

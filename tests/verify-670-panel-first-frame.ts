@@ -51,8 +51,9 @@ console.log('== A 源码层：两处底色取宿主那一档（bg-base），且�
 for (const rel of FILES) {
   const t = texts[rel]
   if (!t) continue
-  if (RENDER_FILES.indexOf(rel) >= 0) check(t.includes("className: 'dsws-hold'"), rel + ' 空壳与真内容用同一个类名 dsws-hold')
-  check(!/height:\s*'100%',\s*overflow:\s*'hidden'\s*\}/.test(t), rel + ' 不再用「只有高度与 overflow、没有背景」的内联空壳')
+  if (RENDER_FILES.indexOf(rel) >= 0) check(t.includes("className: 'dsws-hold'") || t.includes('className: "dsws-hold"'), rel + ' 空壳与真内容用同一个类名 dsws-hold')
+  // #1251：esbuild 产物统一用双引号（手写 .js 时代是单引号），两种形态都认（同 slots:271 做法）。
+  check(!/height:\s*['"]100%['"],\s*overflow:\s*['"]hidden['"]\s*\}/.test(t), rel + ' 不再用「只有高度与 overflow、没有背景」的内联空壳')
 }
 {
   const st = texts['src/client/kernel/styles.js']
@@ -64,8 +65,8 @@ for (const rel of FILES) {
     check(/height:100%/.test(m[1]), '.dsws-hold 仍然占满高度（#603 的取舍不变）')
   }
   const dock = texts['src/client/panel/Dock.js'] || ''
-  check(/background:\s*'var\(--dsw-alias-bg-base,#10131a\)'/.test(dock), '面板根节点（DetailsDock）的底色与空壳同档（--dsw-alias-bg-base，同一个兜底值）')
-  check(!/background:\s*'var\(--dsw-alias-bg-layer-1,#10131a\)'/.test(dock), '面板根节点不再取页面那一档（--dsw-alias-bg-layer-1）')
+  check(/background:\s*['"]var\(--dsw-alias-bg-base,#10131a\)['"]/.test(dock), '面板根节点（DetailsDock）的底色与空壳同档（--dsw-alias-bg-base，同一个兜底值）')
+  check(!/background:\s*['"]var\(--dsw-alias-bg-layer-1,#10131a\)['"]/.test(dock), '面板根节点不再取页面那一档（--dsw-alias-bg-layer-1）')
 }
 
 // ---------- B / C 真渲染层 ----------

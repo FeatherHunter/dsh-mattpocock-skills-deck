@@ -54,7 +54,10 @@ const MODULES = [
   { name: 'apiNaming', file: 'api-naming', exports: ['injectFixate', 'handoffPrompt', 'extractHandoffFile', 'absHandoffPath', 'handoffReadText', 'getRowPreset', 'isHealthyPreset', 'isReusableBlank', 'buildCreateOpts', 'createPTCSession', 'namingCurrentTitleOf', 'namingHintOf', 'executeNamingOrder', 'reconcileNamingFailure', 'applyNamingFailurePanel', 'namingGuardianKick', 'namingGuardianEvent', 'startNamingGuardianEvents'] },
   { name: 'apiPresetGuard', file: 'api-preset-guard', exports: ['describeReuseDecision', 'verifyFreshPreset', 'tryQuarantineSession', 'createVerifiedPTCSession'] },
   { name: 'apiWorkspace', file: 'api-workspace', exports: ['workspacePathOf', 'workspaceIdOf', 'workspaceNormOf', 'workspaceCollectFromSnap', 'workspaceMatchEntry', 'workspaceTryCreateWid', 'resolveWorkspaceEntry'] },
-  { name: 'apiNewSession', file: 'api-new-session', exports: ['probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession'] },
+  // #1251：交接执行那一族从 apiNewSession 里拆出（原文件有效行超 350 上限）：
+  //   探测交接文档、生成交接文档、带着交接文档开新会话在 api-handoff；新会话创建仍在 api-new-session。
+  { name: 'apiHandoff', file: 'api-handoff', exports: ['probeHandoffReady', 'doHandoff', 'doHandoffOpen'] },
+  { name: 'apiNewSession', file: 'api-new-session', exports: ['openTextInNewSession'] },
   { name: 'apiIo', file: 'api-io', exports: ['openInNewSession', 'inject', 'openUrl', 'copyText', 'fetchIssueDetail', 'clearIssueDetailCache', 'fetchIssueComments', 'submitIssueComment', 'fetchIssuesPage'] },
   // #690：历史票的页数据（已关闭票按需翻页）—— 分桶存放、按身份去重、静默刷新不清空、最多留 10 页。
   { name: 'issuePages', file: 'issue-pages', exports: ['ISSUE_PAGE_MAX', 'ISSUE_PAGE_LIMIT', 'issuePageFilterOf', 'issuePageKeyOf', 'issuePageBucketRead', 'issuePageBucketOf', 'issuePageRowsOf', 'issuePageStatOf', 'loadIssuePage'] },
@@ -66,7 +69,12 @@ const MODULES = [
   { name: 'slotRendererRepoSync', file: 'slotRenderer-repo-sync', exports: ['startRepoSync', 'finishRepoSync', 'retryRepoSync'] },
   { name: 'slotRendererModalView', file: 'slotRenderer-modal-view', exports: ['FormModalSeat'] },
 ]
-const kernelFileOf = (m) => 'src/client/kernel/' + (m.file || m.name) + '.js'
+const kernelFileOf = (m) => {
+  // #1251：转写后真源是同名 .ts（.js 孪生已删，pixel-ts 按需重建）：优先查 .ts；
+  //   尚未转写的条目仍查 .js。产物由哪份真源拼出来，新鲜度就跟哪一份。
+  const base = 'src/client/kernel/' + (m.file || m.name)
+  return fs.existsSync(base + '.ts') ? base + '.ts' : base + '.js'
+}
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',
   // #629：配色核心的两个产物是客户端闭包的输入（scripts/build.mjs 的 SHARED_SPLICE 直接读它们），

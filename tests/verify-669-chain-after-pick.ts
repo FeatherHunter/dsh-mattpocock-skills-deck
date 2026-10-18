@@ -38,10 +38,12 @@ let passed = 0
 let failed = 0
 function check (ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
-// read 留给还没迁移的 .js（probe-chain.js 那一份）：它没有同名 .ts，spliceableJs 会原样读。
+// read 只留给「文本扫描」用（views/ChecksTab.js 那份还没迁移的手写 .js，按行找落点）：
+//   求值一律走 spliceableJs（.ts 转译去类型；原样读会带着类型标注，求值当场语法错）。
 const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
-const chainSrc = read('src/client/kernel/probe-chain.js')
+// #1251：probe-chain.js 手写真源已删，真源是同名 .ts —— 求值走 spliceableJs 取转译后的纯 JS。
+const chainSrc = spliceableJs('src/client/kernel/probe-chain.js')
 
 // 沙箱里那几个会话对象的形状：真身在求值时往 selection / chainSnapshot 里写，测试侧按同一形状读。
 interface ChainState {
@@ -104,9 +106,11 @@ function makeChain (srcText: string) {
   const cache = new Map()
   const keyOf = (cwd: unknown, bid: unknown, lang: unknown): string => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
   // #1003 退役 hint 上报（宿主读文件）：真身恒返回空，链请求不再带后端，下列现场只量“发了几次、 stale 怎么判”。
-  const hintLine = read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
-  // 从真源切出一行函数表达式求值：改走共用入口 compileFn，这段源码不需要外部变量，参数表传空数组。
-  const userHintOf = compileFn([], 'return ' + hintLine.trim().replace(/^export const userHintOf = /, ''))()
+  // #1251：userHintOf 取出来要当场求值 —— 走 spliceableJs（与构建同一口径，先转译去类型），
+  //   按整段函数体取（锚行首收尾）；esbuild 会把单行函数拆成多行，按行掐只掐到函数头（见 669-precedence 同款）。
+  const hintLine = (spliceableJs('src/client/kernel/store-prefs.js').match(/const userHintOf = function[\s\S]*?\n\}/) || [''])[0]
+  // 从真源切出函数表达式求值：改走共用入口 compileFn，这段源码不需要外部变量，参数表传空数组。
+  const userHintOf = compileFn([], 'return ' + hintLine.trim().replace(/^const userHintOf = /, ''))()
   const sandbox: Record<string, any> = {
     host: { call: (method: string, params: any) => { const d = deferredOf(); calls.push({ method: method, params: params, d: d }); return d.p } },
     userHintOf: userHintOf,
@@ -330,12 +334,15 @@ console.log('== D 反证：把守卫做坏，C 里对应的那几条必须当场
     },
     {
       label: '只留第一问（同一个键上有没有更新的一次）',
-      patches: [['try { return _chainKeyOfState(state) !== key } catch (eK) { return true }', 'return false']],
+      // #1251：转写把单行 try/catch 展开成多行（esbuild 逐行重排），旧的整行掐对不上 ——
+      //   改掐语句级锚点（转译前后逐字相同，意图不变：第一问恒说「没过期」）。
+      patches: [['return _chainKeyOfState(state) !== key;', 'return false;']],
       must: ['现场 1 会话状态', '现场 1 过期那一次不落', '现场 3 换后端'],
     },
     {
       label: '只留第二问（这个会话还要不要这条链）',
-      patches: [['try { if (_chainLatestByKey.get(key) !== seq) return true } catch (eS) { return true }', 'if (false) { }']],
+      // #1251：同上，改掐语句级锚点（意图不变：第二问恒不触发）。
+      patches: [['if (_chainLatestByKey.get(key) !== seq) return true;', 'if (false) { }']],
       must: ['现场 5 同键先后'],
     },
     {

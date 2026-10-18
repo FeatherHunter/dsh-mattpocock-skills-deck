@@ -23,6 +23,8 @@
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
+// #1251：只认文本形状的断言走 sourceText 取 .ts 原文（产物经 esbuild：注释被剥、单引号变双引号）。
+import { sourceText } from './lib/source-text.js'
 
 let passed = 0, failed = 0
 function check(ok: unknown, msg: string): void { if(ok){ console.log('  PASS '+msg); passed++; } else { console.log('  FAIL '+msg); failed++; } }
@@ -195,7 +197,8 @@ console.log('')
 console.log('-- 7) slotRenderer 外观与交互（遮罩 + 居中盒 + 校验 + 重求值） --')
 try{
   // 原单文件已拆三，读拼合断言；#698 又把表单字段那一串渲染拆去 kernel/modal-fields.js，一并读进来
-  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map(file).join('\n')
+  // #1251：拼合走 sourceText 取四份 .ts 原文（注释与单引号都在；走产物会丢注释、变引号）。
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map((p) => sourceText(p)).join('\n')
   check(sr.includes('FormModalSeat'), 'slotRenderer 含 FormModalSeat')
   check(sr.includes('ensureFormModal') && sr.includes('openFormModal') && sr.includes('closeFormModal'), 'slotRenderer 含 ensure/open/close 三件套')
   check(sr.includes('dsws-modal') && sr.includes('dsws-modalbox'), 'slotRenderer 复用 .dsws-modal/.dsws-modalbox')
@@ -228,7 +231,8 @@ console.log('')
 console.log('-- 9) 向导多步分页与步进导航（#319） --')
 try{
   // 原单文件已拆三，读拼合断言；#698 又把表单字段那一串渲染拆去 kernel/modal-fields.js，一并读进来
-  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map(file).join('\n')
+  // #1251：拼合走 sourceText 取四份 .ts 原文（注释与单引号都在；走产物会丢注释、变引号）。
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map((p) => sourceText(p)).join('\n')
   const shared = file('src/shared/ui/slots.js')
   const chain = file('src/shared/tracker/chain-types.js') + '\n' + file('src/shared/tracker/chain-validate.js') + '\n' + file('src/shared/tracker/chain-evaluate.js')
   // 单弹窗内分页 + 步进条数字圆点 + 标题

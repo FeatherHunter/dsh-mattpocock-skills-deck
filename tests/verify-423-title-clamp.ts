@@ -1,6 +1,7 @@
-const fs = require("fs");
 const { JSDOM } = require("jsdom");
-const styleSrc = fs.readFileSync("src/client/kernel/styles.js", "utf8");
+const { sourceText } = require("./lib/source-text.ts");
+// #1251：styles.js 手写真源已删，真源是同名 .ts；按文本扫描走共用入口取原文（单引号形态与旧 .js 一致，pull 逻辑不动）。
+const styleSrc = sourceText("src/client/kernel/styles.js");
 function pull(needle: string) {
   const line = styleSrc.split(String.fromCharCode(10)).find((l: string) => l.includes(needle));
   if (!line) throw new Error("styles 规则未找到: " + needle);

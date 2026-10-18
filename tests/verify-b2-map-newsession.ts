@@ -28,8 +28,8 @@ const files = process.argv.slice(2)
 const SOURCES = {
   reg: 'src/client/kernel/prompts.ts',      // PROMPTS 注册表（原文里键用双引号、值用单引号）
   prompts: 'src/client/kernel/prompts.ts',  // completePrompt / MAP_EXECUTE_PROMPT / FIXATE_PROMPT
-  router: 'src/client/kernel/router.js',    // startText
-  view: 'src/client/views/MapDetailTop.js', // 详情页「在新会话打开」按钮
+  router: 'src/client/kernel/router.js',    // startText（#1251 起真源是 router.ts，经 spliceableJs 取转译后的文本）
+  view: 'src/client/views/MapDetailTop.js', // 详情页「在新会话打开」按钮（views 目录还没转 TypeScript，这份 .js 仍是手写真源，直接读原文）
 }
 
 // ---- 解析 PROMPTS 注册表（与 verify-prompts.js 同构）----
@@ -157,8 +157,11 @@ const buildEnv = function (regSrc, promptsJs, routerJs, lang) {
   // 本文件选 compileFn：这两处原来都是「把依赖名当参数、把从产物里切出来的源码当函数体」造函数再调用，
   //   依赖本来就全部显式传参（切出来的代码读不到本文件作用域），与共用入口用法一一对应。
   const completePrompt = compileFn(['COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'issueUrlFor'], completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, issueUrlFor)
-  // #265 起 router 的命名契约段迁至命名守护共享核心（S2 #452 起为 shared/naming-titles.js 等 3 个文件）；终止锚点随迁（#265 后稳定存在于源与产物）
-  const startTextSrc = extractBetween(routerJs, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
+  // #265 起 router 的命名契约段迁至命名守护共享核心（S2 #452 起为 shared/naming-titles.js 等 3 个文件）。
+  // #1251：终止锚点从 `// 契约 #205 会话标题` 那行注释换成下一条声明的开头 —— router.ts 经 esbuild 转译后
+  //   注释会被剥掉（真源与产物两侧都没有那行注释了），而 `const newWayfinderText = ` 是紧跟 startText
+  //   之后的代码，源与产物同形，切到它前面正好是 startText 一整段。
+  const startTextSrc = extractBetween(routerJs, 'const startText = (st, t) => {', 'const newWayfinderText = ')
   // 同上：startText 这一处的依赖表也是逐字传参，换成 compileFn 后参数与实参一字不变。
   const startText = compileFn(['repoStr', 'promptText', 'promptTextFor', 'inspectPrompt', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', 'effortOf', 'idOf'], startTextSrc + '; return startText')(repoStr, promptText, promptTextFor, inspectPrompt, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor, effortOf, idOf)
   return { startText: startText }

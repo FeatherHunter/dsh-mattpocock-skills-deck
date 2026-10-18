@@ -22,7 +22,10 @@ import { compileFn } from './lib/eval-probe.js'
 //   也有已经构建好的产物（client.js、package/lib/client.js、会话胶囊那份 .js），
 //   所以只在 sourcePath 能解析出同名 .ts 时才改指，其余路径原样交给 readFileSync ——
 //   产物不能从共用入口读（见 source-text.ts 文件头的规矩）。
-import { sourcePath } from './lib/source-text.ts'
+import { sourcePath, spliceableJs } from './lib/source-text.ts'
+// 求值的三处（loadLeaf、E 组、C 组让位表）走 spliceableJs：叶子转成 .ts 后原文带类型标注，
+// 直接求值语法错；spliceableJs 按构建同一份口径先转译。后面各处的 .replace 剥 export 留着，
+// 是给还没迁移的回退（读到纯 .js 时仍要剥行首 export）。
 
 const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let passed = 0, failed = 0
@@ -41,7 +44,7 @@ if (!existsSync(resolve(ROOT, LEAF))) { console.log('缺文件 ' + LEAF); proces
 
 // 与构建同一套做法：剥行首 export，丢进同名桩那个作用域里跑（只动判据，不渲染组件）。
 function loadLeaf(rowsStub: (st: any) => any[]) {
-  const src = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
+  const src = spliceableJs(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
   // 这里选 compileFn：原来就是把九个依赖名逐个传给按文本造函数的写法，共用入口同样收参数名数组，造出来的函数接法不变。
   const factory = compileFn(
     ['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel'],
@@ -97,7 +100,7 @@ console.log('B) 版面纪律：真渲染出来的版面上没有散列与内部�
       { shardId: shardOf, label: 'x', sessionFull: 'x', sessionIndex: 0, firstOfSession: false, backend: 'github', ticketKey: '950', ticketTitle: '', effortId: '', action: 'comment', actionKey: 'chainView.action.comment', at: 100, time: '16:40' },
     ]
     const leafR = (function () {
-      const srcR = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
+      const srcR = spliceableJs(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
       const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
       // 这里选 compileFn：十四个依赖名逐个传（与原写法一致），被求值的叶子源码文本原样。
       const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
@@ -206,7 +209,7 @@ console.log('C) 接线：折叠让位表与环境段')
   //   'statusbar/SessionChainCapsule.js'。断言对象全是文件文本的写法（连注释改一句都会红），
   //   按维护者「清掉读源码文本钉形状的门禁」的要求整组撤掉，连带只服务它们的四个局部读取一并删了。
   //   下面留的是：从 capFold.js 文本里抠出真函数跑一遍看让位表（抠源码执行），与词条确实已落。
-  const capFoldSrc = read('src/client/statusbar/capFold.js').replace(/^[ \t]*export[ \t]+/gm, '')
+  const capFoldSrc = spliceableJs('src/client/statusbar/capFold.js').replace(/^[ \t]*export[ \t]+/gm, '')
   // 这里选 compileFn：这段源码不接参数，造出函数后当场调用，取的就是它返回的 CAP_FOLD_POLICY。
   const capFold = compileFn([], capFoldSrc + '\nreturn { CAP_FOLD_POLICY }')()
   const keys = Object.keys(capFold.CAP_FOLD_POLICY || {}).sort(function (a, b) { return Number(a) - Number(b) })
@@ -237,7 +240,7 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
   const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
   const icons = []
   const built = (function () {
-    const srcR = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
+    const srcR = spliceableJs(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
     // 这里选 compileFn：与上面那处同名同参数，只是这次取的只有 SessionChainCapsule 这一个导出。
     const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
       srcR + '\nreturn { SessionChainCapsule }')

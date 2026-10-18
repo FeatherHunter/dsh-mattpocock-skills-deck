@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-18T08:27:59.954Z",
+  "generatedAt": "2026-10-18T10:32:02.755Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
-  "attributedGates": 262,
-  "unattributedGates": 32,
-  "buildOutputOnlyGates": 19,
+  "attributedGates": 263,
+  "unattributedGates": 31,
+  "buildOutputOnlyGates": 18,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 607,
+  "graphFileCount": 671,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -548,7 +548,8 @@
         "src/shared/tracker/chain-validate.js",
         "src/shared/ui/slots.js",
         "src/tracker/fix-contract.ts",
-        "src/tracker/rooms/github/index.ts"
+        "src/tracker/rooms/github/index.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -559,13 +560,14 @@
         "src/shared/tracker",
         "src/shared/ui",
         "src/tracker",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 16 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；静态 import 说明符 1 条；源码里的路径字面量 16 条"
     },
     {
       "step": "node tests/verify-deck-thin-reads.ts",
@@ -1168,7 +1170,8 @@
         "src/host/snapshotBuild.ts",
         "src/host/workspaceCwd.ts",
         "src/shared/host-timer/host-timers.js",
-        "src/shared/host-timer/src/host-timers.ts"
+        "src/shared/host-timer/src/host-timers.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "scripts",
@@ -1178,13 +1181,14 @@
         "src/host",
         "src/host/refresh",
         "src/shared/host-timer",
-        "src/shared/host-timer/src"
+        "src/shared/host-timer/src",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1125-gate-coverage.ts",
@@ -1683,16 +1687,18 @@
       "step": "node tests/verify-423-title-clamp.ts",
       "file": "tests/verify-423-title-clamp.ts",
       "guards": [
-        "src/client/kernel/styles.js"
+        "src/client/kernel/styles.js",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel"
+        "src/client/kernel",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-497-slash.ts",
@@ -1836,20 +1842,22 @@
         "src/client/views/shared/stateKind.js",
         "src/host/platform/outbound-control.ts",
         "src/tracker/rooms/github/issues.ts",
-        "src/tracker/rooms/github/normalize.ts"
+        "src/tracker/rooms/github/normalize.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/views",
         "src/client/views/shared",
         "src/host/platform",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-626-type-chip.ts",
@@ -1860,7 +1868,8 @@
         "src/client/kernel/locale-flow.js",
         "src/client/views/MapDetail.js",
         "src/client/views/shared/chips.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -1874,7 +1883,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-640-dock-width-browser.ts",
@@ -2120,7 +2129,8 @@
         "src/client/kernel/icons.js",
         "src/client/panel/headFold.js",
         "tests/lib/browser-pool.ts",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -2132,7 +2142,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-668-guide-steps-single-source.ts",
@@ -2217,20 +2227,23 @@
       "file": "tests/verify-669-collapsed-recoverable.ts",
       "guards": [
         "package/lib/client.js",
+        "src/client/statusbar/StatusBar.js",
         "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
+        "tests/lib/source-text.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "package/lib",
+        "src/client/statusbar",
         "tests/lib"
       ],
-      "unattributed": true,
-      "buildOutputOnly": true,
+      "unattributed": false,
+      "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 30,
-      "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-669-switch-visible.ts",
@@ -2243,7 +2256,8 @@
         "src/client/kernel/store-prefs.js",
         "src/shared/time-config/values.js",
         "tests/lib/browser-pool.ts",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -2255,7 +2269,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-670-panel-first-frame.ts",
@@ -2284,12 +2298,15 @@
       "file": "tests/verify-671-modal-global-overlay.ts",
       "guards": [
         "package/lib/client.js",
+        "src/client/kernel/slotRenderer-modal-view.js",
         "src/client/statusbar/StatusBar.js",
         "src/client/views/ChecksTab.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
+        "src/client/kernel",
         "src/client/statusbar",
         "src/client/views",
         "tests/lib"
@@ -2298,7 +2315,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-683-choice-rev.ts",
@@ -2379,7 +2396,8 @@
       "guards": [
         "src/client/kernel/store-prefs.js",
         "src/shared/time-config/values.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -2390,7 +2408,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-685-healthcheck-button.ts",
@@ -2412,7 +2430,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-686-accept.ts",
@@ -3129,7 +3147,8 @@
       "file": "tests/verify-891-setup-refresh.ts",
       "guards": [
         "src/client/kernel/probe-chain.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3139,7 +3158,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 1 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-895-bulk-deadline.ts",
@@ -4250,7 +4269,8 @@
         "src/host/refresh/wiring.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/delta.js",
-        "src/shared/tracker/indexWindow.js"
+        "src/shared/tracker/indexWindow.js",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -4258,13 +4278,14 @@
         "src/host/platform",
         "src/host/refresh",
         "src/shared/refresh",
-        "src/shared/tracker"
+        "src/shared/tracker",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-detail-levels.ts",
@@ -4481,12 +4502,12 @@
       "guards": [
         "src/client",
         "src/client/kernel",
-        "src/client/kernel/actions.js",
+        "src/client/kernel/actions.ts",
         "src/client/kernel/api-io.js",
         "src/client/kernel/api-io.ts",
-        "src/client/kernel/api-preset-guard.js",
-        "src/client/kernel/issue-pages.js",
-        "src/client/kernel/slotRenderer-repo-sync.js",
+        "src/client/kernel/api-preset-guard.ts",
+        "src/client/kernel/issue-pages.ts",
+        "src/client/kernel/slotRenderer-repo-sync.ts",
         "src/tracker",
         "src/tracker/contract/results.ts",
         "src/tracker/contract/vocabulary.ts",
@@ -5026,7 +5047,8 @@
       "file": "tests/verify-issue60-cwd.ts",
       "guards": [
         "src/client/kernel/api-new-session.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -5036,7 +5058,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-kernel.ts",
@@ -5125,13 +5147,15 @@
         "package/lib/client.js",
         "package/lib/index.js",
         "scripts/build.mjs",
+        "scripts/generated/logKernel.derived.js",
         "src/client",
-        "src/client/kernel/log.js",
+        "src/client/kernel/log.ts",
         "src/host"
       ],
       "dirs": [
         "package/lib",
         "scripts",
+        "scripts/generated",
         "src/client",
         "src/client/kernel",
         "src/host"
@@ -5140,7 +5164,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-log-client.ts",
@@ -5153,7 +5177,8 @@
         "src/client/kernel/probe-snapshot.js",
         "src/client/panelAssembly.js",
         "src/shared/time-config/values.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -5167,7 +5192,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-log-count.ts",
@@ -5607,12 +5632,14 @@
       "file": "tests/verify-newsession-blank-seed-315.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/api-io.ts",
+        "src/client/kernel/api-handoff.js",
+        "src/client/kernel/api-io.js",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
         "src/shared/time-config/values.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -5624,20 +5651,22 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-newsession-preset-guard.ts",
       "file": "tests/verify-newsession-preset-guard.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/api-io.ts",
+        "src/client/kernel/api-handoff.js",
+        "src/client/kernel/api-io.js",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-preset-guard.js",
         "src/client/kernel/api-workspace.js",
         "src/shared/time-config/values.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -5649,19 +5678,21 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-newsession-workspace-fallback.ts",
       "file": "tests/verify-newsession-workspace-fallback.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/api-io.ts",
+        "src/client/kernel/api-handoff.js",
+        "src/client/kernel/api-io.js",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
         "src/shared/time-config/values.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
@@ -5673,22 +5704,24 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-panel-workspace-isolation.ts",
       "file": "tests/verify-panel-workspace-isolation.ts",
       "guards": [
-        "src/client/kernel/probe-auto.js"
+        "src/client/kernel/probe-auto.js",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel"
+        "src/client/kernel",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-parse-leaf.ts",
@@ -6106,6 +6139,7 @@
         "src/shared/time-config/values.js",
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts",
         "tests/lib/time-compress.ts",
         "tests/verify-settings-debug.ts"
       ],
@@ -6129,7 +6163,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 17 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 17 条"
     },
     {
       "step": "node tests/verify-settings-phones.ts",
@@ -6154,6 +6188,7 @@
       "guards": [
         "package/lib/client.js",
         "scripts/build.mjs",
+        "scripts/lib/effective-lines.mts",
         "src/client/index.js",
         "src/client/kernel/config.js",
         "src/client/kernel/settings-templates.js",
@@ -6169,11 +6204,13 @@
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
+        "tests/lib/source-text.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/client",
         "src/client/kernel",
         "src/host",
@@ -6185,7 +6222,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 65,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-settings-view.ts",
@@ -6193,6 +6230,7 @@
       "guards": [
         "package/lib/client.js",
         "scripts/build.mjs",
+        "scripts/lib/effective-lines.mts",
         "src/client/index.js",
         "src/client/kernel/settings-ui.js",
         "src/client/kernel/settings-view-state.js",
@@ -6208,11 +6246,13 @@
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/render-subws-mark.ts",
+        "tests/lib/source-text.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/client",
         "src/client/kernel",
         "src/client/views",
@@ -6225,7 +6265,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 215,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-setup-describe.ts",
@@ -6709,7 +6749,8 @@
       "file": "tests/verify-workspace-file-note.ts",
       "guards": [
         "src/client/kernel/store-prefs.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -6719,7 +6760,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-write-detect.ts",
@@ -7051,6 +7092,7 @@
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-587-update-live.ts",
       "node tests/verify-generated-no-shadow.ts",
+      "node tests/verify-log-artifacts.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-update-panel.ts"
@@ -7087,6 +7129,8 @@
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-settings-debug.ts",
+      "node tests/verify-settings-templates.ts",
+      "node tests/verify-settings-view.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-visible-truth.ts",
@@ -7155,6 +7199,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-670-panel-first-frame.ts",
+      "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.ts",
@@ -7227,6 +7272,7 @@
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-669-choice-precedence.ts",
+      "node tests/verify-669-collapsed-recoverable.ts",
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-907-chain-titles.ts",
@@ -8010,11 +8056,13 @@
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-repo-resolve.ts",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1109-matches-timeout.ts",
+      "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1158-completion-evidence.ts",
@@ -8023,8 +8071,10 @@
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-423-title-clamp-browser.ts",
+      "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
       "node tests/verify-587-update-live.ts",
+      "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-646-native-tab.ts",
@@ -8077,6 +8127,7 @@
       "node tests/verify-cap-fold.ts",
       "node tests/verify-capsule-layout.ts",
       "node tests/verify-capsule-narrow.ts",
+      "node tests/verify-delta-wiring.ts",
       "node tests/verify-detection-cascade.ts",
       "node tests/verify-diagnostic-log-model.ts",
       "node tests/verify-generated-no-shadow.ts",
@@ -8103,6 +8154,7 @@
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
+      "node tests/verify-panel-workspace-isolation.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.ts",
@@ -8144,96 +8196,160 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 620,
+    "fileCount": 684,
     "dirCount": 54,
-    "coveredFileCount": 620,
+    "coveredFileCount": 684,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 53,
     "guardedFiles": [
       "src/client/floating/Pop.js",
+      "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.js",
+      "src/client/floating/SkillFloatList.ts",
       "src/client/hostShim.js",
       "src/client/index.js",
       "src/client/kernel/actions.js",
+      "src/client/kernel/actions.ts",
+      "src/client/kernel/api-handoff.js",
+      "src/client/kernel/api-handoff.ts",
       "src/client/kernel/api-io.js",
       "src/client/kernel/api-io.ts",
       "src/client/kernel/api-naming.js",
+      "src/client/kernel/api-naming.ts",
       "src/client/kernel/api-new-session.js",
+      "src/client/kernel/api-new-session.ts",
       "src/client/kernel/api-preset-guard.js",
+      "src/client/kernel/api-preset-guard.ts",
       "src/client/kernel/api-workspace.js",
+      "src/client/kernel/api-workspace.ts",
       "src/client/kernel/attention-heartbeat.js",
+      "src/client/kernel/attention-heartbeat.ts",
       "src/client/kernel/builtin-backends.js",
+      "src/client/kernel/builtin-backends.ts",
       "src/client/kernel/config.js",
+      "src/client/kernel/config.ts",
       "src/client/kernel/ctx.js",
+      "src/client/kernel/ctx.ts",
       "src/client/kernel/health-check.js",
+      "src/client/kernel/health-check.ts",
       "src/client/kernel/icons.js",
+      "src/client/kernel/icons.ts",
       "src/client/kernel/issue-pages.js",
+      "src/client/kernel/issue-pages.ts",
       "src/client/kernel/link.js",
       "src/client/kernel/link.ts",
       "src/client/kernel/locale-cards.js",
       "src/client/kernel/locale-cards.ts",
       "src/client/kernel/locale-flow.js",
+      "src/client/kernel/locale-flow.ts",
       "src/client/kernel/locale-labels.js",
+      "src/client/kernel/locale-labels.ts",
       "src/client/kernel/locale-pages.js",
       "src/client/kernel/locale-pages.ts",
       "src/client/kernel/locale-panel.js",
       "src/client/kernel/locale-panel.ts",
       "src/client/kernel/locale-skilldesc.js",
+      "src/client/kernel/locale-skilldesc.ts",
       "src/client/kernel/locale-skilldetail.js",
       "src/client/kernel/locale-skilldetail.ts",
       "src/client/kernel/locale-vcwrite.js",
+      "src/client/kernel/locale-vcwrite.ts",
       "src/client/kernel/locale-word.js",
+      "src/client/kernel/locale-word.ts",
       "src/client/kernel/locale.js",
+      "src/client/kernel/locale.ts",
       "src/client/kernel/log.js",
+      "src/client/kernel/log.ts",
       "src/client/kernel/modal-fields.js",
+      "src/client/kernel/modal-fields.ts",
       "src/client/kernel/portal.js",
+      "src/client/kernel/portal.ts",
       "src/client/kernel/probe-auto.js",
+      "src/client/kernel/probe-auto.ts",
       "src/client/kernel/probe-chain.js",
+      "src/client/kernel/probe-chain.ts",
       "src/client/kernel/probe-select.js",
+      "src/client/kernel/probe-select.ts",
       "src/client/kernel/probe-snapshot-helpers.js",
+      "src/client/kernel/probe-snapshot-helpers.ts",
       "src/client/kernel/probe-snapshot.js",
+      "src/client/kernel/probe-snapshot.ts",
       "src/client/kernel/probe-stale.js",
+      "src/client/kernel/probe-stale.ts",
       "src/client/kernel/prompts-setup.js",
+      "src/client/kernel/prompts-setup.ts",
       "src/client/kernel/prompts.js",
       "src/client/kernel/prompts.ts",
       "src/client/kernel/router.js",
+      "src/client/kernel/router.ts",
       "src/client/kernel/settings-debug.js",
       "src/client/kernel/settings-debug.ts",
       "src/client/kernel/settings-templates.js",
+      "src/client/kernel/settings-templates.ts",
       "src/client/kernel/settings-ui.js",
+      "src/client/kernel/settings-ui.ts",
       "src/client/kernel/settings-view-state.js",
+      "src/client/kernel/settings-view-state.ts",
       "src/client/kernel/settings-view-write.js",
+      "src/client/kernel/settings-view-write.ts",
       "src/client/kernel/settings-view.js",
+      "src/client/kernel/settings-view.ts",
       "src/client/kernel/slotRenderer-modal-view.js",
+      "src/client/kernel/slotRenderer-modal-view.ts",
       "src/client/kernel/slotRenderer-queue.js",
+      "src/client/kernel/slotRenderer-queue.ts",
       "src/client/kernel/slotRenderer-repo-sync.js",
+      "src/client/kernel/slotRenderer-repo-sync.ts",
       "src/client/kernel/slots.js",
+      "src/client/kernel/slots.ts",
       "src/client/kernel/store-derived.js",
+      "src/client/kernel/store-derived.ts",
       "src/client/kernel/store-prefs.js",
+      "src/client/kernel/store-prefs.ts",
       "src/client/kernel/store-snapshot.js",
+      "src/client/kernel/store-snapshot.ts",
       "src/client/kernel/store-switch.js",
+      "src/client/kernel/store-switch.ts",
       "src/client/kernel/styles.js",
+      "src/client/kernel/styles.ts",
       "src/client/kernel/tabsfold.js",
+      "src/client/kernel/tabsfold.ts",
       "src/client/panel/Dock.js",
+      "src/client/panel/Dock.ts",
       "src/client/panel/DockSync.js",
+      "src/client/panel/DockSync.ts",
       "src/client/panel/NamingFailBanner.js",
+      "src/client/panel/NamingFailBanner.ts",
       "src/client/panel/OverlayGate.js",
+      "src/client/panel/OverlayGate.ts",
       "src/client/panel/RepoChipSkeleton.js",
+      "src/client/panel/RepoChipSkeleton.ts",
       "src/client/panel/headFold.js",
+      "src/client/panel/headFold.ts",
       "src/client/panelAssembly.js",
       "src/client/statusbar/LogDangerConfirm.js",
+      "src/client/statusbar/LogDangerConfirm.ts",
       "src/client/statusbar/Seg.js",
+      "src/client/statusbar/Seg.ts",
       "src/client/statusbar/SessionChainCapsule.js",
+      "src/client/statusbar/SessionChainCapsule.ts",
       "src/client/statusbar/StatusBackend.js",
       "src/client/statusbar/StatusBackend.ts",
       "src/client/statusbar/StatusBar.js",
+      "src/client/statusbar/StatusBar.ts",
       "src/client/statusbar/StatusLogMenu.js",
+      "src/client/statusbar/StatusLogMenu.ts",
       "src/client/statusbar/StatusMenus.js",
+      "src/client/statusbar/StatusMenus.ts",
       "src/client/statusbar/bannerChain.js",
+      "src/client/statusbar/bannerChain.ts",
       "src/client/statusbar/capFold.js",
+      "src/client/statusbar/capFold.ts",
       "src/client/statusbar/capFoldMachine.js",
+      "src/client/statusbar/capFoldMachine.ts",
       "src/client/statusbar/checksums.js",
+      "src/client/statusbar/checksums.ts",
       "src/client/ts-pixel-ambient.d.ts",
       "src/client/views/ChecksTab.js",
       "src/client/views/IssueDetail.js",

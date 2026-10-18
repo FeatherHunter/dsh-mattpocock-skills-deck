@@ -35,7 +35,9 @@ interface BannerSeen {
 async function loadBannerChain(): Promise<{ mod: any; seen: BannerSeen; guide: any }> {
   const guide = await import(pathToFileURL(path.join(root, 'src/shared/tracker/guide-steps.js')).href)
   const actions = await import(pathToFileURL(path.join(root, 'src/client/kernel/actions.js')).href)
-  const body = read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
+  // #1251 bannerChain 转成 .ts：原文带着类型标注，直接求值语法错；走与构建同一口径的转译。
+  //   后面那串 replace 留着是给还没迁移的回退（spliceableJs 读到纯 .js 时仍要剥行首 export）。
+  const body = spliceableJs('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
   const seen: BannerSeen = { injected: [], logged: [], forms: [], gateOpened: 0, setupInit: 0 }
   const stepsOf = (st: any) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
   const sandbox = {
@@ -198,7 +200,8 @@ async function main() {
   const clientBundle = read('client.js')
   const pkgBundle = read('package/lib/client.js')
   ok(clientBundle.indexOf('const guideBannerStep = function') >= 0 && pkgBundle.indexOf('const guideBannerStep = function') >= 0, '双产物里都带着这份横幅链（已随构建拼进闭包）')
-  ok(clientBundle.indexOf("'guide.inject'") >= 0 && pkgBundle.indexOf("'guide.inject'") >= 0, '双产物里都带着那条常驻注入日志的落点')
+  // #1251：esbuild 产物统一用双引号（手写 .js 时代是单引号），两种形态都认（同 slots:271 做法）。
+  ok((clientBundle.indexOf("'guide.inject'") >= 0 || clientBundle.indexOf('"guide.inject"') >= 0) && (pkgBundle.indexOf("'guide.inject'") >= 0 || pkgBundle.indexOf('"guide.inject"') >= 0), '双产物里都带着那条常驻注入日志的落点')
   ok(guide.GUIDE_STEPS.filter((s: any) => s.id === 'gh:remote' && s.blocksSetup === true).length === 1, '顺序真源那边「仓库那一步挡初始化全文」仍然成立（本票只消费它）')
 
   console.log(failed ? 'FAIL ' + total + ' 项检查里有 ' + failedN + ' 项未过' : 'PASS 全部 ' + total + ' 项检查通过')

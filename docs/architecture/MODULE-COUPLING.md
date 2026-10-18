@@ -145,7 +145,7 @@ function MyComponent({ sid }) {
   DSH Host → 持久化或开新会话
 ```
 
-**API**（来自 `src/client/kernel/api-naming.js`、`api-new-session.js`、`api-io.ts`，G3 表）：
+**API**（来自 `src/client/kernel/api-naming.ts`、`api-handoff.ts`、`api-new-session.ts`、`api-io.ts`，G3 表）：
 - `injectFixate` / `inject(text)` —— 注入文本到主输入框
 - `openInNewSession(text)` / `openTextInNewSession(text)` —— 开新 session
 - `copyText(text)` —— 复制到剪贴板
