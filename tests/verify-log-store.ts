@@ -74,10 +74,13 @@ async function main() {
   check(typeof formatLogFileName === 'function', '日志库导出按天文件名函数 formatLogFileName')
 
   // ---- 底座自检：行数、防抖值、级别判断位置（#500 拆分：两文件各不超 300 行，留余量）----
+  // 2026-10-18 #1247：转写强制加中文注释与类型标注，裸行数涨的全是注释；行数门要量的是逻辑体量，
+  //   改走有效行口径（与文件粒度门禁用同一把尺子），上限 300 不变。
+  const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
   const src = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logStore.ts'), 'utf8')
   const phonesSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logPhones.ts'), 'utf8')
-  const lineCount = src.split(/\r?\n/).length
-  const phonesLines = phonesSrc.split(/\r?\n/).length
+  const lineCount = countEffectiveLines(src)
+  const phonesLines = countEffectiveLines(phonesSrc)
   check(lineCount <= 300, '日志库不超 300 行（留余量，实得 ' + lineCount + ' 行）')
   check(phonesLines <= 300, '日志电话组不超 300 行（#500 拆出，实得 ' + phonesLines + ' 行）')
   // #1215 起防抖窗口的真源是中央时间参数（config/intervals.yaml 的 logWriteDebounceMs）：
