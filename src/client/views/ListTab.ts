@@ -154,27 +154,47 @@ export     const ListTab = ({ st, narrow }: any) => {
       // #690：再并上「按需翻回来的那些页」里池子没有的行（issuePageRowsOf 已按身份去掉重复的），
       //   于是已关闭那一堆里既有首屏那一百条、也有用户翻出来的更早的票；静默刷新只换池子，页数据不动。
       const issues = ticketRowsOf((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).concat(issuePageRowsOf(st, 'list'))
-      const openIssues = issues.filter(function (x: any) { return x.state !== 'CLOSED' })
-      const closedIssues = issues.filter(function (x: any) { return x.state === 'CLOSED' })
       // #374：多维排序 —— map 行恒置顶，map 组与普通组各自按所选维度排序；默认 更新时间↓（与现状一致）
+      // #1253 优化（行为不变，只是把重复计算挪到排序前算一次）：原来每比较一对票就要现做一次
+      //   String(...) 转换与 localeCompare 的入参准备，一张五千行的列表要比较约六万次；现在先把
+      //   每张票的比较键（数字键 / 小写标题 / 所选维度文本 / effort）各算一次，再让比较函数只用
+      //   算好的键。排序口径逐条照抄：主键不同就按方向返回，相同则先 effort 后编号升序兜底。
       const sortIssues = function (arr: any) {
         const dir = st.sortDir === 'asc' ? 1 : -1
-        return arr.slice().sort(function (a: any, b: any) {
-          let c
-          if (st.sortKey === 'number') { c = a.number - b.number; if (c !== 0) return dir * c }
-          else if (st.sortKey === 'title') {
-            c = String(a.title).toLowerCase().localeCompare(String(b.title).toLowerCase())
-            if (c !== 0) return dir * c
-          } else {
-            c = String(a[st.sortKey] || '').localeCompare(String(b[st.sortKey] || ''))
-            if (c !== 0) return dir * c
+        const key = st.sortKey
+        const decorated = arr.map(function (x: any) {
+          return {
+            x: x,
+            n: key === 'number' ? x.number : undefined,
+            t: key === 'title' ? String(x.title).toLowerCase() : undefined,
+            s: (key === 'number' || key === 'title') ? undefined : String(x[key] || ''),
+            e: String(x.effortId || ''),
           }
-          return String(a.effortId||'').localeCompare(String(b.effortId||'')) || (a.number - b.number)  // 同键兜底：先 effort 再编号升序（稳定）
         })
+        decorated.sort(function (a: any, b: any) {
+          let c
+          if (key === 'number') { c = a.n - b.n; if (c !== 0) return dir * c }
+          else if (key === 'title') { c = a.t.localeCompare(b.t); if (c !== 0) return dir * c }
+          else { c = a.s.localeCompare(b.s); if (c !== 0) return dir * c }
+          return a.e.localeCompare(b.e) || (a.x.number - b.x.number)  // 同键兜底：先 effort 再编号升序（稳定）
+        })
+        return decorated.map(function (d: any) { return d.x })
       }
-      const isMapIssue = function (x: any) { return x.type === 'map' || ((x.labels || []).some(function (l: any) { return l.name === 'wayfinder:map' })) }
-      const sortedMaps = sortIssues(openIssues.filter(isMapIssue))
-      const sortedOpen = sortIssues(openIssues.filter(function (x: any) { return !isMapIssue(x) }))
+      // #1253 这一笔优化（转写零变化之后单独的一笔，行为不变，只是少扫几趟）：
+      //   原来先用两个 filter 分出「未关闭 / 已关闭」，再对未关闭那堆各 filter 一次判「是不是地图」，
+      //   一趟渲染把整个列表扫四遍；而且同一张未关闭票的 labels 会被 .some 读两遍（正反两次 filter
+      //   各判一次 isMapIssue）。现在只扫一趟、每张票只判一次状态、只判一次是不是地图。
+      //   三个数组的元素顺序与原来完全一致（都按 issues 原序收），后面的排序口径与用法都不变。
+      const mapOnlyIssues: any[] = []
+      const plainOpenIssues: any[] = []
+      const closedIssues: any[] = []
+      for (const x of issues) {
+        if (x.state === 'CLOSED') { closedIssues.push(x); continue }
+        if (x.type === 'map' || ((x.labels || []).some(function (l: any) { return l.name === 'wayfinder:map' }))) mapOnlyIssues.push(x)
+        else plainOpenIssues.push(x)
+      }
+      const sortedMaps = sortIssues(mapOnlyIssues)
+      const sortedOpen = sortIssues(plainOpenIssues)
       const closedSorted = sortIssues(closedIssues)
       const groups = compute(st)
       const occ = groups.reduce(function (n: any, g: any) { return n + g.blocked.length + g.claimed.length }, 0)
