@@ -3,8 +3,10 @@
  *
  * 为什么派生要单独一层：快照是“宿主给了什么”，派生是“照当前快照算出来给人看的数字和按钮”，
  * 同一份快照在不同地方（主列表、状态栏、地图详情）要算出同一个数，所以只此一份实现，别处只调它。
- * 本文件由 store-derived.js 转写而来，只加类型标注与环境声明，运行行为一字不改。
- * 反例：不要在这里读写快照缓存（那是 store-snapshot.js 的事），也不要在这里拼界面节点之外的东西。
+ * 本文件由 store-derived.js 转写而来（#1251）：转写时只加类型标注与环境声明，运行行为一字不改；同一张票里
+ * 紧接着又做了一笔有记录的优化——compute() 从「每张票最多扫六趟」改成「单趟分桶」，来由与不许改的约定见该函数
+ * 上方注释。除这一处，其余运行行为仍与转写前一致。
+ * 反例：不要在这里读写快照缓存（那是 store-snapshot.ts 的事），也不要在这里拼界面节点之外的东西。
  */
 declare function idOfParts(...args: any[]): any;
 declare function idOf(...args: any[]): any;
@@ -74,17 +76,31 @@ export const mapBlockOf = function (snapshot: any): any {
 }
 
 // 派生：票务分组（frontier/claimed/blocked/closed）
+// 怎么算的（#1251 这一笔优化）：先把票按身份收进 byId，再单趟遍历按状态分桶。原来对每张票最多扫六趟
+//   （open/closed/frontier/claimed/blocked 各一次 filter），其中未认领的开放票还要把 blockedBy.some(openBlocker)
+//   算两遍——而 openBlocker 只读快照、算一遍与算两遍结果必然相同，所以两遍是白算。今天每张票只读一次状态、
+//   阻塞判定只算一遍，趟数从六降到二。
+// 不能改的约定：五个数组的元素顺序仍与 m.tickets 一致（面板按这个顺序画）；
+//   判定表达式与短路条件原样保留——t.claimedBy 为真时根本不碰 blockedBy，blockedBy 是 undefined 时照旧当场抛错（不兜底、不吞）。
 export const compute = (st: any): any => {
   const maps: any[] = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
   return maps.map(function (m: any): any {
     // effort 维度：地图内的票按身份 (effort, 编号) 索引；阻塞引用只在同一 effort 内解析
     const byId: any = {}; m.tickets.forEach(function (t: any): void { byId[idOf(t)] = t })
     const openBlocker = (b: any): any => { const t: any = byId[idOfParts(effortOf(m), refKeyOf(b))]; return t !== undefined && t.state === 'OPEN' }
-    const open: any[] = m.tickets.filter(function (t: any): any { return t.state === 'OPEN' })
-    const closed: any[] = m.tickets.filter(function (t: any): any { return t.state === 'CLOSED' })
-    const frontier: any[] = open.filter(function (t: any): any { return !t.claimedBy && !t.blockedBy.some(openBlocker) })
-    const claimed: any[] = open.filter(function (t: any): any { return t.claimedBy })
-    const blocked: any[] = open.filter(function (t: any): any { return !t.claimedBy && t.blockedBy.some(openBlocker) })
+    const open: any[] = []
+    const closed: any[] = []
+    const frontier: any[] = []
+    const claimed: any[] = []
+    const blocked: any[] = []
+    m.tickets.forEach(function (t: any): void {
+      if (t.state === 'CLOSED') { closed.push(t); return }
+      if (t.state !== 'OPEN') return
+      open.push(t)
+      if (t.claimedBy) { claimed.push(t); return }
+      if (t.blockedBy.some(openBlocker)) blocked.push(t)
+      else frontier.push(t)
+    })
     return { m: m, open: open, closed: closed, frontier: frontier, claimed: claimed, blocked: blocked }
   })
 }
