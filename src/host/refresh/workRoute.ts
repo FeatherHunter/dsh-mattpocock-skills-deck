@@ -1,6 +1,6 @@
-// src/host/refresh/sessionTickets.ts —— 会话↔票 处理链的宿主半（#714 T10）
+// src/host/refresh/workRoute.ts —— 会话↔票 工作路线的宿主半（#714 T10）
 //
-// 依据：定稿第十二章（增补）「会话与票：处理链（数据侧）」与票面 #714。纯逻辑（键构造、按会话分格的
+// 依据：定稿第十二章（增补）「会话与票：工作路线（数据侧）」与票面 #714。纯逻辑（键构造、按会话分格的
 // 去重与留存、「只记写不记读」的过滤判定、落盘形状与隐私自检）全在 refresh-core 那份产物
 // src/shared/refresh/chain.js 里；本文件只做它做不了的事：**内存表与落盘**，以及从工具调用事件取数。
 //
@@ -33,7 +33,8 @@
 // note()；note() 只认已经判定过的东西，不自己去解析命令原文 —— 命令原文不进这个函数更好，
 // 进来了也只是瞬时匹配，绝不留存。
 //
-// （2026-10-18 #1247 从 sessionTickets.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
+// （2026-10-18 #1247 从 sessionTickets.js 转成 .ts：只加类型标注与注释，逻辑一行未动；
+// 2026-10-19 #1260 从 sessionTickets 改名 workRoute，行为仍未动 —— 旧名只作历史说明。）
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts；落盘形状与隐私自检的约定不变，
 // 本文件只记散列与票键，原文一个都不落盘。）
 import { createChainState, chainVerdictOf, chainRecord, chainRootHash, chainSessionShardId, chainEntriesOf, chainToDisk, chainFromDisk, chainPrivacyViolations, CHAIN_SESSION_CAP } from '../../shared/refresh/chain.js'
@@ -57,10 +58,11 @@ import { dirname, join } from 'node:path'
 // ---------------------------------------------------------------------------
 
 /** 落盘文件名（与 naming-guardian.json 同一个缓存目录）。 */
+// 旧文件名常量：旧数据不读、不迁移、不删除（换存储路径归 #1261/#1083）。
 export const SESSION_TICKETS_FILE = 'session-tickets.json'
 
 /** 建表时的依赖：全部可选，给什么用什么（测试一律用假零件）。 */
-interface SessionTicketsDeps {
+interface WorkRouteDeps {
   cacheDir?: string
   getCacheDir?: () => string | Promise<string | null> | null
   fs?: any
@@ -89,7 +91,7 @@ interface NoteInput {
 }
 
 /**
- * 建一张处理链的内存表与它的落盘。
+ * 建一张工作路线的内存表与它的落盘。
  *
  * deps 全部是可选的，给什么用什么（测试一律用假零件）：
  *   - `getCacheDir()`：返回缓存目录（宿主侧就是 repoKeys 那个 `<进程当前目录>/.dsh-mattskillsdeck-cache`）；
@@ -100,7 +102,7 @@ interface NoteInput {
  *   - `canonicalKey()`：会话所选目录洗成工作区根的既有出口；有它时 note() 先洗根再算散列，没有时沿用原文；
  *   - `now()`：时钟；默认 Date.now。
  */
-export function createSessionTickets(deps?: SessionTicketsDeps | null): any {
+export function createWorkRoute(deps?: WorkRouteDeps | null): any {
   const opts: any = deps || {}
   const now: () => number = typeof opts.now === 'function' ? opts.now : Date.now
   const logCtx: any = opts.logCtx || null

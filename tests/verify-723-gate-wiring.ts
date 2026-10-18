@@ -1,5 +1,5 @@
 // verify-723-gate-wiring.ts —— 门禁：#723（T19）把存量三处传输出口接进唯一出口闸之后，
-// 「裁决那一半」与「处理链喂数据那一半」在真业务路径上真的走通了（不是只记了一笔账、也不是只喂了一笔）。
+// 「裁决那一半」与「工作路线喂数据那一半」在真业务路径上真的走通了（不是只记了一笔账、也不是只喂了一笔）。
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-723-gate-wiring.ts，可独立运行。
 //
 // 为什么必须单独有这一条：
@@ -15,7 +15,7 @@
 //   ④ 写事件那条真路径（生产装配件 createRefreshWiring）：
 //      · 过闸带的钥匙与「标活跃」用的钥匙必须是同一把（两把对不上时后台档恒判「不在活跃集合里」，
 //        这条路在生产里会一次都发不出去 —— 这是 #723 栽过一次的坑）；
-//      · 喂给处理链的那一份必须按链自己的判据成形（16 位根指纹 + 白名单里的后端名），
+//      · 喂给工作路线的那一份必须按链自己的判据成形（16 位根指纹 + 白名单里的后端名），
 //        **链真的把它记下来**、界面的读数里真的出现那一张票；
 //      · 没上报过的工作区同一笔必须被推迟（负控）。
 const path = require('path')
@@ -47,7 +47,7 @@ function row(n: number, state: string, updatedAt: string) {
 }
 
 async function main() {
-  console.log('#723（T19）门禁：闸的裁决 (放行/推迟/拒绝) 与处理链喂数据，都在真业务路径上走通')
+  console.log('#723（T19）门禁：闸的裁决 (放行/推迟/拒绝) 与工作路线喂数据，都在真业务路径上走通')
   const delta = await imp('src/shared/refresh/delta.js')
   const win = await imp('src/shared/tracker/indexWindow.js')
   const budget = await imp('src/shared/refresh/budget.js')
@@ -135,7 +135,7 @@ async function main() {
     const WS1 = 'C:\\ws\\723-a1'
     const WS2 = 'C:\\ws\\723-a2'
     const CMD = 'gh issue comment 723 --body "723"'
-    /** 生产装配的那一套：真闸真账本 + 真注册表（报告「这个工作区用 github」）+ 真处理链。 */
+    /** 生产装配的那一套：真闸真账本 + 真注册表（报告「这个工作区用 github」）+ 真工作路线。 */
     function build(registryBackend: string) {
       // #735 起落盘不再是只写不读：focus 会把盘上这一格读回来，所以缓存目录必须一次一格。
       // 共用 os.tmpdir() 的话，上一次跑留下的 session-tickets.json 会被读回来，
@@ -175,7 +175,7 @@ async function main() {
       '两把钥匙不同 = 后台档恒判「不在活跃集合里」而静默推迟每一笔（#723 栽过的坑）')
     const readout1 = A1.w.chainReadoutOf()
     check(readout1.ok === true && readout1.sessions.length === 1 && readout1.sessions[0].entries.some((e) => e.ticketKey === '723'),
-      '④ 处理链真的把这一笔记下了、界面的读数里真的出现票 723：' + JSON.stringify(readout1).slice(0, 220),
+      '④ 工作路线真的把这一笔记下了、界面的读数里真的出现票 723：' + JSON.stringify(readout1).slice(0, 220),
       '链没记下 = 界面恒显示「取到了、空的」（喂数据的形状与链的判据对不上）')
     check(readout1.sessions[0].backend === 'github', '④ 读数里的后端名是链白名单里的真名字（实得 ' + readout1.sessions[0].backend + '）')
 
@@ -315,7 +315,7 @@ async function main() {
     try { fs.rmSync(wsRoot, { recursive: true, force: true }) } catch (e) {}
   }
 
-  console.log('\n' + (failed ? '存在失败（' + total + ' 项断言）' : '全部通过 — 闸的裁决、真拒绝与处理链喂数据都在真业务路径上走通（' + total + ' 项断言）'))
+  console.log('\n' + (failed ? '存在失败（' + total + ' 项断言）' : '全部通过 — 闸的裁决、真拒绝与工作路线喂数据都在真业务路径上走通（' + total + ' 项断言）'))
   process.exit(failed ? 1 : 0)
 }
 

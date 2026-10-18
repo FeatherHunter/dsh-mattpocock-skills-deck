@@ -1,7 +1,7 @@
 // src/host/refresh/wiring.ts —— 刷新机制的宿主接线（#723 T19）
 //
 // 这个文件只做一件事：把刷新机制那几件已经落库的东西**在宿主里真的装起来**，并交回去。它不判断任何业务：
-// 闸与账本是 gate.js 与 ledger.js 的产物，写事件订阅是 writeEvents.js 的产物，会话↔票处理链是 sessionTickets.js
+// 闸与账本是 gate.js 与 ledger.js 的产物，写事件订阅是 writeEvents.js 的产物，会话↔票工作路线是 workRoute.ts
 // 的产物，界面读数由 sessionChainReadout.js 拼 —— 这里只把它们之间的依赖接上。单开一个文件而不写进
 // src/host/index.js 的原因：那个文件贴着 350 行上限（verify-file-granularity 的零增长基线），#723 起不许再加行。
 //
@@ -9,14 +9,14 @@
 //   a 闸与账本：createLedger + createGate，send 真的被调用（后面几件取数都经它）；
 //   b 写事件订阅：createWriteEvents(...).attach(ctx)，活跃集合变化时 allowRoot / 切走时 forgetRoot；
 //   c 视野模型：wf.focus 那一份「当前在看谁」就是这里的唯一来源（syncAttention 读它）；
-//   e 会话↔票处理链：createSessionTickets() 真的建起来，并把界面读数交给快照回包。
+//   e 会话↔票工作路线：createWorkRoute() 真的建起来，并把界面读数交给快照回包。
 //
 // 日志：本文件不新增事件。它调到的每一个模块各自记自己那几行（闸的 refresh.decide / refresh.skipped、
-// 账本的 quota.spend、写事件的 write.event、处理链的 sessionTickets.chain）。
+// 账本的 quota.spend、写事件的 write.event、工作路线的链轨迹事件 sessionTickets.chain（事件名沿用旧名，退役归 #1083））。
 import { createLedger } from './ledger.js'
 import { createGate } from './gate.js'
 import { createWriteEvents } from './writeEvents.js'
-import { createSessionTickets } from './sessionTickets.js'
+import { createWorkRoute } from './workRoute.js'
 import { buildSessionChainReadout, SESSION_CHAIN_FIELD } from './sessionChainReadout.js'
 import { createAttention, createFocusHandler } from './attention.js'
 // #723（T19c）第 D 件：九个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），九个
@@ -85,7 +85,7 @@ function once(fn: () => any): () => any {
 /**
  * 造宿主入口那一侧**唯一的那一套**刷新机制（调用多少次都只建一次，所有使用者共用同一个实例）。
  *
- * 为什么「唯一」是硬要求而不是省事：闸的活跃集合、写事件的白名单、视野模型、处理链、界面读数这五件
+ * 为什么「唯一」是硬要求而不是省事：闸的活跃集合、写事件的白名单、视野模型、工作路线、界面读数这五件
  * 认的是**同一个「当前在看谁」**。宿主要是建了两套（哪怕两套代码一模一样），标活跃标在一套上、
  * 过闸走在另一套上，后台档的 background-inactive 就会把写事件那一笔恒判推迟 —— 生产里看起来谁都在
  * 工作，实际一次都发不出去，而且读数那一边永远空着。（#723 复核抓到的正是这个：入口一处、wf.focus 又一处。）
@@ -122,7 +122,7 @@ export function makeRefreshLoader(deps: any): () => Promise<any> {
  *   trackerRegistry 可选：后端注册表（九个 deck 工具的壳要用它选后端）
  *   gate / ledger  可选：已经造好的闸与账本（门禁与单测里注入用）；不给就现场造
  *
- * 回包：{ ledger, gate, writeEvents, sessionTickets, attention, chainReadoutOf, noteWorkspaceActive,
+ * 回包：{ ledger, gate, writeEvents, workRoute, attention, chainReadoutOf, noteWorkspaceActive,
  *        makeFetch, attach, stats }
  */
 export function createRefreshWiring(deps: any): any {
@@ -162,13 +162,13 @@ export function createRefreshWiring(deps: any): any {
     return { requests: 0, points: 0 }
   }
 
-  // e：会话↔票处理链。喂数据的是 b 那条订阅（工具结果一到就 note 一笔），读数是下面那个读数。
+  // e：会话↔票工作路线。喂数据的是 b 那条订阅（工具结果一到就 note 一笔），读数是下面那个读数。
   // #781：把归一出口递进去，note() 先洗根再算散列（调用方传所选目录原文时与读回侧同格）。
-  const sessionTickets: any = d.sessionTickets || createSessionTickets({
+  const workRoute: any = d.workRoute || createWorkRoute({
     getCacheDir: d.getCacheDir, logCtx: logCtx, canonicalKey: d.canonicalKey,
   })
 
-  // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）；判定过的那一笔喂给处理链（note），否则界面恒空。
+  // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）；判定过的那一笔喂给工作路线（note），否则界面恒空。
   // #746：命名摘要编排单例（ctx 与 getNaming 由宿主入口经 deps 给；任一缺失则钩子静默降级）。
   let namingSummary: any = null
   function summaryOf(): any {
@@ -218,7 +218,7 @@ export function createRefreshWiring(deps: any): any {
   }
   const writeEvents: any = d.writeEvents || createWriteEvents({
     gate: gate, fetch: fetchForWriteEvent, canonicalKey: d.canonicalKey, logCtx: logCtx,
-    note: function (input: any): any { try { return sessionTickets.note(input) } catch (e: any) { return null } },
+    note: function (input: any): any { try { return workRoute.note(input) } catch (e: any) { return null } },
     backendOf: function (rootKey: any): any { return backendOfRoot(rootKey) },
     onFirstAssistant: onFirstAssistant,
     onFirstUser: onFirstUser,
@@ -264,7 +264,7 @@ export function createRefreshWiring(deps: any): any {
 
   /** 界面要的那份读数（e）。挂在快照回包上，界面读不到时它会如实说 ok:false + 代号。 */
   function chainReadoutOf(): any {
-    return buildSessionChainReadout({ tickets: sessionTickets, at: Date.now() })
+    return buildSessionChainReadout({ tickets: workRoute, at: Date.now() })
   }
 
   // 上一次同步给写事件白名单的那些根（切走的那几个要 forgetRoot）。
@@ -296,7 +296,7 @@ export function createRefreshWiring(deps: any): any {
       // 重启后第一眼空很容易当成丢了。读失败时把标记拿掉，下次切进这个根再试一次。
       if (!restoredRoots.has(root)) {
         restoredRoots.add(root)
-        try { await sessionTickets.restore({ rootKey: root }) }
+        try { await workRoute.restore({ rootKey: root }) }
         catch (eR: any) { try { restoredRoots.delete(root) } catch (eD: any) {} }
       }
     }
@@ -427,7 +427,7 @@ export function createRefreshWiring(deps: any): any {
           //   #1215：这个数（8000）住中央 YAML 的 shellResolveMs，装配层与壳读同一份生成值。
           resolveTimeoutMs: SHELL_RESOLVE_TIMEOUT_MS,
           invalidate: function (info: any): void { try { const root: any = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e: any) {} },
-          onTicketCreated: onDeckWrite, chainNote: function (input: any): any { try { return sessionTickets.note(input) } catch (e: any) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
+          onTicketCreated: onDeckWrite, chainNote: function (input: any): any { try { return workRoute.note(input) } catch (e: any) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
           hourUsage: function (): any { try { return ledger.hourOf('ai-tool') || {} } catch (e: any) { return {} } },
           ensureReading: function (cwd: any, workspaceKey: any): Promise<any> { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
           noteGate: function (info: any): void { try { noteDeckGate(info) } catch (eN: any) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见
@@ -496,7 +496,7 @@ export function createRefreshWiring(deps: any): any {
     ledger: ledger,
     gate: gate, send: function (req: any, perform: any): any { return gate.send(req, perform) }, // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）
     writeEvents: writeEvents,
-    sessionTickets: sessionTickets,
+    workRoute: workRoute,
     attention: attention,
     hash8: hash8,
     chainReadoutOf: chainReadoutOf,
@@ -510,10 +510,10 @@ export function createRefreshWiring(deps: any): any {
     attach: attach,
     once: once,
     stats: function (): any {
-      const out: { gate: any; writeEvents: any; sessionTickets: any; allowedRoots: number } = { gate: null, writeEvents: null, sessionTickets: null, allowedRoots: allowed.length }
+      const out: { gate: any; writeEvents: any; workRoute: any; allowedRoots: number } = { gate: null, writeEvents: null, workRoute: null, allowedRoots: allowed.length }
       try { out.gate = gate.stats() } catch (e: any) {}
       try { out.writeEvents = writeEvents.stats() } catch (e: any) {}
-      try { out.sessionTickets = sessionTickets.stats() } catch (e: any) {}
+      try { out.workRoute = workRoute.stats() } catch (e: any) {}
       return out
     },
   }

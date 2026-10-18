@@ -79,7 +79,7 @@ const check = (ok, msg, detail) => {
  * #710（T6）把两条真实订阅点预填在这里：
  *   ① 写事件源（本票的 src/host/refresh/writeEvents.ts）：订 tools/result（首选）与会话事件（可回看），
  *      只认自己工作区的写命令，用来触发补行或探测。
- *   ② 处理链（票 #714 T10 的订阅点 src/host/refresh/sessionTickets.js）：同一个订阅面，记「这个会话正在
+ *   ② 工作路线（票 #714 T10 的订阅点 src/host/refresh/workRoute.ts）：同一个订阅面，记「这个会话正在
  *      处理哪几张票」。#710 落地时这一行先预填（T10 先落地了数据侧、订阅点还没接），接上之后它就会命中。
  */
 const REGISTRY = [
@@ -89,8 +89,8 @@ const REGISTRY = [
       '所以第一件事就是按工作区根白名单放行；只有自己工作区里「成功的写操作」才触发补行或探测。',
   },
   {
-    file: 'src/host/refresh/sessionTickets.ts',
-    reason: '处理链（票 #714 T10）：同一个订阅面，记「这个会话正在处理哪几张票」。只为写与明确的处理动作记，' +
+    file: 'src/host/refresh/workRoute.ts',
+    reason: '工作路线（票 #714 T10）：同一个订阅面，记「这个会话正在处理哪几张票」。只为写与明确的处理动作记，' +
       '读不进链；落盘只存票 key、时间与动作类别。（这一行由 #710 按票面要求预填；#714 的订阅点落地在这里。）',
   },
 ]

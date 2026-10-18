@@ -282,7 +282,7 @@ const ALLOWED = {
   //   都只记枚举、散列与数字：心跳每 20 秒一次，所以上报那条按十取一采样。
   'attention.report': ['kind', 'windowHash', 'rootHash', 'visible', 'accepted'],
   'attention.sweep': ['active', 'keep', 'cancel', 'linger', 'collaped', 'keepers'],
-  // 2026-09-23 #714（T10）新增一条常驻事件（附录 1.4 节 #80）：会话↔票 处理链自己产生的轨迹 ——
+  // 2026-09-23 #714（T10）新增一条常驻事件（附录 1.4 节 #80）：会话↔票 工作路线自己产生的轨迹 ——
   //   一次写记进了哪个会话的链、这一次落盘成没成、重启后从落盘读回了没有。只记两个散列、三个枚举与一个数字，
   //   不记路径原文、不记命令原文、不记票标题；读那一路一条都不记（顺手看一眼不进链，所以这一族不会刷屏）。
   'sessionTickets.chain': ['sidHash', 'rootHash', 'kind', 'ok', 'action', 'count'],

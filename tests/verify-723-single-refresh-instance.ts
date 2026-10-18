@@ -144,9 +144,9 @@ async function main() {
     '又多了一处字段名')
 
   // 行为：真 sessionSnapshot 的回包上，按那个常量取得出读数（拿一份真读数注入）
-  const ticketsMod = await import(url('src/host/refresh/sessionTickets.js'))
+  const ticketsMod = await import(url('src/host/refresh/workRoute.ts'))
   const snapMod = await import(url('src/host/sessionSnapshot.ts'))
-  const app = ticketsMod.createSessionTickets({ cacheDir: store.dir, now: () => 1700000000000 })
+  const app = ticketsMod.createWorkRoute({ cacheDir: store.dir, now: () => 1700000000000 })
   await app.note({ sessionId: 'sess-2', rootKey: WS, backend: 'github', source: 'tool-args', tool: 'deck_issue_create', tier: 'write-confirmed', args: { issue: 701 } })
   const one = readoutMod.buildSessionChainReadout({ tickets: app, at: 1700000000000 })
   const table = new Map()

@@ -123,7 +123,7 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
   function withChainReadout<T>(reply: T): T {
     if (!reply || typeof reply !== 'object' || (reply as { ok?: unknown }).ok !== true) return reply
     if (typeof d.chainReadout !== 'function') return reply
-    try { (reply as { [key: string]: unknown })[d.chainField || 'sessionTickets'] = d.chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
+    try { (reply as { [key: string]: unknown })[d.chainField || 'workRoute'] = d.chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
     return reply
   }
 

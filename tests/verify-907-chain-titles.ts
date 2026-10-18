@@ -1,9 +1,9 @@
-// verify-907-chain-titles.ts —— 门禁：处理链那一行的标题查得到（票 #907）
+// verify-907-chain-titles.ts —— 门禁：工作路线那一行的标题查得到（票 #907）
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，模块写法保持 CommonJS，判据与断言一条没动。
 // 用法：node --import ./scripts/ts-hook.mjs tests/verify-907-chain-titles.ts（插件根目录）
 //
 // 现场与修法（票 #907 的诊断写在 issue 正文里）：
-//   已关闭地图的子票不进首屏（#691 的体积取舍），而处理链那一行的标题只从快照给得出的行里查，
+//   已关闭地图的子票不进首屏（#691 的体积取舍），而工作路线那一行的标题只从快照给得出的行里查，
 //   于是那几行的标题位画成了票号（「#901 #901」）。修法：宿主给这些行另留一份**瘦身行**
 //   （thinTickets：票号、标题、状态、是不是地图），界面查标题时也读它；连瘦身行都没有的票号，
 //   那一行留白，「标题未取到」只出现在无障碍名（悬停提示）里。
@@ -82,7 +82,7 @@ function textOf(node) {
 const countIn = function (text, sub) { return String(text).split(sub).length - 1 }
 
 async function main() {
-  console.log('#907 处理链标题门禁（瘦身行 / 首屏口径不变 / 留白 / 词条）')
+  console.log('#907 工作路线标题门禁（瘦身行 / 首屏口径不变 / 留白 / 词条）')
 
   // ---------- 一、宿主组装：真编排器跑一遍 ----------
   const snapMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'tracker', 'snapshot.js')).href)
@@ -160,7 +160,7 @@ async function main() {
     function () { return null },
     tr,
     function (s) { return leaf.sessionChainRowsOf(s) },
-    'sessionTickets',
+    'workRoute',
     function (st, row) { opened.push(row.ticketKey) },
     function () {},
     function (o, kids) { return { overlay: true, props: o, children: kids } },
@@ -180,7 +180,7 @@ async function main() {
       { ticketKey: '999', action: 'report', at: at },
     ] }] } },
   })
-  const st = { snapshot: Object.assign({}, snap, { sessionTickets: readout }), chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
+  const st = { snapshot: Object.assign({}, snap, { workRoute: readout }), chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
   const rows = leaf.sessionChainRowsOf(st)
   const row101 = rows.filter(function (r) { return r.ticketKey === '101' })[0]
   check(!!row101 && row101.ticketTitle === '子票甲', '已关闭地图的子票那一行查到了标题（实得 ' + JSON.stringify(row101 && row101.ticketTitle) + '）')

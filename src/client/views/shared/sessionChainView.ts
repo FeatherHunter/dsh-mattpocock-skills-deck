@@ -9,7 +9,7 @@
  * 为什么先不显示：维护者原话是「UI 上先不显示这个，但是能力层面还具备这个能力，未来会根据之前的
  * issuePath 找个地方进行显示」。
  * 未来在哪儿挂：**票号未找到，待维护者指明**。动手前查过仓里的 docs/ 与 research/，也翻过 GitHub 票
- * （与处理链有关的只有 #714 数据侧、#721 这块展示面自己、#704 那张地图、#726），没有一张说「将来在
+ * （与工作路线有关的只有 #714 数据侧、#721 这块展示面自己、#704 那张地图、#726），没有一张说「将来在
  * 哪显示」；「issuePath」在本仓指的是状态栏那枚「当前处理 Issue」面包屑，它随 #345 退役、#494 在
  * research/489-appendix.md 里落定，跟这一块的落点无关 —— 所以没有拿它顶一个票号。
  * 那一天要做的事只有一件：把 panel/Dock.ts 正文第一行那个挂载点接回去。
@@ -23,9 +23,9 @@
  * 的 leaf 标记处（一源两物）。从前画在右侧面板顶部那一条（views/panel/Dock.js 的正文最上面），
  * 现在那一处不挂了（见上）。
  *
- * 这一块回答的是用户最初问的那句话。数据只有一个来源：**宿主自己写下的处理链读数**，
- * 挂在面板快照的 sessionTickets 字段上。链条本身是 #714 落地的（纯逻辑 refresh-core/src/chain.ts、
- * 宿主半 src/host/refresh/sessionTickets.ts），把它转成这份读数的是
+ * 这一块回答的是用户最初问的那句话。数据只有一个来源：**宿主自己写下的工作路线读数**，
+ * 挂在面板快照的 workRoute 字段上。链条本身是 #714 落地的（纯逻辑 refresh-core/src/chain.ts、
+ * 宿主半 src/host/refresh/workRoute.ts），把它转成这份读数的是
  * src/host/refresh/sessionChainReadout.ts。
  *
  * 三条纪律，改这个文件的人先看这三条：
@@ -66,7 +66,7 @@ declare function tr(...args: any[]): any;
 declare function Ic(...args: any[]): any;
 declare function findMapByIdentity(...args: any[]): any;
 declare function pushNav(...args: any[]): any;
-export const SESSION_CHAIN_FIELD = 'sessionTickets'
+export const SESSION_CHAIN_FIELD = 'workRoute'
 
 /** 链的动作类别（闭集合）→ 词条键。键必须与 chain.ts 的 CHAIN_ACTIONS 逐个对上，门禁管这件事。 */
 export const SESSION_CHAIN_ACTION_KEYS: Record<string, string> = {
@@ -195,7 +195,7 @@ const sessionChainTitlesOf = function (st: any) {
     const ts = (maps[i] && Array.isArray(maps[i].tickets)) ? maps[i].tickets : []
     for (let j = 0; j < ts.length; j++) put(ts[j])
   }
-  // #907：首屏不收的行（例如已关闭地图的子票）宿主另留了一份瘦身行 —— 处理链那一行仍要显示标题。
+  // #907：首屏不收的行（例如已关闭地图的子票）宿主另留了一份瘦身行 —— 工作路线那一行仍要显示标题。
   //   放在最后 put：票池里已有的行以票池那份为准（put 只认第一次写进去的那条）。
   const thin = Array.isArray(snap.thinTickets) ? snap.thinTickets : []
   for (let i = 0; i < thin.length; i++) put(thin[i])

@@ -1,10 +1,10 @@
 // src/deck/tools/issue-report.ts —— deck_issue_report（#775 落地；#1019 换到新树、#1035 转 TypeScript）
 //
-// AI 主动上报自己在办哪张票：票号必填、可选带一句备注；写入同一份处理链并去重，
-// 与被动推断互补；在原来展示处理链的地方能看到；三后端诚实失败。
+// AI 主动上报自己在办哪张票：票号必填、可选带一句备注；写入同一份工作路线并去重，
+// 与被动推断互补；在原来展示工作路线的地方能看到；三后端诚实失败。
 //
 // 薄壳四条照旧（shell.js）：过闸、走注册表选后端、只从会话取工作区、永不抛。
-// 链写入同一份 sessionTickets（wiring.js 经 chainNote 递进来），动作类别 report，
+// 链写入同一份 workRoute（wiring.js 经 chainNote 递进来），动作类别 report，
 // 去重与留存沿用 chain.js 的 mergeEntries（每会话 20 张、时间倒序、去重）。
 // 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记链。
 // 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
@@ -57,7 +57,7 @@ export interface DeckIssueReportDeps {
   sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
   /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
   now?: () => number
-  /** 记链出口：宿主把「AI 主动上报」这一笔记进会话的处理链。回包是一张表（记没记上、为什么、这格几张）；
+  /** 记链出口：宿主把「AI 主动上报」这一笔记进会话的工作路线。回包是一张表（记没记上、为什么、这格几张）；
    *  宿主自己的 try/catch 兜住时回 null，所以「没有」这一支也收下，超时与失败都按没记进走老路。 */
   chainNote?: (arg: {
     sessionId: string | undefined

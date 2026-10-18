@@ -1,8 +1,8 @@
 /**
  * statusbar/SessionChainCapsule.ts — 状态栏胶囊里「这个会话在办哪张票」那一段
  *
- * 只做一件事：把宿主已经写下的处理链读数里，属于当前会话的那一格，挑最新一条画进胶囊。
- * 数据只有一个来源：面板快照的 sessionTickets 字段（宿主 refresh/sessionChainReadout.ts 的产物），
+ * 只做一件事：把宿主已经写下的工作路线读数里，属于当前会话的那一格，挑最新一条画进胶囊。
+ * 数据只有一个来源：面板快照的 workRoute 字段（宿主 refresh/sessionChainReadout.ts 的产物），
  * 判据是 views/shared/sessionChainView.js 那一套（sessionChainRowsOf 给出行，里面带标题）。
  * 本文件不自己推断谁在办票、不读会话事件、不解析命令行、不读落盘文件。
  *
@@ -80,7 +80,7 @@ export const sessionChainCapsuleOf = function (st: any, sid: any) {
   if (!rows.length) {
     const snap = (st && st.snapshot) ? st.snapshot : null
     if (!snap) return { state: 'idle', reason: '', entry: null, list: [] }
-    const raw = snap[(typeof SESSION_CHAIN_FIELD === 'string') ? SESSION_CHAIN_FIELD : 'sessionTickets']
+    const raw = snap[(typeof SESSION_CHAIN_FIELD === 'string') ? SESSION_CHAIN_FIELD : 'workRoute']
     // 与 sessionChainViewOf 同一条纪律：只有「还没有记录」归空，其余没取到都算读坏了。
     if (raw !== null && typeof raw === 'object' && !Array.isArray(raw) && raw.ok !== true &&
       String(raw.reason || '') !== 'host.chain.absent') {

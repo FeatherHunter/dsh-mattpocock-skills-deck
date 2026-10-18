@@ -1,4 +1,4 @@
-// verify-714-session-tickets.ts —— 门禁：会话↔票 处理链（数据侧，票 #714 / T10）
+// verify-714-session-tickets.ts —— 门禁：会话↔票 工作路线（数据侧，票 #714 / T10）
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-714-session-tickets.ts，可独立运行。
 //
 // 这张门禁守的是票面点名的那几条，一条都不能少（每一条对应下面的一段断言）：
@@ -20,7 +20,7 @@ const os = require('os')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
-// 本文件是 CommonJS：宿主半（src/host/refresh/sessionTickets.ts）只从 require 与动态 import 两条路取，
+// 本文件是 CommonJS：宿主半（src/host/refresh/workRoute.ts）只从 require 与动态 import 两条路取，
 // 不用静态 import，所以加类型标注不会把它变成 ESM。下面两个类型只描述这份门禁自己的假日志出口。
 interface LogLine { level: string; event: string; fields: unknown }
 interface FakeLogCtx {
@@ -48,10 +48,10 @@ function makeLogCtx(): FakeLogCtx {
 const ALLOWED_FIELDS = ['sidHash', 'rootHash', 'kind', 'ok', 'action', 'count']
 
 async function main() {
-  console.log('会话↔票 处理链门禁（#714：按会话分格、只记写、留 20 张、落盘只存散列与票键、重启能恢复）')
+  console.log('会话↔票 工作路线门禁（#714：按会话分格、只记写、留 20 张、落盘只存散列与票键、重启能恢复）')
   const chain = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'chain.js')).href)
-  const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'sessionTickets.js')).href)
-  check(typeof mod.createSessionTickets === 'function', '宿主半导出 createSessionTickets（内存表与落盘在 JS 这一侧）')
+  const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'workRoute.js')).href)
+  check(typeof mod.createWorkRoute === 'function', '宿主半导出 createWorkRoute（内存表与落盘在 JS 这一侧）')
   check(chain.CHAIN_SESSION_CAP === 20, '每会话 20 张这个数在纯逻辑里只有一处（实得 ' + chain.CHAIN_SESSION_CAP + '）')
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-714-'))
@@ -63,7 +63,7 @@ async function main() {
   let clock = 1700000000000
   const now = (): number => (clock += 1000)
   const logCtx = makeLogCtx()
-  const app = mod.createSessionTickets({ cacheDir: dir, now: now, logCtx: logCtx })
+  const app = mod.createWorkRoute({ cacheDir: dir, now: now, logCtx: logCtx })
 
   // ── 一、会话 A 写 3 张、会话 B 写 2 张：三个来源各走一遍 ────────────────────────
   const w = (input: Record<string, unknown>) => app.note(Object.assign({ rootKey: ROOT_KEY, backend: 'github' }, input))
@@ -136,7 +136,7 @@ async function main() {
 
   // ── 六、重启：丢掉内存、照同一个缓存目录另起一个实例，从落盘恢复 ────────────────
   const logCtx2 = makeLogCtx()
-  const revived = mod.createSessionTickets({ cacheDir: dir, now: now, logCtx: logCtx2 })
+  const revived = mod.createWorkRoute({ cacheDir: dir, now: now, logCtx: logCtx2 })
   check(revived.sizeOf(SID_A) === 0, '新实例刚起来时内存是空的（重启现场）')
   const r = await revived.restore({ rootKey: ROOT_KEY })
   check(r.cache === 'hit' && r.restored === 3, '从落盘读回三格链（cache ' + r.cache + '、格数 ' + r.restored + '）')
@@ -175,7 +175,7 @@ async function main() {
   check(cleanOut.shards.length === 0, '反证③（续）：根那一栏放的是路径原文时，落盘形状直接把它丢掉（写不出原文）')
 
   try { fs.rmSync(dir, { recursive: true, force: true }) } catch (e) { /* 临时目录清不掉不影响结论 */ }
-  console.log(failed ? '\n存在失败 — verify-714-session-tickets 未通过' : '\n全部通过 — 会话↔票 处理链门禁生效（' + total + ' 项断言）')
+  console.log(failed ? '\n存在失败 — verify-714-session-tickets 未通过' : '\n全部通过 — 会话↔票 工作路线门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
 

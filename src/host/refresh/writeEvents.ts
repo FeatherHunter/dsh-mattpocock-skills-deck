@@ -14,7 +14,7 @@
 //      `header.cwd` 经宿主既有出口算（生产里传进来的是 src/host/index.js 的 canonicalKey，它内部走
 //      src/host/workspaceKey.js 的 canonicalWorkspaceKey，上溯到工作区根那一步也在那里；本文件绝不另写
 //      一套归一化，也不 import 同层的文件——同层互引门禁要求依赖一律由接线处显式传入）。
-//      **取数之前先过这道门**：不归我们的事件不取数、不记那一路的日志 —— 但处理链那一笔在门前就喂了
+//      **取数之前先过这道门**：不归我们的事件不取数、不记那一路的日志 —— 但工作路线那一笔在门前就喂了
 //      （#781：链记的是“发生过”，只看会话与工作区根认不认得出来，不看当时有没有人在看；
 //      白名单只决定取不取数，不决定记不记）。
 //   3. **参数只做瞬时匹配**：命令原文进不了日志、落不了盘、回不了界面。返回值与日志字段里只有档位、原因代号、
@@ -39,7 +39,7 @@ import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/time-conf
 //
 // 为什么这样标：订阅面上来的是整个 DSH 的事件（跨会话、跨工作区、跨子代理都会到），
 // 形状不可信，所以会话与事件都按 any 收，收窄发生在 isOurs 那道门与各形状判断里，
-// 类型不替代那道门。白名单只存散列（会话 id → 根散列、根原文另存一份只给处理链），
+// 类型不替代那道门。白名单只存散列（会话 id → 根散列、根原文另存一份只给工作路线），
 // 路径与命令原文只做瞬时匹配，绝不进表、不进日志、不落盘 —— 这条纪律由字段形状守，
 // 类型把表记成 string 到 string，不给原文留位置。
 // ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ function shortHash(s: unknown): string {
  *                   这里不直接 import 那个文件：同层互引门禁（tests/verify-dependency-rules.ts）
  *                   要求宿主层的文件之间不互相引用，依赖一律由接线处显式传入（本目录既有做法）。
  *   fetch     —— 真去取数的函数（由宿主接线传进来，T3/T4 那一层）。签名 fetch(step, meta)。
- *   note      —— 可选：把判定过的那一笔喂给会话↔票处理链（生产里是 sessionTickets.js 的 note）。
+ *   note      —— 可选：把判定过的那一笔喂给会话↔票工作路线（生产里是 workRoute.ts 的 note）。
  *                给了它，界面上「每个会话在处理哪些票」才有东西可读（#723 T19 接的线）。
  *   logCtx / now / hash8 / mergeWindowMs / probeIntervalMs —— 可选，与仓库其它模块同款。
  */
@@ -110,7 +110,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
   const allowedRoots = new Set<string>()   // 我们服务的工作区根散列（白名单，按散列存）
   const sessionRoots = new Map<string, string>()   // 会话 id → 工作区根散列（**只有归我们的会话**才进这张表）
   // #723（T19）：会话 id → 归一化之后的工作区根原文。上面那张表按短散列存（门与钥匙用），
-  // 但处理链要的是它自己那套 16 位指纹（chainRootHash 从**原文**算），所以在门过掉之后
+  // 但工作路线要的是它自己那套 16 位指纹（chainRootHash 从**原文**算），所以在门过掉之后
   // 把原文也留一份 —— 只留归我们的会话，一样不落盘、不进日志。
   const sessionRootKeys = new Map<string, string>()
   const lastFireAt = new Map<string, number>()     // 工作区根散列 → 上一次事件触发取数的时刻（10 秒合并窗口）
@@ -151,7 +151,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     const rootHash = hash8(key)
     if (!allowedRoots.has(rootHash)) return false   // 别的会话、别的工作区：到此为止，不留任何痕迹
     sessionRoots.set(id, rootHash)
-    sessionRootKeys.set(id, key)   // 归一化后的根原文：处理链按它算自己那套 16 位指纹
+    sessionRootKeys.set(id, key)   // 归一化后的根原文：工作路线按它算自己那套 16 位指纹
     return true
   }
 
@@ -227,7 +227,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     return t === 'deck_issue_create' || t === 'deck_issue_patch' || t === 'deck_map_plan_create' || t === 'deck_map_link' || t === 'deck_issue_report'
   }
 
-  /** #723：处理链动作词（白名单见 chain.js CHAIN_ACTIONS；认不出回空串，链照实丢掉）。 */
+  /** #723：工作路线动作词（白名单见 chain.js CHAIN_ACTIONS；认不出回空串，链照实丢掉）。 */
   const ACTION_BY_TOOL: Record<string, string> = Object.freeze({
     deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'create', deck_map_link: 'link', deck_issue_report: 'report',
     create: 'create', edit: 'edit', close: 'close', reopen: 'reopen', comment: 'comment',
@@ -322,7 +322,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     const argsObj: any = parsedArgs(rawArgs)
     const verdict: any = detectWrite({ shape: shape, tool: String(tool || ''), command: commandOf(argsObj), args: argsObj, succeeded: succeeded })
     const plan: any = actionFor(verdict, limits)
-    // #781：先喂处理链，不看白名单。链记的是“发生过”，取数才看“在看谁” ——
+    // #781：先喂工作路线，不看白名单。链记的是“发生过”，取数才看“在看谁” ——
     // 从前这一块在门后，没聚焦的工作区那一笔连链都不进，重启后自然找不到。
     // 白名单只决定后面取不取数（isOurs 与 fire 那一路），不决定记不记。
     // note 抛错、认不出根与后端，都不许影响取数那一路。
@@ -391,7 +391,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
   /** 会话事件第二条订阅。第一行先过门：不归我们的会话立刻返回，不留任何痕迹。 */
   async function onSessionEvent(session: any, event: any): Promise<any> {
     const ours = await isOurs(session)
-    if (!ours) { try { if (String(event && event.type || '' || '') === 'assistant/message' && typeof opts.onFirstAssistant === 'function' && typeof isNamingTracked === 'function' && sessionIdOf(session) && await isNamingTracked(sessionIdOf(session))) opts.onFirstAssistant(sessionIdOf(session)) } catch (eN: any) {} return null } // #746 摘要窄门：只走首句摘要这一条，取数记账处理链一律不碰，刷新配额原样不动
+    if (!ours) { try { if (String(event && event.type || '' || '') === 'assistant/message' && typeof opts.onFirstAssistant === 'function' && typeof isNamingTracked === 'function' && sessionIdOf(session) && await isNamingTracked(sessionIdOf(session))) opts.onFirstAssistant(sessionIdOf(session)) } catch (eN: any) {} return null } // #746 摘要窄门：只走首句摘要这一条，取数记账工作路线一律不碰，刷新配额原样不动
     const type: any = event && event.type
     if (String(type || '') === 'user/message') { try { if (onFirstUser) onFirstUser(sessionIdOf(session)) } catch (eU: any) {} return null }
     // #746：首条助手消息即摘要触发（门后、只传会话号与类型名，事件体不进任何 sink）。
