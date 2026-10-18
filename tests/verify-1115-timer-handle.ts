@@ -315,7 +315,7 @@ async function main() {
   // ── ⑧ 六个调用点都走共享层那一份（静态钉住；谁把内联写法搬回来，这里当场红）──
   const SITES = [
     { file: 'src/host/platformChannel.ts', calls: 2 },
-    { file: 'src/host/commentThreads.js', calls: 1 },
+    { file: 'src/host/commentThreads.ts', calls: 1 },
     { file: 'src/host/workspaceCwd.ts', calls: 1 },
     { file: 'src/host/snapshotBuild.ts', calls: 2 },
     { file: 'src/host/refresh/wiring.ts', calls: 1 },

@@ -858,11 +858,14 @@ const collectBackend = function (backendId, src, label, exemptList) {
 }
 
 // —— S4 ——
+// 2026-10-18 #1247：宿主真源转成 TypeScript，.ts 也要扫；旁边有同名 .ts 的 .js 是构建产物，跳过不数两遍
+//   （与文件粒度门禁同一条孪生规则）。
 const walkJs = function (dir, acc) {
   fs.readdirSync(dir, { withFileTypes: true }).forEach(function (d) {
     const p = path.join(dir, d.name)
     if (d.isDirectory()) walkJs(p, acc)
-    else if (d.name.endsWith('.js')) acc.push(p)
+    else if (d.name.endsWith('.ts')) acc.push(p)
+    else if (d.name.endsWith('.js') && !fs.existsSync(p.slice(0, -3) + '.ts')) acc.push(p)
   })
   return acc
 }
@@ -1682,7 +1685,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.ts': 'bffdd198c6e61ce27fc0fe7584fc18a3b4d6c94a2dcafc11d9ea5f9368b122d1',
+  'tests/verify-prompts.ts': 'c971552d9298534073cbf0955fa6455495e9333c8b640980495fb921a749b42e',
 }
 // ---- LOCK-END ----
 

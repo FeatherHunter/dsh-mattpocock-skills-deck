@@ -108,8 +108,8 @@ async function makeRunner() {
 async function main() {
   console.log('字节增长看门狗门禁（#847：真停住判停顿、慢但有字节不误杀、默认不开、判据看增长间隔）')
 
-  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
-  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'versionControl.js'), 'utf8')
+  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
+  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'versionControl.ts'), 'utf8')
   check(typeof hostMod.createVersionControl({}).runGitCommand === 'function', '共享出口仍导出 runGitCommand（#839 那条路不受影响）')
   check(/stallMs/.test(hostSrc), '共享出口里出现了 stallMs 这个可选参数（看门狗默认不开，只有显式传才启用）')
   check(/signal: 'stalled'|signal === 'stalled'/.test(hostSrc), '跑停时回的是 stalled 这一种情形（与 #839 的 stalled 同形）')

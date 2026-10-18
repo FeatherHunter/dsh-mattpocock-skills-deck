@@ -60,12 +60,12 @@ function makeStore(mem, cacheDir) {
 }
 
 async function main() {
-  const modUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'logStore.js')).href
+  const modUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'logStore.ts')).href
   let mod
   try {
     mod = await import(modUrl)
   } catch (e) {
-    check(false, '日志库可被动态加载（src/host/logStore.js）：' + e.message)
+    check(false, '日志库可被动态加载（src/host/logStore.ts）：' + e.message)
     console.log(failed ? '\n存在失败' : '\n全部通过')
     process.exit(1)
   }
@@ -74,8 +74,8 @@ async function main() {
   check(typeof formatLogFileName === 'function', '日志库导出按天文件名函数 formatLogFileName')
 
   // ---- 底座自检：行数、防抖值、级别判断位置（#500 拆分：两文件各不超 300 行，留余量）----
-  const src = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logStore.js'), 'utf8')
-  const phonesSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logPhones.js'), 'utf8')
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logStore.ts'), 'utf8')
+  const phonesSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logPhones.ts'), 'utf8')
   const lineCount = src.split(/\r?\n/).length
   const phonesLines = phonesSrc.split(/\r?\n/).length
   check(lineCount <= 300, '日志库不超 300 行（留余量，实得 ' + lineCount + ' 行）')

@@ -14,14 +14,15 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 console.log('日志双产物门禁（#494：开发产物与打包产物同时含新增埋点，只改一处即红）')
 
-function listJsFiles(dir) {
+function listJsFiles(dir, withTs) {
   const out = []
   const walk = (d) => {
     if (!fs.existsSync(d)) return
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name)
       if (e.isDirectory()) walk(p)
-      else if (e.isFile() && e.name.endsWith('.js')) out.push(p)
+      else if (e.name.endsWith('.js') && !(withTs && fs.existsSync(p.slice(0, -3) + '.ts'))) out.push(p)
+      else if (withTs && e.name.endsWith('.ts')) out.push(p)
     }
   }
   walk(dir)
@@ -67,8 +68,10 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 
 // 三、宿主事件：打包镜像与真源逐个一致，且镜像不比真源旧。
 // 宿主半是原样复制（方案 C），开发产物只含入口，真源与镜像一一对应。
+// 2026-10-18 #1247：宿主真源转成 TypeScript，源侧扫 .ts（同名 .js 产物跳过不数两遍），
+//   镜像侧把 .ts 换回 .js 再比（构建把真源逐文件转译进包）。
 {
-  const hostFiles = listJsFiles(path.join(ROOT, 'src', 'host'))
+  const hostFiles = listJsFiles(path.join(ROOT, 'src', 'host'), true)
   let mirrorOk = 0
   let mirrorChecked = 0
   const problems = []
@@ -77,7 +80,7 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
     const names = Array.from(quotedEvents(fs.readFileSync(f, 'utf8'))).filter((n) => KNOWN.includes(n))
     if (!names.length) continue
     mirrorChecked += 1
-    const mirror = path.join(ROOT, 'package', 'lib', rel)
+    const mirror = path.join(ROOT, 'package', 'lib', rel.replace(/\.ts$/, '.js'))
     if (!fs.existsSync(mirror)) { problems.push(rel + ' 无打包镜像'); continue }
     const mirrorNames = quotedEvents(fs.readFileSync(mirror, 'utf8'))
     const miss = names.filter((n) => !mirrorNames.has(n))

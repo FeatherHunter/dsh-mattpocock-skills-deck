@@ -14,7 +14,7 @@
  *   B. 每条监听器在「消费事件数据之前」已经过了工作区门（门 = 看 session.header.cwd 或按会话 id 放行）。
  *   C. 事件对象不许整份进日志/落盘调用（只许进白名单字段）。
  *   D. （#710 新增的运行期用例）**别的工作区的事件到达之后**：真把一条别的会话的写命令喂给
- *      src/host/refresh/writeEvents.js，断言它被工作区白名单拦住、而且没有留下任何痕迹
+ *      src/host/refresh/writeEvents.ts，断言它被工作区白名单拦住、而且没有留下任何痕迹
  *      —— 不调闸、不记日志、不写内存表、不产生任何判定结果。同时用一条「自己工作区」的正向用例
  *      证明拦住不是因为整条路都不动，并证明取数只从闸里走（把闸摘掉时一次都不发）。
  *
@@ -74,22 +74,22 @@ const check = (ok, msg, detail) => {
  * 这里只许出现仓库里真实的订阅点。门禁自己的探针样本（tests/fixtures/deck-event-gate/ 下）
  * 一律经 --registry 传参，不许混进这张表。
  *
- * 形状：{ file: 'src/host/refresh/writeEvents.js', reason: '写事件源：只认自己工作区的写命令，用来触发刷新' }
+ * 形状：{ file: 'src/host/refresh/writeEvents.ts', reason: '写事件源：只认自己工作区的写命令，用来触发刷新' }
  *
  * #710（T6）把两条真实订阅点预填在这里：
- *   ① 写事件源（本票的 src/host/refresh/writeEvents.js）：订 tools/result（首选）与会话事件（可回看），
+ *   ① 写事件源（本票的 src/host/refresh/writeEvents.ts）：订 tools/result（首选）与会话事件（可回看），
  *      只认自己工作区的写命令，用来触发补行或探测。
  *   ② 处理链（票 #714 T10 的订阅点 src/host/refresh/sessionTickets.js）：同一个订阅面，记「这个会话正在
  *      处理哪几张票」。#710 落地时这一行先预填（T10 先落地了数据侧、订阅点还没接），接上之后它就会命中。
  */
 const REGISTRY = [
   {
-    file: 'src/host/refresh/writeEvents.js',
+    file: 'src/host/refresh/writeEvents.ts',
     reason: '写事件源（#710 T6）：订阅面是整个 DSH，别的会话、子代理、工作区的事件都会到我们手上，' +
       '所以第一件事就是按工作区根白名单放行；只有自己工作区里「成功的写操作」才触发补行或探测。',
   },
   {
-    file: 'src/host/refresh/sessionTickets.js',
+    file: 'src/host/refresh/sessionTickets.ts',
     reason: '处理链（票 #714 T10）：同一个订阅面，记「这个会话正在处理哪几张票」。只为写与明确的处理动作记，' +
       '读不进链；落盘只存票 key、时间与动作类别。（这一行由 #710 按票面要求预填；#714 的订阅点落地在这里。）',
   },
@@ -289,11 +289,11 @@ if (!argv.includes('--skip-runtime')) {
   }
 
   try {
-    // 工作区钥匙用宿主既有出口（src/host/workspaceKey.js 的 canonicalWorkspaceKey）真算一遍：
+    // 工作区钥匙用宿主既有出口（src/host/workspaceKey.ts 的 canonicalWorkspaceKey）真算一遍：
     // 生产里这支函数由接线处从 src/host/index.js 传进来，测试里我们自己接一支同样口径的。
-    const wk = await import(pathToFileURL(path.join(REPO, 'src', 'host', 'workspaceKey.js')).href)
+    const wk = await import(pathToFileURL(path.join(REPO, 'src', 'host', 'workspaceKey.ts')).href)
     deps.canonicalKey = (cwd) => wk.canonicalWorkspaceKey(cwd, { getPlatform: async () => platform, getFs: () => fsSvc, logCtx: logCtx })
-    const { createWriteEvents } = await import(pathToFileURL(path.join(REPO, 'src', 'host', 'refresh', 'writeEvents.js')).href)
+    const { createWriteEvents } = await import(pathToFileURL(path.join(REPO, 'src', 'host', 'refresh', 'writeEvents.ts')).href)
     const own = createWriteEvents(deps)
     check(String(await own.allowRoot('D:\\mine')).length > 0, '先把 d:\\mine 加进白名单（宿主接线时按当前服务的工作区调它）')
 
@@ -370,7 +370,7 @@ if (!argv.includes('--skip-runtime')) {
       '把闸摘掉时：只判定、不取数（绝不绕过闸自己发请求）')
 
     // ---- 静态隐私断言：这个文件本身没有任何落盘出口，也没有把参数交给日志 ----
-    const src = fs.readFileSync(path.join(REPO, 'src', 'host', 'refresh', 'writeEvents.js'), 'utf8')
+    const src = fs.readFileSync(path.join(REPO, 'src', 'host', 'refresh', 'writeEvents.ts'), 'utf8')
     check(!/\b(writeFile|writeFileSync|writeText|writeTextFile|createWriteStream|appendFile|persist|saveToDisk)\s*\(/.test(src),
       '写事件订阅那条路本身没有落盘出口（参数不落盘）')
     check(!/fire\s*\([^)]*\bcommand\b/.test(src) && !/fire\s*\([^)]*\barguments\b/.test(src),

@@ -44,8 +44,8 @@ function failCode(code, msg) {
 
 async function main() {
   console.log('本机设置两条电话门禁（task-7：缺席与分档与只读拒绝与行数与真跑日志）')
-  const leafUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'settingsPhones.js')).href
-  const storeUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href
+  const leafUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'settingsPhones.ts')).href
+  const storeUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.ts')).href
   let leaf = null
   let store = null
   try {
@@ -222,7 +222,7 @@ async function main() {
   console.log('')
   console.log('== 第四件事：行数（新叶子与宿主入口各自都不超上限） ==')
   {
-    const nLeaf = countLines('src/host/settingsPhones.js')
+    const nLeaf = countLines('src/host/settingsPhones.ts')
     check(nLeaf <= 350, '新叶子不超过三百五十行，实得 ' + nLeaf + ' 行。')
     // #1074：入口转成 .ts 后类型标注与中文注释占了约五十行（实得三百五十八行），行数口径改跟真源；
     // 上限四百是给注释类型留的，不是给逻辑留的——逻辑只许装配，电话条数另断言，添电话两处一起改。

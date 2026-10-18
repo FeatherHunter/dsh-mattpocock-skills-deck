@@ -117,7 +117,7 @@ async function main() {
 
   // 调用方零系统分支：pickerShell 不出现按系统分发的字面。
   {
-    const src: string = fs.readFileSync(path.join(ROOT, 'src', 'host', 'pickerShell.js'), 'utf8')
+    const src: string = fs.readFileSync(path.join(ROOT, 'src', 'host', 'pickerShell.ts'), 'utf8')
     const strip = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
     check(!/===\s*['"]win32['"]/.test(strip) && !/===\s*['"]darwin['"]/.test(strip), 'pickerShell 无按系统分发的分支')
     check(!strip.includes('explorer') && !strip.includes('xdg-open'), 'pickerShell 不拼系统命令（配方归底座）')

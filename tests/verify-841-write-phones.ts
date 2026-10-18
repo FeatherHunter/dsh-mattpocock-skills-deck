@@ -161,7 +161,7 @@ async function main(): Promise<void> {
 
   // F 同一进程出口 + 看门狗白名单
   console.log('F 同一出口、请求白名单')
-  const wsrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'versionControlWrite.js'), 'utf8')
+  const wsrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'versionControlWrite.ts'), 'utf8')
   check(!/child_process|spawnSync|execSync/.test(wsrc), 'F1 写层不自己起进程（走注入的共享出口）')
   const rF = mkRepo('f')
   const vcF = makeVc()
