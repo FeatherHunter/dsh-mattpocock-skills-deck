@@ -310,6 +310,33 @@
       "note": "V1 拆分：注册表机制引用原语执行器"
     },
     {
+      "file": "src/host/tracker/snapshot.ts",
+      "spec": "./snapshotAssemble.js",
+      "resolved": "src/host/tracker/snapshotAssemble.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1255（快照纯组装单列）",
+      "note": "#1255 拆分：纯组装（池内标识/瘦身行/装配）与编排（缓存/版号/304）变化原因不同；方向 snapshot → snapshotAssemble（被依赖方），反向不依赖。"
+    },
+    {
+      "file": "src/host/tracker/snapshot.ts",
+      "spec": "./snapshotVersion.js",
+      "resolved": "src/host/tracker/snapshotVersion.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1255（快照版号算法单列）",
+      "note": "#1255 拆分：版号是 304 正确性的核心，纯函数值得独立屋顶；方向 snapshot → snapshotVersion（被依赖方），反向不依赖。"
+    },
+    {
+      "file": "src/host/tracker/predicatePrimitives.ts",
+      "spec": "./predicateFileProbes.js",
+      "resolved": "src/host/tracker/predicateFileProbes.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1255（文件系统类原语探测单列）",
+      "note": "#1255 拆分：两支碰磁盘探测各有独立兜底史，与分发骨架变化原因不同；方向 predicatePrimitives → predicateFileProbes（被依赖方），反向不依赖，不构环。"
+    },
+    {
       "file": "src/host/index.ts",
       "spec": "./handoffClaim.js",
       "resolved": "src/host/handoffClaim.ts",
