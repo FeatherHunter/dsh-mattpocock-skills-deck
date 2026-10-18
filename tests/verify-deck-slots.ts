@@ -160,7 +160,9 @@ try{
 console.log('')
 console.log('-- 5) UI 挂接：ChecksTab 明细放开 form + renderForm 打开 modal --')
 try{
-  const ct = file('src/client/views/ChecksTab.js')
+  // #1253：ChecksTab 已转 TypeScript，同名 .js 是 esbuild 产物（单引号变双引号），
+  // 而下面几条按原文写法的子串判据量的是「这一行还在不在」，因此读 .ts 真源。
+  const ct = sourceText('src/client/views/ChecksTab.js')
   // 旧过滤已移除：不再出现 filter(...type !== 'form')
   check(!ct.includes("filter(function (a) { return a && a.type !== 'form' })") && !ct.includes('a.type !== \'form\''), 'ChecksTab 已移除 form 过滤')
   check(ct.includes("fixActions = (s.status === 'fail'") && ct.includes("Array.isArray(s.actions) ? s.actions"), 'ChecksTab fixActions 保留 fail/current 但不过滤')
@@ -179,7 +181,9 @@ try{
 console.log('')
 console.log('-- 6) ChainRenderer 不再内嵌表单（form 走 modal-seat） --')
 try{
-  const cr = file('src/client/views/shared/ChainRenderer.js')
+  // #1253：ChainRenderer 已转 TypeScript。下面既要看「还在不在」（注释 #308、单引号的组件定义），
+  // 又要按函数体切片，产物既丢注释又改引号，所以一律读 .ts 真源。
+  const cr = sourceText('src/client/views/shared/ChainRenderer.js')
   check(cr.includes('CHAIN_RENDERER_VERSION'), 'ChainRenderer 仍含版本')
   check(cr.includes('ChainForm'), 'ChainRenderer 仍保留 ChainForm 组件定义（可复用）')
   // 关键：ChainRenderer 组件体内不再渲染 ChainForm（formAction ? h(ChainForm...) 已移除）

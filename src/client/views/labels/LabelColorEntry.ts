@@ -1,0 +1,124 @@
+/**
+ * views/labels/LabelColorEntry.ts — 面板头部右侧的标签配色入口（#621 新增）
+ *
+ * 一个 16×16 的小图标按钮，规格与仓库名右侧那颗「切换后端」的按钮一致（同样 16 像素见方、
+ * 圆角 4、只描边不填底），放在它旁边；点击打开改色弹窗。悬停提示走仓库的 Tip（不用原生 title 属性）。
+ *
+ * 为什么放在头部：头部常驻可见，用户不用先滚到列表某处去找改颜色的地方。头部那套自适应折叠逻辑
+ * （空间不够时先藏标题、再缩仓库名）不碰这颗按钮——它是定宽且不参与裁切的，窄面板下不会消失。
+ *
+ * 弹窗只在打开时才挂载，所以「打开就现取一次标签清单」发生在用户真正点开的那一刻，
+ * 不用在面板启动时白跑一次电话。
+ *
+ * 图标颜色（#637）：这只调色盘整只上色——盘身暖木色，四颗颜料点取四个 wayfinder 标签的
+ * 真实颜色，算法在纯函数层（labelColorPalette.ts 的 lcEntryPaletteOf），这颗按钮只负责
+ * 「挂载时取一次清单、取回来之前与取失败时都显示默认色」。取数走的还是那条 wf.listLabels
+ * （与弹窗里那次同一条电话、同一套记账：成功记 info host.call、失败记 warn host.call.fail，
+ * 不新增日志事件）。异常、标签不存在、回包形状不对，统统按默认色兜底，按钮上不摆任何报错——
+ * 报错是点开弹窗之后的事，入口按钮只保证任何时刻都画得出一只彩色调色盘。
+ *
+ * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、分支条件、
+ * 字符串、数字、对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源
+ * （ESM 导出），scripts/build.mjs 构建时剥掉行首 export 后拼进 src/client/index.js 的客户端闭包
+ * （一源两物）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。
+ */
+/**
+ * 闭包环境声明（类型检查时才看，转译时整段抹掉，真机上有值）：
+ * 下面这些名字不在本文件里定义，是构建按 build.mjs 的次序把别的叶子拼进同一个函数作用域
+ * 带进来的，这里只声明形状、不参与转译。为什么不写 import：拼进闭包的片段里留着运行时 import，
+ * 运行时就是语法错（构建侧 toSpliceableFragment 也会当场拒收）。React / DswsCtx / tr / host /
+ * log / dswsLogHash / dswsLogTrunc 由 src/client/ts-pixel-ambient.d.ts 统一声明，这里不重复声明。
+ */
+/** 悬停提示组件（别的叶子拼进同一闭包，真机上有值）。 */
+declare const Tip: any;
+/** 改色弹窗组件（LabelColorDialog.ts 导出，同一闭包内直呼其名）。 */
+declare const LabelColorDialog: any;
+/** 图标画法：Ic({ n, size, colors, bodyFill, bodyStroke })（内核图标叶提供）。 */
+declare function Ic(...args: any[]): any;
+/** 调色盘整只上色的默认色与盘身色（labelColorPalette.ts 导出）。 */
+declare const LC_ENTRY_PALETTE_BODY: any;
+/** 由标签清单算出四个圆点颜色（labelColorPalette.ts 导出）。 */
+declare function lcEntryPaletteOf(...args: any[]): any;
+/** 从后端回包取出标签清单（labelColorErrors.ts 导出）。 */
+declare function lcLabelsOf(...args: any[]): any;
+/** 从面板 store 里读出当前后端标识（labelColorErrors.ts 导出）。 */
+declare function lcPanelBackendOf(...args: any[]): any;
+/** 面板 store 的取用入口（内核叶提供）。 */
+declare function storeOf(...args: any[]): any;
+
+export const LabelColorEntry = (props: any) => {
+  const cx = React.useContext(DswsCtx)
+  const h = cx ? cx.h : React.createElement
+  const [open, setOpen] = React.useState(false)
+  const cwd = (props && props.cwd) || ''
+  // 会话号一路传给两条宿主电话：宿主靠它算「写工作区」要用的沙箱政策（宿主读的字段名就是 sessionId）。
+  const sessionId = (props && props.sessionId) || ''
+  const narrow = !!(props && props.narrow)
+  const onSaved = props && props.onSaved
+  const tip = tr('lc.entryTip')
+  const edge = 'var(--dsw-alias-label-secondary,#a1a1aa)'
+  // #637 追改：按钮那圈描边不再是灰的，改成和调色盘盘身边框同一个木色（深浅两档由面板按主题挑），
+  // 按钮与图标连起来看是一只完整的调色盘。按钮的尺寸圆角都不动，动的只有描边色。
+  const edgeTint = LC_ENTRY_PALETTE_BODY.stroke
+  // #637：图标颜色先摆默认色，清单取回来再换成真实颜色（取失败就一直是默认色，不报错）。
+  const [dots, setDots] = React.useState(lcEntryPaletteOf(null))
+  // 取数参的形状与 useLabelColors 的 phoneArgs 同一句话（cwd、会话号、面板当前后端）：
+  // 两处调的是同一条电话，带上去的东西必须一致，宿主才认得这是同一种调用。
+  React.useEffect(function () {
+    let alive = true
+    const args: Record<string, any> = { cwd: String(cwd || ''), sessionId: String(sessionId || '') }
+    try {
+      const pb = lcPanelBackendOf((typeof storeOf === 'function') ? storeOf(String(sessionId || '')) : null)
+      if (pb) args.backendId = pb
+    } catch (e) { /* 读不到面板状态就不带，宿主照旧诚实失败，图标保持默认色 */ }
+    const t0 = Date.now()
+    let p = null
+    try {
+      p = (typeof host !== 'undefined' && host && typeof host.call === 'function') ? host.call('wf.listLabels', args) : null
+    } catch (e) { p = null }
+    Promise.resolve(p).then(function (res: any) {
+      try {
+        if (res && res.ok === true) log('info', 'host.call', { method: 'wf.listLabels', latencyMs: Date.now() - t0, ok: true, kind: 'label-colors' })
+        else log('warn', 'host.call.fail', { method: 'wf.listLabels', kind: 'label-colors', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error && (res.error.message || res.error.kind)) || 'label-colors-not-ok'), 120, 'error')) })
+      } catch (eL) { /* 记日志失败不影响图标 */ }
+      if (!alive) return
+      const list = lcLabelsOf(res)
+      if (list) setDots(lcEntryPaletteOf(list))
+    }).catch(function (e: any) {
+      try { log('warn', 'host.call.fail', { method: 'wf.listLabels', kind: 'label-colors', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) { /* 忽略 */ }
+      // 取失败：保持默认色，不报错（兜底口径见本文件头）。
+    })
+    return function () { alive = false }
+  }, [cwd])
+  const button = h('button', {
+    type: 'button',
+    'data-label-colors': 1,
+    'aria-label': tip,
+    onClick: function (e: any) {
+      try { if (e && e.preventDefault) e.preventDefault() } catch (e1) { /* 忽略 */ }
+      try { if (e && e.stopPropagation) e.stopPropagation() } catch (e2) { /* 忽略 */ }
+      setOpen(true)
+    },
+    style: {
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      // 2026-09-24：补上 boxSizing —— 少了它，width/height 16 加两侧 1 像素边框会画成 18×18 的外框，
+      //   比左边那颗归属标志（border-box 16×16）大一圈，一排三颗看着就不齐。规格现在是三颗逐字一致：
+      //   外框 16×16、圆角 4、1 像素描边；这是「外框」尺寸，不是内容尺寸。
+      boxSizing: 'border-box',
+      width: 16, height: 16, borderRadius: 4, flex: 'none',
+      border: '1px solid ' + edgeTint, color: edge, background: 'transparent',
+      cursor: 'pointer', lineHeight: 1, padding: 0, colorScheme: 'light dark',
+    },
+  }, typeof Ic === 'function' ? Ic({ n: 'palette', size: 10, colors: dots, bodyFill: LC_ENTRY_PALETTE_BODY.fill, bodyStroke: LC_ENTRY_PALETTE_BODY.stroke }) : null)
+  return h(React.Fragment, null, [
+    h(Tip, { key: 'entry', content: tip }, button),
+    open ? h(LabelColorDialog, {
+      key: 'dialog',
+      cwd: cwd,
+      sessionId: sessionId,
+      narrow: narrow,
+      onSaved: onSaved,
+      onClose: function () { setOpen(false) },
+    }) : null,
+  ])
+}

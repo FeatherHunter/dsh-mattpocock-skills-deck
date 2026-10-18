@@ -12,10 +12,14 @@ const check = (ok, level, msg) => {
   if (!ok && level === 'error') failed = true
   if (!ok && level === 'warn') warned = true
 }
+// #1253：一份真源可能叫 .js，也可能已经转成 .ts（转完之后同名 .js 是构建产物）。
+// 白名单与豁免按「去掉扩展名的同一份文件」比对，免得每转一份就得把名单同时改两处、
+// 漏改时门禁报的是一串「同一份文件换了后缀」的假命中。
+const bareName = (p: string): string => p.replace(/\.(?:js|ts)$/, '')
 const ALLOWLIST = new Set([
-  'src/client/kernel/portal.js',
-  'src/client/views/primitives/HoverTip.js',
-  'src/client/views/primitives/Tip.js',
+  'src/client/kernel/portal',
+  'src/client/views/primitives/HoverTip',
+  'src/client/views/primitives/Tip',
 ])
 function collectFiles(dir, out) {
   const abs = path.resolve(dir)
@@ -45,7 +49,7 @@ collectFiles('src/client/kernel', allLeaves)
 const Q1_RE = /(\buseStore\b|\bemit\s*\(|s\.cfgTip|s\.skillTip|s\.skillHover)/
 let q1Hits = []
 for (const f of primitives) {
-  if (ALLOWLIST.has(f)) continue
+  if (ALLOWLIST.has(bareName(f))) continue
   let src = ''
   try { src = fs.readFileSync(f, 'utf8') } catch (e) { continue }
   if (Q1_RE.test(src)) q1Hits.push(f)
@@ -53,22 +57,22 @@ for (const f of primitives) {
 const Q2_RE = /(getBoundingClientRect.*flip|caret.*rotate|zIndex:\s*2147483000.*fixed|portalTop.*fixed|tip\.x \+ 238|estW|flip.*auto)/
 const Q2_ALT = (src) => src.includes('getBoundingClientRect') && src.includes('portalTop')
 const Q2_STOCK_ALLOW = new Set([
-  'src/client/views/shared/Tabs.js',
-  'src/client/floating/Pop.js',
-  'src/client/kernel/portal.js',
-  'src/client/views/primitives/HoverTip.js',
+  'src/client/views/shared/Tabs',
+  'src/client/floating/Pop',
+  'src/client/kernel/portal',
+  'src/client/views/primitives/HoverTip',
 ])
 let q2Hits = []
 for (const f of allLeaves) {
-  if (ALLOWLIST.has(f)) continue
-  if (Q2_STOCK_ALLOW.has(f)) continue
+  if (ALLOWLIST.has(bareName(f))) continue
+  if (Q2_STOCK_ALLOW.has(bareName(f))) continue
   const STOCK_NON_TOOLTIP = new Set([
-    'src/client/statusbar/StatusBar.js',
-    'src/client/index.js',
-    'src/client/floating/SkillFloatList.js',
-    'src/client/kernel/styles.js', // 原 store.js 与 slotRenderer.js 已拆为多文件（无残留即删豁免，新文件经实测无重复样板）
+    'src/client/statusbar/StatusBar',
+    'src/client/index',
+    'src/client/floating/SkillFloatList',
+    'src/client/kernel/styles', // 原 store.js 与 slotRenderer.js 已拆为多文件（无残留即删豁免，新文件经实测无重复样板）
   ])
-  if (STOCK_NON_TOOLTIP.has(f)) continue
+  if (STOCK_NON_TOOLTIP.has(bareName(f))) continue
   let src = ''
   try { src = fs.readFileSync(f, 'utf8') } catch (e) { continue }
   if (Q2_RE.test(src) || Q2_ALT(src)) q2Hits.push(f)
@@ -97,7 +101,7 @@ for (const f of primitives) {
 for (const f of primitives) {
   try {
     const src = fs.readFileSync(f, 'utf8')
-    if (/from\s+['"]\.\.\/primitives\//.test(src) || /from\s+['"]\.\/.*primitives/.test(src) || (/import.*primitives/.test(src) && !ALLOWLIST.has(f))) {
+    if (/from\s+['"]\.\.\/primitives\//.test(src) || /from\s+['"]\.\/.*primitives/.test(src) || (/import.*primitives/.test(src) && !ALLOWLIST.has(bareName(f)))) {
       console.log('  FAIL 横向依赖 ' + f + ' 含 primitives 间 import（同层禁互 import）'); failed = true
     }
   } catch (e) {}

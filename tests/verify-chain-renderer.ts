@@ -32,7 +32,10 @@ check(cr.includes('isSupportedActionType'), '含 isSupportedActionType')
 
 console.log('')
 console.log('-- 2) 横幅同源互斥 42px Tab可达 --')
-check(cr.includes('42') && cr.includes('minHeight:42') || cr.includes('height:42'), '横幅 42px 约束')
+// #1253：ChainRenderer 转 TypeScript 后，这里的 .js 是 esbuild 产物，对象字面量印成
+// `minHeight: 42`（冒号后多一个空格）。这条量的是产物形态，所以两种写法都认；
+// 源码里的字面量有没有被改坏，由 tests/verify-leaves.ts 与构建新鲜度门禁（产物比源码新）守。
+check((cr.includes('minHeight: 42') || cr.includes('minHeight:42')) && (cr.includes('maxHeight: 42') || cr.includes('maxHeight:42')), '横幅 42px 约束')
 check(cr.includes('tabIndex:0') || cr.includes('tabIndex'), '横幅 Tab 可达')
 check(cr.includes('role:') && cr.includes('status'), '横幅含 role/status 可达')
 check(cr.includes('levelToClass') && cr.includes('levelToStyle'), '含 level→样式 映射')
@@ -87,7 +90,9 @@ check(cr.includes('schema'), 'ChainForm 含 schema')
 // 2026-10-17 重锚（原来是钉硬字 `必填`）：必填校验的真机制是「判 f.required 再取词条
 // env.formRequired」，硬字早已搬进词条表。这里改钉机制本身 + 词条中英都在，
 // 谁把校验删掉或把词条挪走都会当场红。
-check(cr.includes('f.required') && cr.includes("tr('env.formRequired'"), 'ChainForm 必填校验走词条 env.formRequired（不再钉硬字）')
+// #1253：同上的产物形态问题——esbuild 把单引号统一成双引号，词条键里那个点也要按字面转义，
+// 所以这里用「两种引号都认」的正则，而不是 grep 精确子串。
+check(cr.includes('f.required') && /tr\(["']env\.formRequired["']/.test(cr), 'ChainForm 必填校验走词条 env.formRequired（不再钉硬字）')
 const localePanelSrc = file('src/client/kernel/locale-panel.ts')
 check(localePanelSrc.split("'env.formRequired'").length === 3 && localePanelSrc.includes('{label} 必填'), '词条 env.formRequired 中英各一条、中文含「必填」')
 check(cr.includes('pattern') && cr.includes('RegExp'), 'ChainForm 含 pattern 校验')

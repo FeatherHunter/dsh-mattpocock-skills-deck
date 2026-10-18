@@ -90,7 +90,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
   // ============ 二、真挂载渲染：发布产物委托 + 入口件在 jsdom 里真跑 ============
   const product: string = fs.readFileSync(path.join(ROOT, 'package', 'lib', 'client.js'), 'utf8')
   check(product.includes('__DshUpdateEntry') && product.includes('UpdateEntryHost'), '发布产物含入口件绑定包与挂载点（面板委托已进产物）')
-  check(product.includes("theme: 'archive'"), '发布产物挂载点传档案卷皮肤（只用档案卷）')
+  // 判据是「产物里挂载点确实传了档案卷皮肤」，不是「源码怎么写引号」：入口件源码转成 TypeScript 之后
+  // 由 esbuild 产出，字符串引号会统一成双引号，所以两种引号都认（#1253 改，含义未变）。
+  check(/theme:\s*['"]archive['"]/.test(product), '发布产物挂载点传档案卷皮肤（只用档案卷）')
   check(!product.includes('useUpdatePanel'), '发布产物无自有按钮状态机（useUpdatePanel 已删）')
 
   const { JSDOM } = require('jsdom')

@@ -290,7 +290,12 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //   「交接执行」那一段拆成独立真源 src/client/kernel/api-handoff.ts（有效行门禁 350 行的要求），
   //   同名 .js 跟着多出一件转译产物，过渡产物从 169 长到 170。这是本次拆分故意新增的产物，
   //   出处在这一行；判据仍是「只许降不许升」，搬迁那条工作线收完时把这条数一并降回 0。
-  const TRANSITIONAL_PRODUCTS_MAX = 170
+  // 2026-10-18 第四次数：上限定为 223。依据是 #1253 把 src/client/views 下 53 份手写 .js 转成 .ts
+  //   （顶层页签 14 + feedback 1 + labels 7 + primitives 2 + shared 12 + versionControl 17），
+  //   同名 .js 从此是 pixel-ts 那一段的转译产物，过渡产物从 170 长到 170 + 53 = 223。
+  //   与上几次同理，这是本票故意新增的产物，出处就是这一行；判据仍是「只许降不许升」，
+  //   搬迁那条工作线收完时把这条数一并降回 0。
+  const TRANSITIONAL_PRODUCTS_MAX = 223
   // 已知的、单列出来的产物：它们不进「过渡产物」的计数，理由是各自有出处可查，不是混进来的新产物。
   //   · src/tracker/contract/vocabulary.js —— #1018 拼闭包用的词汇表产物，归 #1026 带走。
   //   · src/client/kernel/api-io.js —— #1111：客户端内核的 api-io 由手写 .js 转成 .ts，同名 .js 从此是

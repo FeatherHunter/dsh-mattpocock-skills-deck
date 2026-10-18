@@ -365,6 +365,12 @@ function listJsFiles(dir) {
 function topKeys(objText) {
   const keys = []
   let depth = 0
+  // 括号深度（#1253 加）：源码转成 TypeScript 之后，值里常出现带类型标注的回调参数，例如
+  //   namesHash: hash(rows.map(function (r: any) { ... }))
+  // 里面那个 `r:` 会被原来的写法当成一个字段名（它确实处在对象体的第一层括号里），于是门禁
+  // 报出并不存在的字段 `r`。参数列表、函数调用、分组括号里的冒号一律不是字段名，所以只在
+  // 括号深度为 0 时才认字段；三元运算符的配对计数照旧，不受影响。
+  let pdepth = 0
   let ternary = 0
   let instr = null
   let esc = false
@@ -385,10 +391,13 @@ function topKeys(objText) {
       if (depth === 1) ternary = 0
       continue
     }
+    if (c === '(') { pdepth += 1; continue }
+    if (c === ')') { if (pdepth > 0) pdepth -= 1; continue }
     if (depth !== 1) continue
     if (c === '?') { ternary += 1; continue }
     if (c === ':' && ternary > 0) { ternary -= 1; buf = ''; continue }
     if (c === ':' && ternary === 0) {
+      if (pdepth > 0) { buf = ''; continue }
       const m = buf.match(/([A-Za-z_$][A-Za-z0-9_$]*)\s*$/)
       if (m) keys.push(m[1])
       buf = ''

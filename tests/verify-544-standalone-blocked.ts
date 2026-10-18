@@ -5,6 +5,7 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { sourceText } = require('./lib/source-text.ts')
 
 async function loadDerived(): Promise<any> {
   const src: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'kernel', 'store-derived.js'), 'utf8')
@@ -133,9 +134,11 @@ async function main(): Promise<void> {
   ok('边界与异常分支全部通过')
 
   // —— 场景 5：源码接线（列表与行渲染已接入） ——
-  const listTab: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'views', 'ListTab.js'), 'utf8')
+  // #1253：这两份视图已转成 TypeScript，同名 .js 是 esbuild 产物（引号会被统一成双引号、注释被剥掉）。
+  // 判据问的是「源码里有没有接入」，所以从 sourceText 读真源；继续读产物会变成在断言构建格式化结果。
+  const listTab: string = sourceText('src/client/views/ListTab.js')
   assert(listTab.includes('applyStandaloneBlocks(st, blockOf)'), 'ListTab 合并独立票阻塞标记')
-  const row: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'views', 'ListTabRow.js'), 'utf8')
+  const row: string = sourceText('src/client/views/ListTabRow.js')
   assert(row.includes('blk.map === null'), '行渲染区分独立票徽章（无所属地图不跳转）')
   assert(row.includes("tr('map.subBlocked'"), '独立票徽章提示文案不承诺跳转地图')
   ok('源码接线正确')

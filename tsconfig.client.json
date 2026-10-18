@@ -30,6 +30,12 @@
     "src/client/views/cards/cardProps.d.ts",
     "src/client/views/cards/*.ts",
     "src/client/views/versionControl/*.ts",
+    // #1253：界面视图层整批转写 —— 这四个子目录原先只有手写 .js，转成 .ts 后要进类型检查，
+    // 同时 scripts/build.mjs 的 PX_TS_DIRS 也登记了它们（转出同名 .js 给拼接与按路径直读的门禁用）。
+    "src/client/views/feedback/*.ts",
+    "src/client/views/labels/*.ts",
+    "src/client/views/primitives/*.ts",
+    "src/client/views/shared/*.ts",
     "src/client/kernel/**/*.ts",
     "src/client/statusbar/*.ts",
     "src/client/panel/*.ts",

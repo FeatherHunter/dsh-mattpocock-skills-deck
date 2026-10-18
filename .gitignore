@@ -222,3 +222,61 @@ _research/
 # 这里同时把它们移出索引，免得每次跑测试都看见两份没人读的改动。
 /tests/.tmp-repo-out/
 /tests/.tmp-repo-out2/
+
+# #1253：界面视图层整批转写 —— views 下剩下的 53 份手写 .js 全部转成 .ts，同名 .js 从此是
+# pixel-ts 那一段的构建产物（真源是同名 .ts），不入库。手写时代它们在库里是被跟踪的，ignore 只拦
+# 新建；转写提交里用 git rm 删掉它们。这一批转完，views 下的 .js 就全是产物了，但仍逐份列出而不用
+# 通配，理由与上面的 #1251 那一组相同：将来谁新建一份手写 .js，要让它当场可见，而不是被静默吞掉。
+/src/client/views/ChecksTab.js
+/src/client/views/ListTab.js
+/src/client/views/ListTabClosed.js
+/src/client/views/ListTabRow.js
+/src/client/views/MapDetailHead.js
+/src/client/views/MapDetailTop.js
+/src/client/views/NoRepoCard.js
+/src/client/views/PrTab.js
+/src/client/views/RunPanel.js
+/src/client/views/SetupCard.js
+/src/client/views/SubworkspaceMark.js
+/src/client/views/UpdateEntryHost.js
+/src/client/views/issueDetailFold.js
+/src/client/views/useIssueDetailFold.js
+/src/client/views/feedback/feedback-styles.js
+/src/client/views/labels/LabelColorDialog.js
+/src/client/views/labels/LabelColorEntry.js
+/src/client/views/labels/LabelColorRow.js
+/src/client/views/labels/labelColorErrors.js
+/src/client/views/labels/labelColorPalette.js
+/src/client/views/labels/labelColorPatch.js
+/src/client/views/labels/useLabelColors.js
+/src/client/views/primitives/HoverTip.js
+/src/client/views/primitives/Tip.js
+/src/client/views/shared/BackendSelector.js
+/src/client/views/shared/ChainRenderer.js
+/src/client/views/shared/RestFallbackBanner.js
+/src/client/views/shared/SwitchConfirmModal.js
+/src/client/views/shared/Tabs.js
+/src/client/views/shared/chips.js
+/src/client/views/shared/md.js
+/src/client/views/shared/sessionChainView.js
+/src/client/views/shared/stateKind.js
+/src/client/views/shared/tagsFit.js
+/src/client/views/shared/ticket.js
+/src/client/views/shared/truthLines.js
+/src/client/views/versionControl/vcAiHandoff.js
+/src/client/views/versionControl/vcBlocks.js
+/src/client/views/versionControl/vcCache.js
+/src/client/views/versionControl/vcCommit.js
+/src/client/views/versionControl/vcData.js
+/src/client/views/versionControl/vcDiff.js
+/src/client/views/versionControl/vcDiffOps.js
+/src/client/views/versionControl/vcFold.js
+/src/client/views/versionControl/vcInView.js
+/src/client/views/versionControl/vcRows.js
+/src/client/views/versionControl/vcTabVisible.js
+/src/client/views/versionControl/vcText.js
+/src/client/views/versionControl/vcViews.js
+/src/client/views/versionControl/vcWrite.js
+/src/client/views/versionControl/vcWriteOps.js
+/src/client/views/versionControl/vcWriteRun.js
+/src/client/views/versionControl/vcWriteUi.js

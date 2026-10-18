@@ -27,6 +27,15 @@ let failed = false
 let total = 0
 const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+// #1253：这些界面叶子已经从手写 .js 转成 .ts 真源。求值与反证都基于「真源原文」：
+//   先拼原文、再按反证要求改坏，最后按构建同一份转译参数转成 JavaScript 交给 compileFn。
+//   为什么不读产物 .js：产物被 esbuild 重排过（双引号、function 后面不留空格、句末补分号），
+//   而反证锚点是按原文写的，读产物就会「改不中」，等于没证——#1253 收口时这里正是这样红的。
+const { sourceText } = require('./lib/source-text.ts')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const readSource = (rel: string): string => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
+// 转译口径复用构建那一份（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
+const toEvalJs = (code: string): string => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
 // 反证与注种的锚点有两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被
 //   esbuild 统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
 //   「改坏了」其实没落到源码上、断言当然不会红；这个包装先按原样、再按双引号形态各试一次。只试这两种
@@ -207,8 +216,10 @@ function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
 const VC_SEED_RE = /React\.useState\(function\s*\(\)\s*\{\s*return vcCacheSeedOf\(cwd\) \|\| vcNewReads\(\)\s*;?\s*\}\)/
 const VC_WRITE_INIT_RE = /write:\s*\{\s*op:\s*["']{2},\s*state:\s*["']idle["'],\s*message:\s*["']{2},\s*confirm:\s*null,\s*result:\s*null,\s*remoteChoice:\s*null\s*\}/
 function buildView(patch, React, DswsCtx, Tip, Ic, seedReads, logs, trFn, exportsList) {
-  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(read(f)))).join('\n')
+  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(readSource(f)))).join('\n')
   if (patch) src = patch(src)
+  // #1253：改坏之后统一转译——原文里带类型标注，compileFn 只吃 JavaScript。
+  src = toEvalJs(src)
   const names = exportsList || EXPORTS
   const body = src + '\nreturn { ' + names.join(', ') + ' }\n'
   // 手法：compileFn——这份门禁照 build.mjs 的做法把叶子拼成一段文本再跑，这里把参数名数组与文本交给共用入口造函数，语义不变。
@@ -955,7 +966,8 @@ async function groupH(React, DswsCtx, TipStub, IcStub, logs) {
   LOC.zh['vc.writeErr.conflict.limit'] = savedLimit
   check(h4, 'H4 反证：把一条 limit 句抹掉 → D1 那条当场不成立')
 
-  const v5 = build(function (s) { return s.replace('const stagePaths = guarded(function (paths) {', "const stagePaths = guarded(function (paths) { callHost('wf.gitStatus', { cwd: cwd })") })
+  // #1253：真源转 .ts 后形参多了类型标注（paths: any），锚点用正则把标注写成可选的。
+  const v5 = build(function (s) { return s.replace(/const stagePaths = guarded\(function \(paths(?:: any)?\) \{/, "const stagePaths = guarded(function (paths) { callHost('wf.gitStatus', { cwd: cwd })") })
   const screen = richScreen()
   const host5 = makeHost(function () { return { ok: true, staged: ['b.txt'], atMs: NOW } })
   const ops5 = v5.vcWriteOpsOf({ ui: uiOf(), setUi: function () {}, callHost: host5.call, cwd: 'D:/w/repo', readsRef: { current: readsOf(screen) }, setReads: function () {}, screen: screen })

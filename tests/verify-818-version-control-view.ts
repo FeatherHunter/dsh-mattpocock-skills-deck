@@ -108,9 +108,20 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_SCREEN_CACHE_MAX', 'vcCacheSeedOf', 'vcCacheSave',
   'vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf',
   'VersionControlTab']
+// #1253：这 20 份里 19 份已经从手写 .js 转成 .ts 真源（只剩 src/shared/version-control/rules.js 还是手写 .js）。
+//   求值与反证都基于「真源原文」：先拼原文、再按反证要求改坏，最后按构建同一份转译参数转成 JavaScript
+//   交给 compileFn。为什么不读产物 .js：产物被 esbuild 重排过（双引号、function 后面不留空格、句末补分号），
+//   而反证锚点是按原文写的，读产物就会「改不中」，等于没证——#1253 收口时这里正是这样红过。
+const { sourceText } = require('./lib/source-text.ts')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const readSource = (rel: string): string => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
+// 转译口径复用构建那一份（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
+const toEvalJs = (code: string): string => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
-  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(read(f)))).join('\n')
+  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(readSource(f)))).join('\n')
   if (patch) src = patch(src)
+  // 改坏之后统一转译：原文里带类型标注，compileFn 只吃 JavaScript。
+  src = toEvalJs(src)
   const body = src + '\nreturn { ' + EXPORTS.join(', ') + ' }\n'
   // 本处走 compileFn：参数名与参数值一一对应，与原来那种写法同一套依赖。
   const fn = compileFn(['React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads'], body)
@@ -927,7 +938,9 @@ async function main() {
     return { src: cur, allHit: hits.every(Boolean) }
   }
   const antiCases: AntiCase[] = [
-    { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: tabVisibleJudgmentOf, what: 'A1' },
+    // #1253：真源已经转成 .ts，形参后面多了类型标注（st: any），锚点用正则把标注写成可选的，
+    //   写法上仍只认「这一处原样」，不放大到别的地方。
+    { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace(/(const vcTabVisible = function \(st(?:: any)?\) \{\n  void st\n  return )true/, '$1false'), test: tabVisibleJudgmentOf, what: 'A1' },
     { name: '冲突条目不再合成一行（同一路径画两行）', patch: (s) => s.replace('      if (conflictSeen[path]) return', '      if (false) return'), test: (v) => { const m = v.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge))); return rowsOf(m).length === 1 }, what: 'C9' },
     { name: '汇总句把数字写死成 0', patch: (s) => s.replace("staged: String(hostStaged), unstaged: String(hostUnstaged), conflicts: String(conflicts)", "staged: '0', unstaged: '0', conflicts: String(conflicts)").replace("{ staged: String(hostStaged), unstaged: String(hostUnstaged) }", "{ staged: '0', unstaged: '0' }"), test: (v) => { const c = v.vcBlocksOf(liveScreen, liveReads, {}, envOf(liveScreen, liveReads)); return blockOf(c, 'changes').summary === '已暂存 1 个文件 / 未暂存 4 个文件' }, what: 'B7' },
     { name: '折叠一次让一整段字（不再一个字符）', patch: (s) => s.replace("push('path', -1, Math.max(0, len(ladder.path) - VC_MIDDLE_MIN))", "push('path', -1, 1)"), test: (v) => { const l = v.vcFoldLadderOf({ path: 'abcdefghijklmnop', others: [], commits: [] }); return l.steps.length >= 6 }, what: 'D2' },
@@ -956,7 +969,7 @@ async function main() {
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿
   //   （把 vcTabVisible 的 return true 改成别的写法、或谓词已经在源码里被改坏，补丁就找不到落点），
   //   而它声称覆盖的那条断言（A1）此时已经不再受它保护。
-  const closureSrc = VC_FILES.map((f2) => stripExports(read(f2))).join('\n')
+  const closureSrc = VC_FILES.map((f2) => stripExports(readSource(f2))).join('\n')
   for (const c of antiCases) {
     let broke = false
     let applied = true

@@ -18,7 +18,7 @@
 const fs = require('fs')
 const assert = require('assert')
 const { compileFn } = require('./lib/eval-probe.js')
-const { spliceableJs } = require('./lib/source-text.ts')
+const { spliceableJs, sourceText } = require('./lib/source-text.ts')
 
 const files = process.argv.slice(2)
 // 2026-10-17 先修：默认目标原来是两个构建产物（client.js / package/lib/client.js）。产物里注册表整体变成一条
@@ -29,7 +29,7 @@ const SOURCES = {
   reg: 'src/client/kernel/prompts.ts',      // PROMPTS 注册表（原文里键用双引号、值用单引号）
   prompts: 'src/client/kernel/prompts.ts',  // completePrompt / MAP_EXECUTE_PROMPT / FIXATE_PROMPT
   router: 'src/client/kernel/router.js',    // startText（#1251 起真源是 router.ts，经 spliceableJs 取转译后的文本）
-  view: 'src/client/views/MapDetailTop.js', // 详情页「在新会话打开」按钮（views 目录还没转 TypeScript，这份 .js 仍是手写真源，直接读原文）
+  view: 'src/client/views/MapDetailTop.js', // 详情页「在新会话打开」按钮（#1253 起真源是 MapDetailTop.ts，经 sourceText 取原文，道理同 #1207）
 }
 
 // ---- 解析 PROMPTS 注册表（与 verify-prompts.js 同构）----
@@ -255,7 +255,7 @@ try {
     const regSrc = fs.readFileSync(SOURCES.reg, 'utf8')
     const promptsJs = spliceableJs(SOURCES.prompts)
     const routerJs = spliceableJs(SOURCES.router)
-    const viewSrc = fs.readFileSync(SOURCES.view, 'utf8')
+    const viewSrc = sourceText(SOURCES.view)
     checkFile('真源 ' + Object.keys(SOURCES).length + ' 份', regSrc, promptsJs, routerJs, viewSrc)
     passedCountTarget = 1
   }

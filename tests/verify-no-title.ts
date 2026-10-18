@@ -8,6 +8,10 @@
 //   title: tr('list.back')，按 2 处 WARN 处置，不阻断）。
 const fs = require('fs')
 const path = require('path')
+// #1253：Tip 转 TypeScript 之后，判据要按「源码形状」看（单引号、字面量 2147483000 都只在
+// 源码里保留），行数口径用仓库统一的有效行，见下面 Tip 那一段的注释。
+const { sourceText } = require('./lib/source-text.ts')
+const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
 let failed = false
 let warned = false
 const check = (ok, level, msg) => {
@@ -112,9 +116,9 @@ else check(false, 'error', 'title: ' + hits.length + ' 处必卡（≥5）— �
 if (hits.length>=5) check(false, 'error', 'title: 5 处必卡阈值已触发（实际 ' + hits.length + '）— 需 T2/T3 清零')
 const tipPath = 'src/client/views/primitives/Tip.js'
 if (fs.existsSync(tipPath)){
-  const src = fs.readFileSync(tipPath, 'utf8')
-  const lines = src.split(/\r?\n/).length
-  check(lines<=50, lines<=50?'ok':'error', '粒度 ' + tipPath + ' ' + lines + ' 行 ' + (lines<=50?'≤50（通过）':'>50（超限）'))
+  const src = sourceText(tipPath)
+  const lines = countEffectiveLines(src)
+  check(lines<=50, lines<=50?'ok':'error', '粒度 ' + tipPath + ' ' + lines + ' 有效行 ' + (lines<=50?'≤50（通过）':'>50（超限）'))
   const hasHoverTip = /HoverTip/.test(src)
   check(hasHoverTip, hasHoverTip?'ok':'error', 'Tip 消费 HoverTip（经闭包，直连 HoverTip）')
   // 2026-10-17 先修两条陈旧断言：

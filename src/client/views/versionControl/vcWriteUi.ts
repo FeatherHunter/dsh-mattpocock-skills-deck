@@ -1,0 +1,136 @@
+// views/versionControl/vcWriteUi.ts —— 写操作的画法层（#842）
+// 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.js 的 leaf 标记处（一源两物）。
+//
+// 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、数字、对象键与顺序、函数名与导出名一个字没动。
+// 下面这些名字由构建按 build.mjs 的次序拼进同一个函数作用域（同批的叶子与纯规则表），真机上有值；
+// 这里只声明形状、不参与转译（转译后这几行整行消失，运行期行为与原来完全一样）。
+declare const VC_WRITE_OPS: any;
+declare function vcPushDecisionOf(...args: any[]): any;
+declare function vcOpStateOf(...args: any[]): any;
+declare function vcBlockedTipOf(...args: any[]): any;
+declare function vcReasonKeysOf(...args: any[]): any;
+declare function vcFileRowsOf(...args: any[]): any;
+declare function vcConfirmOf(...args: any[]): any;
+//
+// 这一层把「规则 + 判定 + 界面状态」收成组件要画的那几个模型（一个中文字面量都没有，全走词条）：
+//   ops        四个动作各自的可点/禁用与悬停理由（判定来自核心 judge，界面不自己算）
+//   actions    身份行右侧那两颗（拉取 / 推送）
+//   stageAll   changes 标题行右侧那颗（未暂存计数 > 0 才出现）
+//   commitArea changes 块底部的提交区（输入框 + 按钮；无暂存时禁用）
+//   confirm    确认框模型（三档推送 + 拉取；目标只认预检回包）
+//   result     上一次执行的结果一句话（done / failed）
+export const vcRowStageOf = function (row: any, t: any) {
+  const conflict = !!(row && row.conflict === true)
+  const unstaged = !!(row && row.group === 'unstaged')
+  return {
+    show: !conflict && unstaged,
+    conflict: conflict,
+    text: conflict ? t('vc.row.conflictTerminal') : (unstaged ? t('vc.action.stage') : ''),
+    tip: conflict ? t('vc.band.terminalTip') : (unstaged ? t('vc.action.stage') : ''),
+    path: String((row && row.path) || ''),
+  }
+}
+/** 已暂存行右侧那颗「撤回」：只在 staged 组出现（冲突行自成一组，不会同时是 staged）。 */
+export const vcRowUnstageOf = function (row: any, t: any) {
+  const staged = !!(row && row.group === 'staged')
+  return {
+    show: staged,
+    text: staged ? t('vc.action.unstage') : '',
+    tip: staged ? t('vc.action.unstage') : '',
+    path: String((row && row.path) || ''),
+  }
+}
+
+export const vcWriteUiOf = function (screen: any, ui: any, env: any) {
+  const t = env.t
+  const w = (ui && ui.write) || {}
+  const decisions = (env && env.decisions) || {}
+  // 逐个动作算出来的四份按钮模型，键就是动作名（与 VC_WRITE_OPS 一一对应）。
+  const ops: Record<string, any> = {}
+  VC_WRITE_OPS.forEach(function (op: any) {
+    // 推送那一条要先摘掉「没有上游 / 上游被删」：它们不是不能推，而是走建/重建上游那一档。
+    const d = op === 'push' ? vcPushDecisionOf(decisions[op]) : decisions[op]
+    const state = vcOpStateOf(d)
+    const blockedTip = state === 'blocked' ? vcBlockedTipOf(d, t) : ''
+    // #976：警告也要看得见，不只放悬停。warn 时按钮可点，理由同时进悬停与常驻提示。
+    const warnTip = (d && d.verdict === 'warn') ? vcBlockedTipOf(d, t) : ''
+    ops[op] = {
+      state: state,
+      disabled: state === 'blocked',
+      tip: blockedTip !== '' ? blockedTip : warnTip,
+      hint: blockedTip !== '' ? blockedTip : warnTip,
+      warn: warnTip,
+      reasons: vcReasonKeysOf(d && d.reasons).map(function (k: any) { return t(k) }),
+    }
+  })
+  const running = String(w.op || '')
+  const result = w.result || null
+  // 「这个仓库有多个远端，请先选一个」那一档：候选来自失败回包的顶层 remotes（vcWriteOps 把它放进 ui.write.remoteChoice）。
+  const choice = w.remoteChoice && w.remoteChoice.show === true ? w.remoteChoice : null
+  const s = screen || {}
+  const staged = Math.max(0, Number(s.stagedCount) || 0)
+  const unstaged = Math.max(0, Number(s.unstagedCount) || 0)
+  const rows = vcFileRowsOf(s)
+  const stagePaths = rows.filter(function (r: any) { return r.group === 'unstaged' && r.conflict !== true }).map(function (r: any) { return r.path })
+  const busy = running !== ''
+  return {
+    ops: ops,
+    running: running,
+    runningText: busy ? t('vc.op.running') : '',
+    result: result
+      ? {
+          // state 要带出来：渲染那一层靠它挑动作词的色（done 绿 / 其它红），也靠它落在 data-vc-op-result 上。
+          state: String(result.state || ''),
+          text: t(result.key, result.params),
+          // limit 只认显式给的 limitKey：成功那几档没有这个键，拿 key + '.limit' 去撞会撞出键名本身
+          //   （#842 视觉预览的 J8 通用守卫抓到的就是它）。
+          limit: result.limitKey ? t(result.limitKey) : '',
+          verb: t(result.verb || (String(result.state) === 'done' ? 'vc.op.done' : 'vc.op.failed')),
+          // 悬停：宿主原话优先；没有原话时用可翻译的 tipKey（例如拉取成功那一档的快进/最新）。
+          tip: String(result.tip || '') || (result.tipKey ? t(result.tipKey) : ''),
+          retryable: result.retryable === true,
+          failed: String(result.state) === 'failed',
+          moved: result.moved === true,
+          // #854：没做成的那一档配一个交出去的描述（动作名用静态分支翻，动态拼键名门禁不认）。
+          ai: String(result.state) === 'failed' ? { kind: 'write-fail', opText: w.op === 'pull' ? t('vc.action.pull') : (w.op === 'fetch' ? t('vc.action.fetch') : (w.op === 'push' ? t('vc.action.push') : (w.op === 'stage' ? t('vc.action.stage') : (w.op === 'unstage' ? t('vc.action.unstage') : t('vc.action.commit', { n: String(staged) }))))), summary: t(result.key, result.params), detail: result.limitKey ? t(result.limitKey) : '', tip: String(result.tip || '') } : null,
+        }
+      : null,
+    // 多远端：画一排可点的远端入口（选中后由动作层带 remote 重跑预检）。
+    remoteChoice: choice
+      ? { op: choice.op === 'fetch' ? 'fetch' : 'push', title: t(choice.op === 'fetch' ? 'vc.pickRemote.fetchTitle' : 'vc.pickRemote.title'), body: t(choice.op === 'fetch' ? 'vc.pickRemote.fetchBody' : 'vc.pickRemote.body'), remotes: choice.remotes.slice(), hint: String(choice.hint || '') }
+      : null,
+    actions: {
+      pull: { op: 'pull', text: t('vc.action.pull'), disabled: busy || ops.pull.disabled, tip: ops.pull.tip, hint: ops.pull.hint, warn: ops.pull.warn },
+      fetch: { op: 'fetch', text: t('vc.action.fetch'), disabled: busy || ops.fetch.disabled, tip: ops.fetch.tip, hint: ops.fetch.hint, warn: ops.fetch.warn },
+      push: { op: 'push', text: t('vc.action.push'), disabled: busy || ops.push.disabled, tip: ops.push.tip, hint: ops.push.hint, warn: ops.push.warn },
+    },
+    stageAll: {
+      show: unstaged > 0,
+      text: t('vc.action.stageAll'),
+      paths: stagePaths,
+      disabled: busy,
+      tip: t('vc.action.stageAll'),
+    },
+    commitArea: {
+      value: String(w.message || ''),
+      placeholder: t('vc.commitArea.placeholder'),
+      hint: t('vc.commitArea.hint'),
+      text: t('vc.action.commit', { n: String(staged) }),
+      // 无暂存内容、判定说这一步做不了、正在执行、或**提交信息还是空的**：按钮禁用。
+      //   空信息这一档要给一句为什么（对抗式审查 4.4：原来点了毫无反馈，是个死点）。
+      disabled: busy || staged === 0 || ops.commit.disabled || String(w.message || '').trim() === '',
+      needMessage: String(w.message || '').trim() === '',
+      tip: ops.commit.tip || (String(w.message || '').trim() === '' ? t('vc.commitArea.needMessage') : ''),
+    },
+    // 确认框里带一句有效期（宿主票据 TTL 是 2 分钟）：用户停久了才知道为什么点下去说「已过期」（对抗式审查 3.1）。
+    confirm: w.confirm
+      ? Object.assign(vcConfirmOf(w.confirm.op, w.confirm.plan, t, w.confirm.remotes), {
+          ttlText: (w.confirm.ticket && w.confirm.ticket.expiresAtMs)
+            ? t('vc.confirm.ttl', { sec: String(Math.max(0, Math.round((Number(w.confirm.ticket.expiresAtMs) - Number(env.nowMs || 0)) / 1000))) })
+            : '',
+          // #976：警告理由进确认框，不只放按钮悬停。取同一份首屏的判定，和按钮是同一快照。
+          warnText: (function () { var op = w.confirm.op; var dd = op === 'push' ? vcPushDecisionOf(decisions[op]) : decisions[op]; return (dd && dd.verdict === 'warn') ? vcBlockedTipOf(dd, t) : ''; })(),
+        })
+      : null,
+  }
+}

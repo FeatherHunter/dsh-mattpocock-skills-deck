@@ -11,11 +11,37 @@ const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
 let failed = false
 const check = (ok: unknown, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-// 提取整段渲染器（MD_LINK_RE 起 → mdToHtml 结束）
+// 提取整段渲染器（MD_LINK_RE 起 → mdToHtml 函数体结束）
+// 终点原来靠模块之间的 `// ====` 横幅注释：横幅住在手写源码里，这些视图转成 TypeScript 之后
+// （#1253）由 esbuild 产出，普通注释被剥掉，横幅没了，切片就一路吞到下游模块（TicketRow 等引用
+// React 的代码），求值当场报 React is not defined。现在改成「认清 mdToHtml 的函数体到哪结束」，
+// 与注释在不在无关。
+const rendererEnd = function (src: string): number {
+  const at = src.indexOf('const mdToHtml')
+  if (at < 0) return -1
+  const open = src.indexOf('{', at)
+  if (open < 0) return -1
+  let depth = 0
+  let instr: string | null = null
+  let esc = false
+  for (let i = open; i < src.length; i++) {
+    const c = src[i]
+    if (instr) {
+      if (esc) esc = false
+      else if (c === '\\') esc = true
+      else if (c === instr) instr = null
+      continue
+    }
+    if (c === '"' || c === "'" || c === '\u0060') { instr = c; continue }
+    if (c === '{') depth += 1
+    else if (c === '}') { depth -= 1; if (depth === 0) return i + 1 }
+  }
+  return -1
+}
 const extract = function (src: string): string {
   const i = src.indexOf('const MD_LINK_RE')
   if (i < 0) return ''
-  const end = src.indexOf('// ============================================================', i + 10)
+  const end = rendererEnd(src)
   return end > i ? src.slice(i, end) : src.slice(i, i + 9000)
 }
 const mdCli = extract(cli)
@@ -23,6 +49,10 @@ const mdPkg = extract(pcli)
 
 check(mdCli.length > 0, 'client 含渲染器（MD_LINK_RE 起）')
 check(mdPkg.length > 0, 'package client 含渲染器')
+// 切出来的这一段必须正好停在渲染器末尾：吞过头会把下游代码的标识符带进来，求值时报
+// ReferenceError 却看着像渲染器坏了；这也顺手钉住了上面的终点判定没失效。
+check(mdCli.length > 1000 && mdCli.length < 20000, 'client 切出的渲染器片段长度正常（' + mdCli.length + '）')
+check(mdPkg.length > 1000 && mdPkg.length < 20000, 'package client 切出的渲染器片段长度正常（' + mdPkg.length + '）')
 
 // 原来这里还有一批「读源码文本、断言里面出现了哪些字」的检查（mdToHtml 定义、三处渲染点接入、
 //   白名单标签构造、四个正则与白名单函数名、源码里没有 dangerouslySetInnerHTML / innerHTML）。

@@ -57,7 +57,10 @@ const checkBuilt = (file) => {
   try { b = fs.readFileSync(file, 'utf8') } catch (e) { console.log('  FAIL 缺产物 ' + file); failed = true; return }
   console.log('[产物 ' + file + ']')
   must(b, /portalTop/, '含 portalTop 挂顶')
-  must(b, /zIndex:\s*2147483000/, '含 zIndex 2147483000')
+  // #1253：这些视图文件转 TypeScript 后不再原文拼进 client.js，而是先经 esbuild 转译，
+  // 于是 2147483000 被印成等值的短写 2147483e3（esbuild 0.28.2 的数字打印口径）。
+  // 这里量的是「产物里这条样式确实取最大层」，所以两种写法都认；源码侧的字面量由 must(src, …) 守。
+  must(b, /zIndex:\s*(2147483000|2147483e3)/, '含 zIndex 2147483000')
   must(b, /estW|tip\.x \+ 238|\+ 16 \+ 2/, '含 翻转阈值 238/estW')
   must(b, /HoverTip|hovertip/i, '含 HoverTip 产物')
   must(b, /caret/, '含 caret 产物')

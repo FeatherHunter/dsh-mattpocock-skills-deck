@@ -2,6 +2,9 @@
 // 用法: node --import ./scripts/ts-hook.mjs tests/verify-labels-sync.ts
 const fs = require('fs')
 const path = require('path')
+// #1253：NoRepoCard 已转 TypeScript，判据里有「注释写着 Markdown 跳过」这类只存在于源码的形状，
+// 所以真源一律经 sourceText 取（同名 .js 是 esbuild 产物，注释会被剥掉）。
+const { sourceText } = require('./lib/source-text.ts')
 let failed=false
 const check=(ok,msg)=>{ console.log((ok?'  PASS ':'  FAIL ')+msg); if(!ok) failed=true }
 
@@ -69,7 +72,7 @@ expected.forEach(n=>{
 // 写成 cli.includes('markdown')（整个包都含这个词，永远为真）。改成：产品侧要求两项标记同时在；
 // 真源侧按今天的实现查「注入走能力声明而不是写死后端」与「这一步不是常驻通知条」。
 const noRepoPath = path.join(ROOT, 'src/client/views/NoRepoCard.js')
-let noRepoTxt=''; try{ noRepoTxt=fs.readFileSync(noRepoPath,'utf8')}catch(e){}
+let noRepoTxt=''; try{ noRepoTxt=sourceText('src/client/views/NoRepoCard.js')}catch(e){}
 check(noRepoTxt.includes('CANONICAL_LABELS_188') && noRepoTxt.includes('missingLabels188('), '真源声明 #188 单源名集合与 missingLabels188 帮手')
 check(/\(Array\.isArray\(existing\)\?existing:\[\]\)\.forEach/.test(noRepoTxt) && /CANONICAL_LABELS_188\.forEach/.test(noRepoTxt), 'missingLabels188 按小写归一后对单源名单求差（真源形状）')
 check(cli.includes('CANONICAL_LABELS_188') && cli.includes('missingLabels188('), 'client 产物里单源名集合与帮手两项都在')

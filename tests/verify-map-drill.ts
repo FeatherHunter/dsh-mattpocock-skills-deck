@@ -283,7 +283,8 @@ const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
   check(cli.includes(k) && pcli.includes(k), '矩阵：双产物含 ' + k)
 })
 check(cli.includes('… / ') && pcli.includes('… / '), '矩阵：双产物含超深省略号面包屑')
-check(cli.includes("tr('panel.tabList')") && pcli.includes("tr('panel.tabList')"), '矩阵：双产物面包屑根走词条')
+// #1253：视图转 TypeScript 后产物由 esbuild 生成，字符串统一成双引号，这里改成两种引号都认的判据。
+check(/tr\(["']panel\.tabList["']\)/.test(cli) && /tr\(["']panel\.tabList["']\)/.test(pcli), '矩阵：双产物面包屑根走词条')
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

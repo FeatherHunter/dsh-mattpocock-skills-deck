@@ -25,6 +25,10 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 // 按旧路径直接读会读到构建产物（字符串改双引号），下面 wordingProblems 只认单引号会误报。
 // FLOW 仍是 .js 也走同一条（入口对没转的文件原样返回），省得下次转它时再改一次。
 const { sourceText } = require('./lib/source-text.ts')
+// #1253：vcBlocks / vcInView 也已经是 .ts 真源。反证锚点按原文写，所以先拼原文、改坏，再按构建同一份
+//   转译参数转成 JavaScript 交给 compileFn；读产物会读到 esbuild 重排过的形态（双引号、补分号），锚点改不中。
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const toEvalJs = (code: string): string => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
 const strip = (t: string): string => t.replace(/^(\s*)export\s+/gm, '$1')
 
 const LEAF = 'src/client/views/versionControl/vcInView.js'
@@ -33,8 +37,10 @@ const PANEL = 'src/client/kernel/locale-panel.js'
 
 // ---------- 闭包：块模型（常量来源）+ 新叶子，照 scripts/build.mjs 的拼法 ----------
 function modOf(patch: ((s: string) => string) | null) {
-  let src = [read('src/client/views/versionControl/vcBlocks.js'), read(LEAF)].map(strip).join('\n')
+  let src = [sourceText('src/client/views/versionControl/vcBlocks.js'), sourceText(LEAF)].map(strip).join('\n')
   if (patch) src = patch(src)
+  // 原文带类型标注，compileFn 只吃 JavaScript：改坏之后统一转译。
+  src = toEvalJs(src)
   const body = src + '\nreturn { VC_FILE_ROWS_FIRST, VC_FILE_ROWS_BATCH, vcMoreStepOf, vcMoreStateOf, vcMoreShownOf }\n'
   return compileFn(['React'], body)({})
 }
