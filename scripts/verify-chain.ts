@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // 迁移说明（#1252）：本文件由 scripts/verify-chain.js 转写为 scripts/verify-chain.ts，只加类型注解，运行时行为零变化。
-// scripts/verify-chain.js —— verify 链的执行器（1.7.50 发布门禁红线的根治）。
+// scripts/verify-chain.ts —— verify 链的执行器（1.7.50 发布门禁红线的根治）。
 //
 // 名单只有一份来源：scripts/verify-stages.json（目录约定加显式排除表，#1125）
 // 经由 scripts/lib/discover-gates.ts 的 planGates() 算出来。package.json 里
-// 不再有那条长串（scripts.verify 现在就是 `node scripts/verify-chain.js`
+// 不再有那条长串（scripts.verify 现在就是 `node scripts/verify-chain.ts`
 // 这一句，本脚本不再读它 —— 读了会把自己当成一步，无限递归）。
 // 烟链例外：scripts.smoke 那六条还住在 package.json 里（#1125 范围只动主链），
 // --script smoke 走老路读字符串。
 //
-// 用法：node scripts/verify-chain.js（跑规划出来的主链）
-//       node scripts/verify-chain.js --only <子串>（抽查：只跑名字含这个子串的条目）
-//       node scripts/verify-chain.js --script smoke（跑 scripts.smoke，六条冒烟；#1178 起 npm run test:smoke 走这条）
+// 用法：node scripts/verify-chain.ts（跑规划出来的主链）
+//       node scripts/verify-chain.ts --only <子串>（抽查：只跑名字含这个子串的条目）
+//       node scripts/verify-chain.ts --script smoke（跑 scripts.smoke，六条冒烟；#1178 起 npm run test:smoke 走这条）
 //
 // 为什么冒烟也走这一份（#1178）：从前 test:smoke 是一条裸的 && 串，谁给冒烟上的门禁开闸，
 // 那条路都会静默漏掉下面的完成证据判据。现在两条链共用这一个执行器与同一份判据，

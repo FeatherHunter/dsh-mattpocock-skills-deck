@@ -1,7 +1,7 @@
 // 迁移说明（#1252）：本文件由 scripts/asar-extract.js 转写而来，只加类型注解，行为零变化。
 // asar-extract.ts — 从 asar 归档里只读抽出一个条目（零依赖，约 30 行）
 //
-// 为什么需要它（#640/2026-10-04）：门禁 tests/verify-640-dock-width-browser.js 要拿**宿主原文产物**
+// 为什么需要它（#640/2026-10-04）：门禁 tests/verify-640-dock-width-browser.ts 要拿**宿主原文产物**
 // 当量尺（不用插件自己的公式自证）。那份产物在本机住在
 //   D:\DeepseekHarness\resources\app.asar\dsh\node_modules\@deepseek-ai\dsh-client-ui-conversation\lib\client.js
 // 而 app.asar 是**归档文件**——DSH 会话进程（Electron）能把它当目录透明读，普通 node 不能，

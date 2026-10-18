@@ -17,8 +17,9 @@
  *
  * 用法: node --import ./scripts/ts-hook.mts tests/verify-781-chain-identity.ts（在插件根目录）
  * 退出码：0 = 通过；1 = 有违规。
- * 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，四条 .js 说明符原样保留
- * （这四份源码现在都是同名 .ts；代码里动态 import 写的 .js 说明符由 scripts/ts-hook.mjs 改指同名 .ts）。
+ * 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，三条 .js 说明符原样保留
+ * （这三份源码现在都是同名 .ts；代码里动态 import 写的 .js 说明符由 scripts/ts-hook.mts 改指同名 .ts），
+ * 第四条 workRoute 直接写 .ts 说明符（Node 原生剥类型可跑；与钩子改指等价，见本文件用法行）。
  */
 const fs = require('fs')
 const path = require('path')

@@ -3,8 +3,8 @@
  * scripts/derive-log-from-package.mts —— 日志系统派生脚本（#564 当前插件迁移到日志包）。
  *
  * 作用：把已安装的日志包（node_modules/dsh-log，#892 起不再读本地 packages/dsh-log）的已构建产物，原样派生为插件运行时真正使用的文件。
- * 旧文件一个字节都不动（src/host/logStore.js、src/host/logPhones.js、src/client/kernel/log.js 原地只读留存，
- * 门禁仍读它们）；运行时走这里生成的新文件。真删除旧文件另开票，本票只做共存。
+ * 宿主两份旧文件（src/host/logStore.js、src/host/logPhones.js）已被 #1247 删除，本脚本从不读它们；
+ * 客户端 src/client/kernel/log.js 仍是 .js/.ts 双存（产物侧，另行处理）。运行时走这里生成的新文件。
  *
  * 早失败哨兵（日志包 0.3.x 已落地，核对项随新版产物更新）：写文件之前，本脚本会把「自己与客户端 tail 依赖包的那些名字」
  * 逐个核一遍（工厂名、返回对象上要用到的名字、五个电话字段名、包顶层名字、注释归一的两个字面、客户端那三条自监控事件名），

@@ -1293,35 +1293,50 @@ function deployLooseShared(): void {
 
 // L1 全树 --check 的定长 worker 池：node 进程挨个起是构建里最胖的一块，
 // 并行只摊启动开销，每个文件的检查本身一字不差；失败按文件顺序报第一个。
+// 并发封顶 8（与 verify-parallel 的封顶口径一致）：小核机行为不变，高核机不一次起几十个 node 进程。
+// 失败文本与串行同形（stderr 为空才取 stdout，只取前三行）：同一份文件串并行报同一段文字。
+// 空数组直接放行、spawn 起不来也记一个 settled：L1 恒 302 文件走不到这两条，守的是将来有人复用这函数。
 function checkTreeWithPool(files: string[]): Promise<void> {
-  const concurrency: number = Math.max(1, cpus().length)
+  const concurrency: number = Math.min(8, Math.max(1, cpus().length))
   const problems: (string | null)[] = new Array(files.length).fill(null)
   let next: number = 0
   let done: number = 0
   let activeCount: number = 0
   return new Promise<void>((resolve, reject) => {
+    if (files.length === 0) { resolve(); return }
+    const finishOne = (): void => {
+      if (done !== files.length) { launch(); return }
+      for (let k: number = 0; k < problems.length; k++) {
+        if (problems[k] !== null) {
+          reject(new Error(`[L1] node --check 失败 ${problems[k]}`))
+          return
+        }
+      }
+      resolve()
+    }
     const launch = (): void => {
       while (activeCount < concurrency && next < files.length) {
         const i: number = next++
         activeCount++
         const child: any = spawn(process.execPath, ['--check', files[i]], { encoding: 'utf8' })
-        let out: string = ''
-        if (child.stderr) child.stderr.on('data', (d: any) => { out += String(d) })
-        if (child.stdout) child.stdout.on('data', (d: any) => { out += String(d) })
-        child.on('close', (code: any) => {
+        let errText: string = ''
+        let outText: string = ''
+        if (child.stderr) child.stderr.on('data', (d: any) => { errText += String(d) })
+        if (child.stdout) child.stdout.on('data', (d: any) => { outText += String(d) })
+        let settled: boolean = false
+        const settle = (msg: string | null): void => {
+          if (settled) return
+          settled = true
           activeCount--
           done++
-          if (code !== 0) problems[i] = `${files[i]}: ${out}`
-          if (done === files.length) {
-            for (let k: number = 0; k < problems.length; k++) {
-              if (problems[k] !== null) {
-                reject(new Error(`[L1] node --check 失败 ${problems[k]}`))
-                return
-              }
-            }
-            resolve()
-          } else launch()
+          if (msg !== null) problems[i] = `${files[i]}: ${msg}`
+          finishOne()
+        }
+        child.on('close', (code: any) => {
+          if (code !== 0) settle((errText || outText || 'node --check 非 0').split('\n').slice(0, 3).join(' | '))
+          else settle(null)
         })
+        child.on('error', (err: any) => { settle(`spawn 失败 ${(err as Error).message}`) })
       }
     }
     launch()

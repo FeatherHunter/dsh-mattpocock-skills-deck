@@ -103,9 +103,9 @@ function redactLocalPaths(text: unknown): string {
  * 找工作区根：从 startDir 逐层向上，第一个「自带 .git（文件或目录都算）」或「自带 docs/agents/issue-tracker.md」
  * 的目录就是工作区根；两种标记同等优先、谁近听谁；一路到磁盘根都没有，就用 startDir 本身。
  * 这条规则与宿主同一条（出处：票 #649 定版、架构决定记录 docs/adr/20260918-subworkspace-identity-root.md，
- * 宿主侧实现在 src/host/workspaceKey.js 的 resolveWorkspaceRoot）。脚本要能单跑、不依赖仓库源码，
+ * 宿主侧实现在 src/host/workspaceKey.ts 的 resolveWorkspaceRoot）。脚本要能单跑、不依赖仓库源码，
  * 所以这里是一份自包含的副本——两份是否给出同一结论由 tests/verify-issue-body-script.ts 与
- * tests/verify-wire-subissues-script.js 的子目录用例钉住。
+ * tests/verify-wire-subissues-script.ts 的子目录用例钉住。
  * @returns {{ root: string, found: boolean }} found=false 表示一路上一个标记都没有（root 就是 startDir 本身）。
  */
 function findWorkspaceRoot(startDir: string): { root: string; found: boolean } {

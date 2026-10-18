@@ -1,5 +1,5 @@
 // 迁移说明（#1252）：本文件由 scripts/gen-fixture-423.js 转写而来，只加类型注解，行为零变化。
-// gen-fixture-423.ts — 由真源 styles.js 提取 .dsws-tt-wrap 规则，生成浏览器复现页 tests/fixtures/423-clamp-repro.html
+// gen-fixture-423.ts — 由产物 styles.js 提取 .dsws-tt-wrap 规则，生成浏览器复现页 tests/fixtures/423-clamp-repro.html
 const fs: any = require('fs');
 const styleSrc: string = fs.readFileSync('src/client/kernel/styles.js', 'utf8');
 function pull(needle: string): string {

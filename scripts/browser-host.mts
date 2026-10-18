@@ -7,7 +7,7 @@
 // 为什么要有它：链上那 12 扇用 playwright 的门禁，原本各自 chromium.launch() 一次，每次启动要
 //   1-3 秒，串行跑一遍光起浏览器就花掉一百多秒。这个脚本起一个 playwright 的 browser server，
 //   把它的 websocket 地址打在标准输出上（一行 WS=...），门禁那边连过来共用同一只
-//   （门禁侧的入口是 tests/lib/browser-pool.js，它认 DSH_TEST_BROWSER_WS 这个环境变量）。
+//   （门禁侧的入口是 tests/lib/browser-pool.ts，它认 DSH_TEST_BROWSER_WS 这个环境变量）。
 //
 // 用法（前台常驻，Ctrl+C 收摊）：
 //   node scripts/browser-host.mts
