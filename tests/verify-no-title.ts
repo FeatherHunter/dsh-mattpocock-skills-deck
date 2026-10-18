@@ -1,5 +1,6 @@
 // verify-no-title.ts — title 原生提示残留门禁（T1 #403 定版，承 #402 地图）
-// 用法: node tests/verify-no-title.ts [file...]（默认扫描 src/client 全量，真源 + 产物不扫）
+// 用法: node tests/verify-no-title.ts [file...]（默认扫描 src/client 全量）
+// #1253：扫描只认真源 —— 同名 .ts 优先（与装载钩子同规则），产物 .js 不再参与判定；判断依据见 collectFiles 的注释。
 // 形态：轻量文本扫描（同 verify-reuse 轻量），白名单仅测试文件与 aria-label 豁免（后者天然不命中 title: 正则）
 // 阈值：0 通过 / 1 通过（未达 2 标记） / 2 WARN 标记（// TODO no-title:q） / ≥3 ERROR 即抽 / ≥5 ERROR 必卡（合并门禁）
 // 判定：扫描 \\btitle\\s*:，且只认**写在 h() 元素属性位上**的（形态 title: tr(...)/title: s.title/title: '...'），
@@ -26,7 +27,16 @@ function collectFiles(dir, out){
   for (const ent of fs.readdirSync(abs, { withFileTypes: true })){
     const rel = path.posix.join(dir, ent.name)
     if (ent.isDirectory()) collectFiles(rel, out)
-    else if (ent.isFile() && rel.endsWith('.js')) out.push(rel)
+    else if (ent.isFile()){
+      // #1253 对抗审查抓到的漏洞：这四个目录下的视图脚本转成 TypeScript 之后，同名 .js 已经是构建产物
+      //   （esbuild 会剥掉注释、把单引号改成双引号），而这道门禁原来只收 .js —— 链上因为先构建所以结论
+      //   等价，单独跑就会拿旧产物当源码、把残留放过去（假绿）。现在按装载钩子同一条规则收：旁边有同名
+      //   .ts 就只收 .ts（真源），没有 .ts 的手写 .js 照旧收，两边都在时不会把同一份代码扫两遍。
+      if (rel.endsWith('.js')){
+        if (fs.existsSync(rel.slice(0, -'.js'.length) + '.ts')) continue
+        out.push(rel)
+      } else if (rel.endsWith('.ts')) out.push(rel)
+    }
   }
 }
 const SCAN_ROOTS = ['src/client/views','src/client/panel','src/client/statusbar','src/client/floating']
@@ -38,7 +48,7 @@ for (const root of SCAN_ROOTS){
   collectFiles(root, files)
   for (const f of files){
     let src = ''
-    try { src = fs.readFileSync(f, 'utf8') } catch(e){ continue }
+    try { src = sourceText(f) } catch(e){ continue }
     const lines = src.split(/\r?\n/)
     let fileHits = 0
     for (let i=0;i<lines.length;i++){
