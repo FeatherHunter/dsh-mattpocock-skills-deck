@@ -1,8 +1,8 @@
-// views/ListTabClosed.js — 主列表「已关闭票按需翻页」的那两件（#690 新增，从 ListTab.js 拆出的叶子）
+// views/ListTabClosed.ts — 主列表「已关闭票按需翻页」的那两件（#690 新增，从 ListTab.js 拆出的叶子）
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
 // src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
 // 以后谁改它：改「展开折叠行 / 切到已关闭 / 滚到底」这三个触发点，或改「已加载 x / 共 N」那句话的人改它。
-// 接线：调用方（ListTab.js）传进 h 与 st；页数据本身住在 kernel/issue-pages.js（同闭包，直接调）。
+// 接线：调用方（ListTab.ts）传进 h 与 st；页数据本身住在 kernel/issue-pages.ts（同闭包，直接调）。
 //
 // 规格出处：docs/design/677-issue-pool-completeness-spec.md 第 7.4 节（三个触发点）、第 9 节（游标失效、
 // 后端不支持、拿不到各怎么办）。三个触发点共用同一份页数据与游标（都走 loadIssuePage），不各取各的。

@@ -1,5 +1,5 @@
 /**
- * views/RunPanel.js — Run 卡控制面板（5.10）
+ * views/RunPanel.ts — Run 卡控制面板（5.10）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */

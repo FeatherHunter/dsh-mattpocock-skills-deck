@@ -2,11 +2,11 @@
  * views/feedback/feedback-styles.ts — 交互反馈三批的视觉语言（948 图 949/950/951 落地）。
  *
  * 契约：本文件是一段 CSS 文本（ESM 导出）；scripts/build.mjs 去掉行首 export 后拼进
- * src/client/index.js 的拼接标记处，与 kernel/styles.js、vcStyles.js、pxSkillStyles.js
+ * src/client/index.js 的拼接标记处，与 kernel/styles.ts、vcStyles.ts、pxSkillStyles.js
  * 同一套做法（一源两物）。注入仍走同一个 styles.insert 接缝（index.js 里紧接着再
  * insert 一次），没有第二个 <style>，也没有新的注入机制。
- * 另起叶子的原因：kernel/styles.js 已贴 350 行上限（#851 同款先例），反馈规则只许
- * 叠加不许顶布局，单独成叶后 952 到 956 的新反馈样式也加在这里，不再回 styles.js。
+ * 另起叶子的原因：kernel/styles.ts 已贴 350 行上限（#851 同款先例），反馈规则只许
+ * 叠加不许顶布局，单独成叶后 952 到 956 的新反馈样式也加在这里，不再回 styles.ts。
  * 规则只用滤镜、外圈描边、阴影、透明度、小位移，不动宽高边距；颜色只复用既有色，
  * 原型里的占位红一个字面量都不许进生产（门禁逐字盯）。
  *

@@ -11,7 +11,7 @@ declare function vcPlusMinus(...args: any[]): any;
 declare function vcOneLine(...args: any[]): any;
 declare function vcCommitKeyOf(...args: any[]): any;
 //
-// 为什么单独一份：vcBlocks.js 已经贴着 350 行上限（tests/verify-file-granularity.ts），写操作（#842）还要往块模型里
+// 为什么单独一份：vcBlocks.ts 已经贴着 350 行上限（tests/verify-file-granularity.ts），写操作（#842）还要往块模型里
 //   加字段，所以把「行怎么分组、行怎么画、其他工作树怎么画、某个路径的差异读数怎么取」这一层原样搬到这里。
 //   搬动只动文件边界，一个字符的逻辑都没改；两份文件在同一个闭包里拼接（vcRows 排在 vcBlocks 之前）。
 /** 一个文件条目该怎么分组：冲突单独一组（排在已暂存之后、未暂存之前，照核心与规格的风险次序）。

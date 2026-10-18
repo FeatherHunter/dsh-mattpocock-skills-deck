@@ -16,7 +16,7 @@
 // vcMiddle 与版本管理核心 src/shared/version-control/state.js 的 foldMiddle 是同一条规则
 //   （前段取 40% 上整、其余留给尾部、短于 10 个字符不砍、砍了补一个省略号）。核心那一份住宿主侧，
 //   客户端半边不许运行时 import src/shared（仓库既有纪律），所以这里照同一条规则写一份；
-//   「两边不许各说各话」这条由 tests/verify-818-version-control-view.js 的第三种比照盯着：
+//   「两边不许各说各话」这条由 tests/verify-818-version-control-view.ts 的第三种比照盯着：
 //   同一批输入喂给核心 foldMiddle 与本文件 vcMiddle，必须给出同一串字。
 //
 // 时间的两档分界（相对 / 绝对）与核心 describeTime 同一条：一周以内写相对说法，更早写日期时刻。

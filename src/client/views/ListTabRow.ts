@@ -1,9 +1,9 @@
-// views/ListTabRow.js — 主列表单行渲染（从 ListTab.js 拆出，V3 #463，纯结构、行为零变化）
+// views/ListTabRow.ts — 主列表单行渲染（从 ListTab.js 拆出，V3 #463，纯结构、行为零变化）
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
 // src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
 // 以后谁改它：改行两行结构、行动作按钮组、迷你圆环进度、阻塞徽标的人改它。
 // 接线：行组装三处（open/closed/折叠）调 listIssueRow；表级派生（blockOf/colorOf）由调用方当参数传，
-//   本文件不引用 ListTab.js（同闭包拼回，调用方向见 ListTab.js 行组装三处）。
+//   本文件不引用 ListTab.ts（同闭包拼回，调用方向见 ListTab.js 行组装三处）。
 // 参数：h = 行内创建函数；st = 列表 store；x = 本行票据；blockOf/colorOf = 表级派生。
 
 // 本文件由同名 .js 转写为 TypeScript（#1253「界面视图层整批转 TypeScript」）：只加类型标注与中文注释，

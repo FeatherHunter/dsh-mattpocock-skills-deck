@@ -2,7 +2,7 @@
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
 // src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
 // 以后谁改它：改这枚标志的出现条件、浮层文案、点击行为，或改「第一次自动展开」那件事的人改它。
-// 接线：Dock.js 面板头部在仓库芯片之后调用一次，参数 { st } 是本会话的 store。
+// 接线：Dock.ts 面板头部在仓库芯片之后调用一次，参数 { st } 是本会话的 store。
 //
 // 形态（票 #650 定稿，位置 A · 做法 ③）：
 //   面板头部仓库芯片右侧一枚 16 像素的图标（外框与左右两颗邻居按钮齐平 —— 定稿时写的是 18，见下面 #666 那一段），
@@ -26,13 +26,13 @@
 //   subwsMarkRootShown 按会话原始目录还原。
 //
 // #1012 后续修复（2026-10-12）：这份「以前自动展开过没有」的记录搬到本机设置文件之后是**异步读来的**，
-//   挂载那一刻文档往往还在路上。所以这一次判断必须先问 kernel/settings-view-state.js 的 viewFlagReadyNow()：
+//   挂载那一刻文档往往还在路上。所以这一次判断必须先问 kernel/settings-view-state.ts 的 viewFlagReadyNow()：
 //   文档还在路上就先不弹，等它到手（或判定问不到）重跑再判。不这么等，就会拿旧 localStorage 键那一版答案
 //   当场弹一次 —— 那个工作区每进一次子目录会话都白弹一次，#650 承诺的「同一个工作区只弹一次」就没了。
 //   三档判决（等 / 弹 / 不弹）见下面的 subwsMarkAutoDecide，怎么重跑见下面那个订阅效果。
 //
 // 渲染之外的决定（取根、该不该出现、相对尾巴怎么拼、显示哪几行、显示成哪种写法）全在这几个纯函数里，
-//   组件只负责画与点击。门禁既直接跑这几个纯函数，也把组件真的渲染一次（tests/verify-666-subws-mark-root.js
+//   组件只负责画与点击。门禁既直接跑这几个纯函数，也把组件真的渲染一次（tests/verify-666-subws-mark-root.ts
 //   的 A～D 组跑纯函数，E 组渲染组件）—— 因为本票的缺陷是「纯函数全对、组件却每次都返回 null」，
 //   只断纯函数拦不住它。
 //
@@ -51,7 +51,7 @@
 declare function h(...args: any[]): any;
 /** 仓库通用悬停提示件。 */
 declare function Tip(...args: any[]): any;
-/** 判当前平台的单源（src/shared/workspaceKey.js 导出）：认不出时自己会退回进程平台。 */
+/** 判当前平台的单源（src/shared/workspaceKey.ts 导出）：认不出时自己会退回进程平台。 */
 declare function currentOs(...args: any[]): any;
 /** 把路径折算成可比对的键的单源（内核里那把规整函数）。 */
 declare function keyOf(...args: any[]): any;

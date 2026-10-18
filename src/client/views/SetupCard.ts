@@ -1,5 +1,5 @@
 /**
- * views/SetupCard.js — 盖住整个应用的那张「域文档布局」小卡（#698 新建）。
+ * views/SetupCard.ts — 盖住整个应用的那张「域文档布局」小卡（#698 新建）。
  *
  * 它是这条链上的两张小卡之一（另一张是「该工作区尚未初始化」那条黄条本身）。这张卡问一句话：
  *   这个仓库的各部分共用一套用语，还是各有各的用语？卡上两个选项，点确认才算答完。
@@ -9,10 +9,10 @@
  *   工作区恰恰总是初始化过的。2026-09-22 维护者真机点「确认切换」没等到这一问，查下来正是这个原因，
  *   外加「收起整个功能区」与「当前没有横幅」这两支渲染直接返回，连渲染入口都没有。
  *   搬家之后它和建仓弹窗共用同一个座位（坑位就是状态栏那一层，挂在会话输入区 dock 上，
- *   见 statusbar/StatusBar.js 的 modalSeat），与右侧面板在不在、功能区收没收起、当前有没有横幅都无关。
+ *   见 statusbar/StatusBar.ts 的 modalSeat），与右侧面板在不在、功能区收没收起、当前有没有横幅都无关。
  *
  * 与建仓弹窗是「同一时刻只会出现一张」的两件事：卡开着时不许再开「切换后端」那张窗
- *   （挡在 kernel/store-switch.js 的 openSwitchConfirm）；反过来切换那条路永远是「先开窗、关了窗才轮到卡」。
+ *   （挡在 kernel/store-switch.ts 的 openSwitchConfirm）；反过来切换那条路永远是「先开窗、关了窗才轮到卡」。
  *   本文件不另做判断 —— 位置只有一个，两张同时置真时按建仓弹窗优先，不会叠出两层遮罩。
  *
  * 契约：叶子模块（scripts/build.mjs 的 LEAF_MODULES 登记，标记 leaf:setupCard 拼回
@@ -43,7 +43,7 @@ export const SetupLayoutCard = function (props: any) {
   if (!st || st.setupLayoutCardOpen !== true) return null
   const curId = (st.selection && st.selection.backendId) || (st.snapshot && st.snapshot.selection && st.snapshot.selection.backendId) || firstBackendIdOf(null)
   const curLabel = (typeof labelOf === 'function' ? labelOf(curId) : '') || (typeof builtinLabelOf === 'function' ? builtinLabelOf(curId) : '') || String(curId || '')
-  // 关闭与取消是同一件事：卡上刚点的那一下作废，按工作区记住的那一份不动（StatusBackend.js 里的口径）。
+  // 关闭与取消是同一件事：卡上刚点的那一下作废，按工作区记住的那一份不动（StatusBackend.ts 里的口径）。
   const closeCard = function () { try { if (typeof cancelStatusSetupPick === 'function') cancelStatusSetupPick(st) } catch (e) {} }
   const box = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': tr('setup.cardTitle'), style: { width: 480, maxWidth: '94vw' }, onClick: function (e: any) { e.stopPropagation() } }, [
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } }, [

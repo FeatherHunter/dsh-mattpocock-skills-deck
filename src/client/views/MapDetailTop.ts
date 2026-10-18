@@ -1,11 +1,11 @@
 /**
- * views/MapDetailTop.js — 地图详情顶部操作行（#807 从 MapDetail.js 拆出）
+ * views/MapDetailTop.ts — 地图详情顶部操作行（#807 从 MapDetail.js 拆出）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 leaf 标记处（一源两物，与 MapDetailHead.js 同模式）。
- * 为什么单独拆一份：MapDetail.js 贴着仓库 350 行的上限，顶栏这次要加折叠标记、
+ * src/client/index.js 的 leaf 标记处（一源两物，与 MapDetailHead.ts 同模式）。
+ * 为什么单独拆一份：MapDetail.ts 贴着仓库 350 行的上限，顶栏这次要加折叠标记、
  * 右侧归组、新会话实心、复制与外链两颗图标，直接改会顶穿上限。
  *
- * 与 IssueDetail.js #763 同口径：单行不换行、越窄越收、只剩图标、不放省略号；
+ * 与 IssueDetail.ts #763 同口径：单行不换行、越窄越收、只剩图标、不放省略号；
  * 图标永不消失；看不见的字直接裁掉，不补省略号；完整串留悬停。
  * 五串字（折叠机按此顺序让位）：返回按钮的字、面包屑、地图片的 wayfinder:map
  * （复用折叠机的 snapshot 槽，与工单页快照提示同位）、主动作按钮的字、新会话按钮的字。
@@ -36,7 +36,7 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const mEffort = (function () { try { return effortOf(m) } catch (e) { return '' } })()
-  // #763 顶栏折叠机（与 IssueDetail.js 同一台；读顶栏 DOM 上的 data-detail-* 标记逐字收字）
+  // #763 顶栏折叠机（与 IssueDetail.ts 同一台；读顶栏 DOM 上的 data-detail-* 标记逐字收字）
   const topBarRef = useIssueDetailFold(st, m.number, mEffort)
   const isEmpty = !!(effStats && effStats.total === 0)
   const isDone = !!(effStats && effStats.total > 0 && effStats.closed === effStats.total)

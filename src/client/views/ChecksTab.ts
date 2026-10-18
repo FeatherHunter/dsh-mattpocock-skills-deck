@@ -1,5 +1,5 @@
 /**
- * views/ChecksTab.js — 环境检查（5.7 · #284 改版）
+ * views/ChecksTab.ts — 环境检查（5.7 · #284 改版）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  * #284：九格目录视图（wf.status/checks 分组卡）整体退役；本页 = 链快照唯一渲染：

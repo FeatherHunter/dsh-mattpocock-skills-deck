@@ -12,7 +12,7 @@
  *     （后端原文，没有原文时是空串，见 lcRawOf）。
  *
  * 二、契约的八个错误档位到词条键的映射。档位名见 src/host/tracker/contract.js 的 ERROR_KIND；
- *     人话写在中英词条文件 kernel/locale-labels.js 里（#617 交接口径：这八条归 #621 负责）。
+ *     人话写在中英词条文件 kernel/locale-labels.ts 里（#617 交接口径：这八条归 #621 负责）。
  *     没见过的档位一律落到「原因没说清」那条，绝不猜。
  *
  * 三、色值换算与「这一行算不算填完了」这两件纯判断。色值那两个口径是：
@@ -26,7 +26,7 @@
  *
  * 四、(#622) 「复制推荐配色 prompt」这一侧的三件纯事：该拼哪一套文案与两处真实值（lcCopyPlanOf）、
  *     整段文字的拼装（lcCopyPromptOf），以及把文字写进剪贴板并把成没成如实回报给界面（lcWriteClipboard）。
- *     文字本身一句都不住在这里：两套文案（远程仓库版与工作区文件版）在中英词条 kernel/locale-labels.js 里，
+ *     文字本身一句都不住在这里：两套文案（远程仓库版与工作区文件版）在中英词条 kernel/locale-labels.ts 里，
  *     表格与整段的拼接调的是配色核心 buildPalettePrompt / buildPaletteTable（src/shared/label-color/prompt.js，
  *     #629 建好），这一层不自己手写表格，也不自己拼表头文字。
  *

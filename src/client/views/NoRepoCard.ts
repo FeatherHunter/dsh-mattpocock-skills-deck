@@ -1,5 +1,5 @@
 /**
- * views/NoRepoCard.js — 无仓库红卡 + 表单（T2 #35）+ 标签步骤 Modal（#188 纯 UI，无常驻黄条，GitHub 专属，名子集）
+ * views/NoRepoCard.ts — 无仓库红卡 + 表单（T2 #35）+ 标签步骤 Modal（#188 纯 UI，无常驻黄条，GitHub 专属，名子集）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  * #188：建仓成功后进入标签步骤 Modal（文案“标签未全 7/10 → 注入补全指引”），点后 inject(prompt:ensureLabels)，Markdown 跳过

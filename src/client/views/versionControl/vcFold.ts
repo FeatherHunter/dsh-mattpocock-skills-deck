@@ -1,8 +1,8 @@
 // views/versionControl/vcFold.ts — 版本管理页签「随宽度逐格让位」的纯规则（#818）
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
 //   的 leaf 标记处（一源两物）。本文件不画界面、不量宽度、不打电话：阶梯怎么排、第几档每一处
-//   画什么，只有判据。画（VersionControlTab.js 的渲染）与量（同一个组件的折叠机）都读这里，
-//   两边不会各说各话。形状照 panel/headFold.js 那条先例：一次让位最多少一个字符，完整内容留在
+//   画什么，只有判据。画（VersionControlTab.ts 的渲染）与量（同一个组件的折叠机）都读这里，
+//   两边不会各说各话。形状照 panel/headFold.ts 那条先例：一次让位最多少一个字符，完整内容留在
 //   悬停提示里一个字都不丢。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、数字、对象键与顺序一个字没动。
@@ -12,18 +12,19 @@ declare function vcTail(...args: any[]): any;
 declare function vcMiddle(...args: any[]): any;
 declare const VC_MIDDLE_MIN: any;
 //
-// 依赖说明（不是自包含的）：本文件裸引用同一闭包内更早拼接的 vcText.js 里的 vcTail / vcMiddle /
-//   VC_MIDDLE_MIN（与 views/shared/Tabs.js 引用 vcTabVisible 是同一个既有形态，运行时没有问题）。
+// 依赖说明（不是自包含的）：本文件裸引用同一闭包内更早拼接的 vcText.ts 里的 vcTail / vcMiddle /
+//   VC_MIDDLE_MIN（与 views/shared/Tabs.ts 引用 vcTabVisible 是同一个既有形态，运行时没有问题）。
 //   离线单独 import 这个文件会在调用时 ReferenceError；要离线核对，先把这三个名字注入进去
-//   （tests/verify-818-version-control-view.js 就是这么做的：按拼接顺序把七个叶子拼成闭包再跑）。
+//   （tests/verify-818-version-control-view.ts 就是这么做的：按拼接顺序把七个叶子拼成闭包再跑）。
 //
 // ── 宽度依据（动手前先查了一遍，结论与出处写在这里，别再猜）────────────────────────────
-// ① 「面板宽 300-520 像素」：**仓库里没有约束代码**，只有 src/client/panel/Dock.js 自己的两处
-//    记录值注释（第 8 行「宽度 300-520px 可拖拽」、第 36 行「列宽感知：details 列 300-520px」）。
+// ① 「面板宽 300-520 像素」：**仓库里没有约束代码**，只有 src/client/panel/Dock.ts 自己的两处
+//    记录值注释（第 69 行「宽度 300-520px 可拖拽」、第 97 行「列宽感知：details 列 300-520px」；
+//    这两处的行号是 2026-10-18 随手核到 Dock.ts 上的，那之前引用的是手写 Dock.js 的行号，已对不上）。
 //    那一条列的宽度由 DSH 外壳拖着走，本插件只在自己根元素上量。另有一份较早的原型页
 //    docs/prototype/293-pr-tab-dynamic.html 第 83 行记的是 280-640、默认 460（窄屏分界 380 与
-//    Dock.js 第 57 行一致）。所以：**300-520 属记录值，不是可核对的约束**，本次未找到更硬的出处。
-// ② 「正文可用宽 = 面板宽 − 24」：**有出处**。Dock.js 第 332 行内容区那一层写死
+//    Dock.ts 第 97 行同一句里的「窄于 380 时动作按钮折叠」一致）。所以：**300-520 属记录值，不是可核对的约束**，本次未找到更硬的出处。
+// ② 「正文可用宽 = 面板宽 − 24」：**有出处**。Dock.ts 第 393 行内容区那一层（className 为 dsws-body）写死
 //    padding: '10px 12px'（左右各 12 像素），本页签就画在那一层里面；docs/prototype/
 //    p1-map-row-responsive.html 第 293 行也把这条写成「面板 360/480（含 body 12*2 …）40px 内边距」。
 // ③ 由 ①② 推出来的正文可用宽记录区间是 276-496。下面的三档阈值就落在这个区间里；真机若量到
@@ -37,13 +38,13 @@ declare const VC_MIDDLE_MIN: any;
 //   ③ 提交历史最后让：先逐字砍每条提交的说明（本文件），更窄才整块收起（band 3）。
 //   永不让位（不进阶梯）：身份行本身（工作树显示名与分支名）、异常带、未提交改动的计数与汇总句。
 // 「其他工作树收成一行摘要」与「提交历史整块收起」两件事只按可用宽度分档（下面 vcFoldBandAt），
-//   其余逐字让位由组件那台折叠机摸着真实宽度一档一档推进来（照 panel/Dock.js 头部那台先例）。
+//   其余逐字让位由组件那台折叠机摸着真实宽度一档一档推进来（照 panel/Dock.ts 头部那台先例）。
 export const VC_FOLD_BANDS = [420, 360, 300]
 /** 台阶总数上限（见 vcFoldLadderOf 末尾那条注释）：超出就停在最后一档、允许溢出。 */
 export const VC_FOLD_STEP_CAP = 120
 /**
  * 可用宽度 → 粗档（band）。量不到有效宽度（0、负数、非数字）一律回第 0 档：
- * 没量到就画最全的样子，绝不因为「没量到」把内容让掉（与 panel/headFold.js、statusbar/capFold.js 同一条纪律）。
+ * 没量到就画最全的样子，绝不因为「没量到」把内容让掉（与 panel/headFold.ts、statusbar/capFold.ts 同一条纪律）。
  */
 export const vcFoldBandAt = function (availWidthPx: any) {
   const w = Number(availWidthPx)

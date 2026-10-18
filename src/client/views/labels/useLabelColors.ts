@@ -23,7 +23,7 @@
  *
  * 会话号（第三个参数，字段名 sessionId）是这两条电话必须带的一半：改色要写工作区里的文件，
  * 宿主得知道是哪一个会话在点保存，才能按那个会话算沙箱政策。宿主读的就是 args.sessionId
- * （见 src/host/workspaceCwd.js 的 resolveSandboxPolicy），与既有的 wf.cwd 那条路一致。
+ * （见 src/host/workspaceCwd.ts 的 resolveSandboxPolicy），与既有的 wf.cwd 那条路一致。
  * 面板没拿到会话号就传空串，不编一个假的——宿主那时会退回按工作区找唯一活会话，找不到就如实失败。
  *
  * 清单是从哪个后端读来的也要一起留着（#622）：列表回包里带着宿主选中的那个后端 id，这里原样存下来

@@ -6,7 +6,7 @@
 // 本文件不裸引用闭包里别的叶子（判定用的核心 judge 只被注释提到，真正调用它的是 vcWriteRun），
 // 所以这里一条 declare 都不需要。
 //
-// 这一层只回答四件事，一个中文字面量都没有（可见文字全走词条，键在 kernel/locale-vcwrite.js）：
+// 这一层只回答四件事，一个中文字面量都没有（可见文字全走词条，键在 kernel/locale-vcwrite.ts）：
 //   ① 核心判定（rules.judge 的 verdict / reasons）→ 按钮状态与理由词条键；
 //   ② 宿主写失败（WRITE_REASONS 的 25 个稳定标识符 + 传输档 kind）→ 话术族；
 //   ③ 三个确认框该写什么（目标只认预检回包里的 plan，绝不自己拆 remote/branch —— 远端名可以含斜杠）；

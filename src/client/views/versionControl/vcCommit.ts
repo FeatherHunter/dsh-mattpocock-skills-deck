@@ -16,7 +16,7 @@ declare function vcWhenText(...args: any[]): any;
 //     ② 读不全（宿主回 truncated）→ 说读不全、指去命令行；
 //     ③ 合并提交（模型的 parents 多于一条）→ git 默认不展开合并提交改了什么，清单空是正常的；
 //     ④ 空提交（parents 正常、清单也空）→ 这笔提交本来就没改文件。
-//   四种各是一句平实的话，中英成对（词条在 kernel/locale-panel.js 的 vc.commit.*）。
+//   四种各是一句平实的话，中英成对（词条在 kernel/locale-panel.ts 的 vc.commit.*）。
 //
 // 变化类型这件事要说清：这一路宿主只回 path / origPath / 增删行数，判不出「新增」与
 //   「只加了行的修改」，所以**不冒充六种变化类型**；能证明的只有「重命名」（带了原路径）。

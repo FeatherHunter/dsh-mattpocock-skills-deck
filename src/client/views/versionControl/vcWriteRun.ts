@@ -10,7 +10,7 @@ declare function vcReadStatus(...args: any[]): any;
 declare function vcReadMoreCommits(...args: any[]): any;
 //
 // 职责只有四件：发预检拿票、发那一条写电话、把回包翻成「结果一句话 + 还能不能重试」、成功后重读。
-//   · 一条只读电话都不在这里发（重读走 vcData.js 的既有读法），更不排任何定时器；
+//   · 一条只读电话都不在这里发（重读走 vcData.ts 的既有读法），更不排任何定时器；
 //   · 票据与 requestId 都由这一层带着走，界面只拿模型；
 //   · 提交不幂等：HEAD 变了就说「HEAD 已经变了」并不给重试（设计 §3 / 风险 5）。
 export const VC_WRITE_PHONES: Record<string, string> = {

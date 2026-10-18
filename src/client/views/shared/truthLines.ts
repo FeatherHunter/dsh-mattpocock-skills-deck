@@ -2,10 +2,10 @@
 //
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export，拼回 src/client/index.js
 // 的 leaf 标记处（一源两物）。本文件是纯函数，不画界面、不碰 React：吃的是一份事实，吐的是
-// 「要显示哪几条词条、各带什么参数、用哪一种颜色轻重」。真正画出来在 views/ListTab.js 头部那两行。
+// 「要显示哪几条词条、各带什么参数、用哪一种颜色轻重」。真正画出来在 views/ListTab.ts 头部那两行。
 //
 // 为什么单独一个文件：这几句话的判据（新鲜度阈值、降档承诺）必须只有一份实现，而且要能在门禁里
-// 不开浏览器、直接拿两组输入跑出来对比（tests/verify-visible-truth.js 就是这么验的）。
+// 不开浏览器、直接拿两组输入跑出来对比（tests/verify-visible-truth.ts 就是这么验的）。
 //
 // 三条纪律，改这个文件的人先看这三条：
 //   1. **刷新阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 refresh-core 的 budget.ts，
@@ -15,8 +15,8 @@
 //      （刚刚 / N 分钟前 / N 小时前 / N 天前），不参与也不影响新鲜度判定 —— 新鲜度仍只由
 //      budget.ts 的 freshnessLevel 判（见 truthFreshnessBox 把 tone 原样带出去）。
 //   2. **降级标记不在这里**：`fallback`（'rest' 之类）只由宿主快照组装处按真实降级事实写入
-//      （src/host/tracker/snapshot.js）。界面这一侧只读不写：谁在这里补一句赋值让横幅亮起来，
-//      就是把诚实做成了假装。tests/verify-visible-truth.js 有一条静态断言盯着这件事。
+//      （src/host/tracker/snapshot.ts）。界面这一侧只读不写：谁在这里补一句赋值让横幅亮起来，
+//      就是把诚实做成了假装。tests/verify-visible-truth.ts 有一条静态断言盯着这件事。
 //   3. **判据不在界面**：两种失败（插件自己的取数失败 / 配额已被其他使用者耗尽）是宿主看真实读数
 //      分好类之后，作为事实（st.snapFail.kind）送进来的；界面只把两种事实翻成两句不同的话，
 //      不许自己按错误文本猜。

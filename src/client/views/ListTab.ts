@@ -1,5 +1,5 @@
 /**
- * views/ListTab.js — 主列表（排序/过滤/chips/行动作，5.5）
+ * views/ListTab.ts — 主列表（排序/过滤/chips/行动作，5.5）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
@@ -50,7 +50,7 @@ declare const panelClock: any;
 export     const MAP_ROW_GUARD_NARROW = 320
 export     const MAP_ROW_GUARD_WIDE = 440
 export     const authorColor = function(l: any){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%360;h=(h*137.508)%360;let s=0.72,ll=0.5,c=(1-Math.abs(2*ll-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=ll-c/2,r=0,g=0,b=0;if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}r=Math.round((r+m)*255);g=Math.round((g+m)*255);b=Math.round((b+m)*255);return '#'+[r,g,b].map((v: any)=>v.toString(16).padStart(2,'0')).join('');}
-// 2026-09-11 同类毛病一并修（与 views/shared/tagsFit.js 同一回事；纪律「布局零抖动」见
+// 2026-09-11 同类毛病一并修（与 views/shared/tagsFit.ts 同一回事；纪律「布局零抖动」见
 //   docs/adr/20260911-zero-layout-jitter.md，证据见 #602）：原写法每个地图行都
 //   「写一次类名（把编号改横排、并把标题切进测量态）→ 立即读一次 scrollWidth」，量改交替，
 //   48 个地图行就是 48 次强制重排。现分相改四趟：先一次读完所有行宽（测量相）

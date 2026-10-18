@@ -7,7 +7,7 @@
 // 这只是源码级的说明，转译后标注整块消失，与原文完全等价。
 // 日志设施（log / dswsLogHash / dswsLogTrunc）由 src/client/ts-pixel-ambient.d.ts 全局声明，本文件不必再声明。
 //
-// 三条电话（宿主侧已落地，回包是仓库既有的扁平信封，见 src/host/versionControl.js）：
+// 三条电话（宿主侧已落地，回包是仓库既有的扁平信封，见 src/host/versionControl.ts）：
 //   wf.gitStatus { cwd }            → { ok:true, screen, tier, gitVersion, readAtMs } | { ok:false, error:{kind,message} }
 //   wf.gitDiff   { cwd,path,untracked } → { ok:true, path, lines, truncated, reason }   | 失败信封同上
 //   wf.gitLog    { cwd,count,skip }  → { ok:true, commits, skip, requested, returned, hasMore } | 失败信封同上

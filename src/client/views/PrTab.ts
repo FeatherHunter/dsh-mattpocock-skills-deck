@@ -1,5 +1,5 @@
 /**
- * views/PrTab.js — 拉取请求独立页签内容区（#506 前端房，首版只读加评论查看）
+ * views/PrTab.ts — 拉取请求独立页签内容区（#506 前端房，首版只读加评论查看）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
  * 数据：快照组装全留，过滤归前端（prIssuesOf 只收 isPullRequest 为真的票）。
@@ -10,10 +10,10 @@
  * 详情链路（Overlay 端已核）：悬浮面板 Overlay 本来就没有详情分支，点行后详情走别层——
  * 右侧停靠 Dock 按 activeIssue 渲染 IssueDetail（与主列表同一机制），本页点行只调 setActiveIssue；#507 再验。
  * 同号留痕：activeIssue 是裸数字，同号的普通工单与拉取请求进同一个详情，评审合并展示留后续；#507 验。
- * 评论只读：拉取请求详情只看评论列表，不给输入框（IssueDetail.js 内把 canComment 对拉取请求置假）；首版如此。
+ * 评论只读：拉取请求详情只看评论列表，不给输入框（IssueDetail.ts 内把 canComment 对拉取请求置假）；首版如此。
  * 日志：复用既有快照链路，无新增跨边界调用与缓存与定时器，故无新增日志点，附录不动。
  * 首版范围：列表显标题与作者与状态与标签与更新五个字段；点行进详情基础加评论查看（复用 IssueDetail）。
- * #599：状态显示三种（打开 / 已关闭 / 已合并）；「是不是已合并」的判据收在 views/shared/stateKind.js
+ * #599：状态显示三种（打开 / 已关闭 / 已合并）；「是不是已合并」的判据收在 views/shared/stateKind.ts
  * （与单票详情页共用一份，避免两处各判各的）。
  */
 

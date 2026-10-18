@@ -1,8 +1,8 @@
 /**
- * views/MapDetailHead.js — 地图详情头部（#691 阶段 3 从 MapDetail.js 拆出：编号 + 标题 + 子票计数那一行）
+ * views/MapDetailHead.ts — 地图详情头部（#691 阶段 3 从 MapDetail.js 拆出：编号 + 标题 + 子票计数那一行）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export，拼回 src/client/index.js 的
  * `// ==== leaf:mapDetailHead (spliced by build) ====` 标记处（一源两物，与相邻叶子同模式）。
- * 为什么单独拆一份：MapDetail.js 本来就贴着仓库 350 行的上限，这一版要往头部加「本图 N 张子票」那一行，
+ * 为什么单独拆一份：MapDetail.ts 本来就贴着仓库 350 行的上限，这一版要往头部加「本图 N 张子票」那一行，
  * 按仓库既有做法（头部拆出去）来做，不把一个文件顶穿。
  *
  * 子票那一行要把四种情形都说出来（不许静默）：
