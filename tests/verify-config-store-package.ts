@@ -5,7 +5,9 @@
 //      主版本号一致；两份文件的版本号一致且为当前候选版（发版推进时同步改这里的两处字面）。
 //   P2 装好的包里能解析：node_modules/yaml 可加载，且用它能解析一份 YAML。
 //   P3 核产物随包发布：package/package.json 的 files 白名单含 shared（产物能进包）。
-//   P4 宿主适配器可加载：src/host/configStore.js 能 import，八个冻结函数都在（两个文本出入口 + 六个文件读写）。
+//   P4 宿主适配器可加载：src/host/configStore.ts 能 import，八个冻结函数都在（两个文本出入口 + 六个文件读写）。
+//      （2026-10-18 #1247：真源转成 TypeScript，路径跟到 .ts；import 走文件 URL，
+//       本仓 Node 下限原生剥类型，直读 .ts 与原来读 .js 语义一致。）
 // 用法：node --import ./scripts/ts-hook.mjs tests/verify-config-store-package.ts（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
@@ -50,11 +52,11 @@ async function main() {
     check(fs.existsSync(path.join(ROOT, 'src', 'shared', 'config-store', name)), '核产物在 shared 下已生成：' + name, '')
   }
   check(!fs.existsSync(path.join(ROOT, 'src', 'shared', 'config-store', 'config-store.js')), '老单体产物已拆掉（不留双份实现）', '')
-  check(fs.existsSync(path.join(ROOT, 'src', 'host', 'configStore.js')), '宿主适配器在', '')
+  check(fs.existsSync(path.join(ROOT, 'src', 'host', 'configStore.ts')), '宿主适配器在', '')
 
   // —— P4：适配器可加载，冻结函数都在（文本出入口两个 + 文件读写六个） ——
   try {
-    const adapter = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href)
+    const adapter = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.ts')).href)
     for (const name of ['parseConfig', 'stringifyConfig', 'readWorkspaceConfig', 'writeWorkspaceConfig', 'readLocalSettings', 'writeLocalSettings', 'readLabelColors', 'writeLabelColors']) {
       check(typeof adapter[name] === 'function', '冻结函数在：' + name)
     }

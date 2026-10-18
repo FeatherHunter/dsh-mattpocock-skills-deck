@@ -32,11 +32,13 @@ const assert = require('assert')
 const { compileFn } = require('./lib/eval-probe.js')
 
 // 2026-10-17 重锚：host.js 与 package/lib/index.js 两个旧产物已下架，handoff 挑选逻辑的真身
-//   搬进 src/host/handoffClaim.js（可用 argv 传别的源文件覆盖，默认就取它）。
-// 门禁归属: src/host/handoffClaim.js
+//   搬进 src/host/handoffClaim.ts（#1247 转写，可用 argv 传别的源文件覆盖，默认就取它）。
+// 门禁归属: src/host/handoffClaim.ts
 //   （2026-10-17 补：以前这里只有 .js 说明符，归属推导认不出它守着哪条源码路径，归属表一直记着
 //    「算不出」。这一行是归属推导的第一类来源，写上之后重跑 scripts/gate-map.mjs 就连对了。）
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/host/handoffClaim.js']
+//   （2026-10-18 #1247：真源转成 TypeScript，默认路径跟到 .ts；Part B 在进 vm 之前先经 esbuild
+//    剥掉类型标注——行为契约测的是运行时语义，剥离只删类型不断行为，7+3 个场景一个没动。）
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/host/handoffClaim.ts']
 
 // ---- Part A：静态契约 ----
 const statChecks = function (src, tag) {
@@ -98,10 +100,18 @@ const extractHelpers = function (src) {
 }
 
 const runPickLatest = function (helperSrc, mds) {
+  // 真源是 TypeScript 时先剥类型：vm.compileFunction 只吃纯 JavaScript。
+  // 剥离口径与 verify-cards-dir.ts 一致（esbuild，loader ts），只删标注不断行为。
+  let body = helperSrc
+  if (/[A-Za-z_$][\w$]*\s*:\s*(?:string|number|boolean|unknown|any|void|never|object|string\s*\|\s*null)\b/.test(helperSrc)) {
+    let esbuild = null
+    try { esbuild = require('esbuild') } catch (e) { throw new Error('handoff 真源含类型标注，需要 esbuild 剥离（先跑 pnpm install）：' + ((e && e.message) || e)) }
+    body = esbuild.transformSync(helperSrc, { loader: 'ts', format: 'cjs' }).code
+  }
   // 本处走 compileFn：参数名给 mds，函数体与原来逐字相同。
   const $ = compileFn(
     ['mds'],
-    helperSrc + '\n; return pickLatestHandoff(mds)'
+    body + '\n; return pickLatestHandoff(mds)'
   )
   return $(mds)
 }

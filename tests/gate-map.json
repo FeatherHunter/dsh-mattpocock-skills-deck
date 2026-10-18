@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-18T04:13:24.007Z",
+  "generatedAt": "2026-10-18T05:04:01.782Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -296,8 +296,8 @@
         "src/client/kernel/locale-pages.js",
         "src/client/kernel/store-derived.js",
         "src/client/views/shared/sessionChainView.js",
-        "src/host/refresh/sessionChainReadout.js",
-        "src/host/refresh/sessionTickets.js",
+        "src/host/refresh/sessionChainReadout.ts",
+        "src/host/refresh/sessionTickets.ts",
         "src/shared/refresh/chain.js",
         "src/tracker/kernel/identity-keys.ts",
         "tests/lib/eval-probe.ts"
@@ -381,9 +381,9 @@
       "guards": [
         "package/lib",
         "package/scripts",
-        "src/host/refresh/sessionTickets.js",
-        "src/host/refresh/writeEvents.js",
-        "src/host/workspaceKey.js",
+        "src/host/refresh/sessionTickets.ts",
+        "src/host/refresh/writeEvents.ts",
+        "src/host/workspaceKey.ts",
         "tests/fixtures/deck-event-gate"
       ],
       "dirs": [
@@ -792,7 +792,7 @@
         "src/client/views/versionControl",
         "src/client/views/versionControl/VersionControlTab.js",
         "src/host",
-        "src/host/mapBody.js",
+        "src/host/mapBody.ts",
         "src/shared/refresh/budget.js",
         "tests/gate-map.json",
         "tests/lib/gate-result.ts",
@@ -906,7 +906,7 @@
       "step": "node tests/verify-1003-no-cwd-masquerade.ts",
       "file": "tests/verify-1003-no-cwd-masquerade.ts",
       "guards": [
-        "src/host/gitCredentialExec.js",
+        "src/host/gitCredentialExec.ts",
         "src/host/index.ts"
       ],
       "dirs": [
@@ -929,7 +929,7 @@
         "src/deck/shell/workspace-anchor.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/host/workspaceLabelColors.js",
+        "src/host/workspaceLabelColors.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/detection/backendDecision.ts",
@@ -1162,7 +1162,7 @@
         "scripts/lib/discover-gates.ts",
         "src/client/hostShim.js",
         "src/client/kernel/settings-view-write.js",
-        "src/host/commentThreads.js",
+        "src/host/commentThreads.ts",
         "src/host/platformChannel.ts",
         "src/host/refresh/wiring.ts",
         "src/host/snapshotBuild.ts",
@@ -1634,7 +1634,7 @@
         "src/host/publishFlow.ts",
         "src/host/sessionSnapshot.ts",
         "src/host/workspaceCwd.ts",
-        "src/host/workspaceKey.js",
+        "src/host/workspaceKey.ts",
         "src/tracker/detection/detectionService.ts"
       ],
       "dirs": [
@@ -1652,7 +1652,7 @@
       "file": "tests/verify-344-chain-auto-refresh.ts",
       "guards": [
         "docs/agents/issue-tracker.md",
-        "src/host/tracker/predicateCore.js"
+        "src/host/tracker/predicateCore.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -1698,7 +1698,7 @@
       "step": "node tests/verify-497-slash.ts",
       "file": "tests/verify-497-slash.ts",
       "guards": [
-        "src/host/pickerShell.js",
+        "src/host/pickerShell.ts",
         "src/host/platform/darwin/index.ts",
         "src/host/platform/index.ts",
         "src/host/platform/linux/index.ts",
@@ -1812,7 +1812,7 @@
       "file": "tests/verify-596-rpc-carrier.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "src/host/rpcChannel.js",
+        "src/host/rpcChannel.ts",
         "tests/verify-596-rpc-carrier.ts"
       ],
       "dirs": [
@@ -1997,7 +1997,7 @@
         "src/deck/shell/workspace-anchor.ts",
         "src/host/remotePredicates.ts",
         "src/host/workspaceCwd.ts",
-        "src/host/workspaceKey.js",
+        "src/host/workspaceKey.ts",
         "src/shared/workspaceKey.js",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/explicitDetector.ts",
@@ -2096,8 +2096,8 @@
       "file": "tests/verify-666-subws-mark-root.ts",
       "guards": [
         "src/client/views/SubworkspaceMark.js",
-        "src/host/sessionLifecycle.js",
-        "src/host/workspaceKey.js",
+        "src/host/sessionLifecycle.ts",
+        "src/host/workspaceKey.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/render-subws-mark.ts"
       ],
@@ -2462,7 +2462,7 @@
       "file": "tests/verify-690-closed-pages.ts",
       "guards": [
         "src/client/kernel/issue-pages.js",
-        "src/host/issuePage.js",
+        "src/host/issuePage.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -2480,11 +2480,11 @@
       "step": "node tests/verify-691-map-subissues.ts",
       "file": "tests/verify-691-map-subissues.ts",
       "guards": [
-        "src/host/mapBody.js",
-        "src/host/mapTickets.js",
+        "src/host/mapBody.ts",
+        "src/host/mapTickets.ts",
         "src/host/platform/outbound-control.ts",
-        "src/host/ticketGrouping.js",
-        "src/host/tracker/snapshot.js",
+        "src/host/ticketGrouping.ts",
+        "src/host/tracker/snapshot.ts",
         "src/tracker/rooms/github/sub-issues.ts"
       ],
       "dirs": [
@@ -2543,7 +2543,7 @@
       "guards": [
         "src/host/detectChain.ts",
         "src/host/sessionSnapshot.ts",
-        "src/host/workspaceKey.js"
+        "src/host/workspaceKey.ts"
       ],
       "dirs": [
         "src/host"
@@ -2613,7 +2613,7 @@
       "step": "node tests/verify-714-session-tickets.ts",
       "file": "tests/verify-714-session-tickets.ts",
       "guards": [
-        "src/host/refresh/sessionTickets.js",
+        "src/host/refresh/sessionTickets.ts",
         "src/shared/refresh/chain.js"
       ],
       "dirs": [
@@ -2631,10 +2631,10 @@
       "file": "tests/verify-723-gate-wiring.ts",
       "guards": [
         "src/deck/tools/tool-order.ts",
-        "src/host/refresh/attention.js",
+        "src/host/refresh/attention.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/host/refresh/patch.js",
+        "src/host/refresh/patch.ts",
         "src/host/refresh/wiring.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/chain.js",
@@ -2665,8 +2665,8 @@
       "guards": [
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/host/refresh/sessionChainReadout.js",
-        "src/host/refresh/sessionTickets.js",
+        "src/host/refresh/sessionChainReadout.ts",
+        "src/host/refresh/sessionTickets.ts",
         "src/host/refresh/wiring.ts",
         "src/host/sessionSnapshot.ts"
       ],
@@ -2706,7 +2706,7 @@
       "step": "node tests/verify-730-cwd-consistent.ts",
       "file": "tests/verify-730-cwd-consistent.ts",
       "guards": [
-        "src/host/sessionLifecycle.js",
+        "src/host/sessionLifecycle.ts",
         "src/host/workspaceCwd.ts",
         "src/shared/session-cwd.js",
         "src/tracker/detection/backendDecision.ts",
@@ -2728,7 +2728,7 @@
       "file": "tests/verify-733-unknown-endpoint.ts",
       "guards": [
         "research/489-appendix.md",
-        "src/host/rpcChannel.js"
+        "src/host/rpcChannel.ts"
       ],
       "dirs": [
         "research",
@@ -2744,8 +2744,8 @@
       "step": "node tests/verify-735-chain-restore.ts",
       "file": "tests/verify-735-chain-restore.ts",
       "guards": [
-        "src/host/refresh/sessionChainReadout.js",
-        "src/host/refresh/sessionTickets.js",
+        "src/host/refresh/sessionChainReadout.ts",
+        "src/host/refresh/sessionTickets.ts",
         "src/host/refresh/wiring.ts",
         "src/shared/refresh/chain.js"
       ],
@@ -2780,9 +2780,9 @@
       "step": "node tests/verify-781-chain-identity.ts",
       "file": "tests/verify-781-chain-identity.ts",
       "guards": [
-        "src/host/refresh/sessionTickets.js",
+        "src/host/refresh/sessionTickets.ts",
         "src/host/refresh/wiring.ts",
-        "src/host/refresh/writeEvents.js",
+        "src/host/refresh/writeEvents.ts",
         "src/shared/refresh/chain.js"
       ],
       "dirs": [
@@ -2799,7 +2799,7 @@
       "step": "node tests/verify-782-cwd-disk.ts",
       "file": "tests/verify-782-cwd-disk.ts",
       "guards": [
-        "src/host/sessionLifecycle.js"
+        "src/host/sessionLifecycle.ts"
       ],
       "dirs": [
         "src/host"
@@ -2815,9 +2815,9 @@
       "file": "tests/verify-783-chain-effort.ts",
       "guards": [
         "src/client/views/shared/sessionChainView.js",
-        "src/host/refresh/sessionChainReadout.js",
-        "src/host/refresh/sessionTickets.js",
-        "src/host/refresh/writeEvents.js",
+        "src/host/refresh/sessionChainReadout.ts",
+        "src/host/refresh/sessionTickets.ts",
+        "src/host/refresh/writeEvents.ts",
         "src/shared/refresh/chain.js",
         "tests/lib/eval-probe.ts"
       ],
@@ -2942,7 +2942,7 @@
         "src/client/views/versionControl/vcWriteRun.js",
         "src/client/views/versionControl/vcWriteUi.js",
         "src/client/views/versionControl/vcWriteView.js",
-        "src/host/versionControl.js",
+        "src/host/versionControl.ts",
         "src/shared/time-config/values.js",
         "src/shared/version-control/rules.js",
         "src/shared/version-control/state.js",
@@ -2997,8 +2997,8 @@
       "step": "node tests/verify-839-credential-exec.ts",
       "file": "tests/verify-839-credential-exec.ts",
       "guards": [
-        "src/host/gitCredentialExec.js",
-        "src/host/versionControl.js"
+        "src/host/gitCredentialExec.ts",
+        "src/host/versionControl.ts"
       ],
       "dirs": [
         "src/host"
@@ -3013,8 +3013,8 @@
       "step": "node tests/verify-841-write-phones.ts",
       "file": "tests/verify-841-write-phones.ts",
       "guards": [
-        "src/host/versionControl.js",
-        "src/host/versionControlWrite.js",
+        "src/host/versionControl.ts",
+        "src/host/versionControlWrite.ts",
         "src/shared/version-control/commands.js",
         "src/shared/version-control/push-plan.js",
         "src/shared/version-control/write-reasons.js",
@@ -3081,8 +3081,8 @@
       "step": "node tests/verify-847-stall-watch.ts",
       "file": "tests/verify-847-stall-watch.ts",
       "guards": [
-        "src/host/gitCredentialExec.js",
-        "src/host/versionControl.js"
+        "src/host/gitCredentialExec.ts",
+        "src/host/versionControl.ts"
       ],
       "dirs": [
         "src/host"
@@ -3097,7 +3097,7 @@
       "step": "node tests/verify-849-fs-absence.ts",
       "file": "tests/verify-849-fs-absence.ts",
       "guards": [
-        "src/host/fsAbsence.js"
+        "src/host/fsAbsence.ts"
       ],
       "dirs": [
         "src/host"
@@ -3225,9 +3225,9 @@
         "src/client/kernel/locale-pages.js",
         "src/client/statusbar/SessionChainCapsule.js",
         "src/client/views/shared/sessionChainView.js",
-        "src/host/refresh/sessionChainReadout.js",
+        "src/host/refresh/sessionChainReadout.ts",
         "src/host/snapshotEnvelope.ts",
-        "src/host/tracker/snapshot.js",
+        "src/host/tracker/snapshot.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -3389,7 +3389,7 @@
         "src/deck/shell/session-workdir.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/host/tracker/predicateCore.js",
+        "src/host/tracker/predicateCore.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/registry/core.ts",
@@ -3538,12 +3538,12 @@
       "step": "node tests/verify-963-log-order.ts",
       "file": "tests/verify-963-log-order.ts",
       "guards": [
-        "src/host/bootstrap.js",
+        "src/host/bootstrap.ts",
         "src/host/detectChain.ts",
         "src/host/git-process.ts",
         "src/host/outbound/admission.ts",
         "src/host/platformChannel.ts",
-        "src/host/skillProbe.js",
+        "src/host/skillProbe.ts",
         "src/shared/time-config/values.js",
         "tests/lib/time-compress.ts"
       ],
@@ -3563,9 +3563,9 @@
       "step": "node tests/verify-968-skill-ondemand.ts",
       "file": "tests/verify-968-skill-ondemand.ts",
       "guards": [
-        "src/host/bootstrap.js",
+        "src/host/bootstrap.ts",
         "src/host/platformChannel.ts",
-        "src/host/skillProbe.js",
+        "src/host/skillProbe.ts",
         "src/shared/matt-skills.js",
         "src/shared/skill-probe-channels.js",
         "src/shared/tracker/check-catalog-views.js"
@@ -3830,7 +3830,7 @@
       "step": "node tests/verify-attention-model.ts",
       "file": "tests/verify-attention-model.ts",
       "guards": [
-        "src/host/refresh/attention.js",
+        "src/host/refresh/attention.ts",
         "src/shared/refresh/attention.js",
         "src/shared/refresh/budget.js",
         "src/shared/time-config/values.js"
@@ -4132,7 +4132,7 @@
       "step": "node tests/verify-config-store-comments.ts",
       "file": "tests/verify-config-store-comments.ts",
       "guards": [
-        "src/host/configStore.js"
+        "src/host/configStore.ts"
       ],
       "dirs": [
         "src/host"
@@ -4147,7 +4147,7 @@
       "step": "node tests/verify-config-store-core.ts",
       "file": "tests/verify-config-store-core.ts",
       "guards": [
-        "src/host/configStore.js"
+        "src/host/configStore.ts"
       ],
       "dirs": [
         "src/host"
@@ -4162,7 +4162,7 @@
       "step": "node tests/verify-config-store-migration.ts",
       "file": "tests/verify-config-store-migration.ts",
       "guards": [
-        "src/host/configStore.js"
+        "src/host/configStore.ts"
       ],
       "dirs": [
         "src/host"
@@ -4178,7 +4178,7 @@
       "file": "tests/verify-config-store-package.ts",
       "guards": [
         "package/package.json",
-        "src/host/configStore.js",
+        "src/host/configStore.ts",
         "src/shared/config-store"
       ],
       "dirs": [
@@ -4221,7 +4221,7 @@
       "guards": [
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/host/refresh/patch.js",
+        "src/host/refresh/patch.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/delta.js",
         "src/shared/time-config/values.js",
@@ -4244,9 +4244,9 @@
       "file": "tests/verify-delta-wiring.ts",
       "guards": [
         "src/client/kernel/probe-auto.js",
-        "src/host/commentThreads.js",
-        "src/host/issueList.js",
-        "src/host/platform/issueIndexWindow.js",
+        "src/host/commentThreads.ts",
+        "src/host/issueList.ts",
+        "src/host/platform/issueIndexWindow.ts",
         "src/host/refresh/wiring.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/delta.js",
@@ -4336,7 +4336,7 @@
       "file": "tests/verify-detection-log-reach.ts",
       "guards": [
         "src/deck/shell/call-shell.ts",
-        "src/host/sessionLifecycle.js",
+        "src/host/sessionLifecycle.ts",
         "src/host/workspaceCwd.ts"
       ],
       "dirs": [
@@ -4386,7 +4386,7 @@
       "step": "node tests/verify-dirwritable.ts",
       "file": "tests/verify-dirwritable.ts",
       "guards": [
-        "src/host/tracker/predicateCore.js",
+        "src/host/tracker/predicateCore.ts",
         "src/shared/tracker/chain-types.js",
         "src/shared/tracker/chain-validate.js",
         "src/shared/tracker/check-catalog-dirs.js"
@@ -4597,8 +4597,8 @@
       "step": "node tests/verify-generic-catalog.ts",
       "file": "tests/verify-generic-catalog.ts",
       "guards": [
-        "src/host/tracker/generic.js",
-        "src/host/tracker/predicateCore.js",
+        "src/host/tracker/generic.ts",
+        "src/host/tracker/predicateCore.ts",
         "src/shared/tracker/chain-evaluate.js",
         "src/shared/tracker/chain-types.js",
         "src/shared/tracker/chain-validate.js",
@@ -4625,7 +4625,7 @@
         "src/host/platformChannel.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/host/versionControl.js",
+        "src/host/versionControl.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/gitlab/index.ts",
@@ -4802,7 +4802,7 @@
       "step": "node tests/verify-handoff-latest-sort.ts",
       "file": "tests/verify-handoff-latest-sort.ts",
       "guards": [
-        "src/host/handoffClaim.js"
+        "src/host/handoffClaim.ts"
       ],
       "dirs": [
         "src/host"
@@ -5198,7 +5198,7 @@
       "guards": [
         "src/client/kernel/router.js",
         "src/host/git-process.ts",
-        "src/host/logStore.js",
+        "src/host/logStore.ts",
         "src/host/platformChannel.ts",
         "tests/lib/eval-probe.ts"
       ],
@@ -5241,7 +5241,7 @@
         "research/489-appendix.md",
         "scripts/lib/discover-gates.ts",
         "src/client/kernel/log.js",
-        "src/host/logStore.js",
+        "src/host/logStore.ts",
         "src/shared/time-config/values.js",
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
@@ -5286,8 +5286,8 @@
         "package/lib/logPhones.js",
         "package/lib/logStore.js",
         "src/host/index.ts",
-        "src/host/logPhones.js",
-        "src/host/logStore.js"
+        "src/host/logPhones.ts",
+        "src/host/logStore.ts"
       ],
       "dirs": [
         "package/lib",
@@ -5464,7 +5464,7 @@
         "scripts/lib/transpile-unit.mjs",
         "src/client/kernel/store-derived.js",
         "src/client/views/ListTabRow.js",
-        "src/host/tracker/snapshot.js",
+        "src/host/tracker/snapshot.ts",
         "src/tracker/kernel/identity-keys.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/eval-probe.ts"
@@ -5488,8 +5488,8 @@
       "step": "node tests/verify-multi-effort.ts",
       "file": "tests/verify-multi-effort.ts",
       "guards": [
-        "src/host/commentThreads.js",
-        "src/host/tracker/snapshot.js",
+        "src/host/commentThreads.ts",
+        "src/host/tracker/snapshot.ts",
         "src/tracker/kernel/identity-keys.ts",
         "src/tracker/rooms/markdown/comments.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -5546,7 +5546,7 @@
       "file": "tests/verify-naming-guardian.ts",
       "guards": [
         "src/client/kernel",
-        "src/host/platform/namingSummary.js",
+        "src/host/platform/namingSummary.ts",
         "src/shared/naming-attribution.js",
         "src/shared/naming-titles.js",
         "src/shared/naming-tracking.js",
@@ -5699,9 +5699,9 @@
         "scripts/build.mjs",
         "src/host/index.ts",
         "src/host/issueDetail.ts",
-        "src/host/issueList.js",
-        "src/host/mapBody.js",
-        "src/host/ticketGrouping.js",
+        "src/host/issueList.ts",
+        "src/host/mapBody.ts",
+        "src/host/ticketGrouping.ts",
         "src/tracker/body-parse.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -5772,8 +5772,9 @@
       "step": "node tests/verify-progress.ts",
       "file": "tests/verify-progress.ts",
       "guards": [
-        "src/host/mapBody.js",
-        "tests/lib/eval-probe.ts"
+        "src/host/mapBody.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/host",
@@ -5783,7 +5784,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-prompt-newlines.ts",
@@ -6098,8 +6099,8 @@
         "src/client/views/diagnosticLog/DiagnosticLogSection.ts",
         "src/client/views/diagnosticLog/diagnosticLogModel.ts",
         "src/host",
-        "src/host/configStore.js",
-        "src/host/settingsPhones.js",
+        "src/host/configStore.ts",
+        "src/host/settingsPhones.ts",
         "src/shared/time-config/values.js",
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
@@ -6132,9 +6133,9 @@
       "step": "node tests/verify-settings-phones.ts",
       "file": "tests/verify-settings-phones.ts",
       "guards": [
-        "src/host/configStore.js",
+        "src/host/configStore.ts",
         "src/host/index.ts",
-        "src/host/settingsPhones.js"
+        "src/host/settingsPhones.ts"
       ],
       "dirs": [
         "src/host"
@@ -6160,8 +6161,8 @@
         "src/client/kernel/settings-view.js",
         "src/client/kernel/store-prefs.js",
         "src/host",
-        "src/host/configStore.js",
-        "src/host/settingsPhones.js",
+        "src/host/configStore.ts",
+        "src/host/settingsPhones.ts",
         "src/shared/time-config/values.js",
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
@@ -6198,8 +6199,8 @@
         "src/client/kernel/store-prefs.js",
         "src/client/views/SubworkspaceMark.js",
         "src/host",
-        "src/host/configStore.js",
-        "src/host/settingsPhones.js",
+        "src/host/configStore.ts",
+        "src/host/settingsPhones.ts",
         "src/shared/time-config/values.js",
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
@@ -6537,7 +6538,7 @@
         "package/package.json",
         "scripts/generated/updateClient.derived.js",
         "scripts/lib/discover-gates.ts",
-        "src/host/updateFromPackage.js"
+        "src/host/updateFromPackage.ts"
       ],
       "dirs": [
         "package",
@@ -6559,7 +6560,7 @@
         "package/package.json",
         "scripts/generated/updateEntryPanel.bundle.js",
         "src/client/views/UpdateEntryHost.js",
-        "src/host/updateFromPackage.js"
+        "src/host/updateFromPackage.ts"
       ],
       "dirs": [
         "package",
@@ -6577,7 +6578,7 @@
       "step": "node tests/verify-version-control-host.ts",
       "file": "tests/verify-version-control-host.ts",
       "guards": [
-        "src/host/versionControl.js",
+        "src/host/versionControl.ts",
         "tests/fixtures/version-control/live-819-review-shapes.json",
         "tests/fixtures/version-control/live-numstat-shapes.json",
         "tests/fixtures/version-control/live-rev-shapes.json"
@@ -8412,81 +8413,81 @@
       "src/deck/tools/map-snapshot.ts",
       "src/deck/tools/tool-order.ts",
       "src/deck/tsconfig.json",
-      "src/host/bootstrap.js",
+      "src/host/bootstrap.ts",
       "src/host/choiceStore.ts",
-      "src/host/commentThreads.js",
-      "src/host/configStore.js",
+      "src/host/commentThreads.ts",
+      "src/host/configStore.ts",
       "src/host/detectChain.ts",
-      "src/host/dispatchMeta.js",
-      "src/host/fsAbsence.js",
+      "src/host/dispatchMeta.ts",
+      "src/host/fsAbsence.ts",
       "src/host/git-process.ts",
-      "src/host/gitCredentialExec.js",
-      "src/host/handoffClaim.js",
+      "src/host/gitCredentialExec.ts",
+      "src/host/handoffClaim.ts",
       "src/host/index.ts",
       "src/host/issueDetail.ts",
-      "src/host/issueList.js",
-      "src/host/issuePage.js",
-      "src/host/logFromPackage.js",
-      "src/host/logPhones.js",
-      "src/host/logStore.js",
-      "src/host/mapBody.js",
-      "src/host/mapTickets.js",
-      "src/host/namingGuardian.js",
+      "src/host/issueList.ts",
+      "src/host/issuePage.ts",
+      "src/host/logFromPackage.ts",
+      "src/host/logPhones.ts",
+      "src/host/logStore.ts",
+      "src/host/mapBody.ts",
+      "src/host/mapTickets.ts",
+      "src/host/namingGuardian.ts",
       "src/host/outbound/admission.ts",
-      "src/host/pickerShell.js",
+      "src/host/pickerShell.ts",
       "src/host/platform/README.md",
       "src/host/platform/darwin/index.ts",
       "src/host/platform/index.ts",
-      "src/host/platform/issueIndexWindow.js",
+      "src/host/platform/issueIndexWindow.ts",
       "src/host/platform/linux/index.ts",
-      "src/host/platform/namingSummary.js",
+      "src/host/platform/namingSummary.ts",
       "src/host/platform/outbound-control.ts",
-      "src/host/platform/refreshAssembly.js",
+      "src/host/platform/refreshAssembly.ts",
       "src/host/platform/win32/index.ts",
       "src/host/platformChannel.ts",
       "src/host/publishFlow.ts",
-      "src/host/refresh/attention.js",
+      "src/host/refresh/attention.ts",
       "src/host/refresh/chain-ride.ts",
-      "src/host/refresh/chainBackoff.js",
+      "src/host/refresh/chainBackoff.ts",
       "src/host/refresh/gate.ts",
       "src/host/refresh/ledger.ts",
-      "src/host/refresh/patch.js",
-      "src/host/refresh/refreshSource.js",
+      "src/host/refresh/patch.ts",
+      "src/host/refresh/refreshSource.ts",
       "src/host/refresh/refusal-text.ts",
-      "src/host/refresh/sessionChainReadout.js",
-      "src/host/refresh/sessionTickets.js",
+      "src/host/refresh/sessionChainReadout.ts",
+      "src/host/refresh/sessionTickets.ts",
       "src/host/refresh/wiring.ts",
-      "src/host/refresh/writeEvents.js",
+      "src/host/refresh/writeEvents.ts",
       "src/host/remotePredicates.ts",
-      "src/host/rpcChannel.js",
-      "src/host/runningMarkers.js",
-      "src/host/sessionLifecycle.js",
+      "src/host/rpcChannel.ts",
+      "src/host/runningMarkers.ts",
+      "src/host/sessionLifecycle.ts",
       "src/host/sessionRefresh.ts",
       "src/host/sessionSnapshot.ts",
-      "src/host/settingsPhones.js",
-      "src/host/skillDoc.js",
-      "src/host/skillProbe.js",
-      "src/host/skillProbeCache.js",
+      "src/host/settingsPhones.ts",
+      "src/host/skillDoc.ts",
+      "src/host/skillProbe.ts",
+      "src/host/skillProbeCache.ts",
       "src/host/snapshotBuild.ts",
       "src/host/snapshotEnvelope.ts",
       "src/host/snapshotInflight.ts",
-      "src/host/stallWatch.js",
-      "src/host/ticketGrouping.js",
-      "src/host/tracker/capability.js",
-      "src/host/tracker/generic.js",
-      "src/host/tracker/predicateCore.js",
-      "src/host/tracker/predicatePrimitives.js",
-      "src/host/tracker/snapshot.js",
+      "src/host/stallWatch.ts",
+      "src/host/ticketGrouping.ts",
+      "src/host/tracker/capability.ts",
+      "src/host/tracker/generic.ts",
+      "src/host/tracker/predicateCore.ts",
+      "src/host/tracker/predicatePrimitives.ts",
+      "src/host/tracker/snapshot.ts",
       "src/host/tsconfig.json",
-      "src/host/updateFromPackage.js",
-      "src/host/versionControl.js",
-      "src/host/versionControlBasis.js",
-      "src/host/versionControlCheck.js",
-      "src/host/versionControlFiles.js",
-      "src/host/versionControlWrite.js",
+      "src/host/updateFromPackage.ts",
+      "src/host/versionControl.ts",
+      "src/host/versionControlBasis.ts",
+      "src/host/versionControlCheck.ts",
+      "src/host/versionControlFiles.ts",
+      "src/host/versionControlWrite.ts",
       "src/host/workspaceCwd.ts",
-      "src/host/workspaceKey.js",
-      "src/host/workspaceLabelColors.js",
+      "src/host/workspaceKey.ts",
+      "src/host/workspaceLabelColors.ts",
       "src/seam/editor.ts",
       "src/seam/gate.ts",
       "src/seam/index.ts",

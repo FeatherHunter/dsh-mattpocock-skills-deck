@@ -4,16 +4,24 @@
 // 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) parseMapBody 端到端（真跑 src/host/mapBody.js 里那三个函数）
 // 2026-10-12 修订：原来还有「host/package 均带 progress 字段」与「client/package 均含进度渲染符号」两条，
 //   那是读 host.js / package/lib/index.js / client.js / package/lib/client.js 的文本钉字段名与符号名，已删。
-const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { evalWithScope } = require('./lib/eval-probe.js')
 // H2 #446：解析三函数搬到 mapBody.js、详情拼装搬到 issueDetail.js（行为零变化）；断言跟随位置，意图不变。
-const hostMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
+// 2026-10-18 #1247：mapBody 真源转成 TypeScript，读文本走共用入口的可求值形态（同名 .ts 优先、
+//   按全仓唯一转译口径剥类型，与构建拼进产物的形态一致），正则判据与求值都不用改。
+const { spliceableJs } = require('./lib/source-text.ts')
+const hostMap = spliceableJs('src/host/mapBody.js')
 let failed = false
 const check = (ok: boolean, msg: string) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
+// 提取正则的缩进必须跟“被求值文本”的实际缩进一致：spliceableJs 产出固定经 esbuild 重排，
+// 函数体一律 2 空格缩进，所以收尾只认 '\n  }'。不能加 4 空格分支——内层块收尾正是 4 空格，
+// 加了会提前截断（已实证：parseMapBody 被截成半个函数，求值直接炸）。
+const CLOSE = '\\n  \\}'
+const grab = (reName: string, argName: string) =>
+  hostMap.match(new RegExp('function\\s+' + reName + '\\(' + argName + '\\) \\{' + '[\\s\\S]*?' + CLOSE))
 // 1) parseProgress 单元测试（从 host 提取函数）
-const fm = hostMap.match(/function parseProgress\(body\) \{[\s\S]*?\n    \}/)
+const fm = grab('parseProgress', 'body')
 check(!!fm, 'host 含 parseProgress 定义')
 const parseProgress = fm ? evalWithScope(fm[0], {}) : function () { return null }
 const cases = [
@@ -36,7 +44,7 @@ cases.forEach(function (c: [string, number | null]) {
 })
 
 // T16: normalizeBody 容错测试（从 host 提取；字面 \\n 还原 + 剥 BOM）
-const nfm = hostMap.match(/function normalizeBody\(raw\) \{[\s\S]*?\n    \}/)
+const nfm = grab('normalizeBody', 'raw')
 check(!!nfm, 'host 含 normalizeBody 定义（T16）')
 const normalizeBody = nfm ? evalWithScope(nfm[0], {}) : function (s) { return String(s || '') }
 // 坏格式：BOM + 整篇字面 \\n（无真实换行）
@@ -48,7 +56,7 @@ check(normBad.indexOf('\\n') < 0, 'normalizeBody 不再含字面 \\\\n')
 check(normalizeBody('正常\n正文\n带真实换行') === '正常\n正文\n带真实换行', 'normalizeBody 不误伤正常正文')
 check(normalizeBody('') === '', 'normalizeBody 空串安全')
 // T16 端到端回归（#463/#445）：parseMapBody 必须经 normalizeBody 接线 —— 坏格式 body（BOM + 字面 \n）恢复 Destination
-const pfm = hostMap.match(/function parseMapBody\(body\) \{[\s\S]*?\n    \}/)
+const pfm = grab('parseMapBody', 'body')
 check(!!pfm, 'host 含 parseMapBody 定义（T16 端到端）')
 // parseMapBody 内部要调 normalizeBody，直接求值原本靠外层作用域看得见它；这里改成显式给出。
 const parseMapBody = pfm ? evalWithScope(pfm[0], { normalizeBody }) : function () { return { destination: '', notes: '' } }

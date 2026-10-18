@@ -16,6 +16,10 @@ import { PREDICATE_FALLBACK_TIMEOUT_MS } from '../../shared/time-config/values.j
 // 类型只做编译期约束，不产生运行时引用：链与检查的形状以共享层为准，谓词形状以同层真源为准。
 import type { Chain, Check } from '../../shared/tracker/chain-types.js'
 import type { PredicateContext, PredicateFn, PredicateResult } from './predicatePrimitives.js'
+// 类型中转：同层调用方取谓词上下文与结果形状时从装配入口拿，不直连真源——
+//   本文件本来就运行时依赖 predicatePrimitives，真源边只有这一条，不新增第二条。
+//   （local re-export，不带模块说明符，不产生新边。）
+export type { PredicateContext, PredicateResult }
 
 // 注册表选项：只认单个谓词超时一格，不传按中央时间配置的回退值走。
 interface PredicateRegistryOptions {

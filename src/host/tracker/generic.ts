@@ -16,9 +16,11 @@ import { validateCheckItem, validateChain } from '../../shared/tracker/chain-val
 import { evaluateChain } from '../../shared/tracker/chain-evaluate.js'
 import { createPredicateRegistry, toPredicateResults } from './predicateCore.js' // V1 #461：predicateRegistry.js 已拆为两块，装配入口为 predicateCore.js
 
-// 类型只做编译期约束，不产生运行时引用：目录与链的形状以共享层为准，谓词上下文以同层真源为准。
+// 类型只做编译期约束，不产生运行时引用：目录与链的形状以共享层为准，谓词上下文以装配入口为准。
 import type { Check, CheckItem } from '../../shared/tracker/chain-types.js'
-import type { PredicateContext, PredicateResult } from './predicatePrimitives.js'
+// 谓词语境与结果经 predicateCore 中转（本文件本来就运行时依赖它），不直连 predicatePrimitives——
+//   同层规则把 import type 也算一条边，直连会新增一条真源边；走装配入口则边数零增长。
+import type { PredicateContext, PredicateResult } from './predicateCore.js'
 
 // 目录项形状以运行时值的元素类型为准：check-catalog-dirs.ts 把 CatalogItem 记成文件内类型、没有导出，
 // 这里不另起新边，直接从已导入的运行时值 GENERIC_CATALOG 取元素类型，运行时取值形状与原来完全一致。
@@ -102,7 +104,7 @@ export function validateGenericChain(chain: CheckItem[]): string[] {
 }
 
 // 解析通用链（只读探测 + 超时按 pending，#226）。
-// V1 #461：类型定义随 predicatePrimitives.js 搬出，本文件经 import type 取用同一真源。
+// V1 #461：类型定义随 predicatePrimitives.js 搬出，本文件经装配入口（predicateCore 中转）取用同一真源。
 export async function resolveGenericChain(
   registry: PredicateRegistry,
   ctx: PredicateContext,

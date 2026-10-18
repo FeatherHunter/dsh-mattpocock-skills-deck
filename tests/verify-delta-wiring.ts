@@ -217,10 +217,11 @@ async function run() {
   check((clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length === 1, '④整池那一条只剩一处（宿主说该整池时才走），实得 ' + (clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length + ' 处')
 
   // ---- 反证夹具：把「探测一回来就推水印」放回去，判据必须逮住 ----
-  // 收口后的代码分住两处：调用方 issueList.js + 规则与状态 src/host/platform/issueIndexWindow.js，两份一起扫。
+  // 收口后的代码分住两处：调用方 issueList.ts + 规则与状态 src/host/platform/issueIndexWindow.js，两份一起扫。
+  // （2026-10-18 #1247：调用方真源转成 TypeScript，路径跟到 .ts；判据扫的是运行时语句，转写零变化，模式串不动。）
   const listCode = stripComments(
-    fs.readFileSync(path.join(ROOT, 'src', 'host', 'issueList.js'), 'utf8') +
-    fs.readFileSync(path.join(ROOT, 'src', 'host', 'platform', 'issueIndexWindow.js'), 'utf8'))
+    fs.readFileSync(path.join(ROOT, 'src', 'host', 'issueList.ts'), 'utf8') +
+    fs.readFileSync(path.join(ROOT, 'src', 'host', 'platform', 'issueIndexWindow.ts'), 'utf8'))
   check(!/lastIndexWatermarkByRepo\[rk\]\s*=\s*win\.nextWatermark\(/.test(listCode), '✗ probe：整池那条路里「探测一回来就推水印」那一行已经不在了（收口成一条的证据）')
   check(!/if \(true\)\s*\{\s*lastIndexBaselineByRepo\[rk\]/.test(listCode), '✗ probe：也没有「无条件把基线/水印记下来」这种写法（谁推都得先问一句并进列表了没有）')
   check(/lastIndexWatermarkByRepo\[rk\]\s*=\s*win\.nextWatermark\(/.test(stripComments("  lastIndexWatermarkByRepo[rk] = win.nextWatermark(startedMs) // 探到就推")), '✗ probe：同一套判据认得出「探测一回来就推水印」这种写法（夹具不空转）')

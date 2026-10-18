@@ -23,7 +23,9 @@ const PRODUCTS = ['host.js', 'package/lib/index.js']
 // 2026-10-17（转 .ts 前先修）：src/host 下已有文件改成 .ts 真源（旁边留同名 .js 产物或干脆没有 .js），
 //   写死 .js 路径会让新鲜度检查 existsSync 落空、静默跳过——产物明明旧了却判绿。改走共用取源入口，
 //   按「同名 .ts 优先、否则原路径」解析，缺文件也会照实报出来。
-const { sourcePath } = require('./lib/source-text.ts')
+const { sourcePath, sourceText } = require('./lib/source-text.ts')
+// 真源转成 TypeScript 后，读文本走共用入口（同名 .ts 优先，与装载钩子同规则）；
+// 要进 vm 求值的两段先剥类型（esbuild loader ts，与构建同一份转译口径），产物侧已是纯 JS 不动。
 const SOURCES = [
   sourcePath('src/host/index.js'),
   sourcePath('src/host/mapBody.js'),
@@ -81,11 +83,14 @@ async function main() {
 
   const host = fs.readFileSync('host.js', 'utf8')
   const pkg = fs.readFileSync('package/lib/index.js', 'utf8')
-  const srcMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
+  const srcMap = sourceText('src/host/mapBody.js')
   const pkgMap = fs.readFileSync('package/lib/mapBody.js', 'utf8')
-  const srcGroup = fs.readFileSync('src/host/ticketGrouping.js', 'utf8')
+  const srcGroup = sourceText('src/host/ticketGrouping.js')
   const pkgGroup = fs.readFileSync('package/lib/ticketGrouping.js', 'utf8')
-  const hostSide = srcMap + '\n' + srcGroup + '\n' + host
+  let esbuild = null
+  try { esbuild = require('esbuild') } catch (e) { check(false, 'esbuild 可用（先跑 pnpm install）：' + ((e && e.message) || e)) }
+  const stripTs = (t) => esbuild.transformSync(t, { loader: 'ts' }).code
+  const hostSide = stripTs(srcMap) + '\n' + stripTs(srcGroup) + '\n' + host
   const pkgSide = pkgMap + '\n' + pkgGroup + '\n' + pkg
 
   // ---- 加载叶子（ESM import，Windows 需 file:// URL）----
@@ -149,13 +154,15 @@ async function main() {
 
   // ---- Part E：文本逐字断言（T1 新增；构建 = 文本组合，产物函数文本必须与 src 内联逐字一致）----
   // #450 H6：分组两函数搬入 ticketGrouping.js，_dev 单文件不再内嵌模块体；逐字锚到 _pkg 装配（src index+分组 === pkg index+分组合集，原样复制不变量由 build.mjs 校验）。
-  const srcStay = rawAll(srcGroup)
+  // 2026-10-18 #1247：两份真源转成 TypeScript，源侧先剥类型再比（与构建同一份 esbuild 口径）；
+  //   判据含义是「产物函数 === 真源转译后函数」，剥离本身零行为变化由 Part A/B 的行为差分覆盖。
+  const srcStay = rawAll(stripTs(srcGroup))
   const pkgStay = rawAll(pkgGroup)
-  const srcMapRaw = rawAll(srcMap)
+  const srcMapRaw = rawAll(stripTs(srcMap))
   const pkgMapRaw = rawAll(pkgMap)
   check(!!srcStay.trim() && !!pkgStay.trim() && !!srcMapRaw.trim() && !!pkgMapRaw.trim(), '文本抽取：分组两函数在 src/pkg 均可抽取（入口三函数转成 .ts 后逐字不可比，入口一致性由构建校验）')
-  check(srcStay === pkgStay, '文本逐字：package/lib/ticketGrouping.js === src/host/ticketGrouping.js（原样复制）')
-  check(srcMapRaw === pkgMapRaw, '文本逐字：package/lib/mapBody.js === src/host/mapBody.js（原样复制）')
+  check(srcStay === pkgStay, '文本逐字：package/lib/ticketGrouping.js === 真源转译后（剥类型，同一份 esbuild 口径）')
+  check(srcMapRaw === pkgMapRaw, '文本逐字：package/lib/mapBody.js === 真源转译后（剥类型，同一份 esbuild 口径）')
 
   // ---- Part D 已移除（T5 #98：双源镜像文本断言由运行时冒烟取代；保留 Part C 真值表 + Part E src↔产物逐字）----
 

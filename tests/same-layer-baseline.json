@@ -15,7 +15,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./skillProbe.js",
-      "resolved": "src/host/skillProbe.js",
+      "resolved": "src/host/skillProbe.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-3/6 #447",
@@ -33,7 +33,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./refresh/chainBackoff.js",
-      "resolved": "src/host/refresh/chainBackoff.js",
+      "resolved": "src/host/refresh/chainBackoff.ts",
       "layer": "host",
       "count": 1,
       "owner": "四批·T5 #709",
@@ -42,7 +42,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./sessionLifecycle.js",
-      "resolved": "src/host/sessionLifecycle.js",
+      "resolved": "src/host/sessionLifecycle.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-4/6 #448",
@@ -69,7 +69,7 @@
     {
       "file": "src/host/detectChain.ts",
       "spec": "./tracker/generic.js",
-      "resolved": "src/host/tracker/generic.js",
+      "resolved": "src/host/tracker/generic.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-3/6 #447",
@@ -78,7 +78,7 @@
     {
       "file": "src/host/sessionSnapshot.ts",
       "spec": "./tracker/snapshot.js",
-      "resolved": "src/host/tracker/snapshot.js",
+      "resolved": "src/host/tracker/snapshot.ts",
       "layer": "host",
       "count": 2,
       "owner": "二批·host-4/6 #448",
@@ -87,7 +87,7 @@
     {
       "file": "src/host/sessionRefresh.ts",
       "spec": "./tracker/snapshot.js",
-      "resolved": "src/host/tracker/snapshot.js",
+      "resolved": "src/host/tracker/snapshot.ts",
       "layer": "host",
       "count": 2,
       "owner": "二批·host-4/6 #448",
@@ -195,7 +195,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./bootstrap.js",
-      "resolved": "src/host/bootstrap.js",
+      "resolved": "src/host/bootstrap.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-1/6 #445",
@@ -222,7 +222,7 @@
     {
       "file": "src/host/git-process.ts",
       "spec": "./workspaceKey.js",
-      "resolved": "src/host/workspaceKey.js",
+      "resolved": "src/host/workspaceKey.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-1/6 #445",
@@ -231,7 +231,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./mapBody.js",
-      "resolved": "src/host/mapBody.js",
+      "resolved": "src/host/mapBody.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-2/6 #446",
@@ -240,7 +240,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./issueList.js",
-      "resolved": "src/host/issueList.js",
+      "resolved": "src/host/issueList.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-2/6 #446",
@@ -267,7 +267,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./commentThreads.js",
-      "resolved": "src/host/commentThreads.js",
+      "resolved": "src/host/commentThreads.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-5/6 #449",
@@ -276,25 +276,25 @@
     {
       "file": "src/host/detectChain.ts",
       "spec": "./tracker/predicateCore.js",
-      "resolved": "src/host/tracker/predicateCore.js",
+      "resolved": "src/host/tracker/predicateCore.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·320-host #461",
       "note": "V1 调用方改路径：探测编排改指谓词新装配入口"
     },
     {
-      "file": "src/host/tracker/generic.js",
+      "file": "src/host/tracker/generic.ts",
       "spec": "./predicateCore.js",
-      "resolved": "src/host/tracker/predicateCore.js",
+      "resolved": "src/host/tracker/predicateCore.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·320-host #461",
       "note": "V1 调用方改路径：通用链改指谓词新装配入口"
     },
     {
-      "file": "src/host/tracker/predicateCore.js",
+      "file": "src/host/tracker/predicateCore.ts",
       "spec": "./predicatePrimitives.js",
-      "resolved": "src/host/tracker/predicatePrimitives.js",
+      "resolved": "src/host/tracker/predicatePrimitives.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·320-host #461",
@@ -303,7 +303,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./handoffClaim.js",
-      "resolved": "src/host/handoffClaim.js",
+      "resolved": "src/host/handoffClaim.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-6/6 #450",
@@ -312,7 +312,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./namingGuardian.js",
-      "resolved": "src/host/namingGuardian.js",
+      "resolved": "src/host/namingGuardian.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-6/6 #450",
@@ -330,7 +330,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./pickerShell.js",
-      "resolved": "src/host/pickerShell.js",
+      "resolved": "src/host/pickerShell.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-6/6 #450",
@@ -339,7 +339,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./ticketGrouping.js",
-      "resolved": "src/host/ticketGrouping.js",
+      "resolved": "src/host/ticketGrouping.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-6/6 #450",
@@ -348,7 +348,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./logStore.js",
-      "resolved": "src/host/logStore.js",
+      "resolved": "src/host/logStore.ts",
       "layer": "host",
       "count": 1,
       "owner": "日志底座·host #490",
@@ -357,16 +357,16 @@
     {
       "file": "src/host/index.ts",
       "spec": "./dispatchMeta.js",
-      "resolved": "src/host/dispatchMeta.js",
+      "resolved": "src/host/dispatchMeta.ts",
       "layer": "host",
       "count": 1,
       "owner": "收敛·host-7/7 #515",
       "note": "H7 接线：index 动态加载分发异常纯函数模块（装配扇入，入参散列与错误归类逐行原样搬出）"
     },
     {
-      "file": "src/host/logStore.js",
+      "file": "src/host/logStore.ts",
       "spec": "./logPhones.js",
-      "resolved": "src/host/logPhones.js",
+      "resolved": "src/host/logPhones.ts",
       "layer": "host",
       "count": 1,
       "owner": "日志拆分 #500",
@@ -375,7 +375,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./logFromPackage.js",
-      "resolved": "src/host/logFromPackage.js",
+      "resolved": "src/host/logFromPackage.ts",
       "layer": "host",
       "count": 1,
       "owner": "#564",
@@ -384,7 +384,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./rpcChannel.js",
-      "resolved": "src/host/rpcChannel.js",
+      "resolved": "src/host/rpcChannel.ts",
       "layer": "host",
       "count": 1,
       "owner": "#596 客户端与宿主之间的 RPC 通道换到 DSH 公开的 /api 载体",
@@ -411,7 +411,7 @@
     {
       "file": "src/host/detectChain.ts",
       "spec": "./refresh/refreshSource.js",
-      "resolved": "src/host/refresh/refreshSource.js",
+      "resolved": "src/host/refresh/refreshSource.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -447,7 +447,7 @@
     {
       "file": "src/host/refresh/wiring.ts",
       "spec": "./writeEvents.js",
-      "resolved": "src/host/refresh/writeEvents.js",
+      "resolved": "src/host/refresh/writeEvents.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -456,7 +456,7 @@
     {
       "file": "src/host/refresh/wiring.ts",
       "spec": "./sessionTickets.js",
-      "resolved": "src/host/refresh/sessionTickets.js",
+      "resolved": "src/host/refresh/sessionTickets.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -465,7 +465,7 @@
     {
       "file": "src/host/refresh/wiring.ts",
       "spec": "./sessionChainReadout.js",
-      "resolved": "src/host/refresh/sessionChainReadout.js",
+      "resolved": "src/host/refresh/sessionChainReadout.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -474,7 +474,7 @@
     {
       "file": "src/host/refresh/wiring.ts",
       "spec": "./attention.js",
-      "resolved": "src/host/refresh/attention.js",
+      "resolved": "src/host/refresh/attention.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -501,79 +501,79 @@
     {
       "file": "src/host/index.ts",
       "spec": "./versionControl.js",
-      "resolved": "src/host/versionControl.js",
+      "resolved": "src/host/versionControl.ts",
       "layer": "host",
       "count": 1,
       "owner": "#810 地图 · #817",
       "note": "版本管理页签的宿主装配扇入：index 动态加载 git 读取与三条 wf.* 电话的实现"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./versionControlBasis.js",
-      "resolved": "src/host/versionControlBasis.js",
+      "resolved": "src/host/versionControlBasis.ts",
       "layer": "host",
       "count": 1,
       "owner": "#819 复审（宿主与核心批次 P0-3）",
       "note": "「依据时间」那一段要补「刚克隆、还没 fetch 过、没有 reflog」的回退路，versionControl.js 当时 361 行、超过 350 上限；照 #500（logStore→logPhones）与 #821（versionControl→versionControlFiles）同一条先例搬成自包含叶子，runPinned 与 fs 全由父文件显式传入，叶子不引用父文件，父文件只留一行加载器。"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./versionControlFiles.js",
-      "resolved": "src/host/versionControlFiles.js",
+      "resolved": "src/host/versionControlFiles.ts",
       "layer": "host",
       "count": 1,
       "owner": "#818",
       "note": "#821 规格故事 32：versionControl.js 贴着文件粒度门禁的 350 行上限（正好 350 行），按 #500（logStore→logPhones）与 #548（update→updateReader）同一条先例，把整条 wf.gitDiff 电话体搬成自包含叶子（起进程的唯一出口、失败信封、仓库根解析全由父文件显式传入，叶子不引用父文件），父文件只留一行动态加载器。"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./fsAbsence.js",
-      "resolved": "src/host/fsAbsence.js",
+      "resolved": "src/host/fsAbsence.ts",
       "layer": "host",
       "count": 1,
       "owner": "#858（真因：DSH fs 服务的缺失 code 是 FS_NOT_FOUND，不是 ENOENT）",
       "note": "缺文件判据要共享（DSH fs 服务抛 FsError/FS_NOT_FOUND，只认 ENOENT 会把「文件不存在」当 IO 错误 → 读四个标记文件必失败）；versionControl.js 已 350 行顶格，照 #500/#821 先例做自包含叶子，versionControl.js 用动态加载接上（pathExists 里按它分档）。"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./runningMarkers.js",
-      "resolved": "src/host/runningMarkers.js",
+      "resolved": "src/host/runningMarkers.ts",
       "layer": "host",
       "count": 1,
       "owner": "#858（人验收抓到的真 bug：文件服务不可用被说成「找不到 git 程序」）",
       "note": "四个「正在合并/变基」标记的探测要加 git 兜底（文件服务拿不到结论时用 rev-parse -q --verify），versionControl.js 已 350 行顶格；照 #500（logStore→logPhones）/ #821（versionControl→versionControlFiles）同一先例把整段搬成自包含叶子，依赖（文件服务判定、git 探测、标记名清单）全显式传入。"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./stallWatch.js",
-      "resolved": "src/host/stallWatch.js",
+      "resolved": "src/host/stallWatch.ts",
       "layer": "host",
       "count": 1,
       "owner": "#847（宿主：把「传输停住」的字节增长看门狗补上）",
       "note": "#847 要在 runGit 里加字节增长看门狗（窗口内收集器读到的字节不再增长就判 stalled），内联写进去会把 versionControl.js 顶到 365 行、超过 350 上限；照 #500（logStore→logPhones）、#819（versionControl→versionControlBasis）、#818（versionControl→versionControlFiles）同一条先例，把看门狗搬成自包含叶子：handle 与 timer 全由父文件显式传入，叶子不引用父文件（静态 import 这一行留在父文件），父文件只多一行 import 与一行建看门狗。默认不开，只有显式传 opts.stallMs 的调用才启用。"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./gitCredentialExec.js",
-      "resolved": "src/host/gitCredentialExec.js",
+      "resolved": "src/host/gitCredentialExec.ts",
       "layer": "host",
       "count": 1,
       "owner": "#841（宿主写执行层与四条写电话）",
       "note": "写电话要经 #839 的安全执行层（非交互环境 + 每操作预算 + 调用级总预算）；versionControl.js 正好 350 行没有余量，照 #500（logStore→logPhones）/ #821（versionControl→versionControlFiles）同一先例，装配放进本文件的 writePhone() 懒加载器里（动态加载、单向），写模块自己不引用只读模块。"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./versionControlCheck.js",
-      "resolved": "src/host/versionControlCheck.js",
+      "resolved": "src/host/versionControlCheck.ts",
       "layer": "host",
       "count": 1,
       "owner": "#841（宿主写执行层与四条写电话）",
       "note": "同上：预检（判定 / 目标解析 / 票据 / 索引指纹）住独立叶子，依赖由本文件显式传入（readScreenOf / failPhone / safeGit），叶子不引用本文件。"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./versionControlWrite.js",
-      "resolved": "src/host/versionControlWrite.js",
+      "resolved": "src/host/versionControlWrite.ts",
       "layer": "host",
       "count": 1,
       "owner": "#841（宿主写执行层与四条写电话）",
@@ -582,7 +582,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./mapTickets.js",
-      "resolved": "src/host/mapTickets.js",
+      "resolved": "src/host/mapTickets.ts",
       "layer": "host",
       "count": 1,
       "owner": "#691",
@@ -591,7 +591,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./issuePage.js",
-      "resolved": "src/host/issuePage.js",
+      "resolved": "src/host/issuePage.ts",
       "layer": "host",
       "count": 1,
       "owner": "#690",
@@ -600,7 +600,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./updateFromPackage.js",
-      "resolved": "src/host/updateFromPackage.js",
+      "resolved": "src/host/updateFromPackage.ts",
       "layer": "host",
       "count": 1,
       "owner": "#875 薄接线",
@@ -609,7 +609,7 @@
     {
       "file": "src/host/workspaceCwd.ts",
       "spec": "./workspaceLabelColors.js",
-      "resolved": "src/host/workspaceLabelColors.js",
+      "resolved": "src/host/workspaceLabelColors.ts",
       "layer": "host",
       "count": 1,
       "owner": "#957（工作区文件写器：首绑落盘与无文件保护自动写）",
@@ -618,7 +618,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./skillDoc.js",
-      "resolved": "src/host/skillDoc.js",
+      "resolved": "src/host/skillDoc.ts",
       "layer": "host",
       "count": 1,
       "owner": "888 技能详情页落地",
@@ -627,7 +627,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./settingsPhones.js",
-      "resolved": "src/host/settingsPhones.js",
+      "resolved": "src/host/settingsPhones.ts",
       "layer": "host",
       "count": 1,
       "owner": "共享板 task-7 本机设置两条电话",
@@ -636,7 +636,7 @@
     {
       "file": "src/host/index.ts",
       "spec": "./configStore.js",
-      "resolved": "src/host/configStore.js",
+      "resolved": "src/host/configStore.ts",
       "layer": "host",
       "count": 1,
       "owner": "共享板 task-7 本机设置两条电话",
@@ -931,7 +931,7 @@
       "note": "搬家后新键：same-layer-import-host"
     },
     {
-      "file": "src/host/versionControl.js",
+      "file": "src/host/versionControl.ts",
       "spec": "./outbound/admission.js",
       "resolved": "src/host/outbound/admission.ts",
       "layer": "host",

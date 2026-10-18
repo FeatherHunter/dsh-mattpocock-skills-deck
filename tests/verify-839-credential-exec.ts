@@ -29,7 +29,7 @@
 // 没有真 SSH 服务器（ssh 只验到「GIT_SSH_COMMAND 把假 ssh 起起来并被整棵清掉」+ OpenSSH 文档行为）；
 // 代理只覆盖「黑洞」一种，407 认证那条没测；宿主收集器的字节增长看门狗没做（要改共享出口的竞速逻辑，列后续票）。
 //
-// 复用的三件东西（#839 第 3 条：不许另起一套）：同一份 src/host/versionControl.js 出口（runGitCommand）、
+// 复用的三件东西（#839 第 3 条：不许另起一套）：同一份 src/host/versionControl.ts 出口（runGitCommand）、
 // 同一条 git.exec / git.exec.fail 日志、同一个报闸。门禁里的「真子进程适配器」只是照 DSH subprocess 服务
 // 的形状把子进程跑起来（测试专用；插件代码里没有 child_process）。
 
@@ -136,7 +136,7 @@ function makeLab() {
 
 async function makeRunner(lab, opts) {
   const o = opts || {}
-  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
+  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
   const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.js')).href)
   const log = { spawns: [], terminations: 0, events: [], outbound: 0 }
   const vc = hostMod.createVersionControl({
@@ -181,9 +181,10 @@ function withIsolation(fn) {
 async function main() {
   console.log('宿主执行层门禁（#839：非交互环境 + 预算 + 分类 + 三环境真跑 + 反证）')
 
-  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
-  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.js')).href)
-  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'gitCredentialExec.js'), 'utf8')
+  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
+  // （2026-10-18 #1247：gitCredentialExec 真源已转成 TypeScript，路径跟到 .ts；本仓 Node 下限原生剥类型，直读语义一致。）
+  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts')).href)
+  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts'), 'utf8')
   const hostCode = hostSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
   // ---- A) 静态契约：这一族命令的安全开关一个都不许少 ----

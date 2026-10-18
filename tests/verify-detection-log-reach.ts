@@ -160,7 +160,7 @@ async function main() {
     check(/caller: 'wf\.selection', logCtx: logCtx/.test(cwdSrc), "wf.selection 那条出口调用递了 logCtx（caller: 'wf.selection', logCtx: logCtx）")
     const shellSrc = fs.readFileSync(path.join(ROOT, 'src/deck/shell/call-shell.ts'), 'utf8')
     check(/readDeclarationId: d\.readDeclarationId[\s\S]{0,400}?logCtx: log,/.test(shellSrc), 'deck 工具壳那条出口调用递了 logCtx（logCtx: log，与它记 host.call 的是同一个出口）')
-    const lifeSrc = fs.readFileSync(path.join(ROOT, 'src/host/sessionLifecycle.js'), 'utf8')
+    const lifeSrc = fs.readFileSync(path.join(ROOT, 'src/host/sessionLifecycle.ts'), 'utf8')
     check(lifeSrc.indexOf("'detection.detect'") === -1, '早快照不再发与出口同名的常驻结论线（detection.detect 在文件里已消失）')
     check(lifeSrc.indexOf("'detection.fallback'") !== -1, '早快照的兜底改用自己那个名字（detection.fallback）')
   }
