@@ -289,8 +289,8 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 **[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— Prompt 工具箱：24 条深度模板随手点，别再复制粘贴
 
-**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** —— 让 DSH 直接用中文技能名：输入 /私 就能直达「私家大厨」，技能不必改英文名
-
 **[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** —— 给每个聊天机器人安个家：哪个工作区有助理在管、在不在线一眼看清，拖一下就能搬家
+
+**[ilife](https://github.com/FeatherHunter/ilife)** —— 爱生活：居家生活套件，一个仓库七个插件，记账、卡路里、大厨、管家一次装好
 
 </div>
