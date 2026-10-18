@@ -13,6 +13,12 @@ import { NAMING_STAGES } from '../../shared/naming-tracking.js'
 // 摘要超时住中央 YAML（config/timeouts.yaml 的 namingSummaryTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
 import { NAMING_SUMMARY_TIMEOUT_MS as SUMMARY_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { textOfMessage, pickFirstExchange, latestRoute, cleanSummaryText } from './namingSummaryText.js'
+
+// 纯文本四件事已搬至 ./namingSummaryText.js（#1255）：取文本、选首轮、取路由、洗标题都是纯的，
+// 本文件只做编排。门禁单测原来从这里取纯函数，取法不变（下面原样再导出）；
+// 跨文件边只有这一条（本文件 → namingSummaryText.js，被依赖方），反向不依赖。
+export { textOfMessage, pickFirstExchange, latestRoute, cleanSummaryText }
 
 // 本域 types 为空，Node 的 Buffer 声明随 @types/node 一起缺席；运行时一定是 Node，进程内必然存在。
 // 按存在声明只为过编译器，不产生运行时代码，取值失败仍走下面的 catch 回退，行为与原来一致。
@@ -29,64 +35,6 @@ const SUMMARY_MAX_TOKENS = 40
 function utf8Bytes(s: unknown): number {
   try { return Buffer.byteLength(String(s || ''), 'utf8') } catch (e) { return String(s || '').length }
 }
-
-function cleanSummaryText(s: unknown): string {
-  let t = String(s || '').replace(/\s+/g, ' ').trim()
-  t = t.replace(/^["'「『“‘（(\[«‹]+/, '').replace(/["'」』”’）)\]»›]+$/, '').trim()
-  if (t.length > 10) t = t.slice(0, 10).trim()
-  return t
-}
-
-// 从一条消息记录里取纯文本（形状按底座三态容错：字符串 / content 块数组 / text 字段）。
-function textOfMessage(m: any): string {
-  try {
-    if (typeof m === 'string') return m
-    if (!m || typeof m !== 'object') return ''
-    if (Array.isArray(m.content)) {
-      let out = ''
-      for (let i = 0; i < m.content.length; i++) {
-        const b = m.content[i]
-        if (b && b.type === 'text' && typeof b.text === 'string') out += b.text
-      }
-      return out
-    }
-    if (typeof m.text === 'string') return m.text
-    return ''
-  } catch (e) { return '' }
-}
-
-// 按 seq 取首个用户段与首个助手段全文（assistant/attempt 是过程态，不算第一段）。
-function pickFirstExchange(events: any): { user: string; asst: string } | null {
-  if (!Array.isArray(events)) return null
-  const ordered = events.slice().sort(function (a: any, b: any) { return (Number(a && a.seq) || 0) - (Number(b && b.seq) || 0) })
-  let user = '', asst = ''
-  for (let i = 0; i < ordered.length; i++) {
-    const ev = ordered[i]
-    if (!ev || typeof ev.type !== 'string') continue
-    if (!user && ev.type === 'user/message') user = textOfMessage(ev.data)
-    else if (!asst && ev.type === 'assistant/message' && ev.data && typeof ev.data === 'object') asst = textOfMessage(ev.data.message)
-    if (user && asst) break
-  }
-  return { user: user, asst: asst }
-}
-
-// 取该会话最新请求头里的路由（provider/model），与底座标题包同口径（无则返回 null）。
-function latestRoute(events: any): { provider: string; model: string } | null {
-  if (!Array.isArray(events)) return null
-  for (let i = events.length - 1; i >= 0; i--) {
-    const ev = events[i]
-    if (!ev || ev.type !== 'request/header' || !ev.data || typeof ev.data !== 'object') continue
-    const h = ev.data.header && typeof ev.data.header === 'object' ? ev.data.header : ev.data
-    const provider = h.provider, model = h.model
-    if (typeof provider === 'string' && provider && typeof model === 'string' && model) {
-      return { provider: provider, model: model }
-    }
-  }
-  return null
-}
-
-// 纯函数导出（门禁单测用；生产只走 createNamingSummary）。
-export { textOfMessage, pickFirstExchange, latestRoute, cleanSummaryText }
 
 // 读某会话首条用户消息纯文本（读而不激活；失败一律 null；截 120 字只供派生比对，不记日志）。
 export async function readFirstUserText(ctx: any, sid: string): Promise<string | null> {

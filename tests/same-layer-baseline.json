@@ -139,6 +139,15 @@
       "note": "平台入口按系统分发 Linux 实现"
     },
     {
+      "file": "src/host/platform/namingSummary.ts",
+      "spec": "./namingSummaryText.js",
+      "resolved": "src/host/platform/namingSummaryText.ts",
+      "layer": "platform",
+      "count": 1,
+      "owner": "#1255（命名摘要：纯文本函数单列）",
+      "note": "#1255 拆分：取文本/选首轮/取路由/洗标题是纯的，编排是有状态的，测试策略不同。方向 namingSummary → namingSummaryText（被依赖方），反向不依赖；门禁单测原来从 namingSummary 取纯函数，取法不变（原样再导出）。"
+    },
+    {
       "file": "src/seam/index.ts",
       "spec": "./runtime.js",
       "resolved": "src/seam/runtime.ts",
