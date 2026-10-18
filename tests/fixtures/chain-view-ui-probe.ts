@@ -35,7 +35,7 @@ interface InjectedGlobals {
 interface Snapshot {
   ok?: unknown
   issues?: Array<{ number?: unknown, title?: unknown, effortId?: unknown }>
-  sessionTickets?: {
+  workRoute?: {
     ok?: unknown
     at?: unknown
     sessions?: Array<{
@@ -326,7 +326,7 @@ W.__STRIP_SNAP_WITH__ = function (n: number): Snapshot {
     version: 'tier-' + n,
     generatedMs: (W.__READ_AT__ as number) + n,
     issues: [{ number: 900, title: '甲票标题', effortId: '' }],
-    sessionTickets: { ok: true, at: W.__READ_AT__, sessions: [{ shardId: '307d37e6a1b2c3d4', backend: 'github', entries: one }] },
+    workRoute: { ok: true, at: W.__READ_AT__, sessions: [{ shardId: '307d37e6a1b2c3d4', backend: 'github', entries: one }] },
   })
 }
 

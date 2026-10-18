@@ -129,7 +129,7 @@
      ④ 你看到的东西，"新"或"旧"永远是明确的，不存在自称新的陈旧数据。</p>
 </div>
 
-<p class="note" style="margin-top:22px">本轮增补（第二轮，2026-09-22）：文末第十～第十三章是这一轮拷问后补上的四节——<b>体验目标与降档顺序</b>、<b>行级增量刷新</b>、<b>会话↔票 处理链</b>、<b>对抗式审查</b>。前面各章的节拍与用量数字已按新决定更正（探测从 30 秒改成 5 秒，日常变化不再整池重建）。</p>
+<p class="note" style="margin-top:22px">本轮增补（第二轮，2026-09-22）：文末第十～第十三章是这一轮拷问后补上的四节——<b>体验目标与降档顺序</b>、<b>行级增量刷新</b>、<b>会话↔票 工作路线</b>、<b>对抗式审查</b>。前面各章的节拍与用量数字已按新决定更正（探测从 30 秒改成 5 秒，日常变化不再整池重建）。</p>
 
 <h2><span class="num">第一章</span>六条不变量</h2>
 <p class="section-intro">不变量是这份设计的宪法：任何实现、任何新功能、任何一次改代码，违背其中一条就判红。后面所有设计都是为了满足这六条。</p>
@@ -332,7 +332,7 @@
 <h3>新增（第二批：写事件与工具）</h3>
 <ul>
   <li><code>src/host/refresh/writeEvents.js</code>：订阅 DSH 会话事件（<code>ctx.on('session/event', …, { global: true })</code>），只处理三类（<code>tool/call</code>、<code>ptc</code> 派发形态、<code>tools/result</code>），把命中归一成"一次写操作"。<strong>只认成功</strong>；"确定写"立即补行，"可疑动作"只立即发一条探测。先看工具名、再解析命令，其余事件立即返回（性能约束）。</li>
-  <li><code>src/host/refresh/sessionTickets.js</code>：会话↔票 的处理链（数据侧）。键 =（工作区根，后端，票 key）；三个来源＝我们工具的调用参数 / 当前后端的命令行 / markdown 后端的票文件路径；每会话留最近 20 张；内存 + 工作区缓存落盘。</li>
+  <li><code>src/host/refresh/workRoute.ts</code>：会话↔票 的工作路线（数据侧）。键 =（工作区根，后端，票 key）；三个来源＝我们工具的调用参数 / 当前后端的命令行 / markdown 后端的票文件路径；每会话留最近 20 张；内存 + 工作区缓存落盘。</li>
   <li><code>src/host/tools/</code>：7 个后端无关的工具（薄壳，坐在 tracker 契约之上）：<code>deck_context</code>、<code>deck_issue_get</code>、<code>deck_map_snapshot</code>、<code>deck_issue_create</code>、<code>deck_map_plan_create</code>、<code>deck_map_link</code>、<code>deck_issue_patch</code>；内部代码<strong>直接调用同一批实现函数</strong>，不绕工具层。</li>
 </ul>
 
@@ -436,10 +436,10 @@
   </div>
 </section>
 
-<h2><span class="num">增补·第十二章</span>会话与票：处理链（数据侧）</h2>
+<h2><span class="num">增补·第十二章</span>会话与票：工作路线（数据侧）</h2>
 <p class="section-intro">"UI 能看到每个会话在处理哪些票"——这一章只定<strong>数据侧</strong>；展示面（画在哪、怎么画）另立一票，等工具做好之后再谈。</p>
 <section class="comp">
-  <div class="comp-head"><span class="id">07</span><h3>这张处理链怎么记</h3><span class="tag">新需求</span></div>
+  <div class="comp-head"><span class="id">07</span><h3>这张工作路线怎么记</h3><span class="tag">新需求</span></div>
   <div class="comp-body">
     <div class="field"><p class="label">键</p><p class="body"><code>（工作区根，后端，票 key）</code>——三个后端同形：github 的 key 是数字串、markdown 是编号、gitlab 是 iid。所以这张表的结构不随后端变。</p></div>
     <div class="field"><p class="label">三个来源</p><p class="body">
@@ -450,7 +450,7 @@
     <div class="field"><p class="label">只记什么</p><p class="body">只记<strong>写操作与明确的处理动作</strong>；"顺手看一眼"（读）不进链——否则链会被噪音灌满，看起来像在处理十张票。读可以单独记"最近看过"，但那是另一件事。</p></div>
     <div class="field"><p class="label">留存</p><p class="body">每个会话留最近 <b>20 张</b>（去重、按时间倒序）；内存 + 工作区缓存落盘（照命名守护的做法），重启不丢。超过 20 张的旧记录丢弃。</p></div>
     <div class="field"><p class="label">隐私与日志</p><p class="body">落盘只存"票 key + 时间 + 动作类别"，不存命令原文、不存令牌、不存路径原文（与仓库日志纪律同口径）；插件日志里只记"识别到一次写操作"这个事实与类别。</p></div>
-<div class="field"><p class="label">订阅入口的硬约束</p><p class="body">事件订阅的面是<strong>整个 DSH</strong>，而且平台侧<strong>不存在任何隔离开关</strong>——真机实测确认：跨会话、跨工作区、跨子代理的 <code>tool/call</code> 全部会到达；会话的载体键全是 <code>undefined</code>，连"给自己的监听器打上工作区标"也不过滤，<code>{ global: true }</code> 与隔离无关。所以隔离只能<strong>我们自己实现</strong>：维护一份 <code>sessionId → 工作区根散列</code> 的白名单，按 id 放行，而不是每条事件现场重算路径。<b>决定为这条事件做任何事之前</b>先过这道门（含日志、含内存表、含处理链落盘）；<strong>参数只做瞬时匹配，绝不写进日志、绝不落盘、绝不回给界面。</strong></p></div>
+<div class="field"><p class="label">订阅入口的硬约束</p><p class="body">事件订阅的面是<strong>整个 DSH</strong>，而且平台侧<strong>不存在任何隔离开关</strong>——真机实测确认：跨会话、跨工作区、跨子代理的 <code>tool/call</code> 全部会到达；会话的载体键全是 <code>undefined</code>，连"给自己的监听器打上工作区标"也不过滤，<code>{ global: true }</code> 与隔离无关。所以隔离只能<strong>我们自己实现</strong>：维护一份 <code>sessionId → 工作区根散列</code> 的白名单，按 id 放行，而不是每条事件现场重算路径。<b>决定为这条事件做任何事之前</b>先过这道门（含日志、含内存表、含工作路线落盘）；<strong>参数只做瞬时匹配，绝不写进日志、绝不落盘、绝不回给界面。</strong></p></div>
     <div class="field"><p class="label">根从哪来</p><p class="body">会话对象上没有现成的工作区根，但有 <code>session.header.cwd</code>（绝对路径，DSH 侧强制）。所以根由我们自己算——<strong>归一化口径必须与 DSH 的 <code>canonicalKey</code> 对齐</strong>（Windows 的大小写、尾斜杠、联接点差异），否则同一个根会被算成两个，白名单就失效。</p></div>
   </div>
 </section>
@@ -470,7 +470,7 @@
     <tr><td>"写入永不降档"被滥用（AI 一分钟写 30 次）</td><td>保底额度被瞬间吃光，红档下再没有余量</td><td>"写"本身不降档，但"写触发的补行"在同一工作区 10 秒内合并一次</td></tr>
     <tr><td>闸把请求推迟了，但界面什么都不说</td><td>用户看到的是"没反应"，与静默陈旧同类</td><td>推迟发生时界面显示「有更新，已推后」；这也是 I5 的一部分</td></tr>
     <tr><td>订阅了所有会话的 57 类事件</td><td>高频回调占 CPU，甚至在刷新热路径上抢时间</td><td>只处理三类事件；先看工具名、再解析命令；其余立即返回</td></tr>
-    <tr><td>处理链把"看了一眼"也记成"在处理"</td><td>链变成噪音，UI 显示一堆假任务</td><td>只记写与明确的处理动作（第十二章）</td></tr>
+    <tr><td>工作路线把"看了一眼"也记成"在处理"</td><td>链变成噪音，UI 显示一堆假任务</td><td>只记写与明确的处理动作（第十二章）</td></tr>
     <tr><td>我们不改规范，AI 继续用 <code>gh</code></td><td>工具使用率低 → 写事件的"结构化"那条腿基本没用上</td><td>接受（Q19 已定：先观察）。但要设观察指标：工具使用率、写操作覆盖率；到期再决定是否把规范升格为 tools-first</td></tr>
     <tr><td>删死词汇会拉红现有测试</td><td>清理做到一半，verify 链一直是红的</td><td>清理项连带改断言（不是删测试）：保留一条"契约层不再有孤儿常量"的新断言</td></tr>
   </tbody>
@@ -492,9 +492,9 @@
     <tr><td class="num">7</td><td>工具若不从会话上下文取工作区，就只能猜进程目录——父子目录各开一个会话时会静默写错仓库</td><td>工具一律从会话取工作区；<code>deck_context</code> 回显解析到的工作区根与仓库；工作区与仓库不许当参数传</td></tr>
     <tr><td class="num">8</td><td>工具注册面对所有会话常驻 7 份 schema，提示词成本付给不碰工单的会话</td><td>描述压到一句话，详细语义放进 <code>deck_context</code> 的返回值（编辑纪律）</td></tr>
     <tr><td class="num">9</td><td>写后立刻读会命中 5 秒 TTL 的旧缓存，AI 以为没写成功、再写一次</td><td>写路径显式失效该票缓存；写工具返回值就是写后真状态（落地清单第三批）</td></tr>
-    <tr><td class="num">10</td><td>处理链会串台：票键各后端不通用、同根多会话互相覆盖、落盘若带原始路径就违反日志纪律</td><td>键含会话 id + 后端 + 仓库散列；按会话分片；落盘只存散列与键（第十二章）</td></tr>
+    <tr><td class="num">10</td><td>工作路线会串台：票键各后端不通用、同根多会话互相覆盖、落盘若带原始路径就违反日志纪律</td><td>键含会话 id + 后端 + 仓库散列；按会话分片；落盘只存散列与键（第十二章）</td></tr>
     <tr><td class="num">11</td><td>返回码承诺要写死，否则"用可用方式建立了关系"会被 AI 当成"已建立层级"</td><td>三态 <code>ok</code> / <code>partial</code> / <code>unsupported</code>，部分成功逐项列出；工具永不抛异常（否则 AI 退回流熟悉的 <code>gh</code>，两条写路径同时开火）</td></tr>
-    <tr><td class="num">12</td><td>事件订阅与处理链都是新的常驻活，日志契约要跟上</td><td>新事件进 <code>research/489-appendix.md</code> 对照表，字段只用白名单子集，跑通三條 <code>verify-log-*</code> 检查</td></tr>
+    <tr><td class="num">12</td><td>事件订阅与工作路线都是新的常驻活，日志契约要跟上</td><td>新事件进 <code>research/489-appendix.md</code> 对照表，字段只用白名单子集，跑通三條 <code>verify-log-*</code> 检查</td></tr>
   </tbody>
 </table>
 </div>
@@ -565,7 +565,7 @@
     <tr><td><code>ptc</code> 会不会改变事件形态</td><td>会：内层工具调用变成 <code>tool/ptc-dispatch-start</code> 与 <code>tool/ptc-dispatch</code>，只订 <code>tool/call</code> 必漏。而且<b>不只由预设决定</b>——进程级环境变量 <code>DSH_TOOLS_MODE</code>（<code>native</code> / <code>ptc</code> / <code>both</code>）设成 <code>ptc</code> 时，连跑 <code>standard</code> 预设的会话也会变成内层形态</td><td>第十一章（写事件判定表）、第十二章</td></tr>
     <tr><td>Windows 上执行命令的工具叫什么</td><td><code>pwsh</code>，参数键是 <code>command</code>。预设文件里 <code>tool-bash</code> 那行在 win32 上被显式关掉，<code>tool-pwsh</code> 只在非 win32 关掉。命令行统一取 <code>JSON.parse(arguments).command</code></td><td>第十一章</td></tr>
     <tr><td>两个窗口同时上报会不会互相顶掉</td><td><b>平台层不存在答案</b>：宿主没有"哪个窗口活跃"的状态，也没有"最近获得焦点"的记录；插件宿主接口拿到的是「接口名 + 载荷 + 取消信号」，认不出调用方是谁；桌面应用还有单实例锁，所以"两个窗口"指的是两个浏览器标签页。顶不顶掉完全取决于我们的代码怎么写</td><td>第四章（多窗口的兜底）</td></tr>
-    <tr><td>插件加载之前发生的事能不能补</td><td>能：<code>ctx.sessionQuery</code> 的 <code>listSessions()</code> 与 <code>readSession(id)</code> 可以列出全部会话、读回任意会话的完整事件日志，而且读取不会把会话变活。但它只能读、不能推，实时订阅仍然不可省</td><td>第十二章（处理链数据侧）</td></tr>
+    <tr><td>插件加载之前发生的事能不能补</td><td>能：<code>ctx.sessionQuery</code> 的 <code>listSessions()</code> 与 <code>readSession(id)</code> 可以列出全部会话、读回任意会话的完整事件日志，而且读取不会把会话变活。但它只能读、不能推，实时订阅仍然不可省</td><td>第十二章（工作路线数据侧）</td></tr>
   </tbody>
 </table>
 </div>

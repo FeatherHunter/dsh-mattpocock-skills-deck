@@ -3,7 +3,7 @@
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 // #652 改动：入口 cwd 由「原样入参」改成与 wf.snapshot 同一把规整钥匙（含工作区根），两条路的宿主单槽快照才同桶。
 // 2026-09-24（真机反馈「读不到处理记录」从来不消失）：本文件从前**自己手写四份信封字面量**，
-//   wf.snapshot 有的 setupLayout / fallback / fallbackAt / refresh / 处理链读数它一概没有——
+//   wf.snapshot 有的 setupLayout / fallback / fallbackAt / refresh / 工作路线读数它一概没有——
 //   界面是 `force ? wf.refresh : wf.snapshot`，回来都装进同一个 st.snapshot，于是强制刷新一次就永久显示读不到。
 //   现在信封与「挂读数」那一步都改用接线处传进来的 snapshotEnvelope（与 wf.snapshot 同一个实例、同一份 buildSnap），
 //   两条路的字段集合由构造保证相等；tests/verify-reply-envelope-parity.js 每次运行都比一遍。

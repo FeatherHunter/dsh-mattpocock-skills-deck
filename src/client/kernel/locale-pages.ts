@@ -86,7 +86,7 @@
         //   一个字不许提配额。键名与占位符中英一致；判据在 views/shared/truthLines.js。
         'list.restFallbackNonQuota': '这次取数走了 REST 通道（数据可能略旧）',
         'list.restFallbackStaleNonQuota': '上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧',
-        // #721（处理链展示面）：面板顶部那一条「每个会话在处理哪些票」用的词条。
+        // #721（工作路线展示面）：面板顶部那一条「每个会话在处理哪些票」用的词条。
         //   判据与画法在 views/shared/sessionChainView.js；数据只有宿主写下的一份读数一个来源。
         //   action.* 这八个键与链的闭集合（chain.ts 的 CHAIN_ACTIONS）逐个对应，门禁每次核对。
         'chainView.title': '每个会话在处理哪些票',

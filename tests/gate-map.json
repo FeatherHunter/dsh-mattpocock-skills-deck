@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-18T18:17:31.090Z",
+  "generatedAt": "2026-10-18T18:36:43.467Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 294,
   "gateCount": 294,
@@ -297,7 +297,7 @@
         "src/client/kernel/store-derived.js",
         "src/client/views/shared/sessionChainView.js",
         "src/host/refresh/sessionChainReadout.ts",
-        "src/host/refresh/sessionTickets.ts",
+        "src/host/refresh/workRoute.ts",
         "src/shared/refresh/chain.js",
         "src/tracker/kernel/identity-keys.ts",
         "tests/lib/eval-probe.ts"
@@ -381,7 +381,7 @@
       "guards": [
         "package/lib",
         "package/scripts",
-        "src/host/refresh/sessionTickets.ts",
+        "src/host/refresh/workRoute.ts",
         "src/host/refresh/writeEvents.ts",
         "src/host/workspaceKey.ts",
         "tests/fixtures/deck-event-gate"
@@ -2637,7 +2637,7 @@
       "step": "node tests/verify-714-session-tickets.ts",
       "file": "tests/verify-714-session-tickets.ts",
       "guards": [
-        "src/host/refresh/sessionTickets.ts",
+        "src/host/refresh/workRoute.ts",
         "src/shared/refresh/chain.js"
       ],
       "dirs": [
@@ -2690,8 +2690,8 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/refresh/sessionChainReadout.ts",
-        "src/host/refresh/sessionTickets.ts",
         "src/host/refresh/wiring.ts",
+        "src/host/refresh/workRoute.ts",
         "src/host/sessionSnapshot.ts"
       ],
       "dirs": [
@@ -2769,8 +2769,8 @@
       "file": "tests/verify-735-chain-restore.ts",
       "guards": [
         "src/host/refresh/sessionChainReadout.ts",
-        "src/host/refresh/sessionTickets.ts",
         "src/host/refresh/wiring.ts",
+        "src/host/refresh/workRoute.ts",
         "src/shared/refresh/chain.js"
       ],
       "dirs": [
@@ -2804,8 +2804,8 @@
       "step": "node tests/verify-781-chain-identity.ts",
       "file": "tests/verify-781-chain-identity.ts",
       "guards": [
-        "src/host/refresh/sessionTickets.ts",
         "src/host/refresh/wiring.ts",
+        "src/host/refresh/workRoute.ts",
         "src/host/refresh/writeEvents.ts",
         "src/shared/refresh/chain.js"
       ],
@@ -2840,7 +2840,7 @@
       "guards": [
         "src/client/views/shared/sessionChainView.js",
         "src/host/refresh/sessionChainReadout.ts",
-        "src/host/refresh/sessionTickets.ts",
+        "src/host/refresh/workRoute.ts",
         "src/host/refresh/writeEvents.ts",
         "src/shared/refresh/chain.js",
         "tests/lib/eval-probe.ts"
@@ -8654,8 +8654,8 @@
       "src/host/refresh/refreshSource.ts",
       "src/host/refresh/refusal-text.ts",
       "src/host/refresh/sessionChainReadout.ts",
-      "src/host/refresh/sessionTickets.ts",
       "src/host/refresh/wiring.ts",
+      "src/host/refresh/workRoute.ts",
       "src/host/refresh/writeEvents.ts",
       "src/host/remotePredicates.ts",
       "src/host/rpcChannel.ts",

@@ -54,7 +54,7 @@ function loadLeaf(rowsStub: (st: any) => any[]) {
   const tr = function (k) { return String(k) }
   const Tip = function () { return null }
   const Ic = function () { return null }
-  return factory(React, null, Tip, Ic, tr, rowsStub, 'sessionTickets', function () {}, function () {})
+  return factory(React, null, Tip, Ic, tr, rowsStub, 'workRoute', function () {}, function () {})
 }
 
 console.log('A) 判据：跟谁走、空态、坏态')
@@ -67,20 +67,20 @@ console.log('A) 判据：跟谁走、空态、坏态')
   const leaf = loadLeaf(function (st) { return (st && st.snapshot) ? rowsOfMine : [] })
   check(leaf.sessionChainCapsuleOf(null, 's1').state === 'idle', '没快照 → idle（调用方整段不画）')
   check(leaf.sessionChainCapsuleOf({ snapshot: {} }, 's1').state === 'empty', '字段没挂上 → empty（不把「还没有」说成坏了）')
-  const hit = leaf.sessionChainCapsuleOf({ snapshot: { sessionTickets: { ok: true } } }, 's1')
+  const hit = leaf.sessionChainCapsuleOf({ snapshot: { workRoute: { ok: true } } }, 's1')
   check(hit.state === 'empty', '当前会话没格子 → empty（不把别的会话的票算到当前头上）')
   // 当前会话的那一格：用叶子自己的散列函数算，保证判据与挂载读的是同一把散列
   const mine = (function () {
     const shardOf = leaf.capsuleShardOf('s1')
     const rows = rowsOfMine.map(function (r) { return Object.assign({}, r, { shardId: r.shardId === 'SHARD-MINE' ? shardOf : 'SHARD-OTHER-X' }) })
     const leaf2 = loadLeaf(function (st) { return (st && st.snapshot) ? rows : [] })
-    return leaf2.sessionChainCapsuleOf({ snapshot: { sessionTickets: { ok: true } } }, 's1')
+    return leaf2.sessionChainCapsuleOf({ snapshot: { workRoute: { ok: true } } }, 's1')
   })()
   check(mine.state === 'ok' && mine.entry && mine.entry.ticketKey === '951' && mine.list.length === 2 && mine.list[1].ticketKey === '950', '对上格 → 最新一条是 951，单子从新到旧共 2 条（实得 ' + JSON.stringify({ state: mine.state, key: mine.entry && mine.entry.ticketKey, n: mine.list.length }) + '）')
   const brokenLeaf = loadLeaf(function () { return [] })
-  const broken = brokenLeaf.sessionChainCapsuleOf({ snapshot: { sessionTickets: { ok: false, reason: 'host.chain.read-failed' } } }, 's1')
+  const broken = brokenLeaf.sessionChainCapsuleOf({ snapshot: { workRoute: { ok: false, reason: 'host.chain.read-failed' } } }, 's1')
   check(broken.state === 'unreadable' && broken.reason === 'host.chain.read-failed', '真坏了 → 原因透出（调用方画小图标，不独占一行）')
-  const absent = brokenLeaf.sessionChainCapsuleOf({ snapshot: { sessionTickets: { ok: false, reason: 'host.chain.absent' } } }, 's1')
+  const absent = brokenLeaf.sessionChainCapsuleOf({ snapshot: { workRoute: { ok: false, reason: 'host.chain.absent' } } }, 's1')
   check(absent.state === 'empty', 'host.chain.absent 归空不归坏（与展示面同一条纪律）')
 }
 
@@ -118,9 +118,9 @@ console.log('B) 版面纪律：真渲染出来的版面上没有散列与内部�
       const tr = function (k) { return String(k) }
       const opened = []
       const openTicket = function (st, row) { opened.push(row.ticketKey) }
-      return Object.assign(factory(React, { h: h }, Tip, Ic, tr, function () { return rows }, 'sessionTickets', openTicket, function () {}, function (o, kids) { return { overlay: true, props: o, children: kids } }, function () { return { left: 1, bottom: 2 } }, function () {}, function (r, fn) { fn() }, function () {}), { opened: opened })
+      return Object.assign(factory(React, { h: h }, Tip, Ic, tr, function () { return rows }, 'workRoute', openTicket, function () {}, function (o, kids) { return { overlay: true, props: o, children: kids } }, function () { return { left: 1, bottom: 2 } }, function () {}, function (r, fn) { fn() }, function () {}), { opened: opened })
     })()
-    const st = { snapshot: { sessionTickets: { ok: true } } }
+    const st = { snapshot: { workRoute: { ok: true } } }
     const shut = leafR.SessionChainCapsule({ st: st, sid: 's1' })
     const flat = []
     ;(function walk(n) {
@@ -252,9 +252,9 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
     }
     const Ic = function (props) { icons.push(props && props.n); return { t: 'Ic', p: props || {}, c: [] } }
     const tr = function (k) { return String(k) }
-    return factory(React, { h: h }, function () { return null }, Ic, tr, function () { return rows }, 'sessionTickets', function () {}, function () {}, function (o, kids) { return { overlay: true, props: o, children: kids } }, function () { return { left: 1, bottom: 2 } }, function () {}, function (r, fn) { fn() }, function () {})
+    return factory(React, { h: h }, function () { return null }, Ic, tr, function () { return rows }, 'workRoute', function () {}, function () {}, function (o, kids) { return { overlay: true, props: o, children: kids } }, function () { return { left: 1, bottom: 2 } }, function () {}, function (r, fn) { fn() }, function () {})
   })()
-  const st = { snapshot: { sessionTickets: { ok: true } } }
+  const st = { snapshot: { workRoute: { ok: true } } }
   const shut = built.SessionChainCapsule({ st: st, sid: 's1' })
   const flat = []
   ;(function walk(n) {

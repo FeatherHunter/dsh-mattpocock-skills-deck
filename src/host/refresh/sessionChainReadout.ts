@@ -1,5 +1,5 @@
 /**
- * src/host/refresh/sessionChainReadout.ts —— 把处理链转成界面能读的一份读数（票 #721 T17 的宿主半边）
+ * src/host/refresh/sessionChainReadout.ts —— 把工作路线转成界面能读的一份读数（票 #721 T17 的宿主半边）
  *
  * 这一票（#721）的用户可见面是「每个会话在处理哪些票」那一块，它住在界面上
  * （src/client/views/shared/sessionChainView.js）；本文件是它要读的那份读数由谁产出。
@@ -12,16 +12,16 @@
  *     （不许让界面拿「空列表」冒充「没有人在处理票」）。
  *
  * 本文件是纯映射：不读盘、不联网、不看时钟（时刻由调用方传进来）、不记日志。它不 import 同层的
- * sessionTickets.js（同层互引是仓库明令禁止的，门禁 tests/verify-dependency-rules.ts 会红），
- * 只要求调用方把一个「有 snapshot() 的对象」交进来——#714 的 createSessionTickets 返回值正好是它。
+ * workRoute.ts（同层互引是仓库明令禁止的，门禁 tests/verify-dependency-rules.ts 会红），
+ * 只要求调用方把一个「有 snapshot() 的对象」交进来——#714 的 createWorkRoute 返回值正好是它。
  *
  * 接线还没做（不属于本票的改动范围）：宿主组装快照回包时挂上这一个字段，界面才会真的画出来。
  * 那一步是一行，归统筹者（本条链的宿主接线归 #723 / T19 那批）：
  *
- *   const readout = buildSessionChainReadout({ tickets: sessionTickets, at: Date.now() })
+ *   const readout = buildSessionChainReadout({ tickets: workRoute, at: Date.now() })
  *   reply[SESSION_CHAIN_FIELD] = readout        // reply 就是 wf.snapshot 的回包
  *
- * 在那一行接上之前，界面会照实说「处理链读不到」——那是事实，不是故障装饰。
+ * 在那一行接上之前，界面会照实说「工作路线读不到」——那是事实，不是故障装饰。
  *
  * （2026-10-18 #1247 从 sessionChainReadout.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
  * 导出形态保持一一对应，因为 src/host/refresh/wiring.ts 按具名引用这里的两个名字，
@@ -60,7 +60,7 @@ interface SessionChainReadout {
   sessions: ChainReadoutSession[]
 }
 
-/** 有 snapshot() 的那一侧（#714 的 createSessionTickets 返回值正好是它，本文件只读这一格）。 */
+/** 有 snapshot() 的那一侧（#714 的 createWorkRoute 返回值正好是它，本文件只读这一格）。 */
 interface TicketsPort {
   snapshot(): unknown
 }
@@ -72,7 +72,7 @@ interface ReadoutInput {
 }
 
 /** 宿主把这份读数挂在快照回包的哪个字段上（界面那一半读的就是这个名字，门禁核对两边相等）。 */
-export const SESSION_CHAIN_FIELD = 'sessionTickets'
+export const SESSION_CHAIN_FIELD = 'workRoute'
 
 /** 票键的形状（与链一侧的 key 同形：纯数字串）。这里只做形状检查，不重新归一。 */
 function keyLike(v: unknown): string {

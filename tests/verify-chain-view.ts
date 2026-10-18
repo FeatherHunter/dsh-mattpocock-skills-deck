@@ -1,4 +1,4 @@
-// verify-chain-view.ts —— 门禁：处理链展示面「每个会话在处理哪些票」（票 #721 / T17）
+// verify-chain-view.ts —— 门禁：工作路线展示面「每个会话在处理哪些票」（票 #721 / T17）
 // 用法：在插件根目录执行 node tests/verify-chain-view.ts（比产物新鲜度那几条不查产物，可独立运行）
 //
 // 2026-09-24 维护者改口径：这一块的**展示面暂时下线** —— UI 上先不显示，能力全留着
@@ -11,12 +11,12 @@
 //   （连改一句注释、换个措辞都会红），已整段撤掉，下文对应各节留了说明。留下的全是真跑代码看结果的。
 //
 // 这一条门禁跑的是**真代码**，一路到底：
-//   真的链（#714 的 createSessionTickets 记下五次写）→ 真的宿主读数（src/host/refresh/sessionChainReadout.js）
+//   真的链（#714 的 createWorkRoute 记下五次写）→ 真的宿主读数（src/host/refresh/sessionChainReadout.js）
 //   → 真的界面判据与画法（src/client/views/shared/sessionChainView.ts，按 scripts/build.mts 同一套做法
 //     剥掉行首 export、放进一个作用域里跑，React 用最小的假件代替）。
 //
 // 它盯五件事：
-//   一、**取数路径**：界面读的就是快照里那一个字段（sessionTickets）。真跑一遍：两个会话各几张票，
+//   一、**取数路径**：界面读的就是快照里那一个字段（workRoute）。真跑一遍：两个会话各几张票，
 //      按会话分组不串；界面拿不到会话 id 原文（链只留散列）。
 //   二、**「还没有记录」归空、「真读坏了」才可见**（2026-09-24 维护者改的口径）：
 //      `host.chain.absent`（字段没挂 / 没有链实例）与「取到了、就是没有」是同一种事实，整块不画；
@@ -131,9 +131,9 @@ function textOf(node) {
 }
 
 async function main() {
-  console.log('#721 处理链展示面门禁（取数路径 / 读不到就说读不到 / 空态不画 / 词条）')
+  console.log('#721 工作路线展示面门禁（取数路径 / 读不到就说读不到 / 空态不画 / 词条）')
   const chain = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'chain.js')).href)
-  const ticketsMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'sessionTickets.js')).href)
+  const ticketsMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'workRoute.js')).href)
   const readoutMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'sessionChainReadout.js')).href)
 
   // ---------- 词条（中英两份，与界面读的是同一份文件）----------
@@ -166,7 +166,7 @@ async function main() {
   const SID_B = 'sess-bbbb-3333-4444'
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-721-'))
   let clock = 1700000000000
-  const app = ticketsMod.createSessionTickets({ cacheDir: dir, now: function () { return (clock += 1000) } })
+  const app = ticketsMod.createWorkRoute({ cacheDir: dir, now: function () { return (clock += 1000) } })
   const w = function (input) { return app.note(Object.assign({ rootKey: ROOT_KEY, backend: 'github' }, input)) }
   await w({ sessionId: SID_A, source: 'tool-args', tool: 'deck_issue_create', tier: 'write-confirmed', args: { issue: 701 } })
   await w({ sessionId: SID_A, source: 'tool-args', tool: 'deck_issue_patch', tier: 'write-confirmed', args: { number: 702 } })
@@ -180,7 +180,7 @@ async function main() {
   const snapOf = function (payload) {
     return {
       snapshot: {
-        sessionTickets: payload,
+        workRoute: payload,
         issues: [
           { number: 701, title: '甲票标题', effortId: '' },
           { number: 703, title: '丙票标题', effortId: '' },
@@ -358,7 +358,7 @@ async function main() {
   // 第一性原理：那句话是**一句道歉**，不携带任何用户可行动的信息；而「确实没有会话在处理票」才是信息。
   //   所以：`host.chain.absent`（还没有记录）归「空」——与 empty 一样整块不画；
   //   只有 read-failed / shape（真读坏了）才画一个可见标记，而且**不独占一行**。
-  const emptyReadout = readoutMod.buildSessionChainReadout({ tickets: ticketsMod.createSessionTickets({ cacheDir: dir, now: function () { return clock } }), at: READ_AT })
+  const emptyReadout = readoutMod.buildSessionChainReadout({ tickets: ticketsMod.createWorkRoute({ cacheDir: dir, now: function () { return clock } }), at: READ_AT })
   const cases = [
     { what: '宿主没写下这个字段（这个进程里还没有记录）', payload: undefined, state: 'empty' },
     { what: '字段被改成空对象（形状不对）', payload: {}, state: 'unreadable' },
@@ -397,7 +397,7 @@ async function main() {
   const tallies = { empty: [], unreadable: [] }
   cases.forEach(function (c) {
     const s = snapOf(c.payload)
-    if (c.payload === undefined) delete s.snapshot.sessionTickets
+    if (c.payload === undefined) delete s.snapshot.workRoute
     const v = leaf.sessionChainViewOf(s)
     if (v.state !== c.state) fail(c.what + '：判成了 ' + v.state + '（应当 ' + c.state + '）')
     const n = leaf.SessionChainStrip({ st: s, narrow: false })
@@ -486,7 +486,7 @@ async function main() {
   //   自己解析命令行（gh issue、glab、--json）、自己拼链的键（chainEntryKey、chainRootHash、
   //   chainSessionShardId）、自己判读与写（chainVerdictOf）、自己重排链（mergeEntries）、
   //   自己去读落盘那份（session-tickets.json、readFileSync、require(）、新增取数调用
-  //   （host.call、fetch(、XMLHttpRequest）；外加「字段名 'sessionTickets' 只许出现一次」与
+  //   （host.call、fetch(、XMLHttpRequest）；外加「字段名 'workRoute' 只许出现一次」与
   //   「必须从 SESSION_CHAIN_FIELD 常量去读」两条，以及为它们写的中文串与坏样本两份反证。
   //   断言对象全是源码文本的写法，换个写法、抽个函数、把取值改成解构就变红，按维护者「清掉读源码文本
   //   钉形状的门禁」的要求整节撤掉，连带只服务它的 codeOnly / hardcodedTextHits 两个辅助与两处反证。

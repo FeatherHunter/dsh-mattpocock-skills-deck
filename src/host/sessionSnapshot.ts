@@ -93,7 +93,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   function withChainReadout(reply: unknown) {
     if (!reply || typeof reply !== 'object' || (reply as { ok?: unknown }).ok !== true) return reply
     if (typeof chainReadout !== 'function') return reply
-    try { (reply as Record<string, unknown>)[chainField || 'sessionTickets'] = chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
+    try { (reply as Record<string, unknown>)[chainField || 'workRoute'] = chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
     return reply
   }
   async function handleSnapshot(args: Args) { return withChainReadout(await snapshotOf(args)) }

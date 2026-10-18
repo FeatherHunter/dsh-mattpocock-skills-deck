@@ -50,7 +50,7 @@ function loadLeaf(leafPath: string, extra?: { pushNav?: unknown; findMapByIdenti
 async function main() {
   console.log('#783 链按工作单元区分同号票门禁（直接改票文件 / 键与落盘带工作单元 / 跳转）')
   const chain = await import(url('src/shared/refresh/chain.js'))
-  const ticketsMod = await import(url('src/host/refresh/sessionTickets.js'))
+  const ticketsMod = await import(url('src/host/refresh/workRoute.ts'))
   const readoutMod = await import(url('src/host/refresh/sessionChainReadout.js'))
   const writeMod = await import(url('src/host/refresh/writeEvents.js'))
 
@@ -78,7 +78,7 @@ async function main() {
   console.log('\n== 三、去重与落盘 ==')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't783-'))
   let clock = 1700000000000
-  const app = ticketsMod.createSessionTickets({ cacheDir: dir, now: () => (clock += 1000) })
+  const app = ticketsMod.createWorkRoute({ cacheDir: dir, now: () => (clock += 1000) })
   const SID = 'sess-783'
   const ROOT_KEY = 'D:\\proj\\deck'
   const w = (input) => app.note(Object.assign({ rootKey: ROOT_KEY, backend: 'markdown' }, input))
@@ -140,7 +140,7 @@ async function main() {
   const st = {
     tab: 'checks',
     snapshot: {
-      sessionTickets: readout,
+      workRoute: readout,
       issues: [
         { number: 1, title: 'A 的票', effortId: 'alpha', state: 'OPEN' },
         { number: 1, title: 'B 的票', effortId: 'beta', state: 'OPEN' },

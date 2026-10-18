@@ -111,9 +111,9 @@ const BASE_SNAP = {
   issues: [{ number: 951, title: '甲票标题', effortId: '' }, { number: 800, title: '乙票标题', effortId: '' }, { number: 900, title: '丙票标题', effortId: '' }],
 }
 // 三份输入各是「从前画得出来」的一份：正常读数、超过行数上限、宿主说这次读坏了。
-const SNAP_WITH_DATA = Object.assign({}, BASE_SNAP, { sessionTickets: { ok: true, at: READ_AT, sessions: SESSIONS } })
-const SNAP_OVER_CAP = Object.assign({}, BASE_SNAP, { version: 'verify-chain-view-ui-overcap', sessionTickets: { ok: true, at: READ_AT, sessions: [{ shardId: '307d37e6a1b2c3d4', backend: 'github', entries: MANY }] } })
-const SNAP_BROKEN = Object.assign({}, BASE_SNAP, { version: 'verify-chain-view-ui-broken', sessionTickets: { ok: false, at: READ_AT, reason: 'host.chain.read-failed', sessions: [] } })
+const SNAP_WITH_DATA = Object.assign({}, BASE_SNAP, { workRoute: { ok: true, at: READ_AT, sessions: SESSIONS } })
+const SNAP_OVER_CAP = Object.assign({}, BASE_SNAP, { version: 'verify-chain-view-ui-overcap', workRoute: { ok: true, at: READ_AT, sessions: [{ shardId: '307d37e6a1b2c3d4', backend: 'github', entries: MANY }] } })
+const SNAP_BROKEN = Object.assign({}, BASE_SNAP, { version: 'verify-chain-view-ui-broken', workRoute: { ok: false, at: READ_AT, reason: 'host.chain.read-failed', sessions: [] } })
 
 const { build } = await import('esbuild')
 const bundled = await build({

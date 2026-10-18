@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * verify-735-chain-restore.ts —— 门禁：处理链落盘后有人读回（票 #735）
+ * verify-735-chain-restore.ts —— 门禁：工作路线落盘后有人读回（票 #735）
  *
- * 守的是什么：会话↔票处理链的内存表按进程活，盘是跨进程的唯一副本。
+ * 守的是什么：会话↔票工作路线的内存表按进程活，盘是跨进程的唯一副本。
  * `restore` 写好了但生产里没人调（#732 顺手抓到的真缺陷），重启即丢内存：
  * 盘里有旧数据，读数里永远看不见。修法只动接线一处（wiring.js 的 attach 与
  * syncAttention），本门禁钉住那两处调用，真跑一遍“记→重启→回来”。
@@ -78,7 +78,7 @@ function restoreLogs(events: FiredLog[]): FiredLog[] {
 }
 
 async function main(): Promise<void> {
-  console.log('#735 处理链落盘读回门禁（按根读回 / 一根一次 / 负控）')
+  console.log('#735 工作路线落盘读回门禁（按根读回 / 一根一次 / 负控）')
 
 
   const wiringMod = await import(url('src/host/refresh/wiring.js'))
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
   const WS = 'd:\\ws\\735-home'
   const events1 = []
   const w1 = await wiringMod.makeRefreshLoader(makeDeps(dir, events1))()
-  const noted = await w1.sessionTickets.note({
+  const noted = await w1.workRoute.note({
     sessionId: 'sess-735', rootHash: chainMod.chainRootHash(WS), backend: 'github',
     tool: 'pwsh', source: 'cli', tier: 'write-confirmed', reason: 'cmd.cli-write',
     verb: 'comment', ticketKey: '735', args: {},
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
   check(bootLogs.some((e) => e.fields && e.fields.ok === true),
     '读回留下一行 kind:restore 且 ok:true（' + bootLogs.length + ' 行）',
     '没有这行 = 读回没跑，或跑了但没成')
-  try { w1.sessionTickets.drop(); w2.sessionTickets.drop() } catch (e) {}
+  try { w1.workRoute.drop(); w2.workRoute.drop() } catch (e) {}
 
   // ── 三、行为：按根读回，一根只读一次 ──
   console.log('\n== 三、切进工作区按根读回，一根只读一次 ==')
@@ -120,12 +120,12 @@ async function main(): Promise<void> {
   const w3 = await wiringMod.makeRefreshLoader(makeDeps(dir3, events3))()
   const WS_A = 'd:\\ws\\735-a'
   const H_A = chainMod.chainRootHash(WS_A)
-  await w3.sessionTickets.note({
+  await w3.workRoute.note({
     sessionId: 'sess-a', rootHash: H_A, backend: 'github',
     tool: 'pwsh', source: 'cli', tier: 'write-confirmed', reason: 'cmd.cli-write',
     verb: 'edit', ticketKey: '730', args: {},
   })
-  w3.sessionTickets.drop() // 模拟重启：内存清空，盘留着
+  w3.workRoute.drop() // 模拟重启：内存清空，盘留着
   const emptyNow = w3.chainReadoutOf()
   check(!!emptyNow && emptyNow.sessions.length === 0, '内存清空后读数是空的（模拟出重启现场）',
     '这一步不空 = 后面“回来”证明不了什么')
@@ -146,16 +146,16 @@ async function main(): Promise<void> {
 
   // ── 四、负控：不调 restore 就是空 ──
   console.log('\n== 四、负控：不调 restore 就是空（门禁非恒绿的证据） ==')
-  const ticketsMod = await import(url('src/host/refresh/sessionTickets.js'))
+  const ticketsMod = await import(url('src/host/refresh/workRoute.ts'))
   const readoutMod = await import(url('src/host/refresh/sessionChainReadout.js'))
   const dir4 = fs.mkdtempSync(path.join(os.tmpdir(), 't735-negative-'))
-  const raw1 = ticketsMod.createSessionTickets({ cacheDir: dir4, now: () => 1000 })
+  const raw1 = ticketsMod.createWorkRoute({ cacheDir: dir4, now: () => 1000 })
   await raw1.note({
     sessionId: 'sess-n', rootHash: chainMod.chainRootHash('d:\\ws\\735-n'), backend: 'github',
     tool: 'pwsh', source: 'cli', tier: 'write-confirmed', reason: 'cmd.cli-write',
     verb: 'edit', ticketKey: '731', args: {},
   })
-  const raw2 = ticketsMod.createSessionTickets({ cacheDir: dir4, now: () => 2000 })
+  const raw2 = ticketsMod.createWorkRoute({ cacheDir: dir4, now: () => 2000 })
   const neg = readoutMod.buildSessionChainReadout({ tickets: raw2, at: 2000 })
   check(!!neg && neg.ok === true && neg.sessions.length === 0 && neg.reason === 'host.chain.empty',
     '负控：新实例不调 restore，读数恒空（reason=host.chain.empty）',

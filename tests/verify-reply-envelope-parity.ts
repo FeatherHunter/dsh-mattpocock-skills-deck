@@ -35,7 +35,7 @@ function makeDeps(envelope, chainReadout) {
   return {
     envelope: envelope,
     chainReadout: chainReadout,
-    chainField: 'sessionTickets',
+    chainField: 'workRoute',
     canonicalKey: async function (s) { return s },
     selectEarly: async function () { return { backendId: null, source: 'fallback', pending: false, rev: 0 } },
     isComposerSelection: function () { return false },
@@ -84,7 +84,7 @@ async function main() {
     adoptSnapshot: function (snap) { return snap },
     logCtx: quietLog,
     chainReadout: chainReadout,
-    chainField: 'sessionTickets',
+    chainField: 'workRoute',
   })
 
   const deps = makeDeps(envelope, chainReadout)
@@ -104,8 +104,8 @@ async function main() {
   const refKeys = Object.keys(refReply).sort()
 
   // 一、两条路都必须挂上那个读数字段。
-  if (snapKeys.indexOf('sessionTickets') < 0) fail('wf.snapshot 的回包里没有挂「每个会话在处理哪些票」的读数（sessionTickets）：界面那一块只能判读不到')
-  if (refKeys.indexOf('sessionTickets') < 0) fail('wf.refresh 的回包里没有挂「每个会话在处理哪些票」的读数（sessionTickets）：界面只要走过一次强制刷新就会一直显示读不到（这就是 2026-09-24 那条真机反馈）')
+  if (snapKeys.indexOf('workRoute') < 0) fail('wf.snapshot 的回包里没有挂「每个会话在处理哪些票」的读数（workRoute）：界面那一块只能判读不到')
+  if (refKeys.indexOf('workRoute') < 0) fail('wf.refresh 的回包里没有挂「每个会话在处理哪些票」的读数（workRoute）：界面只要走过一次强制刷新就会一直显示读不到（这就是 2026-09-24 那条真机反馈）')
 
   // 二、两条路的字段集合必须逐项相等 —— 这是本条门禁的主句。
   if (snapKeys.join(',') !== refKeys.join(',')) {
@@ -119,7 +119,7 @@ async function main() {
 
   if (failed) return
   ok('两条回包路径的字段集合逐项相等（各 ' + snapKeys.length + ' 项）')
-  ok('两条路都挂上了 sessionTickets 读数，且各现算一次（共 ' + readoutCalls + ' 次）')
+  ok('两条路都挂上了 workRoute 读数，且各现算一次（共 ' + readoutCalls + ' 次）')
 }
 
 main().then(function () {

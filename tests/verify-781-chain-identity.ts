@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-781-chain-identity.ts —— 门禁：处理链记与读用同一身份（票 #781）
+ * verify-781-chain-identity.ts —— 门禁：工作路线记与读用同一身份（票 #781）
  *
  * 守的是什么：重启后“谁在处理哪张票”对不上，根因是记与读用的不是同一把钥匙
  *   ① 主动上报拿会话所选目录原文算散列，读回按工作区根过滤 —— 同一处换种写法就落两格；
@@ -18,7 +18,7 @@
  * 用法: node --import ./scripts/ts-hook.mts tests/verify-781-chain-identity.ts（在插件根目录）
  * 退出码：0 = 通过；1 = 有违规。
  * 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，四条 .js 说明符原样保留
- * （chain.js / sessionTickets.js / writeEvents.js 仍是手写 JS，wiring.js 已是 .ts、由钩子改指）。
+ * （这四份源码现在都是同名 .ts；代码里动态 import 写的 .js 说明符由 scripts/ts-hook.mjs 改指同名 .ts）。
  */
 const fs = require('fs')
 const path = require('path')
@@ -37,9 +37,9 @@ const check = (ok: unknown, msg: string, detail?: unknown): void => {
 }
 
 async function main(): Promise<void> {
-  console.log('#781 处理链记读同身份门禁（洗根 / 门前记链 / 读回等落定）')
+  console.log('#781 工作路线记读同身份门禁（洗根 / 门前记链 / 读回等落定）')
   const chainMod = await import(url('src/shared/refresh/chain.js'))
-  const ticketsMod = await import(url('src/host/refresh/sessionTickets.js'))
+  const ticketsMod = await import(url('src/host/refresh/workRoute.ts'))
   const writeMod = await import(url('src/host/refresh/writeEvents.js'))
   const wiringMod = await import(url('src/host/refresh/wiring.js'))
 
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   // ── 一、note() 先洗根 ──
   console.log('\n== 一、子目录原文记入，落在归一化根那一格 ==')
   const dir1 = fs.mkdtempSync(path.join(os.tmpdir(), 't781-wash-'))
-  const st1 = ticketsMod.createSessionTickets({
+  const st1 = ticketsMod.createWorkRoute({
     cacheDir: dir1,
     canonicalKey: async (raw) => (String(raw || '').toLowerCase().replace(/\//g, '\\').replace(/\\+$/, '') === 'd:\\ws\\781-home\\sub' ? CANON : String(raw)),
   })
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   check(snap1.length === 1 && snap1[0].rootHash === chainMod.chainRootHash(CANON),
     '这一格的根散列等于归一化根的散列（与读回侧同格）',
     '实得：' + JSON.stringify(snap1.map((s) => s.rootHash)))
-  const st1b = ticketsMod.createSessionTickets({ cacheDir: dir1 })
+  const st1b = ticketsMod.createWorkRoute({ cacheDir: dir1 })
   const rr1 = await st1b.restore({ rootKey: CANON })
   check(rr1.entries === 1 && st1b.entriesOf('sess-781').length === 1 &&
     st1b.entriesOf('sess-781')[0].ticketKey === '781',
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
     await new Promise((r) => setTimeout(r, 120))
     return await fs.promises.readFile(p, 'utf8')
   }
-  const stSlow = ticketsMod.createSessionTickets({
+  const stSlow = ticketsMod.createWorkRoute({
     cacheDir: dir3,
     canonicalKey: async (x) => String(x),
     readText: slowRead,
@@ -118,7 +118,7 @@ async function main(): Promise<void> {
     getTrackerRegistry: async () => ({ describe: () => ({ backend: 'github' }), modules: () => [] }),
     getDetectionService: async () => ({ detect: async () => ({ selection: { backendId: 'github' } }) }),
     getPlatform: async () => ({ os: 'win32', path: path }),
-    sessionTickets: stSlow,
+    workRoute: stSlow,
   }
   const w = await wiringMod.makeRefreshLoader(deps)()
   const t0 = Date.now()

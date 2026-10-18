@@ -83,7 +83,7 @@ const LEAVES = [
   { file: 'src/client/views/labels/LabelColorRow.js', exports: ['LabelColorRow'], components: ['LabelColorRow'] },
   { file: 'src/client/views/labels/LabelColorDialog.js', exports: ['LabelColorDialog', 'lcPanelPendingOf'], components: ['LabelColorDialog'] }, // #631 的 D1 补修追加：lcPanelPendingOf 读出「这个工作区用哪个后端还在识别」
   { file: 'src/client/views/labels/LabelColorEntry.js', exports: ['LabelColorEntry'], components: ['LabelColorEntry'] },
-  // #721 处理链展示面：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段）
+  // #721 工作路线展示面：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段）
   { file: 'src/client/views/shared/sessionChainView.js', exports: ['SESSION_CHAIN_FIELD', 'SESSION_CHAIN_ACTION_KEYS', 'sessionChainActionKeyOf', 'sessionChainClock', 'sessionChainViewOf', 'sessionChainRowsOf', 'sessionChainOpenTicket', 'SessionChainStrip'], components: ['SessionChainStrip'] },
   // 2026-09-24 从贴着 350 行上限的两个文件里搬出来的两块：
   //   · 降级横幅（views/ListTab.js → views/shared/RestFallbackBanner.js，判据仍是 truthLines 的 restFallbackView）
