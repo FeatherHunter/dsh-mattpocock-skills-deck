@@ -16,7 +16,7 @@
  *   store（选择态为空），断言「必须出现」会变成一条永远红的假门禁。真要在渲染层断言能力门控，
  *   得先让门禁能替换组件取 store 的那条通道，那属于另一张票的事。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-530-pr-tab.ts（先跑 node scripts/build.mjs，保证产物新鲜）
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-530-pr-tab.ts（先跑 node scripts/build.mts，保证产物新鲜）
  */
 import { JSDOM } from 'jsdom'
 import { readFileSync } from 'node:fs'

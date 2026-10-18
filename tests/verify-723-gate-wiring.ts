@@ -1,6 +1,6 @@
 // verify-723-gate-wiring.ts —— 门禁：#723（T19）把存量三处传输出口接进唯一出口闸之后，
 // 「裁决那一半」与「处理链喂数据那一半」在真业务路径上真的走通了（不是只记了一笔账、也不是只喂了一笔）。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-723-gate-wiring.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-723-gate-wiring.ts，可独立运行。
 //
 // 为什么必须单独有这一条：
 //   tests/verify-gh-gateway.ts 守的是「每一笔出站都被报给了闸」（记账那一半）与「登记表不许说谎」。

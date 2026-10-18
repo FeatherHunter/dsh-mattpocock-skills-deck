@@ -16,7 +16,7 @@
  *       内核那份变成没人用的孤儿」。
  *   四、**同形复制反向断言**：房里不许再各自声明 `ms` / `outcomeOf` / `failReason` / 本地 `guardEmit`。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-1182-log-emit-single-source.ts
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-1182-log-emit-single-source.ts
  */
 
 import * as fs from 'node:fs'

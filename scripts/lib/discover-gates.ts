@@ -30,8 +30,8 @@ export function discoverGateFiles(root: string): string[] {
   const dir = path.join(root, 'tests')
   const names = fs.readdirSync(dir)
   return names
-    .filter((n) => isGateFileName(n))
-    .map((n) => 'tests/' + n)
+    .filter((n: any) => isGateFileName(n))
+    .map((n: any) => 'tests/' + n)
     .sort()
 }
 

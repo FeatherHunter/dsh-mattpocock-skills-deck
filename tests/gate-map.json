@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-18T13:44:30.913Z",
-  "generatedBy": "node scripts/gate-map.mjs",
+  "generatedAt": "2026-10-18T18:17:31.090Z",
+  "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 294,
   "gateCount": 294,
   "attributedGates": 263,
@@ -16,9 +16,9 @@
       "step": "node tests/verify-1207-splice-ts.ts",
       "file": "tests/verify-1207-splice-ts.ts",
       "guards": [
-        "scripts/build.mjs",
-        "scripts/lib/transpile-domains.mjs",
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/build.mts",
+        "scripts/lib/transpile-domains.mts",
+        "scripts/lib/transpile-unit.mts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -76,7 +76,7 @@
         "scripts/generated/logKernel.derived.js",
         "scripts/generated/updateClient.derived.js",
         "scripts/generated/updateEntryPanel.bundle.js",
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/api-io.js",
         "src/deck",
         "src/host",
@@ -125,7 +125,7 @@
       "guards": [
         "package/lib/client.js",
         "package/package.json",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "scripts/lib/effective-lines.mts",
         "src/client/floating/Pop.js",
         "src/client/floating/SkillFloatList.js",
@@ -292,7 +292,7 @@
       "step": "node tests/verify-chain-view.ts",
       "file": "tests/verify-chain-view.ts",
       "guards": [
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-pages.js",
         "src/client/kernel/store-derived.js",
         "src/client/views/shared/sessionChainView.js",
@@ -667,7 +667,7 @@
         "package/cordis.patch.yml",
         "package/deck/registration/agent-row.js",
         "package/package.json",
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/deck/registration/agent-row.ts"
       ],
       "dirs": [
@@ -728,7 +728,7 @@
       "step": "node tests/verify-dependency-rules.ts",
       "file": "tests/verify-dependency-rules.ts",
       "guards": [
-        "scripts/gate-map.mjs",
+        "scripts/gate-map.mts",
         "src/deck",
         "src/deck/registration/host-assemble.ts",
         "src/deck/rules/anchor.ts",
@@ -785,14 +785,14 @@
         "docs/agents/verification.md",
         "package/lib/client.js",
         "research/489-appendix.md",
-        "scripts/build.mjs",
-        "scripts/gate-map.mjs",
-        "scripts/lib/select-gates.mjs",
+        "scripts/build.mts",
+        "scripts/gate-map.mts",
+        "scripts/lib/select-gates.mts",
         "src",
         "src/client",
         "src/client/views",
         "src/client/views/versionControl",
-        "src/client/views/versionControl/VersionControlTab.js",
+        "src/client/views/versionControl/VersionControlTab.ts",
         "src/host",
         "src/host/mapBody.ts",
         "src/shared/refresh/budget.js",
@@ -1164,7 +1164,7 @@
       "step": "node tests/verify-1115-timer-handle.ts",
       "file": "tests/verify-1115-timer-handle.ts",
       "guards": [
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "scripts/lib/discover-gates.ts",
         "src/client/hostShim.js",
         "src/client/kernel/settings-view-write.js",
@@ -1293,7 +1293,7 @@
       "step": "node tests/verify-1146-virtual-clock-liveness.ts",
       "file": "tests/verify-1146-virtual-clock-liveness.ts",
       "guards": [
-        "scripts/ts-hook.mjs",
+        "scripts/ts-hook.mts",
         "tests/lib/time-compress.ts",
         "tests/verify-1146-virtual-clock-liveness.ts"
       ],
@@ -1341,7 +1341,7 @@
       "file": "tests/verify-1157-in-flight-lease.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "scripts/ts-hook.mjs",
+        "scripts/ts-hook.mts",
         "src/deck/shell/in-flight-lease.ts",
         "tests/verify-1157-in-flight-lease.ts"
       ],
@@ -1363,10 +1363,10 @@
       "guards": [
         "scripts",
         "scripts/lib/discover-gates.ts",
-        "scripts/ts-hook.mjs",
-        "scripts/verify-all.mjs",
-        "scripts/verify-chain.js",
-        "scripts/verify-parallel.mjs",
+        "scripts/ts-hook.mts",
+        "scripts/verify-all.mts",
+        "scripts/verify-chain.ts",
+        "scripts/verify-parallel.mts",
         "scripts/verify-stages.json",
         "tests",
         "tests/gate-map.json",
@@ -1456,7 +1456,7 @@
       "step": "node tests/verify-1184-body-parse-gap.ts",
       "file": "tests/verify-1184-body-parse-gap.ts",
       "guards": [
-        "scripts/wire-subissues.mjs",
+        "scripts/wire-subissues.mts",
         "src/tracker/body-parse.ts"
       ],
       "dirs": [
@@ -1895,7 +1895,7 @@
       "step": "node tests/verify-640-dock-width-browser.ts",
       "file": "tests/verify-640-dock-width-browser.ts",
       "guards": [
-        "scripts/gen-fixture-640.js",
+        "scripts/gen-fixture-640.ts",
         "tests/lib/browser-pool.ts"
       ],
       "dirs": [
@@ -2350,8 +2350,8 @@
       "step": "node tests/verify-683-choice-store.ts",
       "file": "tests/verify-683-choice-store.ts",
       "guards": [
-        "scripts/lib/transpile-domains.mjs",
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-domains.mts",
+        "scripts/lib/transpile-unit.mts",
         "src/host/choiceStore.ts"
       ],
       "dirs": [
@@ -2370,7 +2370,7 @@
       "guards": [
         "docs/agents",
         "docs/agents/issue-tracker.md",
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src",
         "src/host/choiceStore.ts",
         "src/host/sessionSnapshot.ts",
@@ -2944,7 +2944,7 @@
       "step": "node tests/verify-818-version-control-view.ts",
       "file": "tests/verify-818-version-control-view.ts",
       "guards": [
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/locale-vcwrite.js",
@@ -3061,7 +3061,7 @@
       "step": "node tests/verify-842-version-control-write-view.ts",
       "file": "tests/verify-842-version-control-write-view.ts",
       "guards": [
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/locale-vcwrite.js",
@@ -3817,7 +3817,7 @@
       "step": "node tests/verify-997-vc-sight.ts",
       "file": "tests/verify-997-vc-sight.ts",
       "guards": [
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
         "src/client/views/versionControl/vcBlocks.js",
@@ -4231,9 +4231,10 @@
       "guards": [
         "package/lib/client.js",
         "package/package.json",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "src/client/index.js",
-        "src/client/kernel/ctx.js"
+        "src/client/kernel/ctx.js",
+        "src/client/kernel/ctx.ts"
       ],
       "dirs": [
         "package",
@@ -4780,7 +4781,7 @@
       "step": "node tests/verify-golden-receipts.ts",
       "file": "tests/verify-golden-receipts.ts",
       "guards": [
-        "scripts/ts-hook.mjs",
+        "scripts/ts-hook.mts",
         "src/deck/tools/context.ts",
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
@@ -4926,7 +4927,7 @@
       "guards": [
         "docs/agents",
         "docs/agents/issue-tracker.md",
-        "scripts/fix-issue-body.mjs",
+        "scripts/fix-issue-body.mts",
         "src/tracker/body-parse.ts"
       ],
       "dirs": [
@@ -5080,7 +5081,7 @@
       "guards": [
         "package/lib/client.js",
         "package/package.json",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "src/client/index.js",
         "src/shared/label-color/colors.js",
         "src/shared/label-color/prompt.js"
@@ -5162,7 +5163,7 @@
         "package/lib",
         "package/lib/client.js",
         "package/lib/index.js",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "scripts/generated/logKernel.derived.js",
         "src/client",
         "src/client/kernel/log.ts",
@@ -5187,7 +5188,7 @@
       "file": "tests/verify-log-client.ts",
       "guards": [
         "package/lib/client.js",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "src/client/index.js",
         "src/client/kernel/log.js",
         "src/client/kernel/probe-snapshot.js",
@@ -5381,7 +5382,7 @@
       "file": "tests/verify-map-drill.ts",
       "guards": [
         "package/lib/client.js",
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/store-derived.js",
         "src/client/kernel/store-prefs.js",
@@ -5504,7 +5505,7 @@
       "step": "node tests/verify-multi-effort-panel.ts",
       "file": "tests/verify-multi-effort-panel.ts",
       "guards": [
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/store-derived.js",
         "src/client/views/ListTabRow.js",
         "src/host/tracker/snapshot.ts",
@@ -5747,7 +5748,7 @@
         "package/lib/mapBody.js",
         "package/lib/ticketGrouping.js",
         "package/package.json",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "src/host/index.ts",
         "src/host/issueDetail.ts",
         "src/host/issueList.ts",
@@ -5778,7 +5779,7 @@
         "package/lib/client.js",
         "package/lib/index.js",
         "package/package.json",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "src/host/platform/darwin/index.ts",
         "src/host/platform/index.ts",
         "src/host/platform/linux/index.ts",
@@ -5867,11 +5868,11 @@
         "package/lib/client.js",
         "package/scripts",
         "scripts",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "scripts/lib/discover-gates.ts",
-        "scripts/lib/transpile-domains.mjs",
-        "scripts/lib/transpile-unit.mjs",
-        "scripts/ts-hook.mjs",
+        "scripts/lib/transpile-domains.mts",
+        "scripts/lib/transpile-unit.mts",
+        "scripts/ts-hook.mts",
         "src/client/kernel/config.js",
         "src/client/kernel/prompts.js",
         "src/client/kernel/router.js",
@@ -5971,7 +5972,7 @@
         "package/README.md",
         "package/lib/client.js",
         "package/package.json",
-        "scripts/create-release-issue.mjs",
+        "scripts/create-release-issue.mts",
         "scripts/wizard-release.sh",
         "wizard/template.sh"
       ],
@@ -5995,7 +5996,7 @@
       "guards": [
         "docs/releases/RELEASE-RUNBOOK.md",
         "docs/releases/release-issue-template.md",
-        "scripts/create-release-issue.mjs"
+        "scripts/create-release-issue.mts"
       ],
       "dirs": [
         "docs/releases",
@@ -6134,7 +6135,7 @@
       "guards": [
         "package/lib/client.js",
         "research/489-appendix.md",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "scripts/generated/logKernel.derived.js",
         "scripts/lib/discover-gates.ts",
         "scripts/lib/effective-lines.mts",
@@ -6203,7 +6204,7 @@
       "file": "tests/verify-settings-templates.ts",
       "guards": [
         "package/lib/client.js",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "scripts/lib/effective-lines.mts",
         "src/client/index.js",
         "src/client/kernel/config.js",
@@ -6245,7 +6246,7 @@
       "file": "tests/verify-settings-view.ts",
       "guards": [
         "package/lib/client.js",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "scripts/lib/effective-lines.mts",
         "src/client/index.js",
         "src/client/kernel/settings-ui.js",
@@ -6470,9 +6471,9 @@
       "guards": [
         "package/lib/client.js",
         "package/package.json",
-        "scripts/build.mjs",
+        "scripts/build.mts",
         "src/client/index.js",
-        "src/client/kernel/ctx.js",
+        "src/client/kernel/ctx.ts",
         "src/client/kernel/tabsfold.js",
         "tests/lib/eval-probe.ts"
       ],
@@ -6694,7 +6695,7 @@
       "step": "node tests/verify-visible-truth.ts",
       "file": "tests/verify-visible-truth.ts",
       "guards": [
-        "scripts/lib/transpile-unit.mjs",
+        "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-pages.js",
         "src/client/views/shared/truthLines.js",
         "src/host/snapshotEnvelope.ts",
@@ -6723,9 +6724,9 @@
       "guards": [
         "docs/agents",
         "docs/agents/issue-tracker.md",
-        "scripts/fix-issue-body.mjs",
+        "scripts/fix-issue-body.mts",
         "scripts/lib/discover-gates.ts",
-        "scripts/wire-subissues.mjs",
+        "scripts/wire-subissues.mts",
         "tests/verify-issue-body-script.ts",
         "tests/verify-wire-subissues-script.ts"
       ],
@@ -6851,8 +6852,8 @@
       "step": "node tests/verify-star-history.ts",
       "file": "tests/verify-star-history.ts",
       "guards": [
-        "scripts/generate-star-history-svg.mjs",
-        "scripts/star-history.mjs"
+        "scripts/generate-star-history-svg.mts",
+        "scripts/star-history.mts"
       ],
       "dirs": [
         "scripts"
@@ -6866,35 +6867,35 @@
   ],
   "smokeGates": [
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.ts",
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-client.test.ts",
       "file": "tests/smoke-client.test.ts",
       "gate": "smoke-client",
       "completionRecord": false,
       "expectedAssertions": 0
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.ts",
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-host-dispatch.test.ts",
       "file": "tests/smoke-host-dispatch.test.ts",
       "gate": "smoke-host-dispatch",
       "completionRecord": true,
       "expectedAssertions": 40
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-render.test.ts",
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts",
       "file": "tests/smoke-render.test.ts",
       "gate": "smoke-render",
       "completionRecord": false,
       "expectedAssertions": 0
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.ts",
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-naming-persistence.test.ts",
       "file": "tests/smoke-naming-persistence.test.ts",
       "gate": "smoke-naming-persistence",
       "completionRecord": true,
       "expectedAssertions": 37
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.ts",
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts",
       "file": "tests/smoke-comment-passthrough.test.ts",
       "gate": "smoke-comment-passthrough",
       "completionRecord": false,

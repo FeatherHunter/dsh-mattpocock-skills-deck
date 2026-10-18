@@ -13,7 +13,7 @@
 //       「有没有某种写法」的静态查表（零手拼、静态 import、不读 HOME…），属读源码文本钉形状，已按维护者要求整段删除。
 //   I3 双闸：产物门禁（存在 + 新鲜度）+ 运行时断言 双重通过；verify全绿即平台层有约束力（#131验收②）
 // 用法：node tests/verify-platform-contract.ts [--os=win32|darwin|linux|all]（默认全量三端；CI可--os=all单机三端）
-//       先运行 node scripts/build.mjs ；已注册进 npm run verify（与既有 node tests/verify-*.js 同法）
+//       先运行 node scripts/build.mts ；已注册进 npm run verify（与既有 node tests/verify-*.js 同法）
 // 参考：#129 #113 D1/D4/D5/D7 #131可测性三前提 #156-158 #160/#162 #164/#166 #168/#170 #173真实化方法论
 
 const fs = require('fs')
@@ -36,14 +36,14 @@ const SOURCES = [
   'src/host/platform/index.ts',
   'src/host/platform/darwin/index.ts',
   'src/host/platform/linux/index.ts',
-  'scripts/build.mjs',
+  'scripts/build.mts',
   'package/package.json',
 ]
 function productStale(prod) {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
+  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
   const pm = fs.statSync(prod).mtimeMs
   for (const s of SOURCES) {
-    if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mjs）'
+    if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
   }
   return null
 }

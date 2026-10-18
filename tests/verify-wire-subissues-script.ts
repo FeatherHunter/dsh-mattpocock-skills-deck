@@ -17,7 +17,7 @@
  *  12) 参数与输入校验：缺参/格式错/正文不像地图正文（四种绕过）/自挂/不存在票/改挂/票号 0：退出码 2；
  *  13) 非 GitHub 后端（Markdown / GitLab / 没有主锚）：退出码 2 并指明正确做法；
  *  14) 计数口径：--children 去重、地图含名单外子票时 actual 的口径、地图总数进 warnings、>100 张要翻页；
- *  15) 回包字段集合与类型与姊妹脚本 scripts/fix-issue-body.mjs 同形；
+ *  15) 回包字段集合与类型与姊妹脚本 scripts/fix-issue-body.mts 同形；
  *  16) 本门禁已接进 npm run verify 链，且紧跟姊妹门禁之后；
  *  17) 失败分支全覆盖：读地图正文/读子议题列表/读子票/读现有阻塞边/写地图正文/写回不一致/挂子议题边/
  *      建阻塞边/校验读回/降级写文字行 各失败一次，退出码、评论落点、commented 都对；
@@ -36,9 +36,9 @@ const os = require('os')
 const { spawnSync } = require('child_process')
 
 const ROOT = path.join(__dirname, '..')
-const SCRIPT = path.join(ROOT, 'scripts', 'wire-subissues.mjs')
-const SIBLING_SCRIPT = path.join(ROOT, 'scripts', 'fix-issue-body.mjs')
-const SCRIPT_NAME = 'scripts/wire-subissues.mjs'
+const SCRIPT = path.join(ROOT, 'scripts', 'wire-subissues.mts')
+const SIBLING_SCRIPT = path.join(ROOT, 'scripts', 'fix-issue-body.mts')
+const SCRIPT_NAME = 'scripts/wire-subissues.mts'
 
 let failed = false
 const check = function (ok, msg) {

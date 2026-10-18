@@ -33,11 +33,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
         shell: bash
-      - run: node scripts/build.mjs
+      - run: node scripts/build.mts
         shell: bash
       - run: npm run verify
         shell: bash
-      - run: node scripts/matrix-smoke.js --os=${{ inputs.os }}
+      - run: node scripts/matrix-smoke.ts --os=${{ inputs.os }}
         shell: bash
-      - run: node scripts/matrix-full.js --os=${{ inputs.os }} --backend=${{ inputs.backend }}
+      - run: node scripts/matrix-full.ts --os=${{ inputs.os }} --backend=${{ inputs.backend }}
         shell: bash

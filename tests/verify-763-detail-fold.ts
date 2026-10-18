@@ -2,7 +2,7 @@
 /**
  * verify-763-detail-fold.ts — ISSUE 详情页顶栏逐字折叠门禁（#763）
  * 口径：返回优先收到图标，一次只折一个控件，不放省略号。
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-763-detail-fold.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-763-detail-fold.ts
  * 本文件是 ESM：按文本求值走 tests/lib/eval-probe.js（钩子改指 .ts），只加类型标注不改判据。
  */
 import { readFileSync, existsSync } from 'node:fs'

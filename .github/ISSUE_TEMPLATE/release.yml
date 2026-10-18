@@ -53,7 +53,7 @@ body:
       label: 4 项隔离门禁（任一失败即阻断发布）
       description: 在隔离环境中执行，不污染工作区与已装形态
       options:
-        - label: "1. 在隔离环境执行构建与全部校验（`node scripts/build.mjs` 等），不污染当前工作区与已装形态"
+        - label: "1. 在隔离环境执行构建与全部校验（`node scripts/build.mts` 等），不污染当前工作区与已装形态"
           required: true
         - label: "2. 构建产物新鲜度与双产物一致性校验通过（根产物与包内产物逐字节一致）"
           required: true

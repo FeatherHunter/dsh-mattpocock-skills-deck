@@ -1,5 +1,5 @@
 // tests/verify-1157-in-flight-lease.ts —— 进程存活租约：有活没结算，进程就不许退（#1157）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1157-in-flight-lease.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1157-in-flight-lease.ts
 //
 // 守的是什么（#1157 的现象）：产品壳里五处等待口都按 #1114 把定时器 unref 掉了（提醒不拥有存活，
 // 方向是对的），但一场还没结算的竞速里如果只剩下这一笔等待，Node 会因为「没有被引用的句柄」当场
@@ -112,7 +112,7 @@ function runScenario(mode: ChildMode, tmpDir: string): { status: number | null; 
   const out = join(tmpDir, mode + '.log')
   writeFileSync(out, '')
   const started = Date.now()
-  const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mjs', SELF_REL], {
+  const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', SELF_REL], {
     cwd: ROOT,
     env: { ...process.env, [ENV_MODE]: mode, [ENV_OUT]: out },
     // stdio 一律丢掉：管道会替子进程吊住事件循环，把要观测的「提前收摊」抹掉（见文件头）。

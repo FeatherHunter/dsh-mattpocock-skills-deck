@@ -2,7 +2,7 @@
 // 验收（#662「定版一／定版四」）：检查页从上到下就是链快照的行序，链快照的行序由清单决定；
 // 清单里的 id 全部能在检查目录里找到（不新造名字）；宿主真的按清单排；界面不自己再排一份；
 // 清单顺序就是维护者定下来的那一条（改顺序必须改清单，改别处一律红）。
-// 用法: node tests/verify-668-guide-steps-single-source.js
+// 用法: node tests/verify-668-guide-steps-single-source.ts
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
@@ -132,7 +132,7 @@ async function main() {
   //   「检查页里出现 chainSteps(st)、没有第二处 sort、不写死 gh:installed / tracker:initialized，状态栏认领的
   //   检查项 id 都在清单里」。落点同样是手写源码里的字符串与写法，等价重构就会红，整段拆掉。
   //   「界面不自己再排一份」由场景 4 守（真函数排出来的行序逐项比对）；横幅那条链在真沙箱里另有用例
-  //   （tests/verify-663-banner-chain.js、tests/verify-665-fresh-workspace-chain.js 喂假链快照看它出哪一段）。
+  //   （tests/verify-663-banner-chain.ts、tests/verify-665-fresh-workspace-chain.ts 喂假链快照看它出哪一段）。
 
   // —— 场景 7：这份清单真的拼进客户端产物了（量的是构建产物，不是手写源码） ——
   // 【已删除】原先还读 src/shared/tracker/guide-steps.js、scripts/build.mjs、src/client/index.js 的源码文本，

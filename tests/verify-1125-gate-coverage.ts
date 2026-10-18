@@ -11,7 +11,7 @@
 //           认领不上的就进 behavior，不许有“哪都不去”的文件；
 //   exclude 显式排除表，每条必须带理由与票号，文件删了条目也要跟着删。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-1125-gate-coverage.ts
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-1125-gate-coverage.ts
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

@@ -21,7 +21,7 @@
  *    守门人断言：放宽范围只多出诊断信息，对外五字段、写权限、原因、三态、档位逐格不差。
  *  G 对外五个字段一个不动：上层经 selectionFromOutlet 拿到的仍只有 backendId/source/ref/multiHit/pending。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-detection-evidence.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-detection-evidence.ts
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'

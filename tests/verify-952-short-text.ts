@@ -1,5 +1,5 @@
 // tests/verify-952-short-text.ts —— #952 短等待文字与轻效果门禁（948 图第三批）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-952-short-text.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-952-short-text.ts，可独立运行。
 //
 // 只留行为断言：把共享映射 src/shared/feedback-map.js 加载起来，按「短等待 / 中等代价 /
 // 宽按钮」问一次，看它给出的备用过程是不是圆点与呼吸这两条。

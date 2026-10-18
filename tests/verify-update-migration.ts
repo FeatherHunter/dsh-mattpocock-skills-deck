@@ -8,7 +8,7 @@
 //      退役的四道旧门禁已从校验链移除。
 //   2) 接线只走包：六个电话名从已安装包的 phoneNames 读出来，宿主接线把第六个（日志直追加）也暴露出来。
 // 约束：全程假零件与假网络，不真跑安装命令、不直连官方源。
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-update-migration.ts（在仓库根目录）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-update-migration.ts（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')

@@ -8,7 +8,7 @@
 //   P4 宿主适配器可加载：src/host/configStore.ts 能 import，八个冻结函数都在（两个文本出入口 + 六个文件读写）。
 //      （2026-10-18 #1247：真源转成 TypeScript，路径跟到 .ts；import 走文件 URL，
 //       本仓 Node 下限原生剥类型，直读 .ts 与原来读 .js 语义一致。）
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-config-store-package.ts（在仓库根目录）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-config-store-package.ts（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')

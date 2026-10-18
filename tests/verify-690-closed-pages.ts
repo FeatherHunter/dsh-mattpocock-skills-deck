@@ -10,7 +10,7 @@
  *      —— 分桶、去重、静默刷新不清空、上限十页、游标失效重取第一页、后端不支持时不再重试，逐条验。
  *      页数据是「状态层」，不这么喂就只能对着源码猜，而猜不出的正是这些容易写错的边界。
  *
- * 用法：node tests/verify-690-closed-pages.js（在插件根目录）
+ * 用法：node tests/verify-690-closed-pages.ts（在插件根目录）
  */
 import fs from 'node:fs'
 import path from 'node:path'

@@ -6,7 +6,7 @@
  * 所以这里钉两件事：① 第一次写失败会重试一次（第二次成功就算成）；② 真写不成时，原因分档如实回
  *   （拿不到写许可 / 只读 / 目录不存在 / 其他），判不出来归「其他」，绝不编一个具体原因。
  *
- * 用法：node tests/verify-1003-workspace-write-robust.js
+ * 用法：node tests/verify-1003-workspace-write-robust.ts
  */
 import fs from 'node:fs'
 import os from 'node:os'

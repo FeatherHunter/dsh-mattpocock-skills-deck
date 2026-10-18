@@ -1,0 +1,453 @@
+// 迁移说明（#1252）：本文件由 scripts/verify-parallel.mjs 转写为 scripts/verify-parallel.mts，只加类型注解，运行时行为零变化。
+// scripts/verify-parallel.mts —— 并行跑 verify 链（#1252 由同名 .mjs 转写而来）。
+//
+// 为什么要有它：主链是三百来步的长链，一步一个 node 进程、一步一个红就停，全串行太贵。
+// 实测（2026-10-12，28 逻辑核）：串行 517 秒，其中 17 步 ≥5 秒、合计 425 秒；而这些慢步几乎全是空等
+// （CPU 采样：31.8 秒的墙钟里 31.7 秒是 idle）。它们不抢 CPU，所以并发跑几乎能线性省时间——
+// 同一批 17 步并发实测墙钟 63.5 秒（等于最慢那一步），串行是 425.5 秒。
+//
+// 用法：
+//   node scripts/verify-parallel.mts                 # 全链，默认 8 路并发，遇红继续跑完并汇总
+//   node scripts/verify-parallel.mts --jobs 16       # 加并发（慢步多在等，核多就调大）
+//   node scripts/verify-parallel.mts --tier fast     # 跳过真浏览器的步骤（日常用）
+//   node scripts/verify-parallel.mts --changed       # 只跑「本次改动影响到」的步骤（见 scripts/lib/select-gates.mts）
+//   node scripts/verify-parallel.mts --only log --only 1003   # 只跑文件名含这些子串的步骤
+//   node scripts/verify-parallel.mts --list          # 只列出将要跑的步骤，不跑
+//   node scripts/verify-parallel.mts --tasks         # 只打印排程（车厢与预计耗时），不跑
+//   node scripts/verify-parallel.mts --json out.json # 额外写一份机器可读的结果
+//
+// 退出码：全部通过 0；有失败 1。名单走规划函数（目录约定加显式排除表，#1125），
+// 与串行执行器、逐道汇总读的是同一份，本脚本不另抄一份。
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { spawn, execFileSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
+// 完成证据（#1158）：判定一扇门禁过没过，光看退出码会被「跑到一半就收摊」骗过去。
+// 判据的写法、解析与那句人话理由都在 tests/lib/gate-result.ts 一处，这里只负责调用它。
+import { judgeStepCompletion, loadCompletionExpectations } from '../tests/lib/gate-result.ts'
+import { planGates } from './lib/discover-gates.ts'
+
+// 本文件在链上搬运的三样东西：规划出来的门禁步骤、互斥排成的车厢、单步跑完的结果。
+// 预构建那一步（scripts/build.mts）不是链上条目，只有 file/label/optional，所以步骤里的
+// cmd/stage/label/optional 都是可选的；结果在它的基础上再多记判定用的几栏（exitCode 等）。
+interface GateStep {
+  cmd: string
+  file: string
+  stage: string
+}
+interface TaskStep {
+  cmd?: string
+  file: string
+  stage?: string
+  label?: string
+  optional?: boolean
+}
+interface StepResult {
+  cmd?: string
+  file: string
+  stage?: string
+  label?: string
+  optional?: boolean
+  code: number
+  ms: number
+  at: number
+  out: string
+  err: string
+  exitCode?: number
+  evidence?: string
+  flaky?: boolean
+  firstRound?: { code: number; ms: number; at: number; out: string; err: string }
+}
+interface Carriage {
+  key: string
+  steps: TaskStep[]
+  estimate: number
+  groups: string[]
+}
+
+const ROOT: string = process.cwd()
+const args: string[] = process.argv.slice(2)
+const has = (name: string): boolean => args.includes(name)
+const optOf = (name: string, fallback: string): string => {
+  const i: number = args.indexOf(name)
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : fallback
+}
+const allOf = (name: string): string[] => args.flatMap((a, i) => (a === name && args[i + 1] && !args[i + 1].startsWith('--') ? [args[i + 1]] : []))
+
+// 名单（#1125）：规划函数是唯一来源。规划出来的步骤本来就是一条一句，
+// “读不懂的条目”这种东西从此不存在 —— 以前那条 unknown 分支（连 time-config
+// 那条显式挂钩子的都读不懂，整个并行入口直接罢工）可以删了。
+function chainSteps(): { steps: GateStep[]; unknown: string[] } {
+  return { steps: planGates(ROOT).map((s: GateStep) => ({ cmd: s.cmd, file: s.file, stage: s.stage })), unknown: [] }
+}
+
+// 「真浏览器」的步骤：文件里出现 playwright。它们各自要起一个 Chromium，最慢的那扇 34.6 秒。
+function isBrowserStep(step: { file: string }): boolean {
+  try {
+    return /playwright|puppeteer/.test(fs.readFileSync(path.join(ROOT, step.file), 'utf8'))
+  } catch (e) {
+    return false
+  }
+}
+
+// 冲突组：同一组里的步骤不许同时跑，因为它们会抢同一个仓外资源。
+// 实测教训：verify-release-contract.ts 与 verify-bundled-skills.js 都会跑 `npm pack --dry-run`，
+// 并发时前者假红（单独跑 58 通过 0 失败）。这类假红会让人误以为代码坏了，所以宁可把它们排成一队。
+// 排法见下面 buildTasks：同一组的步骤合成一节车厢，由同一个工人依次跑完。
+function conflictGroupsOf(step: { file: string }): string[] {
+  const groups: string[] = []
+  let src = ''
+  try {
+    src = fs.readFileSync(path.join(ROOT, step.file), 'utf8')
+  } catch (e) {
+    return groups
+  }
+  if (/npm pack|npm publish/.test(src)) groups.push('npm-pack')
+  // 只是提一句「先跑 node scripts/build.mts」的不算，真去构建（起子进程）的才算。
+  // 路径有两种写法都要认：`scripts/build.mts` 和 `path.join('scripts', 'build.mts')`
+  // （verify-settings-view.ts 用的是后一种；漏认会让它跟别的构建并发，构建互相踩，出现假红）。
+  if (/(scripts\/build\.m(ts|js)|['"]build\.m(ts|js)['"])/.test(src) && /spawnSync|execFileSync|execSync|spawn\(/.test(src)) {
+    groups.push('build')
+  }
+  return groups
+}
+
+// 本次改动涉及哪些文件：git 的已改/新增/未跟踪都算（不改动仓库，只读）。
+function changedPathsOfSync(): string[] | null {
+  const out: string[] = []
+  try {
+    out.push(execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }))
+    out.push(execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }))
+  } catch (e) {
+    return null
+  }
+  const set: Set<string> = new Set()
+  for (const block of out) {
+    for (const line of String(block).split(/\r?\n/)) {
+      if (!line.trim()) continue
+      const p: string = line.slice(3).trim().replace(/^"|"$/g, '')
+      if (p.includes(' -> ')) set.add(p.split(' -> ')[1].trim())
+      else set.add(p)
+    }
+  }
+  // `.scratch/` 与 `.scratch_*` 是排查用的草稿（.scratch/ 已在 .gitignore 里，但有人会把草稿写在根目录的 .scratch_ 前缀文件里）。
+  // 它们不是源码，不该让挑选规则判成「改了根目录横切文件 → 跑全链」。
+  return [...set]
+    .map((p) => p.replace(/\\/g, '/'))
+    .filter((p) => !/(^|\/)\.scratch/.test(p))
+}
+
+async function selectChanged(): Promise<string[] | null> {
+  const modPath: string = path.join(ROOT, 'scripts', 'lib', 'select-gates.mts')
+  if (!fs.existsSync(modPath)) {
+    console.log('[并行门禁] 还没有 scripts/lib/select-gates.mts，--changed 退回全链')
+    return null
+  }
+  const changed: string[] | null = changedPathsOfSync()
+  if (changed === null) {
+    console.log('[并行门禁] 读不到 git 状态，--changed 退回全链')
+    return null
+  }
+  const { selectGates } = await import(pathToFileURL(modPath).href)
+  const map = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'gate-map.json'), 'utf8'))
+  // 注意：归属表里的步骤写法是 `node tests/xxx.js`，要和它同一格式，否则一条都对不上。
+  const picked = selectGates({ changedPaths: changed, map, chainSteps: chainSteps().steps.map((s) => s.cmd) })
+  if (!picked.fullChain && (!picked.steps || !picked.steps.length)) {
+    // 一条都没选中说明挑选规则失效了。宁可跑全链，也绝不「什么都没跑却报成功」。
+    console.log('[并行门禁] 挑选规则一条都没选中，这是异常情况，退回全链（请检查 tests/gate-map.json 与 scripts/lib/select-gates.mts）')
+    return null
+  }
+  console.log('[并行门禁] 改动 ' + changed.length + ' 个文件；选中 ' + picked.steps.length + ' 步' + (picked.fullChain ? '（全链，原因：' + picked.fullChainReason + '）' : ''))
+  // 全链时挑选规则会把同一个理由按步数重复给出来，这里去重后再打，免得刷屏。
+  const reasonTexts: string[] = []
+  for (const r of picked.reasons || []) {
+    const text: string = typeof r === 'string' ? r : r && (r.reason || r.why || r.text) ? r.reason || r.why || r.text : JSON.stringify(r)
+    if (text && !reasonTexts.includes(text)) reasonTexts.push(text)
+  }
+  for (const text of reasonTexts.slice(0, 8)) {
+    console.log('    · ' + text)
+  }
+  return picked.fullChain ? null : picked.steps
+}
+
+// 装载钩子：链上的测试步骤要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
+// 没有同名 .ts 时钩子什么都不做，所以没迁移的步骤行为与今天完全一样。
+// 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在三处，改一处必须全改：
+//   1. scripts/verify-chain.ts 的 argvOf（本地 npm test 的串行执行器；#1178 起 npm run test:smoke
+//      也走它 —— 冒烟清单那六条各自显式写了 --import，走的仍是这同一处判定）
+//   2. 本文件的 argvOf（并行执行器）
+//   3. scripts/verify-all.mts 的 withTsHook（CI 的 .github/workflows/verify.yml 跑的就是它）
+// 漏掉哪一个，那个入口里的 .ts 迁移就会跟别处表现不一样（本地绿、CI 红就是这么来的）。
+// 预构建那一步（scripts/build.mts）因此不挂：它不加载测试，挂上去只是多一次没用的加载。
+// 这一层只改「怎么起进程」，不动 package.json 里那条链的文字。
+const TS_HOOK: string = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mts')).href
+function argvOf(step: { file: string }): string[] {
+  return step.file.startsWith('tests/') ? ['--import', TS_HOOK, step.file] : [step.file]
+}
+
+function runStep(step: TaskStep): Promise<StepResult> {
+  return new Promise<StepResult>((resolve) => {
+    const started: number = Date.now()
+    const child = spawn(process.execPath, argvOf(step), { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = ''
+    let err = ''
+    child.stdout.on('data', (d: any) => (out += d))
+    child.stderr.on('data', (d: any) => (err += d))
+    child.on('exit', (code: any) => resolve({ ...step, code: code === null ? 1 : code, ms: Date.now() - started, at: started, out, err }))
+    child.on('error', (e: any) => resolve({ ...step, code: 1, ms: Date.now() - started, at: started, out, err: String((e && e.message) || e) }))
+  })
+}
+
+// 跑一步并判它的完成证据。证据对不上时：真退出码留在 exitCode 里，code 改成 1 按红走，
+// 理由留在 evidence 里供收尾报出来 —— 这样并发、串行复跑、汇总、退出码四条路都不用各改一遍。
+async function runStepJudged(step: TaskStep): Promise<StepResult> {
+  const r: StepResult = await runStep(step)
+  const verdict = judgeStepCompletion(expectations.byFile.get(step.file), r.code, r.out)
+  if (!verdict.ok) {
+    r.exitCode = r.code
+    r.code = 1
+    r.evidence = verdict.reason
+  }
+  return r
+}
+
+const { steps: steps0, unknown } = chainSteps()
+if (unknown.length) {
+  console.error('[并行门禁] 链上这 ' + unknown.length + ' 条命令本执行器读不懂，拒绝静默跳过（少跑一条就是少一道门禁）：')
+  for (const u of unknown) console.error('    ' + u.slice(0, 160))
+  console.error('  要么把它写成 `node tests/xxx.js|ts|mjs|cjs` 的样子，要么更新本脚本的 chainSteps 解析规则。')
+  process.exit(1)
+}
+if (!steps0.length) {
+  console.error('[并行门禁] 读不出 package.json 的 scripts.verify')
+  process.exit(1)
+}
+
+// 完成证据（#1158）：归属表里记着「哪一扇已开闸、该有多少条断言」，按文件把期望挂到步骤上。
+// 一扇都没挂上（而表里明明有已开闸的）说明两边写法对不上了，判据形同虚设 —— 当场判红，不许静默放行。
+const expectations = loadCompletionExpectations()
+const evidenceSteps = steps0.filter((s) => expectations.byFile.has(s.file))
+if (expectations.byFile.size && !evidenceSteps.length) {
+  console.error('[并行门禁] 归属表里有 ' + expectations.byFile.size + ' 扇门禁已开闸（completionRecord: true），链上一条都没挂上：')
+  console.error('  判据形同虚设，先核对 tests/gate-map.json 的 file 字段与链上的写法是否一致。')
+  process.exit(1)
+}
+
+const only: string[] = allOf('--only')
+const tier: string = optOf('--tier', 'full')
+let steps: GateStep[] = steps0
+if (only.length) steps = steps.filter((s) => only.some((o) => s.file.includes(o)))
+if (tier === 'fast' || tier === 'default') steps = steps.filter((s) => !isBrowserStep(s))
+if (has('--changed')) {
+  const picked = await selectChanged()
+  if (picked) {
+    const set = new Set(picked)
+    steps = steps.filter((s) => set.has(s.file))
+  }
+}
+
+if (has('--list')) {
+  console.log('将要跑 ' + steps.length + ' 步（全链 ' + steps0.length + ' 步）：')
+  for (const s of steps) console.log('  ' + s.file)
+  process.exit(0)
+}
+if (!steps.length) {
+  console.log('[并行门禁] 没有匹配的步骤')
+  process.exit(0)
+}
+
+const jobs: number = Math.max(1, Number(optOf('--jobs', String(Math.min(8, Math.max(2, os.cpus().length - 1))))) || 8)
+
+// 排程：同组互斥的步骤合成一节「车厢」，一节车厢占一个工人、车厢里的步骤依次跑；
+// 其余步骤各自成一节。然后按上一轮实测耗时从长到短排（LPT）——最长的先开工，
+// 墙钟才不会被「两个 34 秒的长步一前一后」拖成两倍（实测：按链条目顺序排 70.6 秒，按耗时排约 40 秒）。
+// 耗时来自上一轮实测，存在 node_modules/.cache 里（不进版本库）；第一次跑按链条目顺序，跑完就有了。
+const TIMES_PATH: string = path.join(ROOT, 'node_modules', '.cache', 'dsh-verify-times.json')
+function loadTimes(): Record<string, number> {
+  try {
+    const raw = JSON.parse(fs.readFileSync(TIMES_PATH, 'utf8'))
+    return raw && typeof raw === 'object' ? raw : {}
+  } catch (e) {
+    return {}
+  }
+}
+const times: Record<string, number> = loadTimes()
+const knownMs: number[] = Object.values(times).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b)
+const typicalMs: number = knownMs.length ? knownMs[Math.floor(knownMs.length / 2)] : 200
+const estimateOf = (s: { file: string }): number => (Number.isFinite(times[s.file]) ? times[s.file] : typicalMs)
+
+function buildTasks(list: GateStep[]): Carriage[] {
+  const free: Carriage[] = []
+  const lanes: Carriage[] = []
+  for (const s of list) {
+    const gs: string[] = conflictGroupsOf(s)
+    if (!gs.length) {
+      free.push({ key: s.file, steps: [s], estimate: estimateOf(s), groups: [] })
+      continue
+    }
+    // 一个步骤可能同时属于多个组（既跑 npm pack 又真构建）：有共同组就并进同一节车厢，免得两个车厢互相抢。
+    const lane = lanes.find((l) => l.groups.some((g) => gs.includes(g)))
+    if (lane) {
+      for (const g of gs) if (!lane.groups.includes(g)) lane.groups.push(g)
+      lane.steps.push(s)
+      lane.estimate += estimateOf(s)
+    } else {
+      lanes.push({ key: 'lane:' + gs.slice().sort().join('+'), steps: [s], estimate: estimateOf(s), groups: gs.slice() })
+    }
+  }
+  // 预构建：源码刚改过时，第一次 `node scripts/build.mts` 要真花 30 秒。链上有十几扇门禁各自会跑它，
+  // 把它们排在车厢最前面先构建一次，后面的门禁就都命中构建缓存（各 0.2 秒），
+  // 而且先读产物的门禁看到的一定是刚构建出来的产物，不会读到半旧的一份。
+  // 说明：这不减少总工作量（构建与这些门禁本来就同在一节车厢里、只能串着跑），
+  // 减掉的是「同一轮里反复重建」和「读到半旧产物」这两种意外。
+  for (const lane of lanes) {
+    if (!lane.groups.includes('build')) continue
+    const prebuild = {
+      cmd: 'node scripts/build.mts',
+      file: 'scripts/build.mts',
+      label: 'scripts/build.mts（预构建：让后面十几扇门禁直接命中构建缓存）',
+      // 预构建是提速手段，不是门禁：它失败不算链红（比如同一台机器上还有别人在构建，两边撞了）。
+      // 真需要构建的门禁自己会再跑一次，失败会由它们如实报出来。
+      optional: true
+    }
+    lane.steps.unshift(prebuild)
+    lane.estimate += Math.max(estimateOf(prebuild), 30000)
+  }
+  return [...free, ...lanes].sort((a, b) => b.estimate - a.estimate)
+}
+
+// 阶段间固定（#1125）：规划名单本来就是按段排好的，这里按段切成几组，一组跑完再跑下一组。
+// 组内并发、组间串行 —— 新鲜度那段读到的永远是前面各段跑完之后的产物，不会读到半旧的一份。
+// 切法只认“段变了”这个边界，不认段名：约定增减段时这里不用改。
+const stageGroups: { stage: string; steps: GateStep[]; tasks?: Carriage[] }[] = []
+for (const step of steps) {
+  const last = stageGroups[stageGroups.length - 1]
+  if (last && last.stage === step.stage) last.steps.push(step)
+  else stageGroups.push({ stage: step.stage, steps: [step] })
+}
+for (const g of stageGroups) g.tasks = buildTasks(g.steps)
+const allTasks = stageGroups.flatMap((g) => g.tasks!)
+if (has('--tasks')) {
+  console.log('按段分组、段内排成车厢（段间串行、段内并发）：')
+  for (const g of stageGroups) {
+    console.log('  [' + g.stage + '] ' + g.steps.length + ' 步，' + g.tasks!.length + ' 节车厢：')
+    for (const t of g.tasks!) {
+      console.log('    ' + String(Math.round(t.estimate)).padStart(6) + 'ms  ' + (t.groups.length ? '[互斥 ' + t.groups.join('+') + '] ' : '') + t.key + '（' + t.steps.length + ' 步）')
+      if (t.groups.length) for (const s of t.steps) console.log('           · ' + s.file)
+    }
+  }
+  process.exit(0)
+}
+console.log(
+  '[并行门禁] 跑 ' +
+    steps.length +
+    ' 步，并发 ' +
+    jobs +
+    '（全链 ' +
+    steps0.length +
+    ' 步，档位 ' +
+    tier +
+    '，分 ' +
+    stageGroups.map((g) => g.stage + g.steps.length + '步').join('→') +
+    '（段间串行、段内并发，共 ' +
+    allTasks.length +
+    ' 节车厢，其中互斥组 ' +
+    allTasks.filter((t) => t.groups.length).length +
+    ' 节）'
+)
+console.log('[并行门禁] 完成证据判据：链上 ' + evidenceSteps.length + ' 步带期望（tests/gate-map.json 里 completionRecord 为 true 的那几扇）')
+
+const started: number = Date.now()
+const results: StepResult[] = []
+let stop: boolean = false
+// 一段一段跑：段内用工人池并发，段间等上一段跑完（遇红即停时后面整段都不跑）。
+for (const g of stageGroups) {
+  if (stop && !has('--keep-going')) break
+  console.log('[并行门禁] —— ' + g.stage + ' 段（' + g.steps.length + ' 步） ——')
+  const tasks = g.tasks!!
+  let cursor: number = 0
+  async function worker(): Promise<void> {
+    for (;;) {
+      if (stop) return
+      const i: number = cursor++
+      if (i >= tasks.length) return
+      for (const step of tasks[i].steps) {
+        if (stop) return
+        const r = await runStepJudged(step)
+        r.optional = !!step.optional
+        results.push(r)
+        const tag = r.code === 0 ? 'PASS' : step.optional ? 'WARN' : 'FAIL'
+        console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + (step.label || r.file))
+        if (r.evidence) console.log('        完成证据对不上：' + r.evidence)
+        if (r.code !== 0 && !step.optional && !has('--keep-going')) {
+          // 与串行链一样：遇红就停（已在跑的等它跑完再报；后面整段都不跑）。
+          stop = true
+          return
+        }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(jobs, tasks.length) }, worker))
+}
+const wall: number = Date.now() - started
+
+// 记下这一轮每步花了多久，供下一次排程用（写不进去不算错）。
+try {
+  const merged: Record<string, number> = loadTimes()
+  for (const r of results) if (r && Number.isFinite(r.ms)) merged[r.file] = r.ms
+  fs.mkdirSync(path.dirname(TIMES_PATH), { recursive: true })
+  fs.writeFileSync(TIMES_PATH, JSON.stringify(merged, null, 2))
+} catch (e) {
+  /* 缓存写不进去不影响判定 */
+}
+
+// 并发跑会碰到「抢同一个外部资源」造成的假红（实测：两扇门禁同时 `npm pack`、有人正在构建时别人读产物）。
+// 所以并发跑完只当第一轮：凡是红的，再**一个一个串行复跑**一遍，以串行的结果为准。
+// 这样既拿到并行的速度，又不会把假红当成真红报出去（真红会在复跑里再红一次）。
+let failed: StepResult[] = results.filter((r) => r.code !== 0 && !r.optional)
+if (failed.length && !has('--no-retry-failed')) {
+  console.log('')
+  console.log('[并行门禁] 第一轮有 ' + failed.length + ' 步红，串行复跑一遍以排除「抢资源造成的假红」：')
+  for (const f of failed) {
+    const again: StepResult = await runStepJudged(f)
+    // 第一轮的开工时刻与耗时原样留档：复跑会覆盖 ms，不留档就再也看不出「第一轮到底等了多久」。
+    f.firstRound = { code: f.code, ms: f.ms, at: f.at, out: f.out, err: f.err }
+    f.code = again.code
+    f.ms = again.ms
+    f.at = again.at
+    f.out = again.out
+    f.err = again.err
+    f.flaky = again.code === 0
+    console.log('  ' + (again.code === 0 ? '复跑绿（并发假红）' : '复跑仍红（真红）') + '  ' + String(again.ms).padStart(6) + ' ms  ' + f.file)
+  }
+  failed = results.filter((r) => r.code !== 0 && !r.optional)
+}
+
+const slow = [...results].sort((a, b) => b.ms - a.ms).slice(0, 10)
+console.log('')
+// 预构建不是链上的步骤，算总数时把它摘出去（它自己的耗时照旧打在明细里）。
+const chainRan: number = results.filter((r) => steps.some((s) => s.file === r.file)).length
+console.log('[并行门禁] 跑完 ' + chainRan + '/' + steps.length + ' 步，墙钟 ' + (wall / 1000).toFixed(1) + ' 秒；真红 ' + failed.length + ' 步')
+const flaky = results.filter((r) => r.flaky)
+if (flaky.length) console.log('  并发假红（复跑已绿）' + flaky.length + ' 步：' + flaky.map((f) => f.file.replace('tests/', '')).join('、'))
+if (slow.length) {
+  console.log('  最慢的几步：')
+  for (const r of slow) console.log('    ' + String(r.ms).padStart(6) + ' ms  ' + (r.code === 0 ? 'PASS' : 'FAIL') + '  ' + r.file)
+}
+for (const f of failed) {
+  console.log('')
+  console.log('=== FAIL ' + f.file + '（退出码 ' + (f.exitCode != null ? f.exitCode : f.code) + '）===')
+  if (f.evidence) console.log('  完成证据对不上：' + f.evidence)
+  const text: string = (f.out + (f.err ? '\n[stderr]\n' + f.err : '')).trimEnd()
+  const lines: string[] = text.split(/\r?\n/)
+  const tail: string[] = lines.length > 40 ? lines.slice(-40) : lines
+  if (lines.length > 40) console.log('  …（前 ' + (lines.length - 40) + ' 行省略）')
+  for (const l of tail) console.log('  ' + l)
+}
+
+if (has('--json')) {
+  const outPath: string = optOf('--json', '')
+  if (outPath) fs.writeFileSync(path.resolve(ROOT, outPath), JSON.stringify({ wallMs: wall, jobs, tier, results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at, exitCode: r.exitCode != null ? r.exitCode : r.code, evidence: r.evidence || '' })) }, null, 2))
+}
+process.exit(failed.length ? 1 : 0)

@@ -1,5 +1,5 @@
 // tests/verify-928-field-line-rewrite.ts —— 门禁：本地票文件改写字段行时只动同一行，绝不吃掉下一行（#928）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-928-field-line-rewrite.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-928-field-line-rewrite.ts。
 // 它不能裸跑：本文件用的是 .ts 说明符，而 markdown 房的 index.ts 里还留着 .js 说明符，
 // 那些 .js 要靠装载钩子改指同名的 .ts 源文件（旧说法「可独立运行」是错的）。
 //

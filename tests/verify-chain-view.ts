@@ -12,7 +12,7 @@
 //
 // 这一条门禁跑的是**真代码**，一路到底：
 //   真的链（#714 的 createSessionTickets 记下五次写）→ 真的宿主读数（src/host/refresh/sessionChainReadout.js）
-//   → 真的界面判据与画法（src/client/views/shared/sessionChainView.js，按 scripts/build.mjs 同一套做法
+//   → 真的界面判据与画法（src/client/views/shared/sessionChainView.ts，按 scripts/build.mts 同一套做法
 //     剥掉行首 export、放进一个作用域里跑，React 用最小的假件代替）。
 //
 // 它盯五件事：
@@ -37,9 +37,9 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
 // 沙箱跑裸 JS，身份函数是全标注 TS：转译口径取仓库唯一那一份
-// （scripts/lib/transpile-unit.mjs，手法照 tests/verify-build-artifacts.js）。
+// （scripts/lib/transpile-unit.mts，手法照 tests/verify-build-artifacts.ts）。
 const esbuildForProbe = require('esbuild')
-const tuForProbe = require(require('path').resolve('scripts/lib/transpile-unit.mjs'))
+const tuForProbe = require(require('path').resolve('scripts/lib/transpile-unit.mts'))
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false

@@ -1,5 +1,5 @@
 // verify-backend-quota-model.ts —— 门禁：每个后端的额度桶形状与「按后端算价」（#719 T15 收口）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-backend-quota-model.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-backend-quota-model.ts，可独立运行。
 //
 // 守着三件事（定稿第九章最后一条与第十四章「它其余的处置」）：
 //   ① GitHub 有两个互相独立的桶（REST 数请求条数、GraphQL 数点数），两桶互不折算；

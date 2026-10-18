@@ -15,7 +15,7 @@
  *   三、读回等落定：读盘拖慢 120ms 时，focus() 落定后读数里立刻有那一笔
  *      （不等的话 focus 先回、读数还是空的）。
  *
- * 用法: node --import ./scripts/ts-hook.mjs tests/verify-781-chain-identity.ts（在插件根目录）
+ * 用法: node --import ./scripts/ts-hook.mts tests/verify-781-chain-identity.ts（在插件根目录）
  * 退出码：0 = 通过；1 = 有违规。
  * 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，四条 .js 说明符原样保留
  * （chain.js / sessionTickets.js / writeEvents.js 仍是手写 JS，wiring.js 已是 .ts、由钩子改指）。

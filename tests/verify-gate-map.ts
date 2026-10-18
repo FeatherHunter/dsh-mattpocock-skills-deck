@@ -1,11 +1,11 @@
 // tests/verify-gate-map.ts —— 给「门禁归属表」和「按改动挑门禁」这两件事把关的门禁。
 //
 // 为什么要有这一条：
-//   scripts/gate-map.mjs 生成的 tests/gate-map.json 是一张派生表，它一旦过期，
-//   scripts/lib/select-gates.mjs 挑出来的门禁就是错的——少跑了门禁，红的信号会一直到
+//   scripts/gate-map.mts 生成的 tests/gate-map.json 是一张派生表，它一旦过期，
+//   scripts/lib/select-gates.mts 挑出来的门禁就是错的——少跑了门禁，红的信号会一直到
 //   合并之后才出现。所以这里做四件事：
 //     1. 新鲜度：重新推导一遍归属，和 tests/gate-map.json 逐字节比；不一致就红，
-//        并告诉你重跑 `node scripts/gate-map.mjs`。
+//        并告诉你重跑 `node scripts/gate-map.mts`。
 //     2. 覆盖面：src/ 下每个文件，要么有门禁守着，要么在 ungated 里写清了原因；
 //        既没门禁又没理由的，红。
 //     3. 挑选规则的场景测试：拿真实的归属表，喂几个假想的变更清单，看挑出来的门禁对不对。
@@ -17,8 +17,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 
-import { buildGateMap, normalizeForCompare, readChainSteps, readSmokeSteps, ROOT, isUnder, gateNameOf, COMPLETION_RECORDED_GATES, SMOKE_COMPLETION_RECORDED_GATES } from '../scripts/gate-map.mjs'
-import { selectGates, isCrossCutting } from '../scripts/lib/select-gates.mjs'
+import { buildGateMap, normalizeForCompare, readChainSteps, readSmokeSteps, ROOT, isUnder, gateNameOf, COMPLETION_RECORDED_GATES, SMOKE_COMPLETION_RECORDED_GATES } from '../scripts/gate-map.mts'
+import { selectGates, isCrossCutting } from '../scripts/lib/select-gates.mts'
 // 完成证据的判据（#1158）：这一份门禁要替它把关——表里那几格说谎，判据就会静默失效。
 import { judgeGateCompletion, formatGateResult, GATE_RESULT_PREFIX } from './lib/gate-result.ts'
 
@@ -42,7 +42,7 @@ const chainSteps = readChainSteps(ROOT)
 check(chainSteps.length > 0, '规划函数给出了链，共 ' + chainSteps.length + ' 步')
 
 if (!fs.existsSync(MAP_PATH)) {
-  check(false, 'tests/gate-map.json 不存在：请先跑 node scripts/gate-map.mjs')
+  check(false, 'tests/gate-map.json 不存在：请先跑 node scripts/gate-map.mts')
   console.log('\n存在失败')
   process.exit(1)
 }
@@ -67,7 +67,7 @@ const derived = buildGateMap(ROOT)
     info('刚推导的：链上 ' + derived.chainLength + ' 步，能推出归属 ' + derived.attributedGates + ' 步，byDir ' + Object.keys(derived.byDir).length + ' 个目录，src 覆盖 ' + derived.coverage.coveredFileCount + '/' + derived.coverage.fileCount)
     info('第 ' + i + ' 个字符起就不同了（表里是「' + ctx(a) + '」，实际是「' + ctx(b) + '」）')
   }
-  check(same, '归属表是最新的：重新推导的结果与 tests/gate-map.json 一致（不一致就重跑 node scripts/gate-map.mjs）')
+  check(same, '归属表是最新的：重新推导的结果与 tests/gate-map.json 一致（不一致就重跑 node scripts/gate-map.mts）')
 }
 
 // ---------------------------------------------------------------------------
@@ -654,15 +654,15 @@ function checkSelectionShape(out, label) {
   const cases = [
     ['package.json', true],
     ['tsconfig.client.json', true],
-    ['scripts/build.mjs', true],
+    ['scripts/build.mts', true],
     ['tests/verify-progress.ts', true],
     ['docs/agents/verification.md', true],
     ['research/489-appendix.md', true],
     ['README.md', true],
     ['host.js', true],
     ['package/lib/client.js', true],
-    ['src/client/views/versionControl/VersionControlTab.js', false],
-    ['src/host/mapBody.js', false],
+    ['src/client/views/versionControl/VersionControlTab.ts', false],
+    ['src/host/mapBody.ts', false],
   ]
   for (const [p, want] of cases) {
     const got = isCrossCutting(p).crossCutting
@@ -731,7 +731,7 @@ function findFirstUnder(relDir, pred) {
  * 自己扫一遍 src/，找出哪些文件里写了 import 目标文件的语句。
  * 只认静态 import / export ... from、require(...)、动态 import(...) 三种写法里的字符串字面量；
  * 拼出来的路径认不出来，那正是这套规则已知的漏洞之一。
- * 这里故意不复用 scripts/gate-map.mjs 的建图代码：拿一份独立实现去对，才能验出「建图坏了」。
+ * 这里故意不复用 scripts/gate-map.mts 的建图代码：拿一份独立实现去对，才能验出「建图坏了」。
  */
 function whoImports(targetRel) {
   const targetNoExt = targetRel.replace(/\.(js|ts|mjs|cjs)$/, '')

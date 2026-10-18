@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // verify-chain-capsule.ts —— 门禁：状态栏胶囊里「这个会话在办哪张票」那一段
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-chain-capsule.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-chain-capsule.ts，可独立运行。
 //
 // 这一段只做三件事，门禁按三组量：
 //   A 判据（纯函数，不开浏览器）：没快照/没记录/当前会话没记录 → 空；读坏了 → 原因透出；

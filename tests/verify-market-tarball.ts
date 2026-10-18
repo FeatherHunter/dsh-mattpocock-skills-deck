@@ -18,7 +18,7 @@
  * 这道门禁把上面两条约定读原文钉住：改包名、删掉 workflow、或把链接改回钉 tag 的写法，
  * 都会在这里当场变红，而不是等到有人从市场点安装才发现。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-market-tarball.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-market-tarball.ts
  */
 
 import { readFileSync, existsSync } from "node:fs";

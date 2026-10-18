@@ -6,7 +6,7 @@
  * deckCountsOf（有计数原样读三数、scoped 返 null、无 counts 返 null、负数/小数/畸形返 null）。
  *
  * 依赖：直接 import 真源 src/client/kernel/store-derived.js 的纯函数。
- * 用法：node tests/verify-689-counts-ui.js
+ * 用法：node tests/verify-689-counts-ui.ts
  */
 import path from 'node:path'
 

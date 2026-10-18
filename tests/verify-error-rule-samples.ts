@@ -22,7 +22,7 @@
  *   E 自证：拿「坏词表 / 倒序 / 删兜底 / 改错期望档位 / 空样本」五种反例试这道门禁会不会红 ——
  *     不会红的门禁等于没写。E1、E2 复现的正是本门禁第一次跑时抓出来的两条真实缺陷。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-error-rule-samples.js
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-error-rule-samples.ts
  * 接线：由 Lead 统一挂进 scripts 里的门禁链（本次交付不动 scripts/**）。
  * 期望：全 PASS 退出码 0；SKIP 行表示读不到/尚未接线的部分，不算通过，会在末尾汇总。
  */

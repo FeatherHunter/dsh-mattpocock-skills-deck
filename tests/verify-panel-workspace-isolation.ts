@@ -1,7 +1,7 @@
 // verify-panel-workspace-isolation.ts — #45 多工作区隔离回归
 // 量什么：客户端探查链路（src/client/kernel/probe-auto.js）在多工作区下不许串台 ——
 //   按工作区键分组、组内共用一次重建、组间零污染；兜底路径按 sessionId→cwd 精确映射，不许把首个 cwd 错绑给所有空 store。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-panel-workspace-isolation.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-panel-workspace-isolation.ts
 //
 // 2026-10-17 重写（先修后转的第一笔）：原来读的是构建产物 client.js / package/lib/client.js，
 //   两份产物都不在 git 里，别人改完源码不重建时这里量的还是旧行为；其中一条断言还写成了

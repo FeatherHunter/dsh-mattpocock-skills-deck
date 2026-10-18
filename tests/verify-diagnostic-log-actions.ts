@@ -9,7 +9,7 @@
  * 其余六组喂假的（宿主可编程、提示只记录、钟固定在 2026-10-15、剪贴板可抛错、界面状态用真的小仓库）。
  * 异步动作要等几拍才落定（打开那条链最长），每组断言前先 flush。
  *
- * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-diagnostic-log-actions.ts。
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-diagnostic-log-actions.ts。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
  */
 import path from 'node:path';

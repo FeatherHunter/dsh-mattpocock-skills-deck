@@ -4,7 +4,7 @@
 //
 // 这份探针同时立起两面（判据见门禁文件头）：
 //   一、真面板（右侧边栏内容体槽位注册出来的那个组件 withCx(DeckSidebarTab)，内部是真面板本体）；
-//   二、能力本体（src/client/views/shared/sessionChainView.js 按 scripts/build.mjs 同一套做法求值出来）。
+//   二、能力本体（src/client/views/shared/sessionChainView.js 按 scripts/build.mts 同一套做法求值出来）。
 // 两面的扫描共用同一把尺子（scanOf），量的都是 DOM 里真实存在的东西；R8 / R9 两把尺子（版面上不许出现
 // 8 位十六进制散列与内部行话、以及它们的反证件）共用下面 rulerHitsOf 这一段判据。
 //
@@ -230,7 +230,7 @@ const hostOf = function (id: string): DomElement {
   return el
 }
 
-// ---- 二、那块的**能力本体**：按 scripts/build.mjs 那套做法求值出来（剥行首 export 之后跑在一个作用域里）----
+// ---- 二、那块的**能力本体**：按 scripts/build.mts 那套做法求值出来（剥行首 export 之后跑在一个作用域里）----
 // 同一手法：叶子源码这一段同样在页面里执行，所以不造函数，改成插一段经典脚本 ——
 //   那六个依赖先摆到 window 上，脚本里再取回来当自由变量；结果由脚本自己挂到 window 上，读回来就是原来的 Strip。
 // DswsCtx 得是一个真的 React context（组件里 React.useContext(DswsCtx) 会读它的 $$typeof）；

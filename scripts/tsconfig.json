@@ -6,7 +6,21 @@
   // 那是另一件事（谁动到谁再转、再登记），按仓规「摸到谁再转谁，不搞大爆炸」处理。
   //
   // 与其它几份配置同口径：保守目标 ES2020、strict、只检查不产出（这个脚本由 Node 自带的类型剥离直接跑）。
+  // #1252：三个开关都是给「36 份运维脚本同进一个配置」让路，逐条理由如下——
+  //   moduleDetection force：这些脚本大多是「顶层 const fs = require('fs')」的脚本形态（不是模块），
+  //     同名顶层变量（fs、path、check……）在同一个配置里会互撞（TS2451）。运行时它们各跑各的进程，
+  //     从不共享作用域；force 只是让检查的作用域与运行一致，不改任何运行时语义（本配置 noEmit，从不产出）。
+  //   allowImportingTsExtensions：脚本之间的相对引用按仓规写显式新后缀（import '../gate-map.mts'），
+  //     运行时靠 Node 类型剥离直接跑；声明里不开这个开关，检查就认不出这种写法（TS5097）。
+  //   useUnknownInCatchVariables false：脚本全是「抓住、记一笔、继续/退出」的容错风格，
+  //     catch 到的东西转手就读 .message / .stdout。和 #1247 宿主侧「(e as Error)」的严格写法不同，
+  //     这里允许 catch 即 any；新代码仍建议显式标注（见 node-ambient.d.ts 头注释第 1 条）。
+  //     （默认是 true；这里显式关掉，免得后人以为是忘开了。）
+  //   （target / strict / noEmit 沿用 #1052 的保守口径，不动。）
   "compilerOptions": {
+  "moduleDetection": "force",
+  "allowImportingTsExtensions": true,
+  "useUnknownInCatchVariables": false,
     "target": "ES2020",
     "lib": ["ES2020"],
     "module": "ESNext",
@@ -16,5 +30,46 @@
     "types": [],
     "skipLibCheck": true
   },
-  "include": ["log-trace.ts", "node-ambient.d.ts"]
+  // #1252：36 份转写脚本全部登记。仍用显式名单，不写通配：typecheck.mts 与 effective-lines.mts
+  // 两份老脚本不在任何配置里，通配会把它们圈进来冒出无关错误（谁动到谁再转、再登记）。
+  "include": [
+    "log-trace.ts",
+    "node-ambient.d.ts",
+    "asar-extract.ts",
+    "browser-host.mts",
+    "build.mts",
+    "bundle-update-entry.mts",
+    "create-release-issue.mts",
+    "derive-log-from-package.mts",
+    "derive-update-from-package.mts",
+    "fix-issue-body.mts",
+    "gate-map.mts",
+    "gen-fixture-423.ts",
+    "gen-fixture-640.ts",
+    "generate-demo-fixtures.ts",
+    "generate-github-fixtures.ts",
+    "generate-markdown-fixtures.ts",
+    "generate-star-history-svg.mts",
+    "generate-time-config.mts",
+    "lib/select-gates.mts",
+    "lib/transpile-domains.mts",
+    "lib/transpile-unit.mts",
+    "matrix-full.ts",
+    "matrix-smoke.ts",
+    "measure-967-outbound.ts",
+    "star-history.mts",
+    "sync-matt-skills.mts",
+    "t3-extract.mts",
+    "ts-hook.mts",
+    "ui-align-black-panel.mts",
+    "ui-click-select-backend.mts",
+    "ui-repro-matt-demo.mts",
+    "ui-verify-new-settings.mts",
+    "ui-verify-registry.mts",
+    "update-star-history.mts",
+    "verify-all.mts",
+    "verify-chain.ts",
+    "verify-parallel.mts",
+    "wire-subissues.mts"
+  ]
 }

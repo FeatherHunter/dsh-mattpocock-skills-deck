@@ -1,6 +1,6 @@
 // verify-progress.ts — dsh-waystation v1.5 T12/T16：进度块解析 + 正文容错 + 渲染契约校验
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-progress.ts（在插件根目录；本文件依赖 tests/lib/eval-probe.ts，不挂钩子跑不起来）
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-progress.ts（在插件根目录；本文件依赖 tests/lib/eval-probe.ts，不挂钩子跑不起来）
 // 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) parseMapBody 端到端（真跑 src/host/mapBody.js 里那三个函数）
 // 2026-10-12 修订：原来还有「host/package 均带 progress 字段」与「client/package 均含进度渲染符号」两条，
 //   那是读 host.js / package/lib/index.js / client.js / package/lib/client.js 的文本钉字段名与符号名，已删。

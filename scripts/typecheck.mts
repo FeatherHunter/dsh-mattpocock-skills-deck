@@ -28,7 +28,7 @@
 //
 // 用法（在插件根目录）：
 //   node scripts/typecheck.mts             # 四步全跑 + 棘轮对账
-//   node --import ./scripts/ts-hook.mjs scripts/typecheck.mts   # 等价（本文件不 import 同名 .js，钩子非必需）
+//   node --import ./scripts/ts-hook.mts scripts/typecheck.mts   # 等价（本文件不 import 同名 .js，钩子非必需）
 //
 // 退出码三分，为了让人和上游脚本能分辨该找谁：
 //   0 —— 全绿
@@ -60,7 +60,7 @@ const SOURCE_ROOTS = ['src', 'tests', 'scripts']
 /** 派生目录：不是手写的，不进棘轮名单，也不参与任何源码集合。 */
 const DERIVED_DIRS = ['scripts/generated/']
 
-/** 发布壳：build.mjs 从 src/ 拷出来的镜像，判据是 src/ 那边的真源。 */
+/** 发布壳：build.mts 从 src/ 拷出来的镜像，判据是 src/ 那边的真源。 */
 const PACKAGE_DIR = 'package/'
 
 /** 会被类型检查的源码后缀。点 mts 也算——本文件自己就是这种后缀。 */

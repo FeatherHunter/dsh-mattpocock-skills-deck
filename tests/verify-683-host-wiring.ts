@@ -13,7 +13,7 @@
  *   F 反证：把实现做坏（把上报优先级加回来、把 H 放在选择之后、把短路路的 selection 摘掉），
  *     对应的断言必须当场红。
  *
- * 用法：node tests/verify-683-host-wiring.js
+ * 用法：node tests/verify-683-host-wiring.ts
  */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -343,8 +343,8 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
     const broken2 = path.join(mirror, 'host', 'sessionSnapshot.mjs')
     // 快照源文件是 .ts（#1155 起带类型标注）：写进 .mjs 之前先按仓库自己的转译口径剥掉类型，否则这一份
     //   改坏了的源码会在解析阶段就 SyntaxError，反证根本跑不到比较那一步。转译参数只写在
-    //   scripts/lib/transpile-unit.mjs 那一份，这里取现成的，与生产侧同一套口径。
-    const { TRANSPILE_OPTIONS } = await import('../scripts/lib/transpile-unit.mjs')
+    //   scripts/lib/transpile-unit.mts 那一份，这里取现成的，与生产侧同一套口径。
+    const { TRANSPILE_OPTIONS } = await import('../scripts/lib/transpile-unit.mts')
     const broken2Src = (await import('esbuild')).transformSync(snapSrc, TRANSPILE_OPTIONS).code
     fs.writeFileSync(broken2, broken2Src.replace(from2, 'return s'), 'utf8')
     const mod2 = await import(pathToFileURL(broken2).href)

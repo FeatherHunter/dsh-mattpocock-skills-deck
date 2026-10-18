@@ -1,6 +1,6 @@
 // verify-t3-locale.ts — dsh-waystation v25 T3 双语字典一致性验证（ticket #366）
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-t3-locale.ts [file...]（默认 client.js + package/lib/client.js）
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-t3-locale.ts [file...]（默认 client.js + package/lib/client.js）
 // 验证：
 //   1) zh/en 字典键完全一致（双语平衡）
 //   2) 所有 tr('...') 调用键都存在（无悬空键；以 '.' 结尾的键为动态前缀，校验前缀存在）

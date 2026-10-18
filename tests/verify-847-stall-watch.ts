@@ -1,5 +1,5 @@
 // tests/verify-847-stall-watch.ts — #847 字节增长看门狗门禁
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-847-stall-watch.ts（在插件根目录；全部打 127.0.0.1 上的自建假服务，不需要外网）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-847-stall-watch.ts（在插件根目录；全部打 127.0.0.1 上的自建假服务，不需要外网）
 // 本文件是 CommonJS：产品源码靠动态 import 取，两条 .js 说明符原样保留（靠钩子改指同名 .ts）；
 // 只加类型标注，判据、窗口与锚字符串一字不动。
 //

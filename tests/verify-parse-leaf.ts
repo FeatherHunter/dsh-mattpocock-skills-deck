@@ -1,8 +1,8 @@
 // verify-parse-leaf.ts — dsh-mattpocock-skills-deck 阶段 1：host 纯函数叶子差分测试
 // T1（#94）迁移：断言目标从「内联副本」改为「构建产物」——host.js / package/lib/index.js 现由
-//   scripts/build.mjs 生成（一源出两物，gitignore 可变产物），本测试验证「叶子 === 构建产物」：
+//   scripts/build.mts 生成（一源出两物，gitignore 可变产物），本测试验证「叶子 === 构建产物」：
 //   T0 接管后构建未改变叶子行为，叶子仍为唯一真源 + 测试基准。
-// 用法: node tests/verify-parse-leaf.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node tests/verify-parse-leaf.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）
 // 验证：1) src/tracker/body-parse.ts 叶子可用、行为真值表
 //       2) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；防止陈旧产物假绿）
 //       3) 叶子 === _dev 产物（根 host.js）——「构建未改变叶子行为」探测器
@@ -32,23 +32,23 @@ const SOURCES = [
   sourcePath('src/host/ticketGrouping.js'),
   sourcePath('src/host/issueList.js'),
   sourcePath('src/host/issueDetail.js'),
-  'scripts/build.mjs',
+  'scripts/build.mts',
   'package/package.json',
 ]
 
 function productStale(prod) {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
+  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
   const pm = fs.statSync(prod).mtimeMs
   for (const s of SOURCES) {
     if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) {
-      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mjs）'
+      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
     }
   }
   return null
 }
 
 // 从源码抽取内联函数（沿用 verify-progress 的提取法；parseMapBody 依赖 normalizeBody，需同作用域求值）
-// 产物 = src/host/index.js 函数体逐字嵌入（scripts/build.mjs 文本组合），4 空格缩进；2 空格为兼容回退
+// 产物 = src/host/index.js 函数体逐字嵌入（scripts/build.mts 文本组合），4 空格缩进；2 空格为兼容回退
 const extractFns = (src) => {
   const names = ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
   const grabOne = (indentSpaces) => {
@@ -153,7 +153,7 @@ async function main() {
   check(gt.total === 5 && gt.open === 4 && gt.closed === 1 && gt.frontier === 1 && gt.claimed === 1 && gt.blocked === 2, '真值 groupTickets 分组计数（frontier=#1, claimed=#2, blocked=#3+#4）')
 
   // ---- Part E：文本逐字断言（T1 新增；构建 = 文本组合，产物函数文本必须与 src 内联逐字一致）----
-  // #450 H6：分组两函数搬入 ticketGrouping.js，_dev 单文件不再内嵌模块体；逐字锚到 _pkg 装配（src index+分组 === pkg index+分组合集，原样复制不变量由 build.mjs 校验）。
+  // #450 H6：分组两函数搬入 ticketGrouping.js，_dev 单文件不再内嵌模块体；逐字锚到 _pkg 装配（src index+分组 === pkg index+分组合集，原样复制不变量由 build.mts 校验）。
   // 2026-10-18 #1247：两份真源转成 TypeScript，源侧先剥类型再比（与构建同一份 esbuild 口径）；
   //   判据含义是「产物函数 === 真源转译后函数」，剥离本身零行为变化由 Part A/B 的行为差分覆盖。
   const srcStay = rawAll(stripTs(srcGroup))

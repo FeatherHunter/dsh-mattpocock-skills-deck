@@ -29,7 +29,7 @@
  *   诊断集中在 describeFailure 里，按文本形状指名说清，并给出两条可行改法（见该函数注释）。
  *
  * 调用方怎么写说明符
- *   仓里绝大多数调用方写的是 './lib/eval-probe.js'（迁移期的常规写法），靠 scripts/ts-hook.mjs
+ *   仓里绝大多数调用方写的是 './lib/eval-probe.js'（迁移期的常规写法），靠 scripts/ts-hook.mts
  *   把 .js 说明符改指到本文件，所以那些调用方必须挂着钩子跑（验证链会自动挂）。
  *   写显式 './lib/eval-probe.ts' 的调用方则可以直接跑、不用钩子 —— 本文件只引 node:vm，
  *   没有任何仓库内的依赖。
@@ -72,7 +72,7 @@ function splitParamNames(params: readonly unknown[] | null | undefined): string[
  * 为什么要有它：这个入口被八十来个门禁共用，其中任何一份把整份源码文件当函数体传进来时，
  * 引擎只留一句 “Cannot use import statement outside a module”，看到的人还得自己推
  * 「函数体里为什么会出现 import」。按文本形状把两种最常见的原因指名说清，并各给两条改法：
- *   ① 直接引真源模块（说明符写显式 .ts 就能直接跑；写 .js 结尾要挂 scripts/ts-hook.mjs，验证链会自动挂）；
+ *   ① 直接引真源模块（说明符写显式 .ts 就能直接跑；写 .js 结尾要挂 scripts/ts-hook.mts，验证链会自动挂）；
  *   ② 只把要测的那一段函数文本切出来，不要用整份文件。
  * 只在求值已经失败之后才调用，所以就算猜错了也不会影响跑得通的门禁。
  */

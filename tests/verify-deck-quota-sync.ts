@@ -1,5 +1,5 @@
 // verify-deck-quota-sync.ts —— 门禁：剩余额度读数接线（#758）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-deck-quota-sync.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-deck-quota-sync.ts，可独立运行。
 //
 // 为什么要这一段：闸的裁决要看剩余额度，可读数从没有任何一路写入——
 // 重启后剩余额度恒为零，读请求撞保底线、工具调用撞红档，九个工具在闸口

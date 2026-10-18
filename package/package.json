@@ -12,8 +12,8 @@
   "type": "module",
   "main": "lib/index.js",
   "scripts": {
-    "build": "node ../scripts/build.mjs --pkg-only",
-    "prepare": "node ../scripts/build.mjs --pkg-only"
+    "build": "node ../scripts/build.mts --pkg-only",
+    "prepare": "node ../scripts/build.mts --pkg-only"
   },
   "exports": {
     ".": "./lib/index.js",

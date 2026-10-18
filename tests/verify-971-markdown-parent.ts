@@ -1,5 +1,5 @@
 // verify-971-markdown-parent.ts —— #971 防回归：本地后端父边与快照按文件顶注释计数
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-971-markdown-parent.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-971-markdown-parent.ts，可独立运行。
 //
 // 为什么要这一段：建票把父写进文件顶注释，读回与列举却永远填固定值 00，改父同目录直接说做不到。
 // 扁平布局里地图是 01 号，固定值永远对不上，按地图筛选恒为 0，快照 0/0，只能人肉逐张读回。

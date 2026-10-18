@@ -9,7 +9,7 @@
  * 导出回包取目录、动作互斥。
  * 另有一条静态扫描：纯侧源码里不许出现读钟、调宿主、碰界面的写法，出现即红（纯度丢了，单测就测不住了）。
  *
- * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-diagnostic-log-model.ts。
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-diagnostic-log-model.ts。
  * 挂进 npm test / verify:parallel / verify-all / test:smoke 四个入口时钩子由那几处自动加上，不用自己写。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
  */

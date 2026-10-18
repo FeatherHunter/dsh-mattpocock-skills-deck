@@ -31,7 +31,7 @@
  * 测法：真跑 sessionSnapshot / sessionRefresh（计数重建次数，不起外部命令），外加把源码
  *   抠出来改坏后真跑一遍的反证（E 组）。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-729-force-dedup.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-729-force-dedup.ts
  */
 const fsx = require('fs')
 const fsp = fsx.promises

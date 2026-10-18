@@ -1,5 +1,5 @@
 // verify-budget-page-upper-bound.ts —— 门禁：最坏用量按页数上界算，账本记每个仓库的实测页数（#719 T15 收口）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-budget-page-upper-bound.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-budget-page-upper-bound.ts，可独立运行。
 //
 // 这一条守着定稿第十四章那句话：「账本记每个仓库的实测页数；最坏用量按页数上界（MAX_PAGES = 10）算」。
 // 它拆成两件互不混淆的事：

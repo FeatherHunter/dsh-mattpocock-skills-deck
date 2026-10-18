@@ -13,7 +13,7 @@
 //   假计时器把这笔账逐条记下来。运行期谁把 3000 写回去，这里立刻变红。
 //
 // 用法（手工跑要自己挂装载钩子；npm test / verify:parallel / verify-all / test:smoke 四个入口自动挂）：
-//   node --import ./scripts/ts-hook.mjs tests/verify-1109-matches-timeout.ts
+//   node --import ./scripts/ts-hook.mts tests/verify-1109-matches-timeout.ts
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

@@ -5,7 +5,7 @@
 //   展开态（无横幅 / 有横幅）插件状态栏最外层容器的左右边，必须落在输入卡的左右边上（容差 1px）；
 //   收起态是例外：只剩一句小字，容器收成包裹内容、居中落在卡片以内（不超出、不等宽）；胶囊不得超过卡片宽。
 //
-// 量尺必须来自外部：fixture 里「卡片那一侧」用的是**宿主产物原文**的算式（由 scripts/gen-fixture-640.js
+// 量尺必须来自外部：fixture 里「卡片那一侧」用的是**宿主产物原文**的算式（由 scripts/gen-fixture-640.ts
 // 从 DSH 桌面包里读出来）—— 输入卡外层「padding:0 var(--dsh-composer-side-clearance) <底距>」+
 // 输入卡「width:100%; max-width:var(--dsh-composer-card-max-width)」；被测元素那一侧才用插件的几何。
 // 两边不是同一个公式 —— 否则这道门恒真。宿主 0.2.0-rc.2 起把类名换成了 CSS Modules 哈希名
@@ -13,7 +13,7 @@
 // 反证用例同为必需：容器回到改造前那种「不做宽度约束」的写法时，本门必须量出「容器比卡片宽」。
 //
 // 宿主产物怎么找（2026-10-04）：候选 = 环境变量 DSH_CONVERSATION_BUNDLE → 原写死的那条安装路径 →
-//   asar 解包缓存（scripts/gen-fixture-640.js 会用 scripts/asar-extract.js 从
+//   asar 解包缓存（scripts/gen-fixture-640.ts 会用 scripts/asar-extract.ts 从
 //   D:\DeepseekHarness\resources\app.asar 里把宿主原文抽出来）。全都拿不到时本门**明确跳过**：
 //   打印 SKIP + 试过的路径清单、exit 0；设 DSWS_REQUIRE_HOST_BUNDLE=1 时跳过算失败（exit 1），防假绿。
 //
@@ -26,7 +26,7 @@ let ok = true;
 const check = function (cond: unknown, msg: string): void { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) ok = false; };
 
 (async () => {
-  const gen = require(path.resolve(__dirname, '../scripts/gen-fixture-640.js'));
+  const gen = require(path.resolve(__dirname, '../scripts/gen-fixture-640.ts'));
   // 找不到宿主原文产物：本门没有外部量尺就无从判定 —— 按仓库惯例「明确跳过」，不报红也不装绿。
   //   设 DSWS_REQUIRE_HOST_BUNDLE=1 时跳过算失败（给 CI 或严格场合用）。
   if (gen.skipped) {

@@ -16,7 +16,7 @@
  *   只挑「找不到名字」这一类诊断（TS2304 / TS2552），把已知的两种情形列成白名单，其余一律报红。
  *   白名单只有两类，各自都写清为什么：宿主提供的全局、以及调用处带 typeof 保护的可选依赖。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-client-no-undef.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-client-no-undef.ts
  */
 const fs = require('fs')
 const os = require('os')
@@ -71,7 +71,7 @@ const undefinedNamesOf = function (file) {
 console.log('== 逐个产物：有没有「叫不出名字的调用」 ==')
 for (const rel of FILES) {
   const abs = path.join(ROOT, rel)
-  if (!fs.existsSync(abs)) { check(false, rel + '：产物不存在（先跑 node scripts/build.mjs）'); continue }
+  if (!fs.existsSync(abs)) { check(false, rel + '：产物不存在（先跑 node scripts/build.mts）'); continue }
   let found = []
   try { found = undefinedNamesOf(abs) } catch (e) { check(false, rel + '：检查过程本身出错 — ' + ((e && e.message) || e)); continue }
   const bad = found.filter((f) => !ALLOWED[f.name])

@@ -5,8 +5,8 @@
 // 它由三块拼成，任何一块松了假绿都会回来，而且不会有任何东西报出来：
 //
 //   1. 共享判据 tests/lib/gate-result.ts —— 记录的写法、解析、与期望对数，只有这一份；
-//   2. 执行器 scripts/verify-chain.js（主链与冒烟链都走它，后者是 #1178 接的）、
-//      scripts/verify-parallel.mjs、scripts/verify-all.mjs —— 各只有一处调用，不许各写一份判定；
+//   2. 执行器 scripts/verify-chain.ts（主链与冒烟链都走它，后者是 #1178 接的）、
+//      scripts/verify-parallel.mts、scripts/verify-all.mts —— 各只有一处调用，不许各写一份判定；
 //   3. 归属表 tests/gate-map.json 的三格 —— gates[].completionRecord（主链上这扇开闸了没有）、
 //      gates[].expectedAssertions（它该有多少条断言）、smokeGates[]（冒烟链上同样两件事，#1178）。
 //
@@ -151,9 +151,9 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
     fs.mkdirSync(path.dirname(to), { recursive: true })
     fs.copyFileSync(path.join(ROOT, rel), to)
   }
-  copy('scripts/verify-chain.js')
-  copy('scripts/verify-all.mjs')
-  copy('scripts/verify-parallel.mjs')
+  copy('scripts/verify-chain.ts')
+  copy('scripts/verify-all.mts')
+  copy('scripts/verify-parallel.mts')
   copy('scripts/lib/discover-gates.ts')
   // 夹具约定：单默认段；冒烟专用的 gate-s 排除出主链（它只走冒烟那条路）。
   fs.mkdirSync(path.join(tmpRoot, 'scripts'), { recursive: true })
@@ -170,7 +170,7 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
   )
   // 装载钩子也要一起搬：三条执行器给 tests/ 下的条目都会挂它（argvOf / withTsHook），
   // 夹具仓里少了这一份，子进程会以「找不到模块」红掉 —— 那就盖住了本门禁真正要看的判据。
-  copy('scripts/ts-hook.mjs')
+  copy('scripts/ts-hook.mts')
   copy('tests/lib/gate-result.ts')
   fs.mkdirSync(path.join(tmpRoot, 'tests'), { recursive: true })
   // 夹具门禁：a 正常交记录（2 条断言）；b 不交记录也没登记（执行器只看退出码）；
@@ -208,13 +208,13 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
     ),
   )
   const executors = [
-    { name: 'verify-chain.js', rel: 'scripts/verify-chain.js', args: [] as string[] },
-    { name: 'verify-parallel.mjs', rel: 'scripts/verify-parallel.mjs', args: [] as string[] },
-    { name: 'verify-all.mjs', rel: 'scripts/verify-all.mjs', args: [] as string[] },
+    { name: 'verify-chain.ts', rel: 'scripts/verify-chain.ts', args: [] as string[] },
+    { name: 'verify-parallel.mts', rel: 'scripts/verify-parallel.mts', args: [] as string[] },
+    { name: 'verify-all.mts', rel: 'scripts/verify-all.mts', args: [] as string[] },
   ]
   // 第四条入口（#1178）：冒烟从前是一条裸的 && 串，判据在它那条路上无事可做。
   // 现在它走同一个执行器的另一串清单（scripts.smoke），所以这里也按「同一份判据」验一遍。
-  const smokeExecutor = { name: 'verify-chain.js --script smoke', rel: 'scripts/verify-chain.js', args: ['--script', 'smoke'] }
+  const smokeExecutor = { name: 'verify-chain.ts --script smoke', rel: 'scripts/verify-chain.ts', args: ['--script', 'smoke'] }
   // 主链名单走夹具约定（目录扫描），这里只用写冒烟那一串（执行器仍从 package.json 读它）。
   const writeSmoke = (smokeSteps: string[]): void => {
     fs.writeFileSync(
@@ -234,8 +234,8 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
     const r = run(ex.rel, ex.args)
     const out = String(r.stdout || '') + String(r.stderr || '')
     check(r.status === 0, '正趟 ' + ex.name + '：夹具链全绿（退出码 ' + r.status + '）')
-    if (ex.name === 'verify-parallel.mjs') {
-      check(out.includes('完成证据判据：链上 2 步带期望'), '正趟 verify-parallel.mjs：认出了链上那两步带期望（a 交记录、c 登记了期望）')
+    if (ex.name === 'verify-parallel.mts') {
+      check(out.includes('完成证据判据：链上 2 步带期望'), '正趟 verify-parallel.mts：认出了链上那两步带期望（a 交记录、c 登记了期望）')
     } else {
       check(out.includes(GATE_RESULT_PREFIX), '正趟 ' + ex.name + '：把门禁交的记录原样透出来')
     }
@@ -293,8 +293,8 @@ console.log('戊）真仓里的挂接与登记')
   // 判据在它那条路上才真正生效。冒烟的门禁不在主链上，所以「挂在链上」这句要按两条链一起算。
   const smokeEntry = String((pkg.scripts && pkg.scripts['test:smoke']) || '')
   check(
-    smokeEntry.includes('scripts/verify-chain.js') && smokeEntry.includes('--script smoke'),
-    'test:smoke 走的是同一个链执行器（scripts/verify-chain.js --script smoke），不再是一条裸的 && 串',
+    smokeEntry.includes('scripts/verify-chain.ts') && smokeEntry.includes('--script smoke'),
+    'test:smoke 走的是同一个链执行器（scripts/verify-chain.ts --script smoke），不再是一条裸的 && 串',
   )
   const smokeList = String((pkg.scripts && pkg.scripts.smoke) || '')
   const smokeSteps = smokeList.split('&&').map((s) => s.trim()).filter(Boolean)
@@ -324,7 +324,7 @@ console.log('戊）真仓里的挂接与登记')
   check(notOnChain.length === 0, '已开闸的 ' + openedFiles.length + ' 扇门禁都挂在某一条链上（没挂的 ' + notOnChain.length + ' 扇' + (notOnChain.length ? '：' + notOnChain.join('、') : '') + '）')
   const duplicated = openedFiles.filter((f) => allSteps.filter((s) => s.includes(f)).length !== 1)
   check(duplicated.length === 0, '每扇已开闸的门禁在两条链上合计恰好出现一次（异常 ' + duplicated.length + ' 扇' + (duplicated.length ? '：' + duplicated.join('、') : '') + '）')
-  const shared = ['scripts/verify-chain.js', 'scripts/verify-parallel.mjs', 'scripts/verify-all.mjs']
+  const shared = ['scripts/verify-chain.ts', 'scripts/verify-parallel.mts', 'scripts/verify-all.mts']
   const wired = shared.filter((rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').includes('judgeStepCompletion'))
   check(wired.length === shared.length, '三条执行器都从 tests/lib/gate-result.ts 取判据（' + wired.length + '/' + shared.length + '）')
   // 本门禁自己也要开闸：归属表里记的期望条数必须与本趟实际跑出来的条数一致。

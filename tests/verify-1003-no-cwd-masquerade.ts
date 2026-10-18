@@ -17,7 +17,7 @@
  * 只给模块塞一个空串的话，把 src/host/index.js 里那一行改回进程自己的目录（也就是 #1003 的病根）
  * 也照样全绿——那一次负控证明了这一点。
  *
- * 用法：node tests/verify-1003-no-cwd-masquerade.js
+ * 用法：node tests/verify-1003-no-cwd-masquerade.ts
  */
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'

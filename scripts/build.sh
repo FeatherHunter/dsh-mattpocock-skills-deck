@@ -18,9 +18,9 @@ for a in "$@"; do
 done
 
 echo "==> [1/2] 构建（esbuild 双 entry：_pkg → package/lib/*，_dev → 根 client.js/host.js）"
-node scripts/build.mjs
+node scripts/build.mts
 
-echo "==> [2/2] 产物 vm 编译 loud fail（门禁在 build.mjs 内：precheckCode / 语法 / __ModuleLoader__ / 单组件单声明）"
+echo "==> [2/2] 产物 vm 编译 loud fail（门禁在 build.mts 内：precheckCode / 语法 / __ModuleLoader__ / 单组件单声明）"
 node -e "
 const fs = require('fs')
 const vm = require('vm')

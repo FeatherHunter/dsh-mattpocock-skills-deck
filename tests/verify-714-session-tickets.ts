@@ -1,5 +1,5 @@
 // verify-714-session-tickets.ts —— 门禁：会话↔票 处理链（数据侧，票 #714 / T10）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-714-session-tickets.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-714-session-tickets.ts，可独立运行。
 //
 // 这张门禁守的是票面点名的那几条，一条都不能少（每一条对应下面的一段断言）：
 //   1. **两条链互不覆盖**：会话 A 写 3 张、会话 B 写 2 张，各自数各自的（同一个仓库开着两个会话时

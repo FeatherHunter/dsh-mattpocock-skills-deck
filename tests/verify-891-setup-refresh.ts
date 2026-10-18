@@ -1,7 +1,7 @@
 // tests/verify-891-setup-refresh.ts — #891 初始化黄条不消失：活跃探测顺带重算链
 // 规约：复用正在看才跑的那一拍，不新开定时器，不新增日志事件；只有初始化那一步没过才多算一次。
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，判据与断言一条没动。
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-891-setup-refresh.ts
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-891-setup-refresh.ts
 import { createRequire } from 'node:module'
 import * as fs from 'node:fs'
 import * as path from 'node:path'

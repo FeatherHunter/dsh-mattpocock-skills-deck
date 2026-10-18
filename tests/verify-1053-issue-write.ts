@@ -18,7 +18,7 @@ import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 // 桩是一台「只认命令行的假 gh / 假 git」：读类（搜索、列票、GraphQL 单票、`gh issue view`）按场景给答案，
 //   写类按开关成或败；每条命令都记下来 —— 断言既能看「发了几条写命令」，也能看「走的哪条路」。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-1053-issue-write.ts
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-1053-issue-write.ts
 
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

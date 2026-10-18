@@ -12,7 +12,7 @@
  * 本文件只测行为：把真判据与真折叠机器按文本求值后，配一颗假胶囊跑，全文没有一句对源码文本的正则断言
  * （接线与单写路径的现任守卫是 tests/verify-capsule-narrow.js；「开关与记日志同行」那条今天已没有在跑的门禁）。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-926-capfold-gate.ts（必须挂钩子：它靠钩子把 ./lib/eval-probe.js 落到同名 .ts，不挂会 ERR_MODULE_NOT_FOUND）
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-926-capfold-gate.ts（必须挂钩子：它靠钩子把 ./lib/eval-probe.js 落到同名 .ts，不挂会 ERR_MODULE_NOT_FOUND）
  */
 const { readFileSync, existsSync } = require('node:fs')
 const { resolve } = require('node:path')
@@ -33,7 +33,7 @@ const CAPMACHINE = 'src/client/statusbar/capFoldMachine.js'
 const STATUSBAR = 'src/client/statusbar/StatusBar.js'
 
 check(existsSync(resolve(CAPFOLD)) && existsSync(resolve(CAPMACHINE)) && existsSync(resolve(STATUSBAR)), '源码三件套可读')
-// 与 scripts/build.mjs 同一套做法：剥行首 export，拼进同一作用域跑。
+// 与 scripts/build.mts 同一套做法：剥行首 export，拼进同一作用域跑。
 const mod = (function () {
   try {
     // 手法：compileFn——两段源码剥 export 后拼进同一作用域跑，原来无参造函数当场调用，共用入口同样处理。

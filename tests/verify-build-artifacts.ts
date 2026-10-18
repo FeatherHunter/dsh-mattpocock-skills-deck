@@ -22,11 +22,11 @@ console.log('风险A：产物在盘 + gitignore 门禁')
 //      改一次构建横幅、换个注释写法就变红，按维护者「清掉读文件文本钉形状的门禁」的要求撤掉。）
 for (const p of ['client.js', 'host.js']) {
   const abs = path.resolve(p)
-  if (!fs.existsSync(abs)) check(false, p + ' 缺失（请先运行 node scripts/build.mjs）')
+  if (!fs.existsSync(abs)) check(false, p + ' 缺失（请先运行 node scripts/build.mts）')
 }
 for (const p of ['package/lib/client.js', 'package/lib/index.js']) {
   const abs = path.resolve(p)
-  if (!fs.existsSync(abs)) { check(false, p + ' 缺失（请先运行 node scripts/build.mjs）'); continue }
+  if (!fs.existsSync(abs)) { check(false, p + ' 缺失（请先运行 node scripts/build.mts）'); continue }
   const txt = fs.readFileSync(abs, 'utf8')
   // pkg 产物头不强制 AUTO-GENERATED（pkg 头为原注释），这里只断它是有内容的构建产物
   check(txt.length > 1000, p + ' 非空（构建产物）')
@@ -55,14 +55,14 @@ try {
 }
 
 // 3b) 入口件绑定包：纯生成物，不入库（#824）
-//   scripts/generated/updateEntryPanel.bundle.js 由 scripts/bundle-update-entry.mjs 每次构建
+//   scripts/generated/updateEntryPanel.bundle.js 由 scripts/bundle-update-entry.mts 每次构建
 //   按已安装更新包现场生成，是上游包产物的逐字拷贝。入库的副本会被集中扫描器误判成硬编码密钥，
 //   而构建时现场生成的那份不在扫描范围内，所以它和 client.js/host.js 一样不入库。
 //   锁三件事：磁盘上有（构建负责生成）、被忽略、未被跟踪，缺一件就红。
 {
   const rel = 'scripts/generated/updateEntryPanel.bundle.js'
   const abs = path.resolve(rel)
-  check(fs.existsSync(abs), rel + ' 存在（构建按已安装更新包现场生成，缺失请跑 node scripts/build.mjs）')
+  check(fs.existsSync(abs), rel + ' 存在（构建按已安装更新包现场生成，缺失请跑 node scripts/build.mts）')
   try {
     const out = execSync('git check-ignore -v ' + rel, { encoding: 'utf8' })
     check(out.includes('.gitignore'), rel + ' 被 .gitignore 忽略（生成物不入库）')
@@ -102,10 +102,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
 //     · 源码侧只收两类——TypeScript 真源（不含纯类型声明 .d.ts）与没有同名 TypeScript 的手写 JavaScript；
 //       同目录有同名 TypeScript 的 JavaScript 是并排的转译产物（今天只有追踪器契约目录那一份拼接输入），
 //       它是产物不是来源，不进这一节的比对（它的计数归下一节 4b 管）。
-//     · 说明文档（.md）构建不进包，这里直接忽略（构建只收 .js 与 .ts，见 scripts/build.mjs 的复制与投放两步）。
+//     · 说明文档（.md）构建不进包，这里直接忽略（构建只收 .js 与 .ts，见 scripts/build.mts 的复制与投放两步）。
 //     · 包侧只收 JavaScript；宿主树那份工厂壳 package/lib/client.js 由拼闭包那一步单独生成，不在这三对镜像里。
 //   内容分两种比：手写 JavaScript 逐字节一致；TypeScript 按构建同一份转译参数重算一遍再比
-//   （转译参数与文件头都取自构建唯一的 scripts/lib/transpile-unit.mjs，行零依赖门禁同手法，不在这里抄第二遍；
+//   （转译参数与文件头都取自构建唯一的 scripts/lib/transpile-unit.mts，行零依赖门禁同手法，不在这里抄第二遍；
 //    引用改写那几行是构建里“追踪器与工具树指回宿主树时换前缀”的原文拷贝，详见下面的说明）。
 console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 {
@@ -114,10 +114,10 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
     { src: 'src/deck', pkg: 'package/deck', excludePkg: [] },
     { src: 'src/tracker', pkg: 'package/tracker', excludePkg: [] },
   ]
-  // 下面三段引用改写是 scripts/build.mjs 里同名函数的原文拷贝（只读比对用，不写盘）。
+  // 下面三段引用改写是 scripts/build.mts 里同名函数的原文拷贝（只读比对用，不写盘）。
   // 为什么拷贝而不是引用构建：构建脚本一被引用就跑整趟构建（它不是纯模块），而判据必须与构建同口径；
   // 边界只允许改这一扇门禁，不能把构建拆成可引用模块，所以这里留一份只读拷贝，改引用规则时两处一起改。
-  // 拷贝来源：scripts/build.mjs 的 resolveRelPosix、relativePosix、MOVED_SPEC_RE、rewriteMovedSpecifiers。
+  // 拷贝来源：scripts/build.mts 的 resolveRelPosix、relativePosix、MOVED_SPEC_RE、rewriteMovedSpecifiers。
   const resolveRelPosix = (baseDir, spec) => {
     const parts = baseDir.split('/').filter((p) => p.length > 0)
     for (const seg of spec.split('/')) {
@@ -153,9 +153,9 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   let tu = null
   let esbuild = null
   try {
-    tu = require(path.resolve('scripts/lib/transpile-unit.mjs'))
+    tu = require(path.resolve('scripts/lib/transpile-unit.mts'))
   } catch (e) {
-    check(false, '能加载 scripts/lib/transpile-unit.mjs（转译口径唯一来源，不在这里抄第二遍）：' + ((e && e.message) || e))
+    check(false, '能加载 scripts/lib/transpile-unit.mts（转译口径唯一来源，不在这里抄第二遍）：' + ((e && e.message) || e))
   }
   try {
     esbuild = require('esbuild')
@@ -238,7 +238,7 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //   产物出库之后（#1023 第三刀把三处产物移出 git：package/shared、像素风 34 件、四个域 35 件），
 //   那个对照要守的「两份拷贝别漂移」已经由构建这一个写者保证：转译与复制在同一次构建里做完，
 //   域目录的双向判据（少一份产物、多一份无源产物、域里没源码）由构建现场核对
-//   （scripts/lib/transpile-domains.mjs 调 checkDomainConsistency）。留下逐字节比对的代价是
+//   （scripts/lib/transpile-domains.mts 调 checkDomainConsistency）。留下逐字节比对的代价是
 //   每次产物换落点都要跟着改，而它守不到「产物有没有跑到不该去的地方」——那才是出库后的真风险。
 //   Q9 定的新守门对象是「四类之外没有产物」，四类逐类点名（#1018 起第一类由两棵扩成四棵）：
 //     ① 发布包内四棵产物树：package/lib/**（宿主）、package/shared/**（共享域产物）、
@@ -261,7 +261,7 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //        这条上限就是它的进度表——搬完把 TRANSITIONAL_PRODUCTS_MAX 改成 0，这条断言自然升级成
 //        「四类之外一件都没有」。
 //   怎么认出「产物」（不手写名单，认构建自己留下的两处痕迹）：
-//     · 第一行带 AUTO-GENERATED 头（scripts/lib/transpile-unit.mjs 与 build.mjs 的 pixel-ts 段写的）；
+//     · 第一行带 AUTO-GENERATED 头（scripts/lib/transpile-unit.mts 与 build.mts 的 pixel-ts 段写的）；
 //     · 或者同名 .ts 就住在旁边（逐文件转译的形状，src/client 那 34 件两处痕迹都有）。
 {
   const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'scripts/generated/']
@@ -476,15 +476,15 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
 //   为什么挂在这一节：这条检查本来就在测试链的清单上（新开的测试文件不会被自动发现，清单是手写的），
 //   而它管的正是「产物与来源一致」这件事——路径怎么推、导出块怎么改写、产物与源码对不对得上，
 //   三件都是这同一件事的零件。
-//   这三个函数住在 scripts/lib/transpile-unit.mjs 里，那个模块不读盘、不写盘、不跑构建，
+//   这三个函数住在 scripts/lib/transpile-unit.mts 里，那个模块不读盘、不写盘、不跑构建，
 //   所以这里可以放心直接引用；主构建脚本反而不能引用（它一被 import 就跑整趟构建）。
 {
   console.log('\n转译口径纯函数：路径推导 / 导出块改写 / 双向判据')
   let tu = null
   try {
-    tu = require(path.resolve('scripts/lib/transpile-unit.mjs'))
+    tu = require(path.resolve('scripts/lib/transpile-unit.mts'))
   } catch (e) {
-    check(false, '能加载 scripts/lib/transpile-unit.mjs（纯函数模块，不跑构建）：' + e.message)
+    check(false, '能加载 scripts/lib/transpile-unit.mts（纯函数模块，不跑构建）：' + e.message)
   }
   if (tu) {
     const cases = [
@@ -544,7 +544,7 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
     const handWritten = tu.checkDomainConsistency({ sources: ['a.ts'], outputs: ['a.js', 'mine.js'], handWritten: ['mine.js'] })
     check(handWritten.length === 0, '双向判据：名单里的手写产物不算无源产物')
 
-    // 转译参数：仓里所有逐文件转译共用同一份（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS）。
+    // 转译参数：仓里所有逐文件转译共用同一份（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS）。
     // 为什么这条要真转一段代码来验、而不是只比对几个字段：这个参数表里最容易被漏掉的是 charset，
     // 而漏掉它不会报任何错——产物照常生成，只是里面的中文悄悄变成 \uXXXX 转义。历史上就是这样漏过一次
     // （客户端像素那一段传了、四个计算核那一段没传），所以这里拿一段带中文的代码走一遍真实转译，

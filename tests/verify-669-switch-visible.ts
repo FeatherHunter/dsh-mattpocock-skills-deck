@@ -20,9 +20,9 @@
  *     切换前飞着重取、同一个后端上两次重取、非 force 在途撞 force、旧后端那份晚回来。
  *   D 反证：把去重键改回「只按工作区」、把守卫整段摘掉，C 里对应的那几条必须当场量不通过。
  *
- * 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mjs 起的那一只。
+ * 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mts 起的那一只。
  *
- * 用法：node tests/verify-669-switch-visible.js
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-669-switch-visible.ts
  */
 const fs = require('fs')
 const path = require('path')

@@ -11,7 +11,7 @@
  *   2026-10 按维护者口径撤掉：那种断言的对象是手写源码的文本，等价重构（改写法、
  *   搬文件、改注释）就会变红，挡不住真回归。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-723-single-refresh-instance.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-723-single-refresh-instance.ts
  */
 const fs = require('fs')
 const path = require('path')

@@ -14,15 +14,15 @@
  *      同时不许误伤 `exports.foo` 这类标识符与行首的动态导入 `import(...)`；
  *   3. 缝真的会转译 .ts 片段：带类型标注的 .ts 片段经 readSpliceFragmentSource 之后，类型标注被剥掉、
  *      行首 export 被去掉，而且拼出来的文本能当场交给 eval-probe 求值（vm 只吃纯 JavaScript）；
- *   4. 三个拼接点都走同一条缝：build.mjs 里三处 marker 替换都调 readSpliceFragmentSource（构建与门禁
- *      共用同一份读取实现），且叶子反向检查用的是 lib 里那份判据（不是 build.mjs 里自己写一遍）；
+ *   4. 三个拼接点都走同一条缝：build.mts 里三处 marker 替换都调 readSpliceFragmentSource（构建与门禁
+ *      共用同一份读取实现），且叶子反向检查用的是 lib 里那份判据（不是 build.mts 里自己写一遍）；
  *   5. **拦截走真缝**：一段真正会被拒绝的片段，在 readSpliceFragmentSource 这一层就必须抛错——判据 1、2
  *      测的是纯函数，谁把缝里那次调用换成一行内联的「去行首 export」，纯函数照样绿而缝不再拦；
  *      同一节还守着「不误伤」那一面：注释与模板串里写着的行首 import/export 是文本、不是代码；
  *   6. **登记表里的真片段逐份过缝**：不是只喂临时夹具——按路径前缀跳过转译、只对认识的扩展名转译这类
  *      改动，只有拿真片段跑才看得出来；顺带盯住 `.ts` 一族与 `.d.ts` 的分派；
  *   7. **叶子判据真跑一遍**：.js / 没有同名 .js 的 TypeScript / 有同名 .js 的 TypeScript / .d.ts 四种
- *      情形摆在临时目录里逐个断言（#1207 对抗式审查发现：写在 build.mjs 里时门禁只能拿正则看它有没有写）。
+ *      情形摆在临时目录里逐个断言（#1207 对抗式审查发现：写在 build.mts 里时门禁只能拿正则看它有没有写）。
  *
  * 夹具都建在系统临时目录里，跑完就删，不往仓库里写东西。
  *
@@ -37,8 +37,8 @@ const { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 const os = require('node:os')
 const path = require('node:path')
 
-const { toSpliceableFragment } = require('../scripts/lib/transpile-unit.mjs')
-const { REPO_ROOT, isLeafSourcePath, readSpliceFragmentSource } = require('../scripts/lib/transpile-domains.mjs')
+const { toSpliceableFragment } = require('../scripts/lib/transpile-unit.mts')
+const { REPO_ROOT, isLeafSourcePath, readSpliceFragmentSource } = require('../scripts/lib/transpile-domains.mts')
 const { sourcePath, sourceText, spliceableJs } = require('./lib/source-text.ts')
 const probe = require('./lib/eval-probe.ts')
 
@@ -111,7 +111,7 @@ function main(): void {
     writeFileSync(path.join(dir, 'twin.ts'), 'const fromTs: number = 2\n', 'utf8')
     ok(
       path.resolve(sourcePath(twinJs)) === path.resolve(path.join(dir, 'twin.ts')),
-      '取源规则：问 .js 时同名 .ts 优先（与装载钩子 scripts/ts-hook.mjs 同规则）'
+      '取源规则：问 .js 时同名 .ts 优先（与装载钩子 scripts/ts-hook.mts 同规则）'
     )
     ok(sourceText(twinJs).includes('fromTs'), '取源规则：原文给的是源码 .ts 的内容，不是旁边的 .js')
     ok(
@@ -193,10 +193,10 @@ function main(): void {
   // 再由它调构建与门禁共用的 readSpliceFragmentSource。对抗式审查补的三条（只数 m.file 会漏异名直调、
   // 跨函数正则会把搬走的调用也算数、只看接线会漏掉被掏空的补换行），所以这里：数统一入口的调用到 3 处、
   // 把统一入口的函数体抠出来断言两件事都在里面（调共用读取、补末尾换行）、抠掉入口与 import 行之后不许再有读缝调用。
-  const buildSrc = readFileSync(path.join(REPO_ROOT, 'scripts/build.mjs'), 'utf8')
+  const buildSrc = readFileSync(path.join(REPO_ROOT, 'scripts/build.mts'), 'utf8')
   const seamCalls = (buildSrc.match(/spliceText\(\w+\.file\)/g) || []).length
   ok(seamCalls === 3, 'kernel / leaf / shared 三处拼接点都走同一条缝（实到 ' + seamCalls + ' 处）')
-  const spliceBody = /function spliceText\(file\) \{([\s\S]*?)\n\}/.exec(buildSrc)?.[1] || ''
+  const spliceBody = /function spliceText\(file(?:: string)?\)(?:: string)? \{([\s\S]*?)\n\}/.exec(buildSrc)?.[1] || ''
   ok(
     spliceBody.includes('readSpliceFragmentSource(file)'),
     '统一入口内部调的是构建与门禁共用的那一份读取实现（不是各写一份，也不是搬到别处只留空壳）'
@@ -207,21 +207,21 @@ function main(): void {
   )
   const withoutEntry = buildSrc
     .replace(/import [^\n]*readSpliceFragmentSource[^\n]*\n/, '')
-    .replace(/function spliceText\(file\) \{[\s\S]*?\n\}/, '')
+    .replace(/function spliceText\(file(?:: string)?\)(?:: string)? \{[\s\S]*?\n\}/, '')
   ok(
     !/readSpliceFragmentSource\(/.test(withoutEntry),
     '除统一入口外没有别的读缝调用（异名变量的直接调用同样算绕过，不许留）'
   )
   ok(!/extractModuleBlock/.test(buildSrc), '拼接点不再各自写一份「读文件、去行首 export」')
   ok(
-    /import \{[^}]*readSpliceFragmentSource[^}]*\} from '\.\/lib\/transpile-domains\.mjs'/.test(buildSrc),
+    /import \{[^}]*readSpliceFragmentSource[^}]*\} from '\.\/lib\/transpile-domains\.mts'/.test(buildSrc),
     '拼接点用的是构建与门禁共用的那一份读取实现（不是各写一份）'
   )
   ok(
-    /isLeafSourcePath\(ROOT, rel\)/.test(buildSrc) && /isLeafSourcePath[^\n]*from '\.\/lib\/transpile-domains\.mjs'/.test(buildSrc),
-    '叶子反向检查用的是 lib 里那份判据（build.mjs 只调用，不自己再写一遍）'
+    /isLeafSourcePath\(ROOT, rel\)/.test(buildSrc) && /isLeafSourcePath[^\n]*from '\.\/lib\/transpile-domains\.mts'/.test(buildSrc),
+    '叶子反向检查用的是 lib 里那份判据（build.mts 只调用，不自己再写一遍）'
   )
-  ok(!/function isLeafSourcePath/.test(buildSrc), 'build.mjs 里不再留一份自己的叶子判据实现')
+  ok(!/function isLeafSourcePath/.test(buildSrc), 'build.mts 里不再留一份自己的叶子判据实现')
 
   // ---- 判据 6：登记表里的真片段逐份过缝（不是只喂临时夹具）----
   // 为什么要有它：判据 3、5 用的全是临时夹具，于是「按路径前缀跳过转译」「只对认识的扩展名转译」这类

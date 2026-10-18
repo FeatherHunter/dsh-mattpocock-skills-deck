@@ -1,5 +1,5 @@
 // tests/verify-1146-virtual-clock-liveness.ts —— 时间压缩助手：泵必须跟着「还有没有被引用的等待」活着（#1146）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1146-virtual-clock-liveness.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1146-virtual-clock-liveness.ts
 //
 // 守的是什么（#1146 的现象）：真实事件循环上只有泵这一个句柄，所以「门禁会不会提前收摊、后面的断言还跑
 // 不跑」只看泵有没有被引用。修复前的助手只在「重新装泵走到底」那条路上算一次引用状态，提前返回那一格会
@@ -87,7 +87,7 @@ function runChild(mode: ChildMode, out: string): void {
 function runScenario(mode: ChildMode, tmpDir: string): { status: number | null; text: string } {
   const out = join(tmpDir, mode + '.log')
   writeFileSync(out, '')
-  const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mjs', SELF_REL], {
+  const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', SELF_REL], {
     cwd: ROOT,
     env: { ...process.env, [ENV_MODE]: mode, [ENV_OUT]: out },
     // stdio 一律丢掉：管道会替子进程吊住事件循环，把要观测的「提前收摊」抹掉（见文件头）。

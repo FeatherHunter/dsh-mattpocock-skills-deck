@@ -21,7 +21,7 @@
  *   本门要证的是「座位在哪一层、跟面板有没有关系」，上面这一版已经钉死；点按钮那一整条链由
  *   `tests/verify-665-fresh-workspace-chain.ts` 在模块层钉着（含「点仓库那一段开的是哪个弹窗」）。
  *
- * 用法：node tests/verify-671-modal-global-overlay.js
+ * 用法：node tests/verify-671-modal-global-overlay.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'

@@ -31,10 +31,10 @@
  *   （实测踩过这一脚：换过去的那一份根本没落地，X 那一节于是量的是旧画面）。
  *
  * 探针本身放在 tests/fixtures/chain-view-ui-probe.js（单独一份文件）：它要把真产物与那一份叶子都
- *   求值出来（与 scripts/build.mjs 同一套做法），写在模板字符串里层数太深、容易被转义绊住。
+ *   求值出来（与 scripts/build.mts 同一套做法），写在模板字符串里层数太深、容易被转义绊住。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
- * 运行：node tests/verify-chain-view-ui.ts（先 node scripts/build.mjs 生成产物）
+ * 运行：node tests/verify-chain-view-ui.ts（先 node scripts/build.mts 生成产物）
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -55,7 +55,7 @@ const LEAF = 'src/client/views/shared/sessionChainView.js'
 const PROBE = 'tests/fixtures/chain-view-ui-probe.ts'
 for (const rel of [CLIENT, LEAF, PROBE]) {
   if (!existsSync(resolve(rel))) {
-    console.log((rel === CLIENT ? '产物缺失（' + CLIENT + '）：先跑 node scripts/build.mjs' : rel + ' 不存在'))
+    console.log((rel === CLIENT ? '产物缺失（' + CLIENT + '）：先跑 node scripts/build.mts' : rel + ' 不存在'))
     process.exit(1)
   }
 }

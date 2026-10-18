@@ -19,8 +19,8 @@
 // 这种写法在门禁里看不出毛病 —— 这一条门禁就是来堵这个洞的（#1115 的实测记录见票面证据一节）。
 //
 // 用法（手工跑要自己挂装载钩子；npm test / verify:parallel / verify-all / test:smoke 四个入口自动挂）：
-//   node --import ./scripts/ts-hook.mjs tests/verify-1115-timer-handle.ts
-// 产物缺失时本门禁会自己先跑一次 node scripts/build.mjs（真实调用点那两段读的是构建后的模块）。
+//   node --import ./scripts/ts-hook.mts tests/verify-1115-timer-handle.ts
+// 产物缺失时本门禁会自己先跑一次 node scripts/build.mts（真实调用点那两段读的是构建后的模块）。
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -133,9 +133,9 @@ async function main() {
   // ── 产地在盘上（真实调用点那两段读的是构建后的模块；缺了就先构建一次）──
   const PRODUCT = path.join(ROOT, 'src/shared/host-timer/host-timers.js')
   if (!fs.existsSync(PRODUCT)) {
-    console.log('  共享层产物不在盘上，先跑一次 node scripts/build.mjs ……')
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build.mjs')], { cwd: ROOT, stdio: 'inherit' })
-    check(r.status === 0, '共享层产物缺失时能靠 node scripts/build.mjs 补上（退出码 ' + String(r.status) + '）')
+    console.log('  共享层产物不在盘上，先跑一次 node scripts/build.mts ……')
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build.mts')], { cwd: ROOT, stdio: 'inherit' })
+    check(r.status === 0, '共享层产物缺失时能靠 node scripts/build.mts 补上（退出码 ' + String(r.status) + '）')
   }
   check(fs.existsSync(PRODUCT), '域产物 src/shared/host-timer/host-timers.js 在盘上（构建脚本按域目录里的 tsconfig.json 自动认域）')
 

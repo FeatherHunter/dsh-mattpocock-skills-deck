@@ -108,7 +108,7 @@ const triangles = function (s) { return (String(s).match(/[\u26a0\ufe0f]/g) || [
 })
 ;['client.js', 'package/lib/client.js'].forEach(function (rel) {
   const p = path.join(ROOT, rel)
-  if (!fs.existsSync(p)) { check(false, rel + ' 不存在（先跑 node scripts/build.mjs）'); return }
+  if (!fs.existsSync(p)) { check(false, rel + ' 不存在（先跑 node scripts/build.mts）'); return }
   const built = fs.readFileSync(p, 'utf8')
   check(built.indexOf('list.restFallbackStale') >= 0, rel + ' 里带着新那句（产物按源码重建过才生效）')
   check(built.indexOf('data-rest-fallback-dismiss') >= 0, rel + ' 里带着关闭钮')

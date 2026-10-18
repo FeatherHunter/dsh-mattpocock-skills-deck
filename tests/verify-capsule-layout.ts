@@ -30,7 +30,7 @@
  *      G2 那把尺子必须当场报红 —— 抓不住就是假绿（克隆件上量，绝不碰真节点）。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
- * 运行：node tests/verify-capsule-layout.js（先 node scripts/build.mjs 生成产物）
+ * 运行：node tests/verify-capsule-layout.ts（先 node scripts/build.mts 生成产物）
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -50,7 +50,7 @@ const EVEN_RATIO_MAX = 1.5
 
 const CLIENT = 'package/lib/client.js'
 if (!existsSync(resolve(CLIENT))) {
-  console.log('产物缺失（' + CLIENT + '）：先跑 node scripts/build.mjs')
+  console.log('产物缺失（' + CLIENT + '）：先跑 node scripts/build.mts')
   process.exit(1)
 }
 const CWD = 'D:\\ilife\\packages\\skill-calorie'

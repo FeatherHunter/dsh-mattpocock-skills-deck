@@ -40,7 +40,7 @@
 // 为什么放在 tests/lib 而不是 src：它是门禁自己的工具，产品代码一行都不用知道它存在
 //（产品代码本来就通过注入 now、或者读全局 Date.now 来看钟，这里只是把全局那一份换掉）。
 // 为什么是 TypeScript：tests/** 是 node 直接拉起来跑的检查脚本，既不进构建也不进 tsc，跑的就是本文件；
-// 调用点仍然写作 `./lib/time-compress.js`，由 scripts/ts-hook.mjs 把这类说明符改指到同目录同名的 .ts。
+// 调用点仍然写作 `./lib/time-compress.js`，由 scripts/ts-hook.mts 把这类说明符改指到同目录同名的 .ts。
 //
 // 用法：
 //   const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')

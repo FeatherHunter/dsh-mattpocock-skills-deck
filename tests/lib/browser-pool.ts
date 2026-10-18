@@ -3,7 +3,7 @@
 // 两种模式，只由环境变量 DSH_TEST_BROWSER_WS 决定：
 //   没设（门禁的默认用法，单跑一道门禁就是这一种）：自己 chromium.launch(...)，
 //     传进来的 launchOptions 原样用，与门禁原来写死的 chromium.launch({ headless: true }) 等价。
-//   设了：连到 scripts/browser-host.mjs 起的共享实例上；这一趟跑完只断开连接，
+//   设了：连到 scripts/browser-host.mts 起的共享实例上；这一趟跑完只断开连接，
 //     不把浏览器关掉 —— 后面接着跑的门禁还要用同一只。
 //
 // 这一层只管「浏览器从哪来、什么时候还」，门禁量什么、判什么，一个字都不掺和。
@@ -13,7 +13,7 @@
 // 省了多少」这个数失真（半路混进一次真的 launch）。要改回自己起，清掉环境变量再跑就是了。
 //
 // ESM 具名导出：语言级保证，比原来靠 cjs-module-lexer 静态识别 exports.x 更结实；
-// 引用侧 14 处写法一个字都不用改，scripts/ts-hook.mjs 会把 './lib/browser-pool.js' 改指到本文件。
+// 引用侧 14 处写法一个字都不用改，scripts/ts-hook.mts 会把 './lib/browser-pool.js' 改指到本文件。
 import type { Browser, Chromium, LaunchOptions, Page } from 'playwright'
 
 export const SHARED_WS_ENV = 'DSH_TEST_BROWSER_WS'
@@ -50,7 +50,7 @@ export async function getBrowser(launchOptions?: LaunchOptions): Promise<Browser
   } catch (err) {
     throw new Error(
       '连不上共享浏览器：' + SHARED_WS_ENV + '=' + ws + '，' + CONNECT_TIMEOUT_MS + ' 毫秒内没连上。' +
-        '共享实例这样起：node scripts/browser-host.mjs（它会把地址打在一行 WS=... 上）。' +
+        '共享实例这样起：node scripts/browser-host.mts（它会把地址打在一行 WS=... 上）。' +
         '要改回这道门禁自己起浏览器：清掉 ' + SHARED_WS_ENV + ' 再跑。' +
         '底层原因：' + String((err && (err as Error).message) || err)
     )

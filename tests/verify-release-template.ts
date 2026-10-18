@@ -91,9 +91,9 @@ if (existsSync(ymlPath)) {
 console.log("");
 
 // 4. 对话触发脚本
-console.log("[4] 对话触发脚本（scripts/create-release-issue.mjs）");
-const scriptPath = resolve(ROOT, "scripts/create-release-issue.mjs");
-assert(existsSync(scriptPath), "scripts/create-release-issue.mjs 存在");
+console.log("[4] 对话触发脚本（scripts/create-release-issue.mts）");
+const scriptPath = resolve(ROOT, "scripts/create-release-issue.mts");
+assert(existsSync(scriptPath), "scripts/create-release-issue.mts 存在");
 if (existsSync(scriptPath)) {
   const script = readFileSync(scriptPath, "utf8");
   assert(script.includes("按发布规范发版"), "脚本说明包含对话触发句式“按发布规范发版 vX.Y.Z”");

@@ -3,7 +3,7 @@
 //   （「GitHub 助手（gh cli）还没安装，安装后即可继续。」），点一下等于什么都没给。按缺陷修。
 // 做法：把 src/client/statusbar/bannerChain.js 取出来在沙箱里求值（顺序真源用真的 guide-steps.js），
 //   喂假链快照与假后端声明，断言「注入的到底是哪一段字」与「日志记的是哪一类」。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-663-gh-install-inject.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-663-gh-install-inject.ts
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')

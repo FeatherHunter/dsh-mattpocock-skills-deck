@@ -1,5 +1,5 @@
 // tests/verify-818-version-control-view.js — 版本管理页签界面侧门禁（#818 落地）
-// 用法：在插件根目录执行 node tests/verify-818-version-control-view.js，可独立运行。
+// 用法：在插件根目录执行 node tests/verify-818-version-control-view.ts，可独立运行。
 //
 // 主缝（规格定的那一条）：喂一份录好的状态模型，断言「该画哪些块、每块写什么字」。断言落在
 //   用户读到的文字与块的顺序上，不落在内部字段名上。模型有三个来源：
@@ -91,7 +91,7 @@ let LOC: { zh: Record<string, string>; en: Record<string, string> } = { zh: {}, 
 let tZh: (k: string) => string = (k) => k
 let tEn: (k: string) => string = (k) => k
 
-// ---------- 界面侧闭包：照 scripts/build.mjs 的做法把六个叶子拼起来再跑 ----------
+// ---------- 界面侧闭包：照 scripts/build.mts 的做法把六个叶子拼起来再跑 ----------
 function stripExports(text: string): string { return text.replace(/^(\s*)export\s+/gm, '$1') }
 // 种子注入的匹配口（#1196 转 TS 时发现的耦合）：门禁按源码文本往闭包里注种子，手写 .js 与构建
 //   生成的双生 .js（esbuild 重排了空格、引号与换行）两种写法都认。只换匹配方式，不断言含义。
@@ -113,9 +113,9 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
 //   交给 compileFn。为什么不读产物 .js：产物被 esbuild 重排过（双引号、function 后面不留空格、句末补分号），
 //   而反证锚点是按原文写的，读产物就会「改不中」，等于没证——#1253 收口时这里正是这样红过。
 const { sourceText } = require('./lib/source-text.ts')
-const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const readSource = (rel: string): string => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
-// 转译口径复用构建那一份（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
+// 转译口径复用构建那一份（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
 const toEvalJs = (code: string): string => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
   let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(readSource(f)))).join('\n')

@@ -3,7 +3,7 @@ import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 //
 // 门禁归属: src/tracker/rooms/github/
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-github-gh-via.ts
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-github-gh-via.ts
 //
 // 为什么要有这一页：一趟读操作会落好几行常驻 gh.exec，字段长得一模一样（argv0 都是 gh、
 // kind 都是 ok、exitCode 都是 0）。#1052 实测跑一遍读路径（探测、拉列表、取一张票、计数、

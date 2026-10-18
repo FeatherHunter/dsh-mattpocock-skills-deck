@@ -1,5 +1,5 @@
 // verify-gate-accounting.ts —— 门禁：闸的累计账 == 实际出站请求数（#706 T2 第二批 · I6）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-gate-accounting.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-gate-accounting.ts。
 //   （不能裸跑：它动态 import 的 .ts 真源靠装载钩子解析，裸跑会 ERR_MODULE_NOT_FOUND。）
 //
 // 断言文字（票面验收第三条 + 「加固补充」最后几条）：真跑一遍「账本 + 闸」，用假的传输层

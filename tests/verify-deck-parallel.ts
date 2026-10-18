@@ -1,5 +1,5 @@
 // verify-deck-parallel.ts —— 门禁：deck 并发隔离（跨会话/同会话互不影响，同票写不丢）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-deck-parallel.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-deck-parallel.ts，可独立运行。
 //
 // 为什么要这一段：deck 工具必须允许大量并发——A 会话与 B 会话毫无关系，
 // 同一会话内多笔并行也互不影响。对抗结论：

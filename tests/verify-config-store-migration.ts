@@ -4,7 +4,7 @@
 //   M2 新老并存时以新为准：from 记 yaml，并带一条迁移遗留警告（调用方用已有事件记日志）。
 //   M3 写新删老：写成功后老文件被删掉；删不掉只警告，不影响主流程。
 //   M4 版本过高：读成功标只读，写明确拒绝；两个文件都没有时回 missing（界面引导去选）。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-config-store-migration.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-config-store-migration.ts
 const path = require('path')
 const { pathToFileURL } = require('url')
 

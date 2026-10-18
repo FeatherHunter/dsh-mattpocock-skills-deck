@@ -16,12 +16,12 @@
 //
 // 跑法：node tests/verify-visible-truth.ts
 // 判据不是「字符串出现过」，而是把界面那一半的**真代码**加载起来喂两组输入、看它吐出什么话
-//（与 scripts/build.mjs 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑）。
+//（与 scripts/build.mts 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑）。
 const fs = require('fs')
 const path = require('path')
-// 转译参数从仓库唯一那一份取（scripts/lib/transpile-unit.mjs 写明这组参数只在那处写、别处各抄一份会静默分叉）；
+// 转译参数从仓库唯一那一份取（scripts/lib/transpile-unit.mts 写明这组参数只在那处写、别处各抄一份会静默分叉）；
 // 从 CJS require 一个 .mjs，与 tests/verify-file-granularity.ts 里 require('../scripts/lib/effective-lines.mts') 是同一种用法。
-const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const { compileFn } = require('./lib/eval-probe.js')
 // 中央时间真值：拼进闭包的几片（budget.js 的 freshnessLevel/lagPromiseFor、truthLines 那片）在门禁里
 // 是“剥掉中央 import 行、当函数体编译”跑起来的（见下面的 loadModule），裸用的中央名字在求值时走全局预埋——
@@ -41,7 +41,7 @@ function loadModule(relPath, deps) {
   // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
   src = src.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
   if (relPath.endsWith('.ts')) {
-    // 源码是 .ts：先按仓库自己的转译口径剥掉类型（转译参数只写在 scripts/lib/transpile-unit.mjs 那一份，
+    // 源码是 .ts：先按仓库自己的转译口径剥掉类型（转译参数只写在 scripts/lib/transpile-unit.mts 那一份，
     //   这里取现成的，不另抄一套），再照下面同一套「剥行首 export、当函数体编译」的读法加载。
     //   少了这一步，`type X = …` 会在编译函数时当场 SyntaxError —— 类型标注只给编译器看，运行期行为
     //   一个字没变，剥掉之后跑的就是真正跑的那段代码。
@@ -51,8 +51,8 @@ function loadModule(relPath, deps) {
   const re = /^[ \t]*export[ \t]+(?:const|let|var|function|class)[ \t]+([A-Za-z_$][\w$]*)/gm
   let m
   while ((m = re.exec(src)) !== null) names.push(m[1])
-  // esbuild 把导出收成文件末尾一条 `export { … };`（本仓 scripts/lib/transpile-unit.mjs 里同名的处理叫
-  //   inlineExportDeclarations，scripts/build.mjs 只是 import 它）：这里把它翻成同一份返回对象的键，
+  // esbuild 把导出收成文件末尾一条 `export { … };`（本仓 scripts/lib/transpile-unit.mts 里同名的处理叫
+  //   inlineExportDeclarations，scripts/build.mts 只是 import 它）：这里把它翻成同一份返回对象的键，
   //   并把这行从函数体里切掉。
   const trailing = /\nexport \{([^}]*)\};?\s*$/.exec(src)
   if (trailing) {

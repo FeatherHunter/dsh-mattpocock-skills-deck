@@ -10,11 +10,11 @@
 //   断言「两处都调了共用函数、都没有自写取法」的静态锁，2026-10 按维护者口径撤掉：
 //   那种断言的对象是手写源码的文本，等价重构（改写法、搬文件、改注释）就会变红。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-730-cwd-consistent.ts（插件根目录，可独立运行）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-730-cwd-consistent.ts（插件根目录，可独立运行）
 // 接线说明：本文件今天已在 verify 链上——scripts/lib/discover-gates.ts 按命名约定把它收进规划（302 步里有它），
 //   scripts/verify-stages.json 的排除表里没有它。
 // 本文件是 CommonJS：取产品源码只走 require 与动态 import 两条路，不加静态 import，
-//   所以加类型标注不会把它变成 ESM（产品的 .js 说明符靠 scripts/ts-hook.mjs 改指同名 .ts）。
+//   所以加类型标注不会把它变成 ESM（产品的 .js 说明符靠 scripts/ts-hook.mts 改指同名 .ts）。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')

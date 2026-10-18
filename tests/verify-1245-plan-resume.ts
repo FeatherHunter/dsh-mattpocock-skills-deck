@@ -1,5 +1,5 @@
 // verify-1245-plan-resume.ts —— #1245 回归门禁：建整图的外层掐断续跑（自动标识稳定加孤儿修复）。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1245-plan-resume.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1245-plan-resume.ts，可独立运行。
 //
 // 这一段盯五件事（#1245 验收，均用内存游标加 stub 后端，几秒跑完；真 300 秒不等）：
 //   ① 自动计划标识稳定：不传 planId 时同一份输入两次得到同一个标识，第二次零新建。

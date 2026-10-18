@@ -19,7 +19,7 @@
  * 测法：真跑 createSkillProbe（计数注册表查询次数）、真跑 detectionService 接真 platformChannel
  * 闭包（计数实际问了哪些技能名）；不断言内部 Map 形状，只看外部行为。
  *
- * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-968-skill-ondemand.ts
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-968-skill-ondemand.ts
  */
 const fsx = require('fs')
 const nodePath = require('path')

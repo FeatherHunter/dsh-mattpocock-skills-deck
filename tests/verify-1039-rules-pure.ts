@@ -16,7 +16,7 @@
 // 另有一条静态扫描：纯侧源码里不许出现读钟、读文件、起进程的写法。
 //
 // 用法：在插件根目录执行 node tests/verify-1039-rules-pure.ts，可独立运行。
-// 手工跑要自己挂装载钩子（`node --import ./scripts/ts-hook.mjs tests/verify-1039-rules-pure.ts`）：
+// 手工跑要自己挂装载钩子（`node --import ./scripts/ts-hook.mts tests/verify-1039-rules-pure.ts`）：
 // 纯侧源码之间写的是 `./tool-order.js` 这类说明符，靠钩子改指同名 .ts。
 // 挂进 npm test / verify:parallel / verify-all / test:smoke 四个入口时，钩子由那几处自动加上，不用自己写。
 import fs from 'node:fs'

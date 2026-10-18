@@ -1,6 +1,6 @@
 // tests/verify-970-whole-document.ts —— 门禁：整份正文缺状态行时按整份替换，不写成两份（#970）
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法与自指这两处路径、几处类型标注，判据与断言一条没动。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-970-whole-document.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-970-whole-document.ts。
 //
 // 守的是什么：更新票时正文分派原来只看有没有行首状态行。递进来的是自带一级标题
 // 或锚标记的整份文档、但不带状态行时，会被误判为片段、整份粘到旧标题后面，盘上

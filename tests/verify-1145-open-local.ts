@@ -3,7 +3,7 @@
 // 判据（第一性原理）：本地票的 url 是文件路径不是网址，`<a href="D:\…">` 点了没反应；
 // 唯一诚实动作是调宿主 openPath（https 票走 `<a target=_blank>` 不动）。四处都要守：
 // 详情顶栏、报错横幅、评论加载失败横幅、评论鉴权横幅。
-// 跑法：node --import ./scripts/ts-hook.mjs tests/verify-1145-open-local.ts
+// 跑法：node --import ./scripts/ts-hook.mts tests/verify-1145-open-local.ts
 // 说明：评论区是纯函数，直接调 handler 全行为断言（含点击调宿主）；详情页组件走
 // react-dom/server 静态渲染断分支（button vs 裸 a、href 值）。本机 jsdom 已坏
 // （@asamuzakjp/css-color 丢了，smoke-render 同样起不来），所以不用 jsdom。

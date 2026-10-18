@@ -24,7 +24,7 @@
  * 唯一不扫的文件是 `client.ts`：它是本房唯一的出网出口，里面那句 `['api', path]` 里的 `path` 是调用方
  * 递进来的参数，形状得看调用方才算数。别处再出现一条真调用都跑不掉。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-1179-gitlab-endpoint-coverage.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-1179-gitlab-endpoint-coverage.ts
  *       加 `--print` 只打印抽出来的形状（改采样表时先看一眼），不做判定。
  */
 import fs from 'node:fs'

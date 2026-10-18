@@ -19,7 +19,7 @@
  *      不给高频动作加磁盘读）。
  *   四、负控：裸链实例不调 `restore` 就是空（证明二、三不是恒绿的装饰）。
  *
- * 用法: node --import ./scripts/ts-hook.mjs tests/verify-735-chain-restore.ts（在插件根目录）
+ * 用法: node --import ./scripts/ts-hook.mts tests/verify-735-chain-restore.ts（在插件根目录）
  * 本文件是 CommonJS：取产品源码走 pathToFileURL + 动态 import，不加静态 import，所以加类型标注不会把它变成 ESM。
  * 退出码：0 = 通过；1 = 有违规。
  */

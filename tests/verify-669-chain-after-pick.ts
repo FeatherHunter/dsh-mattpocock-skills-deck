@@ -24,7 +24,7 @@
  *   D 反证：把守卫整段摘掉 / 只留第一问 / 只留第二问 / 把按键隔离改成全局一份，
  *     C 里对应的那几条必须当场量不通过；哪一条都量不出来，说明这一门是假绿的。
  *
- * 用法：node tests/verify-669-chain-after-pick.js
+ * 用法：node tests/verify-669-chain-after-pick.ts
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'

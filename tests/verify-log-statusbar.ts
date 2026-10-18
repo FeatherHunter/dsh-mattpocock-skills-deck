@@ -1,5 +1,5 @@
-// verify-log-statusbar.js — 状态栏门禁。
-// 用法：在插件根目录执行 node tests/verify-log-statusbar.js，可独立运行。
+// verify-log-statusbar.ts — 状态栏门禁。
+// 用法：在插件根目录执行 node tests/verify-log-statusbar.ts，可独立运行。
 //
 // 这份文件原来还有「一～六」六段：读 StatusLogMenu.js、StatusBar.js、logStore.js、logPhones.js、
 // LogDangerConfirm.js、scripts/build.mjs、src/client/index.js 的源码文本，断言里面必须出现某个色值、

@@ -13,7 +13,7 @@
 //   C. 图标：把 MapDetail.js 里那一行三元表达式抠出来求值，断言 issue→dot、task→gear（两者不再撞脸）
 //   D. 双产物：client.js 与 package/lib/client.js 都带上了新词条
 //
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-626-type-chip.ts（在插件根目录；无需 gh / 网络）
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-626-type-chip.ts（在插件根目录；无需 gh / 网络）
 const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')

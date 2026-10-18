@@ -1,5 +1,5 @@
 // tests/verify-957-workspace-writer.ts —— 工作区文件写器门禁（957 规格验收）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-957-workspace-writer.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-957-workspace-writer.ts，可独立运行。
 //
 // 盯一块（写器，不含读链；读链见 verify-947-workspace-file.js）：
 //   B 首绑落盘：人选 backendId 落盘（来源 user），显式无后端不写，文件已在不覆盖，写失败不回滚绑定但如实回。

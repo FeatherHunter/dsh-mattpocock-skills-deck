@@ -17,8 +17,8 @@
 //     口子（只在 github 面跳过 R1），R2–R8 在 github 面上照样判。gitlab / markdown 后端声明面判据不变（不许 gh 命令）。
 //   · 新增 R8（所有面都判，含允许 gh 的 github 面）：不许出现「先解析插件安装目录，再调包内脚本」那套间接写法 ——
 //     归一化后命中 dsh plugin / require.resolve / <插件目录> / <pluginDir> / fix-issue-body.mjs / wire-subissues.mjs
-//     任一即判红。这几样正是本票要消灭的，模板面与后端声明面都判。
-//   · 发布包里的两条脚本（fix-issue-body.mjs / wire-subissues.mjs）仍留在包里当可选工具，但提示词一个都不许引用：
+//    （转写后新后缀 .mts 同样命中）任一即判红。这几样正是本票要消灭的，模板面与后端声明面都判。
+//   · 发布包里的两条脚本（fix-issue-body.mts / wire-subissues.mts）仍留在包里当可选工具，但提示词一个都不许引用：
 //     「提示词引用的脚本集合必须为空」与「发布包仍带这两条脚本」是两条各自独立的事实，不再要求两边相等 ——
 //     那个等式的前提是「提示词必须调脚本」，前提本身已随 #603 撤掉。
 //
@@ -36,7 +36,7 @@
 //   S8 客户端产物里消费者看得见的提示词文本（从产物解析出的注册表条目）过 judge()：不许出现 gh / glab 命令形状
 //      （以前只卡 'dsh plugin --profile <配置名> exec' 与 'scripts/fix-issue-body.mjs' 两个字面串，换别的命令就全绿）
 //
-// 不扫（有意为之，见 §1.1）：docs/**（本来就该写具体命令）、tests/**、scripts/*.mjs、src/host 的代码注释与正则字面量。
+// 不扫（有意为之，见 §1.1）：docs/**（本来就该写具体命令）、tests/**、scripts/*.mts、src/host 的代码注释与正则字面量。
 //
 // 豁免只有一张表，登记在 tests/prompt-gate-exempt.json（门禁只读它，代码里不留第二份）：
 //   kind=rule  该条确实还写着具体跟踪器命令、属第二批范围 → 跳过判定（登记在案的债）
@@ -56,8 +56,8 @@ const { compileFn } = require('./lib/eval-probe.ts')
 const { sourceText, sourcePath } = require('./lib/source-text.ts')
 // 求值前那一步整段转译走全仓唯一那份口径（构建也用它）：这里不另写一份 esbuild 参数，
 // 否则门禁求值的文本会和真正拼进产物的那份慢慢分家，而且分家不报错。
-const { loadEsbuild } = require('../scripts/lib/transpile-domains.mjs')
-const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const { loadEsbuild } = require('../scripts/lib/transpile-domains.mts')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 
 const ROOT = path.join(__dirname, '..')
 const SELF = path.join(__dirname, 'verify-prompts.ts')
@@ -165,11 +165,11 @@ const normVariants = function (s) {
 //     dsh plugin                 拿插件安装目录的那条命令（含它的旧写法 dsh plugin exec）
 //     require.resolve            同一件事的另一种写法
 //     <插件目录> / <pluginDir>    提示词里指代插件安装目录的占位符
-//     fix-issue-body.mjs / wire-subissues.mjs   包内脚本名（提示词现在改回 gh 直连，一个脚本都不许调）
+//     fix-issue-body.mjs / wire-subissues.mjs（含 .mts 新后缀）   包内脚本名（提示词现在改回 gh 直连，一个脚本都不许调）
 //   注意：模板里说「不需要找插件目录」「不需要跑写回脚本」这类**说明性散文**不算命中（没有尖括号、没有脚本名），
 //   那些句子正是在告诉 agent 别去做这件事；只有真写出可照抄的东西才算。
 // 反规避：判之前把反斜杠去掉再跑一遍，挡住 fix-issue\-body.mjs / dsh\ plugin 这种拆字写法。
-const RE_INDIRECT = /dsh\s*plugin|require\s*\.\s*resolve|<\s*(?:插件目录|plugin[ _-]?dir)\s*>|fix-issue-body\s*\.\s*mjs|wire-subissues\s*\.\s*mjs/i
+const RE_INDIRECT = /dsh\s*plugin|require\s*\.\s*resolve|<\s*(?:插件目录|plugin[ _-]?dir)\s*>|fix-issue-body\s*\.\s*m(?:j|t)s|wire-subissues\s*\.\s*m(?:j|t)s/i
 // R1 的判定窗口有两档：
 //   紧写法（≤4 个任意非字母数字字符）抓 gh、issue / 用gh api / gh　issue / gh<零宽>issue 这类；
 //   宽写法（同行任意长度的可打印 ASCII 字符）抓 gh -R owner/repo issue edit / gh.exe issue /
@@ -205,9 +205,9 @@ const RULE_FIX = {
   R3: '不要直接打跟踪器 API 地址（api.github.com / api.gitlab.com）',
   R4: '正文不许内联进命令行（--body <正文>）：先写成文件，再按当前后端自己的方式整份读进去',
   R5: '不要用 heredoc 传正文，正文先写成文件',
-  R6: '提示词里不许调用任何脚本（发布包里的 fix-issue-body.mjs / wire-subissues.mjs 只作可选工具，不由提示词调用）；跟踪器操作直接写当前后端自己的命令行',
+  R6: '提示词里不许调用任何脚本（发布包里的 fix-issue-body.mts / wire-subissues.mts 只作可选工具，不由提示词调用）；跟踪器操作直接写当前后端自己的命令行',
   R7: '不要写混淆执行（base64 -d / xxd -r -p / String.fromCharCode / \\x 转义 / eval 加引号）',
-  R8: '不要写「先解析插件安装目录，再调包内脚本」这套间接写法（dsh plugin / require.resolve / <插件目录> / <pluginDir> / fix-issue-body.mjs / wire-subissues.mjs 都算）：跟踪器操作直接用当前后端自己的命令行（GitHub 就是 gh）',
+  R8: '不要写「先解析插件安装目录，再调包内脚本」这套间接写法（dsh plugin / require.resolve / <插件目录> / <pluginDir> / fix-issue-body(.mjs/.mts) / wire-subissues(.mjs/.mts) 都算）：跟踪器操作直接用当前后端自己的命令行（GitHub 就是 gh）',
 }
 
 // 判定一个字符串：返回 [{rule, snippet}]，空数组 = 通过
@@ -406,7 +406,7 @@ const auditExemptTable = function (list, surfaceIds, opts) {
 //      因为它们认的是「真源当前长什么样」——换成转译后的排版，条目会被压成一行或换引号，判据当场失真。
 //   ② transpileForEval：整段转译成 JavaScript，**只给求值用**（S1 求值、渲染入口 prime、兜底常量提取）。
 //      vm.compileFunction 只吃纯 JS，文件里那些 type / interface 声明与带标注的变量声明它一个都不认识；
-//      转译口径取自构建那份唯一实现（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS），
+//      转译口径取自构建那份唯一实现（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS），
 //      这里不另写参数 —— 否则门禁求值的文本会和真正拼进产物的那份慢慢分家，而且分家不报错。
 //   为什么不能反过来（求值也用 ①，或文本扫描也用 ②）：① 剩下的文本仍带 TypeScript 声明，喂 vm 报的是
 //   看不懂的语法错；② 的排版会把 23 条压成 8 条能过单行正则的（转译器把内层引号转义改写了），
@@ -1590,7 +1590,7 @@ const runL2Injection = function () {
         // 子进程不会继承父进程的装载钩子（见 AGENTS.md「链上脚本 spawn 出去的子进程不带钩子」）。
         // 本文件顶部按 .js 说明符加载的共用求值入口已经改名为 .ts，所以这里必须显式带上钩子；
         // 不带的话子进程一启动就报 MODULE_NOT_FOUND，下面按 FAIL 行做的断言会全部失真。
-        out = childProcess.execFileSync(process.execPath, ['--import', './scripts/ts-hook.mjs', SELF].concat(args), {
+        out = childProcess.execFileSync(process.execPath, ['--import', './scripts/ts-hook.mts', SELF].concat(args), {
           cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { DSH_VERIFY_PROMPTS_CHILD: '1' }), stdio: ['ignore', 'pipe', 'pipe'],
         })
         code = 0
@@ -1682,10 +1682,14 @@ const selfDigest = function () {
 //   夹具文件一个字没动，只有本文件改了，自摘要跟着重算。
 // #1209：ENTRY_RE 与 verify-prompt-newlines.ts 的孪生正则同步改成定界符感知（产物双引号排版含 ' 原文时不再静默少扫），自摘要跟着重算。
 // #1125：自注册改问规划函数（不再读 package.json 长串），自摘要跟着重算。
+// #1252：脚本工具层转 TypeScript，本文件十一处跟进（两处 require、L2 子进程钩子、SHIPPED_EXPECT、
+//   build.mts 读取、SHIPPED 提取正则放宽容 `: string[]` 注解、四处修法消息、scanScriptRefs 与
+//   RE_INDIRECT 正则放宽容 .mts、R8 名单加 .mts 变体、两处注释）；T24–T61 向量故意保留 .mjs
+//   旧拼写（删文件后仍算违规，覆盖不断），自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.ts': 'c971552d9298534073cbf0955fa6455495e9333c8b640980495fb921a749b42e',
+  'tests/verify-prompts.ts': 'fd40b179109fbaa03352fe8cfb0f5021d9681fe7d4a0cfccf1a3ffc951b62e7e',
 }
 // ---- LOCK-END ----
 
@@ -1852,7 +1856,7 @@ if (reg) {
           //   R8（先解析插件目录再调脚本）在所有面都判，github 面也不例外。
           judge(t, { allowTracker: isGh }).forEach(function (h) { fail(where + ' 渲染后 [' + h.rule + '] 命中「' + h.snippet + '」') })
           // #603 防回潮：模板层渲染结果里出现 dsh plugin 或两个脚本名即判红（直断一次，失败信息比 R8 那行更直白）
-          ;['dsh plugin', 'fix-issue-body.mjs', 'wire-subissues.mjs', '<插件目录>', '<pluginDir>'].forEach(function (bad) {
+          ;['dsh plugin', 'fix-issue-body.mjs', 'fix-issue-body.mts', 'wire-subissues.mjs', 'wire-subissues.mts', '<插件目录>', '<pluginDir>'].forEach(function (bad) {
             if (t.toLowerCase().indexOf(bad.toLowerCase()) >= 0) {
               fail(where + ' 渲染结果出现已被撤掉的间接写法「' + bad + '」（#603 起提示词改回 gh 直连，不再解析插件目录调脚本）')
             }
@@ -1910,7 +1914,7 @@ if (reg) {
     //     ② 发布包仍带这两条脚本，且生成物与源逐文件 sha256 一致（顺手删掉可选工具也要红）。
     const scriptRefs = []
     const scanScriptRefs = function (text) {
-      const re = /[a-z0-9_][a-z0-9_./\\-]*\.mjs/gi
+      const re = /[a-z0-9_][a-z0-9_./\\-]*\.(?:mjs|mts)/gi
       let m
       while ((m = re.exec(String(text))) !== null) { if (scriptRefs.indexOf(m[0]) < 0) scriptRefs.push(m[0]) }
     }
@@ -1932,11 +1936,11 @@ if (reg) {
     })
     if (scannedTexts < 60) fail('#603 脚本引用面只扫到 ' + scannedTexts + ' 段提示词文本（期望 ≥ 60：注册表 20 条 × zh/en/use + 三后端声明里的字面量；扫描面太窄等于没扫）')
     if (scriptRefs.length) fail('#603 提示词里引用了发布包脚本 ' + scriptRefs.join(',') + '（#603 起提示词改回 gh 直连，一个脚本都不许引用；两条脚本只留在包里当可选工具）')
-    // 发布包仍带这两条脚本：从 scripts/build.mjs 的 SHIPPED_SCRIPTS 清单机械求值（唯一手写清单，不许第二份）
-    const SHIPPED_EXPECT = ['fix-issue-body.mjs', 'wire-subissues.mjs']
-    const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts/build.mjs'), 'utf8')
-    const mm = /const SHIPPED_SCRIPTS = \[([^\]]*)\]/.exec(buildSrc)
-    if (!mm) fail('#603 scripts/build.mjs 里找不到 SHIPPED_SCRIPTS 清单（发布包脚本集合无源可求值）')
+    // 发布包仍带这两条脚本：从 scripts/build.mts 的 SHIPPED_SCRIPTS 清单机械求值（唯一手写清单，不许第二份）
+    const SHIPPED_EXPECT = ['fix-issue-body.mts', 'wire-subissues.mts']
+    const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts/build.mts'), 'utf8')
+    const mm = /const SHIPPED_SCRIPTS[^=]*=\s*\[([^\]]*)\]/.exec(buildSrc)
+    if (!mm) fail('#603 scripts/build.mts 里找不到 SHIPPED_SCRIPTS 清单（发布包脚本集合无源可求值）')
     const shipped = []
     if (mm) {
       const q = /'([^']+)'/g
@@ -1956,17 +1960,17 @@ if (reg) {
       try {
         onDisk = fs.readdirSync(pkgDir).filter(function (f) { return fs.statSync(path.join(pkgDir, f)).isFile() }).sort()
       } catch (e) {
-        fail('#603 package/scripts/ 不存在（生成物缺失；修法：跑 node scripts/build.mjs 重新生成）：' + e.message)
+        fail('#603 package/scripts/ 不存在（生成物缺失；修法：跑 node scripts/build.mts 重新生成）：' + e.message)
       }
       if (onDisk.length && JSON.stringify(onDisk) !== JSON.stringify(b)) {
-        fail('#603 package/scripts/ 落点集合 [' + onDisk.join(',') + '] ≠ 清单 [' + b.join(',') + ']（有多余文件或缺文件；修法：跑 node scripts/build.mjs 重新生成）')
+        fail('#603 package/scripts/ 落点集合 [' + onDisk.join(',') + '] ≠ 清单 [' + b.join(',') + ']（有多余文件或缺文件；修法：跑 node scripts/build.mts 重新生成）')
       }
       shipped.forEach(function (n) {
         const gen = path.join(pkgDir, n)
         const srcP = path.join(ROOT, 'scripts', n)
-        if (!fs.existsSync(gen)) { fail('#603 生成物缺失 package/scripts/' + n + '（修法：跑 node scripts/build.mjs 重新生成）'); return }
+        if (!fs.existsSync(gen)) { fail('#603 生成物缺失 package/scripts/' + n + '（修法：跑 node scripts/build.mts 重新生成）'); return }
         if (!fs.existsSync(srcP)) { fail('#603 源缺失 scripts/' + n); return }
-        if (sha(gen) !== sha(srcP)) fail('#603 生成物与源不一致 package/scripts/' + n + '（sha256 对不上；修法：跑 node scripts/build.mjs 重新生成）')
+        if (sha(gen) !== sha(srcP)) fail('#603 生成物与源不一致 package/scripts/' + n + '（sha256 对不上；修法：跑 node scripts/build.mts 重新生成）')
       })
     }
   } catch (e) {

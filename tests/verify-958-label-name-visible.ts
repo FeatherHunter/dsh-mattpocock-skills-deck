@@ -14,7 +14,7 @@
  *   I2 名字看得见：每一行名字格的渲染高度 > 0、计算行高不是 0px（这就是 #958 掉的那一环）。
  *   I3 门禁自己是活的（反证）：把弹窗的行高按回 0，同一把尺子必须量出「行盒塌了」，否则这道门在装绿。
  *
- * 依赖：playwright（含 chromium），本仓 devDependencies。跑之前先 node scripts/build.mjs 出产物。
+ * 依赖：playwright（含 chromium），本仓 devDependencies。跑之前先 node scripts/build.mts 出产物。
  * 运行：node tests/verify-958-label-name-visible.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
@@ -27,7 +27,7 @@ console.log('标签配色弹窗可见性门禁（#958：名字格的行盒不许
 
 // 被测产物：默认是本仓构建出来的那份；给 DSWS_958_BUNDLE 一个路径可以量别人手里那份（排查用）。
 const CLIENT = process.env.DSWS_958_BUNDLE && existsSync(process.env.DSWS_958_BUNDLE) ? process.env.DSWS_958_BUNDLE : 'package/lib/client.js'
-if (!existsSync(resolve(CLIENT))) { console.log('产物缺失（' + CLIENT + '）：先跑 node scripts/build.mjs'); process.exit(1) }
+if (!existsSync(resolve(CLIENT))) { console.log('产物缺失（' + CLIENT + '）：先跑 node scripts/build.mts'); process.exit(1) }
 
 const CWD = process.cwd()
 const LABELS = [

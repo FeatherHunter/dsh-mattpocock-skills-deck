@@ -2,7 +2,7 @@
 // 按 R3 第二步设计：jsdom + 真实 React/ReactDOM + DswsCtx，渲染产物注册的宿主无关组件
 // 覆盖：StatusBar（状态栏胶囊 + seg）、DetailsDock（面板容器 + tabs 行）、
 ///      ListTab / MapDetail / SkillsTab / ChecksTab / SettingsPage（视图区小件）
-// 用法: node --import ./scripts/ts-hook.mjs tests/smoke-render.test.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts
 import { JSDOM } from 'jsdom'
 import { readFileSync } from 'node:fs'
 import React from 'react'

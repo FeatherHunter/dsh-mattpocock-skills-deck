@@ -1,6 +1,6 @@
-// verify-detail-levels.js — 分层 MapDetail 数据层验证（T1 #442）
+// verify-detail-levels.ts — 分层 MapDetail 数据层验证（T1 #442）
 // 断言：wf.snapshot 每个 map 的 stats.levels 结构正确 + 每张票带 level + DAG 分层语义自洽
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-detail-levels.js <仓库根目录>
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-detail-levels.ts <仓库根目录>
 // 为什么不再读根目录的 host.js：那是 gitignore 的构建产物，别人改完 src 没重建时这里量到的是旧行为
 //   （2026-10-17 之前它就红在这上面：宿主改成 apply 内部自己收注册、经 /api/dsws 分发之后，
 //   老的「假 harness 收 handler」写法一个 handler 都收不到）。现在直接 import 真源 src/host/index.ts，

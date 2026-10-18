@@ -1,5 +1,5 @@
 // tests/verify-1136-room-cross-sample.ts —— 样本门禁：房间之间真出一条边时，门禁当场判红并把这条边点名（#1136）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1136-room-cross-sample.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1136-room-cross-sample.ts
 //
 // 守的是什么（#1136 的现象）：两条房间纪律规则的起点曾经指着搬家前的 src/host/tracker/backends/，
 // 磁盘上那个目录早没了 —— 起点命中 0 个模块，于是往 github 房里写一句 import '../gitlab/index.js'
@@ -59,7 +59,7 @@ if (preexisting.length) {
       'utf8'
     )
 
-    const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mjs', GATE_REL], {
+    const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', GATE_REL], {
       cwd: ROOT,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,

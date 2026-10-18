@@ -5,7 +5,7 @@
 //   一、读与写各走各的档（三个档位的毫秒数取自 src/shared/time-config/values.js，调用方显式传超时优先）；
 //   二、慢网超时归网络档（未知、稍后），不报没登录；
 //   三、写超时只试一次就停，把超时原样交回调用方人工核对，不自动再发一次。
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-969-tiered-timeout.ts（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-969-tiered-timeout.ts（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
 import nodePath from 'node:path'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'

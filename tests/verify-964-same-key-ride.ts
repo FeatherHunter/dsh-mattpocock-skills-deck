@@ -14,7 +14,7 @@
  * 数一共求值了几次、退避记了几次、合并数涨了没有。只看外部行为这三样，
  * 不看里面那张在途表长什么样。
  *
- * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-964-same-key-ride.ts
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-964-same-key-ride.ts
  */
 const nodePath = require('path')
 const { pathToFileURL } = require('url')

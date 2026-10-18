@@ -7,7 +7,7 @@
 // 没有进度段的两种必须追加（不报错、标题恰好一条）。外加三条历史教训：带百分比的标题也要认、
 // 英文 Progress 标题也要认、之前写坏留下的双进度区要一次清干净。
 //
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-908-progress-replace.ts（不挂钩子会在加载 .ts 真源时 ERR_MODULE_NOT_FOUND）。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-908-progress-replace.ts（不挂钩子会在加载 .ts 真源时 ERR_MODULE_NOT_FOUND）。
 const path = require('path')
 const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')

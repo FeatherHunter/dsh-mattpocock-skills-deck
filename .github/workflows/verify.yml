@@ -57,19 +57,19 @@ jobs:
         shell: bash
 
       - name: Build artifacts (Gate I3)
-        run: node scripts/build.mjs
+        run: node scripts/build.mts
         shell: bash
 
       - name: Verify chain（逐道跑并汇总：一条失败不再掩盖后面的门禁）
-        run: node scripts/verify-all.mjs
+        run: node scripts/verify-all.mts
         shell: bash
 
       - name: Stage 1 minimal smoke (3 OS × GitHub, injected I1/I2/I4)
-        run: node scripts/matrix-smoke.js --os=all
+        run: node scripts/matrix-smoke.ts --os=all
         shell: bash
 
       - name: Stage 2 full matrix (3 OS × 3 backends, 9 cells)
-        run: node scripts/matrix-full.js --os=all --backend=all
+        run: node scripts/matrix-full.ts --os=all --backend=all
         shell: bash
 
       - name: Upload matrix snapshot (artifact per OS)
@@ -79,8 +79,8 @@ jobs:
           name: matrix-results-${{ matrix.os }}
           path: |
             docs/architecture/matrix.md
-            scripts/matrix-smoke.js
-            scripts/matrix-full.js
+            scripts/matrix-smoke.ts
+            scripts/matrix-full.ts
           retention-days: 14
 
   darwin-note:
@@ -88,4 +88,4 @@ jobs:
     if: false
     runs-on: ubuntu-latest
     steps:
-      - run: echo "darwin runner 若无则登记：需自托管 mac 或手动跑 node scripts/matrix-smoke.js --os=darwin"
+      - run: echo "darwin runner 若无则登记：需自托管 mac 或手动跑 node scripts/matrix-smoke.ts --os=darwin"

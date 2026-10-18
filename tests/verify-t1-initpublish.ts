@@ -193,7 +193,7 @@ async function loadPlugin(services) {
   // 注册经 ./rpcChannel.js 动态加载完成（宿主禁止静态 import 的既有约定），等它落地。
   const t0 = Date.now()
   while (!route && Date.now() - t0 < 3000) await new Promise(function (r) { setTimeout(r, 20) })
-  if (!route || typeof route.fetch !== 'function') throw new Error('host 未注册 /api/dsws 路由（请先运行 node scripts/build.mjs）')
+  if (!route || typeof route.fetch !== 'function') throw new Error('host 未注册 /api/dsws 路由（请先运行 node scripts/build.mts）')
   // 分发回的是 { ok:true, value } 信封：处理器原本的返回值装在 value 里，这里拆开再返回。
   return async (endpoint, args) => {
     const res = await route.fetch({

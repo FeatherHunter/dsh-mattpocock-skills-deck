@@ -1,6 +1,6 @@
 // tests/verify-1159-deck-kernel-sample.ts —— 样本门禁：deck 直连共享内核时，
 // deck-deep-import 当场判红并把这条边点名（#1159）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1159-deck-kernel-sample.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1159-deck-kernel-sample.ts
 //
 // 守的是什么：`src/tracker/kernel/` 是房间与宿主都要用的判定件（#1159 建的归口）。deck 层只许连
 // 契约层的公开入口，不许直接连内核 —— 否则这份新目录会变成绕开「只许连契约」的后门。
@@ -63,7 +63,7 @@ if (preexisting.length) {
   try {
     for (const p of PROBES) writeFileSync(join(ROOT, p.rel), p.body, 'utf8')
 
-    const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mjs', GATE_REL], {
+    const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', GATE_REL], {
       cwd: ROOT,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,

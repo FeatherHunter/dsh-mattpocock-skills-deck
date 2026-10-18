@@ -1,6 +1,6 @@
 import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 // tests/verify-929-batch-cycle.ts —— 门禁：同一批并发补阻塞边不许造出环（#929）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-929-batch-cycle.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-929-batch-cycle.ts，可独立运行。
 //
 // 守的是什么：deck_map_link 一批里按票分组、组间并行；每一组建边之前的成环检查读的是**已经落盘**的图，
 // 看不见同批里另一组还没落盘的边 —— 两条互指的边同批发出时两边都会通过、盘上留下环（#921 复核发现，

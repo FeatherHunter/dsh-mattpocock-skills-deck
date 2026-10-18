@@ -22,13 +22,13 @@
  *   （另加一条：详情回来了、正文与评论都有 → 正常画出来，兜底没把正常路径带坏）
  *
  * 运行：node tests/verify-693-detail-fallback-honesty.ts
- *   （界面那几条需要先跑 node scripts/build.mjs；产物不在时直接失败，不静默跳过）
+ *   （界面那几条需要先跑 node scripts/build.mts；产物不在时直接失败，不静默跳过）
  */
 import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
-import { isGatePlanned } from '../scripts/lib/discover-gates.js'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 // Node 里 global 就是 globalThis；这里声明一次，是为了保住原文件「往 global 上挂浏览器环境」的写法，
 // 行为与原来一模一样（不是新造的对象）。
@@ -43,7 +43,7 @@ function check (cond: unknown, msg: string): void {
 
 const PRODUCT = resolve(ROOT, 'package/lib/client.js')
 if (!existsSync(PRODUCT)) {
-  check(false, '产物 package/lib/client.js 不在 —— 先跑 node scripts/build.mjs；npm run verify 链里产物已备')
+  check(false, '产物 package/lib/client.js 不在 —— 先跑 node scripts/build.mts；npm run verify 链里产物已备')
   console.log('\n[verify-693] FAIL（' + failed + ' 项）')
   process.exit(1)
 }

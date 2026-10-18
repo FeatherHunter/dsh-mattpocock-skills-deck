@@ -4,7 +4,7 @@
 // 1. 已关闭行与打开行是同一控件（查看链接），本地票的 url 是文件路径不是网址，
 //    `<a href="D:\…">` 点了没反应；唯一诚实动作是调宿主 openPath（https 票走 `<a target=_blank>` 不动）。
 // 2. openIssueUrl 在没有 window 的环境调 https 分支，必须回假——回真就是谎报打开成功。
-// 跑法：node --import ./scripts/ts-hook.mjs tests/verify-1199-row-closed-link.ts
+// 跑法：node --import ./scripts/ts-hook.mts tests/verify-1199-row-closed-link.ts
 // 说明：行分支走 react-dom/server 静态渲染断（button vs 裸 a）；点击行为走 helper
 // 的纯行为断言（已关闭行的点击闭包与同一文件打开分支的闭包是同一形状，行为由 helper
 // 门禁覆盖；直接调组件函数拿 onClick 需要 React 调度器，不值得为它引入整套 DOM 环境）。

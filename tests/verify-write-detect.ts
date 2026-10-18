@@ -56,7 +56,7 @@ const CASES = [
   ['git -C 之后才是子命令', { shape: 'tools/result', tool: 'pwsh', command: 'git -C D:\\repo push', succeeded: OK }, 'probe-now', null],
   ['git 的本地子命令', { shape: 'tools/result', tool: 'pwsh', command: 'git status', succeeded: OK }, 'default-tick', null],
   ['curl', { shape: 'tools/result', tool: 'pwsh', command: 'curl -X POST https://api.github.com/repos/o/r/issues', succeeded: OK }, 'probe-now', null],
-  ['脚本', { shape: 'tools/result', tool: 'pwsh', command: 'node scripts/sync.mjs --push', succeeded: OK }, 'probe-now', null],
+  ['脚本', { shape: 'tools/result', tool: 'pwsh', command: 'node scripts/sync.mts --push', succeeded: OK }, 'probe-now', null],
   ['包管理器跑脚本', { shape: 'tools/result', tool: 'pwsh', command: 'npm run verify', succeeded: OK }, 'probe-now', null],
   ['python 一行脚本', { shape: 'tools/result', tool: 'pwsh', command: 'python -c "import os"', succeeded: OK }, 'probe-now', null],
   ['重定向写文件（本地 Markdown 后端的票就是文件）', { shape: 'tools/result', tool: 'pwsh', command: 'echo hi > .scratch/0012-a.md', succeeded: OK }, 'probe-now', null],

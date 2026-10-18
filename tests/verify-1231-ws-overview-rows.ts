@@ -11,7 +11,7 @@
  * 后缀算法与版本管理页签是同一套（来源 src/shared/version-control/src/state.ts），
  * 叶子构建拼不进运行时引用，所以这里实现一份、下面用同一组例子对拍，漂了就红。
  *
- * 用法: node --import ./scripts/ts-hook.mjs tests/verify-1231-ws-overview-rows.ts。
+ * 用法: node --import ./scripts/ts-hook.mts tests/verify-1231-ws-overview-rows.ts。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
  */
 import { shortestUniqueSuffix } from '../src/shared/version-control/src/state.js';

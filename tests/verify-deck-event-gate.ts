@@ -54,7 +54,7 @@ const DSH_APP = argOf('--dsh', process.env.DSH_APP_NODE_MODULES)
 const PROBE_DIR = 'tests/fixtures/deck-event-gate'
 
 /**
- * 生成产物（相对扫描根）不进本门禁：`scripts/build.mjs` 是「一源出两物」，这几个路径都是它生成的副本
+ * 生成产物（相对扫描根）不进本门禁：`scripts/build.mts` 是「一源出两物」，这几个路径都是它生成的副本
  * （见 .gitignore 的「T0 可变产物」一节，不入库）。src/ 下那份才是真身，扫源文件就够了；
  * 口径与 verify-file-granularity 的 DERIVED_DIRS 同款。不跳过的话，谁跑过一次构建，门禁就会拿
  * 同一份代码的副本再判一次「这条订阅没登记」，红得没有道理。

@@ -2,7 +2,7 @@
 // verify-589-list-dedupe.js —— #589 面板列表数组按身份去重
 // 验收：身兼两职的票（既是地图容器、又是别张地图的子票）在列表数组只留一行，
 // 地图容器优先；子票归属不动；同号异类不互吞；指认不出的条目不吞；异常输入不崩。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-589-list-dedupe.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-589-list-dedupe.ts
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')

@@ -1,5 +1,5 @@
 // tests/verify-344-chain-auto-refresh.js — #344 加固验证：FILE_EXISTS 直读兜底
-// 用法：node tests/verify-344-chain-auto-refresh.js
+// 用法：node tests/verify-344-chain-auto-refresh.ts
 //
 // 本文件只留功能面：起真实的谓词执行器，喂一个「平台全部失效」的 mock，
 // 看 FILE_EXISTS 这条原语能不能靠直读兜底给出正确结论（文件在就 pass、不在就 fail）。

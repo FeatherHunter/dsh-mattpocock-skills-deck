@@ -24,7 +24,7 @@
  *      一段都不收 —— 这是「有位置就显示，宽度不够时它第一个让位」里「有位置就显示」那一半的地面。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-cap-fold-browser.ts（先 node scripts/build.mjs 生成产物；2026-10-17 从 .js 转成 TypeScript，只改名与加类型标注，判据一条没动）
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-cap-fold-browser.ts（先 node scripts/build.mts 生成产物；2026-10-17 从 .js 转成 TypeScript，只改名与加类型标注，判据一条没动）
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -47,7 +47,7 @@ const SNAP = {
 }
 const CLIENT = 'package/lib/client.js'
 if (!existsSync(resolve(CLIENT))) {
-  console.log('产物缺失（' + CLIENT + '）：先跑 node scripts/build.mjs')
+  console.log('产物缺失（' + CLIENT + '）：先跑 node scripts/build.mts')
   process.exit(1)
 }
 

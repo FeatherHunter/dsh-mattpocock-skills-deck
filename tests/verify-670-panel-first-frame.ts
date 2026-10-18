@@ -24,9 +24,9 @@
  *     面板根节点也与宿主那一层同值；整段挂载过程那一层只出现过一种底色。
  *   C 反证：把 .dsws-hold 那条规则删掉再跑一遍，第一帧必须量出「透明」——否则本门是假绿。
  *
- * 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mjs 起的那一只。
+ * 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mts 起的那一只。
  *
- * 用法：node tests/verify-670-panel-first-frame.js
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-670-panel-first-frame.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'

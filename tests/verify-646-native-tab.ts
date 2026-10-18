@@ -16,8 +16,8 @@
  *   5) 页内浮窗仍然不注册（shell.overlay 挂载点不给面板用）；
  *   6) 拿桩上下文真跑一遍 apply：注册了什么、没注册什么、缺服务时崩不崩。
  *
- * 覆盖：src 真源两份文件 + 两份构建产物（产物由 scripts/build.mjs 从 src 重生成，行首 export 会被剥掉）。
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-646-native-tab.ts
+ * 覆盖：src 真源两份文件 + 两份构建产物（产物由 scripts/build.mts 从 src 重生成，行首 export 会被剥掉）。
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-646-native-tab.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'

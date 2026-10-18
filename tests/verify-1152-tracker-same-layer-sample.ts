@@ -1,6 +1,6 @@
 // tests/verify-1152-tracker-same-layer-sample.ts —— 样本门禁：追踪器树里真冒出一条内部互引时，
 // same-layer-import-tracker 当场判红并把这条边点名（#1152）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1152-tracker-same-layer-sample.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1152-tracker-same-layer-sample.ts
 //
 // 守的是什么（#1152 的现象）：src/tracker 这棵树原来长在 src/host/tracker/ 下、受 same-layer-import-host 管；
 // #1019 把 99 个文件搬进 src/tracker/ 之后，它们掉出了所有同层规则 —— 树里 15 条互引没有一条有人判，
@@ -88,7 +88,7 @@ if (preexisting.length) {
   try {
     for (const p of PROBES) writeFileSync(join(ROOT, p.rel), p.body, 'utf8')
 
-    const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mjs', GATE_REL], {
+    const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', GATE_REL], {
       cwd: ROOT,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,

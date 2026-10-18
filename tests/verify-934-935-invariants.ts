@@ -1,5 +1,5 @@
 // tests/verify-934-935-invariants.ts —— 两条不变式回归门禁（934 钥匙挨踢归一 · 935 写许可两档）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-934-935-invariants.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-934-935-invariants.ts。
 // 它不能裸跑：本文件用的 ./lib/time-compress.js 与 ./lib/deck-decide-stub.js 盘上只有 .ts，
 // 要靠装载钩子改指同名 .ts（旧说法「可独立运行」是错的）。
 //

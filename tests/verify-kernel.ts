@@ -7,7 +7,7 @@
 //      —— 这半边今天仍是本门禁独有：38 个 kernel 源「改了没重建」只有这里拦得住。
 //   MODULES 里的 exports 列是档案数据（全仓没有任何判据读它，也不许在这里补出导出断言：那是加严，
 //   会让今天绿的树变红，且违背维护者已删掉「读源码文本钉形状」这类断言的决定）。
-// 用法: node tests/verify-kernel.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node tests/verify-kernel.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）
 const fs = require('fs')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -76,8 +76,8 @@ const kernelFileOf = (m) => {
   return fs.existsSync(base + '.ts') ? base + '.ts' : base + '.js'
 }
 const SOURCES = [
-  'src/client/index.js', 'scripts/build.mjs', 'package/package.json',
-  // #629：配色核心的两个产物是客户端闭包的输入（scripts/build.mjs 的 SHARED_SPLICE 直接读它们），
+  'src/client/index.js', 'scripts/build.mts', 'package/package.json',
+  // #629：配色核心的两个产物是客户端闭包的输入（scripts/build.mts 的 SHARED_SPLICE 直接读它们），
   // 加进这份「比产物新就判过期」的清单以后，「只重跑核心转译、没重跑主构建」会更早变红。
   // 这是 SOURCES 里第一次出现 src/shared/ 下的文件；另外八个既有共享拼接文件仍然不在清单里（存量空白，另票处理）。
   'src/shared/label-color/colors.js', 'src/shared/label-color/prompt.js',
@@ -85,11 +85,11 @@ const SOURCES = [
 ]
 
 function productStale(prod) {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
+  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
   const pm = fs.statSync(prod).mtimeMs
   for (const s of SOURCES) {
     if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) {
-      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mjs）'
+      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
     }
   }
   return null

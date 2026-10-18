@@ -1,7 +1,7 @@
 // verify-544-standalone-blocked.ts — #544 独立票原生依赖阻塞边在列表与计数中展示
 // 验收：541/542/543 出现阻塞徽章（与地图子票同样式）；顶部“阻塞”计数为 3、“可接”相应减少；
 // “阻塞”筛选能筛出这三张；原有地图的分层与计数一字不差；异常输入不崩。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-544-standalone-blocked.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-544-standalone-blocked.ts
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')

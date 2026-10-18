@@ -1,8 +1,8 @@
 // verify-tabsfold-leaf.ts — dsh-mattpocock-skills-deck 阶段 1：client 折叠机器纯函数叶子差分测试
 // T1（#94）迁移：断言目标从「内联副本」改为「构建产物」——client.js / package/lib/client.js 现由
-//   scripts/build.mjs 生成（一源出两物，gitignore 可变产物），本测试验证「叶子 === 构建产物」：
+//   scripts/build.mts 生成（一源出两物，gitignore 可变产物），本测试验证「叶子 === 构建产物」：
 //   T0 接管后构建未改变叶子行为，叶子仍为唯一真源 + 测试基准。
-// 用法: node tests/verify-tabsfold-leaf.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node tests/verify-tabsfold-leaf.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）
 // 验证：1) src/client/kernel/tabsfold.js 叶子可用 + 行为真值表（#15 e0f31ac 等级机器）
 //       2) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；防止陈旧产物假绿）
 //       3) 叶子 === _dev 产物（根 client.js）——「构建未改变叶子行为」探测器
@@ -18,15 +18,15 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 
 // ---- 产物清单与驱动重建的源（T1：断言目标必须是「当前构建产物」，而非磁盘任意文件）----
 const PRODUCTS = ['client.js', 'package/lib/client.js']
-// T2（#95）：Ctx 接线后 src/client/kernel/ctx.js 也是驱动重建的源 —— 进新鲜度门禁，防陈旧产物假绿
-const SOURCES = ['src/client/index.js', 'src/client/kernel/ctx.js', 'scripts/build.mjs', 'package/package.json']
+// T2（#95）：Ctx 接线后 src/client/kernel/ctx.ts 也是驱动重建的源 —— 进新鲜度门禁，防陈旧产物假绿
+const SOURCES = ['src/client/index.js', 'src/client/kernel/ctx.ts', 'scripts/build.mts', 'package/package.json']
 
 function productStale(prod) {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
+  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
   const pm = fs.statSync(prod).mtimeMs
   for (const s of SOURCES) {
     if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) {
-      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mjs）'
+      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
     }
   }
   return null

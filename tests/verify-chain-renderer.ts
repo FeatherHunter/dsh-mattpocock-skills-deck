@@ -184,7 +184,7 @@ try{
     ],
     currentIndex:1, doneCount:1, applicableCount:3, totalCount:3, chainState:'hasCurrent', version:'1'
   }
-  // #284：适配器测试撤销；链快照形态由契约层 chain.js evaluateChain 自证（见 verify-chain.js）
+  // #284：适配器测试撤销；链快照形态由契约层 chain.js evaluateChain 自证（见 verify-chain.ts）
   // 渲染 ChainRenderer（需要 DswsCtx 与 dispatcher）
   const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
   const { createActionDispatcher } = await import('../src/client/kernel/actions.js')

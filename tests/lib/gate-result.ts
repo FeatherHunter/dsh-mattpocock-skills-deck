@@ -1,6 +1,6 @@
 // tests/lib/gate-result.ts —— 「完成证据」的唯一判据（#1158）。
 //
-// 起因：链的三条执行器（scripts/verify-chain.js、scripts/verify-parallel.mjs、scripts/verify-all.mjs）
+// 起因：链的三条执行器（scripts/verify-chain.ts、scripts/verify-parallel.mts、scripts/verify-all.mts）
 // 判定一扇门禁过没过，只看它的退出码。于是「跑到一半就收摊、退出码仍是 0」这种假绿没有任何东西能拦：
 // #1146 就是这么被发现的 —— tests/verify-deck-no-hang.ts 的 21 条断言只跑到第 12 条就退出，退出码 0，
 // 整条链判绿，没人知道少跑了 9 条。
@@ -26,7 +26,7 @@
 // 反例（写测试时要用的那几条）：记录行写成非 JSON、少一个字段、gate 名字打错、
 // assertions 与期望不等、failed 不为 0、整趟没有记录 —— 这六种都必须判红。
 //
-// 这一份是 .ts：新写的检查一律 .ts。它同时被 .js 门禁（require）与 .mjs 执行器（import）加载，
+// 这一份是 .ts：新写的检查一律 .ts。它同时被 .js 门禁（require）与 .mts 执行器（import）加载，
 // 所以里面只写 ESM 语法（Node 对 .ts 的 require 走的是 require(esm) 那条路，两边都能用）。
 
 import fs from 'node:fs'
@@ -84,7 +84,7 @@ export function printGateResult(gate: string, assertions: number, failed: number
  * 只看文件名，不看目录 —— 门禁名在全仓是唯一的，执行器与归属表都按这个名字对。
  * 冒烟那几条长这样：`smoke-host-dispatch.test.js` —— `.test` 是这类文件的命名习惯，不是门禁名的一部分，
  * 所以也去掉，名字才与 verify-* 那些一致（`smoke-host-dispatch`，而不是 `smoke-host-dispatch.test`）。
- * 这一份与 scripts/gate-map.mjs 的同名函数必须字字一致：两边各算一次，差一个字判据就对不上。
+ * 这一份与 scripts/gate-map.mts 的同名函数必须字字一致：两边各算一次，差一个字判据就对不上。
  */
 export function gateNameOf(file: string): string {
   const base = path.basename(String(file || ''))

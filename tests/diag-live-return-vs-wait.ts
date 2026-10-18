@@ -12,7 +12,7 @@
 //
 // 需要 DSH 启动时打印的带令牌网址（只在本机本次启动内有效）：
 //   $env:DSH_AUTH_URL='http://127.0.0.1:3080/?token=...'
-//   node --import ./scripts/ts-hook.mjs tests/diag-live-return-vs-wait.ts
+//   node --import ./scripts/ts-hook.mts tests/diag-live-return-vs-wait.ts
 //
 // 由 tests/diag-live-return-vs-wait.js 转来（#1239）：只换模块写法与类型标注，判定逻辑逐行不变。
 // 必须保住的判定点：sameGen 计算（三次生成时刻全相同）与下面的两条结论分支，这是选优化路线的分叉依据。

@@ -10,7 +10,7 @@
 //   反证：把直读改回过滤、本文件必须变红（A4、H 组）；把缓存或单飞拆掉，本文件必须变红
 //   （D、E 组）；把日志点拆掉，本文件必须变红（F 组与计数门禁）。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-782-cwd-disk.ts（插件根目录，可独立运行）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-782-cwd-disk.ts（插件根目录，可独立运行）
 // 本文件是 CommonJS：取产品源码走 pathToFileURL + 动态 import，不加静态 import，所以加类型标注不会把它变成 ESM。
 const path = require('path')
 const { pathToFileURL } = require('url')

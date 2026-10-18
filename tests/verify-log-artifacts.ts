@@ -1,6 +1,6 @@
 // verify-log-artifacts.ts —— #494 第三件事：日志门禁之双产物（#489 附录第 4 节断言八）。
 // 用法：在插件根目录执行 node tests/verify-log-artifacts.ts，可独立运行，
-// 运行前先执行 node scripts/build.mjs 生成产物。
+// 运行前先执行 node scripts/build.mts 生成产物。
 // 断言文字：新增电话名在开发产物与打包产物同时存在，只改一处即红。
 // 做法：客户端事件在两个客户端产物里逐个点名；宿主事件在打包镜像里逐个点名
 // 且镜像不比真源旧；构建脚本的日志接线逐项锁死。
@@ -93,7 +93,7 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
     const mirrorNames = quotedEvents(fs.readFileSync(mirror, 'utf8'))
     const miss = names.filter((n) => !mirrorNames.has(n))
     if (miss.length) { problems.push(rel + ' 镜像缺 ' + miss.join('、')); continue }
-    if (fs.statSync(mirror).mtimeMs + 1000 < fs.statSync(f).mtimeMs) { problems.push(rel + ' 镜像比真源旧（请重跑 node scripts/build.mjs）'); continue }
+    if (fs.statSync(mirror).mtimeMs + 1000 < fs.statSync(f).mtimeMs) { problems.push(rel + ' 镜像比真源旧（请重跑 node scripts/build.mts）'); continue }
     mirrorOk += 1
   }
   check(mirrorChecked > 0, '宿主源码含日志事件的文件有 ' + mirrorChecked + ' 个')
@@ -102,7 +102,7 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 
 // 四、构建接线：日志模块在内核清单里，叶子登记覆盖四个渲染落点文件。
 {
-  const build = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mjs'), 'utf8')
+  const build = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mts'), 'utf8')
   // 日志模块的两种合法落点：派生文件（#564 起沿用）或新真源 log.ts（#1251 把旧手写真源 log.js 删了，
   //   读源由 readSpliceFragmentSource 按扩展名分派，.ts 先转译再拼）。两种都算接线在；条目被删、
   //   路径换成别处、或指向的文件不在盘上，都掀红。

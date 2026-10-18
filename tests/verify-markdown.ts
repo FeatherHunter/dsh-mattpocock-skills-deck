@@ -1,5 +1,5 @@
 // verify-markdown.ts — dsh-waystation v1.5 T17：markdown 白名单渲染契约校验
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-markdown.ts（在插件根目录；2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，27 条断言一条没动，读 client.js 的相对路径与 eval-probe 的 .js 说明符都保持原样。）
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-markdown.ts（在插件根目录；2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，27 条断言一条没动，读 client.js 的相对路径与 eval-probe 的 .js 说明符都保持原样。）
 // 覆盖：行为级渲染（从两份产物里原文切出渲染器，用 stub h() 执行它，验证输出结构与防注入边界）。
 // 原来还有一批「源码里出现了哪些字」的存在性检查，已按维护者口径删掉。
 const fs = require('fs')

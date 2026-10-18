@@ -23,7 +23,7 @@
  * 最后一段（I）是自证：拿「没发事件 / 少一个字段 / 档位记错 / 日志里出现令牌明文」四种反例
  * 试这道门禁会不会红 —— 不会红的门禁等于没写。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-error-normalize-log.js
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-error-normalize-log.ts
  * 接线：由 Lead 统一挂进 scripts 里的门禁链（本次交付不动 scripts/**）。
  * 期望：全 PASS 退出码 0；SKIP 行表示读不到/尚未接线的部分（不算通过），末尾会汇总。
  */

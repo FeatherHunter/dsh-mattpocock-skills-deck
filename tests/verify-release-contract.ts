@@ -20,7 +20,7 @@
  *
  * 已知代价（2026-10-17 补记）：D 段要跑 npm pack --dry-run 数包内文件，冷灶上（package/lib
  * 下的构建产物还没生成或已过期）会当场判红。那不是发布契约坏了，是构建没跑；先执行
- * node scripts/build.mjs 再跑本门禁即可。A/B/C/E/F 五段与构建无关。
+ * node scripts/build.mts 再跑本门禁即可。A/B/C/E/F 五段与构建无关。
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -153,7 +153,7 @@ if (clientJs) {
   const hasVer = clientJs.includes(targetVersion) || clientJs.includes(targetNum);
   assert(hasVer, `构建产物含 ${targetVersion}（或 ${targetNum}）版本注入`);
 } else {
-  assert(false, `构建产物缺失（client.js / package/lib/client.js），请先运行 node scripts/build.mjs`);
+  assert(false, `构建产物缺失（client.js / package/lib/client.js），请先运行 node scripts/build.mts`);
 }
 console.log("");
 
@@ -309,10 +309,10 @@ if (templateMd && yml) {
     assert(false, `标签提取不足（模板 ${templateLabels.length}, 网页卡 ${ymlLabelTexts.length}）`);
   }
   // 对话脚本同源校验
-  const script = read("scripts/create-release-issue.mjs") || "";
+  const script = read("scripts/create-release-issue.mts") || "";
   assert(script.includes("release-issue-template.md"), `对话脚本读取模板真源`);
   // 校验未给版本时追问
-  const miss = spawnSync("node", [resolve(ROOT, "scripts/create-release-issue.mjs")], { encoding: "utf8" });
+  const miss = spawnSync("node", [resolve(ROOT, "scripts/create-release-issue.mts")], { encoding: "utf8" });
   assert(miss.status === 2, `对话脚本未给版本时退出码 2（追问）`);
 }
 console.log("");

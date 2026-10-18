@@ -8,7 +8,7 @@
 //
 // 需要 DSH 启动时打印的带令牌网址：
 //   $env:DSH_AUTH_URL='http://127.0.0.1:3080/?token=...'
-//   node --import ./scripts/ts-hook.mjs tests/diag-live-workspace-cost.ts "D:\path\to\workspace" [次数]
+//   node --import ./scripts/ts-hook.mts tests/diag-live-workspace-cost.ts "D:\path\to\workspace" [次数]
 //
 // 只读：只请求快照与探测，不写任何数据。
 //

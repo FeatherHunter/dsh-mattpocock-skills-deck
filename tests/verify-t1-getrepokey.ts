@@ -120,7 +120,7 @@ async function loadPlugin(services) {
   ;(mod.apply ?? mod.default?.apply)(ctx)
   const t0 = Date.now()
   while (!route && Date.now() - t0 < 3000) await new Promise(function (r) { setTimeout(r, 20) })
-  if (!route || typeof route.fetch !== 'function') throw new Error('宿主未注册 /api/dsws 路由（请先运行 node scripts/build.mjs）')
+  if (!route || typeof route.fetch !== 'function') throw new Error('宿主未注册 /api/dsws 路由（请先运行 node scripts/build.mts）')
   // 分发回的是 { ok:true, value } 信封：处理器原本的返回值装在 value 里，这里拆开再返回。
   return async (endpoint, args) => {
     const res = await route.fetch({

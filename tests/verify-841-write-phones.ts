@@ -1,5 +1,5 @@
 // verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–G 七组，每组带反证。
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-841-write-phones.ts
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
 // 本文件是 CommonJS：产品源码靠动态 import 取，说明符一律 .js（靠钩子改指同名 .ts）；

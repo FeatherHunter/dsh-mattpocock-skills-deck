@@ -7,7 +7,7 @@
 //   C4 硬限制：超大文件、超多别名都不崩，按档位回。
 //   C5 版本：高于认识的只读不写（读成功标只读，写明确拒绝）；老 JSON（版本 1）直接可读。
 //   C6 标签形状：直接写颜色与 {color, description} 两种都认，其它形状拒；`__proto__` 拒。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-config-store-core.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-config-store-core.ts
 //（这一行原先写的是 tests/verify-src/shared/config-store.js，路径从写下起就是错的，这次顺手订正）
 const path = require('path')
 const { pathToFileURL } = require('url')

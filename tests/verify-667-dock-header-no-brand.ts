@@ -35,7 +35,7 @@
  *   G 判据层（纯函数，不开浏览器）：把 panel/headFold.js 那条阶梯喂一份同形数据，逐档核对「最多少一个字符」与让位顺序。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
- * 运行：node tests/verify-667-dock-header-no-brand.js
+ * 运行：node tests/verify-667-dock-header-no-brand.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -62,7 +62,7 @@ const ARTIFACTS = ['client.js', 'package/lib/client.js']
 
 const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 const missing = [ICONS, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
-for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mjs 重建产物）' : ''))
+for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mts 重建产物）' : ''))
 
 console.log('=== #667 面板头部不再有品牌图标与文字（状态胶囊栏与标签页名字照旧）===')
 console.log('')
@@ -81,7 +81,7 @@ const headFold = (function () {
   if (!headFoldSrc) return null
   try {
     // 按文本求值走共用入口：这里没有参数名、函数体是剥掉行首 export 的纯函数源码，所以走 compileFn。
-    // 与 scripts/build.mjs 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑。
+    // 与 scripts/build.mts 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑。
     return compileFn([], headFoldSrc.replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { headFoldLadderOf, headFoldStateAt }')()
   } catch (e) { return null }
 })()

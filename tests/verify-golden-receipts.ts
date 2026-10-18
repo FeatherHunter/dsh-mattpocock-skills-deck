@@ -9,7 +9,7 @@
 //   node tests/verify-golden-receipts.ts            # 比对（只读基准，不写盘）
 //   node tests/verify-golden-receipts.ts --update   # 重建基准（只在有意改行为且已评审时用）
 //
-// 自挂钩子：本文件启动第一件事就是导入 scripts/ts-hook.mjs（与生产线 npm test
+// 自挂钩子：本文件启动第一件事就是导入 scripts/ts-hook.mts（与生产线 npm test
 //   挂的是同一个钩子）。此后一切产品模块导入都走同一解析路径：同名 .ts 存在
 //   就量 .ts，不存在就量 .js——混存期量不错文件。外加解析自证：每个模块记录
 //   实际解析到了谁；若磁盘上有 .ts 兄弟却解析到 .js，说明钩子没生效，直接
@@ -163,7 +163,7 @@ function firstDiff(a: string, b: string): number {
 async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosix: string, rootWin: string, wsKey: string, cleanup: () => void }> {
   // 自挂钩子：与生产线挂的是同一个钩子，此后一切产品模块导入都走同一解析路径。
   // 必须是第一件事——它之前的产品导入不受钩子管（本文件之前只有 node: 内建导入，不受影响）。
-  await import('../scripts/ts-hook.mjs')
+  await import('../scripts/ts-hook.mts')
 
   const budget = await loadModule('../src/shared/refresh/budget.js') as Record<string, (...a: never[]) => unknown>
   const ledgerMod = await loadModule('../src/host/refresh/ledger.ts') as Record<string, (...a: never[]) => unknown>

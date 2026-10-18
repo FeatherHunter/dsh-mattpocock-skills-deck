@@ -15,7 +15,7 @@
  *   C. **运行期漏网计数为 0**：真跑一遍「账本 + 闸」（用假的传输层，它每真发一条就报给闸），
  *      走闸的那条路漏网数必须为 0；直连传输层绕开闸的那条路必须被数出来（这是门禁自己的反证夹具）。
  *
- * 三向验证（照 tests/verify-deck-event-gate.mjs 的写法）：现状绿 / 违规样本红 / 合规样本绿。
+ * 三向验证（照 tests/verify-deck-event-gate.ts 的写法）：现状绿 / 违规样本红 / 合规样本绿。
  * 后两向每次运行都会自动跑一遍（夹具在 tests/fixtures/gh-gateway/ 下），所以「门禁有没有牙齿」
  * 不需要人记得去试。也可以用 --root 手动指向夹具目录单独跑。
  *
@@ -28,7 +28,7 @@
  *   node tests/verify-gh-gateway.ts --root <目录>          # 换扫描根（例如探针样本目录）
  *   node tests/verify-gh-gateway.ts --registry <文件>      # 追加一份登记表（JSON 数组）
  *   node tests/verify-gh-gateway.ts --list                # 只列出扫到的调用点，不做判定
- * 挂钩子跑（必须）：node --import ./scripts/ts-hook.mjs tests/verify-gh-gateway.ts —— 它动态 import 的 .ts
+ * 挂钩子跑（必须）：node --import ./scripts/ts-hook.mts tests/verify-gh-gateway.ts —— 它动态 import 的 .ts
  *   真源靠装载钩子解析，裸跑会在跑完前三条样本断言后死在 ERR_MODULE_NOT_FOUND，容易被误读成通过。
  * 退出码：0 = 通过；1 = 有违规。
  */

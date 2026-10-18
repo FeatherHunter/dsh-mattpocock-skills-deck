@@ -1,5 +1,5 @@
 // verify-784-effortId.ts —— #784 回归：八个带 effortId 的 deck 工具逐项核对
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-784-effortId.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-784-effortId.ts，可独立运行。
 // 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，说明符原样（budget.js / tool-cost.js
 // 是构建产物，旁边没有同名 .ts，钩子不会改指）；只加类型标注，判据一字不动。
 const path = require('path')

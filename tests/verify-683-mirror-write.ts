@@ -7,7 +7,7 @@
  * 做法：经共用入口 spliceableJs 从真源 src/client/kernel/store-prefs.ts 取出「与构建同一份转译参数」的
  * 可 eval JS（真源、假 localStorage 与假 window）喂进沙箱求值，再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
  *
- * 用法：node tests/verify-683-mirror-write.js
+ * 用法：node tests/verify-683-mirror-write.ts
  */
 import fs from 'node:fs'
 import os from 'node:os'

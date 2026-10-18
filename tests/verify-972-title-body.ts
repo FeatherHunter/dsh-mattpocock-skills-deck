@@ -1,5 +1,5 @@
 // tests/verify-972-title-body.ts —— 门禁：同时传标题与正文时标题不丢（#972）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-972-title-body.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-972-title-body.ts，可独立运行。
 // （2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注；下面 ⑤ 那条自指字面量随改名同步成 .ts，判据本身没动。）
 //
 // 守的是什么：票更新操作原来先换标题、再按正文整份覆盖。一次同时传新标题与含旧标题

@@ -14,7 +14,7 @@
 //   ③ 负控：业务性正常失败（ok:false 带 error）不触发留痕，已有三档行为不变；
 //   ④ 附录 #88 登记了 unknown-endpoint，计数仍是常驻 38 条。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-733-unknown-endpoint.ts
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-733-unknown-endpoint.ts
 // 本文件是 ESM（顶层 await，靠下面的动态 import 取产品源码）；只加类型标注，不改判据。
 import { readFileSync } from 'node:fs'
 

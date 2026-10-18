@@ -19,9 +19,9 @@ globalThis.SYNC_ISSUE_CACHE_TTL_MS = centralTime.SYNC_ISSUE_CACHE_TTL_MS
 // 按旧路径直接读会读到构建产物（字符串改双引号），下面只认单引号的断言会误报。
 const { sourceText } = require('./lib/source-text.ts')
 // 沙箱跑裸 JS，身份函数是全标注 TS：转译口径取仓库唯一那一份
-// （scripts/lib/transpile-unit.mjs，手法照 tests/verify-build-artifacts.js）。
+// （scripts/lib/transpile-unit.mts，手法照 tests/verify-build-artifacts.ts）。
 const esbuildForProbe = require('esbuild')
-const tuForProbe = require(require('path').resolve('scripts/lib/transpile-unit.mjs'))
+const tuForProbe = require(require('path').resolve('scripts/lib/transpile-unit.mts'))
 
 // effort 维度（2026-09-09）：面板里身份函数来自拼接进闭包的 shared/tracker/constants.js。
 // 本门禁把同一份原文取出来，拼进每个求值沙箱，保证「跑的是真函数」这条纪律不破。

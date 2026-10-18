@@ -19,7 +19,7 @@
  *     能跑起来的那部分仍在 A、B、C 三组（真调 detectionService、真求值那几个纯函数）与 E 组的反证里。
  *   E 反证：把 A、C 两组的实现各自做坏一次，对应的断言必须当场变红。
  *
- * 用法：node tests/verify-669-choice-precedence.js
+ * 用法：node tests/verify-669-choice-precedence.ts
  */
 import fs from 'node:fs'
 import os from 'node:os'

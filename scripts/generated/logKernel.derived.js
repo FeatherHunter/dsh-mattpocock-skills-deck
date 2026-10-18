@@ -1,6 +1,6 @@
 // 派生文件（#564）：由已安装日志包的 dist/client.js（含配置面与客户端分面）打包生成，内容与日志包 0.3.4 一致，人手不改。
 // 旧模块（src/client/kernel/log.js）原地只读留存；构建时本文件拼入原来日志模块的位置（kernel:log 标记处）。
-// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mjs。
+// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mts。
 // ---- 作用域隔离（0.3.x）：包体多文件打包的顶层声明与下面 tail 同名，包进 IIFE 藏起来，只留三个外面要用的 ----
 const __pkgLogScope = (() => {
   // packages/dsh-log/dist/core/row.js

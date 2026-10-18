@@ -1,6 +1,6 @@
 // tests/verify-955-alignment.ts —— #955 对齐补欠账门禁（948 图第七批）
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-955-alignment.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-955-alignment.ts。
 //
 // 只留行为断言：把共享层 src/shared/feedback-map.js 加载起来，看它导出的三张对账表
 // （FB_ICON_SIZES / FB_DURATIONS / FB_FAIL_RED_PATHS）在不在、长得对不对——条数够、

@@ -1,5 +1,5 @@
 // tests/verify-967-measure.ts —— 967 量测小件的门禁（只读量测，不改业务）。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-967-measure.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-967-measure.ts。
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行加了几处类型标注，判据与断言一条没动。
 // 量测的接缝是三个纯函数（耗时分布、在飞分布、触发源排行、复用数），只看算出来的数，不看内部队列数组长什么样。
 const path = require('path');
@@ -13,7 +13,7 @@ console.log('967 量测小件门禁（耗时分布与同时在飞分布有据、
 
 let mod: Record<string, any> | null = null;
 try {
-  mod = require('../scripts/measure-967-outbound.js');
+  mod = require('../scripts/measure-967-outbound.ts');
   check(!!mod, '量测脚本可以被测试引用到');
 } catch (e) {
   check(false, '量测脚本可以被测试引用到（缺文件或引出失败：' + ((e && e.message) || e) + '）');

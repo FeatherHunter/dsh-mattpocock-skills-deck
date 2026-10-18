@@ -18,9 +18,9 @@
 //     收起之后必须出现一颗写着「展开」的按钮，点它整体回得来。
 //   D 反证：把 C 里量到的东西做坏（给黄条整条挂上收起 / 把带字的写法塞回那三处收起），对应的断言必须当场变红。
 //
-// 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mjs 起的那一只。
+// 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mts 起的那一只。
 //
-// 用法：node tests/verify-669-collapsed-recoverable.js
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-669-collapsed-recoverable.ts
 const fs = require('fs')
 const path = require('path')
 // 完成证据（#1158）：收尾交一行 GATE-RESULT，三条执行器据此判「这一趟真的跑完了没有」。

@@ -15,7 +15,7 @@
 //   二到五还各自要求：这一类文案与通用兜底文案、与另外几类文案都不一样
 //   （语言不限——文案从 locale 表读，中英哪一种生效都能判定）。
 //
-// 用法：node tests/verify-log-switch-597.ts（在插件根目录；先跑 node scripts/build.mjs 出产物）
+// 用法：node tests/verify-log-switch-597.ts（在插件根目录；先跑 node scripts/build.mts 出产物）
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,7 +35,7 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 console.log('配置页调试开关门禁（#597：点得开 + 失败说清是哪一类）')
 
 if (!existsSync(BUNDLE)) {
-  check(false, '打包产物 package/lib/client.js 不存在（先跑 node scripts/build.mjs）')
+  check(false, '打包产物 package/lib/client.js 不存在（先跑 node scripts/build.mts）')
   console.log(`\n配置页调试开关门禁失败（共 ${total} 项）`)
   process.exit(1)
 }

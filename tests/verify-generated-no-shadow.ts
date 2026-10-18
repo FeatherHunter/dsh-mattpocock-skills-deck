@@ -1,5 +1,5 @@
 // verify-generated-no-shadow.ts —— #597 门禁：拼进同一个客户端闭包的各个分块，顶层声明不得重名。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-generated-no-shadow.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-generated-no-shadow.ts。
 //   （不能裸跑：它 require 的 ./lib/eval-probe.js 今天只有同名 .ts，靠装载钩子改指。）
 // 为什么要有这条：客户端闭包是把「日志包派生的 logKernel.derived.js」与「更新包派生的 updateClient.derived.js」、
 //   内置 TypeScript 核定下的共享拼接文件（#629 起加了 src/shared/label-color/colors.js 与 prompt.js），
@@ -28,7 +28,7 @@ console.log('客户端闭包重名门禁（#597：同闭包内顶层声明不得
 
 const LOG_KERNEL = path.join(ROOT, 'scripts', 'generated', 'logKernel.derived.js')
 const UPDATE_CLIENT = path.join(ROOT, 'scripts', 'generated', 'updateClient.derived.js')
-// #629：配色核心的两个产物按 scripts/build.mjs 的 SHARED_SPLICE 清单拼进同一个闭包，
+// #629：配色核心的两个产物按 scripts/build.mts 的 SHARED_SPLICE 清单拼进同一个闭包，
 // 排在两份派生文件之后（位置对齐 src/client/index.js 里的拼接标记）。
 const LABEL_COLORS = path.join(ROOT, 'src', 'shared', 'label-color', 'colors.js')
 const LABEL_PROMPT = path.join(ROOT, 'src', 'shared', 'label-color', 'prompt.js')
@@ -122,7 +122,7 @@ if (fs.existsSync(bundlePath)) {
   const bundle = fs.readFileSync(bundlePath, 'utf8')
   check(bundle.includes('updBuildPhoneNames'), '打包产物里更新包那份助手函数已改名（updBuildPhoneNames）')
 } else {
-  check(false, '打包产物 package/lib/client.js 不存在（先跑 node scripts/build.mjs）')
+  check(false, '打包产物 package/lib/client.js 不存在（先跑 node scripts/build.mts）')
 }
 
 console.log(failed ? `\n客户端闭包重名门禁失败 ${failed} 项（共 ${total} 项）` : `\n客户端闭包重名门禁全部通过（${total} 项）`)

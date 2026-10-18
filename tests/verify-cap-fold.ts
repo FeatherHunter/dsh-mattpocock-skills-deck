@@ -26,7 +26,7 @@
  *   档与档之间的关系，所以本文件按档号算：档号涨了几，可见单位就必须少几 —— 多让一点都不许。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
- * 运行：node tests/verify-cap-fold.js（先 node scripts/build.mjs 生成产物）
+ * 运行：node tests/verify-cap-fold.ts（先 node scripts/build.mts 生成产物）
  *
  * 【2026-10-12 清理】维护者要求清掉「读源码文本钉形状」的门禁：原先 B 组是一整段读源码/产物文本的静态
  *   断言（判据与机器拼没拼进两份产物、那条 2 秒轮询退役没有、十二个挂点与优先级字面量、状态栏接线的
@@ -55,11 +55,11 @@ console.log('=== #725 状态栏胶囊：随宽度一格一格变短（有位置�
 console.log('')
 console.log('A) 判据层：那一条阶梯本身（纯函数，不开浏览器）')
 
-// 与 scripts/build.mjs 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑。
+// 与 scripts/build.mts 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑。
 const capFold = (function () {
   if (!existsSync(resolve(CAPFOLD))) return null
   try {
-    // 手法：compileFn——阶梯那段判据是按与 build.mjs 同一套做法切出来的文本，改走共用入口造函数，行为不变。
+    // 手法：compileFn——阶梯那段判据是按与 build.mts 同一套做法切出来的文本，改走共用入口造函数，行为不变。
     return compileFn([], read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') +
       '\nreturn { CAP_FOLD_POLICY, CAP_FOLD_START_FOLDED, capFoldLadderOf, capFoldStateAt, capFoldStepCount, capFoldStartWordsOf, capFoldStartFoldedOf, splitTimeStr }')()
   } catch (e) { return null }
@@ -332,7 +332,7 @@ console.log('B) 文件层：判据、机器、状态栏、样式与两份产物�
 //   这些事实（判据与机器真拼进了产物、接线与合并队列真在、平铺那几条 CSS 真落到版面上）现在由 C/D
 //   两组在真 Chromium 里按跑出来的版面量：同一份产物、同一个台阶，看的是结果不是文本。
 const missing = [CAPFOLD, CAPMACHINE, STATUSBAR, STYLES, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
-for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mjs 重建产物）' : ''))
+for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mts 重建产物）' : ''))
 
 // ---------- 真渲染层：真 Chromium + 真产物 ----------
 const CLIENT = 'package/lib/client.js'

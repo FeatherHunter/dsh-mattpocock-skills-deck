@@ -17,12 +17,12 @@
  *
  * 怎么保证量的是真件：客户端那几片（src/client/kernel/config.js、settings-view-state.js、
  *   settings-view.js、settings-view-write.js、settings-ui.js 与 settings-templates.js）的真源按构建同一种
- *   做法、同一次序拼起来当场造出函数来跑（次序与 scripts/build.mjs 的清单一致：config.js 在设置文件那一族
+ *   做法、同一次序拼起来当场造出函数来跑（次序与 scripts/build.mts 的清单一致：config.js 在设置文件那一族
  *   之前，模板那一片排在写这一片之后 —— 这一片的加载时机正是这次要验的东西之一）。
  *   它打的宿主那两条电话（wf.getSettings / wf.setSettings）用的是 src/host/settingsPhones.js 与
  *   src/host/configStore.js 的真实现，读写落在系统临时目录里的真文件上 —— 只有手机（假 host 的 call）、
  *   内存里的 localStorage 与「可以按需制造写失败」的那层文件包装是替身。
- * 本门禁自己先跑一次 node scripts/build.mjs：这一片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
+ * 本门禁自己先跑一次 node scripts/build.mts：这一片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
  *
  * 用法：node tests/verify-settings-templates.ts（在插件根目录；本脚本自己会先构建）
  */
@@ -126,7 +126,7 @@ function listPrefsSlice() {
   if (start < 0 || end <= start) throw new Error('store-prefs.ts 里找不到主列表偏好那一段（#374 到 #375 之间）')
   return noExport(src.slice(start, end))
 }
-// 被测那几片：按 scripts/build.mjs 那一次序拼（config.js 在设置文件那一族之前，模板那一片在写那一片之后）。
+// 被测那几片：按 scripts/build.mts 那一次序拼（config.js 在设置文件那一族之前，模板那一片在写那一片之后）。
 const CONFIG_REL = 'src/client/kernel/config.js'
 const TPL_REL = 'src/client/kernel/settings-templates.js'
 const VIEW_REL = 'src/client/kernel/settings-view.js'
@@ -149,8 +149,8 @@ async function main() {
   console.log('')
   console.log('== 第零件事：先跑构建（这一片的运行时形状来自拼接，不构建就证明不了它进了产物） ==')
   {
-    const r = spawnSync(process.execPath, [path.join('scripts', 'build.mjs')], { cwd: ROOT, stdio: 'inherit' })
-    check(r.status === 0, 'node scripts/build.mjs 构建通过。', '退出码 ' + String(r.status))
+    const r = spawnSync(process.execPath, [path.join('scripts', 'build.mts')], { cwd: ROOT, stdio: 'inherit' })
+    check(r.status === 0, 'node scripts/build.mts 构建通过。', '退出码 ' + String(r.status))
     for (const rel of ['client.js', 'package/lib/client.js']) {
       const t = fs.existsSync(path.join(ROOT, rel)) ? readText(rel) : ''
       check(t.indexOf('const TPL_SETTING_NAMES =') >= 0 && t.indexOf('const settingsTemplatesSaveAll = function') >= 0,
@@ -401,9 +401,9 @@ async function main() {
   console.log('== 第九件事：接入列表与行数（构建清单登记了、文件都没超三百五十有效行） ==')
   {
     // #1251：清单里的登记项跟着真源走 —— 真源已是 .ts，构建清单也登记的是 .ts
-    //   （AGENTS.md：转完要把这份文件同步登记到 scripts/build.mjs 的清单，不登记就静默不编译）。
-    check(readText('scripts/build.mjs').indexOf("{ name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.ts' }") >= 0,
-      'scripts/build.mjs 的清单里登记了这一片（不登记就静默不编译）。')
+    //   （AGENTS.md：转完要把这份文件同步登记到 scripts/build.mts 的清单，不登记就静默不编译）。
+    check(readText('scripts/build.mts').indexOf("{ name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.ts' }") >= 0,
+      'scripts/build.mts 的清单里登记了这一片（不登记就静默不编译）。')
     const nTpl = countLines(TPL_REL)
     check(nTpl <= 350, 'settings-templates 真源不超过三百五十有效行（注释与空行不计），实得 ' + nTpl + ' 行。')
     const nCfg = countLines(CONFIG_REL)

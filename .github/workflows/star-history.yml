@@ -22,8 +22,8 @@ jobs:
           REPO="FeatherHunter/dsh-mattpocock-skills-deck"
           gh api -H "Accept: application/vnd.github.star+json" "repos/$REPO/stargazers" --paginate --jq ".[].starred_at" > /tmp/stars.txt || true
           if [ ! -s /tmp/stars.txt ]; then echo "No stars fetched"; exit 0; fi
-          node scripts/update-star-history.mjs /tmp/stars.txt
-          node scripts/generate-star-history-svg.mjs
+          node scripts/update-star-history.mts /tmp/stars.txt
+          node scripts/generate-star-history-svg.mts
       - name: Bump README cache stamp
         run: |
           node -e "

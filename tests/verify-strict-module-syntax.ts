@@ -7,10 +7,10 @@
 //   语境下被判为非法（catch 无匹配 try），构建门禁才拦下。同一字节在两种语境下判定结果相反，
 //   本地快速检查全绿这个信号被高估了。
 // 规则：对 src/ 下每一个 .js 文件，用仓库已有 esbuild 依赖做严格模块解析
-//   （transformSync，loader js，format esm；比 scripts/build.mjs 的 gateSyntax 更严：
+//   （transformSync，loader js，format esm；比 scripts/build.mts 的 gateSyntax 更严：
 //   gateSyntax 对不含 export 的文件走 vm.Script 脚本语境，本门禁按票面要求对全员走 ESM），
 //   失败即红。根 package.json 不加 type module（ tests 下几十个 require 脚本会连锁炸掉，否决）。
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-strict-module-syntax.ts（在插件根目录）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-strict-module-syntax.ts（在插件根目录）
 const fs = require('fs')
 const path = require('path')
 const esbuild = require('esbuild')

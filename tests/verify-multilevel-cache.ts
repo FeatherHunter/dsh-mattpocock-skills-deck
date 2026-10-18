@@ -28,7 +28,7 @@ const bad = (msg: string): void => { failed = true; console.log('  FAIL', msg) }
 function read(rel: string): string {
   const p = path.join(root, rel)
   if (!fs.existsSync(p)) {
-    console.error('找不到构建产物 ' + rel + '：请先运行 node scripts/build.mjs 再跑这条门禁。')
+    console.error('找不到构建产物 ' + rel + '：请先运行 node scripts/build.mts 再跑这条门禁。')
     process.exit(1)
   }
   return fs.readFileSync(p, 'utf8')

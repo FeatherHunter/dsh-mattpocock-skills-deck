@@ -14,7 +14,7 @@
  * 原来那组「读宿主源码文本、断言 getGhLane / outbound-admission 字样出现过」的接线检查
  * 已删：断言对象是手写源码文件的文本，等价重构（换写法、搬文件、改注释）就会误报。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-965-admission.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-965-admission.ts
  * 退出码：0 = 通过；1 = 有违规。
  */
 const path = require('path')

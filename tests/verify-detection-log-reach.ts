@@ -16,7 +16,7 @@
 //      （另有门禁在跑那些行为），这里只钉「递了没有」这一件事，用的是定点文本断言。
 //
 // 用法（手工跑要自己挂装载钩子；npm test / verify:parallel / verify-all / test:smoke 四个入口自动挂）：
-//   node --import ./scripts/ts-hook.mjs tests/verify-detection-log-reach.ts
+//   node --import ./scripts/ts-hook.mts tests/verify-detection-log-reach.ts
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

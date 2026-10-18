@@ -50,7 +50,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { scanCode } from '../scripts/gate-map.mjs'
+import { scanCode } from '../scripts/gate-map.mts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // 前三棵与两条老门禁的扫描域逐字相同。src/client/** 不进图（那里同名 .js 是构建产物，会重复计数）。

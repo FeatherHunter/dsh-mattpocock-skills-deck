@@ -4,7 +4,7 @@
 //   全仓时间参数的唯一书写处是 config/ 下的三份文件（人改的唯一地方）：
 //   config/timeouts.yaml（超时上限）、config/intervals.yaml（间隔与一次性延时、退避表）、
 //   config/ttl.yaml（有效期）。生效处是构建时生成的 src/shared/time-config/src/values.ts
-//   （脚本见 scripts/generate-time-config.mjs，产物不入库，构建与测试时现场生成）。
+//   （脚本见 scripts/generate-time-config.mts，产物不入库，构建与测试时现场生成）。
 //   这扇门禁看守四件事，缺一件都会让“中央”二字落空：
 //   ① 生成新鲜度：现场生成的值必须与今天的三份 YAML 对得上；
 //   ② 真引用：每个调用方拿到的必须就是生成出来的那一份（引用相等），源码里不许再写时间数字；
@@ -180,14 +180,14 @@ const REFERENCES: RefRow[] = [
 
 // ---------------------------------------------------------------------------
 // 表二 CLIENT：界面半边要用的中央常量（走“构建时摘名字拼进闭包”那条路）。
-// 为什么单列一张表：界面文件不能 import，值只能由 scripts/build.mjs 的 CLIENT_TIME_NAMES
+// 为什么单列一张表：界面文件不能 import，值只能由 scripts/build.mts 的 CLIENT_TIME_NAMES
 // 挑出来塞进同一个闭包。三件事要一次对上，少一件界面就会引用一个不存在的名字或白拼一份：
 //   ① values.ts 里有这个常量（YAML 键存在）；② 构建名单里有它；③ 界面文件里确实在用它。
 // 名单与表必须严格一一对应（名单多一个名字 = 拼进闭包却没人用；表多一行 = 用了却没人拼）。
 // ---------------------------------------------------------------------------
 interface ClientRow {
   file: string
-  /** 界面文件里引用的中央常量名，也是 build.mjs 拼接名单里的名字。 */
+  /** 界面文件里引用的中央常量名，也是 build.mts 拼接名单里的名字。 */
   name: string
   /** 它对应的 YAML 键（人改的那个名字）。 */
   key: string
@@ -450,7 +450,7 @@ async function main(): Promise<void> {
   check(stages.includes('tests/verify-time-config.ts'), '本门禁已挂进验证链（scripts/verify-stages.json）')
 
   // —— 第一节：生成新鲜度（调了 YAML 忘跑生成器，在这里判红） ——
-  const gen = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-time-config.mjs'), '--check'], { encoding: 'utf8' })
+  const gen = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-time-config.mts'), '--check'], { encoding: 'utf8' })
   check(gen.status === 0, '生成源码与 config/ 下的三份时间参数文件一致' + (gen.status === 0 ? '' : '（' + String((gen.stdout || '') + (gen.stderr || '')).trim().split('\n')[0] + '）'))
 
   // —— 构建产物自检 ——
@@ -460,7 +460,7 @@ async function main(): Promise<void> {
   if (!fs.existsSync(path.join(ROOT, 'src/shared/time-config/values.js'))) {
     check(
       false,
-      '生成物 src/shared/time-config/values.js 不在（构建产物、不入库）——先跑一次 node scripts/build.mjs 再来跑本门禁；这不是值不一致',
+      '生成物 src/shared/time-config/values.js 不在（构建产物、不入库）——先跑一次 node scripts/build.mts 再来跑本门禁；这不是值不一致',
     )
     console.log('FAIL 中央时间参数门禁：生成物缺席，先构建')
     process.exit(1)
@@ -512,16 +512,16 @@ async function main(): Promise<void> {
   }
 
   // —— 第三节：界面半边拿不拿得到值（values.ts 有、构建名单有、界面文件真在用） ——
-  const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mjs'), 'utf8')
+  const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mts'), 'utf8')
   const namesBlock = buildSrc.match(/const CLIENT_TIME_NAMES = \[([\s\S]*?)\]/)
   const splicedNames = new Set((namesBlock ? namesBlock[1].match(/'[A-Za-z0-9_]+'/g) || [] : []).map((s) => s.slice(1, -1)))
-  check(splicedNames.size > 0, '读到了 scripts/build.mjs 的界面拼接名单 CLIENT_TIME_NAMES（' + splicedNames.size + ' 个名字）')
+  check(splicedNames.size > 0, '读到了 scripts/build.mts 的界面拼接名单 CLIENT_TIME_NAMES（' + splicedNames.size + ' 个名字）')
   const clientUsed = new Set<string>()
   for (const row of CLIENTS) {
     clientUsed.add(row.name)
     const eff = (timeMod.TIME_YAML as Record<string, unknown>)[row.key]
     check(timeMod[row.name] !== undefined, 'values.ts 里有 ' + row.name + '（YAML 键 ' + row.key + ' 的生效值 ' + JSON.stringify(eff) + '）')
-    check(splicedNames.has(row.name), row.name + ' 已在 scripts/build.mjs 的拼接名单里（没登记的话界面构建出来会引用一个不存在的名字）')
+    check(splicedNames.has(row.name), row.name + ' 已在 scripts/build.mts 的拼接名单里（没登记的话界面构建出来会引用一个不存在的名字）')
     let text = ''
     try {
       text = fs.readFileSync(path.join(ROOT, row.file), 'utf8')

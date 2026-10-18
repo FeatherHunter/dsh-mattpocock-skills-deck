@@ -1,5 +1,5 @@
 // verify-log-client.ts —— #490 client 日志底座门禁（设计 #335 第 1、4 章映射到 client 的断言）。
-// 用法：node tests/verify-log-client.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）。
+// 用法：node tests/verify-log-client.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）。
 // 覆盖 3 组：开关持久化（新键 dsws.debug、默认关闭、不动 dsws.cfg）、
 //   对账（启动本地秒显、宿主为准、失败保持本地不回退开启）、广播（沿 broadcastCfg 同构）。
 // 外加 4 项底座自检：统一接口同名同参、体内兜底第一行、批量字面、双产物含新电话名。
@@ -216,10 +216,10 @@ async function main() {
     check(fs.existsSync(devPath), '开发产物存在（client.js，由构建生成）')
     check(fs.existsSync(pkgPath), '打包产物存在（package/lib/client.js，由构建生成）')
     const stale = []
-    for (const s of ['src/client/kernel/log.js', 'src/client/kernel/probe-snapshot.js', 'src/client/panelAssembly.js', 'src/client/index.js', 'scripts/build.mjs']) {
+    for (const s of ['src/client/kernel/log.js', 'src/client/kernel/probe-snapshot.js', 'src/client/panelAssembly.js', 'src/client/index.js', 'scripts/build.mts']) {
       if (fs.existsSync(path.join(ROOT, s)) && fs.existsSync(devPath) && fs.statSync(path.join(ROOT, s)).mtimeMs > fs.statSync(devPath).mtimeMs + 1000) stale.push(s)
     }
-    check(stale.length === 0, '产物新鲜（' + (stale.length ? '过期：' + stale.join('、') + '，请重跑 node scripts/build.mjs' : '已同步') + '）')
+    check(stale.length === 0, '产物新鲜（' + (stale.length ? '过期：' + stale.join('、') + '，请重跑 node scripts/build.mts' : '已同步') + '）')
     if (fs.existsSync(devPath) && fs.existsSync(pkgPath)) {
       const dev = fs.readFileSync(devPath, 'utf8')
       const pkg = fs.readFileSync(pkgPath, 'utf8')

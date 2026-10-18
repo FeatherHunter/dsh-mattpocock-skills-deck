@@ -169,7 +169,7 @@ const main = async function () {
       src = fs.readFileSync(file, 'utf8')
     } catch (e) {
       failed = true
-      console.log('  FAIL ' + tag + ' 读不到 ' + file + '（先运行 node scripts/build.mjs 生成产物）：' + e.message)
+      console.log('  FAIL ' + tag + ' 读不到 ' + file + '（先运行 node scripts/build.mts 生成产物）：' + e.message)
       continue
     }
     console.log('-- Part A 静态契约 --')

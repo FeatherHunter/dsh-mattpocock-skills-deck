@@ -30,7 +30,7 @@
 //       声明」压成同一件事，界面分不出来——那正是 #1139 要修的静默降级。
 //
 // 用法（手工跑要自己挂装载钩子；npm test / verify:parallel / verify-all 三个入口自动挂）：
-//   node --import ./scripts/ts-hook.mjs tests/verify-ui-description-single-source.ts
+//   node --import ./scripts/ts-hook.mts tests/verify-ui-description-single-source.ts
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'

@@ -16,8 +16,8 @@ import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
  *      断言已合并的显示「已合并」、已关闭没合并的仍显示「已关闭」、打开的仍显示「打开」。
  *  四、判据单源：两个界面文件都不再自己判「不是 CLOSED 就当打开」，而是调用 stateKind.js。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-599-merged-pr.ts
- *   （界面那几条需要先跑 node scripts/build.mjs；产物不在时自动跳过并说明）
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-599-merged-pr.ts
+ *   （界面那几条需要先跑 node scripts/build.mts；产物不在时自动跳过并说明）
  */
 import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
@@ -266,7 +266,7 @@ function prsOf(res: { ok: boolean; data: ListedPr[] } | null | undefined): Liste
 const PRODUCT = resolve(ROOT, 'package/lib/client.js')
 if (!existsSync(PRODUCT)) {
   // 不静默跳过：这一段验的是「界面显示成什么」，少了它就只剩源码正则，撑不住验收标准。
-  check(false, '产物 package/lib/client.js 不在 —— 界面那一段没跑（先跑 node scripts/build.mjs；npm run verify 链里产物已备）')
+  check(false, '产物 package/lib/client.js 不在 —— 界面那一段没跑（先跑 node scripts/build.mts；npm run verify 链里产物已备）')
 } else {
   const { JSDOM } = await import('jsdom')
   const React = ((await import('react')) as { default: unknown }).default

@@ -1,5 +1,5 @@
 // verify-labels-sync.ts — #188 单源标签名子集校验（仅比 name，上游 19 中含 10 即 ok）
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-labels-sync.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-labels-sync.ts
 const fs = require('fs')
 const path = require('path')
 // #1253：NoRepoCard 已转 TypeScript，判据里有「注释写着 Markdown 跳过」这类只存在于源码的形状，
@@ -85,7 +85,7 @@ check(!noRepoTxt.includes('wf.status'), '标签步骤不是常驻 warn 黄条（
 check(cli.includes('dsws-labels-modal') && cli.includes('dsws-labels-overlay'), 'client 含 labels Modal 样式（dsws-labels-modal/overlay）')
 check(pcli.includes('dsws-labels-modal'), 'package 含 labels Modal 镜像')
 
-// 6) package 同步（build.mjs 按新树投放）
+// 6) package 同步（build.mts 按新树投放）
 const pkgSharedPath = path.join(ROOT, 'package/tracker/contract/canonical-labels.js')
 check(fs.existsSync(pkgSharedPath), 'package/tracker/contract/canonical-labels.js 存在（build 按新树投放）')
 if(fs.existsSync(pkgSharedPath)){

@@ -3,7 +3,7 @@
 // 手法：compileFn——经共用入口 spliceableJs 从真源 src/client/kernel/api-new-session.ts 取出可 eval 的
 //   ensureCwd（按构建同一份口径转译：去类型标注、去注释、剥行首 export），放进沙箱跑，
 //   断言的是真源码跑出来的结果，不是这段算法的手抄副本。
-// 运行：node --import ./scripts/ts-hook.mjs tests/verify-issue60-cwd.ts
+// 运行：node --import ./scripts/ts-hook.mts tests/verify-issue60-cwd.ts
 let failed: boolean = false
 const check = (ok: boolean, msg: string) => { console.log((ok ? "  PASS " : "  FAIL ") + msg); if (!ok) failed = true }
 

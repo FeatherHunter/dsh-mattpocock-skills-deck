@@ -1,6 +1,6 @@
 /*
  * tests/verify-1184-body-parse-gap.ts —— #1184 正文解析三处静默丢失的门禁
- * 用法: node --import ./scripts/ts-hook.mjs tests/verify-1184-body-parse-gap.ts（在插件根目录；不联网）
+ * 用法: node --import ./scripts/ts-hook.mts tests/verify-1184-body-parse-gap.ts（在插件根目录；不联网）
  *
  * 测什么（#1184：面板把没做完的图显示成做完了，三处都在正文解析这一条链上）：
  *   A. 行中粘住的规范标题按标题切：上一行末尾粘着「## Not yet specified」时，
@@ -12,7 +12,7 @@
  *   C. 回归：经典 `- [标题](链接) — 一句话` 写法行为不变；
  *      围栏代码块里的「## 规范标题」不切（不误伤正文里讨论标题本身的行）。
  *   D. 守门（黑盒，不联网：守门在任何 gh 调用之前）：
- *      scripts/wire-subissues.mjs 对粘着标题的正文退出码 2，话里含文件名与该标题；
+ *      scripts/wire-subissues.mts 对粘着标题的正文退出码 2，话里含文件名与该标题；
  *      标题写死在四个规范名之外（一整行 `## 别的名字`）同样退出码 2；
  *      尾部没有换行的干净正文照常放行（退出码 0）；
  *      干净正文 --dry-run 退出码 0（正向对照，同样不联网）。
@@ -120,7 +120,7 @@ const cleanFile = path.join(TMP, 'clean.md')
 fs.writeFileSync(cleanFile, cleanBody, 'utf8')
 function runGuard(bodyFile: string, extra: string[]): { code: number, out: string } {
   try {
-    const out = execFileSync(process.execPath, ['scripts/wire-subissues.mjs', '--map', '1056', '--children', '1057', '--body-file', bodyFile].concat(extra), { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    const out = execFileSync(process.execPath, ['scripts/wire-subissues.mts', '--map', '1056', '--children', '1057', '--body-file', bodyFile].concat(extra), { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     return { code: 0, out: String(out) }
   } catch (e: any) {
     const stdout = String((e && e.stdout) || '')
@@ -155,7 +155,7 @@ check(gluedEofRun.code === 2 && gluedEofRun.out.indexOf('## Out of scope') >= 0 
 
 // ——— E. 三处标题表同源（叶子五个名 == 守门三处合起来） ———
 const leafSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/body-parse.ts'), 'utf8')
-const guardSrc = fs.readFileSync(path.join(ROOT, 'scripts/wire-subissues.mjs'), 'utf8')
+const guardSrc = fs.readFileSync(path.join(ROOT, 'scripts/wire-subissues.mts'), 'utf8')
 function quotedList(src: string, anchor: RegExp): string[] {
   const m = src.match(anchor)
   if (!m) return []

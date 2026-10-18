@@ -22,7 +22,7 @@
 // 为什么用真闸 + 真账本 + 真注册表 + 本地 Markdown 房间：记账这件事只有真过一遍闸才看得见。
 // 后端说「做不到」那一支按票面点名的缝来 —— 工具表工厂的依赖参数就是唯一的缝（传一个会说做不到的后端）。
 //
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1106-deck-surface.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1106-deck-surface.ts
 // 手工跑要自己挂装载钩子（源码之间写的是 `../src/x.js` 这类说明符，靠钩子改指同名 .ts）；
 // 挂进 npm test / verify:parallel / verify-all / test:smoke 四个入口时，钩子由那几处自动加上。
 import fs from 'node:fs'

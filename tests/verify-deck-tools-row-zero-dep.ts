@@ -1,5 +1,5 @@
 // verify-deck-tools-row-zero-dep.ts —— 门禁：行模块零框架引用（#741 根因）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-deck-tools-row-zero-dep.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-deck-tools-row-zero-dep.ts，可独立运行。
 //
 // 为什么要这一段：2026-09-26 真机上全部工具调用一起失败
 // （Cannot read properties of undefined (reading 'prepare')，摘掉工具行即恢复）。
@@ -81,11 +81,11 @@ async function main() {
 
   // 3. 发包镜像与源一致（构建转译同步，手改发包即红）。
   //   TypeScript 时代构建做的是转译不是原样复制，所以比的是「构建转译输出」而不是源字节：
-  //   转译口径取自构建唯一的 scripts/lib/transpile-unit.mjs（TRANSPILE_OPTIONS + generatedHeader），
+  //   转译口径取自构建唯一的 scripts/lib/transpile-unit.mts（TRANSPILE_OPTIONS + generatedHeader），
   //   这里不抄第二遍，口径变了只改构建那一处。
   try {
     const esbuild = require('esbuild')
-    const tu = await import(pathToFileURL(path.join(ROOT, 'scripts/lib/transpile-unit.mjs')).href)
+    const tu = await import(pathToFileURL(path.join(ROOT, 'scripts/lib/transpile-unit.mts')).href)
     const srcRel = 'src/deck/registration/agent-row.ts'
     const pkgRel = 'package/deck/registration/agent-row.js'
     const src = fs.readFileSync(path.join(ROOT, srcRel), 'utf8')

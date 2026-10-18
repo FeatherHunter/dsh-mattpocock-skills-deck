@@ -15,7 +15,7 @@
  *   spliceableJs(rel)  可以直接交给 eval-probe 的 compileFn / evalWithScope 的 JavaScript 文本
  *
  * 「同名 .ts 优先」为什么这么定
- *   仓库的装载钩子（scripts/ts-hook.mjs）在模块说明符那一层就是这么改的：写 './x.js' 时，只要旁边
+ *   仓库的装载钩子（scripts/ts-hook.mts）在模块说明符那一层就是这么改的：写 './x.js' 时，只要旁边
  *   有同名 x.ts，加载到的就是 x.ts。门禁读的是源码树，走同一条规则，两边结论才一致
  *   （见 AGENTS.md「测试怎么直接加载 .ts」）。保留 .js 回退是因为迁移期两种形态并存。
  *   一个必须记住的例外：**构建产物不要从这个入口读**。视图树里同名并排的 .ts/.js 是「一份源码 +
@@ -23,17 +23,17 @@
  *   产物）的门禁直接读那个文件，否则会静默改成读源码，判据跟着悄悄变味。
  *
  * 转译口径只有一份
- *   scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS 加 inlineExportDeclarations，与构建
- *   （scripts/build.mjs 经 scripts/lib/transpile-domains.mjs 的 readSpliceFragmentSource）用的是同一份；
+ *   scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS 加 inlineExportDeclarations，与构建
+ *   （scripts/build.mts 经 scripts/lib/transpile-domains.mts 的 readSpliceFragmentSource）用的是同一份；
  *   这里不写第二遍参数，也不自己删 export。
  *
  * 为什么它敢引构建侧的 scripts/lib（层方向是反的，这是刻意取舍）
- *   这个文件住在 tests/lib/，却 require 构建侧的 scripts/lib/transpile-domains.mjs，等于把构建侧
+ *   这个文件住在 tests/lib/，却 require 构建侧的 scripts/lib/transpile-domains.mts，等于把构建侧
  *   （node:child_process、createRequire、esbuild 的惰性加载）拉进测试进程。#1207 的对抗式审查把这条
  *   记了一笔：同目录的 eval-probe.ts 之所以坚持「只引 node:vm」，是因为它要能在没有装载钩子的情况下
  *   被直接加载；本文件没有这个约束。取舍的理由是：真正要防的偏差是「门禁看到的源码形态与构建拼进产物的
  *   形态分家」，这个风险远大于层方向好不好看。只走 sourceText 那一档的门禁（按文本形状扫描，例如
- *   tests/verify-diagnostic-log-model.ts）不会因此多拉起 esbuild：transpile-domains.mjs 里 esbuild 是
+ *   tests/verify-diagnostic-log-model.ts）不会因此多拉起 esbuild：transpile-domains.mts 里 esbuild 是
  *   惰性加载的。
  *   要彻底拆干净，得把纯文本判据（片段形态、扩展名分派）与「读盘 + 转译」分开住 —— 那是另一张票的活，
  *   本文件先把这条取舍写在明处。
@@ -42,7 +42,7 @@
 
 const { existsSync, readFileSync } = require('node:fs')
 const { resolve } = require('node:path')
-const { REPO_ROOT, readSpliceFragmentSource } = require('../../scripts/lib/transpile-domains.mjs')
+const { REPO_ROOT, readSpliceFragmentSource } = require('../../scripts/lib/transpile-domains.mts')
 
 /**
  * 这份源码今天住在哪个文件里：问的是 '.js' 时同名 '.ts' 优先（与装载钩子同规则），问的是 '.ts' 时就用它自己。

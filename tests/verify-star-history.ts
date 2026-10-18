@@ -1,5 +1,5 @@
-import { aggregateByDay, mergeHistory } from '../scripts/star-history.mjs';
-import { buildSvg } from '../scripts/generate-star-history-svg.mjs';
+import { aggregateByDay, mergeHistory } from '../scripts/star-history.mts';
+import { buildSvg } from '../scripts/generate-star-history-svg.mts';
 import assert from 'node:assert/strict';
 
 // —— 聚合与合并 ——

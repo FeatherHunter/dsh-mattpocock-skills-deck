@@ -1,5 +1,5 @@
 // tests/verify-1161-rooms-assembly-samples.ts —— 样本门禁：宿主文件直接引房间实现时，门禁当场判红并点名（#1161）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1161-rooms-assembly-samples.ts
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1161-rooms-assembly-samples.ts
 //
 // 守的是什么：反方向规则 `rooms-imported-only-by-assembly` 说的是「房间实现只许被装配点引用」。
 // 一条规则立起来最容易出的两种假绿，这一条都用真件翻一遍（同一个进程里跑两次引擎）：
@@ -38,7 +38,7 @@ const probeAbs = join(ROOT, PROBE_REL)
 
 /** 跑一次真门禁，返回退出码与全部输出（stdout + stderr）。 */
 function runGate() {
-  const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mjs', GATE_REL], {
+  const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', GATE_REL], {
     cwd: ROOT,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,

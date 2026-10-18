@@ -1,5 +1,5 @@
 // verify-998-half-open.ts —— 门禁：连续失败那把「自锁」必须留一个出口（#998，2026-10-10 真机故障）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-998-half-open.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-998-half-open.ts，可独立运行。
 //
 // 真机故障是什么（2026-10-10 实测，见票 #998）：闸对「连续失败」的处置是「到门槛就一律推迟」，
 // 而推迟既不算失败、也不算成功 —— 连续失败计数只有「真跑成功一次」才归零（gate.js 里唯一那处归零）。

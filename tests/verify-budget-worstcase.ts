@@ -1,5 +1,5 @@
 // verify-budget-worstcase.ts —— 门禁：定时那一半的最坏每小时用量远低于闸的上限（#706 T2 第二批）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-budget-worstcase.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-budget-worstcase.ts，可独立运行。
 //
 // 断言文字（依据定稿第五章「算一遍：终局方案的最坏情况」那三条证明方式的第一条）：
 // 把「多久跑一次 × 每次几条」按 budget.js 里的常量折成每小时，两桶（REST 数请求条数、GraphQL 数点数）

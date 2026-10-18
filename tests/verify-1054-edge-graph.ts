@@ -16,7 +16,7 @@ import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 // 桩是「一台只认数据库编号的假 GitHub」：原生依赖边端点、数据库编号查询、GraphQL 读票三件事，
 // 形状照真机写（POST 传的是数据库编号，重复边回 422，缺的边 DELETE 回 404），不替调用方兜底。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-1054-edge-graph.ts
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-1054-edge-graph.ts
 
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

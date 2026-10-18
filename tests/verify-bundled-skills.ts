@@ -14,7 +14,7 @@
  *  4) package/package.json:files 含 bundled-skills（漏发硬卡）
  *  5) 增量体积：npm pack --dry-run 的 unpacked size 差值 ≤ 5MB（阈值硬卡，需显式改阈豁免）；空 bundled 期跳过
  *
- * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-bundled-skills.ts
+ * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-bundled-skills.ts
  * 退出码 0 = 通过；1 = 失败
  */
 const { readFileSync, existsSync, readdirSync, statSync } = require('node:fs')

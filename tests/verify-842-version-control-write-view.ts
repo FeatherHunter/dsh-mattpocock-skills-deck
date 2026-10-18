@@ -1,9 +1,9 @@
 // tests/verify-842-version-control-write-view.js — 版本管理「写操作」界面门禁（#842 落地）
-// 用法：在插件根目录执行 node tests/verify-842-version-control-write-view.js，可独立运行。
+// 用法：在插件根目录执行 node tests/verify-842-version-control-write-view.ts，可独立运行。
 //
 // 这份门禁守的是「用户点得完、看得懂」那一半：写操作的五个动作（add / 提交 / 拉取 / 更新 / 推送）落点对不对、
 //   禁用态读的是不是核心判定、三个确认框有没有点名目标、五族失败话术能不能照着做、执行中会不会把读数弄假。
-// 写法照 tests/verify-818-version-control-view.js 的先例：把叶子按 build.mjs 的次序拼成真闭包再跑，
+// 写法照 tests/verify-818-version-control-view.ts 的先例：把叶子按 build.mts 的次序拼成真闭包再跑，
 //   词条读真字典（locale-panel / locale-flow / locale-vcwrite），断言落在模型与真渲染出来的 DOM 上。
 //
 // A–M 组；M 组是性能（竞态 / 工作区污染 / 缓存上限 / 同键在途不重复发），每项正反两面。
@@ -32,9 +32,9 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 //   为什么不读产物 .js：产物被 esbuild 重排过（双引号、function 后面不留空格、句末补分号），
 //   而反证锚点是按原文写的，读产物就会「改不中」，等于没证——#1253 收口时这里正是这样红的。
 const { sourceText } = require('./lib/source-text.ts')
-const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const readSource = (rel: string): string => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
-// 转译口径复用构建那一份（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
+// 转译口径复用构建那一份（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
 const toEvalJs = (code: string): string => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
 // 反证与注种的锚点有两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被
 //   esbuild 统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
@@ -50,7 +50,7 @@ const subQ = function (from: string, to: string): (s: string) => string {
 }
 const NOW = Date.parse('2026-10-04T03:00:00+08:00')
 
-// ---------- 界面侧闭包：照 scripts/build.mjs 的做法把叶子拼起来再跑 ----------
+// ---------- 界面侧闭包：照 scripts/build.mts 的做法把叶子拼起来再跑 ----------
 const VC_FILES = [
   'src/shared/version-control/rules.js', // 判定真源（界面按它画按钮状态）
   'src/client/views/versionControl/vcText.js',
@@ -222,7 +222,7 @@ function buildView(patch, React, DswsCtx, Tip, Ic, seedReads, logs, trFn, export
   src = toEvalJs(src)
   const names = exportsList || EXPORTS
   const body = src + '\nreturn { ' + names.join(', ') + ' }\n'
-  // 手法：compileFn——这份门禁照 build.mjs 的做法把叶子拼成一段文本再跑，这里把参数名数组与文本交给共用入口造函数，语义不变。
+  // 手法：compileFn——这份门禁照 build.mts 的做法把叶子拼成一段文本再跑，这里把参数名数组与文本交给共用入口造函数，语义不变。
   const fn = compileFn(['React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads'], body)
   return fn(React || {}, function (level, event, fields) { (logs || []).push({ level: level, event: event, fields: fields }) },
     function () { return 'h8' }, function (s) { return String(s) }, trFn, {}, DswsCtx || null, Tip || null, Ic || null, seedReads || null)

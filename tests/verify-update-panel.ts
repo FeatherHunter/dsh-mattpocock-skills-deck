@@ -4,7 +4,7 @@
 //   2) 更新日志文件随包：包根 CHANGELOG.md 存在、包清单白名单含它，包清单依赖与根清单同范围。
 //   3) 电话行为（假环境 + 假网络）：查状态不联网、点了才联网、查新版与查状态共用同一个读取器、
 //      连不上与坏发行信息各报各的码。
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-update-panel.ts（在仓库根目录；2026-10-17 从 .js 转成 TypeScript：只改名、用法行与几处类型标注，判据与断言一条没动；2026-10-18 随更新包 0.18.24 把状态快照期望从七字段改成九字段。）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-update-panel.ts（在仓库根目录；2026-10-17 从 .js 转成 TypeScript：只改名、用法行与几处类型标注，判据与断言一条没动；2026-10-18 随更新包 0.18.24 把状态快照期望从七字段改成九字段。）
 const fs = require('fs')
 const os = require('os')
 const path = require('path')

@@ -15,7 +15,7 @@
  * 判据靠假 fs 适配器上的调用记录（writeText 与 rename 各记一份），不靠读回来猜。
  * 全程在系统临时目录里造工作区，不打真网、不碰真实工作区（临时目录用完即删）。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-1182-ticket-file-publish.ts
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-1182-ticket-file-publish.ts
  */
 
 import * as fs from 'node:fs'

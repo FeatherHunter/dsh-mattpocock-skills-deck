@@ -11,8 +11,8 @@
  * 信念错了两边一起错，断言照样全绿。这份固件就是把那个信念换成真回话。
  *
  * 用法：
- *   node --import ./scripts/ts-hook.mjs scripts/generate-gitlab-fixtures.ts
- *   node --import ./scripts/ts-hook.mjs scripts/generate-gitlab-fixtures.ts --repo 组/项目 --out 别的目录
+ *   node --import ./scripts/ts-hook.mts scripts/generate-gitlab-fixtures.ts
+ *   node --import ./scripts/ts-hook.mts scripts/generate-gitlab-fixtures.ts --repo 组/项目 --out 别的目录
  *
  * 要求（两样缺一样就一条都不写，见下面 preflight）：
  *   一、本机装了 `glab` 且在 PATH 里能找到（或设了 GLAB_PATH）；

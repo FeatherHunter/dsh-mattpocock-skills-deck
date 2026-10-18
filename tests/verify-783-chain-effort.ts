@@ -12,7 +12,7 @@
  *   7. 界面上仍只显示编号
  *   8. writeEvents 把文件路径传下去并标成票文件来源
  *
- * 用法: node --import ./scripts/ts-hook.mjs tests/verify-783-chain-effort.ts（在插件根目录）
+ * 用法: node --import ./scripts/ts-hook.mts tests/verify-783-chain-effort.ts（在插件根目录）
  * 本文件是 CommonJS：产品源码靠动态 import(url(...)) 取，说明符原样保留（chain.js 是构建产物、
  * 旁边没有同名 .ts，钩子不会改指）；只加类型标注，判据一字不动。
  */

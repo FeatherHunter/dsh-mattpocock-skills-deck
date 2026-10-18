@@ -3,7 +3,7 @@
 //   （顺序真源用真的 src/shared/tracker/guide-steps.js，动作分发用真的 src/client/kernel/actions.js），
 //   喂假会话状态与假链快照，断言「今天该出哪一条横幅」与「那颗按钮点下去干什么」。
 // 取源做法照 tests/verify-668-guide-steps-single-source.js 与 tests/verify-655-setup-layout.js。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-663-banner-chain.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-663-banner-chain.ts
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')

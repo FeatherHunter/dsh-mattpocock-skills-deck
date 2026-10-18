@@ -1,7 +1,7 @@
 // smoke-comment-passthrough.test.ts — #255 宿主透传冒烟（wf.commentIssue）
 // 注入假 trackerRegistry（getTrackerRegistry 优先消费 ctx.get('trackerRegistry')），
 // 断言：select→describe→tracker.comment 全链路转发、参数无损、错误 kind 直透（G5 无能力表）。
-// 用法: node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts
 import { readFileSync } from 'node:fs'
 import * as esbuild from 'esbuild'
 

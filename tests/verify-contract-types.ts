@@ -110,9 +110,9 @@
 //   3b 只查入口文件（`src/tracker/registry/builtins.ts`），且只认 as 断言写法；
 //   `validateMod` 自己内部那一处收窄（`shape.ts`）是断言函数分内的事，不在 3b 范围内。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-contract-types.ts（在仓库根目录；
-//   npm test / npm run verify:parallel / node scripts/verify-all.mjs 三个入口会自动挂装载钩子）。
-//   装载钩子见 scripts/ts-hook.mjs。本文件是 .ts 真源：Node 的类型剥离只删类型标注，ESM 里没有
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-contract-types.ts（在仓库根目录；
+//   npm test / npm run verify:parallel / node scripts/verify-all.mts 三个入口会自动挂装载钩子）。
+//   装载钩子见 scripts/ts-hook.mts。本文件是 .ts 真源：Node 的类型剥离只删类型标注，ESM 里没有
 //   `__dirname`，所以按 `import.meta.url` 算回仓库根目录。
 import fs from 'node:fs'
 import os from 'node:os'
@@ -540,7 +540,7 @@ function main(): void {
   // 检查目录（是数组、是函数、还是没有），所以这两档还得真跑起来看。
   // 键快照已撤（见文件头「再撤四项」）：工厂交出来的键由 satisfies + 三条断言守，这里只看真值。
   {
-    const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
+    const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mts')
     // --import 吃的是模块说明符，Windows 绝对路径要先转成 file://，裸盘符路径会被 ESM 加载器拒收。
     const hookUrl = pathToFileURL(hookAbs).href
     // 三家现在都是 .ts 真源（GitHub #1133、本地 Markdown #1134、GitLab #1135，2026-10-14 同日收口），
@@ -592,7 +592,7 @@ function main(): void {
   // 拿一个残模块试注册——必须被拒（且理由是形状）；同时拿一个有效最小模块试注册——
   // 必须能进（正控：证明探针自己能建表能注册，拒掉残模块是真咬住了，不是探针坏了啥都拒）。
   {
-    const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
+    const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mts')
     const hookUrl = pathToFileURL(hookAbs).href
     const evalScript = `import('./src/tracker/registry/core.ts').then((core) => {` +
       ` const reg = core.createRegistry();` +

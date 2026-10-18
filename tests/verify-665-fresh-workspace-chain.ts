@@ -12,7 +12,7 @@
 //   ④ 安装按钮注入原话     —— 第 4 组（点一下注入的就是维护者那句原话，逐字）
 // 另外第 5 组走反向（已经建好仓库、已经初始化过的目录：这几段都不出现、不重复注入）。
 // 取源做法照 tests/verify-655-setup-layout.js（喂假状态、调真函数）与 tests/verify-663-banner-chain.js（沙箱拼闭包）。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-665-fresh-workspace-chain.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-665-fresh-workspace-chain.ts
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -112,7 +112,7 @@ async function loadChain(locale: LocalePair, backends: { github: BackendPick; ma
     for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(bid)) return list[i] }
     return null
   }
-  // 三个模块的真实文件文本拼在一起，装饰掉行首 export 后当同一个闭包求值（与 scripts/build.mjs 的拼法一致）。
+  // 三个模块的真实文件文本拼在一起，装饰掉行首 export 后当同一个闭包求值（与 scripts/build.mts 的拼法一致）。
   //   #698：注入决策那一段（injectSetupDecision / layoutCardShouldOpen）搬去了 kernel/prompts-setup.js，
   //   构建时与 prompts.js 拼回同一个闭包；沙箱里照同一口径把它接在 prompts.js 后面。
   // 三份片段各自的 export 都要剥掉：spliceableJs 交出来的 .ts 片段还带着行首 export（构建在拼接那一步剥），

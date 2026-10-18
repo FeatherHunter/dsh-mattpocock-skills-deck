@@ -19,7 +19,7 @@
  * 全程在系统临时目录里造工作区，用与 tests/verify-1058-markdown-read-log.ts 同一套 fs/platform 适配器
  * 形状；不打真网、不碰真实工作区（临时目录用完即删）。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-1059-issue-write.ts
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-1059-issue-write.ts
  */
 
 import * as fs from 'node:fs'

@@ -5,7 +5,7 @@
 //   3) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-kernel 同口径）
 // 「叶子导出齐全」「组件消费 useContext」「产物里拼进没拼进」这三类读源码文本钉形状的断言，
 // 已按维护者要求删除；LEAVES 表里的 exports / components 两列从此只是档案记录，不再参与断言。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-leaves.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-leaves.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）
 // 写法保持 require 风格：验证链经装载钩子载入本文件，require 与 __dirname 照 CommonJS 形态工作
 // （与 tests/verify-1207-splice-ts.ts 同形）；改成 import 形态没有收益，只添风险，所以不改。
 const fs = require('fs')
@@ -111,7 +111,7 @@ const LEAVES = [
   { file: 'src/client/views/versionControl/vcInView.js', exports: ['vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf'], components: [] }, // #997：「还能显示更多」那几处什么时候接着显示（纯判定 + 从块清单取状态 + 再画一批 + 接线）
 ]
 const SOURCES = [
-  'src/client/index.js', 'scripts/build.mjs', 'package/package.json',
+  'src/client/index.js', 'scripts/build.mts', 'package/package.json',
   // 两种路径都收进来：转成 TypeScript 的那些，产物同时取决于 .ts 真源与 pixel-ts 写下的同名 .js；
   // 还没转的还是只有 .js。少了哪一条，都会让「改了源码、产物没重建」从这道门禁底下溜过去。
   ...LEAVES.map((l) => l.file),
@@ -119,11 +119,11 @@ const SOURCES = [
 ]
 
 function productStale(prod: string): string | null {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
+  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
   const pm = fs.statSync(prod).mtimeMs
   for (const s of SOURCES) {
     if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) {
-      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mjs）'
+      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
     }
   }
   return null

@@ -16,7 +16,7 @@
  * target，喂别的一律抛 TypeError。第 ① 组第一件事就是拿这个规矩把「直接喂路径」判死一次，
  * 当作 ✗ 反例自证 —— 老写法正是死在这一步上，所以这一组用例在老代码上必然红。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-1130-gitlab-marker-read.ts
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-1130-gitlab-marker-read.ts
  * （已挂在 package.json 的 verify 长串上）
  */
 import fs from 'node:fs'

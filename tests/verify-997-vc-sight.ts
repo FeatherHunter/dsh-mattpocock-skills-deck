@@ -1,5 +1,5 @@
 // tests/verify-997-vc-sight.ts — 「滑到那句提示就接着显示」的门禁（#997 落地）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-997-vc-sight.ts，可独立运行。（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-997-vc-sight.ts，可独立运行。（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
 //
 // 守三件事：
 //   1) 纯判定 vcMoreStepOf：什么时候接着显示（draw）、什么时候等上一批落地（wait）、什么时候停（stop，
@@ -27,7 +27,7 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 const { sourceText } = require('./lib/source-text.ts')
 // #1253：vcBlocks / vcInView 也已经是 .ts 真源。反证锚点按原文写，所以先拼原文、改坏，再按构建同一份
 //   转译参数转成 JavaScript 交给 compileFn；读产物会读到 esbuild 重排过的形态（双引号、补分号），锚点改不中。
-const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const toEvalJs = (code: string): string => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
 const strip = (t: string): string => t.replace(/^(\s*)export\s+/gm, '$1')
 
@@ -35,7 +35,7 @@ const LEAF = 'src/client/views/versionControl/vcInView.js'
 const FLOW = 'src/client/kernel/locale-flow.js'
 const PANEL = 'src/client/kernel/locale-panel.js'
 
-// ---------- 闭包：块模型（常量来源）+ 新叶子，照 scripts/build.mjs 的拼法 ----------
+// ---------- 闭包：块模型（常量来源）+ 新叶子，照 scripts/build.mts 的拼法 ----------
 function modOf(patch: ((s: string) => string) | null) {
   let src = [sourceText('src/client/views/versionControl/vcBlocks.js'), sourceText(LEAF)].map(strip).join('\n')
   if (patch) src = patch(src)

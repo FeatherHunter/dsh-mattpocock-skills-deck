@@ -215,7 +215,7 @@ console.log('\nF) 双产物一致')
 for (const f of ['client.js', 'package/lib/client.js']) {
   const s = read(f)
   if (s.includes('wsKeyOf') && s.includes('workspaceRootByCwd')) ok(f + ' 含工作区键解析')
-  else bad(f + ' 缺工作区键解析（请先 node scripts/build.mjs）')
+  else bad(f + ' 缺工作区键解析（请先 node scripts/build.mts）')
   if (s.includes('SubworkspaceMark')) ok(f + ' 含归属标志')
   else bad(f + ' 缺归属标志')
   if (s.includes('isPollutedSnapshot')) ok(f + ' 含新的污染判定')

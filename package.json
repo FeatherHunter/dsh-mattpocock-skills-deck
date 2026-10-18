@@ -10,19 +10,19 @@
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "typecheck": "node scripts/generate-time-config.mjs --check && node scripts/typecheck.mts",
-    "update:latest": "pnpm update dsh-plugin-update@^0.18.25 && node scripts/derive-update-from-package.mjs && node scripts/build.mjs",
-    "prepare": "node scripts/build.mjs",
-    "test": "npm run typecheck && node scripts/build.mjs && node scripts/verify-chain.js && npm run test:smoke",
-    "smoke": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-render.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.ts",
-    "test:smoke": "node scripts/verify-chain.js --script smoke",
-    "test:nobuild": "node scripts/verify-chain.js && npm run test:smoke",
-    "verify:parallel": "node scripts/verify-parallel.mjs --keep-going",
-    "verify:fast": "node scripts/verify-parallel.mjs --tier fast",
-    "verify:changed": "node scripts/verify-parallel.mjs --changed",
-    "verify": "node scripts/verify-chain.js",
-    "sync:matt": "node scripts/sync-matt-skills.mjs --pin v1.3.1 --verify"
+    "build": "node scripts/build.mts",
+    "typecheck": "node scripts/generate-time-config.mts --check && node scripts/typecheck.mts",
+    "update:latest": "pnpm update dsh-plugin-update@^0.18.25 && node scripts/derive-update-from-package.mts && node scripts/build.mts",
+    "prepare": "node scripts/build.mts",
+    "test": "npm run typecheck && node scripts/build.mts && node scripts/verify-chain.ts && npm run test:smoke",
+    "smoke": "node --import ./scripts/ts-hook.mts tests/smoke-client.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-host-dispatch.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-naming-persistence.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts",
+    "test:smoke": "node scripts/verify-chain.ts --script smoke",
+    "test:nobuild": "node scripts/verify-chain.ts && npm run test:smoke",
+    "verify:parallel": "node scripts/verify-parallel.mts --keep-going",
+    "verify:fast": "node scripts/verify-parallel.mts --tier fast",
+    "verify:changed": "node scripts/verify-parallel.mts --changed",
+    "verify": "node scripts/verify-chain.ts",
+    "sync:matt": "node scripts/sync-matt-skills.mts --pin v1.3.1 --verify"
   },
   "dependencies": {
     "dsh-log": "^0.3.4",

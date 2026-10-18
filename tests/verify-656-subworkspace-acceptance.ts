@@ -30,7 +30,7 @@
  * 可选真机样本腿：默认跳过。设 DSW_VERIFY656_REAL=1 且本机存在样本目录时，额外在真样本上跑一遍。
  *   样本不在本机时只打一行说明、不计入断言——门禁本身不依赖任何机器上的具体路径。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-656-subworkspace-acceptance.ts
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-656-subworkspace-acceptance.ts
  */
 import fsx from 'node:fs'
 import nodePath from 'node:path'
@@ -39,7 +39,7 @@ import { pathToFileURL } from 'node:url'
 // 本文件按文本求值统一走共用入口 compileFn：把真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
 // E 组问规划函数：本门禁与两条点名用例是否在链上（#1125 起不再读 package.json 长串）。
-import { isGatePlanned } from '../scripts/lib/discover-gates.js'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 const fsp = fsx.promises
 

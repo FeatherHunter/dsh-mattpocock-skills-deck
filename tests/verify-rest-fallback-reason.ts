@@ -26,7 +26,7 @@ const path = require('path')
 // 或类型标注，vm.compileFunction 就当场抛错（#1167 从 #1147 起一直红着，就是这个原因）。
 // 文本求值只留给「必须注入替身」的那种文件：下面 truthLines.js 那一段靠参数名拿五个替身，继续走 compileFn。
 // 后半段（truthLines）仍然走共用求值入口；说明符写成显式 .ts，所以这份门禁挂着钩子跑、裸着跑都行
-// （共用入口只引 node:vm，没有仓库内的依赖；写 .js 的调用方则必须挂 scripts/ts-hook.mjs）。
+// （共用入口只引 node:vm，没有仓库内的依赖；写 .js 的调用方则必须挂 scripts/ts-hook.mts）。
 const { compileFn } = require('./lib/eval-probe.ts')
 // 中央时间真值：过期阈值只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
@@ -44,8 +44,8 @@ const check = function (cond, msg) {
 // ── 一、原因分类：限流与非配额 403 分得开 ──
 // 直接引真源模块，不再读文本求值。说明符写显式 .ts：这份真源今天只有 import type（加载时会被剥掉），
 // 所以人手裸跑、链上挂钩子跑，两种跑法都能跑。哪天它长出运行时 import 或值导出以外的语法，
-// 就把说明符改回 .js —— 本门禁已在 package.json 的 verify 链上，链会自动挂 scripts/ts-hook.mjs
-// （docs/agents/verification.md 第三节）；那时人手裸跑要自己加 --import ./scripts/ts-hook.mjs。
+// 就把说明符改回 .js —— 本门禁已在 package.json 的 verify 链上，链会自动挂 scripts/ts-hook.mts
+// （docs/agents/verification.md 第三节）；那时人手裸跑要自己加 --import ./scripts/ts-hook.mts。
 let pick = null
 try {
   pick = require('../src/tracker/rooms/github/fallback-reason.ts').pickFallbackReason
@@ -129,7 +129,7 @@ check(textsOf('list.restFallback').length === 2, '配额句 list.restFallback �
 check(textsOf('list.restFallbackStale').length === 2, '配额句 list.restFallbackStale 中英仍在（本票不动它）')
 ;['client.js', 'package/lib/client.js'].forEach(function (rel) {
   const p = path.join(ROOT, rel)
-  if (!fs.existsSync(p)) { check(false, rel + ' 不存在（先跑 node scripts/build.mjs）'); return }
+  if (!fs.existsSync(p)) { check(false, rel + ' 不存在（先跑 node scripts/build.mts）'); return }
   const built = fs.readFileSync(p, 'utf8')
   check(built.indexOf('list.restFallbackNonQuota') >= 0, rel + ' 里带着新鲜中性句（产物按源码重建过才生效）')
   check(built.indexOf('list.restFallbackStaleNonQuota') >= 0, rel + ' 里带着上次中性句（产物按源码重建过才生效）')

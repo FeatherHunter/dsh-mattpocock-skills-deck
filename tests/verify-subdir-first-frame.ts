@@ -14,7 +14,7 @@
  *      守卫整份丢掉：守卫拿「回包自己带回来的工作区根」去比「请求发出时那条子目录键」，而正是这次自己
  *      先教会了客户端那个根 —— 比出来必然不等。超时之后又没有任何重试，那份结果于是永久作废。
  *
- * 本门禁喂的是**真** loadSnapshot：那几片内核按 scripts/build.mjs 拼进同一个闭包的顺序（shared/workspaceKey.js
+ * 本门禁喂的是**真** loadSnapshot：那几片内核按 scripts/build.mts 拼进同一个闭包的顺序（shared/workspaceKey.js
  *   → kernel/store-prefs.js → kernel/store-snapshot.js → kernel/probe-stale.js → kernel/probe-snapshot.js
  *   → kernel/probe-select.js）去掉行首 export 后求值，拼法照 .tmp/repro-665-subdir-first-frame.js。
  *   假宿主按真机的样子回话：wf.cwd 失败（真机 errorHash 记的就是「会话无 cwd 信息」）、那份完整快照 1.4 秒后
@@ -70,7 +70,7 @@ const FILES = [
   'src/client/kernel/probe-select.js',
 ]
 
-// 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mjs 的拼接口径一致：去掉行首 export、
+// 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mts 的拼接口径一致：去掉行首 export、
 // 剥掉中央时间参数那一行 import 后求值）。
 function moduleText(patch) {
   const body = FILES.map((f) => noExport(stripTimeConfigImport((patch && patch.file === f) ? patch.text : read(f)))).join('\n')
@@ -130,7 +130,7 @@ function makeEnv(opts) {
     + ' workspaceRootByCwd, rememberWorkspaceRoot, keyOf, wsKeyOf, emit, mergeSelection, askSelectionOnce,'
     + ' _snapRequestKeyWas, _snapInstallState, _snapMarkRequest, _snapRespStale,'
     + ' _installLateSnapshot, _installLateSnapshotSelection, _snapInstallBody }'
-  // 手法：compileFn——这几片内核按 build.mjs 的顺序拼成一段文本后造函数，改走 tests/lib/eval-probe.js 的共用入口；名字数组照原样传。
+  // 手法：compileFn——这几片内核按 build.mts 的顺序拼成一段文本后造函数，改走 tests/lib/eval-probe.js 的共用入口；名字数组照原样传。
   const factory = compileFn(names, moduleText(o.patch) + tail)
   const mod = factory.apply(null, names.map((n) => sandbox[n]))
   return { mod, seen, storage }

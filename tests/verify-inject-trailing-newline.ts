@@ -1,5 +1,5 @@
 // verify-inject-trailing-newline.js — 注入尾部补 1 个换行（#789 A 方案）
-// 用法: node tests/verify-inject-trailing-newline.js
+// 用法: node tests/verify-inject-trailing-newline.ts
 //
 // 验收标准（用户选 A）：
 //   a) 不是换行结尾的注入文本补 1 个换行，已经是的不重复补，空文本不动；

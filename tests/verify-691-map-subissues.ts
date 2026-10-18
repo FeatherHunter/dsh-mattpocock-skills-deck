@@ -9,7 +9,7 @@ import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
  *   二、**已关闭地图不进首屏**：宿主编排 composeSnapshot 组装出来的快照里，已关闭的地图只有容器行、
  *       不带子票；而那些子票**也不许**从「未挂图的票」那条路漏回首屏。开放地图的子票一行不少。
  *
- * 运行：node tests/verify-691-map-subissues.js
+ * 运行：node tests/verify-691-map-subissues.ts
  */
 
 import { listSubIssues } from '../src/tracker/rooms/github/sub-issues.ts'

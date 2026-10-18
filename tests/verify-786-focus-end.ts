@@ -1,5 +1,5 @@
 // verify-786-focus-end.ts — 注入后光标落末尾的插件侧兜底（#786 B 方案）
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-786-focus-end.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-786-focus-end.ts
 //
 // 本文件是 CommonJS：从构建产物里切一段函数体交给 compileFn 真跑，不加静态 import，
 // 所以加类型标注不会把它变成 ESM；读的仍是产物 src/client/kernel/api-io.js（带标注的 .ts 源码 vm 吃不下）。

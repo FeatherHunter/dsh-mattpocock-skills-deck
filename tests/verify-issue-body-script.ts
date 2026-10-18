@@ -22,8 +22,8 @@ const { spawnSync } = require('child_process')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.join(__dirname, '..')
-const SCRIPT = path.join(ROOT, 'scripts', 'fix-issue-body.mjs')
-const SCRIPT_NAME = 'scripts/fix-issue-body.mjs'
+const SCRIPT = path.join(ROOT, 'scripts', 'fix-issue-body.mts')
+const SCRIPT_NAME = 'scripts/fix-issue-body.mts'
 const TRUTH = path.join(ROOT, 'src', 'tracker', 'body-parse.ts')
 
 let failed = false

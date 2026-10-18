@@ -47,7 +47,7 @@
  *   src/host/settingsPhones.js 与 src/host/configStore.js 的真实现，读写落在系统临时目录里的真文件上 ——
  *   只有手机（假 host 的 call）与文件系统（可以按需制造写失败的那一层包装）是替身。
  *   自动展开那三档判决走的是 SubworkspaceMark.js 里那个纯函数 subwsMarkAutoDecide 的真源码，不另写一份仿制品。
- * 本门禁自己先跑一次 node scripts/build.mjs：客户端那几片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
+ * 本门禁自己先跑一次 node scripts/build.mts：客户端那几片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
  *
  * 用法：node tests/verify-settings-view.ts（在插件根目录；本脚本自己会先构建）
  */
@@ -208,8 +208,8 @@ async function main() {
   console.log('')
   console.log('== 第零件事：先跑构建（一源两物，产物是这一片真正的运行时形状） ==')
   {
-    const r = spawnSync(process.execPath, [path.join('scripts', 'build.mjs')], { cwd: ROOT, stdio: 'inherit' })
-    check(r.status === 0, 'node scripts/build.mjs 构建通过。',
+    const r = spawnSync(process.execPath, [path.join('scripts', 'build.mts')], { cwd: ROOT, stdio: 'inherit' })
+    check(r.status === 0, 'node scripts/build.mts 構建通過。',
       '退出码 ' + String(r.status) + '（构建没通过时下面那几条产物断言不可信：可能仓库里有人正在同时构建或正在改文件，请稍后重跑本门禁）')
     for (const rel of ['client.js', 'package/lib/client.js']) {
       const t = fs.existsSync(path.join(ROOT, rel)) ? readText(rel) : ''

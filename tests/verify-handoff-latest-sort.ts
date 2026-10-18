@@ -35,7 +35,7 @@ const { compileFn } = require('./lib/eval-probe.js')
 //   搬进 src/host/handoffClaim.ts（#1247 转写，可用 argv 传别的源文件覆盖，默认就取它）。
 // 门禁归属: src/host/handoffClaim.ts
 //   （2026-10-17 补：以前这里只有 .js 说明符，归属推导认不出它守着哪条源码路径，归属表一直记着
-//    「算不出」。这一行是归属推导的第一类来源，写上之后重跑 scripts/gate-map.mjs 就连对了。）
+//    「算不出」。这一行是归属推导的第一类来源，写上之后重跑 scripts/gate-map.mts 就连对了。）
 //   （2026-10-18 #1247：真源转成 TypeScript，默认路径跟到 .ts；Part B 在进 vm 之前先经 esbuild
 //    剥掉类型标注——行为契约测的是运行时语义，剥离只删类型不断行为，7+3 个场景一个没动。）
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/host/handoffClaim.ts']

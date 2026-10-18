@@ -8,7 +8,7 @@
 // 判定：真跑一次——把客户端形状的请求喂给宿主注册的那条路由，必须能命中并拿到 handler 的真实返回。
 // （原先还有「读源码文本、比对两边路径字面量」的三段，已删除：那种门禁会因为等价重构而变红。）
 //
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-596-rpc-carrier.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-596-rpc-carrier.ts
 import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 interface RegisteredRoute {

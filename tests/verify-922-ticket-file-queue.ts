@@ -1,6 +1,6 @@
 // tests/verify-922-ticket-file-queue.ts —— 门禁：本地票文件的「读—改—写」按文件排队，两路并发改同一张票不丢改动（#922）
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，模块写法保持 ESM，判据与断言一条没动。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-922-ticket-file-queue.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-922-ticket-file-queue.ts。
 //
 // 守的是什么：本地 Markdown 后端改一份票文件的做法是「读整份内容 → 在内存里改 → 整份覆盖写回」，
 // 中间那一次读会让出事件循环。两路并发改同一张票时，如果不排队，两边会一起读到同一份旧内容、

@@ -1,5 +1,5 @@
 // tests/verify-497-slash.js —— #497 本机可见打开门禁：意图归调用方，系统分支归平台抽象层。
-// 用法：node tests/verify-497-slash.js（在插件根目录）。
+// 用法：node tests/verify-497-slash.ts（在插件根目录）。
 // 背景：宿主调起层常驻隐藏，直接拉资源管理器不可见；win32 须经 cmd start 显式可视（真机验证 /max 可见），
 // darwin 沿用 open、linux 沿用 xdg-open。五方职责：pickerShell 只表达意图（开目录/开文件），
 // “用哪个程序、拼什么参数”由各 OS 底座的可见打开配方拥有，通用层单点调起；调用方不出现按系统分发的分支。

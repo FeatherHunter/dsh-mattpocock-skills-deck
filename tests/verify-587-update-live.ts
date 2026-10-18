@@ -11,7 +11,7 @@
 //      深浅跟随系统，档案头与印章与待重启横幅走档案卷样式）。
 //      文案取包的单语渲染（中文界面纯中文），关闭与轮询收尾按包的约定来。
 //
-// 用法：node --import ./scripts/ts-hook.mjs tests/verify-587-update-live.ts（在仓库根目录；先跑 node scripts/build.mjs）
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-587-update-live.ts（在仓库根目录；先跑 node scripts/build.mts）
 const fs = require('fs')
 const os = require('os')
 const path = require('path')

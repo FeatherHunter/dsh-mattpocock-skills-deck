@@ -21,7 +21,7 @@
  * 指定文件名读取时抛错（相当于权限不足 / 读到时已被删 / 被锁住），指定目录名列目录时抛错
  * （相当于那个目录列不出来）。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-1058-markdown-read-log.ts
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-1058-markdown-read-log.ts
  */
 
 import * as fs from 'node:fs'

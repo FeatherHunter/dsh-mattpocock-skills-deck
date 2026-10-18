@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // tests/verify-1003-migration.js —— #1003 二期门禁：老用户迁移先写后退 + 空目录不冒充
-// 用法：node tests/verify-1003-migration.js
+// 用法：node tests/verify-1003-migration.ts
 // 钉四条（契约期望行为第5条 + 第9条的 workspaceCwd 落点）：
 //   M1 文件缺席 + 记忆有 → 选择后文件被建出来（来源记人选，记忆那条本来就是人选的；migrated 等 #1012 切核后再记）
 //   M2 文件已在 → 不覆盖（文件赢，后手改的内容不动；第二次选择不再试第二次写）

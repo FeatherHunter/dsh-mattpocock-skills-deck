@@ -21,8 +21,8 @@
  *   - 登记数据不许被运行时代码 import（G5：能力只能调用即知，不许查表）。所以 src/ 下引用它的地方
  *     只许写 `import type`，扫出一句值引用就红（转译后不留引用，运行时的包里也就不会加载它）。
  *
- * 用法：node --import ./scripts/ts-hook.mjs tests/verify-capability-register.ts
- *       （挂在验证链上跑时钩子由链条自己挂，见 scripts/verify-chain.js）
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-capability-register.ts
+ *       （挂在验证链上跑时钩子由链条自己挂，见 scripts/verify-chain.ts）
  */
 import fs from 'node:fs'
 import path from 'node:path'

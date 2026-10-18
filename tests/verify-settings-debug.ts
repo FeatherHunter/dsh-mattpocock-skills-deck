@@ -3,7 +3,7 @@
  * verify-settings-debug.ts —— 调试开关真源搬进本机设置文件 debug 节的门禁（#1012 第 8 条）。
  * 写法保持 require 风格：验证链经装载钩子载入本文件，require 与 __dirname 照 CommonJS 形态工作
  * （与 tests/verify-1207-splice-ts.ts 同形）；改成 import 形态没有收益，只添风险，所以不改。
- * 用法: node --import ./scripts/ts-hook.mjs tests/verify-settings-debug.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+ * 用法: node --import ./scripts/ts-hook.mts tests/verify-settings-debug.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）
  *
  * 这一份门禁量十九件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是构建与登记：这一片的运行时形状来自拼接，不跑构建就证明不了它进了双产物；它必须排在写这一趟
@@ -49,7 +49,7 @@
  *   让人还能再拨、自愈照跑（复核者短路那行 setDbgPending(false) 同样整档溜过）。
  *
  * 怎么保证量的是真件：运行时那几个名字不是替身，而是构建真正拼进去的那一份
- *   （scripts/generated/logKernel.derived.js，即 npm 包 dsh-log 的客户端产物，scripts/build.mjs 第 500 行）
+ *   （scripts/generated/logKernel.derived.js，即 npm 包 dsh-log 的客户端产物，scripts/build.mts 第 542 行）
  *   加上 src/client/kernel 里 settings-view-state.js / settings-view.js / settings-view-write.js /
  *   settings-debug.js 四片的真源，按构建同一种做法、同一次序拼起来当场造出函数来跑。
  *   宿主那两条设置电话（wf.getSettings / wf.setSettings）用的是 src/host/settingsPhones.js 与
@@ -57,9 +57,9 @@
  *   内存里的 localStorage 与「可以按需制造读/写失败」的那层文件包装是替身。
  *   宿主那两条开关电话（wf.logGetSwitch / wf.logSetSwitch）也是替身，但它们记下每一次调用，
  *   「老路走没走、推给宿主的副本是什么值、失败时回什么错误码」全靠这份记录量。
- * 本门禁自己先跑一次 node scripts/build.mjs：这一片的运行时形状来自拼接，不跑构建就证明不了它真的进了产物。
+ * 本门禁自己先跑一次 node scripts/build.mts：这一片的运行时形状来自拼接，不跑构建就证明不了它真的进了产物。
  *
- * 用法：node tests/verify-settings-debug.js（在插件根目录；本脚本自己会先构建）
+ * 用法：node tests/verify-settings-debug.ts（在插件根目录；本脚本自己会先构建）
  */
 const fs = require('fs')
 const os = require('os')
@@ -168,7 +168,7 @@ function makeLocalStorage(initial) {
     calls: calls,
   }
 }
-// 被测那几片：按 scripts/build.mjs 那一次序拼（log 在最先，设置文档三片，最后是这一片）。
+// 被测那几片：按 scripts/build.mts 那一次序拼（log 在最先，设置文档三片，最后是这一片）。
 const DERIVED_REL = 'scripts/generated/logKernel.derived.js'
 const STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_REL = 'src/client/kernel/settings-view.js'
@@ -194,8 +194,8 @@ async function main(): Promise<void> {
   console.log('')
   console.log('== 第一件事：先跑构建（这一片的运行时形状来自拼接，不构建就证明不了它进了产物） ==')
   {
-    const r = spawnSync(process.execPath, [path.join('scripts', 'build.mjs')], { cwd: ROOT, stdio: 'inherit' })
-    check(r.status === 0, 'node scripts/build.mjs 构建通过。', '退出码 ' + String(r.status))
+    const r = spawnSync(process.execPath, [path.join('scripts', 'build.mts')], { cwd: ROOT, stdio: 'inherit' })
+    check(r.status === 0, 'node scripts/build.mts 构建通过。', '退出码 ' + String(r.status))
     for (const rel of ['client.js', 'package/lib/client.js']) {
       const t = fs.existsSync(path.join(ROOT, rel)) ? readText(rel) : ''
       check(t.indexOf('const settingsDebugSet = function') >= 0 && t.indexOf('const settingsDebugToggle = function') >= 0 && t.indexOf('const settingsDebugAdoptFromDoc = function') >= 0,
@@ -209,8 +209,8 @@ async function main(): Promise<void> {
         rel + ' 里这一片排在运行时那份日志内核之后（logSwitch 等名字来自那一份）。')
       check(t.indexOf('kernel:settingsDebug (spliced') < 0, rel + ' 里没有留下这一片的拼接标记（拼进去了）。')
     }
-    check(readText('scripts/build.mjs').indexOf("name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js'") >= 0,
-      'scripts/build.mjs 的模块清单里登记了 settingsDebug（不登记会静默不编译）。')
+    check(readText('scripts/build.mts').indexOf("name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js'") >= 0,
+      'scripts/build.mts 的模块清单里登记了 settingsDebug（不登记会静默不编译）。')
     // #1125 起本门禁按目录约定自动进链，不再读 package.json 长串。
     check(require('../scripts/lib/discover-gates.ts').isGatePlanned(ROOT, 'tests/verify-settings-debug.ts'),
       'verify 规划名单里登记了这一份门禁（不登记会静默不跑）。')
@@ -808,7 +808,7 @@ async function main(): Promise<void> {
     const bundleCode = readText('package/lib/client.js')
     // 五节齐全的一份真文档（核归一之后就是这个形状）；enabled 是这一张页面文件里的那个值。
     const fullDocOf = (enabled) => ({ version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: { enabled: enabled, sampleRate: 1 }, templates: {} })
-    // 一张干净的页面：真产物 + 真 React + 假宿主。桩的信封与产品一致（scripts/build.mjs:297-307 的 __rpcCall
+    // 一张干净的页面：真产物 + 真 React + 假宿主。桩的信封与产品一致（scripts/build.mts:297-307 的 __rpcCall
     //   会替 host.call 拆一层），所以这里回的是「载体那一层」：getSettings 回 {ok,value:{ok,value:文档}}。
     //   logSetSwitch 按 setReply 走：第一拨（走包里的老路）要它收下，第二拨（走文件这条路）要它拒收。
     const openPage = async (opts) => {

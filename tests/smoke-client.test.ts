@@ -4,7 +4,7 @@
 //   2) inject 含 5 个服务声明
 //   3) apply 后 style[data-plugin] 注入（样式生命周期 seam）
 //   4) STYLE_TEXT 含 .dsws-panel / .dsws-capsule / .dsws-tabs 特征
-// 用法: node --import ./scripts/ts-hook.mjs tests/smoke-client.test.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/smoke-client.test.ts
 import { JSDOM } from 'jsdom'
 import { readFileSync } from 'node:fs'
 import { evalInWindow } from './lib/eval-probe.js'

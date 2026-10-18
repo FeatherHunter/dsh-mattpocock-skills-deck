@@ -6,7 +6,7 @@
  *   而仓库既有的渲染门禁走的是 renderToStaticMarkup —— effect 根本不执行（这也是原来那段自动续读
  *   一直没有门禁覆盖的原因）。jsdom 既没有布局也没有 IntersectionObserver，量不出这件事。
  *
- * 做法（照 .tmp-842-visual/shot.mjs 那套预览手法，改成常驻门禁）：把界面侧那些叶子按 scripts/build.mjs
+ * 做法（照 .tmp-842-visual/shot.mjs 那套预览手法，改成常驻门禁）：把界面侧那些叶子按 scripts/build.mts
  *   同一顺序拼成闭包，用真 React + 真 Chromium 渲染，外面套一个高度固定的滚动容器（模拟面板那一层），
  *   假 host 只负责把状态回包递进来（不连真 git）。
  *

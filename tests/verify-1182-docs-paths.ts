@@ -13,7 +13,7 @@
  *   四、**路径可落地**：两份文档里反引号包起来的 `src/...` 路径（带 `*` 或 `<id>` 这类占位的不算）
  *       都必须在盘上真的存在 —— 守的是「文档又被人搬家甩下」。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-1182-docs-paths.ts
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-1182-docs-paths.ts
  */
 
 import * as fs from 'node:fs'

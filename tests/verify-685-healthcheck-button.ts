@@ -1,7 +1,7 @@
 // verify-685-healthcheck-button.js —— #685 验收门禁：KPI 那一行右边缘那颗「体检」按钮
 //
 // 跑的是真源码（不是重新实现一遍）：把 src/client/kernel/ 下的真函数拼成真模块跑（与
-// scripts/build.mjs 同一条拼接思路）。
+// scripts/build.mts 同一条拼接思路）。
 // 断言分五组：
 //   一、游离票件数派生：三条结构事实（未关闭 + 不是地图 + 不在任何地图的子票里）逐条判，
 //       算不出来时回 null 而不是 0（#681 定版：绝不显示 0）；
@@ -11,7 +11,7 @@
 //       （healthCheck.inject，字段只两个短枚举）；
 //   五、提示词真的通到底：用真注册表与真的按后端渲染函数跑一遍，当前后端那份科目文本被填进去、
 //       没有空占位符漏进会话。
-// 用法: node tests/verify-685-healthcheck-button.js
+// 用法: node tests/verify-685-healthcheck-button.ts
 const fs = require('fs')
 const path = require('path')
 
@@ -34,7 +34,7 @@ for (const [k, v] of Object.entries(centralTime)) {
   if (typeof v === 'number' && globalThis[k] === undefined) globalThis[k] = v
 }
 
-// 与 scripts/build.mjs 同一条拼接思路：可拼接的 JavaScript 文本按顺序拼在一起，
+// 与 scripts/build.mts 同一条拼接思路：可拼接的 JavaScript 文本按顺序拼在一起，
 // 只在最后把要用的那几个名字导出来。这样跑的是真实现，不是另写一份。
 function spliceToFile(files: string[], exportsList: string[], tmpName: string): string {
   let out = ''

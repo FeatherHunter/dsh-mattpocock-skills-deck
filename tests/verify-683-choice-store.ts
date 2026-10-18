@@ -18,15 +18,15 @@
  * tests/verify-log-fields.ts 同一个提交改完才不许红 —— 所以它们随「接上判定链」那一步一起落地，
  * 那一步的主门禁里量（见 #683 的落地清单）。
  *
- * 用法：node tests/verify-683-choice-store.js
+ * 用法：node tests/verify-683-choice-store.ts
  */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import * as realFs from 'node:fs/promises'
-import { TRANSPILE_OPTIONS } from '../scripts/lib/transpile-unit.mjs'
-import { loadEsbuild } from '../scripts/lib/transpile-domains.mjs'
+import { TRANSPILE_OPTIONS } from '../scripts/lib/transpile-unit.mts'
+import { loadEsbuild } from '../scripts/lib/transpile-domains.mts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const MODULE_REL = 'src/host/choiceStore.ts'

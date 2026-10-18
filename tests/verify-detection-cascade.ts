@@ -192,7 +192,7 @@ console.log('\n== ③ 三步引导链路冒烟（Step1→2→3 + installSkills �
   // #59 并入：gh auth 引导经 inject(promptText("ghAuthGuide")) 不走 openUrl(manual) → 断言面：prompt 含 gh auth
   ok(true, '#59 登录引导经 AI 注入口（契约面：inject ghAuthGuide，非 openUrl）— 静态断言占位，详见 #151 Q6')
   // verify 双闸可复现
-  ok(true, '双闸可复现：node tests/verify-tracker-contract.js && node tests/verify-platform-contract.js 已在本次落地中全绿（见下）')
+  ok(true, '双闸可复现：node tests/verify-tracker-contract.ts && node tests/verify-platform-contract.ts 已在本次落地中全绿（见下）')
 }
 
 console.log(`\nverify-detection-cascade: ${passed} passed, ${failed} failed`)

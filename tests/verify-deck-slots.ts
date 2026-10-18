@@ -18,7 +18,7 @@
  * - 取消/遮罩/ESC 丢弃整向导不落盘，最后一步前均为下一步，最后一步为提交
  * - directory/file 在向导每步呈现为 输入框+浏览按钮占位，手输可用且焦点聚集生效（本票不依赖宿主 picker 是否可用）
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-deck-slots.ts
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-deck-slots.ts
  */
 
 import { readFileSync, existsSync } from 'node:fs'

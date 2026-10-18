@@ -7,7 +7,7 @@
 //   C) 批量补边单项全数组写法不变：一次写，两条全在（回归旧行为）。
 //   D) 跨次调用仍是整批替换：先写 [A,B] 再写 [A] → 终态只剩 A（守住 #895-⑥）。
 //   E) 整图建骨架双边成环仍拒第二条（守住 #895-⑥）。
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-898-block-merge.ts。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-898-block-merge.ts。
 const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，

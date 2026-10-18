@@ -3,7 +3,7 @@
 // 只读真源、不改产品代码。断言分两组：
 //   一、三个后端真实科目互不串味（读各自 index.ts 真文本，用真渲染函数跑，中英各一次）；
 //   二、三态不显示（无后端 / 未初始化 / 无科目，外加空值不崩）。
-// 用法: node tests/verify-686-accept.js
+// 用法: node tests/verify-686-accept.ts
 const fs = require('fs')
 const path = require('path')
 
@@ -24,7 +24,7 @@ for (const [k, v] of Object.entries(centralTime)) {
   if (typeof v === 'number' && globalThis[k] === undefined) globalThis[k] = v
 }
 
-// 与 scripts/build.mjs 同一条拼接思路：可拼接的 JavaScript 文本拼成真模块再跑。
+// 与 scripts/build.mts 同一条拼接思路：可拼接的 JavaScript 文本拼成真模块再跑。
 function spliceToFile (files: string[], exportsList: string[], tmpName: string): string {
   let out = ''
   for (const rel of files) out += spliceableJs(rel) + '\n'

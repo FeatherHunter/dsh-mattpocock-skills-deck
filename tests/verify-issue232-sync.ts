@@ -3,8 +3,8 @@
 //   A) 契约层纯函数单元（src/shared/tracker/sync.js 直接 import）
 //   C) 宿主分发端到端（stub gh 索引差值：建档不判脏 → gap 内静默 → 差值命中回执 dirtyCwds）
 //   #232 追加：视线门控（R1–R4）节拍单源断言 + 脏信号回执持久性端到端
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-issue232-sync.ts（必须挂 ts-hook；C 段今天整段 SKIP ——
-//   wf.issuePathPoll 分发通道已随 #345 退役，不必再先跑 node scripts/build.mjs 生成 package/lib）
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-issue232-sync.ts（必须挂 ts-hook；C 段今天整段 SKIP ——
+//   wf.issuePathPoll 分发通道已随 #345 退役，不必再先跑 node scripts/build.mts 生成 package/lib）
 
 const fs = require('fs')
 const path = require('path')
@@ -95,7 +95,7 @@ async function main() {
   if (pollAt === -1) {
     console.log('  SKIP  C 段（#345 彻底移除后 issuePathPoll 分发通道不复存在，端到端断言随之退役；变更检测回归 wf.probe 原生 since 语义）')
   } else if (!fs.existsSync(pkgIndex)) {
-    console.log('  SKIP  C 段（先运行 node scripts/build.mjs 生成 package/lib）')
+    console.log('  SKIP  C 段（先运行 node scripts/build.mts 生成 package/lib）')
   } else {
     const TCWD = 'D:/0fake-ws/sync-demo'
     let ghApiText = [

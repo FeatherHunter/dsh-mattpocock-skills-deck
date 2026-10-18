@@ -10,7 +10,7 @@
  *   ③ 文件里没有这一项时退回本机记忆（老工作区的过渡来源，不是真源）；
  *   ④ 空目录如实失败、不拿进程目录冒充；⑤ 拿不到文件通道时不谎报成功。
  *
- * 用法：node tests/verify-1003-layout-in-file.js
+ * 用法：node tests/verify-1003-layout-in-file.ts
  */
 import fs from 'node:fs'
 import os from 'node:os'

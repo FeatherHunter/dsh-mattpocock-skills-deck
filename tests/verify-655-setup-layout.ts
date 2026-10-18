@@ -11,7 +11,7 @@
 //      的用例（断言缺仓长文真的注入了）整段删掉，「仓库没就绪 → 一个字都不注入」那条用例补上来。
 //   2. 仓库没就绪时连那张布局小卡也不开：卡只有在那条黄条下面才有位置，而仓库没就绪时按顺序还轮不到黄条，
 //      先弹卡会让用户选完布局才发现什么都没注入（#655 收尾时修过的同一类毛病）。
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-655-setup-layout.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-655-setup-layout.ts
 const fs = require('fs')
 const path = require('path')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。

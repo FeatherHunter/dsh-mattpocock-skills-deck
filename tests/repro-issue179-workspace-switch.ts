@@ -1,6 +1,6 @@
 // repro-issue179-workspace-switch.ts — 复现 #179 切工作区后右侧仓库名残留 D:\2Study\...
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法行与几处类型标注，判据与断言一条没动。
-// 用法: node --import ./scripts/ts-hook.mjs tests/repro-issue179-workspace-switch.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/repro-issue179-workspace-switch.ts
 const fs = require('fs')
 
 console.log('=== 复现 #179：切工作区后右侧面板仓库名残留 DSH 本体路径 ===')

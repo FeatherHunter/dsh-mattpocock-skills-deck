@@ -82,7 +82,7 @@
  *      改回按文本求值，等于又把真源措辞请回来当依赖。
  *
  * 用法：node tests/verify-workspace-file-note.ts
- *   本门禁已按目录约定自动进 verify 链（#1125；跑法见 scripts/verify-chain.js），
+ *   本门禁已按目录约定自动进 verify 链（#1125；跑法见 scripts/verify-chain.ts），
  *   也可以单跑：node tests/verify-workspace-file-note.ts。
  */
 import path from 'node:path'
