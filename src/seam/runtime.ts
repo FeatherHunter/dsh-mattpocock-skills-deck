@@ -13,12 +13,12 @@ export function devClient(plugin: unknown): unknown {
   return plugin
 }
 
-export interface PkgClientSpecInput {
+interface PkgClientSpecInput {
   id: string
   inject?: string[]
 }
 
-export interface PkgClientSpec {
+interface PkgClientSpec {
   id: string
   factoryBody: string[]
 }

@@ -13,7 +13,7 @@ export * as timer from './timer.js'
 export * as editor from './editor.js'
 export * as gate from './gate.js'
 
-export interface SeamBinding {
+interface SeamBinding {
   b: string
   name: string
   mod: string

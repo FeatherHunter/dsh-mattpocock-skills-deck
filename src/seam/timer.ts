@@ -13,11 +13,11 @@
 // 返回值照实标成未知 —— 原文直接把它的返回值交出去，从不断言具体形状。
 declare function setTimeout(fn: (...args: unknown[]) => void, ms: number): unknown
 
-export interface PkgCtx {
+interface PkgCtx {
   get?(name: string): unknown
 }
 
-export interface TimerService {
+interface TimerService {
   timeout(fn: (...args: unknown[]) => void, ms: number): unknown
 }
 

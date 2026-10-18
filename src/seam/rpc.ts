@@ -23,18 +23,18 @@
 export const CARRIER_CHANNEL = '/api'
 export const CARRIER_ENDPOINT = 'dsws'
 
-export interface PkgCtx {
+interface PkgCtx {
   get?(name: string): unknown
 }
 
-export interface RpcConnection {
+interface RpcConnection {
   rpc: {
     call(channel: string, endpoint: string, body: { method: string; payload: unknown }): Promise<RpcResult>
   }
 }
 
 /** RpcResult 信封：ok 时 value 即 handler 原始返回值；不 ok 时看 error。 */
-export interface RpcResult {
+interface RpcResult {
   ok?: unknown
   value?: unknown
   error?: { message?: unknown } | null
@@ -54,9 +54,10 @@ export function createPkgHost(getCtx: () => PkgCtx): {
     if (conn === undefined || conn.rpc === undefined) throw new Error('connection 服务不可用')
     const res = await conn.rpc.call(CARRIER_CHANNEL, CARRIER_ENDPOINT, { method: endpoint, payload: args })
     if (res && res.ok) return res.value
-    // 原文把 error.message 原样喂给 Error（非字符串会被 Error 自己转成字符串）；
-    // 这里显式 String() 一次，转义结果与原文逐字相同，只是把类型收成 string。
-    throw new Error(String((res && res.error && res.error.message) || ('RPC 失败：' + endpoint)))
+    // error.message 在运行时原样喂给 Error（原文如此：非字符串由 Error 自己转，Symbol 会抛）；
+    // 这里只做类型断言、运行时表达式与原文一致 —— 对抗审查结论：加 String() 反而在 Symbol
+    // 处改了语义（String(sym) 成功、new Error(sym) 抛），所以断言是唯一零差别的写法。
+    throw new Error(((res && res.error && res.error.message) || ('RPC 失败：' + endpoint)) as string)
   }
   return {
     call: (method, args) => rpcCall(method.replace(/^wf\./, ''), args),

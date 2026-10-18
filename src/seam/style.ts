@@ -9,9 +9,8 @@
  */
 
 // 本域 tsconfig 有意不加载任何类型包（types 为空），DOM 类型不在 lib 里；
-// 这个工厂只在浏览器里被调用（原文直接读全局 document，没有守卫）。
-// 这里照实声明用到的那一小面 document（与 src/shared/tsconfig.json 那份注释同一规矩），
-// 不加守卫 —— 原文在没有 document 的环境里被调用同样会抛，语义保持一致。
+// 原文直接读全局 document，没有守卫 —— 只能在浏览器里被调用，Node 里调同样会抛。
+// 这里照搬原文的假定（调用方保证浏览器环境），只声明用到的那一面。
 declare const document: {
   createElement(tag: 'style'): {
     setAttribute(name: string, value: string): void
@@ -21,9 +20,9 @@ declare const document: {
   head: {
     appendChild(node: unknown): void
   }
-} | undefined
+}
 
-export interface PkgCtx {
+interface PkgCtx {
   get?(name: string): unknown
   effect?(fn: () => () => void, label: string): void
 }
@@ -38,11 +37,10 @@ export function createPkgStyles(getCtx: () => PkgCtx): {
   return {
     insert(css) {
       const ctx = getCtx()
-      const doc = document as NonNullable<typeof document>
-      const styleEl = doc.createElement('style')
+      const styleEl = document.createElement('style')
       styleEl.setAttribute('data-plugin', 'dsh-mattpocock-skills-deck')
       styleEl.textContent = typeof css === 'string' ? css : Array.isArray(css) ? css.join('') : String(css)
-      doc.head.appendChild(styleEl)
+      document.head.appendChild(styleEl)
       if (ctx && typeof ctx.effect === 'function') {
         ctx.effect(() => () => {
           try { if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl) } catch (e) { /* 忽略清理期错误 */ }

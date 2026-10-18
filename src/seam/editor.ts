@@ -5,7 +5,7 @@
  * 保留文件与导出形状以维持 seam 结构完整。
  */
 
-export function extractIssueRefs(_text: unknown): never[] {
+export function extractIssueRefs(_text: unknown): unknown[] {
   return []
 }
 
