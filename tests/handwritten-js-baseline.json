@@ -210,7 +210,6 @@
     "src/seam/gate.js",
     "src/seam/index.js",
     "src/seam/rpc.js",
-    "src/seam/runtime.js",
     "src/seam/style.js",
     "src/seam/timer.js",
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",

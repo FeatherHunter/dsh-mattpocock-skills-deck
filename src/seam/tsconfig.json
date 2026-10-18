@@ -1,0 +1,28 @@
+{
+  // src/seam 拼接缝的类型检查配置（#1249 立）。
+  //
+  // 为什么单立一份：这 7 份（index + B1 runtime / B2 style / B3 rpc / B4 timer / B5 editor + G gate）
+  // 不住任何域目录里，没有域配置圈它们；类型检查的缺口断言只认「至少一份配置看到」，
+  // 没有这份配置，它们转成 .ts 当天就会被报成缺口。
+  //
+  // 为什么 include 只写 "*.ts"：src/seam 下面没有子目录，7 份全在根上；
+  // 其它目录的源码各有归属，这里不圈。新增文件时确认仍在根上即可。
+  "compilerOptions": {
+    // G gate 用静态 import 引用 node:vm 存量写法照搬（choiceStore.ts 同款 @ts-expect-error），
+    // 这里不开 allowJs：seam 7 份一次转完，不存在 .ts 查 .js 同伴的过渡期。
+    // B2 style 用的 document 与 B4 timer 用的 setTimeout 在 types:[] 下没有声明，
+    // 按既有规矩（见 src/shared/tsconfig.json 那份注释）在用到的那份文件里照实声明成本地形态。
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // 只做类型检查不产出：构建不读 src/seam（pkg 那边的 shim 写死在构建脚本里），
+    // 测试经装载钩子直读 .ts 源码，所以这里不管产物，也没有同目录产物。
+    "noEmit": true,
+    "strict": true,
+    // 不挂任何类型包（与其它配置一致）。
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["*.ts"]
+}
