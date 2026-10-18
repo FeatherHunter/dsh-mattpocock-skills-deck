@@ -82,6 +82,8 @@ export const mapBlockOf = function (snapshot: any): any {
 //   阻塞判定只算一遍，趟数从六降到二。
 // 不能改的约定：五个数组的元素顺序仍与 m.tickets 一致（面板按这个顺序画）；
 //   判定表达式与短路条件原样保留——t.claimedBy 为真时根本不碰 blockedBy，blockedBy 是 undefined 时照旧当场抛错（不兜底、不吞）。
+// 这一笔优化成立的前提：state 与 blockedBy 是纯数据（普通属性，读几次结果都一样）。哪天它们变成带副作用的取值器
+//   （getter 或 Proxy），「每张票只读一次状态」就不再等价于原来读三次，届时要么改回多趟，要么把票据在入口处先拍成纯数据。
 export const compute = (st: any): any => {
   const maps: any[] = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
   return maps.map(function (m: any): any {

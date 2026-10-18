@@ -29,16 +29,16 @@
  *
  * 键用工作区根的可读路径（设置文件是写给人看的，人在里面要认得出这是哪个工作区），不用那个折叠散列
  *   （noRepoDismissKey 那种「前缀 + 折叠后算出来的数字」，人看不懂）。可读路径的来源按序取：
- *   ① 本会话（或同目录别的会话）状态上的工作区根：src/client/kernel/store-snapshot.ts 第 29 行的
- *      sessionWorkspaceRoot，由
- *      src/client/kernel/probe-snapshot.ts 第 83–90 行的 rememberSessionWorkspaceRoot 从 wf.cwd 回包里
+ *   ① 本会话（或同目录别的会话）状态上的工作区根：src/client/kernel/store-snapshot.ts 里那条名为
+ *      sessionWorkspaceRoot 的状态字段，由
+ *      src/client/kernel/probe-snapshot.ts 里的 rememberSessionWorkspaceRoot 从 wf.cwd 回包里
  *      收下；它是折算过的键，所以按本会话所选目录的写法还原一遍（与
  *      src/client/views/SubworkspaceMark.js 第 45–67 行同一条规矩：比对用折算键、给人看用原样写法）。
  *      这一手还原在 Windows 上成立（盘符自己占一段）；在 POSIX 上还原不出来 —— 绝对路径开头那个斜杠
  *      按段拼不回来（/home/u/p 切出来是 home/u/p，前面那个斜杠没了），于是写进文件的就是那份折算键。
  *      这是如实写下的边界，不是待修的缺陷：POSIX 上文件里的键是折算键，它仍是一条人认得出的路径，不是散列。
- *   ② 会话状态上没有根时看内核那把工作区键 wsKeyOf（store-snapshot.ts 第 69 行）：它折出了另一条目录，
- *      或那张表里记着「这条键就是某个工作区根」（第 63 行的 root → root 那一份，所选目录本身就是工作区根
+ *   ② 会话状态上没有根时看内核那把工作区键 wsKeyOf（src/client/kernel/store-snapshot.ts 里的那个函数）：它折出了另一条目录，
+ *      或那张表里记着「这条键就是某个工作区根」（表里那条 root → root 的自指，所选目录本身就是工作区根
  *      时折不出区别），都算真认得根；两样都不是，就是谁都没认出来。
  *   ③ 谁都没认出来（或 cwd 为空）时回空串：**读与写共用这一把键、都在这一个口子上判**，两边对「这把键
  *      有没有」答案必然一致，这一刻只读旧表、也只写旧表，绝不猜一把键。从前读这一侧还会退到会话目录
@@ -73,7 +73,8 @@ declare function settingsDebugDocLooksReal(...args: any[]): any;
 declare function viewFlagScheduleWrite(...args: any[]): any;
 declare const process: any;
     // 旧键登记表：本模块管的名字 → 旧 localStorage 键名，以及旧表里那一把键是按哪条路径记的。
-    //   「按哪条路径记」不能省：横幅折叠按会话所选目录记（store-prefs.js 第 191–206 行，键是 keyOf(cwd)），
+    //   「按哪条路径记」不能省：横幅折叠按会话所选目录记（读写走 src/client/kernel/store-prefs.ts 里的
+    //   writeTableEntry / mergeTableFromStorage，键是 keyOf(cwd)），
     //   红文件夹标志按工作区根记（SubworkspaceMark.js 第 138–157 行，键是 subwsMarkCmpKey(root)）。
     //   照原样读，行为才与改动前一致。
     const VIEW_FLAG_LEGACY: any = {
@@ -131,8 +132,8 @@ declare const process: any;
     //   一次子目录会话白弹一次（#1012 后续修复的 M5；父提交 335bbd20 上同一现场是有效的，所以是新引入的）。
     //   三个来源任一成立就算认得根：①同目录任一条会话状态上写着根 —— 不只「先命中」那一条：shared
     //   这条会话没有会话号、永远不问根，而同一目录另一条 store 可能早就知道；②内核那把工作区键
-    //   wsKeyOf（store-snapshot.js 第 69 行）折出了另一条目录，说明表里记着这条键属于某个根；
-    //   ③表里记着「这条键就是某个根」那一份自指（第 63 行的 root → root），此时它折回来还是自己。
+    //   wsKeyOf（src/client/kernel/store-snapshot.ts 里那个函数）折出了另一条目录，说明表里记着这条键属于某个根；
+    //   ③表里记着「这条键就是某个根」那一份自指（表里那条 root → root），此时它折回来还是自己。
     //   三条都不成立就是谁都没认出来：回空串，这一笔只走旧表 —— 绝不猜一把会话目录键，等根认出来
     //   键就变了，文件里会留下一条既读不回来、也永远合并不到的孤儿记录（M3 的口径，仍然照旧守着）。
     const viewFlagKnownRootOf = function (raw: any): any {
@@ -208,7 +209,7 @@ declare const process: any;
       return false
     }
     // 写旧表：只在这一条路接不下这一次改动时才走（写文件失败、文件只读、或认不出工作区根）。
-    //   置上就是那把键记 1，取消就是把它删掉（与 store-prefs.js 第 205–206 行同一种做法）；
+    //   置上就是那把键记 1，取消就是把它删掉（与 src/client/kernel/store-prefs.ts 里 writeTableEntry 同一种做法）；
     //   表里别的键原样保留，所以只动这一次涉及的那一条。
     //   写旧表本身失败时补一行 storage.fail（既有事件名，字段只有 key 与 op 两个，与全库其余位置一致），
     //   不再一口吞掉：兜不住这件事要在日志里看见，不然排查时只剩「用户点了、什么都没发生」。
