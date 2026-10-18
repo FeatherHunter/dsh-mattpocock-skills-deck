@@ -436,6 +436,24 @@
       "note": "#723 接线：wiring.ts 是刷新机制在宿主里的装配点 —— 闸、账本、写事件订阅、视野模型、会话↔票处理链这五件的产物在这里拼起来，所以它必然要引用这五个模块。同层互引门禁管的是「干活的文件互相引用造成环」，装配点是它明许的例外方向（本清单里 index.js、platformChannel.js、tracker/index.js 三处装配扇入都是同一条先例）。把装配搬回 index.js 会顶破那个文件的 350 行上限。"
     },
     {
+      "file": "src/host/refresh/ledger.ts",
+      "spec": "./recordRepoPages.js",
+      "resolved": "src/host/refresh/recordRepoPages.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1255（宿主刷新转 TS：页数实测账单列一本账）",
+      "note": "#1255 拆分：额度账按档位×桶记、页数账按仓库记，键维度与调用方都不同，是两本账。方向 ledger → recordRepoPages（被依赖方），反向不依赖；总览里的页数节由 snapshotPages() 原样供给，行为不变，五个方法的签名与回包形状都不变。"
+    },
+    {
+      "file": "src/host/refresh/patch.ts",
+      "spec": "./fetchThinRows.js",
+      "resolved": "src/host/refresh/fetchThinRows.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1255（行级增量转 TS：取数三件套单列）",
+      "note": "#1255 拆分：取数（发请求、拼行）与合并（水印、待办、世代）是两件事，取数这边不碰合并那边的任何状态。方向 patch → fetchThinRows（被依赖方），依赖（发请求句柄、计数表、工作区标识）由调用方以参数注入，本文件不 import 宿主其它模块，不断环；回包形状不变。"
+    },
+    {
       "file": "src/host/refresh/wiring.ts",
       "spec": "./gate.js",
       "resolved": "src/host/refresh/gate.ts",

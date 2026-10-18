@@ -2,7 +2,8 @@
 //
 // 这个文件干的是「跑腿」的三件事，纯逻辑一件都不在这里（那三件在 refresh-core/src/delta.ts 的产物
 // src/shared/refresh/delta.js 里，本文件每一步都调它）：
-//   ① 只取变的那几条：把窗口探测回来的索引与列表手上那份比一遍，变了的那几条各发一条薄查询；
+//   ① 只取变的那几条：把窗口探测回来的索引与列表手上那份比一遍，变了的那几条各发一条薄查询
+//      （取数三件套 thinArgs/rowOf/fetchRows 在 ./fetchThinRows.js，本文件只负责调它）；
 //   ② 并进现有列表：把那几条换进行里、产出新的版本号，派生值按 delta.derivedAfter 处置；
 //   ③ 持久化待办：被推迟 / 被丢弃 / 失败的取数进待办（水印不前进），切进工作区先清待办、有待办就整池。
 //
@@ -38,6 +39,7 @@
 // ---------------------------------------------------------------------------
 
 import * as delta from '../../shared/refresh/delta.js'
+import { fetchThinRows } from './fetchThinRows.js'
 
 /** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */
 interface DeltaState {
@@ -172,72 +174,8 @@ export function createPatch(deps?: PatchDeps | null): any {
     return { mode: 'rebuild', reason: 'pending-todo', pending: n }
   }
 
-  /**
-   * 一条薄查询：只问这一张票的行数据（一条出站请求）。字段与全量取数那份同形，
-   * 免得并进列表之后同一行有两种形状（界面在两种形状之间摇摆是最难查的一类错）。
-   */
-  function thinArgs(repo: any, number: any): string[] {
-    return ['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + number,
-      '--jq', '{number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}']
-  }
-
-  /** 把一条薄查询的回包转成列表里那一行的形状（与 src/host/issueList.js 的 fetchIssues 同口径）。 */
-  function rowOf(x: any): any {
-    return {
-      number: x.number,
-      title: x.title,
-      state: (String(x.state).toLowerCase() === 'closed' ? 'CLOSED' : 'OPEN'),
-      assignees: (x.assignees || []).map(function (a: any): any { return a.login }),
-      labels: (x.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } }),
-      author: (x.user && x.user.login) ? { login: x.user.login, name: (x.user.name || ''), avatarUrl: (x.user.avatar_url || '') } : undefined,
-      updatedAt: x.updated_at,
-      createdAt: x.created_at,
-    }
-  }
-
-  /**
-   * 取那几条：一条一请求，多条同时发（闸那边不再排队，见 gate.js）。
-   * 回 { ok:true, rows, queries }，或 { ok:false, outcome:'deferred'|'dropped'|'failed', keys }。
-   *
-   * 一条没取到就整批不并 —— 这是本文件最要紧的一条判断：只并进去一半、却把水印推走，
-   * 剩下那几条变化就再也发现不了了（正是定稿第十一章点名的那个静默漏报）。
-   * 并行只管取数，并不并由同一条判断决定：有任何一条没取到，整批都不并、水印不动。
-   */
-  async function fetchRows(cwd: any, repo: any, keys: any): Promise<any> {
-    // 这一次是 REST 那一路（每张票一条 `gh api repos/.../issues/N`），所以桶明确写 rest：
-    // 闸的 BUCKET_OF_KIND 把 kind=patch 归在 graphql（那是「一条带别名的薄查询」那种实现）——
-    // 本实现走的是每票一条 REST，如实报 rest 才不会把「几条请求」记成「几点」（两桶互不折算）。
-    const one = async (k: any): Promise<any> => {
-      let captured: any = null
-      const perform = async function (): Promise<any> {
-        stats.thinQueries += 1
-        captured = await Promise.resolve(d.runGh(thinArgs(repo, k), cwd))
-        return captured && captured.report ? captured.report : { requests: 1, points: 0 }
-      }
-      if (typeof d.send === 'function') {
-        const sent: any = await Promise.resolve(d.send({ source: 'patch.apply', kind: 'patch', bucket: 'rest', workspaceKey: wsKeyOf(cwd) }, perform))
-        if (!sent || sent.sent !== true) return { k: k, bad: { outcome: sent && sent.verdict === 'defer' ? 'deferred' : 'dropped', reason: (sent && sent.reason) || 'deferred' } }
-      } else {
-        await perform()
-      }
-      const r: any = await Promise.resolve(captured)
-      if (!r || r.ok !== true || !r.text) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-failed' } }
-      let parsed: any = null
-      try { parsed = JSON.parse(r.text) } catch (e: any) { parsed = null }
-      if (!parsed || parsed.number === undefined || parsed.number === null) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-parse' } }
-      return { k: k, row: rowOf(parsed) }
-    }
-    const got: any[] = await Promise.all(keys.map(one))
-    const rows: any[] = new Array(keys.length)
-    const failedKeys: any[] = []
-    let firstBad: any = null
-    for (let i = 0; i < got.length; i++) {
-      if (got[i].bad) { failedKeys.push(keys[i]); if (!firstBad) firstBad = got[i].bad }
-      else rows[i] = got[i].row
-    }
-    if (firstBad) return { ok: false, outcome: firstBad.outcome, keys: failedKeys, reason: firstBad.reason }
-    return { ok: true, rows: rows, queries: keys.length }
-  }
+  // 取数三件套（thinArgs/rowOf/fetchThinRows）已搬至 ./fetchThinRows.js（#1255）：只发请求、拼行，
+  // 合并、水印、待办仍在这里。调用点在 run() 第 ⑧ 步。
 
   /**
    * 整池那边回来的结果要走这里：先问世代号还算不算数，再落盘。
@@ -315,9 +253,9 @@ export function createPatch(deps?: PatchDeps | null): any {
     }
     // ⑦ 变的那几条太多：一条一请求地补过去已经不划算，交给整池（整池 13 点 7 条请求，见 budget.js）。
     if (plan.changed.length > maxRows) { stats.rebuildNeeded += 1; fire('rebuild', 'too-many-rows', { keyHash: keyHash, changed: plan.changed.length, pending: st.pending.length }); return { mode: 'rebuild', reason: 'too-many-rows', changed: plan.changed.length } }
-    // ⑧ 取那几条薄的。
+    // ⑧ 取那几条薄的（取数三件套在 ./fetchThinRows.js，依赖由这里注入）。
     const startedGeneration = st.generation
-    const got: any = await fetchRows(cwd, repo, plan.changed)
+    const got: any = await fetchThinRows({ host: d, stats: stats, wsKeyOf: wsKeyOf }, cwd, repo, plan.changed)
     if (!got.ok) {
       const pending = await rememberPending(cwd, snap, got.keys || plan.changed, got.reason)
       if (got.outcome === 'deferred') stats.deferred += 1; else stats.failed += 1

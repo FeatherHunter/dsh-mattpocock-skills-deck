@@ -20,9 +20,13 @@
 //
 // 这个文件不联网、不起定时器：同步服务端剩余读数的节拍由调用方按 budget.js 的 QUOTA_SYNC_INTERVAL_MS
 // 问 `syncDue()`，真去打那次不扣配额的 `gh api rate_limit` 的是闸那一路（它也走闸、也记账）。
-import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor, MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../shared/refresh/budget.js'
+import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../shared/refresh/budget.js'
 import { QUOTA_SYNC_INTERVAL_MS } from '../../shared/time-config/values.js'
-import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../shared/refresh/page-budget.js'
+import { createPageBook } from './recordRepoPages.js'
+
+// 页数实测账的类型与取值仍从本文件出（调用方原来怎么写还怎么写）：实现已搬至 ./recordRepoPages.js。
+export type { ObservedPages, RepoPageRecord } from './recordRepoPages.js'
+export { PAGE_PRICES, PAGE_UPPER_BOUND } from './recordRepoPages.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）：下面这些是账本自己的形状。
@@ -74,18 +78,6 @@ interface AccountState {
   graphql: Counters
 }
 
-/** 单个仓库的重建页数实测。 */
-interface RepoPageRecord {
-  issuePages: number
-  maxIssuePages: number
-  prPages: number
-  rebuilds: number
-  at: number
-}
-
-/** 记实测页数时的观测值：三个字段都可缺（缺了按 0 算、at 缺了取当下时刻），所以按 unknown 收。 */
-interface ObservedPages { issuePages?: unknown; prPages?: unknown; at?: unknown }
-
 /** 记一笔花费的入参：档位与桶必给（给错当场抛，见 accountOf / bucketOf），条数与点数缺了算 0。 */
 interface SpendEntry { account: string; bucket: string; kind?: string; requests?: unknown; points?: unknown }
 
@@ -115,23 +107,6 @@ export const LEDGER_BUCKETS: readonly LedgerBucketName[] = ['rest', 'graphql']
 
 /** 同步服务端剩余读数的节拍（毫秒），值来自 budget.js —— 这里不另写一个数字。 */
 export const SYNC_INTERVAL_MS = QUOTA_SYNC_INTERVAL_MS
-
-/**
- * 重建那几页的单价，全部来自 budget.js（本文件不写任何一个额度或单价数字）。
- * 交给 shared/refresh/page-budget.js 的纯函数算账，理由同文件头：单一物理真源在 budget.ts。
- */
-export const PAGE_PRICES = Object.freeze({
-  listPagePoints: PAGE_COST_POINTS,
-  listPageRequests: LIST_PAGE_COST_REQUESTS,
-  prPagePoints: PR_PAGE_COST_POINTS,
-  prPageRequests: PR_PAGE_COST_REQUESTS,
-  countPoints: COUNT_COST_POINTS,
-  countRequests: COUNT_COST_REQUESTS,
-  prPageCount: REBUILD_PR_PAGE_COUNT,
-})
-
-/** 最坏用量那条线用的页数上界（budget.MAX_PAGES）。 */
-export const PAGE_UPPER_BOUND = MAX_PAGES
 
 /** 收未知输入、归一成数：非数字与 NaN 都算 0（账上不记「没报数」这种状态）。 */
 function num(v: unknown): number {
@@ -210,66 +185,9 @@ export function createLedger(deps?: LedgerDeps) {
     return Math.min(share, serverSide)
   }
 
-  /**
-   * 每个仓库的重建页数实测（定稿第十四章：「账本记每个仓库的实测页数，最坏用量按页数上界算」）。
-   * 键由调用方给（工作区根或仓库标识，跟闸的记账口径一致）；每个仓库记三样：
-   * 最近一次翻了几页、历史上最多见过几页、累计重建过几次。
-   * 为什么要记「最多见过几页」而不只记最近一次：最坏上界要的是一个不会被突破的数，
-   * 只记最近一次的话，某次翻到 12 页、下一次回到 3 页，最坏上界就又变回 10 页了——
-   * 那等于把已经发生过的事忘掉。算式在 shared/refresh/page-budget.js 里，只此一处。
-   */
-  const pagesByRepo: Record<string, RepoPageRecord> = {}
-
-  /** 记下这一次整池重建在一个仓库里实际翻了几页。observed: { issuePages, prPages?, at? }。 */
-  function notePages(repoKey: string, observed?: ObservedPages) {
-    const k = String(repoKey || '')
-    if (!k) throw new Error('记实测页数要带仓库标识：页数是按仓库分别记的，没有标识就分不出是谁的')
-    const o = observed || {}
-    const issuePages = Math.max(1, Math.floor(num(o.issuePages)))
-    const prPages = Math.max(0, Math.floor(num(o.prPages)))
-    const t = (typeof o.at === 'number') ? o.at : now()
-    const prev = pagesByRepo[k]
-    const next = {
-      issuePages: issuePages,
-      maxIssuePages: prev ? Math.max(prev.maxIssuePages, issuePages) : issuePages,
-      prPages: prPages,
-      rebuilds: (prev ? prev.rebuilds : 0) + 1,
-      at: t,
-    }
-    pagesByRepo[k] = next
-    return Object.assign({ repoKey: k }, next)
-  }
-
-  /** 这个仓库的页数实测；没记过时给 null（调用方按 1 页估，不编一个典型值出来）。 */
-  function pagesFor(repoKey: string) {
-    const k = String(repoKey || '')
-    const p = pagesByRepo[k]
-    return p ? Object.assign({ repoKey: k }, p) : null
-  }
-
-  /**
-   * 这个仓库下一次重建该按几页估：按它自己的实测页数（没记过时 1 页）。
-   * 这是「估」，与最坏上界是两件事——小仓库不必替大仓库付那份钱。
-   */
-  function estimateRebuild(repoKey: string) {
-    const p = pagesFor(repoKey)
-    return rebuildCost(p ? p.issuePages : 1, PAGE_PRICES)
-  }
-
-  /**
-   * 这个仓库最坏一次重建要花多少：实测页数与页数上界（MAX_PAGES）取大的那个。
-   * 门禁核对最坏用量走的是同一个算式（shared/refresh/page-budget.js），两处不会各算一份。
-   */
-  function worstRebuild(repoKey: string) {
-    const p = pagesFor(repoKey)
-    return worstCaseRebuildCost(p ? p.maxIssuePages : 0, PAGE_UPPER_BOUND, PAGE_PRICES)
-  }
-
-  /** 页数报告：实测多少、上界多少、这次按哪个算、实测有没有突破上界。 */
-  function pageReport(repoKey: string) {
-    const p = pagesFor(repoKey)
-    return pageCountReport(p ? p.maxIssuePages : 0, PAGE_UPPER_BOUND)
-  }
+  // 页数实测账已搬至 ./recordRepoPages.js（#1255）：键的维度不一样（按仓库，不按档位 × 桶），
+  // 调用方也不同（只在估算与总览里读）。这里只持有实例，方向是 ledger → recordRepoPages，反向不依赖。
+  const pageBook = createPageBook({ now: now })
 
   /** 闸要的那份账：额度、已用、剩余（保守下界）、写保底、档位。桶名给错直接抛，不静默返回一份假的。 */
   function view(bucketName: string) {
@@ -394,9 +312,8 @@ export function createLedger(deps?: LedgerDeps) {
       byAccount[name] = { hour: hourOf(name) }
       for (const b of LEDGER_BUCKETS) byAccount[name][b] = { requests: accounts[name][b].requests, points: accounts[name][b].points }
     }
-    // 页数实测也进总览：界面与对账要看「这个仓库上一次翻了几页、最坏按几页算」时有现成的数。
-    const pages: Record<string, unknown> = {}
-    for (const k of Object.keys(pagesByRepo)) pages[k] = Object.assign({}, pagesByRepo[k], { worst: worstRebuild(k), report: pageReport(k) })
+    // 页数实测也进总览：拼法在 recordRepoPages.ts 的 snapshotPages() 里，与拆分前一字相同。
+    const pages = pageBook.snapshotPages()
     return { buckets: views, byAccount: byAccount, free: { requests: free.requests, points: free.points }, total: { requests: total.requests, points: total.points }, pages: pages, hourKey: hourKey }
   }
 
@@ -409,10 +326,10 @@ export function createLedger(deps?: LedgerDeps) {
     hour: hour,
     hourOf: hourOf,
     snapshot: snapshot,
-    notePages: notePages,
-    pagesFor: pagesFor,
-    estimateRebuild: estimateRebuild,
-    worstRebuild: worstRebuild,
-    pageReport: pageReport,
+    notePages: pageBook.notePages,
+    pagesFor: pageBook.pagesFor,
+    estimateRebuild: pageBook.estimateRebuild,
+    worstRebuild: pageBook.worstRebuild,
+    pageReport: pageBook.pageReport,
   }
 }
