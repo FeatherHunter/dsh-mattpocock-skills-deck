@@ -194,6 +194,7 @@ export const startText = (st: any, t: any): string => {
 // 契约 #205 会话标题与占位判定已迁至命名守护共享核心（#265 · 单一真源；构建时经 splice 拼入本闭包）。
 // 本文件不再声明任何命名真源，均以上述共享核心为准。
 // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导
-export const newWayfinderText = (st: any): string => newWayfinderPrompt(st) + (promptLang() === 'en' ? '\nRequirement: ' : '\n需求描述：');
+// 注意那个空行：提示词与需求描述之间隔着两个换行（'\n\n'），转写时曾漏成一个、对抗审查抓回来了，别顺手「整理」掉。
+export const newWayfinderText = (st: any): string => newWayfinderPrompt(st) + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：');
 // issue #4：新增 BUG 单 —— 与「+ 新建需求」同构（新会话 + 预填 /wayfinder prompt）
 export const newBugWayfinderText = (st: any): string => promptText('newBugWayfinder', { repo: repoUrlFor(st) }) + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY());

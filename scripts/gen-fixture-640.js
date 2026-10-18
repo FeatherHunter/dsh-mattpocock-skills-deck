@@ -111,7 +111,23 @@ if (!/^3px 0 0$/.test(geomPad)) {
 function pullCapsuleRule(needle) {
   const line = stylesSrc.split('\n').find((l) => l.includes(needle));
   if (!line) throw new Error('styles.js 里找不到规则: ' + needle);
-  return line.slice(line.indexOf("'.") + 1, line.lastIndexOf("'"));
+  // #1251：styles 真源已从手写 .js 转成 .ts，本脚本读到的是构建产物（esbuild 转译），字符串写成双引号。
+  //   旧写法按单引号切（indexOf("'.") / lastIndexOf("'")），切不到时 indexOf 返回 -1，
+  //   slice(0, -1) 会退化成「整行去掉最后一个字符」，于是产出的规则前面带一个引号、成了非法 CSS，
+  //   浏览器直接把这条规则丢掉——而门禁只比对自己的产物，看不出来。这里改成「认引号」：
+  //   从命中位置往前找最近的引号当开引号，再找同种引号当闭引号，并加两条哨兵拦住退化。
+  const at = line.indexOf(needle);
+  const openIdx = Math.max(line.lastIndexOf('"', at), line.lastIndexOf("'", at));
+  if (openIdx < 0) throw new Error('styles.js 里 ' + needle + ' 不在引号字符串里：' + line.slice(0, 120));
+  const quote = line[openIdx];
+  const closeIdx = line.indexOf(quote, at);
+  if (closeIdx < 0) throw new Error('styles.js 里 ' + needle + ' 的引号没有闭合：' + line.slice(0, 120));
+  const rule = line.slice(openIdx + 1, closeIdx);
+  // 哨兵一：取出来的必须是一条像样的选择器，证明确实是从字符串里取的、不是退化成整行
+  if (!rule.startsWith('.')) throw new Error('取出的胶囊规则不像 CSS 选择器：' + rule.slice(0, 120));
+  // 哨兵二：规则正文里不该再出现引号，出现说明切错了边界
+  if (/["']/.test(rule)) throw new Error('取出的胶囊规则里还夹着引号：' + rule.slice(0, 120));
+  return rule;
 }
 const capsuleRules = [pullCapsuleRule('.dsws-capsule{width:100%'), pullCapsuleRule('.dsws-capsule{max-width:var(--dsh-composer-card-max-width')];
 
