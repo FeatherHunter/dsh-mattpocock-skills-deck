@@ -778,17 +778,17 @@ function wireModules(body) {
   for (const m of KERNEL_MODULES) {
     const marker = `// ==== kernel:${m.name} (spliced by build) ====`
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 KERNEL_MODULES 注册`)
-    out = out.replace(marker, spliceText(m.file))
+    out = out.replace(marker, () => spliceText(m.file))
   }
   for (const m of LEAF_MODULES) {
     const marker = `// ==== leaf:${m.id} (spliced by build) ====`
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 LEAF_MODULES 注册`)
-    out = out.replace(marker, spliceText(m.file))
+    out = out.replace(marker, () => spliceText(m.file))
   }
   for (const m of SHARED_SPLICE) {
     const marker = m.marker
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 SHARED_SPLICE 注册`)
-    out = out.replace(marker, spliceText(m.file))
+    out = out.replace(marker, () => spliceText(m.file))
   }
   // 反向检查：src 下有叶子文件却未在 LEAF_MODULES 登记（比“忘贴纸条”更隐蔽）
   try {
