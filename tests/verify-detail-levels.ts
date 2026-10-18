@@ -80,7 +80,7 @@ function loadPlugin(services) {
     return routeFetch
   }
 
-  // 一次真调用：照 src/seam/rpc.js 的信封形状发 POST，取 result.value；失败信封原样报出来。
+  // 一次真调用：照 src/seam/rpc.ts 的信封形状发 POST，取 result.value；失败信封原样报出来。
   async function callEndpoint(endpoint, payload) {
     const route = await waitRoute()
     const req = new Request('http://dsh.internal' + HOST_ROUTE, {

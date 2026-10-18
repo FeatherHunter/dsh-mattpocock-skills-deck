@@ -186,7 +186,7 @@
     {
       "file": "src/seam/index.js",
       "spec": "./gate.js",
-      "resolved": "src/seam/gate.js",
+      "resolved": "src/seam/gate.ts",
       "layer": "seam",
       "count": 1,
       "owner": "二批·seam拆分票（待开，聚合出口）",

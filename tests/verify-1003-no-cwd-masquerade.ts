@@ -102,7 +102,7 @@ console.log('== ② 真宿主入口：空目录调一次后端探测，看它有
   check(routes.length > 0, '真宿主入口把电话路由注册出来了（注册不出来说明装配没起来，下面几条就不算数）')
 
   const route = routes[0]
-  // 走线格式与客户端一致（src/seam/rpc.js 会把 wf. 前缀摘掉再发，所以这里发的是不带前缀的名字）。
+  // 走线格式与客户端一致（src/seam/rpc.ts 会把 wf. 前缀摘掉再发，所以这里发的是不带前缀的名字）。
   const callPhone = async (method: unknown, payload: unknown) => {
     const req = new Request('http://verify.local/api/dsws', {
       method: 'POST',
