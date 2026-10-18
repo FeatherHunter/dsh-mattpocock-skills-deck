@@ -746,7 +746,7 @@ function selfCheck(): void {
   const p1b = scopeProblems([], 0, () => true)
   if (p1b.length === 2) pass('三棵树都在但零文件零模块时仍判红（这就是老门禁的假绿点）')
   else fail('三棵树都在、零文件零模块时应报 2 个问题，实际 ' + p1b.length + '：' + JSON.stringify(p1b))
-  const p2 = scopeProblems([{ rel: 'src/seam/gate.js', abs: join(ROOT, 'src/seam/gate.js') }], 3, () => true)
+  const p2 = scopeProblems([{ rel: 'src/seam/gate.ts', abs: join(ROOT, 'src/seam/gate.ts') }], 3, () => true)
   if (p2.length === 0) pass('扫描域正常时不误报')
   else fail('扫描域正常时不该报问题：' + JSON.stringify(p2))
 

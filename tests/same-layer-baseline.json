@@ -139,7 +139,7 @@
       "note": "平台入口按系统分发 Linux 实现"
     },
     {
-      "file": "src/seam/index.js",
+      "file": "src/seam/index.ts",
       "spec": "./runtime.js",
       "resolved": "src/seam/runtime.ts",
       "layer": "seam",
@@ -148,7 +148,7 @@
       "note": "接缝聚合出口重出运行时绑定"
     },
     {
-      "file": "src/seam/index.js",
+      "file": "src/seam/index.ts",
       "spec": "./rpc.js",
       "resolved": "src/seam/rpc.ts",
       "layer": "seam",
@@ -157,7 +157,7 @@
       "note": "接缝聚合出口重出远程调用绑定"
     },
     {
-      "file": "src/seam/index.js",
+      "file": "src/seam/index.ts",
       "spec": "./style.js",
       "resolved": "src/seam/style.ts",
       "layer": "seam",
@@ -166,7 +166,7 @@
       "note": "接缝聚合出口重出样式绑定"
     },
     {
-      "file": "src/seam/index.js",
+      "file": "src/seam/index.ts",
       "spec": "./timer.js",
       "resolved": "src/seam/timer.ts",
       "layer": "seam",
@@ -175,7 +175,7 @@
       "note": "接缝聚合出口重出定时器绑定"
     },
     {
-      "file": "src/seam/index.js",
+      "file": "src/seam/index.ts",
       "spec": "./editor.js",
       "resolved": "src/seam/editor.ts",
       "layer": "seam",
@@ -184,7 +184,7 @@
       "note": "接缝聚合出口重出编辑器绑定"
     },
     {
-      "file": "src/seam/index.js",
+      "file": "src/seam/index.ts",
       "spec": "./gate.js",
       "resolved": "src/seam/gate.ts",
       "layer": "seam",
