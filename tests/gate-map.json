@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T21:39:43.893Z",
+  "generatedAt": "2026-10-18T04:13:24.007Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 600,
+  "graphFileCount": 601,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -246,7 +246,7 @@
       "guards": [
         "src/client/kernel/probe-chain.js",
         "src/host/index.ts",
-        "src/seam/rpc.js",
+        "src/seam/rpc.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -736,7 +736,7 @@
         "src/host/index.ts",
         "src/host/outbound/admission.ts",
         "src/seam",
-        "src/seam/gate.js",
+        "src/seam/gate.ts",
         "src/shared",
         "src/shared/refresh/idempotency.js",
         "src/shared/refresh/src/idempotency.ts",
@@ -8140,9 +8140,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 613,
+    "fileCount": 614,
     "dirCount": 54,
-    "coveredFileCount": 613,
+    "coveredFileCount": 614,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 53,
@@ -8487,13 +8487,14 @@
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.js",
       "src/host/workspaceLabelColors.js",
-      "src/seam/editor.js",
-      "src/seam/gate.js",
-      "src/seam/index.js",
-      "src/seam/rpc.js",
-      "src/seam/runtime.js",
-      "src/seam/style.js",
-      "src/seam/timer.js",
+      "src/seam/editor.ts",
+      "src/seam/gate.ts",
+      "src/seam/index.ts",
+      "src/seam/rpc.ts",
+      "src/seam/runtime.ts",
+      "src/seam/style.ts",
+      "src/seam/timer.ts",
+      "src/seam/tsconfig.json",
       "src/shared/config-store/README.md",
       "src/shared/config-store/labels.js",
       "src/shared/config-store/ports.js",
