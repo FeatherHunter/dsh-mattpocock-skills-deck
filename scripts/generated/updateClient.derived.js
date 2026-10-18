@@ -1,7 +1,7 @@
-// 由 dsh-plugin-update@0.18.24 的集成工具生成，人手不改。
+// 由 dsh-plugin-update@0.18.25 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/config.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var CHECK_FALLBACK_PHONE_ACTION = "updateCheckFallback";
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
@@ -36,7 +36,11 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/commands.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/commands.js
+var MANUAL_SUPPRESSING_REASONS = ["source-install", "unknown-profile", "dev-source"];
+function manualCommandSuppressedBy(reason) {
+  return reason !== null && reason !== void 0 && MANUAL_SUPPRESSING_REASONS.includes(reason);
+}
 var PACKAGE_NAME = "dsh-mattpocock-skills-deck";
 var NPM_REGISTRY = "https://registry.npmjs.org/";
 var INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -131,7 +135,7 @@ function usableProfileName(raw) {
   return name;
 }
 function manualCommand(input) {
-  if (input.sourceInstall || input.blockedReason === "source-install" || input.blockedReason === "unknown-profile" || input.blockedReason === "dev-source") return null;
+  if (input.sourceInstall || manualCommandSuppressedBy(input.blockedReason)) return null;
   const name = usableProfileName(input.profileName);
   if (!name) return null;
   const arg = shellSafeArg(name);
@@ -161,7 +165,7 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${spec} --registry=${source}`;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/queue.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/queue.js
 var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 function emptyQueueState() {
   return { version: 1, owner: null, waiting: [] };
@@ -315,7 +319,7 @@ function derivedRequestId(state, viewerPluginId) {
   return mine[0].requestId;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/batch.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/batch.js
 var BATCH_SESSION_VERSION = 1;
 function isTerminalPhase(phase) {
   return phase === "done" || phase === "failed" || phase === "skipped" || phase === "current";
@@ -482,7 +486,7 @@ function resumeBatchSession(session, now) {
   return changed ? { ...session, entries, updatedAt: at } : session;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/version-judgment.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/version-judgment.js
 function updateError(code) {
   return Object.assign(new Error(code), { code });
 }
@@ -567,14 +571,14 @@ function compareReleaseVersions2(a, b) {
   return 0;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/registry-fetch.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/registry-fetch.js
 var MAX_METADATA_BYTES = 256 * 1024;
 var MAX_PACKUMENT_BYTES = 4 * 1024 * 1024;
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/service.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/service.js
 var CONFIRMATION_TTL_MS = 10 * 6e4;
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/lang.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/lang.js
 function normalizeLangTag(tag) {
   if (typeof tag !== "string") return "zh";
   const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -585,7 +589,7 @@ function normalizeLangTag(tag) {
   return "zh";
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/bilingual.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/bilingual.js
 var BILINGUAL_STRINGS = {
   "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
   "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
@@ -774,7 +778,21 @@ var BILINGUAL_STRINGS = {
   "panel.error.log-hint": { en: "Check logs: {dir} (one directory per plugin, no overlap). Read them with {cmd}; filter by plugin ID {pluginId} for events {e1}, {e2}, {e3}.", zh: "\u8BF7\u67E5\u770B\u65E5\u5FD7\uFF1A{dir}\uFF08\u4E00\u4E2A\u63D2\u4EF6\u4E00\u68F5\u76EE\u5F55\uFF0C\u4E92\u4E0D\u8986\u76D6\uFF09\u3002\u4E00\u6761\u547D\u4EE4\u770B\uFF1A{cmd}\uFF1B\u6309\u63D2\u4EF6\u6807\u8BC6 {pluginId} \u7B5B\u9009 {e1}\u3001{e2}\u3001{e3} \u4E8B\u4EF6\u3002", draft: true },
   "panel.error.log-follow": { en: "Match the request/check IDs above in {eFail}; baseline timing in {eCall}, execution result in {eExec}.", zh: "\u51ED\u4E0A\u65B9\u8BF7\u6C42\uFF0F\u68C0\u67E5\u7F16\u53F7\u5728 {eFail} \u4E2D\u5339\u914D\uFF1B\u57FA\u7EBF\u8017\u65F6\u8BF7\u67E5\u770B {eCall}\uFF0C\u6267\u884C\u7ED3\u679C\u8BF7\u67E5\u770B {eExec}\u3002", draft: true },
   "panel.manual.heading": { en: "Manual fallback command (copy the full line to run):", zh: "\u624B\u5DE5\u5907\u7528\u547D\u4EE4\uFF08\u8BF7\u590D\u5236\u6574\u884C\u6267\u884C\uFF09\uFF1A", draft: true },
-  "panel.manual.absent": { en: "No manual command available (unrecognized scope or source install).", zh: "\u5F53\u524D\u6CA1\u6709\u53EF\u7528\u7684\u624B\u5DE5\u547D\u4EE4\uFF08\u4F7F\u7528\u8303\u56F4\u65E0\u6CD5\u8BC6\u522B\u6216\u6E90\u7801\u5B89\u88C5\u573A\u666F\u4E0D\u63D0\u4F9B\uFF09\u3002", draft: true },
+  "panel.manual.absent": { en: "No manual command is available right now.", zh: "\u5F53\u524D\u6CA1\u6709\u53EF\u7528\u7684\u624B\u5DE5\u547D\u4EE4\u3002", draft: true },
+  "panel.manual.absent.unknown-profile": { en: "The plugin scope cannot be recognized, so there is no scope name for the command. Restart the host and check again; if it still cannot be recognized, send the copied diagnostics to the plugin author.", zh: "\u8BA4\u4E0D\u51FA\u63D2\u4EF6\u6240\u5728\u7684\u4F7F\u7528\u8303\u56F4\uFF0C\u547D\u4EE4\u6CA1\u6709\u53EF\u6307\u5411\u7684\u8303\u56F4\u540D\u3002\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u4ECD\u8BA4\u4E0D\u51FA\u6765\uFF0C\u8BF7\u628A\u590D\u5236\u8BCA\u65AD\u53D1\u7ED9\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
+  "panel.manual.absent.source-install": { en: "This plugin was installed from source; installing by version would overwrite the source. To update, reinstall it by package name@version.", zh: "\u8FD9\u662F\u6E90\u7801\u5B89\u88C5\u7684\u63D2\u4EF6\uFF0C\u6309\u7248\u672C\u5B89\u88C5\u4F1A\u8986\u76D6\u6E90\u7801\u3002\u5982\u9700\u66F4\u65B0\uFF0C\u8BF7\u6309\u5305\u540D@\u7248\u672C\u53F7\u91CD\u65B0\u5B89\u88C5\u3002", draft: true },
+  "panel.manual.absent.dev-source": { en: "This is a dev-mode mount (source link); the update center only serves version installs. Edit the repo and restart the host to see the changes.", zh: "\u8FD9\u662F\u5F00\u53D1\u6001\u6302\u8F7D\uFF08\u6E90\u7801\u94FE\u63A5\uFF09\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u53EA\u670D\u52A1\u6309\u7248\u672C\u5B89\u88C5\u3002\u6539\u5B8C\u4ED3\u5E93\u4EE3\u7801\u540E\u91CD\u542F\u5BBF\u4E3B\u518D\u770B\u6548\u679C\u3002", draft: true },
+  "panel.manual.absent.running-unknown": { en: "The running version cannot be read, so no command can be guaranteed not to downgrade. Restart the host and check again; if it still cannot be read, send the copied diagnostics to the plugin author.", zh: "\u8BFB\u4E0D\u5230\u6B63\u5728\u8FD0\u884C\u7684\u7248\u672C\u53F7\uFF0C\u65E0\u6CD5\u4FDD\u8BC1\u7ED9\u51FA\u7684\u547D\u4EE4\u4E0D\u4F1A\u964D\u7EA7\u3002\u91CD\u542F\u5BBF\u4E3B\u540E\u518D\u67E5\u4E00\u6B21\uFF1B\u82E5\u4ECD\u8BFB\u4E0D\u5230\uFF0C\u8BF7\u628A\u590D\u5236\u8BCA\u65AD\u53D1\u7ED9\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
+  "panel.manual.absent.no-safe-candidate": { en: "No safe target version or argument set: candidates may all be older than the running version, outside the current channel, or the scope name/registry cannot be safely embedded in a command. Check again after a newer version ships, or fix the blocked reason in section 5.2 first.", zh: "\u6CA1\u6709\u53EF\u5B89\u5168\u6267\u884C\u7684\u76EE\u6807\u7248\u672C\u6216\u53C2\u6570\uFF1A\u53EF\u80FD\u5019\u9009\u90FD\u4F4E\u4E8E\u8FD0\u884C\u7248\u3001\u4E0D\u5728\u5F53\u524D\u901A\u9053\uFF0C\u6216\u8303\u56F4\u540D/\u6E90\u5730\u5740\u65E0\u6CD5\u5B89\u5168\u62FC\u8FDB\u547D\u4EE4\u3002\u8BF7\u7B49\u65B0\u7248\u53D1\u5E03\u540E\u518D\u67E5\uFF0C\u6216\u5148\u6309\u7B2C 5.2 \u8282\u7684\u53D7\u963B\u539F\u56E0\u4FEE\u597D\u73AF\u5883\u3002", draft: true },
+  "panel.manual.stale": { en: "This manual command has not been confirmed against the current reading. Re-query before copying.", zh: "\u624B\u5DE5\u547D\u4EE4\u5C1A\u672A\u6309\u5F53\u5E27\u8BFB\u6570\u786E\u8BA4\uFF0C\u91CD\u65B0\u67E5\u8BE2\u540E\u518D\u590D\u5236\u3002", draft: true },
+  "panel.lastresort.badge": { en: "Last resort", zh: "\u6700\u540E\u624B\u6BB5", draft: true },
+  "panel.lastresort.status": { en: "No automatic recovery left", zh: "\u81EA\u52A8\u6062\u590D\u4E0D\u53EF\u7528", draft: true },
+  "panel.lastresort.reason": { en: "There is no automatic data path left; copying this command is the only way forward.", zh: "\u6CA1\u6709\u53EF\u7528\u7684\u81EA\u52A8\u6570\u636E\u8DEF\u5F84\uFF1B\u590D\u5236\u8FD9\u6761\u547D\u4EE4\u662F\u552F\u4E00\u51FA\u8DEF\u3002", draft: true },
+  "panel.lastresort.copy": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "panel.lastresort.copied": { en: "Copied", zh: "\u5DF2\u590D\u5236", draft: true },
+  "batch.lastresort.row-badge": { en: "Last resort", zh: "\u6700\u540E\u624B\u6BB5", draft: true },
+  "panel.manual.absent-comment": { en: "no manual command ({reason})", zh: "\u65E0\u624B\u5DE5\u547D\u4EE4\uFF08{reason}\uFF09", draft: true },
+  "panel.manual.absent-comment-unknown": { en: "no manual command (cause unknown)", zh: "\u65E0\u624B\u5DE5\u547D\u4EE4\uFF08\u539F\u56E0\u672A\u77E5\uFF09", draft: true },
   "panel.manual.updater-nested": { en: "This panel runs a nested copy of the updater ({version}), pinned by the plugin that declares it; update that plugin first (this panel picks up a newer updater only after that plugin widens its range). You can also install the updater at the profile level with the carrier CLI so other plugins sharing that copy get the fixes first: {command}", zh: "\u672C\u9762\u677F\u7684\u66F4\u65B0\u5668\u662F\u5D4C\u5957\u526F\u672C\uFF08{version}\uFF09\uFF0C\u7531\u58F0\u660E\u5B83\u7684\u63D2\u4EF6\u9489\u4F4F\uFF1B\u8BF7\u5148\u66F4\u65B0\u90A3\u4E2A\u63D2\u4EF6\uFF08\u5B83\u53D1\u7248\u62AC\u4E86\u4F9D\u8D56\u8303\u56F4\u540E\uFF0C\u672C\u9762\u677F\u624D\u4F1A\u6362\u65B0\uFF09\u3002\u4E5F\u53EF\u7528\u8F7D\u4F53\u547D\u4EE4\u884C\u628A\u66F4\u65B0\u5668\u88C5\u5230\u4F7F\u7528\u8303\u56F4\u7EA7\uFF0C\u8BA9\u5171\u7528\u90A3\u4E00\u4EFD\u7684\u5176\u4ED6\u63D2\u4EF6\u5148\u62FF\u5230\u4FEE\u590D\uFF1A{command}", draft: true },
   "panel.manual.updater-nested-nocmd": { en: "This panel runs a nested copy of the updater ({version}), pinned by the plugin that declares it; update that plugin first (this panel picks up a newer updater only after that plugin widens its range).", zh: "\u672C\u9762\u677F\u7684\u66F4\u65B0\u5668\u662F\u5D4C\u5957\u526F\u672C\uFF08{version}\uFF09\uFF0C\u7531\u58F0\u660E\u5B83\u7684\u63D2\u4EF6\u9489\u4F4F\uFF1B\u8BF7\u5148\u66F4\u65B0\u90A3\u4E2A\u63D2\u4EF6\uFF08\u5B83\u53D1\u7248\u62AC\u4E86\u4F9D\u8D56\u8303\u56F4\u540E\uFF0C\u672C\u9762\u677F\u624D\u4F1A\u6362\u65B0\uFF09\u3002", draft: true },
   "panel.footer.note": { en: "Closing never interrupts updates; come back anytime", zh: "\u5173\u95ED\u7A97\u53E3\uFF0C\u66F4\u65B0\u4E0D\u53D7\u5F71\u54CD\uFF0C\u53EF\u968F\u65F6\u8FD4\u56DE\u67E5\u770B\u3002", draft: true },
@@ -989,7 +1007,7 @@ var BILINGUAL_CSS = [
   ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
 ].join("\n");
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/changelog.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/changelog.js
 var CHANGELOG_FILENAME = "CHANGELOG.md";
 var CHANGELOG_NEUTRAL_HINT = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E";
 var CHANGELOG_NEUTRAL_LINE = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002";
@@ -2019,7 +2037,7 @@ ${note}${blocks.join("\n")}
   }
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.24/node_modules/dsh-plugin-update/dist/client.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS
