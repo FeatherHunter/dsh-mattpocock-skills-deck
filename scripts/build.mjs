@@ -1556,7 +1556,7 @@ buildTimeConfigClientFragment()
 // tsc --noEmit 只做类型检查；拼接拼的是生成的 .js。与域构建同模式，只是真源与产物同目录并排。
 // #1209：statusbar 也在内 —— StatusBackend.ts 住在那里，它的同名 .js 同样是 pixel-ts 产物
 //   （.gitignore 里三份同名 .js 都已忽略）；漏掉它，盘上会剩一份手写时代的旧 .js，被按路径直读的门禁读到。
-const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/views/versionControl', 'src/client/kernel', 'src/client/statusbar']
+const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/views/versionControl', 'src/client/kernel', 'src/client/statusbar', 'src/client/panel', 'src/client/floating']
 function pixelTsTruthFiles() {
   const out = []
   for (const d of PX_TS_DIRS) {

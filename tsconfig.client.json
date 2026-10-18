@@ -31,6 +31,8 @@
     "src/client/views/cards/*.ts",
     "src/client/views/versionControl/*.ts",
     "src/client/kernel/**/*.ts",
-    "src/client/statusbar/*.ts"
+    "src/client/statusbar/*.ts",
+    "src/client/panel/*.ts",
+    "src/client/floating/*.ts"
   ]
 }
