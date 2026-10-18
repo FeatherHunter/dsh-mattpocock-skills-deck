@@ -206,7 +206,6 @@
     "src/host/versionControlWrite.js",
     "src/host/workspaceKey.js",
     "src/host/workspaceLabelColors.js",
-    "src/seam/editor.js",
     "src/seam/gate.js",
     "src/seam/index.js",
     "src/seam/rpc.js",
