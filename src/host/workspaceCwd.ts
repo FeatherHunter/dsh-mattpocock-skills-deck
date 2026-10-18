@@ -109,7 +109,9 @@ export function createWorkspaceCwd(deps: Deps) {
       try { workspaceFile = await writeWorkspaceRecord(cwd, backendId, args) } catch (eW) { workspaceFile = { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: msgOf(eW) } } }
       if (!workspaceFile || workspaceFile.ok !== true) {
         const why = (workspaceFile && workspaceFile.error) || null
-        try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.workspaceFile', kind: 'bind', errorHash: hash8('bind-file-not-written') }) } catch (eL) {}
+        // 失败分支原因必须进日志：以前这里只记固定散列 bind-file-not-written，分不出没许可、只读、没目录三档。
+        // 现在把四档原因码记进 errorKind，把工作区散列记进 cwdHash，错误散列里再带上有无会话政策，方便分组比对。
+        try { if (logCtx && typeof logCtx.fire === 'function') { const _reason = (why && (why as any).reason) || 'other'; logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.workspaceFile', kind: 'bind', errorHash: hash8(_reason + ':' + msgOf(why && (why as any).message ? (why as any).message : why).slice(0, 80)), cwdHash: hash8(String(cwd)), errorKind: _reason }) } } catch (eL) {}
         return {
           ok: false, kind: 'workspace-file-failed', cwd: cwd, backendId: backendId, workspaceFile: workspaceFile,
           errorKind: (why && why.reason) || 'other',
@@ -280,7 +282,8 @@ export function createWorkspaceCwd(deps: Deps) {
       fsSvc = ((platform && platform.fs) as FsSvc | null) || null
       if (!fsSvc && ctx && typeof ctx.get === 'function') { try { fsSvc = ctx.get('fs') } catch (eG) { fsSvc = null } }
       if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') {
-        try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('no-fs') }) } catch (eL) {}
+        // 拿不到文件通道属于持久化边界的入口失败：记工作区散列与原因档，方便与外层 wf.bind 那一行对上。
+        try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('no-fs'), cwdHash: hash8(String(cwd)), errorKind: 'no-channel' }) } catch (eL) {}
         return { ok: false, error: { kind: 'env', reason: 'no-channel', message: '这次没拿到可用的文件通道（写工作区文件要用它）。' } }
       }
       let existed = false;
@@ -305,12 +308,16 @@ export function createWorkspaceCwd(deps: Deps) {
       } catch (eD) {}
       // #1003：写不进去先重试一次（重试前再建一次父目录）——目标是尽量百分百写成，失败才如实报因。
       try { await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) } catch (eW1) { const pp2 = await getPlatform().then(function (p: any) { return (p && p.path) || null }).catch(function () { return null }); if (pp2 && typeof pp2.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(pp2.dirname(target2), { recursive: true }) } catch (eM2) {} }; await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) }
-      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: _method, latencyMs: Date.now() - _t0, ok: true, kind: 'bind' }) } catch (eL) {}
+      // 成功是状态变化的结论线：记工作区散列，方便与客户端那一行 wf.bind 对上（路径原文不记，只记散列）。
+      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: _method, latencyMs: Date.now() - _t0, ok: true, kind: 'bind', cwdHash: hash8(String(cwd)) }) } catch (eL) {}
       try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}
       try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
       return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created' }
     } catch (eW) {
-      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8(msgOf(eW)) }) } catch (eL) {}
+      // 写失败是本次切换没生效的唯一判据：记四档原因码与工作区散列，错误散列里带上有无会话政策，方便分组比对。
+      // 有无政策的区分意义：没政策多半是没找到归属会话（退回部署默认政策被拒），有政策仍被拒多半是会话只读或目录真不可写。
+      // 注意：写成功那条路的会话政策变量只活在上面那个 try 里，catch 里看不见，这里重新算一次（纯函数，开销可忽略）。
+      try { if (logCtx && typeof logCtx.fire === 'function') { const _reason2 = fileWriteReasonOf(eW); let _hasPolicy = 'unknown-policy'; try { const _sb2 = resolveSandboxPolicy(args, cwd); _hasPolicy = (_sb2 && (_sb2 as any).policy) ? 'has-policy' : 'no-policy' } catch {} logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8(_reason2 + ':' + _hasPolicy + ':' + msgOf(eW).slice(0, 80)), cwdHash: hash8(String(cwd)), errorKind: _reason2 }) } } catch (eL) {}
       return { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: '写工作区配置文件这一步出错（' + msgOf(eW).slice(0, 120) + '）。' } } }
   }
   // #1003 老用户迁移：文件缺席 + 本机记忆有 → 把记忆写进工作区文件，写成功才算迁移成。
@@ -325,6 +332,7 @@ export function createWorkspaceCwd(deps: Deps) {
     if (!key || !key.trim()) return { ok: true, skipped: 'empty-cwd' }
     if (migratedAttempted.has(key)) return { ok: true, skipped: 'already-tried' }
     migratedAttempted.add(key)
+    const _migT0 = Date.now()
     try {
       const platform = await getPlatform().catch(function () { return null })
       const fsSvc: FsSvc | null = ((platform && platform.fs) as FsSvc | null) || (ctx && typeof ctx.get === 'function' ? (function () { try { return ctx.get('fs') } catch (eG) { return null } })() : null)
@@ -354,9 +362,12 @@ export function createWorkspaceCwd(deps: Deps) {
         if (!reg || typeof reg.has !== 'function' || !reg.has(backendId)) return { ok: true, skipped: 'unregistered' }
       } catch (eG2) { return { ok: true, skipped: 'registry-unavailable' } }
       const out = await writeWorkspaceRecord(key, backendId, args, 'migrate', memLayout)
-      return out && out.ok === true ? { ok: true, migrated: true, reason: out.reason || 'created' } : { ok: false, error: (out && out.error) || { kind: 'env', message: '迁移写文件失败' } }
+      // 迁移是状态变化：写成了记一行结论（含耗时与工作区散列），写不成记失败行（含原因档），跳过的不记（常态，不刷屏）。
+      if (out && out.ok === true) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: 'wf.bind.migrate', latencyMs: Date.now() - _migT0, ok: true, kind: 'bind', cwdHash: hash8(String(key)) }) } catch (eL0) {} return { ok: true, migrated: true, reason: out.reason || 'created' } }
+      try { if (logCtx && typeof logCtx.fire === 'function') { const _mr = (out && out.error && (out.error as any).reason) || 'other'; logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.migrate', kind: 'bind', errorHash: hash8(_mr + ':' + msgOf((out && out.error) || 'migrate-failed').slice(0, 80)), cwdHash: hash8(String(key)), errorKind: _mr }) } } catch (eL1) {}
+      return { ok: false, error: (out && out.error) || { kind: 'env', message: '迁移写文件失败' } }
     } catch (eM) {
-      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.migrate', kind: 'bind', errorHash: hash8(msgOf(eM)) }) } catch (eL) {}
+      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.migrate', kind: 'bind', errorHash: hash8(msgOf(eM)), cwdHash: hash8(String(key)) }) } catch (eL) {}
       return { ok: false, error: { kind: 'env', message: msgOf(eM).slice(0, 120) } }
     }
   }
@@ -442,11 +453,18 @@ export function createWorkspaceCwd(deps: Deps) {
     } catch (e) { return { policy: undefined, sessionId: '' } }
   }
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  function phoneLog(method: string, kind: string, t0: number, res: any, err?: any) {
+  // 电话出口统一记账：成功记常驻 host.call（含耗时与工作区散列），失败记常驻 host.call.fail（含原因档与工作区散列）。
+  // 为什么带 cwdHash：同一趟切换在客户端与宿主各落一行，只有工作区散列能把两行对上（路径原文不记，只记散列）。
+  // 为什么带 errorKind：失败只记散列分不出是哪一档（没许可、只读、没目录），把四档原因码原样带上才能读出分支。
+  // 写法约束：字段对象一律写直接字面量，不经中间变量转手——门禁按字面量收集键，走变量会误收无关键。
+  function phoneLog(method: string, kind: string, t0: number, res: any, err?: any, cwdRaw?: unknown) {
     try {
-    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
-    else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
-    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && (res.error || res.errorKind)) || 'workspace-not-ok')) }) } catch (eL) {} }
-  function loggedPhone(method: string, kind: string, fn: (...args: any[]) => Promise<any>) { return async function (...args: any[]) { const t0 = Date.now(); try { const r = await fn.apply(null, args); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+      let cwdHash: string | undefined = undefined
+      try { if (typeof cwdRaw === 'string' && (cwdRaw as string)) cwdHash = hash8(cwdRaw) } catch {}
+      const errorKindOf = function (r: any) { try { const k = r && ((r as any).errorKind || ((r as any).error && (r as any).error.reason) || ((r as any).workspaceFile && (r as any).workspaceFile.error && (r as any).workspaceFile.error.reason)); return (typeof k === 'string' && k) ? k : undefined } catch { return undefined } }
+      if (err !== undefined && err !== null) { if (logCtx) { const eHash = hash8(String(((err as any) && (err as any).message) || err)); if (cwdHash) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: eHash, cwdHash: cwdHash }); else logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: eHash }) } }
+      else if (res && (res as any).ok) { if (logCtx) { if (cwdHash) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind, cwdHash: cwdHash }); else logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) } }
+      else if (logCtx) { const eHash = hash8(String((res && ((res as any).error || (res as any).errorKind)) || 'workspace-not-ok')); const ek = errorKindOf(res); if (ek && cwdHash) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: eHash, cwdHash: cwdHash, errorKind: ek }); else if (ek) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: eHash, errorKind: ek }); else if (cwdHash) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: eHash, cwdHash: cwdHash }); else logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: eHash }) } } catch (eL) {} }
+  function loggedPhone(method: string, kind: string, fn: (...args: any[]) => Promise<any>) { return async function (...args: any[]) { const t0 = Date.now(); let cwdRaw: unknown = undefined; try { const a0 = args && args[0]; cwdRaw = (a0 && typeof (a0 as any).cwd === 'string') ? (a0 as any).cwd : undefined } catch {} try { const r = await fn.apply(null, args); phoneLog(method, kind, t0, r, null, cwdRaw); return r } catch (e) { phoneLog(method, kind, t0, null, e, cwdRaw); throw e } } }
   return { normCwd: normCwd, handleBind: loggedPhone('wf.bind', 'bind', handleBind), handleSetupLayout: loggedPhone('wf.setupLayout', 'setup-layout', handleSetupLayout), handleBindings: loggedPhone('wf.bindings', 'bindings', handleBindings), handleRegistry: loggedPhone('wf.registry', 'registry', handleRegistry), handleSelection: loggedPhone('wf.selection', 'selection', handleSelection), handleListLabels: loggedPhone('wf.listLabels', 'label-colors', handleListLabels), handleSetLabelColors: loggedPhone('wf.setLabelColors', 'label-colors', handleSetLabelColors), _migrateChoiceToFile: migrateChoiceToFile }
 }

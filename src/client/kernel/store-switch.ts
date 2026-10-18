@@ -204,8 +204,15 @@ export const confirmSwitchConfirm = function (st: any): void {
   host.call('wf.bind', { cwd: st.cwd || '', backendId: targetId }).then(function (res: any): void {
     const ok: any = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
     try {
-      if (ok) log('info', 'host.call', { method: 'wf.bind', latencyMs: Date.now() - bindT0, ok: true, kind: 'switch-bind' })
-      else log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((res && (res.error || res.message)) || 'bind-not-ok'), 120, 'error')) })
+      // 切换确认电话的客户端落地行：成功记耗时，失败记原因散列；两行都带工作区散列，方便与宿主那一行的 cwdHash 对上同一趟。
+      // 写法约束：字段对象写直接字面量，不经变量转手（门禁按字面量收集键，走变量会误收无关键）。
+      if (ok) log('info', 'host.call', { method: 'wf.bind', latencyMs: Date.now() - bindT0, ok: true, kind: 'switch-bind', cwdHash: dswsLogHash(st.cwd || '') })
+      else {
+        var _bindEk: any = null
+        try { var _bindRes: any = res; _bindEk = _bindRes && ((_bindRes as any).errorKind || ((_bindRes as any).error && (_bindRes as any).error.reason)) } catch (eEk) {}
+        if (typeof _bindEk === 'string' && _bindEk) log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((res && (res.error || res.message)) || 'bind-not-ok'), 120, 'error')), cwdHash: dswsLogHash(st.cwd || ''), errorKind: _bindEk })
+        else log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((res && (res.error || res.message)) || 'bind-not-ok'), 120, 'error')), cwdHash: dswsLogHash(st.cwd || '') })
+      }
     } catch (eL) {}
     if (!ok) { doFail((res && (res.error || res.message)) || 'unknown'); return }
     // #683（F1 · ADR 20260921 的 R2）：宿主这一通接受了用户的选择之后会回一个新修订号，
@@ -305,7 +312,8 @@ export const confirmSwitchConfirm = function (st: any): void {
     else if (_chainP && typeof _chainP.then === 'function') _chainP.then(_route, _route)
     else _route()
   }).catch(function (e: any): void {
-    try { log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+    // 电话本身抛错（断连、超时）与上面回包 ok:false 是两条不同的失败路，这里单独记一行，同样带工作区散列方便对账。
+    try { log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')), cwdHash: dswsLogHash(st.cwd || '') }) } catch (eL) {}
     doFail(e && e.message || e)
   })
 }
