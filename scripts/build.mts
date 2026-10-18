@@ -43,7 +43,8 @@ import { dirname, resolve, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
-import { spawnSync } from 'node:child_process'
+import { spawnSync, spawn } from 'node:child_process'
+import { cpus } from 'node:os'
 import { deriveClient } from './derive-log-from-package.mts'
 import { deriveClient as deriveUpdateClient } from './derive-update-from-package.mts'
 import { bundleEntryPanel } from './bundle-update-entry.mts'
@@ -1290,6 +1291,43 @@ function deployLooseShared(): void {
   console.log(`[散文件投放] ${rels.length} 份 TypeScript 进 package/shared`)
 }
 
+// L1 全树 --check 的定长 worker 池：node 进程挨个起是构建里最胖的一块，
+// 并行只摊启动开销，每个文件的检查本身一字不差；失败按文件顺序报第一个。
+function checkTreeWithPool(files: string[]): Promise<void> {
+  const concurrency: number = Math.max(1, cpus().length)
+  const problems: (string | null)[] = new Array(files.length).fill(null)
+  let next: number = 0
+  let done: number = 0
+  let activeCount: number = 0
+  return new Promise<void>((resolve, reject) => {
+    const launch = (): void => {
+      while (activeCount < concurrency && next < files.length) {
+        const i: number = next++
+        activeCount++
+        const child: any = spawn(process.execPath, ['--check', files[i]], { encoding: 'utf8' })
+        let out: string = ''
+        if (child.stderr) child.stderr.on('data', (d: any) => { out += String(d) })
+        if (child.stdout) child.stdout.on('data', (d: any) => { out += String(d) })
+        child.on('close', (code: any) => {
+          activeCount--
+          done++
+          if (code !== 0) problems[i] = `${files[i]}: ${out}`
+          if (done === files.length) {
+            for (let k: number = 0; k < problems.length; k++) {
+              if (problems[k] !== null) {
+                reject(new Error(`[L1] node --check 失败 ${problems[k]}`))
+                return
+              }
+            }
+            resolve()
+          } else launch()
+        })
+      }
+    }
+    launch()
+  })
+}
+
 // ---------- 构建 host（方案 C 原样复制 · #136/#172） ----------
 async function buildHost({ version }: { version: string }): Promise<{ devCode: string; pkgCode: string }> {
   // #1074（修：构建先行兼容）：宿主入口真源可能是手写 .js（转制前）或 .ts（转制后）。
@@ -1491,10 +1529,10 @@ async function buildHost({ version }: { version: string }): Promise<{ devCode: s
     return out
   }
   const allHostJs: string[] = collectJs(pkgLib).concat(collectJs(pkgShared), collectJs(pkgDeck), collectJs(pkgTracker))
-  for (const f of allHostJs) {
-    const r: any = spawnSync(process.execPath, ['--check', f], { encoding: 'utf8' })
-    if (r.status !== 0) throw new Error(`[L1] node --check 失败 ${f}: ${r.stderr || r.stdout}`)
-  }
+  // L1 全树 --check 走定长 worker 池：302 个 node 进程挨个起是构建里最胖的一块
+  //（实测串行 15.2s → 并行 1.6s，证据见 .scratch/bench-1252-l1check.mjs）。
+  // 每个文件照旧查一遍；全部跑完后按文件顺序报第一个失败——与串行“遇红即停”报的是同一份。
+  await checkTreeWithPool(allHostJs)
   // 入口 import 冒烟（显式 .js 已在 src 侧保证，此处验证 runtime 解析）
   const entryUrl: string = pathToFileURL(join(pkgLib, 'index.js')).href
   let mod: any
