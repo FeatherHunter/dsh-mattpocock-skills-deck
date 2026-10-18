@@ -2,14 +2,14 @@
  * src/client/kernel/probe-snapshot.ts — 内核模块（#456 由 probe.js 拆出之颜色时间小函数、配置广播与快照加载）
  *
  * 为什么这份是真源：构建侧去掉行首 export 后拼回 src/client/index.js 的拼接标记处，
- * 与 ctx.js/seam 同模式，一源两物，src 零复制。同名 .js 是构建产物，改这里。
+ * 与 ctx.ts/seam 同模式，一源两物，src 零复制。同名 .js 是构建产物，改这里。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  *
  * 等待上限为什么住中央：快照等待时长由 config/ttl.yaml 的 snapWaitMs 统一管，
  * 调时间改中央 YAML，不要在这里改数字。本文件顶部有一行从中央时间参数单行真引用
  * （构建拼进闭包时由 stripTimeConfigRefs 整行删掉，名字由闭包里另一片提供；单行是硬要求，
  * 写成跨行构建会拒收）。除这一行之外，其余跨闭包名字一律只声明（declare），不做运行时引入。
- * 超时只结束这次等待，不判结果作废，迟到落地见 kernel/probe-select.js。
+ * 超时只结束这次等待，不判结果作废，迟到落地见 kernel/probe-select.ts。
  *
  * 反例：不要在这里加运行时 import；不要把未知当成否去推进状态机；
  * 不要在迟到与正常两路各写一份安装逻辑，分岔迟早长岔。

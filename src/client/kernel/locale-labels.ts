@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/locale-labels.js — 内核模块（#621 标签配色弹窗的中英词条；#622 加进「复制配色提示词」的文案）
+ * src/client/kernel/locale-labels.ts — 内核模块（#621 标签配色弹窗的中英词条；#622 加进「复制配色提示词」的文案）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
  * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
@@ -7,7 +7,7 @@
  *
  * 为什么单独一个片段、不并进 locale-panel/flow/word：那三份都已经在 350 行上限附近，
  * 这一票要加四十多条键（中英各一份），塞进任何一份都会把文件顶过上限。
- * 合并器 kernel/locale.js 里把本片段与三份老片段一起并进 L，界面只认 tr('lc.*')。
+ * 合并器 kernel/locale.ts 里把本片段与三份老片段一起并进 L，界面只认 tr('lc.*')。
  *
  * 命名口径（键名一律小写点分段，不用连字符；两段以上的键名带层级含义）：
  *   lc.      本功能全部键的前缀，避免与老片段撞名；

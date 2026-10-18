@@ -6,7 +6,7 @@
  * 本文件由 slotRenderer-repo-sync.js 转写而来，只加类型标注与环境声明，运行行为一字不改。
  * 反例：不要在这里画弹窗，不要在这里决定队列开关，打开入口见 slotRenderer-queue.ts。
  */
-// 打开入口见 slotRenderer-queue.js，弹窗本体见 slotRenderer-modal-view.js；三文件经构建拼回同一闭包，互相调用不走 import。
+// 打开入口见 slotRenderer-queue.ts，弹窗本体见 slotRenderer-modal-view.ts；三文件经构建拼回同一闭包，互相调用不走 import。
 declare function moduleMetaOf(...args: any[]): any;
 declare function promptLang(...args: any[]): any;
 declare function tr(...args: any[]): any;

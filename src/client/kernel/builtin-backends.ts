@@ -1,5 +1,5 @@
 /**
- * client/kernel/builtin-backends.js — 内置后端显示名单单源（#231 类别 5 收编）。
+ * client/kernel/builtin-backends.ts — 内置后端显示名单单源（#231 类别 5 收编）。
  *
  * 契约边界：
  * - 本名单仅作 UI 兜底展示（registry 数据未达时的标签兜底）与「首项 = 默认后端」语义单源；

@@ -1,16 +1,16 @@
 /**
- * src/client/kernel/locale-skilldesc.js — 内核模块（#879 验收：27 个技能描述的中英词条；
+ * src/client/kernel/locale-skilldesc.ts — 内核模块（#879 验收：27 个技能描述的中英词条；
  *   locale-word.js 贴着「单文件不超 350 行」这条门禁，照 #621/#690/#842 的做法自成一个片段）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
  * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
+ * 原位），与 ctx.ts/seam 同模式，一源两物，src 零复制。
  *
  * 为什么单独一份：locale-word.js 已经贴着 350 行上限（#880 收尾时 363 行超标，留给验收票清），
  *   技能描述这一组中英各 27 条、只讲「每个技能是干什么的」，整组搬过来，键名与文案一字未改。
- * 片段真源：locale-panel.js / locale-flow.js / locale-word.js / locale-labels.js / locale-pages.js /
- *   locale-vcwrite.js / 本文件，由 locale.js 的合并器一起并进 L。
- * 条数与技能注册表 src/shared/matt-skills.js 对齐（增减技能时两边同改；2026-10-17 起由
+ * 片段真源：locale-panel.ts / locale-flow.ts / locale-word.ts / locale-labels.ts / locale-pages.ts /
+ *   locale-vcwrite.ts / 本文件，由 locale.ts 的合并器一起并进 L。
+ * 条数与技能注册表 src/shared/matt-skills.ts 对齐（增减技能时两边同改；2026-10-17 起由
  * tests/verify-locale-completeness.js 的 F 段按真源名单核词条，那边不再手抄 27 个名字）。
  */
 /*

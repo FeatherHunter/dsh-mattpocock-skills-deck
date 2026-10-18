@@ -9,7 +9,7 @@
  * 也不要在这里开放重排顺序（order 忠于官方 lowest wins，内部定死）。
  */
 export const SLOTS_KERNEL_VERSION: number = 1;
-// 五端口与 shared/ui/slots.js 同源，此处冗余一份零依赖声明，供宿主 vm 预检时无需跨文件解析。
+// 五端口与 shared/ui/slots.ts 同源，此处冗余一份零依赖声明，供宿主 vm 预检时无需跨文件解析。
 export const SLOT_DEFS_KERNEL: readonly any[] = Object.freeze([
   Object.freeze({ id: 'banner-seat', parentSlot: 'shell.overlay', scope: 'root', kind: 'list', order: 10 }),
   Object.freeze({ id: 'dock-seat', parentSlot: 'details', scope: 'session-maybe', kind: 'list', order: 20 }),
@@ -35,7 +35,7 @@ export function isScopeValid(slotId: any, scope: any): boolean {
 export function canDeclareIn(parentSlotId: any): boolean {
   return parentSlotId === 'shell.overlay' || parentSlotId === 'details' || parentSlotId === 'conversation.input.dock'
 }
-// 挂接：modal 只在步骤失败且带有表单或向导动作时才出现，与 shared/ui/slots.js 同判据。
+// 挂接：modal 只在步骤失败且带有表单或向导动作时才出现，与 shared/ui/slots.ts 同判据。
 export function shouldShowInModal(step: any): boolean {
   if (!step || typeof step !== 'object') return false
   if (step.status !== 'fail') return false

@@ -1,16 +1,16 @@
 /**
  * src/client/kernel/settings-ui.ts — 内核模块（#1012 第 3 步：界面偏好搬进本机设置文件）
- * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。构建仍读同名 .js，本片只进类型检查与 ts-hook 测试。）
+ * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，把声明体文本
- *   拼回 src/client/index.js 里那一行 kernel:settingsUi 拼接标记处（apply 闭包内原位），与 ctx.js/seam
+ *   拼回 src/client/index.js 里那一行 kernel:settingsUi 拼接标记处（apply 闭包内原位），与 ctx.ts/seam
  *   同模式，一源两物，src 零复制。这一行标记必须排在 kernel:settingsViewWrite 之后：本片要用那一片的
  *   待写队列（viewFlagState.journal / viewFlagState.deferred / viewFlagScheduleWrite），以及设置视图
- *   那一份的文档工具与状态对象（kernel/settings-view.js、kernel/settings-view-state.js）。
+ *   那一份的文档工具与状态对象（kernel/settings-view.ts、kernel/settings-view-state.ts）。
  *
  * 本片管「界面偏好」这三格：列表面板的状态筛选（stateFilter）、排序键（sortKey）、排序方向（sortDir）。
  *   它们从前只活在 localStorage 的 dsws.listPrefs 里，现在新家是本机设置文件的 ui 节 —— #1012 要改的
- *   三份配置之一。旧键那一条留着当过渡，读先看文件、写进文件成功就不写旧键，与观看状态（settings-view.js
+ *   三份配置之一。旧键那一条留着当过渡，读先看文件、写进文件成功就不写旧键，与观看状态（settings-view.ts
  *   那一族）同一套先立后破的办法；等界面偏好这一趟稳了，旧键再单独立票退役。
  *
  * 与观看状态的两处不同，改之前先读懂：
@@ -26,14 +26,14 @@
  *   搬完重画一次，界面跟着换成文件里那一份。
  *
  * 加载时机与观看状态同例（惰性，一次会话只问一次文件）：本机第一次有人读观看状态或写界面偏好时才问。
- *   实测那条读口每次会话渲染都会走到（statusbar/StatusBar.js 的 isBannerFolded），所以这一次问话在
+ *   实测那条读口每次会话渲染都会走到（statusbar/StatusBar.ts 的 isBannerFolded），所以这一次问话在
  *   会话一画出来就开始了；问不到就全程照旧表走，不反复重试。
  */
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
-// listPrefs 与 saveListPrefsLegacy 的真源在 kernel/store-prefs.js，shared/stores 的真源在
-//   kernel/store-snapshot.js，viewFlagState 与 viewFlagSubscribe 的真源在 kernel/settings-view-state.js，
-//   settingsViewLoad 与 viewFlagEmitAll 的真源在 kernel/settings-view.js，viewFlagScheduleWrite 的真源在
-//   kernel/settings-view-write.js；本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：
+// listPrefs 与 saveListPrefsLegacy 的真源在 kernel/store-prefs.ts，shared/stores 的真源在
+//   kernel/store-snapshot.ts，viewFlagState 与 viewFlagSubscribe 的真源在 kernel/settings-view-state.ts，
+//   settingsViewLoad 与 viewFlagEmitAll 的真源在 kernel/settings-view.ts，viewFlagScheduleWrite 的真源在
+//   kernel/settings-view-write.ts；本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：
 //   在这里凭记忆写窄，只会把那边正常的改动变成这里的假报错（与 kernel/link.ts 同例）。
 //   log 走全局已声明的那一份，这里不重复。
 declare const listPrefs: any;

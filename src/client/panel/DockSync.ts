@@ -2,8 +2,8 @@
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
 // src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
 // 以后谁改它：改切会话跟随当前会话、响应式工作区同步、污染自愈的人改它。
-// 接线：Dock.js 单调 useDockSync(s, sid, summaryCwd, props) 供装配（此前是两个副作用原位）；
-//   本文件不引用 OverlayGate.js（同闭包拼回，调用方向见 Dock.js 装配一处）。
+// 接线：Dock.ts 单调 useDockSync(s, sid, summaryCwd, props) 供装配（此前是两个副作用原位）；
+//   本文件不引用 OverlayGate.ts（同闭包拼回，调用方向见 Dock.ts 装配一处）。
 // 参数：s = 停靠 store；sid = 会话标识；summaryCwd = 会话列表权威工作区；props = 槽位属性（取 session 兜底用）。
 // #653 快照污染判定（本文件两处自愈共用一份口径，不再各写一遍）。
 // 「污染」= 手上这份快照不是当前这条工作区的数据。分两档判，按证据强弱先强后弱：

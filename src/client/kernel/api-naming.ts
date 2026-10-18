@@ -1,18 +1,18 @@
 /**
  * src/client/kernel/api-naming.ts — 内核模块（#457 由 api.js 拆出之交接头、草稿、预设与建会话、命名守护）
- * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。构建仍读同名 .js，本片只进类型检查与 ts-hook 测试。）
+ * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
  * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
+ * 原位），与 ctx.ts/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
-// inject 的真源在 kernel/api-io.js，fixateText/renderTemplate 的真源在 config.js，
-// storeOf 的真源在 kernel/store-snapshot.js，ctx 是客户端上下文，keyOf 的真源在共享工作区键那一片，
+// inject 的真源在 kernel/api-io.ts，fixateText/renderTemplate 的真源在 config.ts，
+// storeOf 的真源在 kernel/store-snapshot.ts，ctx 是客户端上下文，keyOf 的真源在共享工作区键那一片，
 // DIVERGENCE/classifyDivergence 的真源在共享命名那三份（构建经 shared:namingTitles 等 3 个 splice 注入），
 // composeDraftTitle/newSessionTitle/newSessionTitleNew/parseNumberedTitle/isNewPlaceholderTitle 的真源在
-//   prompts.js 与命名那一片，NAMING_STAGES 的真源在宿主跟踪态；isEnabled 判调试开关；
+//   prompts.ts 与命名那一片，NAMING_STAGES 的真源在宿主跟踪态；isEnabled 判调试开关；
 // 本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：在这里凭记忆写窄，
 // 只会把那边正常的改动变成这里的假报错（与 kernel/link.ts 同例）。
 // host/emit/tr/log/promptLang/dswsLogHash/dswsLogTrunc 走全局已声明的那一份，这里不重复。

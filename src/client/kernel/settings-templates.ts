@@ -1,42 +1,42 @@
 /**
  * src/client/kernel/settings-templates.ts — 内核模块（#1012 第 4 步：动作模板搬进本机设置文件）
- * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。构建仍读同名 .js，本片只进类型检查与 ts-hook 测试。）
+ * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，把声明体文本
  *   拼回 src/client/index.js 里那一行 kernel:settingsTemplates 拼接标记处（apply 闭包内原位），与
- *   ctx.js/seam 同模式，一源两物，src 零复制。这一行标记必须排在 kernel:settingsViewWrite 之后：
+ *   ctx.ts/seam 同模式，一源两物，src 零复制。这一行标记必须排在 kernel:settingsViewWrite 之后：
  *   本片要用那一片的待写队列与防抖排期（viewFlagState.journal / deferred / retryLeft、viewFlagScheduleWrite），
- *   以及设置视图那一份的文档工具与状态对象（kernel/settings-view.js、kernel/settings-view-state.js）。
+ *   以及设置视图那一份的文档工具与状态对象（kernel/settings-view.ts、kernel/settings-view-state.ts）。
  *
  * 本片管 11 条动作模板（diagnose fix discuss research prototype takeover supplement execute handoff1
  *   handoff2 fixate）。它们从前只活在 localStorage 的 dsws.templates 里，现在新家是本机设置文件的
  *   templates 节 —— #1012 要改的三份配置里的第三份。旧键那一条留着当过渡：读先看文件，写进文件成功就
  *   一个字都不写旧键，只有文档问不到或写失败时才照改动前的老办法整份写回旧键。
  *
- * 读这一侧的次序（读口是 config.js 的 tplText，本片只负责把文件那一份搬进内存）：
+ * 读这一侧的次序（读口是 config.ts 的 tplText，本片只负责把文件那一份搬进内存）：
  *   ① 文档已到手且文件 templates 节里这一格是非空文字 → 用文件那一份；
- *   ② 否则用旧键那一份（config.js 的 templates 对象，模块加载时从旧键读来的快照）；
- *   ③ 再否则用默认文本（config.js 的 TPL_DEFAULT）。
+ *   ② 否则用旧键那一份（config.ts 的 templates 对象，模块加载时从旧键读来的快照）；
+ *   ③ 再否则用默认文本（config.ts 的 TPL_DEFAULT）。
  *   把文件那一份搬进内存只做一次：文档到手那一刻（viewFlagSettle 收口之后的 viewFlagNotifySettled），
- *   照 kernel/settings-ui.js 的现成写法（订阅 viewFlagSubscribe）。文档没到手时行为与今天一字不差。
+ *   照 kernel/settings-ui.ts 的现成写法（订阅 viewFlagSubscribe）。文档没到手时行为与今天一字不差。
  *
  * 搬进来时的合并规矩（与界面偏好那一族不同，改之前先读懂）：文件里非空的值赢，文件里没写或写成空串的
  *   格保留旧键那一份。理由是核的语义（config-store-core/src/settings.ts 第 161 行旁那段注释）：空串表示
  *   「这一格用默认文本」，不是「用户选了空」；拿空串去顶掉用户旧存档里改过的模板，等于把人家改过的白改。
  *
- * 写这一侧只有一条真实路径：config.js 的 saveTemplates（那个冻结导出名，它把整份交给本片的
+ * 写这一侧只有一条真实路径：config.ts 的 saveTemplates（那个冻结导出名，它把整份交给本片的
  *   settingsTemplatesSaveAll；配置页那个模板编辑入口早在 #519 就删了，没有第二个写入口）。
  *   更旧的存档 dsws.startCfg 的迁移已按 #1012 定案第 11 条连同迁移逻辑一起删除，本片不再有待办要补。
  *
  * 队列里 templates 那几笔与界面偏好那一族同形：没有工作区路径，只有格名。记号固定为
  *   \u0000templates\u0000 + 模板 id（工作区路径里不可能出现 \u0000，两族记号不会撞上）；
- *   section 记 'templates'，settings-view.js 的 viewFlagSettle 与 settings-view-write.js 的三处
+ *   section 记 'templates'，settings-view.ts 的 viewFlagSettle 与 settings-view-write.ts 的三处
  *   （写前重读合并、回包取值、写失败兜底）都按这个 section 分派过来。
  */
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
-// viewFlagState 与 viewFlagSubscribe 的真源在 kernel/settings-view-state.js，settingsViewLoad 的真源在
-//   kernel/settings-view.js，viewFlagScheduleWrite 的真源在 kernel/settings-view-write.js，templates 与
-//   tplLegacyWriteAll 的真源在 config.js；本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：
+// viewFlagState 与 viewFlagSubscribe 的真源在 kernel/settings-view-state.ts，settingsViewLoad 的真源在
+//   kernel/settings-view.ts，viewFlagScheduleWrite 的真源在 kernel/settings-view-write.ts，templates 与
+//   tplLegacyWriteAll 的真源在 config.ts；本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：
 //   在这里凭记忆写窄，只会把那边正常的改动变成这里的假报错（与 kernel/link.ts 同例）。
 //   log 走全局已声明的那一份，这里不重复。
 declare const viewFlagState: any;

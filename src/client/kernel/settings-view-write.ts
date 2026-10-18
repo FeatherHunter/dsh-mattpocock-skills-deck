@@ -1,17 +1,17 @@
 /**
  * src/client/kernel/settings-view-write.ts — 内核模块（#1012 后续修复：写这一趟）
- * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。构建仍读同名 .js，本片只进类型检查与 ts-hook 测试。）
+ * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，把声明体文本
  *   拼回 src/client/index.js 里那一行 kernel:settingsViewWrite 拼接标记处（apply 闭包内原位），
- *   与 ctx.js/seam 同模式，一源两物，src 零复制。这一行标记必须排在 kernel:settingsView 之后：
+ *   与 ctx.ts/seam 同模式，一源两物，src 零复制。这一行标记必须排在 kernel:settingsView 之后：
  *   本片要用那一片的键与文档工具（viewFlagWriteKeyOf / viewFlagSetInDoc / viewFlagJournalKeyOf /
- *   viewFlagLegacyWrite / viewFlagLogDocFail），以及 kernel/settings-view-state.js 的状态对象。
+ *   viewFlagLegacyWrite / viewFlagLogDocFail），以及 kernel/settings-view-state.ts 的状态对象。
  *
  * 本片管「写这一趟」：待写队列（journal）、500 毫秒防抖、真正要写之前先重读文件再合并、
  *   回包按值划队列、写失败后留队并重试一趟。
  *
- * 接线：store-prefs.js 的 isBannerFolded / setBannerFolded 与 views/SubworkspaceMark.js 的「自动展开过没有」
+ * 接线：store-prefs.ts 的 isBannerFolded / setBannerFolded 与 views/SubworkspaceMark.js 的「自动展开过没有」
  *   那一段改调这一族（导出名与签名一字不变），旧表那几行原地留着当过渡；本片不在（老产物、渲染替身里）
  *   或回 false 时，调用方照改动前的老办法写旧表。
  *
@@ -32,7 +32,7 @@
  *       没有文件锁或事务，所以两扇窗同时改**同一格**时仍可能丢掉后落盘的那一次。重读把「整节被顶掉」
  *       的窗口从「上一趟写到现在」缩到「重读→写回」这一个来回，但缩不到零：重读之后、写回之前别人
  *       写进去的别的格，照样可能被这一趟整份顶掉（实测），不许说成不会。
- *   四、认不出工作区根时这一片直接返回失败、一个字都不写文件（见 settings-view.js 的 viewFlagWriteKeyOf）：
+ *   四、认不出工作区根时这一片直接返回失败、一个字都不写文件（见 settings-view.ts 的 viewFlagWriteKeyOf）：
  *       会话目录当键写下去会留下永远合并不到一起的孤儿记录。
  */
     import { VIEW_FLAG_WRITE_DEBOUNCE_MS } from '../../shared/time-config/values.js'

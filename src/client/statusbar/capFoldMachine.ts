@@ -2,7 +2,7 @@
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export，拼回 src/client/index.js
 //   的 leaf 标记处（一源两物）。
 //
-// 这一台做什么：照 statusbar/capFold.js 那条纯判据把胶囊推到某一档（第几档每一段画什么都是判据算的）。
+// 这一台做什么：照 statusbar/capFold.ts 那条纯判据把胶囊推到某一档（第几档每一段画什么都是判据算的）。
 //   926 起四步分开：守卫（输入没变直接复用上次档位，零写零测）→ 单写（一次写完，不读布局）→
 //   放下判断（capFoldFits 一次）→ 对不上再逐档纠偏。结论与原来逐档试出来的那一档完全一致。
 //   收起来的形状 = 给那一段字的 span 加 .dsws-folded（display:none）—— 图标是它的兄弟节点，
@@ -42,7 +42,7 @@
  * （构建侧 toSpliceableFragment 会拒收残留的 import，整个片段拼不进去）；
  * 也不要写 export default（构建侧 inlineExportDeclarations 不收 as 改名）。
  */
-// 同目录判据 capFold.js 的四个纯函数（阶梯、档位、步数、首帧折叠）与渲染开关 isEnabled。
+// 同目录判据 capFold.ts 的四个纯函数（阶梯、档位、步数、首帧折叠）与渲染开关 isEnabled。
 declare function capFoldLadderOf(...args: any[]): any;
 declare function capFoldStartFoldedOf(...args: any[]): any;
 declare function capFoldStateAt(...args: any[]): any;

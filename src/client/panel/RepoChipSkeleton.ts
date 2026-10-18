@@ -12,7 +12,7 @@
  *   不声称任何仓库身份。
  *
  * 骨架有三条硬约束，改它的人请照旧守住：
- *   ① 不带 data-repo-text —— 头部折叠机（panel/Dock.js）的入口就是 querySelector('[data-repo-text]')，
+ *   ① 不带 data-repo-text —— 头部折叠机（panel/Dock.ts）的入口就是 querySelector('[data-repo-text]')，
  *      取不到它就整台停手，所以骨架的宽度不会被折叠机改写；
  *   ② 定宽 96 —— 折叠机判「放不放得下」量的是整行 scrollWidth，fit-content 的占位会让这一行的宽度
  *      随字体/语言抖动；

@@ -3,7 +3,7 @@
 // src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
 // 以后谁改它：改后端选择门控旅程、等待中和未设置分支的打开关闭确认直选的人改它。
 // 接线：Overlay.js 留同名包装供渲染直调（_openGateModal2 等四包装调本文件四函数）；
-//   本文件不引用 DockSync.js（同闭包拼回，调用方向见 Overlay.js 门控包装四处）。
+//   本文件不引用 DockSync.ts（同闭包拼回，调用方向见 Overlay.js 门控包装四处）。
 // 参数：s = 面板 store；gateModules = otherFiltered 后端清单（调用方传入，保持闭包一致）。
 // （#1251：本文件由同名 .js 转成 .ts，只补类型标注（形参一律 any）与环境声明，运行时行为一字不动。约束：不许加运行时 import（跨文件名字一律 ambient declare，构建拼闭包时拒收残留 import）；不许 export default；只写可剥离类型。）
 /**

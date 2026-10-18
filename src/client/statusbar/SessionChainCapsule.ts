@@ -2,7 +2,7 @@
  * statusbar/SessionChainCapsule.ts — 状态栏胶囊里「这个会话在办哪张票」那一段
  *
  * 只做一件事：把宿主已经写下的处理链读数里，属于当前会话的那一格，挑最新一条画进胶囊。
- * 数据只有一个来源：面板快照的 sessionTickets 字段（宿主 refresh/sessionChainReadout.js 的产物），
+ * 数据只有一个来源：面板快照的 sessionTickets 字段（宿主 refresh/sessionChainReadout.ts 的产物），
  * 判据是 views/shared/sessionChainView.js 那一套（sessionChainRowsOf 给出行，里面带标题）。
  * 本文件不自己推断谁在办票、不读会话事件、不解析命令行、不读落盘文件。
  *
@@ -18,7 +18,7 @@
  *      同一条纪律）；真读坏了（read-failed / shape）画一枚 11 像素小图标，完整话进悬停，
  *      不独占一行（与 SessionChainStrip 那枚标记同形）。
  *
- * 折叠阶梯：这一段不进 capFold.js 的让位表（那张表被门禁钉死在 9 段，加一段就红），它是
+ * 折叠阶梯：这一段不进 capFold.ts 的让位表（那张表被门禁钉死在 9 段，加一段就红），它是
  *   「载荷」—— 与计数器数字、段图标同类：任何宽度都不撤，只用省略号收宽度
  *   （maxWidth 加 ellipsis 加 flex 收缩）。没有记录时它根本不存在，所以窄宽度下它不占地方。
  *

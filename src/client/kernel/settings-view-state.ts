@@ -1,10 +1,10 @@
 /**
  * src/client/kernel/settings-view-state.ts — 内核模块（#1012 后续修复：设置文档的加载状态，以及「问完真源了没有」）
- * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。构建仍读同名 .js，本片只进类型检查与 ts-hook 测试。）
+ * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，把声明体文本
  *   拼回 src/client/index.js 里那一行 kernel:settingsViewState 拼接标记处（apply 闭包内原位），与
- *   ctx.js/seam 同模式，一源两物，src 零复制。这一行标记必须排在 kernel:settingsView 之前：
+ *   ctx.ts/seam 同模式，一源两物，src 零复制。这一行标记必须排在 kernel:settingsView 之前：
  *   下面这一个状态对象与两个公开口子，正是那一份的使用方。
  *
  * 为什么单独一个文件：客户端读设置文档是异步的，界面挂载那一刻文档往往还在路上。谁要按文档下判断，
@@ -12,7 +12,7 @@
  *   （状态对象、就绪查询、问完通知）住在 kernel/settings-view.js 里，而那份文件在拆出这一片之前
  *   按门禁算法已经 349 行（文件粒度门禁上限 350 行，见 tests/verify-file-granularity.ts），
  *   再添两个公开口子就超；所以照仓库惯例把「加载状态与订阅」这一块拆成自包含的内核片段，
- *   settings-view.js 只留「键与文档、读、把文档交给界面」，写这一趟另住 kernel/settings-view-write.js。
+ *   settings-view.ts 只留「键与文档、读、把文档交给界面」，写这一趟另住 kernel/settings-view-write.ts。
  *
  * 就绪的确切意思（本次修复的要点，改之前先读懂）：viewFlagReadyNow() 回答的是「现在给出的那个判断，
  *   是不是已经问过真源了」。还没有人开始问（status 为 idle）、或正问着（loading）都算没就绪；

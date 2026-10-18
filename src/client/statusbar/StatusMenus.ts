@@ -3,8 +3,8 @@
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
  * 以后谁改它：改状态栏悬浮菜单跟随定位（锚点矩形测算）、BUG 菜单、可接菜单与后端菜单开关、滚动缩放重定位的人改它。
- * 接线：StatusBar.js 留转调包装（clearClose/scheduleClose/closeBugMenu/showBugMenu/closeTakeMenu/showTakeMenu）与单调 useStatusMenus(s, refs) 供装配；
- *   本文件不引用 StatusBackend.js（同闭包拼回，调用方向见 StatusBar.js 转调四处与装配一处）。
+ * 接线：StatusBar.ts 留转调包装（clearClose/scheduleClose/closeBugMenu/showBugMenu/closeTakeMenu/showTakeMenu）与单调 useStatusMenus(s, refs) 供装配；
+ *   本文件不引用 StatusBackend.ts（同闭包拼回，调用方向见 StatusBar.ts 转调四处与装配一处）。
  *   后端菜单三件（place/show/closeStatusBackendMenu）当前渲染未直接调用，随旅程整体搬入保持行为一致。
   * （#1251：本文件由同名 .js 转成 .ts，只补类型标注（形参一律 any）与环境声明，运行时行为一字不动。约束：不许加运行时 import（跨文件名字一律 ambient declare，构建拼闭包时拒收残留 import）；不许 export default；只写可剥离类型。）
  */

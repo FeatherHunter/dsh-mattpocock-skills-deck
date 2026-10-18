@@ -1,21 +1,21 @@
 /**
  * src/client/kernel/settings-view.ts — 内核模块（#1012：把客户端「按工作区的观看状态」从 localStorage 搬到本机设置文件）
- * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。构建仍读同名 .js，本片只进类型检查与 ts-hook 测试。）
+ * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，把声明体文本
  *   拼回 src/client/index.js 里那一行 kernel:settingsView 拼接标记处（apply 闭包内原位），
- *   与 ctx.js/seam 同模式，一源两物，src 零复制。
+ *   与 ctx.ts/seam 同模式，一源两物，src 零复制。
  *
  * 本片管四件事：这把键怎么认（viewFlagDocKeyOf，读与写共用同一把）、文档里这一条记录怎么找、
  *   读一格（viewFlagOf）、把读回来的文档交给界面（settingsViewLoad 与 viewFlagSettle）。
- *   「写这一趟」（待写队列、防抖、写前重读合并、写失败重试）住在 kernel/settings-view-write.js，
+ *   「写这一趟」（待写队列、防抖、写前重读合并、写失败重试）住在 kernel/settings-view-write.ts，
  *   拼在本文之后 —— 它要用本文这几个键与文档工具。两片共用的状态对象与「问完真源了没有」那两个口子
- *   住在 kernel/settings-view-state.js，拼在本文之前。
+ *   住在 kernel/settings-view-state.ts，拼在本文之前。
  *
  * 为什么单独一个文件：这一族读写原先住在 kernel/store-prefs.js 里，那份文件在搬出这一族之前
  *   （父提交 3a7063b9，即 #1012 落地那次提交的上一提交）按门禁算法已经 317 行（文件粒度门禁上限 350 行，
  *   见 tests/verify-file-granularity.ts），本票要加的「读文档、合并着写、旧表过渡」三件事塞不进去，
- *   所以照仓库惯例搬成一个自包含的内核片段；store-prefs.js 只留调用与旧表那几行。
+ *   所以照仓库惯例搬成一个自包含的内核片段；store-prefs.ts 只留调用与旧表那几行。
  *
  * 真相只有一份：本机设置文件（用户主目录下的 .dsh/mattskillsdeck/settings.yaml，核校验见
  *   src/shared/config-store/settings.js）里 workspaces 那一节，是按工作区记住的观看状态的唯一真源。
@@ -25,19 +25,19 @@
  *   这一手过渡能兜住什么、兜不住什么必须说准（#1012 后续修复按实测改准）：文件里**已经有**这个工作区的
  *   记录时，写进旧键的这一份读不回来 —— 读侧的口径是「文件里这条记录有值就以它为准」，所以它只在本次
  *   窗口内充当记性（用户当场再点一下，看到的是刚点的那一下），页面一关就只剩文件里那一份。真正让一次改动
- *   不丢的是写这一趟：写失败时把这一格留在待写队列里、下一趟写再试一次（见 kernel/settings-view-write.js）。
+ *   不丢的是写这一趟：写失败时把这一格留在待写队列里、下一趟写再试一次（见 kernel/settings-view-write.ts）。
  *
  * 键用工作区根的可读路径（设置文件是写给人看的，人在里面要认得出这是哪个工作区），不用那个折叠散列
  *   （noRepoDismissKey 那种「前缀 + 折叠后算出来的数字」，人看不懂）。可读路径的来源按序取：
- *   ① 本会话（或同目录别的会话）状态上的工作区根：src/client/kernel/store-snapshot.js 第 29 行的
+ *   ① 本会话（或同目录别的会话）状态上的工作区根：src/client/kernel/store-snapshot.ts 第 29 行的
  *      sessionWorkspaceRoot，由
- *      src/client/kernel/probe-snapshot.js 第 83–90 行的 rememberSessionWorkspaceRoot 从 wf.cwd 回包里
+ *      src/client/kernel/probe-snapshot.ts 第 83–90 行的 rememberSessionWorkspaceRoot 从 wf.cwd 回包里
  *      收下；它是折算过的键，所以按本会话所选目录的写法还原一遍（与
  *      src/client/views/SubworkspaceMark.js 第 45–67 行同一条规矩：比对用折算键、给人看用原样写法）。
  *      这一手还原在 Windows 上成立（盘符自己占一段）；在 POSIX 上还原不出来 —— 绝对路径开头那个斜杠
  *      按段拼不回来（/home/u/p 切出来是 home/u/p，前面那个斜杠没了），于是写进文件的就是那份折算键。
  *      这是如实写下的边界，不是待修的缺陷：POSIX 上文件里的键是折算键，它仍是一条人认得出的路径，不是散列。
- *   ② 会话状态上没有根时看内核那把工作区键 wsKeyOf（store-snapshot.js 第 69 行）：它折出了另一条目录，
+ *   ② 会话状态上没有根时看内核那把工作区键 wsKeyOf（store-snapshot.ts 第 69 行）：它折出了另一条目录，
  *      或那张表里记着「这条键就是某个工作区根」（第 63 行的 root → root 那一份，所选目录本身就是工作区根
  *      时折不出区别），都算真认得根；两样都不是，就是谁都没认出来。
  *   ③ 谁都没认出来（或 cwd 为空）时回空串：**读与写共用这一把键、都在这一个口子上判**，两边对「这把键
@@ -46,14 +46,14 @@
  *      等于没反应、浮层「自动展开过没有」退化成每进一次子目录会话白弹一次（#1012 后续修复的 M5）。
  * 同一个工作区的不同写法落到同一条记录上（找条目时两边都折算过再比），换一种写法不会在文件里长出第二条。
  * 写是整份写回：wf.setSettings 收的是整份文档，所以只改内存文档里「这一个工作区的这一格」，
- *   别的节与别的字段原样带回去。写之前的重读合并、防抖窗口与失败重试见 kernel/settings-view-write.js。
+ *   别的节与别的字段原样带回去。写之前的重读合并、防抖窗口与失败重试见 kernel/settings-view-write.ts。
  */
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
 // keyOf/currentOs 的真源在共享工作区键那一片，wsKeyOf/workspaceRootByCwd/shared/stores 的真源在
-//   kernel/store-snapshot.js，viewFlagState 与 viewFlagNotifySettled 的真源在 kernel/settings-view-state.js，
-//   settingsUiDrainDeferred 的真源在 kernel/settings-ui.js，settingsTemplatesDrainDeferred 的真源在
-//   kernel/settings-templates.js，settingsDebugDrainDeferred 与 settingsDebugDocLooksReal 的真源在
-//   kernel/settings-debug.js，viewFlagScheduleWrite 的真源在 kernel/settings-view-write.js；
+//   kernel/store-snapshot.ts，viewFlagState 与 viewFlagNotifySettled 的真源在 kernel/settings-view-state.ts，
+//   settingsUiDrainDeferred 的真源在 kernel/settings-ui.ts，settingsTemplatesDrainDeferred 的真源在
+//   kernel/settings-templates.ts，settingsDebugDrainDeferred 与 settingsDebugDocLooksReal 的真源在
+//   kernel/settings-debug.ts，viewFlagScheduleWrite 的真源在 kernel/settings-view-write.ts；
 //   本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：在这里凭记忆写窄，
 //   只会把那边正常的改动变成这里的假报错（与 kernel/link.ts 同例）。
 //   host/emit/log 走全局已声明的那一份，这里不重复。process 只在 typeof 里判平台，

@@ -7,7 +7,7 @@
  * 与技能菜单互斥；在绿点正上方水平居中、自顶向下展开、视口不够时自动内收；无底部说明行、宽度贴合最长行（#525 居中，替代 #523 左侧对齐）。
  * 接线：导出调 wf.logExport，清空调 wf.logClear，跳转目录调 wf.openFolder（目录用文件夹电话，文件才用 wf.openPath），
  * 复制路径走本地剪贴板（copyText），开关态读日志底座 logSwitch（启动已向宿主对账）。
- * 以后改状态栏日志入口的人改它；StatusBar.js 只留一行挂载。
+ * 以后改状态栏日志入口的人改它；StatusBar.ts 只留一行挂载。
   * （#1251：本文件由同名 .js 转成 .ts，只补类型标注（形参一律 any）与环境声明，运行时行为一字不动。约束：不许加运行时 import（跨文件名字一律 ambient declare，构建拼闭包时拒收残留 import）；不许 export default；只写可剥离类型。）
  */
 /**

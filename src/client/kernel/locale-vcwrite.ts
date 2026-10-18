@@ -1,10 +1,10 @@
 /**
- * src/client/kernel/locale-vcwrite.js —— 版本管理「写操作」那一族的词条（#842）
+ * src/client/kernel/locale-vcwrite.ts —— 版本管理「写操作」那一族的词条（#842）
  *
  * 为什么单独一份片段：locale-panel.js（347 行）与 locale-flow.js（357 行，零增长基线冻结）都已经贴到上限，
- *   照 #621（locale-labels.js）与 #690（locale-pages.js）的先例另起一份，由 kernel/locale.js 的合并器并进 L。
+ *   照 #621（locale-labels.js）与 #690（locale-pages.js）的先例另起一份，由 kernel/locale.ts 的合并器并进 L。
  * 键名前缀纪律：写路径一律 vc.writeErr.*；vc.fail.* 是只读「这一项读不到」的 kind 表，两边不互相借键。
- * 排法与 locale-panel.js 一致：一个语言一个对象，每行挤 5–8 条，中英成对（verify-locale-completeness 口径）。
+ * 排法与 locale-panel.ts 一致：一个语言一个对象，每行挤 5–8 条，中英成对（verify-locale-completeness 口径）。
  */
 /*
  * 转写注记：本文件原来是手写 JavaScript，按动到哪里转到哪里转成 TypeScript，

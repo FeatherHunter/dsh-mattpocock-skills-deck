@@ -3,11 +3,11 @@
  * 样式收一处的原因：面板各处共用同一套类名，散开写换主题时对不齐；改动只加新行不改旧行。
  */
 /**
- * src/client/kernel/styles.js — 内核模块（阶段 2 内核迁移 · #96 T3）
+ * src/client/kernel/styles.ts — 内核模块（阶段 2 内核迁移 · #96 T3）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
  * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
+ * 原位），与 ctx.ts/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     export const STYLE_TEXT: string = [

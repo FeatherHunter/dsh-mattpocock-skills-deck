@@ -1,8 +1,8 @@
 /**
- * client/kernel/actions.js — 动作分发器（UI 层执行器，契约层形状的唯一消费者）。
+ * client/kernel/actions.ts — 动作分发器（UI 层执行器，契约层形状的唯一消费者）。
  *
  * 第一性原理（#217 定版）：
- *  - 契约层定义「动作是什么」（type+payload 形状，见 src/shared/tracker/chain-types.js ACTION_TYPE）；
+ *  - 契约层定义「动作是什么」（type+payload 形状，见 src/shared/tracker/chain-types.ts ACTION_TYPE）；
  *    UI 层定义「动作怎么做」（本文件的 dispatcher）；
  *    后端层声明「这个检查项挂哪个动作」（检查项 onPass/onFail.actions）。
  *  - 执行器归属 UI：inject() / window.open / host.call / 表单渲染均为 client 能力（UI 明确知道自己有哪些功能）。
@@ -18,7 +18,7 @@
  * 构建侧会拒收残留的 import 语句，见原文件第 13 行注释）。
  */
 
-// 动作类型闭包常量（与 src/shared/tracker/chain-types.js 的 ACTION_TYPE 同值；本文件为 UI 执行器，
+// 动作类型闭包常量（与 src/shared/tracker/chain-types.ts 的 ACTION_TYPE 同值；本文件为 UI 执行器，
 // 遵守「零 import 语法」约定——防 D7 dev host vm.Script 阻塞；枚举若变更须同步（契约校验兜底））
 const ACTION_TYPE = Object.freeze({ INJECT_PROMPT: 'inject-prompt', OPEN_URL: 'open-url', RPC: 'rpc', FORM: 'form', REFRESH: 'refresh', WIZARD: 'wizard' })
 

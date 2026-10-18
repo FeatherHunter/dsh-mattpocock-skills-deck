@@ -1,9 +1,9 @@
 /**
- * src/client/kernel/locale-word.js — 内核模块（#458 由 locale.js 拆出之技能、检查、浮层、命名、切换、进度、错误、模板、运行；技能描述 #879 起另立 locale-skilldesc.js）
+ * src/client/kernel/locale-word.ts — 内核模块（#458 由 locale.js 拆出之技能、检查、浮层、命名、切换、进度、错误、模板、运行；技能描述 #879 起另立 locale-skilldesc.ts）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
  * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
+ * 原位），与 ctx.ts/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
 /*
@@ -164,7 +164,7 @@
         'run.openPanel': '打开面板',
         'run.openCfg': '打开配置',
         'run.cfgGuide': '配置页：设置 → 插件 → MattSkills',
-        // 技能描述 #879 起另立 locale-skilldesc.js（本文件贴着 350 行上限，整组搬走，键名与文案一字未改）。
+        // 技能描述 #879 起另立 locale-skilldesc.ts（本文件贴着 350 行上限，整组搬走，键名与文案一字未改）。
         // 2026-09-24：降级横幅那两条从 locale-flow.js 搬来这里（那边贴着 350 行上限）——
         //   横幅本体拆成了 views/shared/RestFallbackBanner.js，词条跟着它走；键名与文案一字未改。
         // 同 list.restFallback 那一条：那枚警告三角由画面画一次（RestFallbackBanner.js 的 Ic({ n:'alert' })），
@@ -311,7 +311,7 @@
         'run.openPanel': 'Open panel',
         'run.openCfg': 'Open config',
         'run.cfgGuide': 'Config: Settings → Plugins → MattSkills',
-        // 技能描述见 locale-skilldesc.js（与中文块同一去向，中英各 27 条，键名与文案一字未改）。
+        // 技能描述见 locale-skilldesc.ts（与中文块同一去向，中英各 27 条，键名与文案一字未改）。
         // 2026-09-24: moved here from locale-flow.js together with the banner below it (the same two keys, no wording change).
         'list.restFallbackStale': 'Last fetch went through the REST channel ({n} min ago) — data may be slightly stale; auto-reverts when quota resets',
         'list.restFallbackDismiss': 'Hide for this session',

@@ -5,7 +5,7 @@
  * 后者随点击更新，更新节奏不同；混在一起时，一次快照回包会顺手把人刚点的东西盖掉。
  * 本文件由 store-snapshot.js 转写而来，只加类型标注与环境声明，运行行为一字不改。
  * 同工作区所有会话共用按工作区根分桶的内存表（#653），快照命中只记数不打扰人。
- * 反例：不要在这里决定行该怎么画（那是 store-derived.js 的事），也不要在这里存人的偏好（那是 store-prefs.js 的事）。
+ * 反例：不要在这里决定行该怎么画（那是 store-derived.ts 的事），也不要在这里存人的偏好（那是 store-prefs.ts 的事）。
  */
 declare function keyOf(...args: any[]): any;
 declare function migrateCachedChoiceToKey(...args: any[]): any;

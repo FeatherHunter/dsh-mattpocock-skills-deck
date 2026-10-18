@@ -6,7 +6,7 @@
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  * #284：全部读数改从链快照派生（九格目录视图退役）；pending 不计入分子分母。
  * #663：原先在这里算的那几个「今天该出哪条横幅」的读数（gh cli / 登录 / 初始化 / 技能那四个布尔）
- *   一并删了 —— 横幅改由 statusbar/bannerChain.js 按引导链清单（src/shared/tracker/guide-steps.js）
+ *   一并删了 —— 横幅改由 statusbar/bannerChain.ts 按引导链清单（src/shared/tracker/guide-steps.ts）
  *   逐步判，顺序只有那一份真源。本文件只剩胶囊上那几个计数与时间戳。
   * （#1251：本文件由同名 .js 转成 .ts，只补类型标注（形参一律 any）与环境声明，运行时行为一字不动。约束：不许加运行时 import（跨文件名字一律 ambient declare，构建拼闭包时拒收残留 import）；不许 export default；只写可剥离类型。）
  */

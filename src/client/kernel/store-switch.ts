@@ -4,7 +4,7 @@
  * 为什么切换确认要单独一层：切换后端会改变整份快照的来源，出错时代价最大，
  * 所以确认窗的开关、校验与绑定回执只住在这里，别处只调 open/close/confirm 三个入口。
  * 本文件由 store-switch.js 转写而来，只加类型标注与环境声明，运行行为一字不改。
- * 反例：不要在这里读写快照内容（那是 store-snapshot.js 的事），也不要在这里决定行该怎么画。
+ * 反例：不要在这里读写快照内容（那是 store-snapshot.ts 的事），也不要在这里决定行该怎么画。
  */
 // 从中央时间参数目录真引用（与转写前的 .js 一致）。这条 import 不影响拼接：构建的拼接入口
 // scripts/lib/transpile-unit.mjs 的 stripTimeConfigRefs 会把说明符里带 time-config 的这一行删掉，
