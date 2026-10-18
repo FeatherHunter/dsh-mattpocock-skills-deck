@@ -137,7 +137,7 @@ function makeLab() {
 async function makeRunner(lab, opts) {
   const o = opts || {}
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
-  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.js')).href)
+  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts')).href)
   const log = { spawns: [], terminations: 0, events: [], outbound: 0 }
   const vc = hostMod.createVersionControl({
     subprocess: makeRealSubprocess(log),
