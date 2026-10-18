@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-18T05:24:55.207Z",
+  "generatedAt": "2026-10-18T08:27:59.954Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 601,
+  "graphFileCount": 607,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5285,19 +5285,21 @@
         "package/lib/index.js",
         "package/lib/logPhones.js",
         "package/lib/logStore.js",
+        "scripts/lib/effective-lines.mts",
         "src/host/index.ts",
         "src/host/logPhones.ts",
         "src/host/logStore.ts"
       ],
       "dirs": [
         "package/lib",
+        "scripts/lib",
         "src/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-log-switch-526.ts",
@@ -7079,6 +7081,7 @@
       "node tests/verify-file-granularity.ts",
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-selfmon.ts",
+      "node tests/verify-log-store.ts",
       "node tests/verify-map-drill.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-multi-effort-panel.ts",
@@ -8141,9 +8144,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 614,
+    "fileCount": 620,
     "dirCount": 54,
-    "coveredFileCount": 614,
+    "coveredFileCount": 620,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 53,
@@ -8441,6 +8444,7 @@
       "src/host/platform/issueIndexWindow.ts",
       "src/host/platform/linux/index.ts",
       "src/host/platform/namingSummary.ts",
+      "src/host/platform/namingSummaryText.ts",
       "src/host/platform/outbound-control.ts",
       "src/host/platform/refreshAssembly.ts",
       "src/host/platform/win32/index.ts",
@@ -8449,9 +8453,11 @@
       "src/host/refresh/attention.ts",
       "src/host/refresh/chain-ride.ts",
       "src/host/refresh/chainBackoff.ts",
+      "src/host/refresh/fetchThinRows.ts",
       "src/host/refresh/gate.ts",
       "src/host/refresh/ledger.ts",
       "src/host/refresh/patch.ts",
+      "src/host/refresh/recordRepoPages.ts",
       "src/host/refresh/refreshSource.ts",
       "src/host/refresh/refusal-text.ts",
       "src/host/refresh/sessionChainReadout.ts",
@@ -8476,8 +8482,11 @@
       "src/host/tracker/capability.ts",
       "src/host/tracker/generic.ts",
       "src/host/tracker/predicateCore.ts",
+      "src/host/tracker/predicateFileProbes.ts",
       "src/host/tracker/predicatePrimitives.ts",
       "src/host/tracker/snapshot.ts",
+      "src/host/tracker/snapshotAssemble.ts",
+      "src/host/tracker/snapshotVersion.ts",
       "src/host/tsconfig.json",
       "src/host/updateFromPackage.ts",
       "src/host/versionControl.ts",
