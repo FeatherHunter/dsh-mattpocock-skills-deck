@@ -225,7 +225,8 @@ _research/
 
 # #1253：界面视图层整批转写 —— views 下剩下的 53 份手写 .js 全部转成 .ts，同名 .js 从此是
 # pixel-ts 那一段的构建产物（真源是同名 .ts），不入库。手写时代它们在库里是被跟踪的，ignore 只拦
-# 新建；转写提交里用 git rm 删掉它们。这一批转完，views 下的 .js 就全是产物了，但仍逐份列出而不用
+# 新建；转写提交里用 `git rm --cached` 取消跟踪（磁盘上的文件留着，构建与运行时要读它，不能用
+# `git rm` 把文件删掉）。这一批转完，views 下的 .js 就全是产物了，但仍逐份列出而不用
 # 通配，理由与上面的 #1251 那一组相同：将来谁新建一份手写 .js，要让它当场可见，而不是被静默吞掉。
 /src/client/views/ChecksTab.js
 /src/client/views/ListTab.js
