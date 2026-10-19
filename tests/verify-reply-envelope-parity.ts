@@ -78,6 +78,19 @@ async function main() {
     readoutCalls += 1
     return { ok: true, at: 1, reason: 'host.chain.empty', sessions: [] }
   }
+  // #1082：面板「跨会话在办表」的读数出口。两条路都必须挂上，键集合也必须对等。
+  let tableReadoutCalls = 0
+  const workRouteTableReadout = function () {
+    tableReadoutCalls += 1
+    return {
+      ok: true,
+      readout: {
+        at: '2026-10-19T08:00:00.000Z',
+        entries: [{ ticketKey: '1082', title: '面板跨会话在办表', sessionLabel: '会话 1082', action: 'report', actionAt: '2026-10-19T07:59:00.000Z', active: true, currentSession: true }],
+        staleCount: 0,
+      },
+    }
+  }
   const envelope = envMod.createSnapshotEnvelope({
     getGhPath: function () { return null },
     getGhLastError: function () { return null },
@@ -85,6 +98,8 @@ async function main() {
     logCtx: quietLog,
     chainReadout: chainReadout,
     chainField: 'workRoute',
+    workRouteTableReadout: workRouteTableReadout,
+    workRouteTableField: 'workRouteTable',
   })
 
   const deps = makeDeps(envelope, chainReadout)
@@ -117,9 +132,16 @@ async function main() {
 
   if (readoutCalls < 2) fail('两份回包应当各现算一次读数（共 2 次），实得 ' + readoutCalls + ' 次 —— 说明有一边没接上')
 
+  // 三、#1082 新增的面板「跨会话在办表」字段：两条路也都要挂，且挂的是同一份读数。
+  if (snapKeys.indexOf('workRouteTable') < 0) fail('wf.snapshot 的回包里没有挂面板「跨会话在办表」读数（workRouteTable）')
+  if (refKeys.indexOf('workRouteTable') < 0) fail('wf.refresh 的回包里没有挂面板「跨会话在办表」读数（workRouteTable）：强制刷新一次面板上那张表就空了')
+  if (tableReadoutCalls !== 2) fail('两条路应当各现算一次「跨会话在办表」读数（共 2 次），实得 ' + tableReadoutCalls + ' 次')
+  if (JSON.stringify(snapReply.workRouteTable) !== JSON.stringify(refReply.workRouteTable)) fail('两条路挂出来的「跨会话在办表」读数不一致：两条路必须共用同一份信封与同一个挂载口')
+
   if (failed) return
   ok('两条回包路径的字段集合逐项相等（各 ' + snapKeys.length + ' 项）')
   ok('两条路都挂上了 workRoute 读数，且各现算一次（共 ' + readoutCalls + ' 次）')
+  ok('两条路都挂上了 workRouteTable 读数，且各现算一次（共 ' + tableReadoutCalls + ' 次）')
 }
 
 main().then(function () {

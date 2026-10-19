@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T06:25:02.890Z",
+  "generatedAt": "2026-10-19T08:24:12.987Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 296,
-  "gateCount": 296,
-  "attributedGates": 265,
+  "chainLength": 297,
+  "gateCount": 297,
+  "attributedGates": 266,
   "unattributedGates": 31,
   "buildOutputOnlyGates": 18,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 732,
+  "graphFileCount": 735,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -180,6 +180,7 @@
         "src/client/views/shared/stateKind.js",
         "src/client/views/shared/tagsFit.js",
         "src/client/views/shared/ticket.js",
+        "src/client/views/shared/workRouteTable.js",
         "src/client/views/versionControl/vcAiHandoff.js",
         "src/client/views/versionControl/vcCache.js",
         "src/client/views/versionControl/vcDiffOps.js",
@@ -215,7 +216,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 68 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 69 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -1120,6 +1121,31 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 3 条"
+    },
+    {
+      "step": "node tests/verify-1082-work-route-table.ts",
+      "file": "tests/verify-1082-work-route-table.ts",
+      "guards": [
+        "src/client/kernel/probe-snapshot.ts",
+        "src/client/panel/Dock.ts",
+        "src/client/views/shared/workRouteTable.ts",
+        "src/host/refresh/workRouteReadoutForHost.ts",
+        "src/host/sessionRefresh.ts",
+        "src/host/sessionSnapshot.ts",
+        "src/host/snapshotEnvelope.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/panel",
+        "src/client/views/shared",
+        "src/host",
+        "src/host/refresh"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-1083-work-path-persist.ts",
@@ -6545,8 +6571,8 @@
       "file": "tests/verify-tracker-contract.ts",
       "guards": [
         "examples/demo-mini/fixtures/demo-real",
-        "examples/demo-mini/index.js",
-        "examples/demo-mini/matches.js",
+        "examples/demo-mini/index.ts",
+        "examples/demo-mini/matches.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
         "src/tracker/rooms/gitlab/normalize.ts",
@@ -7251,6 +7277,7 @@
       "node tests/verify-chain-view-ui.ts",
       "node tests/verify-chain-view.ts",
       "node tests/verify-deck-slots.ts",
+      "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -7325,6 +7352,7 @@
     "src/client/panel": [
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
+      "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-667-dock-header-no-brand.ts",
@@ -7413,6 +7441,7 @@
       "node tests/verify-chain-view-ui.ts",
       "node tests/verify-chain-view.ts",
       "node tests/verify-deck-slots.ts",
+      "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -7524,6 +7553,7 @@
       "node tests/verify-1003-no-cwd-masquerade.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-workspace-write-robust.ts",
+      "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-3-workspace-switch.ts",
@@ -7643,6 +7673,7 @@
       "node tests/verify-deck-tools.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1083-work-path-persist.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
@@ -8275,9 +8306,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 745,
+    "fileCount": 748,
     "dirCount": 54,
-    "coveredFileCount": 745,
+    "coveredFileCount": 748,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 53,
@@ -8569,6 +8600,8 @@
       "src/client/views/shared/ticket.ts",
       "src/client/views/shared/truthLines.js",
       "src/client/views/shared/truthLines.ts",
+      "src/client/views/shared/workRouteTable.js",
+      "src/client/views/shared/workRouteTable.ts",
       "src/client/views/skillDetail/PixelContents.js",
       "src/client/views/skillDetail/PixelContents.ts",
       "src/client/views/skillDetail/PixelMarkdown.js",
@@ -8717,6 +8750,7 @@
       "src/host/refresh/sessionChainReadout.ts",
       "src/host/refresh/wiring.ts",
       "src/host/refresh/workRoute.ts",
+      "src/host/refresh/workRouteReadoutForHost.ts",
       "src/host/refresh/writeEvents.ts",
       "src/host/remotePredicates.ts",
       "src/host/rpcChannel.ts",

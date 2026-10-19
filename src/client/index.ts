@@ -289,6 +289,8 @@ export default {
     // 2026-09-24：降级横幅的「画」那一段从 ListTab.js 搬来这里（判据仍是上面 truthLines 里的 restFallbackView）。
     // ==== leaf:restFallbackBanner (spliced by build) ====
     // ==== leaf:sessionChainView (spliced by build) ====
+    // #1082：面板「跨会话在办表」（判据与画法；挂在 Dock 的列表页正文最上面）。
+    // ==== leaf:workRouteTable (spliced by build) ====
 
     // #725：状态栏胶囊那条横条的逐字折叠阶梯（纯函数）与它的阶梯机（读写 DOM），都排在 statusBar 之前
     //   —— 状态栏那边只留接线：把胶囊元素与两张跨调用带着走的表交给机器。

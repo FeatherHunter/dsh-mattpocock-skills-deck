@@ -28,7 +28,9 @@ import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/reg
 // 都住在 plan-cursor.ts 里（planCursorDir / createFilePlanStore），不在这里另写一份。
 import { createFilePlanStore, planCursorDir } from '../../deck/shell/plan-cursor.js'
 // #1261：工作路线的新落盘（每个工作区一份 <根散列>.json）与读出口，两支合在一起从这里递进工具依赖。
-import { createWorkRouteBindings } from '../../deck/shell/work-path-bindings.js'
+// #1082：这套读写零件的惰性装配与面板「跨会话在办表」的挂载口搬去 workRouteReadoutForHost.ts
+// （wiring 贴着 350 有效行红线；两件合一个文件，接线处只多一条同层边，已记进同层豁免清单）。
+import { createLazyWorkRouteBindings, createWorkRouteTableReadout } from './workRouteReadoutForHost.js'
 // #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
 import { hostTimers } from '../../shared/host-timer/host-timers.js'
 // #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）由宿主实现、随进程注入一次，房间只认形状、
@@ -109,7 +111,7 @@ export function makeRefreshLoader(deps: any): () => Promise<any> {
           return await h(args)
         }
       })()
-      return Object.assign({}, w, { chainReadout: chainReadout, chainField: SESSION_CHAIN_FIELD, focus: focus })
+      return Object.assign({}, w, { chainReadout: chainReadout, chainField: SESSION_CHAIN_FIELD, focus: focus, workRouteTableReadout: w.workRouteTableReadout })
     })()
     return await load
   }
@@ -307,6 +309,18 @@ export function createRefreshWiring(deps: any): any {
     return { detach: detach }
   }
 
+  // #1082：工作路线读写零件只造一份 —— 工具依赖与「面板跨会话在办表」共用（同一份存档、同一套零件）。
+  const loadWorkRouteBindings = createLazyWorkRouteBindings({
+    getPlatform: function (): any { return (typeof d.getPlatform === 'function') ? d.getPlatform() : null },
+    logCtx: logCtx,
+  })
+  // 面板那张表的挂载口：函数形状与快照信封的读数出口一致（输入回包与当前会话，返回字段值）。
+  const attachWorkRouteTable = createWorkRouteTableReadout({
+    read: function (input: any): any { return loadWorkRouteBindings().then(function (b: any): any { return b.read(input) }) },
+    rootKeyOf: workspaceKeyOf,
+    now: function (): number { return Date.now() },
+  })
+
   // ── D（#723 T19c）：九个 deck_* 工具在宿主里装起来 ─────────────────────────────────────────
   // 把九个工具工厂交给共享层装配口 createDeckTools，并把它要的依赖如实给全：gate（本文件造的那一个闸）、
   // registry（后端注册表，选后端走它的三级联）、budget 与 estimate/costInputFrom（额度与算账两件）、
@@ -385,31 +399,11 @@ export function createRefreshWiring(deps: any): any {
             })
           } catch (e: any) { return null }
         }
-        // #1261 建、#1083 加固：工作路线的新落盘装配（进程启动时装一次，按工作区分账天然多工作区安全）。
-        // 家目录问平台层（与 choiceStore 同一处来）；文件读写、改名、日志走 Node 原生 fs 与宿主日志出口
-        // （动态引入，类型包被挡在门外，与 platformChannel.ts 那两处 node 引入同一写法）。
-        // #1083 起写盘是「读-合并-写」，改名前要 rename、每步要记 workRoute.write，所以多递 rename 与 log：
-        // 不递 rename 就退化成直接写正式文件（能写、但没有改名覆盖那层保护），不递 log 就一条不记。
-        // 问不到家目录就给空串——此时每笔记都会在回执备注里如实写「没落上」，不静默丢。
-        // #1262 已删掉旧链（workRoute）的写入口，它只剩读数与恢复；面板读数仍从它出，待 #1263
-        // 重接新读出口后另开票退役，不是本票的收尾项。
+        // 工作路线的新落盘装配（#1261 建、#1083 加固、#1082 起与面板读数共用一份）：
+        // 家目录、文件读写、改名与日志的细节都在 workRouteReadoutForHost.ts 里，这里只取现成的实例。
+        // 取不到就留给三支依赖各自回「没落上 / 没接上」的诚实原因，不静默跳过。
         let workRouteBindings: any = null
-        try {
-          // @ts-expect-error
-          const fsPromises: any = await import('node:fs/promises')
-          let workPathHome = ''
-          try { if (platform && typeof (platform as any).getHome === 'function') workPathHome = String(await (platform as any).getHome() || '') } catch (eH: any) {}
-          workRouteBindings = createWorkRouteBindings({
-            homeDir: workPathHome, now: Date.now,
-            // 只有「文件不存在」才当没有（回 null，第一次用的正常情况）；权限、占用、盘错等读失败要让
-            // 存储看见 failed（否则会被当成空账静默重写，回执也不说明，workRoute.read 几乎永远不发）。
-            readFile: function (p: any): any { try { return Promise.resolve(fsPromises.readFile(String(p), 'utf8')).then(function (t: any) { return t }, function (eR: any) { if (eR && eR.code === 'ENOENT') return null; throw eR }) } catch (eR: any) { return Promise.reject(eR) } },
-            writeFile: function (p: any, t: any): any { return fsPromises.writeFile(String(p), String(t), 'utf8') },
-            mkdir: function (dir: any): any { return fsPromises.mkdir(String(dir), { recursive: true }) },
-            rename: function (from: any, to: any): any { return fsPromises.rename(String(from), String(to)) },
-            log: logCtx,
-          })
-        } catch (eW: any) {}
+        try { workRouteBindings = await loadWorkRouteBindings() } catch (eW: any) {}
         const built: any = createDeckToolsForHost({
           gate: gate,
           registry: registry,
@@ -514,6 +508,8 @@ export function createRefreshWiring(deps: any): any {
     attention: attention,
     hash8: hash8,
     chainReadoutOf: chainReadoutOf,
+    // #1082：面板「跨会话在办表」的挂载口（wf.snapshot 与 wf.refresh 两条路共用同一个函数）。
+    workRouteTableReadout: attachWorkRouteTable,
     deckToolsForHost: deckToolsForHost,
     deltaRefresh: deltaRefresh,
     deltaEnter: deltaEnter,

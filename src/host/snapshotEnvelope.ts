@@ -16,6 +16,13 @@ type EnvelopeDeps = {
   logCtx?: { fire(level: string, event: string, fields?: unknown): void } | null
   chainReadout?: () => unknown
   chainField?: string
+  /**
+   * #1082：面板「跨会话在办表」的读数出口。输入回包与当前会话，返回字段值
+   * （{ ok:true, readout } 或 { ok:false, reason }）；不接就整块不挂。
+   */
+  workRouteTableReadout?: (reply: unknown, ctx: { sessionId?: unknown }) => Promise<unknown> | unknown
+  /** 挂到回包上的字段名；缺省 workRouteTable（与宿主读数模块、界面叶子同一个名字）。 */
+  workRouteTableField?: string
 }
 
 /** buildSnap 的输入：五条分支各带一部分字段，这里只声明本文件真读到的那些。 */
@@ -127,5 +134,26 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
     return reply
   }
 
-  return { buildSnap: buildSnap, adoptSnapLog: adoptSnapLog, withChainReadout: withChainReadout }
+  /**
+   * 把面板「跨会话在办表」的读数挂到一份 ok:true 的回包上（#1082）。
+   *
+   * 与 withChainReadout 同一个理由包在最外一层：缓存短路回的是缓存里同一个对象，写进 buildSnap
+   * 会把读数的时刻冻在落盘那一刻。这一步是异步的（读数要读盘），所以两条电话路都要等它。
+   *
+   * 只挂这一个字段、只信宿主读数：回包不是 ok:true 或接线处没给出口时原样返回；
+   * 出口自己抛错就挂一条读不到的原因，不把整份快照带成失败。
+   */
+  async function withWorkRouteTable<T>(reply: T, args?: any): Promise<T> {
+    if (!reply || typeof reply !== 'object' || (reply as { ok?: unknown }).ok !== true) return reply
+    if (typeof d.workRouteTableReadout !== 'function') return reply
+    const field = d.workRouteTableField || 'workRouteTable'
+    try {
+      (reply as { [key: string]: unknown })[field] = await d.workRouteTableReadout(reply, { sessionId: args && args.sessionId })
+    } catch (eW) {
+      (reply as { [key: string]: unknown })[field] = { ok: false, reason: 'read-failed' }
+    }
+    return reply
+  }
+
+  return { buildSnap: buildSnap, adoptSnapLog: adoptSnapLog, withChainReadout: withChainReadout, withWorkRouteTable: withWorkRouteTable }
 }

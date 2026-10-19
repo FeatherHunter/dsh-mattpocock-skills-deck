@@ -202,7 +202,7 @@ export const loadSnapshot = function (st: any, force: any, silent: any): any {
     // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图
     //   （宿主那边带 hint 就压过锚文件，见 store-prefs.js 的 userHintOf 与 ADR 的攻击 1）。
     const _hintBid: any = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined;
-    const args: any = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver ? { ifNoneMatch: ver, version: ver } : {}), _hintBid ? { backendId: _hintBid } : {});
+    const args: any = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver ? { ifNoneMatch: ver, version: ver } : {}), st.sessionId ? { sessionId: st.sessionId } : {}, _hintBid ? { backendId: _hintBid } : {}); // #1082：带上会话 id，宿主才算得出「这一条是不是本会话」
     const _normKeyP: any = wsKeyOf(st.cwd || '');
     let _ctrl: any = null; try { _ctrl = typeof AbortController !== 'undefined' ? new AbortController() : { signal: { aborted: false }, abort(): void {} }; } catch (e) { _ctrl = { signal: { aborted: false }, abort(): void {} }; }
     let _timer: any = null;

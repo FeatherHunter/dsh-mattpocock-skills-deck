@@ -44,7 +44,7 @@ type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: Co
 type Levels = { byNumber?: Record<string, unknown>; byKey?: Record<string, unknown>; [k: string]: unknown }
 type Deck = { counts?: { open?: unknown; closed?: unknown } | null; partial?: boolean; [k: string]: unknown }
 // 信封（与 wf.snapshot 同一个实例）：这里只声明本文件用到的两口。
-type Envelope = { buildSnap(o: SnapInput): SnapOut; withChainReadout<T>(reply: T): T }
+type Envelope = { buildSnap(o: SnapInput): SnapOut; withChainReadout<T>(reply: T): T; withWorkRouteTable?<T>(reply: T, args?: Args): Promise<T> }
 type SnapInput = { repo?: unknown; repoRoot?: unknown; workspaceRoot?: unknown; maps?: unknown[]; issues?: unknown[]; thinTickets?: unknown[]; labels?: unknown[]; repository?: unknown; backendModules?: unknown; selection?: unknown; viewer?: unknown; viewerLogin?: unknown; deck?: unknown }
 // 组装出来的快照：本文件读 fromCache / generatedMs / deck / maps / issues / labels，落盘时整份交回去。
 type SnapOut = { [k: string]: unknown; fromCache?: boolean; generatedMs?: number; maps?: unknown[]; issues?: unknown[]; labels?: unknown[]; deck?: Deck | null }
@@ -78,7 +78,13 @@ export function createSessionRefresh(deps: RefreshDeps) {
   /** 回包交给界面之前，把「每个会话在处理哪些票」的读数挂上（与 wf.snapshot 同一个挂载口）。 */
   async function handleRefresh(args: Args) {
     if (!env) return { ok: false, error: 'snapshot-envelope-not-wired' }
-    return env.withChainReadout(await refreshOf(args))
+    let reply: unknown = await refreshOf(args)
+    // #1082：跨会话在办表也要挂在这一条路上，否则强制刷新一次界面上那张表就空了。
+    // 旧测试里手捏的信封可能没有这一口，缺了就不挂（与没接读数同一种表现）。
+    if (typeof env.withWorkRouteTable === 'function') {
+      try { reply = await env.withWorkRouteTable(reply, args) } catch (eW) {}
+    }
+    return env.withChainReadout(reply)
   }
   // #729 一次性方案：强制刷新也进与快照路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）。
   let _sharedInflightP: Promise<typeof import('./snapshotInflight.js')> | null = null

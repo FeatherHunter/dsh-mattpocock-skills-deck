@@ -260,6 +260,8 @@ _research/
 /src/client/views/shared/chips.js
 /src/client/views/shared/md.js
 /src/client/views/shared/sessionChainView.js
+# #1082：面板「跨会话在办表」新增真源 workRouteTable.ts，同名 .js 是 pixel-ts 那一步的构建产物，不入库。
+/src/client/views/shared/workRouteTable.js
 /src/client/views/shared/stateKind.js
 /src/client/views/shared/tagsFit.js
 /src/client/views/shared/ticket.js

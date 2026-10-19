@@ -96,7 +96,11 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
     try { (reply as Record<string, unknown>)[chainField || 'workRoute'] = chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
     return reply
   }
-  async function handleSnapshot(args: Args) { return withChainReadout(await snapshotOf(args)) }
+  // #1082：跨会话在办表的读数也在回包交出去之前现挂（异步读盘）；信封没这一口（旧测试手捏的）就不挂。
+  async function attachWorkRouteTable(reply: unknown, args: Args) {
+    return (env && typeof env.withWorkRouteTable === 'function') ? await env.withWorkRouteTable(reply, args) : reply
+  }
+  async function handleSnapshot(args: Args) { return withChainReadout(await attachWorkRouteTable(await snapshotOf(args), args)) }
   async function snapshotOf(args: Args) {
       const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd) // #1003 空目录闸：没目录不冒充取快照
       const now = Date.now()

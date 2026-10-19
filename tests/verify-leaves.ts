@@ -85,6 +85,8 @@ const LEAVES = [
   { file: 'src/client/views/labels/LabelColorEntry.js', exports: ['LabelColorEntry'], components: ['LabelColorEntry'] },
   // #721 工作路线展示面：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段）
   { file: 'src/client/views/shared/sessionChainView.js', exports: ['SESSION_CHAIN_FIELD', 'SESSION_CHAIN_ACTION_KEYS', 'sessionChainActionKeyOf', 'sessionChainClock', 'sessionChainViewOf', 'sessionChainRowsOf', 'sessionChainOpenTicket', 'SessionChainStrip'], components: ['SessionChainStrip'] },
+  // #1082 新增：面板「跨会话在办表」（判据与画法；只读快照里的 workRouteTable 字段，与工具回执 data.workRoute 同源）
+  { file: 'src/client/views/shared/workRouteTable.js', exports: ['WORK_ROUTE_TABLE_FIELD', 'WORK_ROUTE_ACTION_KEYS', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableOf', 'WorkRouteTable'], components: ['WorkRouteTable'] },
   // 2026-09-24 从贴着 350 行上限的两个文件里搬出来的两块：
   //   · 降级横幅（views/ListTab.js → views/shared/RestFallbackBanner.js，判据仍是 truthLines 的 restFallbackView）
   //   · 头部那条灰色占位骨架（panel/Dock.js → panel/RepoChipSkeleton.js）
