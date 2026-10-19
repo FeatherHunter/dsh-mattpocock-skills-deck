@@ -33,7 +33,7 @@
 
 两条纪律，CI 硬卡，本地 npm run verify 可复现。
 
-纪律一：代码门禁 —— 禁止跨房引用（判据门禁 tests/verify-dependency-rules.ts；规则在根目录 .dependency-cruiser.cjs，起点按 `src/tracker/rooms/([^/]+)/` 抓房名，不写死哪几间房）
+纪律一：代码门禁 —— 禁止跨房引用（判据门禁 tests/verify-dependency-rules.ts；规则在根目录 .dependency-cruiser.ts，起点按 `src/tracker/rooms/([^/]+)/` 抓房名，不写死哪几间房）
 
 - 扫描域：src/tracker/rooms/<名字>/ 下的内置后端（今天三座：github、gitlab、markdown），两两禁止相互 import；examples/demo-mini 等第三方扩展不在域内。
 - 检查对象：静态 import / export ... from 与动态 import('...') 的字面量说明符；每条违规输出文件、行号、目标房间。
