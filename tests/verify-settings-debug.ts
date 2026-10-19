@@ -177,7 +177,7 @@ const DEBUG_REL = 'src/client/kernel/settings-debug.js'
 // 行数口径量真源（转成 TS 后产物经转译排版会胀行，胀的是机器排版不是手写；零增长守的是手写，量真源）。
 const DEBUG_TRUTH_REL = 'src/client/kernel/settings-debug.ts'
 const LOG_REL = 'src/client/kernel/log.js'
-const INDEX_REL = 'src/client/index.js'
+const INDEX_REL = 'src/client/index.ts' // #1254：入口真源转写为 .ts
 const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsDebugLegacy: settingsDebugLegacy, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
 function makeClient(env) {
   const body = [noExport(readText(DERIVED_REL)), noExport(readText(STATE_REL)), noExport(readText(VIEW_REL)), noExport(stripTimeConfigImport(readText(WRITE_REL))), noExport(readText(DEBUG_REL))].join('\n')
@@ -215,7 +215,7 @@ async function main(): Promise<void> {
     check(require('../scripts/lib/discover-gates.ts').isGatePlanned(ROOT, 'tests/verify-settings-debug.ts'),
       'verify 规划名单里登记了这一份门禁（不登记会静默不跑）。')
     check(countLines(DEBUG_TRUTH_REL) <= 350 && countLines(LOG_REL) <= 350 && countLines(INDEX_REL) <= 350 && countLines(VIEW_REL) <= 350 && countLines(WRITE_REL) <= 350,
-      '五份文件都在 350 行以内（本片量真源 ' + countLines(DEBUG_TRUTH_REL) + '、旧真源 log.js ' + countLines(LOG_REL) + '、index.js ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')
+      '五份文件都在 350 行以内（本片量真源 ' + countLines(DEBUG_TRUTH_REL) + '、旧真源 log.js ' + countLines(LOG_REL) + '、index.ts ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')
   }
 
   // 真件：宿主的核与两条设置电话

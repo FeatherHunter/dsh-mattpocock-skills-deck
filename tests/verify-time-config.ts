@@ -216,7 +216,7 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/floating/SkillFloatList.ts', name: 'SKILL_FLOAT_CLOSE_DELAY_MS', key: 'skillFloatCloseDelayMs' },
   { file: 'src/client/views/labels/LabelColorDialog.ts', name: 'LABEL_COPY_FLASH_MS', key: 'labelCopyFlashMs' },
   { file: 'src/client/views/skillDetail/PixelSkillDetailModal.ts', name: 'SKILL_DETAIL_COPIED_FLASH_MS', key: 'skillDetailCopiedFlashMs' },
-  { file: 'src/client/panelAssembly.js', name: 'NATIVE_TAB_RETRY_INTERVAL_MS', key: 'nativeTabRetryIntervalMs' },
+  { file: 'src/client/panelAssembly.ts', name: 'NATIVE_TAB_RETRY_INTERVAL_MS', key: 'nativeTabRetryIntervalMs' }, // #1254 真源转写
   { file: 'src/client/views/skillDetail/PixelSkillOps.ts', name: 'SKILL_SKELETON_DELAY_MS', key: 'skillSkeletonDelayMs' },
   // 这几处是「SYNC 缺席时的兜底」，正常路径取 tracker/sync.js 里那份已锁的值，
   // 兜底这一支也改成吃拼进闭包的中央常量，界面上不再有第二份数字。
@@ -513,7 +513,7 @@ async function main(): Promise<void> {
 
   // —— 第三节：界面半边拿不拿得到值（values.ts 有、构建名单有、界面文件真在用） ——
   const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mts'), 'utf8')
-  const namesBlock = buildSrc.match(/const CLIENT_TIME_NAMES = \[([\s\S]*?)\]/)
+  const namesBlock = buildSrc.match(/const CLIENT_TIME_NAMES(?::[^=]*)? = \[([\s\S]*?)\]/) // #1254：声明带 `: string[]` 类型注解，正则按形状认，不钉死等号位置
   const splicedNames = new Set((namesBlock ? namesBlock[1].match(/'[A-Za-z0-9_]+'/g) || [] : []).map((s) => s.slice(1, -1)))
   check(splicedNames.size > 0, '读到了 scripts/build.mts 的界面拼接名单 CLIENT_TIME_NAMES（' + splicedNames.size + ' 个名字）')
   const clientUsed = new Set<string>()

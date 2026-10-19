@@ -14,7 +14,7 @@
  *      同时不许误伤 `exports.foo` 这类标识符与行首的动态导入 `import(...)`；
  *   3. 缝真的会转译 .ts 片段：带类型标注的 .ts 片段经 readSpliceFragmentSource 之后，类型标注被剥掉、
  *      行首 export 被去掉，而且拼出来的文本能当场交给 eval-probe 求值（vm 只吃纯 JavaScript）；
- *   4. 三个拼接点都走同一条缝：build.mts 里三处 marker 替换都调 readSpliceFragmentSource（构建与门禁
+ *   4. 拼接点都走同一条缝：build.mts 里 marker 替换与占位回填都调 readSpliceFragmentSource（构建与门禁
  *      共用同一份读取实现），且叶子反向检查用的是 lib 里那份判据（不是 build.mts 里自己写一遍）；
  *   5. **拦截走真缝**：一段真正会被拒绝的片段，在 readSpliceFragmentSource 这一层就必须抛错——判据 1、2
  *      测的是纯函数，谁把缝里那次调用换成一行内联的「去行首 export」，纯函数照样绿而缝不再拦；
@@ -191,11 +191,13 @@ function main(): void {
   // ---- 判据 4：三个拼接点都走同一条缝 ----
   // #1074 起三个拼接点先经 spliceText 这一处入口（补末尾换行，防上一段的尾注释吃掉下一段的头一行），
   // 再由它调构建与门禁共用的 readSpliceFragmentSource。对抗式审查补的三条（只数 m.file 会漏异名直调、
-  // 跨函数正则会把搬走的调用也算数、只看接线会漏掉被掏空的补换行），所以这里：数统一入口的调用到 3 处、
+  // 跨函数正则会把搬走的调用也算数、只看接线会漏掉被掏空的补换行），所以这里：数统一入口的调用到 4 处、
   // 把统一入口的函数体抠出来断言两件事都在里面（调共用读取、补末尾换行）、抠掉入口与 import 行之后不许再有读缝调用。
+  // #1254：第 4 处是占位回填（wirePlaceholders 里按占位取片段）：.ts 入口骨架单独转译，标记先换占位
+  // （注释标记过转译会被吞），转译完再按占位取片段——同样走统一入口；数出来不是 4 就说明有人绕开了统一入口。
   const buildSrc = readFileSync(path.join(REPO_ROOT, 'scripts/build.mts'), 'utf8')
   const seamCalls = (buildSrc.match(/spliceText\(\w+\.file\)/g) || []).length
-  ok(seamCalls === 3, 'kernel / leaf / shared 三处拼接点都走同一条缝（实到 ' + seamCalls + ' 处）')
+  ok(seamCalls === 4, 'kernel / leaf / shared 三处拼接点与占位回填都走同一条缝（实到 ' + seamCalls + ' 处）')
   const spliceBody = /function spliceText\(file(?:: string)?\)(?:: string)? \{([\s\S]*?)\n\}/.exec(buildSrc)?.[1] || ''
   ok(
     spliceBody.includes('readSpliceFragmentSource(file)'),

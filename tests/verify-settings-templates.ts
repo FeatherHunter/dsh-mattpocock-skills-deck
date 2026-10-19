@@ -413,7 +413,7 @@ async function main() {
     const nWrite = countLines(VIEW_WRITE_REL)
     check(nWrite <= 350, 'settings-view-write 真源不超过三百五十有效行，实得 ' + nWrite + ' 行。')
     const nIdx = countLines('src/client/index.js')
-    check(nIdx <= 350, 'src/client/index.js 不超过三百五十有效行（拼接标记都是一行注释，注释不计入），实得 ' + nIdx + ' 行。')
+    check(nIdx <= 350, 'src/client/index.ts 不超过三百五十有效行（拼接标记都是一行注释，注释不计入），实得 ' + nIdx + ' 行。')
   }
 
   console.log('')

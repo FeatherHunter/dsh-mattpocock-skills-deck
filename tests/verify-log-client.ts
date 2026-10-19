@@ -216,7 +216,8 @@ async function main() {
     check(fs.existsSync(devPath), '开发产物存在（client.js，由构建生成）')
     check(fs.existsSync(pkgPath), '打包产物存在（package/lib/client.js，由构建生成）')
     const stale = []
-    for (const s of ['src/client/kernel/log.js', 'src/client/kernel/probe-snapshot.js', 'src/client/panelAssembly.js', 'src/client/index.js', 'scripts/build.mts']) {
+    // #1254：入口与面板装配真源已转 .ts；log/probe-snapshot 同理跟真源（.ts 优先，孪生 .js 是 pixel-ts 产物）。
+    for (const s of ['src/client/kernel/log.ts', 'src/client/kernel/probe-snapshot.ts', 'src/client/panelAssembly.ts', 'src/client/index.ts', 'scripts/build.mts']) {
       if (fs.existsSync(path.join(ROOT, s)) && fs.existsSync(devPath) && fs.statSync(path.join(ROOT, s)).mtimeMs > fs.statSync(devPath).mtimeMs + 1000) stale.push(s)
     }
     check(stale.length === 0, '产物新鲜（' + (stale.length ? '过期：' + stale.join('、') + '，请重跑 node scripts/build.mts' : '已同步') + '）')

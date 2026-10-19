@@ -52,7 +52,7 @@ let passed = 0, failed = 0
 function check(ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const ROUTER = 'src/client/kernel/router.js'
-const ASSEMBLY = 'src/client/panelAssembly.js'
+const ASSEMBLY = 'src/client/panelAssembly.ts' // #1254 真源转写：曾叫 panelAssembly.js
 const CONFIG = 'src/client/kernel/config.js'
 const SETTINGS = 'src/client/views/SettingsPage.js'
 const LOCALE_FLOW = 'src/client/kernel/locale-flow.js'
@@ -93,14 +93,14 @@ for (const rel of SET_ASSEMBLY) {
   if (!t) continue
   const start = t.indexOf('registerNativeTabType')
   const block = start >= 0 ? t.slice(start, start + 900) : ''
-  check(/priority:\s*'builtin'/.test(block), rel + ' 原生登记用 builtin 档')
+  check(/priority:\s*['"]builtin['"]/.test(block), rel + ' 原生登记用 builtin 档')
   check(/kind:\s*DECK_NATIVE_TAB_KIND/.test(block), rel + ' 原生登记的 kind 取自常量（避免两处漂移）')
   check(/id:\s*DECK_NATIVE_TYPE_ID/.test(block), rel + ' 原生登记的 id 取自常量')
   check(/guide:\s*\[\{\s*order:\s*60/.test(block), rel + ' 带一条引导页入口（order 60）')
-  check(t.includes("name: 'sidebar.right.pane.tab'") && t.includes("name: 'sidebar.right.pane.tab.title'"), rel + ' 注册了标签内容体与标题栏两个槽位')
+  check((t.includes("name: 'sidebar.right.pane.tab'") || t.includes('name: "sidebar.right.pane.tab"')) && (t.includes("name: 'sidebar.right.pane.tab.title'") || t.includes('name: "sidebar.right.pane.tab.title"')), rel + ' 注册了标签内容体与标题栏两个槽位')
   check(/key:\s*DECK_NATIVE_TYPE_ID/.test(t), rel + ' 两个槽位按我们自己的类型 id 分格（keyed）')
-  check(/inject:\s*function \(sessionId\)/.test(t), rel + ' 内容体从原生右栏的 inject(sessionId) 拿会话号')
-  check(!stripComments(t).includes("__injectOnce('shell.overlay'"), rel + ' 不注册页内浮窗挂载点（shell.overlay 只留给横幅/弹窗/提示三个席位）')
+  check(/inject:\s*function\s*\(sessionId(?::[^)]*)?\)/.test(t), rel + ' 内容体从原生右栏的 inject(sessionId) 拿会话号') // #1254：.ts 真源带类型注解 `(sessionId: any`，产物经转译空格消失
+  check(!stripComments(t).includes("__injectOnce('shell.overlay'") && !stripComments(t).includes('__injectOnce("shell.overlay"'), rel + ' 不注册页内浮窗挂载点（shell.overlay 只留给横幅/弹窗/提示三个席位）')
 }
 
 console.log('')
@@ -133,12 +133,12 @@ for (const rel of SET_ALL) {
 for (const rel of [SETTINGS, 'client.js', 'package/lib/client.js']) {
   const t = texts[rel]
   if (!t) continue
-  check(!stripComments(t).includes("'settings.save'"), rel + ' 不再记 settings.save（那一项即时保存随「打开位置」一起没了）')
+  check(!stripComments(t).includes("'settings.save'") && !stripComments(t).includes('"settings.save"'), rel + ' 不再记 settings.save（那一项即时保存随「打开位置」一起没了）')
 }
 for (const rel of [LOCALE_FLOW, 'client.js', 'package/lib/client.js']) {
   const t = texts[rel]
   if (!t) continue
-  check(!t.includes("'cfg.openIn'") && !t.includes("'cfg.openInDesc'") && !t.includes("'cfg.openInNative'") && !t.includes("'cfg.openInSidebar'"), rel + ' 七个「打开位置」文案键已撤掉')
+  check(!t.includes("'cfg.openIn'") && !t.includes('"cfg.openIn"') && !t.includes("'cfg.openInDesc'") && !t.includes('"cfg.openInDesc"') && !t.includes("'cfg.openInNative'") && !t.includes('"cfg.openInNative"') && !t.includes("'cfg.openInSidebar'") && !t.includes('"cfg.openInSidebar"'), rel + ' 七个「打开位置」文案键已撤掉')
 }
 
 console.log('')
@@ -146,8 +146,8 @@ console.log('== R4 等待方式：等服务，不等槽位声明 ==')
 for (const rel of SET_ASSEMBLY) {
   const t = texts[rel]
   if (!t) continue
-  check(t.includes("ctx.inject(['sidebarRightTabs']"), rel + ' 用 ctx.inject 等 sidebarRightTabs 服务')
-  check(/typeof ctx\.inject === 'function'/.test(t), rel + ' 对没有 ctx.inject 的宿主留了退路（退回每秒重试）')
+  check(t.includes("ctx.inject(['sidebarRightTabs']") || t.includes('ctx.inject(["sidebarRightTabs"]'), rel + ' 用 ctx.inject 等 sidebarRightTabs 服务')
+  check(/typeof ctx\.inject === ['"]function['"]/.test(t), rel + ' 对没有 ctx.inject 的宿主留了退路（退回每秒重试）')
 }
 
 console.log('')

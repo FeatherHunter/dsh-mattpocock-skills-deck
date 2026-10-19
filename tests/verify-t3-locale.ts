@@ -49,8 +49,9 @@ const check = function (file: string) {
   // T0（#93）一源出两物后：pkg 由规范源（动态版）构建，tool.view.cordis 不再缺失 —— 两产物注册数一致。
   // v26 移除 sidebar.footer.action 后：shell.overlay / conversation.input.dock / tool.view.cordis / settings.plugins.tab / details = 5；v1.5 T2 新增 settings.section = 6。
   // #298 幂等：6 槽位经 __injectOnce 注入，底层 slots.inject 仅剩 helper 内 1 处（变量式调用，不计入字面量 ' 统计）；此处校验幂等注册数
-  const nOnce = (src.match(/__injectOnce\s*\('/g) || []).length
-  const nRaw = (src.match(/slots\.inject\('/g) || []).length
+  // #1254：panelAssembly 转 .ts 后拼进产物要过转译，单引号统一成双引号——数注册数只认引号就够了，两种都认（同本文件 17-19 行键与引用的做法）。
+  const nOnce = (src.match(/__injectOnce\s*\(['"]/g) || []).length
+  const nRaw = (src.match(/slots\.inject\(['"]/g) || []).length
   const expectInject = 6
   if (nOnce !== expectInject) problems.push('__injectOnce 注册数异常 ' + nOnce + '（期望 ' + expectInject + '）')
   if (nRaw !== 0) problems.push('slots.inject\' 裸露数异常 ' + nRaw + '（期望 0，#298 后应经 __injectOnce）')

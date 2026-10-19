@@ -39,6 +39,8 @@
     "src/client/kernel/**/*.ts",
     "src/client/statusbar/*.ts",
     "src/client/panel/*.ts",
-    "src/client/floating/*.ts"
+    "src/client/floating/*.ts",
+    // #1254：客户端根三份（index/hostShim/panelAssembly）转成 .ts 后进类型检查；此前只圈子目录，根文件不在任何配置里。
+    "src/client/*.ts"
   ]
 }

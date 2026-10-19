@@ -9,7 +9,7 @@
 //      a. 平台通道的 getTimers（经它自己建的探测服务，src/host/platformChannel.js:316 / :326 那一份）；
 //      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/host/refresh/wiring.ts 那一份）；
 //   ④ 六个调用点都走共享层那一份（静态钉住），共享层那份自己不 import 任何模块；
-//   ⑤ 客户端那一份同款判断（src/client/hostShim.js 的 timer.clearTimeout）也真跑一遍三档 ——
+//   ⑤ 客户端那一份同款判断（src/client/hostShim.ts 的 timer.clearTimeout）也真跑一遍三档 ——
 //      客户端叶子文件是构建时拼进闭包的文本，不能用 import 引共享层那份源码，只能照抄一套判断，
 //      所以这里把「照抄的这一份」也拉到门禁下；并钉住 settings-view-write.js 撤销时走它。
 //
@@ -27,7 +27,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { planGates } from '../scripts/lib/discover-gates.ts'
-import { sourcePath } from './lib/source-text.ts'
+import { sourcePath, spliceableJs } from './lib/source-text.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -338,10 +338,13 @@ async function main() {
 
   // ── ⑨ 客户端那一份同款判断：hostShim 的 timer.clearTimeout（叶子不能 import，照抄一套，这里真跑一遍）──
   {
-    const shimRel = 'src/client/hostShim.js'
-    const shimSrc = fs.readFileSync(path.join(ROOT, shimRel), 'utf8')
-    const disposeIdx = shimSrc.indexOf("typeof id.dispose === 'function'")
-    const fnIdx = shimSrc.indexOf("typeof id === 'function'")
+    const shimRel = 'src/client/hostShim.js' // #1254：真源已转 src/client/hostShim.ts，spliceableJs 会解析到新真源
+    // #1254：读到的是转译后的可拼接 JavaScript —— .ts 真源里的 `: any` 已被剥掉，
+    //   所以下面 new Function 与 `\(id\)` 正则都不用改。
+    const shimSrc = spliceableJs(shimRel)
+    // #1254：真源转 .ts 后走转译，转译器把引号统一成双引号——这里按「形状」判顺序，不钉死哪种引号。
+    const disposeIdx = shimSrc.search(/typeof id\.dispose === ['"]function['"]/)
+    const fnIdx = shimSrc.search(/typeof id === ['"]function['"]/)
     check(disposeIdx > 0 && fnIdx > 0 && disposeIdx < fnIdx, shimRel + '：撤销顺序与共享层一致——先认显式 dispose、再才是调用句柄本身（本票复查改的那一处）')
     check(/clearTimeout:\s*function\s*\(id\)/.test(shimSrc), shimRel + '：timer 上挂着按形状撤销的那一份（客户端改调它的地方靠它）')
     // 按构建的做法（剥行首 export，叶子文本是缩进过的）把这片叶子拼成可求值的文本，喂一个「句柄是函数」的假宿主 timer 真跑。

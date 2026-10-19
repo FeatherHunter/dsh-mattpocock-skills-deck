@@ -9,10 +9,13 @@
  *   与构建不一致 —— 门禁看到的东西和真正拼进产物的东西慢慢分家，而这种偏差不报错。
  *   所以这两件事收在一处：门禁只从这一个入口取源。
  *
- * 三个入口
+ * 四个入口
  *   sourcePath(rel)    这份源码今天住在哪个文件里（仓库相对路径）
  *   sourceText(rel)    它的原文，供按文本形状扫描（正则、字面量比对）的门禁用
  *   spliceableJs(rel)  可以直接交给 eval-probe 的 compileFn / evalWithScope 的 JavaScript 文本
+ *   transpiledSourceText(rel)  原文按全仓唯一转译口径转译后的文本，不做拼接校验——整份文件
+ *     不是片段、但门禁要拿「转译后形态」与产物逐字比对时用（例如客户端入口的内联函数）。
+ *     spliceableJs 会拦 `export default` 这类模块写法，入口文件天生带它，不能走那一档。
  *
  * 「同名 .ts 优先」为什么这么定
  *   仓库的装载钩子（scripts/ts-hook.mts）在模块说明符那一层就是这么改的：写 './x.js' 时，只要旁边
@@ -42,7 +45,8 @@
 
 const { existsSync, readFileSync } = require('node:fs')
 const { resolve } = require('node:path')
-const { REPO_ROOT, readSpliceFragmentSource } = require('../../scripts/lib/transpile-domains.mts')
+const { REPO_ROOT, fragmentLoaderFor, loadEsbuild, readSpliceFragmentSource } = require('../../scripts/lib/transpile-domains.mts')
+const { TRANSPILE_OPTIONS } = require('../../scripts/lib/transpile-unit.mts')
 
 /**
  * 这份源码今天住在哪个文件里：问的是 '.js' 时同名 '.ts' 优先（与装载钩子同规则），问的是 '.ts' 时就用它自己。
@@ -76,4 +80,22 @@ function spliceableJs(rel: string): string {
   return readSpliceFragmentSource(sourcePath(rel))
 }
 
-module.exports = { sourcePath, sourceText, spliceableJs }
+/**
+ * 这份源码转译后的文本：只转译、不做拼接校验。
+ *
+ * 与 spliceableJs 的分工：spliceableJs 回答「这份文本能不能拼进闭包」，自带模块写法校验，
+ * 入口这类整份文件（天生带 `export default`）走它会被当场拦下。这一档只回答「转译之后长什么样」，
+ * 给「产物里拼的那一份必须与真源转译后逐字一致」这类文本比对门禁用。转译参数与构建同一份
+ * （TRANSPILE_OPTIONS，loader 按扩展名给），.js 原文没有类型可剥，直接返回原文。
+ */
+function transpiledSourceText(rel: string): string {
+  const p: string = sourcePath(rel)
+  const { readFileSync } = require('node:fs')
+  const { resolve } = require('node:path')
+  const raw: string = readFileSync(resolve(REPO_ROOT, p), 'utf8')
+  const loader: string = fragmentLoaderFor(p)
+  if (!loader) return raw
+  return loadEsbuild().transformSync(raw, { ...TRANSPILE_OPTIONS, loader }).code
+}
+
+module.exports = { sourcePath, sourceText, spliceableJs, transpiledSourceText }

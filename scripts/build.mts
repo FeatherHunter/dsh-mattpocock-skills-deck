@@ -15,7 +15,7 @@
  *   各自的域目录，并跑一次类型检查。这一步由本文件在派生步骤之前调用，
  *   为的是让「改一行代码到看见效果」仍然只有一条命令 node scripts/build.mts。
  *
- * 规范方言 = 动态版方言（src/client/index.js / src/host/index.ts，host/styles/React/timer 为自由变量）。
+ * 规范方言 = 动态版方言（src/client/index.ts / src/host/index.ts，host/styles/React/timer 为自由变量）。
  * 一源出两物：
  *   _dev → 根 client.js / host.js（cordis_define 函数体形态，须过 precheckCode）
  *   _pkg → package/lib/client.js / package/lib/index.js（ModuleLoader / ESM 形态，pkg entry 提供 shim）
@@ -464,10 +464,11 @@ function extractCtxBlock(): string {
   return spliceText('src/client/kernel/ctx.ts').trim()
 }
 function wireCtx(body: string): string {
-  const marker: string = 'apply(ctx) {'
-  const idx = body.indexOf(marker)
-  if (idx < 0) throw new Error('src/client/index.js 找不到 apply(ctx) { 注入点（Ctx 接线失败）')
-  return body.slice(0, idx + marker.length) + '\n' + extractCtxBlock() + '\n' + body.slice(idx + marker.length)
+  // #1254：入口转 .ts 后这里是 `apply(ctx: any) {`——注入点按形状认（apply(ctx…) {），不钉死冒号注解。
+  const m: RegExpMatchArray | null = body.match(/apply\(ctx(?::[^)]*)?\) \{/)
+  if (!m || m.index === undefined) throw new Error('src/client/index.ts 找不到 apply(ctx) { 注入点（Ctx 接线失败）')
+  const end: number = m.index + m[0].length
+  return body.slice(0, end) + '\n' + extractCtxBlock() + '\n' + body.slice(end)
 }
 
 // ---------- Kernel 模块组合（阶段 2 内核迁移 · #96 T3）----------
@@ -662,7 +663,7 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
 // ---------- 共享核心拼装（一源两物 · #265）----------
 /** 共享纯函数模块（src/shared/*）：host 半运行时 import()；client 半按与 kernel 同模式的
  *  标记拼回闭包 —— 原文零复制（去行首 export），两半共用同一份实现文本，无第二处命名真源。
- *  shared-0（#443）接线结论：下面各项与 src/client/index.js 里拼接标记一一对应，已经对齐；
+ *  shared-0（#443）接线结论：下面各项与 src/client/index.ts 里拼接标记一一对应，已经对齐；(#1254 真源转写)
  *  chain 系与 check-catalog 系只被 host 半在运行时引用，client 半没有运行时引用，
  *  所以不进拼接清单，S1/S3 拆分时不新设拼接标记；naming-guardian.js（498 行）两半都要用，
  *  S2（#452）已拆成标题、跟踪、归属 3 个文件，此处记 3 个拼接项与 3 个标记位（做法见 #443 票内接线图）。
@@ -876,8 +877,12 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { id: 'pop', file: 'src/client/floating/Pop.ts' },
-  { id: 'hostShim', file: 'src/client/hostShim.js' }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底加旧标签迁移）
-  { id: 'panelAssembly', file: 'src/client/panelAssembly.js' }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾）
+  // #1254：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'hostShim', file: 'src/client/hostShim.ts' }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底加旧标签迁移）
+  // #1254：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  { id: 'panelAssembly', file: 'src/client/panelAssembly.ts' }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾）
 ]
 /**
  * 把登记过的片段拼进闭包（#1207）。
@@ -892,7 +897,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
 /**
  * 取一条要拼进闭包的片段文本，并保证它以一个换行收尾（#1209）。
  *
- * 为什么要在这里补这一下：`toSpliceableFragment` 会把片段首尾空白一起 trim 掉，而 src/client/index.js
+ * 为什么要在这里补这一下：`toSpliceableFragment` 会把片段首尾空白一起 trim 掉，而 src/client/index.ts（#1254 前叫 index.js）
  * 里有一批标记是**同一行上连着写**的（例如 `// ==== leaf:StatusMenus ==== // ==== leaf:StatusBackend ==== //…`，见 index.js:275 那一行）。
  * 片段末尾不带换行时，前一条片段的收尾 `}` 会与后一条片段开头的 `const` 拼成 `} const X = …`——
  * 而前一条片段最后往往是一行 `//` 注释，那一拼就把后一条片段的头一行整行吃进注释里。
@@ -911,20 +916,26 @@ function wireModules(body: string): string {
   let out: string = body
   for (const m of KERNEL_MODULES) {
     const marker: string = `// ==== kernel:${m.name} (spliced by build) ====`
-    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 KERNEL_MODULES 注册`)
+    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.ts 加标记并在 KERNEL_MODULES 注册`)
     out = out.replace(marker, () => spliceText(m.file))
   }
   for (const m of LEAF_MODULES) {
     const marker: string = `// ==== leaf:${m.id} (spliced by build) ====`
-    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 LEAF_MODULES 注册`)
+    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.ts 加标记并在 LEAF_MODULES 注册`)
     out = out.replace(marker, () => spliceText(m.file))
   }
   for (const m of SHARED_SPLICE) {
     const marker: string = m.marker
-    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 SHARED_SPLICE 注册`)
+    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.ts 加标记并在 SHARED_SPLICE 注册`)
     out = out.replace(marker, () => spliceText(m.file))
   }
-  // 反向检查：src 下有叶子文件却未在 LEAF_MODULES 登记（比“忘贴纸条”更隐蔽）
+  auditLeafRegistration()
+  return out
+}
+
+// 反向检查：src 下有叶子文件却未在 LEAF_MODULES 登记（比“忘贴纸条”更隐蔽）。
+// wireModules（.js 老路）与 maskSpliceMarkers（.ts 占位路）共用这一份，免得两条路各埋一份、改一处漏一处。
+function auditLeafRegistration(): void {
   try {
     const leafFiles: string[] = []
     const walk = (dir: string): void => {
@@ -940,10 +951,42 @@ function wireModules(body: string): string {
     walk('src/client/views'); walk('src/client/panel'); walk('src/client/statusbar'); walk('src/client/floating')
     const registered: Set<string> = new Set(LEAF_MODULES.map(m => m.file))
     for (const f of leafFiles) {
-      if (!registered.has(f)) throw new Error(`[build] ${f} 未在 LEAF_MODULES 登记 — 新加叶子需在 LEAF_MODULES 加一项并在 src/client/index.js 加 // ==== leaf:<id> ==== 标记`)
+      if (!registered.has(f)) throw new Error(`[build] ${f} 未在 LEAF_MODULES 登记 — 新加叶子需在 LEAF_MODULES 加一项并在 src/client/index.ts 加 // ==== leaf:<id> ==== 标记`)
     }
   } catch (e) {
     if ((e as Error) && (e as Error).message && (e as Error).message.startsWith('[build]')) throw e
+  }
+}
+
+// #1254：拼接标记的占位语句。标记本身是注释，转译会被吞；占位是一次具名调用
+//   `__build_splice__("…");`——调用有潜在副作用，转译不会删也不会改写，字符串字面一字不动，
+//   转译完再按占位换回片段（占位从不进产物：换不回去就报错）。占位只出现在 apply 闭包函数体内
+//   （标记也只在那里），不会落进对象字面量，所以语法恒合法；片段里不会出现 __build_splice__ 前缀，不会误换。
+function splicePlaceholder(kind: string, key: string): string {
+  return `__build_splice__("__SPLICE__:${kind}:${key}");`
+}
+// 骨架里的拼接标记逐个换成占位（缺标记报错，语义与 wireModules 一致），记下占位与片段文件的对应。
+function maskSpliceMarkers(body: string): { masked: string; slots: { ph: string; file: string }[] } {
+  let out: string = body
+  const slots: { ph: string; file: string }[] = []
+  const mask = (marker: string, kind: string, key: string, file: string): void => {
+    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${file} — 请在 src/client/index.ts 加标记并在清单注册`)
+    const ph: string = splicePlaceholder(kind, key)
+    slots.push({ ph, file })
+    out = out.replace(marker, () => ph)
+  }
+  for (const m of KERNEL_MODULES) mask(`// ==== kernel:${m.name} (spliced by build) ====`, 'kernel', m.name, m.file)
+  for (const m of LEAF_MODULES) mask(`// ==== leaf:${m.id} (spliced by build) ====`, 'leaf', m.id, m.file)
+  for (const m of SHARED_SPLICE) mask(m.marker, 'shared', m.marker, m.file)
+  auditLeafRegistration()
+  return { masked: out, slots }
+}
+// 转译完的骨架里按占位换回片段（占位被转译吞掉就报错：占位写法与转译口径需同改）。
+function wirePlaceholders(body: string, slots: { ph: string; file: string }[]): string {
+  let out: string = body
+  for (const s of slots) {
+    if (out.indexOf(s.ph) < 0) throw new Error(`[build] 转译吞了拼接占位 ${s.ph} 对应 ${s.file} — 占位写法与转译口径需同改`)
+    out = out.replace(s.ph, () => spliceText(s.file))
   }
   return out
 }
@@ -957,10 +1000,40 @@ function wireModules(body: string): string {
 
 // ---------- 构建 client ----------
 async function buildClient({ version, repoUrl }: { version: string; repoUrl: string }): Promise<{ devCode: string; pkgCode: string }> {
-  const { header, body }: { header: string; body: string } = extractPluginBody('src/client/index.js')
-  const bodyW: string = wireCtx(wireModules(injectVersion(body, version, repoUrl)))
+  // #1254（修：构建先行兼容）：客户端入口真源可能是手写 .js（转制前）或 .ts（转制后）。
+  //   .ts 先抽取（头与体分离），骨架经占位、转译、复原、再抽取后按占位接回片段（见下）；
+  //   .js 路径仍在时走老路。转制提交只换真源扩展名，构建不用再动。
+  const clientTsRel: string = 'src/client/index.ts'
+  const clientJsRel: string = 'src/client/index.js'
+  const useClientTs: boolean = existsSync(resolve(ROOT, clientTsRel))
+  const clientSrcRel: string = useClientTs ? clientTsRel : clientJsRel
+  // #1254（修：骨架先转译、占位后接线）：入口里的 `// ==== kernel/leaf:<名> (spliced by build) ====`
+  //   标记是注释，转译会整段吞掉；但“拼完整个闭包再转译”会让 esbuild 把派生日志核 tail 的重导出
+  //   （const logSwitch = __pkgLog.logSwitch…）与包体内同名声明当成同域重复声明，顺手改名（…2 后缀
+  //   进产物，门禁锚点与可读性都受损）。所以分两步：标记先换成占位语句（字符串字面过转译一字不动），
+  //   骨架转译完再把占位换成片段（片段各走各的单文件转译，不进同一编译单元，不存在跨片段改名）。
+  //   .js 老路不变：原文抽取拼接，不转译。
+  const extracted: { header: string; body: string } = extractPluginBody(clientSrcRel, read(clientSrcRel))
+  // #1254：.ts 真源头部的 `declare const …` 行只给 tsc 看（闭包自由变量的形状声明），
+  //   转译会整句删掉；头部不经过转译，所以去 declare 行这一步只能手做——
+  //   只删整行 declare（转译删的也是整句），注释原样保留，产物头部与 .js 时代一致。
+  const header: string = useClientTs
+    ? extracted.header.split('\n').filter((l: string) => !/^\s*declare\s/.test(l)).join('\n').replace(/\n{3,}/g, '\n\n')
+    : extracted.header
+  // ctx 接线与版本注入只做纯文本替换，不认拼接标记，先做；转译只吃骨架，片段随后。
+  const wired: string = wireCtx(injectVersion(extracted.body, version, repoUrl))
+  // #1254：转译骨架时外面必须包着 `export default `——裸的 `{ apply(ctx) {…} }` 会被当成语句块，
+  //   转译完复原降级、再抽一次体，最后按占位接回片段。
+  const bodyW: string = useClientTs
+    ? (() => {
+        const masked = maskSpliceMarkers(wired)
+        const transpiled: string = restoreLoweredDefault(transpileClientText('export default ' + masked.masked))
+        const re: { header: string; body: string } = extractPluginBody(clientSrcRel + '（转译后）', transpiled)
+        return wirePlaceholders(re.body, masked.slots)
+      })()
+    : wireModules(wired)
   // 根产物降级声明（G1 · T5 #98）：client.js/host.js 为构建产物，人手不碰
-  const devBanner: string = `// AUTO-GENERATED by scripts/build.mts — DO NOT EDIT. Source: src/client/index.js + kernel/* + leaves/* (${version})\n// 产物 gitignore，一源两物；改 src/ 后运行 node scripts/build.mts 重新生成。\n`
+  const devBanner: string = `// AUTO-GENERATED by scripts/build.mts — DO NOT EDIT. Source: ${clientSrcRel} + kernel/* + leaves/* (${version})\n// 产物 gitignore，一源两物；改 src/ 后运行 node scripts/build.mts 重新生成。\n`
 
   // ---- _dev：cordis_define 函数体形态 ----
   const devCode: string = `${devBanner}${header}\n\nreturn ${bodyW}\n`
@@ -1069,6 +1142,19 @@ function collectMovedTs(): string[] {
  * 改一处三条流水线一起变。forSplice 给拼闭包的那一份用（行首导出改写），
  * 包内运行的那一份不用（再导出的名字声明在别的文件，改写会抛错，理由见上面那段注释）。
  */
+/** 客户端入口拼接体转文本：拼完的闭包体（已无拼接标记）整体转成 JavaScript。
+ * 口径与 transpileMovedTs 同一份 TRANSPILE_OPTIONS，只是不读盘、不加产物头——
+ * 产物头（generatedHeader）是给落盘文件标来源的，拼进闭包的半截文本不需要。 */
+function transpileClientText(src: string): string {
+  const require = createRequire(resolve(ROOT, 'package.json'))
+  let esbuild: any
+  try { esbuild = require('esbuild') }
+  catch (e) { throw new Error('[build] 没装 esbuild（先跑 pnpm install 再构建）：' + ((e as Error) && (e as Error).message || e)) }
+  let code: string
+  try { code = esbuild.transformSync(src, TRANSPILE_OPTIONS).code }
+  catch (e) { throw new Error('[build] 客户端入口转译失败：' + ((e as Error) && (e as Error).message || e)) }
+  return code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
+}
 function transpileMovedTs(srcRel: string, { forSplice = false }: { forSplice?: boolean } = {}): string {
   const require = createRequire(resolve(ROOT, 'package.json'))
   let esbuild: any

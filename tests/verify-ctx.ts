@@ -13,7 +13,7 @@ let failed = false
 const check = (ok: boolean, msg: string) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 const PRODUCTS = ['client.js', 'package/lib/client.js']
-const SOURCES = ['src/client/kernel/ctx.ts', 'src/client/index.js', 'scripts/build.mts', 'package/package.json']
+const SOURCES = ['src/client/kernel/ctx.ts', 'src/client/index.ts', 'scripts/build.mts', 'package/package.json'] // #1254：入口真源转写为 .ts
 
 function productStale(prod: string): string | null {
   if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'

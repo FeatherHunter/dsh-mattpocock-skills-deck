@@ -70,8 +70,8 @@ const LEAVES = [
   { file: 'src/client/statusbar/SessionChainCapsule.js', exports: ['capsuleShardOf', 'sessionChainCapsuleOf', 'SessionChainCapsule'], components: ['SessionChainCapsule'] },
   { file: 'src/client/floating/SkillFloatList.js', exports: ['SkillFloatList'], components: ['SkillFloatList'] },
   { file: 'src/client/floating/Pop.js', exports: ['showPop'], components: [] },
-  { file: 'src/client/hostShim.js', exports: ['timer', 'h'], components: [] }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底，无组件，纯函数；曾含旧标签迁移，该段已由 #598 删除）
-  { file: 'src/client/panelAssembly.js', exports: ['apiCall', 'cx', 'withCx'], components: [] }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾，无组件，纯函数）
+  { file: 'src/client/hostShim.ts', exports: ['timer', 'h'], components: [] }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底，无组件，纯函数；曾含旧标签迁移，该段已由 #598 删除）；#1254 转写为 .ts
+  { file: 'src/client/panelAssembly.ts', exports: ['apiCall', 'cx', 'withCx'], components: [] }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾，无组件，纯函数）；#1254 转写为 .ts
   // #621 标签配色的七个叶子：错误档位到词条键与电话回包取形状（纯函数）、加载与保存状态机（钩子）、
   // 单行取色控件、弹窗本体、面板头部入口按钮、保存成功后写进面板快照的颜色记录（纯函数，#635 追加）、
   // 入口图标的颜色（纯函数，#637 追加）。
@@ -111,7 +111,7 @@ const LEAVES = [
   { file: 'src/client/views/versionControl/vcInView.js', exports: ['vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf'], components: [] }, // #997：「还能显示更多」那几处什么时候接着显示（纯判定 + 从块清单取状态 + 再画一批 + 接线）
 ]
 const SOURCES = [
-  'src/client/index.js', 'scripts/build.mts', 'package/package.json',
+  'src/client/index.ts', 'scripts/build.mts', 'package/package.json', // #1254：入口真源转写为 .ts
   // 两种路径都收进来：转成 TypeScript 的那些，产物同时取决于 .ts 真源与 pixel-ts 写下的同名 .js；
   // 还没转的还是只有 .js。少了哪一条，都会让「改了源码、产物没重建」从这道门禁底下溜过去。
   ...LEAVES.map((l) => l.file),

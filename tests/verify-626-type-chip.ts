@@ -8,7 +8,7 @@
 //
 // 本脚本不看注释、不看愿望，按真实词条与真实代码算一遍这一格的文字与图标：
 //   A. 词条：从语言包取出中文块，只作为真词条喂给 B 段被测的 TypeChip（不再单独断言语言包文本）
-//   B. 徽章：把 chips.js 里真实的 TypeChip 拿出来执行（tr 用 index.js 同款「缺词条退回键名」语义），
+//   B. 徽章：把 chips.js 里真实的 TypeChip 拿出来执行（tr 用 index.ts 同款「缺词条退回键名」语义），
 //      断言 type=issue 出「普通票」而不是 'type.issue'，且 task 仍是「任务」
 //   C. 图标：把 MapDetail.js 里那一行三元表达式抠出来求值，断言 issue→dot、task→gear（两者不再撞脸）
 //   D. 双产物：client.js 与 package/lib/client.js 都带上了新词条
@@ -56,13 +56,14 @@ const arrow = (function (): string {
   return ''
 })()
 check(fnStart >= 0 && arrow.length > 0, 'B. 从 chips.js 抽到 TypeChip 函数体')
-// index.js 第 90-96 行的取词条语义：字典里有就用，没有就把键名原样返回
+// 入口同款取词条语义（index.ts，locale 缺失时退化实现）：字典里有就用，没有就把键名原样返回
 const trStub = function (key: string): string {
   const v = valueOf(zhPart, key)
   return v !== null ? v : key
 }
 const iconMap = (function (): Record<string, string> | null {
-  const m = read('src/client/index.js').match(/const TYPE_ICON = \{([^}]*)\}/)
+  // #1254：真源已转 src/client/index.ts，走 sourceText（.ts 优先，文本与转写前一致）。
+  const m = sourceText('src/client/index.js').match(/const TYPE_ICON = \{([^}]*)\}/)
   if (!m) return null
   const out: Record<string, string> = {}
   m[1].split(',').forEach(function (kv: string): void {
@@ -71,7 +72,7 @@ const iconMap = (function (): Record<string, string> | null {
   })
   return out
 })()
-check(!!iconMap, 'B. 从 index.js 抽到 TYPE_ICON 表')
+check(!!iconMap, 'B. 从 index.ts 抽到 TYPE_ICON 表')
 if (iconMap) {
   // 本文件选 compileFn：这两处原来都是「把参数名与函数体交给构造器造函数」，语义一一对应，
   //   且被造的代码只用参数、不读外层变量（arrow 是当场算好的文本），所以不需要额外的作用域表。

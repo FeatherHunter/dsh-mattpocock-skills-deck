@@ -576,7 +576,7 @@ const wait = (env) => realSleep(300)
     const nMark = countLines('src/client/views/SubworkspaceMark.js')
     check(nMark <= 350, 'SubworkspaceMark.js 不超过三百五十行，实得 ' + nMark + ' 行。')
     const nIdx = countLines('src/client/index.js')
-    check(nIdx <= 350, 'src/client/index.js 不超过三百五十行（新标记是在原地换掉一行注释腾出来的位子），实得 ' + nIdx + ' 行。')
+    check(nIdx <= 350, 'src/client/index.ts 不超过三百五十行（新标记是在原地换掉一行注释腾出来的位子），实得 ' + nIdx + ' 行。')
   }
 
   // ── 第八件事：文档还在路上时不许下结论（就绪查询、问完通知、自动展开的三档判决）──

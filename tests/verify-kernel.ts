@@ -76,7 +76,7 @@ const kernelFileOf = (m) => {
   return fs.existsSync(base + '.ts') ? base + '.ts' : base + '.js'
 }
 const SOURCES = [
-  'src/client/index.js', 'scripts/build.mts', 'package/package.json',
+  'src/client/index.ts', 'scripts/build.mts', 'package/package.json', // #1254：入口真源转写为 .ts
   // #629：配色核心的两个产物是客户端闭包的输入（scripts/build.mts 的 SHARED_SPLICE 直接读它们），
   // 加进这份「比产物新就判过期」的清单以后，「只重跑核心转译、没重跑主构建」会更早变红。
   // 这是 SOURCES 里第一次出现 src/shared/ 下的文件；另外八个既有共享拼接文件仍然不在清单里（存量空白，另票处理）。

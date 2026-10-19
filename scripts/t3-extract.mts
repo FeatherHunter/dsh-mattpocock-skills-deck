@@ -3,9 +3,9 @@
  * scripts/t3-extract.mts — T3（#96）内核迁移一次性工具（用完保留，幂等）
  *
  * 用法: node scripts/t3-extract.mts <name> <startLine> <endLine> [--style]
- *   从 src/client/index.js 切出 [startLine, endLine]（1-based 闭区间）代码块，
+ *   从 src/client/index.ts 切出 [startLine, endLine]（1-based 闭区间）代码块，（#1254 前叫 index.js）
  *   顶层声明（0-4 空格缩进的 const/let/var/function 行首）加 `export ` 前缀，
- *   写入 src/client/kernel/<name>.js；index.js 该区间替换为拼接标记
+ *   写入 src/client/kernel/<name>.js；index.ts 该区间替换为拼接标记（#1254 前叫 index.js）
  *   `// ==== kernel:<name> (spliced by build) ====`。
  *   --style 特殊模式：styles 块（`styles.insert([...].join(''))` → `export const STYLE_TEXT = [...]`）。
  */
@@ -18,7 +18,7 @@ const [name, sRaw, eRaw]: string[] = process.argv.slice(2)
 const styleMode: boolean = process.argv.includes('--style')
 if (!name || !sRaw || !eRaw) { console.error('用法: node scripts/t3-extract.mts <name> <startLine> <endLine> [--style]'); process.exit(1) }
 
-const INDEX: string = resolve(ROOT, 'src/client/index.js')
+const INDEX: string = resolve(ROOT, 'src/client/index.ts') // #1254：入口真源转写为 .ts
 const lines: string[] = readFileSync(INDEX, 'utf8').split('\n')
 const start: number = Number(sRaw) - 1
 const end: number = Number(eRaw) - 1
@@ -40,7 +40,7 @@ const header: string = `/**
  * src/client/kernel/${name}.js — 内核模块（阶段 2 内核迁移 · #96 T3）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首
- * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
+ * export 关键字，把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内（#1254 前叫 index.js）
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
@@ -53,4 +53,4 @@ writeFileSync(modPath, header + out + '\n')
 lines.splice(start, end - start + 1, `    // ==== kernel:${name} (spliced by build) ====`)
 writeFileSync(INDEX, lines.join('\n'))
 
-console.log(`[t3] ${name}: 切出 ${block.length} 行 → src/client/kernel/${name}.js；index.js 已留标记`)
+console.log(`[t3] ${name}: 切出 ${block.length} 行 → src/client/kernel/${name}.js；index.ts 已留标记`)
