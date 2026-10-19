@@ -8,7 +8,7 @@
 // 「文件在不在」由解析器说了算。
 //
 // 判据分三层，缺一层都不算换完：
-//   一、图上的边：规则写在仓库根目录 .dependency-cruiser.cjs（同层互引五条、房间纪律三条、
+//   一、图上的边：规则写在仓库根目录 .dependency-cruiser.ts（同层互引五条、房间纪律三条、
 //       房间只许装配点引用一条、deck 深引一条、纯规则侧两条、禁循环一条，合计十三条）。
 //       本文件只负责跑它、核对存量豁免、判红判绿，不重复写规则；规则被删或降级时本文件会判红。
 //   二、工具看不见的引用：非字面量动态 import。解析器只在参数是字符串字面量时才产生依赖，所以
@@ -40,9 +40,9 @@
 //   应当判红；跑完删掉。本文件启动时先跑内存夹具，夹具里包含「故意违规」与「空集合」两组反例。
 //
 // 与外部的衔接：
-//   规则文件 .dependency-cruiser.cjs 的头部注释写着三条口径约定（只看三棵树、类型级 import 也算边、
+//   规则文件 .dependency-cruiser.ts 的头部注释写着三条口径约定（只看三棵树、类型级 import 也算边、
 //   非字面量动态引用由本文件补），改规则前先读那里。
-//   tests/verify-gate-map.js 检查「每个源码文件都有门禁覆盖」，本文件读的 .dependency-cruiser.cjs 与
+//   tests/verify-gate-map.js 检查「每个源码文件都有门禁覆盖」，本文件读的 .dependency-cruiser.ts 与
 //   tests/same-layer-baseline.json 会被它算成归属依据，所以规则的落点改名字时两处要一起动。
 
 import { spawnSync } from 'node:child_process'
@@ -65,7 +65,7 @@ const SCAN_TREES = ['src/host', 'src/shared', 'src/seam', 'src/tracker']
 // 所以这里的作用不是「让规则第一次有判据可判」，而是让「图是完整的」不依赖「import 边碰巧够长」：
 // 以后往 deck 里加一个没人引用的新文件，它也会自动进图、自动受 deck 深引与纯规则侧两条管。
 const OPTIONAL_TREES = ['src/deck']
-const CONFIG_REL = '.dependency-cruiser.cjs'
+const CONFIG_REL = '.dependency-cruiser.ts'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
@@ -292,7 +292,7 @@ function readGateConfig(): { forbidden: ForbiddenRule[], roomImports: RoomImport
   let forbidden: ForbiddenRule[]
   try {
     const req = createRequire(import.meta.url)
-    const config = req('../.dependency-cruiser.cjs') as { forbidden?: ForbiddenRule[] }
+    const config = req('../.dependency-cruiser.ts') as { forbidden?: ForbiddenRule[] }
     forbidden = config.forbidden || []
   } catch (e) {
     return null
@@ -949,7 +949,7 @@ function purityRule(name: string): PurityRule | null {
   let config: { forbidden?: PurityRule[] } = {}
   try {
     const req = createRequire(import.meta.url)
-    config = req('../.dependency-cruiser.cjs') as { forbidden?: PurityRule[] }
+    config = req('../.dependency-cruiser.ts') as { forbidden?: PurityRule[] }
   } catch (e) {
     return null
   }

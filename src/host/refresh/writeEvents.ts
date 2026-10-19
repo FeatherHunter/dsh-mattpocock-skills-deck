@@ -162,7 +162,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     lastFireAt.delete(h)
     firedLogAt.delete(h)
     // 白名单里已经没有这根了，缓存里的「会话 → 根」也要一并清掉：不清的话 debugState().knownSessions
-    // 只增不减，同一会话以后换了工作区还会命中旧缓存、永远不算归我们（#1262 删旧推断入口时漏过这一段）。
+    // 只增不减，同一会话以后换了工作区还会命中旧缓存、永远不算归我们。
     for (const [id, root] of Array.from(sessionRoots.entries())) {
       if (root === h) sessionRoots.delete(id)
     }

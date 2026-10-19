@@ -30,7 +30,7 @@
 | `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`；`from` 写 `@map` 指地图自己）· `effortId`；`children` 每项必填 `key`、`title`，可选 `body`、`kind`（同上三档）、`labels`、`assignees` |
 | `deck_map_link` | 无 | `key` 与 `edges` 二选一，两个都不给回 `bad-args`。`key`：要改的那张子票 · `parentKey`：要挂到的父票 · `blockedBy`：这张票被哪些票阻塞（**整批替换**，给空数组就是清空）· `edges`（一次改多张票，每项必填 `key`，其余同左）· `effortId` |
 | `deck_issue_patch` | `key` | `comment` · `addLabels` · `removeLabels` · `assignees`（整批替换，给空数组就是取掉认领）· `title` · `body` · `progress`（只改「## 进度」那一段）· `close`（布尔，`true` 关闭、`false` 重新打开）· `effortId` |
-| `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `effortId` |
+| `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `progress`（数字，0 到 100 的整数，这次上报的进度自评；只写进本会话这张票的工作条目、只作展示，不参与任何判定；不传时这次不带进度，条目上不记这一格，也不沿用上一次的数字）· `effortId` |
 
 三条口径写在表外，但同样冻着：
 

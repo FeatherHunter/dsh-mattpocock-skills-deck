@@ -9,14 +9,20 @@
 //      —— 这是票面点名的失败现场（同根多会话互相覆盖）。
 //   2. **只记写与明确的处理动作**：本文件一条读都不记。判定交给 chain.js 的 chainVerdictOf，
 //      它认识「明确只读」的工具与子命令（看票、列票、看帮助）与「写」的三条来源
-//      （我们工具的具名参数 / 当前后端的命令行 / markdown 后端票文件的路径）。读那一路连日志都不落
-//      —— 它是高频路径，记了就是刷屏（同 489 附录里 labelColors.read 那一档的处置）。
-//   3. **每会话留最近 20 张**：去重、时间倒序、超过丢最旧的，算法在 chain.js 的 mergeEntries 一处。
+//      （我们工具的具名参数 / 当前后端的命令行 / markdown 后端票文件的路径）。读那一路本来就不记，
+//      本文件也不再发日志（#1083 退役了 sessionTickets.chain 一族；新存档的轨迹由
+//      src/deck/shell/work-path-store.ts 发 workRoute.write / workRoute.read）。
+//   3. **按时间与体积留存**：去重、时间倒序，超过 30 天的条目在下一次落盘时清掉，整份仍超过
+//      2MB 就按时间从旧到新裁（#1083 把原来「每会话 20 张」的硬上限换掉了：会话长短差得远，
+//      按张数切对长会话不够、对短会话又太多，而且把「多久没动」这个真正的判据排除在外）。
 //      「分片内防抖」在这里的落点就是同一张票重复出现只留一条（链要回答的是「在处理哪几张票」，
 //      不是一笔流水账），没有第二个合并窗口，也没有定时器。
 //   4. **落盘只存散列与票键**：写下去的是 chainToDisk 那一份（会话散列、工作区根散列、后端名、
 //      票键、时间、动作类别）。会话 id 原文、路径原文、命令原文一个都不在里面；落盘前还要过一遍
-//      chainPrivacyViolations 自检，见到路径或命令的形状就**整份不写**并记一行 ok:false。
+//      chainPrivacyViolations 自检，见到路径或命令的形状就**整份不写**。
+//      注意这是**旧宿主缓存**（session-tickets.json）自己的口径；#1083 起新的工作路线存档
+//      （src/deck/shell/work-path-store.ts）改用「字段白名单 + 凭证形状」检查，允许会话 id 原文与
+//      会话/票标题快照落盘，凭证原文仍然永不落盘 —— 两代口径为什么不同见 ADR 20261019。
 //   4b. **记之前先洗根**：调用方传进来的可能是会话所选目录原文（子目录、尾斜杠、大小写混写），
 //      这里经注入的 canonicalKey 洗成工作区根后再算散列 —— 同一处地方永远落同一格，
 //      读回那一侧按根过滤才找得到（#781；不洗就会内存里有、盘里有、读数里没有）。
@@ -26,8 +32,8 @@
 //      restore() 读回来，链就回来了。
 //
 // 为什么没有定时器：写票是人的动作或 AI 的调用，本来就在低频那一档（一次最多几行 JSON），
-// 当场写掉最省事，也省掉「脏了就刷」这条常驻活与它的日志点。缓存没有过期一说：留存上限是
-// 每会话 20 张，时间只是排序用的，所以日志里没有「过期」这一档 (见 489 附录 #78)。
+// 当场写掉最省事，也省掉「脏了就刷」这条常驻活与它的日志点。缓存有 30 天保留期：清理由
+// 本文件的纯函数 chainPrune 在每次落盘前做（数字来自 chain-prune.js），不需要定时扫描。
 //
 // 接线：订阅会话事件那条路（src/host/refresh/writeEvents.js）判定完一次调用之后，把结果交给
 // note()；note() 只认已经判定过的东西，不自己去解析命令原文 —— 命令原文不进这个函数更好，
@@ -37,7 +43,9 @@
 // 2026-10-19 #1260 从 sessionTickets 改名 workRoute，行为仍未动 —— 旧名只作历史说明。）
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts；落盘形状与隐私自检的约定不变，
 // 本文件只记散列与票键，原文一个都不落盘。）
-import { createChainState, chainVerdictOf, chainRecord, chainRootHash, chainSessionShardId, chainEntriesOf, chainToDisk, chainFromDisk, chainPrivacyViolations, CHAIN_SESSION_CAP } from '../../shared/refresh/chain.js'
+import { createChainState, chainVerdictOf, chainRecord, chainRootHash, chainSessionShardId, chainEntriesOf, chainToDisk, chainFromDisk, chainPrivacyViolations, CHAIN_ACTIONS, CHAIN_DISK_VERSION, chainBackendId, chainEffortId, chainTicketKey, isFingerprintLike } from '../../shared/refresh/chain.js'
+import type { ChainEntry, ChainState } from '../../shared/refresh/src/chain.js'
+import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES, utf8Bytes, newestPrefixThatFits } from '../../shared/refresh/chain-prune.js'
 // 本域 tsconfig 有意不加载任何类型包（types 为空），node:fs/promises 与 node:path 的类型声明
 // 随 @types/node 一起被挡在门外；运行时一定是 Node，这两个模块必然存在。所以只忽略导入这一行的类型错误
 // （纯类型层面，不影响 esbuild 的运行时转译）——与 src/host/choiceStore.ts 同一写法。
@@ -54,7 +62,8 @@ import { dirname, join } from 'node:path'
 // 从外面进来的东西（缓存目录、文件服务、日志出口、归一出口、时钟）全是可选的，
 // 测试一律用假零件，生产才给真的，所以依赖整包按 any 收，收窄发生在各使用点的 typeof 判断里。
 // 落盘那一份只认散列与票键，隐私自检没过就整份不写 —— 这条纪律由 chainPrivacyViolations 守，
-// 类型不替它放行任何原文。
+// 类型不替它放行任何原文。清理那两条线（30 天、2MB）的数字来自 chain-prune.js 的常量，本文件不另写一份；
+// 链专用的裁剪实现也住在下面（数字与二分是共享的，怎么拼成链的落盘形状要用 chain.js 的工具，只能在这里）。
 // ---------------------------------------------------------------------------
 
 /** 落盘文件名（与 naming-guardian.json 同一个缓存目录）。 */
@@ -69,7 +78,6 @@ interface WorkRouteDeps {
   platform?: any
   readText?: (p: string) => string | Promise<string>
   writeText?: (p: string, text: string) => unknown | Promise<unknown>
-  logCtx?: any
   canonicalKey?: (raw: string) => string | Promise<string>
   now?: () => number
 }
@@ -90,6 +98,111 @@ interface NoteInput {
   args?: unknown
 }
 
+// ---------------------------------------------------------------------------
+// 落盘前的留存裁剪（#1083，实现从共享层的 chain-prune.ts 搬到这里）。
+//
+// 为什么不留在共享层：.dependency-cruiser.ts 的 same-layer-import-shared 规定共享层的每个文件
+// 都是自包含的纯模块，不许引用同层的另一个文件。而这一步要用 chain.js 的键构造、动作闭集合与
+// 形状校验工具，才能把状态拼成落盘那份、再拼回来。宿主层引用共享层是正常方向，本文件又是
+// chainPrune 唯一的生产调用方，所以实现住在这里；数字（30 天、2MB）与二分仍来自 chain-prune.js。
+// ---------------------------------------------------------------------------
+
+/** 留存裁剪的结果：dropped 是「按 30 天清掉 + 按 2MB 裁掉」一共丢了多少条，bytes 是裁剪后那份落盘的字节数。 */
+export interface ChainPruneResult {
+  state: ChainState
+  dropped: number
+  bytes: number
+  reason: string
+}
+
+/** 裁剪后的一条（只为了在函数内部排序与重新分格）。 */
+interface PruneRow {
+  shardId: string
+  rootHash: string
+  backend: string
+  ticketKey: string
+  effortId: string
+  at: number
+  action: string
+}
+
+/** 按时间倒序取前 count 条，拼成「准备落盘的那份」——和 chainToDisk 的形状一模一样，只是允许只取一部分。 */
+function prunePayloadOf(rows: PruneRow[], count: number, at: number): { v: number; at: number; shards: Array<Record<string, unknown>> } {
+  const order: string[] = []
+  const grouped: Record<string, { s: string; r: string; b: string; e: Array<[string, string, number, string]> }> = {}
+  for (let i = 0; i < count; i++) {
+    const row = rows[i]
+    if (!grouped[row.shardId]) {
+      grouped[row.shardId] = { s: row.shardId, r: row.rootHash, b: row.backend, e: [] }
+      order.push(row.shardId)
+    }
+    grouped[row.shardId].e.push([row.ticketKey, row.effortId, row.at, row.action])
+  }
+  const shards: Array<Record<string, unknown>> = []
+  for (const id of order) shards.push(grouped[id] as unknown as Record<string, unknown>)
+  return { v: CHAIN_DISK_VERSION, at: at, shards: shards }
+}
+
+/** 裁剪后重建成纯逻辑用的状态（sessionId 本来是空的：落盘那份从来不含会话 id 原文）。 */
+function pruneStateOf(rows: PruneRow[]): ChainState {
+  // createChainState 来自共享层的 JS 产物（不含类型声明），返回形状在这里按源码的类型标注收窄。
+  const state: ChainState = createChainState() as ChainState
+  for (const row of rows) {
+    const shard = state.shards[row.shardId] || { shardId: row.shardId, sessionId: '', rootHash: row.rootHash, backend: row.backend, entries: [] }
+    shard.entries.push({ ticketKey: row.ticketKey, effortId: row.effortId, at: row.at, action: row.action })
+    state.shards[row.shardId] = shard
+  }
+  return state
+}
+
+/**
+ * 落盘前的留存裁剪（纯函数：时间由调用方传进来，自己不读时钟，也不碰磁盘）。
+ *
+ * 先按 30 天清，再按 2MB 从旧到新裁；裁剪后的状态与「只留这些条」的落盘字节数一起返回。
+ * reason 只表示这次有没有丢东西：'chain.pruned' 丢过，'chain.prune-kept' 一条没丢。
+ */
+export function chainPrune(state: ChainState, opts?: { at?: number; keepMs?: number; maxBytes?: number }): ChainPruneResult {
+  const rawAt = opts ? opts.at : 0
+  const at = typeof rawAt === 'number' && isFinite(rawAt) ? Math.floor(rawAt) : 0
+  const rawKeep = opts ? opts.keepMs : undefined
+  const keepMs = typeof rawKeep === 'number' && isFinite(rawKeep) && rawKeep >= 0 ? rawKeep : CHAIN_KEEP_MS
+  const rawMax = opts ? opts.maxBytes : undefined
+  const maxBytes = typeof rawMax === 'number' && isFinite(rawMax) && rawMax > 0 ? Math.floor(rawMax) : CHAIN_MAX_BYTES
+  const cutoff = at - keepMs
+
+  const rows: PruneRow[] = []
+  let before = 0
+  const src = state && state.shards ? state.shards : {}
+  for (const k of Object.keys(src)) {
+    const shard = src[k]
+    if (!shard || !isFingerprintLike(shard.shardId) || !isFingerprintLike(shard.rootHash) || !chainBackendId(shard.backend)) continue
+    for (const e of Array.isArray(shard.entries) ? shard.entries : []) {
+      const ticketKey = chainTicketKey(e ? e.ticketKey : '')
+      if (!ticketKey) continue
+      before += 1
+      const entryAt = typeof e.at === 'number' && isFinite(e.at) ? Math.floor(e.at) : 0
+      if (entryAt < cutoff) continue
+      const action = String(e.action || '')
+      rows.push({
+        shardId: String(shard.shardId),
+        rootHash: String(shard.rootHash),
+        backend: chainBackendId(shard.backend),
+        ticketKey: ticketKey,
+        effortId: chainEffortId((e as ChainEntry).effortId),
+        at: entryAt,
+        action: CHAIN_ACTIONS.indexOf(action) >= 0 ? action : 'other-write',
+      })
+    }
+  }
+  rows.sort((a, b) => b.at - a.at)
+
+  // 二分找「按时间倒序最多能留下多少条」：留得越多体积越大，所以可以二分。
+  const kept = newestPrefixThatFits(rows.length, (count: number) => utf8Bytes(JSON.stringify(prunePayloadOf(rows, count, at))), maxBytes)
+  const keptRows = rows.slice(0, kept)
+  const bytes = utf8Bytes(JSON.stringify(prunePayloadOf(keptRows, keptRows.length, at)))
+  return { state: pruneStateOf(keptRows), dropped: before - kept, bytes: bytes, reason: before - kept > 0 ? 'chain.pruned' : 'chain.prune-kept' }
+}
+
 /**
  * 建一张工作路线的内存表与它的落盘。
  *
@@ -98,24 +211,16 @@ interface NoteInput {
  *   - `cacheDir`：直接给目录（测试用）；
  *   - `fs` + `platform`：宿主的平台服务（`fs.resolve` / `fs.readText` / `fs.writeText`），与命名守护同一套；
  *   - `readText` / `writeText`：最简注入面（测试用，优先于上面两者）；
- *   - `logCtx`：宿主日志出口（`isEnabled` 与 `fire`）；没给就一条都不记；
  *   - `canonicalKey()`：会话所选目录洗成工作区根的既有出口；有它时 note() 先洗根再算散列，没有时沿用原文；
  *   - `now()`：时钟；默认 Date.now。
  */
 export function createWorkRoute(deps?: WorkRouteDeps | null): any {
   const opts: any = deps || {}
   const now: () => number = typeof opts.now === 'function' ? opts.now : Date.now
-  const logCtx: any = opts.logCtx || null
 
   let state: any = createChainState()
   let lastFlushAt = 0
   const counters = { records: 0, filtered: 0, flushes: 0, restored: 0, refused: 0 }
-
-  /**
-   * 记一行「记进链」。三处落点各自直接写字段对象，不经过转发函数 —— 489 附录的字段白名单门禁
-   * 是按调用处那个对象字面量来核对允许字段的，转发一层它就读不到字段，等于白名单失了效。
-   * 字段只有散列、枚举与数字，绝不带路径、命令与票标题；日志出问题不许影响记链本身。
-   */
 
   function pathJoin(dir: any, name: any): any {
     const p: any = opts.platform && opts.platform.path
@@ -189,20 +294,24 @@ export function createWorkRoute(deps?: WorkRouteDeps | null): any {
     counters.records += 1
     const count: any = chainEntriesOf(state, input.sessionId).length
     // 记进链与落盘是同一步：写票本来就低频，当场写掉，省掉一个定时器与它的日志点。
-    const saved: any = await flush({ silent: true })
-    try {
-      if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'sessionTickets.chain', { kind: 'record', sidHash: r.shardId, rootHash: rootHash, ok: saved.ok, action: verdict.action, count: count })
-    } catch (eL: any) { /* 日志出问题不许影响记链本身 */ }
+    // #1083：这一路上原来那行 sessionTickets.chain 日志已随事件退役删掉；新存档的落盘轨迹
+    // 由 src/deck/shell/work-path-store.ts 发 workRoute.write，本文件不再记日志。
+    await flush()
     return { recorded: true, action: verdict.action, ticketKey: verdict.ticketKey, effortId: verdict.effortId || '', reason: 'chain.record', count: count }
   }
 
   /**
-   * 把当前内存表写下去（全文覆写；照命名守护的做法：写不进去也不抛错，只把 ok:false 记下来）。
-   * `silent` 是 note() 用的：那一路已经把结果合进了自己的那一行，不另记一行。
+   * 把当前内存表写下去（全文覆写；照命名守护的做法：写不进去也不抛错，只把 ok:false 带回去）。
+   *
+   * #1083：落盘前先按 30 天保留期与 2MB 体积裁剪，返回里 `pruned` 是这一次裁掉了多少条。
+   * 这一路不再记日志 —— 会话↔票链的常驻事件 sessionTickets.chain 已退役，新存档另发 workRoute.write。
    */
-  async function flush(flushOpts?: any): Promise<any> {
-    const silent = !!(flushOpts && flushOpts.silent)
-    const payload: any = chainToDisk(state, { at: now() })
+  async function flush(): Promise<any> {
+    // #1083：落盘前先按 30 天保留期与 2MB 体积裁剪（纯函数，时间由这里传进去）。
+    const at: number = now()
+    const pruned: any = chainPrune(state, { at: at })
+    state = pruned.state
+    const payload: any = chainToDisk(state, { at: at })
     const dirty: any = chainPrivacyViolations(payload)
     let ok = false
     let reason = 'ok'
@@ -216,16 +325,9 @@ export function createWorkRoute(deps?: WorkRouteDeps | null): any {
         else { await writeTextOf(file, JSON.stringify(payload)); ok = true }
       } catch (e: any) { reason = 'write-fail' }
     }
-    lastFlushAt = now()
+    lastFlushAt = at
     if (ok) counters.flushes += 1
-    if (!silent || !ok) {
-      const first: any = Object.keys(state.shards)[0]
-      const shard: any = first ? state.shards[first] : null
-      try {
-        if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'sessionTickets.chain', { kind: 'flush', sidHash: first || '', rootHash: shard ? shard.rootHash : '', ok: ok, action: '', count: countEntries() })
-      } catch (eL: any) { /* 同上：日志不许影响落盘结论 */ }
-    }
-    return { ok: ok, reason: reason, shards: payload.shards.length, entries: countEntries() }
+    return { ok: ok, reason: reason, shards: payload.shards.length, entries: countEntries(), pruned: pruned.dropped }
   }
 
   function countEntries(): number {
@@ -255,9 +357,6 @@ export function createWorkRoute(deps?: WorkRouteDeps | null): any {
       }
     } catch (e: any) { cache = 'miss' }
     if (!payload) {
-      try {
-        if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'sessionTickets.chain', { kind: 'restore', sidHash: '', rootHash: wanted, ok: false, action: '', count: 0 })
-      } catch (eL: any) { /* 同上 */ }
       return { restored: 0, entries: 0, cache: cache, reason: cache === 'bad' ? 'chain.disk-shape' : 'chain.disk-empty' }
     }
     const read: any = chainFromDisk(payload)
@@ -271,13 +370,10 @@ export function createWorkRoute(deps?: WorkRouteDeps | null): any {
     state = { shards: shards }
     counters.restored += 1
     const n = Object.keys(shards).length
-    try {
-      if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'sessionTickets.chain', { kind: 'restore', sidHash: '', rootHash: wanted, ok: n > 0, action: '', count: countEntries() })
-    } catch (eL: any) { /* 同上 */ }
     return { restored: n, entries: countEntries(), cache: n > 0 ? 'hit' : cache, reason: read.reason }
   }
 
-  /** 某个会话的那一格链（时间倒序、最多 20 条）；没有就是空数组。 */
+  /** 某个会话的那一格链（时间倒序；条数由落盘前的 30 天/2MB 裁剪决定）；没有就是空数组。 */
   function entriesOf(sessionId: any): any {
     return chainEntriesOf(state, sessionId)
   }
@@ -291,7 +387,8 @@ export function createWorkRoute(deps?: WorkRouteDeps | null): any {
     return {
       shards: Object.keys(state.shards).length,
       entries: countEntries(),
-      capPerSession: CHAIN_SESSION_CAP,
+      keepMs: CHAIN_KEEP_MS,
+      maxBytes: CHAIN_MAX_BYTES,
       records: counters.records,
       filtered: counters.filtered,
       flushes: counters.flushes,

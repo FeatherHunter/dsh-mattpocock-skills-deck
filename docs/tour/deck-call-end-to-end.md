@@ -627,20 +627,20 @@ run                  src/deck/tools/issue-patch.ts:154-403
 ### 8.9 `deck_issue_report` — 上报当前在办哪张票
 
 ```
-run                  src/deck/tools/issue-report.ts:121-220
-  ├ 参数              :78-91  key（必填）、note、effortId
+run                  src/deck/tools/issue-report.ts:121-207
+  ├ 参数              :80-91  key（必填）、note、progress、effortId
   ├ key 归一          :125（`normKey`，:93-98：去掉开头的 `#`、丢掉前导零，只认 1..10 位数字）
   ├ key 必填          :131
-  └ shell.call        :148   kind: write
-       ├ t.get(repo, key, {comments:{first:0}})   :157
-       ├ 记链 d.chainNote(...)                    :187-202（竞速超时按没记进走老路，:189；没注入记链口按 `no-chain-note`，:200）
-       ├ 链上有没有如实说                          :203、:208
-       └ 报账                                     :217  { requests: 1, points: 3 }
+  ├ progress 校验      :132-135（0 到 100 的整数；不合规在选后端之前按 bad-args 拒绝）
+  └ shell.call        :152   kind: write
+       ├ t.get(repo, key, {comments:{first:0}})   :161
+       ├ 工作路线         由壳在成功收口处统一记（call-shell.ts → work-path-record.ts；#1262）
+       └ 报账                                     :204  { requests: 1, points: 3 }
 ```
 
-**最底层**：读票走房间的 `get`（GitHub 是 `gh api`，本地是读文件）；上报本身**只写本地链**，不出网。
+**最底层**：读票走房间的 `get`（GitHub 是 `gh api`，本地是读文件）；上报本身不写票面，也不写旧的本地链（那条链的写入口 #1262 已删），只在回执里带回工作路线的读数。
 
-**失败长什么样**：票没读回来 → `unsupported`，「这张票没上报（票 X 没读回来，后端原话：…）。」（:171-182）。链没记进 → 注记「这次没显式记进链（…）：被动推断那一路仍会按参数里的票号记一次，去重后同一张票只留一条。」（:203）。备注只回显不进链（:156）。
+**失败长什么样**：票没读回来 → `unsupported`，「这张票没上报（票 X 没读回来，后端原话：…）。」（:175-187）。进度不合规 → `bad-args`「进度要写 0 到 100 的整数…」（:132-135）。工作路线没落上或没读回来 → notes 末尾如实写一句（work-path-record.ts 里的三种失败备注）。备注只回显，不记进工作路线（:160）。
 
 **一个容易误会的：非数字的 key**。传 `key: 'abc'` 会得到「要上报哪一张票：把票号写在 key 里（例如 775）。」——明明写了 key，却像没写。原因是 `normKey` 只认纯数字（去掉开头的 `#`、丢掉前导零后必须匹配 1..10 位数字，:93-98），传别的就当成没写（:131）。看到这句话先回头看一眼 key 是不是数字。
 

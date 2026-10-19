@@ -6,11 +6,18 @@
 // 出来都是同一个结果，门禁可以用固定时钟钉死。
 //
 // 三个口径（真源见 #1259，改一个就要同步改票面与门禁）：
-//   在办 = 30 天内动过；现办（active）= 24 小时内动过；撞单 = 同一票在 30 分钟内
-//   被两个以上会话记过。撞单行的 sessionLabel 取该票最新那条的会话快照——
-//   选「最新」是因为它代表这张票当前在谁手里，比枚举全部会话更利于接手。
+//   在办 = 30 天内动过；现办（active）= 24 小时内动过；撞单 = 当前会话写过的票，
+//   在前后 30 分钟内被另一个会话也记过。撞单行给的是「另一个会话」：票号、它的会话标识、
+//   它记的时间——当前会话自己不出现在撞单行里（它就是收到回执的这一方，报自己等于没提示）。
+//   判断按「与当前会话某一笔的间隔」算，不按最早—最晚总跨度：A=0、B=20、C=35 分钟时，
+//   B 与 C 只差 15 分钟，该报；总跨度从 A 到 C 是 35 分钟，按跨度会把整票漏掉。
+//
+// 工作条目可选带 0 到 100 的进度自评（#1084）：原来的八格之外多一格 progress，
+// 只作展示、不参与判定；最近一次上报没带就不出这一格。合法性的唯一真源是
+// work-path-ledger.ts 的 validProgress，这里与盘上、工具参数校验共用同一把尺子。
 
 import { chainSessionShardId } from '../../shared/refresh/chain.js';
+import { validProgress } from './work-path-ledger.js';
 import type { WorkPathLedger } from './work-path-store.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +35,8 @@ export interface WorkPathReadoutEntry {
   active: boolean;
   currentSession: boolean;
   source: string;
+  /** 最近一次上报带的进度自评（0 到 100 的整数）；最近一次没带就没有这一格。 */
+  progress?: number;
 }
 
 export interface WorkPathReadoutCollision {
@@ -58,7 +67,11 @@ interface FlatRow {
   action: string;
   actionAt: number;
   source: string;
+  progress?: number;
 }
+
+// 进度自评的合法性判据唯一真源是 work-path-ledger.ts 的 validProgress（与盘上同一把尺子）：
+// 只认 0 到 100 的整数，别的值（旧账、坏数据）当没有，不往回执里带。
 
 export function buildWorkPathReadout(
   ledger: WorkPathLedger | null,
@@ -83,6 +96,7 @@ export function buildWorkPathReadout(
           action: typeof e.action === 'string' ? e.action : '',
           actionAt: e.actionAt,
           source: typeof e.source === 'string' ? e.source : '',
+          progress: validProgress(e.progress),
         });
       }
     }
@@ -95,7 +109,7 @@ export function buildWorkPathReadout(
     return b.actionAt - a.actionAt;
   });
   const entries: WorkPathReadoutEntry[] = rows.map(function (r) {
-    return {
+    const entry: WorkPathReadoutEntry = {
       ticketKey: r.ticketKey,
       title: r.title,
       sessionLabel: workPathSessionLabel(r.label, r.session),
@@ -105,34 +119,53 @@ export function buildWorkPathReadout(
       currentSession: r.session === sessionId,
       source: r.source,
     };
+    if (r.progress !== undefined) entry.progress = r.progress;
+    return entry;
   });
   const staleCount = entries.filter(function (e) { return !e.active; }).length;
-  // 撞单：同一票被两个以上会话记过，且最早与最晚之间不超过 30 分钟。
-  const byTicket = new Map<string, FlatRow[]>();
+  // 撞单：只看当前会话写过的那几张票——撞单是「我这张票可能有人在同时改」的提示，
+  // 别的会话之间怎么撞不是这份回执要回答的事。每张票、每个别的会话只报一行：
+  // 取那个会话里离当前会话某一笔最近的一笔（时间也是它记的时间），间隔不超过 30 分钟才算。
+  const currentRows = new Map<string, FlatRow[]>();
+  const otherRows = new Map<string, Map<string, FlatRow[]>>();
   for (const r of rows) {
-    const list = byTicket.get(r.ticketKey);
-    if (list) list.push(r);
-    else byTicket.set(r.ticketKey, [r]);
+    if (r.session === sessionId) {
+      const mine = currentRows.get(r.ticketKey);
+      if (mine) mine.push(r);
+      else currentRows.set(r.ticketKey, [r]);
+      continue;
+    }
+    let bySession = otherRows.get(r.ticketKey);
+    if (!bySession) { bySession = new Map<string, FlatRow[]>(); otherRows.set(r.ticketKey, bySession); }
+    const theirs = bySession.get(r.session);
+    if (theirs) theirs.push(r);
+    else bySession.set(r.session, [r]);
   }
   const collisions: WorkPathReadoutCollision[] = [];
-  for (const [ticketKey, list] of byTicket) {
-    const sessions = new Set(list.map(function (r) { return r.session; }));
-    if (sessions.size < 2) continue;
-    let lo = list[0].actionAt;
-    let hi = list[0].actionAt;
-    let latest = list[0];
-    for (const r of list) {
-      if (r.actionAt < lo) lo = r.actionAt;
-      if (r.actionAt >= hi) { hi = r.actionAt; latest = r; }
+  for (const [ticketKey, mine] of currentRows) {
+    const bySession = otherRows.get(ticketKey);
+    if (!bySession) continue;
+    for (const [otherSession, theirs] of bySession) {
+      let best: FlatRow | null = null;
+      let bestGap = Number.POSITIVE_INFINITY;
+      for (const row of theirs) {
+        for (const m of mine) {
+          const gap = Math.abs(row.actionAt - m.actionAt);
+          if (gap < bestGap) { bestGap = gap; best = row; }
+        }
+      }
+      if (!best || bestGap > COLLISION_WINDOW_MS) continue;
+      collisions.push({
+        ticketKey: ticketKey,
+        sessionLabel: workPathSessionLabel(best.label, otherSession),
+        actionAt: new Date(best.actionAt).toISOString(),
+      });
     }
-    if (hi - lo > COLLISION_WINDOW_MS) continue;
-    collisions.push({
-      ticketKey: ticketKey,
-      sessionLabel: workPathSessionLabel(latest.label, latest.session),
-      actionAt: new Date(latest.actionAt).toISOString(),
-    });
   }
-  collisions.sort(function (a, b) { return a.ticketKey < b.ticketKey ? -1 : a.ticketKey > b.ticketKey ? 1 : 0; });
+  collisions.sort(function (a, b) {
+    if (a.ticketKey !== b.ticketKey) return a.ticketKey < b.ticketKey ? -1 : 1;
+    return a.actionAt < b.actionAt ? -1 : a.actionAt > b.actionAt ? 1 : 0;
+  });
   const out: WorkPathReadout = {
     at: new Date(at).toISOString(),
     entries: entries,

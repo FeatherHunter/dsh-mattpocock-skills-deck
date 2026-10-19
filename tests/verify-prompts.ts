@@ -1007,9 +1007,13 @@ const contractChecksInner = function (reg, src) {
   ;["tr('prompt.", "'prompt.'"].forEach(function (bad) { if (src.includes(bad)) fail('旧字典引用残留 ' + bad) })
 
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
+  // #1269：12 条会话收尾类提示词各加一条 /retro 提醒，版本底线跟着抬高（名单与断言见下面 fixate 之后的 #1269 块）
   const V_MIN = {
-    mapExecute: 11, complete: 9, fixate: 6, 'tpl.diagnose': 14, 'tpl.fix': 11, 'tpl.discuss': 14,
-    'tpl.research': 5, 'tpl.prototype': 5, 'tpl.takeover': 4, 'tpl.supplement': 3, 'tpl.execute': 13, mapInspect: 6, newWayfinder: 14,
+    mapExecute: 16, complete: 11, fixate: 8, 'tpl.diagnose': 14, 'tpl.fix': 13, 'tpl.discuss': 15,
+    // #1270：「执行」引导句改成先按票面判断（代码实施任务按 /implement 直接实施，其余按 wayfinder 推进），
+    //   「修复」括注从 wayfinder 改成 implement（首行本来就是 /implement）；两条模板版本底线各抬一级。
+    'tpl.research': 9, 'tpl.prototype': 9, 'tpl.takeover': 5, 'tpl.supplement': 4, 'tpl.execute': 15, mapInspect: 6, newWayfinder: 19,
+    newBugWayfinder: 11,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -1055,6 +1059,12 @@ const contractChecksInner = function (reg, src) {
     if (ex.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.execute zh 缺 #1212 调查首行（先读本票与仓内）')
     if (ex.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.execute en 缺 #1212 调查节（同中文那条的对应节）')
     if (ex.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.execute en 缺 #1212 调查首行（同中文那条的对应句）')
+    if (ex.zh.indexOf('按 /implement 技能直接实施') < 0) fail('tpl.execute zh 缺 #1270 分流句（已写清的代码实施任务按 /implement 直接实施）')
+    if (ex.zh.indexOf('其余任务按 wayfinder 技能规则推进') < 0) fail('tpl.execute zh 缺 #1270 兜底句（其余任务按 wayfinder 推进）')
+    if (ex.zh.indexOf('遵循 wayfinder 技能规则') >= 0) fail('tpl.execute zh 残留无条件遵循 wayfinder 的旧引导句（#1270 已改成先按票面判断）')
+    if (ex.en.indexOf('implement it directly per the /implement skill') < 0) fail('tpl.execute en 缺 #1270 分流句（同中文那条）')
+    if (ex.en.indexOf('advance per the wayfinder skill rules') < 0) fail('tpl.execute en 缺 #1270 兜底句（同中文那条）')
+    if (ex.en.indexOf('follow the wayfinder skill rules') >= 0) fail('tpl.execute en 残留无条件遵循 wayfinder 的旧引导句（#1270 已改成先按票面判断）')
   }
   // tpl.diagnose（#65 清单式 · 诊断≠修复；#1212：加调查节先查后问）
   const di = reg['tpl.diagnose']
@@ -1086,6 +1096,10 @@ const contractChecksInner = function (reg, src) {
     if (fxt.en.indexOf('## Read current state') < 0 || fxt.en.indexOf('## Locate & fix') < 0 || fxt.en.indexOf('## Wrap-up') < 0) fail('tpl.fix en 缺清单段标题（Read current state/Locate & fix/Wrap-up）')
     if (fxt.en.indexOf('## Stage gate') >= 0) fail('tpl.fix en 不该再含整节 Stage gate（#900 已删）')
     if (fxt.en.indexOf('If it still carries needs-triage') < 0) fail('tpl.fix en 缺读现状兜底句（If it still carries needs-triage）')
+    if (fxt.zh.indexOf('（遵循 implement 技能规则）') < 0) fail('tpl.fix zh 缺 #1270 引导句（遵循 implement 技能规则，与首行 /implement 一致）')
+    if (fxt.zh.indexOf('遵循 wayfinder 技能规则') >= 0) fail('tpl.fix zh 残留 wayfinder 引导句（首行已是 /implement，修复该按 implement 规则）')
+    if (fxt.en.indexOf('(follow the implement skill rules)') < 0) fail('tpl.fix en 缺 #1270 引导句（同中文那条）')
+    if (fxt.en.indexOf('(follow the wayfinder skill rules)') >= 0) fail('tpl.fix en 残留 wayfinder 引导句（首行已是 /implement）')
   } else fail('缺条目 tpl.fix')
   // tpl.discuss（#628：收尾补一条 —— /to-spec 产出的规格单要挂回同一张 map；#808：收尾再补一条 —— /to-spec 后对抗式审查再关单；#1205：收尾再补一条 —— 同 map 子票要知晓规格单）
   //   补块理由：本模板此前无任何结构块，整段被删门禁也不会红（#382 就是那样丢的）
@@ -1196,6 +1210,24 @@ const contractChecksInner = function (reg, src) {
     if (fx.en.indexOf('## Consolidate') < 0 || fx.en.indexOf('## Suspected omissions') < 0 || fx.en.indexOf('## Review') < 0 || fx.en.indexOf('## Persist') < 0) fail('fixate en 缺清单段标题（Consolidate/Suspected omissions/Review/Persist）')
     if (fx.en.indexOf('alignment & consolidation') < 0) fail('fixate en 缺新命名（alignment & consolidation）')
   } else fail('缺条目 fixate')
+  // #1269：12 条会话收尾类提示词（票级 7 / map 级 2 / 新建 2 / 沉淀 1）各加一条 /retro 提醒。
+  //   判据只认「同一条原文在场」：中英各一句，12 条全有、其余条目一条都没有；
+  //   名单改动必须同时改验收，不然「悄悄删掉一句」或「悄悄多给一条」都能溜过去。
+  const RETRO_REMIND_IDS = [
+    'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'tpl.takeover', 'tpl.supplement',
+    'mapExecute', 'complete', 'newWayfinder', 'newBugWayfinder', 'fixate',
+  ]
+  if (RETRO_REMIND_IDS.length !== 12) fail('#1269 /retro 提醒名单条数 ' + RETRO_REMIND_IDS.length + '（定稿 12）')
+  RETRO_REMIND_IDS.forEach(function (id) {
+    const e = reg[id] || {}
+    if (String(e.zh || '').indexOf('- [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro') < 0) fail('#1269 模板 ' + id + '.zh 缺 /retro 提醒句（会话任务全部完成时提醒用户执行一次，不替用户执行）')
+    if (String(e.en || '').indexOf('- [ ] Once every task of this session is finished, proactively remind the user to run /retro once') < 0) fail('#1269 模板 ' + id + '.en 缺 /retro 提醒句')
+  })
+  Object.keys(reg).forEach(function (id) {
+    if (RETRO_REMIND_IDS.indexOf(id) >= 0) return
+    const t = String(reg[id].zh || '') + String(reg[id].en || '')
+    if (t.indexOf('主动提醒用户执行一次 /retro') >= 0 || t.indexOf('proactively remind the user to run /retro once') >= 0) fail('#1269 模板 ' + id + ' 不在名单里却带 /retro 提醒句（名单见 fixate 之后那段注释；要加请先改名单与验收）')
+  })
   // installSkills（#74 + #fix-banner 修正）
   //   #573 修正（原 SKILL_NAMES_10 清单已过时）：技能名真源是 src/shared/matt-skills.js（25 项），
   //   占位符那条原来由 tests/verify-matt-skills-sync.js 第 4 条卡着；该门禁 2026-10-17 已删
@@ -1686,10 +1718,17 @@ const selfDigest = function () {
 //   build.mts 读取、SHIPPED 提取正则放宽容 `: string[]` 注解、四处修法消息、scanScriptRefs 与
 //   RE_INDIRECT 正则放宽容 .mts、R8 名单加 .mts 变体、两处注释）；T24–T61 向量故意保留 .mjs
 //   旧拼写（删文件后仍算违规，覆盖不断），自摘要跟着重算。
+// #1269：12 条会话收尾类提示词（票级 7 / map 级 2 / 新建 2 / 沉淀 1）各加一条 /retro 提醒 ——
+//   会话任务全部完成时提醒用户执行一次 /retro 复盘当前工作区环境，是否执行由用户决定。
+//   中英各一句、按名单逐条判在场（多一条少一条都红），版本底线同步抬高，自摘要跟着重算。
+// #1270：tpl.execute 引导句改成先按票面判断 —— 已写清的代码实施任务按 /implement 技能直接实施，
+//   其余任务按 wayfinder 技能规则推进；tpl.fix 括注从 wayfinder 改成 implement（首行本来就是
+//   /implement，原来那句自相矛盾）。中英各补正向断言，并各加一条反向断言钉住旧措辞不再出现；
+//   版本底线 tpl.execute 14 → 15、tpl.fix 12 → 13，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.ts': 'fd40b179109fbaa03352fe8cfb0f5021d9681fe7d4a0cfccf1a3ffc951b62e7e',
+  'tests/verify-prompts.ts': 'dfe8bbc958278cfc2426d351ee1b7993002a2aae0ab2c863e7e38f0e2928c47c',
 }
 // ---- LOCK-END ----
 

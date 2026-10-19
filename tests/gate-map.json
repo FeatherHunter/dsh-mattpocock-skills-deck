@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T06:04:19.177Z",
+  "generatedAt": "2026-10-19T06:25:02.890Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 295,
-  "gateCount": 295,
-  "attributedGates": 264,
+  "chainLength": 296,
+  "gateCount": 296,
+  "attributedGates": 265,
   "unattributedGates": 31,
   "buildOutputOnlyGates": 18,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 728,
+  "graphFileCount": 732,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1120,6 +1120,30 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 3 条"
+    },
+    {
+      "step": "node tests/verify-1083-work-path-persist.ts",
+      "file": "tests/verify-1083-work-path-persist.ts",
+      "guards": [
+        "src/deck/shell/work-path-bindings.ts",
+        "src/deck/shell/work-path-ledger.ts",
+        "src/deck/shell/work-path-privacy.ts",
+        "src/deck/shell/work-path-record.ts",
+        "src/deck/shell/work-path-store.ts",
+        "src/host/refresh/workRoute.ts",
+        "src/shared/refresh/src/chain-prune.ts",
+        "src/shared/refresh/src/chain.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/host/refresh",
+        "src/shared/refresh/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-1106-deck-surface.ts",
@@ -2658,6 +2682,7 @@
       "file": "tests/verify-714-session-tickets.ts",
       "guards": [
         "src/host/refresh/workRoute.ts",
+        "src/shared/refresh/chain-prune.js",
         "src/shared/refresh/chain.js"
       ],
       "dirs": [
@@ -2668,7 +2693,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
       "step": "node tests/verify-723-gate-wiring.ts",
@@ -2681,7 +2706,6 @@
         "src/host/refresh/patch.ts",
         "src/host/refresh/wiring.ts",
         "src/shared/refresh/budget.js",
-        "src/shared/refresh/chain.js",
         "src/shared/refresh/delta.js",
         "src/shared/tracker/indexWindow.js",
         "src/tracker/registry/core.ts",
@@ -2701,7 +2725,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-723-single-refresh-instance.ts",
@@ -7445,6 +7469,7 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1083-work-path-persist.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1195-budget-start.ts",
@@ -7618,6 +7643,7 @@
       "node tests/verify-deck-tools.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1083-work-path-persist.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1150-plan-store-durable.ts",
@@ -7762,6 +7788,7 @@
     "src/shared/refresh/src": [
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1083-work-path-persist.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
@@ -8248,9 +8275,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 741,
+    "fileCount": 745,
     "dirCount": 54,
-    "coveredFileCount": 741,
+    "coveredFileCount": 745,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 53,
@@ -8625,6 +8652,8 @@
       "src/deck/shell/table-cell.ts",
       "src/deck/shell/tool-table.ts",
       "src/deck/shell/work-path-bindings.ts",
+      "src/deck/shell/work-path-ledger.ts",
+      "src/deck/shell/work-path-privacy.ts",
       "src/deck/shell/work-path-readout.ts",
       "src/deck/shell/work-path-record.ts",
       "src/deck/shell/work-path-store.ts",
@@ -8769,6 +8798,7 @@
       "src/shared/refresh/backend-quota.js",
       "src/shared/refresh/backoff.js",
       "src/shared/refresh/budget.js",
+      "src/shared/refresh/chain-prune.js",
       "src/shared/refresh/chain.js",
       "src/shared/refresh/create-write.js",
       "src/shared/refresh/delta.js",
@@ -8781,6 +8811,7 @@
       "src/shared/refresh/src/backend-quota.ts",
       "src/shared/refresh/src/backoff.ts",
       "src/shared/refresh/src/budget.ts",
+      "src/shared/refresh/src/chain-prune.ts",
       "src/shared/refresh/src/chain.ts",
       "src/shared/refresh/src/create-write.ts",
       "src/shared/refresh/src/delta.ts",

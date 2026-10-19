@@ -4,7 +4,7 @@
 //
 // 守的是什么：`src/tracker/kernel/` 是房间与宿主都要用的判定件（#1159 建的归口）。deck 层只许连
 // 契约层的公开入口，不许直接连内核 —— 否则这份新目录会变成绕开「只许连契约」的后门。
-// 规则是 `.dependency-cruiser.cjs` 的 deck-deep-import，它的 `to` 已含 `^src/tracker/kernel/`；
+// 规则是 `.dependency-cruiser.ts` 的 deck-deep-import，它的 `to` 已含 `^src/tracker/kernel/`；
 // 这一条用真件把那半句翻过来，两个探针在同一个进程里跑一次引擎：
 //   正控：src/deck 下放一个引内核的探针 → 门禁必须判红，且违规行里点名这条边的两端；
 //   负控：同一个位置引契约层（src/tracker/contract）→ 不许被误伤（契约层本来就是 deck 唯一可以深引的公共面）。

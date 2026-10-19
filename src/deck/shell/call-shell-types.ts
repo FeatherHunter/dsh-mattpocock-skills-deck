@@ -194,9 +194,12 @@ export interface DeckShellDeps {
   /**
    * 工作路线记一笔（#1261 起步、#1262 铺满，调用方是工具壳的成功收口）：缺席时跳过，不报错。
    * 五个写工具（report、create、patch、plan、link）各记一笔，读工具不记；一次调用里每张写到的票各一笔。
-   * 输入 `{ rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, action, source }`，
+   * 输入 `{ rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, progress?, action, source }`，
    * 其中 rootKey 是 workspace.key（工作区键），落到哪一份文件由存储按 chainRootHash 换算；
-   * 输出 `{ ok: true, ticketKey, count }` 或 `{ ok: false, reason }`。
+   * 其中 progress 是这次上报的进度自评（0 到 100 的整数），只有 deck_issue_report 带；
+   * 输出 `{ ok: true, ticketKey, count, warnings? }` 或 `{ ok: false, reason }`；
+   * warnings 是「落上了、但有件事要告诉人」的备注（#1083：盘上旧文件读不出来按空账重写、换后端时旧记录改名留档），
+   * 壳原样拼进回执 notes，不改其他格。
    * 实现住在 work-path-store.ts，生产由宿主接线层绑定（家目录 + 真文件读写），
    * 门禁绑定同一份实现（临时家目录 + 固定时钟），不造第二套。
    */

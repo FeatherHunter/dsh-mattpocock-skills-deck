@@ -19,6 +19,11 @@
  *      路径原文、令牌一个字符都不许进链（隐私红线，与仓库日志纪律同口径）。落盘前用
  *      chainPrivacyViolations 自检一遍，宁可这一次不落盘，也不许把原文写出去。
  *
+ * #1083 起留存量不再按「每个会话 20 张」硬切，改按时间与体积：超过 30 天的条目在下一次落盘时清掉，
+ * 整份仍超过 2MB 就按时间从旧到新裁。这两个数字住 src/shared/refresh/src/chain-prune.ts
+ * （工作路线存档也共用同一套口径）；链的裁剪实现要用本文件的键构造与形状工具，
+ * 所以它住在唯一调用方 src/host/refresh/workRoute.ts（共享层文件之间不许互相引用）。
+ *
  * 事件形态、判定表、三个来源的取数方式都写在票 #714 与定稿第十二章；本文件只做「拿到判定之后怎么记」。
  * 取数（订阅会话事件、读回会话、真正落盘）留在 src/host/refresh/workRoute.ts。
  */
@@ -28,8 +33,8 @@
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
 // 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
-/** 每个会话留最近多少张（票面硬要求：20 张，去重、按时间倒序，超过就丢最旧的）。 */
-export const CHAIN_SESSION_CAP = 20
+// 留存量的两条线（30 天、2MB）在 chain-prune.ts：那里是数字的唯一住处；链的裁剪实现在
+// src/host/refresh/workRoute.ts（它要用本文件的键与形状工具，而共享层文件之间不许互相引用）。
 
 /** 三个后端的字面（判据里要按后端分开：不同后端的票 key 不通用）。 */
 export const CHAIN_BACKENDS: readonly string[] = ['github', 'gitlab', 'markdown']
@@ -100,8 +105,8 @@ export function chainSessionShardId(sessionId: unknown): string {
   return hashDjb2(text) + hashFnv(text)
 }
 
-/** 16 位十六进制的短指纹长这样（根指纹与会话分格都用这个形状）。 */
-function isFingerprintLike(v: unknown): boolean {
+/** 16 位十六进制的短指纹长这样（根指纹与会话分格都用这个形状）。链落盘前裁剪（src/host/refresh/workRoute.ts 的 chainPrune）也用它校形状。 */
+export function isFingerprintLike(v: unknown): boolean {
   return typeof v === 'string' && /^[0-9a-f]{16}$/.test(v)
 }
 
@@ -392,7 +397,7 @@ export function chainVerdictOf(input: ChainDecisionInput | null | undefined): Ch
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 四、链路状态：按会话分格、去重、留最近 20 张
+// 四、链路状态：按会话分格、去重；留多少交给 src/host/refresh/workRoute.ts 的 chainPrune（数字来自 chain-prune.ts）
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 链上的一条：票键、工作单元、时间、动作类别 —— 就这四个字段（落盘也只写这四个）。 */
@@ -412,7 +417,7 @@ export interface ChainShard {
   sessionId: string
   rootHash: string
   backend: string
-  /** 时间倒序、键唯一、最多 CHAIN_SESSION_CAP 条。 */
+  /** 时间倒序、键唯一；条数不在这里裁剪（#1083 起交给 src/host/refresh/workRoute.ts 的 chainPrune）。 */
   entries: ChainEntry[]
 }
 
@@ -432,7 +437,8 @@ export function createChainState(): ChainState {
  *   - **格内去重**：同一张票（工作单元 + 票号）再写一次不新增一条，而是把那一条挪到最前、
  *     刷新时间与动作类别 ——「最近处理过」看的是最后一次动作。#783 以前只看票号，
  *     两份工作单元里同号的票会合并成一条，现在按（工作单元，票号）去重。
- *   - **留最近 20 张**：超过就把最旧的丢掉（票面硬要求），丢的是整条记录，不是只丢时间。
+ *   - **留多少条不在这里定**：#1083 把「每会话 20 张」的硬上限换成了时间与体积两条线
+ *     （30 天保留期、整份 2MB）。合并只负责去重与时间倒序，裁剪交给 src/host/refresh/workRoute.ts 的 chainPrune。
  */
 export function chainRecord(state: ChainState, input: {
   sessionId?: unknown
@@ -473,7 +479,7 @@ export function chainRecord(state: ChainState, input: {
   return { state: { shards: shards }, recorded: true, shardId: shardId, reason: 'chain.record' }
 }
 
-/** 去重 + 时间倒序 + 留最近 20 条（链上留存的唯一算法，合并与恢复都走它）。去重的键是（工作单元，票号）。 */
+/** 去重 + 时间倒序（链上留存的唯一算法，合并与恢复都走它）。去重的键是（工作单元，票号）。 */
 export function mergeEntries(entries: ChainEntry[], incoming: ChainEntry): ChainEntry[] {
   const out: ChainEntry[] = []
   const seen: Record<string, boolean> = {}
@@ -489,7 +495,7 @@ export function mergeEntries(entries: ChainEntry[], incoming: ChainEntry): Chain
   const list = Array.isArray(entries) ? entries : []
   for (const e of list) push(e)
   out.sort((a, b) => b.at - a.at)
-  return out.slice(0, CHAIN_SESSION_CAP)
+  return out
 }
 
 /** 某个会话的那一格链（没有就是空数组）。界面要用时按它取，别自己去翻 shards。 */
@@ -545,7 +551,7 @@ export function chainToDisk(state: ChainState, opts?: { at?: number }): { v: num
       entries.push([key, effort, typeof e.at === 'number' && isFinite(e.at) ? Math.floor(e.at) : 0, CHAIN_ACTIONS.indexOf(action) >= 0 ? action : 'other-write'])
     }
     if (entries.length === 0) continue
-    shards.push({ s: shard.shardId, r: shard.rootHash, b: shard.backend, e: entries.slice(0, CHAIN_SESSION_CAP) })
+    shards.push({ s: shard.shardId, r: shard.rootHash, b: shard.backend, e: entries })
   }
   return { v: CHAIN_DISK_VERSION, at: opts && typeof opts.at === 'number' && isFinite(opts.at) ? Math.floor(opts.at) : 0, shards: shards }
 }
