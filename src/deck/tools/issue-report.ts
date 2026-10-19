@@ -169,7 +169,9 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
         value: {
           status: DECK_STATUS.UNSUPPORTED,
           reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
-          text: '这张票这次没上报（超时了：在限时内没等到后端回话，票有没有记上说不清，重调一次就行）。',
+          text: release
+            ? '这张票这次没释放（超时了：在限时内没等到后端回话，释放有没有做上说不清，重调一次就行）。'
+            : '这张票这次没上报（超时了：在限时内没等到后端回话，票有没有记上说不清，重调一次就行）。',
           data: { key: key, backendId: pick.backendId, effortId: effortId, error: { kind: 'timeout', message: gotTimeout.slice(0, 300) } },
           notes: notes,
         },
@@ -183,7 +185,9 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '这张票没上报（票 ' + key + ' 没读回来，后端原话：' + msg + '）。',
+            text: release
+              ? '这张票没释放（票 ' + key + ' 没读回来；释放要先确认这张票真的存在，所以没动手。后端原话：' + msg + '）。'
+              : '这张票没上报（票 ' + key + ' 没读回来，后端原话：' + msg + '）。',
             data: { key: key, backendId: pick.backendId, effortId: effortId, error: { kind: String((got && got.error && got.error.kind) || ''), message: msg } },
             notes: notes,
           },

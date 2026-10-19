@@ -63,7 +63,11 @@ export async function recordWorkRoute(
       return;
     }
   } else if (typeof note !== 'function') return;
-  if (typeof read !== 'function') return;
+  if (typeof read !== 'function') {
+    // 读这一支缺席时也要说一声：否则回执安静地缺 data.workRoute，看不出是装配问题还是这次没读到。
+    notes.push('工作路线这次带不出在办表（no-read-binding）：当前装配没接上读这一支，回执里缺 data.workRoute 这一格。');
+    return;
+  }
   // 上面按模式各放行一支，这里把三支的可调用形状收窄一次：TS 不会把上一个 if 里的收窄带进下面的新分支。
   const callRelease = releaseFn as NonNullable<typeof releaseFn>;
   const callNote = note as NonNullable<typeof note>;
@@ -83,7 +87,13 @@ export async function recordWorkRoute(
     notes.push('工作路线这次读不出来（' + reason + '）：在办表这次没带出来，下次上报会重新读盘再试。');
   };
   // 释放失败与「带不出在办表」分开说：前者要人知道票的工作条目还留着，后者说的是释放已经生效、只缺回执那一格。
+  // 读回核对失败是释放里的特例：写盘那一步已经成了，删除大概率已经落盘，这时说「条目还留着」是假话
+  // （与 noteFailNote 里分两句同一个理由）。
   const releaseFailNote = function (reason: string): void {
+    if (reason === 'readback-failed') {
+      notes.push('工作路线这次释放没核对上（readback-failed）：删除已经写进盘里了，但写回后读回来核对没通过；回执这次没带出在办表，下一次释放或上报会重新读盘确认。');
+      return;
+    }
     notes.push('工作路线这次没释放掉（' + reason + '）：这张票在本会话的工作条目还留着，下一次释放或上报会照常处理。');
   };
   const releaseReadFailNote = function (reason: string): void {
