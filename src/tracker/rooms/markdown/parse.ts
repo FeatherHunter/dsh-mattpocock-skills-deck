@@ -1,6 +1,8 @@
 import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
 import type { Issue } from '../../contract/entities.js'
 import type { IssueType, State } from '../../contract/identity.js'
+// #1277：对象类型唯一真源是文件头那行隐藏标记（ADR 2.5），本地房读票时认它。
+import { markerKindInHeader } from '../../../shared/issue-file/src/marker.js'
 
 // parseMd 的元数据：调用方（读路径各处）已知的票身份，不从正文里读；
 // 契约 Issue 的核心字段多由此补齐（key/effortId/parentKey/时间/url）。
@@ -273,7 +275,11 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     }
   }
   const key = String((meta && meta.key) || '00')
-  const type = (meta && meta.isMap ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE) as IssueType
+  // #1277：对象类型看文件头那行隐藏标记（ADR 2.5：标记是唯一真源，标签与正文形状只作兜底）。
+  // 本地房只关心其中一种：标记写着 spec 的票是规格容器。其余标记（ticket/research 等）不改变契约类型——
+  // 契约类型只有 issue / map / spec 三个取值，别的种类只活在标记与标签里。
+  const markedKind = markerKindInHeader(raw)
+  const type = (meta && meta.isMap ? ISSUE_TYPE.MAP : (markedKind === 'spec' ? ISSUE_TYPE.SPEC : ISSUE_TYPE.ISSUE)) as IssueType
   // #971：父子关系以文件顶注释为准，有注释就用注释，没有注释的老文件才回落。
   // 地图文件本身没有父票（恒为空）；计划里用票文件冒充的地图（正文写着 Type: map、却没有父注释）同样视作没有父票。
   // 其余票没有注释时沿用调用方递进来的固定值（今天是 00，即老单根工作区的地图），保持老数据行为不变。

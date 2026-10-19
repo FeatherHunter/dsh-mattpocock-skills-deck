@@ -6,6 +6,8 @@
 //   - 仓库有多个 effort 又没指定 → 返回 conflict 诚实失败，绝不猜（旧实现在所有 effort 之间取全局 max+1，
 //     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
 import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody, loginOfAssignee } from './parse.js'
+// #1277：票面对象类型标记（唯一真源）的读写判据全在共享包里；建票这一层只负责把它放到文件头。
+import { markerKindAtStart, markerKindInHeader, markerLineFor, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
 import { listDir, readTextFile, statFile, exists } from './read.js'
 import { publishTextFile, ensureDir } from './write.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
@@ -91,6 +93,9 @@ function cleanWholeBodyForCreate(rawBody: string): string{
   clean=clean.replace(/^##\s*Comments\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/gim, '')
   clean=clean.replace(/^##\s*Answer\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/gim, '')
   clean=clean.split('\n').filter(function(l){ return !/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/i.test(l) }).join('\n')
+  // #1277：正文里可能带着上次读回时的那行类型标记（整份票文件原样写回时最常见）。标记只能由文件头
+  // 唯一的一条来表达，正文里的一律剥掉，避免落盘后出现两条、读的时候先碰到哪条全看顺序。
+  clean=stripMarkerLines(clean)
   return clean.trim()
 }
 /** 落盘前核对单例：新票必须恰好一个一级标题、一个锚、一套字段行、一套骨架，做不到就返回原因（调用方转成如实失败）。 */
@@ -108,13 +113,26 @@ function checkSingletonsForCreate(content: string, wantAnchor: boolean): string{
   if(count(/^##\s*Answer\s*$/gim)!==1) return 'Answer 骨架不是 1 个'
   if(count(/^\s*Type\s*[:\uFF1A]/gim)>1) return 'Type 行翻倍了'
   if(count(/^\s*Assignees\s*[:\uFF1A]/gim)>1) return 'Assignees 行翻倍了'
+  // #1277：类型标记至多一条 —— 两条标记读哪条全看顺序，落盘前就判出来。
+  if(count(/^[ \t]*<!--[ \t]*DSH-ISSUE-KIND:/gim)>1) return '类型标记行翻倍了'
   return ''
 }
 /** 建票时刻：本仓房间层的既有做法就是取真实时钟（comments.ts 那条评论时间同款），不另立时钟源。 */
 function builtAtIso(): string { return new Date().toISOString() }
 function buildIssueText(input: CreateView){
   const blockedByStr=Array.isArray(input.blockedBy)&&input.blockedBy.length?input.blockedBy.map(k=>'#'+String(k).padStart(2,'0')).join(', '):(typeof input.blockedBy==='string'?input.blockedBy:'')
-  const typeField=input.type?String(input.type):(input.Type?String(input.Type):'')
+  // #1277：规格与实施票的标记写进文件头，不写 Type 行 —— ADR 2.1 已把 Type 的候选值收回到
+  // research / prototype / grilling / task 四个老值，规格不再靠 Type 行表达。标记取值来源两处：
+  // 调用方明确传的 type（deck 工具会把 kind 放进 type），或正文最前面那行标记（工具往正文最前面写标记时）。
+  let kindMarker=String(input.type||input.Type||'').trim().toLowerCase()
+  if(kindMarker!=='spec'&&kindMarker!=='ticket'){
+    const incomingBody=input.body?String(input.body):''
+    const atStart=markerKindAtStart(incomingBody)
+    const inHeader=markerKindInHeader(incomingBody)
+    const bodyKind=(atStart==='spec'||atStart==='ticket')?atStart:inHeader
+    kindMarker=(bodyKind==='spec'||bodyKind==='ticket')?bodyKind:''
+  }
+  const typeField=kindMarker?'':(input.type?String(input.type):(input.Type?String(input.Type):''))
   const labelsInput = Array.isArray(input.labels) ? input.labels : (Array.isArray(input.Labels)? input.Labels : null)
   let labelsStr=''
   if(labelsInput && labelsInput.length){
@@ -130,7 +148,8 @@ function buildIssueText(input: CreateView){
     labelsStr=String(input.labels).split(/[,\uFF0C]+/).map(function(s){return stripLabelDecoration(s)}).filter(Boolean).join(', ')
   }
   const rawBody=input.body?String(input.body):''
-  const bodyPart=isWholeIssueBody(rawBody)?cleanWholeBodyForCreate(rawBody):rawBody.trim()
+  // #1277：片段正文里夹带的标记行先剥掉：标记只由文件头那条表达（整份正文的处理见 cleanWholeBodyForCreate）。
+  const bodyPart=isWholeIssueBody(rawBody)?cleanWholeBodyForCreate(rawBody):stripMarkerLines(rawBody.trim())
   const title=String(input.title).trim()
   // 建票时的指派人（#1174 决策 8）：契约的 `CreateInput.assignees` 以前被静默丢掉 —— 调用方以为指派了，
   // 票面上一个字都没有。现在原样写进 `Assignees:` 那一行；给了人就同时把状态记成「已认领」，
@@ -152,6 +171,9 @@ function buildIssueText(input: CreateView){
   // 老票没有这一行，继续回落到文件修改时间（见 parse.ts 的 createdStampFromFile，那里也不回填）。
   content='<!-- created: '+builtAtIso()+' -->\n'+content
   if(input.parentKey)content='<!-- parentKey: '+input.parentKey+' -->\n'+content
+  // #1277：落盘后文件头顺序是 幂等锚 → 类型标记 → 父注释 → 建票时间（设计文档第 2 节）。
+  // 锚最后前缀，所以标记要在锚之前插、在父注释之后插。
+  if(kindMarker)content=markerLineFor(kindMarker)+content
   // 锚在最前（含它自己的换行）：parentKey 那行若也在，紧跟在锚后面，两行都是看不见的注释。
   if(input.idempotencyKey)content=anchorLineFor(String(input.idempotencyKey))+content
   return content

@@ -9,6 +9,8 @@
  */
 
 import { stripFencedCode } from './parse.js'
+// #1277：票面对象类型标记的判据在共享包里；整份替换正文时盘上的标记要以盘上为准搬回来（ADR 2.5）。
+import { markerKindOnLine, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
 
 /** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
  *  为什么要分开判：下面的插入分支把正文插在现有 H1 之后，认错了盘上就会留下两个 H1、两份正文。
@@ -28,6 +30,11 @@ export function fieldLinesOf(text: unknown): string[]{
   return out
 }
 function fieldNameOf(line: string): string{ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
+/** 取文本里第一条合法类型标记行（去掉首尾空白）；没有就回空串。整份替换时用它把盘上的标记搬回。 */
+function firstMarkerLine(text: unknown): string{
+  for(const l of String(text||'').split('\n')){ if(markerKindOnLine(l)) return l.trim() }
+  return ''
+}
 /** 取票文件里某骨架区整段（标题加内容，到下一个二级标题或文末）：改正文时用来把盘上旧评论搬回新正文。 */
 function sectionOf(text: unknown, name: string): string{
   const re=new RegExp('^##\\s*'+name+'\\s*$[\\s\\S]*?(?=^##\\s|$(?![\\s\\S]))', 'im')
@@ -48,6 +55,10 @@ export function checkNoWorseForPatch(oldText: string, newText: string): string{
   if(worse(countRe(o, /^#[ \t]+\S.*/gm), countRe(n, /^#[ \t]+\S.*/gm))) return '一级标题变多了'
   if(worse(countRe(o, /DSH-IDEMPOTENCY-KEY/g), countRe(n, /DSH-IDEMPOTENCY-KEY/g))) return '幂等锚变多了'
   if(countRe(o, /DSH-IDEMPOTENCY-KEY/g)>=1&&countRe(n, /DSH-IDEMPOTENCY-KEY/g)===0) return '幂等锚丢了'
+  // #1277：对象类型标记与幂等锚同一条纪律 —— 变多、或者盘上有的标记被改丢，都算写坏，
+  // 因为标记是「这张票是哪一种对象」的唯一真源（ADR 2.5），丢了规格就降级成普通票。
+  if(worse(countRe(o, /DSH-ISSUE-KIND/g), countRe(n, /DSH-ISSUE-KIND/g))) return '类型标记行变多了'
+  if(countRe(o, /DSH-ISSUE-KIND/g)>=1&&countRe(n, /DSH-ISSUE-KIND/g)===0) return '类型标记丢了'
   if(worse(countRe(of, /^\s*Status\s*[:\uFF1A]/gim), countRe(nf, /^\s*Status\s*[:\uFF1A]/gim))) return 'Status 行变多了'
   if(worse(countRe(of, /^\s*Type\s*[:\uFF1A]/gim), countRe(nf, /^\s*Type\s*[:\uFF1A]/gim))) return 'Type 行变多了'
   if(worse(countRe(of, /^\s*Blocked\s+by\s*[:\uFF1A]/gim), countRe(nf, /^\s*Blocked\s+by\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
@@ -65,6 +76,7 @@ export function checkNoWorseForPatch(oldText: string, newText: string): string{
 /** 整份正文合并：锚一律用盘上旧的，缺一级标题用盘上旧标题补回，缺字段行与骨架区从盘上旧文件搬回（字段插在骨架之前）。 */
 export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown): string{
   let incoming=String(incomingRaw||'')
+  incoming=stripMarkerLines(incoming)
   incoming=incoming.replace(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*\r?\n?/gim, '')
   const diskAnchor=(String(diskText||'').match(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*$/m)||[])[0]
   if(diskAnchor) incoming=String(diskAnchor).trim()+'\n'+incoming.replace(/^\s*/, '')
@@ -80,7 +92,7 @@ export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown):
       let at=0
       // created 那行（#1174 决策 10）也是文件头注释：漏了它，标题会被插在它前面，
       // 于是「建票时间」掉出文件头、读不回来，创建时间又变回文件修改时间。
-      while(at<lines.length&&/^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|parentKey|created)[ \t]*:/.test(lines[at])) at++
+      while(at<lines.length&&/^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|DSH-ISSUE-KIND|parentKey|created)[ \t]*:/.test(lines[at])) at++
       lines.splice(at, 0, String(diskH1).trim(), '')
       incoming=lines.join('\n')
     }
@@ -103,6 +115,17 @@ export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown):
       if(diskSec) incoming=incoming.replace(/\s*$/, '')+'\n\n'+diskSec+'\n'
       else incoming=incoming.replace(/\s*$/, '')+'\n\n## '+name+'\n\n'
     }
+  }
+  // #1277：类型标记以盘上为准搬回（ADR 2.5 的「整份替换正文时从盘上搬回」）。插在文件头注释带里：
+  // 有幂等锚就紧跟锚（与建票落盘顺序一致），没有锚就插在那几行文件头注释之后、一级标题之前。
+  const diskMarker=firstMarkerLine(diskText)
+  if(diskMarker&&firstMarkerLine(incoming)===''){
+    const lines=incoming.split('\n')
+    let at=0
+    if(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0]||'')) at=1
+    else{ while(at<lines.length&&/^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|DSH-ISSUE-KIND|parentKey|created)[ \t]*:/.test(lines[at])) at++ }
+    lines.splice(at, 0, diskMarker)
+    incoming=lines.join('\n')
   }
   return incoming
 }
