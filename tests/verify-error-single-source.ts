@@ -365,6 +365,13 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       values: ['unknown'],
       why: '命名预设守卫的返回值，表示「没认出是哪一种预设」，不是 TrackerError 的档位',
     },
+    {
+      // #1286 加的容器视图（地图/规格卡）：卡片三态取值是 empty / open / done，其中 empty 与
+      // 历史档位词同形，但它说的是「这张容器下还没有票」，不是失败判档；只放行这一个词。
+      file: 'src/client/kernel/container-view.ts',
+      values: ['empty'],
+      why: '容器卡三态（empty/open/done）的取值，不是 TrackerError 的档位；empty 与历史档位词同形纯属巧合，只放行这一个词',
+    },
   ]
 
 
