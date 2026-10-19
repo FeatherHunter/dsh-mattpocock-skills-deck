@@ -141,3 +141,32 @@ golden 回执夹具也把两份逐字冻结了：`tests/tracker-contract/fixture
 ## 七、分流结论
 
 按现有证据，这张票是「已确认、可复现、修复边界清楚」的 bug：转 `ready-for-agent`，修复方向推荐 A，验收按第五节的共同验收写进代理简报。同族的读票工具重复不并入本票。
+
+## 八、方案选定（第一性原理与对抗式审查，2026-10-19）
+
+第五节给了 A/B/C 三个方向，但真正的决定要回答一个问题：**回执应当给模型几份「真状态」，才既够核对、又不重复？** 答案是一份整票＋一条明确的核对信号；不是两份整票，也不是零份整票。
+
+**选定形状**
+
+1. 源头（`src/deck/tools/issue-patch.ts:384-396`）：`data.ticket` 保留整票（`back.data`，`work-path-record.ts:123-129` 与 `verify-1261-work-route-receipt.ts:186-201` 依赖它的 key/title/effortId）；顶层 `readBack` 压成核对摘要 `{ key, state, updatedAt }`，与 `data.ticket` 由同一个写后回读快照派生，两者必然一致；写后回读失败时仍为 null 并在 notes 里说明。
+2. 渲染（`src/deck/registration/register-options.ts:172`）：去重判据从引用相等改成「引用相等或 `JSON.stringify` 相等」（try/catch 包住）。内容等价不依赖对象身份，跨进程/JSON 边界仍然成立；实测 1000 次字符串比较 8.0199ms（约 8µs/次）。这样即使将来别的工具又把同一张票放进两格，渲染层也不会重复送。
+3. 测试与夹具：`tests/verify-deck-render-detail.ts` 第 9 组补一条先 `JSON.parse(JSON.stringify(value))` 再渲染的用例（断言正文只出现一次）；`tests/verify-deck-tools.ts` 补断言 patch 回执的 `readBack` 不含 body、整票正文只出现一份；重建 `tests/tracker-contract/fixtures/golden-receipts/08-deck_issue_patch.golden.json`（有意变更，其余八份不动）。
+
+**实测（脚本 `.scratch/triage-1273/simulate-fix.mjs`，跑在真实回执与合成大票上）**
+
+- 真实 #1273 回执（正文 852 字＋1 条评论）：现状 14262 字节 / 渲染 7896 字符、正文 2 份；改后 7619 字节 / 4091 字符、正文 1 份。
+- 合成大票（正文 5000 字＋50 条评论各约 210 字符）：现状 33219 字节 → 16786 字节（约省一半）；渲染 33108 → 16683 字符。
+
+**对抗式审查：为什么不是另外几种**
+
+- **整票不回灌，只留摘要**：数字最省（#1273 约 300 字符，合成票约 259 字符），但违背 `issue-patch.ts:6` 写下的契约「返回值就是写后的真状态，AI 不必再读一次确认」；模型要正文时得再调 `deck_issue_get`，而该工具自身会把正文带回 2–3 份（同族问题），实际更贵，且这属于另一次产品决策，不在本 bug 范围。
+- **把 `readBack` 整个置空**：比摘要只再省约 60 字节，却让信封这一格失去唯一生产者，也丢掉「本次确实做了写后回读」的明确信号，得不偿失。
+- **只改渲染去重**：PTC 会话（按 ADR 新建会话必须是 PTC）里模型读到的是原始信封，只改渲染时两份仍会进上下文，治不了本票。
+- **`readBack` 留整票、`data.ticket` 只留 key/title/effortId**：与建票回执形状不一致，且损失整票回显这个文字改动的人工核对凭据。
+
+**残余风险**
+
+- golden 08 是冻结契约，重建属有意变更，需人工核对 diff；其余八份夹具必须逐字不变。
+- `readBack` 的形状变化若被仓外消费者依赖需复核；仓内 grep 未见业务逻辑消费它，只有信封透传、渲染与测试。
+- 同族的 `deck_issue_get` 正文最多三份仍在本票范围外，需另立票。
+
