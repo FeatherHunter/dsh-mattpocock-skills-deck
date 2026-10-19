@@ -74,9 +74,11 @@ async function main() {
   const both = gh.normalizeIssue({ number: 103, title: '又标签又标记', body: SPEC_BODY, labels: [{ name: 'wayfinder:map' }] })
   check(both.type === 'map', '标签与标记同时在场时判成探索地图（标签优先）', both.type)
 
-  // GitLab 房同一口径（那边正文在 description 里）
+  // GitLab 房这一版没有接规格识别（#1286 收回 GitLab 房改动时只改了源码，没同步这条断言；
+  // 设计文档 docs/design/1286-implementation-map-visual.md 第 4.1 节把这个缺口记成「等另一张票补镜像」）。
+  // 这里钉住当前已知状态：规格标记落到 GitLab 房仍然是普通票，别让它悄悄漂成一种没人记得的约定。
   const glSpec = gl.normalizeIssue({ iid: 200, title: '规格', description: SPEC_BODY })
-  check(glSpec.type === 'spec', 'GitLab 房同样认正文标记（与 GitHub 房镜像）', glSpec.type)
+  check(glSpec.type === 'issue', 'GitLab 房暂未接规格识别（已知缺口，等单独的票补镜像）', glSpec.type)
   const glPlain = gl.normalizeIssue({ iid: 201, title: '普通票', description: '普通正文' })
   check(glPlain.type === 'issue', 'GitLab 房的普通票仍是普通票', glPlain.type)
 

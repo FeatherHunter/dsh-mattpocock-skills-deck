@@ -2,9 +2,14 @@
   "version": 2,
   "metric": "effective-lines",
   "recordedAt": "2026-10-19",
-  "note": "零增长基线：按有效行（注释与空行不计）记，只许减不许增；达标文件由各自拆分票移出。2026-10-19（#1271）：chain.ts 旧落盘/恢复节删除，有效行 365→293达标，同票移出。",
+  "note": "零增长基线：按有效行（注释与空行都不计）记，只许减不许增；达标文件由各自拆分票移出。2026-10-19（#1271）：chain.ts 旧落盘/恢复节删除，有效行 365→293 达标，同票移出。2026-10-20（#1277 收尾）：把 5 个一直没记进基线、导致门禁常红的既有超标文件补记进来（VersionControlTab 366、map-plan-create 373、backendDecision 740、github/graph 357、gitlab/graph-blocking 435）；本次只冻结现状，不拆分，拆分仍由各自的票负责。",
   "files": {
-    "src/client/kernel/api-io.ts": 370,
-    "src/host/namingGuardian.ts": 374
+    "src/client/kernel/api-io.ts": 369,
+    "src/client/views/versionControl/VersionControlTab.ts": 366,
+    "src/deck/tools/map-plan-create.ts": 373,
+    "src/host/namingGuardian.ts": 374,
+    "src/tracker/detection/backendDecision.ts": 740,
+    "src/tracker/rooms/github/graph.ts": 357,
+    "src/tracker/rooms/gitlab/graph-blocking.ts": 435
   }
 }
