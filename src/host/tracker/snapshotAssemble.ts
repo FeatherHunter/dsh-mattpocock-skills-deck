@@ -13,6 +13,8 @@
 import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { effortOf, idOfParts } from '../../tracker/kernel/identity-keys.js'
 import { parseMapBody, parseSpecBody } from '../../tracker/body-parse.js'
+// #1277 B 兜底（视图兜底）：行上的类型没标对时，票面文件头那行隐藏标记仍是唯一真源（ADR 2.5）。
+import { markerKindInHeader } from '../../shared/issue-file/src/marker.js'
 import type { RepositoryRef } from '../../shared/tracker/shape.js'
 
 // 池内标识的输入行：只读 key 与是否为拉取请求等格子，其余原样透传。
@@ -59,6 +61,21 @@ function thinRowOf(t: any): Record<string, any> | null {
   }
 }
 
+// #1277 B 兜底（视图兜底）：后端没把类型标成规格时，票面文件头那行隐藏标记仍是唯一真源（ADR 2.5）。
+//   为什么放在组装层而不是房间里：GitHub 写侧今天把标记挤到正文第二行（幂等锚占了第一行），GitHub 房
+//   只认首行，而 #326 一次改动只许动一个房间，本票不能改那个房 —— 界面不能因此把规格降级成普通票。
+//   这里只补「行说是普通票、票面文件头却写着 spec」这一种；已经标成 map/spec 的行一个字不动。
+//   浅拷贝一份改 type，后续容器判定、池过滤、sections 解析全用归一后的行，别的字段原样透传。
+function withNormalizedType(it: any): any {
+  if (!it) return it
+  const declared = String((it && it.type) || '')
+  if (declared === 'map' || declared === 'spec') return it
+  const body = (it && typeof it.body === 'string') ? it.body : ''
+  if (!body) return it
+  if (markerKindInHeader(body) !== 'spec') return it
+  return Object.assign({}, it, { type: 'spec' })
+}
+
 // 组装（纯函数）：maps（挂一层 tickets）+ 未挂图票（孤儿：破链 / 根票；map 节点本身不算孤儿——它已在 maps[] 作为容器）。
 // 同池：拉取请求与普通工单都进 tickets/issues，不分片；拷贝原样带字段（EMPTY 保持空值，MISSING 保持省略）。
 //
@@ -72,9 +89,11 @@ function thinRowOf(t: any): Record<string, any> | null {
 //   瘦身行（thinTickets，只有票号、标题、状态、是不是地图）专供查标题：首屏口径不变，取数也不多花一次。
 export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   // 口径断言：组装层不判定后端能力是否一致（混合返回不断言一致），只做 pass-through；身份区分靠 poolIdOf（三态），BAD 单独隔离。
+  // #1277：先按票面标记做一遍种类归一，后面所有过滤与解析都用归一后的行（见 withNormalizedType）。
+  const rows: any[] = (Array.isArray(all) ? all : []).map(withNormalizedType)
   // effort 维度：父子分组按 (effortId, parentKey) —— 不同 effort 的地图各自只收本 effort 的票。
   const byParent = new Map<string, any[]>()
-  for (const it of all) {
+  for (const it of rows) {
     if (!it) continue
     if (it.parentKey != null) {
       const pk = idOfParts(effortOf(it), it.parentKey)
@@ -90,9 +109,10 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   const thinTickets: Record<string, any>[] = []
   // 容器有两种：探索地图（type='map'）与规格/实施地图（type='spec'）。
   // 两类容器共用这一份数组（快照里仍叫 maps），客户端靠 type 字段分辨种类，不另开一个数组。
-  // 规格靠正文首行独占一行的隐藏标记识别（标记串见 contract/vocabulary.ts 的 SPEC_BODY_MARKER），
-  // 识别在房间的归一层做（rooms/github/normalize.ts 的 deriveType，rooms/gitlab/normalize.ts 镜像一份）。
-  const maps = all
+  // 规格的识别：正常情况下由各房归一层把 type 标成 spec（GitHub 房认正文首行的隐藏标记，
+  // 本地 Markdown 房认文件头标记，见 rooms/markdown/parse.ts）；房没标对时由本文件上面的
+  // withNormalizedType 按票面标记兜底（#1277 的 B 视图兜底；GitLab 房这一版还没接，见 #1286 设计文档 §4.1）。
+  const maps = rows
     .filter((i) => i && (i.type === 'map' || i.type === 'spec'))
     .map((m) => {
       // 探索地图正文五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）：
@@ -125,7 +145,7 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   const attached = new Set<string>()
   for (const m of maps) for (const t of (m as any).tickets) attached.add(poolIdOf(t))
   // issues = 未挂在任何 map 下的「非 map」票（破链票指 parentKey 指向已删/不存在 map；根票 parentKey=null 也在此——它们无 map 归属）
-  const issues = all
+  const issues = rows
     .filter((i) => i && i.type !== 'map' && i.type !== 'spec' && !attached.has(poolIdOf(i)) && !closedMapTickets.has(poolIdOf(i)))
     .map((t) => Object.assign({}, t))
   return { repository: repo, maps, issues, thinTickets, deck: null }
