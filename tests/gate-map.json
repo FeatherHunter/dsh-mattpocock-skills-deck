@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T19:58:45.151Z",
+  "generatedAt": "2026-10-19T20:31:21.705Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 294,
-  "gateCount": 294,
-  "attributedGates": 260,
+  "chainLength": 295,
+  "gateCount": 295,
+  "attributedGates": 261,
   "unattributedGates": 34,
   "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 506,
+  "graphFileCount": 508,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1625,6 +1625,29 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1277-md-spec-container.ts",
+      "file": "tests/verify-1277-md-spec-container.ts",
+      "guards": [
+        "src/deck/rules/minimal-spec.ts",
+        "src/host/tracker/snapshotAssemble.ts",
+        "src/shared/issue-file/src/marker.ts",
+        "src/tracker/rooms/markdown/issues-create.ts",
+        "src/tracker/rooms/markdown/parse.ts",
+        "src/tracker/rooms/markdown/patch-body.ts"
+      ],
+      "dirs": [
+        "src/deck/rules",
+        "src/host/tracker",
+        "src/shared/issue-file/src",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-1286-detail.ts",
@@ -7388,7 +7411,8 @@
     ],
     "src/deck/rules": [
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-1039-rules-pure.ts"
+      "node tests/verify-1039-rules-pure.ts",
+      "node tests/verify-1277-md-spec-container.ts"
     ],
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.ts",
@@ -7604,6 +7628,7 @@
       "node tests/verify-refresh-workspace-key.ts"
     ],
     "src/host/tracker": [
+      "node tests/verify-1277-md-spec-container.ts",
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -7636,6 +7661,10 @@
     "src/shared/host-timer": [],
     "src/shared/host-timer/src": [
       "node tests/verify-1115-timer-handle.ts"
+    ],
+    "src/shared/issue-file": [],
+    "src/shared/issue-file/src": [
+      "node tests/verify-1277-md-spec-container.ts"
     ],
     "src/shared/label-color": [],
     "src/shared/label-color/src": [
@@ -7944,6 +7973,7 @@
       "node tests/verify-1144-markdown-issue-address.ts",
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1182-ticket-file-publish.ts",
+      "node tests/verify-1277-md-spec-container.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -8169,12 +8199,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 519,
-    "dirCount": 54,
-    "coveredFileCount": 519,
+    "fileCount": 522,
+    "dirCount": 56,
+    "coveredFileCount": 522,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 48,
+    "dedicatedDirCount": 49,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -8500,6 +8530,9 @@
       "src/shared/host-timer/README.md",
       "src/shared/host-timer/src/host-timers.ts",
       "src/shared/host-timer/tsconfig.json",
+      "src/shared/issue-file/README.md",
+      "src/shared/issue-file/src/marker.ts",
+      "src/shared/issue-file/tsconfig.json",
       "src/shared/label-color/README.md",
       "src/shared/label-color/src/colors.ts",
       "src/shared/label-color/src/ports.ts",
@@ -8732,6 +8765,8 @@
       "src/shared/config-store/src",
       "src/shared/host-timer",
       "src/shared/host-timer/src",
+      "src/shared/issue-file",
+      "src/shared/issue-file/src",
       "src/shared/label-color",
       "src/shared/label-color/src",
       "src/shared/refresh",
@@ -8785,6 +8820,7 @@
       "src/seam",
       "src/shared",
       "src/shared/host-timer/src",
+      "src/shared/issue-file/src",
       "src/shared/label-color/src",
       "src/shared/refresh/src",
       "src/shared/time-config/src",
@@ -8813,6 +8849,10 @@
       },
       {
         "path": "src/shared/host-timer",
+        "fileCount": 3
+      },
+      {
+        "path": "src/shared/issue-file",
         "fileCount": 3
       },
       {
