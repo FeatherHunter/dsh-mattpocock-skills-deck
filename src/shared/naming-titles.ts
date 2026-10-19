@@ -1,7 +1,7 @@
 // src/shared/naming-titles.ts —— S2（#452）从 naming-guardian.js 拆出之占位识别、标题清洗截断、草稿档与编号档合成，纯结构、行为零变化。
 // 以后谁改它：改占位四式、标题清洗截断规则、草稿档或编号档合成的人。预估约175行，超 350 打回。
 // 接线：纯函数，无输入输出、无内核依赖（promptLang 为可选闭包自由变量，typeof 守卫）；不引用跟踪与归属文件（墙要求）；
-//   宿主半运行时引用本文件（与另两文件合并），界面半由 scripts/build.mjs 以 SHARED_SPLICE 拼回闭包。
+//   宿主半运行时引用本文件（与另两文件合并），界面半由 scripts/build.mts 以 SHARED_SPLICE 拼回闭包。
 
 /**
  * src/shared/naming-titles.ts — 命名守护标题合成半（#265/#205 · 从 naming-guardian.js 拆出，S2 #452）。
@@ -9,8 +9,8 @@
  * 契约（#264 规约 · 单缝原则）：本文件是标题合成的真源 —— 占位识别、标题合成（草稿档 + 编号档，
  * 清洗截断沿用 #205 既有规则与 UTF-8 120 字节预算）。分档状态机、跟踪态、计划单见 naming-tracking.js，
  * 编号归属见 naming-attribution.js；三文件之间不互相引用（墙要求）。
- * 宿主半运行时引用本文件（与另两文件合并）；界面半由 scripts/build.mjs 以 SHARED_SPLICE 方式将
- * 三文件声明体拼回 src/client/index.js 闭包（一源两物，与 kernel/leaf 拼接同模式），
+ * 宿主半运行时引用本文件（与另两文件合并）；界面半由 scripts/build.mts 以 SHARED_SPLICE 方式将
+ * 三文件声明体拼回 src/client/index.ts 闭包（源码树里只有这一份真源，与 kernel/leaf 拼接同模式），
  * 两半均不另写第二处命名实现。
  *
  * 生效日期：2026-08-28

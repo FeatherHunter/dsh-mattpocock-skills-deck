@@ -1,5 +1,5 @@
 // views/versionControl/vcDiffOps.ts — 差异与提交那几路的动作（#857：从组件里抽出来的一层）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、对象键与顺序一个字没动。
 // 它不裸引用闭包里别的叶子：下面那些 vcRead* / vcApply* / vcMark* 全部由调用方 o 现传进来，

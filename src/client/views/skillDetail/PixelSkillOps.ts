@@ -1,7 +1,7 @@
 /**
  * views/skillDetail/PixelSkillOps.ts — 技能详情取数的 TS 真源（888 落地：开合、阶段、缓存、重试）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelSkillOps (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelSkillOps (spliced by build) ====` 标记处。
  * 用法：pixelOpenDetail(st, name, item) 打开并取原文（压一层详情）；pixelRetryDetail(st) 在**当前这一层**上重试。
  * 详情栈（2026-10-10 人拍板）：从详情里点开另一篇就再压一层，关一层回到上一层；最多三层，
  * 超过三层时把最深的那层挤掉。st.pixelDetail 恒等于栈顶，外面原来的读法一个字不用改。

@@ -2,9 +2,9 @@
  * src/client/kernel/api-io.ts — 内核模块（#457 由 api.js 拆出之行级打开、注入复制与问题详情）
  *
  * 契约：本文件为模块真源，源码语言是 TypeScript（#1111 由 api-io.js 改名而来，行为零变化）。
- * scripts/build.mjs 先用 esbuild 逐文件转译出同目录同名的 api-io.js（头部带 AUTO-GENERATED 横幅），
- * 再把这个产物去掉每行行首的 export 关键字、按拼接标记拼回 src/client/index.js 的 apply 闭包内，
- * 与 ctx.js/seam 同模式，一源两物，src 零复制。改这里，不要去改生成的 api-io.js。
+ * 构建（scripts/build.mts）直接读这份 .ts 真源、用 esbuild 当场转译，去掉每行行首的 export
+ * 关键字后按拼接标记拼回 src/client/index.ts 的 apply 闭包内，与 ctx/seam 同模式；源码树里
+ * 只有这一份真源，没有再生成一份 .js 产物。改这里就够。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     import { DRAFT_REFOCUS_RETRY_MS } from '../../shared/time-config/values.js'
@@ -16,7 +16,7 @@
     //   rowActionText 拿不到链接时退回「#编号」。
     // #746 Knife1：下单时种类已知，显式随 opts 传给创建管线，不再靠文本前缀反推；未知种类传空，回退文本推断。
     // ---- 本文件跑在面板闭包里要用到的、由别处提供的自由变量（#1111 TS 化时补）----
-    // api-io 会被拼进 src/client/index.js 的 apply 闭包，下面这些名字来自同一闭包里的别的叶子或宿主注入，
+    // api-io 会被拼进 src/client/index.ts 的 apply 闭包，下面这些名字来自同一闭包里的别的叶子或宿主注入，
     // 本文件不 import 它们。这里只声明形状、不生成任何代码（esbuild 会把 declare 整行删掉），作用是让
     // tsc -p tsconfig.client.json 能过。类型一律写 any 是刻意的：这些值的真源在别的文件里，
     // 在这里凭记忆写窄，只会把别处正常的改动变成这里的假报错、逼着两处一起改。

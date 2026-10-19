@@ -10,8 +10,8 @@
  * 谁把 GitHub 原生节点直接递给界面，谁就先把状态收成契约形状 —— 界面不认后端的私有字段
  * （契约见 docs/architecture/tracker-backend-design-contract.md 第 1、2 节：UI 不知道后端是谁）。
  *
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 leaf 标记处（一源两物）。本文件不新增跨边界调用、不新增缓存、
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源）。本文件不新增跨边界调用、不新增缓存、
  * 不新增定时触发的活，所以没有新增日志点。
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、

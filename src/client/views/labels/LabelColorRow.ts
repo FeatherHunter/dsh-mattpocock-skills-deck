@@ -22,8 +22,8 @@
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、分支条件、
  * 字符串、数字、对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源
- * （ESM 导出），scripts/build.mjs 构建时剥掉行首 export 后拼进 src/client/index.js 的客户端闭包
- * （一源两物）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。
+ * （ESM 导出），scripts/build.mts 构建时剥掉行首 export 后拼进 src/client/index.ts 的客户端闭包
+ * （源码树里只有这一份真源）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  * 另有一条不能破的约定：本组件会被 tests/verify-label-color-core.ts 单独摘出来编译、只注入固定
  *   几个依赖（compileFn），多一个运行时自由变量就会在渲染这一行时炸——所以下面的 declare 一律是
  *   **只给类型检查看的形状声明**，转译时整段抹掉，不会变成运行时要去找的自由变量。

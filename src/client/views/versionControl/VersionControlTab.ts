@@ -1,6 +1,6 @@
 // views/versionControl/VersionControlTab.ts — 「版本管理」页签的内容区（#818 的入口组件）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。壳层（panel/Dock.js）按 h(VersionControlTab, { st, narrow }) 调它。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。壳层（panel/Dock.js）按 h(VersionControlTab, { st, narrow }) 调它。
 // 本文件由同名 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
 // 下面是闭包里别的叶子给的能力（构建按 build.mjs 的次序拼进同一个函数作用域，真机上有值）：
 //   类型检查时各文件独立看，所以这里按「只声明形状、不参与转译」逐个声明，行为以真机闭包为准。

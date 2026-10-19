@@ -11,8 +11,8 @@
  * 本文件的公开函数形参已按契约类型标注（RepoHandle/RepositoryRef/BackendContext/OpContext），
  * 与房内其余 13 个 .ts 一起在 `node node_modules/typescript/bin/tsc -p src/tracker/tsconfig.json`
  * 下零错误（不要用 `npx tsc`，本仓那是占位壳，不是真编译器）。
- * 包里的 .js 是构建产物（scripts/build.mjs 把 src/tracker 下的 .ts 逐个转译进 package/tracker），
- * 不要手改；宿主源码引用本文件时照旧写 './index.js'（开发期由 scripts/ts-hook.mjs 指到本文件）。
+ * 包里的 .js 是构建产物（scripts/build.mts 把 src/tracker 下的 .ts 逐个转译进 package/tracker），
+ * 不要手改；宿主源码引用本文件时照旧写 './index.js'（开发期由 scripts/ts-hook.mts 指到本文件）。
  */
 
 import type { Tracker } from '../../contract/operations.js'

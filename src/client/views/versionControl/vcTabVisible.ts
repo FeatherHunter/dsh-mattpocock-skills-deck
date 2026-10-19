@@ -1,6 +1,6 @@
 // views/versionControl/vcTabVisible.ts — 「版本管理」页签什么时候显示（#818 · 总工程师 2026-10-04 裁定）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。views/shared/Tabs.ts 按
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。views/shared/Tabs.ts 按
 //   (typeof vcTabVisible === 'function') ? vcTabVisible(s) : false 调用它，所以名字与入参不许改。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、常量、字符串一个字没动。

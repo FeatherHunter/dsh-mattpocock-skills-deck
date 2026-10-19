@@ -13,7 +13,7 @@
  *       安装按钮的验证清单因此不完整 → 横幅永远报警、状态栏 skills 胶囊显示不全、MattSkills slider 双注册。
  *
  * 本文件 = 单一真源；host 经 await import('../shared/matt-skills.js') 读；
- *                 client 由 scripts/build.mjs 以 SHARED_SPLICE 拼入 src/client/index.js。
+ *                 client 由 scripts/build.mts 以 SHARED_SPLICE 拼入 src/client/index.ts。
  *                 splice 提取会剥掉 `export ` 前缀，因此本文件用 const SKILLS_DATA 命名原始数组，
  *                 再用 export const MATT_SKILL_CATALOG = SKILLS_DATA 与 export const SKILLS = SKILLS_DATA 双导出；
  *                 splice 后产物同时具备 MATT_SKILL_CATALOG 与 SKILLS 两种命名（兼容老 client 代码）。

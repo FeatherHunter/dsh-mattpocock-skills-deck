@@ -3,7 +3,7 @@
  *
  * 来源与零变化：本文件由同目录 versionControlBasis.js 逐行转写而来，只加类型标注与注释，
  * 没有改任何运行时语义。原来的 .js 文件保留不动，引用方继续写 `./versionControlBasis.js`，
- * 由 scripts/ts-hook.mjs 在加载时改指到同名 .ts。
+ * 由 scripts/ts-hook.mts 在加载时改指到同名 .ts。
  *
  * 为什么单独成一个文件：src/host/versionControl.js 贴着文件粒度门禁的 350 行上限，这一段要补「刚克隆、
  * 还没 fetch 过、没有 reflog」的回退路就放不下了；照 #500（logStore→logPhones）与 #821（versionControl→

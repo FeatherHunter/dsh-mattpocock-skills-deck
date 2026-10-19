@@ -20,8 +20,8 @@
  *   「载荷」—— 与计数器数字、段图标同类：任何宽度都不撤，只用省略号收宽度
  *   （maxWidth 加 ellipsis 加 flex 收缩）。没有记录时它根本不存在，所以窄宽度下它不占地方。
  *
- * 契约：模块真源（ESM 导出）；构建时剥行首 export，拼回 src/client/index.js
- *   的 leaf 标记处（一源两物）。文案全部走词条（chainView.capsuleDoing 复用 action 词条与 openTip），
+ * 契约：模块真源（ESM 导出）；构建时剥行首 export，拼回 src/client/index.ts
+ *   的 leaf 标记处（源码树里只有这一份真源）。文案全部走词条（chainView.capsuleDoing 复用 action 词条与 openTip），
  *   本文件零中文字符串（门禁扫 CJK， locale-completeness 那条「干净」覆盖它）。
  * （#1251：本文件由同名 .js 转成 .ts，只补类型标注（形参一律 any）与环境声明，运行时行为一字不动。约束：不许加运行时 import（跨文件名字一律 ambient declare，构建拼闭包时拒收残留 import）；不许 export default；只写可剥离类型。）
  */

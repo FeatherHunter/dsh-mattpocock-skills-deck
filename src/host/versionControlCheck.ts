@@ -3,7 +3,7 @@
  *
  * 来源与零变化：本文件由同目录 versionControlCheck.js 逐行转写而来，只加类型标注与注释，
  * 没有改任何运行时语义。原来的 .js 文件保留不动，引用方继续写 `./versionControlCheck.js`，
- * 由 scripts/ts-hook.mjs 在加载时改指到同名 .ts。
+ * 由 scripts/ts-hook.mts 在加载时改指到同名 .ts。
  *
  * 职责（只做预检，不起任何写命令）：读一次首屏 → 交给核心 rules.judge 判定 → 解析目标（推送目标 / 上游 /
  * 提交信息与索引指纹 / i-t-a）→ 发一张票。写命令一条都不在这里发；所有只读命令都走注入的 safeGit（它就是

@@ -10,8 +10,8 @@
  *   状态栏黄条那颗「初始化」按钮、检查页红牌那颗「执行初始化」按钮、面板「切换后端」那条路，
  *   以及建仓向导成功后的补发。谁都不要自己再判一遍「该不该问」「该不该注入」。
  *
- * 契约：内核模块（scripts/build.mjs 的 KERNEL_MODULES 登记，marker kernel:promptsSetup 拼回
- *   src/client/index.js 的 apply 闭包内原位）；同闭包内直调 readSetupLayout / setupOrRepoPrompt /
+ * 契约：内核模块（scripts/build.mts 的 KERNEL_MODULES 登记，marker kernel:promptsSetup 拼回
+ *   src/client/index.ts 的 apply 闭包内原位）；同闭包内直调 readSetupLayout / setupOrRepoPrompt /
  *   setupBlockedByGuide / setupRunPrompt / emit / inject / log 等，不 import 任何东西。
  * 以后谁改它：改「初始化这条路上什么条件下开那张布局小卡、什么条件下注入全文」的人。
  */

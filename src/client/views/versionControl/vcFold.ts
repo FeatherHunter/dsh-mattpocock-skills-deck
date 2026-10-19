@@ -1,6 +1,6 @@
 // views/versionControl/vcFold.ts — 版本管理页签「随宽度逐格让位」的纯规则（#818）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。本文件不画界面、不量宽度、不打电话：阶梯怎么排、第几档每一处
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。本文件不画界面、不量宽度、不打电话：阶梯怎么排、第几档每一处
 //   画什么，只有判据。画（VersionControlTab.ts 的渲染）与量（同一个组件的折叠机）都读这里，
 //   两边不会各说各话。形状照 panel/headFold.ts 那条先例：一次让位最多少一个字符，完整内容留在
 //   悬停提示里一个字都不丢。

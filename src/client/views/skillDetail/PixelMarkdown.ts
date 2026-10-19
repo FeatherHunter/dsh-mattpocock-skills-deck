@@ -1,7 +1,7 @@
 /**
  * views/skillDetail/PixelMarkdown.ts — 像素风 Markdown 渲染的 TS 真源（887 TS 化，中组件）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelMarkdown (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelMarkdown (spliced by build) ====` 标记处。
  * 用法：PixelMarkdown({md, lang, st, onSkill, skillNames})；pixelDocHeadings(md) 纯函数抽标题给目录用。
  * onSkill 与 skillNames 都给了的时候，正文里写到的**随包真有的技能名**（`/grill-with-docs` 或 `grilling`）
  * 才做成可点的入口，点了压一层新的详情（2026-10-10 人拍板）；没给或名字对不上就原样当代码画。

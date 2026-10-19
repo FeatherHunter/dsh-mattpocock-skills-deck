@@ -6,7 +6,7 @@
 // 什么约定不能改：
 //   1. 通用目录在任意后端下输出一致，谓词只读、失败返回而非抛出，注册表只验形状不验内容。
 //   2. 注册键的优先顺序与“首个成功即停”保持原样，重复键直接跳过，不抛错。
-//   3. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mjs 改指同名 .ts，本文件不改说明符。
+//   3. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符。
 //   4. 只写可剥离类型：类型一律经 import type 引入，运行时导入与原来完全相同，不新增任何运行时边。
 
 import { GENERIC_CATALOG, catalogFor } from '../../shared/tracker/check-catalog-dirs.js'

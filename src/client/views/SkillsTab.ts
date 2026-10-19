@@ -1,7 +1,7 @@
 /**
  * views/SkillsTab.ts — 技能视图（5.6）的 TS 真源（888 落地：列表换成像素风组件）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:skillsTab (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:skillsTab (spliced by build) ====` 标记处。
  * 列表与详情都交给 views/skillDetail 下的像素风组件画；本文件只做三件事：
  * ①算推荐组（老逻辑一字不动）；②把 SKILLS 转成组件要的 items；③把加载与详情两个动作接上
  * （加载＝老行为 inject，详情＝pixelOpenDetail 取原文）。

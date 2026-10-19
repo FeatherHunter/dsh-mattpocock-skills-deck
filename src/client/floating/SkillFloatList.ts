@@ -2,8 +2,8 @@
  * floating/SkillFloatList.ts — 技能悬浮列表（5.2 状态栏末段 · 2026-08-18 需求 2）
  * 自 StatusBar.js 拆出（97 T4）：自持 skillAnchorRef/skillCloseRef 与 show/close/placement 状态机，
  * 互斥逻辑（关 bug 菜单）经 s 状态直接操作。
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  * T2 迁移（#381）：每行技能说明悬浮由 HoverTip(mode='anchor') 统一承载，
  *  保留行 hover 高亮经 s.skillHover 轻量驱动，tip 定位/翻转/挂顶由 HoverTip 契约表统一，
  *  移除原 getBoundingClientRect 手算与 s.skillTip 全局 portal。

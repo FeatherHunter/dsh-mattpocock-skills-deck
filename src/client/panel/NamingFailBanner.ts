@@ -1,8 +1,8 @@
 /**
  * panel/NamingFailBanner.ts — 命名链路定败的面板级常驻提醒（#267 · F4）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:namingFailBanner (spliced by build) ====` 标记处
- * （一源两物，与 Dock/Overlay 同模式 · G4 单文件单职责）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:namingFailBanner (spliced by build) ====` 标记处
+ * （源码树里只有这一份真源，与 Dock/Overlay 同模式 · G4 单文件单职责）。
  *
  * 数据面：有限重试耗尽清单（namingFailureInfo）由渲染钩子 kernel/api.js applyNamingFailurePanel
  * 落共享 store；本组件自订阅共享 store —— 面板级可见而非目标会话内闪现（AC1）。

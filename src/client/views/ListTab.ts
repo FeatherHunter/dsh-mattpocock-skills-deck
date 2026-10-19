@@ -1,14 +1,14 @@
 /**
  * views/ListTab.ts — 主列表（排序/过滤/chips/行动作，5.5）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  */
 
 // 本文件由同名 .js 转写为 TypeScript（#1253「界面视图层整批转 TypeScript」）：只加类型标注与中文注释，
 //   逻辑、分支条件、字符串、数字、对象键与次序、函数名与导出名一字未改，行为零变化。
-// 两条不能再改的约定：①模块说明符仍写 .js（scripts/ts-hook.mjs 会把 .js 改指同目录同名 .ts）；
+// 两条不能再改的约定：①模块说明符仍写 .js（scripts/ts-hook.mts 会把 .js 改指同目录同名 .ts）；
 //   ②写法限「可剥离的 TypeScript」——不用 enum、不用构造函数参数属性，因为测试链路上 Node 只删类型、不做语法转换。
-// 下面这些名字本文件里没有 import、也不是本文件定义的：它们由构建按 scripts/build.mjs 的次序，
+// 下面这些名字本文件里没有 import、也不是本文件定义的：它们由构建按 scripts/build.mts 的次序，
 //   把各叶子拼进同一个函数作用域后提供（真机上有值）。类型检查时本文件是独立看的，所以这里只声明形状、
 //   不参与转译：declare 是纯类型语法，esbuild 转译时会整句删掉，产物里不留痕。
 declare function Ic(...args: any[]): any;

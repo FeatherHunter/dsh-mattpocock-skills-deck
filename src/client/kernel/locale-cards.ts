@@ -1,8 +1,8 @@
 /**
  * src/client/kernel/locale-cards.ts — 三种卡片（map卡片、issue卡片、issue卡片-map）的中英词条真源。
  *
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的拼接标记处，与 locale-skilldetail.ts 同模式（一源两物，src 零复制）。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的拼接标记处，与 locale-skilldetail.ts 同模式（源码树里只有这一份真源）。
  * 由 locale.js 的合并器一起并进 L，卡片只认 tr(card.*)。
  *
  * 为什么单独一份：locale-panel.js 已贴 350 行上限，照 #879/#887 的做法自成一个片段。

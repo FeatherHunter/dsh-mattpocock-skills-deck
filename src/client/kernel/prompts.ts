@@ -1,10 +1,10 @@
 /**
  * src/client/kernel/prompts.ts — 内核模块（阶段 2 内核迁移 · #96 T3）
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，
- * 把声明体拼回 src/client/index.js 的拼接标记处（apply 闭包内原位），与 ctx.js/seam 同模式，
- * 一源两物、src 零复制；接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
- * 改 src 后必跑 node scripts/build.mjs，生成 client.js / package/lib/client.js，勿手改产物。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首 export 关键字，
+ * 把声明体拼回 src/client/index.ts 的拼接标记处（apply 闭包内原位），与 ctx.js/seam 同模式，
+ * 源码树里只有这一份真源、src 零复制；接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
+ * 改 src 后必跑 node scripts/build.mts，生成 client.js / package/lib/client.js，勿手改产物。
  */
     // #792（2026-09-30 定稿）· 工具节的适用范围：末尾那节「## 工具」（issue 操作优先走 deck_ 工具 + 用 deck_issue_report
     //   上报）只给「这条提示词引导的动作里会读或写票 / 地图」的模板，一共 15 条。判据是工具集的能力边界：deck 工具只做

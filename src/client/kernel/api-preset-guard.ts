@@ -2,9 +2,9 @@
  * src/client/kernel/api-preset-guard.ts — 内核模块（#478 由 api-naming.js 拆出之预设守卫：探针、创建后验、隔离与后验编排）
  * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
- * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.ts/seam 同模式，一源两物，src 零复制。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首
+ * export 关键字，把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内
+ * 原位），与 ctx.ts/seam 同模式，源码树里只有这一份真源。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  * 依赖同闭包的 getRowPreset/isHealthyPreset（api-naming，调用时），仅在运行时调用，初始化期不求值。
  */

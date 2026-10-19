@@ -2,13 +2,13 @@
  * views/shared/Tabs.ts — 共享 tabs 行（阶段 2 叶子迁移 · #97 T4 去重）
  * Dock/Overlay 原各实现一遍的 tabsTip/tabsTipOff/tabBtn + 动作按钮行（wayfinder/bug/刷新 + tooltip + 版本号）
  * 合成此处；消费：`const tabs = useTabsRow(s, tabsRef)`，渲染 `tabs.items`（容器由调用方自备，样式各异）。
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、数字、
  * 对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），
- * scripts/build.mjs 构建时剥掉行首 export 后把声明体拼进 src/client/index.js 的客户端闭包
- * （一源两物）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。
+ * scripts/build.mts 构建时剥掉行首 export 后把声明体拼进 src/client/index.ts 的客户端闭包
+ * （源码树里只有这一份真源）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  * 另外两条不许改：items 数组里的先后次序是 #1198 定的显示顺序，折叠优先级那几个数字是 #818 定的
  * 让位顺序，两者互相独立；能力门控一律「有就用、没有就当这个能力不存在」，不在这里自己定义判据。
  */

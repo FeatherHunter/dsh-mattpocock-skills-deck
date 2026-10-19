@@ -2,7 +2,7 @@
  * src/client/kernel/probe-stale.ts —— 面板快照那一路的「这一次还算不算数」判断（#669 第 5 件）
  *
  * 契约：模块真源；构建时剥行首 export，把声明体文本拼回
- * src/client/index.js 里那条 probeStale 拼接标记处，一源两物。
+ * src/client/index.ts 里那条 probeStale 拼接标记处，源码树里只有这一份真源。
  * 接口清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  * 以后谁改它：改「面板拿回来的这份快照还算不算数」「在途的那一次还能不能复用」的人。
  *

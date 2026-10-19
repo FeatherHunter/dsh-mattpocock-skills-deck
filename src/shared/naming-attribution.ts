@@ -1,7 +1,7 @@
 // src/shared/naming-attribution.ts —— S2（#452）从 naming-guardian.js 拆出之编号归属四个函数，纯结构、行为零变化。
 // 以后谁改它：改建号感知、编号归属、语义相关性判定的人。预估约150行，超 350 打回。
 // 接线：不引用标题与跟踪文件（墙要求）；语义相关性判定要用的清洗小函数与等待状态判定要用的档位常量在文件内各放一份
-//   （attribution 前缀），分别与 naming-titles.js、naming-tracking.js 同源，改动时一起改；拼接标记见 scripts/build.mjs 与 src/client/index.js。
+//   （attribution 前缀），分别与 naming-titles.js、naming-tracking.js 同源，改动时一起改；拼接标记见 scripts/build.mts 与 src/client/index.ts。
 
 /**
  * src/shared/naming-attribution.ts — 命名守护编号归属半（#266 建号感知 · 从 naming-guardian.js 拆出，S2 #452）。

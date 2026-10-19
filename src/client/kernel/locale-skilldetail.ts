@@ -1,15 +1,15 @@
 /**
  * src/client/kernel/locale-skilldetail.ts — 887 技能详情像素风中英词条的 TS 真源。
  *
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的拼接标记处，与 locale-skilldesc.ts 同模式（一源两物，src 零复制）。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的拼接标记处，与 locale-skilldesc.ts 同模式（源码树里只有这一份真源）。
  * 由 locale.js 的合并器一起并进 L，界面只认 tr('sd.*')。
  *
  * 键口径：sd.* 全是详情页自己的话术。按钮只转圈不换字，所以没有“加载中”这种键；
  * 缺文那段不带正文短描述——短描述是每篇自己的 use，由调用方当 prop 传进来。
  */
 // 「超过 2 秒」那句里的秒数不手抄：排版骨架的判定阈值住中央时间参数（config/intervals.yaml 的 skillSkeletonDelayMs）。
-// 构建时把那份片段拼进界面闭包（见上面“一源两物”契约），tsc 单独检查本文件时看不到它，所以在这里按名字声明类型。
+// 构建时把那份片段拼进界面闭包（见上面“拼接”契约），tsc 单独检查本文件时看不到它，所以在这里按名字声明类型。
 declare const SKILL_SKELETON_DELAY_MS: number
 export const L_SKILLDETAIL: { zh: Record<string, string>; en: Record<string, string> } = {
   zh: {

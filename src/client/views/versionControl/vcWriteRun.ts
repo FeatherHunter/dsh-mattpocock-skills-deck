@@ -1,5 +1,5 @@
 // views/versionControl/vcWriteRun.ts —— 写操作的执行层（#842）
-// 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.js 的 leaf 标记处（一源两物）。
+// 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源）。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、数字、对象键与顺序、函数名与导出名一个字没动。
 // 下面这两个读法由构建按 build.mjs 的次序拼进同一个函数作用域（它们是 vcData.ts 的叶子），真机上有值；

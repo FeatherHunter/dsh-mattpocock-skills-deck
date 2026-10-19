@@ -1,12 +1,12 @@
 /**
  * views/shared/tagsFit.ts — 标签贪心折叠（fitAllTags，v1.3.3）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、
  * 数字、对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），
- * scripts/build.mjs 构建时剥掉行首 export 后把声明体拼进 src/client/index.js 的客户端闭包
- * （一源两物）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。
+ * scripts/build.mts 构建时剥掉行首 export 后把声明体拼进 src/client/index.ts 的客户端闭包
+ * （源码树里只有这一份真源）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  * 本文件没有闭包依赖（只用浏览器自带的 document 与 WeakMap），所以不需要环境声明。
  * 三段式（先全显示、再一次读完宽度、最后按算好的结果写回）是它存在的理由，不能改成边读边写。
  */

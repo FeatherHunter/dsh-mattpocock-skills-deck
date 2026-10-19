@@ -3,7 +3,7 @@
  *
  * 来源与零变化：本文件由同目录 workspaceKey.js 逐行转写而来，只加类型标注与注释，
  * 没有改任何运行时语义。原来的 .js 文件保留不动，引用方继续写 `./workspaceKey.js`，
- * 由 scripts/ts-hook.mjs 在加载时改指到同名 .ts。
+ * 由 scripts/ts-hook.mts 在加载时改指到同名 .ts。
  *
  * 以后谁改它：改「哪个目录算这个会话的工作区」这条规则的人。规则全文见
  *   docs/adr/20260918-subworkspace-identity-root.md（票 #649 定版，2026-09-18）。

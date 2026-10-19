@@ -3,8 +3,8 @@
  *
  * 为什么保留这份节拍契约：自动刷新按工作区键去重，同组共享一次探测，
  * 组间零污染；手动刷新走静默路径，不挡渲染。构建侧去掉行首 export 后
- * 拼回 src/client/index.js 的拼接标记处，一源两物、src 零复制。
- * 同名 .js 是构建产物，改这里。接口冻结清单见 kernel-contract.md。
+ * 拼回 src/client/index.ts 的拼接标记处，源码树里只有这一份真源。
+ * 源码树里只有这一份真源，改这里就够。接口冻结清单见 kernel-contract.md。
  *
  * 节拍数字为什么不住这里：兜底探针周期与新鲜度阈值由契约层派生，
  * 正常路径取 tracker/sync.ts 契约里的那一份，缺席时兜底取拼进闭包的
@@ -56,7 +56,7 @@ declare const tr: any;
 // #232 · 节拍真源单源化：兜底探针周期由契约层派生（UI 层不得硬编码知道底层几秒刷一次）。
 // #1215：正常路径取 tracker/sync.js 契约里的那一份（config/intervals.yaml 的 syncFallbackProbeMs /
 //   syncFocusProbeMinMs）；SYNC 缺席时兜底取拼进本闭包的中央常量 SYNC_FALLBACK_PROBE_MS /
-//   SYNC_FOCUS_PROBE_MIN_MS（名字列在 scripts/build.mjs 的 CLIENT_TIME_NAMES 里），这里不留第二份数字。
+//   SYNC_FOCUS_PROBE_MIN_MS（名字列在 scripts/build.mts 的 CLIENT_TIME_NAMES 里），这里不留第二份数字。
 export const PROBE_MS: number = ((typeof SYNC === 'object' && SYNC && SYNC.FALLBACK_PROBE_MS) || SYNC_FALLBACK_PROBE_MS);
 export const FOCUS_PROBE_MIN_MS: number = ((typeof SYNC === 'object' && SYNC && SYNC.FOCUS_PROBE_MIN_MS) || SYNC_FOCUS_PROBE_MIN_MS);
 export let lastFocusProbe: number = 0;

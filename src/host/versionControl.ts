@@ -3,7 +3,7 @@
  *
  * 来源与零变化：本文件由同目录 versionControl.js 逐行转写而来，只加类型标注与注释，
  * 没有改任何运行时语义。原来的 .js 文件保留不动，引用方继续写 `./versionControl.js`，
- * 由 scripts/ts-hook.mjs 在加载时改指到同名 .ts。
+ * 由 scripts/ts-hook.mts 在加载时改指到同名 .ts。
  *
  * 这一层把真实 git 进程跑起来、把输出交给已落地的 TypeScript 核心解析与组装、经三条电话
  * （wf.gitStatus / wf.gitDiff / wf.gitLog）把结果回给界面。核心是纯函数，不许碰进程与磁盘；

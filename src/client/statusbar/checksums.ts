@@ -2,8 +2,8 @@
  * statusbar/checksums.ts — 状态栏计数/徽标计算（5.2；v14 数字区等宽 + 依赖链检测）
  * G4 严格一文件：从 StatusBar.js 拆出的独立文件（#97 T4）。
  * 消费：StatusBar 内 const csx = checksumsOf(s)（cl 解构后各引用不变）。
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  * #284：全部读数改从链快照派生（九格目录视图退役）；pending 不计入分子分母。
  * #663：原先在这里算的那几个「今天该出哪条横幅」的读数（gh cli / 登录 / 初始化 / 技能那四个布尔）
  *   一并删了 —— 横幅改由 statusbar/bannerChain.ts 按引导链清单（src/shared/tracker/guide-steps.ts）

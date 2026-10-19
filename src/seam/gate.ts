@@ -2,7 +2,7 @@
  * seam/gate.ts · G 构建门禁（D10 拦截手写破损）
  *
  * R1 定义：构建 + node -c + 单组件只允许 1 次声明，CI 拦截手写破损。
- * 本模块提供可复用的门禁函数，供 scripts/build.mjs 在每次构建后执行：
+ * 本模块提供可复用的门禁函数，供 scripts/build.mts 在每次构建后执行：
  *   1. gateSyntax(code, label)   —— vm 编译（等价 node -c / precheckCode 的语法层）
  *   2. gatePrecheck(code, label) —— 模拟 cordis_define precheckCode：以 (async () => { code })() 包装编译
  *   3. gateSingleDeclaration(code, label, componentNames) —— 单组件只允许 1 次声明

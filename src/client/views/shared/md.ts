@@ -1,7 +1,7 @@
 /**
  * views/shared/md.ts — 议题正文 markdown 白名单渲染（mdToHtml）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  *
  * 第一性原理说明（为什么这样写）：
  * 1. 容器约束内容：右侧面板只有三四百像素宽，图片原始尺寸任意大，所以缩略图只做上限约束，
@@ -14,8 +14,8 @@
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、数字、
  * 对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），
- * scripts/build.mjs 构建时剥掉行首 export 后把声明体拼进 src/client/index.js 的客户端闭包
- * （一源两物）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。
+ * scripts/build.mts 构建时剥掉行首 export 后把声明体拼进 src/client/index.ts 的客户端闭包
+ * （源码树里只有这一份真源）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  * 另外「白名单」这条不许放宽：地址判据、属性白名单、钳制上限都按原样留着。
  */
 /**

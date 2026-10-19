@@ -1,5 +1,5 @@
 // views/versionControl/vcWriteView.ts —— 写操作的节点画法（#842）
-// 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.js 的 leaf 标记处（一源两物）。
+// 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源）。
 // 本文件由同名 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
 declare function vcAiButtonNode(...args: any[]): any;
 //

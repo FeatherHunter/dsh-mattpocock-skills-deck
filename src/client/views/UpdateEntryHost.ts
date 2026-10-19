@@ -16,7 +16,7 @@
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、分支条件、
  * 字符串、数字、对象键与次序、函数名一字未动。一条**转写时刻意保持不动**的形态：原文件里
  *   没有 `export` 行（它不是按模块导出被消费的），转写后照旧没有——按本批规矩不自己改写法。
- *   它在构建里由 scripts/build.mjs 的 leaf 清单按文件路径整段拼进 src/client/index.js 的客户端
+ *   它在构建里由 scripts/build.mts 的 leaf 清单按文件路径整段拼进 src/client/index.ts 的客户端
  *   闭包，剥行首 export 那一套对它本来就不起作用。若以后要按模块 import 它，得先和登记处一起改。
  * 类型检查时的连带效果：一份没有 import / export 的 .ts 会被编译器当「全局脚本」看，下面
  *   `const UpdateEntryHost` 因此落在全局作用域——仓里别的客户端 .ts 都是模块，不会有重名冲突。

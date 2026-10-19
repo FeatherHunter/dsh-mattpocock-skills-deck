@@ -2,12 +2,12 @@
  * src/client/kernel/locale-pages.ts — 内核模块（#690 历史票按需翻页的中英词条；#698 又收了布局那一问的几条）
  *
  * #1209：本文件从 .js 改名成 .ts（改名是搬家线做的），除下面这段类型与注释外，正文一个字都没动。
- *   改名的配套动作在别处：scripts/build.mjs 的登记表按 id 改成新路径、tests/handwritten-js-baseline.json
+ *   改名的配套动作在别处：scripts/build.mts 的登记表按 id 改成新路径、tests/handwritten-js-baseline.json
  *   删掉原来那一行、按路径读这份源码的门禁改走 tests/lib/source-text.ts。
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
- * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首
+ * export 关键字，把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内
+ * 原位），与 ctx.js/seam 同模式，源码树里只有这一份真源。
  *
  * 为什么单独一份：locale-flow.js 与 locale-panel.js 都已经贴着「单文件不超 350 行」这条门禁
  * （#621 给标签配色加词条时就是这么做的，见 locale-labels.js），放不下更多文案，于是照同一做法自成一片。

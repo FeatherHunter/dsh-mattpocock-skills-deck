@@ -2,8 +2,8 @@
  * src/client/views/versionControl/vcStyles.ts — 版本管理页签的皮肤（#853：深色 A 工程台账 / 浅色 C 纸质便签）
  *
  * 本文件由同名 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
- * 契约：本文件是一段 CSS 文本（ESM 导出）；scripts/build.mjs 去掉行首 export 后拼进 src/client/index.js
- *   的拼接标记处，与 kernel/styles.js 同一套做法（一源两物）。注入仍走同一个 styles.insert 接缝
+ * 契约：本文件是一段 CSS 文本（ESM 导出）；scripts/build.mts 去掉行首 export 后拼进 src/client/index.ts
+ *   的拼接标记处，与 kernel/styles.js 同一套做法（源码树里只有这一份真源）。注入仍走同一个 styles.insert 接缝
  *   （index.js 里紧接着再 insert 一次），没有第二个 <style>，也没有新的注入机制。
  * 为什么是独立叶子：kernel/styles.js 已经 350/350 行、在 tests/verify-file-granularity.ts 里是冻结基线。
  *

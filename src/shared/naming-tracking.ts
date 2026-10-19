@@ -5,7 +5,7 @@
  * src/shared/naming-tracking.ts — 命名守护跟踪推进半（#264/#267 · 从 naming-guardian.js 拆出，S2 #452）。
  * 契约（#264 · 单缝原则）：本文件是跟踪推进的真源 —— 值比对锁、分歧归因、跟踪态与分档状态机、计划单、失败重试。
  * 标题合成见 naming-titles.js，编号归属见 naming-attribution.js；三文件互不引用，宿主半运行时引用本文件，界面半由
- * scripts/build.mjs 拼回 src/client/index.js 闭包（一源两物）。纯函数，Node 可直跑。
+ * scripts/build.mts 拼回 src/client/index.ts 闭包（源码树里只有这一份真源）。纯函数，Node 可直跑。
  * 生效 2026-08-28，以 #264 规约 + #260 五决议 + ADR 20260827 为基线，未来定版以未来为准。
  */
 

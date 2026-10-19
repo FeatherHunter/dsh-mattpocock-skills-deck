@@ -1,7 +1,7 @@
 /**
  * statusbar/StatusMenus.ts — 状态栏悬浮菜单定位与开关（从 StatusBar.js 拆出，B1 #460，纯结构、行为零变化）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
  * 以后谁改它：改状态栏悬浮菜单跟随定位（锚点矩形测算）、BUG 菜单、可接菜单与后端菜单开关、滚动缩放重定位的人改它。
  * 接线：StatusBar.ts 留转调包装（clearClose/scheduleClose/closeBugMenu/showBugMenu/closeTakeMenu/showTakeMenu）与单调 useStatusMenus(s, refs) 供装配；
  *   本文件不引用 StatusBackend.ts（同闭包拼回，调用方向见 StatusBar.ts 转调四处与装配一处）。

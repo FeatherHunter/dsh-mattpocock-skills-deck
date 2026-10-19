@@ -1,6 +1,6 @@
 // panel/DockSync.ts — 停靠面板工作区跟随（从 Dock.js 拆出，V4 #464，纯结构、行为零变化）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
-// src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+// src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
 // 以后谁改它：改切会话跟随当前会话、响应式工作区同步、污染自愈的人改它。
 // 接线：Dock.ts 单调 useDockSync(s, sid, summaryCwd, props) 供装配（此前是两个副作用原位）；
 //   本文件不引用 OverlayGate.ts（同闭包拼回，调用方向见 Dock.ts 装配一处）。

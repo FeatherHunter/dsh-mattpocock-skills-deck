@@ -3,12 +3,12 @@
  * 契约：HoverTip 的锁定预设：mode mouse + delay {show: TIP_SHOW_DELAY_MS, hide: TIP_HIDE_DELAY_MS} + maxWidth 220 + flip auto + zIndex 2147483000
  * 用法：Tip({content, children}) 或 h(Tip, {content: '提示'}, triggerNode)
  * 形态：单文件单控件、零横向 import、样式复用 HoverTip 的 STYLE_TEXT/portalTop，行为与 HoverTip 完全一致
- * 真源经 scripts/build.mjs LEAF_MODULES -> src/client/index.js // ==== leaf:tip (spliced by build) ==== 一源两物
+ * 真源经 scripts/build.mts LEAF_MODULES -> src/client/index.ts // ==== leaf:tip (spliced by build) ==== 源码树里只有这一份真源
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、
  * 数字、对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），
- * scripts/build.mjs 构建时剥掉行首 export 后把声明体拼进 src/client/index.js 的客户端闭包
- * （一源两物）；顶部那行时间配置 import 的 .js 后缀也不许改成 .ts，由 scripts/ts-hook.mjs
+ * scripts/build.mts 构建时剥掉行首 export 后把声明体拼进 src/client/index.ts 的客户端闭包
+ * （源码树里只有这一份真源）；顶部那行时间配置 import 的 .js 后缀也不许改成 .ts，由 scripts/ts-hook.mts
  * 把它改指同名 .ts。
  */
 /**

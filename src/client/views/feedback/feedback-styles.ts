@@ -1,9 +1,9 @@
 /**
  * views/feedback/feedback-styles.ts — 交互反馈三批的视觉语言（948 图 949/950/951 落地）。
  *
- * 契约：本文件是一段 CSS 文本（ESM 导出）；scripts/build.mjs 去掉行首 export 后拼进
- * src/client/index.js 的拼接标记处，与 kernel/styles.ts、vcStyles.ts、pxSkillStyles.js
- * 同一套做法（一源两物）。注入仍走同一个 styles.insert 接缝（index.js 里紧接着再
+ * 契约：本文件是一段 CSS 文本（ESM 导出）；scripts/build.mts 去掉行首 export 后拼进
+ * src/client/index.ts 的拼接标记处，与 kernel/styles.ts、vcStyles.ts、pxSkillStyles.js
+ * 同一套做法（源码树里只有这一份真源）。注入仍走同一个 styles.insert 接缝（index.js 里紧接着再
  * insert 一次），没有第二个 <style>，也没有新的注入机制。
  * 另起叶子的原因：kernel/styles.ts 已贴 350 行上限（#851 同款先例），反馈规则只许
  * 叠加不许顶布局，单独成叶后 952 到 956 的新反馈样式也加在这里，不再回 styles.ts。
@@ -12,7 +12,7 @@
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与这段说明，字符串、次序、
  * 导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），构建时剥行首 export 拼进闭包；
- * 模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。这里没有自由变量要声明——
+ * 模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。这里没有自由变量要声明——
  * 整份文件只是一串 CSS 文本，不引用闭包里任何别的叶子。
  * 一处提醒：数组元素次序就是样式注入次序，改次序可能改层叠结果，转写时一个字都没动。
  */

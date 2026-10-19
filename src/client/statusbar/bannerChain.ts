@@ -1,7 +1,7 @@
 /**
  * statusbar/bannerChain.ts — 状态栏那条横幅：按首开引导链的步骤清单决定今天出哪一条，以及那条的按钮点了做什么（#663）。
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export，拼回 src/client/index.js
- * 里那条 leaf:bannerChain 拼接标记处（一源两物，标记 id 与本文件名一致）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export，拼回 src/client/index.ts
+ * 里那条 leaf:bannerChain 拼接标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
  * 顺序与「这一步没过时给什么」只有一份真源：src/shared/tracker/guide-steps.ts 的 GUIDE_STEPS
  *   （宿主按它给链快照排序，见 src/host/detectChain.ts；本文件与检查页一样只读它，不自己再排一份）。
  * 界面只分发、后端只声明：动作词表见 src/client/kernel/actions.ts，清单里的 missing 只说用哪一种。

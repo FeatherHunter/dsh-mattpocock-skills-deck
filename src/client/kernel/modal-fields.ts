@@ -4,8 +4,8 @@
  * 为什么拆：那个文件在布局小卡搬进弹窗座位之后到了 404 行，超了 350 行上限
  *   （门禁 tests/verify-file-granularity.ts 是零增长基线，不许留超标文件）。搬出来的这一块与弹窗的
  *   其余部分几乎没有关系 —— 它只管把 schema 里每个字段画成一行控件，谁来画、什么时候画它不关心。
- * 契约：内核模块（scripts/build.mjs 的 KERNEL_MODULES 登记，marker kernel:modalFields 拼回
- *   src/client/index.js 的 apply 闭包内原位）；纯函数，不读会话状态、不碰闭包里的东西，
+ * 契约：内核模块（scripts/build.mts 的 KERNEL_MODULES 登记，marker kernel:modalFields 拼回
+ *   src/client/index.ts 的 apply 闭包内原位）；纯函数，不读会话状态、不碰闭包里的东西，
  *   需要的一切都以 ctx 传进来。以后谁改它：改弹窗字段长什么样（单选、多选、文本框、路径选择、预览行）的人。
  * 本文件由 modal-fields.js 转写而来，只加类型标注，运行行为一字不改。
  * 反例：不要在这里读弹窗开关或提交状态，不要在这里直接调 emit 或 host。

@@ -2,9 +2,9 @@
  * src/client/kernel/settings-view.ts — 内核模块（#1012：把客户端「按工作区的观看状态」从 localStorage 搬到本机设置文件）
  * （原来是 .js：按「动到哪里转哪里」转成 TypeScript，行为零变化。本文件是模块真源，同名 .js 已改由构建生成（会被覆盖，不要去改），本 .ts 既进类型检查也进拼接与 ts-hook 测试。）
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，把声明体文本
- *   拼回 src/client/index.js 里那一行 kernel:settingsView 拼接标记处（apply 闭包内原位），
- *   与 ctx.ts/seam 同模式，一源两物，src 零复制。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首 export 关键字，把声明体文本
+ *   拼回 src/client/index.ts 里那一行 kernel:settingsView 拼接标记处（apply 闭包内原位），
+ *   与 ctx.ts/seam 同模式，源码树里只有这一份真源。
  *
  * 本片管四件事：这把键怎么认（viewFlagDocKeyOf，读与写共用同一把）、文档里这一条记录怎么找、
  *   读一格（viewFlagOf）、把读回来的文档交给界面（settingsViewLoad 与 viewFlagSettle）。

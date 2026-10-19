@@ -1,5 +1,5 @@
 /**
- * views/SettingsPage.ts — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.js leaf。
+ * views/SettingsPage.ts — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.ts leaf。
  * （原来是 .js：调试分组搬进 views/diagnosticLog/ 之后按「动到哪里转到哪里」转成 TypeScript。
  * 本页现在只剩标题、总览、更多插件三样，调试那一组只剩一行挂载，行为零变化。）
  *

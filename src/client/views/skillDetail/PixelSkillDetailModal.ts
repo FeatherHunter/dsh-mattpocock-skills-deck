@@ -1,7 +1,7 @@
 /**
  * views/skillDetail/PixelSkillDetailModal.ts — 技能详情弹窗的 TS 真源（887 TS 化，变体 A 定版）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelSkillDetailModal (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelSkillDetailModal (spliced by build) ====` 标记处。
  * 用法：PixelSkillDetailModal({st, onRetry, onOpenSkill, skillNames})，读 st.pixelDetail（＝详情栈栈顶），关着就画 null。
  * 详情栈（2026-10-10 人拍板）：栈里最多三层；关一层露出上一层；超过三层时最深的被挤掉（在取数那边做）。
  * 正文里的 /技能名 与顶部推荐条都能点开另一篇（onOpenSkill 由外层接上取数与压栈）。

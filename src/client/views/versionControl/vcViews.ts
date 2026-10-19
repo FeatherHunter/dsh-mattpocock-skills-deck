@@ -1,5 +1,5 @@
 // views/versionControl/vcViews.ts — 布局 C：三个视图（改动 / 提交历史 / 工作树）（#853 第三步）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、数字、对象键与顺序一个字没动。
 // 它不裸引用闭包里别的叶子（h 由调用方当参数传进来），所以这里一条 declare 都不需要。

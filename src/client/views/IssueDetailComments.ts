@@ -1,6 +1,6 @@
 // views/IssueDetailComments.ts — Issue 详情评论区（从 IssueDetail.js 拆出，V3 #463，纯结构、行为零变化）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
-// src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+// src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
 // 以后谁改它：改评论提交、评论列表、加载下 50、输入框的人改它。
 // 接线：IssueDetail.js 的评论分组处调 renderIssueDetailComments，返回数组直接做分组子节点（此前是字面数组，原样）；
 //   确认下标、错误文案、提交动作内聚在本函数里，主文件只留显隐谓词（底部动作也要读它）。

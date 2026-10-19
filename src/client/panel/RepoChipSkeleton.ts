@@ -1,7 +1,7 @@
 /**
  * panel/RepoChipSkeleton.ts — 快照还没回来时，面板头部那条灰色占位骨架
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:repoChipSkeleton (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:repoChipSkeleton (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  *
  * 这块灰条是搬出来的，不是新画的：2026-09-24 从 panel/Dock.js 拆到这里（Dock.js 当时 358 行，
  * 贴着 350 行上限）。画出来的东西一字未改，只有画它的那段代码换了住处。

@@ -1,10 +1,10 @@
 /**
  * src/client/kernel/probe-chain.ts — 内核模块（#456 由 probe.js 拆出之链自动刷新、链加载与链派生）
  *
- * 为什么保留这份拼接契约：scripts/build.mjs 会去掉每行行首的 export 关键字，
- * 再把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内原位），
- * 与 ctx.ts/seam 同模式，一源两物，src 零复制。本文件为模块真源，同名 .js
- * 是构建产物，改这里，不要去改生成的 .js。
+ * 为什么保留这份拼接契约：scripts/build.mts 会去掉每行行首的 export 关键字，
+ * 再把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内原位），
+ * 与 ctx.ts/seam 同模式，源码树里只有这一份真源。本文件为模块真源，同名 .js
+ * 源码树里只有这一份真源，改这里就够。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板），
  * 导出名与形状一字不差，tests/verify-kernel.ts 按这份导出表钉住冒烟。
  *

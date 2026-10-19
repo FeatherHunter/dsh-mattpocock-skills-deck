@@ -1,7 +1,7 @@
 /**
  * views/TicketRow.ts — 票务行（地图详情内，5.3）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  * 本文件从 .js 改名而来（改名是搬家线做的）；我补了类型标注与环境声明，
  * 并做了 #1199 的修复：已关闭分支加是否网址分支（本地走宿主打开）。
  */

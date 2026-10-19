@@ -1,14 +1,14 @@
 /**
  * views/useIssueDetailFold.ts — ISSUE 详情页顶栏折叠机（#763）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 leaf 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源）。
  * 判据在 views/issueDetailFold.ts；这里只读写顶栏那一段 DOM。
  * 返回优先收到图标，一次只折一个控件，不放省略号。
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、分支条件、
  * 字符串、数字、对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源
- * （ESM 导出），构建时剥行首 export 拼进客户端闭包（一源两物）；模块说明符保持 .js 后缀，
- * 由 scripts/ts-hook.mjs 改指同名 .ts。
+ * （ESM 导出），构建时剥行首 export 拼进客户端闭包（源码树里只有这一份真源）；模块说明符保持 .js 后缀，
+ * 由 scripts/ts-hook.mts 改指同名 .ts。
  * 定时器约定没动：这里只挂一个 ResizeObserver 加一个窗口 resize 监听，卸载时按原样断开、
  *   摘监听（不新增也不遗留任何监听）。
  */

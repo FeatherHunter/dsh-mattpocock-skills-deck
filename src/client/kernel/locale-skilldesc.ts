@@ -2,9 +2,9 @@
  * src/client/kernel/locale-skilldesc.ts — 内核模块（#879 验收：27 个技能描述的中英词条；
  *   locale-word.js 贴着「单文件不超 350 行」这条门禁，照 #621/#690/#842 的做法自成一个片段）
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
- * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.ts/seam 同模式，一源两物，src 零复制。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首
+ * export 关键字，把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内
+ * 原位），与 ctx.ts/seam 同模式，源码树里只有这一份真源。
  *
  * 为什么单独一份：locale-word.js 已经贴着 350 行上限（#880 收尾时 363 行超标，留给验收票清），
  *   技能描述这一组中英各 27 条、只讲「每个技能是干什么的」，整组搬过来，键名与文案一字未改。

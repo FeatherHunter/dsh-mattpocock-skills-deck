@@ -1,7 +1,7 @@
 /**
  * views/pixel/PixelStatusLine.ts — 像素风状态行的 TS 真源（887 TS 化）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelStatusLine (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelStatusLine (spliced by build) ====` 标记处。
  * 用法：PixelStatusLine({icon, text}) 画一句；PixelStatusLine({icon, texts}) 画一串节奏话
  * （2026-10-10 人拍板：加载中三句按顺序 1 秒一句，纯 CSS 轮播，见 PixelStyles 的 pixel-seq）。
  * 内容到位后收成一句「内容已到」，再停一秒由弹窗把整行撤掉。

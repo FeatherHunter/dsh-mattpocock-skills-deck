@@ -38,5 +38,5 @@
 
 1. 文件写进来，用 TypeScript。类型检查归属 `src/tracker/tsconfig.json`（`include` 是目录通配，不用点名登记）。
 2. 如果房间要引它，**登记表不用改**（`^src/tracker/kernel/` 那条已经覆盖）。
-3. 跑 `node --import ./scripts/ts-hook.mjs tests/verify-dependency-rules.ts` 与 `npm run typecheck`；
+3. 跑 `node --import ./scripts/ts-hook.mts tests/verify-dependency-rules.ts` 与 `npm run typecheck`；
    构建产物由 `scripts/build.mjs` 按 `src/tracker → package/tracker` 的镜像规则自动生成，也不用登记。

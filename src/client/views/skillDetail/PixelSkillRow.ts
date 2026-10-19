@@ -1,7 +1,7 @@
 /**
  * views/skillDetail/PixelSkillRow.ts — 技能行的 TS 真源（887 TS 化，中组件）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelSkillRow (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelSkillRow (spliced by build) ====` 标记处。
  * 用法：PixelSkillRow({name, level, use, recommended, onDetail, onLoad, loading})，纯展示，数据全由外层给。
  * 给了 onLoad 就在详情按钮前面再摆一颗加载按钮（生产页签的老行为）；loading 挂在详情按钮上（取数是异步的那一步），只转圈不换字。
  * level ∈ 'ok' | 'warn' | 'bad'；行写 --px-dc 变量，方点与悬停描边同色；

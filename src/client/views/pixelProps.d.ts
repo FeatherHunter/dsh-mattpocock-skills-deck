@@ -1,6 +1,6 @@
 /**
  * views/pixelProps.d.ts — 像素风组件的 props 契约（887 TS 化）。
- * 只放类型，不参与转译（构建的 pixel-ts 步骤跳过 .d.ts）；各 .ts 真源用 import type 引用。
+ * 只放类型，不参与转译（构建拼接时跳过 .d.ts）；各 .ts 真源用 import type 引用。
  * 跨叶子值引用一律不在这里声明——每个消费文件自己写 declare const（模块作用域，不冲突），
  * 类型全部指向这里的接口，改接口即改两边的约定。
  */

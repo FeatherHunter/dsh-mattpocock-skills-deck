@@ -4,8 +4,8 @@
  * 为什么本文件要单独存在：列表排序、标签热度、红卡收起、导航栈顶镜像这四件事都只和“人在面板里看到什么”
  * 有关，和快照从哪里来无关，所以它们住在偏好这一层，而不是快照那一层；两层混在一起，改快照会误伤偏好。
  * 本文件由 store-prefs.js 转写而来，转写时只加类型标注与环境声明，运行行为一字不改。
- * 构建时会去掉每行行首的 export 关键字，把声明体拼回 src/client/index.js 的拼接标记处（apply 闭包内原位），
- * 与 ctx.ts 同模式，一源两物；接口冻结清单见 docs/architecture/kernel-contract.md，改导出名要连那份文档一起改。
+ * 构建时会去掉每行行首的 export 关键字，把声明体拼回 src/client/index.ts 的拼接标记处（apply 闭包内原位），
+ * 与 ctx.ts 同模式，源码树里只有这一份真源；接口冻结清单见 docs/architecture/kernel-contract.md，改导出名要连那份文档一起改。
  * 反例：不要在这里读写快照内容（那是 store-snapshot.ts 的事），也不要在这里决定行该怎么画（那是 store-derived.ts 的事）。
  */
 // 从中央时间参数目录真引用（与转写前的 .js 一致）。这条 import 不影响拼接：构建的拼接入口

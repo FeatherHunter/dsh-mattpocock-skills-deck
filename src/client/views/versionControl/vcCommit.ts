@@ -1,6 +1,6 @@
 // views/versionControl/vcCommit.ts — 「这笔提交改了什么」这一层（#818 · 规格故事 32）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。拼接顺序上它排在 vcBlocks 之前；文件行**不另造一套** ——
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。拼接顺序上它排在 vcBlocks 之前；文件行**不另造一套** ——
 //   vcBlocks 把那一份 rowViewOf 现传进来，所以「看提交」与「看未提交改动」真的是同一套界面。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、对象键与顺序一个字没动。

@@ -28,7 +28,7 @@
 //   本票没有动 src/host/index.js（全库共用的大文件，别的票同时在改），这一处接线请统筹者统一做。
 //
 // （2026-10-18 #1247 从 writeEvents.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
-// 相对引用保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts；判定全在纯函数那一侧，
+// 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做订阅、过门、合并窗口与过闸，白名单的钥匙与活跃集合用同一把短散列，绝不另写归一。）
 import { detectWrite, actionFor } from '../../shared/refresh/src/write-detect.js'
 import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/time-config/src/values.js'

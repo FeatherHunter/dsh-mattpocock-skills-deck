@@ -1,5 +1,5 @@
 // views/versionControl/vcAiHandoff.ts — 「让 AI 帮我解决」：把面板解决不了的事写成 prompt 交给 AI（#854）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、数字、对象键与顺序一个字没动。
 // 它不引用闭包里别的叶子，也不 import 任何东西，所以这里一条 declare 都不需要。

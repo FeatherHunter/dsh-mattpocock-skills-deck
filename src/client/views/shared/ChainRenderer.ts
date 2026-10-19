@@ -1,8 +1,8 @@
 /**
  * views/shared/ChainRenderer.ts — 通用链渲染器（#228 D5+D9 落地）。
  *
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:chainRenderer (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:chainRenderer (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  *
  * 生效日期：2026-08-28
  * 效力规则：本文件以 #224 v2 + #226 + #228 规约为基线；与更早方案冲突以本规约为准；

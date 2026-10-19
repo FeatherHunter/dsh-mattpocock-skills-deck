@@ -20,7 +20,7 @@
  * 同一张票被两个会话先后动过时，宿主会给出两条（按会话分页、页内按票去重），这里原样逐条画，
  * 不做合并 —— 合并会让人误以为只有一个会话在动这张票。
  *
- * 契约：模块真源（ESM 导出）；构建时剥掉行首 export，拼回 src/client/index.js 的 leaf 标记处。
+ * 契约：模块真源（ESM 导出）；构建时剥掉行首 export，拼回 src/client/index.ts 的 leaf 标记处。
  * 下面 declare 的那几个名字由闭包更早的片段提供，这里只声明形状、不参与转译。
  */
 declare const React: any;

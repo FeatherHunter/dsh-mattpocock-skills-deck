@@ -1,7 +1,7 @@
 // views/shared/truthLines.ts — 「这份数据多新、上次刷新成不成、现在是不是降级」那几句话（#715 T11）
 //
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export，拼回 src/client/index.js
-// 的 leaf 标记处（一源两物）。本文件是纯函数，不画界面、不碰 React：吃的是一份事实，吐的是
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export，拼回 src/client/index.ts
+// 的 leaf 标记处（源码树里只有这一份真源）。本文件是纯函数，不画界面、不碰 React：吃的是一份事实，吐的是
 // 「要显示哪几条词条、各带什么参数、用哪一种颜色轻重」。真正画出来在 views/ListTab.ts 头部那两行。
 //
 // 为什么单独一个文件：这几句话的判据（新鲜度阈值、降档承诺）必须只有一份实现，而且要能在门禁里
@@ -9,7 +9,7 @@
 //
 // 三条纪律，改这个文件的人先看这三条：
 //   1. **刷新阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 refresh-core 的 budget.ts，
-//      构建时把 src/shared/refresh/budget.js 拼进界面闭包（见 scripts/build.mjs 的 shared:refreshBudget）。
+//      构建时把 src/shared/refresh/budget.js 拼进界面闭包（见 scripts/build.mts 的 shared:refreshBudget）。
 //      本文件里不写任何一个刷新阈值 —— 写了就是第二份数字，改一处漏一处。
 //      唯一的例外是下面那个「一分钟」的刻度常量 TRUTH_MINUTE_MS：它只把「离现在多久」折成人话
 //      （刚刚 / N 分钟前 / N 小时前 / N 天前），不参与也不影响新鲜度判定 —— 新鲜度仍只由
@@ -29,8 +29,8 @@
 //
 // 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、数字、
 // 对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），
-// scripts/build.mjs 构建时剥掉行首 export 后把声明体拼进 src/client/index.js 的客户端闭包
-// （一源两物）；顶部那行时间配置 import 的 .js 后缀也不许改成 .ts，由 scripts/ts-hook.mjs 改指同名 .ts。
+// scripts/build.mts 构建时剥掉行首 export 后把声明体拼进 src/client/index.ts 的客户端闭包
+// （源码树里只有这一份真源）；顶部那行时间配置 import 的 .js 后缀也不许改成 .ts，由 scripts/ts-hook.mts 改指同名 .ts。
 /**
  * 闭包环境声明（类型检查时才看，转译时整段抹掉，真机上有值）：
  * 下面这些名字不在本文件里定义，由构建按 build.mjs 的次序把别的片段拼进同一个函数作用域带进来

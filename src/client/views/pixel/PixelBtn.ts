@@ -1,7 +1,7 @@
 /**
  * views/pixel/PixelBtn.ts — 像素风按钮的 TS 真源（887 TS 化）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelBtn (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelBtn (spliced by build) ====` 标记处。
  * 用法：PxBtn({children, onClick, hot, mini, loading, disabled, title})。
  * 按下只转圈不换字（886 v3 定版）；动效全部跳跃式步进；样式见 pxSkillStyles。
  */

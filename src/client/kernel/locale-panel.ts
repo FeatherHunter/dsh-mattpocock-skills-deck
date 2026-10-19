@@ -6,11 +6,11 @@
  *   改名的配套动作在别处：tests/handwritten-js-baseline.json 删掉原来那一行、
  *   按路径读这份源码的门禁改走 tests/lib/source-text.ts。
  *   登记表不动：LEAF/KERNEL 登记的本来就是同名 .js 产物这一支（与 SettingsPage.js 同例），
- *   构建的 pixel-ts 那一步会从这份真源转出产物再拼。
+ *   构建直接读这份真源、转译后拼进闭包。
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
- * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首
+ * export 关键字，把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内
+ * 原位），与 ctx.js/seam 同模式，源码树里只有这一份真源。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     /**

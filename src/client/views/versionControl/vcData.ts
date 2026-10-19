@@ -1,6 +1,6 @@
 // views/versionControl/vcData.ts — 版本管理页签的数据层：三条只读电话 + 各自的三态（#818）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。本文件不画界面：把「该给界面一份什么读数」算清楚。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。本文件不画界面：把「该给界面一份什么读数」算清楚。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、数字、对象键与顺序、函数名与导出名一个字没动。
 // 「键 → 读数」的几张表（diffs / commitDiffs）在运行期是按变量键取值的，所以标成 Record<string, any>；

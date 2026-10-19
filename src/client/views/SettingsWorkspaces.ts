@@ -2,8 +2,8 @@
  * views/SettingsWorkspaces.ts — 设置页工作区后端总览（从 SettingsPage.js 拆出，V3 #463，纯结构、行为零变化；
  * #1231 由同名 .js 转成 TypeScript，真源从此是这一份）
  *
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时把转译出的同名 .js 产物剥行首 export，
- * 拼回 src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时把转译出的同名 .js 产物剥行首 export，
+ * 拼回 src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
  * 以后谁改它：改工作区后端总览、绑定排序、工作区跳转的人改它。
  * 接线：SettingsPage.ts 顶部调 useWsOverview 取数据（自带首屏加载，跳转函数随附返回），
  *   总览分组处调 renderWsOverview；cwd 归一贴加载逻辑放一起（原样搬入）。

@@ -1,6 +1,6 @@
 // views/versionControl/vcBlocks.ts — 状态模型 → 该画哪些块、每块写什么字（#818 的主缝）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。本文件不画界面、不打电话、不碰 DOM：喂进一份状态模型（以及
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。本文件不画界面、不打电话、不碰 DOM：喂进一份状态模型（以及
 //   「差异 / 历史」两份按需读数与界面自己的展开状态），回一份块清单，每个块里写的都是**用户
 //   会读到的那些字**（词条从入参 t 取）。判定规则与界面画法分开这条，就是靠这个分工落的。
 //

@@ -1,7 +1,7 @@
 /**
  * views/shared/SwitchConfirmModal.ts — 切换三选一确认 Modal（#189 · #186 定版 · #191 补入口）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:switchConfirmModal (spliced by build) ====` 标记处。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:switchConfirmModal (spliced by build) ====` 标记处。
  * UI-only：已选态再选不同 trackerId → 弹此 Modal → wf.bind + 三缓存失效（host 侧）→ snapshot 重取。
  *
  * #191 修订：
@@ -12,8 +12,8 @@
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、数字、
  * 对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），
- * scripts/build.mjs 构建时剥掉行首 export 后把声明体拼进 src/client/index.js 的客户端闭包
- * （一源两物）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。
+ * scripts/build.mts 构建时剥掉行首 export 后把声明体拼进 src/client/index.ts 的客户端闭包
+ * （源码树里只有这一份真源）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  * 另外两条不许改：「迁移」「清空」两张卡只置灰不实现（#669），置灰与禁用判据都留在原处；
  * 弹窗就地渲染在面板容器内（不挂 body），所以容器必须 position:relative。
  */

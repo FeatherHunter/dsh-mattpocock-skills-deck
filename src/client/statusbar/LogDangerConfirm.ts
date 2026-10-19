@@ -1,8 +1,8 @@
 /**
  * statusbar/LogDangerConfirm.ts — 高危险动作的就近确认框与留痕横幅（948 图 #954 落地）。
  *
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件同名）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件同名）。
  * 为什么单开一个叶子：状态栏日志菜单那份叶子已 349/350 行（粒度红线），
  *   确认框与留痕横幅搬来这里，菜单叶子只留状态与调用（照 #851 样式叶子的做法）。
  *

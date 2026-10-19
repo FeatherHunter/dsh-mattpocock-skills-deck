@@ -21,7 +21,7 @@
 //   attention.sweep  每一次收摊结论落一行。两条登记在 research/489-appendix.md 第 1.5 节。
 //
 // （2026-10-18 #1247 从 attention.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
-// 相对引用保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts；判定全在纯函数那一侧，
+// 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做翻译与台账，所以类型只收依赖形状，不收任何判定规则。）
 import * as budget from '../../shared/refresh/src/budget.js'
 import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/src/values.js'

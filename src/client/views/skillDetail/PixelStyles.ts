@@ -1,7 +1,7 @@
 /**
  * views/skillDetail/PixelStyles.ts — 技能详情像素风皮肤的 TS 真源（887 TS 化）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的样式标记处，与 kernel/styles.js、vcStyles.js 同一套做法。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的样式标记处，与 kernel/styles.js、vcStyles.js 同一套做法。
  * 注入仍走同一个 styles.insert 接缝（index.js 里紧接着再 insert 一次）。
  * 类名前缀一律 pixel-，只被本目录的组件引用，不外溢；令牌 --pixel-* 挂 :root。
  * 固定一套配色（原型定版那套纸面深框），跟随宿主主题换肤是 888 的活，本票不定。

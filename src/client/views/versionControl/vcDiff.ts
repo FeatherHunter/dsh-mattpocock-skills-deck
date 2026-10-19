@@ -1,6 +1,6 @@
 // views/versionControl/vcDiff.ts — 一处差异该怎么画（#818；#819 审查后从 vcBlocks 拆出，那个文件贴着 350 行）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。纯规则：喂进一份按需读数（宿主 wf.gitDiff 的回包形状）与词条函数，
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。纯规则：喂进一份按需读数（宿主 wf.gitDiff 的回包形状）与词条函数，
 //   回「这一处该画什么」。不画界面、不打电话。
 //
 // 本文件由同名 .js 转来：只加类型标注，逻辑、分支条件、字符串、数字、对象键与顺序一个字没动。

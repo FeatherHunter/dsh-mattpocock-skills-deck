@@ -1,5 +1,5 @@
 // views/versionControl/vcRows.ts —— 文件行与其他工作树那一层（#842 从 vcBlocks.js 原样搬出）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js 的 leaf 标记处（一源两物）。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回 src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源）。
 //
 // 本文件由同名 .js 转来：只加类型标注与中文注释，逻辑、分支条件、字符串、对象键与顺序一个字没动。
 // 下面这几个名字由构建按 build.mjs 的次序拼进同一个函数作用域，真机上有值；

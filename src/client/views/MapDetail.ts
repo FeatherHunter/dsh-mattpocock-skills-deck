@@ -1,7 +1,7 @@
 /**
  * views/MapDetail.ts — 地图详情（漏斗分层/迷雾/仪式环，5.4）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  * 本文件从 .js 改名而来（#1237 修复制按钮时动到它，按仓库纪律先修后转，转时只加类型标注与环境声明，行为一字不动）。
  */
 declare function idOf(...args: any[]): any;

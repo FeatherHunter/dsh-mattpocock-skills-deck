@@ -2,7 +2,7 @@
  * src/client/kernel/settings-debug.ts — 内核模块（#1012 第 8 条：调试开关的真源搬进本机设置文件的 debug 节）
  * （原来是 .js：按「动到哪里转到哪里」转成 TypeScript，行为零变化。真源是这份 .ts，同名 .js 是构建产物。）
  *
- * 契约：scripts/build.mjs 去掉行首 export 后把声明体拼进 src/client/index.js 的 kernel:settingsDebug 标记处（apply 闭包内原位）；次序必须在
+ * 契约：scripts/build.mts 去掉行首 export 后把声明体拼进 src/client/index.ts 的 kernel:settingsDebug 标记处（apply 闭包内原位）；次序必须在
  *   kernel:log 与 kernel:settingsTemplates 之后 —— 运行时那份日志内核在 npm 包 dsh-log 里（log.js 只是 #564 留而不搬的旧真源，改它既不进产物、
  *   还会让 verify-client-no-undef 变红）。本片与界面偏好、动作模板共用同一个待写队列与同一份文档。
  * 维护者 2026-10-12 拍板（#1012 评论 6113252694）：真源是本机设置文件 <用户主目录>/.dsh/mattskillsdeck/settings.yaml 的 debug 节

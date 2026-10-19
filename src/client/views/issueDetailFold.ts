@@ -1,7 +1,7 @@
 /**
  * views/issueDetailFold.ts — ISSUE 详情页顶栏那一行的逐字折叠阶梯（#763）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 leaf 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源）。
  *
  * 维护者要求（#763 第三轮）：折叠不放省略号，字看不见就直接裁掉；
  * 返回列表四个字优先折叠，先掉“列表”剩“返回”，再收到只剩返回图标；
@@ -21,8 +21,8 @@
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与这段说明，逻辑、分支条件、
  * 字符串、数字、对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源
- * （ESM 导出），构建时剥行首 export 拼进客户端闭包（一源两物）；模块说明符保持 .js 后缀，
- * 由 scripts/ts-hook.mjs 改指同名 .ts。本文件是纯函数叶，不引用闭包里任何别的名字，
+ * （ESM 导出），构建时剥行首 export 拼进客户端闭包（源码树里只有这一份真源）；模块说明符保持 .js 后缀，
+ * 由 scripts/ts-hook.mts 改指同名 .ts。本文件是纯函数叶，不引用闭包里任何别的名字，
  * 所以顶部没有需要声明的自由变量。
  */
 /** 排一条阶梯。data = { back, crumb, snapshot, primary, newSession }：五串字。 */

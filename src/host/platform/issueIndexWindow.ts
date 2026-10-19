@@ -7,7 +7,7 @@
 //   2. 唯一的推进口是下面的 commit（探测回来说没变、或变化真的并进了快照，才允许调它），只许往前走。
 //   3. 同名但不同目录的另一份 src/shared/tracker/indexWindow.js 是时间窗与水印规则的真源，
 //      本文件只是它的持有者与装配点，两份互不干扰：改规则去共享层那一份，改持有状态才动这一份。
-//   4. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mjs 改指同名 .ts，本文件不改说明符。
+//   4. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符。
 //   5. 只写可剥离类型：类型一律经 import type 引入或就地声明，不新增任何运行时边。
 //   6. 本文件不新增事件，也不自己记日志（判断与发射都不在这里）。
 import * as indexWindow from '../../shared/tracker/indexWindow.js'

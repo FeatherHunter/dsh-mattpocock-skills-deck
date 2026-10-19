@@ -1,6 +1,6 @@
 // panel/OverlayGate.ts — 悬浮面板后端选择门控（从 Overlay.js 拆出，V4 #464，纯结构、行为零变化）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
-// src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+// src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
 // 以后谁改它：改后端选择门控旅程、等待中和未设置分支的打开关闭确认直选的人改它。
 // 接线：Overlay.js 留同名包装供渲染直调（_openGateModal2 等四包装调本文件四函数）；
 //   本文件不引用 DockSync.ts（同闭包拼回，调用方向见 Overlay.js 门控包装四处）。

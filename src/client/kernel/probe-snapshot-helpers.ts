@@ -9,7 +9,7 @@
  * ③ 闪烁高亮的一次性清除 scheduleFlashClear：排一个定时器把高亮擦掉，防堆积。
  *
  * 契约：与其它内核文件一样，本文件为模块真源；构建时去掉行首 export 后拼回
- * src/client/index.js 的拼接标记处，一源两物、src 零复制。同名 .js 是构建产物。
+ * src/client/index.ts 的拼接标记处，源码树里只有这一份真源。同名 .js 是构建产物。
  * 本文件里出现的 emit / timer / idOf 都是同一个闭包里的邻居，靠拼接顺序保证可见，
  * 所以一律用 declare 声明形状，不做运行时引入。
  *

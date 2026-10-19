@@ -1,8 +1,8 @@
 /**
  * src/client/kernel/probe-snapshot.ts — 内核模块（#456 由 probe.js 拆出之颜色时间小函数、配置广播与快照加载）
  *
- * 为什么这份是真源：构建侧去掉行首 export 后拼回 src/client/index.js 的拼接标记处，
- * 与 ctx.ts/seam 同模式，一源两物，src 零复制。同名 .js 是构建产物，改这里。
+ * 为什么这份是真源：构建侧去掉行首 export 后拼回 src/client/index.ts 的拼接标记处，
+ * 与 ctx.ts/seam 同模式，源码树里只有这一份真源。源码树里只有这一份真源，改这里就够。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  *
  * 等待上限为什么住中央：快照等待时长由 config/ttl.yaml 的 snapWaitMs 统一管，
@@ -71,7 +71,7 @@ const dswsLogTrunc = function (s: any, n: number, field: any): string { try { co
 const dswsDedupWin: { n: number } = { n: 0 };
 // #707 拆出：颜色小函数（hexA / darken）、数据层增量差异 diffSnapshots、高亮清除 scheduleFlashClear
 //   都搬去了 kernel/probe-snapshot-helpers.js（本文件当时已 349 行、门禁上限 350，没有下脚的地方）。
-//   三样东西的行为一行没改，拼接顺序保证同一个闭包里前后可见；拼接标记在 src/client/index.js 里。
+//   三样东西的行为一行没改，拼接顺序保证同一个闭包里前后可见；拼接标记在 src/client/index.ts 里。
 // #727：这一趟取数里有三处与「子目录会话的第一帧」直接相关，判据与理由都在 kernel/probe-select.js
 //   （本文件贴着上限，所以那一段的文字放在那边）：
 //     ① 进工作区时补问一次 wf.selection（askSelectionOnce，本文件末尾那行接线）；

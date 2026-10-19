@@ -3,7 +3,7 @@
  *
  * 来源与零变化：本文件由同目录 updateFromPackage.js 逐行转写而来，只加类型标注与注释，
  * 没有改任何运行时语义。原来的 .js 文件保留不动，引用方继续写 `./updateFromPackage.js`，
- * 由 scripts/ts-hook.mjs 在加载时改指到同名 .ts。
+ * 由 scripts/ts-hook.mts 在加载时改指到同名 .ts。
  *
  * 本文件只做三件事：按包名引用已安装的更新包建更新能力，
  * 把电话处理器按键交给调用方（电话名从包自己拼的 phoneNames 读，不另拼字符串）。

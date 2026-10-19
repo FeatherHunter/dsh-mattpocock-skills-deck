@@ -1,7 +1,7 @@
 /**
  * views/shared/RestFallbackBanner.ts — 降级横幅（「这份数据是走 REST 通道取回来的」那一条）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:restFallbackBanner (spliced by build) ====` 标记处（一源两物）。
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 `// ==== leaf:restFallbackBanner (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  *
  * 这个文件是搬出来的，不是新画的：2026-09-24 从 views/ListTab.js 拆到这里（那个文件当时 378 行，
  * 贴着 350 行上限）。搬的只有「画」这一段 —— 判据一个字都没动，仍然是
@@ -16,8 +16,8 @@
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与下面这些说明，逻辑、字符串、数字、
  * 对象键与次序、函数名与导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），
- * scripts/build.mjs 构建时剥掉行首 export 后把声明体拼进 src/client/index.js 的客户端闭包
- * （一源两物）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts。
+ * scripts/build.mts 构建时剥掉行首 export 后把声明体拼进 src/client/index.ts 的客户端闭包
+ * （源码树里只有这一份真源）；模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  */
 /**
  * 闭包环境声明（类型检查时才看，转译时整段抹掉，真机上有值）：

@@ -1,7 +1,7 @@
 /**
  * views/skillDetail/PixelContents.ts — 像素风目录盒的 TS 真源（887 TS 化，中组件）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelContents (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelContents (spliced by build) ====` 标记处。
  * 用法：PixelContents({items, onJump})，items 是标题字符串数组；无标题就不画（条件出现）。
  * 深底标题条加整行可按的行，悬停整行瞬间反色（无平滑过渡）；行首序号牌复用 PxNum。
  */

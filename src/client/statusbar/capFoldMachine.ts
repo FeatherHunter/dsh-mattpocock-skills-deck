@@ -1,6 +1,6 @@
 // statusbar/capFoldMachine.ts — 状态栏胶囊那条横条的阶梯机（#725，维护者 2026-09-24 定）
-// 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export，拼回 src/client/index.js
-//   的 leaf 标记处（一源两物）。
+// 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export，拼回 src/client/index.ts
+//   的 leaf 标记处（源码树里只有这一份真源）。
 //
 // 这一台做什么：照 statusbar/capFold.ts 那条纯判据把胶囊推到某一档（第几档每一段画什么都是判据算的）。
 //   926 起四步分开：守卫（输入没变直接复用上次档位，零写零测）→ 单写（一次写完，不读布局）→

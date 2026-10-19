@@ -1,9 +1,9 @@
 /**
  * src/client/kernel/locale-labels.ts — 内核模块（#621 标签配色弹窗的中英词条；#622 加进「复制配色提示词」的文案）
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
- * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与其它 locale 片段同模式，一源两物，src 零复制。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mts 在构建时去掉每行行首
+ * export 关键字，把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内
+ * 原位），与其它 locale 片段同模式，源码树里只有这一份真源。
  *
  * 为什么单独一个片段、不并进 locale-panel/flow/word：那三份都已经在 350 行上限附近，
  * 这一票要加四十多条键（中英各一份），塞进任何一份都会把文件顶过上限。

@@ -1,7 +1,7 @@
 /**
  * views/pixel/PixelBanner.ts — 像素风横幅的 TS 真源（887 TS 化）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelBanner (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelBanner (spliced by build) ====` 标记处。
  * 用法：PxBanner({kind, text, onRetry, onClose})，kind ∈ 'error'（红条）| 'warn'（黄条，缺文用）。
  * 失败必须留痕：横幅不自动消失，只有人点关闭或打开别篇才走（886 v3 定版）。
  */

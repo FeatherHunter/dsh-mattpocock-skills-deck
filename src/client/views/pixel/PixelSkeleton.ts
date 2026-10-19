@@ -1,7 +1,7 @@
 /**
  * views/pixel/PixelSkeleton.ts — 像素风占位块的 TS 真源（887 TS 化）。
- * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
- * 拼回 src/client/index.js 的 `// ==== leaf:pixelSkeleton (spliced by build) ====` 标记处。
+ * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
+ * 拼回 src/client/index.ts 的 `// ==== leaf:pixelSkeleton (spliced by build) ====` 标记处。
  * 用法：PxSkel({lines})，默认 3 条等宽递减的闪块（跳跃式步进闪，不做平滑过渡）。
  * 什么时候画：详情等待超过 2 秒才铺（886 v3 定版），2 秒内只转按钮圈。
  */

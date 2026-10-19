@@ -36,4 +36,4 @@ const opCtx = { cwd, platform, fs, caller: 'xxx', timers: hostTimers(timer), exe
 
 域里那份源码不 import 任何模块（共享层里同层互引被 `tests/verify-dependency-rules.ts` 拦住），
 要判的三档形状与「为什么是这个顺序」都写在 `src/host-timer/src/host-timers.ts` 的文件头注释里；
-改动前先读它，跑 `node --import ./scripts/ts-hook.mjs tests/verify-1115-timer-handle.ts`。
+改动前先读它，跑 `node --import ./scripts/ts-hook.mts tests/verify-1115-timer-handle.ts`。

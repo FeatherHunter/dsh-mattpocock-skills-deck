@@ -86,7 +86,7 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 ## 四、改这一房之前先跑什么
 
 - 类型检查：`node node_modules/typescript/bin/tsc -p src/tracker/tsconfig.json`（零输出才算过；本仓的 `npx tsc` 是占位壳，别用）。
-- 契约测试：`node --import ./scripts/ts-hook.mjs tests/verify-tracker-contract.js`。**它末尾有 4 条 `violating-stub` 的 FAIL 是故意的**——那是「违规桩必须被逮住」的反证，判据是最后一行打出 `CONTRACT SKELETON OK`。看到那 4 条 FAIL 就去数总数，不要以为自己改坏了。
-- 能力登记三处对齐：`node --import ./scripts/ts-hook.mjs tests/verify-capability-register.ts`。
+- 契约测试：`node --import ./scripts/ts-hook.mts tests/verify-tracker-contract.js`。**它末尾有 4 条 `violating-stub` 的 FAIL 是故意的**——那是「违规桩必须被逮住」的反证，判据是最后一行打出 `CONTRACT SKELETON OK`。看到那 4 条 FAIL 就去数总数，不要以为自己改坏了。
+- 能力登记三处对齐：`node --import ./scripts/ts-hook.mts tests/verify-capability-register.ts`。
 
 改了一条能力之后，要同步的三处：本房实现 → `capability-register.ts` → `docs/tracker/capability-gitlab.md`。顺序就是这个顺序，最后一步忘了会红在那个门禁上。
