@@ -317,17 +317,41 @@ async function main() {
   await storeRel5.note({ rootKey: rk5, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '901', effortId: '', title: '甲票', action: 'report', source: 'reported' })
   await storeRel5.note({ rootKey: rk5, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '902', effortId: '', title: '乙票', action: 'report', source: 'reported' })
   await storeRel5.note({ rootKey: rk5, sessionId: 's-b', sessionLabel: '', backend: 'markdown', ticketKey: '903', effortId: '', title: '丙票', action: 'report', source: 'reported' })
+  // 同一张票也在别的会话那一页里：释放只删本会话这一条，另一页里的 901 必须原样留着。
+  await storeRel5.note({ rootKey: rk5, sessionId: 's-b', sessionLabel: '', backend: 'markdown', ticketKey: '901', effortId: '', title: '甲票', action: 'report', source: 'reported' })
   const rel1: any = await storeRel5.release({ rootKey: rk5, sessionId: 's-a', ticketKey: '901' })
   check(rel1.ok === true && rel1.removed === true && rel1.ticketKey === '901' && rel1.count === 1,
     '释放成功：removed=true，票键带回，本会话还剩 1 条')
   const diskRelA = JSON.parse(fs.readFileSync(diskRel5, 'utf8'))
   const page5a = diskRelA.workers.filter((w: any) => w.session === 's-a')[0]
   const page5b = diskRelA.workers.filter((w: any) => w.session === 's-b')[0]
+  const page5bKeys = ((page5b && page5b.entries) || []).map((e: any) => e.ticketKey).sort()
   check(page5a && page5a.entries.length === 1 && page5a.entries[0].ticketKey === '902'
-    && page5b && page5b.entries.length === 1 && page5b.entries[0].ticketKey === '903',
-    '盘上：本会话只剩 902，别的会话 903 原样保留')
+    && JSON.stringify(page5bKeys) === JSON.stringify(['901', '903']),
+    '盘上：本会话只剩 902，别的会话那页 901 与 903 原样保留（同票跨会话只删自己那条）')
   const relAgain: any = await storeRel5.release({ rootKey: rk5, sessionId: 's-a', ticketKey: '901' })
   check(relAgain.ok === true && relAgain.removed === false && relAgain.count === 1, '再释放同一条：removed=false，不算失败，剩余条数不变')
+  // 释放本来就没有的那一条：不白写一次盘（写回次数不增）。
+  const home5n = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261rn-'))
+  const fs5n = memFs(home5n)
+  let writeCount5n = 0
+  const store5n = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5n, now: () => T0 }, fs5n, {
+    writeFile: async (p: string, c: string) => { writeCount5n += 1; await fs5n.writeFile(p, c) },
+  }))
+  await store5n.note({ rootKey: 'ws-1261n', sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '911', effortId: '', title: '甲票', action: 'report', source: 'reported' })
+  const writesBeforeNoop = writeCount5n
+  const relNoop: any = await store5n.release({ rootKey: 'ws-1261n', sessionId: 's-a', ticketKey: '999' })
+  check(relNoop.ok === true && relNoop.removed === false && writeCount5n === writesBeforeNoop,
+    '释放本来就没有的一条：removed=false 且不写盘（写回次数 ' + writesBeforeNoop + ' 到 ' + writeCount5n + '）')
+  // 释放时顺带按 30 天裁旧：回传剩余条数按裁旧之后算，和回执里看到的条数一致。
+  const home5p = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261rp-'))
+  const store5p = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5p, now: () => T0 }, memFs(home5p)))
+  await store5p.note({ rootKey: 'ws-rp', sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '921', effortId: '', title: '甲票', action: 'report', source: 'reported' })
+  await store5p.note({ rootKey: 'ws-rp', sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '922', effortId: '', title: '乙票', action: 'report', source: 'reported' })
+  const store5pLate = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5p, now: () => T0 + 31 * DAY }, memFs(home5p)))
+  const relLate: any = await store5pLate.release({ rootKey: 'ws-rp', sessionId: 's-a', ticketKey: '921' })
+  check(relLate.ok === true && relLate.removed === true && relLate.count === 0,
+    '释放时按 30 天裁旧：回传剩余条数按裁旧之后算（实得 ' + JSON.stringify(relLate) + '）')
   const relMissingKey: any = await storeRel5.release({ rootKey: '', sessionId: 's-a', ticketKey: '902' })
   const relMissingSession: any = await storeRel5.release({ rootKey: rk5, sessionId: '', ticketKey: '902' })
   const relMissingTicket: any = await storeRel5.release({ rootKey: rk5, sessionId: 's-a', ticketKey: '' })
@@ -352,6 +376,18 @@ async function main() {
   const relBad: any = await storeBad.release({ rootKey: 'ws-rb', sessionId: 's-a', ticketKey: '901' })
   check(relBad.ok === false && relBad.reason === 'bad-shape' && fs.readFileSync(diskRelC, 'utf8') === '{ 这不是 JSON',
     '盘上文件坏了：释放回 bad-shape，坏文件原样留着（不整份重写）')
+  // 写下去了、写后读回没核对上：回 readback-failed，但删除确实已经落盘（备注不能再说「条目还留着」）。
+  const home5d = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261rk-'))
+  const disk5d = home5d + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash('ws-rk') + '.json'
+  const storeSeed5d = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5d, now: () => T0 }, memFs(home5d)))
+  await storeSeed5d.note({ rootKey: 'ws-rk', sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '905', effortId: '', title: '戊票', action: 'report', source: 'reported' })
+  const fs5d = memFs(home5d)
+  let reads5d = 0
+  const storeFlaky = bindingsMod.createWorkRouteBindings({ homeDir: home5d, now: () => T0, mkdir: fs5d.mkdir, rename: fs5d.rename, writeFile: fs5d.writeFile,
+    readFile: async (p: string) => { reads5d += 1; if (reads5d >= 2) throw new Error('读回探针'); return fs5d.readFile(p) } })
+  const relFlaky: any = await storeFlaky.release({ rootKey: 'ws-rk', sessionId: 's-a', ticketKey: '905' })
+  check(relFlaky.ok === false && relFlaky.reason === 'readback-failed' && fs.readFileSync(disk5d, 'utf8').indexOf('905') < 0,
+    '写后读回失败：回 readback-failed，但删除已经落盘（盘上 905 已不在）')
 
   // ── 六、释放收口（#1086）：工具 value 顶层 release=true 走释放那一支 ──
   const home6 = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261x-'))
@@ -392,8 +428,27 @@ async function main() {
   await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vBack)
   const back701 = vBack.data.workRoute.entries.filter((e: any) => e.ticketKey === '701')
   check(back701.length === 1 && back701[0].title === '甲票回来了', '释放后重新上报：条目恢复且只有一条（不重复、不丢）')
+  // 释放失败里最特殊的一档：写后读回没核对上 —— 备注不能说「条目还留着」（删除其实已经落盘）。
+  const vReadbackFail: any = { status: 'ok', release: true, data: { key: '701' }, notes: [] }
+  await recordMod.recordWorkRoute({
+    workRouteNote: (i: unknown) => store6.note(i),
+    workRouteRead: (i: unknown) => store6.read(i),
+    workRouteRelease: async () => ({ ok: false, reason: 'readback-failed' }),
+    now: () => T0,
+  }, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vReadbackFail)
+  check(vReadbackFail.notes.some((n: string) => n.indexOf('释放没核对上（readback-failed）') >= 0)
+    && !vReadbackFail.notes.some((n: string) => n.indexOf('工作条目还留着') >= 0),
+    '释放写后读回失败：备注说删除已写进盘里、不说「条目还留着」（实得 ' + JSON.stringify(vReadbackFail.notes) + '）')
+  // 读这一支缺席：不静默，备注写带不出在办表。
+  const vNoRead: any = { status: 'ok', release: true, data: { key: '702' }, notes: [] }
+  await recordMod.recordWorkRoute({
+    workRouteNote: (i: unknown) => store6.note(i),
+    workRouteRelease: (i: unknown) => store6.release(i),
+    now: () => T0,
+  }, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vNoRead)
+  check(vNoRead.notes.some((n: string) => n.indexOf('带不出在办表（no-read-binding）') >= 0), '读依赖缺席：备注写带不出在办表（不静默）')
 
-  for (const h of [home1, home3, home4, home4b, home5, homeRel5, home5b, home5c, home6, home6f]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
+  for (const h of [home1, home3, home4, home4b, home5, homeRel5, home5b, home5c, home5n, home5p, home5d, home6, home6f]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   process.exit(failed ? 1 : 0)
 }

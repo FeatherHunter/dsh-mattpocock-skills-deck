@@ -284,12 +284,13 @@ const ALLOWED = {
   'attention.sweep': ['active', 'keep', 'cancel', 'linger', 'collaped', 'keepers'],
   // 2026-10-19 #1083：旧链那条常驻 #80 sessionTickets.chain 退役 —— 工作路线整套换成新的存档之后，
   //   旧链落盘那一路不再发日志，换成下面两条常驻（附录 1.4 节 #110、#111）。写这一侧一趟一行：
-  //   记一笔进链、把整份写盘、写后读回核对、按保留期与体积裁旧，四类 kind 各一处；
+  //   记一笔进链、释放一条（#1086 补：只删不记，写盘时的 action 固定是 release，只说明这次写盘
+  //   是为了删一条，不是工作条目里的动作）、把整份写盘、写后读回核对、按保留期与体积裁旧，五类 kind 各一处；
   //   读这一侧只在读盘失败那一档记一行（文件不存在是第一次用的正常情况，不记）。
   //   why 是失败原因的短代号（rename-unavailable / rename-failed / privacy / write-failed /
   //   readback-bad / read-failed / threw，成功是空串）；detail 是给人指的简短说明 —— 隐私命中时是
   //   「$.workers[0].entries[0].title：像 GitHub 令牌」这种字段路径加原因，别的时候是错误类名或空串，
-  //   被拦下的值本身一个字符都不进日志。count 除 prune 是裁掉的条数外，都是本会话条数。
+  //   被拦下的值本身一个字符都不进日志。count 除 prune 是裁掉的条数外，都是本会话条数（release 也是）。
   'workRoute.write': ['sidHash', 'rootHash', 'kind', 'ok', 'action', 'count', 'why', 'detail'],
   'workRoute.read': ['sidHash', 'rootHash', 'ok', 'why', 'detail'],
   // 2026-09-23 #710（T6 第二批）新增一条按需事件（附录 1.5 节 #81 `write.event`）：写事件订阅自己产生的轨迹 ——

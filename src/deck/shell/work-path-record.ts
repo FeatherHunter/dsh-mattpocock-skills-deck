@@ -188,16 +188,27 @@ export async function recordWorkRoute(
   if (tickets.length === 0) return;
   // 释放是工具 value 顶层的内部信号（信封只拷固定那几格，不会漏进回执）：只有上报会带它。
   const releaseMode = spec.action === 'report' && vRec.release === true;
-  // 释放这一支接不上时也要说清楚：静默什么都不做会让人以为票已经释放了。
-  if (releaseMode && typeof releaseFn !== 'function') {
-    if (!Array.isArray(vRec.notes)) vRec.notes = [];
-    (vRec.notes as unknown[]).push('工作路线这次没释放掉（no-release-binding）：当前装配没接上释放这一支，票的工作条目还留着。');
-    return;
-  }
-  if (!releaseMode && typeof note !== 'function') return;
-  if (typeof read !== 'function') return;
   if (!Array.isArray(vRec.notes)) vRec.notes = [];
   const notes = vRec.notes as unknown[];
+  if (releaseMode) {
+    // 释放这一支接不上时也要说清楚：静默什么都不做会让人以为票已经释放了。
+    if (typeof releaseFn !== 'function') {
+      notes.push('工作路线这次没释放掉（no-release-binding）：当前装配没接上释放这一支，票的工作条目还留着。');
+      return;
+    }
+  } else if (typeof note !== 'function') return;
+  if (typeof read !== 'function') {
+    // 读这一支缺席时也要说一声：否则回执安静地缺 data.workRoute，看不出是装配问题还是这次没读到。
+    notes.push('工作路线这次带不出在办表（no-read-binding）：当前装配没接上读这一支，回执里缺 data.workRoute 这一格。');
+    return;
+  }
+  // 上面按模式各放行一支，这里把三支的可调用形状收窄一次：TS 不会把上一个 if 里的收窄带进下面的新分支。
+  const callRelease = releaseFn as NonNullable<typeof releaseFn>;
+  const callNote = note as NonNullable<typeof note>;
+  const callRead = read as NonNullable<typeof read>;
+  // 进度自评只有上报会带（#1084）：工具已经校验过 0 到 100，这里只认数字；缺席时省略键，
+  // 让存储按「这次没带进度」处理（不沿用旧值，也不把 undefined 写成空值）。
+  const progress = (spec.action === 'report' && data && typeof data.progress === 'number') ? data.progress : undefined;
   // 两句失败备注分开写，是为了不说假话：记这一步失败时盘上可能是旧内容，但换后端那一刻旧文件已经被
   // 改名留档、主文件这次可能根本不在；读回核对失败时盘上其实已经是这次写的新内容。原来一句
   // 「盘上还是上一次的样子」在两种情形下都不成立。逐张票写时还多一种「记了几张、剩下的没记上」，
@@ -215,16 +226,19 @@ export async function recordWorkRoute(
     notes.push('工作路线这次读不出来（' + reason + '）：在办表这次没带出来，下一次写票会重新读盘再试。');
   };
   // 释放失败与「带不出在办表」分开说：前者要人知道票的工作条目还留着，后者说的是释放已经生效、只缺回执那一格。
+  // 读回核对失败是释放里的特例：写盘那一步已经成了，删除大概率已经落盘，这时说「条目还留着」是假话
+  // （与 noteFailNote 里分两句同一个理由）。
   const releaseFailNote = function (reason: string): void {
+    if (reason === 'readback-failed') {
+      notes.push('工作路线这次释放没核对上（readback-failed）：删除已经写进盘里了，但写回后读回来核对没通过；回执这次没带出在办表，下一次释放或上报会重新读盘确认。');
+      return;
+    }
     notes.push('工作路线这次没释放掉（' + reason + '）：这张票在本会话的工作条目还留着，下一次释放或上报会照常处理。');
   };
   const releaseReadFailNote = function (reason: string): void {
     notes.push('工作路线这次带不出在办表（' + reason + '）：释放已经处理，只是回执里缺 data.workRoute 这一格。');
   };
   const clock = deps && typeof deps.now === 'function' ? deps.now : Date.now;
-  // 进度自评只有上报会带（#1084）：工具已经校验过 0 到 100，这里只认数字；缺席时省略键，
-  // 让存储按「这次没带进度」处理（不沿用旧值，也不把 undefined 写成空值）。
-  const progress = (spec.action === 'report' && data && typeof data.progress === 'number') ? data.progress : undefined;
   const rootKey = str(s && s.workspaceKey);
   const sessionId = str(s && s.sessionId);
   let recorded = 0;
@@ -233,7 +247,7 @@ export async function recordWorkRoute(
     if (releaseMode) {
       // 释放只针对上报那一张票（data.key 归一后的 tickets[0]）。工具已经把票读回来证明它存在，
       // 这里只删本会话对它的那一条工作条目，票本身的状态与认领人不碰。
-      const released = (await (releaseFn as NonNullable<typeof releaseFn>)({
+      const released = (await callRelease({
         rootKey: rootKey,
         sessionId: sessionId,
         ticketKey: tickets[0],
@@ -265,7 +279,7 @@ export async function recordWorkRoute(
         if (facts.title !== '') input.title = facts.title;
         if (facts.effortId !== '') input.effortId = facts.effortId;
         if (progress !== undefined) input.progress = progress;
-        const noted = (await (note as NonNullable<typeof note>)(input)) as UnknownRecord | null;
+        const noted = (await callNote(input)) as UnknownRecord | null;
         if (!noted || noted.ok !== true) {
           if (recorded > 0) partialNote(str(noted && noted.reason) || 'unknown');
           else noteFailNote(str(noted && noted.reason) || 'unknown');
@@ -282,7 +296,7 @@ export async function recordWorkRoute(
       }
     }
     phase = 'read';
-    const ro = (await (read as NonNullable<typeof read>)({
+    const ro = (await callRead({
       sessionId: sessionId,
       rootKey: rootKey,
       at: clock(),

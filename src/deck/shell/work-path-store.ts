@@ -308,7 +308,10 @@ export function createWorkPathStore(deps?: WorkPathStoreDeps) {
       const backWhy = backOk ? '' : (back.failed ? 'read-failed' : 'readback-bad');
       emitWrite('readback', backOk, 'release', countAll(ledger), sidHash, rootHash, backWhy, '');
       if (!backOk) return { ok: false, reason: 'readback-failed' };
-      return { ok: true, ticketKey: ticketKey, removed: true, count: result.count };
+      // 剩余条数按裁剪之后算：回执备注里那句「本会话还剩 N 条」要与回执里看到的条数一致。
+      const pageAfter = ledger.workers.get(sessionId);
+      const left = pageAfter ? pageAfter.entries.size : 0;
+      return { ok: true, ticketKey: ticketKey, removed: true, count: left };
     } catch (e) {
       const errName = e && typeof e === 'object' && 'name' in e ? String((e as { name?: unknown }).name || '') : '';
       emitWrite('persist', false, 'release', 0, sidHash, rootHash, 'threw', errName);

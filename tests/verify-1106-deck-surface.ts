@@ -390,6 +390,8 @@ async function main() {
     // 二d、释放入口（#1086）：带 release=true 的上报删掉本会话对这张票的工作条目，不记动作、不动票本身；
     // 释放后回执照常带在办表（形状与正常上报一致），再释放同一条说不「本来就没有」，再上报能恢复。
     const norm = (k: string) => String(k).replace(/^0+(?=\d)/, '')
+    const beforeGet = await run('deck_issue_get', { key: '02', blocking: false })
+    const beforeTicket = beforeGet.r && beforeGet.r.data && beforeGet.r.data.ticket
     const rel = await run('deck_issue_report', { key: '02', release: true })
     check(!rel.threw && rel.r && rel.r.status === 'ok' && Object.keys(rel.r || {}).sort().join(',') === ENVELOPE_FULL.join(','),
       '释放：成功回执正好 14 格（实得 ' + (rel.threw || Object.keys(rel.r || {}).length + ' 格') + '）')
@@ -404,8 +406,10 @@ async function main() {
     check(!(rel.r && rel.r.data && Object.prototype.hasOwnProperty.call(rel.r.data, 'progress')), '释放回执的 data 里不出现 progress 这一格（释放不记动作）')
     const afterGet = await run('deck_issue_get', { key: '02', blocking: false })
     const afterTicket = afterGet.r && afterGet.r.data && afterGet.r.data.ticket
-    check(!afterGet.threw && afterGet.r && afterGet.r.status === 'ok' && !!afterTicket && afterTicket.state === 'open',
-      '释放不改票本身：票照样读得回来、状态没变（实得 ' + JSON.stringify(afterTicket && afterTicket.state) + '）')
+    const faceOf = (t: any) => JSON.stringify(t && { state: t.state, assignees: t.assignees })
+    check(!afterGet.threw && afterGet.r && afterGet.r.status === 'ok' && !!beforeTicket && !!afterTicket
+      && faceOf(beforeTicket) === faceOf(afterTicket),
+      '释放不改票本身：票照样读得回来，状态与认领人前后一致（前 ' + faceOf(beforeTicket) + '，后 ' + faceOf(afterTicket) + '）')
     const relAgain = await run('deck_issue_report', { key: '02', release: true })
     check(!relAgain.threw && relAgain.r && relAgain.r.status === 'ok'
       && (relAgain.r.notes || []).some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0),
