@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>提示词库 YAML 化 · 讨论结论（12 问）</title>
+<style>
+:root{--bg:#0d0f12;--card:#171b21;--line:#2a313b;--txt:#e8ecf1;--mut:#9aa6b5;--acc:#8b5cf6;--ok:#10b981;--warn:#f59e0b;--info:#38bdf8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:26px 18px 70px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:linear-gradient(180deg,#181d26,#12151c)}
+.hero h1{margin:0 0 8px;font-size:22px}
+.hero p{margin:8px 0;color:var(--mut);font-size:14.5px}
+.hero p strong{color:#fff}
+.quote{margin:12px 0 0;padding:10px 12px;border-left:3px solid var(--acc);background:#141922;border-radius:0 8px 8px 0;color:#cfd8e3;font-size:13.5px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--mut)}
+.tag.hot{border-color:var(--acc);color:#cdb8ff}
+.tag.ok{border-color:#1f8a6b;color:#5eead4}
+h2.sec{font-size:15px;color:var(--mut);font-weight:600;margin:26px 0 10px;letter-spacing:.02em}
+table.quick{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px}
+table.quick th,table.quick td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+table.quick thead th{background:#1b2129;color:var(--mut);font-weight:600;font-size:12.5px}
+table.quick tbody tr:hover{background:#1a2027}
+table.quick td:first-child{white-space:nowrap;color:var(--mut)}
+table.quick td:last-child{color:#d7f4e8}
+table.quick a{color:#cdb8ff;text-decoration:none}
+table.quick tbody tr:last-child td{border-bottom:0}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--card);margin:16px 0;overflow:hidden}
+.card header{padding:15px 18px 0}
+.num{display:inline-block;font-size:12px;background:#242c38;border-radius:6px;padding:2px 8px;color:var(--mut);margin-right:8px}
+.card h3{display:inline;font-size:17px;margin:0}
+.ctx{padding:10px 14px;color:#bcc7d4;font-size:14px;border-left:3px solid var(--acc);margin:12px 18px 0;background:#141922;border-radius:0 8px 8px 0}
+.key{margin:12px 18px 0;padding:11px 13px;border:1px solid #1d4f66;background:#0d1c24;border-radius:10px;font-size:13.5px;color:#cfe9f5}
+.key b{color:#7dd3fc;display:block;margin-bottom:4px;font-size:12.5px;letter-spacing:.02em}
+.key table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+.key td{padding:3px 6px;border-bottom:1px dashed #1d3a48;color:#cfe9f5}
+.key td:first-child{white-space:nowrap;color:#8fb6c8}
+.key tr:last-child td{border-bottom:0}
+.opt{margin:10px 18px 0;border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.opt b{display:block;margin-bottom:2px}
+.opt span{color:var(--mut);font-size:13.5px}
+.opt.pick{border-color:#1f8a6b}
+.opt .badge{font-size:11px;color:#5eead4;border:1px solid #1f8a6b;border-radius:99px;padding:1px 7px;margin-left:6px}
+.rec{margin:12px 18px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:10px 12px;font-size:14px}
+.rec b{color:#5eead4}
+.procon{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 18px 18px}
+.procon div{border-radius:10px;padding:10px 12px;font-size:13.5px}
+.pro{background:#0f231a;border:1px solid #1c4d3c}
+.con{background:#251a10;border:1px solid #5b3a15}
+.pro b{color:var(--ok)}
+.con b{color:var(--warn)}
+.pro ul,.con ul{margin:6px 0 0;padding-left:18px;color:#cfd8e3}
+.footer{color:var(--mut);font-size:13px;margin-top:26px;border-top:1px dashed var(--line);padding-top:14px}
+.footer a{color:#cdb8ff;text-decoration:none}
+.top{display:block;margin-top:8px;font-size:12px;color:#6f7b8a;text-decoration:none}
+@media(max-width:640px){.procon{grid-template-columns:1fr}}
+pre{background:#0d1117;border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow:auto;font-size:13px;color:#cfe9f5;line-height:1.55}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+<h1>提示词库 YAML 化 · 讨论结论（12 问）</h1>
+<p>现状：提示词的真源在 <strong>src/client/kernel/prompts.ts</strong> 的一个对象字面量里（23 条注册表模板 + 三处写死在函数里的片段）。它<strong>已经是单一真源</strong>，但每条模板被压成一行——正文换行只能写成 <code>\n</code> 转义，mapExecute 那条一行两千多字符；而且门禁被迫依赖源码排版：<strong>tests/verify-prompts.ts:540</strong> 要求「六个字段同一种引号、一条一行、字段顺序固定」，另有 <strong>tests/verify-prompt-newlines.ts</strong> 专门查排版。这张票要定的是：真源搬到 <strong>config/ 下的 YAML</strong> 之后，文件怎么分、数据长什么样、生成器怎么跑、门禁怎么改。</p>
+<div class="quote">需求原话（2026-10-20）：「把提示词模板提取到 yaml 文件中，未来很方便修改和开发和新增，对语言也很容易支持，比如 yaml 中某个字段下拿出来的就是英语版，其他语言依次类推和 dsh 的语言配置一一对应。」这轮讨论就围绕它展开，共 12 问，全部有结论。</div>
+<div class="meta">
+<span class="tag">仓库 FeatherHunter/dsh-mattpocock-skills-deck</span>
+<span class="tag">地图 #1274 · 讨论票 #1278</span>
+<span class="tag ok">讨论完成 · 2026-10-20</span>
+<span class="tag">完整结论在票 #1278 正文</span>
+</div>
+</div>
+
+<h2 class="sec">一页速览（12 问的结论）</h2>
+<table class="quick">
+<thead><tr><th>#</th><th>要定的事</th><th>结论</th></tr></thead>
+<tbody>
+<tr><td>Q1</td><td>这张票的目标</td><td>四项全做：可读性、门禁可判定性、产物体积、多语言机制</td></tr>
+<tr><td>Q2</td><td>搬到什么范围</td><td>搬 prompts.ts 里全部人写文本（23 条注册表模板 + 三处片段）；不搬界面词表与后端自报提示词</td></tr>
+<tr><td>Q3</td><td>风险怎么处置</td><td>门禁分「保留 / 改写 / 退休」三类动，判定式不动；自锁两处同步改；补四条新断言</td></tr>
+<tr><td>Q4</td><td>选哪个方案</td><td>档 A：YAML → 生成器 → 生成物（TypeScript 模块），手写 prompts.ts 保留逻辑</td></tr>
+<tr><td>Q5</td><td>文件怎么拆</td><td>允许拆文件；命名求专业；相关的放同一个 YAML</td></tr>
+<tr><td>Q6</td><td>语言字段的形状</td><td>嵌套：正文写成 <code>text: { zh, en }</code></td></tr>
+<tr><td>Q7</td><td>第三门语言现在写不写</td><td>不写。只做中英，但机制做足（加语言 = 改数据，不改代码）</td></tr>
+<tr><td>Q8</td><td>版本号</td><td>不保留手写版本号，靠 git 记录；use 里的逐版流水一并清理</td></tr>
+<tr><td>Q9</td><td>三处写死的文字搬不搬</td><td>搬：NEW_BUG_FIELDS_BODY / _EN、NEW_WAYFINDER_DEFAULT_WIRING、VOCABULARY_DEFAULT（后者要补英文）</td></tr>
+<tr><td>Q10</td><td>文件分族与命名</td><td>认可（见下节文件清单）</td></tr>
+<tr><td>Q11</td><td>use 字段写什么</td><td>一句用途 + 关键理由；逐版流水删、票号引用留</td></tr>
+<tr><td>Q12</td><td>vocabularyDefaults 归哪一族</td><td>与 ghAuthLogin 同族（workspace-initialization.yaml）</td></tr>
+</tbody>
+</table>
+
+<h2 class="sec">终稿设计</h2>
+<table class="quick">
+<thead><tr><th>文件</th><th>装什么</th><th>为什么这么分</th></tr></thead>
+<tbody>
+<tr><td><code>config/languages.yaml</code></td><td>支持的语言、回退链、缺省语言</td><td>语言是客户端级事实，提示词与界面共用一份</td></tr>
+<tr><td><code>config/prompts/workspace-initialization.yaml</code></td><td>4 条：setupRun、installSkills、installSkillsFix、ghAuthLogin</td><td>工作区启动阶段注入的提示词</td></tr>
+<tr><td><code>config/prompts/map-advancement.yaml</code></td><td>5 条：mapExecute、complete、fixate、mapInspect、healthCheck</td><td>推进地图阶段注入的提示词</td></tr>
+<tr><td><code>config/prompts/ticket-action-templates.yaml</code></td><td>10 条 tpl.*（diagnose / fix / discuss / research / prototype / execute / takeover / supplement / handoff1 / handoff2）</td><td>票的动作模板一族，形状相同、用途相近</td></tr>
+<tr><td><code>config/prompts/ticket-creation.yaml</code></td><td>2 条：newWayfinder、newBugWayfinder，外加 newBugFields 与 newWayfinderWiring 两处片段</td><td>建票阶段注入的提示词</td></tr>
+<tr><td><code>config/prompts/repository-alignment.yaml</code></td><td>2 条：switchAlign、switchLayout</td><td>换仓库 / 换布局这类「对齐」提示词</td></tr>
+</tbody>
+</table>
+<p style="color:#9aa6b5;font-size:13px;margin:8px 0 0">分族依据是<strong style="color:#e8ecf1">「什么时候被注入」</strong>：同一时刻注入的提示词放一个文件，改一处不用翻五个文件。</p>
+
+<h2 class="sec">数据长什么样</h2>
+<pre># config/languages.yaml
+default: zh
+languages:
+  - code: zh
+    label: 中文
+    fallback: []          # 缺省语言没有上一级可退
+  - code: en
+    label: English
+    fallback: [zh]        # 英文缺了内容就退到中文</pre>
+<pre># config/prompts/workspace-initialization.yaml
+prompts:
+  ghAuthLogin:
+    use: 登录托管站点时给用户的引导说明（为什么这么写：{cli} 由后端在渲染时填入，模板层不许出现具体命令）
+    placeholders: [cli, cliBrand]
+    text:
+      zh: |
+        请先完成 {cli} 的登录，再继续。
+      en: |
+        Please complete the {cli} login first, then continue.
+fragments:
+  vocabularyDefaults:
+    use: 后端没有自报自己的命令行名时的兜底说法
+    values:
+      cli:
+        zh: 当前后端的命令行
+        en: the current backend's command line
+      cliBrand:
+        zh: 当前跟踪器
+        en: the current tracker</pre>
+<p style="color:#9aa6b5;font-size:13px;margin:8px 0 0">没有 <code>version</code> 字段（靠 git 记录变化）；<code>use</code> 里只留一句用途与关键理由，逐版流水删除、票号引用保留。</p>
+
+<h2 class="sec">怎么从 YAML 变成客户端里的数据</h2>
+<table class="quick">
+<thead><tr><th>环节</th><th>做法</th><th>仓内出处</th></tr></thead>
+<tbody>
+<tr><td>读取与校验</td><td>新增 <code>scripts/lib/prompt-config.mts</code>：读 YAML、校验、产出数据对象。生成器与门禁共用同一份读取逻辑</td><td>scripts/lib/ 下已有 transpile-unit.mts、select-gates.mts 这类共享库</td></tr>
+<tr><td>生成器</td><td>新增 <code>scripts/generate-prompt-config.mts</code>：写生成物，带 <code>--check</code>（不一致就 FAIL「请跑一次生成器」）</td><td>scripts/generate-time-config.mts:423-434</td></tr>
+<tr><td>生成物</td><td><code>src/client/kernel/prompt-data.ts</code>（不入库），只导出一个名字 PROMPT_DATA</td><td>src/shared/time-config/src/values.ts</td></tr>
+<tr><td>拼进客户端</td><td>scripts/build.mts 的 KERNEL_MODULES 登记该生成物，拼到 <code>// ==== kernel:promptData (spliced by build) ====</code> 标记位（放在 kernel:prompts 之前）</td><td>build.mts:550-553 已登记三个生成物当内核模块；build.mts:704-721 是拼接点表</td></tr>
+<tr><td>防止「改了没生成」</td><td>package.json 的 typecheck 串里加 <code>--check</code></td><td>package.json typecheck = <code>node scripts/generate-time-config.mts --check &amp;&amp; node scripts/typecheck.mts</code></td></tr>
+</tbody>
+</table>
+<p style="color:#9aa6b5;font-size:13px;margin:8px 0 0">日常闭环<strong style="color:#5eead4">不多一步</strong>：改 YAML → <code>node scripts/build.mts</code>（构建里自动重跑生成器）→ 重启插件。</p>
+
+<h2 class="sec">运行期怎么用（对外接口不变）</h2>
+<ul style="margin:6px 0 0;padding-left:20px;color:#cfd8e3;font-size:14px">
+<li>src/client/kernel/prompts.ts 删掉 PROMPTS 字面量，按仓内约定自己写 <code>declare const PROMPT_DATA</code>（内核模块之间源码层零 import，每个消费文件自己声明叶子值——src/client/views/pixelProps.d.ts:4-5 写明了这个做法）。</li>
+<li>对外只留四个口子：promptText / promptTextFor / promptFragment / promptLang。视图层不碰原始数据。</li>
+<li>PROMPTS 的导出名与 kernel/prompts.js 的 24 个导出契约不变（docs/architecture/kernel-contract.md:44），行为零变化。</li>
+<li>运行时条目摊平成 <code>{ zh, en }</code>（与后端自报的提示词同形，后端自报那块见 src/client/kernel/prompts.ts:258）。</li>
+<li>promptLang 改成按 config/languages.yaml 的语言清单取：DSH 语言按主标签匹配（en-US → en），回退链 zh 没有上一级、en → zh。</li>
+<li>vocabularyDefaults 补英文（今天只有中文，英文模式下兜底词还是中文）。</li>
+</ul>
+
+<h2 class="sec">门禁怎么改</h2>
+<table class="quick">
+<thead><tr><th>类别</th><th>动什么</th></tr></thead>
+<tbody>
+<tr><td>保留（判定强度不许降）</td><td>判定式 R1–R8（模板层禁止一切具体命令、R8 禁止「先解析插件安装目录再调包内脚本」）；全部硬编码契约常量（注册表 23 条、三后端键数与字面量数、host 常量数、豁免表 8 条、PROTECTED、MUST_JUDGE、RULE_EXEMPT_EXPECTED）；豁免表 tests/prompt-gate-exempt.json 仍是唯一一张表；八个扫描面照旧存在；23 个注册表键名一个字不改（那是第三方后端 hint 用的对外协议）</td></tr>
+<tr><td>改写（数据源换了，判定不变）</td><td>S1 真源、S2 双产物（改成逐条比正文，因为产物里不再有 version / use / placeholders）、S5 渲染面、S6（改成 YAML 的 fragments 段）、S8；L2 机械注入改成往内存里的 YAML 注入坏条目；门禁自身 sha256 自锁同步改；verify-b2-map-newsession.ts 与 verify-1206-glossary-naming.ts 改读 YAML</td></tr>
+<tr><td>退休（源码形状规则，不是质量规则）</td><td>ENTRY_RE（六个字段同一种引号、一条一行、字段顺序固定）、evalRegistrySource、auditRegistryShape、tests/verify-prompt-newlines.ts 整条</td></tr>
+<tr><td>补四条新断言</td><td>use 不许出现在客户端产物；正文里不许有裸的换行转义；每种语言都要有正文；占位符声明与使用一一对应</td></tr>
+</tbody>
+</table>
+<p style="color:#9aa6b5;font-size:13px;margin:8px 0 0"><strong style="color:#5eead4">判定强度不降的做法：</strong>实施时按「旧门禁能抓的违规类型」逐类列一张对照表（旧门禁能抓什么、新的靠哪条判据抓），对照表缺项就是强度降了，不许放过。这张对照表属于实施票的交付物。</p>
+
+<div class="card" id="q1"><header><span class="num">Q1</span><h3>这张票的目标是什么？</h3></header>
+<div class="ctx"><b>前因：</b>原问题写的是「搬到 YAML 就成了单一真源」。查下来，prompts.ts 里的 PROMPTS 已经是单一真源（23 条模板在一个对象字面量里，src/ 全树无别处引用，运行期只经 promptText(id, params) 取）。所以「单一真源」不是搬过去的理由。<br><b>后果：</b>真正的痛点是两个：可读性（每条模板一整行，正文换行写成 \n 转义，mapExecute 一行两千多字符）与门禁被迫依赖源码排版（ENTRY_RE 要求同一种引号、一条一行、字段顺序固定，另有 verify-prompt-newlines.ts 专查排版）；再加上产物体积（use、version、placeholders 运行期无人读，却随注册表整块拼进客户端）。</div>
+<div class="opt pick"><b>可读性 + 门禁可判定性 + 产物体积 + 多语言机制，四项全做<span class="badge">结论</span></b><span>主要是让提示词读得懂、改得动，并让门禁从「判源码长相」变成「判数据本身」。多语言这次只做中英两门，但机制一次做足：加语言 = 改数据不改代码。</span></div>
+</div>
+
+<div class="card" id="q2"><header><span class="num">Q2</span><h3>搬到什么范围？</h3></header>
+<div class="ctx"><b>前因：</b>除了 23 条注册表模板，prompts.ts 里还有三处写死在函数里的文字：NEW_BUG_FIELDS_BODY / _EN（新增 BUG 单的四项必填说明）、NEW_WAYFINDER_DEFAULT_WIRING（后端没自报子议题关联时的缺省说法）、VOCABULARY_DEFAULT（后端没自报词汇时的兜底说法）。<br><b>后果：</b>另有三处不是提示词正文，不搬：三个后端各自的 prompts 块（那是后端自报面）、宿主侧 skillProbe.ts 的 prompt:installSkills 键名协议（对外协议）、界面词表（属另一张票）。</div>
+<div class="opt pick"><b>搬 prompts.ts 里全部人写文本<span class="badge">结论</span></b><span>23 条模板 + 三处片段，一起搬、一起生成、一起被门禁管。三处片段里 vocabularyDefaults 今天只有中文（英文模式下兜底词还是中文），搬的时候补上英文。</span></div>
+</div>
+
+<div class="card" id="q3"><header><span class="num">Q3</span><h3>风险怎么处置？</h3></header>
+<div class="ctx"><b>前因：</b>最大的担心是「门禁改写量超过搬家量，改着改着把判定改松了」——毕竟门禁现在的强度是靠很多硬编码常量与源码形状规则撑着的。<br><b>后果：</b>决定按三层改：解析层换数据源、判定层保留 R1–R8 与全部硬编码常量、源码形状规则整条退休；并补四条新断言。实施时还要交一张「旧门禁能抓什么、新的靠哪条判据抓」的对照表。</div>
+<div class="opt pick"><b>门禁分三层改，自锁两处同步改，补四条新断言<span class="badge">结论</span></b><span>自锁指的是两处必须一起改：门禁自身的 sha256 摘要（tests/verify-prompts.ts:1675-1735）、L2 机械注入（改成往内存里的 YAML 注入坏条目）。</span></div>
+</div>
+
+<div class="card" id="q4"><header><span class="num">Q4</span><h3>选哪个方案？</h3></header>
+<div class="ctx"><b>前因：</b>三个档位：A = YAML 生成 TypeScript 模块（prompts.ts 变薄，24 个导出不变，与时间参数那套同构）；B = YAML 直接生成闭包片段，手写 prompts.ts 删除，契约要重写；C = 不做 YAML 化，只拆多文件 + 模板字符串。<br><b>后果：</b>C 解决可读性但不解决门禁可判定性，而那是这张票的主要目标之一，所以不选。</div>
+<div class="opt pick"><b>档 A：YAML → 生成器 → 生成物（TypeScript 模块）<span class="badge">结论</span></b><span>与 scripts/generate-time-config.mts 同一套机制，仓里已有三处「生成物当内核模块」的先例（build.mts:550-553）。对外契约不动，行为零变化。</span></div>
+</div>
+
+<div class="card" id="q5"><header><span class="num">Q5</span><h3>文件怎么拆、怎么命名？</h3></header>
+<div class="ctx"><b>前因：</b>要求是「允许拆文件，但 yaml 文件命名要非常专业，相关的放到同一个 yaml 中」。<br><b>后果：</b>按「什么时候被注入」分族：工作区启动 / 推进地图 / 票的动作模板 / 建票 / 仓库与布局对齐；语言清单另放 config/languages.yaml，因为它是客户端级事实。</div>
+<div class="opt pick"><b>六个文件，命名如上表<span class="badge">结论</span></b><span>同一时刻注入的提示词放一个文件，改一处不用翻五个文件。</span></div>
+</div>
+
+<div class="card" id="q7"><header><span class="num">Q7</span><h3>第三门语言现在写不写？</h3></header>
+<div class="ctx"><b>前因：</b>现在语言是二元硬编码：prompts.ts:51-56 取 locale 快照，:78 按语言二选一，:339 写死 <code>type PromptLang = 'zh' | 'en'</code>；界面侧还有两份重复的 LocaleLang（locale-panel.ts:27-28、locale-pages.ts:39-40）。<br><b>后果：</b>要「加语言 = 改数据不改代码」，语言清单就得是数据（config/languages.yaml）；界面词表仍是中英两语，多语言界面另开票（#1284）。</div>
+<div class="opt pick"><b>这次只做中英，机制一次做足<span class="badge">结论</span></b><span>正文写成 <code>text: { zh, en }</code>，第三门语言以后只需要在 YAML 里加一个键 + 在语言清单里加一行 + 补内容，代码不动。</span></div>
+</div>
+
+<h2 class="sec">后续跟进（已挂在地图 #1274 下）</h2>
+<table class="quick">
+<thead><tr><th>票</th><th>做什么</th></tr></thead>
+<tbody>
+<tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1282">#1282</a></td><td>提示词 YAML 化：数据、生成器与运行期接线（迁移主体）</td></tr>
+<tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1283">#1283</a></td><td>提示词门禁改读 YAML：判定强度对照表（依赖 #1282）</td></tr>
+<tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1284">#1284</a></td><td>界面文案多语言化：把界面词表也变成数据（本票范围外）</td></tr>
+</tbody>
+</table>
+
+<div class="footer">
+完整结论（第一性原理、12 问、迁移清单、验收标准）写在票 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1278">#1278</a> 正文；本页是速览版。<br>
+本页路径：<code>docs/decisions/1278-prompt-yaml-grill-round1.html</code> · 下一步：由维护者执行一次 <code>/to-spec</code>，把结论固化成规格单并挂到地图 #1274 下。
+</div>
+
+</div>
+</body>
+</html>
