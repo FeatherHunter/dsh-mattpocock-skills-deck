@@ -16,7 +16,7 @@ import { SNAPSHOT_TTL_MS } from '../shared/time-config/values.js'
 // 为什么都收在文件顶部：本文件的依赖全部由接线处 index.js 注入（那份是 JS，不检查编译错误），
 // 所以每份类型只描述「本文件实际读写的字段」，字段名与注入方一一对应；多传的字段这里不管。
 // 信封也在这里就地声明形状（而不是 import type 同层文件）：本文件不静态引用同层文件（同层互引门禁），
-// 形状照 snapshotEnvelope.ts 的 buildSnap / withChainReadout 两口写，那边改签名这里要跟着改。
+// 形状照 snapshotEnvelope.ts 的 buildSnap / withWorkRouteTable 两口写，那边改签名这里要跟着改。
 type Fail = { ok: false; error: string }
 type Args = { cwd?: unknown; backendId?: unknown; lang?: unknown; ifNoneMatch?: string | null; version?: string | null; [k: string]: unknown }
 // 标签的 name 是它的身份（后端给的每个标签都有名字）；读的地方还有 `l && l.name` 的兜底，那道兜底不动。
@@ -44,7 +44,7 @@ type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: Co
 type Levels = { byNumber?: Record<string, unknown>; byKey?: Record<string, unknown>; [k: string]: unknown }
 type Deck = { counts?: { open?: unknown; closed?: unknown } | null; partial?: boolean; [k: string]: unknown }
 // 信封（与 wf.snapshot 同一个实例）：这里只声明本文件用到的两口。
-type Envelope = { buildSnap(o: SnapInput): SnapOut; withChainReadout<T>(reply: T): T; withWorkRouteTable?<T>(reply: T, args?: Args): Promise<T> }
+type Envelope = { buildSnap(o: SnapInput): SnapOut; withWorkRouteTable<T>(reply: T, args?: Args): Promise<T> }
 type SnapInput = { repo?: unknown; repoRoot?: unknown; workspaceRoot?: unknown; maps?: unknown[]; issues?: unknown[]; thinTickets?: unknown[]; labels?: unknown[]; repository?: unknown; backendModules?: unknown; selection?: unknown; viewer?: unknown; viewerLogin?: unknown; deck?: unknown }
 // 组装出来的快照：本文件读 fromCache / generatedMs / deck / maps / issues / labels，落盘时整份交回去。
 type SnapOut = { [k: string]: unknown; fromCache?: boolean; generatedMs?: number; maps?: unknown[]; issues?: unknown[]; labels?: unknown[]; deck?: Deck | null }
@@ -65,7 +65,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
   // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
   // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
   // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
-  const env: Envelope | null = (envelope && typeof envelope.buildSnap === 'function' && typeof envelope.withChainReadout === 'function') ? envelope : null
+  const env: Envelope | null = (envelope && typeof envelope.buildSnap === 'function' && typeof envelope.withWorkRouteTable === 'function') ? envelope : null
   // 信封没接上就整条路如实失败（见上面三行），所以真去组装的那两只函数只会在 env 非空时被调用；
   // 但它们是各自独立的函数，收窄不会翻过函数边界，下面四处 env!.buildSnap 就是把这件事写出来。
   // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
@@ -75,16 +75,11 @@ export function createSessionRefresh(deps: RefreshDeps) {
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP: Promise<typeof import('../shared/tracker/list-dedupe.js')> | null = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
-  /** 回包交给界面之前，把「每个会话在处理哪些票」的读数挂上（与 wf.snapshot 同一个挂载口）。 */
+  /** 回包交给界面之前，把「跨会话在办表」的读数挂上（与 wf.snapshot 同一个挂载口；#1271 起唯一的读数口）。 */
   async function handleRefresh(args: Args) {
     if (!env) return { ok: false, error: 'snapshot-envelope-not-wired' }
-    let reply: unknown = await refreshOf(args)
-    // #1082：跨会话在办表也要挂在这一条路上，否则强制刷新一次界面上那张表就空了。
-    // 旧测试里手捏的信封可能没有这一口，缺了就不挂（与没接读数同一种表现）。
-    if (typeof env.withWorkRouteTable === 'function') {
-      try { reply = await env.withWorkRouteTable(reply, args) } catch (eW) {}
-    }
-    return env.withChainReadout(reply)
+    const reply: unknown = await refreshOf(args)
+    return await env.withWorkRouteTable(reply, args)
   }
   // #729 一次性方案：强制刷新也进与快照路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）。
   let _sharedInflightP: Promise<typeof import('./snapshotInflight.js')> | null = null

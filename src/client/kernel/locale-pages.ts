@@ -86,8 +86,8 @@
         //   一个字不许提配额。键名与占位符中英一致；判据在 views/shared/truthLines.js。
         'list.restFallbackNonQuota': '这次取数走了 REST 通道（数据可能略旧）',
         'list.restFallbackStaleNonQuota': '上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧',
-        // #721（工作路线展示面）：面板顶部那一条「每个会话在处理哪些票」用的词条。
-        //   判据与画法在 views/shared/sessionChainView.js；数据只有宿主写下的一份读数一个来源。
+        // #721（工作路线展示面）→ #1271 起数据源是快照里的 workRouteTable 字段（旧链读数已退役）：面板在办行与状态栏胶囊用的词条。
+        //   判据与画法在 views/shared/workRouteTable.js 与 statusbar/SessionChainCapsule.ts；数据只有宿主写下的一份读数一个来源。
         //   action.* 这八个键与链的闭集合（chain.ts 的 CHAIN_ACTIONS）逐个对应，门禁每次核对。
         'chainView.title': '每个会话在处理哪些票',
         // 2026-09-24 晚重做这一块（维护者原话：「不应该这样呈现，这样UI非常丑陋」）：
@@ -181,8 +181,9 @@
         //   the quota; other and unknown use the two neutral lines below (never the word quota).
         'list.restFallbackNonQuota': 'This fetch went through the REST channel (data may be slightly stale)',
         'list.restFallbackStaleNonQuota': 'Last fetch went through the REST channel ({n} min ago) — data may be slightly stale',
-        // #721 (the processing-chain strip): the words used by "which tickets each session is working on".
-        //   The judgement and the drawing live in views/shared/sessionChainView.js; the only data source
+        // #721 (the processing-chain strip), now fed by the workRouteTable snapshot field since #1271 (old chain readout retired):
+        //   the words used by the work-route rows and the status-bar capsule.
+        //   The judgement and the drawing live in views/shared/workRouteTable.js and statusbar/SessionChainCapsule.ts; the only data source
         //   is the one reading the host writes. The nine action.* keys line up one for one with the
         //   chain's closed set (CHAIN_ACTIONS in chain.ts), and a gate re-checks that every run.
         'chainView.title': 'Which tickets each session is working on',

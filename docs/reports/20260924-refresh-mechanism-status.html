@@ -71,7 +71,7 @@
     </div>
     <div class="card">
       <h3>工作路线（旧名会话↔票记录）<span class="pill ok">已落地</span></h3>
-      <p>只记「写」不记「读」。新存档落在用户主目录、一个工作区一份；上报成功的回执里带 <code>data.workRoute</code>，面板胶囊仍读快照回包的同名字段。旧的宿主缓存仍在写、随 #1271 退役（细节见第 3 节与 2026-10-19 修订）。</p>
+      <p>只记「写」不记「读」。新存档落在用户主目录、一个工作区一份；上报成功的回执里带 <code>data.workRoute</code>，面板胶囊与跨会话在办表同读快照回包的 <code>workRouteTable</code> 字段。旧的宿主缓存已随 #1271 退役（旧字段、旧读写口整份删除，细节见第 3 节与 2026-10-19 修订）。</p>
     </div>
     <div class="card">
       <h3>终局真机验收 <span class="pill no">未跑</span></h3>
@@ -130,7 +130,7 @@
   <h2>3 · AI 在会话里处理了哪些票：现在有机制记录吗</h2>
   <p class="sub">有。它叫「工作路线」（旧名「会话↔票处理链」）。它<b>只记「写」不记「读」</b>——AI 看一眼票不算处理，真去建票、改票、评论、关票才算。</p>
   <div class="note">
-    <p><b>2026-10-19 修订（#1083）</b>：这一节原来写的是 2026-09-24 的状态，当时工作路线只存散列与票键。现在新存档已按 <code>&lt;用户主目录&gt;/.dsh/mattskillsdeck/work-path/&lt;工作区根散列&gt;.json</code> 重做，隐私口径改成「字段白名单 + 凭证形状检查」，允许会话 id 原文与标题快照落盘（不然面板显示不出人读得懂的名字）；旧宿主缓存 <code>session-tickets.json</code> 仍只存散列，随 #1271 退役。判据见 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>。</p>
+    <p><b>2026-10-19 修订（#1083）</b>：这一节原来写的是 2026-09-24 的状态，当时工作路线只存散列与票键。现在新存档已按 <code>&lt;用户主目录&gt;/.dsh/mattskillsdeck/work-path/&lt;工作区根散列&gt;.json</code> 重做，隐私口径改成「字段白名单 + 凭证形状检查」，允许会话 id 原文与标题快照落盘（不然面板显示不出人读得懂的名字）。<b>2026-10-19 修订（#1271）</b>：旧宿主缓存 <code>session-tickets.json</code> 连同它的读写口、快照回包的 <code>workRoute</code> 字段、面板胶囊的旧读数路整份删除；旧落盘/恢复函数按 ADR §2.6 同步删除。现状是只有新存档，快照回包里只剩 <code>workRouteTable</code> 一个读数。判据见 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>。</p>
   </div>
 
   <h3>记了什么</h3>
@@ -145,7 +145,7 @@
   <ul>
     <li><b>内存表</b>：宿主进程内，随刷新机制的那一套实例一起建起来。</li>
     <li><b>新存档（2026-10-19 起）</b>：<code>&lt;用户主目录&gt;/.dsh/mattskillsdeck/work-path/&lt;工作区根散列&gt;.json</code>，一个工作区一份。写前先读旧文件合并、写临时文件再改名、最后读回确认；超过 30 天的条目清掉，单文件超过 2MB 从旧到新裁；写失败不抛错，只在工具回执的 notes 里说明这次没落上。</li>
-    <li><b>旧宿主缓存（仍在写，将退役）</b>：<code>&lt;进程当前目录&gt;/.dsh-mattskillsdeck-cache/session-tickets.json</code>（与命名守护用同一个缓存目录，所以重启不丢）。它仍只存散列与票键，不存会话 id 原文与标题；不读、不迁移、不删除，随 #1271 退役。</li>
+    <li><b>旧宿主缓存（#1271 已退役，行保留只作追溯）</b>：<code>&lt;进程当前目录&gt;/.dsh-mattskillsdeck-cache/session-tickets.json</code>。它只存散列与票键，不存会话 id 原文与标题；#1271 起读写口已删除，不再产生新文件，残留的旧文件由用户自行清理。</li>
     <li><b>隐私</b>：新存档落盘前走两步检查——<b>字段白名单</b>（只认固定的十五个字段名）加<b>凭证形状检查</b>（令牌、口令、授权头、私钥、带凭据 URL 的形状，命中就整份不写）。允许落盘会话 id 原文、会话标题快照、票标题快照、票号、工作单元、动作、来源、时间、进度自评、后端名；凭证原文永不落盘；命令原文与路径原文不作为字段来源。检查不通过时整份不写、不抛错，回执 notes 说明这次没落上，盘上保留上一次成功写入的内容。判据见 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>。</li>
   </ul>
 
@@ -172,7 +172,7 @@
 
 ② 票 → 路径/链接    wf.issueDetail（票详情）或 wf.issuesPage（列表页）</pre>
   <p><b>关键一点：这份读数里没有 issuePath，也没有凭证。</b>这是刻意的隐私决定——工作路线只记「写到哪张票」，不搬路径与命令原文。所以界面要拿到「某个会话在处理哪张票、那张票在哪」需要两步：<b>先用 <code>data.workRoute</code> 拿到票号与票标题</b>，<b>再用票号问 <code>wf.issueDetail</code> 拿路径/链接</b>。</p>
-  <p class="muted">（面板胶囊那条「本会话在处理哪些票」仍读 <code>wf.snapshot</code> 回包的 <code>workRoute</code> 字段，数据来自旧宿主缓存、仍是散列与票键；跨会话在办表的展示已由 #1082 落地（面板字段 <code>workRouteTable</code>）；胶囊读旧字段这条路与旧缓存一起归 #1271 退役。同机的脚本也可以直接读新存档的 JSON 文件，但那是内部存档格式，不建议 UI 直接依赖。）</p>
+  <p class="muted">（#1271 起：面板胶囊那条「本会话在处理哪些票」与跨会话在办表同读 <code>wf.snapshot</code> 回包的 <code>workRouteTable</code> 字段（#1082 落地）；旧 <code>workRoute</code> 字段与旧缓存一起退役。同机的脚本也可以直接读新存档的 JSON 文件，但那是内部存档格式，不建议 UI 直接依赖。）</p>
 
   <div class="note">
     <h3>现在这块在界面上的样子</h3>

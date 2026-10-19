@@ -47,7 +47,7 @@ type Err = { fail: { kind?: unknown } }
 // 接线处注入的依赖：字段名与 index.js 里那份对象一一对应（少一个就在启动时炸）。
 type SnapshotDeps = {
   canonicalKey(cwd: unknown): Promise<string> | string; selectEarly(o: { cwd: string; backendId?: unknown }): Promise<Sel | null> | Sel | null; isComposerSelection(sel: Sel | null): sel is SelReady; getTrackerRegistry(): Promise<Reg> | Reg; getPlatform(): Promise<Platform> | Platform
-  ctx: { get(name: string): unknown }; logCtx?: LogCtx | null; DEFAULT_CWD?: string; envelope?: Envelope | null; chainReadout?: (() => unknown) | null; chainField?: string | null
+  ctx: { get(name: string): unknown }; logCtx?: LogCtx | null; DEFAULT_CWD?: string; envelope?: Envelope | null
   getCache(cwd: string): { ts: number; snapshot: CachedSnap | null }; setCache(v: { ts: number; snapshot: unknown; error: unknown; cwd: string }): void; CACHE_MS: number; cacheSnapshotIsCurrent(snap: unknown, cwd: string): Promise<unknown> | unknown
   upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
   getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<RepoKey> | RepoKey; readDiskCache(repo: unknown): Promise<CachedSnap | null> | CachedSnap | null; writeDiskCache(repo: unknown, snap: unknown): unknown
@@ -59,7 +59,7 @@ type SnapshotDeps = {
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionSnapshot(deps: SnapshotDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore, envelope, chainReadout, chainField, send } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore, envelope, send } = deps
   // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
   // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
   // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
@@ -87,20 +87,11 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   let snapSampleN = 0
   let _sharedInflightP: Promise<typeof import('./snapshotInflight.js')> | null = null // #729：本地表已撤，改用与刷新路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）
   function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('./snapshotInflight.js'); return _sharedInflightP }
-  // #723（T19）票面 3e：把「每个会话在处理哪些票」的读数挂到快照回包上（#721 界面上那一块读的就是它）。
-  // 包在最外一层而不是写进 buildSnap：短路那两条回的是缓存里**同一个对象**，写进去会把读数的时刻冻在
-  // 缓存落盘那一刻。读数由接线处传进来的 chainReadout 现算；没接上就不挂这个字段（界面会如实说读不到）。
-  function withChainReadout(reply: unknown) {
-    if (!reply || typeof reply !== 'object' || (reply as { ok?: unknown }).ok !== true) return reply
-    if (typeof chainReadout !== 'function') return reply
-    try { (reply as Record<string, unknown>)[chainField || 'workRoute'] = chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
-    return reply
-  }
   // #1082：跨会话在办表的读数也在回包交出去之前现挂（异步读盘）；信封没这一口（旧测试手捏的）就不挂。
   async function attachWorkRouteTable(reply: unknown, args: Args) {
     return (env && typeof env.withWorkRouteTable === 'function') ? await env.withWorkRouteTable(reply, args) : reply
   }
-  async function handleSnapshot(args: Args) { return withChainReadout(await attachWorkRouteTable(await snapshotOf(args), args)) }
+  async function handleSnapshot(args: Args) { return await attachWorkRouteTable(await snapshotOf(args), args) }
   async function snapshotOf(args: Args) {
       const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd) // #1003 空目录闸：没目录不冒充取快照
       const now = Date.now()

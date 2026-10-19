@@ -288,7 +288,6 @@ export default {
     // ==== leaf:truthLines (spliced by build) ====
     // 2026-09-24：降级横幅的「画」那一段从 ListTab.js 搬来这里（判据仍是上面 truthLines 里的 restFallbackView）。
     // ==== leaf:restFallbackBanner (spliced by build) ====
-    // ==== leaf:sessionChainView (spliced by build) ====
     // #1082：面板「跨会话在办表」（判据与画法；挂在 Dock 的列表页正文最上面）。
     // ==== leaf:workRouteTable (spliced by build) ====
 

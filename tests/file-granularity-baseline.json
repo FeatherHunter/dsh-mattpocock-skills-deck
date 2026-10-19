@@ -1,11 +1,10 @@
 {
   "version": 2,
   "metric": "effective-lines",
-  "recordedAt": "2026-10-12",
-  "note": "零增长基线：按有效行（注释与空行都不计）记，只许减不许增；达标文件由各自拆分票移出。",
+  "recordedAt": "2026-10-19",
+  "note": "零增长基线：按有效行（注释与空行不计）记，只许减不许增；达标文件由各自拆分票移出。2026-10-19（#1271）：chain.ts 旧落盘/恢复节删除，有效行 365→293达标，同票移出。",
   "files": {
     "src/client/kernel/api-io.ts": 370,
-    "src/host/namingGuardian.ts": 374,
-    "src/shared/refresh/src/chain.ts": 365
+    "src/host/namingGuardian.ts": 374
   }
 }

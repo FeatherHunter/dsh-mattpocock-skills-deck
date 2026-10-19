@@ -16,16 +16,16 @@
  *      —— 所以本文件的入口收的是判定表（write-detect.ts）给的那一档，读工具、只读子命令、
  *      没成功的调用一律不记（第十三章那张表里「工作路线把看了一眼也记成在处理」的处置）。
  *   3. **落盘只存散列与票键**：会话 id 只以散列形态出现，工作区根只以短指纹出现；命令原文、
- *      路径原文、令牌一个字符都不许进链（隐私红线，与仓库日志纪律同口径）。落盘前用
- *      chainPrivacyViolations 自检一遍，宁可这一次不落盘，也不许把原文写出去。
+ *      路径原文、令牌一个字符都不许进链（隐私红线，与仓库日志纪律同口径）。旧链落盘前用旧自检
+ *      逐个字符串看一遍，宁可这一次不落盘，也不许把原文写出去（自检函数已随 #1271 与旧缓存一起删除）。
  *
  * #1083 起留存量不再按「每个会话 20 张」硬切，改按时间与体积：超过 30 天的条目在下一次落盘时清掉，
  * 整份仍超过 2MB 就按时间从旧到新裁。这两个数字住 src/shared/refresh/src/chain-prune.ts
  * （工作路线存档也共用同一套口径）；链的裁剪实现要用本文件的键构造与形状工具，
- * 所以它住在唯一调用方 src/host/refresh/workRoute.ts（共享层文件之间不许互相引用）。
+ * 旧链退役前它住在唯一调用方 src/host/refresh/workRoute.ts（#1271 已删；共享层文件之间不许互相引用）。
  *
  * 事件形态、判定表、三个来源的取数方式都写在票 #714 与定稿第十二章；本文件只做「拿到判定之后怎么记」。
- * 取数（订阅会话事件、读回会话、真正落盘）留在 src/host/refresh/workRoute.ts。
+ * 取数（上报收口记一笔、读在办表）走 src/deck/shell/work-path-*.ts；旧链的取数口已随 #1271 退役。
  */
 
 // 这里原来有一行 `export const CHAIN_SOURCE = 'src/shared/refresh/src/chain.ts'`。#719 把它删掉：
@@ -34,7 +34,7 @@
 // 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 // 留存量的两条线（30 天、2MB）在 chain-prune.ts：那里是数字的唯一住处；链的裁剪实现在
-// src/host/refresh/workRoute.ts（它要用本文件的键与形状工具，而共享层文件之间不许互相引用）。
+// 旧链退役前由 src/host/refresh/workRoute.ts 用本文件的键与形状工具（#1271 已删；共享层文件之间不许互相引用）。
 
 /** 三个后端的字面（判据里要按后端分开：不同后端的票 key 不通用）。 */
 export const CHAIN_BACKENDS: readonly string[] = ['github', 'gitlab', 'markdown']
@@ -105,7 +105,7 @@ export function chainSessionShardId(sessionId: unknown): string {
   return hashDjb2(text) + hashFnv(text)
 }
 
-/** 16 位十六进制的短指纹长这样（根指纹与会话分格都用这个形状）。链落盘前裁剪（src/host/refresh/workRoute.ts 的 chainPrune）也用它校形状。 */
+/** 16 位十六进制的短指纹长这样（根指纹与会话分格都用这个形状）。旧链落盘前裁剪也用它校形状（#1271 退役）。 */
 export function isFingerprintLike(v: unknown): boolean {
   return typeof v === 'string' && /^[0-9a-f]{16}$/.test(v)
 }
@@ -397,7 +397,7 @@ export function chainVerdictOf(input: ChainDecisionInput | null | undefined): Ch
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 四、链路状态：按会话分格、去重；留多少交给 src/host/refresh/workRoute.ts 的 chainPrune（数字来自 chain-prune.ts）
+// 四、链路状态：按会话分格、去重；旧链的留存裁剪已随 #1271 退役（数字在 chain-prune.ts，新链在 work-path-ledger.ts 里另做）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 链上的一条：票键、工作单元、时间、动作类别 —— 就这四个字段（落盘也只写这四个）。 */
@@ -417,7 +417,7 @@ export interface ChainShard {
   sessionId: string
   rootHash: string
   backend: string
-  /** 时间倒序、键唯一；条数不在这里裁剪（#1083 起交给 src/host/refresh/workRoute.ts 的 chainPrune）。 */
+  /** 时间倒序、键唯一；条数不在这里裁剪（旧链的 chainPrune 已随 #1271 退役）。 */
   entries: ChainEntry[]
 }
 
@@ -438,7 +438,7 @@ export function createChainState(): ChainState {
  *     刷新时间与动作类别 ——「最近处理过」看的是最后一次动作。#783 以前只看票号，
  *     两份工作单元里同号的票会合并成一条，现在按（工作单元，票号）去重。
  *   - **留多少条不在这里定**：#1083 把「每会话 20 张」的硬上限换成了时间与体积两条线
- *     （30 天保留期、整份 2MB）。合并只负责去重与时间倒序，裁剪交给 src/host/refresh/workRoute.ts 的 chainPrune。
+ *     （30 天保留期、整份 2MB）。合并只负责去重与时间倒序，旧链的裁剪口已随 #1271 退役。
  */
 export function chainRecord(state: ChainState, input: {
   sessionId?: unknown
@@ -507,101 +507,10 @@ export function chainEntriesOf(state: ChainState | null | undefined, sessionId: 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 五、落盘与恢复：只存散列、票键、工作单元、时间、动作类别
+// 五、落盘与恢复：已随 #1271 整节删除
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** 落盘格式的版本号。改了形状就加一，读端认不出就整份丢掉（宁可空着，不许读半份）。#783 从 1 到 2：每条加一段工作单元。 */
-export const CHAIN_DISK_VERSION = 2
-
-/**
- * 这一份要落盘的东西里，有没有不该出去的字。返回每一条现场的一句话（空数组 = 干净）。
- *
- * 为什么要有这个自检：链的入口收的是事件参数，里面有命令原文、别的会话的路径、客户数据
- * （docs/reviews/deck-tools-adversarial-review.md 记着这件事）。形状检查（只认散列与数字键）
- * 是第一道，这里是第二道：落盘之前把整份结构逐个字符串看一遍，见到路径或命令的形状就判不干净。
- */
-export function chainPrivacyViolations(value: unknown): string[] {
-  const out: string[] = []
-  const walk = (v: unknown, at: string) => {
-    if (typeof v === 'string') {
-      if (/[A-Za-z]:[\\/]|(^|[\s"'])~[\\/]|\.{1,2}[\\/]|\\\\[^\\]/.test(v)) out.push(at + '：像路径原文')
-      else if (/\s/.test(v) || /(^|\s)(gh|glab|git|pwsh|bash|node|Set-Content|Out-File)(\s|$)/.test(v)) out.push(at + '：像命令原文')
-      return
-    }
-    if (Array.isArray(v)) { v.forEach((x, i) => walk(x, at + '[' + i + ']')); return }
-    if (v && typeof v === 'object') { for (const k of Object.keys(v as Record<string, unknown>)) walk((v as Record<string, unknown>)[k], at + '.' + k) }
-  }
-  walk(value, '$')
-  return out
-}
-
-/** 落盘的那份形状：只有散列、票键、工作单元、时间、动作类别。会话 id 原文与路径原文都不在里面。 */
-export function chainToDisk(state: ChainState, opts?: { at?: number }): { v: number; at: number; shards: Array<Record<string, unknown>> } {
-  const shards: Array<Record<string, unknown>> = []
-  const src = state && state.shards ? state.shards : {}
-  for (const k of Object.keys(src)) {
-    const shard = src[k]
-    if (!shard || !isFingerprintLike(shard.shardId) || !isFingerprintLike(shard.rootHash) || !chainBackendId(shard.backend)) continue
-    const entries: Array<[string, string, number, string]> = []
-    for (const e of Array.isArray(shard.entries) ? shard.entries : []) {
-      const key = chainTicketKey(e ? e.ticketKey : '')
-      if (!key) continue
-      const effort = chainEffortId((e as ChainEntry).effortId)
-      const action = String(e.action || '')
-      entries.push([key, effort, typeof e.at === 'number' && isFinite(e.at) ? Math.floor(e.at) : 0, CHAIN_ACTIONS.indexOf(action) >= 0 ? action : 'other-write'])
-    }
-    if (entries.length === 0) continue
-    shards.push({ s: shard.shardId, r: shard.rootHash, b: shard.backend, e: entries })
-  }
-  return { v: CHAIN_DISK_VERSION, at: opts && typeof opts.at === 'number' && isFinite(opts.at) ? Math.floor(opts.at) : 0, shards: shards }
-}
-
-/**
- * 从落盘的那份读回状态（重启后恢复用）。
- *
- * 读端比写端严格：版本不对、某一格形状不对、某一条长得不像票键，一律丢掉那一份/那一格/那一条，
- * 绝不「尽力而为」地收下 —— 链是一份可以重建的缓存，读回半份比空着更坏（会显示不存在的处理动作）。
- * 恢复出来的格子里 `sessionId` 是空的（原文本来就没落盘），调用方拿的是散列；要按会话取用
- * chainEntriesOf(state, 会话 id) —— 散列算法一致，取得到。
- *
- * #783 兼容：版本 1 的老三元组（票键、时刻、动作）当「工作单元未知」收下，工作单元按空串处理；
- * 形状不对的、版本不认识的，仍整份丢弃，不猜着读。
- */
-export function chainFromDisk(payload: unknown): { state: ChainState; shards: number; entries: number; dropped: number; reason: string } {
-  const state = createChainState()
-  const raw = payload as { v?: unknown; shards?: unknown } | null
-  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.shards)) return { state: state, shards: 0, entries: 0, dropped: 0, reason: 'chain.disk-shape' }
-  const v = Number(raw.v)
-  if (v !== 1 && v !== CHAIN_DISK_VERSION) return { state: state, shards: 0, entries: 0, dropped: 0, reason: 'chain.disk-version' }
-  let kept = 0
-  let entries = 0
-  let dropped = 0
-  for (const s of raw.shards as Array<Record<string, unknown>>) {
-    if (!s || typeof s !== 'object' || !isFingerprintLike(s.s) || !isFingerprintLike(s.r) || !chainBackendId(s.b) || !Array.isArray(s.e)) { dropped += 1; continue }
-    let acc: ChainEntry[] = []
-    for (const row of s.e as unknown[]) {
-      const arr = Array.isArray(row) ? row : []
-      if (v === 1) {
-        const key = chainTicketKey(arr[0])
-        const action = String(arr[2] || '')
-        if (!key || CHAIN_ACTIONS.indexOf(action) < 0) { dropped += 1; continue }
-        const at = typeof arr[1] === 'number' && isFinite(arr[1]) ? Math.floor(arr[1]) : 0
-        acc = mergeEntries(acc, { ticketKey: key, effortId: '', at: at, action: action })
-      } else {
-        const key = chainTicketKey(arr[0])
-        const effort = chainEffortId(arr[1])
-        const action = String(arr[3] || '')
-        if (!key || CHAIN_ACTIONS.indexOf(action) < 0) { dropped += 1; continue }
-        // 工作单元形状不对（带斜杠竖线这种不该落盘的字）就丢掉这一条，不猜。
-        if (typeof arr[1] !== 'string' || (arr[1] !== '' && effort !== arr[1])) { dropped += 1; continue }
-        const at = typeof arr[2] === 'number' && isFinite(arr[2]) ? Math.floor(arr[2]) : 0
-        acc = mergeEntries(acc, { ticketKey: key, effortId: effort, at: at, action: action })
-      }
-    }
-    if (acc.length === 0) { dropped += 1; continue }
-    state.shards[String(s.s)] = { shardId: String(s.s), sessionId: '', rootHash: String(s.r), backend: chainBackendId(s.b), entries: acc }
-    kept += 1
-    entries += acc.length
-  }
-  return { state: state, shards: kept, entries: entries, dropped: dropped, reason: kept > 0 ? 'chain.disk-ok' : 'chain.disk-empty' }
-}
+//
+// 旧宿主缓存（session-tickets.json，v2 形状 shards 加四元组行）的写读与恢复曾住在这里：
+// CHAIN_DISK_VERSION、chainPrivacyViolations、chainToDisk、chainFromDisk。
+// #1271 把旧缓存连同它的读写口一起退役（ADR 20261019 §2.6 的安排），这一节整节删除；
+// 新存档的落盘、隐私检查与恢复走 src/deck/shell/work-path-*.ts，不经过这里。

@@ -392,7 +392,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             ])
           ]) : null,
         ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
-          // #1082：列表页正文最上面画「跨会话在办表」（只读快照里的 workRouteTable 字段；旧的那条 SessionChainStrip 仍不挂载）。
+          // #1082：列表页正文最上面画「跨会话在办表」（只读快照里的 workRouteTable 字段；旧链的 SessionChainStrip 已随 #1271 退役）。
           s.tab === 'list' ? h(WorkRouteTable, { st: s }) : null,
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null, s.tab === 'versionControl' ? h(VersionControlTab, { st: s, narrow: narrow }) : null, // #818 版本管理页签的内容分发：与上一条同排，Dock.js 正贴着 350 行上限（单独起一行会变 351，撞文件粒度门禁）
           s.tab === 'pr' ? (showPrTab ? (hasIssueDetail ? h(IssueDetail, { st: s }) : h(PrTab, { st: s, narrow: narrow })) : h(ListTab, { st: s, narrow: narrow })) : null,

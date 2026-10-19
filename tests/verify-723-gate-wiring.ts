@@ -173,12 +173,11 @@ async function main() {
     check(after1.sent - before1.sent === 1, '④ 闸的 sent 真的 +1（' + before1.sent + ' → ' + after1.sent + '）')
     check(A1.w.writeEvents.lastGateKey() === key, '④ 过闸带的钥匙与「标活跃」用的钥匙是同一把（标活跃=' + key + '、过闸=' + A1.w.writeEvents.lastGateKey() + '）',
       '两把钥匙不同 = 后台档恒判「不在活跃集合里」而静默推迟每一笔（#723 栽过的坑）')
-    // #1262：写事件订阅只判门取数，不再往工作路线里记；读了盘上这一格确实是空的。
-    // 记账入口现在只剩工具壳成功收口处那一步（落盘与回执由 verify-1261 / verify-deck-tools 守）。
-    const readout1 = A1.w.chainReadoutOf()
-    check(readout1.ok === true && readout1.sessions.length === 0,
-      '④ 写事件订阅不再喂工作路线（链照实空着）：' + JSON.stringify(readout1).slice(0, 220),
-      '写事件又喂链了 = #1262 删掉的旧推断路又回来了')
+    // #1271：旧链读数口已摘除；写事件订阅只判门取数，结构上就没有往工作路线写的口
+    // （本目录零存储引用，落盘只发生在工具壳成功收口那一步，由 verify-1261 / verify-deck-tools 守）。
+    check(typeof A1.w.chainReadoutOf !== 'function',
+      '④ 旧链读数口已摘除（chainReadoutOf 不再由装配点交回）',
+      '旧读数口还在 = #1271 的退役没做干净')
 
     // ④b 负控：不在活跃集合（没上报过）的那一笔必须被推迟
     const A2 = build('github')

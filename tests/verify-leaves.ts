@@ -66,8 +66,8 @@ const LEAVES = [
   { file: 'src/client/statusbar/StatusBackend.js', exports: ['closeStatusSetupPick', 'cancelStatusSetupPick', 'confirmStatusSetupPick', 'onStatusSetupInit', 'openStatusGate', 'closeStatusGate', 'confirmStatusGate'], components: [] }, // B1 #460 由 StatusBar.js 拆出：后端选择与门控动作（门控窗确认绑定、初始化小卡只答布局）；#669 第 4 件退役了那张卡上拉后端清单的三件（normStatusMods / ensureStatusSetupPick / openStatusSetupPick）
   { file: 'src/client/statusbar/bannerChain.js', exports: ['guideBannerStep', 'guideBannerParams', 'runGuideMissing'], components: [] }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条（顺序真源在 src/shared/tracker/guide-steps.js），那颗按钮照清单声明的 missing 执行
   { file: 'src/client/statusbar/StatusBar.js', exports: ['StatusBar'], components: ['StatusBar'] },
-  // 胶囊里「这个会话在办哪张票」那一段（只读链读数里当前会话那一格；散列自带一份不 import，挂载在 StatusBar 胶囊品牌字之后）
-  { file: 'src/client/statusbar/SessionChainCapsule.js', exports: ['capsuleShardOf', 'sessionChainCapsuleOf', 'SessionChainCapsule'], components: ['SessionChainCapsule'] },
+  // 胶囊里「这个会话在办哪张票」那一段（#1271 起只读面板在办表的同一格，不再读旧链读数、不再自带散列；挂载在 StatusBar 胶囊品牌字之后）
+  { file: 'src/client/statusbar/SessionChainCapsule.js', exports: ['sessionChainCapsuleOf', 'SessionChainCapsule'], components: ['SessionChainCapsule'] },
   { file: 'src/client/floating/SkillFloatList.js', exports: ['SkillFloatList'], components: ['SkillFloatList'] },
   { file: 'src/client/floating/Pop.js', exports: ['showPop'], components: [] },
   { file: 'src/client/hostShim.ts', exports: ['timer', 'h'], components: [] }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底，无组件，纯函数；曾含旧标签迁移，该段已由 #598 删除）；#1254 转写为 .ts
@@ -83,8 +83,7 @@ const LEAVES = [
   { file: 'src/client/views/labels/LabelColorRow.js', exports: ['LabelColorRow'], components: ['LabelColorRow'] },
   { file: 'src/client/views/labels/LabelColorDialog.js', exports: ['LabelColorDialog', 'lcPanelPendingOf'], components: ['LabelColorDialog'] }, // #631 的 D1 补修追加：lcPanelPendingOf 读出「这个工作区用哪个后端还在识别」
   { file: 'src/client/views/labels/LabelColorEntry.js', exports: ['LabelColorEntry'], components: ['LabelColorEntry'] },
-  // #721 工作路线展示面：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段）
-  { file: 'src/client/views/shared/sessionChainView.js', exports: ['SESSION_CHAIN_FIELD', 'SESSION_CHAIN_ACTION_KEYS', 'sessionChainActionKeyOf', 'sessionChainClock', 'sessionChainViewOf', 'sessionChainRowsOf', 'sessionChainOpenTicket', 'SessionChainStrip'], components: ['SessionChainStrip'] },
+  // （#721 的旧工作路线展示面 sessionChainView.js 随 #1271 整份退役，行删除；在办表展示面见下面 #1082 那一行。）
   // #1082 新增：面板「跨会话在办表」（判据与画法；只读快照里的 workRouteTable 字段，与工具回执 data.workRoute 同源）
   { file: 'src/client/views/shared/workRouteTable.js', exports: ['WORK_ROUTE_TABLE_FIELD', 'WORK_ROUTE_ACTION_KEYS', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableOf', 'WorkRouteTable'], components: ['WorkRouteTable'] },
   // 2026-09-24 从贴着 350 行上限的两个文件里搬出来的两块：

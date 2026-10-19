@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recordedAt": "2026-10-13",
-  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。三个房间（src/tracker/rooms/github、gitlab、markdown）不在此清单：房间纪律由 .dependency-cruiser.ts 的 cross-room-import 一条守着，没有豁免。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。 2026-10-14（#1136）：房间纪律的起点改成按 `src/tracker/rooms/([^/]+)/` 抓房名（原来写死旧目录，起点命中 0 个模块、跨房判绿），房外放行清单搬进 tests/tracker-room-imports.json；本清单的键与条数不受影响（换轨前后都是 106 条）。 2026-10-14（#1161）：四份宿主文件（platformChannel / issueDetail / publishFlow / remotePredicates）按「先修后转」从 .js 转成 .ts，键（file|resolved）同票跟到新扩展名，条数不变。 2026-10-15（#1152）：给 src/tracker 补上同层判据 same-layer-import-tracker（判域去掉三个房间与契约层）。这棵树搬出 src/host/tracker/ 之后掉出了所有同层规则，树内互引第一次被记名：今天 15 条，只许减不许增。判域为什么去掉契约层与三个房间，见 .dependency-cruiser.cjs 那条规则的注释。 2026-10-15（#1159）：preflight / error-rules / identity-keys / detection/workspace-ownership 四份搬进 src/tracker/kernel/，same-layer-import-tracker 的判域跟着把 kernel 去掉；涉及它们的 5 条存量（index→preflight、deck-derive→identity-keys、preflight→error-rules、registry/shape→preflight、detectionService→preflight）不再是违规，同票删掉。tracker 存量 15 条降到 10 条。 2026-10-16（#1074）：宿主入口与工作区两份从 .js 转成 .ts，file 键同票跟到新扩展名（index 34 条、workspaceCwd 1 条），index→workspaceCwd 那条的 resolved 跟到 .ts，specifier 原文不动，条数不变。 2026-10-19（#1082）：面板「跨会话在办表」的读数挂载口与工作路线读写零件的惰性装配合成 src/host/refresh/workRouteReadoutForHost.ts，wiring 新增一条同层装配扇入（与 ledger / gate / workRoute 那几条同性质，不引业务），存量从 120 条增到 121 条，owner 记 #1082。",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。三个房间（src/tracker/rooms/github、gitlab、markdown）不在此清单：房间纪律由 .dependency-cruiser.ts 的 cross-room-import 一条守着，没有豁免。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。 2026-10-14（#1136）：房间纪律的起点改成按 `src/tracker/rooms/([^/]+)/` 抓房名（原来写死旧目录，起点命中 0 个模块、跨房判绿），房外放行清单搬进 tests/tracker-room-imports.json；本清单的键与条数不受影响（换轨前后都是 106 条）。 2026-10-14（#1161）：四份宿主文件（platformChannel / issueDetail / publishFlow / remotePredicates）按「先修后转」从 .js 转成 .ts，键（file|resolved）同票跟到新扩展名，条数不变。 2026-10-15（#1152）：给 src/tracker 补上同层判据 same-layer-import-tracker（判域去掉三个房间与契约层）。这棵树搬出 src/host/tracker/ 之后掉出了所有同层规则，树内互引第一次被记名：今天 15 条，只许减不许增。判域为什么去掉契约层与三个房间，见 .dependency-cruiser.cjs 那条规则的注释。 2026-10-15（#1159）：preflight / error-rules / identity-keys / detection/workspace-ownership 四份搬进 src/tracker/kernel/，same-layer-import-tracker 的判域跟着把 kernel 去掉；涉及它们的 5 条存量（index→preflight、deck-derive→identity-keys、preflight→error-rules、registry/shape→preflight、detectionService→preflight）不再是违规，同票删掉。tracker 存量 15 条降到 10 条。 2026-10-16（#1074）：宿主入口与工作区两份从 .js 转成 .ts，file 键同票跟到新扩展名（index 34 条、workspaceCwd 1 条），index→workspaceCwd 那条的 resolved 跟到 .ts，specifier 原文不动，条数不变。 2026-10-19（#1082）：面板「跨会话在办表」的读数挂载口与工作路线读写零件的惰性装配合成 src/host/refresh/workRouteReadoutForHost.ts，wiring 新增一条同层装配扇入（与 ledger / gate / workRoute 那几条同性质，不引业务），存量从 120 条增到 121 条，owner 记 #1082。 2026-10-19（#1271）：旧工作路线链退役，删 wiring→workRoute 与 wiring→sessionChainReadout 两条存量边（被引的两份源文件整份删除），存量从 121 条降到 119 条。",
   "entries": [
     {
       "file": "src/host/index.ts",
@@ -506,24 +506,6 @@
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
       "note": "#723 接线：装配点建写事件订阅（createWriteEvents(...).attach(ctx)）。#1262 起判定过的那一笔不再喂工作路线（旧的被动推断路已删），写事件只过闸、取数、报日志；工作路线的写入口改在 deck 工具壳的成功收口处。同 ledger.js 那一条。"
-    },
-    {
-      "file": "src/host/refresh/wiring.ts",
-      "spec": "./workRoute.js",
-      "resolved": "src/host/refresh/workRoute.ts",
-      "layer": "host",
-      "count": 1,
-      "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#723 接线：装配点建会话↔票工作路线（createWorkRoute()）—— 界面读数（下面那一条）仍从这里出；#1262 起写入口只剩 deck 工具壳，喂数据不再经过写事件订阅。同 ledger.js 那一条。"
-    },
-    {
-      "file": "src/host/refresh/wiring.ts",
-      "spec": "./sessionChainReadout.js",
-      "resolved": "src/host/refresh/sessionChainReadout.ts",
-      "layer": "host",
-      "count": 1,
-      "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#723 接线：装配点把工作路线转成界面读数（buildSessionChainReadout），快照回包挂的就是它。同 ledger.js 那一条。"
     },
     {
       "file": "src/host/refresh/wiring.ts",

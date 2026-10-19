@@ -164,12 +164,10 @@ async function main() {
   const tableCalls: any[] = []
   const envelope = envMod.createSnapshotEnvelope({
     getGhPath: () => null, getGhLastError: () => null, adoptSnapshot: (s: any) => s, logCtx: quietLog,
-    chainReadout: () => ({ ok: true, reason: 'host.chain.empty', sessions: [] }), chainField: 'workRoute',
     workRouteTableReadout: (r: any, c: any) => { tableCalls.push(c && c.sessionId); return attach(r, c) }, workRouteTableField: 'workRouteTable',
   })
-  const chainReadout = () => ({ ok: true, reason: 'host.chain.empty', sessions: [] })
   const fakeDeps: any = {
-    envelope, chainReadout, chainField: 'workRoute',
+    envelope,
     canonicalKey: async (s: string) => s, selectEarly: async () => ({ backendId: null, source: 'fallback', pending: false, rev: 0 }), isComposerSelection: () => false,
     getTrackerRegistry: async () => null, getPlatform: async () => ({}), ctx: { get: () => ({}), effect: () => () => {}, on: () => () => {} },
     getCache: () => ({ ts: 0, snapshot: null, error: null, cwd: null }), setCache: () => {}, CACHE_MS: 60000, cacheSnapshotIsCurrent: async () => false,

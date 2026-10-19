@@ -7,7 +7,8 @@
 // 门禁归属: src/deck/shell/work-path-record.ts
 // 门禁归属: src/shared/refresh/src/chain.ts
 // 门禁归属: src/shared/refresh/src/chain-prune.ts
-// 门禁归属: src/host/refresh/workRoute.ts
+//（原先另有一行「门禁归属: src/host/refresh/workRoute.ts」：旧链的 chainPrune 曾住在那里，#1271 整份删掉；
+//  30 天与 2MB 两条留存线由本门禁第二、三节直接在新账上守，不再经旧链反证。）
 //
 // 这张门禁守票面七条验收里的六条（第 ⑤ 条的「旧事件退役」由三处日志门禁守，
 // 这里只验新事件真的上线、字段真的封闭）：
@@ -64,7 +65,6 @@ async function main() {
   const recordMod = await imp('src/deck/shell/work-path-record.js') as any
   const chainMod = await imp('src/shared/refresh/chain.js') as any
   const pruneMod = await imp('src/shared/refresh/chain-prune.js') as any
-  const workRouteMod = await imp('src/host/refresh/workRoute.js') as any
   const homes: string[] = []
   const mk = (tag: string) => { const h = tmpHome(tag); homes.push(h); return h }
   const fileOf = (home: string, rootKey: string) => home + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rootKey) + '.json'
@@ -251,20 +251,8 @@ async function main() {
   const disk7 = JSON.parse(fs.readFileSync(fileOf(home7, 'ws-1083-counter'), 'utf8'))
   const keys7 = disk7.workers.reduce((a: string[], w: any) => a.concat(w.entries.map((e: any) => e.ticketKey)), []).sort().join(',')
   check(keys7 === '1,2', '反证①：两个实例各写一张，盘上两张都在（内存真源那种坏实现会只剩后一张）')
-  // ② 纯逻辑层：链裁剪确实按时间裁，不是回到旧上限。
-  const chainMod2 = chainMod
-  let st = chainMod2.chainRecord(chainMod2.createChainState(), { sessionId: 'sess-chain', rootHash: chainMod2.chainRootHash('ws-1083-chain'), backend: 'github', ticketKey: '1', action: 'create', at: T0 - 31 * DAY })
-  st = chainMod2.chainRecord(st.state, { sessionId: 'sess-chain', rootHash: chainMod2.chainRootHash('ws-1083-chain'), backend: 'github', ticketKey: '2', action: 'edit', at: T0 })
-  const prunedChain = workRouteMod.chainPrune(st.state, { at: T0 })
-  check(chainMod2.chainEntriesOf(prunedChain.state, 'sess-chain').length === 1 && prunedChain.dropped === 1, '反证②：超过 30 天的老条目被清、30 天内的留下（清掉 ' + prunedChain.dropped + ' 条）')
-  let big = chainMod2.createChainState()
-  for (let i = 1; i <= 300; i++) {
-    big = chainMod2.chainRecord(big, { sessionId: 'sess-chain', rootHash: chainMod2.chainRootHash('ws-1083-chain'), backend: 'github', ticketKey: String(i), action: 'create', at: T0 + i }).state
-  }
-  const smallPrune = workRouteMod.chainPrune(big, { at: T0 + 400, maxBytes: 1200 })
-  const keptText = JSON.stringify(chainMod2.chainToDisk(smallPrune.state, { at: T0 + 400 }))
-  check(smallPrune.bytes <= 1200 && keptText.length > 0, '反证②（续）：体积上限能真的把整份压低（' + smallPrune.bytes + ' 字节 ≤ 1200）')
-  check(chainMod2.chainEntriesOf(smallPrune.state, 'sess-chain').some((e: any) => e.ticketKey === '300'), '反证②（续）：裁剪后最新的条目一定还在')
+  // （原先的反证②在这里用旧链的 chainPrune 验 30 天与体积两条线：#1271 把旧链整份删掉，
+  //   这两条线改由本门禁第二、三节直接在新账上守，不再经旧链反证。）
 
   for (const h of homes) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))

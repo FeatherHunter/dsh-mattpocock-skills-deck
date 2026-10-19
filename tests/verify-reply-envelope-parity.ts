@@ -31,11 +31,9 @@ function ok(msg) { console.log('  PASS ' + msg) }
 const quietLog = { fire: function () {}, isEnabled: function () { return false } }
 
 /** 一组两条电话都能吃饱的假零件。走向固定在最简那条分支：没有后端。 */
-function makeDeps(envelope, chainReadout) {
+function makeDeps(envelope) {
   return {
     envelope: envelope,
-    chainReadout: chainReadout,
-    chainField: 'workRoute',
     canonicalKey: async function (s) { return s },
     selectEarly: async function () { return { backendId: null, source: 'fallback', pending: false, rev: 0 } },
     isComposerSelection: function () { return false },
@@ -71,14 +69,8 @@ async function main() {
   const snapMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionSnapshot.ts')).href)
   const refMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionRefresh.ts')).href)
 
-  // 那份「每个会话在处理哪些票」的读数：这里用一个最简的假件（ok:true + 空列表），
-  // 门禁只关心它有没有被挂上、挂的名字对不对。
-  let readoutCalls = 0
-  const chainReadout = function () {
-    readoutCalls += 1
-    return { ok: true, at: 1, reason: 'host.chain.empty', sessions: [] }
-  }
-  // #1082：面板「跨会话在办表」的读数出口。两条路都必须挂上，键集合也必须对等。
+  // #1082 立、#1271 起唯一的读数：面板「跨会话在办表」的读数出口。两条路都必须挂上，键集合也必须对等。
+  // 门禁只关心它有没有被挂上、挂的名字对不对（旧 workRoute 读数随 #1271 退役，这里不再造它的假件）。
   let tableReadoutCalls = 0
   const workRouteTableReadout = function () {
     tableReadoutCalls += 1
@@ -96,13 +88,11 @@ async function main() {
     getGhLastError: function () { return null },
     adoptSnapshot: function (snap) { return snap },
     logCtx: quietLog,
-    chainReadout: chainReadout,
-    chainField: 'workRoute',
     workRouteTableReadout: workRouteTableReadout,
     workRouteTableField: 'workRouteTable',
   })
 
-  const deps = makeDeps(envelope, chainReadout)
+  const deps = makeDeps(envelope)
   const cwd = process.cwd()
 
   const snapshotPhone = snapMod.createSessionSnapshot(deps)
@@ -118,9 +108,9 @@ async function main() {
   const snapKeys = Object.keys(snapReply).sort()
   const refKeys = Object.keys(refReply).sort()
 
-  // 一、两条路都必须挂上那个读数字段。
-  if (snapKeys.indexOf('workRoute') < 0) fail('wf.snapshot 的回包里没有挂「每个会话在处理哪些票」的读数（workRoute）：界面那一块只能判读不到')
-  if (refKeys.indexOf('workRoute') < 0) fail('wf.refresh 的回包里没有挂「每个会话在处理哪些票」的读数（workRoute）：界面只要走过一次强制刷新就会一直显示读不到（这就是 2026-09-24 那条真机反馈）')
+  // 一、旧读数字段必须彻底消失（#1271 退役：两条路都不许再挂 workRoute）。
+  if (snapKeys.indexOf('workRoute') >= 0) fail('wf.snapshot 的回包里还有旧 workRoute 读数：#1271 的退役没做干净')
+  if (refKeys.indexOf('workRoute') >= 0) fail('wf.refresh 的回包里还有旧 workRoute 读数：#1271 的退役没做干净')
 
   // 二、两条路的字段集合必须逐项相等 —— 这是本条门禁的主句。
   if (snapKeys.join(',') !== refKeys.join(',')) {
@@ -130,9 +120,7 @@ async function main() {
       '（快照 ' + snapKeys.length + ' 项 / 刷新 ' + refKeys.length + ' 项）。两条路必须共用同一份信封，不许各拼一份')
   }
 
-  if (readoutCalls < 2) fail('两份回包应当各现算一次读数（共 2 次），实得 ' + readoutCalls + ' 次 —— 说明有一边没接上')
-
-  // 三、#1082 新增的面板「跨会话在办表」字段：两条路也都要挂，且挂的是同一份读数。
+  // 三、面板「跨会话在办表」字段（#1271 起唯一的读数）：两条路也都要挂，且挂的是同一份读数。
   if (snapKeys.indexOf('workRouteTable') < 0) fail('wf.snapshot 的回包里没有挂面板「跨会话在办表」读数（workRouteTable）')
   if (refKeys.indexOf('workRouteTable') < 0) fail('wf.refresh 的回包里没有挂面板「跨会话在办表」读数（workRouteTable）：强制刷新一次面板上那张表就空了')
   if (tableReadoutCalls !== 2) fail('两条路应当各现算一次「跨会话在办表」读数（共 2 次），实得 ' + tableReadoutCalls + ' 次')
@@ -140,7 +128,7 @@ async function main() {
 
   if (failed) return
   ok('两条回包路径的字段集合逐项相等（各 ' + snapKeys.length + ' 项）')
-  ok('两条路都挂上了 workRoute 读数，且各现算一次（共 ' + readoutCalls + ' 次）')
+  ok('两条路都没再挂旧 workRoute 读数（#1271 退役干净）')
   ok('两条路都挂上了 workRouteTable 读数，且各现算一次（共 ' + tableReadoutCalls + ' 次）')
 }
 

@@ -127,7 +127,9 @@ async function main() {
   const env = envMod.createSnapshotEnvelope({ getGhPath: function () { return '' }, getGhLastError: function () { return null }, adoptSnapshot: function (s) { return s }, logCtx: null })
   const viaEnv = env.buildSnap({ maps: [], issues: [], thinTickets: [{ key: '101' }], labels: [] })
   check(Array.isArray(viaEnv.thinTickets) && viaEnv.thinTickets.length === 1, '信封把瘦身行挂进快照（实得 ' + JSON.stringify(viaEnv.thinTickets) + '）')
-  // ---------- 三、界面查标题（真代码：判据层）----------
+  // ---------- 三、界面查标题（真代码：胶囊的就近表）----------
+  // #1271：标题就近查从旧叶子搬进胶囊（capsuleTitlesOf / capsuleRowOf）；读数只保证票号/动作/时刻，
+  //   标题、状态与是不是地图按快照补 —— 首屏没有的行靠瘦身行（§一那两行）。
   const locales = loadModule('src/client/kernel/locale-pages.js', {})
   const zh = locales.L_PAGES.zh
   const en = locales.L_PAGES.en
@@ -136,7 +138,16 @@ async function main() {
   // 词条桩：认得的给译文，认不得的原样回键名（「认不得」这一件由 verify-locale-completeness 那份门禁管，
   //   这里只量「那句话进不进无障碍名」）。
   const tr = function (key) { return zh[key] !== undefined ? String(zh[key]) : key }
-  const leaf = loadModule('src/client/views/shared/sessionChainView.js', {
+  // 在办表的真叶子：动作词条键、时钟与取数都用它（胶囊拼闭包时 ambient 的那三个名字就指它）。
+  const tableLeaf = loadModule('src/client/views/shared/workRouteTable.js', {
+    React: makeReact(),
+    DswsCtx: null,
+    Tip: function (p, c) { return { type: 'Tip', props: p || {}, children: c === undefined ? [] : [c] } },
+    tr: tr,
+    h: makeReact().createElement,
+  })
+  // 胶囊真源：只调判据口 sessionChainCapsuleOf（标题补齐后的行），版面另起 factory 测（§四）。
+  const capLeaf = loadModule('src/client/statusbar/SessionChainCapsule.js', {
     React: makeReact(),
     DswsCtx: null,
     tr: tr,
@@ -144,51 +155,55 @@ async function main() {
     Tip: function (p, c) { return { type: 'Tip', props: p || {}, children: c === undefined ? [] : [c] } },
     pushNav: function () {},
     findMapByIdentity: function () { return null },
+    workRouteActionKeyOf: tableLeaf.workRouteActionKeyOf,
+    workRouteTableOf: tableLeaf.workRouteTableOf,
   })
 
   // ---------- 四、画法：留白 + 那句话只进无障碍名 ----------
+  // #1271：胶囊只读在办表（currentSession 那几行）；旧链的碎片号、workRoute 字段与读数模块已退役。
   const capSrc = spliceableJs('src/client/statusbar/SessionChainCapsule.js')
   const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
   const opened = []
   // 同一手法：真源文本配假零件，统一走共用入口 compileFn，参数名逐个列出。
-  const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
-    capSrc + '\nreturn { SessionChainCapsule, capsuleShardOf }')
-  const capLeaf = factory(
+  const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'pushNav', 'findMapByIdentity', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableOf', 'emit'],
+    capSrc + '\nreturn { SessionChainCapsule, sessionChainCapsuleOf }')
+  const capView = factory(
     { createElement: h, useContext: function () { return { h: h } }, useRef: function (v) { return { current: v } }, useState: function (v) { return [v, function () {}] } },
     { h: h },
     function () { return null },
     function () { return null },
     tr,
-    function (s) { return leaf.sessionChainRowsOf(s) },
-    'workRoute',
-    function (st, row) { opened.push(row.ticketKey) },
+    function (st, kind, n) { opened.push(String(n)) },
+    function () { return null },
     function () {},
     function (o, kids) { return { overlay: true, props: o, children: kids } },
     function () { return { left: 1, bottom: 2 } },
     function () {},
     function (r, fn) { fn() },
+    tableLeaf.workRouteActionKeyOf,
+    tableLeaf.workRouteTableClock,
+    tableLeaf.workRouteTableOf,
     function () {}
   )
   const sid = 'sess-907-aaaa'
-  const shard = capLeaf.capsuleShardOf(sid)
-  const readoutMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'sessionChainReadout.js')).href)
   const at = new Date(2026, 9, 8, 10, 4, 0).getTime()
-  const readout = readoutMod.buildSessionChainReadout({
-    at: at,
-    tickets: { snapshot: function () { return [{ shardId: shard, backend: 'github', entries: [
-      { ticketKey: '101', action: 'report', at: at },
-      { ticketKey: '999', action: 'report', at: at },
-    ] }] } },
-  })
-  const st = { snapshot: Object.assign({}, snap, { workRoute: readout }), chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
-  const rows = leaf.sessionChainRowsOf(st)
+  const iso = new Date(at).toISOString()
+  // 在办表的新形状：读数只带票号/动作/时刻/会话归属，标题由胶囊按快照补（§三那一套）。
+  const table = { ok: true, readout: { at: iso, staleCount: 0, entries: [
+    { ticketKey: '101', title: '', sessionLabel: sid, action: 'report', actionAt: iso, active: true, currentSession: true },
+    { ticketKey: '999', title: '', sessionLabel: sid, action: 'report', actionAt: iso, active: true, currentSession: true },
+  ] } }
+  const st = { snapshot: Object.assign({}, snap, { workRouteTable: table }), chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
+  const capState = capView.sessionChainCapsuleOf(st, sid)
+  check(capState.state === 'ok', '当前会话这两行进胶囊判据（实得 ' + capState.state + '）')
+  const rows = capState.list || []
   const row101 = rows.filter(function (r) { return r.ticketKey === '101' })[0]
   check(!!row101 && row101.ticketTitle === '子票甲', '已关闭地图的子票那一行查到了标题（实得 ' + JSON.stringify(row101 && row101.ticketTitle) + '）')
   check(!!row101 && row101.ticketState === 'CLOSED' && row101.isMap === false, '状态与「不是地图」也一起查到了（实得 ' + JSON.stringify({ state: row101 && row101.ticketState, isMap: row101 && row101.isMap }) + '）')
   const row999 = rows.filter(function (r) { return r.ticketKey === '999' })[0]
   check(!!row999 && row999.ticketTitle === '', '哪儿都没有的票号仍是空标题，不凭空编一个（实得 ' + JSON.stringify(row999 && row999.ticketTitle) + '）')
 
-  const tree = capLeaf.SessionChainCapsule({ st: st, sid: sid })
+  const tree = capView.SessionChainCapsule({ st: st, sid: sid })
   const rowNodes = []
   ;(function walk(n) {
     if (n === null || n === undefined) return
