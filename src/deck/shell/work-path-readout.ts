@@ -175,6 +175,27 @@ export function buildWorkPathReadout(
   return out;
 }
 
+/** 撞车提醒（一句话，进回执 notes，紧跟在摘要后面）：只有同一张票在 30 分钟内被另一个会话也记过时才有内容，没有撞车回 null，调用方此时不写提醒。
+ *
+ * 为什么单列一句：摘要里按约定不写钟点，人看到摘要不知道撞车是哪一次；这句只用读出口已经算好的
+ * collisions（票号、对面会话标签、对面记下的时间），不另读盘。提醒只管让人看见，不拦操作。
+ */
+export function buildWorkPathCollisionNote(readout: WorkPathReadout | null): string | null {
+  if (!readout || !Array.isArray((readout as any).collisions)) return null;
+  const hits = (readout as any).collisions as Array<{ ticketKey?: unknown; sessionLabel?: unknown; actionAt?: unknown }>;
+  if (hits.length === 0) return null;
+  const items: string[] = [];
+  for (let i = 0; i < hits.length; i++) {
+    const key = String(hits[i] && hits[i].ticketKey !== undefined ? (hits[i] as any).ticketKey : '');
+    const label = String(hits[i] && hits[i].sessionLabel !== undefined ? (hits[i] as any).sessionLabel : '');
+    const at = String(hits[i] && hits[i].actionAt !== undefined ? (hits[i] as any).actionAt : '');
+    if (key === '' || label === '' || at === '') continue;
+    items.push('票 #' + key + ' 在 30 分钟内也被 ' + label + ' 记过（它记在 ' + at + '）');
+  }
+  if (items.length === 0) return null;
+  return '撞车提醒 · ' + items.join('；') + '，这次写仍然成功，票的状态没有变。';
+}
+
 /** 摘要（一句话，进回执 notes）：没在办时回 null，调用方此时不写摘要。 */
 export function buildWorkPathSummary(readout: WorkPathReadout | null): string | null {
   if (!readout || !Array.isArray(readout.entries) || readout.entries.length === 0) return null;

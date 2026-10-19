@@ -207,7 +207,8 @@ export interface DeckShellDeps {
   /**
    * 工作路线读一笔（#1261 起步、#1262 与上面成对）：缺席时跳过，不报错。
    * 输入 `{ sessionId, rootKey, at }`，输出 `{ ok: true, readout, summary } 或 { ok: false, reason }`，
-   * 其中 readout 是回执 data.workRoute 的对象，summary 是 notes 里那句摘要（没有在办时为 null）。
+   * 其中 readout 是回执 data.workRoute 的对象，summary 是 notes 里那句摘要（没有在办时为 null），
+   * collisionNote 是有撞车时才出现的提醒（一句，没有撞车为 null，同样进 notes、跟在摘要后面）。
    * 读出口本身是纯函数（见 work-path-readout.ts），不读盘不看钟，at 由壳按自己的时钟传进来。
    */
   workRouteRead?: (input: UnknownRecord) => Promise<unknown>;

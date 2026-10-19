@@ -312,6 +312,9 @@ export async function recordWorkRoute(
     data.workRoute = readout;
     const summary = str(ro.summary);
     if (summary !== '') notes.push(summary);
+    // 撞车提醒只用上面这份在办表里的 collisions，不另读盘；没有撞车时这一句是空的，不进回执。
+    const collisionNote = str(ro.collisionNote);
+    if (collisionNote !== '') notes.push(collisionNote);
   } catch {
     if (phase === 'read') {
       if (releaseMode) releaseReadFailNote('threw');

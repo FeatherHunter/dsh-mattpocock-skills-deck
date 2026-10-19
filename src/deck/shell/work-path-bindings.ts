@@ -13,7 +13,7 @@
 // 读出口要读盘（存储不再有内存真源），所以 read 本身是异步的。
 
 import { createWorkPathStore } from './work-path-store.js';
-import { buildWorkPathReadout, buildWorkPathSummary } from './work-path-readout.js';
+import { buildWorkPathCollisionNote, buildWorkPathReadout, buildWorkPathSummary } from './work-path-readout.js';
 
 export interface WorkRouteBindingIo {
   homeDir?: string;
@@ -55,7 +55,7 @@ export function createWorkRouteBindings(io?: WorkRouteBindingIo) {
         // 没在办票」，而其实是这次没读成。文件不存在仍是正常情况，回空表。
         if (info && info.failed === true) return { ok: false, reason: 'read-failed' };
         const readout = buildWorkPathReadout(info ? info.ledger : null, { sessionId: sid, at: at });
-        return { ok: true, readout: readout, summary: buildWorkPathSummary(readout) };
+        return { ok: true, readout: readout, summary: buildWorkPathSummary(readout), collisionNote: buildWorkPathCollisionNote(readout) };
       } catch {
         return { ok: false, reason: 'read-failed' };
       }
