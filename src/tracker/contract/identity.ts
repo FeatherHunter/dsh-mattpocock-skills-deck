@@ -38,8 +38,17 @@ export type BackendId = string
 /** 归一化后的票状态：只有两态。GitHub 原值是大写 OPEN/CLOSED，由各房在 normalize 阶段转小写。 */
 export type State = 'open' | 'closed'
 
-/** 票的种类：普通票或地图（wayfinder 语义）。 */
-export type IssueType = 'issue' | 'map'
+/**
+ * 票的种类：普通票、探索地图、规格（实施地图）。
+ *
+ * `map` 是探索地图（wayfinder 语义，靠 `wayfinder:map` 标签认）；
+ * `spec` 是规格（实施地图），靠正文首行独占一行的隐藏标记认
+ * （标记串见 `vocabulary.ts` 的 `SPEC_BODY_MARKER`，认法见各房归一层的 `deriveType`）。
+ *
+ * 两者都是「容器」：容器带子票。同一份容器数组里靠这一格分辨种类，客户端不另开数组。
+ * 与 `vocabulary.ts` 的 `ISSUE_TYPE` 是同一份取值的两种写法，改一处必须改另一处。
+ */
+export type IssueType = 'issue' | 'map' | 'spec'
 
 /**
  * 关闭原因：开放字符串，原样透传不分支。

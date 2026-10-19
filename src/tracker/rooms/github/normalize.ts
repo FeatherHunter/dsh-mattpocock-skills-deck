@@ -14,7 +14,7 @@
  *  - `parentKey: string|null` 核心字段永远存在；子票只认原生 parent（忽略 task list）。
  */
 
-import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
+import { STATE, ISSUE_TYPE, SPEC_BODY_MARKER } from '../../contract/vocabulary.js'
 import type { Comment, Issue, IssueRef, Label, Milestone, Review } from '../../contract/entities.js';
 import type { Actor, IssueType, State } from '../../contract/identity.js';
 
@@ -106,11 +106,31 @@ function deriveKey(raw: unknown): string {
   return '0'
 }
 
+/**
+ * 规格容器（实施地图）的识别：正文首行独占一行的那段隐藏标记
+ * （标记串见 contract/vocabulary.ts 的 SPEC_BODY_MARKER）。
+ *
+ * 认法：正文首行去掉首尾空白后整行精确等于标记串才算数；正文别处提到这一串不算数。
+ * 为什么住在房里：契约目录只放类型与常量、不放行为；能同时被两个房间引到的只有契约与内核
+ * 两层，这里放房内，GitLab 房镜像一份（两个房间本来就不许互引）。
+ */
+export function isSpecBody(body: unknown): boolean {
+  if (typeof body !== 'string') return false
+  const first = body.replace(/^\uFEFF/, '').split(/\r?\n/, 1)[0]
+  return first.trim() === SPEC_BODY_MARKER
+}
+
 function deriveType(raw: unknown): IssueType {
   const labels = normalizeLabels(raw)
+  // 判定顺序有红线：**标签排最前**。带 `wayfinder:map` 标签的票一律是探索地图；
+  // 规格容器绝不能带那个标签（写侧给 type==='map' 的票会自动加上它），
+  // 所以「标签与正文标记同时在场」时判成探索地图。
   if (labels.some((l) => l.name === 'wayfinder:map')) return ISSUE_TYPE.MAP
   const bag = asBag(raw);
+  // 后端形状明说「这是地图」的也比正文标记优先（那是显式声明，不是猜）。
   if (bag && (bag.isMap === true || bag.type === 'map')) return ISSUE_TYPE.MAP
+  // 规格（实施地图）：正文首行独占一行的隐藏标记。
+  if (isSpecBody(bag && typeof bag.body === 'string' ? bag.body : '')) return ISSUE_TYPE.SPEC
   return ISSUE_TYPE.ISSUE
 }
 

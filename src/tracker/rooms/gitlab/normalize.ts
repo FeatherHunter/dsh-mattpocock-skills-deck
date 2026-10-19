@@ -13,7 +13,7 @@
  *    `blockedBy` 双路径：原生 `is_blocked_by` 优先 → `Blocked by:` 行回退。
  */
 
-import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
+import { STATE, ISSUE_TYPE, SPEC_BODY_MARKER } from '../../contract/vocabulary.js'
 import type { Actor, IssueType, State } from '../../contract/identity.js'
 import type { Comment, Issue, IssueRef, Label, Milestone } from '../../contract/entities.js'
 
@@ -71,11 +71,33 @@ function deriveKey(raw: unknown): string {
   return '0'
 }
 
+/**
+ * 规格容器（实施地图）的识别：正文首行独占一行的那段隐藏标记
+ * （标记串见 contract/vocabulary.ts 的 SPEC_BODY_MARKER）。
+ *
+ * 与 GitHub 房同一口径（那边在 rooms/github/normalize.ts，本房是它的镜像，两个房间不许互引）：
+ * 正文首行去掉首尾空白后整行精确等于标记串才算数；正文别处提到这一串不算数。
+ */
+function isSpecBody(body: unknown): boolean {
+  if (typeof body !== 'string') return false
+  const first = body.replace(/^\uFEFF/, '').split(/\r?\n/, 1)[0]
+  return first.trim() === SPEC_BODY_MARKER
+}
+
 function deriveType(raw: unknown): IssueType {
   const labels = normalizeLabels(raw)
+  // 判定顺序有红线：**标签排最前**。带 `wayfinder:map` 标签的票一律是探索地图；
+  // 规格容器绝不能带那个标签（写侧给 type==='map' 的票会自动加上它），
+  // 所以「标签与正文标记同时在场」时判成探索地图。
   if (labels.some((l) => l.name === 'wayfinder:map')) return ISSUE_TYPE.MAP as IssueType
   const bag = asBag(raw)
+  // 后端形状明说「这是地图」的也比正文标记优先（那是显式声明，不是猜）。
   if (bag && (bag['isMap'] === true || bag['type'] === 'map')) return ISSUE_TYPE.MAP as IssueType
+  // 规格（实施地图）：正文首行独占一行的隐藏标记。本房的正文在 description 里（body 是回落）。
+  const body = bag && typeof bag['description'] === 'string'
+    ? (bag['description'] as string)
+    : bag && typeof bag['body'] === 'string' ? (bag['body'] as string) : ''
+  if (isSpecBody(body)) return ISSUE_TYPE.SPEC as IssueType
   return ISSUE_TYPE.ISSUE as IssueType
 }
 

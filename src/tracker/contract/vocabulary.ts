@@ -29,11 +29,31 @@ export const STATE = Object.freeze({
   CLOSED: 'closed',
 })
 
-/** 票的类型（wayfinder 语义）：普通票 或 地图。注意：与本地 markdown 的 `Type:`（research/…）正交。 */
+/**
+ * 票的类型（wayfinder 语义）：普通票、探索地图 或 规格（实施地图）。
+ * 注意：与本地 markdown 的 `Type:`（research/…）正交。
+ * 与 `identity.ts` 的 `IssueType` 是同一份取值的两种写法，改一处必须改另一处。
+ */
 export const ISSUE_TYPE = Object.freeze({
   ISSUE: 'issue',
   MAP: 'map',
+  SPEC: 'spec',
 })
+
+/**
+ * 规格（实施地图）容器在正文首行的隐藏标记。
+ *
+ * 为什么用正文标记而不是标签：探索地图有 `wayfinder:map` 标签可认，规格没有自己的标签
+ * （也不许带 `wayfinder:map` —— 带了就会被认成探索地图），所以靠正文第一行独占一行的
+ * 这段隐藏标记来认。写法：`<!-- DSH-ISSUE-KIND: spec -->`，前后各留空行更好。
+ *
+ * 认法（各房归一层的 `deriveType` 照这条做）：正文首行去掉首尾空白后整行精确等于这一串
+ * 才算规格；正文别处提到这一串不算数；首行不是它就按普通票处理。
+ *
+ * 这里只放这一串常量（契约目录只放类型与常量、不放行为）；认它的判断住在各房归一层
+ * （GitHub 房与 GitLab 房各一份，两个房间本来就不许互引）。
+ */
+export const SPEC_BODY_MARKER = '<!-- DSH-ISSUE-KIND: spec -->'
 
 /** 面板快照模式（沿用现有面板 snapMode 口径；与 tracker 数据形状解耦，仅客户端面板用）。 */
 export const SNAP_MODE = Object.freeze({

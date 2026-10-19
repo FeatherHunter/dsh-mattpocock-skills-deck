@@ -156,6 +156,88 @@ export function parseMapBody(body: unknown): ParsedMapBody {
   return out
 }
 
+// ——— parseSpecBody：规格（实施地图）七区块解析 ———
+
+/**
+ * 规格正文的七个区块：中英各一套标题，两两一组指的是同一段内容。
+ * 只有这些标题能切出区块（与地图五区块同一口径：正文里讨论标题本身不算标题）。
+ */
+export const SPEC_SECTION_TITLES = [
+  '问题陈述', 'Problem Statement',
+  '解决方案', 'Solution',
+  '用户故事', 'User Stories',
+  '实现决策', 'Implementation Decisions',
+  '测试决策', 'Testing Decisions',
+  '不在范围内', 'Out of Scope',
+  '补充说明', 'Further Notes',
+]
+
+/** 规格正文七个区块的解析结果。各区缺了就回空串或空数组，不回 null。 */
+export interface ParsedSpecSections {
+  /** `## 问题陈述` / `## Problem Statement`：要解决的是什么问题。 */
+  problem: string
+  /** `## 解决方案` / `## Solution`：打算怎么做。 */
+  solution: string
+  /** `## 用户故事` / `## User Stories`：使用者视角的场景。 */
+  userStories: string[]
+  /** `## 实现决策` / `## Implementation Decisions`：实现上定下来的事。 */
+  implDecisions: string[]
+  /** `## 测试决策` / `## Testing Decisions`：怎么算做对了。 */
+  testDecisions: string[]
+  /** `## 不在范围内` / `## Out of Scope`：明确不做的。 */
+  outOfScope: string[]
+  /** `## 补充说明` / `## Further Notes`：其余要交代的事。 */
+  furtherNotes: string[]
+}
+
+/** 七段的键：顺序与 SPEC_SECTION_TITLES 的每一对一一对应。 */
+const SPEC_SECTION_KEYS: (keyof ParsedSpecSections)[] = ['problem', 'solution', 'userStories', 'implDecisions', 'testDecisions', 'outOfScope', 'furtherNotes']
+
+/**
+ * 把规格正文按二级标题切成区块，取出七个区块的内容。
+ * 入参收成未知值：正文可能缺席（老票、新建的票），统一按空处理。
+ *
+ * 与地图五区块的两点不同，说清楚免得后来人以为写错了：
+ * 1. HTML 注释行一律不算内容（七段都不收）——正文首行那串隐藏标记就是注释，
+ *    漏进来会污染界面上显示的段落。
+ * 2. 只认行首的 `## 标题`；地图那份还处理「标题粘在上一行末尾」的写法，规格这份不处理
+ *    （规格正文由写侧模板生成，标题自己占一行；真要支持粘行再说）。
+ */
+export function parseSpecBody(body: unknown): ParsedSpecSections {
+  const out: ParsedSpecSections = {
+    problem: '', solution: '', userStories: [], implDecisions: [],
+    testDecisions: [], outOfScope: [], furtherNotes: [],
+  }
+  if (!body) return out
+  // 区块名 → 该区块下的原行；## 标题行本身不入表。键统一小写（英文标题大小写不敏感）。
+  const sec: Record<string, string[]> = {}
+  const lines = normalizeBody(body).split(/\r?\n/)
+  let cur: string | null = null
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^##\s*(.+?)\s*$/)
+    if (m) { cur = m[1].trim().toLowerCase(); sec[cur] = sec[cur] || []; continue }
+    if (cur) sec[cur].push(lines[i])
+  }
+  // 中英两套标题指同一段内容；同一段两套标题都写了时，先遇到的算。
+  const byKey: Record<string, string[]> = {}
+  for (let k = 0; k < SPEC_SECTION_KEYS.length; k++) {
+    for (const title of [SPEC_SECTION_TITLES[k * 2], SPEC_SECTION_TITLES[k * 2 + 1]]) {
+      const t = title.toLowerCase()
+      if (sec[t] && !byKey[SPEC_SECTION_KEYS[k]]) byKey[SPEC_SECTION_KEYS[k]] = sec[t]
+    }
+  }
+  /** 去空白、丢空行、丢 HTML 注释行；区块没出现过时按空数组处理。 */
+  const clean = (arr: string[] | undefined): string[] => (arr || []).map((s) => s.trim()).filter(Boolean).filter((l) => l.indexOf('<!--') !== 0)
+  out.problem = clean(byKey['problem']).join(' ')
+  out.solution = clean(byKey['solution']).join(' ')
+  out.userStories = clean(byKey['userStories'])
+  out.implDecisions = clean(byKey['implDecisions'])
+  out.testDecisions = clean(byKey['testDecisions'])
+  out.outOfScope = clean(byKey['outOfScope'])
+  out.furtherNotes = clean(byKey['furtherNotes'])
+  return out
+}
+
 // ——— parseProgress：进度块三级锚定（## 进度：N% / 行首变体 / 全文兜底），clamp 0-100 ———
 
 /**

@@ -12,7 +12,7 @@
 
 import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { effortOf, idOfParts } from '../../tracker/kernel/identity-keys.js'
-import { parseMapBody } from '../../tracker/body-parse.js'
+import { parseMapBody, parseSpecBody } from '../../tracker/body-parse.js'
 import type { RepositoryRef } from '../../shared/tracker/shape.js'
 
 // 池内标识的输入行：只读 key 与是否为拉取请求等格子，其余原样透传。
@@ -88,14 +88,21 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   // #907：这些子票虽然不进首屏，但要留一份瘦身行（见 thinRowOf）供工作路线查标题 ——
   //   它们本来就在手上（取数那一趟已经回来了），丢掉的是正文与评论（体积的大头）。
   const thinTickets: Record<string, any>[] = []
+  // 容器有两种：探索地图（type='map'）与规格/实施地图（type='spec'）。
+  // 两类容器共用这一份数组（快照里仍叫 maps），客户端靠 type 字段分辨种类，不另开一个数组。
+  // 规格靠正文首行独占一行的隐藏标记识别（标记串见 contract/vocabulary.ts 的 SPEC_BODY_MARKER），
+  // 识别在房间的归一层做（rooms/github/normalize.ts 的 deriveType，rooms/gitlab/normalize.ts 镜像一份）。
   const maps = all
-    .filter((i) => i && i.type === 'map')
+    .filter((i) => i && (i.type === 'map' || i.type === 'spec'))
     .map((m) => {
-      // map 正文五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）：
+      // 探索地图正文五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）：
       // 后端形状只保证 body；UI 详情页（MapDetail）直接消费解析结果（m.decisions.length 等），
       // GitHub 切到编排器后曾漏解析，点 Map 行进详情页即报 Cannot read properties of undefined (reading 'length')。
       // 在组装层统一解析补齐（与旧 gh 直连路径一致），无区块也给 EMPTY（'' / []），不 MISSING。
-      const bp: any = parseMapBody(m.body)
+      // 规格容器不填这五个槽，改填规格七段（sections）：正文按二级标题切段，缺段给空，不 MISSING。
+      const isSpec = String((m && m.type) || '') === 'spec'
+      const bp: any = isSpec ? null : parseMapBody(m.body)
+      const sp: any = isSpec ? parseSpecBody(m.body) : null
       const own = byParent.get(idOfParts(effortOf(m), m.key)) || []
       // 大写的 CLOSED 是本仓库的统一口径（upcaseSnapStates 在电话层再盖一次），这里自己也认小写，免得看后端脸色。
       const isClosed = String((m && m.state) || '').toUpperCase() === 'CLOSED'
@@ -104,8 +111,9 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
         const thin = thinRowOf(t)
         if (thin) thinTickets.push(thin)
       }
-      return Object.assign({}, m, {
-        tickets: (isClosed ? [] : own).map((t) => Object.assign({}, t)),
+      const withTickets = { tickets: (isClosed ? [] : own).map((t) => Object.assign({}, t)) }
+      if (isSpec) return Object.assign({}, m, withTickets, { sections: sp })
+      return Object.assign({}, m, withTickets, {
         destination: bp.destination,
         notes: bp.notes,
         decisions: bp.decisions,
@@ -118,7 +126,7 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   for (const m of maps) for (const t of (m as any).tickets) attached.add(poolIdOf(t))
   // issues = 未挂在任何 map 下的「非 map」票（破链票指 parentKey 指向已删/不存在 map；根票 parentKey=null 也在此——它们无 map 归属）
   const issues = all
-    .filter((i) => i && i.type !== 'map' && !attached.has(poolIdOf(i)) && !closedMapTickets.has(poolIdOf(i)))
+    .filter((i) => i && i.type !== 'map' && i.type !== 'spec' && !attached.has(poolIdOf(i)) && !closedMapTickets.has(poolIdOf(i)))
     .map((t) => Object.assign({}, t))
   return { repository: repo, maps, issues, thinTickets, deck: null }
 }
