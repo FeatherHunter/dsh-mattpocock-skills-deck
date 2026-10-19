@@ -206,7 +206,11 @@ export const applyStandaloneBlocks = function (st: any, blockOf: any): any {
     })
   })
   const stateOf: any = standaloneStateMapOf(st)
-  const isMapRow = function (x: any): any { return x.type === 'map' || ((x.labels || []).some(function (l: any): any { return l && l.name === 'wayfinder:map' })) }
+  // #1286：容器行也算容器 —— 探索地图（type==='map' 或带 wayfinder:map 标签）与规格（type==='spec'）。
+  //   容器不是「一张要独立接手的票」，所以不挂独立票那套阻塞徽标（地图子票、规格单票都算）。
+  //   口径与内核 container-view.ts 的 containerKindOf 一致；这里内联写死而不是调它：门禁
+  //   tests/verify-544-standalone-blocked.ts 会把本文件单独求值，跨文件调函数会 ReferenceError。
+  const isMapRow = function (x: any): any { return x.type === 'map' || x.type === 'spec' || ((x.labels || []).some(function (l: any): any { return l && l.name === 'wayfinder:map' })) }
   issues.forEach(function (x: any): void {
     try {
       if (!x || x.state === 'CLOSED' || isMapRow(x)) return

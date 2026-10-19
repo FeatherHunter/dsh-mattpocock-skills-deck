@@ -18,6 +18,13 @@ declare function actionColorOf(...args: any[]): any;
 declare function authorColor(...args: any[]): any;
 declare function chipKeyDown(...args: any[]): any;
 declare function chipProps(...args: any[]): any;
+// #1286：容器（探索地图 / 规格）的身份色、三态、提示语一律取自内核 container-view.ts，本文件不再各写一份。
+declare function containerKindOf(...args: any[]): any;
+declare function containerNumberColor(...args: any[]): any;
+declare function containerPromptText(...args: any[]): any;
+declare function containerStateOf(...args: any[]): any;
+declare function containerTitleKey(...args: any[]): any;
+declare function containerTriState(...args: any[]): any;
 declare function completePrompt(...args: any[]): any;
 declare function copyText(...args: any[]): any;
 declare function darken(...args: any[]): any;
@@ -31,11 +38,17 @@ declare function isLightHex(...args: any[]): any;
 declare function mkRowAction(...args: any[]): any;
 declare function openInNewSession(...args: any[]): any;
 declare function promptTextFor(...args: any[]): any;
+declare function renderTemplate(...args: any[]): any;
 declare function setActiveIssue(...args: any[]): any;
 declare function setActiveMap(...args: any[]): any;
 declare function showPop(...args: any[]): any;
 declare function truthWriteWindowOpen(...args: any[]): any;
 declare const COPY_FLASH_MS: any;
+declare const CONTAINER_ACCENT: any;
+declare const CONTAINER_CHIP_CLASS: any;
+declare const CONTAINER_CHIP_LABEL_KEY: any;
+declare const CONTAINER_CHIP_MARKER_CLASS: any;
+declare const CONTAINER_TINT: any;
 declare const Tip: any;
 declare const issueUrlFor: any;
 
@@ -71,12 +84,13 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
       //   行1 = 编号(上)+map徽章(下) 竖排 + 标题(占满,限2行) + 迷你圆环进度(右上)；
       //   行2 = 标签单行贪心折叠（宽多窄少,最少1个,放不下进 +N 弹窗）+ 按钮组（执行/完成/新会话常显,复制/外链 hover）
       //   +N 弹窗：fixed 定位,基准=面板容器,clamp 左右不越界,内容完整可见（用户验收 A 方案）
-      const ringOf = function (stats: any) {
+      const ringOf = function (stats: any, kind: any) {
         const total = stats.total || 0, closed = stats.closed || 0
         const pct = total ? Math.round(closed / total * 100) : 0
         const C = 2 * Math.PI * 7
         const off = C * (1 - pct / 100)
-        const color = pct >= 100 ? '#4ade80' : '#bc8cff'
+        // #1286：环色跟着容器身份走（探索紫 / 规格贵族蓝），全关时一律绿
+        const color = pct >= 100 ? '#4ade80' : (kind === 'spec' ? '#1D4ED8' : '#bc8cff')
         return h('span', { className: 'dsws-ring' }, [
           h('svg', { width: 18, height: 18, viewBox: '0 0 18 18' }, [
             h('circle', { cx: 9, cy: 9, r: 7, fill: 'none', stroke: 'rgba(255,255,255,.12)', strokeWidth: 2.4 }),
@@ -85,18 +99,104 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
           h('span', { className: 'dsws-ring-txt', style: { color: color } }, closed + '/' + total),
         ])
       }
-      const isMap = (x.type === 'map') || has(x, 'wayfinder:map')
-      const mapObj = isMap ? findMapByIdentity(st.snapshot && st.snapshot.maps, x.number, effortOf(x)) : null
+      // #1286：这一行是哪种容器。探索地图 = type==='map' 或带 wayfinder:map 标签；规格 = type==='spec'。
+      //   判定口径归内核 container-view.ts（唯一真源）；但门禁 tests/verify-multi-effort-panel.ts 会把本文件
+      //   单独取出来求值，那时闭包里没有内核那几件东西，所以先问「在不在」，不在就退回本文件内同口径的退化判定。
+      const kindOf = (typeof containerKindOf === 'function') ? containerKindOf : function (x: any) {
+        if (!x) return null
+        if (x.type === 'spec') return 'spec'
+        if (x.type === 'map' || has(x, 'wayfinder:map')) return 'map'
+        return null
+      }
+      const kind = kindOf(x)
+      const isContainer = !!kind
+      const isMap = kind === 'map'
+      const isSpec = kind === 'spec'
+      // 容器对象：探索地图与规格都从同一份快照容器表里按身份找（规格也在里面，不是另一张表）
+      const containerObj = isContainer ? findMapByIdentity(st.snapshot && st.snapshot.maps, x.number, effortOf(x)) : null
       // v15-26：被阻塞判定（open 阻塞者）→ 隐藏动作按钮 + 红色「被阻塞」标签（地图子票点击跳所属 map 详情；#544 独立票无所属地图，只展示不跳转）
       const blk = blockOf[idOf(x)]
       const blocked = !!(blk && blk.by && blk.by.length)
       const blockedTip = blocked ? blk.by.map(function (b: any) { return '#' + b }).join('、') : ''
       // #691（阶段 3）：已关闭的地图行不带子票（打开那张地图时才按需取，见 views/MapDetailHead.js），
       //   所以既不画进度环、也不把它当「空地图」上橙色 —— 没有子票不等于一张子票都没有。
-      const mapClosed=!!(isMap&&mapObj&&String(mapObj.state||'').toUpperCase()==='CLOSED')
-      const mapDone=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total>0&&mapObj.stats.closed===mapObj.stats.total)
-      const mapEmpty=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total===0&&!mapClosed)
-      const numColor=mapDone?'#3fb950':mapEmpty?'#f59e0b':actionColorOf(x,colorOf)
+      const mapClosed=!!(isMap&&containerObj&&String(containerObj.state||'').toUpperCase()==='CLOSED')
+      const mapDone=!!(isMap&&containerObj&&containerObj.stats&&containerObj.stats.total>0&&containerObj.stats.closed===containerObj.stats.total)
+      const mapEmpty=!!(isMap&&containerObj&&containerObj.stats&&containerObj.stats.total===0&&!mapClosed)
+      // #1286：容器三态。探索地图沿用旧三态（没有子票=空、子票全关=完成、其余=进行中）；
+      //   规格按内核 containerStateOf 的口径取（没有子票=空、有未关=进行中、全关=完成）。
+      const cState = isSpec
+        ? ((typeof containerStateOf === 'function') ? containerStateOf(containerObj)
+            : (containerObj && containerObj.stats && containerObj.stats.total ? (containerObj.stats.closed === containerObj.stats.total ? 'done' : 'open') : 'empty'))
+        : (mapDone ? 'done' : (mapEmpty ? 'empty' : 'open'))
+      // #1286：编号徽章色。探索地图照旧（完成绿 / 空态橙 / 否则取行级动作色）；
+      //   规格：空态橙 #f59e0b、有未关蓝 #1D4ED8、全关绿 #3fb950。
+      const numColor = isSpec
+        ? ((typeof containerNumberColor === 'function') ? containerNumberColor('spec', cState, actionColorOf(x, colorOf))
+            : (cState === 'done' ? '#3fb950' : cState === 'empty' ? '#f59e0b' : '#1D4ED8'))
+        : (mapDone ? '#3fb950' : mapEmpty ? '#f59e0b' : actionColorOf(x, colorOf))
+      // #1286：容器的身份色、行底色、角标样式与角标文案都从内核 container-view.ts 取；
+      //   门禁单独求值本文件时那份常量不在，就退回同口径的本地兜底值（真机走不到这条路）。
+      const accentOf = function (k: any) {
+        const table: any = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT : { map: '#c084fc', spec: '#1D4ED8' }
+        return table[k] || '#c084fc'
+      }
+      const tintOf = function (k: any) {
+        const table: any = (typeof CONTAINER_TINT === 'object' && CONTAINER_TINT) ? CONTAINER_TINT : { map: 'rgba(188,140,255,.07)', spec: 'rgba(29,78,216,.10)' }
+        return table[k] || 'rgba(188,140,255,.07)'
+      }
+      const chipClassOf = function (k: any) {
+        const table: any = (typeof CONTAINER_CHIP_CLASS === 'object' && CONTAINER_CHIP_CLASS) ? CONTAINER_CHIP_CLASS : { map: 'dsws-chip-m', spec: 'dsws-chip-s' }
+        return table[k] || 'dsws-chip-m'
+      }
+      const chipLabelKeyOf = function (k: any) {
+        const table: any = (typeof CONTAINER_CHIP_LABEL_KEY === 'object' && CONTAINER_CHIP_LABEL_KEY) ? CONTAINER_CHIP_LABEL_KEY : { map: 'list.mapChip', spec: 'list.specChip' }
+        return table[k] || 'list.mapChip'
+      }
+      // 容器标记类：列表页按它认出「这一行是容器」（两种容器共用一个类名，不按颜色猜）
+      const containerMarkerClass = (typeof CONTAINER_CHIP_MARKER_CLASS === 'string' && CONTAINER_CHIP_MARKER_CLASS) ? CONTAINER_CHIP_MARKER_CLASS : 'dsws-chip-container'
+      // #1286：主按钮。
+      //   探索地图照旧：没有子票=检查（橙）、子票全关=完成（绿）、其余走行级动作那一族（执行紫，与行级动作色一致）。
+      //   规格按三态：拆票（橙）/ 执行（蓝）/ 完成（绿）——文案、颜色、提示语取自内核 container-view.ts 的三态表。
+      const containerTri = (isContainer && typeof containerTriState === 'function') ? containerTriState(kind, cState) : null
+      // 规格的注入文本：拆票=容器链接直给，执行=执行模板（不带 /wayfinder 前缀），完成=复用完成模板。
+      //   真源是 container-view.ts 的 containerPromptText；门禁单独求值本文件时那份函数不在，按同口径退化。
+      const specPromptText = function () {
+        const url = (typeof issueUrlFor === 'function') ? (issueUrlFor(st, x.number, effortOf(x)) || '') : ''
+        if (typeof containerPromptText === 'function') {
+          try { return containerPromptText(st, containerObj, kind, cState, url) } catch (e) { /* 落回下面那份同口径文本 */ }
+        }
+        if (cState === 'done') {
+          const s = (containerObj && containerObj.stats) ? containerObj.stats : { total: 0, closed: 0 }
+          return (typeof completePrompt === 'function') ? completePrompt(st, x.number, x.title, s.total, s.closed) : ''
+        }
+        if (cState === 'empty') return '/to-tickets ' + url
+        return (typeof renderTemplate === 'function') ? renderTemplate('execute', { number: String(x.number), url: url, title: String(x.title || '') }, st) : ''
+      }
+      const primaryBtn = (function () {
+        // 规格：拆票 / 执行 / 完成 三态
+        if (isSpec && containerTri) {
+          const c = containerTri.color
+          return h(Tip, { content: tr(containerTri.titleKey) }, h('button', {
+            className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''),
+            onClick: function (e: any) { e.stopPropagation(); inject(st, specPromptText()) },
+            style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: c, borderColor: 'transparent', color: isLightHex(c) ? '#140a1e' : '#ffffff', fontWeight: 600 },
+          }, [Ic({ n: containerTri.icon, size: 10 }), narrow ? null : h('span', null, tr(containerTri.labelKey))]))
+        }
+        if (mapEmpty) {
+          // 探索地图：没有子票 → 检查（这段逻辑照旧，行为不变）
+          return h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); let t = ''; try { t = inspectPrompt(st, x.number, x.title) } catch { const u = typeof issueUrlFor === 'function' ? (function () { try { return issueUrlFor(st, x.number, effortOf(x)) } catch (_) { return '' } })() : '', uu = u || (x.number != null ? '#' + String(x.number) : ''); t = uu ? '/wayfinder ' + uu : '/wayfinder'; try { t = promptTextFor(st, 'mapInspect', { n: String(x.number || ''), ['title']: String(x.title || ''), url: u }); if (u) t = '/wayfinder ' + u + '\n\n' + t } catch (_) {} } inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [Ic({ n: 'search', size: 10 }), narrow ? null : h('span', null, tr('act.inspect'))]))
+        }
+        if (mapDone) {
+          // 探索地图：子票全关 → 完成（这段逻辑照旧，行为不变）
+          return h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); const t = completePrompt(st, x.number, x.title, containerObj.stats.total, containerObj.stats.closed); inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [Ic({ n: 'check', size: 10 }), narrow ? null: h('span', null, tr('act.done'))]))
+        }
+        return mkRowAction(st, x, narrow, colorOf)
+      })()
+      // #1286：新会话按钮与主按钮永远同色实心（背景色取主按钮那个色，字色按对比度择优）。
+      const primaryColor = (isSpec && containerTri) ? containerTri.color : (mapEmpty ? '#f59e0b' : mapDone ? '#3fb950' : actionColorOf(x, colorOf))
+      const primaryText = (isSpec && containerTri) ? (isLightHex(primaryColor) ? '#140a1e' : '#ffffff')
+        : (mapEmpty ? '#140a1e' : mapDone ? '#0c1a10' : (isLightHex(actionColorOf(x, colorOf)) ? '#140a1e' : '#ffffff'))
       // v1.3.3 UI：全部标签渲染（渲染后贪心折叠，放不下的隐藏进 +N；+N 弹窗显示全部）
       const labels = x.labels || []
       const allNames = labels.map(function (l: any) { return l.name }).join('、')
@@ -109,7 +209,7 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
       }
       // R5：变化行视觉（变更琥珀渐隐 / 新增绿闪）
       const _flashCls = (st.rowFlash && st.rowFlash[idOf(x)]) ? (st.rowFlash[idOf(x)] === 'added' ? ' dsws-row-added' : ' dsws-row-changed') : ''
-      return h(Tip, { content: (isMap && mapObj) ? tr('list.mapTitle') : tr('list.issueDetailTitle') }, h('div', {
+      return h(Tip, { content: (isContainer && containerObj) ? tr((typeof containerTitleKey === 'function') ? containerTitleKey(kind) : (isSpec ? 'list.specTitle' : 'list.mapTitle')) : tr('list.issueDetailTitle') }, h('div', {
         key: idOf(x),
         className: 'dsws-aggrow' + _flashCls,
         // #949 瞬间底座：整行可点就要能被键盘走到。tabIndex 让 Tab 停留，
@@ -119,7 +219,8 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         role: 'button',
         'aria-label': '#' + (x.key != null ? x.key : x.number) + ' ' + (x.title || ''),
         onClick: function () {
-          if (isMap && mapObj) { setActiveMap(st, x.number, effortOf(x)) }
+          // #1286：容器行（探索地图与规格）点开都进容器详情，走地图那条路；普通票进票详情。
+          if (isContainer && containerObj) { setActiveMap(st, x.number, effortOf(x)) }
           else { setActiveIssue(st, x.number, effortOf(x)) }
         },
         onKeyDown: function (e: any) {
@@ -128,12 +229,14 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
           if (!e || e.target !== e.currentTarget) return
           chipKeyDown(e)
         },
-        style: isMap ? { cursor: 'pointer', borderLeft: '3px solid #c084fc', background: 'rgba(188,140,255,.07)' } : { cursor: 'pointer' },
+        style: isContainer ? { cursor: 'pointer', borderLeft: '3px solid ' + accentOf(kind), background: tintOf(kind) } : { cursor: 'pointer' },
       }, [
         // 行1：idcol 竖排（编号上 map 徽章下）+ 标题 + 圆环进度（T1 Map #120：gap 6→8，idcol↔标题 8、标题↔圆环 8）
         h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' } }, [
           h('span', { className: 'dsws-idcol' }, [
-            isMap ? h('span', { className: 'dsws-chip dsws-chip-m', style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr('list.mapChip'))]) : null,
+            // #1286：容器角标 —— 地图图标 + 「地图」/「规格」两行字，底色随容器种类（探索紫 / 规格贵族蓝）；
+            //   末尾那个标记类让列表页认出「这一行是容器」（两种容器共用一个类名，不按颜色猜）。
+            isContainer ? h('span', { className: 'dsws-chip ' + chipClassOf(kind) + ' ' + containerMarkerClass, style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr(chipLabelKeyOf(kind)))]) : null,
             // effort 维度：一个仓库多个 effort 时，每行标出它属于哪个 effort（同号票靠这一眼区分）
             (multiEffort && effortOf(x)) ? h(Tip, { content: effortOf(x) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(x), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(x))) : null,
             h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
@@ -142,8 +245,8 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
             //   事实来源：写入成功那一处记下的时刻（kernel/api-io.js 的 markRowWrite → st.writeAt）。
             truthWriteWindowOpen(st.writeAt && (st.writeAt[String(x.number)] || st.writeAt[idOf(x)]), Date.now()) ? h('span', { className: 'dsws-chip dsws-writing', style: { fontSize: 9, lineHeight: 1.5, padding: '0 4px', flex: 'none', opacity: 0.75, background: 'rgba(88,166,255,.10)', color: '#58a6ff', border: '1px dashed rgba(88,166,255,.45)' } }, tr('truth.writing')) : null,
           ]),
-          h('span', { style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, x.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: isMap ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, x.title)), (x.author && x.author.login && x.author.login !== ((st.snapshot && (st.snapshot.viewer && st.snapshot.viewer.login || st.snapshot.viewerLogin)) || '')) ? (x.author.avatarUrl ? h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('img', { src: x.author.avatarUrl, style: { width: 16, height: 16, borderRadius: '50%', border: '2px solid ' + authorColor(x.author.login), flex: 'none' }, alt: x.author.login })) : h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: hexA(authorColor(x.author.login), 0.18), border: '2px solid ' + authorColor(x.author.login), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } }, [Ic({ n: 'person', size: 10 })]))) : null]),
-          (isMap && mapObj && mapObj.stats && !mapClosed) ? ringOf(mapObj.stats) : null,
+          h('span', { style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, x.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: isContainer ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, x.title)), (x.author && x.author.login && x.author.login !== ((st.snapshot && (st.snapshot.viewer && st.snapshot.viewer.login || st.snapshot.viewerLogin)) || '')) ? (x.author.avatarUrl ? h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('img', { src: x.author.avatarUrl, style: { width: 16, height: 16, borderRadius: '50%', border: '2px solid ' + authorColor(x.author.login), flex: 'none' }, alt: x.author.login })) : h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: hexA(authorColor(x.author.login), 0.18), border: '2px solid ' + authorColor(x.author.login), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } }, [Ic({ n: 'person', size: 10 })]))) : null]),
+          (isContainer && containerObj && containerObj.stats && !mapClosed) ? ringOf(containerObj.stats, kind) : null,
           !isOpen ? h('span', { className: 'dsws-chip', style: { fontSize: 10, marginRight: 0, flex: 'none', background: 'rgba(139,139,149,.12)', color: '#8b8b95', border: '1px solid rgba(139,139,149,.35)' } }, [Ic({ n: 'check', size: 9 }), h('span', null, tr('map.subClosed'))]) : null,
         ]),
         // 行2：标签贪心折叠（单行不换行）+ 按钮组（常显）（T1 Map #120：marginTop 8→2，全局收紧至 8px = gap6+mt2，所有行一致）
@@ -158,7 +261,11 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
               : h(Tip, { content: tr('list.blockedTitle', { by: blockedTip }) }, h('span', chipProps({ key: 'blk', className: 'dsws-chip dsws-blocked', onClick: function (e: any) { e.stopPropagation(); openBlocked(blk) }, style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }), [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))) : null,
           ]),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' } }, [
-            isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [mapEmpty?h(Tip, { content: tr('map.inspectTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e: any){e.stopPropagation();let t='';try{t=inspectPrompt(st,x.number,x.title)}catch{const u=typeof issueUrlFor==='function'?(function(){try{return issueUrlFor(st,x.number,effortOf(x))}catch(_){return''}})():'',uu=u||(x.number!=null?'#'+String(x.number):'');t=uu?'/wayfinder '+uu:'/wayfinder';try{t=promptTextFor(st,'mapInspect',{n:String(x.number||''),['title']:String(x.title||''),url:u});if(u)t='/wayfinder '+u+'\n\n'+t}catch(_){}}inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#f59e0b',borderColor:'transparent',color:'#140a1e',fontWeight:600}},[Ic({n:'search',size:10}),narrow?null:h('span',null,tr('act.inspect'))])):mapDone?h(Tip, { content: tr('map.doneTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e: any){e.stopPropagation();const t=completePrompt(st,x.number,x.title,mapObj.stats.total,mapObj.stats.closed);inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#3fb950',borderColor:'transparent',color:'#0c1a10',fontWeight:600}},[Ic({n:'check',size:10}),narrow?null:h('span',null,tr('act.done'))])):mkRowAction(st,x,narrow,colorOf),h(Tip, { content: tr('tip.newSession', { n: x.number }) }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e: any){e.stopPropagation();openInNewSession(st,x)},style:{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',marginLeft:4,background:mapEmpty?'#f59e0b':mapDone?'#3fb950':actionColorOf(x,colorOf),borderColor:'transparent',color:mapEmpty?'#140a1e':mapDone?'#0c1a10':(isLightHex(actionColorOf(x,colorOf))?'#140a1e':'#ffffff')}},[Ic({n:'external-link',size:10}),narrow?null:h('span',null,tr('list.newSessionLabel'))])),]) : null,
+            isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [
+              // #1286：主按钮按容器三态取（上面算好的 primaryBtn）；新会话按钮与它永远同色实心。
+              primaryBtn,
+              h(Tip, { content: tr('tip.newSession', { n: x.number }) }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); openInNewSession(st, x) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: primaryColor, borderColor: 'transparent', color: primaryText } }, [Ic({ n: 'external-link', size: 10 }), narrow ? null : h('span', null, tr('list.newSessionLabel'))])),
+            ]) : null,
             isOpen ? h('div', { className: 'dsws-aux', style: { display: 'flex', gap: 2, alignItems: 'center', flex: 'none' } }, [
               // v1.3.3：复制/外链图标增大 11 → 13；Q6 解耦：复制=绝对路径/链接，跳转=按 url 前缀分流（https 开网页，file 盘符调 wf.openPath）
               h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost' + (copyRes === 'ok' ? ' dsws-fb-okflash dsws-fb-success-ring dsws-fb-pop' : '') + (copyRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''), onClick: function (e: any) { e.stopPropagation(); copyUrl(x) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, copyRes === 'ok' ? Ic({ n: 'check', size: 13 }) : (copyRes === 'fail' ? Ic({ n: 'x', size: 13 }) : Ic({ n: 'clipboard', size: 13 })))),

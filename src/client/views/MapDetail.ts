@@ -3,6 +3,12 @@
  * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
  * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  * 本文件从 .js 改名而来（#1237 修复制按钮时动到它，按仓库纪律先修后转，转时只加类型标注与环境声明，行为一字不动）。
+ *
+ * #1286：这页现在同时服务两类容器 —— 探索地图与规格（实施地图）。骨架共用，差的是身份色、角标、
+ *   计数句、三态按钮（文字/底色/注入的提示词）与正文内容段。身份判定与三态取自
+ *   kernel/container-view.ts（列表页同一份），别处不再各判一次。
+ *   底部三态动作组拆到 DetailActionBar.ts、规格正文段拆到 MapDetailSpecBody.ts
+ *   （与 #807 拆 MapDetailTop、#691 拆 MapDetailHead 同一理由：本文件贴着 350 有效行上限）。
  */
 declare function idOf(...args: any[]): any;
 declare function effortOf(...args: any[]): any;
@@ -31,6 +37,15 @@ declare function tStatusBadge(...args: any[]): any;
 declare function TypeChip(...args: any[]): any;
 declare function MapDetailTop(...args: any[]): any;
 declare function MapDetailHead(...args: any[]): any;
+// #1286：底部三态动作组与规格正文段（从本文件拆出，理由见文件头）
+declare function DetailActionBar(...args: any[]): any;
+declare function MapDetailSpecBody(...args: any[]): any;
+// #1286：容器身份与三态的真源在 kernel/container-view.ts，构建时拼进同一闭包。
+//   这里只声明形状；真源不在时（门禁单独求值本文件）代码退回头的老口径。
+declare function containerKindOf(...args: any[]): any;
+declare function containerStateOf(...args: any[]): any;
+declare function containerTriState(...args: any[]): any;
+declare const CONTAINER_ACCENT: any;
 declare function Ic(props?: any): any;
 declare const Tip: any;
 // 复制成功提示的停留时间（毫秒）。数值写在 config/ttl.yaml 的 copyFlashMs，
@@ -60,10 +75,31 @@ export     const MapDetail = ({ st, g, drill }: any) => {
       // 否则点行会污染停靠栏共用的栈）。调用方不传时默认允许（停靠栏），旧状态不崩。
       const canDrill = drill !== false
       const colorOf = buildColorOf(st)
-      const wayfinderTypeOf = function(t: any){ const ls=(t.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=t.type||''; if(['research','prototype','grilling','task','map'].indexOf(tt)>=0) return tt; return 'issue'; };
+      // #1286：规格（实施地图）是第七种容器类型，子票的类型角标要认它
+      const wayfinderTypeOf = function(t: any){ const ls=(t.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=t.type||''; if(['research','prototype','grilling','task','map','spec'].indexOf(tt)>=0) return tt; return 'issue'; };
       const tickets = (mt && mt.mode === 'real' && Array.isArray(mt.items)) ? mt.items : (m.tickets || [])
       // 统计（层数、open/closed 张数）优先用在途取回的那一份 —— 它与 tickets 同源，不能让层号与行数据打架。
       const effStats = (mt && mt.mode === 'real' && mt.stats) ? mt.stats : m.stats
+      // #1286：这页画的是「容器」。探索地图 = type 是 map 或带 wayfinder:map 标签；规格 = type 是 spec。
+      //   身份判定与三态一律取内核 container-view.ts 那一份（列表页同源），别处不再各判一次。
+      //   真源不在时（门禁单独求值本文件）退回今天的老口径：只可能是地图，三态与今天一字不差。
+      const cKind = (typeof containerKindOf === 'function' ? containerKindOf(m) : null) || 'map'
+      const isSpec = cKind === 'spec'
+      // 三态判据用容器自带的 stats：没有子票 empty，还有未关子票 open，全关 done。
+      //   宿主那边只有 GitHub 通路会补 stats，别的通路 stats 可能整个不存在 —— 那时按空态走。
+      const cState = (typeof containerStateOf === 'function')
+        ? containerStateOf({ stats: effStats })
+        : (effStats && effStats.total === 0 ? 'empty' : (effStats && effStats.total > 0 && effStats.closed === effStats.total ? 'done' : 'open'))
+      // 三态配置（底色/文字/图标）：真源同在 container-view.ts。真源不在时退回同口径的老表。
+      const tri = (typeof containerTriState === 'function')
+        ? containerTriState(cKind, cState)
+        : (cKind === 'spec'
+          ? (cState === 'empty' ? { labelKey: 'act.split', color: '#f59e0b', icon: 'branch', titleKey: 'spec.splitTitle' }
+            : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'spec.doneTitle' }
+              : { labelKey: 'act.execute', color: '#1D4ED8', icon: 'play', titleKey: 'spec.executeTitle' }))
+          : (cState === 'empty' ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
+            : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
+              : { labelKey: 'act.execute', color: '#c084fc', icon: 'play', titleKey: 'map.executeTitle' })))
       // 区块字段防御性兜底：快照组装层已恒填 EMPTY（[] / ''），旧磁盘缓存/异常数据仍可能缺失，
       // 缺失时按空区块渲染（曾因 m.decisions 等 undefined 直接读 .length 抛 Cannot read properties of undefined）
       const decisions = Array.isArray(m.decisions) ? m.decisions : []
@@ -200,7 +236,9 @@ export     const MapDetail = ({ st, g, drill }: any) => {
               h('div', { className: 'sub', style: { fontSize: 8, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 1, minHeight: 12, display: 'flex', gap: 5, flexWrap: 'wrap' } }, [
                 t.state === 'CLOSED' ? h('span', { style: { color: '#3fb950', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'check', size: 8 }), h('span', null, tr('map.subClosed'))]) : null,
                 t.claimedBy ? h('span', { style: { color: '#58a6ff', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'person', size: 8 }), h('span', null, t.claimedBy)]) : null,
-                blocked ? h('span', { style: { color: '#f0883e', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'lock', size: 8 }), h('span', null, tr('map.subBlocked', { who: blockerNames(t, m) }))]) : null,
+                // #1286：被阻塞统一红 #f87171（与列表行同一个红）。这个红在本仓原本是「出错/失败」色，
+                //   这里重载成「被阻塞」——两处含义不冲突，但读代码时别当成同一个语义。
+                blocked ? h('span', { style: { color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'lock', size: 8 }), h('span', null, tr('map.subBlocked', { who: blockerNames(t, m) }))]) : null,
               ]),
               // v1.5 T12：进度条 + 状态徽章（open 票显示真实进度 · 修 0/13）
               tProgressBar(t),
@@ -256,10 +294,10 @@ export     const MapDetail = ({ st, g, drill }: any) => {
       const goBack = function () { popNav(st) }
       return h('div', null, [
         // 顶部操作行拆到 MapDetailTop.js（#807：本文件贴着 350 行上限；不换行/逐字折叠/新会话实心/补图标都在那一份）。
-        h(MapDetailTop, { st: st, m: m, navCrumb: navCrumb, effStats: effStats, goBack: goBack }),
+        h(MapDetailTop, { st: st, m: m, navCrumb: navCrumb, effStats: effStats, goBack: goBack, kind: cKind, tri: tri }),
         // #691：编号 + 标题 + 「本图 N 张子票（已关闭 M 张）」那一行，整块拆到 MapDetailHead.js
         //   （本文件贴着 350 行上限；头部那一块连同它的取数状态一起搬走，形态一字未改）。
-        h(MapDetailHead, { st: st, m: m, mt: mt, multiEffort: multiEffort }),
+        h(MapDetailHead, { st: st, m: m, mt: mt, multiEffort: multiEffort, kind: cKind }),
         m.error ? h('div', { style: { color: '#f87171', fontSize: 11, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, String((m.error && m.error.error) || tr('list.loadFail')).slice(0, 160))]) : null,
         // D2：分段静态进度条 = 地图层缩略图（无动画，唯一真相源）
         (levels.length > 0) ? h('div', { className: 'dsws-layers' }, [
@@ -275,10 +313,14 @@ export     const MapDetail = ({ st, g, drill }: any) => {
             h('span', { className: 'pos' }, tr('map.layersPassed', { n: passedLayers, t: totalLayers })),
           ]),
         ]) : null,
+        // #1286：正文内容段。探索地图是 Destination + Notes 两段；规格是它自己的七段
+        //   （问题陈述 / 解决方案 / 用户故事 / 实现决策 / 测试决策 / 不在范围内 / 补充说明），
+        //   渲染在 MapDetailSpecBody.ts 里。骨架其余部分两类容器完全一样。
+        (isSpec && typeof MapDetailSpecBody === 'function') ? h(MapDetailSpecBody, { st: st, m: m }) : null,
         // T17 修订：Destination 走 markdown 渲染（**加粗** 等不再裸露；去 ellip 允许换行）
-        h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 4, fontSize: 12, color: '#4ade80', margin: '4px 0 2px' } }, [Ic({ n: 'target', size: 12, style: { marginTop: 2, flex: 'none' } }), h('div', { style: { flex: 1, minWidth: 0 } }, m.destination ? mdToHtml(m.destination, { st: st }) : tr('list.noDest'))]),
+        isSpec ? null : h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 4, fontSize: 12, color: '#4ade80', margin: '4px 0 2px' } }, [Ic({ n: 'target', size: 12, style: { marginTop: 2, flex: 'none' } }), h('div', { style: { flex: 1, minWidth: 0 } }, m.destination ? mdToHtml(m.destination, { st: st }) : tr('list.noDest'))]),
         // T17 修订：正文详情（Notes）默认折叠 —— <details> 收起，点击展开
-        h('details', { style: { margin: '2px 0 4px' } }, [
+        isSpec ? null : h('details', { style: { margin: '2px 0 4px' } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 } }, [
             Ic({ n: 'note', size: 11 }),
             h('span', null, tr('map.notesCap')),
@@ -301,39 +343,16 @@ export     const MapDetail = ({ st, g, drill }: any) => {
               h('div', { className: 'core' }, h('svg', { viewBox: '0 0 24 24' }, [h('path', { d: 'M5 3v18' }), h('path', { d: 'M5 4c4-2 6 2 12 0v9c-6 2-8-2-12 0' })])),
             ]),
             h('div', { className: 'title' }, tr('map.destCap')),
-            h('div', { className: 'acts' }, [
-              // v1.4：底部按钮与顶部同语义 —— 完成态「完成」（COMPLETE_PROMPT 同列表）/ 未完成「执行」（execute 模板）
-              (effStats && effStats.total === 0)
-                ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                    let t2b = ''
-                    try { t2b = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2b = promptTextFor(st, 'mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2b) t2b = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2b } catch(_){ t2b = startText(st, m)} }
-                    inject(st, t2b)
-                  }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 700 } }, [
-                    Ic({ n: 'search', size: 11 }),
-                    h('span', null, tr('act.inspect')),
-                  ]))
-                : (effStats && effStats.total > 0 && effStats.closed === effStats.total)
-                ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                    const text = completePrompt(st, m.number, m.title, effStats.total, effStats.closed)
-                    inject(st, text)
-                  }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 700 } }, [
-                    Ic({ n: 'check', size: 11 }),
-                    h('span', null, tr('act.done')),
-                  ]))
-                : h(Tip, { content: tr('map.executeTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                    // v1.4：map 推进式执行（startText 检测 wayfinder:map → MAP_EXECUTE_PROMPT）
-                    inject(st, startText(st, m))
-                    // #836：执行态与顶部同色（紫 #c084fc），不再写死绿色 #4ade80
-                  }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#c084fc', borderColor: 'transparent', color: '#140a1e', fontWeight: 700 } }, [
-                    Ic({ n: 'play', size: 11 }),
-                    h('span', null, tr('act.execute')),
-                  ])),
-              (function(){ const _u=issueUrlFor(st, m.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e: any){ e.stopPropagation(); const u=issueUrlFor(st, m.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))]) : h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))]); })(),
-            ]),
+            // #1286：底部三态动作组拆到 DetailActionBar.ts（与 #807 拆 MapDetailTop 同一理由：
+            //   本文件贴着 350 有效行上限）。搬过去的只有代码，行为一字未改；
+            //   按钮的底色/文字/注入的提示词与顶栏同源（都取 container-view.ts 那一份）。
+            (typeof DetailActionBar === 'function')
+              ? h(DetailActionBar, { st: st, m: m, kind: cKind, cState: cState, effStats: effStats, tri: tri })
+              : null,
           ]),
         ]),
         // 折叠块：Decisions / Fog / Out of scope（保留信息展示）
-        h('details', { style: { marginTop: 10, marginBottom: 4 } }, [
+        isSpec ? null : h('details', { style: { marginTop: 10, marginBottom: 4 } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.decisions', { n: decisions.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, decisions.map(function (d: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, [
@@ -343,13 +362,13 @@ export     const MapDetail = ({ st, g, drill }: any) => {
             ])
           })),
         ]),
-        h('details', { style: { marginBottom: 4 } }, [
+        isSpec ? null : h('details', { style: { marginBottom: 4 } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.fog', { n: fogList.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, fogList.map(function (f: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + f, { st: st }))
           })),
         ]),
-        h('details', { style: { marginBottom: 4 } }, [
+        isSpec ? null : h('details', { style: { marginBottom: 4 } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.outOfScope', { n: outOfScope.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, outOfScope.map(function (o: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + o, { st: st }))

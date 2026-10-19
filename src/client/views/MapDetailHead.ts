@@ -26,8 +26,12 @@ declare function effortOf(...args: any[]): any;
 declare const Tip: any;
 declare const fetchMapTickets: any;
 declare const issueUrlFor: any;
+// #1286：容器身份色与计数词表键的真源在 kernel/container-view.ts（列表页同一份）
+declare function containerKindOf(...args: any[]): any;
+declare function containerCountKey(...args: any[]): any;
+declare const CONTAINER_ACCENT: any;
 
-export const MapDetailHead = ({ st, m, mt, multiEffort }: any) => {
+export const MapDetailHead = ({ st, m, mt, multiEffort, kind }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const mode = (mt && mt.mode) || ''
@@ -46,11 +50,17 @@ export const MapDetailHead = ({ st, m, mt, multiEffort }: any) => {
     if (/^https?:\/\//i.test(String(url))) { try { window.open(url, '_blank', 'noreferrer') } catch (err) {} }
     else { try { if (typeof host !== 'undefined' && host.call) host.call('wf.openPath', { path: url }) } catch (err) {} }
   }
+  // #1286：这一页是哪种容器 —— 探索地图还是规格（实施地图）。身份判定与计数句的词表键
+  //   取 container-view.ts 那一份（列表页同一份），别处不再各判一次。
+  const cKind = kind || (typeof containerKindOf === 'function' ? containerKindOf(m) : null) || 'map'
+  const countKey = (typeof containerCountKey === 'function') ? containerCountKey(cKind) : (cKind === 'spec' ? 'map.specSubCount' : 'map.subCount')
+  // 编号徽章用身份色：探索紫 #c084fc、规格贵族蓝 #1D4ED8（状态色不参与，徽章说的是「你是谁」）。
+  const accent = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT && CONTAINER_ACCENT[cKind]) ? CONTAINER_ACCENT[cKind] : (cKind === 'spec' ? '#1D4ED8' : '#c084fc')
   const line = (function () {
     if (mode === 'loading') return tr('map.subCountLoading')
     if (unsupported) return null
     if (failed) return tr('map.subCountFail', { msg: String((mt.error && mt.error.message) || '').slice(0, 120) })
-    let s = tr('map.subCount', { n: totalN, c: closedN })
+    let s = tr(countKey, { n: totalN, c: closedN })
     if (mt && mt.capped) s += ' · ' + tr('map.subCountCapped', { n: 1000 })
     if (mt && mt.missing > 0) s += ' · ' + tr('map.subCountShort', { n: mt.missing })
     return s
@@ -59,7 +69,7 @@ export const MapDetailHead = ({ st, m, mt, multiEffort }: any) => {
   return h('div', null, [
     // 编号徽章 + 标题（#691 由 MapDetail.js 原样移来，形态一字未改）
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 2 } }, [
-      h('span', { className: 'dsws-idnum', style: { color: '#c084fc', borderColor: '#c084fc', flex: 'none' } }, '#' + m.number),
+      h('span', { className: 'dsws-idnum', style: { color: accent, borderColor: accent, flex: 'none' } }, '#' + m.number),
       h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, m.title)]) }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [
         // effort 维度：地图属于哪个 effort 一眼可见（多个 effort 时同号地图不再分不清）
         (multiEffort && effortOf(m)) ? h(Tip, { content: effortOf(m) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(m), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(m))) : null,

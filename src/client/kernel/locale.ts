@@ -19,7 +19,9 @@ declare const L_VCWRITE: any;
 declare const L_SKILLDESC: any;
 declare const L_SKILLDETAIL: any;
 declare const L_CARDS: any;
+// #1286：规格（实施地图）一族的中英词条：locale-flow.ts 已贴 350 行上限，照 #621/#690/#842/#879 的做法自成一个片段。
+declare const L_SPEC: any;
     export const L = {
-      zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_WORD.zh, L_LABELS.zh, L_PAGES.zh, L_VCWRITE.zh, L_SKILLDESC.zh, L_SKILLDETAIL.zh, L_CARDS.zh),
-      en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_WORD.en, L_LABELS.en, L_PAGES.en, L_VCWRITE.en, L_SKILLDESC.en, L_SKILLDETAIL.en, L_CARDS.en),
+      zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_WORD.zh, L_LABELS.zh, L_PAGES.zh, L_VCWRITE.zh, L_SKILLDESC.zh, L_SKILLDETAIL.zh, L_CARDS.zh, L_SPEC.zh),
+      en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_WORD.en, L_LABELS.en, L_PAGES.en, L_VCWRITE.en, L_SKILLDESC.en, L_SKILLDETAIL.en, L_CARDS.en, L_SPEC.en),
     }

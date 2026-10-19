@@ -53,7 +53,8 @@ export const healthCheckCountOf = function (st: any): number | null {
     for (let i: number = 0; i < issues.length; i++) {
       const x: any = issues[i];
       if (!x || String(x.state || '').toUpperCase() === 'CLOSED') continue;
-      if (x.type === 'map') continue;
+      // #1286：容器行不是「要接手的票」—— 探索地图（type==='map' 或带 wayfinder:map 标签）与规格（type==='spec'）都跳过。
+      if (x.type === 'map' || x.type === 'spec') continue;
       if ((x.labels || []).some(function (l: any): boolean { return l && l.name === 'wayfinder:map'; })) continue;
       if (attached[healthCheckRowIdOf(x)]) continue;
       n += 1;

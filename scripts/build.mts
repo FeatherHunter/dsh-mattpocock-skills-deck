@@ -521,6 +521,8 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   { name: 'localeSkilldetail', file: 'src/client/kernel/locale-skilldetail.ts' },
   // S1/S6/S7 卡片词条：locale-panel.js 已贴 350 行上限，照 #879/#887 的做法自成一个片段。
   { name: 'localeCards', file: 'src/client/kernel/locale-cards.ts' },
+  // #1286：规格（实施地图）一族的中英词条：locale-flow.ts 已贴 350 行上限，照 #621/#690/#842/#879 的做法自成一个片段。
+  { name: 'localeSpec', file: 'src/client/kernel/locale-spec.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'locale', file: 'src/client/kernel/locale.ts' },
@@ -598,6 +600,8 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.ts' },
+  // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源。
+  { name: 'containerView', file: 'src/client/kernel/container-view.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'apiNaming', file: 'src/client/kernel/api-naming.ts' },
@@ -801,6 +805,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.ts' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
   { id: 'mapDetailTop', file: 'src/client/views/MapDetailTop.ts' }, // #807 由 MapDetail.js 拆出：顶部操作行（不换行/逐字折叠/新会话实心/补图标，MapDetail 贴着 350 行上限）
   { id: 'mapDetail', file: 'src/client/views/MapDetail.ts' },
+  { id: 'detailActionBar', file: 'src/client/views/DetailActionBar.ts' }, // #1286 由 MapDetail.ts 拆出：容器详情页底部的三态动作组（探索地图与规格共用，MapDetail 贴着 350 行上限）
+  { id: 'mapDetailSpecBody', file: 'src/client/views/MapDetailSpecBody.ts' }, // #1286 由 MapDetail.ts 拆出：规格（实施地图）详情页的正文七段（MapDetail 贴着 350 行上限）
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.ts' },
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.ts' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
   { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.ts' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）

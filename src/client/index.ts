@@ -116,6 +116,8 @@ export default {
     // ==== kernel:localeSkilldesc (spliced by build) ====
     // 887：技能详情像素风的中英词条单独一份片段（sd.*）。
     // ==== kernel:localeSkilldetail (spliced by build) ==== // ==== kernel:localeCards (spliced by build) ====
+    // #1286：规格（实施地图）一族的中英词条片段，必须排在 kernel:locale 之前（合并器要拿到 L_SPEC）。
+    // ==== kernel:localeSpec (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {
@@ -214,6 +216,8 @@ export default {
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====
+    // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源，列表页与详情页都从它取。
+    // ==== kernel:containerView (spliced by build) ====
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
     // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生
@@ -306,6 +310,8 @@ export default {
     // ==== leaf:mapDetailHead (spliced by build) ====
     // ==== leaf:mapDetailTop (spliced by build) ====
     // ==== leaf:mapDetail (spliced by build) ====
+    // ==== leaf:detailActionBar (spliced by build) ====
+    // ==== leaf:mapDetailSpecBody (spliced by build) ====
 
     // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:issueDetailFold (spliced by build) ==== // ==== leaf:useIssueDetailFold (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
 

@@ -60,6 +60,9 @@
       '.dsws-chip-g{background:rgba(63,185,80,.16);color:#3fb950}',
       '.dsws-chip-t{background:rgba(240,136,62,.16);color:#f0883e}',
       '.dsws-chip-m{background:rgba(188,140,255,.16);color:#bc8cff}',
+      // #1286：规格（实施地图）角标。身份色是贵族蓝 #1D4ED8，但它在深色面板上只有 2.6:1 的对比度，
+      // 小字直接用它看不清，所以角标字用同色系浅蓝 #93c5fd，贵族蓝留给左侧色条与编号徽章。
+      '.dsws-chip-s{background:rgba(29,78,216,.22);color:#93c5fd}',
       // #626：普通票（没有 wayfinder 类型标签的票）用中性灰，与「已关闭」那类灰同一支
       '.dsws-chip-i{background:rgba(139,139,149,.14);color:#a1a1aa}',
       '.dsws-trow{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid transparent}',
@@ -255,7 +258,10 @@
       '.dsws-gate{height:26px;display:flex;align-items:center;justify-content:center;position:relative}',
       '.dsws-gate::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:2px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.15),transparent)}',
       '.dsws-gate .g{width:22px;height:22px;border-radius:50%;background:var(--dsw-alias-bg-layer-2,#16181d);border:2px solid;display:flex;align-items:center;justify-content:center;z-index:1;color:var(--dsw-alias-label-secondary,#a1a1aa)}',
-      '.dsws-gate .g.lock{border-color:rgba(240,136,62,.55);color:#f0883e}',
+      // #1286：被阻塞统一红 #f87171（层闸门的锁是「这一层被挡住」的意思，算被阻塞）。
+      // 注意这个红在本仓原本专指错误与失败，现在两种语义共用一个色；
+      // 认领蓝 #58a6ff 与已关闭绿 #3fb950 不变，别把 #f0883e 那支类型色（.dsws-chip-t）一起改掉。
+      '.dsws-gate .g.lock{border-color:rgba(248,113,113,.55);color:#f87171}',
       '.dsws-gate .g.open{border-color:rgba(74,222,128,.75);color:#4ade80;box-shadow:0 0 8px rgba(74,222,128,.3)}',
       '.dsws-dest{position:relative;margin-top:14px;border-radius:14px;padding:14px 12px 12px;text-align:center;background:linear-gradient(180deg,rgba(192,132,252,.1),rgba(88,166,255,.03) 70%,transparent);border:1.5px solid rgba(192,132,252,.35)}',
       '.dsws-dest .ring{width:72px;height:72px;margin:0 auto;position:relative}',

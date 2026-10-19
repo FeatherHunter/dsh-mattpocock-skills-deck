@@ -15,6 +15,8 @@ declare function Ic(...args: any[]): any;
 declare function applyStandaloneBlocks(...args: any[]): any;
 declare function chainSteps(...args: any[]): any;
 declare function chipProps(...args: any[]): any;
+// #1286：容器角标上的标记类名（内核 container-view.ts 给出）：列表页按它认出「这一行是容器」
+declare const CONTAINER_CHIP_MARKER_CLASS: any;
 declare function closedPagesNode(...args: any[]): any;
 declare function compute(...args: any[]): any;
 declare function darken(...args: any[]): any;
@@ -68,13 +70,16 @@ export     const fitMapRows = function () {
         const idcol = rowEl.querySelector('.dsws-idcol')
         const title = rowEl.querySelector('.dsws-tt-wrap')
         if (!idcol || !title) continue
-        items.push({ idcol: idcol, title: title, isMap: !!idcol.querySelector('.dsws-chip-m'), avail: rowEl.clientWidth })
+        // #1286：容器行（探索地图 / 规格）都要横排 —— 按角标上的容器标记类认，不按颜色认。
+        //   标记类名取自内核 container-view.ts；门禁单独求值本文件时那份常量不在，退回同名兜底。
+        const containerMarker = (typeof CONTAINER_CHIP_MARKER_CLASS === 'string' && CONTAINER_CHIP_MARKER_CLASS) ? CONTAINER_CHIP_MARKER_CLASS : 'dsws-chip-container'
+        items.push({ idcol: idcol, title: title, isContainer: !!idcol.querySelector('.' + containerMarker), avail: rowEl.clientWidth })
       }
       // 第二趟（只写）：非地图行与极窄行去掉横排；宽行直接横排；中间行先横排并切进测量态。
       const measure: any[] = []
       for (let i = 0; i < items.length; i++) {
         const it = items[i]
-        if (!it.isMap || it.avail < MAP_ROW_GUARD_NARROW) { it.idcol.classList.remove('h'); continue }
+        if (!it.isContainer || it.avail < MAP_ROW_GUARD_NARROW) { it.idcol.classList.remove('h'); continue }
         it.idcol.classList.add('h')
         if (it.avail < MAP_ROW_GUARD_WIDE) { it.title.classList.add('dsws-measure'); measure.push(it) }
       }
@@ -186,14 +191,29 @@ export     const ListTab = ({ st, narrow }: any) => {
       //   各判一次 isMapIssue）。现在只扫一趟、每张票只判一次状态、只判一次是不是地图。
       //   三个数组的元素顺序与原来完全一致（都按 issues 原序收），后面的排序口径与用法都不变。
       const mapOnlyIssues: any[] = []
+      // #1286：规格容器单独一桶（type==='spec'）。列表顺序是「探索地图 → 规格 → 普通票」，
+      //   两类容器各自成组；组内按最近更新降序（容器是正在推进的东西，组内不看面板选的那个排序档）。
+      const specOnlyIssues: any[] = []
       const plainOpenIssues: any[] = []
       const closedIssues: any[] = []
       for (const x of issues) {
         if (x.state === 'CLOSED') { closedIssues.push(x); continue }
+        if (x.type === 'spec') { specOnlyIssues.push(x); continue }
         if (x.type === 'map' || ((x.labels || []).some(function (l: any) { return l.name === 'wayfinder:map' }))) mapOnlyIssues.push(x)
         else plainOpenIssues.push(x)
       }
-      const sortedMaps = sortIssues(mapOnlyIssues)
+      // #1286：容器组内按最近更新降序。updatedAt 是宿主给的 ISO 时间串，字典序即时间序；
+      //   同一时刻用编号升序兜底，保证顺序稳定。
+      const sortContainers = function (arr: any[]) {
+        return arr.slice().sort(function (a: any, b: any) {
+          const av = String((a && a.updatedAt) || '')
+          const bv = String((b && b.updatedAt) || '')
+          if (av !== bv) return av < bv ? 1 : -1
+          return (a.number - b.number)
+        })
+      }
+      const sortedMaps = sortContainers(mapOnlyIssues)
+      const sortedSpecs = sortContainers(specOnlyIssues)
       const sortedOpen = sortIssues(plainOpenIssues)
       const closedSorted = sortIssues(closedIssues)
       const groups = compute(st)
@@ -241,7 +261,8 @@ export     const ListTab = ({ st, narrow }: any) => {
         if (!labs.length) return ls.indexOf('needs-triage') >= 0
         return labs.some(function (l: any) { return ls.indexOf(l.name) >= 0 })
       }
-      const openRows = sortedMaps.concat(sortedOpen).filter(effPass)
+      // #1286：三段顺序 —— 探索地图 → 规格 → 普通票（容器组在前，普通票仍按面板排序档）
+      const openRows = sortedMaps.concat(sortedSpecs).concat(sortedOpen).filter(effPass)
       const closedRows = closedSorted.filter(effPass)
       const openFiltered = (st.lblFilters && st.lblFilters.length) ? openRows.filter(byLabel) : openRows
       // v1.3.3 #6：阻塞 = 被占用口径（isOccupied：有 assignee 或存在 open 阻塞者）——与 KPI「占用 N」一致，
@@ -313,7 +334,7 @@ export     const ListTab = ({ st, narrow }: any) => {
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
           kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
-          kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
+          kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f87171'),
           kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
           // #689 的 partial 状态不再单独占一格（橙色胶囊太抢眼，又长得像按钮但点不动）——
           //   改为数字右上角一颗 5px 圆点 + 悬浮说明追加一句（圆点是状态不是控件；竖条试过，太生硬）。

@@ -148,10 +148,11 @@ export const IssueDetail = function (props: any): any {
         if (subLabelsOf(x).length > 0) return true
         return typeof x.type === 'string' && x.type !== ''
       }
+      // #1286：规格（实施地图）也是容器，点进去要走到同一套详情页骨架
       const subHasMapTag = function (x: any) {
         const ls = subLabelsOf(x)
         for (let i = 0; i < ls.length; i++) { const n = (typeof ls[i] === 'string') ? ls[i] : ls[i].name; if (n === 'wayfinder:map') return true }
-        return x && x.type === 'map'
+        return x && (x.type === 'map' || x.type === 'spec')
       }
       const enterSubDetail = function (x: any) {
         if (!x || x.number == null) return
@@ -409,8 +410,10 @@ export const IssueDetail = function (props: any): any {
             // T4 整改 #554：阻塞票同样按 enterSubDetail 分流（无标签时按快照找图）。
             return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + b.number + ' ' + (b.title || ''), onClick: function () { enterSubDetail(b) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
-                Ic({ n: 'lock', size: 10, color: '#f0883e' }),
-                h('span', { className: 'dsws-idnum', style: { color: '#f0883e', borderColor: '#f0883e', fontSize: 11 } }, '#' + b.number),
+                // #1286：被阻塞统一红 #f87171（与地图详情页、列表行同一个红；这个红在本仓原本专指
+                //   错误与失败，这里被重载为「被阻塞」——读代码时别当成同一个语义）
+                Ic({ n: 'lock', size: 10, color: '#f87171' }),
+                h('span', { className: 'dsws-idnum', style: { color: '#f87171', borderColor: '#f87171', fontSize: 11 } }, '#' + b.number),
                 h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, b.title || ('#' + b.number))]) }, h('span', { style: { flex: 1, fontSize: 12 } }, b.title || ('#' + b.number))),
               ])
             ])

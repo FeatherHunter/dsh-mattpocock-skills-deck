@@ -30,10 +30,11 @@ export     const TypeChip = ({ type }: any) => {
       // 标 any：下面这个字面量是按「类型名 → 样式类」查表，键从入参来（any），不标就是「用 any 索引
       // 对象字面量」的隐式 any 报错；标注只落在这个字面量上（`as any` 只给类型检查看，转译时整段
       // 抹掉，产物与原文一字不差），表里的键、值、先后顺序一个字没动。
-      const cls = ({ research: 'dsws-chip-r', prototype: 'dsws-chip-p', grilling: 'dsws-chip-g', task: 'dsws-chip-t', map: 'dsws-chip-m', issue: 'dsws-chip-i' } as any)[type] || ''
+      const cls = ({ research: 'dsws-chip-r', prototype: 'dsws-chip-p', grilling: 'dsws-chip-g', task: 'dsws-chip-t', map: 'dsws-chip-m', spec: 'dsws-chip-s', issue: 'dsws-chip-i' } as any)[type] || ''
       // 有图标才画图标：普通票（issue）没有自己的图标，只出文字 —— 前面挂一个灰点像多出来的
       // 项目符号，去掉之后文字左右留白对称（#626）
-      const icon = TYPE_ICON[type]
+      // #1286：规格（实施地图）还没有自己的图标名，先借地图那只；TYPE_ICON 里以后补了 spec 就用它自己的。
+      const icon = TYPE_ICON[type] || (type === 'spec' ? 'map' : undefined)
       return h('span', { className: 'dsws-chip ' + cls }, [
         icon ? Ic({ n: icon, size: 11 }) : null,
         h('span', null, tr('type.' + type)),

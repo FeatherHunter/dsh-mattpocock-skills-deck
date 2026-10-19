@@ -20,7 +20,8 @@ declare const Tip: any;
     // ---- 5.3 票务行（地图详情内：标题/阻塞来源 ellipsis；v19：按标签给 诊断/修复/讨论/执行 动作，预填输入框）----
 export     const ticketAuthorColor = function(l: any){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%360;h=(h*137.508)%360;let s=0.72,ll=0.5,c=(1-Math.abs(2*ll-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=ll-c/2,r=0,g=0,b=0;if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}r=Math.round((r+m)*255);g=Math.round((g+m)*255);b=Math.round((b+m)*255);return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
 export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }: any) => {
-      const wayfinderTypeOf = function(x: any){ const ls=(x.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=x.type||''; if(['research','prototype','grilling','task','map'].indexOf(tt)>=0) return tt; return 'issue'; };
+      // #1286：规格（实施地图）是第七种容器类型，票的类型角标要认它
+      const wayfinderTypeOf = function(x: any){ const ls=(x.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=x.type||''; if(['research','prototype','grilling','task','map','spec'].indexOf(tt)>=0) return tt; return 'issue'; };
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       const openBlocker = function (b: any) { const bt = g.m.tickets.find(function (x: any) { return x.number === b }); return bt && bt.state === 'OPEN' }
@@ -43,7 +44,9 @@ export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }: any) => 
           h('div', { className: 'dsws-tt-sub', style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
             t.claimedBy ? subItem('person', '#58a6ff', tr('map.subClaimed', { who: t.claimedBy })) : null,
             // #370：被阻塞 chip 只显示仍 OPEN 的阻塞者（与 compute/主列表/按钮抑制口径一致）
-            blocked ? subItem('lock', '#f0883e', tr('map.subBlocked', { who: blockerNames(t, g.m) })) : null,
+            // #1286：被阻塞统一红 #f87171（详情页与列表页同色；这个红在本仓原本是「出错」的意思，
+            //   这里被重载为「被阻塞」—— 同一支色板，别处不要再换回去）
+            blocked ? subItem('lock', '#f87171', tr('map.subBlocked', { who: blockerNames(t, g.m) })) : null,
             t.state === 'CLOSED' ? subItem('check', '#3fb950', tr('map.subClosed')) : null,
             tStatusBadge(t),
           ]),

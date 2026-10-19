@@ -79,6 +79,8 @@ const capsuleTitlesOf = function (st: any) {
     const eff = (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId)
     const id = eff + '\0' + n
     const rs = (x.state === null || x.state === undefined) ? '' : String(x.state).toUpperCase()
+    // #1286：状态栏这张胶囊里的「地图」只认探索地图（type==='map'）。规格（type==='spec'）刻意不算地图：
+    //   状态栏不另立「规格」计数，也不新造一个元素，规格就按普通票出现（点开走票详情那条路）。
     const row = { ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title), effortId: eff, ticketState: rs === 'CLOSED' ? 'CLOSED' : (rs === 'OPEN' ? 'OPEN' : ''), isMap: x.type === 'map' }
     if (!byId[id]) byId[id] = row
     if (!byNumber[n]) byNumber[n] = row

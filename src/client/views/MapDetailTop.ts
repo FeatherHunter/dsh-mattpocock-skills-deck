@@ -31,21 +31,40 @@ declare function startText(...args: any[]): any;
 declare function useIssueDetailFold(...args: any[]): any;
 declare const Tip: any;
 declare const issueUrlFor: any;
+declare function isLightHex(...args: any[]): any;
+// #1286：容器三态与角标的真源在 kernel/container-view.ts（列表页同一份）
+declare function containerStateOf(...args: any[]): any;
+declare function containerTriState(...args: any[]): any;
+declare function containerPromptText(...args: any[]): any;
+declare const CONTAINER_CHIP_CLASS: any;
+declare const CONTAINER_CHIP_LABEL_KEY: any;
 
-export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack }: any) => {
+export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: triProp }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const mEffort = (function () { try { return effortOf(m) } catch (e) { return '' } })()
   // #763 顶栏折叠机（与 IssueDetail.ts 同一台；读顶栏 DOM 上的 data-detail-* 标记逐字收字）
   const topBarRef = useIssueDetailFold(st, m.number, mEffort)
-  const isEmpty = !!(effStats && effStats.total === 0)
-  const isDone = !!(effStats && effStats.total > 0 && effStats.closed === effStats.total)
-  // 新会话与主动作同色实心：检查态橙、完成态绿、执行态走默认 primary（与主按钮一致）
-  const newBg = isEmpty ? '#f59e0b' : isDone ? '#3fb950' : null
-  const newColor = isEmpty ? '#140a1e' : isDone ? '#0c1a10' : null
-  // 基线样式 + 按状态补三个字段（background/color/fontWeight）：按字面量推断会报属性不存在，故标 : any。
-  const newStyle: any = { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', borderColor: 'transparent' }
-  if (newBg) { newStyle.background = newBg; newStyle.color = newColor; newStyle.fontWeight = 600 }
+  // #1286：这顶栏服务两类容器（探索地图 / 规格）。三态配置（底色/文字/图标）由调用方按同一份
+  //   container-view.ts 的判定算好传进来；没传（本文件被单独求值时）就地按同口径算一遍。
+  const cKind = kind || 'map'
+  const cState = (typeof containerStateOf === 'function')
+    ? containerStateOf({ stats: effStats })
+    : (effStats && effStats.total === 0 ? 'empty' : (effStats && effStats.total > 0 && effStats.closed === effStats.total ? 'done' : 'open'))
+  const tri = triProp || (typeof containerTriState === 'function'
+    ? containerTriState(cKind, cState)
+    : (cState === 'empty' ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
+      : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
+        : { labelKey: 'act.execute', color: '#c084fc', icon: 'play', titleKey: 'map.executeTitle' })))
+  // 字色：完成态沿用今天的深绿字（#0c1a10），其余按底色深浅在深墨与白字之间择优。
+  const triTextColor = cState === 'done' ? '#0c1a10' : ((typeof isLightHex === 'function' && isLightHex(tri.color)) ? '#140a1e' : '#ffffff')
+  // 新会话与主按钮永远同色实心：两处取同一份 tri.color，不再靠 CSS 默认值碰巧相同。
+  const newStyle: any = { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', borderColor: 'transparent', background: tri.color, color: triTextColor, fontWeight: 600 }
+  // 顶栏角标说明这一页是哪种容器：探索地图「地图」，规格「规格」。词表键与样式类取
+  //   container-view.ts 那一份（列表页角标用的是同一份），别处不再各写一份。
+  const chipClass = (typeof CONTAINER_CHIP_CLASS === 'object' && CONTAINER_CHIP_CLASS && CONTAINER_CHIP_CLASS[cKind]) ? CONTAINER_CHIP_CLASS[cKind] : (cKind === 'spec' ? 'dsws-chip-s' : 'dsws-chip-m')
+  const chipLabelKey = (typeof CONTAINER_CHIP_LABEL_KEY === 'object' && CONTAINER_CHIP_LABEL_KEY && CONTAINER_CHIP_LABEL_KEY[cKind]) ? CONTAINER_CHIP_LABEL_KEY[cKind] : (cKind === 'spec' ? 'list.specChip' : 'list.mapChip')
+  const chipText = tr(chipLabelKey)
   const copyUrl = function (e: any) {
     if (e && e.stopPropagation) e.stopPropagation()
     try { copyText(st, issueUrlFor(st, m.number, mEffort), tr('toast.copiedLink', { n: m.number })) } catch (err) {}
@@ -59,29 +78,35 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack }: any) => {
     if (/^https?:\/\//i.test(String(u))) { try { window.open(u, '_blank', 'noreferrer') } catch (err3) {} }
     else { try { if (typeof host !== 'undefined' && host.call) host.call('wf.openPath', { path: u }) } catch (err4) {} }
   }
-  const primaryBtn = (effStats && effStats.total === 0)
-    ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-        let t2 = ''
-        try { t2 = inspectPrompt(st, m.number, m.title) } catch (e) { try { t2 = promptTextFor(st, 'mapInspect', { n: String(m.number || ''), ['title']: String(m.title || ''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch (_) { t2 = startText(st, m) } }
-        inject(st, t2)
-      }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
-        Ic({ n: 'search', size: 10 }),
-        h('span', { 'data-detail-primary-text': 1, 'data-full': tr('act.inspect'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('act.inspect')),
-      ]))
-    : (effStats && effStats.total > 0 && effStats.closed === effStats.total)
-    ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-        const text = completePrompt(st, m.number, m.title, effStats.total, effStats.closed)
-        inject(st, text)
-      }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
-        Ic({ n: 'check', size: 10 }),
-        h('span', { 'data-detail-primary-text': 1, 'data-full': tr('act.done'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('act.done')),
-      ]))
-    : h(Tip, { content: tr('map.executeTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-        inject(st, startText(st, m))
-      }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
-        Ic({ n: 'play', size: 10 }),
-        h('span', { 'data-detail-primary-text': 1, 'data-full': tr('act.execute'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('act.execute')),
-      ]))
+  // 主动作：探索地图是 检查 / 执行 / 完成，规格是 拆票 / 执行 / 完成。文字、底色、图标与
+  //   点下去注入的提示词都取同一份三态配置（container-view.ts），所以按钮上写什么与点下去注入什么
+  //   永远对得上。
+  const promptText = function (): string {
+    if (typeof containerPromptText === 'function') {
+      try {
+        // 统计用 effStats（按需取回的那一份），让收尾提示词里的数字与头部计数行一致。
+        return containerPromptText(st, Object.assign({}, m, { stats: effStats || m.stats }), cKind, cState, openUrl)
+      } catch (e) { /* 落回老口径 */ }
+    }
+    if (cState === 'empty') {
+      let t2 = ''
+      try { t2 = inspectPrompt(st, m.number, m.title) } catch (e) {
+        try {
+          t2 = promptTextFor(st, 'mapInspect', { n: String(m.number || ''), ['title']: String(m.title || ''), url: openUrl })
+          if (t2) t2 = '/wayfinder ' + openUrl + '\n\n' + t2
+        } catch (_) { t2 = startText(st, m) }
+      }
+      return t2
+    }
+    if (cState === 'done') return completePrompt(st, m.number, m.title, (effStats ? effStats.total : 0), (effStats ? effStats.closed : 0))
+    return startText(st, m)
+  }
+  const primaryBtn = h(Tip, { content: tr(tri.titleKey) }, h('button', { className: 'dsws-btn primary', onClick: function () {
+    inject(st, promptText())
+  }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: tri.color, borderColor: 'transparent', color: triTextColor, fontWeight: 600, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
+    Ic({ n: tri.icon, size: 10 }),
+    h('span', { 'data-detail-primary-text': 1, 'data-full': tr(tri.labelKey), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr(tri.labelKey)),
+  ]))
   return h('div', { ref: topBarRef, className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
     // 返回按钮的悬停提示走 Tip（T2/T3 纪律），不再用原生 title
     h(Tip, { content: tr('list.back') }, h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
@@ -89,9 +114,9 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack }: any) => {
       h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back')),
     ])),
     h(Tip, { content: navCrumb }, h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', flex: 'none', minWidth: 0, overflow: 'hidden' } }, navCrumb)),
-    h(Tip, { content: 'wayfinder:map' }, h('span', { className: 'dsws-chip dsws-chip-m', style: { flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
+    h(Tip, { content: chipText }, h('span', { className: 'dsws-chip ' + chipClass, style: { flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
       Ic({ n: 'map', size: 11 }),
-      h('span', { 'data-detail-snapshot': 1, 'data-full': 'wayfinder:map', style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, 'wayfinder:map'),
+      h('span', { 'data-detail-snapshot': 1, 'data-full': chipText, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, chipText),
     ])),
     h('span', { style: { flex: 1, minWidth: 8 } }),
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' } }, [
