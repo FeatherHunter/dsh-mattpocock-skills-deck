@@ -30,10 +30,12 @@ export type BackendId = string
 export type State = 'open' | 'closed'
 
 /**
- * 票的类型（wayfinder 语义）。
- * @typedef {'issue'|'map'} IssueType
+ * 票的类型（wayfinder 语义）：普通票、探索地图、规格（实施地图，容器）。
+ * 与 tracker/contract/identity.ts 的 `IssueType`、contract/vocabulary.ts 的 `ISSUE_TYPE`
+ * 是同一份取值的三种写法，改一处必须三处全改（#1286 加 spec 时就是按这条同步的）。
+ * @typedef {'issue'|'map'|'spec'} IssueType
  */
-export type IssueType = 'issue' | 'map'
+export type IssueType = 'issue' | 'map' | 'spec'
 
 /**
  * 关闭原因（开放 string；插件自己认得并收进 constants.js 的 CLOSED_REASON 表里的保留值只有

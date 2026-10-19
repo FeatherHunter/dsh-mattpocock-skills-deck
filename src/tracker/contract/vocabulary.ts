@@ -48,10 +48,12 @@ export const ISSUE_TYPE = Object.freeze({
  * 这段隐藏标记来认。写法：`<!-- DSH-ISSUE-KIND: spec -->`，前后各留空行更好。
  *
  * 认法（各房归一层的 `deriveType` 照这条做）：正文首行去掉首尾空白后整行精确等于这一串
- * 才算规格；正文别处提到这一串不算数；首行不是它就按普通票处理。
+ * 才算规格；正文别处提到这一串不算数；首行不是它就按普通票处理。判定顺序上标记排在标签
+ * 前面（GLOSSARY.md「对象类型（objectKind）」词条：标记 → 标签 → 形状，标记是唯一真源）。
  *
- * 这里只放这一串常量（契约目录只放类型与常量、不放行为）；认它的判断住在各房归一层
- * （GitHub 房与 GitLab 房各一份，两个房间本来就不许互引）。
+ * 这一版只有 GitHub 房实现（`src/tracker/rooms/github/normalize.ts` 的 `isSpecBody`）；
+ * GitLab 房没做，归另一张票（#326 一次会话只动一个房间）——别以为那边已经同步。这里只放
+ * 这一串常量（契约目录只放类型与常量、不放行为；两个房间本来就不许互引）。
  */
 export const SPEC_BODY_MARKER = '<!-- DSH-ISSUE-KIND: spec -->'
 

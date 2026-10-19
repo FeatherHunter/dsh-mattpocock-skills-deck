@@ -365,6 +365,12 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       values: ['unknown'],
       why: '命名预设守卫的返回值，表示「没认出是哪一种预设」，不是 TrackerError 的档位',
     },
+    {
+      // #1286：容器三态（empty/open/done）是界面自己的状态词，与判档词表撞了 empty 这一个词。
+      file: 'src/client/kernel/container-view.ts',
+      values: ['empty'],
+      why: '这里的 empty 说的是容器「一张子票都没有」的三态之一，不是 TrackerError 的档位；与老宿主档位词同形纯属巧合，只放行这一个词',
+    },
   ]
 
 

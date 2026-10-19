@@ -91,7 +91,8 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   // 容器有两种：探索地图（type='map'）与规格/实施地图（type='spec'）。
   // 两类容器共用这一份数组（快照里仍叫 maps），客户端靠 type 字段分辨种类，不另开一个数组。
   // 规格靠正文首行独占一行的隐藏标记识别（标记串见 contract/vocabulary.ts 的 SPEC_BODY_MARKER），
-  // 识别在房间的归一层做（rooms/github/normalize.ts 的 deriveType，rooms/gitlab/normalize.ts 镜像一份）。
+  // 识别在房间的归一层做（rooms/github/normalize.ts 的 deriveType）。GitLab 房这一版没做规格识别，
+  // 归另一张票（#326 一次会话只动一个房间）：两边不是镜像关系，别照着这边给那边「补同一份」。
   const maps = all
     .filter((i) => i && (i.type === 'map' || i.type === 'spec'))
     .map((m) => {

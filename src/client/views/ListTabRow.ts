@@ -159,7 +159,8 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
       //   探索地图照旧：没有子票=检查（橙）、子票全关=完成（绿）、其余走行级动作那一族（执行紫，与行级动作色一致）。
       //   规格按三态：拆票（橙）/ 执行（蓝）/ 完成（绿）——文案、颜色、提示语取自内核 container-view.ts 的三态表。
       const containerTri = (isContainer && typeof containerTriState === 'function') ? containerTriState(kind, cState) : null
-      // 规格的注入文本：拆票=容器链接直给，执行=执行模板（不带 /wayfinder 前缀），完成=复用完成模板。
+      // 规格的注入文本：拆票=给 /to-tickets 链接，执行=给 /implement-spec 链接，完成=复用完成模板。
+      //   执行态为什么不用通用「执行这张票」模板：那个模板正文首行是 /wayfinder，用在规格上不对（§3.4）。
       //   真源是 container-view.ts 的 containerPromptText；门禁单独求值本文件时那份函数不在，按同口径退化。
       const specPromptText = function () {
         const url = (typeof issueUrlFor === 'function') ? (issueUrlFor(st, x.number, effortOf(x)) || '') : ''
@@ -171,7 +172,7 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
           return (typeof completePrompt === 'function') ? completePrompt(st, x.number, x.title, s.total, s.closed) : ''
         }
         if (cState === 'empty') return '/to-tickets ' + url
-        return (typeof renderTemplate === 'function') ? renderTemplate('execute', { number: String(x.number), url: url, title: String(x.title || '') }, st) : ''
+        return '/implement-spec ' + url
       }
       const primaryBtn = (function () {
         // 规格：拆票 / 执行 / 完成 三态
