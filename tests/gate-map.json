@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T19:21:36.744Z",
+  "generatedAt": "2026-10-19T19:58:45.151Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 294,
   "gateCount": 294,
@@ -6786,6 +6786,7 @@
         "src/client/kernel/locale-pages.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-skilldesc.ts",
+        "src/client/kernel/locale-spec.ts",
         "src/client/kernel/locale-vcwrite.ts",
         "src/client/kernel/locale-word.ts",
         "src/client/kernel/locale.ts",
@@ -6807,7 +6808,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-readme-sync.ts",
