@@ -38,7 +38,7 @@
 // 待办只记票键字符串，路径与命令原文一个都不进；保证待办的去重与上限在 rememberPending 一处。
 // ---------------------------------------------------------------------------
 
-import * as delta from '../../shared/refresh/delta.js'
+import * as delta from '../../shared/refresh/src/delta.js'
 import { fetchThinRows } from './fetchThinRows.js'
 
 /** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */

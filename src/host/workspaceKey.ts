@@ -27,7 +27,7 @@
  *   （目录不存在、文件服务不可用）一律回退所选目录，并且不写进缓存。
  *
  * 为什么这样标注：
- * 1. 相对导入说明符保留 `.js` 后缀（`../shared/time-config/values.js` 不改成 `.ts`），
+ * 1. 相对导入说明符保留 `.js` 后缀（`../shared/time-config/src/values.js` 不改成 `.ts`），
  *    改了会绕过钩子的同名解析约定，所以不能动。
  * 2. 文件服务与平台路径的形状由宿主框架决定，本文件只读 `resolve`、`stat`、`lstat`、
  *    `listDir`、`exists` 与 `isAbsolute` 等少数成员，所以全部按 `any` 收，
@@ -72,7 +72,7 @@ const WORKSPACE_ANCHOR_REL: string = 'docs/agents/issue-tracker.md'
 // 值住中央 YAML（config/ttl.yaml 的 workspaceRootTtlMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 中央常量与本文件的常量同名，直接 import 原名。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { WORKSPACE_ROOT_TTL_MS } from '../shared/time-config/values.js'
+import { WORKSPACE_ROOT_TTL_MS } from '../shared/time-config/src/values.js'
 const workspaceRootCache = new Map<string, any>()   // 所选目录规整键 → { root, source, at }
 let rootLogSampleN: number = 0
 

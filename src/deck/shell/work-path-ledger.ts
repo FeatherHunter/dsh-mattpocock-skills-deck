@@ -22,7 +22,7 @@
 // #1086 补一支释放（applyRelease）：只从本会话那一页删掉一条工作条目，别的会话一概不碰；
 // 删空了就摘掉整页，免得盘上留下一页没条目的空会话。
 
-import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES, utf8Bytes, newestPrefixThatFits } from '../../shared/refresh/chain-prune.js';
+import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES, utf8Bytes, newestPrefixThatFits } from '../../shared/refresh/src/chain-prune.js';
 
 /** 读出口只读的账页形状（深拷贝，调用方随便改都不会污染内存真源）。 */
 export interface WorkPathLedger {

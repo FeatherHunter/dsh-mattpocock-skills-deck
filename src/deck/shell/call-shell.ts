@@ -43,7 +43,7 @@ import type {
 import { withInFlightLease } from './in-flight-lease.js'
 import { recordWorkRoute } from './work-path-record.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 /** 这批工具的身份（写日志时进 host.call 的 kind 字段；不是新事件，沿用它原有的字段清单）。 */
 export const DECK_TOOL_KIND = 'deck-tool'

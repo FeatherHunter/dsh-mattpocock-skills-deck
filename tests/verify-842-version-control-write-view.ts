@@ -52,7 +52,9 @@ const NOW = Date.parse('2026-10-04T03:00:00+08:00')
 
 // ---------- 界面侧闭包：照 scripts/build.mts 的做法把叶子拼起来再跑 ----------
 const VC_FILES = [
-  'src/shared/version-control/rules.js', // 判定真源（界面按它画按钮状态）
+  // 2026-10-19 第三阶段起共享层产物搬出源码树（域产物落在 .build/shared/ 下），
+  // 拼闭包要「按原文改坏」，所以读 src/ 下的真源 rules.ts，不读转译产物。
+  'src/shared/version-control/src/rules.ts', // 判定真源（界面按它画按钮状态）
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',

@@ -15,7 +15,7 @@ import type { Timestamp } from './time.js'
 // 幂等窗口住中央 YAML（config/ttl.yaml 的 anchorWindowMs 键）：这里只留别名。
 // 纯规则侧引共享域的纯数据常量不碰世界（禁的是宿主能力，见 .dependency-cruiser.cjs），
 // 调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
-import { ANCHOR_WINDOW_MS as CENTRAL_ANCHOR_WINDOW_MS } from '../../shared/time-config/values.js'
+import { ANCHOR_WINDOW_MS as CENTRAL_ANCHOR_WINDOW_MS } from '../../shared/time-config/src/values.js'
 
 /**
  * 幂等窗口的长度，单位毫秒（5 分钟）。

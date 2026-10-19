@@ -8,18 +8,22 @@
  * 转译产物与旧文件逐字节一致，且 throw null/undefined 时仍走原分支（#1252 对抗结论，见票面）。
  */
 /**
- * 域构建：把 src/shared/<功能名>/ 里的 TypeScript 源码逐份转译成同目录同名的 .js。
+ * 域构建：把 src/shared/<功能名>/ 里的 TypeScript 源码逐份转译成 .js。
  *
- * 一个域长这样，四样东西都在同一个目录里，目的就是「看一个目录就知道这块功能的全貌」：
+ * 一个域在源码树里长这样，四样东西都在同一个目录里，目的就是「看一个目录就知道这块功能的全貌」：
  *
  *   src/shared/<功能名>/
  *     README.md        这个域是干什么的、内部怎么切、谁不许 import 谁
  *     tsconfig.json    这个域的类型检查配置
  *     src/*.ts         手写源码（唯一真源）
- *     *.js             构建产出（同名同目录并排，看目录就知道哪份有产物）
+ *
+ * 产物的落点（2026-10-19 第三阶段起）不再写回源码树，而是仓库根的 .build/shared/<功能名>/<名>.js：
+ * 源码树里只留手写 TypeScript，构建出来的 .js 一律进 .build/（整个目录 gitignore 忽略）。
+ * 落点换过一次，为什么换见下面 buildSharedProductPath 的说明；形状仍然是
+ * 「源码在 <域>/src/x.ts、产物在 <域>/x.js」这一条，由 deriveOutputPath 那一份纯函数决定。
  *
  * 谁能写这些 .js：**只有构建**。这一条是本文件所有判断的前提——只要没有第二个写者，
- * 产物就不可能落后于源码；反过来，万一有人手工在域目录里留下一份追溯不到源码的 .js，
+ * 产物就不可能落后于源码；反过来，万一有人在 .build 里留下一份追溯不到源码的 .js，
  * checkDomainConsistency 会把它当陈旧产物报出来（判据本身在 scripts/lib/transpile-unit.mts）。
  *
  * 这个文件负责读盘写盘，算路径与判据的纯函数都在 scripts/lib/transpile-unit.mts 里。
@@ -59,6 +63,27 @@ export function findDomains(): string[] {
 }
 
 /**
+ * 共享层产物的统一落点：仓库根的 `.build/shared/`。
+ *
+ * 为什么产物不留在源码树里（2026-10-19 第三阶段）：这个仓库正在从「手写 .js」迁到「纯 TypeScript
+ * 源码树」，源码目录里只该住手写源码。构建产出的 .js 与真源同名并排时，人和工具都会把它们当成
+ * 一份可以读、可以改的源码（git 虽然忽略，但目录列表、搜索、行数门禁都看得见），而它们其实随时
+ * 会被下一次构建覆盖。所以域产物与散文件产物统一挪出源码树，落到仓库根一个被忽略的 .build/ 下，
+ * 源码树与产物树从此一眼分得开。
+ *
+ * 映射只做一次前缀换算：「src/shared/<相对路径>」→「.build/shared/<相对路径>」，不重新推导目录形状。
+ * 形状（源码 src/x.ts → 产物 <域>/x.js）仍然只有 deriveOutputPath() 一份实现，改也只改那一处。
+ *
+ * @param {string} productRel 仓库相对的产物路径（`src/shared/refresh/budget.js`）或相对 src/shared 的路径
+ * @returns {string} 仓库相对的产物落点（`.build/shared/refresh/budget.js`）
+ */
+export function buildSharedProductPath(productRel: string): string {
+  const rel: string = String(productRel).replace(/\\/g, '/')
+  const tail: string = rel.startsWith('src/shared/') ? rel.slice('src/shared/'.length) : rel
+  return '.build/shared/' + tail
+}
+
+/**
  * 一个域的四个位置：源码目录、产物目录（同一个）、类型配置、日志里用的名字。
  *
  * 域名只在一个地方换算成路径：transpile-unit.mts 的 domainDir()。这里调用它，
@@ -90,10 +115,15 @@ export function listSources(absSources: string): string[] {
 }
 
 /**
- * 列出域目录里的产物文件名。域目录里除了产物还住着手写源码、README 与 tsconfig，
+ * 列出产物目录里的产物文件名。域目录里除了产物还住着手写源码、README 与 tsconfig，
  * 所以只认「本层的 .js」。
+ *
+ * 2026-10-19 起产物目录是 .build/shared/<功能名>/，第一次构建时它可能还不存在：
+ * 不存在就当「一份产物都没有」返回空数组，由调用方的双向判据报「源码有、产物缺」，
+ * 而不是在这里抛一句读目录失败。
  */
 function listOutputs(absDir: string): string[] {
+  if (!existsSync(absDir)) return []
   return readdirSync(absDir, { withFileTypes: true })
     .filter((e: any) => e.isFile() && e.name.endsWith('.js'))
     .map((e: any) => e.name)
@@ -299,7 +329,11 @@ export function buildDomain(domain: string, { handWritten = [] }: { handWritten?
   }
 
   runTypeCheck(domain)
-  mkdirSync(p.absDir, { recursive: true })
+  // 产物落点：.build/shared/<域>/（2026-10-19 第三阶段搬出源码树，见 buildSharedProductPath 的说明）。
+  // 源码树里不建任何产物目录——这里只建 .build 那一侧。
+  const outDirRel: string = buildSharedProductPath(p.relFromRoot + '/')
+  const outDirAbs: string = resolve(REPO_ROOT, outDirRel)
+  mkdirSync(outDirAbs, { recursive: true })
 
   const written: string[] = []
   for (const tsName of sources) {
@@ -311,15 +345,15 @@ export function buildDomain(domain: string, { handWritten = [] }: { handWritten?
       throw new Error(`[${p.relFromRoot}] 转译 ${tsName} 失败：${((e as Error) && (e as Error).message || e)}`)
     }
     // 产物写到哪，由那一份纯函数推（scripts/lib/transpile-unit.mts 的 deriveOutputPath）：
-    // 源码在 <域>/src/ 下，产物落在 <域>/ 表层、与手写产物并排。这里不自己拼一遍路径，
-    // 免得两处慢慢走岔——规则只有一份实现，改也只改一处。
-    const outRel = deriveOutputPath(sourceRel)
+    // 源码在 <域>/src/ 下，产物落在 <域>/ 表层。这里不自己拼一遍路径，只把推出来的位置
+    // 换到 .build/ 那个根下，免得两处慢慢走岔——形状规则只有一份实现，改也只改一处。
+    const outRel: string = buildSharedProductPath(deriveOutputPath(sourceRel))
     writeFileSync(resolve(REPO_ROOT, outRel), text, 'utf8')
     console.log(`[${p.relFromRoot}] ${tsName} -> ${outRel}（${text.split('\n').length} 行）`)
     written.push(outRel)
   }
 
-  const problems: { problem: string; detail: string }[] = checkDomainConsistency({ sources, outputs: listOutputs(p.absDir), handWritten })
+  const problems: { problem: string; detail: string }[] = checkDomainConsistency({ sources, outputs: listOutputs(outDirAbs), handWritten })
   if (problems.length > 0) {
     throw new Error(
       `[${p.relFromRoot}] 域目录与源码对不上：\n` + problems.map((x) => '  - ' + x.detail).join('\n'),

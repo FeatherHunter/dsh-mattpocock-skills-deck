@@ -33,7 +33,7 @@ type WfArgs = any;
 //   NAMING_SWEEP_SOON_MS —— 即时推进（namingSweepSoon）没带延时参数时的缺省合并窗（住
 //     config/intervals.yaml 的 namingSweepSoonMs 键）：短窗内多次事件合成一次索引扫描，防堆积。
 // 值由 tests/verify-time-config.ts 看守一致。
-import { NAMING_FALLBACK_INTERVAL_MS as NAMING_FALLBACK_MS, NAMING_PERSIST_DEBOUNCE_MS, NAMING_SWEEP_SOON_MS } from '../shared/time-config/values.js'
+import { NAMING_FALLBACK_INTERVAL_MS as NAMING_FALLBACK_MS, NAMING_PERSIST_DEBOUNCE_MS, NAMING_SWEEP_SOON_MS } from '../shared/time-config/src/values.js'
 // 自由变量 getTitle 的存在性声明（原 .js 里它是未声明的自由引用，运行时靠 typeof 守卫：
 // 有这个名字的函数才调，没有就跳过，try 包着兜底；declare 不产生运行时代码，行为与原来逐行一致）。
 // 为什么不断言它一定存在：调用方从未传入它，它今天就是缺席的，类型必须照实写成「可能有」。

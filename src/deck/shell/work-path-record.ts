@@ -48,7 +48,7 @@
 // 这是本文件唯一一处运行时值导入：chain.ts 是共享纯逻辑（不碰 DOM、不碰 Node 内置模块），
 // 与依赖规则门禁里登记的跨层方向一致，不新增豁免。
 
-import { chainTicketKey } from '../../shared/refresh/chain.js';
+import { chainTicketKey } from '../../shared/refresh/src/chain.js';
 import type { DeckShellDeps, ShellSession, UnknownRecord } from './call-shell-types.js';
 
 /** 一张票这次要写进工作路线的标题与工作单元；认不出就给空串，调用方据此省略键。 */

@@ -7,7 +7,7 @@ import { createSnapshotEnvelope } from './snapshotEnvelope.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
-import { SNAPSHOT_TTL_MS } from '../shared/time-config/values.js'
+import { SNAPSHOT_TTL_MS } from '../shared/time-config/src/values.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都堆在文件顶部：本文件的依赖全部由接线处 index.js 那份对象注入（JS 不查编译错误），

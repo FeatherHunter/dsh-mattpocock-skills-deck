@@ -18,9 +18,9 @@
 // （删不掉只警告）；迁移事实经回执字段带出来，不新增日志事件（单写者文件本票不动）。
 // 以后谁改它：改读写顺序、迁移时机、失败说法的人。判定归 #1003 的判定服务。
 import { parse as parseYaml } from 'yaml'
-import { parseLabelColors, stringifyLabelColors, LABEL_COLORS_JSON_REL, LABEL_COLORS_YAML_REL } from '../shared/config-store/labels.js'
-import { parseSettings, stringifySettings, SETTINGS_REL_SEGMENTS } from '../shared/config-store/settings.js'
-import { parseWorkspace, stringifyWorkspace, WORKSPACE_JSON_REL, WORKSPACE_YAML_REL } from '../shared/config-store/workspace.js'
+import { parseLabelColors, stringifyLabelColors, LABEL_COLORS_JSON_REL, LABEL_COLORS_YAML_REL } from '../shared/config-store/src/labels.js'
+import { parseSettings, stringifySettings, SETTINGS_REL_SEGMENTS } from '../shared/config-store/src/settings.js'
+import { parseWorkspace, stringifyWorkspace, WORKSPACE_JSON_REL, WORKSPACE_YAML_REL } from '../shared/config-store/src/workspace.js'
 
 // ── 路径（只拼字符串，不碰文件系统） ──
 

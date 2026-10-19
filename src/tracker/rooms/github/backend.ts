@@ -32,7 +32,7 @@ import type { PartiallyProvidedCapability, ProvidedCapability } from '../../cont
 // 发布出去的包里根本不会加载这份登记 —— 「运行时不读它」这条 G5 纪律因此是机械成立的，不靠自觉。
 import type { GITHUB_CAPABILITY_REGISTER } from './capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // —— GitHub 交出来的成员：24 条能力 + id ——
 // 这份集合不再手写：它从本房的登记数据（./capability-register.ts）推出来 —— 「明确提供功能」的那些

@@ -13,7 +13,8 @@
 //
 // #1115：本文件两处 opCtx（viewer 预取与 select 三级联）的计时器口改用共享层那一份实现；
 //   原先各写一遍的全局 clearTimeout 在真句柄上是空操作，撤销不掉那笔等待（详见该文件头注释）。
-import { hostTimers } from '../shared/host-timer/host-timers.js'
+import type { HostTimerService } from '../shared/host-timer/src/host-timers.js'
+import { hostTimers } from '../shared/host-timer/src/host-timers.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
 // 界面描述的投影要求后端模块是契约里那一份（interface BackendModule）：这里引用同一个类型，
@@ -163,7 +164,7 @@ type SnapshotDeps = {
   getDetectionService?(): Promise<DetectionService>
   ctx: { get(name: string): unknown }
   /** 宿主计时器服务：原样转交给共享层的 hostTimers（那边按「可能缺席」收口）。 */
-  timer: unknown
+  timer: HostTimerService
 }
 
 /**

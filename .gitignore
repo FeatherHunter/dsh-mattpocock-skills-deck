@@ -42,37 +42,25 @@ _research/
 /scripts/generated/updateEntryPanel.bundle.js
 
 # ===== 逐文件转译出来的 .js 也不入库（#1023 第三刀）=====
-# 三类生成物都在这儿：src/shared/<功能名>/ 下由 scripts/lib/transpile-domains.mjs 从 .ts 转译出来的，
-# src/client/{views,kernel}/ 下由 scripts/build.mjs 的 pixel-ts 那一段转译出来的，
-# 与 src/tracker/contract/vocabulary.js（#1018：拼闭包用的词汇表产物，真源是同名 .ts）。
-# 为什么入库改成不入库：真源是同名 .ts，构建是唯一的写者；入库会让「改了源码忘了重建」变成
+# 为什么入库改成不入库：真源是 .ts，构建是唯一的写者；入库会让「改了源码忘了重建」变成
 # 一次静默的假绿（跑测试时比对的其实是签入的那份旧字节）。
-#
-# 下面这套规则按「真实目录里住着什么」写，不是按「哪一层像生成物」写：同一个目录里可能既有
-# 生成物又有手写的 .js（views 顶层是 1 份生成物配 20 份手写），一刀切会把真源码静默忽略掉，
-# 那比不忽略危险得多。手写的 .js 在域目录里同理，逐份开例外（它们没有同名 .ts）。
+# 2026-10-19 第三阶段之后产物落点分三处，都不在源码树里：
+#   · 共享层（域产物与散文件产物）→ 仓库根的 .build/，忽略规则见下面那条；
+#   · 客户端闭包 → 拼闭包时直接读 .ts 真源当场转译，不再落任何 .js；
+#   · 词汇表拼段 → .tmp/vocabulary.client.js（见上面的 .tmp/ 规则）。
 # #1215 中央时间参数：src/shared/time-config/src/values.ts 是生成器按 config/ 下三份 YAML
 # 现场写出的（构建与 typecheck 都会先跑生成器），数字只在 YAML 里有一份，不入库。
 # 全新检出上它不在，generate --check 会现场生成一次（见生成器头注释）。
 /src/shared/time-config/src/values.ts
 # values.d.ts 与上面的 values.ts 同源（同一份 KEYS，只有声明没有值）：.ts 调用方
-# import 的是域表层 values.js（转译产物），tsc 靠这份声明才认得那些名字，不入库。
+# import 的是 .build/shared/time-config/values.js（转译产物），tsc 靠这份声明才认得那些名字，不入库。
 /src/shared/time-config/values.d.ts
-/src/shared/*/*.js
-# #1256：散文件根上 9 份（naming-*、workspaceKey、matt-skills、feedback-map、session-cwd、
-# skill-probe-channels、refresh-workspace-key）转成 .ts 之后，同名 .js 同样是构建产物
-# （scripts/build.mjs 的 shared-ts 那一段转译，真源是同名 .ts），与子目录那条规则同理，不入库。
-# 手写时代这 9 份在库里是被跟踪的，ignore 只拦新建（跟踪中的不受影响）；转写提交里用 git rm 删掉它们，
-# 之后构建写下的同名产物就落在这条忽略里。
-/src/shared/*.js
-# #1153 顺带清理：原来这两行上面还有两条放行——!/src/shared/refresh/chain-ride.js 与
-# !/src/shared/refresh/refusal-text.js（#1023 第三刀写这时，它们还是停在产物位上的手写 .js）。
-# 这两份的真身后来搬去 src/host/refresh/chain-ride.ts 与 src/host/refresh/refusal-text.ts，
-# 产物位上已经没有同名 .js，两条放行命不中任何文件。死条目和死规则一样会骗人——留着会让人
-# 以为产物位上有主，所以删掉。
-# #1256：原来这里还有第三条放行 !/src/shared/version-control/exec-envelope.js（它是当时唯一住在
-# 域目录根上的手写 .js）。本票把它转成 exec-envelope.ts 之后，同名 .js 是 shared-ts 段的转译产物，
-# 与子目录那条规则同理，不入库——所以这条放行也一并删掉，今天这一组例外一条不剩。
+# 共享层产物的唯一落点：仓库根的 .build/shared/ 下（2026-10-19 第三阶段）。
+#   src/shared/<域>/src/*.ts        → .build/shared/<域>/<名>.js     （域产物，由 scripts/lib/transpile-domains.mts 写）
+#   src/shared 下其余 .ts（散文件） → .build/shared/<相对路径>.js      （由 scripts/build.mts 的 shared-ts 段写）
+# 整个目录由构建独占、一次构建可以全部重新生成，所以一律不入库。从前那两条逐文件忽略规则
+# （/src/shared/*.js、/src/shared/*/*.js）跟着产物一起删掉——产物位不在源码树里了。
+/.build/
 # 2026-10-19 纯 TS 改造：pixel-ts 那一段连产物带落点一起取消了。客户端闭包拼段用的
 # 全是 .ts 真源（登记表里写 .ts，构建直接读 .ts 转译），src/client 下不再生成任何 .js，
 # 所以这里曾经逐份列出的客户端产物忽略条目全部删掉——产物位没了，条目和解释产物位置的

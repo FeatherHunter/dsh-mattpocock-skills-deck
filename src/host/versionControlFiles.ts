@@ -27,9 +27,9 @@
  * 它们的形状由接线处决定，本文件只负责按约定调用，不拥有它们的完整类型，
  * 所以类型只做最小约束，不替代运行时的能力检测。
  */
-import { commandFor, REV_PATTERN } from '../shared/version-control/commands.js'
-import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
-import { parsePatch } from '../shared/version-control/parse-patch.js'
+import { commandFor, REV_PATTERN } from '../shared/version-control/src/commands.js'
+import { parseDiffFiles } from '../shared/version-control/src/parse-diff-files.js'
+import { parsePatch } from '../shared/version-control/src/parse-patch.js'
 
 /** 父文件注入的依赖：起进程出口、失败信封与仓库根解析都在这里，本文件不自取任何环境。 */
 export interface GitDiffPhoneDeps {

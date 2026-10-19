@@ -13,7 +13,7 @@ import { failGlab } from './errors.js'
 import { issuePath } from './queries.js'
 import { repoId, fetchRawIssue } from './graph-blocking.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // 仓库身份只取 refId/name，是因为亲缘与指派只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined

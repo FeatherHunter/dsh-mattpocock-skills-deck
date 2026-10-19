@@ -32,7 +32,7 @@ import { isSkillCardValid, probeFsExists, directSkillCardRead, directPathExists,
 // 短时缓存的缺省存活时间住中央 YAML（config/ttl.yaml 的 skillListCacheTtlMs 键）：
 // 这里直接读中央常量，调时间改 YAML（缺表时 values.ts 已回落到同一个数 30000，行为与今天一致）。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { SKILL_LIST_CACHE_TTL_MS } from '../shared/time-config/values.js'
+import { SKILL_LIST_CACHE_TTL_MS } from '../shared/time-config/src/values.js'
 export function createSkillProbe(deps?: any): any {
   const { ctx, getPlatform, getWorkspaceStore, resetChainCache, resetChainCacheForKey, logCtx } = deps
     // 工作区与技能名只记短指纹，不记原始路径（日志白名单纪律，与仓里别处同一种取法）。

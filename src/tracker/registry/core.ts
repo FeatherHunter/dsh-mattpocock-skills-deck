@@ -26,7 +26,7 @@ import type { BackendModule } from '../contract/backend-module.js'
 import type { Tracker } from '../contract/operations.js'
 // 等待上限住中央 YAML（config/timeouts.yaml 的 matchesTimeoutMs 键）：这里只留别名，
 // 对外导出的仍是 MATCHES_TIMEOUT_MS，调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
-import { MATCHES_TIMEOUT_MS as CENTRAL_MATCHES_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { MATCHES_TIMEOUT_MS as CENTRAL_MATCHES_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 // 注册表内存表的形状：id 到模块与实例的映射，迭代序即注册序（平局按注册序取首个）。
 type RegistryStore = Map<string, { mod: BackendModule; tracker: Tracker }>

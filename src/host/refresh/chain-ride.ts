@@ -17,7 +17,7 @@
 // 事件名不新增，附录第 1 章的条数不动。
 // 搭车上限住中央 YAML（config/ttl.yaml 的 chainRideMaxAgeMs 键）：这里直接读它生成出来的值，
 // 不留别名、不留回落，调时间改 YAML。
-import { CHAIN_RIDE_MAX_AGE_MS } from '../../shared/time-config/values.js'
+import { CHAIN_RIDE_MAX_AGE_MS } from '../../shared/time-config/src/values.js'
 export { CHAIN_RIDE_MAX_AGE_MS }
 /** 注钟形状：生产不注（用 Date.now），测试注假钟（有 nowMs 用 nowMs，否则用 now）。 */
 export interface ChainRideClock {

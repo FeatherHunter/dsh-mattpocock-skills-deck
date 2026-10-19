@@ -43,7 +43,7 @@ export default {
     // 不许加静态 import，所以经下面的 _timeCfg 动态 import（与 _boot 那几行动态加载同理，D7 只禁静态）。
     // 用到的四处（_plat / _repo / _sessSnap / _vc 与底部的延迟警告）都是异步位置，先 await 到值再往下传。
     let _timeCfgP: Promise<any> | null = null
-    function _timeCfg(): Promise<any> { if (!_timeCfgP) _timeCfgP = import('../shared/time-config/values.js'); return _timeCfgP }
+    function _timeCfg(): Promise<any> { if (!_timeCfgP) _timeCfgP = import('../shared/time-config/src/values.js'); return _timeCfgP }
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     // H1 #445：原 235–249 行（技能名单）已搬到 ./bootstrap.js。
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
@@ -360,7 +360,7 @@ export default {
     // （生成常量 HOST_BOOT_DEFER_MS）；本文件是插件入口、不许加静态 import，所以这里同样动态 import。
     // 这段只是诊断警告（到点只记一条日志，不触发启动），import 失败就静默跳过，不影响上面的注入路径。
     // 注意：上面第 46 行的 _timeCfg 住在另一个函数里，这里够不着，所以把动态 import 直接写在这里。
-    import('../shared/time-config/values.js').then(function (tc: any) {
+    import('../shared/time-config/src/values.js').then(function (tc: any) {
       setTimeout(() => {
         if (booted) return
         try { console.warn('[dsh-mattpocock-skills-deck] host boot deferred: subprocess/timer not ready after ' + tc.HOST_BOOT_DEFER_MS + 'ms, deck tools not registered') } catch (eW) {}

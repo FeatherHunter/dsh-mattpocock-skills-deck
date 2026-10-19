@@ -16,7 +16,7 @@
 // 只作展示、不参与判定；最近一次上报没带就不出这一格。合法性的唯一真源是
 // work-path-ledger.ts 的 validProgress，这里与盘上、工具参数校验共用同一把尺子。
 
-import { chainSessionShardId } from '../../shared/refresh/chain.js';
+import { chainSessionShardId } from '../../shared/refresh/src/chain.js';
 import { validProgress } from './work-path-ledger.js';
 import type { WorkPathLedger } from './work-path-store.js';
 

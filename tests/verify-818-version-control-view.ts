@@ -60,7 +60,9 @@ const NOW = Date.parse('2026-10-04T02:00:00+08:00')
 const VC_FILES = [
   // #842：判定真源（界面按它画按钮状态，不自己算）与写操作那五个新叶子也拼进这个闭包 ——
   //   入口组件 VersionControlTab.js 会调它们，缺一个就会在渲染那一帧抛错（G 组抓的就是这个）。
-  'src/shared/version-control/rules.js',
+  // 2026-10-19 第三阶段起共享层产物搬出源码树（域产物落在 .build/shared/ 下），
+  // 拼闭包要「按原文改坏」，所以读 src/ 下的真源 rules.ts，不读转译产物。
+  'src/shared/version-control/src/rules.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -108,7 +110,8 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_SCREEN_CACHE_MAX', 'vcCacheSeedOf', 'vcCacheSave',
   'vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf',
   'VersionControlTab']
-// #1253：这 20 份里 19 份已经从手写 .js 转成 .ts 真源（只剩 src/shared/version-control/rules.js 还是手写 .js）。
+// #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
+//   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
 //   求值与反证都基于「真源原文」：先拼原文、再按反证要求改坏，最后按构建同一份转译参数转成 JavaScript
 //   交给 compileFn。为什么不读产物 .js：产物被 esbuild 重排过（双引号、function 后面不留空格、句末补分号），
 //   而反证锚点是按原文写的，读产物就会「改不中」，等于没证——#1253 收口时这里正是这样红过。

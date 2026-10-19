@@ -49,9 +49,10 @@ async function main() {
   const files = shipPkg.files || []
   check(files.indexOf('shared') >= 0, '发布包 files 白名单含 shared（核产物能进包）', JSON.stringify(files))
   for (const name of ['ports.js', 'workspace.js', 'settings.js', 'labels.js']) {
-    check(fs.existsSync(path.join(ROOT, 'src', 'shared', 'config-store', name)), '核产物在 shared 下已生成：' + name, '')
+    check(fs.existsSync(path.join(ROOT, '.build', 'shared', 'config-store', name)), '核产物在 .build/shared/config-store/ 下已生成：' + name, '')
   }
-  check(!fs.existsSync(path.join(ROOT, 'src', 'shared', 'config-store', 'config-store.js')), '老单体产物已拆掉（不留双份实现）', '')
+  // 老单体产物（config-store.js）在源码树和产物位都不该存在——两处一起查，才不管它想住哪。
+  check(!fs.existsSync(path.join(ROOT, '.build', 'shared', 'config-store', 'config-store.js')), '老单体产物已拆掉（不留双份实现）', '')
   check(fs.existsSync(path.join(ROOT, 'src', 'host', 'configStore.ts')), '宿主适配器在', '')
 
   // —— P4：适配器可加载，冻结函数都在（文本出入口两个 + 文件读写六个） ——

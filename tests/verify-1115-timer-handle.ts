@@ -131,13 +131,15 @@ async function main() {
   console.log('#1115 宿主计时器句柄的撤销：真形状是可调用函数，六处调用点收成共享层一份')
 
   // ── 产地在盘上（真实调用点那两段读的是构建后的模块；缺了就先构建一次）──
-  const PRODUCT = path.join(ROOT, 'src/shared/host-timer/host-timers.js')
+  // 2026-10-19 第三阶段起共享层产物从源码树搬进仓库根的 .build/shared/（真源仍是
+  // src/shared/host-timer/src/host-timers.ts）；这里守的是「构建真能把这域产物写出来」。
+  const PRODUCT = path.join(ROOT, '.build/shared/host-timer/host-timers.js')
   if (!fs.existsSync(PRODUCT)) {
     console.log('  共享层产物不在盘上，先跑一次 node scripts/build.mts ……')
     const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build.mts')], { cwd: ROOT, stdio: 'inherit' })
     check(r.status === 0, '共享层产物缺失时能靠 node scripts/build.mts 补上（退出码 ' + String(r.status) + '）')
   }
-  check(fs.existsSync(PRODUCT), '域产物 src/shared/host-timer/host-timers.js 在盘上（构建脚本按域目录里的 tsconfig.json 自动认域）')
+  check(fs.existsSync(PRODUCT), '域产物 .build/shared/host-timer/host-timers.js 在盘上（构建脚本按域目录里的 tsconfig.json 自动认域）')
 
   const { hostTimers } = await imp('src/shared/host-timer/src/host-timers.ts')
 
@@ -326,7 +328,9 @@ async function main() {
     const got = (text.match(/hostTimers\(/g) || []).length
     check(got === site.calls, site.file + '：' + site.calls + ' 处计时器口都走共享层那一份（实得 ' + got + ' 处 hostTimers( 调用）')
     check(!/clearTimeout\s*:\s*(?:function|\()/.test(text), site.file + '：没有自己写 clearTimeout 字段的残留（六处原先的形态）')
-    check(/from '(?:\.\.\/)+shared\/host-timer\/host-timers\.js'/.test(text), site.file + '：静态引用了共享层那一份（相对路径按目录深度）')
+    // 说明符自 2026-10-20 起指向真源 `<域>/src/<名>.js`（tsc 靠扩展名替换解析到同名 .ts，
+    // 发布包与 .build 下的产物由构建改写回域根）；这里接受新旧两种写法，判据是「引用的是共享层那一份」。
+    check(/from '(?:\.\.\/)+shared\/host-timer\/(?:src\/)?host-timers\.js'/.test(text), site.file + '：静态引用了共享层那一份（相对路径按目录深度）')
   }
   {
     const src = fs.readFileSync(path.join(ROOT, 'src/shared/host-timer/src/host-timers.ts'), 'utf8')

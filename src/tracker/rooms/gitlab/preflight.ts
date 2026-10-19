@@ -22,7 +22,7 @@ import type { RepositoryRef } from '../../contract/entities.js'
 import type { PreflightResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // 预检入参两形都收，是因为调用方有时拿仓库身份、有时拿句柄，直接收窄会把另一路挡在门外。
 type PreflightHandle = Partial<OpContext> & Partial<BackendContext> & {

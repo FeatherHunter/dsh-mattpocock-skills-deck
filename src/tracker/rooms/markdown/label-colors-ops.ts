@@ -9,7 +9,7 @@ import type { RepositoryRef, Label, LabelColor, LabelColorChange } from '../../c
 import type { ErrorKind } from '../../contract/identity.js'
 import type { LabelColorBatchResult, TrackerError } from '../../contract/results.js'
 import type { SandboxFs } from '../../contract/contexts.js'
-import { normalizeColor } from '../../../shared/label-color/colors.js'
+import { normalizeColor } from '../../../shared/label-color/src/colors.js'
 import { readTextFile, listDirOrThrow, hasFs } from './read.js'
 import { getPlat, listEfforts } from './issues-locate.js'
 import { parseMd } from './parse.js'

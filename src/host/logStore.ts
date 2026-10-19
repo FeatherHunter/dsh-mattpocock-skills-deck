@@ -35,7 +35,7 @@ type WfArgs = any;
 // 真按每次调用各写一次会把磁盘和文件服务拖住，所以窗口内的多次调用只换一次读改写。
 // 值住中央 YAML（config/intervals.yaml 的 logWriteDebounceMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { LOG_WRITE_DEBOUNCE_MS as LOG_DEBOUNCE_MS } from '../shared/time-config/values.js'
+import { LOG_WRITE_DEBOUNCE_MS as LOG_DEBOUNCE_MS } from '../shared/time-config/src/values.js'
 export { LOG_DEBOUNCE_MS }
 // 缓存目录下的独立日志子目录名（设计 2.1：.dsh-mattskillsdeck-cache/logs/）。
 export const LOG_DIR_NAME = 'logs'

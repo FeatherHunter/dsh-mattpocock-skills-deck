@@ -52,12 +52,18 @@ import { bundleEntryPanel } from './bundle-update-entry.mts'
 // #1023 内置 TypeScript 域的逐文件转译：原先四个计算核各自带一份 build.mjs，
 // 现在收成 scripts/lib 里的一份共用实现（transpile-domains.mts），由本条命令统一驱动。
 // 这样「谁写产物」只有一处：构建。做法与为什么这么做写在那个文件里。
-import { buildDomain, findDomains, isLeafSourcePath, readSpliceFragmentSource } from './lib/transpile-domains.mts'
+import { buildDomain, buildSharedProductPath, domainPaths, findDomains, isLeafSourcePath, listSources, readSpliceFragmentSource, transpileUnit } from './lib/transpile-domains.mts'
 import { TRANSPILE_OPTIONS, inlineExportDeclarations, generatedHeader } from './lib/transpile-unit.mts'
 
-// 域里允许住**手写**的 .js（没有同名源码，也不是构建产出）。今天只有这三份，
-// 都在 #1023 之前就住在那里、行为与构建无关，所以点名列出，不靠扫描猜——
-// 猜（比如「文件头没有生成标记就当手写」）会把「构建漏写生成标记」这种真故障当成合法情况放过去。
+// 域里允许住**不是域源码产物**的 .js（没有域源码里的同名真源，也不该被当成陈旧产物）：
+// 它们要么是手写模块、要么是域根散文件的转译产物，都住在域产物同一个目录（.build/shared/<域>/）里，
+// 域的双向对账（checkDomainConsistency）要按名字豁免它们，否则会把它们报成「无源产物」。
+// 今天三份：
+//   · refresh/chain-ride.js、refresh/refusal-text.js —— #1023 时代的手写 .js，真身后来搬去
+//     src/host/refresh/ 下，产物位上已经没有同名 .js；这两条留着是防御性声明（真出现同名文件时不会被静默当成产物），
+//     不是今天的现实。
+//   · version-control/exec-envelope.js —— 真源是 src/shared/version-control/exec-envelope.ts（域根上的散文件，
+//     不属于 <域>/src/ 那一圈域源码），产物由 buildSharedTs 写进同一个 .build/shared/version-control/ 目录。
 const HAND_WRITTEN_IN_DOMAINS: Record<string, string[]> = {
   refresh: ['chain-ride.js', 'refusal-text.js'],
   'version-control': ['exec-envelope.js'],
@@ -96,9 +102,12 @@ const ARTIFACT_FILES: string[] = ['client.js', 'host.js', 'package/README.md']
 // 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
 // #1018 起 package/deck 与 package/tracker 也是构建写出来的镜像（新树转译投放），
 // 同理收进来，否则缓存会把「新树产物缺了」误判成命中而跳过构建。
+// 2026-10-19 第三阶段：共享层产物（域转译 + 散文件转译）从源码树搬到了仓库根的 .build/，
+// 这里必须把 .build 一起收进产物清单——不然「.build 被删了但源码没动」会被缓存判成命中，
+// 构建直接跳过、产物缺席，门禁才在很远的地方报一句看不懂的错。
 // 从前这里还列着 src/host/logPkg（上游日志包在本仓源码树里的副本）；#1016 把宿主日志改成直接取用
 // 已安装的 dsh-log 包之后，src/ 下不再有那份副本，这一项跟着删掉。
-const ARTIFACT_DIRS: string[] = ['package/lib', 'package/deck', 'package/tracker', 'scripts/generated', 'package/scripts', 'package/bundled-skills']
+const ARTIFACT_DIRS: string[] = ['.build', 'package/lib', 'package/deck', 'package/tracker', 'scripts/generated', 'package/scripts', 'package/bundled-skills']
 
 /** 派生文件的标记：这些文件是构建写出来的，不算输入（否则构建一跑，指纹就自己变了，缓存永远命中不了）。 */
 function looksDerived(abs: string): boolean {
@@ -703,7 +712,8 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
   // #1215 中央时间参数：全部时间旋钮只有一份真源（config/ 下的 timeouts.yaml / intervals.yaml / ttl.yaml），
-  // 产物由生成器落到 src/shared/time-config/values.js（构建前先重跑生成器，见上面的预域再生）。
+  // 产物由生成器落到 .build/shared/time-config/values.js（真源是生成出来的 src/shared/time-config/src/values.ts；
+  // 构建会先重跑生成器，见上面的预域再生；2026-10-19 第三阶段起共享层产物统一住 .build/shared/）。
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
   // 所以按同一套拼接做法把客户端消费的那几个常量拼进界面闭包 —— 整份 values.js 不能拼（与 refreshBudget
   // 重名，见下面的 buildTimeConfigClientFragment），这里拼的是摘出来的 .tmp 片段（不入库，每次构建重算）。
@@ -1244,6 +1254,14 @@ function rewriteMovedSpecifiers(code: string, srcRel: string, outRel: string): {
   const next: string = code.replace(MOVED_SPEC_RE, (whole, q1, spec1, q2, spec2) => {
     const spec: string = spec1 !== undefined ? spec1 : spec2
     const resolved: string = resolveRelPosix(srcDir, spec)
+    // 共享层的域真源在包里被摊平一层：源码写 `../shared/<域>/src/<名>.js`，
+    // 包内产物是 `package/shared/<域>/<名>.js`。这一档先换，再走宿主树的改写。
+    const domainTruth = /^src\/shared\/([^/]+)\/src\/(.+)$/.exec(resolved)
+    if (domainTruth) {
+      const fixed: string = relativePosix(outDir, 'package/shared/' + domainTruth[1] + '/' + domainTruth[2])
+      rewrites.push(`${spec} -> ${fixed}`)
+      return whole.replace(spec, fixed)
+    }
     if (!resolved.startsWith('src/host/')) return whole
     const fixed: string = relativePosix(outDir, 'package/lib/' + resolved.slice('src/host/'.length))
     // 宿主树内部的引用在镜像后串不变（例如 package/lib 内 ./refresh/x.js 仍是 ./refresh/x.js），
@@ -1344,13 +1362,14 @@ function deployMovedTrees(): void {
   auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker'])
 }
 
-/** 散文件投放（#1256）：src/shared 下不属于任何域的 .ts 转译进 package/shared。
+/** 散文件投放（#1256）：src/shared 下不属于域源码（`<域>/src/`）的 .ts 转译进 package/shared。
  *
- * 为什么单独一段：collectMovedTs 只扫 src/host、src/deck、src/tracker 三棵新树，
- * copySharedProducts 只复制 .js。散文件转成 .ts 之后两边都够不着——不补这一段，
+ * 为什么单独一段：collectMovedTs 只扫 src/host、src/deck、src/tracker 三棵新树，域产物的包内镜像
+ * （deployDomainProducts）只收每个域 `src/` 下的源码，两处都够不着这里的散文件——不补这一段，
  * package/shared 里就没有它们，包内相对引用审计（tests/verify-build-artifacts.ts 4f）当场红。
- * 口径与 src/shared/tsconfig.json 的 include 一致：根上 *.ts 加上没有 tsconfig 的
- * 子目录里的 *.ts；带 tsconfig 的就是域，归 buildDomain 管，这里跳过。
+ * 口径与 src/shared/tsconfig.json 的 include 一致：根上 *.ts、每个子目录根上的 *.ts
+ * （子目录是域目录时，`<域>/src/` 下的源码归 buildDomain 管，这里只收域根上的散文件，
+ * 例如 version-control/exec-envelope.ts：它住在域目录里但不是域源码）。
  * 转译口径与新树投放同一份（transpileMovedTs：只剥类型、不改写导出块），包内由 Node 直接加载。
  */
 function deployLooseShared(): void {
@@ -1361,8 +1380,8 @@ function deployLooseShared(): void {
     if (ent.isFile()) {
       if (ent.name.endsWith('.ts') && !ent.name.endsWith('.d.ts')) rels.push('src/shared/' + ent.name)
     } else if (ent.isDirectory()) {
-      // 有 tsconfig 的是域目录（findDomains 的认定），它的产物归域构建管，不在这里碰。
-      if (existsSync(join(sharedAbs, ent.name, 'tsconfig.json'))) continue
+      // 子目录根上的 .ts 一律算散文件：没有 tsconfig 的子目录（tracker/、ui/）全是散文件；
+      // 有 tsconfig 的域目录只收根上这一层，`src/` 下的域源码归 buildDomain。
       for (const f of readdirSync(join(sharedAbs, ent.name), { withFileTypes: true })) {
         if (f.isFile() && f.name.endsWith('.ts') && !f.name.endsWith('.d.ts')) {
           rels.push('src/shared/' + ent.name + '/' + f.name)
@@ -1448,7 +1467,26 @@ async function buildHost({ version }: { version: string }): Promise<{ devCode: s
   const hostDevBanner: string = `// AUTO-GENERATED by scripts/build.mts — DO NOT EDIT. Source: ${indexSrcRel}${useTsEntry ? '（转译）' : ''} (${version})\n// 产物 gitignore，一源两物；改 src/ 后运行 node scripts/build.mts 重新生成。\n`
 
   // ---- _dev：cordis_define 函数体形态（保留，host.js 不在发布包，#172 不碰其函数体）----
-  const devCode: string = `${hostDevBanner}${header}\n\nreturn ${body}\n`
+  const devCodeRaw: string = `${hostDevBanner}${header}\n\nreturn ${body}\n`
+  // 2026-10-19 第三阶段：共享层产物从源码树搬到仓库根的 .build/shared/，dev 产物里那两句
+  // import("../shared/time-config/values.js")（中央时间参数，运行到才取）必须跟着改指向。
+  //
+  // 为什么改成 ../../.build/shared/ 而不是 ../../../：dev 产物是 cordis_define 的函数体，
+  // 里面其余相对说明符（./dispatchMeta.js、./refresh/wiring.js、../deck/registration/host-delegate.js）
+  // 都是按「这个文件住在 src/host/」这一基准写的——src/host/dispatchMeta.ts 在那里，仓库根没有
+  // dispatchMeta.js，所以唯一自洽的解析基准是 src/host/。从 src/host/ 出发，../.. 才是仓库根
+  // （src/host/../.. = 仓库根），到仓库根的 .build/shared/ 就是 ../../.build/shared/。
+  //
+  // 假定与依据：dev 产物在本仓库里没有本地消费者（docs/workflow/DEV-WORKFLOW.md 把它记作
+  // 「动态 runner 的潜在路径」，不是发布包里真实加载的那份），无法本地真跑验证，所以层数只能按
+  // 「与 dev 产物里其余相对说明符同一个基准」来定，并用路径算术核对：src/host/ + ../../.build/shared/
+  // 正好落在仓库根/.build/shared/。将来若运行器换了解析基准，这两句要跟着换——届时验收第 3 条
+  // （host.js 文本里出现 .build/shared/time-config/values.js）会先暴露出来，不会静默错到底。
+  // 域源码的说明符写成 `../shared/<域>/src/<名>.js`（指向真源，tsc 靠扩展名替换解析到 .ts），
+// 而 .build/shared 下是摊平的 `<域>/<名>.js`：先把带 /src/ 的那一档折掉，再统一换前缀。
+const devCode: string = devCodeRaw
+  .replace(/(['"])\.\.\/shared\/([A-Za-z0-9_.-]+)\/src\//g, '$1../../.build/shared/$2/')
+  .replace(/(['"])\.\.\/shared\//g, '$1../../.build/shared/')
   gatePrecheck(devCode, 'host-dev')
   write('host.js', devCode)
 
@@ -1484,25 +1522,29 @@ async function buildHost({ version }: { version: string }): Promise<{ devCode: s
   const srcHost: string = resolve(ROOT, 'src/host')
   // Node 16.7+ cpSync 原生支持；fall back 手写
   const copyOpts = { recursive: true, force: true }
-  // 域目录 src/shared/<功能名>/ 里住着两类东西：手写的源码（src/ 子目录）、构建脚本、类型配置、
-  // 说明文档、测试样本，和构建产出的 .js。发布包里只要产物——按 #1023 的第一刀，这里改成
-  // 「只把每个域目录根下的 .js 平铺复制过去」，不再整树镜像，免得源码与配置跟着进发布包。
-  // 判据只有一条「是不是 .js」，因为域目录根下的 .js 恰好就是全部产物（三份手写 .js 也是运行时
-  // 需要的模块，跟着一起过去本来就应该）。tests/verify-build-artifacts.js 的 L2 段按同一条判据比对。
-  function copySharedProducts(dstRoot: string): void {
-    const srcRoot: string = resolve(ROOT, 'src/shared')
-    for (const ent of readdirSync(srcRoot, { withFileTypes: true })) {
-      const from: string = join(srcRoot, ent.name)
-      const to: string = join(dstRoot, ent.name)
-      if (ent.isDirectory()) {
-        mkdirSync(to, { recursive: true })
-        for (const f of readdirSync(from, { withFileTypes: true })) {
-          if (f.isFile() && f.name.endsWith('.js')) cpSync(join(from, f.name), join(to, f.name), copyOpts)
-        }
-      } else if (ent.name.endsWith('.js')) {
-        cpSync(from, to, copyOpts)
+  // 域产物的包内镜像（2026-10-19 第三阶段）：从每个域的 src/*.ts 用同一份域转译口径写进
+  // package/shared/<域>/<名>.js，不再从源码树复制 .js。
+  //
+  // 为什么不再复制：源码树里的 .js 已经删掉（产物挪到 .build/），继续按「复制域目录根下的 .js」
+  // 写包内镜像，来源就变成一份构建中间文件；直接吃真源、与域构建共用 transpileUnit() 同一份流水线
+  // （转译参数、宿主引用改写、行首导出都在那一份实现里），包内镜像与 .build 产物只有落点不同，
+  // 由同一次构建写出，不会各自漂移。域根上的散文件（version-control/exec-envelope.ts 这类）归
+  // 后面的 deployLooseShared，不在这里。
+  //
+  // 域类型检查已经在 buildDomain 里跑过（主流程先构建域、再进 buildHost），这里只转译、不重复查。
+  function deployDomainProducts(dstRoot: string): void {
+    let written: number = 0
+    for (const domain of findDomains()) {
+      const p = domainPaths(domain)
+      for (const tsName of listSources(p.absSources)) {
+        const srcRel: string = `${p.relFromRoot}/src/${tsName}`
+        const outAbs: string = join(dstRoot, domain, tsName.replace(/\.ts$/, '.js'))
+        mkdirSync(dirname(outAbs), { recursive: true })
+        writeFileSync(outAbs, transpileUnit(srcRel), 'utf8')
+        written++
       }
     }
+    console.log(`[域产物镜像] ${written} 份域产物进 package/shared`)
   }
   try {
     if (typeof cpSync === 'function') {
@@ -1519,7 +1561,6 @@ async function buildHost({ version }: { version: string }): Promise<{ devCode: s
         }
       }
       copyHostJs(srcHost, pkgLib)
-      copySharedProducts(pkgShared)
     } else {
       throw new Error('cpSync unavailable')
     }
@@ -1538,16 +1579,21 @@ async function buildHost({ version }: { version: string }): Promise<{ devCode: s
       }
     }
     cpRecur(srcHost, pkgLib)
-    copySharedProducts(pkgShared)
   }
+  // 域产物的包内镜像放在复制那一步外面：它按真源转译，与 cpSync 在不在无关，
+  // 失败应当直接抛出去（转译不过、源码缺失都是内容问题，重跑复制也修不了）。
+  deployDomainProducts(pkgShared)
+  // 散文件投放：src/shared 下不属于任何域源码（<域>/src/）的 .ts —— 根上 9 份、tracker/ 与 ui/
+  // 两个没有 tsconfig 的目录、以及 version-control/exec-envelope.ts 这种域根散文件 ——
+  // 一并转译进 package/shared。
+  // 必须排在新树投放之前：deployMovedTrees 末尾会审计 package/lib 里的相对引用能不能逐条解开，
+  // 而宿主（package/lib）引用共享层用的就是 ../shared/<名>.js；散文件产物还没写进去时，
+  // 这套引用会被判成「落空」而误报。两者都只写 package/shared，先后不影响内容。
+  deployLooseShared()
   // 新树投放：三棵树的 .ts 转译进包、tracker 手写 .js 复制进包、包内引用逐条审计。
   // 放在复制之后、校验之前：投放失败（转译不过、引用落空）当场抛错，不进 fallback
   // （fallback 只管“复制工具不可用”这一种故障，内容问题重跑复制也一样）。
   deployMovedTrees()
-  // 散文件投放（#1256）：src/shared 下不属于任何域的 .ts 转译进 package/shared。
-  // 放在复制之后、新树投放之后：复制只收 .js（转制中的旧 .js 先过去），这一段把同位置的
-  // 转译产物盖上去——零变化转写保证两者语义一致；引用落空同样当场抛错，不进 fallback。
-  deployLooseShared()
   // 校验：入口一致性（#1074 修：跟真源走）。手写 .js 真源在时守旧不变量（包内入口与手写源逐字节一致）；
   //   .ts 真源在时守新不变量（包内入口 === 按同一条投放流水线重算一遍的结果，转译漏投放当场红）。
   try {
@@ -1813,7 +1859,11 @@ const CLIENT_TIME_NAMES: string[] = [
   'SKILL_SKELETON_DELAY_MS',
 ]
 function buildTimeConfigClientFragment(): void {
-  const src: string = read('src/shared/time-config/values.js')
+  // 读构建产物而不是源码树：中央时间参数的域产物（values.js）从 2026-10-19 起落在 .build/shared/ 下，
+  // 它由本次构建前面的域构建步骤刚写出来（主流程里 buildDomain 在它前面跑）。
+  // 为什么仍读产物、不读 src/time-config/src/values.ts：界面闭包要的是 JavaScript 常量行，
+  // 产物就是构建按同一份转译口径写出来的那一份，读它等于读「宿主吃的那份值」，不会抄出错位。
+  const src: string = read('.build/shared/time-config/values.js')
   const lines: string[] = []
   for (const name of CLIENT_TIME_NAMES) {
     const hit: string[] = src.split('\n').filter((l) => l.startsWith(`export const ${name} = `))
@@ -1822,7 +1872,7 @@ function buildTimeConfigClientFragment(): void {
   }
   mkdirSync(resolve(ROOT, '.tmp'), { recursive: true })
   writeFileSync(resolve(ROOT, '.tmp/time-config.client.js'),
-    `// AUTO-GENERATED by scripts/build.mts — DO NOT EDIT. Source: src/shared/time-config/values.js（闭包里要用的中央常量，一次摘 ${CLIENT_TIME_NAMES.length} 个，值与宿主吃的是同一份 YAML）\n` + lines.join('\n') + '\n', 'utf8')
+    `// AUTO-GENERATED by scripts/build.mts — DO NOT EDIT. Source: .build/shared/time-config/values.js（闭包里要用的中央常量，一次摘 ${CLIENT_TIME_NAMES.length} 个，值与宿主吃的是同一份 YAML）\n` + lines.join('\n') + '\n', 'utf8')
   console.log(`[build] 客户端时间片段已摘 ${lines.length} 个常量 → .tmp/time-config.client.js`)
 }
 buildTimeConfigClientFragment()
@@ -1862,12 +1912,16 @@ function checkPixelTs(): void {
 // （readSpliceFragmentSource 按扩展名分派，转译发生在拼接那一刻），所以这一段不产出文件。
 checkPixelTs()
 
-// #1256 散文件 TS 真源（src/shared 下不属于任何域的）：真源是同目录的 .ts，esbuild 逐文件转译出同名 .js
+// #1256 散文件 TS 真源（src/shared 下不属于域源码的）：真源是同目录的 .ts，esbuild 逐文件转译出 .js
 // （AUTO-GENERATED 头，gitignore 不入库），tsc --noEmit 只做类型检查。
+// 2026-10-19 第三阶段：产物不再写回真源旁边，统一落在仓库根 .build/shared/<相对 src/shared 的路径>.js
+// （整个 .build/ 被 gitignore 忽略，源码树里只留手写 TypeScript）。
 // 为什么与 pixel-ts 同模式、另起一段：产物用途不同——客户端产物拼进闭包，散文件产物给三类消费者：
-//   ① 生产运行时按 .js 说明符直解（根 host.js、src/host/** 的动态 import，没有装载钩子，只能看到 .js）；
-//   ② 门禁按 .js 路径直读文本（noExport 剥行首 export 当场求值，读到 .ts 会因类型注解求值失败）；
-//   ③ 装载钩子的「同名 .ts 优先」只管模块说明符，不管文本直读。
+//   ① 开发产物按 .js 说明符直解（根 host.js 里 ../shared/... 那两句已改写成 ../../.build/shared/...，
+//      见 buildHost 里的说明）；发布包那一半由 deployLooseShared 从真源另投一份进 package/shared；
+//   ② 门禁按 .js 路径直读文本（noExport 剥行首 export 当场求值，读到 .ts 会因类型注解求值失败），
+//      门禁读的就是 .build/shared/ 下这一份；
+//   ③ 测试与模块说明符走装载钩子的「同名 .ts 优先 / <目录>/src/<同名>.ts 回落」，不读产物。
 // 所以同样要行首 export 形态（inlineExportDeclarations，与 pixel-ts 共用同一份实现，不另抄），
 // 真源集合口径与类型检查共用同一份（src/shared/tsconfig.json 的 include：根上 *.ts、各子目录根上 *.ts；
 // 有 tsconfig 的域只圈自己 src/ 下的源码，域目录根上的散文件两边都不重叠，归这里）。
@@ -1916,9 +1970,14 @@ function buildSharedTs(): void {
     let inlined: string
     try { inlined = inlineExportDeclarations(normalized, '[shared-ts]') }
     catch (e) { inlined = normalized }
-    writeFileSync(f.slice(0, -3) + '.js', '// AUTO-GENERATED by node scripts/build.mts (shared-ts) — DO NOT EDIT. Source: ' + rel + '\n' + inlined)
+    // 落点换算只做一次前缀（src/shared/ → .build/shared/），形状仍由真源路径决定，不在这里重推。
+    // 后缀单独换：buildSharedProductPath 只负责「挪到哪个目录」，.ts → .js 是转译产物的后缀规则，
+    // 两件事分开写，读的人一眼能看出哪一步在改位置、哪一步在改后缀。
+    const outRel: string = buildSharedProductPath(rel).replace(/\.ts$/, '.js')
+    mkdirSync(dirname(resolve(ROOT, outRel)), { recursive: true })
+    writeFileSync(resolve(ROOT, outRel), '// AUTO-GENERATED by node scripts/build.mts (shared-ts) — DO NOT EDIT. Source: ' + rel + '\n' + inlined)
   }
-  console.log(`[shared-ts] 转译 ${files.length} 个 TS 真源 → 同名 .js`)
+  console.log(`[shared-ts] 转译 ${files.length} 个 TS 真源 → .build/shared/ 下的 .js`)
 }
 function checkSharedTs(): void {
   if (sharedTsTruthFiles().length === 0) return
@@ -1931,7 +1990,12 @@ function checkSharedTs(): void {
   console.log('[shared-ts] tsc --noEmit 通过')
 }
 
-// #1256 散文件 TS 真源：先转译再跑类型检查。与 pixel-ts 同一节拍：产物是运行时与门禁文本直读的输入。
+// #1256 散文件 TS 真源：先转译再跑类型检查。与 pixel-ts 同一节拍：产物是门禁文本直读的输入
+// （.build/shared/ 下那几份；dev host.js 的 ../shared 引用也指到这里），缺了构建当场红不了，
+// 要等门禁跑起来才暴露，所以放在主流程里、跑在 buildHost 之前。
+// 类型检查不需要产物旁的声明桩：源码里的 `shared/<域>/src/<名>.js` 说明符会被 tsc 的扩展名替换
+// 规则解析到同名 .ts 真源（2026-10-19 第三阶段第二版做法；第一版在源码树里生成 .d.ts 桩，
+// 那些桩本身又是落在源码树的构建产物，与「源码树只放真源」冲突，已撤掉）。
 // 转译失败或类型不过当场抛错，不进 fallback（内容问题重跑复制也一样）。
 buildSharedTs()
 checkSharedTs()

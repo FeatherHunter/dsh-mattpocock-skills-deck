@@ -4,7 +4,7 @@
 
 ## 第一性原理
 
-- 契约说真话：完整数据形状（`src/shared/tracker/shape.js`）+ 22 条操作集（`src/tracker/contract/index.ts`）+ capability-by-fill + registry 三级联，已由 #124-#128 定稿。
+- 契约说真话：完整数据形状（`src/shared/tracker/shape.ts`）+ 22 条操作集（`src/tracker/contract/index.ts`）+ capability-by-fill + registry 三级联，已由 #124-#128 定稿。
 - 骨架已自洽：门禁 `620 passed / 4 failed / CONTRACT SKELETON OK`（退出码 0）证明“桩能过、违规能逮”，测的是 `fixtures/compliant.ts` 与 `violating.js`，不是真实适配器。那 4 条失败是 `violating` 桩里刻意埋的错，门禁要求它们**必须出现**（按名字点名，见 `verify-tracker-contract.ts` 末尾的 `VIOLATING_EXPECTED_FAILURES`）；数字会随票据增长，判据不是数字本身。其中 `sections/labels.ts`（#627 标签配色契约）是 85 条。
 - 真实适配器这一层另有门禁：`sections/labels.ts` 里有对着**真实 GitHub 与本地 Markdown 后端模块**的探针（把真实模块注册进注册表真调用），判据是「要么诚实地说做不到（unsupported），要么把这两条操作做到契约要求」；今天两个后端都还没实现，走前一条，下游一实现这一段自动变成真验收。
 - 平台可测：#131 的 145+32 方法论（注入可判真 + 零手拼 + 双闸）已让次缝（平台层）单机判三端；主缝需复用同一方法论，但对象改为“后端适配器”。

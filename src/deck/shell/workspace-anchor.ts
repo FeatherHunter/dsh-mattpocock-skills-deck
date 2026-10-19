@@ -22,7 +22,7 @@ import {
   WORKSPACE_YAML_REL,
   WORKSPACE_JSON_REL,
   WORKSPACE_KNOWN_VERSION,
-} from '../../shared/config-store/workspace.js'
+} from '../../shared/config-store/src/workspace.js'
 import {
   parseWorkspaceFile as parseWith,
   stringifyWorkspaceFile as stringifyWith,

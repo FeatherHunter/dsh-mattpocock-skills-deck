@@ -11,7 +11,7 @@
  */
 import { idOfParts } from '../tracker/kernel/identity-keys.js'
 // #1115：opCtx 上那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
-import { hostTimers } from '../shared/host-timer/host-timers.js'
+import { hostTimers } from '../shared/host-timer/src/host-timers.js'
 
 // ---------------------------------------------------------------------------
 // 类型（本次转 TypeScript：只写类型不写实现）。

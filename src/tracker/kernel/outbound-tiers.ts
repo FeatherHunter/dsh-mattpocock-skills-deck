@@ -16,7 +16,7 @@
 
 // 四档时长住中央 YAML（config/timeouts.yaml 的 outbound* 四键）：这里只留同名别名，
 // 调时间改 YAML，不改这里。值由 tests/verify-time-config.ts 看守一致。
-import { OUTBOUND_READ_TIMEOUT_MS, OUTBOUND_WRITE_TIMEOUT_MS, OUTBOUND_PROBE_TIMEOUT_MS, OUTBOUND_DEFAULT_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { OUTBOUND_READ_TIMEOUT_MS, OUTBOUND_WRITE_TIMEOUT_MS, OUTBOUND_PROBE_TIMEOUT_MS, OUTBOUND_DEFAULT_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 export const READ_TIMEOUT_MS = OUTBOUND_READ_TIMEOUT_MS
 export const WRITE_TIMEOUT_MS = OUTBOUND_WRITE_TIMEOUT_MS

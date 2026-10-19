@@ -6,7 +6,7 @@
  * 由 scripts/ts-hook.mjs 在加载时改指到同名 .ts。
  *
  * 为什么这样标注：
- * 1. 相对导入说明符保留 `.js` 后缀（`../shared/time-config/values.js` 不改成 `.ts`），
+ * 1. 相对导入说明符保留 `.js` 后缀（`../shared/time-config/src/values.js` 不改成 `.ts`），
  *    改了反而会绕过钩子的同名解析约定，所以这一条不能动。
  * 2. 缓存键与探测结果的形状是调用方与被缓存探测共同决定的，本文件不拥有它们，
  *    所以全部按 `any` 收，类型不替代运行时的判空与判形逻辑。
@@ -18,7 +18,7 @@
 // 查到的结果短时缓存 10 秒：值住中央 YAML（config/ttl.yaml 的 skillProbeCacheCacheMs 键，这里直接引用中央常量，调时间改 YAML）。
 // 中央常量与本文件的导出同名，直接 import 原名再导出，免得自己引自己。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { SKILL_PROBE_CACHE_MS } from '../shared/time-config/values.js'
+import { SKILL_PROBE_CACHE_MS } from '../shared/time-config/src/values.js'
 export { SKILL_PROBE_CACHE_MS }
 
 /** 探测缓存的形状：按工作区键查、按工作区清，只存判为成功的探测结果。 */

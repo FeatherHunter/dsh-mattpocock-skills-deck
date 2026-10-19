@@ -14,7 +14,7 @@ import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { notesPath } from './queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // 仓库身份只取 refId/name 两格，是因为评论读写只认这两样，拿全量 RepositoryRef 反而把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined

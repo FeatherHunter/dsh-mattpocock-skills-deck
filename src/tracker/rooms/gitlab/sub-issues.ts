@@ -47,7 +47,7 @@ import { issuesPath } from './queries.js'
 import { repoId } from './graph-blocking.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // 一张地图最多装多少张子票：与 GitHub 房同一个硬上限（契约 operations.ts:244「1000 张硬上限」）。
 const MAX_SUB_ISSUES = 1000

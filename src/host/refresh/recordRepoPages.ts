@@ -10,8 +10,8 @@
 //   · 每个仓库记三样：最近一次翻了几页、历史上最多见过几页、累计重建过几次；
 //   · 没记过的仓库按 1 页估，不编一个典型值出来；
 //   · 最坏用量按「实测最大值与页数上界取大者」算，算式只在 shared/refresh/page-budget.js 里。
-import { MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../shared/refresh/budget.js'
-import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../shared/refresh/page-budget.js'
+import { MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../shared/refresh/src/budget.js'
+import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../shared/refresh/src/page-budget.js'
 
 /** 单个仓库的重建页数实测。 */
 export interface RepoPageRecord {

@@ -22,7 +22,7 @@
  * 终值仍以测量回填（#967 测量 / #966 收口）为准。
  */
 
-import { TUNING } from '../../shared/refresh/tuning.js'
+import { TUNING } from '../../shared/refresh/src/tuning.js'
 
 // 取值住共用调参表（真源 src/shared/refresh/src/tuning.ts），这里只留缺表回落的缺省值（与今天一致）。
 export const READ_BUCKET_MAX = TUNING.readBucketMax ?? 64

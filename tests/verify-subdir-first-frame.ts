@@ -66,7 +66,7 @@ const SEL_MS = 20             // 那条专用电话很快（几十字节的事�
 const CWD_FAIL_MS = 5         // wf.cwd 真机上一直失败，只是失败得很快
 
 const FILES = [
-  'src/shared/workspaceKey.js',
+  '.build/shared/workspaceKey.js',
   'src/client/kernel/store-prefs.js',
   'src/client/kernel/store-snapshot.js',
   'src/client/kernel/probe-stale.js',
@@ -76,7 +76,9 @@ const FILES = [
 
 // 把这几片按构建顺序拼成同一个闭包。客户端那几片的真源都已转成 .ts，取源走共用入口的 spliceableJs：
 // 它按构建口径转译、去掉行首 export、剥掉中央时间 import，拼出来的就是真正进产物的那份代码；
-// 变异注入的 patch.text 是现成文本，原样交给同一条去壳处理。src/shared 那一片本阶段仍是手写真源，照旧直接读。
+// 变异注入的 patch.text 是现成文本，原样交给同一条去壳处理。
+// src/shared 那一片 2026-10-19 第三阶段起产物住 .build/shared/（真源 src/shared/workspaceKey.ts），
+// 拼闭包要的是转译后的 JavaScript，所以直接读那里。
 function moduleText(patch) {
   const body = FILES.map((f) => {
     const src = (patch && patch.file === f) ? patch.text : (f.indexOf('src/client/') === 0 ? spliceableJs(f) : read(f))
@@ -164,7 +166,8 @@ function snapshotReply() {
 
 // 本地那张表按工作区根存着（真机现场就是这样 —— 根没认出来之前，这份本地镜像读不到）。
 function rootKeyedSeed() {
-  const src = noExport(read('src/shared/workspaceKey.js'))
+  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/shared/workspaceKey.ts）。
+  const src = noExport(read('.build/shared/workspaceKey.js'))
   // 手法：compileFn——规整函数是从真源切出来的文本，交给共用入口造函数，行为不变。
   const keyOf = compileFn([], src + '\nreturn keyOf')()
   const k = keyOf(ROOT_DIR, 'win32')

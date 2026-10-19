@@ -18,7 +18,7 @@ import { canon, createCallMemo, isArr, repoIdOf, rosterAddCreated, rosterAdoptLi
 import { withInFlightLease } from './in-flight-lease.js'
 // 三个预算数住中央 YAML（config/timeouts.yaml 的 tool* 三键）：这里只留别名，
 // 对外导出的仍是 DEFAULT_* 名字，调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
-import { TOOL_TIMEOUT_MS, TOOL_MARGIN_MS, PER_OP_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { TOOL_TIMEOUT_MS, TOOL_MARGIN_MS, PER_OP_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 /** 单次执行允许的最长时间（毫秒）：与 agent 注册那份 AGENT_TOOL_TIMEOUT_MS 同值，改一边必须同步另一边。
  *  同值由 tests/verify-895-bulk-deadline.js 第⑦节断言看守（注册侧文件不引用其他层的文件，不能靠 import 收成一份）。

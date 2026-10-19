@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T15:20:30.483Z",
+  "generatedAt": "2026-10-19T16:43:54.626Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 291,
   "gateCount": 291,
-  "attributedGates": 260,
-  "unattributedGates": 31,
-  "buildOutputOnlyGates": 18,
+  "attributedGates": 257,
+  "unattributedGates": 34,
+  "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 564,
+  "graphFileCount": 502,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -41,7 +41,7 @@
         "src/client/kernel/actions.ts",
         "src/client/statusbar/StatusBackend.ts",
         "src/client/statusbar/bannerChain.ts",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -77,15 +77,11 @@
         "scripts/generated/updateClient.derived.js",
         "scripts/generated/updateEntryPanel.bundle.js",
         "scripts/lib/transpile-unit.mts",
+        "src",
         "src/deck",
         "src/host",
         "src/shared",
-        "src/shared/host-timer/host-timers.js",
-        "src/shared/refresh/budget.js",
         "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/step-cost.js",
-        "src/shared/refresh/tuning.js",
-        "src/shared/version-control/parse-log.js",
         "src/shared/version-control/src/parse-log.ts",
         "src/tracker"
       ],
@@ -99,13 +95,11 @@
         "package/tracker",
         "scripts/generated",
         "scripts/lib",
+        "src",
         "src/deck",
         "src/host",
         "src/shared",
-        "src/shared/host-timer",
-        "src/shared/refresh",
         "src/shared/refresh/src",
-        "src/shared/version-control",
         "src/shared/version-control/src",
         "src/tracker"
       ],
@@ -113,7 +107,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 19 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 12 条；源码里的路径字面量 14 条"
     },
     {
       "step": "node tests/verify-leaves.ts",
@@ -262,9 +256,9 @@
       "step": "node tests/verify-chain.ts",
       "file": "tests/verify-chain.ts",
       "guards": [
-        "src/shared/tracker/chain-evaluate.js",
-        "src/shared/tracker/chain-types.js",
-        "src/shared/tracker/chain-validate.js"
+        "src/shared/tracker/chain-evaluate.ts",
+        "src/shared/tracker/chain-types.ts",
+        "src/shared/tracker/chain-validate.ts"
       ],
       "dirs": [
         "src/shared/tracker"
@@ -298,23 +292,19 @@
         "src/client",
         "src/host",
         "src/shared",
-        "src/shared/refresh",
-        "src/shared/tracker/sync.js",
         "tests"
       ],
       "dirs": [
         "src/client",
         "src/host",
         "src/shared",
-        "src/shared/refresh",
-        "src/shared/tracker",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-deck-event-gate.ts",
@@ -369,8 +359,8 @@
         "src/deck/tools/map-plan-create.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/time-config/values.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/deck-decide-stub.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
@@ -379,8 +369,8 @@
         "src/deck/registration",
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
-        "src/shared/time-config",
+        "src/shared/refresh/src",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -397,14 +387,14 @@
         "src/deck/tools/issue-patch.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/budget.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -482,10 +472,9 @@
         "src/client/statusbar/StatusBar.ts",
         "src/client/views/ChecksTab.ts",
         "src/client/views/shared/ChainRenderer.ts",
-        "src/shared/tracker/chain-evaluate.js",
-        "src/shared/tracker/chain-types.js",
-        "src/shared/tracker/chain-validate.js",
-        "src/shared/ui/slots.js",
+        "src/shared/tracker/chain-types.ts",
+        "src/shared/tracker/chain-validate.ts",
+        "src/shared/ui/slots.ts",
         "src/tracker/fix-contract.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/lib/source-text.ts"
@@ -506,7 +495,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；静态 import 说明符 1 条；源码里的路径字面量 16 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；静态 import 说明符 1 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-deck-thin-reads.ts",
@@ -516,13 +505,13 @@
         "src/deck/tools/map-snapshot.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/budget.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -572,8 +561,8 @@
         "src/host/platform/outbound-control.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
@@ -585,7 +574,7 @@
         "src/deck/tools",
         "src/host/platform",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
@@ -642,9 +631,9 @@
         "src/deck/tools/map-snapshot.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/chain.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/chain.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -654,7 +643,7 @@
         "src/deck/shell",
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -681,7 +670,6 @@
         "src/seam",
         "src/seam/gate.ts",
         "src/shared",
-        "src/shared/refresh/idempotency.js",
         "src/shared/refresh/src/idempotency.ts",
         "src/tracker",
         "src/tracker/contract/operations.ts",
@@ -704,7 +692,6 @@
         "src/host/outbound",
         "src/seam",
         "src/shared",
-        "src/shared/refresh",
         "src/shared/refresh/src",
         "src/tracker",
         "src/tracker/contract",
@@ -717,7 +704,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 22 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 21 条"
     },
     {
       "step": "node tests/verify-gate-map.ts",
@@ -736,7 +723,7 @@
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/host",
         "src/host/mapBody.ts",
-        "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/budget.ts",
         "tests/gate-map.json",
         "tests/lib/gate-result.ts",
         "tests/verify-progress.ts"
@@ -752,7 +739,7 @@
         "src/client/views",
         "src/client/views/versionControl",
         "src/host",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "tests",
         "tests/lib"
       ],
@@ -877,8 +864,8 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/workspaceLabelColors.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/workspaceStore.ts"
@@ -888,7 +875,7 @@
         "src/deck/shell",
         "src/host",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -907,8 +894,8 @@
         "src/deck/shell/call-shell.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts"
       ],
@@ -916,7 +903,7 @@
         "docs/agents",
         "src/deck/shell",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/detection",
         "src/tracker/registry"
       ],
@@ -1161,7 +1148,6 @@
         "src/host/refresh/wiring.ts",
         "src/host/snapshotBuild.ts",
         "src/host/workspaceCwd.ts",
-        "src/shared/host-timer/host-timers.js",
         "src/shared/host-timer/src/host-timers.ts",
         "tests/lib/source-text.ts"
       ],
@@ -1172,7 +1158,6 @@
         "src/client/kernel",
         "src/host",
         "src/host/refresh",
-        "src/shared/host-timer",
         "src/shared/host-timer/src",
         "tests/lib"
       ],
@@ -1180,7 +1165,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1125-gate-coverage.ts",
@@ -1304,8 +1289,8 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/refresh/wiring.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -1313,7 +1298,7 @@
       "dirs": [
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -1466,14 +1451,14 @@
         "src/deck/tools/issue-get.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/budget.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -1509,13 +1494,13 @@
         "src/deck/tools/issue-report.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/budget.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -1602,16 +1587,16 @@
       "guards": [
         "src/deck/shell/plan-cursor.ts",
         "src/deck/tools/map-plan-create.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
-        "src/shared/time-config/values.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
-        "src/shared/refresh",
-        "src/shared/time-config",
+        "src/shared/refresh/src",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -1627,11 +1612,11 @@
         "src/deck/shell/work-path-bindings.ts",
         "src/deck/shell/work-path-readout.ts",
         "src/deck/shell/work-path-record.ts",
-        "src/shared/refresh/chain.js"
+        "src/shared/refresh/src/chain.ts"
       ],
       "dirs": [
         "src/deck/shell",
-        "src/shared/refresh"
+        "src/shared/refresh/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1814,17 +1799,13 @@
     {
       "step": "node tests/verify-589-list-dedupe.ts",
       "file": "tests/verify-589-list-dedupe.ts",
-      "guards": [
-        "src/shared/tracker/list-dedupe.js"
-      ],
-      "dirs": [
-        "src/shared/tracker"
-      ],
-      "unattributed": false,
+      "guards": [],
+      "dirs": [],
+      "unattributed": true,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
+      "reason": "它读的文件都用变量拼出来、或者读的是自己造的临时夹具，脚本里没有出现能认出来的路径字面量，算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-596-rpc-carrier.ts",
@@ -1949,7 +1930,6 @@
         "src/client/kernel/store-snapshot.ts",
         "src/client/panel/DockSync.ts",
         "src/client/views/SubworkspaceMark.ts",
-        "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -1958,14 +1938,13 @@
         "src/client/kernel",
         "src/client/panel",
         "src/client/views",
-        "src/shared",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-655-setup-layout.ts",
@@ -1988,8 +1967,8 @@
         "src/client/views/ChecksTab.ts",
         "src/client/views/NoRepoCard.ts",
         "src/client/views/SetupCard.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -2000,7 +1979,7 @@
         "src/client/panel",
         "src/client/statusbar",
         "src/client/views",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/shared/tracker",
         "tests/lib"
       ],
@@ -2022,7 +2001,6 @@
         "src/host/remotePredicates.ts",
         "src/host/workspaceCwd.ts",
         "src/host/workspaceKey.ts",
-        "src/shared/workspaceKey.js",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/explicitDetector.ts",
         "src/tracker/registry/core.ts",
@@ -2040,7 +2018,6 @@
         "src/client/kernel",
         "src/deck/shell",
         "src/host",
-        "src/shared",
         "src/tracker/detection",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
@@ -2051,7 +2028,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 16 条"
+      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-663-gh-install-inject.ts",
@@ -2059,7 +2036,7 @@
       "guards": [
         "src/client/kernel/actions.ts",
         "src/client/statusbar/bannerChain.ts",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/tracker/guide-steps.ts",
         "src/tracker/fix-contract.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/lib/eval-probe.ts",
@@ -2094,8 +2071,8 @@
         "src/client/kernel/prompts.ts",
         "src/client/statusbar/StatusBackend.ts",
         "src/client/statusbar/bannerChain.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/tracker/guide-steps.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/eval-probe.ts",
@@ -2105,7 +2082,7 @@
         "package/lib",
         "src/client/kernel",
         "src/client/statusbar",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/shared/tracker",
         "src/tracker/rooms/github",
         "src/tracker/rooms/markdown",
@@ -2167,8 +2144,8 @@
       "file": "tests/verify-668-guide-steps-single-source.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "src/shared/tracker/check-catalog-dirs.js",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/tracker/check-catalog-dirs.ts",
+        "src/shared/tracker/guide-steps.ts",
         "tests/verify-668-guide-steps-single-source.ts"
       ],
       "dirs": [
@@ -2216,8 +2193,8 @@
         "src/client/kernel/store-snapshot.ts",
         "src/client/kernel/store-switch.ts",
         "src/client/statusbar/StatusBackend.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/tracker/guide-steps.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/selection-precedence.ts",
         "src/tracker/registry/core.ts",
@@ -2228,7 +2205,7 @@
         "docs/agents",
         "src/client/kernel",
         "src/client/statusbar",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/shared/tracker",
         "src/tracker/detection",
         "src/tracker/registry",
@@ -2272,7 +2249,7 @@
         "src/client/kernel/probe-snapshot.ts",
         "src/client/kernel/probe-stale.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -2280,7 +2257,7 @@
       "dirs": [
         "package/lib",
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2343,14 +2320,14 @@
         "src",
         "src/client/kernel/prompts.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src",
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2414,13 +2391,13 @@
       "file": "tests/verify-683-mirror-write.ts",
       "guards": [
         "src/client/kernel/store-prefs.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2437,12 +2414,12 @@
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/prompts.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2459,7 +2436,7 @@
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/prompts.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -2467,7 +2444,7 @@
       ],
       "dirs": [
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
@@ -2599,15 +2576,15 @@
         "src/client/kernel/prompts-setup.ts",
         "src/client/kernel/store-switch.ts",
         "src/client/statusbar/StatusBackend.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/shared/tracker",
         "tests/lib"
       ],
@@ -2625,9 +2602,9 @@
         "src/host/git-process.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/backoff.js",
-        "src/shared/refresh/budget.js",
-        "src/shared/time-config/values.js",
+        "src/shared/refresh/src/backoff.ts",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/time-config/src/values.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/lib/time-compress.ts"
@@ -2635,8 +2612,8 @@
       "dirs": [
         "src/host",
         "src/host/refresh",
-        "src/shared/refresh",
-        "src/shared/time-config",
+        "src/shared/refresh/src",
+        "src/shared/time-config/src",
         "src/tracker/detection",
         "src/tracker/rooms/github",
         "tests/lib"
@@ -2657,9 +2634,9 @@
         "src/host/refresh/ledger.ts",
         "src/host/refresh/patch.ts",
         "src/host/refresh/wiring.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/delta.js",
-        "src/shared/tracker/indexWindow.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/delta.ts",
+        "src/shared/tracker/indexWindow.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -2667,7 +2644,7 @@
       "dirs": [
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/shared/tracker",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
@@ -2728,7 +2705,7 @@
       "guards": [
         "src/host/sessionLifecycle.ts",
         "src/host/workspaceCwd.ts",
-        "src/shared/session-cwd.js",
+        "src/shared/session-cwd.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts"
       ],
@@ -2807,8 +2784,8 @@
         "src/deck/tools/map-snapshot.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -2816,7 +2793,7 @@
       "dirs": [
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -2856,8 +2833,8 @@
         "src/host/platform/outbound-control.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -2866,7 +2843,7 @@
         "src/deck/tools",
         "src/host/platform",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests/lib"
@@ -2905,9 +2882,9 @@
         "src/client/views/versionControl/vcWriteUi.ts",
         "src/client/views/versionControl/vcWriteView.ts",
         "src/host/versionControl.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/version-control/rules.js",
-        "src/shared/version-control/state.js",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/version-control/src/rules.ts",
+        "src/shared/version-control/src/state.ts",
         "tests/fixtures/version-control/live-numstat-shapes.json",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -2917,8 +2894,8 @@
         "src/client/kernel",
         "src/client/views/versionControl",
         "src/host",
-        "src/shared/time-config",
-        "src/shared/version-control",
+        "src/shared/time-config/src",
+        "src/shared/version-control/src",
         "tests/fixtures/version-control",
         "tests/lib"
       ],
@@ -2936,8 +2913,8 @@
         "src/host/platform/outbound-control.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -2946,7 +2923,7 @@
         "src/deck/tools",
         "src/host/platform",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests/lib"
@@ -2979,14 +2956,14 @@
       "guards": [
         "src/host/versionControl.ts",
         "src/host/versionControlWrite.ts",
-        "src/shared/version-control/commands.js",
-        "src/shared/version-control/push-plan.js",
-        "src/shared/version-control/write-reasons.js",
-        "src/shared/version-control/write-ticket.js"
+        "src/shared/version-control/src/commands.ts",
+        "src/shared/version-control/src/push-plan.ts",
+        "src/shared/version-control/src/write-reasons.ts",
+        "src/shared/version-control/src/write-ticket.ts"
       ],
       "dirs": [
         "src/host",
-        "src/shared/version-control"
+        "src/shared/version-control/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3022,11 +2999,11 @@
         "src/client/views/versionControl/vcWriteRun.ts",
         "src/client/views/versionControl/vcWriteUi.ts",
         "src/client/views/versionControl/vcWriteView.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/version-control/commands.js",
-        "src/shared/version-control/push-plan.js",
-        "src/shared/version-control/rules.js",
-        "src/shared/version-control/write-reasons.js",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/version-control/src/commands.ts",
+        "src/shared/version-control/src/push-plan.ts",
+        "src/shared/version-control/src/rules.ts",
+        "src/shared/version-control/src/write-reasons.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -3034,8 +3011,8 @@
         "scripts/lib",
         "src/client/kernel",
         "src/client/views/versionControl",
-        "src/shared/time-config",
-        "src/shared/version-control",
+        "src/shared/time-config/src",
+        "src/shared/version-control/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -3119,9 +3096,9 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
-        "src/shared/time-config/values.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/deck-decide-stub.ts",
         "tests/lib/time-compress.ts"
       ],
@@ -3129,8 +3106,8 @@
         "src/deck/registration",
         "src/deck/shell",
         "src/deck/tools",
-        "src/shared/refresh",
-        "src/shared/time-config",
+        "src/shared/refresh/src",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -3169,15 +3146,15 @@
         "src/deck/shell/plan-cursor.ts",
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "tests/lib/deck-decide-stub.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -3234,7 +3211,7 @@
       "file": "tests/verify-916-ghauth-unknown-banner.ts",
       "guards": [
         "src/client/statusbar/bannerChain.ts",
-        "src/shared/tracker/guide-steps.js",
+        "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -3327,8 +3304,8 @@
       "guards": [
         "src/deck/tools/map-link.ts",
         "src/host/platform/outbound-control.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.ts",
@@ -3337,7 +3314,7 @@
       "dirs": [
         "src/deck/tools",
         "src/host/platform",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests",
@@ -3358,8 +3335,8 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/tracker/predicateCore.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -3371,7 +3348,7 @@
         "src/deck/shell",
         "src/host/refresh",
         "src/host/tracker",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -3393,8 +3370,8 @@
         "src/deck/shell/workspace-anchor.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/explicitDetector.ts"
       ],
@@ -3402,7 +3379,7 @@
         "docs/agents",
         "src/deck/shell",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -3415,7 +3392,7 @@
       "step": "node tests/verify-948-feedback-map.ts",
       "file": "tests/verify-948-feedback-map.ts",
       "guards": [
-        "src/shared/feedback-map.js"
+        "src/shared/feedback-map.ts"
       ],
       "dirs": [
         "src/shared"
@@ -3430,7 +3407,7 @@
       "step": "node tests/verify-952-short-text.ts",
       "file": "tests/verify-952-short-text.ts",
       "guards": [
-        "src/shared/feedback-map.js"
+        "src/shared/feedback-map.ts"
       ],
       "dirs": [
         "src/shared"
@@ -3445,7 +3422,7 @@
       "step": "node tests/verify-955-alignment.ts",
       "file": "tests/verify-955-alignment.ts",
       "guards": [
-        "src/shared/feedback-map.js"
+        "src/shared/feedback-map.ts"
       ],
       "dirs": [
         "src/shared"
@@ -3467,8 +3444,8 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/workspaceCwd.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/detection/backendDecision.ts"
       ],
       "dirs": [
@@ -3476,7 +3453,7 @@
         "src/deck/shell",
         "src/host",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -3512,13 +3489,13 @@
         "src/host/outbound/admission.ts",
         "src/host/platformChannel.ts",
         "src/host/skillProbe.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/host",
         "src/host/outbound",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -3534,9 +3511,9 @@
         "src/host/bootstrap.ts",
         "src/host/platformChannel.ts",
         "src/host/skillProbe.ts",
-        "src/shared/matt-skills.js",
-        "src/shared/skill-probe-channels.js",
-        "src/shared/tracker/check-catalog-views.js"
+        "src/shared/matt-skills.ts",
+        "src/shared/skill-probe-channels.ts",
+        "src/shared/tracker/check-catalog-views.ts"
       ],
       "dirs": [
         "src/host",
@@ -3556,7 +3533,7 @@
         "src/host/git-process.ts",
         "src/host/outbound/admission.ts",
         "src/host/platform/outbound-control.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/rooms/github/client.ts",
@@ -3566,7 +3543,7 @@
         "src/host",
         "src/host/outbound",
         "src/host/platform",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/tracker/contract",
         "src/tracker/kernel",
         "src/tracker/rooms/github"
@@ -3582,13 +3559,13 @@
       "file": "tests/verify-970-whole-document.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "src/shared/refresh/idempotency.js",
+        "src/shared/refresh/src/idempotency.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/verify-970-whole-document.ts"
       ],
       "dirs": [
         "scripts/lib",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/rooms/markdown",
         "tests"
       ],
@@ -3608,8 +3585,8 @@
         "src/deck/tools/map-snapshot.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/issues-create.ts",
@@ -3620,7 +3597,7 @@
       "dirs": [
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -3654,10 +3631,10 @@
       "step": "node tests/verify-976-pull-dirty-warn.ts",
       "file": "tests/verify-976-pull-dirty-warn.ts",
       "guards": [
-        "src/shared/version-control/rules.js"
+        "src/shared/version-control/src/rules.ts"
       ],
       "dirs": [
-        "src/shared/version-control"
+        "src/shared/version-control/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3675,8 +3652,8 @@
         "src/host/platform/outbound-control.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/preflight.ts",
         "src/tracker/registry/core.ts",
@@ -3692,7 +3669,7 @@
         "src/deck/tools",
         "src/host/platform",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/contract",
         "src/tracker/kernel",
         "src/tracker/registry",
@@ -3733,23 +3710,21 @@
         "src/client/views/versionControl/vcWriteRun.ts",
         "src/client/views/versionControl/vcWriteUi.ts",
         "src/client/views/versionControl/vcWriteView.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/version-control/rules.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/views/versionControl",
-        "src/shared/time-config",
-        "src/shared/version-control",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 20 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-997-vc-sight.ts",
@@ -3781,15 +3756,15 @@
       "guards": [
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/failure-window.js",
-        "src/shared/refresh/policy.js",
-        "src/shared/time-config/values.js"
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/failure-window.ts",
+        "src/shared/refresh/src/policy.ts",
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
         "src/host/refresh",
-        "src/shared/refresh",
-        "src/shared/time-config"
+        "src/shared/refresh/src",
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3802,14 +3777,14 @@
       "file": "tests/verify-attention-model.ts",
       "guards": [
         "src/host/refresh/attention.ts",
-        "src/shared/refresh/attention.js",
-        "src/shared/refresh/budget.js",
-        "src/shared/time-config/values.js"
+        "src/shared/refresh/src/attention.ts",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
         "src/host/refresh",
-        "src/shared/refresh",
-        "src/shared/time-config"
+        "src/shared/refresh/src",
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3842,10 +3817,10 @@
       "step": "node tests/verify-backend-quota-model.ts",
       "file": "tests/verify-backend-quota-model.ts",
       "guards": [
-        "src/shared/refresh/backend-quota.js"
+        "src/shared/refresh/src/backend-quota.ts"
       ],
       "dirs": [
-        "src/shared/refresh"
+        "src/shared/refresh/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3858,12 +3833,12 @@
       "file": "tests/verify-budget-page-upper-bound.ts",
       "guards": [
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/page-budget.js"
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/page-budget.ts"
       ],
       "dirs": [
         "src/host/refresh",
-        "src/shared/refresh"
+        "src/shared/refresh/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3875,13 +3850,13 @@
       "step": "node tests/verify-budget-worstcase.ts",
       "file": "tests/verify-budget-worstcase.ts",
       "guards": [
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/page-budget.js",
-        "src/shared/time-config/values.js"
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/page-budget.ts",
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh",
-        "src/shared/time-config"
+        "src/shared/refresh/src",
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3941,19 +3916,17 @@
       "file": "tests/verify-bundled-skills.ts",
       "guards": [
         "package/bundled-skills",
-        "package/package.json",
-        "src/shared/matt-skills.js"
+        "package/package.json"
       ],
       "dirs": [
         "package",
-        "package/bundled-skills",
-        "src/shared"
+        "package/bundled-skills"
       ],
-      "unattributed": false,
-      "buildOutputOnly": false,
+      "unattributed": true,
+      "buildOutputOnly": true,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
+      "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
       "step": "node tests/verify-cap-fold-browser.ts",
@@ -4152,19 +4125,17 @@
       "file": "tests/verify-config-store-package.ts",
       "guards": [
         "package/package.json",
-        "src/host/configStore.ts",
-        "src/shared/config-store"
+        "src/host/configStore.ts"
       ],
       "dirs": [
         "package",
-        "src/host",
-        "src/shared/config-store"
+        "src/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
       "step": "node tests/verify-ctx.ts",
@@ -4196,15 +4167,15 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/refresh/patch.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/delta.js",
-        "src/shared/time-config/values.js",
-        "src/shared/tracker/indexWindow.js"
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/delta.ts",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/tracker/indexWindow.ts"
       ],
       "dirs": [
         "src/host/refresh",
-        "src/shared/refresh",
-        "src/shared/time-config",
+        "src/shared/refresh/src",
+        "src/shared/time-config/src",
         "src/shared/tracker"
       ],
       "unattributed": false,
@@ -4222,9 +4193,9 @@
         "src/host/issueList.ts",
         "src/host/platform/issueIndexWindow.ts",
         "src/host/refresh/wiring.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/delta.js",
-        "src/shared/tracker/indexWindow.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/delta.ts",
+        "src/shared/tracker/indexWindow.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -4232,7 +4203,7 @@
         "src/host",
         "src/host/platform",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/shared/tracker",
         "tests/lib"
       ],
@@ -4363,9 +4334,9 @@
       "file": "tests/verify-dirwritable.ts",
       "guards": [
         "src/host/tracker/predicateCore.ts",
-        "src/shared/tracker/chain-types.js",
-        "src/shared/tracker/chain-validate.js",
-        "src/shared/tracker/check-catalog-dirs.js"
+        "src/shared/tracker/chain-types.ts",
+        "src/shared/tracker/chain-validate.ts",
+        "src/shared/tracker/check-catalog-dirs.ts"
       ],
       "dirs": [
         "src/host/tracker",
@@ -4490,13 +4461,13 @@
       "step": "node tests/verify-event-budget.ts",
       "file": "tests/verify-event-budget.ts",
       "guards": [
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/page-budget.js",
-        "src/shared/time-config/values.js"
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/page-budget.ts",
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh",
-        "src/shared/time-config"
+        "src/shared/refresh/src",
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4510,20 +4481,18 @@
       "guards": [
         "scripts/lib/effective-lines.mts",
         "src",
-        "src/shared/time-config/src/values.ts",
-        "src/shared/time-config/values.js"
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
         "scripts/lib",
         "src",
-        "src/shared/time-config",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-gate-accounting.ts",
@@ -4531,13 +4500,13 @@
       "guards": [
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/time-config/values.js"
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
         "src/host/refresh",
-        "src/shared/refresh",
-        "src/shared/time-config"
+        "src/shared/refresh/src",
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4552,21 +4521,18 @@
         "package/lib/client.js",
         "scripts/generated/logKernel.derived.js",
         "scripts/generated/updateClient.derived.js",
-        "src/shared/label-color/colors.js",
-        "src/shared/label-color/prompt.js",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
         "scripts/generated",
-        "src/shared/label-color",
         "tests/lib"
       ],
-      "unattributed": false,
-      "buildOutputOnly": false,
+      "unattributed": true,
+      "buildOutputOnly": true,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "读到的路径都落在 package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-generic-catalog.ts",
@@ -4574,11 +4540,11 @@
       "guards": [
         "src/host/tracker/generic.ts",
         "src/host/tracker/predicateCore.ts",
-        "src/shared/tracker/chain-evaluate.js",
-        "src/shared/tracker/chain-types.js",
-        "src/shared/tracker/chain-validate.js",
-        "src/shared/tracker/check-catalog-dirs.js",
-        "src/shared/tracker/check-catalog-views.js"
+        "src/shared/tracker/chain-evaluate.ts",
+        "src/shared/tracker/chain-types.ts",
+        "src/shared/tracker/chain-validate.ts",
+        "src/shared/tracker/check-catalog-dirs.ts",
+        "src/shared/tracker/check-catalog-views.ts"
       ],
       "dirs": [
         "src/host/tracker",
@@ -4701,12 +4667,12 @@
       "step": "node tests/verify-gitlab-single-write.ts",
       "file": "tests/verify-gitlab-single-write.ts",
       "guards": [
-        "src/shared/refresh/idempotency.js",
+        "src/shared/refresh/src/idempotency.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/gitlab/index.ts"
       ],
       "dirs": [
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/gitlab"
       ],
@@ -4733,8 +4699,8 @@
         "src/deck/tools/map-snapshot.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -4746,7 +4712,7 @@
         "src/deck/shell",
         "src/deck/tools",
         "src/host/refresh",
-        "src/shared/refresh",
+        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/markdown",
@@ -4834,7 +4800,7 @@
       "step": "node tests/verify-index-window.ts",
       "file": "tests/verify-index-window.ts",
       "guards": [
-        "src/shared/tracker/indexWindow.js"
+        "src/shared/tracker/indexWindow.ts"
       ],
       "dirs": [
         "src/shared/tracker"
@@ -4946,7 +4912,7 @@
         "package/lib/index.js",
         "scripts/lib/discover-gates.ts",
         "src/host/index.ts",
-        "src/shared/tracker/sync.js",
+        "src/shared/tracker/sync.ts",
         "tests/verify-issue232-sync.ts"
       ],
       "dirs": [
@@ -5024,22 +4990,19 @@
         "package/lib/client.js",
         "package/package.json",
         "scripts/build.mts",
-        "src/client/index.ts",
-        "src/shared/label-color/colors.js",
-        "src/shared/label-color/prompt.js"
+        "src/client/index.ts"
       ],
       "dirs": [
         "package",
         "package/lib",
         "scripts",
-        "src/client",
-        "src/shared/label-color"
+        "src/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 6 条"
+      "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-label-color-core.ts",
@@ -5052,17 +5015,15 @@
         "src/client/views/labels/labelColorPalette.ts",
         "src/client/views/labels/labelColorPatch.ts",
         "src/client/views/labels/useLabelColors.ts",
-        "src/shared/label-color/colors.js",
-        "src/shared/label-color/ports.js",
-        "src/shared/label-color/prompt.js",
+        "src/shared/label-color/src/colors.ts",
         "src/shared/label-color/src/ports.ts",
+        "src/shared/label-color/src/prompt.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/views/labels",
-        "src/shared/label-color",
         "src/shared/label-color/src",
         "tests/lib"
       ],
@@ -5136,7 +5097,7 @@
         "src/client/kernel/log.ts",
         "src/client/kernel/probe-snapshot.ts",
         "src/client/panelAssembly.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -5145,7 +5106,7 @@
         "scripts",
         "src/client",
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5228,7 +5189,7 @@
         "scripts/lib/discover-gates.ts",
         "src/client/kernel/log.ts",
         "src/host/logStore.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/source-text.ts",
@@ -5240,7 +5201,7 @@
         "scripts/lib",
         "src/client/kernel",
         "src/host",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests",
         "tests/lib"
       ],
@@ -5293,13 +5254,13 @@
       "file": "tests/verify-log-switch-526.ts",
       "guards": [
         "src/client/kernel/log.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5335,7 +5296,7 @@
         "src/client/views/IssueDetail.ts",
         "src/client/views/MapDetail.ts",
         "src/client/views/SkillsTab.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "src/tracker/kernel/identity-keys.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -5345,7 +5306,7 @@
         "scripts/lib",
         "src/client/kernel",
         "src/client/views",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/tracker/kernel",
         "tests/lib"
       ],
@@ -5392,14 +5353,14 @@
       "file": "tests/verify-markdown-label-colors.ts",
       "guards": [
         "src/host/workspaceCwd.ts",
-        "src/shared/label-color/colors.js",
+        "src/shared/label-color/src/colors.ts",
         "src/tracker/contract/canonical-labels.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/label-colors-errors.ts"
       ],
       "dirs": [
         "src/host",
-        "src/shared/label-color",
+        "src/shared/label-color/src",
         "src/tracker/contract",
         "src/tracker/rooms/markdown"
       ],
@@ -5519,8 +5480,8 @@
       "file": "tests/verify-naming-e2e.ts",
       "guards": [
         "src/client/kernel/api-naming.ts",
-        "src/shared/naming-titles.js",
-        "src/shared/naming-tracking.js"
+        "src/shared/naming-titles.ts",
+        "src/shared/naming-tracking.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -5538,9 +5499,9 @@
       "guards": [
         "src/client/kernel",
         "src/host/platform/namingSummary.ts",
-        "src/shared/naming-attribution.js",
-        "src/shared/naming-titles.js",
-        "src/shared/naming-tracking.js",
+        "src/shared/naming-attribution.ts",
+        "src/shared/naming-titles.ts",
+        "src/shared/naming-tracking.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -5577,13 +5538,13 @@
       "file": "tests/verify-nav-stack.ts",
       "guards": [
         "src/client/kernel/store-prefs.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5602,14 +5563,14 @@
         "src/client/kernel/api-naming.ts",
         "src/client/kernel/api-new-session.ts",
         "src/client/kernel/api-workspace.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5629,14 +5590,14 @@
         "src/client/kernel/api-new-session.ts",
         "src/client/kernel/api-preset-guard.ts",
         "src/client/kernel/api-workspace.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5655,14 +5616,14 @@
         "src/client/kernel/api-naming.ts",
         "src/client/kernel/api-new-session.ts",
         "src/client/kernel/api-workspace.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/kernel",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5752,15 +5713,13 @@
       "step": "node tests/verify-policy.ts",
       "file": "tests/verify-policy.ts",
       "guards": [
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/policy.js",
+        "src/shared/refresh/src/budget.ts",
         "src/shared/refresh/src/policy.ts",
-        "src/shared/time-config/values.js"
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh",
         "src/shared/refresh/src",
-        "src/shared/time-config"
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -5861,8 +5820,6 @@
       "guards": [
         "docs/adr/20260913-builtin-ts-shape.md",
         "docs/adr/20260924-refresh-budget-architecture.md",
-        "src/shared/refresh/backend-quota.js",
-        "src/shared/refresh/page-budget.js",
         "src/shared/refresh/src/budget.ts",
         "src/shared/refresh/src/chain.ts",
         "tests/file-granularity-baseline.json",
@@ -5874,7 +5831,6 @@
       ],
       "dirs": [
         "docs/adr",
-        "src/shared/refresh",
         "src/shared/refresh/src",
         "tests"
       ],
@@ -5882,7 +5838,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-refresh-workspace-key.ts",
@@ -5892,7 +5848,7 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/refresh/wiring.ts",
-        "src/shared/refresh-workspace-key.js",
+        "src/shared/refresh-workspace-key.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -5981,7 +5937,7 @@
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-word.ts",
         "src/client/views/shared/truthLines.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -5989,7 +5945,7 @@
         "package/lib",
         "src/client/kernel",
         "src/client/views/shared",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6004,7 +5960,7 @@
       "guards": [
         "package/lib/client.js",
         "src/client/views/shared/truthLines.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "src/tracker/rooms/github/fallback-reason.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -6012,7 +5968,7 @@
       "dirs": [
         "package/lib",
         "src/client/views/shared",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/tracker/rooms/github",
         "tests/lib"
       ],
@@ -6062,9 +6018,9 @@
       "step": "node tests/verify-session-title.ts",
       "file": "tests/verify-session-title.ts",
       "guards": [
-        "src/shared/naming-attribution.js",
-        "src/shared/naming-titles.js",
-        "src/shared/naming-tracking.js",
+        "src/shared/naming-attribution.ts",
+        "src/shared/naming-titles.ts",
+        "src/shared/naming-tracking.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -6100,8 +6056,7 @@
         "src/host",
         "src/host/configStore.ts",
         "src/host/settingsPhones.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/workspaceKey.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts",
         "tests/lib/time-compress.ts",
@@ -6118,8 +6073,7 @@
         "src/client/views",
         "src/client/views/diagnosticLog",
         "src/host",
-        "src/shared",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests",
         "tests/lib"
       ],
@@ -6127,7 +6081,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 16 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-settings-phones.ts",
@@ -6164,8 +6118,7 @@
         "src/host",
         "src/host/configStore.ts",
         "src/host/settingsPhones.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/workspaceKey.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/source-text.ts",
@@ -6178,15 +6131,14 @@
         "src/client",
         "src/client/kernel",
         "src/host",
-        "src/shared",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 65,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-settings-view.ts",
@@ -6205,8 +6157,7 @@
         "src/host",
         "src/host/configStore.ts",
         "src/host/settingsPhones.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/workspaceKey.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/render-subws-mark.ts",
@@ -6221,15 +6172,14 @@
         "src/client/kernel",
         "src/client/views",
         "src/host",
-        "src/shared",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 215,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-setup-describe.ts",
@@ -6244,7 +6194,7 @@
         "src/client/kernel/locale.ts",
         "src/client/kernel/prompts.ts",
         "src/host/workspaceCwd.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "src/tracker/ui-description.ts",
         "tests/lib/source-text.ts"
       ],
@@ -6253,7 +6203,7 @@
         "src/client",
         "src/client/kernel",
         "src/host",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/tracker",
         "tests/lib"
       ],
@@ -6277,13 +6227,13 @@
         "src/client/views/skillDetail/PixelMarkdown.ts",
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillOps.ts",
-        "src/shared/time-config/values.js",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/views/pixel",
         "src/client/views/skillDetail",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6347,9 +6297,8 @@
         "src/client/kernel/store-prefs.ts",
         "src/client/kernel/store-snapshot.ts",
         "src/client/statusbar/bannerChain.ts",
-        "src/shared/time-config/values.js",
-        "src/shared/tracker/guide-steps.js",
-        "src/shared/workspaceKey.js",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts",
         "tests/lib/time-compress.ts"
@@ -6357,8 +6306,7 @@
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/shared",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/shared/tracker",
         "tests/lib"
       ],
@@ -6366,7 +6314,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-t1-getrepokey.ts",
@@ -6631,11 +6579,9 @@
       "step": "node tests/verify-version-control-rules.ts",
       "file": "tests/verify-version-control-rules.ts",
       "guards": [
-        "src/shared/version-control/rules.js",
         "src/shared/version-control/src/rules.ts"
       ],
       "dirs": [
-        "src/shared/version-control",
         "src/shared/version-control/src"
       ],
       "unattributed": false,
@@ -6652,8 +6598,8 @@
         "src/client/kernel/locale-pages.ts",
         "src/client/views/shared/truthLines.ts",
         "src/host/snapshotEnvelope.ts",
-        "src/shared/refresh/budget.js",
-        "src/shared/time-config/values.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -6662,8 +6608,8 @@
         "src/client/kernel",
         "src/client/views/shared",
         "src/host",
-        "src/shared/refresh",
-        "src/shared/time-config",
+        "src/shared/refresh/src",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6737,15 +6683,13 @@
       "step": "node tests/verify-write-detect.ts",
       "file": "tests/verify-write-detect.ts",
       "guards": [
-        "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/budget.ts",
         "src/shared/refresh/src/write-detect.ts",
-        "src/shared/refresh/write-detect.js",
-        "src/shared/time-config/values.js"
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh",
         "src/shared/refresh/src",
-        "src/shared/time-config"
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -6766,8 +6710,8 @@
         "src/client/kernel/locale-vcwrite.ts",
         "src/client/kernel/locale-word.ts",
         "src/client/kernel/locale.ts",
-        "src/shared/matt-skills.js",
-        "src/shared/time-config/values.js",
+        "src/shared/matt-skills.ts",
+        "src/shared/time-config/src/values.ts",
         "src/tracker/contract/canonical-labels.ts",
         "src/tracker/contract/vocabulary.ts",
         "tests/lib/source-text.ts"
@@ -6776,7 +6720,7 @@
         "package/lib",
         "src/client/kernel",
         "src/shared",
-        "src/shared/time-config",
+        "src/shared/time-config/src",
         "src/tracker/contract",
         "tests/lib"
       ],
@@ -7111,6 +7055,7 @@
       "node tests/verify-wizard-exit-609.ts"
     ],
     "src": [
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
@@ -7591,46 +7536,29 @@
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-653-subworkspace.ts",
-      "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-948-feedback-map.ts",
       "node tests/verify-952-short-text.ts",
       "node tests/verify-955-alignment.ts",
       "node tests/verify-968-skill-ondemand.ts",
-      "node tests/verify-bundled-skills.ts",
       "node tests/verify-naming-e2e.ts",
       "node tests/verify-naming-guardian.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-session-title.ts",
-      "node tests/verify-settings-debug.ts",
-      "node tests/verify-settings-templates.ts",
-      "node tests/verify-settings-view.ts",
-      "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-locale-completeness.ts"
     ],
-    "src/shared/config-store": [
-      "node tests/verify-config-store-package.ts"
-    ],
-    "src/shared/host-timer": [
-      "node tests/verify-build-artifacts.ts",
-      "node tests/verify-1115-timer-handle.ts"
-    ],
+    "src/shared/host-timer": [],
     "src/shared/host-timer/src": [
       "node tests/verify-1115-timer-handle.ts"
     ],
-    "src/shared/label-color": [
-      "node tests/verify-generated-no-shadow.ts",
-      "node tests/verify-kernel.ts",
+    "src/shared/label-color": [],
+    "src/shared/label-color/src": [
       "node tests/verify-label-color-core.ts",
       "node tests/verify-markdown-label-colors.ts"
     ],
-    "src/shared/label-color/src": [
-      "node tests/verify-label-color-core.ts"
-    ],
-    "src/shared/refresh": [
+    "src/shared/refresh": [],
+    "src/shared/refresh/src": [
       "node tests/verify-build-artifacts.ts",
-      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.ts",
@@ -7640,6 +7568,8 @@
       "node tests/verify-gate-map.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1083-work-path-persist.ts",
+      "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
@@ -7675,16 +7605,8 @@
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts"
     ],
-    "src/shared/refresh/src": [
-      "node tests/verify-build-artifacts.ts",
-      "node tests/verify-dependency-rules.ts",
-      "node tests/verify-1083-work-path-persist.ts",
-      "node tests/verify-1106-deck-surface.ts",
-      "node tests/verify-policy.ts",
-      "node tests/verify-refresh-adr.ts",
-      "node tests/verify-write-detect.ts"
-    ],
-    "src/shared/time-config": [
+    "src/shared/time-config": [],
+    "src/shared/time-config/src": [
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-655-setup-layout.ts",
@@ -7731,15 +7653,10 @@
       "node tests/verify-write-detect.ts",
       "node tests/verify-locale-completeness.ts"
     ],
-    "src/shared/time-config/src": [
-      "node tests/verify-file-granularity.ts"
-    ],
     "src/shared/tracker": [
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-chain.ts",
-      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-slots.ts",
-      "node tests/verify-589-list-dedupe.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -7761,18 +7678,15 @@
       "node tests/verify-deck-slots.ts"
     ],
     "src/shared/version-control": [
-      "node tests/verify-build-artifacts.ts",
-      "node tests/verify-818-version-control-view.ts",
-      "node tests/verify-841-write-phones.ts",
-      "node tests/verify-842-version-control-write-view.ts",
-      "node tests/verify-976-pull-dirty-warn.ts",
-      "node tests/verify-997-vc-sight-browser.ts",
-      "node tests/verify-version-control-parsers.ts",
-      "node tests/verify-version-control-rules.ts"
+      "node tests/verify-version-control-parsers.ts"
     ],
     "src/shared/version-control/src": [
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-1231-ws-overview-rows.ts",
+      "node tests/verify-818-version-control-view.ts",
+      "node tests/verify-841-write-phones.ts",
+      "node tests/verify-842-version-control-write-view.ts",
+      "node tests/verify-976-pull-dirty-warn.ts",
       "node tests/verify-version-control-rules.ts"
     ],
     "src/tracker": [
@@ -8162,12 +8076,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 577,
+    "fileCount": 515,
     "dirCount": 54,
-    "coveredFileCount": 577,
+    "coveredFileCount": 515,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 53,
+    "dedicatedDirCount": 48,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -8480,53 +8394,26 @@
       "src/seam/timer.ts",
       "src/seam/tsconfig.json",
       "src/shared/config-store/README.md",
-      "src/shared/config-store/labels.js",
-      "src/shared/config-store/ports.js",
-      "src/shared/config-store/settings.js",
       "src/shared/config-store/src/labels.ts",
       "src/shared/config-store/src/ports.ts",
       "src/shared/config-store/src/settings.ts",
       "src/shared/config-store/src/workspace.ts",
       "src/shared/config-store/tsconfig.json",
-      "src/shared/config-store/workspace.js",
-      "src/shared/feedback-map.js",
       "src/shared/feedback-map.ts",
       "src/shared/host-timer/README.md",
-      "src/shared/host-timer/host-timers.js",
       "src/shared/host-timer/src/host-timers.ts",
       "src/shared/host-timer/tsconfig.json",
       "src/shared/label-color/README.md",
-      "src/shared/label-color/colors.js",
-      "src/shared/label-color/ports.js",
-      "src/shared/label-color/prompt.js",
       "src/shared/label-color/src/colors.ts",
       "src/shared/label-color/src/ports.ts",
       "src/shared/label-color/src/prompt.ts",
       "src/shared/label-color/tsconfig.json",
-      "src/shared/matt-skills.js",
       "src/shared/matt-skills.ts",
-      "src/shared/naming-attribution.js",
       "src/shared/naming-attribution.ts",
-      "src/shared/naming-titles.js",
       "src/shared/naming-titles.ts",
-      "src/shared/naming-tracking.js",
       "src/shared/naming-tracking.ts",
-      "src/shared/refresh-workspace-key.js",
       "src/shared/refresh-workspace-key.ts",
       "src/shared/refresh/README.md",
-      "src/shared/refresh/attention.js",
-      "src/shared/refresh/backend-quota.js",
-      "src/shared/refresh/backoff.js",
-      "src/shared/refresh/budget.js",
-      "src/shared/refresh/chain-prune.js",
-      "src/shared/refresh/chain.js",
-      "src/shared/refresh/create-write.js",
-      "src/shared/refresh/delta.js",
-      "src/shared/refresh/failure-window.js",
-      "src/shared/refresh/idempotency.js",
-      "src/shared/refresh/page-budget.js",
-      "src/shared/refresh/policy.js",
-      "src/shared/refresh/ports.js",
       "src/shared/refresh/src/attention.ts",
       "src/shared/refresh/src/backend-quota.ts",
       "src/shared/refresh/src/backoff.ts",
@@ -8544,59 +8431,28 @@
       "src/shared/refresh/src/tool-cost.ts",
       "src/shared/refresh/src/tuning.ts",
       "src/shared/refresh/src/write-detect.ts",
-      "src/shared/refresh/step-cost.js",
-      "src/shared/refresh/tool-cost.js",
       "src/shared/refresh/tsconfig.json",
-      "src/shared/refresh/tuning.js",
-      "src/shared/refresh/write-detect.js",
-      "src/shared/session-cwd.js",
       "src/shared/session-cwd.ts",
-      "src/shared/skill-probe-channels.js",
       "src/shared/skill-probe-channels.ts",
       "src/shared/time-config/README.md",
       "src/shared/time-config/src/values.ts",
       "src/shared/time-config/tsconfig.json",
       "src/shared/time-config/values.d.ts",
-      "src/shared/time-config/values.js",
-      "src/shared/tracker/backendWritePermissions.js",
       "src/shared/tracker/backendWritePermissions.ts",
-      "src/shared/tracker/chain-evaluate.js",
       "src/shared/tracker/chain-evaluate.ts",
-      "src/shared/tracker/chain-types.js",
       "src/shared/tracker/chain-types.ts",
-      "src/shared/tracker/chain-validate.js",
       "src/shared/tracker/chain-validate.ts",
-      "src/shared/tracker/check-catalog-dirs.js",
       "src/shared/tracker/check-catalog-dirs.ts",
-      "src/shared/tracker/check-catalog-views.js",
       "src/shared/tracker/check-catalog-views.ts",
-      "src/shared/tracker/guide-steps.js",
       "src/shared/tracker/guide-steps.ts",
-      "src/shared/tracker/indexWindow.js",
       "src/shared/tracker/indexWindow.ts",
-      "src/shared/tracker/list-dedupe.js",
       "src/shared/tracker/list-dedupe.ts",
-      "src/shared/tracker/shape.js",
       "src/shared/tracker/shape.ts",
-      "src/shared/tracker/sync.js",
       "src/shared/tracker/sync.ts",
       "src/shared/tsconfig.json",
-      "src/shared/ui/slots.js",
       "src/shared/ui/slots.ts",
       "src/shared/version-control/README.md",
-      "src/shared/version-control/capabilities.js",
-      "src/shared/version-control/commands.js",
-      "src/shared/version-control/exec-envelope.js",
       "src/shared/version-control/exec-envelope.ts",
-      "src/shared/version-control/parse-diff-files.js",
-      "src/shared/version-control/parse-log.js",
-      "src/shared/version-control/parse-patch.js",
-      "src/shared/version-control/parse-refs.js",
-      "src/shared/version-control/parse-status.js",
-      "src/shared/version-control/parse-worktrees.js",
-      "src/shared/version-control/ports.js",
-      "src/shared/version-control/push-plan.js",
-      "src/shared/version-control/rules.js",
       "src/shared/version-control/src/capabilities.ts",
       "src/shared/version-control/src/commands.ts",
       "src/shared/version-control/src/parse-diff-files.ts",
@@ -8611,11 +8467,7 @@
       "src/shared/version-control/src/state.ts",
       "src/shared/version-control/src/write-reasons.ts",
       "src/shared/version-control/src/write-ticket.ts",
-      "src/shared/version-control/state.js",
       "src/shared/version-control/tsconfig.json",
-      "src/shared/version-control/write-reasons.js",
-      "src/shared/version-control/write-ticket.js",
-      "src/shared/workspaceKey.js",
       "src/shared/workspaceKey.ts",
       "src/tracker/body-parse.ts",
       "src/tracker/capability-assertions.ts",
@@ -8835,14 +8687,9 @@
       "src/host/tracker",
       "src/seam",
       "src/shared",
-      "src/shared/config-store",
-      "src/shared/host-timer",
       "src/shared/host-timer/src",
-      "src/shared/label-color",
       "src/shared/label-color/src",
-      "src/shared/refresh",
       "src/shared/refresh/src",
-      "src/shared/time-config",
       "src/shared/time-config/src",
       "src/shared/tracker",
       "src/shared/ui",
@@ -8860,7 +8707,27 @@
     ],
     "dirsWithoutDedicated": [
       {
+        "path": "src/shared/config-store",
+        "fileCount": 6
+      },
+      {
         "path": "src/shared/config-store/src",
+        "fileCount": 4
+      },
+      {
+        "path": "src/shared/host-timer",
+        "fileCount": 3
+      },
+      {
+        "path": "src/shared/label-color",
+        "fileCount": 5
+      },
+      {
+        "path": "src/shared/refresh",
+        "fileCount": 19
+      },
+      {
+        "path": "src/shared/time-config",
         "fileCount": 4
       }
     ],

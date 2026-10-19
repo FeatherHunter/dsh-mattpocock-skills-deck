@@ -66,7 +66,8 @@ async function main() {
     '同一笔（5 条请求、9 点）喂三个后端得到三种不同的记法：' + sigs.join(' ／ '))
 
   // ⑥ 这份模型里一个额度数值都没有（额度只能来自服务端现场读数，常量真源只有 budget.ts）。
-  const text = fs.readFileSync(path.join(ROOT, 'src', 'shared', 'refresh', 'backend-quota.js'), 'utf8')
+  // 2026-10-19 第三阶段起共享层产物搬出源码树，转译产物改读仓库根的 .build/shared/ 下那一份。
+  const text = fs.readFileSync(path.join(ROOT, '.build', 'shared', 'refresh', 'backend-quota.js'), 'utf8')
   check(!/\b5000\b/.test(text) && !/\b1750\b/.test(text) && !/\b1225\b/.test(text),
     '模型产物里没有写死任何额度数值（5000 / 1750 / 1225 都不出现）')
   const numericFields = []

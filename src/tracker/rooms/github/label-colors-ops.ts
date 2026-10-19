@@ -32,7 +32,7 @@ import type { ErrorKind } from '../../contract/identity.js';
 import { beginWriteTrail, emitLabelDefsWrite } from './write-log.js'
 import type { WriteTrail } from './write-log.js';
 import type { OpResult, RepoPermissions, TrackerError, LabelColorBatchResult } from '../../contract/results.js';
-import { normalizeColor } from '../../../shared/label-color/colors.js'
+import { normalizeColor } from '../../../shared/label-color/src/colors.js'
 import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'

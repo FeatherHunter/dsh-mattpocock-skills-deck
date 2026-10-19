@@ -40,9 +40,18 @@
  *      （tests/same-layer-baseline.json 只许减不许增），而它要能在宿主（Node）与客户端闭包两边都跑得动。
  */
 
-/** 宿主计时器服务的最小形状：这里只用到 timeout 一个方法（ctx.get('timer') 上的那一支）。 */
+/**
+ * 宿主计时器服务的最小形状：这里只用到 timeout 一个方法（ctx.get('timer') 上的那一支）。
+ *
+ * 两档签名都要留着，因为宿主里两种用法都真实存在：
+ *   · `timeout(回调, 毫秒)` —— 交回撤销器，hostTimers 把它包成 OpContext.timers.setTimeout；
+ *   · `timeout(毫秒)`       —— 当 Promise 用，等它到点（见 src/host/platformChannel.ts 的进程超时）。
+ * 说明符指向真源后 tsc 第一次看见了这两种用法；只留一档就会把另一档判成类型错，
+ * 而运行时 DSH 的计时器服务两档都收，所以这里按重载写，不是放宽检查。
+ */
 export interface HostTimerService {
   timeout(handler: () => void, ms?: number): unknown
+  timeout(ms: number): Promise<unknown>
 }
 
 /** OpContext.timers 的形状：Tracker 后端要的「申请一笔等待 / 撤销这笔等待」两个口子。 */

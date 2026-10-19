@@ -71,11 +71,16 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
     fs.writeFileSync(manifestPath, JSON.stringify(bumped, null, 2) + LF, 'utf8')
     const pending = await readEnv(installedVersion)
     check(pending.installedVersion === '9.9.9', '换了清单版本后宿主读到的是新版本号（读的是真文件）')
-    // 本机把插件按「精确测试版」钉在 profile 里时（dependencies 写 "1.8.0-beta.3" 这种），
+    // 本机把插件按精确测试版钉在 profile 里时（dependencies 写 "1.9.0-beta.5" 这种），
     // dsh-plugin-update@0.11.0 起 registrySpec() 认精确预发布（validReleaseVersion），整包装不再被判成「从源码装的」，
     // 缺一次重启这条判据在这台机器上同样可达（0.10.0 及之前才走 source-install 分支，见 #878/#892）。
-    // 所以这里不再按机器状态分别断言，两种装法都报缺一次重启。
-    check(pending.blockedReason === 'pending-restart', '磁盘已是新版、进程仍跑旧版：报缺一次重启（实际 ' + (pending.blockedReason || '无阻拦') + '，profile 写法 ' + (profileSpec || '空') + '）')
+    // 但本机这份是「源码链接安装」（profile 里写 link:<仓库>/package）：dsh-plugin-update@0.18.25 的
+    // registrySpec() 只认版本号，link:/file: 一律归为 source-install——链接安装下磁盘文件和运行代码本来就是同一份，
+    // 没有「磁盘已换新版、进程还跑旧版」这回事，读取器判 source-install 才是对的。
+    // 所以这里按安装形态分别断言，两种形态都守住「不会报成别的、不会静默当成已是最新」。
+    const linkedInstall = /^(?:link|file):/.test(profileSpec)
+    const expectedReason = linkedInstall ? 'source-install' : 'pending-restart'
+    check(pending.blockedReason === expectedReason, '磁盘已是新版、进程仍跑旧版：' + (linkedInstall ? '链接安装报源码安装' : '报缺一次重启') + '（实际 ' + (pending.blockedReason || '无阻拦') + '，profile 写法 ' + (profileSpec || '空') + '）')
 
     const afterRestart = await readEnv('9.9.9')
     check(afterRestart.installedVersion === '9.9.9' && afterRestart.blockedReason !== 'pending-restart', '按新版重启后（运行版本追上磁盘）缺一次重启消失（实际 ' + (afterRestart.blockedReason || '无阻拦') + '）')

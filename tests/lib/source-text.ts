@@ -49,7 +49,10 @@ const { REPO_ROOT, fragmentLoaderFor, loadEsbuild, readSpliceFragmentSource } = 
 const { TRANSPILE_OPTIONS } = require('../../scripts/lib/transpile-unit.mts')
 
 /**
- * 这份源码今天住在哪个文件里：问的是 '.js' 时同名 '.ts' 优先（与装载钩子同规则），问的是 '.ts' 时就用它自己。
+ * 这份源码今天住在哪个文件里：问的是 '.js' 时同名 '.ts' 优先（与装载钩子同规则），
+ * 同目录没有同名 .ts 时再试 `<所在目录>/src/<同名>.ts`（域源码的形状——2026-10-19 第三阶段
+ * 域产物搬出源码树之后，`src/shared/<域>/<名>.js` 在盘上不存在，真源在 `<域>/src/<名>.ts`）；
+ * 问的是 '.ts' 时就用它自己。
  * 两种扩展名都不在盘上时抛错 —— 门禁宁可当场红，也不要静默读到空文本、把后面的判据全放过去。
  */
 function sourcePath(rel: string): string {
@@ -63,9 +66,13 @@ function sourcePath(rel: string): string {
   if (asked.endsWith('.js')) {
     const sibling = asked.slice(0, -'.js'.length) + '.ts'
     if (existsSync(resolve(REPO_ROOT, sibling))) return sibling
+    const noExt = asked.slice(0, -'.js'.length)
+    const cut = noExt.lastIndexOf('/')
+    const underSrc = noExt.slice(0, cut) + '/src/' + noExt.slice(cut + 1) + '.ts'
+    if (existsSync(resolve(REPO_ROOT, underSrc))) return underSrc
   }
   if (!existsSync(resolve(REPO_ROOT, asked))) {
-    throw new Error('找不到源码 ' + asked + '（同名 .ts 与它自己都不在盘上，也可能这份文件已经改名）')
+    throw new Error('找不到源码 ' + asked + '（同名 .ts、<目录>/src 下的同名 .ts 与它自己都不在盘上，也可能这份文件已经改名）')
   }
   return asked
 }

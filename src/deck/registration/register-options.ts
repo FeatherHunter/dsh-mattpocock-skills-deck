@@ -8,7 +8,7 @@
 // 招牌（本文件交出去的名字）与后厨（装配拼出的实现表）必须同源：
 // 名字顺序的真源在装配清单与行数组（实际九个），注释里的“七个”是旧话，已按 #1030 Q1 改齐。
 // 时间数字不住这里：只引用纯数据的中央时间参数目录，不引用别的逻辑层。
-import { TOOL_TIMEOUT_MS, REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/values.js';
+import { TOOL_TIMEOUT_MS, REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js';
 
 /** 未知形状的对象（参数模式、定义、表都先按这形接住，守卫函数再逐格验，不猜）。 */
 type UnknownRecord = Record<string, unknown>;

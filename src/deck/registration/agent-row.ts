@@ -30,7 +30,7 @@ import { definition as deckIssueReportDef } from '../tools/issue-report.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from './register-options.js'
 import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath } from '../shell/table-cell.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { BRIDGE_DRY_TABLE_WAIT_MS, DELEGATED_CELL_WAIT_MS } from '../../shared/time-config/values.js'
+import { BRIDGE_DRY_TABLE_WAIT_MS, DELEGATED_CELL_WAIT_MS } from '../../shared/time-config/src/values.js'
 
 /** 运行环境里的进程对象（类型-only 声明，不影响运行时；行模块只读环境变量名，不读值）。 */
 declare const process: { env: Record<string, string | undefined> } | undefined;

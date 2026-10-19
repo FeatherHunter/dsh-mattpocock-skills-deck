@@ -48,7 +48,8 @@ function subwsCmpKey(keyOf: any, v: any): string {
 
 /** 真源里的纯函数那把规整钥匙（与门禁同一件，不另写仿制品）。 */
 function keyOfFn(): any {
-  const src = fs.readFileSync(path.join(ROOT, 'src/shared/workspaceKey.js'), 'utf8').replace(/^\s*export\s+/gm, '')
+  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/shared/workspaceKey.ts）。
+  const src = fs.readFileSync(path.join(ROOT, '.build/shared/workspaceKey.js'), 'utf8').replace(/^\s*export\s+/gm, '')
   // 本处走 compileFn：这段真源码不引用本文件任何外层变量，参数名给空数组即可。
   return compileFn([], src + '\nreturn keyOf')()
 }

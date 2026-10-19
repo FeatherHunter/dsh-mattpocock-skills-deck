@@ -499,13 +499,25 @@ export function resolveRepoPath(raw: unknown, fromDirRel: string, exists: RepoIn
   return null
 }
 
-/** 原样找；找不到就把迁移期换过后缀的名字找来（foo.js → foo.ts）；再找不到就补 /index.*，都找不到返回 null。 */
+/** 原样找；找不到就把迁移期换过后缀的名字找来（foo.js → foo.ts），共享层产物再回落到同目录 src/ 下的同名 .ts；再找不到就补 /index.*，都找不到返回 null。 */
 function lookupWithExtensions(cand: string, exists: RepoIndex): string | null {
   if (exists.files.has(cand) || exists.dirs.has(cand)) return cand
   const ext = path.posix.extname(cand)
   for (const alias of MIGRATED_EXTENSION_ALIASES[ext] || []) {
     const swapped = cand.slice(0, cand.length - ext.length) + alias
     if (exists.files.has(swapped)) return swapped
+  }
+  // 2026-10-19 第三阶段：共享层产物搬出源码树（.build/shared/<相对路径>.js），源码树里只剩真源。
+  // 说明符仍然写 `shared/<域>/<名>.js`（运行时按发布包与 .build 的几何解析，不能改成指真源），
+  // 而真源住在 `<域>/src/<名>.ts`。归属表要记「人下次该去改哪份文件」，所以这里补一条回落：
+  // 同目录找不到同名 .ts 时，再看同目录的 src/ 下有没有同名 .ts。不补这条，归属表里记的全是
+  // 磁盘上已经不存在（或本来就不该出现在源码树）的产物路径，verify-gate-map 的
+  // 「归属表里记的每个路径都在磁盘上真实存在」那一条会判红。
+  if (ext === '.js') {
+    const dir = path.posix.dirname(cand)
+    const base = path.posix.basename(cand, ext)
+    const underSrc = path.posix.join(dir, 'src', base + '.ts')
+    if (exists.files.has(underSrc)) return underSrc
   }
   for (const e of SOURCE_EXTENSIONS) {
     if (exists.files.has(cand + e)) return cand + e

@@ -23,8 +23,11 @@
 // 不该拿去改写第三方包内部的解析——哪天某个包同时发了 .js 和 .ts，优先加载源码是它自己的事。
 //
 // 两条约定都不改变「没迁移的文件行为与今天完全一样」：同名 .ts 不存在时原样交给 Node。
+// 约定三（2026-10-19 第三阶段）：域产物搬出源码树之后，源码树里只剩 `<域>/src/*.ts`，
+// 而说明符仍写着 "src/shared/<域>/<名>.js"。同目录同名 .ts 找不到时，再试一次
+// 「<目标所在目录>/src/<同名>.ts」——这正是域源码的形状，测试与 host 源码里的说明符一个都不用改。
 import { existsSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { registerHooks } from 'node:module'
 
@@ -41,8 +44,9 @@ function isAbsolutePath(specifier: string): boolean {
   return specifier.startsWith('/') || /^[A-Za-z]:[\\/]/.test(specifier)
 }
 
-// 把 "./x.js"（或 file:、绝对路径形式的同一件事）换算成同目录下的 "./x.ts"；
-// 不存在、或目标落在 node_modules 里，就返回 null（交给 Node 原样解析）。
+// 把 "./x.js"（或 file:、绝对路径形式的同一件事）换算成同目录下的 "./x.ts"，
+// 找不到同目录同名 .ts 时再试 "<目标目录>/src/<同名>.ts"（约定三）。
+// 都不存在、或目标落在 node_modules 里，就返回 null（交给 Node 原样解析）。
 function tsSiblingURL(specifier: string, parentURL: string | undefined): string | null {
   if (!specifier.endsWith('.js')) return null
   if (!specifier.startsWith('./') && !specifier.startsWith('../') && !specifier.startsWith('file:') && !isAbsolutePath(specifier)) {
@@ -68,7 +72,12 @@ function tsSiblingURL(specifier: string, parentURL: string | undefined): string 
   }
   if (rel.split(/[\\/]+/).includes('node_modules')) return null
   const candidate = target.slice(0, -'.js'.length) + '.ts'
-  return existsSync(candidate) ? pathToFileURL(candidate).href : null
+  if (existsSync(candidate)) return pathToFileURL(candidate).href
+  // 约定三的回落：<目标目录>/src/<同名>.ts。域名与文件名都可能带连字符，这里只换目录，不猜别的形状。
+  const baseNoExt = target.slice(0, -'.js'.length)
+  const underSrc = join(dirname(baseNoExt), 'src', basename(baseNoExt) + '.ts')
+  if (existsSync(underSrc)) return pathToFileURL(underSrc).href
+  return null
 }
 
 registerHooks({

@@ -19,7 +19,7 @@
 // 成功再记既有 host.call（deck.quotaSync），失败不另记（#1030 Q6）。
 
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { QUOTA_SYNC_COOLDOWN_MS } from '../../shared/time-config/values.js'
+import { QUOTA_SYNC_COOLDOWN_MS } from '../../shared/time-config/src/values.js'
 
 /** 一桶额度的读数：上限、剩余、重置时刻（秒或毫秒，服务端给什么就是什么，不自己编时长）。 */
 export interface QuotaBucket { limit: number; remaining: number; reset: number }

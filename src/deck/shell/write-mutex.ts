@@ -19,7 +19,7 @@
 import { withInFlightLease } from './in-flight-lease.js'
 // 默认等待上限住中央 YAML（config/timeouts.yaml 的 keyLockMs 键）：这里只留别名，
 // 调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
-import { KEY_LOCK_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { KEY_LOCK_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 /** 外层递进来的仓库标识只用来拼锁键，形状不固定，逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;

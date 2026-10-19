@@ -41,7 +41,9 @@ const strip = (s: string): string => s.replace(/^(\s*)export\s+/gm, '$1')
 const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const VC_FILES = [
-  'src/shared/version-control/rules.js',
+  // 2026-10-19 第三阶段起共享层产物搬出源码树（域产物落在 .build/shared/ 下），
+  // 这里拼闭包只需要 JavaScript，读产物即可（本文件的反证锚点都在客户端那几份里）。
+  '.build/shared/version-control/rules.js',
   'src/client/views/versionControl/vcText.js', 'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js', 'src/client/views/versionControl/vcCommit.js',
   'src/client/views/versionControl/vcRows.js', 'src/client/views/versionControl/vcWrite.js',

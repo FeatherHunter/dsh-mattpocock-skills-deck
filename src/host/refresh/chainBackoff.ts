@@ -66,7 +66,7 @@ export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
     if (!_initP) {
       _initP = (async function (): Promise<any> {
         try {
-          const ms: any[] = await Promise.all([import('../../shared/refresh/backoff.js'), import('../../shared/refresh/budget.js'), import('../../shared/time-config/values.js')])
+          const ms: any[] = await Promise.all([import('../../shared/refresh/src/backoff.js'), import('../../shared/refresh/src/budget.js'), import('../../shared/time-config/src/values.js')])
           const budget: any = ms[1] || {}
           const central: any = ms[2] || {}
           if (!Array.isArray(central.CHAIN_BACKOFF_MS) || central.CHAIN_BACKOFF_MS.length < 2) return null

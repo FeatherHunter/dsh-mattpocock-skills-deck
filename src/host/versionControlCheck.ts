@@ -23,11 +23,11 @@
  */
 // @ts-expect-error
 import { createHash } from 'node:crypto'
-import { fixedPrefix, lsFilesStageArgs, remoteListArgs, REMOTE_PATTERN } from '../shared/version-control/commands.js'
-import { judge } from '../shared/version-control/rules.js'
-import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd } from '../shared/version-control/write-ticket.js'
-import { pushPlanOf } from '../shared/version-control/push-plan.js'
-import { messageProblem, writeHintFor } from '../shared/version-control/write-reasons.js'
+import { fixedPrefix, lsFilesStageArgs, remoteListArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
+import { judge } from '../shared/version-control/src/rules.js'
+import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd } from '../shared/version-control/src/write-ticket.js'
+import { pushPlanOf } from '../shared/version-control/src/push-plan.js'
+import { messageProblem, writeHintFor } from '../shared/version-control/src/write-reasons.js'
 // 下面三个时间都住中央 YAML（config/timeouts.yaml 的 vcCheckCallBudgetMs / vcLsFilesTimeoutMs /
 // vcRemoteTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 它们说的是两件事，别混：
@@ -36,7 +36,7 @@ import { messageProblem, writeHintFor } from '../shared/version-control/write-re
 //   · LSFILES_TIMEOUT_MS 与 REMOTE_TIMEOUT_MS 是「单条只读命令」各自的超时（交给 readOut 的 timeoutMs），
 //     管某一条命令最多跑多久——单条超时相加可以比总预算大，但总预算用完就先停。
 // 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
-import { VC_CHECK_CALL_BUDGET_MS as CHECK_CALL_BUDGET_MS, VC_LSFILES_TIMEOUT_MS as LSFILES_TIMEOUT_MS, VC_REMOTE_TIMEOUT_MS as REMOTE_TIMEOUT_MS, TICKET_TTL_MS } from '../shared/time-config/values.js'
+import { VC_CHECK_CALL_BUDGET_MS as CHECK_CALL_BUDGET_MS, VC_LSFILES_TIMEOUT_MS as LSFILES_TIMEOUT_MS, VC_REMOTE_TIMEOUT_MS as REMOTE_TIMEOUT_MS, TICKET_TTL_MS } from '../shared/time-config/src/values.js'
 
 /** 预算（附录第 5 节）：预检调用 60 秒；两条只读命令各自的单次预算。 */
 const LSFILES_LIMIT: number = 8 * 1024 * 1024

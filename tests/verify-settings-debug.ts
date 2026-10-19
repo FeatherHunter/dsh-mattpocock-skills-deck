@@ -233,7 +233,9 @@ async function main(): Promise<void> {
   // 喂给它；第八段按毫秒数认定时器的地方也用这个名字，不再写死 5000，调 YAML 不用改门禁。
   const timeMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'time-config', 'values.js')).href)
   const CENTRAL_PUSH_WAIT_MS = timeMod.TIME_YAML['settingsDebugPushWaitMs']
-  const sharedKey = readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
+  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/shared/workspaceKey.ts）；
+  // 这里要的是转译后可直接 compileFn 求值的文本，所以读产物而不是 .ts 原文。
+  const sharedKey = readText('.build/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
   const KEY_OF = compileFn([], sharedKey + '\nreturn keyOf')()
   const CURRENT_OS = compileFn([], sharedKey + '\nreturn currentOs')()
   // 一个场景的全套夹具：临时主目录（可以指定复用同一份盘上文件）、假手机、假 localStorage。

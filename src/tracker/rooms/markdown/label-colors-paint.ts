@@ -6,7 +6,7 @@
 //
 // 为什么读失败不报错只回落：票列表是主界面，不能因为配色文件被写坏就整页读不出来；
 // 真正要报「读不出来」的是列标签与改色那两条契约操作（见 label-colors.js 的读与 label-colors-ops.js）。
-import { normalizeColor } from '../../../shared/label-color/colors.js'
+import { normalizeColor } from '../../../shared/label-color/src/colors.js'
 import { readLabelColors } from './label-colors.js'
 import { builtinColorOf, builtinLabelColors } from './label-colors-palette.js'
 import type { OpContext } from '../../contract/contexts.js'

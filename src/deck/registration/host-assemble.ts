@@ -37,7 +37,7 @@ import { createDeckIssueReport } from '../tools/issue-report.js'
 // 声明文件读取的等待上限住中央 YAML（config/timeouts.yaml 的 deckAssemblyMs 键）：这里只留别名，
 // 名字与位置不动（#1030 Q4 冻的是数值与位置，别名不断），调时间改 YAML。
 // 值由 tests/verify-time-config.ts 看守一致。
-import { DECK_ASSEMBLY_TIMEOUT_MS as CENTRAL_DECK_ASSEMBLY_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { DECK_ASSEMBLY_TIMEOUT_MS as CENTRAL_DECK_ASSEMBLY_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 /** 未知形状的对象（接线递进来的依赖包先按这形接住，用到哪格验哪格，不猜）。 */
 type UnknownRecord = Record<string, unknown>;

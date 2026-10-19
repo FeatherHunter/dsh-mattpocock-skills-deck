@@ -136,9 +136,10 @@ function makeLocalStorage(initial) {
   }
 }
 
-// ── 真件一：闭包里那把规整函数 keyOf 与它判平台用的 currentOs（src/shared/workspaceKey.js 的真源码，不另写仿制品） ──
+// ── 真件一：闭包里那把规整函数 keyOf 与它判平台用的 currentOs（src/shared/workspaceKey.ts 的真源码，
+//    读的是构建产物 .build/shared/workspaceKey.js 以便直接当 JavaScript 求值，不另写仿制品） ──
 function sharedKeyFn(name) {
-  const src = readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
+  const src = readText('.build/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
   return compileFn([], src + '\nreturn ' + name)()
 }
 function keyOfFn() { return sharedKeyFn('keyOf') }

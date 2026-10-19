@@ -89,7 +89,10 @@ async function main() {
     const srcRel = 'src/deck/registration/agent-row.ts'
     const pkgRel = 'package/deck/registration/agent-row.js'
     const src = fs.readFileSync(path.join(ROOT, srcRel), 'utf8')
-    const expected = tu.generatedHeader(srcRel) + esbuild.transformSync(src, tu.TRANSPILE_OPTIONS).code
+    // 构建进包时会把「指向真源的共享层说明符」摊平一层（../shared/<域>/src/<名>.js → ../shared/<域>/<名>.js，
+    // 与 scripts/build.mts 的 rewriteMovedSpecifiers 同一条规则），这里按同一规则推期望值。
+    const expected = (tu.generatedHeader(srcRel) + esbuild.transformSync(src, tu.TRANSPILE_OPTIONS).code)
+      .replace(/((?:\.\.\/)+)shared\/([^/'"]+)\/src\/([^'"]+)\.js/g, (m, dots, domain, name) => dots + 'shared/' + domain + '/' + name + '.js')
     const actual = fs.readFileSync(path.join(ROOT, pkgRel), 'utf8')
     check(actual === expected, '发包行模块与构建转译输出同字节（构建已同步）')
   } catch (e) {

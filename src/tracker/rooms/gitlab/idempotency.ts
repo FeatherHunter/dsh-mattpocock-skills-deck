@@ -19,7 +19,7 @@
  *    「拿不准」当成「没找到」正是重复建票的来路，而且是看起来成功了的那种。
  */
 
-import { anchorLineFor, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../shared/refresh/idempotency.js'
+import { anchorLineFor, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../shared/refresh/src/idempotency.js'
 import type { AnchorCandidate, AnchorMatch } from '../../../shared/refresh/src/idempotency.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { ErrorKind } from '../../contract/identity.js'
@@ -32,7 +32,7 @@ import { normalizeIssue } from './normalize.js'
 import { issuesPath } from './queries.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 慢路最多看几张候选（按创建时间倒序的第一页）。到了这个数还没找到就如实说「拿不准」。 */
 const SCAN_LIMIT = 100

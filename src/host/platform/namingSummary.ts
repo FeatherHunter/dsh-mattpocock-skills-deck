@@ -12,7 +12,7 @@ import { hash8 } from '../../shared/refresh-workspace-key.js'
 import { NAMING_STAGES } from '../../shared/naming-tracking.js'
 // 摘要超时住中央 YAML（config/timeouts.yaml 的 namingSummaryTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { NAMING_SUMMARY_TIMEOUT_MS as SUMMARY_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { NAMING_SUMMARY_TIMEOUT_MS as SUMMARY_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { textOfMessage, pickFirstExchange, latestRoute, cleanSummaryText } from './namingSummaryText.js'
 
 // 纯文本四件事已搬至 ./namingSummaryText.js（#1255）：取文本、选首轮、取路由、洗标题都是纯的，

@@ -22,10 +22,10 @@
  */
 // @ts-expect-error
 import { createHash } from 'node:crypto'
-import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, fetchArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs, REMOTE_PATTERN } from '../shared/version-control/commands.js'
-import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf } from '../shared/version-control/write-ticket.js'
-import { pushPlanOf } from '../shared/version-control/push-plan.js'
-import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/write-reasons.js'
+import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, fetchArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
+import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf } from '../shared/version-control/src/write-ticket.js'
+import { pushPlanOf } from '../shared/version-control/src/push-plan.js'
+import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/src/write-reasons.js'
 // 这个文件里的时间分两组，都是可调的，全部住中央 YAML（config/timeouts.yaml），调时间改 YAML：
 //   · 五个写命令的超时（vcAddTimeoutMs / vcCommitTimeoutMs / vcPullTimeoutMs / vcPushTimeoutMs / vcFetchTimeoutMs）：
 //     每条都是「这一条写命令最多跑多久」，下面直接引用中央常量；
@@ -47,7 +47,7 @@ import {
   VC_REMOTE_LIST_CALL_BUDGET_MS,
   VC_PRE_PUSH_CHECK_CALL_BUDGET_MS,
   VC_WRITE_CALL_MARGIN_MS,
-} from '../shared/time-config/values.js'
+} from '../shared/time-config/src/values.js'
 
 // 五个写命令各自的超时（中央 YAML 的 vcAddTimeoutMs / vcCommitTimeoutMs / vcPullTimeoutMs / vcPushTimeoutMs /
 // vcFetchTimeoutMs）：暂存与撤回暂存还把 ADD_TIMEOUT_MS 兼作那一次调用的总预算。

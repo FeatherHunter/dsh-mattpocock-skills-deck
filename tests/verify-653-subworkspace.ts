@@ -45,7 +45,7 @@ const wsKeyBlock = noExport(
     keysSrc.indexOf('const shared = makeStore()')
   )
 )
-const keyOfSrc = read('src/shared/workspaceKey.js')
+const keyOfSrc = read('.build/shared/workspaceKey.js')
 // 手法：compileFn——这里只是把真源里切出来的函数文本变成可调用对象，交给 tests/lib/eval-probe.js 统一造，行为与原来一致。
 const keyOfFn = compileFn([], noExport(keyOfSrc) + '\nreturn keyOf')()
 

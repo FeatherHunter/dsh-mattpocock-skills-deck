@@ -8,7 +8,9 @@ const fs = require('fs')
 const path = require('path')
 
 async function loadDedupe(): Promise<unknown> {
-  const src: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'tracker', 'list-dedupe.js'), 'utf8')
+  // 2026-10-19 第三阶段：共享层产物搬出源码树，这里按 .js 路径直读转译产物（写完当临时 .mjs 再 import），
+  // 落点改到 .build/shared/；真源是 src/shared/tracker/list-dedupe.ts。
+  const src: string = fs.readFileSync(path.join(__dirname, '..', '.build', 'shared', 'tracker', 'list-dedupe.js'), 'utf8')
   const tmp = path.join(__dirname, 'tmp-589-verify-dedupe.mjs')
   fs.writeFileSync(tmp, src, 'utf8')
   try {

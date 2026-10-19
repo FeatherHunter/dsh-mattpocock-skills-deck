@@ -21,7 +21,7 @@
 // 「队列里还有被引用的等待，泵就必须是活的」，这一支就是那个被引用的等待。
 
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { IN_FLIGHT_KEEP_ALIVE_MS } from '../../shared/time-config/values.js'
+import { IN_FLIGHT_KEEP_ALIVE_MS } from '../../shared/time-config/src/values.js'
 
 /** 保活句柄的延时（毫秒）：2147483647 是 Node 允许的最大值（约 24.8 天），再大就会被改成 1 毫秒并告警。 */
 

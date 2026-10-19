@@ -454,13 +454,15 @@ async function main(): Promise<void> {
   check(gen.status === 0, '生成源码与 config/ 下的三份时间参数文件一致' + (gen.status === 0 ? '' : '（' + String((gen.stdout || '') + (gen.stderr || '')).trim().split('\n')[0] + '）'))
 
   // —— 构建产物自检 ——
-  // 宿主与共享层的源码 import 的是域构建产物 src/shared/time-config/values.js
-  // （由构建从本域的 src/values.ts 编译出来，不入库）：缺了它第二节会抛 Cannot find module，
-  // 看上去像「值对不上」，其实只是没构建过。
-  if (!fs.existsSync(path.join(ROOT, 'src/shared/time-config/values.js'))) {
+  // 宿主与共享层的源码 import 的是域构建产物 .build/shared/time-config/values.js
+  // （由构建从本域的 src/values.ts 编译出来，落在仓库根的 .build/ 下、不入库）：
+  // 缺了它第二节会抛 Cannot find module，看上去像「值对不上」，其实只是没构建过。
+  // 2026-10-19 第三阶段起共享层产物从源码树搬进 .build/shared/，这里的判据跟着改指新落点；
+  // 它守的东西没变——门禁读到的必须是构建现场转译出来的那一份，而不是有人手抄的副本。
+  if (!fs.existsSync(path.join(ROOT, '.build/shared/time-config/values.js'))) {
     check(
       false,
-      '生成物 src/shared/time-config/values.js 不在（构建产物、不入库）——先跑一次 node scripts/build.mts 再来跑本门禁；这不是值不一致',
+      '生成物 .build/shared/time-config/values.js 不在（构建产物、不入库）——先跑一次 node scripts/build.mts 再来跑本门禁；这不是值不一致',
     )
     console.log('FAIL 中央时间参数门禁：生成物缺席，先构建')
     process.exit(1)

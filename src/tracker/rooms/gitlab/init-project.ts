@@ -57,7 +57,7 @@ import { failGlab } from './errors.js'
 import { projectPath } from './queries.js'
 import { parseGitlabRepo } from './repo.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS, GITLAB_CREATE_PROJECT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_CREATE_PROJECT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** glab 客户端的最小口：本文件只用它的 run，类型从工厂的返回里取，不另写一份。 */
 type GlabClient = ReturnType<typeof glabClient>

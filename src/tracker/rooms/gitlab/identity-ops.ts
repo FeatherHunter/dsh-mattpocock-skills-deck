@@ -51,7 +51,7 @@ import { failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
 import { projectPath } from './queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /**
  * 能推代码的最低档位：Developer(30)。

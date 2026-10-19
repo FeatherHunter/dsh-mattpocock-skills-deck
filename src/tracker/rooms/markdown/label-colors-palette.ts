@@ -8,7 +8,7 @@
 //
 // 三处用它：① 首建配色文件时按它预填；② 列标签的并集里补上这些标签；③ 票面标签既不在配色文件里
 // 也不在这份表里才回灰（见 label-colors-paint.js）。
-import { normalizeColor } from '../../../shared/label-color/colors.js'
+import { normalizeColor } from '../../../shared/label-color/src/colors.js'
 
 // 内置表里的行形状：与契约 BackendModule.labelPalette（{name, color}[]）同形，
 // 另容 description（调色盘自带说明时列标签一并展示）。

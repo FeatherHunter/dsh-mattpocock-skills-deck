@@ -334,8 +334,12 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
       let im
       while ((im = re.exec(text)) !== null) {
         // 说明符写的是 .js，磁盘上住的常常是同名 .ts（ts-hook 的规则），两样都试一遍再镜像。
+        // 2026-10-19 第三阶段起共享层的域产物搬到了仓库根的 .build/shared/ 下，源码树里对应的真源
+        // 住在 <域>/src/ 里：夹具里那份被改坏的宿主模块 import 的仍是 <域>/<名>.js，装载钩子会把它
+        // 按「<目标目录>/src/<名>.ts」回落解析，所以镜像也要照着这条回落把真源搬到同一形状的位置。
         const joined = path.posix.normalize(path.posix.join(path.posix.dirname(relFromSrc), im[1]))
-        const cand = [joined.replace(/\.js$/, '.ts'), joined]
+        const underSrc = joined.replace(/^(shared\/[^/]+\/)([^/]+)\.js$/, '$1src/$2.ts')
+        const cand = [joined.replace(/\.js$/, '.ts'), underSrc, joined]
         mirrorOne(cand.find(function (c) { return fs.existsSync(path.join(ROOT, 'src', c)) }) || joined)
       }
     }

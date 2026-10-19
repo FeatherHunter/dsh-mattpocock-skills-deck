@@ -23,9 +23,10 @@
 // （2026-10-18 #1247 从 attention.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mjs 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做翻译与台账，所以类型只收依赖形状，不收任何判定规则。）
-import * as budget from '../../shared/refresh/budget.js'
-import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/values.js'
-import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../shared/refresh/attention.js'
+import * as budget from '../../shared/refresh/src/budget.js'
+import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/src/values.js'
+import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../shared/refresh/src/attention.js'
+import type { AttentionSignalKind } from '../../shared/refresh/src/attention.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1247 转写：只写类型不写实现）。
@@ -96,7 +97,7 @@ export function attentionLimits(src?: any): AttentionLimits {
 }
 
 /** 上报的六种信号（与纯函数那侧的取值表同一串；不认识的取值按 focus 算）。 */
-export const ATTENTION_SIGNAL_KINDS = ['focus', 'panel-open', 'session-switch', 'heartbeat', 'window-blur', 'panel-hidden']
+export const ATTENTION_SIGNAL_KINDS: readonly AttentionSignalKind[] = ['focus', 'panel-open', 'session-switch', 'heartbeat', 'window-blur', 'panel-hidden']
 
 function num(v: unknown): number {
   return (typeof v === 'number' && isFinite(v)) ? v : 0
@@ -210,7 +211,9 @@ export function createAttention(deps?: AttentionDeps | null): Attention {
     const a: any = args || {}
     const windowId = String(a.windowId || '')
     if (!windowId) return { ok: false, error: '没有窗口标识', text: '这一笔上报没有带窗口标识，视同没有发生：插件认不出是哪个窗口在看，不敢据此调整刷新。' }
-    const kind = ATTENTION_SIGNAL_KINDS.indexOf(String(a.kind || '')) >= 0 ? String(a.kind) : 'focus'
+    // 清单已标成共享层的取值联合；外面报上来的 kind 是字符串，查得到才收、查不到按 focus，
+    // 这一处收窄不改判断（从前读转译产物时类型被剥掉，看不出这道缺口）。
+    const kind = (ATTENTION_SIGNAL_KINDS as readonly string[]).indexOf(String(a.kind || '')) >= 0 ? (String(a.kind) as AttentionSignalKind) : 'focus'
     const visible = !!a.visible
     const root = await rootOf(a.workspaceRoot)
     const at = num(a.atMs) || now()

@@ -9,7 +9,7 @@
 // 日志：静默持久化，不新增事件名（成败 already 体现在工具回执里）。
 
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
-import { PLAN_CURSOR_TTL_MS } from '../../shared/time-config/values.js'
+import { PLAN_CURSOR_TTL_MS } from '../../shared/time-config/src/values.js'
 
 /** 未知形状的入参统一按这张表逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;

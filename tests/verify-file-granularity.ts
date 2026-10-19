@@ -49,10 +49,10 @@ const DERIVED_DIRS = []
 // 它只有一个可拆的维度，就是拆生成器，那属于改生成方案，不属于顺手拆文件。
 // 名单里的文件都自带「人手不改：本文件由某脚本写出」的头注释，正确性由各自的生成新鲜度门禁钉住：
 //   src/shared/time-config/src/values.ts → tests/verify-time-config.ts 第一节（生成物与三份 YAML 一致）
-//   src/shared/time-config/values.js → 同一份生成物的构建产物（构建把域内 src/*.ts 编译到域根，
-//     所以它与 .ts 不同目录，躲不过 PRODUCT_TWINS 那条同名产物判据），同上
+//   .build/shared/time-config/values.js → 同一份生成物的构建产物（2026-10-19 第三阶段起域产物落
+//     仓库根的 .build/shared/<域>/ 下，不再是源码树里的同名 .js），同上
 // 新增生成源码时把相对路径加进来，并把对应的新鲜度门禁写在下面一行注释里。
-const GENERATED_FILES = ['src/shared/time-config/src/values.ts', 'src/shared/time-config/values.js']
+const GENERATED_FILES = ['src/shared/time-config/src/values.ts', '.build/shared/time-config/values.js']
 
 /** 同名产物判定表：右列存在时，左列那份文件不算源文件。 */
 const PRODUCT_TWINS = { '.js': '.ts', '.mjs': '.mts', '.cjs': '.cts' }

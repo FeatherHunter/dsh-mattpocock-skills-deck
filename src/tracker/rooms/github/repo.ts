@@ -18,7 +18,7 @@ import type { RepositoryRef } from '../../contract/entities.js';
 import type { BackendId } from '../../contract/identity.js';
 import type { RepoHandle } from '../../contract/contexts.js';
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 解析出的仓库坐标：拥有者与仓库名，解析不出就回 null 而不是抛。 */
 export interface RepoKey {

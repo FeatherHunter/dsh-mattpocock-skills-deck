@@ -70,7 +70,8 @@ console.log('== #281 红牌分拣与等待合同门禁（#284 迁移：断言经
 
 {
   // #284：statusDerive.js 已随九格目录视图退役；拼写防线移到链目录（check-catalog 单一真源）
-  const catSrc = readFileSync('src/shared/tracker/check-catalog-dirs.js', 'utf8') + readFileSync('src/shared/tracker/check-catalog-views.js', 'utf8')
+  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源在 src/shared/tracker/ 下）。
+  const catSrc = readFileSync('.build/shared/tracker/check-catalog-dirs.js', 'utf8') + readFileSync('.build/shared/tracker/check-catalog-views.js', 'utf8')
   check(!/setup-mattpocock-skills/.test(catSrc), 'check-catalog 无错拼（setup-matt-pocock-skills）')
   check(/setup-matt-pocock-skills/.test(catSrc), 'check-catalog 含正确拼写')
 }

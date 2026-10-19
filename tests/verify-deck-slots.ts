@@ -39,17 +39,20 @@ function file(p: string): string { return readFileSync(resolve(p),'utf8') }
 console.log('== #308 五座位 modal-seat ==')
 console.log('')
 console.log('-- 1) 规划产出文件存在 --')
-check(existsSync('src/shared/ui/slots.js'), 'src/shared/ui/slots.js 存在')
+// 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源在 src/shared/ui/slots.ts 等），
+// 这里读产物文本的几处路径跟着搬；断言对象没变。
+const sharedProduct = (rel: string): string => file('.build/shared/' + rel)
+check(existsSync('.build/shared/ui/slots.js'), '.build/shared/ui/slots.js 存在')
 check(clientExists('src/client/kernel/slots.js'), 'src/client/kernel/slots.js 存在（真源）')
 check(clientExists('src/client/kernel/slotRenderer-queue.js') && clientExists('src/client/kernel/slotRenderer-repo-sync.js') && clientExists('src/client/kernel/slotRenderer-modal-view.js'), '三弹窗文件存在（原 slotRenderer.js 已拆为三文件）')
-check(!existsSync('src/shared/ui/slots.js') || file('src/shared/ui/slots.js').includes('SLOTS_VERSION'), 'shared/ui/slots.js 含版本')
+check(!existsSync('.build/shared/ui/slots.js') || file('.build/shared/ui/slots.js').includes('SLOTS_VERSION'), 'shared/ui/slots.js 含版本')
 check(!clientExists('src/client/kernel/slots.js') || sourceText('src/client/kernel/slots.js').includes('SLOTS_KERNEL_VERSION'), 'kernel/slots.js 含版本')
 check(['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map((p) => sourceText(p)).join('\n').includes('SLOT_RENDERER_VERSION'), '三弹窗文件拼合含版本')
 
 console.log('')
 console.log('-- 2) 五端口声明（ADR 5.1） --')
 try{
-  const shared = file('src/shared/ui/slots.js')
+  const shared = sharedProduct('ui/slots.js')
   check(shared.includes('banner-seat'), 'shared 含 banner-seat')
   check(shared.includes('dock-seat'), 'shared 含 dock-seat')
   check(shared.includes('statusbar-seat'), 'shared 含 statusbar-seat')
@@ -243,8 +246,8 @@ try{
   // 原单文件已拆三，读拼合断言；#698 又把表单字段那一串渲染拆去 kernel/modal-fields.js，一并读进来
   // #1251：拼合走 sourceText 取四份 .ts 原文（注释与单引号都在；走产物会丢注释、变引号）。
   const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map((p) => sourceText(p)).join('\n')
-  const shared = file('src/shared/ui/slots.js')
-  const chain = file('src/shared/tracker/chain-types.js') + '\n' + file('src/shared/tracker/chain-validate.js') + '\n' + file('src/shared/tracker/chain-evaluate.js')
+  const shared = sharedProduct('ui/slots.js')
+  const chain = sharedProduct('tracker/chain-types.js') + '\n' + sharedProduct('tracker/chain-validate.js') + '\n' + sharedProduct('tracker/chain-evaluate.js')
   // 单弹窗内分页 + 步进条数字圆点 + 标题
   check(sr.includes('isWizard') && sr.includes('wizardSteps'), 'slotRenderer 含 isWizard/wizardSteps（向导感知）')
   check(sr.includes('stepIndex') && sr.includes('totalSteps'), 'slotRenderer 含 stepIndex/totalSteps（分页状态）')

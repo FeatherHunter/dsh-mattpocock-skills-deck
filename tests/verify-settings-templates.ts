@@ -165,8 +165,8 @@ async function main() {
   // 真件：宿主的核与两条电话
   const leaf = await import(pathToFileURL(path.join(ROOT, 'src/host', 'settingsPhones.js')).href)
   const store = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href)
-  const KEY_OF = compileFn([], readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '') + '\nreturn keyOf')()
-  const CURRENT_OS = compileFn([], readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '') + '\nreturn currentOs')()
+  const KEY_OF = compileFn([], readText('.build/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '') + '\nreturn keyOf')()
+  const CURRENT_OS = compileFn([], readText('.build/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '') + '\nreturn currentOs')()
   // 一个场景的全套夹具：临时主目录（可以指定复用同一份盘上文件）、假手机、假 localStorage。
   function makeEnv(opts) {
     const o = opts || {}

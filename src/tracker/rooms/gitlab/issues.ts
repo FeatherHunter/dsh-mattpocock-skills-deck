@@ -17,14 +17,14 @@ import { failGlab } from './errors.js'
 import { issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（服务端搜索 + 按创建时间倒序列出逐张看票面）。
-import { checkIdempotencyKey } from '../../../shared/refresh/idempotency.js'
+import { checkIdempotencyKey } from '../../../shared/refresh/src/idempotency.js'
 import { withAnchor, lookupByAnchor } from './idempotency.js'
 // #722：建票只有一条写路径（POST 到集合端点），发几次、许不许再发一次由纯函数判。
 // 不许再写成「先发 PUT、拿不到票面再回落发 POST」——那是一次调用里两次可能都成功的写。
 import { writeNewIssue, createWriteFailureKind, createWriteFailureMessage } from './create-write.js'
 import type { CreateIssueBody } from './create-write.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // 仓库身份只取 refId/name，是因为票读写只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined

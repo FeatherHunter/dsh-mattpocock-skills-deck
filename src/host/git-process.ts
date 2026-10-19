@@ -12,7 +12,7 @@ import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tier
 import { getGhLane } from './outbound/admission.js'
 import { getChainRide } from './refresh/chain-ride.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../shared/time-config/values.js'
+import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../shared/time-config/src/values.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。

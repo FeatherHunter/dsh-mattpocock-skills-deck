@@ -30,8 +30,9 @@ const LOG_KERNEL = path.join(ROOT, 'scripts', 'generated', 'logKernel.derived.js
 const UPDATE_CLIENT = path.join(ROOT, 'scripts', 'generated', 'updateClient.derived.js')
 // #629：配色核心的两个产物按 scripts/build.mts 的 SHARED_SPLICE 清单拼进同一个闭包，
 // 排在两份派生文件之后（位置对齐 src/client/index.js 里的拼接标记）。
-const LABEL_COLORS = path.join(ROOT, 'src', 'shared', 'label-color', 'colors.js')
-const LABEL_PROMPT = path.join(ROOT, 'src', 'shared', 'label-color', 'prompt.js')
+// 2026-10-19 第三阶段起共享层产物搬出源码树，配色核心这两份改读 .build/shared/ 下的产物位。
+const LABEL_COLORS = path.join(ROOT, '.build', 'shared', 'label-color', 'colors.js')
+const LABEL_PROMPT = path.join(ROOT, '.build', 'shared', 'label-color', 'prompt.js')
 const SPLICED_FILES = [
   { label: '日志包派生文件', file: LOG_KERNEL },
   { label: '更新包派生文件', file: UPDATE_CLIENT },

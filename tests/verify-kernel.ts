@@ -79,8 +79,9 @@ const SOURCES = [
   'src/client/index.ts', 'scripts/build.mts', 'package/package.json', // #1254：入口真源转写为 .ts
   // #629：配色核心的两个产物是客户端闭包的输入（scripts/build.mts 的 SHARED_SPLICE 直接读它们），
   // 加进这份「比产物新就判过期」的清单以后，「只重跑核心转译、没重跑主构建」会更早变红。
-  // 这是 SOURCES 里第一次出现 src/shared/ 下的文件；另外八个既有共享拼接文件仍然不在清单里（存量空白，另票处理）。
-  'src/shared/label-color/colors.js', 'src/shared/label-color/prompt.js',
+  // 这是 SOURCES 里第一次出现共享层的文件；另外八个既有共享拼接文件仍然不在清单里（存量空白，另票处理）。
+  // 2026-10-19 第三阶段起产物住在仓库根的 .build/shared/，新鲜度要跟新落点比，所以路径改成产物位。
+  '.build/shared/label-color/colors.js', '.build/shared/label-color/prompt.js',
   ...MODULES.map(kernelFileOf),
 ]
 

@@ -27,13 +27,13 @@ import { guardEmit } from '../../kernel/log-emit.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { timeoutForGhArgs, isWriteGhArgs, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
 // 默认超时住中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），这里只留别名。
-import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 // #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
 // （`OutboundControl`），实现由宿主在接线处挂进 `ctx.outbound`。这与本房已有的 `ctx.gate`
 // 是同一条路：闸由接线处注入，本房不 import 它。读不到就按环境失败大声报出来，不许静默直通。
 import type { OutboundControl } from '../../contract/outbound.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITHUB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITHUB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** gh 执行成功的数据：三件套，调用方读 stdout 解析，stderr 留查，code 为 0。 */
 export interface GhExecData {

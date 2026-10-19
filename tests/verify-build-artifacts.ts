@@ -142,6 +142,10 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
     const next = code.replace(MOVED_SPEC_RE, (whole, q1, spec1, q2, spec2) => {
       const spec = spec1 !== undefined ? spec1 : spec2
       const resolved = resolveRelPosix(srcDir, spec)
+      // 共享层域真源在包里摊平一层（与 scripts/build.mts 的 rewriteMovedSpecifiers 同一条规则）：
+      // ../shared/<域>/src/<名>.js → package/shared/<域>/<名>.js。
+      const domainTruth = /^src\/shared\/([^/]+)\/src\/(.+)$/.exec(resolved)
+      if (domainTruth) return whole.replace(spec, relativePosix(outDir, 'package/shared/' + domainTruth[1] + '/' + domainTruth[2]))
       if (!resolved.startsWith('src/host/')) return whole
       const fixed = relativePosix(outDir, 'package/lib/' + resolved.slice('src/host/'.length))
       if (fixed === spec) return whole
@@ -261,11 +265,19 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //        只许降不许升；「把客户端闭包那批产物搬进构建缓存目录」是 Q4 第 5 节那条单独工作线的事，
 //        这条上限就是它的进度表——搬完把 TRANSITIONAL_PRODUCTS_MAX 改成 0，这条断言自然升级成
 //        「四类之外一件都没有」。
+//    2026-10-19 更新：上面这条进度表走完了，TRANSITIONAL_PRODUCTS_MAX 已经是 0。客户端闭包那批
+//    与共享层最后 62 件先后搬出源码树，共享层产物改住仓库根的 .build/shared/（按下面那条忽略规则
+//    不入库）。.build 以点开头，B 段按仓库约定整目录跳过（点开头的目录都是工具自己用的），
+//    所以那里不逐个扫；它「每份源码都有对应产物」由下面新增的 4f2 从真源侧兜住。
 //   怎么认出「产物」（不手写名单，认构建自己留下的两处痕迹）：
-//     · 第一行带 AUTO-GENERATED 头（scripts/lib/transpile-unit.mts 与 build.mts 的 pixel-ts 段写的）；
-//     · 或者同名 .ts 就住在旁边（逐文件转译的形状，src/client 那 34 件两处痕迹都有）。
+//     · 第一行带 AUTO-GENERATED 头（scripts/lib/transpile-unit.mts 的域构建与 build.mts 的
+//       shared-ts 段都留这个头；客户端 pixel-ts 段已在 2026-10-19 删除）；
+//     · 或者同名 .ts 就住在旁边（逐文件转译的形状）。
 {
-  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'scripts/generated/']
+  // .build/ 是第五类落点（2026-10-19 起共享层产物住 .build/shared/）。它按点开头目录的约定
+  // 不进 B 段遍历，写进 inCategory 是为了让「它到底算不算合法落点」在代码里有明确答案，
+  // 而不是靠遍历时那条 continue 顺带兜住。
+  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'scripts/generated/', '.build/']
   const CATEGORY_FILES = ['client.js', 'host.js']
   const SUBPKG_DIST_RE = /^packages\/[^/]+\/dist\//
   const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js']
@@ -304,31 +316,26 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //   src/client/views/shared/workRouteTable.ts（面板「跨会话在办表」的判据与画法），pixel-ts 会给它
   //   转译出同名 .js，过渡产物从 224 长到 225。这是本票故意新增的产物，出处就是这一行；
   //   判据仍是「只许降不许升」，搬迁那条工作线收完时把这条数一并降回 0。
-  // 2026-10-19 第七次定数（本次）：上限定为 59。依据是「客户端产物搬出源码树」这一步做完了——
+  // 2026-10-19 第七次定数：上限定为 59。依据是「客户端产物搬出源码树」这一步做完了——
   //   scripts/build.mts 的 pixel-ts 那一步整段删除，拼接缝改成直接读 .ts 真源当场转译，
   //   src/client 下 166 份同名 .js 一次性删掉，盘上只剩 src/shared 侧的 62 件（去掉 3 件已知产物后 59）。
   //   历史上那几次抬高（85 → 107 → 169 → 170 → 223 → 224 → 225）都是同一批产物在迁移途中长出来的，
   //   现在客户端那一半已经归零；剩下这 59 件全是 src/shared 的域产物与散文件转译产物，
   //   它们与 host 源码的运行时引用方式绑在一起（见 src/host 里 ../shared/<域>/<名>.js 这类说明符），
   //   要等「host 改指真源路径」那条线才能继续降。判据不变：只许降不许升，收完改成 0。
-  const TRANSITIONAL_PRODUCTS_MAX = 59
-  // 已知的、单列出来的产物：它们不进「过渡产物」的计数，理由是各自有出处可查，不是混进来的新产物。
-  //   · src/tracker/contract/vocabulary.js —— 2026-10-19 起不再存在：构建把词汇表拼段产物写到
-  //     已被忽略的 .tmp/vocabulary.client.js，src/ 里不留影子文件（见上面 4b 头的说明）。
-  //   · src/client/kernel/api-io.js —— 2026-10-19 起不再存在：pixel-ts 那一步删掉后，客户端不再往
-  //     源码树写同名 .js（拼接缝读 .ts 真源）。
-  //   · src/shared/host-timer/host-timers.js —— #1115：宿主计时器句柄的撤销收成共享层的新域
-  //     （src/shared/<域>/src/*.ts → 域根同名 .js，与另外几个域同一套形状）。它是本票故意新增的产物，
-  //     出处就是这一行；同样不抬高上限——上限那条数按「搬家那条线的存量」算，新混进来的产物照旧看得见。
-  //     · src/shared/refresh/step-cost.js —— #1069：闸独用的按步记账从 src/shared/ 根搬进 refresh 域
-  //     （真源是 src/shared/refresh/src/step-cost.ts），产物落域根，与 budget.js 同类。同样不抬高上限。
-  //     · src/shared/refresh/tuning.js —— #1069：共用调参表（真源是 src/shared/refresh/src/tuning.ts），
-  //     产物落域根，与 budget.js 同类。同样不抬高上限。
-  const KNOWN_PRODUCTS_OUT_OF_SCOPE = [
-    'src/shared/host-timer/host-timers.js',
-    'src/shared/refresh/step-cost.js',
-    'src/shared/refresh/tuning.js',
-  ]
+  // 2026-10-19 第八次定数（本次）：上限定为 0。依据是「共享层产物搬出源码树」这一步也做完了——
+  //   scripts/lib/transpile-domains.mts 的域构建与 scripts/build.mts 的 shared-ts 段都把落点改到
+  //   .build/shared/（域产物 <域>/<名>.js、散文件 <相对路径>.js），源码树里最后 62 份 .js 一次性删掉。
+  //   上面几次定数（69 → 85 → 107 → 169 → 170 → 223 → 224 → 225 → 59）记的是同一份账在不同迁移阶段的
+  //   中间态，历史原样留着；账收完了，数字回到 0，这条断言从今天起就是「源码树里一件产物都没有」。
+  //   为什么不再留一格余量：上限留空位时，任何一件新产物混进来都看不出来；判据是 0 时，新产物
+  //   只能落在四类落点里，或者当场让门禁红。
+  const TRANSITIONAL_PRODUCTS_MAX = 0
+  // 已知产物名单：2026-10-19 起清空。它原来单列三件「故意新增、不抬高上限」的 src/shared 域产物
+  //   （host-timer/host-timers.js、refresh/step-cost.js、refresh/tuning.js）；产物搬进 .build/shared/
+  //   之后它们不在本段扫描范围里（.build 是点开头目录，整目录跳过），名单自然失业。
+  //   留空数组而不是删掉这个名字：判据（去掉已知项后数不超过上限）原样保留，将来真要单列时从这里加。
+  const KNOWN_PRODUCTS_OUT_OF_SCOPE = []
   const SKIP_DIRS = new Set(['node_modules', '.git'])
 
   const toPosix = (p) => p.split(path.sep).join('/')
@@ -378,11 +385,11 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   }
   walkAll(process.cwd(), '')
   if (outside.length) console.log('    四类之外、又不在源码树里的产物:\n    ' + outside.join('\n    '))
-  check(outside.length === 0, '四类落点之外没有产物（四类：package/lib、package/shared、package/deck、package/tracker、根 client.js/host.js、scripts/generated、packages/*/dist）')
+  check(outside.length === 0, '四类落点之外没有产物（四类：package/lib、package/shared、package/deck、package/tracker、根 client.js/host.js、scripts/generated、packages/*/dist；另加第五类 .build/shared，它按点开头目录的约定整目录跳过）')
   const transitionalWithoutKnown = transitional.filter((rel) => KNOWN_PRODUCTS_OUT_OF_SCOPE.indexOf(rel) < 0)
   const knownPresent = transitional.length - transitionalWithoutKnown.length
   check(transitionalWithoutKnown.length <= TRANSITIONAL_PRODUCTS_MAX,
-    `源码树里的过渡产物没有变多（去掉已知产物 ${KNOWN_PRODUCTS_OUT_OF_SCOPE.join('、')} ${knownPresent} 件后现 ${transitionalWithoutKnown.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；搬家那条工作线做完后应降到 0）`)
+    `源码树里没有产物（去掉已知产物 ${KNOWN_PRODUCTS_OUT_OF_SCOPE.join('、') || '（名单已清空）'} ${knownPresent} 件后现 ${transitionalWithoutKnown.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；产物该住 .build/shared/、package/* 或根 client.js/host.js）`)
   if (transitional.length) {
     const byDir = {}
     for (const rel of transitional) { const k = rel.slice(0, rel.lastIndexOf('/')); byDir[k] = (byDir[k] || 0) + 1 }
@@ -427,6 +434,42 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   if (missing.length) console.log('    未解析的导入:\n    ' + missing.join('\n    '))
   check(missing.length === 0, `打包产物相对导入全部可解析（${files.length} 文件，缺 ${missing.length} 处）`)
 }
+// 4f2) 共享层每份 .ts 真源都在发布包里有对应产物（2026-10-19 新增）
+//   为什么新加这一条：产物搬出源码树之后，原来那条「package/shared 与 src/shared 双向比对」守的
+//   对象整个消失了（src/shared 下不再有 .js 可对），但真正的风险没有消失——包内共享产物漏一份，
+//   宿主或工具要到运行时才会 import 失败。所以判据改成从真源侧点：src/shared 下每一份手写 .ts
+//   都必须在 package/shared 下拿到同名 .js。三类源码各有各的落点规律（见 scripts/build.mts）：
+//     · 域内源码目录（<域>/src/ 下）里的 .ts → package/shared/<域>/<名>.js（域产物，由 domains 构建转译）
+//     · 域根上的 .ts（例如 version-control/exec-envelope.ts）→ package/shared/<域>/<名>.js（散文件投放）
+//     · 根上 .ts 与没有 tsconfig 的目录（tracker/、ui/）里的 .ts → package/shared/<相对路径>.js（散文件投放）
+//   反方向「包内多出一份没源头的产物」不在这里查：package/shared 每次构建都先删掉再重建
+//   （见 scripts/build.mts 的 buildHost），多出来的只可能是上一次构建的旧文件，清目录已经保证不了它活着。
+{
+  const sharedAbs = path.resolve('src/shared')
+  const want = []
+  // want 每项是 [真源相对路径（报错时给人看）, 包内相对路径]。
+  const pushTs = (dirAbs, srcRelDir, outRelDir) => {
+    for (const ent of fs.readdirSync(dirAbs, { withFileTypes: true })) {
+      if (!ent.isFile() || !ent.name.endsWith('.ts') || ent.name.endsWith('.d.ts')) continue
+      const outName = ent.name.replace(/\.ts$/, '.js')
+      want.push([
+        srcRelDir ? srcRelDir + '/' + ent.name : ent.name,
+        outRelDir ? outRelDir + '/' + outName : outName,
+      ])
+    }
+  }
+  pushTs(sharedAbs, '', '')
+  for (const ent of fs.readdirSync(sharedAbs, { withFileTypes: true })) {
+    if (!ent.isDirectory()) continue
+    pushTs(path.join(sharedAbs, ent.name), ent.name, ent.name)
+    const srcDir = path.join(sharedAbs, ent.name, 'src')
+    if (fs.existsSync(srcDir)) pushTs(srcDir, ent.name + '/src', ent.name)
+  }
+  const absent = want.filter(([, outRel]) => !fs.existsSync(path.resolve('package', 'shared', outRel)))
+  if (absent.length) console.log('    包内缺的共享产物:\n    ' + absent.map(([srcRel, outRel]) => srcRel + ' -> package/shared/' + outRel).join('\n    '))
+  check(want.length > 0, `共享层扫到 ${want.length} 份 .ts 真源`)
+  check(absent.length === 0, `共享层每份 .ts 真源都有对应包内产物（${want.length} 份里缺 ${absent.length} 份）`)
+}
 // 4g) 模块标识的出处判据（#1023）：每个域产物里写着「我来自哪份源码」的那个常量，值必须指向真源码。
 //   谁在做这件事：类型被擦掉之后，产物里唯一还能说清自己出处的就是 `<文件名大写>_SOURCE` 这个常量
 //   （接口空壳 ports.js 这类产物尤其只剩它）。做法不是手抄一份名单，而是扫产物本身——拿文件名把常量名
@@ -436,6 +479,8 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //   靠它们认出「有门禁按文件名推导读模块标识」，从而不把这一族常量误判成死词汇。
 //   2026-10-13 之前这件事由四条 <域>-freshness 门禁各做一半（只查各自域里的接口空壳）；
 //   那四条门禁连同四个核的旧构建脚本已按 #1023 退场，这条判据收成一处、覆盖面扩到每个域的每份产物。
+//   2026-10-19 起产物搬进 .build/shared/，这一节跟着改扫那里；判据本身没变（仍然只认构建写下的
+//   AUTO-GENERATED 头，仍然要求 <文件名大写>_SOURCE 的值指向 src/shared/<域>/src/ 下）。
 console.log('\n模块标识出处判据：每份域产物的 <文件名大写>_SOURCE 都指向真源码')
 const SOURCE_MARKER_SUFFIX = '_SOURCE'
 const srcShared = path.resolve('src/shared')
@@ -453,7 +498,14 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
     return out
   }
   const files = []
-  for (const d of domains) walkJs(path.join(srcShared, d), files)
+  // 2026-10-19 起共享层产物整体住在 .build/shared/（域产物 <域>/<名>.js、散文件 <相对路径>.js），
+  // 源码树里只剩 .ts，所以扫描根从 src/shared 搬到 .build/shared。域名单仍从 src/shared 的子目录取：
+  // 它同时覆盖没有 tsconfig 的 tracker/、ui/（散文件投放），两边目录名一一对应，产物形状不变。
+  const productsShared = path.resolve('.build/shared')
+  check(fs.existsSync(productsShared), '.build/shared 存在（共享层产物是构建写出来的，先跑一次 node scripts/build.mts）')
+  if (fs.existsSync(productsShared)) {
+    for (const d of domains) walkJs(path.join(productsShared, d), files)
+  }
 
   // derivedNames：扫出来的模块标识名字；hitDomains：这些名字该指回哪几个源目录。
   // 两个都留证，是因为「按文件名推导」这件事的判据就是「名字对不对得上、指回来的目录对不对」。

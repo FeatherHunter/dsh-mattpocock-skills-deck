@@ -15,7 +15,7 @@ import { deriveDeck } from '../../tracker/deck-derive.js'
 // 快照与依赖边两份缓存的缺省存活时间住中央 YAML（config/ttl.yaml 的 snapshotTtlMs 键，注释写着
 // 「快照组合器的缓存有效期：5 秒」）：这里直接读中央常量，不再造新本地名，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { SNAPSHOT_TTL_MS } from '../../shared/time-config/values.js'
+import { SNAPSHOT_TTL_MS } from '../../shared/time-config/src/values.js'
 import { assembleSnapshot, failKindOfListError } from './snapshotAssemble.js'
 import { snapshotVersionOf } from './snapshotVersion.js'
 

@@ -32,14 +32,14 @@
  * 5. 没有新增任何 import 边：只给已有引用加类型，不引入新模块依赖；动态加载的那几条叶子
  *    （basis、markers、diff、write）仍走原来的 `./x.js` 说明符。
  */
-import { fixedPrefix, stepZeroArgs, commandFor, autocrlfArgs, RUNNING_MARKER_PATHS } from '../shared/version-control/commands.js'
-import { parseVersion, tierFor } from '../shared/version-control/capabilities.js'
-import { parseStatus } from '../shared/version-control/parse-status.js'
-import { parseWorktrees } from '../shared/version-control/parse-worktrees.js'
-import { parseRefs } from '../shared/version-control/parse-refs.js'
-import { parseLog } from '../shared/version-control/parse-log.js'
-import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
-import { assemble, classifyStepZero } from '../shared/version-control/state.js'
+import { fixedPrefix, stepZeroArgs, commandFor, autocrlfArgs, RUNNING_MARKER_PATHS } from '../shared/version-control/src/commands.js'
+import { parseVersion, tierFor } from '../shared/version-control/src/capabilities.js'
+import { parseStatus } from '../shared/version-control/src/parse-status.js'
+import { parseWorktrees } from '../shared/version-control/src/parse-worktrees.js'
+import { parseRefs } from '../shared/version-control/src/parse-refs.js'
+import { parseLog } from '../shared/version-control/src/parse-log.js'
+import { parseDiffFiles } from '../shared/version-control/src/parse-diff-files.js'
+import { assemble, classifyStepZero } from '../shared/version-control/src/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
 import { withGhLane } from './outbound/admission.js'
 import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
@@ -47,7 +47,7 @@ import { failPhone, firstLine, failureFromExec } from '../shared/version-control
 // 它管的是「调用方没给 TIMEOUT_MS 时，一条 git 命令最多跑多久」——接线给了 TIMEOUT_MS 就以接线那个为准。
 // 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），
 // 值由 tests/verify-time-config.ts 看守一致。
-import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/values.js'
+import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径

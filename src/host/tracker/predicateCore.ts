@@ -11,7 +11,7 @@
 //   5. 只写可剥离类型：类型一律经 import type 引入，运行时导入与原来完全相同，不新增任何运行时边。
 
 import { execPrimitive, makeResult } from './predicatePrimitives.js'
-import { PREDICATE_FALLBACK_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { PREDICATE_FALLBACK_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 // 类型只做编译期约束，不产生运行时引用：链与检查的形状以共享层为准，谓词形状以同层真源为准。
 import type { Chain, Check } from '../../shared/tracker/chain-types.js'

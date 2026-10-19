@@ -302,7 +302,7 @@ async function main() {
     'repo=' + K.repo + ' sub=' + K.sub + ' subDeep=' + K.subDeep + ' sibling=' + K.sibling)
 
   // —— 客户端那几样抽屉：跑真内核代码（去掉行首 export 后当纯函数求值）——
-  const keyOfSrc = noExport(read('src/shared/workspaceKey.js'))
+  const keyOfSrc = noExport(read('.build/shared/workspaceKey.js'))
   // 切出来的这段源码不需要外部变量：改走共用入口 compileFn，参数表传空数组。
   const keyOfFn = compileFn([], keyOfSrc + '\nreturn keyOf')()
   const snapSrc = spliceableJs('src/client/kernel/store-snapshot.js')

@@ -11,8 +11,8 @@
 //
 // 与 label-colors.js 的分工：这里不碰文件系统（不读不写不删），只做字符串与对象；
 // 读文件、原子发布、串行队列、日志都在 label-colors.js。
-import { parseLabelsText, stringifyLabelColors } from '../../../shared/config-store/labels.js'
-import { normalizeColor } from '../../../shared/label-color/colors.js'
+import { parseLabelsText, stringifyLabelColors } from '../../../shared/config-store/src/labels.js'
+import { normalizeColor } from '../../../shared/label-color/src/colors.js'
 
 /**
  * 把文件文本读成房间形状。

@@ -579,10 +579,15 @@ function checkSelectionShape(out, label) {
 
 // 场景三：改被很多人 import 的底层模块，必须带上反向依赖它的那些门禁
 {
-  const target = 'src/shared/refresh/budget.js'
+  // 2026-10-19 第三阶段：共享层产物搬出源码树，这里的 target 从「产物路径」改成「真源路径」。
+  // 2026-10-20 第四阶段：源码里的说明符也跟着指向真源（../shared/<域>/src/<名>.js，tsc 靠扩展名替换解析到 .ts），
+  //   所以「别人怎么写」与「人该去改哪份文件」现在是同一条路径；两个常量都保留：一个给归属表与选择用，
+  //   一个给反向依赖扫描用，将来构建若再改说明符几何只改后者。
+  const target = 'src/shared/refresh/src/budget.ts'
+  const specTarget = 'src/shared/refresh/src/budget.js'
   check(fs.existsSync(path.join(ROOT, target)), '底层共享模块 ' + target + ' 还在（场景三要用它）')
   // 这里自己扫一遍 src/，算出谁 import 了这个文件——不调被测的建图代码，免得自证自话。
-  const importers = whoImports(target)
+  const importers = whoImports(specTarget)
   check(importers.length >= 5, '场景三：自己扫出来的直接 import ' + target + ' 的文件有 ' + importers.length + ' 个，足够支撑这条测试')
   const expectGates = map.gates
     .filter((g) => g.guards.some((x) => importers.includes(x)))

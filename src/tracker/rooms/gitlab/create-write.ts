@@ -25,13 +25,13 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import { projectPath } from './queries.js'
-import { classifyCreateWriteAttempt, decideCreateWriteRetry } from '../../../shared/refresh/create-write.js'
+import { classifyCreateWriteAttempt, decideCreateWriteRetry } from '../../../shared/refresh/src/create-write.js'
 import type {
   CreateWriteJudgement,
   CreateWriteVerdict,
 } from '../../../shared/refresh/src/create-write.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 建票写请求的超时（沿既有值）。 */
 

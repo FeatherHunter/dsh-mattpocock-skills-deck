@@ -30,7 +30,9 @@ const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PIN_DEFAULT: string = 'v1.3.1'
 const REPO_URL: string = 'https://github.com/mattpocock/skills'
 const DEST_DIR: string = join(ROOT, 'package', 'bundled-skills')
-const SHARED_PATH: string = join(ROOT, 'src', 'shared', 'matt-skills.js')
+// 2026-10-19 第三阶段起 src/shared 下的 .js 只是构建产物、已全部搬进 .build/shared/，
+// 源码树里只剩 .ts 真源：这里读真源 .ts 原文（只做正则解析，不需要转译后的形态）。
+const SHARED_PATH: string = join(ROOT, 'src', 'shared', 'matt-skills.ts')
 
 type SyncArgs = { pin: string; verify: boolean; help: boolean }
 
@@ -62,7 +64,7 @@ function helpText(): string {
 function readSharedNames(): string[] {
   const src: string = readFileSync(SHARED_PATH, 'utf8')
   const m: RegExpMatchArray | null = src.match(/export const MATT_SKILL_PROBE_NAMES\s*=\s*\[([\s\S]*?)\]/)
-  if (!m) throw new Error('无法从 src/shared/matt-skills.js 解析 MATT_SKILL_PROBE_NAMES')
+  if (!m) throw new Error('无法从 src/shared/matt-skills.ts 解析 MATT_SKILL_PROBE_NAMES')
   const names: string[] = [...m[1].matchAll(/'([^']+)'/g)].map((x: RegExpMatchArray) => x[1])
   return names
 }

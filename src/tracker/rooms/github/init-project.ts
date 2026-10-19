@@ -24,7 +24,7 @@ import type { InitProjectInput } from '../../contract/inputs.js';
 import { beginWriteTrail, emitRepoInitWrite } from './write-log.js'
 import type { WriteTrail } from './write-log.js';
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GIT_PROBE_TIMEOUT_MS, GITHUB_INIT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GIT_PROBE_TIMEOUT_MS, GITHUB_INIT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /**
  * 开仓失败的错误：三段式，但 kind 是开仓自己的结果词（bad-name/no-git/no-gh/not-logged-in/

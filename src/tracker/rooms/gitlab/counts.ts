@@ -48,7 +48,7 @@ import { failGlab } from './errors.js'
 import { projectPath } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
+import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // 一趟读等远端的时限：与房内 list 那条同一档（10 秒）。计数是轻请求，但等待仍按整趟算进降级行的耗时。
 

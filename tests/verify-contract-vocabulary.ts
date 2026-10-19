@@ -79,14 +79,27 @@ function walk(dir, out) {
     if (ent.name.startsWith('.')) continue
     const p = path.join(dir, ent.name)
     if (ent.isDirectory()) walk(p, out)
-    else if (ent.isFile() && (ent.name.endsWith('.js') || ent.name.endsWith('.ts'))) out.push(p)
+    // `.d.ts` 是构建生成在源码树里的「类型声明桩」（让 tsc 在产物搬走后仍能把 `.build/shared/<域>/<名>.js`
+    // 这类说明符解析到同名 .ts 真源），它只有类型、没有运行时导出。收进来再 import 会拿到空模块甚至报
+    // `_default is not defined`，于是被当成「导入失败」判红——这不是词汇失配，是扫描面该排除的派生文件。
+    else if (ent.isFile() && (ent.name.endsWith('.js') || ent.name.endsWith('.ts')) && !ent.name.endsWith('.d.ts')) out.push(p)
   }
   return out
 }
 
-/** 剥掉注释：只用来找「这个值/名字有没有出现在真代码里」，保守即多留不算漏。 */
+/**
+ * 剥掉注释：只用来找「这个值/名字有没有出现在真代码里」，保守即多留不算漏。
+ *
+ * 2026-10-19 修：先剥行注释、再剥块注释，并且块注释只认「开头不在标识符/引号/斜杠后面」的。
+ * 为什么：原来的正则会把两种不是注释的 `/*` 当成块注释开头，一路吞到几百行之后某个 `*／`，
+ * 把中间的真代码整段吃掉——两类误伤都实际发生过：行注释里写 glob（`package/lib/**`）、
+ * 模板字符串里写 `package/*`（路径里带星号）。被吞掉的那一段里恰好有本门禁要认的推导标记，
+ * 于是「有门禁在做推导」被判成 0 个字符、门禁自己红了一条假红。先剥行注释能让行注释里的 glob
+ * 先消失；块注释开头再加一条前置约束，字符串里的 `/*` 就进不了这一支。
+ */
 function stripComments(src) {
-  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
+  const noLineComments: string = src.replace(/(^|[^:])\/\/[^\n]*/gm, '$1 ')
+  return noLineComments.replace(/(^|[^\w"'`/])\/\*[\s\S]*?\*\//g, '$1 ')
 }
 
 /**
@@ -219,15 +232,17 @@ async function main() {
   check(stale.length === 0, '存量清单里没有「其实已经活过来」的过期条目（过期 ' + stale.length + ' 条）' + (stale.length ? '：' + stale.join('、') : ''))
 
   // #719 那两个事件的名字与判定函数不许回来（这一票就是为它们做的，单独立一条更直白）。
-  const syncText = stripComments(fs.readFileSync(path.join(ROOT, 'src', 'shared', 'tracker', 'sync.js'), 'utf8'))
+  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/，所以这里查的是产物位。
+  const syncText = stripComments(fs.readFileSync(path.join(ROOT, '.build', 'shared', 'tracker', 'sync.js'), 'utf8'))
   check(!/SOURCE_GH_CREATE|SOURCE_GH_EDIT|SOURCE_CLAIM|SOURCE_INDEX_DIRTY|needProbeSource/.test(syncText),
-    '四个事件源常量与 needProbeSource 已从 src/shared/tracker/sync.js 删掉')
+    '四个事件源常量与 needProbeSource 已从共享层产物（.build/shared/tracker/sync.js）删掉')
 
   // #719 删掉的六个来源标注不许回来（它们的产物第一行已经有机器生成的 AUTO-GENERATED 包头）。
   // 这一次查的是构建产物，所以仍然只看 .js：源码 .ts 里那六行以注释形式留着（「这里原来有一行
   // export const …」），把 .ts 也算进来会拿注释去判「标注回来了」，当场假红。
+  // 产物落点从 src/shared/refresh/ 搬到 .build/shared/refresh/，扫描根跟着搬。
   const goneSources = ['ATTENTION_SOURCE', 'BACKOFF_SOURCE', 'CHAIN_SOURCE', 'CREATE_WRITE_SOURCE', 'DELTA_SOURCE', 'IDEMPOTENCY_SOURCE']
-  const refreshJs = walk(path.join(ROOT, 'src', 'shared', 'refresh'), []).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
+  const refreshJs = walk(path.join(ROOT, '.build', 'shared', 'refresh'), []).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
   const back = goneSources.filter((n) => new RegExp('export const ' + n + '\\b').test(refreshJs))
   check(back.length === 0, '六个没有读者的来源标注已从产物里删掉（' + goneSources.length + ' 个里找回了 ' + back.length + ' 个' + (back.length ? '：' + back.join('、') : '') + '）')
 

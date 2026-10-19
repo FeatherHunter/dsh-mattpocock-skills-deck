@@ -14,7 +14,7 @@
 
 import { withInFlightLease } from './in-flight-lease.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { CANONICAL_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { CANONICAL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 /** 外层递进来的东西都是未知形状（exec 由 DSH 给、deps 由工具与测试拼），逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;
