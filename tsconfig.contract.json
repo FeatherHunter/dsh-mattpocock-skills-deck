@@ -1,18 +1,13 @@
 {
   // 契约层的 TypeScript 类型检查配置：只检查不产出。
-  // 这一层是纯类型（接口与形状），**没有任何运行时实现**：真正的 JS 由各房与 contract.js
-  // 继续承担，等迁移批次把它们换过来。所以这里不需要 esbuild 转译步骤，也没有派生产物。
+  // 这一层是纯类型（接口与形状），**没有任何运行时实现**：真源码本来就只有 .ts，
+  // 所以这里不需要 esbuild 转译步骤，也没有派生产物。
   //
   // 与四个计算核（src/shared/label-color/ 等）的差别只有一处：本文件要多给一个 DOM 库。
   // 原因是契约里会出现 AbortSignal（中止信号）与 setTimeout（定时器）这两个类型，
   // 它们由 DOM 库提供；Node 侧的同名能力与这里声明的是同一形状，不需要再引 @types/node。
   "compilerOptions": {
-    // 混编开关（#1020 开）：跟着类型检查一起跑的还有契约目录里那些旧语言文件。allowJs 让它们进得来——
-    // 项目里有 .ts 直接引用旧语言文件时，关着开关的配置会当场报「找不到模块」，这是我们要的报警，不是噪音。
-    // checkJs 保持关闭：旧语言文件不做类型检查（它们本来就没标注），只保证「引入得到」，转换逐个文件做。
-    // 等这个目录里的旧语言文件清零，把这两行摘掉；验收由 scripts/typecheck.mts 的覆盖对账负责。
-    "allowJs": true,
-    "checkJs": false,
+    // 纯 TypeScript（2026-10-20 收尾）：契约目录的旧语言文件已经清零，混编开关摘掉。
     // 保守目标：宿主（Node）与客户端闭包两边都跑得动，与四个核同一套保证。
     "target": "ES2020",
     "lib": ["ES2020", "DOM"],
@@ -38,11 +33,12 @@
     "src/tracker/label-names.ts",
     "src/tracker/fix-contract.ts",
     // #1139：界面描述投影（字段表 + projectUiDescription）。与上面两份同一类——带运行时行为，
-    // 所以不住契约目录；它只从契约的 backend-module.ts 取类型，不会把没标注的旧语言文件拉进来。
+    // 所以不住契约目录；它只从契约的 backend-module.ts 取类型，不会把域外源码拉进来。
     "src/tracker/ui-description.ts",
     // #1111：markdown 房的失败构造辅助（failFromError / failAs / …）。它只 import 跟踪器层的
-    // kernel/preflight.ts 与 kernel/error-rules.ts，两份都已全标注；同批的 GitHub / GitLab 房仍按「先修后转」
-    // 在原地是旧语言文件，所以这一批只圈这一份，等整棵 src/tracker 的归属配置（#1095）来了再收口。
+    // kernel/preflight.ts 与 kernel/error-rules.ts，两份都已全标注；同批的 GitHub / GitLab 房后来也转成了 .ts
+    // 并归 src/tracker 配置。这一份仍住这里是因为 src/tracker/tsconfig.json 的 exclude 点名让出它；
+    // 要收口就两边一起改（把它搬回 tracker 域并删掉那条 exclude）。
     "src/tracker/rooms/markdown/error-fail.ts"
   ]
 }

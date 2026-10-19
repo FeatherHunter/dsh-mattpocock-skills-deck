@@ -1,6 +1,6 @@
 {
-  // 新域，没有旧语言文件：allowJs/checkJs 两行不需要（见 src/shared/refresh/tsconfig.json 的混编开关注释）。
-  // 其余与各共享域同一套保证：目标 ES2020、严格模式、只做类型检查不产出（转译走 build.mjs 的 esbuild）。
+  // 纯 TypeScript（2026-10-20 收尾）：全仓不再有手写 JavaScript，所有共享域都不开混编开关。
+  // 其余与各共享域同一套保证：目标 ES2020、严格模式、只做类型检查不产出（转译走 scripts/build.mts 的 esbuild）。
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["ES2020"],

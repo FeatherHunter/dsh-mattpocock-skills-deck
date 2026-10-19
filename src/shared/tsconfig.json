@@ -11,12 +11,8 @@
   // 撞上「同一份源码不许两份配置同时声明」那条，直接红。所以点名只圈散文件，
   // 域源码的归属一字不动。新增散文件时把名字加进这里；散文件搬进域的那天把这一行删掉。
   "compilerOptions": {
-    // 散文件转写过渡期：同目录下 .js 与 .ts 并存，被转写的 .ts 用 import() 类型查询
-    // 引用还没转写的 .js 同伴（例如 check-catalog-dirs.ts 查 chain-types.js 的 Check）。
-    // allowJs 让这类查询有解（只读 JSDoc 形状，不检查 .js 本体）；checkJs 保持关闭，
-    // 存量 .js 的类型错误不在本票范围内。全部转完后这三行保持原样即可（无害）。
-    "allowJs": true,
-    "checkJs": false,
+    // 纯 TypeScript（2026-10-20 收尾）：散文件全部转完之后，原先为了让 .ts 用 import() 类型查询
+    // 读到还没转写的 .js 同伴而开的 allowJs/checkJs 已经摘掉——留着它们等于给新 .js 留后门。
     // 与其它域配置同一套保守保证：目标 ES2020，浏览器闭包与 Node 宿主两边都跑得动。
     "target": "ES2020",
     "lib": ["ES2020"],

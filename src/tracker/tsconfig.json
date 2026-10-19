@@ -16,19 +16,14 @@
   // 三条门禁（297 / 669 / 683）不再切探测服务的源码当场求值，detectionService.ts 照常进检查，
   // 本配置因此可以整片报绿。
   "compilerOptions": {
-    // 混编开关（#1020 开）：转换完成前本域还有旧语言文件。allowJs 让它们进得来——
-    // 本域里有 .ts 直接引用旧语言文件时，关着开关的配置会当场报「找不到模块」。
-    // checkJs 保持关闭：旧语言文件不做类型检查，只保证「引入得到」，转换逐个文件做。
-    // 等本域里的旧语言文件清零，把这两行摘掉；验收由 scripts/typecheck.mts 的覆盖对账负责。
-    "allowJs": true,
-    "checkJs": false,
+    // 纯 TypeScript（2026-10-20 收尾）：本域旧语言文件已经清零，混编开关（allowJs/checkJs）摘掉。
     // 与 deck 域同一套保守保证：Node 宿主与浏览器闭包两边都跑得动。
     "target": "ES2020",
     // 比四个核多一份 DOM：本域有一部分文件要认 AbortSignal 与定时器这两个类型。
     "lib": ["ES2020", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    // 只做类型检查不产出：真正的 JS 由 build.mjs 经 esbuild 转译生成。
+    // 只做类型检查不产出：真正的 JS 由 scripts/build.mts 经 esbuild 转译生成。
     "noEmit": true,
     // strict 开着是有意的：转干净的代码不需要为了过检查去放宽任何一条编译选项。
     // 本配置从第一天起就是严格的——放宽再收紧等于让一段没人检查的代码混进门禁。

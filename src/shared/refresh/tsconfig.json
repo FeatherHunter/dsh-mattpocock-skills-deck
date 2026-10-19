@@ -1,17 +1,12 @@
 {
-  // 混编开关（#1020 开）：跟着类型检查一起跑的还有域里那些旧语言文件。allowJs 让它们进得来——
-  // 项目里有 .ts 直接引用旧语言文件时，关着开关的配置会当场报「找不到模块」，这是我们要的报警，不是噪音。
-  // checkJs 保持关闭：旧语言文件不做类型检查（它们本来就没标注），只保证「引入得到」，转换逐个文件做。
-  // 等这个域里的旧语言文件清零，把这两行摘掉；验收由 scripts/typecheck.mts 的覆盖对账负责。
-  "allowJs": true,
-  "checkJs": false,
+  // 纯 TypeScript（2026-10-20 收尾）：本域旧语言文件已经清零，混编开关（allowJs/checkJs）摘掉。
   "compilerOptions": {
     // 输出目标定死保守版本：Node 宿主与浏览器闭包两边都跑得动（与 update-core、label-color-core 同一套保证）。
     "target": "ES2020",
     "lib": ["ES2020"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    // 只做类型检查不产出：真正的 JS 由 build.mjs 经 esbuild 转译生成。
+    // 只做类型检查不产出：真正的 JS 由 scripts/build.mts 经 esbuild 转译生成。
     "noEmit": true,
     "strict": true,
     // 核心里不碰任何 Node 或浏览器专属能力，读写全在外面（适配器）。
