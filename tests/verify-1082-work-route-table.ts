@@ -8,6 +8,8 @@
 //      回包没有工作区根、读盘失败时如实说读不到。
 //   二、界面：判据只认快照里那一个字段，空态/读不到/逐条三种画法分开；行上画出票号、标题、会话、
 //      动作、动作时间、是否在办；本会话有标记；陈旧条目带陈旧标记；词条中英齐全。
+//   三、#1289 的版面：时间与状态两列收窄（表头跟着改短），宽度让给标题与会话；
+//      整行挂一条悬停提示，把这一行被省略号截掉的标题、会话名、动作词与动作时刻补出来。
 //
 // 手法：主缝用真的工作路线存储（临时家目录 + 固定时钟），从工具壳写票收口处（recordWorkRoute）
 // 一路跑到面板快照挂载口；次缝把真源码按构建同一套做法装进假 React 渲染，看真实版面文字。
@@ -60,6 +62,9 @@ function memFs() {
  *   effects    —— 收到的副作用函数收在这里，测试自己决定什么时候跑；
  *   refs       —— useRef 按调用顺序从这里取（用来假装图标与浮层各自的 DOM 节点）；
  *   setCalls   —— setState 被调用时把新值记在这里（用来验「点别处真的收起了」）。
+ *
+ * #1289 追加：函数组件也照真 React 那样调一次（画出来的内容挂在 children 里，组件节点本身留在树上，
+ * 门禁还要按类型找它）。子节点按老习惯作为第二个参数递给组件（假 Tip 就是这么拿 child 的）。
  */
 function makeReact(stateQueue?: any[], effects?: any[], refs?: any[], setCalls?: any[]) {
   const queue: any[] = stateQueue ? stateQueue.slice() : []
@@ -69,6 +74,7 @@ function makeReact(stateQueue?: any[], effects?: any[], refs?: any[], setCalls?:
       const kids: any[] = []
       const walk = function (k: any) { if (Array.isArray(k)) { k.forEach(walk); return } if (k === null || k === undefined || k === false) return; kids.push(k) }
       walk(Array.prototype.slice.call(arguments, 2))
+      if (typeof type === 'function') return { type: type, props: props || {}, children: [type(props || {}, kids[0])] }
       return { type: type, props: props || {}, children: kids }
     },
     useContext: function () { return null },
@@ -85,11 +91,12 @@ function makeReact(stateQueue?: any[], effects?: any[], refs?: any[], setCalls?:
   }
 }
 
-/** 把一棵假 React 树里的可见文字摊平（含 Tip 的悬浮内容）。 */
+/** 把一棵假 React 树里的可见文字摊平（含 Tip 的悬浮内容；提示内容是函数时按它求值后的样子算）。 */
 function textOf(node: any): string {
   if (node === null || node === undefined || node === false) return ''
   if (typeof node === 'string') return node
   if (typeof node === 'number') return String(node)
+  if (typeof node === 'function') { try { return textOf(node()) } catch (e) { return '' } }
   if (Array.isArray(node)) return node.map(textOf).filter(Boolean).join(' ')
   const parts: string[] = []
   if (node.props && node.props.content) parts.push(textOf(node.props.content))
@@ -206,7 +213,7 @@ async function main() {
   const leafSrc = spliceableJs('src/client/views/shared/workRouteTable.js').replace(/^[ \t]*export[ \t]+/gm, '')
   // 把这份叶子装进假件里求值：闭包里带的都是假的 —— 假 React、假 Tip（把提示内容原样挂在 props 上）、
   // 假 tr（查真词表）、假 Ic、假 portalTop、假版本号。名字表与下面的传值顺序一一对应，改一处要改两处。
-  const compileLeaf = (react: any) => compileFn(['React', 'DswsCtx', 'Tip', 'tr', 'h', 'Ic', 'portalTop', 'DSW_VERSION'], leafSrc + '\nreturn { WORK_ROUTE_TABLE_FIELD, WORK_ROUTE_TABLE_CELLS, WORK_ROUTE_ACTION_KEYS, workRouteActionKeyOf, workRouteTableClock, workRouteTableOf, WorkRouteTable, WorkRouteTrigger }')(
+  const compileLeaf = (react: any) => compileFn(['React', 'DswsCtx', 'Tip', 'tr', 'h', 'Ic', 'portalTop', 'DSW_VERSION'], leafSrc + '\nreturn { WORK_ROUTE_TABLE_FIELD, WORK_ROUTE_TABLE_CELLS, WORK_ROUTE_ACTION_KEYS, workRouteActionKeyOf, workRouteTableClock, workRouteTableStamp, workRouteTableOf, WorkRouteRow, WorkRouteTable, WorkRouteTrigger }')(
     react, null, (props: any, child: any) => ({ type: 'Tip', props: props || {}, children: [child] }), (k: string, p: any) => {
       const locale = zh
       let s = locale[k] !== undefined ? locale[k] : k
@@ -262,8 +269,10 @@ async function main() {
   // ── 四、#1285：列宽让给标题与会话，表收进头部图标的浮层 ──
   // 一份列宽模板里，minmax(...) 内部自带空格，按空格切会把一列切成两半 —— 所以按「minmax 括号整段」切。
   const tracks = String(leaf.WORK_ROUTE_TABLE_CELLS || '').match(/minmax\([^)]*\)|\S+/g) || []
+  const pxOf = (t: any) => { const m = String(t || '').match(/^(\d+)px$/); return m ? Number(m[1]) : -1 }
   check(tracks.length === 6, '列宽模板是六列（实得 ' + tracks.length + ' 轨）')
-  check(tracks[0] === '46px' && tracks[3] === '50px' && tracks[4] === '72px' && tracks[5] === '48px', '票号、动作、动作时间、是否在办这四列定宽：面板拉宽时它们不变')
+  check(tracks[0] === '40px' && tracks[3] === '48px' && tracks[4] === '36px' && tracks[5] === '36px', '票号、动作、动作时间、是否在办这四列定宽：面板拉宽时它们不变')
+  check(pxOf(tracks[4]) < 72 && pxOf(tracks[5]) < 48, '「动作时间」与「是否在办」两列比改版前窄（72→36、48→36），省下的宽度让给标题与会话')
   check(tracks[1].indexOf('fr') > 0 && tracks[2].indexOf('fr') > 0, '标题与会话两列按比例吃掉全部富余宽度（票标题与会话名先长出来，不被挤成省略号）')
   const gridNodes = findAll(treeOk, (n: any) => n.props && n.props.style && typeof n.props.style.gridTemplateColumns === 'string')
   const gridTemplates: string[] = []
@@ -330,6 +339,54 @@ async function main() {
   const iconsSrc = sourceText('src/client/kernel/icons.ts')
   check(iconsSrc.indexOf("'workroute'") >= 0, '图标库里有 workroute 这颗图标')
   check(['workRouteTable.iconLabel', 'workRouteTable.iconTip', 'workRouteTable.idle'].every(function (k) { return zh[k] !== undefined && en[k] !== undefined }), '图标名、悬停说明、还没拿到数据这三句中英都有')
+
+  // ── 五、#1289：两列收窄给标题与会话；悬停一行补全这一行没显示全的内容 ──
+  check(zh['workRouteTable.col.time'] === '时间' && zh['workRouteTable.col.state'] === '状态', '中文表头改短（「时间 / 状态」），表头自己不再撑满那一列')
+  check(en['workRouteTable.col.time'] === 'When' && en['workRouteTable.col.state'] === 'State', '英文表头改短（When / State）')
+  check(['workRouteTable.tipTitle', 'workRouteTable.tipSession', 'workRouteTable.tipAction', 'workRouteTable.tipTime'].every(function (k) { return zh[k] !== undefined && en[k] !== undefined }), '提示补全用的四句中英都有')
+
+  // 动作时刻：今天只写时分，跨天只写月日，完整时刻留给提示补。
+  const stampSameDay = String(leaf.workRouteTableStamp('2026-10-19T04:00:00.000Z', Date.parse('2026-10-19T04:00:30.000Z')))
+  check(/^\d{2}:\d{2}$/.test(stampSameDay), '今天动的条目：格子里只写时分（16:50 那样），完整时刻留给提示')
+  const crossIso = '2026-10-17T04:00:00.000Z'
+  const crossNow = Date.parse('2026-10-19T04:00:00.000Z')
+  const crossClock = String(leaf.workRouteTableClock(crossIso, crossNow))
+  const crossStamp = String(leaf.workRouteTableStamp(crossIso, crossNow))
+  check(crossClock.indexOf(' ') > 0 && crossStamp === crossClock.slice(0, crossClock.indexOf(' ')) && crossStamp.indexOf(' ') < 0, '跨天的条目：格子里只写月日（10-18 那样），完整时刻交给提示补')
+
+  // 悬停一行：提示里补出这一行没显示全的标题与会话名。
+  // 怎么假装「被省略号截掉」：给那一格的假元素喂一个内容宽大于可见宽的数（scrollWidth > clientWidth）。
+  const oneRowReadout = { at: '2026-10-19T08:00:00.000Z', staleCount: 0, entries: [
+    { ticketKey: '900', title: '一张很长的票标题', sessionLabel: '会话 甲', action: 'report', actionAt: '2026-10-19T07:30:00.000Z', active: true, currentSession: false },
+  ] }
+  const tipOf = (els: any[]) => {
+    const l = compileLeaf(makeReact([], [], els))
+    const tree = l.WorkRouteTable({ st: { snapshot: { workRouteTable: { ok: true, readout: oneRowReadout } } } })
+    const tips = findAll(tree, (n: any) => n.type === 'Tip' && n.props && typeof n.props.content === 'function')
+    return { tree: tree, tips: tips, text: tips.length === 1 ? String(tips[0].props.content()) : '' }
+  }
+  const cutOne = tipOf([
+    { current: { scrollWidth: 300, clientWidth: 100 } },
+    { current: { scrollWidth: 60, clientWidth: 100 } },
+    { current: { scrollWidth: 90, clientWidth: 100 } },
+  ])
+  check(cutOne.tips.length === 1, '每一行挂一条悬停提示（提示挂在整行上）')
+  check(cutOne.text.indexOf('标题：') >= 0 && cutOne.text.indexOf('一张很长的票标题') >= 0, '票标题被截断时：提示里补出完整标题')
+  check(cutOne.text.indexOf('会话：') < 0 && cutOne.text.indexOf('动作：') < 0, '没被截断的格子不重复写进提示（不拿重复的话打扰人）')
+  const cutAll = tipOf([
+    { current: { scrollWidth: 300, clientWidth: 100 } },
+    { current: { scrollWidth: 300, clientWidth: 100 } },
+    { current: { scrollWidth: 300, clientWidth: 100 } },
+  ])
+  check(cutAll.text.indexOf('标题：') >= 0 && cutAll.text.indexOf('会话：') >= 0 && cutAll.text.indexOf('动作：') >= 0 && cutAll.text.indexOf('会话 甲') >= 0, '标题、会话名、动作词都被截断时：三样一起补出来')
+  const cutNone = tipOf([
+    { current: { scrollWidth: 60, clientWidth: 100 } },
+    { current: { scrollWidth: 60, clientWidth: 100 } },
+    { current: { scrollWidth: 60, clientWidth: 100 } },
+  ])
+  check(cutNone.text.indexOf('标题：') < 0 && cutNone.text.indexOf('会话：') < 0 && cutNone.text.indexOf('动作：') < 0, '一格都没被截断时：标题、会话、动作都不写进提示')
+  const cutRows = findAll(cutOne.tree, (n: any) => n.props && n.props['data-work-route-row'] === 1)
+  check(cutRows.length === 1 && cutOne.tips[0].children[0] === cutRows[0], '提示的触发件就是那一行本身（悬停行的任何位置都能看到提示）')
 
   if (total === 0) check(false, '一条断言都没跑')
 }

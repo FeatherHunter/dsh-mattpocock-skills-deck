@@ -86,7 +86,8 @@ const LEAVES = [
   // （#721 的旧工作路线展示面 sessionChainView.js 随 #1271 整份退役，行删除；在办表展示面见下面 #1082 那一行。）
   // #1082 新增：面板「跨会话在办表」（判据与画法；只读快照里的 workRouteTable 字段，与工具回执 data.workRoute 同源）
   // #1285 追加：列宽模板（表头与数据行共用同一份）与头部那一行的入口图标 WorkRouteTrigger。
-  { file: 'src/client/views/shared/workRouteTable.js', exports: ['WORK_ROUTE_TABLE_FIELD', 'WORK_ROUTE_ACTION_KEYS', 'WORK_ROUTE_TABLE_CELLS', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableOf', 'WorkRouteTable', 'WorkRouteTrigger'], components: ['WorkRouteTable', 'WorkRouteTrigger'] },
+  // #1289 追加：动作时刻的缩写（workRouteTableStamp）与逐行组件 WorkRouteRow（整行挂悬停提示）。
+  { file: 'src/client/views/shared/workRouteTable.js', exports: ['WORK_ROUTE_TABLE_FIELD', 'WORK_ROUTE_ACTION_KEYS', 'WORK_ROUTE_TABLE_CELLS', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableStamp', 'workRouteTableOf', 'WorkRouteRow', 'WorkRouteTable', 'WorkRouteTrigger'], components: ['WorkRouteRow', 'WorkRouteTable', 'WorkRouteTrigger'] },
   // 2026-09-24 从贴着 350 行上限的两个文件里搬出来的两块：
   //   · 降级横幅（views/ListTab.js → views/shared/RestFallbackBanner.js，判据仍是 truthLines 的 restFallbackView）
   //   · 头部那条灰色占位骨架（panel/Dock.js → panel/RepoChipSkeleton.js）

@@ -139,12 +139,17 @@
         'workRouteTable.col.title': '标题',
         'workRouteTable.col.session': '会话',
         'workRouteTable.col.action': '动作',
-        'workRouteTable.col.time': '动作时间',
-        'workRouteTable.col.state': '是否在办',
+        'workRouteTable.col.time': '时间',
+        'workRouteTable.col.state': '状态',
         'workRouteTable.thisSession': '本会话',
         'workRouteTable.active': '在办',
         'workRouteTable.stale': '陈旧',
         'workRouteTable.titleMissing': '标题未取到',
+        // #1289：悬停一行时补全这一行没显示全的内容（哪一格被省略号截掉就补哪一格）。
+        'workRouteTable.tipTitle': '标题：{title}',
+        'workRouteTable.tipSession': '会话：{session}',
+        'workRouteTable.tipAction': '动作：{action}',
+        'workRouteTable.tipTime': '动作时间：{time}',
         // #1285：头部那一行右端的在办表图标（点开浮层看表）。版本号撤了这一行，改放进图标的悬停提示里。
         'workRouteTable.iconLabel': '跨会话在办表',
         'workRouteTable.iconTip': '跨会话在办表：点开看这个工作区里每个会话各自在办哪些票（插件版本 {version}）',
@@ -235,11 +240,17 @@
         'workRouteTable.col.session': 'Session',
         'workRouteTable.col.action': 'Action',
         'workRouteTable.col.time': 'When',
-        'workRouteTable.col.state': 'Status',
+        'workRouteTable.col.state': 'State',
         'workRouteTable.thisSession': 'this session',
         'workRouteTable.active': 'active',
         'workRouteTable.stale': 'stale',
         'workRouteTable.titleMissing': 'title unavailable',
+        // #1289: hovering a row fills in whatever that row could not show in full
+        //   (only the cells that were actually cut off by the ellipsis).
+        'workRouteTable.tipTitle': 'Title: {title}',
+        'workRouteTable.tipSession': 'Session: {session}',
+        'workRouteTable.tipAction': 'Action: {action}',
+        'workRouteTable.tipTime': 'Action time: {time}',
         // #1285: the work-route icon in the panel header row (click it to open the table).
         'workRouteTable.iconLabel': 'Cross-session work route',
         'workRouteTable.iconTip': 'Cross-session work route: click to see which tickets each session in this workspace is working on (plugin version {version})',
