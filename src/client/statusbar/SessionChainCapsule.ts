@@ -138,6 +138,32 @@ const chainKeyTextOf = function (isMap: any, key: any) { return isMap === true ?
  */
 const chainMapIconOf = function (isMap: any, size: any) { return isMap === true ? Ic({ n: 'map', size: size }) : null }
 
+// #1263: header plus row time helpers. Leaf discipline: no new runtime import, words via tr only.
+// Header time is the newest own entry formatted as local HH:mm. Row time shows HH:mm for the same
+// day and MM-DD HH:mm across days. Stale means idle for over 24 hours against Date.now().
+const capsulePadOf = function (n: any) { return (n < 10 ? '0' : '') + n }
+const capsuleClockOf = function (at: any) {
+  const t = (typeof at === 'number' && isFinite(at) && at > 0) ? Math.floor(at) : 0
+  if (!t) return ''
+  const d = new Date(t)
+  return capsulePadOf(d.getHours()) + ':' + capsulePadOf(d.getMinutes())
+}
+const capsuleDayKeyOf = function (t: any) { const d = new Date(t); return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() }
+const capsuleRowTimeOf = function (at: any, now: any) {
+  const t = (typeof at === 'number' && isFinite(at) && at > 0) ? Math.floor(at) : 0
+  if (!t) return ''
+  const n = (typeof now === 'number' && isFinite(now) && now > 0) ? Math.floor(now) : Date.now()
+  if (capsuleDayKeyOf(t) === capsuleDayKeyOf(n)) return capsuleClockOf(t)
+  const d = new Date(t)
+  return capsulePadOf(d.getMonth() + 1) + '-' + capsulePadOf(d.getDate()) + ' ' + capsuleClockOf(t)
+}
+const capsuleStaleOf = function (at: any, now: any) {
+  const t = (typeof at === 'number' && isFinite(at) && at > 0) ? Math.floor(at) : 0
+  const n = (typeof now === 'number' && isFinite(now) && now > 0) ? Math.floor(now) : Date.now()
+  if (!t || !n || n < t) return false
+  return n - t > 24 * 60 * 60 * 1000
+}
+
 /**
  * 胶囊里那一段。idle / empty 返回 null（不占位）；unreadable 返回一枚小图标；
  * ok 版面上只写图钉图标加当前那张的号（标题再长也不上版面）；鼠标悬停撑起一张单子，
@@ -173,6 +199,14 @@ export const SessionChainCapsule = function (props: any) {
   // 单子从旧到新往下排：最新那一条沉底，离鼠标最近；链里最多 20 条，全部列出不折叠。
   // 版面上那个号（下面那个 text span）挂在让位表第 12 号：宽度不够时它也逐字让（最后几位才让），
   //   让位机直接往纯文本元素里写字，这里两处（版面号、环境计数都是纯文本）都是安全的。
+  const mine = capsuleShardOf(sid)
+  const allRows = (typeof sessionChainRowsOf === 'function') ? sessionChainRowsOf(st) : []
+  const otherRows = allRows.filter(function (r: any) { return r && r.shardId !== mine })
+  const otherSet: any = {}
+  for (let oi = 0; oi < otherRows.length; oi++) { const k = String((otherRows[oi] && otherRows[oi].shardId) || ''); if (k) otherSet[k] = true }
+  const otherCount = Object.keys(otherSet).length
+  const nowMs = Date.now()
+  const headTime = capsuleClockOf(e && e.at)
   const displayed = view.list.slice().reverse()
   const eIsMap = e.isMap === true
   const text = chainKeyTextOf(eIsMap, e.ticketKey)
@@ -194,12 +228,13 @@ export const SessionChainCapsule = function (props: any) {
     onClick: function (ev: any) { if (ev && ev.stopPropagation) ev.stopPropagation() },
     style: {
       position: 'fixed', left: st.chainMenuPos.left, bottom: st.chainMenuPos.bottom,
-      minWidth: 240, maxWidth: 340, maxHeight: 380, overflowY: 'auto', padding: 4, zIndex: 2147483000,
+      width: 420, maxWidth: 420, maxHeight: 380, overflowY: 'auto', padding: 4, zIndex: 2147483000,
       background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)',
       borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
     },
   }, [
-    h('div', { key: 'head', style: { fontSize: 11, lineHeight: '18px', padding: '2px 8px', color: 'var(--dsws-label-caption,#8b8b95)' } }, tr('chainView.capsuleListTitle')),
+    h('div', { key: 'head1', style: { fontSize: 11, lineHeight: '18px', padding: '2px 8px', color: 'var(--dsws-label-caption,#8b8b95)' } }, tr('chainView.capsuleHeaderLine1', { n: displayed.length, time: headTime })),
+    otherCount > 0 ? h('div', { key: 'head2', style: { fontSize: 11, lineHeight: '18px', padding: '2px 8px', color: 'var(--dsws-label-caption,#8b8b95)' } }, tr('chainView.capsuleHeaderLine2', { x: otherCount, y: otherRows.length })) : null,
     displayed.map(function (r: any, i: any) {
       const word = r.actionKey ? tr(r.actionKey) : r.action
       const latest = i === displayed.length - 1
@@ -209,7 +244,10 @@ export const SessionChainCapsule = function (props: any) {
       const badgeColor = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#8b8b95'))
       const badgeBorder = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#3a3f4a'))
       const rIsMap = r.isMap === true
-      const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (r.time ? ' ' + r.time : '') + (rStateWord ? ' ' + rStateWord : '')
+      const rowTime = capsuleRowTimeOf(r.at, nowMs)
+      const rowStale = capsuleStaleOf(r.at, nowMs)
+      const staleWord = rowStale ? tr('chainView.capsuleStale') : ''
+      const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (rowTime ? ' ' + rowTime : '') + (staleWord ? ' ' + staleWord : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
         className: 'dsws-chainmenu-row' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
@@ -234,7 +272,8 @@ export const SessionChainCapsule = function (props: any) {
         //   「标题未取到」那句话只在文字通道里（上面 spoken 与 line 两处无障碍名）。
         h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle),
         word ? h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '1px 6px', borderRadius: 4, background: latest ? 'rgba(88,166,255,.14)' : 'rgba(139,139,149,.15)', color: latest ? '#8fb8ff' : '#a1a1aa' } }, word) : null,
-        r.time ? h('span', { style: { flex: 'none', fontSize: 11, color: '#8b8b95' } }, r.time) : null,
+        rowTime ? h('span', { style: { flex: 'none', fontSize: 11, color: '#8b8b95' } }, rowTime) : null,
+        rowStale ? h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '1px 6px', borderRadius: 4, background: 'rgba(139,139,149,.15)', color: '#a1a1aa' } }, staleWord) : null,
       ])
     }),
   ]) : null

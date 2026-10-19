@@ -337,5 +337,85 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
   check(!!plainRow && String(plainRow.p['aria-label']).indexOf('type.map') < 0, '普通票那行不冒充地图')
 }
 
+console.log('F) #1263 two-line header plus width, cross-day and stale')
+{
+  const nowMs = Date.now()
+  const freshAt = nowMs - 60 * 60 * 1000
+  const staleAt = nowMs - 25 * 60 * 60 * 1000
+  const shardOf = (function () { const l = loadLeaf(function () { return [] }); return l.capsuleShardOf('s1') })()
+  const rows = [
+    { shardId: shardOf, label: 'x', sessionFull: 'x', sessionIndex: 0, firstOfSession: true, backend: 'github', ticketKey: '951', ticketTitle: 'fresh', effortId: '', action: 'edit', actionKey: 'chainView.action.edit', at: freshAt, time: 'x' },
+    { shardId: shardOf, label: 'x', sessionFull: 'x', sessionIndex: 0, firstOfSession: false, backend: 'github', ticketKey: '950', ticketTitle: '', effortId: '', action: 'comment', actionKey: 'chainView.action.comment', at: staleAt, time: 'x' },
+    { shardId: 'SHARD-OTHER-X', label: 'y', sessionFull: 'y', sessionIndex: 1, firstOfSession: true, backend: 'github', ticketKey: '800', ticketTitle: 'other', effortId: '', action: 'state', actionKey: '', at: freshAt, time: 'x' },
+  ]
+  const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
+  const trCalls: any[] = []
+  const tr = function (k: any, params?: any) { trCalls.push({ k: k, params: params }); return String(k) + (params ? ' ' + JSON.stringify(params) : '') }
+  const srcR = spliceableJs(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
+  const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
+    srcR + '\nreturn { SessionChainCapsule }')
+  const React = { createElement: h, useContext: function () { return { h: h } }, useRef: function (v: any) { return { current: v } }, useState: function () { return [null, function () {}] } }
+  const built = factory(React, { h: h }, function () { return null }, function () { return null }, tr, function () { return rows }, 'workRoute', function () {}, function () {}, function (o: any, kids: any) { return { overlay: true, props: o, children: kids } }, function () { return { left: 1, bottom: 2 } }, function () {}, function (r: any, fn: any) { fn() }, function () {})
+  const st: any = { snapshot: { workRoute: { ok: true } }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
+  const open = built.SessionChainCapsule({ st: st, sid: 's1' })
+  let menuNode: any = null
+  ;(function find(n: any) {
+    if (!n || menuNode) return
+    if (Array.isArray(n)) { n.forEach(find); return }
+    if (typeof n !== 'object') return
+    if (n.overlay === true) { menuNode = n; return }
+    ;(n.c || []).forEach(find)
+    ;(n.children || []).forEach(find)
+  })(open)
+  check(!!menuNode, 'menu opens')
+  const style = (menuNode && menuNode.props && menuNode.props.style) || {}
+  check(style.width === 420 && style.maxWidth === 420 && style.maxHeight === 380, 'popover width 420 and max height 380 (got ' + JSON.stringify({ width: style.width, maxWidth: style.maxWidth, maxHeight: style.maxHeight }) + ')')
+  const line1 = trCalls.filter(function (c: any) { return c.k === 'chainView.capsuleHeaderLine1' })[0]
+  check(!!line1 && line1.params && line1.params.n === 2 && typeof line1.params.time === 'string' && /^\d{2}:\d{2}$/.test(line1.params.time), 'line one carries own count 2 plus local HH:mm (got ' + JSON.stringify(line1 && line1.params) + ')')
+  const line2 = trCalls.filter(function (c: any) { return c.k === 'chainView.capsuleHeaderLine2' })[0]
+  check(!!line2 && line2.params && line2.params.x === 1 && line2.params.y === 1, 'line two counts other sessions (got ' + JSON.stringify(line2 && line2.params) + ')')
+  const texts: string[] = []
+  ;(function walk(n: any) {
+    if (n === null || n === undefined) return
+    if (typeof n === 'string') { texts.push(n); return }
+    if (Array.isArray(n)) { n.forEach(walk); return }
+    if (typeof n === 'object') { (n.c || []).forEach(walk); (n.children || []).forEach(walk) }
+  })(menuNode)
+  const staleWordHit = texts.some(function (s: string) { return s.indexOf('chainView.capsuleStale') >= 0 })
+  check(staleWordHit, 'rows older than 24h carry the stale marker')
+  const datedHit = texts.some(function (s: string) { return /\d{2}-\d{2} \d{2}:\d{2}/.test(s) })
+  check(datedHit, 'cross-day rows carry month-day plus time')
+  const rowNodes: any[] = []
+  ;(function walkRows(n: any) {
+    if (n === null || n === undefined) return
+    if (Array.isArray(n)) { n.forEach(walkRows); return }
+    if (typeof n === 'object' && n.overlay) { (n.children || []).forEach(walkRows); return }
+    if (typeof n === 'object') {
+      if (n.p && typeof n.p.className === 'string' && n.p.className.indexOf('dsws-chainmenu-row') >= 0) { rowNodes.push(n); return }
+      ;(n.c || []).forEach(walkRows)
+    }
+  })(open)
+  check(rowNodes.length === 2, 'only current session rows are listed (' + rowNodes.length + ')')
+  const staleAria = rowNodes.some(function (r: any) { return String(r.p['aria-label'] || '').indexOf('chainView.capsuleStale') >= 0 })
+  check(staleAria, 'stale marker also reaches the accessible name')
+}
+{
+  const shardOf = (function () { const l = loadLeaf(function () { return [] }); return l.capsuleShardOf('s1') })()
+  const solo = [
+    { shardId: shardOf, label: 'x', sessionFull: 'x', sessionIndex: 0, firstOfSession: true, backend: 'github', ticketKey: '951', ticketTitle: 'solo', effortId: '', action: 'edit', actionKey: 'chainView.action.edit', at: Date.now() - 1000, time: 'x' },
+  ]
+  const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
+  const seen: string[] = []
+  const tr = function (k: any) { seen.push(String(k)); return String(k) }
+  const srcR = spliceableJs(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
+  const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
+    srcR + '\nreturn { SessionChainCapsule }')
+  const React = { createElement: h, useContext: function () { return { h: h } }, useRef: function (v: any) { return { current: v } }, useState: function () { return [null, function () {}] } }
+  const built = factory(React, { h: h }, function () { return null }, function () { return null }, tr, function () { return solo }, 'workRoute', function () {}, function () {}, function (o: any, kids: any) { return { overlay: true, props: o, children: kids } }, function () { return { left: 1, bottom: 2 } }, function () {}, function (r: any, fn: any) { fn() }, function () {})
+  const st: any = { snapshot: { workRoute: { ok: true } }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
+  built.SessionChainCapsule({ st: st, sid: 's1' })
+  check(seen.indexOf('chainView.capsuleHeaderLine2') < 0, 'no other sessions means no second line')
+}
+
 console.log(failed ? '\n存在失败' : '\n全部通过')
 process.exit(failed ? 1 : 0)

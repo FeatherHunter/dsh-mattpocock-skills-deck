@@ -269,7 +269,7 @@ export async function recordWorkRoute(
         const input: UnknownRecord = {
           rootKey: rootKey,
           sessionId: sessionId,
-          sessionLabel: '',           // 会话标题快照归 #1263，这里传空串表示「这次没带」。
+          sessionLabel: '',           // 会话标题快照由宿主侧在 workRouteNote 里按 titleFactOf 同一条取法填（取不到留空），这里传空串表示没带。
           backend: backendId,
           ticketKey: ticketKey,
           action: spec.action,

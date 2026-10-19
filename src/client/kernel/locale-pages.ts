@@ -111,6 +111,11 @@
         'chainView.capsuleDoing': '在办',
         // 同一段悬停里那份单子的标题行（悬停支持多行，从新到旧列出当前会话的记录）。
         'chainView.capsuleListTitle': '当前会话处理记录',
+        // #1263：胶囊悬停两行表头（第一行本会话条数与本地更新时分，第二行别的会话计数；没有别的会话整行不出现）。
+        'chainView.capsuleHeaderLine1': '工作路线 · 本会话 {n} 条 · {time} 更新',
+        'chainView.capsuleHeaderLine2': '本工作区另有 {x} 个会话在办 {y} 条',
+        // #1263：超过 24 小时没动的条目标为陈旧（行内小徽章与无障碍名里都带上）。
+        'chainView.capsuleStale': '陈旧',
         // #907：票标题查不到时，匾面上留白，这句话只出现在无障碍名（悬停提示）里。
         'chainView.titleMissing': '标题未取到',
         'chainView.action.create': '建票',
@@ -178,6 +183,11 @@
         'chainView.capsuleDoing': 'working on',
         // The title line of that strip's hover list (the hover holds multiple lines of this session's records).
         'chainView.capsuleListTitle': 'Current session activity',
+        // #1263: two-line hover header (line one own count plus local update time, line two other sessions; hidden when none).
+        'chainView.capsuleHeaderLine1': 'Work route \u00b7 this session {n} \u00b7 updated {time}',
+        'chainView.capsuleHeaderLine2': '{x} other sessions working on {y} in this workspace',
+        // #1263: entries idle for over 24 hours read as stale (small badge plus accessible name).
+        'chainView.capsuleStale': 'stale',
         // #907: shown only in the accessible name (the hover tip) when a ticket title is not known.
         'chainView.titleMissing': 'title unavailable',
         'chainView.action.create': 'opened a ticket',

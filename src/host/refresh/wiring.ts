@@ -234,6 +234,22 @@ export function createRefreshWiring(deps: any): any {
     return buildSessionChainReadout({ tickets: workRoute, at: Date.now() })
   }
 
+  /** #1263：会话标题快照（与下面 titleFactOf 同一条取法：sessions 加 sessionTitle；取不到回空串）。 */
+  function sessionTitleSnapshotOf(sid: any): string {
+    try {
+      const ctx: any = d.ctx;
+      if (!ctx || typeof ctx.get !== 'function') return '';
+      const ss: any = ctx.get('sessions');
+      const ts: any = ctx.get('sessionTitle');
+      if (!ss || typeof ss.get !== 'function' || !ts || typeof ts.get !== 'function') return '';
+      const session: any = ss.get(sid);
+      if (!session) return '';
+      const snap: any = ts.get(session);
+      if (!snap || typeof snap.title !== 'string' || !snap.title) return '';
+      return snap.title;
+    } catch (e: any) { return '' }
+  }
+
   // 上一次同步给写事件白名单的那些根（切走的那几个要 forgetRoot）。
   let allowed: string[] = []
   // #735：盘读回守卫（内存按进程活、盘跨进程；重启后每个根第一次被看见时读回一格，一根只读一次）。
@@ -420,8 +436,9 @@ export function createRefreshWiring(deps: any): any {
           resolveTimeoutMs: SHELL_RESOLVE_TIMEOUT_MS,
           invalidate: function (info: any): void { try { const root: any = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e: any) {} },
           onTicketCreated: onDeckWrite, // #746 建票直达命名守护
-          // #1261：上报成功收口记一笔 + 读在办表（壳经这两支调到；装配失败时给没落上的诚实回执，不静默跳过）。
-          workRouteNote: function (input: any): any { try { return workRouteBindings ? workRouteBindings.note(input) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
+          // #1263：上报成功收口记一笔 + 读在办表（壳经这两支调到；装配失败时给没落上的诚实回执，不静默跳过）。
+          // 会话标题快照由宿主侧填（与 titleFactOf 同一条取法；取不到留空，读出口显示散列前 6 位）。
+          workRouteNote: function (input: any): any { try { const enriched: any = (input && typeof input === 'object') ? Object.assign({}, input) : {}; if (!enriched.sessionLabel) { const t = sessionTitleSnapshotOf(enriched.sessionId); if (t) enriched.sessionLabel = t } return workRouteBindings ? workRouteBindings.note(enriched) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
           workRouteRead: function (input: any): any { try { return workRouteBindings ? workRouteBindings.read(input) : { ok: false, reason: 'no-store' } } catch (e: any) { return { ok: false, reason: 'read-failed' } } },
           // #1086：释放（带 release=true 的上报）走这一支；装配失败时回没释放的诚实原因，由回执备注如实写出。
           workRouteRelease: function (input: any): any { try { return workRouteBindings ? workRouteBindings.release(input) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
