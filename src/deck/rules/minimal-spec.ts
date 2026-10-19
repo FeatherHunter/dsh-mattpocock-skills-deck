@@ -13,19 +13,28 @@
 // 纯在哪：只做字符串与数组的计算，不取会话、不起进程、不读写文件、不读钟；进来的值
 // 一律当「形状不可信」先收口（收口函数与类型都在本文件里，不引别的目录）。
 
-/** 票的种类（deck_issue_create 的 kind 参数与各工具的写路径共用这一套词）。 */
-export type DeckKind = 'map' | 'task' | 'bug'
+/** 票的种类（deck_issue_create 的 kind 参数与各工具的写路径共用这一套词）。
+ *
+ *  这里是本仓规则侧对「对象类型」的现有取值：地图 / 任务 / 缺陷是建票工具一开始就有的三种；
+ *  #1277 补上规格（spec，实施地图的容器）与实施票（ticket，规格拆出来的施工票）。
+ *  九值全集与更细的判定链归 #1275 的 ADR，本文件不一次扩到底。 */
+export type DeckKind = 'map' | 'task' | 'bug' | 'spec' | 'ticket'
 
 /** 拿不准是不是字符串时统一收口成字符串：不是字符串就当空串（调用方各自判空）。 */
 function str(v: unknown): string {
   return (typeof v === 'string') ? v : ''
 }
 
-/** 强制最小规范里那几枚必备标签：按票的种类给，缺的补上，已经有的不动。 */
+/** 强制最小规范里那几枚必备标签：按票的种类给，缺的补上，已经有的不动。
+ *
+ *  规格与实施票为什么是 ready-for-agent：ADR §5 定下不再新增 wayfinder 标签，这两类票不是探索地图上的
+ *  研判任务，而是可以直接开工的活；它们的身份靠票面标记，不靠标签。 */
 export const MINIMAL_LABELS: Readonly<Record<DeckKind, readonly string[]>> = Object.freeze({
   map: Object.freeze(['wayfinder:map']),
   task: Object.freeze(['wayfinder:task']),
   bug: Object.freeze(['bug', 'needs-triage']),
+  spec: Object.freeze(['ready-for-agent']),
+  ticket: Object.freeze(['ready-for-agent']),
 })
 
 /** 地图那张票必带的五个区块（与共享层 parser.js 的 parseMapBody 认的五个标题逐字一致）。 */
@@ -99,6 +108,9 @@ export function ensureBody(body: unknown, kind: string): { body: string; added: 
     }
     return { body: out, added: added }
   }
+  // #1277：规格与实施票的正文由技能模板写（规格是 to-spec 的七节，实施票是 to-tickets 的四节），
+  // 不补「## 进度」区 —— 进度区是给探索地图上的任务票记「做到哪一步」的，这两类票的状态由票的 state 表达。
+  if (kind === 'spec' || kind === 'ticket') return { body: out, added: added }
   if (!hasProgressHeading(text)) {
     out = (out.replace(/\s*$/, '') + '\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n').replace(/^\n+/, '')
     added.push('## 进度')

@@ -14,6 +14,9 @@ import { classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } f
 import type { EdgeEvidence } from '../shell/edge-landing.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
+// #1277：规格与实施票的票面对象类型标记（唯一真源，ADR 2.5）。标记由本工具写进正文最前面，
+// 后端建房时再把它挪进文件头（本地 Markdown 房会挪，GitHub 房今天的已知缺口见设计文档第 7 节）。
+import { markerKindAtStart, markerLineFor } from '../../shared/issue-file/src/marker.js'
 import * as budget from '../../shared/refresh/src/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -73,13 +76,13 @@ export interface DeckIssueCreateDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_create',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug），自动补必备 label 与 progress 区，重复调用按锚复用同一张。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），重复调用按锚复用同一张。',
   parameters: {
     type: 'object',
     properties: {
       title: { type: 'string', description: '票的标题' },
       body: { type: 'string', description: '正文；缺省时按种类补最小骨架' },
-      kind: { type: 'string', enum: ['task', 'bug', 'map'], description: '票的种类，缺省 task' },
+      kind: { type: 'string', enum: ['task', 'bug', 'map', 'spec', 'ticket'], description: '票的种类，缺省 task' },
       parentKey: { type: 'string', description: '父票（一般是地图那张票）的票号' },
       labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
@@ -91,10 +94,13 @@ export const definition = {
   },
 }
 
-/** 票的种类收口：只认 map 与 bug，其余（没给、给了别的词）一律当 task，与契约层的三种词一致。 */
+/** 票的种类收口：认 map / bug / spec / ticket，其余（没给、给了别的词）一律当 task。
+ *
+ *  #1277 补上 spec 与 ticket 两档：它们与契约层的三种类型不同 —— 契约类型只有 issue / map / spec，
+ *  实施票在契约上是普通票，身份只靠票面标记。 */
 function kindOf(a: Record<string, unknown>): string {
   const k = String((a && a.kind) || 'task').trim()
-  return (k === 'map' || k === 'bug') ? k : 'task'
+  return (k === 'map' || k === 'bug' || k === 'spec' || k === 'ticket') ? k : 'task'
 }
 
 /**
@@ -133,6 +139,12 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
 
     const ensured = ensureLabels(a.labels, kind)
     const body = ensureBody(a.body, kind)
+    // #1277：规格与实施票在正文最前面写一行对象类型标记（标记是唯一真源，ADR 2.5）。
+    // 调用方正文里已经带了同一行时不再重复写；没带的才有这一行。
+    if (kind === 'spec' || kind === 'ticket') {
+      const markerLine = markerLineFor(kind)
+      if (markerLine && markerKindAtStart(body.body) === null) body.body = markerLine + body.body
+    }
     const now = (typeof d.now === 'function') ? d.now() : Date.now()
     const anchor = a.idempotencyKey ? String(a.idempotencyKey) : anchorKeyFor({ tool: 'deck_issue_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: ensured.labels, now: now })
     // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。

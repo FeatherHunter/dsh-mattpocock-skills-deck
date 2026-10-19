@@ -180,6 +180,34 @@ async function main() {
     check(text.indexOf('## 进度') >= 0, '进度区写进了票文件')
   }
 
+  // ── ②a deck_issue_create 的 spec / ticket 两档（#1277）：票面文件头写对象类型标记 ──
+  let specKey = ''
+  {
+    const r = await callTool('deck_issue_create', { title: '演示规格票', kind: 'spec', parentKey: '00', body: '## 问题陈述\n\n规格正文\n' })
+    specKey = String((r.data && r.data.ticket && r.data.ticket.key) || '')
+    check(envelopeOk(r) && r.status === 'ok' && specKey, 'deck_issue_create 正例：建成规格票（key=' + specKey + '）')
+    check(!!(r.data && r.data.ticket && r.data.ticket.type === 'spec'), '规格票读回来契约类型就是 spec（实得 ' + (r.data && r.data.ticket && r.data.ticket.type) + '）')
+    const specFile = ws.ticketFiles().filter((f) => f.indexOf(specKey + '-') >= 0)[0] || ''
+    const text = specFile ? ws.readTicket(specFile) : ''
+    const header = String(text).split('\n').slice(0, 6).join('\n')
+    check(text.indexOf('<!-- DSH-ISSUE-KIND: spec -->') >= 0 && header.indexOf('<!-- DSH-ISSUE-KIND: spec -->') >= 0, '规格票的文件头写了对象类型标记（前 6 行：' + JSON.stringify(header) + '）')
+    check(text.indexOf('Type: spec') < 0, '规格票不再写 Type: spec 这一行')
+    check(text.indexOf('## 进度') < 0, '规格票不补进度区')
+    check(text.indexOf('ready-for-agent') >= 0, '规格票带的必备标签是 ready-for-agent')
+    const t = await callTool('deck_issue_create', { title: '演示实施票', kind: 'ticket', parentKey: specKey, body: '**要构建什么：** 做一件事\n' })
+    const ticketKey = String((t.data && t.data.ticket && t.data.ticket.key) || '')
+    check(envelopeOk(t) && t.status === 'ok' && ticketKey, 'deck_issue_create 正例：建成实施票（key=' + ticketKey + '）')
+    const tFile = ws.ticketFiles().filter((f) => f.indexOf(ticketKey + '-') >= 0)[0] || ''
+    const tText = tFile ? ws.readTicket(tFile) : ''
+    check(tText.indexOf('<!-- DSH-ISSUE-KIND: ticket -->') >= 0, '实施票的文件头写了 ticket 标记')
+    check(tText.indexOf('parentKey: ' + specKey) >= 0, '实施票的父注释指向规格票（实得文件头：' + JSON.stringify(String(tText).split('\n').slice(0, 5)) + '）')
+    // 列表：type=spec 只回规格票；type=issue 不再把规格票混进来（实施票在契约上是普通票，仍算 issue）。
+    const onlySpec = await callTool('deck_issue_list', { state: 'open', type: 'spec' })
+    check(!!(onlySpec.data && onlySpec.data.issues.length === 1 && String(onlySpec.data.issues[0].key) === specKey), 'deck_issue_list 传 type=spec 只回规格票（实得 ' + JSON.stringify(onlySpec.data && onlySpec.data.issues.map((i) => i.key)) + '）')
+    const onlyIssue = await callTool('deck_issue_list', { state: 'open', type: 'issue' })
+    check(!!(onlyIssue.data && onlyIssue.data.issues.every((i) => String(i.key) !== specKey)), 'deck_issue_list 传 type=issue 不把规格票混进来')
+  }
+
   // ── ②b deck_issue_list：全局薄列表（过滤不过滤都回薄行，不回正文） ──
   {
     const r = await callTool('deck_issue_list', { state: 'open' })
@@ -286,19 +314,20 @@ async function main() {
     check(envelopeOk(r) && r.status === 'ok' && r.data && String(r.data.key).replace(/^0+(?=\d)/, '') === normCreated, 'deck_issue_report 正例：上报成了（票 ' + createdKey + '，实得 ' + (r && r.status) + '）')
     // #1261 起步、#1262 铺满：上报成功收口也记一笔（动作 report、来源 reported），
     // 回执带的是这个工作区整张在办表（不止刚上报这一张），notes 末尾带摘要。
-    // 这张夹具到这一步在办表里有 4 张票：创建票 1、子票 3/4/5（票号在链上统一收成 "1"、"2"…）。
-    // 地图 2 是容器，按规格（#1259 决定 5：「plan 建出的每张子票各一条」）不记，所以不在表里。
+    // 这张夹具到这一步在办表里有 6 张票：创建票 1、子票 3/4/5、②a 的规格票与实施票各一条
+    //（票号在链上统一收成 "1"、"2"…）。地图 2 是容器，按规格（#1259 决定 5：「plan 建出的每张子票各一条」）
+    // 不记，所以不在表里。
     const wr = r.data && r.data.workRoute
-    check(wr && typeof wr.at === 'string' && Array.isArray(wr.entries) && wr.entries.length === 4, 'deck_issue_report 回执带工作路线在办表（4 条，实得 ' + JSON.stringify(wr && wr.entries && wr.entries.length) + '）')
+    check(wr && typeof wr.at === 'string' && Array.isArray(wr.entries) && wr.entries.length === 6, 'deck_issue_report 回执带工作路线在办表（6 条，实得 ' + JSON.stringify(wr && wr.entries && wr.entries.length) + '）')
     const e0 = wr && wr.entries && wr.entries[0]
     check(e0 && String(e0.ticketKey) === normCreated && e0.action === 'report' && e0.source === 'reported' && e0.active === true && e0.currentSession === true, '在办表第一条是刚上报的票（动作 report、来源 reported、现办、当前会话）：' + JSON.stringify(e0))
-    check(wr && wr.entries && new Set(wr.entries.map((e) => String(e.ticketKey))).size === wr.entries.length, '同一张票在在办表里只有一条（4 条票、4 个票号）：' + JSON.stringify(wr && wr.entries && wr.entries.map((e) => e.ticketKey)))
+    check(wr && wr.entries && new Set(wr.entries.map((e) => String(e.ticketKey))).size === wr.entries.length, '同一张票在在办表里只有一条（6 条票、6 个票号）：' + JSON.stringify(wr && wr.entries && wr.entries.map((e) => e.ticketKey)))
     check(e0 && typeof e0.sessionLabel === 'string' && e0.sessionLabel.indexOf('会话 ') === 0, '会话只露标签不露原始 id（实得 ' + (e0 && e0.sessionLabel) + '）')
     // #1084：进度自评随回执进 data.workRoute 的条目；回执 data 里也带一格给壳记进工作条目。
     check(e0 && e0.progress === 40, '在办表这一条带这次上报的进度自评 40（实得 ' + JSON.stringify(e0 && e0.progress) + '）')
     check(!!(r.data && r.data.progress === 40), '回执 data 里也带这次上报的进度自评 40（实得 ' + JSON.stringify(r.data && r.data.progress) + '）')
     check(wr && wr.collisions === undefined && typeof wr.staleCount === 'number', '单会话无撞单（collisions 键不出现，staleCount 在）')
-    check((r.notes || []).some((n) => String(n).indexOf('工作路线摘要 · 本工作区在办 4 条') === 0), 'notes 末尾带工作路线摘要：' + JSON.stringify(r.notes))
+    check((r.notes || []).some((n) => String(n).indexOf('工作路线摘要 · 本工作区在办 6 条') === 0), 'notes 末尾带工作路线摘要：' + JSON.stringify(r.notes))
     check(JSON.stringify(r).indexOf('s-713') < 0, '回执全文没有原始会话 id（s-713 只进盘，不进回执）')
     // 盘上是同一份：v3 形状、同一张票、原始会话 id 在盘上（回执里只有标签）。
     const wsKey = r.workspace && r.workspace.key
@@ -315,10 +344,10 @@ async function main() {
     check(fs.readFileSync(diskFile, 'utf8') === before, '只读调用不碰盘（文件内容一字不动）')
     // 紧接着第二次调用：同一张票只留一条（去重后来居上），回执与盘上一致。
     const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理' })
-    check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 4, '第二次上报同一张票：在办表还是 4 条（去重，不多也不少）')
+    check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 6, '第二次上报同一张票：在办表还是 6 条（去重，不多也不少）')
     const after2 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
     const createdRows = after2.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)
-    check(after2.workers[0].entries.length === 4 && createdRows.length === 1 && createdRows[0].action === 'report', '第二次上报：盘上还是同一条，动作停在 report（去重）')
+    check(after2.workers[0].entries.length === 6 && createdRows.length === 1 && createdRows[0].action === 'report', '第二次上报：盘上还是同一条，动作停在 report（去重）')
     // #1084：条目按「最近一次上报写什么就是什么」处理 —— 这次没带进度，旧数字就不留（不沿用）。
     const r2Created = ((r2.data && r2.data.workRoute && r2.data.workRoute.entries) || []).filter((e) => String(e.ticketKey) === normCreated)[0]
     check(r2Created && r2Created.progress === undefined, '第二次上报没带进度：在办表这一条不再带旧数字（实得 ' + JSON.stringify(r2Created && r2Created.progress) + '）')

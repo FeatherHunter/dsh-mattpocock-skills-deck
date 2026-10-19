@@ -13,6 +13,8 @@ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/to
 import { withCallScope } from '../shell/call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+// #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。
+import { markerKindInHeader } from '../../shared/issue-file/src/marker.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -35,7 +37,7 @@ export const definition = {
     type: 'object',
     properties: {
       state: { type: 'string', enum: ['open', 'closed', 'all'], description: '只列哪种状态，缺省 open' },
-      type: { type: 'string', enum: ['issue', 'map', 'all'], description: '只列哪种类型，缺省 all' },
+      type: { type: 'string', enum: ['issue', 'map', 'spec', 'all'], description: '只列哪种类型，缺省 all' },
       labels: { type: 'array', items: { type: 'string' }, description: '必须同时带上这些 label（AND），缺省不过滤' },
       assignee: { type: 'string', description: '只留认领含此人的行，缺省不过滤' },
       query: { type: 'string', description: '标题与正文的子串过滤，缺省不过滤' },
@@ -87,6 +89,22 @@ function isMapRow(issue: Record<string, unknown> | null | undefined): boolean { 
   } catch (e) { return false }
 }
 
+/** 把一行归成三种契约类型之一：地图 / 规格 / 普通票。
+ *
+ *  后端的 type 认 map/spec 时直接采用；没标对时按标签与票面文件头标记兜底 —— 标签先于标记，
+ *  与客户端 containerKindOf、宿主快照组装层的判定次序一致（#1277 的视图兜底）。
+ */
+function rowKindOf(issue: Record<string, unknown> | null | undefined): string {
+  try {
+    if (!issue || typeof issue !== 'object') return 'issue'
+    const declared = String(issue.type || '')
+    if (declared === 'map' || declared === 'spec') return declared
+    if (isMapRow(issue)) return 'map'
+    if (typeof issue.body === 'string' && markerKindInHeader(issue.body) === 'spec') return 'spec'
+    return 'issue'
+  } catch (e) { return 'issue' }
+}
+
 /**
  * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckIssueListDeps），
  * 什么都不给也能跑：壳与这里的每一处都各自退默认。
@@ -110,7 +128,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     const rawState = String(a.state === undefined || a.state === null ? 'open' : a.state).trim().toLowerCase()
     const state = (rawState === 'closed' || rawState === 'all') ? rawState : 'open'
     const rawType = String(a.type === undefined || a.type === null ? 'all' : a.type).trim().toLowerCase()
-    const type = (rawType === 'issue' || rawType === 'map') ? rawType : 'all'
+    const type = (rawType === 'issue' || rawType === 'map' || rawType === 'spec') ? rawType : 'all'
     const wantLabels = (Array.isArray(a.labels) ? a.labels : []).map((x) => String(x).trim()).filter(Boolean)
     const wantAssignee = String(a.assignee === undefined || a.assignee === null ? '' : a.assignee).trim().toLowerCase()
     const wantQuery = String(a.query === undefined || a.query === null ? '' : a.query).trim().toLowerCase()
@@ -167,9 +185,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         if (!issue || typeof issue !== 'object') continue
         // type 在内存里再判一次：后端可能忽略它（契约只保证它透传，不过滤包容）。
         if (type !== 'all') {
-          const isMap = isMapRow(issue)
-          if (type === 'map' && !isMap) continue
-          if (type === 'issue' && isMap) continue
+          if (rowKindOf(issue) !== type) continue
         }
         if (wantLabelLow.length) {
           const have = labelNames(issue.labels).map((x) => x.toLowerCase())
@@ -189,7 +205,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
           key: issue.key,
           title: issue.title,
           state: issue.state,
-          type: issue.type || (isMapRow(issue) ? 'map' : 'issue'),
+          type: rowKindOf(issue),
           labels: labelNames(issue.labels),
           assignees: assigneeNames(issue.assignees),
           updatedAt: issue.updatedAt || '',
