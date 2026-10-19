@@ -63,7 +63,7 @@ const FROZEN_SHAPE: Record<string, string> = {
   deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(task|bug|map), labels:数组<string>, assignees:数组<string> 必填=[key,title] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, effortId:string 必填=[title,children] 多传=false',
   deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, effortId:string 必填=[] 多传=false',
   deck_issue_patch: 'key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, progress:string, close:boolean, effortId:string 必填=[key] 多传=false',
-  deck_issue_report: 'key:string, note:string, progress:number, effortId:string 必填=[key] 多传=false',
+  deck_issue_report: 'key:string, note:string, progress:number, effortId:string, release:boolean 必填=[key] 多传=false',
 }
 
 /**
@@ -82,7 +82,7 @@ const FROZEN_DESC: Record<string, string> = {
   deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、开关、标题正文、progress 区，一次只动点名的那些。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；progress=只改「## 进度」那一段的内容；close=true 关闭这张票，false 重新打开；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
-  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；progress=可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要释放本会话的一条工作条目时带 release=true（只删本会话那一行，票本身不动）。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；progress=可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填；release=可选：传 true 表示把这张票从本会话的工作路线里释放掉（删掉本会话对它的那条工作条目；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
 }
 
 /** 表二 · 信封表：两种形状的字段清单，一个不多一个不少。 */
@@ -236,6 +236,7 @@ async function main() {
     invalidate: () => {},
     workRouteNote: (input: unknown) => workRouteBindings.note(input),
     workRouteRead: (input: unknown) => workRouteBindings.read(input),
+    workRouteRelease: (input: unknown) => workRouteBindings.release(input),
     planStore,
   }
   const exec = { agent: { session: { id: 's-1106', cwd: ws.rootPosix } } }
@@ -384,6 +385,33 @@ async function main() {
       if (!okShape) bad.push(label + '（' + JSON.stringify({ threw: rr.threw, status: rr.r && rr.r.status, reason: rr.r && rr.r.reason, cells: cells.length }) + '）')
     }
     check(bad.length === 0, '进度自评不合规（超过 100 / 负数 / 小数 / 字符串）一律 bad-args + 六格' + (bad.length ? '：' + bad.join('；') : ''))
+  }
+  {
+    // 二d、释放入口（#1086）：带 release=true 的上报删掉本会话对这张票的工作条目，不记动作、不动票本身；
+    // 释放后回执照常带在办表（形状与正常上报一致），再释放同一条说不「本来就没有」，再上报能恢复。
+    const norm = (k: string) => String(k).replace(/^0+(?=\d)/, '')
+    const rel = await run('deck_issue_report', { key: '02', release: true })
+    check(!rel.threw && rel.r && rel.r.status === 'ok' && Object.keys(rel.r || {}).sort().join(',') === ENVELOPE_FULL.join(','),
+      '释放：成功回执正好 14 格（实得 ' + (rel.threw || Object.keys(rel.r || {}).length + ' 格') + '）')
+    const relWr = rel.r && rel.r.data && rel.r.data.workRoute
+    const relEntries = (relWr && relWr.entries || []).filter((e: { ticketKey: string }) => norm(e.ticketKey) === '2')
+    check(!!relWr && relEntries.length === 0, '释放：在办表里已经没有这张票（实得 ' + JSON.stringify(relEntries) + '）')
+    check((rel.r && rel.r.notes || []).some((n: string) => n.indexOf('已把票 2 从本会话的工作路线里释放掉') === 0 && n.indexOf('还剩 1 条在办') > 0),
+      '释放：备注写明删掉了哪张票与剩余条数（实得 ' + JSON.stringify(rel.r && rel.r.notes) + '）')
+    check(!(rel.r && rel.r.data && Object.prototype.hasOwnProperty.call(rel.r.data, 'progress')), '释放回执的 data 里不出现 progress 这一格（释放不记动作）')
+    const afterGet = await run('deck_issue_get', { key: '02', blocking: false })
+    const afterTicket = afterGet.r && afterGet.r.data && afterGet.r.data.ticket
+    check(!afterGet.threw && afterGet.r && afterGet.r.status === 'ok' && !!afterTicket && afterTicket.state === 'open',
+      '释放不改票本身：票照样读得回来、状态没变（实得 ' + JSON.stringify(afterTicket && afterTicket.state) + '）')
+    const relAgain = await run('deck_issue_report', { key: '02', release: true })
+    check(!relAgain.threw && relAgain.r && relAgain.r.status === 'ok'
+      && (relAgain.r.notes || []).some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0),
+      '再释放同一条：成功回执 + 备注说本来就没有（不冒充删掉）')
+    const relFalse = await run('deck_issue_report', { key: '02', release: false })
+    const relFalseWr = relFalse.r && relFalse.r.data && relFalse.r.data.workRoute
+    check(!relFalse.threw && relFalse.r && relFalse.r.status === 'ok'
+      && (relFalseWr && relFalseWr.entries || []).some((e: { ticketKey: string }) => norm(e.ticketKey) === '2'),
+      'release:false 仍走正常上报：条目重新落上、回执带在办表')
   }
   {
     // 失败那一侧：还没走到选后端就失败的回执是 6 格；走到之后的失败回执是 14 格。别的形状一律算破。

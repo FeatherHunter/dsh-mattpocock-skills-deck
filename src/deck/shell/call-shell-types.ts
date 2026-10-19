@@ -208,6 +208,13 @@ export interface DeckShellDeps {
    * 读出口本身是纯函数（见 work-path-readout.ts），不读盘不看钟，at 由壳按自己的时钟传进来。
    */
   workRouteRead?: (input: UnknownRecord) => Promise<unknown>;
+  /**
+   * 工作路线释放一条（#1086，与上面两支同源）：缺席时跳过，不报错。
+   * 输入 `{ rootKey, sessionId, ticketKey }`，输出 `{ ok: true, ticketKey, removed, count }` 或 `{ ok: false, reason }`，
+   * 其中 removed 是「这次有没有真删掉」（false = 本来就不在，不算错）。
+   * 只删本会话自己的那一行，别的会话一概不碰；票本身不动。
+   */
+  workRouteRelease?: (input: UnknownRecord) => Promise<unknown>;
   [key: string]: unknown;
 }
 

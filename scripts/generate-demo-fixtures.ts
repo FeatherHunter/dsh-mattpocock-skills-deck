@@ -11,8 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-// 例子目录不在任何 tsconfig 里（手写 .js，归属另议）：这里不断言它的形状。
-// @ts-expect-error examples/demo-mini/normalize.js 没有声明文件（TS7016）；它一旦被转写或补上 .d.ts，这一行会因「多余的 expect-error」报错，正好提醒删掉它。
+// 例子目录不在任何 tsconfig 里，但已经是 TypeScript（main 的 examples 转写已落地），形状由它自己的类型给出。
 import { normalizeIssue } from '../examples/demo-mini/normalize.js'
 
 const __dirname: string = path.dirname(fileURLToPath(import.meta.url))

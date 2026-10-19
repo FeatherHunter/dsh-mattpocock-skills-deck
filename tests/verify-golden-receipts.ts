@@ -221,7 +221,7 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   // #1261：上报回执带工作路线在办表，基准钉死它——用同一份真实现（临时家目录 + 固定时钟），
   // 不造假口。家目录是临时的：基准里只看回执，落盘路径不进回执，进了也会被 <ROOT> 归一之外的形状红掉。
-  const bindingsMod = await loadModule('../src/deck/shell/work-path-bindings.js') as { createWorkRouteBindings: (io: unknown) => { note: (i: unknown) => Promise<unknown>, read: (i: unknown) => unknown } }
+  const bindingsMod = await loadModule('../src/deck/shell/work-path-bindings.js') as { createWorkRouteBindings: (io: unknown) => { note: (i: unknown) => Promise<unknown>, release: (i: unknown) => Promise<unknown>, read: (i: unknown) => unknown } }
   const workPathHome = mkdtempSync(join(tmpdir(), 'golden-workpath-'))
   const workRouteBindings = bindingsMod.createWorkRouteBindings({
     homeDir: workPathHome, now: () => clock,
@@ -238,6 +238,7 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
     now: () => clock,
     invalidate: () => {},
     workRouteNote: (input: unknown) => workRouteBindings.note(input),
+    workRouteRelease: (input: unknown) => workRouteBindings.release(input),
     workRouteRead: (input: unknown) => workRouteBindings.read(input),
     planStore: (() => { const table = new Map<string, unknown>(); return { durable: true, load(id: string): unknown { return table.get(String(id)) || null }, save(id: string, s: unknown): void { table.set(String(id), s) } } })(),
   }

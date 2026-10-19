@@ -17,16 +17,21 @@
 // 日志 (workRoute.write / workRoute.read) 只记原因代号与字段路径，不记被拦下的值：隐私命中时
 // detail 是「$.workers[0].entries[0].title：像 GitHub 令牌」这种指路，令牌原文一个字符都不进日志。
 //
+// #1086 补一支释放（release）：把本会话对某张票的那一条工作条目从盘上删掉。它走同一套
+// 「读盘 → 解析 → 删 → 裁剪 → 隐私自检 → 写临时文件再改名 → 读回核对」，只是把「合并新记录」
+// 换成「删一条」；票本身（状态、认领人）一概不动，这是工具那边的职责，存储只碰这份存档。
+// 读不出来或形状不认识时**不写盘**：宁可这次释放失败，也不能拿空账把别人的记录整份盖掉。
+//
 // 这份文件零 Node 导入：读写、改名、日志出口全部由调用方注入（生产是真文件系统与宿主日志，
 // 门禁用临时目录与固定时钟），路径用斜杠拼接 —— Node 在 Windows 上也认斜杠。
 
 import { chainRootHash, chainSessionShardId } from '../../shared/refresh/chain.js';
 import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES } from '../../shared/refresh/chain-prune.js';
-import { applyNote, emptyLedger, ledgerToText, loadLedgerFromText, pruneLedger } from './work-path-ledger.js';
-import type { RootLedger, WorkPathLedger, WorkPathNoteInput, WorkPathNoteResult } from './work-path-ledger.js';
+import { applyNote, applyRelease, emptyLedger, ledgerToText, loadLedgerFromText, pruneLedger } from './work-path-ledger.js';
+import type { RootLedger, WorkPathLedger, WorkPathNoteInput, WorkPathNoteResult, WorkPathReleaseInput, WorkPathReleaseResult } from './work-path-ledger.js';
 import { privacyViolations } from './work-path-privacy.js';
 
-export type { WorkPathLedger, WorkPathNoteInput, WorkPathNoteResult } from './work-path-ledger.js';
+export type { WorkPathLedger, WorkPathNoteInput, WorkPathNoteResult, WorkPathReleaseInput, WorkPathReleaseResult } from './work-path-ledger.js';
 
 /** 建存储的依赖：全部可选，给什么用什么（测试一律用假零件，生产由宿主接线给真实现）。 */
 export interface WorkPathStoreDeps {
@@ -87,7 +92,7 @@ export function createWorkPathStore(deps?: WorkPathStoreDeps) {
   }
 
   /**
-   * 写侧那一行日志。字段含义固定：kind 是四类之一（record/persist/readback/prune），ok 是这一步成没成，
+   * 写侧那一行日志。字段含义固定：kind 是五类之一（record/persist/readback/prune/release），ok 是这一步成没成，
    * count 视 kind 而定，why 是失败原因代号（成功空串），detail 是一句给人指的短说明。
    * detail 里只许出现字段路径与原因，不许出现被拦下的值本身 —— 隐私命中时它来自 privacyViolations[0]。
    */
@@ -230,6 +235,88 @@ export function createWorkPathStore(deps?: WorkPathStoreDeps) {
   }
 
   /**
+   * 释放（#1086）：把本会话对某张票的那一条从盘上删掉，票本身不动（状态、认领人由工具那边保证）。
+   *
+   * 与记一笔同一套规矩：全程不抛错、失败回 { ok:false, reason } 由回执备注写清楚；只有真删掉
+   * 东西时才写盘。下面是几条特意分开的情形：
+   *   - 盘上还没有这份文件：本来就没有可删的，回 removed=false（不是失败），也不写盘；
+   *   - 盘上有文件但读不出来、或形状不认识：**不写盘**直接回失败 —— 读不懂就重写等于拿空账
+   *     把别的会话的记录整份盖掉，宁可这次释放不成，留给下一条上报或释放重试；
+   *   - 本会话本来就没这条：回 removed=false，不写盘（内存账与盘上是一致的）；
+   *   - 真删掉了：清 30 天以外的条目（与记一笔同一把尺子），整份写回并读回核对。
+   */
+  async function release(input: WorkPathReleaseInput): Promise<WorkPathReleaseResult> {
+    let sidHash = '';
+    let rootHash = '';
+    try {
+      const rootKey = input ? input.rootKey : '';
+      const sessionId = input ? input.sessionId : '';
+      const ticketKey = input ? input.ticketKey : '';
+      rootHash = typeof rootKey === 'string' && rootKey !== '' ? hashOf(rootKey) : '';
+      if (rootHash === '') return { ok: false, reason: 'no-root-hash' };
+      if (typeof sessionId !== 'string' || sessionId === '') return { ok: false, reason: 'no-session' };
+      if (typeof ticketKey !== 'string' || ticketKey === '') return { ok: false, reason: 'no-ticket' };
+      sidHash = chainSessionShardId(sessionId);
+      const at = now();
+      const file = filePathFor(rootKey);
+
+      // 一、读旧文件。读不出来与形状不认识都直接失败：这次不写盘，绝不拿空账去盖。
+      const raw = await safeRead(file);
+      if (raw.failed) {
+        emitWrite('release', false, 'release', 0, sidHash, rootHash, 'read-failed', '');
+        return { ok: false, reason: 'read-failed' };
+      }
+      if (raw.text === null) {
+        emitWrite('release', true, 'release', 0, sidHash, rootHash, '', '');
+        return { ok: true, ticketKey: ticketKey, removed: false, count: 0 };
+      }
+      const loaded = loadLedgerFromText(raw.text);
+      if (loaded.bad) {
+        emitWrite('release', false, 'release', 0, sidHash, rootHash, 'bad-shape', '');
+        return { ok: false, reason: 'bad-shape' };
+      }
+
+      // 二、删这一条。本来就没有时直接回，不白写一次盘（内存账不需要「修正」）。
+      let ledger = loaded.ledger;
+      const result = applyRelease(ledger, sessionId, ticketKey);
+      if (!result.removed) {
+        emitWrite('release', true, 'release', result.count, sidHash, rootHash, '', '');
+        return { ok: true, ticketKey: ticketKey, removed: false, count: result.count };
+      }
+
+      // 三、裁剪 + 隐私自检 + 写临时文件再改名 + 读回核对（与记一笔完全同一套）。
+      const pruned = pruneLedger(ledger, { at: at, keepMs: CHAIN_KEEP_MS, maxBytes: CHAIN_MAX_BYTES });
+      ledger = pruned.ledger;
+      if (pruned.dropped > 0) emitWrite('prune', true, 'release', pruned.dropped, sidHash, rootHash, '', '');
+      const text = ledgerToText(ledger, at);
+      const violations = privacyViolations(JSON.parse(text));
+      if (violations.length > 0) {
+        emitWrite('persist', false, 'release', 0, sidHash, rootHash, 'privacy', violations[0]);
+        return { ok: false, reason: 'privacy' };
+      }
+      try {
+        await mkdir(dirOf(file));
+        await writeAtomic(file, text, sidHash);
+      } catch {
+        emitWrite('persist', false, 'release', countAll(ledger), sidHash, rootHash, 'write-failed', '');
+        return { ok: false, reason: 'write-failed' };
+      }
+      emitWrite('persist', true, 'release', countAll(ledger), sidHash, rootHash, '', '');
+      const back = await safeRead(file);
+      let backOk = false;
+      if (back.text !== null) backOk = !loadLedgerFromText(back.text).bad;
+      const backWhy = backOk ? '' : (back.failed ? 'read-failed' : 'readback-bad');
+      emitWrite('readback', backOk, 'release', countAll(ledger), sidHash, rootHash, backWhy, '');
+      if (!backOk) return { ok: false, reason: 'readback-failed' };
+      return { ok: true, ticketKey: ticketKey, removed: true, count: result.count };
+    } catch (e) {
+      const errName = e && typeof e === 'object' && 'name' in e ? String((e as { name?: unknown }).name || '') : '';
+      emitWrite('persist', false, 'release', 0, sidHash, rootHash, 'threw', errName);
+      return { ok: false, reason: 'threw' };
+    }
+  }
+
+  /**
    * 读盘上那一份账（读出口用）。读不到、读失败、形状不认都回 null；
    * 读失败与坏形状记一条 workRoute.read（读出口失败那一行），文件不存在不算失败（第一次用）。
    * failed 把「文件不存在」与「读不出来」分开：读出口据此决定是给空表，还是如实回「这次读不出来」。
@@ -262,7 +349,7 @@ export function createWorkPathStore(deps?: WorkPathStoreDeps) {
     return (await readSnapshotInfo(input)).ledger;
   }
 
-  return { note: note, readSnapshot: readSnapshot, readSnapshotInfo: readSnapshotInfo, filePathFor: filePathFor };
+  return { note: note, release: release, readSnapshot: readSnapshot, readSnapshotInfo: readSnapshotInfo, filePathFor: filePathFor };
 }
 
 export type WorkPathStore = ReturnType<typeof createWorkPathStore>;
