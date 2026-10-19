@@ -1725,12 +1725,15 @@ const selfDigest = function () {
 //   其余任务按 wayfinder 技能规则推进；tpl.fix 括注从 wayfinder 改成 implement（首行本来就是
 //   /implement，原来那句自相矛盾）。中英各补正向断言，并各加一条反向断言钉住旧措辞不再出现；
 //   版本底线 tpl.execute 14 → 15、tpl.fix 12 → 13，自摘要跟着重算。
-// #1301 批C：配置真源（config.js → config.ts）与三处 completePrompt 调用点视图的取源，
+// #1301 批C：配置真源（config.js → config.ts）与几处 completePrompt 调用点视图的取源，
 //   从「按已删的 .js 产物路径直接读」改成共用入口 tests/lib/source-text.ts 的 sourceText，自摘要跟着重算。
+// #1286：地图详情页底部那处 completePrompt 调用随三态动作组搬到 DetailActionBar.ts，调用点名单跟着搬家
+//   （扫描面不许静默少扫：搬走的那处仍要被数），并把 container-view.ts 里新出现的那处也纳入名单；
+//   本文件内容变了，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.ts': '39124741edec9ba47d166eec71740333feda073065c705f603c9df15ba546a60',
+  'tests/verify-prompts.ts': '77b6eae17747cf3758ec65f98d1c85424bb3bd06ab1ecc3c3431e944fad12cdf',
 }
 // ---- LOCK-END ----
 
@@ -1940,9 +1943,12 @@ if (reg) {
     // 先验自证：旧的四参形态必须能被上面两条抓红（证明断言有变红能力，不是永远绿）
     const cpBad = String(evalPromptHelpers.completePromptForTest(cpSt, 5, 3, 3) || '')
     if (cpBad.indexOf('undefined') < 0) fail('#595 先验失败：按旧四参形态调用 completePrompt 竟渲染不出 undefined（渲染面断言抓不住调用错位）')
-    // 调用点也必须按五参形态调（防回退）：三个视图/router 里每处 completePrompt 调用都要传 5 个实参
-    ;['src/client/views/ListTabRow.js', 'src/client/views/MapDetail.js', 'src/client/kernel/router.js'].forEach(function (rel) {
-      // 2026-10-19（#1301 批C）：这三份真源今天都住在同名 .ts 里，旁边那份 .js 产物这一阶段已经删掉，
+    // 调用点也必须按五参形态调（防回退）：这几处视图/router 里每处 completePrompt 调用都要传 5 个实参
+    ;['src/client/views/ListTabRow.js', 'src/client/views/DetailActionBar.js', 'src/client/kernel/container-view.js', 'src/client/kernel/router.js'].forEach(function (rel) {
+      // 2026-10-20（#1286）：地图详情页底部那处 completePrompt 调用随三态动作组搬到了 DetailActionBar.ts，
+      //   名单跟着搬家（扫描面不许静默少扫：搬走的那处仍然要被数）；同时把新出现的那处调用点
+      //   （container-view.ts 里按容器状态决定收尾提示词）也纳入这张名单。
+      // 2026-10-19（#1301 批C）：这几份真源今天都住在同名 .ts 里，旁边那份 .js 产物这一阶段已经删掉，
       //   按 .js 路径直接读会 ENOENT；取源改走共用入口的 sourceText，扫描的是手写真源原文。
       //   另：真源顶部有一句 `declare function completePrompt(...args: any[]): any` —— 那是类型声明、不是调用点
       //   （构建产物里被剥掉了，老口径碰不到它）。按原判据「每处调用传 5 个实参」先把声明行剔掉再数，判据没放宽。

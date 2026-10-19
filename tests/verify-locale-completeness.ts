@@ -23,7 +23,7 @@ const ok = function (name) { passed++; console.log('  PASS', name) }
 const bad = function (name) { failed = true; console.log('  FAIL', name) }
 
 // ---------- A. locale 键集合 ----------
-const LOCALE_SRC_FILES = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-labels.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale-vcwrite.js', 'src/client/kernel/locale-skilldesc.js', 'src/client/kernel/locale.js'] // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼起来的内容断言（panel 含导航面板横幅环境引导，flow 含动作类型列表配置详情地图提示，word 含技能检查浮层命名切换进度错误模板运行描述，合并器含 L 合并逻辑）；#621 起多一份 locale-labels.js（标签配色弹窗的中英词条），#690 起再多一份 locale-pages.js（历史票按需翻页的五条），#879 起再多一份 locale-skilldesc.js（技能描述 27 条），同样按「每个键 zh/en 各出现一次」判定
+const LOCALE_SRC_FILES = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-labels.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale-vcwrite.js', 'src/client/kernel/locale-skilldesc.js', 'src/client/kernel/locale-spec.js', 'src/client/kernel/locale.js'] // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼起来的内容断言（panel 含导航面板横幅环境引导，flow 含动作类型列表配置详情地图提示，word 含技能检查浮层命名切换进度错误模板运行描述，合并器含 L 合并逻辑）；#621 起多一份 locale-labels.js（标签配色弹窗的中英词条），#690 起再多一份 locale-pages.js（历史票按需翻页的五条），#879 起再多一份 locale-skilldesc.js（技能描述 27 条），同样按「每个键 zh/en 各出现一次」判定
 // 这份清单里写的是词条「原来叫什么」，不是「今天住在哪」：本题（#1209）把 locale-pages 从
 // locale-pages.js 转成了 locale-pages.ts，而构建的 pixel-ts 那一段会把每个 .ts 真源转译成同名
 // .js（带 AUTO-GENERATED 横幅、字符串字面量被改写成双引号）。所以按 .js 路径读会读到派生产物：
@@ -133,6 +133,7 @@ const LOCALE_STRUCT_FILES = [
   'src/client/kernel/locale-pages.js',
   'src/client/kernel/locale-vcwrite.js', // #842 写操作那一族的词条（单独一份片段）
   'src/client/kernel/locale-skilldesc.js', // #879 技能描述 27 条中英词条（单独一份片段）
+  'src/client/kernel/locale-spec.js', // #1286 规格（实施地图）一族的中英词条（单独一份片段）
 ]
 ;(async function structuralCheck() {
   const { pathToFileURL } = require('url')

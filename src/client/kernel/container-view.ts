@@ -22,7 +22,6 @@ declare function findMapByIdentity(...args: any[]): any;
 declare function inspectPrompt(...args: any[]): string;
 declare function completePrompt(...args: any[]): string;
 declare function startText(...args: any[]): string;
-declare function renderTemplate(...args: any[]): string;
 
 // 身份色：探索紫、实施贵族蓝（2026-10-20 当面拍板）
 export const CONTAINER_ACCENT: any = { map: '#c084fc', spec: '#1D4ED8' };
@@ -119,9 +118,13 @@ export const containerPromptText = function (st: any, c: any, kind: string, stat
       // 规格空态：还没有实施票，按钮是「拆票」，注入的是 to-tickets 技能调用。
       // 这条技能调用的正式文案归 #1281（提示词那条线），这里是临时形态。
       if (state === 'empty') return '/to-tickets ' + url;
-      // 规格未完成：走通用「执行这张票」模板，且不带 /wayfinder 前缀——
-      // 规格不是探索地图，用 wayfinder 技能推进它不对。
-      return renderTemplate('execute', { number: String(num), url: url, title: title }, st);
+      // 规格未完成：注入 implement-spec 技能调用（不是通用「执行这张票」模板）。
+      // 为什么不用那个模板：它正文首行就是 "/wayfinder"（wayfinder 是探索地图的路子——
+      // 规划一张决策地图，不是实施一张规格），用在规格上不对；而本仓本来就带着
+      // implement-spec 技能（package/bundled-skills/implement-spec），它开的场就是
+      // 「你拿到了一张规格，它下面挂着实施票」，与规格容器正好对上。
+      // 正式文案归 #1281（提示词那条线），这里先给最小可用的技能调用形式。
+      return '/implement-spec ' + url;
     }
     if (state === 'empty') return inspectPrompt(st, num, title);
     return startText(st, c);

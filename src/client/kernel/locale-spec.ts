@@ -15,6 +15,8 @@
  * - act.split 是规格空态那颗主按钮（拆票；探索空态是 act.inspect「检查」）。
  * - spec.*Title 是三态按钮悬停时的那句解释。
  * - type.spec 是类型角标上那个词（探索那边是 type.map）。
+ * - spec.section.* 是规格正文七段的段标题（问题陈述 / 解决方案 / 用户故事 / 实现决策 /
+ *   测试决策 / 不在范围内 / 补充说明），七段的形状见 to-spec 技能的规格模板。
  */
 export const L_SPEC: { zh: Record<string, string>; en: Record<string, string> } = {
   zh: {
@@ -26,6 +28,13 @@ export const L_SPEC: { zh: Record<string, string>; en: Record<string, string> } 
     'spec.executeTitle': '推进该规格，注入执行提示词',
     'spec.doneTitle': '实施票全部关闭，注入收尾确认提示词',
     'type.spec': '规格',
+    'spec.section.problem': '问题陈述',
+    'spec.section.solution': '解决方案',
+    'spec.section.userStories': '用户故事',
+    'spec.section.implDecisions': '实现决策',
+    'spec.section.testDecisions': '测试决策',
+    'spec.section.outOfScope': '不在范围内',
+    'spec.section.notes': '补充说明',
   },
   en: {
     'list.specChip': 'Spec',
@@ -36,5 +45,12 @@ export const L_SPEC: { zh: Record<string, string>; en: Record<string, string> } 
     'spec.executeTitle': 'Advance this spec; inject the execute prompt',
     'spec.doneTitle': 'All implementation tickets are closed; inject the wrap-up prompt',
     'type.spec': 'Spec',
+    'spec.section.problem': 'Problem Statement',
+    'spec.section.solution': 'Solution',
+    'spec.section.userStories': 'User Stories',
+    'spec.section.implDecisions': 'Implementation Decisions',
+    'spec.section.testDecisions': 'Testing Decisions',
+    'spec.section.outOfScope': 'Out of Scope',
+    'spec.section.notes': 'Further Notes',
   },
 };

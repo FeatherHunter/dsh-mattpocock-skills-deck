@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T19:16:46.938Z",
+  "generatedAt": "2026-10-19T19:21:36.744Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 293,
-  "gateCount": 293,
-  "attributedGates": 259,
+  "chainLength": 294,
+  "gateCount": 294,
+  "attributedGates": 260,
   "unattributedGates": 34,
   "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
@@ -1678,6 +1678,27 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1286-snapshot.ts",
+      "file": "tests/verify-1286-snapshot.ts",
+      "guards": [
+        "src/host/tracker/snapshotAssemble.ts",
+        "src/tracker/body-parse.ts",
+        "src/tracker/rooms/github/normalize.ts",
+        "src/tracker/rooms/gitlab/normalize.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/tracker",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -5836,10 +5857,11 @@
         "scripts/lib/transpile-unit.mts",
         "scripts/ts-hook.mts",
         "src/client/kernel/config.ts",
+        "src/client/kernel/container-view.ts",
         "src/client/kernel/prompts.ts",
         "src/client/kernel/router.ts",
+        "src/client/views/DetailActionBar.ts",
         "src/client/views/ListTabRow.ts",
-        "src/client/views/MapDetail.ts",
         "src/host",
         "src/tracker/rooms",
         "src/tracker/rooms/github/index.ts",
@@ -5867,7 +5889,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-refresh-adr.ts",
@@ -7581,6 +7603,7 @@
       "node tests/verify-refresh-workspace-key.ts"
     ],
     "src/host/tracker": [
+      "node tests/verify-1286-snapshot.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
@@ -7756,6 +7779,7 @@
       "node tests/verify-deck-slots.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1184-body-parse-gap.ts",
+      "node tests/verify-1286-snapshot.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue-body-script.ts",
@@ -7863,6 +7887,7 @@
       "node tests/verify-no-mixed-session.ts",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
+      "node tests/verify-1286-snapshot.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -7897,6 +7922,7 @@
       "node tests/verify-no-mixed-session.ts",
       "node tests/verify-1130-gitlab-marker-read.ts",
       "node tests/verify-1179-gitlab-endpoint-coverage.ts",
+      "node tests/verify-1286-snapshot.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",

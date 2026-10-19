@@ -244,7 +244,10 @@ const DONE2 = [ticketOf(1), ticketOf(2)]
   renderContainer(specContainer([], statsOf(0, 0)))
   check(clickPrimary().indexOf('/to-tickets') === 0, 'A11 规格空态点主按钮注入 /to-tickets')
   renderContainer(specContainer(OPEN2, statsOf(2, 1)))
-  check(clickPrimary() === 'TPL:execute:1290', 'A12 规格有未关时点主按钮注入通用执行模板')
+  // 规格的「执行」注入 implement-spec 技能调用，不走通用执行模板——
+  // 那个模板正文首行是 /wayfinder（探索地图的路子），用在规格上不对。
+  const execText = clickPrimary()
+  check(execText.indexOf('/implement-spec') === 0 && execText.indexOf('/wayfinder') < 0, 'A12 规格有未关时点主按钮注入 /implement-spec（不带 /wayfinder）')
   renderContainer(specContainer(DONE2, statsOf(2, 2)))
   check(clickPrimary() === 'COMPLETE:1290:2/2', 'A13 规格全关时点主按钮注入收尾提示词（带总数与已关闭数）')
 }
