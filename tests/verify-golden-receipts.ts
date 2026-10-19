@@ -72,7 +72,7 @@ const SESSION_ID = 's-golden'
 const CLOCK = 1700000000000
 const MAP_MD = '# 金标准底图\n\nStatus: ready-for-agent\n\n## Destination\n\n金标准演示用底图\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n'
 
-type GoldenCall = { file: string, tool: string, args: Record<string, unknown> }
+type GoldenCall = { file: string, tool: string, id?: string, args: Record<string, unknown> }
 const CALLS: GoldenCall[] = [
   { file: '01-deck_context.golden.json', tool: 'deck_context', args: {} },
   { file: '02-deck_issue_create.golden.json', tool: 'deck_issue_create', args: { title: '金标准演示票', kind: 'task', body: '正文' } },
@@ -84,7 +84,11 @@ const CALLS: GoldenCall[] = [
   // link 的两张子票 key 依赖 plan 的结果（固定为 04 blockedBy 03）。
   { file: '07-deck_map_link.golden.json', tool: 'deck_map_link', args: { key: '04', blockedBy: ['03'] } },
   { file: '08-deck_issue_patch.golden.json', tool: 'deck_issue_patch', args: { key: '01', comment: '金标准评论' } },
-  { file: '09-deck_issue_report.golden.json', tool: 'deck_issue_report', args: { key: '01', note: '金标准上报' } },
+  // #1084：上报可带 0 到 100 的进度自评；金标准也带一格，条目里就多一格 progress。
+  { file: '09-deck_issue_report.golden.json', tool: 'deck_issue_report', args: { key: '01', note: '金标准上报', progress: 62 } },
+  // 同一工具出两份基准时用 id 区分（否则后一次会盖掉前一次的结果）：第 10 份钉住
+  // 「不传进度」的形状——回执 data 与条目都不出现 progress，备注句也与以前逐字一致。
+  { file: '10-deck_issue_report-without-progress.golden.json', tool: 'deck_issue_report', id: 'report-without-progress', args: { key: '01', note: '金标准上报（不带进度）' } },
 ]
 
 function resolveSpec(spec: string): string {
@@ -247,7 +251,7 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   // 按 CALLS 的顺序依次调用（写操作有先后，顺序即基准的一部分）。
   const raw: Record<string, unknown> = {}
   for (const c of CALLS) {
-    raw[c.tool] = await tools[c.tool].run(exec, c.args)
+    raw[c.id || c.tool] = await tools[c.tool].run(exec, c.args)
   }
   // 工作区钥匙由根算出来，读出来再归一（根变它就变，但归一后稳定）。
   const ctxOut = raw.deck_context as { workspace?: { key?: string } }
@@ -297,7 +301,7 @@ async function main(): Promise<void> {
   const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
   try {
     for (const c of CALLS) {
-      const norm = normalize(raw[c.tool], rootPosix, rootWin, wsKey)
+      const norm = normalize(raw[c.id || c.tool], rootPosix, rootWin, wsKey)
       const text = canonStringify(norm)
       const p = join(GOLDEN_DIR, c.file)
       if (update) {

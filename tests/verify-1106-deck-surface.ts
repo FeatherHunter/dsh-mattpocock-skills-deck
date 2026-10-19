@@ -63,7 +63,7 @@ const FROZEN_SHAPE: Record<string, string> = {
   deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(task|bug|map), labels:数组<string>, assignees:数组<string> 必填=[key,title] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, effortId:string 必填=[title,children] 多传=false',
   deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, effortId:string 必填=[] 多传=false',
   deck_issue_patch: 'key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, progress:string, close:boolean, effortId:string 必填=[key] 多传=false',
-  deck_issue_report: 'key:string, note:string, effortId:string 必填=[key] 多传=false',
+  deck_issue_report: 'key:string, note:string, progress:number, effortId:string 必填=[key] 多传=false',
 }
 
 /**
@@ -82,7 +82,7 @@ const FROZEN_DESC: Record<string, string> = {
   deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、开关、标题正文、progress 区，一次只动点名的那些。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；progress=只改「## 进度」那一段的内容；close=true 关闭这张票，false 重新打开；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
-  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；progress=可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
 }
 
 /** 表二 · 信封表：两种形状的字段清单，一个不多一个不少。 */
@@ -121,6 +121,7 @@ const POINTS: PointsRow[] = [
   { label: '改票：成功（按估算：改一次 + 读一次）', tool: 'deck_issue_patch', args: { key: '02', comment: '点数表：改一下' }, own: 'est', select: true },
   { label: '上报：缺票号（还没走到选后端）', tool: 'deck_issue_report', args: {}, own: [0, 0], select: false },
   { label: '上报：成功', tool: 'deck_issue_report', args: { key: '02' }, own: [1, 3], select: true },
+  { label: '上报：成功、带进度自评（同价）', tool: 'deck_issue_report', args: { key: '02', progress: 50 }, own: [1, 3], select: true },
   { label: '上报：这张票不存在（同价）', tool: 'deck_issue_report', args: { key: '999999' }, own: [1, 3], select: true },
 ]
 
@@ -341,17 +342,48 @@ async function main() {
   }
   {
     // 二b、在办表（#1261）：上报成功才有 data.workRoute，失败上报没有这一格；原始会话 id 不进回执。
+    // 不带进度时回执 data 与在办表条目都不出现 progress 这一格（最近一次写照）。
     const got = await run('deck_issue_report', { key: '01' })
     const wr = got.r && got.r.data && got.r.data.workRoute
     check(!got.threw && got.r && got.r.status === 'ok' && !!wr, '上报成功回执带 data.workRoute（实得 ' + (got.threw || (got.r && got.r.status)) + '）')
     const keys = wr && wr.entries && wr.entries[0] ? Object.keys(wr.entries[0]).sort().join(',') : ''
     check(keys === 'action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title', '在办表每条正好八格（实得 ' + keys + '）')
+    check(!(got.r && got.r.data && Object.prototype.hasOwnProperty.call(got.r.data, 'progress')), '不带进度上报：回执 data 里没有 progress 这一格（实得 ' + JSON.stringify(got.r && got.r.data && got.r.data.progress) + '）')
     check(!!(wr && wr.entries.some((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1' && e.action === 'report' && e.source === 'reported' && e.currentSession === true)), '在办表里有刚上报的票（动作 report、来源 reported、当前会话）')
     check(!!(wr && typeof wr.at === 'string' && typeof wr.staleCount === 'number' && wr.collisions === undefined), '在办表有 at 与 staleCount、单会话无 collisions 键')
     check(!!(got.r && (got.r.notes || []).some((n: string) => n.indexOf('工作路线摘要') === 0)), 'notes 带工作路线摘要')
     check(JSON.stringify(got.r).indexOf('s-1106') < 0, '回执全文没有原始会话 id（s-1106 只进盘，不进回执）')
     const failed = await run('deck_issue_report', { key: '999999' })
     check(!failed.threw && failed.r && failed.r.status === 'unsupported' && !(failed.r.data && failed.r.data.workRoute), '失败上报没有 data.workRoute（这一格只属于成功的上报）')
+  }
+  {
+    // 二c、进度自评（#1084）：带 0 到 100 的整数时条目与回执 data 都多一格 progress；不带时两处都不出这一格
+    // （同一会话同一票只留最近一次写照，不沿用上一次的数字）；不合规按 bad-args 拒绝。
+    const withProgress = await run('deck_issue_report', { key: '01', progress: 37 })
+    const wr = withProgress.r && withProgress.r.data && withProgress.r.data.workRoute
+    const entry = wr && wr.entries && wr.entries.filter((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1')[0]
+    check(!withProgress.threw && withProgress.r && withProgress.r.status === 'ok' && !!(withProgress.r && withProgress.r.data && withProgress.r.data.progress === 37),
+      '带进度上报：回执 data 里带进度 37（实得 ' + JSON.stringify(withProgress.r && withProgress.r.data && withProgress.r.data.progress) + '）')
+    check(!!entry && entry.progress === 37, '带进度上报：在办表这一条带进度 37（实得 ' + JSON.stringify(entry) + '）')
+    const entryKeys = entry ? Object.keys(entry).sort().join(',') : ''
+    check(entryKeys === 'action,actionAt,active,currentSession,progress,sessionLabel,source,ticketKey,title', '带进度时在办表每条正好九格（实得 ' + entryKeys + '）')
+    // 不传进度再报一次：条目是最近一次的写照，旧数字不留。
+    const cleared = await run('deck_issue_report', { key: '01' })
+    const clearedEntry = (cleared.r && cleared.r.data && cleared.r.data.workRoute && cleared.r.data.workRoute.entries || []).filter((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1')[0]
+    check(!cleared.threw && !!clearedEntry && clearedEntry.progress === undefined, '不带进度再上报：在办表这一条不再带旧数字（实得 ' + JSON.stringify(clearedEntry && clearedEntry.progress) + '）')
+    check(!(cleared.r && cleared.r.data && Object.prototype.hasOwnProperty.call(cleared.r.data, 'progress')), '不带进度再上报：回执 data 里没有 progress 这一格（实得 ' + JSON.stringify(cleared.r && cleared.r.data && cleared.r.data.progress) + '）')
+    const clearedKeys = clearedEntry ? Object.keys(clearedEntry).sort().join(',') : ''
+    check(clearedKeys === 'action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title', '不带进度时在办表这一条正好八格、progress 不出现（实得 ' + clearedKeys + '）')
+    // 不合规的进度：101 / -1 / 12.5 / '30' 都按 bad-args 拒绝，回执还是「还没走到选后端」的六格。
+    const badProgress: Array<[string, unknown]> = [['超过 100', 101], ['负数', -1], ['小数', 12.5], ['字符串', '30']]
+    const bad: string[] = []
+    for (const [label, value] of badProgress) {
+      const rr = await run('deck_issue_report', { key: '01', progress: value })
+      const cells = Object.keys(rr.r || {}).sort()
+      const okShape = !rr.threw && rr.r && rr.r.ok === false && rr.r.reason === 'bad-args' && cells.join(',') === ENVELOPE_PRE_GATE.join(',')
+      if (!okShape) bad.push(label + '（' + JSON.stringify({ threw: rr.threw, status: rr.r && rr.r.status, reason: rr.r && rr.r.reason, cells: cells.length }) + '）')
+    }
+    check(bad.length === 0, '进度自评不合规（超过 100 / 负数 / 小数 / 字符串）一律 bad-args + 六格' + (bad.length ? '：' + bad.join('；') : ''))
   }
   {
     // 失败那一侧：还没走到选后端就失败的回执是 6 格；走到之后的失败回执是 14 格。别的形状一律算破。

@@ -9,8 +9,13 @@
 //   在办 = 30 天内动过；现办（active）= 24 小时内动过；撞单 = 同一票在 30 分钟内
 //   被两个以上会话记过。撞单行的 sessionLabel 取该票最新那条的会话快照——
 //   选「最新」是因为它代表这张票当前在谁手里，比枚举全部会话更利于接手。
+//
+// 工作条目可选带 0 到 100 的进度自评（#1084）：原来的八格之外多一格 progress，
+// 只作展示、不参与判定；最近一次上报没带就不出这一格。合法性的唯一真源是
+// work-path-ledger.ts 的 validProgress，这里与盘上、工具参数校验共用同一把尺子。
 
 import { chainSessionShardId } from '../../shared/refresh/chain.js';
+import { validProgress } from './work-path-ledger.js';
 import type { WorkPathLedger } from './work-path-store.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +33,8 @@ export interface WorkPathReadoutEntry {
   active: boolean;
   currentSession: boolean;
   source: string;
+  /** 最近一次上报带的进度自评（0 到 100 的整数）；最近一次没带就没有这一格。 */
+  progress?: number;
 }
 
 export interface WorkPathReadoutCollision {
@@ -58,7 +65,11 @@ interface FlatRow {
   action: string;
   actionAt: number;
   source: string;
+  progress?: number;
 }
+
+// 进度自评的合法性判据唯一真源是 work-path-ledger.ts 的 validProgress（与盘上同一把尺子）：
+// 只认 0 到 100 的整数，别的值（旧账、坏数据）当没有，不往回执里带。
 
 export function buildWorkPathReadout(
   ledger: WorkPathLedger | null,
@@ -83,6 +94,7 @@ export function buildWorkPathReadout(
           action: typeof e.action === 'string' ? e.action : '',
           actionAt: e.actionAt,
           source: typeof e.source === 'string' ? e.source : '',
+          progress: validProgress(e.progress),
         });
       }
     }
@@ -95,7 +107,7 @@ export function buildWorkPathReadout(
     return b.actionAt - a.actionAt;
   });
   const entries: WorkPathReadoutEntry[] = rows.map(function (r) {
-    return {
+    const entry: WorkPathReadoutEntry = {
       ticketKey: r.ticketKey,
       title: r.title,
       sessionLabel: workPathSessionLabel(r.label, r.session),
@@ -105,6 +117,8 @@ export function buildWorkPathReadout(
       currentSession: r.session === sessionId,
       source: r.source,
     };
+    if (r.progress !== undefined) entry.progress = r.progress;
+    return entry;
   });
   const staleCount = entries.filter(function (e) { return !e.active; }).length;
   // 撞单：同一票被两个以上会话记过，且最早与最晚之间不超过 30 分钟。

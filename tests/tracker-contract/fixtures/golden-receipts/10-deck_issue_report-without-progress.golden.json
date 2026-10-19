@@ -1,0 +1,69 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 6,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_issue_report 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "backendId": "markdown",
+    "effortId": "demo",
+    "key": "1",
+    "note": "金标准上报（不带进度）",
+    "state": "open",
+    "title": "金标准演示票",
+    "url": "<ROOT>/.scratch/demo/issues/01-untitled.md",
+    "workRoute": {
+      "at": "<TIME>",
+      "entries": [
+        {
+          "action": "report",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "reported",
+          "ticketKey": "1",
+          "title": "金标准演示票"
+        }
+      ],
+      "staleCount": 0
+    }
+  },
+  "items": [],
+  "notes": [
+    "备注只回显，不记进工作路线（路线上每条只留票键、时间与动作类别）。",
+    "工作路线摘要 · 本工作区在办 1 条（最近 1 条：#1）"
+  ],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "票 1 已上报（金标准演示票）：金标准上报（不带进度）。在办表见回执 data.workRoute。",
+  "tool": "deck_issue_report",
+  "touched": [],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

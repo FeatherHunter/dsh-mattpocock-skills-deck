@@ -1,7 +1,8 @@
 // src/deck/tools/issue-report.ts —— deck_issue_report（#775 落地；#1019 换到新树、#1035 转 TypeScript）
 //
-// AI 主动上报自己在办哪张票：票号必填、可选带一句备注；写入同一份工作路线并去重，
-// 与被动推断互补；在原来展示工作路线的地方能看到；三后端诚实失败。
+// AI 主动上报自己在办哪张票：票号必填、可选带一句备注与 0 到 100 的进度自评；写入同一份
+// 工作路线并去重，与被动推断互补；在原来展示工作路线的地方能看到；三后端诚实失败。
+// 进度只写进本会话这张票的工作条目、只作展示，不参与任何判定；不传时条目不记这一格、也不沿用上一次的数字（见 normProgress）。
 //
 // 薄壳四条照旧（shell.js）：过闸、走注册表选后端、只从会话取工作区、永不抛。
 // 工作路线由工具壳在成功收口处统一记（#1261：壳调 workRouteNote，动作类别 report，
@@ -11,12 +12,25 @@
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { withCallScope } from '../shell/call-budget.js'
+import { validProgress } from '../shell/work-path-ledger.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/**
+ * 进度自评的收口：不传（undefined/null）合法，意思是「这次不记进度，条目上也不沿用上一次的数字」；
+ * 给了就必须是 0 到 100 的整数，其余一律算不合规，由调用处按 bad-args 拒绝。
+ * 合法性的唯一真源是 work-path-ledger.ts 的 validProgress：回执、盘上条目与在办表共用同一把尺子，
+ * 改判据只改那一处，免得工具收下的值在落盘或读出时被另一份规则悄悄丢掉。
+ * 0 是合法的自评，所以这里用 given 单独记「有没有给」，不能拿值的真假来区分。
+ */
+function normProgress(raw: unknown): { given: boolean; value?: number } {
+  if (raw === undefined || raw === null) return { given: false }
+  const value = validProgress(raw)
+  return value === undefined ? { given: true } : { given: true, value: value }
+}
 /** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
 type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
 // 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
@@ -68,6 +82,7 @@ export const definition = {
     properties: {
       key: { type: 'string', description: '你要上报的那个 ISSUE 的编号' },
       note: { type: 'string', description: '可选带一句备注（只回显，不进链）' },
+      progress: { type: 'number', description: '可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['key'],
@@ -101,7 +116,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
 
   /**
    * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
-   * 参数先当「未知」再逐项收口（key / effortId / note 下面各收一次），回执形状由壳统一渲染。
+   * 参数先当「未知」再逐项收口（key / progress / effortId / note 下面各收一次），回执形状由壳统一渲染。
    */
   async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
     // 预算起算点：入口前耗时（会话归一、选后端、探沙箱）也要算进预算（#1195）。
@@ -114,6 +129,10 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
     if (!s.ok) return shell.unsupported('deck_issue_report', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, '要上报哪一张票：把票号写在 key 里（例如 775）。', { cost: { estimated: est } })
+    // 进度自评与 key 同一层校验，都在选后端之前：不合规就按 bad-args 拒绝，
+    // 不花点数、不碰后端、不写盘，回执形状与别的参数错一样是六格。
+    const progress = normProgress(a.progress)
+    if (progress.given && progress.value === undefined) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, '进度要写 0 到 100 的整数（例如 40）：这次给的 progress 不是这样的值；不传就表示这次不带进度（条目上不记这一格，也不沿用上一次的数字）。', { cost: { estimated: est } })
     const effortId = normEffort(a.effortId)
     const note = typeof a.note === 'string' ? a.note.trim().slice(0, 200) : ''
 
@@ -177,6 +196,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
             key: key, title: title, state: issue.state || '', url: issue.url || '',
             backendId: pick.backendId, effortId: effortId || (issue.effortId !== undefined ? issue.effortId : ''),
             note: note,
+            ...(progress.value !== undefined ? { progress: progress.value } : {}),
           },
           notes: notes,
           touched: [],
