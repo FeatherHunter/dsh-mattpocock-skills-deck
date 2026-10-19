@@ -9,6 +9,8 @@
 // 来源 reported；去重键是 (会话, 票)，同一会话同一票后来居上）。本工具自己不再记。
 // 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记路线。
 // 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
+// #1086 加一支释放：参数 release=true 时，票照样先读回来证明它存在，然后把本会话对这张票的
+// 那一条工作条目删掉（不记任何动作，票本身的状态与认领人一个字不动）；不再带这个参数就是老行为。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { withCallScope } from '../shell/call-budget.js'
@@ -76,7 +78,7 @@ export interface DeckIssueReportDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_report',
-  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。有没有记上、记在哪里，看返回里的结果。',
+  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要释放本会话的一条工作条目时带 release=true（只删本会话那一行，票本身不动）。有没有记上、记在哪里，看返回里的结果。',
   parameters: {
     type: 'object',
     properties: {
@@ -84,6 +86,7 @@ export const definition = {
       note: { type: 'string', description: '可选带一句备注（只回显，不进链）' },
       progress: { type: 'number', description: '可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      release: { type: 'boolean', description: '可选：传 true 表示把这张票从本会话的工作路线里释放掉（删掉本会话对它的那条工作条目；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报' },
     },
     required: ['key'],
     additionalProperties: false,
@@ -135,6 +138,8 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
     if (progress.given && progress.value === undefined) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, '进度要写 0 到 100 的整数（例如 40）：这次给的 progress 不是这样的值；不传就表示这次不带进度（条目上不记这一格，也不沿用上一次的数字）。', { cost: { estimated: est } })
     const effortId = normEffort(a.effortId)
     const note = typeof a.note === 'string' ? a.note.trim().slice(0, 200) : ''
+    // #1086 释放标记：只认显式 true（传字符串 'true'、1 之类一律当没带，照旧正常上报）。
+    const release = a.release === true
 
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_report', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
@@ -188,6 +193,25 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       const issue = got.data || {}
       // 工作路线由工具壳在成功收口处统一记（#1262：五个写工具都记；本工具的动作 report、来源 reported），本工具不再显式记。
       const title = typeof issue.title === 'string' ? issue.title.slice(0, 80) : ''
+      if (release) {
+        // #1086 释放一支：票读回来就证明它确实存在，交壳把本会话那一条删掉。
+        // 值顶层的 release:true 是工具与壳之间的内部信号，信封只拷固定那几格，不会漏进回执。
+        return {
+          value: {
+            status: DECK_STATUS.OK,
+            release: true,
+            text: '票 ' + key + ' 这次不是上报，是释放：把本会话工作路线里的这一条工作条目删掉（票本身的状态与认领人没有改动）。删没删掉看回执备注。',
+            data: {
+              key: key, title: title, state: issue.state || '', url: issue.url || '',
+              backendId: pick.backendId, effortId: effortId || (issue.effortId !== undefined ? issue.effortId : ''),
+              note: note,
+            },
+            notes: notes,
+            touched: [],
+          },
+          claimed: { requests: 1, points: 3 },
+        }
+      }
       return {
         value: {
           status: DECK_STATUS.OK,

@@ -41,7 +41,7 @@ import type {
   ShellSession, UnknownRecord, WaitSignal,
 } from './call-shell-types.js'
 import { withInFlightLease } from './in-flight-lease.js'
-import { noteWorkRoute } from './work-path-record.js'
+import { recordWorkRoute } from './work-path-record.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
@@ -429,7 +429,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
     // #1261/#1262：五个写工具（report、create、patch、plan、link）成功收口处把这一次记进工作路线，
     // 并在合并信封之前把在办表与摘要带进回执；四个读工具、失败与被闸推迟的调用都不记。
     if (!failed) {
-      await noteWorkRoute(d, tool, s, str(meta.pick.backendId), value)
+      await recordWorkRoute(d, tool, s, str(meta.pick.backendId), value)
     }
     const out = envelope(tool, DECK_STATUS.OK, {
       workspace: { root: s.cwd, key: s.workspaceKey },

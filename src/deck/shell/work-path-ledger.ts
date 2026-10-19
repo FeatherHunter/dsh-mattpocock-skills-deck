@@ -18,6 +18,9 @@
 //
 // 术语边界：本文件说的「账」指工作路线存档（work-path），不是 src/host/refresh/ledger.ts 的配额账本；
 // 两者不同的东西，只是都用「账」这个日常词。
+//
+// #1086 补一支释放（applyRelease）：只从本会话那一页删掉一条工作条目，别的会话一概不碰；
+// 删空了就摘掉整页，免得盘上留下一页没条目的空会话。
 
 import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES, utf8Bytes, newestPrefixThatFits } from '../../shared/refresh/chain-prune.js';
 
@@ -67,6 +70,24 @@ export interface WorkPathNoteInput {
 /** 记一笔的结果：成功带这条票与本会话条数；旧文件读不出来时另带 warnings，供回执备注说明。 */
 export type WorkPathNoteResult =
   | { ok: true; ticketKey: string; count: number; warnings?: string[] }
+  | { ok: false; reason: string };
+
+/** 释放一条工作条目的输入：工作区键 + 会话 + 票键，三者缺一不可（与记一笔同一套键）。 */
+export interface WorkPathReleaseInput {
+  /** 工作区键（workspace.key）：落到哪一份文件由存储按 chainRootHash 算，不由调用方拼。 */
+  rootKey: string;
+  /** 当前会话 id：只删这个会话自己那一页里的条目，别的会话一概不碰。 */
+  sessionId: string;
+  /** 要释放的票键。 */
+  ticketKey: string;
+}
+
+/**
+ * 释放的结果。removed=false 表示这条本来就不在本会话的工作路线里（不算失败：盘上没有可删的东西），
+ * count 是释放后本会话还剩几条在办；成功时票键带回，方便调用方写回执备注。
+ */
+export type WorkPathReleaseResult =
+  | { ok: true; ticketKey: string; removed: boolean; count: number }
   | { ok: false; reason: string };
 
 /** 内存里的一条工作条目（与盘上 v3 的 entries 同形）。 */
@@ -175,6 +196,21 @@ export function applyNote(ledger: RootLedger, input: WorkPathNoteInput, at: numb
   if (progress !== undefined) entry.progress = progress;
   page.entries.set(input.ticketKey, entry);
   return page;
+}
+
+/**
+ * 把本会话对某张票的那一条从账里删掉（就地改，账是刚从盘上读出来的、本函数独占的那一份）。
+ *
+ * 只动这一个会话的页：别的会话、别的票原样保留。删到本会话一条不剩时把整页摘掉，
+ * 盘上不会留下一页空会话。返回 removed=false 表示本来就不在（不算错），count 是删完还剩几条。
+ */
+export function applyRelease(ledger: RootLedger, sessionId: string, ticketKey: string): { removed: boolean; count: number } {
+  const page = ledger.workers.get(sessionId);
+  if (!page) return { removed: false, count: 0 };
+  const removed = page.entries.delete(ticketKey);
+  const count = page.entries.size;
+  if (count === 0) ledger.workers.delete(sessionId);
+  return { removed: removed, count: count };
 }
 
 /** 序列化成盘上形状（v3：版本、写盘时间、后端、按会话分的页）。 */

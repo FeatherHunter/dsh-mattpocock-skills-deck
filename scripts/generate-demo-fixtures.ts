@@ -11,8 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-// examples/demo-mini 的入口在 #1252 之后转成了 TypeScript（51aed970），这里能顺着 .ts 拿到形状；
-// 原先遮 TS7016 的 @ts-expect-error 因此变成多余指令（TS2578），随合并 main 一并删掉。
+// 例子目录不在任何 tsconfig 里，但已经是 TypeScript（main 的 examples 转写已落地），形状由它自己的类型给出。
 import { normalizeIssue } from '../examples/demo-mini/normalize.js'
 
 const __dirname: string = path.dirname(fileURLToPath(import.meta.url))

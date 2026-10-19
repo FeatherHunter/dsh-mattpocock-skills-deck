@@ -37,7 +37,7 @@ function memFs(home: string) {
 async function main() {
   console.log('#1261 上报一次，回执见在办，盘上有记录')
   const bindingsMod = await imp('src/deck/shell/work-path-bindings.ts') as { createWorkRouteBindings: (io: unknown) => any }
-  const recordMod = await imp('src/deck/shell/work-path-record.js') as { noteWorkRoute: (...a: any[]) => Promise<void> }
+  const recordMod = await imp('src/deck/shell/work-path-record.js') as { recordWorkRoute: (...a: any[]) => Promise<void> }
   const chainMod = await imp('src/shared/refresh/chain.js') as { chainRootHash: (k: string) => string }
   const readoutMod = await imp('src/deck/shell/work-path-readout.ts') as {
     buildWorkPathReadout: (l: unknown, o: { sessionId: string, at: number }) => any,
@@ -164,7 +164,7 @@ async function main() {
   }
   const sess5 = { sessionId: 's-w', workspaceKey: 'ws-w', cwd: 'x' }
   // 每调一次把钟往前拨一秒，并把这一次用的时刻还给调用方——验收②要断言「时间也是最近一次」。
-  const call5 = async (tool: string, value: any) => { clock5 += 1000; await recordMod.noteWorkRoute(deps5, tool, sess5, 'markdown', value); return clock5 }
+  const call5 = async (tool: string, value: any) => { clock5 += 1000; await recordMod.recordWorkRoute(deps5, tool, sess5, 'markdown', value); return clock5 }
   const entryOf = (v: any, key: string) => (((v.data && v.data.workRoute && v.data.workRoute.entries) || []) as any[]).filter((e: any) => e.ticketKey === key)
   const diskRows = (home: string, rootKey: string) => {
     const file = home + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rootKey) + '.json'
@@ -270,7 +270,7 @@ async function main() {
   const vColl: any = { status: 'ok', data: { ticket: { key: '701', title: '甲票', effortId: '' } }, touched: ['701'], notes: [] }
   clock5 += 60 * 1000
   const tColl = clock5
-  await recordMod.noteWorkRoute(deps5, 'deck_issue_patch', sess5, 'markdown', vColl)
+  await recordMod.recordWorkRoute(deps5, 'deck_issue_patch', sess5, 'markdown', vColl)
   const coll = vColl.data.workRoute && vColl.data.workRoute.collisions
   check(Array.isArray(coll) && coll.length === 1 && coll[0].ticketKey === '701'
     && coll[0].sessionLabel === readoutMod.workPathSessionLabel('', 's-other')
@@ -294,7 +294,7 @@ async function main() {
     mkdir: async () => {},
   })
   const vFail: any = { status: 'ok', data: { key: '701', effortId: '', title: '甲票' }, notes: ['旧备注'] }
-  await recordMod.noteWorkRoute(
+  await recordMod.recordWorkRoute(
     { workRouteNote: (i: unknown) => failWrite.note(i), workRouteRead: (i: unknown) => failWrite.read(i), now: () => T0 },
     'deck_issue_report', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vFail)
   check(!vFail.data.workRoute && vFail.notes.length === 2 && vFail.notes[0] === '旧备注'
@@ -305,11 +305,95 @@ async function main() {
     workRouteRead: async () => ({ ok: false, reason: 'probe-read-failed' }),
   }
   const vRF: any = { status: 'ok', data: { key: '701', title: '甲票' }, notes: [] }
-  await recordMod.noteWorkRoute(failRead, 'deck_issue_report', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vRF)
+  await recordMod.recordWorkRoute(failRead, 'deck_issue_report', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vRF)
   check(!vRF.data.workRoute && vRF.notes.length === 1 && vRF.notes[0].indexOf('工作路线这次读不出来（probe-read-failed）') === 0,
     '读失败：备注说这次读不出来，回执不带 data.workRoute：' + JSON.stringify(vRF.notes[0]))
 
-  for (const h of [home1, home3, home4, home4b, home5]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
+  // ── 五、释放（#1086）：只删本会话那一条，别的会话一个字不动 ──
+  const homeRel5 = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261r-'))
+  const storeRel5 = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: homeRel5, now: () => T0 }, memFs(homeRel5)))
+  const rk5 = 'ws-1261r'
+  const diskRel5 = homeRel5 + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rk5) + '.json'
+  await storeRel5.note({ rootKey: rk5, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '901', effortId: '', title: '甲票', action: 'report', source: 'reported' })
+  await storeRel5.note({ rootKey: rk5, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '902', effortId: '', title: '乙票', action: 'report', source: 'reported' })
+  await storeRel5.note({ rootKey: rk5, sessionId: 's-b', sessionLabel: '', backend: 'markdown', ticketKey: '903', effortId: '', title: '丙票', action: 'report', source: 'reported' })
+  const rel1: any = await storeRel5.release({ rootKey: rk5, sessionId: 's-a', ticketKey: '901' })
+  check(rel1.ok === true && rel1.removed === true && rel1.ticketKey === '901' && rel1.count === 1,
+    '释放成功：removed=true，票键带回，本会话还剩 1 条')
+  const diskRelA = JSON.parse(fs.readFileSync(diskRel5, 'utf8'))
+  const page5a = diskRelA.workers.filter((w: any) => w.session === 's-a')[0]
+  const page5b = diskRelA.workers.filter((w: any) => w.session === 's-b')[0]
+  check(page5a && page5a.entries.length === 1 && page5a.entries[0].ticketKey === '902'
+    && page5b && page5b.entries.length === 1 && page5b.entries[0].ticketKey === '903',
+    '盘上：本会话只剩 902，别的会话 903 原样保留')
+  const relAgain: any = await storeRel5.release({ rootKey: rk5, sessionId: 's-a', ticketKey: '901' })
+  check(relAgain.ok === true && relAgain.removed === false && relAgain.count === 1, '再释放同一条：removed=false，不算失败，剩余条数不变')
+  const relMissingKey: any = await storeRel5.release({ rootKey: '', sessionId: 's-a', ticketKey: '902' })
+  const relMissingSession: any = await storeRel5.release({ rootKey: rk5, sessionId: '', ticketKey: '902' })
+  const relMissingTicket: any = await storeRel5.release({ rootKey: rk5, sessionId: 's-a', ticketKey: '' })
+  check(relMissingKey.ok === false && relMissingSession.ok === false && relMissingTicket.ok === false, '缺工作区键 / 会话 / 票号：释放诚实失败（不落盘不抛）')
+  // 释放掉本会话最后一条：整页从盘上摘掉，不留空会话。
+  const relLast: any = await storeRel5.release({ rootKey: rk5, sessionId: 's-a', ticketKey: '902' })
+  const diskRelB = JSON.parse(fs.readFileSync(diskRel5, 'utf8'))
+  check(relLast.ok === true && relLast.removed === true && relLast.count === 0
+    && diskRelB.workers.filter((w: any) => w.session === 's-a').length === 0,
+    '释放掉本会话最后一条：count=0，盘上不再留这一页空会话')
+  // 读盘失败：释放诚实失败，不写盘（不能拿空账把别人的记录盖掉）。
+  const home5b = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261rf-'))
+  const storeReadFail = bindingsMod.createWorkRouteBindings({ homeDir: home5b, now: () => T0, readFile: async () => { throw new Error('读不动（探针）') }, writeFile: async () => { throw new Error('不该写') }, mkdir: async () => {}, rename: async () => {} })
+  const relReadFail: any = await storeReadFail.release({ rootKey: 'ws-rf', sessionId: 's-a', ticketKey: '901' })
+  check(relReadFail.ok === false && relReadFail.reason === 'read-failed', '读盘失败：释放回 read-failed（不抛、不写盘）')
+  // 盘上文件坏：释放诚实失败，坏文件保持原样（读不懂绝不重写）。
+  const home5c = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261rb-'))
+  const diskRelC = home5c + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash('ws-rb') + '.json'
+  fs.mkdirSync(path.dirname(diskRelC), { recursive: true })
+  fs.writeFileSync(diskRelC, '{ 这不是 JSON', 'utf8')
+  const storeBad = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5c, now: () => T0 }, memFs(home5c)))
+  const relBad: any = await storeBad.release({ rootKey: 'ws-rb', sessionId: 's-a', ticketKey: '901' })
+  check(relBad.ok === false && relBad.reason === 'bad-shape' && fs.readFileSync(diskRelC, 'utf8') === '{ 这不是 JSON',
+    '盘上文件坏了：释放回 bad-shape，坏文件原样留着（不整份重写）')
+
+  // ── 六、释放收口（#1086）：工具 value 顶层 release=true 走释放那一支 ──
+  const home6 = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261x-'))
+  const store6 = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home6, now: () => T0 }, memFs(home6)))
+  const rk6 = 'ws-1261x'
+  const deps6 = { workRouteNote: (i: unknown) => store6.note(i), workRouteRead: (i: unknown) => store6.read(i), workRouteRelease: (i: unknown) => store6.release(i), now: () => T0 }
+  await store6.note({ rootKey: rk6, sessionId: 's-r', sessionLabel: '', backend: 'markdown', ticketKey: '701', effortId: '', title: '甲票', action: 'report', source: 'reported' })
+  await store6.note({ rootKey: rk6, sessionId: 's-r', sessionLabel: '', backend: 'markdown', ticketKey: '702', effortId: '', title: '乙票', action: 'report', source: 'reported' })
+  const vRel: any = { status: 'ok', release: true, data: { key: '701', effortId: '', title: '甲票' }, notes: [] }
+  await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vRel)
+  check(vRel.data.workRoute && vRel.data.workRoute.entries.length === 1 && vRel.data.workRoute.entries[0].ticketKey === '702',
+    '释放成功：回执里带在办表，只剩另一条（回执形状与正常上报一致）')
+  check(vRel.notes.some((n: string) => n.indexOf('已把票 701 从本会话的工作路线里释放掉') === 0 && n.indexOf('还剩 1 条在办') >= 0),
+    '释放成功：备注写明删掉的是哪张票、本会话还剩几条：' + JSON.stringify(vRel.notes))
+  // 再释放同一条：备注说本来就没有，不冒充「删掉了」。
+  const vRel2: any = { status: 'ok', release: true, data: { key: '701' }, notes: [] }
+  await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vRel2)
+  check(vRel2.notes.some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0), '再释放同一条：备注说本来就没有（不冒充删掉）')
+  // release:false 与不带 release 都是正常上报。
+  const vRelFalse: any = { status: 'ok', release: false, data: { key: '703', effortId: '', title: '丙票' }, notes: [] }
+  await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vRelFalse)
+  check(vRelFalse.data.workRoute && vRelFalse.data.workRoute.entries.some((e: any) => e.ticketKey === '703'),
+    'release:false 仍走正常上报（条目落上、回执带在办表）')
+  // 释放依赖缺席：不静默，备注写没释放掉。
+  const vNoBind: any = { status: 'ok', release: true, data: { key: '702' }, notes: [] }
+  await recordMod.recordWorkRoute({ workRouteNote: (i: unknown) => store6.note(i), workRouteRead: (i: unknown) => store6.read(i), now: () => T0 }, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vNoBind)
+  check(vNoBind.notes.some((n: string) => n.indexOf('没释放掉（no-release-binding）') >= 0), '释放依赖缺席：备注写没释放掉（不静默跳过）')
+  // 释放写盘失败：备注写没释放掉，票的条目还在。
+  const home6f = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261xf-'))
+  const store6f = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home6f, now: () => T0 }, memFs(home6f)))
+  await store6f.note({ rootKey: 'ws-1261xf', sessionId: 's-f', sessionLabel: '', backend: 'markdown', ticketKey: '704', effortId: '', title: '丁票', action: 'report', source: 'reported' })
+  const failRelStore = bindingsMod.createWorkRouteBindings({ homeDir: home6f, now: () => T0, ...memFs(home6f), writeFile: async () => { throw new Error('磁盘满了（探针）') } })
+  const vRelFail: any = { status: 'ok', release: true, data: { key: '704' }, notes: [] }
+  await recordMod.recordWorkRoute({ workRouteNote: (i: unknown) => failRelStore.note(i), workRouteRead: (i: unknown) => failRelStore.read(i), workRouteRelease: (i: unknown) => failRelStore.release(i), now: () => T0 }, 'deck_issue_report', { sessionId: 's-f', workspaceKey: 'ws-1261xf', cwd: 'x' }, 'markdown', vRelFail)
+  check(vRelFail.notes.some((n: string) => n.indexOf('没释放掉（write-failed）') >= 0), '释放写盘失败：备注写没释放掉（票的工作条目还留着）')
+  // 释放后重新上报同一张票：恢复且只有一条。
+  const vBack: any = { status: 'ok', data: { key: '701', effortId: '', title: '甲票回来了' }, notes: [] }
+  await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vBack)
+  const back701 = vBack.data.workRoute.entries.filter((e: any) => e.ticketKey === '701')
+  check(back701.length === 1 && back701[0].title === '甲票回来了', '释放后重新上报：条目恢复且只有一条（不重复、不丢）')
+
+  for (const h of [home1, home3, home4, home4b, home5, homeRel5, home5b, home5c, home6, home6f]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   process.exit(failed ? 1 : 0)
 }
