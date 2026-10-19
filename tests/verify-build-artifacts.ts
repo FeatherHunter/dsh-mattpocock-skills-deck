@@ -250,8 +250,9 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //        updateClient.derived.js，它们必须入库，因为客户端那份闭包要能离线拼出来）
 //     ④ 子包各自产物目录：packages/*/dist/**
 //   追踪器契约目录旁那份旧 JavaScript 影子文件（src/tracker/contract/vocabulary.js）的去向：
-//   它是词汇表五份真源拼段转译的拼接输入（构建每次重写、不入库），#1026 收拾契约目录时顺手带走，
-//   本票不动它、不删它，只在这里如实记一笔；下面的过渡位计数把它单列为已知项，不算放水。
+//   它是词汇表五份真源拼段转译的拼接输入。#1026 收拾契约目录时没有直接删掉它，而是把拼段产物
+//   搬到已被忽略的 .tmp/vocabulary.client.js（2026-10-19），src/ 里从此不再有这份影子文件；
+//   下面的已知产物名单跟着去掉这一条。
 //   两条断言：
 //     A. 入库（git ls-files）里一件产物都没有：四类里的 ①②④ 不该被跟踪，src/ 下「有同名 .ts 的 .js」
 //        是转译产物、同样不该被跟踪（③ 里的两件例外是唯一允许入库的产物）。
@@ -305,7 +306,8 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //   判据仍是「只许降不许升」，搬迁那条工作线收完时把这条数一并降回 0。
   const TRANSITIONAL_PRODUCTS_MAX = 225
   // 已知的、单列出来的产物：它们不进「过渡产物」的计数，理由是各自有出处可查，不是混进来的新产物。
-  //   · src/tracker/contract/vocabulary.js —— #1018 拼闭包用的词汇表产物，归 #1026 带走。
+  //   · src/tracker/contract/vocabulary.js —— 2026-10-19 起不再存在：构建把词汇表拼段产物写到
+  //     已被忽略的 .tmp/vocabulary.client.js，src/ 里不留影子文件（见上面 4b 头的说明）。
   //   · src/client/kernel/api-io.js —— #1111：客户端内核的 api-io 由手写 .js 转成 .ts，同名 .js 从此是
   //     构建产物（与 locale-cards.js、locale-skilldetail.js 同类）。它没有把上限抬高一格：这一格留给
   //     「搬家那条线」继续收，新产物想混进来仍然看得见。
@@ -317,7 +319,6 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //     · src/shared/refresh/tuning.js —— #1069：共用调参表（真源是 src/shared/refresh/src/tuning.ts），
   //     产物落域根，与 budget.js 同类。同样不抬高上限。
   const KNOWN_PRODUCTS_OUT_OF_SCOPE = [
-    'src/tracker/contract/vocabulary.js',
     'src/client/kernel/api-io.js',
     'src/shared/host-timer/host-timers.js',
     'src/shared/refresh/step-cost.js',
@@ -348,6 +349,11 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   // B. 盘上产物只许落在四类或源码树的过渡位
   const outside = []
   const transitional = []
+  // 入库文件不进 B 段：B 段抓的是「盘上有、又没人认领」的产物，入库文件已经在 A 段按源码树
+  // 与四类落点审过。今天走这条豁免的只有 docs/prototype 下两份：853-vc-lib.js 与
+  // 854-vc-layouts.js 的同名 .ts 是真源，页面直接用 <script src> 吃 .js（见 853-vc-controls.html
+  // 头注：改完真源重生成同名 .js）。它们入库是为了原型页面双击就能打开，不是漏搬的产物。
+  const trackedSet = new Set(tracked)
   // 遍历整棵树，但四类落点整目录跳过（那里的产物本来就合法，不必逐件读），点开头的目录按仓里的约定
   // 一律是工具自己用的（缓存、临时输出、编辑器状态），也不进这趟。
   const walkAll = (dir, relBase) => {
@@ -360,7 +366,7 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
         continue
       }
       if (!ent.isFile() || !looksProduct(path.join(dir, ent.name))) continue
-      if (inCategory(rel)) continue
+      if (inCategory(rel) || trackedSet.has(rel)) continue
       if (rel.startsWith('src/')) { transitional.push(rel); continue }
       outside.push(rel)
     }

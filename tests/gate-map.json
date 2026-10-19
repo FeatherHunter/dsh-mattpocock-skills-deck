@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T09:14:30.948Z",
+  "generatedAt": "2026-10-19T14:41:53.186Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 291,
   "gateCount": 291,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 731,
+  "graphFileCount": 730,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -88,8 +88,7 @@
         "src/shared/refresh/tuning.js",
         "src/shared/version-control/parse-log.js",
         "src/shared/version-control/src/parse-log.ts",
-        "src/tracker",
-        "src/tracker/contract/vocabulary.js"
+        "src/tracker"
       ],
       "dirs": [
         "package",
@@ -110,14 +109,13 @@
         "src/shared/refresh/src",
         "src/shared/version-control",
         "src/shared/version-control/src",
-        "src/tracker",
-        "src/tracker/contract"
+        "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 21 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 20 条"
     },
     {
       "step": "node tests/verify-leaves.ts",
@@ -4418,7 +4416,7 @@
       "file": "tests/verify-error-rule-samples.ts",
       "guards": [
         "docs/adr/20261014-error-classification-single-source.md",
-        "src/tracker/contract/vocabulary.js",
+        "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/error-rules.ts",
         "src/tracker/rooms",
         "src/tracker/rooms/github/errors.ts",
@@ -7772,7 +7770,6 @@
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/tracker/contract": [
-      "node tests/verify-build-artifacts.ts",
       "node tests/verify-contract-types.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.ts",
@@ -8141,9 +8138,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 744,
+    "fileCount": 743,
     "dirCount": 54,
-    "coveredFileCount": 744,
+    "coveredFileCount": 743,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 53,
@@ -8780,7 +8777,6 @@
       "src/tracker/contract/operations.ts",
       "src/tracker/contract/outbound.ts",
       "src/tracker/contract/results.ts",
-      "src/tracker/contract/vocabulary.js",
       "src/tracker/contract/vocabulary.ts",
       "src/tracker/deck-derive.ts",
       "src/tracker/detection/backendDecision.ts",

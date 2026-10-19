@@ -209,7 +209,9 @@ async function main(): Promise<void> {
         rel + ' 里这一片排在运行时那份日志内核之后（logSwitch 等名字来自那一份）。')
       check(t.indexOf('kernel:settingsDebug (spliced') < 0, rel + ' 里没有留下这一片的拼接标记（拼进去了）。')
     }
-    check(readText('scripts/build.mts').indexOf("name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js'") >= 0,
+    // 2026-10-19：清单从「登记产物 .js」改成「登记真源 .ts」（构建改成直接拼真源，不再读同名产物）。
+    // 断言的意思没变：这一片的壳在清单里有登记，漏登记就会静默从闭包里消失。
+    check(readText('scripts/build.mts').indexOf("name: 'settingsDebug', file: 'src/client/kernel/settings-debug.ts'") >= 0,
       'scripts/build.mts 的模块清单里登记了 settingsDebug（不登记会静默不编译）。')
     // #1125 起本门禁按目录约定自动进链，不再读 package.json 长串。
     check(require('../scripts/lib/discover-gates.ts').isGatePlanned(ROOT, 'tests/verify-settings-debug.ts'),

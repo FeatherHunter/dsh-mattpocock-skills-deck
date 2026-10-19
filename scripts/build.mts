@@ -479,14 +479,14 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'backendList', file: 'src/client/kernel/builtin-backends.ts' },
-  { name: 'link', file: 'src/client/kernel/link.js' },
+  { name: 'link', file: 'src/client/kernel/link.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'styles', file: 'src/client/kernel/styles.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'portal', file: 'src/client/kernel/portal.ts' },
-  { name: 'localePanel', file: 'src/client/kernel/locale-panel.js' },
+  { name: 'localePanel', file: 'src/client/kernel/locale-panel.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'localeFlow', file: 'src/client/kernel/locale-flow.ts' },
@@ -509,9 +509,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'localeSkilldesc', file: 'src/client/kernel/locale-skilldesc.ts' },
-  { name: 'localeSkilldetail', file: 'src/client/kernel/locale-skilldetail.js' },
+  { name: 'localeSkilldetail', file: 'src/client/kernel/locale-skilldetail.ts' },
   // S1/S6/S7 卡片词条：locale-panel.js 已贴 350 行上限，照 #879/#887 的做法自成一个片段。
-  { name: 'localeCards', file: 'src/client/kernel/locale-cards.js' },
+  { name: 'localeCards', file: 'src/client/kernel/locale-cards.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'locale', file: 'src/client/kernel/locale.ts' },
@@ -579,7 +579,7 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1012 第 8 条：调试开关的真源从宿主那份 log-switch.json（与旧键 dsws.debug）搬进本机设置文件的 debug 节。
   //   与上面三族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；它还要用运行时那份
   //   日志内核的名字（上面第 500 行的 log），所以必须排在 log 之后。
-  { name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js' },
+  { name: 'settingsDebug', file: 'src/client/kernel/settings-debug.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.ts' },
@@ -606,7 +606,7 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'apiNewSession', file: 'src/client/kernel/api-new-session.ts' },
-  { name: 'apiIo', file: 'src/client/kernel/api-io.js' },
+  { name: 'apiIo', file: 'src/client/kernel/api-io.ts' },
   // #690：历史票的页数据（已关闭票按需翻页）—— 按工作区/后端/仓库/视图/筛选分桶、按身份去重、
   //   静默刷新不清空、内存最多留 10 页；单独一片是因为 storeSnapshot 已贴 350 行上限，塞不进去。
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
@@ -672,10 +672,11 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // effort 维度（2026-09-09）：票身份算法（effortOf / idOf / idOfParts）与常量同住，
   // #1026 之后真源是五份（常量仍住契约目录，行为已搬出）：常量 canonical-labels.ts 与
   // vocabulary.ts、票身份 identity-keys.ts、名单派生 label-names.ts、修复拼装 fix-contract.ts；
-  // 构建把五份拼成一段再转译，落到同目录的 vocabulary.js（见下面的 buildVocabularySpliceInput，
-  // 与四个计算域同模式：真源 .ts，产物 .js 并排、不入库），这里拼的是那份产物。
+  // 这五份各自是普通模块（彼此用相对 import 连），拼进闭包之前必须合成一段：所以构造时先把它们
+  // 拼成一段再转译，落到 .tmp/vocabulary.client.js（见下面的 buildVocabularySpliceInput；.tmp 是
+  // 构建自己的临时目录，不入库、每次构建重算），这里拼的是那一份临时输入。
   // 面板侧要按 (effort, 编号) 定位，故把这份零依赖叶子一并拼进界面闭包（host 半走 import，同源同文本）。
-  { marker: '// ==== shared:trackerConstants (spliced by build) ====', file: 'src/tracker/contract/vocabulary.js' },
+  { marker: '// ==== shared:trackerConstants (spliced by build) ====', file: '.tmp/vocabulary.client.js' },
   // #668：首开引导链的步骤清单是「一份顺序、三处读它」里的那一份真源（规格见 #662「定版一」）。
   // 宿主按它给链快照排序（src/host/detectChain.js）；状态栏横幅与注入决策（#663 / #664）也要读它，
   // 所以这份零依赖清单必须拼进界面闭包 —— 客户端半边今天没有任何对 src/shared 的运行时 import。
@@ -687,21 +688,20 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   { marker: '// ==== shared:slots (spliced by build) ====', file: 'src/shared/ui/slots.ts' },
   { marker: '// ==== shared:mattSkills (spliced by build) ====', file: 'src/shared/matt-skills.ts' },
   { marker: '// ==== shared:workspaceKey (spliced by build) ====', file: 'src/shared/workspaceKey.ts' },
-  // #629 配色核心的两个产物：宿主半走普通相对 import，客户端半要按同一份口径判断
-  // 用户填的颜色能不能用、颜色有没有变，所以把这两份零依赖产物一并拼进界面闭包。
+  // #629 配色核心的两份真源：宿主半走普通相对 import，客户端半要按同一份口径判断
+  // 用户填的颜色能不能用、颜色有没有变，所以把这两份零依赖真源一并拼进界面闭包。
   // 它们的顶层名字由 tests/verify-generated-no-shadow.ts 与既有的派生文件一起比对，
   // 产物里不许出现 __DSW_VERSION__ 与 __DSW_REPO_URL__（拼接发生在版本注入之后）。
-  { marker: '// ==== shared:labelColors (spliced by build) ====', file: 'src/shared/label-color/colors.js' },
-  { marker: '// ==== shared:labelColorPrompt (spliced by build) ====', file: 'src/shared/label-color/prompt.js' },
+  { marker: '// ==== shared:labelColors (spliced by build) ====', file: 'src/shared/label-color/src/colors.ts' },
+  { marker: '// ==== shared:labelColorPrompt (spliced by build) ====', file: 'src/shared/label-color/src/prompt.ts' },
   // #715 诚实显示：新鲜度阈值（5 分钟黄 / 30 分钟红）、合并窗口（10 秒）、降档的延迟承诺，
-  // 全部只有一份真源 src/shared/refresh/src/budget.ts，产物由本文件上面的刷新核心构建步骤生成。
+  // 全部只有一份真源 src/shared/refresh/src/budget.ts。
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
-  // 所以按同一套拼接做法把这一份拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
-  { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/shared/refresh/budget.js' },
+  // 所以按同一套拼接做法把这一份真源拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
+  { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/shared/refresh/src/budget.ts' },
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
-  //   产物 src/shared/version-control/rules.js 由本文件上面的版本控制核心构建步骤生成。
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
-  { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/rules.js' },
+  { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
   // #1215 中央时间参数：全部时间旋钮只有一份真源（config/ 下的 timeouts.yaml / intervals.yaml / ttl.yaml），
   // 产物由生成器落到 src/shared/time-config/values.js（构建前先重跑生成器，见上面的预域再生）。
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
@@ -721,31 +721,31 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.ts' },
   { id: 'tip', file: 'src/client/views/primitives/Tip.ts' },
   // 887 技能详情像素风：八个最小组件（无依赖，按使用次序登记）
-  { id: 'pixelBtn', file: 'src/client/views/pixel/PixelBtn.js' },
-  { id: 'pixelDot', file: 'src/client/views/pixel/PixelDot.js' },
-  { id: 'pixelNum', file: 'src/client/views/pixel/PixelNum.js' },
-  { id: 'pixelStateIcon', file: 'src/client/views/pixel/PixelStateIcon.js' },
-  { id: 'pixelSeal', file: 'src/client/views/pixel/PixelSeal.js' },
-  { id: 'pixelSkeleton', file: 'src/client/views/pixel/PixelSkeleton.js' },
-  { id: 'pixelBanner', file: 'src/client/views/pixel/PixelBanner.js' },
-  { id: 'pixelStatusLine', file: 'src/client/views/pixel/PixelStatusLine.js' },
+  { id: 'pixelBtn', file: 'src/client/views/pixel/PixelBtn.ts' },
+  { id: 'pixelDot', file: 'src/client/views/pixel/PixelDot.ts' },
+  { id: 'pixelNum', file: 'src/client/views/pixel/PixelNum.ts' },
+  { id: 'pixelStateIcon', file: 'src/client/views/pixel/PixelStateIcon.ts' },
+  { id: 'pixelSeal', file: 'src/client/views/pixel/PixelSeal.ts' },
+  { id: 'pixelSkeleton', file: 'src/client/views/pixel/PixelSkeleton.ts' },
+  { id: 'pixelBanner', file: 'src/client/views/pixel/PixelBanner.ts' },
+  { id: 'pixelStatusLine', file: 'src/client/views/pixel/PixelStatusLine.ts' },
   // S1/S6/S7 三种卡片：先主题与皮肤，再共享小件，最后三张大卡（次序即依赖次序）。
-  { id: 'cardsTheme', file: 'src/client/views/cards/PixelCardTheme.js' },
-  { id: 'cardsStyles', file: 'src/client/views/cards/PixelCardsStyles.js' },
-  { id: 'cardPin', file: 'src/client/views/cards/PixelCardPin.js' },
-  { id: 'cardTitle', file: 'src/client/views/cards/PixelCardTitle.js' },
-  { id: 'cardNo', file: 'src/client/views/cards/PixelCardNo.js' },
-  { id: 'cardTags', file: 'src/client/views/cards/PixelCardTags.js' },
-  { id: 'cardNote', file: 'src/client/views/cards/PixelCardNote.js' },
-  { id: 'cardFoot', file: 'src/client/views/cards/PixelCardFoot.js' },
-  { id: 'cardStamp', file: 'src/client/views/cards/PixelCardStamp.js' },
-  { id: 'blockedChrome', file: 'src/client/views/cards/PixelBlockedChrome.js' },
-  { id: 'cardBtns', file: 'src/client/views/cards/PixelCardBtns.js' },
-  { id: 'mapDots', file: 'src/client/views/cards/PixelMapDots.js' },
-  { id: 'cardHead', file: 'src/client/views/cards/PixelCardHead.js' },
-  { id: 'issueCard', file: 'src/client/views/cards/PixelIssueCard.js' },
-  { id: 'issueMapCard', file: 'src/client/views/cards/PixelIssueMapCard.js' },
-  { id: 'mapCard', file: 'src/client/views/cards/PixelMapCard.js' },
+  { id: 'cardsTheme', file: 'src/client/views/cards/PixelCardTheme.ts' },
+  { id: 'cardsStyles', file: 'src/client/views/cards/PixelCardsStyles.ts' },
+  { id: 'cardPin', file: 'src/client/views/cards/PixelCardPin.ts' },
+  { id: 'cardTitle', file: 'src/client/views/cards/PixelCardTitle.ts' },
+  { id: 'cardNo', file: 'src/client/views/cards/PixelCardNo.ts' },
+  { id: 'cardTags', file: 'src/client/views/cards/PixelCardTags.ts' },
+  { id: 'cardNote', file: 'src/client/views/cards/PixelCardNote.ts' },
+  { id: 'cardFoot', file: 'src/client/views/cards/PixelCardFoot.ts' },
+  { id: 'cardStamp', file: 'src/client/views/cards/PixelCardStamp.ts' },
+  { id: 'blockedChrome', file: 'src/client/views/cards/PixelBlockedChrome.ts' },
+  { id: 'cardBtns', file: 'src/client/views/cards/PixelCardBtns.ts' },
+  { id: 'mapDots', file: 'src/client/views/cards/PixelMapDots.ts' },
+  { id: 'cardHead', file: 'src/client/views/cards/PixelCardHead.ts' },
+  { id: 'issueCard', file: 'src/client/views/cards/PixelIssueCard.ts' },
+  { id: 'issueMapCard', file: 'src/client/views/cards/PixelIssueMapCard.ts' },
+  { id: 'mapCard', file: 'src/client/views/cards/PixelMapCard.ts' },
   { id: 'backendSelector', file: 'src/client/views/shared/BackendSelector.ts' },
   { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.ts' },
   // #621 标签配色的七个叶子（纯函数三份 + 状态机一份 + 界面三份；按拼接次序登记，次序即依赖次序）
@@ -767,13 +767,13 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcFold', file: 'src/client/views/versionControl/vcFold.ts' },
   { id: 'vcDiff', file: 'src/client/views/versionControl/vcDiff.ts' }, // #819 审查后从 vcBlocks 拆出：一处差异该怎么画（那个文件贴着 350 行）
   { id: 'vcCommit', file: 'src/client/views/versionControl/vcCommit.ts' }, // 规格故事 32：「这笔提交改了什么」那一层（排在 vcBlocks 之前，行是 vcBlocks 现传进去的同一份）
-  { id: 'vcStyles', file: 'src/client/views/versionControl/vcStyles.js' }, // #851 版本管理页签的视觉语言（档案索引）：一段 CSS 文本，经同一个 styles.insert 接缝注入
+  { id: 'vcStyles', file: 'src/client/views/versionControl/vcStyles.ts' }, // #851 版本管理页签的视觉语言（档案索引）：一段 CSS 文本，经同一个 styles.insert 接缝注入
   { id: 'vcRows', file: 'src/client/views/versionControl/vcRows.ts' }, // #842 从 vcBlocks 原样搬出：行分组 / 行画法 / 其他工作树行 / 某路径的差异读数（vcBlocks 要腾行给写操作）
   { id: 'vcWrite', file: 'src/client/views/versionControl/vcWrite.ts' }, // #842 写操作的纯规则层（判定→状态、理由→词条、写失败→话术族、确认框内容）
   { id: 'vcWriteRun', file: 'src/client/views/versionControl/vcWriteRun.ts' }, // #842 写操作的执行层（预检、四条写电话、结果记账、成功后的重读）
   { id: 'vcWriteUi', file: 'src/client/views/versionControl/vcWriteUi.ts' }, // #842 写操作的画法层（按钮、提交区、确认框模型）
   { id: 'vcWriteOps', file: 'src/client/views/versionControl/vcWriteOps.ts' }, // #842 写操作的动作层（点下去发生什么：预检、写电话、重读）
-  { id: 'vcWriteView', file: 'src/client/views/versionControl/vcWriteView.js' }, // #842 写操作的节点画法（从入口组件搬出，组件守住 350 行）
+  { id: 'vcWriteView', file: 'src/client/views/versionControl/vcWriteView.ts' }, // #842 写操作的节点画法（从入口组件搬出，组件守住 350 行）
   { id: 'vcDiffOps', file: 'src/client/views/versionControl/vcDiffOps.ts' }, // #857 差异与提交那几路的动作（从入口组件搬出，组件守 350 行）
   { id: 'vcBlocks', file: 'src/client/views/versionControl/vcBlocks.ts' },
   { id: 'vcViews', file: 'src/client/views/versionControl/vcViews.ts' }, // #853 第三步：布局 C 的三个视图（改动 / 提交历史 / 工作树）
@@ -782,42 +782,42 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.ts' },
   { id: 'vcCache', file: 'src/client/views/versionControl/vcCache.ts' }, // #864：进出缓存（首屏与历史首批按工作区暂存）
   { id: 'vcInView', file: 'src/client/views/versionControl/vcInView.ts' }, // #997：「还能显示更多」那几处什么时候接着显示（进入视野就接着显示、显示完再判一次；三处共用一套）
-  { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.js' },
+  { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.ts' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）
   { id: 'restFallbackBanner', file: 'src/client/views/shared/RestFallbackBanner.ts' }, // 2026-09-24 由 ListTab.js 拆出：那条降级横幅的「画」这一段（判据仍是上面 truthLines 的 restFallbackView；ListTab 贴着 350 行上限）
   { id: 'workRouteTable', file: 'src/client/views/shared/workRouteTable.ts' }, // #1082 新增：面板「跨会话在办表」（判据与画法；只读快照里的 workRouteTable 字段，与工具回执 data.workRoute 同源）
-  { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },
+  { id: 'ticketRow', file: 'src/client/views/TicketRow.ts' },
   { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.ts' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
   { id: 'mapDetailTop', file: 'src/client/views/MapDetailTop.ts' }, // #807 由 MapDetail.js 拆出：顶部操作行（不换行/逐字折叠/新会话实心/补图标，MapDetail 贴着 350 行上限）
-  { id: 'mapDetail', file: 'src/client/views/MapDetail.js' },
-  { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.js' },
+  { id: 'mapDetail', file: 'src/client/views/MapDetail.ts' },
+  { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.ts' },
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.ts' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
   { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.ts' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）
-  { id: 'IssueDetail', file: 'src/client/views/IssueDetail.js' },
+  { id: 'IssueDetail', file: 'src/client/views/IssueDetail.ts' },
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.ts' },
   { id: 'setupCard', file: 'src/client/views/SetupCard.ts' }, // #698 新增：盖住整个应用的「域文档布局」小卡（原先只渲染在黄条下面，工作区一初始化就没有地方可画）
   { id: 'ListTabClosed', file: 'src/client/views/ListTabClosed.ts' }, // #690 新增：折叠行展开、滚到底这两个触发点，与「已加载 x / 共 N」那一行（排在 ListTab 之前，ListTab 调它们）
   { id: 'ListTabRow', file: 'src/client/views/ListTabRow.ts' },
   { id: 'listTab', file: 'src/client/views/ListTab.ts' },
   { id: 'prTab', file: 'src/client/views/PrTab.ts' },
-  { id: 'skillsTab', file: 'src/client/views/SkillsTab.js' },
+  { id: 'skillsTab', file: 'src/client/views/SkillsTab.ts' },
   // 887 技能详情像素风：皮肤、中组件与整页（PixelMarkdown 无横向 import，只调全局 emit/tr）
-  { id: 'pixelStyles', file: 'src/client/views/skillDetail/PixelStyles.js' },
+  { id: 'pixelStyles', file: 'src/client/views/skillDetail/PixelStyles.ts' },
   { id: 'feedbackStyles', file: 'src/client/views/feedback/feedback-styles.ts' }, // 948 交互反馈三批的视觉语言（样式叶子：一段 CSS 文本，经同一个 styles.insert 接缝注入；styles.js 已贴 350 行上限，照 #851 做法另起叶子）
-  { id: 'pixelContents', file: 'src/client/views/skillDetail/PixelContents.js' },
-  { id: 'pixelMarkdown', file: 'src/client/views/skillDetail/PixelMarkdown.js' },
-  { id: 'pixelSkillRow', file: 'src/client/views/skillDetail/PixelSkillRow.js' },
-  { id: 'pixelSkillList', file: 'src/client/views/skillDetail/PixelSkillList.js' },
-  { id: 'pixelSkillDetailModal', file: 'src/client/views/skillDetail/PixelSkillDetailModal.js' },
-  { id: 'pixelSkillOps', file: 'src/client/views/skillDetail/PixelSkillOps.js' }, // 888：详情取数（开合、阶段、缓存、重试），依赖宿主电话 skill.readDoc
+  { id: 'pixelContents', file: 'src/client/views/skillDetail/PixelContents.ts' },
+  { id: 'pixelMarkdown', file: 'src/client/views/skillDetail/PixelMarkdown.ts' },
+  { id: 'pixelSkillRow', file: 'src/client/views/skillDetail/PixelSkillRow.ts' },
+  { id: 'pixelSkillList', file: 'src/client/views/skillDetail/PixelSkillList.ts' },
+  { id: 'pixelSkillDetailModal', file: 'src/client/views/skillDetail/PixelSkillDetailModal.ts' },
+  { id: 'pixelSkillOps', file: 'src/client/views/skillDetail/PixelSkillOps.ts' }, // 888：详情取数（开合、阶段、缓存、重试），依赖宿主电话 skill.readDoc
   { id: 'checksTab', file: 'src/client/views/ChecksTab.ts' },
-  { id: 'SettingsWorkspaces', file: 'src/client/views/SettingsWorkspaces.js' },
+  { id: 'SettingsWorkspaces', file: 'src/client/views/SettingsWorkspaces.ts' },
   { id: 'diagnosticLogModel', file: 'src/client/views/diagnosticLog/diagnosticLogModel.ts' }, // 诊断日志的纯推演层：失败翻译、日期、开关选句（#597 那张表由此搬入，DebugSwitchFailHint.js 删档）
   { id: 'diagnosticLogActions', file: 'src/client/views/diagnosticLog/diagnosticLogActions.ts' }, // 诊断日志的不纯跑腿层：五个动作调宿主弹提示，世界全从参数进（原来设置页 toggleDbg 与 do 开头那一串）
   { id: 'diagnosticLogSection', file: 'src/client/views/diagnosticLog/DiagnosticLogSection.ts' }, // 诊断日志分组画法：抱住五个 useState，接好世界，画原来沉底那一组（原来设置页 194-220 行）
   { id: 'updateEntryHost', file: 'src/client/views/UpdateEntryHost.ts' }, // #876 更新入口挂载点：只挂包的入口件（含内部 dialog 面板），本仓不再自带按钮状态机与浮层弹窗
-  { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' }, // 真源是同名 .ts（调试分组搬走后转成 TS）：构建先转出同名 .js 产物再拼，登记产物这一支（与 SkillsTab.js 同例）
+  { id: 'settingsPage', file: 'src/client/views/SettingsPage.ts' }, // 真源是同名 .ts（调试分组搬走后转成 TS）：拼接缝自己转译，登记真源这一支（与 SkillsTab 同例）
   { id: 'runPanel', file: 'src/client/views/RunPanel.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
@@ -1202,7 +1202,10 @@ function buildVocabularySpliceInput(): void {
   try { code = esbuild.transformSync(combined, { ...TRANSPILE_OPTIONS, loader: 'ts' }).code }
   catch (e) { throw new Error('[moved-trees] 词汇表五份拼段转译失败：' + ((e as Error) && (e as Error).message || e)) }
   const normalized: string = code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
-  const outRel: string = 'src/tracker/contract/vocabulary.js'
+  // 落到 .tmp 而不是真源旁边：这份拼段只是「拼进客户端闭包」的中间输入，不是任何人的运行时模块，
+  // 放在 src/ 里会让源码树混进构建产物（src 只留 .ts 的手写代码）。.tmp 是构建自己的临时目录，不入库。
+  const outRel: string = '.tmp/vocabulary.client.js'
+  mkdirSync(resolve(ROOT, '.tmp'), { recursive: true })
   writeFileSync(resolve(ROOT, outRel), generatedHeader('vocabulary splice: ' + parts.join(' + ')) + inlineExportDeclarations(normalized, '[moved-trees]'), 'utf8')
   console.log(`[moved-trees] 词汇表五份拼段 -> ${outRel}（拼接输入就位）`)
 }
