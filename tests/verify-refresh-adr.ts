@@ -78,11 +78,14 @@ async function main() {
   // ③b 上面那句必须与代码当场对得上——去读那条门禁和它记的基线，不许只信文档。
   //   #1017 之前这里核的是「门禁只扫 .js、没把 refresh 纳进去」；换轨之后那句话反了过来：
   //   门禁确实读 .ts 了，所以这句话的对照组变成「超线的那份真的冻结在基线里」。
+  //   #1271 之后 chain.ts 的有效行降到 350 以内、按基线的「达标文件由各自拆分票移出」规则移出了，
+  //   所以这里接受两种真实状态：仍在基线里（数值型冻结值），或已达标移出（当前有效行不超过上限）。
   const granularity = fs.readFileSync(path.join(ROOT, 'tests', 'verify-file-granularity.ts'), 'utf8')
   const scansSrc = /const SRC = path\.join\(ROOT, 'src'\)/.test(granularity)
   const readsTs = /\.ts/.test(granularity) && granularity.indexOf('effective-lines') >= 0
   check(scansSrc && readsTs,
     '当场核一遍：tests/verify-file-granularity.ts 扫的确实是 src 那棵树，而且真的把 .ts 真源读进来（#1017 换轨后）')
+  const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
   const frozenRel = 'src/shared/refresh/src/chain.ts'
   let frozenAt = null
   let frozenMetric = null
@@ -91,8 +94,12 @@ async function main() {
     frozenMetric = baseline.metric
     frozenAt = (baseline.files || {})[frozenRel]
   } catch (e) { /* 读不到就是没冻结，下面那条断言会红 */ }
-  check(frozenMetric === 'effective-lines' && typeof frozenAt === 'number',
-    '当场核一遍：这条 ADR 点名的 chain.ts 真的按有效行冻结在零增长基线里（口径 effective-lines，冻结值 ' + frozenAt + '）')
+  const chainLines = countEffectiveLines(fs.readFileSync(path.join(ROOT, frozenRel), 'utf8'))
+  const frozenOrCompliant = frozenMetric === 'effective-lines'
+    && (typeof frozenAt === 'number' ? frozenAt >= chainLines : frozenAt === undefined && chainLines <= 350)
+  check(frozenOrCompliant,
+    '当场核一遍：这条 ADR 点名的 chain.ts 要么按有效行冻结在零增长基线里、要么已达标移出（口径 effective-lines，'
+    + (typeof frozenAt === 'number' ? '冻结值 ' + frozenAt : '基线里没有它，当前有效行 ' + chainLines + '，上限 350') + '）')
 
   // ④ 额度常量的落点与做法写全了。
   check(text.indexOf('只有一处物理真源') >= 0 && text.indexOf('src/shared/refresh/src/budget.ts') >= 0,
