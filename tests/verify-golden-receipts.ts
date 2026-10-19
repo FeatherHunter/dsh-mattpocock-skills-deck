@@ -215,6 +215,16 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   // registry.bind(handle, 'markdown')，绑定层已随 #1138 整段删掉。
   chooseWorkspace(rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1261：上报回执带工作路线在办表，基准钉死它——用同一份真实现（临时家目录 + 固定时钟），
+  // 不造假口。家目录是临时的：基准里只看回执，落盘路径不进回执，进了也会被 <ROOT> 归一之外的形状红掉。
+  const bindingsMod = await loadModule('../src/deck/shell/work-path-bindings.js') as { createWorkRouteBindings: (io: unknown) => { note: (i: unknown) => Promise<unknown>, read: (i: unknown) => unknown } }
+  const workPathHome = mkdtempSync(join(tmpdir(), 'golden-workpath-'))
+  const workRouteBindings = bindingsMod.createWorkRouteBindings({
+    homeDir: workPathHome, now: () => clock,
+    readFile: async (p: string) => { try { return readFileSync(p, 'utf8') } catch { return null } },
+    writeFile: async (p: string, c: string) => { mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, c, 'utf8') },
+    mkdir: async (dir: string) => { mkdirSync(dir, { recursive: true }) },
+  })
   const deps = {
     gate, registry, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
@@ -223,7 +233,8 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
     log: { fire: () => {} },
     now: () => clock,
     invalidate: () => {},
-    chainNote: async (input: { ticketKey?: unknown }) => ({ recorded: true, action: 'report', ticketKey: String(input.ticketKey || ''), reason: 'chain.record', count: 1 }),
+    workRouteNote: (input: unknown) => workRouteBindings.note(input),
+    workRouteRead: (input: unknown) => workRouteBindings.read(input),
     planStore: (() => { const table = new Map<string, unknown>(); return { durable: true, load(id: string): unknown { return table.get(String(id)) || null }, save(id: string, s: unknown): void { table.set(String(id), s) } } })(),
   }
   const exec = { agent: { session: { id: SESSION_ID, cwd: rootPosix } } }
@@ -241,7 +252,7 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   // 工作区钥匙由根算出来，读出来再归一（根变它就变，但归一后稳定）。
   const ctxOut = raw.deck_context as { workspace?: { key?: string } }
   const wsKey = (ctxOut && ctxOut.workspace && ctxOut.workspace.key) || ''
-  const cleanup = () => { try { rmSync(root, { recursive: true, force: true }) } catch { /* 忽略 */ } try { dispose.dispose() } catch { /* 忽略 */ } }
+  const cleanup = () => { try { rmSync(root, { recursive: true, force: true }) } catch { /* 忽略 */ } try { rmSync(workPathHome, { recursive: true, force: true }) } catch { /* 忽略 */ } try { dispose.dispose() } catch { /* 忽略 */ } }
   return { raw, rootPosix, rootWin, wsKey, cleanup }
 }
 

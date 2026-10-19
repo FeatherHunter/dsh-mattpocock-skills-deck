@@ -191,6 +191,22 @@ export interface DeckShellDeps {
   /** 算账函数的输入拼装（可选）：同样按 unknown 收，壳用之前验是不是函数，不是就退自带那份默认。 */
   costInputFrom?: unknown;
   noteGate?: (info: { phase: string; verdict: string; reason: string }) => unknown;
+  /**
+   * 工作路线记一笔（#1261，调用方是工具壳的成功收口）：缺席时跳过，不报错。
+   * 输入 `{ rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, action, source }`，
+   * 其中 rootKey 是 workspace.key（工作区键），落到哪一份文件由存储按 chainRootHash 换算；
+   * 输出 `{ ok: true, ticketKey, count }` 或 `{ ok: false, reason }`。
+   * 实现住在 work-path-store.ts，生产由宿主接线层绑定（家目录 + 真文件读写），
+   * 门禁绑定同一份实现（临时家目录 + 固定时钟），不造第二套。
+   */
+  workRouteNote?: (input: UnknownRecord) => Promise<unknown>;
+  /**
+   * 工作路线读一笔（#1261，与上面成对）：缺席时跳过，不报错。
+   * 输入 `{ sessionId, rootKey, at }`，输出 `{ ok: true, readout, summary } 或 { ok: false, reason }`，
+   * 其中 readout 是回执 data.workRoute 的对象，summary 是 notes 里那句摘要（没有在办时为 null）。
+   * 读出口本身是纯函数（见 work-path-readout.ts），不读盘不看钟，at 由壳按自己的时钟传进来。
+   */
+  workRouteRead?: (input: UnknownRecord) => Promise<unknown>;
   [key: string]: unknown;
 }
 

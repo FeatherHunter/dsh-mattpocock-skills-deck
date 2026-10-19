@@ -9,7 +9,8 @@
 // 本文件不 import 任何运行时的东西：闸、后端注册表、额度常量、算账函数都由接线方（或测试）从构造函数传进来。
 // 这不是洁癖 —— 额度常量住在 src/shared/refresh/budget.js，本层不该反向去取，所以只能由调用方取好传进来
 // （做法与宿主侧的 gate.js / ledger.js、纯函数层的 policy.ts / backoff.ts 一致）。
-// 唯一的 import 是 ./call-shell-types.js，而且是 `import type`：只借形状，运行时不留一条边。
+// 运行时 import 只有三处：./in-flight-lease.js（并发同票串行）、./work-path-record.js（#1261 成功收口记一笔）
+// 与中央超时的值；形状全部 `import type` 自 ./call-shell-types.js，只借形状，运行时不留边。
 // 为什么要拆出那份形状文件：这个文件补完类型标注之后有效行数到了 461，越过了「单文件 350 行」那条上限
 // （tests/verify-file-granularity.ts）。拆开的唯一原因就是那条上限，不是为了分层 —— 与同目录 rules/ 那几份的口径一致。
 //
@@ -39,6 +40,7 @@ import type {
   ShellSession, UnknownRecord, WaitSignal,
 } from './call-shell-types.js'
 import { withInFlightLease } from './in-flight-lease.js'
+import { noteWorkRoute } from './work-path-record.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
@@ -423,6 +425,10 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
     const failed = vRec ? (vRec.ok === false) : false
     fire(tool, ms, !failed, failed ? hash8(str(vRec && vRec.reason)) : '')
     noteGate('op', failed ? 'fail' : 'allow', failed ? str(vRec && vRec.reason) : '')
+    // #1261：上报成功收口处把这一次记进工作路线，并在合并信封之前把在办表与摘要带进回执。
+    if (!failed) {
+      await noteWorkRoute(d, tool, s, str(meta.pick.backendId), value)
+    }
     const out = envelope(tool, DECK_STATUS.OK, {
       workspace: { root: s.cwd, key: s.workspaceKey },
       backend: { id: meta.pick.backendId, source: meta.pick.source },

@@ -216,6 +216,15 @@ async function main() {
   chooseWorkspace(ws.rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id: string) { return t.get(String(id)) || null }, save(id: string, s: unknown) { t.set(String(id), s) } } })()
+  // #1261：工作路线用同一份真实现（临时家目录 + 固定时钟），上报回执的在办表形状由下面「二b」钉死。
+  const workRouteMod = await imp('src/deck/shell/work-path-bindings.ts') as { createWorkRouteBindings: (io: unknown) => { note: (i: unknown) => Promise<unknown>, read: (i: unknown) => unknown } }
+  const workPathHome = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-surface-workpath-'))
+  const workRouteBindings = workRouteMod.createWorkRouteBindings({
+    homeDir: workPathHome, now: () => clock,
+    readFile: async (p: string) => { try { return fs.readFileSync(p, 'utf8') } catch { return null } },
+    writeFile: async (p: string, c: string) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, c, 'utf8') },
+    mkdir: async (dir: string) => { fs.mkdirSync(dir, { recursive: true }) },
+  })
   const deps = {
     gate, registry, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
@@ -224,7 +233,8 @@ async function main() {
     log: { fire: () => {} },
     now: () => clock,
     invalidate: () => {},
-    chainNote: async () => ({ recorded: true, action: 'report', ticketKey: '', reason: 'chain.record', count: 1 }),
+    workRouteNote: (input: unknown) => workRouteBindings.note(input),
+    workRouteRead: (input: unknown) => workRouteBindings.read(input),
     planStore,
   }
   const exec = { agent: { session: { id: 's-1106', cwd: ws.rootPosix } } }
@@ -328,6 +338,20 @@ async function main() {
     check(!!(r && r.cost && r.cost.estimated && typeof r.cost.estimated.points === 'number' && typeof r.cost.estimated.requests === 'number'),
       name + ' 带回调用前的估算（' + JSON.stringify(r && r.cost && r.cost.estimated) + '）')
     check(!!(r && r.cost && r.cost.actual && typeof r.cost.actual.remaining === 'number'), name + ' 带回调用后的真实花费一格（' + JSON.stringify(r && r.cost && r.cost.actual) + '）')
+  }
+  {
+    // 二b、在办表（#1261）：上报成功才有 data.workRoute，失败上报没有这一格；原始会话 id 不进回执。
+    const got = await run('deck_issue_report', { key: '01' })
+    const wr = got.r && got.r.data && got.r.data.workRoute
+    check(!got.threw && got.r && got.r.status === 'ok' && !!wr, '上报成功回执带 data.workRoute（实得 ' + (got.threw || (got.r && got.r.status)) + '）')
+    const keys = wr && wr.entries && wr.entries[0] ? Object.keys(wr.entries[0]).sort().join(',') : ''
+    check(keys === 'action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title', '在办表每条正好八格（实得 ' + keys + '）')
+    check(!!(wr && wr.entries.some((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1' && e.action === 'report' && e.source === 'reported' && e.currentSession === true)), '在办表里有刚上报的票（动作 report、来源 reported、当前会话）')
+    check(!!(wr && typeof wr.at === 'string' && typeof wr.staleCount === 'number' && wr.collisions === undefined), '在办表有 at 与 staleCount、单会话无 collisions 键')
+    check(!!(got.r && (got.r.notes || []).some((n: string) => n.indexOf('工作路线摘要') === 0)), 'notes 带工作路线摘要')
+    check(JSON.stringify(got.r).indexOf('s-1106') < 0, '回执全文没有原始会话 id（s-1106 只进盘，不进回执）')
+    const failed = await run('deck_issue_report', { key: '999999' })
+    check(!failed.threw && failed.r && failed.r.status === 'unsupported' && !(failed.r.data && failed.r.data.workRoute), '失败上报没有 data.workRoute（这一格只属于成功的上报）')
   }
   {
     // 失败那一侧：还没走到选后端就失败的回执是 6 格；走到之后的失败回执是 14 格。别的形状一律算破。
@@ -564,6 +588,7 @@ async function main() {
     } finally { disposeRec.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
   }
 
+  try { fs.rmSync(workPathHome, { recursive: true, force: true }) } catch (e) {}
   ws.cleanup()
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   // 显式收工，同 tests/verify-deck-tools.js 与金标准回执那两扇。原因是本门禁真的走调用链：

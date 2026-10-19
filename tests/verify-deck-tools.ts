@@ -75,6 +75,10 @@ async function main() {
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
   const planMod = await imp('src/deck/shell/minimal-spec.ts')
   const shellMod = await imp('src/deck/shell/call-shell.ts')
+  // #1261：工作路线用同一份真实现（临时家目录 + 固定时钟），门禁用假口会把「记没记上」变成自证——
+  // 记一笔真落盘、读一笔真读盘，断言直接看盘上的文件与回执。
+  const workRouteMod = await imp('src/deck/shell/work-path-bindings.ts')
+  const chainMod = await imp('src/shared/refresh/chain.js')
   // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上，否则下面这些正例一条都跑不到真实路径。
@@ -103,7 +107,13 @@ async function main() {
   }
 
   const invalidated = []
-  const chainNotes = []
+  const workPathHome = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-workpath-'))
+  const workRouteBindings = workRouteMod.createWorkRouteBindings({
+    homeDir: workPathHome, now: () => clock,
+    readFile: (p) => fs.promises.readFile(p, 'utf8').then((t) => t, () => null),
+    writeFile: (p, t) => fs.promises.writeFile(p, t, 'utf8'),
+    mkdir: (dir) => fs.promises.mkdir(dir, { recursive: true }),
+  })
   const planStore = (() => {
     const table = new Map()
     return { durable: true, load(id) { return table.get(String(id)) || null }, save(id, s) { table.set(String(id), s) } }
@@ -116,7 +126,8 @@ async function main() {
     log: { fire: (level, event, fields) => logs.push({ level: level, event: event, fields: fields }) },
     now: () => clock,
     invalidate: (info) => invalidated.push(info),
-    chainNote: async (input) => { chainNotes.push(input); return { recorded: true, action: 'report', ticketKey: String(input.ticketKey || ''), reason: 'chain.record', count: 1 } },
+    workRouteNote: (input) => workRouteBindings.note(input),
+    workRouteRead: (input) => workRouteBindings.read(input),
     planStore: planStore,
   }
   const exec = { agent: { session: { id: 's-713', cwd: ws.rootPosix } } }
@@ -267,15 +278,40 @@ async function main() {
     check(nothing.ok === false && nothing.reason === 'bad-args', 'deck_issue_patch 负向：什么都没点名 → bad-args，不抛')
   }
 
-  // ── ⑦b deck_issue_report：主动上报进同一份链（正例 + 负向） ──
+  // ── ⑦b deck_issue_report：上报成功收口记进工作路线（正例 + 负向） ──
   {
     const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理' })
     const normCreated = String(createdKey).replace(/^0+(?=\d)/, '')
     check(envelopeOk(r) && r.status === 'ok' && r.data && String(r.data.key).replace(/^0+(?=\d)/, '') === normCreated, 'deck_issue_report 正例：上报成了（票 ' + createdKey + '，实得 ' + (r && r.status) + '）')
-    check(r.data && r.data.chain && r.data.chain.recorded === true && r.data.chain.reason === 'chain.record', 'deck_issue_report 写进同一份链（动作 report，去重沿用 mergeEntries）：' + JSON.stringify(r.data && r.data.chain))
-    check(chainNotes.length >= 1 && String(chainNotes[chainNotes.length - 1].ticketKey).replace(/^0+(?=\d)/, '') === normCreated && chainNotes[chainNotes.length - 1].tool === 'deck_issue_report', '记链口收到同一张票（tool=deck_issue_report，票 ' + createdKey + '）')
+    // #1261：成功收口处记一笔（动作 report、来源 reported），回执里带在办表、notes 末尾带摘要。
+    const wr = r.data && r.data.workRoute
+    check(wr && typeof wr.at === 'string' && Array.isArray(wr.entries) && wr.entries.length === 1, 'deck_issue_report 回执带工作路线在办表（1 条，实得 ' + JSON.stringify(wr && wr.entries && wr.entries.length) + '）')
+    const e0 = wr && wr.entries && wr.entries[0]
+    check(e0 && String(e0.ticketKey).replace(/^0+(?=\d)/, '') === normCreated && e0.action === 'report' && e0.source === 'reported' && e0.active === true && e0.currentSession === true, '在办表这一条是刚上报的票（动作 report、来源 reported、现办、当前会话）：' + JSON.stringify(e0))
+    check(e0 && typeof e0.sessionLabel === 'string' && e0.sessionLabel.indexOf('会话 ') === 0, '会话只露标签不露原始 id（实得 ' + (e0 && e0.sessionLabel) + '）')
+    check(wr && wr.collisions === undefined && typeof wr.staleCount === 'number', '单条无撞单（collisions 键不出现，staleCount 在）')
+    check((r.notes || []).some((n) => String(n).indexOf('工作路线摘要 · 本工作区在办 1 条') === 0), 'notes 末尾带工作路线摘要：' + JSON.stringify(r.notes))
+    check(JSON.stringify(r).indexOf('s-713') < 0, '回执全文没有原始会话 id（s-713 只进盘，不进回执）')
+    // 盘上是同一份：v3 形状、同一张票、原始会话 id 在盘上（回执里只有标签）。
+    const wsKey = r.workspace && r.workspace.key
+    check(typeof wsKey === 'string' && wsKey, '回执带工作区钥匙（落哪一份文件由它定）')
+    const diskFile = workPathHome + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(wsKey) + '.json'
+    const before = fs.readFileSync(diskFile, 'utf8')
+    const disk = JSON.parse(before)
+    check(disk && disk.v === 3 && Array.isArray(disk.workers) && disk.workers.length === 1, '盘上是 v3 形状（一份账、一个会话页）')
+    const row = disk.workers[0].entries[0]
+    check(row && String(row.ticketKey).replace(/^0+(?=\d)/, '') === normCreated && disk.workers[0].session === 's-713', '盘上是同一张票 + 原始会话 id：' + JSON.stringify(row))
+    // 只读调用不碰盘：读一张票，盘上文件一字不动。
+    await callTool('deck_issue_get', { key: createdKey })
+    check(fs.readFileSync(diskFile, 'utf8') === before, '只读调用不碰盘（文件内容一字不动）')
+    // 紧接着第二次调用：同一张票只留一条（去重后来居上），回执与盘上一致。
+    const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理' })
+    check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 1, '第二次上报同一张票：在办表还是 1 条（去重）')
+    const after2 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
+    check(after2.workers[0].entries.length === 1 && String(after2.workers[0].entries[0].ticketKey).replace(/^0+(?=\d)/, '') === normCreated, '第二次上报：盘上还是同一条（去重）')
     const bad = await callTool('deck_issue_report', { key: '999999' })
     check(envelopeOk(bad) && bad.ok === false && bad.status === 'unsupported', 'deck_issue_report 负向：票不存在 → ok:false / unsupported（实得 ' + (bad && bad.status) + '）')
+    check(!bad.data || !bad.data.workRoute, '失败回执不带在办表（这一格只属于成功的上报）')
     const noArgs = await callTool('deck_issue_report', {})
     check(noArgs.ok === false && noArgs.reason === 'bad-args', 'deck_issue_report 负向：不给票号 → bad-args，不抛')
   }
@@ -428,6 +464,7 @@ async function main() {
   }
 
   ws.cleanup()
+  try { fs.rmSync(workPathHome, { recursive: true, force: true }) } catch (e) {}
   try { dispose.dispose() } catch (e) {}
   console.log('\n' + (failed ? '存在失败' : '全部通过 — 九个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
   process.exit(failed ? 1 : 0)

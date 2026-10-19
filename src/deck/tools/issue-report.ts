@@ -4,16 +4,16 @@
 // 与被动推断互补；在原来展示工作路线的地方能看到；三后端诚实失败。
 //
 // 薄壳四条照旧（shell.js）：过闸、走注册表选后端、只从会话取工作区、永不抛。
-// 链写入同一份 workRoute（wiring.js 经 chainNote 递进来），动作类别 report，
-// 去重与留存沿用 chain.js 的 mergeEntries（每会话 20 张、时间倒序、去重）。
-// 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记链。
+// 工作路线由工具壳在成功收口处统一记（#1261：壳调 workRouteNote，动作类别 report，
+// 来源 reported；去重键是 (会话, 票)，同一会话同一票后来居上）。本工具自己不再记。
+// 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记路线。
 // 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -57,21 +57,6 @@ export interface DeckIssueReportDeps {
   sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
   /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
   now?: () => number
-  /** 记链出口：宿主把「AI 主动上报」这一笔记进会话的工作路线。回包是一张表（记没记上、为什么、这格几张）；
-   *  宿主自己的 try/catch 兜住时回 null，所以「没有」这一支也收下，超时与失败都按没记进走老路。 */
-  chainNote?: (arg: {
-    sessionId: string | undefined
-    rootKey: string | undefined
-    backend: string
-    tool: string
-    source: string
-    tier: string
-    reason: string
-    verb: string
-    ticketKey: string
-    effortId: string
-    args: { key: string }
-  }) => Promise<Record<string, unknown> | null | undefined> | null
 }
 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
@@ -153,7 +138,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       const opCtx = sc.opCtx
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
-      if (note) notes.push('备注只回显，不进链（链上每条只留票键、时间与动作类别）。')
+      if (note) notes.push('备注只回显，不记进工作路线（路线上每条只留票键、时间与动作类别）。')
       const got = typeof t.get === 'function' ? await t.get(repo, key, { comments: { first: 0 } }, opCtx) : null
       const gotTimeout = timeoutMessage(got as TransportResult)
       if (gotTimeout) return {
@@ -182,34 +167,16 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
         }
       }
       const issue = got.data || {}
-      let chain = { recorded: false, reason: '', count: 0 }
-      try {
-        if (typeof d.chainNote === 'function') {
-          const chainEffort = (issue && typeof issue.effortId === 'string' && issue.effortId) ? String(issue.effortId) : effortId
-          // 记链加竞速：超时按没记进走老路（被动推断仍会记），与既有 not-recorded 同形。
-          const raced = await withCap(d.chainNote({
-            sessionId: s.sessionId, rootKey: s.cwd, backend: pick.backendId,
-            tool: 'deck_issue_report', source: 'tool-args', tier: 'write-confirmed',
-            reason: 'tool.deck-write', verb: 'report', ticketKey: key, effortId: chainEffort, args: { key: key },
-          }), DECK_HOOK_TIMEOUT_MS)
-          const r = (raced && raced.ok === true) ? raced.value : null
-          if (r && typeof r === 'object') chain = { recorded: !!r.recorded, reason: String(r.reason || ''), count: Number(r.count || 0) }
-          // timedOut 只在「等超时」那一支上有：编译器认不出这里只可能是那一支，断言收口，取到的值一字不变。
-          else chain = { recorded: false, reason: (raced && (raced as { timedOut?: true }).timedOut) ? 'chain-note-timeout' : 'no-chain-note', count: 0 }
-        } else {
-          chain = { recorded: false, reason: 'no-chain-note', count: 0 }
-        }
-      } catch (e) { chain = { recorded: false, reason: 'chain-note-threw', count: 0 } }
-      if (!chain.recorded) notes.push('这次没显式记进链（' + (chain.reason || '没给记链的口子') + '）：被动推断那一路仍会按参数里的票号记一次，去重后同一张票只留一条。')
+      // 工作路线由工具壳在成功收口处统一记（#1261：动作 report、来源 reported），本工具不再显式记。
       const title = typeof issue.title === 'string' ? issue.title.slice(0, 80) : ''
       return {
         value: {
           status: DECK_STATUS.OK,
-          text: '票 ' + key + ' 已上报（' + (title || '没取到标题') + '）' + (note ? '：' + note.slice(0, 80) : '') + '。' + (chain.recorded ? '链上能看到（这格现在 ' + chain.count + ' 张）。' : '链上看不看得到以展示面读数为准。'),
+          text: '票 ' + key + ' 已上报（' + (title || '没取到标题') + '）' + (note ? '：' + note.slice(0, 80) : '') + '。在办表见回执 data.workRoute。',
           data: {
             key: key, title: title, state: issue.state || '', url: issue.url || '',
             backendId: pick.backendId, effortId: effortId || (issue.effortId !== undefined ? issue.effortId : ''),
-            chain: chain, note: note,
+            note: note,
           },
           notes: notes,
           touched: [],

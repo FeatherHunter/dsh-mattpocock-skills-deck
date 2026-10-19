@@ -26,6 +26,8 @@ import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/reg
 // #1150：批量建图的计划游标（中间态）要真落盘，存储器在这里造、随工具依赖注入。落盘目录与文件名约定
 // 都住在 plan-cursor.ts 里（planCursorDir / createFilePlanStore），不在这里另写一份。
 import { createFilePlanStore, planCursorDir } from '../../deck/shell/plan-cursor.js'
+// #1261：工作路线的新落盘（每个工作区一份 <根散列>.json）与读出口，两支合在一起从这里递进工具依赖。
+import { createWorkRouteBindings } from '../../deck/shell/work-path-bindings.js'
 // #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
 import { hostTimers } from '../../shared/host-timer/host-timers.js'
 // #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）由宿主实现、随进程注入一次，房间只认形状、
@@ -402,6 +404,23 @@ export function createRefreshWiring(deps: any): any {
             })
           } catch (e: any) { return null }
         }
+        // #1261：工作路线的新落盘装配（进程启动时装一次，按工作区分账天然多工作区安全）。
+        // 家目录问平台层（与 choiceStore 同一处来）；文件读写走 Node 原生 fs（动态引入，类型包被挡在门外，
+        // 与 platformChannel.ts 那两处 node 引入同一写法）。问不到家目录就给空串——此时每笔记都会在
+        // 回执备注里如实写「没落上」，不静默丢。旧链（上面 chainNote 那条）继续服务被动推断那一路，退役归 #1083。
+        let workRouteBindings: any = null
+        try {
+          // @ts-expect-error
+          const fsPromises: any = await import('node:fs/promises')
+          let workPathHome = ''
+          try { if (platform && typeof (platform as any).getHome === 'function') workPathHome = String(await (platform as any).getHome() || '') } catch (eH: any) {}
+          workRouteBindings = createWorkRouteBindings({
+            homeDir: workPathHome, now: Date.now,
+            readFile: function (p: any): any { try { return Promise.resolve(fsPromises.readFile(String(p), 'utf8')).then(function (t: any) { return t }, function () { return null }) } catch (eR: any) { return Promise.resolve(null) } },
+            writeFile: function (p: any, t: any): any { return fsPromises.writeFile(String(p), String(t), 'utf8') },
+            mkdir: function (dir: any): any { return fsPromises.mkdir(String(dir), { recursive: true }) },
+          })
+        } catch (eW: any) {}
         const built: any = createDeckToolsForHost({
           gate: gate,
           registry: registry,
@@ -428,6 +447,9 @@ export function createRefreshWiring(deps: any): any {
           resolveTimeoutMs: SHELL_RESOLVE_TIMEOUT_MS,
           invalidate: function (info: any): void { try { const root: any = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e: any) {} },
           onTicketCreated: onDeckWrite, chainNote: function (input: any): any { try { return workRoute.note(input) } catch (e: any) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
+          // #1261：上报成功收口记一笔 + 读在办表（壳经这两支调到；装配失败时给没落上的诚实回执，不静默跳过）。
+          workRouteNote: function (input: any): any { try { return workRouteBindings ? workRouteBindings.note(input) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
+          workRouteRead: function (input: any): any { try { return workRouteBindings ? workRouteBindings.read(input) : { ok: false, reason: 'no-store' } } catch (e: any) { return { ok: false, reason: 'read-failed' } } },
           hourUsage: function (): any { try { return ledger.hourOf('ai-tool') || {} } catch (e: any) { return {} } },
           ensureReading: function (cwd: any, workspaceKey: any): Promise<any> { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
           noteGate: function (info: any): void { try { noteDeckGate(info) } catch (eN: any) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见
