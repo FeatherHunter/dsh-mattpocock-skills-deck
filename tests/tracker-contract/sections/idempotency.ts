@@ -425,9 +425,9 @@ export async function run() {
       const text1 = files1.length === 1 ? fx.readTicket(files1[0]) : ''
       const mtime1 = files1.length === 1 ? fx.readTicketMtime(files1[0]) : 0
       await assert('真实 markdown：第一次带锚建票成功', r1.ok === true && !!r1.data.key, JSON.stringify(r1).slice(0, 300))
-      // 文件名由题意里的 slugify 生成，它只保留 a-z0-9 与连字符，所以中文标题的文件名部分是 untitled
-      // （这是本仓库既有行为，与锚无关）。这里断言的是「盘上确实多了这一张」，不去碰文件名规则。
-      await assert('真实 markdown：盘上多出一张票文件（编号 01）', files1.length === 1 && files1[0] === '01-untitled.md', JSON.stringify(files1))
+      // 文件名由题意里的 slugify 生成：中文标题现在保留中文字符（#1277 起；之前会删光回落 untitled），
+      // 所以这里断言的是「盘上确实多了这一张」以及中文标题不再变成 untitled，不去钉更多文件名细节。
+      await assert('真实 markdown：盘上多出一张票文件（编号 01、中文标题保留）', files1.length === 1 && /^01-.+\.md$/.test(files1[0]) && files1[0] !== '01-untitled.md', JSON.stringify(files1))
       await assert('真实 markdown：把票文件直接读出来，锚就在文件里（回查读的是文件，不是内存）', idempotencyKeyOf(text1) === key, '文件开头是 ' + JSON.stringify(text1.slice(0, 80)))
       await assert('真实 markdown：锚是文件的第一行（手改正文的人看得见它）', text1.split('\n')[0] === anchorLineFor(key).trim(), JSON.stringify(text1.split('\n')[0]))
 

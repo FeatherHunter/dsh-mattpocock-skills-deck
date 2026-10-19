@@ -17,8 +17,18 @@ export interface ParseMeta {
   url?: string
 }
 
+// 标题转文件名后缀。保留各语言的字母与数字：中文标题过去会被整串删光、只剩 `untitled`
+// （#1280 验收要求本地不能落成 `01-untitled.md`，本票 #1277 修）。空白与标点压成连字符，
+// 过长截到 40 个字符，首尾不留连字符，空串才回落 untitled。
 function slugify(s: unknown): string {
-  return String(s || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]+/g, '-').replace(/\-+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'untitled'
+  const base = String(s || '').trim().toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}\-]+/gu, '-')
+    .replace(/\-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, '')
+  return base || 'untitled'
 }
 
 // 票里只写标签名（#312 定版）：颜色由读这份票的人按工作区里的配色文件与内置默认色算出来，

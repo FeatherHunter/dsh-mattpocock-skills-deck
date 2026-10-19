@@ -164,6 +164,15 @@ async function main(): Promise<void> {
   })
   check(!!(createdTask && createdTask.ok && createdTask.data.type === 'issue'), '任务票行为不变', createdTask && createdTask.ok && createdTask.data.type)
 
+  const createdChinese = await createIssue(ctx, repo, {
+    title: '中文标题的规格票', body: '## 问题陈述\n\n中文标题也要有像样的文件名。', status: 'ready-for-agent',
+    type: 'spec', parentKey: '00', idempotencyKey: 'spec-1277-zh',
+  })
+  check(!!(createdChinese && createdChinese.ok), '中文标题能建规格票', createdChinese && createdChinese.error)
+  const zhFileName = fs.readdirSync(issuesDir).find((f: string) => /^\d+-/.test(f) && fs.readFileSync(path.join(issuesDir, f), 'utf8').indexOf('spec-1277-zh') >= 0)
+  check(!!zhFileName && /^\d+-中文标题的规格票\.md$/.test(String(zhFileName)),
+    '中文标题保留中文、不落成 NN-untitled.md（#1280 验收）', zhFileName)
+
   console.log('\n== ④ 整份替换正文：盘上的标记搬回、丢标记判坏 ==')
   {
     const wholeIncoming = [

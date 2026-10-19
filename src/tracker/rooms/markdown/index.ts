@@ -163,8 +163,8 @@ export function describe(handle: RepoHandle, backendId: string = 'markdown'): Re
  *
  *  本地 Markdown 后端**算不出**一张票的地址，所以这里回空串，不再按编号拼一个文件名。
  *  为什么算不出：在本后端里一张票就是工作区里的一个文件，文件名是「编号-标题转出来的后缀.md」，
- *  而标题转后缀会把中文等非 ASCII 字符全部删掉、删空了回落 untitled（parse.ts 顶上的 slugify）。
- *  于是同一个编号在盘上可能叫 01-hello-world.md、也可能叫 01-untitled.md —— 光凭引用与编号谁也算不出真名字。
+ *  而后缀只由标题决定（中文现在会保留中文，#1277 修了把非 ASCII 删光回落 untitled 的旧写法），
+ *  光凭引用与编号谁也算不出后缀 —— 盘上可能叫 01-hello-world.md、也可能叫 01-中文标题.md。
  *  真正知道地址的只有读写这个文件的那一层：#1142 起它把地址随票一起交出来（票的 url 字段，
  *  见 issues-locate.ts 的 loadIssueFromFile 与 parse.ts 的 url）。所以「一张票的地址」读票上的 url 就够了，
  *  本函数不是票地址的第二真源。
