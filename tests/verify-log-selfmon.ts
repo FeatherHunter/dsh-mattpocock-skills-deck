@@ -13,6 +13,11 @@ const { printGateResult } = require('./lib/gate-result.ts')
 const { pathToFileURL } = require('url')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（tests/lib/source-text.ts）：这一阶段 src/client 下的同名 .js 构建产物已经删掉，
+//   按 'src/client/kernel/log.js' 直接 fs.readFileSync 会 ENOENT。spliceableJs 按构建唯一口径
+//   把 .ts 真源转成可拼接的 JavaScript（中央时间 import 行、行首 export 都已经处理好），
+//   下面几段 compileFn 拼函数体的读法一行不用改。
+const { spliceableJs } = require('./lib/source-text.ts')
 // 中央时间真值：看门狗阈值只住 config/*.yaml，这里读同一份导出来比对，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 // 日志模块顶部那一行中央 import 在 compileFn 函数体里是非法的（函数体不许出现 import），
@@ -38,7 +43,8 @@ const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 console.log('日志自监控门禁（#499：五类故障逐类有行，看门狗 5 秒自举证）')
 
 // 客户端日志内核的真源码文本：第十～十二段把它抠出来配上假零件跑（不是拿它比对写法）。
-const logSrc = readSrc(path.join('src', 'client', 'kernel', 'log.js'))
+//   取源见上面的说明：spliceableJs 已经把中央 import 与行首 export 处理掉，下面两处再剥一遍是幂等的空操作。
+const logSrc = spliceableJs('src/client/kernel/log.js')
 
 // 一～七段静态扫描已按维护者要求删除（原来读六份手写源码文本，钉事件名、级别、字段键、常量值、
 // 变量名与「某行不带开关判断」这些写法）。下面只剩附录那一面与运行时复现。

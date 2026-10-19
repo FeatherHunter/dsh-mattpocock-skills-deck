@@ -43,8 +43,8 @@ import { createServer } from 'node:http'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
 // #1251：icons.js / headFold.js 手写真源已删，真源是同名 .ts —— 文本扫描走 sourceText 取原文，
-//   求值走 spliceableJs（同一份构建口径先转译，vm 只吃纯 JS）。
-import { sourceText, spliceableJs } from './lib/source-text.js'
+//   求值走 spliceableJs（同一份构建口径先转译，vm 只吃纯 JS），存在性判断走 sourcePath。
+import { sourcePath, sourceText, spliceableJs } from './lib/source-text.js'
 // 页面求值回调里出现的 window 只是浏览器侧的全局名，门禁进程里并没有它；这里声明成任意值，
 // 运行时与原来一样（这些回调只被序列化送进页面执行，从不在门禁进程里取值）。
 declare const window: any
@@ -57,11 +57,15 @@ function check(cond: unknown, msg: string): void { if (cond) ok(msg); else bad(m
 // ICONS 留着：只用来从真源里取出罗盘那几笔，喂给浏览器里的反证（D 组插回旧品牌时要照它画图形）——
 //   这是「读源码文本当输入」，不是断言源码文本。原先还读 Dock.js / StatusBar.js / router.js /
 //   panelAssembly.js / SettingsPage.js 的源码文本做断言，那两段已整段删除（见文件头与下面的【已删除】）。
+// ICONS 现在只是真源 .ts 的文件名（同名 .js 构建产物已随本次迁移删除），所以不能再拿 existsSync
+//   去问 .js 在不在 —— 那样会把「真源已经迁到 .ts」误报成「读不到」。改用 sourcePath 判它今天住在哪。
 const ICONS = 'src/client/kernel/icons.js'
 const ARTIFACTS = ['client.js', 'package/lib/client.js']
 
 const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
-const missing = [ICONS, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
+let iconsOk = true
+try { sourcePath(ICONS) } catch (e) { iconsOk = false }
+const missing = [...(iconsOk ? [] : [ICONS]), ...ARTIFACTS.filter((rel) => !existsSync(resolve(rel)))]
 for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mts 重建产物）' : ''))
 
 console.log('=== #667 面板头部不再有品牌图标与文字（状态胶囊栏与标签页名字照旧）===')

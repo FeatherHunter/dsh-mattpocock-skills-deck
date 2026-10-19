@@ -19,10 +19,13 @@ const path = require('path')
 // 2026-10-17 先修两处装载口径：
 //   ① eval-probe 与 source-text 在盘上都只有 .ts，写 .js 时靠装载钩子改指；明写 .ts 后挂钩子与
 //      不挂钩子两种跑法都活（先例 tests/verify-rest-fallback-reason.ts）。
-//   ② 词条片段改走共用取源入口读源码，不直读磁盘上那两份 .js。今天两种写法等价（它们还是手写
-//      .js），等它们转 .ts 那天，直读会读到构建产物里被改成双引号的文本而假红。
+//   ② 词条片段改走共用取源入口读源码，不直读磁盘上那两份 .js：它们已经转成 .ts，旁边的 .js 是
+//      构建产物（字符串被改成双引号），直读会让下面按单引号形状扫词条的断言假红。
 const { compileFn } = require('./lib/eval-probe.ts')
-const { sourceText } = require('./lib/source-text.ts')
+// 取源走共用入口（tests/lib/source-text.ts）：sourceText 读原文，给按词条形状扫描的断言用；
+// 要拼进函数体当场求值的那一片走 spliceableJs —— 它按构建唯一口径把真源转成可拼接的 JavaScript，
+// 不再直读旁边那份 .js 产物（产物没重建时会停在旧文本上）。
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 // 中央时间真值：过期阈值只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.REST_FALLBACK_STALE_MS = centralTime.REST_FALLBACK_STALE_MS
@@ -35,7 +38,8 @@ const check = function (cond, msg) {
 }
 
 // ── 一、纯函数行为 ──
-const tsrc = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/truthLines.js'), 'utf8')
+// truthLines 的真源就在同名的 .ts 里（旁边 .js 是构建产物）：按构建口径转译后再求值，量到的才是真源码。
+const tsrc = spliceableJs('src/client/views/shared/truthLines.js')
 let mod = null
 try {
   const body = tsrc.replace(/^[ \t]*export[ \t]+/gm, '').split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')

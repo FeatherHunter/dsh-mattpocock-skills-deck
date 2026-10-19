@@ -32,7 +32,11 @@ const read = (rel) => {
 }
 
 const LEAF = 'src/client/statusbar/SessionChainCapsule.js'
-if (!existsSync(resolve(ROOT, LEAF))) { console.log('缺文件 ' + LEAF); process.exit(1) }
+// src/client 下的同名 .js 是构建产物（这一阶段要删），真源住在同名 .ts 里：先问取源入口它今天在哪一份。
+//   两种扩展名都不存在时 sourcePath 会抛错，这里接住并照原来的样子报「缺文件」退出，不让异常栈代替提示。
+let leafPath = ''
+try { leafPath = resolve(ROOT, sourcePath(LEAF)) } catch (e) { leafPath = '' }
+if (!leafPath || !existsSync(leafPath)) { console.log('缺文件 ' + LEAF); process.exit(1) }
 
 // 在办表的真叶子（动作词条键、时钟与取数）：胶囊拼闭包时 ambient 的那三个名字就指它。
 const tableLeaf = (function () {

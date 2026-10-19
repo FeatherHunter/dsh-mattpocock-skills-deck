@@ -19,6 +19,9 @@ import { pathToFileURL, fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// 取源走共用入口（tests/lib/source-text.ts）：按构建唯一口径把真源转成可拼接的 JavaScript，
+// 不再直读旁边那份 .js 产物 —— 产物可能没重建，门禁量到的会不是真正拼进产物的源码。
+import { spliceableJs } from './lib/source-text.ts'
 // 身份函数是全标注 TypeScript，沙箱跑裸 JS：转译口径取仓库唯一那一份
 // （scripts/lib/transpile-unit.mts，手法照 tests/verify-deck-tools-row-zero-dep.ts）。
 import esbuild from 'esbuild'
@@ -61,9 +64,11 @@ const inner = composed.snapshot
 })
 const snapshot = { ok: true, maps: inner.maps, issues: [], labels: inner.labels || [], selection: { backendId: 'markdown' } }
 
-// ---------- 从面板源码里原文截出函数 ----------
-const rowSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTabRow.js'), 'utf8')
-const derivedSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/store-derived.js'), 'utf8')
+// ---------- 从面板真源里原文截出函数 ----------
+// 视图与内核这两片都已有同名 .ts 真源（旁边 .js 是构建产物），所以走共用入口按构建口径转译；
+// 参数继续写 .js 说明符，由共用入口按「同名 .ts 优先」解析到真源。
+const rowSrc = spliceableJs('src/client/views/ListTabRow.js')
+const derivedSrc = spliceableJs('src/client/kernel/store-derived.js')
 const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/kernel/identity-keys.ts'), 'utf8')
 
 function extractConst(src, name) {

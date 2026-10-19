@@ -68,8 +68,10 @@ const { pathToFileURL } = require('url')
 const { spawnSync } = require('child_process')
 const realFs = require('node:fs/promises')
 const { compileFn, evalInWindow } = require('./lib/eval-probe.js')
-// 手写真源按「同名 .ts 优先」解析（tests/lib/source-text.ts）；要读产物时才直接写 .js 路径。
-const { sourcePath } = require('./lib/source-text.ts')
+// 取源走共用入口（tests/lib/source-text.ts）：sourcePath 按「同名 .ts 优先」解到手写真源（数行数与静态检查用）；
+// spliceableJs 按构建唯一口径把真源转成可拼接的 JavaScript（拼进 compileFn 当场求值的那几片用）。
+// 要读构建产物时才直接写 .js 路径（client.js / package/lib/client.js / 生成的派生文件）。
+const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
 // 第十九件事要真跑一遍设置页：在开了 runScripts 的 jsdom 窗口里跑打包产物、用真 React 挂载真组件，
 //   与 tests/verify-log-switch-597.js 同一套手法（那一份是现成的样板，本门禁照抄它的桩形状）。
 const { JSDOM } = require('jsdom')
@@ -91,16 +93,16 @@ const readText = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 
 // 行数口径与 tests/verify-file-granularity.ts 的 LIMIT=350 共用同一份实现（scripts/lib/effective-lines.mts）：
 //   #1017 起两条门禁都按**有效行**算（注释与空行不计）。此前这里数的是总行数，同一条尺子两处两种算法，
 //   一份文件多写几行注释就会两边给出不同的数；现在统一成有效行，注释随便写，只有真内容增长才算增长。
-const countLines = (rel: string): number => countEffectiveLines(readText(rel))
+//   取源走 sourcePath：同名 .js 今天是构建产物，按「同名 .ts 优先」解到手写真源，量行数才不受转译排版影响。
+const countLines = (rel: string): number => countEffectiveLines(readText(sourcePath(rel)))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// 派生产物是模块级文本（带行首 export），整份塞进函数体前要先去掉那些 export 关键字。
+const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-dbg-' + tag + '-'))
 const settingsPathIn = (home) => path.join(home, '.dsh', 'mattskillsdeck', 'settings.yaml')
-const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
 // 中央时间真值：写那一片的防抖窗从中央引用，门禁求值时走全局预埋（值就是中央导出的同一份）。
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.VIEW_FLAG_WRITE_DEBOUNCE_MS = centralTime.VIEW_FLAG_WRITE_DEBOUNCE_MS
-// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供）。
-const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 // 真的文件读写口（核要的那四个动作），门禁里读写落在临时目录的真文件上。
 const realIo = {
@@ -180,7 +182,10 @@ const LOG_REL = 'src/client/kernel/log.js'
 const INDEX_REL = 'src/client/index.ts' // #1254：入口真源转写为 .ts
 const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsDebugLegacy: settingsDebugLegacy, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
 function makeClient(env) {
-  const body = [noExport(readText(DERIVED_REL)), noExport(readText(STATE_REL)), noExport(readText(VIEW_REL)), noExport(stripTimeConfigImport(readText(WRITE_REL))), noExport(readText(DEBUG_REL))].join('\n')
+  // 设置文档三片与 debug 这一片都已有同名 .ts 真源（旁边 .js 是构建产物），取源走共用入口的 spliceableJs：
+  // 它按构建唯一口径转译、去掉行首 export、剥掉中央时间 import，拼出来就是真正进产物的那段代码。
+  // logKernel.derived.js 是纯派生产物、没有手写真源，继续直接读。
+  const body = [noExport(readText(DERIVED_REL)), spliceableJs(STATE_REL), spliceableJs(VIEW_REL), spliceableJs(WRITE_REL), spliceableJs(DEBUG_REL)].join('\n')
   const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash', 'SETTINGS_DEBUG_PUSH_WAIT_MS']
   return compileFn(names, body + TAIL).apply(null, names.map((n) => env[n]))
 }
@@ -758,7 +763,8 @@ async function main(): Promise<void> {
     //   重推在产品里到不了）。这里先钉一句静态的：设置页挂载那一趟确实留了口子。
     //   重推口子搬家（调试分组收进 views/diagnosticLog/DiagnosticLogSection.ts）：口子还在设置页的渲染树里
     //   （设置页挂载分组，分组挂载那一趟跑口子），静态检查跟到新家，意图不变。
-    const pageStillMountsSection = readText('src/client/views/SettingsPage.js')
+    // 设置页的真源是同名 .ts（旁边 .js 是构建产物），只按文本核对挂载接线，读源码要走 sourcePath。
+    const pageStillMountsSection = readText(sourcePath('src/client/views/SettingsPage.js'))
     check(pageStillMountsSection.indexOf('DiagnosticLogSection') >= 0,
       '设置页还挂着调试分组（分组搬走后页面只剩一行挂载，挂载丢了口子就到不了）。', String(pageStillMountsSection.indexOf('DiagnosticLogSection')))
     const pageRetry = readText('src/client/views/diagnosticLog/DiagnosticLogSection.ts')

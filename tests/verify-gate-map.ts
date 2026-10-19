@@ -548,7 +548,7 @@ function checkSelectionShape(out, label) {
 // 场景一：改版本管理页签的入口文件，应当带上守着它、守着它的父目录、再上一级目录的三层门禁
 {
   const changed = firstJsFileIn('src/client/views/versionControl')
-  check(!!changed, '找得到 src/client/views/versionControl/ 下的 .js 文件用来做场景测试（找到 ' + changed + '）')
+  check(!!changed, '找得到 src/client/views/versionControl/ 下的源码文件用来做场景测试（找到 ' + changed + '）')
   const out = sel([changed])
   checkSelectionShape(out, '场景一')
   check(!out.fullChain, '场景一：改 ' + changed + ' 不会退化成全链')
@@ -565,7 +565,7 @@ function checkSelectionShape(out, label) {
 // 场景二：改 src/client/views/ 直接下面的文件，应当带上守着 views 这一层和 client 这一层的门禁
 {
   const changed = firstJsFileIn('src/client/views')
-  check(!!changed, '找得到 src/client/views/ 直接下面的 .js 文件（找到 ' + changed + '）')
+  check(!!changed, '找得到 src/client/views/ 直接下面的源码文件（找到 ' + changed + '）')
   const out = sel([changed])
   checkSelectionShape(out, '场景二')
   check(!out.fullChain, '场景二：改 ' + changed + ' 不会退化成全链')
@@ -699,13 +699,17 @@ function isDirectory(rel) {
   }
 }
 
-/** 列一个目录下直接放着的 .js 文件（不递归），按名字排序，返回仓库相对路径。 */
+/**
+ * 列一个目录下直接放着的源码文件（不递归），按名字排序，返回仓库相对路径。
+ * 2026-10-19 起客户端源码树里只剩 .ts（pixel-ts 产物已删），所以这里找 .ts；
+ * 迁移期还留着 .js 的目录也认，两种一起看（.d.ts 是类型契约、不是可改的源码，排除）。
+ */
 function firstJsFileIn(relDir) {
   const abs = path.join(ROOT, relDir)
   if (!fs.existsSync(abs)) return ''
   const found = fs
     .readdirSync(abs, { withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.endsWith('.js'))
+    .filter((e) => e.isFile() && /\.(ts|js)$/.test(e.name) && !e.name.endsWith('.d.ts'))
     .map((e) => relDir + '/' + e.name)
     .sort()
   return found[0] || ''

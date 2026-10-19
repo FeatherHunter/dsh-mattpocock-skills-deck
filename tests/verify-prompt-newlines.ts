@@ -22,7 +22,7 @@ const path = require('path')
 const ROOT = path.join(__dirname, '..')
 // #1209：prompts 真源改成 .ts 之后，按 .js 路径直接读会读到构建产物（pixel-ts 写在真源旁边那份）。
 //   本文件的单行正则与「源码里 \\n 的写法」都认手写排版，读产物等于换了底本、判据悄悄变味 —— 所以取源走共用入口。
-const { sourceText } = require('./lib/source-text.ts')
+const { sourceText, sourcePath } = require('./lib/source-text.ts')
 let failed = false
 
 // #725：正文格式契约（带「写成 \n 是什么样」那几句教学片段）整节删除，所以这份豁免清单已经空了。
@@ -93,11 +93,18 @@ const parseEntries = function (src) {
   return out
 }
 ;['src/client/kernel/prompts.js', 'client.js', 'package/lib/client.js'].forEach(function (file) {
-  const p = path.join(ROOT, file)
-  if (!fs.existsSync(p)) { failed = true; console.log('FAIL ' + file + ' 不存在'); return }
   // 第一项是**真源**（.js 说明符 → 今天住在 prompts.ts 里），后两项是构建产物，照旧直接读那个文件。
   const isSource = file === 'src/client/kernel/prompts.js'
-  const entries = parseEntries(isSource ? sourceText(file) : fs.readFileSync(p, 'utf8'))
+  // 2026-10-19（#1301 批C）：src/client 下同名 .js 产物这一阶段已经删掉，不能再拿 fs.existsSync(那个 .js 路径)
+  //   判真源在不在 —— 会把还在的真源判成「不存在」。真源的存在性改成问 sourcePath（问 .js 时同名 .ts 优先）；
+  //   产物那两项旁边没有 .ts 兄弟，照旧按文件路径判存在。
+  if (isSource) {
+    try { sourcePath(file) } catch (e) { failed = true; console.log('FAIL ' + file + ' 不存在'); return }
+  } else {
+    const p = path.join(ROOT, file)
+    if (!fs.existsSync(p)) { failed = true; console.log('FAIL ' + file + ' 不存在'); return }
+  }
+  const entries = parseEntries(isSource ? sourceText(file) : fs.readFileSync(path.join(ROOT, file), 'utf8'))
   entries.forEach(function (e) {
     ['zh', 'en'].forEach(function (lang) { checkText(file, e.id + '.' + lang, e[lang]) })
   })

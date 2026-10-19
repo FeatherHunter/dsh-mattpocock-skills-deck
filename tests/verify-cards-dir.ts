@@ -3,20 +3,23 @@
  * tests/verify-cards-dir.ts —— src/client/views/cards 这一层的专属门禁。
  *
  * 为什么要有这一条：这个目录是像素风三张卡（地图卡 PixelMapCard / 票卡 PixelIssueCard / 地图子票卡
- *   PixelIssueMapCard）与它们共用的小件的真源，一共 34 个文件。此前没有任何门禁碰过它，
+ *   PixelIssueMapCard）与它们共用的小件的真源，一共 18 个文件（16 份 .ts 叶子 + 2 份 .d.ts 契约）。此前没有任何门禁碰过它，
  *   改坏了不会有人拦。这里按「把组件真挂起来、量看得见的结果」的口径守住它。
  *
  * 被测对象是谁（先分清真源与产物，别搞错）：
- *   *.ts 是手写真源；同名 *.js 是 `node scripts/build.mts` 的 pixel-ts 步骤从 .ts 生成的，
- *   文件头带 AUTO-GENERATED 横幅。这些组件没有 import 进别处，靠 src/client/index.js 里的
- *   `// ==== leaf:xxx (spliced by build) ====` 标记被拼进客户端闭包，拼进去的是 .js。
- *   所以本门禁渲染的是 .js（真产物），第 6 节再回头比对「这份 .js 就是那份 .ts 生成的」。
+ *   *.ts 是手写真源，也是唯一落盘的东西；早期 `node scripts/build.mts` 的 pixel-ts 步骤会在旁边
+ *   生成同名 .js（带 AUTO-GENERATED 横幅），2026-10-19 起那一步连同 166 份产物一起删掉了 ——
+ *   拼接缝（scripts/lib/transpile-domains.mts 的 readSpliceFragmentSource）直接读 .ts、当场转译，
+ *   产物只留在 client.js 里。这些组件没有 import 进别处，靠 src/client/index.ts 里的
+ *   `// ==== leaf:xxx ====` 标记被拼进客户端闭包。
+ *   所以本门禁装载的是「按构建口径从真源转译出来的那段文本」（tests/lib/source-text.ts 的
+ *   spliceableJs），第 6 节改守「源码树里不再有同名 .js 产物」。
  *
  * 怎么把它跑起来（与闭包里的跑法一致）：
- *   把 16 份 .js 按拼接次序（= scripts/build.mts 的 LEAF_MODULES 登记次序）拼成一段函数体、
+ *   把 16 份真源按拼接次序（= scripts/build.mts 的 LEAF_MODULES 登记次序）拼成一段函数体、
  *   去掉行首 export，用 tests/lib/eval-probe.js 的 compileFn 造函数。这些组件在闭包里的自由变量
- *   只有三个：React、DswsCtx、tr。React 与 DswsCtx 用真的；tr 用 src/client/kernel/locale-cards.js
- *   那份真字典 + src/client/index.js 里「locale 服务缺失」时的同一套退化实现（读 zh 字典、替换 {n}），
+ *   只有三个：React、DswsCtx、tr。React 与 DswsCtx 用真的；tr 用 src/client/kernel/locale-cards.ts
+ *   那份真字典 + src/client/index.ts 里「locale 服务缺失」时的同一套退化实现（读 zh 字典、替换 {n}），
  *   所以按钮上、封条上的字是真的词条，不是替身。然后用 jsdom + 真 React 挂载，量渲染出来的 DOM
  *   与浏览器算出来的计算样式。
  *
@@ -26,11 +29,11 @@
  *   3. 标题截断：两行 / 三行在计算样式上真的生效（display / -webkit-line-clamp / overflow / min-height）。
  *   4. 小件的行为：编号徽章（实心与描边）、点阵与统计条、标签 chips（按真标签色 + 字色对比）、
  *      被阻塞与挡路两种形态（含「点亮时红条才出现」与「点亮挡路卡那张卡」）。
- *   5. 生成物与真源一致：16 对 X.ts / X.js 逐字节比对（口径与 scripts/build.mts 的 buildPixelTs 相同）。
+ *   5. 源码树里只剩真源：16 份叶子旁边没有同名 .js（产物搬进 client.js 之后不该再落回来）。
  *   6. props 契约：cardBits.d.ts / cardProps.d.ts 里声明的字段，逐个用「带上它 / 去掉它，观察点必须变」
  *      证明真的被用上；反方向再断言组件读的字段名全都在契约里声明过。
  *
- * 用法：node --import ./scripts/ts-hook.mts tests/verify-cards-dir.ts（在插件根目录，不需要先构建；2026-10-17 从 .js 转成 TypeScript，只改名与加类型标注，判据一条没动）
+ * 用法：node --import ./scripts/ts-hook.mts tests/verify-cards-dir.ts（在插件根目录，不需要先构建；2026-10-17 从 .js 转成 TypeScript，只改名与加类型标注，判据一条没动；2026-10-19 起改读真源，pixel-ts 产物已删）
  */
 'use strict'
 
@@ -38,6 +41,9 @@ const fs = require('fs')
 const path = require('path')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 从 .ts 真源取「按构建口径转译后的可拼接文本」：同名 .js 产物已不再落盘，凡是需要那份文本的地方
+// 都走这里，保证本门禁装载的与 client.js 里拼进去的是同一套转译口径。用法见 tests/lib/source-text.ts。
+const { spliceableJs, sourceText } = require('./lib/source-text.ts')
 const { JSDOM } = require('jsdom')
 const React = require('react')
 const ReactDOMClient = require('react-dom/client')
@@ -55,7 +61,6 @@ const show = (v: unknown): string => (typeof v === 'string' ? JSON.stringify(v) 
 const ROOT = path.resolve(__dirname, '..')
 const CARDS_REL = 'src/client/views/cards'
 const CARDS = path.join(ROOT, CARDS_REL)
-const LOCALE_CARDS = path.join(ROOT, 'src', 'client', 'kernel', 'locale-cards.js')
 
 // 拼接次序：与 scripts/build.mts 的 LEAF_MODULES 登记次序、src/client/index.js 里
 // `// ==== leaf:xxx ====` 标记的次序三处一致（先主题与皮肤，再共享小件，最后三张大卡）。
@@ -91,22 +96,27 @@ const MAP_DOTS = [
   { no: 'f1', cls: 'f', stateText: '可接', title: '丁票' },
 ]
 
-/** 读一份 .js，换行统一成 LF（本仓声明 LF 检出，统一一下免得平台差异把比对弄红）。 */
-function readJs (name: string): string { return fs.readFileSync(path.join(CARDS, name + '.js'), 'utf8').replace(/\r\n/g, '\n') }
+/**
+ * 读一份叶子真源，换成「构建拼进闭包时的那段文本」：走共用入口的 spliceableJs，
+ * 它按唯一转译口径（scripts/lib/transpile-unit.mts）把 .ts 转成可拼接的 JavaScript 并去掉行首 export。
+ * 换行统一成 LF（本仓声明 LF 检出，统一一下免得平台差异把比对弄红）。
+ */
+function readJs (name: string): string { return spliceableJs(CARDS_REL + '/' + name + '.js').replace(/\r\n/g, '\n') }
+/** 读一份叶子的原文（按文本形状扫描用：props 契约比对要看到类型标注，不能看转译后的形态）。 */
 function readTs (name: string): string { return fs.readFileSync(path.join(CARDS, name + '.ts'), 'utf8').replace(/\r\n/g, '\n') }
 /** 去掉行首 export：闭包拼接就是这么拼的（build.mts 拼叶子前也只剥这个）。 */
 function stripExports (text: string): string { return text.replace(/^export\s+/gm, '') }
 
-/** 把 16 份 .js 拼成一段函数体，自由变量只有 React / DswsCtx / tr 三个。 */
+/** 把 16 份真源拼成一段函数体，自由变量只有 React / DswsCtx / tr 三个。 */
 function loadCardsLeaves (React_: unknown, DswsCtx_: unknown, tr_: unknown): Record<string, unknown> {
   const body = LEAF_ORDER.map((name) => stripExports(readJs(name))).join('\n')
   const factory = compileFn(['React', 'DswsCtx', 'tr'], body + '\nreturn { ' + LEAF_EXPORTS.join(', ') + ' };')
   return factory(React_, DswsCtx_, tr_)
 }
 
-/** 真字典 + src/client/index.js 里 locale 服务缺失时的同一套退化实现（zh 字典 + {n} 参数替换）。 */
+/** 真字典 + src/client/index.ts 里 locale 服务缺失时的同一套退化实现（zh 字典 + {n} 参数替换）。 */
 function loadTr (): { L: { zh: Record<string, string> }, tr: (key: string, params?: Record<string, unknown>) => string } {
-  const src = stripExports(fs.readFileSync(LOCALE_CARDS, 'utf8').replace(/\r\n/g, '\n')) + '\nreturn L_CARDS;'
+  const src = spliceableJs('src/client/kernel/locale-cards.js').replace(/\r\n/g, '\n') + '\nreturn L_CARDS;'
   const L = compileFn([], src)()
   const tr = function (key, params) {
     let s = L.zh[key] !== undefined ? L.zh[key] : key
@@ -208,31 +218,28 @@ async function checkPropUsed (label: string, Component: unknown, base: Record<st
 }
 
 // ===========================================================================
-// 0. 前置检查：真源 / 产物 / 契约三样都在，且产物带着指回真源的横幅
+// 0. 前置检查：真源与契约都在，源码树里没有落回来的同名 .js 产物
 // ===========================================================================
-section('0. 前置检查：真源、产物、契约都在，产物横幅指回同名真源')
+section('0. 前置检查：真源、契约都在，叶子旁边没有同名 .js 产物')
 check(fs.existsSync(CARDS), CARDS_REL + ' 目录存在')
 {
-  const missingPairs = LEAF_ORDER.filter((name) =>
-    !fs.existsSync(path.join(CARDS, name + '.ts')) || !fs.existsSync(path.join(CARDS, name + '.js')))
-  check(missingPairs.length === 0,
-    'cards 目录里 ' + LEAF_ORDER.length + ' 对 X.ts / X.js 都齐（缺的：' + (missingPairs.length ? missingPairs.join('、') : '无') + '）')
+  const missingTs = LEAF_ORDER.filter((name) => !fs.existsSync(path.join(CARDS, name + '.ts')))
+  check(missingTs.length === 0,
+    'cards 目录里 16 份叶子的 .ts 真源都齐（缺的：' + (missingTs.length ? missingTs.join('、') : '无') + '）')
   const missingContracts = CONTRACTS.filter((f) => !fs.existsSync(path.join(CARDS, f)))
   check(missingContracts.length === 0,
     '两份 props 契约 ' + CONTRACTS.join('、') + ' 都在（缺的：' + (missingContracts.length ? missingContracts.join('、') : '无') + '）')
-  const badBanner = LEAF_ORDER.filter((name) => {
-    const head = readJs(name).split('\n')[0]
-    return head.indexOf('AUTO-GENERATED by node scripts/build.mts (pixel-ts)') < 0 ||
-      head.indexOf('Source: views/cards/' + name + '.ts') < 0
-  })
-  check(badBanner.length === 0,
-    '每份 .js 的横幅都写着它由同名 .ts 生成（对不上的：' + (badBanner.length ? badBanner.join('、') : '无') + '）')
+  // 2026-10-19 起 pixel-ts 那一步删掉了：拼接缝直接读 .ts，产物只该留在 client.js 里。
+  // 这一条守「没有人把同名 .js 又生成回来」——落回来就说明构建里还有第二条写源码树的流水线。
+  const strayJs = LEAF_ORDER.filter((name) => fs.existsSync(path.join(CARDS, name + '.js')))
+  check(strayJs.length === 0,
+    '叶子旁边没有同名 .js 产物（多出来的：' + (strayJs.length ? strayJs.join('、') : '无') + '）')
 }
 
 // ===========================================================================
 // 1. 按闭包拼接次序装载真产物，并用真字典搭出 tr
 // ===========================================================================
-section('1. 按闭包拼接次序装载真产物，tr 用 src/client/kernel/locale-cards.js 的真字典')
+section('1. 按闭包拼接次序装载真源，tr 用 src/client/kernel/locale-cards.ts 的真字典')
 const DswsCtx = React.createContext(null)
 const { L, tr } = loadTr()
 check(L && L.zh && Object.keys(L.zh).length > 0,
@@ -638,43 +645,33 @@ async function main (): Promise<void> {
   }
 
   // =========================================================================
-  // 6. 生成物与真源一致：16 对 X.ts / X.js 逐字节比对
+  // 6. 拼接登记与真源对得上：16 份叶子各登记一次，index.ts 里各有一处 leaf 标记
   // =========================================================================
-  section('6. 生成物与真源一致：16 对 X.ts / X.js 逐字节比对（口径同 scripts/build.mts 的 pixel-ts）')
+  section('6. 拼接登记与真源对得上：16 份叶子各登记一次，index.ts 里各有一处 leaf 标记')
   {
-    let esbuild = null
-    try { esbuild = require('esbuild') } catch (e) { check(false, 'esbuild 可用（先跑 pnpm install）：' + ((e && e.message) || e)) }
-
-    /**
-     * 按 scripts/build.mts 里 buildPixelTs 的同一套口径，从 .ts 算出那份 .js 应该长什么样。
-     * 三步：esbuild 逐文件转译（ts → esm / es2020 / utf8 不转义中文）→ 把 esbuild 收在尾部的
-     * `export { A, B }` 还原成行首 export（拼接时只剥行首 export）→ 加 AUTO-GENERATED 横幅。
-     * 第二、三步不是这里自己写的：#1023 第二刀之后，「导出块改写」与「产物头那一句」都收进了
-     * scripts/lib/transpile-unit.mts，构建与这条门禁调的是同一份实现，不会再各自走岔。
-     * 只有像素产物那句横幅与内置域产物不同（要写客户端相对路径），所以横幅仍在本段拼。
-     */
-    const { createRequire } = require('module')
-    const tu = createRequire(__filename)('../scripts/lib/transpile-unit.mts')
-    function expectedJsFromTs (name: string): string {
-      const source = fs.readFileSync(path.join(CARDS, name + '.ts'), 'utf8')
-      const code = esbuild.transformSync(source, { loader: 'ts', format: 'esm', target: 'es2020', charset: 'utf8' }).code
-      const inlined = tu.inlineExportDeclarations(code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n', '[cards 门禁]')
-      return '// AUTO-GENERATED by node scripts/build.mts (pixel-ts) — DO NOT EDIT. Source: views/cards/' + name + '.ts\n' + inlined
-    }
-
-    if (esbuild) {
-      const stale = []
-      const broke = []
-      for (const name of LEAF_ORDER) {
-        let expected
-        try { expected = expectedJsFromTs(name) } catch (e) { broke.push(name + '（' + ((e && e.message) || e) + '）'); continue }
-        if (readJs(name) !== expected) stale.push(name)
-      }
-      check(broke.length === 0, '16 份真源都能按构建口径转译出来（转不出来的：' + (broke.length ? broke.join('、') : '无') + '）')
-      check(stale.length === 0,
-        '16 份 .js 都是同名 .ts 生成的那一份，逐字节一致（过期的：' + (stale.length ? stale.join('、') + '，请跑 node scripts/build.mts' : '无') + '）')
-      check(LEAF_ORDER.length === 16, '这一节覆盖了 cards 目录里全部 16 对真源与产物（实得 ' + LEAF_ORDER.length + ' 对）')
-    }
+    // 为什么守这条：叶子不在 LEAF_MODULES 里登记，构建不会报错，只是悄悄不拼进闭包，
+    // 界面上表现为「这个组件不存在」；index.ts 少了标记，拼接缝就找不到落点。两处都只有
+    // 构建期才暴露，单独跑本门禁时提前喊出来。
+    const buildText = sourceText('scripts/build.mts')
+    const indexText = sourceText('src/client/index.ts')
+    const notRegistered = LEAF_ORDER.filter((name) =>
+      buildText.indexOf("file: 'src/client/views/cards/" + name + ".ts'") < 0)
+    check(notRegistered.length === 0,
+      '16 份叶子都在 build.mts 的 LEAF_MODULES 里登记了 .ts 真源（漏登的：' + (notRegistered.length ? notRegistered.join('、') : '无') + '）')
+    // 登记行同时给出 id 与文件，按这两样对出「文件 → id」，再用 id 去 index.ts 里找标记。
+    const markerRe = /id: '([^']+)', file: 'src\/client\/views\/cards\/([^']+)\.ts'/g
+    const idOf: Record<string, string> = {}
+    let mm: RegExpExecArray | null
+    while ((mm = markerRe.exec(buildText))) idOf[mm[2]] = mm[1]
+    const notMarked = LEAF_ORDER.filter((name) =>
+      idOf[name] === undefined || indexText.indexOf('// ==== leaf:' + idOf[name] + ' (spliced by build) ====') < 0)
+    check(notMarked.length === 0,
+      '16 份叶子在 src/client/index.ts 里各有一处 leaf 标记（缺标记的：' + (notMarked.length ? notMarked.join('、') : '无') + '）')
+    const dupRegistered = LEAF_ORDER.filter((name) =>
+      buildText.split("file: 'src/client/views/cards/" + name + ".ts'").length - 1 > 1)
+    check(dupRegistered.length === 0,
+      '没有哪份叶子被重复登记（重复的：' + (dupRegistered.length ? dupRegistered.join('、') : '无') + '）')
+    check(LEAF_ORDER.length === 16, '这一节覆盖了 cards 目录里全部 16 份叶子（实得 ' + LEAF_ORDER.length + ' 份）')
   }
 
   // =========================================================================
@@ -873,11 +870,11 @@ async function main (): Promise<void> {
     ]
     const notRendered = LEAF_ORDER.filter((n) => rendered.indexOf(n) < 0)
     console.log('  本门禁覆盖 ' + all.length + ' 个文件：')
-    console.log('   · 16 份 .ts：第 6 节逐字节比对（真源与产物是不是同一份），其中 15 份的组件行为在第 2~5 节真渲染断言；')
+    console.log('   · 16 份 .ts：全部按闭包拼接次序装载执行（' + rendered.length + ' 份组件被真渲染断言，' + notRendered.join('、') + ' 按导出值断言）；')
     console.log('     PixelCardsStyles.ts 没有组件可挂，按第 5.6 节「每条规则都能被浏览器解析」+ 各节的皮肤生效断言。')
-    console.log('   · 16 份 .js：全部按闭包拼接次序装载执行（' + rendered.length + ' 份组件被真渲染断言，' + notRendered.join('、') + ' 按导出值断言）。')
+    console.log('   · 第 6 节另外核对：这 16 份都在 build.mts 的 LEAF_MODULES 与 index.ts 的 leaf 标记里各出现一次。')
     console.log('   · 2 份 .d.ts：第 7 节按契约解析，与组件实际读的字段逐个对照。')
-    check(all.length === 34, 'cards 目录里 34 个文件都在这份覆盖清单的口径里（实得 ' + all.length + ' 个）')
+    check(all.length === 18, 'cards 目录里 18 个文件都在这份覆盖清单的口径里（实得 ' + all.length + ' 个）')
     check(notRendered.join('、') === 'PixelCardTheme、PixelCardsStyles',
       '没有组件可挂的只有主题与皮肤两份（实得 ' + (notRendered.join('、') || '无') + '），其余都是真渲染')
   }

@@ -5,10 +5,14 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
-const { sourceText } = require('./lib/source-text.ts')
+const { sourceText, transpiledSourceText } = require('./lib/source-text.ts')
 
 async function loadDerived(): Promise<any> {
-  const src: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'kernel', 'store-derived.js'), 'utf8')
+  // src/client/kernel/store-derived.js 是同名 .ts 的构建产物，已经删除；直接读 .js 会 ENOENT。
+  // 改用 transpiledSourceText 取 .ts 真源按全仓唯一口径转译后的整份文本：它保留模块 export，
+  // 与旧产物一样是 ESM，所以下面「临时 .mjs + 预置身份函数 import」的加载方式与全部断言都不用动。
+  // （spliceableJs 会剥掉 export 并拦模块写法，那是给「切一段函数体当场求值」用的，不适合这里。）
+  const src: string = transpiledSourceText('src/client/kernel/store-derived.js')
   const tmp = path.join(__dirname, 'tmp-544-verify-derived.mjs')
   // effort 维度：store-derived 在面板闭包里用共享的身份函数（idOf / idOfParts / effortOf），
   // 单独取出求值时要把同一份原文显式导入，否则 ReferenceError（跑的是真函数，不改行为）。

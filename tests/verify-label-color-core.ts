@@ -1,15 +1,20 @@
 // verify-src/shared/label-color.js — 配色核心的纯函数门禁（#629 落地）
 // 查的是「外面看得见的行为」，不是实现细节：色值怎么归一、什么算合法、两个颜色算不算变了、
 // 哪些行该发给后端、调色盘表格长什么样。断言一律打在产物上（src/shared/label-color/*.js），
-// 因为宿主与客户端拿到的就是这三份产物，门禁跟着它们的实际行为走。
+// 因为宿主与客户端拿到的就是这三份产物，门禁跟着它们的实际行为走；客户端叶（src/client/views/labels/*）
+// 读的是同名 .ts 真源——那一层的 .js 是这一阶段要删的构建产物。
 // 空值语义那几条（空串与空串算没变、空串换成真颜色算变了、大小写不同算没变）是总工裁决，
 // 写在 docs/adr/20260913-builtin-ts-shape.md 第 2.8 节，本门禁负责把它们钉死：
 // 少一条，「每一条还没配色的标签都被算成改过了、一保存就白发一批请求」这种错就会溜过去。
 // 用法：node tests/verify-src/shared/label-color.js（在仓库根目录）
 const path = require('path')
-const fs = require('fs')
 const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源入口（tests/lib/source-text.ts）：src/client 下的同名 .js 是 pixel-ts 写下的构建产物（这一阶段要删），
+//   真源一律是同名 .ts。这些客户端叶靠拼接期注入的自由变量、不是可 import 的模块，门禁只能把文件文本
+//   取出来交给 compileFn 真跑；带类型标注的 .ts 原文 vm 吃不下，所以统一走 spliceableJs 转译成 JavaScript
+//   并剥掉行首 export（下面各处的「去 export」正则保留，对已剥过的文本是无害的空操作）。
+const { spliceableJs } = require('./lib/source-text.ts')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -155,8 +160,7 @@ async function main() {
   // 钉的是两条最要紧的：① 后端那一档没读到开仓方式时**不许写剪贴板**（连文字都不许拼出来）；
   // ② 剪贴板没写成时返回的必须是失败反馈（原型票栽过的坑：写不进去还显示「已复制」）。
   {
-    const leafSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorErrors.js'), 'utf8')
-      .replace(/^(\s*)export\s+/gm, '$1') +
+    const leafSrc = spliceableJs('src/client/views/labels/labelColorErrors.js') +
       '\nreturn { lcCopyPlanOf: lcCopyPlanOf, lcCopyAttemptOf: lcCopyAttemptOf, lcCopyFeedbackOf: lcCopyFeedbackOf, lcCopyRowsOf: lcCopyRowsOf, lcRowIncomplete: lcRowIncomplete }\n'
     // 叶子里引用的自由变量在真产物里由 index.js 的拼接闭包提供（后端模块单源 moduleMetaOf、
     // 配色核心的两个拼装函数、合法性判断 isColor）。这里把它们当参数传进去，跑的是叶子里的**真函数**。
@@ -245,16 +249,14 @@ async function main() {
   // 用户照做会一直失败。断言打在**真词条**上（真词条在 src/client/kernel/locale-labels.js，界面取哪一条
   // 由下面第一行 lcKindKey 决定），所以改回旧文案这一节就红。
   {
-    const leafSrc2 = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorErrors.js'), 'utf8')
-      .replace(/^(\s*)export\s+/gm, '$1') +
+    const leafSrc2 = spliceableJs('src/client/views/labels/labelColorErrors.js') +
       '\nreturn { lcKindKey: lcKindKey, lcPanelBackendOf: lcPanelBackendOf }\n'
     // 手法：compileFn——同上。
     const leaf2 = compileFn(
       ['moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows'],
       leafSrc2,
     )(null, null, null, colors.isColor, colors.normalizeColor, colors.pickChangedRows)
-    const locSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-labels.js'), 'utf8')
-      .replace(/^(\s*)export\s+/gm, '$1') + '\nreturn { L_LABELS: L_LABELS }\n'
+    const locSrc = spliceableJs('src/client/kernel/locale-labels.js') + '\nreturn { L_LABELS: L_LABELS }\n'
     // 手法：compileFn——词条源同样按文本加载，这里没有参数要传，给空的名字数组。
     const L = compileFn([], locSrc)().L_LABELS
 
@@ -309,11 +311,9 @@ async function main() {
   // 为什么值得单列一节：宿主那侧由 verify-tracker-contract 与 verify-github-label-colors 两处真断言守着，
   // 但「客户端发了没有」那半边只有真机点一遍才能看见——这一节把那一半也钉住。
   {
-    const hookSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/useLabelColors.js'), 'utf8')
-      .replace(/^(\s*)export\s+/gm, '$1') +
+    const hookSrc = spliceableJs('src/client/views/labels/useLabelColors.js') +
       '\nreturn { useLabelColors: useLabelColors }\n'
-    const leafSrc3 = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorErrors.js'), 'utf8')
-      .replace(/^(\s*)export\s+/gm, '$1') +
+    const leafSrc3 = spliceableJs('src/client/views/labels/labelColorErrors.js') +
       '\nreturn { lcPanelBackendOf: lcPanelBackendOf, lcLabelsOf: lcLabelsOf, lcErrorOf: lcErrorOf, lcSaveOutcome: lcSaveOutcome }\n'
     // 手法：compileFn——同上。
     const leaf3 = compileFn(
@@ -420,7 +420,7 @@ async function main() {
 
     // 叶子文件用的是「构建期拼接进来的自由变量」，不是 import，所以这里按仓库既有的办法加载：
     // 去掉行首 export，再用 new Function 把这些自由变量当参数传进去，跑的是**文件里的真代码**。
-    const strip = function (rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^(\s*)export\s+/gm, '$1') }
+    const strip = function (rel) { return spliceableJs(rel) }
     // 手法：compileFn——同上。
     const errLeaf = compileFn(
       ['moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows', 'navigator', 'console'],
@@ -776,7 +776,7 @@ async function main() {
   // ---- 12) #635：保存成功后写进面板那份快照的颜色（纯函数；面板当场按新色显示靠的就是它）----
   {
     console.log('  #635 A：保存成功后写进面板快照的颜色，以及那一笔记录')
-    const stripLeaf = function (rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^(\s*)export\s+/gm, '$1') }
+    const stripLeaf = function (rel) { return spliceableJs(rel) }
     // 手法：compileFn——同上。
     const patch = compileFn(
       ['normalizeColor'],
@@ -838,8 +838,7 @@ async function main() {
   // 异常、不存在等任何特殊情况用默认色兜底；盘身是暖木色。这一节只验纯函数给出来的颜色对不对。
   {
     console.log('  #637：入口图标的颜色（真实颜色加默认兜底）')
-    const palSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorPalette.js'), 'utf8')
-      .replace(/^(\s*)export\s+/gm, '$1') +
+    const palSrc = spliceableJs('src/client/views/labels/labelColorPalette.js') +
       '\nreturn { LC_ENTRY_PALETTE_SLOTS: LC_ENTRY_PALETTE_SLOTS, LC_ENTRY_PALETTE_DEFAULTS: LC_ENTRY_PALETTE_DEFAULTS, LC_ENTRY_PALETTE_BODY: LC_ENTRY_PALETTE_BODY, lcEntryPaletteOf: lcEntryPaletteOf }\n'
     // 手法：compileFn——同上。
     const pal = compileFn(['normalizeColor'], palSrc)(colors.normalizeColor)

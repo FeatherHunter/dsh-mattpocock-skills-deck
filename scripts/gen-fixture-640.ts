@@ -10,7 +10,7 @@
 //
 // 本文件做两件事，且刻意分开：
 //   一、**卡片那一侧用宿主原产物的算式**（从 DSH 桌面包里读出来，写在下面 HOST_CARD_*），保证量尺是外部的、不是自证的；
-//   二、被测元素那一侧用插件自己的几何（从产物 StatusBar.js 的 dswsStatusDockGeom 读出来，.ts 真源另存）。
+//   二、被测元素那一侧用插件自己的几何（从 StatusBar 真源的 dswsStatusDockGeom 读出来）。
 // 如果哪天宿主改了卡片算式，本文件会因读取失败而报错，而不是悄悄变成「两边同一个公式」的恒真测试。
 //
 // 宿主产物怎么找（2026-10-04 定版）：候选列表 = 环境变量 DSH_CONVERSATION_BUNDLE → 原写死的那条安装路径
@@ -21,8 +21,10 @@
 const fs: any = require('fs');
 const path: any = require('path');
 const root: string = path.resolve(__dirname, '..');
-const statusSrc: string = fs.readFileSync(path.join(root, 'src/client/statusbar/StatusBar.js'), 'utf8');
-const stylesSrc: string = fs.readFileSync(path.join(root, 'src/client/kernel/styles.js'), 'utf8');
+// pixel-ts 产物已删，这里读真源：StatusBar 与 styles 的源码树里只剩 .ts，
+// 再按同名 .js 读会 ENOENT。两个取值函数同时认单双引号，所以读 .ts 原文照样取得到值。
+const statusSrc: string = fs.readFileSync(path.join(root, 'src/client/statusbar/StatusBar.ts'), 'utf8');
+const stylesSrc: string = fs.readFileSync(path.join(root, 'src/client/kernel/styles.ts'), 'utf8');
 
 // ── 一、从宿主产物里读「卡片那一侧」的真算式 ────────────────────────────────
 // 找法三层（顺序即优先级）：显式指定 → 原来那条安装路径 → asar 解包落点；再不行就抽 asar。
@@ -89,12 +91,11 @@ if (HOST_BUNDLE && (!hostRootPad || !hostCardWidth || !hostCardMax)) {
 
 // ── 二、从插件真源里读「被测容器」的几何 ────────────────────────────────────
 function pullGeom(field: string): string {
-  // #1251：StatusBar 真源已从手写 .js 转成 .ts，本脚本读到的是构建产物（esbuild 转译），
-  //   字符串一律写成双引号；旧正则只认单引号，会把「字段明明在」误判成找不到。
+  // #1251：StatusBar 真源已从手写 .js 转成 .ts，取值处读到的是真源原文（.ts 里字符串多写成单引号，
+  //   转译后的产物是双引号）；旧正则只认单引号，会把「字段明明在」误判成找不到。
   //   这里两种引号都认，判据不放宽（值本身仍按原样取出、后面的哨兵照旧校验）。
-  //   本文件（scripts/ 下的手写 JavaScript）转成 TypeScript 由 scripts 转写那张票负责，不在本次动。
   const m: RegExpMatchArray | null = statusSrc.match(new RegExp(field + ":\\s*['\"]([^'\"]+)['\"]"));
-  if (!m) throw new Error('StatusBar.js 的 dswsStatusDockGeom 里找不到 ' + field);
+  if (!m) throw new Error('StatusBar 真源的 dswsStatusDockGeom 里找不到 ' + field);
   return m[1];
 }
 const geomWidth: string = pullGeom('width');
@@ -111,8 +112,9 @@ if (!/^3px 0 0$/.test(geomPad)) {
 
 function pullCapsuleRule(needle: string): string {
   const line: string | undefined = stylesSrc.split('\n').find((l: string) => l.includes(needle));
-  if (!line) throw new Error('styles.js 里找不到规则: ' + needle);
-  // #1251：styles 真源已从手写 .js 转成 .ts，本脚本读到的是构建产物（esbuild 转译），字符串写成双引号。
+  if (!line) throw new Error('styles 真源里找不到规则: ' + needle);
+  // #1251：styles 真源已从手写 .js 转成 .ts，本脚本读到的是真源原文（.ts 里字符串多写成单引号，
+  //   转译后的产物是双引号）。
   //   旧写法按单引号切（indexOf("'.") / lastIndexOf("'")），切不到时 indexOf 返回 -1，
   //   slice(0, -1) 会退化成「整行去掉最后一个字符」，于是产出的规则前面带一个引号、成了非法 CSS，
   //   浏览器直接把这条规则丢掉——而门禁只比对自己的产物，看不出来。这里改成「认引号」：

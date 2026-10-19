@@ -38,6 +38,9 @@ import nodeOs from 'node:os'
 import { pathToFileURL } from 'node:url'
 // 本文件按文本求值统一走共用入口 compileFn：把真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
+// 客户端内核那几样抽屉的真源已经是 .ts，要被切成片段交给 compileFn 求值，所以走 spliceableJs：
+// 它按构建同一套口径转译（剥掉类型标注）、并且已经去掉每行行首的 export，切块标记照 `const 名字` 找。
+import { spliceableJs } from './lib/source-text.ts'
 // E 组问规划函数：本门禁与两条点名用例是否在链上（#1125 起不再读 package.json 长串）。
 import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
@@ -302,11 +305,11 @@ async function main() {
   const keyOfSrc = noExport(read('src/shared/workspaceKey.js'))
   // 切出来的这段源码不需要外部变量：改走共用入口 compileFn，参数表传空数组。
   const keyOfFn = compileFn([], keyOfSrc + '\nreturn keyOf')()
-  const snapSrc = read('src/client/kernel/store-snapshot.js')
-  const wsKeyBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const workspaceRootByCwd'), snapSrc.indexOf('export const shared = makeStore()')))
-  const storeBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const getCachedSnapshot'), snapSrc.indexOf('export const lastProbeAtByCwd')))
-  const probeBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const lastProbeAtByCwd'), snapSrc.indexOf('export const SNAP_DISK_CAP')))
-  const chainBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const getChainCacheKey'), snapSrc.indexOf('export const hydrateFromCache')))
+  const snapSrc = spliceableJs('src/client/kernel/store-snapshot.js')
+  const wsKeyBlock = noExport(snapSrc.slice(snapSrc.indexOf('const workspaceRootByCwd'), snapSrc.indexOf('const shared = makeStore()')))
+  const storeBlock = noExport(snapSrc.slice(snapSrc.indexOf('const getCachedSnapshot'), snapSrc.indexOf('const lastProbeAtByCwd')))
+  const probeBlock = noExport(snapSrc.slice(snapSrc.indexOf('const lastProbeAtByCwd'), snapSrc.indexOf('const SNAP_DISK_CAP')))
+  const chainBlock = noExport(snapSrc.slice(snapSrc.indexOf('const getChainCacheKey'), snapSrc.indexOf('const hydrateFromCache')))
   // 真源文本与假零件一起求值：改走共用入口 compileFn，参数名照原样逐个列出。
   const C: any = compileFn(
     ['keyOf', 'snapshotByCwd', 'chainByCwd', 'shared', 'stores', 'emit',
@@ -320,11 +323,11 @@ async function main() {
     (m: any, k: any, v: any) => m.set(k, v), () => {}, 20
   )
 
-  const prefsSrc = read('src/client/kernel/store-prefs.js')
+  const prefsSrc = spliceableJs('src/client/kernel/store-prefs.js')
   // 同一手法：真源文本配假 localStorage 等零件，统一走共用入口 compileFn。
   const P: any = compileFn(
     ['keyOf', 'wsKeyOf', 'localStorage', 'log', 'emit', 'shared', 'stores'],
-    noExport(prefsSrc.slice(prefsSrc.indexOf('export const selectionByCwd = {}'))) + '\n' +
+    noExport(prefsSrc.slice(prefsSrc.indexOf('const selectionByCwd = {}'))) + '\n' +
     'return { getCachedSelection: getCachedSelection, setCachedSelection: setCachedSelection,' +
     ' getCachedRepository: getCachedRepository, setCachedRepository: setCachedRepository }'
   )(

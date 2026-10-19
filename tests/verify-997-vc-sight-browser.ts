@@ -25,6 +25,11 @@ const path = require('path')
 const { createServer } = require('http')
 
 const ROOT = path.resolve(__dirname, '..')
+// 取源走共用入口（tests/lib/source-text.ts）：src/client 下同名 .js 是 pixel-ts 构建产物，
+// 构建改成直接拼 .ts 真源之后那些 .js 已从源码树删除。拼闭包需要「可直接拼接的 JavaScript」，
+// 所以客户端那些叶子用 spliceableJs（按构建唯一口径转译、已按同一套做法处理 export 与时间参数 import）；
+// shared 那份 rules.js 还是手写 JavaScript、按原样读。
+const { spliceableJs } = require('./lib/source-text.ts')
 let failed = false
 let total = 0
 const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -254,7 +259,11 @@ async function run(browser: any, build: { closure: string, dict: Record<string, 
   const stylesVcMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcStyles.js').replace(/\\/g, '/'))
   const css = String(stylesMod.STYLE_TEXT || '') + String(stylesVcMod.VC_STYLE_TEXT || '')
 
-  const closure = VC_FILES.map((f) => strip(stripTimeConfigImport(read(f)))).join('\n')
+  const closure = VC_FILES.map((f) =>
+    f.indexOf('src/client/') === 0
+      ? spliceableJs(f)
+      : strip(stripTimeConfigImport(read(f)))
+  ).join('\n')
   const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
   const browser = await getBrowser({ headless: true })
   try {

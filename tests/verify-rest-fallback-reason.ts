@@ -31,8 +31,10 @@ const { compileFn } = require('./lib/eval-probe.ts')
 // 中央时间真值：过期阈值只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.REST_FALLBACK_STALE_MS = centralTime.REST_FALLBACK_STALE_MS
-// 取源走共用入口（#1207 立）：按 .js 路径直接读，读到的会是真源旁边那份构建产物。
-const { sourceText } = require('./lib/source-text.ts')
+// 取源走共用入口（tests/lib/source-text.ts）：sourceText 读原文，给按词条形状扫描的断言用；
+// 要拼进函数体当场求值的那一片走 spliceableJs —— 按构建唯一口径把真源转成可拼接的 JavaScript，
+// 不再直读旁边那份 .js 产物（产物没重建时会停在旧文本上）。
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 const ROOT = path.join(__dirname, '..')
 let failed = false
 const check = function (cond, msg) {
@@ -64,7 +66,8 @@ check(pick({ message: 'unexpected EOF' }) !== 'rate-limit', 'EOF 不算限流（
 
 
 // ── 三、界面选句：只有 quota 才许提配额 ──
-const tsrc = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/truthLines.js'), 'utf8')
+// truthLines 的真源就在同名的 .ts 里（旁边 .js 是构建产物）：按构建口径转译后再求值，量到的才是真源码。
+const tsrc = spliceableJs('src/client/views/shared/truthLines.js')
 let mod = null
 try {
   const body = tsrc.replace(/^[ \t]*export[ \t]+/gm, '').split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')

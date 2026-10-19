@@ -18,7 +18,7 @@
  *      ._12sy_W_panel 的写法给出一层 bg-base 的底。
  *
  * 断三件事：
- *   A 源码层（真源 styles.js / Dock.js + 两份产物）：空壳与真内容共用 .dsws-hold，且两处底色都取
+ *   A 源码层（真源 styles.ts / Dock.ts + 两份产物）：空壳与真内容共用 .dsws-hold，且两处底色都取
  *     --dsw-alias-bg-base（同一个令牌、同一个兜底值），不再取页面那一档 --dsw-alias-bg-layer-1。
  *   B 真渲染层（深浅两个主题各一遍）：把标签内容体挂起来逐帧量 —— 第一帧就要有底色，且与宿主那一层同值；
  *     面板根节点也与宿主那一层同值；整段挂载过程那一层只出现过一种底色。
@@ -31,6 +31,10 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { getBrowser, closeBrowser } from './lib/browser-pool.js'
+// 取源走共用入口（tests/lib/source-text.ts）：src/client 下同名 .js 是 pixel-ts 构建产物，
+// 构建改成直接拼 .ts 真源之后那些 .js 已从源码树删除，再按旧路径直读会 ENOENT。
+// 本文件 A 组按文本形状扫源码，所以用 sourceText 取原文；两份 client.js 产物仍按原样直接读盘。
+import { sourceText } from './lib/source-text.ts'
 // 页面求值回调里出现的 window 只是浏览器侧的全局名，门禁进程里并没有它；这里声明成任意值，
 // 运行时与原来一样（这些回调只被序列化送进页面执行，从不在门禁进程里取值）。
 declare const window: any
@@ -40,11 +44,18 @@ function check(ok: unknown, msg: string): void { if (ok) { console.log('  PASS '
 
 const FILES = ['src/client/kernel/router.js', 'src/client/kernel/styles.js', 'src/client/panel/Dock.js', 'client.js', 'package/lib/client.js']
 const RENDER_FILES = ['src/client/kernel/router.js', 'client.js', 'package/lib/client.js']
+// client.js / package/lib/client.js 是构建产物、还在盘上，读法保持原样；
+// 其余三项是客户端源码，按 .js 路径问共用入口会拿到同名 .ts 真源原文。
+const ARTIFACT_FILES = ['client.js', 'package/lib/client.js']
 const texts: Record<string, string | null> = {}
 for (const rel of FILES) {
-  const p = resolve(rel)
-  texts[rel] = existsSync(p) ? readFileSync(p, 'utf8') : null
-  if (texts[rel] === null) check(false, rel + ' 读不到（先跑 npm run build）')
+  if (ARTIFACT_FILES.indexOf(rel) >= 0) {
+    const p = resolve(rel)
+    texts[rel] = existsSync(p) ? readFileSync(p, 'utf8') : null
+  } else {
+    try { texts[rel] = sourceText(rel) } catch (e) { texts[rel] = null }
+  }
+  if (texts[rel] === null) check(false, rel + ' 读不到（客户端源码应有同名 .ts 真源；产物请先跑 npm run build）')
 }
 
 console.log('== A 源码层：两处底色取宿主那一档（bg-base），且不再取页面那一档（bg-layer-1） ==')

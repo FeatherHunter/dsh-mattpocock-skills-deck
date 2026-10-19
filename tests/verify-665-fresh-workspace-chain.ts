@@ -115,13 +115,13 @@ async function loadChain(locale: LocalePair, backends: { github: BackendPick; ma
   // 三个模块的真实文件文本拼在一起，装饰掉行首 export 后当同一个闭包求值（与 scripts/build.mts 的拼法一致）。
   //   #698：注入决策那一段（injectSetupDecision / layoutCardShouldOpen）搬去了 kernel/prompts-setup.js，
   //   构建时与 prompts.js 拼回同一个闭包；沙箱里照同一口径把它接在 prompts.js 后面。
-  // 三份片段各自的 export 都要剥掉：spliceableJs 交出来的 .ts 片段还带着行首 export（构建在拼接那一步剥），
-  //   prompts-setup.js 是还没迁移的手写 .js，也带着。所以最后统一过一遍剥 export。
+  // 这四份真源都已经是 .ts，要拼成同一个函数体求值，所以一律走 spliceableJs（与构建同一份转译口径，
+  //   它已剥掉每行行首的 export）；末尾那一遍剥 export 只是防御，不改变任何一份片段的语义。
   const body = (spliceableJs('src/client/kernel/prompts.js')
-    + '\n' + read('src/client/kernel/prompts-setup.js')
+    + '\n' + spliceableJs('src/client/kernel/prompts-setup.js')
     // sbPatch：反证用 —— 把 StatusBackend 的真源按改动后的文本喂进来（正常路径下就是真源本身）
     + '\n' + ((sbPatch && sbPatch.text) ? sbPatch.text : spliceableJs('src/client/statusbar/StatusBackend.js'))
-    + '\n' + read('src/client/statusbar/bannerChain.js'))
+    + '\n' + spliceableJs('src/client/statusbar/bannerChain.js'))
     .replace(/^[ \t]*export[ \t]+/gm, '')
   // 词表本身在生产里也住同一个闭包（kernel/locale.js 合并四个片段得到），这里照同一形状塞进去。
   const tail = '\n;const L = ' + JSON.stringify({ zh: locale.zh, en: locale.en }) + ';'

@@ -25,6 +25,9 @@
 const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口：SubworkspaceMark 的真源已经是 .ts，切出来的纯函数块要交给 compileFn 求值，
+// 所以用 spliceableJs（与构建同一份转译口径，类型标注已剥掉、行首 export 已去掉，切块标记照 `const 名字` 找）。
+const { spliceableJs } = require('./lib/source-text.ts')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -57,9 +60,9 @@ if (grabs.length === 2) ok('C0 真实 locale 里 panel.wsMarkTip 中英各一条
 else bad('C0 真实 locale 里 panel.wsMarkTip 应有中英两条，实际 ' + grabs.length + ' 条')
 
 // ── 真件三：真假两半 —— 纯函数块从真源里原样取出来
-const markSrc = read('src/client/views/SubworkspaceMark.js')
-const start = markSrc.indexOf('export const subwsMarkRootOf')
-const end = markSrc.indexOf('export const SubworkspaceMark')
+const markSrc = spliceableJs('src/client/views/SubworkspaceMark.js')
+const start = markSrc.indexOf('const subwsMarkRootOf')
+const end = markSrc.indexOf('const SubworkspaceMark')
 if (start < 0 || end < 0 || end <= start) {
   bad('真源里找不到那组纯函数（subwsMarkRootOf … SubworkspaceMark 之间）')
   console.log('\n=== FAIL ===')
@@ -73,6 +76,13 @@ const makeApi = (tmpl: unknown) => compileFn(
 )(keyOf, function (k: any) { return (k === 'panel.wsMarkTip') ? tmpl : k })
 const api = makeApi(grabs[0] || '')
 const apiEn = makeApi(grabs[1] || '')
+
+// E / F 两组要把组件放进真浏览器环境渲染。渲染工具（tests/lib/render-subws-mark.js）默认自己从
+// src/client/views/SubworkspaceMark.js 读源码 —— 那个 .js 是构建产物，已经删除，直接调用会报 ENOENT。
+// 这里把上面已经取好的真源文本（spliceableJs 转成的可拼接 JavaScript）交给它，渲染的仍是同一份组件
+// 代码；下面每条断言一条没动、也没放宽。
+const renderMarkFromSource = (store: any, opts?: any): Promise<any> =>
+  renderMark(store, Object.assign({}, opts, { src: markSrc }))
 
 console.log('\nA) 取根：快照优先，wf.cwd 带回来的根作早到来源')
 let got = api.rootOf({ cwd: SUB_DIR, snapshot: { workspaceRoot: ROOT_DIR } })
@@ -195,20 +205,20 @@ async function main() {
 console.log('\nE) 真渲染一遍：这枚标志到底画不画得出来（本票缺陷就长在这一层）')
 try {
   const subStore = { cwd: SUB_DIR, snapshot: { ok: true, maps: [], workspaceRoot: ROOT_DIR } }
-  const r = await renderMark(subStore, { click: true })
+  const r = await renderMarkFromSource(subStore, { click: true })
 
   if (r.isSub === true) ok('E1 子目录会话里真的画出了这枚标志（不再恒为 null）')
   else bad('E1 子目录会话里一个标志都没画出来（#666 的病又回来了）')
 
   // E1b：快照**一点都还没到**，只有 wf.cwd 带回来的那个根时也要画得出来。
   //   这正是「面板一打开就能看到」那件事的门禁：原先只能等一整份仓库快照，缓存没命中就是几十秒。
-  const rEarly = await renderMark({ cwd: SUB_DIR, sessionWorkspaceRoot: ROOT_DIR })
+  const rEarly = await renderMarkFromSource({ cwd: SUB_DIR, sessionWorkspaceRoot: ROOT_DIR })
   if (rEarly.isSub === true && /面板数据来自工作区 /.test(rEarly.html)) ok('E1b 快照还没到、只有 wf.cwd 带回来的根时，标志也画得出来（面板一打开就能看到）')
   else bad('E1b 只有早到来源时没画出来：' + JSON.stringify(rEarly.html.slice(0, 160)))
 
   // E1c：两个都在时，画面上的路径要以**快照**为准（早到那个只是先顶一下，不许盖过正在显示的数据）。
   //   断言用浮层里真实显示的那句话，不拿正则去抠 HTML —— 反斜杠在 HTML 里是转义的，抠出来容易连断言一起写错。
-  const rBoth = await renderMark({ cwd: SUB_DIR, snapshot: { ok: true, maps: [], workspaceRoot: ROOT_DIR }, sessionWorkspaceRoot: 'D:\\somewhere-else' })
+  const rBoth = await renderMarkFromSource({ cwd: SUB_DIR, snapshot: { ok: true, maps: [], workspaceRoot: ROOT_DIR }, sessionWorkspaceRoot: 'D:\\somewhere-else' })
   const bothText = String(tipTextOf(rBoth.tipCalls))
   if (rBoth.isSub === true && bothText.indexOf('面板数据来自工作区 ' + ROOT_DIR) >= 0 && bothText.indexOf('somewhere-else') < 0)
     ok('E1c 两个来源都在时以快照为准（画面里是快照那个根，早到那个不出现）')
@@ -275,35 +285,35 @@ try {
   else bad('E9 点击没有调 wf.openFolder 打开工作区根，实测 ' + JSON.stringify(r.hostCalls))
 
   // 反向：根会话里同一个组件一行都不画
-  const rRoot = await renderMark({ cwd: ROOT_DIR, snapshot: { ok: true, maps: [], workspaceRoot: ROOT_DIR } })
+  const rRoot = await renderMarkFromSource({ cwd: ROOT_DIR, snapshot: { ok: true, maps: [], workspaceRoot: ROOT_DIR } })
   if (rRoot.isSub === false && rRoot.html.trim() === '') ok('E10 根会话里一行都不画（实测渲染结果为空）')
   else bad('E10 根会话里画出了东西：' + JSON.stringify(rRoot.html.slice(0, 120)))
 
   // 不再打扰：这个工作区自动展开过一次之后，第二次进来不再自动弹。
   //   问的是「有没有哪一次带着 visible=true」：第一次调用发生在挂载效果之前，那时它还没有这个值。
-  const rSeen = await renderMark(subStore, { autoShown: true })
+  const rSeen = await renderMarkFromSource(subStore, { autoShown: true })
   const seenStillOpens = rSeen.tipCalls.some(function (c: any) { return c.visible === true })
   if (rSeen.isSub === true && seenStillOpens === false) ok('E11 同一个工作区里展开过一次之后不再自动弹（但标志照常在）')
   else bad('E11 自动展开的「只一次」没守住：标志在=' + rSeen.isSub + '，还自动弹=' + seenStillOpens)
 
   // 反向第二个：嵌套仓库（子目录自带 .git，那时工作区根就是它自己）也不画。
   //   上面 B3 断的是纯函数；这里把同一个情形渲染一次，免得只靠纯函数那一层说话。
-  const rNested = await renderMark({ cwd: NESTED_DIR, snapshot: { ok: true, maps: [], workspaceRoot: NESTED_DIR } })
+  const rNested = await renderMarkFromSource({ cwd: NESTED_DIR, snapshot: { ok: true, maps: [], workspaceRoot: NESTED_DIR } })
   if (rNested.isSub === false && rNested.html.trim() === '') ok('E12 嵌套仓库（子目录自带 .git）里也是一行都不画')
   else bad('E12 嵌套仓库里画出了东西：' + JSON.stringify(rNested.html.slice(0, 120)))
 
   // 反向第三个：没有仓库的目录（一路到顶都没标记，根就是它自己）同样不画。
-  const rPlain = await renderMark({ cwd: PLAIN_DIR, snapshot: { ok: true, maps: [], workspaceRoot: PLAIN_DIR } })
+  const rPlain = await renderMarkFromSource({ cwd: PLAIN_DIR, snapshot: { ok: true, maps: [], workspaceRoot: PLAIN_DIR } })
   if (rPlain.isSub === false && rPlain.html.trim() === '') ok('E13 无仓库目录里一行都不画')
   else bad('E13 无仓库目录里画出了东西：' + JSON.stringify(rPlain.html.slice(0, 120)))
 
   // 第四行「…还未初始化」的真触发：链上那一步状态是 done 就不出，是 current 才出。
   //   （链还没加载、那一步根本不存在时，按「拿不准就不多说」处理 —— 也不出。）
-  const rNotInit = await renderMark(subStore, { chainInit: 'current' })
+  const rNotInit = await renderMarkFromSource(subStore, { chainInit: 'current' })
   const notInitLines = String(tipTextOf(rNotInit.tipCalls))
   if (/还未初始化/.test(notInitLines)) ok('E14 根确实没初始化时，第四行真的画进浮层里')
   else bad('E14 根没初始化却没画第四行：' + JSON.stringify(notInitLines.slice(0, 160)))
-  const rInit = await renderMark(subStore, { chainInit: 'done' })
+  const rInit = await renderMarkFromSource(subStore, { chainInit: 'done' })
   const initLines = String(tipTextOf(rInit.tipCalls))
   if (!/还未初始化/.test(initLines)) ok('E15 根已初始化时不画第四行（不写安慰话）')
   else bad('E15 根已初始化却多画了第四行：' + JSON.stringify(initLines.slice(0, 160)))
@@ -365,10 +375,10 @@ try {
 
   // 反向：这一份数据就该出现标志，而它的根会话版本不该出现
   const fSubStore = { cwd: sessionCwd, snapshot: { ok: true, maps: [], workspaceRoot: hostValue } }
-  const rHost = await renderMark(fSubStore)
+  const rHost = await renderMarkFromSource(fSubStore)
   if (rHost.isSub === true && /面板数据来自工作区 /.test(rHost.html)) ok('F5 宿主真给的那份快照，渲染出来确实有这枚标志')
   else bad('F5 宿主真给的那份快照没画出标志：' + JSON.stringify(rHost.html.slice(0, 160)))
-  const rHostRoot = await renderMark({ cwd: wsRoot, snapshot: { ok: true, maps: [], workspaceRoot: hostValue } })
+  const rHostRoot = await renderMarkFromSource({ cwd: wsRoot, snapshot: { ok: true, maps: [], workspaceRoot: hostValue } })
   if (rHostRoot.isSub === false) ok('F6 同一个工作区的根会话里不画（那时根就是它自己）')
   else bad('F6 根会话里画出来了')
 

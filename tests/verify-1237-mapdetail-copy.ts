@@ -12,13 +12,10 @@
 // 全程不用 DOM：静态字符串断言就够了。
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { readFileSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
-
-const here = dirname(fileURLToPath(import.meta.url))
-const mapDetailPath = join(here, '..', 'src', 'client', 'views', 'MapDetail.ts')
-const listRowPath = join(here, '..', 'src', 'client', 'views', 'ListTabRow.js')
+// 2026-10-19（#1301 批C）：下面 C 组要读两份视图源码的原文。以前按 .js 路径直接用 readFileSync 读，
+//   读到的其实是构建产物；这一阶段 src/client 下的同名 .js 产物已经删掉，直接读会 ENOENT。
+//   改走共用取源入口 sourceText：问 .js 时同名 .ts 优先，读到的是手写真源，判据本身（五个反馈类名两边都在）没动。
+import { sourceText } from './lib/source-text.ts'
 
 const trFn = (key: any, params?: any) => {
   let s = String(key)
@@ -132,8 +129,10 @@ function renderMap(tickets: any[], copyFlash: any) {
 }
 // ---- C 组：与列表页同一套反馈类名（防分叉） ----
 {
-  const detailSrc = readFileSync(mapDetailPath, 'utf8')
-  const rowSrc = readFileSync(listRowPath, 'utf8')
+  // 取源见文件头：sourceText 按「同名 .ts 优先」找到真源原文；这里两处一处写 .ts、一处写 .js 说明符，
+  //   两种写法都经过同一个入口，读到的都是手写真源而不是会过期的构建产物。
+  const detailSrc = sourceText('src/client/views/MapDetail.ts')
+  const rowSrc = sourceText('src/client/views/ListTabRow.js')
   const classes = ['dsws-fb-okflash', 'dsws-fb-success-ring', 'dsws-fb-pop', 'dsws-fb-errflash', 'dsws-fb-shake']
   for (const c of classes) {
     check(rowSrc.includes(c) && detailSrc.includes(c), 'C 反馈类名 ' + c + ' 两边都有（同一套，不过度另起）')

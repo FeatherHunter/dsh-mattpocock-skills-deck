@@ -24,7 +24,13 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 // #1251：只认文本形状的断言走 sourceText 取 .ts 原文（产物经 esbuild：注释被剥、单引号变双引号）。
-import { sourceText } from './lib/source-text.js'
+// 取源入口（tests/lib/source-text.ts）同时负责回答「src/client 下同名的 .js 今天是不是还该读」：
+//   那一层 .js 是 pixel-ts 写下的构建产物（这一阶段要删），真源一律在同名 .ts 里；
+//   判存在与读文本都先问它，src/shared、src/host 等目录的 .js 产物这一阶段仍保留，读法不动。
+import { sourcePath, sourceText } from './lib/source-text.js'
+
+const root = resolve(import.meta.dirname, '..')
+function clientExists(p: string): boolean { try { return existsSync(resolve(root, sourcePath(p))) } catch (e) { return false } }
 
 let passed = 0, failed = 0
 function check(ok: unknown, msg: string): void { if(ok){ console.log('  PASS '+msg); passed++; } else { console.log('  FAIL '+msg); failed++; } }
@@ -34,11 +40,11 @@ console.log('== #308 五座位 modal-seat ==')
 console.log('')
 console.log('-- 1) 规划产出文件存在 --')
 check(existsSync('src/shared/ui/slots.js'), 'src/shared/ui/slots.js 存在')
-check(existsSync('src/client/kernel/slots.js'), 'src/client/kernel/slots.js 存在')
-check(existsSync('src/client/kernel/slotRenderer-queue.js') && existsSync('src/client/kernel/slotRenderer-repo-sync.js') && existsSync('src/client/kernel/slotRenderer-modal-view.js'), '三弹窗文件存在（原 slotRenderer.js 已拆为三文件）')
+check(clientExists('src/client/kernel/slots.js'), 'src/client/kernel/slots.js 存在（真源）')
+check(clientExists('src/client/kernel/slotRenderer-queue.js') && clientExists('src/client/kernel/slotRenderer-repo-sync.js') && clientExists('src/client/kernel/slotRenderer-modal-view.js'), '三弹窗文件存在（原 slotRenderer.js 已拆为三文件）')
 check(!existsSync('src/shared/ui/slots.js') || file('src/shared/ui/slots.js').includes('SLOTS_VERSION'), 'shared/ui/slots.js 含版本')
-check(!existsSync('src/client/kernel/slots.js') || file('src/client/kernel/slots.js').includes('SLOTS_KERNEL_VERSION'), 'kernel/slots.js 含版本')
-check(['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n').includes('SLOT_RENDERER_VERSION'), '三弹窗文件拼合含版本')
+check(!clientExists('src/client/kernel/slots.js') || sourceText('src/client/kernel/slots.js').includes('SLOTS_KERNEL_VERSION'), 'kernel/slots.js 含版本')
+check(['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map((p) => sourceText(p)).join('\n').includes('SLOT_RENDERER_VERSION'), '三弹窗文件拼合含版本')
 
 console.log('')
 console.log('-- 2) 五端口声明（ADR 5.1） --')
@@ -56,7 +62,7 @@ try{
   check(shared.includes('single'), 'shared 含 single kind (modal)')
   check(shared.includes('list'), 'shared 含 list kind')
   // kernel 同源
-  const kslots = file('src/client/kernel/slots.js')
+  const kslots = sourceText('src/client/kernel/slots.js')
   check(kslots.includes('modal-seat'), 'kernel/slots.js 含 modal-seat')
   check(kslots.includes('shouldShowInModal'), 'kernel/slots.js 含 shouldShowInModal')
   // 数量
@@ -172,7 +178,7 @@ try{
   // 挂载点（2026-09-21 搬家）：弹窗座位从检查页搬到状态栏 ——
   //   检查页只在「面板当前页 = 检查」时才进树，于是面板没开时点横幅那颗按钮什么都不会发生。
   //   现在：状态栏挂（三支渲染都要带上），检查页不许再挂（两处同挂会叠两层遮罩）。
-  const sbSrc = file('src/client/statusbar/StatusBar.js')
+  const sbSrc = sourceText('src/client/statusbar/StatusBar.js')
   check(sbSrc.includes('FormModalSeat'), 'StatusBar 挂载 FormModalSeat')
   check(sbSrc.includes('modalSeat'), 'StatusBar 含 modalSeat')
   check(!ct.includes('FormModalSeat'), 'ChecksTab 不再挂 FormModalSeat（防两处同挂）')
@@ -216,7 +222,7 @@ try{
   check(sr.includes('wf.detect') || sr.includes('loadChain') || sr.includes('loadSnapshot'), 'slotRenderer 提交后触发重求值')
   check(sr.includes('pending') && sr.includes('提交中'), 'slotRenderer 含 pending 提交中态')
   // z-index 语义：复用样式而非自造
-  const styles = file('src/client/kernel/styles.js')
+  const styles = sourceText('src/client/kernel/styles.js')
   check(styles.includes('.dsws-modal') && styles.includes('z-index:10000'), 'styles 含 .dsws-modal 10000（modal > toast > banner）')
 }catch(e){ check(false, 'slotRenderer 外观校验异常: '+e.message)}
 

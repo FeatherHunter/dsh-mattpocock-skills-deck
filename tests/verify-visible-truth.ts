@@ -23,6 +23,11 @@ const path = require('path')
 // 从 CJS require 一个 .mjs，与 tests/verify-file-granularity.ts 里 require('../scripts/lib/effective-lines.mts') 是同一种用法。
 const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（tests/lib/source-text.ts）：这一阶段 src/client 下的同名 .js 构建产物已经删掉，
+//   下面 loadModule 按 .js 路径直接读会 ENOENT。sourcePath 问 .js 时同名 .ts 优先，问到的是手写真源；
+//   问到的仍是 .js（例如 shared 域的产物 budget.js，它的源码在域目录的 src/ 子目录里、不同名目录）
+//   就照旧读那个文件，不硬把产物改读成别的东西。
+const { sourcePath } = require('./lib/source-text.ts')
 // 中央时间真值：拼进闭包的几片（budget.js 的 freshnessLevel/lagPromiseFor、truthLines 那片）在门禁里
 // 是“剥掉中央 import 行、当函数体编译”跑起来的（见下面的 loadModule），裸用的中央名字在求值时走全局预埋——
 // 值就是中央导出的同一份，不经过第二份拷贝。单源头改造前这些名字是各文件的字面量，预埋无从谈起。
@@ -37,10 +42,12 @@ const fail = function (msg) { problems.push(msg); failed = true }
 
 /** 把一份「一源两物」的源文件当模块跑起来：剥行首 export，作用域里塞进它在拼接闭包里的邻居。 */
 function loadModule(relPath, deps) {
-  let src = fs.readFileSync(path.join(ROOT, relPath), 'utf8')
+  // 取源见文件头：先问真源在哪（.js 说明符 → 同名 .ts 优先），再读那个路径的原文。
+  const resolved = sourcePath(relPath)
+  let src = fs.readFileSync(path.join(ROOT, resolved), 'utf8')
   // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
   src = src.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
-  if (relPath.endsWith('.ts')) {
+  if (resolved.endsWith('.ts')) {
     // 源码是 .ts：先按仓库自己的转译口径剥掉类型（转译参数只写在 scripts/lib/transpile-unit.mts 那一份，
     //   这里取现成的，不另抄一套），再照下面同一套「剥行首 export、当函数体编译」的读法加载。
     //   少了这一步，`type X = …` 会在编译函数时当场 SyntaxError —— 类型标注只给编译器看，运行期行为

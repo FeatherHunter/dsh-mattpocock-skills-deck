@@ -14,11 +14,13 @@
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-926-capfold-gate.ts（必须挂钩子：它靠钩子把 ./lib/eval-probe.js 落到同名 .ts，不挂会 ERR_MODULE_NOT_FOUND）
  */
-const { readFileSync, existsSync } = require('node:fs')
-const { resolve } = require('node:path')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 // （本文件是主干 #926 波次新合入的门禁，自带两处旧写法；#824 波次顺手按同一手法转掉，行为不变。若 #926 那边还在改这份文件，合入时以他们为准。）
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（tests/lib/source-text.ts）：src/client 下同名 .js 是 pixel-ts 构建产物，
+// 构建改成直接拼 .ts 真源之后那些 .js 已从源码树删除，再按旧路径直读会 ENOENT。
+// 本文件拿这三份源码是用来当 JavaScript 求值的，所以用 spliceableJs（按构建唯一口径转译真源）。
+const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
 
 let passed = 0, failed = 0
 const ok = (msg) => { passed++; console.log('  PASS ' + msg) }
@@ -27,19 +29,21 @@ const check = (cond, msg) => { if (cond) ok(msg); else bad(msg) }
 
 console.log('=== #926 胶囊折叠性能门禁（守卫等价 / 变化重算 / 未知不缓存 / 换代重算）===')
 
-const read = (rel) => readFileSync(resolve(rel), 'utf8')
 const CAPFOLD = 'src/client/statusbar/capFold.js'
 const CAPMACHINE = 'src/client/statusbar/capFoldMachine.js'
 const STATUSBAR = 'src/client/statusbar/StatusBar.js'
 
-check(existsSync(resolve(CAPFOLD)) && existsSync(resolve(CAPMACHINE)) && existsSync(resolve(STATUSBAR)), '源码三件套可读')
-// 与 scripts/build.mts 同一套做法：剥行首 export，拼进同一作用域跑。
+// 「源码三件套可读」这条判据原本是 existsSync 三条旧路径；现在那三条路径在源码树里已经不存在，
+// 改成用共用入口按同一套规则问一遍真源路径（.js 问同名 .ts），查不到时 sourcePath 会抛错、判据照旧变红。
+const sourceExists = (rel: string): boolean => { try { sourcePath(rel); return true } catch (e) { return false } }
+check(sourceExists(CAPFOLD) && sourceExists(CAPMACHINE) && sourceExists(STATUSBAR), '源码三件套可读')
+// 与 scripts/build.mts 同一套做法：spliceableJs 已按构建唯一口径转译真源、把行首 export 内联掉，拼进同一作用域跑。
 const mod = (function () {
   try {
     // 手法：compileFn——两段源码剥 export 后拼进同一作用域跑，原来无参造函数当场调用，共用入口同样处理。
     return compileFn([],
-      read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') + '\n' +
-      read(CAPMACHINE).replace(/^[ \t]*export[ \t]+/gm, '') +
+      spliceableJs(CAPFOLD) + '\n' +
+      spliceableJs(CAPMACHINE) +
       '\nreturn { runCapFold: runCapFold, applyCapFoldStart: applyCapFoldStart }'
     )()
   } catch (e) { return null }
@@ -160,7 +164,8 @@ if (mod) {
 
 // 调度器运行时行为：单飞丢弃、回调清位、异常兜底（行为要跑出来）
 // 手法：compileFn——机器源码单独求值，window 显式当参数名传进去，下面调用时仍传替身窗口。
-const schedMod = compileFn(['window'], read(CAPMACHINE).replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { capFoldScheduleFold: capFoldScheduleFold }')
+// 取源同样走 spliceableJs：与 scripts/build.mts 拼进闭包的那份同形（export 已在里面被内联掉）。
+const schedMod = compileFn(['window'], spliceableJs(CAPMACHINE) + '\nreturn { capFoldScheduleFold: capFoldScheduleFold }')
 const schedWin = { cbs: [], requestAnimationFrame: function (cb) { this.cbs.push(cb); return 1 } }
 const schedRun = schedMod(schedWin)
 let schedRan = 0

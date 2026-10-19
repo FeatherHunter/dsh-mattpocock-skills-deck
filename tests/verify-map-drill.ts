@@ -16,8 +16,9 @@ const { compileFn } = require('./lib/eval-probe.js')
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.SYNC_ISSUE_CACHE_TTL_MS = centralTime.SYNC_ISSUE_CACHE_TTL_MS
 // 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
-// 按旧路径直接读会读到构建产物（字符串改双引号），下面只认单引号的断言会误报。
-const { sourceText } = require('./lib/source-text.ts')
+// 按旧路径直接读会读到构建产物（字符串改双引号），下面只认单引号的断言会误报，所以按文本形状
+// 扫描的地方走 sourceText；要当函数求值的片段走 spliceableJs（按构建唯一口径转译真源再拼接）。
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 // 沙箱跑裸 JS，身份函数是全标注 TS：转译口径取仓库唯一那一份
 // （scripts/lib/transpile-unit.mts，手法照 tests/verify-build-artifacts.ts）。
 const esbuildForProbe = require('esbuild')
@@ -33,8 +34,9 @@ const identitySrc = ['effortOf', 'idOfParts', 'idOf'].map((n) => {
   if (!m) throw new Error('identity-keys.ts 缺 ' + n)
   return esbuildForProbe.transformSync(m[0].replace(/^export /, ''), tuForProbe.TRANSPILE_OPTIONS).code
 }).join('\n')
-// 面板里的「按身份找地图」已收进 store-derived.js 的共享函数，沙箱同样带真源码
-const derivedSrc = fs.readFileSync('src/client/kernel/store-derived.js', 'utf8')
+// 面板里的「按身份找地图」已收进 store-derived.ts 的真源，沙箱同样带真源码：取源走共用入口，
+// 由它按构建口径转译后再交给下面的截取（旁边那份 store-derived.js 是构建产物，不能直接读）。
+const derivedSrc = spliceableJs('src/client/kernel/store-derived.js')
 const findMapByIdentitySrc = (function () {
   const i = derivedSrc.indexOf('const findMapByIdentity =')
   if (i < 0) throw new Error('store-derived.js 缺 findMapByIdentity')
@@ -90,21 +92,18 @@ function extractIife (src, name) {
   return src.slice(i, e + 4)
 }
 
-// 2026-10-17 先修取源口径：MapDetail / IssueDetail / SkillsTab 三份今天都是「同名 .js 产物 + .ts 真源」
-//   并排，原来直接 readFileSync 那个 .js 读的是构建产物（tests/lib/source-text.ts 开头写明的例外：
-//   构建产物不要从这个入口读）。改成走共用入口的 spliceableJs，参数仍写 .js 说明符（同名 .ts 优先），
-//   这样门禁看到的就是真正拼进产物的那份源码。
-//   store-prefs.js 与 store-derived.js 今天没有同名 .ts，读的本来就是真源码，保持原样；它们将来转 .ts 时，
-//   这两行会静默变成读旧产物，届时要一起换成 spliceableJs。
-const { spliceableJs } = require('./lib/source-text.ts')
+// 2026-10-17 起取源统一走共用入口的 spliceableJs：参数仍写 .js 说明符（同名 .ts 优先），
+//   由它按构建唯一口径转译真源，门禁看到的就是真正拼进产物的那份源码。
+//   视图树与客户端内核里「同名 .js 产物 + .ts 真源」并排的文件都这么取；store-prefs.js / store-derived.js
+//   的真源现在也已就位，不再直接 readFileSync 旁边那份产物（产物没重建时会静默停在旧文本上）。
 const mapSrc = spliceableJs('src/client/views/MapDetail.js')
 const issueSrc = spliceableJs('src/client/views/IssueDetail.js')
 const skillSrc = spliceableJs('src/client/views/SkillsTab.js')
-const prefsSrc = fs.readFileSync('src/client/kernel/store-prefs.js', 'utf8')
+const prefsSrc = spliceableJs('src/client/kernel/store-prefs.js')
 
-// —— 真实导航函数（与 verify-nav-stack 同一加载手法：去行首 export，注入 emit 桩）
+// —— 真实导航函数（与 verify-nav-stack 同一加载手法：注入 emit 桩）。行首 export 与中央时间 import
+//    已在共用入口里按构建口径处理过，下面这步沿用旧写法、实际是空操作，留着只为两份门禁逐字对齐。
 const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '').split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
-// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
 // 手法：compileFn——本文件全都是把真源里截出来的函数文本变成可调用对象，统一交给 tests/lib/eval-probe.js，行为不变。
 const nav = compileFn(['emit'], srcNoExport + '\nreturn { peekNav, pushNav, popNav }')(
   function (st) { st.tick = (st.tick || 0) + 1 }

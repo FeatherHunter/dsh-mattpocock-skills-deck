@@ -26,13 +26,13 @@
  *
  * 用法：node tests/verify-698-switch-asks-layout.ts
  */
-import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
-// #1209 起状态栏那份的真源是 .ts：直接按 .js 路径读会读到 pixel-ts 产物（本票之前那份还是手写时代的旧文件）。
-//   spliceableJs 按「同名 .ts 优先」解到真源再按全仓唯一口径转译成可求值的 JavaScript（与拼包同一条路），
-//   store-switch.js 与 prompts-setup.js 还没转 .ts，仍按原路径直读。
+// 取源入口（tests/lib/source-text.ts）：src/client 下的同名 .js 是 pixel-ts 写下的构建产物（这一阶段要删），
+//   真源一律是同名 .ts（状态栏那份 #1209 起就转了，store-switch / prompts-setup 也已转写）。
+//   spliceableJs 按「同名 .ts 优先」解到真源再按全仓唯一口径转译成可求值的 JavaScript（与拼包同一条路，
+//   并剥掉行首 export），下面这些函数体才能原样交给 compileFn 真跑。
 import { spliceableJs } from './lib/source-text.js'
 // 中央时间真值：切换确认的收起延时只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 import { STORE_SWITCH_CONFIRM_MS } from '../src/shared/time-config/values.js'
@@ -41,7 +41,6 @@ import { STORE_SWITCH_CONFIRM_MS } from '../src/shared/time-config/values.js'
 const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const root = resolve(import.meta.dirname, '..')
-const read = (rel: string): string => readFileSync(resolve(root, rel), 'utf8')
 const url = (rel: string): string => pathToFileURL(resolve(root, rel)).href
 let passed = 0
 let failed = 0
@@ -49,8 +48,8 @@ const check = (ok: unknown, msg: string): void => { if (ok) { console.log('  PAS
 const stripExports = (s: string): string => s.replace(/^[ \t]*export[ \t]+/gm, '')
 
 const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
-const swSrc = read('src/client/kernel/store-switch.js')
-const setupSrc = read('src/client/kernel/prompts-setup.js')
+const swSrc = spliceableJs('src/client/kernel/store-switch.js')
+const setupSrc = spliceableJs('src/client/kernel/prompts-setup.js')
 
 // ── 公共夹具：真 guide-steps ────────────────────────────────────────────────────────────
 const GUIDE = await import(url('src/shared/tracker/guide-steps.js'))

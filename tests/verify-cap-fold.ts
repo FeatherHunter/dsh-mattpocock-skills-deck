@@ -38,13 +38,21 @@ import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createServer } from 'node:http'
 import { compileFn } from './lib/eval-probe.js'
+// 取源走共用入口（tests/lib/source-text.ts）：src/client 下同名 .js 是 pixel-ts 构建产物，
+// 构建改成直接拼 .ts 真源之后那些 .js 已从源码树删除，再按旧路径直读会 ENOENT。
+// 本文件把 capFold 那份判据当 JavaScript 求值，所以用 spliceableJs（按构建唯一口径转译真源）；
+// 两份 client.js 产物（ARTIFACTS、页面里执行的那份）仍按原样直接读盘，那是我要测的构建产物本身。
+import { sourcePath, spliceableJs } from './lib/source-text.ts'
 
 let passed = 0, failed = 0
 function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
 function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
 function check(cond: boolean, msg: string): void { if (cond) ok(msg); else bad(msg) }
 
+// 只给构建产物用：client.js / package/lib/client.js 还在盘上，读法保持原样。
 const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
+// 客户端源码树今天只有 .ts：按 .js 路径问共用入口会得到同名 .ts 真源路径；查不到会抛错。
+const sourceExists = (rel: string): boolean => { try { sourcePath(rel); return true } catch (e) { return false } }
 const CAPFOLD = 'src/client/statusbar/capFold.js'
 const CAPMACHINE = 'src/client/statusbar/capFoldMachine.js'
 const STATUSBAR = 'src/client/statusbar/StatusBar.js'
@@ -55,12 +63,12 @@ console.log('=== #725 状态栏胶囊：随宽度一格一格变短（有位置�
 console.log('')
 console.log('A) 判据层：那一条阶梯本身（纯函数，不开浏览器）')
 
-// 与 scripts/build.mts 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑。
+// 与 scripts/build.mts 拼接时同一套做法：共用入口按构建唯一口径把真源转成可拼接 JavaScript。
 const capFold = (function () {
-  if (!existsSync(resolve(CAPFOLD))) return null
+  if (!sourceExists(CAPFOLD)) return null
   try {
     // 手法：compileFn——阶梯那段判据是按与 build.mts 同一套做法切出来的文本，改走共用入口造函数，行为不变。
-    return compileFn([], read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') +
+    return compileFn([], spliceableJs(CAPFOLD) +
       '\nreturn { CAP_FOLD_POLICY, CAP_FOLD_START_FOLDED, capFoldLadderOf, capFoldStateAt, capFoldStepCount, capFoldStartWordsOf, capFoldStartFoldedOf, splitTimeStr }')()
   } catch (e) { return null }
 })()
@@ -331,7 +339,10 @@ console.log('B) 文件层：判据、机器、状态栏、样式与两份产物�
 //   · 读 styles.js 与两份产物文本，用正则钉住平铺那几条 CSS 规则（flatRules 辅助）本身。
 //   这些事实（判据与机器真拼进了产物、接线与合并队列真在、平铺那几条 CSS 真落到版面上）现在由 C/D
 //   两组在真 Chromium 里按跑出来的版面量：同一份产物、同一个台阶，看的是结果不是文本。
-const missing = [CAPFOLD, CAPMACHINE, STATUSBAR, STYLES, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
+// 客户端四项已没有同名 .js 产物：用共用入口按真源查存在（问 .js 会给出同名 .ts 路径）；
+// 两份 client.js 产物仍在盘上，保持原样按实际路径查。
+const missing = [CAPFOLD, CAPMACHINE, STATUSBAR, STYLES, ...ARTIFACTS].filter((rel) =>
+  ARTIFACTS.indexOf(rel) >= 0 ? !existsSync(resolve(rel)) : !sourceExists(rel))
 for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mts 重建产物）' : ''))
 
 // ---------- 真渲染层：真 Chromium + 真产物 ----------

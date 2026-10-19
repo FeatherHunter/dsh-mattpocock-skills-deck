@@ -11,7 +11,7 @@ const fs = require('fs')
 const path = require('path')
 // #1253：Tip 转 TypeScript 之后，判据要按「源码形状」看（单引号、字面量 2147483000 都只在
 // 源码里保留），行数口径用仓库统一的有效行，见下面 Tip 那一段的注释。
-const { sourceText } = require('./lib/source-text.ts')
+const { sourcePath, sourceText } = require('./lib/source-text.ts')
 const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
 let failed = false
 let warned = false
@@ -124,7 +124,9 @@ else if (hits.length===2) check(false, 'warn', 'title: 2 处标记（// TODO no-
 else if (hits.length<5) check(false, 'error', 'title: ' + hits.length + ' 处即抽（≥3）：' + hits.slice(0,5).join(', ') + (hits.length>5?' ...':'') + ' — 请经 Tip 薄预设迁移（mode mouse/delay 500/160/maxWidth 220/flip auto/zIndex 2147483000）')
 else check(false, 'error', 'title: ' + hits.length + ' 处必卡（≥5）— 合并门禁卡住，不抽不合入；清单：' + hits.slice(0,5).join(', ') + ' ...')
 if (hits.length>=5) check(false, 'error', 'title: 5 处必卡阈值已触发（实际 ' + hits.length + '）— 需 T2/T3 清零')
-const tipPath = 'src/client/views/primitives/Tip.js'
+// 2026-10-19：Tip 的同名 .js 产物已随 pixel-ts 那一步一起删掉，取源改走共用入口——
+// 传 .js 路径进来，sourcePath 按「同名 .ts 优先」给出真源，判据读的仍是同一份代码。
+const tipPath = sourcePath('src/client/views/primitives/Tip.js')
 if (fs.existsSync(tipPath)){
   const src = sourceText(tipPath)
   const lines = countEffectiveLines(src)

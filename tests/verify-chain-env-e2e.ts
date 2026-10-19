@@ -25,6 +25,10 @@
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源入口（tests/lib/source-text.ts）：src/client/kernel/probe-chain.js 是 pixel-ts 写下的同名产物（这一阶段要删），
+//   真源是 probe-chain.ts；下面要把这份文件当子沙箱的代码体真跑，所以走 spliceableJs —— 它转译成 JavaScript
+//   并剥掉行首 export，跑的是真源里那段逻辑，而不是构建产物。
+const { spliceableJs } = require('./lib/source-text.ts')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -173,7 +177,7 @@ async function main () {
     const env = await res.json()
     return env && env.result
   } } } : undefined) }))
-  const chainSrc = require('fs').readFileSync(path.join(ROOT, 'src/client/kernel/probe-chain.js'), 'utf8')
+  const chainSrc = spliceableJs('src/client/kernel/probe-chain.js')
   const cache = new Map()
   const keyOf = (cwd, bid, lang) => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
   const sandbox = {

@@ -8,6 +8,9 @@ const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口：bannerChain 的真源已经是 .ts，要当函数体求值，所以用 spliceableJs
+// （按构建同一套口径转译、已去掉每行行首的 export，原文里的类型标注不会被当成语法错误）。
+const { spliceableJs } = require('./lib/source-text.ts')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -30,7 +33,7 @@ async function loadBannerChain(overrides?: { promptText?: string | null }): Prom
   const o = overrides || {}
   const guide = await import(pathToFileURL(path.join(root, 'src/shared/tracker/guide-steps.js')).href)
   const actions = await import(pathToFileURL(path.join(root, 'src/client/kernel/actions.js')).href)
-  const body = read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
+  const body = spliceableJs('src/client/statusbar/bannerChain.js')
   const seen: ChainSeen = { injected: [], logged: [] }
   const stepsOf = (st: any) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
   const sandbox = {

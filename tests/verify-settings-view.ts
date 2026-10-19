@@ -160,8 +160,6 @@ const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
 // 中央时间真值：写那一片的防抖窗从中央引用，门禁求值时走全局预埋（值就是中央导出的同一份）。
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.VIEW_FLAG_WRITE_DEBOUNCE_MS = centralTime.VIEW_FLAG_WRITE_DEBOUNCE_MS
-// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供）。
-const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 // store-prefs.ts 里「主列表偏好」那一段的真源码（LIST_PREFS_KEY / listPrefs / saveListPrefsLegacy / saveListPrefs）：
 //   界面偏好那一族要用的就是这一段。整份 store-prefs.ts 还牵着面板高度、无仓库红卡、选中与仓库等别的东西，
 //   所以只切这一段 —— 仍然是真源码，不另写仿制品。
@@ -177,28 +175,33 @@ function listPrefsSlice() {
   return noExport(src.slice(start, end))
 }
 function makeView(env) {
-  const body = listPrefsSlice() + '\n' + noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(stripTimeConfigImport(readText(VIEW_WRITE_REL))) + '\n' + noExport(readText(UI_REL))
+  // 被测那几片都已有同名 .ts 真源（旁边 .js 是构建产物），取源统一走共用入口的 spliceableJs：
+  // 它按构建唯一口径转译、去掉行首 export、剥掉中央时间 import，拼出来就是真正进产物的那段代码；
+  // 所以这里不再自己 readText + 去 export + 剥 import —— 那几步只该在共用入口里有一份。
+  const body = [listPrefsSlice(), spliceableJs(VIEW_STATE_REL), spliceableJs(VIEW_REL), spliceableJs(VIEW_WRITE_REL), spliceableJs(UI_REL)].join('\n')
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
   const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, viewFlagOfRoot: viewFlagOfRoot, setViewFlag: setViewFlag, setViewFlagRoot: setViewFlagRoot, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))
 }
-// ── 真件三：自动展开那三档判决（从 SubworkspaceMark.js 的真源里切出那个纯函数，不另写仿制品） ──
+// ── 真件三：自动展开那三档判决（从 SubworkspaceMark 的真源里切出那个纯函数，不另写仿制品） ──
 //   切法与 tests/verify-666-subws-mark-root.js 同一段（subwsMarkRootOf 到 SubworkspaceMark 之间那组纯函数）。
+//   真源是同名的 .ts（旁边 .js 是构建产物），取源走共用入口的 spliceableJs；转译后行首 export 已被内联掉，
+//   所以截段锚按「const 名字 = 」写，截出来的仍是同一段源码。
 function autoDecideFn() {
-  const src = readText('src/client/views/SubworkspaceMark.js')
-  const start = src.indexOf('export const subwsMarkRootOf')
-  const end = src.indexOf('export const SubworkspaceMark')
-  if (start < 0 || end <= start) throw new Error('SubworkspaceMark.js 里找不到那组纯函数（subwsMarkRootOf … SubworkspaceMark 之间）')
-  return compileFn(['keyOf', 'tr'], noExport(src.slice(start, end)) + '\nreturn subwsMarkAutoDecide')(keyOfFn(), (k) => k)
+  const src = spliceableJs('src/client/views/SubworkspaceMark.js')
+  const start = src.indexOf('const subwsMarkRootOf =')
+  const end = src.indexOf('const SubworkspaceMark =')
+  if (start < 0 || end <= start) throw new Error('SubworkspaceMark.ts 里找不到那组纯函数（subwsMarkRootOf … SubworkspaceMark 之间）')
+  return compileFn(['keyOf', 'tr'], src.slice(start, end) + '\nreturn subwsMarkAutoDecide')(keyOfFn(), (k) => k)
 }
 
 // ── 真件三之二：自动展开「以前展开过没有」那道判断（同样从真源里切出纯函数，不另写仿制品） ──
 function shownBeforeFn() {
-  const src = readText('src/client/views/SubworkspaceMark.js')
-  const start = src.indexOf('export const subwsMarkRootOf')
-  const end = src.indexOf('export const SubworkspaceMark')
-  if (start < 0 || end <= start) throw new Error('SubworkspaceMark.js 里找不到那组纯函数（subwsMarkRootOf … SubworkspaceMark 之间）')
-  return compileFn(['keyOf', 'tr'], noExport(src.slice(start, end)) + '\nreturn subwsMarkShownBefore')(keyOfFn(), (k) => k)
+  const src = spliceableJs('src/client/views/SubworkspaceMark.js')
+  const start = src.indexOf('const subwsMarkRootOf =')
+  const end = src.indexOf('const SubworkspaceMark =')
+  if (start < 0 || end <= start) throw new Error('SubworkspaceMark.ts 里找不到那组纯函数（subwsMarkRootOf … SubworkspaceMark 之间）')
+  return compileFn(['keyOf', 'tr'], src.slice(start, end) + '\nreturn subwsMarkShownBefore')(keyOfFn(), (k) => k)
 }
 
 async function main() {
@@ -727,7 +730,7 @@ const wait = (env) => realSleep(300)
     const { act } = React
     const { tipsFromLocale } = require('./lib/render-subws-mark.js')
     const tips = tipsFromLocale()
-    const MARK_SRC = noExport(readText('src/client/views/SubworkspaceMark.js'))
+    const MARK_SRC = spliceableJs('src/client/views/SubworkspaceMark.js')
     const ROOT_DIR = 'D:\\ilife'
     const SUB_DIR = 'D:\\ilife\\packages\\skill-calorie'
     // 画一次：opts.doc 是文档到手后里面记的那一格，opts.legacyShown 是旧键里记过没有，

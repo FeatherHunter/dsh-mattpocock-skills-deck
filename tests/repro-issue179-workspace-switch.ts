@@ -2,10 +2,13 @@
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法行与几处类型标注，判据与断言一条没动。
 // 用法: node --import ./scripts/ts-hook.mts tests/repro-issue179-workspace-switch.ts
 const fs = require('fs')
+// 取源走共用入口：Dock 的手写真源已经从 .js 转成同名 .ts，盘上那份 .js 是构建产物，注释在转译时被删掉。
+// 本脚本下面几条判断看的正是注释（#179 加固说明）与真源写法形状，读产物会扫不到，所以改成读 .ts 原文。
+const { sourceText } = require('./lib/source-text.ts')
 
 console.log('=== 复现 #179：切工作区后右侧面板仓库名残留 DSH 本体路径 ===')
 
-const srcDock = fs.readFileSync('src/client/panel/Dock.js','utf8')
+const srcDock = sourceText('src/client/panel/Dock.js')
 const srcHost = fs.readFileSync('src/host/index.ts','utf8')
 const clientBuilt = fs.existsSync('client.js') ? fs.readFileSync('client.js','utf8') : ''
 const checks: Array<{ msg: string; pass: boolean }> = []

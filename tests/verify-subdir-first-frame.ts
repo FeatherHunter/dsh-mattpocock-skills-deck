@@ -32,6 +32,10 @@
 const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（tests/lib/source-text.ts）：要拼进闭包当场求值的客户端片段走 spliceableJs（按构建
+// 唯一口径把真源转成可拼接的 JavaScript，旁边那份 .js 是构建产物、不能直接读）；只按文本形状核对
+// 真源里那条中央时间引用的地方走 sourceText（要的是原文，转译会把那行 import 剥掉）。
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 // 时间压缩：本门的墙钟时间全花在「等」上 —— 每个现场都要等那条 0.9 秒的等待死线走完、再等那份 1.4 秒才到的
 // 完整快照落地（每个现场 0.9 + 1.7 秒，门里一共有七个现场，合计 18 秒左右）。这两笔等待都是假宿主按毫秒数排的
 // 定时器，压成虚拟时间以后真实只等几毫秒，而「死线先到、回包后到」这个次序照旧：虚拟队列按到期时间排队，
@@ -70,18 +74,24 @@ const FILES = [
   'src/client/kernel/probe-select.js',
 ]
 
-// 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mts 的拼接口径一致：去掉行首 export、
-// 剥掉中央时间参数那一行 import 后求值）。
+// 把这几片按构建顺序拼成同一个闭包。客户端那几片的真源都已转成 .ts，取源走共用入口的 spliceableJs：
+// 它按构建口径转译、去掉行首 export、剥掉中央时间 import，拼出来的就是真正进产物的那份代码；
+// 变异注入的 patch.text 是现成文本，原样交给同一条去壳处理。src/shared 那一片本阶段仍是手写真源，照旧直接读。
 function moduleText(patch) {
-  const body = FILES.map((f) => noExport(stripTimeConfigImport((patch && patch.file === f) ? patch.text : read(f)))).join('\n')
+  const body = FILES.map((f) => {
+    const src = (patch && patch.file === f) ? patch.text : (f.indexOf('src/client/') === 0 ? spliceableJs(f) : read(f))
+    return noExport(stripTimeConfigImport(src))
+  }).join('\n')
   // 门禁把源里那条中央耐心缩短成 0.9 秒，好把「死线先到、回包后到」那个次序造出来。
   //   下面这句注入就是本门禁跑起来的前提：源里换了写法（中央引用不在）时早点报错，别让它静悄悄地按中央值跑。
   // 2026-10-17 先修：这条锚原来少了 m 标志。probe-snapshot.js 第 1 行起是说明块、那条 import 在第 9 行，
   //   不带 m 的 ^ 只认字符串下标 0，于是它永远匹配不上、门禁在 RUNNER ERROR 处整扇停住（主链今天的红之一）。
   //   这条锚只是「本门禁的注入前提还在不在」的自检（中央引用的登记另由 tests/verify-time-config.ts 守），
   //   所以只补 m，不顺手重构它。
+  //   这条锚只看「真源原文里那行中央引用还在不在」：spliceableJs 转译时会按构建口径把它剥掉，
+  //   所以这里必须用 sourceText 读原文，换成转译结果会让前提自检误报。
   const TC_ANCHOR_RE = /^\s*import\s*\{[^}]*SNAP_WAIT_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/m
-  if (!TC_ANCHOR_RE.test(read('src/client/kernel/probe-snapshot.js'))) throw new Error('源里找不到快照等待的中央引用（SNAP_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
+  if (!TC_ANCHOR_RE.test(sourceText('src/client/kernel/probe-snapshot.js'))) throw new Error('源里找不到快照等待的中央引用（SNAP_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
   return 'const SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS + '\n' + body
 }
 
@@ -178,7 +188,7 @@ function freshStore(env) {
 // 只断言 st.selection 装没装上，等于把「字段装上了、可用户看到的还是那句话」这种结果放过去。
 const bannerApi = (function () {
   const guide = require(path.join(root, 'src/shared/tracker/guide-steps.js'))
-  const src = noExport(read('src/client/statusbar/bannerChain.js'))
+  const src = noExport(spliceableJs('src/client/statusbar/bannerChain.js'))
   return {
     // 手法：compileFn——横幅判据同样是从真源切出来的文本，参数名收进数组交给共用入口。
     step: compileFn(['guideStepsFor', 'guideStepDone', 'chainSteps', 'chainStep', 'checkShowTitle'],
@@ -199,8 +209,9 @@ function bannerVariant(st) {
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // 真源里的几条接线（反证要能按字面把它们拆掉 / 改回原样；名字一改就红在这）。
-// #1251：这扇门禁读的是六份内核的构建产物（text 拼合直接求值），转写后 esbuild 把单行 try/catch 展开成多行、
-//   引号统一双引号 —— 两条反证正则按产物当下的形态写（语句级锚点，转译前后逐字相同，意图不变）。
+// #1251：这扇门禁原来读的是六份内核的构建产物（text 拼合直接求值）；现在取源走共用入口的 spliceableJs
+//   （按构建唯一口径转译真源）。转译器把单行 try/catch 展开成多行、引号统一双引号 —— 两条反证正则
+//   按转译后的形态写（语句级锚点，转译前后逐字相同，意图不变）。
 const NEW_GUARD_RE = /if \(_curNorm !== _reqNorm \&\& !_snapRequestKeyWas\(_reqNorm, st\)\) \{/
 const ASK_LINE_RE = /^[ \t]*if \(typeof askSelectionOnce === "function"\) askSelectionOnce\(st\);\r?\n/m
 const LATE_LINE_RE = /^[ \t]*_installLateSnapshot\(st, lateSnap, _reqNorm, _mine\);\r?\n/m
@@ -219,7 +230,7 @@ async function main() {
 
   console.log('=== #727 子目录会话第一帧门禁（I1 便宜且专用 / I2 未知≠否 / I3 迟到能落地）===')
 
-  const probeSnapshotSrc = read('src/client/kernel/probe-snapshot.js')
+  const probeSnapshotSrc = spliceableJs('src/client/kernel/probe-snapshot.js')
   ok(NEW_GUARD_RE.test(probeSnapshotSrc), '（前提）真源里那条守卫就是换过尺子的样子（按请求时那条目录比）')
   const noAskSrc = ASK_LINE_RE.test(probeSnapshotSrc)
     ? cut(probeSnapshotSrc, ASK_LINE_RE, '「进工作区补问一次」那一步（第 1 条修法）') : probeSnapshotSrc

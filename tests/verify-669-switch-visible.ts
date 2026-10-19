@@ -236,12 +236,14 @@ console.log('')
 console.log('== C 行为层：快照那条路上「切换之后重取必须真发一次、旧的那份不许装」 ==')
 // 守卫与去重键 2026-09-21 从 probe-snapshot.js 拆到 probe-stale.js（那个文件超了 350 行上限）：
 //   两个文件在产物里是同一个闭包，所以这里一起求值，量法不变。
-const staleSrc = read('src/client/kernel/probe-stale.js').replace(/^[ \t]*export[ \t]+/gm, '')
+const staleSrc = spliceableJs('src/client/kernel/probe-stale.js')
 // #1009：装快照那一整段搬去了 probe-select.js（正常那一路与迟到那一路共用同一处），所以这一门的闭包
 //   也得把那一页带上 —— 不带的话「装进去的是哪一份」这条根本没有落地口，量出来全是 undefined。
-const snapSrc = staleSrc + '\n' + stripTimeConfigImport(read('src/client/kernel/probe-snapshot.js')).replace(/^[ \t]*export[ \t]+/gm, '')
-  + '\n' + read('src/client/kernel/probe-select.js').replace(/^[ \t]*export[ \t]+/gm, '')
-const staleGuardSrc = read('src/client/kernel/probe-stale.js')
+// 这三份真源都已经是 .ts，要拼成同一个函数体求值，所以一律走 spliceableJs（与构建同一口径，
+//   类型标注已剥掉、行首 export 已去掉；末端 stripTimeConfigImport 只是防御，那份中央 import 它已先删掉）。
+const snapSrc = staleSrc + '\n' + stripTimeConfigImport(spliceableJs('src/client/kernel/probe-snapshot.js'))
+  + '\n' + spliceableJs('src/client/kernel/probe-select.js')
+const staleGuardSrc = spliceableJs('src/client/kernel/probe-stale.js')
 const deferredOf = () => { let res: (value: any) => void = () => {}; const p = new Promise<any>((r) => { res = r }); return { p: p, res: res } }
 const tick = () => new Promise((r) => setTimeout(r, 0))
 

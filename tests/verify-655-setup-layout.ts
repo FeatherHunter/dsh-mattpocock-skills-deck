@@ -32,9 +32,10 @@ interface LocalePair { zh: Record<string, string>; en: Record<string, string> }
 //   闭包里的几样同名依赖用替身顶上：inject 记下注入的文本，emit 只当「界面重绘一次」。
 function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCachedSetupLayout?: (cwd: string) => string | null }) {
   // #698：注入决策那一段（injectSetupDecision / setupBlockedByGuide 的调用方）搬去了 kernel/prompts-setup.js，
-  //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。
+  //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。两份真源都已经是 .ts，
+  //   要当函数体求值，所以都走 spliceableJs（与构建同一份转译口径，行首 export 已去掉）。
   const src = spliceableJs('src/client/kernel/prompts.js')
-    + '\n' + fs.readFileSync(path.join(root, 'src/client/kernel/prompts-setup.js'), 'utf8')
+    + '\n' + spliceableJs('src/client/kernel/prompts-setup.js')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const injected: string[] = []
   const emitted: any[] = []
@@ -360,7 +361,10 @@ async function main() {
   const directCalls: string[] = []
   for (const rel of files) {
     let src = ''
-    try { src = fs.readFileSync(path.join(root, rel), 'utf8') } catch (e) { continue }
+    try {
+      // 前两份视图的真源已经转成 .ts，源码树里读原文；后两份是构建产物，仍然直接读盘。
+      src = rel.startsWith('src/client/') ? sourceText(rel) : fs.readFileSync(path.join(root, rel), 'utf8')
+    } catch (e) { continue }
     // ① 取初始化文案必须经注入决策函数：出现「promptText('setupRun'」但同一行不走 setupRunParamsFrom 就算直注
     const lines = src.split(/\r?\n/)
     lines.forEach(function (line, i) {
@@ -368,16 +372,17 @@ async function main() {
     })
   }
   ok(directCalls.length === 0, '产物与视图里没有绕开决策函数直取初始化文案的地方' + (directCalls.length ? '（' + directCalls.join('；') + '）' : ''))
-  const checkSrc = fs.readFileSync(path.join(root, 'src/client/views/ChecksTab.js'), 'utf8')
+  // 这三处只扫关键字与调用形状，不拿去求值；源码树里读 .ts 原文即可（sourceText 会优先给同名 .ts）。
+  const checkSrc = sourceText('src/client/views/ChecksTab.js')
   ok(checkSrc.indexOf('resolveSetupRunText') >= 0 && checkSrc.indexOf('setupRunTextForClick') >= 0, '检查页红牌那颗「执行初始化」按钮走的是同一个注入决策函数（经内核那一处判据）')
   const statusSrc = sourceText('src/client/statusbar/StatusBackend.js')
   ok(statusSrc.indexOf('injectSetupDecision') >= 0, '状态栏黄条与那张小卡的确认都走同一个注入决策函数')
-  const barSrc = fs.readFileSync(path.join(root, 'src/client/statusbar/StatusBar.js'), 'utf8')
+  const barSrc = sourceText('src/client/statusbar/StatusBar.js')
   // #663：门控那个窗里那组单选撤了（全新工作区还没装 gh、还没建仓库，先把「各部分共用一套用语吗」问出来是超前的问题），
   //   布局那一问现在只在初始化那一步出现 —— 所以整个客户端里只有一处放这组单选。
   // #698（2026-09-22）：那一处的**界面**搬去了弹窗座位那一层（views/SetupCard.js）——
   //   原先它挂在状态栏黄条下面，工作区一旦初始化过就没有地方可画；现在与黄条那条在不在无关。
-  const cardSrc = fs.readFileSync(path.join(root, 'src/client/views/SetupCard.js'), 'utf8')
+  const cardSrc = sourceText('src/client/views/SetupCard.js')
   ok((cardSrc.match(/layoutRadios\(st, h\)/g) || []).length >= 1, '初始化那张小卡上放着这组单选（#698 起在 views/SetupCard.js）')
   ok(!/layoutRadios\(/.test(barSrc), '状态栏那边不再自己拼这组单选（一个座位只留一处渲染，不两处同挂）')
   // #664：**门控确认**那两条路不再注入任何文字（原先它们都调过这个决策函数）。
@@ -386,7 +391,8 @@ async function main() {
   //   场景分流由 tests/verify-669-choice-precedence.js 守着（含三种场景与反证），这里只守门控那两条路。
   const noInjectFiles = ['src/client/panel/Dock.js', 'src/client/panel/OverlayGate.js']
   const stillInject = noInjectFiles.filter(function (rel) {
-    try { return /injectSetupDecision\s*\(/.test(fs.readFileSync(path.join(root, rel), 'utf8')) } catch (e) { return false }
+    // 这两份真源也已经是 .ts；按源码读，产物删掉之后这条判断才不会悄悄变成「读不到就放行」。
+    try { return /injectSetupDecision\s*\(/.test(sourceText(rel)) } catch (e) { return false }
   })
   ok(stillInject.length === 0, '门控那两条路都不再注入任何文字' + (stillInject.length ? '（还在调：' + stillInject.join('、') + '）' : ''))
 

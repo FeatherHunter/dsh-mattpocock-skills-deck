@@ -37,12 +37,13 @@ let passed = 0
 let failed = 0
 function check (ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
-const SB = resolve('src/client/statusbar/StatusBar.js')
-const CT = resolve('src/client/views/ChecksTab.js')
+// 产物路径：package/lib/client.js 是构建产物，仍然直接读盘（它没有对应的 .ts 真源）。
 const PKG = resolve('package/lib/client.js')
-for (const p of [SB, CT, PKG]) if (!existsSync(p)) check(false, p + ' 读不到（先跑 npm run build）')
-const sbSrc = readFileSync(SB, 'utf8')
-const ctSrc = readFileSync(CT, 'utf8')
+if (!existsSync(PKG)) check(false, PKG + ' 读不到（先跑 npm run build）')
+// 状态栏与检查页已经转成 .ts 真源，同名 .js 构建产物已删除，直接读 .js 会 ENOENT。
+// 文本断言改走 sourceText：它问 .js 时优先取同名 .ts 原文；两种都没有会直接抛错，判据不会被悄悄放过。
+const sbSrc = sourceText('src/client/statusbar/StatusBar.js')
+const ctSrc = sourceText('src/client/views/ChecksTab.js')
 const clientSrc = readFileSync(PKG, 'utf8')
 
 console.log('== A 源码层：座位只在状态栏（三支都带上），检查页不再挂 ==')

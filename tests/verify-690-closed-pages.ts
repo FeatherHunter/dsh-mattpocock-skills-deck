@@ -12,24 +12,25 @@
  *
  * 用法：node tests/verify-690-closed-pages.ts（在插件根目录）
  */
-import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 // 本文件选 compileFn 手法：只是把内核模块源码当函数体造函数，三个替身本来就按参数名传进去。
 import { compileFn } from './lib/eval-probe.js'
+// 取源走共用入口：issue-pages 的真源已经是 .ts，要当函数体求值，所以用 spliceableJs
+// （按构建同一套口径转译，类型标注已剥掉、行首 export 已去掉）。
+import { spliceableJs } from './lib/source-text.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
 let total = 0
 const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 console.log('#690 门禁（已关闭票按需翻页：页数据的分桶/去重/不清空/上限，与三个触发点走同一条路）')
 
 // ── 一、行为断言：把内核模块的源码喂进替身跑真行为 ──
 // 替身说明：idOf 与真实那一份同口径（工作单元 + 编号），emit 只计数，fetchIssuesPage 由每个用例按需给回包。
 function loadIssuePagesModule(fetchStub: any) {
-  const raw = read('src/client/kernel/issue-pages.js').replace(/^(\s*)export\s+/gm, '$1')
+  const raw = spliceableJs('src/client/kernel/issue-pages.js')
   const emitCount = { n: 0 }
   const idOfStub = (x: any) => String((x && x.effortId ? x.effortId : '') + '|' + (x && x.key != null ? x.key : (x && x.number != null ? x.number : '')))
   // 本处走 compileFn：参数名与替身一一对应，函数体与原来逐字相同。

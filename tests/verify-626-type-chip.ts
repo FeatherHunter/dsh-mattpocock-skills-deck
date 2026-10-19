@@ -18,7 +18,7 @@ const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
 // #1251：locale-flow.js 手写真源已删，真源是同名 .ts；A 段按文本扫描取原文（单引号形态，valueOf 正则不动）。
-const { sourceText } = require('./lib/source-text.ts')
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 const root = path.resolve(__dirname, '..')
 
 let failed = false
@@ -40,7 +40,9 @@ const valueOf = function (part: string, key: string): string | null {
 }
 
 // ---- B. 徽章：执行 chips.js 里真实的 TypeChip ----
-const chipSrc = read('src/client/views/shared/chips.js')
+// chips 的手写真源已经是同名 .ts：函数体里带着 `({ type }: any)` 这类类型标注，原文不能直接当 JavaScript 求值。
+// 所以走 spliceableJs —— 它按构建同一份口径转译，拿到的就是拼进产物的那段 JavaScript。
+const chipSrc = spliceableJs('src/client/views/shared/chips.js')
 const fnStart = chipSrc.indexOf('const TypeChip')
 const fnTail = chipSrc.slice(fnStart)
 // 花括号配平取 TypeChip 函数体（不用 lastIndexOf 取文件尾：chips.js 尾部还有键盘三件套，取尾会把 export 也兜进来）
@@ -105,7 +107,8 @@ if (iconMap) {
 // ---- C. 图标：把 MapDetail.js 那一行三元表达式抠出来求值 ----
 // 【已删除】原先还断言 TYPE_ICON 表（从 index.js 抠出来）里没有 issue、task 是 gear。
 // 那是钉源码文本的断言；TYPE_ICON 现在只作为参数喂给 B 段被测的 TypeChip，不再单独断言它的内容。
-const detailSrc = read('src/client/views/MapDetail.js')
+// 同上：MapDetail 的真源也已经是 .ts，这一行三元表达式要交给 compileFn 求值，按可拼接的 JavaScript 形态取。
+const detailSrc = spliceableJs('src/client/views/MapDetail.js')
 const icLine = (detailSrc.match(/const ic = [^\n]*/) || [''])[0]
 check(icLine.length > 0, 'C. 从 MapDetail.js 抽到节点图标那一行')
 if (icLine.length > 0) {

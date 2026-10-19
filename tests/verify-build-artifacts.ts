@@ -304,13 +304,19 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //   src/client/views/shared/workRouteTable.ts（面板「跨会话在办表」的判据与画法），pixel-ts 会给它
   //   转译出同名 .js，过渡产物从 224 长到 225。这是本票故意新增的产物，出处就是这一行；
   //   判据仍是「只许降不许升」，搬迁那条工作线收完时把这条数一并降回 0。
-  const TRANSITIONAL_PRODUCTS_MAX = 225
+  // 2026-10-19 第七次定数（本次）：上限定为 59。依据是「客户端产物搬出源码树」这一步做完了——
+  //   scripts/build.mts 的 pixel-ts 那一步整段删除，拼接缝改成直接读 .ts 真源当场转译，
+  //   src/client 下 166 份同名 .js 一次性删掉，盘上只剩 src/shared 侧的 62 件（去掉 3 件已知产物后 59）。
+  //   历史上那几次抬高（85 → 107 → 169 → 170 → 223 → 224 → 225）都是同一批产物在迁移途中长出来的，
+  //   现在客户端那一半已经归零；剩下这 59 件全是 src/shared 的域产物与散文件转译产物，
+  //   它们与 host 源码的运行时引用方式绑在一起（见 src/host 里 ../shared/<域>/<名>.js 这类说明符），
+  //   要等「host 改指真源路径」那条线才能继续降。判据不变：只许降不许升，收完改成 0。
+  const TRANSITIONAL_PRODUCTS_MAX = 59
   // 已知的、单列出来的产物：它们不进「过渡产物」的计数，理由是各自有出处可查，不是混进来的新产物。
   //   · src/tracker/contract/vocabulary.js —— 2026-10-19 起不再存在：构建把词汇表拼段产物写到
   //     已被忽略的 .tmp/vocabulary.client.js，src/ 里不留影子文件（见上面 4b 头的说明）。
-  //   · src/client/kernel/api-io.js —— #1111：客户端内核的 api-io 由手写 .js 转成 .ts，同名 .js 从此是
-  //     构建产物（与 locale-cards.js、locale-skilldetail.js 同类）。它没有把上限抬高一格：这一格留给
-  //     「搬家那条线」继续收，新产物想混进来仍然看得见。
+  //   · src/client/kernel/api-io.js —— 2026-10-19 起不再存在：pixel-ts 那一步删掉后，客户端不再往
+  //     源码树写同名 .js（拼接缝读 .ts 真源）。
   //   · src/shared/host-timer/host-timers.js —— #1115：宿主计时器句柄的撤销收成共享层的新域
   //     （src/shared/<域>/src/*.ts → 域根同名 .js，与另外几个域同一套形状）。它是本票故意新增的产物，
   //     出处就是这一行；同样不抬高上限——上限那条数按「搬家那条线的存量」算，新混进来的产物照旧看得见。
@@ -319,7 +325,6 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //     · src/shared/refresh/tuning.js —— #1069：共用调参表（真源是 src/shared/refresh/src/tuning.ts），
   //     产物落域根，与 budget.js 同类。同样不抬高上限。
   const KNOWN_PRODUCTS_OUT_OF_SCOPE = [
-    'src/client/kernel/api-io.js',
     'src/shared/host-timer/host-timers.js',
     'src/shared/refresh/step-cost.js',
     'src/shared/refresh/tuning.js',

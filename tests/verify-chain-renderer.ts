@@ -12,16 +12,24 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import assert from 'node:assert'
+// 取源入口（tests/lib/source-text.ts）：src/client 下的同名 .js 是 pixel-ts 写下的构建产物（这一阶段要删），
+//   真源一律是同名 .ts；这里既按形态要求（minHeight 两种写法都认），也按原文要求（注释、单引号），
+//   所以先问 sourcePath 真源今天住在哪一份文件，再由下面的断言按需读它。
+import { sourcePath } from './lib/source-text.ts'
 
+const root = resolve(import.meta.dirname, '..')
 let passed=0, failed=0
 function check(ok, msg){ if(ok){ console.log('  PASS '+msg); passed++; } else { console.log('  FAIL '+msg); failed++; } }
-function file(p){ return readFileSync(resolve(p),'utf8') }
+// 只把 src/client 这一层改指真源：src/shared、src/host、src/tracker 等目录的 .js 产物这一阶段还留着，读法不动。
+function resolvedPath(p){ const rel = p.replace(/\\/g,'/'); return resolve(root, rel.startsWith('src/client/') && rel.endsWith('.js') ? sourcePath(rel) : rel) }
+function file(p){ return readFileSync(resolvedPath(p),'utf8') }
 
 console.log('== #228 链渲染器与动作分发器 ==')
 console.log('')
-console.log('-- 1) 产物存在与形状 --')
-check(existsSync('src/client/views/shared/ChainRenderer.js'), 'ChainRenderer.js 存在')
-const cr = existsSync('src/client/views/shared/ChainRenderer.js') ? file('src/client/views/shared/ChainRenderer.js') : ''
+console.log('-- 1) 真源存在与形状 --')
+const crPath = resolvedPath('src/client/views/shared/ChainRenderer.js')
+check(existsSync(crPath), 'ChainRenderer 真源存在')
+const cr = existsSync(crPath) ? file('src/client/views/shared/ChainRenderer.js') : ''
 check(cr.includes('CHAIN_RENDERER_VERSION'), 'ChainRenderer 含版本标识')
 check(cr.includes('ChainBanner'), 'ChainRenderer 含 ChainBanner')
 check(cr.includes('ChainRenderer'), 'ChainRenderer 含 ChainRenderer')
@@ -32,9 +40,8 @@ check(cr.includes('isSupportedActionType'), '含 isSupportedActionType')
 
 console.log('')
 console.log('-- 2) 横幅同源互斥 42px Tab可达 --')
-// #1253：ChainRenderer 转 TypeScript 后，这里的 .js 是 esbuild 产物，对象字面量印成
-// `minHeight: 42`（冒号后多一个空格）。这条量的是产物形态，所以两种写法都认；
-// 源码里的字面量有没有被改坏，由 tests/verify-leaves.ts 与构建新鲜度门禁（产物比源码新）守。
+// #1253 转 TypeScript 后，这里读的是 .ts 真源（同名 .js 是 esbuild 产物，这一阶段要删），
+// 但两种写法在真源里都出现过，所以两种都认；字面量有没有被改坏由 tests/verify-leaves.ts 与门禁守。
 check((cr.includes('minHeight: 42') || cr.includes('minHeight:42')) && (cr.includes('maxHeight: 42') || cr.includes('maxHeight:42')), '横幅 42px 约束')
 check(cr.includes('tabIndex:0') || cr.includes('tabIndex'), '横幅 Tab 可达')
 check(cr.includes('role:') && cr.includes('status'), '横幅含 role/status 可达')
@@ -44,7 +51,8 @@ check(cr.includes('互斥') || cr.includes('currentIndex') , '互斥 current 唯
 
 console.log('')
 console.log('-- 3) 动作分发器五种 + unknown --')
-const actions = existsSync('src/client/kernel/actions.js') ? file('src/client/kernel/actions.js') : ''
+const actionsPath = resolvedPath('src/client/kernel/actions.js')
+const actions = existsSync(actionsPath) ? file('src/client/kernel/actions.js') : ''
 check(actions.includes('INJECT_PROMPT') || actions.includes('inject-prompt'), 'actions 含 inject-prompt')
 check(actions.includes('OPEN_URL') || actions.includes('open-url'), 'actions 含 open-url')
 check(actions.includes('RPC') || actions.includes("'rpc'") || actions.includes('"rpc"') || actions.includes('RPC'), 'actions 含 rpc')
@@ -90,8 +98,8 @@ check(cr.includes('schema'), 'ChainForm 含 schema')
 // 2026-10-17 重锚（原来是钉硬字 `必填`）：必填校验的真机制是「判 f.required 再取词条
 // env.formRequired」，硬字早已搬进词条表。这里改钉机制本身 + 词条中英都在，
 // 谁把校验删掉或把词条挪走都会当场红。
-// #1253：同上的产物形态问题——esbuild 把单引号统一成双引号，词条键里那个点也要按字面转义，
-// 所以这里用「两种引号都认」的正则，而不是 grep 精确子串。
+// #1253：这里读的是 .ts 真源（同名 .js 是产物，这一阶段要删，产物会丢注释、改引号）；
+// 词条键里的点按字面转义，真源与产物都可能是单/双引号，所以用「两种引号都认」的正则而不是精确子串。
 check(cr.includes('f.required') && /tr\(["']env\.formRequired["']/.test(cr), 'ChainForm 必填校验走词条 env.formRequired（不再钉硬字）')
 const localePanelSrc = file('src/client/kernel/locale-panel.ts')
 check(localePanelSrc.split("'env.formRequired'").length === 3 && localePanelSrc.includes('{label} 必填'), '词条 env.formRequired 中英各一条、中文含「必填」')

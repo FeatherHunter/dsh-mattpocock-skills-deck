@@ -1,27 +1,24 @@
 // verify-786-focus-end.ts — 注入后光标落末尾的插件侧兜底（#786 B 方案）
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-786-focus-end.ts
 //
-// 本文件是 CommonJS：从构建产物里切一段函数体交给 compileFn 真跑，不加静态 import，
-// 所以加类型标注不会把它变成 ESM；读的仍是产物 src/client/kernel/api-io.js（带标注的 .ts 源码 vm 吃不下）。
+// 本文件是 CommonJS：从源码里切一段函数体交给 compileFn 真跑，不加静态 import，所以加类型标注不会把它变成 ESM。
+// 取源走 tests/lib/source-text.ts 的 spliceableJs：src/client/kernel/api-io.js 只是 pixel-ts 写下的同名产物
+// （这一阶段要删），而带类型标注的 .ts 原文 vm 吃不下；spliceableJs 按构建同一套转译参数转成 JavaScript 并剥掉
+// 行首 export，切出来的那一段才是既可求值又等于真源的代码。
 //
 // 验收标准（Q1-Q2 对齐）：
 //   a) 注入完成后光标落在文本末尾，可立刻打字；内容很长时输入框滚到底，不停顶部；
 //   b) 现状光标在第一行第一个字符前，本改动只加兜底，不改注入主路径（setDraft 全文替换不动）；
 //   c) 找不到宿主输入框就安静跳过，绝不抛错；插件自己的输入框一律不碰。
-const fs = require('fs')
 const assert = require('assert')
-const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
+const { spliceableJs } = require('./lib/source-text.ts')
 
-const root = path.join(__dirname, '..')
-const read = (p: string): string => fs.readFileSync(path.join(root, p), 'utf8')
-const ok = (name: string, cond: unknown): void => { if (!cond) throw new Error('FAIL · ' + name); console.log('  PASS · ' + name) }
-
-const ioSrc = read('src/client/kernel/api-io.js')
+const ioSrc = spliceableJs('src/client/kernel/api-io.js')
 
 // ---- Part B：行为沙箱 ----
 const extractHelper = (src: string) => {
-  const start = src.indexOf('export const ensureInjectFocusAtEnd = function')
+  const start = src.indexOf('const ensureInjectFocusAtEnd = function')
   if (start < 0) throw new Error('helper 锚点缺失')
   const brace0 = src.indexOf('{', start)
   let depth = 0
@@ -30,9 +27,9 @@ const extractHelper = (src: string) => {
     if (src[i] === '}') {
       depth -= 1
       if (depth === 0) {
-        const fnSrc = src.slice(start, i + 1).replace('export const ensureInjectFocusAtEnd =', 'module.exports =')
+        const fnSrc = src.slice(start, i + 1).replace('const ensureInjectFocusAtEnd =', 'module.exports =')
         const mod = { exports: null }
-        // 本文件选 compileFn：从 api-io.js 切出来的那段代码靠这六个参数拿环境（它读不到调用处的作用域，
+        // 本文件选 compileFn：从 api-io 切出来的那段代码靠这六个参数拿环境（它读不到调用处的作用域，
         //   原来就是把它们当参数传的），语义与共用入口一一对应。
         const factory = compileFn(['module', 'exports', 'document', 'window', 'requestAnimationFrame', 'setTimeout'], fnSrc + '\nreturn module.exports;')
         return factory

@@ -16,7 +16,7 @@
  *   5) 页内浮窗仍然不注册（shell.overlay 挂载点不给面板用）；
  *   6) 拿桩上下文真跑一遍 apply：注册了什么、没注册什么、缺服务时崩不崩。
  *
- * 覆盖：src 真源两份文件 + 两份构建产物（产物由 scripts/build.mts 从 src 重生成，行首 export 会被剥掉）。
+ * 覆盖：src 真源五份文件 + 两份构建产物（产物由 scripts/build.mts 从 src 重生成，行首 export 会被剥掉）。
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-646-native-tab.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
@@ -26,6 +26,8 @@ import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
 // 本文件选 evalInWindow 手法：三段都在已经开了 runScripts 的 jsdom 窗口里跑打包产物，与原 window.eval 等价且更直白。
 import { evalInWindow } from './lib/eval-probe.js'
+// 五份被测真源已经转成 .ts，同名 .js 构建产物已删除；取源统一走 sourceText（问 .js 时优先取同名 .ts 原文）。
+import { sourceText } from './lib/source-text.js'
 
 interface SlotMeta {
   name: string
@@ -57,8 +59,18 @@ const CONFIG = 'src/client/kernel/config.js'
 const SETTINGS = 'src/client/views/SettingsPage.js'
 const LOCALE_FLOW = 'src/client/kernel/locale-flow.js'
 const FILES = [ROUTER, ASSEMBLY, CONFIG, SETTINGS, LOCALE_FLOW, 'client.js', 'package/lib/client.js']
+const SOURCE_FILES = [ROUTER, ASSEMBLY, CONFIG, SETTINGS, LOCALE_FLOW]
+const ARTIFACTS = ['client.js', 'package/lib/client.js']
 const texts: Record<string, string | null> = {}
-for (const rel of FILES) {
+// 五份真源走 sourceText：问 .js 时它优先取同名 .ts 原文，所以这里读到的是源码而不是构建产物；
+// 两种扩展名都不在盘上时它抛错，被下面接住记成 null —— 「读不到」这条判据与以前一样会红，没有被放过。
+for (const rel of SOURCE_FILES) {
+  try { texts[rel] = sourceText(rel) } catch (e) { texts[rel] = null }
+  if (texts[rel] === null) check(false, rel + ' 读不到')
+}
+// 两份构建产物（client.js、package/lib/client.js）仍然是普通文件，直接读盘，别走 sourceText
+// —— 那个入口对 .js 会优先翻出同名 .ts，用它读产物会悄悄改成读源码。
+for (const rel of ARTIFACTS) {
   const p = resolve(rel)
   texts[rel] = existsSync(p) ? readFileSync(p, 'utf8') : null
   if (texts[rel] === null) check(false, rel + ' 读不到（先跑 npm run build）')
@@ -78,7 +90,11 @@ for (const rel of SET_ROUTER) {
   const t = texts[rel]
   if (!t) continue
   // #1251：esbuild 产物统一双引号，两种形态都认（同 slots:271 做法）。
-  check(t.includes("DECK_NATIVE_TAB_KIND = 'dsh-mattpocock-skills-deck:deck-map'") || t.includes('DECK_NATIVE_TAB_KIND = "dsh-mattpocock-skills-deck:deck-map"'), rel + ' 面板类型名仍是本插件自己那条')
+  // 这条判据原先写的是 `DECK_NATIVE_TAB_KIND = '...'` 子串比对：产物里类型标注被剥掉，所以对得上；
+  // 换成 .ts 真源后中间隔着 `: string` 类型标注，子串对不上。判据本身不放松（常量名与那个确切取值
+  // 都必须在），只是允许中间出现类型标注 —— 源码与产物两种写法都认。
+  const kindDecl = /DECK_NATIVE_TAB_KIND\s*(?::\s*[^=\n]+)?=\s*['"]dsh-mattpocock-skills-deck:deck-map['"]/
+  check(kindDecl.test(t), rel + ' 面板类型名仍是本插件自己那条')
   check(t.includes('DECK_NATIVE_TYPE_ID'), rel + ' 类型 id 有自己的常量')
   const code = stripComments(t)
   check(!code.includes("ctx.get('betterSidebar')") && !code.includes('ctx.get("betterSidebar")'), rel + ' 代码里不再取 better-sidebar 的服务')

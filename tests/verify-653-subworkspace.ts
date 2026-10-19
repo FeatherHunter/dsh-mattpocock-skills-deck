@@ -17,6 +17,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { compileFn } from './lib/eval-probe.js'
+// 取源走共用入口（#1207 立）：下面要切出来跑的那几份客户端源码都已经是同名 .ts，
+// 而切出来的片段要交给 compileFn 当 JavaScript 求值，原文里的类型标注吃不下，所以走 spliceableJs。
+// 它按构建同一份口径转译，再把行首的 export 去掉（拼进闭包时用的就是这个形态）——所以下面按
+// 「const 名字」找块首，不再带 `export ` 前缀。
+import { spliceableJs } from './lib/source-text.ts'
 
 const root = path.resolve(import.meta.dirname, '..')
 let failed = false
@@ -33,11 +38,11 @@ console.log('=== #653 子目录工作区场景门禁 ===')
 // 把 store-snapshot.js 里「工作区键」那一小段原样取出来当纯函数跑：keyOf 用真件（shared 单源），
 // snapshotByCwd 用空 Map。这样测的是内核里真正在用的那几行，不是一个另写的仿制品。
 console.log('\nA) 工作区键解析（子目录 → 工作区根）')
-const keysSrc = read('src/client/kernel/store-snapshot.js')
+const keysSrc = spliceableJs('src/client/kernel/store-snapshot.js')
 const wsKeyBlock = noExport(
   keysSrc.slice(
-    keysSrc.indexOf('export const workspaceRootByCwd'),
-    keysSrc.indexOf('export const shared = makeStore()')
+    keysSrc.indexOf('const workspaceRootByCwd'),
+    keysSrc.indexOf('const shared = makeStore()')
   )
 )
 const keyOfSrc = read('src/shared/workspaceKey.js')
@@ -87,12 +92,12 @@ console.log('\nB) 缓存只有一把键（不再双写「仓库根」与「所�
 // 【已删除】原先这里读 probe-snapshot.js 与 probe-select.js 的源码文本，用正则断言「旧的双写没了」
 // 与「落缓存只调一次 setCachedSnapshot(st.cwd, snap)」。那是钉源码文本的门禁，等价改写法一变就红；
 // 下面接着把真源里那两段切出来跑，用运行结果证明「写入与读取只有一把键」。
-const storeSrc = read('src/client/kernel/store-snapshot.js')
+const storeSrc = spliceableJs('src/client/kernel/store-snapshot.js')
 const storeBlock = noExport(
-  storeSrc.slice(storeSrc.indexOf('export const getCachedSnapshot'), storeSrc.indexOf('export const lastProbeAtByCwd'))
+  storeSrc.slice(storeSrc.indexOf('const getCachedSnapshot'), storeSrc.indexOf('const lastProbeAtByCwd'))
 )
 const probeBlock = noExport(
-  storeSrc.slice(storeSrc.indexOf('export const lastProbeAtByCwd'), storeSrc.indexOf('export const SNAP_DISK_CAP'))
+  storeSrc.slice(storeSrc.indexOf('const lastProbeAtByCwd'), storeSrc.indexOf('const SNAP_DISK_CAP'))
 )
 // 手法：compileFn——同上，把十个参数名收进数组交给共用入口，缓存分级那一段行为不变。
 const CACHE = compileFn(
@@ -111,11 +116,11 @@ else bad('落缓存占了 ' + CACHE.table.size + ' 把键，应只有 1 把')
 
 // ── C. 污染判定：白名单已删除 ─────────────────────────────────────────────
 console.log('\nC) 污染判定不再放过「两个工作区互为祖先」')
-const dockSrc = read('src/client/panel/DockSync.js')
+const dockSrc = spliceableJs('src/client/panel/DockSync.js')
 // 手法：compileFn——污染判定那段真源同样按文本取出后造函数，走共用入口。
 const isPolluted = compileFn(
   ['keyOf', 'wsKeyOf', 'cwdBasename'],
-  noExport(dockSrc.slice(dockSrc.indexOf('export const isPollutedSnapshot'), dockSrc.indexOf('export const useDockSync'))) +
+  noExport(dockSrc.slice(dockSrc.indexOf('const isPollutedSnapshot'), dockSrc.indexOf('const useDockSync'))) +
   '\nreturn isPollutedSnapshot'
 )(
   keyOfFn, KEY.wsKeyOf,
@@ -148,12 +153,12 @@ if (isPolluted({ ok: true, maps: [], repository: { name: 'D:\\ilife\\packages\\s
 
 // ── D. 归属标志的出现条件与文案 ──────────────────────────────────────────
 console.log('\nD) 归属标志只在子目录会话里出现')
-const markSrc = read('src/client/views/SubworkspaceMark.js')
+const markSrc = spliceableJs('src/client/views/SubworkspaceMark.js')
 // 出现条件那一段（取根 + 「该不该出现」）单独跑：给不同 store 看它认不认。
 // #666 起这两个决定住在纯函数里（组件只负责画），所以这里把它们从真源里取来跑，不再照抄组件内部的小助手；
 // 更详尽的用例（含「显示哪几行」与中英两条文案）在 tests/verify-666-subws-mark-root.js，这里只守本票那四条判据。
 const markBlock = noExport(
-  markSrc.slice(markSrc.indexOf('export const subwsMarkRootOf'), markSrc.indexOf('export const SubworkspaceMark'))
+  markSrc.slice(markSrc.indexOf('const subwsMarkRootOf'), markSrc.indexOf('const SubworkspaceMark'))
 )
 // 手法：compileFn——归属标志的纯函数块走共用入口造函数，参数仍是 keyOf 与 tr 两个。
 const markApi = compileFn(['keyOf', 'tr'], markBlock + '\nreturn { shows: subwsMarkShows }')(keyOfFn, (k: string) => k)
@@ -178,7 +183,7 @@ else bad('没有工作区根时出现了标志')
 // 这条就会红）。用的是内核里真正在用的那几段代码，不是另写的仿制品。
 console.log('\nE) 宿主报回根之后，客户端三张表落在同一把键上')
 const chainKeyBlock = noExport(
-  storeSrc.slice(storeSrc.indexOf('export const getChainCacheKey'), storeSrc.indexOf('export const hydrateFromCache'))
+  storeSrc.slice(storeSrc.indexOf('const getChainCacheKey'), storeSrc.indexOf('const hydrateFromCache'))
 )
 // E 这一段把「读快照、读链、读探测时间」三张表装进同一个闭包跑。
 // 注意：快照表与链表是在被切出来的代码块**外面**声明的（那两行不在块里），所以得从这里传进去；

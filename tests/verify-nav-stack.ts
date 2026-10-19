@@ -9,6 +9,9 @@
 const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（tests/lib/source-text.ts）：按构建唯一口径读 store-prefs 的真源并转成可拼接的
+// JavaScript，不再直读旁边那份 .js 产物 —— 产物可能没重建、也可能停在旧文本上，门禁量到的会不是真源。
+const { spliceableJs } = require('./lib/source-text.ts')
 // 中央时间真值：缓存 TTL 只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.SYNC_ISSUE_CACHE_TTL_MS = centralTime.SYNC_ISSUE_CACHE_TTL_MS
@@ -19,10 +22,11 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 //    断的是代码长成什么样（换个导出写法、搬个文件就变红），已按维护者口径连同下面的接线静态检查一起删掉。
 //    这些名字到底在不在、接得对不对，由下面的行为级用例真调一遍来管。
 
-// —— 3) 行为级（把 store-prefs 当纯函数加载：去行首 export，注入 emit 桩）
-const prefsSrc = fs.readFileSync('src/client/kernel/store-prefs.js', 'utf8')
+// —— 3) 行为级（把 store-prefs 的真源当纯函数加载：共用入口已按构建口径转译并去掉行首 export、剥掉中央时间 import，剩下的仍是同一段代码）
+const prefsSrc = spliceableJs('src/client/kernel/store-prefs.js')
 const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '').split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
-// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
+// 上面这步沿用旧写法，对 spliceableJs 的输出来说已是空操作（行首 export 与中央时间 import 都在共用入口里
+// 按构建口径处理过）；留着只为与 tests/verify-map-drill.ts 的同一段加载手法逐字对齐，避免两处悄悄分叉。
 // 这里选 compileFn：原来就是把参数名一个个传给按文本造函数的写法，改成共用入口后参数名照旧一个个传，求值出来的函数接法不变。
 const nav = compileFn(['emit'], srcNoExport + '\nreturn { peekNav, pushNav, popNav, clearNavStack, setActiveMap, clearActiveMap, setActiveIssue, clearActiveIssue, clearActiveDetail }')(
   function (st) { st.tick = (st.tick || 0) + 1 }

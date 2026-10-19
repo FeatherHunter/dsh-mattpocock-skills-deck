@@ -14,7 +14,11 @@ import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
 import { act } from 'react'
 import vm from 'node:vm'
-import { readFileSync } from 'node:fs'
+// 2026-10-19（#1301 批C）：下面这十片像素叶子以前按 .js 路径读原文、只删行首 export 就拼进 vm 求值；
+//   这一类同名 .js 是构建产物，这一阶段已经删掉，按那个路径读会 ENOENT。改走共用取源入口的 spliceableJs：
+//   它按构建唯一口径把 .ts 真源转成可直接拼接的 JavaScript（中央时间 import 行与行首 export 都已处理），
+//   拼进 vm 的仍是同一段运行期代码，断言一条没动。
+import { spliceableJs } from './lib/source-text.ts'
 
 // 2026-10-17 先修：这两片像素叶子在加载时读中央时间常量 SKILL_SKELETON_DELAY_MS（#1215 引入，
 //   真源 src/shared/time-config/values.js，构建时由 buildTimeConfigClientFragment() 注入闭包）。
@@ -39,7 +43,8 @@ const ctx = {
 }
 ctx.globalThis = ctx
 vm.createContext(ctx)
-const strip = (f) => readFileSync(f, 'utf8').split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
+// 取源见文件头：spliceableJs 读真源、转译、并去掉行首 export，拼起来就是可直接丢进 vm 的脚本。
+const splice = (f) => spliceableJs(f)
 const files = [
   'src/client/views/pixel/PixelStateIcon.js', 'src/client/views/pixel/PixelBtn.js', 'src/client/views/pixel/PixelSeal.js',
   'src/client/views/pixel/PixelSkeleton.js', 'src/client/views/pixel/PixelBanner.js', 'src/client/views/pixel/PixelStatusLine.js',
@@ -47,7 +52,7 @@ const files = [
   'src/client/views/skillDetail/PixelSkillOps.js', 'src/client/views/skillDetail/PixelSkillDetailModal.js',
 ]
 let lib = 'const SKILL_SKELETON_DELAY_MS = ' + JSON.stringify(SKILL_SKELETON_DELAY_MS) + ';\n'
-for (const f of files) lib += strip(f) + '\n'
+for (const f of files) lib += splice(f) + '\n'
 lib += ';globalThis.__o = { PixelSkillDetailModal, pixelOpenDetail, pixelCloseDetail, pixelRetryDetail };'
 vm.runInContext(lib, ctx)
 const Comp = ctx.__o.PixelSkillDetailModal

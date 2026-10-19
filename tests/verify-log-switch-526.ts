@@ -5,9 +5,13 @@
 // 要求：写开关函数的三条失败路各落一条告警级分类行，复用现成常驻事件
 //   host.call.fail（不新增事件名、不碰 54 总数），字段只用白名单三键
 //  （method、kind、errorHash），告警级始终落盘、不依赖调试开关。
-const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（tests/lib/source-text.ts）：这一阶段 src/client 下的同名 .js 构建产物已经删掉，
+//   按 'src/client/kernel/log.js' 直接 fs.readFileSync 会 ENOENT。这里要两份文本：
+//   sourceText 拿真源原文给下面「对象转文本仍只在两处」按文本数；spliceableJs 按构建唯一口径转成
+//   可直接拼函数体的 JavaScript（中央时间 import 与行首 export 都已处理），给 loadLog 用。
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 const centralTime = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -20,8 +24,8 @@ console.log('开关写失败分类行门禁（#526：三类失败各留一条可
 // log.js 顶上的时间常量是拼包时由 client.js 提供的外部绑定；单独加载叶子文件时先补同名 globalThis 绑定。
 globalThis.LOG_FLUSH_MS = centralTime.LOG_FLUSH_MS
 globalThis.LOG_WATCHDOG_MS = centralTime.LOG_WATCHDOG_MS
-const LOG_SRC = path.join(ROOT, 'src', 'client', 'kernel', 'log.js')
-const src = fs.readFileSync(LOG_SRC, 'utf8')
+const src = sourceText('src/client/kernel/log.js')
+const logJs = spliceableJs('src/client/kernel/log.js')
 
 // ---- 运行夹具：与 verify-log-client.ts 同构（去行首 export 载入，配假宿主与假存储） ----
 function makeLocalStorage(preset) {
@@ -38,10 +42,8 @@ function makeTimer() {
 }
 function loadLog(options) {
   const opts = options || {}
-  const body = src.split('\n')
-    .filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l))
-    .map((l) => l.replace(/^(\s*)export\s+/, '$1'))
-    .join('\n')
+  // 取源见文件头：logJs 已经按构建口径转好（行首 export 与中央时间 import 都处理过），直接当函数体用。
+  const body = logJs
   // 本文件选 compileFn：原来就是把这四个环境名当参数、把剥掉行首 export 的 log.js 当函数体造一个函数，
   //   被造的代码只看这四个参数（依赖全部显式注入），与共用入口语义一一对应。
   const factory = compileFn(

@@ -2,20 +2,21 @@
 // 只测外部行为、不测 DOM：bannerChain 沙箱求值（顺序真源用真的 guide-steps.js），喂假链快照断言横幅与按钮去向。
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，模块写法保持 CommonJS，判据与断言一条没动。
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-916-ghauth-unknown-banner.ts
-const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 取源入口（tests/lib/source-text.ts）：src/client/statusbar/bannerChain.js 是 pixel-ts 写下的同名产物（这一阶段要删），
+// 真源是 bannerChain.ts；沙箱求值要的是不带类型标注的可执行代码，所以走 spliceableJs（转译并剥掉行首 export）。
+const { spliceableJs } = require('./lib/source-text.ts')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
 const ok = (cond, msg) => { if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
 
 async function loadBannerChain() {
   const guide = await import(pathToFileURL(path.join(root, 'src/shared/tracker/guide-steps.js')).href)
-  const body = read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
+  const body = spliceableJs('src/client/statusbar/bannerChain.js')
   const seen = { injected: [], logged: [], detectCalls: 0, chainReloads: 0, snapReloads: 0, recheckVia: null, recheckTrigger: null }
   const stepsOf = (st) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
   const sandbox = {

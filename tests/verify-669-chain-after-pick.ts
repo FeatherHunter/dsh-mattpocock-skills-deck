@@ -26,21 +26,20 @@
  *
  * 用法：node tests/verify-669-chain-after-pick.ts
  */
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 // 本文件按文本求值走共用入口 compileFn：真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
 // 取源走共用入口（#1207 立）：spliceableJs 给「可以直接当函数体求值」的 JavaScript 文本
-// （.ts 会先按构建那份口径转译；手写 .js 原样返回并剥掉行首 export）。本文件只求值、不扫文本形状，所以只要它。
-import { spliceableJs } from './lib/source-text.ts'
+// （.ts 会先按构建那份口径转译；手写 .js 原样返回并剥掉行首 export）。sourceText 给原文，
+// 只给下面那种「按行找落点」的文本扫描用。
+import { spliceableJs, sourceText } from './lib/source-text.ts'
 
 let passed = 0
 let failed = 0
 function check (ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
-// read 只留给「文本扫描」用（views/ChecksTab.js 那份还没迁移的手写 .js，按行找落点）：
-//   求值一律走 spliceableJs（.ts 转译去类型；原样读会带着类型标注，求值当场语法错）。
-const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
+// 文本扫描统一走 sourceText：它问 .js 时优先取同名 .ts 的真源。views/ChecksTab 已经从 .js 转成 .ts，
+// 原来直接读 src/client/views/ChecksTab.js 会 ENOENT（那份同名 .js 构建产物已随本次迁移删除）。
+// 求值仍然走 spliceableJs（.ts 转译去类型；原样读会带着类型标注，求值当场语法错）。
 const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
 // #1251：probe-chain.js 手写真源已删，真源是同名 .ts —— 求值走 spliceableJs 取转译后的纯 JS。
 const chainSrc = spliceableJs('src/client/kernel/probe-chain.js')
@@ -264,7 +263,8 @@ console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事�
   //     ③ 做完可能改变它的动作（绑定后端、配置派生）；
   //     ④ 写入成功之后那一路发生在宿主侧（chainBackoff.noteWriteActivity），不发客户端这一条。
   //   这几条都照真源当下的落点量：谁改了落点这里会红，不会假绿。
-  const lineIn = function (rel: string, re: RegExp): string { return ((read(rel).split(/\r?\n/)).filter(function (l) { return re.test(l) })[0] || '').trim() }
+  // 按行找落点：读的是 ChecksTab 的 .ts 真源（sourceText 会优先取同名 .ts），不是已删除的 .js 产物。
+  const lineIn = function (rel: string, re: RegExp): string { return ((sourceText(rel).split(/\r?\n/)).filter(function (l) { return re.test(l) })[0] || '').trim() }
   // 【已删除】原先这里列了一张六行的「哪一路走事件入口」清单（读 ChecksTab.js / probe-auto.js /
   //   store-switch.js / slotRenderer-repo-sync.js 的源码文本，按正则找那一行在不在），末尾还有一条对
   //   probe-chain.js 的同类断言。落点是源码里那一行的写法，等价重构就会红，整段拆掉。

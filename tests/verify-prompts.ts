@@ -1725,10 +1725,12 @@ const selfDigest = function () {
 //   其余任务按 wayfinder 技能规则推进；tpl.fix 括注从 wayfinder 改成 implement（首行本来就是
 //   /implement，原来那句自相矛盾）。中英各补正向断言，并各加一条反向断言钉住旧措辞不再出现；
 //   版本底线 tpl.execute 14 → 15、tpl.fix 12 → 13，自摘要跟着重算。
+// #1301 批C：配置真源（config.js → config.ts）与三处 completePrompt 调用点视图的取源，
+//   从「按已删的 .js 产物路径直接读」改成共用入口 tests/lib/source-text.ts 的 sourceText，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.ts': 'dfe8bbc958278cfc2426d351ee1b7993002a2aae0ab2c863e7e38f0e2928c47c',
+  'tests/verify-prompts.ts': '39124741edec9ba47d166eec71740333feda073065c705f603c9df15ba546a60',
 }
 // ---- LOCK-END ----
 
@@ -1811,7 +1813,9 @@ if (reg) {
   surfaceReport.S6 = nonReg.literals
   if (nonReg.literals < 4) fail('S6 ' + s1Label + ' 去掉注册表后只扫到 ' + nonReg.literals + ' 个字面量（NEW_BUG_FIELDS_BODY / NEW_WAYFINDER_DEFAULT_WIRING 这些常量没被扫到，扫描面会静默少扫）')
   const cfgRel = 'src/client/kernel/config.js'
-  const cfgScan = collectConfigSource(cfgRel, fs.readFileSync(path.join(ROOT, cfgRel), 'utf8'))
+  // 2026-10-19（#1301 批C）：src/client 下同名 .js 产物这一阶段已经删掉，按 .js 路径直接 fs.readFileSync 会 ENOENT；
+  //   配置真源住在 config.ts 里，取源改走共用入口的 sourceText（问 .js 时同名 .ts 优先），下面扫描的面不变。
+  const cfgScan = collectConfigSource(cfgRel, sourceText(cfgRel))
   cfgScan.problems.forEach(function (m) { fail(m) })
   surfaceReport.S7 = cfgScan.literals
   if (cfgScan.literals < 1) fail('S7 ' + cfgRel + ' 扫到 0 个字面量（TPL_DEFAULT 默认模板没被扫到，扫描面会静默少扫）')
@@ -1938,7 +1942,12 @@ if (reg) {
     if (cpBad.indexOf('undefined') < 0) fail('#595 先验失败：按旧四参形态调用 completePrompt 竟渲染不出 undefined（渲染面断言抓不住调用错位）')
     // 调用点也必须按五参形态调（防回退）：三个视图/router 里每处 completePrompt 调用都要传 5 个实参
     ;['src/client/views/ListTabRow.js', 'src/client/views/MapDetail.js', 'src/client/kernel/router.js'].forEach(function (rel) {
-      const srcV = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+      // 2026-10-19（#1301 批C）：这三份真源今天都住在同名 .ts 里，旁边那份 .js 产物这一阶段已经删掉，
+      //   按 .js 路径直接读会 ENOENT；取源改走共用入口的 sourceText，扫描的是手写真源原文。
+      //   另：真源顶部有一句 `declare function completePrompt(...args: any[]): any` —— 那是类型声明、不是调用点
+      //   （构建产物里被剥掉了，老口径碰不到它）。按原判据「每处调用传 5 个实参」先把声明行剔掉再数，判据没放宽。
+      const srcV = sourceText(rel).split('\n')
+        .filter((l) => !/^\s*declare\s+function\s+completePrompt\b/.test(l)).join('\n')
       const counts = callArgCounts(srcV, 'completePrompt')
       if (counts.length === 0) { fail('#595 ' + rel + ' 里找不到 completePrompt 调用点（调用形态断言无源，扫描面不许静默少扫）'); return }
       counts.forEach(function (n, i) {

@@ -13,7 +13,10 @@
 //  10) hover 反馈（v3 UX）：bugMenuHover 状态 + onMouseEnter/Leave + 条件红染色
 //  11) v4 #63：字段集 = 实际→期望→复现步骤→环境信息（4 项括号单行），顺序实际→期望，无悬行例行，zh/en 分离
 //  12) v5 #475：标签要求 = bug 必带+未诊断带 needs-triage，分远端原生/本地标签行，中英文一致
-const fs = require('fs')
+// 2026-10-19（#1301 批C）：默认目标里混着 .js 说明符（router.js、StatusBar.js……），它们今天住在同名 .ts 里，
+//   旁边那份 .js 构建产物这一阶段已经删掉，按 .js 路径直接 fs.readFileSync 会 ENOENT。取源改走共用入口
+//   sourceText：问 .js 时同名 .ts 优先，问到哪份读哪份的原文；.ts 说明符原样透传。
+const { sourceText } = require('./lib/source-text.ts')
 const files = process.argv.slice(2)
 // 2026-10-17 先修：默认目标原来是两个构建产物（client.js / package/lib/client.js）。产物里的注册表条目与 i18n
 // 键都被 esbuild 统一改成双引号了，而门禁按单引号 + 「函数体里一段引号字符串」的老形状写，于是七条判据
@@ -43,7 +46,7 @@ const BRACKET_LINE_EN = ['Actual (symptom; impact):', 'Expected (expectation; di
 const RE_ENTRY = /["']?newBugWayfinder["']?\s*:\s*\{\s*version:\s*(\d+),\s*placeholders:\s*\[([^\]]*)\],\s*use:\s*(['"])((?:\\.|(?!\3)[\s\S])*)\3,\s*zh:\s*(['"])((?:\\.|(?!\5)[\s\S])*)\5,\s*en:\s*(['"])((?:\\.|(?!\7)[\s\S])*)\7/
 const check = function (list) {
   const names = Array.isArray(list) ? list : [list]
-  const src = names.map(function (f) { return fs.readFileSync(f, 'utf8') }).join('\n')
+  const src = names.map(function (f) { return sourceText(f) }).join('\n')
   const label = names.length === 1 ? names[0] : '真源 ' + names.length + ' 份'
   const problems = []
   // 1) 注册表条目
@@ -198,7 +201,10 @@ const check = function (list) {
     problems.push('找不到 BUG 悬停菜单弹层（锚点失效：s.bugMenuOpen ? PortalOverlay({ className: \'dsws-bugmenu\' …）')
   }
   // 7) 文本拼接 + locale 切换：newBugWayfinderText = promptText + BODY_FORMAT + (promptLang()==='en' ? EN : ZH)
-  const builderMatch = /newBugWayfinderText\s*=\s*\(st\)\s*=>[\s\S]*?\+ \(promptLang\(\) === ["']en["'] \? NEW_BUG_FIELDS_BODY_EN\(\) : NEW_BUG_FIELDS_BODY\(\)\)/.test(src)
+  // 2026-10-19（#1301 批C）：取源从构建产物换成 .ts 真源后，函数签名带着类型标注写成 `(st: any): string =>`，
+  //   原来按产物排版写死的 `(st) =>` 锚点对不上。这里只把锚点改成容忍类型标注，判据本身没变：
+  //   仍要求拼接处包含「promptText(...) + (promptLang() === 'en' ? EN() : ZH())」这一整段 locale 切换。
+  const builderMatch = /newBugWayfinderText\s*=\s*\(st(?::[^)]*)?\)\s*(?::\s*[^=]+)?=>[\s\S]*?\+ \(promptLang\(\) === ["']en["'] \? NEW_BUG_FIELDS_BODY_EN\(\) : NEW_BUG_FIELDS_BODY\(\)\)/.test(src)
   if (!builderMatch) problems.push('newBugWayfinderText 拼接未含 locale 切换（promptLang() === \'en\' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY()）')
   // 9) 宽度自适应（v3 UX）：不应有 minWidth
   if (bugMenuMatch && /minWidth\s*:\s*\d+/.test(bugMenuMatch[0])) problems.push('BUG 悬停菜单弹层含 minWidth（应按内容自适应）')

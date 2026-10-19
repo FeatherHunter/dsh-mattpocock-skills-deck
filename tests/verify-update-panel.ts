@@ -9,21 +9,28 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 取源走共用入口（tests/lib/source-text.ts）：这一阶段 src/client 下的同名 .js 构建产物已经删掉，
+//   视图真源只剩 .ts，所以「入口挂载点在不在、旧面板实现删没删」不能再拿 fs.existsSync 去问 .js 路径
+//   ——那会一律问出「不存在」，把还在的真源判成丢了。sourcePath 问 .js 时同名 .ts 优先，问到才算真源。
+const { sourcePath } = require('./lib/source-text.ts')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 const check = (ok: unknown, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const exists = (rel: string): boolean => fs.existsSync(path.join(ROOT, rel))
+// 判「视图真源在不在」：sourcePath 找到同名 .ts（或 .js）就算在；两边都没有时它抛错，这里折成 false。
+//   构建产物与文档（scripts/generated/…、package/CHANGELOG.md）不经过这个入口，仍用上面的 exists 直接判那个文件。
+const sourceExists = (rel: string): boolean => { try { sourcePath(rel); return true } catch (e) { return false } }
 
 async function main(): Promise<void> {
   console.log('更新入口委托门禁（#876 搭架 + #877 档案卷皮肤：宿主四电话 + 面板只挂入口件 + 更新日志随包）')
 
   // ---- 面板委托：自有实现已删，入口挂载点与绑定包都在 ----
   for (const rel of ['src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js', 'src/client/views/UpdateRestartBanner.js']) {
-    check(!exists(rel), '自有面板实现已删：' + rel)
+    check(!sourceExists(rel), '自有面板实现已删：' + rel)
   }
-  check(exists('src/client/views/UpdateEntryHost.js'), '入口挂载点存在：src/client/views/UpdateEntryHost.js')
+  check(sourceExists('src/client/views/UpdateEntryHost.js'), '入口挂载点存在：src/client/views/UpdateEntryHost.js')
   check(exists('scripts/generated/updateEntryPanel.bundle.js'), '入口件绑定包存在（构建产物，人手不改）')
   const bundleHead = read('scripts/generated/updateEntryPanel.bundle.js').split('\n').slice(0, 3).join('\n')
   const installedUpd = JSON.parse(read('node_modules/dsh-plugin-update/package.json')).version

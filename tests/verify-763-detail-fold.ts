@@ -5,26 +5,29 @@
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-763-detail-fold.ts
  * 本文件是 ESM：按文本求值走 tests/lib/eval-probe.js（钩子改指 .ts），只加类型标注不改判据。
  */
-import { readFileSync, existsSync } from 'node:fs'
-import { resolve } from 'node:path'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// 折叠判据已转成 TypeScript 真源 src/client/views/issueDetailFold.ts，同名 .js 构建产物已删除；
+// 取源统一走 tests/lib/source-text.js（钩子改指 .ts），它会按构建同一套口径读出可拼接的 JavaScript。
+import { spliceableJs } from './lib/source-text.js'
 
 let passed = 0, failed = 0
 function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
 function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
 function check(cond: unknown, msg: string): void { if (cond) ok(msg); else bad(msg) }
 
-const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 const FOLD = 'src/client/views/issueDetailFold.js'
 
 console.log('=== #763 详情页顶栏：返回优先逐字收到图标，不放省略号 ===')
 
+// 以前这里直接 fs 读 src/client/views/issueDetailFold.js。那个 .js 是构建产物，已经随本次迁移
+// 全部删除；现在同目录只剩真源 .ts。所以改为用 spliceableJs 取源：它先找同名 .ts，再按构建
+// 同一套规则转成可拼接的 JavaScript（行首 export 已剥掉、模块语句会报错），拼出来的函数体形状
+// 与旧产物一致，后面的断言原样继续跑。文件不存在时 spliceableJs 会抛错，被 catch 接住后 fold
+// 仍是 null，下面「折叠判据文件存在且可加载」这条判据不放松。
 const fold = (function () {
-  if (!existsSync(resolve(FOLD))) return null
   try {
-    // 按文本求值走共用入口：这里没有参数名、函数体是剥掉行首 export 的纯函数源码，所以走 compileFn。
-    return compileFn([], read(FOLD).replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { issueDetailFoldLadderOf, issueDetailFoldStateAt }')()
+    return compileFn([], spliceableJs(FOLD) + '\nreturn { issueDetailFoldLadderOf, issueDetailFoldStateAt }')()
   } catch (e) { return null }
 })()
 

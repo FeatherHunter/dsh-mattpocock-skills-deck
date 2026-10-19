@@ -24,6 +24,10 @@ const { execFileSync } = require('child_process')
 const { pathToFileURL } = require('url')
 // 本文件按文本求值统一走共用入口 compileFn：把 router.js 里计时与记日志那三段真代码配上假记录器（理由与用法见 tests/lib/eval-probe.js 文件头）。
 const { compileFn } = require('./lib/eval-probe.js')
+// 2026-10-19（#1301 批C）：第五节要抽 router 真代码来跑。src/client 下同名 .js 是构建产物、这一阶段已经删掉，
+//   按 'src/client/kernel/router.js' 直接 fs.readFileSync 会 ENOENT。spliceableJs 读 .ts 真源、按构建唯一口径
+//   转成可拼接的 JavaScript（行首 export 已剥掉），抽出来的仍是同一段运行期代码。
+const { spliceableJs } = require('./lib/source-text.ts')
 
 let failed = false
 let total = 0
@@ -266,12 +270,13 @@ async function main() {
   // 它们盯的是 router.js / Dock.js / DockSync.js / ListTab.js 的源码写成什么样（等价重构就变红），
   // 已按维护者要求删除。下面的运行核（把真代码抽出来配假记录器跑）原样保留。
   {
-    const read = (rel) => nodeFs.readFileSync(path.join(ROOT, rel), 'utf8')
-    const routerSrc = read(path.join('src', 'client', 'kernel', 'router.js'))
+    // 取源见文件头：spliceableJs 已按构建口径把 router.ts 转好并剥掉行首 export，所以下面两个锚点
+    //   从 'export const …' 改成 'const …'；抽出来配假记录器跑的还是同一段真代码。
+    const routerSrc = spliceableJs('src/client/kernel/router.js')
 
     // 再按运行核：把 router.js 里那三段真代码抽出来，配假记录器跑一遍。
-    const start = routerSrc.indexOf('export const panelClock')
-    const end = routerSrc.indexOf('export const DECK_NATIVE_TAB_KIND')
+    const start = routerSrc.indexOf('const panelClock')
+    const end = routerSrc.indexOf('const DECK_NATIVE_TAB_KIND')
     check(start >= 0 && end > start, '能从 router.js 里抽到计时与记日志那三段真代码')
     let lines = []
     let enabled = false
