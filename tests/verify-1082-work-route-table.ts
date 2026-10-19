@@ -27,7 +27,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
-import { spliceableJs } from './lib/source-text.ts'
+import { spliceableJs, sourceText } from './lib/source-text.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -52,8 +52,18 @@ function memFs() {
   }
 }
 
-/** 最小的假 React：createElement 只搭一棵普通对象树，useContext 一律返回空（组件就会退回 React.createElement）。 */
-function makeReact() {
+/**
+ * 最小的假 React：createElement 只搭一棵普通对象树，useContext 一律返回空（组件就会退回 React.createElement）。
+ *
+ * #1285 追加：useState / useRef / useEffect 也得有一份假身，才能验「点开浮层」「点别处收起」这两种行为。
+ *   stateQueue —— useState 按调用顺序从这里取初值（用来把浮层摆成「已经打开」的样子）；
+ *   effects    —— 收到的副作用函数收在这里，测试自己决定什么时候跑；
+ *   refs       —— useRef 按调用顺序从这里取（用来假装图标与浮层各自的 DOM 节点）；
+ *   setCalls   —— setState 被调用时把新值记在这里（用来验「点别处真的收起了」）。
+ */
+function makeReact(stateQueue?: any[], effects?: any[], refs?: any[], setCalls?: any[]) {
+  const queue: any[] = stateQueue ? stateQueue.slice() : []
+  let refIndex = 0
   return {
     createElement: function (type: any, props: any) {
       const kids: any[] = []
@@ -62,6 +72,16 @@ function makeReact() {
       return { type: type, props: props || {}, children: kids }
     },
     useContext: function () { return null },
+    useState: function (init: any) {
+      const v = queue.length > 0 ? queue.shift() : (typeof init === 'function' ? init() : init)
+      return [v, function (next: any) { if (setCalls) setCalls.push(next) }]
+    },
+    useRef: function (init: any) {
+      const i = refIndex++
+      if (refs && refs[i]) return refs[i]
+      return { current: init === undefined ? null : init }
+    },
+    useEffect: function (fn: any) { if (effects) effects.push(fn); return undefined },
   }
 }
 
@@ -184,13 +204,19 @@ async function main() {
 
   // ── 三、界面：判据与画法（真源码 + 假 React）──
   const leafSrc = spliceableJs('src/client/views/shared/workRouteTable.js').replace(/^[ \t]*export[ \t]+/gm, '')
-  const leaf = compileFn(['React', 'DswsCtx', 'Tip', 'tr', 'h'], leafSrc + '\nreturn { WORK_ROUTE_TABLE_FIELD, WORK_ROUTE_ACTION_KEYS, workRouteActionKeyOf, workRouteTableClock, workRouteTableOf, WorkRouteTable }')(
-    makeReact(), null, (props: any, child: any) => ({ type: 'Tip', props: props || {}, children: [child] }), (k: string, p: any) => {
+  // 把这份叶子装进假件里求值：闭包里带的都是假的 —— 假 React、假 Tip（把提示内容原样挂在 props 上）、
+  // 假 tr（查真词表）、假 Ic、假 portalTop、假版本号。名字表与下面的传值顺序一一对应，改一处要改两处。
+  const compileLeaf = (react: any) => compileFn(['React', 'DswsCtx', 'Tip', 'tr', 'h', 'Ic', 'portalTop', 'DSW_VERSION'], leafSrc + '\nreturn { WORK_ROUTE_TABLE_FIELD, WORK_ROUTE_TABLE_CELLS, WORK_ROUTE_ACTION_KEYS, workRouteActionKeyOf, workRouteTableClock, workRouteTableOf, WorkRouteTable, WorkRouteTrigger }')(
+    react, null, (props: any, child: any) => ({ type: 'Tip', props: props || {}, children: [child] }), (k: string, p: any) => {
       const locale = zh
       let s = locale[k] !== undefined ? locale[k] : k
       Object.keys(p || {}).forEach((key) => { s = s.split('{' + key + '}').join(String((p || {})[key])) })
       return s
-    }, null)
+    }, null,
+    (args: any) => ({ type: 'Icon', props: args || {}, children: [] }),
+    (node: any) => ({ type: 'Portal', props: {}, children: [node] }),
+    '9.9.9-test')
+  const leaf = compileLeaf(makeReact())
   const zh = (await imp('src/client/kernel/locale-pages.js') as any).L_PAGES.zh
   const en = (await imp('src/client/kernel/locale-pages.js') as any).L_PAGES.en
   const trZh = (k: string, p?: any) => {
@@ -232,6 +258,78 @@ async function main() {
   const rows = findAll(treeOk, (n: any) => n.props && n.props['data-work-route-row'] === 1)
   check(rows.length === 2, '逐条版面：两行都是真的行节点（实得 ' + rows.length + ' 行）')
   check(String(rows[0].props['data-work-route-active']) === '1' && String(rows[1].props['data-work-route-active']) === '0', '行上带着在办/陈旧的判据值，样式与无障碍信息可跟随')
+
+  // ── 四、#1285：列宽让给标题与会话，表收进头部图标的浮层 ──
+  // 一份列宽模板里，minmax(...) 内部自带空格，按空格切会把一列切成两半 —— 所以按「minmax 括号整段」切。
+  const tracks = String(leaf.WORK_ROUTE_TABLE_CELLS || '').match(/minmax\([^)]*\)|\S+/g) || []
+  check(tracks.length === 6, '列宽模板是六列（实得 ' + tracks.length + ' 轨）')
+  check(tracks[0] === '46px' && tracks[3] === '50px' && tracks[4] === '72px' && tracks[5] === '48px', '票号、动作、动作时间、是否在办这四列定宽：面板拉宽时它们不变')
+  check(tracks[1].indexOf('fr') > 0 && tracks[2].indexOf('fr') > 0, '标题与会话两列按比例吃掉全部富余宽度（票标题与会话名先长出来，不被挤成省略号）')
+  const gridNodes = findAll(treeOk, (n: any) => n.props && n.props.style && typeof n.props.style.gridTemplateColumns === 'string')
+  const gridTemplates: string[] = []
+  gridNodes.forEach((n: any) => { if (gridTemplates.indexOf(n.props.style.gridTemplateColumns) < 0) gridTemplates.push(n.props.style.gridTemplateColumns) })
+  check(gridTemplates.length === 1 && gridTemplates[0] === leaf.WORK_ROUTE_TABLE_CELLS, '表头与每一行用同一份列宽模板（列要逐字对齐，实得 ' + gridTemplates.length + ' 种）')
+
+  const okSt = { snapshot: { workRouteTable: { ok: true, readout: okReadout } } }
+  const openPos = { right: 12, top: 100, width: 520, maxHeight: 400 }
+  // 图标那一颗：不是按钮（页面上不留 button 元素），悬停提示里带着插件版本号。
+  const leafOpen = compileLeaf(makeReact([{ open: true, pos: openPos }]))
+  const triggerTree = leafOpen.WorkRouteTrigger({ st: okSt })
+  const iconNodes = findAll(triggerTree, (n: any) => n.props && n.props['data-work-route-trigger'] === 1)
+  check(iconNodes.length === 1, '头部那一行画出了一颗在办表图标')
+  check(iconNodes.length === 1 && String(iconNodes[0].type) === 'span' && findAll(triggerTree, (n: any) => n.type === 'button').length === 0, '图标不是按钮（是 span，树上没有 button 元素）')
+  check(iconNodes.length === 1 && String(iconNodes[0].props['aria-label']) === trZh('workRouteTable.iconLabel'), '图标带一句人能读懂的名字')
+  check(textOf(triggerTree).indexOf('9.9.9-test') >= 0, '版本号搬进图标的悬停提示里（头部那一行不再显示版本号）')
+  // 浮层：fixed 定位，不占列表页高度；里面挂的就是那张表。
+  const popNodes = findAll(triggerTree, (n: any) => n.props && n.props['data-work-route-popover'] === 1)
+  check(popNodes.length === 1, '点开图标弹出一个浮层')
+  check(popNodes.length === 1 && popNodes[0].props.style.position === 'fixed', '浮层是 fixed 定位（不占列表页高度，不把列表往下推）')
+  const tableNodes = popNodes.length === 1 ? findAll(popNodes[0], (n: any) => n.type === leafOpen.WorkRouteTable) : []
+  check(tableNodes.length === 1, '浮层里挂的就是那张在办表')
+  const popText = tableNodes.length === 1 ? textOf(leafOpen.WorkRouteTable(tableNodes[0].props)) : ''
+  check(popText.indexOf('#101') >= 0 && popText.indexOf('#102') >= 0, '浮层里逐条画出了票号')
+  // 默认不弹：没点开时页面上只有那颗图标，看不到表里的行。
+  const closedTree = compileLeaf(makeReact()).WorkRouteTrigger({ st: okSt })
+  check(findAll(closedTree, (n: any) => n.props && n.props['data-work-route-popover'] === 1).length === 0, '默认不弹浮层（点开才画）')
+  check(textOf(closedTree).indexOf('#101') < 0, '浮层没开时看不到表里的行')
+  // 点别处收起：跑那段副作用，看它听不听 mousedown 与 Esc。
+  const effects: any[] = []
+  const setCalls: any[] = []
+  const handlers: any[] = []
+  const fakeRefs = [
+    { current: { contains: function (t: any) { return t === 'icon-target' } } },
+    { current: { contains: function () { return false } } },
+  ]
+  ;(globalThis as any).document = {
+    addEventListener: function (t: string, fn: any) { handlers.push({ type: t, fn: fn }) },
+    removeEventListener: function () {},
+  }
+  compileLeaf(makeReact([{ open: true, pos: openPos }], effects, fakeRefs, setCalls)).WorkRouteTrigger({ st: okSt })
+  check(effects.length === 1, '浮层开着时挂上了「点别处收起」那段副作用')
+  if (effects.length === 1) effects[0]()
+  const onDown = handlers.filter(function (x: any) { return x.type === 'mousedown' })[0]
+  const onKey = handlers.filter(function (x: any) { return x.type === 'keydown' })[0]
+  check(!!onDown && !!onKey, '监听了 mousedown 与 keydown（Esc）')
+  if (onDown) onDown.fn({ target: 'icon-target' })
+  check(setCalls.length === 0, '点在图标上不算「别处」，浮层不收')
+  if (onDown) onDown.fn({ target: 'somewhere-else' })
+  check(setCalls.length === 1 && setCalls[0] && setCalls[0].open === false, '点浮层以外的地方：浮层收起')
+  setCalls.length = 0
+  if (onKey) onKey.fn({ key: 'Escape' })
+  check(setCalls.length === 1 && setCalls[0] && setCalls[0].open === false, '按 Esc：浮层收起')
+  delete (globalThis as any).document
+
+  // 位置与入口的形状按源码核对：表不再画在列表页正文，图标挂在头部那一行末尾。
+  const dockSrc = sourceText('src/client/panel/Dock.ts')
+  check(dockSrc.indexOf('h(WorkRouteTable') < 0, '列表页正文不再画在办表（列表不再被往下推）')
+  check(/tabs\.items\.concat\(\[\s*h\(WorkRouteTrigger/.test(dockSrc), '在办表图标接在头部那一行的末尾')
+  const tabsSrc = sourceText('src/client/views/shared/Tabs.ts')
+  check(tabsSrc.indexOf('dsws-ver') < 0 && tabsSrc.indexOf('DSW_VERSION') < 0, '头部那一行的版本号撤走了（改由图标提示显示）')
+  const stylesSrc = sourceText('src/client/kernel/styles.ts')
+  check(stylesSrc.indexOf('.dsws-workroute') >= 0 && stylesSrc.indexOf('.dsws-ver') < 0, '图标样式换上 .dsws-workroute，旧版本号样式一并清掉')
+  const iconsSrc = sourceText('src/client/kernel/icons.ts')
+  check(iconsSrc.indexOf("'workroute'") >= 0, '图标库里有 workroute 这颗图标')
+  check(['workRouteTable.iconLabel', 'workRouteTable.iconTip', 'workRouteTable.idle'].every(function (k) { return zh[k] !== undefined && en[k] !== undefined }), '图标名、悬停说明、还没拿到数据这三句中英都有')
 
   if (total === 0) check(false, '一条断言都没跑')
 }

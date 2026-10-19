@@ -31,9 +31,10 @@
       '.dsws-tabs .dsws-tab > span:last-child,.dsws-tabs .dsws-btn > span:last-child{max-width:120px;overflow:hidden;white-space:nowrap;transition:max-width .25s ease,opacity .2s ease,margin .25s ease}',
       '.dsws-tabs .dsws-tab.collapsed > span:last-child,.dsws-tabs .dsws-btn.collapsed > span:last-child{max-width:0;opacity:0;margin-left:-4px;margin-right:-4px}',
       '.dsws-tabs > span:last-child,.dsws-tabs > a:last-child{transition:max-width .25s ease,opacity .2s ease;overflow:hidden;white-space:nowrap}',
-      // #repo-link：版本号为链接（span→a）——基线色与去 UA 下划线移入样式表（内联设 color 会盖住 :hover），hover 提亮+下划线
-      '.dsws-tabs .dsws-ver{color:var(--dsw-alias-label-caption,#8b8b95);text-decoration:none;cursor:pointer}',
-      '.dsws-tabs .dsws-ver:hover{color:var(--dsw-alias-label-secondary,#a1a1aa);text-decoration:underline}',
+      // #1285：头部那一行右端改成在办表图标（版本号撤走，版本号进了图标的悬停提示）——
+      //   视觉上不是按钮：无边框、无底色，只有字形，悬停时提亮一点。
+      '.dsws-tabs .dsws-workroute{color:var(--dsw-alias-label-caption,#8b8b95);display:inline-flex;align-items:center}',
+      '.dsws-tabs .dsws-workroute:hover{color:var(--dsw-alias-label-secondary,#a1a1aa)}',
       '.dsws-tabs .dsws-tab.collapsed,.dsws-tabs .dsws-btn.collapsed{padding-left:6px;padding-right:6px;transition:padding .25s ease}',
       '.dsws-tabs.dsws-no-anim *,.dsws-tabs.dsws-no-anim{transition:none!important}',
       '.dsws-body{flex:1;overflow-y:auto;padding:10px 12px}',

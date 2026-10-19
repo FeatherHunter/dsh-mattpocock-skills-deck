@@ -63,7 +63,7 @@ declare const SubworkspaceMark: any;
 declare const SwitchConfirmModal: any;
 declare const Tip: any;
 declare const VersionControlTab: any;
-declare const WorkRouteTable: any; // #1082：列表页正文最上面的「跨会话在办表」
+declare const WorkRouteTrigger: any; // #1285：头部那一行右端的「跨会话在办表」图标（点开浮层看表）
 
     // ---- 5.8b 右侧停靠（details 槽位 · 三视图完整内容；开合/拖拽/宽度记忆由壳管理）----
     // 契约：details 槽 = 壳右侧第三列（AppFrame grid），scope session；关闭 = ctx.layout.closeDetails()
@@ -139,12 +139,10 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           const t = tabsRef.current
           if (!t) return
           const btns = t.querySelectorAll('[data-priority]')
-          const ver = t.querySelector('.dsws-ver')
           // 测量阶段临时禁用 transition（max-width 动画会污染 scrollWidth 测量 → 0/6 抖动）
           t.classList.add('dsws-no-anim')
           // 1) 全展开 + 强制 reflow（拿到"内容真实放得下"的基准）
           for (let i = 0; i < btns.length; i++) btns[i].classList.remove('collapsed')
-          if (ver) ver.classList.remove('collapsed')
           void t.offsetWidth
           // 2) 从最不重要（priority 大）逐个折叠，直到放得下（scrollWidth 溢出判定）
           const items = Array.from(btns)
@@ -155,9 +153,8 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             it.el.classList.add('collapsed')
             void t.offsetWidth
           }
-          // 3) 版本号让位（原先跟随「刷新」priority=3 一起折叠；那颗按钮 2026-09-22 挪去头部之后，
-          //   这一排再没有 priority=3 的元素，于是改判它自己的真实处境）；记录折叠数供 tooltip 门控。
-          if (ver) ver.classList.toggle('collapsed', t.scrollWidth > t.clientWidth + 1)
+          // 3) 记录折叠数供 tooltip 门控。#1285：原先这里还有「版本号让位」那一步 —— 版本号已从这一行撤走，
+          //   在办表图标（接在最右端）永远不折叠，让位这件事由第 2 步的按优先级折叠负责。
           t.dataset.tabsLevel = String(t.querySelectorAll('[data-priority].collapsed').length)
           t.classList.remove('dsws-no-anim')
         }
@@ -339,8 +336,8 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         // #267：命名链路定败面板级常驻提醒 —— 组件自订阅共享 store（NamingFailBanner 叶子，G4 单职责）；
         //   值比对比两路化解（手改锁定 / 值一致收敛）后下一轮拉询自动撤下
         h(NamingFailBanner),
-        // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）— 门控时隐藏（容器不挂载语义：业务 tabs 不渲染，仅 Banner/Modal 可见）
-        (_isPending || _isOther) ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
+        // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 在办表图标（#1285：版本号撤走，版本号进了图标悬停提示）— 门控时隐藏（容器不挂载语义：业务 tabs 不渲染，仅 Banner/Modal 可见）
+        (_isPending || _isOther) ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items.concat([h(WorkRouteTrigger, { key: 'work-route-trigger', st: s })])),
         _isPending ? h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '12px', display:'flex', alignItems:'center', justifyContent:'center' } }, [
           h('div', { style:{ width:'92%', maxWidth:420, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', borderRadius:12, padding:'14px 16px', display:'flex', flexDirection:'column', gap:10 } }, [
             h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, [
@@ -392,8 +389,8 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             ])
           ]) : null,
         ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
-          // #1082：列表页正文最上面画「跨会话在办表」（只读快照里的 workRouteTable 字段；旧链的 SessionChainStrip 已随 #1271 退役）。
-          s.tab === 'list' ? h(WorkRouteTable, { st: s }) : null,
+          // #1285：跨会话在办表已从列表页正文撤下（那张表占掉一大块，把票列表往下推）——
+          //   改由头部那一行右端的图标点开一个浮层显示（views/shared/workRouteTable.ts 的 WorkRouteTrigger）。
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null, s.tab === 'versionControl' ? h(VersionControlTab, { st: s, narrow: narrow }) : null, // #818 版本管理页签的内容分发：与上一条同排，Dock.js 正贴着 350 行上限（单独起一行会变 351，撞文件粒度门禁）
           s.tab === 'pr' ? (showPrTab ? (hasIssueDetail ? h(IssueDetail, { st: s }) : h(PrTab, { st: s, narrow: narrow })) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,

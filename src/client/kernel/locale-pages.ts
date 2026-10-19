@@ -145,6 +145,10 @@
         'workRouteTable.active': '在办',
         'workRouteTable.stale': '陈旧',
         'workRouteTable.titleMissing': '标题未取到',
+        // #1285：头部那一行右端的在办表图标（点开浮层看表）。版本号撤了这一行，改放进图标的悬停提示里。
+        'workRouteTable.iconLabel': '跨会话在办表',
+        'workRouteTable.iconTip': '跨会话在办表：点开看这个工作区里每个会话各自在办哪些票（插件版本 {version}）',
+        'workRouteTable.idle': '还没拿到在办数据 —— 刷新一次面板就会出现。',
       },
       en: {
         'list.pageLoaded': '{x} loaded / {n} total',
@@ -236,6 +240,10 @@
         'workRouteTable.active': 'active',
         'workRouteTable.stale': 'stale',
         'workRouteTable.titleMissing': 'title unavailable',
+        // #1285: the work-route icon in the panel header row (click it to open the table).
+        'workRouteTable.iconLabel': 'Cross-session work route',
+        'workRouteTable.iconTip': 'Cross-session work route: click to see which tickets each session in this workspace is working on (plugin version {version})',
+        'workRouteTable.idle': 'No work-route data yet — refresh the panel once and it will show up.',
       },
     } satisfies Record<LocaleLang, LocaleDoc>
 

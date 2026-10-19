@@ -1,7 +1,9 @@
 /**
  * views/shared/Tabs.ts — 共享 tabs 行（阶段 2 叶子迁移 · #97 T4 去重）
- * Dock/Overlay 原各实现一遍的 tabsTip/tabsTipOff/tabBtn + 动作按钮行（wayfinder/bug/刷新 + tooltip + 版本号）
+ * Dock/Overlay 原各实现一遍的 tabsTip/tabsTipOff/tabBtn + 动作按钮行（wayfinder/bug/刷新 + tooltip）
  * 合成此处；消费：`const tabs = useTabsRow(s, tabsRef)`，渲染 `tabs.items`（容器由调用方自备，样式各异）。
+ * #1285：这一行右端的版本号撤走了（改由在办表图标的悬停提示里显示），这一行现在以两枚动作按钮收尾，
+ *   在办表图标由面板那一侧（panel/Dock.ts）接在 tabs.items 末尾。
  * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
  * src/client/index.ts 的 `// ==== leaf:... (spliced by build) ====` 标记处（源码树里只有这一份真源）。
  *
@@ -22,9 +24,6 @@
  */
 declare const React: any;
 declare const portalTop: any;
-declare const Tip: any;
-declare const DSW_REPO_URL: any;
-declare const DSW_VERSION: any;
 declare const snapFresh: any;
 declare const loadSnapshot: any;
 declare const prTabVisible: any;
@@ -89,10 +88,8 @@ export const useTabsRow = function (s: any, tabsRef: any) {
     ]),
     // T2 #2 那颗「刷新」2026-09-22 挪出这一排了：维护者要求它离开面板的第二排，与「上次更新」的时间盒子
     //   并排放到面板头部第一行右侧（画在 panel/Dock.js 的头部那一行里）。所以这一排从此没有 priority=3
-    //   的元素，版本号「什么时候让位」的判据也跟着换了口径 —— 见 Dock.js 折叠机第 3 步（按其真实处境判）。
+    //   的元素。#1285：原先排在最右端的版本号也撤走了（在办表图标接在它后面，由面板那一侧挂上去）。
     (tabTip && portalTop) ? portalTop(h('div', { style: { position: 'fixed', left: tabTip.x, top: tabTip.y, zIndex: 2147483000, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', maxWidth: 220 } }, tabTip.text)) : null,
-    // #repo-link：版本号可点——新窗打开插件仓库主页（DSW_REPO_URL 构建期注入，见 index.js；hover 样式在 styles.js .dsws-ver）
-    h(Tip, { content: DSW_REPO_URL }, h('a', { className: 'dsws-ver', href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 9, flex: 'none', fontVariantNumeric: 'tabular-nums' } }, DSW_VERSION)),
   ]
   return { tabsRef: tabsRef, items: items }
 }
