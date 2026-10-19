@@ -332,7 +332,7 @@
 <h3>新增（第二批：写事件与工具）</h3>
 <ul>
   <li><code>src/host/refresh/writeEvents.js</code>：订阅 DSH 会话事件（<code>ctx.on('session/event', …, { global: true })</code>），只处理三类（<code>tool/call</code>、<code>ptc</code> 派发形态、<code>tools/result</code>），把命中归一成"一次写操作"。<strong>只认成功</strong>；"确定写"立即补行，"可疑动作"只立即发一条探测。先看工具名、再解析命令，其余事件立即返回（性能约束）。</li>
-  <li><code>src/host/refresh/workRoute.ts</code>：会话↔票 的工作路线（数据侧）。键 =（工作区根，后端，票 key）；三个来源＝我们工具的调用参数 / 当前后端的命令行 / markdown 后端的票文件路径；内存 + 工作区缓存落盘。<strong>#1083 起落盘口径已重做</strong>：新存档由 <code>src/deck/shell/work-path-store.ts</code> 写，位置 <code>&lt;home&gt;/.dsh/mattskillsdeck/work-path/&lt;根散列&gt;.json</code>，按（工作区根散列、会话 id 原文、票号）记，不设每会话条数上限、保留 30 天、单文件超 2MB 从旧到新裁；本文件这份旧缓存仍只存散列，随 #1082 退役（见第十二章与 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>）。</li>
+  <li><code>src/host/refresh/workRoute.ts</code>：会话↔票 的工作路线（数据侧）。键 =（工作区根，后端，票 key）；三个来源＝我们工具的调用参数 / 当前后端的命令行 / markdown 后端的票文件路径；内存 + 工作区缓存落盘。<strong>#1083 起落盘口径已重做</strong>：新存档由 <code>src/deck/shell/work-path-store.ts</code> 写，位置 <code>&lt;home&gt;/.dsh/mattskillsdeck/work-path/&lt;根散列&gt;.json</code>，按（工作区根散列、会话 id 原文、票号）记，不设每会话条数上限、保留 30 天、单文件超 2MB 从旧到新裁；这份旧缓存只存散列与票键，已于 2026-10-19 随 #1271 整份退役（源文件与读写口均已删除）；现行存档只剩新表（见第十二章与 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>）。</li>
   <li><code>src/host/tools/</code>：7 个后端无关的工具（薄壳，坐在 tracker 契约之上）：<code>deck_context</code>、<code>deck_issue_get</code>、<code>deck_map_snapshot</code>、<code>deck_issue_create</code>、<code>deck_map_plan_create</code>、<code>deck_map_link</code>、<code>deck_issue_patch</code>；内部代码<strong>直接调用同一批实现函数</strong>，不绕工具层。</li>
 </ul>
 
