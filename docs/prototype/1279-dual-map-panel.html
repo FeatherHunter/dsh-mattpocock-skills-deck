@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1279 · 列表页复用地图 item</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff;
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa;
+  --green:#3fb950; --amber:#f59e0b; --orange:#f0883e; --take:#58a6ff; --red:#f87171;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:18px 24px 0;max-width:1180px;margin:0 auto}
+.page-head h1{margin:0 0 4px;font-size:16px}
+.page-head p{margin:0;color:var(--sec);font-size:12px}
+.wrap{display:flex;gap:20px;align-items:flex-start;padding:16px 24px 110px;max-width:1180px;margin:0 auto}
+.panel{width:460px;flex:none;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.tabs{display:flex;gap:2px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--panel)}
+.tab{font-size:12px;color:var(--sec);padding:3px 9px;border-radius:6px}
+.tab.on{background:rgba(255,255,255,.07);color:var(--txt)}
+.pbody{padding:10px 12px 12px}
+.kpis{display:flex;gap:8px;margin-bottom:10px}
+.kpi{font-size:11px;color:var(--sec);background:var(--card);border:1px solid var(--border);border-radius:6px;padding:2px 8px}
+.kpi b{color:var(--txt);font-weight:600}
+.divider{height:1px;background:var(--border);margin:8px 2px}
+.row{border:1px solid transparent;border-left-width:3px;border-radius:6px;padding:6px 7px;margin-bottom:4px;cursor:pointer}
+.row:hover{background:rgba(255,255,255,.06)}
+.row.explore{border-left-color:var(--purple);background:rgba(188,140,255,.07)}
+.row.impl{border-left-color:var(--blue);background:rgba(29,78,216,.14)}
+.rtop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.idcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:none}
+.mapi{vertical-align:-2px;flex:none}
+.idnum{font-family:Consolas,Menlo,monospace;font-weight:700;font-size:11px;padding:1px 6px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.25)}
+.idnum.explore{color:var(--purple);border-color:var(--purple)}
+.idnum.impl{color:var(--blue-text);border-color:var(--blue);background:rgba(29,78,216,.2)}
+.chip{font-size:11px;font-weight:600;line-height:1.7;padding:0 8px;border-radius:99px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.chip.explore{background:rgba(188,140,255,.16);color:var(--purple-soft)}
+.chip.impl{background:rgba(29,78,216,.34);color:var(--blue-text)}
+.rtitle{font-size:13px;color:var(--txt);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rfoot{display:flex;align-items:center;gap:6px;margin-top:5px}
+.spacer{flex:1}
+.ring{vertical-align:-3px}
+.ringtxt{font-size:11px;color:var(--sec);min-width:32px}
+.btn{border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--txt);font-size:12px;padding:2px 9px;cursor:pointer;font-family:inherit}
+.btn:hover{border-color:#3d424d}
+.btn.purple{background:var(--purple);border-color:var(--purple);color:#140a1e;font-weight:600}
+.btn.blue{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.btn.amber{background:var(--amber);border-color:var(--amber);color:#140a1e;font-weight:600}
+.btn.green{background:var(--green);border-color:var(--green);color:#0a1a0d;font-weight:600}
+.btn.ghost{background:transparent;color:var(--sec);border-color:transparent;padding:2px 5px}
+.btn.ghost:hover{color:var(--txt);background:rgba(255,255,255,.06)}
+.btn.tiny{font-size:11px;padding:1px 7px;color:var(--sec)}
+.expand{margin-top:6px;border-top:1px dashed var(--border);padding-top:5px}
+.trow{display:flex;align-items:center;gap:7px;padding:3px 0}
+.tid{font-family:Consolas,Menlo,monospace;font-size:11px;color:var(--sec)}
+.ttitle{font-size:12px;color:var(--txt);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mark{font-size:11px;padding:0 6px;border-radius:4px;border:1px solid transparent}
+.mark.taken{color:var(--take);border-color:rgba(88,166,255,.45)}
+.mark.closed{color:var(--green);border-color:rgba(63,185,80,.45)}
+.dtop{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.dhead{border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--card);margin-bottom:9px}
+.dhead .idnum{font-size:12px;padding:2px 8px}
+.dtitle{font-size:14px;margin:6px 0 4px}
+.dcount{font-size:12px;color:var(--sec)}
+.segs{display:flex;gap:2px;margin:8px 0 2px}
+.seg{height:5px;flex:1;border-radius:3px;background:var(--border)}
+.seg.past{background:linear-gradient(90deg,#2ea043,#3fb950)}
+.seg.curr{background:var(--purple)}
+.seg.curr.blue{background:var(--blue-mid)}
+.dsec{font-size:11px;color:var(--cap);padding:9px 2px 4px}
+.specs{list-style:none;margin:0;padding:0}
+.specs li{font-size:12px;color:var(--txt);padding:3px 0 3px 14px;position:relative}
+.specs li:before{content:"";position:absolute;left:3px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--sec)}
+.foldsum{font-size:11px;color:var(--cap);padding:8px 2px 0}
+.state{width:520px;flex:none;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.state h2{margin:0 0 8px;font-size:12px;color:var(--sec);font-weight:600;letter-spacing:.04em}
+.srow{display:flex;gap:10px;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.07)}
+.srow span{width:64px;flex:none;color:var(--cap);font-size:12px}
+.srow b{font-weight:600;font-size:12px;color:var(--txt)}
+.stab{width:100%;border-collapse:collapse;margin:9px 0 4px;font-size:11.5px}
+.stab th{text-align:left;color:var(--cap);font-weight:500;padding:3px 6px 3px 0;border-bottom:1px solid var(--border);white-space:nowrap}
+.stab td{padding:3px 6px 3px 0;border-bottom:1px solid rgba(255,255,255,.05);color:var(--txt);white-space:nowrap}
+.stab td.num{font-family:Consolas,Menlo,monospace}
+.stab .t-explore{color:var(--purple-soft)}
+.stab .t-impl{color:var(--blue-text)}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;display:flex;align-items:center;gap:6px;background:rgba(22,24,29,.96);border:1px solid var(--border);border-radius:99px;padding:5px 10px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.sw{font:inherit;font-size:12px;color:var(--sec);background:transparent;border:1px solid transparent;border-radius:99px;padding:3px 11px;cursor:pointer}
+.sw:hover{color:var(--txt)}
+.sw.on{background:rgba(192,132,252,.16);color:var(--purple);border-color:rgba(192,132,252,.4)}
+.swdesc{font-size:11.5px;color:var(--cap);padding:0 6px 0 8px;border-left:1px solid var(--border);margin-left:4px}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>原型 #1279 · 列表页复用地图 item，两类地图</h1>
+  <p>左：右侧面板。列表里探索地图在最上面，实施地图跟在下面，普通票最后；卡片不写分组名，地图卡带一枚角标（地图图标 + 「地图」或「规格」），身份主要靠颜色和按钮；点卡片进地图详情页，两类地图的详情页结构完全一样，差别只在按钮文字、提示词和颜色。主按钮和它右边的「新会话」永远同色。<b>#1274、#1279 是真票，其余编号为示例数据。</b></p>
+</div>
+<div class="wrap">
+  <section class="panel">
+    <div class="tabs">
+      <span class="tab on">列表</span><span class="tab">拉取请求</span><span class="tab">版本管理</span><span class="tab">技能</span><span class="tab">环境检查</span>
+    </div>
+    <div class="pbody" id="panel-body"></div>
+  </section>
+  <section class="state" id="state"></section>
+</div>
+<div class="switcher" id="switcher"></div>
+<script>
+(function(){
+"use strict";
+var V = {
+  a: {name:"A", desc:"基准 · 角标=地图图标 + 「地图」/「规格」· 被阻塞只有实施地图用红"},
+  b: {name:"B", desc:"两类地图的被阻塞统一用红色"},
+  c: {name:"C", desc:"组与组之间加一条细分隔线（不用文字分组）"},
+  d: {name:"D", desc:"角标只留地图图标，不写那两个字"}
+};
+var EXPLORE = [
+  {n:1274, title:"双轨插件形态：探索地图与实施地图", upd:5, real:true, tickets:[
+    {n:1279, title:"双地图面板视觉：贵族蓝、紫/蓝分组", st:"open"},
+    {n:1284, title:"探索地图的排序与数量策略", st:"closed"}
+  ]},
+  {n:1290, title:"面板分栏方案的探索", upd:120, tickets:[
+    {n:1291, title:"分栏与页签的取舍", st:"blocked"}
+  ]}
+];
+var IMPL = [
+  {n:1292, title:"实施地图与探索地图的分离落地", upd:30, tickets:[
+    {n:1293, title:"实施票：列表页复用地图 item", st:"taken"},
+    {n:1294, title:"实施票：规格卡三态", st:"blocked"},
+    {n:1295, title:"实施票：颜色与对比度", st:"closed"}
+  ]},
+  {n:1296, title:"第二份实施地图（还没有实施票）", upd:1440, tickets:[]},
+  {n:1297, title:"实施地图的验收标准写法", upd:200, tickets:[
+    {n:1298, title:"实施票：规格验收条件", st:"closed"}
+  ]}
+];
+var PLAIN = [
+  {n:1288, title:"面板页签的键盘导航", upd:60}
+];
+var SPECS = {
+  1292:["实施地图以规格为容器，不新增标签","探索地图保持紫色，实施地图用贵族蓝","列表页与详情页共用同一套 item"],
+  1296:["先把实施地图的骨架建起来"],
+  1297:["把验收标准写成可核对的条目"]
+};
+var DEST = ["把探索地图与实施地图分开跑起来","探索地图回答要不要做，实施地图回答怎么做"];
+var st = {v:"a", view:"list", open:null, expanded:{}};
+var qs = new URLSearchParams(location.search);
+if (V[qs.get("v")]) st.v = qs.get("v");
+if (qs.get("n")) { st.view = "detail"; st.open = parseInt(qs.get("n"),10); }
+
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+function allCards(){
+  var out = [];
+  EXPLORE.forEach(function(c){ out.push({kind:"explore", n:c.n, title:c.title, upd:c.upd, tickets:c.tickets}); });
+  IMPL.forEach(function(c){ out.push({kind:"impl", n:c.n, title:c.title, upd:c.upd, tickets:c.tickets}); });
+  return out;
+}
+function findCard(n){
+  var a = allCards();
+  for (var i=0;i<a.length;i++) if (a[i].n === n) return a[i];
+  return null;
+}
+function byUpd(a,b){ return a.upd - b.upd; }
+// 三态：探索地图照现状（检查橙、执行紫、完成绿）；实施地图拆票橙、执行蓝、完成绿
+function mapState(c){
+  var closed = c.tickets.filter(function(t){ return t.st === "closed"; }).length;
+  if (c.kind === "impl"){
+    if (!c.tickets.length) return {key:"split", label:"拆票", cls:"amber", why:"0 张实施票"};
+    if (closed === c.tickets.length) return {key:"done", label:"完成", cls:"green", why:c.tickets.length + " 张实施票已全部关闭"};
+    return {key:"run", label:"执行", cls:"blue", why:closed + "/" + c.tickets.length + " 张实施票已关闭"};
+  }
+  if (!c.tickets.length) return {key:"inspect", label:"检查", cls:"amber", why:"0 张子票"};
+  if (closed === c.tickets.length) return {key:"done", label:"完成", cls:"green", why:c.tickets.length + " 张子票已全部关闭"};
+  return {key:"run", label:"执行", cls:"purple", why:closed + "/" + c.tickets.length + " 张子票已关闭"};
+}
+// 「新会话」与主按钮同色、也是实心：探索地图跟着紫/橙/绿走，实施地图跟着橙/蓝/绿走
+function newSessionBtn(c){
+  var s = mapState(c);
+  return '<button class="btn ' + s.cls + '" data-act="ns">新会话</button>';
+}
+function ring(c){
+  var total = c.tickets.length, closed = c.tickets.filter(function(t){ return t.st === "closed"; }).length;
+  if (!total) return "";
+  var color = c.kind === "impl" ? "var(--blue-mid)" : "var(--purple-soft)";
+  if (closed === total) color = "var(--green)";
+  var C = 2 * Math.PI * 7, off = C * (1 - closed / total);
+  return '<svg class="ring" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2"></circle><circle cx="9" cy="9" r="7" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + off.toFixed(2) + '" transform="rotate(-90 9 9)"></circle></svg><span class="ringtxt">' + closed + "/" + total + "</span>";
+}
+function markOf(s, kind){
+  if (s === "taken") return '<span class="mark taken">认领</span>';
+  if (s === "blocked"){
+    // 实施地图的被阻塞用红；变体 C 里探索地图也改红
+    var red = (kind === "impl" || st.v === "b");
+    var color = red ? "var(--red)" : "var(--orange)";
+    var bd = red ? "rgba(248,113,113,.45)" : "rgba(240,136,62,.45)";
+    return '<span class="mark" style="color:' + color + ';border-color:' + bd + '">被阻塞</span>';
+  }
+  if (s === "closed") return '<span class="mark closed">已关闭</span>';
+  return "";
+}
+function ticketRow(t, kind){
+  return '<div class="trow"><span class="tid">#' + t.n + '</span><span class="ttitle">' + esc(t.title) + "</span>" + markOf(t.st, kind) + '<button class="btn tiny" data-act="ns">新会话</button></div>';
+}
+function ticketsBlock(c){
+  if (!c.tickets.length) return '<div class="trow"><span class="ttitle" style="color:var(--cap)">还没有子票</span></div>';
+  return c.tickets.map(function(t){ return ticketRow(t, c.kind); }).join("");
+}
+// 角标 = 地图图标 SVG + 两个字，探索地图写「地图」，实施地图写「规格」
+var MAP_SVG = '<svg class="mapi" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"></path><path d="M9 3v15M15 6v15"></path></svg>';
+function chipOf(c){
+  var cls = c.kind === "impl" ? "impl" : "explore";
+  if (st.v === "d") return '<span class="chip ' + cls + '">' + MAP_SVG + "</span>";
+  return '<span class="chip ' + cls + '">' + MAP_SVG + (c.kind === "impl" ? "规格" : "地图") + "</span>";
+}
+function cardHtml(c){
+  var s = mapState(c);
+  var numCls = c.kind === "impl" ? "impl" : "explore";
+  var primary = '<button class="btn ' + s.cls + '" data-act="run">' + s.label + "</button>";
+  var toggle = '<button class="btn tiny" data-act="toggle">' + (st.expanded[c.n] ? "收起票列表" : "票列表 " + c.tickets.length) + "</button>";
+  var expand = st.expanded[c.n] ? '<div class="expand">' + ticketsBlock(c) + "</div>" : "";
+  return '<div class="row ' + c.kind + '" data-n="' + c.n + '">' +
+    '<div class="rtop"><span class="idcol">' + chipOf(c) + '<span class="idnum ' + numCls + '">#' + c.n + "</span></span>" +
+    '<span class="rtitle">' + esc(c.title) + "</span></div>" +
+    '<div class="rfoot">' + ring(c) + '<span class="spacer"></span>' + primary + newSessionBtn(c) +
+    '<button class="btn ghost" data-act="copy" title="复制">⧉</button><button class="btn ghost" data-act="ext" title="外链">↗</button>' + toggle + "</div>" +
+    expand + "</div>";
+}
+function plainRow(p){
+  return '<div class="row" data-n="' + p.n + '"><div class="rtop"><span class="idnum" style="color:var(--sec);border-color:var(--border)">#' + p.n +
+    '</span><span class="rtitle">' + esc(p.title) + '</span></div><div class="rfoot"><span class="spacer"></span><button class="btn purple" data-act="run">执行</button>' +
+    '<button class="btn ghost" data-act="ext" title="外链">↗</button></div></div>';
+}
+function listHtml(){
+  var exps = allCards().filter(function(c){ return c.kind === "explore"; }).sort(byUpd);
+  var impls = allCards().filter(function(c){ return c.kind === "impl"; }).sort(byUpd);
+  var sep = st.v === "c" ? '<div class="divider"></div>' : "";
+  var h = '<div class="kpis"><span class="kpi"><b>可接</b> 6</span><span class="kpi"><b>阻塞</b> 2</span><span class="kpi"><b>已关闭</b> 11</span></div>';
+  h += exps.map(cardHtml).join("") + sep + impls.map(cardHtml).join("") + sep + PLAIN.map(plainRow).join("");
+  h += '<div class="foldsum">已关闭 11（已加载 30）</div>';
+  return h;
+}
+// 两类地图的详情页结构完全一样：顶部操作行 + 头部 + 进度段 + 内容段 + 票列表
+function detailHtml(c){
+  var s = mapState(c);
+  var isImpl = c.kind === "impl";
+  var numCls = isImpl ? "impl" : "explore";
+  var primary = '<button class="btn ' + s.cls + '" data-act="run">' + s.label + "</button>";
+  var ns = newSessionBtn(c);
+  var closedN = c.tickets.filter(function(t){ return t.st === "closed"; }).length;
+  var count = isImpl
+    ? "本规格 " + c.tickets.length + " 张实施票（已关闭 " + closedN + " 张）"
+    : "本图 " + c.tickets.length + " 张子票（已关闭 " + closedN + " 张）";
+  var h = '<div class="dtop"><button class="btn" data-act="back">← 列表</button><span class="spacer"></span>' + primary + ns +
+    '<button class="btn ghost" data-act="copy" title="复制">⧉</button><button class="btn ghost" data-act="ext" title="外链">↗</button></div>';
+  h += '<div class="dhead"><span class="idnum ' + numCls + '">#' + c.n + "</span>" +
+    '<div class="dtitle">' + esc(c.title) + "</div>" +
+    '<div class="dcount">' + count + "</div>" +
+    '<div class="segs"><span class="seg past"></span><span class="seg ' + (isImpl ? "curr blue" : "curr") + '"></span><span class="seg"></span></div>' +
+    "</div>";
+  var items = isImpl ? (SPECS[c.n] || []) : DEST;
+  h += '<div class="dsec">' + (isImpl ? "规格条目" : "Destination") + '</div><ul class="specs">' +
+    items.map(function(x){ return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
+  h += '<div class="dsec">' + (isImpl ? "实施票" : "子票") + "</div>" + ticketsBlock(c);
+  return h;
+}
+function btnColorText(c){
+  var s = mapState(c);
+  if (s.cls === "purple") return "实心紫 #c084fc";
+  if (s.cls === "amber") return "实心橙 #f59e0b";
+  if (s.cls === "green") return "实心绿 #3fb950";
+  return "实心蓝 #1D4ED8";
+}
+function stateHtml(){
+  var h = "<h2>当前状态</h2>";
+  h += '<div class="srow"><span>视图</span><b>' + (st.view === "list" ? "列表页" : "地图详情页") + "</b></div>";
+  h += '<div class="srow"><span>变体</span><b>' + V[st.v].name + " · " + V[st.v].desc + "</b></div>";
+  if (st.view === "list"){
+    h += '<div class="srow"><span>排序</span><b>探索地图 → 实施地图 → 普通票（组内按最近更新）</b></div>';
+    h += '<table class="stab"><tr><th>编号</th><th>类型</th><th>三态</th><th>子票</th><th>依据</th><th>主按钮</th><th>新会话</th></tr>';
+    allCards().sort(byUpd).forEach(function(c){
+      var s = mapState(c);
+      h += '<tr><td class="num">#' + c.n + '</td><td class="t-' + c.kind + '">' + (c.kind === "impl" ? "实施" : "探索") + "</td>" +
+        "<td>" + s.label + '</td><td>' + c.tickets.length + '</td><td style="color:var(--sec)">' + s.why + "</td>" +
+        "<td>" + btnColorText(c) + "</td>" + "<td>同色</td></tr>";
+    });
+    h += "</table>";
+    var ex = Object.keys(st.expanded).filter(function(k){ return st.expanded[k]; });
+    h += '<div class="srow"><span>展开</span><b>' + (ex.length ? ex.map(function(k){ return "#" + k; }).join("、") + " 的票列表" : "无") + "</b></div>";
+  } else {
+    var c = findCard(st.open);
+    var s = mapState(c);
+    h += '<div class="srow"><span>对象</span><b>#' + c.n + " · " + (c.kind === "impl" ? "实施地图" : "探索地图") + "</b></div>";
+    h += '<div class="srow"><span>标题</span><b>' + esc(c.title) + "</b></div>";
+    h += '<div class="srow"><span>主按钮</span><b>' + s.label + "（" + btnColorText(c) + "）· " + s.why + "</b></div>";
+    h += '<div class="srow"><span>新会话</span><b>与主按钮同色，也是实心（' + btnColorText(c) + "）</b></div>";
+    h += '<div class="srow"><span>计数</span><b>' + (c.kind === "impl" ? "本规格 " + c.tickets.length + " 张实施票" : "本图 " + c.tickets.length + " 张子票") + "</b></div>";
+    h += '<div class="srow"><span>票状态</span><b>' + c.tickets.map(function(t){ return "#" + t.n + " " + (t.st === "taken" ? "认领" : t.st === "blocked" ? "被阻塞" : t.st === "closed" ? "已关闭" : "待处理"); }).join("、") + "</b></div>";
+  }
+  return h;
+}
+function render(){
+  var body = document.getElementById("panel-body");
+  if (st.view === "list") body.innerHTML = listHtml();
+  else body.innerHTML = detailHtml(findCard(st.open));
+  document.getElementById("state").innerHTML = stateHtml();
+  var sw = document.getElementById("switcher");
+  var h = '<button class="btn ghost" data-v="prev" title="上一款">‹</button>';
+  Object.keys(V).forEach(function(k){
+    h += '<button class="sw' + (st.v === k ? " on" : "") + '" data-v="' + k + '">' + V[k].name + "</button>";
+  });
+  h += '<button class="btn ghost" data-v="next" title="下一款">›</button><span class="swdesc">' + V[st.v].desc + "</span>";
+  sw.innerHTML = h;
+}
+function setVariant(v){
+  if (!V[v]) return;
+  st.v = v;
+  var u = new URL(location.href);
+  u.searchParams.set("v", v);
+  if (st.view === "detail") u.searchParams.set("n", st.open); else u.searchParams.delete("n");
+  history.replaceState(null, "", u.toString());
+  render();
+}
+document.getElementById("panel-body").addEventListener("click", function(e){
+  var btn = e.target.closest("[data-act]");
+  var row = e.target.closest(".row");
+  if (btn){
+    var act = btn.getAttribute("data-act");
+    if (act === "toggle"){
+      e.stopPropagation();
+      var n = row.getAttribute("data-n");
+      st.expanded[n] = !st.expanded[n];
+      render();
+      return;
+    }
+    if (act === "back"){ st.view = "list"; st.open = null; render(); return; }
+    e.stopPropagation();
+    return;
+  }
+  if (row){
+    var num = parseInt(row.getAttribute("data-n"), 10);
+    if (!findCard(num)) return;
+    st.view = "detail"; st.open = num;
+    var u = new URL(location.href);
+    u.searchParams.set("n", num);
+    history.replaceState(null, "", u.toString());
+    render();
+  }
+});
+document.getElementById("switcher").addEventListener("click", function(e){
+  var b = e.target.closest("[data-v]");
+  if (!b) return;
+  var v = b.getAttribute("data-v");
+  if (v === "prev" || v === "next"){
+    var keys = Object.keys(V), i = keys.indexOf(st.v);
+    var j = v === "next" ? (i + 1) % keys.length : (i - 1 + keys.length) % keys.length;
+    setVariant(keys[j]);
+    return;
+  }
+  setVariant(v);
+});
+document.addEventListener("keydown", function(e){
+  if (e.key === "ArrowRight"){ setVariant(Object.keys(V)[(Object.keys(V).indexOf(st.v) + 1) % 4]); }
+  else if (e.key === "ArrowLeft"){ setVariant(Object.keys(V)[(Object.keys(V).indexOf(st.v) + 3) % 4]); }
+  else if (e.key === "Escape" && st.view === "detail"){ st.view = "list"; st.open = null; render(); }
+});
+render();
+})();
+</script>
+</body>
+</html>
