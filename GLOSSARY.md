@@ -181,11 +181,13 @@
 
 ## 对象类型词条（2026-10-20 定版 · 地图 #1274，讨论 #1275）
 
-- **对象类型（object kind）**: 一张票是什么对象，取值九个：地图、规格、实施票、调研票、原型票、讨论票、任务票、缺陷票、普通票。判定顺序是：正文首行的隐藏标记 → 表达对象类型的标签（wayfinder:map、wayfinder:research、wayfinder:prototype、wayfinder:grilling、wayfinder:task、bug 六枚）→ 正文形状（地图五节、规格七节、实施票模板；形状是最后兜底）。判定结果永远是九个取值之一，没有「没认出来」这一档；第三方提交的无标签、无章节 issue 就是普通票，界面与流程与今天完全一样（继续走 triage 诊断）。 _Avoid_: 把它叫 kind（仓里另外三处 kind 各指别的东西：规则层的 DeckKind、界面的动作类型、契约层的 issue|map）、把它与「动作类型」混用
+- **对象类型（objectKind）**: 一张票是什么对象，取值九个：地图、规格、实施票、调研票、原型票、讨论票、任务票、缺陷票、普通票。判定顺序是：正文首行的隐藏标记 → 表达对象类型的标签（wayfinder:map、wayfinder:research、wayfinder:prototype、wayfinder:grilling、wayfinder:task、bug 六枚）→ 正文形状（地图五节、规格七节、实施票模板；形状是最后兜底）。判定结果永远是九个取值之一，没有「没认出来」这一档；第三方提交的无标签、无章节 issue 就是普通票，界面与流程与今天完全一样（继续走 triage 诊断）。 _Avoid_: 把它单独叫 kind（仓里另有几处同名的 kind 与 type，各指别的东西：规则层的 DeckKind、界面的 rowActionKind、契约层的 BACKEND_KIND 与 ERROR_KIND、角色 ActorKind、错误 ErrorKind；契约层那张票的类型叫 ISSUE_TYPE，只有 issue 与 map 两个值，是 type 不是 kind）、把它与「动作类型」混用
 - **对象类型标记（object kind marker）**: 写在票面首行、一级标题之前的隐藏注释 `<!-- DSH-ISSUE-KIND: <kind> -->`，是对象类型的唯一真源；本地 Markdown 房票面上那行 `Type:` 由它派生显示。标记里只放类型名这种短词。它允许丢失——丢了退回标签与正文形状，不因此判错。整份替换正文时以盘上那一份为准保住它，建票时剥掉传入正文里已有的它。 _Avoid_: 把它当正文内容（渲染时看不见）、把票面那行 `Type:` 当成第二个真源
-- **规格（spec）**: 一份说清「要做什么」的文档对象，由 to-spec 产出，正文七节：问题陈述、解决方案、用户故事、实现决策、测试决策、不在范围内、补充说明（英文版节名为 Problem Statement 等七节，两套都认）。在实施地图里它充当容器，实施票挂在它下面。 _Avoid_: 把它当普通票（它有专属形状与专属对象类型）
-- **实施票（ticket）**: 一张说清「要建哪一段行为」的票，由 to-tickets 从规格拆出，正文四节：父议题、要构建什么、验收判据、被谁阻塞（英文版为 Parent 等四节，两套都认）。它不带 wayfinder 类型标签，只带 ready-for-agent。 _Avoid_: 把它与任务票混用（任务票是寻路流程里的一张决策票，带 wayfinder:task 标签）
+- **规格（spec）**: 一份说清「要做什么」的文档对象，由 to-spec 产出，正文七节：问题陈述、解决方案、用户故事、实现决策、测试决策、不在范围内、补充说明（英文版节名为 Problem Statement 等七节，两套都认）。在实施地图里它充当容器，实施票通过父子关系挂在它下面（本地 Markdown 房用文件头的 `<!-- parentKey: -->`，GitHub 房用原生父子关系），不靠标记里写引用。 _Avoid_: 把它当普通票（它有专属形状与专属对象类型）
+- **实施票（ticket）**: 一张说清「要建哪一段行为」的票，由 to-tickets 从规格拆出，正文四节：父议题、要构建什么、验收判据、被谁阻塞（英文版为 Parent、What to build、Acceptance criteria、Blocked by，两套都认）。另外认本地文件模板那种写法：一级标题 + 三条加粗行（中文 **要构建什么：** / **被谁阻塞：** / **状态：**，英文 **What to build:** / **Blocked by:** / **Status:**）+ 验收复选框。它不带 wayfinder 类型标签；按地图 #1274 已定的口径，to-tickets 产出的实施票带 ready-for-agent。 _Avoid_: 把它与任务票混用（任务票是 wayfinder 技能产出的一张决策票，带 wayfinder:task 标签）
 - **动作类型（action kind）**: 这张票现在该做什么动作，取值诊断、接手、补充、修复、讨论、研究、原型、执行。只看标签，按「状态优先于类型」的阶梯算：没有标签或带 needs-triage → 诊断；ready-for-human → 接手；needs-info → 补充；bug → 修复；wayfinder:grilling → 讨论；wayfinder:research → 研究；wayfinder:prototype → 原型；其余 → 执行。它回答「现在做什么」，不回答「这是什么」。 _Avoid_: 把它与对象类型混用、以为它会读正文
+- **正文形状（body shape）**: 一张票正文里的章节结构，用它判断这张票是地图、规格还是实施票。判据取严：专属章节全齐才算，允许有附加章节，不看先后顺序，只认二级标题。 _Avoid_: 用「只有某节」这种单节判据、把章节顺序当判据、拿它当唯一判据（它只是最后兜底）
+- **置信度（confidence）**: 这个对象类型是票面明写的还是推断出来的，只有两档：直说（票面首行的隐藏标记或表达对象类型的标签明写）与推断（靠正文形状认出来的，界面上加一枚「推断」小标）。靠类型标签认出来的算直说。 _Avoid_: 把它当百分制分数、给它加第三档
 - **契约类型（contract type）**: 契约层那张票的类型，只有 issue 与 map 两个取值，是后端原生的能力，与对象类型不是一回事。 _Avoid_: 把它当对象类型的上位概念
 
 

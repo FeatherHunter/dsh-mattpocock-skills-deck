@@ -16,7 +16,7 @@
 
 本仓（`dsh-mattpocock-skills-deck`）要把「面前这张票是什么对象」扩成九种：map（地图）/ spec（规格）/ ticket（实施票）/ research（调研票）/ prototype（原型票）/ grilling（讨论票）/ task（任务票）/ bug（缺陷票）/ issue（普通票）。
 
-已经定死、本次不再讨论的部分：不新增 GitHub 标签（`wayfinder:map`、`wayfinder:research`、`wayfinder:prototype`、`wayfinder:grilling`、`wayfinder:task` 沿用）；识别顺序的候选是「正文首行的隐藏标记（形如 `<!-- DSH-ISSUE-KIND: spec -->` 的 HTML 注释）→ 中英文正文形状（地图五节、规格七节、实施票四节、讨论票只有 `## Question`）→ 判不出来就不猜」。
+已经定死、本次不再讨论的部分：不新增 GitHub 标签（`wayfinder:map`、`wayfinder:research`、`wayfinder:prototype`、`wayfinder:grilling`、`wayfinder:task` 沿用）。识别顺序在调研开始时的样子是「正文首行的隐藏标记（形如 `<!-- DSH-ISSUE-KIND: spec -->` 的 HTML 注释）→ 中英文正文形状（地图五节、规格七节、实施票四节、讨论票只有 `## Question`）→ 判不出来就不猜」——**这是讨论前的初始假设，已被 #1275 的结论取代**：现行顺序是「隐藏标记 → 表达对象类型的标签 → 正文形状兜底」，判定结果永远是九值之一。取代后的口径见 `docs/adr/20261020-object-kind-identification.md` 第 2.2 节。本文件其余部分写的是事实与建议，不因这条取代而失效。
 
 本次要查的是三件事：
 
@@ -121,8 +121,8 @@ Linear 侧：**未取证**。官方文档只说描述是 markdown 文档（[Crea
 
 1. **首行隐藏 HTML 注释当类型标记**——在 GitHub 房间与本地 Markdown 房间成立。依据：2.7 的实测（渲染剥掉、API 原样带回）与 GitHub 官方模板自己的「注释占位」写法（[syntax-for-issue-forms.md](https://raw.githubusercontent.com/github/docs/main/content/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms.md)）。这也是本仓幂等锚 `<!-- DSH-IDEMPOTENCY-KEY: … -->` 已经在用的做法，属同一条路上已被本仓验证过的先例。
 2. **类型与父票优先读平台原生字段**。依据：GitHub 票对象有 `type`、`parent_issue_url`、`sub_issues_summary`（[REST 规范](https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json)）；GitLab work item 事件的 `object_attributes.type`（[webhook 文档](https://docs.gitlab.com/user/project/integrations/webhook_events/)）；Jira 的 `issuetype` 与 `parent`（[REST 规范](https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json)）；Plane 的工作项类型与父子。这些比正文形状可靠得多。
-3. **判不出就不猜**。依据：本仓既有纪律（`src/deck/rules/minimal-spec.ts:119-126` 的 `isWholeIssueBody` 要求四条同时成立；`src/shared/refresh/src/idempotency.ts:93-94` 明确不做模糊匹配，理由是正文是人会手改的东西）。外部世界的对照也支持这条：六个平台没有一个承诺正文形状稳定（2.8）。
-4. **改票整段替换正文时，锚从盘上那份取**。本仓既有纪律（`src/tracker/rooms/markdown/patch-body.ts:49-50`、`:68-83`；`src/tracker/rooms/markdown/issues-patch.ts:302-314`），与 2.7 实测的「API 原样带回」互相印证。
+3. **判不出就不猜**。依据：本仓既有纪律（`src/deck/rules/minimal-spec.ts:119-126` 的 `isWholeIssueBody` 是四条里任一条命中即算整份；`src/shared/refresh/src/idempotency.ts:93-94` 明确不做模糊匹配，理由是正文是人会手改的东西）。外部世界的对照也支持这条：六个平台没有一个承诺正文形状稳定（2.8）。
+4. **改票整段替换正文时，锚从盘上那份取**。本仓既有纪律（`src/tracker/rooms/markdown/patch-body.ts:66-70` 是搬回动作本体，`:49-50` 是「锚变多了／锚丢了」的检查），与 2.7 实测的「API 原样带回」互相印证。
 
 **明确别抄**
 
@@ -152,18 +152,20 @@ Linear 侧：**未取证**。官方文档只说描述是 markdown 文档（[Crea
 
 ## 七、分流结论
 
+> 本节是调研当时给出的分流建议。#1275 讨论收口后的最终口径以票面「已定」十五条与 `docs/adr/20261020-object-kind-identification.md` 为准；下面三条里第 2、3 条本票**未采纳**，理由写在各条括注里。
+
 本票是**调研票**，不是缺陷修复：外部一手证据已足够支撑识别机制的选择，剩下的是本仓内的实现决策（枚举形状、落点文件、形状清单内容、误判代价取舍），应在实现票里做。调研结论可直接支撑三条决定：
 
-1. 类型识别的主通道定在「正文首行隐藏标记」，作用范围限定 GitHub 与本地 Markdown 房间。
-2. 原生平台字段（GitHub `type`、GitLab 工作项类型、Jira `issuetype`、Plane 工作项类型）作为可选增强，不作为跨后端真相。
-3. 正文形状只作兜底，且判据必须写成「子集匹配 + 顺序无关 + 允许附加章节 + 双语清单」，判不出就落到 issue。
+1. 类型识别的主通道定在「正文首行隐藏标记」。（「作用范围限定 GitHub 与本地 Markdown 房间」这一条本票未采纳：GitLab 房也要写，剥不掉就退回标签与形状两步。）
+2. 原生平台字段（GitHub `type`、GitLab 工作项类型、Jira `issuetype`、Plane 工作项类型）作为可选增强，不作为跨后端真相。**本票未采纳**：已定「不接 GitHub 原生 issue type 字段」，本地 Markdown 房那行 `Type:` 也降级为派生显示。
+3. 正文形状只作兜底，且判据必须写成「子集匹配 + 顺序无关 + 允许附加章节 + 双语清单」——前半条本票采纳；「判不出就落到 issue」这一句本票改成了「判定结果永远是九值之一，没有『没认出来』这一档」，没有专属形状完整命中的票按普通票算。
 
 ## 八、给实现票的建议形状（建议，非本票决定）
 
 建议的识别顺序（每一步都带明确的失败去向）：
 
 1. **首行隐藏标记**：正文第一行形如 `<!-- DSH-ISSUE-KIND: spec -->`，取 `spec|ticket|research|prototype|grilling|task|bug|map|issue` 之一，命中即定。不接受其它写法，不做模糊匹配（与幂等锚的纪律一致：`src/shared/refresh/src/idempotency.ts:93-94`）。
-2. **原生平台字段映射（可选增强）**：把平台的类型字段映射到九种之一，映射不上就跳过本步而不是硬套。
+2. **原生平台字段映射（可选增强）**：把平台的类型字段映射到九种之一，映射不上就跳过本步而不是硬套。**本票不采纳这一步**：已定不接 GitHub 原生 issue type 字段。
 3. **既有标签**：`wayfinder:map`、`wayfinder:research`、`wayfinder:prototype`、`wayfinder:grilling`、`wayfinder:task` 已经在仓库里成立，可作第二证据源。
 4. **正文形状兜底**：子集匹配、顺序无关、允许附加章节、中英文各一份清单；地图五节、规格七节、实施票四节来自本仓既有约定（`minimal-spec.ts:32-34` 与规格规则），讨论票改成「含 `## Question` 且不含其它特征章节」。
 5. **判不出 → issue**，并且不猜。
