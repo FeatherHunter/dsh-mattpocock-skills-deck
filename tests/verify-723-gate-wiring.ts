@@ -1,5 +1,6 @@
 // verify-723-gate-wiring.ts —— 门禁：#723（T19）把存量三处传输出口接进唯一出口闸之后，
-// 「裁决那一半」与「工作路线喂数据那一半」在真业务路径上真的走通了（不是只记了一笔账、也不是只喂了一笔）。
+// 「裁决那一半」在真业务路径上真的走通了（不是只记了一笔账、也不是只喂了一笔）；
+// 写事件订阅这一半（#1262 起只判门取数）也在这里守着：它不再往工作路线里记。
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-723-gate-wiring.ts，可独立运行。
 //
 // 为什么必须单独有这一条：
@@ -15,8 +16,8 @@
 //   ④ 写事件那条真路径（生产装配件 createRefreshWiring）：
 //      · 过闸带的钥匙与「标活跃」用的钥匙必须是同一把（两把对不上时后台档恒判「不在活跃集合里」，
 //        这条路在生产里会一次都发不出去 —— 这是 #723 栽过一次的坑）；
-//      · 喂给工作路线的那一份必须按链自己的判据成形（16 位根指纹 + 白名单里的后端名），
-//        **链真的把它记下来**、界面的读数里真的出现那一张票；
+//      · 写事件订阅只判门取数、不再喂工作路线（#1262 删掉了旧推断路）：
+//        走完这一笔之后链照实空着，记账入口只剩工具壳成功收口处那一步；
 //      · 没上报过的工作区同一笔必须被推迟（负控）。
 const path = require('path')
 const os = require('os')
@@ -47,11 +48,10 @@ function row(n: number, state: string, updatedAt: string) {
 }
 
 async function main() {
-  console.log('#723（T19）门禁：闸的裁决 (放行/推迟/拒绝) 与工作路线喂数据，都在真业务路径上走通')
+  console.log('#723（T19）门禁：闸的裁决 (放行/推迟/拒绝) 与写事件过门取数，都在真业务路径上走通')
   const delta = await imp('src/shared/refresh/delta.js')
   const win = await imp('src/shared/tracker/indexWindow.js')
   const budget = await imp('src/shared/refresh/budget.js')
-  const chain = await imp('src/shared/refresh/chain.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const patchMod = await imp('src/host/refresh/patch.js')
@@ -159,7 +159,7 @@ async function main() {
     }
     const writeOnce = (w: { writeEvents: { handle: (...args: unknown[]) => unknown } }, sid: string, ws: string) => w.writeEvents.handle({ id: sid, header: { cwd: ws } }, 'tools/result', 'pwsh', JSON.stringify({ command: CMD }), true)
 
-    // ④a 放行 + 喂数据真的被链记下 + 界面的读数里真的出现那一笔
+    // ④a 放行 + 写事件不再喂链（链照实空着）
     const A1 = build('github')
     await A1.focus({ windowId: 'win-1', workspaceRoot: WS1, kind: 'focus', visible: true })
     const key = A1.w.hash8(WS1)
@@ -173,11 +173,12 @@ async function main() {
     check(after1.sent - before1.sent === 1, '④ 闸的 sent 真的 +1（' + before1.sent + ' → ' + after1.sent + '）')
     check(A1.w.writeEvents.lastGateKey() === key, '④ 过闸带的钥匙与「标活跃」用的钥匙是同一把（标活跃=' + key + '、过闸=' + A1.w.writeEvents.lastGateKey() + '）',
       '两把钥匙不同 = 后台档恒判「不在活跃集合里」而静默推迟每一笔（#723 栽过的坑）')
+    // #1262：写事件订阅只判门取数，不再往工作路线里记；读了盘上这一格确实是空的。
+    // 记账入口现在只剩工具壳成功收口处那一步（落盘与回执由 verify-1261 / verify-deck-tools 守）。
     const readout1 = A1.w.chainReadoutOf()
-    check(readout1.ok === true && readout1.sessions.length === 1 && readout1.sessions[0].entries.some((e) => e.ticketKey === '723'),
-      '④ 工作路线真的把这一笔记下了、界面的读数里真的出现票 723：' + JSON.stringify(readout1).slice(0, 220),
-      '链没记下 = 界面恒显示「取到了、空的」（喂数据的形状与链的判据对不上）')
-    check(readout1.sessions[0].backend === 'github', '④ 读数里的后端名是链白名单里的真名字（实得 ' + readout1.sessions[0].backend + '）')
+    check(readout1.ok === true && readout1.sessions.length === 0,
+      '④ 写事件订阅不再喂工作路线（链照实空着）：' + JSON.stringify(readout1).slice(0, 220),
+      '写事件又喂链了 = #1262 删掉的旧推断路又回来了')
 
     // ④b 负控：不在活跃集合（没上报过）的那一笔必须被推迟
     const A2 = build('github')
@@ -189,14 +190,6 @@ async function main() {
     check(v2 === 'defer' && after2.sent === before2.sent, '④ 负控：不在活跃集合的那一笔被推迟（verdict=' + v2 + '、sent ' + before2.sent + ' → ' + after2.sent + '）')
     check(!!out2 && out2.verdictOfGate === 'defer', '④ 回包如实带回闸的结论（verdictOfGate=' + (out2 && out2.verdictOfGate) + '）')
 
-    // ④c 负控：拿不到后端名时链必须如实丢掉（不许编一个假名字让它看着能记）
-    const WS3 = 'C:\\ws\\723-a3'
-    const A3 = build('')
-    await A3.focus({ windowId: 'win-3', workspaceRoot: WS3, kind: 'focus', visible: true })
-    await writeOnce(A3.w, 'sess-a3', WS3)
-    const readout3 = A3.w.chainReadoutOf()
-    check(readout3.ok === true && readout3.sessions.length === 0, '④ 负控：拿不到后端名时链如实丢掉这一笔、界面照实空着（' + JSON.stringify(readout3).slice(0, 160) + '）')
-
     // ④d 负控：两处钥匙不同源时必然被推迟（把活跃集合标在另一把钥匙上，证明③那一条不是白测）
     const A4 = build('github')
     await A4.focus({ windowId: 'win-4', workspaceRoot: WS1, kind: 'focus', visible: true })
@@ -207,7 +200,6 @@ async function main() {
     const v4 = A4.decides.length ? A4.decides[A4.decides.length - 1].verdict : ''
     check(v4 === 'defer' && A4.gate.stats().sent === before4.sent, '④ 负控：活跃集合标在另一把钥匙上时同一笔就被推迟（verdict=' + v4 + '）—— 证明「两处钥匙同源」不是白测')
     check(!!out4 && out4.verdictOfGate === 'defer', '④ 负控的回包也如实带结论（verdictOfGate=' + (out4 && out4.verdictOfGate) + '）')
-    void chain
   }
 
   // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的九个工具）的一次调用被闸真拒绝 ──
@@ -315,7 +307,7 @@ async function main() {
     try { fs.rmSync(wsRoot, { recursive: true, force: true }) } catch (e) {}
   }
 
-  console.log('\n' + (failed ? '存在失败（' + total + ' 项断言）' : '全部通过 — 闸的裁决、真拒绝与工作路线喂数据都在真业务路径上走通（' + total + ' 项断言）'))
+  console.log('\n' + (failed ? '存在失败（' + total + ' 项断言）' : '全部通过 — 闸的裁决、真拒绝与写事件过门取数都在真业务路径上走通（' + total + ' 项断言）'))
   process.exit(failed ? 1 : 0)
 }
 

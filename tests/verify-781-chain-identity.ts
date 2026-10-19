@@ -4,14 +4,14 @@
  *
  * 守的是什么：重启后“谁在处理哪张票”对不上，根因是记与读用的不是同一把钥匙
  *   ① 主动上报拿会话所选目录原文算散列，读回按工作区根过滤 —— 同一处换种写法就落两格；
- *   ② 写事件那一路在白名单门后，没聚焦的工作区连链都不进；
+ *   ② 写事件订阅只判门取数、不再喂链（#1262 删掉了那条旧推断路，记账入口只剩工具壳）；
  *   ③ 切进工作区时读盘不等结果，第一次快照赶在读完之前，看到空当成丢了。
  *
  * 它怎么判（三段）：
  *   一、note() 先洗根：配了 canonicalKey 时，子目录原文记进去，落在归一化根那一格，
  *      新实例按根读回能拿到（子目录与根同格）。
- *   二、白名单外仍记链：从不 focus（不进白名单）的会话调 handle()，note 照调一次
- *      （根已按归一化值算），而取数那一路仍返回 null（门只管取数，不管记）。
+ *   二、写事件只判门不记链：传进旧入口的 note 一次都不再被调（#1262 起记账入口只在工具壳），
+ *      而取数那一路仍返回 null（门只管取数）。
  *   三、读回等落定：读盘拖慢 120ms 时，focus() 落定后读数里立刻有那一笔
  *      （不等的话 focus 先回、读数还是空的）。
  *
@@ -70,26 +70,25 @@ async function main(): Promise<void> {
     st1b.entriesOf('sess-781')[0].ticketKey === '781',
     '新实例按根读回拿到那一笔（重启不丢）', JSON.stringify({ restored: rr1.entries }))
 
-  // ── 二、白名单外仍记链 ──
-  console.log('\n== 二、没聚焦的会话也记链，取数仍受门控 ==')
-  const seen = []
-  const we = writeMod.createWriteEvents({
-    canonicalKey: async () => CANON,
+  // ── 二、写事件只判门、不再喂链 ──
+  console.log('\n== 二、写事件不再喂链（note 被忽略），取数仍受门控 ==')
+  const seen: unknown[] = []
+  // #1262：旧推断路已删，note / backendOf 这两个旧依赖就算传进来也不会被调到；
+  // 这里故意传进去，是为了「哪天有人把它接回来」时这条断言会当场变红。
+  const oldDeps = {
+    note: async (input: unknown) => { seen.push(input); return { recorded: true } },
     backendOf: async () => 'github',
-    note: async (input) => { seen.push(input); return { recorded: true } },
+  }
+  const we = writeMod.createWriteEvents(Object.assign({
+    canonicalKey: async () => CANON,
     gate: null,
-  })
+  }, oldDeps))
   // 注意：全程不调 allowRoot —— 这个会话不在白名单里（后台档）。
   const out = await we.handle(
     { id: 'sess-bg', header: { cwd: SUB } },
     'tools/result', 'deck_issue_report', { key: '781' }, true,
   )
-  check(seen.length === 1, '门前喂链一次（note 被调 1 次）', '实得 ' + seen.length + ' 次')
-  check(seen.length === 1 && seen[0].rootHash === chainMod.chainRootHash(CANON),
-    '喂进去的根是归一化根的散列（读回找得到）',
-    '实得：' + JSON.stringify(seen.map((s) => s.rootHash)))
-  check(seen.length === 1 && seen[0].ticketKey === '781',
-    '喂进去的票号是 781', '实得：' + JSON.stringify(seen.map((s) => s.ticketKey)))
+  check(seen.length === 0, '写事件订阅不再喂链（note 被调 0 次）', '实得 ' + seen.length + ' 次')
   check(out === null, '取数那一路仍被门挡住（handle 回 null，不取数）', JSON.stringify(out))
 
   // ── 三、读回等落定 ──

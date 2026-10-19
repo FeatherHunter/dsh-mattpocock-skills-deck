@@ -76,7 +76,7 @@ export const MAP_PATH: string = path.join(ROOT, 'tests', 'gate-map.json')
 // 还没开闸的门禁一律不许写在这里 —— 编一个数字出来，真红就会变假绿。
 export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-669-collapsed-recoverable': 30,
-  'verify-deck-no-hang': 21,
+  'verify-deck-no-hang': 19,
   'verify-log-selfmon': 27,
   'verify-settings-templates': 65,
   'verify-settings-view': 215,

@@ -21,8 +21,8 @@ const { printGateResult } = require('./lib/gate-result.ts')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
-// 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— ① ② ⑥ ⑦ 那四处挂住的等待各等满 5 秒竞速、
-// ⑧ 等满游标读写那 10 秒竞速、③ 等满工具的单次钳制。桩后端本来就永不回话，这些竞速必然走到超时那一支，
+// 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— ① ② ⑥ 那三处挂住的等待各等满 5 秒竞速、
+// ⑦ 等满游标读写那 10 秒竞速、③ 等满工具的单次钳制。桩后端本来就永不回话，这些竞速必然走到超时那一支，
 // 等的时间全是空等。压缩成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是 5 秒 / 10 秒，
 // 下面「不许等太久」（dt < 12000 这类）与「诚实回超时」的判据照旧成立。断言一条没动；
 // 理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
@@ -30,7 +30,7 @@ const { installTimeCompression, uninstallTimeCompression } = require('./lib/time
 // 原生的定时器口，必须在 installTimeCompression 之前抓下来：下面 main 里要用它留一个「被引用」的把手。
 // 原因是产品侧有几处等待口自己就是 unref 过的（src/deck/shell/call-shell.ts 里的 realSleep，见 #1114），
 // 而本门禁从头到尾只靠虚拟时钟推进：虚拟队列的泵在「一个被引用的等待都没有」的时候会把自己也 unref，
-// 于是事件循环会在产品还等在一个挂住的钩子上时先一步收摊 —— §⑥ 起后面的断言一条都不跑，
+// 于是事件循环会在产品还等在一个挂住的钩子上时先一步收摊 —— 后面的断言一条都不跑，
 // 退出码仍然是 0，看上去像全绿（实测：21 条断言只跑到第 12 条）。
 // 这个把手走原生定时器，不进虚拟队列，因此不会推开虚拟时钟，只负责让进程活到断言跑完。
 const nativeSetInterval = setInterval
@@ -203,19 +203,7 @@ async function main() {
     check(typeof r.text === 'string' && r.text.indexOf('后端实现抛错') >= 0, '抛错原话带回 text')
   }
 
-  // ⑥ 挂住的记链钩子 → 上报照样 OK，只如实说没记进链
-  {
-    const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/deck/tools/issue-report.ts')
-    const tool = mod.createDeckIssueReport(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, chainNote: hanging }))
-    const t1 = Date.now()
-    const r = await tool.run(execFor(), { key: '7' })
-    const dt = Date.now() - t1
-    check(r && r.status === 'ok', '记链挂住上报照样 OK（实得 ' + (r && r.status) + '）')
-    check(dt < 12000, '记链挂住仍在竞速内回来（' + dt + 'ms）')
-  }
-
-  // ⑦ 挂住的建票钩子 → 建票照样 OK
+  // ⑥ 挂住的建票钩子 → 建票照样 OK
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
     const mod = await imp('src/deck/tools/issue-create.ts')
@@ -227,7 +215,7 @@ async function main() {
     check(dt < 12000, '建票钩子挂住仍在竞速内回来（' + dt + 'ms）')
   }
 
-  // ⑧ 游标读挂住 → 建图照样推进（锚与幂等键仍是去重权威；生产预算 5 分钟，游标竞速 10 秒）
+  // ⑦ 游标读挂住 → 建图照样推进（锚与幂等键仍是去重权威；生产预算 5 分钟，游标竞速 10 秒）
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
     const mod = await imp('src/deck/tools/map-plan-create.ts')
@@ -241,7 +229,7 @@ async function main() {
     check(dt < 20000, '游标挂住仍在竞速内回来（' + dt + 'ms）')
   }
 
-  // ⑨ 装配层竞速 helper：超时按失败回，成功原样透出
+  // ⑧ 装配层竞速 helper：超时按失败回，成功原样透出
   {
     const asm = await imp('src/deck/registration/host-assemble.ts')
     check(typeof asm.withCap === 'function', '装配层交出竞速 helper')

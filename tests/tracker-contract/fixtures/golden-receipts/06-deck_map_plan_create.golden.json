@@ -41,7 +41,43 @@
       "perShard": 3,
       "suggested": 1
     },
-    "skippedKeys": []
+    "skippedKeys": [],
+    "workRoute": {
+      "at": "<TIME>",
+      "entries": [
+        {
+          "action": "create",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "auto",
+          "ticketKey": "1",
+          "title": "金标准演示票"
+        },
+        {
+          "action": "plan",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "auto",
+          "ticketKey": "3",
+          "title": "金子票一"
+        },
+        {
+          "action": "plan",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "auto",
+          "ticketKey": "4",
+          "title": "金子票二"
+        }
+      ],
+      "staleCount": 0
+    }
   },
   "items": [
     {
@@ -65,7 +101,9 @@
       "title": "金子票二"
     }
   ],
-  "notes": [],
+  "notes": [
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）"
+  ],
   "ok": true,
   "readBack": null,
   "reason": "",

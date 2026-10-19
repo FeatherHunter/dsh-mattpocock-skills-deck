@@ -2,9 +2,14 @@
 /**
  * verify-723-single-refresh-instance.ts —— 门禁：宿主里只许有一套刷新机制（票 #723）
  *
+ * 现状（#1262 起）：旧链读数不再由写事件喂——它读的旧 workRoute 表已经按规格 #1259 决定 5
+ * 删掉了写入口，面板胶囊在 #1263 重接新的读出口（与回执 data.workRoute 同源）。所以本门禁
+ * 盯的是过渡期的事实：写事件只负责过闸取数、不再往旧链里写；回执那条新读出口由
+ * verify-1261-work-route-receipt 看门。
+ *
  * 留下的断言都是跑起来的结果：
- *   三、一套实例下五条路互相看得见（真装配、真过闸、真读数）；
- *   四、负控：两套实例的旧形状必须重现后果（被读数的那一套恒空）；
+ *   三、一套实例下五条路互相看得见（真装配、真过闸、真取数）；
+ *   四、负控：两套实例时，没标活跃的那一套在门前就把事件拒了；
  *   五、宿主侧字段名等于读数模块导出的那个常量（拿真装配交回来的对象与真快照回包量）。
  *   原先的「一、全仓只有一处装配点」「二、五条路都从同一个句柄取」两段读的是
  *   src/host/index.js 与 src/host/refresh/wiring.js 的源码文本（数出现次数、跑正则），
@@ -67,8 +72,8 @@ const WRITE_CMD = JSON.stringify({ command: 'gh issue comment 723 --body "复核
 async function main() {
   console.log('#723 唯一刷新机制门禁（一套实例 / 五条路同源 / 宿主侧字段名）')
 
-  // ── 三、行为：一套实例下五条路互相看得见 ──
-  console.log('\n== 三、一套实例：五条路互相看得见 ==')
+  // ── 三、行为：一套实例下写事件过门取数 ──
+  console.log('\n== 三、一套实例：写事件过门取数 ==')
   const store = { dir: fs.mkdtempSync(path.join(os.tmpdir(), 't19b-single-')), logCtx: null, decides: [] }
   store.logCtx = { isEnabled: () => true, fire: (l, e, f) => { if (e === 'refresh.decide') store.decides.push(typeof f === 'function' ? f() : f) } }
   const wiringMod = await import(url('src/host/refresh/wiring.ts'))
@@ -97,11 +102,13 @@ async function main() {
   check(store.decides.some((d) => d.verdict === 'allow' && d.reason === 'background-fits'),
     '裁决那一步真的走过（refresh.decide：' + JSON.stringify(store.decides.slice(-1)) + '）')
 
-  // ③ 界面读数看得见②喂进去的那一笔
+  // ③ 旧链读数不再由写事件喂（#1262）：写事件只过闸取数，旧 workRoute 表已经没有写入口。
+  //    面板胶囊在 #1263 重接新的读出口（与回执 data.workRoute 同源）；这里钉住过渡期的事实，
+  //    防止有人把旧的写事件推断路又接回来。
   const readout = w.chainReadout()
-  check(!!readout && readout.ok === true && readout.sessions.some((s) => s.entries.some((e) => e.ticketKey === '723')),
-    '界面读数里真的出现那一笔（票键 723）：' + JSON.stringify(readout).slice(0, 160),
-    '读数与喂数据不是同一条链 —— 面板会恒显示「取到了、就是没有」')
+  check(!!readout && readout.ok === true && readout.reason === 'host.chain.empty' && readout.sessions.length === 0,
+    '写事件只过闸取数，不再往旧链读数里喂数据（旧写入口已删，胶囊待 #1263 重接）：' + JSON.stringify(readout).slice(0, 120),
+    '旧链又被喂了数据 = 双写回来了')
 
   // ④ 行级增量那条路问的是同一个闸、同一把钥匙
   const vPatch = w.gate.decideFor({ source: 'patch.apply', kind: 'patch', workspaceKey: key })
@@ -118,22 +125,14 @@ async function main() {
   await wB.focus({ windowId: 'win-2', workspaceRoot: WS, kind: 'focus', visible: true })
   check(wA.gate.workspaceView(wA.hash8(WS)).active === false && wB.gate.workspaceView(wB.hash8(WS)).active === true,
     '负控：活跃集合只标在 wf.focus 那一套上，被读数的那一套没被标')
-  // #845：这条负控的旧写法是「把事件喂给 wA，再断言 wA 读数恒空」。链现在**在门前就把这一笔记进链**
-  //   （#781 起的形状：链记的是「这个会话在处理哪几张票」，与闸的裁决分开），喂过事件的 wA 自己也会有数据，
-  //   旧写法不再成立。旧形状真正的病是「喂数据在一套、读数在另一套」，负控照那个形状重写，顺序也调过来：
-  //   ① 事件喂给标了活跃的 wB（它照常收下并放行）；
-  //   ② 读数仍取自 wA —— 这时 wA 还没被任何事件碰过，必须空。这一步继续证明第三段③（读数里有那一笔）
-  //      不是恒绿的装饰：两套实例下，喂进去的数据在另一套的读数里看不见。
-  //   ③ 再把事件喂给 wA，量「被读数的那一套门前就被拒」（seen=0、回包 null）。这一步之后 wA 的链里也会
-  //      有那一笔（链与闸分开），所以读数那一条断言必须放在它前面。
+  // #1262：旧链的写入口（写事件在门前喂链，即 #781 起的那条推断路）已按规格 #1259 决定 5 删掉，
+  //   读数的观测面随之改变——两套实例的 chainReadout 现在都恒空，「读数取自另一套就看不见」这条
+  //   旧负控失去了区分力，随之撤掉（新的读出口由 verify-1261 看门）。保留的是负控真正要证的东西：
+  //   门与白名单每套实例各一份，没 focus 过的那一套会在门前把事件拒掉（生产里等于写事件没订上）。
   const outB = await wB.writeEvents.handle({ id: 'sess-b', header: { cwd: WS } }, 'tools/result', 'pwsh', WRITE_CMD, true)
   check(wB.writeEvents.stats().seen === 1 && !!outB && outB.verdictOfGate === 'allow', '负控：喂给标了活跃的那一套（wB）时它照常收下并放行（实得 ' + JSON.stringify(outB && outB.verdictOfGate) + '）')
-  check(wB.chainReadout().sessions.length > 0, '负控：喂数据的那一套读数里有那一笔（旧形状下这一套是正常的）')
-  check(wA.chainReadout().sessions.length === 0 && wA.chainReadout().reason === 'host.chain.empty',
-    '负控：界面读数取自另一套（wA）时恒空（' + JSON.stringify(wA.chainReadout()).slice(0, 90) + '）',
-    '这条负控不成立 = 第三段那几条断言是恒绿的装饰')
   const outA = await wA.writeEvents.handle({ id: 'sess-a', header: { cwd: WS } }, 'tools/result', 'pwsh', WRITE_CMD, true)
-  check(wA.writeEvents.stats().seen === 0 && outA === null, '负控：被读数的那一套门前就把这一笔拒了（seen=0）—— 生产里写事件等于没订上')
+  check(wA.writeEvents.stats().seen === 0 && outA === null, '负控：没标活跃的那一套门前就把这一笔拒了（seen=0）—— 生产里写事件等于没订上')
 
   // ── 五、宿主侧字段名：必须与读数模块导出的常量同一份 ──
   console.log('\n== 五、宿主侧字段名 ==')

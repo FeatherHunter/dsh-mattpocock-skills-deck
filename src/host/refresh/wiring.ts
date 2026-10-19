@@ -164,13 +164,13 @@ export function createRefreshWiring(deps: any): any {
     return { requests: 0, points: 0 }
   }
 
-  // e：会话↔票工作路线。喂数据的是 b 那条订阅（工具结果一到就 note 一笔），读数是下面那个读数。
-  // #781：把归一出口递进去，note() 先洗根再算散列（调用方传所选目录原文时与读回侧同格）。
+  // e：会话↔票工作路线。写入口从 #1262 起改在工具壳成功收口处（五个写工具各记一笔），
+  // 这条旧链只剩读数与恢复；面板读数待 #1263 重接新读出口后另开票退役。#781 的洗根口径不变（归一出口照旧递进去）。
   const workRoute: any = d.workRoute || createWorkRoute({
     getCacheDir: d.getCacheDir, logCtx: logCtx, canonicalKey: d.canonicalKey,
   })
 
-  // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）；判定过的那一笔喂给工作路线（note），否则界面恒空。
+  // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.ts 文件头）；只负责取数，不再喂工作路线（#1262 起写入口只在工具壳）。
   // #746：命名摘要编排单例（ctx 与 getNaming 由宿主入口经 deps 给；任一缺失则钩子静默降级）。
   let namingSummary: any = null
   function summaryOf(): any {
@@ -220,8 +220,6 @@ export function createRefreshWiring(deps: any): any {
   }
   const writeEvents: any = d.writeEvents || createWriteEvents({
     gate: gate, fetch: fetchForWriteEvent, canonicalKey: d.canonicalKey, logCtx: logCtx,
-    note: function (input: any): any { try { return workRoute.note(input) } catch (e: any) { return null } },
-    backendOf: function (rootKey: any): any { return backendOfRoot(rootKey) },
     onFirstAssistant: onFirstAssistant,
     onFirstUser: onFirstUser,
     isNamingTracked: isNamingTracked,
@@ -229,40 +227,6 @@ export function createRefreshWiring(deps: any): any {
 
   // c：视野模型。wf.focus 上报「我在看谁」之后，活跃集合就在这里，b 的白名单跟着它走。
   const attention: any = d.attention || createAttention({ canonicalKey: d.canonicalKey, logCtx: logCtx })
-
-  /**
-   * 「这个工作区现在用哪个后端」（#723 T19）：链只认 github / gitlab / markdown 三个白名单名字
-   * （src/shared/refresh/chain.js 的 CHAIN_BACKENDS），空串与别的名字都会被它丢掉并说 chain.bad-backend。
-   * 两条来源，都不在本文件里另写判定：
-   *   ① 宿主既有的后端注册表（reg.describe）—— 用户手动选择那一档；
-   *   ② 宿主既有的探测服务（getDetectionService().detect）—— 锚文件那一档（不传 hint、不强制）。
-   * 两条都问不出来就如实回空串：让链丢掉并说原因（界面照实说读不到），**不编一个假名字**让它看着能记。
-   */
-  async function backendOfRoot(rootKey: any): Promise<any> {
-    const cwd = String(rootKey || '')
-    if (!cwd) return ''
-    try {
-      if (typeof d.getTrackerRegistry === 'function') {
-        const reg: any = await d.getTrackerRegistry()
-        if (reg && typeof reg.describe === 'function') {
-          const info: any = reg.describe({ cwd: cwd })
-          const id = String((info && info.backend) || '')
-          if (id) return id
-        }
-      }
-    } catch (e: any) { /* 往下问探测服务 */ }
-    try {
-      if (typeof d.getDetectionService === 'function') {
-        const svc: any = await d.getDetectionService()
-        if (svc && typeof svc.detect === 'function') {
-          const res: any = await svc.detect({ cwd: cwd }, {})
-          const id = String((res && res.selection && res.selection.backendId) || '')
-          if (id) return id
-        }
-      }
-    } catch (e2: any) { /* 问不出来就空串 */ }
-    return ''
-  }
 
   /** 界面要的那份读数（e）。挂在快照回包上，界面读不到时它会如实说 ok:false + 代号。 */
   function chainReadoutOf(): any {
@@ -407,7 +371,7 @@ export function createRefreshWiring(deps: any): any {
         // #1261：工作路线的新落盘装配（进程启动时装一次，按工作区分账天然多工作区安全）。
         // 家目录问平台层（与 choiceStore 同一处来）；文件读写走 Node 原生 fs（动态引入，类型包被挡在门外，
         // 与 platformChannel.ts 那两处 node 引入同一写法）。问不到家目录就给空串——此时每笔记都会在
-        // 回执备注里如实写「没落上」，不静默丢。旧链（上面 chainNote 那条）继续服务被动推断那一路，退役归 #1083。
+        // 回执备注里如实写「没落上」，不静默丢。旧链（workRoute）只剩读数与恢复，待 #1263 重接新读出口后另开票退役（#1262 已删掉它的写入口）。
         let workRouteBindings: any = null
         try {
           // @ts-expect-error
@@ -446,7 +410,7 @@ export function createRefreshWiring(deps: any): any {
           //   #1215：这个数（8000）住中央 YAML 的 shellResolveMs，装配层与壳读同一份生成值。
           resolveTimeoutMs: SHELL_RESOLVE_TIMEOUT_MS,
           invalidate: function (info: any): void { try { const root: any = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e: any) {} },
-          onTicketCreated: onDeckWrite, chainNote: function (input: any): any { try { return workRoute.note(input) } catch (e: any) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
+          onTicketCreated: onDeckWrite, // #746 建票直达命名守护
           // #1261：上报成功收口记一笔 + 读在办表（壳经这两支调到；装配失败时给没落上的诚实回执，不静默跳过）。
           workRouteNote: function (input: any): any { try { return workRouteBindings ? workRouteBindings.note(input) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
           workRouteRead: function (input: any): any { try { return workRouteBindings ? workRouteBindings.read(input) : { ok: false, reason: 'no-store' } } catch (e: any) { return { ok: false, reason: 'read-failed' } } },

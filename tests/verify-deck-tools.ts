@@ -283,14 +283,18 @@ async function main() {
     const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理' })
     const normCreated = String(createdKey).replace(/^0+(?=\d)/, '')
     check(envelopeOk(r) && r.status === 'ok' && r.data && String(r.data.key).replace(/^0+(?=\d)/, '') === normCreated, 'deck_issue_report 正例：上报成了（票 ' + createdKey + '，实得 ' + (r && r.status) + '）')
-    // #1261：成功收口处记一笔（动作 report、来源 reported），回执里带在办表、notes 末尾带摘要。
+    // #1261 起步、#1262 铺满：上报成功收口也记一笔（动作 report、来源 reported），
+    // 回执带的是这个工作区整张在办表（不止刚上报这一张），notes 末尾带摘要。
+    // 这张夹具到这一步在办表里有 4 张票：创建票 1、子票 3/4/5（票号在链上统一收成 "1"、"2"…）。
+    // 地图 2 是容器，按规格（#1259 决定 5：「plan 建出的每张子票各一条」）不记，所以不在表里。
     const wr = r.data && r.data.workRoute
-    check(wr && typeof wr.at === 'string' && Array.isArray(wr.entries) && wr.entries.length === 1, 'deck_issue_report 回执带工作路线在办表（1 条，实得 ' + JSON.stringify(wr && wr.entries && wr.entries.length) + '）')
+    check(wr && typeof wr.at === 'string' && Array.isArray(wr.entries) && wr.entries.length === 4, 'deck_issue_report 回执带工作路线在办表（4 条，实得 ' + JSON.stringify(wr && wr.entries && wr.entries.length) + '）')
     const e0 = wr && wr.entries && wr.entries[0]
-    check(e0 && String(e0.ticketKey).replace(/^0+(?=\d)/, '') === normCreated && e0.action === 'report' && e0.source === 'reported' && e0.active === true && e0.currentSession === true, '在办表这一条是刚上报的票（动作 report、来源 reported、现办、当前会话）：' + JSON.stringify(e0))
+    check(e0 && String(e0.ticketKey) === normCreated && e0.action === 'report' && e0.source === 'reported' && e0.active === true && e0.currentSession === true, '在办表第一条是刚上报的票（动作 report、来源 reported、现办、当前会话）：' + JSON.stringify(e0))
+    check(wr && wr.entries && new Set(wr.entries.map((e) => String(e.ticketKey))).size === wr.entries.length, '同一张票在在办表里只有一条（4 条票、4 个票号）：' + JSON.stringify(wr && wr.entries && wr.entries.map((e) => e.ticketKey)))
     check(e0 && typeof e0.sessionLabel === 'string' && e0.sessionLabel.indexOf('会话 ') === 0, '会话只露标签不露原始 id（实得 ' + (e0 && e0.sessionLabel) + '）')
-    check(wr && wr.collisions === undefined && typeof wr.staleCount === 'number', '单条无撞单（collisions 键不出现，staleCount 在）')
-    check((r.notes || []).some((n) => String(n).indexOf('工作路线摘要 · 本工作区在办 1 条') === 0), 'notes 末尾带工作路线摘要：' + JSON.stringify(r.notes))
+    check(wr && wr.collisions === undefined && typeof wr.staleCount === 'number', '单会话无撞单（collisions 键不出现，staleCount 在）')
+    check((r.notes || []).some((n) => String(n).indexOf('工作路线摘要 · 本工作区在办 4 条') === 0), 'notes 末尾带工作路线摘要：' + JSON.stringify(r.notes))
     check(JSON.stringify(r).indexOf('s-713') < 0, '回执全文没有原始会话 id（s-713 只进盘，不进回执）')
     // 盘上是同一份：v3 形状、同一张票、原始会话 id 在盘上（回执里只有标签）。
     const wsKey = r.workspace && r.workspace.key
@@ -300,15 +304,16 @@ async function main() {
     const disk = JSON.parse(before)
     check(disk && disk.v === 3 && Array.isArray(disk.workers) && disk.workers.length === 1, '盘上是 v3 形状（一份账、一个会话页）')
     const row = disk.workers[0].entries[0]
-    check(row && String(row.ticketKey).replace(/^0+(?=\d)/, '') === normCreated && disk.workers[0].session === 's-713', '盘上是同一张票 + 原始会话 id：' + JSON.stringify(row))
+    check(row && String(row.ticketKey) === normCreated && disk.workers[0].session === 's-713', '盘上是同一张票 + 原始会话 id：' + JSON.stringify(row))
     // 只读调用不碰盘：读一张票，盘上文件一字不动。
     await callTool('deck_issue_get', { key: createdKey })
     check(fs.readFileSync(diskFile, 'utf8') === before, '只读调用不碰盘（文件内容一字不动）')
     // 紧接着第二次调用：同一张票只留一条（去重后来居上），回执与盘上一致。
     const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理' })
-    check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 1, '第二次上报同一张票：在办表还是 1 条（去重）')
+    check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 4, '第二次上报同一张票：在办表还是 4 条（去重，不多也不少）')
     const after2 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
-    check(after2.workers[0].entries.length === 1 && String(after2.workers[0].entries[0].ticketKey).replace(/^0+(?=\d)/, '') === normCreated, '第二次上报：盘上还是同一条（去重）')
+    const createdRows = after2.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)
+    check(after2.workers[0].entries.length === 4 && createdRows.length === 1 && createdRows[0].action === 'report', '第二次上报：盘上还是同一条，动作停在 report（去重）')
     const bad = await callTool('deck_issue_report', { key: '999999' })
     check(envelopeOk(bad) && bad.ok === false && bad.status === 'unsupported', 'deck_issue_report 负向：票不存在 → ok:false / unsupported（实得 ' + (bad && bad.status) + '）')
     check(!bad.data || !bad.data.workRoute, '失败回执不带在办表（这一格只属于成功的上报）')

@@ -61,13 +61,30 @@
       "type": "issue",
       "updatedAt": "<TIME>",
       "url": "<ROOT>/.scratch/demo/issues/01-untitled.md"
+    },
+    "workRoute": {
+      "at": "<TIME>",
+      "entries": [
+        {
+          "action": "create",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "auto",
+          "ticketKey": "1",
+          "title": "金标准演示票"
+        }
+      ],
+      "staleCount": 0
     }
   },
   "items": [],
   "notes": [
     "我替你补了正文区块：## 进度",
     "这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。",
-    "我替你补了必备标签：wayfinder:task"
+    "我替你补了必备标签：wayfinder:task",
+    "工作路线摘要 · 本工作区在办 1 条（最近 1 条：#1）"
   ],
   "ok": true,
   "readBack": null,

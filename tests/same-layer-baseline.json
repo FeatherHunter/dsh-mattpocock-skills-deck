@@ -505,7 +505,7 @@
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#723 接线：装配点建写事件订阅（createWriteEvents(...).attach(ctx)），并把判定过的那一笔喂给工作路线。同 ledger.js 那一条。"
+      "note": "#723 接线：装配点建写事件订阅（createWriteEvents(...).attach(ctx)）。#1262 起判定过的那一笔不再喂工作路线（旧的被动推断路已删），写事件只过闸、取数、报日志；工作路线的写入口改在 deck 工具壳的成功收口处。同 ledger.js 那一条。"
     },
     {
       "file": "src/host/refresh/wiring.ts",
@@ -514,7 +514,7 @@
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#723 接线：装配点建会话↔票工作路线（createWorkRoute()）—— 喂数据的是写事件订阅，读数是下面那一条。同 ledger.js 那一条。"
+      "note": "#723 接线：装配点建会话↔票工作路线（createWorkRoute()）—— 界面读数（下面那一条）仍从这里出；#1262 起写入口只剩 deck 工具壳，喂数据不再经过写事件订阅。同 ledger.js 那一条。"
     },
     {
       "file": "src/host/refresh/wiring.ts",

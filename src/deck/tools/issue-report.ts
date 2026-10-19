@@ -1,10 +1,10 @@
 // src/deck/tools/issue-report.ts —— deck_issue_report（#775 落地；#1019 换到新树、#1035 转 TypeScript）
 //
-// AI 主动上报自己在办哪张票：票号必填、可选带一句备注；写入同一份工作路线并去重，
-// 与被动推断互补；在原来展示工作路线的地方能看到；三后端诚实失败。
+// AI 主动上报自己在办哪张票：票号必填、可选带一句备注；上报成功后在回执 data.workRoute
+// 里能看到工作路线（界面面板的读数待 #1263 重接新读出口）；三后端诚实失败。
 //
 // 薄壳四条照旧（shell.js）：过闸、走注册表选后端、只从会话取工作区、永不抛。
-// 工作路线由工具壳在成功收口处统一记（#1261：壳调 workRouteNote，动作类别 report，
+// 工作路线由工具壳在成功收口处统一记（#1261 起步、#1262 铺满五个写工具：动作 report、
 // 来源 reported；去重键是 (会话, 票)，同一会话同一票后来居上）。本工具自己不再记。
 // 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记路线。
 // 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
@@ -167,7 +167,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
         }
       }
       const issue = got.data || {}
-      // 工作路线由工具壳在成功收口处统一记（#1261：动作 report、来源 reported），本工具不再显式记。
+      // 工作路线由工具壳在成功收口处统一记（#1262：五个写工具都记；本工具的动作 report、来源 reported），本工具不再显式记。
       const title = typeof issue.title === 'string' ? issue.title.slice(0, 80) : ''
       return {
         value: {

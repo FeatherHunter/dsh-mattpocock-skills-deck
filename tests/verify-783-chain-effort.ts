@@ -10,7 +10,7 @@
  *   5. 跳转：有工作单元进对应那一张，取不到回落普通票页
  *   6. 远端后端行为不变（工作单元恒为空串）
  *   7. 界面上仍只显示编号
- *   8. writeEvents 把文件路径传下去并标成票文件来源
+ *   8. writeEvents 不再喂链（#1262 删掉旧推断路后，记账入口只剩工具壳成功收口处）
  *
  * 用法: node --import ./scripts/ts-hook.mts tests/verify-783-chain-effort.ts（在插件根目录）
  * 本文件是 CommonJS：产品源码靠动态 import(url(...)) 取，说明符原样保留（chain.js 是构建产物、
@@ -105,20 +105,23 @@ async function main() {
   const badVer = chain.chainFromDisk({ v: 99, shards: [] })
   check(badVer.reason === 'chain.disk-version' && badVer.shards === 0, '版本不认识整份丢弃')
 
-  // ── 四、writeEvents 喂链 ──
-  console.log('\n== 四、记账那一步传路径并标来源 ==')
-  const seen = []
-  const we = writeMod.createWriteEvents({
-    canonicalKey: async () => ROOT_KEY,
+  // ── 四、writeEvents 不再喂链 ──
+  console.log('\n== 四、写事件订阅不再喂链（#1262） ==')
+  const seen: unknown[] = []
+  // 旧依赖（note / backendOf）故意照传：它们已从 WriteEventsDeps 上摘掉，
+  // 哪天有人把推断路接回来，这条断言会当场变红。
+  const oldDeps = {
     backendOf: async () => 'markdown',
-    note: async (input) => { seen.push(input); return { recorded: true } },
+    note: async (input: unknown) => { seen.push(input); return { recorded: true } },
+  }
+  const we = writeMod.createWriteEvents(Object.assign({
+    canonicalKey: async () => ROOT_KEY,
     gate: null,
-  })
+  }, oldDeps))
   await we.handle({ id: SID, header: { cwd: ROOT_KEY } }, 'tools/result', 'write', { file_path: 'D:/w/.scratch/alpha/issues/01-A.md' }, true)
-  check(seen.length === 1 && seen[0].source === 'markdown-file' && seen[0].path === 'D:/w/.scratch/alpha/issues/01-A.md', '写文件标成票文件来源并传路径', JSON.stringify(seen[0]))
-  seen.length = 0
+  check(seen.length === 0, '写文件不再记链（note 被调 0 次）：记账入口只剩工具壳', JSON.stringify(seen))
   await we.handle({ id: SID, header: { cwd: ROOT_KEY } }, 'tools/result', 'read', { file_path: 'D:/w/.scratch/alpha/issues/01-A.md' }, true)
-  check(seen.length === 1 && seen[0].source === 'markdown-file', '读文件来源同样是票文件（链按读不记）', JSON.stringify(seen[0]))
+  check(seen.length === 0, '读文件同样不记链', JSON.stringify(seen))
 
   // ── 五、读数透出工作单元 ──
   console.log('\n== 五、读数与行数据 ==')

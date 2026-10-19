@@ -1,9 +1,13 @@
-// tests/verify-1261-work-route-receipt.ts —— #1261：上报一次，回执见在办，盘上有记录。
+// tests/verify-1261-work-route-receipt.ts —— #1261 起步、#1262 铺满：写一次票就记一条。
 //
-// 这扇门只盯 #1261 自己的形状（规格见 #1259 第 1、2、8、9、10 条）：
-//   存储：v3 落盘形状、(会话, 票) 去重、坏文件按空账、缺键诚实失败、写失败内存不动；
-//   读出口：30 天过滤、24 小时现办、30 分钟撞单、空账无摘要、会话只露标签；
-//   壳收口：记/读失败时回执备注写「这次没落上」，不抛、不改其他格。
+// 这扇门盯两件事（规格见 #1259 第 1、2、5、8、9、10 条）：
+//   存储与读出口（#1261）：v3 落盘形状、(会话, 票) 去重、坏文件按空账、缺键诚实失败；
+//     30 天过滤、24 小时现办、30 分钟撞单、空账无摘要、会话只露标签。
+//   壳收口（#1262）：五个写工具（上报、建票、改票、建图、连边）成功后各记各的票，
+//     一次调用写到的每张票各一条；建图只记这一次真建出来的子票（地图票不记、
+//     上次已建这次跳过的子票也不重记）；四个读工具不记；
+//     失败（含 partial，信封里 ok 是 false）、被闸推迟、认不出票号不记也不注入；
+//     记/读失败时回执备注写实话，不抛、不改其他格。
 // 全程固定时钟 + 临时家目录，同一份真实现（不造假口），跑两次结果一字不差。
 //
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1261-work-route-receipt.ts
@@ -116,7 +120,138 @@ async function main() {
   const readD: any = await store4.read({ sessionId: 's-a', rootKey: 'ws-d', at: clock4 })
   check(readD.ok === true && readD.collisions === undefined && readD.readout.collisions === undefined, '超 30 分钟的两条：不算撞单（collisions 键不出现）')
 
-  // ── 四、壳收口：记失败 / 读失败时备注写「这次没落上」，不抛、不改其他格 ──
+  // ── 四、壳收口：五个写工具各记各的，读工具不记 ──
+  const home5 = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1262-'))
+  let clock5 = T0
+  const store5 = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5, now: () => clock5 }, memFs(home5)))
+  const deps5 = {
+    workRouteNote: (i: unknown) => store5.note(i),
+    workRouteRead: (i: unknown) => store5.read(i),
+    now: () => clock5,
+  }
+  const sess5 = { sessionId: 's-w', workspaceKey: 'ws-w', cwd: 'x' }
+  // 每调一次把钟往前拨一秒，并把这一次用的时刻还给调用方——验收②要断言「时间也是最近一次」。
+  const call5 = async (tool: string, value: any) => { clock5 += 1000; await recordMod.noteWorkRoute(deps5, tool, sess5, 'markdown', value); return clock5 }
+  const entryOf = (v: any, key: string) => (((v.data && v.data.workRoute && v.data.workRoute.entries) || []) as any[]).filter((e: any) => e.ticketKey === key)
+  const diskRows = (home: string, rootKey: string) => {
+    const file = home + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rootKey) + '.json'
+    const out: any[] = []
+    for (const w of JSON.parse(fs.readFileSync(file, 'utf8')).workers) for (const e of w.entries) out.push(Object.assign({ session: w.session }, e))
+    return out
+  }
+
+  // 上报：记一条，动作与来源如实写，在办表与摘要一起带回。
+  const vReport: any = { status: 'ok', data: { key: '701', title: '甲票', effortId: '' }, notes: [] }
+  await call5('deck_issue_report', vReport)
+  check(vReport.data.workRoute && entryOf(vReport, '701').length === 1
+    && entryOf(vReport, '701')[0].action === 'report' && entryOf(vReport, '701')[0].source === 'reported'
+    && entryOf(vReport, '701')[0].title === '甲票' && entryOf(vReport, '701')[0].currentSession === true,
+    '上报：盘上记一条，回执 data.workRoute 里能看到自己这张票')
+  check(vReport.notes.length === 1 && vReport.notes[0].indexOf('工作路线摘要 · 本工作区在办 1 条') === 0, '上报：notes 里带一句摘要')
+  check(entryOf(vReport, '701')[0].actionAt === new Date(clock5).toISOString(), '上报：回执里的动作时间就是这一次的时刻')
+
+  // 建票：动作 create、来源 auto，标题与工作单元从 data.ticket 取。
+  const vCreate: any = { status: 'ok', data: { ticket: { key: '901', title: '新票甲', effortId: 'eff-1' }, kind: 'task' }, touched: ['901'], notes: [] }
+  await call5('deck_issue_create', vCreate)
+  const diskCreate = diskRows(home5, 'ws-w').filter((e: any) => e.ticketKey === '901')
+  check(vCreate.data.workRoute && entryOf(vCreate, '901').length === 1
+    && entryOf(vCreate, '901')[0].action === 'create' && entryOf(vCreate, '901')[0].source === 'auto',
+    '建票：记一条，动作 create、来源 auto')
+  check(diskCreate.length === 1 && diskCreate[0].title === '新票甲' && diskCreate[0].effortId === 'eff-1', '建票：标题与工作单元写进盘上')
+
+  // 改票：同一会话同一票后来居上，只留一条（动作换成 edit）。
+  const vPatch: any = { status: 'ok', data: { requested: { title: true }, ticket: { key: '901', title: '新票甲改名', effortId: 'eff-1' } }, touched: ['901'], notes: [] }
+  await call5('deck_issue_patch', vPatch)
+  const patchRows = diskRows(home5, 'ws-w').filter((e: any) => e.ticketKey === '901')
+  check(patchRows.length === 1 && patchRows[0].action === 'edit' && patchRows[0].source === 'auto' && patchRows[0].title === '新票甲改名',
+    '改票：同一票只留一条（后来居上，动作与标题更新）')
+  check(entryOf(vPatch, '901').length === 1 && entryOf(vPatch, '901')[0].action === 'edit', '改票：回执里也是最新那一条')
+
+  // 建图：只记这一次真建出来的子票。地图票是容器、不记；续跑时上次已建这次跳过的子票
+  // （skipped:true）也不重记——记了会刷新它的动作时间，在办表会说谎。
+  const vPlan: any = {
+    status: 'ok',
+    data: { planId: 'plan-1', mapKey: '950', durable: true, builtKeys: ['950', '951', '952'], skippedKeys: ['953'], restKeys: [], edges: [], counts: {}, shards: 1, nextCall: null },
+    items: [
+      { key: '950', role: 'map', title: '地图甲', status: 'ok' },
+      { key: '951', role: 'child', title: '子票甲', status: 'ok' },
+      { key: '952', role: 'child', title: '子票乙', status: 'ok' },
+      { key: '953', role: 'child', title: '上次已建的子票', status: 'ok', skipped: true },
+    ],
+    touched: ['950', '951', '952', '953'],
+    notes: [],
+  }
+  const tPlan = await call5('deck_map_plan_create', vPlan)
+  const planRows = diskRows(home5, 'ws-w').filter((e: any) => ['950', '951', '952', '953'].indexOf(e.ticketKey) >= 0)
+  check(planRows.length === 2 && planRows.every((e: any) => e.action === 'plan' && e.source === 'auto')
+    && planRows.filter((e: any) => e.title === '子票甲').length === 1 && planRows.filter((e: any) => e.title === '子票乙').length === 1,
+    '建图：只记这次建出的两张子票（地图不在内，跳过的那张也不在内）')
+  check(planRows.every((e: any) => e.actionAt === tPlan), '建图：动作时间是这一次的时刻')
+  check(!entryOf(vPlan, '950').length && !entryOf(vPlan, '953').length, '建图：回执在办表里没有地图票与跳过票')
+  check(vPlan.data.workRoute && vPlan.data.workRoute.entries.length === 4, '建图：回执在办表把这一批都带上（此前两张 + 这次两张）')
+
+  // 连边：没有标题可取，动作 link、来源 auto，照样记；旧标题不被空串抹掉。
+  const vLink: any = { status: 'ok', data: { requested: {}, done: [], jobs: [] }, touched: ['901'], notes: [] }
+  await call5('deck_map_link', vLink)
+  const linkRows = diskRows(home5, 'ws-w').filter((e: any) => e.ticketKey === '901')
+  check(linkRows.length === 1 && linkRows[0].action === 'link' && linkRows[0].source === 'auto' && linkRows[0].title === '新票甲改名',
+    '连边：记一条（标题沿用上一次，不被空串抹掉）')
+
+  // 四个读工具：成功也不记、不注入。
+  const readBefore = diskRows(home5, 'ws-w').length
+  for (const tool of ['deck_context', 'deck_issue_get', 'deck_issue_list', 'deck_map_snapshot']) {
+    const vRead: any = { status: 'ok', data: { ticket: { key: '777', title: '读回来的票' }, key: '777' }, touched: [], notes: [] }
+    await call5(tool, vRead)
+    check(!vRead.data.workRoute && vRead.notes.length === 0, '读工具 ' + tool + '：不记不注入')
+  }
+  check(diskRows(home5, 'ws-w').length === readBefore, '四个读工具轮完，盘上条数不变')
+
+  // 部分成功（partial）：信封里 ok 是 false，按失败办——不记、不注入、备注一个字不动。
+  const vPartial: any = { status: 'partial', data: { ticket: { key: '903', title: '半成票', effortId: '' } }, touched: ['903'], notes: ['父子边没落上'] }
+  await call5('deck_issue_create', vPartial)
+  check(!vPartial.data.workRoute && vPartial.notes.length === 1 && vPartial.notes[0] === '父子边没落上',
+    '部分成功（partial）：不记不注入，原有备注原样保留')
+  check(diskRows(home5, 'ws-w').filter((e: any) => e.ticketKey === '903').length === 0, '部分成功（partial）：盘上没有这张票')
+
+  // 失败、认不出票号：不记不注入，也不加备注。五个写工具各验一次失败回执。
+  const failBefore = diskRows(home5, 'ws-w').length
+  const failures: any[] = [
+    { tool: 'deck_issue_report', value: { status: 'unsupported', data: { key: '999999' }, notes: [] } },
+    { tool: 'deck_issue_create', value: { status: 'unsupported', data: { ticket: { key: '904', title: '没建成' } }, touched: ['904'], notes: [] } },
+    { tool: 'deck_issue_patch', value: { status: 'unsupported', data: { requested: { title: true } }, touched: ['901'], notes: [] } },
+    { tool: 'deck_map_plan_create', value: { status: 'unsupported', data: { planId: 'p2' }, items: [{ key: '905', role: 'child', title: '没建成', status: 'ok' }], touched: ['905'], notes: [] } },
+    { tool: 'deck_map_link', value: { status: 'unsupported', data: { requested: {} }, touched: ['901'], notes: [] } },
+  ]
+  for (const f of failures) {
+    await call5(f.tool, f.value)
+    check(!f.value.data.workRoute && f.value.notes.length === 0, '失败回执不记不注入：' + f.tool)
+  }
+  check(diskRows(home5, 'ws-w').length === failBefore, '五条失败回执轮完，盘上条数不变')
+  const vNoKey: any = { status: 'ok', data: { planId: 'p' }, touched: [], notes: [] }
+  await call5('deck_map_plan_create', vNoKey)
+  check(!vNoKey.data.workRoute && vNoKey.notes.length === 0, '认不出票号的调用不记不注入')
+
+  // 撞车：同一张票 30 分钟内另一个会话也记过，回执里列出票号、会话标识与时间。
+  await store5.note({ rootKey: 'ws-w', sessionId: 's-other', sessionLabel: '', backend: 'markdown', ticketKey: '701', effortId: '', title: '甲票', action: 'edit', source: 'auto' })
+  const vColl: any = { status: 'ok', data: { ticket: { key: '701', title: '甲票', effortId: '' } }, touched: ['701'], notes: [] }
+  clock5 += 60 * 1000
+  const tColl = clock5
+  await recordMod.noteWorkRoute(deps5, 'deck_issue_patch', sess5, 'markdown', vColl)
+  const coll = vColl.data.workRoute && vColl.data.workRoute.collisions
+  check(Array.isArray(coll) && coll.length === 1 && coll[0].ticketKey === '701'
+    && typeof coll[0].sessionLabel === 'string' && coll[0].sessionLabel.indexOf('会话 ') === 0
+    && typeof coll[0].actionAt === 'string' && coll[0].actionAt.endsWith('Z'),
+    '撞车：同票 30 分钟内两个会话记过，回执列出票号、会话标识与时间：' + JSON.stringify(coll))
+  const sameTicket = diskRows(home5, 'ws-w').filter((e: any) => e.session === 's-w' && e.ticketKey === '701')
+  check(sameTicket.length === 1 && sameTicket[0].action === 'edit' && sameTicket[0].source === 'auto'
+    && sameTicket[0].actionAt === tColl,
+    '先上报再改票：同一会话同一票盘上仍只一条，动作、时间、来源都是最近这一次')
+  const mine = entryOf(vColl, '701').filter((e: any) => e.currentSession)
+  check(mine.length === 1 && mine[0].action === 'edit' && mine[0].source === 'auto'
+    && mine[0].actionAt === new Date(tColl).toISOString(),
+    '撞车那次回执里，这张票也是最近一次的动作、时间、来源')
+
+  // 记失败 / 读失败：备注写实话，不抛、不改其他格。
   const failWrite = bindingsMod.createWorkRouteBindings({
     homeDir: home1, now: () => T0,
     readFile: async () => null,
@@ -128,21 +263,18 @@ async function main() {
     { workRouteNote: (i: unknown) => failWrite.note(i), workRouteRead: (i: unknown) => failWrite.read(i), now: () => T0 },
     'deck_issue_report', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vFail)
   check(!vFail.data.workRoute && vFail.notes.length === 2 && vFail.notes[0] === '旧备注'
-    && vFail.notes[1].indexOf('工作路线这次没落上') === 0 && vFail.notes[1].indexOf('下一条上报会补上') >= 0,
+    && vFail.notes[1].indexOf('工作路线这次没落上') === 0 && vFail.notes[1].indexOf('下一次写票会补上') >= 0,
     '写失败：备注写「这次没落上」，旧备注与其他格不动：' + JSON.stringify(vFail.notes[1]))
-  // 非上报工具与失败回执：壳直接跳过，一个字不加。
-  const vOther: any = { status: 'ok', data: { key: '701' }, notes: [] }
-  await recordMod.noteWorkRoute(
-    { workRouteNote: (i: unknown) => store.note(i), workRouteRead: (i: unknown) => store.read(i), now: () => T0 },
-    'deck_issue_get', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vOther)
-  check(!vOther.data.workRoute && vOther.notes.length === 0, '读工具成功也不记（只认上报）')
-  const vBad: any = { status: 'unsupported', data: { key: '999999' }, notes: [] }
-  await recordMod.noteWorkRoute(
-    { workRouteNote: (i: unknown) => store.note(i), workRouteRead: (i: unknown) => store.read(i), now: () => T0 },
-    'deck_issue_report', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vBad)
-  check(!vBad.data.workRoute && vBad.notes.length === 0, '失败回执不记（连备注都不加）')
+  const failRead = {
+    workRouteNote: async () => ({ ok: true, ticketKey: '701', count: 1 }),
+    workRouteRead: async () => ({ ok: false, reason: 'probe-read-failed' }),
+  }
+  const vRF: any = { status: 'ok', data: { key: '701', title: '甲票' }, notes: [] }
+  await recordMod.noteWorkRoute(failRead, 'deck_issue_report', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vRF)
+  check(!vRF.data.workRoute && vRF.notes.length === 1 && vRF.notes[0].indexOf('工作路线记上了，但这次没读回来（probe-read-failed）') === 0,
+    '读失败：备注说这次没读回来，回执不带 data.workRoute：' + JSON.stringify(vRF.notes[0]))
 
-  for (const h of [home1, home3, home4]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
+  for (const h of [home1, home3, home4, home5]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   process.exit(failed ? 1 : 0)
 }

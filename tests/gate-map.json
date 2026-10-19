@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T05:31:10.696Z",
+  "generatedAt": "2026-10-19T06:04:19.177Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 295,
   "gateCount": 295,
@@ -426,7 +426,6 @@
         "src/deck/tools/context.ts",
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
-        "src/deck/tools/issue-report.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
@@ -447,8 +446,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 21,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
+      "expectedAssertions": 19,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-deck-parallel.ts",

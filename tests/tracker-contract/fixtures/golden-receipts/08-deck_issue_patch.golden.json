@@ -69,6 +69,42 @@
       "type": "issue",
       "updatedAt": "<TIME>",
       "url": "<ROOT>/.scratch/demo/issues/01-untitled.md"
+    },
+    "workRoute": {
+      "at": "<TIME>",
+      "entries": [
+        {
+          "action": "edit",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "auto",
+          "ticketKey": "1",
+          "title": "金标准演示票"
+        },
+        {
+          "action": "plan",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "auto",
+          "ticketKey": "3",
+          "title": "金子票一"
+        },
+        {
+          "action": "link",
+          "actionAt": "<TIME>",
+          "active": true,
+          "currentSession": true,
+          "sessionLabel": "会话 1d9b81",
+          "source": "auto",
+          "ticketKey": "4",
+          "title": "金子票二"
+        }
+      ],
+      "staleCount": 0
     }
   },
   "items": [
@@ -78,7 +114,9 @@
       "step": "comment"
     }
   ],
-  "notes": [],
+  "notes": [
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）"
+  ],
   "ok": true,
   "readBack": {
     "assignees": [],

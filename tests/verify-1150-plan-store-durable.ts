@@ -154,7 +154,6 @@ async function toolLevel(ws) {
     log: { fire: () => {} },
     now: () => clock,
     invalidate: () => {},
-    chainNote: async (input) => ({ recorded: true, action: 'report', ticketKey: String(input.ticketKey || ''), reason: 'chain.record', count: 1 }),
     // 故意不给 planStore：要试的正是工具自建读写那一条路。
   }
   return { tool: createDeckMapPlanCreate(deps), dispose: dispose }
