@@ -10,7 +10,7 @@
 
 import { stripFencedCode } from './parse.js'
 // #1277：票面对象类型标记的判据在共享包里；整份替换正文时盘上的标记要以盘上为准搬回来（ADR 2.5）。
-import { markerKindOnLine, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
+import { countMarkerLines, markerKindOnLine, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
 
 /** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
  *  为什么要分开判：下面的插入分支把正文插在现有 H1 之后，认错了盘上就会留下两个 H1、两份正文。
@@ -30,6 +30,13 @@ export function fieldLinesOf(text: unknown): string[]{
   return out
 }
 function fieldNameOf(line: string): string{ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
+/** 这一行是不是文件头注释（幂等锚 / 类型标记 / parentKey / created）：补一级标题、插类型标记时都要跳过它们。
+ *  标记那一种交给共享包的整行判据认，这里不重复写标记语法；其余三种是本地房自己的文件头格式。 */
+function isFileHeaderCommentLine(line: unknown): boolean{
+  const text=String(line||'')
+  if(markerKindOnLine(text)) return true
+  return /^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|parentKey|created)[ \t]*:/.test(text)
+}
 /** 取文本里第一条合法类型标记行（去掉首尾空白）；没有就回空串。整份替换时用它把盘上的标记搬回。 */
 function firstMarkerLine(text: unknown): string{
   for(const l of String(text||'').split('\n')){ if(markerKindOnLine(l)) return l.trim() }
@@ -57,8 +64,9 @@ export function checkNoWorseForPatch(oldText: string, newText: string): string{
   if(countRe(o, /DSH-IDEMPOTENCY-KEY/g)>=1&&countRe(n, /DSH-IDEMPOTENCY-KEY/g)===0) return '幂等锚丢了'
   // #1277：对象类型标记与幂等锚同一条纪律 —— 变多、或者盘上有的标记被改丢，都算写坏，
   // 因为标记是「这张票是哪一种对象」的唯一真源（ADR 2.5），丢了规格就降级成普通票。
-  if(worse(countRe(o, /DSH-ISSUE-KIND/g), countRe(n, /DSH-ISSUE-KIND/g))) return '类型标记行变多了'
-  if(countRe(o, /DSH-ISSUE-KIND/g)>=1&&countRe(n, /DSH-ISSUE-KIND/g)===0) return '类型标记丢了'
+  // 数的是整行标记（共享包判据），正文里引用一句标记写法不算数。
+  if(worse(countMarkerLines(o), countMarkerLines(n))) return '类型标记行变多了'
+  if(countMarkerLines(o)>=1&&countMarkerLines(n)===0) return '类型标记丢了'
   if(worse(countRe(of, /^\s*Status\s*[:\uFF1A]/gim), countRe(nf, /^\s*Status\s*[:\uFF1A]/gim))) return 'Status 行变多了'
   if(worse(countRe(of, /^\s*Type\s*[:\uFF1A]/gim), countRe(nf, /^\s*Type\s*[:\uFF1A]/gim))) return 'Type 行变多了'
   if(worse(countRe(of, /^\s*Blocked\s+by\s*[:\uFF1A]/gim), countRe(nf, /^\s*Blocked\s+by\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
@@ -92,7 +100,7 @@ export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown):
       let at=0
       // created 那行（#1174 决策 10）也是文件头注释：漏了它，标题会被插在它前面，
       // 于是「建票时间」掉出文件头、读不回来，创建时间又变回文件修改时间。
-      while(at<lines.length&&/^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|DSH-ISSUE-KIND|parentKey|created)[ \t]*:/.test(lines[at])) at++
+      while(at<lines.length&&isFileHeaderCommentLine(lines[at])) at++
       lines.splice(at, 0, String(diskH1).trim(), '')
       incoming=lines.join('\n')
     }
@@ -123,7 +131,7 @@ export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown):
     const lines=incoming.split('\n')
     let at=0
     if(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0]||'')) at=1
-    else{ while(at<lines.length&&/^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|DSH-ISSUE-KIND|parentKey|created)[ \t]*:/.test(lines[at])) at++ }
+    else{ while(at<lines.length&&isFileHeaderCommentLine(lines[at])) at++ }
     lines.splice(at, 0, diskMarker)
     incoming=lines.join('\n')
   }

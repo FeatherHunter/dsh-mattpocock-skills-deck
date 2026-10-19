@@ -21,16 +21,28 @@ export const OBJECT_KINDS = Object.freeze([
 /** 对象类型的联合类型；调用方拿它给参数与返回值收口。 */
 export type ObjectKind = (typeof OBJECT_KINDS)[number]
 
-// 标记行的前半截与后半截只在本文件里拼与拆：对外只给按整行判断的函数，别处不用拼前缀。
-// 不导出还有一层原因：共享层词汇门禁会把「没人读的导出字符串常量」判红，这两个值的读者只有本文件。
-const ISSUE_KIND_MARKER_PREFIX = '<!-- DSH-ISSUE-KIND:'
+// 标记的写法只在这里拼：标记名放常量，写入的行与按行判断的正则都从它拼出来，别处不再碰语法细节。
+// 不导出这个常量：共享层词汇门禁会把「没人读的导出字符串常量」判红，它的读者只有本文件。
+const MARKER_NAME = 'DSH-ISSUE-KIND'
 
-/** 标记行的后半截。 */
-const ISSUE_KIND_MARKER_SUFFIX = '-->'
+/** 一整行标记的唯一判据：必须从头到尾都是标记，前后多一个字都不算（ADR 2.5 的「独占一行」）。 */
+const MARKER_LINE_RE = new RegExp('^<!--\\s*' + MARKER_NAME + '\\s*:\\s*([a-z]+)\\s*-->$')
+
+// 约定「正文不补进度区、建票时由工具写类型标记」的两类对象（规格单与实施票）：
+// 判定收在这里一份，deck 规则与房间不必各写一遍 `kind === 'spec' || kind === 'ticket'`。
+const HEADER_ONLY_KINDS = Object.freeze(['spec', 'ticket'] as const)
+
+/** 两类「只在文件头写类型」的对象。 */
+export type HeaderOnlyKind = (typeof HEADER_ONLY_KINDS)[number]
 
 /** 运行时判断一个字符串是不是九种合法类型之一。 */
 export function isObjectKind(value: unknown): value is ObjectKind {
   return typeof value === 'string' && (OBJECT_KINDS as readonly string[]).indexOf(value) >= 0
+}
+
+/** 这个类型是不是「只在文件头写标记」的两类（规格 / 实施票）之一。 */
+export function isHeaderOnlyKind(value: unknown): value is HeaderOnlyKind {
+  return typeof value === 'string' && (HEADER_ONLY_KINDS as readonly string[]).indexOf(value) >= 0
 }
 
 /**
@@ -39,7 +51,7 @@ export function isObjectKind(value: unknown): value is ObjectKind {
  */
 export function markerLineFor(kind: unknown): string {
   if (!isObjectKind(kind)) return ''
-  return ISSUE_KIND_MARKER_PREFIX + ' ' + kind + ' ' + ISSUE_KIND_MARKER_SUFFIX + '\n'
+  return '<!-- ' + MARKER_NAME + ': ' + kind + ' -->\n'
 }
 
 /**
@@ -49,7 +61,7 @@ export function markerLineFor(kind: unknown): string {
 export function markerKindOnLine(line: unknown): ObjectKind | null {
   const text = typeof line === 'string' ? line.trim() : ''
   if (!text) return null
-  const m = /^<!--\s*DSH-ISSUE-KIND\s*:\s*([a-z]+)\s*-->$/.exec(text)
+  const m = MARKER_LINE_RE.exec(text)
   if (!m) return null
   return isObjectKind(m[1]) ? m[1] : null
 }
@@ -88,6 +100,29 @@ export function markerKindAtStart(text: unknown): ObjectKind | null {
     return markerKindOnLine(line)
   }
   return null
+}
+
+/**
+ * 数文本里有几行合法标记（整行判断，口径同 `markerKindOnLine`）。
+ * 建票的单例核对与整份替换的「不许变多 / 不许弄丢」核对都吃这个数——不在别处用正则数子串，
+ * 否则正文里引用一句标记写法也会被算成一条标记。
+ */
+export function countMarkerLines(text: unknown): number {
+  const raw = typeof text === 'string' ? text : ''
+  if (!raw) return 0
+  let count = 0
+  for (const line of raw.split('\n')) {
+    if (markerKindOnLine(line)) count++
+  }
+  return count
+}
+
+/**
+ * 票面文件头写的是不是 spec 标记。快照组装与 deck 列表的兜底共用这一处判断：
+ * 「声明类型没标对、但票面文件头写着 spec」的行要当规格容器看，而写正文里举例的标记不算。
+ */
+export function isSpecHeaderMarked(text: unknown): boolean {
+  return markerKindInHeader(text) === 'spec'
 }
 
 /**

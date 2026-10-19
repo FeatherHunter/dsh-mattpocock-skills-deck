@@ -16,7 +16,7 @@ import { withCallScope } from '../shell/call-budget.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 // #1277：规格与实施票的票面对象类型标记（唯一真源，ADR 2.5）。标记由本工具写进正文最前面，
 // 后端建房时再把它挪进文件头（本地 Markdown 房会挪，GitHub 房今天的已知缺口见设计文档第 7 节）。
-import { markerKindAtStart, markerLineFor } from '../../shared/issue-file/src/marker.js'
+import { isHeaderOnlyKind, markerKindAtStart, markerLineFor } from '../../shared/issue-file/src/marker.js'
 import * as budget from '../../shared/refresh/src/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -83,7 +83,7 @@ export const definition = {
       title: { type: 'string', description: '票的标题' },
       body: { type: 'string', description: '正文；缺省时按种类补最小骨架' },
       kind: { type: 'string', enum: ['task', 'bug', 'map', 'spec', 'ticket'], description: '票的种类，缺省 task' },
-      parentKey: { type: 'string', description: '父票（一般是地图那张票）的票号' },
+      parentKey: { type: 'string', description: '父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）' },
       labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
@@ -125,6 +125,12 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
     const kind = kindOf(a)
     const est = shell.estimateFor('deck_issue_create', a)
+    // #1277：实施票的父必须是规格票（ADR 2.1）——没给父票就不建。给了父票的，父票到底是不是规格容器
+    // 由后端这一层核对（本地 Markdown 房会读父票文件头的 spec 标记；远端后端暂时只保证显式给了父票）。
+    const wantedParent = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? '' : String(a.parentKey).trim()
+    if (kind === 'ticket' && !wantedParent) {
+      return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '实施票的父必须是规格票：kind=ticket 时要带 parentKey，写规格票号（不是探索地图的票号）。', { cost: { estimated: est } })
+    }
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
@@ -141,7 +147,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const body = ensureBody(a.body, kind)
     // #1277：规格与实施票在正文最前面写一行对象类型标记（标记是唯一真源，ADR 2.5）。
     // 调用方正文里已经带了同一行时不再重复写；没带的才有这一行。
-    if (kind === 'spec' || kind === 'ticket') {
+    if (isHeaderOnlyKind(kind)) {
       const markerLine = markerLineFor(kind)
       if (markerLine && markerKindAtStart(body.body) === null) body.body = markerLine + body.body
     }

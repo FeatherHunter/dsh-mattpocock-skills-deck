@@ -14,7 +14,7 @@ import { withCallScope } from '../shell/call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。
-import { markerKindInHeader } from '../../shared/issue-file/src/marker.js'
+import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -100,7 +100,7 @@ function rowKindOf(issue: Record<string, unknown> | null | undefined): string {
     const declared = String(issue.type || '')
     if (declared === 'map' || declared === 'spec') return declared
     if (isMapRow(issue)) return 'map'
-    if (typeof issue.body === 'string' && markerKindInHeader(issue.body) === 'spec') return 'spec'
+    if (isSpecHeaderMarked(issue.body)) return 'spec'
     return 'issue'
   } catch (e) { return 'issue' }
 }

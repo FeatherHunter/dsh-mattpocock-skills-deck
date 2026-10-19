@@ -52,6 +52,10 @@ export const ISSUE_TYPE = Object.freeze({
  *
  * 这里只放这一串常量（契约目录只放类型与常量、不放行为）；认它的判断住在各房归一层
  * （GitHub 房与 GitLab 房各一份，两个房间本来就不许互引）。
+ *
+ * #1277 现状与缺口：本地房与宿主快照的判据已经搬到 `src/shared/issue-file/src/marker.ts`（唯一真源）；
+ * 这一串常量还不能并过去 —— 契约目录的门禁只许它自引，不许引共享包，而 GitHub 房只读契约层。等 GitHub
+ * 房改为认文件头标记时一起并（见 `docs/design/1277-md-spec-container.md` §7 第 7 条）。
  */
 export const SPEC_BODY_MARKER = '<!-- DSH-ISSUE-KIND: spec -->'
 

@@ -16,6 +16,8 @@ import type { EdgeTrail } from './edge-log.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
+// #1277：文件头里父注释的插入位置要认得类型标记行 —— 标记紧跟在幂等锚后面，父注释排在标记之后。
+import { markerKindOnLine } from '../../../shared/issue-file/src/marker.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField } from './issues-status.js'
 // #1174：写阻塞边之前的全图环检（契约明写「环检是写路径的一部分，不许省」）。
@@ -312,6 +314,9 @@ function upsertParentComment(text: string, want: unknown): string {
   const lines = head.split('\n')
   let at = 0
   if (lines.length && /^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0])) at = 1
+  // #1277：类型标记行紧跟在幂等锚之后（建票落盘顺序：锚 → 标记 → 父注释 → created）。
+  // 父注释要插在标记之后；不跳过标记的话，补父会把 parentKey 排到标记前面，文件头顺序与建票时不一致。
+  while (at < lines.length && markerKindOnLine(lines[at])) at++
   lines.splice(at, 0, line)
   return lines.join('\n') + rest
 }

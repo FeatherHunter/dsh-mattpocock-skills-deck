@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T20:31:21.705Z",
+  "generatedAt": "2026-10-19T20:45:26.381Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 295,
   "gateCount": 295,
@@ -1634,6 +1634,7 @@
         "src/host/tracker/snapshotAssemble.ts",
         "src/shared/issue-file/src/marker.ts",
         "src/tracker/rooms/markdown/issues-create.ts",
+        "src/tracker/rooms/markdown/issues.ts",
         "src/tracker/rooms/markdown/parse.ts",
         "src/tracker/rooms/markdown/patch-body.ts"
       ],
@@ -1647,7 +1648,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-1286-detail.ts",
@@ -4530,6 +4531,7 @@
         "src/client/kernel/actions.ts",
         "src/client/kernel/api-io.ts",
         "src/client/kernel/api-preset-guard.ts",
+        "src/client/kernel/container-view.ts",
         "src/client/kernel/issue-pages.ts",
         "src/client/kernel/slotRenderer-repo-sync.ts",
         "src/tracker",
@@ -4554,7 +4556,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 16 条"
+      "reason": "归属来自：源码里的路径字面量 17 条"
     },
     {
       "step": "node tests/verify-event-budget.ts",

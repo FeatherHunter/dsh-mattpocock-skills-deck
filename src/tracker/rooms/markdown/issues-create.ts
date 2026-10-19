@@ -7,7 +7,7 @@
 //     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
 import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody, loginOfAssignee } from './parse.js'
 // #1277：票面对象类型标记（唯一真源）的读写判据全在共享包里；建票这一层只负责把它放到文件头。
-import { markerKindAtStart, markerKindInHeader, markerLineFor, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
+import { countMarkerLines, isHeaderOnlyKind, markerKindAtStart, markerKindInHeader, markerLineFor, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
 import { listDir, readTextFile, statFile, exists } from './read.js'
 import { publishTextFile, ensureDir } from './write.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
@@ -113,25 +113,27 @@ function checkSingletonsForCreate(content: string, wantAnchor: boolean): string{
   if(count(/^##\s*Answer\s*$/gim)!==1) return 'Answer 骨架不是 1 个'
   if(count(/^\s*Type\s*[:\uFF1A]/gim)>1) return 'Type 行翻倍了'
   if(count(/^\s*Assignees\s*[:\uFF1A]/gim)>1) return 'Assignees 行翻倍了'
-  // #1277：类型标记至多一条 —— 两条标记读哪条全看顺序，落盘前就判出来。
-  if(count(/^[ \t]*<!--[ \t]*DSH-ISSUE-KIND:/gim)>1) return '类型标记行翻倍了'
+  // #1277：类型标记至多一条 —— 两条标记读哪条全看顺序，落盘前就判出来（数整行，正文里引用写法不算）。
+  if(countMarkerLines(content)>1) return '类型标记行翻倍了'
   return ''
 }
 /** 建票时刻：本仓房间层的既有做法就是取真实时钟（comments.ts 那条评论时间同款），不另立时钟源。 */
 function builtAtIso(): string { return new Date().toISOString() }
+/** 从调用方输入里认出规格 / 实施票的标记值：明确传的 type 优先，其次是正文最前面那行标记；都没有回空串。
+ *  建票拼装与「实施票必须挂在规格票下」的校验共用这一处，不在两条路上各判一遍。 */
+function kindMarkerOf(input: CreateView): string{
+  const explicit=String(input.type||input.Type||'').trim().toLowerCase()
+  if(isHeaderOnlyKind(explicit)) return explicit
+  const incomingBody=input.body?String(input.body):''
+  const atStart=markerKindAtStart(incomingBody)
+  const bodyKind=isHeaderOnlyKind(atStart)?atStart:markerKindInHeader(incomingBody)
+  return isHeaderOnlyKind(bodyKind)?bodyKind:''
+}
 function buildIssueText(input: CreateView){
   const blockedByStr=Array.isArray(input.blockedBy)&&input.blockedBy.length?input.blockedBy.map(k=>'#'+String(k).padStart(2,'0')).join(', '):(typeof input.blockedBy==='string'?input.blockedBy:'')
   // #1277：规格与实施票的标记写进文件头，不写 Type 行 —— ADR 2.1 已把 Type 的候选值收回到
-  // research / prototype / grilling / task 四个老值，规格不再靠 Type 行表达。标记取值来源两处：
-  // 调用方明确传的 type（deck 工具会把 kind 放进 type），或正文最前面那行标记（工具往正文最前面写标记时）。
-  let kindMarker=String(input.type||input.Type||'').trim().toLowerCase()
-  if(kindMarker!=='spec'&&kindMarker!=='ticket'){
-    const incomingBody=input.body?String(input.body):''
-    const atStart=markerKindAtStart(incomingBody)
-    const inHeader=markerKindInHeader(incomingBody)
-    const bodyKind=(atStart==='spec'||atStart==='ticket')?atStart:inHeader
-    kindMarker=(bodyKind==='spec'||bodyKind==='ticket')?bodyKind:''
-  }
+  // research / prototype / grilling / task 四个老值，规格不再靠 Type 行表达。标记取值来源见 kindMarkerOf。
+  const kindMarker=kindMarkerOf(input)
   const typeField=kindMarker?'':(input.type?String(input.type):(input.Type?String(input.Type):''))
   const labelsInput = Array.isArray(input.labels) ? input.labels : (Array.isArray(input.Labels)? input.Labels : null)
   let labelsStr=''
@@ -275,6 +277,19 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
       if(!target.ok)return target
       const effortId=target.effortId
       const idir=target.idir
+      // #1277：实施票必须挂在规格票下（ADR 2.1、#1280 验收②）。不给父票、父票找不到、父票不是规格容器，
+      // 都当场如实失败、不落盘 —— 让实施票掉进探索地图（00）或根票，后面拆票时谁也找不到它。
+      const kindMarker=kindMarkerOf(input)
+      if(kindMarker==='ticket'){
+        const wantParent=(input.parentKey===undefined||input.parentKey===null)?'':String(input.parentKey).trim()
+        if(!wantParent)return failAs(ERROR_KIND.PARSE,'实施票必须挂在规格票下：建 ticket 时要给 parentKey（写规格票号，不是探索地图的 00）。','')
+        const parentPath=await findIssueFileInEffort(ctx,{effortId},wantParent)
+        if(!parentPath)return failAs(ERROR_KIND.NOTFOUND,'实施票的父票 '+wantParent+' 在这个 effort 里找不到，这次没建：先确认规格票号再试。',String(wantParent))
+        const parentText=String(await readTextFile(ctx,parentPath))
+        if(markerKindInHeader(parentText)!=='spec'){
+          return failAs(ERROR_KIND.PARSE,'实施票的父必须是规格票：'+wantParent+' 的票面文件头没有 spec 标记（它可能是探索地图或普通票），这次没建。',parentPath)
+        }
+      }
       await ensureDir(ctx,idir)
       // ① 先按锚回查盘上有没有这张票（回查看的是票文件里的锚，不是内存里的表）。命中就复用它：
       //    不取号、不落盘、不改任何文件，返回同一个 key。

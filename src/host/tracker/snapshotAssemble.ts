@@ -14,7 +14,7 @@ import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { effortOf, idOfParts } from '../../tracker/kernel/identity-keys.js'
 import { parseMapBody, parseSpecBody } from '../../tracker/body-parse.js'
 // #1277 B 兜底（视图兜底）：行上的类型没标对时，票面文件头那行隐藏标记仍是唯一真源（ADR 2.5）。
-import { markerKindInHeader } from '../../shared/issue-file/src/marker.js'
+import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
 import type { RepositoryRef } from '../../shared/tracker/shape.js'
 
 // 池内标识的输入行：只读 key 与是否为拉取请求等格子，其余原样透传。
@@ -71,8 +71,7 @@ function withNormalizedType(it: any): any {
   const declared = String((it && it.type) || '')
   if (declared === 'map' || declared === 'spec') return it
   const body = (it && typeof it.body === 'string') ? it.body : ''
-  if (!body) return it
-  if (markerKindInHeader(body) !== 'spec') return it
+  if (!isSpecHeaderMarked(body)) return it
   return Object.assign({}, it, { type: 'spec' })
 }
 

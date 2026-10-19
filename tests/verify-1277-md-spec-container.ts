@@ -10,6 +10,7 @@
 //  ⑥ deck 规则侧：spec/ticket 的必备标签是 ready-for-agent，不补进度区；任务票行为不变。
 //
 // 门禁归属: src/shared/issue-file/src/marker.ts
+// 门禁归属: src/tracker/rooms/markdown/issues.ts
 // 门禁归属: src/tracker/rooms/markdown/parse.ts
 // 门禁归属: src/tracker/rooms/markdown/issues-create.ts
 // 门禁归属: src/tracker/rooms/markdown/patch-body.ts
@@ -145,6 +146,42 @@ async function main(): Promise<void> {
   if (ticketFileName) {
     const ticketText = fs.readFileSync(path.join(issuesDir, ticketFileName), 'utf8')
     check(/<!-- DSH-ISSUE-KIND: ticket -->/.test(ticketText), '实施票文件头写 ticket 标记')
+  }
+
+  // 实施票的父必须是规格票（ADR 2.1、#1280 验收②）：三种坏形状都要当场失败、盘上不落票。
+  const badTickets = [
+    await createIssue(ctx, repo, {
+      title: '没有父票的实施票', body: '要构建什么：不该建出来。', status: 'ready-for-agent',
+      type: 'ticket', labels: ['ready-for-agent'], idempotencyKey: 'ticket-1277-noparent',
+    }),
+    await createIssue(ctx, repo, {
+      title: '挂探索地图的实施票', body: '要构建什么：不该建出来。', status: 'ready-for-agent',
+      type: 'ticket', parentKey: '00', labels: ['ready-for-agent'], idempotencyKey: 'ticket-1277-map',
+    }),
+  ]
+  check(badTickets.every((r: any) => r && r.ok === false), '缺父票 / 父票是探索地图的实施票都建不出来', badTickets.map((r: any) => r && (r.ok === false ? r.error.message : 'ok')))
+  check(badTickets.some((r: any) => r && r.ok === false && String(r.error.message || '').indexOf('规格票') >= 0), '失败原因说清父必须是规格票', badTickets.map((r: any) => r && (r.ok === false ? r.error.message : '')))
+
+  // 父注释插入顺序（ADR 2.5 第三处落点）：补父时 parentKey 必须排在锚与类型标记之后。
+  // 这里给一个与默认父票（'00'）不同的父号才真的走插入分支：没写父注释的票读回来落在默认 '00' 上，
+  // 把父设成 '00' 会被「同值不改」那一支挡掉（#922 的口径，另一条既有行为）。
+  const createdOrder = await createIssue(ctx, repo, {
+    title: '父注释插入顺序', body: '', status: 'ready-for-agent',
+    type: 'spec', parentKey: null, idempotencyKey: 'spec-1277-order',
+  })
+  check(!!(createdOrder && createdOrder.ok), '建一张不带父注释的规格票', createdOrder && createdOrder.error)
+  if (createdOrder && createdOrder.ok) {
+    const { setParentIssue } = await import('../src/tracker/rooms/markdown/issues.ts')
+    const orderParent = createdSpec.ok ? createdSpec.data.key : '01'
+    const moved = await setParentIssue(ctx, repo, createdOrder.data.key, orderParent)
+    check(!!(moved && moved.ok), '给规格票补父注释成功', moved && moved.ok ? undefined : (moved as any).error)
+    check(!!(moved && moved.ok && moved.data.parentKey === orderParent), '补上的父号读回来是新的值', moved && moved.ok ? moved.data.parentKey : undefined)
+    const orderFileName = fs.readdirSync(issuesDir).find((f: string) => /^\d+-/.test(f) && fs.readFileSync(path.join(issuesDir, f), 'utf8').indexOf('spec-1277-order') >= 0)
+    if (orderFileName) {
+      const orderLines = fs.readFileSync(path.join(issuesDir, orderFileName), 'utf8').split('\n')
+      check(/^<!-- DSH-IDEMPOTENCY-KEY:/.test(orderLines[0]) && /DSH-ISSUE-KIND: spec/.test(orderLines[1]) && new RegExp('parentKey: ' + orderParent).test(orderLines[2]),
+        '补父注释后文件头顺序仍是 锚 → 标记 → 父注释', orderLines.slice(0, 4))
+    }
   }
 
   const bodyWithMarker = '<!-- DSH-ISSUE-KIND: spec -->\n\n## 问题陈述\n\n正文里也带着标记。'

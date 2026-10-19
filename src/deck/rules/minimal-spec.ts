@@ -12,6 +12,8 @@
 //
 // 纯在哪：只做字符串与数组的计算，不取会话、不起进程、不读写文件、不读钟；进来的值
 // 一律当「形状不可信」先收口（收口函数与类型都在本文件里，不引别的目录）。
+// 例外是 src/shared/ 下的纯计算包：规格 / 实施票的判定与共享标记包共用一份，不在两侧各写一遍（#1277）。
+import { isHeaderOnlyKind } from '../../shared/issue-file/src/marker.js'
 
 /** 票的种类（deck_issue_create 的 kind 参数与各工具的写路径共用这一套词）。
  *
@@ -57,7 +59,7 @@ function labelNames(list: unknown): string[] {
 /** 补必备标签：返回补完的清单与「我替你补了哪些」（原话写进返回值，让人看得见）。 */
 export function ensureLabels(labels: unknown, kind: string): { labels: string[]; added: string[] } {
   const have = labelNames(labels)
-  // kind 是运行时来的字符串：认得的那三种各有一套必备标签，认不出的一律按 task。
+  // kind 是运行时来的字符串：认得的那五种各有一套必备标签，认不出的一律按 task。
   const want = MINIMAL_LABELS[kind as DeckKind] || MINIMAL_LABELS.task
   const added: string[] = []
   for (const name of want) {
@@ -110,7 +112,7 @@ export function ensureBody(body: unknown, kind: string): { body: string; added: 
   }
   // #1277：规格与实施票的正文由技能模板写（规格是 to-spec 的七节，实施票是 to-tickets 的四节），
   // 不补「## 进度」区 —— 进度区是给探索地图上的任务票记「做到哪一步」的，这两类票的状态由票的 state 表达。
-  if (kind === 'spec' || kind === 'ticket') return { body: out, added: added }
+  if (isHeaderOnlyKind(kind)) return { body: out, added: added }
   if (!hasProgressHeading(text)) {
     out = (out.replace(/\s*$/, '') + '\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n').replace(/^\n+/, '')
     added.push('## 进度')

@@ -29,6 +29,9 @@
 2. **文件头**：只认第一个一级标题之前（没有一级标题时只看前 10 行），和本地房读 `parentKey`、`created`
    的口径一致；正文里出现的同样一行不算。
 3. **纯计算**：不读盘、不读钟、不联网；合法值表只在这里写一份。
+4. **判定也只有一份**：`countMarkerLines`（数整行标记）、`isHeaderOnlyKind`（是不是 spec/ticket）、
+   `isSpecHeaderMarked`（文件头是不是 spec）都从这里出去。房间、宿主组装层、deck 工具遇到同类判断时
+   先看这里有没有现成函数，不要各写一遍 `kind === 'spec' || kind === 'ticket'` 或者再拼一条标记正则。
 
 目录约定与其它共享域一致：源码在 `src/` 下、构建时按 `scripts/lib/transpile-domains.mts` 转译，
 目录本身不发 npm 包。
