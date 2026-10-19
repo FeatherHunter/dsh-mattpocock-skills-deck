@@ -8,8 +8,10 @@
 //      回包没有工作区根、读盘失败时如实说读不到。
 //   二、界面：判据只认快照里那一个字段，空态/读不到/逐条三种画法分开；行上画出票号、标题、会话、
 //      动作、动作时间、是否在办；本会话有标记；陈旧条目带陈旧标记；词条中英齐全。
-//   三、#1289 的版面：时间与状态两列收窄（表头跟着改短），宽度让给标题与会话；
-//      整行挂一条悬停提示，把这一行被省略号截掉的标题、会话名、动作词与动作时刻补出来。
+//   三、#1287 的版面：时间与状态两列收窄（表头跟着改短），宽度让给标题与会话；
+//      格子里写不下的内容用省略号，完整值交给悬停提示补。
+//   四、#1288 的提示：落在指针上方；一行两段（左边标题、右边会话），中间一条竖线，两边各一枚图标；
+//      动作词与完整动作时刻在格子里被截掉时补在末尾。
 //
 // 手法：主缝用真的工作路线存储（临时家目录 + 固定时钟），从工具壳写票收口处（recordWorkRoute）
 // 一路跑到面板快照挂载口；次缝把真源码按构建同一套做法装进假 React 渲染，看真实版面文字。
@@ -63,7 +65,7 @@ function memFs() {
  *   refs       —— useRef 按调用顺序从这里取（用来假装图标与浮层各自的 DOM 节点）；
  *   setCalls   —— setState 被调用时把新值记在这里（用来验「点别处真的收起了」）。
  *
- * #1289 追加：函数组件也照真 React 那样调一次（画出来的内容挂在 children 里，组件节点本身留在树上，
+ * #1287 追加：函数组件也照真 React 那样调一次（画出来的内容挂在 children 里，组件节点本身留在树上，
  * 门禁还要按类型找它）。子节点按老习惯作为第二个参数递给组件（假 Tip 就是这么拿 child 的）。
  */
 function makeReact(stateQueue?: any[], effects?: any[], refs?: any[], setCalls?: any[]) {
@@ -340,10 +342,10 @@ async function main() {
   check(iconsSrc.indexOf("'workroute'") >= 0, '图标库里有 workroute 这颗图标')
   check(['workRouteTable.iconLabel', 'workRouteTable.iconTip', 'workRouteTable.idle'].every(function (k) { return zh[k] !== undefined && en[k] !== undefined }), '图标名、悬停说明、还没拿到数据这三句中英都有')
 
-  // ── 五、#1289：两列收窄给标题与会话；悬停一行补全这一行没显示全的内容 ──
+  // ── 五、#1287：两列收窄给标题与会话；格子里写不下就用省略号 ──
   check(zh['workRouteTable.col.time'] === '时间' && zh['workRouteTable.col.state'] === '状态', '中文表头改短（「时间 / 状态」），表头自己不再撑满那一列')
   check(en['workRouteTable.col.time'] === 'When' && en['workRouteTable.col.state'] === 'State', '英文表头改短（When / State）')
-  check(['workRouteTable.tipTitle', 'workRouteTable.tipSession', 'workRouteTable.tipAction', 'workRouteTable.tipTime'].every(function (k) { return zh[k] !== undefined && en[k] !== undefined }), '提示补全用的四句中英都有')
+  check(['workRouteTable.tipTitle', 'workRouteTable.tipSession', 'workRouteTable.tipAction', 'workRouteTable.tipTime'].every(function (k) { return zh[k] === undefined && en[k] === undefined }), '上一版那四句带文字标签的提示文案已经删掉（这一版靠图标说明，不靠文字标签）')
 
   // 动作时刻：今天只写时分，跨天只写月日，完整时刻留给提示补。
   const stampSameDay = String(leaf.workRouteTableStamp('2026-10-19T04:00:00.000Z', Date.parse('2026-10-19T04:00:30.000Z')))
@@ -354,39 +356,43 @@ async function main() {
   const crossStamp = String(leaf.workRouteTableStamp(crossIso, crossNow))
   check(crossClock.indexOf(' ') > 0 && crossStamp === crossClock.slice(0, crossClock.indexOf(' ')) && crossStamp.indexOf(' ') < 0, '跨天的条目：格子里只写月日（10-18 那样），完整时刻交给提示补')
 
-  // 悬停一行：提示里补出这一行没显示全的标题与会话名。
+  // ── 六、#1288：提示落在指针上方；一行两段（标题 | 会话），中间一条竖线，两边各一枚图标 ──
   // 怎么假装「被省略号截掉」：给那一格的假元素喂一个内容宽大于可见宽的数（scrollWidth > clientWidth）。
-  const oneRowReadout = { at: '2026-10-19T08:00:00.000Z', staleCount: 0, entries: [
-    { ticketKey: '900', title: '一张很长的票标题', sessionLabel: '会话 甲', action: 'report', actionAt: '2026-10-19T07:30:00.000Z', active: true, currentSession: false },
+  // 提示内容是一个函数，悬停那一刻才求值（那时这一行已经在页面里，量得到）—— 这里手动调它一次看求出来的东西。
+  const oneRowReadout = { at: '2020-05-06T08:00:00.000Z', staleCount: 0, entries: [
+    { ticketKey: '900', title: '一张很长的票标题', sessionLabel: '会话 甲', action: 'report', actionAt: '2020-05-06T07:30:00.000Z', active: true, currentSession: false },
   ] }
-  const tipOf = (els: any[]) => {
-    const l = compileLeaf(makeReact([], [], els))
+  const tipOf = (actionEls: any[]) => {
+    const l = compileLeaf(makeReact([], [], actionEls))
     const tree = l.WorkRouteTable({ st: { snapshot: { workRouteTable: { ok: true, readout: oneRowReadout } } } })
     const tips = findAll(tree, (n: any) => n.type === 'Tip' && n.props && typeof n.props.content === 'function')
-    return { tree: tree, tips: tips, text: tips.length === 1 ? String(tips[0].props.content()) : '' }
+    const content = tips.length === 1 ? tips[0].props.content() : null
+    return { tree: tree, tips: tips, content: content, text: content ? textOf(content) : '' }
   }
-  const cutOne = tipOf([
-    { current: { scrollWidth: 300, clientWidth: 100 } },
-    { current: { scrollWidth: 60, clientWidth: 100 } },
-    { current: { scrollWidth: 90, clientWidth: 100 } },
-  ])
-  check(cutOne.tips.length === 1, '每一行挂一条悬停提示（提示挂在整行上）')
-  check(cutOne.text.indexOf('标题：') >= 0 && cutOne.text.indexOf('一张很长的票标题') >= 0, '票标题被截断时：提示里补出完整标题')
-  check(cutOne.text.indexOf('会话：') < 0 && cutOne.text.indexOf('动作：') < 0, '没被截断的格子不重复写进提示（不拿重复的话打扰人）')
-  const cutAll = tipOf([
-    { current: { scrollWidth: 300, clientWidth: 100 } },
-    { current: { scrollWidth: 300, clientWidth: 100 } },
-    { current: { scrollWidth: 300, clientWidth: 100 } },
-  ])
-  check(cutAll.text.indexOf('标题：') >= 0 && cutAll.text.indexOf('会话：') >= 0 && cutAll.text.indexOf('动作：') >= 0 && cutAll.text.indexOf('会话 甲') >= 0, '标题、会话名、动作词都被截断时：三样一起补出来')
-  const cutNone = tipOf([
-    { current: { scrollWidth: 60, clientWidth: 100 } },
-    { current: { scrollWidth: 60, clientWidth: 100 } },
-    { current: { scrollWidth: 60, clientWidth: 100 } },
-  ])
-  check(cutNone.text.indexOf('标题：') < 0 && cutNone.text.indexOf('会话：') < 0 && cutNone.text.indexOf('动作：') < 0, '一格都没被截断时：标题、会话、动作都不写进提示')
-  const cutRows = findAll(cutOne.tree, (n: any) => n.props && n.props['data-work-route-row'] === 1)
-  check(cutRows.length === 1 && cutOne.tips[0].children[0] === cutRows[0], '提示的触发件就是那一行本身（悬停行的任何位置都能看到提示）')
+  const tipPlain = tipOf([{ current: { scrollWidth: 60, clientWidth: 100 } }])
+  check(tipPlain.tips.length === 1, '每一行挂一条悬停提示（提示挂在整行上）')
+  check(tipPlain.tips.length === 1 && tipPlain.tips[0].props.placement === 'above', '提示落在指针上方（不遮住鼠标正指着的那一格）')
+  check(tipPlain.tips.length === 1 && Number(tipPlain.tips[0].props.maxWidth) > 220, '提示比默认宽（默认 220 像素放不下完整标题与会话名）')
+  check(tipPlain.content && tipPlain.content.props['data-work-route-tip'] === 1, '提示内容是一块自己画的结构（不是一段纯文字）')
+  const tipKids = tipPlain.content ? tipPlain.content.children : []
+  check(tipKids.length === 3, '提示一行三段：标题组、分隔线、右侧的会话组（实得 ' + tipKids.length + ' 段）')
+  check(tipKids[1] && tipKids[1].props && tipKids[1].props.style && tipKids[1].props.style.width === 1 && String(tipKids[1].props.style.background || '').length > 0, '中间是一条看得见的竖线分隔')
+  const tipIcons = findAll(tipPlain.content, (n: any) => n.type === 'Icon')
+  check(tipIcons.length === 2 && tipIcons[0].props.n === 'ticket-title' && tipIcons[1].props.n === 'session', '左边一枚标题图标、右边一枚会话图标')
+  check(tipPlain.text.indexOf('一张很长的票标题') >= 0 && tipPlain.text.indexOf('会话 甲') >= 0, '提示里给的是完整标题与会话名（不受表格列宽限制）')
+  check(/05-06 \d{2}:\d{2}/.test(tipPlain.text), '跨天的条目：完整动作时刻在提示里补出来（格子里只写了月日）')
+  const tipCut = tipOf([{ current: { scrollWidth: 300, clientWidth: 100 } }])
+  check(tipCut.text.indexOf(trZh('chainView.action.report')) >= 0, '动作词在格子里被省略号截掉时：提示里补出完整动作词')
+  const tipRows = findAll(tipPlain.tree, (n: any) => n.props && n.props['data-work-route-row'] === 1)
+  check(tipRows.length === 1 && tipPlain.tips[0].children[0] === tipRows[0], '提示的触发件就是那一行本身（悬停行的任何位置都能看到提示）')
+
+  // 提示落在指针上方这件事由 HoverTip 的 placement 负责：源码里要有这个取值，
+  // Tip 预设要把它透传下去，图标库里要有那两枚新图标。
+  const hoverTipSrc = sourceText('src/client/views/primitives/HoverTip.ts')
+  check(/placement/.test(hoverTipSrc) && /'above'/.test(hoverTipSrc), 'HoverTip 有 placement 取值（提示可以落在指针上方）')
+  const tipSrc = sourceText('src/client/views/primitives/Tip.ts')
+  check(/merged\.placement/.test(tipSrc), 'Tip 预设把 placement 透传给 HoverTip')
+  check(iconsSrc.indexOf("'ticket-title'") >= 0 && iconsSrc.indexOf("'session'") >= 0, '图标库里有标题与会话这两枚新图标')
 
   if (total === 0) check(false, '一条断言都没跑')
 }

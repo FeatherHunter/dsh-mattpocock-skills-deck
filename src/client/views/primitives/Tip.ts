@@ -51,6 +51,7 @@ export const Tip = function(props: any){
   if (p.onHide !== undefined) merged.onHide = p.onHide
   if (p.caret !== undefined) merged.caret = p.caret
   if (p.offset !== undefined) merged.offset = p.offset
+  if (p.placement !== undefined) merged.placement = p.placement
   merged.padding = p.padding !== undefined ? p.padding : preset.padding
   if (p.style !== undefined) merged.style = p.style
   if (p.className !== undefined) merged.className = p.className

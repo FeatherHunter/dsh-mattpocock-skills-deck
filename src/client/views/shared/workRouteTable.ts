@@ -23,12 +23,15 @@
  * #1285 之后这张表不再画在列表页正文最上面（那会把票列表往下推）：改由面板头部那一行右端的一颗
  * 小图标点开一个浮层显示 —— 入口组件见本文件末尾的 WorkRouteTrigger。表本身的口径与画法没动。
  *
- * #1289 之后两处版面改动（口径没动，动的都是「怎么显示」）：
+ * #1287 之后两处版面改动（口径没动，动的都是「怎么显示」）：
  *   · 列宽按格子里的内容定，不再按「表头那几个字有多长」定 —— 「动作时间」和「是否在办」两列
  *     原先各留着一大片空白，挤得票标题和会话名都显示不全；现在那两列收窄，省下的宽度给标题与会话。
  *     表头也跟着改短（中文「时间 / 状态」，英文「When / State」），否则表头自己就撑满那一列。
  *   · 整行挂一条悬停提示：这一行里被省略号截掉的票标题、会话名、动作词与动作时刻，在提示里补全。
  *     提示挂在整行上（不是挂在标题那一格上），悬停这一行的任何位置都能看到。
+ *
+ * #1288 之后提示改成一行两段：提示落在指针上方（不遮住鼠标指着的那一格），
+ * 左边是完整的票标题、右边是完整的会话名，中间一条竖线分开，两边各带一枚图标说明那是什么。
  *
  * 契约：模块真源（ESM 导出）；构建时剥掉行首 export，拼回 src/client/index.ts 的 leaf 标记处。
  * 下面 declare 的那几个名字由闭包更早的片段提供，这里只声明形状、不参与转译。
@@ -181,7 +184,7 @@ export const workRouteTableOf = function (st: any): WorkRouteTableView {
 /**
  * 六列的列宽模板：票号、动作、动作时间、是否在办这四列按格子里的内容定固定宽度；
  * 标题与会话两列吃掉全部富余宽度 —— 面板拉宽时先让这两列长出来，票标题和会话名才显示得全。
- * 反例（#1289 以前的写法）：那四列各留着一大片空白（「动作时间」72 像素里只写着 27 像素的时分，
+ * 反例（#1287 以前的写法）：那四列各留着一大片空白（「动作时间」72 像素里只写着 27 像素的时分，
  * 「是否在办」48 像素里只写着 22 像素的「在办」），票标题和会话名被挤成省略号；
  * 现在这四列收窄（动作时间那列还改写缩写，见 workRouteTableStamp），省下的宽度全给了那两列。
  * 表头与数据行是两个 grid，必须用同一份模板（列宽要逐字对齐），所以把它导出来给两边共用。
@@ -198,33 +201,52 @@ const workRouteHeadRow = function (h: any, tr: any) {
 }
 
 /**
- * 在办表里的一行：六格，外加一条「悬停补全」提示。
+ * 提示里的那一组：图标 + 文字。
+ *
+ * 图标说明这一段是什么（一张卡片是票标题，一个气泡是会话名），文字给完整原文。
+ */
+const workRouteTipGroup = function (h: any, icon: string, text: string, key: string) {
+  return h('span', { key: key, style: { display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0 } }, [
+    h('span', { style: { display: 'inline-flex', flex: 'none', color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, Ic({ n: icon, size: 12 })),
+    h('span', { style: { minWidth: 0, wordBreak: 'break-word' } }, text),
+  ])
+}
+
+/**
+ * 在办表里的一行：六格，外加一条悬停提示。
  *
  * 提示挂在整行上（不是挂在标题那一格上）：悬停这一行的任何位置都能看到。
- * 提示里只写这一行没显示全的东西 —— 票标题、会话名、动作词、动作时刻，哪一格被省略号截掉了就写哪一格；
- * 都显示得下就不出提示（不拿一句重复的话打扰人）。
+ * 提示一行两段（#1288）：左边是完整的票标题，右边是完整的会话名，中间一条竖线分开，两边各带一枚图标；
+ * 提示落在指针上方（placement: 'above'），不遮住鼠标正指着的那一格。
  *
- * 怎么知道哪一格被截掉了：提示内容是一个函数，悬停那一刻才求值（HoverTip 对函数型 content 就是这么处理的），
- * 那一刻这一行已经在页面里，于是拿那一格的实际内容宽与可见宽比一比（workRouteIsCut）。
- * 反例（#1289 以前的写法）：提示只挂在标题那一格、只写标题 —— 会话名被截掉时没人说得清是谁在办这张票。
+ * 表格里的格子窄，显示不下就用省略号；提示里给的是完整原文，不受列宽限制。
+ * 动作词与完整动作时刻在格子里被截掉时，以暗色小字补在提示末尾，信息不丢。
+ *
+ * 提示内容是一个函数，悬停那一刻才求值（HoverTip 对函数型 content 就是这么处理的）：
+ * 那一刻这一行已经在页面里，于是拿那一格的实际内容宽与可见宽比一比，
+ * 才知道动作词有没有被省略号截掉（workRouteIsCut）。
+ * 反例（#1287 以前的写法）：提示只挂在标题那一格、只写标题 —— 会话名被截掉时没人说得清是谁在办这张票。
  */
 export const WorkRouteRow = ({ r, nowMs }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
-  const titleRef = React.useRef(null)
-  const sessionRef = React.useRef(null)
   const actionRef = React.useRef(null)
   const actionWord = workRouteActionKeyOf(r.action)
   const actionText = actionWord ? tr(actionWord) : r.action
   const fullAt = workRouteTableClock(r.actionAt, nowMs) || r.actionAt
   const shortAt = workRouteTableStamp(r.actionAt, nowMs) || r.actionAt
-  const tipText = function (): string {
-    const lines: string[] = []
-    if (r.title && workRouteIsCut(titleRef.current)) lines.push(tr('workRouteTable.tipTitle', { title: r.title }))
-    if (r.sessionLabel && workRouteIsCut(sessionRef.current)) lines.push(tr('workRouteTable.tipSession', { session: r.sessionLabel }))
-    if (actionText && workRouteIsCut(actionRef.current)) lines.push(tr('workRouteTable.tipAction', { action: actionText }))
-    if (shortAt !== fullAt) lines.push(tr('workRouteTable.tipTime', { time: fullAt }))
-    return lines.join('\n')
+  const tipContent = function () {
+    const extras: string[] = []
+    if (actionText && workRouteIsCut(actionRef.current)) extras.push(actionText)
+    if (shortAt !== fullAt) extras.push(fullAt)
+    return h('div', { 'data-work-route-tip': 1, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, maxWidth: 496 } }, [
+      workRouteTipGroup(h, 'ticket-title', r.title || tr('workRouteTable.titleMissing'), 'title'),
+      h('span', { key: 'sep', style: { width: 1, flex: 'none', alignSelf: 'stretch', minHeight: 14, background: 'rgba(255,255,255,.22)' } }),
+      h('span', { key: 'right', style: { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 } }, [
+        workRouteTipGroup(h, 'session', r.sessionLabel, 'session'),
+        extras.length ? h('span', { key: 'extra', style: { flex: 'none', color: 'var(--dsw-alias-label-caption,#8b8b95)', whiteSpace: 'nowrap' } }, extras.join(' · ')) : null,
+      ]),
+    ])
   }
   const row = h('div', {
     'data-work-route-row': 1,
@@ -232,16 +254,16 @@ export const WorkRouteRow = ({ r, nowMs }: any) => {
     style: { display: 'grid', gridTemplateColumns: WORK_ROUTE_TABLE_CELLS, gap: 6, alignItems: 'center', padding: '3px 0', borderTop: '1px solid rgba(255,255,255,.045)' },
   }, [
     h('span', { style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, '#' + r.ticketKey),
-    h('span', { ref: titleRef, style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
+    h('span', { style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
     h('span', { style: Object.assign({ display: 'inline-flex', alignItems: 'center', gap: 4 }, workRouteCellStyle) }, [
-      h('span', { key: 's', ref: sessionRef, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),
+      h('span', { key: 's', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),
       r.currentSession ? h('span', { key: 'me', style: { flex: 'none', fontSize: 9, border: '1px solid rgba(88,166,255,.5)', color: '#58a6ff', borderRadius: 4, padding: '0 3px', lineHeight: 1.5 } }, tr('workRouteTable.thisSession')) : null,
     ]),
     h('span', { ref: actionRef, style: workRouteCellStyle }, actionText),
     h('span', { style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, shortAt),
     h('span', { 'data-work-route-state': r.active ? 'active' : 'stale', style: { color: r.active ? '#4ade80' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, r.active ? tr('workRouteTable.active') : tr('workRouteTable.stale')),
   ])
-  return h(Tip, { content: tipText }, row)
+  return h(Tip, { content: tipContent, placement: 'above', maxWidth: 520, offset: { x: 0, y: 12 } }, row)
 }
 
 /** 面板里这张表：标题行 + 表头 + 逐条行；空态与读不到也画在这一块里。 */

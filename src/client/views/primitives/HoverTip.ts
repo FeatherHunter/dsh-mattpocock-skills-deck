@@ -2,7 +2,7 @@
  * views/primitives/HoverTip.ts — 统一悬浮提示原子控件（G2 契约首轮定版，T2 首批落地 #381）
  * 契约：HoverTip(props) 工厂，局部 state 闭环，经 DswsCtx 取 h，消费 kernel/portal 的 portalTop。
  * props { content|children, mode anchor|mouse, offset, maxWidth 220, flip true, delay 0/160,
- *  visible受控, onVisibleChange/onShow/onHide, zIndex 2147483000 } 包裹式用法。
+ *  visible受控, onVisibleChange/onShow/onHide, zIndex 2147483000 } 包裹式用法。placement：'below'（默认，提示落在指针下方）| 'above'（提示整块压在指针上方，上方放不下就翻到下面）。
  * 样式单真源 STYLE_TEXT，挂顶经 portalTop，小三角随翻转同步，失败不抛。
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与环境声明，逻辑、字符串、数字、默认值
  * 与导出名一字未动（本文件另有总行数上限 200 行的门禁，所以这里的说明写得很短）。
@@ -23,13 +23,11 @@ export const HoverTip = function (props: any) {
     trigger = props.children
     tipContent = props.content
   }
-  const resolveContent = function (c: any) {
-    if (typeof c === 'function') { try { return c() } catch (e) { return null } }
-    return c
-  }
+  const resolveContent = function (c: any) { if (typeof c === 'function') { try { return c() } catch (e) { return null } } return c }
   tipContent = resolveContent(tipContent)
   const hasTip = tipContent !== null && tipContent !== undefined && tipContent !== ''
   const mode = props.mode === 'mouse' ? 'mouse' : 'anchor'
+  const placement = props.placement === 'above' ? 'above' : 'below'  // 提示落在指针上方还是下方：默认下方，'above' 整块压在指针上方。
   const maxWidth = typeof props.maxWidth === 'number' ? props.maxWidth : 220
   const zIndex = typeof props.zIndex === 'number' ? props.zIndex : 2147483000
   const flip = props.flip !== false
@@ -40,19 +38,14 @@ export const HoverTip = function (props: any) {
   const [visibleInner, setVisibleInner] = React.useState(false)
   const visible = isControlled ? !!props.visible : visibleInner
   const setVisible = function (next: any) {
-    if (isControlled) {
-      if (typeof props.onVisibleChange === 'function') { try { props.onVisibleChange(next) } catch (e) {} }
-      if (next && typeof props.onShow === 'function') { try { props.onShow() } catch (e) {} }
-      if (!next && typeof props.onHide === 'function') { try { props.onHide() } catch (e) {} }
-    } else {
-      setVisibleInner(next)
-      if (typeof props.onVisibleChange === 'function') { try { props.onVisibleChange(next) } catch (e) {} }
-      if (next && typeof props.onShow === 'function') { try { props.onShow() } catch (e) {} }
-      if (!next && typeof props.onHide === 'function') { try { props.onHide() } catch (e) {} }
-    }
+    if (!isControlled) setVisibleInner(next)
+    if (typeof props.onVisibleChange === 'function') { try { props.onVisibleChange(next) } catch (e) {} }
+    if (next && typeof props.onShow === 'function') { try { props.onShow() } catch (e) {} }
+    if (!next && typeof props.onHide === 'function') { try { props.onHide() } catch (e) {} }
   }
   const anchorRefInternal = React.useRef(null)
   const anchorRef = props.targetRef || anchorRefInternal
+  const tipRef = React.useRef(null)  // 提示本体的 ref：量出它的真实宽高，用来定位（估算宽会让宽提示在屏幕右缘翻到离指针很远的地方）。
   const [mousePos, setMousePos] = React.useState(null)
   const [pos, setPos] = React.useState({ left: 0, top: 0 })
   const hideTimerRef = React.useRef(null)
@@ -68,7 +61,9 @@ export const HoverTip = function (props: any) {
     let estW = maxWidth + 16 + 2
     // T3修复：短文本按字符估宽，避免 238 固定值对“新会话”等小气泡过度 flip 导致远左
     try{ if(typeof tipContent==='string' && tipContent){ const dyn = String(tipContent).length * 7 + 32; estW = Math.min(estW, Math.max(56, dyn)); } }catch(e){}
-    const estH = 40
+    let estH = 40
+    // 量得着就用量出来的（提示挂在 body 上，offsetWidth/offsetHeight 就是它的真身尺寸）。
+    try { if (tipRef.current && tipRef.current.offsetWidth) estW = tipRef.current.offsetWidth; if (tipRef.current && tipRef.current.offsetHeight) estH = tipRef.current.offsetHeight } catch (e) {}
     if (mode === 'mouse') {
       const mp2 = mp || mousePos
       if (!mp2) return null
@@ -77,6 +72,12 @@ export const HoverTip = function (props: any) {
       if (flip) {
         if (x + estW > vpW) x = mp2.x - offset.x - estW
         if (y + estH > vpH) y = mp2.y - offset.y - estH
+      }
+      // placement='above'：提示整块压在指针上方 —— 横向以指针为中心，纵向底边离指针 offset.y；上方放不下就翻到指针下方。
+      if (placement === 'above') {
+        const above = mp2.y - offset.y - estH / 2
+        y = (flip && above - estH / 2 < 4) ? mp2.y + offset.y + estH / 2 : above
+        x = mp2.x - estW / 2 + offset.x
       }
       x = Math.max(4, Math.min(x, vpW - estW - 4))
       y = Math.max(4, Math.min(y, vpH - estH - 4))
@@ -114,7 +115,7 @@ export const HoverTip = function (props: any) {
       if (ro) try { ro.disconnect() } catch (e) {}
       clearTimer()
     }
-  }, [visible, hasTip, mousePos, mode, maxWidth, flip, offset.x, offset.y])
+  }, [visible, hasTip, mousePos, mode, maxWidth, flip, placement, offset.x, offset.y])
   React.useEffect(function () { return function () { clearTimer() } }, [])
   const handleEnter = function (e: any) {
     try{ if(anchorRefInternal.current && e.target && e.target!==anchorRefInternal.current && e.target.closest){ const inner=e.target.closest('button, a'); if(inner && anchorRefInternal.current.contains(inner) && inner!==anchorRefInternal.current) return; } }catch(_){}
@@ -189,7 +190,7 @@ export const HoverTip = function (props: any) {
       transform: flippedX ? 'translateY(-50%) rotate(225deg)' : 'translateY(-50%) rotate(45deg)',
     }
     const caret = showCaret ? h('div', { style: caretStyle }) : null
-    const _tipProps: any = { style: style }
+    const _tipProps: any = { style: style, ref: tipRef }
     if (props.className) _tipProps.className = props.className
     tipPortal = portalTop(h('div', _tipProps, showCaret ? [caret, tipContent] : [tipContent]))
   }
