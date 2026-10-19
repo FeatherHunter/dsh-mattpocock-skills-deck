@@ -2,6 +2,10 @@
 
 > 来源：#140 8 文件差距 + 295 文件零合规实证 + #134 labels 兼容（MISSING）+ #129 平台抽象三底座（getHome/path/resolveExecutable/fs/env）+ 契约 §5/§2（镜像同一文件集、capability-by-fill、G4=验收）。本方案为 #142 落地唯一输入。
 > 关联：[讨论：Markdown 后端实现方案](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/141) | Map：[#115 Markdown 后端：契约定版与落地](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/115)
+>
+> **2026-10-20 更新（#1277）**：规格不再是独立的 `spec.md` 文件，而是 `issues/` 里一张文件头带
+> `<!-- DSH-ISSUE-KIND: spec -->` 标记的规格票；实施票同样带 `ticket` 标记、用 `parentKey` 指向规格票。
+> 下文 §0 与 §4 里写 `spec.md` 的段落保留作历史记录，以 `docs/design/1277-md-spec-container.md` 为准。
 
 ## 0. 第一性原理（约束即设计）
 

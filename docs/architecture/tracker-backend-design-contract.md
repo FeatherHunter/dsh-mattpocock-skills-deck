@@ -44,10 +44,10 @@ OS 底座（darwin / win32 / linux）
 
 ## 5. 本地 Markdown 格式（镜像 matt 契约，勿自造）
 
-- 位置：`.scratch/<feature-slug>/`——`spec.md` 为 spec，`<effort>/map.md` 为 map，票为 `.scratch/<feature-slug>/issues/<NN>-<slug>.md`（NN 两位零填充、充当 ticket ID，如 `/implement 03`）。
+- 位置：`.scratch/<feature-slug>/`——`<effort>/map.md` 为 map，票为 `.scratch/<feature-slug>/issues/<NN>-<slug>.md`（NN 两位零填充、充当 ticket ID，如 `/implement 03`）。规格（spec）也是一张票：在同一 `issues/` 目录里，文件头带 `<!-- DSH-ISSUE-KIND: spec -->` 标记、`parentKey` 指向地图（#1277 起；不再有独立的 `spec.md`）。实施票同理带 `<!-- DSH-ISSUE-KIND: ticket -->` 标记、`parentKey` 指向规格票。
 - **不是** YAML frontmatter、**不是** `docs/maps/`、**不是**纯 `<number>.md`。
 - 状态/类型/依赖用**行内字段**：`Status:`（claimed/resolved/ready-for-agent）、`Type:`（research/prototype/grilling/task）、`Blocked by:`；会话追加 `## Comments`，解答写 `## Answer`。
-- **无 labels**（用 Status / Type 表达语义），父子靠 `.scratch/<effort>/` 目录层级。
+- **标签**用 `Labels:` 行（逗号分隔）：分诊角色与 wayfinder 标签挂在这里；对象类型语义仍优先用 `Status:` / `Type:` 与文件头标记表达。父子靠 `.scratch/<effort>/` 目录层级，规格容器这一层用文件头 `<!-- parentKey: NN -->` 注释。
 
 ## 6. 图表语义（wayfinder 决定树）
 

@@ -59,7 +59,7 @@ disable-model-invocation: true
 
 把已认可的工单发布出去。**怎么发布**取决于 `/setup-matt-pocock-skills` 配置的跟踪器；两种方式下工单本身是一样的，只是阻塞边的形态不同：
 
-- **本地文件** → 在 `.scratch/<feature-slug>/issues/<NN>-<slug>.md` 下，一张工单写一个文件，按依赖顺序从 `01` 开始编号（先写阻塞方）。每个文件的「被谁阻塞」列出它依赖的编号／标题。使用下面的单工单文件模板：一张工单一个文件，绝不要把所有工单合成一个文件。
+- **本地文件（本插件自带的本地 Markdown 后端）** → 写进规格票所在 effort 的 `issues/` 目录：`.scratch/<feature-slug>/issues/<NN>-<slug>.md`，一张工单写一个文件。编号接在该目录现有最大编号之后（规格票已经占了一个号），不要重号。每个文件的「被谁阻塞」列出它依赖的编号／标题。文件头先写两行注释：`<!-- DSH-ISSUE-KIND: ticket -->` 和 `<!-- parentKey: <规格票号> -->`（归属只靠这一行，不写进标记）；正文用下面的模板，另外保留后端读得懂的字段行 `Status: ready-for-agent`、`Blocked by: <NN, NN>`、`Labels: ready-for-agent`。绝不要把所有工单合成一个文件。
 - **真实的议题跟踪器（GitHub、Linear、……）** → 按依赖顺序（先写阻塞方）一张工单发布一个议题，这样每张工单的阻塞边都能引用真实的标识符。平台有原生阻塞／子议题关系就用原生的；没有就把每张工单的「被谁阻塞」设成阻塞它的那些议题。除非另有指示，否则打上 `ready-for-agent` 分诊标签；这些工单在设计上就是 代理可以直接抓取的。
 
 处理**前沿**：凡是阻塞项都已完成的工单。对于一条纯线性的链条，就是从最上面一路做到最下面。
@@ -68,6 +68,8 @@ disable-model-invocation: true
 
 <local-ticket-template>
 
+<!-- DSH-ISSUE-KIND: ticket -->
+<!-- parentKey: <规格票号> -->
 # <NN>: <工单标题>
 
 **要构建什么：** 这张工单让哪段端到端行为真正可用，从用户的视角描述，而不是逐层的实现清单。
@@ -76,10 +78,16 @@ disable-model-invocation: true
 
 **状态：** ready-for-agent
 
+Status: ready-for-agent
+Blocked by: <拦在前面的工单编号，没有就留空>
+Labels: ready-for-agent
+
 - [ ] 验收判据 1
 - [ ] 验收判据 2
 
 </local-ticket-template>
+
+加粗的三行是给人读、也给「标记丢了时靠正文形状认票」兜底用的；它下面那三行字段是本地后端真正读取的真值。两处都要写，值保持一致。
 
 <issue-template>
 
