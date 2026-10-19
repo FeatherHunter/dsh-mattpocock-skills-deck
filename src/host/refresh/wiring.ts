@@ -12,7 +12,8 @@
 //   e 会话↔票工作路线：createWorkRoute() 真的建起来，并把界面读数交给快照回包。
 //
 // 日志：本文件不新增事件。它调到的每一个模块各自记自己那几行（闸的 refresh.decide / refresh.skipped、
-// 账本的 quota.spend、写事件的 write.event、工作路线的链轨迹事件 sessionTickets.chain（事件名沿用旧名，退役归 #1083））。
+// 账本的 quota.spend、写事件的 write.event、工作路线落盘的 workRoute.write / workRoute.read ——
+// 后者由 work-path-store.ts 记，旧的 sessionTickets.chain 已随 #1083 退役）。
 import { createLedger } from './ledger.js'
 import { createGate } from './gate.js'
 import { createWriteEvents } from './writeEvents.js'
@@ -167,7 +168,7 @@ export function createRefreshWiring(deps: any): any {
   // e：会话↔票工作路线。喂数据的是 b 那条订阅（工具结果一到就 note 一笔），读数是下面那个读数。
   // #781：把归一出口递进去，note() 先洗根再算散列（调用方传所选目录原文时与读回侧同格）。
   const workRoute: any = d.workRoute || createWorkRoute({
-    getCacheDir: d.getCacheDir, logCtx: logCtx, canonicalKey: d.canonicalKey,
+    getCacheDir: d.getCacheDir, canonicalKey: d.canonicalKey,
   })
 
   // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）；判定过的那一笔喂给工作路线（note），否则界面恒空。
@@ -404,10 +405,12 @@ export function createRefreshWiring(deps: any): any {
             })
           } catch (e: any) { return null }
         }
-        // #1261：工作路线的新落盘装配（进程启动时装一次，按工作区分账天然多工作区安全）。
-        // 家目录问平台层（与 choiceStore 同一处来）；文件读写走 Node 原生 fs（动态引入，类型包被挡在门外，
-        // 与 platformChannel.ts 那两处 node 引入同一写法）。问不到家目录就给空串——此时每笔记都会在
-        // 回执备注里如实写「没落上」，不静默丢。旧链（上面 chainNote 那条）继续服务被动推断那一路，退役归 #1083。
+        // #1261 建、#1083 加固：工作路线的新落盘装配（进程启动时装一次，按工作区分账天然多工作区安全）。
+        // 家目录问平台层（与 choiceStore 同一处来）；文件读写、改名、日志走 Node 原生 fs 与宿主日志出口
+        // （动态引入，类型包被挡在门外，与 platformChannel.ts 那两处 node 引入同一写法）。
+        // #1083 起写盘是「读-合并-写」，改名前要 rename、每步要记 workRoute.write，所以多递 rename 与 log：
+        // 不递 rename 就退化成直接写正式文件（能写、但没有改名覆盖那层保护），不递 log 就一条不记。
+        // 问不到家目录就给空串——此时每笔记都会在回执备注里如实写「没落上」，不静默丢。
         let workRouteBindings: any = null
         try {
           // @ts-expect-error
@@ -416,9 +419,13 @@ export function createRefreshWiring(deps: any): any {
           try { if (platform && typeof (platform as any).getHome === 'function') workPathHome = String(await (platform as any).getHome() || '') } catch (eH: any) {}
           workRouteBindings = createWorkRouteBindings({
             homeDir: workPathHome, now: Date.now,
-            readFile: function (p: any): any { try { return Promise.resolve(fsPromises.readFile(String(p), 'utf8')).then(function (t: any) { return t }, function () { return null }) } catch (eR: any) { return Promise.resolve(null) } },
+            // 只有「文件不存在」才当没有（回 null，第一次用的正常情况）；权限、占用、盘错等读失败要让
+            // 存储看见 failed（否则会被当成空账静默重写，回执也不说明，workRoute.read 几乎永远不发）。
+            readFile: function (p: any): any { try { return Promise.resolve(fsPromises.readFile(String(p), 'utf8')).then(function (t: any) { return t }, function (eR: any) { if (eR && eR.code === 'ENOENT') return null; throw eR }) } catch (eR: any) { return Promise.reject(eR) } },
             writeFile: function (p: any, t: any): any { return fsPromises.writeFile(String(p), String(t), 'utf8') },
             mkdir: function (dir: any): any { return fsPromises.mkdir(String(dir), { recursive: true }) },
+            rename: function (from: any, to: any): any { return fsPromises.rename(String(from), String(to)) },
+            log: logCtx,
           })
         } catch (eW: any) {}
         const built: any = createDeckToolsForHost({

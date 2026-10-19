@@ -1,7 +1,7 @@
 // tests/verify-1261-work-route-receipt.ts —— #1261：上报一次，回执见在办，盘上有记录。
 //
 // 这扇门只盯 #1261 自己的形状（规格见 #1259 第 1、2、8、9、10 条）：
-//   存储：v3 落盘形状、(会话, 票) 去重、坏文件按空账、缺键诚实失败、写失败内存不动；
+//   存储：v3 落盘形状、(会话, 票) 去重、坏文件按空账重写、缺键诚实失败、写失败不抛只报原因；
 //   读出口：30 天过滤、24 小时现办、30 分钟撞单、空账无摘要、会话只露标签；
 //   壳收口：记/读失败时回执备注写「这次没落上」，不抛、不改其他格。
 // 全程固定时钟 + 临时家目录，同一份真实现（不造假口），跑两次结果一字不差。
@@ -26,6 +26,7 @@ function memFs(home: string) {
     readFile: async (p: string) => { try { return fs.readFileSync(p, 'utf8') } catch { return null } },
     writeFile: async (p: string, c: string) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, c, 'utf8') },
     mkdir: async (dir: string) => { fs.mkdirSync(dir, { recursive: true }) },
+    rename: async (from: string, to: string) => { fs.renameSync(from, to) },
   }
 }
 
@@ -64,12 +65,16 @@ async function main() {
   const noSession = await store.note({ rootKey: rootKey, sessionId: '', ticketKey: '701', action: 'report', source: 'reported' })
   const noTicket = await store.note({ rootKey: rootKey, sessionId: 's-a', ticketKey: '', action: 'report', source: 'reported' })
   check(noRoot.ok === false && noSession.ok === false && noTicket.ok === false, '缺工作区键 / 会话 / 票号都诚实失败（不落盘不抛）')
-  // 坏文件按空账：下一次写入按内存真源重写整份。
+  // #1083 起没有内存真源：读盘每次现读，坏文件当空账，这次写下去就是整份新账（旧内容不再复活）。
   fs.writeFileSync(diskFile, '{ 这不是 JSON', 'utf8')
   const notedAfterBad = await store.note({ rootKey: rootKey, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '702', effortId: '', title: '乙票', action: 'report', source: 'reported' })
-  check(notedAfterBad.ok === true, '盘上文件坏了：当空账处理，这次照样记上')
+  check(notedAfterBad.ok === true && Array.isArray(notedAfterBad.warnings) && notedAfterBad.warnings.length === 1
+    && notedAfterBad.warnings[0].indexOf('读不出来') >= 0, '盘上文件坏了：当空账处理，这次照样记上，并在回执备注里说明')
   const disk3 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
-  check(disk3.v === 3 && disk3.workers[0].entries.length === 2, '坏文件被内存真源重写整份（两条都在）')
+  check(disk3.v === 3 && disk3.workers[0].entries.length === 1 && disk3.workers[0].entries[0].ticketKey === '702',
+    '坏文件被整份重写成只含这一条的新账（旧条目不再复活）')
+  // 把 701 补回来，后面读出口的断言仍按两条算。
+  await store.note({ rootKey: rootKey, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '701', effortId: '', title: '甲票', action: 'report', source: 'reported' })
 
   // ── 二、读出口：窗口、现办、撞单、摘要 ──
   const read1: any = await store.read({ sessionId: 's-a', rootKey: rootKey, at: T0 })
@@ -128,7 +133,7 @@ async function main() {
     { workRouteNote: (i: unknown) => failWrite.note(i), workRouteRead: (i: unknown) => failWrite.read(i), now: () => T0 },
     'deck_issue_report', { sessionId: 's-a', workspaceKey: 'ws-1261', cwd: 'x' }, 'markdown', vFail)
   check(!vFail.data.workRoute && vFail.notes.length === 2 && vFail.notes[0] === '旧备注'
-    && vFail.notes[1].indexOf('工作路线这次没落上') === 0 && vFail.notes[1].indexOf('下一条上报会补上') >= 0,
+    && vFail.notes[1].indexOf('工作路线这次没落上') === 0 && vFail.notes[1].indexOf('下次上报会重新读盘再补上') >= 0,
     '写失败：备注写「这次没落上」，旧备注与其他格不动：' + JSON.stringify(vFail.notes[1]))
   // 非上报工具与失败回执：壳直接跳过，一个字不加。
   const vOther: any = { status: 'ok', data: { key: '701' }, notes: [] }

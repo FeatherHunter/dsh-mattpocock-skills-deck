@@ -315,7 +315,7 @@
   <li><code>src/host/refresh/ledger.js</code>：两个桶的本地账 + 每分钟一次的服务端剩余同步（用那个不扣配额的配额接口）。</li>
   <li><code>src/host/refresh/attention.js</code>：视野模型。持有"当前在看哪个工作区根"，维护活跃集合（≤2），90 秒无信号自动收摊。</li>
   <li>宿主电话 <code>wf.focus</code>：界面在会话切换/面板打开时上报"我在看谁"（一次轻量调用，不是轮询）。</li>
-  <li><code>docs/adr/20260922-refresh-budget-architecture.md</code>：把六条不变量写成 ADR，成为以后改动的判据。</li>
+  <li><code>docs/adr/20260924-refresh-budget-architecture.md</code>：把六条不变量写成 ADR，成为以后改动的判据。</li>
 </ul>
 
 <h3>改造</h3>
@@ -332,7 +332,7 @@
 <h3>新增（第二批：写事件与工具）</h3>
 <ul>
   <li><code>src/host/refresh/writeEvents.js</code>：订阅 DSH 会话事件（<code>ctx.on('session/event', …, { global: true })</code>），只处理三类（<code>tool/call</code>、<code>ptc</code> 派发形态、<code>tools/result</code>），把命中归一成"一次写操作"。<strong>只认成功</strong>；"确定写"立即补行，"可疑动作"只立即发一条探测。先看工具名、再解析命令，其余事件立即返回（性能约束）。</li>
-  <li><code>src/host/refresh/workRoute.ts</code>：会话↔票 的工作路线（数据侧）。键 =（工作区根，后端，票 key）；三个来源＝我们工具的调用参数 / 当前后端的命令行 / markdown 后端的票文件路径；每会话留最近 20 张；内存 + 工作区缓存落盘。</li>
+  <li><code>src/host/refresh/workRoute.ts</code>：会话↔票 的工作路线（数据侧）。键 =（工作区根，后端，票 key）；三个来源＝我们工具的调用参数 / 当前后端的命令行 / markdown 后端的票文件路径；内存 + 工作区缓存落盘。<strong>#1083 起落盘口径已重做</strong>：新存档由 <code>src/deck/shell/work-path-store.ts</code> 写，位置 <code>&lt;home&gt;/.dsh/mattskillsdeck/work-path/&lt;根散列&gt;.json</code>，按（工作区根散列、会话 id 原文、票号）记，不设每会话条数上限、保留 30 天、单文件超 2MB 从旧到新裁；本文件这份旧缓存仍只存散列，随 #1082 退役（见第十二章与 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>）。</li>
   <li><code>src/host/tools/</code>：7 个后端无关的工具（薄壳，坐在 tracker 契约之上）：<code>deck_context</code>、<code>deck_issue_get</code>、<code>deck_map_snapshot</code>、<code>deck_issue_create</code>、<code>deck_map_plan_create</code>、<code>deck_map_link</code>、<code>deck_issue_patch</code>；内部代码<strong>直接调用同一批实现函数</strong>，不绕工具层。</li>
 </ul>
 
@@ -438,18 +438,20 @@
 
 <h2><span class="num">增补·第十二章</span>会话与票：工作路线（数据侧）</h2>
 <p class="section-intro">"UI 能看到每个会话在处理哪些票"——这一章只定<strong>数据侧</strong>；展示面（画在哪、怎么画）另立一票，等工具做好之后再谈。</p>
+<p class="note"><b>2026-10-19 口径更新（#1083）</b>：本章是 2026-09-22 的设计稿，其中五处已按落地结果更正——① 落盘位置改成 <code>&lt;home&gt;/.dsh/mattskillsdeck/work-path/&lt;根散列&gt;.json</code>，一个工作区一份；② 键改成（工作区根散列，会话 id 原文，票号），后端名记在账里、换后端时旧文件改名留档；③ 不再设每会话条数上限，改成保留 30 天、单文件超 2MB 从旧到新裁，写前读-合并-写、写临时文件再改名、最后读回确认；④ 隐私从「只存散列」改成「字段白名单 + 凭证形状检查」，会话 id 原文与两个标题快照允许落盘；⑤ 新存档只在 deck 工具成功收口时记一笔，旧宿主缓存那一路仍从命令行与票文件路径解析。旧宿主缓存 <code>session-tickets.json</code> 仍在写、仍只存散列，随 #1082 退役。判据与字段清单见 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>。</p>
 <section class="comp">
   <div class="comp-head"><span class="id">07</span><h3>这张工作路线怎么记</h3><span class="tag">新需求</span></div>
   <div class="comp-body">
-    <div class="field"><p class="label">键</p><p class="body"><code>（工作区根，后端，票 key）</code>——三个后端同形：github 的 key 是数字串、markdown 是编号、gitlab 是 iid。所以这张表的结构不随后端变。</p></div>
+    <div class="field"><p class="label">键</p><p class="body"><code>（工作区根散列，会话 id 原文，票号）</code>——2026-10-19 起按落地结果更正（原来记的是「工作区根，后端，票 key」）。后端名记在账里 <code>backend</code> 字段，换后端时旧文件改名留档；三个后端的票号同形：github 是数字串、markdown 是编号、gitlab 是 iid，所以这张表的结构不随后端变。</p></div>
     <div class="field"><p class="label">三个来源</p><p class="body">
+      （#1083 起新存档只记「工具成功收口」这一路；下面的命令行与票文件路径两个来源仍服务未退役的旧宿主缓存。）<br>
       <span class="pill hot">最准</span>我们自己的工具调用——参数里直接带着票号；<br>
       <span class="pill">其次</span>当前后端的命令行——github 是 <code>gh</code>、gitlab 是 <code>glab</code>，从命令行解析票号；<br>
       <span class="pill">本地特有</span>markdown 后端里 AI 常常直接读写票文件，那就从文件路径解析编号（如 <code>0012-xxx.md</code>）。
     </p></div>
     <div class="field"><p class="label">只记什么</p><p class="body">只记<strong>写操作与明确的处理动作</strong>；"顺手看一眼"（读）不进链——否则链会被噪音灌满，看起来像在处理十张票。读可以单独记"最近看过"，但那是另一件事。</p></div>
-    <div class="field"><p class="label">留存</p><p class="body">每个会话留最近 <b>20 张</b>（去重、按时间倒序）；内存 + 工作区缓存落盘（照命名守护的做法），重启不丢。超过 20 张的旧记录丢弃。</p></div>
-    <div class="field"><p class="label">隐私与日志</p><p class="body">落盘只存"票 key + 时间 + 动作类别"，不存命令原文、不存令牌、不存路径原文（与仓库日志纪律同口径）；插件日志里只记"识别到一次写操作"这个事实与类别。</p></div>
+    <div class="field"><p class="label">留存</p><p class="body">不设每会话条数上限；保留 30 天，超过 30 天的条目在下一次写入时清掉；单文件仍超过 2MB 时从旧到新裁到 2MB 以下。写前读-合并-写：先读旧文件，形状不认识或解析失败就当空账处理并记日志；按会话与票号合并后写临时文件、改名覆盖，最后读回一次确认能解析。换后端时旧文件改名成 <code>&lt;根散列&gt;.&lt;旧后端&gt;.json</code> 留档、不再读，按新后端重新开始。写失败不抛错，回执的 notes 说明这次没落上；这次整份不写盘，盘上保留上一次成功写入的内容，下一次写入会重新读盘再合并、重新检查，通过时自然补齐。</p></div>
+    <div class="field"><p class="label">隐私与日志</p><p class="body">落盘走两步检查：<b>字段白名单</b>（只认 <code>v</code>、<code>at</code>、<code>backend</code>、<code>workers</code>、<code>session</code>、<code>label</code>、<code>labelAt</code>、<code>entries</code>、<code>ticketKey</code>、<code>effortId</code>、<code>title</code>、<code>action</code>、<code>actionAt</code>、<code>source</code>、<code>progress</code> 这十五个名字）加 <b>凭证形状检查</b>（每个字符串值扫令牌、口令、授权头、私钥、带凭据 URL 的形状，命中就整份不写）。允许落盘：会话 id 原文、会话标题快照、票标题快照、票号、工作单元、动作、来源、时间、进度自评、后端名——会话 id 与标题是面板显示人读得懂的名字的前提。凭证原文永不落盘；命令原文与路径原文不作为字段来源。旧宿主缓存 <code>session-tickets.json</code> 仍只存散列与键（它没有标题字段，「含空白即拒绝」的旧自检仍成立），随 #1082 退役；两代并存的原因与边界见 ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>。插件日志只记落盘与读取失败的事实、结果、条数与原因代号（<code>workRoute.write</code> / <code>workRoute.read</code> 里的 <code>why</code> 与 <code>detail</code>：失败原因代号加字段路径，不带被拦下的值），不记字段内容。</p></div>
 <div class="field"><p class="label">订阅入口的硬约束</p><p class="body">事件订阅的面是<strong>整个 DSH</strong>，而且平台侧<strong>不存在任何隔离开关</strong>——真机实测确认：跨会话、跨工作区、跨子代理的 <code>tool/call</code> 全部会到达；会话的载体键全是 <code>undefined</code>，连"给自己的监听器打上工作区标"也不过滤，<code>{ global: true }</code> 与隔离无关。所以隔离只能<strong>我们自己实现</strong>：维护一份 <code>sessionId → 工作区根散列</code> 的白名单，按 id 放行，而不是每条事件现场重算路径。<b>决定为这条事件做任何事之前</b>先过这道门（含日志、含内存表、含工作路线落盘）；<strong>参数只做瞬时匹配，绝不写进日志、绝不落盘、绝不回给界面。</strong></p></div>
     <div class="field"><p class="label">根从哪来</p><p class="body">会话对象上没有现成的工作区根，但有 <code>session.header.cwd</code>（绝对路径，DSH 侧强制）。所以根由我们自己算——<strong>归一化口径必须与 DSH 的 <code>canonicalKey</code> 对齐</strong>（Windows 的大小写、尾斜杠、联接点差异），否则同一个根会被算成两个，白名单就失效。</p></div>
   </div>
@@ -492,7 +494,7 @@
     <tr><td class="num">7</td><td>工具若不从会话上下文取工作区，就只能猜进程目录——父子目录各开一个会话时会静默写错仓库</td><td>工具一律从会话取工作区；<code>deck_context</code> 回显解析到的工作区根与仓库；工作区与仓库不许当参数传</td></tr>
     <tr><td class="num">8</td><td>工具注册面对所有会话常驻 7 份 schema，提示词成本付给不碰工单的会话</td><td>描述压到一句话，详细语义放进 <code>deck_context</code> 的返回值（编辑纪律）</td></tr>
     <tr><td class="num">9</td><td>写后立刻读会命中 5 秒 TTL 的旧缓存，AI 以为没写成功、再写一次</td><td>写路径显式失效该票缓存；写工具返回值就是写后真状态（落地清单第三批）</td></tr>
-    <tr><td class="num">10</td><td>工作路线会串台：票键各后端不通用、同根多会话互相覆盖、落盘若带原始路径就违反日志纪律</td><td>键含会话 id + 后端 + 仓库散列；按会话分片；落盘只存散列与键（第十二章）</td></tr>
+    <tr><td class="num">10</td><td>工作路线会串台：票键各后端不通用、同根多会话互相覆盖、落盘若带原始路径就违反日志纪律</td><td>键含会话 id 原文 + 票号，文件按工作区根散列一份；按会话分条；落盘走字段白名单加凭证形状检查，命令原文与路径原文不进存档（ADR <code>docs/adr/20261019-work-route-archive-privacy.md</code>，第十二章）；旧宿主缓存仍只存散列，随 #1082 退役</td></tr>
     <tr><td class="num">11</td><td>返回码承诺要写死，否则"用可用方式建立了关系"会被 AI 当成"已建立层级"</td><td>三态 <code>ok</code> / <code>partial</code> / <code>unsupported</code>，部分成功逐项列出；工具永不抛异常（否则 AI 退回流熟悉的 <code>gh</code>，两条写路径同时开火）</td></tr>
     <tr><td class="num">12</td><td>事件订阅与工作路线都是新的常驻活，日志契约要跟上</td><td>新事件进 <code>research/489-appendix.md</code> 对照表，字段只用白名单子集，跑通三條 <code>verify-log-*</code> 检查</td></tr>
   </tbody>

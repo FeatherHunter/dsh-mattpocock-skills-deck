@@ -1,6 +1,6 @@
 // verify-log-fields.ts —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.ts，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令））；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053：103 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083：105 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -282,10 +282,16 @@ const ALLOWED = {
   //   都只记枚举、散列与数字：心跳每 20 秒一次，所以上报那条按十取一采样。
   'attention.report': ['kind', 'windowHash', 'rootHash', 'visible', 'accepted'],
   'attention.sweep': ['active', 'keep', 'cancel', 'linger', 'collaped', 'keepers'],
-  // 2026-09-23 #714（T10）新增一条常驻事件（附录 1.4 节 #80）：会话↔票 工作路线自己产生的轨迹 ——
-  //   一次写记进了哪个会话的链、这一次落盘成没成、重启后从落盘读回了没有。只记两个散列、三个枚举与一个数字，
-  //   不记路径原文、不记命令原文、不记票标题；读那一路一条都不记（顺手看一眼不进链，所以这一族不会刷屏）。
-  'sessionTickets.chain': ['sidHash', 'rootHash', 'kind', 'ok', 'action', 'count'],
+  // 2026-10-19 #1083：旧链那条常驻 #80 sessionTickets.chain 退役 —— 工作路线整套换成新的存档之后，
+  //   旧链落盘那一路不再发日志，换成下面两条常驻（附录 1.4 节 #110、#111）。写这一侧一趟一行：
+  //   记一笔进链、把整份写盘、写后读回核对、按保留期与体积裁旧，四类 kind 各一处；
+  //   读这一侧只在读盘失败那一档记一行（文件不存在是第一次用的正常情况，不记）。
+  //   why 是失败原因的短代号（rename-unavailable / rename-failed / privacy / write-failed /
+  //   readback-bad / read-failed / threw，成功是空串）；detail 是给人指的简短说明 —— 隐私命中时是
+  //   「$.workers[0].entries[0].title：像 GitHub 令牌」这种字段路径加原因，别的时候是错误类名或空串，
+  //   被拦下的值本身一个字符都不进日志。count 除 prune 是裁掉的条数外，都是本会话条数。
+  'workRoute.write': ['sidHash', 'rootHash', 'kind', 'ok', 'action', 'count', 'why', 'detail'],
+  'workRoute.read': ['sidHash', 'rootHash', 'ok', 'why', 'detail'],
   // 2026-09-23 #710（T6 第二批）新增一条按需事件（附录 1.5 节 #81 `write.event`）：写事件订阅自己产生的轨迹 ——
   //   一次成功的工具调用被判成哪一档、凭什么判的、接下来要做什么、票号认没认出来、从哪条订阅路来的。
   //   只记一个散列、三个枚举与一个布尔：**命令原文一个字都不记**（参数只做瞬时匹配），也不记票号本身。
@@ -477,7 +483,7 @@ function collectCalls() {
 const found = collectCalls()
 const names = Object.keys(found).sort()
 
-// 一、允许表里每个事件都有埋点落点（允许表 104 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 3 个不在源码里）。
+// 一、允许表里每个事件都有埋点落点（允许表 105 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
 // #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
 // 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
 if (!found['update.install.exec']) {
@@ -492,14 +498,14 @@ if (!found['update.install.exec']) {
   } catch {}
 }
 // 这一段必须留在上面的 if 之外：发射器今天在已安装的更新包里，条件为真时才会走进上面的委托核对；
-// 哪天发射器搬回本仓，found['update.install.exec'] 直接有值，这 104 条存在性断言仍然要一条不少地跑。
+// 哪天发射器搬回本仓，found['update.install.exec'] 直接有值，这 105 条存在性断言仍然要一条不少地跑。
 for (const name of Object.keys(ALLOWED).sort()) {
   check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
 }
 for (const name of names) {
   if (!ALLOWED[name]) check(false, '未知事件名须先更新附录与本门禁 ' + name + ' @ ' + found[name].sites.slice(0, 3).join('、'))
 }
-check(!found['issuePath.push'] && !found['issuePath.record'], '已退役两事件无埋点残留（issuePath.push、issuePath.record 只在附录追溯）')
+check(!found['issuePath.push'] && !found['issuePath.record'] && !found['sessionTickets.chain'], '已退役事件无埋点残留（issuePath.push、issuePath.record、sessionTickets.chain 只在附录追溯）')
 
 // 二、每个事件的实际字段键都在允许表内（只许少记、不过多记）。
 for (const name of Object.keys(ALLOWED).sort()) {
