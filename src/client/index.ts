@@ -46,9 +46,27 @@
  * 本文件内容 = cordis_define 的 code.client（纯 JS 函数体，返回 Cordis Plugin）。
  */
 
+// 本文件由同名 .js 转写为 TypeScript（#1254 收口三份根文件之一）：只加类型标注与中文注释，
+//   逻辑、分支条件、字符串、数字、对象键与次序、函数名与导出名一字未改，行为零变化。
+// 两条不能再改的约定：①模块说明符仍写 .js（scripts/ts-hook.mjs 会把 .js 改指同目录同名 .ts）；
+//   ②写法限「可剥离的 TypeScript」——不用 enum、不用构造函数参数属性，因为测试链路上 Node 只删类型、不做语法转换。
+// 下面这些名字本文件里没有 import、也不是本文件定义的：它们由构建按 scripts/build.mts 的次序，
+//   把各叶子拼进同一个函数作用域后提供（真机上有值），或由构建注入版本号占位。类型检查时本文件是独立看的，
+//   所以这里只声明形状、不参与转译：declare 是纯类型语法，esbuild 转译时会整句删掉，产物里不留痕。
+declare const styles: any;
+declare const STYLE_TEXT: any;
+declare const VC_STYLE_TEXT: any;
+declare const PIXEL_STYLE_TEXT: any;
+declare const FEEDBACK_STYLE_TEXT: any;
+declare const PIXEL_CARDS_STYLE_TEXT: any;
+declare const L: any;
+declare const SKILLS: any;
+declare const __DSW_VERSION__: any;
+declare const __DSW_REPO_URL__: any;
+
 // ===== 规范方言（dynamic dialect）：host/styles/React/timer 为自由变量；pkg entry 提供 shim =====
 export default {
-  apply(ctx) {
+  apply(ctx: any) {
     const slots = ctx.get('slots')
     if (slots === undefined) return
     // ==== leaf:hostShim (spliced by build) ====
@@ -108,9 +126,9 @@ export default {
     // tr：locale 绑定（稳定引用，调用时读当前语言；命名 tr 避免与票务参数 t 冲突）；服务缺失时退化 zh 字典（与 locale 同语义：{name} 参数替换）
     const tr = (localeSvc && typeof localeSvc.bind === 'function')
       ? localeSvc.bind('dsws')
-      : function (key, params) {
+      : function (key: any, params: any) {
           let s = (L.zh[key] !== undefined) ? L.zh[key] : key
-          if (params) s = s.replace(/\{(\w+)\}/g, function (m, name) { return name in params ? String(params[name]) : m })
+          if (params) s = s.replace(/\{(\w+)\}/g, function (m: any, name: any) { return name in params ? String(params[name]) : m })
           return s
         }
 
@@ -121,7 +139,7 @@ export default {
     // ==== shared:mattSkills (spliced by build) ====
     // #fix-banner：动态占位供 installSkills prompt 使用；probeList/probeCount 由 SKILLS 派生（与 host MATT_SKILL_PROBE_NAMES 同源）
     const installSkillsParams = function () {
-      const names = (Array.isArray(SKILLS) ? SKILLS : []).map(function (s) { return s && s.name }).filter(Boolean)
+      const names = (Array.isArray(SKILLS) ? SKILLS : []).map(function (s: any) { return s && s.name }).filter(Boolean)
       return { probeList: names.join(' / '), probeCount: String(names.length) }
     }
     const TYPE_SKILLS = {
@@ -312,7 +330,7 @@ export default {
 
     const TABS_FOLD_HYST = 4
     const TABS_LEVELS = 3
-    const tabsLevelDecide = function (level, avail, nats) {
+    const tabsLevelDecide = function (level: any, avail: any, nats: any) {
       if (!Array.isArray(nats) || !nats.length) return 0
       let cur = level < 0 ? 0 : level
       while (cur < nats.length - 1 && nats[cur] > avail + 1) cur++
@@ -321,7 +339,7 @@ export default {
     }
     // issue#15 修复：scrollWidth 会被容器宽度钳制（容器宽于内容时 scrollWidth===clientWidth），
     // 导致折叠后展开判定 avail>=nats[cur-1]+4 永不成立（死锁）。改测内容 children 的真实横跨宽。
-    const measureContentWidth = function (t) {
+    const measureContentWidth = function (t: any) {
       if (!t || !t.children || t.children.length === 0) return 0
       const tr = t.getBoundingClientRect()
       let minX = Infinity, maxX = -Infinity

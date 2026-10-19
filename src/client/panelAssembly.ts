@@ -1,25 +1,64 @@
 /**
- * client/panelAssembly.js —— 面板装配（从 index.js 拆出，#459，纯结构、行为零变化）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
+ * client/panelAssembly.ts —— 面板装配（从 index.js 拆出，#459，纯结构、行为零变化）
+ * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
+ * src/client/index.ts 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
  * 以后谁改它：改面板装配流程（Ctx 装配、插槽注册、启动收尾）的人改它。
  * 接线：本文件只用闭包已有名字（createCx/DswsCtx/RDOM/store/路由/叶子组件/slots），不引用其他新文件。
  */
+
+// 本文件由同名 .js 转写为 TypeScript（#1254 收口三份根文件之一）：只加类型标注与中文注释，
+//   逻辑、分支条件、字符串、数字、对象键与次序、函数名与导出名一字未改，行为零变化。
+// 两条不能再改的约定：①模块说明符仍写 .js（scripts/ts-hook.mjs 会把 .js 改指同目录同名 .ts）；
+//   ②写法限「可剥离的 TypeScript」——不用 enum、不用构造函数参数属性，因为测试链路上 Node 只删类型、不做语法转换。
+// 下面这些名字本文件里没有 import、也不是本文件定义的：它们由构建按 scripts/build.mts 的次序，
+//   把各叶子拼进同一个函数作用域后提供（真机上有值）。类型检查时本文件是独立看的，所以这里只声明形状、
+//   不参与转译：declare 是纯类型语法，esbuild 转译时会整句删掉，产物里不留痕。
+declare const createCx: any;
+declare const DswsCtx: any;
+declare const RDOM: any;
+declare const shared: any;
+declare const stores: any;
+declare const makeStore: any;
+declare const storeOf: any;
+declare const emit: any;
+declare const sub: any;
+declare const useStore: any;
+declare const localeSvc: any;
+declare const timer: any;
+declare const ctx: any;
+declare const h: any;
+declare const slots: any;
+declare const StatusBar: any;
+declare const RunPanel: any;
+declare const SettingsPage: any;
+declare const DeckSidebarTab: any;
+declare const DeckNativeTabTitle: any;
+declare const tr: any;
+declare const openPanel: any;
+declare const togglePanel: any;
+declare const host: any;
+declare const loadSnapshot: any;
+declare const startNamingGuardianEvents: any;
+declare const reconcileLogSwitch: any;
+declare const DECK_NATIVE_TYPE_ID: any;
+declare const DECK_NATIVE_TAB_KIND: any;
+declare const Ic: any;
+declare const NATIVE_TAB_RETRY_INTERVAL_MS: any;
     // ============================================================
     // 5.11 Ctx 接线（阶段 2 步骤 1 · #95）：建 cx 单例 + Provider 包住渲染树（行为零变化）
     // ============================================================
-    // DswsCtx / createCx 由构建从 src/client/kernel/ctx.js 注入本闭包顶部（双产物同构 · seam 同模式）。
+    // DswsCtx / createCx 由构建从 src/client/kernel/ctx.ts 注入本闭包顶部（双产物同构 · seam 同模式）。
     // cx = { ctx, h, rdom, storeSvc, localeSvc, timer, api, router }（G3 冻结清单 8 字段 · #91 拍板）。
     // 宿主 slots 无全局 wrapper API（实查 dsh-client-ui-slots 0.1.0-rc.7 仅 register/inject），
     // 故 Provider 包在每个插槽组件注册处（渲染树顶层 = 组件根）；T4（#97）后叶子组件经
     // React.useContext(DswsCtx) 消费 cx（h/storeSvc 等），渲染输出与接线前一致（verify-* 全绿证明）。
-    export const apiCall = function (endpoint, args) {
+    export const apiCall = function (endpoint: any, args: any) {
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
         return Promise.reject(new Error('host.call 不可用（Host 半未加载）'))
       }
       return host.call(endpoint, args)
     }
-    export const cx = createCx({
+    export const cx: any = createCx({
       ctx: ctx,
       h: h,
       rdom: RDOM,
@@ -30,8 +69,8 @@
       router: { open: openPanel, toggle: togglePanel },
     })
     // Provider 包装器：任意深度组件都可 useContext(DswsCtx) 取 cx；props 原样透传
-    export const withCx = function (Comp) {
-      return function (props) {
+    export const withCx = function (Comp: any) {
+      return function (props: any) {
         return h(DswsCtx.Provider, { value: cx }, h(Comp, props))
       }
     }
@@ -40,12 +79,12 @@
     // 6. 插槽注册（#298 幂等：每个槽位只注入一次，二次 apply/HMR 不增生）
     // ============================================================
     // 模块级闸门：每个槽位仅注入一次；卸载时经 ctx.effect 复位，允许重装后重注
-    export const __slotOnce = {}
-    export const __slotDisposers = {}
-    export const __injectOnce = function (slotName, factory) {
+    export const __slotOnce: any = {}
+    export const __slotDisposers: any = {}
+    export const __injectOnce = function (slotName: any, factory: any) {
       if (__slotOnce[slotName]) return
       __slotOnce[slotName] = true
-      let disp = null
+      let disp: any = null
       try {
         slots.inject(slotName, function () {
           try {
@@ -100,7 +139,7 @@
     //   2026-09-21：原来另有一条路 —— 把面板类型交给 dsh-better-sidebar，由它开、它管。那条已整段删除：
     //   那个插件把面板画进的是同一列，于是原生右栏的引导页里出现两枚同名入口（用户看到「两个 MattSkills」）。
     //   删掉之后本插件不再依赖任何第三方插件，面板只有这一条路。
-    export let nativeTabDisposer = null
+    export let nativeTabDisposer: any = null
     export const registerNativeTabType = function () {
       if (nativeTabDisposer) return true
       const tabs = ctx.get('sidebarRightTabs')
@@ -121,7 +160,7 @@
     export const registerNativeTabSlots = function () {
       if (!nativeTabDisposer) return false  // 类型没注册上就不注册内容体，避免留下半截注册
       __injectOnce('sidebar.right.pane.tab', function () {
-        return slots.register({ name: 'sidebar.right.pane.tab', key: DECK_NATIVE_TYPE_ID, inject: function (sessionId) { return { sessionId: sessionId } } }, withCx(DeckSidebarTab))
+        return slots.register({ name: 'sidebar.right.pane.tab', key: DECK_NATIVE_TYPE_ID, inject: function (sessionId: any) { return { sessionId: sessionId } } }, withCx(DeckSidebarTab))
       })
       __injectOnce('sidebar.right.pane.tab.title', function () {
         return slots.register({ name: 'sidebar.right.pane.tab.title', key: DECK_NATIVE_TYPE_ID }, withCx(DeckNativeTabTitle))
@@ -147,7 +186,7 @@
       }
     }, 'dsh-mattpocock-skills-deck: native right sidebar tab')
 
-    // #490 client 日志底座：开关启动对账（本地秒显已在 log.js 顶层同步完成；
+    // #490 client 日志底座：开关启动对账（本地秒显已在 log.ts 顶层同步完成；
     //   此处再向宿主读开关，以宿主为准；宿主不可用就保持本地值，不阻断启动）。
     try { if (typeof reconcileLogSwitch === 'function') reconcileLogSwitch() } catch (e) {}
     // #347：加载真数据快照（repo 链接 + 前置检测兜底），失败静默

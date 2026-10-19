@@ -4,9 +4,6 @@
   "recordedAt": "2026-10-15",
   "note": "手写 JavaScript 文件清单（git 非忽略集里 src/、tests/、scripts/ 下的 .js/.mjs/.cjs，排除 scripts/generated/ 与 package/ 两个派生目录）。只许减不许增：名单里少一个文件是正常进展（摸到谁转谁）；多一个文件必须当场解释清楚，确有必要（例如给门禁造 .js 夹具、新增一个工具配置文件）就重录本文件并把理由写进提交信息。这份名单与仓库现状必须一一对应：2026-10-15（#1154）把当时积下的 130 条失效路径删干净了（旧路径 src/host/tracker/backends/ 63 条、其余 67 条是早已转换或删除的文件）；同日起 scripts/typecheck.mts 会对「名单里还留着仓库里找不到的路径」判红，所以以后转换完要顺手删掉那一行，别再让它躺在这里。",
   "files": [
-    "src/client/hostShim.js",
-    "src/client/index.js",
-    "src/client/panelAssembly.js",
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js"
