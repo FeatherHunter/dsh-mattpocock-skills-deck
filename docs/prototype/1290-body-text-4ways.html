@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>原型 #1290 · 主体文本重新设计：四个方向</title>
+<title>原型 #1290 · 主体文本第二轮：换一条轴</title>
 <style>
 :root{--bg:#0c0e12;--card:#10131a;--border:#2a2d35;--txt:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
   --purple:#c084fc;--blue-text:#93c5fd;--amber:#f59e0b}
@@ -19,7 +19,6 @@ body{margin:0;background:var(--bg);color:var(--txt);
 section{margin-bottom:32px}
 h2{font-size:15px;margin:0 0 4px;display:flex;align-items:baseline;gap:9px}
 h2 .tag{font-size:11px;color:var(--cap);font-weight:400;border:1px solid var(--border);border-radius:20px;padding:1px 9px}
-h2 .pick{font-size:11px;color:var(--amber);font-weight:400}
 .sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:1040px}
 .sub b{color:var(--txt)}
 .opt{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
@@ -39,46 +38,46 @@ td.p{color:var(--purple)} td.b{color:var(--blue-text)}
 </head>
 <body>
 <div class="page-head">
-  <h1>主体文本重新设计：四个方向</h1>
-  <p>前一版的思路整体作废：不再在「做法 + 产物」这一条路上挑措辞，也不再在「心里话 / 开场白 / 处境加后果」那三个框架里挑。下面的四个方向给主体文本的是<b>四个不同的职责</b>，不是同一句话的四种写法。</p>
-  <p>为了能横向比，<b>只换主体文本这一块</b>：眉标（探索地图 / 实施地图）、状态句（目标大而模糊 / 目标明确清晰）、左上角那幅地图、底部那条技能链、卡片骨架与配色全部照旧。</p>
-  <p>四个方向各自回答的问题：<b>一 · 对话</b>——这路会问我什么；<b>二 · 分工</b>——你做什么、它做什么；<b>三 · 准备</b>——我得带上什么才能走；<b>四 · 形态</b>——这路长什么样。</p>
+  <h1>主体文本第二轮：换一条轴</h1>
+  <p>上一轮四个方向（对话、分工、准备、形态）换汤不换药：它们都还在讲「<b>这条路会怎么做</b>」。而这一条轴上已经有人了——底部那条技能链讲的就是怎么做，上面那句状态句讲的是「我的目标清不清楚」。所以再换措辞也还是老版本的变种。</p>
+  <p>这一轮换轴：<b>主体文本不再讲流程，也不再讲目标清不清楚</b>，改讲卡上还没被占掉的四件事——<b>走这条路是什么体感</b>、<b>这工具不替你干什么</b>、<b>你会先遇到哪一句</b>、<b>这路的代价是什么</b>。四个方向的句子形态也各不相同：有的写感觉，有的划边界，有的给例句，有的说代价。</p>
+  <p>为了能横向比，<b>只换主体文本这一块</b>：眉标、状态句、左上角那幅地图、底部那条技能链、卡片骨架与配色全部照旧。</p>
 </div>
 
 <div class="wrap">
   <section>
-    <h2><span class="tag">一</span>对话 · 这路会问我什么</h2>
-    <p class="sub">主体文本不描述步骤，改成<b>把这条路将来怎么对你说话说出来</b>：它来问你，问的是哪件事。两张卡的第一句就能分开——「会分头问你」对「会照着文档问」。</p>
+    <h2><span class="tag">一</span>体感 · 走这条路是什么感觉</h2>
+    <p class="sub">不写步骤，写<b>你在这条路上会被怎样对待</b>。探索这边是「想到哪说到哪，不用先想好」——它不要求你先整理出个头绪；实施这边是「一条条对着文档，每句都有出处」——它不让你凭空拍板。</p>
     <div class="opt" id="way1"></div>
   </section>
 
   <section>
-    <h2><span class="tag">二</span>分工 · 你做什么、它做什么</h2>
-    <p class="sub">主体文本只画<b>人和工具的边界</b>：哪一段是你的活，哪一段是它的活。排在卡上是两色——「你……」用卡色淡一档，「它……」用灰，一眼能看出活落在谁身上。</p>
+    <h2><span class="tag">二</span>边界 · 这工具不替你干什么</h2>
+    <p class="sub">主体文本只说<b>不做什么</b>，一句都不推销。这是反着来的：卡上写「它不替你做决定，也不替你写代码」「它不猜你没想到的，只问文档里没定的」，先划清工具的边界，再让用户自己判断要不要用。</p>
     <div class="opt" id="way2"></div>
   </section>
 
   <section>
-    <h2><span class="tag">三</span>准备 · 我得带上什么才能走</h2>
-    <p class="sub">主体文本回答<b>开始之前手上该有什么</b>：探索这条路几乎不用准备，实施这条路要带一份文档。这条直接对着「我什么都没有，能不能开始」这个顾虑。</p>
+    <h2><span class="tag">三</span>示例 · 你会先遇到的那一句</h2>
+    <p class="sub">主体文本直接给<b>这路上会先问你的那一句话</b>，当成一句真问话来排（问句用卡色，前面的引导词用灰）。用户读到的不是介绍，是「我马上要回答的问题」，可以据此判断自己要不要走这条路。</p>
     <div class="opt" id="way3"></div>
   </section>
 
   <section>
-    <h2><span class="tag">四</span>形态 · 这路长什么样</h2>
-    <p class="sub">主体文本用文字把<b>卡上那幅图画的东西再说一遍</b>：一条路分成三条岔路，每条尽头一个问号；一条直线一路问到盖章。</p>
+    <h2><span class="tag">四</span>实话 · 这路的代价</h2>
+    <p class="sub">主体文本<b>先认代价</b>：探索可能要绕很久，也可能还是没定；实施多半要吵几轮，吵完才算定下来。不打鸡血，如实说这条路会费什么。</p>
     <div class="opt" id="way4"></div>
   </section>
 
   <section>
     <h2><span class="tag">对照</span>四个方向放在一起比</h2>
     <div id="cmp"></div>
-    <p class="hint">我的倾向是<b>方向一（对话）</b>：它同时把两件事说了——这条路是来问我的（这层心理准备最有分量），以及问的是什么（分头问 / 照着文档问，两张卡开头就分得开）。<b>方向二（分工）</b>是第二选择，它把「决定权在你手上」这件事摆得最清楚，但要引入两色排版。方向三只对新用户有用；方向四跟插图重复，是四个里最弱的。</p>
+    <p class="hint">这一轮我最倾向<b>方向三（示例）</b>：它最具体，两张卡一读就分得开，而且它不推销——把马上要面对的问题摊给用户看，用户自己判断。方向一（体感）排在第二，它给两张卡都是好话，读着舒服，但「对着文档」那句还是有点像在讲做法。方向二（边界）与方向四（实话）诚实，但容易让产品显得心虚：卡上先说自己不干什么，用户会迟疑「那它到底干什么」。</p>
   </section>
 
   <section>
     <h2><span class="tag">待定</span>挑完之后要做的事</h2>
-    <p class="sub">选一个方向（或指定混搭，比如「一 + 三」），我把它并进 <code>docs/prototype/1290-entry-two-maps.html</code> 的真实入口浮层，刷新截图，并同步 #1290 与 #1297 票面上的卡面文案。</p>
+    <p class="sub">选一个方向（或指定混搭），我把它并进 <code>docs/prototype/1290-entry-two-maps.html</code> 的真实入口浮层，刷新截图，并同步 #1290 与 #1297 票面上的卡面文案。上一轮写进这两张票的文案已经在评论里标了作废，等这边定下来再一次性改写票面正文。</p>
   </section>
 </div>
 
@@ -222,30 +221,29 @@ function cardFinal(kind,lines){
 }
 var GRAY="#a1a1aa";
 function plain(t){ return [[{t:t,c:GRAY}]]; }
-function split2(a,b,accent){ return [[{t:a,c:accent},{t:b,c:GRAY}]]; }
 
-/* 四个方向：每个方向给主体文本一个不同的职责，措辞按这个职责重写 */
+/* 第二轮：四个方向各自换掉一句话的形态——感觉、边界、例句、代价 */
 var WAYS=[
-  {id:"way1", name:"对话", q:"这路会问我什么",
-   e:[[{t:"会分头问你：每条路上，",c:GRAY}],[{t:"到底要什么。",c:GRAY}]],
-   i:[[{t:"会照着文档问：哪条",c:GRAY}],[{t:"还没定、怎么定。",c:GRAY}]],
-   strong:"把「AI 会来盘问我」这件心理上最重的事说了出来；两张卡第一句就分得开（「会分头问你」对「会照着文档问」）。",
-   weak:"像说明书；「会分头问你」不常这么说话，用户要愣一下才懂。"},
-  {id:"way2", name:"分工", q:"你做什么、它做什么",
-   e:[[{t:"你决定要什么，",c:"#d8b4fe"}],[{t:"它把每个岔路口问到底。",c:GRAY}]],
-   i:[[{t:"你拍板怎么做，",c:"#bfdbfe"}],[{t:"它写成能开工的票。",c:GRAY}]],
-   strong:"把人和工具的边界画出来：决定权在人，执行在它。两色排版把分工直接画在字上。",
-   weak:"「你决定要什么」听着像把活推回给用户；两色是额外的视觉复杂度，第二张卡也容易读成两句话。"},
-  {id:"way3", name:"准备", q:"我得带上什么才能走",
-   e:[[{t:"一句说不清的想法，",c:GRAY}],[{t:"剩下的它现场问。",c:GRAY}]],
-   i:[[{t:"一份手边的文档，",c:GRAY}],[{t:"没定的地方就是题。",c:GRAY}]],
-   strong:"对着新用户最实际的那个顾虑：什么都没有能不能开始。探索几乎零门槛、实施要带文档，一句话就把差别讲了。",
-   weak:"只对新用户有用，老用户看第二遍没有新信息；实施那条还可能让人误以为没有文档就开不了。"},
-  {id:"way4", name:"形态", q:"这路长什么样",
-   e:[[{t:"一条路分成三条岔路，",c:GRAY}],[{t:"每条尽头一个问号。",c:GRAY}]],
-   i:[[{t:"一条直线一路问到底，",c:GRAY}],[{t:"答完就盖章。",c:GRAY}]],
-   strong:"文字版的空间模型，最直观；和卡上那幅图互相印证，不用懂「探索地图 / 实施地图」这些词也能懂。",
-   weak:"和左上角那幅图重复——图已经画了；换一张图就得改文案。四个方向里最弱。"}
+  {id:"way1", name:"体感", q:"走这条路是什么感觉",
+   e:[[{t:"想到哪说到哪，",c:GRAY}],[{t:"不用先想好。",c:GRAY}]],
+   i:[[{t:"一条条对着文档，",c:GRAY}],[{t:"每句都有出处。",c:GRAY}]],
+   strong:"写的是在这条路上会被怎样对待，不是流程：探索不要求你先整理出头绪，实施不让你凭空拍板。",
+   weak:"离上一轮最近——「对着文档」这句还是有点像在讲做法。"},
+  {id:"way2", name:"边界", q:"这工具不替你干什么",
+   e:[[{t:"它不替你做决定，",c:GRAY}],[{t:"也不替你写代码。",c:GRAY}]],
+   i:[[{t:"它不猜你没想到的，",c:GRAY}],[{t:"只问文档里没定的。",c:GRAY}]],
+   strong:"反着来，先划清工具不做什么，再让用户自己判断。诚实，不推销，也不重复卡上已有的信息。",
+   weak:"两张卡都是「不」字开头，用户读完会迟疑：那它到底干什么？把最该说的让位给了免责声明。"},
+  {id:"way3", name:"示例", q:"你会先遇到哪一句",
+   e:[[{t:"先问你：",c:GRAY}],[{t:"做完了，给谁用？",c:"#d8b4fe"}]],
+   i:[[{t:"先问你：",c:GRAY}],[{t:"这两份文档哪份算数？",c:"#bfdbfe"}]],
+   strong:"最具体：把马上要回答的那句问话直接摆出来，用户读到的不是介绍，是「我马上要回答的问题」，可以据此决定走不走。",
+   weak:"「先问你：」四个字占了半行；问句是探索场景的想象，不是真问过的原话。"},
+  {id:"way4", name:"实话", q:"这路的代价是什么",
+   e:[[{t:"可能要绕很久，",c:GRAY}],[{t:"也可能还是没定。",c:GRAY}]],
+   i:[[{t:"多半要吵几轮，",c:GRAY}],[{t:"吵完才算定下来。",c:GRAY}]],
+   strong:"如实认代价，不打鸡血。两张卡都把「这条路不轻松」写在明面上，用户不会被推销话术骗进来。",
+   weak:"把话说在前头，容易让人在还没开始就泄气；探索那半句尤其容易劝退。"}
 ];
 WAYS.forEach(function(w){
   var html='<div class="cards">'+
@@ -261,7 +259,7 @@ WAYS.forEach(function(w){
   document.getElementById(w.id).innerHTML=html;
 });
 document.getElementById("cmp").innerHTML=
-  '<table><tr><th style="width:88px">方向</th><th style="width:150px">主体文本回答什么</th><th>探索地图的说法</th><th>实施地图的说法</th><th style="width:270px">强在哪</th><th style="width:270px">弱在哪</th></tr>'+
+  '<table><tr><th style="width:88px">方向</th><th style="width:150px">主体文本回答什么</th><th>探索地图的说法</th><th>实施地图的说法</th><th style="width:250px">强在哪</th><th style="width:250px">弱在哪</th></tr>'+
   WAYS.map(function(w){
     var e=w.e.map(function(l){return l.map(function(r){return r.t;}).join("");}).join(""),
         i=w.i.map(function(l){return l.map(function(r){return r.t;}).join("");}).join("");
