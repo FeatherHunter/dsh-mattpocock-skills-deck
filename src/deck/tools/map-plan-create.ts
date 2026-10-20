@@ -401,15 +401,13 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       let edgeCount = 0
       const edgeJobs = []
       for (const e of edges) {
-        const from = keyOf(e.from)
-        const to = keyOf(e.to)
+        const from = keyOf(e.from), to = keyOf(e.to)
         if (!from || !to) { items.push({ key: from || '', role: 'edge', status: 'failed', reason: '边的端点还没有票号（' + String(e.from) + ' → ' + String(e.to) + '）：先把它那一张建出来再补这条边。' }); continue }
         edgeJobs.push({ idx: edgeJobs.length, from: from, to: to, parent: e.type === 'parent' })
       }
       const parentByFrom = new Map()
       for (const j of edgeJobs) if (j.parent) { if (!parentByFrom.has(j.from)) parentByFrom.set(j.from, []); parentByFrom.get(j.from).push(j) }
-      const blockByFrom = new Map()
-      const blockOrder = []
+      const blockByFrom = new Map(), blockOrder = []
       for (const j of edgeJobs) {
         if (j.parent) continue
         let g = blockByFrom.get(j.from)
