@@ -137,10 +137,10 @@ YAML 里每条模板除了 `version`、`placeholders`、`zh`、`en`，还带一�
 | `config/copy/vcwrite.yaml` | 版本管理写回（102） |
 | `config/copy/pages.yaml` | 历史票按需翻页（70） |
 | `config/copy/labels.yaml` | 标签配色弹窗（51） |
-| `config/copy/cards.yaml` | 卡片动作与阻塞提示（34） |
+| `config/copy/cards.yaml` | 卡片动作与阻塞提示，以及入口浮层的两张卡（54） |
 | `config/copy/skilldesc.yaml` | 技能描述（27） |
 | `config/copy/skilldetail.yaml` | 技能详情（26） |
-| `config/copy/spec.yaml` | 规格正文（21） |
+| `config/copy/spec.yaml` | 规格正文（17） |
 
 每份 YAML 的顶层是语言 id（今天 `zh` / `en`），语言段下面是平铺的「词条键 → 文案」。同一门语言里每个键都要有；值里的 `{name}` 是占位符，同一个键的中英两份占位符必须一字不差。生成器读的时候会校验：语言段缺失或越界、键缺了或多写了、值不是字符串、占位符对不上、跨族有重复键、`{{时间参数}}` 的名字写错、空词族、族名不合法 —— 任何一条都直接报错、不写产物。
 
@@ -157,7 +157,7 @@ YAML 里每条模板除了 `version`、`placeholders`、`zh`、`en`，还带一�
 - 十族常量 `L_PANEL` / `L_FLOW` / `L_WORD` / `L_VCWRITE` / `L_PAGES` / `L_LABELS` / `L_CARDS` / `L_SKILLDESC` / `L_SKILLDETAIL` / `L_SPEC`；
 - 键名联合类型：每族一个 `LocaleKey<族名>`，全族一个 `LocaleKey`。
 
-键名联合类型是编译期约束：哪门语言漏了一条文案，生成物就对不上、`npm run typecheck` 当场红，不用等运行时界面露出键名。今天每门语言 1030 个键（各族键数见上表）。
+键名联合类型是编译期约束：哪门语言漏了一条文案，生成物就对不上、`npm run typecheck` 当场红，不用等运行时界面露出键名。今天每门语言 1046 个键（各族键数见上表）。
 
 改文案的流程只有两步：改 YAML → 跑 `node scripts/generate-locale-config.mts`，然后跟 YAML 一起提交。漏了第二步会被 `npm run typecheck` 的第一条命令 `node scripts/generate-locale-config.mts --check` 抓住：它只比对不写，对不上就打印
 

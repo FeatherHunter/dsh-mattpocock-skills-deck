@@ -316,7 +316,7 @@ en:
   nav.bugNew: New
   nav.bugNewTitle: Open a /wayfinder new-BUG prompt in a new session (same workspace)
   nav.takeableNew: New Requirement
-  nav.takeableNewTitle: "Opens two cards: Explore map or Impl map - you pick which route"
+  nav.takeableNewTitle: "Opens two cards: Explore map or Implementation map - you pick which route"
   nav.triage: Triage
   nav.triageTitle: "Filter: open + needs-triage label"
   nav.refresh: Refresh
@@ -441,7 +441,7 @@ en:
   panel.closeDetailTitle: Close details
   panel.openUnavailable: "The panel did not open: the host is not offering its right-sidebar controller right now, so there is nowhere to put the panel."
   panel.newWayfinder: New Requirement
-  panel.newWayfinderTitle: "Opens two cards: Explore map or Impl map - you pick which route"
+  panel.newWayfinderTitle: "Opens two cards: Explore map or Implementation map - you pick which route"
   panel.newBug: + BUG
   panel.newBugTitle: Open a /wayfinder new-BUG prompt in a new session (same workspace)
   panel.diffRemoved: "{n} closed/removed"

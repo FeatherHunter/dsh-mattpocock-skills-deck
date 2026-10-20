@@ -110,10 +110,10 @@ en:
   card.entry.need: Need
   card.entry.explore.brow: Explore map
   card.entry.explore.state: Big, fuzzy goal
-  card.entry.explore.body: You know what to build, but not the details or how far to go.
-  card.entry.impl.brow: Impl map
-  card.entry.impl.state: Clear, specific goal
-  card.entry.impl.body: What to build, the details, and how far to go are clear; it just is not written as a spec yet.
+  card.entry.explore.body: You know what to build, not the details or the scope.
+  card.entry.impl.brow: Implementation map
+  card.entry.impl.state: Goal is clear
+  card.entry.impl.body: What, details and scope are clear; only the spec is not written.
   card.entry.chain.wayfinder: /wayfinder
   card.entry.chain.prototype: /prototype
   card.entry.chain.research: /research

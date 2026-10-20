@@ -1,5 +1,5 @@
 /**
- * kernel/entry-choice.ts —— 「新建需求」入口浮层：一个入口 → 一层浮层 → 两张卡（#1297 T6）。
+ * kernel/entry-choice.ts —— 「新建需求」入口浮层：一个入口 → 一层浮层 → 两张卡（#1297：入口浮层）。
  *
  * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥掉行首 export，
  * 把声明体拼回 src/client/index.ts 的 `// ==== kernel:entryChoice (spliced by build) ====`
@@ -67,11 +67,13 @@ function placeChooser(from: any, el: any): any {
   return { left: left, top: Math.round(bottom + 6) }
 }
 
-/** 打开浮层（再点一次同一个入口就是关掉）。from 只有 'panel' / 'statusbar' 两个值。 */
+/** 打开浮层（再点同一个入口就是关掉；从另一个入口点则重新量位置、把浮层挪过去）。
+ *  from 只有 'panel' / 'statusbar' 两个值。 */
 export const entryChooserOpen = function (st: any, from: any, el: any) {
   if (!st || typeof st !== 'object') return
-  if (st.entryOpen) { entryChooserClose(st); return }
   const src = (from === 'statusbar') ? 'statusbar' : 'panel'
+  // 同一个入口再点一次才是「关」：从另一处入口点过来要挪过去，否则人会以为点了没反应。
+  if (st.entryOpen && st.entryFrom === src) { entryChooserClose(st); return }
   try {
     entryTriggerEl = el || null
     st.entryOpen = true
@@ -79,7 +81,16 @@ export const entryChooserOpen = function (st: any, from: any, el: any) {
     st.entryPos = placeChooser(src, el)
     try { log('info', 'entry.open', { from: src, cards: ENTRY_CARDS.length }) } catch (eLog) {}
     if (typeof emit === 'function') emit(st)
-  } catch (e) {}
+  } catch (e) {
+    // 量位置或写状态抛了：把开关退回关，并记一条「这次没打开」的轨迹（cards 记 0 表示一张卡都没给出来）。
+    try {
+      st.entryOpen = false
+      st.entryFrom = ''
+      st.entryPos = null
+      entryTriggerEl = null
+      log('warn', 'entry.open', { from: src, cards: 0 })
+    } catch (eLog) {}
+  }
 }
 
 /** 关掉浮层并把位置清掉（下次打开重新量，免得窗口挪了还用旧坐标）。 */
@@ -111,14 +122,18 @@ function pickEntry(st: any, kind: any) {
     try { log('warn', 'entry.pick', { from: from, card: card, ok: false, textLen: 0 }) } catch (eLog) {}
     return
   }
-  try { log('info', 'entry.pick', { from: from, card: card, ok: true, textLen: String(text == null ? '' : text).length }) } catch (eLog) {}
+  const textLen = String(text == null ? '' : text).length
+  // 先关浮层再开新会话：浮层是挂 body 的独立层，留着它会盖在新会话的界面上。
   entryChooserClose(st)
   try {
     openTextInNewSession(st, text, title)
   } catch (eOpen) {
     // 同步就抛说明这趟连调用都没发出去；异步过程里的失败由 api-new-session 自己的日志与提示兜着。
-    try { log('warn', 'entry.pick', { from: from, card: card, ok: false, textLen: String(text == null ? '' : text).length }) } catch (eLog) {}
+    // 一次选卡只记一条：成功与失败二选一，不在同一趟里先记成功再记失败。
+    try { log('warn', 'entry.pick', { from: from, card: card, ok: false, textLen: textLen }) } catch (eLog) {}
+    return
   }
+  try { log('info', 'entry.pick', { from: from, card: card, ok: true, textLen: textLen }) } catch (eLog) {}
 }
 
 function cardAccent(kind: any): string {
@@ -129,12 +144,15 @@ function cardAccent(kind: any): string {
 }
 
 /**
- * 入口浮层本体。宿主两个地方各挂一份（面板页签行、状态栏），它自己看 store 里的 entryOpen：
- * 没打开时什么都不画；打开时用 portalTop 挂到 body，面板再窄也不会被裁掉。
+ * 入口浮层本体。两个宿主各挂一份（面板页签行、状态栏），但只有「当时打开它的那一处入口」
+ * 会真的画出来：判断条件是 entryFrom 与宿主自报的 from 相同，所以同一个时刻最多只有一层浮层、
+ * 一份键盘监听，按一次 Enter 也只会开一个会话。没打开时什么都不画；打开时用 portalTop
+ * 挂到 body，面板再窄也不会被裁掉。
  */
 export const EntryChooser = function (props: any) {
   const st = props && props.st
-  const open = !!(st && st.entryOpen)
+  const hostFrom = (props && props.from) ? String(props.from) : ''
+  const open = !!(st && st.entryOpen && (!hostFrom || String(st.entryFrom) === hostFrom))
   // 键盘焦点落在第几张卡：↑↓ 换、Enter 选；鼠标悬停也同步它，鼠标和键盘看的是同一个「当前卡」。
   const [focusIdx, setFocusIdx] = React.useState(0)
   const rootRef = React.useRef(null)

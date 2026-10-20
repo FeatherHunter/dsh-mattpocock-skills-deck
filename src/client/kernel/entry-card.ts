@@ -1,5 +1,5 @@
 /**
- * kernel/entry-card.ts —— 入口浮层里那两张选择卡的卡面画法（#1297 T6）。
+ * kernel/entry-card.ts —— 入口浮层里那两张选择卡的卡面画法（#1297：入口浮层）。
  *
  * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥掉行首 export，
  * 把声明体拼回 src/client/index.ts 的 `// ==== kernel:entryCard (spliced by build) ====`
@@ -12,13 +12,15 @@
  * 免得再出现一份「卡上一个紫、别处另一个紫」的副本（#1296 的教训）。
  *
  * 尺寸与排版照 2026-10-20 定稿的原型 docs/prototype/1290-entry-in-real-ui.html：
- * 卡 368×232，左侧 168×104 插图，右栏 144px 宽容 12px 字 12 个字，底部一条技能链。
+ * 卡 368×232；左上是一块 184×116 的插图底板，里面再嵌一张 168×104 的画布；
+ * 右栏宽 144px（12px 全角字一行正好 12 个字）；底部一条 344×80 的技能链。
  * 换字号、改宽度要连着断行上限一起改，否则主体文本会多出一行（验收要求最多三行）。
  */
 
 declare const h: any
 declare const tr: (...args: any[]) => any
 declare const CONTAINER_ACCENT: any
+declare const CONTAINER_DONE_COLOR: any
 
 export const ENTRY_CARD_W = 368
 export const ENTRY_CARD_H = 232
@@ -31,8 +33,9 @@ const BODY_LINE_H = 17
 const PANEL_FILL = '#0a0c10'
 const PANEL_STROKE = '#2a2d35'
 const MONO = 'Consolas,Menlo,monospace'
-// #3fb950 是「已完成」的绿，容器三态与实施票勾共用同一个值，卡面插图也用它。
-const DONE_GREEN = '#3fb950'
+// 「已完成」的绿不在这里另开一份：容器三态与实施票勾共用中央色表里的 CONTAINER_DONE_COLOR，
+// 卡面插图的勾也读它，免得多处各写一个绿、以后改色漏掉一处。兜底值只在拼接缺失时用。
+const DONE_GREEN = (typeof CONTAINER_DONE_COLOR === 'string' && CONTAINER_DONE_COLOR) ? CONTAINER_DONE_COLOR : '#3fb950'
 // 实施地图这一侧的两个浅蓝：身份深蓝只用在卡边框上，文字与线条用浅一档的同族色。
 const IMPL_LINE = '#93c5fd'
 const IMPL_TEXT = '#bfdbfe'
@@ -366,11 +369,6 @@ function chainImpl() {
   return h('g', null, parts)
 }
 
-/**
- * 画一张选择卡。kind 只有两个值：'map'（探索地图）与 'spec'（实施地图）；
- * 除此之外的入参按探索地图画（这个组件只给入口浮层用，遇到第三种该当场看出来）。
- */
-
 /** 供门禁核对「主体文本最多三行、每行不超过 12 个汉字」：与卡面用的是同一套断行。
  *  单测/门禁调用时不会碰 h 与 tr，所以这个模块可以被 Node 直接 require 来验断行规则。 */
 export const entryBodyLines = function (body: any): string[] {
@@ -378,6 +376,10 @@ export const entryBodyLines = function (body: any): string[] {
   return packLines(splitUnits(text), HAS_CJK.test(text) ? 12 : 24)
 }
 
+/**
+ * 画一张选择卡。kind 只有两个值：'map'（探索地图）与 'spec'（实施地图）；
+ * 除此之外的入参按探索地图画（这个组件只给入口浮层用，遇到第三种该当场看出来）。
+ */
 export const buildEntryCard = function (kind: any) {
   const isMap = kind !== 'spec'
   const colors = cardColors(isMap ? 'map' : 'spec')

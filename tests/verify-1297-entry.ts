@@ -1,4 +1,4 @@
-// tests/verify-1297-entry.ts —— #1297 入口浮层（一个「新建需求」入口 → 两层卡）与两处接线的门禁
+// tests/verify-1297-entry.ts —— #1297 入口浮层（一个「新建需求」入口 → 两张卡）与两处接线的门禁
 // 门禁归属: config/copy/cards.yaml, config/copy/panel.yaml, config/copy/spec.yaml, config/prompts/ticket-creation.yaml, src/client/kernel/entry-card.ts, src/client/kernel/entry-choice.ts, src/client/kernel/store-snapshot.ts, src/client/views/shared/Tabs.ts, src/client/statusbar/StatusBar.ts, src/client/statusbar/StatusMenus.ts, src/client/index.ts, scripts/build.mts, src/shared/naming-titles.ts
 // 验证（每条都能被删掉/改坏而红）：
 //   1) 只有一个入口：两处宿主（面板页签行、状态栏胶囊悬停菜单）都只调 entryChooserOpen，
@@ -46,6 +46,8 @@ check(tabs.indexOf("Ic({ n: 'chev-down'") >= 0, '紫入口带一个向下的小�
 
 // 2) 浮层只有一份：两处挂同一个组件，选卡拼装只住 entry-choice.ts
 check((tabs.match(/h\(EntryChooser/g) || []).length === 1 && (bar.match(/h\(EntryChooser/g) || []).length === 1, '两处宿主挂的是同一个 EntryChooser 组件')
+check(tabs.indexOf("from: 'panel'") >= 0 && bar.indexOf("from: 'statusbar'") >= 0, '两处宿主各自自报 from，浮层据此只画当时打开它的那一层')
+check(entryChoice.indexOf("String(st.entryFrom) === hostFrom") >= 0, 'entry-choice.ts 按 entryFrom 与宿主 from 相同才画，避免两处同时画两层')
 check(entryChoice.indexOf('export const EntryChooser') >= 0 && entryChoice.indexOf('export const entryChooserOpen') >= 0 && entryChoice.indexOf('export const entryChooserClose') >= 0, 'entry-choice.ts 导出 EntryChooser / entryChooserOpen / entryChooserClose')
 check(entryChoice.indexOf('newWayfinderText(st)') >= 0 && entryChoice.indexOf('newSpecText(st)') >= 0, '两张卡的开场白都在这一个文件里拼（探索 / 实施）')
 check(entryChoice.indexOf("newSessionTitleNew(card === 'map' ? 'requirement' : 'spec')") >= 0, '两张卡的会话标题也在这一个文件里配好')

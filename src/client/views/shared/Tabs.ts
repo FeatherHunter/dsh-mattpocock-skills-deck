@@ -94,9 +94,9 @@ export const useTabsRow = function (s: any, tabsRef: any) {
       Ic({ n: 'bug', size: 11 }),
       h('span', null, tr('panel.newBug')),
     ]),
-    // #1297：入口浮层自己看 store 里的 entryOpen，没打开时返回 null；这里无条件挂一份，
-    //   面板收起时它随这一排一起卸载，浮层也不会留在屏幕上。
-    h(EntryChooser, { key: 'entryChooser', st: s }),
+    // #1297：入口浮层自己看 store 里的 entryOpen 与 entryFrom，只有「从面板这一处打开」时才画；
+    //   这里无条件挂一份，面板收起时它随这一排一起卸载，浮层也不会留在屏幕上。
+    h(EntryChooser, { key: 'entryChooser', st: s, from: 'panel' }),
     // T2 #2 那颗「刷新」2026-09-22 挪出这一排了：维护者要求它离开面板的第二排，与「上次更新」的时间盒子
     //   并排放到面板头部第一行右侧（画在 panel/Dock.js 的头部那一行里）。所以这一排从此没有 priority=3
     //   的元素（#1297 删掉蓝入口之后，这一排的优先级只剩 2 与 1）。#1285：原先排在最右端的版本号也撤走了
