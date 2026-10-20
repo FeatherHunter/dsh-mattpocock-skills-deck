@@ -492,12 +492,16 @@ async function main(): Promise<void> {
     // 文件里必须有一行从 time-config 真引用了这个生成常量（名字对不上就判红）。
     // import 行存在 + 第四节无字面量，两件事合在一起才是“真引用”。
     const local = row.access.includes('.') ? row.access.slice(row.access.indexOf('.') + 1) : row.access
+    // 说明符有两种写法，改门禁时两种都要认：共享层产物搬进 `.build/shared/` 之后，宿主与共享层
+    // 源码里写的是域真源路径 `shared/time-config/src/values.js`（构建时由 ts-hook 改指同名 .ts），
+    // 更早的写法是产物路径 `shared/time-config/values.js`。下面两条正则都用 `(?:src/)?` 兼容两种，
+    // 只认一种的后果是「改了路径的那一侧被判成没写 import」，看起来像值对不上，其实是门禁读不懂路径。
     const importRe = new RegExp(
-      '(import|export)\\s*\\{[^}]*\\b' + row.gen + '\\b\\s*(as\\s+' + local + '\\b)?[^}]*\\}(\\s*from\\s*[\'"][^\'"]*time-config/values\\.js[\'"])?',
+      '(import|export)\\s*\\{[^}]*\\b' + row.gen + '\\b\\s*(as\\s+' + local + '\\b)?[^}]*\\}(\\s*from\\s*[\'"][^\'"]*time-config/(?:src/)?values\\.js[\'"])?',
     )
-    // 动态 import（chainBackoff.js 那种）：import('…time-config/values.js') 取到命名空间再点名字用。
+    // 动态 import（chainBackoff.ts 那种）：import('…time-config/values.js') 取到命名空间再点名字用。
     // 静态行没有，动态行 + 名字在源码里出现才算——动态行本身不带名字，不点名就放行等于没看门。
-    const dynamicRe = new RegExp('import\\(\\s*[\'"][^\'"]*time-config/values\\.js[\'"]\\s*\\)')
+    const dynamicRe = new RegExp('import\\(\\s*[\'"][^\'"]*time-config/(?:src/)?values\\.js[\'"]\\s*\\)')
     const imported = importRe.test(src) || (dynamicRe.test(src) && src.includes(row.gen))
     // 数字比值相等；数组比引用，跨源码/产物两份实例时退到“值相等 + 源码里真引用了这个名字”
     // （手抄一个相同数组的作弊写法会被 import 断言拦住：没写 import 行就判红）。
