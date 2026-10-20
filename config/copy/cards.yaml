@@ -45,6 +45,29 @@ zh:
   card.legendBlocked: 被挡住
   card.legendClaimed: 已认领
   card.legendClosed: 已结案
+  # #1297 入口浮层（「新建需求」一个入口 → 浮层里探索地图 / 实施地图两张卡）。
+  #   卡面上一句正文、一处眉标、一处状态句、底部技能链的每个词条都住这里；
+  #   源码里只留键名，不另写一份，免得改字改到一半、两处入口说法不一致。
+  card.entry.title: 这条需求，你现在能说清要做什么吗？
+  card.entry.footEsc: Esc 关闭
+  card.entry.footSwitch: ↑ ↓ 换一张卡
+  card.entry.footPick: Enter 选定
+  card.entry.need: 需求
+  card.entry.explore.brow: 探索地图
+  card.entry.explore.state: 目标大而模糊
+  card.entry.explore.body: 想清楚了要做什么，没想清楚细节，也没想清楚做到什么程度。
+  card.entry.impl.brow: 实施地图
+  card.entry.impl.state: 目标明确清晰
+  card.entry.impl.body: 要做什么、细节和做到什么程度都想清楚了，还没写成规格。
+  card.entry.chain.wayfinder: /wayfinder
+  card.entry.chain.prototype: /prototype
+  card.entry.chain.research: /research
+  card.entry.chain.grilling: /grilling
+  card.entry.chain.domain: /domain-modeling
+  card.entry.chain.grillWithDocs: /grill-with-docs
+  card.entry.chain.goalClear: 目标明确
+  card.entry.chain.toSpec: /to-spec
+  card.entry.chain.toTickets: /to-tickets
 en:
   card.act.diagnose: Diagnose
   card.act.fix: Fix
@@ -80,3 +103,23 @@ en:
   card.legendBlocked: Blocked
   card.legendClaimed: Claimed
   card.legendClosed: Closed
+  card.entry.title: Can you say clearly what you want to build right now?
+  card.entry.footEsc: Esc to close
+  card.entry.footSwitch: ↑ ↓ switch card
+  card.entry.footPick: Enter to pick
+  card.entry.need: Need
+  card.entry.explore.brow: Explore map
+  card.entry.explore.state: Big, fuzzy goal
+  card.entry.explore.body: You know what to build, but not the details or how far to go.
+  card.entry.impl.brow: Impl map
+  card.entry.impl.state: Clear, specific goal
+  card.entry.impl.body: What to build, the details, and how far to go are clear; it just is not written as a spec yet.
+  card.entry.chain.wayfinder: /wayfinder
+  card.entry.chain.prototype: /prototype
+  card.entry.chain.research: /research
+  card.entry.chain.grilling: /grilling
+  card.entry.chain.domain: /domain-modeling
+  card.entry.chain.grillWithDocs: /grill-with-docs
+  card.entry.chain.goalClear: Goal clear
+  card.entry.chain.toSpec: /to-spec
+  card.entry.chain.toTickets: /to-tickets

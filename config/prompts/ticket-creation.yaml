@@ -63,7 +63,7 @@ newSpec:
   version: 1
   placeholders:
     - repo
-  use: 「写规格」蓝入口 · 新会话预填 /grill-with-docs；收尾提醒用户手动执行 /to-spec 与 /to-tickets（#1281）
+  use: 「实施地图」卡（入口浮层里那张蓝卡，#1297 起改名）· 新会话预填 /grill-with-docs；收尾提醒用户手动执行 /to-spec 与 /to-tickets（#1281）
   zh: |-
     /grill-with-docs
     请帮我讨论一个需求（严格遵循 grill-with-docs 技能规则）。
@@ -106,7 +106,7 @@ newWayfinder:
   version: 20
   placeholders:
     - repo
-  use: 「新建需求」紫入口 · 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）
+  use: 「探索地图」卡（入口浮层里那张紫卡，#1297 起唯一入口开出的两张卡之一）· 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）
   zh: |-
     /wayfinder
     请帮我处理一个需求（严格遵循 wayfinder 技能规则）。

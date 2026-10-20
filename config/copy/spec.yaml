@@ -21,10 +21,6 @@ zh:
   spec.executeTitle: 这张规格已有实施票：按 implement-spec 规则逐票推进
   spec.doneTitle: 实施票已全部关闭：逐张核对验收判据，通过后关闭规格（人可重开）
   type.spec: 规格
-  panel.newSpec: 写规格
-  panel.newSpecTitle: 适合已经想清的需求：没有待决定的取舍，边界与验收都能说清
-  nav.takeableSpec: 写规格
-  nav.takeableSpecTitle: 适合已经想清的需求：没有待决定的取舍，边界与验收都能说清
   spec.section.problem: 问题陈述
   spec.section.solution: 解决方案
   spec.section.userStories: 用户故事
@@ -43,10 +39,6 @@ en:
   spec.executeTitle: "This spec has implementation tickets: advance them with the implement-spec rules"
   spec.doneTitle: "All implementation tickets are closed: verify the acceptance criteria, then close the spec (the human can reopen it)"
   type.spec: Spec
-  panel.newSpec: Write Spec
-  panel.newSpecTitle: "For requirements that are already clear: no open trade-offs, scope and acceptance can be stated"
-  nav.takeableSpec: Write Spec
-  nav.takeableSpecTitle: "For requirements that are already clear: no open trade-offs, scope and acceptance can be stated"
   spec.section.problem: Problem Statement
   spec.section.solution: Solution
   spec.section.userStories: User Stories

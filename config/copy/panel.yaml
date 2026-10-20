@@ -24,7 +24,7 @@ zh:
   nav.bugNew: 新增
   nav.bugNewTitle: 新会话中打开 /wayfinder 新增 BUG 单 prompt
   nav.takeableNew: 新建需求
-  nav.takeableNewTitle: 适合还没想清的需求：要决定什么、有哪些取舍都还没定
+  nav.takeableNewTitle: 点一下弹出两张卡：探索地图或实施地图，由你自己选
   nav.triage: 诊断
   nav.triageTitle: 过滤：open + needs-triage 标签
   nav.refresh: 更新
@@ -149,7 +149,7 @@ zh:
   panel.closeDetailTitle: 关闭详情
   panel.openUnavailable: 面板没打开：宿主现在没有提供 DSH 右侧边栏的控制器，面板暂时没有落点。
   panel.newWayfinder: 新建需求
-  panel.newWayfinderTitle: 适合还没想清的需求：要决定什么、有哪些取舍都还没定
+  panel.newWayfinderTitle: 点一下弹出两张卡：探索地图或实施地图，由你自己选
   panel.newBug: + bug
   panel.newBugTitle: 新会话中打开 /wayfinder 新增 BUG 单 prompt（继承当前工作区）
   panel.diffRemoved: "{n} 个已关闭/移除"
@@ -316,7 +316,7 @@ en:
   nav.bugNew: New
   nav.bugNewTitle: Open a /wayfinder new-BUG prompt in a new session (same workspace)
   nav.takeableNew: New Requirement
-  nav.takeableNewTitle: "For requirements that are not clear yet: what to decide and which trade-offs are still open"
+  nav.takeableNewTitle: "Opens two cards: Explore map or Impl map - you pick which route"
   nav.triage: Triage
   nav.triageTitle: "Filter: open + needs-triage label"
   nav.refresh: Refresh
@@ -441,7 +441,7 @@ en:
   panel.closeDetailTitle: Close details
   panel.openUnavailable: "The panel did not open: the host is not offering its right-sidebar controller right now, so there is nowhere to put the panel."
   panel.newWayfinder: New Requirement
-  panel.newWayfinderTitle: "For requirements that are not clear yet: what to decide and which trade-offs are still open"
+  panel.newWayfinderTitle: "Opens two cards: Explore map or Impl map - you pick which route"
   panel.newBug: + BUG
   panel.newBugTitle: Open a /wayfinder new-BUG prompt in a new session (same workspace)
   panel.diffRemoved: "{n} closed/removed"
