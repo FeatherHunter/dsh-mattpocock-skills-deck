@@ -219,6 +219,41 @@ export const GET_PR_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   }
 }`
 
+// ── 阻塞边写入用的 statements（2026-10-20）：写边优先走 GraphQL mutation ──
+//
+// 为什么不用 REST 依赖接口当主路：
+//   一、加/删阻塞边本来就是 GitHub GraphQL 的原生 mutation（addBlockedBy / removeBlockedBy），
+//       入参是两张票的 node id（全局 ID，字符串），一次往返写一条；
+//   二、REST 依赖接口与 GraphQL 分属两套配额账：REST 配额耗尽时 GraphQL 往往还能写。
+//       写边是用户显式动作，不该因为读把 REST 配额吃光而写不下去；
+//   三、REST 那条路要先用「查数据库编号」再 POST/DELETE，一次写边至少三次往返；
+//       GraphQL 这边「一次批量取 id + 每条边一次 mutation」就够了。
+// REST 依赖接口保留为兜底：GHES 老版本没有这两个 mutation 字段时仍走老路（见 blocked-by-write.ts）。
+//
+// 回包只要 clientMutationId：两种 payload 上都有这一格，不拉整个 Issue，
+// 既省额度，也不会因为 Issue 字段改名连坐。
+export const ADD_BLOCKED_BY_MUTATION = `mutation($issueId:ID!,$blockingIssueId:ID!){
+  addBlockedBy(input:{issueId:$issueId, blockingIssueId:$blockingIssueId}){ clientMutationId }
+}`
+
+export const REMOVE_BLOCKED_BY_MUTATION = `mutation($issueId:ID!,$blockingIssueId:ID!){
+  removeBlockedBy(input:{issueId:$issueId, blockingIssueId:$blockingIssueId}){ clientMutationId }
+}`
+
+/**
+ * 一次查询取齐一组票的 node id（GraphQL 全局 ID）。
+ *
+ * 为什么用别名批量：写一条阻塞边要两张票的 id；逐票各查一次就是 N 次进程、N 点额度，
+ * 而别名把 N 张票并进一次查询（额度按一次查询算，2026-10-20 真仓实测）。
+ * 只接纯数字票号：非数字塞进 GraphQL 的 Int 位置会让整条查询报错，
+ * 调用方据此回落 REST 更诚实（REST 那条路对怪票号本来就回 not-found）。
+ */
+export function issueNodeIdsQuery(keys: string[]): string {
+  const parts: string[] = []
+  for (let i = 0; i < keys.length; i++) parts.push('i' + i + ': issue(number:' + String(Number(keys[i])) + '){ id }')
+  return 'query($owner:String!,$name:String!){ repository(owner:$owner,name:$name){ ' + parts.join(' ') + ' } }'
+}
+
 // 兼容旧命名（#132 登记旧片段迁移）：保留但指向新 fragment
 export const GITHUB_ISSUE_FIELDS = ISSUE_FRAGMENT
-export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY }
+export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY, ADD_BLOCKED_BY_MUTATION, REMOVE_BLOCKED_BY_MUTATION, issueNodeIdsQuery }

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T13:27:18.828Z",
+  "generatedAt": "2026-10-20T13:49:51.440Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 302,
   "gateCount": 302,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 504,
+  "graphFileCount": 505,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -552,8 +552,12 @@
       "step": "node tests/verify-deck-tools-matrix.ts",
       "file": "tests/verify-deck-tools-matrix.ts",
       "guards": [
+        "scripts/lib/prompt-config.mts",
+        "src/client/kernel/container-view.ts",
+        "src/client/kernel/store-derived.ts",
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-list.ts",
         "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
@@ -561,6 +565,7 @@
         "src/host/platform/outbound-control.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
+        "src/shared/issue-file/src/marker.ts",
         "src/shared/refresh/src/budget.ts",
         "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
@@ -571,9 +576,12 @@
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
+        "scripts/lib",
+        "src/client/kernel",
         "src/deck/tools",
         "src/host/platform",
         "src/host/refresh",
+        "src/shared/issue-file/src",
         "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/github",
@@ -586,7 +594,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-deck-tools-row-zero-dep.ts",
@@ -7259,6 +7267,7 @@
       "node tests/verify-1207-splice-ts.ts",
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-leaves.ts",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-no-title.ts",
@@ -7347,6 +7356,7 @@
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-chain-env-e2e.ts",
       "node tests/verify-deck-slots.ts",
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
@@ -7818,6 +7828,7 @@
     ],
     "src/shared/issue-file": [],
     "src/shared/issue-file/src": [
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1277-md-spec-container.ts"
     ],
     "src/shared/label-color": [],
@@ -8353,9 +8364,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 518,
+    "fileCount": 519,
     "dirCount": 56,
-    "coveredFileCount": 518,
+    "coveredFileCount": 519,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -8792,6 +8803,7 @@
       "src/tracker/registry/views.ts",
       "src/tracker/rooms/README.md",
       "src/tracker/rooms/github/backend.ts",
+      "src/tracker/rooms/github/blocked-by-write.ts",
       "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/checks.ts",
       "src/tracker/rooms/github/client.ts",

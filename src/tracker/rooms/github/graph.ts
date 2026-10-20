@@ -24,6 +24,10 @@ import type { CycleVerdict } from './cycle-check.js'
 import { markDirty } from './roster.js'
 import type { MemoContext } from './roster.js';
 import { normalizeIssue } from './normalize.js'
+// 写阻塞边这一段（GraphQL 优先、明确不支持才回落 REST）搬到了 blocked-by-write.ts：
+// graph.ts 的有效行已被零增长基线冻结（只许减不许增），所以这里只留「读真值 → 算差集 → 委托写 → 读回」这条主干。
+import { writeBlockedByEdges } from './blocked-by-write.js'
+import type { EdgeTrail } from './blocked-by-write.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
 type GhClient = ReturnType<typeof ghClient>;
@@ -47,18 +51,10 @@ function errMessageOrStderr(err: { message: string }): string {
   return err.message || (err as unknown as { stderr?: unknown }).stderr as string || ''
 }
 
-/**
- * 一趟边写入的轨迹：由 setParent / setBlockedBy 的内层实现边走边填，外层包装统一发射（附录 1.4 节 #100 `edge.write`）。
- * 为什么用一个小对象传进内层，而不是在出口处回头猜：同一趟写入可能走原生旗、也可能退回裸接口，
- * 还可能因为「这条边本来就在位」一条都没真写下去 —— 这些事实只有内层知道。小对象按调用各建一个，并发写不会串。
- */
-interface EdgeTrail {
-  route: 'none' | 'flag' | 'rest';
-  added: number;
-  removed: number;
-  kept: number;
-  reason: string;
-}
+// 一趟边写入的轨迹（形状与写边的两条路一起搬到了 blocked-by-write.ts）：由 setParent / setBlockedBy
+// 的内层实现边走边填，外层包装统一发射（附录 1.4 节 #100 `edge.write`）。
+// 为什么用一个小对象传进内层，而不是在出口处回头猜：同一趟写入可能走原生旗、也可能退回裸接口，
+// 还可能因为「这条边本来就在位」一条都没真写下去 —— 这些事实只有内层知道。小对象按调用各建一个，并发写不会串。
 function newEdgeTrail(): EdgeTrail {
   return { route: 'none', added: 0, removed: 0, kept: 0, reason: 'none' }
 }
@@ -66,7 +62,7 @@ function newEdgeTrail(): EdgeTrail {
 /**
  * 边写入的常驻结论线（附录 1.4 节 #100 `edge.write`）：一趟写入一行，成功与失败都记，
  * 回答「这条边落没落下去、停在哪一步、为什么」。字段全是枚举、布尔与计数：
- * kind 这一次写的是父子边还是阻塞边、route 走的哪条路（none 没走到外部调用 / flag 原生旗 / rest 裸接口）、
+ * kind 这一次写的是父子边还是阻塞边、route 走的哪条路（none 没走到外部调用 / flag 原生旗 / rest 裸接口 / graphql 边 mutation）、
  * ok 成没成、added 真落了几条、removed 真撤了几条、kept 本来就在位几条（对账之后没重复提交的那些）、
  * reason 为什么是这个结论、latencyMs 这一趟花了多久。
  * 票号、命令原文、上游报错原文一个字都不记：票号在工具返回值里，命令与报错原文在 gh.exec / gh.timeout 那两条里。
@@ -464,54 +460,11 @@ async function setBlockedByInner(repo: RepositoryRef, key: string, blockers: str
     trail.route = 'rest'
     trail.kept = uniq.length - toAdd.length
     trail.reason = (toAdd.length || toRemove.length) ? 'diff' : 'noop'
-    // 票号（number，如 758）与接口要的内部标识（id，如 5595650996）不是一回事：
-    // 写边与删边都要先把票号换成内部标识，且传参用 -F（按类型传数字），-f 会传成字符串被 422 拒收。
-    // 为什么进闭包前先留一个：parsed 在上面已验过非空，但闭包里编译器会丢掉那次收窄；留一个已收窄的别名，闭包里读的还是原来那两个串。
-    const repoParsed: ParsedRepo = parsed;
-    async function idOf(numberKey: string): Promise<number | null> {
-      try {
-        const rr = await c.execGh(['api', `repos/${repoParsed.owner}/${repoParsed.name}/issues/${numberKey}`, '--jq', '.id'], { cwd: ctx && ctx.cwd })
-        if (!rr.ok) return null
-        const v = Number(String(rr.data.stdout || '').trim())
-        return Number.isFinite(v) && v > 0 ? Math.floor(v) : null
-      } catch { return null }
-    }
-    // 为什么显式标：键是票号串、值是换到的内部标识（查不到的不进表）；标法与读写一致，运行时还是原来那几对值。
-    const idByKey = new Map<string, number>()
-    for (const kk of [...new Set([...toAdd, ...toRemove])]) {
-      const id = await idOf(kk)
-      if (id) idByKey.set(kk, id)
-    }
-
-    for (const b of toRemove) {
-      const bid = idByKey.get(b)
-      if (!bid) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: issue ${b} not found`, b)
-      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by/${bid}`, '--method', 'DELETE']
-      const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-      if (r.ok) { trail.removed += 1; continue }
-      const msg = String(r.error.message || '').toLowerCase()
-      // 若 API 不存在（GHES）→ unsupported。判据是「原生真值没读到」加上一个 404：
-      // 真值读得到说明端点活着，那时的 404 只能是「这条边本来就不在」，见下一条分支。
-      if (/unsupported|not supported/i.test(msg) || (!native && /not found|404/i.test(msg))) return fail(ERROR_KIND.UNSUPPORTED, 'setBlockedBy unsupported', r)
-      // 对账之后才发现这条边本来就不在（真值比上游晚一拍）：删除的目标已经达成，不算失败。
-      if (/not found|404/.test(msg)) continue
-      return { ok: false, error: r.error }
-    }
-    for (const b of toAdd) {
-      const bid = idByKey.get(b)
-      if (!bid) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: issue ${b} not found`, b)
-      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by`, '--method', 'POST', '-F', `issue_id=${bid}`]
-      const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-      if (r.ok) { trail.added += 1; continue }
-      const msg = String(r.error.message || '').toLowerCase()
-      // 上游报错时原文交那份执行结果：判 unsupported 还是 conflict 的原话都在它里面。
-      if (/unsupported|not found|404.*dependencies/i.test(msg)) return fail(ERROR_KIND.UNSUPPORTED, 'setBlockedBy unsupported', r)
-      if (/cycle|circular/i.test(msg)) return fail(ERROR_KIND.CONFLICT, `conflict: cycle ${msg.slice(0, 200)}`, r)
-      // 上游说「这条边已经在」：目标状态已经达成，算已经到位，不算失败，更不能像从前那样把这一批剩下的边一起丢掉
-      // （#1100 现象 2 的整批中止就是从这里来的：读回看不见原生关系 → 差集是全集 → 第一条已存在的边 422 → 整批丢写）。
-      if (/already been taken|already exists|already exist|duplicate/i.test(msg)) { trail.kept += 1; continue }
-      return { ok: false, error: r.error }
-    }
+    // 写边：先走 GraphQL mutation（addBlockedBy / removeBlockedBy），只有它明确说「这个仓库没有这条能力」
+    // 才回落 REST 依赖接口。换 id、两条写循环、回落判据与计数都在 blocked-by-write.ts；这里只认结论。
+    const write = await writeBlockedByEdges({ client: c, owner: parsed.owner, name: parsed.name, key: k, toAdd, toRemove, nativeKnown: native !== null, ctx, trail })
+    if (!write.ok) return write.result
+    if (write.route === 'graphql') trail.route = 'graphql'
 
     // 读回最新
     const finalRes = await getIssue(repo, k, {}, ctx)

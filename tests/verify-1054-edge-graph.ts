@@ -47,6 +47,14 @@ interface StubOpts {
   deleteFails?: string[]
   subIssues?: Record<string, number[]>
   subIssuesFails?: string[]
+  /**
+   * GraphQL 边 mutation 在这台假 GitHub 上能不能用。
+   * 默认 false：两个 mutation 字段回「不存在」，模拟 GHES 老版本 —— 老用例仍走 REST 兜底；
+   * 只有显式打开 true 的桩才走 GraphQL 主路（S12 起）。
+   */
+  gqlWorks?: boolean
+  /** 批量取 node id 的查询失败（模拟 GraphQL 端点不可用），用来验证「查不到 id 也回落 REST」。 */
+  gqlIdsFail?: boolean
 }
 
 function makeState(o: StubOpts) {
@@ -70,6 +78,11 @@ function makeState(o: StubOpts) {
     deletes: [] as string[],
     nativeGets: 0,
     graphqlGets: 0,
+    // GraphQL 主路这一轮的三本账：取过几次 node id、发过哪些边 mutation（形如 add:3 / remove:4）。
+    gqlIds: 0,
+    gqlMutations: [] as string[],
+    gqlWorks: o.gqlWorks === true,
+    gqlIdsFail: o.gqlIdsFail === true,
     unscripted: [] as string[],
   }
 }
@@ -122,9 +135,36 @@ function makeStub(state: Stub) {
       const kids = state.subIssues.get(m[1]) || []
       return { code: 0, stdout: JSON.stringify(kids.map((n) => ({ number: n }))), stderr: '' }
     }
-    // ⑥ GraphQL 读票：契约字段就是它读回来的那份（contractBlind 模拟读路径退回 REST 时的空字段）
+    // ⑥ GraphQL：三个形状分开认 —— 批量取 node id、边 mutation、读票（契约字段就是读回来的那份）
     if (line.startsWith('api graphql')) {
       state.graphqlGets += 1
+      // ⑥-1 批量取 node id：一条 query 里若干别名 i0/i1…（issueNodeIdsQuery 的形状）
+      const aliases = Array.from(line.matchAll(/i(\d+):\s*issue\(number:(\d+)\)/g))
+      if (aliases.length) {
+        state.gqlIds += 1
+        if (state.gqlIdsFail) return { code: 1, stdout: '', stderr: 'HTTP 502: Bad Gateway' }
+        const repo: Record<string, { id: string }> = {}
+        for (const a of aliases) repo['i' + a[1]] = { id: 'I_kw_' + a[2] }
+        return { code: 0, stdout: JSON.stringify({ data: { repository: repo } }), stderr: '' }
+      }
+      // ⑥-2 边 mutation：默认回「字段不存在」（模拟 GHES 老版本，老用例仍走 REST 兜底）；
+      // 显式 gqlWorks 的桩才真写，并同步改 state.blocked，让紧接着的读回与真机一致。
+      const mut = /addBlockedBy\(input:\{issueId:\$issueId, blockingIssueId:\$blockingIssueId\}\)/.test(line)
+        ? 'add'
+        : (/removeBlockedBy\(input:\{issueId:\$issueId, blockingIssueId:\$blockingIssueId\}\)/.test(line) ? 'remove' : '')
+      if (mut) {
+        if (!state.gqlWorks) return { code: 0, stdout: JSON.stringify({ errors: [{ message: "Field '" + mut + 'BlockedBy' + "' doesn't exist on type 'Mutation'" }] }), stderr: '' }
+        const im = /issueId=I_kw_(\d+)/.exec(line)
+        const bm = /blockingIssueId=I_kw_(\d+)/.exec(line)
+        if (!im || !bm) return { code: 1, stdout: '', stderr: 'bad mutation args: ' + line.slice(0, 160) }
+        state.gqlMutations.push(mut + ':' + bm[1])
+        let set = state.blocked.get(im[1])
+        if (!set) { set = new Set<string>(); state.blocked.set(im[1], set) }
+        if (mut === 'add') set.add(bm[1])
+        else set.delete(bm[1])
+        return { code: 0, stdout: JSON.stringify({ data: { [mut === 'add' ? 'addBlockedBy' : 'removeBlockedBy']: { clientMutationId: null } } }), stderr: '' }
+      }
+      // ⑥-3 读票：契约字段就是它读回来的那份（contractBlind 模拟读路径退回 REST 时的空字段）
       const nm = /number=(\d+)/.exec(line)
       const k = nm ? nm[1] : '0'
       let nodes: string[] = []
@@ -319,6 +359,71 @@ async function main() {
     await repair.repairParentLinksREST([{ number: 12, labels: [{ name: 'wayfinder:map' }] }], { owner: 'o', name: 'r' }, ctx2)
     const e2 = lastOf(log2, 'edge.repair')
     check(!!e2 && e2.fields.maps === 1 && e2.fields.linked === 0 && e2.fields.failed === 1, 'S11-4 单张地图读失败照旧不抛错，失败数记进 failed（' + JSON.stringify(e2 && e2.fields) + '）')
+  }
+
+  // ── S12 GraphQL 主路：一次批量取 id + 每条边一次 mutation，REST 一次都不碰 ──
+  {
+    const state = makeState({ blocked: { '1': ['2'], '2': [], '3': [] }, gqlWorks: true })
+    const { r, log } = await callSetBlockedBy(graph, state, ['2', '3'])
+    check(r.ok === true, 'S12-1 GraphQL 主路补边成功（实得 ok=' + r.ok + ' ' + String((r.error && r.error.message) || '') + '）')
+    check(state.gqlIds === 1, 'S12-2 只查一次 node id（批量别名，实查 ' + state.gqlIds + ' 次）')
+    check(state.gqlMutations.join(',') === 'add:3', 'S12-3 只给真正缺的那条发 mutation（实发 ' + (state.gqlMutations.join(',') || '(空)') + '）')
+    check(state.attempts.length === 0 && state.posts.length === 0 && state.deletes.length === 0, 'S12-4 回落那条 REST 路一次都没走（POST ' + state.posts.length + ' / DELETE ' + state.deletes.length + '）')
+    const w = lastOf(log, 'edge.write')
+    check(!!w && w.fields.route === 'graphql' && w.fields.ok === true && w.fields.added === 1 && w.fields.kept === 1 && w.fields.reason === 'diff', 'S12-5 edge.write 记下 GraphQL 主路的轨迹（' + JSON.stringify(w && w.fields) + '）')
+    check(linesOf(log, 'graphql.fallback').length === 0 && linesOf(log, 'fallback.chain').length === 0, 'S12-6 走通主路时不发降级线（' + linesOf(log, 'graphql.fallback').length + ' / ' + linesOf(log, 'fallback.chain').length + '）')
+    const got = ((r.data && r.data.blockedBy) || []).map((b: any) => String(b.key)).sort().join(',')
+    check(got === '2,3', 'S12-7 读回两条边都在（实得 ' + got + '）')
+    check(state.unscripted.length === 0, 'S12-8 桩里没有未预料到的请求（' + state.unscripted.join(' | ').slice(0, 120) + '）')
+
+    // 同一张票上接着撤一条：走的还是 GraphQL 主路，route 逐趟如实记。
+    const rem = await callSetBlockedBy(graph, state, ['2'])
+    check(rem.r.ok === true, 'S12-9 GraphQL 主路撤边成功（实得 ok=' + rem.r.ok + '）')
+    check(state.gqlMutations.join(',') === 'add:3,remove:3', 'S12-10 撤边也只对真正多出来的那条发 mutation（实发 ' + state.gqlMutations.join(',') + '）')
+    const w2 = lastOf(rem.log, 'edge.write')
+    check(!!w2 && w2.fields.route === 'graphql' && w2.fields.removed === 1 && w2.fields.added === 0 && w2.fields.kept === 1, 'S12-11 撤边这一趟的轨迹也对（' + JSON.stringify(w2 && w2.fields) + '）')
+    const got2 = ((rem.r.data && rem.r.data.blockedBy) || []).map((b: any) => String(b.key)).sort().join(',')
+    check(got2 === '2', 'S12-12 撤完读回只剩 2（实得 ' + got2 + '）')
+  }
+
+  // ── S13 GraphQL 明确回「字段不存在」：只这一档回落 REST，并留下降级线 ──
+  {
+    const state = makeState({ blocked: { '1': ['2', '3'], '2': [], '3': [] } })
+    const { r, log } = await callSetBlockedBy(graph, state, ['2'])
+    check(r.ok === true, 'S13-1 回落 REST 后照常成功（实得 ok=' + r.ok + '）')
+    check(state.gqlIds === 1 && state.gqlMutations.length === 0, 'S13-2 试过 GraphQL（id 查询 1 次）但没真写成任何一条 mutation（实发 ' + state.gqlMutations.length + ' 条）')
+    check(state.deletes.join(',') === '3', 'S13-3 剩下的那条由 REST 撤销（实撤 ' + (state.deletes.join(',') || '(空)') + '）')
+    const w = lastOf(log, 'edge.write')
+    check(!!w && w.fields.route === 'rest' && w.fields.removed === 1, 'S13-4 edge.write 如实记「最后还是走了 REST」（' + JSON.stringify(w && w.fields) + '）')
+    const fb = lastOf(log, 'graphql.fallback')
+    check(!!fb && fb.fields.scope === '单票' && ['timeout', 'rate-limit', 'ghe-host', 'graphql-error'].includes(fb.fields.reason), 'S13-5 graphql.fallback 记下 scope 与原因（' + JSON.stringify(fb && fb.fields) + '）')
+    const ch = lastOf(log, 'fallback.chain')
+    check(!!ch && ch.fields.in === 'graphql' && ch.fields.out === 'rest' && typeof ch.fields.latencyMs === 'number', 'S13-6 fallback.chain 记下从哪来、到哪去（' + JSON.stringify(ch && ch.fields) + '）')
+    check(keysOf(fb && fb.fields) === 'reason,scope', 'S13-7 graphql.fallback 字段就是登记的那两个')
+    check(keysOf(ch && ch.fields) === 'in,latencyMs,out', 'S13-8 fallback.chain 字段就是登记的那三个')
+  }
+
+  // ── S14 node id 查询失败：不硬写、回落 REST ──
+  {
+    const state = makeState({ blocked: { '1': [], '2': [] }, gqlIdsFail: true })
+    const { r, log } = await callSetBlockedBy(graph, state, ['2'])
+    check(r.ok === true, 'S14-1 id 查询失败不影响写边本身（走 REST 兜底，实得 ok=' + r.ok + '）')
+    check(state.gqlIds === 1 && state.gqlMutations.length === 0, 'S14-2 只试了一次 id 查询、没发 mutation（' + state.gqlIds + ' / ' + state.gqlMutations.length + '）')
+    check(state.posts.join(',') === '2', 'S14-3 由 REST 把边补上（实补 ' + (state.posts.join(',') || '(空)') + '）')
+    const w = lastOf(log, 'edge.write')
+    check(!!w && w.fields.route === 'rest' && w.fields.added === 1, 'S14-4 edge.write 记成 REST 路（' + JSON.stringify(w && w.fields) + '）')
+    check(linesOf(log, 'graphql.fallback').length === 1, 'S14-5 降级线发出一次（实发 ' + linesOf(log, 'graphql.fallback').length + ' 行）')
+  }
+
+  // ── S15 目标就是现状：连 node id 都不查（一条外部写边命令都不发） ──
+  {
+    const state = makeState({ blocked: { '1': ['2'], '2': [] } })
+    const { r, log } = await callSetBlockedBy(graph, state, ['2'])
+    check(r.ok === true, 'S15-1 noop 照常成功（实得 ok=' + r.ok + '）')
+    check(state.gqlIds === 0 && state.gqlMutations.length === 0 && state.posts.length === 0 && state.deletes.length === 0, 'S15-2 一条外部写边调用都没发（id ' + state.gqlIds + ' / mutation ' + state.gqlMutations.length + ' / POST ' + state.posts.length + ' / DELETE ' + state.deletes.length + '）')
+    const w = lastOf(log, 'edge.write')
+    check(!!w && w.fields.reason === 'noop' && w.fields.route === 'rest', 'S15-3 edge.write 记成 noop（' + JSON.stringify(w && w.fields) + '）')
+    check(linesOf(log, 'graphql.fallback').length === 0, 'S15-4 noop 不发降级线（' + linesOf(log, 'graphql.fallback').length + ' 行）')
   }
 
   console.log('\n共 ' + total + ' 条，' + (failed ? '有失败' : '全部通过'))
