@@ -327,7 +327,11 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         const hit = memoGet('list', k)
         if (hit) return hit
         const out = mapOpOutcome(await execOp('list', function (c2) { return real.list!(repo, filter || {}, c2) }))
-        if (out && out.ok === true && isArr(out.data)) memoPut('list', k, out, rosterAdoptList(memo, out.data, filter))
+        if (out && out.ok === true && isArr(out.data)) {
+          // 后端列表被上限截断过（#1304）：这份数据不能当整仓收进名册，否则下一次读依赖会拿不全的索引静默少边。
+          const truncated = (out as UnknownRecord).truncated === true
+          memoPut('list', k, out, rosterAdoptList(memo, out.data, filter, { complete: !truncated }))
+        }
         return out
       },
       getDependencies: async function (repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {

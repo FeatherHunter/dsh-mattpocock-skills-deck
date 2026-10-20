@@ -151,10 +151,34 @@ async function main() {
     check(JSON.stringify(r.notes || []).indexOf('detail=thin') >= 0, '注记写清薄行与拿正文办法')
   }
 
-  // ⑥ 介绍不断：描述是一行，参数说明里有性能字眼
+  // ⑥ 反向边不全时两条路都要自曝（#1304）：原生连接截断说「可能不全」，退回整仓反推说「用了兜底」
+  {
+    const truncated = {
+      get: async () => ({ ok: true, data: Object.assign({}, demoIssue) }),
+      getDependencies: async () => ({ ok: true, data: { blockedBy: [{ key: '5' }], blocking: [{ key: '9' }], blockingSource: 'native', blockingComplete: false, blockingNote: '反向边这次从后端的原生字段一次取回，但连接到了 50 条上限，可能不全：这是后端一次能给的上限，不是「没有阻塞别人」。' } }),
+    }
+    const g = stubGateLedger(gateMod, ledgerMod)
+    const r = await getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(truncated), budget)).run(execFor(), { key: '7' })
+    check(r && r.status === 'ok' && r.data.relations.blocking.length === 1, '⑥-1 到了上限，已经看到的边照给')
+    check(typeof r.text === 'string' && r.text.indexOf('可能不全') >= 0, '⑥-2 正文说清这个条数可能不全')
+    check(JSON.stringify(r.notes || []).indexOf('不是「没有阻塞别人」') >= 0, '⑥-3 注记把后端给的说明原样带上')
+  }
+  {
+    const scanned = {
+      get: async () => ({ ok: true, data: Object.assign({}, demoIssue) }),
+      getDependencies: async () => ({ ok: true, data: { blockedBy: [], blocking: [{ key: '9' }], blockingSource: 'scan', blockingComplete: true, blockingNote: '原生反向边字段这次没取到，退回整仓列表反推（结果完整，但代价随仓库票数增长）。' } }),
+    }
+    const g = stubGateLedger(gateMod, ledgerMod)
+    const r = await getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(scanned), budget)).run(execFor(), { key: '7' })
+    check(r && r.status === 'ok', '⑥-4 退回整仓反推照样读成功')
+    check(JSON.stringify(r.notes || []).indexOf('整仓列表反推') >= 0, '⑥-5 注记交代用了兜底（即使结果完整）')
+    check(typeof r.text === 'string' && r.text.indexOf('可能不全') < 0, '⑥-6 结果完整时不乱说「可能不全」')
+  }
+
+  // ⑦ 介绍不断：描述是一行，参数说明里有性能字眼
   {
     check(typeof getMod.definition.description === 'string' && getMod.definition.description.indexOf('\n') < 0, '单票读介绍仍是一行')
-    check(getMod.definition.parameters.properties.blocking.description.indexOf('全仓扫描') >= 0, 'blocking 参数说清代价')
+    check(getMod.definition.parameters.properties.blocking.description.indexOf('反向边查询') >= 0, 'blocking 参数说清代价')
     check(snapMod.definition.parameters.properties.detail.description.indexOf('thin') >= 0, 'detail 参数说清两档')
   }
 

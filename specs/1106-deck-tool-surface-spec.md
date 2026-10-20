@@ -23,7 +23,7 @@
 | 工具 | 必填 | 可选参数（类型 · 取值 · 缺省） |
 | --- | --- | --- |
 | `deck_context` | 无 | 没有参数。看工作区、后端、仓库与地图清单。 |
-| `deck_issue_get` | `key` | `comments`（数字，最多带回几条评论，缺省 50，钳在 0–200）· `section`（字符串，只回正文里这一节，`##` 标题的子串；缺省回全文前 2000 字）· `blocking`（布尔，要不要反向阻塞边；**缺省要**，只有显式传 `false` 才跳过全仓扫描）· `effortId` |
+| `deck_issue_get` | `key` | `comments`（数字，最多带回几条评论，缺省 50，钳在 0–200）· `section`（字符串，只回正文里这一节，`##` 标题的子串；缺省回全文前 2000 字）· `blocking`（布尔，要不要反向阻塞边；**缺省要**，只有显式传 `false` 才跳过一次反向边查询）· `effortId` |
 | `deck_map_snapshot` | `key` | `frontierOnly`（布尔，只回可接的子票；缺省回全部）· `detail`（枚举 `full` / `thin`，缺省 `full`；`thin` 只回薄行，统计与进度表照算）· `effortId` |
 | `deck_issue_list` | 无 | `state`（枚举 `open` / `closed` / `all`，缺省 `open`）· `type`（枚举 `issue` / `map` / `all`，缺省 `all`）· `labels`（字符串数组，必须同时带上，AND）· `assignee` · `query`（标题与正文的子串）· `limit`（数字，缺省 50，钳在 1–200）· `effortId` |
 | `deck_issue_create` | `title` | `body`（缺省按种类补最小骨架）· `kind`（枚举 `task` / `bug` / `map`，缺省 `task`）· `parentKey` · `labels` · `assignees` · `idempotencyKey` · `effortId` |

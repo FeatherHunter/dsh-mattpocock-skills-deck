@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T13:58:52.508Z",
+  "generatedAt": "2026-10-20T16:09:45.588Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 302,
-  "gateCount": 302,
-  "attributedGates": 265,
+  "chainLength": 303,
+  "gateCount": 303,
+  "attributedGates": 266,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 505,
+  "graphFileCount": 506,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1860,6 +1860,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-1304-deps-native.ts",
+      "file": "tests/verify-1304-deps-native.ts",
+      "guards": [
+        "src/host/platform/outbound-control.ts",
+        "src/tracker/rooms/github/graph.ts"
+      ],
+      "dirs": [
+        "src/host/platform",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -4842,6 +4859,7 @@
         "src/host/platform/outbound-control.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/counts.ts",
+        "src/tracker/rooms/github/deps-read.ts",
         "src/tracker/rooms/github/issues.ts",
         "src/tracker/rooms/github/page.ts",
         "src/tracker/rooms/github/preflight.ts",
@@ -4860,7 +4878,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-github-label-colors.ts",
@@ -7721,6 +7739,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
+      "node tests/verify-1304-deps-native.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -8081,6 +8100,7 @@
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-1286-snapshot.ts",
+      "node tests/verify-1304-deps-native.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -8364,9 +8384,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 519,
+    "fileCount": 520,
     "dirCount": 56,
-    "coveredFileCount": 519,
+    "coveredFileCount": 520,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -8810,6 +8830,7 @@
       "src/tracker/rooms/github/comments.ts",
       "src/tracker/rooms/github/counts.ts",
       "src/tracker/rooms/github/cycle-check.ts",
+      "src/tracker/rooms/github/deps-read.ts",
       "src/tracker/rooms/github/errors.ts",
       "src/tracker/rooms/github/fallback-reason.ts",
       "src/tracker/rooms/github/graph.ts",

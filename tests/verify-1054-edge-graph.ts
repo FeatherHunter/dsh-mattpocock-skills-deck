@@ -138,6 +138,29 @@ function makeStub(state: Stub) {
     // ⑥ GraphQL：三个形状分开认 —— 批量取 node id、边 mutation、读票（契约字段就是读回来的那份）
     if (line.startsWith('api graphql')) {
       state.graphqlGets += 1
+      // ⑥-0 依赖查询（#1304）：一次取回正向 blockedBy 与反向 blocking 两条连接。
+      // 反向边就是「谁把我当阻塞方」，从同一份状态里反推，形状与真机一致（两条连接都带 pageInfo）。
+      if (line.includes('blocking(first:50)')) {
+        const dm = /number=(\d+)/.exec(line)
+        if (!dm) return { code: 1, stdout: '', stderr: 'bad deps query: ' + line.slice(0, 160) }
+        const dk = dm[1]
+        // 契约读回是空的那一档（contractBlind）连原生依赖字段一起看不见，与本文件其它读票场景口径一致。
+        // 名册里 blocked 那本账存的是 Set，contract 那本存的是数组：先归成数组再读，两种形状都认。
+        const toArr = (v: unknown): string[] => (v instanceof Set ? Array.from(v as Set<string>) : Array.isArray(v) ? (v as string[]).map(String) : [])
+        const src = state.contractBlind ? new Map<string, unknown>() : (state.contract || state.blocked)
+        const blockedBy = toArr(src.get(dk))
+        const blocking: string[] = []
+        if (!state.contractBlind) {
+          for (const [ik, v] of src) {
+            if (ik !== dk && toArr(v).includes(dk)) blocking.push(ik)
+          }
+        }
+        const conn = (arr: string[]) => ({
+          pageInfo: { hasNextPage: false },
+          nodes: arr.map((n) => ({ number: Number(n), title: 't' + n, state: 'OPEN' })),
+        })
+        return { code: 0, stdout: JSON.stringify({ data: { repository: { issue: { number: Number(dk), blockedBy: conn(blockedBy), blocking: conn(blocking) } } } }), stderr: '' }
+      }
       // ⑥-1 批量取 node id：一条 query 里若干别名 i0/i1…（issueNodeIdsQuery 的形状）
       const aliases = Array.from(line.matchAll(/i(\d+):\s*issue\(number:(\d+)\)/g))
       if (aliases.length) {

@@ -18,12 +18,14 @@ import { fail } from '../../kernel/preflight.js'
 import { debugOn, guardEmit, outcomeOf } from '../../kernel/log-emit.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { getIssue, listIssues } from './issues.js'
+import { getIssue } from './issues.js'
 import { adjacencyFor, hasCycle, CYCLE_VERDICT } from './cycle-check.js'
 import type { CycleVerdict } from './cycle-check.js'
 import { markDirty } from './roster.js'
 import type { MemoContext } from './roster.js';
 import { normalizeIssue } from './normalize.js'
+// 依赖投影的读路径（原生反向边优先、兜底自曝）从 #1304 起单开一房：本文件只留入口校验与判档。
+import { readDependencies } from './deps-read.js'
 // 写阻塞边这一段（GraphQL 优先、明确不支持才回落 REST）搬到了 blocked-by-write.ts：
 // graph.ts 的有效行已被零增长基线冻结（只许减不许增），所以这里只留「读真值 → 算差集 → 委托写 → 读回」这条主干。
 import { writeBlockedByEdges } from './blocked-by-write.js'
@@ -296,9 +298,10 @@ async function setParentInner(repo: RepositoryRef, key: string, parentKey: strin
 }
 
 /**
- * getDependencies(repo, key, opts, ctx) -> OpResult<{blockedBy, blocking}>
- * - blockedBy 读自 GitHub blockedBy 边（GraphQL blockedBy 字段）
- * - blocking 反向聚合：全量扫描 blockedBy 或单点 blocking 边（此处全量扫描，host 侧 LRU 缓存）
+ * getDependencies(repo, key, opts, ctx) -> OpResult<{blockedBy, blocking, blockingSource, blockingComplete}>
+ * - blockedBy 读自 GitHub blockedBy 边（唯一真源，写边也只认它）
+ * - blocking 反向投影：原生字段一次查询取回，开销与仓库总票数无关；原生不可用才退回整仓列表反推。
+ *   退回兜底、或者连接/列表到了上限时，返回值会自己说清「用了兜底」「可能不全」（见 deps-read.ts）。
  */
 export async function getDependencies(repo: RepositoryRef, key: string, opts: DepsOpts | undefined, ctx: MemoContext): Promise<OpResult<Dependencies>> {
   try {
@@ -306,7 +309,7 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `getDependencies: repo.refId missing: ${repoId(repo)}`, repo)
     // 批量模式：opts.keys
     if (opts && Array.isArray(opts.keys) && opts.keys.length) {
-      // 批量返回聚合：对每 key 各自取 blockedBy，再反向聚合 blocking（简化：直接调单点并合并）
+      // 批量返回聚合：对每 key 各自取依赖投影，再合并；宿主快照平时逐 key 调用，多 key 分支罕见。
       // 为什么显式标：循环里才往里装，编译器判成隐式 any；装的本来就是编号与那份依赖投影，运行时还是原来那几个值。
       const results: { key: string; data: Dependencies }[] = []
       for (const kk of opts.keys) {
@@ -321,35 +324,8 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
     }
     const k = String(key || '').trim()
     if (!k) return fail(ERROR_KIND.PARSE, 'getDependencies: key required', key)
-    // 取单票 blockedBy
-    const cur = await getIssue(repo, k, {}, ctx)
-    if (!cur.ok) return cur
-    const blockedBy = Array.isArray(cur.data.blockedBy) ? cur.data.blockedBy : []
-    // blocking 反向聚合：名册优先（脏票定向重读），缺席时退回整仓拉取；阻塞方的标题逐张读回，读不回的键照列（标题空，不吞边）。
-    const adj = await adjacencyFor(repo, ctx)
-    // 为什么显式标成串数组：分支里才往里装，编译器判成隐式 any；装的本来就是阻塞方的票号串，运行时还是原来那几个值。
-    const blockingKeys: string[] = []
-    if (adj) {
-      for (const entry of adj) { if (entry[1] && entry[1].has(k) && entry[0] !== k) blockingKeys.push(entry[0]) }
-    } else {
-      const allRes = await listIssues(repo, {}, ctx)
-      // 整仓回退：名册缺席时把整仓的票拉回来，逐张扫它的 blockedBy 反推 blocking。
-      // 名册平时都在，这条路罕见；拉全仓慢，但这是设计（见 235 行注释），不是临时凑合。
-      const all: Issue[] = allRes.ok ? allRes.data : []
-      for (const issue of all) {
-        if (!issue.blockedBy || !Array.isArray(issue.blockedBy)) continue
-        if (issue.blockedBy.some((b) => b.key === k)) blockingKeys.push(issue.key)
-      }
-    }
-    // 为什么标成引用数组：反向聚合的每一项本来就是「键+标题+状态」的引用（读不回的标题给空串），与契约的 blocking 一一对应。
-    const blocking: IssueRef[] = []
-    for (const bk of blockingKeys) {
-      // 为什么显式标：两条分支（读回 / 没读回）都往里装，编译器判成隐式 any；装的本来就是那张票或空，运行时还是原来那个值。
-      let info: Issue | null = null
-      try { const g = await getIssue(repo, bk, {}, ctx); if (g && g.ok === true) info = g.data } catch (e) {}
-      blocking.push(info ? { key: info.key, title: info.title, state: info.state, type: info.type } : { key: bk, title: '', state: 'open' })
-    }
-    return { ok: true, data: { blockedBy, blocking } }
+    // 读路径整段委托给 deps-read.ts：原生优先、兜底自曝，这里只留入口校验与判档。
+    return await readDependencies(repo, parsed, k, ctx)
   } catch (e) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文。

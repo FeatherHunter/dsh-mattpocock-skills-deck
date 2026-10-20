@@ -115,6 +115,21 @@ export interface Dependencies {
   blockedBy: IssueRef[]
   /** 反向投影：便利字段，任何判定都不许只信它。 */
   blocking: IssueRef[]
+  /**
+   * 这一次的 `blocking` 是不是完整的（#1304）。
+   * `false` 表示只看到了后端能一次给的一部分：连接到了上限，或者退回整仓列表反推时那份列表被截断。
+   * 这时调用方必须把「可能不全」写进回执，**不许把「没看到」当成「没有」**。
+   * 可选：老后端与旧调用点不给这一格，按「没交代」处理，不许读成 `true`。
+   */
+  blockingComplete?: boolean
+  /**
+   * 反向边是怎么来的：`native` = 后端的原生反向字段一次查询取回（开销与仓库总票数无关）；
+   * `scan` = 原生字段不可用（老版本、非 GitHub、查询失败），退回整仓列表逐行反推（代价随仓库票数增长）。
+   * 可选：没有这一格的后端不交代来源。
+   */
+  blockingSource?: 'native' | 'scan'
+  /** 给人看的一句话，说清这次反向边的来源与完整性；`blockingComplete === false` 时必须有。 */
+  blockingNote?: string
 }
 
 /**

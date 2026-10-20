@@ -49,6 +49,20 @@ export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   }
 }`
 
+// 依赖投影查询（#1304）：一次取齐正向与反向阻塞边，标题与状态随行回来，不再逐张再读。
+// 为什么不并进 ISSUE_FRAGMENT：列表查询不需要反向边（每行多付一整条连接的钱），
+// 而且契约不允许把 blocking 塞进 Issue 实体；它只是 getDependencies 的投影。
+// 两条连接都带 pageInfo：到了后端一次能给的上限（50 条）时，调用方要能如实说「可能不全」。
+export const DEPS_QUERY = `query($owner:String!,$name:String!,$number:Int!){
+  repository(owner:$owner,name:$name){
+    issue(number:$number){
+      number
+      blockedBy(first:50){ pageInfo{ hasNextPage } nodes{ number title state } }
+      blocking(first:50){ pageInfo{ hasNextPage } nodes{ number title state } }
+    }
+  }
+}`
+
 // 计数查询（#689 的 counts op）。一次往返拿两个数：不翻页、不带任何行，所以只花 1 点额度（2026-09-22 实测）。
 // 为什么用 issues 连接：它天然不含拉取请求（契约要求「只数工单」），而 REST 的 open_issues_count 把拉取
 //   请求也算在内，不能用。

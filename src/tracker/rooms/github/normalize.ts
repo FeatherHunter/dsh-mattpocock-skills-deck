@@ -198,15 +198,30 @@ function normalizeComments(raw: unknown): Comment[] {
   return out
 }
 
-function normalizeBlockedBy(raw: unknown): IssueRef[] {
-  const bag = asBag(raw);
-  let nodes: unknown = null
-  if (bag && bag.blockedBy && typeof bag.blockedBy === 'object' && Array.isArray((bag.blockedBy as RawBag).nodes)) nodes = (bag.blockedBy as RawBag).nodes
-  else if (bag && bag.blocked_by && Array.isArray(bag.blocked_by)) nodes = bag.blocked_by
-  else if (Array.isArray(bag && (bag as RawBag).blockedBy)) nodes = (bag as RawBag).blockedBy
-  else return [] // 恒实现 → EMPTY
+/**
+ * 读一条边连接的节点与截断位（#1304）。
+ * 两种回包都认：GraphQL 连接形状（nodes + pageInfo.hasNextPage）与 REST 形状（直接数组，没有分页信息）。
+ * 只有 pageInfo.hasNextPage === true 才算截断 —— 缺 pageInfo 时按「不知道上限、没有截断」收下，
+ * 与原来读单条边时的行为一致；REST 数组按完整收下，完整性判不了的那一路由上层自己交代。
+ */
+function edgeNodesOf(raw: unknown, field: string): { nodes: unknown[]; truncated: boolean } {
+  const bag = asBag(raw)
+  const conn = bag && bag[field] && typeof bag[field] === 'object' ? bag[field] as RawBag : null
+  if (conn && Array.isArray(conn.nodes)) {
+    const pageInfo = conn.pageInfo && typeof conn.pageInfo === 'object' ? conn.pageInfo as RawBag : null
+    return { nodes: conn.nodes, truncated: pageInfo ? pageInfo.hasNextPage === true : false }
+  }
+  // REST 回包：边就是数组（列表行、单票都这样），没有分页信息，按完整收下。
+  if (Array.isArray(bag && bag[field])) return { nodes: (bag as RawBag)[field] as unknown[], truncated: false }
+  // REST 字段名的历史写法（blocked_by）只在正向边这一条上有。
+  if (field === 'blockedBy' && bag && Array.isArray(bag.blocked_by)) return { nodes: bag.blocked_by as unknown[], truncated: false }
+  return { nodes: [], truncated: false }
+}
+
+/** 把边连接的节点归一成一串轻量引用：键 + 标题 + 状态，种类有才补。 */
+function refsOfEdgeNodes(nodes: unknown[]): IssueRef[] {
   const out: IssueRef[] = []
-  for (const n of (nodes as unknown[])) {
+  for (const n of nodes) {
     if (!n || typeof n !== 'object') continue
     const rec = n as RawBag;
     const k = rec.number != null ? String(rec.number) : (typeof rec.key === 'string' ? rec.key : '')
@@ -221,6 +236,21 @@ function normalizeBlockedBy(raw: unknown): IssueRef[] {
     out.push(ref)
   }
   return out
+}
+
+function normalizeBlockedBy(raw: unknown): IssueRef[] {
+  return refsOfEdgeNodes(edgeNodesOf(raw, 'blockedBy').nodes)
+}
+
+/**
+ * 依赖投影归一（#1304）：一次读回正向与反向两条边，并交代反向边有没有到上限。
+ * 为什么单开这个出口：单票查询只要正向边（normalizeBlockedBy 继续走同一条读法），
+ * 反向边只在 getDependencies 这一条路上要，两条边一起读回来才不用整仓扫描。
+ */
+export function normalizeDependencyEdges(raw: unknown): { blockedBy: IssueRef[]; blocking: IssueRef[]; blockingTruncated: boolean } {
+  const blocked = edgeNodesOf(raw, 'blockedBy')
+  const blockBy = edgeNodesOf(raw, 'blocking')
+  return { blockedBy: refsOfEdgeNodes(blocked.nodes), blocking: refsOfEdgeNodes(blockBy.nodes), blockingTruncated: blockBy.truncated }
 }
 
 // 拉取请求三字段归一（#504 落 #294 形状 A：复用工单形状加三个可选字段，不新增实体）。

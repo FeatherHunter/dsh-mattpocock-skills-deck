@@ -51,7 +51,7 @@
   },
   "items": [],
   "notes": [
-    "反向阻塞边这次没取（blocking=false，跳过一次全仓扫描）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。"
+    "反向阻塞边这次没取（blocking=false，跳过一次反向边查询）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。"
   ],
   "ok": true,
   "readBack": null,
