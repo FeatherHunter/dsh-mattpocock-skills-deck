@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 主体文本重新设计：四个方向</title>
+<style>
+:root{--bg:#0c0e12;--card:#10131a;--border:#2a2d35;--txt:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
+  --purple:#c084fc;--blue-text:#93c5fd;--amber:#f59e0b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:1010px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 60px;max-width:1240px;margin:0 auto}
+section{margin-bottom:32px}
+h2{font-size:15px;margin:0 0 4px;display:flex;align-items:baseline;gap:9px}
+h2 .tag{font-size:11px;color:var(--cap);font-weight:400;border:1px solid var(--border);border-radius:20px;padding:1px 9px}
+h2 .pick{font-size:11px;color:var(--amber);font-weight:400}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:1040px}
+.sub b{color:var(--txt)}
+.opt{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.cards{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.cardcell .cl{font-size:10.5px;color:var(--cap);margin-bottom:5px;text-align:center}
+.notes{flex:1 1 300px;min-width:280px}
+.notes dl{margin:0;font-size:12.3px}
+.notes dt{color:var(--amber);margin-top:7px}
+.notes dd{margin:2px 0 0;color:var(--sec)}
+.notes dd b{color:var(--txt)}
+.hint{color:var(--amber);font-size:12px;max-width:1040px;margin:8px 0 0}
+table{border-collapse:collapse;width:100%;max-width:1040px}
+th,td{border:1px solid var(--border);padding:7px 9px;font-size:12.3px;text-align:left;vertical-align:top}
+th{color:var(--cap);font-weight:400;background:rgba(255,255,255,.03)}
+td.p{color:var(--purple)} td.b{color:var(--blue-text)}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>主体文本重新设计：四个方向</h1>
+  <p>前一版的思路整体作废：不再在「做法 + 产物」这一条路上挑措辞，也不再在「心里话 / 开场白 / 处境加后果」那三个框架里挑。下面的四个方向给主体文本的是<b>四个不同的职责</b>，不是同一句话的四种写法。</p>
+  <p>为了能横向比，<b>只换主体文本这一块</b>：眉标（探索地图 / 实施地图）、状态句（目标大而模糊 / 目标明确清晰）、左上角那幅地图、底部那条技能链、卡片骨架与配色全部照旧。</p>
+  <p>四个方向各自回答的问题：<b>一 · 对话</b>——这路会问我什么；<b>二 · 分工</b>——你做什么、它做什么；<b>三 · 准备</b>——我得带上什么才能走；<b>四 · 形态</b>——这路长什么样。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="tag">一</span>对话 · 这路会问我什么</h2>
+    <p class="sub">主体文本不描述步骤，改成<b>把这条路将来怎么对你说话说出来</b>：它来问你，问的是哪件事。两张卡的第一句就能分开——「会分头问你」对「会照着文档问」。</p>
+    <div class="opt" id="way1"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">二</span>分工 · 你做什么、它做什么</h2>
+    <p class="sub">主体文本只画<b>人和工具的边界</b>：哪一段是你的活，哪一段是它的活。排在卡上是两色——「你……」用卡色淡一档，「它……」用灰，一眼能看出活落在谁身上。</p>
+    <div class="opt" id="way2"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">三</span>准备 · 我得带上什么才能走</h2>
+    <p class="sub">主体文本回答<b>开始之前手上该有什么</b>：探索这条路几乎不用准备，实施这条路要带一份文档。这条直接对着「我什么都没有，能不能开始」这个顾虑。</p>
+    <div class="opt" id="way3"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">四</span>形态 · 这路长什么样</h2>
+    <p class="sub">主体文本用文字把<b>卡上那幅图画的东西再说一遍</b>：一条路分成三条岔路，每条尽头一个问号；一条直线一路问到盖章。</p>
+    <div class="opt" id="way4"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">对照</span>四个方向放在一起比</h2>
+    <div id="cmp"></div>
+    <p class="hint">我的倾向是<b>方向一（对话）</b>：它同时把两件事说了——这条路是来问我的（这层心理准备最有分量），以及问的是什么（分头问 / 照着文档问，两张卡开头就分得开）。<b>方向二（分工）</b>是第二选择，它把「决定权在你手上」这件事摆得最清楚，但要引入两色排版。方向三只对新用户有用；方向四跟插图重复，是四个里最弱的。</p>
+  </section>
+
+  <section>
+    <h2><span class="tag">待定</span>挑完之后要做的事</h2>
+    <p class="sub">选一个方向（或指定混搭，比如「一 + 三」），我把它并进 <code>docs/prototype/1290-entry-two-maps.html</code> 的真实入口浮层，刷新截图，并同步 #1290 与 #1297 票面上的卡面文案。</p>
+  </section>
+</div>
+
+<script>
+var P="#c084fc", PT="#e9d5ff", B="#93c5fd", BT="#bfdbfe", G="#3fb950";
+function defs(u,c){
+  return '<defs>'+
+    '<radialGradient id="g'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".38"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient>'+
+    '<radialGradient id="f'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".3"></stop><stop offset=".55" stop-color="'+c+'" stop-opacity=".14"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient></defs>';
+}
+function need(x,y,w,h,stroke,txt,dash){
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(h/2)+'" fill="rgba(0,0,0,0)" stroke="'+stroke+'" stroke-width="1.3"'+(dash?' stroke-dasharray="3.4 2.4"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+4)+'" text-anchor="middle" font-size="10.5" fill="'+txt+'" letter-spacing=".5">需求</text>';
+}
+function q(x,y,r){
+  return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(10,12,16,.92)" stroke="'+PT+'" stroke-width="1.3"></circle>'+
+    '<text x="'+x+'" y="'+(y+r*.38)+'" text-anchor="middle" font-size="'+(r*1.35)+'" fill="'+PT+'">?</text>';
+}
+function target(x,y,r,color,glow,check){
+  var s='<circle cx="'+x+'" cy="'+y+'" r="'+(r+9)+'" fill="url(#'+glow+')"></circle>';
+  s+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#0b0d11" stroke="'+color+'" stroke-width="1.4"></circle>';
+  if(check){ s+='<path d="M'+(x-r*.42)+' '+y+' l'+(r*.3)+' '+(r*.34)+' l'+(r*.6)+'-'+(r*.68)+'" fill="none" stroke="'+G+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>'; }
+  else { s+='<circle cx="'+x+'" cy="'+y+'" r="'+(r*.42)+'" fill="none" stroke="'+color+'" stroke-width="1.1" opacity=".75"></circle>'; }
+  return s;
+}
+function ticket(x,y,w,h){
+  var s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="4" fill="rgba(29,78,216,.42)" stroke="'+B+'" stroke-width="1.2"></rect>';
+  s+='<path d="M'+(x+6)+' '+(y+h/2)+' l2.2 2.2 4-4.6" fill="none" stroke="'+G+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2-2.5)+' H '+(x+w-5)+'" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".7"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2+3)+' H '+(x+w-12)+'" stroke="'+B+'" stroke-width="1" stroke-linecap="round" opacity=".35"></path>';
+  return s;
+}
+function artExplore(u){
+  var s=defs(u,"#c084fc");
+  s+=need(6,42,42,20,P,PT,true);
+  s+='<circle cx="52" cy="52" r="5" fill="none" stroke="'+P+'" stroke-opacity=".35" stroke-width="1"></circle>';
+  s+='<circle cx="52" cy="52" r="2.6" fill="'+P+'"></circle>';
+  s+='<path d="M54 52 H 68" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round"></path>';
+  s+='<circle cx="72" cy="52" r="3.6" fill="'+P+'"></circle>';
+  s+='<path d="M72 52 C 80 46 88 26 96 21" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 82 52 90 52 96 52" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 80 58 88 78 96 83" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+=q(104,20,8); s+=q(104,52,8); s+=q(104,84,8);
+  s+='<path d="M112 20 C 124 22 134 40 141 50" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>';
+  s+='<path d="M112 52 C 124 52 134 52 141 52" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".4"></path>';
+  s+='<path d="M112 84 C 124 82 134 64 141 54" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".35"></path>';
+  s+='<circle cx="152" cy="52" r="30" fill="url(#f'+u+')"></circle>';
+  s+=target(150,52,8,PT,'g'+u,false);
+  return s;
+}
+function artImpl(u){
+  var s=defs(u,"#60a5fa");
+  s+=need(6,42,42,20,B,BT,false);
+  var ys=[8,31,54,77], cy=[16.5,39.5,62.5,85.5];
+  for(var i=0;i<4;i++){ s+='<path d="M48 52 C 56 52 58 '+cy[i]+' 68 '+cy[i]+'" fill="none" stroke="'+B+'" stroke-width="1.4" stroke-linecap="round" opacity=".75"></path>'; }
+  for(var j=0;j<4;j++){
+    s+=ticket(70,ys[j],36,17);
+    s+='<path d="M106 '+cy[j]+' C 118 '+cy[j]+' 128 '+(cy[j]<52?cy[j]+8:cy[j]-8)+' 138 50" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>';
+  }
+  s+=target(148,52,8,BT,'g'+u,true);
+  return s;
+}
+var MONO='Consolas,Menlo,monospace';
+function node(x,y,w,h,text,o){
+  o=o||{};
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?5:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+2.5)+'" text-anchor="middle" font-size="'+(o.fs||7)+'" fill="'+(o.text||"#e6edf3")+'" font-family="'+MONO+'">'+text+'</text>';
+}
+function arrowH(x1,x2,y,c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+    '<path d="M'+(x2-3.4)+' '+(y-2.4)+' L'+x2+' '+y+' L'+(x2-3.4)+' '+(y+2.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+function chainExploreH(ox,oy){
+  var s="", cy=oy+31, rows=["/prototype","/research","/grilling","/domain-modeling"], rowH=12, gap=2.5;
+  var top=cy-(rows.length*rowH+(rows.length-1)*gap)/2;
+  s+=node(ox,cy-6,48,12,"/wayfinder",{fill:"rgba(192,132,252,.12)",stroke:P,text:PT,fs:6.8});
+  s+=arrowH(ox+48,ox+56,cy,P);
+  var sx=ox+56,gx=ox+64;
+  s+='<path d="M'+sx+' '+cy+' V'+(top+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+='<path d="M'+sx+' '+cy+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for(var i=0;i<rows.length;i++){
+    var y=top+i*(rowH+gap);
+    s+=arrowH(sx,gx,y+rowH/2,P);
+    s+=node(gx,y,86,rowH,rows[i],{fill:"rgba(192,132,252,.10)",stroke:P,text:PT,fs:6.6,rx:4});
+  }
+  var rx=gx+86+4,mx=rx+4;
+  s+='<path d="M'+rx+' '+(top+rowH/2)+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+=arrowH(mx,mx+6,cy,P);
+  var gx2=mx+6;
+  s+=node(gx2,cy-6,46,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(gx2+46,gx2+54,cy,B);
+  s+=node(gx2+54,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(gx2+92,gx2+100,cy,B);
+  s+=node(gx2+100,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+function chainImplH(ox,oy){
+  var s="", cy=oy+31;
+  s+=node(ox,cy-6,68,12,"/grill-with-docs",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6});
+  s+=arrowH(ox+68,ox+94,cy,B);
+  s+=node(ox+94,cy-6,46,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(ox+140,ox+158,cy,B);
+  s+=node(ox+158,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(ox+196,ox+220,cy,B);
+  s+=node(ox+220,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+var uid=0;
+function artOf(kind,w,h,x,y){
+  var u='u'+(uid++);
+  var a = kind==='explore' ? artExplore(u) : artImpl(u);
+  return '<svg x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" viewBox="0 0 168 104">'+a+'</svg>';
+}
+var TXT={
+  explore:{name:"探索地图", state:"目标大而模糊", color:P, border:"rgba(188,140,255,.45)"},
+  impl:{name:"实施地图", state:"目标明确清晰", color:B, border:"rgba(29,78,216,.75)"}
+};
+/* 主体文本：每行是一串「文字 + 颜色」的片段，行内用 tspan 排，颜色切换不影响字的接续 */
+function bodyText(x,y,lines,fs,lineH){
+  var s='';
+  for(var j=0;j<lines.length;j++){
+    s+='<text x="'+x+'" y="'+(y+j*lineH)+'" font-size="'+fs+'">'+lines[j].map(function(r){
+      return '<tspan fill="'+r.c+'">'+r.t+'</tspan>';
+    }).join("")+'</text>';
+  }
+  return s;
+}
+function cardFinal(kind,lines){
+  var c=TXT[kind], W=368, H=232, s='';
+  s+='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">';
+  s+='<rect x="0.5" y="0.5" width="'+(W-1)+'" height="'+(H-1)+'" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>';
+  s+='<rect x="12" y="12" width="184" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,168,104,20,18);
+  s+='<text x="208" y="36" font-size="11" fill="'+c.color+'" fill-opacity=".72" letter-spacing="1.2">'+c.name+'</text>';
+  s+='<text x="208" y="64" font-size="17" font-weight="700" fill="'+c.color+'">'+c.state+'</text>';
+  s+=bodyText(208,86,lines,12,17);
+  s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  /* 技能链在面板里垂直居中：面板 140..220，中心 180；链内部的中线是 oy+31，所以 oy 传 149 */
+  s+= kind==='explore' ? chainExploreH(26,149) : chainImplH(26,149);
+  return s+'</svg>';
+}
+var GRAY="#a1a1aa";
+function plain(t){ return [[{t:t,c:GRAY}]]; }
+function split2(a,b,accent){ return [[{t:a,c:accent},{t:b,c:GRAY}]]; }
+
+/* 四个方向：每个方向给主体文本一个不同的职责，措辞按这个职责重写 */
+var WAYS=[
+  {id:"way1", name:"对话", q:"这路会问我什么",
+   e:[[{t:"会分头问你：每条路上，",c:GRAY}],[{t:"到底要什么。",c:GRAY}]],
+   i:[[{t:"会照着文档问：哪条",c:GRAY}],[{t:"还没定、怎么定。",c:GRAY}]],
+   strong:"把「AI 会来盘问我」这件心理上最重的事说了出来；两张卡第一句就分得开（「会分头问你」对「会照着文档问」）。",
+   weak:"像说明书；「会分头问你」不常这么说话，用户要愣一下才懂。"},
+  {id:"way2", name:"分工", q:"你做什么、它做什么",
+   e:[[{t:"你决定要什么，",c:"#d8b4fe"}],[{t:"它把每个岔路口问到底。",c:GRAY}]],
+   i:[[{t:"你拍板怎么做，",c:"#bfdbfe"}],[{t:"它写成能开工的票。",c:GRAY}]],
+   strong:"把人和工具的边界画出来：决定权在人，执行在它。两色排版把分工直接画在字上。",
+   weak:"「你决定要什么」听着像把活推回给用户；两色是额外的视觉复杂度，第二张卡也容易读成两句话。"},
+  {id:"way3", name:"准备", q:"我得带上什么才能走",
+   e:[[{t:"一句说不清的想法，",c:GRAY}],[{t:"剩下的它现场问。",c:GRAY}]],
+   i:[[{t:"一份手边的文档，",c:GRAY}],[{t:"没定的地方就是题。",c:GRAY}]],
+   strong:"对着新用户最实际的那个顾虑：什么都没有能不能开始。探索几乎零门槛、实施要带文档，一句话就把差别讲了。",
+   weak:"只对新用户有用，老用户看第二遍没有新信息；实施那条还可能让人误以为没有文档就开不了。"},
+  {id:"way4", name:"形态", q:"这路长什么样",
+   e:[[{t:"一条路分成三条岔路，",c:GRAY}],[{t:"每条尽头一个问号。",c:GRAY}]],
+   i:[[{t:"一条直线一路问到底，",c:GRAY}],[{t:"答完就盖章。",c:GRAY}]],
+   strong:"文字版的空间模型，最直观；和卡上那幅图互相印证，不用懂「探索地图 / 实施地图」这些词也能懂。",
+   weak:"和左上角那幅图重复——图已经画了；换一张图就得改文案。四个方向里最弱。"}
+];
+WAYS.forEach(function(w){
+  var html='<div class="cards">'+
+    '<div class="cardcell"><div class="cl">'+w.name+' · 探索地图</div>'+cardFinal("explore",w.e)+'</div>'+
+    '<div class="cardcell"><div class="cl">'+w.name+' · 实施地图</div>'+cardFinal("impl",w.i)+'</div>'+
+    '</div><div class="notes"><dl>'+
+    '<dt>主体文本回答什么</dt><dd>'+w.q+'</dd>'+
+    '<dt>写法</dt><dd>探索：'+w.e.map(function(l){return l.map(function(r){return r.t;}).join("");}).join("")+
+      '　｜　实施：'+w.i.map(function(l){return l.map(function(r){return r.t;}).join("");}).join("")+'</dd>'+
+    '<dt>强在哪</dt><dd>'+w.strong+'</dd>'+
+    '<dt>弱在哪</dt><dd>'+w.weak+'</dd>'+
+    '</dl></div>';
+  document.getElementById(w.id).innerHTML=html;
+});
+document.getElementById("cmp").innerHTML=
+  '<table><tr><th style="width:88px">方向</th><th style="width:150px">主体文本回答什么</th><th>探索地图的说法</th><th>实施地图的说法</th><th style="width:270px">强在哪</th><th style="width:270px">弱在哪</th></tr>'+
+  WAYS.map(function(w){
+    var e=w.e.map(function(l){return l.map(function(r){return r.t;}).join("");}).join(""),
+        i=w.i.map(function(l){return l.map(function(r){return r.t;}).join("");}).join("");
+    return '<tr><td style="color:#8b8b95">'+w.name+'</td><td>'+w.q+'</td><td class="p">'+e+'</td><td class="b">'+i+'</td><td style="color:#8b8b95">'+w.strong+'</td><td style="color:#8b8b95">'+w.weak+'</td></tr>';
+  }).join("")+'</table>';
+</script>
+</body>
+</html>
