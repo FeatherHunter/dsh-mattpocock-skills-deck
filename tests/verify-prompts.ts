@@ -10,6 +10,16 @@
 //   注册表仍是 28 条、每条仍带 version / placeholders / use / zh / en 五样，读出来的文本仍逐条过 judge()，
 //   产物里的文本仍逐字段等于真源；变的只有「真源是文件而不是源码」这一件事。
 //
+// #1293：把「真源改成文件」之后的收口做完，判定强度一条不降：
+//   · tests/verify-prompt-newlines.ts 整条退场（文件删除），它的「正文不许出现字面 \n」判据并进本文件第 4c 节，
+//     扫描面一处不少（五份 YAML / 两份客户端产物 / src/host 的 *_PROMPT / src/tracker/rooms 的 zh/en 字面量）；
+//   · 源码形状规则 auditRegistryShape 与 OBJECT_PROTO_KEYS 退场（注册表已是 YAML 解析出的普通数据，没有 JS 求值面），
+//     其中仍适用的「锚点/别名藏内容」判据保留在 yamlHidingShape，S1 逐份 YAML 判；
+//   · 新增四条 YAML 化产物断言：use 不进客户端产物 / 正文不许有字面 \n / 每种语言都必须有正文 /
+//     占位符与正文逐语言一一对应（第 4c 节，前两条完整模式跑，后两条连单文件探针也跑）；
+//   · L2 机械注入加自检：跑完真源一字不差（注入只许改内存对象、写临时目录）；
+//   · 判定强度对照表见 docs/design/1293-prompt-gate-strength.md。
+//
 // 判定分两层：
 //   ① 结构契约（沿用 #461/#68/#69/#71/#72/#74/#75/#76/#77 的既有断言，陈旧的两组已按现状修正）
 //   ② 提示词判定：扫描各面 → 归一化 → 跑 R1–R8
@@ -129,10 +139,11 @@ const MUST_JUDGE = [
   'backend:gitlab#subIssue', 'backend:markdown#subIssue',
 ]
 const EXPECT_MUST_JUDGE = 7 // 硬编码：清空这张表等于让这 7 条脱离判定，所以条数要卡死
-// Object.prototype 的标准自有属性（原型污染检测的基线；多出任何一条就是被加了东西）
-const OBJECT_PROTO_KEYS = ['constructor', '__defineGetter__', '__defineSetter__', 'hasOwnProperty',
-  '__lookupGetter__', '__lookupSetter__', 'isPrototypeOf', 'propertyIsEnumerable', 'toString', 'valueOf',
-  '__proto__', 'toLocaleString']
+// #1293：OBJECT_PROTO_KEYS 随 auditRegistryShape 一起退场 —— 注册表现在由 registryFromEntries 从 YAML 解析结果
+//   造出普通对象，没有 JS 求值面，原型污染 / 不可枚举属性 / getter / Symbol 键这些形状都构造不出来。
+//   「被藏起来的条目」的兜底判据改成两条更直接的：条目数硬编码 28（EXPECT_REGISTRY_ENTRIES）+
+//   YAML 文本顶层键与解析 id 双向一致（主跑 S1 那两处）。auditRegistryShape 里唯一仍适用的
+//   「锚点/别名藏内容」判据没有丢，改由 yamlHidingShape 逐份 YAML 判（见 promptYamlHidingHits）。
 // 每个面允许的 rule 豁免集合（硬编码：改一个 id 或把 scope 改成 rule 都会与这张表对不上）
 const RULE_EXEMPT_EXPECTED = {
   registry: [],
@@ -474,6 +485,30 @@ const yamlHidingShape = function (text) {
 }
 
 /**
+ * #1293：逐份判 config/prompts/ 下的五份 YAML 有没有锚点 / 别名。
+ * 为什么逐份判、不把五份拼起来判：yaml.parseDocument 一次只吃一份文档；从前 auditRegistryShape 把
+ *   五份 YAML 拼成一整段交给 yamlHidingShape，parseDocument 遇到多文档会抛错、被 try/catch 吞掉，
+ *   于是那条判据在完整模式下其实一次都没生效过。本票改成一份一份判：语法树读不出来也判红，
+ *   不许因为「读不出」就把这条判据静默跳过。
+ * 返回一串人话问题描述（空数组 = 五份都干净）。
+ */
+const promptYamlHidingHits = function () {
+  const hits = []
+  PROMPT_TEMPLATE_YAML_RELS.forEach(function (rel) {
+    const p = path.join(ROOT, rel)
+    let hit = ''
+    try {
+      hit = yamlHidingShape(fs.readFileSync(p, 'utf8'))
+    } catch (e) {
+      hits.push(rel + ' 的 YAML 语法树读不出来（' + ((e && e.message) || e) + '）—— 锚点/别名判据扫不到这一份，先把 YAML 修成合法文档')
+      return
+    }
+    if (hit) hits.push(rel + ' 含' + hit + '（可以把内容藏起来再别处引用，条目会不声不响地少掉，禁止）')
+  })
+  return hits
+}
+
+/**
  * 把客户端那两片源码合成一段可求值的 JavaScript。
  * #1292：提示词数据不再是源码里的字面量，而是生成物 PROMPT_TEMPLATE_DATA / PROMPT_FRAGMENT_DATA ——
  *   这两个名字由本门禁当参数注入（客户端闭包里它们由 kernel:promptData 那一片提供；这里注入的是同一份数据）。
@@ -566,44 +601,16 @@ const FALLBACK_LANGUAGES = {
     en: { label: { zh: 'English', en: 'English' }, fallback: ['zh'] },
   },
 }
-// 反隐藏：条目不许用不可枚举属性 / Symbol / 原型链 / getter 藏起来（这些都能绕过 Object.keys）
-const auditRegistryShape = function (src, reg) {
-  const out = []
-  // 源文本层：能藏东西的写法一律禁止。
-  // #1292：真源从源码变成 YAML 之后，「藏」的手段也换了 —— 源码里是 defineProperty / setPrototypeOf /
-  //   __proto__ / getter 这几种写法，YAML 里对应的是锚点与别名（&name / *name）。这两种靠文本正则认不准
-  //   （提示词正文里本来就有 & 与 * 这些字符），所以走 YAML 语法树看：任何带 anchor 的节点或别名节点都判红。
-  //   原型链那几个键在 YAML 里只能是键名，仍按文本判。
-  let hiding = ''
-  try { hiding = yamlHidingShape(src) } catch (e) { hiding = '' }
-  if (hiding) out.push('注册表 YAML 含' + hiding + '（可以把内容藏起来再别处引用，条目会不声不响地少掉，禁止）')
-  if (/^\s*(__proto__|constructor|prototype)\s*:/m.test(src)) {
-    out.push('注册表 YAML 含原型链相关的键（__proto__ / constructor / prototype，可以改写原型链，禁止）')
-  }
-  // 运行时再查一遍 Object.prototype：方括号 + 计算属性名（Object['proto' + 'type']）能绕过上面的源码正则
-  const protoExtra = Reflect.ownKeys(Object.prototype).map(function (k) { return typeof k === 'symbol' ? String(k) : String(k) })
-    .filter(function (k) { return OBJECT_PROTO_KEYS.indexOf(k) < 0 })
-  if (protoExtra.length) out.push('Object.prototype 被加了属性：' + protoExtra.join(', ') + '（原型污染，条目可以挂在这里绕过扫描）')
-  // 运行时层：注册表自身必须是普通对象，且只认自有属性
-  const regProto = Object.getPrototypeOf(reg)
-  if (regProto !== Object.prototype && regProto !== null) out.push('S1 注册表自身的原型不是 Object.prototype（条目可能挂在原型链上）')
-  const allKeys = Reflect.ownKeys(reg)
-  if (allKeys.length !== Object.keys(reg).length) out.push('S1 注册表有不可枚举属性或 Symbol 键：Reflect.ownKeys ' + allKeys.length + ' ≠ Object.keys ' + Object.keys(reg).length)
-  allKeys.forEach(function (k) {
-    if (!Object.prototype.hasOwnProperty.call(reg, k)) { out.push('S1 条目 ' + String(k) + ' 不是自有属性（来自原型链）'); return }
-    const e = reg[k]
-    if (!e || typeof e !== 'object' || Array.isArray(e)) { out.push('S1 条目 ' + String(k) + ' 不是普通对象'); return }
-    const proto = Object.getPrototypeOf(e)
-    if (proto !== Object.prototype && proto !== null) out.push('S1 条目 ' + String(k) + ' 的原型不是 Object.prototype（可能被藏了东西）')
-    if (Reflect.ownKeys(e).length !== Object.keys(e).length) out.push('S1 条目 ' + String(k) + ' 有不可枚举属性或 Symbol 键')
-    ;['zh', 'en', 'use', 'placeholders', 'version'].forEach(function (f) {
-      const d = Object.getOwnPropertyDescriptor(e, f)
-      if (d && (typeof d.get === 'function' || typeof d.set === 'function')) out.push('S1 条目 ' + String(k) + '.' + f + ' 是 getter/setter（按读取次数返回不同文本，禁止）')
-    })
-  })
-  return out
-}
-// S2 正则解析（产物是整包，求值不现实）：忠实还原源码字符串字面量（与 tests/verify-prompt-newlines.ts 同口径）
+// #1293：auditRegistryShape 整条退场（源码形状规则，不是质量规则）。
+//   为什么可以退：真源已经是 config/prompts/ 下的 YAML，注册表由 registryFromEntries 从解析结果造普通对象，
+//   不再有「源码里 defineProperty / setPrototypeOf / __proto__ / 计算属性名 / getter 藏条目」的求值面 ——
+//   这些判据在新结构下无从触发，留着只是让读者以为还有一层保护。
+//   哪些判据接住了（判定强度对照表逐条写清：docs/design/1293-prompt-gate-strength.md）：
+//     · 锚点 / 别名藏内容 —— 保留，改由 yamlHidingShape 在 S1 逐份 YAML 判（promptYamlHidingHits）；
+//     · 被吞掉 / 藏起来的条目 —— 由「条目数硬编码 28 + YAML 文本顶层键与解析 id 双向一致」抓；
+//     · 原型链键 / Object.prototype 污染 / 不可枚举属性 / getter —— 新数据源里构造不出来，判据退场。
+// S2 正则解析（产物是整包，求值不现实）：忠实还原源码字符串字面量（与 tests/verify-prompts.ts 第 4c 节的产物解析同口径；
+//   #1293 起 tests/verify-prompt-newlines.ts 已整条并入本文件，本注释从前指向的那份文件不存在了）
 const unescapeLiteral = function (s) {
   let out = ''
   for (let i = 0; i < s.length; i++) {
@@ -879,6 +886,356 @@ const leftoverPlaceholder = function (text, scopeNames) {
   return ''
 }
 
+// ==================== 4c. #1293 四条 YAML 化产物断言 ====================
+// 票面 #1293 要的是「提示词真源改读 YAML 之后，判定强度一条不降」。这一节落四条断言，
+// 并把整条退场的源码排版门禁（tests/verify-prompt-newlines.ts）里仍然适用的判据接过来：
+//   ① use 不许出现在客户端产物 —— use 只活在 YAML 里（给读代码的人看「这条模板什么时候用」），
+//      不是发给用户的文案，父规格 #1290 明说它不进客户端闭包；
+//   ② 提示词正文里不许出现字面 \n（两个字符：反斜杠 + n）—— 正文换行必须写单层转义，
+//      写成双层转义时运行时看到的是反斜杠+n，换行失效（#430 的根因）；
+//   ③ 每种语言都必须有正文 —— 按 config/languages.yaml 的语言清单逐语言判，不写死 zh/en，
+//      将来加第三门语言时这条会自动要求它也有正文（#1278 §七：第三门语言内容不写、机制做足）；
+//   ④ 占位符声明与正文实际使用一一对应 —— 多声明、少使用都判红，同样逐语言判
+//      （以前结构契约那一段只判 zh，en 的占位符对不上是看不到的）。
+// ①② 只在完整模式跑（产物 / 宿主 / 房间这些面与单文件探针无关）；③④ 两种模式都跑，
+//   L2 机械注入的探针只要语言清单与占位符不对，一样会被这两条抓住。
+//
+// 读产物文本的小工具（skipString / blockEnd / readValue / objectMembers / promptDataRegion /
+// extractTemplateEntries / fragmentBlock）原先在 tests/verify-prompt-newlines.ts 里也有一份。
+// 本票把那份门禁整条并进本文件之后，这里是仍在用的那一份；tests/verify-prompt-config.ts 里还留着一份
+// 孪生实现（同一条规则各自守一道），两边判据必须一致，抽到 tests/lib/ 时要一起换。
+const YAML_PRODUCT_FILES = ['client.js', 'package/lib/client.js']
+
+/** 跳过一段字符串字面量（含反斜杠转义），返回它结束后的下标。 */
+const skipString = function (text, start) {
+  const quote = text[start]
+  let i = start + 1
+  while (i < text.length) {
+    const c = text[i]
+    if (c === '\\') { i += 2; continue }
+    if (c === quote) return i + 1
+    i++
+  }
+  return i
+}
+
+/** 从 text[start] 处的 '{' 起做花括号配对，返回配对 '}' 之后的下标；找不到返回 -1。 */
+const blockEnd = function (text, start) {
+  let depth = 0
+  let i = start
+  while (i < text.length) {
+    const c = text[i]
+    if (c === '"' || c === "'" || c === '`') { i = skipString(text, i); continue }
+    if (c === '{') depth++
+    else if (c === '}') { depth--; if (depth === 0) return i + 1 }
+    i++
+  }
+  return -1
+}
+
+/** 读一个成员的值：字符串字面量按引号读到末尾，其余读到第一层逗号为止。 */
+const readValue = function (text, start) {
+  const ch = text[start]
+  if (ch === '"' || ch === "'" || ch === '`') {
+    const end = skipString(text, start)
+    return { text: text.slice(start, end), end: end }
+  }
+  let depth = 0
+  let i = start
+  while (i < text.length) {
+    const c = text[i]
+    if (c === '"' || c === "'" || c === '`') { i = skipString(text, i); continue }
+    if (c === '(' || c === '[' || c === '{') depth++
+    else if (c === ')' || c === ']' || c === '}') { if (depth === 0) break; depth-- }
+    else if (c === ',' && depth === 0) break
+    i++
+  }
+  return { text: text.slice(start, i).trim(), end: i }
+}
+
+/** 解析一个对象字面量的第一层成员，返回「键 → 原始值文本」。 */
+const objectMembers = function (body) {
+  const out = new Map()
+  let i = 0
+  while (i < body.length) {
+    const ch = body[i]
+    if (ch === '"' || ch === "'" || ch === '`') { i = skipString(body, i); continue }
+    if (/[A-Za-z_$]/.test(ch)) {
+      let j = i
+      while (j < body.length && /[A-Za-z0-9_$]/.test(body[j])) j++
+      const key = body.slice(i, j)
+      let k = j
+      while (k < body.length && /\s/.test(body[k])) k++
+      if (body[k] !== ':') { i = j; continue }
+      k++
+      while (k < body.length && /\s/.test(body[k])) k++
+      const value = readValue(body, k)
+      out.set(key, value.text)
+      i = value.end
+      continue
+    }
+    i++
+  }
+  return out
+}
+
+/**
+ * 从构建产物里取出提示词数据区：从第一张模板族表（const TEMPLATES_...）到语言清单那一段结束。
+ * 找不到返回 null —— 宁可判红，也不要在认不出底本的情况下判绿（产物没重建过时这里就是 null）。
+ */
+const promptDataRegion = function (text) {
+  const start = /const\s+TEMPLATES_[A-Z_]+\s*=\s*Object\.freeze\(\{/.exec(text)
+  if (!start) return null
+  const lang = /const\s+LANGUAGES_YAML\s*=/.exec(text)
+  if (!lang) return null
+  const end = blockEnd(text, lang.index)
+  if (end < 0) return null
+  return text.slice(start.index, end)
+}
+
+/** 产物里的一条提示词条目：id、成员键名、中英两条正文（正文已按字符串语义解码）。 */
+const extractTemplateEntries = function (region) {
+  const out = []
+  const re = /"((?:[^"\\]|\\.)*)":\s*Object\.freeze\(\{/g
+  let m
+  while ((m = re.exec(region)) !== null) {
+    const open = region.indexOf('{', m.index + m[0].length - 1)
+    const end = blockEnd(region, open)
+    if (end < 0) break
+    const members = objectMembers(region.slice(open + 1, end - 1))
+    if (members.has('placeholders') && members.has('version')) {
+      out.push({
+        id: m[1],
+        members: Array.from(members.keys()),
+        zh: unescapeLiteral((members.get('zh') || '""').slice(1, -1)),
+        en: unescapeLiteral((members.get('en') || '""').slice(1, -1)),
+      })
+    }
+    re.lastIndex = end
+  }
+  return out
+}
+
+/** 取产物里片段表（PROMPT_FRAGMENT_DATA）那一段。 */
+const fragmentBlock = function (text) {
+  const m = /const\s+PROMPT_FRAGMENT_DATA\s*=/.exec(text)
+  if (!m) return null
+  const end = blockEnd(text, m.index)
+  if (end < 0) return null
+  return text.slice(m.index, end)
+}
+
+/**
+ * #1293 断言①：use 不许出现在客户端产物。
+ * 两条判据一起看，缺一条都会漏：
+ *   (a) 提示词数据区里没有 use 这个键 —— 键名是结构，光看正文原文认不出来；
+ *   (b) 整份产物文本里找不到任何一条 use 原文 —— 有人把 use 内容改个名字塞进别的字段，这条能抓住。
+ * 为什么 (a) 要限定在「提示词数据区」：客户端闭包里别处也有 use 这个键（界面上的技能卡片就在用），
+ *   整文件找 use 会把与提示词无关的键也算进来，判据就变味了。
+ */
+const checkUseNotInProduct = function () {
+  const useTexts = []
+  Object.keys(reg).forEach(function (id) {
+    const u = String((reg[id] || {}).use == null ? '' : reg[id].use)
+    if (u.trim()) useTexts.push({ id: id, text: u })
+  })
+  check(useTexts.length === EXPECT_REGISTRY_ENTRIES, '#1293 读到 ' + useTexts.length + ' 条 use 原文（期望 ' + EXPECT_REGISTRY_ENTRIES + '，每条模板一条；少一条就说明有模板的 use 没读到，漏判面会变窄）')
+  const genRel = 'src/client/kernel/prompt-data.ts'
+  const genPath = path.join(ROOT, genRel)
+  if (!fs.existsSync(genPath)) {
+    fail('#1293 ' + genRel + ' 不在盘上（生成物缺失；修法：跑 node scripts/generate-prompt-config.mts 或 node scripts/build.mts）')
+  } else {
+    const genText = fs.readFileSync(genPath, 'utf8')
+    const entries = extractTemplateEntries(genText)
+    check(entries.length === EXPECT_REGISTRY_ENTRIES, '#1293 ' + genRel + ' 取到 ' + entries.length + ' 条模板（期望 ' + EXPECT_REGISTRY_ENTRIES + '）—— 解析面不许静默少扫')
+    const withUse = entries.filter(function (e) { return e.members.indexOf('use') >= 0 })
+    check(withUse.length === 0, '#1293 ' + genRel + ' 的模板条目里没有 use 字段' +
+      (withUse.length ? '（出现了 use 的条目：' + withUse.map(function (e) { return e.id }).join('、') + '）' : '（' + entries.length + ' 条模板逐条看过）'))
+    const leaked = useTexts.filter(function (u) { return genText.indexOf(u.text) >= 0 })
+    check(leaked.length === 0, '#1293 ' + genRel + ' 里不含 YAML 里 use 的原文' +
+      (leaked.length ? '（漏出去的有：' + leaked.map(function (u) { return u.id }).join('、') + '）' : '（' + useTexts.length + ' 条 use 原文逐条查过）'))
+  }
+  YAML_PRODUCT_FILES.forEach(function (rel) {
+    const p = path.join(ROOT, rel)
+    if (!fs.existsSync(p)) { fail('#1293 ' + rel + ' 不存在（改 src 后必须重建产物）'); return }
+    const text = fs.readFileSync(p, 'utf8')
+    const region = promptDataRegion(text)
+    if (!region) {
+      fail('#1293 ' + rel + ' 里找不到提示词数据区（应当是 const TEMPLATES_... 到 const LANGUAGES_YAML 那一段）—— 产物是旧的或排版变了，先重建再跑本门禁')
+      return
+    }
+    const entries = extractTemplateEntries(region)
+    check(entries.length === EXPECT_REGISTRY_ENTRIES, '#1293 ' + rel + ' 提示词数据区取到 ' + entries.length + ' 条模板（期望 ' + EXPECT_REGISTRY_ENTRIES + '）—— 解析面不许静默少扫')
+    const withUse = entries.filter(function (e) { return e.members.indexOf('use') >= 0 })
+    check(withUse.length === 0, '#1293 ' + rel + ' 的提示词数据区里没有 use 字段' +
+      (withUse.length ? '（出现了 use 的条目：' + withUse.map(function (e) { return e.id }).join('、') + '）' : '（' + entries.length + ' 条模板逐条看过）'))
+    const leaked = useTexts.filter(function (u) { return text.indexOf(u.text) >= 0 })
+    check(leaked.length === 0, '#1293 ' + rel + ' 里不含 YAML 里 use 的原文' +
+      (leaked.length ? '（漏出去的有：' + leaked.map(function (u) { return u.id }).join('、') + '）' : '（' + useTexts.length + ' 条 use 原文逐条查过）'))
+  })
+}
+
+/**
+ * #1293 断言②：提示词正文里不许出现字面 \n（反斜杠 + n 两个字符）。
+ * 判据从 tests/verify-prompt-newlines.ts（本票删除）原样接过来，扫描面一处不少：
+ *   config/prompts/ 的真源正文 / 两份客户端产物 / src/host 的 *_PROMPT / src/tracker/rooms 的 zh/en 字面量。
+ * 白名单仍钉死为空（ALLOWED_LITERAL_BSN），谁想加回一条「这条不算」的口子都要连指纹断言一起改，绕不过去。
+ */
+const ALLOWED_LITERAL_BSN = []
+const EXPECT_ALLOWED_COUNT = 0
+// 空清单的指纹 = sha256('') 前 16 位十六进制
+const EXPECT_ALLOWED_FINGERPRINT = 'e3b0c44298fc1c14'
+const checkNoLiteralBackslashN = function () {
+  let yamlTexts = 0
+  let scanned = 0
+  const countLiteral = function (s) { return (String(s).match(/\\n/g) || []).length }
+  const checkText = function (where, name, v) {
+    scanned++
+    const n = countLiteral(v)
+    if (n > 0) fail('#1293 ' + where + ' ' + name + ' 含字面 \\n ' + n + ' 处（换行必须写单层转义，运行时才是真换行；写成双层转义时运行时看到的是反斜杠+n）')
+  }
+  // ① 真源：YAML 读出来的每种语言正文 + 三处片段正文
+  const langIds = Object.keys((languagesData || FALLBACK_LANGUAGES).languages || {})
+  Object.keys(reg).forEach(function (id) {
+    langIds.forEach(function (lang) {
+      yamlTexts++
+      checkText(s1Label, id + '.' + lang, (reg[id] || {})[lang])
+    })
+  })
+  if (Object.keys(fragments || {}).length) {
+    fragmentTexts(fragments).forEach(function (f) {
+      yamlTexts++
+      checkText(s1Label, f.id, f.text)
+    })
+  }
+  check(yamlTexts >= EXPECT_REGISTRY_ENTRIES * langIds.length + 8, '#1293 真源只判到 ' + yamlTexts + ' 段正文（期望 ≥ ' + (EXPECT_REGISTRY_ENTRIES * langIds.length + 8) + '：28 条模板 × 每门语言 + 三处片段 8 段；少了就是扫描面静默变窄）')
+  // ② 两份客户端产物：模板正文 + 片段正文
+  YAML_PRODUCT_FILES.forEach(function (rel) {
+    const p = path.join(ROOT, rel)
+    if (!fs.existsSync(p)) { fail('#1293 ' + rel + ' 不存在（改 src 后必须重建产物）'); return }
+    const text = fs.readFileSync(p, 'utf8')
+    const region = promptDataRegion(text)
+    if (!region) {
+      fail('#1293 ' + rel + ' 里找不到提示词数据区（应当是 const TEMPLATES_... 到 const LANGUAGES_YAML 那一段）—— 产物是旧的或排版变了，先重建再跑本门禁')
+      return
+    }
+    const entries = extractTemplateEntries(region)
+    if (entries.length !== EXPECT_REGISTRY_ENTRIES) {
+      fail('#1293 ' + rel + ' 提示词数据区取到 ' + entries.length + ' 条模板（期望 ' + EXPECT_REGISTRY_ENTRIES + '）—— 产物比真源旧，先重建再跑本门禁')
+      return
+    }
+    entries.forEach(function (e) {
+      checkText(rel, e.id + '.zh', e.zh)
+      checkText(rel, e.id + '.en', e.en)
+    })
+    const frag = fragmentBlock(text)
+    if (!frag) { fail('#1293 ' + rel + ' 里找不到片段表（const PROMPT_FRAGMENT_DATA）—— 产物是旧的或排版变了，先重建再跑本门禁'); return }
+    const fragRe = /"(zh|en)":\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g
+    let fm
+    let fragCount = 0
+    while ((fm = fragRe.exec(frag)) !== null) {
+      fragCount++
+      checkText(rel, '片段.' + fm[1] + '#' + fragCount, unescapeLiteral(fm[2].slice(1, -1)))
+    }
+    if (fragCount === 0) fail('#1293 ' + rel + ' 的片段表里一条 zh/en 都没取到 —— 一条都取不到不许当通过')
+  })
+  // ③ src/host/** 的 *_PROMPT 常量（与 S4 同一套取源，避免两处各写一份正则）
+  collectHost(EXEMPT).consts.forEach(function (c) { checkText(c.file, c.name, c.text) })
+  // ④ src/tracker/rooms/** 里含换行的 zh/en 字面量（与退休门禁同口径：只判本来就要换行的那几条）
+  let roomTexts = 0
+  walkJs(path.join(ROOT, 'src/tracker/rooms'), []).forEach(function (file) {
+    if (!file.endsWith('index.js') && !file.endsWith('index.ts')) return
+    const src = fs.readFileSync(file, 'utf8')
+    const re = /(?:zh|en): '((?:[^'\\]|\\.)*)'/g
+    let m
+    while ((m = re.exec(src)) !== null) {
+      const v = unescapeLiteral(m[1])
+      if (v.indexOf('\n') >= 0 || v.indexOf('\\n') >= 0) {
+        roomTexts++
+        checkText(path.relative(ROOT, file), m[1].slice(0, 24), v)
+      }
+    }
+  })
+  check(roomTexts >= 1, '#1293 src/tracker/rooms/** 一条含换行的 zh/en 字面量都没扫到（扫描面静默变窄了；这条面与退休门禁同口径，至少该有一条）')
+  check(scanned >= EXPECT_REGISTRY_ENTRIES * 2 + 8, '#1293 只扫到 ' + scanned + ' 段提示词文本（期望 ≥ ' + (EXPECT_REGISTRY_ENTRIES * 2 + 8) + '：28 条模板 × zh/en + 三处片段 + 两份产物 + host + rooms；少了就是扫描面静默变窄）')
+  // 白名单必须保持为空 —— 从退休门禁原样接过来的第二道锁（条数与内容指纹都钉死）
+  const fingerprint = require('crypto').createHash('sha256').update(ALLOWED_LITERAL_BSN.join('\u0000'), 'utf8').digest('hex').slice(0, 16)
+  check(ALLOWED_LITERAL_BSN.length === EXPECT_ALLOWED_COUNT && fingerprint === EXPECT_ALLOWED_FINGERPRINT,
+    '#1293 字面 \\n 豁免清单被改过（实际 ' + ALLOWED_LITERAL_BSN.length + ' 条 / 指纹 ' + fingerprint +
+    '，期望 ' + EXPECT_ALLOWED_COUNT + ' 条 / 指纹 ' + EXPECT_ALLOWED_FINGERPRINT + '）—— 要改清单就连判据一起改，不许绕过去')
+}
+
+/** #1293 断言③：按语言清单逐语言判正文齐全（模板 + 三处片段），不再写死 zh/en。 */
+const checkEveryLanguageHasBody = function () {
+  const langIds = Object.keys((languagesData || FALLBACK_LANGUAGES).languages || {})
+  const problems = []
+  check(langIds.length >= 1, '#1293 语言清单里一门语言都没有（每种语言都必须有正文这条判据无从判起）')
+  if (!langIds.length) return
+  Object.keys(reg).forEach(function (id) {
+    langIds.forEach(function (lang) {
+      const body = (reg[id] || {})[lang]
+      if (typeof body !== 'string' || !body.trim()) problems.push(id + '.' + lang + ' 没有正文')
+    })
+  })
+  if (Object.keys(fragments || {}).length) {
+    promptConfig.PROMPT_FRAGMENT_IDS.forEach(function (spec) {
+      const v = fragments[spec.id]
+      if (!v) { problems.push('片段 ' + spec.id + ' 取不到（片段少一处，这一族的正文没人判）'); return }
+      if (spec.shape === 'bilingual-text') {
+        langIds.forEach(function (lang) {
+          if (!v || typeof v[lang] !== 'string' || !v[lang].trim()) problems.push('片段 ' + spec.id + '.' + lang + ' 没有正文')
+        })
+      } else {
+        ;['cli', 'cliBrand'].forEach(function (k) {
+          const sub = v ? v[k] : null
+          if (!sub || typeof sub !== 'object') { problems.push('片段 ' + spec.id + '.' + k + ' 取不到（按占位符名字分层的说法缺一层）'); return }
+          langIds.forEach(function (lang) {
+            if (typeof sub[lang] !== 'string' || !sub[lang].trim()) problems.push('片段 ' + spec.id + '.' + k + '.' + lang + ' 没有正文')
+          })
+        })
+      }
+    })
+  }
+  check(problems.length === 0, '#1293 每种语言都有正文（语言清单 ' + langIds.join('/') + ' × ' + Object.keys(reg).length + ' 条模板' +
+    (Object.keys(fragments || {}).length ? ' + 三处片段' : '') + '）' + (problems.length ? '：\n      ' + problems.join('\n      ') : ''))
+}
+
+/** #1293 断言④：占位符声明与正文逐语言一一对应（多声明、少使用都红）。 */
+const checkPlaceholderParityPerLanguage = function () {
+  const langIds = Object.keys((languagesData || FALLBACK_LANGUAGES).languages || {})
+  const problems = []
+  Object.keys(reg).forEach(function (id) {
+    const e = reg[id] || {}
+    const declared = (Array.isArray(e.placeholders) ? e.placeholders : []).map(String)
+    langIds.forEach(function (lang) {
+      const body = String(e[lang] == null ? '' : e[lang])
+      const used = placeholderNames(body)
+      used.forEach(function (n) {
+        if (declared.indexOf(n) < 0) problems.push(id + ' 的 ' + lang + ' 正文用了 {' + n + '}，但 placeholders 没声明它 —— 运行时它会原样进会话')
+      })
+      declared.forEach(function (n) {
+        if (used.indexOf(n) < 0) problems.push(id + ' 的 placeholders 声明了 {' + n + '}，但 ' + lang + ' 正文里没有用它 —— 声明与正文对不上')
+      })
+    })
+  })
+  check(problems.length === 0, '#1293 占位符声明与正文一一对应（语言清单 ' + langIds.join('/') + ' × ' + Object.keys(reg).length + ' 条模板，多声明与少使用都判红）' +
+    (problems.length ? '：\n      ' + problems.join('\n      ') : ''))
+}
+
+/** 跑四条断言：③④ 两种模式都跑（探针也受判），①② 只在完整模式跑。 */
+const runYamlProductAssertions = function () {
+  const before = problems.length
+  checkEveryLanguageHasBody()
+  checkPlaceholderParityPerLanguage()
+  if (!singleFileMode) {
+    checkUseNotInProduct()
+    checkNoLiteralBackslashN()
+  }
+  if (problems.length === before) {
+    console.log('  PASS #1293 四条 YAML 化产物断言（use 不进客户端产物 / 正文不许有字面 \\n / 每种语言都有正文 / 占位符逐语言一一对应）')
+  }
+}
+
 // ==================== 5. 五面扫描（返回问题数组，主跑与变异自检共用） ====================
 const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, S6: 0, S7: 0, S8: [0, 0], exempt: EXEMPT.length }
 const BACKENDS = ['github', 'gitlab', 'markdown']
@@ -1126,16 +1483,11 @@ const contractChecksInner = function (reg, src) {
   Object.keys(reg).forEach(function (id) {
     const p = reg[id]
     if (!p || typeof p !== 'object' || Array.isArray(p)) return
-    const phs = Array.isArray(p.placeholders) ? p.placeholders : []
     P(p.version >= 1, id + ' 缺 version')
-    P(!!p.zh && !!p.en, id + ' 缺 zh/en')
     P(!!p.use, id + ' 缺 use')
-    const found = []
-    const re = /\{(\w+)\}/g
-    let mm
-    while ((mm = re.exec(String(p.zh))) !== null) if (found.indexOf(mm[1]) < 0) found.push(mm[1])
-    found.forEach(function (x) { if (phs.indexOf(x) < 0) fail(id + ' 文本含未声明占位符 {' + x + '}') })
-    phs.forEach(function (x) { if (found.indexOf(x) < 0) fail(id + ' 声明占位符 {' + x + '} 但文本未使用') })
+    // #1293：「每种语言都必须有正文」与「占位符声明与正文一一对应」搬到本文件第 4c 节，
+    //   改成按 config/languages.yaml 的语言清单逐语言判 —— 以前这里只判 p.zh，en 的占位符对不上是看不到的。
+    //   那一节在单文件模式（L2 探针）与完整模式下都跑，判据是加强而不是挪走。
   })
   const useRe = /promptText\('([a-zA-Z0-9.]+)'/g
   let mu
@@ -1621,12 +1973,13 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
   } catch (e) { dupCaught = true }
   if (!parseCaught) fail('L1 解析绕过未被判红：写坏的 YAML 没有让解析抛错（解析层会静默漏条目）')
   if (!dupCaught) fail('L1 解析绕过未被判红：重复的键没有让解析抛错（后写的会把先写的盖掉，条目会静默少掉）')
-  // 反隐藏：藏起来的条目必须被审计抓出来
-  // #1292：真源变成 YAML 之后，藏条目的手段是锚点与别名（&name / *name）—— 文本正则认不准，走语法树认。
+  // 反隐藏：YAML 的锚点与别名能把内容藏起来再别处引用，必须被语法树判据抓出来。
+  // #1293：auditRegistryShape 退场后，这条判据由 yamlHidingShape 单独承担（真源每一份都过它，见 promptYamlHidingHits）。
+  //   下面这段自证必须继续变红 —— 否则「用锚点藏条目」这条路就没人守了。
   const hiddenSrc = 'base: &b\n  version: 1\n  placeholders: []\n  use: "u"\n  zh: "gh issue edit 1"\n  en: "e"\ntpl.hidden: *b\n'
-  let hiddenReg = null
-  try { hiddenReg = parseRegistryYamlText(hiddenSrc) } catch (e) { hiddenReg = null }
-  if (!hiddenReg || auditRegistryShape(hiddenSrc, hiddenReg).length === 0) fail('L1 反隐藏审计失效：用锚点与别名藏起来的条目没被查出来')
+  let hiddenHit = ''
+  try { hiddenHit = yamlHidingShape(hiddenSrc) } catch (e) { hiddenHit = '' }
+  if (!hiddenHit) fail('L1 反隐藏自证失效：用锚点与别名藏内容的 YAML 没被 yamlHidingShape 查出来（这条判据没变红能力）')
   if (problems.length > before) return { leak: leak, fp: fp, ok: false }
   return { leak: leak, fp: fp, ok: true }
 }
@@ -1675,8 +2028,23 @@ const injectUseField = function (table, text) {
   e.use = String(text)
   return null
 }
+/**
+ * #1293：提示词真源（五份模板族 YAML + 语言清单）的摘要。
+ * 用途：L2 机械注入只许改内存里的注册表对象、只许往临时目录写探针；跑完之后真源必须与跑之前一字不差。
+ *   这条断言是「注入过程不污染真源」的验收（票面 #1293 验收⑥），防止将来有人图省事改成直接改 YAML 再还原。
+ */
+const promptSourceDigest = function () {
+  const nodeCrypto = require('crypto')
+  const files = PROMPT_TEMPLATE_YAML_RELS.concat(['config/languages.yaml']).slice().sort()
+  return files.map(function (rel) {
+    const text = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n')
+    return rel + ':' + nodeCrypto.createHash('sha256').update(text, 'utf8').digest('hex')
+  }).join('\n')
+}
 const runL2Injection = function () {
   const before = problems.length
+  // #1293：先记真源摘要，收尾再比（见下面 finally 之后那一段）。
+  const sourceDigestBefore = promptSourceDigest()
   check(L2_PAYLOADS.length >= 14, 'L2 夹具条数不足：' + L2_PAYLOADS.length + ' 条（期望 ≥ 14，不许删夹具）')
   // 期望改写表审计：条数卡死 + 每个键都必须在夹具里真实存在（防「偷偷多改几条期望」或写了不存在的 payload）
   check(Object.keys(L2_EXPECT_OVERRIDE).length === EXPECT_L2_EXPECT_OVERRIDE,
@@ -1774,6 +2142,10 @@ const runL2Injection = function () {
   } finally {
     try { if (tmp) fs.rmSync(tmp, { recursive: true, force: true }) } catch (e) {}
   }
+  // #1293：真源跑完必须一字不差 —— 注入只许改内存对象、只许写临时目录。
+  if (promptSourceDigest() !== sourceDigestBefore) {
+    fail('#1293 L2 机械注入污染了提示词真源：config/prompts/ 下的五份 YAML 或 config/languages.yaml 跑完与跑前不一致（注入只许改内存对象、写临时目录）')
+  }
   return problems.length - before
 }
 
@@ -1838,6 +2210,7 @@ const selfDigest = function () {
 //   ④ L2 注入探针的扩展名跟着真源走（.ts），内容锚点认 `.ts` 的写法（`const PROMPTS: X = {` 与 `} satisfies X`）。
 //   夹具文件一个字没动，只有本文件改了，自摘要跟着重算。
 // #1209：ENTRY_RE 与 verify-prompt-newlines.ts 的孪生正则同步改成定界符感知（产物双引号排版含 ' 原文时不再静默少扫），自摘要跟着重算。
+//   （#1293 起 verify-prompt-newlines.ts 已整条并入本文件第 4c 节，上面这句里的文件名只作历史记录看。）
 // #1125：自注册改问规划函数（不再读 package.json 长串），自摘要跟着重算。
 // #1252：脚本工具层转 TypeScript，本文件十一处跟进（两处 require、L2 子进程钩子、SHIPPED_EXPECT、
 //   build.mts 读取、SHIPPED 提取正则放宽容 `: string[]` 注解、四处修法消息、scanScriptRefs 与
@@ -1871,10 +2244,18 @@ const selfDigest = function () {
 // #1292 收尾：promptLang 补两条现实里会遇到的读取失败 —— 语言快照还没回来（getSnapshot 返回 null）
 //   或服务根本没装 getSnapshot 时，必须按清单的 default 走，不能掉进写死的 zh；LANG_CASES 相应加三条
 //   （快照返回 null / 没有 getSnapshot 方法 / getSnapshot 抛异常，清单都写 default: en），自摘要跟着重算。
+// #1293：提示词门禁收口 ——
+//   ① tests/verify-prompt-newlines.ts 整条退场（文件删除），它的「正文不许有字面 \n」判据并进第 4c 节，
+//      扫描面一处不少（五份 YAML / 两份产物 / src/host 的 *_PROMPT / src/tracker/rooms 的 zh/en 字面量），
+//      白名单仍钉死为空；② auditRegistryShape 与 OBJECT_PROTO_KEYS 退场（YAML 数据没有 JS 求值面），
+//      锚点/别名判据由 yamlHidingShape 在 S1 逐份 YAML 判（以前把五份拼起来 parseDocument，其实一直空转）；
+//   ③ 新增四条 YAML 化产物断言（use 不进产物 / 裸 \n / 每种语言都有正文 / 占位符逐语言一一对应）；
+//   ④ L2 机械注入加「跑完真源一字不差」自检。判定强度对照表见 docs/design/1293-prompt-gate-strength.md。
+//   本文件内容变了，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '6c37ad706606584b0b2b3f2952c5f9485b99a236ff183562746ddb493dde2c18',
+  'tests/verify-prompts.ts': '4503e349c062fd62b6d58322e75535b376ec2eadb6bf33cca27039f7142835d8',
 }
 // ---- LOCK-END ----
 
@@ -1946,7 +2327,16 @@ try {
     languagesData = tables.languages
   }
   s1Ids = Object.keys(reg)
-  auditRegistryShape(s1Src, reg).forEach(function (m) { fail(m) })
+  // #1293：auditRegistryShape 退场后，仍适用的锚点/别名判据在这里逐份文件判。
+  //   单文件模式判探针那一份；平时判 config/prompts/ 下五份 —— 以前 auditRegistryShape 把五份拼起来
+  //   交给 parseDocument，遇到多文档会抛错又被 catch 吞掉，那条判据在完整模式下其实没有生效过；
+  //   现在逐份判，读不出语法树也算红，不许静默跳过。
+  if (singleFileMode) {
+    const hiding = yamlHidingShape(s1Src)
+    if (hiding) fail('S1 ' + s1Label + ' 含' + hiding + '（可以把内容藏起来再别处引用，条目会不声不响地少掉，禁止）')
+  } else {
+    promptYamlHidingHits().forEach(function (m) { fail('S1 ' + m) })
+  }
 } catch (e) {
   fail('FAIL S1 ' + s1Label + ' 解析失败（YAML 写坏了或形状不对）：' + e.message + '\n' +
     '     修法：每条模板必须是一个键，底下写 version / placeholders / use / zh / en；YAML 坏掉即判红，不许静默少扫')
@@ -2013,6 +2403,8 @@ if (reg) {
   // #1292：src 传的是客户端那两片源码的文本（注册表已搬进 YAML，那几条「引用不存在的 prompt id」与
   //   「旧字典引用残留」的判据要看的是调用侧的源码，不是 YAML）。
   contractChecks(reg, clientSourceText())
+  // —— #1293 四条 YAML 化产物断言（use 不进产物 / 正文不许有字面 \n / 每种语言都有正文 / 占位符逐语言一一对应）——
+  runYamlProductAssertions()
   // 后端注入链的另一半（#603 定的是「模板里只有 {subIssue} 占位符，真正的关联步骤写在 github 后端的
   //   prompts.subIssue 里，经 {subIssue} 渲染时填空」）。#716 把那些事搬进了契约层的 deck_* 工具，
   //   所以这里改钉「工具写法」而不是「gh 直连」——同一件事的两种实现，后者已被本票取代：

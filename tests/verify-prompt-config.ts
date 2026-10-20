@@ -30,10 +30,9 @@
 //   会自动给 tests/ 下的门禁挂上 scripts/ts-hook.mts 这个装载钩子。
 //
 // 一件要说清的事：读产物文本的那几个小工具（skipString / blockEnd / readValue /
-//   objectMembers / promptDataRegion / extractTemplateEntries）与 tests/verify-prompt-newlines.ts
-//   里那份是同一套。本票的写入范围只允许改这两个门禁文件，没有第三个地方放共用实现，
-//   所以两份各写一份。两边判据必须一致；将来若把共用部分抽到 tests/lib/ 下的模块，
-//   两边要同时换，不能只换一边。
+//   objectMembers / promptDataRegion / extractTemplateEntries）在 tests/verify-prompts.ts 里还有一份。
+//   #1293 把 tests/verify-prompt-newlines.ts 整条并进那份门禁之后，那一份接过了「第二份实现」的角色；
+//   两份判据必须一致，将来若把共用部分抽到 tests/lib/ 下的模块，两边要同时换，不能只换一边。
 
 import fs from 'node:fs'
 import path from 'node:path'

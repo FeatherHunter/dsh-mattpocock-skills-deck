@@ -110,6 +110,6 @@
       "ticket": "#1125"
     }
   ],
-  "_已删除": "2026-10-16 删掉 2 扇复刻自测（把源码逻辑抄进门禁里再断言，源码坏了照样绿， maintainer 同意去无价值门禁）：tests/verify-blocked-filter.js、tests/verify-t2b-templates.js。两处棘轮基线已同步（unmigrated 重录 318，handwritten 删行）。",
-  "_进链统计": "49 扇待分类：30 扇直接进链（挂正确跑法全绿且守活代码，含 857 在内 9 扇编号回归），10 扇修门禁后进链，5 扇隔离待查（代码或定性未决，见 #1227），2 扇只动手点，2 扇已删除。"
+  "_已删除": "2026-10-16 删掉 2 扇复刻自测（把源码逻辑抄进门禁里再断言，源码坏了照样绿， maintainer 同意去无价值门禁）：tests/verify-blocked-filter.js、tests/verify-t2b-templates.js。两处棘轮基线已同步（unmigrated 重录 318，handwritten 删行）。 2026-10-20（#1293）删掉 tests/verify-prompt-newlines.ts：它守的「提示词正文不许出现字面 \\n」判据折进 tests/verify-prompts.ts 的第 4c 节，扫描面一处不少（config/prompts/ 下五份 YAML、client.js 与 package/lib/client.js 两份产物、src/host 下的 *_PROMPT、src/tracker/rooms 下的 zh/en 字面量），空豁免清单与指纹断言也一并接过去。删掉的文件不能写进上面的 exclude 表——看守门禁会按「名单里有、磁盘上没有」判烂条，所以记在这里。",
+  "_进链统计": "49 扇待分类：30 扇直接进链（挂正确跑法全绿且守活代码，含 857 在内 9 扇编号回归），10 扇修门禁后进链，5 扇隔离待查（代码或定性未决，见 #1227），2 扇只动手点，2 扇已删除。（#1293 又从链上删掉 1 扇：tests/verify-prompt-newlines.ts，判据并入 tests/verify-prompts.ts；这一行是 #1125 当时的口径，不再逐票维护。）"
 }
