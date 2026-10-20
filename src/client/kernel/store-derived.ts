@@ -24,6 +24,11 @@ declare function inject(...args: any[]): any;
 declare function moduleMetaOf(...args: any[]): any;
 // #1296：身份色只从中央色表取（container-view.ts 的 CONTAINER_ACCENT，构建时排在本文件之前）。
 declare const CONTAINER_ACCENT: any;
+// #1286 收口：规格与地图也是快照里的「行」，行级动作要先认出容器再走三态口径（见下方 containerActionOf）。
+declare function containerKindOf(...args: any[]): any;
+declare function containerStateOf(...args: any[]): any;
+declare function containerTriState(...args: any[]): any;
+declare function containerPromptText(...args: any[]): any;
 // ---- effort 维度共用小件（面板多处要按身份找地图/分组/取 effort 名单，只此一份实现）----
 /** 按票身份 (effort, 编号) 在 maps 数组里找地图；找不到就老实返回空，不猜第一张。
   * 只有整份快照都没有工作单元标识（老快照）时，才回落按编号找——新快照里按编号取第一张会开错地图。 */
@@ -273,6 +278,24 @@ export const isLightHex = function (hex: any): boolean {
     return cDark >= cWhite
   } catch (e) { return false }
 }
+/** #1286 收口：按身份认出「这一行其实是容器（探索地图 / 实施地图=规格）」，交给容器自己的三态。
+  * 为什么不能只按标签判：规格带 ready-for-agent 标签，标签阶梯会把它当实施票，行级动作与
+  *   「新会话」就会注入实施票的 /implement；而规格自己的按钮（拆票 / 执行→/implement-spec / 完成）
+  *   由 container-view.ts 的三态决定。这里只做身份识别，文字与颜色仍取 container-view.ts 那一份，
+  *   避免出现第二份判据。认不出（不是容器、快照里没有、或这些函数不在作用域）就返回空，交回标签阶梯。 */
+const containerActionOf = function (st: any, x: any): any {
+  try {
+    const num: any = (x && (x.number != null ? x.number : x.key))
+    const maps: any = (st && st.snapshot && st.snapshot.maps)
+    if (num == null || !Array.isArray(maps)) return null
+    if (typeof findMapByIdentity !== 'function' || typeof containerKindOf !== 'function' || typeof containerStateOf !== 'function') return null
+    const c: any = findMapByIdentity(maps, num, effortOf(x))
+    if (!c) return null
+    const kind: any = containerKindOf(c)
+    if (!kind) return null
+    return { c: c, kind: kind, state: containerStateOf(c) }
+  } catch (e) { return null }
+}
 // #771 一处分类（状态优先于类型）：未分流 → 接手 → 补充 → 修复 → 讨论 → 研究 → 原型 → 执行。
 //   两枚同时出现取接手；needs-triage 与 needs-info 同时出现仍先诊断（按定义不该同时出现）。
 //   四处展示（注入文本 / 行按钮 / 新会话与详情顶栏取色 / 详情顶栏字与悬停）一律调它，不各写一份阶梯。
@@ -317,6 +340,26 @@ export const rowActionText = function (st: any, x: any): any {
     const fallbackKey: any = (x && (x.number != null ? x.number : x.key != null ? x.key : ''))
     if (fallbackKey !== '') url = '#' + String(fallbackKey)
   }
+  // #1286 收口：规格与地图自己不是实施票。行级动作（列表行按钮、新会话、票详情顶栏）先认出容器，
+  //   取容器三态那一份提示词；认不出才落到下面的标签阶梯（实施票的 /implement 仍然只给实施票）。
+  const cont: any = containerActionOf(st, x)
+  if (cont) {
+    if (typeof containerPromptText === 'function') {
+      try { const ct: any = containerPromptText(st, cont.c, cont.kind, cont.state, url); if (ct) return ct } catch (eC) {}
+    }
+    // 兜底：容器函数不在作用域时（单文件求值）也要给出同一路提示词，不能再落回 /implement。
+    if (typeof promptText === 'function') {
+      try {
+        if (cont.kind === 'spec') {
+          if (cont.state === 'empty') return promptText('specSplit', { url: url })
+          if (cont.state === 'open') return promptText('specExecute', { url: url })
+          const stt: any = (cont.c && cont.c.stats) || {}
+          return promptText('specComplete', { url: url, total: String(stt.total || 0), closed: String(stt.closed || 0) })
+        }
+        return startText(st, cont.c)
+      } catch (eP) {}
+    }
+  }
   const kind: any = rowActionKind(x)
   if (kind === 'diagnose') return renderTemplate('diagnose', { url: url }, st)
   if (kind === 'takeover') return renderTemplate('takeover', { url: url }, st)
@@ -335,9 +378,9 @@ export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any)
   const kind: any = rowActionKind(x)
   const isLight: any = isLightHex
   const btnColor = function (nm: any, fb: any): any { const c: any = colorOf[nm]; return c ? '#' + c : fb }
-  const mk = (icon: any, label: any, text: any, colorHex: any): any => {
+  const mk = (icon: any, label: any, text: any, colorHex: any, tipText?: any): any => {
     const light: any = isLight(colorHex)
-    const tipByLabel = (function(): any{
+    const tipByLabel = tipText || (function(): any{
       try {
         if (label === tr('act.diagnose')) return tr('tip.diagnose')
         if (label === tr('act.takeover')) return tr('tip.takeover')
@@ -356,6 +399,19 @@ export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any)
       onClick: function (e: any): void { e.stopPropagation(); inject(st, text) },
       style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: colorHex, borderColor: 'transparent', color: light ? '#140a1e' : '#ffffff' },
     }, [Ic({ n: icon, size: icon === 'prototype' ? 12 : 10 }), narrow ? null : h('span', null, label)]))
+  }
+  // #1286 收口：容器（规格 / 探索地图）自己的按钮文字、颜色与注入文本都按三态取；
+  //   规格带 ready-for-agent 标签，按标签阶梯会画成「实施」并注入 /implement，与规格容器口径相反。
+  const cont: any = containerActionOf(st, x)
+  if (cont) {
+    let tri: any = null
+    try { tri = (typeof containerTriState === 'function') ? containerTriState(cont.kind, cont.state) : null } catch (eT) {}
+    if (tri && tri.labelKey) {
+      let tip: any = ''
+      try { tip = tr(tri.titleKey) } catch (eTi) { tip = '' }
+      const colorHex: any = tri.color || (cont.kind === 'spec' ? CONTAINER_ACCENT.spec : CONTAINER_ACCENT.map)
+      return mk(tri.icon, tr(tri.labelKey), rowActionText(st, x), colorHex, tip)
+    }
   }
   // v21：技能命令 + URL + 统一引导句（不再重复灌输技能内部流程）
   // v25 · T2b：诊断/修复/讨论走模板渲染（用户可自定义静态文本，{url} 注入）

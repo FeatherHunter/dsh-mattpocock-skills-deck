@@ -177,7 +177,18 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         try { return !!(st.reveal && st.reveal[mId] && st.reveal[mId][idOf(t)]) } catch (e) { return false }
       }
       const enterDetail = function (t: any) {
-        if (hasMapTag(t) && findMapByIdentity(st.snapshot && st.snapshot.maps, t.number, effortOf(t))) pushNav(st, 'map', t.number, effortOf(t))
+        // #1286 收口：规格与探索地图都进容器详情。原来只认 wayfinder:map 标签，挂在探索地图下的
+        //   规格子票会被当成普通票进票详情，而票详情按标签会把规格当实施票（注入 /implement），
+        //   与规格自己的按钮口径（拆票 / 执行→/implement-spec / 完成）相反。
+        const asContainer = (function (): any {
+          try {
+            if (typeof containerKindOf !== 'function' || typeof findMapByIdentity !== 'function') return null
+            const c: any = findMapByIdentity(st.snapshot && st.snapshot.maps, t.number, effortOf(t))
+            return (c && containerKindOf(c)) ? c : null
+          } catch (e) { return null }
+        })()
+        if (asContainer) pushNav(st, 'map', t.number, effortOf(t))
+        else if (hasMapTag(t) && findMapByIdentity(st.snapshot && st.snapshot.maps, t.number, effortOf(t))) pushNav(st, 'map', t.number, effortOf(t))
         else pushNav(st, 'issue', t.number, effortOf(t))
       }
       const onNodeClick = function (t: any) {

@@ -721,6 +721,35 @@ for (const pair of detailPairs) {
       '与走内核时一致：' + actualOrder.join('、'), '兜底路顺序：' + fallbackOrder.join('、')))
 }
 
+// ============ 回归：规格与探索地图的「行级动作 / 新会话」取容器三态提示词（#1286 收口） ============
+{
+  const specEmpty = containerOf({ number: 9001, key: '9001', title: '规格-空', type: 'spec', labels: [{ name: 'ready-for-agent' }], state: 'OPEN', stats: statsOf(0, 0), tickets: [] })
+  const specOpen = containerOf({ number: 9002, key: '9002', title: '规格-进行中', type: 'spec', labels: [{ name: 'ready-for-agent' }], state: 'OPEN', stats: statsOf(2, 0), tickets: [] })
+  const specDone = containerOf({ number: 9003, key: '9003', title: '规格-收尾', type: 'spec', labels: [{ name: 'ready-for-agent' }], state: 'OPEN', stats: statsOf(2, 2), tickets: [] })
+  const mapOpen = containerOf({ number: 9004, key: '9004', title: '地图-进行中', type: 'map', labels: ['wayfinder:map'], state: 'OPEN', stats: statsOf(1, 0), tickets: [] })
+  const stC: any = { snapshot: { issues: [], maps: [specEmpty, specOpen, specDone, mapOpen], generatedMs: '2026-10-20T00:00:00.000Z' }, tab: 'list' }
+  check(sd.rowActionText(stC, specEmpty) === 'FOR:specSplit',
+    failText('回归 A：规格还没拆实施票时，行级动作（含新会话）取拆票提示词 /to-tickets', 'FOR:specSplit', sd.rowActionText(stC, specEmpty)))
+  check(sd.rowActionText(stC, specOpen) === 'FOR:specExecute',
+    failText('回归 B：规格有未关实施票时，行级动作（含新会话）取规格执行提示词 /implement-spec，不再落成实施票的 /implement', 'FOR:specExecute', sd.rowActionText(stC, specOpen)))
+  check(sd.rowActionText(stC, specDone) === 'FOR:specComplete',
+    failText('回归 C：规格全关时取规格完成提示词', 'FOR:specComplete', sd.rowActionText(stC, specDone)))
+  check(sd.rowActionText(stC, specOpen).indexOf('TPL:implement') < 0,
+    failText('回归 D：规格行级动作不会取实施票模板 tpl.implement', '不含 TPL:implement', sd.rowActionText(stC, specOpen)))
+  check(sd.rowActionText(stC, mapOpen) === 'START:9004',
+    failText('回归 E：探索地图行级动作仍走推进式提示词（startText），没有被容器分流改坏', 'START:9004', sd.rowActionText(stC, mapOpen)))
+  // 行内按钮：文字、底色与注入文本都按三态；点下去注入的必须是那一条容器提示词。
+  created.length = 0
+  injected.length = 0
+  sd.mkRowAction(stC, specOpen, false, {})
+  const specBtn = created.find((el: any) => !!el && !!el.props && typeof el.props.onClick === 'function' && String(el.props.className || '').indexOf('dsws-btn primary') >= 0)
+  check(!!specBtn && elText(specBtn.props.children).indexOf(trFn('act.execute')) >= 0,
+    failText('回归 F：规格行内主按钮的文字是「执行」三态文案，不是「实施」', trFn('act.execute'), specBtn ? elText(specBtn.props.children) : '（没建出按钮）'))
+  if (specBtn) specBtn.props.onClick({ stopPropagation: () => {} })
+  check(injected[0] === 'FOR:specExecute',
+    failText('回归 G：规格行内主按钮注入规格执行提示词', 'FOR:specExecute', injected[0]))
+}
+
 console.log('')
 console.log(failures === 0 ? ('#1295 双轨面板门禁全部通过（共 ' + total + ' 条断言）') : ('#1295 双轨面板门禁失败 ' + failures + ' / 共 ' + total + ' 条断言'))
 process.exit(failures > 0 ? 1 : 0)

@@ -21,6 +21,10 @@ declare function rowActionKind(...args: any[]): any;
 declare function actionColorOf(...args: any[]): any;
 declare function isLightHex(...args: any[]): any;
 declare function findMapByIdentity(...args: any[]): any;
+// #1286 收口：规格容器若被当票详情打开（旧导航或直接链接），顶栏按钮要走容器三态，不能按标签算实施票。
+declare function containerKindOf(...args: any[]): any;
+declare function containerStateOf(...args: any[]): any;
+declare function containerTriState(...args: any[]): any;
 declare function pushNav(...args: any[]): any;
 declare function copyText(...args: any[]): any;
 declare function openInNewSession(...args: any[]): any;
@@ -248,12 +252,31 @@ export const IssueDetail = function (props: any): any {
       const has = function (nm: any) { return labelArr.some(function (l: any) { return (l.name || l) === nm }) }
       const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
       const fakeIssue = { number: issueNumber, ['title']: title, labels: labelArr.map(function (l: any) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
+      // #1286 收口：这一页正常是「票详情」，规格本该进容器详情；万一被旧导航或直接链接当票打开，
+      //   顶栏按钮也不能按标签把规格当实施票（注入 /implement），按快照里的容器身份走三态口径。
+      const containerInfo = (function (): any {
+        try {
+          if (typeof findMapByIdentity !== 'function' || typeof containerKindOf !== 'function') return null
+          const c: any = findMapByIdentity(st.snapshot && st.snapshot.maps, issueNumber, issueEffort)
+          if (!c) return null
+          const k: any = containerKindOf(c)
+          if (!k) return null
+          return { kind: k, state: (typeof containerStateOf === 'function') ? containerStateOf(c) : 'open', c: c }
+        } catch (e) { return null }
+      })()
       // #763 顶栏主动作按钮：与列表行同口径（图标/文字/注入文本），但自建按钮以便折叠机逐字裁字。
       // 复用行动作的注入文本，不复用它的按钮节点（那个节点写死 flex:none，折叠机裁不动它）。
       // #771 分类走一处 rowActionKind（状态优先于类型：未分流 → 接手 → 补充 → 修复 → 讨论 → 研究 → 原型 → 执行）。
       const primaryInfo = (function () {
         let text = ''
         try { text = (typeof rowActionText === 'function') ? rowActionText(st, fakeIssue) : '' } catch (e) { text = '' }
+        // #1286 收口：容器（规格/地图）的顶栏主动作按三态取图标、文字与悬停，注入文本已由 rowActionText 走容器口径。
+        if (containerInfo && typeof containerTriState === 'function') {
+          try {
+            const tri: any = containerTriState(containerInfo.kind, containerInfo.state)
+            return { icon: tri.icon, label: tr(tri.labelKey), tip: tr(tri.titleKey), text: text }
+          } catch (eC) {}
+        }
         let kind = ''
         try { kind = (typeof rowActionKind === 'function') ? rowActionKind(fakeIssue) : '' } catch (eK) { kind = '' }
         let icon = 'play', label = ''
@@ -290,7 +313,14 @@ export const IssueDetail = function (props: any): any {
         } catch (e2) {}
         return { icon: icon, label: label, tip: tip, text: text }
       })()
-      const actColor = (typeof actionColorOf === 'function') ? actionColorOf(fakeIssue, colorOf) : stateColor
+      let actColor = (typeof actionColorOf === 'function') ? actionColorOf(fakeIssue, colorOf) : stateColor
+      // #1286 收口：容器被当票详情打开时，顶栏主按钮底色也取容器三态色（拆票橙 / 执行蓝 / 完成绿）。
+      try {
+        if (containerInfo && typeof containerTriState === 'function') {
+          const _tri: any = containerTriState(containerInfo.kind, containerInfo.state)
+          if (_tri && _tri.color) actColor = _tri.color
+        }
+      } catch (eAC) {}
       const actTextColor = (typeof isLightHex === 'function' && isLightHex(actColor)) ? '#140a1e' : '#ffffff'
       const subNodes = (src.subIssues && src.subIssues.nodes) ? src.subIssues.nodes : []
       const subTotal = (src.subIssues && typeof src.subIssues.totalCount === 'number') ? src.subIssues.totalCount : subNodes.length
