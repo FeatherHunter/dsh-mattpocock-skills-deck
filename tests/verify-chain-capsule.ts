@@ -330,7 +330,12 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
 console.log('F) #1263 two-line header plus width, cross-day and stale')
 {
   const nowMs = Date.now()
-  const freshAt = nowMs - 60 * 60 * 1000
+  // 「一小时前」在本地时间 0 点到 1 点之间会落到昨天，而下面断言这一行在同一个日历日内只显示时和分；
+  // 夹具落到昨天时组件会改显示「月-日 时:分」，断言就会在凌晨跑门禁时假红。这里把「就近」夹在今天之内：
+  // 一天刚开始时取今天 0 点，其余时刻仍取一小时前，既保住「这是最近的一条」的含义，也不受运行时刻影响。
+  const startOfToday = new Date(nowMs)
+  startOfToday.setHours(0, 0, 0, 0)
+  const freshAt = Math.max(startOfToday.getTime(), nowMs - 60 * 60 * 1000)
   const staleAt = nowMs - 25 * 60 * 60 * 1000
   const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
   const trCalls = []
