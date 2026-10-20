@@ -149,15 +149,15 @@ td .path{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:var(--purpl
   </section>
 
   <section>
-    <h2><span class="tag">C</span>状态栏胶囊那一处：两个方案</h2>
-    <p class="sub">底部胶囊（真样式：<code>.dsws-capsule</code>）里的「可接」段目前悬停出一个小菜单，里面是「新建需求」「写规格」两项文字。画不下 368 的卡，所以两个方案。<b>（为了排版不出血，菜单画在胶囊下方；真机里是向上弹的。）</b></p>
+    <h2><span class="tag">C</span>状态栏胶囊那一处：也只放一颗「新建需求」</h2>
+    <p class="sub">底部胶囊（真样式：<code>.dsws-capsule</code>）里的「可接」段悬停出一个小菜单。现在菜单里是「新建需求」「写规格」两项文字；<b>这一版改成只放一颗「新建需求」按钮，点它弹出跟面板完全相同的那两张卡</b>——两处共用同一张卡、同一套判断。卡从胶囊上方弹出（真机里胶囊在屏幕底部，往下弹会盖住半个聊天区）。<b>（为了排版不出血，菜单画在胶囊下方。）</b></p>
     <div id="optC"></div>
   </section>
 
   <section>
     <h2><span class="tag">D</span>这一版涉及的代码位置</h2>
     <div id="mapTable"></div>
-    <p class="hint">还没写进真代码：浮层、卡片、选中反馈都是这一页原型。状态栏那一处（第 ③ 方案）要跟面板共用同一张卡，得把浮层从面板里提出来成一个共享组件。</p>
+    <p class="hint">还没写进真代码：浮层、卡片、选中反馈都是这一页原型。状态栏那一处要跟面板共用同一张卡，得把浮层从面板里提出来做成一个共享组件（面板按钮和状态栏菜单都调它）。</p>
   </section>
 </div>
 
@@ -321,11 +321,27 @@ function cardFinal(kind, body){
   s+='<text x="208" y="64" font-size="17" font-weight="700" fill="'+c.color+'">'+c.state+'</text>';
   s+=wrapText(208,86,body,12,12,17,"#a1a1aa");
   s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
-  s+= kind==='explore' ? chainExploreH(26,140) : chainImplH(26,140);
+  /* 技能链在面板里垂直居中：面板 140..220，中心 180；链内部的中线是 oy+31，所以 oy 传 149 */
+  s+= kind==='explore' ? chainExploreH(26,149) : chainImplH(26,149);
   return s+'</svg>';
 }
 var BODY_E="分头探几条路，把没定的问清楚";
 var BODY_I="对着文档问到底，写成规格和实施票";
+
+/* ==================================================================
+   图标：照 src/client/kernel/icons.ts 的通用集原样搬（24 的 viewBox、currentColor、描边 1.8）
+   ================================================================== */
+var ICON_BODY={
+  map:'<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"></path><path d="M9 3v15M15 6v15"></path>',
+  note:'<rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path>',
+  bug:'<path d="M8 2l1.88 1.88"></path><path d="M14.12 3.88L16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 116 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6"></path><path d="M12 20v-9"></path><path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path><path d="M6 13H2"></path><path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path><path d="M22 13h-4"></path><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>',
+  'chev-down':'<polyline points="6 9 12 15 18 9"></polyline>'
+};
+function ic(n,size){
+  var s=size||12;
+  return '<svg viewBox="0 0 24 24" width="'+s+'" height="'+s+'" fill="none" stroke="currentColor" stroke-width="1.8" '+
+    'stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none">'+ICON_BODY[n]+'</svg>';
+}
 
 /* ==================================================================
    面板与浮层
@@ -334,11 +350,9 @@ function panelHTML(opts){
   opts=opts||{};
   var w=opts.w||400, showCurrent=opts.showCurrent;
   var acts = showCurrent
-    ? '<button class="dsws-btn act way">⊞ 新建需求</button><button class="dsws-btn act spec">▤ 写规格</button>'
-    : '<button class="dsws-btn act newreq entry-btn">⊞ 新建需求 <span class="caret">▾</span></button>';
-  var acts2 = showCurrent
-    ? '<button class="dsws-btn act bug">⌁ + bug</button>'
-    : '<button class="dsws-btn act bug">⌁ + bug</button>';
+    ? '<button class="dsws-btn act way">'+ic('map',11)+' 新建需求</button><button class="dsws-btn act spec">'+ic('note',11)+' 写规格</button>'
+    : '<button class="dsws-btn act newreq entry-btn">'+ic('map',11)+' 新建需求'+ic('chev-down',9)+'</button>';
+  var acts2 = '<button class="dsws-btn act bug">'+ic('bug',11)+' + bug</button>';
   return ''+
   '<div class="panel" style="width:'+w+'px">'+
     '<div class="dockbar"><span class="ric"></span><span class="rname">FeatherHunter/dsh-mattpocock-skills-deck</span><span class="sp"></span>'+
@@ -373,8 +387,7 @@ function capsuleHTML(withMenu){
     '<span class="take-wrap" data-take>'+
       '<span class="cseg">◎ 可接 <b>4</b></span>'+
       (withMenu===false?'':'<div class="take-menu" data-takemenu>'+
-        '<div class="mi" data-take-new><span class="dot" style="background:#c084fc"></span>新建需求</div>'+
-        '<div class="mi" data-take-spec><span class="dot" style="background:#60a5fa"></span>写规格</div>'+
+        '<div class="mi" data-take-new>'+ic('map',11)+' 新建需求</div>'+
       '</div>')+
     '</span>'+
     '<span class="cseg">◈ 诊断 <b>1</b></span>'+
@@ -394,7 +407,6 @@ function chooserHTML(){
   return '<div class="chooser" data-chooser>'+
     '<button class="close" data-close>×</button>'+
     '<h4>这条需求，你现在能说清要做什么吗？</h4>'+
-    '<p class="csub">你自己判断，插件不猜；选完才开新会话。</p>'+
     '<div class="pick" data-pick="explore">'+cardFinal("explore",BODY_E)+'</div>'+
     '<div class="pick" data-pick="impl">'+cardFinal("impl",BODY_I)+'</div>'+
     '<div class="foot"><span>Esc 关闭</span><span>↑ ↓ 换一张卡</span><span>Enter 选定</span></div>'+
@@ -419,12 +431,28 @@ function buildWindow(mountId, panelW, opts){
     chooser.style.left=left+'px';
     chooser.style.top=(b.bottom-wRect.top+6)+'px';
   }
+  /* 状态栏胶囊那一处：浮层向上弹，底边贴着胶囊上沿（真机里胶囊在屏幕底部，只能往上） */
+  function placeAbove(anchor){
+    var b=anchor.getBoundingClientRect(), wRect=win.getBoundingClientRect();
+    var left=b.right-wRect.left-392;
+    if(left<8) left=8;
+    chooser.style.left=left+'px';
+    chooser.style.top=(b.top-wRect.top-chooser.offsetHeight-6)+'px';
+  }
   function open(){
     place(); chooser.classList.add('open');
+  }
+  function openAbove(anchor){
+    chooser.classList.add('open');
+    placeAbove(anchor);
   }
   function close(){ chooser.classList.remove('open'); }
   if(btn){
     btn.addEventListener('click',function(e){ e.stopPropagation(); chooser.classList.contains('open')?close():open(); });
+  }
+  var takeBtn=win.querySelector('[data-take-new]');
+  if(takeBtn){
+    takeBtn.addEventListener('click',function(e){ e.stopPropagation(); openAbove(takeBtn); });
   }
   chooser.addEventListener('click',function(e){ e.stopPropagation(); });
   win.addEventListener('click',function(){ close(); });
@@ -476,16 +504,15 @@ function capsuleVariant(title, desc, menuHTML){
 }
 document.getElementById('optC').innerHTML=
   capsuleVariant('① 保持现在这样（两项文字，点文字直接开会话）',
-    '改动最小，但同一件事在面板里是「问」、在状态栏里是「猜」——用户得自己记住哪一项是哪条路。',
+    '没选。改动最小，但同一件事在面板里是「问」、在状态栏里是「猜」——用户得自己记住哪一项是哪条路。',
     '<div class="take-menu" style="display:block;position:static;margin-top:8px;min-width:168px;padding:4px;background:#16181d;border:1px solid #2a2d35;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.45)">'+
       '<div class="mi"><span class="dot" style="background:#c084fc"></span>新建需求</div>'+
       '<div class="mi"><span class="dot" style="background:#60a5fa"></span>写规格</div>'+
     '</div>')+
-  capsuleVariant('③ 只留一颗「新建需求 ▾」，点了弹同一组卡（建议）',
-    '面板和状态栏共用同一张卡、同一套判断；代价是状态栏少一次点击直达。',
+  capsuleVariant('② 状态栏胶囊里也只放一颗「新建需求」，点了弹同一组卡（已定）',
+    '面板和状态栏共用同一张卡、同一套判断：菜单里只有一颗按钮，点它弹出同样那两张卡；卡从胶囊上方弹出（真机里胶囊在屏幕底部，往下会盖住半个聊天区）。',
     '<div class="take-menu" style="display:block;position:static;margin-top:8px;min-width:392px;padding:12px 12px 9px;background:#16181d;border:1px solid #3a3f4a;border-radius:10px;box-shadow:0 16px 44px rgba(0,0,0,.6)">'+
-      '<div style="font-size:12.5px;color:#e6edf3;font-weight:600;margin:0 0 2px">这条需求，你现在能说清要做什么吗？</div>'+
-      '<div style="font-size:11px;color:#8b8b95;margin:0 0 6px">你自己判断，插件不猜；选完才开新会话。</div>'+
+      '<div style="font-size:12.5px;color:#e6edf3;font-weight:600;margin:0 0 6px">这条需求，你现在能说清要做什么吗？</div>'+
       '<div class="pick" style="margin-top:6px">'+cardFinal("explore",BODY_E)+'</div>'+
       '<div class="pick" style="margin-top:6px">'+cardFinal("impl",BODY_I)+'</div>'+
     '</div>');
@@ -495,7 +522,7 @@ var MAPS=[
   ['面板页签行与右侧三颗按钮','<span class="path">src/client/views/shared/Tabs.ts:73-95</span>','现在紫「新建需求」蓝「写规格」红「+ bug」三颗挤在页签行右端；这一版紫蓝合并成一颗灰白「新建需求 ▾」，红「+ bug」原地不动。'],
   ['浮层本身（盖在面板外面）','<span class="path">src/client/statusbar/StatusBar.ts:318-327</span>','状态栏菜单已经在用 <code>PortalOverlay</code> + <code>position:fixed</code> + <code>zIndex 2147483000</code>；这张卡照抄那套做法，就能盖出面板、不被面板裁掉。'],
   ['选卡之后做什么','<span class="path">src/client/kernel/router.ts:200,207</span>','选「探索地图」→ <code>newWayfinderText(s)</code> + <code>newSessionTitleNew(\'requirement\')</code>；选「实施地图」→ <code>newSpecText(s)</code> + <code>newSessionTitleNew(\'spec\')</code>。跟现在按钮的点击处理一模一样，只多一步选择。'],
-  ['状态栏胶囊那一处','<span class="path">src/client/statusbar/StatusBar.ts:316-328</span>','「可接」胶囊悬停出的菜单，现在是「新建需求」「写规格」两项文字；方案 ③ 改成一颗按钮弹同一组卡。'],
+  ['状态栏胶囊那一处','<span class="path">src/client/statusbar/StatusBar.ts:316-328</span>','「可接」胶囊悬停出的菜单，现在是「新建需求」「写规格」两项文字；这一版改成<b>只放一颗「新建需求」按钮</b>，点了弹同一组卡（从胶囊上方弹出）。'],
   ['现在那两句悬停提示','<span class="path">src/client/kernel/locale-data.ts:1649-1650, 2303-2304</span>','「适合还没想清的需求…」「适合已经想清的需求…」正是卡上该说的话，搬进卡里；按钮自己的提示改成「选一条路：探索地图或实施地图」。'],
   ['卡片本身（368×232）','<span class="path">docs/prototype/1290-card-final.html</span>','定稿卡：地图 1:1 + 眉标 + 状态句 + 主体文本 + 底部技能链。这一页直接搬了那里的零件函数。'],
   ['入口按钮的词表','<span class="path">src/client/kernel/locale-data.ts</span>','<code>panel.newWayfinder</code> / <code>panel.newSpec</code> / <code>panel.newBug</code> 三个 key 要改成「新建需求 / 新建需求 / + bug」并去掉中间那项。'],
