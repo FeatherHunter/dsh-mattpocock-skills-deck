@@ -109,7 +109,7 @@
         <td class="mono">## 进度：N%</td>
         <td>人 + 机器</td>
         <td>进度区。面板读它画进度条；契约要求 N 是 0–100 整数，另起一段写「下一步：」。</td>
-        <td class="mono">docs/prompts-review.md:193（#75 定版）</td>
+        <td class="mono">docs/reviews/prompts-review-v1.5.html:118（#75 定版；#1292 删掉旧副本后指到这里）</td>
       </tr>
     </table>
   </div>
@@ -212,7 +212,7 @@
 2. 阶梯：0% 未动工 · 1-94% 进行中 · <span class="a">95% 已完成待确认</span>（下一步须写明待确认什么；<span class="r">未确认不得 close</span>）
    确认后立即写 100% 并 close
 3. 兜底：100% = 确认完成（close 后进度区保留为历史）；首次接触无进度区的票，按现状补写</pre>
-    <p class="ref">docs/prompts-review.md:193–202（写法正例见 :224–227；工作流文档称其为 prompt.progress 契约）</p>
+    <p class="ref">docs/reviews/prompts-review-v1.5.html:119–124（#1292 删掉旧副本后指到这里；工作流文档称其为 prompt.progress 契约）</p>
 
     <h3>写入路径：一个参数，两间房的落点不同</h3>
     <div class="split">
@@ -274,7 +274,7 @@
       <tr><td>改正文不许丢父注释</td><td>Markdown</td><td class="mono">…/markdown/issues-patch.js:106–112</td></tr>
       <tr><td>整份覆盖票文件</td><td>Markdown</td><td class="mono">…/markdown/issues-patch.js:56–86 · …/markdown/write.js:21</td></tr>
       <tr><td>进度段整段替换</td><td>共用</td><td class="mono">src/host/tools/deckIssuePatch.js:26 · :40–58</td></tr>
-      <tr><td>进度契约原文</td><td>文档</td><td class="mono">docs/prompts-review.md:193–202</td></tr>
+      <tr><td>进度契约原文</td><td>文档</td><td class="mono">docs/reviews/prompts-review-v1.5.html:119–124</td></tr>
       <tr><td>进度解析（要百分号）</td><td>共用</td><td class="mono">src/shared/tracker/deck-derive.js:33–43</td></tr>
       <tr><td>空进度的画法（画「—」）</td><td>面板</td><td class="mono">src/client/views/shared/ticket.js:24–26</td></tr>
       <tr><td>面板渲染不处理 HTML 注释</td><td>面板</td><td class="mono">src/client/views/shared/md.js:194（无 &lt;!-- 分支）</td></tr>

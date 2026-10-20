@@ -106,6 +106,8 @@ GitLab 的 `setParent` 在 `src/host/tracker/backends/gitlab/graph-membership.js
 
 `docs/prompts-review.md` 第 656 行的中文评审备注同样写 `blocking 用 Blocked by: #<n> 行表示`。
 
+> #1292 补注（2026-10-20）：上面引的 `docs/prompts-review.md` 已被删除（它是同一批提示词的第二份拷贝，#1290 定下真源只留一份）。那一段评审备注的可视副本在 `docs/reviews/prompts-review-v1.5.html`；模板正文的真源现在住在 `config/prompts/ticket-creation.yaml` 的 `newWayfinder` 条目（`zh` 字段）。本条调查笔记保留当时的引用原样，不改写历史。
+
 对比之下，`package/bundled-skills/to-tickets/SKILL.md` 第 63 行的写法是条件的：有原生阻塞或子议题关系就用平台原生关系，否则才把阻塞写成文字行。这是与模板无条件写法不同的正确参照。
 
 ## 线上因子议题没挂对而显示 0/0 并补链的实例
