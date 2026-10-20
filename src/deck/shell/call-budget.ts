@@ -74,6 +74,19 @@ export interface OpOutcome {
   [key: string]: unknown;
 }
 
+/**
+ * list 的回执（#1304）：在通用回执上多带两格 —— `truncated` 与 `fallback`。
+ * `truncated: true` 表示这份名单可能不全（到了后端安全上限，或降级通道只拿到一部分），
+ * 这时 `data` 只是「拿到的这些」，不许当成整仓；
+ * `fallback: 'rest'` 是「主路不可用、走了 REST 降级通道」的事实，REST 自己也可能只拿到一部分，
+ * 所以单凭它也**不能**把名册标成完整。
+ * 类型源头在契约（`src/tracker/contract/results.ts` 的 `IssueListResult`），这里只把它带进工具层，
+ * 工具不再对回执做强制转换去猜这两格。
+ */
+export interface ListOpOutcome extends OpOutcome {
+  truncated?: boolean;
+  fallback?: string;
+}
 
 /**
  * 注入的后端实现：方法可缺（缺哪个就诚实回「没拿到后端实现」或 unsupported），
@@ -100,7 +113,7 @@ export interface BackendLike {
 /** 本层包给工具用的后端门面：与注入的后端同名方法，但每次调用都过预算与钳制，回执形状统一。 */
 export interface DeckTrackerLike {
   get(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
-  list(repo: unknown, filter?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  list(repo: unknown, filter?: unknown, ctx?: unknown): Promise<ListOpOutcome>;
   getDependencies(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
   create(repo: unknown, input?: unknown, ctx?: unknown): Promise<OpOutcome>;
   setParent(repo: unknown, key: unknown, parent: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
@@ -321,16 +334,18 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         if (out && out.ok === true && out.data) { memoPut('get', k, out); rosterUpsert(memo, out.data) }
         return out
       },
-      list: async function (repo: unknown, filter?: unknown, ctx?: unknown): Promise<OpOutcome> {
+      list: async function (repo: unknown, filter?: unknown, ctx?: unknown): Promise<ListOpOutcome> {
         void ctx
         const k = repoIdOf(repo) + '|' + canon(filter || {})
         const hit = memoGet('list', k)
         if (hit) return hit
-        const out = mapOpOutcome(await execOp('list', function (c2) { return real.list!(repo, filter || {}, c2) }))
+        const out: ListOpOutcome = mapOpOutcome(await execOp('list', function (c2) { return real.list!(repo, filter || {}, c2) }))
         if (out && out.ok === true && isArr(out.data)) {
-          // 后端列表被上限截断过（#1304）：这份数据不能当整仓收进名册，否则下一次读依赖会拿不全的索引静默少边。
-          const truncated = (out as UnknownRecord).truncated === true
-          memoPut('list', k, out, rosterAdoptList(memo, out.data, filter, { complete: !truncated }))
+          // 后端列表被上限截断过、或走了 REST 降级通道（#1304）：这份数据不能当整仓收进名册，
+          // 否则名册的读者会拿不全的索引静默少边（成环检查会因此把真环判成没有）。
+          // 两个条件都看：truncated 是房间给的显式事实，fallback === 'rest' 是兜底防线。
+          const completeList = out.truncated !== true && out.fallback !== 'rest'
+          memoPut('list', k, out, rosterAdoptList(memo, out.data, filter, { complete: completeList }))
         }
         return out
       },

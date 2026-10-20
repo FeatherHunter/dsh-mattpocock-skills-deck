@@ -218,6 +218,20 @@ function edgeNodesOf(raw: unknown, field: string): { nodes: unknown[]; truncated
   return { nodes: [], truncated: false }
 }
 
+/** 边节点上的 labels 两种形状都认（GraphQL 连接 {nodes:[{name}]}、REST 数组 [{name}]），只取名字。 */
+function labelNamesOfEdge(raw: unknown): string[] {
+  const out: string[] = []
+  const bag = raw && typeof raw === 'object' ? raw as RawBag : null
+  const arr = Array.isArray(raw) ? raw : (bag && Array.isArray(bag.nodes) ? bag.nodes as unknown[] : null)
+  if (!arr) return out
+  for (const l of arr) {
+    if (typeof l === 'string') { if (l) out.push(l); continue }
+    const rec = l && typeof l === 'object' ? l as RawBag : null
+    if (rec && typeof rec.name === 'string' && rec.name) out.push(rec.name)
+  }
+  return out
+}
+
 /** 把边连接的节点归一成一串轻量引用：键 + 标题 + 状态，种类有才补。 */
 function refsOfEdgeNodes(nodes: unknown[]): IssueRef[] {
   const out: IssueRef[] = []
@@ -231,8 +245,13 @@ function refsOfEdgeNodes(nodes: unknown[]): IssueRef[] {
     const state: State = stateRaw === 'closed' ? STATE.CLOSED : STATE.OPEN
     // 为什么先装三格必备：阻塞引用只保证 key 与标题状态，种类有才补，与契约轻量引用一致。
     const ref: IssueRef = { key: k, title, state }
-    // type 可选，若来源有 wayfinder:map label 可推断
+    // type 可选：来源明说就用来源的；只有边节点带 labels 时（#1304 的依赖查询会带）才按旧路口径推 ——
+    // 带 wayfinder:map 标签的是探索地图，其余按普通票。这样新路推出来的 ref 与旧路逐票读的完全一致。
     if (rec.type === 'map' || rec.type === 'issue') ref.type = rec.type
+    else if (rec.labels !== undefined && rec.labels !== null) {
+      const names = labelNamesOfEdge(rec.labels)
+      ref.type = names.indexOf('wayfinder:map') >= 0 ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE
+    }
     out.push(ref)
   }
   return out
@@ -243,14 +262,25 @@ function normalizeBlockedBy(raw: unknown): IssueRef[] {
 }
 
 /**
- * 依赖投影归一（#1304）：一次读回正向与反向两条边，并交代反向边有没有到上限。
+ * 依赖投影归一（#1304）：一次读回正向与反向两条边，并交代这两条边各自有没有到上限。
  * 为什么单开这个出口：单票查询只要正向边（normalizeBlockedBy 继续走同一条读法），
  * 反向边只在 getDependencies 这一条路上要，两条边一起读回来才不用整仓扫描。
+ * 两条边都要带「到没到上限」：正向边同样会在 50 条被封顶，少掉的边看起来就像「没人阻塞它」。
  */
-export function normalizeDependencyEdges(raw: unknown): { blockedBy: IssueRef[]; blocking: IssueRef[]; blockingTruncated: boolean } {
+export function normalizeDependencyEdges(raw: unknown): {
+  blockedBy: IssueRef[]
+  blocking: IssueRef[]
+  blockedByTruncated: boolean
+  blockingTruncated: boolean
+} {
   const blocked = edgeNodesOf(raw, 'blockedBy')
   const blockBy = edgeNodesOf(raw, 'blocking')
-  return { blockedBy: refsOfEdgeNodes(blocked.nodes), blocking: refsOfEdgeNodes(blockBy.nodes), blockingTruncated: blockBy.truncated }
+  return {
+    blockedBy: refsOfEdgeNodes(blocked.nodes),
+    blocking: refsOfEdgeNodes(blockBy.nodes),
+    blockedByTruncated: blocked.truncated,
+    blockingTruncated: blockBy.truncated,
+  }
 }
 
 // 拉取请求三字段归一（#504 落 #294 形状 A：复用工单形状加三个可选字段，不新增实体）。

@@ -98,12 +98,12 @@ export function isFullListFilter(filter: unknown): boolean {
   if (typeof f.state === 'string' && f.state && f.state !== 'all') return false
   return true
 }
-/** 收下一份列表时对名册完整性位的交代：complete === false 表示这份列表自己被上限截断过，不许当整仓（#1304）。 */
-export interface RosterAdoptOpts {
-  complete?: boolean
-}
-/** 列表成功 → 整仓重建名册，带筛只合并（名册完整性位不动，不拿子集当全集）。 */
-export function rosterAdoptList(memo: CallMemo | null | undefined, rows: unknown, filter: unknown, opts?: RosterAdoptOpts): string[] {
+/**
+ * 列表成功 → 整仓重建名册，带筛只合并（名册完整性位不动，不拿子集当全集）。
+ * `opts.complete === false`（#1304）表示这份列表自己被上限截断过：只能合并本批行，完整性位置 false。
+ * 这个可选布尔只在本函数与 rosterFromRows 用，不导出类型（房间那份同形实现也不导出）。
+ */
+export function rosterAdoptList(memo: CallMemo | null | undefined, rows: unknown, filter: unknown, opts?: { complete?: boolean }): string[] {
   if (!memo) return []
   if (isFullListFilter(filter)) return rosterFromRows(memo, rows, opts)
   const list = Array.isArray(rows) ? rows : []
@@ -113,9 +113,9 @@ export function rosterAdoptList(memo: CallMemo | null | undefined, rows: unknown
 /**
  * 整仓列表成功 → 重建名册（dirty 清空：这次读是新鲜的，之前写的都含在里面了）。
  * 列表被上限截断（`opts.complete === false`）时只合并这一批行：完整性位保持 false、dirty 不清 ——
- * 少了一半票的索引算出来的「谁被阻塞」会静默少边，那正是 #1304 要修的另一半。
+ * 少了一半票的索引算出来的关系会静默少边，那正是 #1304 要修的另一半。
  */
-export function rosterFromRows(memo: CallMemo, rows: unknown, opts?: RosterAdoptOpts): string[] {
+export function rosterFromRows(memo: CallMemo, rows: unknown, opts?: { complete?: boolean }): string[] {
   const list = isArr(rows) ? rows : []
   if (opts && opts.complete === false) {
     for (const r of list) {

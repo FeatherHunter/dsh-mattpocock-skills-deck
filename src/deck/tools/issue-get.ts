@@ -197,8 +197,8 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
         }
       }
       const issue = got.data || {}
-      // 反向边是整笔调用里最贵的一段（算“谁被阻塞”要扫全仓）：关掉就整段跳过，
-      // 只读单票本身；反向边记空并注记，不假装 0 条。
+      // 反向边走单独一次依赖查询（#1304 起改为读后端原生的「我挡住了谁」，不必再扫全仓）：
+      // 关掉（blocking=false）就整段跳过，只读单票本身；反向边记空并注记，不假装 0 条。
       const dep = (wantBlocking && typeof t.getDependencies === 'function') ? await t.getDependencies(repo, key, {}, opCtx) : null
       const depTimeout = wantBlocking ? timeoutMessage(dep as TransportResult) : null
       if (depTimeout) return timeoutValue('这张票读到一半（阻塞边超时了：在限时内没等到后端回话；票本身已读回，阻塞边重调一次就行）。', { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: depTimeout.slice(0, 300) } }, { requests: 1, points: 3 })

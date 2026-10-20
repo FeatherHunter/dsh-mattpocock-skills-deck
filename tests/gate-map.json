@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T17:00:14.013Z",
+  "generatedAt": "2026-10-20T17:03:21.269Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 305,
   "gateCount": 305,
@@ -502,6 +502,7 @@
       "file": "tests/verify-deck-thin-reads.ts",
       "guards": [
         "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-list.ts",
         "src/deck/tools/map-snapshot.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
@@ -518,7 +519,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-deck-tools-agent-register.ts",
@@ -1865,10 +1866,12 @@
       "step": "node tests/verify-1304-deps-native.ts",
       "file": "tests/verify-1304-deps-native.ts",
       "guards": [
+        "src/deck/shell/call-budget.ts",
         "src/host/platform/outbound-control.ts",
         "src/tracker/rooms/github/graph.ts"
       ],
       "dirs": [
+        "src/deck/shell",
         "src/host/platform",
         "src/tracker/rooms/github"
       ],
@@ -1876,7 +1879,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1305-client-session.ts",
@@ -7648,6 +7651,7 @@
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1261-work-route-receipt.ts",
       "node tests/verify-1298-spec-close.ts",
+      "node tests/verify-1304-deps-native.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-895-github-memo.ts",

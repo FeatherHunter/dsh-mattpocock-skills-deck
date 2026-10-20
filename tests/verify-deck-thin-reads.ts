@@ -175,6 +175,20 @@ async function main() {
     check(typeof r.text === 'string' && r.text.indexOf('可能不全') < 0, '⑥-6 结果完整时不乱说「可能不全」')
   }
 
+  // ⑥-b REST 降级时列表也要自曝（#1304 AC⑤）：主路用不了、走 REST 通道，REST 自己也可能只拿到一部分
+  {
+    const listMod = await imp('src/deck/tools/issue-list.ts')
+    const tracker = {
+      list: async () => ({ ok: true, data: [Object.assign({}, demoIssue)], fallback: 'rest', fallbackReason: 'other' }),
+    }
+    const g = stubGateLedger(gateMod, ledgerMod)
+    const tool = listMod.createDeckIssueList(baseDeps(g.gate, stubRegistry(tracker), budget))
+    const r = await tool.run(execFor(), {})
+    check(r && r.status === 'ok', '⑥-7 REST 降级时列表照样回 OK')
+    const notesText = JSON.stringify(r && r.notes || [])
+    check(notesText.indexOf('REST 降级通道') >= 0 && notesText.indexOf('可能不全') >= 0, '⑥-8 注记说清走了 REST 且清单可能不全')
+  }
+
   // ⑦ 介绍不断：描述是一行，参数说明里有性能字眼
   {
     check(typeof getMod.definition.description === 'string' && getMod.definition.description.indexOf('\n') < 0, '单票读介绍仍是一行')

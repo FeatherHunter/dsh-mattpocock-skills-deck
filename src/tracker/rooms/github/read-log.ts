@@ -32,6 +32,7 @@ export const READ_DEGRADED_OPS = Object.freeze([
   'preflight',
   'list',
   'get',
+  'deps',
   'counts',
   'listPage',
   'subIssues',
@@ -59,6 +60,11 @@ export const READ_DEGRADED_OPS = Object.freeze([
  *  - `empty`       : 回包是空串或字面 null，读不到东西
  *  - `no-fields`   : 回包里没有这一条读必须有的字段
  *  - `unknown`     : 上面都不像（不许拿它当偷懒的默认值，新增分支时回来加取值）
+ *
+ * 依赖边那一片（#1304）另有三个组合值，含义都由上面几条拼出来，不另造新意思：
+ *  - `deps:shape`     : 后端自带的「我挡住了谁」字段这次用不了，退回整仓列表反推（degraded）
+ *  - `deps:truncated` : 依赖边到了后端一次能给的条数上限，拿不全（truncated）
+ *  - `deps:scan`      : 退回整仓列表反推，而那份列表也没读全（degraded 加 partial/truncated）
  */
 export const READ_DEGRADED_REASONS = Object.freeze([
   'preflight:gh',
@@ -83,6 +89,9 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'get:degraded',
   'get:rest-json',
   'get:transport',
+  'deps:shape',
+  'deps:truncated',
+  'deps:scan',
   'counts:repo-ref',
   'counts:gql-err',
   'counts:json',

@@ -180,8 +180,10 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       }
       const rows = Array.isArray(listed.data) ? listed.data : []
       // 后端自己的列表有安全上限（工单 500 条、拉取请求 1000 条）：它到顶就停，却仍回成功。
-      // 这里如实转告，别让调用方把「后端只翻到上限」当成「库里就这么多」（#1304）。
-      const backendTruncated = (listed as unknown as { truncated?: boolean }).truncated === true
+      // 走了 REST 降级通道时也一样：REST 自己有翻页上限，尾页失败时只回已经拿到的。
+      // 这两种「可能不全」都要如实转告，别让调用方当成「库里就这么多」（#1304）。
+      const backendTruncated = listed.truncated === true
+      const backendFallback = listed.fallback === 'rest'
       const wantLabelLow = wantLabels.map((x) => x.toLowerCase())
       const matched = []
       for (const issue of rows) {
@@ -228,7 +230,8 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       if (wantQuery) cond.push('query=' + String(a.query).trim().slice(0, 40))
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
-      if (backendTruncated) notes.push('后端这次只翻到自己的上限就停了（工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
+      if (backendFallback) notes.push('后端主路这次用不了，走的是 REST 降级通道：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
+      else if (backendTruncated) notes.push('后端这次只翻到自己的上限就停了（工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
       if (truncated) notes.push('只回前 ' + sliced.length + ' 行（共 ' + total + ' 行符合）：收窄过滤或调大 limit 再取一次。')
       return {
         value: {

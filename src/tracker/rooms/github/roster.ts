@@ -64,17 +64,14 @@ export function isFullListFilter(filter: ListFilter | null | undefined): boolean
   if (typeof f.state === 'string' && f.state && (f.state as string) !== 'all') return false
   return true
 }
-/** 收下一份列表时对名册完整性位的交代：complete === false 表示这份列表自己不全，不许当整仓。 */
-export interface RosterAdoptOpts {
-  complete?: boolean
-}
-
 /**
  * 整仓重建，带筛合并；返回成员键（调用方裁剪缓存用）。
  * `opts.complete === false`（#1304）：这份列表自己被上限截断过，只能合并本批行，
- * 名册的 complete 位保持 false、dirty 不清 —— 不能拿子集当全集，否则下一次读依赖会静默少边。
+ * 名册的 complete 位保持 false、dirty 不清 —— 不能拿子集当全集，否则名册的读者
+ * （成环检查等）会拿少了一半票的索引算关系，静默少边。
+ * 这个可选布尔只在本函数用，不导出类型：跨层各留一份同名接口没有收益。
  */
-export function rosterAdoptList(memo: RosterMemo | null | undefined, rows: unknown, filter: ListFilter | null | undefined, opts?: RosterAdoptOpts): string[] {
+export function rosterAdoptList(memo: RosterMemo | null | undefined, rows: unknown, filter: ListFilter | null | undefined, opts?: { complete?: boolean }): string[] {
   if (!memo) return []
   const list: unknown[] = isArr(rows) ? rows : []
   const full = isFullListFilter(filter)

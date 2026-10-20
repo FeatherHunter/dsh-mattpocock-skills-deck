@@ -52,13 +52,16 @@ export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
 // 依赖投影查询（#1304）：一次取齐正向与反向阻塞边，标题与状态随行回来，不再逐张再读。
 // 为什么不并进 ISSUE_FRAGMENT：列表查询不需要反向边（每行多付一整条连接的钱），
 // 而且契约不允许把 blocking 塞进 Issue 实体；它只是 getDependencies 的投影。
-// 两条连接都带 pageInfo：到了后端一次能给的上限（50 条）时，调用方要能如实说「可能不全」。
+// 两条连接都带 pageInfo：到了后端一次能给的条数上限时，调用方要能如实说「可能不全」。
+// 条数只在这里写一遍：查询串与实际判「到没到上限」用的是同一个常量，改一处就行，不会两处漂移。
+export const DEPS_MAX = 50
+
 export const DEPS_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   repository(owner:$owner,name:$name){
     issue(number:$number){
       number
-      blockedBy(first:50){ pageInfo{ hasNextPage } nodes{ number title state } }
-      blocking(first:50){ pageInfo{ hasNextPage } nodes{ number title state } }
+      blockedBy(first:${DEPS_MAX}){ pageInfo{ hasNextPage } nodes{ number title state labels(first:20){ nodes{ name } } } }
+      blocking(first:${DEPS_MAX}){ pageInfo{ hasNextPage } nodes{ number title state labels(first:20){ nodes{ name } } } }
     }
   }
 }`

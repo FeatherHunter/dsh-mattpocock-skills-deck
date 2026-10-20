@@ -38,6 +38,7 @@ import type {
   Counts,
   Dependencies,
   LabelColorBatchResult,
+  IssueListResult,
   LabelColorsFilePlacement,
   OpResult,
   PageResult,
@@ -107,8 +108,13 @@ export interface Tracker {
    */
   preflight(handle: RepoHandle, ctx: OpContext): Promise<PreflightResult>
 
-  /** 列票（完整行：带正文与评论；除正文、评论外不带别的展开。只要列表里的一行、不要正文评论时走 `listPage`；详细口径见 `ListFilter` 各字段注释）。 */
-  list(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<OpResult<Issue[]>>
+  /**
+   * 列票（完整行：带正文与评论；除正文、评论外不带别的展开。只要列表里的一行、不要正文评论时走
+   * `listPage`；详细口径见 `ListFilter` 各字段注释）。
+   * 返回 `IssueListResult` 而不是裸的 `OpResult<Issue[]>`：房间要能交代「这次名单全不全」
+   * （`truncated`）与「走没走 REST 降级」（`fallback` / `fallbackReason`），这三格是 #1304 收进契约的。
+   */
+  list(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<IssueListResult>
 
   /**
    * 数票：这个后端里符合条件的有多少张。

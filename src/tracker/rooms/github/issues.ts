@@ -20,7 +20,7 @@ import { STATE, ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { GetOpts, ListFilter } from '../../contract/inputs.js';
-import type { OpResult } from '../../contract/results.js';
+import type { IssueListResult, OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { emitReadDegraded } from './read-log.js'
 import { ghClient } from './client.js'
@@ -41,12 +41,10 @@ interface ParsedRepo {
   name: string;
 }
 
-/**
- * list 的返回：成功时带票数组；走了 REST 降级时多带 fallback 标记（宿主快照据此写降级标记，界面只读不写）。
- * `truncated` 是 #1304 加的：GraphQL 主路到 500（工单）/1000（拉取请求）条的安全上限就停了，
- * 这时结果只是「拿到的这些」，调用方不许当成整仓 —— 依赖反推、名册重建都要按「不全」处理。
- */
-type ListIssuesResult = OpResult<Issue[]> & { fallback?: string; fallbackReason?: string; truncated?: boolean };
+// list 的返回形状跑到了契约里（#1304）：房间多交代的 `truncated` / `fallback` / `fallbackReason`
+// 是从房间流向调用方的合同，不只是本文件内部的事；契约那份带完整字段说明，这里只留别名。
+// 从前的类型名字仍在文件里各处引用，所以留一行别名，不把调用点全改一遍。
+type ListIssuesResult = IssueListResult;
 
 // 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，短路后的真值分支会被收成空对象形状、
 // 直接读 message 报缺成员；转成最小形状后读法与原来一致，运行时不变。
@@ -294,14 +292,18 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       //   未知由调用方缺失表示为 null）。界面新鲜时只有 quota 才说「配额耗尽」，other 与未知一律
       //   说中性那句，一个字不许提配额。旧判据 isRateLimitError 一处不动（裸 403 照旧走老路）。
       // REST 这条路自己可能撞上尾页失败，完整性判不了：名册保守按「不完整」收下，不拿子集当全集（#1304）。
+      // 同一个「不全」还要交给调用方：REST 自己有翻页上限（10 页 × 100 条），尾页失败时只回已经拿到的，
+      // 所以这里一并标 truncated: true —— 壳层据此把名册继续按「不完整」收，工具层据此在回执里自曝。
       try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, restNorm, filter, { complete: false }) } catch (eU) {}
-      return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest', fallbackReason: fbCause }
+      return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest', fallbackReason: fbCause, truncated: true }
     }
     // 上限截断要能从日志里看出来：工单那条一到 500 就 break、拉取请求那条到 1000 才 break，
     // 两条都是「回成功、只装了一部分」。
     if (issuesTruncated || prTruncated) emitReadDegraded(ctx, 'list', 'list:partial', Date.now() - tList)
-    // 截断过的列表不能当「完整名册」收下（#1304）：否则下一次读依赖会拿一份少了一半票的索引去算「谁被阻塞」，
-    // 少掉的边看起来就像「没人阻塞它」。这里把「不全」这件事同时交给名册与调用方。
+    // 截断过的列表不能当「完整名册」收下（#1304）：否则名册的读者会拿一份少了一半票的索引去算关系。
+    // 名册的读者是成环检查（kernel/cycle-check.ts 读 adjacencyFor）与 setBlockedBy 里的环检测；
+    // 单票读依赖已经不读名册了（换票 #1304 之后它直接调 listIssues 自己取整仓列表），
+    // 所以这里要防的是「名册声明完整、实际少票」这件事本身。把「不全」同时交给名册与调用方。
     const truncated = issuesTruncated || prTruncated
     try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, all, filter, { complete: !truncated }) } catch (eU) {}
     return { ok: true, data: applyIssueFilter(all, filter), truncated: truncated }
