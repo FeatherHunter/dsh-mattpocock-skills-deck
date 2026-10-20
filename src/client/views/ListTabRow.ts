@@ -52,6 +52,77 @@ declare const CONTAINER_TINT: any;
 declare const Tip: any;
 declare const issueUrlFor: any;
 
+// #1302：列表加载时的行形占位。这个文件定义「一票一行长什么样」，所以行形状的真源也放在这里：
+// 真实行与加载占位都从 LIST_ROW_SHAPE 取尺寸，改一处两边一起变；不会出现「真实行改了间距、
+// 骨架还照旧」那种用户首屏先看到错形状、加载完才突然变样的事。
+// 只放真实行也确实在用的数（行1/行2 的间距与上边距、迷你圆环的边长），外加占位块自己的实测尺寸
+//（编号块、标题条、标签块、按钮块）。内边距、圆角、底色这类纯样式走 CSS 类名，与真实行共用，不在这里重复。
+export const LIST_ROW_SHAPE = {
+  // 行1：编号列（竖排，上）+ 标题（占满）+ 迷你圆环（右上），三块横排
+  line1: { gap: 8 },
+  // 行2：标签行（左，占满）+ 按钮组（右，贴边），两块横排
+  line2: { marginTop: 2, gap: 6 },
+  // 迷你圆环：真实行是 18×18 的 svg；占位画同样大的圆，右边留一条进度文字位
+  ring: { size: 18, text: { width: 35, height: 12 } },
+  // 编号列里的两种块：编号块对应 .dsws-idnum（11px 字两行高的药丸），角标块对应容器徽章
+  idcol: { idnum: { width: 49, height: 21 }, badge: { width: 52, height: 19 } },
+  // 标题条高度照单行标题的行高（13px 字 × 1.6）
+  title: { height: 21 },
+  // 行2 的两块：标签 chip 与行尾按钮
+  tag: { width: 44, height: 19, count: 3 },
+  button: { width: 64, height: 21, count: 2 },
+  // 一次画几行；前几行按容器行画（列表排序把探索地图、规格排在普通票前面，编号列多一枚角标）
+  list: { count: 8, containerRows: 2 },
+}
+
+// #1302：列表加载态的行形占位，遮罩里画的就是它。
+// 画法与真实行共用一套 CSS 类：外层框 .dsws-aggrow、编号列 .dsws-idcol、标签行 .dsws-tags、
+// 圆环组 .dsws-ring，所以内边距、行距、圆角与真实行天然一致；各块尺寸与间距从 LIST_ROW_SHAPE 取。
+// 门禁 tests/verify-1302-panel-list-skeleton.ts 按下面三条约定比对（改这里要一起看那扇门禁）：
+//   ① 每行带 data-dsws-row-skeleton="1"，行内五个部件带 data-dsws-row-part（idcol/title/ring/tags/buttons）；
+//   ② 占位行 style 只加 pointerEvents:'none'：不接鼠标、不触发悬停高亮，点击落到底下的遮罩；
+//   ③ 小条一律 class dsws-fb-skel，微光由 feedback-styles.ts 提供，时长不在本文件改。
+export const listSkeletonNode = function (h: any, count: any) {
+  const n: number = count == null ? LIST_ROW_SHAPE.list.count : count
+  const rows: any[] = []
+  // 每条小条带 data-dsws-skel-block：门禁按这个数「一行里该有哪几块」，不看宽度猜。
+  const bar = function (style: any, block: any) { return h('div', { className: 'dsws-fb-skel', 'data-dsws-skel-block': block, style: style }) }
+  for (let i = 0; i < n; i++) {
+    const idcol: any[] = []
+    if (i < LIST_ROW_SHAPE.list.containerRows) {
+      idcol.push(bar({ width: LIST_ROW_SHAPE.idcol.badge.width, height: LIST_ROW_SHAPE.idcol.badge.height, borderRadius: 10, flex: 'none' }, 'badge'))
+    }
+    idcol.push(bar({ width: LIST_ROW_SHAPE.idcol.idnum.width, height: LIST_ROW_SHAPE.idcol.idnum.height, borderRadius: 6, flex: 'none' }, 'idnum'))
+    const tagBars: any[] = []
+    for (let t = 0; t < LIST_ROW_SHAPE.tag.count; t++) tagBars.push(bar({ width: LIST_ROW_SHAPE.tag.width, height: LIST_ROW_SHAPE.tag.height, borderRadius: 10, flex: 'none' }, 'tag'))
+    const buttonBars: any[] = []
+    for (let b = 0; b < LIST_ROW_SHAPE.button.count; b++) buttonBars.push(bar({ width: LIST_ROW_SHAPE.button.width, height: LIST_ROW_SHAPE.button.height, borderRadius: 6, flex: 'none' }, 'button'))
+    rows.push(h('div', {
+      key: i,
+      className: 'dsws-aggrow dsws-row-skel',
+      'data-dsws-row-skeleton': '1',
+      'aria-hidden': 'true',
+      style: { pointerEvents: 'none' },
+    }, [
+      // 行1：编号列 + 标题条 + 圆环位（横排间距与真实行同一份值）
+      h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: LIST_ROW_SHAPE.line1.gap, width: '100%' } }, [
+        h('span', { className: 'dsws-idcol', 'data-dsws-row-part': 'idcol' }, idcol),
+        h('div', { className: 'dsws-fb-skel', 'data-dsws-row-part': 'title', 'data-dsws-skel-block': 'title', style: { flex: 1, minWidth: 0, height: LIST_ROW_SHAPE.title.height, borderRadius: 4 } }),
+        h('span', { className: 'dsws-ring', 'data-dsws-row-part': 'ring' }, [
+          bar({ width: LIST_ROW_SHAPE.ring.size, height: LIST_ROW_SHAPE.ring.size, borderRadius: '50%', flex: 'none' }, 'ring'),
+          bar({ width: LIST_ROW_SHAPE.ring.text.width, height: LIST_ROW_SHAPE.ring.text.height, borderRadius: 4, flex: 'none' }, 'ring-text'),
+        ]),
+      ]),
+      // 行2：标签块 + 行尾按钮块（上边距与横排间距与真实行同一份值）
+      h('div', { style: { marginTop: LIST_ROW_SHAPE.line2.marginTop, display: 'flex', alignItems: 'center', gap: LIST_ROW_SHAPE.line2.gap, width: '100%' } }, [
+        h('div', { className: 'dsws-tags', 'data-dsws-row-part': 'tags' }, tagBars),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' }, 'data-dsws-row-part': 'buttons' }, buttonBars),
+      ]),
+    ]))
+  }
+  return h('div', { className: 'dsws-list-skel', 'data-dsws-list-skeleton': '1', 'aria-hidden': 'true', style: { display: 'flex', flexDirection: 'column', gap: 0, width: '100%' } }, rows)
+}
+
 export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narrow: any, blockOf: any, colorOf: any, multiEffort: any) {
       const has = function (x: any, nm: any) { return (x.labels || []).some(function (l: any) { return l.name === nm }) }
       // #949 瞬间底座：行内可点小药丸（+N 更多、被阻塞跳转）也要能被键盘走到。
@@ -91,8 +162,8 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         const off = C * (1 - pct / 100)
         // #1286：环色跟着容器身份走（探索紫 / 规格贵族蓝），全关时一律绿
         const color = pct >= 100 ? '#4ade80' : (kind === 'spec' ? '#1D4ED8' : '#bc8cff')
-        return h('span', { className: 'dsws-ring' }, [
-          h('svg', { width: 18, height: 18, viewBox: '0 0 18 18' }, [
+        return h('span', { className: 'dsws-ring', 'data-dsws-row-part': 'ring' }, [
+          h('svg', { width: LIST_ROW_SHAPE.ring.size, height: LIST_ROW_SHAPE.ring.size, viewBox: '0 0 18 18' }, [
             h('circle', { cx: 9, cy: 9, r: 7, fill: 'none', stroke: 'rgba(255,255,255,.12)', strokeWidth: 2.4 }),
             h('circle', { cx: 9, cy: 9, r: 7, fill: 'none', stroke: color, strokeWidth: 2.4, strokeLinecap: 'round', strokeDasharray: String(C), strokeDashoffset: String(off) }),
           ]),
@@ -233,8 +304,8 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         style: isContainer ? { cursor: 'pointer', borderLeft: '3px solid ' + accentOf(kind), background: tintOf(kind) } : { cursor: 'pointer' },
       }, [
         // 行1：idcol 竖排（编号上 map 徽章下）+ 标题 + 圆环进度（T1 Map #120：gap 6→8，idcol↔标题 8、标题↔圆环 8）
-        h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' } }, [
-          h('span', { className: 'dsws-idcol' }, [
+        h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: LIST_ROW_SHAPE.line1.gap, width: '100%' } }, [
+          h('span', { className: 'dsws-idcol', 'data-dsws-row-part': 'idcol' }, [
             // #1286：容器角标 —— 地图图标 + 「地图」/「规格」两行字，底色随容器种类（探索紫 / 规格贵族蓝）；
             //   末尾那个标记类让列表页认出「这一行是容器」（两种容器共用一个类名，不按颜色猜）。
             isContainer ? h('span', { className: 'dsws-chip ' + chipClassOf(kind) + ' ' + containerMarkerClass, style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr(chipLabelKeyOf(kind)))]) : null,
@@ -246,13 +317,13 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
             //   事实来源：写入成功那一处记下的时刻（kernel/api-io.js 的 markRowWrite → st.writeAt）。
             truthWriteWindowOpen(st.writeAt && (st.writeAt[String(x.number)] || st.writeAt[idOf(x)]), Date.now()) ? h('span', { className: 'dsws-chip dsws-writing', style: { fontSize: 9, lineHeight: 1.5, padding: '0 4px', flex: 'none', opacity: 0.75, background: 'rgba(88,166,255,.10)', color: '#58a6ff', border: '1px dashed rgba(88,166,255,.45)' } }, tr('truth.writing')) : null,
           ]),
-          h('span', { style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, x.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: isContainer ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, x.title)), (x.author && x.author.login && x.author.login !== ((st.snapshot && (st.snapshot.viewer && st.snapshot.viewer.login || st.snapshot.viewerLogin)) || '')) ? (x.author.avatarUrl ? h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('img', { src: x.author.avatarUrl, style: { width: 16, height: 16, borderRadius: '50%', border: '2px solid ' + authorColor(x.author.login), flex: 'none' }, alt: x.author.login })) : h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: hexA(authorColor(x.author.login), 0.18), border: '2px solid ' + authorColor(x.author.login), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } }, [Ic({ n: 'person', size: 10 })]))) : null]),
+          h('span', { style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, x.title)]) }, h('span', { className: 'dsws-tt-wrap', 'data-dsws-row-part': 'title', style: { flex: 1, minWidth: 0, fontWeight: isContainer ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, x.title)), (x.author && x.author.login && x.author.login !== ((st.snapshot && (st.snapshot.viewer && st.snapshot.viewer.login || st.snapshot.viewerLogin)) || '')) ? (x.author.avatarUrl ? h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('img', { src: x.author.avatarUrl, style: { width: 16, height: 16, borderRadius: '50%', border: '2px solid ' + authorColor(x.author.login), flex: 'none' }, alt: x.author.login })) : h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: hexA(authorColor(x.author.login), 0.18), border: '2px solid ' + authorColor(x.author.login), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } }, [Ic({ n: 'person', size: 10 })]))) : null]),
           (isContainer && containerObj && containerObj.stats && !mapClosed) ? ringOf(containerObj.stats, kind) : null,
           !isOpen ? h('span', { className: 'dsws-chip', style: { fontSize: 10, marginRight: 0, flex: 'none', background: 'rgba(139,139,149,.12)', color: '#8b8b95', border: '1px solid rgba(139,139,149,.35)' } }, [Ic({ n: 'check', size: 9 }), h('span', null, tr('map.subClosed'))]) : null,
         ]),
         // 行2：标签贪心折叠（单行不换行）+ 按钮组（常显）（T1 Map #120：marginTop 8→2，全局收紧至 8px = gap6+mt2，所有行一致）
-        h('div', { style: { marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
-          h('div', { className: 'dsws-tags', 'data-dsws-labels': JSON.stringify(labels.map(function (l: any) { return l.name })) }, [
+        h('div', { style: { marginTop: LIST_ROW_SHAPE.line2.marginTop, display: 'flex', alignItems: 'center', gap: LIST_ROW_SHAPE.line2.gap, width: '100%' } }, [
+          h('div', { className: 'dsws-tags', 'data-dsws-row-part': 'tags', 'data-dsws-labels': JSON.stringify(labels.map(function (l: any) { return l.name })) }, [
             labels.map(function (l: any, i: any) {
               return h('span', { key: i, className: 'dsws-chip', style: { fontSize: 10, background: hexA(l.color, 0.18) || 'rgba(188,140,255,.16)', color: l.color ? '#' + l.color : '#bc8cff', border: '1px solid ' + (darken(l.color, 0.16) || 'rgba(188,140,255,.6)') } }, l.name)
             }),
@@ -261,7 +332,7 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
               ? h(Tip, { content: tr('map.subBlocked', { who: blockedTip }) }, h('span', { key: 'blk', className: 'dsws-chip dsws-blocked', style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)' } }, [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))
               : h(Tip, { content: tr('list.blockedTitle', { by: blockedTip }) }, h('span', chipProps({ key: 'blk', className: 'dsws-chip dsws-blocked', onClick: function (e: any) { e.stopPropagation(); openBlocked(blk) }, style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }), [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))) : null,
           ]),
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' } }, [
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' }, 'data-dsws-row-part': 'buttons' }, [
             isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [
               // #1286：主按钮按容器三态取（上面算好的 primaryBtn）；新会话按钮与它永远同色实心。
               primaryBtn,

@@ -148,7 +148,8 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
   }
   const names = Object.keys(stubs)
   // 行渲染函数的函数体是几段源码拼的，自由变量由 h / st / names 三组参数名显式传入，所以走 compileFn。
-  const listIssueRow = compileFn(['h', 'st', ...names], identitySrc + '\n' + findMapByIdentitySrc + '\n' + rowFnSrc + '\nreturn listIssueRow')(h, { snapshot }, ...names.map((n) => stubs[n]))
+  // #1302 之后 listIssueRow 会读 LIST_ROW_SHAPE（行形状真源），拼函数体时要把这段常量一起带上。
+  const listIssueRow = compileFn(['h', 'st', ...names], identitySrc + '\n' + findMapByIdentitySrc + '\n' + extractConst(rowSrc, 'LIST_ROW_SHAPE') + '\n' + rowFnSrc + '\nreturn listIssueRow')(h, { snapshot }, ...names.map((n) => stubs[n]))
   const ticket = snapshot.maps.flatMap((m) => m.tickets || []).find((t) => effortOf(t) === 'beta')
   const walkAll = (tree) => {
     const flat = []

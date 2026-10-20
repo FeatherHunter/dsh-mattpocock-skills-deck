@@ -35,6 +35,7 @@ declare function isEnabled(...args: any[]): any;
 declare function isOccupied(...args: any[]): any;
 declare function issuePageRowsOf(...args: any[]): any;
 declare function listIssueRow(...args: any[]): any;
+declare function listSkeletonNode(...args: any[]): any;
 declare function loadIssuePage(...args: any[]): any;
 declare function mapBlockOf(...args: any[]): any;
 declare function openHealthCheck(...args: any[]): any;
@@ -446,12 +447,14 @@ export     const ListTab = ({ st, narrow }: any) => {
         // #690：历史票翻页那一行 —— 「已加载 x / 共 N」、翻页位置失效、取不到、后端不支持翻页各说各的
         //   （出处见 views/ListTabClosed.js 的注释；x 与折叠行那两个数同源：就是当前列表里真的画出来的行数）。
         closedPagesNode(h, st, closedRows.length),
-        // T3 #5：加载遮罩（替代单行文本，全屏遮罩 + 转圈 + 禁点）
+        // T3 #5：加载遮罩（替代单行文本，全屏遮罩 + 禁点）
         // v1.3.3 修复：加载遮罩仅首开无数据时显示（手动刷新已走静默路径，不再叠加）
         // #58 缓存优先：已有快照（本 store 或 per-cwd 缓存）时不显示全屏 loading，秒开旧列表 + 后台静默刷新；行形骨架见 #953（同一时刻只用一个主力过程）。
-        (st.snapMode === 'loading' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { className: 'dsws-loading-shade', style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 5, pointerEvents: 'auto' } }, [
-          h('span', { style: { fontSize: 12, color: '#e6edf3' } }, tr('list.loading')),
-          h('div', { 'aria-hidden': 'true', style: { width: '80%', display: 'flex', flexDirection: 'column', gap: 8 } }, ['96%', '82%', '90%', '70%', '86%'].map(function (w: any, i: any) { return h('div', { key: i, className: 'dsws-fb-skel', style: { width: w, height: 12, borderRadius: 6 } }) })),
+        // #1302：遮罩里不再画五根写死宽度的灰条，改成照真实行的形状画（listSkeletonNode，形状真源在 ListTabRow.ts），
+        //   从列表区顶部往下排；「加载中」那句留在最上面当一句说明，不再居中堆在骨架中间。
+        (st.snapMode === 'loading' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { className: 'dsws-loading-shade', style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', gap: 8, padding: '10px 0 0', overflow: 'hidden', zIndex: 5, pointerEvents: 'auto' } }, [
+          h('span', { style: { fontSize: 12, color: '#e6edf3', textAlign: 'center', flex: 'none', padding: '0 0 6px' } }, tr('list.loading')),
+          listSkeletonNode(h, 8),
         ]) : null,
         (st.snapMode === 'err' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { style: { color: '#f87171', fontSize: 12, padding: '14px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 12 }), h('span', null, tr('list.errFull', { err: st.snapError }))]) : null,
         // #715（诚实显示）：这一行说清「这份数据多新、上次刷新成不成、现在是不是降级」。取数时刻取快照的 generatedMs（不是渲染时刻）；判据与词条见 views/shared/truthLines.js，没有事实的那句不画（不替宿主编事实）。
