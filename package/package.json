@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "dsh-log": "0.3.4",
-    "dsh-plugin-update": "^0.18.37",
+    "dsh-plugin-update": "^0.18.38",
     "yaml": "^2.9.1"
   },
   "files": [

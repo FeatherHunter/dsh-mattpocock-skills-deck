@@ -14,8 +14,8 @@ importers:
         specifier: ^0.3.4
         version: 0.3.4
       dsh-plugin-update:
-        specifier: ^0.18.37
-        version: 0.18.37
+        specifier: ^0.18.38
+        version: 0.18.38
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -600,8 +600,8 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
-  dsh-plugin-update@0.18.37:
-    resolution: {integrity: sha512-w0vz0VN6zuVJFhhUtPwQKVaPM6LLoQOWyEXJYt5JnoJUFrj5XPt5moHkUkLWYxBvU526/mxZA0XO7Yp6m/PvKg==}
+  dsh-plugin-update@0.18.38:
+    resolution: {integrity: sha512-grY5lf1Ktr4PL0No2u/76ZNdmW7TSG3kfObfmhA/2lh5BCxIHghp0X0lV7Qf3zkSYTEITsuCSbg1O2T2uUg9Rg==}
     engines: {node: '>=22'}
 
   enhanced-resolve@5.26.0:
@@ -1278,7 +1278,7 @@ snapshots:
 
   dsh-log@0.3.4: {}
 
-  dsh-plugin-update@0.18.37:
+  dsh-plugin-update@0.18.38:
     dependencies:
       dsh-log: 0.3.4
 
