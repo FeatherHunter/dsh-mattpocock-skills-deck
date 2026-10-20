@@ -95,8 +95,10 @@ const CACHE_PATH: string = join(ROOT, 'node_modules', '.cache', 'dsh-build.json'
 // 改样本能触发重建；核目录一删，样本就落到输入范围之外了，所以把测试树收进来补上这一段。
 // 代价是改任何测试文件都会让指纹变、走一次全量重建——这是正确行为，不是故障：测试改了，
 // 就该重新构建一次再判定。
-const INPUT_ROOTS: string[] = ['src', 'scripts', 'tests']
-const INPUT_EXTRA: string[] = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml', 'config/intervals.yaml', 'config/ttl.yaml', 'config/languages.yaml', 'config/prompts/workspace-initialization.yaml', 'config/prompts/repository-alignment.yaml', 'config/prompts/map-advancement.yaml', 'config/prompts/ticket-action-templates.yaml', 'config/prompts/ticket-creation.yaml', 'scripts/lib/prompt-config.mts']
+// #1294：界面词表的真源 config/copy/ 也收进输入范围 —— 改一份 YAML 必须让指纹变、触发重新生成，
+// 否则缓存会把「YAML 改了但生成物没重算」判成命中，产物里留的还是旧文案。
+const INPUT_ROOTS: string[] = ['src', 'scripts', 'tests', 'config/copy']
+const INPUT_EXTRA: string[] = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml', 'config/intervals.yaml', 'config/ttl.yaml', 'config/languages.yaml', 'config/prompts/workspace-initialization.yaml', 'config/prompts/repository-alignment.yaml', 'config/prompts/map-advancement.yaml', 'config/prompts/ticket-action-templates.yaml', 'config/prompts/ticket-creation.yaml', 'scripts/lib/prompt-config.mts', 'scripts/lib/copy-config.mts']
 const ARTIFACT_FILES: string[] = ['client.js', 'host.js', 'package/README.md']
 // package/lib 要整目录收进来：它下面除了两份入口，还有构建写出来的其他镜像，
 // 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
@@ -495,36 +497,12 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'portal', file: 'src/client/kernel/portal.ts' },
-  { name: 'localePanel', file: 'src/client/kernel/locale-panel.ts' },
-  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
-  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'localeFlow', file: 'src/client/kernel/locale-flow.ts' },
-  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
-  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'localeWord', file: 'src/client/kernel/locale-word.ts' },
-  // #621 标签配色弹窗的中英词条：单独一份片段，由 locale.js 的合并器一起并进 L
-  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
-  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'localeLabels', file: 'src/client/kernel/locale-labels.ts' },
-  // #690 历史票按需翻页的五条文案：locale-flow.js 已贴 350 行上限，照 #621 的做法自成一个片段
-  // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
-  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
-  { name: 'localePages', file: 'src/client/kernel/locale-pages.ts' },
-  // #842 写操作那一族的词条：locale-panel 与 locale-flow 都在上限上（后者还冻结在零增长基线里），照 #621/#690 的做法自成一个片段
-  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
-  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'localeVcWrite', file: 'src/client/kernel/locale-vcwrite.ts' },
-  // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限（363 行超标），照 #621/#690/#842 的做法自成一个片段
-  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
-  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'localeSkilldesc', file: 'src/client/kernel/locale-skilldesc.ts' },
-  { name: 'localeSkilldetail', file: 'src/client/kernel/locale-skilldetail.ts' },
-  // S1/S6/S7 卡片词条：locale-panel.js 已贴 350 行上限，照 #879/#887 的做法自成一个片段。
-  { name: 'localeCards', file: 'src/client/kernel/locale-cards.ts' },
-  // #1286：规格（实施地图）一族的中英词条：locale-flow.ts 已贴 350 行上限，照 #621/#690/#842/#879 的做法自成一个片段。
-  { name: 'localeSpec', file: 'src/client/kernel/locale-spec.ts' },
-  // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
-  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  // #1294：界面词表的生成物（config/languages.yaml + config/copy/*.yaml → locale-data.ts）。
+  //   必须在 locale.ts 之前拼进去：本片给出 LANG_CONFIG / LOCALE_LANGS / LOCALE_COPY 与各族词条常量
+  //   （L_PANEL … L_SPEC），locale.ts 的合并器与取词助手直接用这几个名字（客户端闭包不许 module 级 import）。
+  //   生成物不入库，由 scripts/generate-locale-config.mts 现场生成（见下方生成器 spawn 块）。
+  { name: 'localeData', file: 'src/client/kernel/locale-data.ts' },
+  // #1294：界面词表的合并器、按语言清单取词的助手、注册 dsws 命名空间与这趟的日志（原十份片段已搬进 config/copy/）。
   { name: 'locale', file: 'src/client/kernel/locale.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
@@ -1789,6 +1767,8 @@ syncReadme(version, repoUrl)
 // #1292：客户端内核要用的提示词数据（config/prompts/ 下的 YAML + config/languages.yaml）由生成器
 // 现场写成 src/client/kernel/prompt-data.ts，再由 KERNEL_MODULES 的 promptData 一项拼进闭包 ——
 // 所以生成必须排在客户端拼装之前，与 time-config 同款纪律（见 docs/adr/20261016-time-config-yaml.md §2.2）。
+// #1294：界面词表同理（config/copy/*.yaml + config/languages.yaml → locale-data.ts）。它要把
+// {{时间参数}} 烘成数字，所以排在 time-config 生成之后。
 {
   const r1: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-prompt-config.mts')], { encoding: 'utf8' })
   if (r1.status !== 0) {
@@ -1799,6 +1779,12 @@ syncReadme(version, repoUrl)
   const r: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-time-config.mts')], { encoding: 'utf8' })
   if (r.status !== 0) {
     throw new Error('中央时间参数生成失败（config/ 下的三份时间参数文件 → time-config 域）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
+  }
+}
+{
+  const r: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-locale-config.mts')], { encoding: 'utf8' })
+  if (r.status !== 0) {
+    throw new Error('界面词表配置生成失败（config/copy/ + config/languages.yaml → locale-data.ts）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
   }
 }
 for (const domain of findDomains()) {

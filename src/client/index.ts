@@ -60,6 +60,8 @@ declare const PIXEL_STYLE_TEXT: any;
 declare const FEEDBACK_STYLE_TEXT: any;
 declare const PIXEL_CARDS_STYLE_TEXT: any;
 declare const L: any;
+declare const LANG_CONFIG: any;
+declare const localeAdopt: any;
 declare const SKILLS: any;
 declare const __DSW_VERSION__: any;
 declare const __DSW_REPO_URL__: any;
@@ -97,39 +99,29 @@ export default {
     styles.insert(FEEDBACK_STYLE_TEXT) // 948 反馈样式叶子（与像素皮肤同款做法，见叶子头）
 
     // ============================================================
-    // 0.5 locale（T3 #366 · dsws 命名空间 zh/en；跟随 harness 语言；GitHub 数据不翻译）
-    // 契约：ctx.locale（dsh-client-locale）：register(ns, {zh, en}) + bind(ns) 稳定引用，调用时读当前语言；
+    // 0.5 locale（T3 #366 · dsws 命名空间；跟随 harness 语言；GitHub 数据不翻译）
+    // 真源：#1294 起界面词表在 config/copy/*.yaml，语言清单在 config/languages.yaml；
+    //   构建前由 scripts/generate-locale-config.mts 生成 kernel:localeData 一段（不入库），这里只消费它。
+    // 注册：调 localeAdopt（kernel:locale 提供），按语言清单逐门 addLanguage + register('dsws', …)，
+    //   加一门语言只改 YAML、不改代码。宿主 locale 服务缺失时界面退化到缺省语言。
+    // 契约：ctx.locale（dsh-client-locale）：按语言注册 + bind(ns) 稳定引用，调用时读当前语言；
     // 所有 outlet 在 locale 切换时自动重渲染（useLocaleRevision），模块级 t 即可生效。
-    // v1.5：全部 prompt（GUIDE_LINE/MAP_EXECUTE/COMPLETE/FIXATE/TPL_DEFAULT/setup/newWayfinder/mapHead）
-    //   集中为 L 字典 prompt.*（zh/en 双语跟随 DSH 语言），审阅与优化见 docs/reviews/prompts-review-v1.5.html。
     // ============================================================
-    // ==== kernel:localePanel (spliced by build) ====
-    // ==== kernel:localeFlow (spliced by build) ====
-    // ==== kernel:localeWord (spliced by build) ====
-    // #621：标签配色弹窗的中英词条单独一份片段（老的三份片段都在 350 行上限附近，塞不下）
-    // ==== kernel:localeLabels (spliced by build) ====
-    // #690 历史票按需翻页的五条文案：locale-flow.js 已贴 350 行上限，照 #621 的做法自成一个片段。
-    // ==== kernel:localePages (spliced by build) ====
-    // #842 写操作那一族的词条：locale-panel 与 locale-flow 都在上限上，照 #621/#690 的做法自成一个片段。
-    // ==== kernel:localeVcWrite (spliced by build) ====
-    // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限，照 #621/#690/#842 的做法自成一个片段。
-    // ==== kernel:localeSkilldesc (spliced by build) ====
-    // 887：技能详情像素风的中英词条单独一份片段（sd.*）。
-    // ==== kernel:localeSkilldetail (spliced by build) ==== // ==== kernel:localeCards (spliced by build) ====
-    // #1286：规格（实施地图）一族的中英词条片段，必须排在 kernel:locale 之前（合并器要拿到 L_SPEC）。
-    // ==== kernel:localeSpec (spliced by build) ====
+    // ==== kernel:localeData (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {
       ctx.effect(function () {
-        return localeSvc.register('dsws', L)
+        return localeAdopt(localeSvc)
       }, 'dsws: locale')
     }
-    // tr：locale 绑定（稳定引用，调用时读当前语言；命名 tr 避免与票务参数 t 冲突）；服务缺失时退化 zh 字典（与 locale 同语义：{name} 参数替换）
+    // tr：locale 绑定（稳定引用，调用时读当前语言；命名 tr 避免与票务参数 t 冲突）；服务缺失时退化缺省语言词表（与 locale 同语义：{name} 参数替换）
     const tr = (localeSvc && typeof localeSvc.bind === 'function')
       ? localeSvc.bind('dsws')
       : function (key: any, params: any) {
-          let s = (L.zh[key] !== undefined) ? L.zh[key] : key
+          // 退化用缺省语言的词表：缺省语言 id 来自生成物 LANG_CONFIG，这里不写死任何语言代码。
+          const fallbackDoc = L[LANG_CONFIG.default]
+          let s = (fallbackDoc[key] !== undefined) ? fallbackDoc[key] : key
           if (params) s = s.replace(/\{(\w+)\}/g, function (m: any, name: any) { return name in params ? String(params[name]) : m })
           return s
         }

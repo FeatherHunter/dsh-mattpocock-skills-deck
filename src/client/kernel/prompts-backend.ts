@@ -17,9 +17,6 @@
  * commandVocabulary / healthCheck` declarations · #595 之前散在视图层用 promptText 取值，#595 把那四把
  * 抽到这里。
  */
-/** 提示词的语言：跟随 DSH 的语言快照，按 config/languages.yaml 落定（实现见 prompts.ts 的 promptLang）。 */
-type PromptLang = 'zh' | 'en'
-
 /** 后端声明的一段中英文本（后端模块的 prompts.* 键的值）。 */
 type DeclaredText = { zh?: unknown; en?: unknown } & Record<string, unknown>
 
@@ -31,6 +28,12 @@ type VocabularyParams = { cli: string; cliBrand: string }
 // 本片只在调用时求值；类型一律写 any 是刻意的：在这里凭记忆写窄，只会把那边正常的改动变成这里的假报错。
 declare function promptText(...args: any[]): any
 declare function promptLang(...args: any[]): any
+// #1294：语言链与按链取词。生产运行时走 kernel/locale.ts 的助手；门禁沙箱不只拼本文件，
+//   所以这里调用的是 kernel/prompts.ts 里的同名兜底助手（promptChainOf / promptChainFrom / promptPickText）——
+//   助手在场时它们转给 locale.ts，不在场（沙箱）时按同一份语言清单现算。本文件不写死任何语言代码。
+declare function promptChainOf(...args: any[]): any
+declare function promptChainFrom(...args: any[]): any
+declare function promptPickText(...args: any[]): any
 declare function newWayfinderParamsFrom(...args: any[]): any
 declare function vocabularyParamsFrom(...args: any[]): any
 declare function getCachedSelection(...args: any[]): any
@@ -57,16 +60,19 @@ declare function issueUrlFor(...args: any[]): any
       } catch (e) {}
       return null
     }
-    // 按语言取一条后端声明文本：先取当前语言；当前语言没写就回落到另一种语言
-    //   （后端只声明一种语言时，整节不许静默消失成空串）
-    export const declaredLangPick = function (dict: unknown, lang: PromptLang): string {
+    // 按语言链取一条后端声明文本：链头是当前语言（或调用方指定的那门），链上都没有时
+    //   用声明里任意一条兜底 —— 后端只声明一种语言时，整节不许静默消失成空串。
+    // #1294：参数可以是「从哪门语言开始」（string），也可以直接给整条回退链（string[]）；
+    //   都不给就从当前活动语言开始。它不再依赖「是不是 en」这种二选一判断。
+    export const declaredLangPick = function (dict: unknown, lang?: string | ReadonlyArray<string>): string {
       try {
         if (!dict || typeof dict !== 'object') return ''
         const declared = dict as DeclaredText
-        const want = (lang === 'en') ? declared.en : declared.zh
-        const other = (lang === 'en') ? declared.zh : declared.en
-        const t = (want != null && want !== '') ? want : other
-        return (t == null) ? '' : String(t)
+        let chain: ReadonlyArray<string>
+        if (Array.isArray(lang)) chain = lang
+        else if (typeof lang === 'string' && lang) chain = promptChainFrom(lang)
+        else chain = promptChainOf()
+        return promptPickText(declared, chain)
       } catch (e) { return '' }
     }
     // #684：渲染参数 —— 注册表里的 {subIssue} / {subject} 都按当前后端解析填入，模板只留占位符名。

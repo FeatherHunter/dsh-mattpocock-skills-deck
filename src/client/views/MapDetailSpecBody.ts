@@ -18,29 +18,62 @@
  */
 declare function mdToHtml(...args: any[]): any;
 declare function Ic(...args: any[]): any;
+// #1294：段标题不再是本文件写死的中英名，而是 config/copy/spec.yaml 的 spec.section.* 词条。
+//   宿主闭包里这些词条由 locale.ts 的 tr/uiText 取；LOCALE_COPY 是生成物 locale-data.ts 的全量词表，
+//   这里只在 Node 单测（没有闭包助手）里用不到 —— 声明成可能缺席，用 typeof 守卫。
+declare const LOCALE_COPY: Record<string, Record<string, string>> | undefined;
 
 // 七段的定义与别名。键名顺序就是显示顺序（问题陈述在最前，补充说明在最后）。
+// 段名必须来自 config/copy/spec.yaml 的 spec.section.*；这里只留「拿什么键去查」与「宿主可能写的别名」，
+// 不再抄一份中文/英文段名（抄了就会与词表慢慢走岔）。
 const SPEC_SECTIONS: any[] = [
-  { key: 'problem', zh: '问题陈述', en: 'Problem Statement', aliases: ['problem', 'problemStatement', '问题陈述', '问题'] },
-  { key: 'solution', zh: '解决方案', en: 'Solution', aliases: ['solution', '解决方案'] },
-  { key: 'userStories', zh: '用户故事', en: 'User Stories', aliases: ['userStories', 'userstories', 'user_stories', 'stories', '用户故事'] },
-  { key: 'implDecisions', zh: '实现决策', en: 'Implementation Decisions', aliases: ['implDecisions', 'implementationDecisions', 'impl-decisions', '实现决策', '实现决定'] },
-  { key: 'testDecisions', zh: '测试决策', en: 'Testing Decisions', aliases: ['testDecisions', 'testingDecisions', 'test-decisions', '测试决策', '测试决定'] },
-  { key: 'outOfScope', zh: '不在范围内', en: 'Out of Scope', aliases: ['outOfScope', 'out-of-scope', 'notInScope', '不在范围内', '范围外'] },
-  { key: 'notes', zh: '补充说明', en: 'Further Notes', aliases: ['notes', 'furtherNotes', 'further-notes', '补充说明', '备注'] },
+  { key: 'problem', aliases: ['problem', 'problemStatement', '问题陈述', '问题'] },
+  { key: 'solution', aliases: ['solution', '解决方案'] },
+  { key: 'userStories', aliases: ['userStories', 'userstories', 'user_stories', 'stories', '用户故事'] },
+  { key: 'implDecisions', aliases: ['implDecisions', 'implementationDecisions', 'impl-decisions', '实现决策', '实现决定'] },
+  { key: 'testDecisions', aliases: ['testDecisions', 'testingDecisions', 'test-decisions', '测试决策', '测试决定'] },
+  { key: 'outOfScope', aliases: ['outOfScope', 'out-of-scope', 'notInScope', '不在范围内', '范围外'] },
+  { key: 'notes', aliases: ['notes', 'furtherNotes', 'further-notes', '补充说明', '备注'] },
 ];
 
 export const MapDetailSpecBody = ({ st, m }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
-  const lang = (typeof promptLang === 'function' && promptLang() === 'en') ? 'en' : 'zh'
-  // 段标题：先问词表（spec.section.*），词表里没有就退回这里写死的中英名。
+  // 段标题统一问词表（spec.section.*）：先问宿主取的 tr，取不到再问按语言链取词的 uiText。
+  // 两处都没有（单测环境没有闭包取词助手、或词表缺键）就返回空串，由调用方决定怎么显示。
   const titleOf = function (sec: any): string {
     const key = 'spec.section.' + sec.key
     let t = ''
     try { t = tr(key) } catch (e) { t = '' }
-    if (!t || t === key) return lang === 'en' ? sec.en : sec.zh
-    return t
+    if (t && t !== key) return t
+    try {
+      if (typeof uiText === 'function') {
+        const u = String(uiText(key) || '')
+        if (u && u !== key) return u
+      }
+    } catch (e) {}
+    return ''
+  }
+  // 按「## 标题」切段时，标题可能是宿主写的别名、段键，或词表里的中英段名。
+  // 词表那一份按生成的全量词表逐语言比对，不在本文件再写死中文/英文段名。
+  const sectionByHeading = function (head: string): any {
+    for (let j = 0; j < SPEC_SECTIONS.length; j++) {
+      const sec = SPEC_SECTIONS[j]
+      if (sec.aliases.indexOf(head) >= 0 || sec.key === head) return sec
+    }
+    try {
+      if (typeof LOCALE_COPY !== 'undefined' && LOCALE_COPY) {
+        const langs = Object.keys(LOCALE_COPY)
+        for (let j = 0; j < SPEC_SECTIONS.length; j++) {
+          const key = 'spec.section.' + SPEC_SECTIONS[j].key
+          for (let i = 0; i < langs.length; i++) {
+            const dict = LOCALE_COPY[langs[i]]
+            if (dict && dict[key] === head) return SPEC_SECTIONS[j]
+          }
+        }
+      }
+    } catch (e) {}
+    return null
   }
   // 段内容统一收成一段文字。
   const bodyToText = function (v: any): string {
@@ -91,11 +124,7 @@ export const MapDetailSpecBody = ({ st, m }: any) => {
       const head = String(parts[i] || '').trim()
       const text = String(parts[i + 1] || '').trim()
       if (!text) continue
-      let hit: any = null
-      for (let j = 0; j < SPEC_SECTIONS.length; j++) {
-        const sec = SPEC_SECTIONS[j]
-        if (sec.aliases.indexOf(head) >= 0 || sec.zh === head || sec.en === head || sec.key === head) { hit = sec; break }
-      }
+      const hit: any = sectionByHeading(head)
       collected.push({ title: hit ? titleOf(hit) : head, text: text, key: hit ? hit.key : '' })
     }
   }

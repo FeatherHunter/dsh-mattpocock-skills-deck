@@ -28,7 +28,8 @@ declare function runRepoSyncRecheck(...args: any[]): any;
 declare function visLabelOf(...args: any[]): any;
 declare const SLOT_MODAL_OPEN_DELAY_MS: number;
 declare function tr(...args: any[]): any;
-declare function promptLang(...args: any[]): any;
+// #1294：按语言链取一条 {zh,en} 声明文本（真源在 kernel/locale.ts，同一闭包），不再自己判「是不是 en」。
+//   签名只在 ts-pixel-ambient.d.ts 立一份，这里不重复声明（模块级 declare 会遮蔽 ambient 的精确签名）。
 declare const timer: any;
 declare const document: any;
 declare function userHintOf(...args: any[]): any;
@@ -227,7 +228,8 @@ declare function resolveFailText(...args: any[]): any;
               const bidG = (st.selection || (st.snapshot && st.snapshot.selection) || {}).backendId
               const mmG = (typeof moduleMetaOf === 'function' && bidG != null) ? moduleMetaOf(st, bidG) : null
               const declG = (mmG && mmG.prompts) ? mmG.prompts[key] : null
-              guide = declG ? String((promptLang() === 'en' && declG.en) ? declG.en : (declG.zh || '')) : ''
+              // #1294：后台声明的引导词按语言链取（链上没有会给空串，下面再走 promptTextFor 兜底）。
+              guide = declG ? pickLangText(declG) : ''
               if (!guide) { try { guide = String(promptTextFor(st, key) || '') } catch (_) {} }
             }
             if (guide) { try { if (typeof inject === 'function') inject(st, guide) } catch (_) {} }

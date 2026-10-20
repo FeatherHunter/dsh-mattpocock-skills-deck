@@ -35,59 +35,131 @@
     //   不要另抄一份。值来自 config/languages.yaml（生成物里的 LANGUAGES_YAML），改 yaml → 跑生成器 → 重启生效。
     export const promptLanguages = function (): PromptLanguageConfig { return LANGUAGES_YAML }
     /**
+     * #1294：取词助手缺席时的兜底（只在门禁沙箱里会走到）。
+     *
+     * 正常运行时 uiLang / langChainOf / langChainFrom / pickLangText 由 kernel/locale.ts 提供，
+     *   与本文件拼在同一个闭包里，口径只有那一处。但仓里有十几条门禁会把本文件单独拼进沙箱求值
+     *   （只注入 PROMPT_TEMPLATE_DATA / LANGUAGES_YAML / localeSvc 替身，没有整个内核闭包），
+     *   那时这些助手不在场。下面几个小函数就是给那种「叶子环境」用的：按同一份语言清单现算，
+     *   行为与改造前一致（主标签对齐、沿 fallback 走、都没有就回缺省），绝不写死某一门语言。
+     * 闭包里助手在场时一律走助手；兜底只在 typeof 判定失败时启用，两边不会各算一套跑在线上。
+     */
+    const promptTextLangs = function (): string[] {
+      // 提示词正文实际带哪几门语言：看第一份模板条目的键（生成物按 config/languages.yaml 的顺序写出）。
+      try {
+        const ids = Object.keys(PROMPT_TEMPLATE_DATA || {})
+        for (let i = 0; i < ids.length; i++) {
+          const entry = (PROMPT_TEMPLATE_DATA as Record<string, unknown>)[ids[i]]
+          if (entry && typeof entry === 'object') {
+            const langs = Object.keys(entry as Record<string, unknown>)
+            if (langs.length) return langs
+          }
+        }
+      } catch (e) {}
+      return []
+    }
+    const promptActiveTag = function (): string {
+      // 与改造前同一取法：DSH 语言快照的 active 取主标签（en-US → en）。
+      try {
+        if (typeof localeSvc === 'undefined' || !localeSvc || typeof localeSvc.getSnapshot !== 'function') return ''
+        const snap = localeSvc.getSnapshot()
+        const active = snap && (snap as { active?: unknown }).active
+        return (active != null && active !== '') ? String(active).split('-')[0].toLowerCase() : ''
+      } catch (e) { return '' }
+    }
+    const promptFallbackChain = function (start: unknown): string[] {
+      const out: string[] = []
+      const push = function (id: string): void { if (id && out.indexOf(id) < 0) out.push(id) }
+      let cfg: PromptLanguageConfig | null = null
+      try { cfg = promptLanguages() } catch (e) { cfg = null }
+      const languages: Record<string, { fallback?: ReadonlyArray<string> }> = (cfg && (cfg as { languages?: Record<string, { fallback?: ReadonlyArray<string> }> }).languages) || {}
+      const def = (cfg && cfg.default != null) ? String(cfg.default) : ''
+      const listed = Object.keys(languages)
+      if (cfg && !listed.length) {
+        // 清单在场但一门语言都没列（config/languages.yaml 被删空这种极端数据）：与 locale.ts 同口径，
+        //   只回缺省语言 —— 不让空清单把整段渲染打空，也不拿快照里的 active 去猜。
+        if (def) push(def)
+        return out
+      }
+      if (!cfg) {
+        // 清单也不在场（门禁沙箱只拼了提示词数据）：按模板正文实际带的语言从前往后走，等价于旧行为。
+        if (typeof start === 'string' && start) push(start)
+        const langs = promptTextLangs()
+        for (let i = 0; i < langs.length; i++) push(langs[i])
+        return out
+      }
+      let id = (typeof start === 'string' && start && languages[start]) ? start : def
+      const seen: Record<string, boolean> = Object.create(null)
+      while (id && !seen[id]) {
+        seen[id] = true
+        push(id)
+        const meta = languages[id]
+        const fb = (meta && Array.isArray(meta.fallback)) ? meta.fallback : []
+        id = (fb.length && typeof fb[0] === 'string' && fb[0]) ? String(fb[0]) : ''
+      }
+      if (def) push(def)
+      return out
+    }
+    const promptChainOf = function (): string[] {
+      try { if (typeof langChainOf === 'function') return langChainOf() } catch (e) {}
+      try { return promptFallbackChain(promptActiveTag()) } catch (e) { return [] }
+    }
+    const promptChainFrom = function (id: string): string[] {
+      try { if (typeof langChainFrom === 'function') return langChainFrom(id) } catch (e) {}
+      try { return promptFallbackChain(id) } catch (e) { return [] }
+    }
+    const promptPickText = function (dict: unknown, chain: ReadonlyArray<string>): string {
+      try { if (typeof pickLangText === 'function') return pickLangText(dict, chain) } catch (e) {}
+      try {
+        if (!dict || typeof dict !== 'object') return ''
+        const row = dict as Record<string, unknown>
+        const arr = Array.isArray(chain) ? chain : []
+        for (let i = 0; i < arr.length; i++) { const v = row[arr[i]]; if (typeof v === 'string' && v) return v }
+        const keys = Object.keys(row)
+        for (let i = 0; i < keys.length; i++) { const v = row[keys[i]]; if (typeof v === 'string' && v) return v }
+      } catch (e) {}
+      return ''
+    }
+    /**
      * 当前语言：跟随 DSH 的语言快照 active，按 config/languages.yaml 的语言清单与回退链决定落到哪一门。
      *
-     * #1292 之前这里写死「是不是 en，否则 zh」。改成按清单取之后，加一门语言只改数据：
+     * #1294 之前这里是手写的「读快照 → 对齐主标签 → 沿 fallback 找第一门带正文的语言」；
+     *   现在这套口径由 kernel/locale.ts 的 uiLang() 统一负责（它就在同一个闭包里），本函数只转一道：
      *   ① 语言快照给的是 en-US 这种「主标签-地区」，所以只取主标签与清单的键对齐；
      *   ② 主标签不在清单里（或快照读不到）就用清单的 default；
-     *   ③ 再从这一门出发沿 fallback 链往下走，落到第一门「提示词正文真带了」的语言。
-     *      今天正文只有 zh / en 两份（PROMPT_TEXT_LANGS），所以链走到没带正文的语言时继续往下退，
-     *      最后一定落在 default 那一门 —— 这就是「英文缺了内容就退到中文」的实现处。
-     *   返回值类型仍是 PromptLang（今天正文的两种语言），因为下面所有按语言取正文的地方都用它当下标；
-     *   清单里多出来的语言没有正文可给，不是这一段的事（界面多语言另开票 #1284）。
+     *   ③ 加一门语言只改 config/languages.yaml，本函数不用动。
+     *
+     * 返回值是语言代码（string），不再收窄成 'zh' | 'en'：清单里可能有第三门语言；
+     *   「这条正文到底有没有那门语言的版本」由下面的语言链（langChainOf / langChainFrom）回答。
+     * 门禁沙箱单独拼本文件时没有 uiLang，按同一口径现算（见上方兜底注释），结果与改造前一致。
      */
-    export const promptLang = function (): PromptLang {
-      // 清单本身读不到时（生成物没拼进闭包这种极端情况）连 default 都没有，只能给最保守的一门；
-      //   所以 cfg 放在 try 外面 —— 真读到过清单就照它的 default 办，读不到才退回 zh，不写死。
-      let cfg: PromptLanguageConfig | null = null
+    export const promptLang = function (): string {
+      try { return uiLang() } catch (e) {}
       try {
-        cfg = promptLanguages()
-        const codes = cfg && cfg.languages ? Object.keys(cfg.languages) : []
-        if (!codes.length) return String(cfg && cfg.default || '') === 'en' ? 'en' : 'zh'
-        // 语言快照可能整个缺席（服务没装 getSnapshot 方法），也可能服务在但这次快照还没回来（返回 null）；
-        //   两种都算「读不到」，交给清单的 default 决定 —— 不能因此掉进下面的 catch 去写死一门语言。
-        const snap = (localeSvc && typeof localeSvc.getSnapshot === 'function') ? localeSvc.getSnapshot() : null
-        const l = (snap && typeof snap === 'object') ? snap.active : null
-        const main = String(l || '').split('-')[0].toLowerCase()
-        const start: string = codes.indexOf(main) >= 0 ? main : String(cfg.default || codes[0])
-        // 记「这条链走过哪几门」用无原型对象：语言代码若碰巧叫 constructor / __proto__，
-        //   普通对象会命中原型链，第一步就退出循环、错落回缺省。
-        const visited: Record<string, boolean> = Object.create(null)
-        let cur: string | null = start
-        while (cur && !visited[cur]) {
-          visited[cur] = true
-          if (PROMPT_TEXT_LANGS.indexOf(cur as PromptLang) >= 0) return cur as PromptLang
-          // 类型标注是必需的：cur 的类型由这条链自己决定，不标注时 TS 判成循环推断（TS7022）。
-          const entry: PromptLanguageConfig['languages'][string] | undefined = cfg.languages[cur]
-          // fallback 是「接着找的那一门」，只认第一项：今天每门最多一条退路，校验层会拦下多写的项。
-          const next: string | null = entry && entry.fallback && entry.fallback.length ? String(entry.fallback[0]) : null
-          cur = next && cfg.languages[next] ? next : null
-        }
-        // 回退链走完都没落到带正文的语言（清单被改坏到这种程度）：退回缺省语言，缺省也不是就退回 zh。
-        return String(cfg.default || '') === 'en' ? 'en' : 'zh'
-      } catch (e) {
-        return String(cfg && cfg.default || '') === 'en' ? 'en' : 'zh'
-      }
+        const chain = promptChainOf()
+        const textLangs = promptTextLangs()
+        for (let i = 0; i < chain.length; i++) { if (textLangs.indexOf(chain[i]) >= 0) return chain[i] }
+        const cfg = promptLanguages()
+        return (cfg && cfg.default != null) ? String(cfg.default) : ''
+      } catch (e2) { return '' }
     }
-    // #716：CLI 名字与后端站点名兜底的纯 lookup。按 promptLang() 取该语言那一份，两个 key 都给中性说法；
+    // #716：CLI 名字与后端站点名兜底的纯 lookup。按语言链取该语言那一份，两个 key 都给中性说法；
     //   后端没声明 commandVocabulary 时回落到此处，永远不会让模板里的 {cli} / {cliBrand} 占位符原样进会话。
+    // #1294：链 = 当前语言开始到 default 止；链上都没有时 pickLangText 会用任意一份兜底（今天等价于退到 zh）。
     export const vocabularyParamsFrom = function (modules: BackendModule[] | null | undefined, backendId: unknown): VocabularyParams {
-      const out: VocabularyParams = { cli: VOCABULARY_DEFAULT.cli[promptLang()], cliBrand: VOCABULARY_DEFAULT.cliBrand[promptLang()] }
+      const chain = promptChainOf()
+      const out: VocabularyParams = { cli: promptPickText(VOCABULARY_DEFAULT.cli, chain), cliBrand: promptPickText(VOCABULARY_DEFAULT.cliBrand, chain) }
       try {
         const v = backendPromptFrom(modules, backendId, 'commandVocabulary')
         if (v && typeof v === 'object') {
-          const want = v[promptLang()]
-          if (typeof want === 'object' && want !== null) {
+          // 后端声明是一张「语言代码 → {cli, cliBrand}」的表：沿语言链找第一份声明；
+          //   链上都没声明时，用表里任意一份（旧实现缺语言时也是回落到另一门，整节不许变成空串）。
+          const table = v as Record<string, unknown>
+          const codes = Object.keys(table)
+          let want: any = null
+          for (let i = 0; i < chain.length && want == null; i++) { const c = table[chain[i]]; if (c && typeof c === 'object') want = c }
+          for (let i = 0; i < codes.length && want == null; i++) { const c = table[codes[i]]; if (c && typeof c === 'object') want = c }
+          if (want) {
             const decl = want as Partial<VocabularyParams>
             if (typeof decl.cli === 'string' && decl.cli) out.cli = decl.cli
             if (typeof decl.cliBrand === 'string' && decl.cliBrand) out.cliBrand = decl.cliBrand
@@ -98,29 +170,32 @@
     }
     // 取 prompt：promptText(id) 或 promptText(id, { 占位符: 值 })
     // #716：词表那几个名字即使没人传值，也落中性说法，绝不把 {cli} 这样的占位符原样注入会话。
+    // #1294：正文与词表都按语言链取（今天 en 活动的链是 ['en','zh']，缺 en 自动落到 zh）。
     export const promptText = function (id: string, params?: Record<string, unknown> | null): string {
       const p = PROMPTS[id]
       if (!p) return ''
-      let s = (promptLang() === 'en' && p.en) ? p.en : (p.zh || '')
+      const chain = promptChainOf()
+      // #1294：整条 entry 交给按链取词，不在这里列举语言键（清单加语言时这一行不用改，
+      //   生成物哪天多一门语言的正文，这里自动取到）。
+      let s = promptPickText(p, chain)
       const vals = Object.assign({}, params || {})
       ;(Object.keys({ cli: '', cliBrand: '' }) as (keyof VocabularyParams)[]).forEach(function (k) {
-        if (!Object.prototype.hasOwnProperty.call(vals, k)) vals[k] = VOCABULARY_DEFAULT[k][promptLang()]
+        if (!Object.prototype.hasOwnProperty.call(vals, k)) vals[k] = promptPickText(VOCABULARY_DEFAULT[k], chain)
       })
       s = s.replace(/\{(\w+)\}/g, function (m: string, name: string) { return Object.prototype.hasOwnProperty.call(vals, name) ? String(vals[name]) : m })
       return s
     }
-    // #1292：取一条片段（不带版本号的纯字面条目）的文本，按当前语言取一份。
+    // #1292：取一条片段（不带版本号的纯字面条目）的文本，按语言链取一份。
     //   端点形态与 promptText 同形（语言选择 + 空串兜底），但片段不带占位符（newBugFields /
     //   newWayfinderWiring 都是字面），vocabularyDefaults 是按 key 取一份中英、不走这里。
+    // #1294：没传 lang 就从当前活动语言开始走回退链；传了 lang 就从那门语言开始。
+    //   pickLangText 会挑链上第一条非空正文，链上都没有时用任意一条兜底 ——
+    //   与旧实现「当前语言没写就回落另一种语言」等价，且不写死「是不是 en」。
     export const promptFragment = function (id: string, lang?: string): string {
       const entry = PROMPT_FRAGMENT_DATA[id]
       if (!entry) return ''
-      const wanted = (lang || promptLang())
-      const text = (wanted === 'en') ? entry.en : entry.zh
-      if (typeof text === 'string' && text) return text
-      // 当前语言没写就回落另一种语言（与 templates 同款，后端只声明一种语言时整节不许静默消失）
-      const other = (wanted === 'en') ? entry.zh : entry.en
-      return typeof other === 'string' ? other : ''
+      const chain = (typeof lang === 'string' && lang) ? promptChainFrom(lang) : promptChainOf()
+      return promptPickText(entry, chain)
     }
     // #230（D10 · 2026-08-28 生效）setupRun 后端描述数据（键入 locale 方案定版）：
     // 旧 setupTrackerLine/setupTrackerChoice/setupBackendNote 三函数（client 内 backendId 分支硬编码双语值）删除；
@@ -151,7 +226,16 @@
       for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(backendId)) { m = list[i]; break } }
       const declared: Record<string, string> = (m && m.setupPrompt) || SETUP_DEFAULT_PROMPT_KEYS
       let dict = dictOverride || null
-      if (!dict) { try { dict = (typeof L !== 'undefined' && L && L[promptLang()]) ? L[promptLang()] : null } catch (e) {} }
+      // #1294：没直喂字典时按语言链合并 —— 先铺链尾（回退语言）的键，再用链头的语言覆盖，
+      //   于是当前语言缺的键由后面的语言补上；旧实现只取当前语言那一份。
+      if (!dict) { try {
+        if (typeof L !== 'undefined' && L) {
+          const chain = promptChainOf()
+          const merged: Record<string, string> = {}
+          for (let i = chain.length - 1; i >= 0; i--) { const d = L[chain[i]]; if (d) Object.assign(merged, d) }
+          dict = merged
+        }
+      } catch (e) {} }
       const out: Record<string, string> = {}
       ;['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'].forEach(function (k) {
         try { out[k] = (dict && dict[declared[k]] != null) ? String(dict[declared[k]]) : '' } catch (e) { out[k] = '' }
@@ -269,19 +353,19 @@
       const wiringObj = (m && m.prompts && m.prompts.subIssue) || NEW_WAYFINDER_DEFAULT_WIRING
       let dict = dictOverride || null
       if (!dict) { try { dict = wiringObj } catch (e) {} } else dict = wiringObj
-      const lang = promptLang()
-      // #595：先按当前语言取；只声明了另一种语言时就回落另一种语言，最后才落通用默认（整节不许静默消失）
-      const subIssue = declaredLangPick(dict, lang) || declaredLangPick(NEW_WAYFINDER_DEFAULT_WIRING, lang)
+      const chain = promptChainOf()
+      // #595 / #1294：先按语言链取（链头是当前语言）；链上都只声明了别的语言时，
+      //   pickLangText 用任意一条兜底，最后才落通用默认（整节不许静默消失）。
+      const subIssue = declaredLangPick(dict, chain) || declaredLangPick(NEW_WAYFINDER_DEFAULT_WIRING, chain)
       return { subIssue }
     }
     // 后端声明那条边的所有导出（currentBackendId / backendPromptFrom / declaredLangPick / backendParamsFor /
     //   promptTextFor / newWayfinderPrompt / MAP_EXECUTE_PROMPT / COMPLETE_PROMPT / FIXATE_PROMPT /
     //   newSpecPrompt / inspectPrompt / completePrompt / promptLanguages）已搬到
     //   kernel/prompts-backend.ts（同一个闭包、不走 import），避免 prompts.ts 涨破 350 行上限。
-    // 后端的 NEW_BUG_FIELDS_BODY / NEW_BUG_FIELDS_BODY_EN 两个相邻函数现收成
-    //   PROMPT_FRAGMENT_DATA['newBugFields'] 之下的 zh / en 两份。导出形态保留：返回时按 lang 取值。
-    export const NEW_BUG_FIELDS_BODY = function (): string { return promptFragment('newBugFields', 'zh') }
-    export const NEW_BUG_FIELDS_BODY_EN = function (): string { return promptFragment('newBugFields', 'en') }
+    // 后端的 NEW_BUG_FIELDS_BODY 现收成 PROMPT_FRAGMENT_DATA['newBugFields'] 之下的一份片段。
+    // #1294：不再按语言各导出一个函数 —— 这里只留一个取用口，正文按语言链在片段自己的语言版本里取。
+    export const NEW_BUG_FIELDS_BODY = function (): string { return promptFragment('newBugFields') }
 
 
 
@@ -298,15 +382,6 @@
 //   placeholders 写成字符串、或者版本号写成 '15' 这种字符串，都会在 tsc 那一关当场红，
 //   而不是等到某次注入会话时才以「占位符原样出现在提示词里」的形式暴露出来。
 // ---------------------------------------------------------------------------
-
-/**
- * 提示词的语言：跟随 DSH 的语言快照，按 config/languages.yaml 的清单与回退链落定（见 promptLang）。
- * 只有这两门——今天每条模板的正文就只写了 zh / en 两份，清单里多出来的语言没有正文可给。
- */
-type PromptLang = 'zh' | 'en'
-
-/** 提示词正文今天真带了哪几门语言；promptLang 沿回退链找的就是这个集合里的第一门。 */
-const PROMPT_TEXT_LANGS: ReadonlyArray<PromptLang> = ['zh', 'en']
 
 /**
  * 语言清单的形状（config/languages.yaml，生成物里的 LANGUAGES_YAML 就长这样）。
@@ -415,8 +490,15 @@ type AnyError = { message?: unknown }
 
 // 下面这些名字由闭包提供，本文件只调用它们。参数一律 any：它们的实现住在同一次构建拼进来的别的
 // 片段里，在这里替它们立契约等于在第二处写一遍签名，两边会慢慢走岔。
-declare const localeSvc: { getSnapshot(): { active?: unknown } } | null | undefined
 declare const L: Record<string, Record<string, string>> | null | undefined
+// #1294：宿主语言服务（DSH 的 localeSvc 替身）。正常运行由闭包提供；只有门禁沙箱单独拼本文件、
+//   取词助手不在场时，promptLang / promptChainOf 的兜底才会读它的快照 active —— 与改造前同一取法。
+//   闭包里助手在场时这条路径不会走到，生产口径仍以 kernel/locale.ts 为准。
+declare const localeSvc: { getSnapshot?: () => { active?: unknown } } | null | undefined
+// #1294：界面取词助手（真源在 kernel/locale.ts，拼在同一个闭包里）。本文件只调用它们：
+//   uiLang 给当前语言；langChainOf / langChainFrom 给回退链；pickLangText 按链挑第一条非空正文。
+//   签名只在 ts-pixel-ambient.d.ts 立一份，这里不重复声明（模块级 declare 会遮蔽 ambient 的精确签名）。
+//   这里不写死任何语言代码 —— 清单加语言时本文件不需要改。
 // #1292：提示词数据由 kernel:promptData 那一片（生成物 src/client/kernel/prompt-data.ts）拼在闭包里，
 //   名字在这里声明一下——闭包里没有 module 级 import，declare 只活在类型检查里，转译时整条删掉。
 declare const PROMPT_TEMPLATE_DATA: Readonly<Record<string, PromptEntry>>

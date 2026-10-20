@@ -216,7 +216,7 @@ export     const NoRepoCard = function (props: any) {
             card.prompt = (res && res.prompt) || ''
             // #231（类别3/6·真源化）：文案映射由后端数据优先（prompts.errorKinds），locale 仅末位兜底
             var bkText = ''
-            try{ var bidE=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmE=(typeof moduleMetaOf==='function'&&bidE!=null)?moduleMetaOf(st,bidE):null; var ek=mmE&&mmE.prompts&&mmE.prompts.errorKinds&&mmE.prompts.errorKinds[kind]; if(ek){ var lgE=(typeof promptLang==='function')?promptLang():'zh'; bkText=String((lgE==='en'&&ek.en)?ek.en:(ek.zh||'')) } }catch(e){}
+            try{ var bidE=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmE=(typeof moduleMetaOf==='function'&&bidE!=null)?moduleMetaOf(st,bidE):null; var ek=mmE&&mmE.prompts&&mmE.prompts.errorKinds&&mmE.prompts.errorKinds[kind]; if(ek){ bkText=String(pickLangText(ek)) } }catch(e){}
             const key = 'panel.noRepoErr.' + kind
             const mapped = tr(key)
             // #993：原文只截一次（160 字上限保持原样），下面按档位决定要不要把它附在文案后面
@@ -274,8 +274,8 @@ export     const NoRepoCard = function (props: any) {
               h('span', { style: { marginLeft: 4, flex: '1 1 auto' } }, card.error),
               kind === 'no-git' ? h('a', { href: 'https://git-scm.com/', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
               // #195 修复(第二轮)：no-gh 直接用后端提供的 prompt（多态），移除 <a> 链接兜底
-              kind === 'no-gh' ? h('button', { onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (!p) { try{ var bidN=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmN=(typeof moduleMetaOf==='function'&&bidN!=null)?moduleMetaOf(st,bidN):null; var np=mmN&&mmN.prompts&&mmN.prompts.noGhPrompt; if(np){ var lgN=(typeof promptLang==='function')?promptLang():'zh'; p=String((lgN==='en'&&np.en)?np.en:(np.zh||'')) } }catch(e){} } if (p && typeof inject === 'function') inject(st, p); }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
-              kind === 'not-logged-in' ? h('button', { onClick: function () { try{ var bidL=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmL=(typeof moduleMetaOf==='function'&&bidL!=null)?moduleMetaOf(st,bidL):null; var ppL=mmL&&mmL.prompts&&mmL.prompts.ghAuthLogin; var lgL=(typeof promptLang==='function')?promptLang():'zh'; var tL=ppL?((lgL==='en'&&ppL.en)?String(ppL.en):String(ppL.zh||'')):''; if(tL&&typeof inject==='function') inject(st,tL) }catch(e){} }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, tr('detail.authFailCta')) : null,
+              kind === 'no-gh' ? h('button', { onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (!p) { try{ var bidN=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmN=(typeof moduleMetaOf==='function'&&bidN!=null)?moduleMetaOf(st,bidN):null; var np=mmN&&mmN.prompts&&mmN.prompts.noGhPrompt; if(np){ p=String(pickLangText(np)) } }catch(e){} } if (p && typeof inject === 'function') inject(st, p); }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
+              kind === 'not-logged-in' ? h('button', { onClick: function () { try{ var bidL=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmL=(typeof moduleMetaOf==='function'&&bidL!=null)?moduleMetaOf(st,bidL):null; var ppL=mmL&&mmL.prompts&&mmL.prompts.ghAuthLogin; var tL=ppL?String(pickLangText(ppL)):''; if(tL&&typeof inject==='function') inject(st,tL) }catch(e){} }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, tr('detail.authFailCta')) : null,
               kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || searchUrlFor(st, card.name), target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
               kind === 'network' ? h('button', { onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,
             ])
@@ -304,7 +304,7 @@ export     const NoRepoCard = function (props: any) {
                 const bidI=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId
                 const mmI=(typeof moduleMetaOf==='function'&&bidI!=null)?moduleMetaOf(st,bidI):null
                 const ppI=mmI&&mmI.prompts&&mmI.prompts.ensureLabels
-                if(ppI){ const lg=(typeof promptLang==='function')?promptLang():'zh'; const t=(lg==='en'&&ppI.en)?String(ppI.en):String(ppI.zh||''); if(t) return t }
+                if(ppI){ const t=String(pickLangText(ppI)); if(t) return t }
               }catch(e){}
               return '' // 无声明即诚实无注入（引导入口由能力位控制，本 Modal 仅在已声明后端可见）
             })()

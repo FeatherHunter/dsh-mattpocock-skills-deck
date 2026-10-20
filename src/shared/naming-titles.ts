@@ -28,6 +28,10 @@ declare const Buffer: { byteLength(s: string, encoding?: string): number } | und
 type TextEncoderCtor = new () => { encode(s: string): Uint8Array };
 declare const TextEncoder: TextEncoderCtor | undefined;
 declare const promptLang: (() => string) | undefined;
+// #1294：界面取词改成按 config/languages.yaml 的语言链之后，本模块也不再用「是不是 en」二选一，
+//   而是沿链找内容表自己有列的那门语言。langChainOf 与 promptLang 一样是可选闭包自由变量：
+//   宿主闭包里由 kernel/locale.ts 提供，Node 直跑（测试、构建脚本）时不存在。
+declare const langChainOf: (() => string[]) | undefined;
 
 export const NAMING_CORE_VERSION = 1
 
@@ -83,37 +87,97 @@ export function isPlaceholderTitle(s: unknown): boolean {
   return false
 }
 
-/** 生成占位标题（纯语言参数；lang 缺省 zh，'en' 开头即英文）。type 支持：bug/requirement + 动作键。 */
+// ============ 内容表的语言列（#1294）============
+// 内容表的语言键就是它自己写的那几列（PLACEHOLDER_TITLES / ACTION_WORDS / DRAFT_WORDS 的键，今天 zh/en），
+// 本模块不另抄一份语言清单：这里有哪几门，就从这几门里挑。DRAFT_WORDS 定义在本文件靠后处，
+// 只在函数被调用时读取，不在模块初始化时读，所以顺序没有问题。
+type NamingWordRow = { [lang: string]: string }
+
+/** 内容表里现有哪些语言的文字（去重）。 */
+function namingContentLangs(): string[] {
+  const out: string[] = []
+  const collect = function (row: unknown): void {
+    if (!row || typeof row !== 'object') return
+    for (const k in row as NamingWordRow) { if (out.indexOf(k) < 0) out.push(k) }
+  }
+  collect(PLACEHOLDER_TITLES)
+  for (const k in ACTION_WORDS) collect(ACTION_WORDS[k])
+  collect(DRAFT_WORDS)
+  return out
+}
+
+/**
+ * 内容表这次该用哪门语言的文字：沿语言链（当前活动语言开始、到默认语言止）找第一个
+ * 在内容表里有列的语言；链上都没有就用 'zh'。
+ *
+ * 为什么由这里回答而不是继续问「当前语言是不是 en」：清单加第三门语言时，二选一判断会
+ * 把第三门语言错落回中文；而「内容表有没有这门外语」才是取词时真正该问的问题。
+ * 取值链：宿主闭包里用 langChainOf；Node 直跑退到 promptLang；两者都没有（纯单元测试）
+ * 落 zh —— 与这次改造前的 Node 行为逐字一致。
+ */
+export function namingContentLang(): string {
+  let chain: string[] = []
+  try {
+    if (typeof langChainOf === 'function') chain = langChainOf() || []
+    else if (typeof promptLang === 'function') chain = [String(promptLang() || '')]
+  } catch (e) { chain = [] }
+  const langs = namingContentLangs()
+  for (let i = 0; i < chain.length; i++) { if (langs.indexOf(chain[i]) >= 0) return chain[i] }
+  return langs.indexOf('zh') >= 0 ? 'zh' : (langs[0] || 'zh')
+}
+
+/**
+ * 把调用方给的语言参数归一成内容表里真有的语言代码。
+ *   显式传了 lang（'en'、'en-US'、'EN' 都算英文）就取主标签与内容表的列名对齐；
+ *   没传或给的语言内容表里没有，就按语言链挑（namingContentLang）。
+ * 这样「调用方点名要哪门」与「不点名时按界面语言走」两条路共用同一张内容表。
+ */
+function namingContentLangOf(lang?: unknown): string {
+  const asked = (typeof lang === 'string' && lang) ? lang.split('-')[0].toLowerCase() : ''
+  const langs = namingContentLangs()
+  for (let i = 0; i < langs.length; i++) { if (langs[i].toLowerCase() === asked) return langs[i] }
+  return namingContentLang()
+}
+
+/** 从一行「语言代码 → 文字」里取该语言的文字；这行没写这门语言时退到 zh（内容表的缺省列）。 */
+function wordFor(langId: string, row: NamingWordRow): string {
+  const text = row[langId]
+  return (typeof text === 'string' && text) ? text : (row.zh || '')
+}
+
+/** 占位标题的三个类型词，按语言列取（内容表本身的 PLACEHOLDER_TITLES，不另抄一份）。 */
+type PlaceholderRow = { requirement: string; bug: string; spec: string }
+function placeholderRowFor(langId: string): PlaceholderRow {
+  const tables = PLACEHOLDER_TITLES as unknown as { [lang: string]: PlaceholderRow }
+  return tables[langId] || tables.zh
+}
+
+/** 生成占位标题（纯语言参数；lang 缺省时按界面语言链在内容表的列里选，显式传了就以传入为准）。type 支持：bug/requirement + 动作键。 */
 // 七动作优先于 bug/requirement：传 diagnose 这类动作键时先落动作档，不会误落成新建需求。
 export function placeholderTitleFor({ type, lang }: { type: unknown; lang: unknown }): string {
   const t = String(type || '').toLowerCase()
-  const en = typeof lang === 'string' && lang.indexOf('en') === 0
+  const langId = namingContentLangOf(lang)
   // 七动作优先（diagnose/fix/discuss/research/prototype/handoff/supplement，前缀匹配即可）
   for (const k in ACTION_WORDS) {
     if (t.indexOf(k) === 0 || t === ACTION_WORDS[k].zh || t.toLowerCase() === ACTION_WORDS[k].en.toLowerCase()) {
-      return SESSION_TITLE_PREFIX + ' ' + (en ? ACTION_WORDS[k].en : ACTION_WORDS[k].zh)
+      return SESSION_TITLE_PREFIX + ' ' + wordFor(langId, ACTION_WORDS[k])
     }
   }
   const bug = t.indexOf('bug') >= 0
   // #1281：蓝入口的会话标题走独立的占位词（「写规格」/「Write Spec」），不再落回新建需求。
   const spec = t.indexOf('spec') >= 0 || t.indexOf('写规格') >= 0
-  const w = (en ? PLACEHOLDER_TITLES.en : PLACEHOLDER_TITLES.zh)[bug ? 'bug' : (spec ? 'spec' : 'requirement')]
+  const row = placeholderRowFor(langId)
+  const w = row[bug ? 'bug' : (spec ? 'spec' : 'requirement')]
   return SESSION_TITLE_PREFIX + ' ' + w
 }
 
 /**
- * 兼容签名 (type, lang?)：Tabs/StatusBar 沿用旧调用形态；lang 缺省按 harness 语言
- * （promptLang 为闭包自由变量，在宿主/Node 独立加载时 typeof 守卫安全降级 zh）。
+ * 兼容签名 (type, lang?)：Tabs/StatusBar 沿用旧调用形态；lang 缺省按界面语言链在内容表的列里选
+ * （Node 独立加载、没有闭包助手时退回 zh，与改造前一致）。
  */
-// lang 没传时才问 promptLang：传了就以传入为准，闭包语言变了也不会把已写死的调用翻转。
+// #1294：语言选择统一交给 placeholderTitleFor 完成（显式传入优先、缺省按语言链），本函数只转一道。
 export function newSessionTitleNew(type: unknown, lang?: unknown): string {
-  let en = false
-  if (lang) {
-    try { en = String(lang).toLowerCase().indexOf('en') === 0 } catch (e) {}
-  } else {
-    try { en = (typeof promptLang === 'function' ? promptLang() === 'en' : false) } catch (e) {}
-  }
-  return placeholderTitleFor({ type: type, lang: en ? 'en' : 'zh' })
+  return placeholderTitleFor({ type: type, lang: lang })
 }
 
 // ============ 标题清洗/截断/编号档合成（#205 契约 · 迁移自 router.js）============
@@ -191,9 +255,10 @@ export const DRAFT_WORDS = { zh: '草稿', en: 'Draft' }
 
 export const DRAFT_TITLE_RE = /^\[(草稿|Draft)\](?: .+)?$/
 
-// 语言只认 en 开头：传 en-US 这类带后缀的也算英文，免得区域后缀把英文判成中文。
+// #1294：语言参数先归一成内容表的列（'en-US' 这类带区域后缀的仍算英文），再取该列的档位词；
+//   没传语言就按界面语言链选（Node 直跑退回 zh，与改造前一致）。
 export function draftWordFor(lang: unknown): string {
-  return typeof lang === 'string' && lang.indexOf('en') === 0 ? DRAFT_WORDS.en : DRAFT_WORDS.zh
+  return wordFor(namingContentLangOf(lang), DRAFT_WORDS)
 }
 
 /**
@@ -203,13 +268,14 @@ export function draftWordFor(lang: unknown): string {
  */
 // 线索只是类型词时不再叠字：占位派生的新建需求这类词本身就是标签，再拼一遍会叠成两个标签。
 export function composeDraftTitle({ hint, lang, baselineTitle }: { hint?: unknown; lang?: unknown; baselineTitle?: unknown }): string {
-  const prefix = '[' + draftWordFor(lang) + ']'
-  const isEn = String(lang).toLowerCase().indexOf('en') === 0
+  // #1294：语言参数先归一成内容表的列；没传就按界面语言链选（Node 直跑退回 zh）。
+  const langId = namingContentLangOf(lang)
+  const prefix = '[' + wordFor(langId, DRAFT_WORDS) + ']'
   let typeTag = ''
   if (baselineTitle) {
     const bt = String(baselineTitle)
     // 七动作优先：基线含哪个动作词就落哪个动作档（如 [New] 诊断 → [草稿][诊断]）
-    let hit: { zh: string; en: string } | null = null
+    let hit: NamingWordRow | null = null
     for (const k in ACTION_WORDS) {
       const w = ACTION_WORDS[k]
       if (!w) continue
@@ -219,13 +285,14 @@ export function composeDraftTitle({ hint, lang, baselineTitle }: { hint?: unknow
     if (!hit) {
       if (bt.indexOf('交接') >= 0) hit = { zh: '交接', en: 'Handoff' }
     }
-    if (hit) typeTag = '[' + (isEn ? hit.en : hit.zh) + ']'
+    if (hit) typeTag = '[' + wordFor(langId, hit) + ']'
     else {
       const isBug = /Bug/i.test(bt)
       const isSpec = /写规格|Write Spec/i.test(bt)
-      if (isBug) typeTag = (isEn ? '[New Bug]' : '[新增BUG]')
-      else if (isSpec) typeTag = (isEn ? '[Write Spec]' : '[写规格]')
-      else typeTag = (isEn ? '[New Requirement]' : '[新增需求]')
+      // 草稿标签与占位标题的词不同（新增需求 vs 新建需求），所以三个标签按语言列各写一份。
+      if (isBug) typeTag = wordFor(langId, { zh: '[新增BUG]', en: '[New Bug]' })
+      else if (isSpec) typeTag = wordFor(langId, { zh: '[写规格]', en: '[Write Spec]' })
+      else typeTag = wordFor(langId, { zh: '[新增需求]', en: '[New Requirement]' })
     }
   }
   const fullPrefix = typeTag ? prefix + typeTag : prefix

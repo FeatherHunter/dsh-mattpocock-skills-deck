@@ -23,9 +23,14 @@ let pixelSkelTimer: any = null
 const pixelClearSkel = function (): void {
   try { if (pixelSkelTimer) { clearTimeout(pixelSkelTimer); pixelSkelTimer = null } } catch (e) { /* 忽略 */ }
 }
+// #1294：当前界面语言 id 由语言链给出（uiLang 是拼进闭包的取词助手）。
+//   以前这里判「是不是 en，否则 zh」—— 清单加第三门语言时会把第三门错落回中文，现在直接报当前语言；
+//   Node/单测里没有 uiLang 时退生成物里的缺省语言（LANG_CONFIG.default，不写死 zh）。
+declare const LANG_CONFIG: any;
 const pixelLangOf = function (): string {
-  try { if (typeof promptLang === 'function') return promptLang() === 'en' ? 'en' : 'zh' } catch (e) { /* 无语言服务时回落中文 */ }
-  return 'zh'
+  try { if (typeof uiLang === 'function') return String(uiLang() || '') } catch (e) { /* 无语言服务时往下退 */ }
+  try { if (typeof LANG_CONFIG === 'object' && LANG_CONFIG && LANG_CONFIG.default) return String(LANG_CONFIG.default) } catch (e) {}
+  return ''
 }
 /** 详情栈最多三层（2026-10-10 人拍板）：再开一层就把最深的那层挤掉，人总能看到最近三层。 */
 const PIXEL_STACK_MAX = 3

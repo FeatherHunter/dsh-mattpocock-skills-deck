@@ -151,8 +151,9 @@ const promptFor = function (st: any, key: any) {
     const meta = (typeof moduleMetaOf === 'function' && bid != null) ? moduleMetaOf(st, bid) : null
     const declared = meta && meta.prompts && meta.prompts[key]
     if (declared) {
-      const lang = (typeof promptLang === 'function') ? promptLang() : 'zh'
-      const text = (lang === 'en' && declared.en) ? declared.en : (declared.zh || '')
+      // #1294：后端声明的 {zh,en} 交给按语言链取词（不再「是不是 en」二选一），
+      //   链上缺这一门时 pickLangText 会自动落到下一门（今天 en 活动的链是 ['en','zh']）。
+      const text = (typeof pickLangText === 'function') ? pickLangText(declared) : (declared.zh || '')
       if (text) return String(text)
     }
   } catch (eD) {}

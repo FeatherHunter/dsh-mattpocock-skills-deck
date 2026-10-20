@@ -8,7 +8,8 @@
  */
 // 打开入口见 slotRenderer-queue.ts，弹窗本体见 slotRenderer-modal-view.ts；三文件经构建拼回同一闭包，互相调用不走 import。
 declare function moduleMetaOf(...args: any[]): any;
-declare function promptLang(...args: any[]): any;
+// #1294：pickLangText / uiText 的签名只在 ts-pixel-ambient.d.ts 立一份，这里不重复声明
+//   （模块级 declare 会遮蔽 ambient 的精确签名，等于签名有两个真源）。
 declare function tr(...args: any[]): any;
 declare function chainStep(...args: any[]): any;
 declare function emit(...args: any[]): any;
@@ -26,7 +27,7 @@ declare function closeFormModal(...args: any[]): any;
         const bid: any = sel2 && sel2.backendId
         const mm: any = (typeof moduleMetaOf === 'function' && bid != null) ? moduleMetaOf(st, bid) : null
         const ek: any = mm && mm.prompts && mm.prompts.errorKinds && mm.prompts.errorKinds[dispKind]
-        if (ek) { const lg: any = (typeof promptLang === 'function') ? promptLang() : 'zh'; bkText = String((lg === 'en' && ek.en) ? ek.en : (ek.zh || '')) }
+        if (ek) { bkText = String(pickLangText(ek)) }
       } catch (e) { /* 后端数据兜底 */ }
       let mapped: string = ''
       try { const key: string = 'panel.noRepoErr.' + dispKind; const v: any = tr(key); if (v !== key) mapped = v } catch (e) { /* locale 兜底 */ }
@@ -92,10 +93,19 @@ declare function closeFormModal(...args: any[]): any;
       try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_){} }
     }
     function visLabelOf(visibility: any): string {
-      const lg: any = (typeof promptLang === 'function') ? promptLang() : 'zh'
+      // #1294：可见性这两个字也走词表（config/copy/panel.yaml 的 panel.noRepoFormPrivate / Public），
+      //   不再按「是不是 en」二选一；取词助手缺席（部分门禁沙箱只拼本文件）时退回今天这两句中文。
       const v: string = String(visibility || 'public')
-      if (v === 'private') return lg === 'en' ? 'private' : '私有'
-      return lg === 'en' ? 'public' : '公开'
+      const key: string = v === 'private' ? 'panel.noRepoFormPrivate' : 'panel.noRepoFormPublic'
+      try {
+        if (typeof uiText === 'function') {
+          const t: string = String(uiText(key) || '')
+          if (t && t !== key) return t
+        }
+      } catch (e) { /* locale 兜底 */ }
+      // #1294：词表缺失时不再回落到源码里的中文——返回宿主给的可见性原词（public / private），
+      //   与「缺词表就显示键名」的诚实口径一致，源码里也不再藏第二份界面文案。
+      return String(v || '')
     }
     function retryPushFlow(st: any, m: any): void {
       const fail: any = m && m.fail
