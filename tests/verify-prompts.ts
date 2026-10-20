@@ -1035,19 +1035,17 @@ const contractChecksInner = function (reg, src) {
   if (src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) fail('#77 残留 renderTemplate 闸门追加逻辑')
   if (src.includes("text.indexOf('阶段闸门')") || src.includes("text.indexOf('Stage gate')")) fail('#77 残留 renderTemplate 去重守卫（闸门已内联，无外挂可去重）')
 
-  // mapExecute v15（#989 恢复纯寻路版 v12 文字：工具/分析/选票/执行/收尾五节，单票推进）
+  // mapExecute（#1281：只写推进指令与收尾，推进规则交给 wayfinder 技能，不再复述）
   const me = reg['mapExecute']
   if (me) {
-    if (me.zh.indexOf('阶段闸门') < 0 || me.en.indexOf('stage-gate') < 0) fail('T13 mapExecute 未含阶段闸门引用（needs-triage 先诊断）')
-    if (me.zh.indexOf('needs-triage') < 0) fail('mapExecute zh 缺 needs-triage 标记')
     if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (me.zh.indexOf('## 工具') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（工具/分析/选票/执行/收尾）')
+    if (me.zh.indexOf('## 工具') < 0) fail('mapExecute zh 缺工具节（#779）')
+    if (me.zh.indexOf('## 分析') >= 0 || me.zh.indexOf('## 选票') >= 0 || me.zh.indexOf('## 阶段闸门') >= 0) fail('mapExecute zh 不该再复述 wayfinder 的推进步骤（#1281 去技能规则复述）')
     if (me.zh.indexOf('|') >= 0) fail('mapExecute zh 含表格 |（已约定无表格，全勾选框）')
-    if (me.zh.indexOf('## 目标 map') >= 0 || me.zh.indexOf('编号：') >= 0 || me.zh.indexOf('加载 wayfinder 技能') >= 0) fail('mapExecute zh 残留已撤掉的标识头/加载行（标识由首行 /wayfinder+链接承载）')
     if (me.zh.indexOf('deck_') < 0) fail('mapExecute zh 缺工具节要求（issue 相关操作优先使用 deck_ 开头的工具处理）')
-    if (me.placeholders.length !== 0) fail('mapExecute 不应再声明占位符（标识头已撤掉，无 {n}/{title}/{url} 可填）')
+    if (me.placeholders.length !== 0) fail('mapExecute 不应声明占位符（标识头已撤掉，无 {n}/{title}/{url} 可填）')
     if (me.en.indexOf('- [ ]') < 0) fail('mapExecute en 缺清单标记 - [ ]')
-    if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Analyze/Pick the ticket/Execute/Wrap-up）')
+    if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Wrap-up）')
   }
   // tpl.execute / tpl.discuss / tpl.research / tpl.prototype（#1281：map 子票统一入口）
   //   四条正文相同：首行 /wayfinder + 第二行 {url}，之后只保留插件增量（调查节 + 收尾）。
@@ -1067,23 +1065,17 @@ const contractChecksInner = function (reg, src) {
     if (wf.en.indexOf('It is recommended to read this ticket body') < 0) fail(wfId + ' en 缺 #1212 调查首行（同中文那条的对应句）')
     if (wf.en.indexOf('## Wrap-up') < 0) fail(wfId + ' en 缺收尾节')
   })
-  // tpl.diagnose（#65 清单式 · 诊断≠修复；#1212：加调查节先查后问）
+  // tpl.diagnose（#1281：只留收尾与工具节，诊断步骤交给 /triage 技能，不再复述）
   const di = reg['tpl.diagnose']
   if (di) {
-    if (di.zh.indexOf('- [ ]') < 0) fail('tpl.diagnose zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (di.zh.indexOf('## 弄清现象') < 0 || di.zh.indexOf('## 根因候选') < 0 || di.zh.indexOf('## 分流建议') < 0 || di.zh.indexOf('## 阶段闸门') < 0) fail('tpl.diagnose zh 缺清单段标题（弄清现象/根因候选/分流建议/阶段闸门）')
+    if (di.zh.indexOf('/triage') !== 0) fail('tpl.diagnose zh 首行必须是 /triage（#1281）')
+    if (di.zh.indexOf('{url}') < 0) fail('tpl.diagnose zh 缺链接占位符 {url}')
+    if (di.zh.indexOf('按 /triage 技能诊断这张 issue') < 0) fail('tpl.diagnose zh 缺引导句（按 /triage 技能诊断）')
+    if (di.zh.indexOf('## 弄清现象') >= 0 || di.zh.indexOf('## 根因候选') >= 0 || di.zh.indexOf('## 分流建议') >= 0 || di.zh.indexOf('## 阶段闸门') >= 0) fail('tpl.diagnose zh 不该再复述 triage 的诊断步骤（#1281 去技能规则复述）')
+    if (di.zh.indexOf('- [ ]') < 0) fail('tpl.diagnose zh 缺清单标记 - [ ]')
     if (di.zh.indexOf('|') >= 0) fail('tpl.diagnose zh 含表格 |（已约定无表格，全勾选框）')
-    if (di.zh.indexOf('诊断≠修复') < 0) fail('tpl.diagnose zh 缺诊断≠修复显式（第一性原理）')
-    if (di.zh.indexOf('grilling') < 0) fail('tpl.diagnose zh 缺 grill 澄清句')
-    if (di.zh.indexOf('与 grill 片段同义') >= 0) fail('tpl.diagnose zh 残留悬空括注「与 grill 片段同义」（#77 grill 入口已删）')
     if (di.en.indexOf('- [ ]') < 0) fail('tpl.diagnose en 缺清单标记 - [ ]')
-    if (di.en.indexOf('diagnosis') < 0 || di.en.indexOf('Stage gate') < 0) fail('tpl.diagnose en 缺关键段（diagnosis/Stage gate）')
-    if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) fail('tpl.diagnose en 缺 Symptoms 三行拆分')
-    if (di.en.indexOf('grill snippet') >= 0) fail('tpl.diagnose en 残留 grill snippet 引用（#77 grill 入口已删）')
-    if (di.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.diagnose zh 缺 #1212 调查节（先查后问）')
-    if (di.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.diagnose zh 缺 #1212 调查首行（先读本票与仓内）')
-    if (di.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.diagnose en 缺 #1212 调查节（同中文那条的对应节）')
-    if (di.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.diagnose en 缺 #1212 调查首行（同中文那条的对应句）')
+    if (di.en.indexOf('Follow the /triage skill to diagnose this issue') < 0) fail('tpl.diagnose en 缺引导句（同中文那条）')
   }
   // tpl.fix（#1281：只留插件增量；修复步骤交给 /implement，根因不明交给 /diagnosing-bugs）
   const fxt = reg['tpl.fix']
@@ -1116,27 +1108,21 @@ const contractChecksInner = function (reg, src) {
     if (su.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.supplement en 缺 #1212 调查节（同中文那条的对应节）')
     if (su.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.supplement en 缺 #1212 调查首行（同中文那条的对应句）')
   } else fail('缺条目 tpl.supplement')
-  // newWayfinder（#77 v8 + #573 v14 子议题关联收敛）
+  // newWayfinder（#1281：只留调查/收尾/工具节，建图规则交给 wayfinder 技能，不再复述）
   const nw = reg['newWayfinder']
   if (nw) {
-    if (nw.zh.indexOf('按建图规划契约') >= 0) fail('newWayfinder zh 残留「按建图规划契约」名称引用（#77 契约已删，改直述新建 map）')
-    if (nw.en.indexOf('per the planning contract') >= 0) fail('newWayfinder en 残留 planning contract 名称引用（#77 契约已删，改直述新建 map）')
+    if (nw.zh.indexOf('/wayfinder') !== 0) fail('newWayfinder zh 首行必须是 /wayfinder（#1281）')
+    if (nw.zh.indexOf('{repo}') < 0) fail('newWayfinder zh 缺仓库占位符 {repo}')
+    if (nw.placeholders.indexOf('subIssue') >= 0) fail('newWayfinder 不该再声明 {subIssue}（建边规则交给 wayfinder 技能，#1281）')
+    if (nw.zh.indexOf('{subIssue}') >= 0) fail('newWayfinder zh 残留 {subIssue} 占位符（#1281）')
     if (nw.zh.indexOf('- [ ]') < 0) fail('newWayfinder zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (nw.zh.indexOf('## 澄清') < 0 || nw.zh.indexOf('## 判断分类') < 0 || nw.zh.indexOf('## 自查') < 0) fail('newWayfinder zh 缺清单段标题（澄清/判断分类/自查）')
+    if (nw.zh.indexOf('## 调查（建议先查后问）') < 0) fail('newWayfinder zh 缺 #1212 调查节（先查后问）')
+    if (nw.zh.indexOf('## 判断分类') >= 0 || nw.zh.indexOf('## 自查') >= 0 || nw.zh.indexOf('写出 map：Destination + Notes + plan') >= 0) fail('newWayfinder zh 不该再复述 wayfinder 的建图步骤（#1281 去技能规则复述）')
     if (nw.zh.indexOf('|') >= 0) fail('newWayfinder zh 含表格 |（已约定无表格，全勾选框）')
-    if (nw.zh.indexOf('写出 map：Destination + Notes + plan') < 0) fail('newWayfinder zh 缺新增子清单（写出 map：Destination + Notes + plan）')
-    // #573 修正（原断言「以 sub-issue 关联到」已随文本收敛失效）：
-    //   --children 只活在后端 prompts.subIssue 里、运行期经 {subIssue} 注入，模板里断言不到（事实核对报告 E6）。
-    if (nw.zh.indexOf('{subIssue}') < 0) fail('newWayfinder zh 缺占位符 {subIssue}（子议题关联脚本由后端声明注入）')
-    if (nw.en.indexOf('{subIssue}') < 0) fail('newWayfinder en 缺占位符 {subIssue}')
-    if (nw.zh.indexOf('Blocked by: #<n>') < 0) fail('newWayfinder zh 缺新增子清单（Blocked by: #<n> 降级兜底写法）')
-    if (nw.zh.indexOf('降级兜底') < 0) fail('newWayfinder zh 未写明 Blocked by 行只是降级兜底（原生依赖边为准）')
-    if (nw.zh.indexOf('## Destination') < 0) fail('newWayfinder zh 缺「先取 map 现有正文（保留 ## Destination）」这一步（wire-subissues 脚本 exit 2 前置条件）')
-    if (nw.zh.indexOf('逐项核对上面') < 0) fail('newWayfinder zh 缺自查指令（逐项核对清单）')
+    if (nw.zh.indexOf('deck_') < 0) fail('newWayfinder zh 缺工具节（#779）')
     if (nw.en.indexOf('- [ ]') < 0) fail('newWayfinder en 缺清单标记 - [ ]')
-    if (nw.en.indexOf('## Clarify') < 0 || nw.en.indexOf('## Decide the case') < 0 || nw.en.indexOf('## Self-check') < 0) fail('newWayfinder en 缺清单段标题（Clarify/Decide the case/Self-check）')
-    if (nw.en.indexOf('## Self-check') >= 0 && nw.en.indexOf('verify the checklist') < 0) fail('newWayfinder en 缺自查指令（verify the checklist）')
-    if (nw.en.indexOf('## Destination') < 0) fail('newWayfinder en 缺 keep the ## Destination section（脚本前置条件）')
+    if (nw.en.indexOf('## Investigate (recommended: look before asking)') < 0) fail('newWayfinder en 缺调查节（同中文那条）')
+    if (nw.en.indexOf('## Decide the case') >= 0 || nw.en.indexOf('## Self-check') >= 0) fail('newWayfinder en 不该再复述 wayfinder 建图步骤（#1281）')
   }
   // complete（#1281：自包含格式 + 按 wayfinder 核对完成 + 手动交棒 /to-spec → /to-tickets，进度记回 map 正文）
   const co = reg['complete']
@@ -1719,7 +1705,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'ff30be2ed50b8af2debbc245a9187b922136f633a26ee08dd31f12e8dc3208e4',
+  'tests/verify-prompts.ts': 'fbbdb49073652b0d29e831b3227ed8e6762321fadf13259fbe338461752cfca2',
 }
 // ---- LOCK-END ----
 
