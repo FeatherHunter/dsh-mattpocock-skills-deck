@@ -47,6 +47,16 @@ const trDict: Record<string, string> = {
   'spec.splitTitle': '把规格拆成实施票',
   'spec.executeTitle': '把规格推进到下一步',
   'spec.doneTitle': '这张规格已收尾',
+  // #1294：规格正文那七节的段名从写死数据搬进了 config/copy/spec.yaml（spec.section.*），
+  //   MapDetailSpecBody 只问 tr/uiText；这里的词表替身要按真源把七条补上，否则 A10 会
+  //   因为「取不到词条」把七节标题画成键名。键名以 config/copy/spec.yaml 为准。
+  'spec.section.problem': '问题陈述',
+  'spec.section.solution': '解决方案',
+  'spec.section.userStories': '用户故事',
+  'spec.section.implDecisions': '实现决策',
+  'spec.section.testDecisions': '测试决策',
+  'spec.section.outOfScope': '不在范围内',
+  'spec.section.notes': '补充说明',
 }
 const trFn = (key: any, params?: any): string => {
   let s = trDict[String(key)] !== undefined ? trDict[String(key)] : String(key)

@@ -24,6 +24,8 @@ const { pathToFileURL } = require('url')
 const { sourcePath, sourceText } = require('./lib/source-text.ts')
 // #1292：提示词数据生成物在不在、不在怎么生成，收在共用入口里（五份沙箱门禁共用那一处）。
 const { ensurePromptData } = require('./lib/prompt-data.ts')
+// #1294：界面词表生成物（src/client/kernel/locale-data.ts）的取源与「不在就生成」收在共用入口里。
+const { ensureLocaleData } = require('./lib/locale-data.ts')
 
 let failed = false, total = 0, passed = 0
 const check = (ok, msg) => { total++; if (ok) passed++; else { failed = true; console.log('  FAIL ' + msg) } }
@@ -104,6 +106,19 @@ async function main() {
   const promptData = await import(pathToFileURL(promptDataFile).href)
   for (const k of ['PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA', 'LANGUAGES_YAML']) {
     if (globalThis[k] === undefined) globalThis[k] = promptData[k]
+  }
+  // #1294：界面词表的真源搬到 config/copy/*.yaml 之后，prompts.ts 仍是闭包片段：单独 import 时它引用的
+  //   LANG_CONFIG / LOCALE_LANGS / LOCALE_COPY（生成物 locale-data.ts 导出）与 langChainOf / langChainFrom /
+  //   pickLangText / uiLang / L（kernel/locale.ts 导出）都是自由变量。照上面处理提示词数据的先例，
+  //   先把这些真身挂到 globalThis（ESM 裸标识符会回落到全局），再 import prompts.js。
+  const localeDataFile = path.join(root, ensureLocaleData())
+  const localeData: any = await import(pathToFileURL(localeDataFile).href)
+  for (const k of ['LANG_CONFIG', 'LOCALE_LANGS', 'LOCALE_COPY']) {
+    if (globalThis[k] === undefined) globalThis[k] = localeData[k]
+  }
+  const localeHelper: any = await import(pathToFileURL(path.join(root, 'src', 'client', 'kernel', 'locale.ts')).href)
+  for (const k of ['L', 'languageIds', 'localeMainTagOf', 'langChainFrom', 'langChainOf', 'uiLang', 'pickLangText', 'uiText', 'languageLabelOf']) {
+    if (globalThis[k] === undefined) globalThis[k] = localeHelper[k]
   }
   const P = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/prompts.js'))).href)
   // 2026-10-17 先修装载方式（判据一条没动）：locale-flow 等片段引用了构建期才拼接出来的

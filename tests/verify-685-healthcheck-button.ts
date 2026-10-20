@@ -177,8 +177,10 @@ async function main() {
   // 真词条文件也一起拼进去：注入成功时用到 tr('list.healthCheckTitle')，那份文案只在词条真源里有。
   // #1292：拼装顺序跟着 scripts/build.mts 的 KERNEL_MODULES 走 —— promptData → prompts → promptsBackend。
   //   promptTextFor（「按当前后端渲染一条提示词」）已随那一族搬到 prompts-backend.js，所以它要排在 prompts.js 之后。
+  // #1294：界面词表真源搬到 config/copy/*.yaml，生成物 locale-data.ts 与取词助手 locale.ts 按构建顺序
+  //   （localeData → locale → promptData → prompts）排在 prompts.js 之前；各族 L_* 仍由生成物导出。
   const tmpOpen = spliceToFile(
-    [ensurePromptData(), path.join('src', 'client', 'kernel', 'locale-panel.js'), path.join('src', 'client', 'kernel', 'locale-flow.js'), path.join('src', 'client', 'kernel', 'prompts.js'), path.join('src', 'client', 'kernel', 'prompts-backend.js'), path.join('src', 'client', 'kernel', 'health-check.js')],
+    [path.join('src', 'client', 'kernel', 'locale-data.ts'), path.join('src', 'client', 'kernel', 'locale.js'), ensurePromptData(), path.join('src', 'client', 'kernel', 'prompts.js'), path.join('src', 'client', 'kernel', 'prompts-backend.js'), path.join('src', 'client', 'kernel', 'health-check.js')],
     ['L_PANEL', 'L_FLOW', 'promptTextFor', 'healthCheckCountOf', 'healthCheckVisible', 'healthCheckLogEvent', 'openHealthCheck'],
     'tmp-685-open.mjs'
   )

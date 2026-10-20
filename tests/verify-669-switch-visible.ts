@@ -103,7 +103,27 @@ const mountModal = async function () {
       if (method === 'registry') return { ok: true, value: { ok: true, modules: MODULES } }
       return { ok: true, value: { ok: true } }
     } } },
-    locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
+    // #1294：语言服务换新契约——词表按语言逐张注册 register('dsws', id, table)，
+    //   旧 mock 把第二参当整表取 d.zh，收到的是语言 id 字符串，dict 就空了、界面渲染成键名，
+    //   换行按钮量出来的几何就不是改造前那一版。这里三参形态逐门并进 dict（与旧行为一致：
+    //   zh 先并、en 后并覆盖），两参旧形态保留兜底。getSnapshot/addLanguage 按新契约给出。
+    locale: {
+      register: (ns: string, a: any, b: any) => {
+        if (b !== undefined) Object.assign(dict, b || {})
+        else if (a && typeof a === 'object') Object.assign(dict, a.zh || {}, a.en || {})
+        return () => {}
+      },
+      bind: () => trFn,
+      getSnapshot: () => ({
+        active: 'zh',
+        locales: [
+          { id: 'zh', label: '中文', fallback: 'en' },
+          { id: 'en', label: 'English' },
+        ],
+        revision: 1,
+      }),
+      addLanguage: () => () => {},
+    },
     workspaces: { list: async () => [] },
     sessions: { list: async () => [] },
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },

@@ -89,11 +89,14 @@ check(!!again && again.key === 'list.restFallback', '新的一次降级（时刻
 
 // ── 三、词条与产物 ──
 // 2026-09-24：这两条词条随横幅本体一起从 locale-flow.js 搬进 locale-word.js（键名与文案一字未改），
-//   所以这里按**两个文件的合体**数「中英各一条」——数法没变，只是不再假定它们住在哪个片段里。
+//   所以这里按**两个族**合起来数「中英各一条」——数法没变，只是不再假定它们住在哪个片段里。
+// #1294：词条真源搬到 config/copy/*.yaml 后，sourceText 给的是生成物里该族的整段文本，段内除了 zh/en
+//   两本字典还有上面的键联合类型（每个键在那里再出现一次）。所以计数按「键 + 冒号」这个字典条目形状数，
+//   不按裸键名数 —— 判据仍是「中英各一条」，只是不把类型声明也算进去。
 const locale = sourceText('src/client/kernel/locale-flow.js') +
   sourceText('src/client/kernel/locale-word.js')
-const nKey = (locale.match(/'list\.restFallbackStale'/g) || []).length
-const nDis = (locale.match(/'list\.restFallbackDismiss'/g) || []).length
+const nKey = (locale.match(/'list\.restFallbackStale'\s*:/g) || []).length
+const nDis = (locale.match(/'list\.restFallbackDismiss'\s*:/g) || []).length
 check(nKey === 2, '「上次取数走的 REST…」两种语言各一条（实测 ' + nKey + '）')
 check(nDis === 2, '关闭钮的无障碍名两种语言各一条（实测 ' + nDis + '）')
 // 2026-09-24（维护者截图：横幅左边两个警告三角）：那枚三角由画面画**一次** ——

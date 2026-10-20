@@ -162,12 +162,24 @@ const statChecks = function (src, tag) {
   ok('timebtn onClick → e.stopPropagation + refreshAll(s)', /className:\s*['"]dsws-timebtn['"][^}]*e\.stopPropagation/.test(src) && /className:\s*['"]dsws-timebtn['"][^}]*refreshAll\(s\)/.test(src))
 
   // 期望 5：EN locale i18n 键齐备
+  // #1294：界面词表改为 config/copy/*.yaml 生成后再拼进产物，语言段的键在产物里带引号
+  //（`"zh": {`），旧写法 `zh: {` 也要兼容——两种形态都认，否则两个块取空、下面几条会假红。
+  // 生成物按族名排序，第一段是 cards 族而不是 panel 族，所以要先切到 panel 族常量那段，
+  // 再从那段里取 zh/en 块；不切的话 panel.title 不在第一段、这几条会假红。
+  const panelStart = (function () {
+    const m = src.match(/const L_PANEL = (?:Object\.freeze\()?\{/)
+    return m ? m.index : -1
+  })()
+  const panelEnd = panelStart >= 0
+    ? (function () { const n = src.indexOf('const L_', panelStart + 10); return n >= 0 ? n : src.length })()
+    : src.length
+  const panelSrc = panelStart >= 0 ? src.slice(panelStart, panelEnd) : src
   const extractLocaleBlock = function (s, lang) {
-    const re = new RegExp("\\b" + lang + ":\\s*\\{[\\s\\S]*?\\n\\s*\\}", 'm')
+    const re = new RegExp('(?:^|\\n)\\s*["\']?' + lang + '["\']?\\s*:\\s*\\{[\\s\\S]*?\\n\\s*\\}', 'm')
     return (s.match(re) || [''])[0]
   }
-  const zhBlock = extractLocaleBlock(src, 'zh')
-  const enBlock = extractLocaleBlock(src, 'en')
+  const zhBlock = extractLocaleBlock(panelSrc, 'zh')
+  const enBlock = extractLocaleBlock(panelSrc, 'en')
   ok('i18n 字典存在 zh 块（zh: { ... }）', !!zhBlock)
   ok('i18n 字典存在 en 块（en: { ... }）', !!enBlock)
   // 被测的是构建产物：esbuild 会把字典的键与值统一改写成双引号，所以引号必须两种都认

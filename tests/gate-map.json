@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T06:38:57.525Z",
+  "generatedAt": "2026-10-20T08:25:07.802Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 296,
-  "gateCount": 296,
-  "attributedGates": 261,
-  "unattributedGates": 35,
-  "buildOutputOnlyGates": 20,
+  "chainLength": 297,
+  "gateCount": 297,
+  "attributedGates": 260,
+  "unattributedGates": 37,
+  "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 510,
+  "graphFileCount": 501,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -213,7 +213,6 @@
       "step": "node tests/verify-chain-capsule.ts",
       "file": "tests/verify-chain-capsule.ts",
       "guards": [
-        "src/client/kernel/locale-pages.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/statusbar/capFold.ts",
         "src/client/views/shared/workRouteTable.ts",
@@ -221,7 +220,6 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
         "tests/lib"
@@ -230,7 +228,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-chain-env-e2e.ts",
@@ -1537,20 +1535,18 @@
       "guards": [
         "package/bundled-skills",
         "scripts/lib/prompt-config.mts",
-        "src/client/kernel/locale-pages.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/bundled-skills",
         "scripts/lib",
-        "src/client/kernel",
         "tests/lib"
       ],
-      "unattributed": false,
-      "buildOutputOnly": false,
+      "unattributed": true,
+      "buildOutputOnly": true,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条"
+      "reason": "读到的路径都落在 package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-1231-ws-overview-rows.ts",
@@ -1657,8 +1653,6 @@
       "guards": [
         "scripts/lib/prompt-config.mts",
         "src/client/kernel/container-view.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-spec.ts",
         "src/client/kernel/router.ts",
         "src/client/kernel/store-derived.ts",
         "src/client/statusbar/StatusBar.ts",
@@ -1678,7 +1672,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-1286-detail.ts",
@@ -1989,7 +1983,6 @@
       "guards": [
         "package/lib/client.js",
         "src/client/index.ts",
-        "src/client/kernel/locale-flow.ts",
         "src/client/views/MapDetail.ts",
         "src/client/views/shared/chips.ts",
         "tests/lib/eval-probe.ts",
@@ -1998,7 +1991,6 @@
       "dirs": [
         "package/lib",
         "src/client",
-        "src/client/kernel",
         "src/client/views",
         "src/client/views/shared",
         "tests/lib"
@@ -2007,7 +1999,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-640-dock-width-browser.ts",
@@ -2032,7 +2024,6 @@
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/config.ts",
-        "src/client/kernel/locale-flow.ts",
         "src/client/kernel/router.ts",
         "src/client/panelAssembly.ts",
         "src/client/views/SettingsPage.ts",
@@ -2050,7 +2041,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-653-subworkspace.ts",
@@ -2083,11 +2074,8 @@
         "docs/agents/domain.md",
         "package/lib/client.js",
         "src/client/kernel/actions.ts",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-labels.ts",
-        "src/client/kernel/locale-pages.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-word.ts",
+        "src/client/kernel/locale-data.ts",
+        "src/client/kernel/locale.ts",
         "src/client/kernel/prompts-setup.ts",
         "src/client/kernel/prompts.ts",
         "src/client/panel/Dock.ts",
@@ -2118,7 +2106,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 18 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-656-subworkspace-acceptance.ts",
@@ -2193,11 +2181,8 @@
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/actions.ts",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-labels.ts",
-        "src/client/kernel/locale-pages.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-word.ts",
+        "src/client/kernel/locale-data.ts",
+        "src/client/kernel/locale.ts",
         "src/client/kernel/prompts-setup.ts",
         "src/client/kernel/prompts.ts",
         "src/client/statusbar/StatusBackend.ts",
@@ -2224,7 +2209,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-666-subws-mark-root.ts",
@@ -2543,8 +2528,8 @@
       "file": "tests/verify-685-healthcheck-button.ts",
       "guards": [
         "src/client/kernel/health-check.ts",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-panel.ts",
+        "src/client/kernel/locale-data.ts",
+        "src/client/kernel/locale.ts",
         "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
@@ -2567,8 +2552,8 @@
       "file": "tests/verify-686-accept.ts",
       "guards": [
         "src/client/kernel/health-check.ts",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-panel.ts",
+        "src/client/kernel/locale-data.ts",
+        "src/client/kernel/locale.ts",
         "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
@@ -2995,9 +2980,6 @@
       "file": "tests/verify-818-version-control-view.ts",
       "guards": [
         "scripts/lib/transpile-unit.mts",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-vcwrite.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
@@ -3027,7 +3009,6 @@
       ],
       "dirs": [
         "scripts/lib",
-        "src/client/kernel",
         "src/client/views/versionControl",
         "src/host",
         "src/shared/time-config/src",
@@ -3039,7 +3020,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 21 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 21 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -3112,9 +3093,6 @@
       "file": "tests/verify-842-version-control-write-view.ts",
       "guards": [
         "scripts/lib/transpile-unit.mts",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-vcwrite.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
@@ -3145,7 +3123,6 @@
       ],
       "dirs": [
         "scripts/lib",
-        "src/client/kernel",
         "src/client/views/versionControl",
         "src/shared/time-config/src",
         "src/shared/version-control/src",
@@ -3155,7 +3132,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 21 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 21 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -3303,7 +3280,6 @@
       "step": "node tests/verify-907-chain-titles.ts",
       "file": "tests/verify-907-chain-titles.ts",
       "guards": [
-        "src/client/kernel/locale-pages.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/host/snapshotEnvelope.ts",
@@ -3312,7 +3288,6 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
         "src/host",
@@ -3323,7 +3298,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-908-progress-replace.ts",
@@ -3822,9 +3797,6 @@
       "step": "node tests/verify-997-vc-sight-browser.ts",
       "file": "tests/verify-997-vc-sight-browser.ts",
       "guards": [
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-vcwrite.ts",
         "src/client/kernel/styles.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
@@ -3860,15 +3832,13 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 19 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-997-vc-sight.ts",
       "file": "tests/verify-997-vc-sight.ts",
       "guards": [
         "scripts/lib/transpile-unit.mts",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-panel.ts",
         "src/client/views/versionControl/vcBlocks.ts",
         "src/client/views/versionControl/vcInView.ts",
         "tests/lib/eval-probe.ts",
@@ -3876,7 +3846,6 @@
       ],
       "dirs": [
         "scripts/lib",
-        "src/client/kernel",
         "src/client/views/versionControl",
         "tests/lib"
       ],
@@ -3884,7 +3853,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-998-half-open.ts",
@@ -4008,9 +3977,9 @@
       "step": "node tests/verify-bug-entry.ts",
       "file": "tests/verify-bug-entry.ts",
       "guards": [
+        "scripts/lib/copy-config.mts",
         "scripts/lib/prompt-config.mts",
         "src/client/kernel/icons.ts",
-        "src/client/kernel/locale-panel.ts",
         "src/client/kernel/prompts.ts",
         "src/client/kernel/router.ts",
         "src/client/kernel/store-snapshot.ts",
@@ -4029,7 +3998,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-bundled-discovery.ts",
@@ -4624,6 +4593,7 @@
       "guards": [
         "scripts/lib/effective-lines.mts",
         "src",
+        "src/client/kernel/locale-data.ts",
         "src/client/kernel/prompt-data.ts",
         "src/shared/time-config/src/values.ts"
       ],
@@ -4637,7 +4607,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-gate-accounting.ts",
@@ -5153,7 +5123,6 @@
       "step": "node tests/verify-label-color-core.ts",
       "file": "tests/verify-label-color-core.ts",
       "guards": [
-        "src/client/kernel/locale-labels.ts",
         "src/client/views/labels/LabelColorDialog.ts",
         "src/client/views/labels/LabelColorRow.ts",
         "src/client/views/labels/labelColorErrors.ts",
@@ -5167,7 +5136,6 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/client/views/labels",
         "src/shared/label-color/src",
         "tests/lib"
@@ -5176,7 +5144,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-labels-sync.ts",
@@ -5360,16 +5328,16 @@
       "step": "node tests/verify-log-statusbar.ts",
       "file": "tests/verify-log-statusbar.ts",
       "guards": [
-        "src/client/kernel/locale-word.ts"
+        "tests/lib/locale-data.ts"
       ],
       "dirs": [
-        "src/client/kernel"
+        "tests/lib"
       ],
-      "unattributed": false,
+      "unattributed": true,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 1 条"
+      "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-log-store.ts",
@@ -5435,7 +5403,6 @@
       "guards": [
         "package/lib/client.js",
         "scripts/lib/transpile-unit.mts",
-        "src/client/kernel/locale-panel.ts",
         "src/client/kernel/store-derived.ts",
         "src/client/kernel/store-prefs.ts",
         "src/client/views/IssueDetail.ts",
@@ -5459,7 +5426,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-markdown-backend.ts",
@@ -6081,8 +6048,6 @@
       "file": "tests/verify-rest-fallback-banner.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-word.ts",
         "src/client/views/shared/truthLines.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
@@ -6090,7 +6055,6 @@
       ],
       "dirs": [
         "package/lib",
-        "src/client/kernel",
         "src/client/views/shared",
         "src/shared/time-config/src",
         "tests/lib"
@@ -6099,7 +6063,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-rest-fallback-reason.ts",
@@ -6191,7 +6155,6 @@
         "scripts/lib/discover-gates.ts",
         "scripts/lib/effective-lines.mts",
         "src/client/index.ts",
-        "src/client/kernel/locale-flow.ts",
         "src/client/kernel/log.ts",
         "src/client/kernel/settings-debug.ts",
         "src/client/kernel/settings-view-state.ts",
@@ -6228,7 +6191,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 14 条"
     },
     {
       "step": "node tests/verify-settings-phones.ts",
@@ -6334,15 +6297,12 @@
       "guards": [
         "package/lib/client.js",
         "src/client",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-pages.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-word.ts",
         "src/client/kernel/locale.ts",
         "src/client/kernel/prompts.ts",
         "src/host/workspaceCwd.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/ui-description.ts",
+        "tests/lib/locale-data.ts",
         "tests/lib/prompt-data.ts",
         "tests/lib/source-text.ts"
       ],
@@ -6359,7 +6319,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-skill-detail-stack.ts",
@@ -6743,7 +6703,6 @@
       "file": "tests/verify-visible-truth.ts",
       "guards": [
         "scripts/lib/transpile-unit.mts",
-        "src/client/kernel/locale-pages.ts",
         "src/client/views/shared/truthLines.ts",
         "src/host/snapshotEnvelope.ts",
         "src/shared/refresh/src/budget.ts",
@@ -6753,7 +6712,6 @@
       ],
       "dirs": [
         "scripts/lib",
-        "src/client/kernel",
         "src/client/views/shared",
         "src/host",
         "src/shared/refresh/src",
@@ -6764,7 +6722,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-wire-subissues-script.ts",
@@ -6849,35 +6807,38 @@
       "step": "node tests/verify-locale-completeness.ts",
       "file": "tests/verify-locale-completeness.ts",
       "guards": [
-        "package/lib/client.js",
-        "src/client/kernel/locale-flow.ts",
-        "src/client/kernel/locale-labels.ts",
-        "src/client/kernel/locale-pages.ts",
-        "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/locale-skilldesc.ts",
-        "src/client/kernel/locale-spec.ts",
-        "src/client/kernel/locale-vcwrite.ts",
-        "src/client/kernel/locale-word.ts",
-        "src/client/kernel/locale.ts",
-        "src/shared/matt-skills.ts",
-        "src/shared/time-config/src/values.ts",
-        "src/tracker/contract/canonical-labels.ts",
-        "src/tracker/contract/vocabulary.ts",
-        "tests/lib/source-text.ts"
+        "src/client/kernel/locale-data.ts",
+        "src/shared/matt-skills.ts"
       ],
       "dirs": [
-        "package/lib",
         "src/client/kernel",
-        "src/shared",
-        "src/shared/time-config/src",
-        "src/tracker/contract",
-        "tests/lib"
+        "src/shared"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-locale-config.ts",
+      "file": "tests/verify-locale-config.ts",
+      "guards": [
+        "config/languages.yaml",
+        "src/client/index.ts",
+        "src/client/kernel/locale-data.ts",
+        "src/client/kernel/locale.ts"
+      ],
+      "dirs": [
+        "config",
+        "src/client",
+        "src/client/kernel"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-readme-sync.ts",
@@ -6953,7 +6914,8 @@
     ".": [],
     "config": [
       "node tests/verify-prompt-config.ts",
-      "node tests/verify-prompts.ts"
+      "node tests/verify-prompts.ts",
+      "node tests/verify-locale-config.ts"
     ],
     "config/prompts": [
       "node tests/verify-b2-map-newsession.ts",
@@ -7099,8 +7061,7 @@
       "node tests/verify-t1-getrepokey.ts",
       "node tests/verify-t1-initpublish.ts",
       "node tests/verify-t3-locale.ts",
-      "node tests/verify-tabsfold-leaf.ts",
-      "node tests/verify-locale-completeness.ts"
+      "node tests/verify-tabsfold-leaf.ts"
     ],
     "package/lib/platform": [
       "node tests/verify-build-artifacts.ts"
@@ -7244,7 +7205,8 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
-      "node tests/verify-tabsfold-leaf.ts"
+      "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-locale-config.ts"
     ],
     "src/client/floating": [
       "node tests/verify-leaves.ts",
@@ -7254,20 +7216,17 @@
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
-      "node tests/verify-chain-capsule.ts",
       "node tests/verify-chain-env-e2e.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
-      "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
-      "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
@@ -7288,12 +7247,8 @@
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-786-focus-end.ts",
-      "node tests/verify-818-version-control-view.ts",
-      "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-891-setup-refresh.ts",
-      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-997-vc-sight-browser.ts",
-      "node tests/verify-997-vc-sight.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
@@ -7303,12 +7258,10 @@
       "node tests/verify-file-granularity.ts",
       "node tests/verify-inject-trailing-newline.ts",
       "node tests/verify-issue60-cwd.ts",
-      "node tests/verify-label-color-core.ts",
       "node tests/verify-log-artifacts.ts",
       "node tests/verify-log-client.ts",
       "node tests/verify-log-exec-606.ts",
       "node tests/verify-log-selfmon.ts",
-      "node tests/verify-log-statusbar.ts",
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.ts",
       "node tests/verify-multi-effort-panel.ts",
@@ -7320,7 +7273,6 @@
       "node tests/verify-newsession-workspace-fallback.ts",
       "node tests/verify-panel-workspace-isolation.ts",
       "node tests/verify-prompts.ts",
-      "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
@@ -7328,9 +7280,9 @@
       "node tests/verify-setup-describe.ts",
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-tabsfold-leaf.ts",
-      "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.ts",
-      "node tests/verify-locale-completeness.ts"
+      "node tests/verify-locale-completeness.ts",
+      "node tests/verify-locale-config.ts"
     ],
     "src/client/panel": [
       "node tests/verify-leaves.ts",
@@ -7825,8 +7777,7 @@
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-visible-truth.ts",
-      "node tests/verify-write-detect.ts",
-      "node tests/verify-locale-completeness.ts"
+      "node tests/verify-write-detect.ts"
     ],
     "src/shared/tracker": [
       "node tests/verify-663-banner-chain.ts",
@@ -7895,8 +7846,7 @@
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.ts",
-      "node tests/verify-markdown-label-colors.ts",
-      "node tests/verify-locale-completeness.ts"
+      "node tests/verify-markdown-label-colors.ts"
     ],
     "src/tracker/detection": [
       "node tests/verify-deck-quota-sync.ts",
@@ -8204,6 +8154,7 @@
       "node tests/verify-log-client.ts",
       "node tests/verify-log-exec-606.ts",
       "node tests/verify-log-selfmon.ts",
+      "node tests/verify-log-statusbar.ts",
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-log-switch-597.ts",
       "node tests/verify-map-drill.ts",
@@ -8232,8 +8183,7 @@
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-visible-truth.ts",
-      "node tests/verify-workspace-file-note.ts",
-      "node tests/verify-locale-completeness.ts"
+      "node tests/verify-workspace-file-note.ts"
     ],
     "tests/tracker-contract": [
       "node tests/verify-1179-gitlab-endpoint-coverage.ts",
@@ -8258,9 +8208,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 524,
+    "fileCount": 515,
     "dirCount": 56,
-    "coveredFileCount": 524,
+    "coveredFileCount": 515,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -8285,16 +8235,7 @@
       "src/client/kernel/icons.ts",
       "src/client/kernel/issue-pages.ts",
       "src/client/kernel/link.ts",
-      "src/client/kernel/locale-cards.ts",
-      "src/client/kernel/locale-flow.ts",
-      "src/client/kernel/locale-labels.ts",
-      "src/client/kernel/locale-pages.ts",
-      "src/client/kernel/locale-panel.ts",
-      "src/client/kernel/locale-skilldesc.ts",
-      "src/client/kernel/locale-skilldetail.ts",
-      "src/client/kernel/locale-spec.ts",
-      "src/client/kernel/locale-vcwrite.ts",
-      "src/client/kernel/locale-word.ts",
+      "src/client/kernel/locale-data.ts",
       "src/client/kernel/locale.ts",
       "src/client/kernel/log.ts",
       "src/client/kernel/modal-fields.ts",

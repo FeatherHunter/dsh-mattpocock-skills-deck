@@ -20,7 +20,7 @@ const { compileFn } = require('./lib/eval-probe.js')
 // 取源走共用入口（#1207 立）：sourceText 给源码原文（按文本形状扫描用），spliceableJs 给
 // 「可以直接当函数体求值」的 JavaScript 文本（.ts 会先按构建那份口径转译，引号与换行会被重排，
 // 所以只扫关键字的判据用 sourceText、要拿去求值的用 spliceableJs，别混着用）。
-const { sourceText, spliceableJs } = require('./lib/source-text.ts')
+const { sourceText, spliceableJs, sourcePath } = require('./lib/source-text.ts')
 // #1292：要拼进沙箱的提示词数据生成物怎么取、不在时怎么生成，收在共用入口里（五份沙箱门禁共用）。
 const { promptDataSpliceable } = require('./lib/prompt-data.ts')
 
@@ -49,7 +49,12 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
   //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。两份真源都已经是 .ts，
   //   要当函数体求值，所以都走 spliceableJs（与构建同一份转译口径，行首 export 已去掉）。
   // #1292：提示词数据那一份生成物也照构建的顺序拼在最前面（promptData → prompts → promptsSetup）。
-  const src = promptDataSplice()
+  // #1294：词表真源搬到 config/copy/*.yaml 后，生成物 locale-data.ts 与取词助手 locale.ts 也要按构建的
+  //   顺序（localeData → locale → promptData → prompts）先于 prompts.js 进闭包；原来 tail 里那份
+  //   `const L = <dict>` 由 locale.ts 的真 L 取代，这里不再重复声明。
+  const src = spliceableJs('src/client/kernel/locale-data.ts')
+    + '\n' + spliceableJs('src/client/kernel/locale.js')
+    + '\n' + promptDataSplice()
     + '\n' + spliceableJs('src/client/kernel/prompts.js')
     + '\n' + spliceableJs('src/client/kernel/prompts-setup.js')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
@@ -67,8 +72,7 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
     for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(bid)) return list[i] }
     return null
   }
-  const tail = '\n;const L = ' + JSON.stringify(localeDict) + ';'
-    + '\n;return { PROMPTS: PROMPTS, setupRunParamsFrom: setupRunParamsFrom, setupRunPrompt: setupRunPrompt, setupOrRepoPrompt: setupOrRepoPrompt, injectSetupDecision: injectSetupDecision, setupBlockedByGuide: setupBlockedByGuide, setupRunTextForClick: setupRunTextForClick, consumePendingSetup: consumePendingSetup, readSetupLayout: readSetupLayout, normalizeSetupLayout: normalizeSetupLayout, SETUP_LAYOUT_TEXT_KEYS: SETUP_LAYOUT_TEXT_KEYS }'
+  const tail = '\n;return { PROMPTS: PROMPTS, setupRunParamsFrom: setupRunParamsFrom, setupRunPrompt: setupRunPrompt, setupOrRepoPrompt: setupOrRepoPrompt, injectSetupDecision: injectSetupDecision, setupBlockedByGuide: setupBlockedByGuide, setupRunTextForClick: setupRunTextForClick, consumePendingSetup: consumePendingSetup, readSetupLayout: readSetupLayout, normalizeSetupLayout: normalizeSetupLayout, SETUP_LAYOUT_TEXT_KEYS: SETUP_LAYOUT_TEXT_KEYS }'
   // 把剥掉行首 export 的内核源码整份当函数体造函数（原来那种按文本构造函数的写法），参数名在这儿显式列出，所以走 compileFn。
   const factory = compileFn(['inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout'], body + tail)
   const mod = factory(
@@ -85,12 +89,14 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
   return { mod: mod, injected: injected, emitted: emitted, logged: logged }
 }
 
-// 真词表分四至五片段：只收合并后的两套键值表，合并逻辑与 kernel/locale.js 同一形状（与 verify-setup-describe 同口径）。
-// —— 真词表：直接 import 四个片段，按 kernel/locale.js 合并器同一逻辑拼出来（与 verify-setup-describe 同口径）——
+// 真词表只收合并后的两套键值表（与 verify-setup-describe 同口径）。
+// #1294：词条真源已搬到 config/copy/*.yaml，生成物是 src/client/kernel/locale-data.ts 里按族分的若干段；
+//   旧片段路径经 tests/lib/source-text.ts 的 sourcePath 映射到那一整份生成物（同一文件被 import 多次返回同一模块）。
 const fUrl = (f: string) => require('url').pathToFileURL(path.join(root, f)).href
 async function loadLocale(): Promise<LocalePair> {
   const { pathToFileURL } = require('url')
   const url = (f: string) => pathToFileURL(path.join(root, f)).href
+  const locUrl = (f: string) => url(sourcePath(f))
   // 2026-10-17 先修装载方式（判据一条没动）：locale-flow 片段引用了构建期才拼接出来的
   //   SETTINGS_DEBUG_PUSH_WAIT_MS（真源 src/shared/time-config/values.js），单独 import 会
   //   ReferenceError。照 tests/verify-locale-completeness.ts 的先例，先把中央时间真值的数值导出
@@ -99,12 +105,12 @@ async function loadLocale(): Promise<LocalePair> {
   for (const k of Object.keys(centralTimeValues)) {
     if (typeof centralTimeValues[k] === 'number' && (globalThis as any)[k] === undefined) (globalThis as any)[k] = centralTimeValues[k]
   }
-  const P = await import(url('src/client/kernel/locale-panel.js'))
-  const F = await import(url('src/client/kernel/locale-flow.js'))
-  const W = await import(url('src/client/kernel/locale-word.js'))
-  const L = await import(url('src/client/kernel/locale-labels.js'))
-  // #698：布局那一问的四条键（问题、两个选项、两条结论句）搬去了 locale-pages.js（locale-panel.js 贴着 350 行上限）
-  const PG = await import(url('src/client/kernel/locale-pages.js'))
+  const P = await import(locUrl('src/client/kernel/locale-panel.js'))
+  const F = await import(locUrl('src/client/kernel/locale-flow.js'))
+  const W = await import(locUrl('src/client/kernel/locale-word.js'))
+  // #698：布局那一问的四条键（问题、两个选项、两条结论句）搬去了 locale-pages 族（locale-panel 贴着 350 行上限）
+  const L = await import(locUrl('src/client/kernel/locale-labels.js'))
+  const PG = await import(locUrl('src/client/kernel/locale-pages.js'))
   return {
     zh: Object.assign({}, P.L_PANEL.zh, F.L_FLOW.zh, W.L_WORD.zh, L.L_LABELS.zh, PG.L_PAGES.zh),
     en: Object.assign({}, P.L_PANEL.en, F.L_FLOW.en, W.L_WORD.en, L.L_LABELS.en, PG.L_PAGES.en),

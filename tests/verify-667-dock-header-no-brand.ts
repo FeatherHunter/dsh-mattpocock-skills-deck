@@ -219,6 +219,33 @@ const reply = (method) => {
   if (method === 'registry') return { ok: true, modules: [{ id: 'github', label: 'GitHub' }, { id: 'markdown', label: 'Markdown' }] }
   return { ok: true }
 }
+// #1294：宿主语言服务换成新契约——词表按语言逐张注册 register('dsws', id, table)，不再是一次收整表
+//   register('dsws', {zh, en})。旧 mock 把第二参当整表取 .zh，收到的是语言 id 字符串，dict 就空了、
+//   界面全渲染成键名（本票排查时实测 "panel.title"）。这里两种形态都接：三参形态只并中文那一张
+//   （与这个页面的既有口径一致：E 组那把尺子按中文字宽校准），两参旧形态保留兜底。getSnapshot 按新
+//   契约给出已有语言与活动语言，addLanguage 幂等记入（本页不需要切语言，但初始化会被调用）。
+const hostLocales = [
+  { id: 'zh', label: '中文', fallback: 'en' },
+  { id: 'en', label: 'English' },
+]
+const locale = {
+  register: (ns, a, b) => {
+    if (b !== undefined) {
+      if (a === 'zh') Object.assign(dict, b || {})
+    } else if (a && typeof a === 'object') {
+      Object.assign(dict, a.zh || {})
+    }
+    return () => {}
+  },
+  bind: () => trFn,
+  getSnapshot: () => ({ active: 'zh', locales: hostLocales.map((x) => ({ id: x.id, label: x.label, fallback: x.fallback })), revision: 1 }),
+  addLanguage: (lang) => {
+    if (lang && lang.id && !hostLocales.some((x) => x.id === lang.id)) {
+      hostLocales.push({ id: String(lang.id), label: String(lang.label || lang.id), fallback: lang.fallback })
+    }
+    return () => {}
+  },
+}
 const services = {
   slots: { register: (m, c) => { regs.push({ m, c }); return () => {} }, inject: (n, f) => { try { f() } catch (e) {} } },
   sidebarRightTabs: { register: (d) => { nativeTypes.push(d); return () => {} } },
@@ -227,7 +254,7 @@ const services = {
   //   的尺子，只有在「一个字符至少 6 像素宽」时才分得清一格 —— 中文字 11 像素、拉丁字母只有五点几像素。
   //   英文界面上一次真掉两个字母，尺子也会报「减 2」，但那是尺子分不出来，不是设计漏了一格；
   //   所以英文那一套「一次最多少一个字符」改由 G 组用英文样本单独量（纯函数，与字宽无关）。
-  locale: { register: (ns, d) => { Object.assign(dict, (d && d.zh) || {}); return () => {} }, bind: () => trFn },
+  locale: locale,
   workspaces: { list: async () => [] },
   sessions: { list: async () => [] },
   timer: { timeout: (f, ms) => setTimeout(f, ms) },

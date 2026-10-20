@@ -33,7 +33,10 @@ const read = function (rel: string): string { try { return fs.readFileSync(path.
 // type.map / type.research 的值并逐条断言。那是钉源码文本的门禁（等价改写法就会变红），撤掉。
 // 保留下面的 zhPart 与 valueOf：它们不再被单独断言，而是作为真词条喂给 B 段被测的 TypeChip。
 const locSrc = sourceText('src/client/kernel/locale-flow.js')
-const zhPart = locSrc.slice(locSrc.indexOf('zh: {'), locSrc.indexOf('en: {'))
+// #1294：词条真源搬到 config/copy/flow.yaml 后，sourceText 给的是生成物里这一族的整段文本
+//   （段头 + 键联合类型 + 两门语言的字典），字典的键带引号（`'zh': {` / `'en': {`），
+//   锚点跟着生成形状走；原来的 `zh: {` / `en: {` 无引号锚点会切出空串。
+const zhPart = locSrc.slice(locSrc.indexOf("'zh': {"), locSrc.indexOf("'en': {"))
 const valueOf = function (part: string, key: string): string | null {
   const m = part.match(new RegExp("'" + key.replace('.', '\\.') + "':\\s*'((?:[^'\\\\]|\\\\.)*)'"))
   return m ? m[1] : null

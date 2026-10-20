@@ -10,19 +10,33 @@ const targets = files.length ? files : ['client.js', 'package/lib/client.js']
 let failed = false
 const check = function (file: string) {
   const src = fs.readFileSync(file, 'utf8')
-  const dictStart = src.indexOf('const L_PANEL = {') >= 0 ? src.indexOf('const L_PANEL = {') : src.indexOf('const L = {') // #458 K5：locale.js 已拆为三片段加合并器，产物中字典真源为 L_PANEL/L_FLOW/L_WORD 三块加 L 合并器，此处从首片段切到装配点才能含全键（单切 L 合并器仅含 Object.assign 无键）
+  // #1294：界面词表的真源搬到 config/copy/*.yaml，生成物 locale-data.ts 拼进产物后，每族常量写作
+  // `const L_<族> = Object.freeze({ ... })`（旧产物是「const L_PANEL = { ... }」，两种形态都认，
+  // 这样本门禁在迁移前后都能跑）。合并器 `const L = LOCALE_COPY` 不再带词条，所以字典区必须从首族
+  // 常量切到合并常量之前——那一段才是十份族常量的完整 zh/en 词条。首族不一定是 panel（生成物按族名
+  // 排序，cards 在最前），所以这里按 `const L_<大写族名> =` 找第一个，不能写死 L_PANEL。
+  const frozenStart = src.search(/const L_[A-Z0-9]+ = Object\.freeze\(\{/)
+  const plainStart = src.search(/const L_[A-Z0-9]+ = \{/)
+  const dictStart = frozenStart >= 0 ? frozenStart : (plainStart >= 0 ? plainStart : src.indexOf('const L = {'))
   if (dictStart < 0) { console.log('  FAIL', file, '无 L 字典'); failed = true; return }
-  const dictEnd = src.indexOf('const localeSvc = ctx.get', dictStart)
+  const mergeStart = src.indexOf('const LOCALE_COPY', dictStart)
+  const svcStart = src.indexOf('const localeSvc = ctx.get', dictStart)
+  const dictEnd = mergeStart >= 0 ? mergeStart : (svcStart >= 0 ? svcStart : src.length)
   const dictBlock = src.slice(dictStart, dictEnd)
   // 2026-10-17 修：产物里的键与引用都被 esbuild 改成了双引号（源码写单引号），
   // 原来的正则只认单引号，于是 zh/en 两个集合都是空的，整扇门禁在主干上假红。
   // 这里同时接受单引号与双引号两种写法，键与引用各一处。
   const keyRe = /["']([a-zA-Z0-9.]+)["']:/g
+  // #1294：语言段的开头现在可能是 `zh: {`（旧）或 `"zh": {` / `'zh': {`（生成物转译后），三種都认。
+  const isLangSectionLine = function (line: string, lang: string): boolean {
+    const t = line.trim()
+    return t === lang + ': {' || t === '"' + lang + '": {' || t === '\'' + lang + '\': {'
+  }
   const zh = new Set<string>(); const en = new Set<string>()
   let inEn = false
   for (const line of dictBlock.split('\n')) {
-    if (line.includes('zh: {')) { inEn = false; continue }
-    if (line.includes('en: {')) { inEn = true; continue }
+    if (isLangSectionLine(line, 'zh')) { inEn = false; continue }
+    if (isLangSectionLine(line, 'en')) { inEn = true; continue }
     let m: RegExpExecArray | null
     keyRe.lastIndex = 0
     while ((m = keyRe.exec(line)) !== null) { (inEn ? en : zh).add(m[1]) }

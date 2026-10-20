@@ -25,6 +25,15 @@
  *   一份产物」，这一处会给出源码（源码树该有的答案）；要读产物（client.js、package/lib/*、某份 .js
  *   产物）的门禁直接读那个文件，否则会静默改成读源码，判据跟着悄悄变味。
  *
+ * 真源搬到 YAML 之后，旧片段路径怎么映射到生成物（#1294）
+ *   界面词表的真源已从十份 src/client/kernel/locale-*.ts 搬到 config/copy/*.yaml，运行时代码读的是
+ *   生成物 src/client/kernel/locale-data.ts。旧门禁里按旧路径读源码的那些调用照旧写着
+ *   `src/client/kernel/locale-panel.js` 这类路径，由 ./locale-data.ts 换算：
+ *     sourcePath  → 整份生成物（要 import 模块拿 L_PANEL 这类导出的门禁用）；
+ *     sourceText  → 生成物里那一族的源码段（按文本形状扫描词条的门禁用）；
+ *     spliceableJs / transpiledSourceText → 同一段按全仓口径转译、剥 export 后的文本（求值的门禁用）。
+ *   换算只写在 ./locale-data.ts 一处；这里只加一个「先问它」的分派，别的路径行为一个字没变。
+ *
  * 转译口径只有一份
  *   scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS 加 inlineExportDeclarations，与构建
  *   （scripts/build.mts 经 scripts/lib/transpile-domains.mts 的 readSpliceFragmentSource）用的是同一份；
@@ -47,6 +56,13 @@ const { existsSync, readFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 const { REPO_ROOT, fragmentLoaderFor, loadEsbuild, readSpliceFragmentSource } = require('../../scripts/lib/transpile-domains.mts')
 const { TRANSPILE_OPTIONS } = require('../../scripts/lib/transpile-unit.mts')
+const {
+  ensureLocaleData,
+  legacyLocaleFamily,
+  familySectionSource,
+  familySpliceableJs,
+  familyTranspiledText,
+} = require('./locale-data.ts')
 
 /**
  * 这份源码今天住在哪个文件里：问的是 '.js' 时同名 '.ts' 优先（与装载钩子同规则），
@@ -57,6 +73,9 @@ const { TRANSPILE_OPTIONS } = require('../../scripts/lib/transpile-unit.mts')
  */
 function sourcePath(rel: string): string {
   const asked = String(rel).replace(/\\/g, '/')
+  // #1294：旧界面词表片段已搬进 config/copy/*.yaml，路径对应到整份生成物（要 import 模块的门禁用）。
+  const legacyFamily: string = legacyLocaleFamily(asked)
+  if (legacyFamily) return ensureLocaleData()
   if (asked.endsWith('.ts')) {
     if (!existsSync(resolve(REPO_ROOT, asked))) {
       throw new Error('找不到源码 ' + asked + '（这个路径在仓库里不存在）')
@@ -79,11 +98,15 @@ function sourcePath(rel: string): string {
 
 /** 这份源码的原文。按文本形状扫描的门禁用它；要用它求值请走 spliceableJs。 */
 function sourceText(rel: string): string {
+  const family: string = legacyLocaleFamily(rel)
+  if (family) return familySectionSource(family)
   return readFileSync(resolve(REPO_ROOT, sourcePath(rel)), 'utf8')
 }
 
 /** 这份源码的 JavaScript 文本：.ts 先按全仓唯一那份口径转译，再交给 eval-probe 求值。 */
 function spliceableJs(rel: string): string {
+  const family: string = legacyLocaleFamily(rel)
+  if (family) return familySpliceableJs(family)
   return readSpliceFragmentSource(sourcePath(rel))
 }
 
@@ -96,6 +119,8 @@ function spliceableJs(rel: string): string {
  * （TRANSPILE_OPTIONS，loader 按扩展名给），.js 原文没有类型可剥，直接返回原文。
  */
 function transpiledSourceText(rel: string): string {
+  const family: string = legacyLocaleFamily(rel)
+  if (family) return familyTranspiledText(family)
   const p: string = sourcePath(rel)
   const { readFileSync } = require('node:fs')
   const { resolve } = require('node:path')

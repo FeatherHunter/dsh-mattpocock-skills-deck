@@ -29,7 +29,7 @@ const ROOT = path.resolve(__dirname, '..')
 // 构建改成直接拼 .ts 真源之后那些 .js 已从源码树删除。拼闭包需要「可直接拼接的 JavaScript」，
 // 所以客户端那些叶子用 spliceableJs（按构建唯一口径转译、已按同一套做法处理 export 与时间参数 import）；
 // shared 那份 rules.js 还是手写 JavaScript、按原样读。
-const { spliceableJs } = require('./lib/source-text.ts')
+const { spliceableJs, sourcePath } = require('./lib/source-text.ts')
 let failed = false
 let total = 0
 const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -253,9 +253,12 @@ async function run(browser: any, build: { closure: string, dict: Record<string, 
   const valuesMod = await import('file://' + path.join(ROOT, 'src/shared/time-config/values.js').replace(/\\/g, '/'))
   for (const k of Object.keys(valuesMod)) { if (globalThis[k] === undefined) globalThis[k] = valuesMod[k] }
   const relMs = Number(valuesMod.VC_RELATIVE_WINDOW_MS)
-  const panel = await import('file://' + path.join(ROOT, 'src/client/kernel/locale-panel.js').replace(/\\/g, '/'))
-  const flow = await import('file://' + path.join(ROOT, 'src/client/kernel/locale-flow.js').replace(/\\/g, '/'))
-  const vcw = await import('file://' + path.join(ROOT, 'src/client/kernel/locale-vcwrite.js').replace(/\\/g, '/'))
+  // #1294：词条真源搬到 config/copy/*.yaml，旧片段路径经 tests/lib/source-text.ts 的 sourcePath
+  //   映射到生成物 src/client/kernel/locale-data.ts；同一文件 import 多次返回同一模块，L_* 导出名仍在。
+  const locUrl = (f: string) => 'file://' + path.join(ROOT, sourcePath(f)).replace(/\\/g, '/')
+  const panel = await import(locUrl('src/client/kernel/locale-panel.js'))
+  const flow = await import(locUrl('src/client/kernel/locale-flow.js'))
+  const vcw = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
   const dict = Object.assign({}, panel.L_PANEL.zh, flow.L_FLOW.zh, vcw.L_VCWRITE.zh)
   const stylesMod = await import('file://' + path.join(ROOT, 'src/client/kernel/styles.js').replace(/\\/g, '/'))
   const stylesVcMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcStyles.js').replace(/\\/g, '/'))

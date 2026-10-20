@@ -885,7 +885,15 @@ async function main(): Promise<void> {
       let settingsComp = null
       const services = {
         slots: { register: (meta, comp) => { if (meta && meta.name === 'settings.plugins.tab') settingsComp = comp; return () => {} }, inject: (n, fn) => { try { fn() } catch (e) {} } },
-        locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
+        // #1294：界面注册改成「按语言清单逐门 register('dsws', id, 该语言词表)」（locale.ts 的 localeAdopt），
+        //   不再有旧的一把 register('dsws', { zh, en }) 形状；宿主也多了 getSnapshot / addLanguage。
+        //   这里只收活动语言那一份，让 trFn 与界面显示的文案同语言（active 设成缺省语言 zh）。
+        locale: {
+          getSnapshot: () => ({ active: 'zh', locales: [{ id: 'zh', fallback: '' }, { id: 'en', fallback: 'zh' }] }),
+          addLanguage: () => () => {},
+          register: (ns, id, table) => { if (id === 'zh') Object.assign(dict, table || {}); return () => {} },
+          bind: () => trFn,
+        },
         workspaces: { list: async () => [] },
         sessions: { list: async () => [] },
         // 计时器：只压两处 —— 看门狗那 5 秒压成 600 毫秒（虚拟时钟里仍比 300 毫秒慢的宿主晚，顺序不变）、

@@ -27,6 +27,8 @@ const path = require('path')
 // 读提示词 YAML 走共享读取核（scripts/lib/prompt-config.mts）：与生成器、另两扇提示词门禁读的是同一份实现，
 //   本门禁里不再自己写一份 YAML 解析（那样两边的口径迟早分家）。
 const { readPromptConfig } = require('../scripts/lib/prompt-config.mts')
+// #1294：界面词条真源搬到 config/copy/*.yaml，读它走同一套共享读取核（不自己写第二份 YAML 解析）。
+const { readCopyConfig } = require('../scripts/lib/copy-config.mts')
 const files = process.argv.slice(2)
 // 仓库根：共享读取核按仓库相对路径去找 config/prompts/ 下的 YAML，根算错就读不到（报错也难懂，先算准）。
 const ROOT = path.resolve(__dirname, '..')
@@ -34,9 +36,10 @@ const ROOT = path.resolve(__dirname, '..')
 // 键都被 esbuild 统一改成双引号了，而门禁按单引号 + 「函数体里一段引号字符串」的老形状写，于是七条判据
 // 全部恒假——门禁红着，产品其实是好的。改成默认读真源（下面七份），产物那边由各自的构建新鲜度门禁守。
 const DEFAULT_SOURCES = [
-  'src/client/kernel/prompts.ts',        // NEW_BUG_FIELDS_BODY(_EN) 的取用口（正文真身在 config/prompts/ticket-creation.yaml）
-  'src/client/kernel/router.js',         // newBugWayfinderText 拼接（locale 切换）
-  'src/client/kernel/locale-panel.ts',   // nav.bugNew / nav.bugNewTitle / panel.newBug / panel.newBugTitle
+  'src/client/kernel/prompts.ts',        // NEW_BUG_FIELDS_BODY 的取用口（正文真身在 config/prompts/ticket-creation.yaml）
+  'src/client/kernel/router.js',         // newBugWayfinderText 拼接（按语言链取正文）
+  // #1294：nav.bugNew / nav.bugNewTitle / panel.newBug / panel.newBugTitle 这四条词条随界面词表搬到
+  //   config/copy/panel.yaml，源码里不再有；下面第 2 组改从共享读取核 readCopyConfig 按语言逐门查（判据更严）。
   'src/client/statusbar/StatusBar.js',   // BUG 悬停菜单弹层与开新会话接线（其一）
   'src/client/views/shared/Tabs.js',     // 面板「+ 新增BUG单」按钮接线（其二）
   'src/client/kernel/store-snapshot.js', // bugMenuHover 默认状态
@@ -141,9 +144,10 @@ const check = function (list) {
     if (zh.indexOf('先建单') >= 0) problems.push('newBugWayfinder zh 仍含「先建单」引导（#107 已改：空表单先追问、不建单）')
     if (en.indexOf('file first') >= 0) problems.push('newBugWayfinder en 仍含 "file first" 引导（#107 已改：空表单先追问、不建单）')
   }
-  // 1.5) 四项引导语：NEW_BUG_FIELDS_BODY（zh 4 字段必填括号单行，头带“以下四项均为必填”）+ NEW_BUG_FIELDS_BODY_EN（en 对称，头带“The four fields below are required”）—— v7 #882 + #107 改必填
+  // 1.5) 四项引导语：newBugFields 片段的 zh / en 两份正文（zh 4 字段必填括号单行，头带“以下四项均为必填”；
+  //   en 对称，头带 “The four fields below are required”）—— v7 #882 + #107 改必填。
   // #1292：正文真身搬进了 config/prompts/ticket-creation.yaml 的 newBugFields 片段（zh / en 两份）；
-  //   src/client/kernel/prompts.ts 里那两个常量现在只是「按语言从片段取这一段」的取用口，源码里不再有那段字面量。
+  //   src/client/kernel/prompts.ts 里那个常量现在只是「按语言链从片段取这一段」的取用口，源码里不再有那段字面量。
   //   判据拆成两半，两半都查（比从前多查一样，条数不减）：一半查片段数据在不在、正文齐不齐；
   //   一半查 prompts.ts 那个取用口确实在用这个片段（接线断了，片段再对也没人把它送进会话）。
   const frag = fragments['newBugFields']
@@ -154,6 +158,10 @@ const check = function (list) {
   } else {
     if (!fieldsBody) problems.push('newBugFields 片段缺中文正文')
     if (!fieldsBodyEn) problems.push('newBugFields 片段缺英文正文')
+    // #1294：newBugWayfinderText 现在是「promptText(...) + NEW_BUG_FIELDS_BODY()」直拼，那一个空白行
+    //   由片段正文开头的两个换行提供（从前是拼接处写死的 '\n\n'）。这条判据守住那个空白行不丢。
+    if (!fieldsBody.startsWith('\n\n')) problems.push('newBugFields 片段中文正文缺开头两个换行（拼在 newBugWayfinder 后面要隔一个空白行）')
+    if (!fieldsBodyEn.startsWith('\n\n')) problems.push('newBugFields 片段英文正文缺开头两个换行（拼在 newBugWayfinder 后面要隔一个空白行）')
   }
   if (fieldsBody) {
     // 顺序与完整性（v4 顺序实际→期望→复现→环境）
@@ -203,20 +211,33 @@ const check = function (list) {
     if (fieldsBodyEn.indexOf('Optional below.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧选填头 "Optional below."（#107 已改必填）')
     if (fieldsBodyEn.indexOf('browser + plugin version') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 DSH 专用环境写法（v7 已通用化）')
   }
-  // 取用口：prompts.ts 里那两个常量必须从片段取正文（不是自己又抄一份）。
-  //   这两条对应从前「缺 NEW_BUG_FIELDS_BODY 常量定义 / 缺 NEW_BUG_FIELDS_BODY_EN 常量定义」那两条判据。
-  //   这里直接读 prompts.ts 本身，不看命令行给的那几份文件：片段怎么接进会话与传进来的文件无关，
-  //   就算只查别的文件，这两条也得算。
+  // 取用口：prompts.ts 里的 NEW_BUG_FIELDS_BODY 必须从片段取正文（不是自己又抄一份）。
+  //   #1294 起中英两份正文由语言链在片段里挑（pickLangText），源码里不再有 NEW_BUG_FIELDS_BODY_EN，
+  //   所以取用口只剩一个；那条「EN 取用口」判据改成正向断言：EN 那份不许再写回源码。
   const promptsSrc = sourceText('src/client/kernel/prompts.ts')
-  if (!/NEW_BUG_FIELDS_BODY\s*=\s*function[^{]*\{\s*return\s+promptFragment\(\s*['"]newBugFields['"]\s*,\s*['"]zh['"]\s*\)/.test(promptsSrc)) {
-    problems.push('prompts.ts 里 NEW_BUG_FIELDS_BODY 没从 newBugFields 片段取中文正文（取用口缺失）')
+  if (!/NEW_BUG_FIELDS_BODY\s*=\s*function[^{]*\{\s*return\s+promptFragment\(\s*['"]newBugFields['"]\s*\)/.test(promptsSrc)) {
+    problems.push('prompts.ts 里 NEW_BUG_FIELDS_BODY 没从 newBugFields 片段取正文（取用口缺失）')
   }
-  if (!/NEW_BUG_FIELDS_BODY_EN\s*=\s*function[^{]*\{\s*return\s+promptFragment\(\s*['"]newBugFields['"]\s*,\s*['"]en['"]\s*\)/.test(promptsSrc)) {
-    problems.push('prompts.ts 里 NEW_BUG_FIELDS_BODY_EN 没从 newBugFields 片段取英文正文（取用口缺失）')
+  if (/NEW_BUG_FIELDS_BODY_EN/.test(promptsSrc)) {
+    problems.push('prompts.ts 里又出现 NEW_BUG_FIELDS_BODY_EN（#1294 已按语言链归并，中英正文由片段按当前语言挑）')
   }
-  // 2) i18n 键（引号无关：真源是单引号，产物是双引号）
+  // 2) i18n 键（#1294：真源搬到 config/copy/panel.yaml；按语言逐门查，比原来只在源码里找单引号键更严）
+  let copyCfg = null
+  try {
+    copyCfg = readCopyConfig(ROOT)
+  } catch (e) {
+    problems.push('读 config/copy/ 下的 YAML 失败：' + (e && e.message ? e.message : String(e)))
+  }
+  const panelFamily = copyCfg ? copyCfg.families.filter(function (f) { return f.family === 'panel' })[0] : null
+  const uiLangs = copyCfg ? Object.keys(copyCfg.languages.languages) : []
+  if (!panelFamily) problems.push('缺 panel 词族（config/copy/panel.yaml 里没有）')
   ;['nav.bugNew', 'nav.bugNewTitle', 'panel.newBug', 'panel.newBugTitle'].forEach(function (k) {
-    if (!(new RegExp('["\']' + k.replace(/\./g, '\\.') + '["\']\\s*:')).test(src)) problems.push('缺 i18n 键 ' + k)
+    for (const lang of uiLangs) {
+      const dict = panelFamily && panelFamily.texts[lang]
+      if (!dict || typeof dict[k] !== 'string' || !dict[k]) problems.push('缺 i18n 词条 ' + k + '（语言 ' + lang + '）')
+    }
+    // 源码侧仍不许把这四条字面量写回去（真源只有 YAML 一处）。
+    if (new RegExp('["\\\']' + k.replace(/\./g, '\\.') + '["\\\']\\s*:').test(src)) problems.push('源码里又出现 i18n 键 ' + k + '（真源只在 config/copy/panel.yaml）')
   })
   // 3) StatusBar 悬停菜单接线
   if (!src.includes('s.bugMenuOpen')) problems.push('缺 s.bugMenuOpen 状态')
@@ -244,12 +265,15 @@ const check = function (list) {
   } else {
     problems.push('找不到 BUG 悬停菜单弹层（锚点失效：s.bugMenuOpen ? PortalOverlay({ className: \'dsws-bugmenu\' …）')
   }
-  // 7) 文本拼接 + locale 切换：newBugWayfinderText = promptText + BODY_FORMAT + (promptLang()==='en' ? EN : ZH)
-  // 2026-10-19（#1301 批C）：取源从构建产物换成 .ts 真源后，函数签名带着类型标注写成 `(st: any): string =>`，
-  //   原来按产物排版写死的 `(st) =>` 锚点对不上。这里只把锚点改成容忍类型标注，判据本身没变：
-  //   仍要求拼接处包含「promptText(...) + (promptLang() === 'en' ? EN() : ZH())」这一整段 locale 切换。
-  const builderMatch = /newBugWayfinderText\s*=\s*\(st(?::[^)]*)?\)\s*(?::\s*[^=]+)?=>[\s\S]*?\+ \(promptLang\(\) === ["']en["'] \? NEW_BUG_FIELDS_BODY_EN\(\) : NEW_BUG_FIELDS_BODY\(\)\)/.test(src)
-  if (!builderMatch) problems.push('newBugWayfinderText 拼接未含 locale 切换（promptLang() === \'en\' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY()）')
+  // 7) 文本拼接：#1294 起 newBugWayfinderText = promptText('newBugWayfinder', {...}) + NEW_BUG_FIELDS_BODY()，
+  //   语言不再靠 promptLang() 三元切换（那 9 处硬写已清零），正文由语言链在 newBugFields 片段里挑；
+  //   「提示词正文 + 四项必填字段」两段必须拼在一起，且 newBugFields 自带开头两个换行（隔一个空白行）的契约不变。
+  // 2026-10-19（#1301 批C）：取源换成 .ts 真源后函数签名带类型标注，锚点容忍类型标注，判据本身没变。
+  const builderMatch = /newBugWayfinderText\s*=\s*\(st(?::[^)]*)?\)\s*(?::\s*[^=]+)?=>\s*promptText\(\s*['"]newBugWayfinder['"]\s*,\s*\{[^}]*\}\s*\)\s*\+\s*NEW_BUG_FIELDS_BODY\(\)/.test(src)
+  if (!builderMatch) problems.push('newBugWayfinderText 拼接未含 promptText(\'newBugWayfinder\', …) + NEW_BUG_FIELDS_BODY()')
+  if (/NEW_BUG_FIELDS_BODY_EN|promptLang\(\)\s*===\s*['"]en['"]/.test(src)) {
+    problems.push('newBugWayfinderText 仍按 promptLang() 三选双份正文（#1294 已改由语言链在片段里挑）')
+  }
   // 9) 宽度自适应（v3 UX）：不应有 minWidth
   if (bugMenuMatch && /minWidth\s*:\s*\d+/.test(bugMenuMatch[0])) problems.push('BUG 悬停菜单弹层含 minWidth（应按内容自适应）')
   // 10) hover 反馈

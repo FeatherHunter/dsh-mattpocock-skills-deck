@@ -9,13 +9,16 @@
  * 运行：node tests/verify-chain-renderer.ts
  */
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import assert from 'node:assert'
 // 取源入口（tests/lib/source-text.ts）：src/client 下的同名 .js 是 pixel-ts 写下的构建产物（这一阶段要删），
 //   真源一律是同名 .ts；这里既按形态要求（minHeight 两种写法都认），也按原文要求（注释、单引号），
 //   所以先问 sourcePath 真源今天住在哪一份文件，再由下面的断言按需读它。
 import { sourcePath } from './lib/source-text.ts'
+// #1294：界面词表真源搬去 config/copy/ 并由生成器产出 locale-data.ts（不入库）。旧门禁里
+//   「读某一族 locale-*.js 原文」的判据统一经这个入口取生成物的对应分段，换算只写在一处。
+import { familySectionSource } from './lib/locale-data.ts'
 
 const root = resolve(import.meta.dirname, '..')
 let passed=0, failed=0
@@ -101,8 +104,19 @@ check(cr.includes('schema'), 'ChainForm 含 schema')
 // #1253：这里读的是 .ts 真源（同名 .js 是产物，这一阶段要删，产物会丢注释、改引号）；
 // 词条键里的点按字面转义，真源与产物都可能是单/双引号，所以用「两种引号都认」的正则而不是精确子串。
 check(cr.includes('f.required') && /tr\(["']env\.formRequired["']/.test(cr), 'ChainForm 必填校验走词条 env.formRequired（不再钉硬字）')
-const localePanelSrc = file('src/client/kernel/locale-panel.ts')
-check(localePanelSrc.split("'env.formRequired'").length === 3 && localePanelSrc.includes('{label} 必填'), '词条 env.formRequired 中英各一条、中文含「必填」')
+// #1294：词表真源搬去 config/copy/，旧片段 locale-panel.ts 已不存在，词条住在生成物
+//   src/client/kernel/locale-data.ts 的 panel 分段（真源 config/copy/panel.yaml）。判据（键中英各一条、
+//   中文含「必填」）一字不动，只把「从旧文件原文取」换成「从生成物的那一族分段取」。
+const localePanelSrc = familySectionSource('panel')
+// 判据语义：这个词条在中文表、英文表里各有一条，且中文那条含「必填」。生成物的分段比旧片段多一行
+//   「键联合」声明（type LocaleKeyPanel = ... | 'env.formRequired' | ...），所以不数总出现次数，
+//   而是要求两种语言的赋值行都在、且中文写法带「必填」——旧判据意在被这两点钉住，不是钉行数。
+const formRequiredLines = localePanelSrc.split('\n').filter((l) => l.indexOf("'env.formRequired'") >= 0)
+check(
+  formRequiredLines.some((l) => l.indexOf("'env.formRequired': '{label} 必填'") >= 0) &&
+    formRequiredLines.some((l) => l.indexOf("'env.formRequired': '{label} is required'") >= 0),
+  '词条 env.formRequired 中英各一条、中文含「必填」'
+)
 check(cr.includes('pattern') && cr.includes('RegExp'), 'ChainForm 含 pattern 校验')
 check(cr.includes('submitAction') , 'ChainForm 含 submitAction')
 check(cr.includes('onSubmit'), 'ChainForm 含 onSubmit')
@@ -119,8 +133,16 @@ check(srForForm.includes('FormModalSeat') && srForForm.includes('dsws-modal'), '
 
 console.log('')
 console.log('-- 5) gh 登录黄条 inject-prompt 替换 openUrl（#308 修陈旧断言：bc72e16 迁移至后端 fixes） --')
-const prompts = file('src/client/kernel/prompts.js')
-check(prompts.includes('ghAuthLogin'), 'prompts 含 ghAuthLogin 模板')
+// #1294：提示词模板真源搬去 config/prompts/*.yaml，kernel/prompts.ts 只剩「读生成物」的外壳，
+//   所以「ghAuthLogin 模板存在」这句要问真源目录（按目录发现，不手写五族的名单）。判据语义不变：
+//   登录黄条注入的那条模板键必须在提示词真源里存在。
+const promptYamlDir = resolve(root, 'config/prompts')
+const prompts = readdirSync(promptYamlDir)
+  .filter((n) => /\.ya?ml$/.test(n))
+  .sort()
+  .map((n) => readFileSync(resolve(promptYamlDir, n), 'utf8'))
+  .join('\n')
+check(/(^|\n)ghAuthLogin:/.test(prompts), 'prompts 含 ghAuthLogin 模板')
 // 2026-10-17 删掉「ghAuthLogin 含 gh auth login 文案」这条：模板从 #716 起改成占位符
 // `{cli} auth login`，硬字 `gh` 已不在源码里；这条文案的真牙齿在 tests/verify-prompts.js
 // （按后端真渲染中英模板），这里钉的是过时的字符串形态，留着只会假红。

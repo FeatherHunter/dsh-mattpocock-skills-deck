@@ -31,7 +31,7 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 //   先拼原文、再按反证要求改坏，最后按构建同一份转译参数转成 JavaScript 交给 compileFn。
 //   为什么不读产物 .js：产物被 esbuild 重排过（双引号、function 后面不留空格、句末补分号），
 //   而反证锚点是按原文写的，读产物就会「改不中」，等于没证——#1253 收口时这里正是这样红的。
-const { sourceText } = require('./lib/source-text.ts')
+const { sourceText, sourcePath } = require('./lib/source-text.ts')
 const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const readSource = (rel: string): string => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
 // 转译口径复用构建那一份（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
@@ -1166,9 +1166,12 @@ async function groupM(view) {
 // ============================================================
 async function main() {
   console.log('版本管理写操作界面门禁（#842：A–M 组）')
-  const panelMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-panel.js')).href)
-  const flowMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-flow.js')).href)
-  const vcMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-vcwrite.js')).href)
+  // #1294：旧片段路径经 tests/lib/source-text.ts 的 sourcePath 映射到生成物 locale-data.ts，
+  //   里面仍按族导出 L_PANEL / L_FLOW / L_VCWRITE，判据不变。
+  const locUrl = (f: string) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
+  const panelMod = await import(locUrl('src/client/kernel/locale-panel.js'))
+  const flowMod = await import(locUrl('src/client/kernel/locale-flow.js'))
+  const vcMod = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
   LOC = {
     zh: Object.assign({}, panelMod.L_PANEL.zh, flowMod.L_FLOW.zh, vcMod.L_VCWRITE.zh),
     en: Object.assign({}, panelMod.L_PANEL.en, flowMod.L_FLOW.en, vcMod.L_VCWRITE.en),

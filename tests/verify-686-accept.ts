@@ -39,6 +39,8 @@ function spliceToFile (files: string[], exportsList: string[], tmpName: string):
 //   src/client/kernel/prompt-data.ts 提供（生成、不入库）；组装提示词的那几个函数拆到了
 //   src/client/kernel/prompts-backend.ts。下面第一组要把 promptTextFor 拼进沙箱跑，所以拼的顺序照
 //   scripts/build.mts 的 KERNEL_MODULES 来：先生成物，再 prompts.js，再 prompts-backend.js。
+//   #1294 起界面词表真源在 config/copy/*.yaml，生成物 locale-data.ts 与取词助手 locale.ts 也要按构建顺序
+//   （localeData → locale → promptData → prompts）排在 prompts.js 之前。
 //   生成物不在盘上时现场生成一份 —— 这件事收在 tests/lib/prompt-data.ts，五份要拼闭包的沙箱门禁共用那一处。
 
 // 从后端 index.js 真源里按 key 抠出 prompts 块的 {zh,en}（处理 \' 与 \n 转义）。
@@ -68,7 +70,7 @@ async function main () {
   check(!!ghM.prompts.healthCheck.zh && !!glM.prompts.healthCheck.zh && !!mdM.prompts.healthCheck.zh, '三房真实科目都从真源抠出来了（不是手抄的）')
 
   const tmpP = spliceToFile(
-    [ensurePromptData(), path.join('src', 'client', 'kernel', 'locale-panel.js'), path.join('src', 'client', 'kernel', 'locale-flow.js'), path.join('src', 'client', 'kernel', 'prompts.js'), path.join('src', 'client', 'kernel', 'prompts-backend.js')],
+    [path.join('src', 'client', 'kernel', 'locale-data.ts'), path.join('src', 'client', 'kernel', 'locale.js'), ensurePromptData(), path.join('src', 'client', 'kernel', 'prompts.js'), path.join('src', 'client', 'kernel', 'prompts-backend.js')],
     ['promptTextFor'],
     'tmp-686-accept.mjs'
   )

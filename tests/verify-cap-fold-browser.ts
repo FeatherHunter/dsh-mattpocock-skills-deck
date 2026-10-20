@@ -82,7 +82,15 @@ const services = {
   slots: { register: (m, c) => { regs.push({ m, c }); return () => {} }, inject: (n, f) => { try { f() } catch (e) {} } },
   sidebarRightTabs: { register: () => () => {} },
   connection: { rpc: { call: async (channel, endpoint, body) => ({ ok: true, value: reply(body && body.method) }) } },
-  locale: { register: (ns, d) => { Object.assign(dict, (d && d.zh) || {}); return () => {} }, bind: () => trFn },
+  // #1294：界面注册改成「按语言清单逐门 register('dsws', id, 该语言词表)」（locale.ts 的 localeAdopt），
+  //   不再有旧的一把 register('dsws', { zh, en }) 形状；宿主也多了 getSnapshot / addLanguage。
+  //   这里只收活动语言那一份，让判定用的 dict 与界面真正显示的语言一致（active 设成缺省语言 zh）。
+  locale: {
+    getSnapshot: () => ({ active: 'zh', locales: [{ id: 'zh', fallback: '' }, { id: 'en', fallback: 'zh' }] }),
+    addLanguage: () => () => {},
+    register: (ns, id, table) => { if (id === 'zh') Object.assign(dict, table || {}); return () => {} },
+    bind: () => trFn,
+  },
   workspaces: { list: async () => [] },
   sessions: { list: async () => [] },
   timer: { timeout: (f, ms) => setTimeout(f, ms) },

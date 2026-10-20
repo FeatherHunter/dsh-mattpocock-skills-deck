@@ -115,7 +115,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
 //   求值与反证都基于「真源原文」：先拼原文、再按反证要求改坏，最后按构建同一份转译参数转成 JavaScript
 //   交给 compileFn。为什么不读产物 .js：产物被 esbuild 重排过（双引号、function 后面不留空格、句末补分号），
 //   而反证锚点是按原文写的，读产物就会「改不中」，等于没证——#1253 收口时这里正是这样红过。
-const { sourceText } = require('./lib/source-text.ts')
+const { sourceText, sourcePath } = require('./lib/source-text.ts')
 const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const readSource = (rel: string): string => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
 // 转译口径复用构建那一份（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
@@ -206,11 +206,13 @@ const rowsOf = (blocks) => { const c = blockOf(blocks, 'changes'); return c ? c.
 // ============================================================
 async function main() {
   console.log('版本管理页签界面侧门禁（#818：主缝 + 次缝 + 比照 + 反证）')
-  // 真字典：两份词条模块都是纯 ESM，可以直接 import 进来读它们的 zh / en 两个对象。
-  const panelMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-panel.js')).href)
-  const flowMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-flow.js')).href)
-  // #842：写操作那一族的词条自成一个片段（locale-panel 与 locale-flow 都在上限上），这里一并读真字典。
-  const vcWriteMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-vcwrite.js')).href)
+  // 真字典：#1294 起词条真源在 config/copy/*.yaml，生成物是 src/client/kernel/locale-data.ts；
+  //   旧片段路径经 tests/lib/source-text.ts 的 sourcePath 映射到那一整份生成物，L_PANEL / L_FLOW / L_VCWRITE 仍是导出名。
+  const locUrl = (f: string) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
+  const panelMod = await import(locUrl('src/client/kernel/locale-panel.js'))
+  const flowMod = await import(locUrl('src/client/kernel/locale-flow.js'))
+  // #842：写操作那一族的词条自成一个族（locale-panel 与 locale-flow 都在上限上），这里一并读真字典。
+  const vcWriteMod = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
   const L_PANEL = panelMod.L_PANEL
   const L_FLOW = flowMod.L_FLOW
   const L_VCWRITE = vcWriteMod.L_VCWRITE
