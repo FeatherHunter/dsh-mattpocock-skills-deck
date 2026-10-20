@@ -114,6 +114,15 @@ function makeScriptedGh(sink: string[]) {
     }
     if (line.indexOf('issue close') >= 0) { const t = find(a[2]); if (t) t.state = 'closed'; return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' } }
     if (line.indexOf('issue reopen') >= 0) { const t = find(a[2]); if (t) t.state = 'open'; return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' } }
+    // #1299 T8：生产代码关票后会用 gh issue view 加 --json 读回（issues-write.ts 的 closeIssueInner /
+    // reopenIssueInner），读不回来就如实判失败。夹具此前只脚本化了 issue close / reopen，这条命令一律
+    // 掉进最后那句「没脚本化」，于是 GitHub 车道的关闭永远停在「写命令成功、写后读回失败」——双轨链路的
+    // E 节点（收口关规格）也就过不了。这里按真实回包形状补上（--json 要的字段就是 row 里那几项）。
+    if (line.indexOf('issue view') === 0) {
+      const t = find(a[2])
+      if (!t) return { code: 1, stdout: '', stderr: 'no such issue' }
+      return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
+    }
     if (line.indexOf('issue edit') >= 0) {
       const t = find(a[2])
       if (!t) return { code: 1, stdout: '', stderr: 'no such issue' }

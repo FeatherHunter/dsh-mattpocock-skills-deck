@@ -11,9 +11,13 @@
 // - 注册表与 OPERATIONS 来自已转成 TS 的源文件，是强类型：
 //   假后端模块统一按 `as unknown as BackendModule` 断言（契约分区同款做法），
 //   因为它们故意返回坏形状（unsupported 桩、缺数字的 counts），本来就是要被逮住的反例。
+import * as nodeFs from 'node:fs'
+import * as nodePath from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createRegistry } from '../../../src/tracker/registry/core.js'
 import { createSnapshotComposer } from '../../../src/host/tracker/snapshot.js'
 import { OPERATIONS } from '../../../src/tracker/contract/index.ts'
+import { countMarkerLines, markerKindInHeader } from '../../../src/shared/issue-file/src/marker.ts'
 import type { BackendModule } from '../../../src/tracker/contract/backend-module.ts'
 import type { BackendContext } from '../../../src/tracker/contract/contexts.ts'
 import type { Issue } from '../../../src/tracker/contract/entities.ts'
@@ -92,6 +96,30 @@ interface PoolTicket {
   isPullRequest?: boolean
   mergedAt?: string | null
   reviews?: unknown[]
+}
+
+// #1299 T8：规格票面样本的七节正文（与设计文档 #1277 第 6 节一致）。
+const SPEC_SAMPLE_HEADINGS = ['问题陈述', '解决方案', '用户故事', '实现决策', '测试决策', '不在范围内', '补充说明']
+
+/**
+ * 规格票面样本的判据（#1299 T8）：一份合规的规格票面必须同时满足这几条硬形状；
+ * 返回空数组表示全过，否则逐条点名违规码。门禁拿它同时验「合规样本通过」与「违规样本被抓到」。
+ *
+ * 这七条不是又发明一套判据：标记位置、单例、不再写类型行、父注释指向探索地图、标签集合，
+ * 分别对应 ADR 2.1 / 2.5 与 #1277 第 2 节的约定；七节正文对应规格容器的正文形状。
+ */
+function specSampleViolations(text: unknown): string[] {
+  const raw = typeof text === 'string' ? text : ''
+  const bad: string[] = []
+  if (markerKindInHeader(raw) !== 'spec') bad.push('marker-not-in-header')
+  if (countMarkerLines(raw) !== 1) bad.push('marker-count')
+  if (/^\s*Type\s*[:：]\s*spec\s*$/im.test(raw)) bad.push('type-spec-line')
+  if (!/<!--\s*parentKey:\s*00\s*-->/.test(raw)) bad.push('parent-not-map')
+  const labelsLine = (raw.split(/\r?\n/).filter((line) => /^Labels\s*[:：]/.test(line.trim()))[0] || '').trim()
+  if (labelsLine.indexOf('ready-for-agent') < 0) bad.push('labels-not-ready')
+  if (/wayfinder:/i.test(labelsLine)) bad.push('wayfinder-label')
+  if (!SPEC_SAMPLE_HEADINGS.every((heading) => raw.indexOf('## ' + heading) >= 0)) bad.push('sections-missing')
+  return bad
 }
 
 // 注册表要一个进程级上下文，测试桩传空对象：运行时不读它，类型上断言一次。
@@ -194,6 +222,47 @@ export async function run() {
     await assert('规格填七段 sections、不混进地图五槽',
       !!sections && SPEC_KEYS.every((k) => k in sections) && !('destination' in sections) && !('fog' in sections),
       JSON.stringify(sections))
+
+    // #1299 T8：tests/tracker-contract/ 下的 spec 合规 / 违规样本必须落盘，门禁要同时「通过合规、抓到违规」。
+    const sampleDir = nodePath.join(nodePath.dirname(fileURLToPath(import.meta.url)), '..')
+    const readSample = (name: string): string => {
+      try { return nodeFs.readFileSync(nodePath.join(sampleDir, name), 'utf8') } catch (e) { return '' }
+    }
+    const specOkText = readSample('spec-合规.md')
+    const specBadText = readSample('spec-违规.md')
+    const okCodes = specSampleViolations(specOkText)
+    await assert('spec 合规样本落盘且七条形状全过', specOkText.length > 0 && okCodes.length === 0, JSON.stringify(okCodes))
+    const badCodes = specSampleViolations(specBadText)
+    const badExpected = ['marker-not-in-header', 'marker-count', 'type-spec-line', 'parent-not-map', 'wayfinder-label', 'sections-missing']
+    await assert('spec 违规样本逐条被抓到（预期至少含 ' + badExpected.join('、') + '）',
+      specBadText.length > 0 && badExpected.every((code) => badCodes.indexOf(code) >= 0), JSON.stringify(badCodes))
+    // 再把两份样本原样当「契约类型没标对的票面」喂给拼装器：合规的进容器、违规的留普通票池。
+    const sampleRows = [
+      base({ key: 'm1', type: 'map', title: 'M' }),
+      base({ key: 'k1', type: 'issue', title: '合规样本', parentKey: 'm1', body: specOkText }),
+      base({ key: 'k2', type: 'issue', title: '违规样本', parentKey: 'm1', body: specBadText }),
+    ]
+    const sampleRegistry = createRegistry(emptyCtx, { matchesTimeout: 50 })
+    sampleRegistry.register({
+      id: 'fake', label: 'fake',
+      create: () => ({ list: async () => ({ ok: true, data: sampleRows }) }),
+      matches: async () => true,
+    } as unknown as BackendModule)
+    const sampleComposer = createSnapshotComposer(sampleRegistry, { snapshotTtl: 50, depsTtl: 50 })
+    const sampleRes = await sampleComposer.composeSnapshot('fake', ref, {}) as ComposeSuccess
+    const sampleMaps = sampleRes.snapshot.maps as SnapshotMapNode[]
+    await assert('spec 合规样本当容器收进快照（契约类型是 issue、文件头标记兜底成规格）',
+      sampleRes.ok === true && sampleMaps.some((m) => m.key === 'k1' && m.type === 'spec'))
+    // 违规样本挂在 m1 下面，会作为 m1 的子票挂上去（快照的普通票池只放没挂容器的票）；
+    // 这里要断言的是「它没有被兜底成规格容器」，所以三处都查：不进 maps、挂在 m1 下、行类型仍是 issue。
+    const k2AsMap = sampleMaps.filter((m) => m.key === 'k2')[0]
+    const m1Node = sampleMaps.filter((m) => m.key === 'm1')[0]
+    const m1Tickets = (m1Node && (m1Node as unknown as { tickets?: Array<Record<string, unknown>> }).tickets) || []
+    const k2Ticket = m1Tickets.filter((t) => String(t.key) === 'k2')[0] || null
+    const k2InIssues = sampleRes.snapshot.issues.filter((i) => i.key === 'k2')[0] || null
+    const k2Kind = String((k2Ticket && k2Ticket.type) || (k2InIssues && k2InIssues.type) || '')
+    await assert('spec 违规样本不兜底成规格（没进容器，挂在 m1 下仍是普通票）',
+      !k2AsMap && !!k2Ticket && k2Kind === 'issue', JSON.stringify({ k2AsMap: !!k2AsMap, k2Ticket: !!k2Ticket, k2Kind: k2Kind }))
   }
 
   // ── 快照缓存：TTL / force / invalidate / clear ──
