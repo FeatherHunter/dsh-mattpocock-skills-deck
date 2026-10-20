@@ -108,9 +108,10 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   const thinTickets: Record<string, any>[] = []
   // 容器有两种：探索地图（type='map'）与规格/实施地图（type='spec'）。
   // 两类容器共用这一份数组（快照里仍叫 maps），客户端靠 type 字段分辨种类，不另开一个数组。
-  // 规格的识别：正常情况下由各房归一层把 type 标成 spec（GitHub 房认正文首行的隐藏标记，
+  // 规格的识别分两层：各房归一层先按票面标记把 type 标成 spec（GitHub 房认正文首行的隐藏标记，
   // 本地 Markdown 房认文件头标记，见 rooms/markdown/parse.ts）；房没标对时由本文件上面的
-  // withNormalizedType 按票面标记兜底（#1277 的 B 视图兜底；GitLab 房这一版还没接，见 #1286 设计文档 §4.1）。
+  // withNormalizedType 按票面标记兜底（#1277 的 B 视图兜底）。GitLab 房这一版还没接规格识别，
+  // 归另一张票（#326 一次会话只动一个房间）——两边不是镜像关系，别照着这边给那边「补同一份」。
   const maps = rows
     .filter((i) => i && (i.type === 'map' || i.type === 'spec'))
     .map((m) => {

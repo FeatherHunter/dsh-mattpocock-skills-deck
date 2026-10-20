@@ -12,8 +12,9 @@
  *
  * 提示词口径（#1286 拍板）：
  * - 探索地图：空态「检查」注入检查提示词；有未关「执行」注入推进式提示词；全关「完成」注入收尾提示词。
- * - 规格：空态「拆票」注入 /to-tickets 链接（正式文案归 #1281）；有未关「执行」注入通用执行模板；
- *   全关「完成」注入收尾提示词。
+ * - 规格：空态「拆票」注入 /to-tickets 链接；有未关「执行」注入 /implement-spec 链接；全关「完成」注入收尾提示词。
+ *   规格不用通用「执行这张票」模板——那个模板的正文首行是 /wayfinder，用在规格上不对。
+ *   这几条技能调用的正式文案归 #1281（提示词那条线），这里先给最小可用形态。
  */
 declare function Ic(props?: any): any;
 declare const Tip: any;
@@ -52,6 +53,9 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       } catch (e) { /* 落回老口径 */ }
     }
     if (state === 'empty') {
+      // 规格空态：注入拆票技能调用（正式文案归 #1281）。这个兜底只在 container-view.ts
+      //   不在时才会走到，口径与它保持一致。
+      if (cKind === 'spec') return '/to-tickets ' + url
       let t2 = ''
       try { t2 = inspectPrompt(st, m.number, m.title) } catch (e) {
         try {
@@ -62,6 +66,8 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       return t2
     }
     if (state === 'done') return completePrompt(st, m.number, m.title, (effStats ? effStats.total : 0), (effStats ? effStats.closed : 0))
+    // 规格未完成：注入 /implement-spec 链接；通用执行模板首行是 /wayfinder，用在规格上不对（§3.4）。
+    if (cKind === 'spec') return '/implement-spec ' + url
     return startText(st, m)
   }
   // 字色：完成态沿用今天的深绿字（#0c1a10），其余按底色深浅在深墨与白字之间择优。
@@ -73,6 +79,24 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       Ic({ n: t.icon, size: 11 }),
       h('span', null, tr(t.labelKey)),
     ])),
-    (function(){ const _u=issueUrlFor(st, m.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e: any){ e.stopPropagation(); const u=issueUrlFor(st, m.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))]) : h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))]); })(),
+    (function () {
+      // 存档链接：GitHub 票给网页链接，本地 Markdown 房给「让宿主打开这个路径」的按钮。
+      const archiveUrl = issueUrlFor(st, m.number)
+      const archiveIsHttp = /^https?:\/\//i.test(String(archiveUrl || ''))
+      const openArchive = function (e: any) {
+        e.stopPropagation()
+        const u = issueUrlFor(st, m.number)
+        if (!u) return
+        if (/^https?:\/\//i.test(String(u))) {
+          try { window.open(u, '_blank', 'noreferrer') } catch (err) {}
+        } else {
+          try { if (typeof host !== 'undefined' && host.call) host.call('wf.openPath', { path: u }) } catch (err2) {}
+        }
+      }
+      const archiveBtnStyle: any = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 }
+      return archiveIsHttp
+        ? h('a', { className: 'dsws-btn ghost', href: archiveUrl, target: '_blank', rel: 'noreferrer', style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
+        : h('button', { className: 'dsws-btn ghost', onClick: openArchive, style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
+    })(),
   ])
 }

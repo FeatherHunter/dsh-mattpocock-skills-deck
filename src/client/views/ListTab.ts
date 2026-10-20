@@ -334,7 +334,7 @@ export     const ListTab = ({ st, narrow }: any) => {
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
           kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
-          kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f87171'),
+          kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
           kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
           // #689 的 partial 状态不再单独占一格（橙色胶囊太抢眼，又长得像按钮但点不动）——
           //   改为数字右上角一颗 5px 圆点 + 悬浮说明追加一句（圆点是状态不是控件；竖条试过，太生硬）。

@@ -6,10 +6,15 @@
  * - 规格（实施地图）：type 是 spec；宿主按正文首行独占一行的隐藏标记
  *   <!-- DSH-ISSUE-KIND: spec --> 认出来（识别口径归 #1274/#1275，本票只消费结果）。
  *
+ * 认种类的顺序在宿主那边定，客户端只读它给的那一格 type。顺序按 GLOSSARY.md
+ * 「对象类型（objectKind）」词条：正文首行的隐藏标记 → 表达对象类型的标签 → 正文形状。
+ * 也就是说标记优先于标签：一张既带隐藏标记又带 wayfinder:map 标签的票按规格算。
+ * 客户端这一层不再自己判一遍「是不是容器」，一律调 containerKindOf。
+ *
  * 两种容器在面板里共用同一套行渲染与详情页骨架，差的是身份颜色、角标、
  * 三态按钮（文字、底色、注入的提示词）与计数文案。
  *
- * 为什么单独一份：容器这个词横跨列表页、详情页、KPI 统计与提示词注入。
+ * 为什么单独一份：容器这个词横跨列表页、详情页与提示词注入。
  * 各处各判一次就会出「列表说它是地图、详情说它是普通票」这种自相矛盾，
  * 所以判定、取色与提示词只在这里做一次，别处不再各写一份。
  *
@@ -18,7 +23,6 @@
  * 口径（2026-10-20 定）：不另开 specs 数组。拆开要动二十来处读点，
  * 收益只有数组名好看，代价是「列表页多一行」「实施票散成孤儿票」这类真 bug。
  */
-declare function findMapByIdentity(...args: any[]): any;
 declare function inspectPrompt(...args: any[]): string;
 declare function completePrompt(...args: any[]): string;
 declare function startText(...args: any[]): string;
@@ -36,8 +40,6 @@ export const CONTAINER_CHIP_MARKER_CLASS = 'dsws-chip-container';
 // 三态里的两枚固定色：空态橙、完成态绿；执行态按容器类型取（见 containerTriState）
 export const CONTAINER_EMPTY_COLOR = '#f59e0b';
 export const CONTAINER_DONE_COLOR = '#3fb950';
-// 被阻塞统一红（#1286 定的口径：列表行本来是红，详情页子票行的橙改成红）
-export const CONTAINER_BLOCKED_COLOR = '#f87171';
 
 /** 这张票是不是容器、是哪种容器？普通票返回 null。 */
 export const containerKindOf = function (x: any): string | null {
@@ -51,17 +53,6 @@ export const containerKindOf = function (x: any): string | null {
   return null;
 };
 
-/** 快照里的容器数组（历史名 maps）；老宿主没有快照时返回空数组。 */
-export const containersOf = function (st: any): any[] {
-  const snap: any = st && st.snapshot;
-  return (snap && Array.isArray(snap.maps)) ? snap.maps : [];
-};
-
-/** 按身份（编号 + 工作单元）在容器里找一张；找不到老实返回 null，不猜第一张。 */
-export const findContainerByIdentity = function (st: any, num: any, effortId: any): any {
-  return findMapByIdentity(containersOf(st), num, effortId);
-};
-
 /** 容器三态：没有子票 empty，还有未关子票 open，子票全关 done。
   * 判据用容器自带的 stats（与地图同形状：{ total, closed }），宿主负责算好。
   * 注意：只有 GitHub 那条通路会在宿主侧补 stats（src/host/sessionSnapshot.ts），
@@ -72,23 +63,25 @@ export const containerStateOf = function (container: any): string {
   return stats.closed === stats.total ? 'done' : 'open';
 };
 
-/** 三态按钮与编号徽章的取色与话术：探索是 检查/执行/完成，规格是 拆票/执行/完成。
-  * labelKey 与 titleKey 是词表键（由界面自己 tr() 出来），color 是按钮底色，
-  * icon 是图标名，promptKind 说明这一态该注入哪种提示词。 */
+/** 三态按钮的取色与话术：探索是 检查/执行/完成，规格是 拆票/执行/完成。
+  * labelKey 与 titleKey 是词表键（由界面自己 tr() 出来），color 是按钮底色，icon 是图标名。
+  * 点下去注入什么不在这里，见下面的 containerPromptText。 */
 export const containerTriState = function (kind: string, state: string): any {
   if (kind === 'spec') {
-    if (state === 'empty') return { labelKey: 'act.split', color: CONTAINER_EMPTY_COLOR, icon: 'branch', titleKey: 'spec.splitTitle', promptKind: 'split' };
-    if (state === 'done') return { labelKey: 'act.done', color: CONTAINER_DONE_COLOR, icon: 'check', titleKey: 'spec.doneTitle', promptKind: 'done' };
-    return { labelKey: 'act.execute', color: CONTAINER_ACCENT.spec, icon: 'play', titleKey: 'spec.executeTitle', promptKind: 'execute' };
+    if (state === 'empty') return { labelKey: 'act.split', color: CONTAINER_EMPTY_COLOR, icon: 'branch', titleKey: 'spec.splitTitle' };
+    if (state === 'done') return { labelKey: 'act.done', color: CONTAINER_DONE_COLOR, icon: 'check', titleKey: 'spec.doneTitle' };
+    return { labelKey: 'act.execute', color: CONTAINER_ACCENT.spec, icon: 'play', titleKey: 'spec.executeTitle' };
   }
-  if (state === 'empty') return { labelKey: 'act.inspect', color: CONTAINER_EMPTY_COLOR, icon: 'search', titleKey: 'map.inspectTitle', promptKind: 'inspect' };
-  if (state === 'done') return { labelKey: 'act.done', color: CONTAINER_DONE_COLOR, icon: 'check', titleKey: 'map.doneTitle', promptKind: 'done' };
-  return { labelKey: 'act.execute', color: CONTAINER_ACCENT.map, icon: 'play', titleKey: 'map.executeTitle', promptKind: 'execute' };
+  if (state === 'empty') return { labelKey: 'act.inspect', color: CONTAINER_EMPTY_COLOR, icon: 'search', titleKey: 'map.inspectTitle' };
+  if (state === 'done') return { labelKey: 'act.done', color: CONTAINER_DONE_COLOR, icon: 'check', titleKey: 'map.doneTitle' };
+  return { labelKey: 'act.execute', color: CONTAINER_ACCENT.map, icon: 'play', titleKey: 'map.executeTitle' };
 };
 
 /** 编号徽章取色：完成态绿、空态橙，未完成时按容器身份取色。
   * fallback 是调用方按老口径算出的颜色（探索地图今天走 actionColorOf），
-  * 传进来是为了让探索地图的观感一字不变。 */
+  * 传进来是为了让探索地图的观感一字不变。
+  * 注意：身份色 #1D4ED8 当 11px 小字对比度只有约 2.6:1（设计文档 §3.3 记过这笔账）；
+  * 徽章照 2026-10-20 的拍板继续用身份色，浅蓝 #93c5fd 只给角标小字。 */
 export const containerNumberColor = function (kind: string, state: string, fallback: string): string {
   if (state === 'done') return CONTAINER_DONE_COLOR;
   if (state === 'empty') return CONTAINER_EMPTY_COLOR;

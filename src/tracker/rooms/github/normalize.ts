@@ -112,7 +112,8 @@ function deriveKey(raw: unknown): string {
  *
  * 认法：正文首行去掉首尾空白后整行精确等于标记串才算数；正文别处提到这一串不算数。
  * 为什么住在房里：契约目录只放类型与常量、不放行为；能同时被两个房间引到的只有契约与内核
- * 两层，这里放房内，GitLab 房镜像一份（两个房间本来就不许互引）。
+ * 两层，所以识别判断只能各房自己写一份。这一版只有 GitHub 房实现；GitLab 房没做，归另一张票
+ * （#326 一次会话只动一个房间，两个房间本来就不许互引），别把这里当成两房共用的内核。
  */
 export function isSpecBody(body: unknown): boolean {
   if (typeof body !== 'string') return false
@@ -121,16 +122,17 @@ export function isSpecBody(body: unknown): boolean {
 }
 
 function deriveType(raw: unknown): IssueType {
-  const labels = normalizeLabels(raw)
-  // 判定顺序有红线：**标签排最前**。带 `wayfinder:map` 标签的票一律是探索地图；
-  // 规格容器绝不能带那个标签（写侧给 type==='map' 的票会自动加上它），
-  // 所以「标签与正文标记同时在场」时判成探索地图。
-  if (labels.some((l) => l.name === 'wayfinder:map')) return ISSUE_TYPE.MAP
-  const bag = asBag(raw);
-  // 后端形状明说「这是地图」的也比正文标记优先（那是显式声明，不是猜）。
-  if (bag && (bag.isMap === true || bag.type === 'map')) return ISSUE_TYPE.MAP
-  // 规格（实施地图）：正文首行独占一行的隐藏标记。
+  const bag = asBag(raw)
+  // 判定顺序的红线是**正文标记最前**，依据是 GLOSSARY.md「对象类型（objectKind）」词条：
+  // 正文首行的隐藏标记 → 表达对象类型的标签 → 正文形状，标记是唯一真源。所以一张既带标记、
+  // 又带 wayfinder:map 标签的脏票按规格算（规格本来就不许带那个标签，写侧会自动给
+  // type==='map' 的票加上它；真遇到两者同时在场，那是写侧该修的数据，不改变这里按标记认）。
   if (isSpecBody(bag && typeof bag.body === 'string' ? bag.body : '')) return ISSUE_TYPE.SPEC
+  const labels = normalizeLabels(raw)
+  // 没有标记才看标签：带 `wayfinder:map` 标签的票是探索地图。
+  if (labels.some((l) => l.name === 'wayfinder:map')) return ISSUE_TYPE.MAP
+  // 后端形状明说「这是地图」的也算（那是显式声明，不是猜）。
+  if (bag && (bag.isMap === true || bag.type === 'map')) return ISSUE_TYPE.MAP
   return ISSUE_TYPE.ISSUE
 }
 

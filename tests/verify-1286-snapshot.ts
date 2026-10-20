@@ -4,7 +4,8 @@
 // 断四件事：
 //  ① 归一层：正文首行独占一行那串隐藏标记的票，认成规格（type='spec'）；普通票仍是普通票；
 //     标记不在首行就不算（只认首行）。
-//  ② 判定的红线：标签排最前 —— 带 wayfinder:map 标签又带标记的票判成探索地图。
+//  ② 判定的红线：正文标记排最前 —— 既带标记又带 wayfinder:map 标签的票判成规格
+//     （GLOSSARY.md「对象类型」词条：标记 → 标签 → 形状，标记是唯一真源）。
 //  ③ 组装层：规格进容器数组、不进「未挂图票」那一份（漏了那处，列表页会出两行），
 //     实施票挂到规格底下；探索地图的五个槽照旧，规格不填那五个槽。
 //  ④ 规格容器带七段 sections，中英文标题都认。
@@ -70,9 +71,9 @@ async function main() {
   const notFirst = gh.normalizeIssue({ number: 102, title: '标记不在首行', body: '一段正文\n' + MARKER })
   check(notFirst.type === 'issue', '标记不在首行不算规格（只认首行、整行精确匹配）', notFirst.type)
 
-  // ② 标签优先（红线：规格绝不能带 wayfinder:map 标签）
+  // ② 正文标记优先（红线：标记是唯一真源，标签只在这张票没有标记时才看）
   const both = gh.normalizeIssue({ number: 103, title: '又标签又标记', body: SPEC_BODY, labels: [{ name: 'wayfinder:map' }] })
-  check(both.type === 'map', '标签与标记同时在场时判成探索地图（标签优先）', both.type)
+  check(both.type === 'spec', '标记与标签同时在场时判成规格（正文标记优先）', both.type)
 
   // GitLab 房这一版没有接规格识别（#1286 收回 GitLab 房改动时只改了源码，没同步这条断言；
   // 设计文档 docs/design/1286-implementation-map-visual.md 第 4.1 节把这个缺口记成「等另一张票补镜像」）。
