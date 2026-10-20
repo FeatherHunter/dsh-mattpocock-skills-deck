@@ -62,7 +62,13 @@ export const makeStore = (): any => ({
   _lastHandoffOpenTs: 0,
   // #787 待注入本会话的首条草稿（别的会话交接过来）；本会话界面取完清空。
   incomingDraft: null,
-  skillsOpen: false, skillHover: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, takeMenuOpen: false, takeMenuHover: false, takeMenuSpecHover: false, takeMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
+  skillsOpen: false, skillHover: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, takeMenuOpen: false, takeMenuHover: false, takeMenuPos: null, skillPopPos: null,
+  // #1297 入口浮层（面板页签行与状态栏胶囊共用的那一层「新建需求」浮层）：entryOpen 是否展开、
+  //   entryFrom 从哪个入口打开的（'panel' / 'statusbar'，只影响浮层朝上还是朝下弹）、
+  //   entryPos 是打开那一刻量好的视口坐标。状态住全局 store 而不是浮层组件内部，是因为两处宿主
+  //   会各自重挂（状态栏悬停菜单关闭、面板收起），浮层要由哪一处都画得出来、且同一时刻只有一层。
+  entryOpen: false, entryFrom: '', entryPos: null,
+  expTags: {}, subs: [],
   noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
   switchConfirm: null,
   gateModalOpen: false, gateSelected: null, gateLoading: false, gateError: '',

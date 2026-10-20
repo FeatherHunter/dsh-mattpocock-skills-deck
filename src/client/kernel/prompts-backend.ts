@@ -102,7 +102,7 @@ declare function issueUrlFor(...args: any[]): any
     export const MAP_EXECUTE_PROMPT = function (st: any): string { return promptTextFor(st, 'mapExecute') }
     export const COMPLETE_PROMPT = function (st: any): string { return promptTextFor(st, 'complete') }
     export const FIXATE_PROMPT = function (st: any): string { return promptTextFor(st, 'fixate') }
-    // #1281：蓝入口「写规格」的提示词取用口（与 newWayfinderPrompt 同形，{repo} 由当前工作区填）。
+    // #1297：「实施地图」卡的提示词取用口（原来是蓝入口，与 newWayfinderPrompt 同形，{repo} 由当前工作区填）。
     export const newSpecPrompt = function (st: any): string {
       const params = { repo: (typeof repoUrlFor === 'function' ? repoUrlFor(st) : (st && st.repo ? String(st.repo) : '')) }
       return promptText('newSpec', params)

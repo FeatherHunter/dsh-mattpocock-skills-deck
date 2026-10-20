@@ -244,6 +244,11 @@ export default {
     //   ⑤ 2026-09-21：把面板交给 dsh-better-sidebar 打开的那条路整段删除，设置页的「打开位置」一栏随之去掉
     //      （两条路并存时，那个插件把面板画进同一列，原生右栏引导页里会出现两枚同名入口）。
     // ==== kernel:router (spliced by build) ====
+    // #1297：入口浮层分两片 —— entryCard 只画卡面（插图、技能链、断行），entryChoice 管打开、
+    //   选卡与开新会话的拼装。两片都必须排在 leaf:tabs 与 leaf:statusBar 之前：那两处宿主拼进来时
+    //   要先拿到这两个值；entryChoice 画卡要调 entryCard，所以 entryCard 在前。
+    // ==== kernel:entryCard (spliced by build) ====
+    // ==== kernel:entryChoice (spliced by build) ====
 
     // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）
     // ==== kernel:apiNaming (spliced by build) ====

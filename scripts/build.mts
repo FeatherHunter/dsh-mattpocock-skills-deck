@@ -657,6 +657,11 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'router', file: 'src/client/kernel/router.ts' },
+  // #1297：入口浮层（一个「新建需求」入口 → 浮层里探索地图 / 实施地图两张卡）。
+  //   卡面画法（entryCard）在前，浮层与选卡接线（entryChoice）在后：后者画卡要调前者；
+  //   两片的拼接点都在 leaf:tabs / leaf:statusBar 之前（见 src/client/index.ts 的 marker 次序）。
+  { name: 'entryCard', file: 'src/client/kernel/entry-card.ts' },
+  { name: 'entryChoice', file: 'src/client/kernel/entry-choice.ts' },
 ]
 
 // ---------- 共享核心拼装（一源两物 · #265）----------

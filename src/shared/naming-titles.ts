@@ -43,8 +43,8 @@ export const NAMING_CORE_VERSION = 1
 export const SESSION_TITLE_PREFIX = '[New]'
 
 export const PLACEHOLDER_TITLES = {
-  zh: { requirement: '新建需求', bug: '新建 Bug', spec: '写规格' },
-  en: { requirement: 'New Requirement', bug: 'New Bug', spec: 'Write Spec' },
+  zh: { requirement: '新建需求', bug: '新建 Bug', spec: '实施地图' },
+  en: { requirement: 'New Requirement', bug: 'New Bug', spec: 'Impl map' },
 }
 
 // 动作中英文（用户定稿：占位加动作字，草稿落为对应动作档，不碰编号档）。八条各对应界面一个真实入口：
@@ -164,8 +164,8 @@ export function placeholderTitleFor({ type, lang }: { type: unknown; lang: unkno
     }
   }
   const bug = t.indexOf('bug') >= 0
-  // #1281：蓝入口的会话标题走独立的占位词（「写规格」/「Write Spec」），不再落回新建需求。
-  const spec = t.indexOf('spec') >= 0 || t.indexOf('写规格') >= 0
+  // #1297：实施地图那一张卡开的会话走独立的占位词（今天叫「实施地图」/「Impl map」），不再落回新建需求。
+  const spec = t.indexOf('spec') >= 0 || t.indexOf('实施地图') >= 0
   const row = placeholderRowFor(langId)
   const w = row[bug ? 'bug' : (spec ? 'spec' : 'requirement')]
   return SESSION_TITLE_PREFIX + ' ' + w
@@ -288,10 +288,10 @@ export function composeDraftTitle({ hint, lang, baselineTitle }: { hint?: unknow
     if (hit) typeTag = '[' + wordFor(langId, hit) + ']'
     else {
       const isBug = /Bug/i.test(bt)
-      const isSpec = /写规格|Write Spec/i.test(bt)
+      const isSpec = /实施地图|Impl map/i.test(bt)
       // 草稿标签与占位标题的词不同（新增需求 vs 新建需求），所以三个标签按语言列各写一份。
       if (isBug) typeTag = wordFor(langId, { zh: '[新增BUG]', en: '[New Bug]' })
-      else if (isSpec) typeTag = wordFor(langId, { zh: '[写规格]', en: '[Write Spec]' })
+      else if (isSpec) typeTag = wordFor(langId, { zh: '[实施地图]', en: '[Impl map]' })
       else typeTag = wordFor(langId, { zh: '[新增需求]', en: '[New Requirement]' })
     }
   }
@@ -302,7 +302,7 @@ export function composeDraftTitle({ hint, lang, baselineTitle }: { hint?: unknow
   // 无基线（无标签）时不去重，避免把有效线索吞掉。
   if (typeTag) {
     const condensed = String(rawHint).toLowerCase().replace(/\s+/g, '')
-    const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', '写规格', 'newrequirement', 'newbug', 'writespec',
+    const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', '实施地图', 'newrequirement', 'newbug', 'implmap',
       '诊断', '修复', '讨论', '研究', '原型', '接手', '补充', '交接', '体检',
       'diagnose', 'fix', 'discuss', 'research', 'prototype', 'handoff', 'supplement', 'health', 'healthcheck']
     if (bareWords.indexOf(condensed) >= 0) return fullPrefix

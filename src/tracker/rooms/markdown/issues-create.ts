@@ -282,7 +282,7 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
       const kindMarker=kindMarkerOf(input)
       if(kindMarker==='ticket'){
         const wantParent=(input.parentKey===undefined||input.parentKey===null)?'':String(input.parentKey).trim()
-        if(!wantParent)return failAs(ERROR_KIND.PARSE,'实施票必须挂在规格票下：建 ticket 时要给 parentKey（写规格票号，不是探索地图的 00）。','')
+        if(!wantParent)return failAs(ERROR_KIND.PARSE,'实施票必须挂在规格票下：建 ticket 时要给 parentKey（填规格票号，不是探索地图的 00）。','')
         const parentPath=await findIssueFileInEffort(ctx,{effortId},wantParent)
         if(!parentPath)return failAs(ERROR_KIND.NOTFOUND,'实施票的父票 '+wantParent+' 在这个 effort 里找不到，这次没建：先确认规格票号再试。',String(wantParent))
         const parentText=String(await readTextFile(ctx,parentPath))

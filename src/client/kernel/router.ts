@@ -202,6 +202,6 @@ export const newWayfinderText = (st: any): string => newWayfinderPrompt(st) + '\
 // #1294：bug 字段那段正文按语言链由 NEW_BUG_FIELDS_BODY() 自己取；它自带开头的两个换行
 //   （真源 config/prompts/ticket-creation.yaml 的 newBugFields 片段以 '\n\n' 开头），拼在这里不再另加。
 export const newBugWayfinderText = (st: any): string => promptText('newBugWayfinder', { repo: repoUrlFor(st) }) + NEW_BUG_FIELDS_BODY();
-// #1281：「写规格」蓝入口 —— 与「+ 新建需求」同构（新会话 + 预填 /grill-with-docs prompt）。
+// #1297：「实施地图」卡 —— 入口浮层里第二张卡（与「+ 新建需求」同构：新会话 + 预填 /grill-with-docs prompt）。
 //   面板与状态栏两处都调这一个函数，开场白因此逐字一致（#1280 验收口径）。
 export const newSpecText = (st: any): string => newSpecPrompt(st) + '\n\n' + uiText('prompt.requirementPrefix');

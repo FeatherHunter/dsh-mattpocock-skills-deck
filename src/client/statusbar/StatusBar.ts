@@ -25,6 +25,9 @@ declare function doHandoff(...args: any[]): any;
 declare function doHandoffOpen(...args: any[]): any;
 declare function ensureInjectFocusAtEnd(...args: any[]): any;
 declare function envLabel(...args: any[]): any;
+// #1297：入口浮层本体与它的打开函数住在 kernel/entry-choice.ts，状态栏与面板两处共用同一份拼装。
+declare function EntryChooser(props?: any): any;
+declare function entryChooserOpen(...args: any[]): any;
 declare function envTotal(...args: any[]): any;
 declare function guideBannerMeta(...args: any[]): any;
 declare function guideBannerParams(...args: any[]): any;
@@ -39,7 +42,6 @@ declare function isEnabled(...args: any[]): any;
 declare function loadChain(...args: any[]): any;
 declare function loadSnapshot(...args: any[]): any;
 declare function newBugWayfinderText(...args: any[]): any;
-declare function newSpecText(...args: any[]): any;
 declare function newSessionTitleNew(...args: any[]): any;
 declare function newWayfinderText(...args: any[]): any;
 declare function num(...args: any[]): any;
@@ -317,13 +319,11 @@ export const StatusBar = (props: any) => {
     h('span', { ref: takeAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showTakeMenu, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) } }, [
       h(Tip, { content: tr('nav.takeableTitle') }, seg('target', [h('span', { 'data-fold-priority': 9 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') })),
       s.takeMenuOpen ? PortalOverlay({ className: 'dsws-takemenu', onMouseEnter: function () { clearClose(takeCloseRef) }, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) }, onClick: function (e: any) { e.stopPropagation() }, style: { position: 'fixed', left: s.takeMenuPos ? s.takeMenuPos.left : 0, bottom: s.takeMenuPos ? s.takeMenuPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [
-        h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+        // #1297：悬停菜单里只留一颗「新建需求」——点它弹与面板那一排完全相同的两层卡浮层
+        //   （同一份组件、同一套开场白），浮层从下方弹出，位置按这颗菜单项自己的 rect 量。
+        h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); entryChooserOpen(s, 'statusbar', e && e.currentTarget) }, onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
           Ic({ n: 'map', size: 12, color: s.takeMenuHover ? '#d8b4fe' : ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') }),
           h('span', null, tr('nav.takeableNew')),
-        ]),
-        h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newSpecText(s), newSessionTitleNew('spec')) }, onMouseEnter: function () { if (!s.takeMenuSpecHover) { s.takeMenuSpecHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuSpecHover) { s.takeMenuSpecHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuSpecHover ? '#60a5fa' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuSpecHover ? 'rgba(96,165,250,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
-          Ic({ n: 'note', size: 12, color: s.takeMenuSpecHover ? '#93c5fd' : '#60a5fa' }),
-          h('span', null, tr('nav.takeableSpec')),
         ]),
       ]) : null,
     ]),
@@ -353,6 +353,9 @@ export const StatusBar = (props: any) => {
     h(SkillFloatList, { s: s }),
     logDotOn ? h(StatusLogDot, { s: s }) : null,
     capsuleToggle,
+    // #1297：入口浮层挂在状态栏这一层（不是悬停菜单里）：菜单随鼠标离开关门时浮层不受影响，
+    //   打开后鼠标可以自由移到浮层上选卡。
+    h(EntryChooser, { key: 'entryChooser', st: s }),
   ])
   // 状态栏后端选择与门控动作已搬 StatusBackend.js（B1 #460，纯结构；同闭包拼回直调）。
   // 以后改状态栏后端选择（setup 黄条与 gate 蓝条）的人改 StatusBackend.js，本处只留转调包装。

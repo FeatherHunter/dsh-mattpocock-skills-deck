@@ -130,7 +130,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     // 由后端这一层核对（本地 Markdown 房会读父票文件头的 spec 标记；远端后端暂时只保证显式给了父票）。
     const wantedParent = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? '' : String(a.parentKey).trim()
     if (kind === 'ticket' && !wantedParent) {
-      return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '实施票的父必须是规格票：kind=ticket 时要带 parentKey，写规格票号（不是探索地图的票号）。', { cost: { estimated: est } })
+      return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '实施票的父必须是规格票：kind=ticket 时要带 parentKey，填规格票号（不是探索地图的票号）。', { cost: { estimated: est } })
     }
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
