@@ -66,7 +66,7 @@ export const confirmOverlayGate = function(s: any, gateModules: any){
         s.gateModalOpen=false
         emit(s)
         if(typeof host!=='undefined' && host.call){
-          host.call('wf.bind', { cwd: s.cwd||'', backendId: id }).then(function(res: any){
+          host.call('wf.bind', { cwd: s.cwd||'', backendId: id, sessionId: s.sessionId || '' }).then(function(res: any){
             const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
             if(ok){
               try{ if(typeof adoptBoundRev === 'function') adoptBoundRev(s, res) }catch(eRev){}

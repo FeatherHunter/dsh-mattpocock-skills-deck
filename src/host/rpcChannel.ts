@@ -52,6 +52,25 @@ function replyEnvelope(rpcId?: any, result?: any) {
 const MANIFEST_CANDIDATES = ['../package.json', '../../package/package.json']
 const MANIFEST_NAME = 'dsh-mattpocock-skills-deck'
 let servingVersion: any = null
+let servingVersionRaw: any = null
+
+/**
+ * 读「服务这一份」的原始版本串（读不到回空串，绝不编一个）。宿主启动日志头用它，不替它加 v 前缀；
+ * 读法与缓存口径与 versionOfServingCopy 同一份清单，两处不许各读各的。
+ */
+export function readServingPackageVersion(): string {
+  if (servingVersionRaw !== null) return servingVersionRaw
+  servingVersionRaw = ''
+  for (const rel of MANIFEST_CANDIDATES) {
+    try {
+      const url = new URL(rel, import.meta.url)
+      const pkg = JSON.parse(readFileSync(url, 'utf8'))
+      const v = pkg && pkg.name === MANIFEST_NAME ? String(pkg.version || '') : ''
+      if (v) { servingVersionRaw = v; break }
+    } catch (e) { /* 读不到就试下一条；全读不到就 keep 空串 */ }
+  }
+  return servingVersionRaw
+}
 
 /**
  * 「服务这一份」的版本：本文件所在的那一份插件里 package.json 说的版本号。
@@ -64,15 +83,8 @@ let servingVersion: any = null
  */
 function versionOfServingCopy() {
   if (servingVersion !== null) return servingVersion
-  servingVersion = 'unknown'
-  for (const rel of MANIFEST_CANDIDATES) {
-    try {
-      const url = new URL(rel, import.meta.url)
-      const pkg = JSON.parse(readFileSync(url, 'utf8'))
-      const v = pkg && pkg.name === MANIFEST_NAME ? String(pkg.version || '') : ''
-      if (v) { servingVersion = 'v' + v; break }
-    } catch (e) { /* 读不到就试下一条；全读不到就 keep unknown */ }
-  }
+  const raw = readServingPackageVersion()
+  servingVersion = raw ? 'v' + raw : 'unknown'
   return servingVersion
 }
 

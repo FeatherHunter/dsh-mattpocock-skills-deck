@@ -270,7 +270,7 @@ console.log('== G R6：wf.setupLayout 写进 H、读得出来；卡片确认与�
     canonicalKey: async (c: any) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
   })
   const g1 = await api.handleSetupLayout({ cwd: ws, layout: 'multi' })
-  check(g1.ok === true && g1.layout === 'multi' && typeof g1.pickedAt === 'number', '卡片确认打过去 → 写进 H，回包带上取值与时刻 —— 实得 ' + JSON.stringify(g1))
+  check(g1.ok === false && g1.workspaceFile === 'no-channel' && /本机/.test(String(g1.error)), '文件通道不可用时卡片确认如实回失败：布局只记在本机，回包点明没写进工作区文件 —— 实得 ' + JSON.stringify(g1))
   const got = await store.getLayout(ws)
   check(got.found === true && got.layout === 'multi', 'H 里确实落下了这条（与后端记录同一种形状）')
   const g2 = await api.handleSetupLayout({ cwd: ws })

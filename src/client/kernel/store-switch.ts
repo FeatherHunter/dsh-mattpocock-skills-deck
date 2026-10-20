@@ -201,7 +201,7 @@ export const confirmSwitchConfirm = function (st: any): void {
   //   日志里既没有成功那一行也没有失败那一行，事后只能靠猜。补上与其它跨边界调用同形的两行
   //   （事件名沿用现成的 host.call / host.call.fail，不新增事件名）。
   const bindT0: number = Date.now()
-  host.call('wf.bind', { cwd: st.cwd || '', backendId: targetId }).then(function (res: any): void {
+  host.call('wf.bind', { cwd: st.cwd || '', backendId: targetId, sessionId: st.sessionId || '' }).then(function (res: any): void {
     const ok: any = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
     try {
       // 切换确认电话的客户端落地行：成功记耗时，失败记原因散列；两行都带工作区散列，方便与宿主那一行的 cwdHash 对上同一趟。

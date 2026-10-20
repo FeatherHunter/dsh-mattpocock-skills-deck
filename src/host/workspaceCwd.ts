@@ -19,6 +19,7 @@ function fileWriteReasonOf(e: any) { const s = String((e && (e.code || e.message
  */
 function bindFailAdviceOf(reason: any) {
   if (reason === 'no-permit') return '这个工作区不在本次会话允许写入的范围内'
+  if (reason === 'no-session-permit') return '宿主没拿到这次请求的会话号（或那个会话已经不在了），没法确认这次写入的许可'
   if (reason === 'readonly') return '这个工作区所在的磁盘是只读的'
   if (reason === 'no-dir') return '工作区里的 docs/agents 这个目录建不出来'
   return '写入这一步报了错'
@@ -65,7 +66,7 @@ export function createWorkspaceCwd(deps: Deps) {
   //   它回的那句「不支持」就是「我不放这份文件」的意思，按跳过处理，不当失败。
   // 放失败不影响绑定本身（用户这次是来选后端的），但**不能无声**：失败要记一条日志，并且把结果如实 放进 bind 的回包里（labelColorsFile 一项），让界面与排查的人都能看见「这次没放上、为什么」。
   //   真正要用这份文件的时候（打开改色弹窗）会再试一次，那时按写失败分档如实报「写不进去」。
-  async function placeLabelColorsFile(cwd: string, backendId: string) {
+  async function placeLabelColorsFile(cwd: string, backendId: string, args?: WfArgs) {
     if (!backendId) return { ok: true, skipped: 'not-markdown' }
     try {
       const reg = await getTrackerRegistry()
@@ -75,7 +76,7 @@ export function createWorkspaceCwd(deps: Deps) {
       const platform = await getPlatform()
       let ref = null
       try { ref = reg.describe({ cwd: cwd }, backendId) } catch (e) { ref = { backend: backendId, refId: '', name: '', url: '' } }
-      const sb = resolveSandboxPolicy(null, cwd)
+      const sb = resolveSandboxPolicy(args || null, cwd)
       const placed = await tracker.ensureLabelColorsFile(ref, opCtxFor(cwd, platform, ref, 'wf.bind', new AbortController().signal, sb.policy, sb.sessionId)) as unknown as { ok?: unknown; placed?: unknown; reason?: unknown; error?: { kind?: unknown; message?: unknown } }
       if (placed && placed.ok === true) return { ok: true, placed: placed.placed === true, reason: placed.reason || '' }
       // 后端如实回了「这件事我不做」：它的颜色存在别处，没有本地文件可放 —— 这是跳过，不是失败。
@@ -109,14 +110,14 @@ export function createWorkspaceCwd(deps: Deps) {
       let workspaceFile = null
       try { workspaceFile = await writeWorkspaceRecord(cwd, backendId, args) } catch (eW) { workspaceFile = { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: msgOf(eW) } } }
       if (!workspaceFile || workspaceFile.ok !== true) {
-        const why = (workspaceFile && workspaceFile.error) || null
+        const why = (workspaceFile && workspaceFile.error) || null; const _whyCode = ((why && (why as any).reason) === 'no-permit' && !resolveSandboxPolicy(args, cwd).policy) ? 'no-session-permit' : ((why && (why as any).reason) || 'other')
         // 失败分支原因必须进日志：以前这里只记固定散列 bind-file-not-written，分不出没许可、只读、没目录三档。
-        // 现在把四档原因码记进 errorKind，把工作区散列记进 cwdHash，错误散列里再带上有无会话政策，方便分组比对。
-        try { if (logCtx && typeof logCtx.fire === 'function') { const _reason = (why && (why as any).reason) || 'other'; logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.workspaceFile', kind: 'bind', errorHash: hash8(_reason + ':' + msgOf(why && (why as any).message ? (why as any).message : why).slice(0, 80)), cwdHash: hash8(String(cwd)), errorKind: _reason }) } } catch (eL) {}
+        // 现在把原因码记进 errorKind（比四档多一格 no-session-permit：这次没拿到会话许可，不是磁盘不让写），把工作区散列记进 cwdHash。
+        try { if (logCtx && typeof logCtx.fire === 'function') { const _reason = _whyCode; logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.workspaceFile', kind: 'bind', errorHash: hash8(_reason + ':' + msgOf(why && (why as any).message ? (why as any).message : why).slice(0, 80)), cwdHash: hash8(String(cwd)), errorKind: _reason }) } } catch (eL) {}
         return {
           ok: false, kind: 'workspace-file-failed', cwd: cwd, backendId: backendId, workspaceFile: workspaceFile,
-          errorKind: (why && why.reason) || 'other',
-          error: '这次没能把选择写进这个工作区里的配置文件（' + bindFailAdviceOf(why && why.reason) + '），所以这次选择没有生效。请确认这个目录可以写，然后重新选一次。',
+          errorKind: _whyCode,
+          error: '这次没能把选择写进这个工作区里的配置文件（' + bindFailAdviceOf(_whyCode) + '），所以这次选择没有生效。请确认这个目录可以写，然后重新选一次。',
         }
       }
       // 落到这里才算生效：清三处缓存，顺手放配色文件，再补一份本机记忆（H）——H 只是「文件万一被删还能再生成一次」的备份，不参与判定。
@@ -124,7 +125,7 @@ export function createWorkspaceCwd(deps: Deps) {
       setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
       try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
       let labelColorsFile = null
-      try { labelColorsFile = await placeLabelColorsFile(cwd, backendId) } catch (e) { labelColorsFile = { ok: false, error: { kind: 'env', message: msgOf(e) } } }
+      try { labelColorsFile = await placeLabelColorsFile(cwd, backendId, args) } catch (e) { labelColorsFile = { ok: false, error: { kind: 'env', message: msgOf(e) } } }
       if (labelColorsFile && labelColorsFile.ok !== true && labelColorsFile.skipped === undefined) {
         try {
           if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'labelColors.write', { cwdHash: hash8(String(cwd)), count: 0, ok: false, reason: 'place-fail' })
@@ -161,7 +162,7 @@ export function createWorkspaceCwd(deps: Deps) {
       } catch (e) { why = fileWriteReasonOf(e) } }
     const w = (cs && typeof cs.rememberLayout === 'function') ? await cs.rememberLayout(cwd, want).catch(function () { return null }) : null
     if (why === 'written') return { ok: true, cwd: cwd, layout: want, pickedAt: (w && w.pickedAt) || 0, workspaceFile: 'written' }
-    return (w && w.ok === true) ? { ok: true, cwd: cwd, layout: want, pickedAt: w.pickedAt, workspaceFile: why } : { ok: false, cwd: cwd, error: 'not-stored' }
+    return (w && w.ok === true) ? { ok: false, cwd: cwd, layout: want, pickedAt: w.pickedAt, workspaceFile: why, error: '布局这次只记在了本机，没能写进这个工作区里的配置文件（' + (why === 'no-record' ? '文件里还没有选定后端，布局要先有后端记录才能写' : bindFailAdviceOf(why)) + '），所以换机器或清掉本机记忆后，打开这张卡还会再问一次。' } : { ok: false, cwd: cwd, error: 'not-stored' }
   }
   // #1138：这一条答的是「哪些工作区已经选过后端，各选的是谁」。
   //   以前它读的是注册表里那份进程内副本（`reg.allBindings()`），重启就没、别的窗口也看不见；
@@ -277,6 +278,7 @@ export function createWorkspaceCwd(deps: Deps) {
     if (!backendId || typeof backendId !== 'string' || backendId.trim() === '') {
       return { ok: false, error: { kind: 'env', reason: 'other', message: '内部调用没给后端名，这次没有写工作区文件。' } }
     }
+    const sb = resolveSandboxPolicy(args, cwd)
     let fsSvc: FsSvc | null = null
     try {
       const platform = await getPlatform()
@@ -301,7 +303,6 @@ export function createWorkspaceCwd(deps: Deps) {
       // 布局保留旧值（覆盖写不丢用户已选的域文档布局结论；迁移那条由调用方把记忆里的布局递进来，递了就听递的）。
       const _layout = (layout === 'single' || layout === 'multi') ? layout : existedLayout;
       const text = stringifyWorkspaceFile({ backendId: backendId, pickedAt: Date.now(), source: _source, layout: (_layout === null || _layout === undefined) ? undefined : _layout })
-      const sb = resolveSandboxPolicy(args, cwd)
       const target2 = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
       try {
         const platPath = await getPlatform().then(function (p: any) { return (p && p.path) || null }).catch(function () { return null })
@@ -318,7 +319,7 @@ export function createWorkspaceCwd(deps: Deps) {
       // 写失败是本次切换没生效的唯一判据：记四档原因码与工作区散列，错误散列里带上有无会话政策，方便分组比对。
       // 有无政策的区分意义：没政策多半是没找到归属会话（退回部署默认政策被拒），有政策仍被拒多半是会话只读或目录真不可写。
       // 注意：写成功那条路的会话政策变量只活在上面那个 try 里，catch 里看不见，这里重新算一次（纯函数，开销可忽略）。
-      try { if (logCtx && typeof logCtx.fire === 'function') { const _reason2 = fileWriteReasonOf(eW); let _hasPolicy = 'unknown-policy'; try { const _sb2 = resolveSandboxPolicy(args, cwd); _hasPolicy = (_sb2 && (_sb2 as any).policy) ? 'has-policy' : 'no-policy' } catch {} logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8(_reason2 + ':' + _hasPolicy + ':' + msgOf(eW).slice(0, 80)), cwdHash: hash8(String(cwd)), errorKind: _reason2 }) } } catch (eL) {}
+      try { if (logCtx && typeof logCtx.fire === 'function') { const _reason2 = fileWriteReasonOf(eW); const _hasPolicy = (sb && (sb as any).policy) ? 'has-policy' : 'no-policy'; logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8(_reason2 + ':' + _hasPolicy + ':' + msgOf(eW).slice(0, 80)), cwdHash: hash8(String(cwd)), errorKind: _reason2 }) } } catch (eL) {}
       return { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: '写工作区配置文件这一步出错（' + msgOf(eW).slice(0, 120) + '）。' } } }
   }
   // #1003 老用户迁移：文件缺席 + 本机记忆有 → 把记忆写进工作区文件，写成功才算迁移成。
@@ -418,13 +419,12 @@ export function createWorkspaceCwd(deps: Deps) {
       const want = pathKeyOf(cwd)
       if (!want) return []
       const prefix = want + '/'
-      const all = svc.list() || []
-      const hits = []
+      const all = svc.list() || []; const hits: any[] = []
       for (const s of all) {
-        const c = resolveSessionCwd(s) // #730：与电话体同一套取法（从前只认 header.cwd 等 2 个字段会漏读）
-        if (!c) continue
-        const k = pathKeyOf(c)
-        if (!k) continue
+        // #1305：子代理会话不算「这个工作区名下的会话」——它的权限来自父会话，不能替用户这一趟借写入许可。
+        if (s && s.header && s.header.origin === 'subagent') continue
+        const c = resolveSessionCwd(s); if (!c) continue // #730：与电话体同一套取法（从前只认 header.cwd 等 2 个字段会漏读）
+        const k = pathKeyOf(c); if (!k) continue
         if (inside) { if (k !== want && k.indexOf(prefix) === 0) hits.push(s) }
         else if (k === want) hits.push(s)
       }
@@ -440,14 +440,12 @@ export function createWorkspaceCwd(deps: Deps) {
     try {
       const svc = ctx.get('sandboxPolicy')
       if (!svc || typeof svc.resolve !== 'function') return { policy: undefined, sessionId: '' }
-      let session = sessionById(args && args.sessionId)
-      if (!session) {
+      const _sid = args && args.sessionId // #1305：调用方给了会话号就只认它；宿主不认识它当没许可，不拿「唯一活会话」顶替（顶替等于把别的会话的许可借给这次写）
+      let session = sessionById(_sid)
+      if (!session && !_sid) {
         const hits = sessionsOfWorkspace(cwd, false)
         if (hits.length === 1) session = hits[0]
-        else if (hits.length === 0) {
-          const inside = sessionsOfWorkspace(cwd, true)
-          if (inside.length === 1) session = inside[0]
-        }
+        else if (hits.length === 0) { const inside = sessionsOfWorkspace(cwd, true); if (inside.length === 1) session = inside[0] }
       }
       if (!session) return { policy: undefined, sessionId: '' } // #730：无归属会话不取默认政策，免静默落错档
       return { policy: svc.resolve({ session: session }), sessionId: session.id ? String(session.id) : '' }

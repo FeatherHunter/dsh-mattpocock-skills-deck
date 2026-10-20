@@ -70,7 +70,7 @@ export const askSelectionOnce = function (st: any): any {
     const t0: number = Date.now();
     // 跨边界调用先记一行（按需级，外层先判开关），与收到回包那一行配成一对。
     try { if (isEnabled('debug')) log('debug', 'host.call', { method: method, kind: 'selection', ok: true, latencyMs: 0 }); } catch (eL) {}
-    return host.call(method, { cwd: st.cwd }).then(function (res: any): any {
+    return host.call(method, { cwd: st.cwd, sessionId: st.sessionId || '' }).then(function (res: any): any {
       try {
         const okRes: boolean = !!(res && (res.ok === true || (res.value && res.value.ok === true)));
         if (okRes) log('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: 'selection' });

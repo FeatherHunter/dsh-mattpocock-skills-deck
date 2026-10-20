@@ -40,11 +40,15 @@ interface LogFromPackageDeps {
  * 建一份宿主日志库并拿回日志库（插件标识与电话名前缀都是 wf）。
  *
  * 为什么：日志库是宿主唯一的写日志出口，调用点只从这里拿，旧实现只读留存，真搬迁或真删除旧文件另开票。
- * 什么约定不能改：第二个参数固定是 `{ pluginId: 'wf', prefix: 'wf' }`，少了 prefix 当场抛错是上游包的行为，本文件不兜底。
+ * 什么约定不能改：第二个参数里 pluginId 与 prefix 固定是 'wf'（少了 prefix 当场抛错是上游包的行为，本文件不兜底）；
+ *   pluginVersion 是 #1305 加的第四件「环境自述」，只在读得到服务那一份的版本号时才递（读不到就不写这一格，绝不编）。
  */
 export async function createLogFromPackage(deps: LogFromPackageDeps): Promise<unknown> {
   const input: LogFromPackageDeps = deps || {}
   const mod = await import('dsh-log/host')
+  // 版本号只有一个出口（rpcChannel 的清单读取）：由装配处 index.ts 读好递进来（#1305）。
+  //   本文件不自己去 import rpcChannel —— 宿主层的同层互引被 .dependency-cruiser.ts 的 same-layer-import-host 禁着。
+  const pluginVersion = (typeof input.pluginVersion === 'string') ? input.pluginVersion : ''
   const holder: { store: unknown } = mod.createHostLog(
     {
       fs: input.fs as never,
@@ -53,7 +57,7 @@ export async function createLogFromPackage(deps: LogFromPackageDeps): Promise<un
       getPlatform: input.getPlatform as never,
       DEFAULT_CWD: input.DEFAULT_CWD as never,
     },
-    { pluginId: 'wf', prefix: 'wf' }
+    pluginVersion ? { pluginId: 'wf', prefix: 'wf', pluginVersion: pluginVersion } : { pluginId: 'wf', prefix: 'wf' }
   )
   return (holder as { store: unknown }).store
 }
