@@ -1499,7 +1499,8 @@ const contractChecksInner = function (reg, src) {
   const V_MIN = {
     // #1281：map 子票统一入口（讨论/研究/原型/执行）与完成、修复、接手三条模板重写，版本底线同步抬高；
     //   写规格入口与规格三态、实施票是新增条目，不设旧底线。
-    mapExecute: 16, complete: 12, fixate: 8, 'tpl.diagnose': 14, 'tpl.fix': 14, 'tpl.discuss': 16,
+    // #1274 收口后：完成提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有），complete 的版本底线 12 → 13。
+    mapExecute: 16, complete: 13, fixate: 8, 'tpl.diagnose': 14, 'tpl.fix': 14, 'tpl.discuss': 16,
     'tpl.research': 10, 'tpl.prototype': 10, 'tpl.takeover': 6, 'tpl.supplement': 4, 'tpl.execute': 16, mapInspect: 6, newWayfinder: 19,
     newBugWayfinder: 11,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
@@ -1612,13 +1613,17 @@ const contractChecksInner = function (reg, src) {
     if (nw.en.indexOf('## Decide the case') >= 0 || nw.en.indexOf('## Self-check') >= 0) fail('newWayfinder en 不该再复述 wayfinder 建图步骤（#1281）')
   }
   // complete（#1281：自包含格式 + 按 wayfinder 核对完成 + 手动交棒 /to-spec → /to-tickets，进度记回 map 正文）
+  //   #1274 收口后补「先判断」节：按当前状态走分支，已交过棒的步骤跳过，不需要接着做时不生成规格、也不拆任何 ticket。
   const co = reg['complete']
   if (co) {
-    if (co.version < 12) fail('complete 版本号未 bump（期望 ≥ v12）')
     if (co.zh.indexOf('/wayfinder') !== 0) fail('complete zh 首行必须是 /wayfinder（#1281 自包含格式）')
     if (co.zh.indexOf('{url}') < 0) fail('complete zh 缺第二行链接占位符 {url}（#1281 自包含格式）')
     if (co.zh.indexOf('- [ ]') < 0) fail('complete zh 缺清单标记 - [ ]（A★ 清单式）')
     if (co.zh.indexOf('## 完成核对') < 0 || co.zh.indexOf('## 交棒') < 0 || co.zh.indexOf('## 收尾') < 0) fail('complete zh 缺清单段标题（完成核对/交棒/收尾）')
+    if (co.zh.indexOf('## 先判断') < 0) fail('complete zh 缺「先判断」节（#1274：探索结论需不需要接着做）')
+    if (co.zh.indexOf('不生成规格') < 0 || co.zh.indexOf('这一种情况走完就结束') < 0) fail('complete zh 分岔节缺「不需要接着做」那一支（不生成规格、记结论后关闭、走完即止）')
+    if (co.zh.indexOf('做完的跳过') < 0) fail('complete zh 缺「先读正文里的进度、做完的步骤跳过」那一步（#1274：已交过棒的地图不该被再次要求 /to-spec）')
+    if (co.zh.indexOf('两种都有') < 0 || co.zh.indexOf('核对不通过') < 0) fail('complete zh 分岔节缺「两种都有」「核对不通过」两个分支（#1274）')
     if (co.zh.indexOf('|') >= 0) fail('complete zh 含表格 |（已约定无表格，全勾选框）')
     if (co.zh.indexOf('子票') >= 0 || co.zh.indexOf('票') >= 0) fail('complete zh 专业术语未用英文（子票/票 → sub-issue/ticket）')
     if (co.zh.indexOf('/to-spec') < 0 || co.zh.indexOf('/to-tickets') < 0) fail('complete zh 缺交棒两步（/to-spec → /to-tickets）')
@@ -1630,6 +1635,10 @@ const contractChecksInner = function (reg, src) {
     if (co.en.indexOf('Approach tasks from first principles') >= 0) fail('complete en 残留 guide 引导句（#77 已删）')
     if (co.en.indexOf('- [ ]') < 0) fail('complete en 缺清单标记 - [ ]')
     if (co.en.indexOf('## Completion check') < 0 || co.en.indexOf('## Handoff') < 0 || co.en.indexOf('## Wrap-up') < 0) fail('complete en 缺清单段标题')
+    if (co.en.indexOf('## First check') < 0) fail('complete en 缺「First check」节（探索结论需不需要接着做，对应中文「先判断」）')
+    if (co.en.indexOf('do not create a spec') < 0 || co.en.indexOf('this branch ends here') < 0) fail('complete en 分岔节缺「不需要接着做」那一支（不生成规格、记结论后关闭、走完即止）')
+    if (co.en.indexOf('do not re-advise') < 0) fail('complete en 缺「先读正文里的进度、做完的步骤跳过」那一步（对应中文的完成核对首条）')
+    if (co.en.indexOf('Both: part of it needs building') < 0 || co.en.indexOf('Check not passed') < 0) fail('complete en 岔节缺「两种都有」「核对不通过」两个分支（对应中文同名两条）')
     if (co.en.indexOf('## Tools') < 0 || co.en.indexOf('deck_issue_report') < 0) fail('complete en 缺工具节两行（#779）')
   } else fail('缺条目 complete')
   // handoff1/handoff2（#71）
@@ -2252,10 +2261,12 @@ const selfDigest = function () {
 //   ③ 新增四条 YAML 化产物断言（use 不进产物 / 裸 \n / 每种语言都有正文 / 占位符逐语言一一对应）；
 //   ④ L2 机械注入加「跑完真源一字不差」自检。判定强度对照表见 docs/design/1293-prompt-gate-strength.md。
 //   本文件内容变了，自摘要跟着重算。
+// #1274 收口后：探索地图「完成」提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有）——
+//   不需要接着做时不生成规格、也不拆任何 ticket。版本底线 complete 12 → 13，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '4503e349c062fd62b6d58322e75535b376ec2eadb6bf33cca27039f7142835d8',
+  'tests/verify-prompts.ts': '08de66b3fe090a53e46b403dbd61e0257904f218bbe979ab4d9f7198f69265da',
 }
 // ---- LOCK-END ----
 

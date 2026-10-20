@@ -111,7 +111,7 @@ zh:
   map.subCountCapped: 只加载了前 {n} 张
   map.subCountShort: 还有 {n} 张没取到
   map.executeTitle: 从第一性原理推进该地图，注入开始提示词
-  map.doneTitle: 核对地图是否真的走清，然后交棒 /to-spec → /to-tickets
+  map.doneTitle: 核对地图是否真的走清：需要接着做就交棒 /to-spec → /to-tickets，不需要就在正文记下结论、留评论后关闭
   map.inspectTitle: 检测空地图并补全 Destination，注入修复提示词
   detail.cmtPlaceholder: 写下评论，支持 Markdown（⌘+Enter / Ctrl+Enter 发送）
   detail.cmtSend: 发送
@@ -347,7 +347,7 @@ en:
   map.subCountCapped: only the first {n} loaded
   map.subCountShort: "{n} more not loaded"
   map.executeTitle: Advance the map from first principles, inject start prompt
-  map.doneTitle: Check the map is truly clear, then hand off /to-spec → /to-tickets
+  map.doneTitle: "Check the map is truly clear: hand off /to-spec → /to-tickets, or note the conclusion in the body and close"
   map.inspectTitle: Detect empty map and fill Destination, inject repair prompt
   detail.cmtPlaceholder: Write a comment — Markdown supported (Cmd/Ctrl+Enter to send)
   detail.cmtSend: Send

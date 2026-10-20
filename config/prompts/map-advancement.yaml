@@ -1,18 +1,25 @@
 complete:
-  version: 12
+  version: 13
   placeholders:
     - url
     - closed
     - total
-  use: map 完成态 · 按 wayfinder 技能核对探索完成，提醒用户手动 /to-spec → /to-tickets，并把交接进度记进 map 正文（#1281）
+  use: map 完成态 · 按 wayfinder 技能核对探索完成，再按当前状态走分支：已做完的交接步骤跳过；结论需要接着做就提醒手动 /to-spec → /to-tickets，不需要就在正文记下结论、留一条总结评论后关闭这张地图（#1281；#1274 收口后补分支）
   zh: |-
     /wayfinder
     {url}
 
     ## 完成核对
     按 wayfinder 技能要求，确认这张探索地图的探索任务已经真正完成。当前进度 {closed}/{total}，不要只信数字。
+    - [ ] 先读一遍 map 正文里已经记下的进度（尤其是「交棒」那几行），后面的每一步都先看是否已经做完；做完的跳过，不要重复提醒。
 
-    ## 交棒（每一步都记进这张 map 的正文，避免会话中断后接不上）
+    ## 先判断：探索结论需不需要接着做
+    - [ ] 需要接着做：要改代码、改流程、改文档，或者要拆成能做的活 → 走下面的「交棒」。
+    - [ ] 不需要接着做：结论就是最终决定（决定不做某项工作、认出某件事不必做），或者改动已经在这张 map 里做完了 → 不生成规格、也不拆任何 ticket：把结论与依据写进 map 正文（新开一节「## 探索结论」；既有决定仍只住在 decision ticket 里，正文只放一行指向对应的 decision ticket），告诉用户这张 map 到此结束，在 map 上留一条总结评论（结论与依据），然后按 wayfinder 技能规则关闭这张 map；这一种情况走完就结束，不要再提 /to-spec 与 /to-tickets。
+    - [ ] 两种都有：一部分要施工、一部分只是决定 → 分开处理，施工部分走「交棒」，决定部分写进正文。
+    - [ ] 核对不通过（还有未决事项）→ 告诉用户还差什么，回到这张 map 继续做，不要收尾关闭。
+
+    ## 交棒（只在需要接着做时走；每一步都记进这张 map 的正文，避免会话中断后接不上）
     - [ ] 确认探索完成、没有待决事项后，提醒用户手动执行一次 /to-spec，把地图结论生成规格 issue。
     - [ ] 在 map 正文记下「/to-spec：待生成」；用户回复规格 issue 编号后，改成已生成并写编号。
     - [ ] 规格 issue 明确生成后，提醒用户手动执行一次 /to-tickets，把规格 issue 拆成实施 issue。
@@ -20,6 +27,7 @@ complete:
 
     ## 收尾
     - [ ] 结束前把这次核对与交接的结论写进 map 正文；状态与实际不符（漏关 / 误开）就据实写清楚。
+    - [ ] 关闭前确认 map 上有一条总结评论（结论与交接结果），没有就补上；关闭后把结果告诉用户。
     - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
@@ -31,8 +39,15 @@ complete:
 
     ## Completion check
     Follow the wayfinder skill requirements to confirm the exploration work of this map is truly complete. Current progress {closed}/{total} — do not trust the numbers alone.
+    - [ ] First read the progress already recorded in the map body (especially the handoff lines); for every step below, check whether it is already done and skip it — do not re-advise.
 
-    ## Handoff (record every step in this map’s body so an interrupted session can resume)
+    ## First check: does the conclusion need follow-up work?
+    - [ ] Yes: code, process, or docs must change, or the conclusion must be split into actionable work → go through "Handoff" below.
+    - [ ] No: the conclusion is a final decision (deciding not to do some work, or recognizing something need not be done), or the change is already finished inside this map → do not create a spec and do not split any ticket: write the conclusion and its basis into the map body (a new section "## Conclusion"; existing decisions still live only in their decision tickets — add one line pointing to them), tell the user this map ends here, leave a summary comment with the conclusion and its basis, then close the map per the wayfinder rules; this branch ends here — do not mention /to-spec or /to-tickets.
+    - [ ] Both: part of it needs building and part is only a decision → split them: the building part goes through "Handoff", the decision part goes into the body.
+    - [ ] Check not passed (something is still undecided) → tell the user what is missing and keep working on this map; do not wrap up or close it.
+
+    ## Handoff (only when follow-up work is needed; record every step in this map’s body so an interrupted session can resume)
     - [ ] Once exploration is complete with nothing left to decide, remind the user to manually run /to-spec once to turn the map conclusion into a spec issue.
     - [ ] Record "/to-spec: pending" in the map body; when the user replies with the spec issue number, mark it created and write the number.
     - [ ] After the spec issue is created, remind the user to manually run /to-tickets once to split the spec issue into implementation issues.
@@ -40,6 +55,7 @@ complete:
 
     ## Wrap-up
     - [ ] Before finishing, write the conclusion of this check and handoff into the map body; where the recorded state does not match reality (missed close / erroneous close), say so plainly.
+    - [ ] Before closing, make sure the map has a summary comment (the conclusion and handoff result); add one if missing, and tell the user the result afterwards.
     - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
