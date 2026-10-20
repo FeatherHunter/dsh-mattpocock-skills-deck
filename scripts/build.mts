@@ -81,8 +81,12 @@ const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 //   一、手写输入的**内容**指纹与上次成功构建时一致（按内容算，不是按修改时间：只碰一下没改内容不该触发重建）；
 //   二、上次成功构建记下的每个产物**逐字节一致**且都在盘上（产物被人改过、删过、少过，一律重建）。
 // 跳过的含义是「产物与上次成功构建完全相同」，不是「构建没跑过所以结果未知」；任何输入变化都会走完整构建。
-// 命中时会把产物 mtime 提到现在：仓库里有几扇门禁（verify-ctx / verify-kernel / verify-leaves 等）
-// 用「产物比源新」判过期，产物 mtime 停在过去会让它们误报。
+//
+// 命中时**一个文件都不写**：产物一个字节不改、修改时间（mtime）保持原样，缓存文件也不重写（#1325）。
+// 以前命中会把每个产物的 mtime 提到当前，好让「产物比源新」那几扇新鲜度门禁（verify-ctx /
+// verify-kernel / verify-leaves 等）不误报；但本地以 link 方式装着的插件正被界面使用，DSH 按文件
+// 变化热更客户端产物，每次命中都把几百个产物的 mtime 提到当前，界面就跟着反复闪烁——验证链跑一次
+// 要命中十几回，面板就闪十几回。真正该换的是那几扇门禁的判据（按内容指纹，见 #1326），不是在这里提 mtime。
 //
 // 强制重建：node scripts/build.mts --force，或设 DSH_BUILD_NO_CACHE=1。
 // 缓存文件落在 node_modules/.cache/ 下（不进版本库，不会被提交）。
@@ -230,15 +234,9 @@ function tryBuildCacheHit(args: string[]): boolean {
     console.log('[build] 产物与上次成功构建不一致 → 正常构建（' + bad.join(' / ') + '）。')
     return false
   }
-  const now: Date = new Date()
-  for (const rel of Object.keys(entry.outputs)) {
-    try {
-      utimesSync(join(ROOT, rel), now, now)
-    } catch {
-      /* 提 mtime 只是为了「产物比源新」那几扇门禁，提不动不算错 */
-    }
-  }
-  console.log('[build] 输入与产物都没变 → 跳过构建（缓存命中，省下约 30 秒；要强制重建加 --force）')
+  // 命中时不写盘：产物一个字节不改、mtime 原样（理由见文件头缓存那段注释，#1325）。
+  // 这里只要「什么都不做」，就是这段逻辑想要的最终效果。
+  console.log('[build] 缓存命中：输入与产物都没变，这次没有重建、没有写任何产物文件（产物修改时间保持原样，省下约 30 秒；要强制重建加 --force）')
   printArtifactSizes(args.includes('--dev-only'), args.includes('--pkg-only'))
   console.log('[build] 构建只写仓库内产物，不碰本机已装配置')
   return true
@@ -2088,6 +2086,10 @@ console.log(`  client.js (dev)      ${out.clientDev ? read('client.js').length +
 console.log(`  host.js (dev)        ${out.hostDev ? read('host.js').length + ' bytes' : 'skipped'}`)
 console.log(`  package/lib/client.js (pkg) ${out.clientPkg ? read('package/lib/client.js').length + ' bytes' : 'skipped'}`)
 console.log(`  package/lib/index.js (pkg)  ${out.hostPkg ? read('package/lib/index.js').length + ' bytes' : 'skipped'}`)
+// 与缓存命中路径的日志分清（#1325 验收判据）：命中时打的是「缓存命中：…没有写任何产物文件」，
+// 这一行只在真构建时出现，看日志的人能直接分出「这次真的重建并写盘了」与「只是命中缓存没写盘」。
+// 带 --dev-only / --pkg-only 时只构建其中一类产物、另一类显示 skipped，所以措辞按「本次构建范围」说，不冒充全部产物。
+console.log('[build] 完整构建：本次要构建的产物已重新生成并写盘（缓存命中时整个构建跳过，产物一个字节都不会被写）')
 
 // A 自检（build 后）：产物必须带横幅
 gateBuildArtifacts()
