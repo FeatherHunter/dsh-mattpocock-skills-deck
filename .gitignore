@@ -55,6 +55,10 @@ _research/
 # values.d.ts 与上面的 values.ts 同源（同一份 KEYS，只有声明没有值）：.ts 调用方
 # import 的是 .build/shared/time-config/values.js（转译产物），tsc 靠这份声明才认得那些名字，不入库。
 /src/shared/time-config/values.d.ts
+# #1292 提示词配置同理：src/client/kernel/prompt-data.ts 是 scripts/generate-prompt-config.mts
+# 按 config/prompts/ 下的五份族 YAML 与 config/languages.yaml 现场写出的，文案只在 YAML 里有一份，不入库。
+# 全新检出上它不在，generate --check 会现场生成一次（见 scripts/generate-prompt-config.mts 头注释）。
+/src/client/kernel/prompt-data.ts
 # 共享层产物的唯一落点：仓库根的 .build/shared/ 下（2026-10-19 第三阶段）。
 #   src/shared/<域>/src/*.ts        → .build/shared/<域>/<名>.js     （域产物，由 scripts/lib/transpile-domains.mts 写）
 #   src/shared 下其余 .ts（散文件） → .build/shared/<相对路径>.js      （由 scripts/build.mts 的 shared-ts 段写）

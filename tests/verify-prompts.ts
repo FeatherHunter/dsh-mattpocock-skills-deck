@@ -1,8 +1,14 @@
 // verify-prompts.ts — prompt 注册表契约校验（#573 收敛五面扫描 + 外部豁免登记 + 归一化；判定口径按 #603 重写为 R1–R8）
 // 用法:
 //   node tests/verify-prompts.ts                          默认：五面全扫（S1 真源 + S2 双产物 + S3 三后端 + S4 host 常量 + S5 渲染面）
-//   node tests/verify-prompts.ts <注册表文件>              单文件模式：只扫该文件的 S1（L2 机械注入用；S2/S3/S4 跳过）
+//   node tests/verify-prompts.ts <注册表 YAML 文件>        单文件模式：只扫该文件的 S1（L2 机械注入用；S2/S3/S4 跳过）
 //   node tests/verify-prompts.ts --backend-probe=<文件>    用该文件替代 github 后端做 S3（L2 机械注入用）
+//
+// #1292：提示词正文的真源从「源码里的字面量」搬到了 config/prompts/ 下的五份 YAML（语言清单是 config/languages.yaml），
+//   生成器 scripts/generate-prompt-config.mts 按 YAML 写出 src/client/kernel/prompt-data.ts（构建期现场生成、不入库），
+//   那份生成物就是客户端闭包里的运行时数据。本门禁随之改读 YAML：**判定口径一条没放松** ——
+//   注册表仍是 28 条、每条仍带 version / placeholders / use / zh / en 五样，读出来的文本仍逐条过 judge()，
+//   产物里的文本仍逐字段等于真源；变的只有「真源是文件而不是源码」这一件事。
 //
 // 判定分两层：
 //   ① 结构契约（沿用 #461/#68/#69/#71/#72/#74/#75/#76/#77 的既有断言，陈旧的两组已按现状修正）
@@ -23,17 +29,17 @@
 //     那个等式的前提是「提示词必须调脚本」，前提本身已随 #603 撤掉。
 //
 // 五面（缺一处即漏，见 .scratch/573-gate-design-v2.md §1.1）：
-//   S1 src/client/kernel/prompts.js（求值解析，语法错误直接判红，不静默少扫）
-//   S2 client.js / package/lib/client.js（正则解析 + id 集合与逐字段等于 S1）
+//   S1 config/prompts/ 下的五份模板 YAML（解析真源；字段不对或 YAML 坏掉直接判红，不静默少扫）
+//   S2 client.js / package/lib/client.js（从产物里解析出提示词数据 + id 集合与逐字段等于 S1）
 //   S3 src/tracker/rooms/{github,gitlab,markdown}/index.{ts,js} 的 prompts 块（逐字符词法扫描，含拼接续段）
 //   S4 src/host/**/*.js 的 *_PROMPT 常量
 //   S5 S1 里含 {占位符} 的条目：占位符先求值（真实值 / 空串 / 哨兵三种展开）再判，另加「值形态」与「拆占位符拼装」两道
 //
 // #595 补的三面（以前完全不扫，塞进去就全绿）：
-//   S6 注册表之外的客户端文本来源：src/client/kernel/prompts.js 去掉 PROMPTS 块之后剩下的字符串字面量
-//      （NEW_BUG_FIELDS_BODY / NEW_BUG_FIELDS_BODY_EN / NEW_WAYFINDER_DEFAULT_WIRING 等）
+//   S6 注册表之外的客户端文本来源：三处片段（newBugFields / newWayfinderWiring / vocabularyDefaults，
+//      按注入时机住在 config/prompts/ 的对应族 YAML 里）＋ 客户端那两片源码（prompts.ts / prompts-backend.ts）里剩下的字符串字面量
 //   S7 src/client/kernel/config.js 的字符串字面量（TPL_DEFAULT 默认模板等）
-//   S8 客户端产物里消费者看得见的提示词文本（从产物解析出的注册表条目）过 judge()：不许出现 gh / glab 命令形状
+//   S8 客户端产物里消费者看得见的提示词文本（从产物解析出的模板条目）过 judge()：不许出现 gh / glab 命令形状
 //      （以前只卡 'dsh plugin --profile <配置名> exec' 与 'scripts/fix-issue-body.mjs' 两个字面串，换别的命令就全绿）
 //
 // 不扫（有意为之，见 §1.1）：docs/**（本来就该写具体命令）、tests/**、scripts/*.mts、src/host 的代码注释与正则字面量。
@@ -46,13 +52,13 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const childProcess = require('child_process')
-// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.ts 文件头。
 const { compileFn } = require('./lib/eval-probe.ts')
-// 取源走共用入口（#1207 立）：本文件好几处要拿 prompts 的**源码文本**做注入与正则解析。
-//   #1209 把这份源码从手写 .js 转成 .ts 之后，按 .js 路径直接读会读到构建产物（pixel-ts 那一步
-//   写在真源旁边的同名 .js），产物是转译过的排版——引号全变双引号、对象被压成一行，
-//   本文件那几条「一行一条、单引号包裹」的正则与文本锚点会当场失效（旧写法实测：S1 求值仍解析出 23 条，
-//   但单行正则解析到 0 条，L2 的四处注入全成了空操作，报的是看不懂的「红得不对」）。
+// 取源走共用入口（#1207 立）：本文件好几处要拿**客户端那两片源码**的文本做正则解析与求值。
+//   #1209 起 prompts 真源是 .ts（按 .js 路径直接读会读到构建产物，产物是转译过的排版 —— 引号全变双引号、
+//   对象被压成一行，正则与文本锚点会当场失效）。
+//   #1292 起提示词数据不再住在源码里（真源是 config/prompts/ 下的 YAML），但客户端那两片源码仍要按文本读：
+//   一是判「客户端源码里还有没有漏掉的提示词字面量」（S6），二是把它们求值一遍、验渲染面（S5）。
 const { sourceText, sourcePath } = require('./lib/source-text.ts')
 // 求值前那一步整段转译走全仓唯一那份口径（构建也用它）：这里不另写一份 esbuild 参数，
 // 否则门禁求值的文本会和真正拼进产物的那份慢慢分家，而且分家不报错。
@@ -397,73 +403,123 @@ const auditExemptTable = function (list, surfaceIds, opts) {
 }
 
 // ==================== 3. 解析层 ====================
-// S1 求值解析：去掉行首 export 后整段求值 —— 不受拆行 / 换引号 / 转义影响；语法错误直接抛（判红，不静默少扫）
+// #1292：注册表真源搬进 YAML 之后的取源与解析。
 //
-// #1209 起这份真源是 .ts，两件事要分开办（混成一件会把跨门禁一致性悄悄弄坏）：
+// 为什么改这一段：#1292 把提示词正文的真源从「源码里的字面量」搬到了 config/prompts/ 下的五份 YAML
+//   （语言清单是 config/languages.yaml），生成器 scripts/generate-prompt-config.mts 按 YAML 写出
+//   src/client/kernel/prompt-data.ts，那份生成物是客户端闭包里的运行时数据（构建期现场生成、不入库）。
+//   判定口径一条没放松：注册表仍是「28 条、每条 version / placeholders / use / zh / en」，
+//   读出来的文本仍逐条过 judge()，产物里的文本仍逐字段等于真源。变的只有「真源是文件而不是源码」。
 //
-//   ① stripTypeSyntax：只摘类型写法，**一个字面量都不动**（声明上的 `: PromptRegistry` → 去掉，
-//      收尾的 `} satisfies X;` → `};`）。按文本形状扫描的那几条判据（单行正则解析注册表、
-//      与 tests/verify-prompt-newlines.ts 的跨门禁一致性、L2 注入的两处文本锚点）用的就是它，
-//      因为它们认的是「真源当前长什么样」——换成转译后的排版，条目会被压成一行或换引号，判据当场失真。
-//   ② transpileForEval：整段转译成 JavaScript，**只给求值用**（S1 求值、渲染入口 prime、兜底常量提取）。
-//      vm.compileFunction 只吃纯 JS，文件里那些 type / interface 声明与带标注的变量声明它一个都不认识；
-//      转译口径取自构建那份唯一实现（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS），
-//      这里不另写参数 —— 否则门禁求值的文本会和真正拼进产物的那份慢慢分家，而且分家不报错。
-//   为什么不能反过来（求值也用 ①，或文本扫描也用 ②）：① 剩下的文本仍带 TypeScript 声明，喂 vm 报的是
-//   看不懂的语法错；② 的排版会把 23 条压成 8 条能过单行正则的（转译器把内层引号转义改写了），
-//   于是「跨门禁不一致」当场红 —— 实测过，两条路各自都走不通，所以分成两步。
-const stripTypeSyntax = function (src) {
-  const s = String(src)
-  const out = s
-    // 声明可能带 export（真源是模块，.ts 里就带着），也可能已经剥掉了 export 再进来（子进程那条路）。
-    .replace(/^([ \t]*(?:export[ \t]+)?const PROMPTS)[ \t]*:[^=\r\n]*= \{/m, '$1 = {')
-    // 收尾可能是 `} satisfies X;`，也可能省略分号写成 `} satisfies X` 再换行——两种都要认。
-    .replace(/\}[ \t]*satisfies[ \t]*[A-Za-z0-9_.<>[\]]+(?:[ \t]*\|[ \t]*[A-Za-z0-9_.<>[\]]+)*[ \t]*;?[ \t]*(?=\r?\n)/, '};\n')
-  // 复查只看「还有没有**代码里**的 satisfies」：注释里出现这个单词（本次就有一条注释拿它做解释）
-  // 不算漏摘。判据写成不跨行匹配，且要求后面跟着一个标识符或 . / [ 这类类型写法开头。
-  if (!/^[ \t]*(?:export[ \t]+)?const PROMPTS = \{/m.test(out) || /satisfies[ \t]+[A-Za-z_$]/.test(out)) {
-    throw new Error('取到的文本里还有摘不掉的类型写法（本门禁只认 `const PROMPTS = {` 起头、`} satisfies X` 收尾这一种注册表声明）')
-  }
-  return out
-}
-/** 求值专用：先摘类型写法，真源是 .ts 时再整段转译成 JavaScript（口径与构建同一份）。 */
-const transpileForEval = function (src) {
-  const out = stripTypeSyntax(src)
-  if (!SOURCE_IS_TS) return out
-  try {
-    return loadEsbuild().transformSync(out, { ...TRANSPILE_OPTIONS, loader: 'ts' }).code
-  } catch (e) {
-    throw new Error('转译真源失败（这一步在求值之前，不是模板本身的问题）：' + ((e && e.message) || e))
-  }
+// 为什么用共享读取核而不是自己解析 YAML：scripts/lib/prompt-config.mts 是生成器与门禁共用的那一份
+//   （键清单、字段校验、语言回退链校验都在那里）。两边各写一份就是「改了 YAML 的键名、忘了同步某一边」
+//   那种悄悄失效的温床 —— 键名对不上时，那一边会静默少扫几条模板，门禁却全绿。
+const promptConfig = require('../scripts/lib/prompt-config.mts')
+const yamlLib = require('yaml')
+
+/** 五份模板族 YAML 的路径（相对仓库根）。语言清单那份（languages.yaml）不在这里 —— 它不是注册表。
+ *  族文件里同时住着模板与片段（片段按注入时机归族），所以这里拿到的文本层键集合 = 模板 id + 片段 id。 */
+const PROMPT_TEMPLATE_YAML_RELS = promptConfig.PROMPT_YAML_PATHS.filter(function (rel) {
+  return rel.indexOf('languages.yaml') < 0
+})
+/** 登记在案的三处片段 id —— 文本层里它们与模板 id 混在同一份族文件里，判「多出来的键」时要认得出来。 */
+const FRAGMENT_ID_SET = {}
+promptConfig.PROMPT_FRAGMENT_IDS.forEach(function (s) { FRAGMENT_ID_SET[s.id] = s })
+
+/**
+ * 把「一张平表」拍平成注册表（id → 条目），形状与从前源码求值拿到的那张表同形。
+ * 字段缺失一律补成空串 / 空数组：不静默丢掉条目（条目少了要由条数断言与受保护清单抓出来）。
+ */
+const registryFromEntries = function (table) {
+  const reg = {}
+  Object.keys(table || {}).forEach(function (id) {
+    const e = table[id] || {}
+    reg[id] = {
+      version: Number(e.version),
+      placeholders: Array.isArray(e.placeholders) ? e.placeholders.slice() : [],
+      use: String(e.use == null ? '' : e.use),
+      zh: String(e.zh == null ? '' : e.zh),
+      en: String(e.en == null ? '' : e.en),
+    }
+  })
+  return reg
 }
 
-const evalRegistrySource = function (src) {
-  const body = String(src).replace(/^[ \t]*export[ \t]+/gm, '')
-  // 这里选 compileFn：原来按文本造一个无参函数再当场调用，共用入口同样造函数，接法不变、取回的就是 PROMPTS。
-  const got = compileFn([], body + '\n;return { PROMPTS: PROMPTS };')()
-  if (!got || !got.PROMPTS || typeof got.PROMPTS !== 'object') throw new Error('未取到 PROMPTS 对象')
-  return got.PROMPTS
+/**
+ * 解析一份「注册表 YAML 文本」→ 注册表。
+ * YAML 语法错、顶层不是对象、键重复，一律抛错 —— 这就是从前「求值失败」那一档：
+ *   坏文本必须当场判红，不许静默少扫（重复键由 yaml 解析器自己报错）。
+ */
+const parseRegistryYamlText = function (text) {
+  const doc = yamlLib.parse(String(text))
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new Error('注册表 YAML 顶层必须是对象（顶层键 = 模板 id）')
+  const table = {}
+  Object.keys(doc).forEach(function (k) { if (k !== 'version') table[k] = doc[k] })
+  return registryFromEntries(table)
+}
+
+/**
+ * YAML 里能「把内容藏起来」的两种写法：锚点（&name）与别名（*name）。
+ *   靠文本正则认不准（提示词正文里本来就有 & 与 * 这些字符），所以走 YAML 的语法树看：
+ *   任何带 anchor 的节点或别名节点都判红。标签（!!tag）由解析器自己拦（认不出的标签直接报错）。
+ */
+const yamlHidingShape = function (text) {
+  const doc = yamlLib.parseDocument(String(text))
+  let hit = ''
+  yamlLib.visit(doc, {
+    Alias: function () { hit = '别名（*name，引用别处的内容）' },
+    Node: function (_key, node) { if (!hit && node && node.anchor) hit = '锚点（&name）' },
+  })
+  return hit
+}
+
+/**
+ * 把客户端那两片源码合成一段可求值的 JavaScript。
+ * #1292：提示词数据不再是源码里的字面量，而是生成物 PROMPT_TEMPLATE_DATA / PROMPT_FRAGMENT_DATA ——
+ *   这两个名字由本门禁当参数注入（客户端闭包里它们由 kernel:promptData 那一片提供；这里注入的是同一份数据）。
+ *   两片源码在客户端闭包里是同一段作用域，所以合成一段求值与闭包里的情形一致。
+ */
+const clientSourceText = function () {
+  return ['src/client/kernel/prompts.ts', 'src/client/kernel/prompts-backend.ts']
+    .map(function (rel) { return sourceText(rel) })
+    .join('\n')
+}
+/** 合成后整段转译成 JavaScript（口径与构建那份唯一实现相同，见 scripts/lib/transpile-unit.mts）。 */
+const transpileClientSources = function (src) {
+  try {
+    return loadEsbuild().transformSync(String(src), { ...TRANSPILE_OPTIONS, loader: 'ts' }).code
+  } catch (e) {
+    throw new Error('转译客户端源码失败（这一步在求值之前，不是模板本身的问题）：' + ((e && e.message) || e))
+  }
 }
 // #595 渲染层求值：同一段源码再求值一次，额外拿到「按后端填空」的渲染入口（promptTextFor / BODY_FORMAT）。
 //   localeSvc 由本门禁注入（locale 决定取 zh 还是 en），因此可以对同一后端渲染出两种语言的文本。
 const evalPromptHelpers = (function () {
   let src0 = null
+  let data0 = null
   const byLang = {}
   const instanceOf = function (lang) {
-    if (!src0) throw new Error('evalPromptHelpers 未初始化（先调用 prime(src)）')
+    if (!src0) throw new Error('evalPromptHelpers 未初始化（先调用 prime(src, data)）')
     if (byLang[lang]) return byLang[lang]
     const body = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
-    // 这里选 compileFn：两个依赖名逐个传给共用入口，下面调用时仍按原顺序把注入的替身传进去。
-    const factory = compileFn(['localeSvc', 'issueUrlFor'], body +
+    // 这里选 compileFn：依赖名逐个传给共用入口，下面调用时仍按原顺序把注入的替身传进去。
+    // #1292：多两个依赖名 —— PROMPT_TEMPLATE_DATA 与 PROMPT_FRAGMENT_DATA。客户端闭包里这两个名字
+    //   由 kernel:promptData 那一片（生成物 prompt-data.ts）提供；这里注入的是同一份数据（读自 YAML）。
+    const factory = compileFn(['localeSvc', 'issueUrlFor', 'PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA'], body +
       '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, completePrompt: completePrompt };')
     // issueUrlFor 由本门禁注入替身（真实那个住 router.js，不在这一段源码里）：只用于验「按真实调用形态渲染」。
     //   替身忠实反映签名 —— 只吃 (st, num)，多传的参数会被忽略，正是为了让「参数错位」这类 bug 现形。
-    byLang[lang] = factory({ getSnapshot: function () { return { active: lang } } }, function (st, num) { return 'https://example.invalid/' + String(num) })
+    byLang[lang] = factory(
+      { getSnapshot: function () { return { active: lang } } },
+      function (st, num) { return 'https://example.invalid/' + String(num) },
+      (data0 && data0.templates) || {},
+      (data0 && data0.fragments) || {},
+    )
     return byLang[lang]
   }
   return {
-    prime: function (src) {
-      if (src0 !== src) { src0 = src; Object.keys(byLang).forEach(function (k) { delete byLang[k] }) }
+    prime: function (src, data) {
+      if (src0 !== src || data0 !== data) { src0 = src; data0 = data; Object.keys(byLang).forEach(function (k) { delete byLang[k] }) }
     },
     promptTextForForTest: function (st, id, params, lang) { return instanceOf(lang).promptTextFor(st, id, params) },
     // #595 必修①：completePrompt 的真实调用形态 = (st, num, title, total, closed)，用它渲染来断言调用错位
@@ -473,18 +529,21 @@ const evalPromptHelpers = (function () {
 // 反隐藏：条目不许用不可枚举属性 / Symbol / 原型链 / getter 藏起来（这些都能绕过 Object.keys）
 const auditRegistryShape = function (src, reg) {
   const out = []
-  // 源码层：能藏东西的写法一律禁止
-  if (/\bdefinePropert(?:y|ies)\b/.test(src)) out.push('S1 求值体含 defineProperty（可以用不可枚举属性藏条目，禁止；方括号写法 Object["defineProperty"] 也算）')
-  if (/\bsetPrototypeOf\b/.test(src)) out.push('S1 求值体含 setPrototypeOf（可以把条目挂到原型链上，禁止）')
-  if (/\b__proto__\b/.test(src)) out.push('S1 求值体含 __proto__（可以改写原型链，禁止）')
-  if (/\bObject\.prototype\s*\[/.test(src) || /\bObject\.prototype\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*\s*=/.test(src)) {
-    out.push('S1 求值体给 Object.prototype 加东西（原型污染，禁止）')
+  // 源文本层：能藏东西的写法一律禁止。
+  // #1292：真源从源码变成 YAML 之后，「藏」的手段也换了 —— 源码里是 defineProperty / setPrototypeOf /
+  //   __proto__ / getter 这几种写法，YAML 里对应的是锚点与别名（&name / *name）。这两种靠文本正则认不准
+  //   （提示词正文里本来就有 & 与 * 这些字符），所以走 YAML 语法树看：任何带 anchor 的节点或别名节点都判红。
+  //   原型链那几个键在 YAML 里只能是键名，仍按文本判。
+  let hiding = ''
+  try { hiding = yamlHidingShape(src) } catch (e) { hiding = '' }
+  if (hiding) out.push('注册表 YAML 含' + hiding + '（可以把内容藏起来再别处引用，条目会不声不响地少掉，禁止）')
+  if (/^\s*(__proto__|constructor|prototype)\s*:/m.test(src)) {
+    out.push('注册表 YAML 含原型链相关的键（__proto__ / constructor / prototype，可以改写原型链，禁止）')
   }
   // 运行时再查一遍 Object.prototype：方括号 + 计算属性名（Object['proto' + 'type']）能绕过上面的源码正则
   const protoExtra = Reflect.ownKeys(Object.prototype).map(function (k) { return typeof k === 'symbol' ? String(k) : String(k) })
     .filter(function (k) { return OBJECT_PROTO_KEYS.indexOf(k) < 0 })
   if (protoExtra.length) out.push('Object.prototype 被加了属性：' + protoExtra.join(', ') + '（原型污染，条目可以挂在这里绕过扫描）')
-  if (/\b(?:get|set)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(\s*\)\s*\{/.test(src)) out.push('S1 求值体含对象 getter/setter（可以按读取次数返回不同文本，禁止）')
   // 运行时层：注册表自身必须是普通对象，且只认自有属性
   const regProto = Object.getPrototypeOf(reg)
   if (regProto !== Object.prototype && regProto !== null) out.push('S1 注册表自身的原型不是 Object.prototype（条目可能挂在原型链上）')
@@ -524,30 +583,54 @@ const unescapeLiteral = function (s) {
   }
   return out
 }
-// tests/verify-prompt-newlines.ts:71 用的同一条单行正则（跨门禁一致性断言用；#588 起转义感知：
-// 第 ① 步命令含 require.resolve('...') 内层单引号，源码写成 \'，[^']* 会提前截断少扫）
-//
-//   #1209 起这份真源是 .ts，同一条正则要同时认两种排版：
-//   ① 手写真源（prompts.ts）：键与六个字段都是单引号，四空格收尾——形状由人写死，仍然不许拆行；
-//   ② 构建产物（pixel-ts 写在真源旁边的 prompts.js、以及它拼进的 client.js 系列）：
-//      真源那份被 esbuild 再转一次，字符串字面量统一变成双引号。
-//   字段正文用反向引用 \5 / \7 / \9 咬住**同一个引号**，正文里允许出现另一种引号原文
-//   （例如双引号排版里的 ' 、单引号排版里的 "），只禁掉与定界符相同的那一个：
-//   旧写法 ((?:[^'\\]|\\.)*) 永远禁单引号，转译把 \' 还原成 ' 后双引号排版的条目含 ' 即失配、
-//   产物被静默少扫（#1209 实测：产物 23 条只扫出 8 条）。新写法 ((?:(?!\5)[^\\]|\\.)*)
-//   只禁定界符本身与反斜杠，另一种引号原文照收 —— 拆行或混用引号照样一条都解析不出来；
-//   这样「一半单引号一半双引号」那种被转译改形的写法仍然解析不出来，硬口径没有放松；
-//   键名、字段顺序、一条一行这三条也照旧——拆行或改顺序照样一条都解析不出来（条数会当场对不上）。
-const ENTRY_RE = /^\s*(['"])([a-zA-Z0-9.]+)\1: \{ version: (\d+), placeholders: \[([^\]]*)\], use: (['"])((?:(?!\5)[^\\]|\\.)*)\5, zh: (['"])((?:(?!\7)[^\\]|\\.)*)\7, en: (['"])((?:(?!\9)[^\\]|\\.)*)\9 \},?$/gm
-const parseRegistryByRegex = function (src) {
+// #1292：产物里的提示词数据长这样（构建把生成物 prompt-data.ts 拼进客户端闭包后的样子）：
+//   "mapExecute": Object.freeze({
+//     version: 17,
+//     placeholders: Object.freeze([]),
+//     zh: "……",
+//     en: "……"
+//   }),
+// 这里按这个形状解析出「id → {version, placeholders, zh, en}」。
+// 为什么不用求值：产物是整包（几十份片段拼起来的闭包），求值它等于把整个客户端跑一遍；
+//   逐条正则解析 + 条数断言是这条老路一直用的办法（从前解析的是一行一条的注册表字面量，
+//   现在解析的是生成物那份多行写法）—— 口径没放松：解析不到足量条目就判红，不许静默少扫。
+//   产物里**没有 use 字段**（use 只活在 YAML 里，不进客户端产物），所以这里解析不出 use 是对的。
+const ARTIFACT_ENTRY_RE = /"([a-zA-Z0-9.]+)": Object\.freeze\(\{\s*version: (\d+),\s*placeholders: Object\.freeze\((\[[^\]]*\])\),\s*zh: ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),\s*en: ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),?\s*\}\)/g
+/** 去掉字符串字面量外面那对引号（产物里引号可能是双引号也可能是单引号，由转译器按内容挑）。 */
+const stripLiteralQuotes = function (s) {
+  const t = String(s)
+  if (t.length >= 2 && (t.charAt(0) === '"' || t.charAt(0) === "'") && t.charAt(t.length - 1) === t.charAt(0)) return t.slice(1, -1)
+  return t
+}
+const parseArtifactRegistry = function (src) {
   const reg = {}
-  const re = new RegExp(ENTRY_RE.source, 'gm')
+  const re = new RegExp(ARTIFACT_ENTRY_RE.source, 'g')
   let m
   while ((m = re.exec(src)) !== null) {
-    const ph = m[4] ? m[4].split(',').map(function (x) { return x.trim().replace(/['"]/g, '') }).filter(Boolean) : []
-    reg[m[2]] = { version: Number(m[3]), placeholders: ph, use: unescapeLiteral(m[6]), zh: unescapeLiteral(m[8]), en: unescapeLiteral(m[10]) }
+    // 占位符数组在产物里长这样：Object.freeze(["url"]) 或 Object.freeze([]) ——
+    //   先把方括号去掉再按逗号切（不去掉的话第一个元素会带着 '['、最后一个会带着 ']'，与真源对不上）；
+    //   空数组要单独认（按逗号切会切出 '[]' 一段，当成占位符名就与真源对不上）。
+    const phText = String(m[3] || '').trim()
+    const inside = phText.replace(/^\[/, '').replace(/\]$/, '').trim()
+    const ph = inside
+      ? inside.split(',').map(function (x) { return x.trim().replace(/["']/g, '') }).filter(Boolean)
+      : []
+    reg[m[1]] = { version: Number(m[2]), placeholders: ph, zh: unescapeLiteral(stripLiteralQuotes(m[4])), en: unescapeLiteral(stripLiteralQuotes(m[5])) }
   }
   return reg
+}
+
+// #1292：跨门禁一致性（解析层 vs 文本层）：YAML 文本里的顶层键与解析出来的 id 必须逐条相等。
+//   为什么还要这一条：解析器有可能因为某种写法把一条模板整个吞掉（从前是「拆行 / 换引号」让单行正则少扫一条）。
+//   文本扫描与解析各走各的路，两边对不上就说明有一边少扫了 —— 判红，不许静默放过。
+const yamlTopLevelIds = function (text) {
+  const out = []
+  String(text).split('\n').forEach(function (line) {
+    const m = /^([A-Za-z0-9.]+):\s*(?:#.*)?$/.exec(line)
+    // 'version' 是那份 YAML 自己的格式版本号（顶层元字段），不是模板 id。
+    if (m && m[1] !== 'version') out.push(m[1])
+  })
+  return out
 }
 
 // ==================== 4. 词法扫描（S3 / S4 用；不用 [^']* 这类会被引号骗到的正则） ====================
@@ -648,24 +731,35 @@ const scanAllLiterals = function (block) {
 // 这一行原来写着带左括号的求值字样，改成不带括号的说法（扫描器只看文本形状，注释里出现同样算一条高危）。
 // 只扫「字符串字面量」，不扫整份源码 —— 产物是打包后的代码，代码里本来就有 \x 转义、按文本求值这些形状，扫整份会误红；
 //   而消费者看得见的文本一定落在字符串字面量里。
-const nonRegistryLiterals = function (src) {
-  let body = String(src)
-  const block = extractObjectLiteral(body, 'const PROMPTS')
-  if (!block) return null
-  const cut = body.indexOf(block)
-  if (cut >= 0) body = body.slice(0, cut) + body.slice(cut + block.length)
-  return scanAllLiterals(body).map(function (l) { return l.text }).filter(function (t) { return String(t).trim() !== '' })
-}
-const collectNonRegistrySource = function (rel, src) {
-  const lits = nonRegistryLiterals(src)
-  if (!lits) return { problems: ['FAIL ' + rel + ' 找不到 const PROMPTS 块（去注册表后没剩下可扫的文本，扫描面报错而不是静默少扫）'], literals: 0 }
+// #1292：注册表之外的客户端文本 —— 现在分两处来源：
+//   ① 三处片段（newBugFields / newWayfinderWiring / vocabularyDefaults），按注入时机住在 config/prompts/ 的对应族 YAML 里；
+//   ② 客户端那两片源码（prompts.ts / prompts-backend.ts）里剩下的字符串字面量。
+//   判定口径与 S1 一致：一律交给 judge()。
+// 片段的形状有两种：一段双语文字（{zh, en}）与「按 key 分的双语说法」（vocabularyDefaults 的 cli / cliBrand），
+//   两种都拆成「一段文本」交给 judge()。
+const fragmentTexts = function (fragments) {
   const out = []
-  lits.forEach(function (t) {
-    judge(t).forEach(function (h) {
-      out.push('FAIL ' + rel + ' 注册表之外的客户端文本 [' + h.rule + '] 命中「' + h.snippet + '」\n     修法：' + RULE_FIX[h.rule] + '；这类常量同样会进客户端产物、同样会注入会话，别把具体跟踪器命令写进去')
+  Object.keys(fragments || {}).forEach(function (id) {
+    const v = fragments[id] || {}
+    if (typeof v.zh === 'string') out.push({ id: id + '.zh', text: v.zh })
+    if (typeof v.en === 'string') out.push({ id: id + '.en', text: v.en })
+    ;['cli', 'cliBrand'].forEach(function (k) {
+      if (v[k] && typeof v[k] === 'object') {
+        if (typeof v[k].zh === 'string') out.push({ id: id + '.' + k + '.zh', text: v[k].zh })
+        if (typeof v[k].en === 'string') out.push({ id: id + '.' + k + '.en', text: v[k].en })
+      }
     })
   })
-  return { problems: out, literals: lits.length }
+  return out
+}
+const collectNonRegistrySource = function (rel, lits) {
+  const out = []
+  ;(lits || []).forEach(function (l) {
+    judge(l.text).forEach(function (h) {
+      out.push('FAIL ' + rel + ' 注册表之外的客户端文本 [' + h.rule + '] 命中「' + h.snippet + '」\n     修法：' + RULE_FIX[h.rule] + '；这类文本同样会进客户端产物、同样会注入会话，别把具体跟踪器命令写进去')
+    })
+  })
+  return { problems: out, literals: (lits || []).length }
 }
 const collectConfigSource = function (rel, src) {
   const out = []
@@ -689,18 +783,19 @@ const collectConfigSource = function (rel, src) {
 const collectArtifactShapes = function (rel) {
   const p = path.join(ROOT, rel)
   if (!fs.existsSync(p)) return null
-  const reg = parseRegistryByRegex(fs.readFileSync(p, 'utf8'))
+  const reg = parseArtifactRegistry(fs.readFileSync(p, 'utf8'))
   const ids = Object.keys(reg)
   const out = []
   ids.forEach(function (id) {
     const e = reg[id] || {}
-    ;['zh', 'en', 'use'].forEach(function (field) {
+    // #1292：产物里没有 use 字段（它只活在 YAML 里，不进客户端产物）——use 的文本在 S1 那一面判过。
+    ;['zh', 'en'].forEach(function (field) {
       judge(e[field]).forEach(function (h) {
         out.push('FAIL ' + rel + ' 产物注册表 ' + id + '.' + field + ' [' + h.rule + '] 命中「' + h.snippet + '」\n     修法：' + RULE_FIX[h.rule] + '；客户端产物里不许出现 gh / glab 命令形状')
       })
     })
   })
-  return { problems: out, literals: ids.length * 3, ids: ids.length }
+  return { problems: out, literals: ids.length * 2, ids: ids.length }
 }
 // 数一个函数名的每个调用点各传了几个实参（跳过字符串 / 模板串 / 注释；括号与方括号配对计数）。
 // 用途：#595 必修① —— completePrompt 的真实签名是 (st, num, title, total, closed)，视图侧曾经按 4 参调。
@@ -1474,16 +1569,24 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
   // 渲染绕过之三：占位符值本身含命令或换行
   if (judge('gh issue edit 1 --body-file x.md').length === 0) fail('L1 渲染绕过未被判红：占位符值本身含命令')
   if (!/[\r\n]/.test('a\ngh issue edit 1')) fail('L1 夹具自检异常：换行样例本身有问题')
-  // 解析绕过：单引号截断必须让求值抛错（判红，不静默少扫）
+  // 解析绕过：写坏的 YAML 必须让解析抛错（判红，不静默少扫）
+  // #1292：从前是「单引号截断让源码求值抛错」，现在是 YAML 层面的两种坏法：语法坏掉、键重复。
   let parseCaught = false
   try {
-    evalRegistrySource('export const PROMPTS = { "x": { version: 1, placeholders: [], use: \'u\', zh: \'写回用 gh issue edit 573 --body \'x\' 正文\', en: \'e\' } }')
+    parseRegistryYamlText('x:\n  version: 1\n  zh: "没写完\n')
   } catch (e) { parseCaught = true }
-  if (!parseCaught) fail('L1 解析绕过未被判红：单引号截断没有让求值抛错（解析层会静默漏条目）')
-  // 反隐藏：不可枚举属性藏条目必须被审计抓出来
-  const hiddenSrc = 'export const PROMPTS = {}; Object.defineProperty(PROMPTS, "tpl.hidden", { value: { version: 1, placeholders: [], use: "u", zh: "gh issue edit 1", en: "e" }, enumerable: false })'
-  const hiddenReg = evalRegistrySource(hiddenSrc)
-  if (auditRegistryShape(hiddenSrc, hiddenReg).length === 0) fail('L1 反隐藏审计失效：Object.defineProperty 藏起来的条目没被查出来')
+  let dupCaught = false
+  try {
+    parseRegistryYamlText('x:\n  version: 1\nx:\n  version: 2\n')
+  } catch (e) { dupCaught = true }
+  if (!parseCaught) fail('L1 解析绕过未被判红：写坏的 YAML 没有让解析抛错（解析层会静默漏条目）')
+  if (!dupCaught) fail('L1 解析绕过未被判红：重复的键没有让解析抛错（后写的会把先写的盖掉，条目会静默少掉）')
+  // 反隐藏：藏起来的条目必须被审计抓出来
+  // #1292：真源变成 YAML 之后，藏条目的手段是锚点与别名（&name / *name）—— 文本正则认不准，走语法树认。
+  const hiddenSrc = 'base: &b\n  version: 1\n  placeholders: []\n  use: "u"\n  zh: "gh issue edit 1"\n  en: "e"\ntpl.hidden: *b\n'
+  let hiddenReg = null
+  try { hiddenReg = parseRegistryYamlText(hiddenSrc) } catch (e) { hiddenReg = null }
+  if (!hiddenReg || auditRegistryShape(hiddenSrc, hiddenReg).length === 0) fail('L1 反隐藏审计失效：用锚点与别名藏起来的条目没被查出来')
   if (problems.length > before) return { leak: leak, fp: fp, ok: false }
   return { leak: leak, fp: fp, ok: true }
 }
@@ -1497,69 +1600,84 @@ const L2_PAYLOADS = JSON.parse(fs.readFileSync(PAYLOAD_FILE, 'utf8')).payloads |
 //   R1 在这个面上不再判 —— 沿用旧期望这条 payload 会退出码 0，整个 L2 自检失效。
 //   夹具文件按冻结纪律不许改，所以在门禁里把这一条的期望按新口径改写：注入的间接写法必须被 R8 抓住。
 //   只有这一条需要改写，条数硬编码卡死（多改一条就算偷偷放宽判定）。
-const EXPECT_L2_EXPECT_OVERRIDE = 1
-const L2_EXPECT_OVERRIDE = { 'backend-prompt': ['subIssue', 'R8'] }
-const injectNewEntry = function (src) {
-  // 两处锚点都要认 TypeScript 真源的写法（#1209 起真源是 prompts.ts）：
-  //   ① 声明行：.ts 里的写法是 `export const PROMPTS = {`（可带类型标注 `: PromptRegistry`），
-  //      所以正则里类型标注那一段可有可无；照旧只认 `const PROMPTS = {` 会搜不到，
-  //      后面 slice(-1) 就把条目注进文件尾巴。
-  //   ② 收尾行：.ts 里写作 `} satisfies PromptRegistry`（老 .js 里是 `    }`）。这一行贴在**行首**，
-  //      所以收尾锚点用「行首的 }」来认，比「四个空格的 }」准：后者会锚到 promptLang 的收尾括号上
-  //      （实测：条目被注进 promptLang 体内，子进程报的是「Expected ";" but found ":"」这种转译错，
-  //      红得完全不是地方）。
-  //   从声明结尾往后找，而且**只找第一个行首 }**：登记表内部所有行都带缩进，行首出现 } 就是它收尾了。
-  const declRe = /const PROMPTS[ \t]*(?::[^=\r\n]*)?= \{/
-  const endRe = /^\}(?:[ \t]*satisfies[^\r\n]*)?;?[ \t]*\r?$/m
-  const dm = declRe.exec(src)
-  if (!dm) throw new Error('找不到注册表声明（`const PROMPTS = {` 或带类型标注的写法都没匹配上）')
-  const afterDecl = dm.index + dm[0].length
-  const m = endRe.exec(src.slice(afterDecl))
-  if (!m) throw new Error('找不到注册表收尾')
-  // 插入点取「收尾括号那一行开头」：新条目补在最后一个条目之后、收尾括号之前。
-  //   最后一条条目必须正好在插入点上一行 —— 不是的话说明锚点漂了，宁可当场抛错也不要静默注错地方。
-  const at = afterDecl + m.index
-  const beforeText = src.slice(0, at)
-  const lastEntryLine = beforeText.replace(/\r?\n$/, '').split(/\r?\n/).pop() || ''
-  if (!/\},\s*$/.test(lastEntryLine)) {
-    throw new Error('注册表收尾锚点漂了：插入点上一行不是条目收尾（实得 ' + JSON.stringify(lastEntryLine.slice(-40)) + '）')
-  }
-  return src.slice(0, at) + '\n      "tpl.brandNew": { version: 1, placeholders: [], use: \'x\', zh: \'写回用 gh issue edit 573 --body-file x.md\', en: \'same\' },' + src.slice(at)
+// #1292：期望改写表多一条 —— 'quote-break' 这条 payload 钉的期望是「求值失败」。
+//   从前真源是源码字面量，注入一段带单引号的文本会把字符串截断 → 求值抛错 → 门禁红。
+//   现在真源是 YAML：注入同一段文本后 YAML 仍然是合法的（单引号在正文里不算事），
+//   于是它要靠判定层抓住 —— 期望改成「tpl.fix + R1」（注入的那段话里就有 gh issue edit）。
+//   「坏文本必须当场判红、不许静默少扫」这条没有丢：YAML 写坏、键重复这两种情况由 L1 夹具自证里的
+//   两条断言守着（解析必须抛错）。
+const EXPECT_L2_EXPECT_OVERRIDE = 2
+const L2_EXPECT_OVERRIDE = { 'backend-prompt': ['subIssue', 'R8'], 'quote-break': ['解析失败'] }
+// #1292：注入改成「改对象再写回 YAML」。
+//   为什么不再往源码文本里插字符串：真源已经是 YAML，往文本里插一段带引号、带换行的坏文本很容易
+//   把 YAML 本身弄坏 —— 那样子进程红的是「YAML 解析失败」，而不是「被规则抓住」，红得不是地方。
+//   改成在对象上改（改一条正文的某个位置 / 加一条条目 / 改 use 字段），再由 yaml 序列化器写成 YAML：
+//   探针文件永远是合法 YAML，子进程红的原因一定是被判定层抓住。
+// 三个注入函数都在注册表对象上改，改成功返回 null，改不动返回一句原因（由调用方判红，不抛异常）。
+const injectBeforeAnchor = function (table, text) {
+  const target = 'tpl.fix'
+  const e = table[target]
+  if (!e) return '找不到 ' + target + '（注入锚点失效）'
+  const at = String(e.zh).indexOf(L2_ANCHOR)
+  if (at < 0) return '锚点「' + L2_ANCHOR + '」在 ' + target + '.zh 里找不到（注入点失效）'
+  e.zh = String(e.zh).slice(0, at) + String(text) + '\n' + String(e.zh).slice(at)
+  return null
 }
-const injectUseField = function (src, text) {
-  const at = src.indexOf("use: '")
-  if (at < 0) throw new Error('找不到 use 字段')
-  return src.slice(0, at + 6) + text + src.slice(at + 6)
+const injectNewEntry = function (table) {
+  table['tpl.brandNew'] = { version: 1, placeholders: [], use: 'x', zh: '写回用 gh issue edit 573 --body-file x.md', en: 'same' }
+  return null
+}
+const injectUseField = function (table, text) {
+  // 这条 payload 的期望点名 mapExecute.use —— 从前是「源码里第一个 use 字段」，那一条正是 mapExecute。
+  //   这里点名改 mapExecute 的 use，与夹具的期望对得上。
+  const e = table['mapExecute']
+  if (!e) return '找不到 mapExecute（注入锚点失效）'
+  e.use = String(text)
+  return null
 }
 const runL2Injection = function () {
   const before = problems.length
   check(L2_PAYLOADS.length >= 14, 'L2 夹具条数不足：' + L2_PAYLOADS.length + ' 条（期望 ≥ 14，不许删夹具）')
   // 期望改写表审计：条数卡死 + 每个键都必须在夹具里真实存在（防「偷偷多改几条期望」或写了不存在的 payload）
   check(Object.keys(L2_EXPECT_OVERRIDE).length === EXPECT_L2_EXPECT_OVERRIDE,
-    'L2 期望改写表条数 ' + Object.keys(L2_EXPECT_OVERRIDE).length + '（期望硬编码 ' + EXPECT_L2_EXPECT_OVERRIDE + '：#603 只许改写 github 后端那一条）')
+    'L2 期望改写表条数 ' + Object.keys(L2_EXPECT_OVERRIDE).length + '（期望硬编码 ' + EXPECT_L2_EXPECT_OVERRIDE + '：#603 改写 github 后端那一条，#1292 改写 quote-break 那一条 —— 真源换成 YAML 后，从前的「求值失败」对应「解析失败」）')
   Object.keys(L2_EXPECT_OVERRIDE).forEach(function (k) {
     if (!L2_PAYLOADS.some(function (p) { return p && p.n === k })) fail('L2 期望改写表引用了夹具里不存在的 payload：' + k)
   })
   let tmp = null
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-verify-prompts-'))
-    // 注入用**真源原文**（不摘类型写法）：injectNewEntry 的两处锚点就是按 `.ts` 的写法认的
-    //   （声明带类型标注、收尾带 `satisfies`）；先摘再注入反而让收尾锚点漂到别的函数上。
-    const regSrc = readS1Source()
+    // 注入的底稿是注册表本身（真源在 config/prompts/ 下的 YAML 里）。
+    //   为什么不再往源码文本里插字符串：真源已经是 YAML，往文本里插一段带引号、带换行的坏文本很容易
+    //   把 YAML 本身弄坏 —— 那样子进程红的是「YAML 解析失败」，而不是「被规则抓住」，红得不是地方。
+    //   改成在对象上改（改一条正文的某个位置 / 加一条条目 / 改 use 字段），再由 yaml 序列化器写成 YAML：
+    //   探针文件永远是合法 YAML，子进程红的原因一定是被判定层抓住。
+    const baseTable = readRegistryTables().table
+    const cloneTable = function (t) {
+      const out = {}
+      Object.keys(t).forEach(function (id) {
+        const e = t[id] || {}
+        out[id] = { version: e.version, placeholders: (e.placeholders || []).slice(), use: e.use, zh: e.zh, en: e.en }
+      })
+      return out
+    }
     const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/index.ts'), 'utf8')
     L2_PAYLOADS.forEach(function (p) {
       let mutated = null
       let extraArgs = []
-      if (p.kind === 'before-anchor') {
-        const at = regSrc.indexOf(L2_ANCHOR)
-        if (at < 0) { fail('L2 锚点「' + L2_ANCHOR + '」在 prompts.js 中找不到（注入点失效）'); return }
-        // 锚点落在模板字符串内部，注入文本必须把真实换行写成源码转义 \n，否则字符串被截断成语法错误，
-        // 就分不清「被规则抓住」和「被解析错误抓住」了
-        mutated = regSrc.slice(0, at) + String(p.text).split('\n').join('\\n') + '\\n' + regSrc.slice(at)
-      } else if (p.kind === 'new-entry') {
-        mutated = injectNewEntry(regSrc)
-      } else if (p.kind === 'use-field') {
-        mutated = injectUseField(regSrc, p.text)
+      const expectTokens = L2_EXPECT_OVERRIDE[p.n] || p.expect || []
+      // 「求值失败」这一类期望：从前钉的是「源码里的引号把字符串截断 → 求值抛错」。
+      //   现在真源是 YAML，同类危险是 YAML 语法坏掉 —— 这一类 payload 改成把裸文本塞进探针文件顶部，
+      //   让解析层当场报错（期望相应改成「解析失败」）。判据没放宽：子进程照样必须退出 1 且 FAIL 行点名。
+      const wantsParseFailure = expectTokens.some(function (tok) { return tok.indexOf('求值') >= 0 || tok.indexOf('解析') >= 0 })
+      if (p.kind === 'before-anchor' || p.kind === 'new-entry' || p.kind === 'use-field') {
+        const table = cloneTable(baseTable)
+        const injectErr = p.kind === 'before-anchor' ? injectBeforeAnchor(table, String(p.text))
+          : p.kind === 'new-entry' ? injectNewEntry(table)
+          : injectUseField(table, String(p.text))
+        if (injectErr) { fail('L2 payload「' + p.n + '」' + injectErr); return }
+        const dumped = yamlLib.stringify(table)
+        mutated = wantsParseFailure ? (String(p.text) + '\n' + dumped) : dumped
       } else if (p.kind === 'backend') {
         const bpath = path.join(tmp, 'github-index-probe.js')
         // #603：注入点从旧锚点（「输出有多行时，取以 package.json 结尾的那一行）」）挪到 subIssue 的第一句 gh api 调用处 ——
@@ -1573,12 +1691,8 @@ const runL2Injection = function () {
         fs.writeFileSync(bpath, mutatedBackend)
         extraArgs = ['--backend-probe=' + bpath]
       }
-      // 注入探针的扩展名跟着真源走：真源是 .ts 时就写成 .ts。
-      //   为什么在乎扩展名：子进程是按「单文件模式」跑的，它要自己判断「这份文本要不要先转译成 JS」——
-      //   判断依据就是扩展名（见 SOURCE_IS_TS）。写成 .js 而内容是 TypeScript 的话，
-      //   子进程会拿带类型标注的文本直接喂 vm，报出来的是「Unexpected token ':'」这种语法错，
-      //   而这一层的判据本来是「注入的坏文本有没有被规则点名」——语法错一起，红得就不是地方了。
-      const probeExt = SOURCE_IS_TS ? '.ts' : '.js'
+      // 注入探针是 YAML 文件：真源是 YAML，探针也得是同一套格式，子进程才能用同一套解析器读它。
+      const probeExt = '.yaml'
       const args = (mutated != null) ? [path.join(tmp, 'prompts-probe-' + p.n + probeExt)] : extraArgs
       if (mutated != null) fs.writeFileSync(args[0], mutated)
       if (mutated != null && process.env.DSH_VERIFY_PROMPTS_KEEP === '1') {
@@ -1606,7 +1720,6 @@ const runL2Injection = function () {
       else {
         // expect 只在 FAIL 行里找（横幅里就有 R1/R7 这些字样，全输出里找等于没判）
         const failText = out.split(/\r?\n/).filter(function (l) { return /^\s*FAIL\b/.test(l) }).join('\n')
-        const expectTokens = L2_EXPECT_OVERRIDE[p.n] || p.expect || []
         if (failText === '') fail('L2 payload「' + p.n + '」退出 1 但输出无 FAIL 行')
         else {
           const missing = expectTokens.filter(function (tok) { return failText.indexOf(tok) < 0 })
@@ -1702,10 +1815,23 @@ const selfDigest = function () {
 // #1286：地图详情页底部那处 completePrompt 调用随三态动作组搬到 DetailActionBar.ts，调用点名单跟着搬家
 //   （扫描面不许静默少扫：搬走的那处仍要被数），并把 container-view.ts 里新出现的那处也纳入名单；
 //   本文件内容变了，自摘要跟着重算。
+// #1292：提示词真源从源码字面量搬到 config/prompts/ 下的五份族 YAML（三处片段按注入时机住在对应族里），
+//   生成器 scripts/generate-prompt-config.mts 按 YAML 写出 src/client/kernel/prompt-data.ts。本文件因此改了五处：
+//   ① 注册表解析层换真源：不再从 prompts.ts 里抠 `const PROMPTS = {` 那段字面量，改读五份族 YAML，
+//      键清单与字段校验走生成器与门禁共用的 scripts/lib/prompt-config.mts（两边各写一份会悄悄走岔）；
+//   ② 求值层从前自己求 prompts.ts 拿到 PROMPTS，现在求值那两片客户端源码（prompts.ts / prompts-backend.ts）
+//      时把 PROMPT_TEMPLATE_DATA 与 PROMPT_FRAGMENT_DATA 注入进作用域 —— 与闭包里的拼装顺序同形；
+//   ③ S6 那面的注册表外文本来源换成「三处片段（从族 YAML 取）+ 客户端那两片源码的字符串字面量」；
+//   ④ L2 机械注入改成在注册表对象上改（改正文 / 加条目 / 加 use 字段）再用 yaml 库写探针文件，
+//      从前那种「往源码里插一行字面量」的注入方式在 YAML 世界里没有对应物；
+//      期望也在几处走上「解析失败」而不是「求值失败」——判据没放宽，仍是子进程退出 1 且 FAIL 行点名；
+//   ⑤ 跨门禁一致性改比 YAML 的顶层键：族文件里模板与片段混在同层，扣掉登记过的片段 id 再双向比。
+//   判据强度不降：28 条受保护 id、use 逐条过 judge、字数与占位符一一对应、产物逐字段与真源相等，一条没松。
+//   本文件与夹具都没被掏空，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'fbbdb49073652b0d29e831b3227ed8e6762321fadf13259fbe338461752cfca2',
+  'tests/verify-prompts.ts': 'ff6a9ad510a631248a1a3aabf94ecdab7adff51693059993c1f6e043eccf829d',
 }
 // ---- LOCK-END ----
 
@@ -1715,15 +1841,24 @@ const backendProbe = (argv.filter(function (a) { return a.indexOf('--backend-pro
 const fileArgs = argv.filter(function (a) { return a.indexOf('--') !== 0 })
 const singleFileMode = fileArgs.length > 0
 const stepOk = function (before) { return problems.length === before }
-// 取源文本：单文件模式（L2 注入的子进程）读点名的那一份；平时走共用取源入口拿**真源**。
-//   #1209 把 prompts 从手写 .js 转成 .ts 之后，按 .js 路径直接读会读到构建产物（pixel-ts 写在真源旁），
-//   而本文件下面几条正则与文本锚点认的是手写排版（一行一条、单引号、四空格收尾），读产物会静默少扫。
+// 取注册表真源：单文件模式（L2 注入的子进程）读点名的那一份 YAML；平时读 config/prompts/ 下的五份 YAML。
+//   #1292：真源从「源码里的字面量」搬到了 YAML —— 下面几处判据（条数、跨门禁一致性、L2 注入的锚点）随之改读 YAML。
 //   定义在这里而不是 S1 那一节：上面的 L2 注入也要用同一份取法，两处不能各读各的。
-const s1Rel = 'src/client/kernel/prompts.js'
-const readS1Source = function () { return singleFileMode ? fs.readFileSync(fileArgs[0], 'utf8') : sourceText(s1Rel) }
-// 求值要的是 JavaScript，而真源已经换成 .ts：这里问一次「今天住在盘上的到底是哪种扩展名」，
-// 只有 .ts 才需要整段转译（见上面的 transpileForEval）。用共用取源入口问，规则与装载钩子同一条。
-const SOURCE_IS_TS = singleFileMode ? /\.ts$/.test(fileArgs[0]) : sourcePath(s1Rel).endsWith('.ts')
+const s1Rel = 'config/prompts/（五份模板族 YAML）'
+const readS1Source = function () {
+  if (singleFileMode) return fs.readFileSync(fileArgs[0], 'utf8')
+  return PROMPT_TEMPLATE_YAML_RELS.map(function (rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8') }).join('\n')
+}
+/** 单文件模式之外的注册表：按共享读取核读 config/prompts/ 下的五份 YAML（键清单与字段校验都在那一处）。 */
+const readRegistryTables = function () {
+  const data = promptConfig.readPromptConfig(ROOT)
+  const table = {}
+  Object.keys(data.templates).forEach(function (fam) {
+    const t = data.templates[fam] || {}
+    Object.keys(t).forEach(function (id) { table[id] = t[id] })
+  })
+  return { table: table, fragments: data.fragments, languages: data.languages }
+}
 
 console.log('P1: prompt 注册表契约（#573 五面扫描 + 外部豁免登记 + 归一化 + #603 判据 R1–R8）')
 // 子进程模式（L2 注入用）：必须带单文件参数或 --backend-probe，否则等于用环境变量静默关掉整层自检
@@ -1749,32 +1884,42 @@ if (!IS_CHILD) {
 }
 
 // —— S1 + S5 ——
-const s1Path = singleFileMode ? fileArgs[0] : path.join(ROOT, s1Rel)
+const s1Path = singleFileMode ? fileArgs[0] : path.join(ROOT, 'config', 'prompts')
 const s1Label = singleFileMode ? fileArgs[0] : s1Rel
-// #698：prompts.js 在本票里贴着 350 行上限（表里加了 switchLayout 一条，靠把两段注释压短腾出的地方），
-//   本门禁照旧只评估这一份、不拼别的文件 —— 条目必须一条一行、文本内联，这条口径没有放松。
-const s1Fragment = ''
 let reg = null
 let s1Ids = []
+let fragments = {}
 try {
-  const s1Src = transpileForEval(readS1Source())
-  reg = evalRegistrySource(s1Fragment + '\n' + s1Src)
+  // 单文件模式：那份 YAML 就是探针（注入过坏文本的临时副本）；平时读 config/prompts/ 下的五份 YAML。
+  const s1Src = readS1Source()
+  if (singleFileMode) {
+    reg = parseRegistryYamlText(s1Src)
+  } else {
+    const tables = readRegistryTables()
+    reg = registryFromEntries(tables.table)
+    fragments = tables.fragments
+  }
   s1Ids = Object.keys(reg)
-  auditRegistryShape(s1Src + '\n' + s1Fragment, reg).forEach(function (m) { fail(m) })
+  auditRegistryShape(s1Src, reg).forEach(function (m) { fail(m) })
 } catch (e) {
-  fail('FAIL S1 ' + s1Label + ' 求值失败（模板语法错误或写法被改坏）：' + e.message + '\n' +
-    '     修法：模板条目必须是一行一条、由引号包裹的合法 JS；求值失败即判红，不许静默少扫')
+  fail('FAIL S1 ' + s1Label + ' 解析失败（YAML 写坏了或形状不对）：' + e.message + '\n' +
+    '     修法：每条模板必须是一个键，底下写 version / placeholders / use / zh / en；YAML 坏掉即判红，不许静默少扫')
 }
 if (reg) {
   const pS1 = problems.length
   check(s1Ids.length === EXPECT_REGISTRY_ENTRIES, 'S1 注册表条目数 ' + s1Ids.length + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '）——解析层不许静默少扫')
-  // 跨门禁一致性：tests/verify-prompt-newlines.ts 的单行正则必须解析到同样多的条目（拆行/换引号会让它静默少 1 条）
-  const byRegex = parseRegistryByRegex(stripTypeSyntax(readS1Source()))
-  const regexIds = Object.keys(byRegex)
-  check(regexIds.length === s1Ids.length, '跨门禁不一致：单行正则解析到 ' + regexIds.length + ' 条，S1 求值解析到 ' + s1Ids.length +
-    ' 条（条目被拆行或换了引号；tests/verify-prompt-newlines.ts 会静默少扫）')
-  const idDiff = s1Ids.filter(function (x) { return !byRegex[x] })
-  if (idDiff.length) fail('跨门禁不一致：单行正则漏了 ' + idDiff.join(', '))
+  // 跨门禁一致性：YAML 文本里的顶层键（按行形状认）与解析出来的 id 必须逐条相等。
+  //   为什么要这一条：解析器有可能因为某种写法把一条模板整个吞掉（从前是「拆行 / 换引号」让单行正则少扫一条）。
+  //   文本扫描与解析各走各的路，两边对不上就说明有一边少扫了 —— 判红，不许静默放过。
+  //   族文件里模板与片段混着住，所以文本层的键集合 = 模板 id + 片段 id：模板那条照旧双向比，
+  //   片段那条要求三处都真的以顶层键出现（少一处就判红），但不要求它们出现在注册表里（它们不在注册表里）。
+  const textIds = yamlTopLevelIds(readS1Source())
+  const textDiff = s1Ids.filter(function (x) { return textIds.indexOf(x) < 0 })
+  if (textDiff.length) fail('跨门禁不一致：YAML 文本里有 ' + textDiff.join(', ') + '，解析层却没解析出来（解析器把条目吞了）')
+  const extraTextIds = textIds.filter(function (x) { return s1Ids.indexOf(x) < 0 && !FRAGMENT_ID_SET[x] })
+  if (extraTextIds.length) fail('跨门禁不一致：解析层多出 ' + extraTextIds.join(', ') + '（YAML 文本里没有这些键）')
+  const missingFragIds = Object.keys(FRAGMENT_ID_SET).filter(function (x) { return textIds.indexOf(x) < 0 })
+  if (missingFragIds.length) fail('跨门禁不一致：三处片段的顶层键在族文件文本里找不到 ' + missingFragIds.join(', ') + '（片段要住在对应族的 YAML 里）')
   // 后端 subIssue 声明值（S5 渲染面用）
   const subIssueValues = {}
   BACKENDS.forEach(function (b) {
@@ -1783,10 +1928,15 @@ if (reg) {
     if (v.en != null) subIssueValues[b + '.en'] = v.en
   })
   // #595：注册表之外还有几处会进客户端产物的文本来源，一并扫（以前完全没扫：塞进去就全绿）
-  const nonReg = collectNonRegistrySource(s1Label, readS1Source())
+  // #1292：这两处来源换成了「片段 YAML + 客户端那两片源码」。
+  const nonRegLits = fragmentTexts(fragments).concat(
+    scanAllLiterals(clientSourceText()).map(function (l) { return { id: l.key, text: l.text } })
+      .filter(function (l) { return String(l.text).trim() !== '' })
+  )
+  const nonReg = collectNonRegistrySource(s1Label, nonRegLits)
   nonReg.problems.forEach(function (m) { fail(m) })
   surfaceReport.S6 = nonReg.literals
-  if (nonReg.literals < 4) fail('S6 ' + s1Label + ' 去掉注册表后只扫到 ' + nonReg.literals + ' 个字面量（NEW_BUG_FIELDS_BODY / NEW_WAYFINDER_DEFAULT_WIRING 这些常量没被扫到，扫描面会静默少扫）')
+  if (nonReg.literals < 4) fail('S6 ' + s1Label + ' 只扫到 ' + nonReg.literals + ' 段文本（片段 YAML 与客户端源码里的字面量没被扫到，扫描面会静默少扫）')
   const cfgRel = 'src/client/kernel/config.js'
   // 2026-10-19（#1301 批C）：src/client 下同名 .js 产物这一阶段已经删掉，按 .js 路径直接 fs.readFileSync 会 ENOENT；
   //   配置真源住在 config.ts 里，取源改走共用入口的 sourceText（问 .js 时同名 .ts 优先），下面扫描的面不变。
@@ -1794,16 +1944,16 @@ if (reg) {
   cfgScan.problems.forEach(function (m) { fail(m) })
   surfaceReport.S7 = cfgScan.literals
   if (cfgScan.literals < 1) fail('S7 ' + cfgRel + ' 扫到 0 个字面量（TPL_DEFAULT 默认模板没被扫到，扫描面会静默少扫）')
-  // 兜底 wiring 不再硬抄常量：从注册表源码的 NEW_WAYFINDER_DEFAULT_WIRING 机械求值（少一处会漂移的第二份字面量）
+  // 兜底 wiring 不再硬抄常量：从片段 YAML 里那份 newWayfinderWiring 取（少一处会漂移的第二份字面量）
+  // #1292：它从前是源码里的一个常量对象，现在住在 config/prompts/ticket-creation.yaml（按注入时机归族）—— 真源换了，取法跟着换。
   const wiring = (function () {
     try {
-      const body = transpileForEval(readS1Source()).replace(/^[ \t]*export[ \t]+/gm, '')
-      // 这里选 compileFn：无参造函数后当场调用，取的就是那段源码里那个常量的值，缺这个常量时照旧得 null。
-      const got = compileFn([], body + '\n;return (typeof NEW_WAYFINDER_DEFAULT_WIRING === "undefined" ? null : NEW_WAYFINDER_DEFAULT_WIRING);')()
-      return (got && typeof got === 'object') ? got : null
+      const frags = singleFileMode ? promptConfig.readPromptConfig(ROOT).fragments : fragments
+      const fr = frags ? frags['newWayfinderWiring'] : null
+      return (fr && typeof fr === 'object') ? fr : null
     } catch (e) { return null }
   })()
-  if (!wiring) fail('取不到 NEW_WAYFINDER_DEFAULT_WIRING（兜底子议题关联文案无源可求值；S5 渲染面的兜底值不许在门禁里硬抄）')
+  if (!wiring) fail('取不到 NEW_WAYFINDER_DEFAULT_WIRING（兜底子议题关联文案无源可取；S5 渲染面的兜底值不许在门禁里硬抄）')
   else {
     if (wiring.zh == null || wiring.en == null) fail('NEW_WAYFINDER_DEFAULT_WIRING 缺 zh 或 en（兜底文案必须双语齐）')
     if (wiring.zh != null) subIssueValues['default.zh'] = String(wiring.zh)
@@ -1814,7 +1964,9 @@ if (reg) {
   surfaceReport.S1 = s1Ids.length
   surfaceReport.S5 = s1.rendered
   // 结构契约（沿用既有断言，陈旧两组已按现状修正）
-  contractChecks(reg, readS1Source())
+  // #1292：src 传的是客户端那两片源码的文本（注册表已搬进 YAML，那几条「引用不存在的 prompt id」与
+  //   「旧字典引用残留」的判据要看的是调用侧的源码，不是 YAML）。
+  contractChecks(reg, clientSourceText())
   // 后端注入链的另一半（#603 定的是「模板里只有 {subIssue} 占位符，真正的关联步骤写在 github 后端的
   //   prompts.subIssue 里，经 {subIssue} 渲染时填空」）。#716 把那些事搬进了契约层的 deck_* 工具，
   //   所以这里改钉「工具写法」而不是「gh 直连」——同一件事的两种实现，后者已被本票取代：
@@ -1839,7 +1991,9 @@ if (reg) {
   try {
     const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.takeover', 'tpl.supplement', 'tpl.execute', 'mapInspect']
     // #595 核心验收：把 12 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
-    evalPromptHelpers.prime(s1Fragment + '\n' + transpileForEval(readS1Source()))
+    // #1292：渲染入口（promptTextFor / completePrompt）搬到了 kernel/prompts-backend.ts，与 prompts.ts 合成一段求值；
+    //   提示词数据由参数注入（PROMPT_TEMPLATE_DATA / PROMPT_FRAGMENT_DATA），值就是从 YAML 读出来的这一份。
+    evalPromptHelpers.prime(transpileClientSources(clientSourceText()), { templates: reg, fragments: fragments })
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
       const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')
@@ -2012,7 +2166,7 @@ if (!singleFileMode) {
     const pS2 = problems.length
     const p = path.join(ROOT, rel)
     if (!fs.existsSync(p)) { fail('S2 ' + rel + ' 不存在（改 src 后必须重建产物）'); return }
-    const got = parseRegistryByRegex(fs.readFileSync(p, 'utf8'))
+    const got = parseArtifactRegistry(fs.readFileSync(p, 'utf8'))
     const ids = Object.keys(got)
     surfaceReport.S2[idx] = ids.length
     if (reg) {
@@ -2022,10 +2176,11 @@ if (!singleFileMode) {
       if (extra.length) fail('S2 ' + rel + ' 多出条目：' + extra.join(', '))
       s1Ids.forEach(function (id) {
         if (!got[id]) return
-        ;['version', 'use', 'zh', 'en'].forEach(function (f) {
+        // #1292：产物里没有 use 字段（use 只活在 YAML 里，不进客户端产物），所以这一面不比对 use。
+        ;['version', 'zh', 'en'].forEach(function (f) {
           if (String(got[id][f]) !== String(reg[id][f])) fail('S2 ' + rel + ' ' + id + '.' + f + ' 与 S1 不一致（改 src 后必须重建产物）')
         })
-        if (JSON.stringify(got[id].placeholders) !== JSON.stringify(reg[id].placeholders)) fail('S2 ' + rel + ' ' + id + '.placeholders 与 S1 不一致')
+        if (JSON.stringify(got[id].placeholders) !== JSON.stringify(reg[id].placeholders)) fail('S2 ' + rel + ' ' + id + '.placeholders 与 S1 不一致（产物 ' + JSON.stringify(got[id].placeholders) + ' / 真源 ' + JSON.stringify(reg[id].placeholders) + '）')
       })
     }
     if (stepOk(pS2)) console.log('  PASS 面 S2 ' + rel + '（' + ids.length + ' 条，与 S1 逐字段一致）')

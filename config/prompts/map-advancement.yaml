@@ -1,0 +1,381 @@
+complete:
+  version: 12
+  placeholders:
+    - url
+    - closed
+    - total
+  use: map 完成态 · 按 wayfinder 技能核对探索完成，提醒用户手动 /to-spec → /to-tickets，并把交接进度记进 map 正文（#1281）
+  zh: |-
+    /wayfinder
+    {url}
+
+    ## 完成核对
+    按 wayfinder 技能要求，确认这张探索地图的探索任务已经真正完成。当前进度 {closed}/{total}，不要只信数字。
+
+    ## 交棒（每一步都记进这张 map 的正文，避免会话中断后接不上）
+    - [ ] 确认探索完成、没有待决事项后，提醒用户手动执行一次 /to-spec，把地图结论生成规格 issue。
+    - [ ] 在 map 正文记下「/to-spec：待生成」；用户回复规格 issue 编号后，改成已生成并写编号。
+    - [ ] 规格 issue 明确生成后，提醒用户手动执行一次 /to-tickets，把规格 issue 拆成实施 issue。
+    - [ ] 在 map 正文记下拆分结果；两个交接都完成后，按 wayfinder 技能规则收尾关闭这张地图。
+
+    ## 收尾
+    - [ ] 结束前把这次核对与交接的结论写进 map 正文；状态与实际不符（漏关 / 误开）就据实写清楚。
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    /wayfinder
+    {url}
+
+    ## Completion check
+    Follow the wayfinder skill requirements to confirm the exploration work of this map is truly complete. Current progress {closed}/{total} — do not trust the numbers alone.
+
+    ## Handoff (record every step in this map’s body so an interrupted session can resume)
+    - [ ] Once exploration is complete with nothing left to decide, remind the user to manually run /to-spec once to turn the map conclusion into a spec issue.
+    - [ ] Record "/to-spec: pending" in the map body; when the user replies with the spec issue number, mark it created and write the number.
+    - [ ] After the spec issue is created, remind the user to manually run /to-tickets once to split the spec issue into implementation issues.
+    - [ ] Record the split result in the map body; after both handoffs are done, wrap up and close this map per the wayfinder skill rules.
+
+    ## Wrap-up
+    - [ ] Before finishing, write the conclusion of this check and handoff into the map body; where the recorded state does not match reality (missed close / erroneous close), say so plainly.
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+fixate:
+  version: 8
+  placeholders: []
+  use: "沉淀 · 思维对齐 · 成果沉淀 · v8 #1269 加 /retro 提醒（会话任务全部完成时提醒用户执行一次，不替用户执行）"
+  zh: |-
+    告一段落。暂停推进，执行「思维对齐 · 成果沉淀」，从第一性原理出发：
+
+    ## 沉淀
+    - [ ] 全量复述：把我从会话开始到现在、我问过你并得到明确回答的内容，按五类逐条列出（每条 = 我问的问题 → 你的回答）：目的地 / 约束与偏好 / 已确认的决定 / 待决问题 / 雾区（隐约可见但还不清晰）
+    - [ ] 不压缩、不合并——宁可啰嗦不可省略；一次全部列完，不分批
+    - [ ] 每条标注出处：我的问题（短句）+ 你的原话关键短句（≤50 字，超出以省略号截断）+ 上下文提示（如主题/轮次），让我知道它来自哪
+
+    ## 可疑遗漏
+    - [ ] 单列一节「可疑遗漏」：
+      - [ ] 我问过、你已回答、但我未纳入上面清单的（第一优先级——防我漏记你已答的内容）
+      - [ ] 你提过、但我判断与主线无关 / 太模糊 / 属执行细节而未纳入的
+      - [ ] 每条写明我当时的判断理由，由你裁决纳入或放弃
+
+    ## 核对
+    - [ ] 列完（含「可疑遗漏」）后停下，等我逐条核对；我确认或修正后，你再执行落盘
+
+    ## 落盘
+    - [ ] 有明确对应 ticket（票）→ 全部成果写入该 ticket 正文的「## 对齐成果」节（新增或并入，含日期）；不写 map（地图）正文——map 是索引，成果归 ticket
+    - [ ] 无对应 ticket、但属于某 map → 写入 alignment note（对齐记录）`.scratch/alignment/<ts>-<短标题>.md`（相对当前工作目录；短标题 ≤10 字，用连字符或下划线代替空格），并在该 map 的 Notes 追加一行指针（路径 + 日期）
+    - [ ] 无 ticket 也无 map → 写入对齐记录文件，并告诉我完整路径；建图/建票时由接手会话搬入对应 ticket
+    - [ ] 属 map 层面的条目（如目的地/雾区调整）→ 照写进所选位置，条目末尾标注「map 层面，随建图搬入」
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    This phase wraps up here. Pause progress and run the "alignment & consolidation" pass, from first principles:
+
+    ## Consolidate
+    - [ ] Restate everything I have explicitly answered since this session started, in five categories (each item = my question → your answer): Destination / Constraints & preferences / Confirmed decisions / Open questions / Fog (dimly visible but not yet clear)
+    - [ ] No compression, no merging — rather verbose than omitted; list everything in one go, no batching
+    - [ ] Annotate each item with its source: my question (short) + a key quote of your original words (≤50 chars, truncate with ellipsis if longer) + a context hint (e.g. topic/turn) so I know where it came from
+
+    ## Suspected omissions
+    - [ ] Add a separate "Suspected omissions" section:
+      - [ ] Questions I asked, you answered, but I did not include above (first priority — guard against forgetting your answers)
+      - [ ] Things you mentioned but I judged off-topic, too vague, or execution detail and did not include
+      - [ ] State my judgment reason for each; you decide whether to keep or drop
+
+    ## Review
+    - [ ] Stop after listing (including "Suspected omissions") and wait for my item-by-item review; once I confirm or correct, you persist the list
+
+    ## Persist
+    - [ ] If a corresponding ticket exists → write all outcomes into that ticket body (a new or merged "## Alignment outcomes" section, with date); do not write into the map body — the map is an index, outcomes belong to the ticket
+    - [ ] If no corresponding ticket but within a map → write an alignment note to `.scratch/alignment/<ts>-<short>.md` (relative to the current working directory; short ≤20 chars, hyphen or underscore instead of spaces), and append a one-line pointer (path + date) to the map Notes
+    - [ ] If no ticket and no map → write the alignment note and tell me the full path; when a map/ticket is created, the taking-over session migrates it into the corresponding ticket
+    - [ ] Map-level items (e.g. Destination/Fog adjustments) → still write them in the chosen place, and mark the item "map-level, migrate when the map is built"
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+healthCheck:
+  version: 2
+  placeholders:
+    - subject
+  use: 「体检」按钮 · 所有后端共用的总纲（游离票归位：先出建议清单、人点头才动手）；后端自己的科目由后端声明、经 {subject} 填空
+  zh: |-
+    ## 体检（把游离的开放票归位）
+
+    这次体检的范围是**整个仓库的开放票**（不跟随面板当前的筛选）：把游离的票找出来，给你一份建议清单，你点头之后才动手。
+
+    ### 一、什么算游离
+
+    三条结构事实同时成立才算：**票未关闭**、**票自己不是地图**、**票没有父票**（不在任何地图的子票里——与列表里「独立票」的显示同一个口径）。
+
+    **不按标签排除**：写着等人动手、写着不做打算的票同样算游离。标签只在报告里用来分区。
+
+    在此之上再对每张游离票判一句「这张是不是明确可以单张票处理掉的」：是的话也可以不管它——不挂图、留在原地，只在报告里登记一行并写明理由。
+
+    ### 二、只做两件结构动作
+
+    1. 建原生子议题边：把票挂到合适的地图下。
+    2. 为人点过头的票开一张新地图。
+
+    **一律不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关闭任何票、不删评论、不改源码、不发版、不提交。清单里凡是要动其中任何一项的，都不做，改成写进建议里等人处理。
+
+    ### 三、交付形态：先出建议清单，等人点头才动手
+
+    清单必须写清每条结论：
+
+    - 这张票 → 挂到哪张地图下 + 一句话理由；
+    - 这张票 → 建议自立成一张新地图 + 一句话理由；
+    - 这张票 → 建议留在原地不动 + 一句话理由。
+
+    写完之后停下来等点头。**不要自动往票上写评论**：动手本身留下的原生边就是留痕。
+
+    ### 四、挑地图的判据
+
+    由你读每张地图的 Destination 与 Notes 做语义归类，给出「挂到哪张 + 一句话理由」。**挑不出唯一一张就列 2 到 3 个候选让人选，不硬选**；一张地图都装不下，就按第三节建议自立成地图（只写最小的 Destination 草稿，正文由维护者或负责人补，不设数量门槛）；连自立成图也不成立，就建议留在原地并写明理由。
+
+    ### 五、当前后端自己的科目
+
+    {subject}
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    ## Health check (put orphaned open tickets where they belong)
+
+    This health check covers **every open ticket in the whole repository** (it does not follow the current panel filters): find the orphaned ones, and hand me a suggestion list — act only after I nod.
+
+    ### 1. What counts as orphaned
+
+    All three structural facts must hold: **the ticket is not closed**, **the ticket is not itself a map**, and **the ticket has no parent** (it is not a sub-ticket of any map — the same rule the list uses for the "standalone ticket" display).
+
+    **Do not exclude by label**: tickets marked as waiting for a human, or marked as not planned, still count as orphaned. Labels are only used to group the report.
+
+    On top of that, judge each orphaned ticket with one sentence — "is this clearly something a single ticket can finish?" If yes, you may also leave it alone: do not attach it to a map, keep it where it is, and just log one line with the reason in the report.
+
+    ### 2. Only two structural actions
+
+    1. Create a native sub-ticket edge: attach the ticket under a suitable map.
+    2. Open a new map, for a ticket the human has nodded on.
+
+    **Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close any ticket, delete comments, change source code, publish a release, or commit. Anything in the list that would touch one of those is not done — it goes into the suggestions for a human instead.
+
+    ### 3. Deliverable: a suggestion list first — act only after the human nods
+
+    The list must state each conclusion:
+
+    - this ticket → attach under which map + a one-sentence reason;
+    - this ticket → suggest a new map of its own + a one-sentence reason;
+    - this ticket → suggest leaving it where it is + a one-sentence reason.
+
+    Then stop and wait for the nod. **Do not automatically write comments on tickets**: the native edges left by the structural actions are the record.
+
+    ### 4. How to pick the map
+
+    Read each map Destination and Notes yourself and group by meaning, giving "attach under this one + a one-sentence reason". **If no single map is clearly right, list 2 to 3 candidates for the human to choose — do not force one**; if no map can hold it, suggest a new map per section 3 (write only the minimal Destination draft, let the maintainer or owner fill in the body, no count threshold); if even that does not hold up, suggest leaving it where it is and state why.
+
+    ### 5. The subject of this backend
+
+    {subject}
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+mapExecute:
+  version: 17
+  placeholders: []
+  use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）
+  zh: |-
+    请按 wayfinder 技能推进这张 map。
+
+    ## 收尾
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    Please advance this map with the wayfinder skill.
+
+    ## Wrap-up
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+mapInspect:
+  version: 9
+  placeholders:
+    - n
+    - title
+    - url
+    - subIssue
+  use: map 空态 0/0 检查 · 诊断关联缺失
+  zh: |-
+    ## 目标 map
+    - 编号：#{n}
+    - 标题：{title}
+    - 链接：{url}
+
+    该 map 在面板中显示为 0/0（无子议题），这不正常——按 wayfinder 规则，有规划的 map 应通过子议题推进，0/0 通常意味着创建时子议题没有以本后端的原生父子关系正确关联到该 map。
+
+    请按 wayfinder 技能排查并修复关联（遵循其规则）：
+
+    ## 排查
+    - [ ] 加载 wayfinder 技能（如未加载），结合该 map 的 Destination / Notes 回顾本应有哪些子议题
+    - [ ] 在当前后端中核对这些子议题是否已存在但未成为该 map 的真正子议题（面板计数仍 0/0、详情未展示）
+
+    ## 修复
+    - [ ] 先读回该 map 的正文（里面必须保留 `## Destination` 一节），再按本后端声明的关联方式把子议题建成该 map 的子议题：{subIssue}
+    - [ ] 若子议题尚未创建，按原规划创建后，用同一种关联方式补建
+    - [ ] 修复后按上面的校验方式核对子议题数量与预期一致，并确认面板中该 map 的计数不再是 0/0，详情页能看到完整子议题列表且阻塞关系正确
+
+    ## 收尾
+    - [ ] 结束前把这张票的真实状态写进正文
+    - [ ] 校验子议题数与面板计数一致，且不再为 0/0
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    ## Target map
+    - No: #{n}
+    - Title: {title}
+    - Link: {url}
+
+    This map shows 0/0 (no sub-issues) in the panel, which is abnormal — a planned map is expected to advance via sub-issues. 0/0 typically means the sub-issues were not wired as native sub-issues of this map when it was created.
+
+    Please investigate and fix the wiring per the wayfinder skill (follow its rules):
+
+    ## Investigate
+    - [ ] Load the wayfinder skill (if not loaded) and review Destination / Notes to recall what sub-issues were intended
+    - [ ] Check whether those sub-issues already exist but are not showing as true sub-issues of this map (count still 0/0, not listed in detail)
+
+    ## Fix
+    - [ ] First fetch the map current body into an absolute-path file (keep the `## Destination` section), then wire the sub-issues to this map the way this backend declares: {subIssue}
+    - [ ] If the sub-issues do not exist yet, create them per the original plan, then wire them the same way
+    - [ ] After fixing, verify the sub-issue count matches the way stated above, and that the panel count is no longer 0/0 and the detail page lists all sub-issues with correct blocking
+
+    ## Wrap-up
+    - [ ] Before finishing, write the true state of this ticket into its body
+    - [ ] Verify sub-issue count matches the panel count and is no longer 0/0
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+specComplete:
+  version: 1
+  placeholders:
+    - url
+    - closed
+    - total
+  use: 规格容器 · 完成态「完成」按钮：逐张核对后按边界关闭规格，不提供旁路（#1281）
+  zh: |-
+    这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。先核对，再决定能不能关。
+
+    ## 核对
+    - [ ] 逐张打开实施 issue，对照验收判据核对是否真的做到；只看关闭状态不算数。
+    - [ ] 在集成分支上跑测试与类型检查，确认全绿。
+    - [ ] 规格正文与评论里还有没有没处理的「待定」「后续再说」。
+
+    ## 关闭规格（核对通过之后）
+    - [ ] 全部通过 → 先在规格 issue 留一条评论，写明逐张核对结果，再关闭它；人随时可以重开。
+    - [ ] 有任何一条没通过 → 不关闭：说明缺什么、建议重开哪张实施 issue 或补一张。
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    All implementation issues under this spec issue ({url}) are closed ({closed}/{total}). Verify first, then decide whether it can be closed.
+
+    ## Verify
+    - [ ] Open each implementation issue and check whether its acceptance criteria are truly met; a closed status alone does not count.
+    - [ ] Run tests and type checks on the integration branch and confirm they are green.
+    - [ ] Check the spec body and comments for leftovers such as "TBD" or "revisit later".
+
+    ## Close the spec (only after verification passes)
+    - [ ] All checks pass → leave a comment on the spec issue listing the verification result per ticket, then close it; the human can reopen it at any time.
+    - [ ] Any check fails → do not close: state what is missing and suggest reopening or adding an implementation issue.
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+specExecute:
+  version: 1
+  placeholders:
+    - url
+  use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）
+  zh: |-
+    /implement-spec
+    {url}
+
+    按 /implement-spec 技能把这张规格实现完。
+
+    ## 收口
+    - [ ] 每完成一张实施 issue，如实更新它的状态与正文。
+    - [ ] 全部实施 issue 关闭后，提醒用户点规格详情页的「完成」按钮做收口核对（不是自动关闭）。
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    /implement-spec
+    {url}
+
+    Follow the /implement-spec skill to implement this whole spec.
+
+    ## Wrap-up
+    - [ ] After each implementation issue is done, update its state and body truthfully.
+    - [ ] When all implementation issues are closed, remind the user to click "Complete" in the spec detail for the wrap-up check (not an automatic close).
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+specSplit:
+  version: 1
+  placeholders:
+    - url
+  use: 规格容器 · 空态「拆票」按钮（首行 /to-tickets）（#1281）
+  zh: |-
+    /to-tickets
+    {url}
+
+    按 /to-tickets 技能把这张规格 issue 拆成实施 issue。
+
+    ## 拆完之后
+    - [ ] 把拆出的实施 issue 数量与编号告诉用户。
+    - [ ] 把「已拆成 N 张实施 issue」写进这张规格 issue 的正文，方便下次打开知道进度。
+    - [ ] 提醒用户：之后在规格详情里点「执行」逐票推进；全部实施 issue 关闭后点「完成」做收口核对。
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    /to-tickets
+    {url}
+
+    Follow the /to-tickets skill to split this spec issue into implementation issues.
+
+    ## After splitting
+    - [ ] Tell the user how many implementation issues were created and their numbers.
+    - [ ] Write "split into N implementation issues" into this spec issue’s body so the next session can see the progress.
+    - [ ] Remind the user: push tickets one by one with the "Execute" button in the spec detail; when all implementation issues are closed, click "Complete" for the wrap-up check.
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner

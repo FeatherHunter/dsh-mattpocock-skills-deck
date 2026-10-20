@@ -96,7 +96,7 @@ const CACHE_PATH: string = join(ROOT, 'node_modules', '.cache', 'dsh-build.json'
 // 代价是改任何测试文件都会让指纹变、走一次全量重建——这是正确行为，不是故障：测试改了，
 // 就该重新构建一次再判定。
 const INPUT_ROOTS: string[] = ['src', 'scripts', 'tests']
-const INPUT_EXTRA: string[] = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml', 'config/intervals.yaml', 'config/ttl.yaml']
+const INPUT_EXTRA: string[] = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml', 'config/intervals.yaml', 'config/ttl.yaml', 'config/languages.yaml', 'config/prompts/workspace-initialization.yaml', 'config/prompts/repository-alignment.yaml', 'config/prompts/map-advancement.yaml', 'config/prompts/ticket-action-templates.yaml', 'config/prompts/ticket-creation.yaml', 'scripts/lib/prompt-config.mts']
 const ARTIFACT_FILES: string[] = ['client.js', 'host.js', 'package/README.md']
 // package/lib 要整目录收进来：它下面除了两份入口，还有构建写出来的其他镜像，
 // 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
@@ -534,6 +534,10 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'healthCheck', file: 'src/client/kernel/health-check.ts' },
+  // #1292：提示词配置的生成物（config/prompts/ 下的 YAML + config/languages.yaml → prompt-data.ts）。
+  //   必须在 prompts.ts 之前拼进去：本片给出 PROMPT_TEMPLATE_DATA / PROMPT_FRAGMENT_DATA / LANGUAGES_YAML
+  //   三个运行时名字，prompts.ts 与 prompts-backend.ts 在闭包里直接用这三个名字（客户端闭包不许 module 级 import）。
+  { name: 'promptData', file: 'src/client/kernel/prompt-data.ts' },
   // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
   { name: 'prompts', file: 'src/client/kernel/prompts.ts' },
@@ -541,6 +545,10 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'promptsSetup', file: 'src/client/kernel/prompts-setup.ts' },
+  // #1292：「按当前后端渲染一条 prompt」那一族导出从 prompts.ts 拆出（避 350 行上限）。
+  //   拼装顺序必须在 prompts.ts 之后：本片里的 currentBackendId / vocabularyParamsFrom / promptText 由
+  //   prompts.ts 先提供，backendParamsFor / promptTextFor 再被本片正确定位。
+  { name: 'promptsBackend', file: 'src/client/kernel/prompts-backend.ts' },
   // #698：弹窗表单字段那一串渲染（slotRenderer-modal-view.js 那时到了 404 行）
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
@@ -1778,6 +1786,15 @@ syncReadme(version, repoUrl)
 // 域里没有源码目录时（发布包与 package/ 子树）这一步自己跳过并打印一行提示，构建继续走。
 // #1215：进域循环之前，先按 config/ 下的三份时间参数文件重算 time-config 域的生成源码——
 // 域构建的第一步是该域的类型检查，生成必须在它之前，否则检查的是上一版的数字。
+// #1292：客户端内核要用的提示词数据（config/prompts/ 下的 YAML + config/languages.yaml）由生成器
+// 现场写成 src/client/kernel/prompt-data.ts，再由 KERNEL_MODULES 的 promptData 一项拼进闭包 ——
+// 所以生成必须排在客户端拼装之前，与 time-config 同款纪律（见 docs/adr/20261016-time-config-yaml.md §2.2）。
+{
+  const r1: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-prompt-config.mts')], { encoding: 'utf8' })
+  if (r1.status !== 0) {
+    throw new Error('提示词 YAML 配置生成失败（config/prompts/ + config/languages.yaml → prompt-data.ts）：' + String((r1.stdout || '') + (r1.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
+  }
+}
 {
   const r: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-time-config.mts')], { encoding: 'utf8' })
   if (r.status !== 0) {

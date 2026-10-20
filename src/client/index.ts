@@ -101,7 +101,7 @@ export default {
     // 契约：ctx.locale（dsh-client-locale）：register(ns, {zh, en}) + bind(ns) 稳定引用，调用时读当前语言；
     // 所有 outlet 在 locale 切换时自动重渲染（useLocaleRevision），模块级 t 即可生效。
     // v1.5：全部 prompt（GUIDE_LINE/MAP_EXECUTE/COMPLETE/FIXATE/TPL_DEFAULT/setup/newWayfinder/mapHead）
-    //   集中为 L 字典 prompt.*（zh/en 双语跟随 DSH 语言），审阅与优化见 docs/prompts-review.md。
+    //   集中为 L 字典 prompt.*（zh/en 双语跟随 DSH 语言），审阅与优化见 docs/reviews/prompts-review-v1.5.html。
     // ============================================================
     // ==== kernel:localePanel (spliced by build) ====
     // ==== kernel:localeFlow (spliced by build) ====
@@ -179,13 +179,21 @@ export default {
     // ============================================================
     // ============================================================
     // §prompts：prompt 注册表（内容层 · 独立于 UI 文案 i18n）—— 方案 A
-    //   每条：{ version, placeholders, use, zh, en }；运行时按当前语言经 promptText(id, params) 取用
+    //   真源：config/prompts/ 下的五份模板族 YAML（三处片段按注入时机住在对应族里；config/languages.yaml 是语言清单）
+    //     生成物：src/client/kernel/prompt-data.ts（构建期现场生成、不入库）
+    //   每条模板：{ version, placeholders, zh, en }；运行时按当前语言经 promptText(id, params) 取用
+    //     （use 字段只活在 YAML 里，是给读代码的人看的一句话，不进客户端产物）
     //   占位符契约：文本内 {x} 必须声明在 placeholders；promptText 只替换已声明参数（未知保留）
     //   原则：所有 prompt 相对所引用技能（wayfinder/grilling/triage 等）只做「追加扩展要求」，绝不覆盖技能自身规则。
-    //   审阅：docs/reviews/prompts-review-v1.5.html / .md · 契约校验：tests/verify-prompts.js
+    //   审阅：docs/reviews/prompts-review-v1.5.html · 契约校验：tests/verify-prompts.ts
     // ============================================================
+    // #1292 提示词数据的生成物：PROMPT_TEMPLATE_DATA / PROMPT_FRAGMENT_DATA / LANGUAGES_YAML 三个名字
+    //   由这一片先声明，kernel:prompts 与 kernel:promptsBackend 随后直接用（客户端闭包里没有 module 级 import）。
+    // ==== kernel:promptData (spliced by build) ====
     // ==== kernel:prompts (spliced by build) ====
     // ==== kernel:promptsSetup (spliced by build) ====
+    // #1292：「按当前后端渲染一条 prompt」那一族导出从 prompts.ts 拆出（避 350 行上限），必须排在 prompts.ts 之后。
+    // ==== kernel:promptsBackend (spliced by build) ====
     // ==== kernel:modalFields (spliced by build) ====
     // ==== kernel:config (spliced by build) ====
     // ==== kernel:log (spliced by build) ====

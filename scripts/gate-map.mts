@@ -128,8 +128,11 @@ export const CODE_ROOTS: string[] = [
 
 // 能被当作「归属路径」的目录前缀，比 CODE_ROOTS 宽：门禁读构建产物（package/）、
 // 读夹具（tests/fixtures/）也如实记下来，只是这些不算守住源码。
+// config/ 是配置真源目录（#1292 起提示词与语言清单的真源住在这里，门禁按路径归属守它们），
+// 它不算手写源码，所以只进这份宽名单、不进 CODE_ROOTS。
 export const PATH_PREFIXES: string[] = [
   ...CODE_ROOTS,
+  'config',
   'package',
   'wizard',
   'examples',

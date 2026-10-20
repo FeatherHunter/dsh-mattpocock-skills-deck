@@ -1,0 +1,80 @@
+setupRun:
+  version: 15
+  placeholders:
+    - trackerLine
+    - trackerChoice
+    - backendNote
+    - labelReqs
+    - contextLayout
+  use: "环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能；v15 #791 删掉末尾的工具章节：#779 给全部模板补工具节时把本条也补上了，可初始化全程不碰 issue、那两行在这里空转，而 #230 的金样门禁本就按「本条没有工具节」逐字锁定，门禁因此一直红着 —— 删掉后两处口径重新对上；v13 #664 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），GitHub 那份 backendNote 只留「本次已选后端：GitHub。」；v12 #655 新增 {contextLayout}：用户选的域文档布局，写进 docs/agents/domain.md 与用户仓库 AGENTS.md 的 ## Agent skills 块；v11 #619 删掉 v10 加的那条「标签调色盘」注入通道：标签颜色改由插件自己放置的配色文件与面板改色弹窗负责，初始化注入不再教人去建那张已经没人读的表；labelReqs=按后端的标签要求条款，Markdown 为空即不要求标签齐全）"
+  zh: |-
+    /setup-matt-pocock-skills
+
+    初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：
+    1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；
+    2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；
+    3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{contextLayout}。{backendNote}
+  en: |-
+    /setup-matt-pocock-skills
+
+    Bootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):
+    1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;
+    2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;
+    3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). {contextLayout}.{backendNote}
+switchAlign:
+  version: 6
+  placeholders:
+    - trackerLine
+    - trackerChoice
+    - backendNote
+    - labelReqs
+    - contextLayout
+    - from
+    - to
+  use: "切换后端（工作区已经初始化过）· 注入一条「把仓库里记录后端的那几处对齐到新后端」的指令（#669 第 6 件 / ADR 20260921）。与 setupRun 是两件事：setupRun 说「还没初始化，去初始化」，这一条说「已经初始化了，只是换了后端，把记录对齐」。历史上 #191～#511 切换注入的是 setupRun 本身（等于切一次就把初始化重跑一遍，#664 因此整段撤掉）；2026-09-21 按场景拆开：未初始化走 setupRun（与黄条同一条），已初始化走这一条。{from}/{to} = 切换前/后的后端标签；v3 #792 撤掉末尾的工具节（这条只改仓库里的文档，不读写任何一张票）；v4 经用户拍板回归为V15原文+首句（主体与setupRun一字一致，仅首句交代切换，属有意回归，后人勿当bug再撤）；v5（2026-10-10）：v4 的主体留着不动，只做两件事 —— 首句不再断言「已从 A 切换为 B」（后端没变、只是重新确认时那句是假的，改成「本次由「A」确认为「B」」，两种情况都为真）；正文开头加一段「补与不补」，把「缺的按技能模板补上、已有的按现状保留、不重写用户改过的内容、不重问已回答的问题」写死。为什么加这一段：v3 那种「只对齐、明令禁止新建」的写法碰上「文档没落全」的半成品状态会永久卡死 —— 唯一能补文档的完整初始化不会再走，而这条又禁止补；v4 改成重跑一遍完整流程后能补上，但没写「已有产物按现状保留」，有覆盖用户改动、重问已答问题的风险；v6（2026-10-10，当天再补）：v5 正文末尾加一句自终止 —— 三处记录已经与 {to} 一致、三份产物也齐全时，只回一句「已一致，无需改动」就结束，不重写文件、不重跑流程。为什么要这一句：这条注入的判据是「后端有没有变过」（#698 定的「照旧注入、永不扣下」），而它要修的是「仓库里的记录与选择对不对得上」这个**状态** —— 判据是事件、修的是状态，两者错位：状态对而事件发生时（后端没变、只是重新确认）它空转一整轮，事件没发生而状态不对时它又不响。空转的代价用一句话消掉，比动切换状态机去改判据稳；真要改判据（改成「记录对不上才注入」）等于推翻 #698，属另一件事，不在这条模板里顺手做。"
+  zh: |-
+    /setup-matt-pocock-skills
+
+    本工作区的 issue tracker 后端本次在面板上由「{from}」确认为「{to}」。
+
+    补与不补：下面要的三份产物（docs/agents/issue-tracker.md、triage-labels.md、domain.md）缺哪份就补哪份，缺的按技能自带模板新建；已经存在的按现状保留，只把记录后端的那几处对齐到「{to}」，不重写用户改过的内容、不重问上面已经给出的答案。如果这三处记录已经与「{to}」一致、三份产物也齐全，那这次就没有要改的东西 —— 只回一句「已一致，无需改动」就结束，不要重写任何文件、不要重跑一遍流程。
+
+    初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：
+    1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；
+    2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；
+    3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{contextLayout}。{backendNote}
+  en: |-
+    /setup-matt-pocock-skills
+
+    The issue-tracker backend for this workspace was confirmed in the panel as "{to}" (previously "{from}").
+
+    Fill the gaps, keep the rest: of the three outputs below (docs/agents/issue-tracker.md, triage-labels.md, domain.md), create whichever is missing from the skill own templates; leave what already exists as it is — only align the lines that record the backend to "{to}", never rewrite content the user has edited, and never re-ask what is already answered above. If those three records already agree with "{to}" and all three outputs exist, there is nothing to change this time — reply with one line saying it is already consistent and stop: do not rewrite any file, do not re-run the flow.
+
+    Bootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):
+    1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;
+    2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;
+    3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). {contextLayout}.{backendNote}
+switchLayout:
+  version: 4
+  placeholders:
+    - from
+    - to
+  use: "切换后端时用户在布局小卡上改了域文档布局 · 注入一条「把仓库里记录布局的那一处对齐到新结论」的指令（#698）。为什么要有它：布局那份答案改过之后，此前没有任何人照它改文件 —— 仓库里 docs/agents/domain.md 与 AGENTS.md 里那句结论会与插件记住的答案悄悄分成两半，下一轮读到的还是旧布局。与 switchAlign 是配套的两条：那一条管后端、这一条管布局，各改各的那一句，都不重跑初始化。{from}/{to} = 改之前/之后那一项的人话说法（根目录一份 GLOSSARY.md / 子项目各一份 GLOSSARY.md，根目录 GLOSSARY-MAP.md）；v3 #792 撤掉末尾的工具节（理由同 switchAlign：只改文档，不读写任何一张票）；v4 #1206 正文禁令里的旧名换成新名（上游 v1.3.0 起领域文档叫 GLOSSARY.md / GLOSSARY-MAP.md），文本变了所以升版，行为一字不变"
+  zh: |-
+    /setup-matt-pocock-skills
+
+    本工作区的域文档布局已由用户在面板上从「{from}」改为「{to}」。
+    请按 setup-matt-pocock-skills 技能的规则，把这个仓库里记录布局的那几处对齐到新结论：
+    1. docs/agents/domain.md 里写布局的那一句，改成「{to}」这一结论（技能要求的写法是「一行布局摘要 ＋ See docs/agents/domain.md」）；
+    2. AGENTS.md 的 ## Agent skills 块里 Domain docs 那一行，用同一个词对齐过去；
+    3. 改完回读这两处，把改完的那两行原文抄给我，并列出这次改了哪几个文件、每个文件改了哪几行。
+    不要重跑初始化，不要重建任何已有的产物（GLOSSARY.md、GLOSSARY-MAP.md、triage-labels 等），也不要为了这次改动新建目录或骨架 —— 布局结论变了不等于要立刻把新布局下的文件都建出来。
+  en: |-
+    /setup-matt-pocock-skills
+
+    The domain-doc layout for this workspace was just changed by the user in the panel from "{from}" to "{to}".
+    Following the setup-matt-pocock-skills skill rules, align the places in this repo that record the layout to the new conclusion:
+    1. In docs/agents/domain.md, change the line that records the layout to the "{to}" conclusion (the skill’s required form is "a one-line layout summary + See docs/agents/domain.md");
+    2. In the ## Agent skills block of AGENTS.md, align the Domain docs line to the same wording;
+    3. When done, read both places back, quote those two lines to me, and list which files you changed and which lines in each.
+    Do not re-run the setup, do not rebuild any existing artifacts (GLOSSARY.md, GLOSSARY-MAP.md, triage-labels, ...), and do not create directories or skeletons for this change — a changed layout conclusion does not mean every file under the new layout must be created right now.

@@ -51,8 +51,10 @@ const DERIVED_DIRS = []
 //   src/shared/time-config/src/values.ts → tests/verify-time-config.ts 第一节（生成物与三份 YAML 一致）
 //   .build/shared/time-config/values.js → 同一份生成物的构建产物（2026-10-19 第三阶段起域产物落
 //     仓库根的 .build/shared/<域>/ 下，不再是源码树里的同名 .js），同上
+//   src/client/kernel/prompt-data.ts → tests/verify-prompt-config.ts（#1292 起：生成物与
+//     config/prompts/ 五份族 YAML 加 config/languages.yaml 一字不差，且 --check 新鲜度绿）
 // 新增生成源码时把相对路径加进来，并把对应的新鲜度门禁写在下面一行注释里。
-const GENERATED_FILES = ['src/shared/time-config/src/values.ts', '.build/shared/time-config/values.js']
+const GENERATED_FILES = ['src/shared/time-config/src/values.ts', '.build/shared/time-config/values.js', 'src/client/kernel/prompt-data.ts']
 
 /** 同名产物判定表：右列存在时，左列那份文件不算源文件。 */
 const PRODUCT_TWINS = { '.js': '.ts', '.mjs': '.mts', '.cjs': '.cts' }

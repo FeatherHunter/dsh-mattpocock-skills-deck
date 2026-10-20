@@ -1,0 +1,176 @@
+newBugWayfinder:
+  version: 11
+  placeholders:
+    - repo
+  use: "「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版 · v10 #1268 加调查节先查后问） · v11 #1269 加 /retro 提醒（会话任务全部完成时提醒用户执行一次，不替用户执行）"
+  zh: |-
+    /wayfinder
+    请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。
+    仓库：{repo}
+    新建的单子必须带上 bug 标签；如果还没有经过诊断，同时带上 needs-triage 标签。远端后端按原生标签方式打标签，本地 Markdown 后端在正文加标签行（例如 Labels: bug, needs-triage）。
+
+
+    ## 澄清
+    - [ ] 有假设先用 grilling 澄清，不默认；已给的不重问；四项全空时不建单、先回问报告人，有现象但字段不全则建单并标 needs-info
+
+    ## 调查（建议先查后问）
+    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
+    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+
+    ## 查历史
+    - [ ] 从实际抽 2 到 3 个关键词，按当前后端方式搜已打开与已关闭的单子（优先 deck_ 工具），初筛看前 20 条标题，疑似点开正文
+    - [ ] 撞到疑似再用 /research 深查，结论写回新单正文
+    - [ ] 新增则建；重复则复用不重建，写明原单号与理由；回归则注明原单号；拿不准则新建并关联疑似单标待确认；默认关联不关闭
+
+    ## 自查
+    - [ ] 逐项核对无遗漏；历史结论已写进正文；结束前写明真实状态
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    /wayfinder
+    Please help me file a new BUG ticket (follow the wayfinder skill rules).
+    Repo: {repo}
+    New tickets must carry the bug label; if not yet triaged, also carry needs-triage. On remote backends use native labels; on the local Markdown backend add a Labels line (e.g. Labels: bug, needs-triage).
+
+
+    ## Clarify
+    - [ ] If you hold assumptions, settle them with the grilling skill — never assume; never re-ask what is given; if all four fields are empty, do NOT file — ask the reporter first; if the symptom is present but other fields are missing, file and label needs-info
+
+    ## Investigate first (recommended: look before asking)
+    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
+    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new `/research` pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+
+    ## Check history
+    - [ ] Take 2-3 keywords from actual, search open and closed tickets the current backend way (prefer deck_ tools), scan top 20 titles first, open the body on suspicion
+    - [ ] On suspicion dig with /research, write the conclusion back into the new ticket body
+    - [ ] New → file; duplicate → reuse without refiling, write original number with reason; regression → note original number; unsure → file and link the suspected ticket as pending; default link, never close
+
+    ## Self-check
+    - [ ] Check every box with no gaps; history written into the body; true state written before finishing
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+newSpec:
+  version: 1
+  placeholders:
+    - repo
+  use: 「写规格」蓝入口 · 新会话预填 /grill-with-docs；收尾提醒用户手动执行 /to-spec 与 /to-tickets（#1281）
+  zh: |-
+    /grill-with-docs
+    请帮我讨论一个需求（严格遵循 grill-with-docs 技能规则）。
+    仓库（已自动填入当前工作区）：{repo}
+
+    ## 调查（建议先查后问）
+    - [ ] 建议先阅读仓内相关内容（文档、代码、相关 issue）后再提问。
+    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+
+    ## 讨论收尾（下面这些动作由用户手动执行，不要替用户做）
+    - [ ] 讨论结束、结论对齐后，提醒用户手动执行一次 /to-spec，把结论生成规格 issue。
+    - [ ] 在规格 issue 生成后，再提醒用户手动执行一次 /to-tickets，把规格 issue 拆成实施 issue。
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    /grill-with-docs
+    Help me discuss a requirement (strictly follow the grill-with-docs skill rules).
+    Repo (auto-filled from the current workspace): {repo}
+
+    ## Investigate (recommended: look before asking)
+    - [ ] It is recommended to read related material in the repo (docs, code, related issues) before asking.
+    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new `/research` pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+
+    ## Discussion wrap-up (the user runs the actions below manually; do not run them on their behalf)
+    - [ ] Once the discussion is settled and the conclusion is aligned, remind the user to manually run /to-spec once to turn the conclusion into a spec issue.
+    - [ ] After the spec issue is created, remind the user to manually run /to-tickets once to split the spec issue into implementation issues.
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+newWayfinder:
+  version: 20
+  placeholders:
+    - repo
+  use: 「新建需求」紫入口 · 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）
+  zh: |-
+    /wayfinder
+    请帮我处理一个需求（严格遵循 wayfinder 技能规则）。
+    仓库（已自动填入当前工作区）：{repo}
+
+    ## 调查（建议先查后问）
+    - [ ] 建议先阅读仓内相关内容（文档、代码、相关 issue）后再提问。
+    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+
+    ## 收尾
+    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
+
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+  en: |-
+    /wayfinder
+    Please handle a requirement (strictly follow the wayfinder skill rules).
+    Repo (auto-filled from the current workspace): {repo}
+
+    ## Investigate (recommended: look before asking)
+    - [ ] It is recommended to read related material in the repo (docs, code, related issues) before asking.
+    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new `/research` pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+
+    ## Wrap-up
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+
+# ============================================================
+# 这一段是「片段」：不是一条完整模板，而是模板里替换进去的一段话。
+#   它住在哪个族文件，就表示它在哪个注入时机被用上。
+#   片段与模板的形状不同（模板带 version / placeholders / use，片段只有正文），
+#   两者的清单与形状校验在 scripts/lib/prompt-config.mts 的 PROMPT_TEMPLATE_IDS / PROMPT_FRAGMENT_IDS。
+# ============================================================
+
+# newBugFields：bug 建单时那四项必填引导语（中文一份、英文一份）。
+newBugFields:
+  zh: |-
+    
+
+    以下四项均为必填；四项全空时不要建单，先回问报告人补齐。
+
+    实际（现象；影响范围）：
+    期望（预期；与实际差异）：
+    复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：
+    环境信息（OS 版本 + 软件版本 + 运行环境）：
+  en: |-
+    
+
+    The four fields below are required; if all four are empty, do not file — ask the reporter to complete them first.
+
+    Actual (symptom; impact):
+    Expected (expectation; diff from actual):
+    Reproduction (preconditions and scenario + numbered steps; flaky → frequency):
+    Environment (OS version + software version + runtime):
+
+# newWayfinderWiring：建单时默认的父子议题接线说法（中文一份、英文一份）。
+newWayfinderWiring:
+  zh: 通过 Tracker 原生的父子关系关联（create 时带 parentKey 或创后 setParent）
+  en: via Tracker native parent relation (create with parentKey or setParent after creation)

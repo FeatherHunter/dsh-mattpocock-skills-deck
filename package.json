@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mts",
-    "typecheck": "node scripts/generate-time-config.mts --check && node scripts/typecheck.mts",
+    "typecheck": "node scripts/generate-prompt-config.mts --check && node scripts/generate-time-config.mts --check && node scripts/typecheck.mts",
     "update:latest": "pnpm update dsh-plugin-update@^0.18.25 && node scripts/derive-update-from-package.mts && node scripts/build.mts",
     "prepare": "node scripts/build.mts",
     "test": "npm run typecheck && node scripts/build.mts && node scripts/verify-chain.ts && npm run test:smoke",

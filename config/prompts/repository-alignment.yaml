@@ -1,0 +1,67 @@
+ghAuthLogin:
+  version: 4
+  placeholders:
+    - cli
+    - cliBrand
+  use: "登录引导 · 链失败态 inject-prompt（#228 替换 openUrl 硬编码，动作不承诺修复，检查才判定；#716：文案里不留任何具体命令 —— {cli} = 当前后端自己的命令行名，{cliBrand} = 当前后端报的站点名，两个值都由后端声明注入）；v4 #792 撤掉末尾的工具节（登录发生在跟踪器之外，工具此刻还用不了）"
+  zh: |-
+    请为本机完成 {cliBrand} 登录（{cli} auth login）：
+
+    1. 终端执行 {cli} auth login
+    2. 按向导选择 {cliBrand} → HTTPS → Yes → 浏览器授权（OAuth）
+    3. 完成后执行 {cli} auth status 验证已登录
+    4. 回到面板点「重新检查」或等待自动重查，链条将自动推进
+    5. 若遇网络/代理问题，请检查 {cli} 自己的配置与网络后重试
+  en: |-
+    Please complete the {cliBrand} login ({cli} auth login):
+
+    1. Run {cli} auth login in terminal
+    2. Choose {cliBrand} → HTTPS → Yes → browser OAuth
+    3. Verify with {cli} auth status
+    4. Click "Re-check" at the top of the panel, or wait for auto re-check; the chain will advance via re-evaluation
+    5. If network/proxy issues, check the {cli} configuration and retry
+installSkills:
+  version: 6
+  placeholders:
+    - probeList
+    - probeCount
+  use: "技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）· v3 #fix-banner：probeList 动态从 shared/matt-skills.js 注入（27 项，v1.3.1）；v6 T2 对齐 27；v5 #792 撤掉末尾的工具节（装技能与跟踪器无关）"
+  zh: |-
+    请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：
+
+    1. 先检查：确认 ~/.agents/skills 下这 {probeCount} 个技能已全部就位：{probeList}。已全部就位 → 直接汇报已装技能清单并结束，不要重复安装；
+    2. 有缺失则安装：优先用官方安装器 `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y`（安装器未列出 DSH，但 `-a cline` 的全局目录恰为 ~/.agents/skills，与 DSH 读取目录一致；`--copy` 用复制而非符号链接，防 npx 缓存清理后断链）；若无 npx 或安装失败，回退：克隆 https://github.com/mattpocock/skills，把 skills/engineering 与 skills/productivity 目录下的全部技能复制到 ~/.agents/skills；
+    3. 安装目标是 DSH 读取的用户级技能目录：~/.agents/skills —— 不要装进其他工具的技能目录（如 ~/.claude/skills）；
+    4. 安装后复验：第 1 步的 {probeCount} 个技能已全部就位；
+    5. 完成后汇报安装结果与已装技能清单（用第 1 步的完整清单，不要只列 10 项）。
+  en: |-
+    Install the Matt Pocock skills collection (mattpocock/skills) for DSH:
+
+    1. Check first: confirm these {probeCount} skills are all present under ~/.agents/skills: {probeList}. If all are present, report the installed skill list and stop — do not reinstall;
+    2. If any are missing, install: prefer the official installer `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y` (the installer does not list DSH, but `-a cline` installs globally into ~/.agents/skills — the same directory DSH reads; `--copy` copies instead of symlinking so npx cache cleanup cannot break the links); if npx is unavailable or fails, fall back: clone https://github.com/mattpocock/skills and copy all skills from skills/engineering and skills/productivity into ~/.agents/skills;
+    3. Install into the user-level skill directory DSH reads: ~/.agents/skills — do not install into the skill directories of other tools (e.g. ~/.claude/skills);
+    4. After install, re-verify: all {probeCount} skills from step 1 are in place;
+    5. When done, report the result and the installed skill list (use the full list from step 1, not just the first 10).
+installSkillsFix:
+  version: 4
+  placeholders: []
+  use: '环境检查技能行提示（短句，避免长文刷屏；2026-08-29 审查 S1：去用户目录黑话、去"点「X」"重复指挥）；v4 #792 撤掉末尾的工具节（装技能与跟踪器无关，这段流程不读写任何一张票）'
+  zh: 技能缺失会阻断后续流程。点「帮我安装」让 AI 按步骤操作。
+  en: Missing skills block the flow. Click "Install for me" and let AI run the steps.
+
+# ============================================================
+# 这一段是「片段」：不是一条完整模板，而是模板里替换进去的一段话。
+#   它住在哪个族文件，就表示它在哪个注入时机被用上。
+#   片段与模板的形状不同（模板带 version / placeholders / use，片段只有正文），
+#   两者的清单与形状校验在 scripts/lib/prompt-config.mts 的 PROMPT_TEMPLATE_IDS / PROMPT_FRAGMENT_IDS。
+# ============================================================
+
+# vocabularyDefaults：{cli} 与 {cliBrand} 这两个占位符在中性说法下的兜底值 ——
+#   后端自己声明了词汇就用后端说的，后端没说就用这里这份（登录引导与安装引导都会用）。
+vocabularyDefaults:
+  cli:
+    zh: 当前后端的命令行
+    en: the current backend's command-line tool
+  cliBrand:
+    zh: 当前跟踪器
+    en: the current tracker

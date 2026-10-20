@@ -1,0 +1,14 @@
+default: zh
+languages:
+  zh:
+    label:
+      zh: 简体中文
+      en: Simplified Chinese
+    fallback:
+      - zh
+  en:
+    label:
+      zh: English
+      en: English
+    fallback:
+      - en
