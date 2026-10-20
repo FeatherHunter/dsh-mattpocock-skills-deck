@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 整张卡用 SVG 实现</title>
+<style>
+:root{
+  --bg:#0c0e12; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --blue-text:#93c5fd;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1200px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:980px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 48px;max-width:1200px;margin:0 auto}
+section{margin-bottom:34px}
+h2{font-size:15px;margin:0 0 4px}
+h2 .n{color:var(--cap);font-weight:400;margin-right:8px}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:980px}
+.sub b{color:var(--txt)}
+.cards{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+.cards>div{flex:none}
+.cardlabel{font-size:10.5px;color:var(--cap);margin-bottom:6px}
+table{border-collapse:collapse;width:100%;max-width:900px}
+th,td{border:1px solid var(--border);padding:7px 9px;font-size:12.5px;text-align:left;vertical-align:top}
+th{color:var(--cap);font-weight:400;background:rgba(255,255,255,.03)}
+td.p{color:var(--purple)} td.b{color:var(--blue-text)}
+.hint{color:#f59e0b;font-size:12px;max-width:980px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>整张卡用 SVG 实现</h1>
+  <p>卡里每一块都是 SVG：示意图、名称、图下小字、技能链，没有 HTML 文字。文字全部不超过 10 个字。</p>
+  <p>技能链按你上一条的要求改：四个并行技能写成 4 行；探索地图里「目标明确」之后的两个环节（写规格、拆实施票）改成蓝色。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="n">一</span>两张卡</h2>
+    <p class="sub">图下小字先用你给的那对（目标大而模糊 / 目标明确清晰）；右栏那行是两条路的差别，技能链把差别画出来。</p>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">二</span>图下小字与副句的候选</h2>
+    <p class="sub">图下小字写的是用户此刻的困境，副句写的是两条路的差别；两句都不超过 10 个字。</p>
+    <div id="cands"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">三</span>几个说明</h2>
+    <p class="sub">
+      1. 探索那条链：<code>/wayfinder</code> 紫色，分出去的四个并行技能（<code>/prototype</code>、<code>/research</code>、<code>/grilling</code>、<code>/domain-modeling</code>）紫色，「目标明确」灰色虚线，之后的 <code>/to-spec</code>、<code>/to-tickets</code> 改成蓝色——那两步是交给实施地图的地方。<br>
+      2. 实施那条链：<code>/grill-with-docs</code> 蓝色，「目标明确」灰色虚线，<code>/to-spec</code>、<code>/to-tickets</code> 蓝色。每张实施票之后各走一次 <code>/implement</code>，那是票级动作，没有画进链里。<br>
+      3. 实施那张卡下方留了空白，是链只有一行造成的；真做时两张卡可以等高，也可以让实施那张矮一截。
+    </p>
+  </section>
+</div>
+
+<script>
+/* ============ 示意图内部（放进卡片 SVG 里） ============ */
+var ART_EXPLORE = [
+  '<defs>',
+    '<filter id="exFog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.6"></feGaussianBlur></filter>',
+    '<radialGradient id="exGlow"><stop offset="0" stop-color="#c084fc" stop-opacity=".38"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>',
+  '</defs>',
+  '<rect x="7" y="42" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>',
+  '<text x="30" y="56.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff" letter-spacing=".5">需求</text>',
+  '<circle cx="56" cy="52" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>',
+  '<circle cx="56" cy="52" r="2.6" fill="#c084fc"></circle>',
+  '<path d="M60 52 C 70 52 78 52 86 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>',
+  '<circle cx="86" cy="52" r="3.2" fill="#c084fc" opacity=".9"></circle>',
+  '<path d="M86 52 C 95 48 101 34 110 27" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".75"></path>',
+  '<circle cx="114" cy="26" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>',
+  '<text x="114" y="30.2" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>',
+  '<path d="M86 52 C 98 52 108 52 119 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>',
+  '<circle cx="126" cy="52" r="6.6" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".8"></circle>',
+  '<text x="126" y="55.6" text-anchor="middle" font-size="9.4" fill="#e9d5ff" opacity=".85">?</text>',
+  '<path d="M86 52 C 95 56 101 70 110 77" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>',
+  '<circle cx="114" cy="78" r="6.6" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".65"></circle>',
+  '<text x="114" y="81.4" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".75">?</text>',
+  '<g filter="url(#exFog)"><ellipse cx="140" cy="46" rx="36" ry="26" fill="#c084fc" opacity=".14"></ellipse><ellipse cx="134" cy="86" rx="32" ry="14" fill="#c084fc" opacity=".11"></ellipse></g>',
+  '<path d="M121 26 C 133 30 142 39 147 47" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".14"></path>',
+  '<path d="M133 52 C 137 52 140 52 144 52" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".12"></path>',
+  '<path d="M121 78 C 133 74 142 65 147 57" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".1"></path>',
+  '<circle cx="152" cy="52" r="17" fill="url(#exGlow)"></circle>',
+  '<circle cx="152" cy="52" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".5"></circle>'
+].join("");
+
+var ART_IMPL = [
+  '<defs>',
+    '<radialGradient id="imGlow"><stop offset="0" stop-color="#60a5fa" stop-opacity=".38"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>',
+  '</defs>',
+  '<rect x="6" y="42" width="38" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>',
+  '<text x="25" y="56.5" text-anchor="middle" font-size="10.5" fill="#93c5fd" letter-spacing=".5">需求</text>',
+  '<path d="M44 52 H 52" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round"></path>',
+  '<path d="M52 22 V 82" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 22 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 42 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 62 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 82 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<rect x="60" y="14" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 22 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 22 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="34" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 42 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 42 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="54" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 62 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 62 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="74" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 82 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 82 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<path d="M94 22 C 108 24 121 37 132 47" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 42 C 106 43 118 46 131 49" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 62 C 106 61 118 58 131 55" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 82 C 108 80 121 67 132 57" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<circle cx="140" cy="52" r="17" fill="url(#imGlow)"></circle>',
+  '<circle cx="140" cy="52" r="8" fill="none" stroke="#93c5fd" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity=".8"></circle>',
+  '<circle cx="140" cy="52" r="6.2" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>',
+  '<path d="M136.9 52.2 L 138.9 54.2 L 143.2 49.4" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>'
+].join("");
+
+/* ============ 画链子的零件 ============ */
+var MONO = 'Consolas,Menlo,monospace';
+function node(x, y, w, h, text, o){
+  o = o || {};
+  var s = '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?6:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>';
+  s += '<text x="'+(x+w/2)+'" y="'+(y+h/2+2.5)+'" text-anchor="middle" font-size="'+(o.fs||6.6)+'" fill="'+(o.text||"#e6edf3")+'" font-family="'+MONO+'">'+text+'</text>';
+  return s;
+}
+function arrowH(x1, x2, y, c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+         '<path d="M'+(x2-3.4)+' '+(y-2.4)+' L'+x2+' '+y+' L'+(x2-3.4)+' '+(y+2.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+function arrowV(x, y1, y2, c){
+  return '<path d="M'+x+' '+y1+' V'+(y2+3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+         '<path d="M'+(x-2.4)+' '+(y2+3.4)+' L'+x+' '+y2+' L'+(x+2.4)+' '+(y2+3.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+
+/* 探索链：/wayfinder → 四个并行技能（写 4 行）→ 目标明确 → 写规格、拆票（蓝色） */
+function chainExplore(ox, oy){
+  var P = "#c084fc", PT = "#e9d5ff", B = "#93c5fd", BT = "#bfdbfe";
+  var s = "";
+  var cy = oy + 31;
+  var rows = ["/prototype", "/research", "/grilling", "/domain-modeling"];
+  var rowH = 12, gap = 2.5;
+  var top = cy - (rows.length*rowH + (rows.length-1)*gap)/2;
+  /* 入口 */
+  s += node(ox, cy-6, 48, 12, "/wayfinder", {fill:"rgba(192,132,252,.12)", stroke:P, text:PT, fs:6.6});
+  s += arrowH(ox+48, ox+56, cy, P);
+  /* 分出去：竖脊 + 四条支线 */
+  var sx = ox+56, gx = ox+64;
+  s += '<path d="M'+sx+' '+cy+' V'+(top+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s += '<path d="M'+sx+' '+cy+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for (var i=0; i<rows.length; i++){
+    var y = top + i*(rowH+gap);
+    s += arrowH(sx, gx, y+rowH/2, P);
+    s += node(gx, y, 84, rowH, rows[i], {fill:"rgba(192,132,252,.10)", stroke:P, text:PT, fs:6.4, rx:4});
+  }
+  /* 汇合 */
+  var rx = gx+84+4, mx = rx+4;
+  s += '<path d="M'+rx+' '+(top+rowH/2)+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s += arrowH(mx, mx+6, cy, P);
+  /* 目标明确 */
+  var gx2 = mx+6;
+  s += node(gx2, cy-6, 38, 12, "目标明确", {fill:"transparent", stroke:"#5c636d", dash:true, text:"#b4bac2", fs:7.2, rx:4});
+  s += arrowH(gx2+38, gx2+44, cy, B);
+  /* 交给实施地图的两步：蓝色 */
+  s += node(gx2+44, cy-6, 36, 12, "/to-spec", {fill:"rgba(29,78,216,.30)", stroke:B, text:BT, fs:6.4, rx:4});
+  s += arrowH(gx2+80, gx2+86, cy, B);
+  s += node(gx2+86, cy-6, 44, 12, "/to-tickets", {fill:"rgba(29,78,216,.30)", stroke:B, text:BT, fs:6.4, rx:4});
+  return s;
+}
+
+/* 实施链：一条线：拷问 → 目标明确 → 写规格 → 拆票 */
+function chainImpl(ox, oy){
+  var B = "#93c5fd", BT = "#bfdbfe";
+  var s = "";
+  var cy = oy + 31;
+  s += node(ox, cy-6, 66, 12, "/grill-with-docs", {fill:"rgba(29,78,216,.30)", stroke:B, text:BT, fs:6.4, rx:4});
+  s += arrowH(ox+66, ox+92, cy, B);
+  s += node(ox+92, cy-6, 38, 12, "目标明确", {fill:"transparent", stroke:"#5c636d", dash:true, text:"#b4bac2", fs:7.2, rx:4});
+  s += arrowH(ox+130, ox+154, cy, B);
+  s += node(ox+154, cy-6, 36, 12, "/to-spec", {fill:"rgba(29,78,216,.30)", stroke:B, text:BT, fs:6.4, rx:4});
+  s += arrowH(ox+190, ox+214, cy, B);
+  s += node(ox+214, cy-6, 44, 12, "/to-tickets", {fill:"rgba(29,78,216,.30)", stroke:B, text:BT, fs:6.4, rx:4});
+  return s;
+}
+
+/* ============ 整张卡 ============ */
+var CARDS = {
+  explore: { name:"探索地图", cap:"目标大而模糊", sub:"分头探出四条路", art:ART_EXPLORE, border:"rgba(188,140,255,.45)", nameColor:"#bc8cff" },
+  impl:    { name:"实施地图", cap:"目标明确清晰", sub:"对着文档问到底", art:ART_IMPL,    border:"rgba(29,78,216,.75)",  nameColor:"#93c5fd" }
+};
+function cardSvg(kind){
+  var c = CARDS[kind];
+  var s = '<svg viewBox="0 0 340 208" width="340" height="208" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif" role="img" aria-label="'+c.name+'">';
+  s += '<rect x="0.5" y="0.5" width="339" height="207" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>';
+  /* 示意图 */
+  s += '<rect x="12" y="12" width="148" height="94" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s += '<svg x="20" y="18" width="132" height="82" viewBox="0 0 168 104">'+c.art+'</svg>';
+  /* 图下小字 */
+  s += '<text x="86" y="124" text-anchor="middle" font-size="12.5" fill="#e6edf3">'+c.cap+'</text>';
+  /* 名称与差别 */
+  s += '<text x="172" y="40" font-size="15" font-weight="700" fill="'+c.nameColor+'">'+c.name+'</text>';
+  s += '<text x="172" y="62" font-size="11.5" fill="#8b8b95">'+c.sub+'</text>';
+  /* 技能链 */
+  s += '<rect x="12" y="134" width="316" height="62" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s += (kind === "explore" ? chainExplore(20, 134) : chainImpl(20, 134));
+  return s + '</svg>';
+}
+
+/* ============ 候选文案 ============ */
+var CANDS = [
+  { capE:"目标大而模糊", capI:"目标明确清晰", subE:"分头探出四条路", subI:"对着文档问到底", note:"你给的那一对当底子，副句补上两条路的差别" },
+  { capE:"路太多怕走错", capI:"想清还怕漏", subE:"四路并着探", subI:"一条线问到底", note:"困境重一点" },
+  { capE:"雾里找方向", capI:"灯下走直线", subE:"分头探出四条路", subI:"对着文档问到底", note:"意象重一点" },
+  { capE:"说不清要什么", capI:"清楚还没开工", subE:"四路并着探", subI:"一条线问到底", note:"最口语" },
+  { capE:"四路都可能", capI:"一条路盯到底", subE:"走完再汇总", subI:"问完才动笔", note:"一句话同时说差别和心态" }
+];
+
+/* ============ 渲染 ============ */
+document.getElementById("cards").innerHTML =
+  ['explore','impl'].map(function(k){
+    return '<div><div class="cardlabel">'+CARDS[k].name+'</div>'+cardSvg(k)+'</div>';
+  }).join("");
+
+document.getElementById("cands").innerHTML =
+  '<table><tr><th style="width:46px">候选</th><th>探索地图 · 图下小字</th><th>实施地图 · 图下小字</th><th>探索 · 副句</th><th>实施 · 副句</th><th>说明</th></tr>'+
+  CANDS.map(function(c,i){
+    return '<tr><td>'+String.fromCharCode(65+i)+'</td>'+
+      '<td class="p">'+c.capE+'</td><td class="b">'+c.capI+'</td>'+
+      '<td class="p">'+c.subE+'</td><td class="b">'+c.subI+'</td>'+
+      '<td style="color:#8b8b95">'+c.note+'</td></tr>';
+  }).join("")+'</table>';
+</script>
+</body>
+</html>

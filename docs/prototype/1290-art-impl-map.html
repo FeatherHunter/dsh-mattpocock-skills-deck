@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 实施地图的四种画法</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa;
+  --green:#3fb950;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 6px;font-size:17px}
+.page-head p{margin:0 0 5px;color:var(--sec);font-size:12px;max-width:1010px}
+.page-head b{color:var(--txt)}
+main{max-width:1240px;margin:0 auto;padding:8px 26px 48px}
+.section{margin-top:22px;border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;background:var(--panel)}
+.section h2{margin:0 0 2px;font-size:14px}
+.section h2 .no{color:var(--cap);font-weight:500;margin-right:8px;font-size:12px}
+.section .idea{margin:0 0 12px;color:var(--sec);font-size:12px;max-width:1020px}
+.pair{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.artbox{width:322px}
+.artbox .who{font-size:11px;letter-spacing:.06em;margin-bottom:6px}
+.artbox.explore .who{color:var(--purple)}
+.artbox.impl .who{color:var(--blue-text)}
+.artbox svg{display:block;width:322px;height:200px;border-radius:10px;background:rgba(0,0,0,.24)}
+.artbox .cap{margin-top:7px;text-align:center;font-size:11.5px;color:var(--cap)}
+.mini-label{margin:16px 0 6px;font-size:11px;color:var(--cap)}
+.minirow{display:flex;gap:18px;align-items:flex-start}
+.mini{width:150px}
+.mini svg{display:block;width:132px;height:82px;border-radius:8px;background:rgba(0,0,0,.24)}
+.mini .cap{margin-top:5px;font-size:10.5px;color:var(--cap);text-align:center}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>原型 · 实施地图的四种画法</h1>
+  <p>探索地图那张已经定了（<b>一条路分成几条岔路</b>）。实施地图的意思是：一张<b>规格</b>下面挂着若干<b>实施票</b>，票与票之间可能有先后（这张不做完，那张就动不了）；等所有票都做完了，最终效果<b>一定</b>达成。</p>
+  <p>所以实施图得把三件事说清楚：票都挂在规格下面；票与票之间有先后；全部做完就一定到终点。下面四种画法分别用不同办法讲这三件事——挑的时候以每节末尾 132×82 的真实尺寸为准。</p>
+  <p>另外一处改动：实施图左边的标签保持「<b>需求</b>」。探索那副和实施这副，左边都是同一条需求——出发前它分岔着还没答案，做完后它下面挂着一堆做完的票，最后盖章。两张图放在一起，是同一条需求的两个阶段。</p>
+</div>
+<main id="root"></main>
+<script>
+"use strict";
+
+/* ================= 已定稿的探索地图（设计二：岔路） ================= */
+var REF_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="refog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.6"></feGaussianBlur></filter>
+  <radialGradient id="reglow"><stop offset="0" stop-color="#c084fc" stop-opacity=".38"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<rect x="7" y="70" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="84.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<circle cx="56" cy="80" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>
+<circle cx="56" cy="80" r="2.6" fill="#c084fc"></circle>
+<path d="M60 80 C 70 80 78 71 86 66" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<circle cx="86" cy="66" r="3.2" fill="#c084fc" opacity=".9"></circle>
+<path d="M86 66 C 96 58 104 42 113 34" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".75"></path>
+<circle cx="117" cy="30" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>
+<text x="117" y="34.2" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>
+<path d="M86 66 C 100 66 112 60 124 56" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>
+<circle cx="129" cy="55" r="7" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".8"></circle>
+<text x="129" y="59" text-anchor="middle" font-size="9.6" fill="#e9d5ff" opacity=".85">?</text>
+<path d="M86 66 C 96 74 104 82 114 86" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>
+<circle cx="118" cy="88" r="6.6" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".65"></circle>
+<text x="118" y="91.4" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".75">?</text>
+<g filter="url(#refog)">
+  <ellipse cx="134" cy="44" rx="42" ry="28" fill="#c084fc" opacity=".15"></ellipse>
+  <ellipse cx="130" cy="86" rx="34" ry="16" fill="#c084fc" opacity=".12"></ellipse>
+</g>
+<path d="M124 30 C 138 32 148 44 152 54" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".14"></path>
+<path d="M136 55 C 142 56 146 57 150 58" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".12"></path>
+<path d="M124 87 C 136 80 146 68 151 62" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".1"></path>
+<circle cx="156" cy="58" r="17" fill="url(#reglow)"></circle>
+<circle cx="156" cy="58" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".5"></circle>
+</svg>`;
+
+/* ================= 方案一：扇出汇合（票与票之间有先后） ================= */
+var I1 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="i1glow"><stop offset="0" stop-color="#60a5fa" stop-opacity=".42"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 规格：票都挂在它下面 -->
+<rect x="6" y="62" width="40" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="26" y="76.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">规格</text>
+<circle cx="52" cy="72" r="3.2" fill="#93c5fd"></circle>
+<!-- 扇出到三张票 -->
+<path d="M52 72 C 66 72 78 42 94 30" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<path d="M52 72 C 74 72 92 60 103 58" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<path d="M52 72 C 64 72 74 84 90 87" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<!-- 三张票，每张都做完了 -->
+<circle cx="104" cy="28" r="9" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M100.4 28 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="114" cy="58" r="9" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M110.4 58 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="100" cy="88" r="9" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M96.4 88 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 票与票之间的先后：这张不做完，下一张动不了 -->
+<path d="M104 37 C 106 42 108 46 110 49" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round"></path>
+<path d="M106 45 L 110 49 L 108 43" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M109 67 C 106 73 104 78 103 79" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round"></path>
+<path d="M99 78 L 103 79 L 101 75" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 三张票都汇到终点：全部做完，效果一定达成 -->
+<path d="M113 30 C 124 34 132 44 138 53" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>
+<path d="M123 58 L 137 58" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>
+<path d="M109 86 C 120 82 130 70 137 63" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>
+<circle cx="150" cy="58" r="13" fill="url(#i1glow)"></circle>
+<circle cx="150" cy="58" r="12.6" fill="none" stroke="#93c5fd" stroke-width="1" stroke-dasharray="2.4 2.2" opacity=".75"></circle>
+<circle cx="150" cy="58" r="10" fill="rgba(29,78,216,.5)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M145.6 58 l3 3 5.4-6.2" fill="none" stroke="#3fb950" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 方案二：解锁链（一票做完才轮到下一张） ================= */
+var I2 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="i2glow"><stop offset="0" stop-color="#60a5fa" stop-opacity=".42"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>
+</defs>
+<rect x="6" y="66" width="40" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="26" y="80.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">规格</text>
+<path d="M46 76 L 50 76" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<!-- 三张票排成一条斜链：先做前一张，再做后一张 -->
+<circle cx="60" cy="76" r="9" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M56.4 76 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="94" cy="62" r="9" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M90.4 62 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="126" cy="46" r="9" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M122.4 46 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 先后箭头 -->
+<path d="M67 70 L 83 64" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<path d="M78 60 L 83 64 L 78 66" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M101 55 L 117 48" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<path d="M112 44 L 117 48 L 112 50" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 终点：最后一张做完，效果一定达成 -->
+<path d="M134 40 L 142 35" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<circle cx="152" cy="30" r="13" fill="url(#i2glow)"></circle>
+<circle cx="152" cy="30" r="12.6" fill="none" stroke="#93c5fd" stroke-width="1" stroke-dasharray="2.4 2.2" opacity=".75"></circle>
+<circle cx="152" cy="30" r="10" fill="rgba(29,78,216,.5)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M147.6 30 l3 3 5.4-6.2" fill="none" stroke="#3fb950" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 方案三：全部满足才走（漏斗） ================= */
+var I3 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="i3glow"><stop offset="0" stop-color="#60a5fa" stop-opacity=".42"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 规格 -->
+<rect x="6" y="74" width="40" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="26" y="88.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">规格</text>
+<!-- 四张票 -->
+<circle cx="58" cy="26" r="8.5" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M54.7 26 l2.2 2.2 4-4.6" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="86" cy="16" r="8.5" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M82.7 16 l2.2 2.2 4-4.6" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="110" cy="22" r="8.5" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M106.7 22 l2.2 2.2 4-4.6" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="118" cy="46" r="8.5" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M114.7 46 l2.2 2.2 4-4.6" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 每张票都汇到中间那一点：全都要完成 -->
+<path d="M58 34 C 60 46 72 56 84 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<path d="M86 25 C 86 40 87 50 88 58" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<path d="M110 31 C 102 42 96 52 92 59" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<path d="M118 54 C 110 58 100 61 95 63" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<path d="M46 84 C 62 84 72 74 84 67" fill="none" stroke="#93c5fd" stroke-width="1.2" stroke-dasharray="3 3" stroke-linecap="round" opacity=".4"></path>
+<circle cx="90" cy="64" r="5.4" fill="#93c5fd"></circle>
+<!-- 只有全票完成，才走到终点 -->
+<path d="M95 64 L 122 61" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round"></path>
+<circle cx="140" cy="59" r="13" fill="url(#i3glow)"></circle>
+<circle cx="140" cy="59" r="12.6" fill="none" stroke="#93c5fd" stroke-width="1" stroke-dasharray="2.4 2.2" opacity=".75"></circle>
+<circle cx="140" cy="59" r="10" fill="rgba(29,78,216,.5)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M135.6 59 l3 3 5.4-6.2" fill="none" stroke="#3fb950" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 方案四：一张一张做完，最后盖章 ================= */
+var I4 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="i4glow"><stop offset="0" stop-color="#60a5fa" stop-opacity=".42"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 需求 -->
+<rect x="6" y="44" width="38" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="25" y="58.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<!-- 一条竖着的挂线，四张实施票挂在下面 -->
+<path d="M44 54 H 52" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round"></path>
+<path d="M52 22 V 82" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<!-- 四张票 -->
+<path d="M52 22 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<path d="M52 42 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<path d="M52 62 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<path d="M52 82 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>
+<rect x="60" y="14" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>
+<path d="M66 22 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M76 22 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>
+<rect x="60" y="34" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>
+<path d="M66 42 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M76 42 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>
+<rect x="60" y="54" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>
+<path d="M66 62 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M76 62 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>
+<rect x="60" y="74" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>
+<path d="M66 82 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M76 82 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>
+<!-- 每张票都指向同一个达成章 -->
+<path d="M94 22 C 108 24 118 36 124 46" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>
+<path d="M94 42 C 108 44 116 48 122 53" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>
+<path d="M94 62 C 108 62 116 60 122 58" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>
+<path d="M94 82 C 108 80 116 72 123 64" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>
+<circle cx="140" cy="55" r="13" fill="url(#i4glow)"></circle>
+<circle cx="140" cy="55" r="12.6" fill="none" stroke="#93c5fd" stroke-width="1" stroke-dasharray="2.4 2.2" opacity=".75"></circle>
+<circle cx="140" cy="55" r="10" fill="rgba(29,78,216,.5)" stroke="#93c5fd" stroke-width="1.4"></circle>
+<path d="M135.6 55 l3 3 5.4-6.2" fill="none" stroke="#3fb950" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 方案数据 ================= */
+var IMPLS = [
+  {
+    id: "i1",
+    no: "方案一",
+    name: "扇出汇合：票与票之间还有先后",
+    idea: "和已定稿的探索图是同一套骨架（规格/需求在左，扇出到三张票，汇到右边），差别是这里没有雾：线全是实的，票里是勾而不是问号。另外多画了两条带箭头的连线，表示票与票之间的先后——一张不做完，下一张动不了。三张票最后都汇到同一个达成章。",
+    svg: I1,
+    cap: "票挂规格、票有先后、全部汇到达成章"
+  },
+  {
+    id: "i2",
+    no: "方案二",
+    name: "解锁链：一票做完才轮到下一张",
+    idea: "把票排成一条斜着往上的链，每张票都带箭头指向下一张，强调严格的先后顺序：不做完这张，下一张根本动不了。终点章在链的尽头，最后一张做完，效果一定达成。",
+    svg: I2,
+    cap: "一票接一票，最后达成"
+  },
+  {
+    id: "i3",
+    no: "方案三",
+    name: "全部满足才走：漏斗",
+    idea: "四张票各自拉一条线，汇到中间那一个点上；从那一点才有一条粗线通向达成章。这是「全部做完，一定达成」最直接的画法——四张票是「与」的关系，少一张都走不到终点。",
+    svg: I3,
+    cap: "四张票都完成，才走得到终点"
+  },
+  {
+    id: "i4",
+    no: "方案四",
+    name: "一张一张做完，最后盖章",
+    idea: "最字面的一种：需求在左边，四张实施票用一条竖线挂在它下面，每张票都是一个带勾的小方块（勾在左，右边留一截当标题的位置）。四张票的线都指向右边那个达成章。",
+    svg: I4,
+    cap: "票挂在规格下，最后盖章"
+  }
+];
+
+/* ================= 渲染 ================= */
+function withIds(svg, suffix){
+  return svg.replace(/id="([^"]+)"/g, 'id="$1-' + suffix + '"')
+            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + suffix + ')');
+}
+function mini(svg, cap, suffix){
+  return '<div class="mini">' + withIds(svg, suffix) + '<div class="cap">' + cap + '</div></div>';
+}
+function implHtml(d){
+  var h = '<section class="section" id="impl-' + d.id + '">';
+  h += '<h2><span class="no">' + d.no + '</span>' + d.name + '</h2>';
+  h += '<p class="idea">' + d.idea + '</p>';
+  h += '<div class="pair">';
+  h += '<div class="artbox impl"><div class="who">实施地图</div>' + withIds(d.svg, d.id) + '<div class="cap">' + d.cap + '</div></div>';
+  h += '</div>';
+  h += '<div class="mini-label">真实尺寸（132×82，放进选择卡就是这么大）：</div>';
+  h += '<div class="minirow">' + mini(d.svg, d.cap, d.id + "m") + '</div>';
+  h += '</section>';
+  return h;
+}
+var html = '';
+html += '<section class="section" id="pair"><h2><span class="no">配对参考</span>探索地图（已定稿）</h2>';
+html += '<p class="idea">左边是已经定下来的探索地图（一条路分成几条岔路）。它和实施地图的关系是：同一件事，出发前是分岔的、雾里看不清的；做完后是全连通的、问号变勾的。</p>';
+html += '<div class="pair"><div class="artbox explore"><div class="who">探索地图</div>' + withIds(REF_EXPLORE, "ref") + '<div class="cap">路分成几条，每条尽头是问号</div></div></div>';
+html += '<div class="mini-label">真实尺寸：</div><div class="minirow">' + mini(REF_EXPLORE, "路分成几条，每条尽头是问号", "refm") + '</div>';
+html += '</section>';
+html += IMPLS.map(implHtml).join("");
+document.getElementById("root").innerHTML = html;
+</script>
+</body>
+</html>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 两副 SVG 的三个方向（打样）</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff; --purple-bg:rgba(188,140,255,.10);
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa; --blue-bg:rgba(29,78,216,.16);
+  --green:#3fb950;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 6px;font-size:17px}
+.page-head p{margin:0 0 5px;color:var(--sec);font-size:12px;max-width:1000px}
+.page-head b{color:var(--txt)}
+main{max-width:1240px;margin:0 auto;padding:8px 26px 48px}
+.direction{margin-top:22px;border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;background:var(--panel)}
+.direction h2{margin:0 0 2px;font-size:14px}
+.direction h2 .no{color:var(--cap);font-weight:500;margin-right:8px;font-size:12px}
+.direction .idea{margin:0 0 12px;color:var(--sec);font-size:12px;max-width:1020px}
+.pair{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.artbox{width:322px}
+.artbox .who{font-size:11px;letter-spacing:.06em;margin-bottom:6px}
+.artbox.explore .who{color:var(--purple)}
+.artbox.impl .who{color:var(--blue-text)}
+.artbox svg{display:block;width:322px;height:200px;border-radius:10px;background:rgba(0,0,0,.24)}
+.artbox .cap{margin-top:7px;text-align:center;font-size:11.5px;color:var(--cap)}
+.mini-label{margin:16px 0 6px;font-size:11px;color:var(--cap)}
+.minirow{display:flex;gap:18px;align-items:flex-start}
+.mini{width:150px}
+.mini svg{display:block;width:132px;height:82px;border-radius:8px;background:rgba(0,0,0,.24)}
+.mini .cap{margin-top:5px;font-size:10.5px;color:var(--cap);text-align:center}
+/* 文案试排 */
+.copysec{margin-top:22px;border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;background:var(--panel)}
+.copysec h2{margin:0 0 10px;font-size:14px}
+.copyblock{margin-bottom:4px}
+.copyblock .label{font-size:11px;color:var(--cap);margin:12px 0 6px}
+.copyblock:first-child .label{margin-top:0}
+.skillchain{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px}
+.skill{display:inline-flex;flex-direction:column;align-items:center;gap:1px;padding:5px 9px;border-radius:7px;border:1px solid}
+.skill .s{font-family:Consolas,Menlo,monospace;font-size:11px}
+.skill .t{font-size:10px;opacity:.85}
+.skill.explore{border-color:rgba(192,132,252,.45);background:rgba(192,132,252,.08);color:var(--purple-soft)}
+.skill.impl{border-color:rgba(96,165,250,.45);background:rgba(29,78,216,.16);color:var(--blue-text)}
+.skill.goal{border-style:dashed;border-color:rgba(192,132,252,.55);background:transparent;color:var(--purple);flex-direction:row;padding:6px 10px}
+.arrow{color:var(--cap);font-size:12px}
+.steplist{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
+.steplist li{display:flex;gap:9px;align-items:baseline;font-size:11.5px}
+.steplist .n{color:var(--cap);width:14px;flex:none;font-family:Consolas,Menlo,monospace}
+.steplist .s{font-family:Consolas,Menlo,monospace}
+.steplist .t{color:var(--cap);font-size:11px}
+.sentence{font-size:11.5px;color:var(--txt);background:rgba(255,255,255,.03);border-left:2px solid var(--border);padding:6px 9px;border-radius:0 6px 6px 0}
+.note-line{font-size:11px;color:var(--cap);margin-top:7px}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>原型 · 两副 SVG 的三个方向（打样）</h1>
+  <p>同一张选择卡，里面的图换三种画法。三种都遵守同一条约束：<b>图里不写长句</b>，只留 2 字的「需求」标签；文字在 HTML 里，缩到卡片真实尺寸也压不到画。</p>
+  <p>每副图都按真实尺寸（132×82）再放一遍，见每节末尾的「真实尺寸」一行——挑方向时以那一行为准，大图只是给人看细节。</p>
+</div>
+<main>
+<div id="root"></div>
+
+<section class="copysec" id="copy-try">
+  <h2>文案试排：目的地要不要写成「技能链」</h2>
+  <p class="note-line">两种排法表达同一件事：点击之后会顺着哪些技能往下走。技能名后面跟中文释义，是因为插件界面上用户看到的就是这些斜杠技能。</p>
+
+  <div class="copyblock">
+    <div class="label">探索卡 · 排法一：一行链</div>
+    <div class="skillchain">
+      <span class="skill explore"><span class="s">/wayfinder</span><span class="t">探索地图</span></span>
+      <span class="arrow">→</span>
+      <span class="skill explore"><span class="s">/to-spec</span><span class="t">转成规范</span></span>
+      <span class="arrow">→</span>
+      <span class="skill explore"><span class="s">/to-tickets</span><span class="t">拆成实施票</span></span>
+      <span class="arrow">→</span>
+      <span class="skill goal">实施地图</span>
+    </div>
+  </div>
+  <div class="copyblock">
+    <div class="label">探索卡 · 排法二：两行句子</div>
+    <div class="sentence">从 /wayfinder 开始，先把探索地图探到位；之后经 /to-spec、/to-tickets 走进实施地图。</div>
+  </div>
+  <div class="copyblock">
+    <div class="label">实施卡 · 排法一：一排技能链（带中文释义）</div>
+    <div class="skillchain">
+      <span class="skill impl"><span class="s">/grill-with-docs</span><span class="t">拷问设计</span></span>
+      <span class="arrow">→</span>
+      <span class="skill impl"><span class="s">/to-spec</span><span class="t">转成规范</span></span>
+      <span class="arrow">→</span>
+      <span class="skill impl"><span class="s">/to-tickets</span><span class="t">拆成实施票</span></span>
+      <span class="arrow">→</span>
+      <span class="skill impl"><span class="s">/implement</span><span class="t">逐票实施</span></span>
+    </div>
+  </div>
+  <div class="copyblock">
+    <div class="label">实施卡 · 排法二：竖排四步</div>
+    <ol class="steplist">
+      <li><span class="n">1</span><span class="s">/grill-with-docs</span><span class="t">拷问设计，把没想透的地方挑出来</span></li>
+      <li><span class="n">2</span><span class="s">/to-spec</span><span class="t">转成规范</span></li>
+      <li><span class="n">3</span><span class="s">/to-tickets</span><span class="t">拆成一张张实施票</span></li>
+      <li><span class="n">4</span><span class="s">/implement</span><span class="t">每张实施票执行一次实施</span></li>
+    </ol>
+  </div>
+</section>
+</main>
+<script>
+"use strict";
+
+/* ================= 方向一：雾中地形 ================= */
+var D1_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="d1fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5"></feGaussianBlur></filter>
+  <radialGradient id="d1q"><stop offset="0" stop-color="#c084fc" stop-opacity=".38"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 等高线：闭合环，明确是“被勘过的地形” -->
+<g fill="none" stroke="#c084fc">
+  <path d="M10 84 C 22 70 46 68 58 78 C 70 88 54 99 34 99 C 14 99 0 92 10 84 Z" stroke-opacity=".22"></path>
+  <path d="M22 84 C 30 76 44 75 51 81 C 58 87 47 94 35 94 C 23 94 15 90 22 84 Z" stroke-opacity=".16"></path>
+  <path d="M90 96 C 106 90 128 92 148 98" stroke-opacity=".10"></path>
+</g>
+<!-- 雾带：横着压过画面 -->
+<g filter="url(#d1fog)">
+  <rect x="-10" y="30" width="188" height="34" fill="#c084fc" opacity=".18"></rect>
+  <ellipse cx="118" cy="38" rx="36" ry="18" fill="#c084fc" opacity=".16"></ellipse>
+  <ellipse cx="96" cy="72" rx="34" ry="13" fill="#c084fc" opacity=".12"></ellipse>
+</g>
+<!-- 需求标签 -->
+<rect x="7" y="52" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="66.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff" letter-spacing=".5">需求</text>
+<!-- 出发点 -->
+<circle cx="56" cy="62" r="5.6" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>
+<circle cx="56" cy="62" r="2.6" fill="#c084fc"></circle>
+<!-- 虚线路径：越走越淡 -->
+<path d="M58 62 C 72 61 78 50 90 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<path d="M90 52 C 102 54 108 43 120 46" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".5"></path>
+<path d="M120 46 C 128 48 132 42 138 44" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".2"></path>
+<!-- 还没答案 -->
+<circle cx="139" cy="30" r="20" fill="url(#d1q)"></circle>
+<circle cx="139" cy="30" r="11" fill="rgba(192,132,252,.10)" stroke="#e9d5ff" stroke-width="1.3" stroke-dasharray="3 2.6"></circle>
+<text x="139" y="34.6" text-anchor="middle" font-size="13.5" fill="#e9d5ff">?</text>
+<g fill="#e9d5ff">
+  <circle cx="86" cy="24" r="1.3" opacity=".55"></circle>
+  <circle cx="118" cy="78" r="1.1" opacity=".4"></circle>
+  <circle cx="108" cy="18" r=".9" opacity=".35"></circle>
+</g>
+</svg>`;
+
+var D1_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true">
+<g stroke="#93c5fd" stroke-opacity=".09" stroke-width="1">
+  <path d="M0 26H168"></path><path d="M0 52H168"></path><path d="M0 78H168"></path>
+  <path d="M28 0V104"></path><path d="M84 0V104"></path><path d="M140 0V104"></path>
+</g>
+<g fill="none" stroke="#93c5fd" stroke-opacity=".45" stroke-width="1.2">
+  <path d="M4 16V4h12"></path><path d="M164 16V4h-12"></path>
+  <path d="M4 88v12h12"></path><path d="M164 88v12h-12"></path>
+</g>
+<rect x="7" y="52" width="46" height="20" rx="10" fill="rgba(29,78,216,.20)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="30" y="66.5" text-anchor="middle" font-size="10.5" fill="#93c5fd" letter-spacing=".5">需求</text>
+<path d="M55 62 C 66 62 68 56 78 56" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M74 51.6 L 81 56 L 74 60.4" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<rect x="88" y="14" width="60" height="76" rx="7" fill="rgba(29,78,216,.16)" stroke="#93c5fd" stroke-width="1.5"></rect>
+<path d="M88 28H148" stroke="#93c5fd" stroke-opacity=".50" stroke-width="1"></path>
+<rect x="96" y="20" width="16" height="3.2" rx="1.6" fill="#93c5fd" opacity=".55"></rect>
+<rect x="96" y="37" width="8.6" height="8.6" rx="2" fill="none" stroke="#93c5fd" stroke-width="1.1"></rect>
+<path d="M97.8 41.3 l1.9 1.9 3.5-3.9" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M110 41.3H140" stroke="#93c5fd" stroke-opacity=".50" stroke-width="1"></path>
+<rect x="96" y="51" width="8.6" height="8.6" rx="2" fill="none" stroke="#93c5fd" stroke-width="1.1"></rect>
+<path d="M97.8 55.3 l1.9 1.9 3.5-3.9" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M110 55.3H136" stroke="#93c5fd" stroke-opacity=".50" stroke-width="1"></path>
+<rect x="96" y="65" width="8.6" height="8.6" rx="2" fill="none" stroke="#93c5fd" stroke-width="1.1"></rect>
+<path d="M97.8 69.3 l1.9 1.9 3.5-3.9" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M110 69.3H138" stroke="#93c5fd" stroke-opacity=".50" stroke-width="1"></path>
+<circle cx="136" cy="79" r="6.6" fill="rgba(63,185,80,.16)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M133.2 79 l2.2 2.2 3.6-4.1" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<g stroke="#93c5fd" stroke-opacity=".32" stroke-width="1" fill="none">
+  <path d="M153 16V88"></path><path d="M150.5 16H155.5 M150.5 88H155.5"></path>
+  <path d="M88 98H148"></path><path d="M88 95V101 M148 95V101"></path>
+</g>
+</svg>`;
+
+/* ================= 方向二：决策节点星图 ================= */
+var D2_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="d2neb" cx="55%" cy="45%" r="62%"><stop offset="0" stop-color="#7c3aed" stop-opacity=".26"></stop><stop offset="1" stop-color="#7c3aed" stop-opacity="0"></stop></radialGradient>
+</defs>
+<rect x="0" y="0" width="168" height="104" fill="url(#d2neb)"></rect>
+<g fill="#e9d5ff">
+  <circle cx="24" cy="16" r="1" opacity=".5"></circle><circle cx="142" cy="12" r=".9" opacity=".4"></circle>
+  <circle cx="156" cy="70" r="1.1" opacity=".45"></circle><circle cx="74" cy="10" r=".8" opacity=".35"></circle>
+  <circle cx="118" cy="94" r="1" opacity=".4"></circle><circle cx="40" cy="96" r=".9" opacity=".3"></circle>
+  <circle cx="90" cy="84" r="1" opacity=".35"></circle>
+</g>
+<rect x="7" y="50" width="44" height="20" rx="10" fill="rgba(192,132,252,.12)" stroke="#c084fc" stroke-width="1.3"></rect>
+<text x="29" y="64.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<circle cx="55" cy="60" r="2.6" fill="#c084fc"></circle>
+<g fill="rgba(192,132,252,.08)" stroke="#c084fc" stroke-width="1.1" stroke-dasharray="3 2.6">
+  <circle cx="78" cy="46" r="7"></circle>
+  <circle cx="98" cy="66" r="9"></circle>
+  <circle cx="118" cy="34" r="6"></circle>
+  <circle cx="140" cy="58" r="10"></circle>
+  <circle cx="122" cy="86" r="5"></circle>
+</g>
+<g stroke="#c084fc" stroke-width="1" stroke-dasharray="3 3" fill="none">
+  <path d="M55 60 C 62 56 70 50 71 50" opacity=".55"></path>
+  <path d="M85 46 C 92 52 92 60 89 62" opacity=".45"></path>
+  <path d="M107 66 C 112 58 110 42 112 38" opacity=".35"></path>
+  <path d="M124 34 C 132 38 134 44 132 48" opacity=".3"></path>
+  <path d="M140 68 C 136 74 128 78 127 79" opacity=".28"></path>
+</g>
+<text x="140" y="62.5" text-anchor="middle" font-size="12" fill="#e9d5ff" opacity=".9">?</text>
+</svg>`;
+
+var D2_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="d2bneb" cx="55%" cy="45%" r="62%"><stop offset="0" stop-color="#1D4ED8" stop-opacity=".34"></stop><stop offset="1" stop-color="#1D4ED8" stop-opacity="0"></stop></radialGradient>
+</defs>
+<rect x="0" y="0" width="168" height="104" fill="url(#d2bneb)"></rect>
+<g fill="#93c5fd">
+  <circle cx="24" cy="16" r="1" opacity=".45"></circle><circle cx="150" cy="16" r=".9" opacity=".35"></circle>
+  <circle cx="60" cy="92" r="1" opacity=".3"></circle><circle cx="112" cy="10" r=".8" opacity=".3"></circle>
+</g>
+<rect x="7" y="50" width="44" height="20" rx="10" fill="rgba(29,78,216,.30)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="29" y="64.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<circle cx="55" cy="60" r="2.6" fill="#93c5fd"></circle>
+<!-- 已定的节点：实心 + 勾 -->
+<g>
+  <circle cx="76" cy="58" r="6.2" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.1"></circle>
+  <path d="M73.6 58 l1.8 1.8 3.2-3.6" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+  <circle cx="98" cy="44" r="6.2" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.1"></circle>
+  <path d="M95.6 44 l1.8 1.8 3.2-3.6" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+  <circle cx="104" cy="74" r="6.2" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.1"></circle>
+  <path d="M101.6 74 l1.8 1.8 3.2-3.6" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</g>
+<!-- 实线连成一条链 -->
+<g fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round">
+  <path d="M55 60 H 69"></path>
+  <path d="M82 56 C 88 52 90 48 92 46"></path>
+  <path d="M100 50 C 104 58 104 66 104 68"></path>
+  <path d="M110 74 C 118 76 124 72 130 68"></path>
+</g>
+<!-- 终点：一张小规格纸 -->
+<rect x="132" y="22" width="28" height="42" rx="4" fill="rgba(29,78,216,.26)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<g stroke="#93c5fd" stroke-opacity=".55" stroke-width=".9"><path d="M138 34H154"></path><path d="M138 42H154"></path><path d="M138 50H148"></path></g>
+<circle cx="150" cy="57" r="4.2" fill="rgba(63,185,80,.2)" stroke="#3fb950" stroke-width="1.1"></circle>
+<path d="M148.2 57 l1.3 1.3 2.3-2.6" fill="none" stroke="#3fb950" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 方向三：纸质地图 / 工程蓝图（拟物） ================= */
+var D3_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <linearGradient id="d3paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1e6cc"></stop><stop offset="1" stop-color="#d8c7a2"></stop></linearGradient>
+  <pattern id="d3hatch" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M0 7 L7 0" stroke="#6b5b3f" stroke-opacity=".16" stroke-width=".9"></path></pattern>
+  <filter id="d3shadow" x="-25%" y="-25%" width="160%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity=".55"></feDropShadow></filter>
+  <filter id="d3fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5"></feGaussianBlur></filter>
+</defs>
+<g filter="url(#d3shadow)" transform="rotate(-2 84 52)">
+  <rect x="14" y="12" width="140" height="80" rx="5" fill="url(#d3paper)"></rect>
+  <path d="M84 12V92" stroke="#b9a681" stroke-opacity=".55" stroke-width="1"></path>
+  <path d="M40 12V92" stroke="#b9a681" stroke-opacity=".30"></path>
+  <path d="M128 12V92" stroke="#b9a681" stroke-opacity=".30"></path>
+  <rect x="104" y="16" width="46" height="72" fill="url(#d3hatch)"></rect>
+  <g fill="none" stroke="#6b5b3f" stroke-opacity=".5">
+    <path d="M24 70 C 34 58 52 56 62 64 C 72 72 60 82 44 82 C 28 82 18 76 24 70 Z"></path>
+    <path d="M34 70 C 40 64 50 63 55 68 C 60 73 52 78 44 78 C 36 78 30 74 34 70 Z"></path>
+    <path d="M40 71 C 43 68 48 67 51 70 C 54 73 50 76 46 76 C 42 76 38 74 40 71 Z"></path>
+  </g>
+  <g fill="none" stroke="#6b5b3f" stroke-opacity=".7">
+    <circle cx="36" cy="30" r="9"></circle>
+    <path d="M36 22 L38.6 30 L36 38 L33.4 30 Z" fill="#6b5b3f" fill-opacity=".35"></path>
+  </g>
+  <path d="M58 62 C 72 58 78 48 92 50" fill="none" stroke="#8a5a9e" stroke-width="1.4" stroke-dasharray="3 3" opacity=".9"></path>
+  <rect x="15" y="44" width="41" height="17" rx="8.5" fill="rgba(192,132,252,.16)" stroke="#8a5a9e" stroke-width="1.2" stroke-dasharray="3 2"></rect>
+  <text x="35.5" y="57" text-anchor="middle" font-size="9.5" fill="#4a3b57">需求</text>
+</g>
+<!-- 雾从右边缘吞掉纸 -->
+<g filter="url(#d3fog)">
+  <ellipse cx="150" cy="44" rx="26" ry="30" fill="#c084fc" opacity=".26"></ellipse>
+  <ellipse cx="140" cy="72" rx="20" ry="20" fill="#8b8b95" opacity=".20"></ellipse>
+</g>
+<text x="150" y="50" text-anchor="middle" font-size="12" fill="#e9d5ff">?</text>
+</svg>`;
+
+var D3_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <linearGradient id="d3bp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#12325f"></stop><stop offset="1" stop-color="#0b2247"></stop></linearGradient>
+  <pattern id="d3grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="#93c5fd" stroke-opacity=".16" stroke-width=".6"></path></pattern>
+  <filter id="d3bpsh" x="-25%" y="-25%" width="160%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity=".55"></feDropShadow></filter>
+</defs>
+<g filter="url(#d3bpsh)" transform="rotate(2 84 52)">
+  <rect x="14" y="12" width="140" height="80" rx="4" fill="url(#d3bp)"></rect>
+  <rect x="14" y="12" width="140" height="80" rx="4" fill="url(#d3grid)"></rect>
+  <rect x="24" y="6" width="20" height="9" fill="#e9d5ff" opacity=".22" transform="rotate(-8 34 10)"></rect>
+  <rect x="124" y="90" width="20" height="9" fill="#e9d5ff" opacity=".20" transform="rotate(-6 134 94)"></rect>
+  <path d="M26 24H78" stroke="#93c5fd" stroke-opacity=".55" stroke-width="1.2"></path>
+  <rect x="26" y="48" width="36" height="16" rx="8" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.1"></rect>
+  <text x="44" y="59.5" text-anchor="middle" font-size="9" fill="#cfe6ff">需求</text>
+  <path d="M64 56 H 76" stroke="#93c5fd" stroke-width="1.3"></path>
+  <path d="M73 52.5 L 79 56 L 73 59.5" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+  <rect x="82" y="26" width="58" height="52" rx="4" fill="rgba(147,197,253,.07)" stroke="#93c5fd" stroke-width="1"></rect>
+  <g stroke="#93c5fd" stroke-opacity=".55" stroke-width="1"><path d="M92 40H132"></path><path d="M92 50H132"></path><path d="M92 60H124"></path></g>
+  <g fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M86 37 l2 2 3.4-3.6"></path><path d="M86 47 l2 2 3.4-3.6"></path><path d="M86 57 l2 2 3.4-3.6"></path></g>
+  <circle cx="130" cy="68" r="5" fill="rgba(63,185,80,.2)" stroke="#3fb950" stroke-width="1.1"></circle>
+  <path d="M127.8 68 l1.5 1.5 2.6-2.8" fill="none" stroke="#3fb950" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path>
+  <g stroke="#93c5fd" stroke-opacity=".38" stroke-width="1"><path d="M146 26V78"></path><path d="M143 26H149 M143 78H149"></path></g>
+</g>
+</svg>`;
+
+/* ================= 方向数据 ================= */
+var DIRECTIONS = [
+  {
+    id: "d1",
+    no: "方向一",
+    name: "雾中地形",
+    idea: "俯视的地形图：闭合的等高线表示「这是一块正在被勘的地」，一条横着压过画面的雾带把路截断，虚线路径越走越淡，尽头是一个发光的问号。和现在这版的画法同源，只把原来那两条容易被看成「波浪线/下划线」的开放式曲线改成了闭合等高线。",
+    explore: D1_EXPLORE,
+    impl: D1_IMPL,
+    ecap: "路还看不清",
+    icap: "路已经看清"
+  },
+  {
+    id: "d2",
+    no: "方向二",
+    name: "决策节点星图",
+    idea: "把「要定的取舍」本身画成节点：探索那副是一堆大小不一的虚线圆圈，散在紫色星雾里，只有几个被虚线淡淡连起来——问题都还在，答案没出来；实施那副是同样的节点，却已经变成实心、带绿勾，连成一条实线，最后收进一张小规格纸。两副的对比就是「散着」和「收拢成链」。",
+    explore: D2_EXPLORE,
+    impl: D2_IMPL,
+    ecap: "问题还散着",
+    icap: "已经连成一条线"
+  },
+  {
+    id: "d3",
+    no: "方向三",
+    name: "纸质地图 / 工程蓝图（拟物）",
+    idea: "画成两件实物：探索是一张泛黄的探险地图，有折痕、罗盘、墨线地形和虚线路线，右边缘被雾吞掉一半；实施是一张钉在板上的工程蓝图，边角贴着胶带、有尺寸标注线和验收章。这一版用「纸」的质感把两副图的身份分开，代价是画面比前两版重、对深色界面的衬底要求高。",
+    explore: D3_EXPLORE,
+    impl: D3_IMPL,
+    ecap: "一张被雾吞掉半边的地图",
+    icap: "一张量过、盖过章的蓝图"
+  }
+];
+
+/* ================= 渲染 ================= */
+function withIds(svg, suffix){
+  return svg.replace(/id="([^"]+)"/g, 'id="$1-' + suffix + '"')
+            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + suffix + ')');
+}
+function mini(svg, who, cap, suffix){
+  return '<div class="mini">' + withIds(svg, suffix) + '<div class="cap">' + cap + '</div></div>';
+}
+function dirHtml(d, i){
+  var h = '<section class="direction" id="dir-' + d.id + '">';
+  h += '<h2><span class="no">' + d.no + '</span>' + d.name + '</h2>';
+  h += '<p class="idea">' + d.idea + '</p>';
+  h += '<div class="pair">';
+  h += '<div class="artbox explore"><div class="who">探索地图</div>' + withIds(d.explore, d.id) + '<div class="cap">' + d.ecap + '</div></div>';
+  h += '<div class="artbox impl"><div class="who">实施地图</div>' + withIds(d.impl, d.id) + '<div class="cap">' + d.icap + '</div></div>';
+  h += '</div>';
+  h += '<div class="mini-label">真实尺寸（132×82，放进选择卡就是这么大）：</div>';
+  h += '<div class="minirow">' + mini(d.explore, "explore", d.ecap, d.id + "m") + mini(d.impl, "impl", d.icap, d.id + "m") + '</div>';
+  h += '</section>';
+  return h;
+}
+document.getElementById("root").innerHTML = DIRECTIONS.map(dirHtml).join("");
+</script>
+</body>
+</html>

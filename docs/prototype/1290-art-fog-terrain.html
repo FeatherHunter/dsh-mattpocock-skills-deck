@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 从「雾中地形」出发的三个新设计</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff;
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa;
+  --green:#3fb950;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 6px;font-size:17px}
+.page-head p{margin:0 0 5px;color:var(--sec);font-size:12px;max-width:1000px}
+.page-head b{color:var(--txt)}
+main{max-width:1240px;margin:0 auto;padding:8px 26px 48px}
+.direction{margin-top:22px;border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;background:var(--panel)}
+.direction h2{margin:0 0 2px;font-size:14px}
+.direction h2 .no{color:var(--cap);font-weight:500;margin-right:8px;font-size:12px}
+.direction .idea{margin:0 0 12px;color:var(--sec);font-size:12px;max-width:1020px}
+.pair{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.artbox{width:322px}
+.artbox .who{font-size:11px;letter-spacing:.06em;margin-bottom:6px}
+.artbox.explore .who{color:var(--purple)}
+.artbox.impl .who{color:var(--blue-text)}
+.artbox svg{display:block;width:322px;height:200px;border-radius:10px;background:rgba(0,0,0,.24)}
+.artbox .cap{margin-top:7px;text-align:center;font-size:11.5px;color:var(--cap)}
+.mini-label{margin:16px 0 6px;font-size:11px;color:var(--cap)}
+.minirow{display:flex;gap:18px;align-items:flex-start}
+.mini{width:150px}
+.mini svg{display:block;width:132px;height:82px;border-radius:8px;background:rgba(0,0,0,.24)}
+.mini .cap{margin-top:5px;font-size:10.5px;color:var(--cap);text-align:center}
+.notes{margin-top:10px;font-size:11.5px;color:var(--cap);line-height:1.7;max-width:1020px}
+.notes b{color:var(--sec)}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>原型 · 从「雾中地形」出发的三个新设计</h1>
+  <p>回到之前的<b>方向一 雾中地形</b>那条线重新设计：地形等高线、横着压过来的雾、越走越淡的虚线路径，这一版保留；改的是<b>问号放在哪儿、终点怎么画</b>——起点是虚线的需求，路上要经过几个问号，终点是雾里那座大概知道、但看不清细节的山。</p>
+  <p>每个设计都配一张实施图（同一张地形走完的样子：雾散、问号变勾、终点清楚）。挑方向时以每节末尾的 132×82 真实尺寸为准，大图只用来看细节。</p>
+</div>
+<main id="root"></main>
+<script>
+"use strict";
+
+/* ================= 设计一：雾中山顶（问号在路上，终点是山） ================= */
+var T1_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="t1fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.6"></feGaussianBlur></filter>
+  <radialGradient id="t1q"><stop offset="0" stop-color="#c084fc" stop-opacity=".34"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 勘过的地形：闭合等高线 -->
+<g fill="none" stroke="#c084fc">
+  <path d="M6 88 C 18 74 42 72 54 82 C 66 92 50 102 30 102 C 10 102 -4 96 6 88 Z" stroke-opacity=".22"></path>
+  <path d="M18 88 C 26 80 40 79 47 85 C 54 91 43 97 31 97 C 19 97 11 93 18 88 Z" stroke-opacity=".16"></path>
+  <path d="M100 99 C 114 93 136 95 156 101" stroke-opacity=".10"></path>
+</g>
+<!-- 雾带：横着压过画面 -->
+<g filter="url(#t1fog)">
+  <rect x="-10" y="28" width="188" height="34" fill="#c084fc" opacity=".17"></rect>
+  <ellipse cx="124" cy="34" rx="33" ry="17" fill="#c084fc" opacity=".16"></ellipse>
+  <ellipse cx="104" cy="72" rx="32" ry="12" fill="#c084fc" opacity=".11"></ellipse>
+</g>
+<!-- 需求：虚线的起点 -->
+<rect x="7" y="52" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="66.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<circle cx="56" cy="62" r="5.6" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>
+<circle cx="56" cy="62" r="2.6" fill="#c084fc"></circle>
+<!-- 越走越淡的路 -->
+<path d="M58 62 C 72 61 78 51 90 53" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<path d="M90 53 C 100 55 104 46 112 48" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".5"></path>
+<path d="M112 48 C 124 50 130 40 140 46" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".22"></path>
+<!-- 路上第一个问号：还没定下来的那一件事 -->
+<circle cx="103" cy="49" r="8" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>
+<text x="103" y="53.2" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>
+<!-- 路上第二个问号：已经进雾 -->
+<circle cx="125" cy="42" r="6.6" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".55"></circle>
+<text x="125" y="45.6" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".7">?</text>
+<!-- 终点：雾里的山，山顶有旗 -->
+<circle cx="146" cy="38" r="20" fill="url(#t1q)"></circle>
+<path d="M118 100 L 146 46 L 174 100 Z" fill="rgba(192,132,252,.07)" stroke="#e9d5ff" stroke-opacity=".30" stroke-width="1.2"></path>
+<path d="M146 46 V 33" stroke="#e9d5ff" stroke-opacity=".55" stroke-width="1.2" stroke-linecap="round"></path>
+<path d="M146 33 C 149 31.8 150 34.4 153 33.2 V 38 C 150 39.2 149 36.6 146 37.8" fill="none" stroke="#e9d5ff" stroke-opacity=".5" stroke-width="1"></path>
+<g fill="#e9d5ff">
+  <circle cx="86" cy="24" r="1.3" opacity=".5"></circle>
+  <circle cx="70" cy="88" r="1" opacity=".35"></circle>
+  <circle cx="132" cy="16" r=".9" opacity=".3"></circle>
+</g>
+</svg>`;
+
+var T1_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true">
+<!-- 地形：勘清楚了，等高线更实 -->
+<g fill="none" stroke="#93c5fd">
+  <path d="M6 88 C 18 74 42 72 54 82 C 66 92 50 102 30 102 C 10 102 -4 96 6 88 Z" stroke-opacity=".34"></path>
+  <path d="M18 88 C 26 80 40 79 47 85 C 54 91 43 97 31 97 C 19 97 11 93 18 88 Z" stroke-opacity=".24"></path>
+  <path d="M100 99 C 114 93 136 95 156 101" stroke-opacity=".18"></path>
+</g>
+<!-- 需求：实线的起点 -->
+<rect x="7" y="52" width="46" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="30" y="66.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<circle cx="56" cy="62" r="5.6" fill="none" stroke="#93c5fd" stroke-opacity=".45" stroke-width="1"></circle>
+<circle cx="56" cy="62" r="2.6" fill="#93c5fd"></circle>
+<!-- 走通的路：实线，带箭头 -->
+<path d="M58 62 C 72 61 78 51 90 53" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M90 53 C 100 55 104 46 112 48" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M112 48 C 124 50 130 40 140 46" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<!-- 定下来的两件事：实心 + 勾 -->
+<circle cx="103" cy="49" r="8" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M99.6 49 l2.3 2.3 4.2-4.7" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="125" cy="42" r="6.6" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>
+<path d="M122.2 42 l2 2 3.6-4" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 终点：清楚的山顶旗 -->
+<path d="M118 100 L 146 46 L 174 100 Z" fill="rgba(29,78,216,.16)" stroke="#93c5fd" stroke-opacity=".75" stroke-width="1.3"></path>
+<path d="M146 46 V 33" stroke="#cfe6ff" stroke-width="1.3" stroke-linecap="round"></path>
+<path d="M146 33 C 149 31.8 150 34.4 153 33.2 V 38 C 150 39.2 149 36.6 146 37.8" fill="none" stroke="#cfe6ff" stroke-width="1.1"></path>
+<circle cx="146" cy="27" r="5.4" fill="rgba(63,185,80,.2)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M143.6 27 l1.8 1.8 3.1-3.4" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 设计二：雾墙（路走到一半被雾挡住） ================= */
+var T2_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="t2fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5.4"></feGaussianBlur></filter>
+  <radialGradient id="t2q"><stop offset="0" stop-color="#c084fc" stop-opacity=".3"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 左边的地形：勘过 -->
+<g fill="none" stroke="#c084fc">
+  <path d="M4 40 C 16 26 40 24 52 34 C 64 44 48 54 28 54 C 8 54 -6 48 4 40 Z" stroke-opacity=".22"></path>
+  <path d="M16 40 C 24 32 38 31 45 37 C 52 43 41 49 29 49 C 17 49 9 45 16 40 Z" stroke-opacity=".15"></path>
+</g>
+<!-- 竖着压过来的雾墙 -->
+<g filter="url(#t2fog)">
+  <rect x="104" y="-12" width="80" height="128" fill="#c084fc" opacity=".22"></rect>
+  <ellipse cx="112" cy="30" rx="20" ry="24" fill="#c084fc" opacity=".18"></ellipse>
+  <ellipse cx="108" cy="78" rx="18" ry="22" fill="#c084fc" opacity=".16"></ellipse>
+</g>
+<!-- 需求：虚线的起点 -->
+<rect x="7" y="70" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="84.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<circle cx="56" cy="80" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>
+<circle cx="56" cy="80" r="2.6" fill="#c084fc"></circle>
+<!-- 路：走到雾墙前就断了 -->
+<path d="M58 80 C 68 78 72 66 84 66" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<path d="M84 66 C 92 66 96 60 102 58" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>
+<!-- 第一个问号：雾墙前，还看得清 -->
+<circle cx="70" cy="71" r="7.6" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>
+<text x="70" y="75.2" text-anchor="middle" font-size="10" fill="#e9d5ff">?</text>
+<!-- 雾墙后：更淡的一截路和更淡的问号 -->
+<path d="M118 50 C 126 48 130 40 138 42" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".2"></path>
+<circle cx="128" cy="45" r="6.4" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".45"></circle>
+<text x="128" y="48.4" text-anchor="middle" font-size="8.6" fill="#e9d5ff" opacity=".6">?</text>
+<!-- 雾后的终点：只剩一个模糊的山影 -->
+<circle cx="148" cy="36" r="20" fill="url(#t2q)"></circle>
+<path d="M126 100 L 150 50 L 174 100 Z" fill="rgba(192,132,252,.06)" stroke="#e9d5ff" stroke-opacity=".22" stroke-width="1.1"></path>
+<path d="M150 50 V 39" stroke="#e9d5ff" stroke-opacity=".38" stroke-width="1.1" stroke-linecap="round"></path>
+<path d="M150 39 C 152.6 38 153.6 40.3 156.2 39.2 V 43.6 C 153.6 44.6 152.6 42.3 150 43.3" fill="none" stroke="#e9d5ff" stroke-opacity=".34" stroke-width=".9"></path>
+<g fill="#e9d5ff"><circle cx="90" cy="20" r="1.1" opacity=".4"></circle><circle cx="64" cy="30" r=".9" opacity=".3"></circle></g>
+</svg>`;
+
+var T2_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true">
+<g fill="none" stroke="#93c5fd">
+  <path d="M4 40 C 16 26 40 24 52 34 C 64 44 48 54 28 54 C 8 54 -6 48 4 40 Z" stroke-opacity=".34"></path>
+  <path d="M16 40 C 24 32 38 31 45 37 C 52 43 41 49 29 49 C 17 49 9 45 16 40 Z" stroke-opacity=".24"></path>
+</g>
+<!-- 雾墙散成几条很淡的边 -->
+<g fill="none" stroke="#93c5fd" stroke-opacity=".14" stroke-width="1.1">
+  <path d="M108 -6 C 116 20 104 44 112 70 C 118 90 112 100 116 110"></path>
+  <path d="M120 -6 C 128 22 118 44 126 72 C 130 90 124 100 128 110" stroke-opacity=".09"></path>
+</g>
+<rect x="7" y="70" width="46" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="30" y="84.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<circle cx="56" cy="80" r="5.4" fill="none" stroke="#93c5fd" stroke-opacity=".45" stroke-width="1"></circle>
+<circle cx="56" cy="80" r="2.6" fill="#93c5fd"></circle>
+<!-- 路连起来了，穿过原来的雾墙 -->
+<path d="M58 80 C 68 78 72 66 84 66" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M84 66 C 92 66 96 60 102 58" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M102 58 C 110 56 118 50 128 42" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M120 35 L 130 41 L 123 45" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 两个问号都定了 -->
+<circle cx="70" cy="71" r="7.6" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M66.9 71 l2.2 2.2 4-4.4" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="128" cy="45" r="6.4" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>
+<path d="M125.4 45 l1.9 1.9 3.4-3.8" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 终点：清楚的山顶旗 -->
+<path d="M126 100 L 150 50 L 174 100 Z" fill="rgba(29,78,216,.16)" stroke="#93c5fd" stroke-opacity=".75" stroke-width="1.3"></path>
+<path d="M150 50 V 39" stroke="#cfe6ff" stroke-width="1.2" stroke-linecap="round"></path>
+<path d="M150 39 C 152.6 38 153.6 40.3 156.2 39.2 V 43.6 C 153.6 44.6 152.6 42.3 150 43.3" fill="none" stroke="#cfe6ff" stroke-width="1"></path>
+<circle cx="150" cy="33" r="5.2" fill="rgba(63,185,80,.2)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M147.7 33 l1.7 1.7 3-3.3" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 设计三：勘过的那一半（左边清楚，右边还是雾） ================= */
+var T3_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="t3fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5"></feGaussianBlur></filter>
+  <radialGradient id="t3q"><stop offset="0" stop-color="#c084fc" stop-opacity=".28"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 勘过的那一半：等高线清楚 -->
+<g fill="none" stroke="#c084fc">
+  <path d="M2 34 C 14 20 38 18 50 28 C 62 38 46 48 26 48 C 6 48 -8 42 2 34 Z" stroke-opacity=".22"></path>
+  <path d="M14 34 C 22 26 36 25 43 31 C 50 37 39 43 27 43 C 15 43 7 39 14 34 Z" stroke-opacity=".15"></path>
+  <path d="M10 92 C 26 84 52 86 74 94" stroke-opacity=".12"></path>
+</g>
+<!-- 勘测边界：一条竖虚线 -->
+<path d="M98 -4 V 108" stroke="#c084fc" stroke-width="1.1" stroke-dasharray="4 5" stroke-opacity=".38"></path>
+<!-- 没勘过的那一半：雾 -->
+<g filter="url(#t3fog)">
+  <rect x="94" y="-12" width="88" height="128" fill="#c084fc" opacity=".2"></rect>
+  <ellipse cx="126" cy="26" rx="26" ry="18" fill="#c084fc" opacity=".16"></ellipse>
+  <ellipse cx="118" cy="80" rx="26" ry="14" fill="#c084fc" opacity=".13"></ellipse>
+</g>
+<g fill="none" stroke="#c084fc" stroke-opacity=".08">
+  <path d="M110 46 C 122 34 146 34 158 46 C 170 58 154 70 134 70 C 114 70 98 58 110 46 Z"></path>
+</g>
+<!-- 需求：虚线的起点 -->
+<rect x="7" y="60" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="74.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<circle cx="56" cy="70" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>
+<circle cx="56" cy="70" r="2.6" fill="#c084fc"></circle>
+<!-- 路：只走到勘测边界 -->
+<path d="M58 70 C 70 68 74 58 84 58" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<path d="M84 58 C 90 58 93 54 96 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>
+<!-- 勘过区里还没定的那件事 -->
+<circle cx="71" cy="61" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>
+<text x="71" y="65.2" text-anchor="middle" font-size="10" fill="#e9d5ff">?</text>
+<!-- 边界上的第二个问号：另一半还雾着 -->
+<circle cx="112" cy="52" r="6.6" fill="rgba(12,14,18,.55)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".5"></circle>
+<text x="112" y="55.6" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".7">?</text>
+<path d="M99 52 C 104 52 106 52 110 52" fill="none" stroke="#c084fc" stroke-width="1.4" stroke-dasharray="4 4" stroke-linecap="round" opacity=".25"></path>
+<!-- 雾里的终点：山影 -->
+<circle cx="148" cy="40" r="20" fill="url(#t3q)"></circle>
+<path d="M126 100 L 150 54 L 174 100 Z" fill="rgba(192,132,252,.06)" stroke="#e9d5ff" stroke-opacity=".2" stroke-width="1.1"></path>
+<path d="M150 54 V 43" stroke="#e9d5ff" stroke-opacity=".34" stroke-width="1.1" stroke-linecap="round"></path>
+<path d="M150 43 C 152.6 42 153.6 44.3 156.2 43.2 V 47.6 C 153.6 48.6 152.6 46.3 150 47.3" fill="none" stroke="#e9d5ff" stroke-opacity=".3" stroke-width=".9"></path>
+</svg>`;
+
+var T3_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true">
+<g fill="none" stroke="#93c5fd">
+  <path d="M2 34 C 14 20 38 18 50 28 C 62 38 46 48 26 48 C 6 48 -8 42 2 34 Z" stroke-opacity=".32"></path>
+  <path d="M14 34 C 22 26 36 25 43 31 C 50 37 39 43 27 43 C 15 43 7 39 14 34 Z" stroke-opacity=".22"></path>
+  <path d="M10 92 C 26 84 52 86 74 94" stroke-opacity=".2"></path>
+  <path d="M110 46 C 122 34 146 34 158 46 C 170 58 154 70 134 70 C 114 70 98 58 110 46 Z" stroke-opacity=".22"></path>
+</g>
+<!-- 勘测边界：变成一条画过的实线 -->
+<path d="M98 -4 V 108" stroke="#93c5fd" stroke-width="1.2" stroke-opacity=".5"></path>
+<circle cx="98" cy="52" r="3.4" fill="rgba(63,185,80,.22)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M96.3 52 l1.2 1.2 2.1-2.3" fill="none" stroke="#3fb950" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path>
+<rect x="7" y="60" width="46" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="30" y="74.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<circle cx="56" cy="70" r="5.4" fill="none" stroke="#93c5fd" stroke-opacity=".45" stroke-width="1"></circle>
+<circle cx="56" cy="70" r="2.6" fill="#93c5fd"></circle>
+<!-- 路：一直连到山顶 -->
+<path d="M58 70 C 70 68 74 58 84 58" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M84 58 C 92 58 100 54 108 52" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M108 52 C 122 50 132 58 140 62" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<path d="M134 56 L 142 62 L 136 66" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 两件事都定了 -->
+<circle cx="71" cy="61" r="7.4" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M67.9 61 l2.2 2.2 4-4.4" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="112" cy="52" r="6.6" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>
+<path d="M109.4 52 l1.9 1.9 3.4-3.8" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 终点：清楚的山顶旗 -->
+<path d="M126 100 L 150 54 L 174 100 Z" fill="rgba(29,78,216,.16)" stroke="#93c5fd" stroke-opacity=".75" stroke-width="1.3"></path>
+<path d="M150 54 V 43" stroke="#cfe6ff" stroke-width="1.2" stroke-linecap="round"></path>
+<path d="M150 43 C 152.6 42 153.6 44.3 156.2 43.2 V 47.6 C 153.6 48.6 152.6 46.3 150 47.3" fill="none" stroke="#cfe6ff" stroke-width="1"></path>
+<circle cx="150" cy="37" r="5.2" fill="rgba(63,185,80,.2)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M147.7 37 l1.7 1.7 3-3.3" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 设计数据 ================= */
+var DESIGNS = [
+  {
+    id: "t1",
+    no: "设计一",
+    name: "雾中山顶（问号在路上，终点是那座山）",
+    idea: "沿用方向一的构图，把「发光问号」从终点挪到路上：需求在左下，虚线路径向右上方走，路上先经过一个清楚的问号、再经过一个已经进雾的、更淡的问号；终点改成雾里的一座山，山顶有旗——你知道大概要去哪儿，但山长什么样、怎么上去都看不清。实施图是同一片地形走完的样子：雾散、问号变绿勾、旗和山都清楚了。",
+    explore: T1_EXPLORE,
+    impl: T1_IMPL,
+    ecap: "路上有几个问号，终点在雾里",
+    icap: "问号都定了，终点的山看清了"
+  },
+  {
+    id: "t2",
+    no: "设计二",
+    name: "雾墙（路走到一半被雾挡住）",
+    idea: "雾不再是横着飘的一条带子，而是一堵竖着的墙，从右边压过来。路从需求出发，走到墙前就断了；墙这边有一个看得清的问号，墙那边隐约还有一截更淡的路和第二个更淡的问号；终点是墙后那个模糊的山影。这张图说的是「探到这里就得先把雾顶开」——探索地图的推进感最强。实施图里雾墙散成两条很淡的线，路连起来穿过原来的墙。",
+    explore: T2_EXPLORE,
+    impl: T2_IMPL,
+    ecap: "路走到雾墙前就断了",
+    icap: "墙散了，路连过去了"
+  },
+  {
+    id: "t3",
+    no: "设计三",
+    name: "勘过的那一半（左边清楚，右边还是雾）",
+    idea: "用一条竖虚线把画面分成两半：左边是已经勘过的地形，等高线清楚，路已经走过一段；右边是没勘过的，几乎看不见轮廓，雾压在上面，路走到勘测边界就停住。边界上有一个问号，边界那边雾里还有一个更淡的问号，终点的山影在雾最深处。这张图把「已经弄清多少、还剩多少是黑的」直接画成两个区域。实施图里边界变成画过的实线，右半边的地形也露出来了。",
+    explore: T3_EXPLORE,
+    impl: T3_IMPL,
+    ecap: "勘过的左边，雾着的右边",
+    icap: "整片都勘过了"
+  }
+];
+
+/* ================= 渲染 ================= */
+function withIds(svg, suffix){
+  return svg.replace(/id="([^"]+)"/g, 'id="$1-' + suffix + '"')
+            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + suffix + ')');
+}
+function mini(svg, cap, suffix){
+  return '<div class="mini">' + withIds(svg, suffix) + '<div class="cap">' + cap + '</div></div>';
+}
+function designHtml(d){
+  var h = '<section class="direction" id="design-' + d.id + '">';
+  h += '<h2><span class="no">' + d.no + '</span>' + d.name + '</h2>';
+  h += '<p class="idea">' + d.idea + '</p>';
+  h += '<div class="pair">';
+  h += '<div class="artbox explore"><div class="who">探索地图</div>' + withIds(d.explore, d.id) + '<div class="cap">' + d.ecap + '</div></div>';
+  h += '<div class="artbox impl"><div class="who">实施地图</div>' + withIds(d.impl, d.id) + '<div class="cap">' + d.icap + '</div></div>';
+  h += '</div>';
+  h += '<div class="mini-label">真实尺寸（132×82，放进选择卡就是这么大）：</div>';
+  h += '<div class="minirow">' + mini(d.explore, d.ecap, d.id + "m") + mini(d.impl, d.icap, d.id + "m") + '</div>';
+  h += '</section>';
+  return h;
+}
+document.getElementById("root").innerHTML = DESIGNS.map(designHtml).join("");
+</script>
+</body>
+</html>

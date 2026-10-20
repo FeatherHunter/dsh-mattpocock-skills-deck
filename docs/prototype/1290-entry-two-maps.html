@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 需求的第一入口：探索地图 / 实施地图（B）</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff; --purple-bg:rgba(188,140,255,.10);
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa; --blue-bg:rgba(29,78,216,.16);
+  --green:#3fb950; --amber:#f59e0b; --red:#f87171;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:18px 24px 0;max-width:1220px;margin:0 auto}
+.page-head h1{margin:0 0 5px;font-size:17px}
+.page-head p{margin:0;color:var(--sec);font-size:12px;max-width:980px}
+.page-head p+p{margin-top:5px}
+.page-head b{color:var(--txt)}
+.page-head .warn{color:var(--amber)}
+.wrap{display:flex;gap:22px;align-items:flex-start;padding:16px 24px 40px;max-width:1220px;margin:0 auto}
+.stage{flex:none;width:440px}
+.stage-label{font-size:11px;color:var(--cap);padding:0 0 6px 2px;letter-spacing:.03em}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:visible}
+.phead{border-bottom:1px solid var(--border);padding:8px 10px 10px;position:relative}
+.tabrow{display:flex;align-items:center;gap:6px}
+.tabs{display:flex;gap:2px;flex-wrap:wrap;flex:1;min-width:0}
+.tab{font-size:12px;color:var(--sec);padding:3px 9px;border-radius:6px}
+.tab.on{background:rgba(255,255,255,.07);color:var(--txt)}
+.entry-inline{position:relative;flex:none}
+.pbody{padding:10px 12px 12px;position:relative}
+.pbody .hint{font-size:11px;color:var(--cap);padding:0 2px 8px}
+.listrow{border:1px solid transparent;border-left-width:3px;border-radius:6px;
+  padding:6px 7px;margin-bottom:4px;display:flex;align-items:center;gap:7px;cursor:pointer}
+.listrow:hover{background:rgba(255,255,255,.06)}
+.listrow.explore{border-left-color:var(--purple);background:rgba(188,140,255,.07)}
+.listrow.impl{border-left-color:var(--blue);background:rgba(29,78,216,.14)}
+.idnum{font-family:Consolas,Menlo,monospace;font-weight:700;font-size:11px;padding:1px 6px;
+  border-radius:6px;border:1px solid;background:rgba(0,0,0,.25)}
+.idnum.explore{color:var(--purple);border-color:var(--purple)}
+.idnum.impl{color:var(--blue-text);border-color:var(--blue);background:rgba(29,78,216,.2)}
+.rowtitle{font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip{font-size:10.5px;font-weight:600;line-height:1.7;padding:0 7px;border-radius:99px;
+  display:inline-flex;align-items:center;gap:3px;white-space:nowrap;flex:none}
+.chip.explore{background:rgba(188,140,255,.16);color:var(--purple-soft)}
+.chip.impl{background:rgba(29,78,216,.34);color:var(--blue-text)}
+/* ---- 状态栏 ---- */
+.statusbar{margin-top:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:7px 10px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--sec)}
+.capsule{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.cword{color:var(--txt);font-weight:600}
+.cseg{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:99px;cursor:default}
+.cseg:hover{background:rgba(255,255,255,.06)}
+.cseg b{color:var(--txt);font-family:Consolas,Menlo,monospace;font-size:11px}
+.take-wrap{position:relative;display:inline-flex}
+.takemenu{display:none;position:absolute;left:0;top:22px;z-index:50;min-width:158px;padding:4px;
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  box-shadow:0 8px 30px rgba(0,0,0,.45)}
+.take-wrap:hover .takemenu{display:block}
+.takemenu .mi{padding:4px 8px;border-radius:4px;cursor:pointer;font-size:12px;color:var(--txt);
+  display:flex;align-items:center;gap:6px;white-space:nowrap}
+.takemenu .mi:hover{background:rgba(255,255,255,.07)}
+.takemenu .mi .accent{width:7px;height:7px;border-radius:2px;flex:none}
+.takemenu .mi .small{color:var(--cap);font-size:10.5px}
+/* ---- 入口：单按钮 + 选择卡浮层 ---- */
+.single{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;font-size:11.5px;font-weight:600;
+  border:1px solid var(--cap);border-radius:5px;background:transparent;color:var(--txt);cursor:pointer;font-family:inherit;white-space:nowrap}
+.single:hover{border-color:var(--txt);background:rgba(255,255,255,.05)}
+.chooser{position:absolute;right:0;top:30px;z-index:70;width:392px;padding:12px 12px 10px;border-radius:10px;
+  background:var(--panel);border:1px solid var(--border);box-shadow:0 14px 40px rgba(0,0,0,.55)}
+.chooser h4{margin:0 0 3px;font-size:12.5px;color:var(--txt);font-weight:600;padding-right:18px}
+.chooser .csub{margin:0 0 10px;font-size:11px;color:var(--cap)}
+.chooser .close{position:absolute;right:8px;top:7px;color:var(--cap);cursor:pointer;font-size:14px;line-height:1}
+/* 定稿卡：368×232 横卡，整张卡是一幅画（地图 + 三层文字 + 底部技能链） */
+.pick{margin-top:10px;border-radius:12px;cursor:pointer;transition:filter .12s}
+.pick:hover{filter:brightness(1.13)}
+.pick svg{display:block}
+/* ---- 选择之后 ---- */
+.banner{border-radius:8px;padding:8px 10px;margin-bottom:9px;font-size:12px;display:flex;gap:8px;align-items:flex-start}
+.banner.explore{background:var(--purple-bg);border:1px solid rgba(192,132,252,.45)}
+.banner.impl{background:var(--blue-bg);border:1px solid rgba(96,165,250,.45)}
+.banner .btitle{font-weight:600;margin-bottom:2px}
+.banner.explore .btitle{color:var(--purple)}
+.banner.impl .btitle{color:var(--blue-text)}
+.banner .btext{color:var(--sec);font-size:11.5px;line-height:1.55}
+.banner .undo{margin-left:auto;flex:none;background:none;border:1px solid var(--border);color:var(--sec);
+  border-radius:5px;font-size:11px;padding:1px 7px;cursor:pointer;font-family:inherit}
+.banner .undo:hover{color:var(--txt);border-color:var(--txt)}
+/* ---- 右栏说明 ---- */
+.note{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 15px 15px}
+.note h2{margin:14px 0 7px;font-size:12px;color:var(--sec);font-weight:600;letter-spacing:.03em}
+.note h2:first-child{margin-top:0}
+.note p{margin:0 0 6px;font-size:12px;color:var(--sec);line-height:1.65}
+.note p b{color:var(--txt)}
+.note .lead{color:var(--txt);font-size:12.5px}
+.dectab{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
+.dectab th{text-align:left;color:var(--cap);font-weight:500;padding:3px 6px 3px 0;border-bottom:1px solid var(--border)}
+.dectab td{vertical-align:top;padding:5px 6px 5px 0;border-bottom:1px solid rgba(255,255,255,.05);color:var(--txt);line-height:1.55}
+.dectab td.w2{width:168px;color:var(--sec);font-size:11px}
+.srow{display:flex;gap:10px;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.07);font-size:12px}
+.srow span{width:76px;flex:none;color:var(--cap)}
+.srow b{font-weight:600}
+.caption-list{margin:0;padding-left:18px;font-size:11.5px;color:var(--sec);line-height:1.7}
+.caption-list b{color:var(--txt)}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>原型 · 需求的第一入口：探索地图 / 实施地图（B：单按钮 + 选择卡）</h1>
+  <p>这一版只剩 B：右侧面板上只放一颗<b>「新建需求」</b>，点开后先问一句「这条需求，你现在能说清要做什么吗？」，再让用户从两张卡里选一张。A（两颗按钮）、C（常驻分叉带）两版按反馈删掉了。</p>
+  <p class="warn">判断必须由用户自己做：插件不根据需求描述猜路。图里不写长句——地图只画形态，图里的字只有「需求」「?」和技能名，长句放在卡面的文字层里，所以不会再压到画上。</p>
+  <p>浮层默认打开方便看；点「新建需求」可反复开合，点浮层外面会收起。选定后右侧可以撤销。</p>
+</div>
+<div class="wrap">
+  <section class="stage">
+    <div class="stage-label">右侧面板（示意 400px 宽）· 状态栏 · 胶囊悬停菜单</div>
+    <section class="panel">
+      <div class="phead">
+        <div class="tabrow">
+          <div class="tabs">
+            <span class="tab on">列表</span><span class="tab">技能</span><span class="tab">拉取请求</span>
+          </div>
+          <div class="entry-inline" id="entryInline"></div>
+        </div>
+      </div>
+      <div class="pbody">
+        <div id="bannerSlot"></div>
+        <div class="hint">列表（示意图，入口不影响下面的列表）</div>
+        <div class="listrow explore"><span class="chip explore">地图</span><span class="idnum explore">#1274</span><span class="rowtitle">双轨插件形态：探索地图与实施地图</span></div>
+        <div class="listrow impl"><span class="chip impl">规格</span><span class="idnum impl">#1290</span><span class="rowtitle">实施：双轨插件形态（规格）</span></div>
+        <div class="listrow"><span class="idnum">#1281</span><span class="rowtitle">新增需求与写规格两个入口</span></div>
+        <div class="listrow"><span class="idnum">#1297</span><span class="rowtitle">双入口与两处接线的拼装共用</span></div>
+      </div>
+    </section>
+    <div class="statusbar">
+      <span class="capsule">
+        <span class="cword">插件</span>
+        <span class="take-wrap"><span class="cseg">地图 <b>4</b></span>
+          <div class="takemenu">
+            <div class="mi" data-choice="explore"><span class="accent" style="background:var(--purple)"></span>探索地图<span class="small">还都是问号</span></div>
+            <div class="mi" data-choice="impl"><span class="accent" style="background:var(--blue)"></span>实施地图<span class="small">都做完了</span></div>
+          </div>
+        </span>
+        <span class="cseg">BUG <b>0</b></span>
+        <span class="cseg">待判断 <b>1</b></span>
+        <span class="cseg">刷新 12:40</span>
+      </span>
+    </div>
+  </section>
+  <aside class="note" id="note"></aside>
+</div>
+<script>
+(function(){
+"use strict";
+
+/* ============ 两条路的固定设定 ============ */
+var ROADS = {
+  explore: {
+    name: "探索地图",
+    color: "explore",
+    tag: "地图",
+    cap: "岔路口全是问号",
+    state: "目标大而模糊",
+    test: "我还说不清要做成什么样，要决定的事一件件还没定下来。",
+    dest: "从 /wayfinder 开始探；探清后经 /to-spec、/to-tickets 走进实施地图。",
+    opening: "/wayfinder（探索地图开场）",
+    after: "新会话已开（示意）：开场注入 /wayfinder 与需求描述。"
+  },
+  impl: {
+    name: "实施地图",
+    color: "impl",
+    tag: "规格",
+    cap: "票都做完，最后盖章",
+    state: "目标明确清晰",
+    test: "我知道要做什么，也能说出个大概的验收，但还有几处拿不准。",
+    dest: "从 /grill-with-docs 开始：拷问设计 → /to-spec 转成规范 → /to-tickets 拆成实施票 → /implement 逐票实施。",
+    opening: "/grill-with-docs（实施地图开场）",
+    after: "新会话已开（示意）：开场注入 /grill-with-docs 与需求描述。"
+  }
+};
+
+/* ============ 两副示意图：图里不写长句 ============ */
+/* 探索地图（定稿）：一条路分成几条岔路，每条尽头是一个还没答的问号，终点在雾里 */
+var SVG_EXPLORE = [
+'<svg viewBox="0 0 168 104" width="132" height="82" aria-hidden="true">',
+  '<defs>',
+    '<filter id="exFog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.6"></feGaussianBlur></filter>',
+    '<radialGradient id="exGlow">',
+      '<stop offset="0" stop-color="#c084fc" stop-opacity=".38"></stop>',
+      '<stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop>',
+    '</radialGradient>',
+  '</defs>',
+  /* 需求：起点，落在图的垂直中线上 */
+  '<rect x="7" y="42" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>',
+  '<text x="30" y="56.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff" letter-spacing=".5">需求</text>',
+  '<circle cx="56" cy="52" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>',
+  '<circle cx="56" cy="52" r="2.6" fill="#c084fc"></circle>',
+  /* 走到分叉点 */
+  '<path d="M60 52 C 70 52 78 52 86 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>',
+  '<circle cx="86" cy="52" r="3.2" fill="#c084fc" opacity=".9"></circle>',
+  /* 三条岔路，每条尽头是一个还没答的问号 */
+  '<path d="M86 52 C 95 48 101 34 110 27" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".75"></path>',
+  '<circle cx="114" cy="26" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>',
+  '<text x="114" y="30.2" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>',
+  '<path d="M86 52 C 98 52 108 52 119 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>',
+  '<circle cx="126" cy="52" r="6.6" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".8"></circle>',
+  '<text x="126" y="55.6" text-anchor="middle" font-size="9.4" fill="#e9d5ff" opacity=".85">?</text>',
+  '<path d="M86 52 C 95 56 101 70 110 77" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>',
+  '<circle cx="114" cy="78" r="6.6" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".65"></circle>',
+  '<text x="114" y="81.4" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".75">?</text>',
+  /* 雾：越往右越糊 */
+  '<g filter="url(#exFog)">',
+    '<ellipse cx="140" cy="46" rx="36" ry="26" fill="#c084fc" opacity=".14"></ellipse>',
+    '<ellipse cx="134" cy="86" rx="32" ry="14" fill="#c084fc" opacity=".11"></ellipse>',
+  '</g>',
+  /* 三条路都通向同一个终点，终点在雾里 */
+  '<path d="M121 26 C 133 30 142 39 147 47" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".14"></path>',
+  '<path d="M133 52 C 137 52 140 52 144 52" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".12"></path>',
+  '<path d="M121 78 C 133 74 142 65 147 57" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".1"></path>',
+  '<circle cx="152" cy="52" r="17" fill="url(#exGlow)"></circle>',
+  '<circle cx="152" cy="52" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".5"></circle>',
+'</svg>'
+].join("");
+
+/* 实施地图（定稿）：需求下面挂着一堆做完的实施票，最后盖章 */
+var SVG_IMPL = [
+'<svg viewBox="0 0 168 104" width="132" height="82" aria-hidden="true">',
+  '<defs>',
+    '<radialGradient id="imGlow">',
+      '<stop offset="0" stop-color="#60a5fa" stop-opacity=".38"></stop>',
+      '<stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop>',
+    '</radialGradient>',
+  '</defs>',
+  /* 需求 */
+  '<rect x="6" y="42" width="38" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>',
+  '<text x="25" y="56.5" text-anchor="middle" font-size="10.5" fill="#93c5fd" letter-spacing=".5">需求</text>',
+  /* 一条竖着的挂线，实施票挂在需求下面 */
+  '<path d="M44 52 H 52" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round"></path>',
+  '<path d="M52 22 V 82" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 22 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 42 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 62 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 82 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  /* 四张做完的实施票 */
+  '<rect x="60" y="14" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 22 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 22 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="34" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 42 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 42 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="54" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 62 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 62 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="74" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 82 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 82 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  /* 每张票都指向同一个达成章 */
+  '<path d="M94 22 C 108 24 121 37 132 47" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 42 C 106 43 118 46 131 49" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 62 C 106 61 118 58 131 55" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 82 C 108 80 121 67 132 57" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  /* 达成章：外圈和探索图终点一样大（虚线环 r=8），里面填实、盖了勾 */
+  '<circle cx="140" cy="52" r="17" fill="url(#imGlow)"></circle>',
+  '<circle cx="140" cy="52" r="8" fill="none" stroke="#93c5fd" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity=".8"></circle>',
+  '<circle cx="140" cy="52" r="6.2" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>',
+  '<path d="M136.9 52.2 L 138.9 54.2 L 143.2 49.4" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>',
+'</svg>'
+].join("");
+
+/* ============ 定稿卡（368×232）============
+   卡的结构是固定的：左上角地图，右栏三层字（眉标 → 状态句 → 主体文本），底部横贯技能链。
+   三层文字各答一个问题：眉标答「这是哪一类」，状态句答「我处在什么状态」，
+   主体文本答「点下去会发生什么、最后给我什么」。
+   技能链用等宽字体画，节点与箭头都是短标签，长句不放图里。 */
+var P="#c084fc", PT="#e9d5ff", B="#93c5fd", BT="#bfdbfe", G="#3fb950";
+var MONO='Consolas,Menlo,monospace';
+/* 卡面文字 */
+var CARD_TXT={
+  explore:{name:"探索地图", state:"目标大而模糊", color:P, border:"rgba(188,140,255,.45)"},
+  impl:{name:"实施地图", state:"目标明确清晰", color:B, border:"rgba(29,78,216,.75)"}
+};
+/* 主体文本：做法 + 产物。规矩——不撞卡名、不重复状态句、开头一眼能分、两行以内 */
+var CARD_BODY={
+  explore:"分头探几条路，把没定的问清楚",
+  impl:"对着文档问到底，写成规格和实施票"
+};
+/* 中文分行：卡里的正文在真代码里是 HTML，交给浏览器排版；原型把它画成 SVG 的 <text>，
+   浏览器不会自动换行，所以这里手动分行。要守三件事：
+   一、一行最多几个字（12px 字号、144px 宽 → 一行 12 个汉字）；
+   二、词不能拆开（「规格」不能断成「规 / 格」，「实施票」不能断成「实施 / 票」）；
+   三、中文避头尾（行首不出现「个、把、只、再、还」这类字）。
+   不做这三条就会截出「写成规 / 格和实施票」这种断法。
+   另外：正文都是「前半句，后半句」两句，逗号后面正好装得下后半句时就断在逗号后面，两行长度才匀。 */
+var NO_LINE_START="个把只种样些再又还也就才更最而但却很跟和被让使等如若因及与或，。、；：！？）】》」』%";
+var NO_LINE_END="（【《「『(";
+var KEEP_WORDS=["规格","实施票","文档","问号","开工","没定","一条","四条","到底","问清","清楚","写成","落成","消掉","摊开","分头","探出","探路","一排","每个","什么","手里","多了"];
+function splitUnits(text){
+  var units=[], i=0;
+  while(i<text.length){
+    var hit=null;
+    for(var k=0;k<KEEP_WORDS.length;k++){
+      if(text.substr(i,KEEP_WORDS[k].length)===KEEP_WORDS[k]){ hit=KEEP_WORDS[k]; break; }
+    }
+    if(hit){ units.push(hit); i+=hit.length; }
+    else { units.push(text.charAt(i)); i++; }
+  }
+  return units;
+}
+function widthOf(units){ var w=0; for(var i=0;i<units.length;i++) w+=units[i].length; return w; }
+function packUnits(units,maxChars){
+  var lines=[], cur=[], w=0;
+  for(var i=0;i<units.length;i++){
+    var u=units[i], uw=u.length;
+    /* 逗号后面装得下剩下的全部内容，就在逗号后面断行 */
+    if(u==="，" && widthOf(units.slice(i+1))<=maxChars && cur.length>0){
+      cur.push(u); lines.push(cur); cur=[]; w=0; continue;
+    }
+    if(w+uw>maxChars && cur.length>0){
+      /* 下一行不能以这些字开头：把本行最后一个单元挪到下一行 */
+      if(NO_LINE_START.indexOf(u)>=0 && cur.length>1){
+        var last=cur.pop(); lines.push(cur); cur=[last]; w=last.length;
+      } else {
+        lines.push(cur); cur=[]; w=0;
+      }
+    }
+    /* 本行不能以这些字收尾 */
+    if(u && NO_LINE_END.indexOf(u)>=0 && cur.length>0){
+      cur.push(u); lines.push(cur); cur=[]; w=0; continue;
+    }
+    cur.push(u); w+=uw;
+  }
+  if(cur.length) lines.push(cur);
+  return lines;
+}
+function wrapText(x,y,text,fs,maxChars,lineH,fill){
+  var lines=packUnits(splitUnits(text),maxChars), s='';
+  for(var j=0;j<lines.length;j++){
+    s+='<text x="'+x+'" y="'+(y+j*lineH)+'" font-size="'+fs+'" fill="'+fill+'">'+lines[j].join("")+'</text>';
+  }
+  return s;
+}
+/* 技能链的节点与箭头 */
+function node(x,y,w,h,text,o){
+  o=o||{};
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?5:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+2.5)+'" text-anchor="middle" font-size="'+(o.fs||7)+'" fill="'+(o.text||"#e6edf3")+'" font-family="'+MONO+'">'+text+'</text>';
+}
+function arrowH(x1,x2,y,c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+    '<path d="M'+(x2-3.4)+' '+(y-2.4)+' L'+x2+' '+y+' L'+(x2-3.4)+' '+(y+2.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+/* 探索链：/wayfinder → 四个并行技能 → 目标明确 → /to-spec → /to-tickets（后两格蓝，两条路共有） */
+function chainExploreH(ox,oy){
+  var s="", cy=oy+31, rows=["/prototype","/research","/grilling","/domain-modeling"], rowH=12, gap=2.5;
+  var top=cy-(rows.length*rowH+(rows.length-1)*gap)/2;
+  s+=node(ox,cy-6,48,12,"/wayfinder",{fill:"rgba(192,132,252,.12)",stroke:P,text:PT,fs:6.8});
+  s+=arrowH(ox+48,ox+56,cy,P);
+  var sx=ox+56,gx=ox+64;
+  s+='<path d="M'+sx+' '+cy+' V'+(top+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+='<path d="M'+sx+' '+cy+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for(var i=0;i<rows.length;i++){
+    var y=top+i*(rowH+gap);
+    s+=arrowH(sx,gx,y+rowH/2,P);
+    s+=node(gx,y,86,rowH,rows[i],{fill:"rgba(192,132,252,.10)",stroke:P,text:PT,fs:6.6,rx:4});
+  }
+  var rx=gx+86+4,mx=rx+4;
+  s+='<path d="M'+rx+' '+(top+rowH/2)+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+=arrowH(mx,mx+6,cy,P);
+  var gx2=mx+6;
+  s+=node(gx2,cy-6,46,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(gx2+46,gx2+54,cy,B);
+  s+=node(gx2+54,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(gx2+92,gx2+100,cy,B);
+  s+=node(gx2+100,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+/* 实施链：/grill-with-docs → 目标明确 → /to-spec → /to-tickets */
+function chainImplH(ox,oy){
+  var s="", cy=oy+31;
+  s+=node(ox,cy-6,68,12,"/grill-with-docs",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6});
+  s+=arrowH(ox+68,ox+94,cy,B);
+  s+=node(ox+94,cy-6,46,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(ox+140,ox+158,cy,B);
+  s+=node(ox+158,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(ox+196,ox+220,cy,B);
+  s+=node(ox+220,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+/* 把上面那两副 SVG 的画装进卡里的地图面板（去掉最外层 svg 标签，保留里面全部内容） */
+function innerOf(svg){ return svg.replace(/^<svg[^>]*>/,'').replace(/<\/svg>$/,''); }
+function cardFinal(kind){
+  var c=CARD_TXT[kind], W=368, H=232;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">'+
+    '<rect x="0.5" y="0.5" width="'+(W-1)+'" height="'+(H-1)+'" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>'+
+    '<rect x="12" y="12" width="184" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>'+
+    '<svg x="20" y="18" width="168" height="104" viewBox="0 0 168 104">'+innerOf(kind==='explore'?SVG_EXPLORE:SVG_IMPL)+'</svg>'+
+    '<text x="208" y="36" font-size="11" fill="'+c.color+'" fill-opacity=".72" letter-spacing="1.2">'+c.name+'</text>'+
+    '<text x="208" y="64" font-size="17" font-weight="700" fill="'+c.color+'">'+c.state+'</text>'+
+    wrapText(208,86,CARD_BODY[kind],12,12,17,"#a1a1aa")+
+    '<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>'+
+    (kind==='explore' ? chainExploreH(26,140) : chainImplH(26,140))+
+    '</svg>';
+  return s;
+}
+
+/* ============ 状态 ============ */
+var st = { choice:null, chooserOpen:true };
+
+var MAP_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"></path><path d="M9 3v15M15 6v15"></path></svg>';
+
+/* ============ 入口：单按钮 + 选择卡 ============ */
+function cardHtml(kind){
+  return '<div class="pick" data-choice="'+kind+'">'+cardFinal(kind)+'</div>';
+}
+function entryHtml(){
+  var open = st.chooserOpen;
+  return '<button class="single" id="openChooser">'+MAP_ICON+'新建需求 <span style="color:var(--cap);font-weight:400">▾</span></button>'+
+    (open ? '<div class="chooser" id="chooser">'+
+      '<span class="close" id="closeChooser">×</span>'+
+      '<h4>这条需求，你现在能说清要做什么吗？</h4>'+
+      '<p class="csub">你自己判断，插件不猜；选完才开新会话。</p>'+
+      cardHtml("explore")+
+      cardHtml("impl")+
+    '</div>' : '');
+}
+
+/* ============ 右栏说明 ============ */
+function noteHtml(){
+  var h = '<h2>这一版在做什么</h2>';
+  h += '<p class="lead">单按钮 + 选择卡：面板上只有一颗「新建需求」，点开先让用户回答一句判断，再看两张卡。选择发生在<b>点开之后</b>。</p>';
+  h += '<h2>卡上三层文字，各答一个问题</h2>';
+  h += '<p>定稿卡是 368×232 的横卡：左上角是地图，底部横贯技能链，右栏三层字。'+
+    '<b>眉标</b>（卡片名，同色但淡一档）答「这是哪一类」；<b>状态句</b>（「目标大而模糊 / 目标明确清晰」，大字同色）答「我处在什么状态」；'+
+    '<b>主体文本</b>（灰字）答「点下去会发生什么、最后给我什么」。</p>';
+  h += '<p>主体文本现在这样写：<b>探索</b>「分头探几条路，把没定的问清楚」，<b>实施</b>「对着文档问到底，写成规格和实施票」。'+
+    '四条规矩：不撞另一张卡的卡名（所以不写「实施地图」四个字）、不重复状态句（不写「模糊 / 明确 / 拿不准 / 没想透」）、'+
+    '开头一眼能分（分头 ↔ 对着文档）、两行以内（12px 字号、144px 宽，一行最多 12 个汉字）。</p>';
+  h += '<p>「探索 → 实施」的承接关系<b>不写进文案</b>：卡底的技能链已经画出来了（探索那条链的末尾同样是 /to-spec、/to-tickets，那两格染成蓝色）。'+
+    '写进文案会让已经想清楚的用户以为「实施地图」必须先走探索才拿得到，反而不敢选第二张。</p>';
+  h += '<h2>图上不写字</h2>';
+  h += '<p>两幅地图只画形态：探索那幅是一条路分成三条岔路，每条尽头是一个还没答的问号，终点在雾里；实施那幅是需求下面挂着一排做完的实施票，四条线汇到一枚达成章。'+
+    '<b>长句都不在图里</b>，都在卡面的文字层；技能名用等宽字体写在底部技能链的格子里。</p>';
+  h += '<h2>判据</h2>';
+  h += '<table class="dectab"><tr><th>走哪条</th><th>卡上的状态句</th><th>用户心里那句话</th><th>点了之后</th></tr>'+
+    '<tr><td style="color:var(--purple)">探索地图</td><td class="w2" style="color:var(--txt)">'+ROADS.explore.state+'</td><td class="w2">'+ROADS.explore.test+'</td><td class="w2">'+ROADS.explore.opening+'</td></tr>'+
+    '<tr><td style="color:var(--blue-text)">实施地图</td><td class="w2" style="color:var(--txt)">'+ROADS.impl.state+'</td><td class="w2">'+ROADS.impl.test+'</td><td class="w2">'+ROADS.impl.opening+'</td></tr></table>';
+  h += '<h2>为什么必须用户显式判断</h2>';
+  h += '<p>插件手里只有一句话的需求描述，没有可靠办法判断用户处在哪条路。自动分流一旦错，代价是整条路白走：把清晰的实施需求送进探索地图，会白建一张决策地图；把大而模糊的需求直接推进规格，会在拆票时才发现关键取舍没定。所以没有「智能判断」，只把<b>判断本身</b>做得更清楚、更显眼。</p>';
+  h += '<h2>当前状态</h2>';
+  h += '<div class="srow"><span>最近选择</span><b>'+(st.choice ? ROADS[st.choice].name : "还没选（入口在等用户判断）")+'</b></div>';
+  h += '<div class="srow"><span>开的新会话</span><b>'+(st.choice ? ROADS[st.choice].opening : "—")+'</b></div>';
+  h += '<h2>命名</h2>';
+  h += '<p>两条路按<b>目的地</b>命名，不叫「写规格」：那条路是 grill-with-docs → 规格 → 实施票，产物是一张实施地图（规格当容器、下面挂实施票）。「写规格」只是中途一步，听起来像入口只等于 to-spec 一个技能，也对不齐列表里的「地图」「规格」角标。</p>';
+  h += '<h2>还没定的一件事</h2>';
+  h += '<p><b>探索那条会话到底停在哪一步</b>：技能链上探索那条的末尾也有 /to-spec、/to-tickets（原型图里这两格染蓝，是「两条路共有的后半截」）。'+
+    '如果实情是探索也跑完这两步，探索卡的主体文本就不能只说「一份需求」——用户会以为选了探索就拿不到票，得改成「一份需求加一叠票」。</p>';
+  h += '<p style="color:var(--cap);font-size:11px;margin-top:8px">抛弃式原型；选定后并进真代码，以插件里的实际效果为准。</p>';
+  return h;
+}
+
+/* ============ 渲染 ============ */
+function bannerHtml(){
+  if (!st.choice) return "";
+  var r = ROADS[st.choice];
+  return '<div class="banner '+r.color+'"><div><div class="btitle">'+r.name+'</div>'+
+    '<div class="btext">'+r.after+'</div></div>'+
+    '<button class="undo" id="undoChoice">撤销这次选择</button></div>';
+}
+function render(){
+  document.getElementById("entryInline").innerHTML = entryHtml();
+  document.getElementById("bannerSlot").innerHTML = bannerHtml();
+  document.getElementById("note").innerHTML = noteHtml();
+}
+
+/* ============ 交互 ============ */
+function choose(kind){
+  st.choice = kind;
+  st.chooserOpen = false;
+  render();
+}
+document.addEventListener("click", function(e){
+  var pick = e.target.closest("[data-choice]");
+  if (pick) { e.preventDefault(); choose(pick.getAttribute("data-choice")); return; }
+  if (e.target.closest("#openChooser")) { st.chooserOpen = !st.chooserOpen; render(); return; }
+  if (e.target.closest("#closeChooser")) { st.chooserOpen = false; render(); return; }
+  if (e.target.closest("#undoChoice")) { st.choice = null; render(); return; }
+  var chooser = document.getElementById("chooser");
+  if (chooser && !e.target.closest("#chooser") && !e.target.closest("#openChooser")) {
+    st.chooserOpen = false; render();
+  }
+});
+render();
+})();
+</script>
+</body>
+</html>

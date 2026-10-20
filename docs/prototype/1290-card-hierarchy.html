@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 卡片文字层级：名字当主角还是状态句当主角</title>
+<style>
+:root{--bg:#0c0e12;--card:#10131a;--border:#2a2d35;--txt:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
+  --purple:#c084fc;--blue-text:#93c5fd;--amber:#f59e0b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:1000px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 60px;max-width:1240px;margin:0 auto}
+section{margin-bottom:32px}
+h2{font-size:15px;margin:0 0 4px;display:flex;align-items:baseline;gap:9px}
+h2 .tag{font-size:11px;color:var(--cap);font-weight:400;border:1px solid var(--border);border-radius:20px;padding:1px 9px}
+h2 .pick{font-size:11px;color:var(--amber);font-weight:400}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:1040px}
+.sub b{color:var(--txt)}
+.opt{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.cards{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.cardcell .cl{font-size:10.5px;color:var(--cap);margin-bottom:5px;text-align:center}
+.notes{flex:1 1 300px;min-width:280px}
+.notes dl{margin:0;font-size:12.3px}
+.notes dt{color:var(--amber);margin-top:7px}
+.notes dd{margin:2px 0 0;color:var(--sec)}
+.notes dd b{color:var(--txt)}
+.hint{color:var(--amber);font-size:12px;max-width:1040px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>方案二定稿后：名字当主角，还是状态句当主角</h1>
+  <p>底子都用<b>方案二</b>（368×232 横卡，地图按 1:1 放大当主角，技能链在底部横贯）。这一轮只改两件事：把<b>主体文本</b>补回卡里，以及决定「探索地图 / 实施地图」这两个名字和「目标大而模糊 / 目标明确清晰」这两句谁做大字。</p>
+  <p>主体文本先用子代理推荐的那一对（<b>拿不准的地方多岔几路</b> / <b>没想透的地方一路问</b>），后面还有长句版本，都放在页面最后一段，可以直接换。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="tag">甲</span>状态句当主角，名字降成眉标<span class="pick">我推荐</span></h2>
+    <p class="sub">右栏三行：<b>小字眉标</b>（探索地图，11px）→ <b>状态句大字</b>（目标大而模糊，17px）→ <b>主体文本</b>（拿不准的地方多岔几路，12px）。名字退成一行小标签，认得出但不抢眼。</p>
+    <div class="opt" id="optA"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">乙</span>名字当主角，状态句降级<span class="pick">对照</span></h2>
+    <p class="sub">右栏三行：<b>名字大字</b>（探索地图，17px）→ <b>状态句</b>（目标大而模糊，12px）→ <b>主体文本</b>（拿不准的地方多岔几路，12px）。这是现在这张卡的样子补上主体文本。</p>
+    <div class="opt" id="optB"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">丙</span>名字做成角标，贴在卡左上</h2>
+    <p class="sub">名字做成一个小胶囊（<code>探索地图</code>）单独放在卡左上角，右栏只剩<b>状态句大字</b>和<b>主体文本</b>；地图往下挪一点。角标最不占地方，但名字离内容远，扫一眼容易漏。</p>
+    <div class="opt" id="optC"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">丁</span>主体文本的两种长度</h2>
+    <p class="sub">甲方案里，主体文本换成完整长句会变成两行；短句是一行。下面把两种都画出来，右栏高度不变，看哪一种更耐看。</p>
+    <div class="opt" id="optD"></div>
+  </section>
+
+  <p class="hint">四个方案里的地图、名字、状态句、技能链完全一样，只有文字层级和主体文本的长短不同——方便直接比。</p>
+</div>
+
+<script>
+var P="#c084fc", PT="#e9d5ff", B="#93c5fd", BT="#bfdbfe", G="#3fb950";
+function defs(u,c){
+  return '<defs>'+
+    '<radialGradient id="g'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".38"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient>'+
+    '<radialGradient id="f'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".3"></stop><stop offset=".55" stop-color="'+c+'" stop-opacity=".14"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient></defs>';
+}
+function need(x,y,w,h,stroke,txt,dash){
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(h/2)+'" fill="rgba(0,0,0,0)" stroke="'+stroke+'" stroke-width="1.3"'+(dash?' stroke-dasharray="3.4 2.4"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+4)+'" text-anchor="middle" font-size="10.5" fill="'+txt+'" letter-spacing=".5">需求</text>';
+}
+function q(x,y,r){
+  return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(10,12,16,.92)" stroke="'+PT+'" stroke-width="1.3"></circle>'+
+    '<text x="'+x+'" y="'+(y+r*0.38)+'" text-anchor="middle" font-size="'+(r*1.35)+'" fill="'+PT+'">?</text>';
+}
+function target(x,y,r,color,glow,check){
+  var s='<circle cx="'+x+'" cy="'+y+'" r="'+(r+9)+'" fill="url(#'+glow+')"></circle>';
+  s+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#0b0d11" stroke="'+color+'" stroke-width="1.4"></circle>';
+  if(check){ s+='<path d="M'+(x-r*0.42)+' '+y+' l'+(r*0.3)+' '+(r*0.34)+' l'+(r*0.6)+'-'+(r*0.68)+'" fill="none" stroke="'+G+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>'; }
+  else { s+='<circle cx="'+x+'" cy="'+y+'" r="'+(r*0.42)+'" fill="none" stroke="'+color+'" stroke-width="1.1" opacity=".75"></circle>'; }
+  return s;
+}
+function ticket(x,y,w,h){
+  var s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="4" fill="rgba(29,78,216,.42)" stroke="'+B+'" stroke-width="1.2"></rect>';
+  s+='<path d="M'+(x+6)+' '+(y+h/2)+' l2.2 2.2 4-4.6" fill="none" stroke="'+G+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2-2.5)+' H '+(x+w-5)+'" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".7"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2+3)+' H '+(x+w-12)+'" stroke="'+B+'" stroke-width="1" stroke-linecap="round" opacity=".35"></path>';
+  return s;
+}
+function artExplore(u){
+  var s=defs(u,"#c084fc");
+  s+=need(6,42,42,20,P,PT,true);
+  s+='<circle cx="52" cy="52" r="5" fill="none" stroke="'+P+'" stroke-opacity=".35" stroke-width="1"></circle>';
+  s+='<circle cx="52" cy="52" r="2.6" fill="'+P+'"></circle>';
+  s+='<path d="M54 52 H 68" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round"></path>';
+  s+='<circle cx="72" cy="52" r="3.6" fill="'+P+'"></circle>';
+  s+='<path d="M72 52 C 80 46 88 26 96 21" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 82 52 90 52 96 52" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 80 58 88 78 96 83" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+=q(104,20,8); s+=q(104,52,8); s+=q(104,84,8);
+  s+='<path d="M112 20 C 124 22 134 40 141 50" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>';
+  s+='<path d="M112 52 C 124 52 134 52 141 52" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".4"></path>';
+  s+='<path d="M112 84 C 124 82 134 64 141 54" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".35"></path>';
+  s+='<circle cx="152" cy="52" r="30" fill="url(#f'+u+')"></circle>';
+  s+=target(150,52,8,PT,'g'+u,false);
+  return s;
+}
+function artImpl(u){
+  var s=defs(u,"#60a5fa");
+  s+=need(6,42,42,20,B,BT,false);
+  var ys=[8,31,54,77], cy=[16.5,39.5,62.5,85.5];
+  for(var i=0;i<4;i++){ s+='<path d="M48 52 C 56 52 58 '+cy[i]+' 68 '+cy[i]+'" fill="none" stroke="'+B+'" stroke-width="1.4" stroke-linecap="round" opacity=".75"></path>'; }
+  for(var j=0;j<4;j++){
+    s+=ticket(70,ys[j],36,17);
+    s+='<path d="M106 '+cy[j]+' C 118 '+cy[j]+' 128 '+(cy[j]<52?cy[j]+8:cy[j]-8)+' 138 50" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>';
+  }
+  s+=target(148,52,8,BT,'g'+u,true);
+  return s;
+}
+var MONO='Consolas,Menlo,monospace';
+function node(x,y,w,h,text,o){
+  o=o||{};
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?5:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+2.5)+'" text-anchor="middle" font-size="'+(o.fs||7)+'" fill="'+(o.text||"#e6edf3")+'" font-family="'+MONO+'">'+text+'</text>';
+}
+function arrowH(x1,x2,y,c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+    '<path d="M'+(x2-3.4)+' '+(y-2.4)+' L'+x2+' '+y+' L'+(x2-3.4)+' '+(y+2.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+function chainExploreH(ox,oy){
+  var s="", cy=oy+31, rows=["/prototype","/research","/grilling","/domain-modeling"], rowH=12, gap=2.5;
+  var top=cy-(rows.length*rowH+(rows.length-1)*gap)/2;
+  s+=node(ox,cy-6,48,12,"/wayfinder",{fill:"rgba(192,132,252,.12)",stroke:P,text:PT,fs:6.8});
+  s+=arrowH(ox+48,ox+56,cy,P);
+  var sx=ox+56,gx=ox+64;
+  s+='<path d="M'+sx+' '+cy+' V'+(top+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+='<path d="M'+sx+' '+cy+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for(var i=0;i<rows.length;i++){
+    var y=top+i*(rowH+gap);
+    s+=arrowH(sx,gx,y+rowH/2,P);
+    s+=node(gx,y,86,rowH,rows[i],{fill:"rgba(192,132,252,.10)",stroke:P,text:PT,fs:6.6,rx:4});
+  }
+  var rx=gx+86+4,mx=rx+4;
+  s+='<path d="M'+rx+' '+(top+rowH/2)+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+=arrowH(mx,mx+6,cy,P);
+  var gx2=mx+6;
+  s+=node(gx2,cy-6,40,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(gx2+40,gx2+46,cy,B);
+  s+=node(gx2+46,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(gx2+84,gx2+90,cy,B);
+  s+=node(gx2+90,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+function chainImplH(ox,oy){
+  var s="", cy=oy+31;
+  s+=node(ox,cy-6,68,12,"/grill-with-docs",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6});
+  s+=arrowH(ox+68,ox+94,cy,B);
+  s+=node(ox+94,cy-6,40,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(ox+134,ox+158,cy,B);
+  s+=node(ox+158,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(ox+196,ox+220,cy,B);
+  s+=node(ox+220,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+var uid=0;
+function artOf(kind,w,h,x,y){
+  var u='u'+(uid++);
+  var a = kind==='explore' ? artExplore(u) : artImpl(u);
+  return '<svg x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" viewBox="0 0 168 104">'+a+'</svg>';
+}
+function wrapText(x,y,text,fs,maxChars,lineH,fill){
+  var lines=[], line="", i;
+  for(i=0;i<text.length;i++){
+    line+=text[i];
+    if(line.length>=maxChars){ lines.push(line); line=""; }
+  }
+  if(line) lines.push(line);
+  var s='';
+  for(var j=0;j<lines.length;j++){
+    s+='<text x="'+x+'" y="'+(y+j*lineH)+'" font-size="'+fs+'" fill="'+fill+'">'+lines[j]+'</text>';
+  }
+  return s;
+}
+var TXT={
+  explore:{name:"探索地图", state:"目标大而模糊", body:"拿不准的地方多岔几路", long:"这事到底该不该做、要做成什么样、哪条路该砍，我一个人实在定不了。", color:P, text:PT, border:"rgba(188,140,255,.45)"},
+  impl:{name:"实施地图", state:"目标明确清晰", body:"没想透的地方一路问", long:"我不想再从头想一遍了，只想有人替我把它问透、写下来，然后我照着干。", color:B, text:BT, border:"rgba(29,78,216,.75)"}
+};
+function cardShell(kind,w,h){
+  var c=TXT[kind];
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">'+
+    '<rect x="0.5" y="0.5" width="'+(w-1)+'" height="'+(h-1)+'" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>';
+}
+function mapBox(kind,x,y,w,h,frameW,frameH){
+  var s='<rect x="'+x+'" y="'+y+'" width="'+frameW+'" height="'+frameH+'" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,w,h,x+8,y+6);
+  return s;
+}
+/* 甲：状态句当主角，名字降成眉标 */
+function cardA(kind,longBody){
+  var c=TXT[kind], W=368, H=232, s=cardShell(kind,W,H);
+  s+=mapBox(kind,20,18,168,104,184,116);
+  s+='<text x="208" y="36" font-size="11" fill="'+c.color+'" letter-spacing="1.2">'+c.name+'</text>';
+  s+='<text x="208" y="64" font-size="17" font-weight="700" fill="#e6edf3">'+c.state+'</text>';
+  if(longBody) s+=wrapText(208,86,c.long,12,13,17,"#a1a1aa");
+  else s+=wrapText(208,86,c.body,12,13,17,"#a1a1aa");
+  s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+= kind==='explore' ? chainExploreH(20,140) : chainImplH(20,140);
+  return s+'</svg>';
+}
+/* 乙：名字当主角 */
+function cardB(kind){
+  var c=TXT[kind], W=368, H=232, s=cardShell(kind,W,H);
+  s+=mapBox(kind,20,18,168,104,184,116);
+  s+='<text x="208" y="58" font-size="17" font-weight="700" fill="'+c.color+'">'+c.name+'</text>';
+  s+='<text x="208" y="80" font-size="12" fill="#e6edf3">'+c.state+'</text>';
+  s+=wrapText(208,100,c.body,12,13,17,"#a1a1aa");
+  s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+= kind==='explore' ? chainExploreH(20,140) : chainImplH(20,140);
+  return s+'</svg>';
+}
+/* 丙：名字做成左上角胶囊 */
+function cardC(kind){
+  var c=TXT[kind], W=368, H=244, s=cardShell(kind,W,H);
+  s+='<rect x="14" y="14" width="60" height="19" rx="9.5" fill="rgba(255,255,255,.06)" stroke="'+c.color+'" stroke-opacity=".55" stroke-width="1"></rect>';
+  s+='<text x="44" y="27" text-anchor="middle" font-size="10.5" fill="'+c.color+'">'+c.name+'</text>';
+  s+=mapBox(kind,20,46,168,104,184,116);
+  s+='<text x="208" y="82" font-size="17" font-weight="700" fill="#e6edf3">'+c.state+'</text>';
+  s+=wrapText(208,104,c.body,12,13,17,"#a1a1aa");
+  s+='<rect x="12" y="176" width="344" height="56" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+= kind==='explore' ? chainExploreH(20,176) : chainImplH(20,176);
+  return s+'</svg>';
+}
+function render(id,cards,notes){
+  var html='<div class="cards">'+cards.map(function(c){
+    return '<div class="cardcell"><div class="cl">'+c[0]+'</div>'+c[1]+'</div>';
+  }).join("")+'</div>';
+  html+='<div class="notes"><dl>'+notes.map(function(n){ return '<dt>'+n[0]+'</dt><dd>'+n[1]+'</dd>'; }).join("")+'</dl></div>';
+  document.getElementById(id).innerHTML=html;
+}
+render("optA",[["探索地图",cardA("explore",false)],["实施地图",cardA("impl",false)]],
+  [["为什么这样","状态句「目标大而模糊 / 目标明确清晰」是这一对里唯一互相排斥的说法，用户扫一眼就能把自己归到一边；名字「探索地图 / 实施地图」是插件词汇，横看几乎一样，当大字没有对比力。"],
+   ["名字没丢","降成 11px 的眉标，还是能认出这是哪一类；选完之后新会话横幅里再出现一次，用户就记住了。"],
+   ["主体文本","用子代理推荐的那一对短句，一行放得下，右栏三行节奏是：标签 → 大字 → 一句话。"]]);
+render("optB",[["探索地图",cardB("explore")],["实施地图",cardB("impl")]],
+  [["什么时候选它","你觉得「让用户记住这两个名字」更重要的时候——比如后面要在同一屏里反复提到它们。"],
+   ["代价","两个名字横看几乎一样，大字给出去以后，用户第一眼得到的信息是「两张差不多一样的卡」，而不是「我现在该走哪条」。"]]);
+render("optC",[["探索地图",cardC("explore")],["实施地图",cardC("impl")]],
+  [["特点","名字做成胶囊角标单独放，最不占视觉，右栏全给状态句和主体文本。"],
+   ["代价","角标离内容远，扫一眼容易漏；而且胶囊抢了卡口的注意力——用户还没看内容，先看到一个标签。地图往下挪了 28px，卡高到 244。"]]);
+render("optD",[["短句 · 探索",cardA("explore",false)],["长句 · 探索",cardA("explore",true)],["长句 · 实施",cardA("impl",true)]],
+  [["短句","一行，读得快；代价是信息少，用户点进去之前不知道具体会发生什么。"],
+   ["长句","两行，是用户自己心里的原话，共情强；代价是右栏被占满，卡里没有别的位置放别的信息。"],
+   ["我倾向","短句。因为这张卡的作用是「帮我选一条路」，不是「说服我」。真要长话，放到选完之后的新会话开场白里更合适。"]]);
+</script>
+</body>
+</html>

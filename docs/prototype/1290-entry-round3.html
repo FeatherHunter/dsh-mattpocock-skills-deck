@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 入口弹窗文案（第三轮：点破句 / 有 feelings 的心声 / SVG 技能链）</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff;
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa;
+  --green:#3fb950; --amber:#f59e0b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1200px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:980px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 48px;max-width:1200px;margin:0 auto}
+section{margin-bottom:34px}
+h2{font-size:15px;margin:0 0 4px}
+h2 .n{color:var(--cap);font-weight:400;margin-right:8px}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:980px}
+.sub b{color:var(--txt)}
+.key{font-size:10.5px;color:var(--cap);letter-spacing:.05em}
+.hint{color:var(--amber);font-size:12px;max-width:980px;margin:8px 0 0}
+
+/* 卡（模拟真弹窗里的一张选择卡） */
+.card{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;background:var(--card)}
+.card.explore{border-color:rgba(188,140,255,.45)}
+.card.impl{border-color:rgba(29,78,216,.75)}
+.card .top{display:flex;gap:14px}
+.card .art{background:#0a0c10;border:1px solid var(--border);border-radius:8px;padding:6px 0;flex:none}
+.card .capline{text-align:center;font-size:12px;color:var(--sec);margin-top:5px;max-width:150px}
+.card .body{flex:1;min-width:0}
+.card .name{font-size:15px;font-weight:700;margin-bottom:6px}
+.card.explore .name{color:var(--purple)}
+.card.impl .name{color:var(--blue-text)}
+.card .voice{font-size:13.5px;line-height:1.7;color:var(--txt);margin-bottom:8px}
+.card .chainwrap{background:#0a0c10;border:1px solid var(--border);border-radius:8px;padding:7px 8px}
+.card .chainwrap svg{display:block;max-width:100%;height:auto}
+.card .chainlabel{font-size:10.5px;color:var(--cap);margin-bottom:4px}
+.card .pick{font-size:10.5px;color:var(--cap);margin-top:6px}
+
+/* 一、图下小字 */
+.pair{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+.pair .slot{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 10px}
+.pair .slot.explore{border-color:rgba(188,140,255,.4)}
+.pair .slot.impl{border-color:rgba(29,78,216,.7)}
+.pair .art{background:#0a0c10;border:1px solid var(--border);border-radius:7px;display:flex;justify-content:center;padding:5px 0}
+.pair .capline{text-align:center;font-size:13px;color:var(--txt);margin-top:7px;line-height:1.5}
+.pair .pk{font-size:10.5px;color:var(--cap);margin-bottom:5px;display:flex;gap:6px;align-items:center}
+.pair .pk b{color:var(--txt)}
+
+/* 二、心声候选 */
+.vlist{display:flex;flex-direction:column;gap:8px}
+.vrow{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:9px 11px}
+.vrow .k{font-size:10.5px;color:var(--cap);width:14px;flex:none;padding-top:3px}
+.vrow .t{font-size:13.5px;line-height:1.7}
+.vrow.explore{border-left:3px solid var(--purple)}
+.vrow.impl{border-left:3px solid var(--blue-text)}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>入口弹窗文案 · 第三轮</h1>
+  <p><b>图下小字</b>这轮不解释内部在做什么，改成从用户视角点破一句：你看到它应该会说「哦，我需要的是这个」。</p>
+  <p><b>用户心声</b>这轮不再用短标签，改成一句完整的话，把那种「卡在半路」的感觉写出来。</p>
+  <p><b>技能链</b>这轮不用文字链了，改成用 SVG 画，字号小一点没关系，要的是看得清。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="n">一</span>图下小字：一句点破的话</h2>
+    <p class="sub">每对左边探索、右边实施，两句互为对照；都从「我需要什么」的角度写，不描述插件内部在做什么。</p>
+    <div id="capBlock"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">二</span>用户心声：一句完整的话</h2>
+    <p class="sub">不再是标签，是用户自己会说的整句话：把「说不清」「差一点」那种感觉写出来，让人看到就点头。</p>
+    <div class="cols" style="display:flex;gap:20px;align-items:flex-start">
+      <div style="flex:1;min-width:0">
+        <h3 style="font-size:13px;color:var(--purple);margin:0 0 8px">探索地图</h3>
+        <div class="vlist" id="voiceExplore"></div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <h3 style="font-size:13px;color:var(--blue-text);margin:0 0 8px">实施地图</h3>
+        <div class="vlist" id="voiceImpl"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">三</span>技能链：改用 SVG 画</h2>
+    <p class="sub">左边是卡里实际会有的样子（宽度 300，SVG 按 320 画、缩到 300 显示）；右边把名字全露出来的版本需要 354 才看得清，缩到 300 就只剩 5 像素高——所以我更推荐左边那版，四个分支的名字放在弹窗右边的说明栏里。</p>
+    <div id="chainBlock"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">四</span>整张卡合起来看</h2>
+    <p class="sub">用我推荐的组合：图下小字 A 对 + 心声 A 句 + 技能链 A 版。</p>
+    <div id="finalBlock"></div>
+  </section>
+</div>
+
+<script>
+/* ============ 两副定稿示意图（原样搬过来） ============ */
+var SVG_EXPLORE = [
+'<svg viewBox="0 0 168 104" width="132" height="82" aria-hidden="true">',
+  '<defs>',
+    '<filter id="exFog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.6"></feGaussianBlur></filter>',
+    '<radialGradient id="exGlow">',
+      '<stop offset="0" stop-color="#c084fc" stop-opacity=".38"></stop>',
+      '<stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop>',
+    '</radialGradient>',
+  '</defs>',
+  '<rect x="7" y="42" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>',
+  '<text x="30" y="56.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff" letter-spacing=".5">需求</text>',
+  '<circle cx="56" cy="52" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>',
+  '<circle cx="56" cy="52" r="2.6" fill="#c084fc"></circle>',
+  '<path d="M60 52 C 70 52 78 52 86 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>',
+  '<circle cx="86" cy="52" r="3.2" fill="#c084fc" opacity=".9"></circle>',
+  '<path d="M86 52 C 95 48 101 34 110 27" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".75"></path>',
+  '<circle cx="114" cy="26" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>',
+  '<text x="114" y="30.2" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>',
+  '<path d="M86 52 C 98 52 108 52 119 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>',
+  '<circle cx="126" cy="52" r="6.6" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".8"></circle>',
+  '<text x="126" y="55.6" text-anchor="middle" font-size="9.4" fill="#e9d5ff" opacity=".85">?</text>',
+  '<path d="M86 52 C 95 56 101 70 110 77" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>',
+  '<circle cx="114" cy="78" r="6.6" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".65"></circle>',
+  '<text x="114" y="81.4" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".75">?</text>',
+  '<g filter="url(#exFog)">',
+    '<ellipse cx="140" cy="46" rx="36" ry="26" fill="#c084fc" opacity=".14"></ellipse>',
+    '<ellipse cx="134" cy="86" rx="32" ry="14" fill="#c084fc" opacity=".11"></ellipse>',
+  '</g>',
+  '<path d="M121 26 C 133 30 142 39 147 47" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".14"></path>',
+  '<path d="M133 52 C 137 52 140 52 144 52" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".12"></path>',
+  '<path d="M121 78 C 133 74 142 65 147 57" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".1"></path>',
+  '<circle cx="152" cy="52" r="17" fill="url(#exGlow)"></circle>',
+  '<circle cx="152" cy="52" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".5"></circle>',
+'</svg>'
+].join("");
+
+var SVG_IMPL = [
+'<svg viewBox="0 0 168 104" width="132" height="82" aria-hidden="true">',
+  '<defs>',
+    '<radialGradient id="imGlow">',
+      '<stop offset="0" stop-color="#60a5fa" stop-opacity=".38"></stop>',
+      '<stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop>',
+    '</radialGradient>',
+  '</defs>',
+  '<rect x="6" y="42" width="38" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>',
+  '<text x="25" y="56.5" text-anchor="middle" font-size="10.5" fill="#93c5fd" letter-spacing=".5">需求</text>',
+  '<path d="M44 52 H 52" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round"></path>',
+  '<path d="M52 22 V 82" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 22 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 42 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 62 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 82 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<rect x="60" y="14" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 22 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 22 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="34" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 42 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 42 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="54" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 62 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 62 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="74" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 82 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 82 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<path d="M94 22 C 108 24 121 37 132 47" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 42 C 106 43 118 46 131 49" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 62 C 106 61 118 58 131 55" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 82 C 108 80 121 67 132 57" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<circle cx="140" cy="52" r="17" fill="url(#imGlow)"></circle>',
+  '<circle cx="140" cy="52" r="8" fill="none" stroke="#93c5fd" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity=".8"></circle>',
+  '<circle cx="140" cy="52" r="6.2" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>',
+  '<path d="M136.9 52.2 L 138.9 54.2 L 143.2 49.4" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>',
+'</svg>'
+].join("");
+
+/* ============ 技能链：SVG 画 ============ */
+function node(x, y, w, h, text, o){
+  o = o || {};
+  var s = '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?7:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>';
+  s += '<text x="'+(x+w/2)+'" y="'+(y+h/2+3)+'" text-anchor="middle" font-size="'+(o.fs||7.6)+'" fill="'+(o.text||"#e6edf3")+'" font-family="Consolas,Menlo,monospace">'+text+'</text>';
+  return s;
+}
+function arrow(x1, x2, y, c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3.2)+'" stroke="'+c+'" stroke-width="1"></path>'+
+         '<path d="M'+(x2-3.6)+' '+(y-2.6)+' L'+x2+' '+y+' L'+(x2-3.6)+' '+(y+2.6)+'" fill="none" stroke="'+c+'" stroke-width="1"></path>';
+}
+
+/* 探索 A：单行；四个并行分支用四个小点表示，名字放在弹窗右边的说明栏 */
+function chainExploreA(){
+  var C="#c084fc", T="#e9d5ff";
+  var s = '<svg viewBox="0 0 320 30" width="320" height="30" aria-hidden="true">';
+  s += node(0, 8, 62, 14, "/wayfinder", {fill:"rgba(192,132,252,.12)", stroke:C, text:T});
+  s += arrow(62, 72, 15, C);
+  s += '<rect x="72" y="5" width="78" height="20" rx="6" fill="rgba(192,132,252,.07)" stroke="'+C+'" stroke-width="1" stroke-dasharray="3 2"></rect>';
+  [81, 89, 97, 105].forEach(function(cx){
+    s += '<circle cx="'+cx+'" cy="15" r="1.7" fill="'+T+'" opacity=".9"></circle>';
+  });
+  s += '<text x="113" y="17.6" font-size="6.9" fill="'+T+'" opacity=".92">并行四路</text>';
+  s += arrow(150, 160, 15, C);
+  s += node(160, 8, 48, 14, "目标明确", {fill:"transparent", stroke:"#4a5058", dash:true, text:"#a1a1aa", fs:7.4});
+  s += arrow(208, 218, 15, C);
+  s += node(218, 8, 44, 14, "/to-spec", {fill:"rgba(192,132,252,.10)", stroke:C, text:T});
+  s += arrow(262, 272, 15, C);
+  s += node(272, 8, 48, 14, "/to-tickets", {fill:"rgba(192,132,252,.10)", stroke:C, text:T});
+  return s + '</svg>';
+}
+
+/* 探索 B：四个分支的名字全露出来，需要 354 宽才看得清 */
+function chainExploreB(){
+  var C="#c084fc", T="#e9d5ff";
+  var s = '<svg viewBox="0 0 354 30" width="354" height="30" aria-hidden="true">';
+  s += node(0, 8, 60, 14, "/wayfinder", {fill:"rgba(192,132,252,.12)", stroke:C, text:T});
+  s += arrow(60, 70, 15, C);
+  s += '<rect x="70" y="3" width="120" height="24" rx="6" fill="rgba(192,132,252,.07)" stroke="'+C+'" stroke-width="1" stroke-dasharray="3 2"></rect>';
+  s += '<text x="78" y="13" font-size="6.4" fill="'+T+'" opacity=".92" font-family="Consolas,Menlo,monospace">/prototype · /research</text>';
+  s += '<text x="78" y="21.5" font-size="6.4" fill="'+T+'" opacity=".92" font-family="Consolas,Menlo,monospace">/grilling · /domain-modeling</text>';
+  s += arrow(190, 200, 15, C);
+  s += node(200, 8, 42, 14, "目标明确", {fill:"transparent", stroke:"#4a5058", dash:true, text:"#a1a1aa", fs:7.2});
+  s += arrow(242, 252, 15, C);
+  s += node(252, 8, 44, 14, "/to-spec", {fill:"rgba(192,132,252,.10)", stroke:C, text:T});
+  s += arrow(296, 306, 15, C);
+  s += node(306, 8, 48, 14, "/to-tickets", {fill:"rgba(192,132,252,.10)", stroke:C, text:T});
+  return s + '</svg>';
+}
+
+/* 实施 A：一条直线，拷问 → 目标明确 → 写规格 → 拆票 */
+function chainImplA(){
+  var C="#93c5fd", T="#bfdbfe";
+  var s = '<svg viewBox="0 0 320 30" width="320" height="30" aria-hidden="true">';
+  s += node(0, 8, 82, 14, "/grill-with-docs", {fill:"rgba(29,78,216,.28)", stroke:C, text:T});
+  s += arrow(82, 92, 15, C);
+  s += node(92, 8, 42, 14, "目标明确", {fill:"transparent", stroke:"#4a5058", dash:true, text:"#a1a1aa", fs:7.4});
+  s += arrow(134, 144, 15, C);
+  s += node(144, 8, 44, 14, "/to-spec", {fill:"rgba(29,78,216,.28)", stroke:C, text:T});
+  s += arrow(188, 198, 15, C);
+  s += node(198, 8, 48, 14, "/to-tickets", {fill:"rgba(29,78,216,.28)", stroke:C, text:T});
+  return s + '</svg>';
+}
+
+/* ============ 文案候选 ============ */
+var CAPS = [
+  { key:"A", explore:"我要的是：先把这件事想清楚。", impl:"我要的是：一份能直接开工的东西。" },
+  { key:"B", explore:"你还说不清要做成什么样 —— 先想清楚，再动手。", impl:"你想法已经有了 —— 差的是把它落成能开工的清单。" },
+  { key:"C", explore:"现在要的不是开工，是想清楚。", impl:"现在要的不是再想，是落成能开工的清单。" }
+];
+
+var VOICES = {
+  explore: [
+    "每次说要动手做点什么，我连它该长什么样都说不出来，脑子里那团东西怎么都抓不住。",
+    "这事到底该不该做、要做成什么样、哪条路该砍，我一个人实在定不了。",
+    "我卡在开工前：该做什么、什么样算做完，都没想清楚就开始心虚。",
+    "我知道有个东西值得做，但我说不出它长什么样，也说不出第一步从哪下手。"
+  ],
+  impl: [
+    "我知道要做什么，也大概知道怎么做，但每次开工前总觉得还差点什么，说不清差在哪。",
+    "方案我都想好了，缺的只是一份能照着干的清单，和一句「做到什么程度算做完了」。",
+    "我不想再从头想一遍了，只想有人替我把它问透、写下来，然后我照着干。",
+    "细节我心里也有数，但就是没变成能一张张干下去的票，每次开工前还得重新想一遍。"
+  ]
+};
+
+var ART = { explore:SVG_EXPLORE, impl:SVG_IMPL };
+var NAMES = { explore:"探索地图", impl:"实施地图" };
+
+/* ============ 渲染 ============ */
+function capBlock(){
+  return CAPS.map(function(c){
+    return '<div class="pair">'+
+      '<div class="slot explore"><div class="pk"><b>'+c.key+'</b> 探索地图</div>'+
+        '<div class="art">'+ART.explore+'</div><div class="capline">'+c.explore+'</div></div>'+
+      '<div class="slot impl"><div class="pk"><b>'+c.key+'</b> 实施地图</div>'+
+        '<div class="art">'+ART.impl+'</div><div class="capline">'+c.impl+'</div></div>'+
+    '</div>';
+  }).join("");
+}
+function voiceBlock(kind){
+  return VOICES[kind].map(function(v, i){
+    return '<div class="vrow '+kind+'"><div class="k">'+String.fromCharCode(65+i)+'</div><div class="t">'+v+'</div></div>';
+  }).join("");
+}
+function chainCard(kind, title, note, svg){
+  return '<div class="card '+kind+'"><div class="top">'+
+    '<div><div class="art">'+ART[kind]+'</div></div>'+
+    '<div class="body"><div class="name">'+NAMES[kind]+'</div>'+
+      '<div class="chainlabel">'+title+'</div>'+
+      '<div class="chainwrap">'+svg+'</div>'+
+      '<div class="pick">'+note+'</div>'+
+    '</div></div></div>';
+}
+function finalCard(kind, cap, voice, svg){
+  return '<div class="card '+kind+'"><div class="top">'+
+    '<div><div class="art">'+ART[kind]+'</div><div class="capline">'+cap+'</div></div>'+
+    '<div class="body"><div class="name">'+NAMES[kind]+'</div>'+
+      '<div class="voice">'+voice+'</div>'+
+      '<div class="chainwrap">'+svg+'</div>'+
+    '</div></div></div>';
+}
+
+document.getElementById("capBlock").innerHTML = capBlock();
+document.getElementById("voiceExplore").innerHTML = voiceBlock("explore");
+document.getElementById("voiceImpl").innerHTML = voiceBlock("impl");
+document.getElementById("chainBlock").innerHTML =
+  chainCard("explore", "技能链 · A 版（分支用四个小点表示，320 画、缩到 300 显示）",
+    "四个分支是 /prototype、/research、/grilling、/domain-modeling，名字放在弹窗右边的说明栏里。", chainExploreA()) +
+  chainCard("explore", "技能链 · B 版（四个分支的名字全露）",
+    "这版要 354 宽才看得清；塞进 300 宽的卡片，字会缩到 5 像素高，基本读不出来。", chainExploreB()) +
+  chainCard("impl", "技能链 · A 版（一条直线）",
+    "拷问设计 → 目标明确 → 写规格 → 拆实施票；后面每张票再各自走一次 /implement。", chainImplA());
+document.getElementById("finalBlock").innerHTML =
+  finalCard("explore", CAPS[0].explore, VOICES.explore[0], chainExploreA()) +
+  finalCard("impl", CAPS[0].impl, VOICES.impl[0], chainImplA());
+</script>
+</body>
+</html>

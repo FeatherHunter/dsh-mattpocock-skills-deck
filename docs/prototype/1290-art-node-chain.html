@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 探索图新画法：雾里的节点链（四个方向）</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff;
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa;
+  --green:#3fb950;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 6px;font-size:17px}
+.page-head p{margin:0 0 5px;color:var(--sec);font-size:12px;max-width:1000px}
+.page-head b{color:var(--txt)}
+main{max-width:1240px;margin:0 auto;padding:8px 26px 48px}
+.direction{margin-top:20px;border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;background:var(--panel)}
+.direction h2{margin:0 0 2px;font-size:14px}
+.direction h2 .no{color:var(--cap);font-weight:500;margin-right:8px;font-size:12px}
+.direction .idea{margin:0 0 12px;color:var(--sec);font-size:12px;max-width:1020px}
+.pair{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.artbox{width:322px}
+.artbox .who{font-size:11px;letter-spacing:.06em;margin-bottom:6px;color:var(--purple)}
+.artbox svg{display:block;width:322px;height:200px;border-radius:10px;background:rgba(0,0,0,.24)}
+.mini-label{margin:14px 0 6px;font-size:11px;color:var(--cap)}
+.mini{width:150px}
+.mini svg{display:block;width:132px;height:82px;border-radius:8px;background:rgba(0,0,0,.24)}
+.mini .cap{margin-top:5px;font-size:10.5px;color:var(--cap);text-align:center}
+.note{font-size:11.5px;color:var(--cap);margin-top:10px;line-height:1.6}
+.note b{color:var(--sec)}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>原型 · 探索图新画法：雾里的节点链（四个方向）</h1>
+  <p>按作者那张图的画法重来：<b>圆角节点 + 箭头 + 起点/终点</b>，不再画地形圈圈和波浪线。那张图是「走清楚之后」的样子；我们这张要画「刚出发时」——起点是虚线的需求、中间经过几个问号节点、终点大致看得见但细节还雾着。</p>
+  <p>方案一直接用参考图那种「分格节点」（左格图标、右格标签）；其余三个方向换「雾怎么铺、终点露多少」。每节末尾都放了 132×82 的真实尺寸。</p>
+</div>
+<main id="root"></main>
+<script>
+"use strict";
+
+/* ============ 方案一：雾里的节点链（分格节点，最贴参考图） ============ */
+var O1 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="o1fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.2"></feGaussianBlur></filter>
+  <radialGradient id="o1g"><stop offset="0" stop-color="#c084fc" stop-opacity=".3"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 起点：虚线的需求（一整块，还没被拆成一条条决定） -->
+<rect x="6" y="40" width="48" height="24" rx="10" fill="rgba(192,132,252,.09)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.6"></rect>
+<path d="M15 58 V 46" stroke="#e9d5ff" stroke-width="1.2" stroke-linecap="round"></path>
+<path d="M15 46 C 18 44.8 20 48 23 46.5 V 51 C 20 52.5 18 49.3 15 50.5" fill="none" stroke="#e9d5ff" stroke-width="1"></path>
+<text x="29" y="56" font-size="9.5" fill="#e9d5ff">需求</text>
+<!-- 第一跳：还看得清的虚线箭头 -->
+<path d="M54 52 H 60" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3 2.6"></path>
+<path d="M58 48.9 L 63 52 L 58 55.1" fill="none" stroke="#c084fc" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 决定一：分格节点，左格是问号，右格标签还空着 -->
+<rect x="64" y="38" width="28" height="28" rx="6.5" fill="rgba(192,132,252,.08)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3 2.4"></rect>
+<path d="M78 41.5 V 62.5" stroke="#c084fc" stroke-width="1" opacity=".55"></path>
+<text x="70.8" y="56.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>
+<rect x="81.5" y="47.5" width="8.5" height="9" rx="2" fill="none" stroke="#c084fc" stroke-width="1" stroke-dasharray="2 2" opacity=".45"></rect>
+<!-- 第二跳：开始变淡 -->
+<path d="M92 52 H 97" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3 3" opacity=".7"></path>
+<path d="M95 48.9 L 100 52 L 95 55.1" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity=".7"></path>
+<!-- 决定二：同样分格，更淡，正要进雾 -->
+<rect x="100" y="38" width="27" height="28" rx="6.5" fill="rgba(192,132,252,.05)" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3 2.4" opacity=".65"></rect>
+<path d="M112 41.5 V 62.5" stroke="#c084fc" stroke-width="1" opacity=".4"></path>
+<text x="105.8" y="56.5" text-anchor="middle" font-size="10" fill="#e9d5ff" opacity=".85">?</text>
+<rect x="114" y="47.5" width="8.5" height="9" rx="2" fill="none" stroke="#c084fc" stroke-width="1" stroke-dasharray="2 2" opacity=".3"></rect>
+<!-- 雾：把后半段整段盖住 -->
+<g filter="url(#o1fog)">
+  <rect x="92" y="24" width="84" height="58" fill="#c084fc" opacity=".2"></rect>
+  <ellipse cx="146" cy="54" rx="27" ry="22" fill="#c084fc" opacity=".2"></ellipse>
+</g>
+<!-- 终点：雾里的最后一个分格节点（框还在，内容看不清） -->
+<circle cx="146" cy="52" r="19" fill="url(#o1g)"></circle>
+<rect x="132" y="38" width="28" height="28" rx="6.5" fill="rgba(192,132,252,.05)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="2.6 2.4" opacity=".6"></rect>
+<path d="M144 41.5 V 62.5" stroke="#e9d5ff" stroke-width=".9" opacity=".4"></path>
+<text x="138.8" y="56" text-anchor="middle" font-size="10" fill="#e9d5ff" opacity=".6">?</text>
+<rect x="146.5" y="49" width="8" height="7" rx="2" fill="#e9d5ff" opacity=".2"></rect>
+<g fill="#e9d5ff"><circle cx="84" cy="22" r="1" opacity=".35"></circle><circle cx="130" cy="86" r=".9" opacity=".25"></circle></g>
+</svg>`;
+
+/* ============ 方案二：半明的终点（重点：终点大致知道） ============ */
+var O2 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="o2fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.2"></feGaussianBlur></filter>
+  <linearGradient id="o2edge" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#e9d5ff" stop-opacity=".95"></stop>
+    <stop offset=".6" stop-color="#e9d5ff" stop-opacity=".5"></stop>
+    <stop offset="1" stop-color="#e9d5ff" stop-opacity="0"></stop>
+  </linearGradient>
+  <radialGradient id="o2g"><stop offset="0" stop-color="#c084fc" stop-opacity=".22"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 起点：虚线的需求 -->
+<rect x="6" y="40" width="48" height="24" rx="10" fill="rgba(192,132,252,.09)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.6"></rect>
+<path d="M15 58 V 46" stroke="#e9d5ff" stroke-width="1.2" stroke-linecap="round"></path>
+<path d="M15 46 C 18 44.8 20 48 23 46.5 V 51 C 20 52.5 18 49.3 15 50.5" fill="none" stroke="#e9d5ff" stroke-width="1"></path>
+<text x="29" y="56" font-size="9.5" fill="#e9d5ff">需求</text>
+<!-- 箭头 -->
+<path d="M54 52 H 60" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3 2.6"></path>
+<path d="M58 48.9 L 63 52 L 58 55.1" fill="none" stroke="#c084fc" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 问号节点一（近处，还看得清） -->
+<rect x="62" y="40" width="26" height="24" rx="6" fill="rgba(192,132,252,.07)" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3 2.4"></rect>
+<text x="75" y="56.5" text-anchor="middle" font-size="11.5" fill="#e9d5ff">?</text>
+<!-- 第二跳：变淡 -->
+<path d="M88 52 H 93" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3 3" opacity=".7"></path>
+<path d="M91 48.9 L 96 52 L 91 55.1" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity=".7"></path>
+<!-- 问号节点二（已经进雾，只剩轮廓） -->
+<rect x="97" y="40" width="24" height="24" rx="6" fill="rgba(192,132,252,.05)" stroke="#c084fc" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".55"></rect>
+<text x="109" y="56.5" text-anchor="middle" font-size="11" fill="#e9d5ff" opacity=".75">?</text>
+<!-- 中段到后段的雾 -->
+<g filter="url(#o2fog)">
+  <rect x="100" y="24" width="76" height="56" fill="#c084fc" opacity=".18"></rect>
+  <ellipse cx="132" cy="62" rx="26" ry="16" fill="#c084fc" opacity=".13"></ellipse>
+</g>
+<!-- 终点：左半已定（描边实、看得见旗子和一条标签），右半溶进雾里 -->
+<circle cx="150" cy="52" r="18" fill="url(#o2g)"></circle>
+<rect x="122" y="28" width="44" height="48" rx="9" fill="rgba(192,132,252,.11)" stroke="url(#o2edge)" stroke-width="1.5"></rect>
+<path d="M134 61 V 48" stroke="#e9d5ff" stroke-width="1.2" stroke-linecap="round" opacity=".9"></path>
+<path d="M134 48 C 137 46.8 138 50 141 48.5 V 53.5" fill="none" stroke="#e9d5ff" stroke-width="1" opacity=".9"></path>
+<rect x="128" y="64" width="12" height="2.6" rx="1.3" fill="#e9d5ff" opacity=".7"></rect>
+<!-- 雾盖住右半，里面只剩几条看不清的标签 -->
+<g filter="url(#o2fog)">
+  <ellipse cx="158" cy="52" rx="15" ry="25" fill="#c084fc" opacity=".3"></ellipse>
+</g>
+<rect x="148" y="41" width="12" height="2.6" rx="1.3" fill="#8b8b95" opacity=".42"></rect>
+<rect x="148" y="50" width="9" height="2.4" rx="1.2" fill="#8b8b95" opacity=".3"></rect>
+<rect x="148" y="58" width="11" height="2.4" rx="1.2" fill="#8b8b95" opacity=".24"></rect>
+</svg>`;
+
+/* ============ 方案三：一路问过去（问号路标） ============ */
+var O3 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="o3fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5"></feGaussianBlur></filter>
+  <radialGradient id="o3g"><stop offset="0" stop-color="#c084fc" stop-opacity=".3"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 起点：虚线的需求 -->
+<rect x="6" y="64" width="46" height="21" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.2 2.6"></rect>
+<text x="29" y="78" text-anchor="middle" font-size="9.5" fill="#e9d5ff">需求</text>
+<!-- 虚线路径：一路往右上走 -->
+<path d="M52 74 C 68 72 74 60 86 60 S 102 66 112 54 S 128 42 138 42" fill="none" stroke="#c084fc" stroke-width="1.4" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<!-- 路标一 -->
+<path d="M100 63 V 55" stroke="#c084fc" stroke-width="1" opacity=".7"></path>
+<rect x="92" y="41" width="15" height="14" rx="3.5" fill="rgba(192,132,252,.12)" stroke="#c084fc" stroke-width="1.1" stroke-dasharray="2.4 2"></rect>
+<text x="99.5" y="51.5" text-anchor="middle" font-size="9" fill="#e9d5ff">?</text>
+<!-- 路标二（开始变淡） -->
+<rect x="114" y="31" width="14" height="13" rx="3.5" fill="rgba(192,132,252,.08)" stroke="#c084fc" stroke-width="1" stroke-dasharray="2.2 2" opacity=".8"></rect>
+<text x="121" y="40.8" text-anchor="middle" font-size="8.5" fill="#e9d5ff" opacity=".85">?</text>
+<!-- 终点：雾里的一面旗 -->
+<circle cx="146" cy="38" r="20" fill="url(#o3g)"></circle>
+<path d="M146 42 V 31" stroke="#e9d5ff" stroke-width="1.2" stroke-linecap="round" opacity=".75"></path>
+<path d="M146 31 C 149 30 150 33 153 31.5 V 36" fill="none" stroke="#e9d5ff" stroke-width="1" opacity=".7"></path>
+<!-- 雾 -->
+<g filter="url(#o3fog)">
+  <rect x="110" y="18" width="62" height="52" fill="#c084fc" opacity=".2"></rect>
+  <ellipse cx="148" cy="60" rx="24" ry="18" fill="#c084fc" opacity=".16"></ellipse>
+</g>
+<g fill="#e9d5ff"><circle cx="86" cy="30" r="1" opacity=".35"></circle><circle cx="56" cy="44" r=".9" opacity=".3"></circle></g>
+</svg>`;
+
+/* ============ 方案四：一张一张定下来（进度卡） ============ */
+var O4 = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="o4fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4"></feGaussianBlur></filter>
+  <radialGradient id="o4g"><stop offset="0" stop-color="#c084fc" stop-opacity=".26"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 起点：虚线的需求 -->
+<rect x="6" y="41" width="44" height="22" rx="8" fill="rgba(192,132,252,.08)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.2 2.6"></rect>
+<text x="28" y="56.5" text-anchor="middle" font-size="9.5" fill="#e9d5ff">需求</text>
+<!-- 箭头 -->
+<path d="M50 52 H 56" stroke="#c084fc" stroke-width="1.3"></path>
+<path d="M53 48.8 L 58 52 L 53 55.2" fill="none" stroke="#c084fc" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 卡 1：已经定下来的一张 -->
+<rect x="60" y="39" width="27" height="26" rx="6" fill="rgba(192,132,252,.16)" stroke="#c084fc" stroke-width="1.3"></rect>
+<path d="M67.5 52 l3.2 3.2 6-6.6" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 箭头：虚线 -->
+<path d="M87 52 H 93" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3 3" opacity=".8"></path>
+<path d="M90 48.8 L 95 52 L 90 55.2" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity=".8"></path>
+<!-- 卡 2：还没定的 -->
+<rect x="97" y="39" width="27" height="26" rx="6" fill="rgba(192,132,252,.06)" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3 2.4"></rect>
+<text x="110.5" y="56.5" text-anchor="middle" font-size="12" fill="#e9d5ff">?</text>
+<!-- 箭头：更淡 -->
+<path d="M124 52 H 130" stroke="#c084fc" stroke-width="1.1" stroke-dasharray="3 3" opacity=".6"></path>
+<path d="M127 48.8 L 132 52 L 127 55.2" fill="none" stroke="#c084fc" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity=".6"></path>
+<!-- 终点卡：雾里 -->
+<circle cx="150" cy="52" r="20" fill="url(#o4g)"></circle>
+<rect x="134" y="37" width="30" height="30" rx="7" fill="rgba(192,132,252,.05)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="2.6 2.4" opacity=".55"></rect>
+<text x="149" y="56.5" text-anchor="middle" font-size="12" fill="#e9d5ff" opacity=".65">?</text>
+<!-- 雾 -->
+<g filter="url(#o4fog)">
+  <rect x="120" y="24" width="52" height="56" fill="#c084fc" opacity=".2"></rect>
+  <ellipse cx="152" cy="74" rx="20" ry="12" fill="#c084fc" opacity=".12"></ellipse>
+</g>
+</svg>`;
+
+/* ============ 配对示意：走清楚之后的同一张图（实施卡） ============ */
+var PAIR = `
+<svg viewBox="0 0 168 104" aria-hidden="true">
+<!-- 起点：需求 -->
+<rect x="6" y="40" width="48" height="24" rx="10" fill="rgba(29,78,216,.16)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<path d="M15 58 V 46" stroke="#cfe6ff" stroke-width="1.2" stroke-linecap="round"></path>
+<path d="M15 46 C 18 44.8 20 48 23 46.5 V 51 C 20 52.5 18 49.3 15 50.5" fill="none" stroke="#cfe6ff" stroke-width="1"></path>
+<text x="29" y="56" font-size="9.5" fill="#cfe6ff">需求</text>
+<!-- 箭头 -->
+<path d="M54 52 H 58" stroke="#93c5fd" stroke-width="1.4"></path>
+<path d="M56 48.9 L 61 52 L 56 55.1" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 决定一：分格节点，左格打勾，右格标签填上了 -->
+<rect x="62" y="38" width="30" height="28" rx="6.5" fill="rgba(29,78,216,.26)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<path d="M76 41.5 V 62.5" stroke="#93c5fd" stroke-width="1" opacity=".6"></path>
+<path d="M66.2 52 l3.4 3.4 6.2-6.8" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<rect x="80.5" y="49.5" width="9.5" height="6" rx="1.8" fill="#93c5fd" opacity=".85"></rect>
+<!-- 箭头 -->
+<path d="M92 52 H 96" stroke="#93c5fd" stroke-width="1.4"></path>
+<path d="M94 48.9 L 99 52 L 94 55.1" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 决定二 -->
+<rect x="100" y="38" width="30" height="28" rx="6.5" fill="rgba(29,78,216,.26)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<path d="M114 41.5 V 62.5" stroke="#93c5fd" stroke-width="1" opacity=".6"></path>
+<path d="M104.2 52 l3.2 3.2 5.8-6.4" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<rect x="118.5" y="49.5" width="9" height="6" rx="1.8" fill="#93c5fd" opacity=".85"></rect>
+<!-- 箭头 -->
+<path d="M130 52 H 134" stroke="#93c5fd" stroke-width="1.4"></path>
+<path d="M132 48.9 L 137 52 L 132 55.1" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 终点：分格节点，旗子和标签都清楚了 -->
+<rect x="138" y="38" width="28" height="28" rx="6.5" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<path d="M149 41.5 V 62.5" stroke="#93c5fd" stroke-width="1" opacity=".6"></path>
+<path d="M142 58 V 47" stroke="#cfe6ff" stroke-width="1.1" stroke-linecap="round"></path>
+<path d="M142 47 C 144.5 46 145.5 49 147.5 47.5 V 51.5" fill="none" stroke="#cfe6ff" stroke-width=".9"></path>
+<rect x="151" y="49.5" width="8" height="6" rx="1.8" fill="#93c5fd" opacity=".85"></rect>
+</svg>`;
+
+/* ============ 方案数据 ============ */
+var OPTIONS = [
+  {
+    id: "o1",
+    no: "方案一",
+    name: "雾里的节点链（分格节点，最贴参考图）",
+    idea: "直接沿用参考图的节点语言：圆角分格框，左格放问号、右格标签空着（还没定下来），箭头第一跳实、第二跳变淡，后半段整段被雾盖住，只露出终点那个分格框的轮廓。和参考图的差别只有一处——那张是走完的样子，这张是刚出发的样子。",
+    svg: O1,
+    cap: "雾里的终点"
+  },
+  {
+    id: "o2",
+    no: "方案二",
+    name: "半明的终点（重点：终点大致知道）",
+    idea: "你说的「终点稍微知道一些」直接画出来：终点框的描边从左边实、往右渐渐化进雾里（用渐变的描边，不是两个框叠着），左边看得见旗子和一条填好的标签，右边的灰条是还不知道的细节。中间的问号节点也一半在雾里。",
+    svg: O2,
+    cap: "终点露了一半"
+  },
+  {
+    id: "o3",
+    no: "方案三",
+    name: "一路问过去（问号路标）",
+    idea: "不画节点框，改成一条虚线路径加两个问号路标，旗子是远处的终点。这个方向更像「旅程」，问题是一个个立在路上的；缺点是参考图那种「分格节点」的语言没有沿用。",
+    svg: O3,
+    cap: "一路问过去"
+  },
+  {
+    id: "o4",
+    no: "方案四",
+    name: "一张一张定下来（进度卡）",
+    idea: "把节点画成「决策卡」：第一张已经打勾定下来了，第二张还是问号，箭头越往后越淡，最后一格在雾里。这个方向强调「探索地图是逐张决议」的过程感，比方案一多了一层「已经开始了」的信息。",
+    svg: O4,
+    cap: "已经定了一张"
+  }
+];
+
+/* ============ 渲染 ============ */
+function withIds(svg, suffix){
+  return svg.replace(/id="([^"]+)"/g, 'id="$1-' + suffix + '"')
+            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + suffix + ')');
+}
+function optHtml(d){
+  var h = '<section class="direction" id="' + d.id + '">';
+  h += '<h2><span class="no">' + d.no + '</span>' + d.name + '</h2>';
+  h += '<p class="idea">' + d.idea + '</p>';
+  h += '<div class="pair">';
+  h += '<div class="artbox"><div class="who">探索地图</div>' + withIds(d.svg, d.id) + '</div>';
+  h += '</div>';
+  h += '<div class="mini-label">真实尺寸（132×82，放进选择卡就是这么大）：</div>';
+  h += '<div class="mini">' + withIds(d.svg, d.id + "m") + '<div class="cap">' + d.cap + '</div></div>';
+  h += '</section>';
+  return h;
+}
+var pairHtml = '<section class="direction" id="pair-sample"><h2><span class="no">配对示意</span>走清楚之后的同一张图（实施卡）</h2>' +
+  '<p class="idea">同一套「分格节点 + 箭头 + 终点」的画法，把虚线换成实线、问号换成勾、空标签换成实心标签、雾去掉，就是实施卡那张图。这样两张卡并排时是同一张地图的两个阶段，而不是两张不相干的插画。</p>' +
+  '<div class="pair"><div class="artbox"><div class="who" style="color:var(--blue-text)">实施地图（示意）</div>' + PAIR + '</div></div></section>';
+
+document.getElementById("root").innerHTML = OPTIONS.map(optHtml).join("") + pairHtml;
+</script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 入口弹窗文案（第二轮：核心差异 / 用户心声 / 技能链）</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff;
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa;
+  --green:#3fb950; --amber:#f59e0b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1200px;margin:0 auto}
+.page-head h1{margin:0 0 6px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:960px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 48px;max-width:1200px;margin:0 auto}
+section{margin-bottom:32px}
+h2{font-size:15px;margin:0 0 4px}
+h2 .n{color:var(--cap);font-weight:400;margin-right:8px}
+.sub{color:var(--cap);font-size:12px;margin:0 0 12px;max-width:900px}
+.cols{display:flex;gap:20px;align-items:flex-start}
+.col{flex:1;min-width:0}
+.col h3{margin:0 0 8px;font-size:13px}
+.col h3.explore{color:var(--purple)}
+.col h3.impl{color:var(--blue-text)}
+.key{font-size:10.5px;color:var(--cap);letter-spacing:.05em}
+
+/* 一、图下小字 */
+.pair{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+.pair .slot{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px}
+.pair .slot.explore{border-color:rgba(188,140,255,.4)}
+.pair .slot.impl{border-color:rgba(29,78,216,.7)}
+.pair .art{background:#0a0c10;border:1px solid var(--border);border-radius:7px;display:flex;justify-content:center;padding:5px 0}
+.pair .capline{text-align:center;font-size:12.5px;color:var(--txt);margin-top:6px}
+.pair .pk{font-size:10.5px;color:var(--cap);margin-bottom:5px;display:flex;gap:6px;align-items:center}
+.pair .pk b{color:var(--txt)}
+
+/* 二、用户心声 */
+.voice{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:9px}
+.voice .t{font-size:14px;color:var(--txt);line-height:1.5}
+.voice .why{font-size:11.5px;color:var(--cap);margin-top:3px}
+
+/* 三、技能链 */
+.chain{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sk{display:inline-flex;align-items:baseline;gap:5px;background:rgba(255,255,255,.06);
+  border:1px solid var(--border);border-radius:99px;padding:2px 9px;font-size:12px;
+  font-family:Consolas,Menlo,monospace;white-space:nowrap}
+.sk em{font-style:normal;font-family:inherit;font-size:11px;color:var(--sec)}
+.goal{display:inline-flex;align-items:center;gap:5px;border:1px dashed var(--border);
+  border-radius:99px;padding:2px 9px;font-size:12px;color:var(--sec);white-space:nowrap}
+.branches{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;
+  border:1px solid var(--border);border-radius:10px;padding:4px 7px;background:rgba(255,255,255,.03)}
+.branches .lbl{font-size:11px;color:var(--cap)}
+.branches .sk{font-size:11.5px;padding:1px 7px}
+.arrow{color:var(--cap)}
+.flowcard{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:9px}
+.flowcard.explore{border-color:rgba(188,140,255,.4)}
+.flowcard.impl{border-color:rgba(29,78,216,.7)}
+
+/* 四、组合预览 */
+.card{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;background:var(--card)}
+.card.explore{border-color:rgba(188,140,255,.45)}
+.card.impl{border-color:rgba(29,78,216,.75)}
+.card .top{display:flex;gap:14px}
+.card .art{background:#0a0c10;border:1px solid var(--border);border-radius:8px;padding:6px 0;flex:none}
+.card .capline{text-align:center;font-size:11.5px;color:var(--sec);margin-top:5px}
+.card .body{flex:1;min-width:0}
+.card .name{font-size:15px;font-weight:700;margin-bottom:5px}
+.card.explore .name{color:var(--purple)}
+.card.impl .name{color:var(--blue-text)}
+.card .voice{background:none;border:none;padding:0;margin:0 0 9px}
+.card .voice .t{font-size:14.5px}
+.card .flow{font-size:11.5px;color:var(--cap)}
+.card .flow .sk{font-size:11px;padding:1px 7px}
+.card .flow .branches .sk{font-size:10.5px}
+.hint{color:var(--amber);font-size:12px}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>入口弹窗文案 · 第二轮</h1>
+  <p><b>图下小字</b>改成一句话讲清两条路的根本差别：<b>探索是分头探、最后汇总</b>；<b>实施是对着仓库文档一条线问到底</b>。</p>
+  <p><b>技能流程</b>按你给的写法改成一条链：探索是 <code>/wayfinder</code> 探索 → 并行四路（<code>/prototype</code> <code>/research</code> <code>/grilling</code> <code>/domain-modeling</code>）→ 汇总成「目标明确」→ <code>/to-spec</code> 写规格 → <code>/to-tickets</code> 拆实施票。</p>
+  <p><b>用户心声</b>上一轮三条都不对，这轮换了个写法：都收成一句短话，只说用户此刻的处境，不夹带流程。请你挑一条，或者直接说哪句不对。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="n">一</span>图下小字：两条路的根本差别</h2>
+    <p class="sub">每个候选是一对：左边探索地图，右边实施地图，两句话互为对照。</p>
+    <div id="capBlock"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">二</span>用户心声：两个框架</h2>
+    <p class="sub">上一轮三条都不对，可能是我把「心声」理解窄了。这里摆两个框架：<b>框架一</b>说我此刻的处境；<b>框架二</b>说我想要插件帮我做到什么。你也可以两个都不要，直接说该怎么写。</p>
+    <h3 style="font-size:12.5px;color:var(--cap);margin:14px 0 8px">框架一 · 我此刻的处境</h3>
+    <div class="cols">
+      <div class="col">
+        <h3 class="explore">探索地图</h3>
+        <div id="voiceExplore"></div>
+      </div>
+      <div class="col">
+        <h3 class="impl">实施地图</h3>
+        <div id="voiceImpl"></div>
+      </div>
+    </div>
+    <h3 style="font-size:12.5px;color:var(--cap);margin:18px 0 8px">框架二 · 我想要的结果</h3>
+    <div class="cols">
+      <div class="col">
+        <h3 class="explore">探索地图</h3>
+        <div id="wantExplore"></div>
+      </div>
+      <div class="col">
+        <h3 class="impl">实施地图</h3>
+        <div id="wantImpl"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">三</span>技能链</h2>
+    <p class="sub">探索那条链多一段并行分支，所以整条链比实施那条长；两种排法都摆出来，看挤不挤。</p>
+    <div class="cols">
+      <div class="col">
+        <h3 class="explore">探索地图</h3>
+        <div id="flowExplore"></div>
+      </div>
+      <div class="col">
+        <h3 class="impl">实施地图</h3>
+        <div id="flowImpl"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">四</span>组合起来看（心声为主体，技能链是次级）</h2>
+    <p class="sub">主次分明：心声最大最亮，技能链缩成一行小字。这一段是密度检验。</p>
+    <div class="cols">
+      <div class="col" id="previewExplore"></div>
+      <div class="col" id="previewImpl"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ============ 两副图（与 1290-entry-two-maps.html 一致） ============ */
+var SVG_EXPLORE = [
+'<svg viewBox="0 0 168 104" width="132" height="82" aria-hidden="true">',
+  '<defs>',
+    '<filter id="exFog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.6"></feGaussianBlur></filter>',
+    '<radialGradient id="exGlow">',
+      '<stop offset="0" stop-color="#c084fc" stop-opacity=".38"></stop>',
+      '<stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop>',
+    '</radialGradient>',
+  '</defs>',
+  '<rect x="7" y="42" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>',
+  '<text x="30" y="56.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff" letter-spacing=".5">需求</text>',
+  '<circle cx="56" cy="52" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>',
+  '<circle cx="56" cy="52" r="2.6" fill="#c084fc"></circle>',
+  '<path d="M60 52 C 70 52 78 52 86 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>',
+  '<circle cx="86" cy="52" r="3.2" fill="#c084fc" opacity=".9"></circle>',
+  '<path d="M86 52 C 95 48 101 34 110 27" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".75"></path>',
+  '<circle cx="114" cy="26" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>',
+  '<text x="114" y="30.2" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>',
+  '<path d="M86 52 C 98 52 108 52 119 52" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>',
+  '<circle cx="126" cy="52" r="6.6" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".8"></circle>',
+  '<text x="126" y="55.6" text-anchor="middle" font-size="9.4" fill="#e9d5ff" opacity=".85">?</text>',
+  '<path d="M86 52 C 95 56 101 70 110 77" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>',
+  '<circle cx="114" cy="78" r="6.6" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".65"></circle>',
+  '<text x="114" y="81.4" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".75">?</text>',
+  '<g filter="url(#exFog)">',
+    '<ellipse cx="140" cy="46" rx="36" ry="26" fill="#c084fc" opacity=".14"></ellipse>',
+    '<ellipse cx="134" cy="86" rx="32" ry="14" fill="#c084fc" opacity=".11"></ellipse>',
+  '</g>',
+  '<path d="M121 26 C 133 30 142 39 147 47" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".14"></path>',
+  '<path d="M133 52 C 137 52 140 52 144 52" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".12"></path>',
+  '<path d="M121 78 C 133 74 142 65 147 57" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".1"></path>',
+  '<circle cx="152" cy="52" r="17" fill="url(#exGlow)"></circle>',
+  '<circle cx="152" cy="52" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".5"></circle>',
+'</svg>'
+].join("");
+
+var SVG_IMPL = [
+'<svg viewBox="0 0 168 104" width="132" height="82" aria-hidden="true">',
+  '<defs>',
+    '<radialGradient id="imGlow">',
+      '<stop offset="0" stop-color="#60a5fa" stop-opacity=".38"></stop>',
+      '<stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop>',
+    '</radialGradient>',
+  '</defs>',
+  '<rect x="6" y="42" width="38" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>',
+  '<text x="25" y="56.5" text-anchor="middle" font-size="10.5" fill="#93c5fd" letter-spacing=".5">需求</text>',
+  '<path d="M44 52 H 52" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round"></path>',
+  '<path d="M52 22 V 82" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 22 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 42 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 62 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<path d="M52 82 H 60" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round" opacity=".8"></path>',
+  '<rect x="60" y="14" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 22 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 22 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="34" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 42 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 42 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="54" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 62 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 62 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<rect x="60" y="74" width="34" height="16" rx="4" fill="rgba(29,78,216,.4)" stroke="#93c5fd" stroke-width="1.2"></rect>',
+  '<path d="M66 82 l2.4 2.4 4.4-5" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  '<path d="M76 82 H 88" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>',
+  '<path d="M94 22 C 108 24 121 37 132 47" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 42 C 106 43 118 46 131 49" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 62 C 106 61 118 58 131 55" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<path d="M94 82 C 108 80 121 67 132 57" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".5"></path>',
+  '<circle cx="140" cy="52" r="17" fill="url(#imGlow)"></circle>',
+  '<circle cx="140" cy="52" r="8" fill="none" stroke="#93c5fd" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity=".8"></circle>',
+  '<circle cx="140" cy="52" r="6.2" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>',
+  '<path d="M136.9 52.2 L 138.9 54.2 L 143.2 49.4" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>',
+'</svg>'
+].join("");
+
+var idSeq = 0;
+function art(svg){
+  var suf = "_" + (++idSeq);
+  return svg.replace(/id="([a-zA-Z]+)"/g, 'id="$1' + suf + '"')
+            .replace(/url\(#([a-zA-Z]+)\)/g, 'url(#$1' + suf + ')');
+}
+
+/* ============ 候选 ============ */
+var CAP_PAIRS = [
+  { explore: "分头探，最后汇总", impl: "对着仓库文档问到底" },
+  { explore: "几条线同时探",   impl: "一条线问到底" },
+  { explore: "岔开问，再汇总", impl: "一路问到底" }
+];
+
+var VOICES = {
+  explore: [
+    { t: "说不清，一次聊不完", why: "事大、要定的取舍多" },
+    { t: "有好几条路要选",     why: "还没决定走哪条" },
+    { t: "我拿不准该走哪条",   why: "心里没底" },
+    { t: "这事有点大，我一个人定不下来", why: "摊子大" }
+  ],
+  impl: [
+    { t: "我知道要做什么",     why: "目标已经清楚" },
+    { t: "路径很清楚，直接开工", why: "没有待决事项" },
+    { t: "就照我想的做",       why: "方案已定" },
+    { t: "细节再问一遍就能动手", why: "差最后一轮拷问" }
+  ]
+};
+
+/* 换个框架：不说「我现在的处境」，说「我想要插件帮我做到什么」 */
+var WANTS = {
+  explore: [
+    { t: "先帮我把这事想清楚", why: "要的是想清楚，不是开工" },
+    { t: "帮我弄清到底要做成什么样", why: "要的是定方向" },
+    { t: "这事我有好几条路，得一条条问明白", why: "要的是逐个定取舍" }
+  ],
+  impl: [
+    { t: "帮我写成规格，再拆成票", why: "要的是可开工的东西" },
+    { t: "设计我定了，剩下的你问", why: "要的是被拷问补齐" },
+    { t: "我要一份能直接干的实施清单", why: "要的是票" }
+  ]
+};
+
+/* 技能链：steps 里三种元素：skill（技能）、branches（并行分支）、goal（汇总后的目标） */
+var FLOWS = {
+  explore: [
+    { type: "skill", sk: "/wayfinder", label: "探索" },
+    { type: "branches", label: "并行四路", items: [
+      { sk: "/prototype", label: "原型" },
+      { sk: "/research", label: "调研" },
+      { sk: "/grilling", label: "拷问" },
+      { sk: "/domain-modeling", label: "建模" }
+    ] },
+    { type: "goal", text: "目标明确" },
+    { type: "skill", sk: "/to-spec", label: "写规格" },
+    { type: "skill", sk: "/to-tickets", label: "拆实施票" }
+  ],
+  impl: [
+    { type: "skill", sk: "/grill-with-docs", label: "对着文档追问" },
+    { type: "goal", text: "目标明确" },
+    { type: "skill", sk: "/to-spec", label: "写规格" },
+    { type: "skill", sk: "/to-tickets", label: "拆实施票" }
+  ]
+};
+
+/* 紧凑版：分支收成四个字，中间状态省掉 */
+var FLOWS_COMPACT = {
+  explore: [
+    { type: "skill", sk: "/wayfinder", label: "探索" },
+    { type: "branches", label: "并行四路", items: [
+      { sk: "/prototype", label: "原型" },
+      { sk: "/research", label: "调研" },
+      { sk: "/grilling", label: "拷问" },
+      { sk: "/domain-modeling", label: "建模" }
+    ], compact: true },
+    { type: "skill", sk: "/to-spec", label: "写规格" },
+    { type: "skill", sk: "/to-tickets", label: "拆实施票" }
+  ],
+  impl: [
+    { type: "skill", sk: "/grill-with-docs", label: "对着文档追问" },
+    { type: "skill", sk: "/to-spec", label: "写规格" },
+    { type: "skill", sk: "/to-tickets", label: "拆实施票" }
+  ]
+};
+
+var ART = { explore: SVG_EXPLORE, impl: SVG_IMPL };
+var KEY = ["A", "B", "C", "D"];
+
+function capBlock(){
+  return CAP_PAIRS.map(function(p, i){
+    return '<div class="pair">'+
+      '<div class="slot explore"><div class="pk"><b>'+KEY[i]+'</b> 探索地图</div>'+
+        '<div class="art">'+art(ART.explore)+'</div><div class="capline">'+p.explore+'</div></div>'+
+      '<div class="slot impl"><div class="pk"><b>'+KEY[i]+'</b> 实施地图</div>'+
+        '<div class="art">'+art(ART.impl)+'</div><div class="capline">'+p.impl+'</div></div>'+
+    '</div>';
+  }).join("");
+}
+function voiceBlock(kind){
+  return VOICES[kind].map(function(v, i){
+    return '<div class="voice"><div class="key">'+KEY[i]+'</div><div class="t">'+v.t+'</div>'+
+      '<div class="why">'+v.why+'</div></div>';
+  }).join("");
+}
+function wantBlock(kind){
+  return WANTS[kind].map(function(v, i){
+    return '<div class="voice"><div class="key">'+KEY[i]+'</div><div class="t">'+v.t+'</div>'+
+      '<div class="why">'+v.why+'</div></div>';
+  }).join("");
+}
+function stepHtml(step){
+  if (step.type === "skill") return '<span class="sk">'+step.sk+'<em>'+step.label+'</em></span>';
+  if (step.type === "goal")  return '<span class="goal">'+step.text+'</span>';
+  if (step.type === "branches"){
+    if (step.compact) return '<span class="goal">'+step.label+'</span>';
+    return '<span class="branches"><span class="lbl">'+step.label+'</span>'+
+      step.items.map(function(b){ return '<span class="sk">'+b.sk+'<em>'+b.label+'</em></span>'; }).join("")+
+    '</span>';
+  }
+  return "";
+}
+function chainHtml(steps){
+  return steps.map(function(s, i){
+    return (i ? '<span class="arrow">→</span>' : "") + stepHtml(s);
+  }).join("");
+}
+function flowBlock(kind){
+  return '<div class="flowcard '+kind+'"><div class="key">A · 连成一条链（完整）</div>'+
+      '<div class="chain">'+chainHtml(FLOWS[kind])+'</div></div>'+
+    '<div class="flowcard '+kind+'"><div class="key">B · 拆成两行（第一行入口，后面几行往下走）</div>'+
+      '<div class="chain">'+chainHtml([FLOWS[kind][0]])+'</div>'+
+      '<div class="chain" style="margin-top:6px;padding-left:14px">'+chainHtml(FLOWS[kind].slice(1))+'</div></div>'+
+    '<div class="flowcard '+kind+'"><div class="key">C · 紧凑版（分支只写「并行四路」，省掉中间状态）</div>'+
+      '<div class="chain">'+chainHtml(FLOWS_COMPACT[kind])+'</div></div>';
+}
+function previewBlock(kind, name, capIdx, voiceIdx, steps, flowKey){
+  return '<div class="card '+kind+'"><div class="top">'+
+    '<div><div class="art">'+art(ART[kind])+'</div><div class="capline">'+CAP_PAIRS[capIdx][kind]+'</div></div>'+
+    '<div class="body"><div class="name">'+name+'</div>'+
+    '<div class="voice"><div class="t">'+voiceIdx.t+'</div></div>'+
+    '<div class="flow"><div class="key" style="margin-bottom:4px">'+flowKey+'</div>'+
+      '<div class="chain">'+chainHtml(steps)+'</div></div></div></div></div>';
+}
+
+document.getElementById("capBlock").innerHTML = capBlock();
+document.getElementById("voiceExplore").innerHTML = voiceBlock("explore");
+document.getElementById("voiceImpl").innerHTML = voiceBlock("impl");
+document.getElementById("wantExplore").innerHTML = wantBlock("explore");
+document.getElementById("wantImpl").innerHTML = wantBlock("impl");
+document.getElementById("flowExplore").innerHTML = flowBlock("explore");
+document.getElementById("flowImpl").innerHTML = flowBlock("impl");
+document.getElementById("previewExplore").innerHTML =
+  previewBlock("explore", "探索地图", 0, VOICES.explore[0], FLOWS.explore, "技能链 · 完整版") +
+  previewBlock("explore", "探索地图", 0, VOICES.explore[0], FLOWS_COMPACT.explore, "技能链 · 紧凑版");
+document.getElementById("previewImpl").innerHTML =
+  previewBlock("impl", "实施地图", 0, VOICES.impl[0], FLOWS.impl, "技能链 · 完整版") +
+  previewBlock("impl", "实施地图", 0, VOICES.impl[0], FLOWS_COMPACT.impl, "技能链 · 紧凑版");
+</script>
+</body>
+</html>

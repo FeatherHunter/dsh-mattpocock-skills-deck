@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 定稿卡与主体文本的四种设计</title>
+<style>
+:root{--bg:#0c0e12;--card:#10131a;--border:#2a2d35;--txt:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
+  --purple:#c084fc;--blue-text:#93c5fd;--amber:#f59e0b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:1010px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 60px;max-width:1240px;margin:0 auto}
+section{margin-bottom:32px}
+h2{font-size:15px;margin:0 0 4px;display:flex;align-items:baseline;gap:9px}
+h2 .tag{font-size:11px;color:var(--cap);font-weight:400;border:1px solid var(--border);border-radius:20px;padding:1px 9px}
+h2 .pick{font-size:11px;color:var(--amber);font-weight:400}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:1040px}
+.sub b{color:var(--txt)}
+.opt{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.cards{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.cardcell .cl{font-size:10.5px;color:var(--cap);margin-bottom:5px;text-align:center}
+.notes{flex:1 1 300px;min-width:280px}
+.notes dl{margin:0;font-size:12.3px}
+.notes dt{color:var(--amber);margin-top:7px}
+.notes dd{margin:2px 0 0;color:var(--sec)}
+.notes dd b{color:var(--txt)}
+.hint{color:var(--amber);font-size:12px;max-width:1040px;margin:8px 0 0}
+table{border-collapse:collapse;width:100%;max-width:1040px}
+th,td{border:1px solid var(--border);padding:7px 9px;font-size:12.3px;text-align:left;vertical-align:top}
+th{color:var(--cap);font-weight:400;background:rgba(255,255,255,.03)}
+td.p{color:var(--purple)} td.b{color:var(--blue-text)}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>定稿卡（甲）＋ 主体文本的四种设计</h1>
+  <p>这一版按你说的改了两处：<b>左侧对齐</b>——地图面板和技能链面板左边框都从 x=12 起，两块内容的起笔也在同一条线（x=26：地图里「需求」胶囊的左边、技能链里第一个节点的左边）；<b>状态句用色</b>——「目标大而模糊 / 目标明确清晰」跟「探索地图 / 实施地图」同色（紫 / 蓝），不再是白字。</p>
+  <p>主体文本这一块，职责已经定下来：<b>回答「点下去会发生什么、最后给我什么」</b>（做法 + 产物）。
+    「心里话」那一路跟状态句重复（探索那张的「拿不准」就是「大而模糊」的口语版），
+    「开场白预告」把会话的第一句话写死在卡上、以后改技能链就要改文案，
+    「处境 + 后果」两句要占满右栏、卡要长到 250 以上，还把「不用点进去看」的理由直接送给了用户。
+    下面「庚」段是这一路的三组候选文案，都按真实尺寸排在卡里。</p>
+  <p>另外三个问题的答案也在这儿：<b>承接关系不写进卡里</b>（卡底的技能链已经画出来了：探索那条链的末尾同样是 /to-spec、/to-tickets）；
+    <b>眉标保持同色淡一档</b>（两张卡名只差「探索 / 实施」两个字，眉标上色才能一眼分清是哪一类）；
+    <b>当前这一稿修了一处排版硬伤</b>——原来按固定字数硬切，会把「给你」拆到两行，现在按中文避头尾规则分行。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="tag">定稿</span>甲 · 对齐与配色修好后<span class="pick">主体文本暂用「做法+产物」</span></h2>
+    <p class="sub">眉标（名字，同色但淡）→ 状态句（大字，同色实心）→ 主体文本（灰字）。地图 1:1 在左，技能链在底部。</p>
+    <div class="opt" id="optFinal"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">戊</span>主体文本的四种设计</h2>
+    <p class="sub">卡片里现在有三个文字位置，各答一个问题：<b>眉标</b>答「这是哪一类」，<b>状态句</b>答「我处在什么状态」。剩下第三个问题——<b>主体文本该答什么</b>，才是要定的事。四种设计的差别就在这里。</p>
+    <div class="opt" id="optT1"></div>
+    <div class="opt" id="optT2"></div>
+    <div class="opt" id="optT3"></div>
+    <div class="opt" id="optT4"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">己</span>四种设计的对照</h2>
+    <div id="cmp"></div>
+    <p class="hint">我的倾向是<b>「做法 + 产物」</b>：状态句已经占了「处境」这个位置，主体文本再写一遍心里话就是重复；而用户点下去之前真正想知道的是「点下去会发生什么、最后给我什么」。但这句话必须落在两行以内，而且要短。</p>
+  </section>
+
+  <section>
+    <h2><span class="tag">庚</span>「做法 + 产物」这一路的三组候选<span class="pick">下面每组都按真实尺寸排在卡里</span></h2>
+    <p class="sub">三组都守同一条规矩：<b>不撞卡名</b>（探索那张不出现「实施地图」四个字，实施那张不出现「探索」）、
+      <b>不重复状态句</b>（不出现「模糊 / 明确 / 拿不准 / 没想透」这类词）、
+      <b>开头就能一眼分辨</b>（分头 vs 对着文档）、<b>两行以内</b>（一行最多 12 个字）。</p>
+    <div id="candBox"></div>
+    <div id="candTable"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">辛</span>四个未决问题的答案</h2>
+    <div id="answers"></div>
+    <p class="hint">最后一件不是设计问题、是事实问题：<b>探索那条会话到底会不会一路跑到 /to-tickets</b>。
+      技能链上探索那条的尾巴也有 /to-spec、/to-tickets（原型图里这两格染蓝，是「两条路共有的后半截」），
+      所以如果实情是探索也跑完这两步，探索卡的产物就不该只说「一份需求」——用户会以为选了探索就拿不到票。
+      这一条要你拍板：<b>探索停在哪一步</b>。</p>
+  </section>
+</div>
+
+<script>
+var P="#c084fc", PT="#e9d5ff", B="#93c5fd", BT="#bfdbfe", G="#3fb950";
+function defs(u,c){
+  return '<defs>'+
+    '<radialGradient id="g'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".38"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient>'+
+    '<radialGradient id="f'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".3"></stop><stop offset=".55" stop-color="'+c+'" stop-opacity=".14"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient></defs>';
+}
+function need(x,y,w,h,stroke,txt,dash){
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(h/2)+'" fill="rgba(0,0,0,0)" stroke="'+stroke+'" stroke-width="1.3"'+(dash?' stroke-dasharray="3.4 2.4"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+4)+'" text-anchor="middle" font-size="10.5" fill="'+txt+'" letter-spacing=".5">需求</text>';
+}
+function q(x,y,r){
+  return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(10,12,16,.92)" stroke="'+PT+'" stroke-width="1.3"></circle>'+
+    '<text x="'+x+'" y="'+(y+r*0.38)+'" text-anchor="middle" font-size="'+(r*1.35)+'" fill="'+PT+'">?</text>';
+}
+function target(x,y,r,color,glow,check){
+  var s='<circle cx="'+x+'" cy="'+y+'" r="'+(r+9)+'" fill="url(#'+glow+')"></circle>';
+  s+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#0b0d11" stroke="'+color+'" stroke-width="1.4"></circle>';
+  if(check){ s+='<path d="M'+(x-r*0.42)+' '+y+' l'+(r*0.3)+' '+(r*0.34)+' l'+(r*0.6)+'-'+(r*0.68)+'" fill="none" stroke="'+G+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>'; }
+  else { s+='<circle cx="'+x+'" cy="'+y+'" r="'+(r*0.42)+'" fill="none" stroke="'+color+'" stroke-width="1.1" opacity=".75"></circle>'; }
+  return s;
+}
+function ticket(x,y,w,h){
+  var s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="4" fill="rgba(29,78,216,.42)" stroke="'+B+'" stroke-width="1.2"></rect>';
+  s+='<path d="M'+(x+6)+' '+(y+h/2)+' l2.2 2.2 4-4.6" fill="none" stroke="'+G+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2-2.5)+' H '+(x+w-5)+'" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".7"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2+3)+' H '+(x+w-12)+'" stroke="'+B+'" stroke-width="1" stroke-linecap="round" opacity=".35"></path>';
+  return s;
+}
+function artExplore(u){
+  var s=defs(u,"#c084fc");
+  s+=need(6,42,42,20,P,PT,true);
+  s+='<circle cx="52" cy="52" r="5" fill="none" stroke="'+P+'" stroke-opacity=".35" stroke-width="1"></circle>';
+  s+='<circle cx="52" cy="52" r="2.6" fill="'+P+'"></circle>';
+  s+='<path d="M54 52 H 68" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round"></path>';
+  s+='<circle cx="72" cy="52" r="3.6" fill="'+P+'"></circle>';
+  s+='<path d="M72 52 C 80 46 88 26 96 21" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 82 52 90 52 96 52" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 80 58 88 78 96 83" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+=q(104,20,8); s+=q(104,52,8); s+=q(104,84,8);
+  s+='<path d="M112 20 C 124 22 134 40 141 50" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>';
+  s+='<path d="M112 52 C 124 52 134 52 141 52" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".4"></path>';
+  s+='<path d="M112 84 C 124 82 134 64 141 54" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".35"></path>';
+  s+='<circle cx="152" cy="52" r="30" fill="url(#f'+u+')"></circle>';
+  s+=target(150,52,8,PT,'g'+u,false);
+  return s;
+}
+function artImpl(u){
+  var s=defs(u,"#60a5fa");
+  s+=need(6,42,42,20,B,BT,false);
+  var ys=[8,31,54,77], cy=[16.5,39.5,62.5,85.5];
+  for(var i=0;i<4;i++){ s+='<path d="M48 52 C 56 52 58 '+cy[i]+' 68 '+cy[i]+'" fill="none" stroke="'+B+'" stroke-width="1.4" stroke-linecap="round" opacity=".75"></path>'; }
+  for(var j=0;j<4;j++){
+    s+=ticket(70,ys[j],36,17);
+    s+='<path d="M106 '+cy[j]+' C 118 '+cy[j]+' 128 '+(cy[j]<52?cy[j]+8:cy[j]-8)+' 138 50" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>';
+  }
+  s+=target(148,52,8,BT,'g'+u,true);
+  return s;
+}
+var MONO='Consolas,Menlo,monospace';
+function node(x,y,w,h,text,o){
+  o=o||{};
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?5:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+2.5)+'" text-anchor="middle" font-size="'+(o.fs||7)+'" fill="'+(o.text||"#e6edf3")+'" font-family="'+MONO+'">'+text+'</text>';
+}
+function arrowH(x1,x2,y,c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+    '<path d="M'+(x2-3.4)+' '+(y-2.4)+' L'+x2+' '+y+' L'+(x2-3.4)+' '+(y+2.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+function chainExploreH(ox,oy){
+  var s="", cy=oy+31, rows=["/prototype","/research","/grilling","/domain-modeling"], rowH=12, gap=2.5;
+  var top=cy-(rows.length*rowH+(rows.length-1)*gap)/2;
+  s+=node(ox,cy-6,48,12,"/wayfinder",{fill:"rgba(192,132,252,.12)",stroke:P,text:PT,fs:6.8});
+  s+=arrowH(ox+48,ox+56,cy,P);
+  var sx=ox+56,gx=ox+64;
+  s+='<path d="M'+sx+' '+cy+' V'+(top+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+='<path d="M'+sx+' '+cy+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for(var i=0;i<rows.length;i++){
+    var y=top+i*(rowH+gap);
+    s+=arrowH(sx,gx,y+rowH/2,P);
+    s+=node(gx,y,86,rowH,rows[i],{fill:"rgba(192,132,252,.10)",stroke:P,text:PT,fs:6.6,rx:4});
+  }
+  var rx=gx+86+4,mx=rx+4;
+  s+='<path d="M'+rx+' '+(top+rowH/2)+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+=arrowH(mx,mx+6,cy,P);
+  var gx2=mx+6;
+  s+=node(gx2,cy-6,46,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(gx2+46,gx2+54,cy,B);
+  s+=node(gx2+54,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(gx2+92,gx2+100,cy,B);
+  s+=node(gx2+100,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+function chainImplH(ox,oy){
+  var s="", cy=oy+31;
+  s+=node(ox,cy-6,68,12,"/grill-with-docs",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6});
+  s+=arrowH(ox+68,ox+94,cy,B);
+  s+=node(ox+94,cy-6,46,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(ox+140,ox+158,cy,B);
+  s+=node(ox+158,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(ox+196,ox+220,cy,B);
+  s+=node(ox+220,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+var uid=0;
+function artOf(kind,w,h,x,y){
+  var u='u'+(uid++);
+  var a = kind==='explore' ? artExplore(u) : artImpl(u);
+  return '<svg x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" viewBox="0 0 168 104">'+a+'</svg>';
+}
+/* 中文分行：卡里的正文在真代码里是 HTML，交给浏览器排版；原型把它画成 SVG 的 <text>，
+   浏览器不会自动换行，所以这里手动分行。要对齐三件事：
+   一、一行最多几个字（12px 字号、144px 宽 → 一行 12 个汉字）；
+   二、词不能拆开（「规格」不能断成「规 / 格」，「实施票」不能断成「实施 / 票」）；
+   三、中文避头尾（行首不出现「个、把、只、再、还」这类字）。
+   不做这三条就会截出「探清了给 / 你一张实施地图」「写成规 / 格和实施票」这种断法。
+   另外：正文都是「前半句，后半句」两句，逗号后面正好放得下后半句时就断在逗号后面，两行长度才匀。 */
+var NO_LINE_START="个把只种样些再又还也就才更最而但却很跟和被让使等如若因及与或，。、；：！？）】》」』%";
+var NO_LINE_END="（【《「『(";
+var KEEP_WORDS=["规格","实施票","文档","问号","开工","没定","一条","四条","到底","问清","清楚","写成","落成","消掉","摊开","分头","探出","探路","一排","每个","什么","手里","多了"];
+function splitUnits(text){
+  var units=[], i=0;
+  while(i<text.length){
+    var hit=null;
+    for(var k=0;k<KEEP_WORDS.length;k++){
+      if(text.substr(i,KEEP_WORDS[k].length)===KEEP_WORDS[k]){ hit=KEEP_WORDS[k]; break; }
+    }
+    if(hit){ units.push(hit); i+=hit.length; }
+    else { units.push(text.charAt(i)); i++; }
+  }
+  return units;
+}
+function widthOf(units){ var w=0; for(var i=0;i<units.length;i++) w+=units[i].length; return w; }
+function packUnits(units,maxChars){
+  var lines=[], cur=[], w=0;
+  for(var i=0;i<units.length;i++){
+    var u=units[i], uw=u.length;
+    /* 逗号后面装得下剩下的全部内容，就在逗号后面断行 */
+    if(u==="，" && widthOf(units.slice(i+1))<=maxChars && cur.length>0){
+      cur.push(u); lines.push(cur); cur=[]; w=0; continue;
+    }
+    if(w+uw>maxChars && cur.length>0){
+      /* 下一行不能以这些字开头：把本行最后一个单元挪到下一行 */
+      if(NO_LINE_START.indexOf(u)>=0 && cur.length>1){
+        var last=cur.pop(); lines.push(cur); cur=[last]; w=last.length;
+      } else {
+        lines.push(cur); cur=[]; w=0;
+      }
+    }
+    /* 本行不能以这些字收尾 */
+    if(u && NO_LINE_END.indexOf(u)>=0 && cur.length>0){
+      cur.push(u); lines.push(cur); cur=[]; w=0; continue;
+    }
+    cur.push(u); w+=uw;
+  }
+  if(cur.length) lines.push(cur);
+  return lines;
+}
+function wrapText(x,y,text,fs,maxChars,lineH,fill){
+  var lines=packUnits(splitUnits(text),maxChars), s='';
+  for(var j=0;j<lines.length;j++){
+    s+='<text x="'+x+'" y="'+(y+j*lineH)+'" font-size="'+fs+'" fill="'+fill+'">'+lines[j].join("")+'</text>';
+  }
+  return s;
+}
+var TXT={
+  explore:{name:"探索地图", state:"目标大而模糊", color:P, border:"rgba(188,140,255,.45)"},
+  impl:{name:"实施地图", state:"目标明确清晰", color:B, border:"rgba(29,78,216,.75)"}
+};
+/* 主体文本的四种设计 */
+var BODY={
+  A:{tag:"心里话", q:"我现在的处境",
+     e:"拿不准的地方多岔几路", i:"没想透的地方一路问",
+     note:"回答「这说的就是我」。跟状态句有点重：状态句已经说了处境，这句是更口语的复述。"},
+  B:{tag:"做法 + 产物", q:"点下去会发生什么",
+     e:"分头探几条路，把没定的问清楚", i:"对着文档问到底，写成规格和实施票",
+     note:"回答「点下去会发生什么、最后给我什么」。跟地图和技能链不重复：图画形状，这句说人话。"},
+  C:{tag:"处境 + 后果两句", q:"两个都答",
+     e:"拿不准的地方多岔几路；探清了给你一张实施地图", i:"没想透的地方一路问；问完了给你规格和实施票",
+     note:"信息最全，但要两行，右栏排到 100px 高，卡要长到 250 以上。"},
+  D:{tag:"开场白预告", q:"新会话第一句",
+     e:"开场我会先问你：这事到底要做成什么样？", i:"开场我会先问：还有哪些地方没想透？",
+     note:"最具体，用户知道点下去马上听到什么。但它把实现细节写进文案，技能链改了就得跟着改。"}
+};
+function cardShell(kind,w,h){
+  var c=TXT[kind];
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">'+
+    '<rect x="0.5" y="0.5" width="'+(w-1)+'" height="'+(h-1)+'" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>';
+}
+/* 甲：地图面板与技能链面板左边框同在 x=12；两块内容起笔同在 x=26 */
+function cardFinal(kind, bodyKey, override){
+  var c=TXT[kind], W=368, H=232, s=cardShell(kind,W,H);
+  s+='<rect x="12" y="12" width="184" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,168,104,20,18);
+  s+='<text x="208" y="36" font-size="11" fill="'+c.color+'" fill-opacity=".72" letter-spacing="1.2">'+c.name+'</text>';
+  s+='<text x="208" y="64" font-size="17" font-weight="700" fill="'+c.color+'">'+c.state+'</text>';
+  s+=wrapText(208,86,override||BODY[bodyKey][kind==='explore'?'e':'i'],12,12,17,"#a1a1aa");
+  s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+= kind==='explore' ? chainExploreH(26,140) : chainImplH(26,140);
+  return s+'</svg>';
+}
+function render(id,cards,notes){
+  var html='<div class="cards">'+cards.map(function(c){
+    return '<div class="cardcell"><div class="cl">'+c[0]+'</div>'+c[1]+'</div>';
+  }).join("")+'</div>';
+  html+='<div class="notes"><dl>'+notes.map(function(n){ return '<dt>'+n[0]+'</dt><dd>'+n[1]+'</dd>'; }).join("")+'</dl></div>';
+  document.getElementById(id).innerHTML=html;
+}
+render("optFinal",[["探索地图",cardFinal("explore","B")],["实施地图",cardFinal("impl","B")]],
+  [["对齐","地图面板与技能链面板的左边框都在 x=12；两块内容的起笔也在同一条线 x=26（地图里「需求」胶囊的左边，技能链里第一个节点的左边）。"],
+   ["配色","眉标与状态句同色（探索紫、实施蓝），眉标淡一些当标签，状态句实心当主角。"],
+   ["主体文本","这一稿换成「做法 + 产物」：说清这条路上 AI 怎么走、走完手里多了什么。原来的「探清了给你一张实施地图」有两处毛病：一是撞卡名（另一张卡就叫实施地图），二是「四条路」跟图里画的三条岔路打架——技能链上是四个并行技能，两边数字对不上，所以改说「几条路」。"],
+   ["还可以","眉标要不要改成灰色（#8b8b95）——那样整张卡只有状态句带颜色，更干净；但分类信息会弱一点。你说一句我改。"]]);
+var keys=["A","B","C","D"];
+var ids=["optT1","optT2","optT3","optT4"];
+for(var i=0;i<keys.length;i++){
+  (function(k,id){
+    render(id,[["探索地图",cardFinal("explore",k)],["实施地图",cardFinal("impl",k)]],
+      [["它回答的问题",BODY[k].q],
+       ["写法",BODY[k].e+" ／ "+BODY[k].i],
+       ["利弊",BODY[k].note]]);
+  })(keys[i],ids[i]);
+}
+document.getElementById("cmp").innerHTML='<table><tr><th style="width:96px">设计</th><th>回答哪个问题</th><th>探索地图的说法</th><th>实施地图的说法</th><th style="width:290px">利弊</th></tr>'+
+  keys.map(function(k){
+    return '<tr><td style="color:#8b8b95">'+BODY[k].tag+'</td><td>'+BODY[k].q+'</td><td class="p">'+BODY[k].e+'</td><td class="b">'+BODY[k].i+'</td><td style="color:#8b8b95">'+BODY[k].note+'</td></tr>';
+  }).join("")+'</table>';
+
+/* 「做法 + 产物」这一路的三组候选：三组都守同一条规矩（不撞卡名、不重复状态句、开头一眼能分、两行内） */
+var CANDS=[
+  {k:"甲", e:"分头探几条路，把没定的问清楚", i:"对着文档问到底，写成规格和实施票",
+   why:"最直白的一组：前半句说怎么走（分头 / 一条线），后半句说走完手里多了什么。"},
+  {k:"乙", e:"分头探几条路，把问号一个个消掉", i:"对着文档问到底，落成一排能开工的票",
+   why:"更贴图：探索那张图画的就是三个问号，实施那张图画的就是一排盖了章的票。"},
+  {k:"丙", e:"分头探几条路，汇成一份想清楚的需求", i:"对着文档一路问到底，写出规格和实施票",
+   why:"产物最重的一组：两张卡都给一份纸上的东西，探索是「想清楚的需求」，实施是「规格和实施票」。"}
+];
+document.getElementById("candBox").innerHTML =
+  CANDS.map(function(c){
+    return '<div class="opt"><div class="cards">'+
+      '<div class="cardcell"><div class="cl">候选'+c.k+' · 探索地图</div>'+cardFinal("explore","B",c.e)+'</div>'+
+      '<div class="cardcell"><div class="cl">候选'+c.k+' · 实施地图</div>'+cardFinal("impl","B",c.i)+'</div>'+
+      '</div><div class="notes"><dl><dt>特点</dt><dd>'+c.why+'</dd></dl></div></div>';
+  }).join("");
+document.getElementById("candTable").innerHTML =
+  '<table><tr><th style="width:60px">候选</th><th>探索地图的主体文本</th><th style="width:52px">字数</th><th>实施地图的主体文本</th><th style="width:52px">字数</th><th style="width:300px">特点</th></tr>'+
+  CANDS.map(function(c){
+    return '<tr><td style="color:#8b8b95">'+c.k+'</td><td class="p">'+c.e+'</td><td>'+c.e.length+'</td><td class="b">'+c.i+'</td><td>'+c.i.length+'</td><td style="color:#8b8b95">'+c.why+'</td></tr>';
+  }).join("")+'</table>';
+
+/* 交接文档里留下的四个未决问题，逐条给答案 */
+var ANSWERS=[
+  ["1 · 主体文本的职责选哪一种",
+   "选「做法 + 产物」：回答「点下去会发生什么、最后给我什么」。",
+   "「心里话」跟状态句重复：探索那张的「拿不准」就是「大而模糊」的口语版，实施那张的「没想透」就是「明确清晰」的反面，等于白占一行；" +
+   "「开场白预告」把会话第一句话写死在卡上，以后改技能链就要改文案；「处境 + 后果」两句要占满右栏、卡长到 250 以上，还把「不用点进去看」的理由直接送给了用户。"],
+  ["2 · 具体文案怎么写",
+   "三组候选见上面「庚」段，推荐甲组：分头探几条路，把没定的问清楚 ／ 对着文档问到底，写成规格和实施票。",
+   "三组都守同一条规矩：不撞卡名、不重复状态句、开头一眼能分（分头 / 对着文档）、两行以内（144px 宽、12px 全角字，一行实际只放得下 12 个汉字）。"],
+  ["3 · 要不要在文案里点出「探索 → 实施」的承接",
+   "不点。承接关系交给卡底的技能链去说（探索那条链的末尾同样是 /to-spec、/to-tickets，那两格已经染成蓝色）。",
+   "写进文案有两个坏处：一是已经想清楚的用户会以为「实施地图」必须先走探索才拿得到，反而不敢选第二张；二是技能链一改，文案就得跟着改。"],
+  ["4 · 眉标要不要改成灰色",
+   "不改，保持同色淡一档（现在就是紫 / 蓝 + 72% 不透明度）。",
+   "两张卡的卡名只差「探索 / 实施」两个字，眉标上色才能一眼分清是哪一类；卡框和插图虽然也带色，但那是装饰，不是分类信息。眉标已经用小字号加淡色当标签，不吵。"]
+];
+document.getElementById("answers").innerHTML =
+  '<table><tr><th style="width:210px">问题</th><th style="width:300px">答案</th><th>理由</th></tr>'+
+  ANSWERS.map(function(a){
+    return '<tr><td style="color:#8b8b95">'+a[0]+'</td><td>'+a[1]+'</td><td style="color:#8b8b95">'+a[2]+'</td></tr>';
+  }).join("")+'</table>';
+</script>
+</body>
+</html>

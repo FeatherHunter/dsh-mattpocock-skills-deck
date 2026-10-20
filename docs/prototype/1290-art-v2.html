@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 两张地图示意图的第二轮布局</title>
+<style>
+:root{--bg:#0c0e12;--card:#10131a;--border:#2a2d35;--txt:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
+  --purple:#c084fc;--blue-text:#93c5fd;--amber:#f59e0b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1200px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:980px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 48px;max-width:1200px;margin:0 auto}
+section{margin-bottom:30px}
+h2{font-size:15px;margin:0 0 4px}
+h2 .n{color:var(--cap);font-weight:400;margin-right:8px}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:980px}
+.sub b{color:var(--txt)}
+.variants{display:flex;gap:18px;flex-wrap:wrap}
+.v{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;width:560px}
+.v.explore{border-color:rgba(188,140,255,.45)}
+.v.impl{border-color:rgba(29,78,216,.75)}
+.v h3{margin:0 0 2px;font-size:13.5px}
+.v.explore h3{color:var(--purple)}
+.v.impl h3{color:var(--blue-text)}
+.v .why{font-size:11.5px;color:var(--cap);margin:0 0 8px}
+.row{display:flex;gap:14px;align-items:flex-start}
+.real{background:#0a0c10;border:1px solid var(--border);border-radius:8px;padding:6px 0;flex:none;width:132px;text-align:center}
+.real .lb{font-size:10px;color:var(--cap);margin-top:4px}
+.big{background:#0a0c10;border:1px solid var(--border);border-radius:8px;padding:6px}
+.zoom{transform:scale(2.2);transform-origin:top left;width:290px;height:181px;overflow:hidden}
+table{border-collapse:collapse;width:100%;max-width:960px}
+th,td{border:1px solid var(--border);padding:6px 9px;font-size:12.5px;text-align:left;vertical-align:top}
+th{color:var(--cap);font-weight:400;background:rgba(255,255,255,.03)}
+td.p{color:var(--purple)} td.b{color:var(--blue-text)}
+.hint{color:var(--amber);font-size:12px;max-width:960px;margin:10px 0 0}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>两张地图示意图 · 第二轮布局</h1>
+  <p>诊断：两张图的内容都挤在左半边，右半边基本空；探索那条最下面的一路几乎看不见（读成两条路而不是三路），终点压在雾里读不出来；实施那张少了「需求被拆成票」的那一步，票上的勾和达成章的勾一样重。</p>
+  <p>这轮统一骨架：<b>需求（胶囊）→ 中段（一进三出 / 一进四出）→ 目标（同一个符号）</b>，两端完全对称；中段的线不再分三档透明度；终点画在雾外面。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="n">一</span>探索地图 · 两个新布局</h2>
+    <p class="sub">左边是真实尺寸 132×82，右边是放大 2.6 倍看细节。</p>
+    <div class="variants" id="exploreBox"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">二</span>实施地图 · 两个新布局</h2>
+    <p class="sub">两个都把「拆成票」这一步画出来：一张是需求扇出到四张票，一张是需求在上一排票在下一排。</p>
+    <div class="variants" id="implBox"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">三</span>副句候选（子代理头脑风暴的结果，挑了 20 条）</h2>
+    <p class="sub">每一句不超过 10 个字；子代理一共给了 68 条，下面挑出 20 条最整的分成四类，剩下的随时可以再要。</p>
+    <div id="subTable"></div>
+    <p class="hint">子代理的结论：副句最好开头就给一个能一眼分辨的词（岔路 / 一路 / 没想透），因为两个卡名都以「地图」结尾，横看几乎一样。它推荐上版的一对是——探索「拿不准的地方多岔几路」、实施「没想透的地方一路问」。</p>
+  </section>
+</div>
+
+<script>
+var DEFS = [
+  '<defs>',
+    '<radialGradient id="gEx"><stop offset="0" stop-color="#c084fc" stop-opacity=".42"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>',
+    '<radialGradient id="gIm"><stop offset="0" stop-color="#60a5fa" stop-opacity=".42"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>',
+    '<radialGradient id="fogEx"><stop offset="0" stop-color="#c084fc" stop-opacity=".3"></stop><stop offset=".55" stop-color="#c084fc" stop-opacity=".14"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>',
+  '</defs>'
+].join("");
+
+var P = "#c084fc", PT = "#e9d5ff", B = "#93c5fd", BT = "#bfdbfe", G = "#3fb950";
+
+function need(x, y, w, h, color, text){
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(h/2)+'" fill="rgba(0,0,0,0)" stroke="'+color+'" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>'+
+         '<text x="'+(x+w/2)+'" y="'+(y+h/2+4)+'" text-anchor="middle" font-size="10.5" fill="'+text+'" letter-spacing=".5">需求</text>';
+}
+function q(x, y, r){
+  return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(10,12,16,.92)" stroke="'+PT+'" stroke-width="1.3"></circle>'+
+         '<text x="'+x+'" y="'+(y+r*0.38)+'" text-anchor="middle" font-size="'+(r*1.35)+'" fill="'+PT+'">?</text>';
+}
+function target(x, y, r, color, glow, check){
+  var s = '<circle cx="'+x+'" cy="'+y+'" r="'+(r+9)+'" fill="url(#'+glow+')"></circle>';
+  s += '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#0b0d11" stroke="'+color+'" stroke-width="1.4"></circle>';
+  if (check){
+    s += '<path d="M'+(x-r*0.42)+' '+y+' l'+(r*0.3)+' '+(r*0.34)+' l'+(r*0.6)+'-'+(r*0.68)+'" fill="none" stroke="'+G+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>';
+  } else {
+    s += '<circle cx="'+x+'" cy="'+y+'" r="'+(r*0.42)+'" fill="none" stroke="'+color+'" stroke-width="1.1" opacity=".75"></circle>';
+  }
+  return s;
+}
+function ticket(x, y, w, h){
+  var s = '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="4" fill="rgba(29,78,216,.42)" stroke="'+B+'" stroke-width="1.2"></rect>';
+  s += '<path d="M'+(x+6)+' '+(y+h/2)+' l2.2 2.2 4-4.6" fill="none" stroke="'+G+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>';
+  s += '<path d="M'+(x+16)+' '+(y+h/2-2.5)+' H '+(x+w-5)+'" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".7"></path>';
+  s += '<path d="M'+(x+16)+' '+(y+h/2+3)+' H '+(x+w-12)+'" stroke="'+B+'" stroke-width="1" stroke-linecap="round" opacity=".35"></path>';
+  return s;
+}
+
+/* ============ 探索 A：分叉 → 三个路标 → 汇到看得见的终点 ============ */
+function artExploreA(){
+  var s = '<svg viewBox="0 0 168 104" width="132" height="82">'+DEFS;
+  s += need(6, 42, 42, 20, P, PT);
+  s += '<circle cx="52" cy="52" r="5" fill="none" stroke="'+P+'" stroke-opacity=".35" stroke-width="1"></circle>';
+  s += '<circle cx="52" cy="52" r="2.6" fill="'+P+'"></circle>';
+  s += '<path d="M54 52 H 68" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round"></path>';
+  s += '<circle cx="72" cy="52" r="3.6" fill="'+P+'"></circle>';
+  s += '<path d="M72 52 C 80 46 88 26 96 21" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s += '<path d="M72 52 C 82 52 90 52 96 52" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s += '<path d="M72 52 C 80 58 88 78 96 83" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s += q(104, 20, 8);
+  s += q(104, 52, 8);
+  s += q(104, 84, 8);
+  s += '<path d="M112 20 C 124 22 134 40 141 50" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>';
+  s += '<path d="M112 52 C 124 52 134 52 141 52" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".4"></path>';
+  s += '<path d="M112 84 C 124 82 134 64 141 54" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".35"></path>';
+  s += '<circle cx="152" cy="52" r="30" fill="url(#fogEx)"></circle>';
+  s += target(150, 52, 8, PT, "gEx", false);
+  return s+'</svg>';
+}
+
+/* ============ 探索 B：三条平行轨道，右侧收束到终点 ============ */
+function artExploreB(){
+  var s = '<svg viewBox="0 0 168 104" width="132" height="82">'+DEFS;
+  s += need(6, 42, 42, 20, P, PT);
+  s += '<path d="M48 52 C 56 52 52 20 62 20" fill="none" stroke="'+P+'" stroke-width="1.5" stroke-linecap="round" opacity=".85"></path>';
+  s += '<path d="M48 52 H 62" fill="none" stroke="'+P+'" stroke-width="1.5" stroke-linecap="round" opacity=".85"></path>';
+  s += '<path d="M48 52 C 56 52 52 84 62 84" fill="none" stroke="'+P+'" stroke-width="1.5" stroke-linecap="round" opacity=".85"></path>';
+  s += '<path d="M62 20 H 127" fill="none" stroke="'+P+'" stroke-width="1.5" stroke-linecap="round" opacity=".7"></path>';
+  s += '<path d="M62 52 H 127" fill="none" stroke="'+P+'" stroke-width="1.5" stroke-linecap="round" opacity=".7"></path>';
+  s += '<path d="M62 84 H 127" fill="none" stroke="'+P+'" stroke-width="1.5" stroke-linecap="round" opacity=".7"></path>';
+  s += q(92, 20, 7.6);
+  s += q(92, 52, 7.6);
+  s += q(92, 84, 7.6);
+  s += '<path d="M100 20 C 112 22 120 40 127 49" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".4"></path>';
+  s += '<path d="M100 52 C 112 52 120 52 127 52" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".38"></path>';
+  s += '<path d="M100 84 C 112 82 120 64 127 55" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".34"></path>';
+  s += '<path d="M127 20 V 84" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>';
+  s += '<circle cx="148" cy="52" r="26" fill="url(#fogEx)"></circle>';
+  s += target(148, 52, 8, PT, "gEx", false);
+  return s+'</svg>';
+}
+
+/* ============ 实施 A：需求扇出到四张票，四张票汇到达成章 ============ */
+function artImplA(){
+  var s = '<svg viewBox="0 0 168 104" width="132" height="82">'+DEFS;
+  s += need(6, 42, 42, 20, B, BT);
+  var ys = [8, 31, 54, 77];
+  var cy = [16.5, 39.5, 62.5, 85.5];
+  for (var i=0; i<4; i++){
+    s += '<path d="M48 52 C 56 52 58 '+cy[i]+' 68 '+cy[i]+'" fill="none" stroke="'+B+'" stroke-width="1.4" stroke-linecap="round" opacity=".75"></path>';
+  }
+  for (var j=0; j<4; j++){
+    s += ticket(70, ys[j], 36, 17);
+    s += '<path d="M106 '+cy[j]+' C 118 '+cy[j]+' 128 '+(cy[j]<52?cy[j]+8:cy[j]-8)+' 138 50" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>';
+  }
+  s += target(148, 52, 8, BT, "gIm", true);
+  return s+'</svg>';
+}
+
+/* ============ 实施 B：需求在上，四张票排一行，下面是达成章 ============ */
+function artImplB(){
+  var s = '<svg viewBox="0 0 168 104" width="132" height="82">'+DEFS;
+  s += need(60, 4, 48, 20, B, BT);
+  s += '<path d="M84 24 V 40" fill="none" stroke="'+B+'" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path>';
+  s += '<path d="M84 40 H 20" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".6"></path>';
+  s += '<path d="M84 40 H 148" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".6"></path>';
+  var xs = [7, 47, 87, 127];
+  for (var i=0; i<4; i++){
+    s += '<path d="M'+(xs[i]+17)+' 40 V 50" fill="none" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".55"></path>';
+    s += ticket(xs[i], 50, 34, 18);
+  }
+  for (var j=0; j<4; j++){
+    s += '<path d="M'+(xs[j]+17)+' 68 C '+(xs[j]+17)+' 80 84 82 84 88" fill="none" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".4"></path>';
+  }
+  s += target(84, 94, 8, BT, "gIm", true);
+  return s+'</svg>';
+}
+
+var VAR = {
+  explore: [
+    { t:"A · 分叉 → 三个路标 → 看得见的终点", why:"三条路透明度一样，路标一样大；每个问号后面还有一小段虚线指向终点，雾只留在终点外面，终点改成实线白环。", art:artExploreA() },
+    { t:"B · 三条平行轨道 → 右侧收束", why:"三条路各占一行、一眼数得清，右侧用一条虚线竖轨收进终点；画面被三条轨道填满，不再左挤右空。", art:artExploreB() }
+  ],
+  impl: [
+    { t:"A · 需求扇出到四张票 → 汇到达成章", why:"补上「需求被拆成票」这一步，跟探索的分叉形成对称；每张票两行内容、章比票大一号。", art:artImplA() },
+    { t:"B · 需求在上 → 一排票 → 下面盖章", why:"竖向流动：需求在最上，四张票横排一行像清单，全部打勾后收到最下面的章；跟探索图的三条路一眼能分辨。", art:artImplB() }
+  ]
+};
+function render(box, kind){
+  document.getElementById(box).innerHTML = VAR[kind].map(function(v){
+    return '<div class="v '+kind+'"><h3>'+v.t+'</h3><p class="why">'+v.why+'</p>'+
+      '<div class="row"><div class="real">'+v.art+'<div class="lb">132×82 真实尺寸</div></div>'+
+      '<div class="big"><div class="zoom">'+v.art+'</div></div></div></div>';
+  }).join("");
+}
+render("exploreBox", "explore");
+render("implBox", "impl");
+
+var SUBS = [
+  ["做法差别", "想法拆成几条岔路", "对着文档一条线问到底"],
+  ["做法差别", "拆成几路分头去问", "顺着文档一路追问"],
+  ["做法差别", "每条路尽头都是问号", "一条线追问到没疑问"],
+  ["心里话", "想要什么自己也不确定", "想法清楚就差问透"],
+  ["心里话", "还说不清要做成什么样", "心里有数还没落到纸上"],
+  ["心里话", "心里没底不知从哪下手", "心里有数只差一问"],
+  ["担心", "怕走错方向", "怕现在开工后面返工"],
+  ["担心", "怕问得太散收不住", "怕该问的地方没问到"],
+  ["担心", "怕漏掉关键的一层", "怕边界没划清"],
+  ["对仗", "拿不准的地方多岔几路", "没想透的地方一路问"]
+];
+document.getElementById("subTable").innerHTML =
+  '<table><tr><th style="width:70px">角度</th><th>探索地图 · 副句</th><th>实施地图 · 副句</th></tr>'+
+  SUBS.map(function(r){
+    return '<tr><td style="color:#8b8b95">'+r[0]+'</td><td class="p">'+r[1]+'</td><td class="b">'+r[2]+'</td></tr>';
+  }).join("")+'</table>';
+</script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 卡片四块的排版方案</title>
+<style>
+:root{--bg:#0c0e12;--card:#10131a;--border:#2a2d35;--txt:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
+  --purple:#c084fc;--blue-text:#93c5fd;--amber:#f59e0b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:1000px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 60px;max-width:1240px;margin:0 auto}
+section{margin-bottom:34px}
+h2{font-size:15px;margin:0 0 4px;display:flex;align-items:baseline;gap:9px}
+h2 .tag{font-size:11px;color:var(--cap);font-weight:400;border:1px solid var(--border);border-radius:20px;padding:1px 9px}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:1040px}
+.sub b{color:var(--txt)}
+.opt{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
+.wire{flex:none;background:#0a0c10;border:1px solid var(--border);border-radius:10px;padding:8px}
+.wire .wl{font-size:10px;color:var(--cap);margin-top:6px;text-align:center}
+.cards{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.cardcell .cl{font-size:10.5px;color:var(--cap);margin-bottom:5px;text-align:center}
+.notes{flex:1 1 320px;min-width:300px}
+.notes dl{margin:0;font-size:12.3px}
+.notes dt{color:var(--amber);margin-top:7px}
+.notes dd{margin:2px 0 0;color:var(--sec)}
+.notes dd b{color:var(--txt)}
+.verdict{border-left:2px solid var(--purple);padding:6px 0 6px 11px;margin-top:10px;font-size:12.3px;color:var(--sec)}
+.verdict b{color:var(--txt)}
+.hint{color:var(--amber);font-size:12px;max-width:1040px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>卡片里四块怎么排：地图 SVG · 小字 · 主标题 · 技能链</h1>
+  <p>四块内容都定了，问题只剩摆放。当前那张 340×208 的横卡是：图框左上、标题与副句右上（右边 70px 高空着）、小字压在图下面、技能链在底部横铺 316 宽——链和图都是横长东西，而弹层只有 376 宽，并排放不下。</p>
+  <p>下面五个骨架都用<b>同一张已认可的地图</b>和<b>同一套文字</b>，只是摆放不同；每张都按真实像素画，另附方框示意。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="tag">方案一</span>横卡 · 上下两段（改良现状）</h2>
+    <p class="sub">卡 <b>340×208</b>。小字从图下面挪到右栏，跟主标题归成一组；技能链仍然横贯底部，节点字号从 6.4 提到 7.2。</p>
+    <div class="opt" id="opt1"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">方案二</span>横卡 · 图放大当主角</h2>
+    <p class="sub">卡 <b>368×232</b>。地图按 1:1 画（168×104，之前被缩到 132×82，三个问号是挤在一起的）；文字在右，链在下面，链宽 344。</p>
+    <div class="opt" id="opt2"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">方案三</span>竖卡 · 一路往下（我推荐）</h2>
+    <p class="sub">卡 <b>220 宽</b>，高随内容走（探索那张链长，约 373；实施那张链短，约 303）。标题在最上，图 1:1 居中，小字在图下，技能链<b>竖排</b>——探索那四个并行技能本来就是四行竖着写，竖排后节点能画到 7.4px 字，箭头也放得下。</p>
+    <div class="opt" id="opt3"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">方案四</span>竖切两栏 · 图左链右</h2>
+    <p class="sub">卡 <b>296×204</b>。左栏地图 1:1 配小字，右栏标题配竖排技能链；两张卡并排放在弹层里是 2×296 ≈ 610 宽，弹层最宽但高度最小。</p>
+    <div class="opt" id="opt4"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">方案五</span>链出卡 · 链放到弹层底部</h2>
+    <p class="sub">卡里只留图、标题、小字三块（干净、最像一张卡片），技能链改成弹层底部一条<b>左右对照</b>的流程条——两条路的流程并排放，差别反而更清楚。</p>
+    <div class="opt" id="opt5"></div>
+  </section>
+
+  <p class="hint">提示：方案三、四、五都要把弹层从「376 宽、两张卡上下排」改成别的形状。方案三、四是两张卡左右并排，弹层宽度到 460～610；方案五的卡变矮，弹层仍是 376 宽，但多了一条对照条，高度会涨。</p>
+</div>
+
+<script>
+/* ============ 地图（沿用已认可那版：探索 A / 实施 A） ============ */
+var P="#c084fc", PT="#e9d5ff", B="#93c5fd", BT="#bfdbfe", G="#3fb950";
+function defs(u, c){
+  return '<defs>'+
+    '<radialGradient id="g'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".38"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient>'+
+    '<radialGradient id="f'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".3"></stop><stop offset=".55" stop-color="'+c+'" stop-opacity=".14"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient>'+
+  '</defs>';
+}
+function need(x,y,w,h,stroke,txt,dash){
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(h/2)+'" fill="rgba(0,0,0,0)" stroke="'+stroke+'" stroke-width="1.3"'+(dash?' stroke-dasharray="3.4 2.4"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+4)+'" text-anchor="middle" font-size="10.5" fill="'+txt+'" letter-spacing=".5">需求</text>';
+}
+function q(x,y,r){
+  return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(10,12,16,.92)" stroke="'+PT+'" stroke-width="1.3"></circle>'+
+    '<text x="'+x+'" y="'+(y+r*0.38)+'" text-anchor="middle" font-size="'+(r*1.35)+'" fill="'+PT+'">?</text>';
+}
+function target(x,y,r,color,glow,check){
+  var s='<circle cx="'+x+'" cy="'+y+'" r="'+(r+9)+'" fill="url(#'+glow+')"></circle>';
+  s+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#0b0d11" stroke="'+color+'" stroke-width="1.4"></circle>';
+  if(check){ s+='<path d="M'+(x-r*0.42)+' '+y+' l'+(r*0.3)+' '+(r*0.34)+' l'+(r*0.6)+'-'+(r*0.68)+'" fill="none" stroke="'+G+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>'; }
+  else { s+='<circle cx="'+x+'" cy="'+y+'" r="'+(r*0.42)+'" fill="none" stroke="'+color+'" stroke-width="1.1" opacity=".75"></circle>'; }
+  return s;
+}
+function ticket(x,y,w,h){
+  var s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="4" fill="rgba(29,78,216,.42)" stroke="'+B+'" stroke-width="1.2"></rect>';
+  s+='<path d="M'+(x+6)+' '+(y+h/2)+' l2.2 2.2 4-4.6" fill="none" stroke="'+G+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2-2.5)+' H '+(x+w-5)+'" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".7"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2+3)+' H '+(x+w-12)+'" stroke="'+B+'" stroke-width="1" stroke-linecap="round" opacity=".35"></path>';
+  return s;
+}
+function artExplore(u){
+  var s=defs(u,"#c084fc");
+  s+=need(6,42,42,20,P,PT,true);
+  s+='<circle cx="52" cy="52" r="5" fill="none" stroke="'+P+'" stroke-opacity=".35" stroke-width="1"></circle>';
+  s+='<circle cx="52" cy="52" r="2.6" fill="'+P+'"></circle>';
+  s+='<path d="M54 52 H 68" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round"></path>';
+  s+='<circle cx="72" cy="52" r="3.6" fill="'+P+'"></circle>';
+  s+='<path d="M72 52 C 80 46 88 26 96 21" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 82 52 90 52 96 52" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 80 58 88 78 96 83" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+=q(104,20,8); s+=q(104,52,8); s+=q(104,84,8);
+  s+='<path d="M112 20 C 124 22 134 40 141 50" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>';
+  s+='<path d="M112 52 C 124 52 134 52 141 52" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".4"></path>';
+  s+='<path d="M112 84 C 124 82 134 64 141 54" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".35"></path>';
+  s+='<circle cx="152" cy="52" r="30" fill="url(#f'+u+')"></circle>';
+  s+=target(150,52,8,PT,'g'+u,false);
+  return s;
+}
+function artImpl(u){
+  var s=defs(u,"#60a5fa");
+  s+=need(6,42,42,20,B,BT,false);
+  var ys=[8,31,54,77], cy=[16.5,39.5,62.5,85.5];
+  for(var i=0;i<4;i++){ s+='<path d="M48 52 C 56 52 58 '+cy[i]+' 68 '+cy[i]+'" fill="none" stroke="'+B+'" stroke-width="1.4" stroke-linecap="round" opacity=".75"></path>'; }
+  for(var j=0;j<4;j++){
+    s+=ticket(70,ys[j],36,17);
+    s+='<path d="M106 '+cy[j]+' C 118 '+cy[j]+' 128 '+(cy[j]<52?cy[j]+8:cy[j]-8)+' 138 50" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>';
+  }
+  s+=target(148,52,8,BT,'g'+u,true);
+  return s;
+}
+
+/* ============ 技能链零件 ============ */
+var MONO='Consolas,Menlo,monospace';
+function node(x,y,w,h,text,o){
+  o=o||{};
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?5:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+2.5)+'" text-anchor="middle" font-size="'+(o.fs||7)+'" fill="'+(o.text||"#e6edf3")+'" font-family="'+MONO+'">'+text+'</text>';
+}
+function arrowH(x1,x2,y,c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+    '<path d="M'+(x2-3.4)+' '+(y-2.4)+' L'+x2+' '+y+' L'+(x2-3.4)+' '+(y+2.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+function arrowV(x,y1,y2,c){
+  return '<path d="M'+x+' '+y1+' V'+(y2+3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+    '<path d="M'+(x-2.4)+' '+(y2+3.4)+' L'+x+' '+y2+' L'+(x+2.4)+' '+(y2+3.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+/* 横排：探索 */
+function chainExploreH(ox,oy){
+  var s="", cy=oy+31, rows=["/prototype","/research","/grilling","/domain-modeling"], rowH=12, gap=2.5;
+  var top=cy-(rows.length*rowH+(rows.length-1)*gap)/2;
+  s+=node(ox,cy-6,48,12,"/wayfinder",{fill:"rgba(192,132,252,.12)",stroke:P,text:PT,fs:6.8});
+  s+=arrowH(ox+48,ox+56,cy,P);
+  var sx=ox+56,gx=ox+64;
+  s+='<path d="M'+sx+' '+cy+' V'+(top+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+='<path d="M'+sx+' '+cy+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for(var i=0;i<rows.length;i++){
+    var y=top+i*(rowH+gap);
+    s+=arrowH(sx,gx,y+rowH/2,P);
+    s+=node(gx,y,86,rowH,rows[i],{fill:"rgba(192,132,252,.10)",stroke:P,text:PT,fs:6.6,rx:4});
+  }
+  var rx=gx+86+4,mx=rx+4;
+  s+='<path d="M'+rx+' '+(top+rowH/2)+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+=arrowH(mx,mx+6,cy,P);
+  var gx2=mx+6;
+  s+=node(gx2,cy-6,40,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(gx2+40,gx2+46,cy,B);
+  s+=node(gx2+46,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(gx2+84,gx2+90,cy,B);
+  s+=node(gx2+90,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+/* 横排：实施 */
+function chainImplH(ox,oy){
+  var s="", cy=oy+31;
+  s+=node(ox,cy-6,68,12,"/grill-with-docs",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6});
+  s+=arrowH(ox+68,ox+94,cy,B);
+  s+=node(ox+94,cy-6,40,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(ox+134,ox+158,cy,B);
+  s+=node(ox+158,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(ox+196,ox+220,cy,B);
+  s+=node(ox+220,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+/* 竖排：探索 */
+function chainExploreV(ox,oy,w){
+  var s="", y=oy, rh=13, gap=3, rows=["/prototype","/research","/grilling","/domain-modeling"];
+  s+=node(ox,y,w,15,"/wayfinder",{fill:"rgba(192,132,252,.12)",stroke:P,text:PT,fs:7.4});
+  y+=15;
+  var top=y+10, spine=ox+8;
+  s+='<path d="M'+(ox+w/2)+' '+y+' V'+(top+rh/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+='<path d="M'+spine+' '+(top+rh/2)+' V'+(top+(rows.length-1)*(rh+gap)+rh/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for(var i=0;i<rows.length;i++){
+    var ry=top+i*(rh+gap);
+    s+='<path d="M'+spine+' '+(ry+rh/2)+' H'+(ox+14)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+    s+=node(ox+14,ry,w-14,rh,rows[i],{fill:"rgba(192,132,252,.10)",stroke:P,text:PT,fs:7,rx:4});
+  }
+  y=top+(rows.length-1)*(rh+gap)+rh;
+  var lx=ox+14+(w-14)/2;
+  s+='<path d="M'+lx+' '+y+' V'+(y+10)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  y+=10;
+  s+=node(ox,y,w,15,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:8,rx:4});
+  y+=15; s+=arrowV(ox+w/2,y,y+8,B); y+=8;
+  s+=node(ox,y,w,15,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:7.4,rx:4});
+  y+=15; s+=arrowV(ox+w/2,y,y+8,B); y+=8;
+  s+=node(ox,y,w,15,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:7.4,rx:4});
+  y+=15;
+  return {svg:s, h:y-oy};
+}
+/* 竖排：实施 */
+function chainImplV(ox,oy,w){
+  var s="", y=oy;
+  s+=node(ox,y,w,15,"/grill-with-docs",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:7.2,rx:4});
+  y+=15; s+=arrowV(ox+w/2,y,y+9,B); y+=9;
+  s+=node(ox,y,w,15,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:8,rx:4});
+  y+=15; s+=arrowV(ox+w/2,y,y+9,B); y+=9;
+  s+=node(ox,y,w,15,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:7.4,rx:4});
+  y+=15; s+=arrowV(ox+w/2,y,y+9,B); y+=9;
+  s+=node(ox,y,w,15,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:7.4,rx:4});
+  y+=15;
+  return {svg:s, h:y-oy};
+}
+
+/* ============ 卡的内容素材 ============ */
+var TXT = {
+  explore:{name:"探索地图", cap:"目标大而模糊", color:P, border:"rgba(188,140,255,.45)"},
+  impl:{name:"实施地图", cap:"目标明确清晰", color:BT, border:"rgba(29,78,216,.75)"}
+};
+var uid=0;
+function artOf(kind, w, h, x, y){
+  var u='u'+(uid++);
+  var a = kind==='explore' ? artExplore(u) : artImpl(u);
+  return '<svg x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" viewBox="0 0 168 104">'+a+'</svg>';
+}
+function cardShell(kind, w, h){
+  var c=TXT[kind];
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">'+
+    '<rect x="0.5" y="0.5" width="'+(w-1)+'" height="'+(h-1)+'" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>';
+}
+function titleText(kind,x,y,fs){ return '<text x="'+x+'" y="'+y+'" font-size="'+(fs||15)+'" font-weight="700" fill="'+TXT[kind].color+'">'+TXT[kind].name+'</text>'; }
+function capText(kind,x,y,anchor,fs){ return '<text x="'+x+'" y="'+y+'" text-anchor="'+(anchor||"middle")+'" font-size="'+(fs||11.5)+'" fill="#8b8b95">'+TXT[kind].cap+'</text>'; }
+
+/* ============ 方案一：横卡 340×208 ============ */
+function card1(kind){
+  var s=cardShell(kind,340,208);
+  s+='<rect x="12" y="12" width="148" height="94" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,132,82,20,18);
+  s+=titleText(kind,172,44,15);
+  s+=capText(kind,172,66,"start",11.5);
+  s+='<rect x="12" y="118" width="316" height="78" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+= kind==='explore' ? chainExploreH(20,118) : chainImplH(20,118);
+  return s+'</svg>';
+}
+/* ============ 方案二：横卡 368×232，图 1:1 ============ */
+function card2(kind){
+  var s=cardShell(kind,368,232);
+  s+='<rect x="12" y="12" width="184" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,168,104,20,18);
+  s+=titleText(kind,208,48,16);
+  s+=capText(kind,208,72,"start",11.5);
+  s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+= kind==='explore' ? chainExploreH(20,140) : chainImplH(20,140);
+  return s+'</svg>';
+}
+/* ============ 方案三：竖卡（高度按各自的链算，两张卡不等高） ============ */
+function card3(kind){
+  var ch = kind==='explore' ? chainExploreV(62,196,96) : chainImplV(62,196,96);
+  var W=220, H=188+ch.h+16+12, s=cardShell(kind,W,H);
+  s+=titleText(kind,14,32,16);
+  s+='<rect x="14" y="46" width="192" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,168,104,26,52);
+  s+=capText(kind,W/2,182,"middle",11.5);
+  s+='<rect x="46" y="188" width="128" height="'+(ch.h+16)+'" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=ch.svg;
+  return s+'</svg>';
+}
+/* ============ 方案四：竖切两栏（高度按链算） ============ */
+function card4(kind){
+  var ch = kind==='explore' ? chainExploreV(204,46,84) : chainImplV(204,46,84);
+  var W=296, H=Math.max(46+ch.h+12, 172), s=cardShell(kind,W,H);
+  s+='<rect x="12" y="12" width="180" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,168,104,18,18);
+  s+=capText(kind,102,142,"middle",11.5);
+  s+=titleText(kind,204,34,15);
+  s+=ch.svg;
+  return s+'</svg>';
+}
+/* ============ 方案五：卡里只三块 + 弹层底部对照条 ============ */
+function card5(kind){
+  var s=cardShell(kind,340,148);
+  s+='<rect x="12" y="12" width="148" height="94" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,132,82,20,18);
+  s+=titleText(kind,172,44,15);
+  s+=capText(kind,172,66,"start",11.5);
+  return s+'</svg>';
+}
+function strip5(){
+  var W=376,H=176,s='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">';
+  s+='<rect x="0.5" y="0.5" width="'+(W-1)+'" height="'+(H-1)+'" rx="10" fill="#16181d" stroke="#2a2d35"></rect>';
+  s+='<text x="12" y="20" font-size="11.5" fill="#8b8b95">两条路的流程</text>';
+  s+='<g transform="translate(12,28)">'+chainExploreH(0,0)+'</g>';
+  s+='<g transform="translate(12,76)">'+chainImplH(0,0)+'</g>';
+  return s+'</svg>';
+}
+
+/* ============ 方框示意 ============ */
+function wire(blocks, w, h){
+  var s='<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'">';
+  blocks.forEach(function(b){
+    s+='<rect x="'+b[0]+'" y="'+b[1]+'" width="'+b[2]+'" height="'+b[3]+'" rx="5" fill="rgba(255,255,255,.05)" stroke="#5c636d" stroke-dasharray="3 2"></rect>';
+    s+='<text x="'+(b[0]+b[2]/2)+'" y="'+(b[1]+b[3]/2+4)+'" text-anchor="middle" font-size="10" fill="#b4bac2">'+b[4]+'</text>';
+  });
+  return s+'</svg>';
+}
+
+/* ============ 渲染 ============ */
+function render(id, wireSvg, cards, notes){
+  var html='<div class="wire">'+wireSvg+'<div class="wl">方框示意</div></div>';
+  html+='<div class="cards">'+cards.map(function(c){
+    return '<div class="cardcell"><div class="cl">'+c[0]+'</div>'+c[1]+'</div>';
+  }).join("")+'</div>';
+  html+='<div class="notes"><dl>'+notes.map(function(n){ return '<dt>'+n[0]+'</dt><dd>'+n[1]+'</dd>'; }).join("")+'</dl></div>';
+  document.getElementById(id).innerHTML=html;
+}
+render("opt1",
+  wire([[12,12,148,94,"地图"],[172,26,120,22,"主标题"],[172,52,150,20,"小字"],[12,118,316,78,"技能链"]],340,208),
+  [["探索地图",card1("explore")],["实施地图",card1("impl")]],
+  [["比现在好在哪","小字不再压在图下面，跟主标题归成一组；地图这一块干净了。"],
+   ["还没解决的","右栏 172..320 只用了两行，下面 60px 全空；技能链还是横铺在 316 宽的框里，四个并行技能挤在中间一小块。"],
+   ["什么时候选它","弹层宽度不想动的时候——它是现状最小改动版。"]]);
+render("opt2",
+  wire([[12,12,184,116,"地图 1:1"],[208,30,140,22,"主标题"],[208,56,150,20,"小字"],[12,140,344,80,"技能链"]],368,232),
+  [["探索地图",card2("explore")],["实施地图",card2("impl")]],
+  [["比现在好在哪","地图按原尺寸 168×104 画，不再缩到 132×82——之前三个问号、四个票挤在一起，缩小后最上面的支路基本看不见。文字和链也跟着放大。"],
+   ["代价","弹层宽度从 376 涨到 380 以上；两张卡上下排时弹层高 232×2，接近 500，太高。"],
+   ["什么时候选它","地图是识别一张卡的主要依据、值得占最大面积的时候。"],]);
+render("opt3",
+  wire([[14,22,120,22,"主标题"],[14,46,192,116,"地图 1:1"],[40,168,140,20,"小字"],[46,188,128,130,"技能链 竖排"]],220,330),
+  [["探索地图",card3("explore")],["实施地图",card3("impl")]],
+  [["比现在好在哪","四块各占一段，互不打架；技能链竖排后，四个并行技能本来就是四行竖着写，节点字能到 7.4px，箭头也有地方放。"],
+   ["代价","弹层要从「376 宽、两张卡上下排」改成「两张卡左右并排」，宽度到 452 左右、高度 330 起。"],
+   ["什么时候选它","流程本身有层次（分岔、并行、汇合）的时候——竖排才画得出「先分后合」。"]]);
+render("opt4",
+  wire([[12,12,180,116,"地图 1:1"],[30,130,140,20,"小字"],[204,22,84,20,"主标题"],[204,44,84,150,"技能链 竖排"]],296,204),
+  [["探索地图",card4("explore")],["实施地图",card4("impl")]],
+  [["比现在好在哪","竖着切一刀：左边看图，右边看流程，图和流程各占一块，互不挤压。"],
+   ["代价","右栏只有 84 宽，技能链的框得缩到 84，文字会小；两张卡并排 2×296≈610，弹层最宽。"],
+   ["什么时候选它","弹层横着放得下、但不想把卡做成 330 高的时候。"],]);
+render("opt5",
+  wire([[12,12,148,94,"地图"],[172,26,120,22,"主标题"],[172,52,150,20,"小字"],[12,120,352,140,"两条流程并排对照（出卡）"]],376,270),
+  [["两张卡",card5("explore")+card5("impl")],["弹层底部对照条",strip5()]],
+  [["比现在好在哪","卡里只剩三块，最干净；两条流程并排放在弹层底部，差别是「一对照就看出来的」，不用在两张卡里各画一遍。"],
+   ["代价","流程不在卡上，用户不点开就看不到；弹层高度上去了（卡 148 + 对照条 176）。"],
+   ["什么时候选它","你觉得「选哪条路」比「这条路怎么走」更重要的时候——先选路，流程是次要信息。"],]);
+</script>
+</body>
+</html>

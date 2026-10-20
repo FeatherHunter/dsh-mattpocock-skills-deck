@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 去掉地形与山：三个新画法</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#10131a; --border:#2a2d35;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff;
+  --blue:#1D4ED8; --blue-text:#93c5fd; --blue-mid:#60a5fa;
+  --green:#3fb950;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1240px;margin:0 auto}
+.page-head h1{margin:0 0 6px;font-size:17px}
+.page-head p{margin:0 0 5px;color:var(--sec);font-size:12px;max-width:1000px}
+.page-head b{color:var(--txt)}
+main{max-width:1240px;margin:0 auto;padding:8px 26px 48px}
+.direction{margin-top:22px;border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;background:var(--panel)}
+.direction h2{margin:0 0 2px;font-size:14px}
+.direction h2 .no{color:var(--cap);font-weight:500;margin-right:8px;font-size:12px}
+.direction .idea{margin:0 0 12px;color:var(--sec);font-size:12px;max-width:1020px}
+.pair{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.artbox{width:322px}
+.artbox .who{font-size:11px;letter-spacing:.06em;margin-bottom:6px}
+.artbox.explore .who{color:var(--purple)}
+.artbox.impl .who{color:var(--blue-text)}
+.artbox svg{display:block;width:322px;height:200px;border-radius:10px;background:rgba(0,0,0,.24)}
+.artbox .cap{margin-top:7px;text-align:center;font-size:11.5px;color:var(--cap)}
+.mini-label{margin:16px 0 6px;font-size:11px;color:var(--cap)}
+.minirow{display:flex;gap:18px;align-items:flex-start}
+.mini{width:150px}
+.mini svg{display:block;width:132px;height:82px;border-radius:8px;background:rgba(0,0,0,.24)}
+.mini .cap{margin-top:5px;font-size:10.5px;color:var(--cap);text-align:center}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>原型 · 去掉地形与山：三个新画法</h1>
+  <p>地形不要了，山也不要了。留下来的只有三样：<b>雾</b>（表示还没看清）、<b>虚线的需求</b>当起点、<b>问号</b>当路上要过的关口；终点是雾里一团光——知道大概在哪个方向，但看不清是什么。</p>
+  <p>三个设计换的是「用什么当画面的骨架」：一排门、一条分岔的路、一条主线带几个支线。每个都配一张走完之后的样子（雾散、问号变勾、终点清楚）。挑方向时以每节末尾的 132×82 真实尺寸为准。</p>
+</div>
+<main id="root"></main>
+<script>
+"use strict";
+
+/* ================= 设计一：一排门（每个门里一个问号） ================= */
+var D1_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="n1fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.4"></feGaussianBlur></filter>
+  <radialGradient id="n1glow"><stop offset="0" stop-color="#c084fc" stop-opacity=".42"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+  <linearGradient id="n1road" gradientUnits="userSpaceOnUse" x1="56" y1="74" x2="150" y2="74">
+    <stop offset="0" stop-color="#c084fc" stop-opacity=".95"></stop>
+    <stop offset=".62" stop-color="#c084fc" stop-opacity=".45"></stop>
+    <stop offset="1" stop-color="#c084fc" stop-opacity=".12"></stop>
+  </linearGradient>
+</defs>
+<!-- 需求：虚线的起点 -->
+<rect x="7" y="64" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="78.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<!-- 一条路：越往右越淡，最后溶进雾里 -->
+<path d="M56 74 H 150" fill="none" stroke="url(#n1road)" stroke-width="1.6" stroke-dasharray="5 4" stroke-linecap="round"></path>
+<circle cx="57" cy="74" r="2.6" fill="#c084fc"></circle>
+<!-- 第一道门：看得清，门里是还没答的问题 -->
+<path d="M68 79 V53 Q68 40 78 40 Q88 40 88 53 V79" fill="none" stroke="#e9d5ff" stroke-width="1.3" stroke-dasharray="4 3" stroke-linecap="round"></path>
+<text x="78" y="63" text-anchor="middle" font-size="12" fill="#e9d5ff">?</text>
+<!-- 第二道门：已经进雾 -->
+<path d="M98 79 V53 Q98 40 108 40 Q118 40 118 53 V79" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="4 3" stroke-linecap="round" opacity=".55"></path>
+<text x="108" y="63" text-anchor="middle" font-size="11" fill="#e9d5ff" opacity=".7">?</text>
+<!-- 第三道门：只剩一个影子 -->
+<path d="M127 79 V53 Q127 40 137 40 Q147 40 147 53 V79" fill="none" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="4 3" stroke-linecap="round" opacity=".22"></path>
+<!-- 雾：几团雾叠在一起，没有直边 -->
+<g filter="url(#n1fog)">
+  <ellipse cx="120" cy="48" rx="44" ry="28" fill="#c084fc" opacity=".15"></ellipse>
+  <ellipse cx="138" cy="74" rx="34" ry="18" fill="#c084fc" opacity=".13"></ellipse>
+  <ellipse cx="104" cy="26" rx="26" ry="12" fill="#c084fc" opacity=".10"></ellipse>
+</g>
+<!-- 终点：路尽头透出的一团光，看不清是什么 -->
+<circle cx="157" cy="74" r="17" fill="url(#n1glow)"></circle>
+<circle cx="157" cy="74" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".5"></circle>
+<g fill="#e9d5ff"><circle cx="98" cy="20" r="1.1" opacity=".4"></circle><circle cx="140" cy="18" r=".9" opacity=".3"></circle></g>
+</svg>`;
+
+var D1_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="n1glowb"><stop offset="0" stop-color="#60a5fa" stop-opacity=".45"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>
+</defs>
+<rect x="7" y="64" width="46" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="30" y="78.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<!-- 路：实线，一直通到终点 -->
+<path d="M56 74 H 150" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round"></path>
+<circle cx="57" cy="74" r="2.6" fill="#93c5fd"></circle>
+<path d="M144 70 L 151 74 L 144 78" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 三道门都打开了，门里是勾 -->
+<path d="M68 79 V53 Q68 40 78 40 Q88 40 88 53 V79" fill="none" stroke="#93c5fd" stroke-width="1.4" stroke-linecap="round"></path>
+<path d="M74 61 l3 3 5.4-6" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M98 79 V53 Q98 40 108 40 Q118 40 118 53 V79" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round"></path>
+<path d="M104 61 l3 3 5.4-6" fill="none" stroke="#3fb950" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M127 79 V53 Q127 40 137 40 Q147 40 147 53 V79" fill="none" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round" opacity=".8"></path>
+<path d="M133 61 l3 3 5.4-6" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 终点：清楚的一圈光 -->
+<circle cx="157" cy="74" r="16" fill="url(#n1glowb)"></circle>
+<circle cx="157" cy="74" r="7.6" fill="none" stroke="#93c5fd" stroke-width="1.3"></circle>
+<circle cx="157" cy="74" r="3.6" fill="rgba(63,185,80,.28)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M155 74 l1.5 1.5 2.6-2.9" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 设计二：一条路分成几条岔路 ================= */
+var D2_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="n2fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.6"></feGaussianBlur></filter>
+  <radialGradient id="n2glow"><stop offset="0" stop-color="#c084fc" stop-opacity=".38"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 需求：虚线的起点 -->
+<rect x="7" y="70" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="84.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<circle cx="56" cy="80" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>
+<circle cx="56" cy="80" r="2.6" fill="#c084fc"></circle>
+<!-- 走到分叉点 -->
+<path d="M60 80 C 70 80 78 71 86 66" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<circle cx="86" cy="66" r="3.2" fill="#c084fc" opacity=".9"></circle>
+<!-- 三条岔路：每条尽头是一个还没答的问号 -->
+<path d="M86 66 C 96 58 104 42 113 34" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".75"></path>
+<circle cx="117" cy="30" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>
+<text x="117" y="34.2" text-anchor="middle" font-size="10.5" fill="#e9d5ff">?</text>
+<path d="M86 66 C 100 66 112 60 124 56" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>
+<circle cx="129" cy="55" r="7" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".8"></circle>
+<text x="129" y="59" text-anchor="middle" font-size="9.6" fill="#e9d5ff" opacity=".85">?</text>
+<path d="M86 66 C 96 74 104 82 114 86" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>
+<circle cx="118" cy="88" r="6.6" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".65"></circle>
+<text x="118" y="91.4" text-anchor="middle" font-size="9" fill="#e9d5ff" opacity=".75">?</text>
+<!-- 雾 -->
+<g filter="url(#n2fog)">
+  <ellipse cx="134" cy="44" rx="42" ry="28" fill="#c084fc" opacity=".15"></ellipse>
+  <ellipse cx="130" cy="86" rx="34" ry="16" fill="#c084fc" opacity=".12"></ellipse>
+</g>
+<!-- 三条路都通向同一个终点，终点在雾里 -->
+<path d="M124 30 C 138 32 148 44 152 54" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".14"></path>
+<path d="M136 55 C 142 56 146 57 150 58" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".12"></path>
+<path d="M124 87 C 136 80 146 68 151 62" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".1"></path>
+<circle cx="156" cy="58" r="17" fill="url(#n2glow)"></circle>
+<circle cx="156" cy="58" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".5"></circle>
+</svg>`;
+
+var D2_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="n2glowb"><stop offset="0" stop-color="#60a5fa" stop-opacity=".45"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>
+</defs>
+<rect x="7" y="70" width="46" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="30" y="84.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<circle cx="56" cy="80" r="5.4" fill="none" stroke="#93c5fd" stroke-opacity=".45" stroke-width="1"></circle>
+<circle cx="56" cy="80" r="2.6" fill="#93c5fd"></circle>
+<path d="M60 80 C 70 80 78 71 86 66" fill="none" stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"></path>
+<circle cx="86" cy="66" r="3.4" fill="#93c5fd"></circle>
+<!-- 选中的那条路：实线 -->
+<path d="M86 66 C 96 58 104 42 113 34" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round"></path>
+<path d="M107 27 L 115 32 L 110 38" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 没选的两条：淡掉 -->
+<path d="M86 66 C 100 66 112 60 124 56" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-dasharray="4 4" stroke-linecap="round" opacity=".3"></path>
+<path d="M86 66 C 96 74 104 82 114 86" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-dasharray="4 4" stroke-linecap="round" opacity=".2"></path>
+<!-- 选中的那个问题：实心 + 勾 -->
+<circle cx="117" cy="30" r="7.4" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M113.6 30 l2.3 2.3 4.2-4.7" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="129" cy="55" r="7" fill="none" stroke="#93c5fd" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".35"></circle>
+<circle cx="118" cy="88" r="6.6" fill="none" stroke="#93c5fd" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".25"></circle>
+<!-- 终点：清楚的一圈光 -->
+<path d="M124 30 C 138 32 148 44 152 54" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>
+<path d="M136 55 C 142 56 146 57 150 58" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".35"></path>
+<path d="M124 87 C 136 80 146 68 151 62" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-linecap="round" opacity=".25"></path>
+<circle cx="157" cy="58" r="16" fill="url(#n2glowb)"></circle>
+<circle cx="157" cy="58" r="7.6" fill="none" stroke="#93c5fd" stroke-width="1.3"></circle>
+<circle cx="157" cy="58" r="3.6" fill="rgba(63,185,80,.28)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M155 58 l1.5 1.5 2.6-2.9" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 设计三：一条主线，挂着几个问号 ================= */
+var D3_EXPLORE = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <filter id="n3fog" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.4"></feGaussianBlur></filter>
+  <radialGradient id="n3glow"><stop offset="0" stop-color="#c084fc" stop-opacity=".4"></stop><stop offset="1" stop-color="#c084fc" stop-opacity="0"></stop></radialGradient>
+</defs>
+<!-- 需求：虚线的起点 -->
+<rect x="7" y="52" width="46" height="20" rx="10" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="3.4 2.4"></rect>
+<text x="30" y="66.5" text-anchor="middle" font-size="10.5" fill="#e9d5ff">需求</text>
+<circle cx="56" cy="62" r="5.4" fill="none" stroke="#c084fc" stroke-opacity=".35" stroke-width="1"></circle>
+<circle cx="56" cy="62" r="2.6" fill="#c084fc"></circle>
+<!-- 主线：一路往右，走向雾 -->
+<path d="M63 62 C 78 60 96 64 114 62" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".9"></path>
+<path d="M114 62 C 128 61 138 63 147 62" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" opacity=".32"></path>
+<!-- 主线上挂出去的支线：每一个都是一个还没答的问题 -->
+<path d="M84 61 C 84 54 84 49 84 44" fill="none" stroke="#c084fc" stroke-width="1.4" stroke-dasharray="3 2.6" stroke-linecap="round" opacity=".9"></path>
+<circle cx="84" cy="36" r="7.4" fill="rgba(12,14,18,.85)" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.4"></circle>
+<text x="84" y="40.2" text-anchor="middle" font-size="10.4" fill="#e9d5ff">?</text>
+<path d="M108 63 C 108 69 108 74 108 79" fill="none" stroke="#c084fc" stroke-width="1.4" stroke-dasharray="3 2.6" stroke-linecap="round" opacity=".65"></path>
+<circle cx="108" cy="86" r="6.8" fill="rgba(12,14,18,.6)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".8"></circle>
+<text x="108" y="90" text-anchor="middle" font-size="9.6" fill="#e9d5ff" opacity=".85">?</text>
+<path d="M132 62 C 132 57 132 51 132 45" fill="none" stroke="#c084fc" stroke-width="1.4" stroke-dasharray="3 2.6" stroke-linecap="round" opacity=".42"></path>
+<circle cx="132" cy="38" r="6.6" fill="rgba(12,14,18,.5)" stroke="#e9d5ff" stroke-width="1.1" stroke-dasharray="3 2.4" opacity=".6"></circle>
+<text x="132" y="41.8" text-anchor="middle" font-size="9.2" fill="#e9d5ff" opacity=".7">?</text>
+<!-- 雾 -->
+<g filter="url(#n3fog)">
+  <ellipse cx="128" cy="42" rx="40" ry="26" fill="#c084fc" opacity=".15"></ellipse>
+  <ellipse cx="122" cy="84" rx="32" ry="16" fill="#c084fc" opacity=".12"></ellipse>
+</g>
+<!-- 终点：主线尽头那团光，看不清是什么 -->
+<circle cx="158" cy="58" r="17" fill="url(#n3glow)"></circle>
+<circle cx="158" cy="58" r="8" fill="none" stroke="#e9d5ff" stroke-width="1.2" stroke-dasharray="3 2.6" opacity=".45"></circle>
+</svg>`;
+
+var D3_IMPL = `
+<svg viewBox="0 0 168 104" aria-hidden="true"><defs>
+  <radialGradient id="n3glowb"><stop offset="0" stop-color="#60a5fa" stop-opacity=".45"></stop><stop offset="1" stop-color="#60a5fa" stop-opacity="0"></stop></radialGradient>
+</defs>
+<rect x="7" y="52" width="46" height="20" rx="10" fill="rgba(29,78,216,.22)" stroke="#93c5fd" stroke-width="1.3"></rect>
+<text x="30" y="66.5" text-anchor="middle" font-size="10.5" fill="#93c5fd">需求</text>
+<circle cx="56" cy="62" r="5.4" fill="none" stroke="#93c5fd" stroke-opacity=".45" stroke-width="1"></circle>
+<circle cx="56" cy="62" r="2.6" fill="#93c5fd"></circle>
+<!-- 主线：实线 + 箭头 -->
+<path d="M63 62 C 78 60 96 64 114 62" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round"></path>
+<path d="M114 62 C 126 61 134 63 142 62" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round"></path>
+<path d="M138 58 L 145 62 L 138 66" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 三条支线：都定了 -->
+<path d="M84 61 C 84 54 84 49 84 44" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<circle cx="84" cy="36" r="7.4" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.3"></circle>
+<path d="M80.7 36 l2.3 2.3 4.2-4.7" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M108 63 C 108 69 108 74 108 79" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round"></path>
+<circle cx="108" cy="86" r="6.8" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>
+<path d="M104.9 86 l2.1 2.1 3.9-4.3" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M132 62 C 132 57 132 51 132 45" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" opacity=".8"></path>
+<circle cx="132" cy="38" r="6.6" fill="rgba(29,78,216,.55)" stroke="#93c5fd" stroke-width="1.2"></circle>
+<path d="M129 38 l2 2 3.7-4.1" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- 终点：清楚的一圈光 -->
+<circle cx="158" cy="58" r="16" fill="url(#n3glowb)"></circle>
+<circle cx="158" cy="58" r="7.6" fill="none" stroke="#93c5fd" stroke-width="1.3"></circle>
+<circle cx="158" cy="58" r="3.6" fill="rgba(63,185,80,.28)" stroke="#3fb950" stroke-width="1.2"></circle>
+<path d="M156 58 l1.5 1.5 2.6-2.9" fill="none" stroke="#3fb950" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>`;
+
+/* ================= 设计数据 ================= */
+var DESIGNS = [
+  {
+    id: "n1",
+    no: "设计一",
+    name: "一排门（每个门里一个问号）",
+    idea: "把「还没过关」画成一道道门：需求在左边，路沿着门脚下走，第一道门看得清、门里一个问号；第二道门已经进雾；第三道门只剩一个影子。终点是最后一道门后面透出的一团光——知道那边有个地方，但看不清是什么。实施图是三道门都打开了、门里换成勾、终点那团光清楚起来。",
+    explore: D1_EXPLORE,
+    impl: D1_IMPL,
+    ecap: "一道道门，门里是问号",
+    icap: "门都开了，光也清楚了"
+  },
+  {
+    id: "n2",
+    no: "设计二",
+    name: "一条路分成几条岔路（取舍）",
+    idea: "把「要定的取舍」画成分叉：从需求走一段到一个分叉点，然后分成三条岔路，每条尽头是一个还没答的问号；三条路最后又都通向同一个终点，而终点在雾里只看得见一圈轮廓。实施图里选中的那条变成实线并打勾，没选的两条淡掉——这正是探索地图做完之后的样子。",
+    explore: D2_EXPLORE,
+    impl: D2_IMPL,
+    ecap: "路分成几条，每条尽头是问号",
+    icap: "选了一条走，其余淡掉"
+  },
+  {
+    id: "n3",
+    no: "设计三",
+    name: "一条主线挂着几个问号",
+    idea: "最紧凑的一种：一条主线从需求往右延伸、越走越淡，主线上挂出几条短短的支线，每条支线尽头是一个问号。右半边压在雾里，终点是主线尽头那团光。实施图是主线变实线带箭头，三条支线的问号全变成勾。",
+    explore: D3_EXPLORE,
+    impl: D3_IMPL,
+    ecap: "主线上挂着几个问号",
+    icap: "主线走通，问号全变勾"
+  }
+];
+
+/* ================= 渲染 ================= */
+function withIds(svg, suffix){
+  return svg.replace(/id="([^"]+)"/g, 'id="$1-' + suffix + '"')
+            .replace(/url\(#([^)]+)\)/g, 'url(#$1-' + suffix + ')');
+}
+function mini(svg, cap, suffix){
+  return '<div class="mini">' + withIds(svg, suffix) + '<div class="cap">' + cap + '</div></div>';
+}
+function designHtml(d){
+  var h = '<section class="direction" id="design-' + d.id + '">';
+  h += '<h2><span class="no">' + d.no + '</span>' + d.name + '</h2>';
+  h += '<p class="idea">' + d.idea + '</p>';
+  h += '<div class="pair">';
+  h += '<div class="artbox explore"><div class="who">探索地图</div>' + withIds(d.explore, d.id) + '<div class="cap">' + d.ecap + '</div></div>';
+  h += '<div class="artbox impl"><div class="who">实施地图</div>' + withIds(d.impl, d.id) + '<div class="cap">' + d.icap + '</div></div>';
+  h += '</div>';
+  h += '<div class="mini-label">真实尺寸（132×82，放进选择卡就是这么大）：</div>';
+  h += '<div class="minirow">' + mini(d.explore, d.ecap, d.id + "m") + mini(d.impl, d.icap, d.id + "m") + '</div>';
+  h += '</section>';
+  return h;
+}
+document.getElementById("root").innerHTML = DESIGNS.map(designHtml).join("");
+</script>
+</body>
+</html>
