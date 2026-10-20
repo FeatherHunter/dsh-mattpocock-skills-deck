@@ -1,7 +1,7 @@
-// 由 dsh-plugin-update@0.18.25 的集成工具生成，人手不改。
+// 由 dsh-plugin-update@0.18.37 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/config.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/shared/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var CHECK_FALLBACK_PHONE_ACTION = "updateCheckFallback";
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
@@ -36,7 +36,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/commands.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/shared/commands.js
 var MANUAL_SUPPRESSING_REASONS = ["source-install", "unknown-profile", "dev-source"];
 function manualCommandSuppressedBy(reason) {
   return reason !== null && reason !== void 0 && MANUAL_SUPPRESSING_REASONS.includes(reason);
@@ -165,8 +165,9 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${spec} --registry=${source}`;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/queue.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/queue/model.js
 var QUEUE_INTENT_TTL_MS = 10 * 6e4;
+var QUEUE_INTENT_STALE_MS = 3e4;
 function emptyQueueState() {
   return { version: 1, owner: null, waiting: [] };
 }
@@ -221,7 +222,8 @@ function sameIntent(a, b) {
 function pruneExpiredIntents(state, nowMs, ttlMs = QUEUE_INTENT_TTL_MS) {
   const now = asMillis(nowMs, 0);
   const ttl = typeof ttlMs === "number" && Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : QUEUE_INTENT_TTL_MS;
-  const waiting = state.waiting.filter((e) => now - asMillis(e.enqueuedAt, now) < ttl);
+  const effectiveTtl = state.owner === null ? Math.min(ttl, QUEUE_INTENT_STALE_MS) : ttl;
+  const waiting = state.waiting.filter((e) => now - asMillis(e.enqueuedAt, now) < effectiveTtl);
   if (waiting.length === state.waiting.length) return state;
   return { version: 1, owner: state.owner, waiting };
 }
@@ -319,7 +321,7 @@ function derivedRequestId(state, viewerPluginId) {
   return mine[0].requestId;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/batch.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/batch/model.js
 var BATCH_SESSION_VERSION = 1;
 function isTerminalPhase(phase) {
   return phase === "done" || phase === "failed" || phase === "skipped" || phase === "current";
@@ -334,7 +336,7 @@ var PHASES = ["pending", "checking", "ready", "installing", "current", "done", "
 function asPhase(value) {
   return typeof value === "string" && PHASES.includes(value) ? value : "pending";
 }
-function orderTargets(keys, selfKey) {
+function orderTargets(keys, selfKey, selfOrder = "last") {
   const seen = /* @__PURE__ */ new Set();
   const others = [];
   let self = null;
@@ -344,7 +346,8 @@ function orderTargets(keys, selfKey) {
     if (selfKey && key === selfKey) self = key;
     else others.push(key);
   }
-  return self ? [...others, self] : others;
+  if (!self) return others;
+  return selfOrder === "first" ? [self, ...others] : [...others, self];
 }
 function batchRequestId(sessionId, key) {
   return "batch:" + sessionId + ":" + key;
@@ -352,7 +355,7 @@ function batchRequestId(sessionId, key) {
 function createBatchSession(args) {
   const id = isNonEmptyString2(args.id) ? args.id : "batch";
   const selfKey = isNonEmptyString2(args.selfKey) ? args.selfKey : null;
-  const order = orderTargets(args.keys, selfKey);
+  const order = orderTargets(args.keys, selfKey, args.selfOrder ?? "last");
   const now = asMillis2(args.now, 0);
   const entries = order.map((key) => ({
     key,
@@ -486,7 +489,7 @@ function resumeBatchSession(session, now) {
   return changed ? { ...session, entries, updatedAt: at } : session;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/version-judgment.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/judgment.js
 function updateError(code) {
   return Object.assign(new Error(code), { code });
 }
@@ -571,14 +574,46 @@ function compareReleaseVersions2(a, b) {
   return 0;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/registry-fetch.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/shared/codes.js
+var BLOCKED_REASONS = [
+  "unknown-profile",
+  "channel-mismatch",
+  "source-install",
+  "invalid-installation",
+  "installation-changed",
+  "pending-restart",
+  "registry-conflict",
+  "incompatible-node",
+  // #195：远端包声明的 engines.dsh 不满足当前 DSH 运行时版本（只在拿得到当前 DSH 版本时判）。
+  "incompatible-dsh",
+  "recovery-required",
+  "dev-source"
+];
+var PHONE_FAILURE_CODES = [
+  "check-failed",
+  "invalid-release",
+  "check-expired",
+  "update-busy",
+  "install-failed"
+];
+var INTERNAL_CODE = "internal";
+var UNSUPPORTED_CODE = "unsupported";
+var CROSS_SCOPE_CODE = "cross-scope";
+var STABLE_CODES = [...BLOCKED_REASONS, ...PHONE_FAILURE_CODES, INTERNAL_CODE];
+var CORE_ERROR_CODES = [...PHONE_FAILURE_CODES, ...BLOCKED_REASONS];
+var BATCH_REPLY_CODES = [...CORE_ERROR_CODES, CROSS_SCOPE_CODE];
+
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/failure.js
+var INSTALL_FAIL_CODES = [...CORE_ERROR_CODES, INTERNAL_CODE, UNSUPPORTED_CODE, "none"];
+
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/fetch.js
 var MAX_METADATA_BYTES = 256 * 1024;
 var MAX_PACKUMENT_BYTES = 4 * 1024 * 1024;
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/service.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/service.js
 var CONFIRMATION_TTL_MS = 10 * 6e4;
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/lang.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/shared/lang.js
 function normalizeLangTag(tag) {
   if (typeof tag !== "string") return "zh";
   const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -589,425 +624,7 @@ function normalizeLangTag(tag) {
   return "zh";
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/bilingual.js
-var BILINGUAL_STRINGS = {
-  "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
-  "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
-  "entry.label.busy": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
-  "entry.label.restart": { en: "Restart required", zh: "\u5F85\u91CD\u542F", draft: true },
-  "entry.label.has-update": { en: "Update available {version}", zh: "\u6709\u65B0\u7248\u672C {version}", draft: true },
-  "entry.action.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
-  "entry.note.up-to-date": { en: "Up to date {version}", zh: "\u5DF2\u662F\u6700\u65B0 {version}", draft: true },
-  "batch-entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
-  "batch-entry.label.update": { en: "{count} updates available", zh: "{count} \u4E2A\u53EF\u66F4\u65B0", draft: true },
-  "batch-entry.label.busy": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
-  "batch-entry.label.restart": { en: "{count} restarts required", zh: "{count} \u4E2A\u5F85\u91CD\u542F", draft: true },
-  // #190：未登记的行重启也不会加载，入口摘要不许把它们算进「待重启」。
-  "batch-entry.label.restart-unregistered": { en: "{count} installed, not registered", zh: "{count} \u4E2A\u5DF2\u88C5\u672A\u767B\u8BB0\uFF08\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D\uFF09", draft: true },
-  "batch-entry.label.restart-mixed": { en: "{count} restarts required, {unregistered} not registered", zh: "{count} \u4E2A\u5F85\u91CD\u542F\uFF0C{unregistered} \u4E2A\u672A\u767B\u8BB0", draft: true },
-  "batch-entry.label.failed": { en: "{count} failed \u2014 View details", zh: "{count} \u4E2A\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
-  "batch-entry.action.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
-  "panel.blocked.unknown-profile.title": { en: "Unrecognized scope or plugin location", zh: "\u65E0\u6CD5\u8BC6\u522B\u4F7F\u7528\u8303\u56F4\u6216\u63D2\u4EF6\u5B89\u88C5\u4F4D\u7F6E", draft: true },
-  "panel.blocked.unknown-profile.action": { en: "Reopen the host and check again; if it persists, send the version and logs to the plugin author; no manual command is provided for this case.", zh: "\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u7248\u672C\u53F7\u4E0E\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF1B\u6B64\u573A\u666F\u4E0D\u63D0\u4F9B\u624B\u5DE5\u547D\u4EE4", draft: true },
-  "panel.blocked.channel-mismatch.title": { en: "Installed version is not in the selected release channel", zh: "\u5DF2\u5B89\u88C5\u7248\u672C\u4E0E\u5F53\u524D\u7248\u672C\u901A\u9053\u4E0D\u7B26", draft: true },
-  "panel.blocked.channel-mismatch.action": { en: "Switch to the prerelease channel, or install the channel release, then check again.", zh: "\u5207\u6362\u81F3\u9884\u53D1\u5E03\u901A\u9053\uFF0C\u6216\u91CD\u65B0\u5B89\u88C5\u672C\u901A\u9053\u6B63\u5F0F\u7248\u672C\u540E\u67E5\u8BE2", draft: true },
-  "panel.blocked.source-install.title": { en: "Installed from source, not by version", zh: "\u6E90\u7801\u5B89\u88C5\u5B9E\u4F8B\uFF0C\u4E0D\u652F\u6301\u7248\u672C\u66F4\u65B0", draft: true },
-  "panel.blocked.source-install.action": { en: "No manual command is provided here; to update, reinstall by version first.", zh: "\u6B64\u573A\u666F\u4E0D\u63D0\u4F9B\u624B\u5DE5\u547D\u4EE4\uFF1B\u5982\u9700\u66F4\u65B0\uFF0C\u8BF7\u6309\u5305\u540D@\u7248\u672C\u53F7\u91CD\u65B0\u5B89\u88C5", draft: true },
-  "panel.blocked.invalid-installation.title": { en: "Installed package is incomplete (name mismatch, invalid version, or missing entry file)", zh: "\u5DF2\u5B89\u88C5\u5305\u7ED3\u6784\u4E0D\u5B8C\u6574\uFF08\u5305\u540D / \u7248\u672C\u53F7 / \u5165\u53E3\u6587\u4EF6\u5F02\u5E38\uFF09", draft: true },
-  "panel.blocked.invalid-installation.action": { en: "Reinstall the current version to repair the install directory, then check again.", zh: "\u91CD\u65B0\u5B89\u88C5\u5F53\u524D\u7248\u672C\u4EE5\u4FEE\u590D\u5B89\u88C5\u76EE\u5F55\uFF0C\u7136\u540E\u91CD\u65B0\u67E5\u8BE2\u66F4\u65B0", draft: true },
-  "panel.blocked.installation-changed.title": { en: "Install location changed during use (directory or package changed)", zh: "\u5B89\u88C5\u4F4D\u7F6E\u53D1\u751F\u53D8\u66F4\uFF08\u76EE\u5F55\u6216\u5305\u4F53\u4E0D\u4E00\u81F4\uFF09", draft: true },
-  "panel.blocked.installation-changed.action": { en: "Reopen the host and check again; if it says you are already up to date, nothing to do; if it persists, reinstall.", zh: "\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u8BF4\u660E\u5DF2\u662F\u6700\u65B0\u5219\u65E0\u9700\u64CD\u4F5C\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u91CD\u65B0\u5B89\u88C5", draft: true },
-  "panel.blocked.pending-restart.title": { en: "New version is on disk; the running instance is still the old version", zh: "\u65B0\u7248\u672C\u5DF2\u5199\u5165\u78C1\u76D8\uFF0C\u5F53\u524D\u8FD0\u884C\u4ECD\u4E3A\u65E7\u7248\u672C", draft: true },
-  "panel.blocked.pending-restart.action": { en: "Restart the host to run the new version; this is a normal end state, not a failure.", zh: "\u91CD\u542F\u5BBF\u4E3B\u4EE5\u52A0\u8F7D\u65B0\u7248\u672C\uFF1B\u6B64\u4E3A\u6B63\u5E38\u72B6\u6001\uFF0C\u975E\u5B89\u88C5\u5931\u8D25", draft: true },
-  "panel.blocked.registry-conflict.title": { en: "Declared version conflicts with the version on disk", zh: "\u7248\u672C\u58F0\u660E\u4E0E\u78C1\u76D8\u5B9E\u9645\u7248\u672C\u51B2\u7A81", draft: true },
-  "panel.blocked.registry-conflict.action": { en: "Open the scope manifest and set the target package line to the version number, then retry.", zh: "\u6838\u5BF9\u4F7F\u7528\u8303\u56F4\u6E05\u5355\u6587\u4EF6\u4E2D\u76EE\u6807\u5305\u7684\u7248\u672C\u58F0\u660E\uFF0C\u4FEE\u6B63\u540E\u91CD\u8BD5", draft: true },
-  "panel.blocked.incompatible-node.title": { en: "Required Node version does not match the running Node", zh: "Node \u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u517C\u5BB9", draft: true },
-  "panel.blocked.incompatible-node.action": { en: "Upgrade Node to 22 or later, then check again.", zh: "\u8BF7\u5347\u7EA7 Node \u81F3 22 \u6216\u66F4\u9AD8\u7248\u672C\u540E\u91CD\u65B0\u67E5\u8BE2", draft: true },
-  "panel.blocked.incompatible-dsh.title": { en: "New version requires a newer DSH runtime", zh: "\u65B0\u7248\u672C\u8981\u6C42\u66F4\u9AD8\u7684\u5BBF\u4E3B\u8FD0\u884C\u65F6\u7248\u672C", draft: true },
-  "panel.blocked.incompatible-dsh.action": { en: "The running DSH does not satisfy the new version; upgrade DSH first, then update.", zh: "\u5F53\u524D\u5BBF\u4E3B\u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u6EE1\u8DB3\u65B0\u7248\u672C\u8981\u6C42\uFF0C\u8BF7\u5148\u5347\u7EA7\u5BBF\u4E3B\u518D\u66F4\u65B0", draft: true },
-  "panel.blocked.recovery-required.title": { en: "Last install was interrupted, leaving a partial task", zh: "\u4E0A\u6B21\u5B89\u88C5\u5F02\u5E38\u4E2D\u65AD\uFF0C\u5B58\u5728\u672A\u5B8C\u6210\u4EFB\u52A1", draft: true },
-  "panel.blocked.recovery-required.action": { en: "Run install once more; if it persists, follow section 6 to troubleshoot.", zh: "\u91CD\u65B0\u6267\u884C\u5B89\u88C5\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u6309\u7B2C 6 \u8282\u6392\u9519", draft: true },
-  "panel.blocked.dev-source.title": { en: "Dev-mode source link, update center unavailable", zh: "\u5F00\u53D1\u6001\u6302\u8F7D\uFF08\u6E90\u7801\u94FE\u63A5\uFF09\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u4E0D\u53EF\u7528", draft: true },
-  "panel.blocked.dev-source.action": { en: "Edit the repo and restart the host to take effect; the update center only serves version installs, no manual command is provided here.", zh: "\u6539\u5B8C\u4ED3\u5E93\u4EE3\u7801\u540E\u91CD\u542F\u5BBF\u4E3B\u751F\u6548\uFF1B\u66F4\u65B0\u4E2D\u5FC3\u53EA\u670D\u52A1\u6309\u7248\u672C\u5B89\u88C5\uFF0C\u6B64\u573A\u666F\u4E0D\u63D0\u4F9B\u624B\u5DE5\u547D\u4EE4", draft: true },
-  "panel.failure.check-failed.title": { en: "Couldn\u2019t check for updates (network, source, or rate limit)", zh: "\u7248\u672C\u4FE1\u606F\u67E5\u8BE2\u5931\u8D25\uFF08\u7F51\u7EDC / \u6570\u636E\u6E90 / \u9650\u6D41\uFF09", draft: true },
-  "panel.failure.check-failed.action": { en: "Try checking again later; if it keeps failing, send the copied diagnostics to the plugin author.", zh: "\u7A0D\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
-  "panel.failure.invalid-release.title": { en: "Release info is invalid (bad version or mismatched content)", zh: "\u53D1\u5E03\u7248\u672C\u4FE1\u606F\u65E0\u6548\uFF08\u7248\u672C\u53F7\u975E\u6CD5\u6216\u5185\u5BB9\u4E0D\u4E00\u81F4\uFF09", draft: true },
-  "panel.failure.invalid-release.action": { en: "Check the package name and version in the manifest, then check again.", zh: "\u6838\u5BF9\u6E05\u5355\u6587\u4EF6\u4E2D\u7684\u5305\u540D\u4E0E\u7248\u672C\u58F0\u660E\u540E\u91CD\u65B0\u67E5\u8BE2", draft: true },
-  "panel.failure.check-expired.title": { en: "Credentials expired; the install request was rejected", zh: "\u67E5\u8BE2\u51ED\u8BC1\u8FC7\u671F\uFF0C\u5B89\u88C5\u8BF7\u6C42\u88AB\u62D2\u7EDD", draft: true },
-  "panel.failure.check-expired.action": { en: "Check for updates again before installing; do not retry with the old ID.", zh: "\u8BF7\u91CD\u65B0\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u540E\u5B89\u88C5\uFF1B\u8BF7\u52FF\u590D\u7528\u8FC7\u671F\u8BF7\u6C42\u7F16\u53F7", draft: true },
-  "panel.failure.update-busy.title": { en: "Another install is running in the same scope", zh: "\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u5185\u5B58\u5728\u8FDB\u884C\u4E2D\u7684\u5B89\u88C5\u4EFB\u52A1", draft: true },
-  "panel.failure.update-busy.action": { en: "Wait until the current task leaves installing/verifying, then try; check status for your queue position.", zh: "\u5F85\u5F53\u524D\u4EFB\u52A1\u9000\u51FA installing/verifying \u72B6\u6001\u540E\u91CD\u8BD5\uFF1B\u6392\u961F\u671F\u95F4\u53EF\u67E5\u8BE2\u4EFB\u52A1\u72B6\u6001\u786E\u8BA4\u961F\u5217\u4F4D\u7F6E", draft: true },
-  "panel.failure.install-failed.title": { en: "Couldn\u2019t install (see the diagnostic summary)", zh: "\u5B89\u88C5\u6267\u884C\u5931\u8D25\uFF0C\u8BE6\u60C5\u89C1\u8BCA\u65AD\u6458\u8981", draft: true },
-  "panel.failure.install-failed.action": { en: "Read the copied diagnostics first; on official desktop builds, send it to the plugin author.", zh: "\u8BF7\u67E5\u9605\u8BCA\u65AD\u6458\u8981\uFF1B\u5B98\u65B9\u684C\u9762\u7248\u8BF7\u63D0\u4EA4\u8BE5\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
-  "panel.failure.internal.title": { en: "Something went wrong; the cause is unknown", zh: "\u5185\u90E8\u9519\u8BEF\uFF0C\u539F\u56E0\u672A\u77E5", draft: true },
-  "panel.failure.internal.action": { en: "Retry once first; if it persists, send the copied diagnostics to the plugin author.", zh: "\u8BF7\u91CD\u8BD5\u4E00\u6B21\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
-  "panel.failure.unknown.title": { en: "Something went wrong; the cause is unknown", zh: "\u5185\u90E8\u9519\u8BEF\uFF0C\u539F\u56E0\u672A\u77E5", draft: true },
-  "panel.failure.unknown.action": { en: "Retry once first; if it persists, send the copied diagnostics to the plugin author (include the code you saw).", zh: "\u8BF7\u91CD\u8BD5\u4E00\u6B21\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u8BF7\u4E00\u5E76\u63D0\u4EA4\u6240\u89C1\u9519\u8BEF\u7801\uFF09", draft: true },
-  "panel.seal.loading.text": { en: "Not checked", zh: "\u5F85\u67E5", draft: true },
-  "panel.seal.loading.mini": { en: "Check", zh: "\u67E5", draft: true },
-  "panel.seal.idle.text": { en: "Not checked", zh: "\u5F85\u67E5", draft: true },
-  "panel.seal.idle.mini": { en: "Check", zh: "\u67E5", draft: true },
-  "panel.seal.update.text": { en: "Update available", zh: "\u53EF\u66F4\u65B0", draft: true },
-  "panel.seal.update.mini": { en: "Install", zh: "\u88C5", draft: true },
-  "panel.seal.busy.text": { en: "Installing", zh: "\u5B89\u88C5\u4E2D", draft: true },
-  "panel.seal.busy.mini": { en: "Install", zh: "\u88C5", draft: true },
-  "panel.seal.restart.text": { en: "Restart required", zh: "\u5F85\u91CD\u542F", draft: true },
-  "panel.seal.restart.mini": { en: "Restart", zh: "\u542F", draft: true },
-  "panel.seal.blocked.text": { en: "Blocked \u2014 Action needed", zh: "\u53D7\u963B", draft: true },
-  "panel.seal.blocked.mini": { en: "Blocked", zh: "\u963B", draft: true },
-  "panel.seal.failed.text": { en: "Failed \u2014 Retry available", zh: "\u5931\u8D25", draft: true },
-  "panel.seal.failed.mini": { en: "Failed", zh: "\u963B", draft: true },
-  "panel.seal.done.text": { en: "Up to date", zh: "\u5DF2\u662F\u6700\u65B0", draft: true },
-  "panel.seal.done.mini": { en: "Done", zh: "\u5B9A", draft: true },
-  "panel.banner.error.title": { en: "Update failed ({code}): {detail}.", zh: "\u66F4\u65B0\u5931\u8D25\uFF08{code}\uFF09\uFF1A{detail}\u3002", draft: true },
-  "panel.banner.error.action-fallback": { en: "Copy the diagnostics for the plugin author; see the log channel for details.", zh: "\u8BF7\u590D\u5236\u8BCA\u65AD\u4FE1\u606F\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF1B\u8BE6\u60C5\u8BF7\u67E5\u770B\u65E5\u5FD7\u901A\u9053\u3002", draft: true },
-  "panel.action.retry-install": { en: "Retry install", zh: "\u91CD\u8BD5\u5B89\u88C5", draft: true },
-  "panel.banner.loading": { en: "Loading update status\u2026", zh: "\u6B63\u5728\u8BFB\u53D6\u66F4\u65B0\u72B6\u6001\u2026", draft: true },
-  "panel.action.install": { en: "Install update", zh: "\u5B89\u88C5\u66F4\u65B0", draft: true },
-  "panel.queue.busy-self": { en: "Installing (this plugin is installing).", zh: "\u672C\u63D2\u4EF6\u6B63\u5728\u5B89\u88C5\u3002", draft: true },
-  "panel.queue.busy-queued": { en: "An install is running ahead; this plugin is #{n} in queue. Install when it reaches the front.", zh: "\u524D\u65B9\u6709\u5B89\u88C5\u6B63\u5728\u8FDB\u884C\uFF0C\u672C\u63D2\u4EF6\u6392\u7B2C {n} \u4F4D\uFF1B\u5230\u961F\u9996\u540E\u8BF7\u9009\u62E9\u5B89\u88C5\u3002", draft: true },
-  "panel.queue.busy-other": { en: "Another plugin is installing; retry later.", zh: "\u524D\u65B9\u6709\u5176\u4ED6\u63D2\u4EF6\u6B63\u5728\u5B89\u88C5\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002", draft: true },
-  "panel.skip.skipped-title": { en: "Skipped {latest}", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {latest}", draft: true },
-  "panel.skip.skipped-action": { en: "Select \u201CRestore\u201D to be reminded of this version again; newer versions will still notify.", zh: "\u9009\u62E9\u300C\u6062\u590D\u63D0\u9192\u300D\u53EF\u91CD\u65B0\u63D0\u9192\u8BE5\u7248\u672C\uFF1B\u66F4\u65B0\u7684\u7248\u672C\u4ECD\u4F1A\u6B63\u5E38\u63D0\u9192\u3002", draft: true },
-  "panel.banner.restart-title": { en: "Version {latest} is installed; restart the host to take effect.", zh: "\u65B0\u7248\u672C {latest} \u5DF2\u5B89\u88C5\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
-  // #190：在册事实为 false 时不能说满——重启宿主也不会加载未登记的插件。
-  "panel.banner.restart-unregistered-title": { en: "Version {latest} is on disk, but this plugin is not registered in the scope selection, so restarting the host will not load it.", zh: "\u65B0\u7248\u672C {latest} \u5DF2\u5199\u5165\u78C1\u76D8\uFF0C\u4F46\u8BE5\u63D2\u4EF6\u672A\u767B\u8BB0\u5728\u4F7F\u7528\u8303\u56F4\u6E05\u5355\uFF0C\u91CD\u542F\u5BBF\u4E3B\u4E5F\u4E0D\u4F1A\u52A0\u8F7D\u3002", draft: true },
-  "panel.banner.restart-unregistered-action": { en: "Select this plugin in the host plugin page first, then restart the host to load the new version.", zh: "\u8BF7\u5148\u5728\u5BBF\u4E3B\u63D2\u4EF6\u9875\u9009\u4E2D\u8BE5\u63D2\u4EF6\uFF0C\u518D\u91CD\u542F\u5BBF\u4E3B\u4EE5\u52A0\u8F7D\u65B0\u7248\u672C\u3002", draft: true },
-  "panel.banner.installing-title": { en: "Installing {version}\u2026 Closing the panel won\u2019t interrupt it.", zh: "\u6B63\u5728\u5B89\u88C5 {version}\u2026\u5173\u95ED\u9762\u677F\u4E0D\u4F1A\u4E2D\u65AD\u3002", draft: true },
-  "panel.banner.installing-action": { en: "Progress refreshes automatically; reopening the panel restores the view within a second.", zh: "\u8FDB\u5EA6\u5C06\u81EA\u52A8\u8F6E\u8BE2\u5237\u65B0\uFF1B\u91CD\u65B0\u6253\u5F00\u9762\u677F\u5C06\u5728 1 \u79D2\u5185\u6062\u590D\u663E\u793A\u3002", draft: true },
-  "panel.action.installing": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
-  "panel.banner.update-title": { en: "Update available: {latest} (current: {running}).", zh: "\u6709\u65B0\u7248\u672C {latest} \u53EF\u5B89\u88C5\uFF08\u5F53\u524D\u7248\u672C {running}\uFF09\u3002", draft: true },
-  "panel.banner.update-action": { en: "Install runs the exact version; only one install runs per scope at a time.", zh: "\u9009\u62E9\u5B89\u88C5\u5C06\u6309\u7CBE\u786E\u7248\u672C\u5B89\u88C5\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879\u3002", draft: true },
-  "panel.banner.unknown-running-title": { en: "Running version unknown; cannot tell whether an update is available.", zh: "\u8FD0\u884C\u7248\u672C\u672A\u77E5\uFF0C\u65E0\u6CD5\u5224\u65AD\u662F\u5426\u6709\u65B0\u7248\u53EF\u88C5\u3002", draft: true },
-  "panel.banner.unknown-running-action": { en: "Check the plugin version in the host manifest and reopen the host, then check again.", zh: "\u8BF7\u68C0\u67E5\u5BBF\u4E3B\u6E05\u5355\u91CC\u7684\u63D2\u4EF6\u7248\u672C\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2", draft: true },
-  "panel.action.install-version": { en: "Install {latest}", zh: "\u5B89\u88C5\u7248\u672C {latest}", draft: true },
-  "panel.banner.first-install-title": { en: "First install: {latest} (new dependency).", zh: "\u9996\u6B21\u5B89\u88C5 {latest}\uFF08\u65B0\u589E\u4F9D\u8D56\uFF09\u3002", draft: true },
-  "panel.banner.first-install-action": { en: "Restart the host after installing for it to load.", zh: "\u88C5\u5B8C\u9700\u8981\u91CD\u542F\u5BBF\u4E3B\u624D\u4F1A\u52A0\u8F7D\u3002", draft: true },
-  "panel.action.first-install-version": { en: "Install {latest} (first time)", zh: "\u9996\u6B21\u5B89\u88C5 {latest}", draft: true },
-  "panel.banner.update-gated-title": { en: "Version {latest} was just published and is still gated ({unlock}); installing now will fail \u2014 use Install fallback build below if you cannot wait.", zh: "\u65B0\u7248\u672C {latest} \u521A\u53D1\u5E03\u672A\u6EE1\u95E8\uFF0C{unlock}\u53EF\u88C5\uFF1B\u73B0\u5728\u70B9\u5B89\u88C5\u4F1A\u5931\u8D25\uFF0C\u7B49\u4E0D\u53CA\u53EF\u5148\u88C5\u5408\u89C4\u7248\u3002", draft: true },
-  "panel.action.install-gated-title": { en: "Come back {unlock} to install {latest}; it is still gated and would fail now.", zh: "{unlock}\u518D\u6765\u88C5 {latest} \u5427\uFF0C\u73B0\u5728\u88C5\u4F1A\u88AB\u95E8\u62E6\u4F4F\u3002", draft: true },
-  "panel.banner.done": { en: "Up to date. No update needed.", zh: "\u5DF2\u662F\u6700\u65B0\uFF0C\u65E0\u9700\u66F4\u65B0\u3002", draft: true },
-  "panel.banner.not-installed": { en: "Not installed", zh: "\u672A\u5B89\u88C5", draft: true },
-  "panel.toast.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
-  "panel.toast.installing": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
-  "panel.toast.copy-manual-ok": { en: "Manual command copied; paste the full line into the terminal to run it.", zh: "\u624B\u5DE5\u547D\u4EE4\u5DF2\u590D\u5236\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u6574\u884C\u6267\u884C\u3002", draft: true },
-  "panel.toast.copy-manual-fail": { en: "Copy failed; please select the command above manually.", zh: "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u4E0A\u65B9\u547D\u4EE4\u3002", draft: true },
-  "panel.toast.copy-diag-ok": { en: "Diagnostics copied; paste it to the plugin author (already redacted).", zh: "\u8BCA\u65AD\u4FE1\u606F\u5DF2\u590D\u5236\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
-  "panel.toast.copy-diag-fail": { en: "Copy failed; please select the info above manually.", zh: "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u4E0A\u65B9\u4FE1\u606F\u3002", draft: true },
-  "panel.toast.restart-delegated": { en: "Handled by the caller\u2019s restart flow; the new version takes effect after restart.", zh: "\u5DF2\u6309\u8C03\u7528\u65B9\u91CD\u542F\u6D41\u7A0B\u5904\u7406\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
-  "panel.toast.restart-manual": { en: "This host provides no restart entry; please restart the host manually. The new version takes effect after restart.", zh: "\u672C\u5BBF\u4E3B\u672A\u63D0\u4F9B\u91CD\u542F\u5165\u53E3\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
-  "panel.toast.restart-failed": { en: "Restart entry failed; please restart the host manually. The new version takes effect after restart.", zh: "\u91CD\u542F\u5165\u53E3\u8C03\u7528\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
-  "panel.toast.copy-state-ok": { en: "Current state copied (no failure); paste it to the plugin author (already redacted).", zh: "\u5F53\u524D\u72B6\u6001\u5DF2\u590D\u5236\uFF08\u65E0\u5931\u8D25\uFF09\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
-  "panel.toast.failure-dismissed": { en: "Failure acknowledged; it will be re-evaluated on the next check or install.", zh: "\u5DF2\u786E\u8BA4\u8BE5\u5931\u8D25\u63D0\u793A\uFF1B\u4E0B\u6B21\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u6216\u5B89\u88C5\u5C06\u91CD\u65B0\u8BC4\u4F30\u3002", draft: true },
-  "panel.toast.fallback-unavailable": { en: "No compliant build for this failure; see the diagnostics or retry later.", zh: "\u8FD9\u6B21\u5931\u8D25\u7528\u4E0D\u4E0A\u5408\u89C4\u7248\uFF0C\u8BF7\u770B\u8BCA\u65AD\u4FE1\u606F\u6216\u7A0D\u540E\u91CD\u8BD5\u3002", draft: true },
-  "panel.toast.fallback-wait": { en: "Latest should clear around {time}; no earlier compliant build for now.", zh: "\u6700\u65B0\u7248\u7EA6 {time} \u53EF\u88C5\uFF0C\u6682\u65E0\u66F4\u65E9\u7684\u5408\u89C4\u7248\u3002", draft: true },
-  "panel.strip.running": { en: "Running", zh: "\u8FD0\u884C\u7248", draft: true },
-  "panel.strip.installed": { en: "Installed", zh: "\u5DF2\u5B89\u88C5", draft: true },
-  "panel.strip.latest": { en: "Latest", zh: "\u6700\u65B0\u7248", draft: true },
-  "panel.meta.label": { en: "Scope", zh: "\u4F7F\u7528\u8303\u56F4", draft: true },
-  "panel.meta.unknown": { en: "Unknown", zh: "\u672A\u77E5", draft: true },
-  "panel.masthead.kicker": { en: "Plugin update", zh: "\u63D2\u4EF6\u66F4\u65B0", draft: true },
-  "panel.masthead.title": { en: "Update archive", zh: "\u66F4\u65B0\u6863\u6848", draft: true },
-  "panel.masthead.volume": { en: "Vol.", zh: "\u5377", draft: true },
-  "panel.chapter.check": { en: "Check and install", zh: "\u68C0\u67E5\u4E0E\u5B89\u88C5", draft: true },
-  "panel.chapter.changelog": { en: "Changelog", zh: "\u66F4\u65B0\u65E5\u5FD7", draft: true },
-  "panel.chapter.queue": { en: "Update queue", zh: "\u66F4\u65B0\u961F\u5217", draft: true },
-  "panel.chapter.error": { en: "Error details", zh: "\u9519\u8BEF\u4FE1\u606F", draft: true },
-  "panel.chapter.manual": { en: "Manual command", zh: "\u624B\u5DE5\u547D\u4EE4", draft: true },
-  "panel.progress.installing": { en: "Installing new version\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u65B0\u7248\u672C\u2026", draft: true },
-  "panel.progress.verifying": { en: "Verifying install result\u2026", zh: "\u6B63\u5728\u6821\u9A8C\u5B89\u88C5\u7ED3\u679C\u2026", draft: true },
-  "panel.action.check": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
-  "panel.action.check-title": { en: "Check the official source once more (read-only, never installs)", zh: "\u91CD\u65B0\u5411\u5B98\u65B9\u6E90\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\uFF08\u53EA\u8BFB\uFF0C\u4E0D\u5B89\u88C5\uFF09", draft: true },
-  "panel.action.checking-busy": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
-  "panel.action.checking-busy-title": { en: "Checking the official source; please wait", zh: "\u6B63\u5728\u5411\u5B98\u65B9\u6E90\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019", draft: true },
-  "panel.action.installing-busy": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
-  "panel.action.installing-busy-title": { en: "Installing; please wait", zh: "\u6B63\u5728\u5B89\u88C5\uFF0C\u8BF7\u7A0D\u5019", draft: true },
-  "panel.action.install-title": { en: "Install the exact version; one install per scope at a time", zh: "\u6309\u7CBE\u786E\u7248\u672C\u5B89\u88C5\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879", draft: true },
-  "panel.action.skip": { en: "Skip this version", zh: "\u8DF3\u8FC7\u8BE5\u7248\u672C", draft: true },
-  "panel.action.skip-title": { en: "This version will no longer notify; newer versions still will", zh: "\u8BE5\u7248\u672C\u5C06\u4E0D\u518D\u63D0\u9192\uFF1B\u66F4\u65B0\u7684\u7248\u672C\u4ECD\u4F1A\u6B63\u5E38\u63D0\u9192", draft: true },
-  "panel.action.unskip": { en: "Restore ({version})", zh: "\u6062\u590D\u63D0\u9192\uFF08{version}\uFF09", draft: true },
-  "panel.action.unskip-title": { en: "Undo skip; this version will remind again", zh: "\u64A4\u9500\u8DF3\u8FC7\uFF0C\u8BE5\u7248\u672C\u5C06\u91CD\u65B0\u63D0\u9192", draft: true },
-  "panel.action.copy-manual": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
-  "panel.action.copy-manual-title": { en: "Copy the manual command; paste the full line into the terminal", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u6574\u884C\u6267\u884C", draft: true },
-  "panel.action.restart-host": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
-  "panel.action.restart-host-title": { en: "Run the caller restart flow if available, otherwise restart DSH manually", zh: "\u4F18\u5148\u8D70\u8C03\u7528\u65B9\u91CD\u542F\u6D41\u7A0B\uFF1B\u82E5\u65E0\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F DSH", draft: true },
-  "panel.action.dismiss": { en: "Got it", zh: "\u5DF2\u77E5\u6653", draft: true },
-  "panel.action.dismiss-title": { en: "Acknowledge the failure and return; next check or install will re-evaluate", zh: "\u786E\u8BA4\u5DF2\u77E5\u6653\u8BE5\u5931\u8D25\uFF1A\u8FD4\u56DE\u53EF\u5B89\u88C5\u9875\uFF0C\u4E0B\u6B21\u67E5\u8BE2\u6216\u5B89\u88C5\u5C06\u91CD\u65B0\u8BC4\u4F30", draft: true },
-  "panel.action.install-fallback": { en: "Install compliant build", zh: "\u88C5\u5408\u89C4\u7248", draft: true },
-  "panel.action.install-fallback-title": { en: "Resolve an age-compliant version first, then confirm; never installs an older version silently", zh: "\u5148\u51B3\u8BAE\u4E00\u4E2A\u6EE1\u95E8\u9650\u7684\u7248\u672C\u518D\u8BF7\u4F60\u786E\u8BA4\uFF0C\u4E0D\u4F1A\u9759\u9ED8\u88C5\u65E7\u7248", draft: true },
-  "panel.action.install-fallback-confirm": { en: "Confirm install {version}", zh: "\u786E\u8BA4\u88C5 {version}", draft: true },
-  "panel.action.install-fallback-confirm-title": { en: "Install this exact version now", zh: "\u70B9\u4E0B\u53BB\u5373\u5B89\u88C5\u8BE5\u7CBE\u786E\u7248\u672C", draft: true },
-  "panel.action.wait-latest": { en: "Wait for latest", zh: "\u7B49\u65B0\u7248", draft: true },
-  "panel.action.wait-latest-title": { en: "Dismiss this failure; install again once the latest clears the age gate", zh: "\u6536\u8D77\u8FD9\u6B21\u5931\u8D25\uFF1B\u6700\u65B0\u7248\u6EE1\u95E8\u9650\u540E\u53EF\u518D\u88C5", draft: true },
-  "panel.action.copy-diag": { en: "Copy diagnostics", zh: "\u590D\u5236\u8BCA\u65AD", draft: true },
-  "panel.action.copy-diag-title": { en: "Copy redacted diagnostics for the plugin author", zh: "\u590D\u5236\u5DF2\u8131\u654F\u8BCA\u65AD\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
-  "panel.skip.line-tag": { en: "Skipped {version}", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {version}", draft: true },
-  "panel.skip.line-note": { en: "Select \u201CRestore\u201D to undo; this version will remind again.", zh: "\u9009\u62E9\u300C\u6062\u590D\u63D0\u9192\u300D\u53EF\u64A4\u9500\uFF0C\u8BE5\u7248\u672C\u6B64\u540E\u4ECD\u4F1A\u63D0\u9192\u3002", draft: true },
-  "panel.changelog.heading": { en: "Changelog:", zh: "\u66F4\u65B0\u8BF4\u660E\uFF1A", draft: true },
-  "panel.changelog.heading-range": { en: "Changelog ({from} \u2192 {to}):", zh: "\u66F4\u65B0\u8BF4\u660E\uFF08{from} \u2192 {to}\uFF09\uFF1A", draft: true },
-  "panel.changelog.unavailable": { en: "Could not read logs; install is unaffected.", zh: "\u66F4\u65B0\u65E5\u5FD7\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002", draft: true },
-  "panel.changelog.unavailable-empty": { en: "No release found yet; logs will show after a check.", zh: "\u5C1A\u672A\u67E5\u8BE2\u5230\u65B0\u7248\u672C\uFF1B\u67E5\u8BE2\u5230\u540E\u5C06\u663E\u793A\u66F4\u65B0\u65E5\u5FD7\u3002", draft: true },
-  "panel.changelog.toggle-title": { en: "Expand or collapse changelog", zh: "\u5C55\u5F00\u6216\u6536\u8D77\u66F4\u65B0\u65E5\u5FD7", draft: true },
-  "panel.changelog.expand": { en: "Expand changelog", zh: "\u5C55\u5F00\u66F4\u65B0\u65E5\u5FD7", draft: true },
-  "panel.changelog.collapse": { en: "Collapse changelog", zh: "\u6536\u8D77\u66F4\u65B0\u65E5\u5FD7", draft: true },
-  "panel.queue.state-idle": { en: "Idle", zh: "\u7A7A\u95F2", draft: true },
-  "panel.queue.other": { en: "Other plugin", zh: "\u5176\u4ED6\u63D2\u4EF6", draft: true },
-  "panel.queue.self": { en: "This plugin", zh: "\u672C\u63D2\u4EF6", draft: true },
-  "panel.queue.pos-absent": { en: "Not queued", zh: "\u672A\u6392\u961F", draft: true },
-  "panel.queue.pos-n": { en: "Position {n}", zh: "\u6392\u961F\u7B2C {n} \u4F4D", draft: true },
-  "panel.queue.pos-next": { en: "You are next", zh: "\u4E0B\u4E00\u4F4D\u5C31\u662F\u4F60", draft: true },
-  "panel.queue.pos-ahead": { en: "{n} ahead", zh: "\u524D\u65B9\u8FD8\u6709 {n} \u9879", draft: true },
-  "panel.queue.row-installing": { en: "Installing", zh: "\u6B63\u5728\u5B89\u88C5", draft: true },
-  "panel.queue.row-installing-note": { en: "You are next when it finishes", zh: "\u5B89\u88C5\u5B8C\u6210\u540E\u81EA\u52A8\u8F6E\u5230\u4F60", draft: true },
-  "panel.queue.row-idle-note": { en: "One install per scope at a time", zh: "\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879", draft: true },
-  "panel.queue.row-position": { en: "Your position", zh: "\u4F60\u7684\u6392\u961F\u987A\u4F4D", draft: true },
-  "panel.queue.row-order": { en: "Queue order", zh: "\u6392\u961F\u987A\u5E8F", draft: true },
-  "panel.queue.toggle-hide": { en: "Hide others", zh: "\u9690\u85CF\u5176\u4ED6\u63D2\u4EF6\u660E\u7EC6", draft: true },
-  "panel.queue.toggle-show": { en: "Show others", zh: "\u663E\u793A\u5176\u4ED6\u63D2\u4EF6", draft: true },
-  "panel.queue.empty": { en: "No queued tasks; one install per scope at a time.", zh: "\u5F53\u524D\u65E0\u6392\u961F\u4EFB\u52A1\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879\u3002", draft: true },
-  "panel.error.code-label": { en: "Stable code", zh: "\u7A33\u5B9A\u7801", draft: true },
-  "panel.error.code-note": { en: "The line above tells you what to do; to report upstream, paste \u201CCopy diagnostics\u201D as a whole (already redacted).", zh: "\u4E0A\u65B9\u4E2D\u6587\u8BF4\u660E\u5373\u9700\u6267\u884C\u7684\u64CD\u4F5C\uFF1B\u5982\u9700\u5411\u4E0A\u6E38\u53CD\u9988\uFF0C\u8BF7\u4F7F\u7528\u300C\u590D\u5236\u8BCA\u65AD\u300D\u6574\u6BB5\u7C98\u8D34\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
-  "panel.error.query-request": { en: "Request", zh: "\u8BF7\u6C42", draft: true },
-  "panel.error.query-check": { en: "Check", zh: "\u68C0\u67E5", draft: true },
-  "panel.error.failed-at": { en: "Failed at {time}", zh: "\u5931\u8D25\u65F6\u95F4 {time}", draft: true },
-  "panel.error.query-keys": { en: "Query keys: {keys} (use them to match in logs).", zh: "\u672C\u6B21\u67E5\u8BE2\u952E\uFF1A{keys}\uFF08\u53EF\u51ED\u6B64\u5728\u65E5\u5FD7\u4E2D\u68C0\u7D22\u5339\u914D\uFF09\u3002", draft: true },
-  "panel.error.target-version": { en: "Failed target {version}", zh: "\u5931\u8D25\u76EE\u6807\u7248\u672C {version}", draft: true },
-  "panel.error.evidence-frozen": { en: "Evidence frozen: the code, versions, and IDs in copied diagnostics are from the failure moment and do not refresh with polling; the next check or install will update them.", zh: "\u8BC1\u636E\u5DF2\u51BB\u7ED3\uFF1A\u590D\u5236\u8BCA\u65AD\u4E2D\u7684\u7A33\u5B9A\u7801\u3001\u7248\u672C\u4E0E\u7F16\u53F7\u5747\u53D6\u81EA\u5931\u8D25\u65F6\u523B\uFF0C\u4E0D\u968F\u8F6E\u8BE2\u5237\u65B0\uFF1B\u4E0B\u6B21\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u6216\u5B89\u88C5\u5C06\u66F4\u65B0\u3002", draft: true },
-  "panel.error.evidence-transient": { en: "Transient read failure: it clears on the next successful read; if it persists, troubleshoot by stable code.", zh: "\u77AC\u6001\u8BFB\u53D6\u5931\u8D25\uFF1A\u4E0B\u6B21\u6210\u529F\u8BFB\u53D6\u5C06\u81EA\u52A8\u89E3\u9664\uFF1B\u82E5\u6301\u7EED\u51FA\u73B0\uFF0C\u8BF7\u6309\u7A33\u5B9A\u7801\u6392\u67E5\u3002", draft: true },
-  "panel.error.no-failure": { en: "No failure: copying diagnostics gives the current state snapshot.", zh: "\u6682\u65E0\u5931\u8D25\uFF1A\u6B64\u65F6\u590D\u5236\u8BCA\u65AD\u63D0\u4F9B\u7684\u662F\u5F53\u524D\u72B6\u6001\u5FEB\u7167\u3002", draft: true },
-  "panel.error.log-hint": { en: "Check logs: {dir} (one directory per plugin, no overlap). Read them with {cmd}; filter by plugin ID {pluginId} for events {e1}, {e2}, {e3}.", zh: "\u8BF7\u67E5\u770B\u65E5\u5FD7\uFF1A{dir}\uFF08\u4E00\u4E2A\u63D2\u4EF6\u4E00\u68F5\u76EE\u5F55\uFF0C\u4E92\u4E0D\u8986\u76D6\uFF09\u3002\u4E00\u6761\u547D\u4EE4\u770B\uFF1A{cmd}\uFF1B\u6309\u63D2\u4EF6\u6807\u8BC6 {pluginId} \u7B5B\u9009 {e1}\u3001{e2}\u3001{e3} \u4E8B\u4EF6\u3002", draft: true },
-  "panel.error.log-follow": { en: "Match the request/check IDs above in {eFail}; baseline timing in {eCall}, execution result in {eExec}.", zh: "\u51ED\u4E0A\u65B9\u8BF7\u6C42\uFF0F\u68C0\u67E5\u7F16\u53F7\u5728 {eFail} \u4E2D\u5339\u914D\uFF1B\u57FA\u7EBF\u8017\u65F6\u8BF7\u67E5\u770B {eCall}\uFF0C\u6267\u884C\u7ED3\u679C\u8BF7\u67E5\u770B {eExec}\u3002", draft: true },
-  "panel.manual.heading": { en: "Manual fallback command (copy the full line to run):", zh: "\u624B\u5DE5\u5907\u7528\u547D\u4EE4\uFF08\u8BF7\u590D\u5236\u6574\u884C\u6267\u884C\uFF09\uFF1A", draft: true },
-  "panel.manual.absent": { en: "No manual command is available right now.", zh: "\u5F53\u524D\u6CA1\u6709\u53EF\u7528\u7684\u624B\u5DE5\u547D\u4EE4\u3002", draft: true },
-  "panel.manual.absent.unknown-profile": { en: "The plugin scope cannot be recognized, so there is no scope name for the command. Restart the host and check again; if it still cannot be recognized, send the copied diagnostics to the plugin author.", zh: "\u8BA4\u4E0D\u51FA\u63D2\u4EF6\u6240\u5728\u7684\u4F7F\u7528\u8303\u56F4\uFF0C\u547D\u4EE4\u6CA1\u6709\u53EF\u6307\u5411\u7684\u8303\u56F4\u540D\u3002\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u4ECD\u8BA4\u4E0D\u51FA\u6765\uFF0C\u8BF7\u628A\u590D\u5236\u8BCA\u65AD\u53D1\u7ED9\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
-  "panel.manual.absent.source-install": { en: "This plugin was installed from source; installing by version would overwrite the source. To update, reinstall it by package name@version.", zh: "\u8FD9\u662F\u6E90\u7801\u5B89\u88C5\u7684\u63D2\u4EF6\uFF0C\u6309\u7248\u672C\u5B89\u88C5\u4F1A\u8986\u76D6\u6E90\u7801\u3002\u5982\u9700\u66F4\u65B0\uFF0C\u8BF7\u6309\u5305\u540D@\u7248\u672C\u53F7\u91CD\u65B0\u5B89\u88C5\u3002", draft: true },
-  "panel.manual.absent.dev-source": { en: "This is a dev-mode mount (source link); the update center only serves version installs. Edit the repo and restart the host to see the changes.", zh: "\u8FD9\u662F\u5F00\u53D1\u6001\u6302\u8F7D\uFF08\u6E90\u7801\u94FE\u63A5\uFF09\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u53EA\u670D\u52A1\u6309\u7248\u672C\u5B89\u88C5\u3002\u6539\u5B8C\u4ED3\u5E93\u4EE3\u7801\u540E\u91CD\u542F\u5BBF\u4E3B\u518D\u770B\u6548\u679C\u3002", draft: true },
-  "panel.manual.absent.running-unknown": { en: "The running version cannot be read, so no command can be guaranteed not to downgrade. Restart the host and check again; if it still cannot be read, send the copied diagnostics to the plugin author.", zh: "\u8BFB\u4E0D\u5230\u6B63\u5728\u8FD0\u884C\u7684\u7248\u672C\u53F7\uFF0C\u65E0\u6CD5\u4FDD\u8BC1\u7ED9\u51FA\u7684\u547D\u4EE4\u4E0D\u4F1A\u964D\u7EA7\u3002\u91CD\u542F\u5BBF\u4E3B\u540E\u518D\u67E5\u4E00\u6B21\uFF1B\u82E5\u4ECD\u8BFB\u4E0D\u5230\uFF0C\u8BF7\u628A\u590D\u5236\u8BCA\u65AD\u53D1\u7ED9\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
-  "panel.manual.absent.no-safe-candidate": { en: "No safe target version or argument set: candidates may all be older than the running version, outside the current channel, or the scope name/registry cannot be safely embedded in a command. Check again after a newer version ships, or fix the blocked reason in section 5.2 first.", zh: "\u6CA1\u6709\u53EF\u5B89\u5168\u6267\u884C\u7684\u76EE\u6807\u7248\u672C\u6216\u53C2\u6570\uFF1A\u53EF\u80FD\u5019\u9009\u90FD\u4F4E\u4E8E\u8FD0\u884C\u7248\u3001\u4E0D\u5728\u5F53\u524D\u901A\u9053\uFF0C\u6216\u8303\u56F4\u540D/\u6E90\u5730\u5740\u65E0\u6CD5\u5B89\u5168\u62FC\u8FDB\u547D\u4EE4\u3002\u8BF7\u7B49\u65B0\u7248\u53D1\u5E03\u540E\u518D\u67E5\uFF0C\u6216\u5148\u6309\u7B2C 5.2 \u8282\u7684\u53D7\u963B\u539F\u56E0\u4FEE\u597D\u73AF\u5883\u3002", draft: true },
-  "panel.manual.stale": { en: "This manual command has not been confirmed against the current reading. Re-query before copying.", zh: "\u624B\u5DE5\u547D\u4EE4\u5C1A\u672A\u6309\u5F53\u5E27\u8BFB\u6570\u786E\u8BA4\uFF0C\u91CD\u65B0\u67E5\u8BE2\u540E\u518D\u590D\u5236\u3002", draft: true },
-  "panel.lastresort.badge": { en: "Last resort", zh: "\u6700\u540E\u624B\u6BB5", draft: true },
-  "panel.lastresort.status": { en: "No automatic recovery left", zh: "\u81EA\u52A8\u6062\u590D\u4E0D\u53EF\u7528", draft: true },
-  "panel.lastresort.reason": { en: "There is no automatic data path left; copying this command is the only way forward.", zh: "\u6CA1\u6709\u53EF\u7528\u7684\u81EA\u52A8\u6570\u636E\u8DEF\u5F84\uFF1B\u590D\u5236\u8FD9\u6761\u547D\u4EE4\u662F\u552F\u4E00\u51FA\u8DEF\u3002", draft: true },
-  "panel.lastresort.copy": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
-  "panel.lastresort.copied": { en: "Copied", zh: "\u5DF2\u590D\u5236", draft: true },
-  "batch.lastresort.row-badge": { en: "Last resort", zh: "\u6700\u540E\u624B\u6BB5", draft: true },
-  "panel.manual.absent-comment": { en: "no manual command ({reason})", zh: "\u65E0\u624B\u5DE5\u547D\u4EE4\uFF08{reason}\uFF09", draft: true },
-  "panel.manual.absent-comment-unknown": { en: "no manual command (cause unknown)", zh: "\u65E0\u624B\u5DE5\u547D\u4EE4\uFF08\u539F\u56E0\u672A\u77E5\uFF09", draft: true },
-  "panel.manual.updater-nested": { en: "This panel runs a nested copy of the updater ({version}), pinned by the plugin that declares it; update that plugin first (this panel picks up a newer updater only after that plugin widens its range). You can also install the updater at the profile level with the carrier CLI so other plugins sharing that copy get the fixes first: {command}", zh: "\u672C\u9762\u677F\u7684\u66F4\u65B0\u5668\u662F\u5D4C\u5957\u526F\u672C\uFF08{version}\uFF09\uFF0C\u7531\u58F0\u660E\u5B83\u7684\u63D2\u4EF6\u9489\u4F4F\uFF1B\u8BF7\u5148\u66F4\u65B0\u90A3\u4E2A\u63D2\u4EF6\uFF08\u5B83\u53D1\u7248\u62AC\u4E86\u4F9D\u8D56\u8303\u56F4\u540E\uFF0C\u672C\u9762\u677F\u624D\u4F1A\u6362\u65B0\uFF09\u3002\u4E5F\u53EF\u7528\u8F7D\u4F53\u547D\u4EE4\u884C\u628A\u66F4\u65B0\u5668\u88C5\u5230\u4F7F\u7528\u8303\u56F4\u7EA7\uFF0C\u8BA9\u5171\u7528\u90A3\u4E00\u4EFD\u7684\u5176\u4ED6\u63D2\u4EF6\u5148\u62FF\u5230\u4FEE\u590D\uFF1A{command}", draft: true },
-  "panel.manual.updater-nested-nocmd": { en: "This panel runs a nested copy of the updater ({version}), pinned by the plugin that declares it; update that plugin first (this panel picks up a newer updater only after that plugin widens its range).", zh: "\u672C\u9762\u677F\u7684\u66F4\u65B0\u5668\u662F\u5D4C\u5957\u526F\u672C\uFF08{version}\uFF09\uFF0C\u7531\u58F0\u660E\u5B83\u7684\u63D2\u4EF6\u9489\u4F4F\uFF1B\u8BF7\u5148\u66F4\u65B0\u90A3\u4E2A\u63D2\u4EF6\uFF08\u5B83\u53D1\u7248\u62AC\u4E86\u4F9D\u8D56\u8303\u56F4\u540E\uFF0C\u672C\u9762\u677F\u624D\u4F1A\u6362\u65B0\uFF09\u3002", draft: true },
-  "panel.footer.note": { en: "Closing never interrupts updates; come back anytime", zh: "\u5173\u95ED\u7A97\u53E3\uFF0C\u66F4\u65B0\u4E0D\u53D7\u5F71\u54CD\uFF0C\u53EF\u968F\u65F6\u8FD4\u56DE\u67E5\u770B\u3002", draft: true },
-  "panel.footer.close": { en: "Close", zh: "\u5173\u95ED", draft: true },
-  "panel.footer.close-title": { en: "Close the window; updates keep running", zh: "\u5173\u95ED\u7A97\u53E3\uFF0C\u66F4\u65B0\u4E0D\u53D7\u5F71\u54CD", draft: true },
-  "panel.diag.header": { en: "[Update Diagnostics] {pluginId} Stable code: {code}", zh: "[\u66F4\u65B0\u8BCA\u65AD] {pluginId} \u7A33\u5B9A\u7801\uFF1A{code}", draft: true },
-  "panel.diag.label.human": { en: "Detail: {detail}", zh: "\u4EBA\u8BDD\uFF1A{detail}", draft: true },
-  "panel.diag.label.running": { en: "Running: {version}", zh: "\u8FD0\u884C\u7248\uFF1A{version}", draft: true },
-  "panel.diag.label.installed": { en: "Installed: {version}", zh: "\u5DF2\u5B89\u88C5\uFF1A{version}", draft: true },
-  "panel.diag.label.latest": { en: "Latest: {version}", zh: "\u6700\u65B0\u7248\uFF1A{version}", draft: true },
-  "panel.diag.queue.installing": { en: "Installing", zh: "\u6B63\u5728\u5B89\u88C5", draft: true },
-  "panel.diag.queue.position": { en: "Queued at position {n}", zh: "\u6392\u961F\u7B2C {n} \u4F4D", draft: true },
-  "panel.diag.queue.absent": { en: "Not queued", zh: "\u672A\u6392\u961F", draft: true },
-  "panel.diag.label.host": { en: "Host: {host}", zh: "\u5BBF\u4E3B\uFF1A{host}", draft: true },
-  "panel.diag.label.profile": { en: "Scope: {profile}", zh: "\u4F7F\u7528\u8303\u56F4\uFF1A{profile}", draft: true },
-  "panel.diag.label.queue": { en: "Queue: {queue}", zh: "\u961F\u5217\uFF1A{queue}", draft: true },
-  "panel.diag.label.request": { en: "Request ID: {requestId}", zh: "\u8BF7\u6C42\u7F16\u53F7\uFF1A{requestId}", draft: true },
-  "panel.diag.label.manual": { en: "Manual command: {manual}", zh: "\u624B\u5DE5\u547D\u4EE4\uFF1A{manual}", draft: true },
-  "panel.diag.copy.no-detail": { en: "(This response carries no diagnostic summary; it will be completed when phone-side diag lands)", zh: "\uFF08\u672C\u54CD\u5E94\u672A\u643A\u5E26\u8BCA\u65AD\u6458\u8981\uFF0C\u5F85\u8BCA\u65AD\u4FE1\u606F\u5C31\u7EEA\u540E\u8865\u5168\uFF09", draft: true },
-  "panel.diag.copy.unknown-package": { en: "(Unknown package)", zh: "\uFF08\u672A\u77E5\u63D2\u4EF6\u5305\uFF09", draft: true },
-  "panel.diag.copy.unknown": { en: "Unknown", zh: "\u672A\u77E5", draft: true },
-  "panel.diag.copy.field.plugin": { en: "Plugin={plugin}", zh: "\u63D2\u4EF6={plugin}", draft: true },
-  "panel.diag.copy.field.version": { en: "Version={run}\u2192{inst}", zh: "\u7248\u672C={run}\u2192{inst}", draft: true },
-  "panel.diag.copy.field.host": { en: "Host={host}", zh: "\u5BBF\u4E3B={host}", draft: true },
-  "panel.diag.copy.field.profile": { en: "Scope={profile}", zh: "\u4F7F\u7528\u8303\u56F4={profile}", draft: true },
-  "panel.diag.copy.field.route": { en: "Route={route}", zh: "\u8DEF\u7531={route}", draft: true },
-  "panel.diag.copy.field.stage": { en: "Stage={stage}", zh: "\u9636\u6BB5={stage}", draft: true },
-  "panel.diag.copy.field.method": { en: "Method={method}", zh: "\u65B9\u6CD5={method}", draft: true },
-  "panel.diag.copy.field.latency": { en: "Latency={latency}", zh: "\u8017\u65F6={latency}", draft: true },
-  "panel.diag.copy.field.registry": { en: "Source={host}", zh: "\u6E90={host}", draft: true },
-  "panel.diag.copy.field.registry-unknown": { en: "Source=Undeclared", zh: "\u6E90=\u672A\u58F0\u660E", draft: true },
-  "panel.diag.copy.field.action": { en: "Suggestion={action}", zh: "\u5EFA\u8BAE={action}", draft: true },
-  "panel.diag.copy.field.request": { en: "Request={request}", zh: "\u8BF7\u6C42={request}", draft: true },
-  "panel.diag.copy.field.check": { en: "Check={check}", zh: "\u68C0\u67E5={check}", draft: true },
-  "panel.diag.copy.field.queue": { en: "Queue={queue}", zh: "\u961F\u5217={queue}", draft: true },
-  "panel.diag.copy.field.updater": { en: "Updater={version} ({level})", zh: "\u66F4\u65B0\u5668={version}\uFF08{level}\uFF09", draft: true },
-  "panel.diag.copy.field.target": { en: "Target={version}", zh: "\u76EE\u6807={version}", draft: true },
-  "panel.diag.copy.line.summary": { en: "Summary={summary}", zh: "\u6458\u8981={summary}", draft: true },
-  "panel.diag.copy.line.remedy": { en: "Remedy={remedy}", zh: "\u600E\u4E48\u529E={remedy}", draft: true },
-  "panel.diag.copy.block.summary": { en: "Summary\uFF1A{summary}", zh: "\u6458\u8981\uFF1A{summary}", draft: true },
-  "panel.diag.copy.block.source": { en: "Source\uFF1A{source}", zh: "\u6765\u6E90\uFF1A{source}", draft: true },
-  "panel.diag.copy.block.remedy": { en: "Remedy\uFF1A{remedy}", zh: "\u600E\u4E48\u529E\uFF1A{remedy}", draft: true },
-  "batch.action.resume": { en: "Continue the unfinished batch ({count} left)", zh: "\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
-  "batch.action.resume-title": { en: "Continue from where it stopped; installed ones stay", zh: "\u4ECE\u4E0A\u6B21\u4E2D\u65AD\u5904\u7EE7\u7EED\u5B89\u88C5\uFF0C\u5DF2\u5B8C\u6210\u7684\u4E0D\u4F1A\u91CD\u590D\u5B89\u88C5\u3002", draft: true },
-  "batch.action.discard": { en: "Discard this unfinished batch (installed ones stay)", zh: "\u4E22\u5F03\u672C\u6279\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5DF2\u5B8C\u6210\u7684\u5C06\u4FDD\u7559\uFF09\u3002", draft: true },
-  "batch.action.confirm-discard": { en: "Confirm discard", zh: "\u786E\u8BA4\u4E22\u5F03", draft: true },
-  "batch.fact.close-safe": { en: "Closing this panel won't stop it \u2014 progress is saved on disk.", zh: "\u5173\u95ED\u9762\u677F\u4E0D\u4F1A\u4E2D\u65AD\u66F4\u65B0\uFF1A\u8FDB\u5EA6\u5DF2\u4FDD\u5B58\uFF0C\u53EF\u968F\u65F6\u8FD4\u56DE\u7EE7\u7EED\u3002", draft: true },
-  "batch.setting.check-on-open": { en: "Check for updates when opening", zh: "\u6253\u5F00\u9762\u677F\u65F6\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0", draft: true },
-  "batch.row.update": { en: "Update available {version}", zh: "\u6709\u65B0\u7248\u672C {version}", draft: true },
-  "batch.row.current": { en: "Up to date", zh: "\u5DF2\u662F\u6700\u65B0\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
-  "batch.row.never": { en: "Not checked yet", zh: "\u5C1A\u672A\u67E5\u8BE2", draft: true },
-  "batch.row.failed": { en: "Last check failed", zh: "\u672C\u6B21\u672A\u80FD\u67E5\u8BE2", draft: true },
-  "batch.row.not-installed": { en: "Not installed", zh: "\u672A\u5B89\u88C5", draft: true },
-  "batch.notice.auto-resumed": { en: "Auto-continued the unfinished batch ({count} left).", zh: "\u5DF2\u81EA\u52A8\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
-  "batch.notice.resumed": { en: "Continued the unfinished batch ({count} left).", zh: "\u5DF2\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
-  "batch.notice.no-resume": { en: "Nothing to continue.", zh: "\u6682\u65E0\u53EF\u7EE7\u7EED\u7684\u5185\u5BB9\u3002", draft: true },
-  "batch.notice.discarded": { en: "Discarded this unfinished batch (installed ones stay).", zh: "\u5DF2\u4E22\u5F03\u672C\u6279\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5DF2\u5B8C\u6210\u7684\u5C06\u4FDD\u7559\uFF09\u3002", draft: true },
-  "batch.notice.cancel-confirm": { en: "Click again to confirm discard.", zh: "\u8BF7\u518D\u6B21\u9009\u62E9\u4EE5\u786E\u8BA4\u4E22\u5F03\u3002", draft: true },
-  "batch.notice.busy-cancel": { en: "An install is running and cannot be stopped.", zh: "\u6B63\u5728\u5B89\u88C5\u7684\u9879\u65E0\u6CD5\u505C\u6B62\u3002", draft: true },
-  "batch.row.unfinished-tag": { en: "unfinished last time", zh: "\u4E0A\u6B21\u672A\u5B8C\u6210", draft: true },
-  "batch.summary.updatable": { en: "{n} updates available", zh: "{n} \u4E2A\u53EF\u66F4\u65B0", draft: true },
-  "batch.summary.installing": { en: "{n} installing", zh: "{n} \u4E2A\u5B89\u88C5\u4E2D", draft: true },
-  "batch.summary.pending": { en: "{n} not checked", zh: "{n} \u4E2A\u5F85\u67E5\u8BE2", draft: true },
-  "batch.summary.restart": { en: "{n} restart required", zh: "{n} \u4E2A\u5F85\u91CD\u542F", draft: true },
-  "batch.summary.restart-unregistered": { en: "{n} not registered (restarting will not load them)", zh: "\u53E6\u6709 {n} \u4E2A\u672A\u767B\u8BB0\uFF0C\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D", draft: true },
-  "batch.summary.failed": { en: "{n} failed", zh: "{n} \u4E2A\u5931\u8D25", draft: true },
-  "batch.summary.skipped": { en: "{n} skipped", zh: "{n} \u4E2A\u5DF2\u8DF3\u8FC7", draft: true },
-  "batch.summary.settled": { en: "{n} up to date", zh: "{n} \u4E2A\u5DF2\u662F\u6700\u65B0", draft: true },
-  "batch.summary.empty": { en: "No targets yet", zh: "\u6682\u65E0\u76EE\u6807", draft: true },
-  "batch.header.title": { en: "Update archive", zh: "\u66F4\u65B0\u6863\u6848", draft: true },
-  "batch.action.check": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
-  "batch.action.check-title": { en: "Re-read batch status (read-only)", zh: "\u91CD\u65B0\u8BFB\u53D6\u6279\u91CF\u72B6\u6001\uFF08\u53EA\u8BFB\uFF09", draft: true },
-  "batch.action.install-all": { en: "Update all", zh: "\u5168\u90E8\u66F4\u65B0", draft: true },
-  "batch.action.install-all-title": { en: "Submit all updatable plugins at once; one idempotency key per session", zh: "\u5C06\u6709\u66F4\u65B0\u7684\u63D2\u4EF6\u4E00\u6B21\u63D0\u4EA4\uFF1B\u540C\u4E00\u4F1A\u8BDD\u4F7F\u7528\u540C\u4E00\u5E42\u7B49\u7F16\u53F7\u3002", draft: true },
-  "batch.action.close": { en: "Close", zh: "\u5173\u95ED", draft: true },
-  "batch.action.close-title": { en: "Close the window; batch progress keeps running", zh: "\u5173\u95ED\u7A97\u53E3\uFF0C\u6279\u91CF\u66F4\u65B0\u4E0D\u53D7\u5F71\u54CD", draft: true },
-  "batch.banner.loading": { en: "Loading batch update status\u2026", zh: "\u6B63\u5728\u8BFB\u53D6\u6279\u91CF\u66F4\u65B0\u72B6\u6001\u2026", draft: true },
-  "batch.hint.error": { en: "Last run failed: follow the red banner below.", zh: "\u4E0A\u6B21\u6267\u884C\u5931\u8D25\uFF1A\u8BF7\u6309\u4E0B\u65B9\u7EA2\u8272\u6A2A\u5E45\u63D0\u793A\u64CD\u4F5C\u3002", draft: true },
-  "batch.hint.empty": { en: "No targets yet: select \u201CCheck for updates\u201D to see which plugins have updates.", zh: "\u6682\u65E0\u76EE\u6807\uFF1A\u8BF7\u9009\u62E9\u300C\u68C0\u67E5\u66F4\u65B0\u300D\u67E5\u770B\u54EA\u4E9B\u63D2\u4EF6\u6709\u66F4\u65B0\u3002", draft: true },
-  "batch.hint.installing-queueable": { en: "Installing {a}; {b} more can join the queue.", zh: "\u6B63\u5728\u5B89\u88C5 {a} \u4E2A\uFF1B\u53E6\u6709 {b} \u4E2A\u53EF\u9009\u62E9\u300C\u52A0\u5165\u961F\u5217\u300D\u7B49\u5F85\u3002", draft: true },
-  "batch.hint.installing-auto": { en: "Installing {a}; the next starts automatically.", zh: "\u6B63\u5728\u5B89\u88C5 {a} \u4E2A\uFF0C\u5B8C\u6210\u540E\u81EA\u52A8\u5B89\u88C5\u4E0B\u4E00\u9879\u3002", draft: true },
-  "batch.hint.failed": { en: "{n} failed to install; retry each one from the failure notes below.", zh: "{n} \u4E2A\u63D2\u4EF6\u5B89\u88C5\u5931\u8D25\uFF1B\u8BF7\u6309\u4E0B\u65B9\u5931\u8D25\u63D0\u793A\u9010\u9879\u91CD\u8BD5\u3002", draft: true },
-  "batch.hint.updatable": { en: "{n} updates available; select \u201CUpdate all\u201D to install at once, or install each one inline.", zh: "{n} \u4E2A\u53EF\u66F4\u65B0\uFF1B\u8BF7\u9009\u62E9\u300C\u5168\u90E8\u66F4\u65B0\u300D\u4E00\u6B21\u5B89\u88C5\u5B8C\u6210\uFF0C\u4E5F\u53EF\u9010\u9879\u9009\u62E9\u300C\u5B89\u88C5\u6B64\u63D2\u4EF6\u300D\u3002", draft: true },
-  "batch.hint.restart": { en: "{n} installed; restart the host to take effect.", zh: "{n} \u4E2A\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
-  // #190：全部未登记时重启不会加载，一句话总账不许落到「已全部为最新」。
-  "batch.hint.restart-unregistered": { en: "{n} installed but not registered; restarting the host will not load them.", zh: "{n} \u4E2A\u5DF2\u5B89\u88C5\u4F46\u672A\u767B\u8BB0\uFF0C\u91CD\u542F\u5BBF\u4E3B\u4E0D\u4F1A\u52A0\u8F7D\u3002", draft: true },
-  "batch.hint.pending": { en: "{n} not checked yet; select \u201CCheck for updates\u201D for a round.", zh: "{n} \u4E2A\u5C1A\u672A\u67E5\u8BE2\uFF1B\u8BF7\u9009\u62E9\u300C\u68C0\u67E5\u66F4\u65B0\u300D\u67E5\u8BE2\u4E00\u8F6E\u3002", draft: true },
-  "batch.hint.done": { en: "All up to date; nothing to do.", zh: "\u5DF2\u5168\u90E8\u4E3A\u6700\u65B0\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
-  "batch.seal.ledger": { en: "Ledger", zh: "\u603B\u8D26", draft: true },
-  "batch.banner.error-title": { en: "Failed this time ({code}): {detail}.", zh: "\u672C\u6B21\u6267\u884C\u5931\u8D25\uFF08{code}\uFF09\uFF1A{detail}\u3002", draft: true },
-  "batch.banner.error-action-fallback": { en: "Retry once first; if it persists, send the copied diagnostics to the plugin author.", zh: "\u8BF7\u91CD\u8BD5\u4E00\u6B21\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
-  // #156 批量级合规版入口：最新版被 24 小时年龄门挡住时，「全部更新」不许只剩一句失败。
-  "batch.banner.age-gated": { en: "{n} plugin(s) are blocked by the 24-hour age gate.", zh: "{n} \u4E2A\u63D2\u4EF6\u7684\u6700\u65B0\u7248\u88AB 24 \u5C0F\u65F6\u5E74\u9F84\u95E8\u6321\u4F4F\u3002", draft: true },
-  "batch.banner.gated-wait": { en: "{n} plugin(s) are blocked by the 24-hour age gate and nothing is installable right now; installable in about {time}.", zh: "{n} \u4E2A\u63D2\u4EF6\u7684\u6700\u65B0\u7248\u88AB 24 \u5C0F\u65F6\u5E74\u9F84\u95E8\u6321\u4F4F\uFF0C\u73B0\u5728\u8FD8\u6CA1\u6709\u53EF\u88C5\u7684\u7248\u672C\uFF1B\u7EA6 {time} \u540E\u53EF\u88C5\u3002", draft: true },
-  "batch.banner.compliant-done-title": { en: "Actual install result for these {n} plugin(s):", zh: "\u8FD9 {n} \u4E2A\u63D2\u4EF6\u7684\u5B9E\u9645\u5B89\u88C5\u7ED3\u679C\uFF1A", draft: true },
-  "batch.banner.compliant-done": { en: "{title}: installed {version}, not the latest {target} (the latest did not go through).", zh: "{title}\uFF1A\u5DF2\u88C5 {version}\uFF0C\u4E0D\u662F\u6700\u65B0 {target}\uFF08\u6700\u65B0\u7248\u6CA1\u88C5\u6210\uFF09\u3002", draft: true },
-  "batch.banner.compliant-done-gated": { en: "{title}: installed {version}; the latest {target} is still blocked by the 24-hour age gate (installable in about {time}).", zh: "{title}\uFF1A\u5DF2\u88C5 {version}\uFF1B\u6700\u65B0 {target} \u4ECD\u88AB 24 \u5C0F\u65F6\u5E74\u9F84\u95E8\u6321\u7740\uFF0C\u7EA6 {time} \u540E\u53EF\u88C5\u3002", draft: true },
-  "batch.banner.compliant-confirm": { en: "Install these compliant builds: {list}?", zh: "\u786E\u8BA4\u5B89\u88C5\u4EE5\u4E0B\u5408\u89C4\u7248\uFF1A{list}\uFF1F", draft: true },
-  "batch.action.install-compliant-confirm": { en: "Confirm and install these {n}", zh: "\u786E\u8BA4\u88C5\u8FD9 {n} \u4E2A", draft: true },
-  "batch.banner.failed-title": { en: "{n} failed to install.", zh: "{n} \u4E2A\u63D2\u4EF6\u5B89\u88C5\u5931\u8D25\u3002", draft: true },
-  "batch.banner.failed-action": { en: "Retry each one inline; if it keeps failing, send the copied diagnostics to the plugin author.", zh: "\u8BF7\u9010\u5BB6\u4F7F\u7528\u884C\u5185\u300C\u91CD\u8BD5\u300D\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
-  "batch.banner.restart-title": { en: "{n} installed; restart the host to take effect.", zh: "{n} \u4E2A\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
-  // #190：在册事实为 false 的行重启也不会加载——横幅分别计数，不再把「重启后生效」说满。
-  "batch.banner.restart-partial-title": { en: "{n} installed and will take effect after restart; {m} not registered (restarting will not load them).", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF1A{n} \u4E2A\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\uFF0C{m} \u4E2A\u672A\u767B\u8BB0\uFF08\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D\uFF09\u3002", draft: true },
-  "batch.banner.restart-unregistered-title": { en: "Installed, but these plugins are not registered; restarting the host will not load them.", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u4F46\u8FD9\u4E9B\u63D2\u4EF6\u672A\u767B\u8BB0\uFF0C\u91CD\u542F\u5BBF\u4E3B\u4E5F\u4E0D\u4F1A\u52A0\u8F7D\u3002", draft: true },
-  "batch.banner.restart-unregistered-hint": { en: "Unregistered plugins: select them in the host plugin page first; they will load after restart.", zh: "\u672A\u767B\u8BB0\u7684\u884C\uFF1A\u8BF7\u5148\u5728\u5BBF\u4E3B\u63D2\u4EF6\u9875\u9009\u4E2D\u8BE5\u63D2\u4EF6\uFF0C\u91CD\u542F\u540E\u624D\u4F1A\u52A0\u8F7D\u3002", draft: true },
-  "batch.banner.restart-action": { en: "Restart the host to run the new version; this is a normal end state, not a failure.", zh: "\u91CD\u542F\u5BBF\u4E3B\u4EE5\u52A0\u8F7D\u65B0\u7248\u672C\uFF1B\u6B64\u4E3A\u6B63\u5E38\u72B6\u6001\uFF0C\u975E\u5B89\u88C5\u5931\u8D25\u3002", draft: true },
-  "batch.banner.restart-button": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
-  "batch.row.queued-generic": { en: "Queued \xB7 waiting for the running install to finish", zh: "\u5DF2\u6392\u961F \xB7 \u7B49\u5F85\u524D\u65B9\u5B89\u88C5\u5B8C\u6210", draft: true },
-  "batch.row.queued-n": { en: "Queued \xB7 {n} ahead", zh: "\u5DF2\u6392\u961F \xB7 \u524D\u65B9\u8FD8\u6709 {n} \u9879", draft: true },
-  "batch.row.skipped": { en: "Skipped {version}", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {version}", draft: true },
-  "batch.row.wait-turn": { en: "Waiting for its turn; it will check automatically", zh: "\u8BF7\u7B49\u5F85\uFF0C\u8F6E\u5230\u5C06\u81EA\u52A8\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u3002", draft: true },
-  "batch.row.checking": { en: "Checking for updates; please wait", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019\u3002", draft: true },
-  "batch.row.cta-version": { en: "Select \u201CInstall this plugin\u201D to install {version}", zh: "\u9009\u62E9\u300C\u5B89\u88C5\u6B64\u63D2\u4EF6\u300D\u5B89\u88C5 {version}", draft: true },
-  "batch.row.cta-generic": { en: "Select \u201CInstall this plugin\u201D to install the new version", zh: "\u9009\u62E9\u300C\u5B89\u88C5\u6B64\u63D2\u4EF6\u300D\u5B89\u88C5\u65B0\u7248\u672C", draft: true },
-  "batch.row.installing": { en: "Installing; please wait", zh: "\u6B63\u5728\u5B89\u88C5\uFF0C\u8BF7\u52FF\u64CD\u4F5C\u3002", draft: true },
-  "batch.row.done-restart": { en: "Installed; restart the host to take effect", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
-  "batch.row.done-restart-unregistered": { en: "Installed; not registered (restart will not load it). Select it in the host plugin page first.", zh: "\u5DF2\u5B89\u88C5\uFF0C\u672A\u767B\u8BB0\uFF08\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D\uFF09\uFF1B\u8BF7\u5148\u5728\u5BBF\u4E3B\u63D2\u4EF6\u9875\u9009\u4E2D\u8BE5\u63D2\u4EF6", draft: true },
-  "batch.row.unregistered-suffix": { en: " (not registered)", zh: "\uFF08\u672A\u767B\u8BB0\uFF09", draft: true },
-  "batch.row.done": { en: "Installed; nothing to do", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
-  "batch.row.failed-retry": { en: "Install failed; select \u201CRetry\u201D to try again", zh: "\u5B89\u88C5\u5931\u8D25\uFF0C\u8BF7\u9009\u62E9\u300C\u91CD\u8BD5\u300D\u3002", draft: true },
-  "batch.row.skipped-idle": { en: "This version is skipped; nothing to do", zh: "\u8BE5\u7248\u672C\u5DF2\u8DF3\u8FC7\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
-  "batch.row.unknown": { en: "Unknown state; select \u201CCheck for updates\u201D to check again", zh: "\u72B6\u6001\u65E0\u6CD5\u8BC6\u522B\uFF0C\u8BF7\u9009\u62E9\u300C\u68C0\u67E5\u66F4\u65B0\u300D\u91CD\u65B0\u67E5\u8BE2\u3002", draft: true },
-  "batch.row-action.installing": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
-  "batch.row-action.cancel-queue": { en: "Cancel queue", zh: "\u53D6\u6D88\u6392\u961F", draft: true },
-  "batch.row-action.queue": { en: "Join queue", zh: "\u52A0\u5165\u961F\u5217", draft: true },
-  "batch.row-action.install-row": { en: "Install this plugin", zh: "\u5B89\u88C5\u6B64\u63D2\u4EF6", draft: true },
-  "batch.row-action.retry": { en: "Retry", zh: "\u91CD\u8BD5", draft: true },
-  "batch.row-action.install-version": { en: "Install {version}", zh: "\u5B89\u88C5\u7248\u672C {version}", draft: true },
-  "batch.row-action.install-generic": { en: "Install the new version", zh: "\u5B89\u88C5\u65B0\u7248\u672C", draft: true },
-  "batch.row-action.unskip": { en: "Restore ({version})", zh: "\u6062\u590D\u63D0\u9192\uFF08{version}\uFF09", draft: true },
-  "batch.row-action.restart": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
-  "batch.row-action.show-detail": { en: "Details", zh: "\u8BE6\u60C5", draft: true },
-  "batch.row-action.hide-detail": { en: "Collapse", zh: "\u6536\u8D77", draft: true },
-  "batch.row-action.skip": { en: "Skip this version", zh: "\u8DF3\u8FC7\u8BE5\u7248\u672C", draft: true },
-  "batch.row-action.copy-manual": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
-  "batch.row-action.copy-diag": { en: "Copy diagnostics", zh: "\u590D\u5236\u8BCA\u65AD", draft: true },
-  "batch.row.error-label": { en: "Failed {code}: {detail}", zh: "\u5931\u8D25 {code}\uFF1A{detail}", draft: true },
-  "batch.row.compliant-done": { en: "Installed {version}, not the latest {target} (the latest did not go through)", zh: "\u5DF2\u88C5 {version}\uFF0C\u4E0D\u662F\u6700\u65B0 {target}\uFF08\u6700\u65B0\u7248\u8FD9\u6B21\u6CA1\u88C5\u4E0A\uFF09", draft: true },
-  "batch.diag.source-job": { en: "(Source: background job record)", zh: "\uFF08\u6765\u6E90\uFF1A\u540E\u53F0\u4EFB\u52A1\u6267\u884C\u8BB0\u5F55\uFF09", draft: true },
-  "batch.toast.copy-fail": { en: "Copy failed; please select the info above manually.", zh: "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u4E0A\u65B9\u4FE1\u606F\u3002", draft: true },
-  "batch.toast.queue-missed": { en: "Another install is running: this plugin is not queued yet; try again after it finishes.", zh: "\u524D\u65B9\u4ECD\u5728\u5B89\u88C5\uFF1A\u6B64\u63D2\u4EF6\u5C1A\u672A\u6392\u961F\uFF0C\u8BF7\u5F85\u524D\u65B9\u5B89\u88C5\u5B8C\u6210\u540E\u518D\u6B21\u9009\u62E9\u3002", draft: true },
-  "batch.toast.skipped": { en: "Skipped {version}: no further reminders for this version; select \u201CRestore\u201D to undo.", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {version}\uFF1A\u8BE5\u7248\u672C\u4E0D\u518D\u63D0\u9192\uFF1B\u9009\u62E9\u300C\u6062\u590D\u63D0\u9192\u300D\u53EF\u64A4\u9500\u3002", draft: true },
-  "batch.toast.unskipped-version": { en: "Restored {version}: reminders for this version are back on.", zh: "\u5DF2\u6062\u590D {version}\uFF1A\u8BE5\u7248\u672C\u5C06\u6B63\u5E38\u63D0\u9192\u3002", draft: true },
-  "batch.toast.unskipped-all": { en: "Skip reminder restored.", zh: "\u5DF2\u6062\u590D\u8DF3\u8FC7\u63D0\u9192\u3002", draft: true },
-  "batch.toast.cancel-unavailable": { en: "This row carries no phone or ID to cancel the queue; try again after the next refresh.", zh: "\u6B64\u884C\u7F3A\u5C11\u53D6\u6D88\u6392\u961F\u6240\u9700\u7684\u4FE1\u606F\uFF0C\u6682\u65E0\u6CD5\u53D6\u6D88\uFF1B\u8BF7\u5F85\u4E0B\u6B21\u5237\u65B0\u540E\u91CD\u8BD5\u3002", draft: true },
-  "batch.toast.compliant-installed": { en: "Requested {a} compliant build(s) (not the latest: it is still age-gated); {b} did not go through.", zh: "\u5DF2\u8BF7\u6C42\u5B89\u88C5 {a} \u4E2A\u5408\u89C4\u7248\uFF08\u4E0D\u662F\u6700\u65B0\u7248\uFF1A\u6700\u65B0\u7248\u4ECD\u88AB\u5E74\u9F84\u95E8\u6321\u7740\uFF09\uFF1B{b} \u4E2A\u6CA1\u88C5\u6210\u3002", draft: true },
-  "batch.toast.cancel-ok": { en: "Queue cancelled: this plugin will not wait.", zh: "\u5DF2\u53D6\u6D88\u6392\u961F\uFF1A\u6B64\u63D2\u4EF6\u5C06\u4E0D\u518D\u7B49\u5F85\u3002", draft: true },
-  "batch.toast.cancel-fail": { en: "Could not cancel the queue (it may have started installing); see the latest state below.", zh: "\u53D6\u6D88\u6392\u961F\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5F00\u59CB\u5B89\u88C5\uFF09\uFF1A\u8BF7\u67E5\u770B\u4E0B\u65B9\u6700\u65B0\u72B6\u6001\u3002", draft: true },
-  "batch.toast.copy-manual-ok": { en: "Manual command copied; paste the full line into the terminal to run it.", zh: "\u624B\u5DE5\u547D\u4EE4\u5DF2\u590D\u5236\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u6574\u884C\u6267\u884C\u3002", draft: true },
-  "batch.toast.copy-diag-ok": { en: "Diagnostics copied; paste it to the plugin author (already redacted).", zh: "\u8BCA\u65AD\u4FE1\u606F\u5DF2\u590D\u5236\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
-  "batch.toast.copy-all-diag-ok": { en: "Diagnostics for {n} plugin(s) copied; paste them to the plugin author (already redacted).", zh: "\u5DF2\u590D\u5236 {n} \u5BB6\u63D2\u4EF6\u7684\u8BCA\u65AD\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
-  "batch.toast.copy-all-manual-ok": { en: "{n} manual command(s) copied (plugins without a command are marked as # comments); paste them into the terminal line by line.", zh: "\u5DF2\u590D\u5236 {n} \u6761\u624B\u5DE5\u547D\u4EE4\uFF08\u65E0\u547D\u4EE4\u7684\u63D2\u4EF6\u5DF2\u7528 # \u6CE8\u91CA\u6807\u6CE8\uFF09\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u9010\u884C\u6267\u884C\u3002", draft: true },
-  "batch.toast.restart-delegated": { en: "Handled by the caller\u2019s restart flow; the new version takes effect after restart.", zh: "\u5DF2\u6309\u8C03\u7528\u65B9\u91CD\u542F\u6D41\u7A0B\u5904\u7406\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
-  "batch.toast.restart-manual": { en: "This host provides no restart entry; please restart the host manually. The new version takes effect after restart.", zh: "\u672C\u5BBF\u4E3B\u672A\u63D0\u4F9B\u91CD\u542F\u5165\u53E3\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
-  "batch.toast.restart-failed": { en: "Restart entry failed; please restart the host manually. The new version takes effect after restart.", zh: "\u91CD\u542F\u5165\u53E3\u8C03\u7528\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
-  "changelog.neutral.hint": { en: "No changelog provided", zh: "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E", draft: true },
-  "changelog.neutral.line": { en: "No changelog provided. Install is not affected.", zh: "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002", draft: true },
-  "changelog.breaking.badge": { en: "Breaking", zh: "\u4E0D\u517C\u5BB9", draft: true },
-  "changelog.breaking.aria": { en: "Breaking change", zh: "\u7834\u574F\u6027\u53D8\u66F4", draft: true },
-  "changelog.truncated.count": { en: "Showing {n} of {m} items", zh: "\u5171 {m} \u6761\uFF0C\u4EC5\u663E\u793A\u524D {n} \u6761", draft: true },
-  "changelog.truncated.file": { en: "This log is larger than 64 KiB; only the first part is rendered.", zh: "\u65E5\u5FD7\u8FC7\u957F\uFF0C\u8D85\u51FA\u4E0A\u9650\u7684\u90E8\u5206\u6CA1\u6709\u6E32\u67D3\u3002", draft: true },
-  "changelog.truncated.versions": { en: "{n} more versions are hidden.", zh: "\u5176\u540E\u8FD8\u6709 {n} \u4E2A\u7248\u672C\u672A\u663E\u793A\u3002", draft: true },
-  "changelog.yanked.banner": { en: "Version {version} was yanked by the author. Install is not affected. Please confirm before proceeding.", zh: "\u76EE\u6807\u7248\u672C {version} \u5DF2\u88AB\u4F5C\u8005\u64A4\u56DE\uFF08yanked\uFF09\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\uFF0C\u7EE7\u7EED\u524D\u8BF7\u786E\u8BA4\u3002", draft: true },
-  "changelog.yanked.suffix": { en: " \xB7 Yanked", zh: " \xB7 \u5DF2\u64A4\u56DE", draft: true },
-  "changelog.security.summary": { en: "{n} more items", zh: "\u5176\u4F59 {n} \u6761", draft: true },
-  "changelog.security.note": { en: "Remaining entries are collapsed to keep the panel fast. See the original text.", zh: "\u4E3A\u4FDD\u6301\u9762\u677F\u6027\u80FD\uFF0C\u5176\u4F59\u6761\u76EE\u5DF2\u6298\u53E0\uFF0C\u8BF7\u67E5\u770B\u539F\u6587\u3002", draft: true },
-  "diag.fallback.generic": { en: "Operation failed", zh: "\u64CD\u4F5C\u5931\u8D25", draft: true },
-  "diag.fallback.read-installed": { en: "Failed to read local state", zh: "\u8BFB\u53D6\u672C\u5730\u72B6\u6001\u5931\u8D25", draft: true },
-  "diag.fallback.revalidate-fetch": { en: "Revalidation fetch failed before install", zh: "\u5B89\u88C5\u524D\u590D\u9A8C\u5931\u8D25\uFF0C\u672A\u80FD\u83B7\u53D6\u7248\u672C\u4FE1\u606F", draft: true },
-  "diag.fallback.rate-limited": { en: "Source returned 429. Too many requests this minute.", zh: "\u6570\u636E\u6E90\u8FD4\u56DE 429\uFF0C\u672C\u5206\u949F\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41\u3002", draft: true },
-  "diag.fallback.http-status": { en: "Source returned {status}. Retry still failed.", zh: "\u6570\u636E\u6E90\u8FD4\u56DE {status}\uFF0C\u91CD\u8BD5\u540E\u4ECD\u5931\u8D25\u3002", draft: true },
-  "diag.fallback.invalid-release": { en: "Version in the manifest is not valid", zh: "\u6E05\u5355\u6587\u4EF6\u4E2D\u7248\u672C\u53F7\u975E\u6CD5", draft: true },
-  "diag.fallback.install-failed": { en: "Install failed", zh: "\u5B89\u88C5\u6267\u884C\u5931\u8D25", draft: true },
-  "diag.fallback.unknown-profile": { en: "Scope or plugin location not recognized", zh: "\u65E0\u6CD5\u8BC6\u522B\u4F7F\u7528\u8303\u56F4\u6216\u63D2\u4EF6\u5B89\u88C5\u4F4D\u7F6E", draft: true },
-  "diag.fallback.channel-mismatch": { en: "Installed version is not in the selected release channel", zh: "\u5DF2\u5B89\u88C5\u7248\u672C\u4E0E\u5F53\u524D\u7248\u672C\u901A\u9053\u4E0D\u7B26", draft: true },
-  "diag.fallback.source-install": { en: "Installed from source, not by version", zh: "\u6E90\u7801\u5B89\u88C5\u5B9E\u4F8B\uFF0C\u4E0D\u652F\u6301\u7248\u672C\u66F4\u65B0", draft: true },
-  "diag.fallback.invalid-installation": { en: "Installed package is incomplete", zh: "\u5DF2\u5B89\u88C5\u5305\u7ED3\u6784\u4E0D\u5B8C\u6574", draft: true },
-  "diag.fallback.installation-changed": { en: "Install location changed during use", zh: "\u5B89\u88C5\u4F4D\u7F6E\u53D1\u751F\u53D8\u66F4", draft: true },
-  "diag.fallback.pending-restart": { en: "New version is on disk. The running version is still the old one.", zh: "\u65B0\u7248\u672C\u5DF2\u5199\u5165\u78C1\u76D8\uFF0C\u5F53\u524D\u8FD0\u884C\u4ECD\u4E3A\u65E7\u7248\u672C", draft: true },
-  "diag.fallback.incompatible-node": { en: "New version needs a different Node version than the running one", zh: "Node \u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u517C\u5BB9", draft: true },
-  "diag.fallback.incompatible-dsh": { en: "New version needs a newer DSH runtime than the running one", zh: "\u5BBF\u4E3B\u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u517C\u5BB9", draft: true },
-  "diag.fallback.registry-conflict": { en: "Declared version conflicts with the on-disk version", zh: "\u7248\u672C\u58F0\u660E\u4E0E\u78C1\u76D8\u5B9E\u9645\u7248\u672C\u51B2\u7A81", draft: true },
-  "diag.fallback.recovery-required": { en: "Last install was interrupted, leaving a partial task", zh: "\u4E0A\u6B21\u5B89\u88C5\u5F02\u5E38\u4E2D\u65AD\uFF0C\u5B58\u5728\u672A\u5B8C\u6210\u4EFB\u52A1", draft: true },
-  "diag.fallback.dev-source": { en: "Dev-mode source link; update center unavailable", zh: "\u5F00\u53D1\u6001\u6E90\u7801\u94FE\u63A5\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u4E0D\u53EF\u7528", draft: true },
-  "diag.cause.age.target.timed": { en: "Your plugin {package} was published too recently and was blocked by the host supply-chain age policy (installer words in the summary). Retry after {time}; for urgent use ask the host to relax the policy.", zh: "\u672C\u63D2\u4EF6 {package} \u53D1\u5E03\u672A\u6EE1\u5BBF\u4E3B\u5E74\u9F84\u95E8\u9650\uFF0C\u88AB\u4F9B\u5E94\u94FE\u7B56\u7565\u62E6\u622A\uFF08\u5B89\u88C5\u5668\u539F\u8BDD\u89C1\u6458\u8981\uFF09\u3002{time}\u540E\u70B9\u91CD\u8BD5\u5373\u53EF\uFF1B\u6025\u7528\u8BF7\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
-  "diag.cause.age.target.untimed": { en: "Your plugin {package} was blocked by the host supply-chain age policy because it is too new (see the summary). Retry later; for urgent use ask the host to relax the policy.", zh: "\u672C\u63D2\u4EF6 {package} \u56E0\u592A\u65B0\u88AB\u5BBF\u4E3B\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u62E6\u622A\uFF08\u89C1\u6458\u8981\uFF09\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF1B\u6025\u7528\u8BF7\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
-  "diag.cause.age.other.timed": { en: "The installer reports: another package in the same environment, {package}, was rejected by a supply-chain age policy \u2014 not a problem with this plugin itself (see the summary). Retry after {time}; or ask the host to relax the policy.", zh: "\u5B89\u88C5\u5668\u62A5\u544A\uFF1A\u540C\u73AF\u5883\u53E6\u4E00\u5305 {package} \u56E0\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u88AB\u62D2\uFF0C\u4E0D\u662F\u672C\u63D2\u4EF6\u7684\u76F4\u63A5\u95EE\u9898\uFF08\u89C1\u6458\u8981\uFF09\u3002{time}\u540E\u91CD\u8BD5\uFF1B\u6216\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
-  "diag.cause.age.other.untimed": { en: "The installer reports: another package in the same environment, {package}, was rejected by a supply-chain age policy \u2014 not a problem with this plugin itself (see the summary). Retry later, or ask the host to relax the policy.", zh: "\u5B89\u88C5\u5668\u62A5\u544A\uFF1A\u540C\u73AF\u5883\u53E6\u4E00\u5305 {package} \u56E0\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u88AB\u62D2\uFF0C\u4E0D\u662F\u672C\u63D2\u4EF6\u7684\u76F4\u63A5\u95EE\u9898\uFF08\u89C1\u6458\u8981\uFF09\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF0C\u6216\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
-  "install-button.action.installed": { en: "Installed", zh: "\u5DF2\u5B89\u88C5", draft: true }
-};
-function formatTemplate(template, values) {
-  const vals = values ?? {};
-  return String(template).replace(/\{([A-Za-z0-9_]+)\}/g, (_, name) => {
-    const v = vals[name];
-    if (v === null || v === void 0) return "";
-    return String(v).trim();
-  });
-}
-function bilingualEntry(key) {
-  const hit = BILINGUAL_STRINGS[key];
-  if (!hit) throw new Error("[dsh-plugin-update] \u672A\u77E5\u6587\u6848 key\uFF1A" + String(key));
-  return hit;
-}
-function updCopyText(key, lang, values) {
-  const l = normalizeLangTag(lang ?? "zh");
-  const e = bilingualEntry(key);
-  return formatTemplate(l === "en" ? e.en : e.zh, values);
-}
-var BILINGUAL_CSS = [
-  ".dsh-upd-bi{display:inline;overflow-wrap:anywhere}",
-  ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
-].join("\n");
-
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/changelog.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/changelog/parse.js
 var CHANGELOG_FILENAME = "CHANGELOG.md";
 var CHANGELOG_NEUTRAL_HINT = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E";
 var CHANGELOG_NEUTRAL_LINE = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002";
@@ -1537,6 +1154,457 @@ function changelogForUpdate(entries, runningVersion, latestVersion, installedVer
 function escapeChangelogHtml(text) {
   return String(text ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/i18n/dictionary.js
+var BILINGUAL_STRINGS = {
+  "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
+  "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
+  "entry.label.busy": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
+  "entry.label.restart": { en: "Restart required", zh: "\u5F85\u91CD\u542F", draft: true },
+  "entry.label.has-update": { en: "Update available {version}", zh: "\u6709\u65B0\u7248\u672C {version}", draft: true },
+  "entry.action.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
+  "entry.note.up-to-date": { en: "Up to date {version}", zh: "\u5DF2\u662F\u6700\u65B0 {version}", draft: true },
+  "batch-entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
+  "batch-entry.label.update": { en: "{count} updates available", zh: "{count} \u4E2A\u53EF\u66F4\u65B0", draft: true },
+  "batch-entry.label.busy": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
+  "batch-entry.label.restart": { en: "{count} restarts required", zh: "{count} \u4E2A\u5F85\u91CD\u542F", draft: true },
+  // #190：未登记的行重启也不会加载，入口摘要不许把它们算进「待重启」。
+  "batch-entry.label.restart-unregistered": { en: "{count} installed, not registered", zh: "{count} \u4E2A\u5DF2\u88C5\u672A\u767B\u8BB0\uFF08\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D\uFF09", draft: true },
+  "batch-entry.label.restart-mixed": { en: "{count} restarts required, {unregistered} not registered", zh: "{count} \u4E2A\u5F85\u91CD\u542F\uFF0C{unregistered} \u4E2A\u672A\u767B\u8BB0", draft: true },
+  "batch-entry.label.failed": { en: "{count} failed \u2014 View details", zh: "{count} \u4E2A\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
+  "batch-entry.action.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
+  "panel.blocked.unknown-profile.title": { en: "Unrecognized scope or plugin location", zh: "\u65E0\u6CD5\u8BC6\u522B\u4F7F\u7528\u8303\u56F4\u6216\u63D2\u4EF6\u5B89\u88C5\u4F4D\u7F6E", draft: true },
+  "panel.blocked.unknown-profile.action": { en: "Reopen the host and check again; if it persists, send the version and logs to the plugin author; no manual command is provided for this case.", zh: "\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u7248\u672C\u53F7\u4E0E\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF1B\u6B64\u573A\u666F\u4E0D\u63D0\u4F9B\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "panel.blocked.channel-mismatch.title": { en: "Installed version is not in the selected release channel", zh: "\u5DF2\u5B89\u88C5\u7248\u672C\u4E0E\u5F53\u524D\u7248\u672C\u901A\u9053\u4E0D\u7B26", draft: true },
+  "panel.blocked.channel-mismatch.action": { en: "Switch to the prerelease channel, or install the channel release, then check again.", zh: "\u5207\u6362\u81F3\u9884\u53D1\u5E03\u901A\u9053\uFF0C\u6216\u91CD\u65B0\u5B89\u88C5\u672C\u901A\u9053\u6B63\u5F0F\u7248\u672C\u540E\u67E5\u8BE2", draft: true },
+  "panel.blocked.source-install.title": { en: "Installed from source, not by version", zh: "\u6E90\u7801\u5B89\u88C5\u5B9E\u4F8B\uFF0C\u4E0D\u652F\u6301\u7248\u672C\u66F4\u65B0", draft: true },
+  "panel.blocked.source-install.action": { en: "No manual command is provided here; to update, reinstall by version first.", zh: "\u6B64\u573A\u666F\u4E0D\u63D0\u4F9B\u624B\u5DE5\u547D\u4EE4\uFF1B\u5982\u9700\u66F4\u65B0\uFF0C\u8BF7\u6309\u5305\u540D@\u7248\u672C\u53F7\u91CD\u65B0\u5B89\u88C5", draft: true },
+  "panel.blocked.invalid-installation.title": { en: "Installed package is incomplete (name mismatch, invalid version, or missing entry file)", zh: "\u5DF2\u5B89\u88C5\u5305\u7ED3\u6784\u4E0D\u5B8C\u6574\uFF08\u5305\u540D / \u7248\u672C\u53F7 / \u5165\u53E3\u6587\u4EF6\u5F02\u5E38\uFF09", draft: true },
+  "panel.blocked.invalid-installation.action": { en: "Reinstall the current version to repair the install directory, then check again.", zh: "\u91CD\u65B0\u5B89\u88C5\u5F53\u524D\u7248\u672C\u4EE5\u4FEE\u590D\u5B89\u88C5\u76EE\u5F55\uFF0C\u7136\u540E\u91CD\u65B0\u67E5\u8BE2\u66F4\u65B0", draft: true },
+  "panel.blocked.installation-changed.title": { en: "Install location changed during use (directory or package changed)", zh: "\u5B89\u88C5\u4F4D\u7F6E\u53D1\u751F\u53D8\u66F4\uFF08\u76EE\u5F55\u6216\u5305\u4F53\u4E0D\u4E00\u81F4\uFF09", draft: true },
+  "panel.blocked.installation-changed.action": { en: "Reopen the host and check again; if it says you are already up to date, nothing to do; if it persists, reinstall.", zh: "\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u8BF4\u660E\u5DF2\u662F\u6700\u65B0\u5219\u65E0\u9700\u64CD\u4F5C\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u91CD\u65B0\u5B89\u88C5", draft: true },
+  "panel.blocked.pending-restart.title": { en: "New version is on disk; the running instance is still the old version", zh: "\u65B0\u7248\u672C\u5DF2\u5199\u5165\u78C1\u76D8\uFF0C\u5F53\u524D\u8FD0\u884C\u4ECD\u4E3A\u65E7\u7248\u672C", draft: true },
+  "panel.blocked.pending-restart.action": { en: "Restart the host to run the new version; this is a normal end state, not a failure.", zh: "\u91CD\u542F\u5BBF\u4E3B\u4EE5\u52A0\u8F7D\u65B0\u7248\u672C\uFF1B\u6B64\u4E3A\u6B63\u5E38\u72B6\u6001\uFF0C\u975E\u5B89\u88C5\u5931\u8D25", draft: true },
+  "panel.blocked.registry-conflict.title": { en: "Declared version conflicts with the version on disk", zh: "\u7248\u672C\u58F0\u660E\u4E0E\u78C1\u76D8\u5B9E\u9645\u7248\u672C\u51B2\u7A81", draft: true },
+  "panel.blocked.registry-conflict.action": { en: "Open the scope manifest and set the target package line to the version number, then retry.", zh: "\u6838\u5BF9\u4F7F\u7528\u8303\u56F4\u6E05\u5355\u6587\u4EF6\u4E2D\u76EE\u6807\u5305\u7684\u7248\u672C\u58F0\u660E\uFF0C\u4FEE\u6B63\u540E\u91CD\u8BD5", draft: true },
+  "panel.blocked.incompatible-node.title": { en: "Required Node version does not match the running Node", zh: "Node \u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u517C\u5BB9", draft: true },
+  "panel.blocked.incompatible-node.action": { en: "Upgrade Node to 22 or later, then check again.", zh: "\u8BF7\u5347\u7EA7 Node \u81F3 22 \u6216\u66F4\u9AD8\u7248\u672C\u540E\u91CD\u65B0\u67E5\u8BE2", draft: true },
+  "panel.blocked.incompatible-dsh.title": { en: "New version requires a newer DSH runtime", zh: "\u65B0\u7248\u672C\u8981\u6C42\u66F4\u9AD8\u7684\u5BBF\u4E3B\u8FD0\u884C\u65F6\u7248\u672C", draft: true },
+  "panel.blocked.incompatible-dsh.action": { en: "The running DSH does not satisfy the new version; upgrade DSH first, then update.", zh: "\u5F53\u524D\u5BBF\u4E3B\u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u6EE1\u8DB3\u65B0\u7248\u672C\u8981\u6C42\uFF0C\u8BF7\u5148\u5347\u7EA7\u5BBF\u4E3B\u518D\u66F4\u65B0", draft: true },
+  "panel.blocked.recovery-required.title": { en: "Last install was interrupted, leaving a partial task", zh: "\u4E0A\u6B21\u5B89\u88C5\u5F02\u5E38\u4E2D\u65AD\uFF0C\u5B58\u5728\u672A\u5B8C\u6210\u4EFB\u52A1", draft: true },
+  "panel.blocked.recovery-required.action": { en: "Run install once more; if it persists, follow section 6 to troubleshoot.", zh: "\u91CD\u65B0\u6267\u884C\u5B89\u88C5\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u6309\u7B2C 6 \u8282\u6392\u9519", draft: true },
+  "panel.blocked.dev-source.title": { en: "Dev-mode source link, update center unavailable", zh: "\u5F00\u53D1\u6001\u6302\u8F7D\uFF08\u6E90\u7801\u94FE\u63A5\uFF09\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u4E0D\u53EF\u7528", draft: true },
+  "panel.blocked.dev-source.action": { en: "Edit the repo and restart the host to take effect; the update center only serves version installs, no manual command is provided here.", zh: "\u6539\u5B8C\u4ED3\u5E93\u4EE3\u7801\u540E\u91CD\u542F\u5BBF\u4E3B\u751F\u6548\uFF1B\u66F4\u65B0\u4E2D\u5FC3\u53EA\u670D\u52A1\u6309\u7248\u672C\u5B89\u88C5\uFF0C\u6B64\u573A\u666F\u4E0D\u63D0\u4F9B\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "panel.failure.check-failed.title": { en: "Couldn\u2019t check for updates (network, source, or rate limit)", zh: "\u7248\u672C\u4FE1\u606F\u67E5\u8BE2\u5931\u8D25\uFF08\u7F51\u7EDC / \u6570\u636E\u6E90 / \u9650\u6D41\uFF09", draft: true },
+  "panel.failure.check-failed.action": { en: "Try checking again later; if it keeps failing, send the copied diagnostics to the plugin author.", zh: "\u7A0D\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
+  "panel.failure.invalid-release.title": { en: "Release info is invalid (bad version or mismatched content)", zh: "\u53D1\u5E03\u7248\u672C\u4FE1\u606F\u65E0\u6548\uFF08\u7248\u672C\u53F7\u975E\u6CD5\u6216\u5185\u5BB9\u4E0D\u4E00\u81F4\uFF09", draft: true },
+  "panel.failure.invalid-release.action": { en: "Check the package name and version in the manifest, then check again.", zh: "\u6838\u5BF9\u6E05\u5355\u6587\u4EF6\u4E2D\u7684\u5305\u540D\u4E0E\u7248\u672C\u58F0\u660E\u540E\u91CD\u65B0\u67E5\u8BE2", draft: true },
+  "panel.failure.check-expired.title": { en: "Credentials expired; the install request was rejected", zh: "\u67E5\u8BE2\u51ED\u8BC1\u8FC7\u671F\uFF0C\u5B89\u88C5\u8BF7\u6C42\u88AB\u62D2\u7EDD", draft: true },
+  "panel.failure.check-expired.action": { en: "Check for updates again before installing; do not retry with the old ID.", zh: "\u8BF7\u91CD\u65B0\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u540E\u5B89\u88C5\uFF1B\u8BF7\u52FF\u590D\u7528\u8FC7\u671F\u8BF7\u6C42\u7F16\u53F7", draft: true },
+  "panel.failure.update-busy.title": { en: "Another install is running in the same scope", zh: "\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u5185\u5B58\u5728\u8FDB\u884C\u4E2D\u7684\u5B89\u88C5\u4EFB\u52A1", draft: true },
+  "panel.failure.update-busy.action": { en: "Wait until the current task leaves installing/verifying, then try; check status for your queue position.", zh: "\u5F85\u5F53\u524D\u4EFB\u52A1\u9000\u51FA installing/verifying \u72B6\u6001\u540E\u91CD\u8BD5\uFF1B\u6392\u961F\u671F\u95F4\u53EF\u67E5\u8BE2\u4EFB\u52A1\u72B6\u6001\u786E\u8BA4\u961F\u5217\u4F4D\u7F6E", draft: true },
+  "panel.failure.install-failed.title": { en: "Couldn\u2019t install (see the diagnostic summary)", zh: "\u5B89\u88C5\u6267\u884C\u5931\u8D25\uFF0C\u8BE6\u60C5\u89C1\u8BCA\u65AD\u6458\u8981", draft: true },
+  "panel.failure.install-failed.action": { en: "Read the copied diagnostics first; on official desktop builds, send it to the plugin author.", zh: "\u8BF7\u67E5\u9605\u8BCA\u65AD\u6458\u8981\uFF1B\u5B98\u65B9\u684C\u9762\u7248\u8BF7\u63D0\u4EA4\u8BE5\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
+  "panel.failure.internal.title": { en: "Something went wrong; the cause is unknown", zh: "\u5185\u90E8\u9519\u8BEF\uFF0C\u539F\u56E0\u672A\u77E5", draft: true },
+  "panel.failure.internal.action": { en: "Retry once first; if it persists, send the copied diagnostics to the plugin author.", zh: "\u8BF7\u91CD\u8BD5\u4E00\u6B21\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
+  "panel.failure.unknown.title": { en: "Something went wrong; the cause is unknown", zh: "\u5185\u90E8\u9519\u8BEF\uFF0C\u539F\u56E0\u672A\u77E5", draft: true },
+  "panel.failure.unknown.action": { en: "Retry once first; if it persists, send the copied diagnostics to the plugin author (include the code you saw).", zh: "\u8BF7\u91CD\u8BD5\u4E00\u6B21\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u8BF7\u4E00\u5E76\u63D0\u4EA4\u6240\u89C1\u9519\u8BEF\u7801\uFF09", draft: true },
+  "panel.seal.loading.text": { en: "Not checked", zh: "\u5F85\u67E5", draft: true },
+  "panel.seal.loading.mini": { en: "Check", zh: "\u67E5", draft: true },
+  "panel.seal.idle.text": { en: "Not checked", zh: "\u5F85\u67E5", draft: true },
+  "panel.seal.idle.mini": { en: "Check", zh: "\u67E5", draft: true },
+  "panel.seal.update.text": { en: "Update available", zh: "\u53EF\u66F4\u65B0", draft: true },
+  "panel.seal.update.mini": { en: "Install", zh: "\u88C5", draft: true },
+  "panel.seal.busy.text": { en: "Installing", zh: "\u5B89\u88C5\u4E2D", draft: true },
+  "panel.seal.busy.mini": { en: "Install", zh: "\u88C5", draft: true },
+  "panel.seal.restart.text": { en: "Restart required", zh: "\u5F85\u91CD\u542F", draft: true },
+  "panel.seal.restart.mini": { en: "Restart", zh: "\u542F", draft: true },
+  "panel.seal.blocked.text": { en: "Blocked \u2014 Action needed", zh: "\u53D7\u963B", draft: true },
+  "panel.seal.blocked.mini": { en: "Blocked", zh: "\u963B", draft: true },
+  "panel.seal.failed.text": { en: "Failed \u2014 Retry available", zh: "\u5931\u8D25", draft: true },
+  "panel.seal.failed.mini": { en: "Failed", zh: "\u963B", draft: true },
+  "panel.seal.done.text": { en: "Up to date", zh: "\u5DF2\u662F\u6700\u65B0", draft: true },
+  "panel.seal.done.mini": { en: "Done", zh: "\u5B9A", draft: true },
+  "panel.banner.error.title": { en: "Update failed ({code}): {detail}.", zh: "\u66F4\u65B0\u5931\u8D25\uFF08{code}\uFF09\uFF1A{detail}\u3002", draft: true },
+  "panel.banner.error.action-fallback": { en: "Copy the diagnostics for the plugin author; see the log channel for details.", zh: "\u8BF7\u590D\u5236\u8BCA\u65AD\u4FE1\u606F\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF1B\u8BE6\u60C5\u8BF7\u67E5\u770B\u65E5\u5FD7\u901A\u9053\u3002", draft: true },
+  "panel.action.retry-install": { en: "Retry install", zh: "\u91CD\u8BD5\u5B89\u88C5", draft: true },
+  "panel.banner.loading": { en: "Loading update status\u2026", zh: "\u6B63\u5728\u8BFB\u53D6\u66F4\u65B0\u72B6\u6001\u2026", draft: true },
+  "panel.action.install": { en: "Install update", zh: "\u5B89\u88C5\u66F4\u65B0", draft: true },
+  "panel.queue.busy-self": { en: "Installing (this plugin is installing).", zh: "\u672C\u63D2\u4EF6\u6B63\u5728\u5B89\u88C5\u3002", draft: true },
+  "panel.queue.busy-queued": { en: "An install is running ahead; this plugin is #{n} in queue. Install when it reaches the front.", zh: "\u524D\u65B9\u6709\u5B89\u88C5\u6B63\u5728\u8FDB\u884C\uFF0C\u672C\u63D2\u4EF6\u6392\u7B2C {n} \u4F4D\uFF1B\u5230\u961F\u9996\u540E\u8BF7\u9009\u62E9\u5B89\u88C5\u3002", draft: true },
+  "panel.queue.busy-other": { en: "Another plugin is installing; retry later.", zh: "\u524D\u65B9\u6709\u5176\u4ED6\u63D2\u4EF6\u6B63\u5728\u5B89\u88C5\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002", draft: true },
+  "panel.skip.skipped-title": { en: "Skipped {latest}", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {latest}", draft: true },
+  "panel.skip.skipped-action": { en: "Select \u201CRestore\u201D to be reminded of this version again; newer versions will still notify.", zh: "\u9009\u62E9\u300C\u6062\u590D\u63D0\u9192\u300D\u53EF\u91CD\u65B0\u63D0\u9192\u8BE5\u7248\u672C\uFF1B\u66F4\u65B0\u7684\u7248\u672C\u4ECD\u4F1A\u6B63\u5E38\u63D0\u9192\u3002", draft: true },
+  "panel.banner.restart-title": { en: "Version {latest} is installed; restart the host to take effect.", zh: "\u65B0\u7248\u672C {latest} \u5DF2\u5B89\u88C5\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
+  // #190：在册事实为 false 时不能说满——重启宿主也不会加载未登记的插件。
+  "panel.banner.restart-unregistered-title": { en: "Version {latest} is on disk, but this plugin is not registered in the scope selection, so restarting the host will not load it.", zh: "\u65B0\u7248\u672C {latest} \u5DF2\u5199\u5165\u78C1\u76D8\uFF0C\u4F46\u8BE5\u63D2\u4EF6\u672A\u767B\u8BB0\u5728\u4F7F\u7528\u8303\u56F4\u6E05\u5355\uFF0C\u91CD\u542F\u5BBF\u4E3B\u4E5F\u4E0D\u4F1A\u52A0\u8F7D\u3002", draft: true },
+  "panel.banner.restart-unregistered-action": { en: "Select this plugin in the host plugin page first, then restart the host to load the new version.", zh: "\u8BF7\u5148\u5728\u5BBF\u4E3B\u63D2\u4EF6\u9875\u9009\u4E2D\u8BE5\u63D2\u4EF6\uFF0C\u518D\u91CD\u542F\u5BBF\u4E3B\u4EE5\u52A0\u8F7D\u65B0\u7248\u672C\u3002", draft: true },
+  "panel.banner.installing-title": { en: "Installing {version}\u2026 Closing the panel won\u2019t interrupt it.", zh: "\u6B63\u5728\u5B89\u88C5 {version}\u2026\u5173\u95ED\u9762\u677F\u4E0D\u4F1A\u4E2D\u65AD\u3002", draft: true },
+  "panel.banner.installing-action": { en: "Progress refreshes automatically; reopening the panel restores the view within a second.", zh: "\u8FDB\u5EA6\u5C06\u81EA\u52A8\u8F6E\u8BE2\u5237\u65B0\uFF1B\u91CD\u65B0\u6253\u5F00\u9762\u677F\u5C06\u5728 1 \u79D2\u5185\u6062\u590D\u663E\u793A\u3002", draft: true },
+  "panel.action.installing": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
+  "panel.banner.update-title": { en: "Update available: {latest} (current: {running}).", zh: "\u6709\u65B0\u7248\u672C {latest} \u53EF\u5B89\u88C5\uFF08\u5F53\u524D\u7248\u672C {running}\uFF09\u3002", draft: true },
+  "panel.banner.update-action": { en: "Install runs the exact version; only one install runs per scope at a time.", zh: "\u9009\u62E9\u5B89\u88C5\u5C06\u6309\u7CBE\u786E\u7248\u672C\u5B89\u88C5\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879\u3002", draft: true },
+  "panel.banner.unknown-running-title": { en: "Running version unknown; cannot tell whether an update is available.", zh: "\u8FD0\u884C\u7248\u672C\u672A\u77E5\uFF0C\u65E0\u6CD5\u5224\u65AD\u662F\u5426\u6709\u65B0\u7248\u53EF\u88C5\u3002", draft: true },
+  "panel.banner.unknown-running-action": { en: "Check the plugin version in the host manifest and reopen the host, then check again.", zh: "\u8BF7\u68C0\u67E5\u5BBF\u4E3B\u6E05\u5355\u91CC\u7684\u63D2\u4EF6\u7248\u672C\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2", draft: true },
+  "panel.action.install-version": { en: "Install {latest}", zh: "\u5B89\u88C5\u7248\u672C {latest}", draft: true },
+  "panel.banner.first-install-title": { en: "First install: {latest} (new dependency).", zh: "\u9996\u6B21\u5B89\u88C5 {latest}\uFF08\u65B0\u589E\u4F9D\u8D56\uFF09\u3002", draft: true },
+  "panel.banner.first-install-action": { en: "Restart the host after installing for it to load.", zh: "\u88C5\u5B8C\u9700\u8981\u91CD\u542F\u5BBF\u4E3B\u624D\u4F1A\u52A0\u8F7D\u3002", draft: true },
+  "panel.action.first-install-version": { en: "Install {latest} (first time)", zh: "\u9996\u6B21\u5B89\u88C5 {latest}", draft: true },
+  "panel.banner.update-gated-title": { en: "Version {latest} was just published and is still gated ({unlock}); installing now will fail \u2014 use Install fallback build below if you cannot wait.", zh: "\u65B0\u7248\u672C {latest} \u521A\u53D1\u5E03\u672A\u6EE1\u95E8\uFF0C{unlock}\u53EF\u88C5\uFF1B\u73B0\u5728\u70B9\u5B89\u88C5\u4F1A\u5931\u8D25\uFF0C\u7B49\u4E0D\u53CA\u53EF\u5148\u88C5\u5408\u89C4\u7248\u3002", draft: true },
+  "panel.action.install-gated-title": { en: "Come back {unlock} to install {latest}; it is still gated and would fail now.", zh: "{unlock}\u518D\u6765\u88C5 {latest} \u5427\uFF0C\u73B0\u5728\u88C5\u4F1A\u88AB\u95E8\u62E6\u4F4F\u3002", draft: true },
+  "panel.banner.done": { en: "Up to date. No update needed.", zh: "\u5DF2\u662F\u6700\u65B0\uFF0C\u65E0\u9700\u66F4\u65B0\u3002", draft: true },
+  "panel.banner.not-installed": { en: "Not installed", zh: "\u672A\u5B89\u88C5", draft: true },
+  "panel.toast.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
+  "panel.toast.installing": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
+  "panel.toast.copy-manual-ok": { en: "Manual command copied; paste the full line into the terminal to run it.", zh: "\u624B\u5DE5\u547D\u4EE4\u5DF2\u590D\u5236\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u6574\u884C\u6267\u884C\u3002", draft: true },
+  "panel.toast.copy-manual-fail": { en: "Copy failed; please select the command above manually.", zh: "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u4E0A\u65B9\u547D\u4EE4\u3002", draft: true },
+  "panel.toast.copy-diag-ok": { en: "Diagnostics copied; paste it to the plugin author (already redacted).", zh: "\u8BCA\u65AD\u4FE1\u606F\u5DF2\u590D\u5236\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
+  "panel.toast.copy-diag-fail": { en: "Copy failed; please select the info above manually.", zh: "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u4E0A\u65B9\u4FE1\u606F\u3002", draft: true },
+  "panel.toast.restart-delegated": { en: "Handled by the caller\u2019s restart flow; the new version takes effect after restart.", zh: "\u5DF2\u6309\u8C03\u7528\u65B9\u91CD\u542F\u6D41\u7A0B\u5904\u7406\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
+  "panel.toast.restart-manual": { en: "This host provides no restart entry; please restart the host manually. The new version takes effect after restart.", zh: "\u672C\u5BBF\u4E3B\u672A\u63D0\u4F9B\u91CD\u542F\u5165\u53E3\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
+  "panel.toast.restart-failed": { en: "Restart entry failed; please restart the host manually. The new version takes effect after restart.", zh: "\u91CD\u542F\u5165\u53E3\u8C03\u7528\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
+  "panel.toast.copy-state-ok": { en: "Current state copied (no failure); paste it to the plugin author (already redacted).", zh: "\u5F53\u524D\u72B6\u6001\u5DF2\u590D\u5236\uFF08\u65E0\u5931\u8D25\uFF09\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
+  "panel.toast.failure-dismissed": { en: "Failure acknowledged; it will be re-evaluated on the next check or install.", zh: "\u5DF2\u786E\u8BA4\u8BE5\u5931\u8D25\u63D0\u793A\uFF1B\u4E0B\u6B21\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u6216\u5B89\u88C5\u5C06\u91CD\u65B0\u8BC4\u4F30\u3002", draft: true },
+  "panel.toast.fallback-unavailable": { en: "No compliant build for this failure; see the diagnostics or retry later.", zh: "\u8FD9\u6B21\u5931\u8D25\u7528\u4E0D\u4E0A\u5408\u89C4\u7248\uFF0C\u8BF7\u770B\u8BCA\u65AD\u4FE1\u606F\u6216\u7A0D\u540E\u91CD\u8BD5\u3002", draft: true },
+  "panel.toast.fallback-wait": { en: "Latest should clear around {time}; no earlier compliant build for now.", zh: "\u6700\u65B0\u7248\u7EA6 {time} \u53EF\u88C5\uFF0C\u6682\u65E0\u66F4\u65E9\u7684\u5408\u89C4\u7248\u3002", draft: true },
+  "panel.strip.running": { en: "Running", zh: "\u8FD0\u884C\u7248", draft: true },
+  "panel.strip.installed": { en: "Installed", zh: "\u5DF2\u5B89\u88C5", draft: true },
+  "panel.strip.latest": { en: "Latest", zh: "\u6700\u65B0\u7248", draft: true },
+  "panel.meta.label": { en: "Scope", zh: "\u4F7F\u7528\u8303\u56F4", draft: true },
+  "panel.meta.unknown": { en: "Unknown", zh: "\u672A\u77E5", draft: true },
+  "panel.masthead.kicker": { en: "Plugin update", zh: "\u63D2\u4EF6\u66F4\u65B0", draft: true },
+  "panel.masthead.title": { en: "Update archive", zh: "\u66F4\u65B0\u6863\u6848", draft: true },
+  "panel.masthead.volume": { en: "Vol.", zh: "\u5377", draft: true },
+  "panel.chapter.check": { en: "Check and install", zh: "\u68C0\u67E5\u4E0E\u5B89\u88C5", draft: true },
+  "panel.chapter.changelog": { en: "Changelog", zh: "\u66F4\u65B0\u65E5\u5FD7", draft: true },
+  "panel.chapter.queue": { en: "Update queue", zh: "\u66F4\u65B0\u961F\u5217", draft: true },
+  "panel.chapter.error": { en: "Error details", zh: "\u9519\u8BEF\u4FE1\u606F", draft: true },
+  "panel.chapter.manual": { en: "Manual command", zh: "\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "panel.progress.installing": { en: "Installing new version\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u65B0\u7248\u672C\u2026", draft: true },
+  "panel.progress.verifying": { en: "Verifying install result\u2026", zh: "\u6B63\u5728\u6821\u9A8C\u5B89\u88C5\u7ED3\u679C\u2026", draft: true },
+  "panel.action.check": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
+  "panel.action.check-title": { en: "Check the official source once more (read-only, never installs)", zh: "\u91CD\u65B0\u5411\u5B98\u65B9\u6E90\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\uFF08\u53EA\u8BFB\uFF0C\u4E0D\u5B89\u88C5\uFF09", draft: true },
+  "panel.action.checking-busy": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
+  "panel.action.checking-busy-title": { en: "Checking the official source; please wait", zh: "\u6B63\u5728\u5411\u5B98\u65B9\u6E90\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019", draft: true },
+  "panel.action.installing-busy": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
+  "panel.action.installing-busy-title": { en: "Installing; please wait", zh: "\u6B63\u5728\u5B89\u88C5\uFF0C\u8BF7\u7A0D\u5019", draft: true },
+  "panel.action.install-title": { en: "Install the exact version; one install per scope at a time", zh: "\u6309\u7CBE\u786E\u7248\u672C\u5B89\u88C5\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879", draft: true },
+  "panel.action.skip": { en: "Skip this version", zh: "\u8DF3\u8FC7\u8BE5\u7248\u672C", draft: true },
+  "panel.action.skip-title": { en: "This version will no longer notify; newer versions still will", zh: "\u8BE5\u7248\u672C\u5C06\u4E0D\u518D\u63D0\u9192\uFF1B\u66F4\u65B0\u7684\u7248\u672C\u4ECD\u4F1A\u6B63\u5E38\u63D0\u9192", draft: true },
+  "panel.action.unskip": { en: "Restore ({version})", zh: "\u6062\u590D\u63D0\u9192\uFF08{version}\uFF09", draft: true },
+  "panel.action.unskip-title": { en: "Undo skip; this version will remind again", zh: "\u64A4\u9500\u8DF3\u8FC7\uFF0C\u8BE5\u7248\u672C\u5C06\u91CD\u65B0\u63D0\u9192", draft: true },
+  "panel.action.copy-manual": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "panel.action.copy-manual-title": { en: "Copy the manual command; paste the full line into the terminal", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u6574\u884C\u6267\u884C", draft: true },
+  "panel.action.restart-host": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
+  "panel.action.restart-host-title": { en: "Run the caller restart flow if available, otherwise restart DSH manually", zh: "\u4F18\u5148\u8D70\u8C03\u7528\u65B9\u91CD\u542F\u6D41\u7A0B\uFF1B\u82E5\u65E0\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F DSH", draft: true },
+  "panel.action.dismiss": { en: "Got it", zh: "\u5DF2\u77E5\u6653", draft: true },
+  "panel.action.dismiss-title": { en: "Acknowledge the failure and return; next check or install will re-evaluate", zh: "\u786E\u8BA4\u5DF2\u77E5\u6653\u8BE5\u5931\u8D25\uFF1A\u8FD4\u56DE\u53EF\u5B89\u88C5\u9875\uFF0C\u4E0B\u6B21\u67E5\u8BE2\u6216\u5B89\u88C5\u5C06\u91CD\u65B0\u8BC4\u4F30", draft: true },
+  "panel.action.install-fallback": { en: "Install compliant build", zh: "\u88C5\u5408\u89C4\u7248", draft: true },
+  "panel.action.install-fallback-title": { en: "Resolve an age-compliant version first, then confirm; never installs an older version silently", zh: "\u5148\u51B3\u8BAE\u4E00\u4E2A\u6EE1\u95E8\u9650\u7684\u7248\u672C\u518D\u8BF7\u4F60\u786E\u8BA4\uFF0C\u4E0D\u4F1A\u9759\u9ED8\u88C5\u65E7\u7248", draft: true },
+  "panel.action.install-fallback-confirm": { en: "Confirm install {version}", zh: "\u786E\u8BA4\u88C5 {version}", draft: true },
+  "panel.action.install-fallback-confirm-title": { en: "Install this exact version now", zh: "\u70B9\u4E0B\u53BB\u5373\u5B89\u88C5\u8BE5\u7CBE\u786E\u7248\u672C", draft: true },
+  "panel.action.wait-latest": { en: "Wait for latest", zh: "\u7B49\u65B0\u7248", draft: true },
+  "panel.action.wait-latest-title": { en: "Dismiss this failure; install again once the latest clears the age gate", zh: "\u6536\u8D77\u8FD9\u6B21\u5931\u8D25\uFF1B\u6700\u65B0\u7248\u6EE1\u95E8\u9650\u540E\u53EF\u518D\u88C5", draft: true },
+  "panel.action.copy-diag": { en: "Copy diagnostics", zh: "\u590D\u5236\u8BCA\u65AD", draft: true },
+  "panel.action.copy-diag-title": { en: "Copy redacted diagnostics for the plugin author", zh: "\u590D\u5236\u5DF2\u8131\u654F\u8BCA\u65AD\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
+  "panel.skip.line-tag": { en: "Skipped {version}", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {version}", draft: true },
+  "panel.skip.line-note": { en: "Select \u201CRestore\u201D to undo; this version will remind again.", zh: "\u9009\u62E9\u300C\u6062\u590D\u63D0\u9192\u300D\u53EF\u64A4\u9500\uFF0C\u8BE5\u7248\u672C\u6B64\u540E\u4ECD\u4F1A\u63D0\u9192\u3002", draft: true },
+  "panel.changelog.heading": { en: "Changelog:", zh: "\u66F4\u65B0\u8BF4\u660E\uFF1A", draft: true },
+  "panel.changelog.heading-range": { en: "Changelog ({from} \u2192 {to}):", zh: "\u66F4\u65B0\u8BF4\u660E\uFF08{from} \u2192 {to}\uFF09\uFF1A", draft: true },
+  "panel.changelog.unavailable": { en: "Could not read logs; install is unaffected.", zh: "\u66F4\u65B0\u65E5\u5FD7\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002", draft: true },
+  "panel.changelog.unavailable-empty": { en: "No release found yet; logs will show after a check.", zh: "\u5C1A\u672A\u67E5\u8BE2\u5230\u65B0\u7248\u672C\uFF1B\u67E5\u8BE2\u5230\u540E\u5C06\u663E\u793A\u66F4\u65B0\u65E5\u5FD7\u3002", draft: true },
+  // #213：空文件 / 包内无更新说明 / 取数失败 / 有文无结构 —— 四档各自说清「不是什么」，面板按宿主判定选键。
+  "panel.changelog.status.empty": { en: "This release's changelog is an empty file - not a fetch failure.", zh: "\u8BE5\u7248\u672C\u7684\u66F4\u65B0\u8BF4\u660E\u662F\u7A7A\u6587\u4EF6\uFF0C\u4E0D\u662F\u53D6\u6570\u5931\u8D25\u3002", draft: true },
+  "panel.changelog.status.missing": { en: "This release's package contains no changelog file - not a fetch failure.", zh: "\u8BE5\u7248\u672C\u5305\u91CC\u6CA1\u6709\u66F4\u65B0\u8BF4\u660E\u6587\u4EF6\uFF0C\u4E0D\u662F\u53D6\u6570\u5931\u8D25\u3002", draft: true },
+  // #213 裁决：取数失败不许承诺「可以重试」（宿主按版本永久记，重问只会回同一结论）——只说成因。
+  "panel.changelog.status.fetch-failed": { en: "The changelog could not be fetched (network or integrity check failed).", zh: "\u66F4\u65B0\u8BF4\u660E\u6CA1\u53D6\u5230\uFF08\u7F51\u7EDC\u6216\u5B8C\u6574\u6027\u6821\u9A8C\u5931\u8D25\uFF09\u3002", draft: true },
+  "panel.changelog.status.parse-degraded": { en: "The changelog has content, but no structure could be parsed out of it - it is not missing.", zh: "\u66F4\u65B0\u8BF4\u660E\u6709\u5185\u5BB9\uFF0C\u4F46\u6CA1\u89E3\u6790\u51FA\u7ED3\u6784\uFF0C\u4E0D\u662F\u6CA1\u6709\u8BF4\u660E\u3002", draft: true },
+  "panel.changelog.toggle-title": { en: "Expand or collapse changelog", zh: "\u5C55\u5F00\u6216\u6536\u8D77\u66F4\u65B0\u65E5\u5FD7", draft: true },
+  "panel.changelog.expand": { en: "Expand changelog", zh: "\u5C55\u5F00\u66F4\u65B0\u65E5\u5FD7", draft: true },
+  "panel.changelog.collapse": { en: "Collapse changelog", zh: "\u6536\u8D77\u66F4\u65B0\u65E5\u5FD7", draft: true },
+  "panel.queue.state-idle": { en: "Idle", zh: "\u7A7A\u95F2", draft: true },
+  "panel.queue.other": { en: "Other plugin", zh: "\u5176\u4ED6\u63D2\u4EF6", draft: true },
+  "panel.queue.self": { en: "This plugin", zh: "\u672C\u63D2\u4EF6", draft: true },
+  "panel.queue.pos-absent": { en: "Not queued", zh: "\u672A\u6392\u961F", draft: true },
+  "panel.queue.pos-n": { en: "Position {n}", zh: "\u6392\u961F\u7B2C {n} \u4F4D", draft: true },
+  "panel.queue.pos-next": { en: "You are next", zh: "\u4E0B\u4E00\u4F4D\u5C31\u662F\u4F60", draft: true },
+  "panel.queue.pos-ahead": { en: "{n} ahead", zh: "\u524D\u65B9\u8FD8\u6709 {n} \u9879", draft: true },
+  "panel.queue.row-installing": { en: "Installing", zh: "\u6B63\u5728\u5B89\u88C5", draft: true },
+  "panel.queue.row-installing-note": { en: "You are next when it finishes", zh: "\u5B89\u88C5\u5B8C\u6210\u540E\u81EA\u52A8\u8F6E\u5230\u4F60", draft: true },
+  "panel.queue.row-idle-note": { en: "One install per scope at a time", zh: "\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879", draft: true },
+  "panel.queue.row-position": { en: "Your position", zh: "\u4F60\u7684\u6392\u961F\u987A\u4F4D", draft: true },
+  "panel.queue.row-order": { en: "Queue order", zh: "\u6392\u961F\u987A\u5E8F", draft: true },
+  "panel.queue.toggle-hide": { en: "Hide others", zh: "\u9690\u85CF\u5176\u4ED6\u63D2\u4EF6\u660E\u7EC6", draft: true },
+  "panel.queue.toggle-show": { en: "Show others", zh: "\u663E\u793A\u5176\u4ED6\u63D2\u4EF6", draft: true },
+  "panel.queue.empty": { en: "No queued tasks; one install per scope at a time.", zh: "\u5F53\u524D\u65E0\u6392\u961F\u4EFB\u52A1\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879\u3002", draft: true },
+  "panel.error.code-label": { en: "Stable code", zh: "\u7A33\u5B9A\u7801", draft: true },
+  "panel.error.code-note": { en: "The line above tells you what to do; to report upstream, paste \u201CCopy diagnostics\u201D as a whole (already redacted).", zh: "\u4E0A\u65B9\u4E2D\u6587\u8BF4\u660E\u5373\u9700\u6267\u884C\u7684\u64CD\u4F5C\uFF1B\u5982\u9700\u5411\u4E0A\u6E38\u53CD\u9988\uFF0C\u8BF7\u4F7F\u7528\u300C\u590D\u5236\u8BCA\u65AD\u300D\u6574\u6BB5\u7C98\u8D34\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
+  "panel.error.query-request": { en: "Request", zh: "\u8BF7\u6C42", draft: true },
+  "panel.error.query-check": { en: "Check", zh: "\u68C0\u67E5", draft: true },
+  "panel.error.failed-at": { en: "Failed at {time}", zh: "\u5931\u8D25\u65F6\u95F4 {time}", draft: true },
+  "panel.error.query-keys": { en: "Query keys: {keys} (use them to match in logs).", zh: "\u672C\u6B21\u67E5\u8BE2\u952E\uFF1A{keys}\uFF08\u53EF\u51ED\u6B64\u5728\u65E5\u5FD7\u4E2D\u68C0\u7D22\u5339\u914D\uFF09\u3002", draft: true },
+  "panel.error.target-version": { en: "Failed target {version}", zh: "\u5931\u8D25\u76EE\u6807\u7248\u672C {version}", draft: true },
+  "panel.error.evidence-frozen": { en: "Evidence frozen: the code, versions, and IDs in copied diagnostics are from the failure moment and do not refresh with polling; the next check or install will update them.", zh: "\u8BC1\u636E\u5DF2\u51BB\u7ED3\uFF1A\u590D\u5236\u8BCA\u65AD\u4E2D\u7684\u7A33\u5B9A\u7801\u3001\u7248\u672C\u4E0E\u7F16\u53F7\u5747\u53D6\u81EA\u5931\u8D25\u65F6\u523B\uFF0C\u4E0D\u968F\u8F6E\u8BE2\u5237\u65B0\uFF1B\u4E0B\u6B21\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u6216\u5B89\u88C5\u5C06\u66F4\u65B0\u3002", draft: true },
+  "panel.error.evidence-transient": { en: "Transient read failure: it clears on the next successful read; if it persists, troubleshoot by stable code.", zh: "\u77AC\u6001\u8BFB\u53D6\u5931\u8D25\uFF1A\u4E0B\u6B21\u6210\u529F\u8BFB\u53D6\u5C06\u81EA\u52A8\u89E3\u9664\uFF1B\u82E5\u6301\u7EED\u51FA\u73B0\uFF0C\u8BF7\u6309\u7A33\u5B9A\u7801\u6392\u67E5\u3002", draft: true },
+  "panel.error.no-failure": { en: "No failure: copying diagnostics gives the current state snapshot.", zh: "\u6682\u65E0\u5931\u8D25\uFF1A\u6B64\u65F6\u590D\u5236\u8BCA\u65AD\u63D0\u4F9B\u7684\u662F\u5F53\u524D\u72B6\u6001\u5FEB\u7167\u3002", draft: true },
+  "panel.error.log-hint": { en: "Check logs: {dir} (one directory per plugin, no overlap). Read them with {cmd}; filter by plugin ID {pluginId} for events {e1}, {e2}, {e3}.", zh: "\u8BF7\u67E5\u770B\u65E5\u5FD7\uFF1A{dir}\uFF08\u4E00\u4E2A\u63D2\u4EF6\u4E00\u68F5\u76EE\u5F55\uFF0C\u4E92\u4E0D\u8986\u76D6\uFF09\u3002\u4E00\u6761\u547D\u4EE4\u770B\uFF1A{cmd}\uFF1B\u6309\u63D2\u4EF6\u6807\u8BC6 {pluginId} \u7B5B\u9009 {e1}\u3001{e2}\u3001{e3} \u4E8B\u4EF6\u3002", draft: true },
+  "panel.error.log-follow": { en: "Match the request/check IDs above in {eFail}; baseline timing in {eCall}, execution result in {eExec}.", zh: "\u51ED\u4E0A\u65B9\u8BF7\u6C42\uFF0F\u68C0\u67E5\u7F16\u53F7\u5728 {eFail} \u4E2D\u5339\u914D\uFF1B\u57FA\u7EBF\u8017\u65F6\u8BF7\u67E5\u770B {eCall}\uFF0C\u6267\u884C\u7ED3\u679C\u8BF7\u67E5\u770B {eExec}\u3002", draft: true },
+  // #212 日志健康（面板日志区与复制诊断共用的唯一措辞源）：机读码（self/external/pending/off、
+  // contract 四态、三个原因码）全部走具名槽传值，模板本身不含 ASCII —— 中文只存这里，机读真值不译。
+  "panel.loghealth.line": { en: "Log: {text}", zh: "\u65E5\u5FD7\uFF1A{text}", draft: true },
+  "panel.loghealth.self": { en: "sink={sink} (own store built by this package); dir hash={dirHash}; on-demand info switch={switch}; dropped since start: {dropped} rows; last event={lastEvent}; event contract={contract}", zh: "\u843D\u70B9={sink}\uFF08\u672C\u5305\u81EA\u5EFA\u843D\u70B9\uFF09\uFF1B\u76EE\u5F55\u6307\u7EB9={dirHash}\uFF1B\u6309\u9700\u4FE1\u606F\u5F00\u5173={switch}\uFF1B\u542F\u52A8\u4EE5\u6765\u4E22\u5F03 {dropped} \u884C\uFF1B\u6700\u8FD1\u4E8B\u4EF6={lastEvent}\uFF1B\u4E8B\u4EF6\u5951\u7EA6={contract}", draft: true },
+  "panel.loghealth.external.open": { en: "sink={sink} (rows land in the integrator instance); the other engine confirms this package's events are allowed; dir hash not guessed (that is the other instance's directory); dropped since start: {dropped} rows (this package's emit side only); last event={lastEvent}; event contract={contract}", zh: "\u843D\u70B9={sink}\uFF08\u843D\u76D8\u5F52\u96C6\u6210\u65B9\u5B9E\u4F8B\uFF09\uFF1B\u5BF9\u65B9\u5F15\u64CE\u786E\u8BA4\u653E\u884C\u672C\u5305\u4E8B\u4EF6\uFF1B\u76EE\u5F55\u6307\u7EB9\u672C\u5305\u4E0D\u731C\uFF08\u90A3\u662F\u5BF9\u65B9\u5B9E\u4F8B\u7684\u76EE\u5F55\uFF09\uFF1B\u542F\u52A8\u4EE5\u6765\u4E22\u5F03 {dropped} \u884C\uFF08\u53EA\u7B97\u672C\u5305\u53D1\u5C04\u53E3\uFF09\uFF1B\u6700\u8FD1\u4E8B\u4EF6={lastEvent}\uFF1B\u4E8B\u4EF6\u5951\u7EA6={contract}", draft: true },
+  "panel.loghealth.external.closed": { en: "sink={sink} (rows land in the integrator instance); the other engine has not allowed this package's events (not on the always-on list, or the switch is off); dir hash not guessed (that is the other instance's directory); dropped since start: {dropped} rows (this package's emit side only); last event={lastEvent}; event contract={contract}", zh: "\u843D\u70B9={sink}\uFF08\u843D\u76D8\u5F52\u96C6\u6210\u65B9\u5B9E\u4F8B\uFF09\uFF1B\u5BF9\u65B9\u5F15\u64CE\u672A\u653E\u884C\u672C\u5305\u4E8B\u4EF6\uFF08\u5E38\u9A7B\u540D\u5355\u6CA1\u5B83\uFF0C\u6216\u5F00\u5173\u6CA1\u5F00\uFF09\uFF1B\u76EE\u5F55\u6307\u7EB9\u672C\u5305\u4E0D\u731C\uFF08\u90A3\u662F\u5BF9\u65B9\u5B9E\u4F8B\u7684\u76EE\u5F55\uFF09\uFF1B\u542F\u52A8\u4EE5\u6765\u4E22\u5F03 {dropped} \u884C\uFF08\u53EA\u7B97\u672C\u5305\u53D1\u5C04\u53E3\uFF09\uFF1B\u6700\u8FD1\u4E8B\u4EF6={lastEvent}\uFF1B\u4E8B\u4EF6\u5951\u7EA6={contract}", draft: true },
+  "panel.loghealth.external.unknown": { en: "sink={sink} (rows land in the integrator instance); unverified (the other side gave no criterion; do not conclude that logs exist); dir hash not guessed (that is the other instance's directory); dropped since start: {dropped} rows (this package's emit side only); last event={lastEvent}; event contract={contract}", zh: "\u843D\u70B9={sink}\uFF08\u843D\u76D8\u5F52\u96C6\u6210\u65B9\u5B9E\u4F8B\uFF09\uFF1B\u672A\u9A8C\u8BC1\uFF08\u5BF9\u65B9\u6CA1\u7ED9\u5224\u636E\uFF0C\u4E0D\u80FD\u5F53\u6709\u65E5\u5FD7\u4E0B\u7ED3\u8BBA\uFF09\uFF1B\u76EE\u5F55\u6307\u7EB9\u672C\u5305\u4E0D\u731C\uFF08\u90A3\u662F\u5BF9\u65B9\u5B9E\u4F8B\u7684\u76EE\u5F55\uFF09\uFF1B\u542F\u52A8\u4EE5\u6765\u4E22\u5F03 {dropped} \u884C\uFF08\u53EA\u7B97\u672C\u5305\u53D1\u5C04\u53E3\uFF09\uFF1B\u6700\u8FD1\u4E8B\u4EF6={lastEvent}\uFF1B\u4E8B\u4EF6\u5951\u7EA6={contract}", draft: true },
+  "panel.loghealth.off": { en: "sink={sink} (not wired up); reason={reason}; this package will write no more rows to the log directory \u2014 rely on out-of-band evidence (status reply / this panel / copied diagnostics); dropped since start: {dropped} rows; event contract={contract}", zh: "\u843D\u70B9={sink}\uFF08\u6CA1\u63A5\u4E0A\uFF09\uFF1B\u539F\u56E0={reason}\uFF1B\u672C\u5305\u4E0D\u4F1A\u518D\u5F80\u65E5\u5FD7\u76EE\u5F55\u5199\u884C\uFF0C\u8BF7\u4EE5\u5E26\u5916\u8BC1\u636E\u4E3A\u51C6\uFF08\u66F4\u65B0\u56DE\u5305 / \u672C\u9762\u677F / \u590D\u5236\u8BCA\u65AD\uFF09\uFF1B\u542F\u52A8\u4EE5\u6765\u4E22\u5F03 {dropped} \u884C\uFF1B\u4E8B\u4EF6\u5951\u7EA6={contract}", draft: true },
+  "panel.loghealth.pending": { en: "sink={sink} (the own store is still being created asynchronously); still wiring up, re-check shortly; dir hash={dirHash}; dropped since start: {dropped} rows; event contract={contract}", zh: "\u843D\u70B9={sink}\uFF08\u81EA\u5EFA\u5B9E\u4F8B\u6B63\u5728\u5F02\u6B65\u5EFA\u5E93\uFF09\uFF1B\u63A5\u7EBF\u4E2D\uFF0C\u7A0D\u540E\u91CD\u67E5\uFF1B\u76EE\u5F55\u6307\u7EB9={dirHash}\uFF1B\u542F\u52A8\u4EE5\u6765\u4E22\u5F03 {dropped} \u884C\uFF1B\u4E8B\u4EF6\u5951\u7EA6={contract}", draft: true },
+  "panel.loghealth.unrecognized": { en: "sink reading not recognized (the panel and the updater may be different versions); treat it as unverified \u2014 do not judge whether logs exist", zh: "\u843D\u70B9\u8BFB\u6570\u65E0\u6CD5\u8BC6\u522B\uFF08\u53EF\u80FD\u662F\u9762\u677F\u4E0E\u66F4\u65B0\u5668\u7248\u672C\u4E0D\u4E00\u81F4\uFF09\uFF1B\u6309\u672A\u9A8C\u8BC1\u5904\u7406\uFF0C\u4E0D\u80FD\u636E\u6B64\u5224\u65AD\u65E5\u5FD7\u6709\u65E0", draft: true },
+  "panel.loghealth.switch.on": { en: "on", zh: "\u5F00", draft: true },
+  "panel.loghealth.switch.off": { en: "off", zh: "\u5173", draft: true },
+  "panel.loghealth.unknown": { en: "unknown", zh: "\u672A\u77E5", draft: true },
+  "panel.loghealth.last-event.never": { en: "never (no row has reached the sink since start)", zh: "\u4ECE\u672A\uFF08\u542F\u52A8\u4EE5\u6765\u6CA1\u6709\u4E00\u884C\u5230\u8FC7\u843D\u70B9\uFF09", draft: true },
+  "panel.loghealth.contract.ok": { en: "ok", zh: "\u6B63\u5E38", draft: true },
+  "panel.loghealth.contract.unloaded": { en: "{state} (event contract not loaded)", zh: "\u672A\u52A0\u8F7D\uFF08{state}\uFF09\uFF1A\u4E8B\u4EF6\u5951\u7EA6\u6CA1\u8BFB\u8FDB\u6765", draft: true },
+  "panel.loghealth.contract.missing": { en: "{state} (field gate has no ruler this round)", zh: "\u7F3A\u5931\uFF08{state}\uFF09\uFF1A\u5B57\u6BB5\u95E8\u7981\u8FD9\u8F6E\u6CA1\u6709\u5C3A\u5B50", draft: true },
+  "panel.loghealth.contract.invalid": { en: "{state} (field gate has no ruler this round)", zh: "\u975E\u6CD5\uFF08{state}\uFF09\uFF1A\u5B57\u6BB5\u95E8\u7981\u8FD9\u8F6E\u6CA1\u6709\u5C3A\u5B50", draft: true },
+  "panel.loghealth.reason.no-dsh-log": { en: "{code} (not installed / wrong version / failed to load)", zh: "{code}\uFF08\u6CA1\u5B89\u88C5 / \u7248\u672C\u4E0D\u5339\u914D / \u52A0\u8F7D\u5931\u8D25\uFF09", draft: true },
+  "panel.loghealth.reason.lease-conflict": { en: "{code} (another writer on the same directory)", zh: "{code}\uFF08\u540C\u76EE\u5F55\u5199\u8005\u51B2\u7A81\uFF09", draft: true },
+  "panel.loghealth.reason.write-fail": { en: "{code} (failed to create the store or write to disk)", zh: "{code}\uFF08\u5EFA\u5E93\u6216\u5199\u76D8\u5931\u8D25\uFF09", draft: true },
+  "panel.manual.heading": { en: "Manual fallback command (copy the full line to run):", zh: "\u624B\u5DE5\u5907\u7528\u547D\u4EE4\uFF08\u8BF7\u590D\u5236\u6574\u884C\u6267\u884C\uFF09\uFF1A", draft: true },
+  "panel.manual.absent": { en: "No manual command is available right now.", zh: "\u5F53\u524D\u6CA1\u6709\u53EF\u7528\u7684\u624B\u5DE5\u547D\u4EE4\u3002", draft: true },
+  "panel.manual.absent.unknown-profile": { en: "The plugin scope cannot be recognized, so there is no scope name for the command. Restart the host and check again; if it still cannot be recognized, send the copied diagnostics to the plugin author.", zh: "\u8BA4\u4E0D\u51FA\u63D2\u4EF6\u6240\u5728\u7684\u4F7F\u7528\u8303\u56F4\uFF0C\u547D\u4EE4\u6CA1\u6709\u53EF\u6307\u5411\u7684\u8303\u56F4\u540D\u3002\u91CD\u542F\u5BBF\u4E3B\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u4ECD\u8BA4\u4E0D\u51FA\u6765\uFF0C\u8BF7\u628A\u590D\u5236\u8BCA\u65AD\u53D1\u7ED9\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
+  "panel.manual.absent.source-install": { en: "This plugin was installed from source; installing by version would overwrite the source. To update, reinstall it by package name@version.", zh: "\u8FD9\u662F\u6E90\u7801\u5B89\u88C5\u7684\u63D2\u4EF6\uFF0C\u6309\u7248\u672C\u5B89\u88C5\u4F1A\u8986\u76D6\u6E90\u7801\u3002\u5982\u9700\u66F4\u65B0\uFF0C\u8BF7\u6309\u5305\u540D@\u7248\u672C\u53F7\u91CD\u65B0\u5B89\u88C5\u3002", draft: true },
+  "panel.manual.absent.dev-source": { en: "This is a dev-mode mount (source link); the update center only serves version installs. Edit the repo and restart the host to see the changes.", zh: "\u8FD9\u662F\u5F00\u53D1\u6001\u6302\u8F7D\uFF08\u6E90\u7801\u94FE\u63A5\uFF09\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u53EA\u670D\u52A1\u6309\u7248\u672C\u5B89\u88C5\u3002\u6539\u5B8C\u4ED3\u5E93\u4EE3\u7801\u540E\u91CD\u542F\u5BBF\u4E3B\u518D\u770B\u6548\u679C\u3002", draft: true },
+  "panel.manual.absent.running-unknown": { en: "The running version cannot be read, so no command can be guaranteed not to downgrade. Restart the host and check again; if it still cannot be read, send the copied diagnostics to the plugin author.", zh: "\u8BFB\u4E0D\u5230\u6B63\u5728\u8FD0\u884C\u7684\u7248\u672C\u53F7\uFF0C\u65E0\u6CD5\u4FDD\u8BC1\u7ED9\u51FA\u7684\u547D\u4EE4\u4E0D\u4F1A\u964D\u7EA7\u3002\u91CD\u542F\u5BBF\u4E3B\u540E\u518D\u67E5\u4E00\u6B21\uFF1B\u82E5\u4ECD\u8BFB\u4E0D\u5230\uFF0C\u8BF7\u628A\u590D\u5236\u8BCA\u65AD\u53D1\u7ED9\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
+  "panel.manual.absent.no-safe-candidate": { en: "No safe target version or argument set: candidates may all be older than the running version, outside the current channel, or the scope name/registry cannot be safely embedded in a command. Check again after a newer version ships, or fix the blocked reason in section 5.2 first.", zh: "\u6CA1\u6709\u53EF\u5B89\u5168\u6267\u884C\u7684\u76EE\u6807\u7248\u672C\u6216\u53C2\u6570\uFF1A\u53EF\u80FD\u5019\u9009\u90FD\u4F4E\u4E8E\u8FD0\u884C\u7248\u3001\u4E0D\u5728\u5F53\u524D\u901A\u9053\uFF0C\u6216\u8303\u56F4\u540D/\u6E90\u5730\u5740\u65E0\u6CD5\u5B89\u5168\u62FC\u8FDB\u547D\u4EE4\u3002\u8BF7\u7B49\u65B0\u7248\u53D1\u5E03\u540E\u518D\u67E5\uFF0C\u6216\u5148\u6309\u7B2C 5.2 \u8282\u7684\u53D7\u963B\u539F\u56E0\u4FEE\u597D\u73AF\u5883\u3002", draft: true },
+  "panel.manual.stale": { en: "This manual command has not been confirmed against the current reading. Re-query before copying.", zh: "\u624B\u5DE5\u547D\u4EE4\u5C1A\u672A\u6309\u5F53\u5E27\u8BFB\u6570\u786E\u8BA4\uFF0C\u91CD\u65B0\u67E5\u8BE2\u540E\u518D\u590D\u5236\u3002", draft: true },
+  "panel.lastresort.badge": { en: "Last resort", zh: "\u6700\u540E\u624B\u6BB5", draft: true },
+  "panel.lastresort.status": { en: "No automatic recovery left", zh: "\u81EA\u52A8\u6062\u590D\u4E0D\u53EF\u7528", draft: true },
+  "panel.lastresort.reason": { en: "There is no automatic data path left; copying this command is the only way forward.", zh: "\u6CA1\u6709\u53EF\u7528\u7684\u81EA\u52A8\u6570\u636E\u8DEF\u5F84\uFF1B\u590D\u5236\u8FD9\u6761\u547D\u4EE4\u662F\u552F\u4E00\u51FA\u8DEF\u3002", draft: true },
+  "panel.lastresort.copy": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "panel.lastresort.copied": { en: "Copied", zh: "\u5DF2\u590D\u5236", draft: true },
+  "batch.lastresort.row-badge": { en: "Last resort", zh: "\u6700\u540E\u624B\u6BB5", draft: true },
+  "panel.manual.absent-comment": { en: "no manual command ({reason})", zh: "\u65E0\u624B\u5DE5\u547D\u4EE4\uFF08{reason}\uFF09", draft: true },
+  "panel.manual.absent-comment-unknown": { en: "no manual command (cause unknown)", zh: "\u65E0\u624B\u5DE5\u547D\u4EE4\uFF08\u539F\u56E0\u672A\u77E5\uFF09", draft: true },
+  "panel.manual.updater-nested": { en: "This panel runs a nested copy of the updater ({version}), pinned by the plugin that declares it; update that plugin first (this panel picks up a newer updater only after that plugin widens its range). You can also install the updater at the profile level with the carrier CLI so other plugins sharing that copy get the fixes first: {command}", zh: "\u672C\u9762\u677F\u7684\u66F4\u65B0\u5668\u662F\u5D4C\u5957\u526F\u672C\uFF08{version}\uFF09\uFF0C\u7531\u58F0\u660E\u5B83\u7684\u63D2\u4EF6\u9489\u4F4F\uFF1B\u8BF7\u5148\u66F4\u65B0\u90A3\u4E2A\u63D2\u4EF6\uFF08\u5B83\u53D1\u7248\u62AC\u4E86\u4F9D\u8D56\u8303\u56F4\u540E\uFF0C\u672C\u9762\u677F\u624D\u4F1A\u6362\u65B0\uFF09\u3002\u4E5F\u53EF\u7528\u8F7D\u4F53\u547D\u4EE4\u884C\u628A\u66F4\u65B0\u5668\u88C5\u5230\u4F7F\u7528\u8303\u56F4\u7EA7\uFF0C\u8BA9\u5171\u7528\u90A3\u4E00\u4EFD\u7684\u5176\u4ED6\u63D2\u4EF6\u5148\u62FF\u5230\u4FEE\u590D\uFF1A{command}", draft: true },
+  "panel.manual.updater-nested-nocmd": { en: "This panel runs a nested copy of the updater ({version}), pinned by the plugin that declares it; update that plugin first (this panel picks up a newer updater only after that plugin widens its range).", zh: "\u672C\u9762\u677F\u7684\u66F4\u65B0\u5668\u662F\u5D4C\u5957\u526F\u672C\uFF08{version}\uFF09\uFF0C\u7531\u58F0\u660E\u5B83\u7684\u63D2\u4EF6\u9489\u4F4F\uFF1B\u8BF7\u5148\u66F4\u65B0\u90A3\u4E2A\u63D2\u4EF6\uFF08\u5B83\u53D1\u7248\u62AC\u4E86\u4F9D\u8D56\u8303\u56F4\u540E\uFF0C\u672C\u9762\u677F\u624D\u4F1A\u6362\u65B0\uFF09\u3002", draft: true },
+  "panel.footer.note": { en: "Closing never interrupts updates; come back anytime", zh: "\u5173\u95ED\u7A97\u53E3\uFF0C\u66F4\u65B0\u4E0D\u53D7\u5F71\u54CD\uFF0C\u53EF\u968F\u65F6\u8FD4\u56DE\u67E5\u770B\u3002", draft: true },
+  "panel.footer.close": { en: "Close", zh: "\u5173\u95ED", draft: true },
+  "panel.footer.close-title": { en: "Close the window; updates keep running", zh: "\u5173\u95ED\u7A97\u53E3\uFF0C\u66F4\u65B0\u4E0D\u53D7\u5F71\u54CD", draft: true },
+  "panel.diag.header": { en: "[Update Diagnostics] {pluginId} Stable code: {code}", zh: "[\u66F4\u65B0\u8BCA\u65AD] {pluginId} \u7A33\u5B9A\u7801\uFF1A{code}", draft: true },
+  "panel.diag.label.human": { en: "Detail: {detail}", zh: "\u4EBA\u8BDD\uFF1A{detail}", draft: true },
+  "panel.diag.label.running": { en: "Running: {version}", zh: "\u8FD0\u884C\u7248\uFF1A{version}", draft: true },
+  "panel.diag.label.installed": { en: "Installed: {version}", zh: "\u5DF2\u5B89\u88C5\uFF1A{version}", draft: true },
+  "panel.diag.label.latest": { en: "Latest: {version}", zh: "\u6700\u65B0\u7248\uFF1A{version}", draft: true },
+  "panel.diag.queue.installing": { en: "Installing", zh: "\u6B63\u5728\u5B89\u88C5", draft: true },
+  "panel.diag.queue.position": { en: "Queued at position {n}", zh: "\u6392\u961F\u7B2C {n} \u4F4D", draft: true },
+  "panel.diag.queue.absent": { en: "Not queued", zh: "\u672A\u6392\u961F", draft: true },
+  "panel.diag.label.host": { en: "Host: {host}", zh: "\u5BBF\u4E3B\uFF1A{host}", draft: true },
+  "panel.diag.label.profile": { en: "Scope: {profile}", zh: "\u4F7F\u7528\u8303\u56F4\uFF1A{profile}", draft: true },
+  "panel.diag.label.queue": { en: "Queue: {queue}", zh: "\u961F\u5217\uFF1A{queue}", draft: true },
+  "panel.diag.label.request": { en: "Request ID: {requestId}", zh: "\u8BF7\u6C42\u7F16\u53F7\uFF1A{requestId}", draft: true },
+  "panel.diag.label.manual": { en: "Manual command: {manual}", zh: "\u624B\u5DE5\u547D\u4EE4\uFF1A{manual}", draft: true },
+  "panel.diag.copy.no-detail": { en: "(This response carries no diagnostic summary; it will be completed when phone-side diag lands)", zh: "\uFF08\u672C\u54CD\u5E94\u672A\u643A\u5E26\u8BCA\u65AD\u6458\u8981\uFF0C\u5F85\u8BCA\u65AD\u4FE1\u606F\u5C31\u7EEA\u540E\u8865\u5168\uFF09", draft: true },
+  "panel.diag.copy.unknown-package": { en: "(Unknown package)", zh: "\uFF08\u672A\u77E5\u63D2\u4EF6\u5305\uFF09", draft: true },
+  "panel.diag.copy.unknown": { en: "Unknown", zh: "\u672A\u77E5", draft: true },
+  "panel.diag.copy.field.plugin": { en: "Plugin={plugin}", zh: "\u63D2\u4EF6={plugin}", draft: true },
+  "panel.diag.copy.field.version": { en: "Version={run}\u2192{inst}", zh: "\u7248\u672C={run}\u2192{inst}", draft: true },
+  "panel.diag.copy.field.host": { en: "Host={host}", zh: "\u5BBF\u4E3B={host}", draft: true },
+  "panel.diag.copy.field.profile": { en: "Scope={profile}", zh: "\u4F7F\u7528\u8303\u56F4={profile}", draft: true },
+  "panel.diag.copy.field.route": { en: "Route={route}", zh: "\u8DEF\u7531={route}", draft: true },
+  "panel.diag.copy.field.stage": { en: "Stage={stage}", zh: "\u9636\u6BB5={stage}", draft: true },
+  "panel.diag.copy.field.method": { en: "Method={method}", zh: "\u65B9\u6CD5={method}", draft: true },
+  "panel.diag.copy.field.latency": { en: "Latency={latency}", zh: "\u8017\u65F6={latency}", draft: true },
+  "panel.diag.copy.field.registry": { en: "Source={host}", zh: "\u6E90={host}", draft: true },
+  "panel.diag.copy.field.registry-unknown": { en: "Source=Undeclared", zh: "\u6E90=\u672A\u58F0\u660E", draft: true },
+  "panel.diag.copy.field.action": { en: "Suggestion={action}", zh: "\u5EFA\u8BAE={action}", draft: true },
+  "panel.diag.copy.field.request": { en: "Request={request}", zh: "\u8BF7\u6C42={request}", draft: true },
+  "panel.diag.copy.field.check": { en: "Check={check}", zh: "\u68C0\u67E5={check}", draft: true },
+  "panel.diag.copy.field.queue": { en: "Queue={queue}", zh: "\u961F\u5217={queue}", draft: true },
+  "panel.diag.copy.field.updater": { en: "Updater={version} ({level})", zh: "\u66F4\u65B0\u5668={version}\uFF08{level}\uFF09", draft: true },
+  "panel.diag.copy.field.target": { en: "Target={version}", zh: "\u76EE\u6807={version}", draft: true },
+  "panel.diag.copy.line.summary": { en: "Summary={summary}", zh: "\u6458\u8981={summary}", draft: true },
+  "panel.diag.copy.line.remedy": { en: "Remedy={remedy}", zh: "\u600E\u4E48\u529E={remedy}", draft: true },
+  "panel.diag.copy.block.summary": { en: "Summary\uFF1A{summary}", zh: "\u6458\u8981\uFF1A{summary}", draft: true },
+  "panel.diag.copy.block.source": { en: "Source\uFF1A{source}", zh: "\u6765\u6E90\uFF1A{source}", draft: true },
+  "panel.diag.copy.block.remedy": { en: "Remedy\uFF1A{remedy}", zh: "\u600E\u4E48\u529E\uFF1A{remedy}", draft: true },
+  // #214：连接/丢弃计数尾句。只在计数非 0 时出现（老输出一字不差）；两个槽恒给，
+  // 数值为 0 也照实写，避免「只有一半证据」的猜测空间。
+  "panel.diag.connection": { en: "Connection: transport failures {fails} \xB7 client dropped rows {drops}", zh: "\u8FDE\u63A5\uFF1A\u4F20\u8F93\u5931\u8D25 {fails} \u6B21 \xB7 \u5BA2\u6237\u7AEF\u4E22\u5F03 {drops} \u884C", draft: true },
+  "batch.action.resume": { en: "Continue the unfinished batch ({count} left)", zh: "\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
+  "batch.action.resume-title": { en: "Continue from where it stopped; installed ones stay", zh: "\u4ECE\u4E0A\u6B21\u4E2D\u65AD\u5904\u7EE7\u7EED\u5B89\u88C5\uFF0C\u5DF2\u5B8C\u6210\u7684\u4E0D\u4F1A\u91CD\u590D\u5B89\u88C5\u3002", draft: true },
+  "batch.action.discard": { en: "Discard this unfinished batch (installed ones stay)", zh: "\u4E22\u5F03\u672C\u6279\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5DF2\u5B8C\u6210\u7684\u5C06\u4FDD\u7559\uFF09\u3002", draft: true },
+  "batch.action.confirm-discard": { en: "Confirm discard", zh: "\u786E\u8BA4\u4E22\u5F03", draft: true },
+  "batch.fact.close-safe": { en: "Closing this panel won't stop it \u2014 progress is saved on disk.", zh: "\u5173\u95ED\u9762\u677F\u4E0D\u4F1A\u4E2D\u65AD\u66F4\u65B0\uFF1A\u8FDB\u5EA6\u5DF2\u4FDD\u5B58\uFF0C\u53EF\u968F\u65F6\u8FD4\u56DE\u7EE7\u7EED\u3002", draft: true },
+  "batch.setting.check-on-open": { en: "Check for updates when opening", zh: "\u6253\u5F00\u9762\u677F\u65F6\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0", draft: true },
+  "batch.row.update": { en: "Update available {version}", zh: "\u6709\u65B0\u7248\u672C {version}", draft: true },
+  "batch.row.current": { en: "Up to date", zh: "\u5DF2\u662F\u6700\u65B0\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
+  "batch.row.never": { en: "Not checked yet", zh: "\u5C1A\u672A\u67E5\u8BE2", draft: true },
+  "batch.row.failed": { en: "Last check failed", zh: "\u672C\u6B21\u672A\u80FD\u67E5\u8BE2", draft: true },
+  "batch.row.not-installed": { en: "Not installed", zh: "\u672A\u5B89\u88C5", draft: true },
+  "batch.notice.auto-resumed": { en: "Auto-continued the unfinished batch ({count} left).", zh: "\u5DF2\u81EA\u52A8\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
+  "batch.notice.resumed": { en: "Continued the unfinished batch ({count} left).", zh: "\u5DF2\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
+  "batch.notice.resume-stale": { en: 'The last update was left unfinished. Click "Continue the unfinished batch" to resume.', zh: "\u4E0A\u6B21\u66F4\u65B0\u672A\u5B8C\u6210\uFF0C\u70B9\u300C\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\u300D\u7EE7\u7EED\u3002", draft: true },
+  "batch.notice.no-resume": { en: "Nothing to continue.", zh: "\u6682\u65E0\u53EF\u7EE7\u7EED\u7684\u5185\u5BB9\u3002", draft: true },
+  "batch.notice.discarded": { en: "Discarded this unfinished batch (installed ones stay).", zh: "\u5DF2\u4E22\u5F03\u672C\u6279\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5DF2\u5B8C\u6210\u7684\u5C06\u4FDD\u7559\uFF09\u3002", draft: true },
+  "batch.notice.cancel-confirm": { en: "Click again to confirm discard.", zh: "\u8BF7\u518D\u6B21\u9009\u62E9\u4EE5\u786E\u8BA4\u4E22\u5F03\u3002", draft: true },
+  "batch.notice.busy-cancel": { en: "An install is running and cannot be stopped.", zh: "\u6B63\u5728\u5B89\u88C5\u7684\u9879\u65E0\u6CD5\u505C\u6B62\u3002", draft: true },
+  "batch.row.unfinished-tag": { en: "unfinished last time", zh: "\u4E0A\u6B21\u672A\u5B8C\u6210", draft: true },
+  "batch.summary.updatable": { en: "{n} updates available", zh: "{n} \u4E2A\u53EF\u66F4\u65B0", draft: true },
+  "batch.summary.installing": { en: "{n} installing", zh: "{n} \u4E2A\u5B89\u88C5\u4E2D", draft: true },
+  "batch.summary.pending": { en: "{n} not checked", zh: "{n} \u4E2A\u5F85\u67E5\u8BE2", draft: true },
+  "batch.summary.restart": { en: "{n} restart required", zh: "{n} \u4E2A\u5F85\u91CD\u542F", draft: true },
+  "batch.summary.restart-unregistered": { en: "{n} not registered (restarting will not load them)", zh: "\u53E6\u6709 {n} \u4E2A\u672A\u767B\u8BB0\uFF0C\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D", draft: true },
+  "batch.summary.failed": { en: "{n} failed", zh: "{n} \u4E2A\u5931\u8D25", draft: true },
+  "batch.summary.skipped": { en: "{n} skipped", zh: "{n} \u4E2A\u5DF2\u8DF3\u8FC7", draft: true },
+  "batch.summary.settled": { en: "{n} up to date", zh: "{n} \u4E2A\u5DF2\u662F\u6700\u65B0", draft: true },
+  "batch.summary.empty": { en: "No targets yet", zh: "\u6682\u65E0\u76EE\u6807", draft: true },
+  "batch.header.title": { en: "Update archive", zh: "\u66F4\u65B0\u6863\u6848", draft: true },
+  "batch.action.check": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
+  "batch.action.check-title": { en: "Re-read batch status (read-only)", zh: "\u91CD\u65B0\u8BFB\u53D6\u6279\u91CF\u72B6\u6001\uFF08\u53EA\u8BFB\uFF09", draft: true },
+  "batch.action.install-all": { en: "Update all", zh: "\u5168\u90E8\u66F4\u65B0", draft: true },
+  "batch.action.install-all-title": { en: "Submit all updatable plugins at once; one idempotency key per session", zh: "\u5C06\u6709\u66F4\u65B0\u7684\u63D2\u4EF6\u4E00\u6B21\u63D0\u4EA4\uFF1B\u540C\u4E00\u4F1A\u8BDD\u4F7F\u7528\u540C\u4E00\u5E42\u7B49\u7F16\u53F7\u3002", draft: true },
+  "batch.action.close": { en: "Close", zh: "\u5173\u95ED", draft: true },
+  "batch.action.close-title": { en: "Close the window; batch progress keeps running", zh: "\u5173\u95ED\u7A97\u53E3\uFF0C\u6279\u91CF\u66F4\u65B0\u4E0D\u53D7\u5F71\u54CD", draft: true },
+  "batch.banner.loading": { en: "Loading batch update status\u2026", zh: "\u6B63\u5728\u8BFB\u53D6\u6279\u91CF\u66F4\u65B0\u72B6\u6001\u2026", draft: true },
+  "batch.hint.error": { en: "Last run failed: follow the red banner below.", zh: "\u4E0A\u6B21\u6267\u884C\u5931\u8D25\uFF1A\u8BF7\u6309\u4E0B\u65B9\u7EA2\u8272\u6A2A\u5E45\u63D0\u793A\u64CD\u4F5C\u3002", draft: true },
+  "batch.hint.empty": { en: "No targets yet: select \u201CCheck for updates\u201D to see which plugins have updates.", zh: "\u6682\u65E0\u76EE\u6807\uFF1A\u8BF7\u9009\u62E9\u300C\u68C0\u67E5\u66F4\u65B0\u300D\u67E5\u770B\u54EA\u4E9B\u63D2\u4EF6\u6709\u66F4\u65B0\u3002", draft: true },
+  "batch.hint.installing-queueable": { en: "Installing {a}; {b} more are queued and will install automatically.", zh: "\u6B63\u5728\u5B89\u88C5 {a} \u4E2A\uFF1B\u961F\u5217\u91CC\u8FD8\u6709 {b} \u4E2A\uFF0C\u4F1A\u81EA\u52A8\u4F9D\u6B21\u5B89\u88C5\u3002", draft: true },
+  "batch.hint.installing-auto": { en: "Installing {a}; the next starts automatically.", zh: "\u6B63\u5728\u5B89\u88C5 {a} \u4E2A\uFF0C\u5B8C\u6210\u540E\u81EA\u52A8\u5B89\u88C5\u4E0B\u4E00\u9879\u3002", draft: true },
+  "batch.hint.failed": { en: "{n} failed to install; retry each one from the failure notes below.", zh: "{n} \u4E2A\u63D2\u4EF6\u5B89\u88C5\u5931\u8D25\uFF1B\u8BF7\u6309\u4E0B\u65B9\u5931\u8D25\u63D0\u793A\u9010\u9879\u91CD\u8BD5\u3002", draft: true },
+  "batch.hint.updatable": { en: "{n} updates available; select \u201CUpdate all\u201D to install at once, or install each one inline.", zh: "{n} \u4E2A\u53EF\u66F4\u65B0\uFF1B\u8BF7\u9009\u62E9\u300C\u5168\u90E8\u66F4\u65B0\u300D\u4E00\u6B21\u5B89\u88C5\u5B8C\u6210\uFF0C\u4E5F\u53EF\u9010\u9879\u9009\u62E9\u300C\u5B89\u88C5\u6B64\u63D2\u4EF6\u300D\u3002", draft: true },
+  "batch.hint.restart": { en: "{n} installed; restart the host to take effect.", zh: "{n} \u4E2A\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
+  // #190：全部未登记时重启不会加载，一句话总账不许落到「已全部为最新」。
+  "batch.hint.restart-unregistered": { en: "{n} installed but not registered; restarting the host will not load them.", zh: "{n} \u4E2A\u5DF2\u5B89\u88C5\u4F46\u672A\u767B\u8BB0\uFF0C\u91CD\u542F\u5BBF\u4E3B\u4E0D\u4F1A\u52A0\u8F7D\u3002", draft: true },
+  "batch.hint.pending": { en: "{n} not checked yet; select \u201CCheck for updates\u201D for a round.", zh: "{n} \u4E2A\u5C1A\u672A\u67E5\u8BE2\uFF1B\u8BF7\u9009\u62E9\u300C\u68C0\u67E5\u66F4\u65B0\u300D\u67E5\u8BE2\u4E00\u8F6E\u3002", draft: true },
+  "batch.hint.done": { en: "All up to date; nothing to do.", zh: "\u5DF2\u5168\u90E8\u4E3A\u6700\u65B0\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
+  "batch.seal.ledger": { en: "Ledger", zh: "\u603B\u8D26", draft: true },
+  "batch.banner.error-title": { en: "Failed this time ({code}): {detail}.", zh: "\u672C\u6B21\u6267\u884C\u5931\u8D25\uFF08{code}\uFF09\uFF1A{detail}\u3002", draft: true },
+  "batch.banner.error-action-fallback": { en: "Retry once first; if it persists, send the copied diagnostics to the plugin author.", zh: "\u8BF7\u91CD\u8BD5\u4E00\u6B21\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
+  // #156 批量级合规版入口：最新版被 24 小时年龄门挡住时，「全部更新」不许只剩一句失败。
+  "batch.banner.age-gated": { en: "{n} plugin(s) are blocked by the 24-hour age gate.", zh: "{n} \u4E2A\u63D2\u4EF6\u7684\u6700\u65B0\u7248\u88AB 24 \u5C0F\u65F6\u5E74\u9F84\u95E8\u6321\u4F4F\u3002", draft: true },
+  "batch.banner.gated-wait": { en: "{n} plugin(s) are blocked by the 24-hour age gate and nothing is installable right now; installable in about {time}.", zh: "{n} \u4E2A\u63D2\u4EF6\u7684\u6700\u65B0\u7248\u88AB 24 \u5C0F\u65F6\u5E74\u9F84\u95E8\u6321\u4F4F\uFF0C\u73B0\u5728\u8FD8\u6CA1\u6709\u53EF\u88C5\u7684\u7248\u672C\uFF1B\u7EA6 {time} \u540E\u53EF\u88C5\u3002", draft: true },
+  "batch.banner.compliant-done-title": { en: "Actual install result for these {n} plugin(s):", zh: "\u8FD9 {n} \u4E2A\u63D2\u4EF6\u7684\u5B9E\u9645\u5B89\u88C5\u7ED3\u679C\uFF1A", draft: true },
+  "batch.banner.compliant-done": { en: "{title}: installed {version}, not the latest {target} (the latest did not go through).", zh: "{title}\uFF1A\u5DF2\u88C5 {version}\uFF0C\u4E0D\u662F\u6700\u65B0 {target}\uFF08\u6700\u65B0\u7248\u6CA1\u88C5\u6210\uFF09\u3002", draft: true },
+  "batch.banner.compliant-done-gated": { en: "{title}: installed {version}; the latest {target} is still blocked by the 24-hour age gate (installable in about {time}).", zh: "{title}\uFF1A\u5DF2\u88C5 {version}\uFF1B\u6700\u65B0 {target} \u4ECD\u88AB 24 \u5C0F\u65F6\u5E74\u9F84\u95E8\u6321\u7740\uFF0C\u7EA6 {time} \u540E\u53EF\u88C5\u3002", draft: true },
+  "batch.banner.compliant-confirm": { en: "Install these compliant builds: {list}?", zh: "\u786E\u8BA4\u5B89\u88C5\u4EE5\u4E0B\u5408\u89C4\u7248\uFF1A{list}\uFF1F", draft: true },
+  "batch.action.install-compliant-confirm": { en: "Confirm and install these {n}", zh: "\u786E\u8BA4\u88C5\u8FD9 {n} \u4E2A", draft: true },
+  "batch.banner.failed-title": { en: "{n} failed to install.", zh: "{n} \u4E2A\u63D2\u4EF6\u5B89\u88C5\u5931\u8D25\u3002", draft: true },
+  "batch.banner.failed-action": { en: "Retry each one inline; if it keeps failing, send the copied diagnostics to the plugin author.", zh: "\u8BF7\u9010\u5BB6\u4F7F\u7528\u884C\u5185\u300C\u91CD\u8BD5\u300D\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
+  "batch.banner.restart-title": { en: "{n} installed; restart the host to take effect.", zh: "{n} \u4E2A\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
+  // #190：在册事实为 false 的行重启也不会加载——横幅分别计数，不再把「重启后生效」说满。
+  "batch.banner.restart-partial-title": { en: "{n} installed and will take effect after restart; {m} not registered (restarting will not load them).", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF1A{n} \u4E2A\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\uFF0C{m} \u4E2A\u672A\u767B\u8BB0\uFF08\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D\uFF09\u3002", draft: true },
+  "batch.banner.restart-unregistered-title": { en: "Installed, but these plugins are not registered; restarting the host will not load them.", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u4F46\u8FD9\u4E9B\u63D2\u4EF6\u672A\u767B\u8BB0\uFF0C\u91CD\u542F\u5BBF\u4E3B\u4E5F\u4E0D\u4F1A\u52A0\u8F7D\u3002", draft: true },
+  "batch.banner.restart-unregistered-hint": { en: "Unregistered plugins: select them in the host plugin page first; they will load after restart.", zh: "\u672A\u767B\u8BB0\u7684\u884C\uFF1A\u8BF7\u5148\u5728\u5BBF\u4E3B\u63D2\u4EF6\u9875\u9009\u4E2D\u8BE5\u63D2\u4EF6\uFF0C\u91CD\u542F\u540E\u624D\u4F1A\u52A0\u8F7D\u3002", draft: true },
+  "batch.banner.restart-action": { en: "Restart the host to run the new version; this is a normal end state, not a failure.", zh: "\u91CD\u542F\u5BBF\u4E3B\u4EE5\u52A0\u8F7D\u65B0\u7248\u672C\uFF1B\u6B64\u4E3A\u6B63\u5E38\u72B6\u6001\uFF0C\u975E\u5B89\u88C5\u5931\u8D25\u3002", draft: true },
+  "batch.banner.restart-button": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
+  "batch.row.queued-generic": { en: "Queued \xB7 waiting for the running install to finish", zh: "\u5DF2\u6392\u961F \xB7 \u7B49\u5F85\u524D\u65B9\u5B89\u88C5\u5B8C\u6210", draft: true },
+  "batch.row.queued-n": { en: "Queued \xB7 {n} ahead", zh: "\u5DF2\u6392\u961F \xB7 \u524D\u65B9\u8FD8\u6709 {n} \u9879", draft: true },
+  "batch.row.batch-queued": { en: "In batch queue \xB7 installs automatically", zh: "\u5DF2\u5728\u961F\u5217 \xB7 \u4F1A\u81EA\u52A8\u4F9D\u6B21\u5B89\u88C5", draft: true },
+  "batch.ledger.checking": { en: "Re-checking latest versions\u2026", zh: "\u6B63\u5728\u6309\u6700\u65B0\u7248\u672C\u91CD\u65B0\u68C0\u67E5\u2026", draft: true },
+  "batch.row.skipped": { en: "Skipped {version}", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {version}", draft: true },
+  "batch.row.wait-turn": { en: "Waiting for its turn; it will check automatically", zh: "\u8BF7\u7B49\u5F85\uFF0C\u8F6E\u5230\u5C06\u81EA\u52A8\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u3002", draft: true },
+  "batch.row.checking": { en: "Checking for updates; please wait", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019\u3002", draft: true },
+  "batch.row.cta-version": { en: "Select \u201CInstall this plugin\u201D to install {version}", zh: "\u9009\u62E9\u300C\u5B89\u88C5\u6B64\u63D2\u4EF6\u300D\u5B89\u88C5 {version}", draft: true },
+  "batch.row.cta-generic": { en: "Select \u201CInstall this plugin\u201D to install the new version", zh: "\u9009\u62E9\u300C\u5B89\u88C5\u6B64\u63D2\u4EF6\u300D\u5B89\u88C5\u65B0\u7248\u672C", draft: true },
+  "batch.row.installing": { en: "Installing; please wait", zh: "\u6B63\u5728\u5B89\u88C5\uFF0C\u8BF7\u52FF\u64CD\u4F5C\u3002", draft: true },
+  "batch.row.done-restart": { en: "Installed; restart the host to take effect", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
+  "batch.row.done-restart-unregistered": { en: "Installed; not registered (restart will not load it). Select it in the host plugin page first.", zh: "\u5DF2\u5B89\u88C5\uFF0C\u672A\u767B\u8BB0\uFF08\u91CD\u542F\u4E0D\u4F1A\u52A0\u8F7D\uFF09\uFF1B\u8BF7\u5148\u5728\u5BBF\u4E3B\u63D2\u4EF6\u9875\u9009\u4E2D\u8BE5\u63D2\u4EF6", draft: true },
+  "batch.row.unregistered-suffix": { en: " (not registered)", zh: "\uFF08\u672A\u767B\u8BB0\uFF09", draft: true },
+  "batch.row.done": { en: "Installed; nothing to do", zh: "\u5DF2\u5B89\u88C5\u5B8C\u6210\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
+  "batch.row.failed-retry": { en: "Install failed; select \u201CRetry\u201D to try again", zh: "\u5B89\u88C5\u5931\u8D25\uFF0C\u8BF7\u9009\u62E9\u300C\u91CD\u8BD5\u300D\u3002", draft: true },
+  "batch.row.skipped-idle": { en: "This version is skipped; nothing to do", zh: "\u8BE5\u7248\u672C\u5DF2\u8DF3\u8FC7\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
+  "batch.row.unknown": { en: "Unknown state; select \u201CCheck for updates\u201D to check again", zh: "\u72B6\u6001\u65E0\u6CD5\u8BC6\u522B\uFF0C\u8BF7\u9009\u62E9\u300C\u68C0\u67E5\u66F4\u65B0\u300D\u91CD\u65B0\u67E5\u8BE2\u3002", draft: true },
+  "batch.row-action.installing": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
+  "batch.row-action.cancel-queue": { en: "Cancel queue", zh: "\u53D6\u6D88\u6392\u961F", draft: true },
+  "batch.row-action.queue": { en: "Install next", zh: "\u4F18\u5148\u5B89\u88C5", draft: true },
+  "batch.row-action.install-row": { en: "Install this plugin", zh: "\u5B89\u88C5\u6B64\u63D2\u4EF6", draft: true },
+  "batch.row-action.retry": { en: "Retry", zh: "\u91CD\u8BD5", draft: true },
+  "batch.row-action.install-version": { en: "Install {version}", zh: "\u5B89\u88C5\u7248\u672C {version}", draft: true },
+  "batch.row-action.install-generic": { en: "Install the new version", zh: "\u5B89\u88C5\u65B0\u7248\u672C", draft: true },
+  "batch.row-action.unskip": { en: "Restore ({version})", zh: "\u6062\u590D\u63D0\u9192\uFF08{version}\uFF09", draft: true },
+  "batch.row-action.restart": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
+  "batch.row-action.show-detail": { en: "Details", zh: "\u8BE6\u60C5", draft: true },
+  "batch.row-action.hide-detail": { en: "Collapse", zh: "\u6536\u8D77", draft: true },
+  "batch.row-action.skip": { en: "Skip this version", zh: "\u8DF3\u8FC7\u8BE5\u7248\u672C", draft: true },
+  "batch.row-action.copy-manual": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "batch.row-action.copy-diag": { en: "Copy diagnostics", zh: "\u590D\u5236\u8BCA\u65AD", draft: true },
+  "batch.row.error-label": { en: "Failed {code}: {detail}", zh: "\u5931\u8D25 {code}\uFF1A{detail}", draft: true },
+  "batch.row.compliant-done": { en: "Installed {version}, not the latest {target} (the latest did not go through)", zh: "\u5DF2\u88C5 {version}\uFF0C\u4E0D\u662F\u6700\u65B0 {target}\uFF08\u6700\u65B0\u7248\u8FD9\u6B21\u6CA1\u88C5\u4E0A\uFF09", draft: true },
+  "batch.diag.source-job": { en: "(Source: background job record)", zh: "\uFF08\u6765\u6E90\uFF1A\u540E\u53F0\u4EFB\u52A1\u6267\u884C\u8BB0\u5F55\uFF09", draft: true },
+  "batch.toast.copy-fail": { en: "Copy failed; please select the info above manually.", zh: "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u4E0A\u65B9\u4FE1\u606F\u3002", draft: true },
+  "batch.toast.queue-missed": { en: "Another install is running: this plugin is not queued yet; try again after it finishes.", zh: "\u524D\u65B9\u4ECD\u5728\u5B89\u88C5\uFF1A\u6B64\u63D2\u4EF6\u5C1A\u672A\u6392\u961F\uFF0C\u8BF7\u5F85\u524D\u65B9\u5B89\u88C5\u5B8C\u6210\u540E\u518D\u6B21\u9009\u62E9\u3002", draft: true },
+  "batch.toast.skipped": { en: "Skipped {version}: no further reminders for this version; select \u201CRestore\u201D to undo.", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {version}\uFF1A\u8BE5\u7248\u672C\u4E0D\u518D\u63D0\u9192\uFF1B\u9009\u62E9\u300C\u6062\u590D\u63D0\u9192\u300D\u53EF\u64A4\u9500\u3002", draft: true },
+  "batch.toast.unskipped-version": { en: "Restored {version}: reminders for this version are back on.", zh: "\u5DF2\u6062\u590D {version}\uFF1A\u8BE5\u7248\u672C\u5C06\u6B63\u5E38\u63D0\u9192\u3002", draft: true },
+  "batch.toast.unskipped-all": { en: "Skip reminder restored.", zh: "\u5DF2\u6062\u590D\u8DF3\u8FC7\u63D0\u9192\u3002", draft: true },
+  "batch.toast.cancel-unavailable": { en: "This row carries no phone or ID to cancel the queue; try again after the next refresh.", zh: "\u6B64\u884C\u7F3A\u5C11\u53D6\u6D88\u6392\u961F\u6240\u9700\u7684\u4FE1\u606F\uFF0C\u6682\u65E0\u6CD5\u53D6\u6D88\uFF1B\u8BF7\u5F85\u4E0B\u6B21\u5237\u65B0\u540E\u91CD\u8BD5\u3002", draft: true },
+  "batch.toast.compliant-installed": { en: "Requested {a} compliant build(s) (not the latest: it is still age-gated); {b} did not go through.", zh: "\u5DF2\u8BF7\u6C42\u5B89\u88C5 {a} \u4E2A\u5408\u89C4\u7248\uFF08\u4E0D\u662F\u6700\u65B0\u7248\uFF1A\u6700\u65B0\u7248\u4ECD\u88AB\u5E74\u9F84\u95E8\u6321\u7740\uFF09\uFF1B{b} \u4E2A\u6CA1\u88C5\u6210\u3002", draft: true },
+  "batch.toast.cancel-ok": { en: "Queue cancelled: this plugin will not wait.", zh: "\u5DF2\u53D6\u6D88\u6392\u961F\uFF1A\u6B64\u63D2\u4EF6\u5C06\u4E0D\u518D\u7B49\u5F85\u3002", draft: true },
+  "batch.toast.cancel-fail": { en: "Could not cancel the queue (it may have started installing); see the latest state below.", zh: "\u53D6\u6D88\u6392\u961F\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5F00\u59CB\u5B89\u88C5\uFF09\uFF1A\u8BF7\u67E5\u770B\u4E0B\u65B9\u6700\u65B0\u72B6\u6001\u3002", draft: true },
+  "batch.toast.copy-manual-ok": { en: "Manual command copied; paste the full line into the terminal to run it.", zh: "\u624B\u5DE5\u547D\u4EE4\u5DF2\u590D\u5236\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u6574\u884C\u6267\u884C\u3002", draft: true },
+  "batch.toast.copy-diag-ok": { en: "Diagnostics copied; paste it to the plugin author (already redacted).", zh: "\u8BCA\u65AD\u4FE1\u606F\u5DF2\u590D\u5236\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
+  "batch.toast.copy-all-diag-ok": { en: "Diagnostics for {n} plugin(s) copied; paste them to the plugin author (already redacted).", zh: "\u5DF2\u590D\u5236 {n} \u5BB6\u63D2\u4EF6\u7684\u8BCA\u65AD\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
+  "batch.toast.copy-all-manual-ok": { en: "{n} manual command(s) copied (plugins without a command are marked as # comments); paste them into the terminal line by line.", zh: "\u5DF2\u590D\u5236 {n} \u6761\u624B\u5DE5\u547D\u4EE4\uFF08\u65E0\u547D\u4EE4\u7684\u63D2\u4EF6\u5DF2\u7528 # \u6CE8\u91CA\u6807\u6CE8\uFF09\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u9010\u884C\u6267\u884C\u3002", draft: true },
+  "batch.toast.restart-delegated": { en: "Handled by the caller\u2019s restart flow; the new version takes effect after restart.", zh: "\u5DF2\u6309\u8C03\u7528\u65B9\u91CD\u542F\u6D41\u7A0B\u5904\u7406\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
+  "batch.toast.restart-manual": { en: "This host provides no restart entry; please restart the host manually. The new version takes effect after restart.", zh: "\u672C\u5BBF\u4E3B\u672A\u63D0\u4F9B\u91CD\u542F\u5165\u53E3\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
+  "batch.toast.restart-failed": { en: "Restart entry failed; please restart the host manually. The new version takes effect after restart.", zh: "\u91CD\u542F\u5165\u53E3\u8C03\u7528\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
+  "changelog.neutral.hint": { en: "No changelog provided", zh: "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E", draft: true },
+  "changelog.neutral.line": { en: "No changelog provided. Install is not affected.", zh: "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002", draft: true },
+  "changelog.breaking.badge": { en: "Breaking", zh: "\u4E0D\u517C\u5BB9", draft: true },
+  "changelog.breaking.aria": { en: "Breaking change", zh: "\u7834\u574F\u6027\u53D8\u66F4", draft: true },
+  "changelog.truncated.count": { en: "Showing {n} of {m} items", zh: "\u5171 {m} \u6761\uFF0C\u4EC5\u663E\u793A\u524D {n} \u6761", draft: true },
+  "changelog.truncated.file": { en: "This log is larger than 64 KiB; only the first part is rendered.", zh: "\u65E5\u5FD7\u8FC7\u957F\uFF0C\u8D85\u51FA\u4E0A\u9650\u7684\u90E8\u5206\u6CA1\u6709\u6E32\u67D3\u3002", draft: true },
+  "changelog.truncated.versions": { en: "{n} more versions are hidden.", zh: "\u5176\u540E\u8FD8\u6709 {n} \u4E2A\u7248\u672C\u672A\u663E\u793A\u3002", draft: true },
+  "changelog.yanked.banner": { en: "Version {version} was yanked by the author. Install is not affected. Please confirm before proceeding.", zh: "\u76EE\u6807\u7248\u672C {version} \u5DF2\u88AB\u4F5C\u8005\u64A4\u56DE\uFF08yanked\uFF09\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\uFF0C\u7EE7\u7EED\u524D\u8BF7\u786E\u8BA4\u3002", draft: true },
+  "changelog.yanked.suffix": { en: " \xB7 Yanked", zh: " \xB7 \u5DF2\u64A4\u56DE", draft: true },
+  "changelog.security.summary": { en: "{n} more items", zh: "\u5176\u4F59 {n} \u6761", draft: true },
+  "changelog.security.note": { en: "Remaining entries are collapsed to keep the panel fast. See the original text.", zh: "\u4E3A\u4FDD\u6301\u9762\u677F\u6027\u80FD\uFF0C\u5176\u4F59\u6761\u76EE\u5DF2\u6298\u53E0\uFF0C\u8BF7\u67E5\u770B\u539F\u6587\u3002", draft: true },
+  "diag.fallback.generic": { en: "Operation failed", zh: "\u64CD\u4F5C\u5931\u8D25", draft: true },
+  "diag.fallback.read-installed": { en: "Failed to read local state", zh: "\u8BFB\u53D6\u672C\u5730\u72B6\u6001\u5931\u8D25", draft: true },
+  "diag.fallback.revalidate-fetch": { en: "Revalidation fetch failed before install", zh: "\u5B89\u88C5\u524D\u590D\u9A8C\u5931\u8D25\uFF0C\u672A\u80FD\u83B7\u53D6\u7248\u672C\u4FE1\u606F", draft: true },
+  "diag.fallback.rate-limited": { en: "Source returned 429. Too many requests this minute.", zh: "\u6570\u636E\u6E90\u8FD4\u56DE 429\uFF0C\u672C\u5206\u949F\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41\u3002", draft: true },
+  "diag.fallback.http-status": { en: "Source returned {status}. Retry still failed.", zh: "\u6570\u636E\u6E90\u8FD4\u56DE {status}\uFF0C\u91CD\u8BD5\u540E\u4ECD\u5931\u8D25\u3002", draft: true },
+  "diag.fallback.invalid-release": { en: "Version in the manifest is not valid", zh: "\u6E05\u5355\u6587\u4EF6\u4E2D\u7248\u672C\u53F7\u975E\u6CD5", draft: true },
+  "diag.fallback.install-failed": { en: "Install failed", zh: "\u5B89\u88C5\u6267\u884C\u5931\u8D25", draft: true },
+  "diag.fallback.unknown-profile": { en: "Scope or plugin location not recognized", zh: "\u65E0\u6CD5\u8BC6\u522B\u4F7F\u7528\u8303\u56F4\u6216\u63D2\u4EF6\u5B89\u88C5\u4F4D\u7F6E", draft: true },
+  "diag.fallback.channel-mismatch": { en: "Installed version is not in the selected release channel", zh: "\u5DF2\u5B89\u88C5\u7248\u672C\u4E0E\u5F53\u524D\u7248\u672C\u901A\u9053\u4E0D\u7B26", draft: true },
+  "diag.fallback.source-install": { en: "Installed from source, not by version", zh: "\u6E90\u7801\u5B89\u88C5\u5B9E\u4F8B\uFF0C\u4E0D\u652F\u6301\u7248\u672C\u66F4\u65B0", draft: true },
+  "diag.fallback.invalid-installation": { en: "Installed package is incomplete", zh: "\u5DF2\u5B89\u88C5\u5305\u7ED3\u6784\u4E0D\u5B8C\u6574", draft: true },
+  "diag.fallback.installation-changed": { en: "Install location changed during use", zh: "\u5B89\u88C5\u4F4D\u7F6E\u53D1\u751F\u53D8\u66F4", draft: true },
+  "diag.fallback.pending-restart": { en: "New version is on disk. The running version is still the old one.", zh: "\u65B0\u7248\u672C\u5DF2\u5199\u5165\u78C1\u76D8\uFF0C\u5F53\u524D\u8FD0\u884C\u4ECD\u4E3A\u65E7\u7248\u672C", draft: true },
+  "diag.fallback.incompatible-node": { en: "New version needs a different Node version than the running one", zh: "Node \u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u517C\u5BB9", draft: true },
+  "diag.fallback.incompatible-dsh": { en: "New version needs a newer DSH runtime than the running one", zh: "\u5BBF\u4E3B\u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u517C\u5BB9", draft: true },
+  "diag.fallback.registry-conflict": { en: "Declared version conflicts with the on-disk version", zh: "\u7248\u672C\u58F0\u660E\u4E0E\u78C1\u76D8\u5B9E\u9645\u7248\u672C\u51B2\u7A81", draft: true },
+  "diag.fallback.recovery-required": { en: "Last install was interrupted, leaving a partial task", zh: "\u4E0A\u6B21\u5B89\u88C5\u5F02\u5E38\u4E2D\u65AD\uFF0C\u5B58\u5728\u672A\u5B8C\u6210\u4EFB\u52A1", draft: true },
+  "diag.fallback.dev-source": { en: "Dev-mode source link; update center unavailable", zh: "\u5F00\u53D1\u6001\u6E90\u7801\u94FE\u63A5\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u4E0D\u53EF\u7528", draft: true },
+  "diag.cause.age.target.timed": { en: "Your plugin {package} was published too recently and was blocked by the host supply-chain age policy (installer words in the summary). Retry after {time}; for urgent use ask the host to relax the policy.", zh: "\u672C\u63D2\u4EF6 {package} \u53D1\u5E03\u672A\u6EE1\u5BBF\u4E3B\u5E74\u9F84\u95E8\u9650\uFF0C\u88AB\u4F9B\u5E94\u94FE\u7B56\u7565\u62E6\u622A\uFF08\u5B89\u88C5\u5668\u539F\u8BDD\u89C1\u6458\u8981\uFF09\u3002{time}\u540E\u70B9\u91CD\u8BD5\u5373\u53EF\uFF1B\u6025\u7528\u8BF7\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "diag.cause.age.target.untimed": { en: "Your plugin {package} was blocked by the host supply-chain age policy because it is too new (see the summary). Retry later; for urgent use ask the host to relax the policy.", zh: "\u672C\u63D2\u4EF6 {package} \u56E0\u592A\u65B0\u88AB\u5BBF\u4E3B\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u62E6\u622A\uFF08\u89C1\u6458\u8981\uFF09\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF1B\u6025\u7528\u8BF7\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "diag.cause.age.other.timed": { en: "The installer reports: another package in the same environment, {package}, was rejected by a supply-chain age policy \u2014 not a problem with this plugin itself (see the summary). Retry after {time}; or ask the host to relax the policy.", zh: "\u5B89\u88C5\u5668\u62A5\u544A\uFF1A\u540C\u73AF\u5883\u53E6\u4E00\u5305 {package} \u56E0\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u88AB\u62D2\uFF0C\u4E0D\u662F\u672C\u63D2\u4EF6\u7684\u76F4\u63A5\u95EE\u9898\uFF08\u89C1\u6458\u8981\uFF09\u3002{time}\u540E\u91CD\u8BD5\uFF1B\u6216\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "diag.cause.age.other.untimed": { en: "The installer reports: another package in the same environment, {package}, was rejected by a supply-chain age policy \u2014 not a problem with this plugin itself (see the summary). Retry later, or ask the host to relax the policy.", zh: "\u5B89\u88C5\u5668\u62A5\u544A\uFF1A\u540C\u73AF\u5883\u53E6\u4E00\u5305 {package} \u56E0\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u88AB\u62D2\uFF0C\u4E0D\u662F\u672C\u63D2\u4EF6\u7684\u76F4\u63A5\u95EE\u9898\uFF08\u89C1\u6458\u8981\uFF09\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF0C\u6216\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "install-button.action.installed": { en: "Installed", zh: "\u5DF2\u5B89\u88C5", draft: true }
+};
+
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/i18n/text.js
+function formatTemplate(template, values) {
+  const vals = values ?? {};
+  return String(template).replace(/\{([A-Za-z0-9_]+)\}/g, (_, name) => {
+    const v = vals[name];
+    if (v === null || v === void 0) return "";
+    return String(v).trim();
+  });
+}
+function bilingualEntry(key) {
+  const hit = BILINGUAL_STRINGS[key];
+  if (!hit) throw new Error("[dsh-plugin-update] \u672A\u77E5\u6587\u6848 key\uFF1A" + String(key));
+  return hit;
+}
+function updCopyText(key, lang, values) {
+  const l = normalizeLangTag(lang ?? "zh");
+  const e = bilingualEntry(key);
+  return formatTemplate(l === "en" ? e.en : e.zh, values);
+}
+
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/core/changelog/render-model.js
 var MD_URL_MAX = 2048;
 var MD_MAX_DEPTH = 2;
 function isHttpUrl(u) {
@@ -2037,7 +2105,7 @@ ${note}${blocks.join("\n")}
   }
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.25/node_modules/dsh-plugin-update/dist/client.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.37/node_modules/dsh-plugin-update/dist/panel/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS

@@ -50,7 +50,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
   const profileDir = path.dirname(path.dirname(pkgDir))
   check(!!installedVersion, '读到磁盘上装的那一版（' + installedVersion + '）')
 
-  const readerUrl = require('url').pathToFileURL(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'reader.js')).href
+  // 0.18.33 起更新包内部按域拆到 dist/core 等子目录，reader 的落点跟着搬（升级 0.18.37 时适配）。
+  const readerUrl = require('url').pathToFileURL(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'core', 'reader.js')).href
   // 通道按磁盘上装的那一版推：0.11.0 起稳定通道下装好的测试版走「通道不对」（channel-mismatch），
   // 于是本该报「缺一次重启」的场景报成别的（0.10.0 及之前是「安装无效」）。
   // 本机装的是稳定版时行为一个字不变；装的是测试版时按测试版通道判，两种装法都成立（2026-10-10）。

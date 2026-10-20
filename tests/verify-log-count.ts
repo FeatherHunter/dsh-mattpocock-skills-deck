@@ -108,10 +108,10 @@ const quoted = collectQuotedNames()
 // 不再是本插件的事件白名单，那条路找不到就静默吞掉，门禁因此假红。改读更新包的 log-events.js。
 if (!quoted['update.install.exec']) {
   try {
-    const evtDef = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'log-events.js'), 'utf8')
-    const store = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'store.js'), 'utf8')
+    const evtDef = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'shared', 'log-events.js'), 'utf8')
+    const store = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'core', 'executor.js'), 'utf8')
     if (evtDef.includes('"update.install.exec"') && store.includes('LOG_EVENT_INSTALL_EXEC')) {
-      quoted['update.install.exec'] = ['node_modules/dsh-plugin-update/dist/log-events.js（包内发射，常量名 LOG_EVENT_INSTALL_EXEC）']
+      quoted['update.install.exec'] = ['node_modules/dsh-plugin-update/dist/core/executor.js（包内发射，常量名 LOG_EVENT_INSTALL_EXEC）']
     }
   } catch {}
 }
