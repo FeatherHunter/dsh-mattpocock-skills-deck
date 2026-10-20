@@ -345,12 +345,14 @@ function chainExplore(colors: any) {
   const top = cy - (rows.length * rowH + (rows.length - 1) * gap) / 2
   const bottom = top + (rows.length - 1) * (rowH + gap) + rowH
   const parts: any[] = []
-  const wayX = 26
+  // 分叉的两段落差都留 6px：箭头三角本身就占 3.4px，再留出线段，箭头才画得出来。
+  // 上一版只留 2px，箭头三角整根压在竖干和盒子左边框上，看起来像一个小叉，不像箭头。
+  const wayX = 22
   const wWay = nodeWidth(tr('card.entry.chain.wayfinder'), CHAIN_FONT)
   const wayEnd = wayX + wWay
   parts.push(chainNode(wayX, cy - rowH / 2, wWay, tr('card.entry.chain.wayfinder'), { fill: withAlpha(P, 0.12), stroke: P, text: PT, size: CHAIN_FONT }))
   const sx = wayEnd + 6
-  const gx = sx + 2
+  const gx = sx + 6
   parts.push(chainArrow(wayEnd, sx, cy, P))
   parts.push(h('path', { key: 'v1', d: 'M' + sx + ' ' + cy + ' V' + (top + rowH / 2), stroke: P, strokeWidth: 1, fill: 'none' }))
   parts.push(h('path', { key: 'v2', d: 'M' + sx + ' ' + cy + ' V' + (bottom - rowH / 2), stroke: P, strokeWidth: 1, fill: 'none' }))

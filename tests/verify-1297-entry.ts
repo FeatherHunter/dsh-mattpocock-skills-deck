@@ -8,7 +8,8 @@
 //   3) 卡面文案只住 config/copy/cards.yaml：浮层标题、两张卡的眉标 / 状态句 / 主体文本、脚注、
 //      技能链标签都在 YAML，客户端源码里搜不到这些句子（只留 card.entry.* 键名）。
 //   4) 卡面形状：368×232，主体文本最多三行、每行不超过 12 个汉字（按词断行，标点后优先断）；
-//      探索地图的技能链左侧按原型的位置起画（/wayfinder 从 x=26 起、四个并行技能竖排），
+//      探索地图的技能链左侧按原型的位置起画，分叉的两段落差都留 6px 才画得出箭头
+//      （箭头三角占 3.4px，只留 2px 时三角会整根压在竖干和盒子左边框上）；
 //      四个并行步骤的右沿外侧用一个 `}` 形花括号汇总进「目标明确」，不再用斜线扇形加圆点。
 //   5) 词表：#1297 删掉 panel.newSpec / nav.takeableSpec；两句入口悬停提示合成一句「点一下弹出两张卡」。
 //   6) 构建接线：index.ts 两个 kernel 标记都排在 leaf:tabs / leaf:statusBar 之前，build.mts 登记两片。
@@ -106,7 +107,8 @@ for (const body of bodyZh) {
 }
 check(entryCard.indexOf('function chainBrace') >= 0, '并行技能汇总处画的是 } 形花括号（尖朝「目标明确」）')
 check(entryCard.indexOf('chainMergeFan') < 0, '汇总处不再画斜线扇形加圆点（已还原成花括号）')
-check(entryCard.indexOf('const wayX = 26') >= 0 && entryCard.indexOf('const startX = 26') >= 0, '探索与实施两条链都从原型的左边距 26 起画，左侧排版与原图一致')
+check(entryCard.indexOf('const wayX = 22') >= 0 && entryCard.indexOf('const startX = 26') >= 0, '探索地图链从左边距 22 起画（比实施链略左，因为 /wayfinder 盒子更宽）、实施链从 26 起画')
+check(entryCard.indexOf('const gx = sx + 6') >= 0, '分叉线上每一行都留出 6px 才画箭头（箭头三角占 3.4px，只留 2px 时三角整根压在竖干和盒边上）')
 
 // 5) 词表：删掉蓝入口的两个键，两句悬停提示合成一句
 check(specYaml.indexOf('panel.newSpec') < 0 && specYaml.indexOf('nav.takeableSpec') < 0, 'panel.newSpec / nav.takeableSpec 已从词表删掉')
