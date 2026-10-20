@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>原型 #1290 · 主体文本第二轮：换一条轴</title>
+<title>原型 #1290 · 主体文本：把状态句的感觉讲出来</title>
 <style>
 :root{--bg:#0c0e12;--card:#10131a;--border:#2a2d35;--txt:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
   --purple:#c084fc;--blue-text:#93c5fd;--amber:#f59e0b}
@@ -15,6 +15,9 @@ body{margin:0;background:var(--bg);color:var(--txt);
 .page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:1010px}
 .page-head p+p{margin-top:6px}
 .page-head b{color:var(--txt)}
+.quote{margin:12px 0 0;padding:9px 13px;border-left:2px solid var(--border);background:rgba(255,255,255,.03);
+  color:var(--sec);font-size:12.5px;max-width:1010px}
+.quote b{color:var(--txt)}
 .wrap{padding:18px 26px 60px;max-width:1240px;margin:0 auto}
 section{margin-bottom:32px}
 h2{font-size:15px;margin:0 0 4px;display:flex;align-items:baseline;gap:9px}
@@ -38,46 +41,47 @@ td.p{color:var(--purple)} td.b{color:var(--blue-text)}
 </head>
 <body>
 <div class="page-head">
-  <h1>主体文本第二轮：换一条轴</h1>
-  <p>上一轮四个方向（对话、分工、准备、形态）换汤不换药：它们都还在讲「<b>这条路会怎么做</b>」。而这一条轴上已经有人了——底部那条技能链讲的就是怎么做，上面那句状态句讲的是「我的目标清不清楚」。所以再换措辞也还是老版本的变种。</p>
-  <p>这一轮换轴：<b>主体文本不再讲流程，也不再讲目标清不清楚</b>，改讲卡上还没被占掉的四件事——<b>走这条路是什么体感</b>、<b>这工具不替你干什么</b>、<b>你会先遇到哪一句</b>、<b>这路的代价是什么</b>。四个方向的句子形态也各不相同：有的写感觉，有的划边界，有的给例句，有的说代价。</p>
-  <p>为了能横向比，<b>只换主体文本这一块</b>：眉标、状态句、左上角那幅地图、底部那条技能链、卡片骨架与配色全部照旧。</p>
+  <h1>主体文本：把状态句里的那种感觉讲出来</h1>
+  <p>这一轮换了任务定义。主体文本不是介绍这条路、也不是承诺一个结果，而是<b>把上面那句状态句翻译成一种感觉</b>：读完这一行，用户应当认得出「我现在的状态就是这句话说的这样」——什么叫「目标大而模糊」，什么叫「目标明确清晰」。</p>
+  <p class="quote">用户给的参照（探索地图，目标大而模糊时那种感觉）：<b>「我知道自己要做什么功能，但是仔细想想呢，又感觉很多细节很模糊；会遇到什么困难也不知道，要具体怎么设计也不知道，甚至这个目标要达成什么样的效果也不知道。」</b>　实施地图要写同一件事的另一面：同样的句子骨架，换成「心里有数」「也有想法」。</p>
+  <p>下面四个方向是<b>四种讲感觉的方式</b>，不是同一句话的四种措辞：一 · 心里话（两句自述）、二 · 一问一答（同一句问话，一个答不出一个答得出）、三 · 往下想（把模糊演成一个瞬间）、四 · 通栏整段（照着参照那段话写足，但主体文本要改成通栏，卡片得加高）。</p>
+  <p>眉标、状态句、地图插图、技能链、配色都照旧；只有方向四动了卡片版式（卡片从 232 高改成 320 高，主体文本占卡片下方通栏）。</p>
 </div>
 
 <div class="wrap">
   <section>
-    <h2><span class="tag">一</span>体感 · 走这条路是什么感觉</h2>
-    <p class="sub">不写步骤，写<b>你在这条路上会被怎样对待</b>。探索这边是「想到哪说到哪，不用先想好」——它不要求你先整理出个头绪；实施这边是「一条条对着文档，每句都有出处」——它不让你凭空拍板。</p>
+    <h2><span class="tag">一</span>心里话 · 两句自述</h2>
+    <p class="sub">用用户自己的话讲自己的处境：<b>上句相同，下句相反</b>——「我知道要做什么」两边都一样，落到第二句才分岔：探索这边「但细节和效果都模糊」，实施这边「也清楚做完是什么样」。</p>
     <div class="opt" id="way1"></div>
   </section>
 
   <section>
-    <h2><span class="tag">二</span>边界 · 这工具不替你干什么</h2>
-    <p class="sub">主体文本只说<b>不做什么</b>，一句都不推销。这是反着来的：卡上写「它不替你做决定，也不替你写代码」「它不猜你没想到的，只问文档里没定的」，先划清工具的边界，再让用户自己判断要不要用。</p>
+    <h2><span class="tag">二</span>一问一答 · 同一句问话</h2>
+    <p class="sub">把状态变成<b>一句能被回答的问题</b>，两张卡用同一个问题，答案相反：「做成什么样？」——探索那张是「我答不出」，实施那张是「我答得出」。最短，力量全在对比上。</p>
     <div class="opt" id="way2"></div>
   </section>
 
   <section>
-    <h2><span class="tag">三</span>示例 · 你会先遇到的那一句</h2>
-    <p class="sub">主体文本直接给<b>这路上会先问你的那一句话</b>，当成一句真问话来排（问句用卡色，前面的引导词用灰）。用户读到的不是介绍，是「我马上要回答的问题」，可以据此判断自己要不要走这条路。</p>
+    <h2><span class="tag">三</span>往下想 · 把模糊演成一个瞬间</h2>
+    <p class="sub">不概括，<b>演一个具体时刻</b>：两张卡都从「想到第三层细节」往下走，探索那边往下想就断了（「就不知道该怎么做了」），实施那边往下想照样清楚（「也照样说得清」）。</p>
     <div class="opt" id="way3"></div>
   </section>
 
   <section>
-    <h2><span class="tag">四</span>实话 · 这路的代价</h2>
-    <p class="sub">主体文本<b>先认代价</b>：探索可能要绕很久，也可能还是没定；实施多半要吵几轮，吵完才算定下来。不打鸡血，如实说这条路会费什么。</p>
+    <h2><span class="tag">四</span>通栏整段 · 把参照那段话写足</h2>
+    <p class="sub">最贴近参照里那段原话：<b>同样的句子骨架，两张卡填不同的内容</b>（探索三个「不知道」，实施三个「心里有数」）。代价是版式要改——主体文本从右栏 144px 挪到卡片下方 344px 通栏，卡片从 232 高加到 320 高。</p>
     <div class="opt" id="way4"></div>
   </section>
 
   <section>
     <h2><span class="tag">对照</span>四个方向放在一起比</h2>
     <div id="cmp"></div>
-    <p class="hint">这一轮我最倾向<b>方向三（示例）</b>：它最具体，两张卡一读就分得开，而且它不推销——把马上要面对的问题摊给用户看，用户自己判断。方向一（体感）排在第二，它给两张卡都是好话，读着舒服，但「对着文档」那句还是有点像在讲做法。方向二（边界）与方向四（实话）诚实，但容易让产品显得心虚：卡上先说自己不干什么，用户会迟疑「那它到底干什么」。</p>
+    <p class="hint">如果卡片尺寸不能动，我选<b>方向一（心里话）</b>：上句相同、下句相反，一眼能分清，而且「但细节和效果都模糊」确实把「模糊」落到了具体的东西上。如果卡片尺寸可以动，我选<b>方向四（通栏整段）</b>——只有它真正把「什么叫大、什么叫模糊」讲到用户自己认得出的程度，代价是卡片变高、浮层变高。方向二最短最好记，但信息量少；方向三有画面，但它写的是「第三层细节」这种具体情形，不是所有目标都适用。</p>
   </section>
 
   <section>
     <h2><span class="tag">待定</span>挑完之后要做的事</h2>
-    <p class="sub">选一个方向（或指定混搭），我把它并进 <code>docs/prototype/1290-entry-two-maps.html</code> 的真实入口浮层，刷新截图，并同步 #1290 与 #1297 票面上的卡面文案。上一轮写进这两张票的文案已经在评论里标了作废，等这边定下来再一次性改写票面正文。</p>
+    <p class="sub">选一个方向（或指定混搭），我把它并进 <code>docs/prototype/1290-entry-two-maps.html</code> 的真实入口浮层，刷新截图，并同步 #1290 与 #1297 票面上的卡面文案。方向四要动卡片版式（高度 232 → 320），那一并写进票面。</p>
   </section>
 </div>
 
@@ -205,52 +209,64 @@ function bodyText(x,y,lines,fs,lineH){
   }
   return s;
 }
-function cardFinal(kind,lines){
-  var c=TXT[kind], W=368, H=232, s='';
+/* 主体文本有两种放法：右栏（跟眉标、状态句同列，宽 144px），或通栏（占卡片下方整条，宽 320px） */
+function cardFinal(kind,lines,opt){
+  opt=opt||{};
+  var c=TXT[kind], W=368, s='';
+  var H = opt.wide ? 320 : 232;
   s+='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">';
   s+='<rect x="0.5" y="0.5" width="'+(W-1)+'" height="'+(H-1)+'" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>';
   s+='<rect x="12" y="12" width="184" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
   s+=artOf(kind,168,104,20,18);
   s+='<text x="208" y="36" font-size="11" fill="'+c.color+'" fill-opacity=".72" letter-spacing="1.2">'+c.name+'</text>';
   s+='<text x="208" y="64" font-size="17" font-weight="700" fill="'+c.color+'">'+c.state+'</text>';
-  s+=bodyText(208,86,lines,12,17);
-  s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
-  /* 技能链在面板里垂直居中：面板 140..220，中心 180；链内部的中线是 oy+31，所以 oy 传 149 */
-  s+= kind==='explore' ? chainExploreH(26,149) : chainImplH(26,149);
+  if(opt.wide){
+    s+='<rect x="12" y="140" width="344" height="76" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+    s+=bodyText(24,160,lines,12,17);
+    s+='<rect x="12" y="228" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+    s+= kind==='explore' ? chainExploreH(26,237) : chainImplH(26,237);
+  }else{
+    s+=bodyText(208,86,lines,12,17);
+    s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+    /* 技能链在面板里垂直居中：面板 140..220，中心 180；链内部的中线是 oy+31，所以 oy 传 149 */
+    s+= kind==='explore' ? chainExploreH(26,149) : chainImplH(26,149);
+  }
   return s+'</svg>';
 }
 var GRAY="#a1a1aa";
-function plain(t){ return [[{t:t,c:GRAY}]]; }
+/* 一行主体文字 = 一个「文字 + 颜色」的片段；L 生成灰色的片段 */
+function L(t){ return {t:t,c:GRAY}; }
 
-/* 第二轮：四个方向各自换掉一句话的形态——感觉、边界、例句、代价 */
+/* 这一轮：主体文本把状态句翻译成一种感觉，四个方向是四种讲感觉的方式 */
 var WAYS=[
-  {id:"way1", name:"体感", q:"走这条路是什么感觉",
-   e:[[{t:"想到哪说到哪，",c:GRAY}],[{t:"不用先想好。",c:GRAY}]],
-   i:[[{t:"一条条对着文档，",c:GRAY}],[{t:"每句都有出处。",c:GRAY}]],
-   strong:"写的是在这条路上会被怎样对待，不是流程：探索不要求你先整理出头绪，实施不让你凭空拍板。",
-   weak:"离上一轮最近——「对着文档」这句还是有点像在讲做法。"},
-  {id:"way2", name:"边界", q:"这工具不替你干什么",
-   e:[[{t:"它不替你做决定，",c:GRAY}],[{t:"也不替你写代码。",c:GRAY}]],
-   i:[[{t:"它不猜你没想到的，",c:GRAY}],[{t:"只问文档里没定的。",c:GRAY}]],
-   strong:"反着来，先划清工具不做什么，再让用户自己判断。诚实，不推销，也不重复卡上已有的信息。",
-   weak:"两张卡都是「不」字开头，用户读完会迟疑：那它到底干什么？把最该说的让位给了免责声明。"},
-  {id:"way3", name:"示例", q:"你会先遇到哪一句",
-   e:[[{t:"先问你：",c:GRAY}],[{t:"做完了，给谁用？",c:"#d8b4fe"}]],
-   i:[[{t:"先问你：",c:GRAY}],[{t:"这两份文档哪份算数？",c:"#bfdbfe"}]],
-   strong:"最具体：把马上要回答的那句问话直接摆出来，用户读到的不是介绍，是「我马上要回答的问题」，可以据此决定走不走。",
-   weak:"「先问你：」四个字占了半行；问句是探索场景的想象，不是真问过的原话。"},
-  {id:"way4", name:"实话", q:"这路的代价是什么",
-   e:[[{t:"可能要绕很久，",c:GRAY}],[{t:"也可能还是没定。",c:GRAY}]],
-   i:[[{t:"多半要吵几轮，",c:GRAY}],[{t:"吵完才算定下来。",c:GRAY}]],
-   strong:"如实认代价，不打鸡血。两张卡都把「这条路不轻松」写在明面上，用户不会被推销话术骗进来。",
-   weak:"把话说在前头，容易让人在还没开始就泄气；探索那半句尤其容易劝退。"}
+  {id:"way1", name:"心里话", q:"两句自述：上句相同，下句相反",
+   e:[[L("我知道要做什么，")],[L("但细节和效果都模糊。")]],
+   i:[[L("我知道要做什么，")],[L("也清楚做完是什么样。")]],
+   strong:"用用户自己的话讲自己的处境，而且上句一样、下句相反，两张卡一眼分得开。「模糊」落到了具体的东西上：细节和效果。",
+   weak:"两句里「目标」两个字没出现，还是得靠上面那句状态句点题；24 个字装不下参照里那种铺开说的分量。"},
+  {id:"way2", name:"一问一答", q:"同一句问话，一个答不出一个答得出",
+   e:[[L("做成什么样？")],[L("我答不出。")]],
+   i:[[L("做成什么样？")],[L("我答得出。")]],
+   strong:"最短，也最像用户心里冒出的话。问句和答句的对照把两种状态讲得很死，用户只要对号入座。",
+   weak:"信息量少：只答了「做成什么样」这一问，参照里说的困难、怎么设计、效果这些都没带到；「答不出」也可能被读成能力问题。"},
+  {id:"way3", name:"往下想", q:"把模糊演成一个具体的瞬间",
+   e:[[L("想到第三层细节，")],[L("就不知道该怎么做了。")]],
+   i:[[L("想到第三层细节，")],[L("也照样说得清。")]],
+   strong:"不概括、给画面：往细处想的时候，探索这边断了，实施这边还接得上。「第三层细节」这个具体动作把抽象的模糊落到了地上。",
+   weak:"「第三层细节」只适合有层次的目标；平面的小需求读起来不对；「也照样说得清」比探索那句拗。"},
+  {id:"way4", name:"通栏整段", q:"照着参照那段话写足",
+   wide:true,
+   e:[[L("我知道自己要做什么功能，但仔细想想，")],[L("很多细节很模糊；会遇到什么困难不知道，")],[L("要怎么设计不知道，做到什么效果也不知道。")]],
+   i:[[L("我知道自己要做什么功能，也知道做完要什么效果；")],[L("会遇到什么困难心里有数，要怎么设计也有想法，")],[L("分几步做也有打算。")]],
+   strong:"最贴近参照里那段原话：同一副句子骨架，探索填三个「不知道」、实施填三个「心里有数／也有想法／也有打算」，用户能在里面认出自己。",
+   weak:"版式要动：主体文本从右栏 144px 挪到卡片下方 344px 通栏，卡片从 232 高加到 320 高，浮层也跟着变高；文字多，第一眼未必读得完。"}
 ];
 WAYS.forEach(function(w){
   var html='<div class="cards">'+
-    '<div class="cardcell"><div class="cl">'+w.name+' · 探索地图</div>'+cardFinal("explore",w.e)+'</div>'+
-    '<div class="cardcell"><div class="cl">'+w.name+' · 实施地图</div>'+cardFinal("impl",w.i)+'</div>'+
+    '<div class="cardcell"><div class="cl">'+w.name+' · 探索地图</div>'+cardFinal("explore",w.e,{wide:w.wide})+'</div>'+
+    '<div class="cardcell"><div class="cl">'+w.name+' · 实施地图</div>'+cardFinal("impl",w.i,{wide:w.wide})+'</div>'+
     '</div><div class="notes"><dl>'+
-    '<dt>主体文本回答什么</dt><dd>'+w.q+'</dd>'+
+    '<dt>主体文本讲的是什么感觉</dt><dd>'+w.q+'</dd>'+
     '<dt>写法</dt><dd>探索：'+w.e.map(function(l){return l.map(function(r){return r.t;}).join("");}).join("")+
       '　｜　实施：'+w.i.map(function(l){return l.map(function(r){return r.t;}).join("");}).join("")+'</dd>'+
     '<dt>强在哪</dt><dd>'+w.strong+'</dd>'+
@@ -259,7 +275,7 @@ WAYS.forEach(function(w){
   document.getElementById(w.id).innerHTML=html;
 });
 document.getElementById("cmp").innerHTML=
-  '<table><tr><th style="width:88px">方向</th><th style="width:150px">主体文本回答什么</th><th>探索地图的说法</th><th>实施地图的说法</th><th style="width:250px">强在哪</th><th style="width:250px">弱在哪</th></tr>'+
+  '<table><tr><th style="width:88px">方向</th><th style="width:170px">讲的是什么感觉</th><th>探索地图的说法</th><th>实施地图的说法</th><th style="width:230px">强在哪</th><th style="width:230px">弱在哪</th></tr>'+
   WAYS.map(function(w){
     var e=w.e.map(function(l){return l.map(function(r){return r.t;}).join("");}).join(""),
         i=w.i.map(function(l){return l.map(function(r){return r.t;}).join("");}).join("");
