@@ -46,19 +46,29 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 最终目标是项目里手写代码只有 TypeScript，没有手写 JavaScript（构建产物和派生文件生成的 `.js` 不算）。以后凡是需求、修 bug、做规划、写设计时动到本插件的手写代码，一律优先用 TypeScript 写；存量 JavaScript 不单独立项重写，采取“动到哪里就转到哪里”的方式转，直到清零。本条继承 `tsconfig.client.json` 里“摸到谁再转谁，不搞大爆炸”的口径，并把它推广到全仓。
 
 1. 以文件为单位，先修后转、两次提交，不再新增手写 JS：先提交一次纯修复，再提交一次把这个文件转成 TypeScript，转完行为零变化。只转本次真正动到的文件；以后新增文件一律写 `.ts`（含 `.mts`/`.d.ts`）。派生文件（例如 `scripts/generated/*`）、自动检查本身、临时目录永不转。清零口径是手写 `.js` 归零，构建产物不计。
-2. 转完要接上构建：同步登记到对应 `tsconfig` 的 `include` 与 `scripts/build.mjs` 清单（不登记会静默不编译），沿用 `target ES2020`、`strict`、`noEmit` 加 `esbuild` 转译，然后把 `tsc -p`、构建、相关 `tests/verify-*` 与冒烟跑通才算完。转完顺手把两份棘轮名单里对应的一行也删掉（`tests/handwritten-js-baseline.json` 直接删那一行；测试文件还要跑一次 `node tests/verify-unmigrated-tests.ts --record-baseline` 重录 `tests/unmigrated-tests-baseline.json`）——名单里留着树上已经找不到的路径会让这两处门禁判红，理由写在它们各自的 `note` 与错误信息里。
+2. 转完要接上构建：同步登记到对应 `tsconfig` 的 `include` 与 `scripts/build.mts` 清单（不登记会静默不编译），沿用 `target ES2020`、`strict`、`noEmit` 加 `esbuild` 转译，然后把 `tsc -p`、构建、相关 `tests/verify-*` 与冒烟跑通才算完。转完顺手把两份棘轮名单里对应的一行也删掉（`tests/handwritten-js-baseline.json` 直接删那一行；测试文件还要跑一次 `node tests/verify-unmigrated-tests.ts --record-baseline` 重录 `tests/unmigrated-tests-baseline.json`）——名单里留着树上已经找不到的路径会让这两处门禁判红，理由写在它们各自的 `note` 与错误信息里。
 3. 转完要把注释补足：公开函数、类型、关键分支用中文完整句写清为什么、什么约定不能改、什么反例，不要复述类型名。样板看 `src/shared/label-color/src/colors.ts` 开头。
 4. 转完顺手加日志，走下一节“日志埋点纪律”，以排查优先、多记但无垃圾为准。
 
+### 跑门禁：先挑档位，别默认全链
+
+门禁分三档，挑错档要么白等，要么漏跑。三种常用跑法：
+
+- 改一处、验一处：只跑那一扇——`node --import ./scripts/ts-hook.mts tests/verify-xxx.ts`；按名字抽查用 `node scripts/verify-chain.ts --only <文件名里的一段>`。
+- 一个模块写完：`npm run verify:changed`（只跑这次改动影响得到的门禁，几十秒量级）。
+- 提交前：`npm run verify:parallel`（全链、8 路并发，构建缓存就绪时约 1 分钟）。串行全链 `node scripts/verify-chain.ts` 只在排查顺序问题时用。
+
+动到 `tests/**`、`scripts/**`、`docs/**` 或任何 `*.md` 时，挑选规则会判「必须全链」，这是故意的，不是 bug。档位怎么选、各档测不出什么、读一扇两千行门禁怎么省上下文，都见 `docs/agents/verification.md`。
+
 ### 测试怎么直接加载 .ts（Node 下限与装包守卫）
 
-旧测试与旧源码是「按单元分批」从 `.js` 转成 `.ts` 的：一个文件改名之后，引用它的地方仍然写着 `./x.js`。`scripts/ts-hook.mjs` 就是这件事的装载钩子——它把这类说明符改指同目录下的同名 `.ts`；同名 `.ts` 不存在时原样交给 Node，所以没迁移的文件行为与今天完全一样。用法是把钩子挂在要跑的脚本前面：
+旧测试与旧源码是「按单元分批」从 `.js` 转成 `.ts` 的：一个文件改名之后，引用它的地方仍然写着 `./x.js`。`scripts/ts-hook.mts` 就是这件事的装载钩子——它把这类说明符改指同目录下的同名 `.ts`；同名 `.ts` 不存在时原样交给 Node，所以没迁移的文件行为与今天完全一样。用法是把钩子挂在要跑的脚本前面：
 
 ```
-node --import ./scripts/ts-hook.mjs tests/你的测试.ts
+node --import ./scripts/ts-hook.mts tests/你的测试.ts
 ```
 
-`npm test`（经 `scripts/verify-chain.js`）、`npm run verify:parallel`（经 `scripts/verify-parallel.mjs`）、`node scripts/verify-all.mjs`（CI 的 `.github/workflows/verify.yml` 跑的就是它，逐道跑完再汇总）三个入口跑测试时都会自动挂上这个钩子，写测试的人不用自己加；`npm run test:smoke`（六条冒烟）从 #1178 起也走 `scripts/verify-chain.js`（`--script smoke` 读 `package.json` 的 `scripts.smoke` 那串清单），钩子判定跟着那一条路走。同一个判定分散在这三处加上链执行器这一处，改一处必须全改——漏掉哪个入口，哪个入口里的 `.ts` 迁移就会跟别处表现不一样，典型症状是「本机 `npm test` 全绿、CI 红」。
+`npm test`（经 `scripts/verify-chain.ts`）、`npm run verify:parallel`（经 `scripts/verify-parallel.mts`）、`node scripts/verify-all.mts`（CI 的 `.github/workflows/verify.yml` 跑的就是它，逐道跑完再汇总）三个入口跑测试时都会自动挂上这个钩子，写测试的人不用自己加；`npm run test:smoke`（六条冒烟）从 #1178 起也走 `scripts/verify-chain.ts`（`--script smoke` 读 `package.json` 的 `scripts.smoke` 那串清单），钩子判定跟着那一条路走。同一个判定分散在这三处加上链执行器这一处，改一处必须全改——漏掉哪个入口，哪个入口里的 `.ts` 迁移就会跟别处表现不一样，典型症状是「本机 `npm test` 全绿、CI 红」。
 
 **Node 下限怎么来的**：钩子用的是同步的 `module.registerHooks()`，它同时管 ESM 的 `import` 与 CommonJS 的 `require`；异步的 `module.register()` 管不到 `require`，替代不了它。同步的 `registerHooks()` 从 Node 22.15 才有，这是这条线的起点——但 22.15 不等于能跑：钩子开着的时候测试加载的是 `.ts` 源码，而 Node 默认开启 TypeScript 类型剥离要到 22.18，再往上还有依赖自己的硬线（`jsdom` 声明 `^22.22.2 || ^24.15.0 || >=26.0.0`，8 个用例在用它）。所以根 `package.json` 的 `engines.node` 写的是 `"^22.22.2 || ^24.15.0 || >=26.0.0"`：22 线要 22.22.2 及以上，24 线要 24.15 及以上，26 及以上任意（23、25 是短命版本线，不单独支持）。这个范围是从最严的那个依赖抄来的，依赖一升要跟着复核；写窄了人会卡在「根项目通过、依赖拒绝」的信息里。
 
