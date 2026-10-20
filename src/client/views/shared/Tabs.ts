@@ -37,6 +37,7 @@ declare const emit: any;
 declare function Ic(...args: any[]): any;
 declare function tr(...args: any[]): any;
 declare function h(...args: any[]): any;
+declare const CONTAINER_ACCENT: any;
 export const useTabsRow = function (s: any, tabsRef: any) {
   const [tabTip, setTabTip] = React.useState(null)
   const tabsTip = function (e: any, text: any, priority: any) {
@@ -81,7 +82,7 @@ export const useTabsRow = function (s: any, tabsRef: any) {
     // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）
     // #1281：新增「写规格」蓝入口 —— 与「新建需求」同构，注入 /grill-with-docs prompt；
     //   两处入口（面板这一排 + 状态栏胶囊悬停菜单）都调 newSpecText，开场白逐字一致。
-    h('button', { className: 'dsws-btn', 'data-priority': 2, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newWayfinderTitle'), 2) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
+    h('button', { className: 'dsws-btn', 'data-priority': 2, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newWayfinderTitle'), 2) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid ' + ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : ''), color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', fontWeight: 600 } }, [
       Ic({ n: 'map', size: 11 }),
       h('span', null, tr('panel.newWayfinder')),
     ]),

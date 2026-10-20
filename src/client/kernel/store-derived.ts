@@ -22,6 +22,8 @@ declare const Tip: any;
 declare function Ic(...args: any[]): any;
 declare function inject(...args: any[]): any;
 declare function moduleMetaOf(...args: any[]): any;
+// #1296：身份色只从中央色表取（container-view.ts 的 CONTAINER_ACCENT，构建时排在本文件之前）。
+declare const CONTAINER_ACCENT: any;
 // ---- effort 维度共用小件（面板多处要按身份找地图/分组/取 effort 名单，只此一份实现）----
 /** 按票身份 (effort, 编号) 在 maps 数组里找地图；找不到就老实返回空，不猜第一张。
   * 只有整份快照都没有工作单元标识（老快照）时，才回落按编号找——新快照里按编号取第一张会开错地图。 */
@@ -296,16 +298,16 @@ export const actionColorOf = function (x: any, colorOf: any): any {
   const bc = function (nm: any, fb: any): any { const cc: any = colorOf[nm]; return cc ? '#' + cc : fb }
   const kind: any = rowActionKind(x)
   if (kind === 'diagnose') return bc('needs-triage', '#f59e0b')
-  // #785：接手跟 ready-for-human 标签色、补充跟 needs-info 标签色，取不到时兜底 #c084fc（与 10 个核心标签色均不同）
-  if (kind === 'takeover') return bc('ready-for-human', '#c084fc')
-  if (kind === 'supplement') return bc('needs-info', '#c084fc')
+  // #785：接手跟 ready-for-human 标签色、补充跟 needs-info 标签色，取不到时兜底探索紫（与 10 个核心标签色均不同）
+  if (kind === 'takeover') return bc('ready-for-human', CONTAINER_ACCENT.map)
+  if (kind === 'supplement') return bc('needs-info', CONTAINER_ACCENT.map)
   if (kind === 'fix') return bc('bug', '#f87171')
   if (kind === 'discuss') return bc('wayfinder:grilling', '#d93f0b')
   if (kind === 'research') return bc('wayfinder:research', '#0ea5e9')
   if (kind === 'prototype') return bc('wayfinder:prototype', '#f59e0b')
   // #1281：实施票与「规格」同色（贵族蓝），一眼能认出它属于实施地图那一支。
-  if (kind === 'implement') return '#1D4ED8'
-  return '#c084fc'
+  if (kind === 'implement') return CONTAINER_ACCENT.spec
+  return CONTAINER_ACCENT.map
 }
 // #361：行级动作注入文本的单一真源（诊断/接手/补充/修复/讨论/研究/原型/执行）—— 新会话打开与行内动作共用
 export const rowActionText = function (st: any, x: any): any {
@@ -327,7 +329,7 @@ export const rowActionText = function (st: any, x: any): any {
   try { return startText(st, x) } catch(e) { return renderTemplate('diagnose', { url: url }, st) }
 }
 // v19：共享 —— 行级动作（列表与 map 详情共用）：按一处分类八选一（诊断/接手/补充/修复/讨论/研究/原型/执行），预填输入框；
-// 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）；接手跟 ready-for-human、补充跟 needs-info（#785），取不到时兜底 #c084fc
+// 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）；接手跟 ready-for-human、补充跟 needs-info（#785），取不到时兜底探索紫
 export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any): any {
   const url: any = issueUrlFor(st, x.number)
   const kind: any = rowActionKind(x)
@@ -358,14 +360,14 @@ export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any)
   // v21：技能命令 + URL + 统一引导句（不再重复灌输技能内部流程）
   // v25 · T2b：诊断/修复/讨论走模板渲染（用户可自定义静态文本，{url} 注入）
   if (kind === 'diagnose') return mk('chat', tr('act.diagnose'), rowActionText(st, x), btnColor('needs-triage', '#f59e0b'))
-  if (kind === 'takeover') return mk('play', tr('act.takeover'), rowActionText(st, x), btnColor('ready-for-human', '#c084fc'))
-  if (kind === 'supplement') return mk('play', tr('act.supplement'), rowActionText(st, x), btnColor('needs-info', '#c084fc'))
+  if (kind === 'takeover') return mk('play', tr('act.takeover'), rowActionText(st, x), btnColor('ready-for-human', CONTAINER_ACCENT.map))
+  if (kind === 'supplement') return mk('play', tr('act.supplement'), rowActionText(st, x), btnColor('needs-info', CONTAINER_ACCENT.map))
   if (kind === 'fix') return mk('hammer', tr('act.fix'), rowActionText(st, x), btnColor('bug', '#f87171'))
   if (kind === 'discuss') return mk('chat', tr('act.discuss'), rowActionText(st, x), btnColor('wayfinder:grilling', '#d93f0b'))
   if (kind === 'research') return mk('search', tr('act.research'), rowActionText(st, x), btnColor('wayfinder:research', '#0ea5e9'))
   if (kind === 'prototype') return mk('prototype', tr('act.prototype'), rowActionText(st, x), btnColor('wayfinder:prototype', '#f59e0b'))
-  if (kind === 'implement') return mk('hammer', tr('act.implement'), rowActionText(st, x), '#1D4ED8')
-  return mk('play', tr('act.execute'), rowActionText(st, x), '#c084fc')
+  if (kind === 'implement') return mk('hammer', tr('act.implement'), rowActionText(st, x), CONTAINER_ACCENT.spec)
+  return mk('play', tr('act.execute'), rowActionText(st, x), CONTAINER_ACCENT.map)
 }
 // #506 拉取请求页签门控与列表派生（前端房纯函数，无日志点：无跨边界调用、无新缓存、无定时器，复用既有快照链路）
 // 门控只读后端模块的能力位，不写后端名字；快照组装全留，过滤归前端。

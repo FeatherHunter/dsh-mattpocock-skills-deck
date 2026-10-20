@@ -27,6 +27,7 @@ declare function completePrompt(...args: any[]): any;
 declare function isLightHex(...args: any[]): any;
 declare function containerTriState(...args: any[]): any;
 declare function containerPromptText(...args: any[]): any;
+declare const CONTAINER_ACCENT: any;
 
 export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => {
   const cx = React.useContext(DswsCtx)
@@ -41,7 +42,7 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
       : (state === 'done'
         ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
-        : { labelKey: 'act.execute', color: '#c084fc', icon: 'play', titleKey: 'map.executeTitle' })))
+        : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', icon: 'play', titleKey: 'map.executeTitle' })))
   const url = (typeof issueUrlFor === 'function') ? (function () { try { return issueUrlFor(st, m.number) } catch (e) { return '' } })() : ''
   // 点下去注入什么。真源是 container-view.ts 的 containerPromptText；它不在时退回今天的老口径
   //   （检查 / 完成 / 推进三段），行为与今天一字不差。

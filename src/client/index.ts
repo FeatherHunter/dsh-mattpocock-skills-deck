@@ -80,6 +80,11 @@ export default {
     // 注入（客户端源码零 URL 字面量，过硬编码门禁 F2；产物字面量已在门禁 RE_LICENSED 登记）。
     const DSW_REPO_URL = __DSW_REPO_URL__
 
+    // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源，列表页与详情页都从它取。
+    // #1296：中央色表 CONTAINER_ACCENT 也在这份文件里，所以它必须排在 styles 之前 ——
+    //   styles 的 CSS 字符串在模块求值时就拼好，晚于它就取不到身份色（const 有暂时性死区）。
+    // ==== kernel:containerView (spliced by build) ====
+
     // ============================================================
     // 0. 样式
     // ============================================================
@@ -189,6 +194,8 @@ export default {
     // ==== kernel:modalFields (spliced by build) ====
     // ==== kernel:config (spliced by build) ====
     // ==== kernel:log (spliced by build) ====
+    // #1296：两套容器身份色的按需日志（container.accent）不在启动段发射——日志契约要求
+    //   对账前不产生调试日志，发射点在 panelAssembly 的启动对账之后（见 leaf:panelAssembly）。
 
     // ============================================================
     // 3. store（v14：按会话隔离；无 sid 时用 shared）
@@ -216,8 +223,6 @@ export default {
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====
-    // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源，列表页与详情页都从它取。
-    // ==== kernel:containerView (spliced by build) ====
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
     // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生

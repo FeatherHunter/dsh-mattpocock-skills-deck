@@ -71,6 +71,7 @@ declare const SessionChainCapsule: any;
 declare const SkillFloatList: any;
 declare const StatusLogDot: any;
 declare const Tip: any;
+declare const CONTAINER_ACCENT: any;
 
 // #491 房外埋点：模块级计数（组件外一次，避免每渲染重置；只记枚举与计数，不记路径原文）。
 const dswsStatusHydN = { n: 0 }
@@ -316,8 +317,8 @@ export const StatusBar = (props: any) => {
     h('span', { ref: takeAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showTakeMenu, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) } }, [
       h(Tip, { content: tr('nav.takeableTitle') }, seg('target', [h('span', { 'data-fold-priority': 9 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') })),
       s.takeMenuOpen ? PortalOverlay({ className: 'dsws-takemenu', onMouseEnter: function () { clearClose(takeCloseRef) }, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) }, onClick: function (e: any) { e.stopPropagation() }, style: { position: 'fixed', left: s.takeMenuPos ? s.takeMenuPos.left : 0, bottom: s.takeMenuPos ? s.takeMenuPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [
-        h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? '#c084fc' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
-          Ic({ n: 'map', size: 12, color: s.takeMenuHover ? '#d8b4fe' : '#c084fc' }),
+        h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+          Ic({ n: 'map', size: 12, color: s.takeMenuHover ? '#d8b4fe' : ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') }),
           h('span', null, tr('nav.takeableNew')),
         ]),
         h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newSpecText(s), newSessionTitleNew('spec')) }, onMouseEnter: function () { if (!s.takeMenuSpecHover) { s.takeMenuSpecHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuSpecHover) { s.takeMenuSpecHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuSpecHover ? '#60a5fa' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuSpecHover ? 'rgba(96,165,250,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
@@ -336,7 +337,7 @@ export const StatusBar = (props: any) => {
       ]) : null,
     ]),
     h(Tip, { content: tr('nav.triageTitle') }, seg('search', [h('span', { 'data-fold-priority': 11 }, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') })),
-    h(Tip, { content: tr('nav.fixateTitle') }, seg('note', h('span', { 'data-fold-priority': 7 }, tr('nav.word')), '#c084fc', function () { injectFixate(s) })),
+    h(Tip, { content: tr('nav.fixateTitle') }, seg('note', h('span', { 'data-fold-priority': 7 }, tr('nav.word')), (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', function () { injectFixate(s) })),
     h('span', { className: 'dsws-split' }, [
       h(Tip, { content: tr('nav.handoffTitle') }, h('span', { className: 'dsws-split-part', onClick: function (e: any) { e.stopPropagation(); doHandoff(s) }, 'aria-label': tr('nav.handoffTitle'), style: { color: '#58a6ff' } }, [
         Ic({ n: 'handoff', size: 12 }),

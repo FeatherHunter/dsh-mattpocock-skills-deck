@@ -52,6 +52,7 @@ declare const _tagsFpOf: any;
 declare const labelClicks: any;
 declare const listPrefs: any;
 declare const panelClock: any;
+declare const CONTAINER_ACCENT: any;
 
 // #1295：上一次落过的 container.split 分桶指纹（只在调试档用）。同一份分桶结果不重复落行 ——
 //   切页签、改筛选会让下面那个副作用再跑一趟，但四组条数与兜底标记都没变就没有新信息，记了属于「无变化的心跳」。
@@ -424,7 +425,7 @@ export     const ListTab = ({ st, narrow }: any) => {
             const on = st.stateFilter === k
             return h('span', chipProps({ key: 'stf-' + k, className: 'dsws-chip', onClick: function (e: any) {
               e.stopPropagation(); st.stateFilter = k; listPrefs.stateFilter = k; saveListPrefs('stateFilter'); emit(st)
-            }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? 'rgba(188,140,255,.18)' : 'rgba(255,255,255,.06)', color: on ? '#c084fc' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(188,140,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
+            }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? 'rgba(188,140,255,.18)' : 'rgba(255,255,255,.06)', color: on ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(188,140,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
           }),
           h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
           ['updatedAt', 'createdAt', 'number', 'title'].map(function (k: any) {

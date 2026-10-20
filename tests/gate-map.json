@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T10:46:56.539Z",
+  "generatedAt": "2026-10-20T11:52:09.888Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 299,
-  "gateCount": 299,
-  "attributedGates": 262,
+  "chainLength": 300,
+  "gateCount": 300,
+  "attributedGates": 263,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
@@ -4298,6 +4298,23 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
+      "step": "node tests/verify-container-colors.ts",
+      "file": "tests/verify-container-colors.ts",
+      "guards": [
+        "src/client/kernel/container-view.ts",
+        "src/client/views/versionControl/vcStyles.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
       "step": "node tests/verify-ctx.ts",
       "file": "tests/verify-ctx.ts",
       "guards": [
@@ -7303,6 +7320,7 @@
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
+      "node tests/verify-container-colors.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-delta-wiring.ts",
       "node tests/verify-error-single-source.ts",
@@ -7454,7 +7472,8 @@
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.ts",
       "node tests/verify-997-vc-sight-browser.ts",
-      "node tests/verify-997-vc-sight.ts"
+      "node tests/verify-997-vc-sight.ts",
+      "node tests/verify-container-colors.ts"
     ],
     "src/deck": [
       "node tests/verify-build-artifacts.ts",

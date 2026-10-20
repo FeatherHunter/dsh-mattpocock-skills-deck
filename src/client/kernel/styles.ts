@@ -10,6 +10,12 @@
  * 原位），与 ctx.ts/seam 同模式，源码树里只有这一份真源。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+declare const CONTAINER_ACCENT: any;
+// #1296：两套容器的身份色只剩中央色表 container-view.ts 的 CONTAINER_ACCENT 一处。本文件的 CSS 在模块
+//   求值时就要拼成一份字符串，而拼接次序由 src/client/index.ts 的标记决定——真机 bundle 里中央色表在前
+//   （kernel:containerView 标记已移到 kernel:styles 之前）；单独 import 本文件的门禁环境里它还不存在，
+//   用 typeof 判一下取空串，避免门禁单文件求值时抛 ReferenceError（那片环境本就不需要真色值）。
+const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT : { map: '' };
     export const STYLE_TEXT: string = [
       // #670：面板挂载前那一帧（.dsws-hold）也要是面板本人，不能是一块透亮的空块。
       //   来历：右侧边栏那个标签内容体先画一个空壳、等两跳 rAF 才挂真面板（#603 为了点开不白等），
@@ -60,7 +66,7 @@
       '.dsws-chip-g{background:rgba(63,185,80,.16);color:#3fb950}',
       '.dsws-chip-t{background:rgba(240,136,62,.16);color:#f0883e}',
       '.dsws-chip-m{background:rgba(188,140,255,.16);color:#bc8cff}',
-      // #1286：规格（实施地图）角标。身份色是贵族蓝 #1D4ED8，但它在深色面板上只有 2.6:1 的对比度，
+      // #1286：规格（实施地图）角标。身份色是中央色表里的规格蓝，但它在深色面板上只有 2.6:1 的对比度，
       // 小字直接用它看不清，所以角标字用同色系浅蓝 #93c5fd，贵族蓝留给左侧色条与编号徽章。
       '.dsws-chip-s{background:rgba(29,78,216,.22);color:#93c5fd}',
       // #626：普通票（没有 wayfinder 类型标签的票）用中性灰，与「已关闭」那类灰同一支
@@ -78,7 +84,7 @@
       '.dsws-btn{padding:3px 10px;border-radius:6px;border:1px solid var(--dsw-alias-border-l1,#2a2d35);background:var(--dsw-alias-bg-layer-1,#10131a);color:var(--dsw-alias-label-primary,#e6edf3);font-size:12px;cursor:pointer}',
       '.dsws-btn:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a)}',
       // v14-5：主色按钮固定主题安全色（不再依赖 alias 变量，当前主题下会解析成深色导致黑底黑字）
-      '.dsws-btn.primary{background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}',
+      '.dsws-btn.primary{background:' + CONTAINER_ACCENT_CSS.map + ';border-color:transparent;color:#140a1e;font-weight:600}',
       '.dsws-btn.primary:hover{border-color:rgba(20,10,30,.55)}',
       // v1.3.3：窄屏只剩图标时保持按钮高度、画成正方形（高=宽=按钮高），图标居中
       '.dsws-btn.narrow-icon{width:20px;height:20px;padding:0;justify-content:center;align-items:center;gap:0}',
@@ -270,7 +276,7 @@
       '.dsws-dest .ring .track{stroke:rgba(255,255,255,.07);fill:none;stroke-width:6}',
       '.dsws-dest .ring .prog{fill:none;stroke-width:6;stroke-linecap:round;stroke:rgba(192,132,252,.7)}',
       '.dsws-dest .core{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}',
-      '.dsws-dest .core svg{width:22px;height:22px;fill:none;stroke:#c084fc;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
+      '.dsws-dest .core svg{width:22px;height:22px;fill:none;stroke:' + CONTAINER_ACCENT_CSS.map + ';stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
       '.dsws-dest .title{font-size:15px;font-weight:700;margin-top:4px;color:#e6edf3}',
       '.dsws-dest .acts{display:flex;justify-content:center;gap:8px;margin-top:8px}',
       '.dsws-ellip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
@@ -280,7 +286,7 @@
       '.dsws-ccard .dt{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)}',
       '.dsws-ccard .act{margin-top:5px;display:flex;gap:6px}',
       // v1.5 T10 R7：刷新遮罩已废除（手动刷新走静默路径）；spinner 仅首开 loading 用
-      '.dsws-spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:#c084fc;animation:dsws-spin .8s linear infinite;flex:none}',
+      '.dsws-spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:' + CONTAINER_ACCENT_CSS.map + ';animation:dsws-spin .8s linear infinite;flex:none}',
       '@keyframes dsws-spin{to{transform:rotate(360deg)}}',
       // v1.5 T10：刷新入口按钮内联转圈（非阻塞反馈 · R7 反馈半）+ R5 变化行高亮（变更琥珀渐隐 / 新增绿闪）
       '.dsws-spin{display:inline-flex;animation:dsws-spin .8s linear infinite}',
@@ -302,13 +308,13 @@
       '.dsws-cfg-seg{display:inline-flex;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#16181d);padding:3px;gap:2px}',
       '.dsws-cfg-seg button{border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px;padding:4px 14px;border-radius:6px;cursor:pointer;font-family:var(--dsw-font-family)}',
       '.dsws-cfg-seg button:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
-      '.dsws-cfg-seg button.on{background:#c084fc;color:#140a1e;font-weight:600}',
+      '.dsws-cfg-seg button.on{background:' + CONTAINER_ACCENT_CSS.map + ';color:#140a1e;font-weight:600}',
       '.dsws-cfg-sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12px}',
       '.dsws-cfg-sw input{display:none}',
       '.dsws-cfg-sw .tr{width:34px;height:19px;border-radius:99px;background:var(--dsw-alias-bg-layer-3,#0c0e12);border:1px solid var(--dsw-alias-border-l1,#2a2d35);position:relative;flex:none;transition:background .15s,border-color .15s}',
       '.dsws-cfg-sw .tr::after{content:"";position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:var(--dsw-alias-label-caption,#8b8b95);transition:transform .15s,background .15s}',
       '.dsws-cfg-sw input:checked + .tr{background:rgba(192,132,252,.22);border-color:rgba(192,132,252,.55)}',
-      '.dsws-cfg-sw input:checked + .tr::after{transform:translateX(15px);background:#c084fc}',
+      '.dsws-cfg-sw input:checked + .tr::after{transform:translateX(15px);background:' + CONTAINER_ACCENT_CSS.map + '}',
       '.dsws-cfg-ta{width:100%;min-height:56px;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;color:var(--dsw-alias-label-primary,#e6edf3);font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11.5px;line-height:1.6;padding:7px 9px;box-sizing:border-box;resize:none;overflow:hidden}',
       '.dsws-cfg-ta:focus{outline:none;border-color:rgba(192,132,252,.6)}',
       '.dsws-cfg-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0}',
@@ -326,7 +332,7 @@
       '.dsws-cfg-preview .pv-label{display:block;font-family:var(--dsw-font-family);font-size:10px;letter-spacing:.5px;color:var(--dsw-alias-label-caption,#8b8b95);margin-bottom:3px}',
       '.dsws-cfg-err{border:1px solid rgba(248,113,113,.5);background:rgba(248,113,113,.1);border-radius:10px;padding:10px 12px;font-size:12px;color:#f87171;line-height:1.7}',
       '.dsws-cfg-err .t{font-weight:650;display:flex;align-items:center;gap:6px;margin-bottom:2px}',
-      '.dsws-cfg-save{align-self:flex-end;background:#c084fc;color:#140a1e;border:none;border-radius:8px;font-size:13px;font-weight:650;padding:8px 28px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}',
+      '.dsws-cfg-save{align-self:flex-end;background:' + CONTAINER_ACCENT_CSS.map + ';color:#140a1e;border:none;border-radius:8px;font-size:13px;font-weight:650;padding:8px 28px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}',
       '.dsws-cfg-save:hover{filter:brightness(1.08)}',
       '.dsws-cfg-btn{background:transparent;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:7px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:11.5px;padding:3px 10px;cursor:pointer}',
       '.dsws-cfg-btn:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a);color:var(--dsw-alias-label-primary,#e6edf3)}',
@@ -347,5 +353,5 @@
       '.dsws-no-repo-form .hint{font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);margin-top:2px}',
       '.dsws-no-repo-form .radio{display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer}',
       // #876 自有更新弹窗与待重启提示已删（按钮与面板走包的入口件，样式由包自带）：下掉旧排版，只留版本管理页的链接行样式。
-      '.dsws-vc-link{color:var(--dsw-alias-interactive-bg-primary,#c084fc);cursor:pointer;text-decoration:none}.dsws-vc-link:hover{text-decoration:underline;filter:brightness(1.12)}.dsws-vc-row{border-radius:6px;padding:2px 6px;margin-left:-6px;transition:background .12s ease}.dsws-vc-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}.dsws-vc-card{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:6px 8px;background:var(--dsw-alias-bg-layer-3,#0c0e12)}.dsws-vc-diff{font-family:ui-monospace,Consolas,Menlo,monospace;font-size:11px;line-height:1.55;max-height:320px;overflow:auto}.dsws-vc-caption{font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95)}.dsws-vc-sep+.dsws-vc-sep{border-top:1px solid var(--dsw-alias-border-l1,#2a2d35)}', // #842 界面打磨（task-61）：版本管理页里那几处「看着像没上样式」的元素的统一取色与悬停；取值风格照既有 .dsws-* 与主题变量（--dsw-alias-*），浅深色都跟着主题走
+      '.dsws-vc-link{color:var(--dsw-alias-interactive-bg-primary,' + CONTAINER_ACCENT_CSS.map + ');cursor:pointer;text-decoration:none}.dsws-vc-link:hover{text-decoration:underline;filter:brightness(1.12)}.dsws-vc-row{border-radius:6px;padding:2px 6px;margin-left:-6px;transition:background .12s ease}.dsws-vc-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}.dsws-vc-card{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:6px 8px;background:var(--dsw-alias-bg-layer-3,#0c0e12)}.dsws-vc-diff{font-family:ui-monospace,Consolas,Menlo,monospace;font-size:11px;line-height:1.55;max-height:320px;overflow:auto}.dsws-vc-caption{font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95)}.dsws-vc-sep+.dsws-vc-sep{border-top:1px solid var(--dsw-alias-border-l1,#2a2d35)}', // #842 界面打磨（task-61）：版本管理页里那几处「看着像没上样式」的元素的统一取色与悬停；取值风格照既有 .dsws-* 与主题变量（--dsw-alias-*），浅深色都跟着主题走
     ].join('')

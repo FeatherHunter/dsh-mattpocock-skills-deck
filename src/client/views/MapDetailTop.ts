@@ -38,6 +38,7 @@ declare function containerTriState(...args: any[]): any;
 declare function containerPromptText(...args: any[]): any;
 declare const CONTAINER_CHIP_CLASS: any;
 declare const CONTAINER_CHIP_LABEL_KEY: any;
+declare const CONTAINER_ACCENT: any;
 
 export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: triProp }: any) => {
   const cx = React.useContext(DswsCtx)
@@ -55,7 +56,7 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: tri
     ? containerTriState(cKind, cState)
     : (cState === 'empty' ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
       : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
-        : { labelKey: 'act.execute', color: '#c084fc', icon: 'play', titleKey: 'map.executeTitle' })))
+        : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', icon: 'play', titleKey: 'map.executeTitle' })))
   // 字色：完成态沿用今天的深绿字（#0c1a10），其余按底色深浅在深墨与白字之间择优。
   const triTextColor = cState === 'done' ? '#0c1a10' : ((typeof isLightHex === 'function' && isLightHex(tri.color)) ? '#140a1e' : '#ffffff')
   // 新会话与主按钮永远同色实心：两处取同一份 tri.color，不再靠 CSS 默认值碰巧相同。

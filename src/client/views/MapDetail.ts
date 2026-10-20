@@ -96,10 +96,10 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         : (cKind === 'spec'
           ? (cState === 'empty' ? { labelKey: 'act.split', color: '#f59e0b', icon: 'branch', titleKey: 'spec.splitTitle' }
             : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'spec.doneTitle' }
-              : { labelKey: 'act.execute', color: '#1D4ED8', icon: 'play', titleKey: 'spec.executeTitle' }))
+              : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.spec : '', icon: 'play', titleKey: 'spec.executeTitle' }))
           : (cState === 'empty' ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
             : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
-              : { labelKey: 'act.execute', color: '#c084fc', icon: 'play', titleKey: 'map.executeTitle' })))
+              : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', icon: 'play', titleKey: 'map.executeTitle' })))
       // 区块字段防御性兜底：快照组装层已恒填 EMPTY（[] / ''），旧磁盘缓存/异常数据仍可能缺失，
       // 缺失时按空区块渲染（曾因 m.decisions 等 undefined 直接读 .length 抛 Cannot read properties of undefined）
       const decisions = Array.isArray(m.decisions) ? m.decisions : []

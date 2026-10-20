@@ -54,8 +54,8 @@ export const MapDetailHead = ({ st, m, mt, multiEffort, kind }: any) => {
   //   取 container-view.ts 那一份（列表页同一份），别处不再各判一次。
   const cKind = kind || (typeof containerKindOf === 'function' ? containerKindOf(m) : null) || 'map'
   const countKey = (typeof containerCountKey === 'function') ? containerCountKey(cKind) : (cKind === 'spec' ? 'map.specSubCount' : 'map.subCount')
-  // 编号徽章用身份色：探索紫 #c084fc、规格贵族蓝 #1D4ED8（状态色不参与，徽章说的是「你是谁」）。
-  const accent = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT && CONTAINER_ACCENT[cKind]) ? CONTAINER_ACCENT[cKind] : (cKind === 'spec' ? '#1D4ED8' : '#c084fc')
+  // 编号徽章用身份色：探索紫、规格贵族蓝都取自中央色表（状态色不参与，徽章说的是「你是谁」）。
+  const accent = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT && CONTAINER_ACCENT[cKind]) ? CONTAINER_ACCENT[cKind] : ''
   const line = (function () {
     if (mode === 'loading') return tr('map.subCountLoading')
     if (unsupported) return null

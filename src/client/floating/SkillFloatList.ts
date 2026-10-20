@@ -27,6 +27,7 @@ declare const PortalOverlay: any;
 declare const SKILLS: any;
 declare const SKILL_FLOAT_CLOSE_DELAY_MS: any;
 declare const Tip: any;
+declare const CONTAINER_ACCENT: any;
 
 export const SkillFloatList = function (props: any) {
   const cx = React.useContext(DswsCtx)
@@ -110,7 +111,7 @@ export const SkillFloatList = function (props: any) {
     ref: skillAnchorRef, onMouseEnter: showSkillPop,
     onMouseLeave: function () { scheduleClose(skillCloseRef, closeSkillPop) },
   }, [
-    h(Tip, { content: tr('nav.skillsTitle') }, h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e: any) { e.stopPropagation(); if (s.skillsOpen) closeSkillPop(); else showSkillPop() }, 'aria-label': tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? '#c084fc' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })])),
+    h(Tip, { content: tr('nav.skillsTitle') }, h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e: any) { e.stopPropagation(); if (s.skillsOpen) closeSkillPop(); else showSkillPop() }, 'aria-label': tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })])),
     s.skillsOpen ? PortalOverlay({ className: 'dsws-skillpop-bridge', onMouseEnter: function () { clearClose(skillCloseRef) }, onMouseLeave: function () { scheduleClose(skillCloseRef, closeSkillPop) }, style: { position: 'fixed', right: s.skillPopPos ? s.skillPopPos.right : 0, bottom: s.skillPopPos ? s.skillPopPos.bottom : 0, paddingTop: 4, paddingBottom: 4, zIndex: 2147483000 }, onClick: function (e: any) { e.stopPropagation() } }, [
       h('div', { className: 'dsws-skillpop', style: { minWidth: 150, maxHeight: 'min(300px, calc(100vh - 24px))', overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
         SKILLS.map(function (sk: any) {
@@ -122,7 +123,7 @@ export const SkillFloatList = function (props: any) {
             onClick: function (e: any) { e.stopPropagation(); inject(s, '/' + sk.name); closeSkillPop() },
             onMouseEnter: function () { if (s.skillHover !== sk.name) { s.skillHover = sk.name; emit(s) } },
             onMouseLeave: function () { if (s.skillHover !== null) { s.skillHover = null; emit(s) } },
-            style: { padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.skillHover === sk.name ? 'var(--dsw-alias-label-primary,#e6edf3)' : 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', background: s.skillHover === sk.name ? 'var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))' : 'transparent', borderLeft: s.skillHover === sk.name ? '2px solid #c084fc' : '2px solid transparent' }
+            style: { padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.skillHover === sk.name ? 'var(--dsw-alias-label-primary,#e6edf3)' : 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', background: s.skillHover === sk.name ? 'var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))' : 'transparent', borderLeft: s.skillHover === sk.name ? '2px solid ' + ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : '2px solid transparent' }
           }), sk.name))
         }),
         h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '5px 8px 2px', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginTop: 2, whiteSpace: 'nowrap' } }, tr('nav.skillHint')),

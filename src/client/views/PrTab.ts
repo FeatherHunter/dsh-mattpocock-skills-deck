@@ -33,6 +33,7 @@ declare const loadSnapshot: any;
 declare const prFilterForList: any;
 declare const prIssuesOf: any;
 declare const setActiveIssue: any;
+declare const CONTAINER_ACCENT: any;
 
 export const PrTab = function (props: any) {
   const cx = React.useContext(DswsCtx)
@@ -50,7 +51,7 @@ export const PrTab = function (props: any) {
   }
   if (st.snapMode === 'loading' && !st.snapshot) {
     return h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12 } }, [
-      h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: '#c084fc', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite', margin: '0 auto 8px' } }),
+      h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite', margin: '0 auto 8px' } }),
       h('span', null, tr('list.loading')),
     ])
   }
@@ -84,7 +85,7 @@ export const PrTab = function (props: any) {
   const STATE_STYLE: any = {
     open: { color: '#3fb950', bg: 'rgba(63,185,80,.15)', key: 'list.state.open' },
     closed: { color: '#8b949e', bg: 'rgba(139,148,158,.15)', key: 'list.state.closed' },
-    merged: { color: '#c084fc', bg: 'rgba(192,132,252,.16)', key: 'list.state.merged' },
+    merged: { color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', bg: 'rgba(192,132,252,.16)', key: 'list.state.merged' },
   }
   return h('div', null, sorted.map(function (x: any) {
     var key = (x.key != null ? x.key : x.number)

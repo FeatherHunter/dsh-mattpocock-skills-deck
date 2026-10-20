@@ -161,7 +161,7 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         const C = 2 * Math.PI * 7
         const off = C * (1 - pct / 100)
         // #1286：环色跟着容器身份走（探索紫 / 规格贵族蓝），全关时一律绿
-        const color = pct >= 100 ? '#4ade80' : (kind === 'spec' ? '#1D4ED8' : '#bc8cff')
+        const color = pct >= 100 ? '#4ade80' : accentOf(kind)
         return h('span', { className: 'dsws-ring', 'data-dsws-row-part': 'ring' }, [
           h('svg', { width: LIST_ROW_SHAPE.ring.size, height: LIST_ROW_SHAPE.ring.size, viewBox: '0 0 18 18' }, [
             h('circle', { cx: 9, cy: 9, r: 7, fill: 'none', stroke: 'rgba(255,255,255,.12)', strokeWidth: 2.4 }),
@@ -201,16 +201,17 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
             : (containerObj && containerObj.stats && containerObj.stats.total ? (containerObj.stats.closed === containerObj.stats.total ? 'done' : 'open') : 'empty'))
         : (mapDone ? 'done' : (mapEmpty ? 'empty' : 'open'))
       // #1286：编号徽章色。探索地图照旧（完成绿 / 空态橙 / 否则取行级动作色）；
-      //   规格：空态橙 #f59e0b、有未关蓝 #1D4ED8、全关绿 #3fb950。
+      //   规格：空态橙、有未关蓝（中央色表）、全关绿。
       const numColor = isSpec
         ? ((typeof containerNumberColor === 'function') ? containerNumberColor('spec', cState, actionColorOf(x, colorOf))
-            : (cState === 'done' ? '#3fb950' : cState === 'empty' ? '#f59e0b' : '#1D4ED8'))
+            : (cState === 'done' ? '#3fb950' : cState === 'empty' ? '#f59e0b' : (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT ? CONTAINER_ACCENT.spec : '')))
         : (mapDone ? '#3fb950' : mapEmpty ? '#f59e0b' : actionColorOf(x, colorOf))
       // #1286：容器的身份色、行底色、角标样式与角标文案都从内核 container-view.ts 取；
-      //   门禁单独求值本文件时那份常量不在，就退回同口径的本地兜底值（真机走不到这条路）。
+      //   门禁单独求值本文件时那份常量不在：身份色退回空串，行底色与角标类退回本文件里那份与内核
+      //   同值的兜底（真机走不到这条路。身份色不再抄一份色值，抄了中央色表就不是唯一真源）。
       const accentOf = function (k: any) {
-        const table: any = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT : { map: '#c084fc', spec: '#1D4ED8' }
-        return table[k] || '#c084fc'
+        const table: any = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT : {}
+        return table[k] || ''
       }
       const tintOf = function (k: any) {
         const table: any = (typeof CONTAINER_TINT === 'object' && CONTAINER_TINT) ? CONTAINER_TINT : { map: 'rgba(188,140,255,.07)', spec: 'rgba(29,78,216,.10)' }

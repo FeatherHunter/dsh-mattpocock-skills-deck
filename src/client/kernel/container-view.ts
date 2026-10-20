@@ -28,7 +28,7 @@ declare function completePrompt(...args: any[]): string;
 declare function startText(...args: any[]): string;
 declare function promptTextFor(...args: any[]): string;
 
-// 身份色：探索紫、实施贵族蓝（2026-10-20 当面拍板）
+// 身份色：探索紫、规格蓝（2026-10-20 当面拍板；#1286 设计文档里把后者叫「实施贵族蓝」，是同一个颜色）
 export const CONTAINER_ACCENT: any = { map: '#c084fc', spec: '#1D4ED8' };
 // 行底色：身份色同色系的一层薄底（探索沿用现状，实施是新加的）
 export const CONTAINER_TINT: any = { map: 'rgba(188,140,255,.07)', spec: 'rgba(29,78,216,.10)' };
@@ -81,7 +81,7 @@ export const containerTriState = function (kind: string, state: string): any {
 /** 编号徽章取色：完成态绿、空态橙，未完成时按容器身份取色。
   * fallback 是调用方按老口径算出的颜色（探索地图今天走 actionColorOf），
   * 传进来是为了让探索地图的观感一字不变。
-  * 注意：身份色 #1D4ED8 当 11px 小字对比度只有约 2.6:1（设计文档 §3.3 记过这笔账）；
+  * 注意：身份色（规格蓝）当 11px 小字对比度只有约 2.6:1（设计文档 §3.3 记过这笔账）；
   * 徽章照 2026-10-20 的拍板继续用身份色，浅蓝 #93c5fd 只给角标小字。 */
 export const containerNumberColor = function (kind: string, state: string, fallback: string): string {
   if (state === 'done') return CONTAINER_DONE_COLOR;

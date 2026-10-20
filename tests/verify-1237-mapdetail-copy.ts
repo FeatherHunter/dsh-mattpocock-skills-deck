@@ -31,6 +31,9 @@ globalThis.Ic = (props: any) => ('[icon:' + ((props && props.n) || '?') + ']')
 const identityMod = await import('../src/tracker/kernel/identity-keys.js')
 const linkMod = await import('../src/client/kernel/link.js')
 const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
+// #1296：身份色从中央色表取（改一处、整套面板跟着变）。这里注入真表与真容器判定函数，
+//   徽章那条断言才能按容器类型分支：探索地图仍是探索紫，规格容器是规格蓝。
+const cvMod = await import('../src/client/kernel/container-view.js')
 
 globalThis.issueUrlFor = linkMod.issueUrlFor
 globalThis.effortOf = identityMod.effortOf
@@ -38,6 +41,17 @@ globalThis.idOf = identityMod.idOf
 globalThis.idOfParts = identityMod.idOfParts
 globalThis.effortNamesOf = () => ['default']
 globalThis.findMapByIdentity = () => null
+globalThis.containerKindOf = cvMod.containerKindOf
+globalThis.containerStateOf = cvMod.containerStateOf
+globalThis.containerTriState = cvMod.containerTriState
+globalThis.containerNumberColor = cvMod.containerNumberColor
+globalThis.containerPromptText = cvMod.containerPromptText
+globalThis.containerCountKey = cvMod.containerCountKey
+globalThis.CONTAINER_ACCENT = cvMod.CONTAINER_ACCENT
+globalThis.CONTAINER_TINT = cvMod.CONTAINER_TINT
+globalThis.CONTAINER_CHIP_CLASS = cvMod.CONTAINER_CHIP_CLASS
+globalThis.CONTAINER_CHIP_LABEL_KEY = cvMod.CONTAINER_CHIP_LABEL_KEY
+globalThis.CONTAINER_CHIP_MARKER_CLASS = cvMod.CONTAINER_CHIP_MARKER_CLASS
 globalThis.pushNav = () => {}
 globalThis.openInNewSession = () => {}
 globalThis.copyText = async () => true
@@ -96,12 +110,12 @@ function makeCx(h: any) {
 function openTicket() {
   return { number: 1231, key: '1231', effortId: 'default', title: '子票', state: 'OPEN', blockedBy: [], labels: [{ name: 'bug' }], type: 'task', level: 0 }
 }
-function mapOf(tickets: any[]) {
-  return { number: 1228, key: '1228', effortId: 'default', title: '地图', state: 'OPEN', labels: [], tickets, stats: { levels: [{ open: tickets.length, closed: 0, total: tickets.length }], total: tickets.length, closed: 0 }, decisions: [], fog: [], outOfScope: [] }
+function mapOf(tickets: any[], kind?: any) {
+  return { number: 1228, key: '1228', effortId: 'default', title: '地图', state: 'OPEN', labels: [], type: kind === 'spec' ? 'spec' : undefined, tickets, stats: { levels: [{ open: tickets.length, closed: 0, total: tickets.length }], total: tickets.length, closed: 0 }, decisions: [], fog: [], outOfScope: [] }
 }
-function renderMap(tickets: any[], copyFlash: any) {
+function renderMap(tickets: any[], copyFlash: any, kind?: any) {
   const st: any = { snapshot: { issues: [], maps: [] }, mapTickets: null, reveal: {}, copyFlash, cwd: 'D:\\ws' }
-  const g: any = { m: mapOf(tickets) }
+  const g: any = { m: mapOf(tickets, kind) }
   return renderToStaticMarkup(React.createElement(DswsCtx.Provider, { value: makeCx(React.createElement) },
     React.createElement(MapDetail, { st, g, drill: false })))
 }
@@ -161,7 +175,13 @@ function renderMap(tickets: any[], copyFlash: any) {
   check(iBadge >= 0 && iTitle > iBadge, 'E1 编号徽章画在标题之前（行首那颗）')
   const badge = html.slice(iBadge, html.indexOf('</span>', iBadge))
   check(badge.includes('#1228'), 'E2 徽章文本是 # 加编号（实得 ' + badge.replace(/<[^>]*>/g, '') + '）')
-  check(/color:\s*#c084fc/i.test(badge) && /flex:\s*none/i.test(badge), 'E3 徽章紫色且不参与伸缩（flex:none）')
+  check(/color:\s*#c084fc/i.test(badge) && /flex:\s*none/i.test(badge), 'E3 探索地图徽章用中央色表的探索紫且不参与伸缩（flex:none）')
+  // #1296 按容器类型分支：规格容器（type: 'spec'）的编号徽章必须改用规格蓝。
+  //   以前这里只断一种紫色，中央化后若哪边写死一套色，另一种容器就会露馅。
+  const specHtml = renderMap([openTicket()], null, 'spec')
+  const iSpecBadge = specHtml.indexOf('dsws-idnum')
+  const specBadge = iSpecBadge >= 0 ? specHtml.slice(iSpecBadge, specHtml.indexOf('</span>', iSpecBadge)) : ''
+  check(/color:\s*#1D4ED8/i.test(specBadge) && /flex:\s*none/i.test(specBadge), 'E3b 规格容器徽章用中央色表的规格蓝且不参与伸缩（按容器类型取色）')
   const title = html.slice(iTitle, iTitle + 400)
   check(title.includes('dsws-tt-wrap'), 'E4 标题块挂了全文提示的包裹类')
   check(title.includes('地图'), 'E5 标题块里是地图标题正文')

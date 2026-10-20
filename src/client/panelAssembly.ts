@@ -44,6 +44,11 @@ declare const DECK_NATIVE_TYPE_ID: any;
 declare const DECK_NATIVE_TAB_KIND: any;
 declare const Ic: any;
 declare const NATIVE_TAB_RETRY_INTERVAL_MS: any;
+// #1296：容器身份色的按需日志要用到这三样。log 与 isEnabled 来自 kernel:log 那一片，
+//   CONTAINER_ACCENT 来自 kernel:containerView 那一片；两片都拼在本片之前，启动对账时已经在作用域里。
+declare const isEnabled: any;
+declare const log: any;
+declare const CONTAINER_ACCENT: any;
     // ============================================================
     // 5.11 Ctx 接线（阶段 2 步骤 1 · #95）：建 cx 单例 + Provider 包住渲染树（行为零变化）
     // ============================================================
@@ -188,7 +193,25 @@ declare const NATIVE_TAB_RETRY_INTERVAL_MS: any;
 
     // #490 client 日志底座：开关启动对账（本地秒显已在 log.ts 顶层同步完成；
     //   此处再向宿主读开关，以宿主为准；宿主不可用就保持本地值，不阻断启动）。
-    try { if (typeof reconcileLogSwitch === 'function') reconcileLogSwitch() } catch (e) {}
+    // #1296：两套容器身份色的按需日志（#115 container.accent）落在对账之后——日志契约要求
+    //   对账前不产生调试日志，所以等 reconcileLogSwitch 的 Promise 兑现、宿主给出开关值才记；
+    //   记的是本份构建产物里中央色表实际取到的两色，排查「改了色没生效」时与工作区源码对照，
+    //   不一致说明浏览器里跑的是旧产物、一致却仍看不出变化说明改的不是这一处。
+    try {
+      if (typeof reconcileLogSwitch === 'function') {
+        const pendingReconcile = reconcileLogSwitch()
+        if (pendingReconcile && typeof pendingReconcile.then === 'function') {
+          pendingReconcile.then(function (res: any) {
+            if (!res || res.ok !== true) return
+            try {
+              if (isEnabled('debug') && typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) {
+                log('debug', 'container.accent', { explore: CONTAINER_ACCENT.map, spec: CONTAINER_ACCENT.spec })
+              }
+            } catch (e) {}
+          }).catch(function () { /* 对账失败：保持本地值，不记这一行 */ })
+        }
+      }
+    } catch (e) {}
     // #347：加载真数据快照（repo 链接 + 前置检测兜底），失败静默
     loadSnapshot(shared, false)
     // #265：命名守护常驻渲染钩子（面板未开也续跑；计划单经 wf.namingPlan 拉取后代执行改名）
