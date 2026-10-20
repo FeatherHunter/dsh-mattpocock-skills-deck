@@ -101,3 +101,15 @@
 - 宿主契约的一手调查：`research/1284-locale-data-contract.md`
 - 术语：`GLOSSARY.md` 的「界面文案与语言词条」
 - 同款机制先例：`docs/adr/20261016-time-config-yaml.md`（`config/` 下 YAML 加生成器、编译期配置不做运行期可调）
+
+## 8. 落地记录（2026-10-20，#1294）
+
+这一节只记事实，不改上面第 1～7 节当时的口径；有出入的地方在最后一条说明。
+
+- **真源已搬完。** 十份 `src/client/kernel/locale-*.ts` 片段删除，界面文案搬进 `config/copy/` 下的十份词族 YAML（一族一份、文件名就是族名）：`panel` 275 键、`flow` 235、`word` 189、`vcwrite` 102、`pages` 70、`labels` 51、`cards` 34、`skilldesc` 27、`skilldetail` 26、`spec` 21。语言清单 `config/languages.yaml` 没动：缺省 `zh`，`en` 缺内容退到 `zh`。
+- **生成器与生成物。** `scripts/generate-locale-config.mts` 读这十份 YAML 与 `config/languages.yaml`，写出 `src/client/kernel/locale-data.ts`。生成物不入库（`.gitignore` 已登记），生成器 `--check` 挂在 `npm run typecheck` 的第一条；改了 YAML 忘了重算会打印「FAIL 生成源码与 config/ 下的 YAML 对不上：请先跑生成器」并以退出码 1 停下；全新检出不带生成物时 `--check` 会先现场生成一份再判过。生成物里带 `LANG_CONFIG`、`LOCALE_LANGS`、`LOCALE_COPY`、十族常量（`L_PANEL` … `L_SPEC`）与键名联合类型（每族一个 `LocaleKey<族名>`、全部合起来一个 `LocaleKey`）。
+- **构建顺序。** `scripts/build.mts` 的 `KERNEL_MODULES` 里 `kernel:localeData` 排在 `kernel:locale` 之前；拼装前先起生成器，且生成器排在 time-config 之后（词表里的 `{{时间参数}}` 要用时间参数生成物烘成字面量）。
+- **客户端。** `src/client/kernel/locale.ts` 取代十份片段，导出十个名字：`L`、`languageIds`、`localeMainTagOf`、`langChainFrom`、`langChainOf`、`uiLang`、`pickLangText`、`uiText`、`languageLabelOf`、`localeAdopt`。`src/client/index.ts` 的注册段是 `ctx.effect(function () { return localeAdopt(localeSvc) }, 'dsws: locale')`：`localeAdopt` 按语言清单逐门 `addLanguage` / `register('dsws', 语言 id, 该语言词表)`，不再有 `register('dsws', L)` 这种写法；取词仍是 `tr = localeSvc.bind('dsws')`。加一门语言只改 YAML、不改代码。
+- **日志。** 注册这一趟新增两条事件：`locale.registration`（信息级、按需）记语言总数、新注册几门、跳过几门、缺省语言、耗时与成功标记；`locale.registration.fail`（告警级、常驻）记卡在哪一步（读快照 / 新增语言 / 注册词表）、哪门语言、回退目标与错误散列。实际发射壳是 `locale.ts` 里的 `localeLogEmit`（晚一拍进微任务）。台账见 `research/489-appendix.md` 第 1 章的 #112 / #113，门禁 `tests/verify-log-count.ts` 与 `tests/verify-log-fields.ts` 已同步。
+- **门禁。** 测试侧读生成物的唯一入口是 `tests/lib/locale-data.ts`（族清单按 `config/copy/` 目录自动发现）；`tests/verify-locale-config.ts` 守配置这一侧九件事（生成新鲜度、YAML 自校验、校验器对坏数据真会红、生成物与真源逐键相等、生成物结构契约、目录自动发现、语言清单驱动注册且不写死语言、写死清零、旧片段不并存），`tests/verify-locale-completeness.ts` 守完整性与双语覆盖；两条都已进 `scripts/verify-stages.json`。另加一条棘轮：每门语言键数下限 1030，只许增不许减。判定强度对照表见 `docs/design/1294-locale-gate-strength.md`。
+- **键数口径按实测更新。** 规格期口径是 964 个键（当时被读到的 899 + 手写清单漏检的 65）；落地实测每门语言 1030 个键，差的 66 个键里，65 个来自原来手写清单漏掉的三族（`cards` / `skilldetail` / `spec`），另 1 个是 #1294 给 router 新增的 `prompt.requirementPrefix`。门禁以 `config/copy/` 目录自动发现为准，不读任何手写数字；本 ADR 第 1、6 节里的 964 是规格期口径，保留原文不改。

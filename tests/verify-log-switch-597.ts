@@ -80,7 +80,16 @@ async function clickDebugSwitch(setSwitchReply) {
   let settingsComp = null
   const services = {
     slots: { register: (meta, comp) => { if (meta && meta.name === 'settings.plugins.tab') settingsComp = comp; return () => {} }, inject: (n, fn) => { try { fn() } catch (e) {} } },
-    locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
+    // #1294 之后界面侧不再自带词表片段，改为按语言清单把每门语言注册进宿主 locale 服务：
+    // localeAdopt 会先问 getSnapshot() 要宿主已有的语言（active 与 locales 两项都要有），
+    // 再对清单里每门语言调用 register('dsws', 语言id, 该语言词表)，bind('dsws') 返回的才是取词函数。
+    // 所以这里的桩要按新形状给：register 的第二个参数是语言 id，词表对象在第三个参数。
+    locale: {
+      getSnapshot: () => ({ active: 'zh', locales: [{ id: 'zh' }, { id: 'en' }] }),
+      addLanguage: () => () => {},
+      register: (ns, id, table) => { Object.assign(dict, table || {}); return () => {} },
+      bind: () => trFn,
+    },
     workspaces: { list: async () => [] },
     sessions: { list: async () => [] },
     // 计时器：只把看门狗那 5 秒压到 5 毫秒（否则本门禁要真等 5 秒），其余延时照常。

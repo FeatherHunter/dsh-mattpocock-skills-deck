@@ -5,6 +5,7 @@
 > 对齐说明（#444）：冻结表 10 行、门禁表 11 行、构建清单 15 项曾脱节，现以实测为准统一为 15 拼接模块；另有 2 个非拼接文件见下节，不计入 15。
 > 接口增量（#595 · 2026-09-10）：`kernel/prompts.js` 增 6 个导出（`bodyFormatDefault`、`currentBackendId`、`backendPromptFrom`、`bodyFormatText`、`backendParamsFor`、`promptTextFor`），`kernel/config.js` 增 `TPL_BACKEND_MARKERS`；目的是让「正文格式」这段文案由跟踪器后端各自声明、模板只留标记。口径与来龙去脉见下面「正文格式契约」一节。
 > 今天的形状（#1292 · 2026-10-20）：提示词文本的真源已从源码搬进 `config/prompts/` 下的 YAML 与 `config/languages.yaml`，源码里不再有提示词字面量；`bodyFormatDefault` / `bodyFormatText` / `BODY_FORMAT` 三个导出随 #725 删掉「正文格式」整节一并退役；「按当前后端渲染」那一族改名住在 `kernel/prompts-backend.ts`。详见下面「提示词真源与语言清单」与「正文格式契约」两节。
+> 今天的形状（#1294 · 2026-10-20）：界面词表的真源已从十份 `src/client/kernel/locale-*.ts` 片段搬进 `config/copy/` 下的十份词族 YAML，源码里不再有界面文案字面量；客户端只留一份合并器与取词助手 `kernel/locale.ts`，词表本体是构建期生成的 `kernel/locale-data.ts`（不入库，拼在 `kernel:locale` 之前）。详见下面「界面词表真源与语言清单」一节。
 > 机制：与 ctx.ts 同模式 —— src/client/index.ts 中模块原位置留标记 `// ==== kernel:<name> (spliced by build) ====`，
 > 构建时由 scripts/build.mts 把模块文件（剥每行行首 `export `）文本拼回标记处，一源两物（_dev / _pkg 双产物同构）。
 
@@ -16,7 +17,7 @@
 | h | React.createElement | 闭包 `h` |
 | rdom | react-dom 访问器（createPortal 用，取不到为 null） | 闭包 `RDOM` |
 | storeSvc | 面板状态服务（shared / stores / makeStore / storeOf / emit / sub / useStore） | kernel/store-prefs.ts、kernel/store-switch.ts、kernel/store-snapshot.ts、kernel/store-derived.ts 四片（冻结当时合成一份 `kernel/store.js`，#455 拆开） |
-| localeSvc | DSH locale 服务（register / bind） | `ctx.get('locale')` |
+| localeSvc | DSH locale 服务（getSnapshot / addLanguage / register / bind） | `ctx.get('locale')`；#1294 起由 `kernel/locale.ts` 的 `localeAdopt` 按语言清单逐门注册，`src/client/index.ts` 用 `ctx.effect` 挂载与清理 |
 | timer | DSH timer 服务 | `ctx.get('timer')` |
 | api | host 桥（call(endpoint, args) → host.call，带可用性守卫） | kernel/api-io.ts 等五片里的 apiCall 包装（冻结当时合成一份 `kernel/api.js`，#457 拆开） |
 | router | 面板开关 / tab 导航（open / toggle） | kernel/router.ts 的 openPanel / togglePanel |
@@ -30,21 +31,17 @@
 
 > 迁移顺序（按依赖 · issue #96 Notes）：locale → prompts → icons → styles → store → api → probe → router → config；
 > 实际按物理位置与依赖综合串行迁移，每迁一个模块 build + verify-* 全绿再迁下一个。
+> #1294 之后 locale 这一支的拼装顺序固定为 `kernel:localeData` → `kernel:locale`：生成物先拼，合并器与取词助手才能取到 `LOCALE_COPY` / `LANG_CONFIG` / `LOCALE_LANGS` 这几个名字。
 > 消费方式：模块代码经构建拼回 apply 闭包内原位，闭包变量互相可见（函数调用时才解析引用）；
 > 模块文件顶层仅导出声明的常量/函数/纯数据（可被 verify 测试直接 import）。
-> 表里的行是冻结当时的模块名单，后来又添了新片：#1292 添了 `kernel/prompt-data.ts` 与 `kernel/prompts-backend.ts`，另有 `kernel/prompts-setup.ts`、`kernel/health-check.ts`、`kernel/modal-fields.ts` 等片是更早的票添的，本表没有逐行补齐。#444 的「15 模块」是当时那次的基准，不是今天的总数。
-> 「模块文件」一列写的是冻结当时的文件名，多数还是 `.js`。内核脚本后来陆续转成了 TypeScript（#1209 转三份拼接片段，#1251 转其余六十二份），今天 `src/client/kernel/` 下全是 `.ts` 真源，同名 `.js` 是构建产物、不入库；本表只在与提示词有关的行上按今天的真源写。
+> 表里的行是冻结当时的模块名单，后来又添了新片：#1292 添了 `kernel/prompt-data.ts` 与 `kernel/prompts-backend.ts`，另有 `kernel/prompts-setup.ts`、`kernel/health-check.ts`、`kernel/modal-fields.ts` 等片是更早的票添的，本表没有逐行补齐。#1294 又删掉十份 locale 片段（`locale-panel` 到 `locale-spec` 十份），把它们并成两份：生成物 `kernel/locale-data.ts` 与合并器兼取词助手 `kernel/locale.ts`。#444 的「15 模块」是当时那次的基准，不是今天的总数。
+> 「模块文件」一列写的是冻结当时的文件名，多数还是 `.js`。内核脚本后来陆续转成了 TypeScript（#1209 转三份拼接片段，#1251 转其余六十二份），今天 `src/client/kernel/` 下全是 `.ts` 真源，同名 `.js` 是构建产物、不入库；本表只在提示词与界面词表有关的行上按今天的真源写（#1294 起 locale 两行也是）。
 
 | 模块文件 | 导出（接口） | 依赖（闭包内引用） | 说明 |
 |---|---|---|---|
-| `kernel/locale-panel.js`（标记名 `localePanel`） | `L_PANEL`（导航、面板、横幅、环境、初始化引导五组，zh/en 双语） | 无 | 字典片段之一（#458 由 `locale.js` 拆出，304 行） |
-| `kernel/locale-flow.js`（标记名 `localeFlow`） | `L_FLOW`（动作、类型、列表、配置、详情、地图、提示七组，zh/en 双语） | 无 | 字典片段之一（#458 由 `locale.js` 拆出，302 行） |
-| `kernel/locale-word.js`（标记名 `localeWord`） | `L_WORD`（技能、检查、浮层、命名、切换、进度、错误、模板、运行十一组，zh/en 双语；技能描述 #879 起另立 `locale-skilldesc.js`） | 无 | 字典片段之一（#458 由 `locale.js` 拆出；#879 把技能描述组搬出后回落到 350 行以内） |
-| `kernel/locale-labels.js`（标记名 `localeLabels`） | `L_LABELS`（#621 标签配色弹窗的文案：入口提示、弹窗标题与四种正文形态、保存四种结果、契约八个错误档位各一句人话、窄面板提示，zh/en 双语） | 无 | 字典片段之四（#621 新增；老的三份片段都在 350 行上限附近，这一票要加四十多条键，故单独一份片段，由 `locale.js` 合并器一起并进 `L`） |
-| `kernel/locale-pages.js`（标记名 `localePages`） | `L_PAGES`（#690 历史票按需翻页的五句：已加载 x / 共 N、这个后端只能在网页上看全部、翻页位置失效已重新开始、没取到再试、更早的页腾出后要重新加载，zh/en 双语） | 无 | 字典片段之五（#690 新增；`locale-flow.js` 已在 350 行上限附近，故照 #621 的做法单独一份片段，由 `locale.js` 合并器一起并进 `L`） |
-| `kernel/locale-skilldesc.js`（标记名 `localeSkilldesc`） | `L_SKILLDESC`（#879 技能描述 27 条中英词条，zh/en 双语） | 无 | 字典片段之七（#879 新增；`locale-word.js` 已贴 350 行上限，照 #621/#690/#842 的做法单独一份片段，由 `locale.js` 合并器一起并进 `L`） |
-| `kernel/locale.js`（标记名 `locale`，合并器） | `L`（`Object.assign` 合并七片段 zh/en，key 一个不改只搬家） | `L_PANEL`/`L_FLOW`/`L_WORD`/`L_LABELS`/`L_PAGES`/`L_VCWRITE`/`L_SKILLDESC`（定义时引用，标记位顺序保证先片段后合并） | tr 绑定（`localeSvc.bind('dsws')`）由 index.js 装配；字典为唯一真源，verify-t3-locale 契约 |
-| `kernel/prompts.ts`（标记名 `prompts`） | 23 个导出：`PROMPTS`、`VOCABULARY_DEFAULT`、`promptLanguages`、`promptLang`、`vocabularyParamsFrom`、`promptText`、`promptFragment`、`SETUP_DEFAULT_PROMPT_KEYS`、`SETUP_LAYOUT_TEXT_KEYS`、`SETUP_LAYOUT_DEFAULT`、`normalizeSetupLayout`、`readSetupLayout`、`setupRunParamsFrom`、`setupRunPrompt`、`switchAlignPrompt`、`setupBlockedByGuide`、`setupOrRepoPrompt`、`setupRunTextForClick`、`consumePendingSetup`、`NEW_WAYFINDER_DEFAULT_WIRING`、`newWayfinderParamsFrom`、`NEW_BUG_FIELDS_BODY`、`NEW_BUG_FIELDS_BODY_EN` | `PROMPT_TEMPLATE_DATA` / `PROMPT_FRAGMENT_DATA` / `LANGUAGES_YAML`（kernel:promptData，调用时）、localeSvc（promptLang）、L/locale 字典与 L 兜底（setupRunParamsFrom）、`currentBackendId` / `declaredLangPick` / `backendPromptFrom`（kernel:promptsBackend，调用时）、getCachedSelection / getCachedSetupLayout / chainSteps / guideStepsFor / guideStepDone / injectSetupDecision（闭包，调用时） | 提示词真源不在本文件：`PROMPTS` 读生成物 `PROMPT_TEMPLATE_DATA`，`VOCABULARY_DEFAULT` / `NEW_WAYFINDER_DEFAULT_WIRING` / `NEW_BUG_FIELDS_BODY` / `NEW_BUG_FIELDS_BODY_EN` 读生成物 `PROMPT_FRAGMENT_DATA`；真源是 `config/prompts/` 下的 YAML，见下面「提示词真源与语言清单」一节。注册表契约见 tests/verify-prompts.ts；setupRun 占位符由后端声明键（BackendModule.setupPrompt → wf.registry）经 setupRunParamsFrom 填充（#230 · D10 键入 locale，2026-08-28 生效；#230 已删 setupTrackerLine/Choice/BackendNote 三函数）。#1209 起本文件是 TypeScript，同名 .js 是构建产物、不入库 |
+| `kernel/locale-data.ts`（标记名 `localeData`，生成物） | 运行时名字：`LANG_CONFIG`（语言清单：缺省语言 default 与每门语言的 label、fallback）、`LOCALE_LANGS`（语言 id 列表）、`LOCALE_COPY`（全词表：语言 id → 词条键 → 文案）、十族常量 `L_PANEL` / `L_FLOW` / `L_WORD` / `L_VCWRITE` / `L_PAGES` / `L_LABELS` / `L_CARDS` / `L_SKILLDESC` / `L_SKILLDETAIL` / `L_SPEC`；源码阶段另有类型 `LocaleLanguageEntry`、`LocaleLanguageConfig`、`LocaleLang`、每族键名联合 `LocaleKey<族名>` 与总联合 `LocaleKey`，供 typecheck 与门禁 import，构建时整段剥掉 | 无 | 界面词表的生成物（#1294 取代十份 locale 片段）：由 `config/copy/` 下十份词族 YAML（panel、flow、word、vcwrite、pages、labels、cards、skilldesc、skilldetail、spec）与 `config/languages.yaml` 经 `scripts/generate-locale-config.mts` 现场生成，构建期写出、不入库。拼装顺序必须排在 `kernel:locale` 之前（见下面「界面词表真源与语言清单」一节） |
+| `kernel/locale.ts`（标记名 `locale`，合并器与取词助手） | 10 个导出：`L`（`LOCALE_COPY` 的只读别名，与旧 `register('dsws', L)` 的用法同形）、`languageIds`、`localeMainTagOf`、`langChainFrom`、`langChainOf`、`uiLang`、`pickLangText`、`uiText`、`languageLabelOf`、`localeAdopt` | `LANG_CONFIG` / `LOCALE_LANGS` / `LOCALE_COPY`（kernel:localeData，定义时与调用时）、`localeSvc`（index 闭包）、`log` / `dswsLogHash` / `dswsLogTrunc`（kernel:log 与 probe-snapshot，日志用，调用时） | 取代十份 locale 片段（#1294）：把生成物暴露成 `L`，按语言清单算当前语言与回退链，`localeAdopt` 把 dsws 命名空间按清单逐门 register、宿主缺的语言先 addLanguage，返回清理函数交给 index 的 `ctx.effect`。注册这一趟发两条日志（`locale.registration.fail` 告警常驻、`locale.registration` 信息按需），实际发射壳是同文件的 `localeLogEmit`（晚一拍进微任务），事件台账见 `research/489-appendix.md` 的 #112 / #113 |
+| `kernel/prompts.ts`（标记名 `prompts`） | 22 个导出：`PROMPTS`、`VOCABULARY_DEFAULT`、`promptLanguages`、`promptLang`、`vocabularyParamsFrom`、`promptText`、`promptFragment`、`SETUP_DEFAULT_PROMPT_KEYS`、`SETUP_LAYOUT_TEXT_KEYS`、`SETUP_LAYOUT_DEFAULT`、`normalizeSetupLayout`、`readSetupLayout`、`setupRunParamsFrom`、`setupRunPrompt`、`switchAlignPrompt`、`setupBlockedByGuide`、`setupOrRepoPrompt`、`setupRunTextForClick`、`consumePendingSetup`、`NEW_WAYFINDER_DEFAULT_WIRING`、`newWayfinderParamsFrom`、`NEW_BUG_FIELDS_BODY`（#1294 删掉了 `NEW_BUG_FIELDS_BODY_EN`：中英两份正文都由 `NEW_BUG_FIELDS_BODY()` 按语言链取自同一片段，不再留一个「只管英文」的取用口；`promptLang()` 的返回类型也从 `'zh' | 'en'` 放宽成 `string`） | `PROMPT_TEMPLATE_DATA` / `PROMPT_FRAGMENT_DATA` / `LANGUAGES_YAML`（kernel:promptData，调用时）、localeSvc（promptLang）、L/locale 字典与 L 兜底（setupRunParamsFrom）、`currentBackendId` / `declaredLangPick` / `backendPromptFrom`（kernel:promptsBackend，调用时）、getCachedSelection / getCachedSetupLayout / chainSteps / guideStepsFor / guideStepDone / injectSetupDecision（闭包，调用时） | 提示词真源不在本文件：`PROMPTS` 读生成物 `PROMPT_TEMPLATE_DATA`，`VOCABULARY_DEFAULT` / `NEW_WAYFINDER_DEFAULT_WIRING` / `NEW_BUG_FIELDS_BODY` 读生成物 `PROMPT_FRAGMENT_DATA`（#1294：中英正文由语言链挑，不再有只取英文的取用口）；真源是 `config/prompts/` 下的 YAML，见下面「提示词真源与语言清单」一节。注册表契约见 tests/verify-prompts.ts；setupRun 占位符由后端声明键（BackendModule.setupPrompt → wf.registry）经 setupRunParamsFrom 填充（#230 · D10 键入 locale，2026-08-28 生效；#230 已删 setupTrackerLine/Choice/BackendNote 三函数）。#1209 起本文件是 TypeScript，同名 .js 是构建产物、不入库 |
 | `kernel/prompts-backend.ts`（标记名 `promptsBackend`） | 13 个导出：`currentBackendId`、`backendPromptFrom`、`declaredLangPick`、`backendParamsFor`、`promptTextFor`、`newWayfinderPrompt`、`MATT_REPO`、`MAP_EXECUTE_PROMPT`、`COMPLETE_PROMPT`、`FIXATE_PROMPT`、`newSpecPrompt`、`completePrompt`、`inspectPrompt` | promptText / promptLang / newWayfinderParamsFrom / vocabularyParamsFrom（kernel:prompts，调用时）、getCachedSelection / repoUrlFor / issueUrlFor（闭包，调用时） | 「按当前后端渲染一条提示词」那一族（#1292 由 `kernel/prompts.ts` 拆出，避 350 行上限；同属一个客户端闭包，互调不走 import）。这族里没有 `bodyFormatDefault` / `bodyFormatText` / `BODY_FORMAT` 三个导出：它们随 #725 删掉「正文格式」整节一并退役，见下面「正文格式契约」一节 |
 | `kernel/prompt-data.ts`（标记名 `promptData`，生成物） | 运行时三个名字：`PROMPT_TEMPLATE_DATA`（模板全表）、`PROMPT_FRAGMENT_DATA`（片段全表）、`LANGUAGES_YAML`（语言清单）；源码阶段另有四个接口与两个类型别名（`PromptTemplateEntry` / `PromptFragmentShape` / `PromptLanguageEntry` / `PromptLanguageConfig` / `PromptTemplateId` / `PromptTemplatePlaceholders`），供 typecheck 与门禁 import，构建时整段剥掉 | 无 | 提示词配置的生成物：由 `config/prompts/` 下的五份模板族 YAML（片段按注入时机住在对应族里）与 `config/languages.yaml` 经 `scripts/generate-prompt-config.mts` 现场生成，构建期写出、不入库。拼装顺序必须排在 kernel:prompts 之前（见下面「提示词真源与语言清单」一节） |
 | `kernel/icons.js` | `ICON_SCHEMES`、`WORD_SCHEMES`、`Icon`、`Ic` | h（React.createElement 自由变量） | 通用图标集（统一 SVG stroke 风格） |
@@ -55,7 +52,7 @@
 | `kernel/store-switch.js`（标记名 `storeSwitch`） | 标签与颜色（`labelOf`、`presentationById`、`setPresentationMap`、`backendColorOf`、`backendBgOf`、`backendBorderOf`、`repoShortName`）、切换确认（`DEFAULT_SWITCH_PROMPT_ZH`、`openSwitchConfirm`、`closeSwitchConfirm`、`loadSwitchCri`、`confirmSwitchConfirm`） | tr（index）、flash（store-snapshot，调用时）、setupRunPrompt/inject/loadSnapshot/loadChain（调用时） | 会话级状态之切换确认（#455 由 `store.js` 第 120–312 行拆出，201 行） |
 | `kernel/store-snapshot.js`（标记名 `storeSnapshot`） | 存储核（`makeStore`、`shared`、`stores`、`storeOf`、`emit`、`sub`、`useStore`）、快照与链缓存（`SNAP_CWD_LRU_MAX`、`snapshotByCwd`、`touchLRUClient`、`getCachedSnapshot`、`getCachedEntry`、`setCachedSnapshot`、`getSnapshotVersion`、`lastProbeAtByCwd`、`getProbeAt`、`touchProbeAt`、`SNAP_DISK_CAP`、`diskPutSnapshot`、`diskGetSnapshot`、`CHAIN_CWD_LRU_MAX`、`chainByCwd`、`getChainCacheKey`、`getCachedChain`、`setCachedChain`、`hydrateFromCache`、`mergeSelection`、`applySnapshotSelection`、`getCwdSync`）、提醒（`NOTICE_COLOR`、`noticeIcon`、`flash`） | keyOf（shared:workspaceKey，调用时）、SYNC（shared:trackerSync，调用时） | 会话级状态之存储核与快照（#455 由 `store.js` 第 313–599 行拆出，295 行） |
 | `kernel/store-derived.js`（标记名 `storeDerived`） | 派生统计（`compute`、`frontierAll`、`openIssuesOf`、`isOccupied`、`occCount`、`frontierCount`、`applyStandaloneBlocks`、`hasLabelOf`、`isTriageLike`、`bugCount`、`triageCount`、`buildColorOf`、`isLightHex`、`rowActionKind`、`actionColorOf`、`rowActionText`、`mkRowAction`、`timeStampStr`）、工单口径与后端计数（`isTicketRow`、`ticketRowsOf`、`deckCountsOf`） | issueUrlFor（link，调用时）、renderTemplate/startText（config/router，调用时） | 会话级状态之派生统计与行级动作（#455 由 `store.js` 第 600–741 行拆出，150 行；#544 增独立票阻塞边合并 `applyStandaloneBlocks`，只读快照 issues 自带边，零请求；#689 增工单口径 `isTicketRow`／`ticketRowsOf` 与后端计数读取 `deckCountsOf`，主列表、KPI、状态栏三处共用同一处判断；#771 增一处分类 `rowActionKind`，四处展示共用它） |
-| `kernel/api-naming.js`（标记名 `apiNaming`） | 交接头（`injectFixate`、`handoffPrompt`、`extractHandoffFile`、`absHandoffPath`、`handoffReadText`）、预设与建会话（`getRowPreset`、`isHealthyPreset`、`isReusableBlank`、`buildCreateOpts`、`createPTCSession`）、命名守护（`NAMING_POLL_MS`、`namingCurrentTitleOf`、`namingHintOf`、`executeNamingOrder`、`reconcileNamingFailure`、`applyNamingFailurePanel`、`namingGuardianKick`、`startNamingGuardianPoll`） | inject（api-io，调用时）、fixateText/renderTemplate（config，调用时）、keyOf（shared:workspaceKey，调用时）、storeOf/emit（store-snapshot，调用时）、evaluateRenameLock/composeDraftTitle/newSessionTitle（shared:namingGuardian，调用时）、promptLang（prompts，调用时）、timeStampStr（store-derived，调用时）、tr（index）、host/timer/ctx（自由变量） | 交接头与命名守护（#457 由 `api.js` 第 9–327 行拆出，327 行；原序第 320–327 行八行交接按钮注释为保三文件各≤350 留在本文件尾，纯注释行为不变；#787 交接记忆与首条草稿搬进会话 store，模块级 `handoffTs`/`handoffFile`/`pendingDraft`/`pendingDraftTargetSid` 四全局删除） |
+| `kernel/api-naming.js`（标记名 `apiNaming`） | 交接头（`injectFixate`、`handoffPrompt`、`extractHandoffFile`、`absHandoffPath`、`handoffReadText`）、预设与建会话（`getRowPreset`、`isHealthyPreset`、`isReusableBlank`、`buildCreateOpts`、`createPTCSession`）、命名守护（`NAMING_POLL_MS`、`namingCurrentTitleOf`、`namingHintOf`、`executeNamingOrder`、`reconcileNamingFailure`、`applyNamingFailurePanel`、`namingGuardianKick`、`startNamingGuardianPoll`） | inject（api-io，调用时）、fixateText/renderTemplate（config，调用时）、keyOf（shared:workspaceKey，调用时）、storeOf/emit（store-snapshot，调用时）、evaluateRenameLock/composeDraftTitle/newSessionTitle（shared:namingGuardian，调用时）、namingContentLang（shared:namingTitles，调用时；#1294 起草稿标题的语言由内容表沿语言链选，不再用 promptLang）、timeStampStr（store-derived，调用时）、tr（index）、host/timer/ctx（自由变量） | 交接头与命名守护（#457 由 `api.js` 第 9–327 行拆出，327 行；原序第 320–327 行八行交接按钮注释为保三文件各≤350 留在本文件尾，纯注释行为不变；#787 交接记忆与首条草稿搬进会话 store，模块级 `handoffTs`/`handoffFile`/`pendingDraft`/`pendingDraftTargetSid` 四全局删除） |
 | `kernel/api-preset-guard.js`（标记名 `apiPresetGuard`） | 预设守卫（`describeReuseDecision`、`verifyFreshPreset`、`tryQuarantineSession`、`createVerifiedPTCSession`） | getRowPreset/isHealthyPreset（api-naming，调用时） | 预设探针与创建后验编排（#478 由 `api-naming.js` 拆出，防复用闸门关联文件超 350 行粒度） |
 | `kernel/api-workspace.js`（标记名 `apiWorkspace`） | 工作区编号查找（`workspacePathOf`、`workspaceIdOf`、`workspaceNormOf`、`workspaceCollectFromSnap`、`workspaceMatchEntry`、`workspaceTryCreateWid`、`resolveWorkspaceEntry`） | keyOf（shared:workspaceKey，调用时） | 按目录找工作区编号与按需创建（#636 由 `api-new-session.js` 拆出，防新增超标；命中时编号与登记项同路返回，供复用验归属） |
 | `kernel/api-handoff.ts`（标记名 `apiHandoff`） | 交接执行（`handoffCwdMatches`、`probeHandoffReady`、`doHandoff`、`doHandoffOpen`） | handoffPrompt（api-naming，调用时）、inject/copyText（api-io，调用时）、buildCreateOpts/createPTCSession（api-naming，调用时）、storeOf（store-snapshot，调用时）、keyOf/wsKeyOf（shared:workspaceKey，调用时）、openTextInNewSession（api-new-session，调用时）、tr（index）、host/timer/ctx（自由变量） | 交接执行（#1251 由 `api-new-session` 拆出：那份文件转成 TypeScript 后有效行超过 350 行的粒度上限，而「交接执行」与「新会话创建」本来就是两件事；拆法与 #636 拆 `api-workspace` 一致，导出名与调用点一个未动。探测交接文档 → 生成交接文档 → 带着交接文档开新会话这条链路都在这里） |
@@ -68,7 +65,7 @@
 | `kernel/probe-auto.js`（标记名 `probeAuto`） | 节拍（`PROBE_MS`、`FOCUS_PROBE_MIN_MS`、`lastFocusProbe`、`_actionProbePending`）、`probeNow`、`scheduleActionProbe`、`startAutoProbe`、只服务活跃工作区的那条探测节拍（`_activeProbeAt`、`startActiveProbeLoop`）、手动刷新（`spinAll`、`refreshAll`）、新鲜度（`SNAP_FRESH_MS`、`snapFresh`） | loadSnapshot/diffSnapshots/scheduleFlashClear（probe-snapshot，调用时）、loadChain（probe-chain，调用时）、flash/touchProbeAt/hydrateFromCache/shared/stores/emit（store，调用时）、keyOf（shared:workspaceKey，调用时）、_attentionPlan/attentionVisible/attentionStoreOf（attention-heartbeat，调用时）、tr（index）、timer/host/document（自由变量） | 自动探测与手动刷新（#456 由 `probe.js` 第 405–634 行拆出，239 行；#707 起这条节拍只探「我正在看的那个工作区根」，间隔由宿主的视野模型给，后台工作区一个定时器都不排） |
 | `kernel/attention-heartbeat.js`（标记名 `attentionHeartbeat`） | 窗口标识（`_attentionWindowId`、`attentionWindowId`）、可见性与人类输入（`attentionVisible`、`_attentionHumanAt`、`attentionNoteHuman`）、上报（`reportWorkspaceAttention`、`adoptAttentionPlan`、`attentionRootOf`、`attentionStoreOf`、`attentionKeyOf`）、处境（`_attentionPlan`、`_attentionAckAt`、`ATTENTION_SILENT_MS`、`attentionStandingOf`、`attentionSuspended`）、心跳与监听（`_attentionLastBeatAt`、`attentionBeat`、`startAttentionHeartbeat`、`startAttentionSignals`、`stopAttentionSignals`） | host（自由变量）、log/isEnabled（kernel:log）、wsKeyOf/getCachedSnapshot/hydrateFromCache/shared/stores/emit（store，调用时）、dswsLogHash/dswsLogTrunc（probe-snapshot，调用时）、startActiveProbeLoop（probe-auto，调用时）、tr（index）、timer/document/window（自由变量） | 视野模型的客户端半边（#707 新增：会话切换 / 打开面板 / 窗口获焦时上报一次「我在看谁」；面板可见时每 20 秒一次本地心跳，零配额不出网；窗口标识放 sessionStorage —— 平台不提供窗口身份与焦点信号，放 localStorage 会被同源别的窗口覆盖） |
 | `kernel/probe-stale.js`（标记名 `probeStale`） | 在途复用与「这一次回包还算不算数」的判断（#669 第 5 件）：`_snapPendKey`（去重键 = 工作区键 + 后端 id）、`_snapReuseInFlight`（在途复用，含 #366「force 不复用非 force」那条判据）、`_snapMarkRequest`（发文登记：序号 + 这次问的后端 + 在途键）、`_snapRespStale`（回包判两问）、`_snapSeqN`/`_snapLatestByWs`（每把键上最新一次请求的序号） | pendingSnapshotByCwd（probe-snapshot，调用时）、wsKeyOf（shared:workspaceKey，调用时）、hydrateFromCache/emit（store，调用时）、dswsDedupWin（probe-snapshot，调用时）、log/isEnabled（kernel:log）、tr（index） | #669 第 5 件从 `probe-snapshot.js` 拆出（守卫放进去那个文件会到 359 行、超 350 上限）：真机现场是「选 Markdown → 点确认切换 → 没有任何反应」—— 切换前飞着一次强制重取时，绑定成功之后那次重取被按工作区的去重规则复用掉，面板拿回切换前那份快照。两个文件同属一个闭包，互相调用不走 import |
-| `kernel/router.ts` | `DECK_NATIVE_TAB_KIND`、`DECK_NATIVE_TYPE_ID`、`DeckSidebarTab`、`DeckNativeTabTitle`、`afterPanelOpened`、`openInNativeRight`、`openPanel`、`togglePanel`、`repoStr`、`withWayfinderPrefix`、`startText`、`newWayfinderText`、`newBugWayfinderText`、`newSpecText`、`panelClock`、`panelNow`、`logPanelStage` | loadSnapshot/hydrateFromCache/snapFresh/getSnapshotVersion/getCachedSnapshot（probe）、renderTemplate（config）、promptText/promptTextFor/promptLang/NEW_BUG_FIELDS_BODY/NEW_BUG_FIELDS_BODY_EN（prompts）、newWayfinderPrompt/newSpecPrompt/completePrompt/inspectPrompt（promptsBackend）、repoUrlFor（link）、keyOf（shared:workspaceKey）、log（kernel:log）、host/timer/ctx（自由变量） | 面板开关 / tab 导航 / 文本生成（#444 按实测移除已不存在的 `SESSION_TITLE_PREFIX`、`newSessionTitle`；2026-09-21 移除 `openPagePanel`、`openDockPanel`、`sidebarTabDisposer`、`sidebarTabRetry`、`ensureSidebarTab`、`openInSidebar` —— 面板只留 DSH 原生右侧边栏一条路；`withWayfinderPrefix` 里那道「前缀开关 = cfg.withWayfinder」已随 #1012 定案第 10 条删除，函数本身保留）。本文件原先还依赖 `BODY_FORMAT`（#595 为「正文格式」那一节留的常量），随 #725 删掉「正文格式」整节一并退役，依赖里已无它。#1251 起本文件是 TypeScript，同名 .js 是构建产物、不入库 |
+| `kernel/router.ts` | `DECK_NATIVE_TAB_KIND`、`DECK_NATIVE_TYPE_ID`、`DeckSidebarTab`、`DeckNativeTabTitle`、`afterPanelOpened`、`openInNativeRight`、`openPanel`、`togglePanel`、`repoStr`、`withWayfinderPrefix`、`startText`、`newWayfinderText`、`newBugWayfinderText`、`newSpecText`、`panelClock`、`panelNow`、`logPanelStage` | loadSnapshot/hydrateFromCache/snapFresh/getSnapshotVersion/getCachedSnapshot（probe）、renderTemplate（config）、promptText/promptTextFor/NEW_BUG_FIELDS_BODY（prompts）、newWayfinderPrompt/newSpecPrompt/completePrompt/inspectPrompt（promptsBackend）、`uiText`（kernel:locale，取需求描述前缀）、repoUrlFor（link）、keyOf（shared:workspaceKey）、log（kernel:log）、host/timer/ctx（自由变量） | 面板开关 / tab 导航 / 文本生成（#444 按实测移除已不存在的 `SESSION_TITLE_PREFIX`、`newSessionTitle`；2026-09-21 移除 `openPagePanel`、`openDockPanel`、`sidebarTabDisposer`、`sidebarTabRetry`、`ensureSidebarTab`、`openInSidebar` —— 面板只留 DSH 原生右侧边栏一条路；`withWayfinderPrefix` 里那道「前缀开关 = cfg.withWayfinder」已随 #1012 定案第 10 条删除，函数本身保留）。#1294 起三处文本拼接不再按「是不是 en」二选一：需求描述前缀改读词表 `prompt.requirementPrefix`（`uiText`），bug 字段正文由 `NEW_BUG_FIELDS_BODY()` 按语言链自己取，`NEW_BUG_FIELDS_BODY_EN` 随之删除。本文件原先还依赖 `BODY_FORMAT`（#595 为「正文格式」那一节留的常量），随 #725 删掉「正文格式」整节一并退役，依赖里已无它。#1251 起本文件是 TypeScript，同名 .js 是构建产物、不入库 |
 | `kernel/builtin-backends.js`（标记名 `backendList`） | `BUILTIN_BACKENDS`、`builtinLabelOf`、`otherFiltered`、`firstBackendIdOf`、`repositoryActionOf`、`moduleMetaOf` | 无 | 内置后端显示名单单源（#231 类别 5 收编）；注意文件名与标记名不同，标记为 `// ==== kernel:backendList (spliced by build) ====` |
 | `kernel/link.js` | `issueUrlFor`、`openIssueUrl`、`searchUrlFor`、`repoUrlFor`、`issueRefNumbersFrom` | 无（调用时收 `st`/`host`） | 问题链接与搜索链接纯函数 |
 | `kernel/actions.js` | `createActionDispatcher`、`ACTIONS_VERSION` | 闭包内 `host`/`store`/`probe`（调用时） | 动作分发器（表单提交、注入、开链接、刷新） |
@@ -114,11 +111,82 @@ FAIL 生成源码与 config/ 下的 YAML 对不上：请先跑生成器 —— n
 
 ### 语言清单
 
-语言清单的唯一真源是 `config/languages.yaml`：里面写着支持哪些语言、缺省是哪种、以及每种语言的回退链（这门语言没写时接着找哪一门）。提示词侧与界面侧共用这一份，不许在界面侧另抄一份语言名单。客户端闭包里的运行时入口是 `promptLanguages()`（住在 `kernel/prompts.ts`，返回值就是生成物里的 `LANGUAGES_YAML`）。它今天只有一个调用方：`promptLang()` 按「DSH 语言快照的主标签 → 清单里有没有这门 → 缺省语言 → 沿回退链退到第一门正文真带了的语言」定下这一次渲染用哪门语言；`fallback: []` 表示这门语言没有上一级可退，是回退链的终点。今天每门最多写一条退路（运行时只认 `fallback` 的第一项），多写的项不生效、校验层会直接判红 —— 要一次退多门，得先把运行时改成沿列表逐项尝试。语言快照本身读不到时（`getSnapshot()` 返回 null、服务没装这个方法、或它抛异常）一律按清单的 `default` 定，不会掉进写死的某一门。
+语言清单的唯一真源是 `config/languages.yaml`：里面写着支持哪些语言、缺省是哪种、以及每种语言的回退链（这门语言没写时接着找哪一门）。提示词侧与界面侧共用这一份，不许在界面侧另抄一份语言名单。客户端闭包里的运行时入口是 `promptLanguages()`（住在 `kernel/prompts.ts`，返回值就是生成物里的 `LANGUAGES_YAML`）。它今天只有一个调用方：`promptLang()` 按语言清单定下这一次渲染用哪门语言 —— #1294 起「当前是哪门语言」由 `kernel/locale.ts` 的 `uiLang()` 统一回答（DSH 语言快照的主标签对齐清单里的键，不在清单里就用缺省语言），`promptLang()` 只转一道、返回语言代码字符串；至于「这门语言到底有没有正文」，由 `promptText` / `promptFragment` 沿语言链（`langChainOf()` 往回退）逐门找第一份非空正文来回答。`fallback: []` 表示这门语言没有上一级可退，是回退链的终点。今天每门最多写一条退路（运行时只认 `fallback` 的第一项），多写的项不生效、校验层会直接判红 —— 要一次退多门，得先把运行时改成沿列表逐项尝试。语言快照本身读不到时（`getSnapshot()` 返回 null、服务没装这个方法、或它抛异常）一律按清单的 `default` 定，不会掉进写死的某一门。
 
 ### `use` 字段
 
 YAML 里每条模板除了 `version`、`placeholders`、`zh`、`en`，还带一句 `use`，写的是「这条模板什么时候用」，给读代码的人看。它只住在 YAML 里，不进客户端产物 `src/client/kernel/prompt-data.ts`。理由很简单：`use` 不是发给用户看的文案，用户永远看不到它；把它打进客户端产物既白占体积，又会让人误以为界面上有个地方在显示它。
+
+## 界面词表真源与语言清单（#1294 · 2026-10-20）
+
+这一节说清三件事：界面文案写在哪里、它怎么变成客户端能读的数据、客户端注册语言时按什么清单走。
+
+### 真源：十份词族 YAML
+
+界面词表按用途分成十族，一族一份 YAML，住在 `config/copy/` 下，文件名就是族名：
+
+| 文件 | 装的是哪一族（今天每门语言的键数） |
+|---|---|
+| `config/copy/panel.yaml` | 导航、面板、横幅、环境检查、初始化引导（275） |
+| `config/copy/flow.yaml` | 动作、类型、列表、配置、详情、地图、提示（235） |
+| `config/copy/word.yaml` | 技能、检查、浮层、命名、切换、进度、错误、模板、运行（189） |
+| `config/copy/vcwrite.yaml` | 版本管理写回（102） |
+| `config/copy/pages.yaml` | 历史票按需翻页（70） |
+| `config/copy/labels.yaml` | 标签配色弹窗（51） |
+| `config/copy/cards.yaml` | 卡片动作与阻塞提示（34） |
+| `config/copy/skilldesc.yaml` | 技能描述（27） |
+| `config/copy/skilldetail.yaml` | 技能详情（26） |
+| `config/copy/spec.yaml` | 规格正文（21） |
+
+每份 YAML 的顶层是语言 id（今天 `zh` / `en`），语言段下面是平铺的「词条键 → 文案」。同一门语言里每个键都要有；值里的 `{name}` 是占位符，同一个键的中英两份占位符必须一字不差。生成器读的时候会校验：语言段缺失或越界、键缺了或多写了、值不是字符串、占位符对不上、跨族有重复键、`{{时间参数}}` 的名字写错、空词族、族名不合法 —— 任何一条都直接报错、不写产物。
+
+语言清单仍是 `config/languages.yaml`，与提示词侧共用同一份（见上一节末尾「语言清单」）：今天缺省语言是 `zh`，`en` 缺内容时退到 `zh`。
+
+### 生成物：`src/client/kernel/locale-data.ts`
+
+`scripts/generate-locale-config.mts` 读这十份 YAML 与 `config/languages.yaml`，写出 `src/client/kernel/locale-data.ts`。这份是构建期现场生成的产物，不入库（`.gitignore` 里登记了），人手不改：要改文案只能改 YAML 再跑生成器，手改生成物下一次生成会被覆盖、`--check` 也会判红。
+
+生成物里带四类东西：
+
+- 语言清单 `LANG_CONFIG`（缺省语言 + 每门语言的 label 与 fallback）与语言 id 列表 `LOCALE_LANGS`；
+- 全词表 `LOCALE_COPY`（语言 id → 词条键 → 文案，只读）；
+- 十族常量 `L_PANEL` / `L_FLOW` / `L_WORD` / `L_VCWRITE` / `L_PAGES` / `L_LABELS` / `L_CARDS` / `L_SKILLDESC` / `L_SKILLDETAIL` / `L_SPEC`；
+- 键名联合类型：每族一个 `LocaleKey<族名>`，全族一个 `LocaleKey`。
+
+键名联合类型是编译期约束：哪门语言漏了一条文案，生成物就对不上、`npm run typecheck` 当场红，不用等运行时界面露出键名。今天每门语言 1030 个键（各族键数见上表）。
+
+改文案的流程只有两步：改 YAML → 跑 `node scripts/generate-locale-config.mts`，然后跟 YAML 一起提交。漏了第二步会被 `npm run typecheck` 的第一条命令 `node scripts/generate-locale-config.mts --check` 抓住：它只比对不写，对不上就打印
+
+```
+FAIL 生成源码与 config/ 下的 YAML 对不上：请先跑生成器 —— node scripts/generate-locale-config.mts（重算后再提交）
+```
+
+并以退出码 1 停下。全新检出、盘上还没有生成物时，`--check` 会先按 YAML 现场生成一份再判过，不让新机器第一次 typecheck 永远先红。
+
+### 拼装顺序与客户端怎么用
+
+`scripts/build.mts` 的 `KERNEL_MODULES` 里 `kernel:localeData` 排在 `kernel:locale` 之前，两片都拼进同一个 apply 闭包；所以 `locale.ts` 能直接用生成物里的 `LOCALE_COPY` / `LANG_CONFIG` / `LOCALE_LANGS`，客户端闭包里不写 module 级 import。构建拼装之前会先起生成器（生成器排在 time-config 之后：词表里的 `{{时间参数}}` 要拿时间参数生成物烘成字面量）。
+
+`src/client/kernel/locale.ts` 取代原来的十份片段，导出十个名字：`L`（`LOCALE_COPY` 的只读别名）、`languageIds`、`localeMainTagOf`、`langChainFrom`、`langChainOf`、`uiLang`、`pickLangText`、`uiText`、`languageLabelOf`、`localeAdopt`。它按语言清单算当前界面语言与回退链（从宿主语言快照 `active` 的主标签出发，例如 `zh-CN` 按 `zh` 匹配），并给界面提供 `uiText` 这类取词助手。
+
+`src/client/index.ts` 的注册段是：
+
+```ts
+const localeSvc = ctx.get('locale')
+if (localeSvc && typeof localeSvc.register === 'function') {
+  ctx.effect(function () {
+    return localeAdopt(localeSvc)
+  }, 'dsws: locale')
+}
+```
+
+`localeAdopt` 读宿主语言快照、把宿主还没有的语言按回退深度排好逐个 `addLanguage`、再对清单里每门语言 `register('dsws', 语言 id, 该语言词表)`，最后返回清理函数交给 `ctx.effect`（卸载时把注册全撤掉）。加一门语言只改 YAML、不改这段代码。`tr` 仍由 `localeSvc.bind('dsws')` 绑定。
+
+这一趟的日志走同文件的 `localeLogEmit` 发射壳（它把级别与事件名当参数透传给日志模块、按 `queueMicrotask` 晚一拍再写）；事件名是 `locale.registration`（信息、按需）与 `locale.registration.fail`（告警、常驻），台账见 `research/489-appendix.md` 的 #112 / #113。
+
+### 门禁
+
+测试侧读生成物的唯一入口是 `tests/lib/locale-data.ts`（`ensureLocaleData`、`familySectionSource` 等；族清单按 `config/copy/` 目录自动发现，不读手写清单）。`tests/verify-locale-config.ts` 守配置这一侧九件事：生成器 `--check` 必须绿；YAML 自校验不报问题；校验器对八类坏数据真会红（在内存里演练、不写盘）；生成物与 YAML 逐键相等；生成物结构契约（段头、键名联合类型、族常量、合并段）；词族清单按目录自动发现；语言清单驱动注册、代码里不写死 `zh` / `en`；`src/` 下手写 TypeScript 里清零「按语言二选一」的写法；旧片段不并存（`src/client/kernel/` 下不再有 `locale-<族>.ts`）。`tests/verify-locale-completeness.ts` 守完整性与双语覆盖。另有一条棘轮：每门语言的键数下限是 1030，只许增不许减。两条门禁都已进 `scripts/verify-stages.json` 的分段清单。
 
 ## 正文格式契约（#595 立的，#725 拆掉的一节）
 

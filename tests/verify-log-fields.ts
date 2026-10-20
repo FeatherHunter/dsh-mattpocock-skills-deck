@@ -1,6 +1,6 @@
 // verify-log-fields.ts —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.ts，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083：105 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294：107 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -327,6 +327,16 @@ const ALLOWED = {
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],
   'log.switch.watchdog': ['op', 'timeoutMs', 'stage'],
   'log.export.fail': ['op', 'reason', 'errorHash'],
+  // 2026-10-20 #1294（T3 界面词表搬到 config/copy/）：插件激活时按语言清单把 dsws 命名空间逐门语言注册进宿主 locale 服务，
+  //   原来这一趟一条日志都没有 —— 加完语言后成没成、卡在读快照 / 新增语言 / 注册词表哪一步、界面为什么退回缺省语言，
+  //   事后只能猜。两条各记一半：
+  //   · locale.registration 记这一趟的结论（几门语言、新增几门、宿主本来就有几门只补词表、缺省语言、耗时），定按需：
+  //     激活时只发生一次，低频，调试开关打开才落盘；
+  //   · locale.registration.fail 记失败那一步（stage 三档枚举、哪门语言、这一门该回退到哪门、错误原文散列），定常驻：
+  //     注册失败会让界面语言整体退档，出问题时必须不用打开调试开关就能看见。
+  //   只记数字、语言 id、枚举、布尔与散列：界面文案原文、词表键名、语言的显示名一个都不记。
+  'locale.registration': ['langCount', 'addedCount', 'skippedCount', 'defaultLang', 'latencyMs', 'ok'],
+  'locale.registration.fail': ['stage', 'lang', 'fallback', 'errorHash'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 八键（六键照旧，`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 两键、gh.resolve.fail 两键，
@@ -433,7 +443,10 @@ function collectCalls() {
   const files = listJsFiles(path.join(ROOT, 'src', 'host')).concat(listJsFiles(path.join(ROOT, 'src', 'client')))
     // #1095：埋点跟着搬家走了（src/deck、src/tracker 新树），扫描根一起跟上；只读不断言，旧根不动。
     .concat(listJsFiles(path.join(ROOT, 'src', 'deck'))).concat(listJsFiles(path.join(ROOT, 'src', 'tracker')))
-  const mainRe = /(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog|logEvent|backendLogEvent|roomLogEvent)\s*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?['"](error|warn|info|debug)['"]\s*,\s*['"]([a-z][a-zA-Z0-9.]*?)['"]\s*,/g
+  // 2026-10-20 #1294：locale.ts 的埋点走一个 localeLogEmit 发射壳 —— 它把级别、事件名、字段原样转给 log，
+  //   只是晚一拍进微任务写（这份内核排在 kernel:log 之前，激活过程中就要注册语言）。壳名不补进扫描口径，
+  //   上面两条 locale.registration* 就会被判成「全仓未找到」，白名单也收不到它们的字段。
+  const mainRe = /(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog|logEvent|backendLogEvent|roomLogEvent|localeLogEmit)\s*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?['"](error|warn|info|debug)['"]\s*,\s*['"]([a-z][a-zA-Z0-9.]*?)['"]\s*,/g
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8')
     const rel = path.relative(ROOT, f)
@@ -484,7 +497,7 @@ function collectCalls() {
 const found = collectCalls()
 const names = Object.keys(found).sort()
 
-// 一、允许表里每个事件都有埋点落点（允许表 105 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
+// 一、允许表里每个事件都有埋点落点（允许表 107 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
 // #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
 // 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
 if (!found['update.install.exec']) {
@@ -499,7 +512,7 @@ if (!found['update.install.exec']) {
   } catch {}
 }
 // 这一段必须留在上面的 if 之外：发射器今天在已安装的更新包里，条件为真时才会走进上面的委托核对；
-// 哪天发射器搬回本仓，found['update.install.exec'] 直接有值，这 105 条存在性断言仍然要一条不少地跑。
+// 哪天发射器搬回本仓，found['update.install.exec'] 直接有值，这 107 条存在性断言仍然要一条不少地跑。
 for (const name of Object.keys(ALLOWED).sort()) {
   check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
 }
