@@ -503,9 +503,9 @@ const evalPromptHelpers = (function () {
     if (byLang[lang]) return byLang[lang]
     const body = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
     // 这里选 compileFn：依赖名逐个传给共用入口，下面调用时仍按原顺序把注入的替身传进去。
-    // #1292：多两个依赖名 —— PROMPT_TEMPLATE_DATA 与 PROMPT_FRAGMENT_DATA。客户端闭包里这两个名字
-    //   由 kernel:promptData 那一片（生成物 prompt-data.ts）提供；这里注入的是同一份数据（读自 YAML）。
-    const factory = compileFn(['localeSvc', 'issueUrlFor', 'PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA'], body +
+    // #1292：多三个依赖名 —— PROMPT_TEMPLATE_DATA、PROMPT_FRAGMENT_DATA 与 LANGUAGES_YAML。客户端闭包里这三个
+    //   名字由 kernel:promptData 那一片（生成物 prompt-data.ts）提供；这里注入的是同一份数据（读自 YAML）。
+    const factory = compileFn(['localeSvc', 'issueUrlFor', 'PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA', 'LANGUAGES_YAML'], body +
       '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, completePrompt: completePrompt };')
     // issueUrlFor 由本门禁注入替身（真实那个住 router.js，不在这一段源码里）：只用于验「按真实调用形态渲染」。
     //   替身忠实反映签名 —— 只吃 (st, num)，多传的参数会被忽略，正是为了让「参数错位」这类 bug 现形。
@@ -514,6 +514,7 @@ const evalPromptHelpers = (function () {
       function (st, num) { return 'https://example.invalid/' + String(num) },
       (data0 && data0.templates) || {},
       (data0 && data0.fragments) || {},
+      (data0 && data0.languages) || FALLBACK_LANGUAGES,
     )
     return byLang[lang]
   }
@@ -524,8 +525,34 @@ const evalPromptHelpers = (function () {
     promptTextForForTest: function (st, id, params, lang) { return instanceOf(lang).promptTextFor(st, id, params) },
     // #595 必修①：completePrompt 的真实调用形态 = (st, num, title, total, closed)，用它渲染来断言调用错位
     completePromptForTest: function (st, num, title, total, closed, lang) { return instanceOf(lang || 'zh').completePrompt(st, num, title, total, closed) },
+    /**
+     * #1292：语言回退链的真实判定处是 promptLang()。同一个语言快照与清单喂进去，量它落到哪一门。
+     * 单独拼一小段来求值（不复用上面按 lang 缓存的实例：那几个实例的 localeSvc 固定，而这里要变量是语言快照）。
+     */
+    promptLangForTest: function (active, languages) {
+      if (!src0) throw new Error('evalPromptHelpers 未初始化（先调用 prime(src, data)）')
+      const body0 = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
+      const f = compileFn(['localeSvc', 'issueUrlFor', 'PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA', 'LANGUAGES_YAML'], body0 +
+        '\n;return { promptLang: promptLang };')
+      return f(
+        { getSnapshot: function () { return { active: active } } },
+        function () { return '' },
+        (data0 && data0.templates) || {},
+        (data0 && data0.fragments) || {},
+        languages,
+      ).promptLang()
+    },
   }
 })()
+// 单文件模式（L2 注入的子进程）拿不到语言清单，用这份与 config/languages.yaml 同形的替身兜住；
+//   正常流程一定传真的那一份进来（见下面的 readRegistryTables().languages）。
+const FALLBACK_LANGUAGES = {
+  default: 'zh',
+  languages: {
+    zh: { label: { zh: '简体中文', en: 'Simplified Chinese' }, fallback: [] },
+    en: { label: { zh: 'English', en: 'English' }, fallback: ['zh'] },
+  },
+}
 // 反隐藏：条目不许用不可枚举属性 / Symbol / 原型链 / getter 藏起来（这些都能绕过 Object.keys）
 const auditRegistryShape = function (src, reg) {
   const out = []
@@ -1831,7 +1858,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'ff6a9ad510a631248a1a3aabf94ecdab7adff51693059993c1f6e043eccf829d',
+  'tests/verify-prompts.ts': 'a94be21f813a84db1a4484d497598a94b2583878d4cf24a2fc78233b496bf85f',
 }
 // ---- LOCK-END ----
 
@@ -1889,6 +1916,8 @@ const s1Label = singleFileMode ? fileArgs[0] : s1Rel
 let reg = null
 let s1Ids = []
 let fragments = {}
+// #1292：语言清单（config/languages.yaml）也要跟着注册表一起读出来 —— promptLang 的判定面要用真数据。
+let languagesData = null
 try {
   // 单文件模式：那份 YAML 就是探针（注入过坏文本的临时副本）；平时读 config/prompts/ 下的五份 YAML。
   const s1Src = readS1Source()
@@ -1898,6 +1927,7 @@ try {
     const tables = readRegistryTables()
     reg = registryFromEntries(tables.table)
     fragments = tables.fragments
+    languagesData = tables.languages
   }
   s1Ids = Object.keys(reg)
   auditRegistryShape(s1Src, reg).forEach(function (m) { fail(m) })
@@ -1993,7 +2023,28 @@ if (reg) {
     // #595 核心验收：把 12 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
     // #1292：渲染入口（promptTextFor / completePrompt）搬到了 kernel/prompts-backend.ts，与 prompts.ts 合成一段求值；
     //   提示词数据由参数注入（PROMPT_TEMPLATE_DATA / PROMPT_FRAGMENT_DATA），值就是从 YAML 读出来的这一份。
-    evalPromptHelpers.prime(transpileClientSources(clientSourceText()), { templates: reg, fragments: fragments })
+    evalPromptHelpers.prime(transpileClientSources(clientSourceText()), { templates: reg, fragments: fragments, languages: languagesData })
+    // #1292：语言清单的判定面 —— promptLang 落到哪一门，由 config/languages.yaml 的清单与回退链决定。
+    //   这里用真清单 + 几份小清单把几条规矩逐条钉死（口径写在 prompts.ts 的 promptLang 注释里）：
+    //   主标签匹配（en-US → en）、清单里没有的语言退到 default、列了但正文没带这门语言时沿回退链往下退、
+    //   链绕回自己时不死循环、清单为空时退回 zh。
+    const pLang = problems.length
+    const LANG_CASES = [
+      [languagesData || FALLBACK_LANGUAGES, 'en', 'en', '语言快照 en → en'],
+      [languagesData || FALLBACK_LANGUAGES, 'en-US', 'en', '语言快照 en-US 按主标签匹配到 en'],
+      [languagesData || FALLBACK_LANGUAGES, 'zh', 'zh', '语言快照 zh → zh'],
+      [languagesData || FALLBACK_LANGUAGES, 'ja', 'zh', '清单里没有的语言（ja）退到缺省语言 zh'],
+      [{ default: 'en', languages: { en: { fallback: [] } } }, 'zh', 'en', '清单只列了 en 时，zh 快照退到缺省 en（回退链终点是 en）'],
+      [{ default: 'ja', languages: { ja: { fallback: ['en'] }, en: { fallback: ['zh'] }, zh: { fallback: [] } } }, 'ja-JP', 'en', '列了 ja 但正文没带 ja 时沿回退链退到第一门有正文的 en'],
+      [{ default: 'ja', languages: { ja: { fallback: ['zh'] }, zh: { fallback: [] } } }, 'ja', 'zh', '回退链多跳：ja → zh 一路退到有正文的 zh'],
+      [{ default: 'zh', languages: { zh: { fallback: [] }, ja: { fallback: ['ja'] } } }, 'ja', 'zh', '链绕回自己时不死循环，退回缺省语言'],
+      [{ default: 'zh', languages: {} }, 'en', 'zh', '清单为空时退回 zh（不让空数据把整段渲染打空）'],
+    ]
+    LANG_CASES.forEach(function (c) {
+      const got = evalPromptHelpers.promptLangForTest(c[1], c[0])
+      if (got !== c[2]) fail('#1292 promptLang(' + JSON.stringify(c[1]) + ') 落到 ' + JSON.stringify(got) + '，期望 ' + JSON.stringify(c[2]) + '（' + c[3] + '）')
+    })
+    if (stepOk(pLang)) console.log('  PASS 语言清单判定（' + LANG_CASES.length + ' 条：主标签匹配 / 缺省回落 / 回退链多跳 / 自指不打转 / 空清单）')
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
       const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')

@@ -1,7 +1,7 @@
 // verify-bug-entry.ts — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版）
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-bug-entry.ts [file...]（不给文件时读下面列出的真源；给了文件就只查那些文件）
 // 验证：
-//   1) PROMPTS 注册表 newBugWayfinder（version≥5/placeholders/use/zh/en），注册表本体为极简（按 wayfinder 技能规则处理）+ v5 标签要求（bug 必带+未诊断带 needs-triage，分远端原生/本地标签行），不含内部规则展开，4 字段括号单行在 NEW_BUG_FIELDS_BODY(_EN)（末尾），无 gh 硬编码
+//   1) 注册表条目 newBugWayfinder（version≥5/placeholders/use/zh/en），注册表本体为极简（按 wayfinder 技能规则处理）+ v5 标签要求（bug 必带+未诊断带 needs-triage，分远端原生/本地标签行），不含内部规则展开，4 字段括号单行在「四项引导语」那一段（末尾），无 gh 硬编码
 //   2) i18n 键 nav.bugNew / nav.bugNewTitle / panel.newBug / panel.newBugTitle 双语平衡
 //   3) StatusBar BUG 段悬停菜单接线（s.bugMenuOpen + tr('nav.bugNew') + 点「新增」开新会话预填 newBugWayfinderText）
 //   4) 面板「+ 新增BUG单」按钮接线（panel.newBugTitle + openTextInNewSession(newBugWayfinderText) 两处渲染）
@@ -16,13 +16,25 @@
 // 2026-10-19（#1301 批C）：默认目标里混着 .js 说明符（router.js、StatusBar.js……），它们今天住在同名 .ts 里，
 //   旁边那份 .js 构建产物这一阶段已经删掉，按 .js 路径直接 fs.readFileSync 会 ENOENT。取源改走共用入口
 //   sourceText：问 .js 时同名 .ts 优先，问到哪份读哪份的原文；.ts 说明符原样透传。
+// 2026-10-20（#1292）：提示词真源搬进了 config/prompts/ 下的 YAML —— 注册表条目 newBugWayfinder 与
+//   「四项引导语」片段 newBugFields 都住在 config/prompts/ticket-creation.yaml 里；
+//   src/client/kernel/prompts.ts 里的 NEW_BUG_FIELDS_BODY / NEW_BUG_FIELDS_BODY_EN 现在只是
+//   「按语言从片段取这一段」的取用口，源码里不再有那段字面量。
+//   所以这一扇门禁改走共享读取核 scripts/lib/prompt-config.mts 读 YAML（不再从源码里用正则抠字面量），
+//   同时仍要查 prompts.ts 那个取用口确实在用这个片段 —— 正文与接线两头都查，判据一条不减。
 const { sourceText } = require('./lib/source-text.ts')
+const path = require('path')
+// 读提示词 YAML 走共享读取核（scripts/lib/prompt-config.mts）：与生成器、另两扇提示词门禁读的是同一份实现，
+//   本门禁里不再自己写一份 YAML 解析（那样两边的口径迟早分家）。
+const { readPromptConfig } = require('../scripts/lib/prompt-config.mts')
 const files = process.argv.slice(2)
+// 仓库根：共享读取核按仓库相对路径去找 config/prompts/ 下的 YAML，根算错就读不到（报错也难懂，先算准）。
+const ROOT = path.resolve(__dirname, '..')
 // 2026-10-17 先修：默认目标原来是两个构建产物（client.js / package/lib/client.js）。产物里的注册表条目与 i18n
 // 键都被 esbuild 统一改成双引号了，而门禁按单引号 + 「函数体里一段引号字符串」的老形状写，于是七条判据
 // 全部恒假——门禁红着，产品其实是好的。改成默认读真源（下面七份），产物那边由各自的构建新鲜度门禁守。
 const DEFAULT_SOURCES = [
-  'src/client/kernel/prompts.ts',        // newBugWayfinder 注册表 + NEW_BUG_FIELDS_BODY(_EN)
+  'src/client/kernel/prompts.ts',        // NEW_BUG_FIELDS_BODY(_EN) 的取用口（正文真身在 config/prompts/ticket-creation.yaml）
   'src/client/kernel/router.js',         // newBugWayfinderText 拼接（locale 切换）
   'src/client/kernel/locale-panel.ts',   // nav.bugNew / nav.bugNewTitle / panel.newBug / panel.newBugTitle
   'src/client/statusbar/StatusBar.js',   // BUG 悬停菜单弹层与开新会话接线（其一）
@@ -41,26 +53,40 @@ const DESC_EN = ['symptom', 'impact', 'expectation', 'diff from actual', 'precon
 // v4 形态守护：括号单行，每字段为 “字段名（说明）：” 单行，字段间用 \n 分隔，无 “\n  例：” 悬行
 const BRACKET_LINE_ZH = ['实际（现象；影响范围）：', '期望（预期；与实际差异）：', '复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：', '环境信息（OS 版本 + 软件版本 + 运行环境）：']
 const BRACKET_LINE_EN = ['Actual (symptom; impact):', 'Expected (expectation; diff from actual):', 'Reproduction (preconditions and scenario + numbered steps; flaky → frequency):', 'Environment (OS version + software version + runtime):']
-// 2026-10-17：RE_ENTRY 改成引号无关（产物双引号 / 真源单引号都认），字符串内部用「转义感知」的捕获，
-// 免得正文里出现同类引号就截断。
-const RE_ENTRY = /["']?newBugWayfinder["']?\s*:\s*\{\s*version:\s*(\d+),\s*placeholders:\s*\[([^\]]*)\],\s*use:\s*(['"])((?:\\.|(?!\3)[\s\S])*)\3,\s*zh:\s*(['"])((?:\\.|(?!\5)[\s\S])*)\5,\s*en:\s*(['"])((?:\\.|(?!\7)[\s\S])*)\7/
+// #1292：原来那条「从源码里抠注册表条目」的正则（RE_ENTRY，2026-10-17 改的引号无关形状）已经删掉 ——
+//   注册表的真源搬进了 config/prompts/ 下的 YAML，源码里不再有那段字面量，正则一条也抠不到（那样会静默漏判）。
+//   现在改从共享读取核读 YAML，拿到的是解码好的正文（也不用再处理源码里的转义）。
 const check = function (list) {
   const names = Array.isArray(list) ? list : [list]
   const src = names.map(function (f) { return sourceText(f) }).join('\n')
   const label = names.length === 1 ? names[0] : '真源 ' + names.length + ' 份'
   const problems = []
   // 1) 注册表条目
-  const m = src.match(RE_ENTRY)
-  if (!m) { problems.push('缺 newBugWayfinder 注册表条目') }
+  // #1292：真源搬进了 config/prompts/ticket-creation.yaml，这里改从共享读取核读它（读回来的正文已解码，
+  //   不用再像从前那样从源码字面量里抠文本、也不用处理源码里的转义）。
+  let cfg = null
+  try {
+    cfg = readPromptConfig(ROOT)
+  } catch (e) {
+    problems.push('读 config/prompts/ 下的 YAML 失败：' + (e && e.message ? e.message : String(e)))
+  }
+  const templates = cfg && cfg.templates ? cfg.templates : {}
+  const fragments = cfg && cfg.fragments ? cfg.fragments : {}
+  // 模板按族分层，newBugWayfinder 住在 ticket-creation 族；这里按 id 找，不写死族名（族名以后可能挪）。
+  let entry = null
+  for (const family of Object.keys(templates)) {
+    const group = templates[family]
+    if (group && group.newBugWayfinder) { entry = group.newBugWayfinder; break }
+  }
+  if (!entry) { problems.push('缺 newBugWayfinder 注册表条目（config/prompts/ 下的 YAML 里没有这一条）') }
   else {
-    const ver = Number(m[1])
-    const phRaw = m[2]
-    const use = m[4]
-    const zh = m[6]
-    const en = m[8]
+    const ver = Number(entry.version)
+    const use = entry.use
+    const zh = entry.zh
+    const en = entry.en
     if (ver < 8) problems.push('newBugWayfinder 版本异常 v' + ver + '（v7 #882 应 ≥8）')
     if (!use) problems.push('newBugWayfinder 缺 use')
-    const ph = phRaw.split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean)
+    const ph = entry.placeholders || []
     if (ph.join(',') !== 'repo') problems.push('newBugWayfinder 占位符应为 ["repo"]，实际 ' + JSON.stringify(ph))
     // v4：注册表本体为极简（按 wayfinder 技能规则处理），不含内部规则展开
     if (zh.indexOf('请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。') < 0) problems.push('newBugWayfinder zh 缺极简句“请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。”')
@@ -115,13 +141,21 @@ const check = function (list) {
     if (zh.indexOf('先建单') >= 0) problems.push('newBugWayfinder zh 仍含「先建单」引导（#107 已改：空表单先追问、不建单）')
     if (en.indexOf('file first') >= 0) problems.push('newBugWayfinder en 仍含 "file first" 引导（#107 已改：空表单先追问、不建单）')
   }
-  // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段必填括号单行，头带“以下四项均为必填”）+ NEW_BUG_FIELDS_BODY_EN（en 对称，头带“The four fields below are required”）—— v7 #882 + #107 改必填
-  // 2026-10-17：形状改成引号无关，并容忍真源里的返回类型标注（`function (): string { return '…' }`）。
-  const fieldsBodyMatch = /NEW_BUG_FIELDS_BODY\s*=\s*function\s*\(\)[^{]*\{\s*return\s*(['"])((?:\\.|(?!\1)[\s\S])*)\1\s*\}/.exec(src)
-  if (!fieldsBodyMatch) {
-    problems.push('缺 NEW_BUG_FIELDS_BODY 常量定义')
+  // 1.5) 四项引导语：NEW_BUG_FIELDS_BODY（zh 4 字段必填括号单行，头带“以下四项均为必填”）+ NEW_BUG_FIELDS_BODY_EN（en 对称，头带“The four fields below are required”）—— v7 #882 + #107 改必填
+  // #1292：正文真身搬进了 config/prompts/ticket-creation.yaml 的 newBugFields 片段（zh / en 两份）；
+  //   src/client/kernel/prompts.ts 里那两个常量现在只是「按语言从片段取这一段」的取用口，源码里不再有那段字面量。
+  //   判据拆成两半，两半都查（比从前多查一样，条数不减）：一半查片段数据在不在、正文齐不齐；
+  //   一半查 prompts.ts 那个取用口确实在用这个片段（接线断了，片段再对也没人把它送进会话）。
+  const frag = fragments['newBugFields']
+  const fieldsBody = frag && typeof frag.zh === 'string' ? frag.zh : ''
+  const fieldsBodyEn = frag && typeof frag.en === 'string' ? frag.en : ''
+  if (!frag) {
+    problems.push('缺 newBugFields 片段（config/prompts/ticket-creation.yaml 里没有这一段）')
   } else {
-    const fieldsBody = fieldsBodyMatch[2]
+    if (!fieldsBody) problems.push('newBugFields 片段缺中文正文')
+    if (!fieldsBodyEn) problems.push('newBugFields 片段缺英文正文')
+  }
+  if (fieldsBody) {
     // 顺序与完整性（v4 顺序实际→期望→复现→环境）
     const orderOk = fieldsBody.indexOf(FIELDS_ZH[0]) < fieldsBody.indexOf(FIELDS_ZH[1]) && fieldsBody.indexOf(FIELDS_ZH[1]) < fieldsBody.indexOf(FIELDS_ZH[2]) && fieldsBody.indexOf(FIELDS_ZH[2]) < fieldsBody.indexOf(FIELDS_ZH[3])
     if (!orderOk) problems.push('NEW_BUG_FIELDS_BODY 顺序非实际→期望→复现→环境')
@@ -131,7 +165,9 @@ const check = function (list) {
     const LEGACY_ZH = ['背景：', '场景：', '现象：', '期望行为：', '实际行为：', '影响范围：']
     const legacyIn = LEGACY_ZH.filter(function (f) { return fieldsBody.indexOf(f) >= 0 })
     if (legacyIn.length) problems.push('NEW_BUG_FIELDS_BODY 残留 v2 旧字段：' + legacyIn.join(' / '))
-    if (fieldsBody.indexOf('\\n  例：') >= 0) problems.push('NEW_BUG_FIELDS_BODY 仍含旧形态悬行“\\n  例：”（v4 已改为括号单行）')
+    // #1292：从前那行正文是源码里的转义字符串字面量（\n 是反斜杠加 n 两个字符），YAML 块标量解码后是真换行，
+    //   所以这条「旧形态悬行」判据改成按真换行找（源码里写出来就是换行符加两个空格加“例：”）。
+    if (fieldsBody.indexOf('\n  例：') >= 0) problems.push('NEW_BUG_FIELDS_BODY 仍含旧形态悬行（换行 + 两空格 + “例：”，v4 已改为括号单行）')
     const missingInline = DESC_ZH.filter(function (k) { return fieldsBody.indexOf(k) < 0 })
     if (missingInline.length) problems.push('NEW_BUG_FIELDS_BODY 缺 zh 说明关键字：' + missingInline.join(' / '))
     // v4 分离守护：zh 不应混入英文短语（防止中英混排回潮）
@@ -145,11 +181,7 @@ const check = function (list) {
     const missingBrZh = BRACKET_LINE_ZH.filter(function (g) { return fieldsBody.indexOf(g) < 0 })
     if (missingBrZh.length) problems.push('NEW_BUG_FIELDS_BODY 缺括号单行：' + missingBrZh.join(' / '))
   }
-  const fieldsBodyEnMatch = /NEW_BUG_FIELDS_BODY_EN\s*=\s*function\s*\(\)[^{]*\{\s*return\s*(['"])((?:\\.|(?!\1)[\s\S])*)\1\s*\}/.exec(src)
-  if (!fieldsBodyEnMatch) {
-    problems.push('缺 NEW_BUG_FIELDS_BODY_EN 常量定义')
-  } else {
-    const fieldsBodyEn = fieldsBodyEnMatch[2]
+  if (fieldsBodyEn) {
     const orderOkEn = fieldsBodyEn.indexOf(FIELDS_EN[0]) < fieldsBodyEn.indexOf(FIELDS_EN[1]) && fieldsBodyEn.indexOf(FIELDS_EN[1]) < fieldsBodyEn.indexOf(FIELDS_EN[2]) && fieldsBodyEn.indexOf(FIELDS_EN[2]) < fieldsBodyEn.indexOf(FIELDS_EN[3])
     if (!orderOkEn) problems.push('NEW_BUG_FIELDS_BODY_EN 顺序非 Actual→Expected→Reproduction→Environment')
     const missingEn = FIELDS_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) < 0 })
@@ -162,13 +194,25 @@ const check = function (list) {
     const LEGACY_EN = ['Background:', 'Scenario:', 'Phenomenon:', 'Expected Behavior:', 'Actual Behavior:', 'Impact:']
     const legacyEnIn = LEGACY_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) >= 0 })
     if (legacyEnIn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 v2 旧字段：' + legacyEnIn.join(' / '))
-    if (fieldsBodyEn.indexOf('\\n  e.g.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧形态悬行“\\n  e.g.”（v4 已改为括号单行）')
+    // #1292：同 zh 那一侧，YAML 解码后是真换行，所以这条「旧形态悬行」判据按真换行找。
+    if (fieldsBodyEn.indexOf('\n  e.g.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧形态悬行（换行 + 两空格 + “e.g.”，v4 已改为括号单行）')
     const missingBrEn = BRACKET_LINE_EN.filter(function (g) { return fieldsBodyEn.indexOf(g) < 0 })
     if (missingBrEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺括号单行：' + missingBrEn.join(' / '))
     if (!fieldsBodyEn.endsWith('Environment (OS version + software version + runtime):')) problems.push('NEW_BUG_FIELDS_BODY_EN 末尾非通用环境收尾（v7 #882）')
     if (fieldsBodyEn.indexOf('The four fields below are required') < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺必填头 "The four fields below are required"（#107）')
     if (fieldsBodyEn.indexOf('Optional below.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧选填头 "Optional below."（#107 已改必填）')
     if (fieldsBodyEn.indexOf('browser + plugin version') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 DSH 专用环境写法（v7 已通用化）')
+  }
+  // 取用口：prompts.ts 里那两个常量必须从片段取正文（不是自己又抄一份）。
+  //   这两条对应从前「缺 NEW_BUG_FIELDS_BODY 常量定义 / 缺 NEW_BUG_FIELDS_BODY_EN 常量定义」那两条判据。
+  //   这里直接读 prompts.ts 本身，不看命令行给的那几份文件：片段怎么接进会话与传进来的文件无关，
+  //   就算只查别的文件，这两条也得算。
+  const promptsSrc = sourceText('src/client/kernel/prompts.ts')
+  if (!/NEW_BUG_FIELDS_BODY\s*=\s*function[^{]*\{\s*return\s+promptFragment\(\s*['"]newBugFields['"]\s*,\s*['"]zh['"]\s*\)/.test(promptsSrc)) {
+    problems.push('prompts.ts 里 NEW_BUG_FIELDS_BODY 没从 newBugFields 片段取中文正文（取用口缺失）')
+  }
+  if (!/NEW_BUG_FIELDS_BODY_EN\s*=\s*function[^{]*\{\s*return\s+promptFragment\(\s*['"]newBugFields['"]\s*,\s*['"]en['"]\s*\)/.test(promptsSrc)) {
+    problems.push('prompts.ts 里 NEW_BUG_FIELDS_BODY_EN 没从 newBugFields 片段取英文正文（取用口缺失）')
   }
   // 2) i18n 键（引号无关：真源是单引号，产物是双引号）
   ;['nav.bugNew', 'nav.bugNewTitle', 'panel.newBug', 'panel.newBugTitle'].forEach(function (k) {
@@ -217,7 +261,7 @@ const check = function (list) {
   ]
   hoverChecks.forEach(function (c) { if (!c.re.test(src)) problems.push('hover 反馈缺：' + c.name) })
   if (problems.length) { console.log('  FAIL', label, problems.join('；')); failed = true }
-  else console.log('  PASS', label, '（newBugWayfinder v' + (m ? m[1] : '?') + ' · 实际→期望括号单行 · v5 标签要求 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
+  else console.log('  PASS', label, '（newBugWayfinder v' + (entry ? entry.version : '?') + ' · 实际→期望括号单行 · v5 标签要求 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
 }
 console.log('P1: 新增BUG入口契约（issue #4/#63 v4 · 实际→期望括号单行 + locale 切换 · v5 #475 标签要求）')
 targets.forEach(check)

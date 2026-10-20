@@ -22,7 +22,8 @@
  *      凡是 skillNames 之外的（也就是技能已经不认的）名字，只允许出现一次，且整句必须带「旧名」
  *      记号——旧名只能以「要改掉的名字」的身份出现，不许被当成正经名字写回去；
  *   4. switchLayout 注入模板里出现的文件名必须都在 skillNames 内（它是禁令清单与服务对象清单，
- *      不许点名一个技能已经不认的名字）。
+ *      不许点名一个技能已经不认的名字）。模板正文的真源在 #1292 之后是
+ *      config/prompts/workspace-initialization.yaml，本门禁读那一份（不读生成物，也不读源码）。
  *
  * 已知的边界：假如上游哪天又把某个名字放回技能正文里，第 3、4 条就不再拦它了；但第 2 条（选项
  * 词条只许用技能《去哪读》模板里的名字）仍然会红，所以改名这件事不会被整体放过去。
@@ -41,9 +42,7 @@ const ROOT = path.resolve(__dirname, '..')
 const SKILLS_DIR = path.join(ROOT, 'package/bundled-skills')
 const SKILL_DOMAIN_DOC = path.join(SKILLS_DIR, 'setup-matt-pocock-skills/domain.md')
 const LOCALE_JSSPEC = path.join('src', 'client', 'kernel', 'locale-pages.js')
-const PROMPTS_JSSPEC = path.join('src', 'client', 'kernel', 'prompts.js')
 const LOCALE_SRC = sourcePath(LOCALE_JSSPEC)
-const PROMPTS_SRC = sourcePath(PROMPTS_JSSPEC)
 
 let failures = 0
 function ok(cond, msg) {
@@ -123,11 +122,16 @@ async function main() {
   }
 
   // ---- 4. switchLayout 注入模板 ----
-  const promptsText = readFileSync(PROMPTS_SRC, 'utf8')
-  const start = promptsText.indexOf('"switchLayout": {')
-  const end = start < 0 ? -1 : promptsText.indexOf('\n', promptsText.indexOf('en:', start))
-  const block = start < 0 ? '' : promptsText.slice(start, end > 0 ? end : promptsText.length)
-  ok(block.length > 0, 'prompts.js 里找得到 switchLayout 这一条')
+  // #1292 起提示词正文的真源是 config/prompts/ 下的五份族 YAML，不再住在 prompts.ts 里，
+  //   所以这一条改成读真源本身（走生成器与门禁共用的读取核，不自己再写一份解析）。
+  //   判据不变：模板正文里点名的文件名必须都在 skillNames 内。
+  const promptConfig = require('../scripts/lib/prompt-config.mts')
+  const promptData = promptConfig.readPromptConfig(ROOT)
+  // 注册表按「注入时机」分族存放（templates[族][id]），族名从登记表里查，不在这里再写死一遍。
+  const spec = promptConfig.PROMPT_TEMPLATE_IDS.filter((t) => t.id === 'switchLayout')[0]
+  const entry = spec && promptData.templates[spec.family] ? promptData.templates[spec.family].switchLayout : null
+  ok(!!entry, 'config/prompts/' + (spec ? spec.family : '(未登记族)') + '.yaml 里找得到 switchLayout 这一条')
+  const block = entry ? String(entry.zh || '') + '\n' + String(entry.en || '') : ''
   const blockNames = mdNamesIn(block)
   const blockStrays = blockNames.filter((n) => !skillNames.has(n))
   ok(blockNames.length > 0 && blockStrays.length === 0,

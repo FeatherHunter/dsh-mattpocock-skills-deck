@@ -1,5 +1,5 @@
 // tests/verify-1281-entries.ts —— #1281 双入口 / 规格三态 / 实施票 / 两处接线的门禁
-// 门禁归属: src/client/kernel/prompts.ts, src/client/kernel/router.ts, src/client/views/shared/Tabs.ts, src/client/statusbar/StatusBar.ts, src/client/kernel/container-view.ts, src/client/kernel/store-derived.ts, src/client/kernel/locale-spec.ts, src/client/kernel/locale-panel.ts, src/shared/naming-titles.ts
+// 门禁归属: config/prompts/ticket-action-templates.yaml, config/prompts/map-advancement.yaml, config/prompts/ticket-creation.yaml, src/client/kernel/router.ts, src/client/views/shared/Tabs.ts, src/client/statusbar/StatusBar.ts, src/client/kernel/container-view.ts, src/client/kernel/store-derived.ts, src/client/kernel/locale-spec.ts, src/client/kernel/locale-panel.ts, src/shared/naming-titles.ts
 // 验证（每条都能被删掉/改坏而变红）：
 //   1) 注册表新增五条：newSpec / tpl.implement / specSplit / specExecute / specComplete，且各自首行技能与占位符正确；
 //      完成模板 complete 改成自包含格式（首行 /wayfinder、次行 {url}）。
@@ -10,9 +10,11 @@
 //   5) 实施票：ready-for-agent 走「实施」，注入 tpl.implement（首行 /implement），按钮标签与提示词成对。
 //   6) 会话标题：naming-titles 里 spec 占位是「写规格」/「Write Spec」。
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-1281-entries.ts
+const path = require('node:path')
 const { sourceText } = require('./lib/source-text.ts')
+const promptConfig = require('../scripts/lib/prompt-config.mts')
 
-const prompts = sourceText('src/client/kernel/prompts.ts')
+const ROOT = path.resolve(__dirname, '..')
 const router = sourceText('src/client/kernel/router.ts')
 const tabs = sourceText('src/client/views/shared/Tabs.ts')
 const bar = sourceText('src/client/statusbar/StatusBar.ts')
@@ -27,14 +29,28 @@ let total = 0
 const check = (ok, msg) => { total++; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // 1) 注册表五条新增 + complete 自包含
-check(/\"newSpec\": \{ version: 1,/.test(prompts), 'newSpec 条目存在且 v1')
-check(prompts.indexOf("'/grill-with-docs\\n请帮我讨论一个需求") >= 0, 'newSpec 首行是 /grill-with-docs 且收尾提醒 to-spec（正文在注册表）')
-check(prompts.indexOf("'/implement\\n{url}\\n\\n按 /implement 技能实施这张票。") >= 0, 'tpl.implement 首行 /implement、次行 {url}')
-check(prompts.indexOf("'/to-tickets\\n{url}") >= 0, 'specSplit 首行 /to-tickets')
-check(prompts.indexOf("'/implement-spec\\n{url}") >= 0, 'specExecute 首行 /implement-spec')
-check(prompts.indexOf('这张规格 issue（{url}）下面的实施 issue 已经全部关闭') >= 0, 'specComplete 是规格收口模板（逐张核对后关闭）')
-check(prompts.indexOf("'/wayfinder\\n{url}\\n\\n## 完成核对") >= 0, 'complete 自包含：首行 /wayfinder、次行 {url}、完成核对节')
-check(prompts.indexOf('提醒用户手动执行一次 /to-spec') >= 0 && prompts.indexOf('提醒用户手动执行一次 /to-tickets') >= 0, 'complete 含两步手动交棒提醒')
+// #1292 起模板正文的真源是 config/prompts/ 下的五份族 YAML，不再住在 prompts.ts 里。
+// 这一块改成读真源数据再断言（走生成器与门禁共用的读取核）：判据一条没减，只是从
+// 「抠源码里的字面量」换成「读那条模板的正文」，从此也不会被源码排版的变化骗过。
+const promptData = promptConfig.readPromptConfig(ROOT)
+function templateOf(id) {
+  const spec = promptConfig.PROMPT_TEMPLATE_IDS.filter((t) => t.id === id)[0]
+  return spec && promptData.templates[spec.family] ? promptData.templates[spec.family][id] : null
+}
+function zhOf(id) {
+  const entry = templateOf(id)
+  return entry ? String(entry.zh || '') : ''
+}
+
+const newSpecEntry = templateOf('newSpec')
+check(!!newSpecEntry && newSpecEntry.version === 1, 'newSpec 条目存在且 v1')
+check(zhOf('newSpec').indexOf('/grill-with-docs\n请帮我讨论一个需求') === 0, 'newSpec 首行是 /grill-with-docs 且收尾提醒 to-spec（正文在注册表）')
+check(zhOf('tpl.implement').indexOf('/implement\n{url}\n\n按 /implement 技能实施这张票。') === 0, 'tpl.implement 首行 /implement、次行 {url}')
+check(zhOf('specSplit').indexOf('/to-tickets\n{url}') === 0, 'specSplit 首行 /to-tickets')
+check(zhOf('specExecute').indexOf('/implement-spec\n{url}') === 0, 'specExecute 首行 /implement-spec')
+check(zhOf('specComplete').indexOf('这张规格 issue（{url}）下面的实施 issue 已经全部关闭') >= 0, 'specComplete 是规格收口模板（逐张核对后关闭）')
+check(zhOf('complete').indexOf('/wayfinder\n{url}\n\n## 完成核对') === 0, 'complete 自包含：首行 /wayfinder、次行 {url}、完成核对节')
+check(zhOf('complete').indexOf('提醒用户手动执行一次 /to-spec') >= 0 && zhOf('complete').indexOf('提醒用户手动执行一次 /to-tickets') >= 0, 'complete 含两步手动交棒提醒')
 
 // 2) 两处入口共用一个拼装函数
 check(router.indexOf('export const newSpecText') >= 0 && router.indexOf('newSpecPrompt(st)') >= 0, 'router 导出 newSpecText（唯一拼装函数）')

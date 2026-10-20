@@ -110,7 +110,7 @@ export interface TemplateShape {
   en: string
 }
 
-/** 加载后的全套结构：五份模板族 + 一份片段 + 一份语言清单。 */
+/** 加载后的全套结构：五份模板族（三处片段按注入时机住在对应族里）+ 一份语言清单。 */
 export interface PromptConfig {
   templates: Record<PromptFamily, Record<string, TemplateShape>>
   fragments: Record<string, FragmentShape>
@@ -217,13 +217,8 @@ export const PROMPT_YAML_PATHS: ReadonlyArray<string> = [
  * 两类故障都不能静默放行。
  */
 export function readPromptYamls(repoRoot: string): { templates: Record<PromptFamily, Record<string, TemplateShape>>; fragments: Record<string, FragmentShape> } {
-  const templates = {
-    'workspace-initialization': {},
-    'repository-alignment': {},
-    'map-advancement': {},
-    'ticket-action-templates': {},
-    'ticket-creation': {},
-  } as Record<PromptFamily, Record<string, TemplateShape>>
+  // 族的清单只认 PROMPT_FAMILIES 一处：这里照它建空表，不再手抄第二份族名（漏抄一族会被类型断言悄悄掩住）。
+  const templates = Object.fromEntries(PROMPT_FAMILIES.map((fam) => [fam, {}])) as Record<PromptFamily, Record<string, TemplateShape>>
   const fragments: Record<string, FragmentShape> = {}
   const templateById = new Map(PROMPT_TEMPLATE_IDS.map((s) => [s.id, s] as const))
   const fragmentById = new Map(PROMPT_FRAGMENT_IDS.map((s) => [s.id, s] as const))
@@ -283,7 +278,7 @@ export function readLanguageYaml(repoRoot: string): LanguageConfig {
 }
 
 /**
- * 一次性读全部：五份模板、一份片段、一份语言清单。任一缺失都抛。
+ * 一次性读全部：五份模板族 YAML（片段与模板同住）+ 一份语言清单。任一缺失都抛。
  * 这条是生成器与门禁的共用入口 —— 不各写一份。
  */
 export function readPromptConfig(repoRoot: string): PromptConfig {
@@ -458,8 +453,7 @@ export function validateLanguageData(data: LanguageConfig): string[] {
   if (!data.default || !languages[data.default]) {
     out.push('config/languages.yaml.default = ' + JSON.stringify(data.default) + ' 必须在 languages 里有同名条目')
   }
-  // fallback 链合法性：每门必须声明 fallback 数组、每档必须出现在 languages 里、不能有环
-  const seen = new Set<string>()
+  // fallback 链合法性：每门必须声明 fallback 数组、每档必须出现在 languages 里、链必须能走到头、不许绕回自己。
   for (const id of ids) {
     const entry = languages[id]
     if (!entry || typeof entry !== 'object') {
@@ -469,34 +463,40 @@ export function validateLanguageData(data: LanguageConfig): string[] {
     if (!entry.label || typeof entry.label.zh !== 'string' || typeof entry.label.en !== 'string') {
       out.push('config/languages.yaml.languages.' + id + '.label 必须含 zh/en 两份人话说法')
     }
-    if (!Array.isArray(entry.fallback) || entry.fallback.length === 0) {
-      out.push('config/languages.yaml.languages.' + id + '.fallback 必须是非空数组（至少一项；这门的兜底语言）')
+    // 空数组是合法的：它表示这门语言没有上一级可退，是回退链的终点（缺省语言通常就是这种情况）。
+    if (!Array.isArray(entry.fallback)) {
+      out.push('config/languages.yaml.languages.' + id + '.fallback 必须是数组；没有上一级可退时写空数组 []')
       continue
     }
     for (const f of entry.fallback) {
       if (!languages[f]) out.push('config/languages.yaml.languages.' + id + '.fallback 引用了未知语言 ' + JSON.stringify(f))
     }
   }
-  // 环检测：每条 fallback 链沿 walk 一遍，遇到 null 或不出现在 languages 里停；遇到重复即有环。
-  // 「自指」允许 —— 一门语言的 fallback 写成自己时当作永久兜底（不再走其它语言）。
+  // 链必须走到头（终点的 fallback 是空数组）：从每门语言出发沿 fallback[0] 往下走，
+  //   走到一门「没有上级」的语言就停；同一门语言在一条链上出现两次就是环（包括自己指自己）。
+  //   为什么不允许自指：#1292 的清单里有一版把 zh 写成 fallback: [zh]、en 写成 fallback: [en]，
+  //   看着像「永久兜底」，其实是把「没有上一级」这件事写成了绕回自己 —— 下游按链找语言时会原地打转，
+  //   真出现这种写法要当场说清楚，而不是靠读的人自己猜。
   for (const id of ids) {
-    const visited = new Set<string>()
+    const trail: string[] = []
     let cur: string | null = id
     while (cur) {
-      if (visited.has(cur)) {
-        // 「自指」是终点，不算环：A -> A 链路上只有一个元素，已 visited 后再撞到自己是合法终点
-        // 但起点到当前节点必须只有一个节点；多节点链上回到起点才算环
-        if (cur === id && visited.size === 1) break
-        out.push('config/languages.yaml.languages.' + id + ' 的 fallback 链形成环：' + Array.from(visited).concat(cur).join(' -> '))
+      if (trail.indexOf(cur) >= 0) {
+        out.push('config/languages.yaml.languages.' + id + ' 的 fallback 链绕回自己：' + trail.concat(cur).join(' -> ')
+          + '（没有上一级可退时请把 fallback 写成空数组 []，不要写自己）')
         break
       }
-      visited.add(cur)
+      trail.push(cur)
       // 类型标注是必需的：cur 的类型由这条链自己决定，不标注时 TS 判成循环推断（TS7022）。
       const entry: LanguageEntry | undefined = languages[cur]
-      const next: string | null = entry && Array.isArray(entry.fallback) ? entry.fallback[0] : null
+      const next: string | null = entry && Array.isArray(entry.fallback) && entry.fallback.length ? entry.fallback[0] : null
       cur = next && languages[next] ? next : null
     }
   }
-  void seen
+  if (!out.length) {
+    // 全部链都走到头了：至少得有一门是终点，否则说明每门都在指着别人（上面已经会抓成环，这里只是兜一句人话）。
+    const hasEnd = ids.some((id) => { const e = languages[id]; return !!e && Array.isArray(e.fallback) && e.fallback.length === 0 })
+    if (!hasEnd) out.push('config/languages.yaml 的 fallback 链没有终点：至少要有一门语言的 fallback 写成空数组 []')
+  }
   return out
 }

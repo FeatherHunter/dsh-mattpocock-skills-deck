@@ -15,6 +15,7 @@
 // 用法: node tests/verify-setup-describe.ts
 const fs = require('fs')
 const path = require('path')
+const { spawnSync } = require('child_process')
 const { pathToFileURL } = require('url')
 // 取源走共用入口（#1207 立，见 tests/lib/source-text.ts）：#1209 把 prompts.js 与 locale-pages.js
 // 的真源转成了 .ts。按 .js 路径直接读会读到真源旁边那份构建产物（esbuild 排版过）；
@@ -90,6 +91,24 @@ async function main() {
   console.log('== #230 · setup 提示词后端描述数据化（键入 locale）==')
   const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale.js'].map((f) => sourceText(f)).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，src 侧读五文件拼合（panel 含 setup 全家，合并器无键仅合并逻辑）；#698 起布局那一问的四条键在 locale-pages.js（panel 贴着 350 行上限）；#1209 起取源走共用入口拿 .ts 真源
 
+  // #1292：提示词数据（PROMPTS 那张表与词表默认值）的真身搬进了 config/prompts/ 下的 YAML，
+  //   客户端里那几张表由 scripts/generate-prompt-config.mts 现场生成到 src/client/kernel/prompt-data.ts，
+  //   构建时把这份生成物与 prompts.js 拼进同一个闭包。本门禁这条路是真 import（不是沙箱求值），
+  //   所以那三个名字在 prompts.ts 里只是「闭包由构建提供」的声明，单独 import 模块时它们根本不存在 ——
+  //   模块里那行 `const PROMPTS = PROMPT_TEMPLATE_DATA` 当场 ReferenceError。
+  //   照本文件下面已有的先例（中央时间真值那几行）：先把真值挂到 globalThis，ESM 的裸标识符会回落到全局。
+  //   生成物不入库（干净检出时盘上没有它），所以 import 之前先确认它在；不在就跑同一个生成器现场生成一份。
+  const promptDataFile = path.join(root, 'src', 'client', 'kernel', 'prompt-data.ts')
+  if (!fs.existsSync(promptDataFile)) {
+    const gen = spawnSync(process.execPath, [path.join(root, 'scripts', 'generate-prompt-config.mts')], { encoding: 'utf8' })
+    if (gen.status !== 0) {
+      throw new Error('提示词数据生成失败（config/prompts/ 下的 YAML → src/client/kernel/prompt-data.ts）：先跑 node scripts/generate-prompt-config.mts 把生成物做出来。\n' + String(gen.stdout || '') + String(gen.stderr || ''))
+    }
+  }
+  const promptData = await import(pathToFileURL(promptDataFile).href)
+  for (const k of ['PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA', 'LANGUAGES_YAML']) {
+    if (globalThis[k] === undefined) globalThis[k] = promptData[k]
+  }
   const P = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/prompts.js'))).href)
   // 2026-10-17 先修装载方式（判据一条没动）：locale-flow 等片段引用了构建期才拼接出来的
   //   SETTINGS_DEBUG_PUSH_WAIT_MS（真源 src/shared/time-config/values.js），单独 import 片段时

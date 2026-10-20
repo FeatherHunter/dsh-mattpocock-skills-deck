@@ -134,10 +134,12 @@ console.log('== G R6b：本地镜像不再垫底 ==')
   // #1209：prompts 的真源已是 .ts，这里取的是「构建真正拼进闭包的那份 JavaScript」
   //   （spliceableJs = 真源过 esbuild + 剥行首 export），所以下面这条正则按转译后的形状写：
   //   没有 `export ` 前缀、`function(` 之间没有空格（esbuild 重新排版过）、收尾是 `};`。
-  const promptsSrc = spliceableJs('src/client/kernel/prompts.js')
-  const m = promptsSrc.match(/^const currentBackendId = function\(st\) \{[\s\S]*?\n\};/m)
+  // #1292：currentBackendId 与「按当前后端渲染一条 prompt」那一族搬去了 kernel/prompts-backend.ts
+  //   （prompts.ts 那边太长，见那份文件开头的说明），所以这一段改从新家取 —— 取的还是同一段真身，判据一条没动。
+  const backendSrc = spliceableJs('src/client/kernel/prompts-backend.js')
+  const m = backendSrc.match(/^const currentBackendId = function\(st\) \{[\s\S]*?\n\};/m)
   const fnSrc = m ? m[0] : ''
-  check(!!fnSrc, '取到 prompts.js 里的 currentBackendId（真身，整段取出）')
+  check(!!fnSrc, '取到 prompts-backend.js 里的 currentBackendId（真身，整段取出）')
   const mk = function (srcText: string) {
     const body = srcText.trim().replace(/^const currentBackendId = /, '')
     // 回读函数按生产行为恒空（镜像已退役）：改走共用入口 compileFn。

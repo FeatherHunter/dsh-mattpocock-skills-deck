@@ -28,7 +28,12 @@ const MODULES = [
   // #685：「体检」按钮的三样东西（游离票件数派生、显隐门、开新会话注入）；单独一片是因为它要写的那条
   //   常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），而 store-derived.js 已经贴着 350 行上限。
   { name: 'healthCheck', file: 'health-check', exports: ['healthCheckCountOf', 'healthCheckVisible', 'healthCheckSubjectOf', 'healthCheckLogEvent', 'openHealthCheck'] },
-  { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'completePrompt', 'newSpecPrompt', 'FIXATE_PROMPT'] },
+  // #1292：提示词真源搬到 config/prompts/ 下的 YAML，客户端那一份数据由生成物 prompt-data.ts 提供；
+  //   组装提示词的后端一族（completePrompt / newSpecPrompt 等）拆到了 prompts-backend.ts。
+  //   三片都要在这里登记，否则它们「改了没重建」没人拦得住（这条门禁独有的那半边）。
+  { name: 'promptData', file: 'prompt-data', exports: ['PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA'] },
+  { name: 'prompts', exports: ['PROMPTS', 'promptFragment', 'promptLanguages', 'promptLang', 'promptText', 'vocabularyParamsFrom'] },
+  { name: 'promptsBackend', file: 'prompts-backend', exports: ['completePrompt', 'newSpecPrompt', 'inspectPrompt', 'FIXATE_PROMPT', 'promptTextFor', 'currentBackendId', 'backendPromptFrom'] },
   // #1012：旧配置存档 dsws.cfg（连同 CFG_KEY/cfg/saveCfg）与更旧的 dsws.startCfg（连同 migrateStartCfg）
   //   已按维护者定案删除，这里那三个名字随之从清单里去掉；模板那几项照旧。
   { name: 'config', exports: ['templates', 'saveTemplates', 'tplText', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },

@@ -1,5 +1,5 @@
 // verify-b2-map-newsession.ts — dsh-waystation #456（v1.5 B2）行为契约测试
-// 用法: node --import ./scripts/ts-hook.mts tests/verify-b2-map-newsession.ts [file...]（不给文件时读真源四份：prompts.ts / router.ts / MapDetailTop.ts）
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-b2-map-newsession.ts [file...]（不给文件时读真源四份：config/prompts/ 下的 YAML / prompts-backend.ts / router.ts / MapDetailTop.ts）
 //
 // 验收标准（issue #456）：
 //   a) map 行新会话 prompt 首行即 /wayfinder+链接 —— AI 一开新会话即可定位对应 ISSUE（标识由首行承载，不再内嵌标识头）；
@@ -17,22 +17,33 @@
 // 以 en 为初始语言重新构建环境，而非中途切换。
 const fs = require('fs')
 const assert = require('assert')
+const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
 const { spliceableJs, sourceText } = require('./lib/source-text.ts')
+// #1292：提示词注册表的真源搬进了 config/prompts/ 下的 YAML，读它走共享读取核
+//   （scripts/lib/prompt-config.mts：与生成器、提示词门禁读的是同一份实现，不在门禁里另写一份 YAML 解析）。
+const { readPromptConfig } = require('../scripts/lib/prompt-config.mts')
 
 const files = process.argv.slice(2)
+// 仓库根：共享读取核按仓库相对路径去找 config/prompts/ 下的 YAML，根算错就读不到（报错也难懂，先算准）。
+const ROOT = path.resolve(__dirname, '..')
 // 2026-10-17 先修：默认目标原来是两个构建产物（client.js / package/lib/client.js）。产物里注册表整体变成一条
 // 转义过的字符串、函数带上构建后的双引号形态，门禁的锚点与注册表正则全对不上——实测每条用例都在假红/假绿。
 // 改成默认读真源：注册表取 prompts.ts 原文，函数片段取剥掉类型标注后的 prompts.ts 与 router.js，
 // 详情页按钮那条静态判据读 MapDetailTop.js。产物那一侧由构建新鲜度门禁守。
+// #1292：真源又搬了一次 —— 注册表搬进 config/prompts/ 下的 YAML，completePrompt 与「按当前后端渲染一条
+// prompt」那一族搬进 kernel/prompts-backend.ts（见那份文件开头的说明：prompts.ts 那边太长）。
+// 判据一条没动，只是取值来源换了地方。
 const SOURCES = {
-  reg: 'src/client/kernel/prompts.ts',      // PROMPTS 注册表（原文里键用双引号、值用单引号）
-  prompts: 'src/client/kernel/prompts.ts',  // completePrompt / MAP_EXECUTE_PROMPT / FIXATE_PROMPT
+  reg: 'config/prompts',                            // PROMPTS 注册表的真源（按族分层的五份 YAML，共享读取核读这一份）
+  prompts: 'src/client/kernel/prompts-backend.ts',  // completePrompt / MAP_EXECUTE_PROMPT / FIXATE_PROMPT
   router: 'src/client/kernel/router.js',    // startText（#1251 起真源是 router.ts，经 spliceableJs 取转译后的文本）
   view: 'src/client/views/MapDetailTop.js', // 详情页「在新会话打开」按钮（#1253 起真源是 MapDetailTop.ts，经 sourceText 取原文，道理同 #1207）
 }
 
-// ---- 解析 PROMPTS 注册表（与 verify-prompts.js 同构）----
+// ---- 解析 PROMPTS 注册表 ----
+// #1292：注册表的真源已是 config/prompts/ 下的 YAML，默认那一条走共享读取核读它（见 registryFromYaml）；
+//   下面这把正则解析器留着给「手工喂一份文件进来」那条用法（命令行给了文件时用），判据不变。
 const unescapeStr = function (s) {
   let out = ''
   for (let i = 0; i < s.length; i++) {
@@ -55,6 +66,24 @@ const parseRegistry = function (src) {
   return reg
 }
 
+// ---- 注册表（YAML 真源）：摊平成「按 id 查」的那张表 ----
+// #1292：真源搬进 config/prompts/ 下的 YAML 之后，注册表不再是一段写在 prompts.ts 里的字面量，
+//   所以这里改走共享读取核读同一份 YAML（不自己再写一份 YAML 解析 —— 那样两边的口径迟早分家）。
+//   共享读取核给的是「按族分层」的模板表（templates[族][id]），这里摊平成原来那张按 id 查的表；
+//   条目形状照旧：zh / en 已经是解码好的正文（不用再解转义），version / placeholders / use 一并带着。
+const registryFromYaml = function (repoRoot) {
+  const cfg = readPromptConfig(repoRoot)
+  const reg = {}
+  for (const family of Object.keys(cfg.templates)) {
+    const group = cfg.templates[family]
+    for (const id of Object.keys(group)) {
+      const t = group[id]
+      reg[id] = { version: t.version, placeholders: t.placeholders, use: t.use, zh: t.zh, en: t.en }
+    }
+  }
+  return reg
+}
+
 // ---- 提取两段真实函数源码（锚点两侧）----
 const extractBetween = function (src, from, to) {
   const i = src.indexOf(from)
@@ -65,8 +94,8 @@ const extractBetween = function (src, from, to) {
 }
 
 // ---- 沙箱：真实函数 + 忠实替身依赖（lang = 构建时初始语言，模拟模块加载）----
-const buildEnv = function (regSrc, promptsJs, routerJs, lang) {
-  const reg = parseRegistry(regSrc)
+// #1292：注册表改成直接收「已经摊平好的表」（YAML 真源那张或命令行喂进来的那份），不再在这里解析文本。
+const buildEnv = function (reg, promptsJs, routerJs, lang) {
   const lang0 = lang === 'en' ? 'en' : 'zh'
   const promptText = function (id, params) {
     const p = reg[id]
@@ -153,7 +182,9 @@ const buildEnv = function (regSrc, promptsJs, routerJs, lang) {
   }
   // 2026-10-17：片段从「剥掉类型标注后的真源」里切；产物的形态（export 去掉、类型去掉、引号重排）不再参与。
   // 终止锚点带上 const，免得切片尾部落下一个孤零零的 const（那会让求值当场报 Unexpected token）。
-  const completePromptSrc = extractBetween(promptsJs, 'completePrompt = function', 'const FIXATE_PROMPT = function')
+  // #1292：completePrompt 与它后面那几段搬去了 kernel/prompts-backend.ts（见那份文件开头的说明），
+  //   所以终止锚点跟着改成新家里的下一条声明（inspectPrompt）—— 取的还是同一段真身，判据一条没动。
+  const completePromptSrc = extractBetween(promptsJs, 'completePrompt = function', 'const inspectPrompt = function')
   // 本文件选 compileFn：这两处原来都是「把依赖名当参数、把从产物里切出来的源码当函数体」造函数再调用，
   //   依赖本来就全部显式传参（切出来的代码读不到本文件作用域），与共用入口用法一一对应。
   const completePrompt = compileFn(['COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'issueUrlFor'], completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, issueUrlFor)
@@ -183,8 +214,8 @@ let failed = false
 let passedCount = 0
 const ok = function (name) { passedCount++; console.log('  PASS', name) }
 
-const checkFile = function (file, regSrc, promptsJs, routerJs, viewSrc) {
-  const env = buildEnv(regSrc, promptsJs, routerJs, 'zh')
+const checkFile = function (file, reg, promptsJs, routerJs, viewSrc) {
+  const env = buildEnv(reg, promptsJs, routerJs, 'zh')
 
   // a) 未完成 map 行（t 无 stats → snapshot 兜底）：推进式 + 工具节
   const out = env.startText(ST, mapIssue(305, '测试 map 标题'))
@@ -224,7 +255,7 @@ const checkFile = function (file, regSrc, promptsJs, routerJs, viewSrc) {
   assert.ok(out5.includes('请按 wayfinder 技能推进这张票'), file + ' zh 普通票 execute 模板（#1281 map 子票统一入口文案）')
 
   // f) en 双语（以 en 为初始语言重建环境，忠实于模块加载时捕获常量别名）
-  const enEnv = buildEnv(regSrc, promptsJs, routerJs, 'en')
+  const enEnv = buildEnv(reg, promptsJs, routerJs, 'en')
   const out6 = enEnv.startText(ST, mapIssue(305, 'Test map title'))
   assert.ok(out6.includes('Please advance this map with the wayfinder skill'), file + ' en 推进式')
   assert.ok(out6.includes('## Tools') && out6.includes('Prefer the deck_ tools'), file + ' en 工具节（issue 操作优先走 deck 工具）')
@@ -250,15 +281,17 @@ try {
     files.forEach(function (f) {
       try {
         const one = fs.readFileSync(f, 'utf8')
-        checkFile(f, one, one, one, one)
+        // 手工喂文件进来的老用法：注册表仍按那把正则从文件原文里解析（形状是「注册表字面量写在文件里」的老形态）。
+        checkFile(f, parseRegistry(one), one, one, one)
       } catch (e) { console.log('  FAIL', f, '::', e.message); failed = true }
     })
   } else {
-    const regSrc = fs.readFileSync(SOURCES.reg, 'utf8')
+    // 注册表：走共享读取核读 config/prompts/ 下的 YAML 真源（摊平成按 id 查的那张表）。
+    const reg = registryFromYaml(ROOT)
     const promptsJs = spliceableJs(SOURCES.prompts)
     const routerJs = spliceableJs(SOURCES.router)
     const viewSrc = sourceText(SOURCES.view)
-    checkFile('真源 ' + Object.keys(SOURCES).length + ' 份', regSrc, promptsJs, routerJs, viewSrc)
+    checkFile('真源 ' + Object.keys(SOURCES).length + ' 份', reg, promptsJs, routerJs, viewSrc)
     passedCountTarget = 1
   }
 } catch (e) {

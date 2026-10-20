@@ -14,6 +14,7 @@
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-655-setup-layout.ts
 const fs = require('fs')
 const path = require('path')
+const { spawnSync } = require('child_process')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
 // 取源走共用入口（#1207 立）：sourceText 给源码原文（按文本形状扫描用），spliceableJs 给
@@ -28,13 +29,32 @@ const ok = (cond: unknown, msg: string) => { total++; if (cond) console.log('  P
 
 // 中英词表两套键值表：动态 import 进来的是未标注模块，只收这两套，其余形状不约束。
 interface LocalePair { zh: Record<string, string>; en: Record<string, string> }
+// #1292：提示词数据（PROMPTS 那张表与词表默认值）的真身搬进了 config/prompts/ 下的 YAML，
+//   客户端里那几张表由 scripts/generate-prompt-config.mts 现场生成到 src/client/kernel/prompt-data.ts，
+//   构建时把这份生成物拼在 prompts.js 前面（scripts/build.mts 的 KERNEL_MODULES 顺序：promptData → prompts）。
+//   沙箱要照同一顺序拼：少了它，prompts.js 里那行 `const PROMPTS = PROMPT_TEMPLATE_DATA` 求值时
+//   PROMPT_TEMPLATE_DATA 还不存在，当场 ReferenceError，整扇门禁一条断言都跑不到。
+//   生成物不入库（干净检出时盘上没有它），所以取它之前先确认它在；不在就跑同一个生成器现场生成一份。
+function promptDataSplice(): string {
+  const generated = path.join(root, 'src', 'client', 'kernel', 'prompt-data.ts')
+  if (!fs.existsSync(generated)) {
+    const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'generate-prompt-config.mts')], { encoding: 'utf8' })
+    if (r.status !== 0) {
+      throw new Error('提示词数据生成失败（config/prompts/ 下的 YAML → src/client/kernel/prompt-data.ts）：先跑 node scripts/generate-prompt-config.mts 把生成物做出来。\n' + String(r.stdout || '') + String(r.stderr || ''))
+    }
+  }
+  return spliceableJs('src/client/kernel/prompt-data.ts')
+}
+
 // —— 取真源：prompts.js 是内核模块（每行行首 export），去掉 export 后在闭包里求值 ——
 //   闭包里的几样同名依赖用替身顶上：inject 记下注入的文本，emit 只当「界面重绘一次」。
 function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCachedSetupLayout?: (cwd: string) => string | null }) {
   // #698：注入决策那一段（injectSetupDecision / setupBlockedByGuide 的调用方）搬去了 kernel/prompts-setup.js，
   //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。两份真源都已经是 .ts，
   //   要当函数体求值，所以都走 spliceableJs（与构建同一份转译口径，行首 export 已去掉）。
-  const src = spliceableJs('src/client/kernel/prompts.js')
+  // #1292：提示词数据那一份生成物也照构建的顺序拼在最前面（promptData → prompts → promptsSetup）。
+  const src = promptDataSplice()
+    + '\n' + spliceableJs('src/client/kernel/prompts.js')
     + '\n' + spliceableJs('src/client/kernel/prompts-setup.js')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const injected: string[] = []

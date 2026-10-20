@@ -44,6 +44,19 @@ function spliceToFile(files: string[], exportsList: string[], tmpName: string): 
   fs.writeFileSync(tmp, out, 'utf8')
   return tmp
 }
+// #1292：提示词数据的真源搬到了 config/prompts/ 下的 YAML，客户端闭包里那些数据由生成物
+//   src/client/kernel/prompt-data.ts 提供（生成、不入库）。下面第四、五组要把 prompts.js 拼进沙箱跑，
+//   拼之前得先有那三个运行时数据名，否则一求值就是 ReferenceError。生成物不在盘上时先跑一次生成器
+//   （与 scripts/build.mts 的做法一致：构建期先生成再拼装），然后把它排在 prompts.js 前面一起拼。
+function ensurePromptData(): string {
+  const rel = path.join('src', 'client', 'kernel', 'prompt-data.ts')
+  if (!fs.existsSync(path.join(ROOT, rel))) {
+    const { spawnSync } = require('child_process')
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-prompt-config.mts')], { stdio: 'inherit' })
+    if (r.status !== 0) throw new Error('生成 src/client/kernel/prompt-data.ts 失败，先跑 node scripts/generate-prompt-config.mts 看报错')
+  }
+  return rel
+}
 
 async function main() {
   console.log('体检按钮验收门禁（#685：件数派生 · 显隐门 · 开新会话注入 · 常驻日志点 · 中英词条）')
@@ -169,8 +182,10 @@ async function main() {
 
   // ─────────── 四、点击动作与常驻日志 ───────────
   // 真词条文件也一起拼进去：注入成功时用到 tr('list.healthCheckTitle')，那份文案只在词条真源里有。
+  // #1292：拼装顺序跟着 scripts/build.mts 的 KERNEL_MODULES 走 —— promptData → prompts → promptsBackend。
+  //   promptTextFor（「按当前后端渲染一条提示词」）已随那一族搬到 prompts-backend.js，所以它要排在 prompts.js 之后。
   const tmpOpen = spliceToFile(
-    [path.join('src', 'client', 'kernel', 'locale-panel.js'), path.join('src', 'client', 'kernel', 'locale-flow.js'), path.join('src', 'client', 'kernel', 'prompts.js'), path.join('src', 'client', 'kernel', 'health-check.js')],
+    [ensurePromptData(), path.join('src', 'client', 'kernel', 'locale-panel.js'), path.join('src', 'client', 'kernel', 'locale-flow.js'), path.join('src', 'client', 'kernel', 'prompts.js'), path.join('src', 'client', 'kernel', 'prompts-backend.js'), path.join('src', 'client', 'kernel', 'health-check.js')],
     ['L_PANEL', 'L_FLOW', 'promptTextFor', 'healthCheckCountOf', 'healthCheckVisible', 'healthCheckLogEvent', 'openHealthCheck'],
     'tmp-685-open.mjs'
   )

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T04:38:37.765Z",
+  "generatedAt": "2026-10-20T05:18:56.739Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 297,
   "gateCount": 297,
@@ -1536,12 +1536,13 @@
       "file": "tests/verify-1206-glossary-naming.ts",
       "guards": [
         "package/bundled-skills",
+        "scripts/lib/prompt-config.mts",
         "src/client/kernel/locale-pages.ts",
-        "src/client/kernel/prompts.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/bundled-skills",
+        "scripts/lib",
         "src/client/kernel",
         "tests/lib"
       ],
@@ -1549,7 +1550,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-1231-ws-overview-rows.ts",
@@ -1654,10 +1655,10 @@
       "step": "node tests/verify-1281-entries.ts",
       "file": "tests/verify-1281-entries.ts",
       "guards": [
+        "scripts/lib/prompt-config.mts",
         "src/client/kernel/container-view.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-spec.ts",
-        "src/client/kernel/prompts.ts",
         "src/client/kernel/router.ts",
         "src/client/kernel/store-derived.ts",
         "src/client/statusbar/StatusBar.ts",
@@ -1666,6 +1667,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "scripts/lib",
         "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
@@ -1676,7 +1678,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1286-detail.ts",
@@ -2080,12 +2082,14 @@
       "guards": [
         "docs/agents/domain.md",
         "package/lib/client.js",
+        "scripts/generate-prompt-config.mts",
         "src/client/kernel/actions.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-labels.ts",
         "src/client/kernel/locale-pages.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-word.ts",
+        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts-setup.ts",
         "src/client/kernel/prompts.ts",
         "src/client/panel/Dock.ts",
@@ -2103,6 +2107,7 @@
       "dirs": [
         "docs/agents",
         "package/lib",
+        "scripts",
         "src/client/kernel",
         "src/client/panel",
         "src/client/statusbar",
@@ -2115,7 +2120,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 18 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-656-subworkspace-acceptance.ts",
@@ -2189,12 +2194,14 @@
       "file": "tests/verify-665-fresh-workspace-chain.ts",
       "guards": [
         "package/lib/client.js",
+        "scripts/generate-prompt-config.mts",
         "src/client/kernel/actions.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-labels.ts",
         "src/client/kernel/locale-pages.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-word.ts",
+        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts-setup.ts",
         "src/client/kernel/prompts.ts",
         "src/client/statusbar/StatusBackend.ts",
@@ -2208,6 +2215,7 @@
       ],
       "dirs": [
         "package/lib",
+        "scripts",
         "src/client/kernel",
         "src/client/statusbar",
         "src/shared/time-config/src",
@@ -2220,7 +2228,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-666-subws-mark-root.ts",
@@ -2446,7 +2454,7 @@
       "file": "tests/verify-683-choice-rev.ts",
       "guards": [
         "src",
-        "src/client/kernel/prompts.ts",
+        "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/store-prefs.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
@@ -2538,14 +2546,18 @@
       "step": "node tests/verify-685-healthcheck-button.ts",
       "file": "tests/verify-685-healthcheck-button.ts",
       "guards": [
+        "scripts/generate-prompt-config.mts",
         "src/client/kernel/health-check.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-panel.ts",
+        "src/client/kernel/prompt-data.ts",
+        "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "scripts",
         "src/client/kernel",
         "src/shared/time-config/src",
         "tests/lib"
@@ -2554,15 +2566,18 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-686-accept.ts",
       "file": "tests/verify-686-accept.ts",
       "guards": [
+        "scripts/generate-prompt-config.mts",
         "src/client/kernel/health-check.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-panel.ts",
+        "src/client/kernel/prompt-data.ts",
+        "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/rooms/github/index.ts",
@@ -2571,6 +2586,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "scripts",
         "src/client/kernel",
         "src/shared/time-config/src",
         "src/tracker/rooms/github",
@@ -2582,7 +2598,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-689-counts-ui.ts",
@@ -3924,13 +3940,17 @@
       "step": "node tests/verify-b2-map-newsession.ts",
       "file": "tests/verify-b2-map-newsession.ts",
       "guards": [
-        "src/client/kernel/prompts.ts",
+        "config/prompts",
+        "scripts/lib/prompt-config.mts",
+        "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/router.ts",
         "src/client/views/MapDetailTop.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "config/prompts",
+        "scripts/lib",
         "src/client/kernel",
         "src/client/views",
         "tests/lib"
@@ -3939,7 +3959,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-backend-quota-model.ts",
@@ -3996,6 +4016,7 @@
       "step": "node tests/verify-bug-entry.ts",
       "file": "tests/verify-bug-entry.ts",
       "guards": [
+        "scripts/lib/prompt-config.mts",
         "src/client/kernel/icons.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/prompts.ts",
@@ -4006,6 +4027,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "scripts/lib",
         "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
@@ -4015,7 +4037,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-bundled-discovery.ts",
@@ -6343,12 +6365,14 @@
       "file": "tests/verify-setup-describe.ts",
       "guards": [
         "package/lib/client.js",
+        "scripts/generate-prompt-config.mts",
         "src/client",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-pages.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-word.ts",
         "src/client/kernel/locale.ts",
+        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts.ts",
         "src/host/workspaceCwd.ts",
         "src/shared/time-config/src/values.ts",
@@ -6357,6 +6381,7 @@
       ],
       "dirs": [
         "package/lib",
+        "scripts",
         "src/client",
         "src/client/kernel",
         "src/host",
@@ -6368,7 +6393,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-skill-detail-stack.ts",
@@ -6964,6 +6989,7 @@
       "node tests/verify-prompt-config.ts"
     ],
     "config/prompts": [
+      "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.ts"
     ],
@@ -7147,6 +7173,10 @@
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-640-dock-width-browser.ts",
+      "node tests/verify-655-setup-layout.ts",
+      "node tests/verify-665-fresh-workspace-chain.ts",
+      "node tests/verify-685-healthcheck-button.ts",
+      "node tests/verify-686-accept.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue-body-script.ts",
@@ -7161,6 +7191,7 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-typecheck.mts",
       "node tests/verify-wire-subissues-script.ts",
@@ -7189,6 +7220,8 @@
       "node tests/verify-1130-gitlab-marker-read.ts",
       "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1158-completion-evidence.ts",
+      "node tests/verify-1206-glossary-naming.ts",
+      "node tests/verify-1281-entries.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -7202,6 +7235,8 @@
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-972-title-body.ts",
       "node tests/verify-997-vc-sight.ts",
+      "node tests/verify-b2-map-newsession.ts",
+      "node tests/verify-bug-entry.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-selfmon.ts",

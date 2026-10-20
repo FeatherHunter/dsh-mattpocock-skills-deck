@@ -5,29 +5,19 @@
  *   长到了 350 行上限附近；本次 #1292 把登记表的真源搬到 config/prompts/ 下的 YAML 之后又涨了一截，本票先顶着。
  *   后端声明那条边的导出（currentBackendId / backendPromptFrom / declaredLangPick / backendParamsFor
  *   / promptTextFor / newWayfinderPrompt / MAP_EXECUTE_PROMPT / COMPLETE_PROMPT / FIXATE_PROMPT /
- *   newSpecPrompt / inspectPrompt / completePrompt / promptLanguages）单独成片，给 350 行棘轮留呼吸空间。
+ *   newSpecPrompt / inspectPrompt / completePrompt）单独成片，给 350 行棘轮留呼吸空间。
  *
  * 本文件与 prompts.ts 是同一闭包，互相调用不走 import：
  *   读端：promptText / promptTextFor 经 PROMPTS 走（PROMPTS 现在由 prompt-data.ts 生成）。
  *   设置端（setupRun 一系）是 prompts.ts 的另一条线，留在那里不动 —— 它与「按后端渲染」完全是两条线。
+ *   语言清单（config/languages.yaml）的解读者也在 prompts.ts（promptLanguages / promptLang）：
+ *   它属于「取一条提示词时先定语言」这一步，跟后端声明无关，所以没跟着这一族搬过来。
  *
  * 闭包内调用面（写代码时谁会动到这一族）：main ran each selected backend's `prompts.subIssue / bodyFormat /
  * commandVocabulary / healthCheck` declarations · #595 之前散在视图层用 promptText 取值，#595 把那四把
  * 抽到这里。
- *
- * 客户端闭包：语言清单（config/languages.yaml）的运行时值由 kernel:promptData 那一片
- *   （生成物 src/client/kernel/prompt-data.ts）拼到闭包里，名字 LANGUAGES_YAML 在本文件末尾 declare。
  */
-// 语言清单的形状：默认语言 + 每种语言的显示名与回退链（回退链是「这门语言没写时接着找哪一门」）。
-type PromptLanguageConfig = {
-  default: string
-  languages: Readonly<Record<string, {
-    label: { readonly zh: string; readonly en: string }
-    fallback: ReadonlyArray<string>
-  }>>
-}
-
-/** 提示词的语言：跟随 DSH 的语言快照，缺省 zh（与 prompts.ts 同一个闭包约定）。 */
+/** 提示词的语言：跟随 DSH 的语言快照，按 config/languages.yaml 落定（实现见 prompts.ts 的 promptLang）。 */
 type PromptLang = 'zh' | 'en'
 
 /** 后端声明的一段中英文本（后端模块的 prompts.* 键的值）。 */
@@ -123,10 +113,3 @@ declare function issueUrlFor(...args: any[]): any
       const url = issueUrlFor(st, String(num || ''))
       return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(num || ''), title: String(title || ''), url: url })
     }
-    // #1292：语言清单的运行时入口。闭包里需要「全部支持的语言 + 缺省 + 回退链」时调 promptLanguages() 拿这份 readonly 视图
-    // —— 改 yaml → 跑生成器 → 重启生效（同款 time-config 模式）。
-    export const promptLanguages = function (): PromptLanguageConfig { return LANGUAGES_YAML }
-
-// 语言清单由 kernel:promptData 那一片拼进闭包（生成物 src/client/kernel/prompt-data.ts）。
-// 闭包里没有 module 级 import，所以在这里 declare 一下——declare 只活在类型检查里，转译时整条删掉。
-declare const LANGUAGES_YAML: PromptLanguageConfig

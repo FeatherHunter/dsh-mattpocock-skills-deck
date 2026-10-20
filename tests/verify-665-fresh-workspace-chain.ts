@@ -15,6 +15,7 @@
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-665-fresh-workspace-chain.ts
 const fs = require('fs')
 const path = require('path')
+const { spawnSync } = require('child_process')
 const { pathToFileURL } = require('url')
 // 本文件选 compileFn 手法：这一段是把拼好的源码文本当函数体造沙箱函数，要传进去的名字本来就列在 names 数组里。
 const { compileFn } = require('./lib/eval-probe.js')
@@ -94,6 +95,23 @@ interface ChainSeen {
   gateOpened: number
   layoutMemory: Record<string, string>
 }
+// #1292：提示词数据（PROMPTS 那张表与词表默认值）的真身搬进了 config/prompts/ 下的 YAML，
+//   客户端里那几张表由 scripts/generate-prompt-config.mts 现场生成到 src/client/kernel/prompt-data.ts，
+//   构建时把这份生成物拼在 prompts.js 前面（scripts/build.mts 的 KERNEL_MODULES 顺序：promptData → prompts）。
+//   沙箱要照同一顺序拼：少了它，prompts.js 里那行 `const PROMPTS = PROMPT_TEMPLATE_DATA` 求值时
+//   PROMPT_TEMPLATE_DATA 还不存在，当场 ReferenceError，整扇门禁一条断言都跑不到。
+//   生成物不入库（干净检出时盘上没有它），所以取它之前先确认它在；不在就跑同一个生成器现场生成一份。
+function promptDataSplice(): string {
+  const generated = path.join(root, 'src', 'client', 'kernel', 'prompt-data.ts')
+  if (!fs.existsSync(generated)) {
+    const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'generate-prompt-config.mts')], { encoding: 'utf8' })
+    if (r.status !== 0) {
+      throw new Error('提示词数据生成失败（config/prompts/ 下的 YAML → src/client/kernel/prompt-data.ts）：先跑 node scripts/generate-prompt-config.mts 把生成物做出来。\n' + String(r.stdout || '') + String(r.stderr || ''))
+    }
+  }
+  return spliceableJs('src/client/kernel/prompt-data.ts')
+}
+
 // —— 一个沙箱装上整条链：横幅 + 后端动作 + 注入决策，三处互相调用，闭包里的外部依赖按真形状顶替 ——
 async function loadChain(locale: LocalePair, backends: { github: BackendPick; markdown: BackendPick; gitlab: BackendPick }, sbPatch?: { text: string }): Promise<{ mod: any; seen: ChainSeen; guide: any; backends: { github: BackendPick; markdown: BackendPick; gitlab: BackendPick } }> {
   const guide = await import(url('src/shared/tracker/guide-steps.js'))
@@ -115,9 +133,12 @@ async function loadChain(locale: LocalePair, backends: { github: BackendPick; ma
   // 三个模块的真实文件文本拼在一起，装饰掉行首 export 后当同一个闭包求值（与 scripts/build.mts 的拼法一致）。
   //   #698：注入决策那一段（injectSetupDecision / layoutCardShouldOpen）搬去了 kernel/prompts-setup.js，
   //   构建时与 prompts.js 拼回同一个闭包；沙箱里照同一口径把它接在 prompts.js 后面。
+  // #1292：提示词数据那一份生成物照构建的顺序接在最前面（promptData → prompts → promptsSetup → …），
+  //   否则 prompts.js 里那行 `const PROMPTS = PROMPT_TEMPLATE_DATA` 求值时 PROMPT_TEMPLATE_DATA 还不存在。
   // 这四份真源都已经是 .ts，要拼成同一个函数体求值，所以一律走 spliceableJs（与构建同一份转译口径，
   //   它已剥掉每行行首的 export）；末尾那一遍剥 export 只是防御，不改变任何一份片段的语义。
-  const body = (spliceableJs('src/client/kernel/prompts.js')
+  const body = (promptDataSplice()
+    + '\n' + spliceableJs('src/client/kernel/prompts.js')
     + '\n' + spliceableJs('src/client/kernel/prompts-setup.js')
     // sbPatch：反证用 —— 把 StatusBackend 的真源按改动后的文本喂进来（正常路径下就是真源本身）
     + '\n' + ((sbPatch && sbPatch.text) ? sbPatch.text : spliceableJs('src/client/statusbar/StatusBackend.js'))

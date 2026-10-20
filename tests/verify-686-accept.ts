@@ -33,6 +33,20 @@ function spliceToFile (files: string[], exportsList: string[], tmpName: string):
   fs.writeFileSync(tmp, out, 'utf8')
   return tmp
 }
+// #1292：提示词正文的真源搬到 config/prompts/ 下的 YAML，客户端闭包里的数据由生成物
+//   src/client/kernel/prompt-data.ts 提供（生成、不入库）；组装提示词的那几个函数拆到了
+//   src/client/kernel/prompts-backend.ts。下面第一组要把 promptTextFor 拼进沙箱跑，所以拼的顺序照
+//   scripts/build.mts 的 KERNEL_MODULES 来：先生成物，再 prompts.js，再 prompts-backend.js。
+//   生成物不在盘上时（全新检出）先跑一次生成器，与构建期「先生成再拼装」同一套做法。
+function ensurePromptData (): string {
+  const rel = path.join('src', 'client', 'kernel', 'prompt-data.ts')
+  if (!fs.existsSync(path.join(ROOT, rel))) {
+    const { spawnSync } = require('child_process')
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-prompt-config.mts')], { stdio: 'inherit' })
+    if (r.status !== 0) throw new Error('生成 src/client/kernel/prompt-data.ts 失败，先跑 node scripts/generate-prompt-config.mts 看报错')
+  }
+  return rel
+}
 
 // 从后端 index.js 真源里按 key 抠出 prompts 块的 {zh,en}（处理 \' 与 \n 转义）。
 function promptsOf (src: string, key: string): { zh: string, en: string } {
@@ -61,7 +75,7 @@ async function main () {
   check(!!ghM.prompts.healthCheck.zh && !!glM.prompts.healthCheck.zh && !!mdM.prompts.healthCheck.zh, '三房真实科目都从真源抠出来了（不是手抄的）')
 
   const tmpP = spliceToFile(
-    [path.join('src', 'client', 'kernel', 'locale-panel.js'), path.join('src', 'client', 'kernel', 'locale-flow.js'), path.join('src', 'client', 'kernel', 'prompts.js')],
+    [ensurePromptData(), path.join('src', 'client', 'kernel', 'locale-panel.js'), path.join('src', 'client', 'kernel', 'locale-flow.js'), path.join('src', 'client', 'kernel', 'prompts.js'), path.join('src', 'client', 'kernel', 'prompts-backend.js')],
     ['promptTextFor'],
     'tmp-686-accept.mjs'
   )

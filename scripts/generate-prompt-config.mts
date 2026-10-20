@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/generate-prompt-config.mts —— 提示词 YAML 配置的生成器（#1292 立）。
 //
-// 读 config/prompts/ 下的五份模板 YAML、一份片段 YAML 与 config/languages.yaml，
+// 读 config/prompts/ 下的五份模板族 YAML（三处片段按注入时机住在对应族里）与 config/languages.yaml，
 // 由 scripts/lib/prompt-config.mts 校验、对得上 PROMPT_TEMPLATE_IDS / PROMPT_FRAGMENT_IDS 之后，
 // 写成 src/client/kernel/prompt-data.ts —— 这份生成物不入库，构建时现场生成。
 //
@@ -40,7 +40,7 @@ const ROOT: string = path.resolve(path.dirname(url.fileURLToPath(import.meta.url
 const OUT_PATH: string = path.join(ROOT, 'src', 'client', 'kernel', 'prompt-data.ts')
 
 /**
- * 按五族一份模板表与一份片段表造出文本，再把语言清单也写进去。
+ * 按五族各造一份模板表，再汇总出模板表、片段表与语言清单三样。
  *
  * 产物 = 客户端内核闭包要的那一份真数据（运行时只读这份），因此生成的 TypeScript 必须满足两条：
  *   1. 生成的键联合类型 = PROMPT_TEMPLATE_IDS 的 id 联合 → 增 / 删模板遗漏时编译期就红
@@ -57,7 +57,7 @@ function render(): string {
   lines.push('// prompt-data.ts —— 提示词配置的生成源码（#1292 立；构建时现场生成、不入库）。')
   lines.push('//')
   lines.push('// 人手不改：本文件由 scripts/generate-prompt-config.mts 按 config/languages.yaml 与 config/prompts/ 下的')
-  lines.push('// 五份模板 YAML、一份片段 YAML 写出。想改提示词文案请改 YAML 再跑生成器；漏改 YAML 直接手改这里的话，')
+  lines.push('// 五份模板族 YAML 写出（片段与模板同住）。想改提示词文案请改 YAML 再跑生成器；漏改 YAML 直接手改这里的话，')
   lines.push('// 下一次生成会被覆盖（generate --check 也会判红），所以不要在源码里手工改这一段。')
   lines.push('')
   lines.push('/* eslint-disable */')
