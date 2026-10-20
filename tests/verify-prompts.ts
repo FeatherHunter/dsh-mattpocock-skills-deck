@@ -528,14 +528,27 @@ const evalPromptHelpers = (function () {
     /**
      * #1292：语言回退链的真实判定处是 promptLang()。同一个语言快照与清单喂进去，量它落到哪一门。
      * 单独拼一小段来求值（不复用上面按 lang 缓存的实例：那几个实例的 localeSvc 固定，而这里要变量是语言快照）。
+     * 第三个参数是「语言快照坏成什么样」，用来钉住几种现实里会遇到的读取失败：
+     *   不传  —— 正常：getSnapshot() 返回 { active }
+     *   'null'—— 服务在，但这次快照还没回来（返回 null）
+     *   'missing' —— 服务根本没装 getSnapshot 方法
+     *   'throw'   —— getSnapshot() 自己抛异常
+     * 三种坏法都必须按清单的 default 走，而不是掉进写死的兜底。
      */
-    promptLangForTest: function (active, languages) {
+    promptLangForTest: function (active, languages, snapshotBroken) {
       if (!src0) throw new Error('evalPromptHelpers 未初始化（先调用 prime(src, data)）')
       const body0 = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
       const f = compileFn(['localeSvc', 'issueUrlFor', 'PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA', 'LANGUAGES_YAML'], body0 +
         '\n;return { promptLang: promptLang };')
+      const localeSvcStub = snapshotBroken === 'missing'
+        ? {}
+        : snapshotBroken === 'null'
+          ? { getSnapshot: function () { return null } }
+          : snapshotBroken === 'throw'
+            ? { getSnapshot: function () { throw new Error('语言服务未就绪') } }
+            : { getSnapshot: function () { return { active: active } } }
       return f(
-        { getSnapshot: function () { return { active: active } } },
+        localeSvcStub,
         function () { return '' },
         (data0 && data0.templates) || {},
         (data0 && data0.fragments) || {},
@@ -1855,10 +1868,13 @@ const selfDigest = function () {
 //   ⑤ 跨门禁一致性改比 YAML 的顶层键：族文件里模板与片段混在同层，扣掉登记过的片段 id 再双向比。
 //   判据强度不降：28 条受保护 id、use 逐条过 judge、字数与占位符一一对应、产物逐字段与真源相等，一条没松。
 //   本文件与夹具都没被掏空，自摘要跟着重算。
+// #1292 收尾：promptLang 补两条现实里会遇到的读取失败 —— 语言快照还没回来（getSnapshot 返回 null）
+//   或服务根本没装 getSnapshot 时，必须按清单的 default 走，不能掉进写死的 zh；LANG_CASES 相应加三条
+//   （快照返回 null / 没有 getSnapshot 方法 / getSnapshot 抛异常，清单都写 default: en），自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'a94be21f813a84db1a4484d497598a94b2583878d4cf24a2fc78233b496bf85f',
+  'tests/verify-prompts.ts': '6c37ad706606584b0b2b3f2952c5f9485b99a236ff183562746ddb493dde2c18',
 }
 // ---- LOCK-END ----
 
@@ -2027,7 +2043,8 @@ if (reg) {
     // #1292：语言清单的判定面 —— promptLang 落到哪一门，由 config/languages.yaml 的清单与回退链决定。
     //   这里用真清单 + 几份小清单把几条规矩逐条钉死（口径写在 prompts.ts 的 promptLang 注释里）：
     //   主标签匹配（en-US → en）、清单里没有的语言退到 default、列了但正文没带这门语言时沿回退链往下退、
-    //   链绕回自己时不死循环、清单为空时退回 zh。
+    //   链绕回自己时不死循环、清单为空时退回 zh；语言快照本身读不到（返回 null / 没装方法 / 抛异常）时
+    //   也必须按清单的 default 走，不能掉进写死的兜底。
     const pLang = problems.length
     const LANG_CASES = [
       [languagesData || FALLBACK_LANGUAGES, 'en', 'en', '语言快照 en → en'],
@@ -2039,12 +2056,15 @@ if (reg) {
       [{ default: 'ja', languages: { ja: { fallback: ['zh'] }, zh: { fallback: [] } } }, 'ja', 'zh', '回退链多跳：ja → zh 一路退到有正文的 zh'],
       [{ default: 'zh', languages: { zh: { fallback: [] }, ja: { fallback: ['ja'] } } }, 'ja', 'zh', '链绕回自己时不死循环，退回缺省语言'],
       [{ default: 'zh', languages: {} }, 'en', 'zh', '清单为空时退回 zh（不让空数据把整段渲染打空）'],
+      [{ default: 'en', languages: { en: { fallback: [] } } }, 'zh', 'en', '快照还没回来（getSnapshot 返回 null）时按缺省 en，不掉进写死的 zh', 'null'],
+      [{ default: 'en', languages: { en: { fallback: [] } } }, 'zh', 'en', '语言服务没装 getSnapshot 方法时按缺省 en', 'missing'],
+      [{ default: 'en', languages: { en: { fallback: [] } } }, 'zh', 'en', 'getSnapshot 自己抛异常时按缺省 en', 'throw'],
     ]
     LANG_CASES.forEach(function (c) {
-      const got = evalPromptHelpers.promptLangForTest(c[1], c[0])
+      const got = evalPromptHelpers.promptLangForTest(c[1], c[0], c[4])
       if (got !== c[2]) fail('#1292 promptLang(' + JSON.stringify(c[1]) + ') 落到 ' + JSON.stringify(got) + '，期望 ' + JSON.stringify(c[2]) + '（' + c[3] + '）')
     })
-    if (stepOk(pLang)) console.log('  PASS 语言清单判定（' + LANG_CASES.length + ' 条：主标签匹配 / 缺省回落 / 回退链多跳 / 自指不打转 / 空清单）')
+    if (stepOk(pLang)) console.log('  PASS 语言清单判定（' + LANG_CASES.length + ' 条：主标签匹配 / 缺省回落 / 回退链多跳 / 自指不打转 / 空清单 / 快照读不到）')
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
       const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')

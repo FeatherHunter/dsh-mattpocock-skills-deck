@@ -22,6 +22,8 @@ const { pathToFileURL } = require('url')
 // 按 .js 路径直接 import 呢，Node 认的就是那个路径，不会替我们挑 .ts —— 实测报的是
 // 「Cannot read properties of undefined (reading 'setupRun')」（.js 是产物、导出的名字对不上）。
 const { sourcePath, sourceText } = require('./lib/source-text.ts')
+// #1292：提示词数据生成物在不在、不在怎么生成，收在共用入口里（五份沙箱门禁共用那一处）。
+const { ensurePromptData } = require('./lib/prompt-data.ts')
 
 let failed = false, total = 0, passed = 0
 const check = (ok, msg) => { total++; if (ok) passed++; else { failed = true; console.log('  FAIL ' + msg) } }
@@ -97,14 +99,8 @@ async function main() {
   //   所以那三个名字在 prompts.ts 里只是「闭包由构建提供」的声明，单独 import 模块时它们根本不存在 ——
   //   模块里那行 `const PROMPTS = PROMPT_TEMPLATE_DATA` 当场 ReferenceError。
   //   照本文件下面已有的先例（中央时间真值那几行）：先把真值挂到 globalThis，ESM 的裸标识符会回落到全局。
-  //   生成物不入库（干净检出时盘上没有它），所以 import 之前先确认它在；不在就跑同一个生成器现场生成一份。
-  const promptDataFile = path.join(root, 'src', 'client', 'kernel', 'prompt-data.ts')
-  if (!fs.existsSync(promptDataFile)) {
-    const gen = spawnSync(process.execPath, [path.join(root, 'scripts', 'generate-prompt-config.mts')], { encoding: 'utf8' })
-    if (gen.status !== 0) {
-      throw new Error('提示词数据生成失败（config/prompts/ 下的 YAML → src/client/kernel/prompt-data.ts）：先跑 node scripts/generate-prompt-config.mts 把生成物做出来。\n' + String(gen.stdout || '') + String(gen.stderr || ''))
-    }
-  }
+  //   生成物不在盘上时现场生成一份 —— 怎么生成收在 tests/lib/prompt-data.ts，五份门禁共用那一处。
+  const promptDataFile = path.join(root, ensurePromptData())
   const promptData = await import(pathToFileURL(promptDataFile).href)
   for (const k of ['PROMPT_TEMPLATE_DATA', 'PROMPT_FRAGMENT_DATA', 'LANGUAGES_YAML']) {
     if (globalThis[k] === undefined) globalThis[k] = promptData[k]

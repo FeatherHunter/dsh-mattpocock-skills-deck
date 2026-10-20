@@ -16,6 +16,8 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 // 直接读 .js 会读到构建产物（或读不到），而且朴素拼文本过不了转译（类型标注与 satisfies 会把 eval 噎死）。
 // 共用入口先按全仓唯一口径转译再给可拼接文本；没转的文件走同一条，原样返回。
 const { spliceableJs } = require('./lib/source-text.ts')
+// #1292：提示词数据生成物在不在、不在怎么生成，收在共用入口里（五份沙箱门禁共用）。
+const { ensurePromptData } = require('./lib/prompt-data.ts')
 // 中央时间真值：locale-flow.js 的界面文案改成按中央参数现算（提交 2d0a3f85）之后，拼出来的模块里会用到
 // SETTINGS_DEBUG_PUSH_WAIT_MS 等常量；模块级 import 在拼接文本里非法，改成先把 values.js 的数值导出
 // 整批挂到 globalThis（裸标识符回落全局），以后再有新常量也不会当场 ReferenceError。
@@ -37,16 +39,7 @@ function spliceToFile (files: string[], exportsList: string[], tmpName: string):
 //   src/client/kernel/prompt-data.ts 提供（生成、不入库）；组装提示词的那几个函数拆到了
 //   src/client/kernel/prompts-backend.ts。下面第一组要把 promptTextFor 拼进沙箱跑，所以拼的顺序照
 //   scripts/build.mts 的 KERNEL_MODULES 来：先生成物，再 prompts.js，再 prompts-backend.js。
-//   生成物不在盘上时（全新检出）先跑一次生成器，与构建期「先生成再拼装」同一套做法。
-function ensurePromptData (): string {
-  const rel = path.join('src', 'client', 'kernel', 'prompt-data.ts')
-  if (!fs.existsSync(path.join(ROOT, rel))) {
-    const { spawnSync } = require('child_process')
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-prompt-config.mts')], { stdio: 'inherit' })
-    if (r.status !== 0) throw new Error('生成 src/client/kernel/prompt-data.ts 失败，先跑 node scripts/generate-prompt-config.mts 看报错')
-  }
-  return rel
-}
+//   生成物不在盘上时现场生成一份 —— 这件事收在 tests/lib/prompt-data.ts，五份要拼闭包的沙箱门禁共用那一处。
 
 // 从后端 index.js 真源里按 key 抠出 prompts 块的 {zh,en}（处理 \' 与 \n 转义）。
 function promptsOf (src: string, key: string): { zh: string, en: string } {

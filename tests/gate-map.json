@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T05:18:56.739Z",
+  "generatedAt": "2026-10-20T06:04:37.170Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 297,
   "gateCount": 297,
@@ -2082,14 +2082,12 @@
       "guards": [
         "docs/agents/domain.md",
         "package/lib/client.js",
-        "scripts/generate-prompt-config.mts",
         "src/client/kernel/actions.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-labels.ts",
         "src/client/kernel/locale-pages.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-word.ts",
-        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts-setup.ts",
         "src/client/kernel/prompts.ts",
         "src/client/panel/Dock.ts",
@@ -2102,12 +2100,12 @@
         "src/shared/time-config/src/values.ts",
         "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
+        "tests/lib/prompt-data.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "docs/agents",
         "package/lib",
-        "scripts",
         "src/client/kernel",
         "src/client/panel",
         "src/client/statusbar",
@@ -2120,7 +2118,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 19 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-656-subworkspace-acceptance.ts",
@@ -2194,14 +2192,12 @@
       "file": "tests/verify-665-fresh-workspace-chain.ts",
       "guards": [
         "package/lib/client.js",
-        "scripts/generate-prompt-config.mts",
         "src/client/kernel/actions.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-labels.ts",
         "src/client/kernel/locale-pages.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-word.ts",
-        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts-setup.ts",
         "src/client/kernel/prompts.ts",
         "src/client/statusbar/StatusBackend.ts",
@@ -2211,11 +2207,11 @@
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/eval-probe.ts",
+        "tests/lib/prompt-data.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
-        "scripts",
         "src/client/kernel",
         "src/client/statusbar",
         "src/shared/time-config/src",
@@ -2228,7 +2224,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 14 条"
     },
     {
       "step": "node tests/verify-666-subws-mark-root.ts",
@@ -2546,18 +2542,16 @@
       "step": "node tests/verify-685-healthcheck-button.ts",
       "file": "tests/verify-685-healthcheck-button.ts",
       "guards": [
-        "scripts/generate-prompt-config.mts",
         "src/client/kernel/health-check.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
+        "tests/lib/prompt-data.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "scripts",
         "src/client/kernel",
         "src/shared/time-config/src",
         "tests/lib"
@@ -2566,27 +2560,25 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-686-accept.ts",
       "file": "tests/verify-686-accept.ts",
       "guards": [
-        "scripts/generate-prompt-config.mts",
         "src/client/kernel/health-check.ts",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-panel.ts",
-        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/prompt-data.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "scripts",
         "src/client/kernel",
         "src/shared/time-config/src",
         "src/tracker/rooms/github",
@@ -2598,7 +2590,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；载入模块（require / import / pathToFileURL） 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 3 条"
     },
     {
       "step": "node tests/verify-689-counts-ui.ts",
@@ -6365,23 +6357,21 @@
       "file": "tests/verify-setup-describe.ts",
       "guards": [
         "package/lib/client.js",
-        "scripts/generate-prompt-config.mts",
         "src/client",
         "src/client/kernel/locale-flow.ts",
         "src/client/kernel/locale-pages.ts",
         "src/client/kernel/locale-panel.ts",
         "src/client/kernel/locale-word.ts",
         "src/client/kernel/locale.ts",
-        "src/client/kernel/prompt-data.ts",
         "src/client/kernel/prompts.ts",
         "src/host/workspaceCwd.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/ui-description.ts",
+        "tests/lib/prompt-data.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
-        "scripts",
         "src/client",
         "src/client/kernel",
         "src/host",
@@ -6393,7 +6383,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-skill-detail-stack.ts",
@@ -7173,10 +7163,6 @@
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-640-dock-width-browser.ts",
-      "node tests/verify-655-setup-layout.ts",
-      "node tests/verify-665-fresh-workspace-chain.ts",
-      "node tests/verify-685-healthcheck-button.ts",
-      "node tests/verify-686-accept.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue-body-script.ts",
@@ -7191,7 +7177,6 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-setup-describe.ts",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-typecheck.mts",
       "node tests/verify-wire-subissues-script.ts",

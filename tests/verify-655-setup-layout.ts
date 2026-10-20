@@ -21,6 +21,8 @@ const { compileFn } = require('./lib/eval-probe.js')
 // 「可以直接当函数体求值」的 JavaScript 文本（.ts 会先按构建那份口径转译，引号与换行会被重排，
 // 所以只扫关键字的判据用 sourceText、要拿去求值的用 spliceableJs，别混着用）。
 const { sourceText, spliceableJs } = require('./lib/source-text.ts')
+// #1292：要拼进沙箱的提示词数据生成物怎么取、不在时怎么生成，收在共用入口里（五份沙箱门禁共用）。
+const { promptDataSpliceable } = require('./lib/prompt-data.ts')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -34,16 +36,10 @@ interface LocalePair { zh: Record<string, string>; en: Record<string, string> }
 //   构建时把这份生成物拼在 prompts.js 前面（scripts/build.mts 的 KERNEL_MODULES 顺序：promptData → prompts）。
 //   沙箱要照同一顺序拼：少了它，prompts.js 里那行 `const PROMPTS = PROMPT_TEMPLATE_DATA` 求值时
 //   PROMPT_TEMPLATE_DATA 还不存在，当场 ReferenceError，整扇门禁一条断言都跑不到。
-//   生成物不入库（干净检出时盘上没有它），所以取它之前先确认它在；不在就跑同一个生成器现场生成一份。
+//   生成物不在盘上时现场生成一份 —— 这件事（以及「为什么允许现场生成」）收在 tests/lib/prompt-data.ts，
+//   五份要拼闭包的沙箱门禁共用那一处，改生成方式只要改那里。
 function promptDataSplice(): string {
-  const generated = path.join(root, 'src', 'client', 'kernel', 'prompt-data.ts')
-  if (!fs.existsSync(generated)) {
-    const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'generate-prompt-config.mts')], { encoding: 'utf8' })
-    if (r.status !== 0) {
-      throw new Error('提示词数据生成失败（config/prompts/ 下的 YAML → src/client/kernel/prompt-data.ts）：先跑 node scripts/generate-prompt-config.mts 把生成物做出来。\n' + String(r.stdout || '') + String(r.stderr || ''))
-    }
-  }
-  return spliceableJs('src/client/kernel/prompt-data.ts')
+  return promptDataSpliceable(root)
 }
 
 // —— 取真源：prompts.js 是内核模块（每行行首 export），去掉 export 后在闭包里求值 ——

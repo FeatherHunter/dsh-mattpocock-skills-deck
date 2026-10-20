@@ -129,7 +129,11 @@ export interface LanguageConfig {
 export interface LanguageEntry {
   /** 显示给用户看的那一份人话说法（zh 名与 en 名各一份，给界面渲染）。 */
   label: { zh: string; en: string }
-  /** 回退链 —— 查不到译文时按这条链一档一档找。链必须终止在 languages 里的某一项上。 */
+  /**
+   * 回退链 —— 这门语言缺了正文时接着找哪一门。
+   * 今天最多写一条（运行时只认第一项），多写的项会在 validateLanguageData 里判红；
+   * 空数组表示「没有上一级可退」，是链的终点。链不许绕回自己。
+   */
   fallback: string[]
 }
 
@@ -471,12 +475,18 @@ export function validateLanguageData(data: LanguageConfig): string[] {
     for (const f of entry.fallback) {
       if (!languages[f]) out.push('config/languages.yaml.languages.' + id + '.fallback 引用了未知语言 ' + JSON.stringify(f))
     }
+    // 今天运行时只认第一项（客户端那边沿 fallback[0] 往下走），多写的项会被静默忽略 —— 这种「写在纸上不生效」
+    //   最容易在下一个人补第二门退路时咬人，所以当场判红，而不是等有人发现它没起作用。
+    if (entry.fallback.length > 1) {
+      out.push('config/languages.yaml.languages.' + id + '.fallback 今天只支持一条（运行时只认第一项）：要一次退多门，先让客户端沿列表逐项尝试')
+    }
   }
-  // 链必须走到头（终点的 fallback 是空数组）：从每门语言出发沿 fallback[0] 往下走，
-  //   走到一门「没有上级」的语言就停；同一门语言在一条链上出现两次就是环（包括自己指自己）。
+  // 链必须走到头：从每门语言出发沿 fallback[0] 往下走，同一门语言在一条链上出现两次就是环（包括自己指自己）。
   //   为什么不允许自指：#1292 的清单里有一版把 zh 写成 fallback: [zh]、en 写成 fallback: [en]，
   //   看着像「永久兜底」，其实是把「没有上一级」这件事写成了绕回自己 —— 下游按链找语言时会原地打转，
   //   真出现这种写法要当场说清楚，而不是靠读的人自己猜。
+  //   为什么这里不另判「有没有终点」：语言是有限集合，若没有一门是终点，等于每门都指向别人，
+  //   顺着链走必然重复 —— 下面这条环检测就会抓到，不必再写一条永远走不到的检查。
   for (const id of ids) {
     const trail: string[] = []
     let cur: string | null = id
@@ -492,11 +502,6 @@ export function validateLanguageData(data: LanguageConfig): string[] {
       const next: string | null = entry && Array.isArray(entry.fallback) && entry.fallback.length ? entry.fallback[0] : null
       cur = next && languages[next] ? next : null
     }
-  }
-  if (!out.length) {
-    // 全部链都走到头了：至少得有一门是终点，否则说明每门都在指着别人（上面已经会抓成环，这里只是兜一句人话）。
-    const hasEnd = ids.some((id) => { const e = languages[id]; return !!e && Array.isArray(e.fallback) && e.fallback.length === 0 })
-    if (!hasEnd) out.push('config/languages.yaml 的 fallback 链没有终点：至少要有一门语言的 fallback 写成空数组 []')
   }
   return out
 }

@@ -26,6 +26,8 @@ const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf
 // 另外从同一入口拿 sourceText：下面「失败那一档确实存在」量的是 health-check 源码里那个三元分支，
 // #1251 转成 .ts 之后同名 .js 是 esbuild 产物（双引号），必须读真源才能按原判据断言。
 const { spliceableJs, sourceText } = require('./lib/source-text.ts')
+// #1292：提示词数据生成物在不在、不在怎么生成，收在共用入口里（五份沙箱门禁共用）。
+const { ensurePromptData } = require('./lib/prompt-data.ts')
 // 中央时间真值：locale-flow.js 的界面文案改成按中央参数现算（提交 2d0a3f85）之后，拼出来的模块里会用到
 // SETTINGS_DEBUG_PUSH_WAIT_MS 等常量；模块级 import 在拼接文本里非法，改成先把 values.js 的数值导出
 // 整批挂到 globalThis（裸标识符回落全局），以后再有新常量也不会当场 ReferenceError。
@@ -46,17 +48,8 @@ function spliceToFile(files: string[], exportsList: string[], tmpName: string): 
 }
 // #1292：提示词数据的真源搬到了 config/prompts/ 下的 YAML，客户端闭包里那些数据由生成物
 //   src/client/kernel/prompt-data.ts 提供（生成、不入库）。下面第四、五组要把 prompts.js 拼进沙箱跑，
-//   拼之前得先有那三个运行时数据名，否则一求值就是 ReferenceError。生成物不在盘上时先跑一次生成器
-//   （与 scripts/build.mts 的做法一致：构建期先生成再拼装），然后把它排在 prompts.js 前面一起拼。
-function ensurePromptData(): string {
-  const rel = path.join('src', 'client', 'kernel', 'prompt-data.ts')
-  if (!fs.existsSync(path.join(ROOT, rel))) {
-    const { spawnSync } = require('child_process')
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-prompt-config.mts')], { stdio: 'inherit' })
-    if (r.status !== 0) throw new Error('生成 src/client/kernel/prompt-data.ts 失败，先跑 node scripts/generate-prompt-config.mts 看报错')
-  }
-  return rel
-}
+//   拼之前得先有那三个运行时数据名，否则一求值就是 ReferenceError。生成物不在盘上时现场生成一份 ——
+//   这件事收在 tests/lib/prompt-data.ts，五份要拼闭包的沙箱门禁共用那一处。
 
 async function main() {
   console.log('体检按钮验收门禁（#685：件数派生 · 显隐门 · 开新会话注入 · 常驻日志点 · 中英词条）')

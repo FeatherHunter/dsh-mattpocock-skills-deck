@@ -21,9 +21,9 @@
  *   便于门禁或单测按类型显式 import；闭包侧只消费那三个 const。同一个真源两条路：源码端给类型与门禁用，
  *   客户端端给拼接用。
  */
-// #1292：原文件头 const PROMPTS = {...字面量...} 已经被替换为「读生成物 PROMPT_TEMPLATE_DATA」。
-//   生成物在构建期已深冻（Object.freeze），这里只做一次转手。
-export const PROMPTS: Readonly<Record<string, PromptEntry>> = PROMPT_TEMPLATE_DATA
+    // #1292：原文件头 const PROMPTS = {...字面量...} 已经被替换为「读生成物 PROMPT_TEMPLATE_DATA」。
+    //   生成物在构建期已深冻（Object.freeze），这里只做一次转手。
+    export const PROMPTS: Readonly<Record<string, PromptEntry>> = PROMPT_TEMPLATE_DATA
     // #716：CLI 名字与站点名字（模板里的 {cli} / {cliBrand}）的兜底说法不应写死在提示词里 —— 它们跟具体后端绑在一起。
     //   唯一的来源是后端的 prompts.commandVocabulary 声明；后端没声明时用中性说法兜底（vocabularyParamsFrom 渲染）。
     // #1292：兜底说法搬进 config/prompts/repository-alignment.yaml 的 vocabularyDefaults；下方按当前语言取该语言那一份。
@@ -47,26 +47,37 @@ export const PROMPTS: Readonly<Record<string, PromptEntry>> = PROMPT_TEMPLATE_DA
      *   清单里多出来的语言没有正文可给，不是这一段的事（界面多语言另开票 #1284）。
      */
     export const promptLang = function (): PromptLang {
+      // 清单本身读不到时（生成物没拼进闭包这种极端情况）连 default 都没有，只能给最保守的一门；
+      //   所以 cfg 放在 try 外面 —— 真读到过清单就照它的 default 办，读不到才退回 zh，不写死。
+      let cfg: PromptLanguageConfig | null = null
       try {
-        const cfg = promptLanguages()
+        cfg = promptLanguages()
         const codes = cfg && cfg.languages ? Object.keys(cfg.languages) : []
-        if (!codes.length) return 'zh'
-        const l = (localeSvc && typeof localeSvc.getSnapshot === 'function') ? localeSvc.getSnapshot().active : null
+        if (!codes.length) return String(cfg && cfg.default || '') === 'en' ? 'en' : 'zh'
+        // 语言快照可能整个缺席（服务没装 getSnapshot 方法），也可能服务在但这次快照还没回来（返回 null）；
+        //   两种都算「读不到」，交给清单的 default 决定 —— 不能因此掉进下面的 catch 去写死一门语言。
+        const snap = (localeSvc && typeof localeSvc.getSnapshot === 'function') ? localeSvc.getSnapshot() : null
+        const l = (snap && typeof snap === 'object') ? snap.active : null
         const main = String(l || '').split('-')[0].toLowerCase()
-        const start = codes.indexOf(main) >= 0 ? main : String(cfg.default || codes[0])
-        const visited: Record<string, boolean> = {}
+        const start: string = codes.indexOf(main) >= 0 ? main : String(cfg.default || codes[0])
+        // 记「这条链走过哪几门」用无原型对象：语言代码若碰巧叫 constructor / __proto__，
+        //   普通对象会命中原型链，第一步就退出循环、错落回缺省。
+        const visited: Record<string, boolean> = Object.create(null)
         let cur: string | null = start
         while (cur && !visited[cur]) {
           visited[cur] = true
           if (PROMPT_TEXT_LANGS.indexOf(cur as PromptLang) >= 0) return cur as PromptLang
           // 类型标注是必需的：cur 的类型由这条链自己决定，不标注时 TS 判成循环推断（TS7022）。
           const entry: PromptLanguageConfig['languages'][string] | undefined = cfg.languages[cur]
+          // fallback 是「接着找的那一门」，只认第一项：今天每门最多一条退路，校验层会拦下多写的项。
           const next: string | null = entry && entry.fallback && entry.fallback.length ? String(entry.fallback[0]) : null
           cur = next && cfg.languages[next] ? next : null
         }
         // 回退链走完都没落到带正文的语言（清单被改坏到这种程度）：退回缺省语言，缺省也不是就退回 zh。
         return String(cfg.default || '') === 'en' ? 'en' : 'zh'
-      } catch (e) { return 'zh' }
+      } catch (e) {
+        return String(cfg && cfg.default || '') === 'en' ? 'en' : 'zh'
+      }
     }
     // #716：CLI 名字与后端站点名兜底的纯 lookup。按 promptLang() 取该语言那一份，两个 key 都给中性说法；
     //   后端没声明 commandVocabulary 时回落到此处，永远不会让模板里的 {cli} / {cliBrand} 占位符原样进会话。
