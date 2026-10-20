@@ -228,7 +228,7 @@ export const EntryChooser = function (props: any) {
     left: pos.left,
     width: width,
     boxSizing: 'border-box',
-    padding: '12px 12px 9px',
+    padding: '12px',
     borderRadius: 10,
     background: 'var(--dsw-alias-bg-layer-2,#16181d)',
     border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)',
@@ -267,23 +267,17 @@ export const EntryChooser = function (props: any) {
     key: 'cards',
     style: { display: 'flex', flexDirection: horizontal ? 'row' : 'column', gap: ENTRY_CARD_GAP, marginTop: 9 },
   }, cardNodes)
-  const foot = h('div', { key: 'foot', style: { marginTop: 9, fontSize: 10.5, color: '#8b8b95', display: 'flex', gap: 12 } }, [
-    h('span', null, String(tr('card.entry.footEsc') || '')),
-    h('span', null, String(tr('card.entry.footSwitch') || '')),
-    h('span', null, String(tr('card.entry.footPick') || '')),
-  ])
   const children: any[] = [
     h('button', {
       key: 'close',
       className: 'dsws-btn ghost',
-      'aria-label': String(tr('card.entry.footEsc') || ''),
+      'aria-label': String(tr('card.entry.close') || ''),
       onClick: function (e: any) { if (e && e.stopPropagation) e.stopPropagation(); entryChooserClose(st) },
       style: { position: 'absolute', right: 9, top: 8, fontSize: 14, lineHeight: 1, color: '#8b8b95', background: 'none', border: 'none', cursor: 'pointer', padding: 0 },
     }, '×'),
     h('div', { key: 'title', style: { margin: '0 0 3px', paddingRight: 20, fontSize: 12.5, fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, String(tr('card.entry.title') || '')),
   ]
   children.push(cards)
-  children.push(foot)
   return portalTop(h('div', {
     className: 'dsws-entrychooser',
     ref: rootRef,

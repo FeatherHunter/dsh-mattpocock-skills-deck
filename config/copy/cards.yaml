@@ -49,9 +49,7 @@ zh:
   #   卡面上一句正文、一处眉标、一处状态句、底部技能链的每个词条都住这里；
   #   源码里只留键名，不另写一份，免得改字改到一半、两处入口说法不一致。
   card.entry.title: 这条需求，你现在能说清要做什么吗？
-  card.entry.footEsc: Esc 关闭
-  card.entry.footSwitch: ↑ ↓ 换一张卡
-  card.entry.footPick: Enter 选定
+  card.entry.close: 关闭
   card.entry.need: 需求
   card.entry.explore.brow: 探索地图
   card.entry.explore.state: 目标大而模糊
@@ -104,9 +102,7 @@ en:
   card.legendClaimed: Claimed
   card.legendClosed: Closed
   card.entry.title: Can you say clearly what you want to build right now?
-  card.entry.footEsc: Esc to close
-  card.entry.footSwitch: ↑ ↓ switch card
-  card.entry.footPick: Enter to pick
+  card.entry.close: Close
   card.entry.need: Need
   card.entry.explore.brow: Explore map
   card.entry.explore.state: Big, fuzzy goal

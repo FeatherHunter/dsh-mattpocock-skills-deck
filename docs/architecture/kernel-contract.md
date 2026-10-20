@@ -137,7 +137,7 @@ YAML 里每条模板除了 `version`、`placeholders`、`zh`、`en`，还带一�
 | `config/copy/vcwrite.yaml` | 版本管理写回（102） |
 | `config/copy/pages.yaml` | 历史票按需翻页（70） |
 | `config/copy/labels.yaml` | 标签配色弹窗（51） |
-| `config/copy/cards.yaml` | 卡片动作与阻塞提示，以及入口浮层的两张卡（54） |
+| `config/copy/cards.yaml` | 卡片动作与阻塞提示，以及入口浮层的两张卡（52） |
 | `config/copy/skilldesc.yaml` | 技能描述（27） |
 | `config/copy/skilldetail.yaml` | 技能详情（26） |
 | `config/copy/spec.yaml` | 规格正文（17） |

@@ -273,17 +273,17 @@ function implIdentity(): string {
 
 // ===== 技能链 =====
 // 链上每个节点是一个扁圆角框加等宽字，箭头是一根横线加三角。等宽字按字号估框宽：
-// 西文一个字约 0.62 个字宽、汉字占满一个字宽，这样字号放大后框会跟着变宽，不会把字挤出去。
-// 这一段可用区是 (12,140) 到 (356,220)：四行并行技能竖排之后，上下仍各留约 6px 余量。
+// 西文一个字约 0.58 个字宽、汉字占满一个字宽，这样字号放大后框会跟着变宽，不会把字挤出去。
+// 这一段可用区是 (12,140) 到 (356,220)：四行并行技能竖排之后，上下仍各留约 4px 余量。
 const CHAIN_TOP = 140
 const CHAIN_CY = 180
-const CHAIN_NODE_H = 15
-const CHAIN_FONT = 8.2
+const CHAIN_NODE_H = 16
+const CHAIN_FONT = 9.2
 
 function nodeWidth(label: any, size: number): number {
   const text = String(label == null ? '' : label)
-  const textW = HAS_CJK.test(text) ? text.length * size : text.length * size * 0.62
-  return Math.max(34, Math.ceil(textW) + 10)
+  const textW = HAS_CJK.test(text) ? text.length * size : text.length * size * 0.58
+  return Math.max(30, Math.ceil(textW) + 6)
 }
 
 function chainNode(x: number, y: number, w: number, text: any, opt: any) {

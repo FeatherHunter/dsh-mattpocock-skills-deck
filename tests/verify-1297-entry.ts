@@ -64,7 +64,7 @@ const COPY = [
   '目标大而模糊', '目标明确清晰',
   '想清楚了要做什么，没想清楚细节，也没想清楚做到什么程度。',
   '要做什么、细节和做到什么程度都想清楚了，还没写成规格。',
-  'Esc 关闭', '↑ ↓ 换一张卡', 'Enter 选定', '目标明确',
+  '目标明确',
 ]
 for (const s of COPY) {
   check(cardsYaml.indexOf(s) >= 0, 'card.entry.* 里有这句文案：' + s)
@@ -86,7 +86,8 @@ const srcBlob = clientFiles.map((rel) => stripComments(read(rel))).join('\n')
 const leaked = COPY.filter((s) => srcBlob.indexOf(s) >= 0)
 check(leaked.length === 0, '卡面文案没有漏进客户端源码（漏进：' + (leaked.join('、') || '无') + '）')
 check(entryCard.indexOf('card.entry.explore.body') >= 0 && entryCard.indexOf('card.entry.impl.body') >= 0, '卡面正文读的是 card.entry.* 键名')
-check(cardsYaml.split('card.entry.').length - 1 === 40, 'card.entry.* 中英各 20 个键（共 40 行）')
+check(cardsYaml.indexOf('card.entry.close') >= 0, '关闭按钮的无障碍文案也走词表（card.entry.close）')
+check(cardsYaml.split('card.entry.').length - 1 === 36, 'card.entry.* 中英各 18 个键（共 36 行）')
 
 // 4) 卡面形状：368×232；主体文本最多三行、每行不超过 12 个汉字
 check(art.ENTRY_CARD_W === 368 && art.ENTRY_CARD_H === 232, '卡面 368×232')
