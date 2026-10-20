@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #1290 · 把新入口放进真机面板里看</title>
+<style>
+:root{
+  --bg:#0c0e12; --layer1:#10131a; --layer2:#16181d; --layer3:#0c0e12; --border:#2a2d35; --border2:#3a3f4a;
+  --txt:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --purple:#c084fc; --purple-soft:#bc8cff; --blue:#60a5fa; --blue-text:#93c5fd; --green:#3fb950; --red:#f87171; --amber:#f59e0b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font:13px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.page-head{padding:20px 26px 0;max-width:1260px;margin:0 auto}
+.page-head h1{margin:0 0 8px;font-size:18px}
+.page-head p{margin:0;color:var(--sec);font-size:12.5px;max-width:1020px}
+.page-head p+p{margin-top:6px}
+.page-head b{color:var(--txt)}
+.wrap{padding:18px 26px 60px;max-width:1260px;margin:0 auto}
+section{margin-bottom:30px}
+h2{font-size:15px;margin:0 0 4px;display:flex;align-items:baseline;gap:9px}
+h2 .tag{font-size:11px;color:var(--cap);font-weight:400;border:1px solid var(--border);border-radius:20px;padding:1px 9px}
+.sub{color:var(--cap);font-size:12px;margin:0 0 14px;max-width:1050px}
+.sub b{color:var(--txt)}
+
+/* ============ 宿主窗口模拟 ============ */
+.win{position:relative;display:flex;border:1px solid var(--border2);border-radius:10px;overflow:visible;
+  background:#0a0c10;box-shadow:0 12px 40px rgba(0,0,0,.5);min-height:660px}
+.chat{flex:1;min-width:0;padding:16px 18px;display:flex;flex-direction:column;gap:12px;background:#0a0c10;border-right:1px solid var(--border)}
+.bubble{max-width:76%;padding:8px 11px;border-radius:10px;font-size:12.5px;line-height:1.6;background:#16181d;border:1px solid var(--border);color:var(--sec)}
+.bubble.me{align-self:flex-end;background:#1d2433;color:var(--txt)}
+.bubble .who{font-size:10.5px;color:var(--cap);margin-bottom:3px}
+.typing{align-self:flex-start;display:flex;gap:4px;padding:10px 12px;border-radius:10px;background:#16181d;border:1px solid var(--border)}
+.typing i{width:6px;height:6px;border-radius:50%;background:#4b5563;display:block}
+
+/* ============ 面板（照真代码的样式与取值复刻） ============ */
+.panel{flex:none;display:flex;flex-direction:column;background:var(--layer2);overflow:hidden;position:relative}
+/* 宿主标题条（真机截图里那一行，不属于插件） */
+.dockbar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#11141a;border-bottom:1px solid var(--border);font-size:11.5px;color:var(--sec)}
+.dockbar .ric{width:15px;height:15px;border-radius:3px;background:#1f6feb;flex:none}
+.dockbar .rname{font-family:Consolas,Menlo,monospace;font-size:11px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dockbar .sp{flex:1}
+.dockbar .mini{width:18px;height:18px;border-radius:4px;border:1px solid var(--border2);background:transparent;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:var(--sec)}
+.dockbar .mini.b1{border-color:#1f6feb;color:#58a6ff}
+.dockbar .mini.b2{border-color:var(--amber);color:var(--amber)}
+/* 页签行：.dsws-tabs + 真代码里的 items（页签 + 右侧三颗按钮） */
+.dsws-tabs{display:flex;flex-wrap:nowrap;gap:4px;padding:8px 12px 0;overflow:hidden;white-space:nowrap;align-items:center}
+.dsws-tab{padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--sec);font-size:12px;white-space:nowrap;flex:none;line-height:1.5;font-family:inherit}
+.dsws-tab.on{background:rgba(255,255,255,.14);color:var(--txt);border-color:var(--border)}
+.dsws-btn{padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--layer1);color:var(--txt);font-size:12px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;flex:none}
+.dsws-btn:hover{border-color:var(--border2)}
+/* 三颗动作按钮：颜色与真代码一致（紫 map / 蓝 note / 红 bug） */
+.act{font-size:11px;padding:2px 8px;font-weight:600;background:transparent;display:inline-flex;align-items:center;gap:4px;flex:none}
+.act.way{border:1px solid var(--purple);color:var(--purple)}
+.act.spec{border:1px solid var(--blue);color:var(--blue)}
+.act.bug{border:1px solid var(--red);color:var(--red)}
+.act.newreq{border:1px solid var(--sec);color:var(--txt)}
+.act.newreq:hover{border-color:var(--txt);background:rgba(255,255,255,.05)}
+.act .caret{font-size:8px;opacity:.7;transform:translateY(1px)}
+/* 面板正文 */
+.pbody{flex:1;min-height:0;padding:8px 12px 12px;overflow:auto;background:var(--layer2)}
+.grp{margin:12px 0 4px;font-size:11px;color:var(--sec);display:flex;align-items:center;gap:6px}
+.trow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:1px solid transparent;margin-bottom:3px;cursor:pointer}
+.trow:hover{background:rgba(255,255,255,.06);border-color:var(--border)}
+.trow .tt-name{font-size:12.5px;display:flex;align-items:center;gap:5px;min-width:0;flex:1}
+.trow .tt-wrap{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsws-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:99px;font-size:11px;line-height:1.7;white-space:nowrap;flex:none}
+.chip-m{background:rgba(188,140,255,.16);color:var(--purple-soft)}
+.chip-s{background:rgba(29,78,216,.22);color:var(--blue-text)}
+.chip-g{background:rgba(63,185,80,.16);color:var(--green)}
+.chip-t{background:rgba(240,136,62,.16);color:#f0883e}
+.chip-i{background:rgba(139,139,149,.14);color:var(--sec)}
+.chip-r{background:rgba(88,166,255,.18);color:#58a6ff}
+.chip-b{background:rgba(248,113,113,.16);color:var(--red)}
+.trow .no{font-family:Consolas,Menlo,monospace;font-size:11px;color:var(--cap);flex:none}
+/* 状态栏胶囊（.dsws-capsule 真样式） */
+.capsule-row{padding:8px 10px;background:var(--layer2);border-top:1px solid var(--border)}
+.dsws-capsule{width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:space-between;
+  align-items:center;gap:2px 6px;background:var(--layer1);border:1px solid var(--border);border-radius:14px;padding:3px 6px;
+  font-size:12px;color:var(--sec);cursor:pointer;user-select:none}
+.capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--txt);flex:0 1 auto}
+.cseg{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:99px;flex:none}
+.cseg b{color:var(--txt);font-family:Consolas,Menlo,monospace;font-size:11px}
+.take-wrap{position:relative;display:inline-flex}
+.take-menu{display:none;position:absolute;right:0;bottom:22px;z-index:50;min-width:168px;padding:4px;background:var(--layer2);
+  border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+.take-wrap:hover .take-menu{display:block}
+.take-menu .mi{padding:4px 8px;border-radius:4px;cursor:pointer;font-size:12px;color:var(--txt);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.take-menu .mi:hover{background:rgba(255,255,255,.07)}
+.take-menu .mi .dot{width:8px;height:8px;border-radius:2px;flex:none}
+
+/* ============ 浮层（真代码走 PortalOverlay + fixed，盖在面板外层） ============ */
+.chooser{position:absolute;z-index:80;width:392px;padding:12px 12px 9px;border-radius:10px;
+  background:var(--layer2);border:1px solid var(--border2);box-shadow:0 16px 44px rgba(0,0,0,.6);display:none}
+.chooser.open{display:block}
+.chooser h4{margin:0 0 3px;font-size:12.5px;color:var(--txt);font-weight:600;padding-right:20px}
+.chooser .csub{margin:0 0 9px;font-size:11px;color:var(--cap)}
+.chooser .close{position:absolute;right:9px;top:8px;color:var(--cap);cursor:pointer;font-size:14px;line-height:1;background:none;border:none}
+.chooser .close:hover{color:var(--txt)}
+.pick{margin-top:9px;border-radius:12px;cursor:pointer;transition:filter .12s;display:block}
+.pick:hover{filter:brightness(1.14)}
+.pick svg{display:block}
+.chooser .foot{margin-top:9px;font-size:10.5px;color:var(--cap);display:flex;gap:12px}
+/* 选完之后的反馈条 */
+.pbanner{display:none;margin:0 0 8px;padding:7px 9px;border-radius:8px;font-size:12px;display:flex;gap:8px;align-items:center}
+.pbanner.show{display:flex}
+.pbanner.explore{background:rgba(188,140,255,.10);border:1px solid rgba(192,132,252,.45);color:var(--purple-soft)}
+.pbanner.impl{background:rgba(29,78,216,.16);border:1px solid rgba(96,165,250,.45);color:var(--blue-text)}
+.pbanner .undo{margin-left:auto;background:none;border:1px solid var(--border);color:var(--sec);border-radius:5px;font-size:11px;padding:1px 7px;cursor:pointer;font-family:inherit}
+.pbanner .undo:hover{color:var(--txt);border-color:var(--txt)}
+/* 聊天区里的新会话提示 */
+.newchat{display:none;align-self:stretch;border:1px solid rgba(88,166,255,.35);background:rgba(88,166,255,.08);border-radius:8px;padding:8px 11px;font-size:12px;color:var(--txt)}
+.newchat.show{display:block}
+
+table{border-collapse:collapse;width:100%;max-width:1060px}
+th,td{border:1px solid var(--border);padding:7px 9px;font-size:12.3px;text-align:left;vertical-align:top}
+th{color:var(--cap);font-weight:400;background:rgba(255,255,255,.03)}
+td .path{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:var(--purple-soft)}
+.hint{color:var(--amber);font-size:12px;max-width:1060px;margin:10px 0 0}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--cap);margin:0 0 12px}
+.legend b{color:var(--txt);font-weight:600}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>新入口放进真机面板里看</h1>
+  <p>这一版把 B 方案（单按钮 + 两张选择卡）放进<b>真机形态的右侧面板</b>：面板外框、页签行、按钮、胶囊的样式与取值都照真代码复刻（`src/client/kernel/styles.ts` 里的 <code>.dsws-tabs</code>／<code>.dsws-btn</code>／<code>.dsws-capsule</code>，按钮颜色与顺序照 `src/client/views/shared/Tabs.ts:73-95`），只有列表内容用本仓真实票号示意。</p>
+  <p><b>要点：</b>浮层是浮在面板<b>外面</b>的（真代码走 <code>PortalOverlay</code> + <code>position: fixed</code>，照状态栏菜单的做法），所以面板窄的时候它会向左盖到聊天区，不会被面板裁掉。</p>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="tag">A</span>窄面板 320px（面板被拉到最窄时的样子）</h2>
+    <p class="sub">点面板右上角那颗<b>「新建需求」</b>：浮层从按钮下沿展开、右边跟按钮对齐，宽 392px，<b>比 320 宽的面板还宽，于是向左盖到聊天区</b>——真代码里它走 <code>position: fixed</code>，所以面板多窄都不会把卡裁掉。点卡＝选定，点浮层外面＝收起。</p>
+    <div class="legend">
+      <span><b>现状</b>：页签行右端三颗（紫「新建需求」/ 蓝「写规格」/ 红「+ bug」）</span>
+      <span><b>这一版</b>：紫蓝合并成一颗灰白「新建需求 ▾」，红「+ bug」保持独立</span>
+      <span><b>状态栏</b>：胶囊里也只剩一颗「新建需求 ▾」</span>
+    </div>
+    <div id="winA"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">B</span>宽面板 810px（真机截图那一档宽度）</h2>
+    <p class="sub">面板够宽时，浮层整个落在面板里，<b>盖住列表的上半部分</b>，不越界。选完一张卡：面板顶部出现一条反馈条，列表里多出新会话那一行。</p>
+    <div id="winB"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">C</span>状态栏胶囊那一处：两个方案</h2>
+    <p class="sub">底部胶囊（真样式：<code>.dsws-capsule</code>）里的「可接」段目前悬停出一个小菜单，里面是「新建需求」「写规格」两项文字。画不下 368 的卡，所以两个方案。<b>（为了排版不出血，菜单画在胶囊下方；真机里是向上弹的。）</b></p>
+    <div id="optC"></div>
+  </section>
+
+  <section>
+    <h2><span class="tag">D</span>这一版涉及的代码位置</h2>
+    <div id="mapTable"></div>
+    <p class="hint">还没写进真代码：浮层、卡片、选中反馈都是这一页原型。状态栏那一处（第 ③ 方案）要跟面板共用同一张卡，得把浮层从面板里提出来成一个共享组件。</p>
+  </section>
+</div>
+
+<script>
+/* ==================================================================
+   卡片零件：照 docs/prototype/1290-card-final.html 的定稿卡原样搬过来
+   （368×232 横卡：地图 1:1 + 眉标 + 状态句 + 主体文本 + 底部技能链）
+   ================================================================== */
+var P="#c084fc", PT="#e9d5ff", B="#93c5fd", BT="#bfdbfe", G="#3fb950";
+function defs(u,c){
+  return '<defs>'+
+    '<radialGradient id="g'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".38"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient>'+
+    '<radialGradient id="f'+u+'"><stop offset="0" stop-color="'+c+'" stop-opacity=".3"></stop><stop offset=".55" stop-color="'+c+'" stop-opacity=".14"></stop><stop offset="1" stop-color="'+c+'" stop-opacity="0"></stop></radialGradient></defs>';
+}
+function need(x,y,w,h,stroke,txt,dash){
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(h/2)+'" fill="rgba(0,0,0,0)" stroke="'+stroke+'" stroke-width="1.3"'+(dash?' stroke-dasharray="3.4 2.4"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+4)+'" text-anchor="middle" font-size="10.5" fill="'+txt+'" letter-spacing=".5">需求</text>';
+}
+function q(x,y,r){
+  return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(10,12,16,.92)" stroke="'+PT+'" stroke-width="1.3"></circle>'+
+    '<text x="'+x+'" y="'+(y+r*0.38)+'" text-anchor="middle" font-size="'+(r*1.35)+'" fill="'+PT+'">?</text>';
+}
+function target(x,y,r,color,glow,check){
+  var s='<circle cx="'+x+'" cy="'+y+'" r="'+(r+9)+'" fill="url(#'+glow+')"></circle>';
+  s+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#0b0d11" stroke="'+color+'" stroke-width="1.4"></circle>';
+  if(check){ s+='<path d="M'+(x-r*0.42)+' '+y+' l'+(r*0.3)+' '+(r*0.34)+' l'+(r*0.6)+'-'+(r*0.68)+'" fill="none" stroke="'+G+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>'; }
+  else { s+='<circle cx="'+x+'" cy="'+y+'" r="'+(r*0.42)+'" fill="none" stroke="'+color+'" stroke-width="1.1" opacity=".75"></circle>'; }
+  return s;
+}
+function ticket(x,y,w,h){
+  var s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="4" fill="rgba(29,78,216,.42)" stroke="'+B+'" stroke-width="1.2"></rect>';
+  s+='<path d="M'+(x+6)+' '+(y+h/2)+' l2.2 2.2 4-4.6" fill="none" stroke="'+G+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2-2.5)+' H '+(x+w-5)+'" stroke="'+B+'" stroke-width="1.2" stroke-linecap="round" opacity=".7"></path>';
+  s+='<path d="M'+(x+16)+' '+(y+h/2+3)+' H '+(x+w-12)+'" stroke="'+B+'" stroke-width="1" stroke-linecap="round" opacity=".35"></path>';
+  return s;
+}
+function artExplore(u){
+  var s=defs(u,"#c084fc");
+  s+=need(6,42,42,20,P,PT,true);
+  s+='<circle cx="52" cy="52" r="5" fill="none" stroke="'+P+'" stroke-opacity=".35" stroke-width="1"></circle>';
+  s+='<circle cx="52" cy="52" r="2.6" fill="'+P+'"></circle>';
+  s+='<path d="M54 52 H 68" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round"></path>';
+  s+='<circle cx="72" cy="52" r="3.6" fill="'+P+'"></circle>';
+  s+='<path d="M72 52 C 80 46 88 26 96 21" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 82 52 90 52 96 52" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+='<path d="M72 52 C 80 58 88 78 96 83" fill="none" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round" opacity=".9"></path>';
+  s+=q(104,20,8); s+=q(104,52,8); s+=q(104,84,8);
+  s+='<path d="M112 20 C 124 22 134 40 141 50" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".45"></path>';
+  s+='<path d="M112 52 C 124 52 134 52 141 52" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".4"></path>';
+  s+='<path d="M112 84 C 124 82 134 64 141 54" fill="none" stroke="'+PT+'" stroke-width="1.2" stroke-dasharray="4 4" stroke-linecap="round" opacity=".35"></path>';
+  s+='<circle cx="152" cy="52" r="30" fill="url(#f'+u+')"></circle>';
+  s+=target(150,52,8,PT,'g'+u,false);
+  return s;
+}
+function artImpl(u){
+  var s=defs(u,"#60a5fa");
+  s+=need(6,42,42,20,B,BT,false);
+  var ys=[8,31,54,77], cy=[16.5,39.5,62.5,85.5];
+  for(var i=0;i<4;i++){ s+='<path d="M48 52 C 56 52 58 '+cy[i]+' 68 '+cy[i]+'" fill="none" stroke="'+B+'" stroke-width="1.4" stroke-linecap="round" opacity=".75"></path>'; }
+  for(var j=0;j<4;j++){
+    s+=ticket(70,ys[j],36,17);
+    s+='<path d="M106 '+cy[j]+' C 118 '+cy[j]+' 128 '+(cy[j]<52?cy[j]+8:cy[j]-8)+' 138 50" fill="none" stroke="'+B+'" stroke-width="1.3" stroke-linecap="round" opacity=".55"></path>';
+  }
+  s+=target(148,52,8,BT,'g'+u,true);
+  return s;
+}
+var MONO='Consolas,Menlo,monospace';
+function node(x,y,w,h,text,o){
+  o=o||{};
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?5:o.rx)+'" fill="'+(o.fill||"rgba(255,255,255,.04)")+'" stroke="'+(o.stroke||"#8b8b95")+'" stroke-width="1"'+(o.dash?' stroke-dasharray="3 2"':'')+'></rect>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2+2.5)+'" text-anchor="middle" font-size="'+(o.fs||7)+'" fill="'+(o.text||"#e6edf3")+'" font-family="'+MONO+'">'+text+'</text>';
+}
+function arrowH(x1,x2,y,c){
+  return '<path d="M'+x1+' '+y+' H'+(x2-3)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>'+
+    '<path d="M'+(x2-3.4)+' '+(y-2.4)+' L'+x2+' '+y+' L'+(x2-3.4)+' '+(y+2.4)+'" stroke="'+c+'" stroke-width="1" fill="none"></path>';
+}
+function chainExploreH(ox,oy){
+  var s="", cy=oy+31, rows=["/prototype","/research","/grilling","/domain-modeling"], rowH=12, gap=2.5;
+  var top=cy-(rows.length*rowH+(rows.length-1)*gap)/2;
+  s+=node(ox,cy-6,48,12,"/wayfinder",{fill:"rgba(192,132,252,.12)",stroke:P,text:PT,fs:6.8});
+  s+=arrowH(ox+48,ox+56,cy,P);
+  var sx=ox+56,gx=ox+64;
+  s+='<path d="M'+sx+' '+cy+' V'+(top+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+='<path d="M'+sx+' '+cy+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  for(var i=0;i<rows.length;i++){
+    var y=top+i*(rowH+gap);
+    s+=arrowH(sx,gx,y+rowH/2,P);
+    s+=node(gx,y,86,rowH,rows[i],{fill:"rgba(192,132,252,.10)",stroke:P,text:PT,fs:6.6,rx:4});
+  }
+  var rx=gx+86+4,mx=rx+4;
+  s+='<path d="M'+rx+' '+(top+rowH/2)+' V'+(top+(rows.length-1)*(rowH+gap)+rowH/2)+'" stroke="'+P+'" stroke-width="1" fill="none"></path>';
+  s+=arrowH(mx,mx+6,cy,P);
+  var gx2=mx+6;
+  s+=node(gx2,cy-6,40,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(gx2+40,gx2+46,cy,B);
+  s+=node(gx2+46,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(gx2+84,gx2+90,cy,B);
+  s+=node(gx2+90,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+function chainImplH(ox,oy){
+  var s="", cy=oy+31;
+  s+=node(ox,cy-6,68,12,"/grill-with-docs",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6});
+  s+=arrowH(ox+68,ox+94,cy,B);
+  s+=node(ox+94,cy-6,40,12,"目标明确",{fill:"transparent",stroke:"#5c636d",dash:true,text:"#b4bac2",fs:7.4,rx:4});
+  s+=arrowH(ox+134,ox+158,cy,B);
+  s+=node(ox+158,cy-6,38,12,"/to-spec",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  s+=arrowH(ox+196,ox+220,cy,B);
+  s+=node(ox+220,cy-6,46,12,"/to-tickets",{fill:"rgba(29,78,216,.30)",stroke:B,text:BT,fs:6.6,rx:4});
+  return s;
+}
+var uid=0;
+function artOf(kind,w,h,x,y){
+  var u='u'+(uid++);
+  var a = kind==='explore' ? artExplore(u) : artImpl(u);
+  return '<svg x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" viewBox="0 0 168 104">'+a+'</svg>';
+}
+var TXT={
+  explore:{name:"探索地图", state:"目标大而模糊", color:P, border:"rgba(188,140,255,.45)"},
+  impl:{name:"实施地图", state:"目标明确清晰", color:B, border:"rgba(29,78,216,.75)"}
+};
+var NO_LINE_START="个把只种样些再又还也就才更最而但却很跟和被让使等如若因及与或，。、；：！？）】》」』%";
+var NO_LINE_END="（【《「『(";
+var KEEP_WORDS=["规格","实施票","文档","问号","开工","没定","一条","几条","到底","问清","清楚","写成","落成","消掉","摊开","分头","探出","探路","一排","每个","什么","手里","多了"];
+function splitUnits(text){
+  var units=[], i=0;
+  while(i<text.length){
+    var hit=null;
+    for(var k=0;k<KEEP_WORDS.length;k++){ if(text.substr(i,KEEP_WORDS[k].length)===KEEP_WORDS[k]){ hit=KEEP_WORDS[k]; break; } }
+    if(hit){ units.push(hit); i+=hit.length; } else { units.push(text.charAt(i)); i++; }
+  }
+  return units;
+}
+function widthOf(units){ var w=0; for(var i=0;i<units.length;i++) w+=units[i].length; return w; }
+function packUnits(units,maxChars){
+  var lines=[], cur=[], w=0;
+  for(var i=0;i<units.length;i++){
+    var u=units[i], uw=u.length;
+    if(u==="，" && widthOf(units.slice(i+1))<=maxChars && cur.length>0){ cur.push(u); lines.push(cur); cur=[]; w=0; continue; }
+    if(w+uw>maxChars && cur.length>0){
+      if(NO_LINE_START.indexOf(u)>=0 && cur.length>1){ var last=cur.pop(); lines.push(cur); cur=[last]; w=last.length; }
+      else { lines.push(cur); cur=[]; w=0; }
+    }
+    if(u && NO_LINE_END.indexOf(u)>=0 && cur.length>0){ cur.push(u); lines.push(cur); cur=[]; w=0; continue; }
+    cur.push(u); w+=uw;
+  }
+  if(cur.length) lines.push(cur);
+  return lines;
+}
+function wrapText(x,y,text,fs,maxChars,lineH,fill){
+  var lines=packUnits(splitUnits(text),maxChars), s='';
+  for(var j=0;j<lines.length;j++) s+='<text x="'+x+'" y="'+(y+j*lineH)+'" font-size="'+fs+'" fill="'+fill+'">'+lines[j].join("")+'</text>';
+  return s;
+}
+function cardFinal(kind, body){
+  var c=TXT[kind], W=368, H=232, s='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'Microsoft YaHei\',system-ui,sans-serif">';
+  s+='<rect x="0.5" y="0.5" width="'+(W-1)+'" height="'+(H-1)+'" rx="12" fill="#10131a" stroke="'+c.border+'"></rect>';
+  s+='<rect x="12" y="12" width="184" height="116" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+=artOf(kind,168,104,20,18);
+  s+='<text x="208" y="36" font-size="11" fill="'+c.color+'" fill-opacity=".72" letter-spacing="1.2">'+c.name+'</text>';
+  s+='<text x="208" y="64" font-size="17" font-weight="700" fill="'+c.color+'">'+c.state+'</text>';
+  s+=wrapText(208,86,body,12,12,17,"#a1a1aa");
+  s+='<rect x="12" y="140" width="344" height="80" rx="8" fill="#0a0c10" stroke="#2a2d35"></rect>';
+  s+= kind==='explore' ? chainExploreH(26,140) : chainImplH(26,140);
+  return s+'</svg>';
+}
+var BODY_E="分头探几条路，把没定的问清楚";
+var BODY_I="对着文档问到底，写成规格和实施票";
+
+/* ==================================================================
+   面板与浮层
+   ================================================================== */
+function panelHTML(opts){
+  opts=opts||{};
+  var w=opts.w||400, showCurrent=opts.showCurrent;
+  var acts = showCurrent
+    ? '<button class="dsws-btn act way">⊞ 新建需求</button><button class="dsws-btn act spec">▤ 写规格</button>'
+    : '<button class="dsws-btn act newreq entry-btn">⊞ 新建需求 <span class="caret">▾</span></button>';
+  var acts2 = showCurrent
+    ? '<button class="dsws-btn act bug">⌁ + bug</button>'
+    : '<button class="dsws-btn act bug">⌁ + bug</button>';
+  return ''+
+  '<div class="panel" style="width:'+w+'px">'+
+    '<div class="dockbar"><span class="ric"></span><span class="rname">FeatherHunter/dsh-mattpocock-skills-deck</span><span class="sp"></span>'+
+      '<button class="mini b1">◱</button><button class="mini b2">◲</button></div>'+
+    '<div class="dsws-tabs">'+
+      '<button class="dsws-tab on">列表</button><button class="dsws-tab">技能</button><button class="dsws-tab">版本管理</button>'+
+      '<button class="dsws-tab">拉取请求</button><button class="dsws-tab">环境检查</button>'+
+      '<span style="flex:1"></span>'+acts+acts2+
+    '</div>'+
+    '<div class="pbody" data-body>'+
+      '<div class="pbanner" data-banner></div>'+
+      '<div class="grp">在办 <span style="color:#8b8b95">4</span></div>'+
+      row('#1290','wayfinder:map','chip-m','需求的第一入口：探索地图 / 实施地图')+
+      row('#1297','任务','chip-t','入口在真代码里落地：面板页签行 + 状态栏胶囊')+
+      row('#1292','任务','chip-t','提示词搬家：正文进 config/prompts/')+
+      row('#1293','规格','chip-s','提示词门禁收口成读 YAML')+
+      '<div class="grp">已关闭 <span style="color:#8b8b95">2</span></div>'+
+      row('#1281','任务','chip-i','入口分成两颗按钮：探索 / 写规格')+
+      row('#1285','任务','chip-i','面板头部挪走版本号')+
+    '</div>'+
+    capsuleHTML(opts.statusbar!==false)+
+  '</div>';
+}
+function row(no,label,cls,title){
+  return '<div class="trow"><span class="no">'+no+'</span><span class="dsws-chip '+cls+'">'+label+'</span>'+
+    '<span class="tt-name"><span class="tt-wrap">'+title+'</span></span></div>';
+}
+function capsuleHTML(withMenu){
+  return '<div class="capsule-row"><div class="dsws-capsule">'+
+    '<span class="capsule-word">◧ MattSkills</span>'+
+    '<span class="cseg" style="color:#4ade80">▣ <b>2</b></span>'+
+    '<span class="take-wrap" data-take>'+
+      '<span class="cseg">◎ 可接 <b>4</b></span>'+
+      (withMenu===false?'':'<div class="take-menu" data-takemenu>'+
+        '<div class="mi" data-take-new><span class="dot" style="background:#c084fc"></span>新建需求</div>'+
+        '<div class="mi" data-take-spec><span class="dot" style="background:#60a5fa"></span>写规格</div>'+
+      '</div>')+
+    '</span>'+
+    '<span class="cseg">◈ 诊断 <b>1</b></span>'+
+    '<span class="cseg">◔ 沉淀</span>'+
+    '<span class="cseg">⇄ 交接</span>'+
+  '</div></div>';
+}
+function chatHTML(){
+  return '<div class="chat">'+
+    '<div class="bubble me">这轮的入口卡片你想好怎么排了吗？</div>'+
+    '<div class="bubble"><div class="who">助手</div>面板页签行右端现在是三颗按钮：紫「新建需求」、蓝「写规格」、红「+ bug」。你点哪颗，就是你自己判断过了。</div>'+
+    '<div class="newchat" data-newchat>已开一个新会话：<b>探索地图</b> —— 开场白已预填「/wayfinder 探索 …」，等你说第一句。</div>'+
+    '<div class="bubble">好，我先去面板里点「新建需求」看看。</div>'+
+  '</div>';
+}
+function chooserHTML(){
+  return '<div class="chooser" data-chooser>'+
+    '<button class="close" data-close>×</button>'+
+    '<h4>这条需求，你现在能说清要做什么吗？</h4>'+
+    '<p class="csub">你自己判断，插件不猜；选完才开新会话。</p>'+
+    '<div class="pick" data-pick="explore">'+cardFinal("explore",BODY_E)+'</div>'+
+    '<div class="pick" data-pick="impl">'+cardFinal("impl",BODY_I)+'</div>'+
+    '<div class="foot"><span>Esc 关闭</span><span>↑ ↓ 换一张卡</span><span>Enter 选定</span></div>'+
+  '</div>';
+}
+function buildWindow(mountId, panelW, opts){
+  opts=opts||{};
+  var host=document.getElementById(mountId);
+  host.innerHTML='<div class="win">'+chatHTML()+panelHTML({w:panelW, showCurrent:opts.showCurrent})+chooserHTML()+'</div>';
+  var win=host.querySelector('.win');
+  var panel=win.querySelector('.panel');
+  var chooser=win.querySelector('[data-chooser]');
+  var btn=win.querySelector('.entry-btn');
+  var banner=win.querySelector('[data-banner]');
+  var newchat=win.querySelector('[data-newchat]');
+  var body=win.querySelector('[data-body]');
+
+  function place(){
+    var b=btn.getBoundingClientRect(), wRect=win.getBoundingClientRect();
+    var left=b.right-wRect.left-392;
+    if(left<8) left=8;
+    chooser.style.left=left+'px';
+    chooser.style.top=(b.bottom-wRect.top+6)+'px';
+  }
+  function open(){
+    place(); chooser.classList.add('open');
+  }
+  function close(){ chooser.classList.remove('open'); }
+  if(btn){
+    btn.addEventListener('click',function(e){ e.stopPropagation(); chooser.classList.contains('open')?close():open(); });
+  }
+  chooser.addEventListener('click',function(e){ e.stopPropagation(); });
+  win.addEventListener('click',function(){ close(); });
+  win.querySelector('[data-close]').addEventListener('click',function(e){ e.stopPropagation(); close(); });
+  win.querySelectorAll('[data-pick]').forEach(function(el){
+    el.addEventListener('click',function(e){
+      e.stopPropagation();
+      var kind=el.getAttribute('data-pick');
+      var name=kind==='explore'?'探索地图':'实施地图';
+      banner.className='pbanner show '+(kind==='explore'?'explore':'impl');
+      banner.innerHTML='<span>已开一个新会话：<b>'+name+'</b>，开场白已预填</span><button class="undo" data-undo>撤销</button>';
+      var nr=document.createElement('div');
+      nr.className='trow';
+      nr.innerHTML='<span class="no">新</span><span class="dsws-chip '+(kind==='explore'?'chip-m':'chip-s')+'">'+(kind==='explore'?'探索':'实施')+'</span>'+
+        '<span class="tt-name"><span class="tt-wrap">'+name+' · 等你说第一句</span></span>';
+      body.insertBefore(nr, body.children[1]);
+      newchat.className='newchat show';
+      close();
+    });
+  });
+  win.addEventListener('click',function(e){
+    if(e.target && e.target.closest && e.target.closest('[data-undo]')){
+      e.stopPropagation();
+      banner.className='pbanner';
+      var rows=body.querySelectorAll('.trow');
+      if(rows.length) body.removeChild(rows[1]);
+    }
+  });
+  window.addEventListener('resize',function(){ if(chooser.classList.contains('open')) place(); });
+  return win;
+}
+buildWindow('winA',320,{});
+buildWindow('winB',810,{});
+
+/* ---- C 段：状态栏胶囊的两个方案 ---- */
+function capsuleVariant(title, desc, menuHTML){
+  return '<div style="margin-bottom:18px">'+
+    '<div style="font-size:12.5px;color:#a1a1aa;margin-bottom:6px"><b style="color:#e6edf3">'+title+'</b> —— '+desc+'</div>'+
+    '<div style="max-width:560px;background:#16181d;border:1px solid #2a2d35;border-radius:10px;padding:10px">'+
+      '<div class="dsws-capsule">'+
+        '<span class="capsule-word">◧ MattSkills</span>'+
+        '<span class="cseg" style="color:#4ade80">▣ <b>2</b></span>'+
+        '<span class="cseg">◎ 可接 <b>4</b></span>'+
+        '<span class="cseg">◈ 诊断 <b>1</b></span>'+
+        '<span class="cseg">◔ 沉淀</span>'+
+        '<span class="cseg">⇄ 交接</span>'+
+      '</div>'+menuHTML+
+    '</div></div>';
+}
+document.getElementById('optC').innerHTML=
+  capsuleVariant('① 保持现在这样（两项文字，点文字直接开会话）',
+    '改动最小，但同一件事在面板里是「问」、在状态栏里是「猜」——用户得自己记住哪一项是哪条路。',
+    '<div class="take-menu" style="display:block;position:static;margin-top:8px;min-width:168px;padding:4px;background:#16181d;border:1px solid #2a2d35;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.45)">'+
+      '<div class="mi"><span class="dot" style="background:#c084fc"></span>新建需求</div>'+
+      '<div class="mi"><span class="dot" style="background:#60a5fa"></span>写规格</div>'+
+    '</div>')+
+  capsuleVariant('③ 只留一颗「新建需求 ▾」，点了弹同一组卡（建议）',
+    '面板和状态栏共用同一张卡、同一套判断；代价是状态栏少一次点击直达。',
+    '<div class="take-menu" style="display:block;position:static;margin-top:8px;min-width:392px;padding:12px 12px 9px;background:#16181d;border:1px solid #3a3f4a;border-radius:10px;box-shadow:0 16px 44px rgba(0,0,0,.6)">'+
+      '<div style="font-size:12.5px;color:#e6edf3;font-weight:600;margin:0 0 2px">这条需求，你现在能说清要做什么吗？</div>'+
+      '<div style="font-size:11px;color:#8b8b95;margin:0 0 6px">你自己判断，插件不猜；选完才开新会话。</div>'+
+      '<div class="pick" style="margin-top:6px">'+cardFinal("explore",BODY_E)+'</div>'+
+      '<div class="pick" style="margin-top:6px">'+cardFinal("impl",BODY_I)+'</div>'+
+    '</div>');
+
+/* ---- D 段：代码位置 ---- */
+var MAPS=[
+  ['面板页签行与右侧三颗按钮','<span class="path">src/client/views/shared/Tabs.ts:73-95</span>','现在紫「新建需求」蓝「写规格」红「+ bug」三颗挤在页签行右端；这一版紫蓝合并成一颗灰白「新建需求 ▾」，红「+ bug」原地不动。'],
+  ['浮层本身（盖在面板外面）','<span class="path">src/client/statusbar/StatusBar.ts:318-327</span>','状态栏菜单已经在用 <code>PortalOverlay</code> + <code>position:fixed</code> + <code>zIndex 2147483000</code>；这张卡照抄那套做法，就能盖出面板、不被面板裁掉。'],
+  ['选卡之后做什么','<span class="path">src/client/kernel/router.ts:200,207</span>','选「探索地图」→ <code>newWayfinderText(s)</code> + <code>newSessionTitleNew(\'requirement\')</code>；选「实施地图」→ <code>newSpecText(s)</code> + <code>newSessionTitleNew(\'spec\')</code>。跟现在按钮的点击处理一模一样，只多一步选择。'],
+  ['状态栏胶囊那一处','<span class="path">src/client/statusbar/StatusBar.ts:316-328</span>','「可接」胶囊悬停出的菜单，现在是「新建需求」「写规格」两项文字；方案 ③ 改成一颗按钮弹同一组卡。'],
+  ['现在那两句悬停提示','<span class="path">src/client/kernel/locale-data.ts:1649-1650, 2303-2304</span>','「适合还没想清的需求…」「适合已经想清的需求…」正是卡上该说的话，搬进卡里；按钮自己的提示改成「选一条路：探索地图或实施地图」。'],
+  ['卡片本身（368×232）','<span class="path">docs/prototype/1290-card-final.html</span>','定稿卡：地图 1:1 + 眉标 + 状态句 + 主体文本 + 底部技能链。这一页直接搬了那里的零件函数。'],
+  ['入口按钮的词表','<span class="path">src/client/kernel/locale-data.ts</span>','<code>panel.newWayfinder</code> / <code>panel.newSpec</code> / <code>panel.newBug</code> 三个 key 要改成「新建需求 / 新建需求 / + bug」并去掉中间那项。'],
+  ['还没写的部分','<span class="path">—</span>','浮层、卡片、选中后的反馈条都只在这一页原型里；状态栏要跟面板共用同一张卡，得把浮层从面板里提出来做成共享组件。']
+];
+document.getElementById('mapTable').innerHTML=
+  '<table><tr><th style="width:190px">东西</th><th style="width:300px">位置</th><th>说明</th></tr>'+
+  MAPS.map(function(m){ return '<tr><td>'+m[0]+'</td><td>'+m[1]+'</td><td>'+m[2]+'</td></tr>'; }).join('')+'</table>';
+</script>
+</body>
+</html>
