@@ -128,6 +128,7 @@ td .path{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:var(--purpl
   <h1>新入口放进真机面板里看</h1>
   <p>这一版把 B 方案（单按钮 + 两张选择卡）放进<b>真机形态的右侧面板</b>：面板外框、页签行、按钮、胶囊的样式与取值都照真代码复刻（`src/client/kernel/styles.ts` 里的 <code>.dsws-tabs</code>／<code>.dsws-btn</code>／<code>.dsws-capsule</code>，按钮颜色与顺序照 `src/client/views/shared/Tabs.ts:73-95`），只有列表内容用本仓真实票号示意。</p>
   <p><b>要点：</b>浮层是浮在面板<b>外面</b>的（真代码走 <code>PortalOverlay</code> + <code>position: fixed</code>，照状态栏菜单的做法），所以面板窄的时候它会向左盖到聊天区，不会被面板裁掉。</p>
+  <p><b>卡上第三行（主体文本）这一层还空着：</b>这一句正在重做，四个候选方向（体感／边界／示例／实话）摆在 <code>docs/prototype/1290-body-text-4ways.html</code> 里比；定稿后把本原型的两张卡换上那一句即可，其余部分不受影响。</p>
 </div>
 
 <div class="wrap">
@@ -325,8 +326,10 @@ function cardFinal(kind, body){
   s+= kind==='explore' ? chainExploreH(26,149) : chainImplH(26,149);
   return s+'</svg>';
 }
-var BODY_E="分头探几条路，把没定的问清楚";
-var BODY_I="对着文档问到底，写成规格和实施票";
+/* 主体文本（卡上第三行）这一层还在重做中：四个候选方向（体感／边界／示例／实话）
+   摆在 docs/prototype/1290-body-text-4ways.html 里比。这一版先用占位，等定稿后把这两句换成定稿文案。 */
+var BODY_E="主体文本待定稿";
+var BODY_I="主体文本待定稿";
 
 /* ==================================================================
    图标：照 src/client/kernel/icons.ts 的通用集原样搬（24 的 viewBox、currentColor、描边 1.8）
