@@ -4,9 +4,15 @@
 // 只做调用方点名的那几件事，没点名的字段一个字都不碰（改票最怕「顺手改了别的东西」）。
 // 做完的每一步都单独记一条 item：哪一步成、哪一步没成、后端原话是什么。
 // 返回值就是写后的真状态（能读回就读回一次），AI 不必再读一次确认。
+//
+// #1298 T7 的口径（规格容器的自动关闭权限）：这个工具只允许「关」，不允许「重开」——重开只由人在后端做。
+// 关规格之前有三道闸，全在同一次调用里判，判不过就一个字都不动地拒绝：实施票必须全部关闭；
+// 必须带一条收口核对评论（逐张核对结论）；规格下面连实施票都没有时不算核对通过。
+// 没有「看到子票都关了顺手关」的旁路：唯一的触发条件就是收口核对通过，而这条评论本身就是核对通过的证据。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { statusOfItems } from '../shell/edge-landing.js'
+import { specCloseGuard } from '../shell/spec-close-guard.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { withKeyLock } from '../shell/write-mutex.js'
 import { ensureBody } from '../shell/minimal-spec.js'
@@ -66,7 +72,7 @@ export interface DeckIssuePatchDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_patch',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、开关、标题正文、progress 区，一次只动点名的那些。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。',
   parameters: {
     type: 'object',
     properties: {
@@ -78,7 +84,7 @@ export const definition = {
       title: { type: 'string', description: '新的标题' },
       body: { type: 'string', description: '新的正文' },
       progress: { type: 'string', description: '只改「## 进度」那一段的内容' },
-      close: { type: 'boolean', description: 'true 关闭这张票，false 重新打开' },
+      close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
@@ -163,6 +169,12 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
     if (!s.ok) return shell.unsupported('deck_issue_patch', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '要改哪一张票：把票号写在 key 里。', { cost: { estimated: est } })
+    // #1298 ⑧：AI 工具面上只允许关、不允许重开。重开是「人才能做的动作」，不属于这个工具的权限，
+    // 所以这一支在选后端之前就拒掉，连后端都不连、一个字都不动。机器可读的原因码沿用 ai-tool-refused
+    // （与额度用尽同一个码：两种都是「AI 这一侧不许做这件事」，文案里说清是哪一种）。
+    if (a.close === false) {
+      return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.OVER_CAP, '重开不在这个 AI 工具面上：这个工具只允许关闭，不允许重新打开；要重开请人回到后端（GitHub 的票页面，或本地 .scratch 目录下的票文件）手动做。这次一个字都没动。', { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
+    }
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_patch', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
@@ -222,6 +234,29 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       const lockOpts = { timeoutMs: numOpt(d.keyLockTimeoutMs) }
       const lockedOut = (step: string) => {
         items.push({ key: key, step: step, status: 'failed', reason: '这张票正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。' })
+      }
+
+      // #1298 ⑤⑥⑦：关规格的前置闸。规格不是普通票：它只有在「收口核对通过」之后才允许自动关闭，
+      // 而核对通过的证据就是同一次调用里那条评论（逐张核对结论）；实施票没全关时，关规格必须失败并说清缺哪几张。
+      // 三道闸的判定与读取都住在 spec-close-guard（一个深模块），这里只把结果翻成回执。
+      // 这道闸放在所有写动作之前：宁可一个字都不动地拒绝，也不要先发一条评论、再把关闭拦下来。
+      let specClose = false
+      if (wants.state && a.close === true) {
+        // 拒绝回执：判不过就整笔停下，所有写动作都没开始，所以 items 是空的（一步都没走）。
+        // reads 只用于记账：这次读了几次（读这张票 1 次，读了子票清单再加 1 次）。
+        const refuseSpecClose = (rule: string, text: string, extra: Record<string, unknown>, reads: number) => ({
+          value: {
+            status: DECK_STATUS.UNSUPPORTED,
+            reason: REFUSAL_REASONS.OVER_CAP,
+            text: text,
+            data: Object.assign({ key: key, rule: rule }, extra),
+          },
+          claimed: { requests: reads, points: 3 },
+        })
+        const gate = await specCloseGuard({ tracker: t, repo: repo, key: key, opCtx: opCtx, hasComment: wants.comment })
+        if (gate.kind === 'timeout') return timeoutReply(gate.message)
+        if (gate.kind === 'refuse') return refuseSpecClose(gate.rule, gate.text, gate.data, gate.reads)
+        specClose = gate.kind === 'ok'
       }
 
       if (wants.comment) {
@@ -353,7 +388,12 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       }
 
       if (wants.state) {
-        if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
+        // #1298 ⑤⑦：规格的关闭必须带着同一次调用里的收口核对评论。评论那一步在上面已经跑了：
+        // 它没成（被额度挡下、后端拒了）时，这里不许再调关闭 —— 没有核对评论的关闭算不合规。
+        const commentOk = items.some((i) => i.step === 'comment' && i.status === 'ok')
+        if (a.close === true && specClose && !commentOk) {
+          items.push({ key: key, step: 'close', status: 'failed', reason: '收口核对评论没发出去：按规矩规格不能在没有这条评论的情况下关闭，这一步这次没做。先补发评论（同一次调用里带上 comment）再关。' })
+        } else if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
         else {
           const rawState = a.close === true ? await t.close(repo, key, {}, opCtx) : await t.reopen(repo, key, opCtx)
           const stateTimeout = timeoutMessage(rawState as unknown as TransportResult)

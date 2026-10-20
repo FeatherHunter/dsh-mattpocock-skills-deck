@@ -273,7 +273,7 @@ mapInspect:
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
 specComplete:
-  version: 1
+  version: 2
   placeholders:
     - url
     - closed
@@ -288,8 +288,10 @@ specComplete:
     - [ ] 规格正文与评论里还有没有没处理的「待定」「后续再说」。
 
     ## 关闭规格（核对通过之后）
-    - [ ] 全部通过 → 先在规格 issue 留一条评论，写明逐张核对结果，再关闭它；人随时可以重开。
+    - [ ] 全部通过 → 在同一次 deck_issue_patch 调用里带 comment（逐张核对结论）和 close:true：工具会先发评论再关；缺评论、或还有实施 issue 没关，关闭都会被挡下来。
     - [ ] 有任何一条没通过 → 不关闭：说明缺什么、建议重开哪张实施 issue 或补一张。
+    - [ ] 没有「实施 issue 都关了顺手关」的旁路：关规格只有上面这一条路，先核对、再带核对评论关。
+    - [ ] 人随时可以重开这张规格；重开只能由人在后端做，AI 的工具面上只允许关、不允许重开。
     - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
@@ -304,8 +306,10 @@ specComplete:
     - [ ] Check the spec body and comments for leftovers such as "TBD" or "revisit later".
 
     ## Close the spec (only after verification passes)
-    - [ ] All checks pass → leave a comment on the spec issue listing the verification result per ticket, then close it; the human can reopen it at any time.
+    - [ ] All checks pass → in the same deck_issue_patch call pass comment (the verification result per ticket) and close:true: the tool leaves the comment first, then closes; a missing comment or any implementation issue still open blocks the close.
     - [ ] Any check fails → do not close: state what is missing and suggest reopening or adding an implementation issue.
+    - [ ] There is no "all sub-issues are closed, so close it" side path: closing the spec only goes through the line above — verify first, then close with the verification comment.
+    - [ ] The human can reopen this spec at any time; reopening is a human-only action in the backend — the AI tool surface can close but not reopen.
     - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools

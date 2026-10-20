@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T12:20:29.727Z",
+  "generatedAt": "2026-10-20T13:27:18.828Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 301,
-  "gateCount": 301,
-  "attributedGates": 264,
+  "chainLength": 302,
+  "gateCount": 302,
+  "attributedGates": 265,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 503,
+  "graphFileCount": 504,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1803,6 +1803,29 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
+    },
+    {
+      "step": "node tests/verify-1298-spec-close.ts",
+      "file": "tests/verify-1298-spec-close.ts",
+      "guards": [
+        "config/prompts/map-advancement.yaml",
+        "config/prompts/ticket-action-templates.yaml",
+        "src/client/kernel/container-view.ts",
+        "src/deck/shell/call-shell.ts",
+        "src/deck/shell/spec-close-guard.ts",
+        "src/deck/tools/issue-patch.ts"
+      ],
+      "dirs": [
+        "config/prompts",
+        "src/client/kernel",
+        "src/deck/shell",
+        "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-1302-panel-list-skeleton.ts",
@@ -7020,6 +7043,7 @@
       "node tests/verify-1297-entry.ts"
     ],
     "config/prompts": [
+      "node tests/verify-1298-spec-close.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-prompts.ts"
     ],
@@ -7332,6 +7356,7 @@
       "node tests/verify-1286-list.ts",
       "node tests/verify-1295-dual-panel.ts",
       "node tests/verify-1297-entry.ts",
+      "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
@@ -7558,6 +7583,7 @@
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1261-work-route-receipt.ts",
+      "node tests/verify-1298-spec-close.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-895-github-memo.ts",
@@ -7582,6 +7608,7 @@
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
       "node tests/verify-1245-plan-resume.ts",
+      "node tests/verify-1298-spec-close.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -8326,9 +8353,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 517,
+    "fileCount": 518,
     "dirCount": 56,
-    "coveredFileCount": 517,
+    "coveredFileCount": 518,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -8533,6 +8560,7 @@
       "src/deck/shell/minimal-spec.ts",
       "src/deck/shell/plan-cursor.ts",
       "src/deck/shell/session-workdir.ts",
+      "src/deck/shell/spec-close-guard.ts",
       "src/deck/shell/table-cell.ts",
       "src/deck/shell/tool-table.ts",
       "src/deck/shell/work-path-bindings.ts",

@@ -49,7 +49,11 @@ import { SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/src/values.js
 export const DECK_TOOL_KIND = 'deck-tool'
 /** 三态返回的取值。edges.ts 的 statusOfItems 返回的就是这三个字符串（验收脚本有一条断言钉住这件事）。 */
 export const DECK_STATUS = Object.freeze({ OK: 'ok', PARTIAL: 'partial', UNSUPPORTED: 'unsupported' })
-/** 「这件事没做成」的原因取值。文案给人的那句话说在返回的 text 里，这里只放机器可读的那一格。 */
+/**
+ * 「这件事没做成」的原因取值。文案给人的那句话说在返回的 text 里，这里只放机器可读的那一格。
+ * ai-tool-refused 有两种用法：额度用尽（OVER_CAP 这个名字的来源），以及「工具面上的规矩不允许」——
+ * 例如 deck_issue_patch 拒绝重开（#1298）。两种都是「AI 这一侧不许做这件事」，所以不再分一个新码。
+ */
 export const REFUSAL_REASONS = Object.freeze({
   NO_SESSION: 'no-session-context',
   OVER_CAP: 'ai-tool-refused',
