@@ -128,7 +128,7 @@ td .path{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:var(--purpl
   <h1>新入口放进真机面板里看</h1>
   <p>这一版把 B 方案（单按钮 + 两张选择卡）放进<b>真机形态的右侧面板</b>：面板外框、页签行、按钮、胶囊的样式与取值都照真代码复刻（`src/client/kernel/styles.ts` 里的 <code>.dsws-tabs</code>／<code>.dsws-btn</code>／<code>.dsws-capsule</code>，按钮颜色与顺序照 `src/client/views/shared/Tabs.ts:73-95`），只有列表内容用本仓真实票号示意。</p>
   <p><b>要点：</b>浮层是浮在面板<b>外面</b>的（真代码走 <code>PortalOverlay</code> + <code>position: fixed</code>，照状态栏菜单的做法），所以面板窄的时候它会向左盖到聊天区，不会被面板裁掉。</p>
-  <p><b>卡上第三行（主体文本）这一层还空着：</b>这一句正在重做，四个候选方向（体感／边界／示例／实话）摆在 <code>docs/prototype/1290-body-text-4ways.html</code> 里比；定稿后把本原型的两张卡换上那一句即可，其余部分不受影响。</p>
+  <p><b>卡上第三行（主体文本）已定稿（2026-10-20）：</b>探索地图是「想清楚了要做什么，没想清楚细节，也没想清楚做到什么程度。」；实施地图是「要做什么、细节和做到什么程度都想清楚了，还没写成规格。」两句都拆成三行、每行不超过 12 个汉字。</p>
 </div>
 
 <div class="wrap">
@@ -282,7 +282,9 @@ var TXT={
 };
 var NO_LINE_START="个把只种样些再又还也就才更最而但却很跟和被让使等如若因及与或，。、；：！？）】》」』%";
 var NO_LINE_END="（【《「『(";
-var KEEP_WORDS=["规格","实施票","文档","问号","开工","没定","一条","几条","到底","问清","清楚","写成","落成","消掉","摊开","分头","探出","探路","一排","每个","什么","手里","多了"];
+var KEEP_WORDS=["规格","实施票","文档","问号","开工","没定","一条","几条","到底","问清","清楚","想清楚","没想清楚","什么程度","细节","做到","写成","落成","消掉","摊开","分头","探出","探路","一排","每个","什么","手里","多了"];
+/* 断行用的标点：这些字后面可以断行 */
+var BREAK_AFTER="，。、；：！？";
 function splitUnits(text){
   var units=[], i=0;
   while(i<text.length){
@@ -297,10 +299,18 @@ function packUnits(units,maxChars){
   var lines=[], cur=[], w=0;
   for(var i=0;i<units.length;i++){
     var u=units[i], uw=u.length;
-    if(u==="，" && widthOf(units.slice(i+1))<=maxChars && cur.length>0){ cur.push(u); lines.push(cur); cur=[]; w=0; continue; }
     if(w+uw>maxChars && cur.length>0){
-      if(NO_LINE_START.indexOf(u)>=0 && cur.length>1){ var last=cur.pop(); lines.push(cur); cur=[last]; w=last.length; }
-      else { lines.push(cur); cur=[]; w=0; }
+      /* 放不下时先找行内最后一个可以断行的标点（，。、；：！？）：
+         在它后面断，句子才不会被劈成两半；那一截太短就退回按当前位置断。 */
+      var cut=-1;
+      for(var j=cur.length-1;j>=0;j--){ if(BREAK_AFTER.indexOf(cur[j])>=0){ cut=j; break; } }
+      var head = cut>=0 ? cur.slice(0,cut+1) : null;
+      if(head && widthOf(head)>=Math.ceil(maxChars*0.55)){
+        lines.push(head);
+        cur=cur.slice(cut+1); w=widthOf(cur);
+      } else if(NO_LINE_START.indexOf(u)>=0 && cur.length>1){
+        var last=cur.pop(); lines.push(cur); cur=[last]; w=last.length;
+      } else { lines.push(cur); cur=[]; w=0; }
     }
     if(u && NO_LINE_END.indexOf(u)>=0 && cur.length>0){ cur.push(u); lines.push(cur); cur=[]; w=0; continue; }
     cur.push(u); w+=uw;
@@ -326,10 +336,12 @@ function cardFinal(kind, body){
   s+= kind==='explore' ? chainExploreH(26,149) : chainImplH(26,149);
   return s+'</svg>';
 }
-/* 主体文本（卡上第三行）这一层还在重做中：四个候选方向（体感／边界／示例／实话）
-   摆在 docs/prototype/1290-body-text-4ways.html 里比。这一版先用占位，等定稿后把这两句换成定稿文案。 */
-var BODY_E="主体文本待定稿";
-var BODY_I="主体文本待定稿";
+/* 主体文本（卡上第三行）：2026-10-20 定稿。
+   探索地图说的是「知道要做，但细节和做到什么程度都还说不清」；
+   实施地图说的是「要做的事、细节、做到什么程度都清楚，只差写成规格」。
+   两句都拆成三行、每行不超过 12 个汉字（卡上右栏宽 144px，12px 字号一行正好 12 个字）。 */
+var BODY_E="想清楚了要做什么，没想清楚细节，也没想清楚做到什么程度。";
+var BODY_I="要做什么、细节和做到什么程度都想清楚了，还没写成规格。";
 
 /* ==================================================================
    图标：照 src/client/kernel/icons.ts 的通用集原样搬（24 的 viewBox、currentColor、描边 1.8）
