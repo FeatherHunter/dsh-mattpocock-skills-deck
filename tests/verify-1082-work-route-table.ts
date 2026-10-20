@@ -31,7 +31,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
-import { spliceableJs, sourceText } from './lib/source-text.ts'
+import { spliceableJs, sourceText, sourcePath } from './lib/source-text.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -136,6 +136,9 @@ async function main() {
   const sessB = { sessionId: SID_B, workspaceKey: rootKey, cwd: ROOT_CWD }
   const callWrite = async (s: any, tool: string, value: any) => {
     clock += 5 * MINUTE
+    // #1303 起门禁收口的在办表缺省只带 core；这一段比的是「面板读数与回执逐字相同」，而面板读的是 full，
+    // 所以这里的探针值统一显式要 full，让断言继续盯原来的语义。
+    if (value && typeof value === 'object' && value.workRouteDetail === undefined) value.workRouteDetail = 'full'
     await recordMod.recordWorkRoute(deps, tool, s, 'markdown', value)
     return value
   }
@@ -226,8 +229,11 @@ async function main() {
     (node: any) => ({ type: 'Portal', props: {}, children: [node] }),
     '9.9.9-test')
   const leaf = compileLeaf(makeReact())
-  const zh = (await imp('src/client/kernel/locale-pages.js') as any).L_PAGES.zh
-  const en = (await imp('src/client/kernel/locale-pages.js') as any).L_PAGES.en
+  // #1294：旧片段路径经 tests/lib/source-text.ts 的 sourcePath 映射到生成物 locale-data.ts，
+  //   里面仍按族导出 L_PAGES，取词判据不变。
+  const pagesUrl = sourcePath('src/client/kernel/locale-pages.js')
+  const zh = (await imp(pagesUrl) as any).L_PAGES.zh
+  const en = (await imp(pagesUrl) as any).L_PAGES.en
   const trZh = (k: string, p?: any) => {
     let s = zh[k] !== undefined ? zh[k] : k
     Object.keys(p || {}).forEach((key) => { s = s.split('{' + key + '}').join(String((p || {})[key])) })

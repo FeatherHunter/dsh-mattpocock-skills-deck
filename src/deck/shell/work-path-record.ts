@@ -29,8 +29,9 @@
 //        输出 { ok: true, ticketKey, count, warnings? } | { ok: false, reason }
 //        warnings 是「这次落上了、但有件事要告诉人」的备注（#1083：盘上旧文件读不出来按空账重写、
 //        工作区换了后端旧记录改名留档），调用方原样拼进回执 notes，不改其他格。
-//   read 输入 { sessionId, rootKey, at }
+//   read 输入 { sessionId, rootKey, at, detail? }（detail 是 core / standard / full，缺省 full）
 //        输出 { ok: true, readout, summary } | { ok: false, reason }
+//        其中 readout 已按 detail 投过影：工具回执那一支显式传档位，直接读出口不给就是全量。
 //   release 输入 { rootKey, sessionId, ticketKey }
 //        输出 { ok: true, ticketKey, removed, count } | { ok: false, reason }
 //        其中 removed=false 表示这条本来就不在本会话的工作路线里，不算失败。
@@ -49,6 +50,7 @@
 // 与依赖规则门禁里登记的跨层方向一致，不新增豁免。
 
 import { chainTicketKey } from '../../shared/refresh/src/chain.js';
+import { workPathDetailOf } from './work-path-readout.js';
 import type { DeckShellDeps, ShellSession, UnknownRecord } from './call-shell-types.js';
 
 /** 一张票这次要写进工作路线的标题与工作单元；认不出就给空串，调用方据此省略键。 */
@@ -186,6 +188,9 @@ export async function recordWorkRoute(
   const data = obj(vRec.data);
   const tickets = spec.ticketKeys(vRec);
   if (tickets.length === 0) return;
+  // 回执里在办表要多细（#1303）：五个写工具的 value 顶层可带 workRouteDetail，缺省 core。
+  // 这个信号与 release 一样只走工具 value，信封不拷它，所以不会漏进回执。
+  const detail = workPathDetailOf(vRec.workRouteDetail, 'core');
   // 释放是工具 value 顶层的内部信号（信封只拷固定那几格，不会漏进回执）：只有上报会带它。
   const releaseMode = spec.action === 'report' && vRec.release === true;
   if (!Array.isArray(vRec.notes)) vRec.notes = [];
@@ -300,6 +305,7 @@ export async function recordWorkRoute(
       sessionId: sessionId,
       rootKey: rootKey,
       at: clock(),
+      detail: detail,
     })) as UnknownRecord | null;
     const readout = ro ? ro.readout : null;
     if (!ro || ro.ok !== true || !readout || typeof readout !== 'object') {

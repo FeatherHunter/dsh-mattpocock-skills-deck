@@ -13,7 +13,13 @@
 // 读出口要读盘（存储不再有内存真源），所以 read 本身是异步的。
 
 import { createWorkPathStore } from './work-path-store.js';
-import { buildWorkPathCollisionNote, buildWorkPathReadout, buildWorkPathSummary } from './work-path-readout.js';
+import {
+  buildWorkPathCollisionNote,
+  buildWorkPathReadout,
+  buildWorkPathSummary,
+  projectWorkPathReadout,
+  workPathDetailOf,
+} from './work-path-readout.js';
 
 export interface WorkRouteBindingIo {
   homeDir?: string;
@@ -54,8 +60,12 @@ export function createWorkRouteBindings(io?: WorkRouteBindingIo) {
         // 读不出来（读盘失败或盘上文件形状不认识）要如实回 ok:false：给空表会让人以为「这个工作区
         // 没在办票」，而其实是这次没读成。文件不存在仍是正常情况，回空表。
         if (info && info.failed === true) return { ok: false, reason: 'read-failed' };
+        // 直接读出口（面板、诊断、门禁）默认给全量；只有工具回执那一支显式传 core / standard 省上下文。
+        const detail = workPathDetailOf(input ? input.detail : undefined, 'full');
         const readout = buildWorkPathReadout(info ? info.ledger : null, { sessionId: sid, at: at });
-        return { ok: true, readout: readout, summary: buildWorkPathSummary(readout), collisionNote: buildWorkPathCollisionNote(readout) };
+        // 摘要与撞车提醒都从投影后的表算：撞车提醒只取投影前的 collisions（core 档不搬整表，但撞车这句仍要能出来）。
+        const view = projectWorkPathReadout(readout, detail);
+        return { ok: true, readout: view, summary: buildWorkPathSummary(view), collisionNote: buildWorkPathCollisionNote(readout) };
       } catch {
         return { ok: false, reason: 'read-failed' };
       }

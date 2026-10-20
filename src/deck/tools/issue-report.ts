@@ -85,6 +85,7 @@ export const definition = {
       key: { type: 'string', description: '你要上报的那个 ISSUE 的编号' },
       note: { type: 'string', description: '可选带一句备注（只回显，不进链）' },
       progress: { type: 'number', description: '可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字' },
+      workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
       release: { type: 'boolean', description: '可选：传 true 表示把这张票从本会话的工作路线里释放掉（删掉本会话对它的那条工作条目；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报' },
     },
@@ -204,6 +205,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
           value: {
             status: DECK_STATUS.OK,
             release: true,
+            workRouteDetail: a.workRouteDetail,
             text: '票 ' + key + ' 这次不是上报，是释放：把本会话工作路线里的这一条工作条目删掉（票本身的状态与认领人没有改动）。删没删掉看回执备注。',
             data: {
               key: key, title: title, state: issue.state || '', url: issue.url || '',
@@ -219,6 +221,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
+          workRouteDetail: a.workRouteDetail,
           text: '票 ' + key + ' 已上报（' + (title || '没取到标题') + '）' + (note ? '：' + note.slice(0, 80) : '') + '。在办表见回执 data.workRoute。',
           data: {
             key: key, title: title, state: issue.state || '', url: issue.url || '',

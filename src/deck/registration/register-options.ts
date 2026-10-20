@@ -159,17 +159,29 @@ function projectDetail(v: unknown, budget: { left: number }, depth: number): unk
 
 // 挑出值得交给模型的那几格：data 是各工具的明细；items 装着建票与补边逐条的落点证据
 // （deck_map_link 的说明承诺「如实回报这条边落在哪一列」就靠它）；readBack 是写后回读核对，
-// 但 deck_issue_patch 已经把同一份放进 data.ticket（deckIssuePatch.js:159/161），两处都送会让
-// 同一份内容进历史两遍、白吃预算，所以认得出同一份就只送一次。顶层的 cost / touched 是运行
-// 元数据（touched 恒为空数组）不送；deck_context 的 data 里那几格 workspace / backend / repo /
-// quota / howto 本来就是它要给 AI 看的内容，照送不误。
+// 但 deck_issue_patch 已经把同一份放进 data.ticket，两处都送会让同一份内容进历史两遍、
+// 白吃预算，所以认得出同一份就只送一次。顶层的 cost / touched 是运行元数据（touched 恒为空
+// 数组）不送；deck_context 的 data 里那几格 workspace / backend / repo / quota / howto 本来就是
+// 它要给 AI 看的内容，照送不误。
+/**
+ * 认「同一份内容」：先比引用（直连时就是同一个对象），再比逐字序列化。
+ * 为什么不能只比引用（#1303）：生产路径上 deck 工具由宿主代执行，结果过了一次 RPC 的
+ * 结构化克隆，data.ticket 与 readBack 由同一个对象变成两份内容相同的副本，引用永远不等；
+ * 只比引用会把同一张票面投影两遍（实测一份 2,474 字符）。序列化失败（循环引用等）就当不同。
+ */
+function sameRenderedValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a === null || b === null || a === undefined || b === undefined) return false
+  if (typeof a !== 'object' || typeof b !== 'object') return false
+  try { return JSON.stringify(a) === JSON.stringify(b) } catch (e) { return false }
+}
 function detailBlock(v: unknown): string {
   const source = v as UnknownRecord;
   const pick: UnknownRecord = {}
   if (source.data !== undefined && source.data !== null) pick.data = source.data
   if (Array.isArray(source.items) && source.items.length) pick.items = source.items
   const d = pick.data as UnknownRecord | null | undefined;
-  const sameTicket = d !== null && typeof d === 'object' && !Array.isArray(d) && d !== undefined && d.ticket === source.readBack
+  const sameTicket = d !== null && typeof d === 'object' && !Array.isArray(d) && d !== undefined && sameRenderedValue(d.ticket, source.readBack)
   if (source.readBack !== undefined && source.readBack !== null && !sameTicket) pick.readBack = source.readBack
   if (typeof source.reason === 'string' && source.reason) pick.reason = source.reason
   if (!Object.keys(pick).length) return ''

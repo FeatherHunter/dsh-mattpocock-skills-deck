@@ -29,45 +29,32 @@
     "url": "<ROOT>/.scratch/demo/issues/01-金标准演示票.md",
     "workRoute": {
       "at": "<TIME>",
+      "detail": "core",
       "entries": [
         {
-          "action": "report",
           "actionAt": "<TIME>",
-          "active": true,
-          "currentSession": true,
           "sessionLabel": "会话 1d9b81",
-          "source": "reported",
-          "ticketKey": "1",
-          "title": "金标准演示票"
+          "ticketKey": "1"
         },
         {
-          "action": "plan",
           "actionAt": "<TIME>",
-          "active": true,
-          "currentSession": true,
           "sessionLabel": "会话 1d9b81",
-          "source": "auto",
-          "ticketKey": "3",
-          "title": "金子票一"
+          "ticketKey": "3"
         },
         {
-          "action": "link",
           "actionAt": "<TIME>",
-          "active": true,
-          "currentSession": true,
           "sessionLabel": "会话 1d9b81",
-          "source": "auto",
-          "ticketKey": "4",
-          "title": "金子票二"
+          "ticketKey": "4"
         }
       ],
-      "staleCount": 0
+      "staleCount": 0,
+      "total": 3
     }
   },
   "items": [],
   "notes": [
     "备注只回显，不记进工作路线（路线上每条只留票键、时间与动作类别）。",
-    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）"
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard，要进度就传 full"
   ],
   "ok": true,
   "readBack": null,

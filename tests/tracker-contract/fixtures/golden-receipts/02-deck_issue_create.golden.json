@@ -64,19 +64,16 @@
     },
     "workRoute": {
       "at": "<TIME>",
+      "detail": "core",
       "entries": [
         {
-          "action": "create",
           "actionAt": "<TIME>",
-          "active": true,
-          "currentSession": true,
           "sessionLabel": "会话 1d9b81",
-          "source": "auto",
-          "ticketKey": "1",
-          "title": "金标准演示票"
+          "ticketKey": "1"
         }
       ],
-      "staleCount": 0
+      "staleCount": 0,
+      "total": 1
     }
   },
   "items": [],
@@ -84,7 +81,7 @@
     "我替你补了正文区块：## 进度",
     "这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。",
     "我替你补了必备标签：wayfinder:task",
-    "工作路线摘要 · 本工作区在办 1 条（最近 1 条：#1）"
+    "工作路线摘要 · 本工作区在办 1 条（最近 1 条：#1）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard，要进度就传 full"
   ],
   "ok": true,
   "readBack": null,

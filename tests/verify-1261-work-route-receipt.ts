@@ -164,7 +164,11 @@ async function main() {
   }
   const sess5 = { sessionId: 's-w', workspaceKey: 'ws-w', cwd: 'x' }
   // 每调一次把钟往前拨一秒，并把这一次用的时刻还给调用方——验收②要断言「时间也是最近一次」。
-  const call5 = async (tool: string, value: any) => { clock5 += 1000; await recordMod.recordWorkRoute(deps5, tool, sess5, 'markdown', value); return clock5 }
+  // 这一节的断言读标题、动作与撞车提醒，都是 full 档才有的字段；默认 core 档另有专节（见七）覆盖。
+  const call5 = async (tool: string, value: any) => {
+    if (value && typeof value === 'object' && value.workRouteDetail === undefined) value.workRouteDetail = 'full'
+    clock5 += 1000; await recordMod.recordWorkRoute(deps5, tool, sess5, 'markdown', value); return clock5
+  }
   const entryOf = (v: any, key: string) => (((v.data && v.data.workRoute && v.data.workRoute.entries) || []) as any[]).filter((e: any) => e.ticketKey === key)
   const diskRows = (home: string, rootKey: string) => {
     const file = home + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rootKey) + '.json'
@@ -267,7 +271,7 @@ async function main() {
   // 撞车：同一张票 30 分钟内另一个会话也记过，回执里列出票号、那个会话的标识与它记的时间。
   const tOther = clock5
   await store5.note({ rootKey: 'ws-w', sessionId: 's-other', sessionLabel: '', backend: 'markdown', ticketKey: '701', effortId: '', title: '甲票', action: 'edit', source: 'auto' })
-  const vColl: any = { status: 'ok', data: { ticket: { key: '701', title: '甲票', effortId: '' } }, touched: ['701'], notes: [] }
+  const vColl: any = { status: 'ok', workRouteDetail: 'full', data: { ticket: { key: '701', title: '甲票', effortId: '' } }, touched: ['701'], notes: [] }
   clock5 += 60 * 1000
   const tColl = clock5
   await recordMod.recordWorkRoute(deps5, 'deck_issue_patch', sess5, 'markdown', vColl)
@@ -424,7 +428,7 @@ async function main() {
   await recordMod.recordWorkRoute({ workRouteNote: (i: unknown) => failRelStore.note(i), workRouteRead: (i: unknown) => failRelStore.read(i), workRouteRelease: (i: unknown) => failRelStore.release(i), now: () => T0 }, 'deck_issue_report', { sessionId: 's-f', workspaceKey: 'ws-1261xf', cwd: 'x' }, 'markdown', vRelFail)
   check(vRelFail.notes.some((n: string) => n.indexOf('没释放掉（write-failed）') >= 0), '释放写盘失败：备注写没释放掉（票的工作条目还留着）')
   // 释放后重新上报同一张票：恢复且只有一条。
-  const vBack: any = { status: 'ok', data: { key: '701', effortId: '', title: '甲票回来了' }, notes: [] }
+  const vBack: any = { status: 'ok', workRouteDetail: 'full', data: { key: '701', effortId: '', title: '甲票回来了' }, notes: [] }
   await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vBack)
   const back701 = vBack.data.workRoute.entries.filter((e: any) => e.ticketKey === '701')
   check(back701.length === 1 && back701[0].title === '甲票回来了', '释放后重新上报：条目恢复且只有一条（不重复、不丢）')
@@ -448,7 +452,51 @@ async function main() {
   }, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vNoRead)
   check(vNoRead.notes.some((n: string) => n.indexOf('带不出在办表（no-read-binding）') >= 0), '读依赖缺席：备注写带不出在办表（不静默）')
 
-  for (const h of [home1, home3, home4, home4b, home5, homeRel5, home5b, home5c, home5n, home5p, home5d, home6, home6f]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
+  // ── 七、回执在办表分档（#1303）：默认只带核心字段与最近 20 条，细节按需取 ──
+  const home7 = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261t-'))
+  const store7 = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home7, now: () => T0 }, memFs(home7)))
+  const rk7 = 'ws-1261t'
+  const deps7 = { workRouteNote: (i: unknown) => store7.note(i), workRouteRead: (i: unknown) => store7.read(i), now: () => T0 }
+  const sess7 = { sessionId: 's-t', workspaceKey: rk7, cwd: 'x' }
+  // 25 条旧条目 + 这次上报的一票 = 26 条，超过 core 档 20 条上限，才能验截断。
+  for (let i = 0; i < 25; i++) {
+    await store7.note({ rootKey: rk7, sessionId: 's-t', sessionLabel: '', backend: 'markdown', ticketKey: String(800 + i), effortId: '', title: '旧票 ' + i, action: 'report', source: 'reported' })
+  }
+  const keyNames = (entry: any) => Object.keys(entry).sort().join(',')
+  const vCore7: any = { status: 'ok', data: { key: '799', effortId: '', title: '甲票' }, notes: [] }
+  await recordMod.recordWorkRoute(deps7, 'deck_issue_report', sess7, 'markdown', vCore7)
+  const wrCore = vCore7.data.workRoute
+  check(wrCore && wrCore.detail === 'core' && wrCore.total === 26 && wrCore.entries.length === 20 && wrCore.omitted === 6
+    && wrCore.entries.every((e: any) => keyNames(e) === 'actionAt,sessionLabel,ticketKey'),
+    '默认回执只带核心字段与最近 20 条，外壳如实说总数与截掉的条数：' + JSON.stringify({ detail: wrCore && wrCore.detail, total: wrCore && wrCore.total, shown: wrCore && wrCore.entries && wrCore.entries.length, omitted: wrCore && wrCore.omitted }))
+  check(vCore7.notes.some((n: string) => n.indexOf('只带核心字段') >= 0 && n.indexOf('另外 6 条没带') >= 0),
+    '核心档的摘要说清这档缺什么、下一档怎么取：' + JSON.stringify(vCore7.notes))
+  // standard：全条目、八格（不带进度），摘要提示要进度得再传 full。
+  const vStd7: any = { status: 'ok', workRouteDetail: 'standard', data: { key: '799' }, notes: [] }
+  await recordMod.recordWorkRoute(deps7, 'deck_issue_report', sess7, 'markdown', vStd7)
+  const wrStd = vStd7.data.workRoute
+  check(wrStd && wrStd.detail === 'standard' && wrStd.entries.length === 26
+    && wrStd.entries.every((e: any) => keyNames(e) === 'action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title'),
+    'standard 档带全部条目与标题、动作等八格')
+  check(vStd7.notes.some((n: string) => n.indexOf('没带进度自评') >= 0), 'standard 档的摘要提示要进度就传 full')
+  // full：进度自评与撞车提醒都在；这次上报顺带带进度 40，条目上要能看到那一格。
+  const vFull7: any = { status: 'ok', workRouteDetail: 'full', data: { key: '799', progress: 40 }, notes: [] }
+  await recordMod.recordWorkRoute(deps7, 'deck_issue_report', sess7, 'markdown', vFull7)
+  const wrFull = vFull7.data.workRoute
+  const full799 = ((wrFull && wrFull.entries) || []).filter((e: any) => e.ticketKey === '799')[0]
+  check(wrFull && wrFull.detail === 'full' && wrFull.entries.length === 26 && full799 && full799.progress === 40
+    && wrFull.entries.filter((e: any) => e.progress !== undefined).length === 1,
+    'full 档才带进度自评（只有带过进度的那一条有这一格）')
+  // 认不出的档位值不许当 full 混进来，退默认 core。
+  const vBad7: any = { status: 'ok', workRouteDetail: 'verbose', data: { key: '799' }, notes: [] }
+  await recordMod.recordWorkRoute(deps7, 'deck_issue_report', sess7, 'markdown', vBad7)
+  check(vBad7.data.workRoute && vBad7.data.workRoute.detail === 'core', '认不出的档位值退默认 core，不当 full 混进来')
+  // 直接读出口（面板、诊断、模板）不给档位时仍是全量，不受回执缺省影响。
+  const direct7: any = await store7.read({ sessionId: 's-t', rootKey: rk7, at: T0 })
+  check(direct7.ok === true && direct7.readout.detail === 'full' && direct7.readout.entries.length === 26,
+    '直接读出口缺省 full：面板与诊断拿到全量，不跟着回执的缺省降到 core')
+
+  for (const h of [home1, home3, home4, home4b, home5, homeRel5, home5b, home5c, home5n, home5p, home5d, home6, home6f, home7]) { try { fs.rmSync(h, { recursive: true, force: true }) } catch { /* 忽略 */ } }
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   process.exit(failed ? 1 : 0)
 }

@@ -61,6 +61,7 @@ export const definition = {
         },
       },
       labels: { type: 'array', items: { type: 'string' } },
+      workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['title', 'children'],
@@ -475,6 +476,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
         value: {
           status: status,
           reason: status === DECK_STATUS.OK ? '' : REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+          workRouteDetail: a.workRouteDetail,
           text: text,
           data: {
             planId: planId, mapKey: state.mapKey, durable: storeDurable,

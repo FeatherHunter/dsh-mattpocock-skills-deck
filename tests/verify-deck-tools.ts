@@ -309,7 +309,7 @@ async function main() {
 
   // ── ⑦b deck_issue_report：上报成功收口记进工作路线（正例 + 负向） ──
   {
-    const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理', progress: 40 })
+    const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理', progress: 40, workRouteDetail: 'full' })
     const normCreated = String(createdKey).replace(/^0+(?=\d)/, '')
     check(envelopeOk(r) && r.status === 'ok' && r.data && String(r.data.key).replace(/^0+(?=\d)/, '') === normCreated, 'deck_issue_report 正例：上报成了（票 ' + createdKey + '，实得 ' + (r && r.status) + '）')
     // #1261 起步、#1262 铺满：上报成功收口也记一笔（动作 report、来源 reported），
@@ -343,7 +343,7 @@ async function main() {
     await callTool('deck_issue_get', { key: createdKey })
     check(fs.readFileSync(diskFile, 'utf8') === before, '只读调用不碰盘（文件内容一字不动）')
     // 紧接着第二次调用：同一张票只留一条（去重后来居上），回执与盘上一致。
-    const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理' })
+    const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理', workRouteDetail: 'full' })
     check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 6, '第二次上报同一张票：在办表还是 6 条（去重，不多也不少）')
     const after2 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
     const createdRows = after2.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)
@@ -366,7 +366,7 @@ async function main() {
     check(badSeen.length === 0, '进度自评不合规（超过 100 / 负数 / 小数 / 字符串 / 布尔）一律 bad-args、不抛、不带 data' + (badSeen.length ? '：' + badSeen.join('；') : ''))
     check(fs.readFileSync(diskFile, 'utf8') === diskBeforeBadProgress, '进度自评不合规时盘上一字不动（不写坏数据）')
     // 0 是合法自评（不是「没给」）：带 0 上报后条目上就有 0。
-    const zero = await callTool('deck_issue_report', { key: createdKey, progress: 0 })
+    const zero = await callTool('deck_issue_report', { key: createdKey, progress: 0, workRouteDetail: 'full' })
     const zeroEntry = ((zero.data && zero.data.workRoute && zero.data.workRoute.entries) || []).filter((e) => String(e.ticketKey) === normCreated)[0]
     check(envelopeOk(zero) && zero.status === 'ok' && !!zeroEntry && zeroEntry.progress === 0, '进度自评 0 是合法值：条目上带 0（实得 ' + JSON.stringify(zeroEntry && zeroEntry.progress) + '）')
     // #1086 释放入口：带 release=true 的上报删掉本会话对这张票的工作条目，不记动作、票本身不动；
@@ -374,7 +374,7 @@ async function main() {
     const relBefore = await callTool('deck_issue_get', { key: createdKey })
     const relBeforeTicket = relBefore.data && relBefore.data.ticket
     const relFace = (t) => JSON.stringify(t && { state: t.state, assignees: t.assignees })
-    const rel = await callTool('deck_issue_report', { key: createdKey, release: true })
+    const rel = await callTool('deck_issue_report', { key: createdKey, release: true, workRouteDetail: 'full' })
     const relWr = rel.data && rel.data.workRoute
     const normKey = (k) => String(k).replace(/^0+(?=\d)/, '')
     check(envelopeOk(rel) && rel.status === 'ok' && !!relWr, '释放：成功回执带上在办表（实得 ' + (rel && rel.status) + '）')
@@ -391,7 +391,7 @@ async function main() {
     const relAgain = await callTool('deck_issue_report', { key: createdKey, release: true })
     check(envelopeOk(relAgain) && relAgain.status === 'ok' && (relAgain.notes || []).some((n) => String(n).indexOf('本来就不在本会话的工作路线里') >= 0),
       '再释放同一条：成功回执 + 备注说本来就没有')
-    const relFalse = await callTool('deck_issue_report', { key: createdKey, release: false })
+    const relFalse = await callTool('deck_issue_report', { key: createdKey, release: false, workRouteDetail: 'full' })
     const relFalseEntries = relFalse.data && relFalse.data.workRoute && (relFalse.data.workRoute.entries || []).filter((e) => normKey(e.ticketKey) === normCreated)
     check(envelopeOk(relFalse) && relFalse.status === 'ok' && !!relFalseEntries && relFalseEntries.length === 1,
       'release:false 仍走正常上报：条目重新落上且只有一条（实得 ' + JSON.stringify(relFalseEntries && relFalseEntries.length) + ' 条）')

@@ -148,8 +148,15 @@ async function main() {
   const back = { key: '759', state: 'closed', body: '正文' }
   const dedup = all({ status: 'ok', text: '票改好了。', data: { ticket: back, requested: ['state'] }, readBack: back })
   check((dedup.match(/正文/g) || []).length === 1, 'readBack 与 data.ticket 同一份时只投影一次')
+  // 生产路径上回执会过一次宿主 RPC 的结构化克隆，两份变成「内容相同、引用不同」。
+  // 只认引用会在真实链路上漏判（#1303：同一张票面白送两遍、实测 2,474 字符一份），所以按内容也判一次。
+  const clonedBack = JSON.parse(JSON.stringify(back))
+  const cloneDedup = all({ status: 'ok', text: '票改好了。', data: { ticket: back, requested: ['state'] }, readBack: clonedBack })
+  check((cloneDedup.match(/正文/g) || []).length === 1, 'readBack 与 data.ticket 内容相同、引用不同时也只投影一次')
   const noDup = all({ status: 'ok', text: '票改好了。', data: { ticket: back }, readBack: { key: '760' } })
   check(noDup.indexOf('760') >= 0 && noDup.indexOf('759') >= 0, '两份不同时两份都在')
+  const valueDiff = all({ status: 'ok', text: '票改好了。', data: { ticket: back }, readBack: { key: '759', state: 'open', body: '正文' } })
+  check((valueDiff.match(/正文/g) || []).length === 2, '内容不同时即便票号相同也两份都送（不吃掉真差异）')
 
   // ── 10. 畸形输入不许崩，也不许悄悄不给 ──
   const cyclic = { status: 'ok', text: '摘要。' }

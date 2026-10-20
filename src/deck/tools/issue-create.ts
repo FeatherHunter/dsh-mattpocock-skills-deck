@@ -87,6 +87,7 @@ export const definition = {
       labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
+      workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['title'],
@@ -286,6 +287,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
+          workRouteDetail: a.workRouteDetail,
           text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + (rel ? '（父票 ' + rel + '）' : '') + '。返回值就是写后的真状态，不必再读一次。',
           data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
           items: items,
