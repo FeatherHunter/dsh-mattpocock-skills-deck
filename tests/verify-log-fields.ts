@@ -275,7 +275,7 @@ const ALLOWED = {
   //   一笔花费（哪一档、哪个桶、几条真实出站请求、几点、记完还剩多少）、一次裁决（类别、种类、结论、原因代号、档位）、
   //   一次跳过（工作区键散列、种类、原因、推迟队列里现在几条）。都只记枚举、散列与数字，不记路径原文与命令原文。
   'quota.spend': ['account', 'bucket', 'requests', 'points', 'remaining'],
-  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier'],
+  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash'],
   'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending'],
   // 2026-09-23 #708（T4 第三批）新增一条按需事件（附录 1.5 节 #82）：一次行级增量跑完之后的结论 ——
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
@@ -285,7 +285,7 @@ const ALLOWED = {
   //   一次上报（哪一种信号、窗口散列、工作区根散列、面板可不可见、这一笔算不算数）、
   //   一次收摊结论（活跃几个、保留几个定时器、停掉几个、有没有一个收尾节拍、整桌收没收、正在看的几个）。
   //   都只记枚举、散列与数字：心跳每 20 秒一次，所以上报那条按十取一采样。
-  'attention.report': ['kind', 'windowHash', 'rootHash', 'visible', 'accepted'],
+  'attention.report': ['kind', 'windowHash', 'rootHash', 'visible', 'accepted', 'deduped'],
   'attention.sweep': ['active', 'keep', 'cancel', 'linger', 'collaped', 'keepers'],
   // 2026-10-19 #1083：旧链那条常驻 #80 sessionTickets.chain 退役 —— 工作路线整套换成新的存档之后，
   //   旧链落盘那一路不再发日志，换成下面两条常驻（附录 1.4 节 #110、#111）。写这一侧一趟一行：
@@ -301,7 +301,10 @@ const ALLOWED = {
   // 2026-09-23 #710（T6 第二批）新增一条按需事件（附录 1.5 节 #81 `write.event`）：写事件订阅自己产生的轨迹 ——
   //   一次成功的工具调用被判成哪一档、凭什么判的、接下来要做什么、票号认没认出来、从哪条订阅路来的。
   //   只记一个散列、三个枚举与一个布尔：**命令原文一个字都不记**（参数只做瞬时匹配），也不记票号本身。
-  'write.event': ['keyHash', 'shape', 'tier', 'reason', 'action', 'hasTicket'],
+  'write.event': ['keyHash', 'shape', 'tool', 'tier', 'reason', 'action', 'hasTicket', 'cycle', 'result', 'waitedMs'],
+  // 2026-10-20 刷新排查新增（附录 1.5 节 #118）：一次取数真正走到闸那一步的结论与花费 —— 与上面那行 write.event 用 cycle 串起来；
+  //   上面那行只能说明「判成了什么、有没有被合并窗口吃掉」，走到闸之后的结论（发出/降档/推迟、花几点了）等闸回来才知道。
+  'write.sent': ['keyHash', 'cycle', 'kind', 'sent', 'verdict', 'reason', 'requests', 'points', 'latencyMs'],
   // 2026-09-25 登记收口（#709 · T5 与并行各票新增的埋点，附录 1.4 / 1.5 节 #83～#87）：这五条在代码里
   //   早就发出去了，只是登记没跟上，本票把它们如实补进白名单。字段是各落点的并集（本表的既有口径：
   //   允许字段就是「这个事件名能记的全部字段」）：

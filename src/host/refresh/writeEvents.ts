@@ -112,6 +112,11 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
   // （同一份逻辑把已经是散列的值又散列了一遍，两把钥匙对不上，于是这条路径恒被推迟）。
   let lastGateKey = ''
 
+  // 每一趟「判定 → 合并/发出 → 过闸」的号码：只在本进程内递增，日志里靠它把同一趟的几行串起来
+  // （write.event 的那行给出 tier/reason/action/result，write.sent 那行给出闸的结论与花费）。
+  let cycleSeq = 0
+  function nextCycle(): string { cycleSeq = (cycleSeq + 1) % 100000000; return 'c' + ('0000000' + cycleSeq).slice(-7) }
+
   /** 会话的工作区钥匙：交给接线处传进来的宿主既有出口算（本文件不另写一套归一化）。 */
   async function keyOf(cwd: any): Promise<any> {
     if (typeof opts.canonicalKey !== 'function') {
@@ -212,20 +217,24 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
   }
 
   /** 真的去做那一次取数（过了合并窗口才走到这里）。 */
-  async function fire(shape: any, verdict: any, plan: any, rootHash: string): Promise<any> {
+  async function fire(shape: any, verdict: any, plan: any, rootHash: string, cycle: string, tool: string): Promise<any> {
     stats.fired += 1
-    logFired(shape, rootHash, verdict, plan)
     const last: number | undefined = lastFireAt.get(rootHash)
-    if (last !== undefined && (now() - last) < limits.mergeWindowMs) {
+    const waitedMs: number = (last === undefined) ? -1 : Math.max(0, now() - last)
+    // 合并窗口吃掉的那一档也要留一行：它回答「这次写为什么没有马上取数」。
+    if (last !== undefined && waitedMs < limits.mergeWindowMs) {
       stats.coalesced += 1
+      logEvent(shape, rootHash, verdict, plan, cycle, tool, waitedMs, 'coalesced')
       return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, coalesced: true }
     }
     lastFireAt.set(rootHash, now())
+    logEvent(shape, rootHash, verdict, plan, cycle, tool, waitedMs, 'fired')
     if (!gate || typeof gate.send !== 'function') {
       stats.noGate += 1
       return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, gated: false }
     }
     const kind = (plan.action === 'patch-now') ? 'patch' : 'probe'
+    const sentAt: number = now()
     // 过闸：调用点名字写 `event.write`（事件触发那一档），**并且带上这个工作区的钥匙**（rootHash）。
     //
     // #723（T19）修掉的一处真错：从前这里没带 workspaceKey，闸就落到它的「认不出这个工作区」兜底上
@@ -235,25 +244,36 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     // （wiring.js 的 syncAttention）拿同一把钥匙标活跃，所以这一笔才放行得出来。
     lastGateKey = rootHash
     const out: any = await gate.send(
-      { source: WRITE_EVENT_SOURCE, kind: kind, workspaceKey: rootHash, plan: [{ action: plan.action, ticket: plan.ticket }] },
+      { source: WRITE_EVENT_SOURCE, kind: kind, workspaceKey: rootHash, plan: [{ action: plan.action, ticket: plan.ticket }], cycle: cycle },
       async function (step: any, meta: any): Promise<any> { return doFetch ? await doFetch(step, meta) : { requests: 0, points: 0 } }
     )
     if (out && out.sent) { stats.sent += 1; stats.event.requests += num(out.requests, 0); stats.event.points += num(out.points, 0) }
     else if (out) stats.deferred += 1
+    // 这一趟的终点：发出去了还是被闸推迟、花了几条几点、在路上多久 —— 与上面那行 write.event 用 cycle 对上。
+    fireSent(rootHash, cycle, kind, out, Math.max(0, now() - sentAt))
     return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, verdictOfGate: (out && out.verdict) || '' }
   }
 
   // 按需级 P1：外层先判调试开关，关着连字段对象都不组装（每一次成功的工具调用都会过这里，属高频路径）。
   // 节流两条：同一工作区一秒只记第一条；兜底那一档（什么都没触发）根本不记 —— 记了只是噪声。
   // 最后一行把「判开关」与「发射」写在同一行，是仓库日志守卫门禁认的形状（与 gate.js 的 fireDecide 同款）。
-  function logFired(shape: any, rootHash: string, verdict: any, plan: any): void {
+  function logEvent(shape: any, rootHash: string, verdict: any, plan: any, cycle: string, tool: string, waitedMs: number, result: string): void {
     try {
       if (!logCtx || !logCtx.isEnabled('debug')) return
       const t: any = now()
       const prev: number | undefined = firedLogAt.get(rootHash)
       if (prev !== undefined && (t - prev) < 1000) return
       firedLogAt.set(rootHash, t)
-      if (logCtx.isEnabled('debug')) logCtx.fire('debug', 'write.event', { keyHash: rootHash, shape: shape, tier: verdict.tier, reason: verdict.reason, action: plan.action, hasTicket: !!plan.ticket })
+      if (logCtx.isEnabled('debug')) logCtx.fire('debug', 'write.event', { keyHash: rootHash, shape: shape, tool: tool, tier: verdict.tier, reason: verdict.reason, action: plan.action, hasTicket: !!plan.ticket, cycle: cycle, result: result, waitedMs: waitedMs })
+    } catch (eL: any) {}
+  }
+
+  // 一趟取数的终点（按需级 P1）：闸的结论、真发了几条几点、这一步在路上多久。与 write.event 用 cycle 对上。
+  // 为什么不并进 write.event：那一行在过闸之前就写了（要说明判定与是否被合并），这一行要等闸回来才知道结论。
+  function fireSent(rootHash: string, cycle: string, kind: string, out: any, latencyMs: number): void {
+    try {
+      if (!logCtx || !logCtx.isEnabled('debug')) return
+      if (logCtx.isEnabled('debug')) logCtx.fire('debug', 'write.sent', { keyHash: rootHash, cycle: cycle, kind: kind, sent: !!(out && out.sent), verdict: String((out && out.verdict) || ''), reason: String((out && out.reason) || ''), requests: num(out && out.requests, 0), points: num(out && out.points, 0), latencyMs: latencyMs })
     } catch (eL: any) {}
   }
 
@@ -273,7 +293,9 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     // 都判成推迟 —— 接线看起来接上了，生产里一次都发不出去。现在与 isOurs 用的是同一个值。
     const keyHash = String(sessionRoots.get(sessionIdOf(session)) || '')
     if (plan.action === 'wait-tick') return { tier: verdict.tier, reason: verdict.reason, action: plan.action }
-    return await fire(shape, verdict, plan, keyHash)
+    // 只有真的要取数的那两档才开一趟 cycle；工具名只留前 40 个字符（它不是凭证，但也没有无限长的道理）。
+    const cycle = nextCycle()
+    return await fire(shape, verdict, plan, keyHash, cycle, String(tool || '').slice(0, 40))
   }
 
   /** 运行时事件的第一条订阅：`ctx.on('tools/result', (exec, result) => …)`（原生与 ptc 内层派发都会到）。 */

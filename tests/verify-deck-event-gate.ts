@@ -319,7 +319,7 @@ if (!argv.includes('--skip-runtime')) {
     check(fetched.length === 1 && fetched[0] === 'patch-now', '真取数发生在闸里面（闸放行之后才调 fetch）')
     check(own.debugState().knownSessions === 1, '自己工作区的会话进了白名单表（子目录会话按工作区根算同一个）')
     check(writeLines().length === logsBefore + 1 && writeLines()[logsBefore].event === 'write.event', '事件触发那一档单独记了一行日志（write.event）')
-    const LOG_FIELDS = ['keyHash', 'shape', 'tier', 'reason', 'action', 'hasTicket']
+    const LOG_FIELDS = ['keyHash', 'shape', 'tool', 'tier', 'reason', 'action', 'hasTicket', 'cycle', 'result', 'waitedMs']
     check(writeLines().slice(logsBefore).every((l) => Object.keys(l.fields).every((k) => LOG_FIELDS.includes(k))),
       '日志只进白名单字段（实得 ' + JSON.stringify(writeLines().map((l) => Object.keys(l.fields))) + '）')
     check(!JSON.stringify(logLines).includes('gh issue close') && !JSON.stringify(logLines).includes('packages'),

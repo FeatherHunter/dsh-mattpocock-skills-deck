@@ -52,6 +52,8 @@ interface GateRequest {
   bucket?: string
   workspaceKey?: unknown
   plan?: unknown[]
+  /** 调用方给的这一趟号码（写事件那条路会带；闸只把它写进日志，不参与裁决）。 */
+  cycle?: string
 }
 
 /** 归一之后的请求：下面每一处都按这个形状读，所以类别、种类、桶、工作区键都已经是字符串。 */
@@ -62,6 +64,7 @@ interface NormalizedReq {
   bucket: string
   workspaceKey: string
   plan: unknown[]
+  cycle: string
 }
 
 /** 一个工作区被闸记住的状态（与账本无关，纯粹是本闸自己的记忆）。 */
@@ -305,7 +308,7 @@ export function createGate(deps?: GateDeps) {
 
   // 账本三个事件之一（按需级 P1）：这一笔的结论与原因。外层先判调试开关，关着连字段对象都不组装。
   function fireDecide(req: NormalizedReq, verdict: string, reason: string, tier: string) {
-    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', { category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: tier }) } catch (eL) {}
+    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', { category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: tier, cycle: req.cycle, keyHash: hash8(req.workspaceKey) }) } catch (eL) {}
   }
 
   // 账本三个事件之一（按需级 P1）：被跳过的那些（后台档被推迟、额度不足、过期丢弃）。
@@ -327,7 +330,7 @@ export function createGate(deps?: GateDeps) {
     // 所以这里断言成字符串只为过签名，判断本身一字未改。
     const kind = (REQUEST_KINDS as readonly string[]).indexOf(r.kind as string) >= 0 ? (r.kind as string) : 'probe'
     const bucket = (r.bucket === 'graphql' || r.bucket === 'rest') ? r.bucket : (BUCKET_OF_KIND[kind] || 'rest')
-    return { source: r.source, category: cls.category, kind: kind, bucket: bucket, workspaceKey: String(r.workspaceKey || 'unknown'), plan: Array.isArray(r.plan) && r.plan.length ? r.plan : [{}] }
+    return { source: r.source, category: cls.category, kind: kind, bucket: bucket, workspaceKey: String(r.workspaceKey || 'unknown'), plan: Array.isArray(r.plan) && r.plan.length ? r.plan : [{}], cycle: String(r.cycle || '') }
   }
 
   /**

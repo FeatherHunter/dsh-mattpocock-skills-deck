@@ -15,7 +15,11 @@
  *      具名参数、命令行里第一个位置参数），取不到就记「未知」，绝不从正文、标签名、URL 里回退猜数字
  *      ——仓库里为这两条老错留过记录（`--add-label` 被当流转、从正文回退取任意数字当票号）。
  *   2. **只认成功**。一次失败的 `gh issue close` 什么都没改，不该触发任何取数。
- *   3. **认不出的默认档是「立即探测」，不是「丢弃」**。宁可多探一次（一条 REST），不许漏一次。
+ *   3. **认不出时看有没有写证据，别一律立刻探测**（2026-10-20 按现场日志改）。实测：AI 每跑一个认不出的
+ *      工具（第三方 MCP 工具这一类，本身没有命令行），这里就立刻探一次，一次要付 3.7–4.8 秒的 gh GraphQL
+ *      往返；多工作区并发时每 4–6 秒就有一轮「判定 → 探测」，把刷新链拖成长尾、也吃配额。所以「认不出的
+ *      命令」与「认不出的工具」降到兜底节拍（到点会补一次，漏刷窗口不超过一个探测间隔）；真正的写证据——
+ *      git push、脚本、远端客户端、重定向写文件——仍照旧立刻探测。原因代号不变，日志里照样看得出是「认不出」。
  *
  * 隐私红线：入参里有命令原文，返回值里**一个字符都没有**——只有档位、票号与原因代号。
  * 参数只在这一层做瞬时匹配，绝不进日志、不落盘、不回界面。
@@ -44,7 +48,7 @@ export const DETECT_REASONS: Readonly<Record<string, string>> = {
   'tool.deck-read': '我们自己的读工具：只看不写，不触发取数',
   'tool.web-fetch': '联网抓取工具（WebFetch 这一类）：可能带着写意图，立刻探一次',
   'tool.local-read': '已知只读的本地工具：不触发取数',
-  'tool.unknown': '认不出的工具：默认立刻探一次（宁可多探，不许漏）',
+  'tool.unknown': '认不出的工具：没有写证据，按兜底节拍走（下一拍会补，漏刷窗口不超过一个探测间隔）',
   'cmd.unparsed': '命令工具成功了却拿不到命令行：认不出它做了什么，立刻探一次',
   'cmd.cli-write': 'gh / glab 的写子命令：立刻补那一行',
   'cmd.cli-write-unknown-ticket': 'gh / glab 的写子命令成功了，但命令行里没有票号：立刻探一次，变了才补行',
@@ -61,7 +65,7 @@ export const DETECT_REASONS: Readonly<Record<string, string>> = {
   'cmd.remote-client': '远端客户端（curl / wget / ssh 这一类）：可能直接打了接口，立刻探一次',
   'cmd.file-write': '这一行里有重定向或写文件（> / >> / Out-File / Set-Content）：可能改到了票文件，立刻探一次',
   'cmd.local-read': '已知只读的本地命令：不触发取数',
-  'cmd.unknown': '认不出的命令：默认立刻探一次（宁可多探，不许漏）',
+  'cmd.unknown': '认不出的命令：没有写证据，按兜底节拍走（下一拍会补，漏刷窗口不超过一个探测间隔）',
 }
 
 /** 长名单一律写成「逗号分隔一串」，不写成数组字面量：产物里的数组会被转译成一行一项，白占几十行。 */
@@ -91,7 +95,7 @@ const SHELL_TOOLS = LIST('pwsh,powershell,bash,sh,zsh,cmd,shell')
 /** 已知只读的本地工具（看、搜、问、算）：它们在本地改不了工单仓库。 */
 const LOCAL_READ_TOOLS = LIST('read,readfile,glob,grep,search,ls,list,listfiles,askuserquestion,ask_user_question,todowrite,todo_write,websearch,web_search,skill,vision_describe,vision_ocr,vision_crop')
 /** 第三方终端工具（本机 better-sidebar 带来的 terminal_* 一族）参数字段形状不遵循 command 约定，
- * 产品上是否纳入写判定另说；它们不在这几张表里，就会走「认不出的工具 → 立刻探一次」那条最保守的路。 */
+ * 产品上是否纳入写判定另说；它们不在这几张表里，走「认不出的工具」那条（2026-10-20 起按兜底节拍，不再立刻探）。 */
 
 // ---------- 命令行表（只做首词与子命令匹配） ----------
 /** 段与段的分隔：管道、逻辑连接、分号、换行。一段一段看，绝不把整条命令行当一个字符串扫。 */
@@ -216,7 +220,8 @@ function readSegment(segment: string): SegmentVerdict {
   if (SCRIPT_HEADS.indexOf(head) >= 0) return { tier: 'probe-now', ticket: null, reason: 'cmd.script' }
   if (REMOTE_HEADS.indexOf(head) >= 0) return { tier: 'probe-now', ticket: null, reason: 'cmd.remote-client' }
   if (LOCAL_READ_HEADS.indexOf(head) >= 0) return { tier: 'default-tick', ticket: null, reason: 'cmd.local-read' }
-  return { tier: 'probe-now', ticket: null, reason: 'cmd.unknown' }
+  // 认不出的命令没有写证据：交给兜底节拍（2026-10-20 改；现场日志见头注释第 3 条）。
+  return { tier: 'default-tick', ticket: null, reason: 'cmd.unknown' }
 }
 
 /** `gh` / `glab`：看子命令，不看别的。 */
@@ -297,7 +302,8 @@ export function detectWrite(input: DetectInput): DetectResult {
   }
   // 其它工具（含第三方注册的、带命令行的）：有命令行就照命令判定，没有就按「认不出的工具」立刻探一次。
   if (command.trim()) return readCommand(command)
-  return { tier: 'probe-now', ticket: null, reason: 'tool.unknown' }
+  // 认不出的工具（没有命令行）同样没有写证据：交给兜底节拍（2026-10-20 改）。
+  return { tier: 'default-tick', ticket: null, reason: 'tool.unknown' }
 }
 
 /** 一条命令行判成三档：一段一段看，取最重的一档；票号取第一个认出来的。 */

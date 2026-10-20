@@ -61,9 +61,9 @@ const CASES = [
   ['python 一行脚本', { shape: 'tools/result', tool: 'pwsh', command: 'python -c "import os"', succeeded: OK }, 'probe-now', null],
   ['重定向写文件（本地 Markdown 后端的票就是文件）', { shape: 'tools/result', tool: 'pwsh', command: 'echo hi > .scratch/0012-a.md', succeeded: OK }, 'probe-now', null],
   ['Set-Content 写文件', { shape: 'tools/result', tool: 'pwsh', command: 'Set-Content -Path .scratch/0012-a.md -Value x', succeeded: OK }, 'probe-now', null],
-  ['认不出的命令：默认立刻探一次，不丢弃', { shape: 'tools/result', tool: 'pwsh', command: 'frobnicate --all', succeeded: OK }, 'probe-now', null],
+  ['认不出的命令：没有写证据，按兜底节拍走', { shape: 'tools/result', tool: 'pwsh', command: 'frobnicate --all', succeeded: OK }, 'default-tick', null],
   ['联网抓取类工具', { shape: 'tools/result', tool: 'WebFetch', succeeded: OK }, 'probe-now', null],
-  ['认不出的远端类工具', { shape: 'tools/result', tool: 'mcp__tracker__do_it', succeeded: OK }, 'probe-now', null],
+  ['认不出的工具：没有命令行也没有写证据，按兜底节拍走', { shape: 'tools/result', tool: 'mcp__tracker__do_it', succeeded: OK }, 'default-tick', null],
   ['命令工具却拿不到命令行', { shape: 'tools/result', tool: 'pwsh', succeeded: OK }, 'probe-now', null],
 
   // --- 只读那一档（其余） ---
