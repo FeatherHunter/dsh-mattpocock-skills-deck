@@ -8,8 +8,9 @@
 // 4. 三态按钮：探索地图 检查/执行/完成（橙 #f59e0b / 紫 #c084fc / 绿 #3fb950）；
 //    规格 拆票/执行/完成（橙 #f59e0b / 蓝 #1D4ED8 / 绿 #3fb950）。
 // 5. 新会话按钮与主按钮永远同色实心（两枚按钮不是一个颜色）。
-// 6. 点主按钮注入什么：地图是 检查/推进/收尾三段；规格空态是 /to-tickets、开态是通用执行模板、
-//    收尾复用完成提示词。注入文本的具体措辞归 #1281/#1282，本门禁只断「选了哪一条」。
+// 6. 点主按钮注入什么：地图是 检查/推进/收尾三段；规格空态注入 specSplit、开态注入 specExecute、
+//    收尾注入 specComplete（#1281 起三条各自独立，不再复用地图的 completePrompt）。
+//    注入文本的具体措辞归 #1281，本门禁只断「选了哪一条」。
 // 7. 规格页不画探索地图那五节正文（Destination / Notes / Decisions / Fog / Out of scope），
 //    画自己的七节（问题陈述 / 解决方案 / 用户故事 / 实现决策 / 测试决策 / 不在范围内 / 补充说明）。
 // 8. 被阻塞统一红 #f87171（详情页源码里不再有橙色 #f0883e）。
@@ -242,14 +243,13 @@ const DONE2 = [ticketOf(1), ticketOf(2)]
   check(seven.every((t) => htmlOpen.includes(t)), 'A10 规格页画自己的七节（' + seven.join(' / ') + '）')
   // 点主按钮注入什么
   renderContainer(specContainer([], statsOf(0, 0)))
-  check(clickPrimary().indexOf('/to-tickets') === 0, 'A11 规格空态点主按钮注入 /to-tickets')
+  check(clickPrimary() === 'FOR:specSplit', 'A11 规格空态点主按钮注入 specSplit 模板')
   renderContainer(specContainer(OPEN2, statsOf(2, 1)))
-  // 规格的「执行」注入 implement-spec 技能调用，不走通用执行模板——
+  // 规格的「执行」注入 specExecute 模板（正文首行是 /implement-spec），不走通用执行模板——
   // 那个模板正文首行是 /wayfinder（探索地图的路子），用在规格上不对。
-  const execText = clickPrimary()
-  check(execText.indexOf('/implement-spec') === 0 && execText.indexOf('/wayfinder') < 0, 'A12 规格有未关时点主按钮注入 /implement-spec（不带 /wayfinder）')
+  check(clickPrimary() === 'FOR:specExecute', 'A12 规格有未关时点主按钮注入 specExecute 模板（不走通用执行模板）')
   renderContainer(specContainer(DONE2, statsOf(2, 2)))
-  check(clickPrimary() === 'COMPLETE:1290:2/2', 'A13 规格全关时点主按钮注入收尾提示词（带总数与已关闭数）')
+  check(clickPrimary() === 'FOR:specComplete', 'A13 规格全关时点主按钮注入 specComplete 收口模板')
 }
 
 // ---- B 组：探索地图详情页（回归：颜色与文案一字不动） ----

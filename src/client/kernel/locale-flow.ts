@@ -95,7 +95,7 @@ declare const SETTINGS_DEBUG_PUSH_WAIT_MS: number;
         'map.subClosed': '已关闭',
         'map.subCount': '本图 {n} 张子票（已关闭 {c} 张）', 'map.subCountLoading': '正在取子票…', 'map.subCountFail': '子票没取到：{msg}', 'map.subCountRetry': '重试', 'map.subCountCapped': '只加载了前 {n} 张', 'map.subCountShort': '还有 {n} 张没取到', // #691 地图详情头部那一行（取数中／取不到／撞 1000 张硬上限／与总数对不上的差额，四种情形各一句）
         'map.executeTitle': '从第一性原理推进该地图，注入开始提示词',
-        'map.doneTitle': '汇总子票并归档地图，注入收尾确认',
+        'map.doneTitle': '核对地图是否真的走清，然后交棒 /to-spec → /to-tickets',
         'map.inspectTitle': '检测空地图并补全 Destination，注入修复提示词',
         // #255 详情页评论输入区（GitHub 单点）
         'detail.cmtPlaceholder': '写下评论，支持 Markdown（⌘+Enter / Ctrl+Enter 发送）',
@@ -261,7 +261,7 @@ declare const SETTINGS_DEBUG_PUSH_WAIT_MS: number;
         'map.subClosed': 'Closed',
         'map.subCount': '{n} sub-issues (closed {c})', 'map.subCountLoading': 'Loading sub-issues…', 'map.subCountFail': 'Sub-issues not loaded: {msg}', 'map.subCountRetry': 'Retry', 'map.subCountCapped': 'only the first {n} loaded', 'map.subCountShort': '{n} more not loaded', // #691 the sub-issue line in the map detail header (loading / failed / capped / shortfall)
         'map.executeTitle': 'Advance the map from first principles, inject start prompt',
-        'map.doneTitle': 'Summarize children and archive, inject wrap-up confirmation',
+        'map.doneTitle': 'Check the map is truly clear, then hand off /to-spec → /to-tickets',
         'map.inspectTitle': 'Detect empty map and fill Destination, inject repair prompt',
         'detail.cmtPlaceholder': 'Write a comment — Markdown supported (Cmd/Ctrl+Enter to send)',
         'detail.cmtSend': 'Send',

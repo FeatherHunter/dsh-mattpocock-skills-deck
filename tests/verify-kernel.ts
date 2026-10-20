@@ -28,7 +28,7 @@ const MODULES = [
   // #685：「体检」按钮的三样东西（游离票件数派生、显隐门、开新会话注入）；单独一片是因为它要写的那条
   //   常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），而 store-derived.js 已经贴着 350 行上限。
   { name: 'healthCheck', file: 'health-check', exports: ['healthCheckCountOf', 'healthCheckVisible', 'healthCheckSubjectOf', 'healthCheckLogEvent', 'openHealthCheck'] },
-  { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'completePrompt', 'FIXATE_PROMPT'] },
+  { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'completePrompt', 'newSpecPrompt', 'FIXATE_PROMPT'] },
   // #1012：旧配置存档 dsws.cfg（连同 CFG_KEY/cfg/saveCfg）与更旧的 dsws.startCfg（连同 migrateStartCfg）
   //   已按维护者定案删除，这里那三个名字随之从清单里去掉；模板那几项照旧。
   { name: 'config', exports: ['templates', 'saveTemplates', 'tplText', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },
@@ -49,7 +49,7 @@ const MODULES = [
   { name: 'probeAuto', file: 'probe-auto', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'startActiveProbeLoop', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
   // #707：视野模型的客户端半边（窗口标识、焦点与可见性监听、20 秒本地心跳、处境判定）。
   { name: 'attentionHeartbeat', file: 'attention-heartbeat', exports: ['attentionWindowId', 'attentionVisible', 'attentionNoteHuman', 'attentionStoreOf', 'attentionRootOf', 'attentionKeyOf', '_attentionPlan', 'adoptAttentionPlan', 'attentionStandingOf', 'ATTENTION_SILENT_MS', 'attentionSuspended', 'attentionBeat', 'startAttentionHeartbeat', 'startAttentionSignals', 'stopAttentionSignals'] },
-  { name: 'router', exports: ['openInNativeRight', 'openPanel', 'togglePanel', 'afterPanelOpened', 'repoStr', 'startText', 'newWayfinderText', 'newBugWayfinderText'] },
+  { name: 'router', exports: ['openInNativeRight', 'openPanel', 'togglePanel', 'afterPanelOpened', 'repoStr', 'startText', 'newWayfinderText', 'newSpecText', 'newBugWayfinderText'] },
   // #709（T5）：5 秒自轮询常量与启动函数已退役，换成事件驱动入口；namingGuardianKick 仍是那一次拉取的本体。
   { name: 'apiNaming', file: 'api-naming', exports: ['injectFixate', 'handoffPrompt', 'extractHandoffFile', 'absHandoffPath', 'handoffReadText', 'getRowPreset', 'isHealthyPreset', 'isReusableBlank', 'buildCreateOpts', 'createPTCSession', 'namingCurrentTitleOf', 'namingHintOf', 'executeNamingOrder', 'reconcileNamingFailure', 'applyNamingFailurePanel', 'namingGuardianKick', 'namingGuardianEvent', 'startNamingGuardianEvents'] },
   { name: 'apiPresetGuard', file: 'api-preset-guard', exports: ['describeReuseDecision', 'verifyFreshPreset', 'tryQuarantineSession', 'createVerifiedPTCSession'] },

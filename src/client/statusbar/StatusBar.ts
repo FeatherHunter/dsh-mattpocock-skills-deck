@@ -39,6 +39,7 @@ declare function isEnabled(...args: any[]): any;
 declare function loadChain(...args: any[]): any;
 declare function loadSnapshot(...args: any[]): any;
 declare function newBugWayfinderText(...args: any[]): any;
+declare function newSpecText(...args: any[]): any;
 declare function newSessionTitleNew(...args: any[]): any;
 declare function newWayfinderText(...args: any[]): any;
 declare function num(...args: any[]): any;
@@ -318,6 +319,10 @@ export const StatusBar = (props: any) => {
         h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? '#c084fc' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
           Ic({ n: 'map', size: 12, color: s.takeMenuHover ? '#d8b4fe' : '#c084fc' }),
           h('span', null, tr('nav.takeableNew')),
+        ]),
+        h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newSpecText(s), newSessionTitleNew('spec')) }, onMouseEnter: function () { if (!s.takeMenuSpecHover) { s.takeMenuSpecHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuSpecHover) { s.takeMenuSpecHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuSpecHover ? '#60a5fa' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuSpecHover ? 'rgba(96,165,250,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+          Ic({ n: 'note', size: 12, color: s.takeMenuSpecHover ? '#93c5fd' : '#60a5fa' }),
+          h('span', null, tr('nav.takeableSpec')),
         ]),
       ]) : null,
     ]),

@@ -30,6 +30,7 @@ declare const prTabVisible: any;
 declare const vcTabVisible: any;
 declare const openTextInNewSession: any;
 declare const newWayfinderText: any;
+declare const newSpecText: any;
 declare const newSessionTitleNew: any;
 declare const newBugWayfinderText: any;
 declare const emit: any;
@@ -78,9 +79,15 @@ export const useTabsRow = function (s: any, tabsRef: any) {
     h('span', { style: { flex: 1 } }),
     // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder —— 注入 /wayfinder + 仓库信息 + 需求引导
     // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）
+    // #1281：新增「写规格」蓝入口 —— 与「新建需求」同构，注入 /grill-with-docs prompt；
+    //   两处入口（面板这一排 + 状态栏胶囊悬停菜单）都调 newSpecText，开场白逐字一致。
     h('button', { className: 'dsws-btn', 'data-priority': 2, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newWayfinderTitle'), 2) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
       Ic({ n: 'map', size: 11 }),
       h('span', null, tr('panel.newWayfinder')),
+    ]),
+    h('button', { className: 'dsws-btn', 'data-priority': 3, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newSpecTitle'), 3) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newSpecText(s), newSessionTitleNew('spec')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #60a5fa', color: '#60a5fa', fontWeight: 600 } }, [
+      Ic({ n: 'note', size: 11 }),
+      h('span', null, tr('panel.newSpec')),
     ]),
     h('button', { className: 'dsws-btn', 'data-priority': 1, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newBugTitle'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), newSessionTitleNew('bug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
       Ic({ n: 'bug', size: 11 }),

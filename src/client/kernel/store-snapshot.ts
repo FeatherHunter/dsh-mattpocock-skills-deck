@@ -62,7 +62,7 @@ export const makeStore = (): any => ({
   _lastHandoffOpenTs: 0,
   // #787 待注入本会话的首条草稿（别的会话交接过来）；本会话界面取完清空。
   incomingDraft: null,
-  skillsOpen: false, skillHover: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, takeMenuOpen: false, takeMenuHover: false, takeMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
+  skillsOpen: false, skillHover: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, takeMenuOpen: false, takeMenuHover: false, takeMenuSpecHover: false, takeMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
   noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
   switchConfirm: null,
   gateModalOpen: false, gateSelected: null, gateLoading: false, gateError: '',

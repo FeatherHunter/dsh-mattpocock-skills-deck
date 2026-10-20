@@ -10,6 +10,7 @@
  */
 declare function idOfParts(...args: any[]): any;
 declare function idOf(...args: any[]): any;
+declare function promptText(...args: any[]): any;
 declare function effortOf(...args: any[]): any;
 declare function refKeyOf(...args: any[]): any;
 declare function issueUrlFor(...args: any[]): any;
@@ -283,6 +284,11 @@ export const rowActionKind = function (x: any): any {
   if (has('wayfinder:grilling')) return 'discuss'
   if (has('wayfinder:research')) return 'research'
   if (has('wayfinder:prototype')) return 'prototype'
+  // #1281：map 里的 task 票和普通兜底票仍走 wayfinder 推进；带 ready-for-agent 的实施票
+  //   （to-tickets 拆出来的票）改成「实施」，注入的提示词首行是 /implement。
+  //   判断只看标签、不看父子边：to-tickets 的产物按约定就是 ready-for-agent 且不带 wayfinder 标签。
+  if (has('wayfinder:task')) return 'execute'
+  if (has('ready-for-agent')) return 'implement'
   return 'execute'
 }
 export const actionColorOf = function (x: any, colorOf: any): any {
@@ -297,6 +303,8 @@ export const actionColorOf = function (x: any, colorOf: any): any {
   if (kind === 'discuss') return bc('wayfinder:grilling', '#d93f0b')
   if (kind === 'research') return bc('wayfinder:research', '#0ea5e9')
   if (kind === 'prototype') return bc('wayfinder:prototype', '#f59e0b')
+  // #1281：实施票与「规格」同色（贵族蓝），一眼能认出它属于实施地图那一支。
+  if (kind === 'implement') return '#1D4ED8'
   return '#c084fc'
 }
 // #361：行级动作注入文本的单一真源（诊断/接手/补充/修复/讨论/研究/原型/执行）—— 新会话打开与行内动作共用
@@ -315,6 +323,7 @@ export const rowActionText = function (st: any, x: any): any {
   if (kind === 'discuss') return renderTemplate('discuss', { url: url }, st)
   if (kind === 'research') return renderTemplate('research', { url: url }, st)
   if (kind === 'prototype') return renderTemplate('prototype', { url: url }, st)
+  if (kind === 'implement') return promptText('tpl.implement', { url: url })
   try { return startText(st, x) } catch(e) { return renderTemplate('diagnose', { url: url }, st) }
 }
 // v19：共享 —— 行级动作（列表与 map 详情共用）：按一处分类八选一（诊断/接手/补充/修复/讨论/研究/原型/执行），预填输入框；
@@ -335,6 +344,7 @@ export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any)
         if (label === tr('act.discuss')) return tr('tip.discuss')
         if (label === tr('act.research')) return tr('tip.research')
         if (label === tr('act.prototype')) return tr('tip.prototype')
+        if (label === tr('act.implement')) return tr('tip.implement')
         if (label === tr('act.execute')) return tr('tip.execute')
       } catch(e){}
       return label
@@ -354,6 +364,7 @@ export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any)
   if (kind === 'discuss') return mk('chat', tr('act.discuss'), rowActionText(st, x), btnColor('wayfinder:grilling', '#d93f0b'))
   if (kind === 'research') return mk('search', tr('act.research'), rowActionText(st, x), btnColor('wayfinder:research', '#0ea5e9'))
   if (kind === 'prototype') return mk('prototype', tr('act.prototype'), rowActionText(st, x), btnColor('wayfinder:prototype', '#f59e0b'))
+  if (kind === 'implement') return mk('hammer', tr('act.implement'), rowActionText(st, x), '#1D4ED8')
   return mk('play', tr('act.execute'), rowActionText(st, x), '#c084fc')
 }
 // #506 拉取请求页签门控与列表派生（前端房纯函数，无日志点：无跨边界调用、无新缓存、无定时器，复用既有快照链路）

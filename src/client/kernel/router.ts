@@ -41,6 +41,7 @@ declare const promptText: any;
 declare const promptTextFor: any;
 declare const promptLang: any;
 declare const newWayfinderPrompt: any;
+declare const newSpecPrompt: any;
 declare const NEW_BUG_FIELDS_BODY_EN: any;
 declare const NEW_BUG_FIELDS_BODY: any;
 declare const inspectPrompt: any;
@@ -198,3 +199,6 @@ export const startText = (st: any, t: any): string => {
 export const newWayfinderText = (st: any): string => newWayfinderPrompt(st) + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：');
 // issue #4：新增 BUG 单 —— 与「+ 新建需求」同构（新会话 + 预填 /wayfinder prompt）
 export const newBugWayfinderText = (st: any): string => promptText('newBugWayfinder', { repo: repoUrlFor(st) }) + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY());
+// #1281：「写规格」蓝入口 —— 与「+ 新建需求」同构（新会话 + 预填 /grill-with-docs prompt）。
+//   面板与状态栏两处都调这一个函数，开场白因此逐字一致（#1280 验收口径）。
+export const newSpecText = (st: any): string => newSpecPrompt(st) + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：');

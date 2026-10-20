@@ -194,11 +194,12 @@ const checkFile = function (file, regSrc, promptsJs, routerJs, viewSrc) {
   assert.ok(!out.includes('## 目标 map') && !out.includes('编号：#305'), file + ' zh 未完成态不再内嵌 map 标识头（标识由首行 /wayfinder+链接承载）')
   assert.ok(!out.includes('完成确认'), file + ' zh 未完成态不含完成确认')
 
-  // b) 完成 map 行（t 自带 stats）：完成确认 prompt + map 标识，非推进式（#69 v4：标题 ## MAP完成确认，票号在首行 /wayfinder URL）
+  // b) 完成 map 行（t 自带 stats）：完成提示词自包含（首行 /wayfinder、次行链接）+ #1281 交棒段
   const out2 = env.startText(ST, mapIssue(200, '完成 map', { total: 4, closed: 4 }))
-  assert.ok(out2.includes('## MAP完成确认'), file + ' zh 完成确认标题（v4 MAP完成确认）')
-  assert.ok(out2.indexOf('/wayfinder ' + URL200) === 0, file + ' zh 完成确认首行 /wayfinder+URL 含票号 #n')
+  assert.ok(out2.includes('## 完成核对'), file + ' zh 完成态标题（#1281 完成核对）')
+  assert.ok(out2.indexOf('/wayfinder\n' + URL200) === 0, file + ' zh 完成态首行 /wayfinder、次行链接（#1281 自包含格式）')
   assert.ok(out2.includes('4/4'), file + ' zh 完成确认 closed/total 已填')
+  assert.ok(out2.includes('/to-spec') && out2.includes('/to-tickets'), file + ' zh 完成态含交棒两步（#1281）')
   assert.ok(!out2.includes('## 目标 map') && !out2.includes('编号：#200'), file + ' zh 完成态不再内嵌 map 标识头（#779：标识由首行 /wayfinder+链接承载）')
   assert.ok(out2.includes('## 工具') && out2.includes('优先使用 deck_ 开头的工具') && out2.includes('deck_issue_report'), file + ' zh 完成态带两行工具节（#779）')
   assert.ok(!out2.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 完成态不是推进式')
@@ -206,7 +207,7 @@ const checkFile = function (file, regSrc, promptsJs, routerJs, viewSrc) {
   // c) 完成态经 snapshot 兜底（t 无 stats 且 snapshot.maps 有该 map）
   const st2 = { snapshot: { maps: [{ number: 200, stats: { total: 4, closed: 4 } }] } }
   const out3 = env.startText(st2, mapIssue(200, '完成 map'))
-  assert.ok(out3.includes('## MAP完成确认'), file + ' zh 完成态 snapshot 兜底（v4 标题）')
+  assert.ok(out3.includes('## 完成核对'), file + ' zh 完成态 snapshot 兜底（#1281 标题）')
 
   // d) 零子票 map（total=0）→ 走「0/0 检查」prompt（mapInspect），不是推进式
   //    陈旧断言修正（与 #595 无关）：本条原写「零子票 map 仍推进式」，但现产品里 total=0 属异常态，
@@ -220,7 +221,7 @@ const checkFile = function (file, regSrc, promptsJs, routerJs, viewSrc) {
   const out5 = env.startText(ST, PLAIN)
   assert.ok(out5.includes('/wayfinder'), file + ' zh 普通票 /wayfinder 前缀')
   assert.ok(out5.includes(URL999), file + ' zh 普通票链接')
-  assert.ok(out5.includes('执行这个 issue'), file + ' zh 普通票 execute 模板')
+  assert.ok(out5.includes('请按 wayfinder 技能推进这张票'), file + ' zh 普通票 execute 模板（#1281 map 子票统一入口文案）')
 
   // f) en 双语（以 en 为初始语言重建环境，忠实于模块加载时捕获常量别名）
   const enEnv = buildEnv(regSrc, promptsJs, routerJs, 'en')
@@ -229,9 +230,10 @@ const checkFile = function (file, regSrc, promptsJs, routerJs, viewSrc) {
   assert.ok(out6.includes('## Tools') && out6.includes('Prefer the deck_ tools'), file + ' en 工具节（issue 操作优先走 deck 工具）')
   assert.ok(!out6.includes('## Target map') && !out6.includes('No: #305'), file + ' en 不再内嵌 map 标识头')
   const out7 = enEnv.startText(ST, mapIssue(200, 'Done map', { total: 2, closed: 2 }))
-  assert.ok(out7.includes('## MAP completion check'), file + ' en 完成确认标题（v4 MAP completion check）')
-  assert.ok(out7.indexOf('/wayfinder ' + URL200) === 0, file + ' en 完成确认首行 /wayfinder+URL 含票号 #n')
+  assert.ok(out7.includes('## Completion check'), file + ' en 完成态标题（#1281 Completion check）')
+  assert.ok(out7.indexOf('/wayfinder\n' + URL200) === 0, file + ' en 完成态首行 /wayfinder、次行链接（#1281 自包含格式）')
   assert.ok(out7.includes('2/2'), file + ' en closed/total 已填')
+  assert.ok(out7.includes('/to-spec') && out7.includes('/to-tickets'), file + ' en 完成态含交棒两步（#1281）')
   assert.ok(!out7.includes('## Target map'), file + ' en 完成态不再内嵌 map 标识头（#779）')
   assert.ok(out7.includes('## Tools') && out7.includes('deck_issue_report'), file + ' en 完成态带两行工具节（#779）')
 

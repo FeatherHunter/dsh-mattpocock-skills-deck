@@ -71,7 +71,7 @@ const fail = function (msg) { failed = true; problems.push(msg); return false }
 const check = function (cond, msg) { if (!cond) { failed = true; problems.push(msg) } return !!cond }
 
 // ==================== 0. 契约常量（硬编码，改动要走评审） ====================
-const EXPECT_REGISTRY_ENTRIES = 23 // 注册表条目数（#725：progress 与 bodyFormat 两条整节删除，23 → 21；#771：新增 tpl.takeover 与 tpl.supplement，21 → 23；拆行/换引号不会让它少，因为 S1 用求值解析）
+const EXPECT_REGISTRY_ENTRIES = 28 // 注册表条目数（#1281：新增 newSpec / tpl.implement / specSplit / specExecute / specComplete 五条，23 → 28）（#725：progress 与 bodyFormat 两条整节删除，23 → 21；#771：新增 tpl.takeover 与 tpl.supplement，21 → 23；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 // #684：三个后端各加一条 healthCheck（体检科目），7/6/4。
@@ -102,8 +102,9 @@ const EXPECT_EXEMPT = 8 // 豁免登记条数硬编码（防偷偷加豁免）
 // 下面 auditExemptTable 会断言这张硬编码清单与运行时算出来的集合逐条相等，所以清空它 / 删几行都会红。
 const PROTECTED = [
   'registry#mapExecute', 'registry#complete', 'registry#fixate',
-  'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
+  'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.implement', 'registry#tpl.discuss', 'registry#tpl.research',
   'registry#tpl.prototype', 'registry#tpl.takeover', 'registry#tpl.supplement', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
+  'registry#specSplit', 'registry#specExecute', 'registry#specComplete', 'registry#newSpec',
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#switchLayout', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect', 'registry#healthCheck',
   'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#errorKinds',
@@ -1009,10 +1010,10 @@ const contractChecksInner = function (reg, src) {
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   // #1269：12 条会话收尾类提示词各加一条 /retro 提醒，版本底线跟着抬高（名单与断言见下面 fixate 之后的 #1269 块）
   const V_MIN = {
-    mapExecute: 16, complete: 11, fixate: 8, 'tpl.diagnose': 14, 'tpl.fix': 13, 'tpl.discuss': 15,
-    // #1270：「执行」引导句改成先按票面判断（代码实施任务按 /implement 直接实施，其余按 wayfinder 推进），
-    //   「修复」括注从 wayfinder 改成 implement（首行本来就是 /implement）；两条模板版本底线各抬一级。
-    'tpl.research': 9, 'tpl.prototype': 9, 'tpl.takeover': 5, 'tpl.supplement': 4, 'tpl.execute': 15, mapInspect: 6, newWayfinder: 19,
+    // #1281：map 子票统一入口（讨论/研究/原型/执行）与完成、修复、接手三条模板重写，版本底线同步抬高；
+    //   写规格入口与规格三态、实施票是新增条目，不设旧底线。
+    mapExecute: 16, complete: 12, fixate: 8, 'tpl.diagnose': 14, 'tpl.fix': 14, 'tpl.discuss': 16,
+    'tpl.research': 10, 'tpl.prototype': 10, 'tpl.takeover': 6, 'tpl.supplement': 4, 'tpl.execute': 16, mapInspect: 6, newWayfinder: 19,
     newBugWayfinder: 11,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
@@ -1048,24 +1049,24 @@ const contractChecksInner = function (reg, src) {
     if (me.en.indexOf('- [ ]') < 0) fail('mapExecute en 缺清单标记 - [ ]')
     if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Analyze/Pick the ticket/Execute/Wrap-up）')
   }
-  // tpl.execute（#64 清单式；#1212：加调查节先查后问）
-  const ex = reg['tpl.execute']
-  if (ex) {
-    if (ex.zh.indexOf('- [ ]') < 0) fail('tpl.execute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0) fail('tpl.execute zh 缺清单三段标题（读现状/阶段闸门/收尾）')
-    if (ex.zh.indexOf('|') >= 0) fail('tpl.execute zh 含表格 |（已约定无表格，全勾选框）')
-    if (ex.en.indexOf('- [ ]') < 0) fail('tpl.execute en 缺清单标记 - [ ]')
-    if (ex.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.execute zh 缺 #1212 调查节（先查后问）')
-    if (ex.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.execute zh 缺 #1212 调查首行（先读本票与仓内）')
-    if (ex.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.execute en 缺 #1212 调查节（同中文那条的对应节）')
-    if (ex.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.execute en 缺 #1212 调查首行（同中文那条的对应句）')
-    if (ex.zh.indexOf('按 /implement 技能直接实施') < 0) fail('tpl.execute zh 缺 #1270 分流句（已写清的代码实施任务按 /implement 直接实施）')
-    if (ex.zh.indexOf('其余任务按 wayfinder 技能规则推进') < 0) fail('tpl.execute zh 缺 #1270 兜底句（其余任务按 wayfinder 推进）')
-    if (ex.zh.indexOf('遵循 wayfinder 技能规则') >= 0) fail('tpl.execute zh 残留无条件遵循 wayfinder 的旧引导句（#1270 已改成先按票面判断）')
-    if (ex.en.indexOf('implement it directly per the /implement skill') < 0) fail('tpl.execute en 缺 #1270 分流句（同中文那条）')
-    if (ex.en.indexOf('advance per the wayfinder skill rules') < 0) fail('tpl.execute en 缺 #1270 兜底句（同中文那条）')
-    if (ex.en.indexOf('follow the wayfinder skill rules') >= 0) fail('tpl.execute en 残留无条件遵循 wayfinder 的旧引导句（#1270 已改成先按票面判断）')
-  }
+  // tpl.execute / tpl.discuss / tpl.research / tpl.prototype（#1281：map 子票统一入口）
+  //   四条正文相同：首行 /wayfinder + 第二行 {url}，之后只保留插件增量（调查节 + 收尾）。
+  //   技能内部如何按票的类型分流不在插件这里复述（#1281 第 5 条原则）。
+  ;['tpl.execute', 'tpl.discuss', 'tpl.research', 'tpl.prototype'].forEach(function (wfId) {
+    const wf = reg[wfId]
+    if (!wf) { fail('缺条目 ' + wfId); return }
+    if (wf.zh.indexOf('/wayfinder') !== 0) fail(wfId + ' zh 首行必须是 /wayfinder（#1281 map 子票统一入口）')
+    if (wf.zh.indexOf('{url}') < 0) fail(wfId + ' zh 缺第二行链接占位符 {url}')
+    if (wf.zh.indexOf('- [ ]') < 0) fail(wfId + ' zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (wf.zh.indexOf('## 调查（建议先查后问）') < 0) fail(wfId + ' zh 缺 #1212 调查节（先查后问）')
+    if (wf.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail(wfId + ' zh 缺 #1212 调查首行（先读本票与仓内）')
+    if (wf.zh.indexOf('|') >= 0) fail(wfId + ' zh 含表格 |（已约定无表格，全勾选框）')
+    if (wf.zh.indexOf('## 收尾') < 0) fail(wfId + ' zh 缺收尾节')
+    if (wf.en.indexOf('- [ ]') < 0) fail(wfId + ' en 缺清单标记 - [ ]')
+    if (wf.en.indexOf('## Investigate (recommended: look before asking)') < 0) fail(wfId + ' en 缺 #1212 调查节（同中文那条的对应节）')
+    if (wf.en.indexOf('It is recommended to read this ticket body') < 0) fail(wfId + ' en 缺 #1212 调查首行（同中文那条的对应句）')
+    if (wf.en.indexOf('## Wrap-up') < 0) fail(wfId + ' en 缺收尾节')
+  })
   // tpl.diagnose（#65 清单式 · 诊断≠修复；#1212：加调查节先查后问）
   const di = reg['tpl.diagnose']
   if (di) {
@@ -1084,49 +1085,29 @@ const contractChecksInner = function (reg, src) {
     if (di.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.diagnose en 缺 #1212 调查节（同中文那条的对应节）')
     if (di.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.diagnose en 缺 #1212 调查首行（同中文那条的对应句）')
   }
-  // tpl.fix（#900：阶段闸门整节删除，只在读现状留一句兜底；定位与修复保留四行）
+  // tpl.fix（#1281：只留插件增量；修复步骤交给 /implement，根因不明交给 /diagnosing-bugs）
   const fxt = reg['tpl.fix']
   if (fxt) {
     if (fxt.zh.indexOf('- [ ]') < 0) fail('tpl.fix zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (fxt.zh.indexOf('## 读现状') < 0 || fxt.zh.indexOf('## 定位与修复') < 0 || fxt.zh.indexOf('## 收尾') < 0) fail('tpl.fix zh 缺清单段标题（读现状/定位与修复/收尾）')
-    if (fxt.zh.indexOf('## 阶段闸门') >= 0) fail('tpl.fix zh 不该再含整节阶段闸门（#900 已删，只留读现状一句兜底）')
+    if (fxt.zh.indexOf('## 读现状') < 0 || fxt.zh.indexOf('## 收尾') < 0) fail('tpl.fix zh 缺清单段标题（读现状/收尾）')
+    if (fxt.zh.indexOf('## 定位与修复') >= 0) fail('tpl.fix zh 不该再复述修复步骤（#1281 去技能规则复述）')
     if (fxt.zh.indexOf('若还挂着 needs-triage') < 0) fail('tpl.fix zh 缺读现状兜底句（若还挂着 needs-triage）')
+    if (fxt.zh.indexOf('/diagnosing-bugs') < 0) fail('tpl.fix zh 缺 #1281 落点：根因不明先按 /diagnosing-bugs 定位')
+    if (fxt.zh.indexOf('按 /implement 技能修复这个 bug') < 0) fail('tpl.fix zh 缺首行引导句（与首行 /implement 一致）')
     if (fxt.zh.indexOf('|') >= 0) fail('tpl.fix zh 含表格 |（已约定无表格，全勾选框）')
     if (fxt.en.indexOf('- [ ]') < 0) fail('tpl.fix en 缺清单标记 - [ ]')
-    if (fxt.en.indexOf('## Read current state') < 0 || fxt.en.indexOf('## Locate & fix') < 0 || fxt.en.indexOf('## Wrap-up') < 0) fail('tpl.fix en 缺清单段标题（Read current state/Locate & fix/Wrap-up）')
-    if (fxt.en.indexOf('## Stage gate') >= 0) fail('tpl.fix en 不该再含整节 Stage gate（#900 已删）')
+    if (fxt.en.indexOf('## Read current state') < 0 || fxt.en.indexOf('## Wrap-up') < 0) fail('tpl.fix en 缺清单段标题（Read current state/Wrap-up）')
     if (fxt.en.indexOf('If it still carries needs-triage') < 0) fail('tpl.fix en 缺读现状兜底句（If it still carries needs-triage）')
-    if (fxt.zh.indexOf('（遵循 implement 技能规则）') < 0) fail('tpl.fix zh 缺 #1270 引导句（遵循 implement 技能规则，与首行 /implement 一致）')
-    if (fxt.zh.indexOf('遵循 wayfinder 技能规则') >= 0) fail('tpl.fix zh 残留 wayfinder 引导句（首行已是 /implement，修复该按 implement 规则）')
-    if (fxt.en.indexOf('(follow the implement skill rules)') < 0) fail('tpl.fix en 缺 #1270 引导句（同中文那条）')
-    if (fxt.en.indexOf('(follow the wayfinder skill rules)') >= 0) fail('tpl.fix en 残留 wayfinder 引导句（首行已是 /implement）')
+    if (fxt.en.indexOf('/diagnosing-bugs') < 0) fail('tpl.fix en 缺 /diagnosing-bugs 落点（同中文那条）')
+    if (fxt.en.indexOf('Follow the /implement skill to fix this bug') < 0) fail('tpl.fix en 缺首行引导句（同中文那条）')
   } else fail('缺条目 tpl.fix')
-  // tpl.discuss（#628：收尾补一条 —— /to-spec 产出的规格单要挂回同一张 map；#808：收尾再补一条 —— /to-spec 后对抗式审查再关单；#1205：收尾再补一条 —— 同 map 子票要知晓规格单）
-  //   补块理由：本模板此前无任何结构块，整段被删门禁也不会红（#382 就是那样丢的）
-  const dc = reg['tpl.discuss']
-  if (dc) {
-    if (dc.zh.indexOf('- [ ]') < 0) fail('tpl.discuss zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (dc.zh.indexOf('挂到同一张 map 上成为 subissue') < 0) fail('tpl.discuss zh 缺 #628 挂载规定（/to-spec 产出的规格单挂回同一张 map）')
-    if (dc.zh.indexOf('无 map 时不写') < 0) fail('tpl.discuss zh 缺 #628 的生效条件（无 map 时不写）')
-    if (dc.en.indexOf('to the same map, as a sub-issue') < 0) fail('tpl.discuss en 缺 #628 挂载规定（同中文那条的对应句）')
-    if (dc.en.indexOf('skip this if the issue has no map') < 0) fail('tpl.discuss en 缺 #628 的生效条件（skip if no map）')
-    if (dc.zh.indexOf('在用户指示下执行完 /to-spec 后对当前执行的所有任务执行一次对抗式审查，确认无误后close当前issue') < 0) fail('tpl.discuss zh 缺 #808 对抗式审查行（/to-spec 后审查再关单）')
-    if (dc.en.indexOf('run one adversarial review over all tasks executed in this run') < 0) fail('tpl.discuss en 缺 #808 对抗式审查行（同中文那条的对应句）')
-    if (dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') < 0) fail('tpl.discuss zh 缺 #1205 知晓行（同 map 子票要知晓规格单）')
-    if (dc.en.indexOf('Make sure the sibling sub-issues on the same map know this spec issue exists.') < 0) fail('tpl.discuss en 缺 #1205 知晓行（同中文那条的对应句）')
-    if (!(dc.zh.indexOf('挂到同一张 map 上成为 subissue') < dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') && dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') < dc.zh.indexOf('在用户指示下执行完 /to-spec 后对当前执行的所有任务执行一次对抗式审查'))) fail('tpl.discuss zh #1205 知晓行位置不对（应在挂图行之后、#808 审查行之前）')
-    if (dc.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.discuss zh 缺 #1212 调查节（先查后问）')
-    if (dc.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.discuss zh 缺 #1212 调查首行（先读本票与仓内）')
-    if (dc.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.discuss en 缺 #1212 调查节（同中文那条的对应节）')
-    if (dc.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.discuss en 缺 #1212 调查首行（同中文那条的对应句）')
-  }
-  // tpl.takeover / tpl.supplement（#1212：两条都加调查节先查后问；此前两条无内容断言，只在注册表计数里出现）
+  // tpl.takeover（#1281：补 /wizard 落点，人工三档与交给用户的清单是插件增量，wayfinder 规则不复述）
   const to = reg['tpl.takeover']
   if (to) {
-    if (to.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.takeover zh 缺 #1212 调查节（先查后问）')
-    if (to.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.takeover zh 缺 #1212 调查首行（先读本票与仓内）')
-    if (to.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.takeover en 缺 #1212 调查节（同中文那条的对应节）')
-    if (to.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.takeover en 缺 #1212 调查首行（同中文那条的对应句）')
+    if (to.zh.indexOf('## 判断人工档位') < 0 || to.zh.indexOf('## 交给用户的清单') < 0) fail('tpl.takeover zh 缺清单段标题（判断人工档位/交给用户的清单）')
+    if (to.zh.indexOf('/wizard') < 0) fail('tpl.takeover zh 缺 #1281 落点：需要用户动手且步骤多时用 /wizard')
+    if (to.en.indexOf('## Decide the human tier') < 0 || to.en.indexOf('## Checklist for the user') < 0) fail('tpl.takeover en 缺清单段标题（同中文那条）')
+    if (to.en.indexOf('/wizard') < 0) fail('tpl.takeover en 缺 /wizard 落点（同中文那条）')
   } else fail('缺条目 tpl.takeover')
   const su = reg['tpl.supplement']
   if (su) {
@@ -1157,23 +1138,25 @@ const contractChecksInner = function (reg, src) {
     if (nw.en.indexOf('## Self-check') >= 0 && nw.en.indexOf('verify the checklist') < 0) fail('newWayfinder en 缺自查指令（verify the checklist）')
     if (nw.en.indexOf('## Destination') < 0) fail('newWayfinder en 缺 keep the ## Destination section（脚本前置条件）')
   }
-  // complete（#69 清单式）
+  // complete（#1281：自包含格式 + 按 wayfinder 核对完成 + 手动交棒 /to-spec → /to-tickets，进度记回 map 正文）
   const co = reg['complete']
   if (co) {
-    if (co.version < 5) fail('complete 版本号未 bump（期望 ≥ v5）')
+    if (co.version < 12) fail('complete 版本号未 bump（期望 ≥ v12）')
+    if (co.zh.indexOf('/wayfinder') !== 0) fail('complete zh 首行必须是 /wayfinder（#1281 自包含格式）')
+    if (co.zh.indexOf('{url}') < 0) fail('complete zh 缺第二行链接占位符 {url}（#1281 自包含格式）')
     if (co.zh.indexOf('- [ ]') < 0) fail('complete zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0) fail('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾）')
+    if (co.zh.indexOf('## 完成核对') < 0 || co.zh.indexOf('## 交棒') < 0 || co.zh.indexOf('## 收尾') < 0) fail('complete zh 缺清单段标题（完成核对/交棒/收尾）')
     if (co.zh.indexOf('|') >= 0) fail('complete zh 含表格 |（已约定无表格，全勾选框）')
     if (co.zh.indexOf('子票') >= 0 || co.zh.indexOf('票') >= 0) fail('complete zh 专业术语未用英文（子票/票 → sub-issue/ticket）')
-    if (co.zh.indexOf('## 目标 map') >= 0 || co.zh.indexOf('编号：') >= 0) fail('complete zh 残留已删的标识头（#779：标识由首行 /wayfinder+链接承载）')
+    if (co.zh.indexOf('/to-spec') < 0 || co.zh.indexOf('/to-tickets') < 0) fail('complete zh 缺交棒两步（/to-spec → /to-tickets）')
     if (co.zh.indexOf('## 工具') < 0 || co.zh.indexOf('优先使用 deck_ 开头的工具') < 0 || co.zh.indexOf('deck_issue_report') < 0) fail('complete zh 缺工具节两行（#779）')
     if (co.placeholders.indexOf('closed') < 0 || co.placeholders.indexOf('total') < 0) fail('complete 占位符缺 closed/total')
-    if (co.placeholders.indexOf('n') >= 0 || co.placeholders.indexOf('title') >= 0 || co.placeholders.indexOf('url') >= 0) fail('complete 占位符残留已删标识头的 n/title/url（#779）')
+    if (co.placeholders.indexOf('url') < 0) fail('complete 占位符缺 url（首行链接已自包含）')
+    if (co.placeholders.indexOf('n') >= 0 || co.placeholders.indexOf('title') >= 0) fail('complete 占位符残留已删标识头的 n/title（#779）')
     if (co.zh.indexOf('从第一性原理出发完成任务') >= 0) fail('complete zh 残留 guide 引导句（#77 已删）')
     if (co.en.indexOf('Approach tasks from first principles') >= 0) fail('complete en 残留 guide 引导句（#77 已删）')
     if (co.en.indexOf('- [ ]') < 0) fail('complete en 缺清单标记 - [ ]')
-    if (co.en.indexOf('## MAP completion check') < 0 || co.en.indexOf('## Investigate') < 0 || co.en.indexOf('## Report to you') < 0 || co.en.indexOf('## Wrap-up') < 0) fail('complete en 缺清单段标题')
-    if (co.en.indexOf('## Target map') >= 0) fail('complete en 残留已删的标识头（#779）')
+    if (co.en.indexOf('## Completion check') < 0 || co.en.indexOf('## Handoff') < 0 || co.en.indexOf('## Wrap-up') < 0) fail('complete en 缺清单段标题')
     if (co.en.indexOf('## Tools') < 0 || co.en.indexOf('deck_issue_report') < 0) fail('complete en 缺工具节两行（#779）')
   } else fail('缺条目 complete')
   // handoff1/handoff2（#71）
@@ -1214,10 +1197,12 @@ const contractChecksInner = function (reg, src) {
   //   判据只认「同一条原文在场」：中英各一句，12 条全有、其余条目一条都没有；
   //   名单改动必须同时改验收，不然「悄悄删掉一句」或「悄悄多给一条」都能溜过去。
   const RETRO_REMIND_IDS = [
-    'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'tpl.takeover', 'tpl.supplement',
+    'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'tpl.takeover', 'tpl.supplement', 'tpl.implement',
     'mapExecute', 'complete', 'newWayfinder', 'newBugWayfinder', 'fixate',
+    // #1281：写规格入口与规格三态、实施票四条新模板都带同一句 /retro 提醒（会话收尾类）。
+    'newSpec', 'specSplit', 'specExecute', 'specComplete',
   ]
-  if (RETRO_REMIND_IDS.length !== 12) fail('#1269 /retro 提醒名单条数 ' + RETRO_REMIND_IDS.length + '（定稿 12）')
+  if (RETRO_REMIND_IDS.length !== 17) fail('#1269 /retro 提醒名单条数 ' + RETRO_REMIND_IDS.length + '（定稿 17；#1281 新增五条）')
   RETRO_REMIND_IDS.forEach(function (id) {
     const e = reg[id] || {}
     if (String(e.zh || '').indexOf('- [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro') < 0) fail('#1269 模板 ' + id + '.zh 缺 /retro 提醒句（会话任务全部完成时提醒用户执行一次，不替用户执行）')
@@ -1288,9 +1273,10 @@ const contractChecksInner = function (reg, src) {
   //   下面两张表是这条规则的唯一声明，合起来必须正好覆盖注册表全部条目：第一张里的必须有工具节，第二张里的一条都不许有。
   //   改这两张表要走评审，并同步 src/client/kernel/prompts.js 顶上那段注释。
   const TOOL_SECTION_IDS = [
-    'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'tpl.takeover', 'tpl.supplement', // 手里就是一张票（8 条）
+    'tpl.diagnose', 'tpl.fix', 'tpl.implement', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'tpl.takeover', 'tpl.supplement', // 手里就是一张票（9 条）
     'mapExecute', 'complete', 'mapInspect', 'healthCheck', // 手里是一张地图或一批票（4 条）
-    'newWayfinder', 'newBugWayfinder', // 产物就是票（2 条）
+    'newWayfinder', 'newSpec', 'newBugWayfinder', // 产物就是票（3 条）
+    'specSplit', 'specExecute', 'specComplete', // 规格容器三态（3 条）
     'fixate', // 会把成果写回票正文（1 条）
   ]
   const TOOL_SECTION_ABSENT_IDS = [
@@ -1303,7 +1289,7 @@ const contractChecksInner = function (reg, src) {
     'tpl.handoff1', // 只写一份交接文档
     'tpl.handoff2', // 只读交接文档（维护者 2026-09-30 定稿：交接两条都不带工具节）
   ]
-  if (TOOL_SECTION_IDS.length !== 15) fail('#792 TOOL_SECTION_IDS 条数 ' + TOOL_SECTION_IDS.length + '（定稿 15）')
+  if (TOOL_SECTION_IDS.length !== 20) fail('#792 TOOL_SECTION_IDS 条数 ' + TOOL_SECTION_IDS.length + '（定稿 20；#1281 新增五条）')
   if (TOOL_SECTION_ABSENT_IDS.length !== 8) fail('#792 TOOL_SECTION_ABSENT_IDS 条数 ' + TOOL_SECTION_ABSENT_IDS.length + '（定稿 8）')
   Object.keys(reg).forEach(function (id) {
     const e = reg[id] || {}
@@ -1517,8 +1503,8 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
 }
 
 // ==================== 8. L2 机械注入（payload 从 JSON 夹具读；逐条断言 exit 1 且点名 id 与规则） ====================
-// 锚点用「执行这个 issue」（全文唯一，落在 tpl.execute；用「## 收尾」会落到 mapExecute）
-const L2_ANCHOR = '执行这个 issue'
+// 锚点用「按 /implement 技能修复这个 bug」（全文唯一，落在 tpl.fix；用「## 收尾」会落到多条）
+const L2_ANCHOR = '按 /implement 技能修复这个 bug'
 const L2_PAYLOADS = JSON.parse(fs.readFileSync(PAYLOAD_FILE, 'utf8')).payloads || []
 // #603：夹具文件 tests/prompt-gate-payloads.json 里 'backend-prompt' 一条钉的期望是「subIssue + R1」
 //   （它的原意：把具体跟踪器命令注入后端声明面必须判红）。领导拍板之后 github 后端声明面允许 gh 命令，
@@ -1732,8 +1718,8 @@ const selfDigest = function () {
 //   本文件内容变了，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
-  'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.ts': '77b6eae17747cf3758ec65f98d1c85424bb3bd06ab1ecc3c3431e944fad12cdf',
+  'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
+  'tests/verify-prompts.ts': 'ff30be2ed50b8af2debbc245a9187b922136f633a26ee08dd31f12e8dc3208e4',
 }
 // ---- LOCK-END ----
 

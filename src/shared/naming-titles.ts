@@ -39,8 +39,8 @@ export const NAMING_CORE_VERSION = 1
 export const SESSION_TITLE_PREFIX = '[New]'
 
 export const PLACEHOLDER_TITLES = {
-  zh: { requirement: '新建需求', bug: '新建 Bug' },
-  en: { requirement: 'New Requirement', bug: 'New Bug' },
+  zh: { requirement: '新建需求', bug: '新建 Bug', spec: '写规格' },
+  en: { requirement: 'New Requirement', bug: 'New Bug', spec: 'Write Spec' },
 }
 
 // 动作中英文（用户定稿：占位加动作字，草稿落为对应动作档，不碰编号档）。八条各对应界面一个真实入口：
@@ -63,8 +63,8 @@ const LEGACY_PLACEHOLDER_WORDS = ['交接', 'Handoff']
 // 占位词表是运行时刻现拼的：ACTION_WORDS 加新动作就自动进占位判定，漏加会把新占位误判成手改名。
 function allPlaceholderWords(): string[] {
   const out: string[] = []
-  out.push(PLACEHOLDER_TITLES.zh.requirement, PLACEHOLDER_TITLES.zh.bug)
-  out.push(PLACEHOLDER_TITLES.en.requirement, PLACEHOLDER_TITLES.en.bug)
+  out.push(PLACEHOLDER_TITLES.zh.requirement, PLACEHOLDER_TITLES.zh.bug, PLACEHOLDER_TITLES.zh.spec)
+  out.push(PLACEHOLDER_TITLES.en.requirement, PLACEHOLDER_TITLES.en.bug, PLACEHOLDER_TITLES.en.spec)
   for (const k in ACTION_WORDS) {
     const w = ACTION_WORDS[k]
     if (w) { out.push(w.zh, w.en) }
@@ -95,7 +95,9 @@ export function placeholderTitleFor({ type, lang }: { type: unknown; lang: unkno
     }
   }
   const bug = t.indexOf('bug') >= 0
-  const w = (en ? PLACEHOLDER_TITLES.en : PLACEHOLDER_TITLES.zh)[bug ? 'bug' : 'requirement']
+  // #1281：蓝入口的会话标题走独立的占位词（「写规格」/「Write Spec」），不再落回新建需求。
+  const spec = t.indexOf('spec') >= 0 || t.indexOf('写规格') >= 0
+  const w = (en ? PLACEHOLDER_TITLES.en : PLACEHOLDER_TITLES.zh)[bug ? 'bug' : (spec ? 'spec' : 'requirement')]
   return SESSION_TITLE_PREFIX + ' ' + w
 }
 
@@ -220,7 +222,9 @@ export function composeDraftTitle({ hint, lang, baselineTitle }: { hint?: unknow
     if (hit) typeTag = '[' + (isEn ? hit.en : hit.zh) + ']'
     else {
       const isBug = /Bug/i.test(bt)
+      const isSpec = /写规格|Write Spec/i.test(bt)
       if (isBug) typeTag = (isEn ? '[New Bug]' : '[新增BUG]')
+      else if (isSpec) typeTag = (isEn ? '[Write Spec]' : '[写规格]')
       else typeTag = (isEn ? '[New Requirement]' : '[新增需求]')
     }
   }
@@ -231,7 +235,7 @@ export function composeDraftTitle({ hint, lang, baselineTitle }: { hint?: unknow
   // 无基线（无标签）时不去重，避免把有效线索吞掉。
   if (typeTag) {
     const condensed = String(rawHint).toLowerCase().replace(/\s+/g, '')
-    const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', 'newrequirement', 'newbug',
+    const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', '写规格', 'newrequirement', 'newbug', 'writespec',
       '诊断', '修复', '讨论', '研究', '原型', '接手', '补充', '交接', '体检',
       'diagnose', 'fix', 'discuss', 'research', 'prototype', 'handoff', 'supplement', 'health', 'healthcheck']
     if (bareWords.indexOf(condensed) >= 0) return fullPrefix
