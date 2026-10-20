@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T10:39:45.032Z",
+  "generatedAt": "2026-10-20T10:46:56.539Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 298,
-  "gateCount": 298,
-  "attributedGates": 261,
+  "chainLength": 299,
+  "gateCount": 299,
+  "attributedGates": 262,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
@@ -1770,6 +1770,32 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
+    },
+    {
+      "step": "node tests/verify-1302-panel-list-skeleton.ts",
+      "file": "tests/verify-1302-panel-list-skeleton.ts",
+      "guards": [
+        "src/client/kernel/container-view.ts",
+        "src/client/kernel/ctx.ts",
+        "src/client/kernel/link.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/ListTabRow.ts",
+        "src/client/views/feedback/feedback-styles.ts",
+        "src/tracker/kernel/identity-keys.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views",
+        "src/client/views/feedback",
+        "src/tracker/kernel",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -7249,6 +7275,7 @@
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
       "node tests/verify-1295-dual-panel.ts",
+      "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-646-native-tab.ts",
@@ -7353,6 +7380,7 @@
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
       "node tests/verify-1295-dual-panel.ts",
+      "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -7385,7 +7413,8 @@
       "node tests/verify-settings-debug.ts"
     ],
     "src/client/views/feedback": [
-      "node tests/verify-leaves.ts"
+      "node tests/verify-leaves.ts",
+      "node tests/verify-1302-panel-list-skeleton.ts"
     ],
     "src/client/views/labels": [
       "node tests/verify-leaves.ts",
@@ -7898,6 +7927,7 @@
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
+      "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -8104,6 +8134,7 @@
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
+      "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
