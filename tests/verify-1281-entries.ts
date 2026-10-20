@@ -1,14 +1,14 @@
 // tests/verify-1281-entries.ts —— #1281 双入口 / 规格三态 / 实施票 / 两处接线的门禁
-// 门禁归属: config/prompts/ticket-action-templates.yaml, config/prompts/map-advancement.yaml, config/prompts/ticket-creation.yaml, src/client/kernel/router.ts, src/client/views/shared/Tabs.ts, src/client/statusbar/StatusBar.ts, src/client/kernel/container-view.ts, src/client/kernel/store-derived.ts, src/client/kernel/locale-spec.ts, src/client/kernel/locale-panel.ts, src/shared/naming-titles.ts
+// 门禁归属: config/prompts/ticket-action-templates.yaml, config/prompts/map-advancement.yaml, config/prompts/ticket-creation.yaml, src/client/kernel/router.ts, src/client/kernel/entry-choice.ts, src/client/views/shared/Tabs.ts, src/client/statusbar/StatusBar.ts, src/client/kernel/container-view.ts, src/client/kernel/store-derived.ts, src/client/kernel/locale-spec.ts, src/client/kernel/locale-panel.ts, src/shared/naming-titles.ts
 // 验证（每条都能被删掉/改坏而变红）：
 //   1) 注册表新增五条：newSpec / tpl.implement / specSplit / specExecute / specComplete，且各自首行技能与占位符正确；
 //      完成模板 complete 改成自包含格式（首行 /wayfinder、次行 {url}）。
-//   2) 两个入口各自只有一个拼装函数：newWayfinderText / newSpecText；面板 Tabs 与状态栏胶囊悬停菜单两处都调同一个
-//      newSpecText，并都用 newSessionTitleNew('spec') 生成会话标题。
-//   3) 词条：新入口的紫色/蓝色悬停提示从「两条路的本质区别」各说一句（还没想清 / 已经想清），中英成对。
+//   2) #1297 起两处入口合并成一层浮层，宿主不再各自拼开场白：面板 Tabs 与状态栏胶囊悬停菜单都只调
+//      entryChooserOpen，选卡后的 newWayfinderText / newSpecText 与会话标题只住 kernel/entry-choice.ts。
+//   3) 词条：两处入口的悬停提示合成一句「点一下弹出两张卡，由你自己选」，中英成对；蓝入口的两个键已删。
 //   4) 规格三态各注入自己的模板（specSplit / specExecute / specComplete），完成态不再复用地图的 completePrompt。
 //   5) 实施票：ready-for-agent 走「实施」，注入 tpl.implement（首行 /implement），按钮标签与提示词成对。
-//   6) 会话标题：naming-titles 里 spec 占位是「写规格」/「Write Spec」。
+//   6) 会话标题：naming-titles 里 spec 占位是「实施地图」/「Impl map」（#1297 起改名，不再叫旧卡名）。
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-1281-entries.ts
 const path = require('node:path')
 const { sourceText } = require('./lib/source-text.ts')
@@ -16,6 +16,7 @@ const promptConfig = require('../scripts/lib/prompt-config.mts')
 
 const ROOT = path.resolve(__dirname, '..')
 const router = sourceText('src/client/kernel/router.ts')
+const entry = sourceText('src/client/kernel/entry-choice.ts')
 const tabs = sourceText('src/client/views/shared/Tabs.ts')
 const bar = sourceText('src/client/statusbar/StatusBar.ts')
 const cv = sourceText('src/client/kernel/container-view.ts')
@@ -52,20 +53,20 @@ check(zhOf('specComplete').indexOf('这张规格 issue（{url}）下面的实施
 check(zhOf('complete').indexOf('/wayfinder\n{url}\n\n## 完成核对') === 0, 'complete 自包含：首行 /wayfinder、次行 {url}、完成核对节')
 check(zhOf('complete').indexOf('提醒用户手动执行一次 /to-spec') >= 0 && zhOf('complete').indexOf('提醒用户手动执行一次 /to-tickets') >= 0, 'complete 含两步手动交棒提醒')
 
-// 2) 两处入口共用一个拼装函数
-check(router.indexOf('export const newSpecText') >= 0 && router.indexOf('newSpecPrompt(st)') >= 0, 'router 导出 newSpecText（唯一拼装函数）')
-const specCall = "openTextInNewSession(s, newSpecText(s), newSessionTitleNew('spec'))"
-check(tabs.indexOf(specCall) >= 0, '面板 Tabs 调 newSpecText + newSessionTitleNew(spec)')
-check(bar.indexOf(specCall) >= 0, '状态栏胶囊悬停菜单调同一行（逐字一致）')
-check((tabs.match(/openTextInNewSession\(s, newWayfinderText\(s\)/g) || []).length >= 1, '面板保留紫色入口（newWayfinderText）')
-check((bar.match(/openTextInNewSession\(s, newWayfinderText\(s\)/g) || []).length >= 1, '胶囊菜单保留紫色入口（newWayfinderText）')
+// 2) 两处入口共用一层浮层，宿主不再各写一份拼装
+check(router.indexOf('export const newSpecText') >= 0 && router.indexOf('newSpecPrompt(st)') >= 0, 'router 导出 newSpecText（实施地图卡的唯一拼装函数）')
+check(router.indexOf('export const newWayfinderText') >= 0 && router.indexOf('newWayfinderPrompt(st)') >= 0, 'router 导出 newWayfinderText（探索地图卡的唯一拼装函数）')
+check(entry.indexOf('newWayfinderText(st)') >= 0 && entry.indexOf('newSpecText(st)') >= 0, '两张卡的开场白拼装都住 entry-choice.ts（唯一一处）')
+check(entry.indexOf("newSessionTitleNew(card === 'map' ? 'requirement' : 'spec')") >= 0, '两张卡的会话标题也在这一个文件里配好')
+check(tabs.indexOf("entryChooserOpen(s, 'panel'") >= 0 && bar.indexOf("entryChooserOpen(s, 'statusbar'") >= 0, '两处入口打开同一层浮层（面板 / 状态栏）')
+check(tabs.indexOf('newSpecText') < 0 && bar.indexOf('newSpecText') < 0, '两处宿主都不再自己拼实施地图卡的开场白')
+check((tabs.match(/h\(EntryChooser/g) || []).length === 1 && (bar.match(/h\(EntryChooser/g) || []).length === 1, '两处宿主挂的是同一个 EntryChooser 组件')
 
-// 3) 悬停提示：说清两条路的本质区别（还没想清 / 已经想清），中英成对、两处同句
-check(panelLocale.indexOf("'panel.newWayfinderTitle': '适合还没想清的需求") >= 0, '紫色入口悬停提示 zh：还没想清的需求')
-check(panelLocale.indexOf("'nav.takeableNewTitle': '适合还没想清的需求") >= 0, '胶囊紫色入口悬停提示 zh：与面板同句')
-check(specLocale.indexOf("'panel.newSpecTitle': '适合已经想清的需求") >= 0, '蓝色入口悬停提示 zh：已经想清的需求')
-check(specLocale.indexOf("'nav.takeableSpecTitle': '适合已经想清的需求") >= 0, '胶囊蓝色入口悬停提示 zh：与面板同句')
-check(panelLocale.indexOf("For requirements that are not clear yet") >= 0 && specLocale.indexOf("For requirements that are already clear") >= 0, '两条悬停提示都有英文版且语义相反')
+// 3) 悬停提示：两处合成一句「点一下弹出两张卡」，中英成对；蓝入口词条已删
+check(panelLocale.indexOf("'panel.newWayfinderTitle': '点一下弹出两张卡") >= 0, '面板入口悬停提示：点一下弹出两张卡')
+check(panelLocale.indexOf("'nav.takeableNewTitle': '点一下弹出两张卡") >= 0, '胶囊入口悬停提示与面板同句')
+check(panelLocale.indexOf('Opens two cards') >= 0, '合并后的悬停提示有英文版')
+check(specLocale.indexOf("'panel.newSpec'") < 0 && specLocale.indexOf("'nav.takeableSpec'") < 0, '蓝入口的两个词条已从词表删掉')
 
 // 4) 规格三态各走自己的模板
 check(cv.indexOf("promptTextFor(st, 'specSplit'") >= 0, '规格空态注入 specSplit')
@@ -79,8 +80,8 @@ check(sd.indexOf("tr('act.implement')") >= 0 && sd.indexOf("tr('tip.implement')"
 check(specLocale.indexOf("'act.implement': '实施'") >= 0 && specLocale.indexOf("'tip.implement':") >= 0, 'act.implement / tip.implement 中英词条成对登记')
 
 // 6) 会话标题占位
-check(naming.indexOf("spec: '写规格'") >= 0 && naming.indexOf("spec: 'Write Spec'") >= 0, 'spec 占位标题：写规格 / Write Spec')
-check(naming.indexOf("t.indexOf('spec')") >= 0, 'placeholderTitleFor 认 spec 分支')
+check(naming.indexOf("spec: '实施地图'") >= 0 && naming.indexOf("spec: 'Impl map'") >= 0, 'spec 占位标题：实施地图 / Impl map')
+check(naming.indexOf("t.indexOf('spec')") >= 0 && naming.indexOf("t.indexOf('实施地图')") >= 0, 'placeholderTitleFor 认 spec 分支与新占位词')
 
 console.log('')
 console.log(failed ? ('失败 ' + total + ' 条断言') : ('全部通过：' + total + ' 条断言'))

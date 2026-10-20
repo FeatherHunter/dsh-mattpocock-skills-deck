@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T11:52:09.888Z",
+  "generatedAt": "2026-10-20T12:20:29.727Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 300,
-  "gateCount": 300,
-  "attributedGates": 263,
+  "chainLength": 301,
+  "gateCount": 301,
+  "attributedGates": 264,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 501,
+  "graphFileCount": 503,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1653,6 +1653,7 @@
       "guards": [
         "scripts/lib/prompt-config.mts",
         "src/client/kernel/container-view.ts",
+        "src/client/kernel/entry-choice.ts",
         "src/client/kernel/router.ts",
         "src/client/kernel/store-derived.ts",
         "src/client/statusbar/StatusBar.ts",
@@ -1672,7 +1673,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-1286-detail.ts",
@@ -1770,6 +1771,38 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
+    },
+    {
+      "step": "node tests/verify-1297-entry.ts",
+      "file": "tests/verify-1297-entry.ts",
+      "guards": [
+        "config/copy/cards.yaml",
+        "config/copy/panel.yaml",
+        "config/copy/spec.yaml",
+        "scripts/build.mts",
+        "scripts/lib/prompt-config.mts",
+        "src/client/index.ts",
+        "src/client/kernel/entry-card.ts",
+        "src/client/kernel/entry-choice.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/views/shared/Tabs.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "scripts",
+        "scripts/lib",
+        "src/client",
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views/shared",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-1302-panel-list-skeleton.ts",
@@ -6983,6 +7016,9 @@
       "node tests/verify-prompts.ts",
       "node tests/verify-locale-config.ts"
     ],
+    "config/copy": [
+      "node tests/verify-1297-entry.ts"
+    ],
     "config/prompts": [
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-prompts.ts"
@@ -7164,6 +7200,7 @@
       "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1184-body-parse-gap.ts",
+      "node tests/verify-1297-entry.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-golden-receipts.ts",
@@ -7209,6 +7246,7 @@
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-1281-entries.ts",
+      "node tests/verify-1297-entry.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -7256,6 +7294,7 @@
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1115-timer-handle.ts",
+      "node tests/verify-1297-entry.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-client-hardcode-gate.ts",
@@ -7292,6 +7331,7 @@
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
       "node tests/verify-1295-dual-panel.ts",
+      "node tests/verify-1297-entry.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
@@ -7370,6 +7410,7 @@
       "node tests/verify-deck-slots.ts",
       "node tests/verify-no-title.ts",
       "node tests/verify-1281-entries.ts",
+      "node tests/verify-1297-entry.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -7452,6 +7493,7 @@
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1281-entries.ts",
+      "node tests/verify-1297-entry.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -8153,6 +8195,7 @@
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
+      "node tests/verify-1297-entry.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
@@ -8283,9 +8326,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 515,
+    "fileCount": 517,
     "dirCount": 56,
-    "coveredFileCount": 515,
+    "coveredFileCount": 517,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -8306,6 +8349,8 @@
       "src/client/kernel/config.ts",
       "src/client/kernel/container-view.ts",
       "src/client/kernel/ctx.ts",
+      "src/client/kernel/entry-card.ts",
+      "src/client/kernel/entry-choice.ts",
       "src/client/kernel/health-check.ts",
       "src/client/kernel/icons.ts",
       "src/client/kernel/issue-pages.ts",

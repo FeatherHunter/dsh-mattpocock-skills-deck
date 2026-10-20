@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296：109 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296：111 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -361,6 +361,10 @@ const ALLOWED = {
   //   只记两个设计常量色的字符串，不含路径、标题、凭证。落点 src/client/panelAssembly.ts 的启动对账
   //   之后（等 reconcileLogSwitch 的 Promise 兑现、宿主给出开关值才记；日志契约要求对账前不产生调试日志）。
   'container.accent': ['explore', 'spec'],
+  // #1297：入口浮层打开 / 选卡两趟。from 从哪个入口打开的（panel / statusbar）；cards 给了几张卡；
+  //   card 选了哪张（map / spec）；ok 开新会话的调用发出去没有；textLen 开场白的长度（只记长度不记正文）。
+  'entry.open': ['from', 'cards'],
+  'entry.pick': ['from', 'card', 'ok', 'textLen'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 八键（六键照旧，`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 两键、gh.resolve.fail 两键，
