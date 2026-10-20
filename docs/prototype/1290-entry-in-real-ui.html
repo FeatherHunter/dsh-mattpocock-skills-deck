@@ -56,8 +56,9 @@ h2 .tag{font-size:11px;color:var(--cap);font-weight:400;border:1px solid var(--b
 .act.way{border:1px solid var(--purple);color:var(--purple)}
 .act.spec{border:1px solid var(--blue);color:var(--blue)}
 .act.bug{border:1px solid var(--red);color:var(--red)}
-.act.newreq{border:1px solid var(--sec);color:var(--txt)}
-.act.newreq:hover{border-color:var(--txt);background:rgba(255,255,255,.05)}
+/* 合并后的「新建需求」沿用今天那颗紫按钮的样式（描边紫、字紫）——推荐的那条路就是探索地图那条紫路 */
+.act.newreq{border:1px solid var(--purple);color:var(--purple)}
+.act.newreq:hover{border-color:var(--purple-soft);background:rgba(192,132,252,.08)}
 .act .caret{font-size:8px;opacity:.7;transform:translateY(1px)}
 /* 面板正文 */
 .pbody{flex:1;min-height:0;padding:8px 12px 12px;overflow:auto;background:var(--layer2)}
@@ -129,6 +130,7 @@ td .path{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:var(--purpl
   <p>这一版把 B 方案（单按钮 + 两张选择卡）放进<b>真机形态的右侧面板</b>：面板外框、页签行、按钮、胶囊的样式与取值都照真代码复刻（`src/client/kernel/styles.ts` 里的 <code>.dsws-tabs</code>／<code>.dsws-btn</code>／<code>.dsws-capsule</code>，按钮颜色与顺序照 `src/client/views/shared/Tabs.ts:73-95`），只有列表内容用本仓真实票号示意。</p>
   <p><b>要点：</b>浮层是浮在面板<b>外面</b>的（真代码走 <code>PortalOverlay</code> + <code>position: fixed</code>，照状态栏菜单的做法），所以面板窄的时候它会向左盖到聊天区，不会被面板裁掉。</p>
   <p><b>卡上第三行（主体文本）已定稿（2026-10-20）：</b>探索地图是「想清楚了要做什么，没想清楚细节，也没想清楚做到什么程度。」；实施地图是「要做什么、细节和做到什么程度都想清楚了，还没写成规格。」两句都拆成三行、每行不超过 12 个汉字。</p>
+  <p><b>页签行右端那两颗也定稿了（2026-10-20）：</b>合并后的「新建需求」用<b>紫色</b>——透出来推荐的就是探索地图那条紫路；「+ bug」留在面板外当<b>第二颗独立按钮</b>，右端总共两颗，跟今天差不多。</p>
 </div>
 
 <div class="wrap">
@@ -137,7 +139,7 @@ td .path{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:var(--purpl
     <p class="sub">点面板右上角那颗<b>「新建需求」</b>：浮层从按钮下沿展开、右边跟按钮对齐，宽 392px，<b>比 320 宽的面板还宽，于是向左盖到聊天区</b>——真代码里它走 <code>position: fixed</code>，所以面板多窄都不会把卡裁掉。点卡＝选定，点浮层外面＝收起。</p>
     <div class="legend">
       <span><b>现状</b>：页签行右端三颗（紫「新建需求」/ 蓝「写规格」/ 红「+ bug」）</span>
-      <span><b>这一版</b>：紫蓝合并成一颗灰白「新建需求 ▾」，红「+ bug」保持独立</span>
+      <span><b>这一版</b>：紫蓝合并成一颗紫「新建需求 ▾」，红「+ bug」原地不动、退到第二颗</span>
       <span><b>状态栏</b>：胶囊里也只剩一颗「新建需求 ▾」</span>
     </div>
     <div id="winA"></div>
@@ -534,13 +536,13 @@ document.getElementById('optC').innerHTML=
 
 /* ---- D 段：代码位置 ---- */
 var MAPS=[
-  ['面板页签行与右侧三颗按钮','<span class="path">src/client/views/shared/Tabs.ts:73-95</span>','现在紫「新建需求」蓝「写规格」红「+ bug」三颗挤在页签行右端；这一版紫蓝合并成一颗灰白「新建需求 ▾」，红「+ bug」原地不动。'],
+  ['面板页签行与右侧三颗按钮','<span class="path">src/client/views/shared/Tabs.ts:73-95</span>','现在紫「新建需求」蓝「写规格」红「+ bug」三颗挤在页签行右端；这一版紫蓝合并成一颗紫「新建需求 ▾」（描边紫、字紫，跟今天那颗紫按钮一模一样），红「+ bug」原地不动、退到第二颗。'],
   ['浮层本身（盖在面板外面）','<span class="path">src/client/statusbar/StatusBar.ts:318-327</span>','状态栏菜单已经在用 <code>PortalOverlay</code> + <code>position:fixed</code> + <code>zIndex 2147483000</code>；这张卡照抄那套做法，就能盖出面板、不被面板裁掉。'],
   ['选卡之后做什么','<span class="path">src/client/kernel/router.ts:200,207</span>','选「探索地图」→ <code>newWayfinderText(s)</code> + <code>newSessionTitleNew(\'requirement\')</code>；选「实施地图」→ <code>newSpecText(s)</code> + <code>newSessionTitleNew(\'spec\')</code>。跟现在按钮的点击处理一模一样，只多一步选择。'],
   ['状态栏胶囊那一处','<span class="path">src/client/statusbar/StatusBar.ts:316-328</span>','「可接」胶囊悬停出的菜单，现在是「新建需求」「写规格」两项文字；这一版改成<b>只放一颗「新建需求」按钮</b>，点了弹同一组卡（从胶囊上方弹出）。'],
   ['现在那两句悬停提示','<span class="path">src/client/kernel/locale-data.ts:1649-1650, 2303-2304</span>','「适合还没想清的需求…」「适合已经想清的需求…」正是卡上该说的话，搬进卡里；按钮自己的提示改成「选一条路：探索地图或实施地图」。'],
   ['卡片本身（368×232）','<span class="path">docs/prototype/1290-card-final.html</span>','定稿卡：地图 1:1 + 眉标 + 状态句 + 主体文本 + 底部技能链。这一页直接搬了那里的零件函数。'],
-  ['入口按钮的词表','<span class="path">src/client/kernel/locale-data.ts</span>','<code>panel.newWayfinder</code> / <code>panel.newSpec</code> / <code>panel.newBug</code> 三个 key 要改成「新建需求 / 新建需求 / + bug」并去掉中间那项。'],
+  ['入口按钮的词表','<span class="path">src/client/kernel/locale-data.ts</span>','<code>panel.newWayfinder</code>（紫「新建需求」）与 <code>panel.newBug</code>（红「+ bug」）留着，删掉 <code>panel.newSpec</code>（蓝「写规格」）；<code>nav.takeableSpec</code>（状态栏菜单里那项）同样删掉；两句悬停提示 <code>panel.newWayfinderTitle</code> / <code>panel.newSpecTitle</code> 合成一句新的：点下去会弹两张卡、让人自己选。'],
   ['还没写的部分','<span class="path">—</span>','浮层、卡片、选中后的反馈条都只在这一页原型里；状态栏要跟面板共用同一张卡，得把浮层从面板里提出来做成共享组件。']
 ];
 document.getElementById('mapTable').innerHTML=
