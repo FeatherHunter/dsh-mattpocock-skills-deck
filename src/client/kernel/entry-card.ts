@@ -308,8 +308,9 @@ function chainArrow(x1: number, x2: number, y: number, color: string) {
 
 /**
  * 把一列并行技能「收」进下一格：在四行盒子的右沿外侧画一个右开口的 `}` 形花括号。
- * 两头落在最上和最下两行的中线附近，中间那道尖朝右指向「目标明确」，
- * 再用一小段箭头从尖接到下一格。原来这里只画一根竖线，看不出是「汇总」而不是一条边界。
+ * 两头分别落在第一行、最后一行的纵向中点（原型那条汇总竖线就是从第一行中点拉到最后一行的中点，
+ * 不是从行顶拉到行底）；中间那道尖朝右指向「目标明确」，再用一小段箭头从尖接到下一格。
+ * 原来这里只画一根竖线，看不出是「汇总」而不是一条边界。
  * 参数 x 是括号左侧起点；脊线在 x+5，尖在 x+11、纵向正中是 cy。
  */
 function chainBrace(x: number, top: number, bottom: number, cy: number, color: string) {
@@ -366,7 +367,8 @@ function chainExplore(colors: any) {
   }
   const braceX = gx + colW + 2
   const braceTip = braceX + 11
-  parts.push(chainBrace(braceX, top, bottom, cy, P))
+  // 花括号的两头对齐第一行和最后一行的纵向中点，与原型那条汇总竖线一致（行顶到行底会显得括号画大了）。
+  parts.push(chainBrace(braceX, top + rowH / 2, bottom - rowH / 2, cy, P))
   const goalX = braceTip + 5
   const goalW = nodeWidth(tr('card.entry.chain.goalClear'), CHAIN_FONT)
   parts.push(chainArrow(braceTip, goalX, cy, P))
