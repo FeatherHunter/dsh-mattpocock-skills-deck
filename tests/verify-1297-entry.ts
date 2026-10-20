@@ -51,7 +51,11 @@ check(entryChoice.indexOf("String(st.entryFrom) === hostFrom") >= 0, 'entry-choi
 check(entryChoice.indexOf('export const EntryChooser') >= 0 && entryChoice.indexOf('export const entryChooserOpen') >= 0 && entryChoice.indexOf('export const entryChooserClose') >= 0, 'entry-choice.ts 导出 EntryChooser / entryChooserOpen / entryChooserClose')
 check(entryChoice.indexOf('newWayfinderText(st)') >= 0 && entryChoice.indexOf('newSpecText(st)') >= 0, '两张卡的开场白都在这一个文件里拼（探索 / 实施）')
 check(entryChoice.indexOf("newSessionTitleNew(card === 'map' ? 'requirement' : 'spec')") >= 0, '两张卡的会话标题也在这一个文件里配好')
-check(entryChoice.indexOf('ENTRY_CHOOSER_WIDTH = 392') >= 0, '浮层宽 392（卡片 368 加左右各 12 的内边距）')
+check(entryChoice.indexOf('ENTRY_CHOOSER_WIDTH = 392') >= 0, '面板那一处竖排两张卡的浮层宽 392（卡片 368 加左右各 12 的内边距）')
+check(entryChoice.indexOf('ENTRY_CHOOSER_WIDE = 769') >= 0, '状态栏那一处横排两张卡的浮层宽 769（两张 368 的卡 + 卡间隙 9 + 左右内边距各 12）')
+check(entryChoice.indexOf("flexDirection: horizontal ? 'row' : 'column'") >= 0, '状态栏横排（探索在左、实施在右），面板竖排（探索在上、实施在下）')
+check(entryChoice.indexOf('rect.left') >= 0 && entryChoice.indexOf('vp.w - width - 8') >= 0, '左右先与触发按钮左沿对齐，右边放不下时把浮层右沿顶到屏幕右沿')
+check(entryChoice.indexOf('top: Math.round(bottom + 6)') >= 0 && entryChoice.indexOf('bottom: Math.max(8, Math.round(vp.h - top + 6))') >= 0, '面板从按钮下方弹出、状态栏从按钮上方弹出')
 
 // 3) 卡面文案只住 YAML：客户端源码里搜不到这些句子
 const COPY = [

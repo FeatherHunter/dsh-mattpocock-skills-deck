@@ -10,6 +10,10 @@
  * 两处必须弹同一层浮层、给出同一套开场白。所以两处只调用本文件里的同一组函数，
  * 宿主那一侧不再各自拼一份文案或各自写一套开新会话的调用。
  *
+ * 排布与位置由入口决定，两处不一样是对的：状态栏在屏幕底部，浮层从按钮正上方弹出、
+ * 两张卡横排（探索地图在左、实施地图在右）；面板页签行在面板顶部，浮层从按钮正下方弹出、
+ * 两张卡竖排。左右都先与触发器左沿对齐，右边放不下时才把右沿顶到屏幕右侧。
+ *
  * 状态住全局 store（src/client/kernel/store-snapshot.ts 的 entryOpen / entryFrom / entryPos）：
  * 两处宿主都挂在面板与状态栏这两个可能先卸载的树里，浮层必须挂到 document.body（portalTop），
  * 由本组件自己读状态决定画不画，宿主只管「点触发器时把浮层打开」这一件事。
@@ -35,8 +39,12 @@ declare const CONTAINER_ACCENT: any
 declare const buildEntryCard: any
 
 export const ENTRY_CHOOSER_WIDTH = 392
+// 状态栏那一处是横排两张卡：两张卡各 368 宽、卡间隙 9、左右内边距各 12，合计 769。
+export const ENTRY_CHOOSER_WIDE = 769
+const ENTRY_CARD_GAP = 9
 const ENTRY_CHOOSER_Z = 2147483000
-// 两张卡的顺序是定稿：探索地图在上、实施地图在下；插件不替人判断该走哪条，所以不做任何排序。
+// 两张卡的顺序是定稿：探索地图在前、实施地图在后（状态栏横排时就是探索在左、实施在右）；
+// 插件不替人判断该走哪条，所以不做任何排序。
 const ENTRY_CARDS = ['map', 'spec']
 // 打开浮层时的那颗触发器元素：点它自己算「按了一下开关」，不算「点了外面」，否则会先关又开、看起来像点了没反应。
 let entryTriggerEl: any = null
@@ -49,22 +57,42 @@ function viewportSize(): any {
   } catch (e) { return { w: 1200, h: 800 } }
 }
 
-/** 量出浮层该出现的位置：面板那一排往下弹，状态栏在屏幕底部所以往上弹。左右一律右沿对齐并夹在视口里。 */
-function placeChooser(from: any, el: any): any {
-  const vp = viewportSize()
-  const rect = (el && typeof el.getBoundingClientRect === 'function') ? el.getBoundingClientRect() : null
-  const right = rect ? rect.right : (vp.w - 16)
-  const top = rect ? rect.top : 64
-  const bottom = rect ? rect.bottom : 88
-  let left = Math.round(right - ENTRY_CHOOSER_WIDTH)
-  const maxLeft = vp.w - ENTRY_CHOOSER_WIDTH - 8
+/** 浮层宽度由入口决定：状态栏横排两张卡要宽一些，面板竖排两张卡只要一张卡的宽度。 */
+function chooserWidth(horizontal: any): number {
+  return horizontal ? ENTRY_CHOOSER_WIDE : ENTRY_CHOOSER_WIDTH
+}
+
+/**
+ * 浮层该从哪一列开始。规则是「先与触发器左沿对齐」：从按钮正下方（面板）或正上方（状态栏）展开；
+ * 右边空间不够时把右沿顶到屏幕右侧（留 8px），否则浮层会跑到屏幕外；左边同理夹到 8px。
+ */
+function chooserLeft(rect: any, width: any, vp: any): number {
+  const anchor = rect ? rect.left : 16
+  let left = Math.round(anchor)
+  const maxLeft = Math.round(vp.w - width - 8)
   if (left > maxLeft) left = maxLeft
   if (left < 8) left = 8
-  if (from === 'statusbar') {
-    // 从下方弹出：把浮层的底边钉在锚点上沿上方 6px，高度由内容自己撑开，不会跑到屏幕外。
-    return { left: left, bottom: Math.max(8, Math.round(vp.h - top + 6)) }
+  return left
+}
+
+/**
+ * 量出浮层该出现的位置、宽度与排布方向。
+ * 状态栏在屏幕底部：往上弹，底边钉在锚点上沿上方 6px，两张卡横排；
+ * 面板页签行在面板顶部：往下弹，顶边钉在锚点下沿下方 6px，两张卡竖排。
+ */
+function placeChooser(from: any, el: any): any {
+  const vp = viewportSize()
+  // 屏幕太窄放不下横排两张卡时退回竖排，免得浮层比屏幕还宽、两边都点不到。
+  const horizontal = from === 'statusbar' && vp.w >= ENTRY_CHOOSER_WIDE + 16
+  const width = chooserWidth(horizontal)
+  const rect = (el && typeof el.getBoundingClientRect === 'function') ? el.getBoundingClientRect() : null
+  const left = chooserLeft(rect, width, vp)
+  const top = rect ? rect.top : 64
+  const bottom = rect ? rect.bottom : 88
+  if (horizontal) {
+    return { width: width, left: left, bottom: Math.max(8, Math.round(vp.h - top + 6)), horizontal: true }
   }
-  return { left: left, top: Math.round(bottom + 6) }
+  return { width: width, left: left, top: Math.round(bottom + 6), horizontal: false }
 }
 
 /** 打开浮层（再点同一个入口就是关掉；从另一个入口点则重新量位置、把浮层挪过去）。
@@ -168,7 +196,7 @@ export const EntryChooser = function (props: any) {
     const onKey = function (e: any) {
       const key = e && e.key
       if (key === 'Escape') { e.preventDefault(); entryChooserClose(st); return }
-      if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Tab') {
+      if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Tab') {
         e.preventDefault()
         setFocusIdx(function (i: any) { return (Number(i) + 1) % ENTRY_CARDS.length })
         return
@@ -192,10 +220,13 @@ export const EntryChooser = function (props: any) {
   }, [open, focusIdx, st])
   if (!open) return null
   const pos = (st.entryPos && typeof st.entryPos === 'object') ? st.entryPos : { left: 8, top: 8 }
+  // 排布方向与宽度是打开时量好的（状态栏横排、面板竖排）；万一拿到旧状态没带，退回面板那一套。
+  const horizontal = !!pos.horizontal
+  const width = Number(pos.width) || ENTRY_CHOOSER_WIDTH
   const boxStyle: any = {
     position: 'fixed',
     left: pos.left,
-    width: ENTRY_CHOOSER_WIDTH,
+    width: width,
     boxSizing: 'border-box',
     padding: '12px 12px 9px',
     borderRadius: 10,
@@ -221,7 +252,7 @@ export const EntryChooser = function (props: any) {
       onClick: function (e: any) { if (e && e.stopPropagation) e.stopPropagation(); pickEntry(st, kind) },
       style: {
         display: 'block',
-        marginTop: 9,
+        flex: 'none',
         borderRadius: 12,
         cursor: 'pointer',
         filter: focused ? 'brightness(1.14)' : 'none',
@@ -231,6 +262,11 @@ export const EntryChooser = function (props: any) {
       },
     }, buildEntryCard(kind)))
   }
+  // 状态栏那一处横排（探索在左、实施在右），面板那一处竖排（探索在上、实施在下）；卡片间隙两种排布都是 9。
+  const cards = h('div', {
+    key: 'cards',
+    style: { display: 'flex', flexDirection: horizontal ? 'row' : 'column', gap: ENTRY_CARD_GAP, marginTop: 9 },
+  }, cardNodes)
   const foot = h('div', { key: 'foot', style: { marginTop: 9, fontSize: 10.5, color: '#8b8b95', display: 'flex', gap: 12 } }, [
     h('span', null, String(tr('card.entry.footEsc') || '')),
     h('span', null, String(tr('card.entry.footSwitch') || '')),
@@ -246,7 +282,7 @@ export const EntryChooser = function (props: any) {
     }, '×'),
     h('div', { key: 'title', style: { margin: '0 0 3px', paddingRight: 20, fontSize: 12.5, fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, String(tr('card.entry.title') || '')),
   ]
-  for (let i = 0; i < cardNodes.length; i += 1) children.push(cardNodes[i])
+  children.push(cards)
   children.push(foot)
   return portalTop(h('div', {
     className: 'dsws-entrychooser',
