@@ -273,8 +273,10 @@ function implIdentity(): string {
 
 // ===== 技能链 =====
 // 链上每个节点是一个扁圆角框加等宽字，箭头是一根横线加三角。等宽字按字号估框宽：
-// 西文一个字约 0.58 个字宽、汉字占满一个字宽，这样字号放大后框会跟着变宽，不会把字挤出去。
-// 这一段可用区是 (12,140) 到 (356,220)：四行并行技能竖排之后，上下仍各留约 4px 余量。
+// 字体栈第一档是 Consolas，它一个字符正好 0.55 个字宽；汉字占满一个字宽。
+// 左边距、分叉、四行技能、花括号、目标明确、两张蓝卡都按原型的位置摆，
+// 字号从原型的小字放大到 9.2 之后框会变宽，所以右侧三格依次右移，收尾仍留在底板右边线以内。
+// 这一段可用区是 (12,140) 到 (356,220)。
 const CHAIN_TOP = 140
 const CHAIN_CY = 180
 const CHAIN_NODE_H = 16
@@ -282,8 +284,8 @@ const CHAIN_FONT = 9.2
 
 function nodeWidth(label: any, size: number): number {
   const text = String(label == null ? '' : label)
-  const textW = HAS_CJK.test(text) ? text.length * size : text.length * size * 0.58
-  return Math.max(30, Math.ceil(textW) + 6)
+  const textW = HAS_CJK.test(text) ? text.length * size : text.length * size * 0.55
+  return Math.max(28, Math.ceil(textW) + 5)
 }
 
 function chainNode(x: number, y: number, w: number, text: any, opt: any) {
@@ -305,22 +307,32 @@ function chainArrow(x1: number, x2: number, y: number, color: string) {
 }
 
 /**
- * 把一列并行技能的右沿斜着收进同一个点：每一行先横出一小段，再斜线汇到 (mx, cy)，
- * 汇合点上画一个小圆点。这样一眼能看出「四个并行步骤最后汇总到下一格」；
- * 原来只画一根竖线，看不出流向，像是一条断掉的边界。
+ * 把一列并行技能「收」进下一格：在四行盒子的右沿外侧画一个右开口的 `}` 形花括号。
+ * 两头落在最上和最下两行的中线附近，中间那道尖朝右指向「目标明确」，
+ * 再用一小段箭头从尖接到下一格。原来这里只画一根竖线，看不出是「汇总」而不是一条边界。
+ * 参数 x 是括号左侧起点；脊线在 x+5，尖在 x+11、纵向正中是 cy。
  */
-function chainMergeFan(rightEdges: any[], centers: any[], mx: number, cy: number, color: string) {
-  const parts: any[] = []
-  for (let i = 0; i < rightEdges.length; i += 1) {
-    const rx = rightEdges[i] + 2
-    const y = centers[i]
-    parts.push(h('path', { key: 'fan' + i, d: 'M' + rx + ' ' + y + ' h4 L' + mx + ' ' + cy, stroke: color, strokeWidth: 1, fill: 'none', strokeLinejoin: 'round' }))
-  }
-  parts.push(h('circle', { key: 'join', cx: mx, cy: cy, r: 1.7, fill: color }))
-  return parts
+function chainBrace(x: number, top: number, bottom: number, cy: number, color: string) {
+  const spine = x + 5
+  const tip = x + 11
+  return h('path', {
+    key: 'brace',
+    d: 'M' + (x + 2) + ' ' + top +
+      ' Q' + spine + ' ' + top + ' ' + spine + ' ' + (top + 8) +
+      ' L' + spine + ' ' + (cy - 6) +
+      ' Q' + spine + ' ' + cy + ' ' + tip + ' ' + cy +
+      ' Q' + spine + ' ' + cy + ' ' + spine + ' ' + (cy + 6) +
+      ' L' + spine + ' ' + (bottom - 8) +
+      ' Q' + spine + ' ' + bottom + ' ' + (x + 2) + ' ' + bottom,
+    stroke: color,
+    strokeWidth: 1,
+    fill: 'none',
+    strokeLinejoin: 'round',
+    strokeLinecap: 'round',
+  })
 }
 
-/** 探索地图这条链：/wayfinder 分叉出四个并行技能，汇回「目标明确」，再进 /to-spec 与 /to-tickets。 */
+/** 探索地图这条链：/wayfinder 分叉出四个并行技能，四行右沿再用一个花括号汇总进「目标明确」，然后接 /to-spec 与 /to-tickets。 */
 function chainExplore(colors: any) {
   const P = colors.line
   const PT = colors.text
@@ -331,32 +343,31 @@ function chainExplore(colors: any) {
   const gap = 2.5
   const cy = CHAIN_CY
   const top = cy - (rows.length * rowH + (rows.length - 1) * gap) / 2
+  const bottom = top + (rows.length - 1) * (rowH + gap) + rowH
   const parts: any[] = []
+  const wayX = 26
   const wWay = nodeWidth(tr('card.entry.chain.wayfinder'), CHAIN_FONT)
-  parts.push(chainNode(14, cy - rowH / 2, wWay, tr('card.entry.chain.wayfinder'), { fill: withAlpha(P, 0.12), stroke: P, text: PT, size: CHAIN_FONT }))
-  const sx = 14 + wWay + 4
+  const wayEnd = wayX + wWay
+  parts.push(chainNode(wayX, cy - rowH / 2, wWay, tr('card.entry.chain.wayfinder'), { fill: withAlpha(P, 0.12), stroke: P, text: PT, size: CHAIN_FONT }))
+  const sx = wayEnd + 6
   const gx = sx + 2
-  parts.push(chainArrow(14 + wWay, sx, cy, P))
+  parts.push(chainArrow(wayEnd, sx, cy, P))
   parts.push(h('path', { key: 'v1', d: 'M' + sx + ' ' + cy + ' V' + (top + rowH / 2), stroke: P, strokeWidth: 1, fill: 'none' }))
-  parts.push(h('path', { key: 'v2', d: 'M' + sx + ' ' + cy + ' V' + (top + (rows.length - 1) * (rowH + gap) + rowH / 2), stroke: P, strokeWidth: 1, fill: 'none' }))
+  parts.push(h('path', { key: 'v2', d: 'M' + sx + ' ' + cy + ' V' + (bottom - rowH / 2), stroke: P, strokeWidth: 1, fill: 'none' }))
   let colW = 0
-  const rightEdges: any[] = []
-  const centers: any[] = []
   for (let i = 0; i < rows.length; i += 1) {
     const y = top + i * (rowH + gap)
     const w = nodeWidth(rows[i], CHAIN_FONT)
     if (w > colW) colW = w
     parts.push(chainArrow(sx, gx, y + rowH / 2, P))
     parts.push(chainNode(gx, y, w, rows[i], { fill: withAlpha(P, 0.1), stroke: P, text: PT, size: CHAIN_FONT, rx: 4 }))
-    rightEdges.push(gx + w)
-    centers.push(y + rowH / 2)
   }
-  const mx = gx + colW + 3
-  const fans = chainMergeFan(rightEdges, centers, mx, cy, P)
-  for (let i = 0; i < fans.length; i += 1) parts.push(fans[i])
-  const goalX = mx + 5
+  const braceX = gx + colW + 2
+  const braceTip = braceX + 11
+  parts.push(chainBrace(braceX, top, bottom, cy, P))
+  const goalX = braceTip + 5
   const goalW = nodeWidth(tr('card.entry.chain.goalClear'), CHAIN_FONT)
-  parts.push(chainArrow(mx, goalX, cy, P))
+  parts.push(chainArrow(braceTip, goalX, cy, P))
   parts.push(chainNode(goalX, cy - rowH / 2, goalW, tr('card.entry.chain.goalClear'), { fill: 'transparent', stroke: '#5c636d', dash: true, text: '#b4bac2', size: CHAIN_FONT, rx: 4 }))
   const spX = goalX + goalW + 5
   const spW = nodeWidth(tr('card.entry.chain.toSpec'), CHAIN_FONT)
@@ -376,11 +387,12 @@ function chainImpl() {
   const rowH = CHAIN_NODE_H
   const cy = CHAIN_CY
   const parts: any[] = []
+  const startX = 26
   const grillW = nodeWidth(tr('card.entry.chain.grillWithDocs'), CHAIN_FONT)
-  parts.push(chainNode(14, cy - rowH / 2, grillW, tr('card.entry.chain.grillWithDocs'), { fill: withAlpha(implIdentity(), 0.3), stroke: B, text: BT, size: CHAIN_FONT }))
-  const goalX = 14 + grillW + 14
+  parts.push(chainNode(startX, cy - rowH / 2, grillW, tr('card.entry.chain.grillWithDocs'), { fill: withAlpha(implIdentity(), 0.3), stroke: B, text: BT, size: CHAIN_FONT }))
+  const goalX = startX + grillW + 14
   const goalW = nodeWidth(tr('card.entry.chain.goalClear'), CHAIN_FONT)
-  parts.push(chainArrow(14 + grillW, goalX, cy, B))
+  parts.push(chainArrow(startX + grillW, goalX, cy, B))
   parts.push(chainNode(goalX, cy - rowH / 2, goalW, tr('card.entry.chain.goalClear'), { fill: 'transparent', stroke: '#5c636d', dash: true, text: '#b4bac2', size: CHAIN_FONT, rx: 4 }))
   const spX = goalX + goalW + 14
   const spW = nodeWidth(tr('card.entry.chain.toSpec'), CHAIN_FONT)
