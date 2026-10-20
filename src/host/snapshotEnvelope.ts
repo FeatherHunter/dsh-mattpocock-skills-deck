@@ -91,6 +91,11 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
 
   // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）
   // —— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
+  // #1295：再多记一个 specs —— 这一轮快照里认出几张「实施地图」（规格容器）。maps 是容器总数，
+  //   maps 减 specs 就是「探索地图」的张数；面板的双轨分流一旦看起来不对，先拿这两个数对账：
+  //   是这一轮就没认出来（specs=0），还是认出来了却没被列表画成蓝轨（渲染侧问题）。
+  //   注意老直连快照路（src/host/snapshotBuild.ts）只认 wayfinder:map 标签、不产规格容器，
+  //   那条路上 specs 恒 0 属正常，别据此判「一张规格都没认出来」。
   // 类型说明（#1155）：落盘那一步是接线处给的回调，它的返回形状在这一层表达不出来，
   // 所以按调用方传进来的类型原样还回去（运行时不碰，只是把类型跟过去）。
   // 这里必须保持 async（原样就是 async）：调用方按承诺等它，产物里也必须是 async 函数。
@@ -102,7 +107,7 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
       if (logCtx && snap && (snap as SnapLike).fromCache !== true) {
         const _d: DeckLike = ((snap as SnapLike).deck && typeof (snap as SnapLike).deck === 'object') ? ((snap as SnapLike).deck as DeckLike) : {}
         const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null
-        logCtx.fire('info', 'snapshot.built', { maps: ((snap as SnapLike).maps || []).length, issues: ((snap as SnapLike).issues || []).length, labels: ((snap as SnapLike).labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - ((snap as SnapLike).generatedMs || Date.now()) })
+        logCtx.fire('info', 'snapshot.built', { maps: ((snap as SnapLike).maps || []).length, specs: (((snap as SnapLike).maps || []) as any[]).filter(function (m: any) { return !!m && m.type === 'spec' }).length, issues: ((snap as SnapLike).issues || []).length, labels: ((snap as SnapLike).labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - ((snap as SnapLike).generatedMs || Date.now()) })
       }
     } catch (e) {}
     return d.adoptSnapshot(snap, c) as T

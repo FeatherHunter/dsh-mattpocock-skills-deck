@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T08:25:07.802Z",
+  "generatedAt": "2026-10-20T10:39:45.032Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 297,
-  "gateCount": 297,
-  "attributedGates": 260,
+  "chainLength": 298,
+  "gateCount": 298,
+  "attributedGates": 261,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
@@ -1747,6 +1747,29 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
+    },
+    {
+      "step": "node tests/verify-1295-dual-panel.ts",
+      "file": "tests/verify-1295-dual-panel.ts",
+      "guards": [
+        "src/client/kernel/container-view.ts",
+        "src/client/views/DetailActionBar.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/ListTabRow.ts",
+        "src/client/views/MapDetail.ts",
+        "src/client/views/MapDetailHead.ts",
+        "src/client/views/MapDetailSpecBody.ts",
+        "src/client/views/MapDetailTop.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -7225,6 +7248,7 @@
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
+      "node tests/verify-1295-dual-panel.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-646-native-tab.ts",
@@ -7328,6 +7352,7 @@
       "node tests/verify-1237-mapdetail-copy.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
+      "node tests/verify-1295-dual-panel.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",

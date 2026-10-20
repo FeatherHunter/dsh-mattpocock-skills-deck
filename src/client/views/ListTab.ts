@@ -17,6 +17,9 @@ declare function chainSteps(...args: any[]): any;
 declare function chipProps(...args: any[]): any;
 // #1286：容器角标上的标记类名（内核 container-view.ts 给出）：列表页按它认出「这一行是容器」
 declare const CONTAINER_CHIP_MARKER_CLASS: any;
+// #1295：容器种类判定（内核 container-view.ts 给出）：列表页的分桶与行渲染必须看同一个结论，
+//   否则同一张票会「行画成地图、却排在普通票堆里」。
+declare function containerKindOf(...args: any[]): any;
 declare function closedPagesNode(...args: any[]): any;
 declare function compute(...args: any[]): any;
 declare function darken(...args: any[]): any;
@@ -48,6 +51,10 @@ declare const _tagsFpOf: any;
 declare const labelClicks: any;
 declare const listPrefs: any;
 declare const panelClock: any;
+
+// #1295：上一次落过的 container.split 分桶指纹（只在调试档用）。同一份分桶结果不重复落行 ——
+//   切页签、改筛选会让下面那个副作用再跑一趟，但四组条数与兜底标记都没变就没有新信息，记了属于「无变化的心跳」。
+let _splitLogFp: string = ''
 
 export     const MAP_ROW_GUARD_NARROW = 320
 export     const MAP_ROW_GUARD_WIDE = 440
@@ -104,8 +111,9 @@ export     const ListTab = ({ st, narrow }: any) => {
       React.useLayoutEffect(function () {
         // #606 常规测点（折叠测量耗时）：本副作用跑在提交阶段，落在渲染期计时的盲区里，
         //   是「那一帧在建什么」的主要嫌疑之一，所以把这段耗时累加进 panelClock 交给 DockSync 打日志；
-        //   本文件在渲染目录里但不在可写日志的点名名单里（见 tests/verify-log-truncate.js 第 4 组），
-        //   所以这里只累加数字，不写日志。
+        //   这里的耗时只累加数字、不打测量日志（原由 tests/verify-log-truncate.js 第 4 组的「渲染目录点名
+        //   名单」拦着，那份名单已随 #1052 收编不存在；现行约束是日志契约 1.5：渲染路径只许记编号与计数）。
+        //   #1295 起这个副作用另有一条调试档的 container.split（见下），只记分桶计数，与这里的耗时测点无关。
         const _tFit0 = isEnabled('debug') ? panelNow() : 0
         const _addFit = function () { try { if (_tFit0) panelClock.fitMs = Math.round((panelClock.fitMs || 0) + (panelNow() - _tFit0)) } catch (eF) {} }
         const fp = String((st.snapshot && st.snapshot.generatedMs) || '') + '|' + st.tab + '|' + st.stateFilter + '|' + (st.lblFilters || []).join(',')
@@ -113,6 +121,22 @@ export     const ListTab = ({ st, narrow }: any) => {
         _tagsFpOf.set(st, fp)
         fitAllTags()
         try { fitMapRows() } catch (e) {}
+        // #1295 分流口径日志（调试档）：这一轮列表把行分到哪几组 —— 探索地图 / 实施地图（规格）/ 普通票 / 已关闭，
+        //   外加「容器判定是否退回了本文件内的兜底」。只记计数与一个快照时刻，不记任何票面原文
+        //   （日志契约 1.5：渲染路径只许记编号与计数）。genMs 是这份快照的生成时刻，用来把这一行与同一份
+        //   快照的宿主侧 snapshot.built 对起来；四个计数取的是标签筛选之前的分桶数（筛选在画行时才生效）。
+        //   切页签、改筛选会让这个副作用再跑一趟，但四组条数与兜底标记都没变时不重复落行（日志纪律：无变化不记）。
+        //   字段含义与读法见 research/489-appendix.md 第 1 章 #114。
+        if (isEnabled('debug')) {
+          const degraded: boolean = !(typeof containerKindOf === 'function')
+          const exploreN: number = mapOnlyIssues.length
+          const specN: number = specOnlyIssues.length
+          const splitFp: string = exploreN + '|' + specN + '|' + plainOpenIssues.length + '|' + closedIssues.length + '|' + (degraded ? 1 : 0)
+          if (splitFp !== _splitLogFp) {
+            _splitLogFp = splitFp
+            log('debug', 'container.split', { explore: exploreN, spec: specN, plain: plainOpenIssues.length, closed: closedIssues.length, degraded: degraded, genMs: (st.snapshot && st.snapshot.generatedMs) || 0 })
+          }
+        }
         _addFit()
       })
       // Map #120 T1：标题适配 + 宽度护栏 的容器尺寸监听（面板拖拽 / 字体加载 / window resize）
@@ -186,21 +210,38 @@ export     const ListTab = ({ st, narrow }: any) => {
         return decorated.map(function (d: any) { return d.x })
       }
       // #1253 这一笔优化（转写零变化之后单独的一笔，行为不变，只是少扫几趟）：
-      //   原来先用两个 filter 分出「未关闭 / 已关闭」，再对未关闭那堆各 filter 一次判「是不是地图」，
-      //   一趟渲染把整个列表扫四遍；而且同一张未关闭票的 labels 会被 .some 读两遍（正反两次 filter
-      //   各判一次 isMapIssue）。现在只扫一趟、每张票只判一次状态、只判一次是不是地图。
-      //   三个数组的元素顺序与原来完全一致（都按 issues 原序收），后面的排序口径与用法都不变。
+      //   一趟渲染把整个列表扫一遍就分好桶：每张票只判一次状态、只判一次「是哪种容器」。
+      // #1295：容器种类判定收口到内核 `src/client/kernel/container-view.ts` 的 `containerKindOf` 一处，
+      //   这里不再维护第二份判据（票面 AC 要求「不复制多份」）。内核那份同时认「type 字段」与
+      //   `wayfinder:map` 标签（对象式与字符串式都认）；这里若自己另判一份，同一张带字符串式标签的
+      //   地图票就会「行画成地图、却排在普通票堆里」，列表顺序与行外观各说各话。
+      //   构建把内核拼进同一作用域，成品里直接用内核；只有「单文件求值」的门禁环境里它不在作用域，
+      //   才走下面这份同口径兜底（判定次序与内核一致：spec → map → 普通票）。这是显式的降级路径，
+      //   不是第二份真源：降级时日志 degraded 记 true，门禁 AC8k 还会比对两条路的行顺序必须一致。
+      const containerKindOfSafe: any = (typeof containerKindOf === 'function') ? containerKindOf : function (x: any): any {
+        if (!x) return null
+        if (x.type === 'spec') return 'spec'
+        if (x.type === 'map') return 'map'
+        const labs: any[] = Array.isArray(x.labels) ? x.labels : []
+        for (let i: number = 0; i < labs.length; i++) {
+          const l: any = labs[i]
+          const nm: any = (typeof l === 'string') ? l : (l && l.name)
+          if (nm === 'wayfinder:map') return 'map'
+        }
+        return null
+      }
       const mapOnlyIssues: any[] = []
-      // #1286：规格容器单独一桶（type==='spec'）。列表顺序是「探索地图 → 规格 → 普通票」，
+      // #1286：规格容器单独一桶。列表顺序是「探索地图 → 规格 → 普通票」，
       //   两类容器各自成组；组内按最近更新降序（容器是正在推进的东西，组内不看面板选的那个排序档）。
       const specOnlyIssues: any[] = []
       const plainOpenIssues: any[] = []
       const closedIssues: any[] = []
       for (const x of issues) {
         if (x.state === 'CLOSED') { closedIssues.push(x); continue }
-        if (x.type === 'spec') { specOnlyIssues.push(x); continue }
-        if (x.type === 'map' || ((x.labels || []).some(function (l: any) { return l.name === 'wayfinder:map' }))) mapOnlyIssues.push(x)
-        else plainOpenIssues.push(x)
+        const cKind: any = containerKindOfSafe(x)
+        if (cKind === 'spec') { specOnlyIssues.push(x); continue }
+        if (cKind === 'map') { mapOnlyIssues.push(x); continue }
+        plainOpenIssues.push(x)
       }
       // #1286：容器组内按最近更新降序。updatedAt 是宿主给的 ISO 时间串，字典序即时间序；
       //   同一时刻用编号升序兜底，保证顺序稳定。

@@ -1,0 +1,316 @@
+{
+  "note": "#1295 双轨面板门禁 · 列表页基线。这份文件是列表页断言的数据与期望值的唯一出处：票池、容器表、放入顺序、期望顺序与分组、每一行该怎么画，全部在这里；门禁代码里不许再写一份顺序数组或颜色常量。判据：探索地图 → 实施地图 → 普通票 三段；容器组内按更新时间（updatedAt）降序，同一时刻按编号升序；普通票仍按面板排序档（updatedAt 降序）。",
+  "st": {
+    "sortKey": "updatedAt",
+    "sortDir": "desc",
+    "stateFilter": "open",
+    "cwd": "D:\\ws"
+  },
+  "issues": [
+    {
+      "number": 1201,
+      "key": "1201",
+      "effortId": "default",
+      "title": "MAP-ALPHA",
+      "state": "OPEN",
+      "type": "map",
+      "labels": [{ "name": "wayfinder:map" }],
+      "updatedAt": "2026-10-20T06:00:00.000Z"
+    },
+    {
+      "number": 1202,
+      "key": "1202",
+      "effortId": "default",
+      "title": "STRING-LABEL-MAP",
+      "state": "OPEN",
+      "type": "task",
+      "labels": ["wayfinder:map"],
+      "updatedAt": "2026-10-20T07:00:00.000Z"
+    },
+    {
+      "number": 1301,
+      "key": "1301",
+      "effortId": "default",
+      "title": "SPEC-EMPTY",
+      "state": "OPEN",
+      "type": "spec",
+      "labels": [{ "name": "spec" }],
+      "updatedAt": "2026-10-20T09:00:00.000Z"
+    },
+    {
+      "number": 1302,
+      "key": "1302",
+      "effortId": "default",
+      "title": "SPEC-OPEN",
+      "state": "OPEN",
+      "type": "spec",
+      "labels": [],
+      "updatedAt": "2026-10-20T04:00:00.000Z"
+    },
+    {
+      "number": 1303,
+      "key": "1303",
+      "effortId": "default",
+      "title": "SPEC-DONE",
+      "state": "OPEN",
+      "type": "spec",
+      "labels": [],
+      "updatedAt": "2026-10-20T04:00:00.000Z"
+    },
+    {
+      "number": 1501,
+      "key": "1501",
+      "effortId": "default",
+      "title": "PLAIN-BUG",
+      "state": "OPEN",
+      "type": "task",
+      "labels": [{ "name": "bug" }],
+      "updatedAt": "2026-10-20T08:30:00.000Z"
+    },
+    {
+      "number": 1502,
+      "key": "1502",
+      "effortId": "default",
+      "title": "THIRD-PARTY-ISSUE",
+      "state": "OPEN",
+      "type": null,
+      "labels": ["bug", "needs-triage"],
+      "updatedAt": "2026-10-20T04:00:00.000Z"
+    },
+    {
+      "number": 1503,
+      "key": "1503",
+      "effortId": "default",
+      "title": "PLAIN-READY",
+      "state": "OPEN",
+      "type": "task",
+      "labels": [{ "name": "ready-for-agent" }],
+      "updatedAt": "2026-10-20T03:00:00.000Z"
+    },
+    {
+      "number": 1601,
+      "key": "1601",
+      "effortId": "default",
+      "title": "CLOSED-ISSUE",
+      "state": "CLOSED",
+      "type": "task",
+      "labels": [],
+      "updatedAt": "2026-10-20T10:00:00.000Z"
+    }
+  ],
+  "maps": [
+    {
+      "number": 1201,
+      "key": "1201",
+      "effortId": "default",
+      "title": "MAP-ALPHA",
+      "state": "OPEN",
+      "type": "map",
+      "labels": [{ "name": "wayfinder:map" }],
+      "stats": { "total": 4, "closed": 1 },
+      "tickets": []
+    },
+    {
+      "number": 1202,
+      "key": "1202",
+      "effortId": "default",
+      "title": "STRING-LABEL-MAP",
+      "state": "OPEN",
+      "type": "map",
+      "labels": ["wayfinder:map"],
+      "stats": { "total": 2, "closed": 0 },
+      "tickets": []
+    },
+    {
+      "number": 1301,
+      "key": "1301",
+      "effortId": "default",
+      "title": "SPEC-EMPTY",
+      "state": "OPEN",
+      "type": "spec",
+      "labels": [],
+      "stats": { "total": 0, "closed": 0 },
+      "tickets": []
+    },
+    {
+      "number": 1302,
+      "key": "1302",
+      "effortId": "default",
+      "title": "SPEC-OPEN",
+      "state": "OPEN",
+      "type": "spec",
+      "labels": [],
+      "stats": { "total": 3, "closed": 1 },
+      "tickets": []
+    },
+    {
+      "number": 1303,
+      "key": "1303",
+      "effortId": "default",
+      "title": "SPEC-DONE",
+      "state": "OPEN",
+      "type": "spec",
+      "labels": [],
+      "stats": { "total": 2, "closed": 2 },
+      "tickets": []
+    }
+  ],
+  "inputOrder": [1601, 1302, 1501, 1202, 1303, 1502, 1201, 1503, 1510, 1301],
+  "inputOrderNote": "故意打乱，且把已关闭的 1601 放在最前面、把 1510 混进来：门禁按编号在这里取票，期望顺序由 expected 给出，排序不能依赖宿主给的顺序。1510 是列表里不存在的编号，占位用，实际取票时会被过滤掉。",
+  "expected": {
+    "order": ["1202", "1201", "1301", "1302", "1303", "1501", "1502", "1503"],
+    "groups": [
+      { "group": "map", "label": "探索地图", "keys": ["1202", "1201"] },
+      { "group": "spec", "label": "实施地图（规格）", "keys": ["1301", "1302", "1303"] },
+      { "group": "open", "label": "普通票", "keys": ["1501", "1502", "1503"] }
+    ],
+    "closedKeysAbsent": ["1601"],
+    "orderRule": "组内按 updatedAt 降序；updatedAt 相同按编号升序（1302 与 1303 同为 2026-10-20T04:00:00.000Z，1302 在前）。1301 是全局最新的一张（09:00），但它属于规格组，仍排在两张探索地图之后；1501（08:30）也比 1302（04:00）新，却排在规格组之后——证明这三段是分组顺序，不是全局按时间排序。"
+  },
+  "rows": [
+    {
+      "case": "mapOpen",
+      "what": "探索地图行（对象式 wayfinder:map 标签 + type=map）",
+      "issueKey": "1201",
+      "containerKey": "1201",
+      "expect": {
+        "kind": "map",
+        "chipText": "地图",
+        "chipClass": "dsws-chip-m",
+        "chipMarkerClass": "dsws-chip-container",
+        "chipIcon": "map",
+        "bar": "#c084fc",
+        "tint": "rgba(188,140,255,.07)",
+        "badgeColor": "#c084fc"
+      }
+    },
+    {
+      "case": "stringLabelMap",
+      "what": "只带字符串式 'wayfinder:map' 标签、type 还是 task 的票（老矛盾：行画成地图却排在普通票堆里）",
+      "issueKey": "1202",
+      "containerKey": "1202",
+      "expect": {
+        "kind": "map",
+        "chipText": "地图",
+        "chipClass": "dsws-chip-m",
+        "chipMarkerClass": "dsws-chip-container",
+        "chipIcon": "map",
+        "bar": "#c084fc",
+        "tint": "rgba(188,140,255,.07)",
+        "badgeColor": "#c084fc"
+      }
+    },
+    {
+      "case": "specEmpty",
+      "what": "实施地图（规格）空态：0 张实施票",
+      "issueKey": "1301",
+      "containerKey": "1301",
+      "expect": {
+        "kind": "spec",
+        "chipText": "规格",
+        "chipClass": "dsws-chip-s",
+        "chipMarkerClass": "dsws-chip-container",
+        "chipIcon": "map",
+        "bar": "#1D4ED8",
+        "tint": "rgba(29,78,216,.10)",
+        "badgeColor": "#f59e0b",
+        "primaryText": "拆票",
+        "primaryColor": "#f59e0b"
+      }
+    },
+    {
+      "case": "specOpen",
+      "what": "实施地图（规格）进行中：有未关实施票",
+      "issueKey": "1302",
+      "containerKey": "1302",
+      "expect": {
+        "kind": "spec",
+        "chipText": "规格",
+        "chipClass": "dsws-chip-s",
+        "chipMarkerClass": "dsws-chip-container",
+        "chipIcon": "map",
+        "bar": "#1D4ED8",
+        "tint": "rgba(29,78,216,.10)",
+        "badgeColor": "#1D4ED8",
+        "primaryText": "执行",
+        "primaryColor": "#1D4ED8"
+      }
+    },
+    {
+      "case": "specDone",
+      "what": "实施地图（规格）收尾：实施票全关",
+      "issueKey": "1303",
+      "containerKey": "1303",
+      "expect": {
+        "kind": "spec",
+        "chipText": "规格",
+        "chipClass": "dsws-chip-s",
+        "chipMarkerClass": "dsws-chip-container",
+        "chipIcon": "map",
+        "bar": "#1D4ED8",
+        "tint": "rgba(29,78,216,.10)",
+        "badgeColor": "#3fb950",
+        "primaryText": "完成",
+        "primaryColor": "#3fb950"
+      }
+    },
+    {
+      "case": "plainThirdParty",
+      "what": "第三方提交的票：无 type、无章节标记，标签是字符串式的 bug + needs-triage（列表页识别不出它是容器）",
+      "issueKey": "1502",
+      "expect": {
+        "kind": "open",
+        "badgeColor": "#f59e0b",
+        "primaryText": "诊断",
+        "primaryColor": "#f59e0b",
+        "inject": "TPL:diagnose:#1502"
+      }
+    }
+  ],
+  "standaloneRows": [
+    {
+      "case": "plainNoLabels",
+      "what": "什么标记都没有的票：无 type、无标签、无正文（票面说的「识别不出的票」最极端的样子）",
+      "issue": {
+        "number": 1505,
+        "key": "1505",
+        "effortId": "default",
+        "title": "NO-MARKER-AT-ALL",
+        "state": "OPEN",
+        "type": null,
+        "labels": [],
+        "body": null,
+        "updatedAt": "2026-10-20T02:00:00.000Z"
+      },
+      "expect": {
+        "kind": "open",
+        "badgeColor": "#f59e0b",
+        "primaryText": "诊断",
+        "primaryColor": "#f59e0b",
+        "inject": "TPL:diagnose:#1505"
+      }
+    },
+    {
+      "case": "blockedPlain",
+      "what": "被阻塞的普通票：列表行上那枚「被阻塞」徽章统一是红 #f87171（与详情页同一个红）",
+      "issue": {
+        "number": 1504,
+        "key": "1504",
+        "effortId": "default",
+        "title": "BLOCKED-PLAIN",
+        "state": "OPEN",
+        "type": "task",
+        "labels": [{ "name": "bug" }],
+        "updatedAt": "2026-10-20T02:30:00.000Z"
+      },
+      "blockOf": { "by": [1], "map": null },
+      "expect": {
+        "kind": "open",
+        "blockedClass": "dsws-blocked",
+        "blockedColor": "#f87171",
+        "blockedText": "被阻塞",
+        "noPrimaryButton": true
+      }
+    }
+  ]
+}

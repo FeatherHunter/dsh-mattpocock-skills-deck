@@ -1,0 +1,80 @@
+{
+  "note": "#1295 双轨面板门禁 · 实施地图（规格，spec）详情页基线。容器身份、计数文案、三态按钮文字与颜色、点主按钮注入哪条提示词、正文该画哪七节、不该画哪些探索地图的节、骨架类名，全部在这份文件里；门禁代码不另写一份。",
+  "kind": "spec",
+  "container": {
+    "number": 1290,
+    "key": "1290",
+    "effortId": "default",
+    "title": "实施规格",
+    "state": "OPEN",
+    "type": "spec",
+    "labels": [],
+    "stats": { "total": 0, "closed": 0 },
+    "tickets": [],
+    "sections": [
+      { "body": "问题正文" },
+      { "body": "方案正文" },
+      { "body": "故事正文" },
+      { "body": "实现决策正文" },
+      { "body": "测试决策正文" },
+      { "body": "范围外正文" },
+      { "body": "补充正文" }
+    ],
+    "destination": "SPEC-DEST",
+    "notes": "SPEC-NOTES"
+  },
+  "states": [
+    {
+      "name": "empty",
+      "what": "空态：还没有拆出实施票",
+      "stats": { "total": 0, "closed": 0 },
+      "tickets": [],
+      "expect": {
+        "countText": "本规格 {n} 张实施票（已关闭 {c} 张）",
+        "primaryText": "拆票",
+        "primaryColor": "#f59e0b",
+        "inject": "FOR:specSplit"
+      }
+    },
+    {
+      "name": "open",
+      "what": "进行中：还有未关实施票",
+      "stats": { "total": 2, "closed": 1 },
+      "tickets": [
+        { "number": 11, "title": "实施票一" },
+        { "number": 12, "title": "实施票二" }
+      ],
+      "expect": {
+        "countText": "本规格 {n} 张实施票（已关闭 {c} 张）",
+        "primaryText": "执行",
+        "primaryColor": "#1D4ED8",
+        "inject": "FOR:specExecute"
+      }
+    },
+    {
+      "name": "done",
+      "what": "收尾：实施票全关",
+      "stats": { "total": 2, "closed": 2 },
+      "tickets": [
+        { "number": 11, "title": "实施票一", "state": "CLOSED" },
+        { "number": 12, "title": "实施票二", "state": "CLOSED" }
+      ],
+      "expect": {
+        "countText": "本规格 {n} 张实施票（已关闭 {c} 张）",
+        "primaryText": "完成",
+        "primaryColor": "#3fb950",
+        "inject": "FOR:specComplete"
+      }
+    }
+  ],
+  "expect": {
+    "chipText": "规格",
+    "chipClass": "dsws-chip-s",
+    "badgeColor": "#1D4ED8",
+    "newSessionText": "新会话",
+    "countForeign": "本图 {n} 张子票（已关闭 {c} 张）",
+    "sectionTitles": ["问题陈述", "解决方案", "用户故事", "实现决策", "测试决策", "不在范围内", "补充说明"],
+    "forbiddenBodyMarkers": ["SPEC-DEST", "SPEC-NOTES", "map.notesCap", "map.decisions", "map.fog", "map.outOfScope"],
+    "skeletonClasses": ["dsws-layers", "dsws-layerbox", "dsws-dest", "dsws-node"]
+  }
+}

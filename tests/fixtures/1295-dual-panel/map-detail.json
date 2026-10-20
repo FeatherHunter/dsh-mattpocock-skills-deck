@@ -1,0 +1,83 @@
+{
+  "note": "#1295 双轨面板门禁 · 探索地图（map）详情页基线。容器身份、计数文案、三态按钮文字与颜色、点主按钮注入哪条提示词、正文该画哪几节、骨架类名，全部在这份文件里；门禁代码不另写一份。",
+  "kind": "map",
+  "container": {
+    "number": 1228,
+    "key": "1228",
+    "effortId": "default",
+    "title": "探索地图",
+    "state": "OPEN",
+    "type": "map",
+    "labels": [{ "name": "wayfinder:map" }],
+    "stats": { "total": 0, "closed": 0 },
+    "tickets": [],
+    "destination": "地图目的地",
+    "notes": "地图备注",
+    "decisions": ["决策一"],
+    "fog": ["迷雾一"],
+    "outOfScope": ["范围外一"]
+  },
+  "states": [
+    {
+      "name": "empty",
+      "what": "空态：一张子票都没有",
+      "stats": { "total": 0, "closed": 0 },
+      "tickets": [],
+      "expect": {
+        "countText": "本图 {n} 张子票（已关闭 {c} 张）",
+        "primaryText": "检查",
+        "primaryColor": "#f59e0b",
+        "inject": "INSPECT:1228"
+      }
+    },
+    {
+      "name": "open",
+      "what": "进行中：还有未关子票",
+      "stats": { "total": 2, "closed": 1 },
+      "tickets": [
+        { "number": 1, "title": "子票一" },
+        { "number": 2, "title": "子票二" }
+      ],
+      "expect": {
+        "countText": "本图 {n} 张子票（已关闭 {c} 张）",
+        "primaryText": "执行",
+        "primaryColor": "#c084fc",
+        "inject": "START:1228"
+      }
+    },
+    {
+      "name": "done",
+      "what": "收尾：子票全关",
+      "stats": { "total": 2, "closed": 2 },
+      "tickets": [
+        { "number": 1, "title": "子票一", "state": "CLOSED" },
+        { "number": 2, "title": "子票二", "state": "CLOSED" }
+      ],
+      "expect": {
+        "countText": "本图 {n} 张子票（已关闭 {c} 张）",
+        "primaryText": "完成",
+        "primaryColor": "#3fb950",
+        "inject": "COMPLETE:1228:2/2"
+      }
+    }
+  ],
+  "expect": {
+    "chipText": "地图",
+    "chipClass": "dsws-chip-m",
+    "badgeColor": "#c084fc",
+    "newSessionText": "新会话",
+    "countForeign": "本规格 {n} 张实施票（已关闭 {c} 张）",
+    "bodyMarkers": ["地图目的地", "map.notesCap", "map.decisions", "map.fog", "map.outOfScope"],
+    "skeletonClasses": ["dsws-layers", "dsws-layerbox", "dsws-dest", "dsws-node"]
+  },
+  "blockedCase": {
+    "what": "被阻塞的子票在详情页是红 #f87171（与列表行同一个红）",
+    "stats": { "total": 2, "closed": 0 },
+    "tickets": [
+      { "number": 1, "title": "阻塞者" },
+      { "number": 2, "title": "被阻塞的票", "blockedBy": [1] }
+    ],
+    "expectColor": "#f87171",
+    "expectText": "被阻塞"
+  }
+}

@@ -71,7 +71,11 @@ export function createSessionRefresh(deps: RefreshDeps) {
   // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）—— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
-  async function adoptSnapLog(snap: SnapOut, c: string) { try { if (logCtx && snap && snap.fromCache !== true) { const _d: Deck = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) as SnapOut }
+  // #1295：再加一个 specs（这一轮认出几张「实施地图」= 规格容器；maps 是容器总数，maps 减 specs 即探索地图张数）。
+  //   老直连快照路（src/host/snapshotBuild.ts）只认 wayfinder:map 标签、不产规格容器，那条路 specs 恒 0 属正常。
+  //   这里与 src/host/snapshotEnvelope.ts 的 adoptSnapLog 是同一个事件的两份实现，字段必须一起改，否则
+  //   「快照路」与「强制刷新路」记出来的字段不一样，拿日志对账时会被误导。
+  async function adoptSnapLog(snap: SnapOut, c: string) { try { if (logCtx && snap && snap.fromCache !== true) { const _d: Deck = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, specs: ((snap.maps || []) as any[]).filter(function (m: any) { return !!m && m.type === 'spec' }).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) as SnapOut }
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP: Promise<typeof import('../shared/tracker/list-dedupe.js')> | null = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
