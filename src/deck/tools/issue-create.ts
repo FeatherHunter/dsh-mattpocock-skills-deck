@@ -10,7 +10,7 @@
 // 返回值就是**写后的真状态**（契约 create 回的那张票），AI 不必再读一次确认。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
-import { classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
+import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
 import type { EdgeEvidence } from '../shell/edge-landing.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
@@ -76,7 +76,7 @@ export interface DeckIssueCreateDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_create',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），重复调用按锚复用同一张。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成它的原生依赖边（边没写成时票照建，回执逐条说明）。',
   parameters: {
     type: 'object',
     properties: {
@@ -84,6 +84,7 @@ export const definition = {
       body: { type: 'string', description: '正文；缺省时按种类补最小骨架' },
       kind: { type: 'string', enum: ['task', 'bug', 'map', 'spec', 'ticket'], description: '票的种类，缺省 task' },
       parentKey: { type: 'string', description: '父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）' },
+      blockedBy: { type: 'array', items: { type: 'string' }, description: '这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）' },
       labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
@@ -137,6 +138,32 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
     if (!s.ok) return shell.unsupported('deck_issue_create', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!title) return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '要建哪一张票：title 不能空。', { cost: { estimated: est } })
+    // #1299：建票时顺手把阻塞边一起写掉 —— 拆票那一步最容易漏的就是边，入参一次给全比等 AI 记得再补强。
+    // 形状与 deck_map_link 的 blockedBy 一致：元素是票号或 key（'#1298' 也认，去掉 # 再走），去重后按整批替换。
+    // 字符集先挡一道：只收本仓库内票号（数字，或本地后端的字母数字 key），别把别的仓库的票号写成原生边。
+    const blockedRaw: unknown = (a.blockedBy === undefined || a.blockedBy === null) ? [] : a.blockedBy
+    const blockedKeys: string[] = []
+    if (!Array.isArray(blockedRaw)) {
+      return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, 'blockedBy 要写成数组：元素是挡住这张票的票号（例如 ["1298"]）。', { cost: { estimated: est } })
+    }
+    {
+      const seen: Record<string, true> = {}
+      for (let i = 0; i < blockedRaw.length; i += 1) {
+        const raw = blockedRaw[i]
+        if (raw === undefined || raw === null) continue
+        if (typeof raw !== 'string' && typeof raw !== 'number') {
+          return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, 'blockedBy 里的票号要写成字符串或数字（第 ' + (i + 1) + ' 个不是）。', { cost: { estimated: est } })
+        }
+        const k = String(raw).trim().replace(/^#/, '')
+        if (!k) continue
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(k)) {
+          return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, 'blockedBy 里的「' + k.slice(0, 40) + '」不是本仓库内的票号：只填票号或 key（例如 "1298"）。', { cost: { estimated: est } })
+        }
+        if (seen[k]) continue
+        seen[k] = true
+        blockedKeys.push(k)
+      }
+    }
 
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
@@ -244,6 +271,36 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         // 断言只为把「可选」告诉编译器，编译后这条语句与老写法逐字相同。
         items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: parentLanded ? 'ok' : 'failed' }, (edgeEvidence as EdgeEvidenceFn)('parent', rel, ev)))
       }
+      // #1299：阻塞边在票建成之后写（create 的入参里没有这一格）。语义与 deck_map_link 的 blockedBy 相同：
+      //   整批替换。刚建出来的票上本来没有边，这一趟等价于「加上这批边」；幂等锚复用同一张票时，
+      //   调用方给的就是它要的完整集合，重复写同一批不会越写越少。
+      //   写不进不回滚票：票照建，边按部分成功逐条报（与父子边同一套口径），别让 AI 以为边已挂上。
+      const blockWant = blockedKeys.filter(function (k) { return k !== String(issue.key || '') })
+      const blockItems: Array<Record<string, unknown>> = []
+      let blockFailed: string | null = null
+      let blockAttempted = false
+      if (blockWant.length) {
+        blockAttempted = true
+        if (sc.outOfBudget()) {
+          blockFailed = '额度不够，这次没写'
+          blockItems.push({ key: issue.key, edge: { op: 'block', target: blockWant.join('、') }, status: 'failed', reason: blockFailed })
+        } else {
+          const wrote = await applyBlockEdges(t, repo, opCtx, String(issue.key), blockWant, blockWant)
+          for (const one of wrote.items) blockItems.push(one as unknown as Record<string, unknown>)
+          if (wrote.failed) {
+            blockFailed = String(wrote.failed.text || '后端没给出原因').slice(0, 300)
+          } else {
+            const missed = wrote.items.filter(function (one) { return one.status !== 'ok' })
+            if (missed.length) {
+              const ev = (missed[0] as unknown as Record<string, unknown>).edge as Record<string, unknown> | undefined
+              blockFailed = String((ev && ev.text) || '写后读回里没看到这些阻塞边').slice(0, 300)
+            }
+          }
+        }
+        for (const one of blockItems) items.push(one)
+      }
+      // 这一趟实际多花的出站请求与点数：一次写边 + 写后读回两次（票本身 + 依赖关系），与父子边的读回同价。
+      const blockCost = blockAttempted ? { requests: 3, points: 6 } : { requests: 0, points: 0 }
       if (rel && !parentLanded) {
         // 票建成了、边没挂上：按部分成功回，不再报“建好了（父票 X）”。
         const why = String((parentEvidence && parentEvidence.text) || '后端没给出原因').slice(0, 300)
@@ -253,48 +310,69 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
           ? '父子边没确认（要 ' + rel + '）'
           : '父子边没挂上（要 ' + rel + '）'
         notes.push('父子边没建成，别把它当成已经挂上：逐条原因在上面的 items 里。')
+        if (blockFailed) notes.push('阻塞边也没建成，别把它们当成已经挂上：逐条原因也在上面的 items 里。')
         if (labelFailed) items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
             text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + edgeHead + '：' + why
-              + (labelFailed ? '标签也没挂上：' + labelWhy : ''),
+              + (labelFailed ? '标签也没挂上：' + labelWhy : '')
+              + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
             notes: notes,
             touched: issue.key ? [String(issue.key)] : [],
           },
-          claimed: { requests: 3, points: 6 },
+          claimed: { requests: 3 + blockCost.requests, points: 6 + blockCost.points },
         }
       }
       if (labelFailed) {
         // 票建成了、标签没挂上：按部分成功回（照父子边没挂上的 PARTIAL 先例），不再报“我替你补了”。
         items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
+        if (blockFailed) notes.push('阻塞边也没建成，别把它们当成已经挂上：逐条原因也在上面的 items 里。')
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。标签没挂上：' + labelWhy,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。标签没挂上：' + labelWhy
+              + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
             notes: notes,
             touched: issue.key ? [String(issue.key)] : [],
           },
-          claimed: { requests: 3, points: 6 },
+          claimed: { requests: 3 + blockCost.requests, points: 6 + blockCost.points },
+        }
+      }
+      const claimedBase = { requests: (rel ? 3 : 2) + blockCost.requests, points: (rel ? 6 : 4) + blockCost.points }
+      if (blockFailed) {
+        notes.push('阻塞边没建成，别把它们当成已经挂上：逐条原因在上面的 items 里。')
+        return {
+          value: {
+            status: DECK_STATUS.PARTIAL,
+            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。阻塞边没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed,
+            data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
+            items: items,
+            notes: notes,
+            touched: issue.key ? [String(issue.key)] : [],
+          },
+          claimed: claimedBase,
         }
       }
       return {
         value: {
           status: DECK_STATUS.OK,
           workRouteDetail: a.workRouteDetail,
-          text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + (rel ? '（父票 ' + rel + '）' : '') + '。返回值就是写后的真状态，不必再读一次。',
+          text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + (rel ? '（父票 ' + rel + '）' : '') + '。返回值就是写后的真状态，不必再读一次。'
+            + (blockWant.length ? '阻塞边已按写后读回逐条核对（见 items）：' + blockWant.join('、') + '。' : ''),
           data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
           items: items,
           notes: notes,
           touched: issue.key ? [String(issue.key)] : [],
         },
-        claimed: { requests: rel ? 3 : 2, points: rel ? 6 : 4 },
+        claimed: claimedBase,
       }
     })
   }

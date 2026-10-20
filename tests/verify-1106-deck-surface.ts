@@ -59,7 +59,7 @@ const FROZEN_SHAPE: Record<string, string> = {
   deck_issue_get: 'key:string, comments:number, section:string, blocking:boolean, effortId:string 必填=[key] 多传=false',
   deck_map_snapshot: 'key:string, frontierOnly:boolean, detail:枚举(full|thin), effortId:string 必填=[key] 多传=false',
   deck_issue_list: 'state:枚举(open|closed|all), type:枚举(issue|map|spec|all), labels:数组<string>, assignee:string, query:string, limit:number, effortId:string 必填=[] 多传=false',
-  deck_issue_create: 'title:string, body:string, kind:枚举(task|bug|map|spec|ticket), parentKey:string, labels:数组<string>, assignees:数组<string>, idempotencyKey:string, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[title] 多传=false',
+  deck_issue_create: 'title:string, body:string, kind:枚举(task|bug|map|spec|ticket), parentKey:string, blockedBy:数组<string>, labels:数组<string>, assignees:数组<string>, idempotencyKey:string, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[title] 多传=false',
   deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(task|bug|map), labels:数组<string>, assignees:数组<string> 必填=[key,title] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[title,children] 多传=false',
   deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[] 多传=false',
   deck_issue_patch: 'key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, progress:string, close:boolean, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[key] 多传=false',
@@ -78,7 +78,7 @@ const FROZEN_DESC: Record<string, string> = {
   deck_issue_get: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。读一个 ISSUE 的完整关系：正文、评论、label、assignee 与 parent 和 blockedBy 边，每条边标出落点。blocking=false 跳过反向边全仓扫描（快，见 blocking 参数）。；key=票号，例如 713；comments=最多带回几条评论，缺省 50；section=只回正文里这一节（## 标题子串），缺省回全文前 2000 字；blocking=要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系。关掉只读单票本身，跳过一次全仓扫描，快一个数量级；反向边记空并注记，要就再调一次。；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_map_snapshot: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。看一个 map 的全部 child ISSUE、进度统计与五个区块，用来判断 map 做到哪一步。detail=thin 只要薄行不断（见 detail 参数）。；key=地图那张票的票号；frontierOnly=只回可接的子票（未关闭、未认领、阻塞已满足），缺省回全部；detail=子票行要多细。缺省 full：每行带正文进度（回包大，票多时被截断）。thin：只要键、标题、状态、标签、认领、阻塞（回包小、清单不断；统计与进度表照算不变；要正文用 deck_issue_get 逐张取）。；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_list: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。按状态、label、assignee 与关键词列出 ISSUE 薄行，不回正文与评论。；state=只列哪种状态，缺省 open；type=只列哪种类型，缺省 all；labels=必须同时带上这些 label（AND），缺省不过滤；assignee=只留认领含此人的行，缺省不过滤；query=标题与正文的子串过滤，缺省不过滤；limit=最多回几行，缺省 50，上限 200；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
-  deck_issue_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），重复调用按锚复用同一张。；title=票的标题；body=正文；缺省时按种类补最小骨架；kind=票的种类，缺省 task；parentKey=父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）；labels=要带的标签，会在必备标签之外追加；assignees=认领人；idempotencyKey=这一批写的幂等锚，重试时带同一个值；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_issue_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成它的原生依赖边（边没写成时票照建，回执逐条说明）。；title=票的标题；body=正文；缺省时按种类补最小骨架；kind=票的种类，缺省 task；parentKey=父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）；blockedBy=这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）；labels=要带的标签，会在必备标签之外追加；assignees=认领人；idempotencyKey=这一批写的幂等锚，重试时带同一个值；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；progress=只改「## 进度」那一段的内容；close=true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
@@ -426,6 +426,27 @@ async function main() {
     check(!relFalse.threw && relFalse.r && relFalse.r.status === 'ok'
       && (relFalseWr && relFalseWr.entries || []).some((e: { ticketKey: string }) => norm(e.ticketKey) === '2'),
       'release:false 仍走正常上报：条目重新落上、回执带在办表')
+  }
+  {
+    // 二e、建票时带 blockedBy（#1299）：票建成后把这批票写成它的原生依赖边；票照建，边写后读回逐条报。
+    // 这一段走真实的本地 Markdown 房：边会落到票文件的 `Blocked by:` 行上，再读一次票就能看见。
+    const before = claimedNow()
+    const made = await run('deck_issue_create', { title: '带阻塞边的新票', blockedBy: ['01', '#01'] })
+    const after = claimedNow()
+    const key = String((made.r && made.r.data && made.r.data.ticket && made.r.data.ticket.key) || '')
+    check(!made.threw && made.r && made.r.status === 'ok' && !!key,
+      '带阻塞边：票建成、回 ok（实得 ' + (made.threw || (made.r && made.r.status)) + '）')
+    const blockItems = (made.r && made.r.items || []).filter((i: { role?: string; op?: string; status?: string }) => i && i.role === 'edge' && i.op === 'block' && i.status === 'ok')
+    check(blockItems.length === 1 && String(blockItems[0].target) === '01',
+      '带阻塞边：items 里有一条写边成功的明细（实得 ' + JSON.stringify(made.r && made.r.items) + '）')
+    const got = key ? await run('deck_issue_get', { key: key, blocking: false }) : { r: null, threw: '' }
+    const rels = got.r && got.r.data && got.r.data.relations
+    const gotBlocked = (rels && Array.isArray(rels.blockedBy) ? rels.blockedBy : []).map((x: { key?: unknown } | string) => String(x && typeof x === 'object' && 'key' in x ? x.key : x).replace(/^0+(?=\d)/, ''))
+    check(!!got.r && got.r.status === 'ok' && gotBlocked.join(',') === '1',
+      '带阻塞边：读回来票面上挂着这条阻塞边（实得 ' + JSON.stringify(rels && rels.blockedBy) + '）')
+    const spent = { requests: after.requests - before.requests, points: after.points - before.points }
+    check(spent.requests === 6 && spent.points === 10,
+      '带阻塞边：这一笔记 6 条 / 10 点（实得 ' + spent.requests + ' / ' + spent.points + '）')
   }
   {
     // 失败那一侧：还没走到选后端就失败的回执是 6 格；走到之后的失败回执是 14 格。别的形状一律算破。
