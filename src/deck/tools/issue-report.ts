@@ -9,8 +9,9 @@
 // 来源 reported；去重键是 (会话, 票)，同一会话同一票后来居上）。本工具自己不再记。
 // 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记路线。
 // 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
-// #1086 加一支释放：参数 release=true 时，票照样先读回来证明它存在，然后把本会话对这张票的
-// 那一条工作条目删掉（不记任何动作，票本身的状态与认领人一个字不动）；不再带这个参数就是老行为。
+// #1086 加一支释放：参数 release=true 时，票照样先读回来证明它存在，然后尝试把本会话对这张票的
+// 一条误报工作条目删掉（不记任何动作，票本身的状态与认领人一个字不动）。#1349 起只撤销误报：
+// 建过、改过、关过、建过计划或挂过边的票不能释放；不再带这个参数就是老行为。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { withCallScope } from '../shell/call-budget.js'
@@ -78,7 +79,7 @@ export interface DeckIssueReportDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_report',
-  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要释放本会话的一条工作条目时带 release=true（只删本会话那一行，票本身不动）。有没有记上、记在哪里，看返回里的结果。',
+  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放，票不动）。有没有记上、记在哪里，看返回里的结果。',
   parameters: {
     type: 'object',
     properties: {
@@ -87,7 +88,7 @@ export const definition = {
       progress: { type: 'number', description: '可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
-      release: { type: 'boolean', description: '可选：传 true 表示把这张票从本会话的工作路线里释放掉（删掉本会话对它的那条工作条目；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报' },
+      release: { type: 'boolean', description: '可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报' },
     },
     required: ['key'],
     additionalProperties: false,
@@ -206,7 +207,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
             status: DECK_STATUS.OK,
             release: true,
             workRouteDetail: a.workRouteDetail,
-            text: '票 ' + key + ' 这次不是上报，是释放：把本会话工作路线里的这一条工作条目删掉（票本身的状态与认领人没有改动）。删没删掉看回执备注。',
+            text: '票 ' + key + ' 这次不是上报，是释放：尝试把本会话工作路线里的这一条误报删掉（票本身的状态与认领人没有改动）。只有从没实际处理过的票能删，删没删掉看回执备注。',
             data: {
               key: key, title: title, state: issue.state || '', url: issue.url || '',
               backendId: pick.backendId, effortId: effortId || (issue.effortId !== undefined ? issue.effortId : ''),

@@ -236,6 +236,7 @@ export function createWorkPathStore(deps?: WorkPathStoreDeps) {
 
   /**
    * 释放（#1086）：把本会话对某张票的那一条从盘上删掉，票本身不动（状态、认领人由工具那边保证）。
+   * #1349 起只撤销误报：建过、改过、关过、建过计划或挂过边的票不许删。
    *
    * 与记一笔同一套规矩：全程不抛错、失败回 { ok:false, reason } 由回执备注写清楚；只有真删掉
    * 东西时才写盘。下面是几条特意分开的情形：
@@ -243,6 +244,7 @@ export function createWorkPathStore(deps?: WorkPathStoreDeps) {
    *   - 盘上有文件但读不出来、或形状不认识：**不写盘**直接回失败 —— 读不懂就重写等于拿空账
    *     把别的会话的记录整份盖掉，宁可这次释放不成，留给下一条上报或释放重试；
    *   - 本会话本来就没这条：回 removed=false，不写盘（内存账与盘上是一致的）；
+   *   - 这张票在本会话干过实事：回 removed=false + blocked='has-work'，不写盘，条目保留；
    *   - 真删掉了：清 30 天以外的条目（与记一笔同一把尺子），整份写回并读回核对。
    */
   async function release(input: WorkPathReleaseInput): Promise<WorkPathReleaseResult> {
@@ -276,9 +278,14 @@ export function createWorkPathStore(deps?: WorkPathStoreDeps) {
         return { ok: false, reason: 'bad-shape' };
       }
 
-      // 二、删这一条。本来就没有时直接回，不白写一次盘（内存账不需要「修正」）。
+      // 二、删这一条。本来就没有、或这张票在本会话干过实事时直接回，不写盘（内存账不需要「修正」）。
       let ledger = loaded.ledger;
       const result = applyRelease(ledger, sessionId, ticketKey);
+      if (result.blocked === 'has-work') {
+        // 不是失败：读盘与判定都做完了，只是按规则不许删。回执备注据此说明路径保留。
+        emitWrite('release', true, 'release', result.count, sidHash, rootHash, 'has-work', '');
+        return { ok: true, ticketKey: ticketKey, removed: false, count: result.count, blocked: 'has-work' };
+      }
       if (!result.removed) {
         emitWrite('release', true, 'release', result.count, sidHash, rootHash, '', '');
         return { ok: true, ticketKey: ticketKey, removed: false, count: result.count };

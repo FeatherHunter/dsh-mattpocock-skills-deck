@@ -20,9 +20,10 @@
 //     否则同一张票每续跑一次就被刷新一次动作时间，在办表会说谎；
 //   同一张票重复出现只记一次（link 可能对同一张票办多件事）。
 //
-// 带 release=true 的上报走释放那一支（#1086）：只删本会话对这张票的那一条工作条目，不记动作，
-// 票本身的状态与认领人不碰（工具只把票读回来证明它存在）；释放成功之后照样读一遍在办表放进回执，
-// 所以回执形状与正常上报一致，data.workRoute 照旧带出。
+// 带 release=true 的上报走释放那一支（#1086；#1349 收紧）：只撤销从没实际处理过的误报，删掉本会话
+// 对这张票的那一条工作条目，不记动作，票本身的状态与认领人不碰（工具只把票读回来证明它存在）。
+// 建过、改过、关过、建过计划或挂过边的票不许释放，备注说明路径保留。释放处理完照样读一遍在办表
+// 放进回执，所以回执形状与正常上报一致，data.workRoute 照旧带出。
 //
 // 输入输出的形状（与 DeckShellDeps 里 workRouteNote / workRouteRead / workRouteRelease 那三处注释同源）：
 //   note 输入 { rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, progress?, action, source }
@@ -33,8 +34,9 @@
 //        输出 { ok: true, readout, summary } | { ok: false, reason }
 //        其中 readout 已按 detail 投过影：工具回执那一支显式传档位，直接读出口不给就是全量。
 //   release 输入 { rootKey, sessionId, ticketKey }
-//        输出 { ok: true, ticketKey, removed, count } | { ok: false, reason }
-//        其中 removed=false 表示这条本来就不在本会话的工作路线里，不算失败。
+//        输出 { ok: true, ticketKey, removed, count, blocked? } | { ok: false, reason }
+//        其中 removed=false 表示没删：本来就不在本会话的工作路线里，或这张票干过实事
+//        （blocked='has-work'，按 #1349 只许撤销误报），都不算失败。
 // 其中 rootKey 是 workspace.key（工作区键），落到哪一份文件由存储按 chainRootHash 换算。
 // 其中 readout 就是回执里 data.workRoute 的对象，summary 是 notes 里那句摘要（没有在办时为 null）。
 // 其中 progress 是这次上报的进度自评（0 到 100 的整数），只有 deck_issue_report 会带；
@@ -264,6 +266,8 @@ export async function recordWorkRoute(
       if (released.removed === true) {
         const left = typeof released.count === 'number' ? released.count : 0;
         notes.push('已把票 ' + tickets[0] + ' 从本会话的工作路线里释放掉（本会话还剩 ' + left + ' 条在办；票本身的状态与认领人没有改动）。');
+      } else if (released.blocked === 'has-work') {
+        notes.push('票 ' + tickets[0] + ' 在本会话有过实际处理（建票、改票、关票、建计划、挂边之一），按规则不能从工作路线里释放；这条路径保留。release 只用来撤销从没处理过的误报。');
       } else {
         notes.push('票 ' + tickets[0] + ' 本来就不在本会话的工作路线里，这次没有可释放的条目。');
       }
