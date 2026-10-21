@@ -223,15 +223,9 @@ try {
 // ---------------------------------------------------------------------------
 // 正常仓库树：四个入口产物都应是 fresh（链上构建之后跑；缓存有效或回落都应绿）
 // ---------------------------------------------------------------------------
-const REAL_PRODUCTS: string[] = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
-const REAL_SOURCES: string[] = [
-  'src/host/platform/win32/index.ts',
-  'src/host/platform/index.ts',
-  'src/host/platform/darwin/index.ts',
-  'src/host/platform/linux/index.ts',
-  'scripts/build.mts',
-  'package/package.json',
-]
+// 产物与源码清单也只有一份（scripts/lib/build-products.mts，#1342）：这里不再手抄第二份，
+// 免得改产物集合时漏改这扇门禁，让真实树那段还按旧清单自说自话。
+const { BUILD_PRODUCTS: REAL_PRODUCTS, BUILD_SOURCES: REAL_SOURCES } = require('../scripts/lib/build-products.mts')
 const real: any = judgeProducts({ products: REAL_PRODUCTS, sources: REAL_SOURCES })
 ;(real.notices as string[]).forEach((n: string) => console.log('  INFO ' + n))
 // 链上构建之后跑时缓存有效，四产物必须走内容判据、不产生回落说明；缓存不存在（新克隆、刚清过缓存）时
