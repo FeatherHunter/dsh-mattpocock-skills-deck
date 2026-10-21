@@ -188,13 +188,16 @@ export function createRepoKeys(deps: RepoKeysDeps) {
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
     function resetGhCache() { setGhPath(null); setGhLastError(null); try { if (typeof clearWorkspaceStore === 'function') clearWorkspaceStore(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
 
-    async function runGh(args: string[], cwd: string): Promise<GhCallResult> {
+    // #1101：第三个参数 via 是「这一次 gh 调用是谁发的、走的哪一支」（调用点写死的短标签，例如
+    //   repoAccess / ghAuth）。从前函数只认前两位、多传的第三个被丢掉，宿主那一路的 gh.exec 行
+    //   因此全是不带 via 的空格（2026-10-20 一天 51,564 行），事后分不出探测、面板读、改票各占多少。
+    async function runGh(args: string[], cwd: string, via?: string): Promise<GhCallResult> {
       const ghT0 = Date.now()
       // #1003 契约（2026-10-12 维护者拍板）：拿不到工作区目录时如实失败，不许拿进程目录顶上——
       //   gh 命令会按工作区解析仓库身份（`gh repo view`、`gh api` 等），落到别人的目录就是在错的仓库上读或写。
       //   这一条发生在拿名额之前，所以没有名额要还；如实回一条环境档失败，让调用方按「还没就绪」处理。
       if (!(typeof cwd === 'string' && cwd.trim())) {
-        try { if (logCtx) logCtx.fire('warn', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(''), latencyMs: Date.now() - ghT0, kind: 'no-cwd', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('warn', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(''), latencyMs: Date.now() - ghT0, kind: 'no-cwd', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'env', error: '这个工作区还没就绪（还没认出是哪个目录），所以这一次没有执行任何 gh 命令' }
       }
       // #969 分档超时（读短写长探活最短）；#965 读写分桶拿名额（满了等；不传取消信号，拿不到只会等不会抛）。
@@ -219,7 +222,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
@@ -232,7 +235,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
@@ -269,8 +272,10 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           else if (/keyring/i.test(t)) signal = 'keyring'
           try { if (logCtx) logCtx.fire('warn', 'gh.auth.env', { signal: signal, cwdHash: hash8(cwd || DEFAULT_CWD), exitCode: outcome.exitCode || -1, proxySet: proxySet, ghConfigDir: ghConfigDir }) } catch (eL) {}
         }
-        try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout, layer: 'host-clamp' }) } catch (eL) {}
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
+        // #1101：超时那一行补上 via / cmd / waitedMs —— 面板「所有功能超时」只能靠这三格分清
+        //   是哪个入口（探测、面板读、写票）在排队还是命令本身跑不完；同族 gh.exec 行也带 via。
+        try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout, layer: 'host-clamp', via: String(via || ''), cmd: ghCommandLabel(args), waitedMs: rkWaitedMs }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
@@ -288,7 +293,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           try { if (typeof getChainBackoff === 'function') getChainBackoff().then(function (b) { try { if (b) b.noteWriteActivity() } catch (e) {} }).catch(function () {}) } catch (eWr) {}
         }
       } catch (e) {}
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
       try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
       try { if (rkRelease) rkRelease() } catch {}

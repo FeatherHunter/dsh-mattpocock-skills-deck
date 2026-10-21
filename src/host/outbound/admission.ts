@@ -28,6 +28,13 @@ import { TUNING } from '../../shared/refresh/src/tuning.js'
 export const READ_BUCKET_MAX = TUNING.readBucketMax ?? 64
 export const WRITE_BUCKET_MAX = TUNING.writeBucketMax ?? 16
 
+// #1101：排队放行时「等了很久」的常驻轨迹门槛与节流间隔。
+//   为什么要有：调试开关默认关着，2026-10-21 那种「64 个名额全满、队尾排到 338 位、等 15 秒」的风暴
+//   在普通用户的日志里一行都不留 —— 事后只能看到一串耗时十几秒的 gh.exec，分不出慢在命令还是慢在门口。
+//   为什么要节流：风暴期间每秒都有放行，逐条记一天就是几十万行的垃圾；同桶五分钟最多一行足够定性。
+const LANE_LONG_WAIT_MS = 3000
+const LANE_WAIT_LOG_INTERVAL_MS = 5 * 60 * 1000
+
 // 准入桶：读与写两只桶，配额与统计都按桶隔离，跨桶不抢名额。
 type GhBucket = 'read' | 'write'
 // 排队等待者的形状：创建时放行与取消函数先空着，随后立即补上真正的函数。
@@ -100,6 +107,8 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
     write: { peak: 0, waited: 0, done: 0 },
     cancelled: 0,
   }
+  // 两只桶各记「上一次因长等待落行」的钟点，用来做五分钟节流；0 表示还没记过。
+  const lastWaitLogAt: Record<GhBucket, number> = { read: 0, write: 0 }
 
   // 桶名归一：不是写桶一律按读桶算，调用方传错也不炸。
   function normBucket(b: unknown): GhBucket { return b === 'write' ? 'write' : 'read' }
@@ -147,9 +156,17 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
         // #960：排队拿到名额时落一行 —— 桶名、放行时在飞数、上限、放行时队列残长、等了多久。
         //   只记短枚举与数字，不记命令、路径、票号。按需级（先判调试开关），不采样。
         try {
-          const waitedMs = Date.now() - waitT0
+          const now = Date.now()
+          const waitedMs = now - waitT0
           if (laneLogCtx && typeof laneLogCtx.fire === 'function' && (!laneLogCtx.isEnabled || laneLogCtx.isEnabled('debug'))) {
             laneLogCtx.fire('debug', 'gh.lane.saturated', { bucket: bucket, inflight: running[bucket], max: maxOf[bucket], queued: queues[bucket].length, waitedMs: waitedMs })
+          }
+          // #1101：常驻一行「门口确实憋过」的轨迹。信息和调试两档各管一件事：
+          //   调试那行是逐条明细（排一次记一次，用来画分布）；这一行只说「这段时间这只桶憋过」，
+          //   三秒起记、同桶五分钟最多一条，风暴一天也只有几百行，不用开调试也查得到。
+          if (laneLogCtx && typeof laneLogCtx.fire === 'function' && waitedMs >= LANE_LONG_WAIT_MS && now - lastWaitLogAt[bucket] >= LANE_WAIT_LOG_INTERVAL_MS) {
+            lastWaitLogAt[bucket] = now
+            laneLogCtx.fire('info', 'gh.lane.wait', { bucket: bucket, waitedMs: waitedMs, inflight: running[bucket], max: maxOf[bucket], queued: queues[bucket].length })
           }
         } catch (eL) {}
         resolve(releaseOf(bucket))

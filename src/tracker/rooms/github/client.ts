@@ -268,9 +268,13 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
   // #1007 复核起多记 layer：room-tier = 房内自己掐表到点（本文件 :332 的 selfTimeoutOutcome），
   // host-clamp = 宿主那层的外包钳制（git-process.ts）。判读很直接 —— 房内修好之后
   // gh.timeout 里再出现 host-clamp，就说明房内还有漏口；只出现 room-tier 则是在本层正常到点。
-  function emitGhTimeout(timeoutMs: number, layer?: string): void {
+  // #1101 排查起多记四格：via 是谁发的、cmd 是哪条 gh 命令、waitedMs 在名额队列里等了多久、
+  // phase 到点发生在哪一段（queue 还在排队没起进程 / inflight 进程已经起来）。
+  // 为什么非记不可：「面板所有功能超时」这类报告，只有这三格能把「守在门口排到超时」与
+  // 「命令自己跑到超时」分开；从前四条超时行长得一模一样，只能靠猜。
+  function emitGhTimeout(timeoutMs: number, layer?: string, via?: string, cmd?: string, waitedMs?: number, phase?: string): void {
     try {
-      roomLogEvent(ctx, 'warn', 'gh.timeout', { argv0: 'gh', timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : TIMEOUT_MS, layer: String(layer || 'room-tier') })
+      roomLogEvent(ctx, 'warn', 'gh.timeout', { argv0: 'gh', timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : TIMEOUT_MS, layer: String(layer || 'room-tier'), via: String(via || ''), cmd: String(cmd || ''), waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, phase: String(phase || 'inflight') })
     } catch {}
   }
 
@@ -290,6 +294,12 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     // 那种故障事后只看日志查不出来，所以这里按环境失败大声报出来，不发这一笔。
     const control = getOutbound(ctx)
     if (!control) {
+      // #1101：这一条从前一句日志都不留，面板所有功能同时报错时，日志里只有「没拿到数据」，
+      //   分不出是网络慢、命令失败，还是这道闸压根没接上。落一行同族告警轨迹（kind=env）：
+      //   没起过任何进程，所以 latencyMs 只是走到这里的毫秒数、exitCode 记 -1、waitedMs 记 0。
+      try {
+        roomLogEvent(ctx, 'warn', 'gh.exec', { argv0: 'gh', via: String(opts.via || ''), opId: String((ctx && ctx.opId) || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: 0, kind: 'env', exitCode: -1, cmd: String(cmdLabel || '') })
+      } catch {}
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。宿主接线要给两处：装配点造房时的上下文（生产里是 src/host/platformChannel.ts 的 backendCtxForRooms 与 src/host/refresh/wiring.js 的 backendObj），以及当次操作的上下文（ctx.outbound，门禁夹具走这一条）。', code: -1, raw: '' } }
     }
     // #969：默认超时按读写探活分档（调用方显式 timeout 优先）；#965 读写分桶拿名额。
@@ -338,9 +348,9 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       try { if (onCallerAbort && signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onCallerAbort) } catch (e2) {}
     }
     /** 房内到点的统一回执：横幅按超时记，内容说清等了多久、是哪一档。 */
-    function selfTimeoutOutcome(): GhExecResult {
+    function selfTimeoutOutcome(phase?: string): GhExecResult {
       emitGhExec('network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel)
-      emitGhTimeout(timeout, 'room-tier')
+      emitGhTimeout(timeout, 'room-tier', opts.via, cmdLabel, slotWaitedMs, phase)
       // 房内到点时执行器还没有交回任何输出，这一处没有原文可交（空串是如实交代，不是漏填）。
       // 括号里那三档按当前档位值现算（毫秒换秒）、不手抄：手抄的数字会在有人调 YAML 之后悄悄变成错的。
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 ' + Math.round(READ_TIMEOUT_MS / 1000) + ' 秒 / 写 ' + Math.round(WRITE_TIMEOUT_MS / 1000) + ' 秒 / 探活 ' + Math.round(PROBE_TIMEOUT_MS / 1000) + ' 秒），这一笔已经中止', code: -1, timedOut: true, raw: '' } }
@@ -349,19 +359,20 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     let release: (() => void) | null = null
     try {
       const acquired = await raceDeadline(control.acquire({ bucket: bucket, signal: laneSignal || undefined }))
-      if (isDeadlineHit(acquired)) { clearDeadline(); return selfTimeoutOutcome() }
-      release = acquired
-      // #1007：这一笔在名额队列里等了多久（给 gh.exec 那一格记，答「名额到底有没有挡过路」）。
+      // #1101：先把「在门口等了多久」量出来，再判到点。从前这行赋值在到点判断之后，
+      //   排队段被到点掀桌子的那一类（最该留证据的）记成 waitedMs=0，看起来像刚排上队就没耐心。
       slotWaitedMs = Date.now() - t0
+      if (isDeadlineHit(acquired)) { clearDeadline(); return selfTimeoutOutcome('queue') }
+      release = acquired
     } catch (eAcquire) {
-      if (selfTimedOut) { clearDeadline(); return selfTimeoutOutcome() }
+      if (selfTimedOut) { slotWaitedMs = Date.now() - t0; clearDeadline(); return selfTimeoutOutcome('queue') }
       clearDeadline()
       emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel)
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true, raw: rawText(eAcquire) } }
     }
     try {
     const resolved = await raceDeadline(resolveGh(cwd))
-    if (isDeadlineHit(resolved)) return selfTimeoutOutcome()
+    if (isDeadlineHit(resolved)) return selfTimeoutOutcome('inflight')
     if (!resolved.ok) {
       emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd, undefined, opts.via, cmdLabel)
       // 补上 code: -1，让「失败时 error 里一定有 code」这条形状对所有失败成立（命令根本没跑起来）
@@ -380,7 +391,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       reportOutbound(ctx, args)
       // #1007：起进程这一段同样与「到点」赛跑 —— 执行器要是不落地，房内的表到点就掀桌子。
       const raced = await raceDeadline(exec('gh', args, { cwd, timeout, signal: laneSignal }))
-      if (isDeadlineHit(raced)) return selfTimeoutOutcome()
+      if (isDeadlineHit(raced)) return selfTimeoutOutcome('inflight')
       const result = raced
       // DSH ctx.exec 契约：{stdout, stderr, code}
       // #620 整改（D2）：拿不到**整数**退出码时按失败处理（-1），不再当成 0。
@@ -408,7 +419,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
         // 写 `exitCode` 会被丢掉，规则就看不着了）。
         const verdict = ghVerdictOf({ code: code, text: factsText }, ctx)
         emitGhExec(verdict.kind, code, t0, cwd, slotWaitedMs, opts.via, cmdLabel)
-        if (looksTimeout) emitGhTimeout(timeout, 'room-tier')
+        if (looksTimeout) emitGhTimeout(timeout, 'room-tier', opts.via, cmdLabel, slotWaitedMs, 'inflight')
         // #620：退出码要一起交回调用方（调用方与界面都能看出「不是命令自己报的错」）。
         const own = String(stderr || stdout || note).slice(0, 800)
         return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, own), code, raw: rawText(result) } }
@@ -421,7 +432,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       // exec 抛的错误（timeout/network 等）→ 归一化
       const elapsedMs = Date.now() - t0
       // #1007：先认房内自己那只表（它到点中止的按超时返回），再认调用方取消（那个不算失败）。
-      if (selfTimedOut) return selfTimeoutOutcome()
+      if (selfTimedOut) return selfTimeoutOutcome('inflight')
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
       if (control.isCancelled(e) || (signal && signal.aborted === true)) {
         emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel)
@@ -434,7 +445,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后表达式与原来一字不差，运行时不变。
       const eb = e as { message?: unknown; stderr?: unknown } | null;
       const looksTimeout = isTimeoutText((eb && (eb.message || eb.stderr)) || e) || elapsedMs >= timeout - 50
-      if (looksTimeout) emitGhTimeout(timeout, 'room-tier')
+      if (looksTimeout) emitGhTimeout(timeout, 'room-tier', opts.via, cmdLabel, slotWaitedMs, 'inflight')
       const own = String((eb && (eb.message || eb.stderr)) || e || 'gh exec failed').slice(0, 800)
       // code: -1 = 这次调用连退出码都没有（超时、spawn 失败之类），调用方据此知道「不是命令自己报的错」
       return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, own), code: -1, raw: rawText(e) } }
