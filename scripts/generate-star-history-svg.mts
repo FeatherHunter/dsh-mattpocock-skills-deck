@@ -144,6 +144,11 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
   const totalPts: number[][] = data.map((d, i) => [X(i) + j(1.1), Y(d.total) + j(1.1)]);
   const dailyPts: number[][] = data.map((d, i) => [X(i) + j(1.1), Yd(d.daily) + j(1.1)]);
 
+  // 峰值标注：两条曲线各自的最高点直接标上数字，读者不用拿眼睛去对坐标轴估算。
+  // 取「第一次出现最高值」的那一天：Total 单调递增，所以通常就是最后一天；
+  // 位置用画出来的点（含抖动）而不是数学坐标，数字才会贴着曲线的尖。
+  const peakIndex = (values: number[]): number => values.indexOf(Math.max(...values));
+
   const axisY: number = PAD_T + plotH;
   const sketchy = (x1: number, y1: number, x2: number, y2: number): string => {
     let d: string = `M ${x1} ${y1}`;
@@ -170,6 +175,23 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
   const xLabels: string = xTicks.map((tk) =>
     `<text x="${X(tk.i).toFixed(1)}" y="${axisY + 24}" text-anchor="middle" font-size="13" fill="${t.muted}">${tk.label}</text>`).join("\n  ");
 
+  // 峰值数字的摆法：默认放在点上方 10px；靠近画布顶部就翻到点下方，
+  // 靠近左右边缘时把对齐方式改掉，避免数字顶出绘图区或压到右轴刻度。
+  // 描边用背景色做一圈底衬（paint-order=stroke 让描边垫在字下面），
+  // 这样数字压在网格线或曲线拐点上时仍然读得清。
+  const peakLabel = (pt: number[], value: number, color: string, kind: string): string => {
+    const px: number = pt[0];
+    const py: number = pt[1];
+    const y: number = py - 10 < PAD_T + 14 ? py + 19 : py - 10;
+    const anchor: string = px > W - PAD_R - 34 ? "end" : px < PAD_L + 34 ? "start" : "middle";
+    const x: number = anchor === "end" ? px - 6 : anchor === "start" ? px + 6 : px;
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" font-size="13" font-weight="600" fill="${color}" stroke="${t.bg}" stroke-width="3" paint-order="stroke" stroke-linejoin="round" data-peak="${kind}">${value}</text>`;
+  };
+  const peakLabels: string = data.length === 0 ? "" : [
+    peakLabel(totalPts[peakIndex(totals)], totals[peakIndex(totals)], t.total, "total"),
+    peakLabel(dailyPts[peakIndex(dailies)], dailies[peakIndex(dailies)], t.daily, "daily"),
+  ].join("\n  ");
+
   const legend: string = `
   <rect x="${PAD_L + 14}" y="${PAD_T + 8}" width="152" height="52" rx="7" fill="${t.bg}" stroke="${t.text}" stroke-width="1.4" opacity="0.92"/>
   <line x1="${PAD_L + 26}" y1="${PAD_T + 24}" x2="${PAD_L + 52}" y2="${PAD_T + 24}" stroke="${t.total}" stroke-width="3" stroke-linecap="round"/>
@@ -195,6 +217,7 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
   <text x="${W / 2}" y="${H - 12}" font-size="12" fill="${t.muted}" text-anchor="middle">Date</text>
   <path d="${monotonePath(dailyPts)}" fill="none" stroke="${t.daily}" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
   <path d="${smoothPath(totalPts)}" fill="none" stroke="${t.total}" stroke-width="3" stroke-linecap="round"/>
+  ${peakLabels}
 ${legend}
   <text x="${W - PAD_R}" y="${axisY + 44}" text-anchor="end" font-size="12" fill="${t.muted}">${totals[totals.length - 1]} stars · ${data[data.length - 1].date}</text>
 </svg>`;

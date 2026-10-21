@@ -32,6 +32,16 @@ assert.ok(dark1.includes('viewBox="0 0 840 480"'),'fixed self-contained viewport
 assert.ok(dark1.includes('New / day'),'daily series must carry its own right-axis title');
 assert.ok(dark1.includes('fill="#38bdf8"'),'right-axis ticks must be drawn in the daily colour');
 
+// —— 峰值标注：两条曲线各自的最高点必须标出数字，读者一眼能读数 ——
+// 用 data-peak 属性定位，避免把坐标轴刻度上的同一个数字误当成峰值标注。
+assert.ok(dark1.includes('data-peak="total"'),'total curve must label its highest point');
+assert.ok(dark1.includes('data-peak="daily"'),'daily curve must label its highest point');
+const totalPeak: string = (dark1.match(/data-peak="total">(\d+)<\/text>/) || [])[1] || '';
+const dailyPeak: string = (dark1.match(/data-peak="daily">(\d+)<\/text>/) || [])[1] || '';
+assert.equal(totalPeak,'5','total peak label must show the max total (5), not an axis tick');
+assert.equal(dailyPeak,'2','daily peak label must show the max daily count (2)');
+assert.ok(light.includes('data-peak="total"') && light.includes('data-peak="daily"'),'both themes must carry the peak labels');
+
 // —— 每日新增曲线：平滑、拐点无折角，但每段都不许越过两端取值 ——
 // 平滑是为了手绘观感；不越界是为了不造假峰（Catmull-Rom 会在两个低点之间冲高）。
 const dailyPath = (dark1.match(/d="([^"]+)" fill="none" stroke="#38bdf8"/) || [])[1] || '';
