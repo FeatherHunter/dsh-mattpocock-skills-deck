@@ -21,9 +21,11 @@ declare function isNoRepoDismissed(...args: any[]): any;
 declare function isNoRepoNameValid(...args: any[]): any;
 declare function loadChain(...args: any[]): any;
 declare function loadSnapshot(...args: any[]): any;
+declare function missingCanonicalLabels(existingNames: unknown): string[];
 declare function promptTextFor(...args: any[]): any;
 declare function searchUrlFor(...args: any[]): any;
 declare function setNoRepoDismissed(...args: any[]): any;
+declare const CANONICAL_LABEL_NAMES: string[];
 declare const ChainRenderer: any;
 declare const FormModalSeat: any;
 declare const Tip: any;
@@ -40,16 +42,9 @@ declare const setupRunPrompt: any;
 declare const userHintOf: any;
 
     // ============ T2 #35 · NoRepo 红卡 + 表单（ListTab 首屏最优先 · 触发= checkRepo:bad && !dismissed）============
-    // #188 单源名集合（与 src/shared/labels.js 同步，名子集，不卡色）
-    const CANONICAL_LABELS_188 = ['bug','needs-triage','needs-info','ready-for-agent','ready-for-human','wayfinder:grilling','wayfinder:map','wayfinder:prototype','wayfinder:research','wayfinder:task']
-    function missingLabels188(existing: any) {
-      // 以标签名（小写）当键的存在表：键遍历时才出现，标 : any 才能按下标写入与读取。
-      const have: any = {}
-      ;(Array.isArray(existing)?existing:[]).forEach(function(n: any){ have[String(n||'').trim().toLowerCase()]=true })
-      const out: any[]=[]
-      CANONICAL_LABELS_188.forEach(function(n: any){ if(!have[n.toLowerCase()]) out.push(n) })
-      return out
-    }
+    // #1342：单源标签名单由构建拼进客户端闭包（scripts/build.mts 的 shared:trackerConstants 一项，
+    //   真源是 src/tracker/contract/canonical-labels.ts 与 src/tracker/label-names.ts），这里只按契约
+    //   声明形状、不再手抄第二份十行名字；补全判定直接用 missingCanonicalLabels（大小写不敏感、与单源同序）。
 export     const NoRepoCard = function (props: any) {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -181,17 +176,17 @@ export     const NoRepoCard = function (props: any) {
                 // 同样是「以小写标签名为键」的兜底聚合表，理由同上面的 have。
                 const agg: any={}
                 snap.issues.forEach(function(it: any){ (it.labels||[]).forEach(function(l: any){ agg[(l.name||'').toLowerCase()]=true }) })
-                return missingLabels188(Object.keys(agg))
+                return missingCanonicalLabels(Object.keys(agg))
               }
-              return missingLabels188(labs)
+              return missingCanonicalLabels(labs)
             }
             const initMissing = computeMissing(st.snapshot)
-            if (!card.labelStep) card.labelStep = { visible:false, repoStr:'', missing:[], have:0, total:10, checking:false }
+            if (!card.labelStep) card.labelStep = { visible:false, repoStr:'', missing:[], have:0, total:CANONICAL_LABEL_NAMES.length, checking:false }
             card.labelStep.visible = true
             card.labelStep.repoStr = repoStr2
             card.labelStep.missing = initMissing
-            card.labelStep.have = 10 - initMissing.length
-            card.labelStep.total = 10
+            card.labelStep.have = CANONICAL_LABEL_NAMES.length - initMissing.length
+            card.labelStep.total = CANONICAL_LABEL_NAMES.length
             card.labelStep.checking = true
             flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
             card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
@@ -201,7 +196,7 @@ export     const NoRepoCard = function (props: any) {
                 const miss2 = computeMissing(st.snapshot)
                 if (card.labelStep){
                   card.labelStep.missing = miss2
-                  card.labelStep.have = 10 - miss2.length
+                  card.labelStep.have = CANONICAL_LABEL_NAMES.length - miss2.length
                   card.labelStep.checking = false
                   emit(st)
                 }
@@ -293,7 +288,7 @@ export     const NoRepoCard = function (props: any) {
       const labelModal = labelVisible ? (function(){
         const ls = card.labelStep
         const have = typeof ls.have==='number'?ls.have:0
-        const total = ls.total||10
+        const total = ls.total||CANONICAL_LABEL_NAMES.length
         const missing = Array.isArray(ls.missing)?ls.missing:[]
         const checking = !!ls.checking
         const titleText = missing.length===0 ? tr('panel.labelsStepAllOk', {total: total}) : tr('panel.labelsStepTitle', {have: have, total: total})
