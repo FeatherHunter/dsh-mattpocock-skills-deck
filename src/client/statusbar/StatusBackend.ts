@@ -34,11 +34,15 @@
 //   getCachedSetupLayout / setCachedSetupLayout），同一个工作区下次打开直接沿用；想改随时在黄条那颗
 //   「初始化」按钮弹出的那张卡上改 —— 那条入口每次都问（卡上预选着上次那一项），确认后才注入。
 //
+//   2026-10-21（#1342）取值名单收到唯一真源 src/shared/doc-layout/src/layouts.ts，本文件不再自己写一份字面量：
+//   构建把它拼进界面闭包（见 scripts/build.mts 的 shared:docLayout 与 src/client/index.ts 的 marker），
+//   下面按 declare 取用（见本文件末尾那一段 declare）。
+//
 //   类型为什么是这两个字面量的联合而不是 string[]：下面每一处校验（readStatusSetupLayout、layoutSelectionOf、
 //   applyStatusSetupLayout、cancelStatusSetupPick）判的都是「这个值在不在名单里」，名单一旦写成宽的
 //   string[]，那些判断就退化成「是不是字符串」而看不出意图；写成联合类型之后，把 'singel' 这种错字递进来
 //   在类型检查那一关就被挡住。卡片与注入文案两边都按这两个值分支，第三档取值进来是 bug，不是新选项。
-export const SETUP_LAYOUT_VALUES: readonly SetupLayoutValue[] = ['single', 'multi']
+export const SETUP_LAYOUT_VALUES: readonly SetupLayoutValue[] = DOC_LAYOUT_VALUES
 // 什么都没有时的兜底值：#669 定的「第一项默认选中，不额外问一句」。
 export const SETUP_LAYOUT_FALLBACK: SetupLayoutValue = 'single'
 export const readStatusSetupLayout = function(s: StatusPickState | null | undefined): SetupLayoutValue | string | null {
@@ -233,6 +237,10 @@ export const confirmStatusGate = function(s: StatusPickState): void { const id=s
 // 参数一律 any：这些名字的实现住在别处（同一次构建拼进来的别的片段里），在这里替它们立契约等于在
 // 第二处写一遍签名，两边会慢慢走岔；本文件的类型价值在于它自己的导出面与状态字段，不在于替邻居立契约。
 // ---------------------------------------------------------------------------
+// #1342：域文档布局取值的名单不是本文件写的，由共享真源 src/shared/doc-layout/src/layouts.ts 拼进闭包
+// （见 scripts/build.mts 的 shared:docLayout）。这里只声明形状；写成 readonly SetupLayoutValue[] 是为了
+// 让上面那些「这个值在不在名单里」的判断仍然按两个字面量的联合收窄。
+declare const DOC_LAYOUT_VALUES: readonly SetupLayoutValue[]
 declare function getCachedSetupLayout(cwd: unknown): SetupLayoutValue | string | null | undefined
 declare function setCachedSetupLayout(cwd: unknown, layout: unknown): void
 declare function emit(s: unknown): void

@@ -22,6 +22,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 // @ts-expect-error
 import { join } from 'node:path'
+// 布局取值的唯一真源（#1342）：下面那份 LAYOUT_VALUES 从它拷一份给读写校验用，本文件不再自己写字面量。
+import { DOC_LAYOUT_VALUES } from '../shared/doc-layout/src/layouts.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1208 转 TypeScript：只写类型不写实现）。
@@ -31,7 +33,8 @@ import { join } from 'node:path'
 //      写错版本的文件整份不认（见 cleanChoices）。类型直接写成 typeof CHOICES_VERSION，以后改版本号
 //      时类型跟着走，不会出现「类型说 1、常量说 2」的第二真相。
 //   2. 布局取值原来在两处各写一遍字面量（读校验 cleanLayoutEntry 与写校验 rememberLayout）；收成一个
-//      共用联合 LayoutValue，以后加第三种取值只改一处，另一处不会继续拒收。
+//      共用联合 LayoutValue，以后加第三种取值只改一处，另一处不会继续拒收。2026-10-21（#1342）起
+//      取值名单本身也收到唯一真源 src/shared/doc-layout，本文件只消费（见下面 LAYOUT_VALUES）。
 //   3. 从外面进来的东西（工作区键、后端名、布局取值、文件里读出的 JSON）一律按 unknown 收，收窄发生在
 //      typeof 与 Array.isArray 判断里 —— 类型不替代那些运行时判断（缺了判断就写进文件才是真正的错）。
 // ---------------------------------------------------------------------------
@@ -147,7 +150,9 @@ export const CHOICES_FILE_NAME = 'choices.json'
 // 文件形状的版本号。写在文件里的这一位不认的（更高的、或根本没有的）当「这次读不到」处理： 宁可这一轮不用记忆，也不拿一份来路不明的文件去猜（降级方向是安全的，见 ADR 的 R5c）。
 export const CHOICES_VERSION = 1
 // 布局答案的取值只有这两种（根目录一份 GLOSSARY.md / 子项目各一份加一份 GLOSSARY-MAP.md）。
-export const LAYOUT_VALUES: LayoutValue[] = ['single', 'multi']
+// 名单本身不在这里写：唯一真源是 src/shared/doc-layout/src/layouts.ts（#1342），这里按原类型
+// 导出一份可变副本，供本文件的读写校验与测试读；加第三种取值只改真源一处。
+export const LAYOUT_VALUES: LayoutValue[] = [...DOC_LAYOUT_VALUES]
 // 上限（ADR 的 R8）：条数与文件体积。超过就按 pickedAt 从最旧的开始丢，只影响最旧的那些工作区。
 export const DEFAULT_MAX_WORKSPACES = 200
 export const DEFAULT_MAX_LAYOUTS = 200

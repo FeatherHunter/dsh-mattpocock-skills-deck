@@ -208,6 +208,11 @@ export default {
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
+    // #1342 域文档布局的两种取值（single / multi）只有一份真源（src/shared/doc-layout/src/layouts.ts →
+    // .build/shared/doc-layout/layouts.js）。宿主侧选择记忆与工作区配置核按普通相对 import 取同一份；
+    // 界面那一半不能运行时 import src/shared，与上面几份一样拼进闭包，状态栏与初始化卡按同一份名单校验，
+    // 不自己写第二份字面量。
+    // ==== shared:docLayout (spliced by build) ====
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:settingsViewState (spliced by build) ====
     // ==== kernel:settingsView (spliced by build) ====

@@ -21,6 +21,8 @@ import { parse as parseYaml } from 'yaml'
 import { parseLabelColors, stringifyLabelColors, LABEL_COLORS_JSON_REL, LABEL_COLORS_YAML_REL } from '../shared/config-store/src/labels.js'
 import { parseSettings, stringifySettings, SETTINGS_REL_SEGMENTS } from '../shared/config-store/src/settings.js'
 import { parseWorkspace, stringifyWorkspace, WORKSPACE_JSON_REL, WORKSPACE_YAML_REL } from '../shared/config-store/src/workspace.js'
+// 布局取值的唯一真源（#1342）：核不自己留字面量，由调用方把名单传进去。
+import { DOC_LAYOUT_VALUES } from '../shared/doc-layout/src/layouts.js'
 
 // ── 路径（只拼字符串，不碰文件系统） ──
 
@@ -114,14 +116,14 @@ export function parseConfig(text: any, schema: any): any {
   if (doc === undefined || doc === null || (typeof doc === 'string' && doc.trim() === '')) {
     return { ok: false, reason: 'bad-shape', message: '这份文件里什么都没有（空白文件）' }
   }
-  if (schema === 'workspace') return parseWorkspace(doc)
+  if (schema === 'workspace') return parseWorkspace(doc, DOC_LAYOUT_VALUES)
   if (schema === 'settings') return parseSettings(doc)
   return parseLabelColors(doc)
 }
 
 /** 把一份值拼成要落盘的文本（含程序生成的注释）。字段定义与注释文字都在各单元一处。 */
 export function stringifyConfig(value: any, schema: any): any {
-  if (schema === 'workspace') return stringifyWorkspace(value)
+  if (schema === 'workspace') return stringifyWorkspace(value, DOC_LAYOUT_VALUES)
   if (schema === 'settings') return stringifySettings(value)
   if (schema === 'label-colors') return stringifyLabelColors(value)
   return { ok: false, reason: 'bad-shape', message: '核不认识这个 schema：' + String(schema) }

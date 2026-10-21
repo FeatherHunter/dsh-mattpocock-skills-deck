@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T06:38:54.529Z",
+  "generatedAt": "2026-10-21T06:58:13.480Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 308,
   "gateCount": 308,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 511,
+  "graphFileCount": 513,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2648,17 +2648,19 @@
       "guards": [
         "scripts/lib/transpile-domains.mts",
         "scripts/lib/transpile-unit.mts",
-        "src/host/choiceStore.ts"
+        "src/host/choiceStore.ts",
+        "src/shared/doc-layout/src/layouts.ts"
       ],
       "dirs": [
         "scripts/lib",
-        "src/host"
+        "src/host",
+        "src/shared/doc-layout/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-683-host-wiring.ts",
@@ -7999,6 +8001,10 @@
       "node tests/verify-session-title.ts",
       "node tests/verify-locale-completeness.ts"
     ],
+    "src/shared/doc-layout": [],
+    "src/shared/doc-layout/src": [
+      "node tests/verify-683-choice-store.ts"
+    ],
     "src/shared/host-timer": [],
     "src/shared/host-timer/src": [
       "node tests/verify-1115-timer-handle.ts"
@@ -8543,12 +8549,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 525,
-    "dirCount": 56,
-    "coveredFileCount": 525,
+    "fileCount": 528,
+    "dirCount": 58,
+    "coveredFileCount": 528,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 49,
+    "dedicatedDirCount": 50,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -8871,6 +8877,9 @@
       "src/shared/config-store/src/settings.ts",
       "src/shared/config-store/src/workspace.ts",
       "src/shared/config-store/tsconfig.json",
+      "src/shared/doc-layout/README.md",
+      "src/shared/doc-layout/src/layouts.ts",
+      "src/shared/doc-layout/tsconfig.json",
       "src/shared/feedback-map.ts",
       "src/shared/host-timer/README.md",
       "src/shared/host-timer/src/host-timers.ts",
@@ -9110,6 +9119,8 @@
       "src/shared",
       "src/shared/config-store",
       "src/shared/config-store/src",
+      "src/shared/doc-layout",
+      "src/shared/doc-layout/src",
       "src/shared/host-timer",
       "src/shared/host-timer/src",
       "src/shared/issue-file",
@@ -9166,6 +9177,7 @@
       "src/host/tracker",
       "src/seam",
       "src/shared",
+      "src/shared/doc-layout/src",
       "src/shared/host-timer/src",
       "src/shared/issue-file/src",
       "src/shared/label-color/src",
@@ -9193,6 +9205,10 @@
       {
         "path": "src/shared/config-store/src",
         "fileCount": 4
+      },
+      {
+        "path": "src/shared/doc-layout",
+        "fileCount": 3
       },
       {
         "path": "src/shared/host-timer",

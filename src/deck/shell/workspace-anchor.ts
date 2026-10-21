@@ -23,6 +23,8 @@ import {
   WORKSPACE_JSON_REL,
   WORKSPACE_KNOWN_VERSION,
 } from '../../shared/config-store/src/workspace.js'
+// 布局取值的唯一真源（#1342）：核不自己留字面量，由这里把名单传进去。
+import { DOC_LAYOUT_VALUES } from '../../shared/doc-layout/src/layouts.js'
 import {
   parseWorkspaceFile as parseWith,
   stringifyWorkspaceFile as stringifyWith,
@@ -44,8 +46,8 @@ export { WORKSPACE_FILE_SOURCE_AUTO } from '../rules/workspace-file.js'
  * 这一层校验不改变行为：形状不对时核自己会回 ok:false 或只读，与拆分前一样。
  */
 const CODEC: WorkspaceCodec = {
-  parse: (text) => parseWorkspaceText(text) as ReturnType<WorkspaceCodec['parse']>,
-  encode: (fields) => stringifyWorkspace(fields) as ReturnType<WorkspaceCodec['encode']>,
+  parse: (text) => parseWorkspaceText(text, DOC_LAYOUT_VALUES) as ReturnType<WorkspaceCodec['parse']>,
+  encode: (fields) => stringifyWorkspace(fields, DOC_LAYOUT_VALUES) as ReturnType<WorkspaceCodec['encode']>,
 }
 
 /**
