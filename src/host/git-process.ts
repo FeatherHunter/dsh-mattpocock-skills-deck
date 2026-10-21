@@ -8,7 +8,7 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
-import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel } from '../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound/admission.js'
 import { getChainRide } from './refresh/chain-ride.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -194,7 +194,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       //   gh 命令会按工作区解析仓库身份（`gh repo view`、`gh api` 等），落到别人的目录就是在错的仓库上读或写。
       //   这一条发生在拿名额之前，所以没有名额要还；如实回一条环境档失败，让调用方按「还没就绪」处理。
       if (!(typeof cwd === 'string' && cwd.trim())) {
-        try { if (logCtx) logCtx.fire('warn', 'gh.exec', { argv0: 'gh', cwdHash: hash8(''), latencyMs: Date.now() - ghT0, kind: 'no-cwd', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('warn', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(''), latencyMs: Date.now() - ghT0, kind: 'no-cwd', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'env', error: '这个工作区还没就绪（还没认出是哪个目录），所以这一次没有执行任何 gh 命令' }
       }
       // #969 分档超时（读短写长探活最短）；#965 读写分桶拿名额（满了等；不传取消信号，拿不到只会等不会抛）。
@@ -219,7 +219,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
@@ -232,7 +232,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
@@ -269,8 +269,8 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           else if (/keyring/i.test(t)) signal = 'keyring'
           try { if (logCtx) logCtx.fire('warn', 'gh.auth.env', { signal: signal, cwdHash: hash8(cwd || DEFAULT_CWD), exitCode: outcome.exitCode || -1, proxySet: proxySet, ghConfigDir: ghConfigDir }) } catch (eL) {}
         }
-        try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout }) } catch (eL) {}
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
+        try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout, layer: 'host-clamp' }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
@@ -288,7 +288,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           try { if (typeof getChainBackoff === 'function') getChainBackoff().then(function (b) { try { if (b) b.noteWriteActivity() } catch (e) {} }).catch(function () {}) } catch (eWr) {}
         }
       } catch (e) {}
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
       try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
       try { if (rkRelease) rkRelease() } catch {}

@@ -1,6 +1,13 @@
 // verify-log-fields.ts —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.ts，可独立运行。
 // 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 119 事件；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
+// 2026-10-21 第二轮逐票复核（map 1010 的 1000–1300 段）没有新增事件，只给四条既有事件补判定字段：
+//   常驻 #5 gh.exec 增补 cmd（哪条 gh 子命令，例如 issue:create；从前只有 argv0='gh'，分不出查登录态还是改票）、
+//   常驻 #6 gh.timeout 增补 layer（room-tier 房内自己掐表 / host-clamp 宿主外包钳制）、
+//   常驻 #26 host.call 增补 reason（仅 deck.quotaSync 同步失败时带原因码）、
+//   按需 #76 refresh.decide 与 #77 refresh.skipped 在失败窗口里增补五个归因键（连续几次、窗口起点、最近一次类别与种类）。
+//   事件总数仍 119，字段键数增加；字段含义见下面各行的中文注释与附录 1.4/1.5 对照表。
+//   为什么要补：#1007 要能分开查登录态与改票、#1006 要查配额同步为什么失败、#1008/#1218 要查退避窗口里那几次失败是谁攒的。
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -32,7 +39,11 @@ const ALLOWED = {
   //   为什么要有：`via` 只回答了「这一行是谁发的」，回答不了「这一行属于哪一趟操作」——同一时间有几趟
   //   读并行时，光看房间这一层仍然分不清哪几行是一伙的。宿主那层的 host.call / host.call.fail 记同一个
   //   编号，两层于是能靠一个键对上，不必再按时间戳猜。没给编号的调用方记空串，行为与从前一字不差。
-  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  // 2026-10-21（#1007 复核）再增补一格 cmd：这一条 gh 命令是哪种子命令，形状是短标签
+  //   （api:graphql / api:repos / issue:create / auth:status），第二段不是纯动词时只留第一段。
+  //   为什么要有：从前只有 argv0='gh'，一次失败分不清是「查登录态失败」还是「改票失败」；命令参数与编号一律不进日志。
+  //   落点：src/tracker/rooms/github/client.ts 与 src/host/git-process.ts 的 gh.exec 调用点。
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd'],
   // 2026-10-14（#1052 补做）常驻 #108 `read.degraded`：一条读操作「本来能成、这一趟没成，或者成得不完整」
   //   的结论线，一趟一行（命令成功了、可回包不是合法 JSON / 缺东西 / 游标失效 / 只拿到前几页 / 被上限截断
   //   这类路，从前一个字都不留）。四个键全是短枚举与数字：op 哪条读操作、reason 为什么、latencyMs 这一趟
@@ -46,7 +57,10 @@ const ALLOWED = {
   //   latencyMs 这一项花了多久、opId 这一行属于宿主哪一趟操作（#1052 续补）。发射口在
   //   src/tracker/rooms/github/read-log.ts 的 emitPreflightGatePass。
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
-  'gh.timeout': ['argv0', 'timeoutMs'],
+  // 2026-10-21（#1007/#1224 复核）常驻 #6 gh.timeout 增补一格 layer：这次超时是谁掐的表——
+  //   room-tier 是 GitHub 房自己按档位掐的（房间这一层），host-clamp 是宿主外包的一层钳制。
+  //   为什么要分开：房内掐表后宿主仍可能再掐一次，只看到一条超时区分不了是档位设小了还是外层兜底被触发。
+  'gh.timeout': ['argv0', 'timeoutMs', 'layer'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
   'issues.fallback': ['from', 'to', 'reason'],
@@ -176,7 +190,10 @@ const ALLOWED = {
   'workspaceKey.canonical': ['rawHash', 'normalizedHash', 'fallback'],
   'platform.resolve': ['name', 'ok', 'latencyMs'],
   'naming.sweep': ['trigger', 'count'],
-  'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash'],
+  // 2026-10-21（#1006 复核）常驻 #26 host.call 增补一格 reason：只在 deck.quotaSync 同步失败那一行带原因码
+  //   （sync-empty 读不出读数 / sync-threw 这一趟抛了 / ensure-threw 入口兜底），成功那一行不带这个键。
+  //   为什么要有：从前同步失败只回原因码、日志里一个字不留，事后查不出 60 秒冷却为什么开始。
+  'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason'],
   // 2026-10-14（#1052 续）`host.call` 与 `host.call.fail` 各增补两格：`opId` 与 `cwdHash`。
   //   为什么要有：一趟操作在日志里落成两层——宿主这一层说「调了哪条电话、成没成、花了多久」，
   //   房间那一层（gh.exec / read.degraded）说「里面起了哪几条外部命令、走到哪一支」。两层从前没有
@@ -275,8 +292,14 @@ const ALLOWED = {
   //   一笔花费（哪一档、哪个桶、几条真实出站请求、几点、记完还剩多少）、一次裁决（类别、种类、结论、原因代号、档位）、
   //   一次跳过（工作区键散列、种类、原因、推迟队列里现在几条）。都只记枚举、散列与数字，不记路径原文与命令原文。
   'quota.spend': ['account', 'bucket', 'requests', 'points', 'remaining'],
-  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash'],
-  'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending'],
+  // 2026-10-21（#1008/#1218 复核）按需 #76 refresh.decide 与 #77 refresh.skipped 在「这个工作区还处在
+  //   连续失败窗口里」时增补五个归因键，窗口外一个都不带（正常时段的这两行与从前一字不差）：
+  //   failuresSinceSuccess 连续失败几次、backoffWindowStartedAt 这串从什么时候开始、lastFailureCategory 最近一次
+  //   是哪一类、lastFailureKind 最近一次是什么种类、failureStreak 连续第几次。
+  //   为什么要有：从前只记「推迟了」与推迟原因，回答不了「这 3 次是谁攒的」——同一窗口里可能既有登录失败又有网络失败。
+  //   五个值都来自闸自己的记忆（src/host/refresh/gate.ts 的 WorkspaceState），不查账本、不联网。
+  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak'],
+  'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak'],
   // 2026-09-23 #708（T4 第三批）新增一条按需事件（附录 1.5 节 #82）：一次行级增量跑完之后的结论 ——
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
   //   真发出去几条薄查询、水印推没推、待办里现在几条。只记短散列、枚举与数字，不记路径与命令原文。
@@ -384,7 +407,7 @@ const ALLOWED = {
   'prompt.link': ['prompt', 'backend', 'numKind', 'linkKind', 'verdict'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
-// gh.exec 八键（六键照旧，`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 两键、gh.resolve.fail 两键，
+// gh.exec 九键（六键照旧，cmd 为 2026-10-21 #1007 复核增补；`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 三键（layer 为同日 #1007/#1224 复核增补）、gh.resolve.fail 两键，
 // graphql.fallback 与 issues.fallback 各自两键与三键；error.normalize 必有 rawKind 与 mappedKind 两键，
 // 另外三个码值键（httpCode 状态码、exitCode 退出码、errCode 错误码名）只在真有对应事实时带。
 // 注意本门禁的字段收集器只看得见「调用点上写死的对象字面量」，而 error.normalize 现在由
@@ -398,11 +421,11 @@ const ROOM_SHAPES = {
   //   断言在 tests/verify-github-gh-via.ts。
   // 2026-10-14（#1052 续）再增补一格 `opId`（含义见上面 ALLOWED 里同名的注释段）：
   //   宿主起这一趟操作时生成的编号，房间原样取 `ctx.opId`；不给编号的调用方记空串。
-  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd'],
   // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
   'read.degraded': ['op', 'reason', 'latencyMs', 'opId'],
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
-  'gh.timeout': ['argv0', 'timeoutMs'],
+  'gh.timeout': ['argv0', 'timeoutMs', 'layer'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
   'issues.fallback': ['from', 'to', 'reason'],
