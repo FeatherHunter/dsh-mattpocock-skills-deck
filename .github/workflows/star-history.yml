@@ -5,6 +5,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# 同一时间只允许一个更新任务在跑：两个任务同时改同一批文件会互相覆盖，也会把 push 撞成非快进。
+concurrency:
+  group: star-history
+  cancel-in-progress: false
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -13,16 +17,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          # 仓库脚本是 .mts，Node 20 不认识这个扩展名（ERR_UNKNOWN_FILE_EXTENSION）；Node 22.18 起才默认剥类型。
+          # 这个下限跟根 package.json 的 engines 对齐，别再退回 20。
+          node-version: 22
       - name: Fetch star history
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           REPO="FeatherHunter/dsh-mattpocock-skills-deck"
-          gh api -H "Accept: application/vnd.github.star+json" "repos/$REPO/stargazers" --paginate --jq ".[].starred_at" > /tmp/stars.txt || true
+          # 不吞退出码：拉取失败就让这一步红，别把「没拉到」伪装成「没有新数据」而直接跳过。
+          gh api -H "Accept: application/vnd.github.star+json" "repos/$REPO/stargazers" --paginate --jq ".[].starred_at" > /tmp/stars.txt
           if [ ! -s /tmp/stars.txt ]; then echo "No stars fetched"; exit 0; fi
+          OLD_TOTAL=$(node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync('docs/star-history.json','utf8'));process.stdout.write(String(d[d.length-1]?.total??0))}catch{process.stdout.write('0')}")
           node scripts/update-star-history.mts /tmp/stars.txt
+          # 星标总数只增不减；总数变小说明这次分页没拉全（限流、网络、中途失败），
+          # 宁可这一次不提交，也不要把图画出一个向下的坑。
+          NEW_TOTAL=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('docs/star-history.json','utf8'));process.stdout.write(String(d[d.length-1]?.total??0))")
+          if [ "$NEW_TOTAL" -lt "$OLD_TOTAL" ]; then
+            echo "::error::这次拉到的星标总数是 $NEW_TOTAL，比上次落盘的 $OLD_TOTAL 还少，可能是分页没拉全；已停止，不提交残缺数据。"
+            exit 1
+          fi
           node scripts/generate-star-history-svg.mts
       - name: Bump README cache stamp
         run: |
@@ -43,4 +58,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/star-history.json docs/star-history-dark.svg docs/star-history-light.svg README.md docs/README.en.md
           git commit -m "每日更新 Star History：追加拉取到的星标数据并重新生成手绘双主题图表"
-          git push
+          # 从 checkout 到 push 之间 main 可能又被别的提交推前了，直接 push 会被拒（! [rejected] main -> main (fetch first)）。
+          # 先同步远端再推；合并冲突或并发撞车时重试三次，仍失败就红，下一次定时任务会接着补。
+          for i in 1 2 3; do
+            if git fetch origin main && git merge --no-edit origin/main && git push origin main; then
+              exit 0
+            fi
+            git merge --abort 2>/dev/null || true
+            sleep 10
+          done
+          echo "::error::同步远端后仍推不上去，已重试 3 次。"
+          exit 1
