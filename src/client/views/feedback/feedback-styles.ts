@@ -48,7 +48,10 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '@keyframes dsws-ripple{0%{opacity:.8;transform:scale(.4)}100%{opacity:0;transform:scale(1.6)}}',
       '.dsws-btn.ghost.dsws-pressing{animation:dsws-ringout .6s ease-out}',
       // ghost 按下时的外扩环同样取主题焦点色：写死的蓝换主题不跟（2026-10-21 用户要求所有高亮边框统一走焦点 token）。
-      '@keyframes dsws-ringout{0%{box-shadow:0 0 0 0 var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}100%{box-shadow:0 0 0 12px transparent}}',
+      // 确认圈也画在控件里面：原来是一圈向外扩 12px 的光环，在详情页顶栏那种没有内边距的按钮组里
+      //   上下两截会被 overflow:hidden 切掉（2026-10-21 用户实测就是这种「圈被截断」）。内画的环不会出门，
+      //   跟着按钮自己的 6px 圆角走，扩到 2px 再淡出。
+      '@keyframes dsws-ringout{0%{box-shadow:inset 0 0 0 0 var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}45%{box-shadow:inset 0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}100%{box-shadow:inset 0 0 0 2px transparent}}',
       '.dsws-btn.primary.dsws-pressing{transform:scale(.98) translateY(1px)}',
       '.dsws-modalbox .dsws-btn.primary.dsws-pressing{transform:scale(.98) translateY(1px) rotate(-1.2deg)}',
       '.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen.dsws-pressing::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);opacity:0;animation:dsws-sheen .5s ease}',
@@ -92,18 +95,21 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '@keyframes dsws-ink-squash{0%{scale:1.05 .94}55%{scale:1.015 .985}100%{scale:1 1}}',
       '.dsws-ink-host .dsws-tab.on{background:transparent;border-color:transparent}',
       '.dsws-ink-host [data-ink-cover="1"]{background:transparent!important;border-color:transparent!important}',
+      // 悬停高亮圈一律画在控件里面（box-shadow 用 inset）：外画的圈会被页签行、详情页顶栏按钮组、
+      //   状态栏胶囊外层这几处 overflow:hidden 的容器把头、尾、左右两端切掉——2026-10-21 用户逐处实测报过
+      //   「顶部被截断」「上下两截被截断」「胶囊左右不全」。内画跟着控件自己的圆角走，既不裁也自带圆角。
       // 页签只有悬停变色（原来连这个都没有）；药丸加一层轻微提亮，按下由通用按压态负责。
       // 药丸（.dsws-chip）里混着两种东西：能点的筛选药丸，和只是长得像药丸的静态角标（地图详情的「地图」、
       //   状态章、label、effort 章）。悬停提亮只能给能点的那种——判据就是接线契约里的 data-press：挂了它才是控件。
       //   2026-10-21 用户实测「地图详情顶部那个『地图』不能点却会亮」，就是因为这条规则只认类名。
-      '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}[data-press].dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12);box-shadow:0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}}',
+      '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}[data-press].dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12);box-shadow:inset 0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}}',
       // 选中的那一颗悬停时墨块已经在它底下，再补一档提亮，保证「悬停有反馈」对五颗页签每一颗都成立。
       '@media (hover:hover) and (pointer:fine){.dsws-ink-host .dsws-tab:hover:not(.dsws-pressing){filter:brightness(1.12)}}',
       // 通用按压/悬停：给清单里原来没有任何反馈的控件（仓库名、切后端、调色板、新建需求、+bug、
       //   workroute、地图卡片、折叠条、父链接、设置页按钮与插件行等）同一套语言；只用亮度与小位移。
       '.dsws-pressing{filter:brightness(.85)}',
       '.dsws-tab.dsws-pressing,.dsws-chip.dsws-pressing{filter:brightness(.8)}',
-      '@media (hover:hover) and (pointer:fine){.dsws-hov:hover:not(.dsws-pressing){box-shadow:0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.25);filter:brightness(1.06)}}',
+      '@media (hover:hover) and (pointer:fine){.dsws-hov:hover:not(.dsws-pressing){box-shadow:inset 0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.25);filter:brightness(1.06)}}',
       '.dsws-hov.dsws-pressing{filter:brightness(.82);transform:translateY(1px);box-shadow:none;transition:transform .08s ease}',
       '.dsws-hov{transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}',
       '@media (hover:hover) and (pointer:fine){.dsws-workroute:hover:not(.dsws-pressing){filter:brightness(1.18)}}',
@@ -114,7 +120,7 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   按钮类悬停提亮加一圈亮描边，按下压暗并下沉一像素；小图标按下不位移（圆点会糊），整行/整卡只压暗
       //   （整块下沉会把同行其它元素带着错位，这也和规格里「小图标不位移」一致）。
       //   行容器（.dsws-aggrow/.dsws-trow/.dsws-node）原有自己的悬停底色与更轻的按压，这里排除，不互相顶掉。
-      '@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.3)}}',
+      '@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.3)}}',
       '[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node).dsws-pressing{filter:brightness(.82)}',
       '[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}',
       '.dsws-btn[data-press],[data-press="link"],[data-press="switch"]{transition:filter .12s ease,box-shadow .12s ease,transform .08s ease}',
