@@ -108,9 +108,12 @@ const CACHE = compileFn(
 )
 const snap = { ok: true, maps: [], workspaceRoot: ROOT_DIR, generatedMs: 1 }
 CACHE.setCachedSnapshot(SUB_DIR, snap)
-if (CACHE.getCachedSnapshot(ROOT_DIR) === snap && CACHE.getCachedSnapshot(SUB_DIR) === snap) {
+// #1355 起落缓存会另存一份浅拷贝（按工作区共享的缓存不能带会话相关的读数），所以这里比的是
+// 「根会话与子目录会话读到的是不是同一条条目、内容对不对」，不再拿调用方那个对象当同一性凭据。
+const cached = CACHE.getCachedSnapshot(ROOT_DIR)
+if (cached === CACHE.getCachedSnapshot(SUB_DIR) && !!cached && cached.maps === snap.maps && cached.generatedMs === snap.generatedMs) {
   ok('按子目录存进去的快照，根会话与子目录会话都读得出来（同桶）')
-} else bad('子目录存进去的快照根会话读不出来：root=' + !!CACHE.getCachedSnapshot(ROOT_DIR) + ' sub=' + !!CACHE.getCachedSnapshot(SUB_DIR))
+} else bad('子目录存进去的快照根会话读不出来：root=' + !!cached + ' sub=' + !!CACHE.getCachedSnapshot(SUB_DIR))
 if (CACHE.table.size === 1) ok('落缓存只占一把键（不再一份数据两个桶）')
 else bad('落缓存占了 ' + CACHE.table.size + ' 把键，应只有 1 把')
 
@@ -204,7 +207,9 @@ KEY.rememberWorkspaceRoot(SUB_DIR, hostSnap.workspaceRoot)   // 客户端学到�
 TABLES.setCachedSnapshot(SUB_DIR, hostSnap)                  // 面板快照落缓存
 TABLES.setCachedChain(SUB_DIR, 'github', 'zh', { steps: [] }) // 检查链快照落缓存
 TABLES.touchProbeAt(SUB_DIR, 12345)                           // 上次探测时间走针
-const sameSnap = TABLES.getCachedSnapshot(ROOT_DIR) === hostSnap
+// #1355 起落缓存会另存一份浅拷贝：同一性判据改成「根与子目录读到同一条、内容对得上」。
+const cachedPanel = TABLES.getCachedSnapshot(ROOT_DIR)
+const sameSnap = cachedPanel === TABLES.getCachedSnapshot(SUB_DIR) && !!cachedPanel && cachedPanel.maps === hostSnap.maps && cachedPanel.generatedMs === hostSnap.generatedMs
 const sameChainKey = TABLES.getChainCacheKey(SUB_DIR, 'github', 'zh') === TABLES.getChainCacheKey(ROOT_DIR, 'github', 'zh')
 const sameChain = TABLES.getCachedChain(ROOT_DIR, 'github', 'zh') !== null
 const sameProbe = TABLES.getProbeAt(ROOT_DIR) === 12345

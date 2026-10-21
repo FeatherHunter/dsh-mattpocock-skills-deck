@@ -24,6 +24,7 @@ declare const resolveWorkspaceEntry: any;
 declare const storeOf: any;
 declare const hydrateFromCache: any;
 declare const getCachedSnapshot: any;
+declare const snapshotWithoutWorkRoute: any;
 declare const isReusableBlank: any;
 declare const buildCreateOpts: any;
 declare const createPTCSession: any;
@@ -171,10 +172,10 @@ declare const ensureInjectFocusAtEnd: any;
                 try {
                   const hasShared = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
                   if (!hasShared && st.snapshot && st.cwd && (typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||''))) {
-                    ns.snapshot = st.snapshot
+                    ns.snapshot = snapshotWithoutWorkRoute(st.snapshot)
                     ns.snapMode = 'real'
                   }
-                } catch(eFb){ if (st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode='real'; } }
+                } catch(eFb){ if (st.snapshot) { ns.snapshot = snapshotWithoutWorkRoute(st.snapshot); ns.snapMode='real'; } }
               }
               try {
                 const sharedSnap = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
@@ -262,10 +263,10 @@ declare const ensureInjectFocusAtEnd: any;
               try {
                 const hasShared = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
                 if (!hasShared && st.snapshot && st.cwd && (typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||''))) {
-                  ns.snapshot = st.snapshot
+                  ns.snapshot = snapshotWithoutWorkRoute(st.snapshot)
                   ns.snapMode = 'real'
                 }
-              } catch(eFb){ if (st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode='real'; } }
+              } catch(eFb){ if (st.snapshot) { ns.snapshot = snapshotWithoutWorkRoute(st.snapshot); ns.snapMode='real'; } }
             }
             // 版本以最新 generatedMs 者胜：若源快照更新，则以最新者为准（hydrate 已处理，但兜底后需校正）
             try {

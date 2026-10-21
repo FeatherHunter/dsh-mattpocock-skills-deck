@@ -483,6 +483,10 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.ts' },
+  // #1355：每个会话自己的工作路线读数（剥表、补拉、三处接线共用的请求决策）从 storeSnapshot 拆到这里——
+  //   那片从 #707 起贴着 350 行上限，本票再加三件判断就会超。标记排在 storeSnapshot 之后：
+  //   本片只调用标在它前面的 snapNeedsOwnWorkRoute，且只在运行时调用，拼接次序按这条依赖关系排。
+  { name: 'workRouteOwn', file: 'src/client/kernel/work-route-own.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.ts' },

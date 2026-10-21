@@ -59,6 +59,8 @@ declare function setBannerFolded(...args: any[]): any;
 declare function showStatusBugMenu(...args: any[]): any;
 declare function showStatusTakeMenu(...args: any[]): any;
 declare function snapFresh(...args: any[]): any;
+// #1355：这一下要不要补拉本会话的工作路线表、按什么方式发（判据与实现在 kernel/work-route-own）。
+declare function runSnapshotRequestPlan(...args: any[]): any;
 declare function splitTimeStr(...args: any[]): any;
 declare function togglePanel(...args: any[]): any;
 declare function useStatusMenus(...args: any[]): any;
@@ -149,9 +151,7 @@ export const StatusBar = (props: any) => {
       try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {}
     }
   }, [props.sessionId, props.inputActions])
-  React.useEffect(function () {
-    probeHandoffReady(s)
-  }, [])
+  React.useEffect(function () { probeHandoffReady(s) }, [])
   React.useEffect(function () {
     const apply = function (cwd: any, src: any) {
       if (cwd && cwd !== s.cwd) {
@@ -160,7 +160,9 @@ export const StatusBar = (props: any) => {
         const hydrated = hydrateFromCache(s)
         emit(s)
         loadChain(s, false)
-        if (!hydrated || !snapFresh(s)) loadSnapshot(s, false, !!hydrated)
+        // #1355：水合来的可能是同工作区别的会话的快照 —— 里面没有当前会话的 workRouteTable，胶囊会一直空着。
+        //   要不要补拉、补拉走强制还是静默，全由 kernel/work-route-own 的 snapshotRequestPlan 一处决定，这一行只把它发出去。
+        runSnapshotRequestPlan(s, hydrated, 'apply', snapFresh(s), loadSnapshot)
       }
     }
     if (summaryCwd) { apply(summaryCwd, 'summary'); return }
@@ -172,7 +174,15 @@ export const StatusBar = (props: any) => {
       }).catch(function () {})
     }
   }, [sid, summaryCwd])
-  React.useEffect(function () { loadChain(s, false); if (!snapFresh(s)) loadSnapshot(s, false, true) }, [])
+  React.useEffect(function () {
+    loadChain(s, false)
+    // #1355：挂载首帧若水合到别的会话的快照，同样要补拉自己的表（判据与上面 apply 那条是同一份）。
+    runSnapshotRequestPlan(s, false, 'mount', snapFresh(s), loadSnapshot)
+  }, [])
+  // #1355：切到另一个会话时，cwd 往往已经由会话摘要同步就位（apply 那条路径整个不跑），但新 store 水合来的缓存
+  //   可能还是上一个会话的快照。这里单独补一眼：缺自己的 workRouteTable 就补拉一次。
+  //   同一次提交里上面两条也走同一个判据，忙不忙由它挡（snapLoading / selPending）；普通冷启动仍走既有的在途复用。
+  React.useEffect(function () { runSnapshotRequestPlan(s, true, 'switch', snapFresh(s), loadSnapshot) }, [sid])
   React.useEffect(function () { try { const r = !s.snapshot ? 'no-snapshot' : (!s.cwd ? 'no-cwd' : (s.snapMode === 'err' ? 'snap-error' : '')); if (r !== dswsStatusFbLast.reason) { dswsStatusFbLast.reason = r; if (r) log('info', 'statusbar.fallback', { reason: r }) } } catch (eL) {} }, [s.snapshot, s.cwd, s.snapMode])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr } = csx

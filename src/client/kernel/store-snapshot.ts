@@ -116,9 +116,29 @@ const dswsClientSnapHitN: any = { n: 0 } // #498 客户端快照命中采样计�
 export const getCachedSnapshot = function (cwd: any): any { try{ const k: any=wsKeyOf(cwd); const e: any=snapshotByCwd.get(k); const s: any=e?e.snapshot||e:null; try { if (s) { dswsClientSnapHitN.n += 1; if (isEnabled('debug') && dswsClientSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(String(k)), ageMs: Date.now()-(((e&&e.ts)||Date.now())), kind: 'memory' }) } } catch(eL){} return s; }catch(e){ return null; } }
 export const getCachedEntry = function(cwd: any): any{ try{ const k: any=wsKeyOf(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
 // 落缓存：键 = 工作区键（#653 起锚到工作区根，子目录会话与根会话同桶）
-export const setCachedSnapshot = function (cwd: any, snap: any): void { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; let s2: any=snap; if(snap.notModified===true||snap.status===304||snap.cached===true){ // #232 · 落库前剥除响应传输态标记（仅属当次请求，不属缓存实体）
-  try{ s2=Object.assign({},snap); delete s2.notModified; delete s2.status; delete s2.cached; }catch(eS){ return } }
+// #1355：缓存条目按工作区共享，而 workRouteTable 里每行「是不是本会话」的标记是按请求它的那个会话算的——
+//   同一份表交给别的会话，对方认出来的「本会话行」就全错，会把别人的行当成自己的。落缓存时浅拷贝再剥掉它。
+export const setCachedSnapshot = function (cwd: any, snap: any): void { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return
+  let s2: any
+  try{ s2=Object.assign({},snap) }catch(eS){ return }
+  // #232 · 落库前剥除响应传输态标记（仅属当次请求，不属缓存实体）
+  try{ delete s2.notModified; delete s2.status; delete s2.cached }catch(eT){}
+  // #1355 · 这份读数的「视角」只属于当时请求它的会话，不进按工作区共享的缓存（要这张表就用自己的会话号现算一份）
+  try{ delete s2.workRouteTable }catch(eW){}
   try{ const k: any=wsKeyOf(cwd); const ver: any=s2.version||s2.etag||''; const ent: any={snapshot:s2, version:ver, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent); try{ diskPutSnapshot(k, ent) }catch(eD1){} }catch(e){} }
+// #1355 · 本会话手上那份快照缺自己的 workRouteTable 吗？缺的来路不止一种：同工作区别的会话水合过来的、升级前旧缓存留下的、
+//   或这一版宿主根本没带这个字段；不管哪种，都得补发一次带当前会话号的快照请求。
+//   忙（正在刷新 / 后端还说不准）时不判缺，所以三处接线重复触发也不会重复发请求。
+//   只回答「缺不缺」，不回答「行是不是自己的」——读数里没有会话号，判不出归属；宿主在途去重那张票跟上（尚未建票）。
+export const snapNeedsOwnWorkRoute = function (st: any): boolean {
+  try {
+    if (!st || !st.sessionId || !st.snapshot || st.snapLoading === true || st.selPending === true) return false
+    const t: any = st.snapshot.workRouteTable
+    return t === undefined || t === null
+  } catch (e) { return false }
+}
+// #1355：剥表、补拉与三处接线共用的请求决策已搬到 kernel/work-route-own.ts（本文件贴着 350 行上限，#707 起如此；
+//   搬家原因与那片的分工写在它的文件头）。这里只留「缺不缺表」这一条判据，因为缺表的样子由本文件的缓存形状决定。
 export const getSnapshotVersion = function(cwd: any): string{ try{ const e: any=getCachedEntry(cwd); return e?e.version||'':''; }catch(e){ return ''; } }
 // ============ #327 特性 A/B：上次探测时间 + 快照多级缓存（内存→磁盘→网络）============
 export const lastProbeAtByCwd: any = new Map() // Map<工作区键, ms> —— 对该工作区完成任一次检查（探针/刷新/快照校验）即推进，数据不变也走针
@@ -204,7 +224,26 @@ export const justPicked = function (st: any, c: any): boolean {
 }
 export const hydrateFromCache = function (st: any): boolean {
   if (!st || !st.cwd) return false
-  const c: any = getCachedSnapshot(st.cwd)
+  let c: any = getCachedSnapshot(st.cwd)
+  // #1355：旧版本落进内存/磁盘的缓存条目里还带着「当时请求那个会话」的工作路线读数。水合前先剥掉再装，
+  //   否则本会话会把别人的行当自己的行。剥干净后写回内存条目；带条目外壳的旧缓存同时写回磁盘
+  //   （裸快照形状只在更老版本出现，命中时按无表直接水合、不写回）。写盘前重读条目确认没被更新的写入换掉，避免旧条目盖新条目。
+  //   不原地改老对象 —— 它可能正被同工作区的另一个会话当 st.snapshot 用（升级前的引用共享），原地删会清掉它的表。
+  try {
+    if (c && c.workRouteTable !== undefined) {
+      const clean: any = Object.assign({}, c)
+      delete clean.workRouteTable
+      c = clean
+      const ent: any = getCachedEntry(st.cwd)
+      if (ent && ent.snapshot) {
+        ent.snapshot = c
+        try {
+          const nowEnt: any = getCachedEntry(st.cwd)
+          if (nowEnt === ent) diskPutSnapshot(wsKeyOf(st.cwd), ent)
+        } catch (eD2) {}
+      }
+    }
+  } catch (eWr0) {}
   // #653：这份缓存自己带着工作区根时先记住它，随后所有抽屉都按工作区根找（子目录会话秒显根会话的数据）
   try{ if(c && c.workspaceRoot) rememberWorkspaceRoot(st.cwd, c.workspaceRoot) }catch(eWr){}
   try{ if(c){ const _k: any=wsKeyOf(st.cwd); const _e: any=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}

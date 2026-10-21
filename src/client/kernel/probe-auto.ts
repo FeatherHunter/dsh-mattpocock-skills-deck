@@ -39,6 +39,8 @@ declare const timer: any;
 declare const document: any;
 declare const window: any;
 declare const hydrateFromCache: any;
+declare const snapshotWithoutWorkRoute: any;
+declare const ensureOwnWorkRoute: any;
 declare const chainEventRefresh: any;
 declare const loadChain: any;
 declare const setupPendingOf: any;
@@ -111,10 +113,12 @@ export const probeNow = function (fromFocus: any): void {
       if (!primary.cwd) primary.cwd = cwd;
       const rest: any[] = group.slice(1);
       // 把一份快照落进本组：主 store 就地更新，同组其余会话按差异带闪烁标记。
-      const applySnap = function (raw: any): boolean {
+      // #1355：探测回包里那一份快照可能带着「上一个向宿主要快照的会话」算出的工作路线读数（宿主缓存对象被原地挂过表）。
+      //   只有请求会话自己的表才信；探测（没带会话号）拿回来的，先剥表再装，随后给正在被看的 store 补一次自己的请求。
+      const applySnap = function (raw: any, ownTable: any): boolean {
         const newSnap: any = raw || primary.snapshot;
         if (!newSnap || newSnap.ok !== true || !Array.isArray(newSnap.maps)) return false;
-        primary.snapshot = newSnap;
+        primary.snapshot = ownTable ? newSnap : snapshotWithoutWorkRoute(newSnap);
         primary.snapMode = 'real';
         primary.snapError = null;
         rest.forEach(function (st2: any): void {
@@ -125,21 +129,23 @@ export const probeNow = function (fromFocus: any): void {
           _df.added.forEach(function (n: any): void { st2.rowFlash[n] = 'added'; });
           _df.changed.forEach(function (n: any): void { st2.rowFlash[n] = 'changed'; });
           if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (ki: string): void { st2.issueFlash[Number(ki)] = _df.issueFlash[ki]; });
-          st2.snapshot = newSnap;
+          st2.snapshot = snapshotWithoutWorkRoute(newSnap);
           st2.snapMode = 'real';
           st2.snapError = null;
           scheduleFlashClear(st2);
           emit(st2);
+          ensureOwnWorkRoute(st2, loadSnapshot);
         });
         try { emit(primary); } catch (eEmit) {}
+        ensureOwnWorkRoute(primary, loadSnapshot);
         return true;
       };
       // ① 宿主已经补好行级增量：直接用，一条大查询都不发。
-      if (res.mode === 'patch' && res.snapshot && applySnap(res.snapshot)) return;
+      if (res.mode === 'patch' && res.snapshot && applySnap(res.snapshot, false)) return;
       // ② 宿主说该整池（冷启动 / 票号增减 / 条数过多 / 旧结构），或者这一版宿主没给增量结果：
       //    走原来那条整池重建的路（行为与改动前一致）。
       return loadSnapshot(primary, true, true).then(function (): void {
-        applySnap(primary.snapshot);
+        applySnap(primary.snapshot, true);
       }).catch(function (): void { /* 忽略 */ });
     }).catch(function (e: any): void { try { log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); } catch (eL) {} });
   };
@@ -344,12 +350,13 @@ export const refreshAll = function (st: any): void {
                 if (_df.removed && _df.removed.length) try { flash(st2, tr('panel.diffRemoved', { n: _df.removed.length }), 'info'); } catch (eFlash) {}
               }
             } catch (e2) {}
-            st2.snapshot = newSnap;
+            st2.snapshot = snapshotWithoutWorkRoute(newSnap);
             st2.snapMode = 'real';
             st2.snapError = null;
             try { if (typeof applySnapshotSelection === 'function') applySnapshotSelection(st2, newSnap); } catch (eSel) {}
             try { scheduleFlashClear(st2); } catch (eSch) {}
             emit(st2);
+            ensureOwnWorkRoute(st2, loadSnapshot);
           });
         }
       }

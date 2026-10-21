@@ -174,6 +174,9 @@ const capsuleOpenTicket = function (st: any, entry: any) {
  *     list 是当前会话全部记录（从新到旧，悬停里列出来）。
  */
 export const sessionChainCapsuleOf = function (st: any, sid: any) {
+  // #1355：本函数不做「这张表是谁算的」的归属判断 —— 读数里没有会话号，判不出。归属靠上游保证：宿主按请求里
+  //   那个会话号现算，客户端缓存不保留这张表，缺表会补发一次带当前会话号的请求。sid 保留在签名里（调用方照旧传）。
+  //   行上的 currentSession 只是行级过滤，它认不出整张表属于别人 —— 那种情况登记在票里另立票。
   void sid
   const view = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
   if (!view || view.state === 'idle') return { state: 'idle', reason: '', entry: null, list: [] }

@@ -4,7 +4,7 @@
 // 2026-10-21 第二轮逐票复核（map 1010 的 1000–1300 段）没有新增事件，只给四条既有事件补判定字段：
 //   常驻 #5 gh.exec 增补 cmd（哪条 gh 子命令，例如 issue:create；从前只有 argv0='gh'，分不出查登录态还是改票）、
 //   常驻 #6 gh.timeout 增补 layer（room-tier 房内自己掐表 / host-clamp 宿主外包钳制）、
-//   常驻 #26 host.call 增补 reason（仅 deck.quotaSync 同步失败时带原因码）、
+//   常驻 #26 host.call 增补 reason（deck.quotaSync 同步失败、或 #1355 缺本会话工作路线表补拉时带原因码）、
 //   按需 #76 refresh.decide 与 #77 refresh.skipped 在失败窗口里增补五个归因键（连续几次、窗口起点、最近一次类别与种类）。
 //   事件总数仍 119，字段键数增加；字段含义见下面各行的中文注释与附录 1.4/1.5 对照表。
 // 2026-10-21（#1101 排查）再给 #5 gh.exec 与 #6 gh.timeout 补归因格，并新增常驻 #125 gh.lane.wait
@@ -196,9 +196,9 @@ const ALLOWED = {
   'workspaceKey.canonical': ['rawHash', 'normalizedHash', 'fallback'],
   'platform.resolve': ['name', 'ok', 'latencyMs'],
   'naming.sweep': ['trigger', 'count'],
-  // 2026-10-21（#1006 复核）常驻 #26 host.call 增补一格 reason：只在 deck.quotaSync 同步失败那一行带原因码
-  //   （sync-empty 读不出读数 / sync-threw 这一趟抛了 / ensure-threw 入口兜底），成功那一行不带这个键。
-  //   为什么要有：从前同步失败只回原因码、日志里一个字不留，事后查不出 60 秒冷却为什么开始。
+  // 2026-10-21（#1006 复核）常驻 #26 host.call 增补一格 reason：deck.quotaSync 同步失败那一行带原因码
+  //   （sync-empty 读不出读数 / sync-threw 这一趟抛了 / ensure-threw 入口兜底）；#1355 起因缺本会话工作路线表而发的
+  //   强制补拉也带 reason=work-route-missing。为什么要有：从前这些分支只回原因码、日志里一个字不留，事后查不出原因。
   'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason'],
   // 2026-10-14（#1052 续）`host.call` 与 `host.call.fail` 各增补两格：`opId` 与 `cwdHash`。
   //   为什么要有：一趟操作在日志里落成两层——宿主这一层说「调了哪条电话、成没成、花了多久」，

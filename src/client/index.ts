@@ -219,6 +219,8 @@ export default {
     // ==== kernel:settingsViewWrite (spliced by build) ==== // ==== kernel:settingsUi (spliced by build) ==== // ==== kernel:settingsTemplates (spliced by build) ==== // ==== kernel:settingsDebug (spliced by build) ====
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
+    // #1355：本会话自己的工作路线读数（剥表、补拉、三处接线共用的请求决策）单独一片，理由见 kernel/work-route-own.ts 文件头。
+    // ==== kernel:workRouteOwn (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====
     // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
     // 排在其后：它们要用 findMapByIdentity 与 isLightHex。
