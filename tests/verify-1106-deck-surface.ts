@@ -60,10 +60,10 @@ const FROZEN_SHAPE: Record<string, string> = {
   deck_map_snapshot: 'key:string, frontierOnly:boolean, detail:枚举(full|thin), effortId:string 必填=[key] 多传=false',
   deck_issue_list: 'state:枚举(open|closed|all), type:枚举(issue|map|spec|all), labels:数组<string>, assignee:string, query:string, limit:number, effortId:string 必填=[] 多传=false',
   deck_issue_create: "title:string, body:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), kind:枚举(task|bug|map|spec|ticket), parentKey:string, blockedBy:数组<string>, labels:数组<string>, assignees:数组<string>, idempotencyKey:string, workRouteDetail:枚举(core|standard), effortId:string 必填=[title] 多传=false",
-  deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(task|bug|map), labels:数组<string>, assignees:数组<string> 必填=[key,title] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[title,children] 多传=false',
-  deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[] 多传=false',
+  deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(task|bug|map), labels:数组<string>, assignees:数组<string> 必填=[key,title] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, workRouteDetail:枚举(core|standard), effortId:string 必填=[title,children] 多传=false',
+  deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, workRouteDetail:枚举(core|standard), effortId:string 必填=[] 多传=false',
   deck_issue_patch: "key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), progress:对象(percent:integer, note:string 必填=[percent,note] 多传=false), close:boolean, workRouteDetail:枚举(core|standard), effortId:string 必填=[key] 多传=false",
-  deck_issue_report: 'key:string, note:string, progress:number, workRouteDetail:枚举(core|standard|full), effortId:string, release:boolean 必填=[key] 多传=false',
+  deck_issue_report: 'key:string, note:string, workRouteDetail:枚举(core|standard), effortId:string, release:boolean 必填=[key] 多传=false',
 }
 
 /**
@@ -79,10 +79,10 @@ const FROZEN_DESC: Record<string, string> = {
   deck_map_snapshot: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。看一个 map 的全部 child ISSUE、进度统计与五个区块，用来判断 map 做到哪一步。detail=thin 只要薄行不断（见 detail 参数）。；key=地图那张票的票号；frontierOnly=只回可接的子票（未关闭、未认领、阻塞已满足），缺省回全部；detail=子票行要多细。缺省 full：每行带正文进度（回包大，票多时被截断）。thin：只要键、标题、状态、标签、认领、阻塞（回包小、清单不断；统计与进度表照算不变；要正文用 deck_issue_get 逐张取）。；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_list: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。按状态、label、assignee 与关键词列出 ISSUE 薄行，不回正文与评论。；state=只列哪种状态，缺省 open；type=只列哪种类型，缺省 all；labels=必须同时带上这些 label（AND），缺省不过滤；assignee=只留认领含此人的行，缺省不过滤；query=标题与正文的子串过滤，缺省不过滤；limit=最多回几行，缺省 50，上限 200；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），带 originalWords 时把维护者原话一字不改写进正文的「## 维护者原话」区，重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成它的原生依赖边（边没写成时票照建，回执逐条说明）。；title=票的标题；body=正文；缺省时按种类补最小骨架；originalWords=建票时顺便追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序。三个后端都写进票的正文，不进评论；正文超过 60KB 时拒绝建票、一个字节不动。；kind=票的种类，缺省 task；parentKey=父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）；blockedBy=这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）；labels=要带的标签，会在必备标签之外追加；assignees=认领人；idempotencyKey=这一批写的幂等锚，重试时带同一个值；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
-  deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
-  deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区、维护者原话区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；originalWords=追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序；同一段原话 + 同一出处已经写过时幂等跳过。三个后端都写进票的正文，不进评论。正文超过 60KB 时拒绝写入、一个字节不动。；progress=写一条进度记录：{percent, note}（#1090 起不再收一段自由文字）。工具自动盖当前时间、把这条加到「## 进度」区最上面，旧记录原样保留；正文超过 60KB 时拒绝写入、一个字节不动。；close=true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
-  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放，票不动）。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；progress=可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填；release=可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
+  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放，票不动）。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填；release=可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
 }
 
 /** 表二 · 信封表：两种形状的字段清单，一个不多一个不少。 */
@@ -121,7 +121,7 @@ const POINTS: PointsRow[] = [
   { label: '改票：成功（按估算：改一次 + 读一次）', tool: 'deck_issue_patch', args: { key: '02', comment: '点数表：改一下' }, own: 'est', select: true },
   { label: '上报：缺票号（还没走到选后端）', tool: 'deck_issue_report', args: {}, own: [0, 0], select: false },
   { label: '上报：成功', tool: 'deck_issue_report', args: { key: '02' }, own: [1, 3], select: true },
-  { label: '上报：成功、带进度自评（同价）', tool: 'deck_issue_report', args: { key: '02', progress: 50 }, own: [1, 3], select: true },
+  { label: '上报：带已退役的 progress（还没走到选后端）', tool: 'deck_issue_report', args: { key: '02', progress: 50 }, own: [0, 0], select: false },
   { label: '上报：这张票不存在（同价）', tool: 'deck_issue_report', args: { key: '999999' }, own: [1, 3], select: true },
 ]
 
@@ -343,7 +343,8 @@ async function main() {
   }
   {
     // 二b、在办表（#1261 起步、#1262 铺满）：写工具成功收口才有 data.workRoute，失败调用没有这一格；原始会话 id 不进回执。
-    // #1303 起缺省只带 core（票号、会话、时间三格），要标题、动作、进度这些细节得显式传 workRouteDetail: full。
+    // #1303 起缺省只带 core（票号、会话、时间三格），要标题与动作这些细节得显式传 workRouteDetail: standard。
+    // #1352 起 full 档退役：老调用还传 full 时按 standard 处理（它的增量本来只有进度自评）。
     const core = await run('deck_issue_report', { key: '01' })
     const coreWr = core.r && core.r.data && core.r.data.workRoute
     const coreKeys = coreWr && coreWr.entries && coreWr.entries[0] ? Object.keys(coreWr.entries[0]).sort().join(',') : ''
@@ -351,12 +352,15 @@ async function main() {
       '缺省档只带核心字段（实得 ' + JSON.stringify({ detail: coreWr && coreWr.detail, keys: coreKeys }) + '）')
     check(!!coreWr && (core.r.notes || []).some((n: string) => n.indexOf('只带核心字段') >= 0), '缺省档的摘要说清缺什么、下一档怎么取')
     // 不带进度时回执 data 与在办表条目都不出现 progress 这一格（最近一次写照）。
-    const got = await run('deck_issue_report', { key: '01', workRouteDetail: 'full' })
+    const got = await run('deck_issue_report', { key: '01', workRouteDetail: 'standard' })
     const wr = got.r && got.r.data && got.r.data.workRoute
     check(!got.threw && got.r && got.r.status === 'ok' && !!wr, '上报成功回执带 data.workRoute（实得 ' + (got.threw || (got.r && got.r.status)) + '）')
     const keys = wr && wr.entries && wr.entries[0] ? Object.keys(wr.entries[0]).sort().join(',') : ''
     check(keys === 'action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title', '在办表每条正好八格（实得 ' + keys + '）')
-    check(!(got.r && got.r.data && Object.prototype.hasOwnProperty.call(got.r.data, 'progress')), '不带进度上报：回执 data 里没有 progress 这一格（实得 ' + JSON.stringify(got.r && got.r.data && got.r.data.progress) + '）')
+    const legacy = await run('deck_issue_report', { key: '01', workRouteDetail: 'full' })
+    const legacyWr = legacy.r && legacy.r.data && legacy.r.data.workRoute
+    check(!legacy.threw && !!legacyWr && legacyWr.detail === 'standard', '老调用传 full（#1352 已退役的档位）按 standard 处理（实得 ' + JSON.stringify(legacyWr && legacyWr.detail) + '）')
+    check(!(got.r && got.r.data && Object.prototype.hasOwnProperty.call(got.r.data, 'progress')), '上报回执 data 里不再有 progress 这一格（#1352 退役）')
     check(!!(wr && wr.entries.some((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1' && e.action === 'report' && e.source === 'reported' && e.currentSession === true)), '在办表里有刚上报的票（动作 report、来源 reported、当前会话）')
     check(!!(wr && typeof wr.at === 'string' && typeof wr.staleCount === 'number' && wr.collisions === undefined), '在办表有 at 与 staleCount、单会话无 collisions 键')
     check(!!(got.r && (got.r.notes || []).some((n: string) => n.indexOf('工作路线摘要') === 0)), 'notes 带工作路线摘要')
@@ -365,33 +369,22 @@ async function main() {
     check(!failed.threw && failed.r && failed.r.status === 'unsupported' && !(failed.r.data && failed.r.data.workRoute), '失败上报没有 data.workRoute（这一格只属于成功的写工具调用）')
   }
   {
-    // 二c、进度自评（#1084）：带 0 到 100 的整数时条目与回执 data 都多一格 progress；不带时两处都不出这一格
-    // （同一会话同一票只留最近一次写照，不沿用上一次的数字）；不合规按 bad-args 拒绝。
-    const withProgress = await run('deck_issue_report', { key: '01', progress: 37, workRouteDetail: 'full' })
-    const wr = withProgress.r && withProgress.r.data && withProgress.r.data.workRoute
-    const entry = wr && wr.entries && wr.entries.filter((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1')[0]
-    check(!withProgress.threw && withProgress.r && withProgress.r.status === 'ok' && !!(withProgress.r && withProgress.r.data && withProgress.r.data.progress === 37),
-      '带进度上报：回执 data 里带进度 37（实得 ' + JSON.stringify(withProgress.r && withProgress.r.data && withProgress.r.data.progress) + '）')
-    check(!!entry && entry.progress === 37, '带进度上报：在办表这一条带进度 37（实得 ' + JSON.stringify(entry) + '）')
-    const entryKeys = entry ? Object.keys(entry).sort().join(',') : ''
-    check(entryKeys === 'action,actionAt,active,currentSession,progress,sessionLabel,source,ticketKey,title', '带进度时在办表每条正好九格（实得 ' + entryKeys + '）')
-    // 不传进度再报一次：条目是最近一次的写照，旧数字不留。
-    const cleared = await run('deck_issue_report', { key: '01', workRouteDetail: 'full' })
-    const clearedEntry = (cleared.r && cleared.r.data && cleared.r.data.workRoute && cleared.r.data.workRoute.entries || []).filter((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1')[0]
-    check(!cleared.threw && !!clearedEntry && clearedEntry.progress === undefined, '不带进度再上报：在办表这一条不再带旧数字（实得 ' + JSON.stringify(clearedEntry && clearedEntry.progress) + '）')
-    check(!(cleared.r && cleared.r.data && Object.prototype.hasOwnProperty.call(cleared.r.data, 'progress')), '不带进度再上报：回执 data 里没有 progress 这一格（实得 ' + JSON.stringify(cleared.r && cleared.r.data && cleared.r.data.progress) + '）')
-    const clearedKeys = clearedEntry ? Object.keys(clearedEntry).sort().join(',') : ''
-    check(clearedKeys === 'action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title', '不带进度时在办表这一条正好八格、progress 不出现（实得 ' + clearedKeys + '）')
-    // 不合规的进度：101 / -1 / 12.5 / '30' 都按 bad-args 拒绝，回执还是「还没走到选后端」的六格。
-    const badProgress: Array<[string, unknown]> = [['超过 100', 101], ['负数', -1], ['小数', 12.5], ['字符串', '30']]
+    // 二c、progress 参数退役（#1352）：上报只表达「在办／办完」，进度写到票面。定义里已经不再广告这个键，
+    // 但工具 run 仍可能收到宿主原样转来的原始参数——收到就一律 bad-args，并在选后端之前拒绝。
+    const retired: Array<[string, unknown]> = [['37', 37], ['0', 0], ['101', 101], ['-1', -1], ['12.5', 12.5], ["'30'", 30], ['true', true]]
     const bad: string[] = []
-    for (const [label, value] of badProgress) {
+
+    for (const [label, value] of retired) {
       const rr = await run('deck_issue_report', { key: '01', progress: value })
       const cells = Object.keys(rr.r || {}).sort()
-      const okShape = !rr.threw && rr.r && rr.r.ok === false && rr.r.reason === 'bad-args' && cells.join(',') === ENVELOPE_PRE_GATE.join(',')
-      if (!okShape) bad.push(label + '（' + JSON.stringify({ threw: rr.threw, status: rr.r && rr.r.status, reason: rr.r && rr.r.reason, cells: cells.length }) + '）')
+      const text = String(rr.r && rr.r.text || '')
+      const okShape = !rr.threw && rr.r && rr.r.ok === false && rr.r.reason === 'bad-args'
+        && cells.join(',') === ENVELOPE_PRE_GATE.join(',')
+        && !(rr.r && rr.r.data)
+        && text.indexOf('progress 参数已退役') >= 0 && text.indexOf('deck_issue_patch') >= 0
+      if (!okShape) bad.push(label + '（' + JSON.stringify({ threw: rr.threw, reason: rr.r && rr.r.reason, cells: cells.length, text }) + '）')
     }
-    check(bad.length === 0, '进度自评不合规（超过 100 / 负数 / 小数 / 字符串）一律 bad-args + 六格' + (bad.length ? '：' + bad.join('；') : ''))
+    check(bad.length === 0, 'progress 参数已退役：带这个键（37 / 0 / 101 / -1 / 12.5 / 30 / true）一律 bad-args + 六格，并指路 deck_issue_patch' + (bad.length ? '：' + bad.join('；') : ''))
   }
   {
     // 二d、释放入口（#1086、#1349）：带 release=true 的上报只撤销从没实际处理过的误报，不记动作、不动票本身。
@@ -400,7 +393,7 @@ async function main() {
     const norm = (k: string) => String(k).replace(/^0+(?=\d)/, '')
     const beforeGet = await run('deck_issue_get', { key: '02', blocking: false })
     const beforeTicket = beforeGet.r && beforeGet.r.data && beforeGet.r.data.ticket
-    const rel = await run('deck_issue_report', { key: '02', release: true, workRouteDetail: 'full' })
+    const rel = await run('deck_issue_report', { key: '02', release: true, workRouteDetail: 'standard' })
     check(!rel.threw && rel.r && rel.r.status === 'ok' && Object.keys(rel.r || {}).sort().join(',') === ENVELOPE_FULL.join(','),
       '释放被拒：回执仍是成功的 14 格（实得 ' + (rel.threw || Object.keys(rel.r || {}).length + ' 格') + '）')
     const relWr = rel.r && rel.r.data && rel.r.data.workRoute
@@ -421,7 +414,7 @@ async function main() {
     // 地图 00 是夹具直接写在盘上的，本会话没建过、改过、关过、建过计划、挂过边：先普通上报记下一条纯误报，再释放它。
     const seedReportOnly = await run('deck_issue_report', { key: '00' })
     check(!seedReportOnly.threw && seedReportOnly.r && seedReportOnly.r.status === 'ok', '纯误报种子：普通上报地图 00 成功')
-    const relReportOnly = await run('deck_issue_report', { key: '00', release: true, workRouteDetail: 'full' })
+    const relReportOnly = await run('deck_issue_report', { key: '00', release: true, workRouteDetail: 'standard' })
     const relReportOnlyWr = relReportOnly.r && relReportOnly.r.data && relReportOnly.r.data.workRoute
     const relReportOnlyEntries = (relReportOnlyWr && relReportOnlyWr.entries || []).filter((e: { ticketKey: string }) => norm(e.ticketKey) === '0')
     check(!relReportOnly.threw && relReportOnly.r && relReportOnly.r.status === 'ok' && relReportOnlyEntries.length === 0,
@@ -429,12 +422,12 @@ async function main() {
     const relLeft = (relReportOnlyWr && relReportOnlyWr.entries || []).filter((e: { currentSession?: boolean }) => e.currentSession === true).length
     check((relReportOnly.r && relReportOnly.r.notes || []).some((n: string) => n.indexOf('已把票 0 从本会话的工作路线里释放掉') === 0 && n.indexOf('还剩 ' + relLeft + ' 条在办') > 0),
       '纯误报释放成功：备注写明删掉了哪张票与剩余条数（实得 ' + JSON.stringify(relReportOnly.r && relReportOnly.r.notes) + '）')
-    check(!(relReportOnly.r && relReportOnly.r.data && Object.prototype.hasOwnProperty.call(relReportOnly.r.data, 'progress')), '释放回执的 data 里不出现 progress 这一格（释放不记动作）')
+    check(!(relReportOnly.r && relReportOnly.r.data && Object.prototype.hasOwnProperty.call(relReportOnly.r.data, 'progress')), '释放回执的 data 里不出现 progress 这一格（该格已随 #1352 退役，释放也不记动作）')
     const relReportOnlyAgain = await run('deck_issue_report', { key: '00', release: true })
     check(!relReportOnlyAgain.threw && relReportOnlyAgain.r && relReportOnlyAgain.r.status === 'ok'
       && (relReportOnlyAgain.r.notes || []).some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0),
       '再释放同一条误报：成功回执 + 备注说本来就没有（不冒充删掉）')
-    const relFalse = await run('deck_issue_report', { key: '02', release: false, workRouteDetail: 'full' })
+    const relFalse = await run('deck_issue_report', { key: '02', release: false, workRouteDetail: 'standard' })
     const relFalseWr = relFalse.r && relFalse.r.data && relFalse.r.data.workRoute
     check(!relFalse.threw && relFalse.r && relFalse.r.status === 'ok'
       && (relFalseWr && relFalseWr.entries || []).some((e: { ticketKey: string }) => norm(e.ticketKey) === '2'),

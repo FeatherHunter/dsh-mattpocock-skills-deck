@@ -1,0 +1,24 @@
+{
+  "cost": {
+    "estimated": {
+      "edges": 0,
+      "overCallCap": "",
+      "patches": 0,
+      "perShard": 1,
+      "points": 6,
+      "reads": 1,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_issue_report 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "tickets": 0,
+      "tool": "deck_issue_report",
+      "withinCallCap": true,
+      "withinHourCap": true
+    }
+  },
+  "ok": false,
+  "reason": "bad-args",
+  "status": "unsupported",
+  "text": "progress 参数已退役（#1352）：上报只表达「在办／办完」，进度请写到票面——用 deck_issue_patch 的 progress 传 { percent, note }，工具会把它写进那张票的「## 进度」区。这次什么都没做：没选后端、没花点数、没写盘。",
+  "tool": "deck_issue_report"
+}

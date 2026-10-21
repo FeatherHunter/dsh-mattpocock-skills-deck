@@ -43,7 +43,7 @@ export interface WorkPathLedger {
       action: string;
       actionAt: number;
       source: string;
-      /** 最近一次上报带的进度自评（0 到 100 的整数）；最近一次没带就没有这一格，不沿用旧值。 */
+      /** 旧存档里记过的进度自评（0 到 100 的整数）；#1352 起不再新增，读入与序列化原样保留。 */
       progress?: number;
       /** 这个会话在这张票上做过实事（建、改、关、建计划、挂边）时为 true；只上报过为 false；旧账没有这一格表示不知道，按 true 处理。 */
       hasWork?: boolean;
@@ -64,8 +64,6 @@ export interface WorkPathNoteInput {
   ticketKey: string;
   effortId?: string;
   title?: string;
-  /** 这次的进度自评（0 到 100 的整数）：不带就按「这次不记进度」处理，也不沿用上一次的旧值。 */
-  progress?: number;
   /** 这一次的动作类别：report（上报）等。 */
   action: string;
   /** 这条记录的来源：reported（人/AI 上报）等。 */
@@ -104,6 +102,7 @@ export interface StoredEntry {
   action: string;
   actionAt: number;
   source: string;
+  /** 旧存档里记过的进度自评（0 到 100 的整数）：#1352 起不再新增，读入与序列化原样保留，不回溯删除。 */
   progress?: number;
   /** 见 WorkPathLedger 里同名字段的说明：true=干过实事，false=只上报过，缺格=旧账不知道。 */
   hasWork?: boolean;
@@ -125,7 +124,10 @@ function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0;
 }
 
-/** 进度自评的合法性：只有 0 到 100 的整数才算数；盘上旧账或坏数据读到别的值就当没有。 */
+/**
+ * 旧存档里进度自评的合法性：只有 0 到 100 的整数才算数；盘上旧账或坏数据读到别的值就当没有。
+ * #1352 起上报不再收进度，这个尺子只用于读旧存档与序列化旧值，新值不会再产生。
+ */
 export function validProgress(v: unknown): number | undefined {
   return (typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= 0 && v <= 100) ? v : undefined;
 }
@@ -211,7 +213,9 @@ export function applyNote(ledger: RootLedger, input: WorkPathNoteInput, at: numb
     page.labelAt = at;
   }
   const prev = page.entries.get(input.ticketKey);
-  const progress = validProgress(input ? input.progress : undefined);
+  // #1352：上报不再收进度自评，新条目不再写这一格；但旧存档里已经记下的不回溯删除——
+  // 同一条工作条目被后来的上报刷新时，把上一次的值原样带过来，历史信息不因退役而丢。
+  const keptProgress = prev ? prev.progress : undefined;
   const action = input && typeof input.action === 'string' ? input.action : (prev ? prev.action : '');
   const entry: StoredEntry = {
     ticketKey: input.ticketKey,
@@ -223,7 +227,7 @@ export function applyNote(ledger: RootLedger, input: WorkPathNoteInput, at: numb
   };
   const hasWork = hasWorkAfter(prev, action);
   if (hasWork !== undefined) entry.hasWork = hasWork;
-  if (progress !== undefined) entry.progress = progress;
+  if (keptProgress !== undefined) entry.progress = keptProgress;
   page.entries.set(input.ticketKey, entry);
   return page;
 }

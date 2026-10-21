@@ -15,13 +15,17 @@ node tests/verify-golden-receipts.ts --update   # 重建基准（只在有意改
 
 ## 基准内容（10 个文件）
 
-- `01-deck_context.golden.json` … `09-deck_issue_report.golden.json`：
-  九个 deck 工具各一次代表性调用的完整归一化回执。
+- `01-deck_context.golden.json` … `08-deck_issue_patch.golden.json`：
+  前八个 deck 工具各一次代表性调用的完整归一化回执。
   调用顺序本身就是基准的一部分（写操作有先后）：
   context → issue_create（建「金标准演示票」）→ issue_list →
   issue_get（key 01）→ map_snapshot（key 00 底图）→
   map_plan_create（planId golden-1，建「金标准地图」+ 两张子票）→
-  map_link（04 blockedBy 03）→ issue_patch（加一条评论）→ issue_report。
+  map_link（04 blockedBy 03）→ issue_patch（加一条评论）。
+- `09-deck_issue_report-retired-progress.golden.json`：
+  上报带已退役的 `progress` 时那份拒绝回执：`bad-args`，不选后端、不花点数、不写盘。
+- `10-deck_issue_report-without-progress.golden.json`：
+  上报的快乐路径（不带 `progress`，文件名沿用历史）；回执与工作条目里都不出现进度自评这一格。
 - `two-room-shape.golden.json`：
   同一张最小票在本地 Markdown 房与 GitHub 房 normalize 之后的字段形状对照。
   只比「有哪些字段」与「已知差异」，不比具体值。

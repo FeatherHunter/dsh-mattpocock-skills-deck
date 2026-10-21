@@ -309,7 +309,7 @@ async function main() {
 
   // ── ⑦b deck_issue_report：上报成功收口记进工作路线（正例 + 负向） ──
   {
-    const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理', progress: 40, workRouteDetail: 'full' })
+    const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理', workRouteDetail: 'standard' })
     const normCreated = String(createdKey).replace(/^0+(?=\d)/, '')
     check(envelopeOk(r) && r.status === 'ok' && r.data && String(r.data.key).replace(/^0+(?=\d)/, '') === normCreated, 'deck_issue_report 正例：上报成了（票 ' + createdKey + '，实得 ' + (r && r.status) + '）')
     // #1261 起步、#1262 铺满：上报成功收口也记一笔（动作 report、来源 reported），
@@ -323,9 +323,9 @@ async function main() {
     check(e0 && String(e0.ticketKey) === normCreated && e0.action === 'report' && e0.source === 'reported' && e0.active === true && e0.currentSession === true, '在办表第一条是刚上报的票（动作 report、来源 reported、现办、当前会话）：' + JSON.stringify(e0))
     check(wr && wr.entries && new Set(wr.entries.map((e) => String(e.ticketKey))).size === wr.entries.length, '同一张票在在办表里只有一条（6 条票、6 个票号）：' + JSON.stringify(wr && wr.entries && wr.entries.map((e) => e.ticketKey)))
     check(e0 && typeof e0.sessionLabel === 'string' && e0.sessionLabel.indexOf('会话 ') === 0, '会话只露标签不露原始 id（实得 ' + (e0 && e0.sessionLabel) + '）')
-    // #1084：进度自评随回执进 data.workRoute 的条目；回执 data 里也带一格给壳记进工作条目。
-    check(e0 && e0.progress === 40, '在办表这一条带这次上报的进度自评 40（实得 ' + JSON.stringify(e0 && e0.progress) + '）')
-    check(!!(r.data && r.data.progress === 40), '回执 data 里也带这次上报的进度自评 40（实得 ' + JSON.stringify(r.data && r.data.progress) + '）')
+    // #1352：上报不再收进度自评，条目与回执 data 都不出现 progress 这一格。
+    check(e0 && !Object.prototype.hasOwnProperty.call(e0, 'progress'), '在办表这一条没有 progress 键（#1352 起不再新增）')
+    check(!!(r.data) && !Object.prototype.hasOwnProperty.call(r.data, 'progress'), '回执 data 里也没有 progress 这一格（#1352 起不再新增）')
     check(wr && wr.collisions === undefined && typeof wr.staleCount === 'number', '单会话无撞单（collisions 键不出现，staleCount 在）')
     check((r.notes || []).some((n) => String(n).indexOf('工作路线摘要 · 本工作区在办 6 条') === 0), 'notes 末尾带工作路线摘要：' + JSON.stringify(r.notes))
     check(JSON.stringify(r).indexOf('s-713') < 0, '回执全文没有原始会话 id（s-713 只进盘，不进回执）')
@@ -338,44 +338,55 @@ async function main() {
     check(disk && disk.v === 3 && Array.isArray(disk.workers) && disk.workers.length === 1, '盘上是 v3 形状（一份账、一个会话页）')
     const row = disk.workers[0].entries[0]
     check(row && String(row.ticketKey) === normCreated && disk.workers[0].session === 's-713' && row.hasWork === true, '盘上是同一张票 + 原始会话 id；建过票的条目带 hasWork=true：' + JSON.stringify(row))
-    check(row && row.progress === 40, '盘上条目也带进度自评 40（实得 ' + JSON.stringify(row && row.progress) + '）')
+    check(row && !Object.prototype.hasOwnProperty.call(row, 'progress'), '盘上条目也没有 progress 键（#1352 起不再新增）')
     // 只读调用不碰盘：读一张票，盘上文件一字不动。
     await callTool('deck_issue_get', { key: createdKey })
     check(fs.readFileSync(diskFile, 'utf8') === before, '只读调用不碰盘（文件内容一字不动）')
     // 紧接着第二次调用：同一张票只留一条（去重后来居上），回执与盘上一致。
-    const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理', workRouteDetail: 'full' })
+    const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理', workRouteDetail: 'standard' })
     check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 6, '第二次上报同一张票：在办表还是 6 条（去重，不多也不少）')
     const after2 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
     const createdRows = after2.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)
     check(after2.workers[0].entries.length === 6 && createdRows.length === 1 && createdRows[0].action === 'report', '第二次上报：盘上还是同一条，动作停在 report（去重）')
-    // #1084：条目按「最近一次上报写什么就是什么」处理 —— 这次没带进度，旧数字就不留（不沿用）。
+    // #1352：上报不再收进度，条目、回执 data 与盘上三处都没有 progress 键。
     const r2Created = ((r2.data && r2.data.workRoute && r2.data.workRoute.entries) || []).filter((e) => String(e.ticketKey) === normCreated)[0]
-    check(r2Created && r2Created.progress === undefined, '第二次上报没带进度：在办表这一条不再带旧数字（实得 ' + JSON.stringify(r2Created && r2Created.progress) + '）')
-    check(!!(r2.data) && !Object.prototype.hasOwnProperty.call(r2.data, 'progress'), '第二次上报没带进度：回执 data 里也没有 progress 这一格（实得 ' + JSON.stringify(r2.data && r2.data.progress) + '）')
+    check(r2Created && !Object.prototype.hasOwnProperty.call(r2Created, 'progress'), '第二次上报：在办表这一条没有 progress 键')
+    check(!!(r2.data) && !Object.prototype.hasOwnProperty.call(r2.data, 'progress'), '第二次上报：回执 data 里也没有 progress 这一格')
     const after2row = createdRows[0]
-    check(after2row && !Object.prototype.hasOwnProperty.call(after2row, 'progress'), '第二次上报没带进度：盘上这一条也没有 progress 键（不沿用旧值）')
-    // 进度自评不合规：按既有参数校验口径拒绝（bad-args），不抛、不写盘、还没走到选后端。
+    check(after2row && !Object.prototype.hasOwnProperty.call(after2row, 'progress'), '第二次上报：盘上这一条也没有 progress 键')
+    // progress 参数退役（#1352）：定义里不再广告这个键，但工具 run 仍可能收到宿主原样转来的原始参数——
+    // 收到就一律 bad-args，不抛、不带 data、不写盘，并在选后端之前拒绝。
     const diskBeforeBadProgress = fs.readFileSync(diskFile, 'utf8')
-    const badProgress: Array<[string, unknown]> = [['超过 100', 101], ['负数', -1], ['小数', 12.5], ['字符串', '30'], ['布尔', true]]
+    const retired: Array<[string, unknown]> = [['合法数字', 40], ['0', 0], ['超过 100', 101], ['负数', -1], ['小数', 12.5], ['字符串', '30'], ['布尔', true]]
     const badSeen: string[] = []
-    for (const [label, progressValue] of badProgress) {
+    for (const [label, progressValue] of retired) {
       const rr = await callTool('deck_issue_report', { key: createdKey, progress: progressValue })
+      const text = String(rr && rr.text || '')
       const isBad = envelopeOk(rr) && rr.ok === false && rr.reason === 'bad-args' && !rr.data
-      if (!isBad) badSeen.push(label + '（' + JSON.stringify({ ok: rr && rr.ok, status: rr && rr.status, reason: rr && rr.reason, hasData: !!(rr && rr.data) }) + '）')
+        && text.indexOf('progress 参数已退役') >= 0 && text.indexOf('deck_issue_patch') >= 0
+      if (!isBad) badSeen.push(label + '（' + JSON.stringify({ ok: rr && rr.ok, status: rr && rr.status, reason: rr && rr.reason, hasData: !!(rr && rr.data), text }) + '）')
     }
-    check(badSeen.length === 0, '进度自评不合规（超过 100 / 负数 / 小数 / 字符串 / 布尔）一律 bad-args、不抛、不带 data' + (badSeen.length ? '：' + badSeen.join('；') : ''))
-    check(fs.readFileSync(diskFile, 'utf8') === diskBeforeBadProgress, '进度自评不合规时盘上一字不动（不写坏数据）')
-    // 0 是合法自评（不是「没给」）：带 0 上报后条目上就有 0。
-    const zero = await callTool('deck_issue_report', { key: createdKey, progress: 0, workRouteDetail: 'full' })
-    const zeroEntry = ((zero.data && zero.data.workRoute && zero.data.workRoute.entries) || []).filter((e) => String(e.ticketKey) === normCreated)[0]
-    check(envelopeOk(zero) && zero.status === 'ok' && !!zeroEntry && zeroEntry.progress === 0, '进度自评 0 是合法值：条目上带 0（实得 ' + JSON.stringify(zeroEntry && zeroEntry.progress) + '）')
+    check(badSeen.length === 0, 'progress 参数已退役：带这个键（40 / 0 / 101 / -1 / 12.5 / 30 / true）一律 bad-args、不抛、不带 data，并指路 deck_issue_patch' + (badSeen.length ? '：' + badSeen.join('；') : ''))
+    check(fs.readFileSync(diskFile, 'utf8') === diskBeforeBadProgress, '带已退役的 progress 时盘上一字不动（不写盘）')
+    // 旧存档里已经记下的进度自评不回溯删除：手动把盘上这一条加上 progress 再上报一次，历史值还在，
+    // 但回执里不再投影这一格（工作条目这一格已退役）。
+    const legacy = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
+    const legacyRow = legacy.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)[0]
+    legacyRow.progress = 40
+    fs.writeFileSync(diskFile, JSON.stringify(legacy, null, 2) + '\n')
+    const keep = await callTool('deck_issue_report', { key: createdKey, note: '旧进度保留' })
+    const keptDisk = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
+    const keptRow = keptDisk.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)[0]
+    check(envelopeOk(keep) && keep.status === 'ok' && !!keptRow && keptRow.progress === 40, '旧存档里的进度自评 40 后来的上报不会抹掉（#1352：不回溯删除，实得 ' + JSON.stringify(keptRow && keptRow.progress) + '）')
+    const keepEntry = ((keep.data && keep.data.workRoute && keep.data.workRoute.entries) || []).filter((e) => String(e.ticketKey) === normCreated)[0]
+    check(keepEntry && !Object.prototype.hasOwnProperty.call(keepEntry, 'progress'), '回执里不再投影历史进度（这一格已退役，实得 ' + JSON.stringify(keepEntry) + '）')
     // #1086 释放入口，2026-10-21（#1349）起收紧：这张票本会话建过、改过、关过，属于处理过的票 ——
     // 带 release=true 的上报不能再把它从工作路线里删掉，回执必须说明原因；纯误报的释放成功路径由
     // tests/verify-1106-deck-surface.ts 的「二d」用夹具里没人处理过的地图 00 覆盖。
     const relBefore = await callTool('deck_issue_get', { key: createdKey })
     const relBeforeTicket = relBefore.data && relBefore.data.ticket
     const relFace = (t) => JSON.stringify(t && { state: t.state, assignees: t.assignees })
-    const rel = await callTool('deck_issue_report', { key: createdKey, release: true, workRouteDetail: 'full' })
+    const rel = await callTool('deck_issue_report', { key: createdKey, release: true, workRouteDetail: 'standard' })
     const relWr = rel.data && rel.data.workRoute
     const normKey = (k) => String(k).replace(/^0+(?=\d)/, '')
     check(envelopeOk(rel) && rel.status === 'ok' && !!relWr, '释放被拒：成功回执仍带在办表（实得 ' + (rel && rel.status) + '）')
@@ -383,7 +394,7 @@ async function main() {
     check(relOwn.length === 1, '处理过的票释放被拒：在办表里这张票还在、只有一条（实得 ' + JSON.stringify(relOwn.length) + ' 条）')
     check((rel.notes || []).some((n) => String(n).indexOf('有过实际处理') >= 0 && String(n).indexOf('不能从工作路线里释放') >= 0 && String(n).indexOf('只用来撤销从没处理过的误报') >= 0),
       '处理过的票释放被拒：备注说明干过实事、不能释放：' + JSON.stringify(rel.notes))
-    check(!(rel.data) || !Object.prototype.hasOwnProperty.call(rel.data, 'progress'), '释放回执的 data 里没有 progress 这一格（释放不记动作）')
+    check(!(rel.data) || !Object.prototype.hasOwnProperty.call(rel.data, 'progress'), '释放回执的 data 里没有 progress 这一格（该格已随 #1352 退役，释放也不记动作）')
     check(JSON.stringify(rel).indexOf('s-713') < 0, '释放回执全文没有原始会话 id（只进盘）')
     const relDisk = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
     const relDiskRows = ((relDisk.workers || []).flatMap((w) => w.entries || [])).filter((e) => normKey(e.ticketKey) === normCreated)
@@ -397,7 +408,7 @@ async function main() {
       && (relAgain.notes || []).some((n) => String(n).indexOf('有过实际处理') >= 0 && String(n).indexOf('不能从工作路线里释放') >= 0)
       && !(relAgain.notes || []).some((n) => String(n).indexOf('本来就不在本会话的工作路线里') >= 0),
       '再释放同一条：仍说明干过实事、不能释放（不说本来就没有）')
-    const relFalse = await callTool('deck_issue_report', { key: createdKey, release: false, workRouteDetail: 'full' })
+    const relFalse = await callTool('deck_issue_report', { key: createdKey, release: false, workRouteDetail: 'standard' })
     const relFalseEntries = relFalse.data && relFalse.data.workRoute && (relFalse.data.workRoute.entries || []).filter((e) => normKey(e.ticketKey) === normCreated)
     check(envelopeOk(relFalse) && relFalse.status === 'ok' && !!relFalseEntries && relFalseEntries.length === 1,
       'release:false 仍走正常上报：条目仍在且只有一条（实得 ' + JSON.stringify(relFalseEntries && relFalseEntries.length) + ' 条）')
