@@ -37,8 +37,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.9.0-beta.7):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.7 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.9.0-beta.8):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.8 --registry https://registry.npmjs.org
 
 # ③ That's it — the panel opens in DSH's own right sidebar (no third-party plugin needed)
 ```
@@ -72,7 +72,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.7 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.8 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
@@ -254,7 +254,7 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 
 [@SbDonger](https://github.com/SbDonger) — reported #640 (statusbar and input box misaligned, leaving a wide band above the input) 🌹
 
-[@snmtg1008](https://github.com/snmtg1008) — left a self-tested fix for the false "local data directory is not writable" report on #476 🌹
+[@snmtg1008](https://github.com/snmtg1008) — left a self-tested fix for the false "local data directory is not writable" report on #476
 
 [@dis0neplay](https://github.com/dis0neplay) — opened PR #493 (fix CI and the Pages root redirect; closed at the requester's direction) 🌹
 
@@ -264,7 +264,7 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 
 [@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs) 🌹
 
-[@271912980](https://github.com/271912980) — suggested in #257 that sessions become stable, addressable endpoints (session ID + semantic name) 🌹
+[@271912980](https://github.com/271912980) — suggested in #257 that sessions become stable, addressable endpoints (session ID + semantic name)
 
 [@lilincen](https://github.com/lilincen) — started discussion #1301 asking for GitLab support
 

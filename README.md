@@ -34,10 +34,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.9.0-beta.7）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.7 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.9.0-beta.8）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.8 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.7 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.8 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
@@ -239,7 +239,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@SbDonger](https://github.com/SbDonger)🌹 — [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) 一眼发现状态栏与输入框错位
 
-[@snmtg1008](https://github.com/snmtg1008)🌹 — [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) 留下本地目录误报的完整自救方案
+[@snmtg1008](https://github.com/snmtg1008) — [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) 留下本地目录误报的完整自救方案
 
 [@dis0neplay](https://github.com/dis0neplay)🌹 — [PR #493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) 出手修好 CI 与页面跳转
 
@@ -249,7 +249,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@21967201](https://github.com/21967201)🌹 — [PR #321](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/321) 把标签文档补齐整
 
-[@271912980](https://github.com/271912980)🌹 — [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) 提出会话稳定寻址的好主意
+[@271912980](https://github.com/271912980) — [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) 提出会话稳定寻址的好主意
 
 [@lilincen](https://github.com/lilincen) — 在讨论区 [#1301](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1301) 提出希望插件早日支持 GitLab
 
