@@ -465,4 +465,4 @@ function readRows(dir: string): Row[] {
 
 本票只回答「读回失败发生在哪一层」。没有处理 `foreign-write`（并发写者观测），没有处理 `host.start` 重复计数（那是兄弟票 #1317「把真重启与重复写分开：宿主启动事件的真实次数」的范围），没有改任何代码，没有改任何 issue 的状态。
 
-调查期间工作树里出现的另外两个未跟踪文件（`research/1317-host-start-real-counts.md`、`research/1330-yaml-配置化调查.md`）不是本次产出，没有动。
+调查期间工作树里出现的另外两个文件（`research/1317-host-start-real-counts.md`、`research/1330-yaml-配置化调查.md`）不是本次产出，没有动；它们后来由各自的会话提交入库，与本票无关。
