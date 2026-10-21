@@ -294,7 +294,12 @@ export const StatusBar = (props: any) => {
   const foldBanner = function () { try { setBannerFolded(s.cwd, true) } catch (e) {} }
   const expandBanner = function () { try { setBannerFolded(s.cwd, false) } catch (e) {} }
   // 收放按钮：胶囊最右侧的“∨”图标（无文字，技能入口之后）；收起态为带文字的小按钮（悬停与无障碍文案保留全称）。
-  const capsuleToggle = h(Tip, { content: tr('banner.foldDeck') }, h('span', { className: 'dsws-fold-toggle', onClick: function (e: any) { e.stopPropagation(); foldBanner() }, 'aria-label': tr('banner.foldDeck'), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 2px', borderRadius: 6, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', flex: 'none' } }, [
+  const capsuleToggle = h(Tip, { content: tr('banner.foldDeck') }, h('span', { className: 'dsws-fold-toggle', onClick: function (e: any) { e.stopPropagation(); foldBanner() }, 'aria-label': tr('banner.foldDeck'),
+    // 接线（#1335 界面反馈）：收起整块功能区的叉是纯图标控件，只接按压压暗，不加悬停类，
+    // 免得小图标按下时下沉一像素看着像错位；日志标识与胶囊本体那条分开。
+    'data-press': 'icon',
+    'data-log': 'status.capsule.fold',
+    style: { display: 'inline-flex', alignItems: 'center', padding: '2px 2px', borderRadius: 6, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', flex: 'none' } }, [
     Ic({ n: 'chev-down', size: 12 }),
   ]))
   // 弹窗座位（2026-09-21）：从这里渲染，不再挂在右侧面板的检查页上。
@@ -321,7 +326,12 @@ export const StatusBar = (props: any) => {
     // #640：收起态是例外 —— 只剩一句小灰字时不再跟卡片等宽，改收成包裹内容居中，
     //   避免一条空旷横带占住输入区上方；maxWidth 仍取卡宽变量兜底超长文案，展开/收起之间不横向跳动。
     return h('div', { style: Object.assign({ display: 'flex', flex: 'none', justifyContent: 'center', alignSelf: 'center' }, dswsStatusDockGeom(), { width: 'auto' }) }, [
-      h(Tip, { content: tr('banner.folded') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('banner.expandDeck'), onClick: expandBanner, style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, padding: '0 8px', lineHeight: 1.2, border: 'none', borderRadius: 99, color: 'var(--dsws-alias-label-caption,#8b8b95)' } }, [
+      h(Tip, { content: tr('banner.folded') }, h('button', { className: 'dsws-btn ghost dsws-hov', 'aria-label': tr('banner.expandDeck'),
+        // 接线（#1335 界面反馈）：收起态这颗「展开」按钮带文字，属于文字类控件，按压与悬停都要有；
+        // 日志标识 status.banner.expand 用来认出刚才点的是它。
+        'data-press': 'button',
+        'data-log': 'status.banner.expand',
+        onClick: expandBanner, style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, padding: '0 8px', lineHeight: 1.2, border: 'none', borderRadius: 99, color: 'var(--dsws-alias-label-caption,#8b8b95)' } }, [
         Ic({ n: 'chev-up', size: 10 }),
         h('span', null, tr('banner.expandDeck')),
       ])),
@@ -332,46 +342,77 @@ export const StatusBar = (props: any) => {
   let logDotOn = false
   try { logDotOn = !!(typeof logSwitch !== 'undefined' && logSwitch && logSwitch.enabled === true) } catch (eLogDot) {}
   // 优化3：胶囊恒渲染（任何情况下不隐藏）；未选后端时其上方叠加 gate 蓝条引导入口
-  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: '100%', boxSizing: 'border-box' } }, [
-    h('span', { className: 'dsws-capsule-word', onClick: function (e: any) { e.stopPropagation(); togglePanel(s) } }, [
+  // 接线（#1335 界面反馈）：胶囊整条都能点（点到空白处开面板），所以容器自己接一组 data-press 与 data-log；
+  // 里面每颗控件另接自己的一组，两层的标识分开，事后才分得清点到的是胶囊空白还是某一颗按钮。
+  const capsule = h('div', { className: 'dsws-capsule dsws-hov', ref: foldRef, onClick: function () { openPanel(s) },
+    'data-press': 'row',
+    'data-log': 'status.capsule',
+    style: { position: 'relative', width: '100%', boxSizing: 'border-box' } }, [
+    h('span', { className: 'dsws-capsule-word dsws-hov', onClick: function (e: any) { e.stopPropagation(); togglePanel(s) },
+      // 接线（#1335 界面反馈）：品牌字这一颗自己会开合面板，跟胶囊空白处的「开面板」不是同一个动作，
+      // 所以另接一组标识（status.capsule.word），日志里才分得出点的是哪一个。
+      'data-press': 'button',
+      'data-log': 'status.capsule.word' }, [
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
     ]),
     h(SessionChainCapsule, { st: s, sid: sid }),
     h('span', { ref: takeAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showTakeMenu, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) } }, [
-      h(Tip, { content: tr('nav.takeableTitle') }, seg('target', [h('span', { 'data-fold-priority': 9 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') })),
+      h(Tip, { content: tr('nav.takeableTitle') }, seg('target', [h('span', { 'data-fold-priority': 9 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') }, undefined, 'status.seg.takeable')),
       s.takeMenuOpen ? PortalOverlay({ className: 'dsws-takemenu', onMouseEnter: function () { clearClose(takeCloseRef) }, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) }, onClick: function (e: any) { e.stopPropagation() }, style: { position: 'fixed', left: s.takeMenuPos ? s.takeMenuPos.left : 0, bottom: s.takeMenuPos ? s.takeMenuPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [
         // #1297：悬停菜单里只留一颗「新建需求」——点它弹与面板那一排完全相同的两张卡浮层
         //   （同一份组件、同一套开场白），浮层从下方弹出，位置按这颗菜单项自己的 rect 量。
-        h('div', { onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); entryChooserOpen(s, 'statusbar', e && e.currentTarget) }, onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+        h('div', { className: 'dsws-hov', onClick: function (e: any) { e.stopPropagation(); closeTakeMenu(); entryChooserOpen(s, 'statusbar', e && e.currentTarget) },
+          // 接线（#1335 界面反馈）：悬停菜单里这颗「新建需求」是行内文字按钮，
+          // 按压与悬停都要有；日志标识 status.menu.take.new 与缺陷那条分开认。
+          'data-press': 'button',
+          'data-log': 'status.menu.take.new',
+          onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
           Ic({ n: 'map', size: 12, color: s.takeMenuHover ? '#d8b4fe' : ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') }),
           h('span', null, tr('nav.takeableNew')),
         ]),
       ]) : null,
     ]),
     h('span', { ref: bugAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showBugMenu, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) } }, [
-      h(Tip, { content: tr('nav.bugTitle') }, seg('alert', [h('span', { 'data-fold-priority': 10 }, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') })),
+      h(Tip, { content: tr('nav.bugTitle') }, seg('alert', [h('span', { 'data-fold-priority': 10 }, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, undefined, 'status.seg.bug')),
       s.bugMenuOpen ? PortalOverlay({ className: 'dsws-bugmenu', onMouseEnter: function () { clearClose(bugCloseRef) }, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) }, onClick: function (e: any) { e.stopPropagation() }, style: { position: 'fixed', left: s.bugMenuPos ? s.bugMenuPos.left : 0, bottom: s.bugMenuPos ? s.bugMenuPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [
-        h('div', { onClick: function (e: any) { e.stopPropagation(); closeBugMenu(); openTextInNewSession(s, newBugWayfinderText(s), newSessionTitleNew('bug')) }, onMouseEnter: function () { if (!s.bugMenuHover) { s.bugMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.bugMenuHover) { s.bugMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.bugMenuHover ? '#f87171' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.bugMenuHover ? 'rgba(248,113,113,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+        h('div', { className: 'dsws-hov', onClick: function (e: any) { e.stopPropagation(); closeBugMenu(); openTextInNewSession(s, newBugWayfinderText(s), newSessionTitleNew('bug')) },
+          // 接线（#1335 界面反馈）：悬停菜单里这颗「新建缺陷」是行内文字按钮；
+          // 日志标识 status.menu.bug.new。
+          'data-press': 'button',
+          'data-log': 'status.menu.bug.new',
+          onMouseEnter: function () { if (!s.bugMenuHover) { s.bugMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.bugMenuHover) { s.bugMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.bugMenuHover ? '#f87171' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.bugMenuHover ? 'rgba(248,113,113,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
           Ic({ n: 'bug', size: 12, color: s.bugMenuHover ? '#fca5a5' : '#f87171' }),
           h('span', null, tr('nav.bugNew')),
         ]),
       ]) : null,
     ]),
-    h(Tip, { content: tr('nav.triageTitle') }, seg('search', [h('span', { 'data-fold-priority': 11 }, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') })),
-    h(Tip, { content: tr('nav.fixateTitle') }, seg('note', h('span', { 'data-fold-priority': 7 }, tr('nav.word')), (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', function () { injectFixate(s) })),
+    h(Tip, { content: tr('nav.triageTitle') }, seg('search', [h('span', { 'data-fold-priority': 11 }, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') }, undefined, 'status.seg.triage')),
+    h(Tip, { content: tr('nav.fixateTitle') }, seg('note', h('span', { 'data-fold-priority': 7 }, tr('nav.word')), (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', function () { injectFixate(s) }, undefined, 'status.seg.fixate')),
     h('span', { className: 'dsws-split' }, [
-      h(Tip, { content: tr('nav.handoffTitle') }, h('span', { className: 'dsws-split-part', onClick: function (e: any) { e.stopPropagation(); doHandoff(s) }, 'aria-label': tr('nav.handoffTitle'), style: { color: '#58a6ff' } }, [
+      h(Tip, { content: tr('nav.handoffTitle') }, h('span', { className: 'dsws-split-part dsws-hov', onClick: function (e: any) { e.stopPropagation(); doHandoff(s) }, 'aria-label': tr('nav.handoffTitle'),
+        // 接线（#1335 界面反馈）：交接这一段有图标也有文字，属于文字类控件，按压与悬停都要有；
+        // 日志标识 status.handoff 与右边那颗纯图标的「打开」分开认。
+        'data-press': 'button',
+        'data-log': 'status.handoff',
+        style: { color: '#58a6ff' } }, [
         Ic({ n: 'handoff', size: 12 }),
         h('span', { 'data-fold-priority': 8 }, tr('nav.handoff')),
       ])),
       h('span', { className: 'dsws-split-div' }),
-      h(Tip, { content: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle') }, h('span', { className: 'dsws-split-part', onClick: function (e: any) { e.stopPropagation(); doHandoffOpen(s) }, 'aria-label': s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
+      h(Tip, { content: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle') }, h('span', { className: 'dsws-split-part', onClick: function (e: any) { e.stopPropagation(); doHandoffOpen(s) }, 'aria-label': s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'),
+        // 接线（#1335 界面反馈）：这一颗只有图标（就绪前是转圈），所以只接按压压暗，不加悬停类。
+        'data-press': 'icon',
+        'data-log': 'status.handoff.open',
+        style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
         s.handoffSearching ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, boxSizing: 'border-box', display: 'inline-block', verticalAlign: '-2px' } }) : Ic({ n: s.handoffReady ? 'handoff-open' : 'handoff-off', size: 12 }),
       ])),
     ]),
-    h(Tip, { content: tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) }) }, seg(n < 0 ? 'alert' : (n === envTotal(s) ? 'check' : 'dot'), [h('span', { 'data-fold-priority': 4 }, tr('nav.env')), h('span', { className: 'dsws-num', 'data-fold-priority': 5 }, envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, 14)),
-    h(Tip, { content: tr('nav.refreshTitle') }, h('span', { className: 'dsws-timebtn', onClick: function (e: any) { e.stopPropagation(); refreshAll(s) }, 'aria-label': tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 2 }, tr('nav.refresh')), h('span', { key: 'dd', 'data-fold-priority': 3 }, splitTimeStr(' ' + timeStr).date), h('span', { key: 'tt', 'data-fold-priority': 6 }, splitTimeStr(' ' + timeStr).time)])),
+    h(Tip, { content: tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) }) }, seg(n < 0 ? 'alert' : (n === envTotal(s) ? 'check' : 'dot'), [h('span', { 'data-fold-priority': 4 }, tr('nav.env')), h('span', { className: 'dsws-num', 'data-fold-priority': 5 }, envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, 14, 'status.seg.env')),
+    h(Tip, { content: tr('nav.refreshTitle') }, h('span', { className: 'dsws-timebtn dsws-hov', onClick: function (e: any) { e.stopPropagation(); refreshAll(s) }, 'aria-label': tr('nav.refreshTitle'),
+      // 接线（#1335 界面反馈）：刷新那颗带图标带文字，属于文字类控件；日志标识 status.refresh。
+      'data-press': 'button',
+      'data-log': 'status.refresh' }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 2 }, tr('nav.refresh')), h('span', { key: 'dd', 'data-fold-priority': 3 }, splitTimeStr(' ' + timeStr).date), h('span', { key: 'tt', 'data-fold-priority': 6 }, splitTimeStr(' ' + timeStr).time)])),
     h(SkillFloatList, { s: s }),
     logDotOn ? h(StatusLogDot, { s: s }) : null,
     capsuleToggle,
@@ -408,8 +449,16 @@ export const StatusBar = (props: any) => {
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
       Ic({ n: 'alert', size: 13 }),
       h('span', { style: { flex: 1 } }, text),
-      h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
-      foldable ? h(Tip, { content: tr('banner.foldDeck') }, h('button', { className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), onClick: foldBanner, style: { borderColor: 'rgba(245,158,11,.6)', padding: '1px 6px', marginLeft: 12, display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 11 }))) : null,
+      h('button', { className: 'dsws-btn dsws-hov', style: { borderColor: 'rgba(245,158,11,.6)' },
+        // 接线（#1335 界面反馈）：黄条主按钮有文字，按压与悬停都要有；日志标识 status.banner.action。
+        'data-press': 'button',
+        'data-log': 'status.banner.action',
+        onClick: onBtn }, btnLabel),
+      foldable ? h(Tip, { content: tr('banner.foldDeck') }, h('button', { className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'),
+        // 接线（#1335 界面反馈）：黄条那颗叉是纯图标，只接按压压暗；日志标识 status.banner.fold。
+        'data-press': 'icon',
+        'data-log': 'status.banner.fold',
+        onClick: foldBanner, style: { borderColor: 'rgba(245,158,11,.6)', padding: '1px 6px', marginLeft: 12, display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 11 }))) : null,
     ])
   }
   // #663：横幅就这一条 —— 正文与按钮标签用清单里那对词条键，按钮点下去照清单声明的 missing 走
@@ -422,9 +471,11 @@ export const StatusBar = (props: any) => {
       //   _selReading），不许说成「还没有设置」—— 那是把一个「还不知道」当成了结论，用户会去点那颗按钮重新选
       //   一遍后端，而其实只要等这一趟回话。所以这一档多一句「正在读取」，一个动作都不给。最外层那条读的仍是
       //   _isGatePending（探测在后端那件事上的过渡态），一个字没动。
-      const infoBar = function (reading: any) { const text = reading ? tr('banner.gateReading') : tr(meta.text); const act = reading ? null : h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)); return h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ reading ? h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }) : Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, text), act, h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ]) }
+      // 接线（#1335 界面反馈）：蓝条（后端还没选定）上的按钮与那颗叉都是能点到的，各接一组标识：
+      //   按钮 status.banner.gate.action 有文字（加悬停反馈），叉 status.banner.gate.fold 是纯图标（只压暗）。
+      const infoBar = function (reading: any) { const text = reading ? tr('banner.gateReading') : tr(meta.text); const act = reading ? null : h('button', { className:'dsws-btn dsws-hov', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, 'data-press':'button', 'data-log':'status.banner.gate.action', onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)); return h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ reading ? h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }) : Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, text), act, h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), 'data-press':'icon', 'data-log':'status.banner.gate.fold', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ]) }
       return _isGatePending
-        ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试'), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(245,158,11,.6)', color:'#f59e0b', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
+        ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn dsws-hov', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, 'data-press':'button', 'data-log':'status.banner.retry', onClick:function(){ loadSnapshot(s,true,true) } }, '重试'), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), 'data-press':'icon', 'data-log':'status.banner.pending.fold', style:{ borderColor:'rgba(245,158,11,.6)', color:'#f59e0b', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
         : infoBar(_selReading)
     }
     const node = bann(tr(meta.text, guideBannerParams(s, bannerStep)), tr(meta.btn), function () { runGuideMissing(s, bannerStep) }, true)
@@ -436,7 +487,12 @@ export const StatusBar = (props: any) => {
     stepBanner, workspaceFileNoteEl(s),
     capsule,
     modalSeat,
-    (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e: any){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
+    (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e: any){ if(e.target===e.currentTarget) closeGate() },
+      // 接线（#1335 界面反馈）：点遮罩空白处会关掉这个窗，遮罩自己也是能点到的，所以接一组标识；
+      // 它不是按钮，用 data-press 的 other 档，表示「按下去的是个没有固定形状的东西」。
+      'data-press': 'other',
+      'data-log': 'status.gate.backdrop',
+      style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
         h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, tr('switch.pleaseSelectTracker'))]),
         h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, tr('switch.gateIntro')),
@@ -445,14 +501,20 @@ export const StatusBar = (props: any) => {
           const isSel=s.gateSelected===m.id; const col=(typeof backendColorOf==='function'?backendColorOf(m.id):'#6e7681'); const isRec=(s.backendModules||[])[0] && (s.backendModules||[])[0].id===m.id;
           // #669 第 6 件（ADR 20260921）：能力不全的后端（今天只有 GitLab）在这里也置灰不可选，判据问 isBackendUnavailable 一份
           const locked=(typeof isBackendUnavailable==='function')&&isBackendUnavailable(m.id);
-          const row = h('label', { key:m.id, 'data-target-id':m.id, 'data-target-locked': locked?1:0, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:isSel?'1px solid '+col:'1px solid var(--dsw-alias-border-l1,#2a2d35)', background:isSel?'rgba(88,166,255,.08)':'transparent', cursor: locked?'not-allowed':'pointer', opacity: locked?0.45:1 } }, [ h('input',{type:'radio',checked:isSel,disabled:!!locked,onChange:function(){ if(locked) return; s.gateSelected=m.id;emit(s)}}), h('span',{style:{width:8,height:8,borderRadius:'50%',background:col,flex:'none'}}), h('span',{style:{fontSize:12,fontWeight:600}},m.label), h('span',{style:{fontSize:10,color:'#8b8b95'}},m.id), h('span',{style:{flex:1}}), isRec?h('span',{style:{fontSize:10,color:'#4ade80',border:'1px solid #4ade80',borderRadius:4,padding:'0 4px'}},'推荐'):null ])
+          // 接线（#1335 界面反馈）：这一行是用户点得到的后端单选行，整行都能点，所以用 row 这一档；
+          // data-log 放在 label 上而不是行里的 radio：点行上的字时浏览器会再合成一次 radio 的点击，
+          // 放 label 上两次点击记的都是同一颗（重复但认得准），放 radio 上那次点击会被记成遮罩（认错人）。
+          const row = h('label', { key:m.id, 'data-target-id':m.id, 'data-target-locked': locked?1:0, className:'dsws-hov',
+            'data-press':'row', 'data-log':'status.gate.target.' + m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:isSel?'1px solid '+col:'1px solid var(--dsw-alias-border-l1,#2a2d35)', background:isSel?'rgba(88,166,255,.08)':'transparent', cursor: locked?'not-allowed':'pointer', opacity: locked?0.45:1 } }, [ h('input',{type:'radio',checked:isSel,disabled:!!locked,onChange:function(){ if(locked) return; s.gateSelected=m.id;emit(s)}}), h('span',{style:{width:8,height:8,borderRadius:'50%',background:col,flex:'none'}}), h('span',{style:{fontSize:12,fontWeight:600}},m.label), h('span',{style:{fontSize:10,color:'#8b8b95'}},m.id), h('span',{style:{flex:1}}), isRec?h('span',{style:{fontSize:10,color:'#4ade80',border:'1px solid #4ade80',borderRadius:4,padding:'0 4px'}},'推荐'):null ])
           return locked ? h(Tip, { key:m.id, content: tr('switch.targetLockedTip') }, row) : row
         })),
         s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
         // #663：这个窗里那组「域文档布局」单选撤掉了 —— 全新工作区打开时还没装 gh、还没建仓库，
         //   问「各部分共用一套用语吗」是超前的问题；布局那一问现在只在初始化那一步出现（黄条弹的小卡），
         //   与之配套的「确认后不注入」一起改在 StatusBackend.js 的 confirmStatusGate（撤单选不撤注入会弹出一张没有座位的卡）。
-        h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } }, [ h('button',{className:'dsws-btn ghost',onClick:closeGate,style:{fontSize:12}},'取消'), h('button',{className:'dsws-btn',style:{background:'#58a6ff',borderColor:'#58a6ff',color:'#0b1220',fontWeight:700,fontSize:12},onClick:confirmGateStatus},'确认并继续') ])
+        // 接线（#1335 界面反馈）：这个窗底下两颗按钮的动作不同（取消 / 确认并继续），
+        // 都要按压反馈与点击日志，标识 status.gate.cancel 与 status.gate.confirm 分开认。
+        h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } }, [ h('button',{className:'dsws-btn ghost dsws-hov','data-press':'button','data-log':'status.gate.cancel',onClick:closeGate,style:{fontSize:12}},'取消'), h('button',{className:'dsws-btn dsws-hov','data-press':'button','data-log':'status.gate.confirm',style:{background:'#58a6ff',borderColor:'#58a6ff',color:'#0b1220',fontWeight:700,fontSize:12},onClick:confirmGateStatus},'确认并继续') ])
       ])
     ]) : null),
   ])

@@ -167,8 +167,10 @@ function renderDetail(st) {
   const html = renderDetail(st)
   check(html.includes('data-tip="tip.openInTracker"'), '顶栏找到了打开提示位')
   check(!html.includes('href="D:'), '顶栏本地票没有裸 href 链接')
-  // 只认装着 link 图标的跟踪器按钮（复制按钮同形但装的是 clipboard 图标，旧断言会被它满足）
-  check(/<button(?=[^>]*class="dsws-btn ghost")(?=[^>]*type="button")[^>]*>\[link\]<\/button>/.test(html),
+  // 只认装着 link 图标的跟踪器按钮（复制按钮同形但装的是 clipboard 图标，旧断言会被它满足）。
+  //   类名写成「dsws-btn ghost 打头、后面还允许别的类」：#1335 界面反馈给这颗按钮挂了悬停类 dsws-hov，
+  //   按钮还是同一颗 ghost 按钮（仍是 type=button、仍装 link 图标），类名表多一个词不算形状变了。
+  check(/<button(?=[^>]*class="dsws-btn ghost[^"]*")(?=[^>]*type="button")[^>]*>\[link\]<\/button>/.test(html),
     '顶栏本地票渲染的是跟踪器 ghost 按钮（点调宿主）')
 }
 // B2：顶栏 https 票 → a[href] 不动
@@ -190,7 +192,8 @@ function renderDetail(st) {
   }
   const html = renderDetail(st)
   check(!html.includes('href="D:'), '报错横幅本地票没有裸 href 链接')
-  check(/<button(?=[^>]*class="dsws-btn ghost")(?=[^>]*type="button")[^>]*>\[link\]/.test(html),
+  //   同上：类名表里多挂一个悬停类不算形状变了，判据仍要求它是 ghost 按钮且装的是 link 图标。
+  check(/<button(?=[^>]*class="dsws-btn ghost[^"]*")(?=[^>]*type="button")[^>]*>\[link\]/.test(html),
     '报错横幅本地票渲染的是跟踪器 ghost 按钮')
 }
 

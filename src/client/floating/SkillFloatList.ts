@@ -111,12 +111,18 @@ export const SkillFloatList = function (props: any) {
     ref: skillAnchorRef, onMouseEnter: showSkillPop,
     onMouseLeave: function () { scheduleClose(skillCloseRef, closeSkillPop) },
   }, [
-    h(Tip, { content: tr('nav.skillsTitle') }, h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e: any) { e.stopPropagation(); if (s.skillsOpen) closeSkillPop(); else showSkillPop() }, 'aria-label': tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })])),
+    h(Tip, { content: tr('nav.skillsTitle') }, h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e: any) { e.stopPropagation(); if (s.skillsOpen) closeSkillPop(); else showSkillPop() }, 'aria-label': tr('nav.skillsTitle'),
+      // 接线（#1335 界面反馈）：这颗技能按钮是纯图标，只接按压形状（按下压暗即可，小图标下沉会看着歪）。
+      'data-press': 'icon', 'data-log': 'float.skill.trigger', style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })])),
     s.skillsOpen ? PortalOverlay({ className: 'dsws-skillpop-bridge', onMouseEnter: function () { clearClose(skillCloseRef) }, onMouseLeave: function () { scheduleClose(skillCloseRef, closeSkillPop) }, style: { position: 'fixed', right: s.skillPopPos ? s.skillPopPos.right : 0, bottom: s.skillPopPos ? s.skillPopPos.bottom : 0, paddingTop: 4, paddingBottom: 4, zIndex: 2147483000 }, onClick: function (e: any) { e.stopPropagation() } }, [
       h('div', { className: 'dsws-skillpop', style: { minWidth: 150, maxHeight: 'min(300px, calc(100vh - 24px))', overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
-        SKILLS.map(function (sk: any) {
+        SKILLS.map(function (sk: any, i: number) {
           return h(HoverTip, { key: sk.name, content: tr('skilldesc.' + sk.name), mode: 'anchor', maxWidth: 220 }, h('div', chipProps({
-            className: 'dsws-skillpop-row',
+            // 接线（#1335 界面反馈）：每一行技能都是一颗可点的按钮（上面那套共享属性已经给了 role=button 与键盘三件套），
+            //   按整行接 row 形状；日志名用这一行在技能目录里的序号，技能名是行上那段展示文字，按纪律不写进日志。
+            className: 'dsws-skillpop-row dsws-hov',
+            'data-press': 'row',
+            'data-log': 'float.skill.row.' + String(i),
             // #956 评审修正：这一行原来只有按下反馈、键盘走不到（Tab 停不下来）。
             //   补上共享三件套后，Tab 停得住、回车与空格走与鼠标同一条路（调起 click）。
             'aria-label': '/' + sk.name,

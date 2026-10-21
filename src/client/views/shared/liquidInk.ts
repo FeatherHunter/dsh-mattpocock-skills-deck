@@ -7,9 +7,13 @@
  *
  * 为什么是一块单独的绝对定位元素，而不是把选中样式直接画在按钮上：需求要的是「液态」——
  * 选中块从上一个选项滑到下一个选项、中途略微拉伸、落定回弹。只有独立的一块元素能这样移动；
- * 直接改按钮背景只能整块瞬间切换，看不到「从哪来」。移动只写 transform（不碰 left/top，
- * 不触发重排），宽度只在真的变了的时候改一次，符合 docs/adr/20260911-zero-layout-jitter.md
- * 的「测量相只读、变更相只写」。
+ * 直接改按钮背景只能整块瞬间切换，看不到「从哪来」。
+ *
+ * 两件事分开做，互不覆盖：
+ *   - 位移只写 transform（不碰 left/top，不触发重排），缓动带一点过冲，宽度只在真的变了的时候改一次，
+ *     符合 docs/adr/20260911-zero-layout-jitter.md 的「测量相只读、变更相只写」；
+ *   - 形变（拉伸回弹）走独立的 scale 属性与关键帧 dsws-ink-squash。scale 与 transform 是两个属性，
+ *     同时写不会互相顶掉；形变不引起版面重排。
  *
  * 多选组（标签筛选）也有一块：它跟着「最近一次点中的那颗」走，其余仍选中的药丸保留自己的
  * 选中描边。这样点哪颗墨块就滑到哪颗，不会因为一颗药丸取消选中就整组闪一下。
@@ -40,6 +44,8 @@ export const LIQUID_INK_ON_CLASS = 'dsws-ink-on'
 export const LIQUID_INK_COVER_ATTR = 'data-ink-cover'
 /** 第一次定位时先禁过渡，避免墨块从左上角飞过来。 */
 const INK_INSTANT_CLASS = 'dsws-ink-instant'
+/** 换项时挂上的一帧拉伸回弹；类名与样式真源 feedback-styles.ts 里的 dsws-ink-squash 关键帧对齐。 */
+const INK_SQUASH_CLASS = 'dsws-ink-squash'
 
 const DEFAULT_BG = 'rgba(255,255,255,.14)'
 const DEFAULT_RADIUS = '6px'
@@ -159,12 +165,25 @@ export function liquidInkPlace(host: any, ink: any): boolean {
     } catch (e) {}
     return false
   }
-  // 盖住的那颗让出底色与描边（避免双底）；同组其余选中项不动，继续显示自己的描边。
-  markCovered(ink, target)
   const x = readPx(target, 'offsetLeft')
   const y = readPx(target, 'offsetTop')
   const w = readPx(target, 'offsetWidth')
   const h = readPx(target, 'offsetHeight')
+  const bg = (target.getAttribute && target.getAttribute('data-ink-bg')) || DEFAULT_BG
+  const bd = (target.getAttribute && target.getAttribute('data-ink-bd')) || 'transparent'
+  const radius = (host.getAttribute && host.getAttribute('data-ink-radius')) || DEFAULT_RADIUS
+  // 这一次落点的指纹：目标标识 + 位置 + 尺寸 + 底色、描边、圆角。
+  //   指纹完全相同，说明墨块本来就停在这颗控件上、一个像素都没动——这次调用只是悬停/按压的类变化，
+  //   或者同一容器里兄弟墨块的对位把观察器叫醒了，不是换项。
+  //   这时候要是还走下面的「摘类、强制重排、再挂类」，静止的墨块会每按一下都弹一次；
+  //   列表页三块墨块住同一个容器，一次点击能收到好几条记录，看起来就是「液态 tab 在抖」
+  //   （2026-10-21 用户实测报的就是编号组与标签组抖，那两组正好在同一个容器里、重渲染最频繁）。
+  //   目标标识优先用页签的 data-ink-key，没有就用文本内容（药丸的标签互不相同），免得两颗同宽同位置的选项被认成同一颗。
+  const targetKey = (target.getAttribute && target.getAttribute('data-ink-key')) || (target.textContent || '').slice(0, 24)
+  const sig = [targetKey, x, y, w, h, bg, bd, radius].join('|')
+  if (ink.__dswsInkPlaced && ink.__dswsInkSig === sig && ink.style.opacity === '1') return true
+  // 盖住的那颗让出底色与描边（避免双底）；同组其余选中项不动，继续显示自己的描边。
+  markCovered(ink, target)
   const first = !ink.__dswsInkPlaced
   try {
     if (first) ink.classList.add(INK_INSTANT_CLASS)
@@ -172,20 +191,27 @@ export function liquidInkPlace(host: any, ink: any): boolean {
     ink.style.setProperty('--dsws-ink-y', y + 'px')
     ink.style.setProperty('--dsws-ink-w', w + 'px')
     ink.style.setProperty('--dsws-ink-h', h + 'px')
-    const bg = target.getAttribute && target.getAttribute('data-ink-bg')
-    const bd = target.getAttribute && target.getAttribute('data-ink-bd')
-    ink.style.setProperty('--dsws-ink-bg', bg || DEFAULT_BG)
-    ink.style.setProperty('--dsws-ink-bd', bd || 'transparent')
-    const radius = (host.getAttribute && host.getAttribute('data-ink-radius')) || DEFAULT_RADIUS
+    ink.style.setProperty('--dsws-ink-bg', bg)
+    ink.style.setProperty('--dsws-ink-bd', bd)
     ink.style.setProperty('--dsws-ink-radius', radius)
     ink.style.opacity = '1'
     ink.style.pointerEvents = 'none'
   } catch (e) {}
+  ink.__dswsInkSig = sig
   if (first) {
     ink.__dswsInkPlaced = true
     const raf = (typeof window !== 'undefined' && window && window.requestAnimationFrame) ? window.requestAnimationFrame : null
     const drop = function () { try { ink.classList.remove(INK_INSTANT_CLASS) } catch (e) {} }
     if (raf) raf(drop); else setTimeout(drop, 0)
+  } else {
+    // 换项时让墨块「滑过去的同时略微拉长、落定回弹」。形变走独立的 scale 属性与关键帧
+    //   dsws-ink-squash，与上面的 transform 过渡互不覆盖；动画要重播，先摘类、强制一次重排、再挂上。
+    //   第一次定位不挂：那时墨块是从左上角出现的，本来就还没落到选中的那颗上。
+    try {
+      ink.classList.remove(INK_SQUASH_CLASS)
+      void ink.offsetWidth
+      ink.classList.add(INK_SQUASH_CLASS)
+    } catch (e2) {}
   }
   return true
 }
@@ -196,8 +222,19 @@ export function liquidInkPlace(host: any, ink: any): boolean {
  */
 export function useLiquidInk(hostRef: any, group?: any): any {
   const inkRef = React.useRef(null)
+  const roRef = React.useRef(null)
   const place = function () {
     try { liquidInkPlace(hostRef && hostRef.current, inkRef.current) } catch (e) {}
+    // 尺寸观察器要盯住新冒出来的选项：长标签换行、字体晚到时容器宽度可能没变，但选中那颗会挪位置。
+    //   observe 同一个元素多次是空操作，所以每次对位后重扫一遍就行。
+    try {
+      const host = hostRef && hostRef.current
+      const ro = roRef.current
+      if (host && ro && ro.observe) {
+        const opts = host.querySelectorAll('.dsws-tab,.dsws-chip,[data-ink-key]')
+        for (let i = 0; i < opts.length; i++) { try { ro.observe(opts[i]) } catch (eO) {} }
+      }
+    } catch (e2) {}
   }
   if (typeof React.useLayoutEffect === 'function') {
     React.useLayoutEffect(function () { place() })
@@ -208,6 +245,18 @@ export function useLiquidInk(hostRef: any, group?: any): any {
     const onResize = function () { place() }
     let cancelled = false
     try { if (window && window.addEventListener) window.addEventListener('resize', onResize) } catch (e) {}
+    // 尺寸观察器：属性观察器只盯 class/style/hidden，选项自身变宽（换行、字体晚到）时它看不见，
+    //   墨块就会停在旧位置。这里只读尺寸、不写布局，所以不会引起重排。
+    //   墨块本身绝对定位、不占容器空间，所以它的大小变化不会反过来触发尺寸回调，不会自激（#1334 那条环路的教训）。
+    try {
+      const host = hostRef && hostRef.current
+      const RO = (typeof window !== 'undefined' && window && window.ResizeObserver) ? window.ResizeObserver : null
+      if (host && RO) {
+        const ro = new RO(function () { if (!cancelled) place() })
+        roRef.current = ro
+        ro.observe(host)
+      }
+    } catch (eRO) {}
     // 字体晚到、页签折叠、标签展开都会让选项宽度变一次；这些都发生在宿主容器自己的属性/子树上，
     // 只盯这一小片，不用全局轮询。观察回调里只读一次布局再写墨块，和渲染后的对位是同一条路。
     let mo: any = null
@@ -222,6 +271,13 @@ export function useLiquidInk(hostRef: any, group?: any): any {
           for (let i = 0; i < (records ? records.length : 0); i++) {
             const t = records[i] && records[i].target
             if (t && ink && (t === ink || (t.nodeType === 1 && ink.contains && ink.contains(t)))) continue
+            // 同容器里的另外两块墨块也在观察范围内：列表页三组筛选就是三块住在一起的形状
+            //   （listFilterRow.ts 里三次 useLiquidInk 共用一个 hostRef）。只跳过自己不够——换项时
+            //   「摘类、强制一次重排、再挂类」是一次真实的 class 变更，会被兄弟墨块的观察器当成
+            //   容器的变动；兄弟接着重播自己的回弹，又反过来点燃这一块，三块互相点火，渲染进程
+            //   再也回不到绘制（2026-10-21 下午桌面版整窗卡死就是这条环路，单块墨块测不出来）。
+            //   墨块是绝对定位、不占容器版面的，跳过它们不会漏掉任何真正的布局变化。
+            if (t && t.nodeType === 1 && t.classList && t.classList.contains(LIQUID_INK_CLASS)) continue
             place()
             return
           }
@@ -238,6 +294,8 @@ export function useLiquidInk(hostRef: any, group?: any): any {
       cancelled = true
       try { if (window && window.removeEventListener) window.removeEventListener('resize', onResize) } catch (e) {}
       try { if (mo) mo.disconnect() } catch (e) {}
+      try { if (roRef.current) roRef.current.disconnect() } catch (eRO2) {}
+      try { roRef.current = null } catch (eRO3) {}
     }
   }, [])
   const inkProps: any = { className: LIQUID_INK_CLASS, ref: inkRef, 'aria-hidden': 'true' }

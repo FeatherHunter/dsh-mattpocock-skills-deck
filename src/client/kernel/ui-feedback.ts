@@ -15,7 +15,9 @@
  *     仍然匹配），而且祖先元素也会一起匹配，按压态会顺着 DOM 往上串。
  *   - 点击日志：任何带 `data-log` 的元素被点中（捕获阶段，不受 stopPropagation 影响），
  *     写一条 debug 级 `ui.action`。data-log 的值是稳定英文枚举，形如 `list.filter.state.open`，
- *     同屏唯一，用来唯一定位到被点的那一颗按钮；kind 取 `data-press` 的值（缺省 other）。
+ *     同屏唯一，用来唯一定位到被点的那一颗按钮；kind 是按压形状，取「离事件目标最近的那颗带
+ *     `data-press` 的元素」上的值（缺省 other）。为什么不是直接取带 data-log 那个元素自己的值：
+ *     有时日志挂在 input 上、形状标在它外面的 label 上（调试开关就是这种），那时候形状要往外找一层。
  *     调试开关关着时 isEnabled('debug') 第一行就早退，不拼字段、不产生任何日志开销。
  *
  * 日志字段纪律（见 src/client/kernel/log.ts 与 research/489-appendix.md）：
@@ -122,7 +124,13 @@ export function installUiFeedback(): void {
       if (!el) return
       const target = cleanToken(el.getAttribute(UI_LOG_ATTR), TARGET_MAX)
       if (!target) return
-      const kind = cleanToken(el.getAttribute(UI_PRESS_ATTR), KIND_MAX) || KIND_FALLBACK
+      // 形状优先取「离事件目标最近的那颗带 data-press 的元素」：点按钮里的图标或文字时，
+      //   走出来的仍然是这颗按钮的形状；带 data-log 的元素自己没标形状时（例如日志在 input 上、
+      //   形状在它外面的 label 上），退回它自己的 data-press，再没有就用 other。
+      const pressed = pressTargetOf(ev)
+      const kind = cleanToken(pressed && pressed.getAttribute && pressed.getAttribute(UI_PRESS_ATTR), KIND_MAX)
+        || cleanToken(el.getAttribute(UI_PRESS_ATTR), KIND_MAX)
+        || KIND_FALLBACK
       log('debug', 'ui.action', { target: target, kind: kind })
     } catch (e) {}
   }, true)

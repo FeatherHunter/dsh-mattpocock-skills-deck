@@ -638,15 +638,20 @@ const unescapeLiteral = function (s) {
 //     en: "……"
 //   }),
 // 这里按这个形状解析出「id → {version, placeholders, zh, en}」。
+// 字面量可能是双引号、单引号，也可能是反引号模板串：转译器（esbuild）遇到又长又同时含
+// 单双引号的字符串会改用模板串打印，此时内容里的换行是真的换行、不再写成 \n 转义。
+// 三种形式都要认，否则该条目会被整条吞掉、S2 条数对不上（#1292 立的条数硬编码就是为了
+// 让这种少扫当场变红，而不是静默放过）。
 // 为什么不用求值：产物是整包（几十份片段拼起来的闭包），求值它等于把整个客户端跑一遍；
 //   逐条正则解析 + 条数断言是这条老路一直用的办法（从前解析的是一行一条的注册表字面量，
 //   现在解析的是生成物那份多行写法）—— 口径没放松：解析不到足量条目就判红，不许静默少扫。
 //   产物里**没有 use 字段**（use 只活在 YAML 里，不进客户端产物），所以这里解析不出 use 是对的。
-const ARTIFACT_ENTRY_RE = /"([a-zA-Z0-9.]+)": Object\.freeze\(\{\s*version: (\d+),\s*placeholders: Object\.freeze\((\[[^\]]*\])\),\s*zh: ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),\s*en: ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),?\s*\}\)/g
-/** 去掉字符串字面量外面那对引号（产物里引号可能是双引号也可能是单引号，由转译器按内容挑）。 */
+const ARTIFACT_ENTRY_RE = /"([a-zA-Z0-9.]+)": Object\.freeze\(\{\s*version: (\d+),\s*placeholders: Object\.freeze\((\[[^\]]*\])\),\s*zh: ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`),\s*en: ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`),?\s*\}\)/g
+/** 去掉字符串字面量外面那对引号（产物里引号可能是双引号、单引号或反引号模板串两端，由转译器按内容挑）。 */
 const stripLiteralQuotes = function (s) {
   const t = String(s)
-  if (t.length >= 2 && (t.charAt(0) === '"' || t.charAt(0) === "'") && t.charAt(t.length - 1) === t.charAt(0)) return t.slice(1, -1)
+  const q = t.charAt(0)
+  if (t.length >= 2 && (q === '"' || q === "'" || q === '`') && t.charAt(t.length - 1) === q) return t.slice(1, -1)
   return t
 }
 const parseArtifactRegistry = function (src) {
@@ -2266,7 +2271,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '08de66b3fe090a53e46b403dbd61e0257904f218bbe979ab4d9f7198f69265da',
+  'tests/verify-prompts.ts': '8670cafe309ad4be7adfe5c5c07b6a29ea37eb66266f93eba99fef87ec26fd70',
 }
 // ---- LOCK-END ----
 

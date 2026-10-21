@@ -121,9 +121,11 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
         const _isHttp = /^https?:\/\//i.test(String(_u || ''))
         const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff) }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
+        // 本次界面反馈需求：评论没加载出来时，这个链接是用户唯一的出路，附近没有带 data-log 的祖先，
+        //   不接就完全没有日志；https 与本地两条分支各带一个定位串。
         return _isHttp
-          ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.viewOnTrackerHint'))
-          : h('button', { type: 'button', onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.viewOnTrackerHint'))
+          ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'detail.cmt.tracker', style: _textStyle }, tr('detail.viewOnTrackerHint'))
+          : h('button', { type: 'button', onClick: _openLocal, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.cmt.tracker.local', style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.viewOnTrackerHint'))
       })(),
             ])
           }
@@ -133,7 +135,10 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
           return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 8 } }, [
             h('button', {
               // #952：分页加载中用呼吸备用（无转圈的文字按钮，永不与转圈同开）。
-              className: 'dsws-btn' + (st.issueCommentsMoreLoading ? ' loading dsws-fb-breath' : ''),
+              // 本次界面反馈需求：「加载下 50 / 重试」带按压态、悬停反馈与自己的点击日志。
+              className: 'dsws-btn' + (st.issueCommentsMoreLoading ? ' loading dsws-fb-breath' : '') + ' dsws-hov',
+              'data-press': 'button',
+              'data-log': 'detail.cmt.more',
               disabled: !!st.issueCommentsMoreLoading,
               onClick: function () {
                 if (st.issueCommentsMoreLoading) return
@@ -167,9 +172,10 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
         const _isHttp = /^https?:\/\//i.test(String(_u || ''))
         const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff) }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
+        // 本次界面反馈需求：授权失败时的这个入口带按压态、悬停反馈与点击日志；https 与本地两条分支各带一个定位串。
         return _isHttp
-          ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.authFailCta'))
-          : h('button', { type: 'button', onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.authFailCta'))
+          ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'detail.cmt.authlink', style: _textStyle }, tr('detail.authFailCta'))
+          : h('button', { type: 'button', onClick: _openLocal, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.cmt.authlink.local', style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.authFailCta'))
       })() : null,
           ]) : null,
           h('textarea', {

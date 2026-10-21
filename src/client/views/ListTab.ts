@@ -333,15 +333,18 @@ export     const ListTab = ({ st, narrow }: any) => {
         // v1.5：已选标签过滤条（仅标签 · 颜色 = 该标签配置色 · 点 ✕ 关闭）
         (st.lblFilters && st.lblFilters.length) ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
           h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', flex: 'none' } }, tr('list.filterActive')),
-          (st.lblFilters || []).map(function (nm: any) {
+          (st.lblFilters || []).map(function (nm: any, i: any) {
             const c = colorOf[nm]
             const hex = c ? '#' + c : '#bc8cff'
             return h('span', { key: 'f-label-' + nm, className: 'dsws-chip', style: { fontSize: 10, background: hexA(c, 0.18) || 'rgba(188,140,255,.16)', color: hex, border: '1px solid ' + (darken(c, 0.16) || 'rgba(188,140,255,.6)') } }, [
               nm,
-              h('span', chipProps({ onClick: function (e: any) { e.stopPropagation(); st.lblFilters = (st.lblFilters || []).filter(function (x: any) { return x !== nm }); emit(st) }, 'aria-label': tr('list.filterRemoveAria', { name: nm }), style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
+              // 本次界面反馈需求：✕ 是一颗能点的小控件（去掉这一个标签的过滤），给它自己的按压态与点击日志；
+              //   定位串用它在已选标签条里的序号（标签名可能是中文，进不了定位串）。
+              h('span', chipProps({ 'data-press': 'chip', 'data-log': 'list.filter.remove.' + i, onClick: function (e: any) { e.stopPropagation(); st.lblFilters = (st.lblFilters || []).filter(function (x: any) { return x !== nm }); emit(st) }, 'aria-label': tr('list.filterRemoveAria', { name: nm }), style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
             ])
           }),
-          h('span', chipProps({ key: 'f-label-clear', className: 'dsws-chip', onClick: function (e: any) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }), tr('list.filterClear')),
+          // 本次界面反馈需求：「清除」药丸能点（清空已选标签），给它自己的按压态与点击日志。
+          h('span', chipProps({ key: 'f-label-clear', className: 'dsws-chip dsws-hov', 'data-press': 'chip', 'data-log': 'list.filter.clear', onClick: function (e: any) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }), tr('list.filterClear')),
         ]) : null,
         // B Timeline 定版（2026-08-28）：全屏红卡（NoRepoCard）不再挂载于列表页顶部——
         //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
@@ -369,7 +372,11 @@ export     const ListTab = ({ st, narrow }: any) => {
             if (btnTier === ' narrow-icon') { hcStyle.padding = '0'; hcStyle.justifyContent = 'center' }
             else if (btnTier === ' narrow-count') { hcStyle.padding = '1px 5px'; hcStyle.gap = 2 }
             return h(Tip, { content: tr('list.healthCheckTitle') + (isPartial ? '\n' + tr('list.partialTitle') : '') }, h('button', {
-              className: 'dsws-btn' + btnTier,
+              // 本次界面反馈需求：体检按钮带按压态与点击日志，点了它从日志一眼认出是它；
+              //   窄态（narrow-icon）下它只剩一枚图标，按用户口径只给按压态、不给下沉位移。
+              className: 'dsws-btn' + btnTier + (btnTier === ' narrow-icon' ? '' : ' dsws-hov'),
+              'data-press': 'button',
+              'data-log': 'list.healthcheck',
               onClick: function (e: any) { e.stopPropagation(); openHealthCheck(st) },
               style: hcStyle,
             }, [Ic({ n: 'clipboard', size: 11 }), (btnTier === ' narrow-count' || btnTier === '') ? h('span', null, tr('list.healthCheck') + (nHc == null ? '' : ' ' + nHc)) : null, (isPartial ? h('span', { 'aria-label': tr('list.partial'), style: { position: 'absolute', top: 1, right: 3, width: 5, height: 5, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 0 1px rgba(0,0,0,.6)', pointerEvents: 'none' } }) : null)]))
@@ -379,10 +386,12 @@ export     const ListTab = ({ st, narrow }: any) => {
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // effort 筛选行（仅多 effort 仓库出现）：点一下只看某个 effort，再点取消；与状态/label 过滤叠加
         multiEffort ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
-          h('span', chipProps({ key: 'eff-all', className: 'dsws-chip', onClick: function (e: any) { e.stopPropagation(); st.effFilters = []; emit(st) }, style: { cursor: 'pointer', fontSize: 10, background: !(st.effFilters || []).length ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: !(st.effFilters || []).length ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (!(st.effFilters || []).length ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.all')),
-          effortNames.map(function (nm: any) {
+          h('span', chipProps({ key: 'eff-all', className: 'dsws-chip dsws-hov', 'data-press': 'chip', 'data-log': 'list.effort.all', onClick: function (e: any) { e.stopPropagation(); st.effFilters = []; emit(st) }, style: { cursor: 'pointer', fontSize: 10, background: !(st.effFilters || []).length ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: !(st.effFilters || []).length ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (!(st.effFilters || []).length ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.all')),
+          effortNames.map(function (nm: any, i: any) {
             const on = (st.effFilters || []).indexOf(nm) >= 0
-            return h(Tip, { content: nm }, h('span', chipProps({ key: 'eff-' + nm, className: 'dsws-chip', 'aria-label': nm, onClick: function (e: any) {
+            // 本次界面反馈需求：effort 药丸能点（只看某个 effort），给它自己的按压态与点击日志；
+            //   定位串用序号（effort 名可能是任意字符，进不了定位串）。
+            return h(Tip, { content: nm }, h('span', chipProps({ key: 'eff-' + nm, className: 'dsws-chip dsws-hov', 'aria-label': nm, 'data-press': 'chip', 'data-log': 'list.effort.' + i, onClick: function (e: any) {
               e.stopPropagation()
               const cur = st.effFilters || []
               st.effFilters = on ? cur.filter(function (x: any) { return x !== nm }) : cur.concat([nm])
@@ -421,7 +430,8 @@ export     const ListTab = ({ st, narrow }: any) => {
         // #689：文案改成「已关闭 N（已加载 x）」—— N 是后端计数说的总数，x 是列表里真加载到的行数；
         //   两个不一样时（本仓现在就是）用户一眼能看出「还有多少没装进来」，而不是以为列表就是全部。
         (st.stateFilter === 'all' && closedRows.length) ? h('details', { style: { marginTop: 8 }, onToggle: function (e: any) { const open = !!(e && e.target && e.target.open); st.closedFoldOpen = open; emit(st); if (open) loadIssuePage(st, { view: 'list' }) } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 2px', userSelect: 'none' } }, [
+          // 本次界面反馈需求：折叠条能点（展开已关闭列表），给它自己的按压态与点击日志。
+          h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'list.fold.closed', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 2px', userSelect: 'none' } }, [
             Ic({ n: 'check', size: 11 }),
             h('span', null, tr('list.closedN', { n: foldCounts ? foldCounts.closed : closedRows.length, x: closedRows.length })),
           ]),

@@ -53,7 +53,9 @@ export const vcViewTabsNode = function (h: any, o: any) {
     const kids = [h('span', { key: 'label' }, label)]
     // 数量传 null 时只画文字：原型里这三颗不收数字，数字已经并进 label 了。
     if (n !== null && n !== undefined) kids.push(h('span', { key: 'n', className: 'dsws-vc-mono' }, '\uFF08' + String(n) + '\uFF09'))
-    return h('button', { key: key, type: 'button', role: 'tab', 'data-vc-view': key, 'aria-selected': on ? 'true' : 'false', className: 'dsws-vc-view' + (on ? ' is-on' : ''), onClick: function () { o.onPick(key) } }, kids)
+    // 接线（#1335 界面反馈）：这三个页签是 tab 那一档，按下要有按压反馈、悬停要有反馈；
+    //   定位名用视图自身的键（changes / commits / worktrees），日志里认得出点的是哪一页签。
+    return h('button', { key: key, type: 'button', role: 'tab', 'data-vc-view': key, 'aria-selected': on ? 'true' : 'false', className: 'dsws-vc-view dsws-hov' + (on ? ' is-on' : ''), 'data-press': 'tab', 'data-log': 'vc.tab.' + key, onClick: function () { o.onPick(key) } }, kids)
   }
   return h('div', { key: 'views', className: 'dsws-vc-views', 'data-vc-views': 1, role: 'tablist' }, [
     tab('changes', t('vc.views.changes') + ' ' + String(counts.changes), null),

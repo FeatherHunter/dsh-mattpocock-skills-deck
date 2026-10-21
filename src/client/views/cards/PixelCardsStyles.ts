@@ -9,7 +9,11 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-card.wide{width:340px;padding:11px 13px;gap:8px;min-height:230px;cursor:pointer}',
   '.cd-card.mapcard{width:404px;padding:11px 13px;gap:8px}',
   '.cd-card:hover{transform:translate(-2px,-2px);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),7px 8px 0 var(--cd-shadow)}',
-  '.cd-card:active{transform:translate(2px,2px);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),1px 1px 0 var(--cd-shadow)}',
+  // 按压态走委托挂的 .dsws-pressing（#1335 界面反馈）：不用 CSS 的 :active，
+  // 因为按住后把指针拖走 :active 会粘住，祖先元素还会跟着一起匹配。
+  '.cd-card.dsws-pressing{transform:translate(2px,2px);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),1px 1px 0 var(--cd-shadow)}',
+  // 点亮的卡片另有一条更重的悬停规则（层级更高），压下去时要压过它，否则按了看不出变化。
+  '.cd-card.lit.dsws-pressing,.cd-card.dim.lit.dsws-pressing{transform:translate(2px,2px)}',
   '.cd-card:focus-visible{outline:2px dashed var(--cd-gold);outline-offset:4px}',
   '.cd-card.lit,.cd-card.dim.lit{box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),0 0 0 6px var(--cd-gold),6px 6px 0 var(--cd-shadow)}',
   '.cd-card.lit:hover,.cd-card.dim.lit:hover{transform:translate(-2px,-2px);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),0 0 0 6px var(--cd-gold),7px 8px 0 var(--cd-shadow)}',
@@ -41,7 +45,7 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-abtn.paper{background:var(--cd-card);color:var(--cd-ink)}',
   '.cd-abtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--cd-shadow);outline:2px solid var(--cd-act,var(--cd-gold));outline-offset:1px}',
   '.cd-abtn:focus-visible{outline:2px dashed var(--cd-act,var(--cd-gold));outline-offset:2px}',
-  '.cd-abtn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--cd-shadow)}',
+  '.cd-abtn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--cd-shadow)}',
   '.cd-abtn svg{flex:none;display:block}',
   '.cd-bseal{position:absolute;left:-10px;top:64px;right:-10px;background:#a3231a;color:#fff;text-align:center;font-size:12px;letter-spacing:2px;padding:2px 0;border-top:3px solid var(--cd-frame);border-bottom:3px solid var(--cd-frame);transform:rotate(-6deg);box-shadow:3px 3px 0 var(--cd-shadow);pointer-events:none}',
   '.cd-dimveil{position:absolute;inset:-12px;background:rgba(58,36,19,.42);color:#fff9ec;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:2px;pointer-events:none;z-index:5}',

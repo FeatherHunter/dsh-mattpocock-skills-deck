@@ -156,8 +156,10 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       h('span', { key: 't' }, title),
       depth > 1 ? h('span', { key: 'ly', className: 'pixel-stack' }, tr('sd.stack', { n: String(depth), m: String(PIXEL_STACK_MAX) })) : null,
       h('span', { key: 'f', style: { flex: 1 } }),
-      canTranslate ? h(PixelBtn, { key: 'l', hot: true, onClick: function () { pixelToggleDetailLang(s) } }, lang === 'en' ? tr('sd.toZh') : tr('sd.toEn')) : null,
-      h(PixelBtn, { key: 'x', onClick: function () { pixelCloseDetail(s) } }, tr('sd.close')),
+      // 接线（#1335 界面反馈）：弹窗顶上这两颗按钮各接一组标识（翻译、关闭），日志里分得清点的是哪颗。
+      // 按压形状都写明是 button 档：这几颗都带字；像素风自带悬停反馈，不叠通用悬停样式。
+      canTranslate ? h(PixelBtn, { key: 'l', hot: true, 'data-press': 'button', 'data-log': 'sd.detail.lang', onClick: function () { pixelToggleDetailLang(s) } }, lang === 'en' ? tr('sd.toZh') : tr('sd.toEn')) : null,
+      h(PixelBtn, { key: 'x', 'data-press': 'button', 'data-log': 'sd.detail.close', onClick: function () { pixelCloseDetail(s) } }, tr('sd.close')),
     ]),
     showStatus ? h(PixelStatusLine, {
       key: 'st',
@@ -181,15 +183,20 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       body,
     ]),
     h('div', { key: 'bot', className: 'pixel-bot' }, [
-      d.copyText ? h(PixelBtn, { key: 'c', onClick: function () { pixelCopyDetailLink(s, copyPath) } }, d.copied ? tr('sd.copied') : (copyPath ? tr('sd.copyPath') : tr('sd.copy'))) : null,
-      (!d.isMissing && d.phase === 'error' && typeof p.onRetry === 'function') ? h(PixelBtn, { key: 'r', onClick: function () { (p.onRetry as (name: string) => void)(d.name as string) } }, tr('sd.retry')) : null,
+      // 接线（#1335 界面反馈）：底栏三颗按钮（复制、重试、回到顶部）各接一组标识，彼此不重名。
+      d.copyText ? h(PixelBtn, { key: 'c', 'data-press': 'button', 'data-log': 'sd.detail.copy', onClick: function () { pixelCopyDetailLink(s, copyPath) } }, d.copied ? tr('sd.copied') : (copyPath ? tr('sd.copyPath') : tr('sd.copy'))) : null,
+      (!d.isMissing && d.phase === 'error' && typeof p.onRetry === 'function') ? h(PixelBtn, { key: 'r', 'data-press': 'button', 'data-log': 'sd.detail.retry', onClick: function () { (p.onRetry as (name: string) => void)(d.name as string) } }, tr('sd.retry')) : null,
       h('span', { key: 'f', style: { flex: 1 } }),
-      h(PixelBtn, { key: 't', mini: true, onClick: toTop }, tr('sd.top')),
+      h(PixelBtn, { key: 't', mini: true, 'data-press': 'button', 'data-log': 'sd.detail.top', onClick: toTop }, tr('sd.top')),
     ]),
   ])
   if (p.full) return h('div', { className: 'pixel-detail-full', ref: fitRef, 'data-fit': 'on' }, box)
   return h('div', {
     className: 'pixel-overlay',
+    // 接线（#1335 界面反馈）：点遮罩空白处会关掉这个弹窗，遮罩自己也是能点到的，所以接一组标识；
+    // 它不是按钮，用 data-press 的 other 档，表示「按下去的是个没有固定形状的东西」。
+    'data-press': 'other',
+    'data-log': 'sd.detail.backdrop',
     onClick: function (e: any) { try { if (e.target === e.currentTarget) pixelCloseDetail(s) } catch (err) { /* 忽略 */ } },
   }, box)
 }

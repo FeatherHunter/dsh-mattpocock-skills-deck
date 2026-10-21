@@ -15,7 +15,9 @@ export const PixelBanner = function (props?: PixelBannerProps): any {
   return h('div', { className: 'pixel-banner' + (warn ? ' warn' : ''), role: 'alert' }, [
     h('b', { key: 'mark' }, warn ? '!' : '✕'),
     h('span', { key: 'text', className: 'grow' }, p.text),
-    p.onRetry ? h(PixelBtn, { key: 'retry', onClick: p.onRetry }, tr('sd.retry')) : null,
-    p.onClose ? h(PixelBtn, { key: 'close', onClick: p.onClose }, tr('sd.dismiss')) : null,
+    // 两颗按钮各给一个定位名：同样的横幅会出现在好几处面板上，光看"重试"认不出是哪块横幅的重试。
+    // 按压形状写明是 button 档（这两颗带字）；像素风自带悬停反馈，不叠通用悬停样式。
+    p.onRetry ? h(PixelBtn, { key: 'retry', 'data-press': 'button', 'data-log': 'banner.retry', onClick: p.onRetry }, tr('sd.retry')) : null,
+    p.onClose ? h(PixelBtn, { key: 'close', 'data-press': 'button', 'data-log': 'banner.dismiss', onClick: p.onClose }, tr('sd.dismiss')) : null,
   ])
 }

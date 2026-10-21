@@ -194,7 +194,8 @@ export const ChecksTab = ({ st }: any) => {
     const repoSync = st.repoSync || null
     const primaryBtn = primaryAction ? (function () {
       const alabel = miniActionLabel(primaryAction)
-      return h('button', { key: 'fix-primary', className: 'dsws-btn primary', tabIndex: 0, disabled: !!repoSync, onClick: function () { runAction(primaryAction) }, style: { fontSize: 12, padding: '6px 14px', flex: 'none', whiteSpace: 'nowrap' } }, alabel)
+      // 本次界面反馈需求：每步的主修复按钮带按压态、悬停反馈与点击日志；定位串用步序号（步 id 带冒号，进不了定位串）。
+      return h('button', { key: 'fix-primary', className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'check.fix.' + i, tabIndex: 0, disabled: !!repoSync, onClick: function () { runAction(primaryAction) }, style: { fontSize: 12, padding: '6px 14px', flex: 'none', whiteSpace: 'nowrap' } }, alabel)
     })() : null
     return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, padding: primaryBtn ? '10px 12px' : undefined, border: primaryBtn ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : undefined, borderRadius: 10, background: primaryBtn ? 'var(--dsw-alias-bg-layer-1,#10131a)' : undefined } }, [
       h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
@@ -219,7 +220,8 @@ export const ChecksTab = ({ st }: any) => {
         return null
       })(),
       h('span', { style: { flex: 1 } }),
-      h('button', { className: 'dsws-btn', disabled: st.refreshing, onClick: function () { refreshAll(st) }, style: { fontSize: 11, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+      // 本次界面反馈需求：顶部「重新检查」带按压态、悬停反馈与点击日志。
+      h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'check.recheck', disabled: st.refreshing, onClick: function () { refreshAll(st) }, style: { fontSize: 11, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
         h('span', { className: 'dsws-rficon' + (st.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]),
         h('span', null, tr('env.recheck')),
       ]),
@@ -237,7 +239,7 @@ export const ChecksTab = ({ st }: any) => {
       ])
       return h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid #5a4a1f', background: 'rgba(251,191,36,.07)', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warning-primary,#fbbf24)', marginBottom: 6, flexWrap: 'wrap' } }, [
         h('span', null, tr('panel.repoSync.timeout')),
-        h('button', { className: 'dsws-btn', onClick: function () { try { if (typeof retryRepoSync === 'function') retryRepoSync(st) } catch (e) {} }, style: { fontSize: 11, padding: '2px 8px' } }, tr('env.recheck')),
+        h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'check.recheck.sync', onClick: function () { try { if (typeof retryRepoSync === 'function') retryRepoSync(st) } catch (e) {} }, style: { fontSize: 11, padding: '2px 8px' } }, tr('env.recheck')),
       ])
     })(),
     stepRows,
@@ -264,7 +266,8 @@ export const ChecksTab = ({ st }: any) => {
       const sel = st.selection || (snap && snap.selection) || null
       const repoRef = st.repository || (snap && snap.repository) || null
       return h('details', { style: { marginTop: 8, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '6px 8px', background: 'rgba(255,255,255,.02)' } }, [
-        h('summary', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } }, [
+        // 本次界面反馈需求：能力诊断折叠条能点，给它悬停反馈、按压态与点击日志。
+        h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'check.diag.toggle', style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } }, [
           Ic({ n: 'note', size: 11 }),
           h('span', null, tr('env.diagTitle')),
           h('span', { style: { fontSize: 10, color: '#8b8b95', marginLeft: 6 } }, 'present ' + counts.present + ' / empty ' + counts.empty + ' / missing ' + counts.missing),
@@ -275,7 +278,7 @@ export const ChecksTab = ({ st }: any) => {
           h('div', null, tr('env.diagFields') + ': present=' + counts.present + ' \u00b7 empty=' + counts.empty + ' \u00b7 missing=' + counts.missing),
           h('div', { style: { fontSize: 10, color: '#6b7280', marginTop: 4 } }, tr('env.diagNote')),
           h('div', { style: { marginTop: 6 } }, [
-            h('button', { className: 'dsws-btn ghost', onClick: function () { try { console.log('[dsws] capabilities', counts, 'selection', sel, 'repo', repoRef) } catch {}; flash(st, tr('env.diagLogged'), 'info') }, style: { fontSize: 10, padding: '2px 6px' } }, tr('env.diagViewLog')),
+            h('button', { className: 'dsws-btn ghost dsws-hov', 'data-press': 'button', 'data-log': 'check.diag.viewlog', onClick: function () { try { console.log('[dsws] capabilities', counts, 'selection', sel, 'repo', repoRef) } catch {}; flash(st, tr('env.diagLogged'), 'info') }, style: { fontSize: 10, padding: '2px 6px' } }, tr('env.diagViewLog')),
           ]),
         ]),
       ])

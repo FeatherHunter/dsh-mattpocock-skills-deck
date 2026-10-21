@@ -16,6 +16,9 @@ export const PixelContents = function (props?: PixelContentsProps): any {
   const rows = items.map(function (label: string, i: number) {
     return h('a', {
       key: i,
+      // 目录整行是一个跳转目标：按下要有按压反馈，日志里要认得出跳的是第几节（标题文字会变，不能进定位名）。
+      'data-press': 'row',
+      'data-log': 'sd.toc.row.' + i,
       onClick: function () { if (typeof p.onJump === 'function') p.onJump(i) },
     }, [
       h(PixelNum, { key: 'n', n: i + 1 }),

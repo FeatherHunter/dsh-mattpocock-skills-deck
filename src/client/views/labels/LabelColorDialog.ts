@@ -226,7 +226,9 @@ export const LabelColorDialog = (props: any) => {
     h('span', { style: { fontSize: 13, fontWeight: 700 } }, tr('lc.title')),
     lc.changes.length ? h('span', { key: 'draft', style: { fontSize: 10.5, color: '#f59e0b', border: '1px solid rgba(245,158,11,.45)', borderRadius: 4, padding: '0 5px', lineHeight: 1.6 } }, tr('lc.draftHint')) : null,
     h('span', { key: 'sp', style: { flex: 1 } }),
-    h(Tip, { key: 'close', content: tr('lc.close') }, h('button', { className: 'dsws-btn ghost', type: 'button', 'data-lc-close-x': 1, 'aria-label': tr('lc.close'), onClick: askClose, style: closeXStyle }, typeof Ic === 'function' ? Ic({ n: 'x', size: 12 }) : null)), // #955：关闭键原来的字符 ✕ 兜底退役（取不到 Ic 就什么都不画；生产构建里 Ic 恒在）
+    // 右上角 × 是纯图标按钮：只接 data-press 让它按下压暗，不接 dsws-hov（图标小，按下时整颗下沉看着像在飘）。
+    // data-log 用固定短名记「关闭键」，日志里才认得出刚才点的是哪一颗。
+    h(Tip, { key: 'close', content: tr('lc.close') }, h('button', { className: 'dsws-btn ghost', type: 'button', 'data-lc-close-x': 1, 'data-press': 'icon', 'data-log': 'lc.close.x', 'aria-label': tr('lc.close'), onClick: askClose, style: closeXStyle }, typeof Ic === 'function' ? Ic({ n: 'x', size: 12 }) : null)), // #955：关闭键原来的字符 ✕ 兜底退役（取不到 Ic 就什么都不画；生产构建里 Ic 恒在）
   ])
 
   // 顶部提示带：保存中 / 全部成功 / 部分成功 / 一个都没成，四种各一句，数目都用实际条数。
@@ -278,14 +280,16 @@ export const LabelColorDialog = (props: any) => {
       // #1111：后端原文与上面那句话分两块摆——上面是给人看的一句话，这里是可以逐字核对的原文。
       // 默认收起（原文可能很长），点开才看；没有原文就不渲染这一块，不摆一个空框。
       errRaw ? h('details', { key: 'raw', style: { marginTop: 4 } }, [
-        h('summary', { style: { fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: errRaw })),
+        // 折叠条本身就是「点一下就展开」的整条控件：接 row 与唯一日志，另加 dsws-hov 拿悬停提亮。
+        h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'lc.fail.raw.toggle', style: { fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: errRaw })),
         h('div', { style: { marginTop: 4, padding: '5px 8px', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: '#8b8b95', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' } }, errRaw),
       ]) : null,
       needPick ? h('div', { key: 'where', 'data-lc-where': 1, style: { fontSize: 11.5, lineHeight: 1.7, marginTop: 8, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr('lc.errWherePick')) : null,
       waitingBackend ? h('div', { key: 'waiting', 'data-lc-wait': 1, style: { fontSize: 11.5, lineHeight: 1.7, marginTop: 8, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr('lc.errWaitBackend')) : null,
       h('div', { key: 'acts', style: { marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [
-        h('button', { key: 'retry', className: 'dsws-btn', type: 'button', onClick: function () { lc.reload({ keepOutcome: true }) }, style: { fontSize: 12, padding: '4px 12px' } }, tr('lc.retry')),
-        needPick ? h('button', { key: 'gopick', className: 'dsws-btn', type: 'button', 'data-lc-gopick': 1, onClick: onGoPick, style: { fontSize: 12, padding: '4px 12px' } }, tr('lc.actGoPick')) : null,
+        // 这两颗是有文字的按钮：接 button 与各自的唯一日志，并加 dsws-hov 拿悬停反馈。
+        h('button', { key: 'retry', className: 'dsws-btn dsws-hov', type: 'button', 'data-press': 'button', 'data-log': 'lc.retry', onClick: function () { lc.reload({ keepOutcome: true }) }, style: { fontSize: 12, padding: '4px 12px' } }, tr('lc.retry')),
+        needPick ? h('button', { key: 'gopick', className: 'dsws-btn dsws-hov', type: 'button', 'data-lc-gopick': 1, 'data-press': 'button', 'data-log': 'lc.gopick', onClick: onGoPick, style: { fontSize: 12, padding: '4px 12px' } }, tr('lc.actGoPick')) : null,
       ]),
     ])
   } else if (!lc.rows.length) {
@@ -294,8 +298,9 @@ export const LabelColorDialog = (props: any) => {
       h('div', { key: 'desc', style: { fontSize: 11.5, lineHeight: 1.7, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr('lc.emptyDesc')),
     ])
   } else {
-    body = h('div', { key: 'rows' }, lc.rows.map(function (r: any) {
-      return h(LabelColorRow, { key: r.name, row: r, text: textOfRow(r), narrow: narrow, result: lcOutcomeRowOf(lc.outcome, r.name), onChangeText: lc.setRowText })
+    // 行序号传给行组件：行名是后端给的自由文本、不能进 data-log，序号才是同屏可区分的稳定标识。
+    body = h('div', { key: 'rows' }, lc.rows.map(function (r: any, rowIndex: number) {
+      return h(LabelColorRow, { key: r.name, row: r, rowIndex: rowIndex, text: textOfRow(r), narrow: narrow, result: lcOutcomeRowOf(lc.outcome, r.name), onChangeText: lc.setRowText })
     }))
   }
 
@@ -309,11 +314,14 @@ export const LabelColorDialog = (props: any) => {
     h('span', { key: 'busy', 'aria-hidden': 'true', style: { gridArea: '1 / 1', visibility: busy ? 'visible' : 'hidden' } }, tr('lc.saving')),
   ])
   // 窄面板下按钮只剩一个图标：转圈和勾都是 12 像素见方，那一条本来就等宽（宽度与文字无关）。
+  // 保存 / 退出 / 复制三颗都是看得见文字的按钮：各自接一组 data-press 与 data-log，并加 dsws-hov 拿悬停反馈。
   const saveBtn = h('button', {
     key: 'save',
-    className: 'dsws-btn primary' + (saveResult === 'x' ? ' dsws-fb-errflash dsws-fb-shake' : '') + (saveResult === 'alert' ? ' dsws-fb-warnflash' : ''),
+    className: 'dsws-btn dsws-hov primary' + (saveResult === 'x' ? ' dsws-fb-errflash dsws-fb-shake' : '') + (saveResult === 'alert' ? ' dsws-fb-warnflash' : ''),
     type: 'button',
     disabled: !canSave,
+    'data-press': 'button',
+    'data-log': 'lc.save',
     'aria-label': saveText,
     onClick: function () { lc.save() },
     style: { fontSize: 12, padding: '5px 14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 'none', cursor: canSave ? 'pointer' : 'not-allowed' },
@@ -326,9 +334,11 @@ export const LabelColorDialog = (props: any) => {
   if (closeArmedNow) { exitStyle.borderColor = '#f59e0b'; exitStyle.color = '#f59e0b' }
   const exitBtn = h('button', {
     key: 'exit',
-    className: 'dsws-btn',
+    className: 'dsws-btn dsws-hov',
     type: 'button',
     'data-lc-exit': 1,
+    'data-press': 'button',
+    'data-log': 'lc.exit',
     'aria-label': exitLabel,
     onClick: askClose,
     style: exitStyle,
@@ -339,9 +349,11 @@ export const LabelColorDialog = (props: any) => {
   // 窄面板下按钮只剩图标，这条提示更要点得出来。
   const copyLabel = tr('lc.copy')
   const copyBtn = h('button', {
-    className: 'dsws-btn',
+    className: 'dsws-btn dsws-hov',
     type: 'button',
     'data-lc-copy': 1,
+    'data-press': 'button',
+    'data-log': 'lc.copy',
     'aria-label': copyLabel,
     onClick: onCopy,
     style: { fontSize: 12, padding: '5px 14px', display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', cursor: 'pointer' },

@@ -32,6 +32,8 @@ export const PixelIssueMapCard = function (props?: IssueMapCardProps): any {
   };
   const selPair = React.useState(false);
   const sel = selPair[0];
+  // 卡片身份取地图号：地图号是数字文本，清洗后能进定位串（地图标题是自由文本，不能进定位串）。
+  const logKey = 'map.' + (String(p.mapNo || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'x');
   const cls = "cd-card wide" + (p.open ? "" : " old closed") + (blocked && !lit ? " dim" : "") + (lit ? " lit" : "") + (sel ? " on" : "");
   const setLitNow = function (e: any, v: boolean): void {
     // 立刻给本卡加上或摘掉 lit，让红条与暗层不依赖这一次 React 重渲染是否发生
@@ -50,12 +52,14 @@ export const PixelIssueMapCard = function (props?: IssueMapCardProps): any {
   if (blocked && p.blockedBy) kids.push(h(PixelBlockedSeal, { key: 'bs', no: p.blockedBy.no }));
   kids.push(h(PixelMapDots, { key: 'dots', cells: p.dots || [] }));
   kids.push(h(PixelMapStats, { key: 'st', kids: p.kids || 0, ready: p.ready || 0, blocked: p.blocked || 0 }));
-  kids.push(h(PixelCardBtns, { key: 'ab', mainLabel: tr('card.execute'), icon: 'play', mainColor: '8b5cf6' }));
+  // 按钮组把自己的定位名前缀传下去：同一屏里多张地图卡各带各的前缀，组里的按钮才认得出自己属于哪张卡。
+  kids.push(h(PixelCardBtns, { key: 'ab', logKey: logKey, mainLabel: tr('card.execute'), icon: 'play', mainColor: '8b5cf6' }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: '' }));
   kids.push(h(PixelMapCorner, { key: 'mc' }));
   if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blocksChip.no, title: p.blocksChip.title }));
   if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
-  const attrs: any = { className: cls, style: { "--cd-act": "#8b5cf6" } };
+  // 这张地图卡整张都是可点的（点一下选中它），所以卡容器记 row；卡内按钮另有各的定位名。
+  const attrs: any = { className: cls, style: { "--cd-act": "#8b5cf6" }, 'data-press': 'row', 'data-log': 'card.map.' + logKey + '.row' };
   if (p.cardId) attrs.id = p.cardId;
   if (blocked) {
     attrs.tabIndex = 0;

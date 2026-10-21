@@ -82,9 +82,12 @@ const rCli = (md) => run(mdCli, md)
 const rPkg = (md) => run(mdPkg, md)
 
 // 链接：中段链接（回归：占位符 \u0001L0\u0001 泄漏）与行首链接
-check(rCli('见 [GitHub](https://github.com) 与 *斜体*').includes('<a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>'), 'client 中段链接渲染为 <a>')
+//   #1335 界面反馈给 markdown 链接挂了按压形状与点击日志标识（data-press / data-log），开标签上
+//   因此多了属性；判据改成「开标签前缀 + 链接文字与闭合标签」两段认，仍然要求它渲染成外链 <a>
+//   （href / target / rel 三个属性一个不少），只是不再要求属性表正好只有这三个。
+check(rCli('见 [GitHub](https://github.com) 与 *斜体*').includes('<a href="https://github.com" target="_blank" rel="noreferrer"') && rCli('见 [GitHub](https://github.com) 与 *斜体*').includes('>GitHub</a>'), 'client 中段链接渲染为 <a>')
 check(!rCli('见 [GitHub](https://github.com) 与 *斜体*').includes('\u0001'), 'client 中段链接无占位符泄漏')
-check(rPkg('见 [GitHub](https://github.com) 与 *斜体*').includes('<a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>'), 'package 中段链接渲染为 <a>')
+check(rPkg('见 [GitHub](https://github.com) 与 *斜体*').includes('<a href="https://github.com" target="_blank" rel="noreferrer"') && rPkg('见 [GitHub](https://github.com) 与 *斜体*').includes('>GitHub</a>'), 'package 中段链接渲染为 <a>')
 check(!rPkg('见 [GitHub](https://github.com) 与 *斜体*').includes('\u0001'), 'package 中段链接无占位符泄漏')
 check(rCli('[行首](https://a.com) 链接').includes('href="https://a.com"'), '行首链接仍正常')
 check(rCli('见 [A](https://a.com) 和 [B](https://b.com) 尾部').includes('href="https://b.com"'), '一行双链接均渲染')

@@ -69,8 +69,9 @@ export     const NoRepoCard = function (props: any) {
             ]),
           ]),
           h('div', { className:'acts' }, [
-            h('button', { className:'dsws-btn', onClick:function(){ st.tab='list'; emit(st) }, style:{ fontSize:11, padding:'3px 10px' } }, tr('switch.goSettingsPick')),
-            h('button', { className:'dsws-btn primary', onClick:function(){ loadSnapshot(st,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'3px 10px' } }, tr('switch.retryProbe')),
+            // 本次界面反馈需求：等待态的两个按钮各带按压态、悬停反馈与点击日志，日志里能认出点的是哪一颗。
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'norepo.pending.goto', onClick:function(){ st.tab='list'; emit(st) }, style:{ fontSize:11, padding:'3px 10px' } }, tr('switch.goSettingsPick')),
+            h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.pending.retry', onClick:function(){ loadSnapshot(st,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'3px 10px' } }, tr('switch.retryProbe')),
           ]),
         ])
       }
@@ -84,7 +85,7 @@ export     const NoRepoCard = function (props: any) {
             ]),
           ]),
           h('div', { className: 'acts' }, [
-            h('button', { className:'dsws-btn primary', onClick:function(){ st.tab='list'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('switch.chooseBackend')),
+            h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.other.select', onClick:function(){ st.tab='list'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('switch.chooseBackend')),
           ]),
         ])
       }
@@ -235,11 +236,12 @@ export     const NoRepoCard = function (props: any) {
             h('div', { className: 'ttl' }, tr('panel.noRepoCardTitle')),
             h('div', { className: 'desc' }, tr('panel.noRepoCardDesc')),
           ]),
-          h(Tip, { content: tr('panel.noRepoCardDismiss') }, h('button', { className: 'dsws-btn ghost', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { padding: '2px 6px', flex: 'none' } }, Ic({ n: 'x', size: 12 }))),
+          h(Tip, { content: tr('panel.noRepoCardDismiss') }, h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'norepo.dismiss.icon', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { padding: '2px 6px', flex: 'none' } }, Ic({ n: 'x', size: 12 }))),
         ]),
         h('div', { className: 'acts' }, !card.expanded ? [
-          h('button', { className: 'dsws-btn primary', onClick: doExpand, style: { background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardAction')),
-          h('button', { className: 'dsws-btn ghost', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardDismiss')),
+          // 本次界面反馈需求：两个按钮各带按压态、悬停反馈与点击日志。
+          h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'norepo.card.expand', onClick: doExpand, style: { background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardAction')),
+          h('button', { className: 'dsws-btn ghost dsws-hov', 'data-press': 'button', 'data-log': 'norepo.card.dismiss', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardDismiss')),
         ] : null),
         card.expanded ? h('div', { className: 'dsws-no-repo-form' }, [
           h('div', { className: 'row' }, [
@@ -267,20 +269,20 @@ export     const NoRepoCard = function (props: any) {
             return h('div', { className: 'err', style: { background: bg, border: '1px solid ' + bd, color: col, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' } }, [
               Ic({ n: 'alert', size: 11, color: col }),
               h('span', { style: { marginLeft: 4, flex: '1 1 auto' } }, card.error),
-              kind === 'no-git' ? h('a', { href: 'https://git-scm.com/', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
+              kind === 'no-git' ? h('a', { href: 'https://git-scm.com/', target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'norepo.err.gitdownload', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
               // #195 修复(第二轮)：no-gh 直接用后端提供的 prompt（多态），移除 <a> 链接兜底
-              kind === 'no-gh' ? h('button', { onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (!p) { try{ var bidN=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmN=(typeof moduleMetaOf==='function'&&bidN!=null)?moduleMetaOf(st,bidN):null; var np=mmN&&mmN.prompts&&mmN.prompts.noGhPrompt; if(np){ p=String(pickLangText(np)) } }catch(e){} } if (p && typeof inject === 'function') inject(st, p); }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
-              kind === 'not-logged-in' ? h('button', { onClick: function () { try{ var bidL=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmL=(typeof moduleMetaOf==='function'&&bidL!=null)?moduleMetaOf(st,bidL):null; var ppL=mmL&&mmL.prompts&&mmL.prompts.ghAuthLogin; var tL=ppL?String(pickLangText(ppL)):''; if(tL&&typeof inject==='function') inject(st,tL) }catch(e){} }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, tr('detail.authFailCta')) : null,
-              kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || searchUrlFor(st, card.name), target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
-              kind === 'network' ? h('button', { onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,
+              kind === 'no-gh' ? h('button', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'norepo.err.ghinstall', onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (!p) { try{ var bidN=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmN=(typeof moduleMetaOf==='function'&&bidN!=null)?moduleMetaOf(st,bidN):null; var np=mmN&&mmN.prompts&&mmN.prompts.noGhPrompt; if(np){ p=String(pickLangText(np)) } }catch(e){} } if (p && typeof inject === 'function') inject(st, p); }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
+              kind === 'not-logged-in' ? h('button', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'norepo.err.login', onClick: function () { try{ var bidL=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmL=(typeof moduleMetaOf==='function'&&bidL!=null)?moduleMetaOf(st,bidL):null; var ppL=mmL&&mmL.prompts&&mmL.prompts.ghAuthLogin; var tL=ppL?String(pickLangText(ppL)):''; if(tL&&typeof inject==='function') inject(st,tL) }catch(e){} }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, tr('detail.authFailCta')) : null,
+              kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || searchUrlFor(st, card.name), target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'norepo.err.exists', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
+              kind === 'network' ? h('button', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'norepo.err.retry', onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,
             ])
           })() : null,
           h('div', { className: 'row', style: { marginTop: 8 } }, [
-            h('button', { className: 'dsws-btn primary', disabled: card.loading || !isValid, onClick: doSubmit, style: { opacity: (!isValid || card.loading) ? 0.6 : 1, background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+            h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'norepo.form.submit', disabled: card.loading || !isValid, onClick: doSubmit, style: { opacity: (!isValid || card.loading) ? 0.6 : 1, background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
               card.loading ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, display: 'inline-block', verticalAlign: '-2px' } }) : null,
               h('span', null, card.loading ? tr('panel.noRepoFormSubmitting') : tr('panel.noRepoFormSubmit')),
             ]),
-            h('button', { className: 'dsws-btn', onClick: doCollapse, disabled: card.loading, style: { marginLeft: 6, fontSize: 11, padding: '4px 10px' } }, tr('panel.noRepoFormCancel')),
+            h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'norepo.form.cancel', onClick: doCollapse, disabled: card.loading, style: { marginLeft: 6, fontSize: 11, padding: '4px 10px' } }, tr('panel.noRepoFormCancel')),
           ]),
         ]) : null,
       ]) : null
@@ -317,8 +319,10 @@ export     const NoRepoCard = function (props: any) {
           missing.length ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8, background:'rgba(248,113,113,.08)', border:'1px solid rgba(248,113,113,.22)', borderRadius:4, padding:'6px 8px', wordBreak:'break-word' } }, tr('panel.labelsStepMissing', {list: missing.join(', ')})) : null,
           checking ? h('div', { style:{ fontSize:11, color:'#8b8b95', marginTop:6, display:'flex', alignItems:'center', gap:4 } }, [ h('span', { className:'dsws-spinner', style:{ width:10,height:10,borderWidth:1.5, display:'inline-block' } }), h('span', null, '检测中…') ]) : null,
           h('div', { style:{ display:'flex', gap:8, marginTop:14, justifyContent:'flex-end' } }, [
-            h('button', { className:'dsws-btn', onClick: doSkip, style:{ fontSize:11, padding:'4px 10px' } }, tr('panel.labelsStepSkip')),
-            missing.length ? h('button', { className:'dsws-btn primary', onClick: doInject, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, tr('panel.labelsStepAction')) : h('button', { className:'dsws-btn primary', onClick: doSkip, style:{ background:'#16a34a', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, '完成')
+            // 本次界面反馈需求：标签步骤的三个按钮各带按压态、悬停反馈与点击日志；
+            //   缺标签时的主按钮与补齐后的「完成」是两个不同控件，定位串必须不同。
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'norepo.labels.skip', onClick: doSkip, style:{ fontSize:11, padding:'4px 10px' } }, tr('panel.labelsStepSkip')),
+            missing.length ? h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.labels.action', onClick: doInject, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, tr('panel.labelsStepAction')) : h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.labels.done', onClick: doSkip, style:{ background:'#16a34a', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, '完成')
           ])
         ])
         const overlay = h('div', { className:'dsws-labels-overlay', onClick:function(e: any){ if(e.target===e.currentTarget) doSkip() }, style:{ position:'fixed', inset:'0', background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2147483000 } }, [inner])

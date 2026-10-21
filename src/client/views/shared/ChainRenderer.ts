@@ -79,7 +79,7 @@ declare function userHintOf(...args: any[]): any;
     }
 
     // 单个动作按钮（五种类型 + unknown unsupported）
-    function ActionButton({ action, dispatcher, st }: any) {
+    function ActionButton({ action, dispatcher, st, logId }: any) {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       const t = action && action.type
@@ -114,7 +114,9 @@ declare function userHintOf(...args: any[]): any;
       if (isUnsupported) {
         return h(Tip, { content: tr('tip.unsupportedAction') }, h('span', { className:'dsws-chain-unsupported', style:{ fontSize:10, color:'#8b8b95', border:'1px dashed rgba(139,139,149,.45)', borderRadius:4, padding:'1px 6px', display:'inline-flex', alignItems:'center' } }, label))
       }
-      return h('button', { className:'dsws-btn', tabIndex:0, onClick:onClick, onKeyDown:function(e: any){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onClick() } }, style:{ fontSize:11, padding:'2px 8px', display:'inline-flex', alignItems:'center', gap:4, flex:'none' } }, label)
+      // 接线（#1335 界面反馈）：动作按钮按下要有按压反馈、悬停要有反馈；
+      //   定位名由调用点给序号（一条链上可能挂了好几颗动作按钮），日志里认得出点的是哪一颗。
+      return h('button', { className:'dsws-btn dsws-hov', tabIndex:0, 'data-press':'button', 'data-log':'chain.action.' + String(logId || 'x'), onClick:onClick, onKeyDown:function(e: any){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onClick() } }, style:{ fontSize:11, padding:'2px 8px', display:'inline-flex', alignItems:'center', gap:4, flex:'none' } }, label)
     }
 
     // 内嵌表单渲染器（form 动作：schema → 字段 → 提交 RPC → 重求值）
@@ -182,8 +184,9 @@ declare function userHintOf(...args: any[]): any;
       return h('div', { className:'dsws-chain-form', style:{ border:'1px solid rgba(255,255,255,.08)', borderRadius:8, padding:'10px 12px', background:'rgba(255,255,255,.02)', marginTop:8 } }, [
         ...fields,
         h('div', { style:{ display:'flex', gap:6, justifyContent:'flex-end', marginTop:6 } }, [
-          h('button', { className:'dsws-btn', onClick:function(){ const init: any={}; for(let i=0;i<schema.length;i++){ const f=schema[i]; if(f.defaultValue!=null) init[f.name]=String(f.defaultValue); else init[f.name]=''} setVals(init) }, style:{ fontSize:11, padding:'2px 8px' } }, tr('env.formReset')),
-          h('button', { className:'dsws-btn primary', onClick:onSubmit, style:{ fontSize:11, padding:'2px 10px', background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:600 } }, tr('env.formSubmit')),
+          // 接线（#1335 界面反馈）：表单底下两颗（重置、提交）是两种动作，各接一组定位名。
+          h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'chain.form.reset', onClick:function(){ const init: any={}; for(let i=0;i<schema.length;i++){ const f=schema[i]; if(f.defaultValue!=null) init[f.name]=String(f.defaultValue); else init[f.name]=''} setVals(init) }, style:{ fontSize:11, padding:'2px 8px' } }, tr('env.formReset')),
+          h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'chain.form.submit', onClick:onSubmit, style:{ fontSize:11, padding:'2px 10px', background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:600 } }, tr('env.formSubmit')),
         ]),
       ])
     }
@@ -239,8 +242,8 @@ declare function userHintOf(...args: any[]): any;
       return h('div', { className:'dsws-banner dsws-chain-banner dsws-chain-banner--' + levelToClass(level), tabIndex:0, role:'status', 'aria-live':'polite', 'aria-label': title, style: Object.assign({}, styleBase, { display:'flex', alignItems:'center', gap:8, borderRadius:8, padding:'6px 10px', minHeight:42, maxHeight:42, height:42, margin:'6px 0', cursor:'default', flex:'none', overflow:'hidden' }) }, [
         h('span', { style:{ width:8, height:8, borderRadius:'50%', background: levelToClass(level)==='bad'?'#ef4444': levelToClass(level)==='warn'?'#f59e0b':'#58a6ff', display:'inline-block', flex:'none' } }),
         h('span', { style:{ flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12, fontWeight:600 } }, title + (desc ? ' — ' + String(desc).slice(0,120) : '')),
-        ...otherActions.map(function(a: any, i: any){ return h(ActionButton, { key:'act-'+i, action:a, dispatcher:dispatcher, st:st }) }),
-        ...(unsupported.length ? unsupported.map(function(a: any,i: any){ return h(ActionButton, { key:'unsup-'+i, action:a, dispatcher:dispatcher, st:st }) }) : []),
+        ...otherActions.map(function(a: any, i: any){ return h(ActionButton, { key:'act-'+i, action:a, dispatcher:dispatcher, st:st, logId:String(i) }) }),
+        ...(unsupported.length ? unsupported.map(function(a: any,i: any){ return h(ActionButton, { key:'unsup-'+i, action:a, dispatcher:dispatcher, st:st, logId:'unsup.' + i }) }) : []),
         // 表单动作内嵌（fail+form 场景）
         ...(formActions.length ? [ h('span', { key:'chain-form-hint', style:{ fontSize:10, color:'#8b8b95' } }, '↘') ] : []),
       ].concat(formActions.length ? [ h('div', { key:'chain-form-slot', style:{ position:'absolute' } }, []) ] : []))

@@ -54,6 +54,8 @@ export const LabelColorRow = (props: any) => {
   const text = props.text === null || props.text === undefined ? '' : String(props.text)
   const narrow = !!props.narrow
   const result = props.result || null
+  // 行序号由父组件按渲染次序传进来：行名是用户自己的标签名、不能进 data-log，序号才是同屏可区分的稳定标识。
+  const rowIndex = typeof props.rowIndex === 'number' ? props.rowIndex : 0
   // 没填完的两种情形（写错了字、或把原本有颜色的格子清空了）由纯函数一处判定，弹窗那边用同一个函数决定保存按钮亮不亮。
   const incomplete = lcRowIncomplete(row, text)
   // 色块显示哪一个值：用户填的能用就用用户填的，其次用这一行现在的颜色，都没有就是中性灰占位。
@@ -80,15 +82,20 @@ export const LabelColorRow = (props: any) => {
     h('div', { key: 'kind' }, tr(lcKindKey(result.kind))),
     result.message ? h('div', { key: 'said', style: { opacity: 0.85, wordBreak: 'break-word' } }, tr('lc.backendSaid', { msg: result.message })) : null,
     rawText ? h('details', { key: 'raw', style: { marginTop: 2 } }, [
-      h('summary', { style: { opacity: 0.85, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
+      // 折叠条是「点一下就展开」的整条控件：接 row 与带行序号的唯一日志，另加 dsws-hov 拿悬停提亮。
+      h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'lc.row.raw.toggle.' + rowIndex, style: { opacity: 0.85, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
       h('div', { style: { marginTop: 3, padding: '4px 6px', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflow: 'auto' } }, rawText),
     ]) : null,
   ] : null
   return h('div', { 'data-lc-row': row.name, style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '5px 0', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
+    // 色块是原生取色控件，点它弹出系统取色盘：它只有色块那么大，是纯图标尺寸的控件，只接 data-press（按下压暗），
+    // 不接 dsws-hov——按下时整颗色块下沉一格会跟旁边的输入框错开，看着像布局歪了。
     h(Tip, { key: 'sw', content: tr('lc.swatchTip') }, h('input', {
       type: 'color',
       value: shown,
       onChange: onPick,
+      'data-press': 'icon',
+      'data-log': 'lc.row.swatch.' + rowIndex,
       'aria-label': tr('lc.colorValue') + ': ' + row.name,
       style: { width: 22, height: 22, flex: 'none', padding: 0, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 4, background: 'transparent', cursor: 'pointer', colorScheme: 'light dark' },
     })),

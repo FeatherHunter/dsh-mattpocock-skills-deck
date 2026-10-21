@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T07:05:38.863Z",
+  "generatedAt": "2026-10-21T11:08:58.178Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 309,
   "gateCount": 309,
@@ -6827,22 +6827,57 @@
         "src/client/kernel/row-actions.ts",
         "src/client/kernel/ui-feedback.ts",
         "src/client/panel/Dock.ts",
+        "src/client/statusbar/LogDangerConfirm.ts",
+        "src/client/statusbar/SessionChainCapsule.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/StatusLogMenu.ts",
+        "src/client/views/ChecksTab.ts",
         "src/client/views/DetailActionBar.ts",
         "src/client/views/IssueDetail.ts",
         "src/client/views/IssueDetailComments.ts",
         "src/client/views/ListTab.ts",
+        "src/client/views/ListTabClosed.ts",
         "src/client/views/ListTabRow.ts",
         "src/client/views/MapDetail.ts",
+        "src/client/views/MapDetailHead.ts",
+        "src/client/views/MapDetailSpecBody.ts",
         "src/client/views/MapDetailTop.ts",
+        "src/client/views/NoRepoCard.ts",
+        "src/client/views/PrTab.ts",
+        "src/client/views/RunPanel.ts",
         "src/client/views/SettingsPage.ts",
         "src/client/views/SettingsWorkspaces.ts",
+        "src/client/views/SetupCard.ts",
+        "src/client/views/SkillsTab.ts",
+        "src/client/views/SubworkspaceMark.ts",
+        "src/client/views/TicketRow.ts",
+        "src/client/views/cards/PixelCardBtns.ts",
+        "src/client/views/cards/PixelIssueCard.ts",
+        "src/client/views/cards/PixelIssueMapCard.ts",
         "src/client/views/diagnosticLog/DiagnosticLogSection.ts",
         "src/client/views/feedback/feedback-styles.ts",
+        "src/client/views/labels/LabelColorDialog.ts",
         "src/client/views/labels/LabelColorEntry.ts",
+        "src/client/views/labels/LabelColorRow.ts",
         "src/client/views/listFilterRow.ts",
+        "src/client/views/pixel/PixelBanner.ts",
+        "src/client/views/pixel/PixelBtn.ts",
+        "src/client/views/shared/ChainRenderer.ts",
+        "src/client/views/shared/RestFallbackBanner.ts",
+        "src/client/views/shared/SwitchConfirmModal.ts",
         "src/client/views/shared/Tabs.ts",
+        "src/client/views/shared/chips.ts",
         "src/client/views/shared/liquidInk.ts",
+        "src/client/views/shared/md.ts",
         "src/client/views/shared/workRouteTable.ts",
+        "src/client/views/skillDetail/PixelContents.ts",
+        "src/client/views/skillDetail/PixelMarkdown.ts",
+        "src/client/views/skillDetail/PixelSkillDetailModal.ts",
+        "src/client/views/skillDetail/PixelSkillRow.ts",
+        "src/client/views/versionControl/VersionControlTab.ts",
+        "src/client/views/versionControl/vcAiHandoff.ts",
+        "src/client/views/versionControl/vcViews.ts",
+        "src/client/views/versionControl/vcWriteView.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -6850,18 +6885,23 @@
         "src/client",
         "src/client/kernel",
         "src/client/panel",
+        "src/client/statusbar",
         "src/client/views",
+        "src/client/views/cards",
         "src/client/views/diagnosticLog",
         "src/client/views/feedback",
         "src/client/views/labels",
+        "src/client/views/pixel",
         "src/client/views/shared",
+        "src/client/views/skillDetail",
+        "src/client/views/versionControl",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 21 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 56 条"
     },
     {
       "step": "node tests/verify-unmigrated-tests.ts",
@@ -7645,7 +7685,8 @@
       "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-reuse.ts",
-      "node tests/verify-subdir-first-frame.ts"
+      "node tests/verify-subdir-first-frame.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views": [
       "node tests/verify-leaves.ts",
@@ -7684,7 +7725,8 @@
       "node tests/verify-update-panel.ts"
     ],
     "src/client/views/cards": [
-      "node tests/verify-cards-dir.ts"
+      "node tests/verify-cards-dir.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/diagnosticLog": [
       "node tests/verify-leaves.ts",
@@ -7704,7 +7746,8 @@
       "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/pixel": [
-      "node tests/verify-skill-detail-stack.ts"
+      "node tests/verify-skill-detail-stack.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/primitives": [
       "node tests/verify-no-title.ts",
@@ -7730,7 +7773,8 @@
       "node tests/verify-visible-truth.ts"
     ],
     "src/client/views/skillDetail": [
-      "node tests/verify-skill-detail-stack.ts"
+      "node tests/verify-skill-detail-stack.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/versionControl": [
       "node tests/verify-leaves.ts",
@@ -7740,7 +7784,8 @@
       "node tests/verify-881-commit-open.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
-      "node tests/verify-container-colors.ts"
+      "node tests/verify-container-colors.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/deck": [
       "node tests/verify-build-artifacts.ts",

@@ -60,7 +60,8 @@ export const PrTab = function (props: any) {
       h('div', { style: { padding: '26px 16px', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 13, border: '1px dashed var(--dsw-alias-border-l2,#3a3f4a)', borderRadius: 10 } }, [
         h('div', { style: { fontSize: 14, color: '#f87171', fontWeight: 700, marginBottom: 4 } }, tr('pr.loadFail')),
         h('div', { style: { marginTop: 8 } }, [
-          h('button', { className: 'dsws-btn', onClick: doRetry, style: { padding: '2px 10px', fontSize: 11 } }, tr('pr.retry')),
+          // 本次界面反馈需求：取数失败时这个「重试」是唯一的出路，带按压态、悬停反馈与点击日志。
+          h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'pr.retry', onClick: doRetry, style: { padding: '2px 10px', fontSize: 11 } }, tr('pr.retry')),
         ]),
       ]),
     ])
@@ -93,7 +94,9 @@ export const PrTab = function (props: any) {
     var login = (x.author && x.author.login) ? String(x.author.login) : ''
     var labels = Array.isArray(x.labels) ? x.labels : []
     var upd = x.updatedAt ? String(x.updatedAt).slice(0, 10) : ''
-    return h('div', { key: String(key), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + String(key) + ' ' + String(x.title || ''), onClick: function () { openPr(x) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer' } }, [
+    // 本次界面反馈需求：整行能点，接上委托按压态与点击日志（行里的元素另有各自分别的值）。
+    //   定位串只带 PR 号，标题不进定位串。
+    return h('div', { key: String(key), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'data-press': 'row', 'data-log': 'pr.row.' + key, 'aria-label': '#' + String(key) + ' ' + String(x.title || ''), onClick: function () { openPr(x) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer' } }, [
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
         h('span', { className: 'dsws-idnum', style: { color: stl.color, borderColor: stl.color } }, '#' + String(key)),
         h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: 600 } }, String(x.title || ('#' + String(key)))),

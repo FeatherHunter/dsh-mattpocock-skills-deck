@@ -247,6 +247,11 @@ export const EntryChooser = function (props: any) {
       key: 'card-' + kind,
       role: 'button',
       tabIndex: -1,
+      // 接线（#1335 界面反馈）：整张入口卡就是一颗按钮，按「整卡可点」接 row 形状；
+      //   日志名用卡的种类拼出来（map / spec 两个固定枚举），不写卡上那段展示文字。
+      className: 'dsws-hov',
+      'data-press': 'row',
+      'data-log': 'entry.card.' + kind,
       'aria-label': String(tr(kind === 'map' ? 'card.entry.explore.brow' : 'card.entry.impl.brow') || ''),
       onMouseEnter: function () { setFocusIdx(i) },
       onClick: function (e: any) { if (e && e.stopPropagation) e.stopPropagation(); pickEntry(st, kind) },
@@ -271,6 +276,9 @@ export const EntryChooser = function (props: any) {
     h('button', {
       key: 'close',
       className: 'dsws-btn ghost',
+      // 接线（#1335 界面反馈）：叉号是纯图标按钮，只接按压形状（图标小，下沉一像素会看着歪）。
+      'data-press': 'icon',
+      'data-log': 'entry.close',
       'aria-label': String(tr('card.entry.close') || ''),
       onClick: function (e: any) { if (e && e.stopPropagation) e.stopPropagation(); entryChooserClose(st) },
       style: { position: 'absolute', right: 9, top: 8, fontSize: 14, lineHeight: 1, color: '#8b8b95', background: 'none', border: 'none', cursor: 'pointer', padding: 0 },

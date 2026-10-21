@@ -315,23 +315,27 @@ declare function resolveFailText(...args: any[]): any;
           i < wizardSteps.length - 1 ? h('span', { style: { width: 16, height: 1, background: '#2a2d35', flex: 'none' } }) : null
         ])
       })) : null
+      // 接线（#1335 界面反馈）：向导这一排导航按钮逐个接线。向导与非向导两套不会同屏出现，
+      //   但日志名仍分开写，免得看日志时猜不出是哪一步点的。
       const navRow = isWizard ? h('div', { style: { display: 'flex', gap: 6, justifyContent: 'space-between', marginTop: 8, alignItems: 'center' } }, [
         h('div', { style: { display: 'flex', gap: 6 } }, [
-          h('button', { className: 'dsws-btn', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
-          stepIndex > 0 ? h('button', { className: 'dsws-btn', onClick: onPrev, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '上一步') : null
+          h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'modal.wizard.cancel', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
+          stepIndex > 0 ? h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'modal.wizard.prev', onClick: onPrev, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '上一步') : null
         ]),
         h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
           h('span', { style: { fontSize: 10, color: '#8b8b95' } }, String(stepIndex+1) + ' / ' + String(totalSteps)),
-          stepIndex < totalSteps - 1 ? h('button', { className: 'dsws-btn primary', onClick: onNext, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: '#58a6ff', borderColor: '#58a6ff', color: '#0b1220', fontWeight: 600 } }, '下一步') : h('button', { className: 'dsws-btn primary' + (m.pending ? ' dsws-fb-busy' : '') + (m.justSent ? ' dsws-fb-result' : ''), onClick: onSubmit, disabled: !!m.pending || !!m.justSent, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('panel.submitting')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : (m.justSent ? tr('panel.submitted') : '提交'))
+          stepIndex < totalSteps - 1 ? h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'modal.wizard.next', onClick: onNext, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: '#58a6ff', borderColor: '#58a6ff', color: '#0b1220', fontWeight: 600 } }, '下一步') : h('button', { className: 'dsws-btn primary dsws-hov' + (m.pending ? ' dsws-fb-busy' : '') + (m.justSent ? ' dsws-fb-result' : ''), 'data-press': 'button', 'data-log': 'modal.wizard.submit', onClick: onSubmit, disabled: !!m.pending || !!m.justSent, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('panel.submitting')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : (m.justSent ? tr('panel.submitted') : '提交'))
         ])
       ]) : h('div', { style: { display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 } }, [
-        h('button', { className: 'dsws-btn', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
-        h('button', { className: 'dsws-btn primary' + (m.pending ? ' dsws-fb-busy' : '') + (m.justSent ? ' dsws-fb-result' : ''), onClick: onSubmit, disabled: !!m.pending || !!m.justSent, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('panel.submitting')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : (m.justSent ? tr('panel.submitted') : '提交')),
+        h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'modal.form.cancel', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
+        h('button', { className: 'dsws-btn primary dsws-hov' + (m.pending ? ' dsws-fb-busy' : '') + (m.justSent ? ' dsws-fb-result' : ''), 'data-press': 'button', 'data-log': 'modal.form.submit', onClick: onSubmit, disabled: !!m.pending || !!m.justSent, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('panel.submitting')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : (m.justSent ? tr('panel.submitted') : '提交')),
       ])
-      const box = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': m.label || (isWizard ? '向导' : '表单'), style: { width: 480, maxWidth: '94vw' }, onClick: function (e: any) { e.stopPropagation() } }, [
+      // 接线（#1335 界面反馈）：弹窗盒本身不是控件（它的点击只是不让遮罩那条关闭判定生效），
+      //   但遮罩已经接了日志，点在盒内会被记成「点了遮罩」；盒上单独挂一个日志名好区分，不挂按压形状（免得一按整块弹窗变暗）。
+      const box = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': m.label || (isWizard ? '向导' : '表单'), 'data-log': 'modal.form.dialog', style: { width: 480, maxWidth: '94vw' }, onClick: function (e: any) { e.stopPropagation() } }, [
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } }, [
           h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, m.label || (isWizard ? '向导' : '填写表单')),
-          h('button', { className: 'dsws-btn ghost', 'aria-label': '关闭', onClick: onClose, disabled: !!m.pending, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
+          h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'modal.form.close', 'aria-label': '关闭', onClick: onClose, disabled: !!m.pending, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
         ]),
         isWizard ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginBottom: 4 } }, (wizardSteps[stepIndex].title || ('步骤 ' + String(stepIndex+1))) + ' — 请填写后继续' + (_queueLen(st) > 0 ? '（队列中还有 ' + String(_queueLen(st)) + ' 个待处理）' : '')) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginBottom: 8, lineHeight: 1.5 } }, '请填写后提交，提交后将自动重查。' + (_queueLen(st) > 0 ? '（队列中还有 ' + String(_queueLen(st)) + ' 个待处理）' : '')),
         stepper,
@@ -340,8 +344,8 @@ declare function resolveFailText(...args: any[]): any;
         (m.fail && (m.fail.text || m.fail.link || m.fail.halfCreated)) ? h('div', { role: 'alert', style: { marginTop: 2, border: '1px solid rgba(248,113,113,.45)', background: 'rgba(248,113,113,.10)', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: '#fca5a5', lineHeight: 1.5 } }, [
           h('div', null, String(m.fail.text || '')),
           (m.fail.link || m.fail.halfCreated) ? h('div', { style: { display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' } }, [
-            m.fail.link ? h('span', { style: { color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }, onClick: function(){ try { if (typeof openUrl === 'function') openUrl(m.fail.link) } catch(_){} } }, (typeof tr === 'function' ? tr('panel.successModal.openBtn') : 'Open on GitHub')) : null,
-            m.fail.halfCreated ? h('button', { className: 'dsws-btn', onClick: function(){ try { retryPushFlow(st, m) } catch(_){ try { flash(st, 'retry push failed', 'warn') } catch(__){} } }, disabled: !!m.pending, style: { fontSize: 11, padding: '3px 9px' } }, (typeof tr === 'function' ? tr('panel.retryPushBtn') : 'Retry push')) : null,
+            m.fail.link ? h('span', { className: 'dsws-hov', 'data-press': 'link', 'data-log': 'modal.fail.openlink', style: { color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }, onClick: function(){ try { if (typeof openUrl === 'function') openUrl(m.fail.link) } catch(_){} } }, (typeof tr === 'function' ? tr('panel.successModal.openBtn') : 'Open on GitHub')) : null,
+            m.fail.halfCreated ? h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'modal.fail.retry', onClick: function(){ try { retryPushFlow(st, m) } catch(_){ try { flash(st, 'retry push failed', 'warn') } catch(__){} } }, disabled: !!m.pending, style: { fontSize: 11, padding: '3px 9px' } }, (typeof tr === 'function' ? tr('panel.retryPushBtn') : 'Retry push')) : null,
           ]) : null,
         ]) : null,
         navRow,
@@ -350,24 +354,27 @@ declare function resolveFailText(...args: any[]): any;
       if (isSuccess) {
         const sv = m.success || {}
         const sBody = sv.url ? (function(){ try { return tr('panel.successModal.body', { owner: sv.owner || '...', repo: sv.name || '...', vis: sv.visLabel || '公开' }) } catch(_){ return 'Repository created' } })() : (function(){ try { return tr('panel.successModal.bodyFallback', { repo: sv.name || '...', vis: sv.visLabel || '公开' }) } catch(_){ return 'Repository created' } })()
-        const sBox = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': (typeof tr === 'function' ? tr('panel.successModal.title') : 'Repository created'), style: { width: 480, maxWidth: '94vw', borderColor: '#2b4a33' }, onClick: function (e: any) { e.stopPropagation() } }, [
+        // 接线（#1335 界面反馈）：成功弹窗的盒子同理：只挂日志名用来和遮罩区分，不挂按压形状。
+        const sBox = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': (typeof tr === 'function' ? tr('panel.successModal.title') : 'Repository created'), 'data-log': 'modal.success.dialog', style: { width: 480, maxWidth: '94vw', borderColor: '#2b4a33' }, onClick: function (e: any) { e.stopPropagation() } }, [
           h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } }, [
             h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof tr === 'function' ? tr('panel.successModal.title') : 'Repository created')),
-            h('button', { className: 'dsws-btn ghost', 'aria-label': (typeof tr === 'function' ? tr('panel.successModal.doneBtn') : 'Done'), onClick: onClose, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
+            h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'modal.success.close', 'aria-label': (typeof tr === 'function' ? tr('panel.successModal.doneBtn') : 'Done'), onClick: onClose, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
           ]),
           h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', lineHeight: 1.6 } }, sBody),
-          sv.url ? h('div', { style: { margin: '8px 0' } }, [ h('span', { style: { color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all' }, onClick: function(){ try { if (typeof openUrl === 'function') openUrl(sv.url) } catch(_){} } }, sv.url) ]) : null,
+          sv.url ? h('div', { style: { margin: '8px 0' } }, [ h('span', { className: 'dsws-hov', 'data-press': 'link', 'data-log': 'modal.success.url', style: { color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all' }, onClick: function(){ try { if (typeof openUrl === 'function') openUrl(sv.url) } catch(_){} } }, sv.url) ]) : null,
           h('div', { className: 'foot', style: { display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8, alignItems: 'center' } }, [
-            sv.url ? h('button', { className: 'dsws-btn primary', onClick: function(){ try { if (typeof openUrl === 'function') openUrl(sv.url) } catch(_){} }, style: { fontSize: 12, padding: '6px 14px', fontWeight: 600 } }, (typeof tr === 'function' ? tr('panel.successModal.openBtn') : 'Open on GitHub')) : null,
-            h('button', { className: 'dsws-btn', onClick: onClose, style: { fontSize: 11, padding: '4px 10px' } }, (typeof tr === 'function' ? tr('panel.successModal.doneBtn') : 'Done')),
+            sv.url ? h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'modal.success.open', onClick: function(){ try { if (typeof openUrl === 'function') openUrl(sv.url) } catch(_){} }, style: { fontSize: 12, padding: '6px 14px', fontWeight: 600 } }, (typeof tr === 'function' ? tr('panel.successModal.openBtn') : 'Open on GitHub')) : null,
+            h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'modal.success.done', onClick: onClose, style: { fontSize: 11, padding: '4px 10px' } }, (typeof tr === 'function' ? tr('panel.successModal.doneBtn') : 'Done')),
           ]),
         ])
-        const sOverlay = h('div', { className: 'dsws-modal', role: 'presentation', onClick: onOverlayClick, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 } }, [sBox])
+        // 接线（#1335 界面反馈）：点遮罩空白处会关窗，遮罩是用户真的会点的地方，按「其它」接。
+        const sOverlay = h('div', { className: 'dsws-modal', role: 'presentation', 'data-press': 'other', 'data-log': 'modal.success.overlay', onClick: onOverlayClick, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 } }, [sBox])
         try { if (typeof portalTop === 'function') return portalTop(sOverlay) } catch(_){}
         return sOverlay
       }
       // portalTop 挂到 body，避免被面板裁剪（与 issue #3 同理）
-      const overlayNode = h('div', { className: 'dsws-modal', role: 'presentation', onClick: onOverlayClick, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 } }, [box])
+      // 接线（#1335 界面反馈）：点遮罩空白处会关窗，遮罩是用户真的会点的地方，按「其它」接。
+      const overlayNode = h('div', { className: 'dsws-modal', role: 'presentation', 'data-press': 'other', 'data-log': 'modal.form.overlay', onClick: onOverlayClick, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 } }, [box])
       try {
         if (typeof portalTop === 'function') return portalTop(overlayNode)
       } catch(_){}

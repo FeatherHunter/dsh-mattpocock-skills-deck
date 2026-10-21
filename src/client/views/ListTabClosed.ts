@@ -57,7 +57,8 @@ export const closedPagesNode = function (h: any, st: any, loadedCount: any) {
       if (stat.notice === 'noweb') {
         bits.push(h('span', { key: 'web', style: { color: '#f59e0b' } }, tr('list.pageAllOnWeb')))
         const url = repoWebIssuesUrlOf(st)
-        if (url) bits.push(h('a', { key: 'weblink', className: 'dsws-btn ghost', href: url, target: '_blank', rel: 'noreferrer', style: { padding: '0 6px', fontSize: 10, textDecoration: 'none' } }, tr('act.view')))
+        // 本次界面反馈需求：这个链接是本页唯一能去追踪器看全部票的入口，给它按压态、悬停反馈与点击日志。
+        if (url) bits.push(h('a', { key: 'weblink', className: 'dsws-btn ghost dsws-hov', 'data-press': 'link', 'data-log': 'list.closed.web', href: url, target: '_blank', rel: 'noreferrer', style: { padding: '0 6px', fontSize: 10, textDecoration: 'none' } }, tr('act.view')))
       } else if (stat.notice === 'stale') {
         bits.push(h('span', { key: 'stale', style: { color: '#f59e0b' } }, tr('list.pageStale')))
       } else if (stat.notice === 'fail') {
