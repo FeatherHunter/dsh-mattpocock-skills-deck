@@ -73,6 +73,8 @@ const MODULES = [
   { name: 'actions', exports: ['createActionDispatcher', 'ACTIONS_VERSION'] },
   { name: 'backendList', file: 'builtin-backends', exports: ['BUILTIN_BACKENDS', 'SWITCH_UNAVAILABLE_BACKENDS', 'builtinLabelOf', 'otherFiltered', 'firstBackendIdOf', 'repositoryActionOf', 'moduleMetaOf'] },
   { name: 'link', exports: ['issueUrlFor', 'openIssueUrl', 'searchUrlFor', 'repoUrlFor', 'issueRefNumbersFrom'] },
+  // 本次界面反馈需求：全客户端唯一的按压委托与点击日志口（ui.action）——新片，改了没重建要能拦得住。
+  { name: 'uiFeedback', file: 'ui-feedback', exports: ['UI_PRESS_CLASS', 'UI_PRESS_ATTR', 'UI_LOG_ATTR', 'installUiFeedback'] },
   { name: 'slots', exports: ['SLOTS_KERNEL_VERSION', 'SLOT_DEFS_KERNEL', 'MODAL_SEAT_ID', 'orderOf', 'isScopeValid', 'canDeclareIn', 'shouldShowInModal', 'isModalAction', 'getWizardAction', 'getFormAction', 'getModalAction', 'getWizardSteps'] },
   { name: 'slotRendererQueue', file: 'slotRenderer-queue', exports: ['SLOT_RENDERER_VERSION', 'ensureFormModal', 'openFormModal', 'closeFormModal', 'createModalRenderForm', 'canOpenModalForStep', 'canOpenWizardForStep'] },
   { name: 'slotRendererRepoSync', file: 'slotRenderer-repo-sync', exports: ['startRepoSync', 'finishRepoSync', 'retryRepoSync'] },

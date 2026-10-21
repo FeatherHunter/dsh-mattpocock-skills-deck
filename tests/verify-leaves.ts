@@ -36,6 +36,8 @@ const { judgeProducts, reportJudgements } = require('../scripts/lib/build-cache.
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const LEAVES = [
   { file: 'src/client/views/shared/chips.js', exports: ['Dot', 'TypeChip', 'chipKeyDown', 'chipProps'], components: ['Dot', 'TypeChip'] },
+  // 本次界面反馈需求：液态墨块（页签与列表筛选药丸共用）。
+  { file: 'src/client/views/shared/liquidInk.ts', exports: ['LIQUID_INK_CLASS', 'LIQUID_INK_HOST_CLASS', 'LIQUID_INK_ON_CLASS', 'liquidInkPlace', 'liquidInkRemember', 'useLiquidInk'], components: [] },
   { file: 'src/client/views/shared/md.js', exports: ['MD_LINK_RE', 'MD_TASK_RE', 'mdEsc', 'mdInline', 'mdToHtml'], components: [] },
   { file: 'src/client/views/shared/ticket.js', exports: ['tStatus', 'tStatusLabel', 'tProgressBar', 'tStatusBadge'], components: [] },
   { file: 'src/client/views/shared/stateKind.js', exports: ['prStateKind'], components: [] }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用

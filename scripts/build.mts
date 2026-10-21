@@ -437,6 +437,8 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #876 入口件浏览器绑定包（已安装更新包 dist/entry.js 含内部 dialog 面板，摆法与关闭轮询约定走包默认）
   { name: 'updateEntryBundle', file: 'scripts/generated/updateEntryPanel.bundle.js' },
   { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
+  // 本次界面反馈需求：全客户端唯一的按压委托与点击日志口（ui.action），必须排在 log 之后、页面组件之前。
+  { name: 'uiFeedback', file: 'src/client/kernel/ui-feedback.ts' },
   // 构建内核清单含日志模块（运行时拼上面的派生文件，#564 留派生不搬；
   //   #1251：旧手写真源 log.js 已删，同内容住在 src/client/kernel/log.ts，只供门禁经钩子直读）。
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
@@ -623,6 +625,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'chips', file: 'src/client/views/shared/chips.ts' },
   { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.ts' },
   { id: 'tip', file: 'src/client/views/primitives/Tip.ts' },
+  // 本次界面反馈需求：液态墨块（页签与列表筛选药丸共用），必须排在 leaf:tabs 之前登记。
+  { id: 'liquidInk', file: 'src/client/views/shared/liquidInk.ts' },
   // 887 技能详情像素风：八个最小组件（无依赖，按使用次序登记）
   { id: 'pixelBtn', file: 'src/client/views/pixel/PixelBtn.ts' },
   { id: 'pixelDot', file: 'src/client/views/pixel/PixelDot.ts' },

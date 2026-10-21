@@ -58,6 +58,7 @@ declare const STYLE_TEXT: any;
 declare const VC_STYLE_TEXT: any;
 declare const PIXEL_STYLE_TEXT: any;
 declare const FEEDBACK_STYLE_TEXT: any;
+declare const installUiFeedback: any;
 declare const PIXEL_CARDS_STYLE_TEXT: any;
 declare const L: any;
 declare const LANG_CONFIG: any;
@@ -196,6 +197,10 @@ export default {
     // ==== kernel:log (spliced by build) ====
     // #1296：两套容器身份色的按需日志（container.accent）不在启动段发射——日志契约要求
     //   对账前不产生调试日志，发射点在 panelAssembly 的启动对账之后（见 leaf:panelAssembly）。
+    // 本次界面反馈需求：全客户端唯一的按压委托与点击日志口。必须排在 kernel:log 之后（日志开关要能读），
+    //   在任何页面组件之前挂上；挂一次即幂等，重复调用不会重复挂监听。
+    // ==== kernel:uiFeedback (spliced by build) ====
+    installUiFeedback()
 
     // ============================================================
     // 3. store（v14：按会话隔离；无 sid 时用 shared）
@@ -271,6 +276,8 @@ export default {
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:hoverTip (spliced by build) ====
     // ==== leaf:tip (spliced by build) ====
+    // 本次界面反馈需求：液态墨块，页签与列表筛选药丸共用的选中块，必须排在 leaf:tabs 之前。
+    // ==== leaf:liquidInk (spliced by build) ====
     // 887：八个像素风最小组件。
     // ==== leaf:pixelBtn (spliced by build) ====
     // ==== leaf:pixelDot (spliced by build) ====

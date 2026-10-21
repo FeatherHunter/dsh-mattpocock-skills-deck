@@ -66,4 +66,29 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-fb-skel{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.13),rgba(255,255,255,.05));background-size:200% 100%;animation:dsws-fb-skel 1.1s linear infinite}',
       '@keyframes dsws-fb-skel{to{background-position:-200% 0}}',
       '@media (prefers-reduced-motion: reduce){.dsws-fb-skel{animation:none;background:rgba(255,255,255,.07)}}',
+      // 本次界面反馈需求里的液态墨块与全控件按压/悬停：第 32 种反馈「选中块迁移」。墨块只在 transform 上做过渡
+      //   （宽度/高度只在选项换行或折叠时变一次），拉伸回弹靠 linear() 的过冲，不新增颜色、不动布局。
+      //   容器由 leaf:liquidInk 补 position:relative；选中项原来的底色/描边让位给墨块，文字颜色照旧。
+      '.dsws-ink-host{position:relative}',
+      '.dsws-ink-host .dsws-tab,.dsws-ink-host .dsws-chip{position:relative;z-index:1}',
+      '.dsws-ink{position:absolute;left:0;top:0;width:var(--dsws-ink-w,0px);height:var(--dsws-ink-h,0px);border-radius:var(--dsws-ink-radius,6px);background:var(--dsws-ink-bg,rgba(255,255,255,.14));border:1px solid var(--dsws-ink-bd,transparent);box-sizing:border-box;pointer-events:none;z-index:0;will-change:transform;transform:translate3d(var(--dsws-ink-x,0px),var(--dsws-ink-y,0px),0);transition:transform .24s linear(0,.55 30%,1.06 62%,.99 84%,1),width .16s ease,height .16s ease,opacity .12s ease}',
+      '.dsws-ink.dsws-ink-instant{transition:none!important}',
+      '.dsws-ink-host .dsws-tab.on{background:transparent;border-color:transparent}',
+      '.dsws-ink-host .dsws-ink-on{background:transparent!important;border-color:transparent!important}',
+      // 页签只有悬停变色（原来连这个都没有）；药丸加一层轻微提亮，按下由通用按压态负责。
+      '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}.dsws-chip:hover{filter:brightness(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.16)}}',
+      // 通用按压/悬停：给清单里原来没有任何反馈的控件（仓库名、切后端、调色板、新建需求、+bug、
+      //   workroute、地图卡片、折叠条、父链接、设置页按钮与插件行等）同一套语言；只用亮度与小位移。
+      '.dsws-pressing{filter:brightness(.85)}',
+      '.dsws-tab.dsws-pressing,.dsws-chip.dsws-pressing{filter:brightness(.8)}',
+      '@media (hover:hover) and (pointer:fine){.dsws-hov:hover{box-shadow:0 0 0 1px rgba(255,255,255,.2),0 2px 10px rgba(0,0,0,.25);filter:brightness(1.06)}}',
+      '.dsws-hov.dsws-pressing{filter:brightness(.82);transform:translateY(1px);box-shadow:none;transition:transform .08s ease}',
+      '.dsws-hov{transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}',
+      '@media (hover:hover) and (pointer:fine){.dsws-workroute:hover{filter:brightness(1.18)}}',
+      // 地图详情的工单卡：整张卡热与按下；卡片内部按钮各自还有自己的反馈，不互相顶掉。
+      '@media (hover:hover) and (pointer:fine){.dsws-node:hover{border-color:rgba(255,255,255,.28)!important;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.3)}}',
+      '.dsws-node.dsws-pressing{filter:brightness(.9)}',
+      // 键盘焦点：面板内已有规则，这里补到页签行、筛选药丸与清单里的小按钮，焦点环不删。
+      '.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-hov:focus-visible,.dsws-workroute:focus-visible{outline:1px solid #58a6ff;outline-offset:1px}',
+      '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}}',
     ].join('')
