@@ -10,6 +10,8 @@ import { withCallScope } from '../shell/call-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+// #1090：进度区的结构化读回（{percent,note,updatedAt,entries}）与写侧共用同一份解析。
+import { parseProgressDetail } from '../../tracker/body-parse.js'
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -104,6 +106,9 @@ function issueBrief(issue: Record<string, unknown> | null | undefined) {
     labels: Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : [],
     assignees: Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : [],
     updatedAt: issue.updatedAt || '', closedAt: issue.closedAt || '', url: issue.url || '', body: issue.body !== undefined ? issue.body : null,
+    // #1090：正文里的进度区按结构化形状回一份（旧字段一个不删，读的人想只取数字仍可读 body）。
+    // 没写进度时是 {percent:null,note:'',updatedAt:null,entries:[]}，不是 null——「没写」与「写坏了」分开看。
+    progress: parseProgressDetail(issue.body !== undefined ? issue.body : null),
   }
 }
 
