@@ -26,7 +26,9 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   的容器裁断——用户实测过页签顶部、地图顶部复制/链接按钮的上下两截都断过。往内画永远裁不到。
       //   选择器按根节点圈定：停靠面板里所有可聚焦控件（含设置页输入框）走 [data-dsws-host]；
       //   独立挂在状态栏与浮层里的药丸、菜单、弹窗各有自己的根，逐个列上。
-      '[data-dsws-host] :focus-visible,.dsws-modal :focus-visible,.dsws-capsule:focus-visible,.dsws-capsule-word:focus-visible,.dsws-capsule-chain:focus-visible,[data-dsws-logdot]:focus-visible,[data-dsws-logmenu] :focus-visible,.dsws-takemenu :focus-visible,.dsws-bugmenu :focus-visible,.dsws-chainmenu :focus-visible,.dsws-skillpop :focus-visible,.dsws-skillpop-bridge :focus-visible,.dsws-hov:focus-visible,.dsws-btn:focus-visible,.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-workroute:focus-visible,.dsws-node:focus-visible,.dsws-aggrow:focus-visible,.dsws-trow:focus-visible,[data-press]:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)));outline-offset:-2px}',
+      //   胶囊根（.dsws-capsule）自己不在列表里：用户 2026-10-21 要求整条胶囊的焦点效果去掉，
+      //   里面每一颗子控件（胶囊字、分段药丸、交接两段、会话链、刷新、时间）照旧有环。
+      '[data-dsws-host] :focus-visible,.dsws-modal :focus-visible,.dsws-capsule-word:focus-visible,.dsws-capsule-chain:focus-visible,[data-dsws-logdot]:focus-visible,[data-dsws-logmenu] :focus-visible,.dsws-takemenu :focus-visible,.dsws-bugmenu :focus-visible,.dsws-chainmenu :focus-visible,.dsws-skillpop :focus-visible,.dsws-skillpop-bridge :focus-visible,.dsws-hov:focus-visible,.dsws-btn:focus-visible,.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-workroute:focus-visible,.dsws-node:focus-visible,.dsws-aggrow:focus-visible,.dsws-trow:focus-visible,[data-press]:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)));outline-offset:-2px}',
       '.dsws-btn:hover{box-shadow:0 6px 16px rgba(0,0,0,.45)}',
       // 按下时的确认圈也走主题焦点色（原来是一圈白，暗色面板上看着发灰）：ghost 按钮与大号暗面按钮各一条。
       //   圈照样往控件里面画（负 offset），否则会被按钮组的 overflow:hidden 裁掉上下两截——2026-10-21 用户实测过。
@@ -120,7 +122,8 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   按钮类悬停提亮加一圈亮描边，按下压暗并下沉一像素；小图标按下不位移（圆点会糊），整行/整卡只压暗
       //   （整块下沉会把同行其它元素带着错位，这也和规格里「小图标不位移」一致）。
       //   行容器（.dsws-aggrow/.dsws-trow/.dsws-node）原有自己的悬停底色与更轻的按压，这里排除，不互相顶掉。
-      '@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}',
+      //   胶囊根同样排除（用户 2026-10-21 要求整条胶囊的悬停环去掉，里面每颗子控件保留）。
+      '@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}',
       '[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node).dsws-pressing{filter:brightness(.82)}',
       '[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}',
       '.dsws-btn[data-press],[data-press="link"],[data-press="switch"]{transition:filter .12s ease,box-shadow .12s ease,transform .08s ease}',
@@ -139,6 +142,8 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   主色按钮（.dsws-btn.primary:hover）那条边框是深色描边、不是灰边，排除掉不动。
       '@media (hover:hover) and (pointer:fine){.dsws-btn:not(.primary):hover:not(.dsws-pressing),.dsws-seg:hover:not(.dsws-pressing),.dsws-cfg-btn:hover:not(.dsws-pressing),.dsws-maprow:hover:not(.dsws-pressing),.dsws-trow:hover:not(.dsws-pressing),.dsws-aggrow:hover:not(.dsws-pressing){border-color:var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}}',
       // 键盘焦点环统一规则在上面（DSH 焦点 token + 负 offset 往内画），这里不再另写一套。
+      //   注：2026-10-21 用户先要求胶囊里所有环淡五成，随后又要求「胶囊状态栏的焦点效果可以去掉（内部胶囊的不用去）」——
+      //   所以整条胶囊自己的环已经从焦点选择器与通用悬停规则里摘掉，这一条只负责让里面每颗子控件的环继续淡五成。
       // 状态栏胶囊与胶囊里每一颗控件：键盘焦点环、悬停高亮环、按下确认圈统一淡到五成（用户 2026-10-21 要求
       //   「胶囊状态栏的焦点和整行胶囊的焦点效果轻 50%」）。做法不另写一套样式：上面的环色全部经过
       //   --dsws-ring-color 这一层可继承的自定义属性，胶囊里把这层设成焦点色掺一半透明，环的形状、粗细、

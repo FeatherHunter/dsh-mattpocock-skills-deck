@@ -344,7 +344,10 @@ export const StatusBar = (props: any) => {
   // 优化3：胶囊恒渲染（任何情况下不隐藏）；未选后端时其上方叠加 gate 蓝条引导入口
   // 接线（#1335 界面反馈）：胶囊整条都能点（点到空白处开面板），所以容器自己接一组 data-press 与 data-log；
   // 里面每颗控件另接自己的一组，两层的标识分开，事后才分得清点到的是胶囊空白还是某一颗按钮。
-  const capsule = h('div', { className: 'dsws-capsule dsws-hov', ref: foldRef, onClick: function () { openPanel(s) },
+  // 2026-10-21 用户要求：整条胶囊自己的焦点/悬停环去掉（「内部胶囊的不用去」）——胶囊是这一片的外框，
+  //   鼠标扫到哪里整条外框都亮一圈反而盖住了里面真正能点的那几颗。所以这里不再挂 dsws-hov，
+  //   反馈样式里也把 .dsws-capsule 从通用悬停规则和焦点环选择器里排除（里面每颗子控件各自照旧）。
+  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) },
     'data-press': 'row',
     'data-log': 'status.capsule',
     style: { position: 'relative', width: '100%', boxSizing: 'border-box' } }, [
@@ -398,7 +401,10 @@ export const StatusBar = (props: any) => {
         // 用户 2026-10-21 要求：交接这两颗小控件共用的是一个胶囊外形（.dsws-split，99px 圆角、overflow:hidden），
         //   高亮与焦点轮廓要是「胶囊被竖着切一刀」的左右两半，切口落在中间那颗分割线上，不是各占一半宽。
         //   给左段左侧圆角、给右段右侧圆角，环画在控件里面时就自然成了半胶囊轮廓（环跟着 border-radius 走）。
-        style: { color: '#58a6ff', borderRadius: '99px 0 0 99px' } }, [
+        // 用户 2026-10-21 又报：右半段比左半段矮，两段对不上（左段有图标加「交接」两个字，行高被文字撑高；
+        //   右段只有一颗 12px 图标，按内容高度就矮一截）。容器仍是 align-items:center（那颗分割线靠它居中），
+        //   所以这里让每一段自己撑满整行高度（align-self:stretch），两段等高后切开的左右半胶囊才左右对称。
+        style: { color: '#58a6ff', borderRadius: '99px 0 0 99px', alignSelf: 'stretch' } }, [
         Ic({ n: 'handoff', size: 12 }),
         h('span', { 'data-fold-priority': 8 }, tr('nav.handoff')),
       ])),
@@ -408,7 +414,8 @@ export const StatusBar = (props: any) => {
         'data-press': 'icon',
         'data-log': 'status.handoff.open',
         // 右半颗胶囊：只有右侧两个角是圆的，左侧切口贴着中间那颗分割线（与左段合起来正好是一个完整胶囊被切开）。
-        style: s.handoffReady ? { color: '#58a6ff', borderRadius: '0 99px 99px 0' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default', borderRadius: '0 99px 99px 0' } }, [
+        // alignSelf: 'stretch' 与左段同一个理由：右段只有图标、内容比左段矮，不撑满整行高度两段就一高一矮。
+        style: s.handoffReady ? { color: '#58a6ff', borderRadius: '0 99px 99px 0', alignSelf: 'stretch' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default', borderRadius: '0 99px 99px 0', alignSelf: 'stretch' } }, [
         s.handoffSearching ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, boxSizing: 'border-box', display: 'inline-block', verticalAlign: '-2px' } }) : Ic({ n: s.handoffReady ? 'handoff-open' : 'handoff-off', size: 12 }),
       ])),
     ]),

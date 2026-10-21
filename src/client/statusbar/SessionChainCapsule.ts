@@ -378,7 +378,10 @@ export const SessionChainCapsule = function (props: any) {
       'data-log': 'status.capsule.chain',
       onClick: function (ev: any) { if (ev && ev.stopPropagation) ev.stopPropagation(); try { capsuleOpenTicket(st, e) } catch (eOpen2) {} try { openPanel(st) } catch (ePanel2) {} },
       onKeyDown: function (ev: any) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); try { capsuleOpenTicket(st, e) } catch (eOpen3) {} try { openPanel(st) } catch (ePanel3) {} } },
-      style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer' },
+      // 用户 2026-10-21 实测：这颗「定位图标 + #票号」的焦点圈是直角，跟旁边那些圆角控件不统一。
+      //   原因不是环画错了——环（悬停的内画描边与键盘焦点 outline）一直是跟着元素自己的边界形状走的，
+      //   这一颗原先没写圆角，所以环四四方方。补一个轻微圆角（4px，与菜单项、折叠条一致），环自然跟着变圆。
+      style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer', borderRadius: 4 },
     }, [Ic({ n: 'pin', size: 12 }), chainMapIconOf(eIsMap, 12), h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text)]),
     menu,
   ])

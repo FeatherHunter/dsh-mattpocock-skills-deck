@@ -1505,8 +1505,9 @@ const contractChecksInner = function (reg, src) {
     // #1281：map 子票统一入口（讨论/研究/原型/执行）与完成、修复、接手三条模板重写，版本底线同步抬高；
     //   写规格入口与规格三态、实施票是新增条目，不设旧底线。
     // #1274 收口后：完成提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有），complete 的版本底线 12 → 13。
-    mapExecute: 16, complete: 13, fixate: 8, 'tpl.diagnose': 14, 'tpl.fix': 14, 'tpl.discuss': 16,
-    'tpl.research': 10, 'tpl.prototype': 10, 'tpl.takeover': 6, 'tpl.supplement': 4, 'tpl.execute': 16, mapInspect: 6, newWayfinder: 19,
+    // #1212 恢复：诊断 v14→v16、接手 v6→v7，补回 #1281 删掉的调查节、诊断边界与收尾两条，版本底线同步抬高。
+    mapExecute: 16, complete: 13, fixate: 8, 'tpl.diagnose': 16, 'tpl.fix': 14, 'tpl.discuss': 16,
+    'tpl.research': 10, 'tpl.prototype': 10, 'tpl.takeover': 7, 'tpl.supplement': 4, 'tpl.execute': 16, mapInspect: 6, newWayfinder: 19,
     newBugWayfinder: 11,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
@@ -1558,17 +1559,29 @@ const contractChecksInner = function (reg, src) {
     if (wf.en.indexOf('It is recommended to read this ticket body') < 0) fail(wfId + ' en 缺 #1212 调查首行（同中文那条的对应句）')
     if (wf.en.indexOf('## Wrap-up') < 0) fail(wfId + ' en 缺收尾节')
   })
-  // tpl.diagnose（#1281：只留收尾与工具节，诊断步骤交给 /triage 技能，不再复述）
+  // tpl.diagnose（#1281 只留插件增量；#1212 恢复：调查节、诊断边界与收尾两条回来）
   const di = reg['tpl.diagnose']
   if (di) {
     if (di.zh.indexOf('/triage') !== 0) fail('tpl.diagnose zh 首行必须是 /triage（#1281）')
     if (di.zh.indexOf('{url}') < 0) fail('tpl.diagnose zh 缺链接占位符 {url}')
     if (di.zh.indexOf('按 /triage 技能诊断这张 issue') < 0) fail('tpl.diagnose zh 缺引导句（按 /triage 技能诊断）')
+    if (di.zh.indexOf('诊断不等于修复') < 0 || di.zh.indexOf('不改业务代码、不开始实施') < 0) fail('tpl.diagnose zh 缺诊断边界（诊断不等于修复、不改业务代码、不开始实施）')
+    if (di.zh.indexOf('## 先核对是否已有实施') < 0) fail('tpl.diagnose zh 缺已实现核对节（先核对是否已有实施）')
+    if (di.zh.indexOf('按 /triage 处理“已实现”票的规则收口') < 0) fail('tpl.diagnose zh 缺已实现收口规则（落哪个终态交给 /triage）')
+    if (di.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.diagnose zh 缺 #1212 调查节（先查后问）')
+    if (di.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.diagnose zh 缺 #1212 调查首行（先读本票与仓内）')
+    if (di.zh.indexOf('说明回复后你准备执行什么标签动作') < 0) fail('tpl.diagnose zh 缺收尾第二条（回复后执行什么标签动作）')
+    if (di.zh.indexOf('写明这张票已转到哪个终态') < 0) fail('tpl.diagnose zh 缺收尾第二条（无待拍板时写终态）')
     if (di.zh.indexOf('## 弄清现象') >= 0 || di.zh.indexOf('## 根因候选') >= 0 || di.zh.indexOf('## 分流建议') >= 0 || di.zh.indexOf('## 阶段闸门') >= 0) fail('tpl.diagnose zh 不该再复述 triage 的诊断步骤（#1281 去技能规则复述）')
     if (di.zh.indexOf('- [ ]') < 0) fail('tpl.diagnose zh 缺清单标记 - [ ]')
     if (di.zh.indexOf('|') >= 0) fail('tpl.diagnose zh 含表格 |（已约定无表格，全勾选框）')
     if (di.en.indexOf('- [ ]') < 0) fail('tpl.diagnose en 缺清单标记 - [ ]')
     if (di.en.indexOf('Follow the /triage skill to diagnose this issue') < 0) fail('tpl.diagnose en 缺引导句（同中文那条）')
+    if (di.en.indexOf('## Check for existing implementation first') < 0) fail('tpl.diagnose en 缺已实现核对节（同中文那条）')
+    if (di.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.diagnose en 缺 #1212 调查节（同中文那条）')
+    if (di.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.diagnose en 缺 #1212 调查首行（同中文那条）')
+    if (di.en.indexOf('## Wrap-up') < 0) fail('tpl.diagnose en 缺收尾节')
+    if (di.en.indexOf('State what label action you will take once the reply comes') < 0) fail('tpl.diagnose en 缺收尾第二条（同中文那条）')
   }
   // tpl.fix（#1281：只留插件增量；修复步骤交给 /implement，根因不明交给 /diagnosing-bugs）
   const fxt = reg['tpl.fix']
@@ -1586,13 +1599,17 @@ const contractChecksInner = function (reg, src) {
     if (fxt.en.indexOf('/diagnosing-bugs') < 0) fail('tpl.fix en 缺 /diagnosing-bugs 落点（同中文那条）')
     if (fxt.en.indexOf('Follow the /implement skill to fix this bug') < 0) fail('tpl.fix en 缺首行引导句（同中文那条）')
   } else fail('缺条目 tpl.fix')
-  // tpl.takeover（#1281：补 /wizard 落点，人工三档与交给用户的清单是插件增量，wayfinder 规则不复述）
+  // tpl.takeover（#1281：补 /wizard 落点，人工三档与交给用户的清单是插件增量；#1212 恢复：调查节回来）
   const to = reg['tpl.takeover']
   if (to) {
     if (to.zh.indexOf('## 判断人工档位') < 0 || to.zh.indexOf('## 交给用户的清单') < 0) fail('tpl.takeover zh 缺清单段标题（判断人工档位/交给用户的清单）')
     if (to.zh.indexOf('/wizard') < 0) fail('tpl.takeover zh 缺 #1281 落点：需要用户动手且步骤多时用 /wizard')
+    if (to.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.takeover zh 缺 #1212 调查节（先查后问）')
+    if (to.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.takeover zh 缺 #1212 调查首行（先读本票与仓内）')
     if (to.en.indexOf('## Decide the human tier') < 0 || to.en.indexOf('## Checklist for the user') < 0) fail('tpl.takeover en 缺清单段标题（同中文那条）')
     if (to.en.indexOf('/wizard') < 0) fail('tpl.takeover en 缺 /wizard 落点（同中文那条）')
+    if (to.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.takeover en 缺 #1212 调查节（同中文那条）')
+    if (to.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.takeover en 缺 #1212 调查首行（同中文那条）')
   } else fail('缺条目 tpl.takeover')
   const su = reg['tpl.supplement']
   if (su) {
@@ -2268,10 +2285,12 @@ const selfDigest = function () {
 //   本文件内容变了，自摘要跟着重算。
 // #1274 收口后：探索地图「完成」提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有）——
 //   不需要接着做时不生成规格、也不拆任何 ticket。版本底线 complete 12 → 13，自摘要跟着重算。
+// #1212 恢复：诊断与接手的调查节、诊断边界、收尾两条回到模板（#1281 删过头），
+//   V_MIN 抬到 tpl.diagnose 16 / tpl.takeover 7，两节断言补回，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '8670cafe309ad4be7adfe5c5c07b6a29ea37eb66266f93eba99fef87ec26fd70',
+  'tests/verify-prompts.ts': 'b42f2d0bef5735da7e282c515df1339f1f96ef3d8bf8c21f55801a4b15aa695b',
 }
 // ---- LOCK-END ----
 
