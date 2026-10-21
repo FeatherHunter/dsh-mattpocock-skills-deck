@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T06:58:13.480Z",
+  "generatedAt": "2026-10-21T07:05:38.863Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 308,
-  "gateCount": 308,
-  "attributedGates": 271,
+  "chainLength": 309,
+  "gateCount": 309,
+  "attributedGates": 272,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 513,
+  "graphFileCount": 514,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -812,6 +812,21 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
+    },
+    {
+      "step": "node tests/verify-pagination-limits.ts",
+      "file": "tests/verify-pagination-limits.ts",
+      "guards": [
+        "src/tracker/contract/pagination.ts"
+      ],
+      "dirs": [
+        "src/tracker/contract"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1003-layout-in-file.ts",
@@ -8171,6 +8186,7 @@
       "node tests/verify-contract-types.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.ts",
+      "node tests/verify-pagination-limits.ts",
       "node tests/verify-1059-issue-write.ts",
       "node tests/verify-1060-edge-log.ts",
       "node tests/verify-1182-docs-paths.ts",
@@ -8549,9 +8565,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 528,
+    "fileCount": 529,
     "dirCount": 58,
-    "coveredFileCount": 528,
+    "coveredFileCount": 529,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 50,
@@ -8970,6 +8986,7 @@
       "src/tracker/contract/operations-catalog.ts",
       "src/tracker/contract/operations.ts",
       "src/tracker/contract/outbound.ts",
+      "src/tracker/contract/pagination.ts",
       "src/tracker/contract/results.ts",
       "src/tracker/contract/vocabulary.ts",
       "src/tracker/deck-derive.ts",

@@ -39,6 +39,9 @@ declare function containerPromptText(...args: any[]): any;
 declare const CONTAINER_CHIP_CLASS: any;
 declare const CONTAINER_CHIP_LABEL_KEY: any;
 declare const CONTAINER_ACCENT: any;
+// #1343：容器三态的两枚固定色也从中央色表取（同 kernel/container-view.ts），这里只声明形状。
+declare const CONTAINER_DONE_COLOR: any;
+declare const CONTAINER_EMPTY_COLOR: any;
 
 export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: triProp }: any) => {
   const cx = React.useContext(DswsCtx)
@@ -52,10 +55,17 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: tri
   const cState = (typeof containerStateOf === 'function')
     ? containerStateOf({ stats: effStats })
     : (effStats && effStats.total === 0 ? 'empty' : (effStats && effStats.total > 0 && effStats.closed === effStats.total ? 'done' : 'open'))
+  // #1343：两枚固定色只从中央色表取，真源不在时退回空串，不再抄一份同值兜底。
+  const triEmptyColor = function () {
+    return (typeof CONTAINER_EMPTY_COLOR === 'string' && CONTAINER_EMPTY_COLOR) ? CONTAINER_EMPTY_COLOR : ''
+  }
+  const triDoneColor = function () {
+    return (typeof CONTAINER_DONE_COLOR === 'string' && CONTAINER_DONE_COLOR) ? CONTAINER_DONE_COLOR : ''
+  }
   const tri = triProp || (typeof containerTriState === 'function'
     ? containerTriState(cKind, cState)
-    : (cState === 'empty' ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
-      : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
+    : (cState === 'empty' ? { labelKey: 'act.inspect', color: triEmptyColor(), icon: 'search', titleKey: 'map.inspectTitle' }
+      : (cState === 'done' ? { labelKey: 'act.done', color: triDoneColor(), icon: 'check', titleKey: 'map.doneTitle' }
         : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', icon: 'play', titleKey: 'map.executeTitle' })))
   // 字色：完成态沿用今天的深绿字（#0c1a10），其余按底色深浅在深墨与白字之间择优。
   const triTextColor = cState === 'done' ? '#0c1a10' : ((typeof isLightHex === 'function' && isLightHex(tri.color)) ? '#140a1e' : '#ffffff')

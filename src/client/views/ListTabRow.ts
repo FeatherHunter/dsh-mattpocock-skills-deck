@@ -48,6 +48,9 @@ declare const CONTAINER_ACCENT: any;
 declare const CONTAINER_CHIP_CLASS: any;
 declare const CONTAINER_CHIP_LABEL_KEY: any;
 declare const CONTAINER_CHIP_MARKER_CLASS: any;
+// #1343：容器三态里的两枚固定色（空态橙、完成态绿）同样只从中央色表取，本文件不再写同值兜底。
+declare const CONTAINER_DONE_COLOR: any;
+declare const CONTAINER_EMPTY_COLOR: any;
 declare const CONTAINER_TINT: any;
 declare const Tip: any;
 declare const issueUrlFor: any;
@@ -200,22 +203,31 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         ? ((typeof containerStateOf === 'function') ? containerStateOf(containerObj)
             : (containerObj && containerObj.stats && containerObj.stats.total ? (containerObj.stats.closed === containerObj.stats.total ? 'done' : 'open') : 'empty'))
         : (mapDone ? 'done' : (mapEmpty ? 'empty' : 'open'))
+      // #1343：容器三态里的两枚固定色（空态橙、完成态绿）只从中央色表取；门禁单独求值本文件时
+      //   那份常量不在，取色退回空串。不在这里再写一份同值兜底——写第二份，中央色表就不再是唯一真源。
+      const emptyColor = function () {
+        return (typeof CONTAINER_EMPTY_COLOR === 'string' && CONTAINER_EMPTY_COLOR) ? CONTAINER_EMPTY_COLOR : ''
+      }
+      const doneColor = function () {
+        return (typeof CONTAINER_DONE_COLOR === 'string' && CONTAINER_DONE_COLOR) ? CONTAINER_DONE_COLOR : ''
+      }
       // #1286：编号徽章色。探索地图照旧（完成绿 / 空态橙 / 否则取行级动作色）；
       //   规格：空态橙、有未关蓝（中央色表）、全关绿。
       const numColor = isSpec
         ? ((typeof containerNumberColor === 'function') ? containerNumberColor('spec', cState, actionColorOf(x, colorOf))
-            : (cState === 'done' ? '#3fb950' : cState === 'empty' ? '#f59e0b' : (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT ? CONTAINER_ACCENT.spec : '')))
-        : (mapDone ? '#3fb950' : mapEmpty ? '#f59e0b' : actionColorOf(x, colorOf))
+            : (cState === 'done' ? doneColor() : cState === 'empty' ? emptyColor() : (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT ? CONTAINER_ACCENT.spec : '')))
+        : (mapDone ? doneColor() : mapEmpty ? emptyColor() : actionColorOf(x, colorOf))
       // #1286：容器的身份色、行底色、角标样式与角标文案都从内核 container-view.ts 取；
-      //   门禁单独求值本文件时那份常量不在：身份色退回空串，行底色与角标类退回本文件里那份与内核
-      //   同值的兜底（真机走不到这条路。身份色不再抄一份色值，抄了中央色表就不是唯一真源）。
+      //   门禁单独求值本文件时那份常量不在：颜色（身份色与两枚状态色）退回空串，
+      //   角标类与文案键退回本文件里的退化兜底（那几样不是颜色副本。真机走不到这条路）。
       const accentOf = function (k: any) {
         const table: any = (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT : {}
         return table[k] || ''
       }
+      // #1343：行底色同样只认真源，真源不在时退回空串；不再抄一份同值 rgba 兜底。
       const tintOf = function (k: any) {
-        const table: any = (typeof CONTAINER_TINT === 'object' && CONTAINER_TINT) ? CONTAINER_TINT : { map: 'rgba(188,140,255,.07)', spec: 'rgba(29,78,216,.10)' }
-        return table[k] || 'rgba(188,140,255,.07)'
+        const table: any = (typeof CONTAINER_TINT === 'object' && CONTAINER_TINT) ? CONTAINER_TINT : {}
+        return table[k] || ''
       }
       const chipClassOf = function (k: any) {
         const table: any = (typeof CONTAINER_CHIP_CLASS === 'object' && CONTAINER_CHIP_CLASS) ? CONTAINER_CHIP_CLASS : { map: 'dsws-chip-m', spec: 'dsws-chip-s' }
@@ -258,16 +270,16 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         }
         if (mapEmpty) {
           // 探索地图：没有子票 → 检查（这段逻辑照旧，行为不变）
-          return h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); let t = ''; try { t = inspectPrompt(st, x.number, x.title) } catch { const u = typeof issueUrlFor === 'function' ? (function () { try { return issueUrlFor(st, x.number, effortOf(x)) } catch (_) { return '' } })() : '', uu = u || (x.number != null ? '#' + String(x.number) : ''); t = uu ? '/wayfinder ' + uu : '/wayfinder'; try { t = promptTextFor(st, 'mapInspect', { n: String(x.number || ''), ['title']: String(x.title || ''), url: u }); if (u) t = '/wayfinder ' + u + '\n\n' + t } catch (_) {} } inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [Ic({ n: 'search', size: 10 }), narrow ? null : h('span', null, tr('act.inspect'))]))
+          return h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); let t = ''; try { t = inspectPrompt(st, x.number, x.title) } catch { const u = typeof issueUrlFor === 'function' ? (function () { try { return issueUrlFor(st, x.number, effortOf(x)) } catch (_) { return '' } })() : '', uu = u || (x.number != null ? '#' + String(x.number) : ''); t = uu ? '/wayfinder ' + uu : '/wayfinder'; try { t = promptTextFor(st, 'mapInspect', { n: String(x.number || ''), ['title']: String(x.title || ''), url: u }); if (u) t = '/wayfinder ' + u + '\n\n' + t } catch (_) {} } inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: emptyColor(), borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [Ic({ n: 'search', size: 10 }), narrow ? null : h('span', null, tr('act.inspect'))]))
         }
         if (mapDone) {
           // 探索地图：子票全关 → 完成（这段逻辑照旧，行为不变）
-          return h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); const t = completePrompt(st, x.number, x.title, containerObj.stats.total, containerObj.stats.closed); inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [Ic({ n: 'check', size: 10 }), narrow ? null: h('span', null, tr('act.done'))]))
+          return h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); const t = completePrompt(st, x.number, x.title, containerObj.stats.total, containerObj.stats.closed); inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: doneColor(), borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [Ic({ n: 'check', size: 10 }), narrow ? null: h('span', null, tr('act.done'))]))
         }
         return mkRowAction(st, x, narrow, colorOf)
       })()
       // #1286：新会话按钮与主按钮永远同色实心（背景色取主按钮那个色，字色按对比度择优）。
-      const primaryColor = (isSpec && containerTri) ? containerTri.color : (mapEmpty ? '#f59e0b' : mapDone ? '#3fb950' : actionColorOf(x, colorOf))
+      const primaryColor = (isSpec && containerTri) ? containerTri.color : (mapEmpty ? emptyColor() : mapDone ? doneColor() : actionColorOf(x, colorOf))
       const primaryText = (isSpec && containerTri) ? (isLightHex(primaryColor) ? '#140a1e' : '#ffffff')
         : (mapEmpty ? '#140a1e' : mapDone ? '#0c1a10' : (isLightHex(actionColorOf(x, colorOf)) ? '#140a1e' : '#ffffff'))
       // v1.3.3 UI：全部标签渲染（渲染后贪心折叠，放不下的隐藏进 +N；+N 弹窗显示全部）

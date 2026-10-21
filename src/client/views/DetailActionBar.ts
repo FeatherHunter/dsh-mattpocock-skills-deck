@@ -28,6 +28,9 @@ declare function isLightHex(...args: any[]): any;
 declare function containerTriState(...args: any[]): any;
 declare function containerPromptText(...args: any[]): any;
 declare const CONTAINER_ACCENT: any;
+// #1343：容器三态的两枚固定色也从中央色表取（同 kernel/container-view.ts），这里只声明形状。
+declare const CONTAINER_DONE_COLOR: any;
+declare const CONTAINER_EMPTY_COLOR: any;
 
 export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => {
   const cx = React.useContext(DswsCtx)
@@ -36,12 +39,19 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
   const state = cState || 'open'
   // 三态配置：真源在 container-view.ts（列表页同一份）。真源不在时（例如门禁单独求值本文件）
   //   退回同口径的老表：探索地图三态与今天一字不差。
+  // #1343：两枚固定色只从中央色表取，真源不在时退回空串，不再抄一份同值兜底。
+  const triEmptyColor = function () {
+    return (typeof CONTAINER_EMPTY_COLOR === 'string' && CONTAINER_EMPTY_COLOR) ? CONTAINER_EMPTY_COLOR : ''
+  }
+  const triDoneColor = function () {
+    return (typeof CONTAINER_DONE_COLOR === 'string' && CONTAINER_DONE_COLOR) ? CONTAINER_DONE_COLOR : ''
+  }
   const t = tri || (typeof containerTriState === 'function'
     ? containerTriState(cKind, state)
     : (state === 'empty'
-      ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
+      ? { labelKey: 'act.inspect', color: triEmptyColor(), icon: 'search', titleKey: 'map.inspectTitle' }
       : (state === 'done'
-        ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
+        ? { labelKey: 'act.done', color: triDoneColor(), icon: 'check', titleKey: 'map.doneTitle' }
         : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', icon: 'play', titleKey: 'map.executeTitle' })))
   const url = (typeof issueUrlFor === 'function') ? (function () { try { return issueUrlFor(st, m.number) } catch (e) { return '' } })() : ''
   // 点下去注入什么。真源是 container-view.ts 的 containerPromptText；它不在时退回今天的老口径
