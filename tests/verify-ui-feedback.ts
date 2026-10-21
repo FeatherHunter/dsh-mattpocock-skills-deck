@@ -16,7 +16,8 @@
 //    新叶子只加源码不登记构建清单、墨块拉伸的关键帧被删、墨块宿主的早退守卫被删、墨块的尺寸监听被删、
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
 //    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死、
-//    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角、整条胶囊自己的环又挂回来、
+//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -276,11 +277,22 @@ function audit(read: (p: string) => string): AuditResult[] {
   const statusBarSrc = read('src/client/statusbar/StatusBar.ts')
   const rightHalfCount = (statusBarSrc.match(/'0 99px 99px 0'/g) || []).length
   check(statusBarSrc.indexOf("borderRadius: '99px 0 0 99px'") >= 0 && rightHalfCount >= 2 && statusBarSrc.indexOf("className: 'dsws-split-part dsws-hov'") >= 0 && statusBarSrc.indexOf("className: 'dsws-split-div'") >= 0, 'F24 交接那两颗小控件的高亮/焦点轮廓是「胶囊被竖着切一刀」：左段只圆左侧两个角、右段（就绪与未就绪两个分支都算）只圆右侧两个角，切口落在中间那颗分割线上，不是各占一半宽')
+  // 2026-10-21 用户第二轮实测三条（m02402）：半胶囊左右不对称、整条胶囊自己的焦点效果该去掉、
+  //   会话链那颗「定位图标 + #票号」的焦点圈是直角。下面三条分别钉住这三件事。
+  // 1) 整条胶囊自身不再有环：不挂复盘用的 dsws-hov，焦点选择器与通用悬停规则都不认 .dsws-capsule；
+  //    里面每颗子控件（胶囊字、分段药丸、交接两段、会话链、刷新、时间）照旧保留各自的环。
+  check(feedbackCss.indexOf('.dsws-capsule:focus-visible') < 0 && feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover') >= 0 && statusBarSrc.indexOf("className: 'dsws-capsule'") >= 0 && statusBarSrc.indexOf("className: 'dsws-capsule dsws-hov'") < 0, 'F25 整条胶囊自己的焦点环与悬停环都摘掉了（用户要求「胶囊状态栏的焦点效果可以去掉，内部胶囊的不用去」），里面每颗子控件保留各自的环')
+  // 2) 交接左右两半要一样高：左段有图标加「交接」两个字、右段只有一颗图标，按内容高度就对不齐；
+  //    两段各自 align-self:stretch 撑满整行高度（左段一处、右段就绪与未就绪两分支各一处）。
+  check(statusBarSrc.indexOf("borderRadius: '99px 0 0 99px', alignSelf: 'stretch'") >= 0 && (statusBarSrc.match(/borderRadius: '0 99px 99px 0', alignSelf: 'stretch'/g) || []).length >= 2, 'F26 交接左右两半撑满同一行高（左段与右段两个分支都写 alignSelf:stretch）：不然右段只有图标、比左段矮一截，半胶囊不对称')
+  // 3) 会话链那颗「定位图标 + #票号」补了轻微圆角：环跟着元素自己的边界形状走，没圆角就是直角。
+  const chainSrc = read('src/client/statusbar/SessionChainCapsule.ts')
+  check(chainSrc.indexOf("cursor: 'pointer', borderRadius: 4 }") >= 0, 'F27 会话链那颗「定位图标 + #票号」补了轻微圆角（4px）：环跟着元素自己的边界形状走，没有圆角就是直角')
   check((feedbackCss.match(/prefers-reduced-motion/g) || []).length >= 4, 'F7 减少动态的降级覆盖到新效果（墨块、通用悬停、按压位移都关）')
   // 通用悬停与按下只按 data-press 属性给：2026-10-21 用户实测漏掉的那批控件（列表行内四颗按钮、
   //   地图/工单详情顶栏、地图底部动作区、父链接）全都是「属性接上了、悬停类忘了挂」。按属性给之后，
   //   以后新控件只要接线就不会再漏，这条断言就是那个契约。
-  check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0, 'F10 悬停反馈按 data-press 属性统一给（不再逐颗挂 dsws-hov；真鼠标媒体查询里，触屏不残留）')
+  check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0, 'F10 悬停反馈按 data-press 属性统一给（不再逐颗挂 dsws-hov；真鼠标媒体查询里，触屏不残留；整条胶囊自己除外，见 F25）')
   check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node).dsws-pressing{filter:brightness(.82)}') >= 0 && feedbackCss.indexOf('[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}') >= 0, 'F11 按下反馈也按属性统一给：按钮/链接/开关压暗并下沉一像素，整行与整卡只压暗（整块下沉会把同行元素带着错位）')
   check(feedbackCss.indexOf('[data-press].dsws-pressing{transform:none!important}') >= 0, 'F12 减少动态下按下的位移关掉、压暗保留（与规格「减少动态只关位移」一致）')
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
@@ -452,7 +464,7 @@ const variants: Variant[] = [
     label: '通用悬停不再按 data-press 属性给：新控件又得逐颗挂类，漏一颗就没反馈',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F10',
-    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}", ''),
+    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}", ''),
   },
   {
     label: '静态角标又有假悬停：药丸悬停规则不再只认 data-press',
@@ -525,6 +537,30 @@ const variants: Variant[] = [
     file: 'src/client/statusbar/StatusBar.ts',
     group: 'F24',
     change: (s) => replaceAll(replaceAll(s, "borderRadius: '99px 0 0 99px'", ''), "borderRadius: '0 99px 99px 0'", ''),
+  },
+  {
+    label: '整条胶囊的假悬停又回来了：通用悬停规则不再排除 .dsws-capsule',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F25',
+    change: (s) => replaceAll(s, ':not(.dsws-node):not(.dsws-capsule):hover', ':not(.dsws-node):hover'),
+  },
+  {
+    label: '整条胶囊又挂回 dsws-hov：鼠标扫过整条外框都亮一圈',
+    file: 'src/client/statusbar/StatusBar.ts',
+    group: 'F25',
+    change: (s) => replaceAll(s, "className: 'dsws-capsule'", "className: 'dsws-capsule dsws-hov'"),
+  },
+  {
+    label: '交接两段又没撑满整行高度：右段比左段矮，半胶囊不对称',
+    file: 'src/client/statusbar/StatusBar.ts',
+    group: 'F26',
+    change: (s) => replaceAll(s, ", alignSelf: 'stretch'", ''),
+  },
+  {
+    label: '会话链胶囊的圆角被删了：焦点圈又变回直角',
+    file: 'src/client/statusbar/SessionChainCapsule.ts',
+    group: 'F27',
+    change: (s) => replaceAll(s, "cursor: 'pointer', borderRadius: 4 }", "cursor: 'pointer' }"),
   },
 ]
 for (const v of variants) {
