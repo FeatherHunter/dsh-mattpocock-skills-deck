@@ -151,92 +151,152 @@
   },
   {
     "date": "2026-09-22",
-    "total": 77,
-    "daily": 2
+    "total": 76,
+    "daily": 1
   },
   {
     "date": "2026-09-23",
-    "total": 79,
+    "total": 78,
     "daily": 2
   },
   {
     "date": "2026-09-24",
-    "total": 83,
+    "total": 82,
     "daily": 4
   },
   {
     "date": "2026-09-25",
-    "total": 84,
+    "total": 83,
     "daily": 1
   },
   {
     "date": "2026-09-26",
-    "total": 86,
+    "total": 85,
     "daily": 2
   },
   {
     "date": "2026-09-27",
-    "total": 87,
+    "total": 86,
     "daily": 1
   },
   {
     "date": "2026-09-28",
-    "total": 89,
+    "total": 88,
     "daily": 2
   },
   {
     "date": "2026-09-29",
-    "total": 96,
+    "total": 95,
     "daily": 7
   },
   {
     "date": "2026-09-30",
-    "total": 98,
-    "daily": 2
+    "total": 96,
+    "daily": 1
   },
   {
     "date": "2026-10-01",
-    "total": 102,
-    "daily": 4
+    "total": 99,
+    "daily": 3
   },
   {
     "date": "2026-10-02",
-    "total": 103,
+    "total": 100,
     "daily": 1
   },
   {
     "date": "2026-10-03",
-    "total": 107,
+    "total": 104,
     "daily": 4
   },
   {
     "date": "2026-10-04",
-    "total": 108,
+    "total": 105,
     "daily": 1
   },
   {
     "date": "2026-10-05",
-    "total": 109,
+    "total": 106,
     "daily": 1
   },
   {
     "date": "2026-10-06",
-    "total": 113,
+    "total": 110,
     "daily": 4
   },
   {
     "date": "2026-10-07",
-    "total": 115,
+    "total": 112,
     "daily": 2
   },
   {
     "date": "2026-10-08",
-    "total": 122,
+    "total": 119,
     "daily": 7
   },
   {
     "date": "2026-10-09",
-    "total": 123,
-    "daily": 1
+    "total": 121,
+    "daily": 2
+  },
+  {
+    "date": "2026-10-10",
+    "total": 127,
+    "daily": 6
+  },
+  {
+    "date": "2026-10-11",
+    "total": 132,
+    "daily": 5
+  },
+  {
+    "date": "2026-10-12",
+    "total": 139,
+    "daily": 7
+  },
+  {
+    "date": "2026-10-13",
+    "total": 143,
+    "daily": 4
+  },
+  {
+    "date": "2026-10-14",
+    "total": 146,
+    "daily": 3
+  },
+  {
+    "date": "2026-10-15",
+    "total": 150,
+    "daily": 4
+  },
+  {
+    "date": "2026-10-16",
+    "total": 155,
+    "daily": 5
+  },
+  {
+    "date": "2026-10-17",
+    "total": 159,
+    "daily": 4
+  },
+  {
+    "date": "2026-10-18",
+    "total": 165,
+    "daily": 6
+  },
+  {
+    "date": "2026-10-19",
+    "total": 177,
+    "daily": 12
+  },
+  {
+    "date": "2026-10-20",
+    "total": 181,
+    "daily": 4
+  },
+  {
+    "date": "2026-10-21",
+    "total": 185,
+    "daily": 4
   }
 ]
