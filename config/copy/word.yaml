@@ -111,6 +111,24 @@ zh:
   switch.setupCardOpen: 那张「域文档布局」的小卡还开着，先答完它再切换后端。
   switch.optLockedTip: 这一项还没有实现：当前只保留展示、按不动，等它单独做出来再开放。
   switch.targetLockedTip: 这个后端能力还不全（筹备中），先别切过去。
+  switch.srcExplicit: 显式绑定
+  switch.srcMatches: 自动匹配
+  switch.srcFallback: 回退
+  switch.multiHitBadge: ⚠ 多命中
+  switch.otherOption: Other（无后端）
+  switch.otherEscape: 逃生舱
+  switch.multiHitLine: "检测到多个可用后端：{list} — 建议显式绑定"
+  switch.pendingLine: "⏳ 探测未决，等待中… 若长时间停留请手动选择"
+  switch.currentRepo: "当前仓库: {repo}"
+  switch.probeRunning: 正在探测后端
+  switch.probeRunningHint: 正在探测后端 — 若长时间停留请手动选择
+  switch.probePendingHint: 探测未决 — 若长时间停留请手动选择
+  switch.goSettingsBind: 去设置页绑定
+  switch.goSettingsPick: 去设置页选择
+  switch.retryProbe: 重试探测
+  switch.unboundTitle: 未绑定后端
+  switch.otherCardDesc: 当前工作区未选择 Tracker 后端 — 去设置页选择（Other 逃生舱）
+  switch.chooseBackend: 选择后端
   check.skill.wayfinder.pass: 技能 wayfinder 已安装
   check.skill.wayfinder.fail: 技能 wayfinder 未安装
   check.skill.setup-matt-pocock-skills.pass: 技能 setup-matt-pocock-skills 已安装
@@ -301,6 +319,24 @@ en:
   switch.setupCardOpen: The "domain-doc layout" card is still open — answer it before switching backends.
   switch.optLockedTip: "Not implemented yet: shown for reference only, cannot be picked. It will open once it is built."
   switch.targetLockedTip: This backend is still incomplete (in preparation) — do not switch to it yet.
+  switch.srcExplicit: Explicit
+  switch.srcMatches: Auto-matched
+  switch.srcFallback: Fallback
+  switch.multiHitBadge: ⚠ Multiple matches
+  switch.otherOption: Other (no backend)
+  switch.otherEscape: Escape hatch
+  switch.multiHitLine: "Multiple backends detected: {list} — bind one explicitly"
+  switch.pendingLine: "⏳ Detection pending… if it keeps waiting, pick a backend manually"
+  switch.currentRepo: "Current repo: {repo}"
+  switch.probeRunning: Detecting backend
+  switch.probeRunningHint: Detecting backend — if it keeps waiting, pick one manually
+  switch.probePendingHint: Detection pending — if it keeps waiting, pick one manually
+  switch.goSettingsBind: Bind in settings
+  switch.goSettingsPick: Pick in settings
+  switch.retryProbe: Retry detection
+  switch.unboundTitle: No backend bound
+  switch.otherCardDesc: This workspace has no tracker backend — pick one in settings (Other escape hatch)
+  switch.chooseBackend: Choose backend
   check.skill.wayfinder.pass: Skill wayfinder is installed
   check.skill.wayfinder.fail: Skill wayfinder is missing
   check.skill.setup-matt-pocock-skills.pass: Skill setup-matt-pocock-skills is installed
