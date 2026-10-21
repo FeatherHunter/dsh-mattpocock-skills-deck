@@ -37,7 +37,7 @@
 |--------|------|--------------------|
 | **I1 注入可判真** | 三端均经 `createPlatform(ctx, os, {homedir, env})` 注入单机可达；win32 护栏合法 `C:\Users\a` 直采 / 非法 `/c/Users/a`→USERPROFILE→HOMEDRIVE+HOMEPATH / darwin 3a10 / linux G1-G13 全量覆盖，不依赖真机三端（#113 验收③） | `scripts/matrix-smoke.js` `runOs('win32'/'darwin'/'linux')` 三分组；`scripts/matrix-full.js` 每 cell 复用相同注入 |
 | **I2 零手拼** | `src/host/platform/**/index.js` 零手拼 `+ '\\'`，`path` 全委托 `node:path`（win32→win32，POSIX→posix）无自实现，`joinHome` 异步等价，`REGISTRY` 静态 import 无变量动态 import（打包可断 #113 D4） | 两脚本首段静态扫描：剥注释后 `+\s*['"]\\` 零命中，`nodePath.win32/posix` 委托存在，`import win32/darwin/linux` 静态存在 |
-| **I3 双闸** | 产物门禁（`client.js`/`host.js` AUTO-GENERATED + `package/lib` 非空 + 四产物新鲜度）+ 运行时断言双重通过；`npm run verify` 全绿即平台层有约束力（#131 验收②） | 两脚本首段复用 `verify-platform-contract.js` 的 productStale + AUTO-GENERATED 双闸；CI 另跑 `npm run build` + `npm run verify` |
+| **I3 双闸** | 产物门禁（`client.js`/`host.js` AUTO-GENERATED + `package/lib` 非空 + 四产物内容与上次成功构建记录一致）+ 运行时断言双重通过；`npm run verify` 全绿即平台层有约束力（#131 验收②） | 两脚本首段先查 `client.js`/`host.js` 的 AUTO-GENERATED 与 `package/lib` 非空，再调 `scripts/lib/build-cache.mts` 的 `judgeProducts`（与八扇新鲜度门禁同一份判据）判四产物；CI 另跑 `npm run build` + `npm run verify` |
 | **I4 真实适配器过 harness** | 后端必须经 `BackendModule.create(BackendContext{platform})` 产出 Tracker，`list/get/getDependencies` 返回 `OpResult` 不 throw，`normalize` 产出无 number/subIssues/blocking（harness 三断言），真实采样固件 `metadata.json` 含 source/desensitization | `runner/createRunnerContext` 产 platform 实例 + 工厂闭包持有；`runWithAdapter` 不抛 + OpResult 形状；`runPlayback` 验证 normalized 无旧字段 + diagnoseCapabilities 可跑 |
 | **I5 双闸不变量（后端）** | `npm run verify` 含 `verify-platform-contract 145/145` + `verify-platform-linux 32/32` + `verify-tracker-contract 366/4/OK` 全绿；构建产物 `client.js`/`host.js` 双轨同步 | CI `verify` job 全部 `EXIT 0`，两脚本末尾汇总 `passed/total` |
 
@@ -67,14 +67,14 @@
 `scripts/matrix-smoke.js` — 单机可判真，三 OS 注入，无需真机三端。
 
 ```bash
-node scripts/build.mjs          # 前置：产物新鲜度门禁
+node scripts/build.mts          # 前置：先把产物构建出来；新鲜度按内容摘要判，不靠修改时间
 node scripts/matrix-smoke.js    # 默认 --os=all；单选 --os=win32|darwin|linux
 node scripts/matrix-smoke.js --os=win32  # CI 可按 matrix.os 传参
 ```
 
 断言：
 
-- 双闸：`client.js`/`host.js` AUTO-GENERATED + `package/lib` 非空 + 四产物新鲜度（与 `verify-platform-contract.js` 同门禁）
+- 双闸：`client.js`/`host.js` AUTO-GENERATED + `package/lib` 非空 + 四产物与上次成功构建的内容摘要一致（判据与八扇新鲜度门禁同一份：`scripts/lib/build-cache.mts` 的 `judgeProducts`）
 - I2 零手拼：剥注释后 `src/host/platform/**/index.js` 无 `+ '\\'` 手拼，`pathImpl` 委托 `node:path.win32/posix`
 - 每 OS 一组：
   - `createRunnerContext({os}) → BackendContext.platform.os === os` + `getHome()/path.joinHome()` 可用
@@ -169,7 +169,7 @@ jobs:
 ```
 
 - **ubuntu 原生** = linux；**windows 原生** = win32；**macos 托管 runner** = darwin（`macos-latest`，无需自托管；若组织无 macos 配额则 job 标记 `continue-on-error` 并登记“需自托管 mac 或手动跑”，但本仓库已用 hosted runner 覆盖）
-- **双闸不变量**：`scripts/build.mjs` 先行（产物新鲜度）→ `npm run verify`（契约双闸）→ `matrix-smoke/full`（矩阵双闸）；任一非 0 即红
+- **双闸不变量**：`scripts/build.mts` 先行（构建产物；新鲜度按内容摘要判，缓存命中的构建一个字节不写也算新鲜）→ `npm run verify`（契约双闸）→ `matrix-smoke/full`（矩阵双闸）；任一非 0 即红
 - **可复现**：全链 `node` 单命令，无外部服务依赖（离线 playback 分支）；有 token 时自动走 live 真链（`GH_TOKEN`/`GITHUB_TOKEN` 透传）
 
 ### 4.3 darwin runner 若无的登记

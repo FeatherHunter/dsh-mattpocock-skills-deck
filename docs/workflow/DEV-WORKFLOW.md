@@ -107,16 +107,20 @@ npm run test:smoke
 # 契约测试（每模块一测试 + 叶子/内核冻结）
 npm run verify
 #  或按需：
-node tests/verify-kernel.js        # kernel 9 模块拼接 + 产物新鲜度
-node tests/verify-leaves.js        # 21 叶子 ≤350 + useContext(DswsCtx)
-node tests/verify-ctx.js           # DswsCtx 8 字段冻结
-node tests/verify-parse-leaf.js    # src/shared/parser === 产物（逐字）
-node tests/verify-tabsfold-leaf.js # tabsfold 机器逐字
-node tests/verify-t3-locale.js     # 254 键双语平衡（单产物）
+node --import ./scripts/ts-hook.mts tests/verify-kernel.ts        # kernel 9 模块拼接 + 产物新鲜度
+node --import ./scripts/ts-hook.mts tests/verify-leaves.ts        # 21 叶子 ≤350 + useContext(DswsCtx)
+node --import ./scripts/ts-hook.mts tests/verify-ctx.ts           # DswsCtx 8 字段冻结
+node --import ./scripts/ts-hook.mts tests/verify-parse-leaf.ts    # src/shared/parser === 产物（逐字）
+node --import ./scripts/ts-hook.mts tests/verify-tabsfold-leaf.ts # tabsfold 机器逐字
+node --import ./scripts/ts-hook.mts tests/verify-t3-locale.ts     # 254 键双语平衡（单产物）
 #  其它 verify-* 均为单产物行为校验（T5 后已删除双源镜像断言，见各文件头部注释）
 ```
 
-> 新鲜度门禁：`verify-ctx/kernel/leaves` 会检查 `产物 mtime ≥ src mtime`，过期提示 `请重新运行 node scripts/build.mjs`。
+> 新鲜度门禁：`verify-ctx` / `verify-kernel` / `verify-leaves` 等八扇门禁会比较「产物内容摘要」与构建缓存
+> （`node_modules/.cache/dsh-build.json`）里记的上次成功构建结果；判据只有一份，在 `scripts/lib/build-cache.mts`
+> 的 `judgeProducts`。对不上时会点名具体产物并提示重跑 `node scripts/build.mts`；缓存不可用（缺失、损坏、构建输入
+> 变过）时退回按修改时间判断，并打一行 `INFO` 说明原因、受影响产物与恢复办法——那不是源码过期。
+> 怎么排查见 `docs/agents/verification.md` 的「产物过期了怎么排查」一节。
 
 > **浏览器类门禁要先装浏览器（#845）**：`verify-cap-fold`、`verify-cap-fold-browser`、`verify-capsule-layout`、
 > `verify-667-dock-header-no-brand`、`verify-670-panel-first-frame`、`verify-669-collapsed-recoverable`、
