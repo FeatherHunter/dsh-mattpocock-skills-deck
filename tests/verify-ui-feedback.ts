@@ -5,8 +5,9 @@
 //    （docs/adr/20260911-zero-layout-jitter.md：测量相只读、变更相只写，不量改交替）。
 // 2. 清单里每个可点控件都有悬停与按压反馈：悬停靠 [data-press] 属性（药丸与页签另有类名规则，
 //    静态角标没有 data-press、所以不许有假悬停），按压靠 data-press 属性；两套都在
-//    feedback-styles.ts 里，且减少动态时都有降级。键盘焦点环统一取 DSH 的 --dsw-focus-ring-color
-//    （缺省回落 --dsw-alias-state-business-primary）并往控件里面画，不写死颜色、不会被容器裁断。
+//    feedback-styles.ts 里，且减少动态时都有降级。键盘焦点环、悬停高亮环、按下确认圈以及悬停边框里的灰色，
+//    统一取 DSH 的 --dsw-focus-ring-color（缺省回落 --dsw-alias-state-business-primary），并往控件里面画——
+//    不写死颜色、不会被容器裁断（2026-10-21 用户要求：所有「获得焦点边框的灰色」都走这个 token）。
 // 3. 点完之后能凭一条日志唯一定位到被点的那一颗：每个可点控件带同屏唯一的 data-log，
 //    统一由 kernel/ui-feedback.ts 写 debug 级 ui.action（调试开关关着时第一行早退、零开销）。
 // 4. 分流/分支里重复写的同名按钮（返回列表在多个渲染分支各一份）允许字面量重复；不同控件不许共用。
@@ -14,7 +15,7 @@
 //    大写混入、另写一套样式、日志少一条、选中项重新露底色形成双底、对位改用会触发布局的尺寸接口、
 //    新叶子只加源码不登记构建清单、墨块拉伸的关键帧被删、墨块宿主的早退守卫被删、墨块的尺寸监听被删、
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
-//    焦点环颜色又写死、地图卡片悬停边框又变灰）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -245,6 +246,17 @@ function audit(read: (p: string) => string): AuditResult[] {
   const hardFocusColor = focusSegs.filter((s) => s.indexOf('var(--dsw-focus-ring-color') < 0)
   check(focusSegs.length >= 1 && hardFocusColor.length === 0, 'F15 焦点环颜色不写死：一律取 --dsw-focus-ring-color（换主题跟着变）' + (hardFocusColor.length ? '；漏网：' + hardFocusColor.map((s) => s.trim().slice(-70)).join(' | ') : ''))
   check(feedbackCss.indexOf('[data-dsws-host] :focus-visible') >= 0, 'F14 焦点环覆盖停靠面板里所有可聚焦控件（含设置页输入框），不只手挂类的几颗')
+  // 2026-10-21 用户实测追问：「所有获得焦点边框的灰色 应该都用当前主题里最应该表示获得焦点的那个 token——为什么没这么做？」
+  //   上一轮只改了键盘焦点环与地图卡片边框，悬停高亮环还是 rgba(255,255,255,.16/.2/.28) 的白半透明（深色面板上就是灰的），
+  //   按下确认圈也还是白 outline，悬停边框仍是 --dsw-alias-border-line 的灰。这一组断言把这三类全部钉到焦点 token 上。
+  const ringSegs = feedbackCss.split('}').filter((s) => s.indexOf(':hover') >= 0 && s.indexOf('box-shadow:0 0 0 ') >= 0)
+  const ringHard = ringSegs.filter((s) => s.indexOf('var(--dsw-focus-ring-color') < 0)
+  check(ringSegs.length >= 2 && ringHard.length === 0, 'F16 悬停高亮环一律取主题焦点色（--dsw-focus-ring-color），不再写死白色半透明（深色面板上就是一圈灰）' + (ringHard.length ? '；漏网：' + ringHard.map((s) => s.trim().slice(-70)).join(' | ') : ''))
+  const ringWhite = feedbackCss.split('}').filter((s) => s.indexOf('box-shadow:0 0 0 1px rgba(255,255,255') >= 0)
+  check(ringWhite.length === 0, 'F16b 样式真源里没有白色半透明外圈描边残留' + (ringWhite.length ? '；漏网：' + ringWhite.map((s) => s.trim().slice(-70)).join(' | ') : ''))
+  check(feedbackCss.indexOf('.dsws-btn:not(.primary):hover:not(.dsws-pressing),.dsws-seg:hover:not(.dsws-pressing)') >= 0 && feedbackCss.indexOf('{border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}') >= 0, 'F17 悬停时那圈原来是灰的边框（按钮、分段、配置按钮、地图行、工单行、列表行）统一换成主题焦点色')
+  check(feedbackCss.indexOf('.dsws-btn.ghost.dsws-pressing{outline:2px solid var(--dsw-focus-ring-color') >= 0 && feedbackCss.indexOf('.dsws-fb-dark.dsws-pressing,.dsws-fb-dark.fb-pressed{outline:2px solid var(--dsw-focus-ring-color') >= 0, 'F18 按下时的确认圈也走主题焦点色（原来是一圈白 outline）')
+  check(feedbackCss.indexOf('@keyframes dsws-ringout{0%{box-shadow:0 0 0 0 var(--dsw-focus-ring-color') >= 0, 'F19 ghost 按下的外扩环颜色也取主题焦点色，不写死旧蓝')
   check((feedbackCss.match(/prefers-reduced-motion/g) || []).length >= 4, 'F7 减少动态的降级覆盖到新效果（墨块、通用悬停、按压位移都关）')
   // 通用悬停与按下只按 data-press 属性给：2026-10-21 用户实测漏掉的那批控件（列表行内四颗按钮、
   //   地图/工单详情顶栏、地图底部动作区、父链接）全都是「属性接上了、悬停类忘了挂」。按属性给之后，
@@ -421,7 +433,7 @@ const variants: Variant[] = [
     label: '通用悬停不再按 data-press 属性给：新控件又得逐颗挂类，漏一颗就没反馈',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F10',
-    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:0 0 0 1px rgba(255,255,255,.28),0 2px 10px rgba(0,0,0,.3)}}", ''),
+    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.3)}}", ''),
   },
   {
     label: '静态角标又有假悬停：药丸悬停规则不再只认 data-press',
@@ -446,6 +458,30 @@ const variants: Variant[] = [
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F5',
     change: (s) => replaceAll(s, 'border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))!important', 'border-color:rgba(255,255,255,.28)!important'),
+  },
+  {
+    label: '悬停高亮环又变回白色半透明：深色面板上就是一圈灰，换主题也不跟',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F16',
+    change: (s) => replaceAll(s, 'box-shadow:0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}}', 'box-shadow:0 0 0 1px rgba(255,255,255,.16)}}'),
+  },
+  {
+    label: '悬停灰边框没换成焦点色：按钮、分段、配置按钮、地图行、工单行、列表行的悬停边框又变回灰色',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F17',
+    change: (s) => s.replace('.dsws-btn:not(.primary):hover:not(.dsws-pressing),', ''),
+  },
+  {
+    label: '按下确认圈又变回一圈白：不跟主题焦点色',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F18',
+    change: (s) => replaceAll(s, 'outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:-2px', 'outline:2px solid rgba(255,255,255,.55);outline-offset:1px'),
+  },
+  {
+    label: 'ghost 按下的外扩环颜色又写死成旧蓝：换主题不跟',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F19',
+    change: (s) => replaceAll(s, '0%{box-shadow:0 0 0 0 var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}', '0%{box-shadow:0 0 0 0 rgba(88,166,255,.7)}'),
   },
 ]
 for (const v of variants) {
