@@ -179,7 +179,7 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
             h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, 'Markdown · ⌘+Enter / Ctrl+Enter 发送'),
             h('span', { style: { flex: 1 } }),
             h(Tip, { content: (st.cmtSending ? tr('tip.sendingComment') : tr('tip.sendComment')) }, h('button', {
-              className: 'dsws-btn primary' + (st.cmtSending ? ' dsws-fb-busy' : '') + (cmtRes === 'ok' ? ' dsws-fb-okflash' : '') + (cmtRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''),
+              className: 'dsws-btn primary' + (st.cmtSending ? ' dsws-fb-busy' : '') + (cmtRes === 'ok' ? ' dsws-fb-okflash' : '') + (cmtRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''), 'data-press': 'button', 'data-log': 'issue.comment.send',
               disabled: !(st.cmtDraft || '').trim() || !!st.cmtSending,
               onClick: function () { doSubmit() },
               style: { padding: '2px 12px', fontSize: 11, opacity: (!(st.cmtDraft || '').trim() || !!st.cmtSending) ? 0.5 : 1, cursor: ((!(st.cmtDraft || '').trim() || !!st.cmtSending) ? 'not-allowed' : 'pointer') }

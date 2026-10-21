@@ -143,6 +143,10 @@ export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any)
     })()
     return h(Tip, { content: tipByLabel }, h('button', {
       className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''),
+      // 本次界面反馈需求：这一族「行级主动作」在列表与详情卡里共用，按下反馈沿按钮自身，
+      //   点击日志只带票号（视图由日志前后文区分），不把列表/详情两套名字塞进这个共享函数。
+      'data-press': 'button',
+      'data-log': 'issue.action.' + x.number,
       onClick: function (e: any): void { e.stopPropagation(); inject(st, text) },
       style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: colorHex, borderColor: 'transparent', color: light ? '#140a1e' : '#ffffff' },
     }, [Ic({ n: icon, size: icon === 'prototype' ? 12 : 10 }), narrow ? null : h('span', null, label)]))

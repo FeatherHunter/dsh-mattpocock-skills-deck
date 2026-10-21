@@ -74,7 +74,7 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
   // 字色：完成态沿用今天的深绿字（#0c1a10），其余按底色深浅在深墨与白字之间择优。
   const textColor = state === 'done' ? '#0c1a10' : ((typeof isLightHex === 'function' && isLightHex(t.color)) ? '#140a1e' : '#ffffff')
   return h('div', { className: 'acts' }, [
-    h(Tip, { content: tr(t.titleKey) }, h('button', { className: 'dsws-btn primary', onClick: function () {
+    h(Tip, { content: tr(t.titleKey) }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': 'map.dest.exec', onClick: function () {
       inject(st, promptText())
     }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: t.color, borderColor: 'transparent', color: textColor, fontWeight: 700 } }, [
       Ic({ n: t.icon, size: 11 }),
@@ -96,8 +96,8 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       }
       const archiveBtnStyle: any = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 }
       return archiveIsHttp
-        ? h('a', { className: 'dsws-btn ghost', href: archiveUrl, target: '_blank', rel: 'noreferrer', style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
-        : h('button', { className: 'dsws-btn ghost', onClick: openArchive, style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
+        ? h('a', { className: 'dsws-btn ghost', href: archiveUrl, target: '_blank', rel: 'noreferrer', 'data-press': 'button', 'data-log': 'map.dest.archive', style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
+        : h('button', { className: 'dsws-btn ghost', onClick: openArchive, 'data-press': 'button', 'data-log': 'map.dest.archive', style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
     })(),
   ])
 }

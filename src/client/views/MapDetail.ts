@@ -222,17 +222,17 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         // 补齐「新会话」按钮（与列表页 issueRow 一致）：primary 色随 actionColorOf，浅色自动深字，marginLeft 4 与 mkRowAction 成组
         const acts = h('div', { className: 'acts' }, (t.state === 'OPEN' && !blocked) ? [
           mkRowAction(st, t, false, colorOf),
-          h(Tip, { content: tr('tip.newSession', { n: t.number }) }, h('button', { className: 'dsws-btn primary', onClick: function (e: any) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
+          h(Tip, { content: tr('tip.newSession', { n: t.number }) }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': 'map.card.newsession.' + (t.key != null ? t.key : t.number), onClick: function (e: any) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
           // #1237：补上复制链接按钮（与列表页 ListTabRow.js:130 同一样式与同反馈；图标取 11，与本行外链按钮对齐）
-          h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost' + (copyRes === 'ok' ? ' dsws-fb-okflash dsws-fb-success-ring dsws-fb-pop' : '') + (copyRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''), onClick: function (e: any) { e.stopPropagation(); copyUrl(t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, copyRes === 'ok' ? Ic({ n: 'check', size: 11 }) : (copyRes === 'fail' ? Ic({ n: 'x', size: 11 }) : Ic({ n: 'clipboard', size: 11 })))),
-          (function(){ const _u=issueUrlFor(st, t.number, effortOf(t)); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e: any){ e.stopPropagation(); const u=issueUrlFor(st, t.number, effortOf(t)); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', onClick: function (e: any) { e.stopPropagation() }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))) : h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))); })(),
+          h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost' + (copyRes === 'ok' ? ' dsws-fb-okflash dsws-fb-success-ring dsws-fb-pop' : '') + (copyRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''), 'data-press': 'icon', 'data-log': 'map.card.copy.' + (t.key != null ? t.key : t.number), onClick: function (e: any) { e.stopPropagation(); copyUrl(t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, copyRes === 'ok' ? Ic({ n: 'check', size: 11 }) : (copyRes === 'fail' ? Ic({ n: 'x', size: 11 }) : Ic({ n: 'clipboard', size: 11 })))),
+          (function(){ const _u=issueUrlFor(st, t.number, effortOf(t)); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e: any){ e.stopPropagation(); const u=issueUrlFor(st, t.number, effortOf(t)); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', 'data-press': 'icon', 'data-log': 'map.card.link.' + (t.key != null ? t.key : t.number), onClick: function (e: any) { e.stopPropagation() }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))) : h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('button', { className: 'dsws-btn ghost', onClick: _open, 'data-press': 'icon', 'data-log': 'map.card.link.' + (t.key != null ? t.key : t.number), style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))); })(),
         ] : [])
         // v1.4 修复：图标名必须用 Ic 支持的（search/hammer/chat/gear），原 mag/bolt/wrench 不存在 → 节点图标空白
         // #626：末位兜底改成中性灰点 —— 原来兜到 gear，与任务票的齿轮撞脸，普通票看不出自己是普通票
         const _wt = wayfinderTypeOf(t); const ic = _wt === 'research' ? 'search' : _wt === 'prototype' ? 'hammer' : _wt === 'grilling' ? 'chat' : _wt === 'map' ? 'map' : _wt === 'task' ? 'gear' : 'dot'
         return h('div', {
           key: idOf(t),
-          className: nodeCls(t),
+          className: nodeCls(t), 'data-press': 'row', 'data-log': 'map.card.' + (t.key != null ? t.key : t.number),
           style: { cursor: 'pointer' },
           onClick: function (e: any) { e.stopPropagation(); onNodeClick(t) },
         }, [
@@ -332,7 +332,7 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         isSpec ? null : h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 4, fontSize: 12, color: '#4ade80', margin: '4px 0 2px' } }, [Ic({ n: 'target', size: 12, style: { marginTop: 2, flex: 'none' } }), h('div', { style: { flex: 1, minWidth: 0 } }, m.destination ? mdToHtml(m.destination, { st: st }) : tr('list.noDest'))]),
         // T17 修订：正文详情（Notes）默认折叠 —— <details> 收起，点击展开
         isSpec ? null : h('details', { style: { margin: '2px 0 4px' } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 } }, [
+          h('summary', { 'data-press': 'row', 'data-log': 'map.notes.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 } }, [
             Ic({ n: 'note', size: 11 }),
             h('span', null, tr('map.notesCap')),
           ]),
@@ -364,7 +364,7 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         ]),
         // 折叠块：Decisions / Fog / Out of scope（保留信息展示）
         isSpec ? null : h('details', { style: { marginTop: 10, marginBottom: 4 } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.decisions', { n: decisions.length })),
+          h('summary', { 'data-press': 'row', 'data-log': 'map.decisions.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.decisions', { n: decisions.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, decisions.map(function (d: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, [
               h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, '· '),
@@ -374,13 +374,13 @@ export     const MapDetail = ({ st, g, drill }: any) => {
           })),
         ]),
         isSpec ? null : h('details', { style: { marginBottom: 4 } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.fog', { n: fogList.length })),
+          h('summary', { 'data-press': 'row', 'data-log': 'map.fog.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.fog', { n: fogList.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, fogList.map(function (f: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + f, { st: st }))
           })),
         ]),
         isSpec ? null : h('details', { style: { marginBottom: 4 } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.outOfScope', { n: outOfScope.length })),
+          h('summary', { 'data-press': 'row', 'data-log': 'map.outofscope.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.outOfScope', { n: outOfScope.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, outOfScope.map(function (o: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + o, { st: st }))
           })),

@@ -160,24 +160,28 @@ export const DiagnosticLogSection = (props: { sessionId?: unknown }): unknown =>
     h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'gear', size: 13 }), h('span', null, tr('cfg.dbgTitle'))]),
     h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.dbgDesc')),
     h('div', { className: 'dsws-cfg-row' + (dbgFlash === 'ok' ? ' dsws-fb-okflash' : '') + (dbgFlash === 'warn' ? ' dsws-fb-warnflash' : '') }, [
-      h('label', { className: 'dsws-cfg-sw' }, [
-        h('input', { type: 'checkbox', checked: dbgChecked, disabled: !!(dbgPending || dbgBusy), onChange: ops.toggle }),
+      h('label', { className: 'dsws-cfg-sw dsws-hov', 'data-press': 'switch' }, [
+        // 点击日志挂在真实的 input 上，不挂在 label 上：点 label 文字时浏览器会先补发一次 label 的 click、再补发一次 input 的 click，
+        //   挂在 label 会把一次点击记成两条；挂在 input 上正好只命中一次（label 自身的 click 里没有 data-log 可找）。
+        h('input', { type: 'checkbox', 'data-log': 'settings.debug.toggle', checked: dbgChecked, disabled: !!(dbgPending || dbgBusy), onChange: ops.toggle }),
         h('span', { className: 'tr' }), h('span', null, tr(dbgChecked ? 'cfg.dbgSwitchOn' : 'cfg.dbgSwitchOff')),
       ]),
     ]),
     h('div', { className: 'dsws-cfg-row', style: { flexWrap: 'wrap', gap: 6, marginTop: 8 } }, [
-      h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: ops.exportToday }, tr('cfg.dbgExport')),
-      h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: ops.openDir }, tr('cfg.dbgOpen')),
-      h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: ops.copyPath }, tr('cfg.dbgCopy')),
-      h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: ops.askClear }, tr('cfg.dbgClear')),
+      h('button', { className: 'dsws-cfg-btn', 'data-press': 'button', 'data-log': 'settings.log.export', disabled: !!dbgBusy, onClick: ops.exportToday }, tr('cfg.dbgExport')),
+      h('button', { className: 'dsws-cfg-btn', 'data-press': 'button', 'data-log': 'settings.log.open', disabled: !!dbgBusy, onClick: ops.openDir }, tr('cfg.dbgOpen')),
+      h('button', { className: 'dsws-cfg-btn', 'data-press': 'button', 'data-log': 'settings.log.copy', disabled: !!dbgBusy, onClick: ops.copyPath }, tr('cfg.dbgCopy')),
+      h('button', { className: 'dsws-cfg-btn', 'data-press': 'button', 'data-log': 'settings.log.clear', disabled: !!dbgBusy, onClick: ops.askClear }, tr('cfg.dbgClear')),
     ]),
     h('div', { className: 'dsws-cfg-gdesc', style: { marginTop: 6 } }, tr('cfg.dbgPackageHint')),
     clearAsked ? h('div', { className: 'dsws-cfg-err', style: { marginTop: 8 } }, [
       h('div', { className: 't' }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('cfg.dbgClearTitle'))]),
       h('div', null, tr('cfg.dbgClearDesc')),
       h('div', { style: { display: 'flex', gap: 8, marginTop: 8 } }, [
-        h('button', { className: 'dsws-cfg-btn', onClick: ops.cancelClear }, tr('switch.cancel')),
-        h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: ops.confirmClear }, tr('cfg.dbgConfirmClear')),
+        // 清空确认里的「取消 / 确认清空」也是设置页上的可点控件：按同一套补按压与点击日志，
+        //   日志名接在「清空今日日志」这颗按钮下面，点了哪一步在日志里分得清。
+        h('button', { className: 'dsws-cfg-btn', 'data-press': 'button', 'data-log': 'settings.log.clear.cancel', onClick: ops.cancelClear }, tr('switch.cancel')),
+        h('button', { className: 'dsws-cfg-btn', 'data-press': 'button', 'data-log': 'settings.log.clear.confirm', disabled: !!dbgBusy, onClick: ops.confirmClear }, tr('cfg.dbgConfirmClear')),
       ]),
     ]) : null,
   ]);
