@@ -152,13 +152,15 @@ G.CONTAINER_CHIP_MARKER_CLASS = cv.CONTAINER_CHIP_MARKER_CLASS
 G.CONTAINER_EMPTY_COLOR = cv.CONTAINER_EMPTY_COLOR
 G.CONTAINER_DONE_COLOR = cv.CONTAINER_DONE_COLOR
 
-// ---- 行级动作与取色：也走真实现 store-derived.ts（AC7 要断「走今天的 triage 动作」，不能拿假动作糊弄）----
+// ---- 行级动作与取色：也走真实现（AC7 要断「走今天的 triage 动作」，不能拿假动作糊弄）----
+// 行级动作全家已从 store-derived.ts 抽到 row-actions.ts；基色与身份查找仍留在 store-derived。
 const sd: any = await import('../src/client/kernel/store-derived.js')
-G.mkRowAction = sd.mkRowAction
-G.actionColorOf = sd.actionColorOf
+const ra: any = await import('../src/client/kernel/row-actions.js')
+G.mkRowAction = ra.mkRowAction
+G.actionColorOf = ra.actionColorOf
 G.isLightHex = sd.isLightHex
-G.rowActionKind = sd.rowActionKind
-G.rowActionText = sd.rowActionText
+G.rowActionKind = ra.rowActionKind
+G.rowActionText = ra.rowActionText
 G.findMapByIdentity = sd.findMapByIdentity
 G.effortNamesOf = sd.effortNamesOf
 
@@ -728,20 +730,20 @@ for (const pair of detailPairs) {
   const specDone = containerOf({ number: 9003, key: '9003', title: '规格-收尾', type: 'spec', labels: [{ name: 'ready-for-agent' }], state: 'OPEN', stats: statsOf(2, 2), tickets: [] })
   const mapOpen = containerOf({ number: 9004, key: '9004', title: '地图-进行中', type: 'map', labels: ['wayfinder:map'], state: 'OPEN', stats: statsOf(1, 0), tickets: [] })
   const stC: any = { snapshot: { issues: [], maps: [specEmpty, specOpen, specDone, mapOpen], generatedMs: '2026-10-20T00:00:00.000Z' }, tab: 'list' }
-  check(sd.rowActionText(stC, specEmpty) === 'FOR:specSplit',
-    failText('回归 A：规格还没拆实施票时，行级动作（含新会话）取拆票提示词 /to-tickets', 'FOR:specSplit', sd.rowActionText(stC, specEmpty)))
-  check(sd.rowActionText(stC, specOpen) === 'FOR:specExecute',
-    failText('回归 B：规格有未关实施票时，行级动作（含新会话）取规格执行提示词 /implement-spec，不再落成实施票的 /implement', 'FOR:specExecute', sd.rowActionText(stC, specOpen)))
-  check(sd.rowActionText(stC, specDone) === 'FOR:specComplete',
-    failText('回归 C：规格全关时取规格完成提示词', 'FOR:specComplete', sd.rowActionText(stC, specDone)))
-  check(sd.rowActionText(stC, specOpen).indexOf('TPL:implement') < 0,
-    failText('回归 D：规格行级动作不会取实施票模板 tpl.implement', '不含 TPL:implement', sd.rowActionText(stC, specOpen)))
-  check(sd.rowActionText(stC, mapOpen) === 'START:9004',
-    failText('回归 E：探索地图行级动作仍走推进式提示词（startText），没有被容器分流改坏', 'START:9004', sd.rowActionText(stC, mapOpen)))
+  check(ra.rowActionText(stC, specEmpty) === 'FOR:specSplit',
+    failText('回归 A：规格还没拆实施票时，行级动作（含新会话）取拆票提示词 /to-tickets', 'FOR:specSplit', ra.rowActionText(stC, specEmpty)))
+  check(ra.rowActionText(stC, specOpen) === 'FOR:specExecute',
+    failText('回归 B：规格有未关实施票时，行级动作（含新会话）取规格执行提示词 /implement-spec，不再落成实施票的 /implement', 'FOR:specExecute', ra.rowActionText(stC, specOpen)))
+  check(ra.rowActionText(stC, specDone) === 'FOR:specComplete',
+    failText('回归 C：规格全关时取规格完成提示词', 'FOR:specComplete', ra.rowActionText(stC, specDone)))
+  check(ra.rowActionText(stC, specOpen).indexOf('TPL:implement') < 0,
+    failText('回归 D：规格行级动作不会取实施票模板 tpl.implement', '不含 TPL:implement', ra.rowActionText(stC, specOpen)))
+  check(ra.rowActionText(stC, mapOpen) === 'START:9004',
+    failText('回归 E：探索地图行级动作仍走推进式提示词（startText），没有被容器分流改坏', 'START:9004', ra.rowActionText(stC, mapOpen)))
   // 行内按钮：文字、底色与注入文本都按三态；点下去注入的必须是那一条容器提示词。
   created.length = 0
   injected.length = 0
-  sd.mkRowAction(stC, specOpen, false, {})
+  ra.mkRowAction(stC, specOpen, false, {})
   const specBtn = created.find((el: any) => !!el && !!el.props && typeof el.props.onClick === 'function' && String(el.props.className || '').indexOf('dsws-btn primary') >= 0)
   check(!!specBtn && elText(specBtn.props.children).indexOf(trFn('act.execute')) >= 0,
     failText('回归 F：规格行内主按钮的文字是「执行」三态文案，不是「实施」', trFn('act.execute'), specBtn ? elText(specBtn.props.children) : '（没建出按钮）'))

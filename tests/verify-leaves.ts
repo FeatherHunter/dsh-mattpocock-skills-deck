@@ -49,6 +49,7 @@ const LEAVES = [
   { file: 'src/client/views/DetailActionBar.js', exports: ['DetailActionBar'], components: ['DetailActionBar'] }, // #1286 由 MapDetail.js 拆出：容器详情页底部的三态动作组
   { file: 'src/client/views/MapDetailSpecBody.js', exports: ['MapDetailSpecBody'], components: ['MapDetailSpecBody'] }, // #1286 由 MapDetail.js 拆出：规格详情页的正文七段
   { file: 'src/client/views/IssueDetailComments.js', exports: ['renderIssueDetailComments'], components: [] }, // V3 #463 由 IssueDetail.js 拆出：评论区（无组件，纯函数）
+  { file: 'src/client/views/subIssueRouting.ts', exports: ['subIssueEnter', 'subIssueHasMapTag', 'subIssueHasRoutingInfo', 'subIssueLabelsOf'], components: [] }, // 子票/阻塞票分流判定，从 IssueDetail 原样抽出
   { file: 'src/client/views/IssueDetail.js', exports: ['IssueDetail'], components: ['IssueDetail'] },
   { file: 'src/client/views/NoRepoCard.js', exports: ['NoRepoCard'], components: ['NoRepoCard'] },
   { file: 'src/client/views/ListTabClosed.js', exports: ['useClosedPageScroll', 'closedPagesNode', 'repoWebIssuesUrlOf'], components: [] }, // #690 新增：主列表「已关闭票按需翻页」的三个触发点（展开折叠行、切到已关闭、滚到底）与「已加载 x / 共 N」那一行（无组件，纯函数与钩子）

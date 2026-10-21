@@ -34,6 +34,8 @@ declare function hexA(...args: any[]): any;
 declare function darken(...args: any[]): any;
 declare function idOfParts(...args: any[]): any;
 declare function renderIssueDetailComments(...args: any[]): any;
+// 子票/阻塞票的分流判定住在 views/subIssueRouting.ts；签名 (st, 子票节点, effort) 与那里一致。
+declare function enterSubDetail(st: any, x: any, issueEffort: any): void;
 declare function mdImgOverlay(...args: any[]): any;
 declare function issueUrlFor(...args: any[]): any;
 declare function openIssueUrl(...args: any[]): any;
@@ -138,39 +140,8 @@ export const IssueDetail = function (props: any): any {
         }
         return '#' + issueNumber
       })()
-      // T4 整改 #554：子票与阻塞票点击按地图行同口径分流（T3 的做法）。
-      // 节点自带标签时按标签判：有地图标签且快照里找得到这张地图才进地图详情，否则回落工单详情；
-      // 节点没有标签（阻塞票节点只有编号标题状态）时按快照本地找图：找得到进地图详情，
-      // 找不到回落普通工单详情（有字可看，不静默回列表）。只定种类与编号，取数与评论不动。
-      const subLabelsOf = function (x: any) {
-        if (!x || x.labels == null) return []
-        if (Array.isArray(x.labels)) return x.labels
-        if (typeof x.labels === 'object' && Array.isArray(x.labels.nodes)) return x.labels.nodes
-        return []
-      }
-      const subHasRoutingInfo = function (x: any) {
-        if (!x) return false
-        if (subLabelsOf(x).length > 0) return true
-        return typeof x.type === 'string' && x.type !== ''
-      }
-      // #1286：规格（实施地图）也是容器，点进去要走到同一套详情页骨架
-      const subHasMapTag = function (x: any) {
-        const ls = subLabelsOf(x)
-        for (let i = 0; i < ls.length; i++) { const n = (typeof ls[i] === 'string') ? ls[i] : ls[i].name; if (n === 'wayfinder:map') return true }
-        return x && (x.type === 'map' || x.type === 'spec')
-      }
-      const enterSubDetail = function (x: any) {
-        if (!x || x.number == null) return
-        // effort 维度：子票/阻塞票的 effort 取节点自带字段，没有就跟当前票同 effort（同 effort 内的引用）
-        const eid = (x.effortId !== undefined && x.effortId !== null) ? String(x.effortId) : issueEffort
-        if (subHasRoutingInfo(x)) {
-          if (subHasMapTag(x) && findMapByIdentity(st.snapshot && st.snapshot.maps, x.number, eid)) pushNav(st, 'map', x.number, eid)
-          else pushNav(st, 'issue', x.number, eid)
-        } else {
-          if (findMapByIdentity(st.snapshot && st.snapshot.maps, x.number, eid)) pushNav(st, 'map', x.number, eid)
-          else pushNav(st, 'issue', x.number, eid)
-        }
-      }
+      // 子票/阻塞票的分流判定整族已移到 views/subIssueRouting.ts（函数名 enterSubDetail 与原文一致），
+      // 判断细节（标签优先、无标签按快照找图、effort 继承）写在那份文件里；这里只负责传当前票的 st 与 effort。
       // loading（首拉无缓存且无 snap 降级）
       if (mode === 'loading' && !src) {
         return h('div', null, [
@@ -424,8 +395,8 @@ export const IssueDetail = function (props: any): any {
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, '子票 ' + subTotal + (subNodes.length ? '' : '（无加载）')),
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, subNodes.map(function (s: any) {
             const sc = s.state === 'CLOSED' ? '#3fb950' : '#8b8b95'
-            // T4 整改 #554：子票按上面 enterSubDetail 分流（有标签按标签，无标签按快照找图）。
-            return h('div', { key: idOfParts((s.effortId!==undefined&&s.effortId!==null)?s.effortId:issueEffort, s.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + s.number + ' ' + (s.title || ''), onClick: function () { enterSubDetail(s) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            // T4 整改 #554：子票走 views/subIssueRouting.ts 的 enterSubDetail 分流（有标签按标签，无标签按快照找图）。
+            return h('div', { key: idOfParts((s.effortId!==undefined&&s.effortId!==null)?s.effortId:issueEffort, s.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + s.number + ' ' + (s.title || ''), onClick: function () { enterSubDetail(st, s, issueEffort) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 h('span', { className: 'dsws-idnum', style: { color: sc, borderColor: sc, fontSize: 11 } }, '#' + s.number),
                 h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, s.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 12 } }, s.title)),
@@ -438,8 +409,8 @@ export const IssueDetail = function (props: any): any {
         blockedNodes.length ? h('div', { style: { padding: '6px 0' } }, [
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, tr('detail.blockedPrefix') + blockedNodes.length),
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, blockedNodes.map(function (b: any) {
-            // T4 整改 #554：阻塞票同样按 enterSubDetail 分流（无标签时按快照找图）。
-            return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + b.number + ' ' + (b.title || ''), onClick: function () { enterSubDetail(b) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            // T4 整改 #554：阻塞票同样走 enterSubDetail 分流（无标签时按快照找图）。
+            return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + b.number + ' ' + (b.title || ''), onClick: function () { enterSubDetail(st, b, issueEffort) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 // #1286：被阻塞统一红 #f87171（与地图详情页、列表行同一个红；这个红在本仓原本专指
                 //   错误与失败，这里被重载为「被阻塞」——读代码时别当成同一个语义）

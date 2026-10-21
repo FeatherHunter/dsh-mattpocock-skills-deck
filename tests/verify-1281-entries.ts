@@ -1,5 +1,5 @@
 // tests/verify-1281-entries.ts —— #1281 双入口 / 规格三态 / 实施票 / 两处接线的门禁
-// 门禁归属: config/prompts/ticket-action-templates.yaml, config/prompts/map-advancement.yaml, config/prompts/ticket-creation.yaml, src/client/kernel/router.ts, src/client/kernel/entry-choice.ts, src/client/views/shared/Tabs.ts, src/client/statusbar/StatusBar.ts, src/client/kernel/container-view.ts, src/client/kernel/store-derived.ts, src/client/kernel/locale-spec.ts, src/client/kernel/locale-panel.ts, src/shared/naming-titles.ts
+// 门禁归属: config/prompts/ticket-action-templates.yaml, config/prompts/map-advancement.yaml, config/prompts/ticket-creation.yaml, src/client/kernel/router.ts, src/client/kernel/entry-choice.ts, src/client/views/shared/Tabs.ts, src/client/statusbar/StatusBar.ts, src/client/kernel/container-view.ts, src/client/kernel/row-actions.ts, src/client/kernel/locale-spec.ts, src/client/kernel/locale-panel.ts, src/shared/naming-titles.ts
 // 验证（每条都能被删掉/改坏而变红）：
 //   1) 注册表新增五条：newSpec / tpl.implement / specSplit / specExecute / specComplete，且各自首行技能与占位符正确；
 //      完成模板 complete 改成自包含格式（首行 /wayfinder、次行 {url}）。
@@ -20,7 +20,8 @@ const entry = sourceText('src/client/kernel/entry-choice.ts')
 const tabs = sourceText('src/client/views/shared/Tabs.ts')
 const bar = sourceText('src/client/statusbar/StatusBar.ts')
 const cv = sourceText('src/client/kernel/container-view.ts')
-const sd = sourceText('src/client/kernel/store-derived.ts')
+// 行级动作全家（八选一阶梯、实施票路由、按钮词条）已从 store-derived.ts 抽到 row-actions.ts。
+const sd = sourceText('src/client/kernel/row-actions.ts')
 const specLocale = sourceText('src/client/kernel/locale-spec.ts')
 const panelLocale = sourceText('src/client/kernel/locale-panel.ts')
 const naming = sourceText('src/shared/naming-titles.ts')

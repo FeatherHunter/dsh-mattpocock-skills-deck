@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T02:20:57.089Z",
+  "generatedAt": "2026-10-21T03:13:00.526Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 307,
   "gateCount": 307,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 506,
+  "graphFileCount": 510,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -168,11 +168,13 @@
         "src/client/views/shared/RestFallbackBanner.ts",
         "src/client/views/shared/Tabs.ts",
         "src/client/views/shared/chips.ts",
+        "src/client/views/shared/liquidInk.ts",
         "src/client/views/shared/md.ts",
         "src/client/views/shared/stateKind.ts",
         "src/client/views/shared/tagsFit.ts",
         "src/client/views/shared/ticket.ts",
         "src/client/views/shared/workRouteTable.ts",
+        "src/client/views/subIssueRouting.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcDiffOps.ts",
@@ -208,7 +210,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 70 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 72 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -556,6 +558,7 @@
       "guards": [
         "scripts/lib/prompt-config.mts",
         "src/client/kernel/container-view.ts",
+        "src/client/kernel/row-actions.ts",
         "src/client/kernel/store-derived.ts",
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
@@ -596,7 +599,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 18 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-deck-tools-row-zero-dep.ts",
@@ -1665,7 +1668,7 @@
         "src/client/kernel/container-view.ts",
         "src/client/kernel/entry-choice.ts",
         "src/client/kernel/router.ts",
-        "src/client/kernel/store-derived.ts",
+        "src/client/kernel/row-actions.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/views/shared/Tabs.ts",
         "src/shared/naming-titles.ts",
@@ -5617,6 +5620,7 @@
         "src/client/views/IssueDetail.ts",
         "src/client/views/MapDetail.ts",
         "src/client/views/SkillsTab.ts",
+        "src/client/views/subIssueRouting.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/kernel/identity-keys.ts",
         "tests/lib/eval-probe.ts",
@@ -5635,7 +5639,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-markdown-backend.ts",
@@ -8504,9 +8508,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 520,
+    "fileCount": 524,
     "dirCount": 56,
-    "coveredFileCount": 520,
+    "coveredFileCount": 524,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -8549,6 +8553,7 @@
       "src/client/kernel/prompts-setup.ts",
       "src/client/kernel/prompts.ts",
       "src/client/kernel/router.ts",
+      "src/client/kernel/row-actions.ts",
       "src/client/kernel/settings-debug.ts",
       "src/client/kernel/settings-templates.ts",
       "src/client/kernel/settings-ui.ts",
@@ -8565,6 +8570,7 @@
       "src/client/kernel/store-switch.ts",
       "src/client/kernel/styles.ts",
       "src/client/kernel/tabsfold.ts",
+      "src/client/kernel/ui-feedback.ts",
       "src/client/panel/Dock.ts",
       "src/client/panel/DockSync.ts",
       "src/client/panel/NamingFailBanner.ts",
@@ -8653,6 +8659,7 @@
       "src/client/views/shared/SwitchConfirmModal.ts",
       "src/client/views/shared/Tabs.ts",
       "src/client/views/shared/chips.ts",
+      "src/client/views/shared/liquidInk.ts",
       "src/client/views/shared/md.ts",
       "src/client/views/shared/stateKind.ts",
       "src/client/views/shared/tagsFit.ts",
@@ -8666,6 +8673,7 @@
       "src/client/views/skillDetail/PixelSkillOps.ts",
       "src/client/views/skillDetail/PixelSkillRow.ts",
       "src/client/views/skillDetail/PixelStyles.ts",
+      "src/client/views/subIssueRouting.ts",
       "src/client/views/useIssueDetailFold.ts",
       "src/client/views/versionControl/VersionControlTab.ts",
       "src/client/views/versionControl/vcAiHandoff.ts",

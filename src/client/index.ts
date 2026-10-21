@@ -228,6 +228,9 @@ export default {
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====
+    // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
+    // 排在其后：它们要用 findMapByIdentity 与 isLightHex。
+    // ==== kernel:rowActions (spliced by build) ====
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
     // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生
@@ -330,7 +333,7 @@ export default {
     // ==== leaf:detailActionBar (spliced by build) ====
     // ==== leaf:mapDetailSpecBody (spliced by build) ====
 
-    // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:issueDetailFold (spliced by build) ==== // ==== leaf:useIssueDetailFold (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
+    // ==== leaf:subIssueRouting (spliced by build) ==== // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:issueDetailFold (spliced by build) ==== // ==== leaf:useIssueDetailFold (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
 
     // ==== leaf:tagsFit (spliced by build) ====
     // ==== leaf:pop (spliced by build) ====

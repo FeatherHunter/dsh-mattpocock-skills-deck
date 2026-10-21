@@ -111,6 +111,8 @@ async function main() {
   // #1299 T8：双轨链路要用的三处真源——客户端容器三态、行首动作、对象类型标记。
   const cv = await imp('src/client/kernel/container-view.ts')
   const sd = await imp('src/client/kernel/store-derived.ts')
+  // 行级动作全家已从 store-derived.ts 抽到 row-actions.ts，动作断言改从新片取。
+  const ra = await imp('src/client/kernel/row-actions.ts')
   const marker = await imp('src/shared/issue-file/src/marker.ts')
   // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
@@ -427,8 +429,8 @@ async function main() {
         evidenceLines.push('- [' + lane.id + '] C 实施票：' + t1Key + '、' + t2Key + '（父 ' + specKey + '；阻塞 ' + t2Key + ' 被 ' + t1Key + ' 挡住）')
 
         // D：/implement 首行与三态按钮写回口径
-        check(sd.rowActionKind({ labels: t1Labels }) === 'implement',
-          '[' + lane.id + '] 双轨 D 实施票首行动作是 /implement：' + String(sd.rowActionKind({ labels: t1Labels })))
+        check(ra.rowActionKind({ labels: t1Labels }) === 'implement',
+          '[' + lane.id + '] 双轨 D 实施票首行动作是 /implement：' + String(ra.rowActionKind({ labels: t1Labels })))
         check(implZh.indexOf('/implement\n{url}') === 0,
           '[' + lane.id + '] 双轨 D /implement 模板首行可用（模板 tpl.implement 以 /implement 开头）')
         const emptyTri = cv.containerTriState('spec', 'empty')

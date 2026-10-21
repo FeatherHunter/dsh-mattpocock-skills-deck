@@ -44,11 +44,6 @@ const KIND_FALLBACK = 'other'
 
 let installed = false
 
-function closestWith(el: any, selector: string): any {
-  if (!el || typeof el.closest !== 'function') return null
-  return el.closest(selector)
-}
-
 /** 从事件目标往上找到最近一颗带 data-press 的元素；找不到就按不到底。 */
 function pressTargetOf(ev: any): any {
   const t = ev && ev.target ? ev.target : null

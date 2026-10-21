@@ -486,6 +486,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.ts' },
+  // 行级动作全家从 store-derived.ts 原样抽出（那份越过每文件 350 有效行的门禁）；
+  //   必须排在本条之后：findMapByIdentity 与 isLightHex 由 store-derived 定义。
+  { name: 'rowActions', file: 'src/client/kernel/row-actions.ts' },
   // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源。
   { name: 'containerView', file: 'src/client/kernel/container-view.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
@@ -703,6 +706,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.ts' },
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.ts' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
   { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.ts' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）
+        { id: 'subIssueRouting', file: 'src/client/views/subIssueRouting.ts' }, // 子票/阻塞票分流判定，从 IssueDetail.ts 原样抽出
   { id: 'IssueDetail', file: 'src/client/views/IssueDetail.ts' },
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.ts' },
   { id: 'setupCard', file: 'src/client/views/SetupCard.ts' }, // #698 新增：盖住整个应用的「域文档布局」小卡（原先只渲染在黄条下面，工作区一初始化就没有地方可画）

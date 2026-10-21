@@ -98,6 +98,9 @@ function extractIife (src, name) {
 //   的真源现在也已就位，不再直接 readFileSync 旁边那份产物（产物没重建时会静默停在旧文本上）。
 const mapSrc = spliceableJs('src/client/views/MapDetail.js')
 const issueSrc = spliceableJs('src/client/views/IssueDetail.js')
+// 子票/阻塞票分流判定已从 IssueDetail.js 抽到 subIssueRouting.js（2026-10-21 拆行数超标文件），
+// 那条端到端断言仍跑真函数，只是取源改成新文件。
+const subIssueSrc = spliceableJs('src/client/views/subIssueRouting.js')
 const skillSrc = spliceableJs('src/client/views/SkillsTab.js')
 const prefsSrc = spliceableJs('src/client/kernel/store-prefs.js')
 
@@ -132,7 +135,7 @@ check(eqStack(st, [{ kind: 'map', n: 550, effortId: '' }]) && st.activeMap === 5
 
 // ============ 一补、行进详情再返回端到端（真分流函数进，真返回函数出） ============
 const e2eMapSrc = ['hasMapTag', 'enterDetail', 'goBack'].map((n) => extractConst(mapSrc, n)).join('\n')
-const e2eSubSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n') + '\n' + extractConst(issueSrc, 'goBack').replace('const goBack =', 'const goBackIssue =')
+const e2eSubSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(subIssueSrc, n)).join('\n') + '\n// 新文件里的 enterSubDetail 显式收 st 与 effort；沙箱外层已有这两个名字，包一层保持原调用形状\nconst enterSubDetailBound = function (x) { return enterSubDetail(st, x, issueEffort) }\n' + extractConst(issueSrc, 'goBack').replace('const goBack =', 'const goBackIssue =')
 const runE2E2 = (bundle, names, t, seedStack, maps) => {
   const s = { activeMap: null, activeIssue: null, navStack: seedStack.map((e) => ({ kind: e[0], n: e[1], effortId: '' })), tick: 0, snapshot: { maps: maps } }
   // 手法：compileFn——同上，参数名收进数组传给共用入口。
@@ -149,15 +152,15 @@ e.api.enterDetail({ number: 551, labels: [{ name: 'wayfinder:map' }], state: 'OP
 check(eqStack(e.s, [{ kind: 'map', n: 550, effortId: '' }, { kind: 'map', n: 551, effortId: '' }]), '端到端：地图行进下一级地图压栈')
 e.api.goBack()
 check(eqStack(e.s, [{ kind: 'map', n: 550, effortId: '' }]) && e.s.activeMap === 550, '端到端：地图返回弹栈回到上一级550')
-e = runE2E2(e2eSubSrc, 'enterSubDetail, goBackIssue', null, [['issue', 20]], [{ number: 551 }])
-e.api.enterSubDetail({ number: 551, labels: [{ name: 'wayfinder:map' }] })
+e = runE2E2(e2eSubSrc, 'enterSubDetailBound, goBackIssue', null, [['issue', 20]], [{ number: 551 }])
+e.api.enterSubDetailBound({ number: 551, labels: [{ name: 'wayfinder:map' }] })
 check(eqStack(e.s, [{ kind: 'issue', n: 20, effortId: '' }, { kind: 'map', n: 551, effortId: '' }]), '端到端：子票按标签进地图压栈')
 e.api.goBackIssue()
 check(eqStack(e.s, [{ kind: 'issue', n: 20, effortId: '' }]) && e.s.activeIssue === 20, '端到端：子票层返回弹栈回到工单20')
 
 // effort 维度：子票自带 effortId 时，压栈坐标必须带上它（同号票在不同 effort 里是两张票）
-e = runE2E2(e2eSubSrc, 'enterSubDetail, goBackIssue', null, [['issue', 20]], [{ number: 551 }])
-e.api.enterSubDetail({ number: 551, effortId: 'beta', labels: [{ name: 'wayfinder:map' }] })
+e = runE2E2(e2eSubSrc, 'enterSubDetailBound, goBackIssue', null, [['issue', 20]], [{ number: 551 }])
+e.api.enterSubDetailBound({ number: 551, effortId: 'beta', labels: [{ name: 'wayfinder:map' }] })
 check(eqStack(e.s, [{ kind: 'issue', n: 20, effortId: '' }, { kind: 'map', n: 551, effortId: 'beta' }]), '端到端 B：子票带 effortId 时压栈坐标带该 effort')
 
 // 原来的「二、两处返回直调弹栈」已按维护者要求删除：它把 MapDetail.js / IssueDetail.js 里的 goBack
@@ -256,14 +259,14 @@ check(issueCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, ef
 // 下面余下的断言（四层混合链、端到端 enterDetail/goBack、行分流、雾态、面包屑、子票分流）都真跑真源码。
 
 // ============ 七、子票与阻塞票种类分流（跑工单源文件里截出来的真函数） ============
-const subBundleSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n')
+const subBundleSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(subIssueSrc, n)).join('\n') + '\nconst enterSubDetailBound = function (x) { return enterSubDetail(st, x, issueEffort) }'
 const runSub = (x, maps) => {
   const s = { activeMap: null, activeIssue: 20, navStack: [{ kind: 'issue', n: 20, effortId: '' }], tick: 0, snapshot: maps === null ? undefined : { maps: maps || [{ number: 551 }] } }
   const log = []
   const pushStub = (a, k, n, e) => { log.push([k, n]); return nav.pushNav(a, k, n, e) }
   // 手法：compileFn——同上。
-  const fn = compileFn(['st', 'pushNav'], withIssueEffort(subBundleSrc) + '\nreturn { enterSubDetail }')
-  fn(s, pushStub).enterSubDetail(x)
+  const fn = compileFn(['st', 'pushNav'], withIssueEffort(subBundleSrc) + '\nreturn { enterSubDetailBound }')
+  fn(s, pushStub).enterSubDetailBound(x)
   return log[log.length - 1]
 }
 check(JSON.stringify(runSub({ number: 551, labels: { nodes: [{ name: 'wayfinder:map' }] } })) === JSON.stringify(['map', 551]), '矩阵：子票对象标签加接口形状按标签进地图')
