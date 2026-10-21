@@ -73,6 +73,7 @@ export function createRepoKeys(deps) {
       //   gh 命令会按工作区解析仓库身份（`gh repo view`、`gh api` 等），落到别人的目录就是在错的仓库上读或写。
       //   这一条发生在拿名额之前，所以没有名额要还；如实回一条环境档失败，让调用方按「还没就绪」处理。
       if (!(typeof cwd === 'string' && cwd.trim())) {
+        try { console.error('[probe] gh 被拒：cwd=' + JSON.stringify(cwd) + ' args=' + JSON.stringify(args) + '\n' + new Error('probe').stack) } catch (eP) {}
         try { if (logCtx) logCtx.fire('warn', 'gh.exec', { argv0: 'gh', cwdHash: hash8(''), latencyMs: Date.now() - ghT0, kind: 'no-cwd', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'env', error: '这个工作区还没就绪（还没认出是哪个目录），所以这一次没有执行任何 gh 命令' }
       }

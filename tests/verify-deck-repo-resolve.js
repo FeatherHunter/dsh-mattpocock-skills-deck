@@ -6,17 +6,25 @@
 // 地图 0 张、读票 refId missing）。修法是调用方按通用形状自己补：
 // 有 getRepoKey 能力的后端（三层兜底）补上，没有的跳过，下游照旧诚实失败。
 // 本门禁盯住：空才补、有就不碰、能力缺席跳过、失败超时都诚实、补全走闸。
+//
+// 为什么判定出口换成共用的桩（2026-10-12 补）
+//   写用途拦截开启后（提交 50bbf472），工具壳在 `src/shared/deck-tools/shell.js:246` 要求
+//   「这个工作区是你亲手选过的」才肯往下做：判定出口回 canWrite:false 时，选后端这一步整体被拒。
+//   本门禁盯的是仓库标识补全，不是写用途拦截——夹具的注册表本来就代表「这个工作区已经选好了」，
+//   所以照另外九条 deck 门禁的办法，用 `tests/lib/deck-decide-stub.js` 的桩顶上，并在各夹具的
+//   select 回执里写明 canWrite: true。写用途拦截本身由六扇 verify-1003 门禁守着，这里不重复守。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
-let DECIDE_BACKEND = null
 
 function baseShellDeps(over) {
+  const o = over || {}
   return Object.assign({
     gate: {
       send: async function (req, perform) { await perform(); return { sent: true, requests: 1, points: 0 } },
@@ -26,8 +34,8 @@ function baseShellDeps(over) {
     estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } },
     costInputFrom: function () { return {} },
     resolveTimeoutMs: 50,
-    decideBackend: DECIDE_BACKEND,
-  }, over || {})
+    decideBackend: makeDecideStub(o.registry),
+  }, o)
 }
 
 function sess(cwd) {
@@ -38,13 +46,12 @@ async function main() {
   console.log('仓库标识补全门禁（#758：空才补，不逐后端写分支）')
 
   const shell = await imp('src/shared/deck-tools/shell.js')
-  DECIDE_BACKEND = (await imp('src/host/tracker/detection/backendDecision.js')).decideBackend
 
   // ── 1. 空标识补上，有标识不动 ──
   let resolveCalls = 0
   const withCap = {
     has: function () { return true },
-    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
+    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' }, canWrite: true } },
     get: function () {
       return {
         getRepoKey: async function (cwd) {
@@ -63,7 +70,7 @@ async function main() {
 
   const keepRef = {
     has: function () { return true },
-    select: async function () { return { backendId: 'github', source: 'explicit', ref: { backend: 'github', refId: 'keep/me', name: 'keep/me', url: '' } } },
+    select: async function () { return { backendId: 'github', source: 'explicit', ref: { backend: 'github', refId: 'keep/me', name: 'keep/me', url: '' }, canWrite: true } },
     get: function () {
       return { getRepoKey: async function () { throw new Error('不该调到这里') } }
     },
@@ -75,7 +82,7 @@ async function main() {
   // ── 2. 没能力的后端跳过，下游照旧 ──
   const noCap = {
     has: function () { return true },
-    select: async function () { return { backendId: 'markdown', source: 'matches', ref: { backend: 'markdown', refId: '', name: 'ws', url: '' } } },
+    select: async function () { return { backendId: 'markdown', source: 'matches', ref: { backend: 'markdown', refId: '', name: 'ws', url: '' }, canWrite: true } },
     get: function () { return {} },
   }
   const sh3 = shell.createDeckShell(baseShellDeps({ registry: noCap }))
@@ -85,7 +92,7 @@ async function main() {
   // ── 3. 补全失败、超时、被闸推迟，都诚实 ──
   const failResolve = {
     has: function () { return true },
-    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
+    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' }, canWrite: true } },
     get: function () { return { getRepoKey: async function () { return null } } },
   }
   const sh4 = shell.createDeckShell(baseShellDeps({ registry: failResolve }))
@@ -93,7 +100,7 @@ async function main() {
   check(p4 && p4.ok === true && p4.ref.refId === '', '解析不出空着交下去，不抛')
   const throwResolve = {
     has: function () { return true },
-    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
+    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' }, canWrite: true } },
     get: function () { return { getRepoKey: async function () { throw new Error('炸了') } } },
   }
   const sh5 = shell.createDeckShell(baseShellDeps({ registry: throwResolve }))
@@ -101,7 +108,7 @@ async function main() {
   check(p5 && p5.ok === true, '补全抛错吞掉，选后端本身不受影响')
   const hangResolve = {
     has: function () { return true },
-    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
+    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' }, canWrite: true } },
     get: function () { return { getRepoKey: function () { return new Promise(function () {}) } } },
   }
   const sh6 = shell.createDeckShell(baseShellDeps({ registry: hangResolve }))
@@ -119,7 +126,7 @@ async function main() {
   let deferResolveCalls = 0
   const deferReg = {
     has: function () { return true },
-    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
+    select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' }, canWrite: true } },
     get: function () { return { getRepoKey: async function () { deferResolveCalls += 1; return { owner: 'a', name: 'b' } } } },
   }
   const sh7 = shell.createDeckShell(baseShellDeps({ gate: deferGate, registry: deferReg }))
