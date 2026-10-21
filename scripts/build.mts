@@ -37,8 +37,7 @@
  * 历史上的 --sync / DSW_SYNC=1 入口已于 1.8.0-rc.1 彻底移除：再传 --sync 会直接报错退出，
  * 避免一次编译顺手改掉本机已装插件。
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync, utimesSync } from 'node:fs'
-import { createHash } from 'node:crypto'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync } from 'node:fs'
 import { dirname, resolve, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -54,6 +53,9 @@ import { bundleEntryPanel } from './bundle-update-entry.mts'
 // 这样「谁写产物」只有一处：构建。做法与为什么这么做写在那个文件里。
 import { buildDomain, buildSharedProductPath, domainPaths, findDomains, isLeafSourcePath, listSources, readSpliceFragmentSource, transpileUnit } from './lib/transpile-domains.mts'
 import { TRANSPILE_OPTIONS, inlineExportDeclarations, generatedHeader } from './lib/transpile-unit.mts'
+// #1326：构建缓存的事实（输入范围、产物清单、内容摘要算法、缓存读取）与唯一一份「产物新不新鲜」判据
+// 都搬到了 lib/build-cache.mts；构建只负责按这些事实证明能不能命中、真构建成功后写回缓存。
+import { CACHE_PATH, CACHE_VERSION, buildModeKey, inputFingerprint, judgeProducts, listOutputs, readCacheFile, sha256File } from './lib/build-cache.mts'
 
 // 域里允许住**不是域源码产物**的 .js（没有域源码里的同名真源，也不该被当成陈旧产物）：
 // 它们要么是手写模块、要么是域根散文件的转译产物，都住在域产物同一个目录（.build/shared/<域>/）里，
@@ -74,134 +76,23 @@ const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 // ---------- 构建缓存：输入与产物都没变就跳过这 30 秒 ----------
 //
-// 为什么要有它：整条门禁链上有 13 扇门禁各自跑一次本构建，每次约 30 秒（两遍 esbuild 打包各约 14.5 秒），
-// 而它们跑的时候源码一个字都没改——同一次链上第 2 到第 13 次构建是纯粹重复劳动。
+// 缓存的事实（输入范围、产物清单、内容摘要算法、缓存读取、以及唯一一份「产物新不新鲜」判据）
+// 在 scripts/lib/build-cache.mts，本文件只负责按这些事实证明构建起来：命中就收工，真构建成功后写回缓存。
+// 为什么搬家、判据为什么从修改时间换成内容摘要，见那个模块文件头的长注释（#1326）。
 //
 // 判定口径（两条都满足才跳过）：
-//   一、手写输入的**内容**指纹与上次成功构建时一致（按内容算，不是按修改时间：只碰一下没改内容不该触发重建）；
-//   二、上次成功构建记下的每个产物**逐字节一致**且都在盘上（产物被人改过、删过、少过，一律重建）。
+//   一、手写输入的内容摘要与上次成功构建时一致（按内容算，不是按修改时间：只碰一下没改内容不该触发重建）；
+//   二、上次成功构建记下的每个产物逐字节一致且都在盘上（产物被人改过、删过、少过，一律重建）。
 // 跳过的含义是「产物与上次成功构建完全相同」，不是「构建没跑过所以结果未知」；任何输入变化都会走完整构建。
 //
-// 命中时**一个文件都不写**：产物一个字节不改、修改时间（mtime）保持原样，缓存文件也不重写（#1325）。
-// 以前命中会把每个产物的 mtime 提到当前，好让「产物比源新」那几扇新鲜度门禁（verify-ctx /
-// verify-kernel / verify-leaves 等）不误报；但本地以 link 方式装着的插件正被界面使用，DSH 按文件
-// 变化热更客户端产物，每次命中都把几百个产物的 mtime 提到当前，界面就跟着反复闪烁——验证链跑一次
-// 要命中十几回，面板就闪十几回。真正该换的是那几扇门禁的判据（按内容指纹，见 #1326），不是在这里提 mtime。
+// 命中时一个文件都不写：产物一个字节不改、修改时间（mtime）保持原样，缓存文件也不重写（#1325）。
+// 以前命中会把每个产物的 mtime 提到当前，好让「产物比源新」那几扇新鲜度门禁不误报；但本地以 link 方式
+// 装着的插件正被界面使用，DSH 按文件变化热更客户端产物，每次命中都把几百个产物的 mtime 提到当前，
+// 界面就跟着反复闪烁——验证链跑一次要命中十几回，面板就闪十几回。判据换成内容摘要后（#1326），
+// 这些门禁不再看修改时间，这里也就不需要再动任何 mtime。
 //
 // 强制重建：node scripts/build.mts --force，或设 DSH_BUILD_NO_CACHE=1。
 // 缓存文件落在 node_modules/.cache/ 下（不进版本库，不会被提交）。
-const CACHE_VERSION: number = 2
-const CACHE_PATH: string = join(ROOT, 'node_modules', '.cache', 'dsh-build.json')
-// 四个计算核已按 #1023 搬进 src/shared/<功能名>/，被 'src' 一条罩住，不再单列它们的旧目录名。
-//
-// 为什么要收 'tests'：测试树里住着构建与门禁都要读的数据（七个 version-control 真机样本在
-// tests/fixtures/version-control/）。四个核还在仓库根的时候，它们的目录整棵在输入范围内，
-// 改样本能触发重建；核目录一删，样本就落到输入范围之外了，所以把测试树收进来补上这一段。
-// 代价是改任何测试文件都会让指纹变、走一次全量重建——这是正确行为，不是故障：测试改了，
-// 就该重新构建一次再判定。
-// #1294：界面词表的真源 config/copy/ 也收进输入范围 —— 改一份 YAML 必须让指纹变、触发重新生成，
-// 否则缓存会把「YAML 改了但生成物没重算」判成命中，产物里留的还是旧文案。
-const INPUT_ROOTS: string[] = ['src', 'scripts', 'tests', 'config/copy']
-const INPUT_EXTRA: string[] = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml', 'config/intervals.yaml', 'config/ttl.yaml', 'config/languages.yaml', 'config/prompts/workspace-initialization.yaml', 'config/prompts/repository-alignment.yaml', 'config/prompts/map-advancement.yaml', 'config/prompts/ticket-action-templates.yaml', 'config/prompts/ticket-creation.yaml', 'scripts/lib/prompt-config.mts', 'scripts/lib/copy-config.mts']
-const ARTIFACT_FILES: string[] = ['client.js', 'host.js', 'package/README.md']
-// package/lib 要整目录收进来：它下面除了两份入口，还有构建写出来的其他镜像，
-// 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
-// #1018 起 package/deck 与 package/tracker 也是构建写出来的镜像（新树转译投放），
-// 同理收进来，否则缓存会把「新树产物缺了」误判成命中而跳过构建。
-// 2026-10-19 第三阶段：共享层产物（域转译 + 散文件转译）从源码树搬到了仓库根的 .build/，
-// 这里必须把 .build 一起收进产物清单——不然「.build 被删了但源码没动」会被缓存判成命中，
-// 构建直接跳过、产物缺席，门禁才在很远的地方报一句看不懂的错。
-// 从前这里还列着 src/host/logPkg（上游日志包在本仓源码树里的副本）；#1016 把宿主日志改成直接取用
-// 已安装的 dsh-log 包之后，src/ 下不再有那份副本，这一项跟着删掉。
-const ARTIFACT_DIRS: string[] = ['.build', 'package/lib', 'package/deck', 'package/tracker', 'scripts/generated', 'package/scripts', 'package/bundled-skills']
-
-/** 派生文件的标记：这些文件是构建写出来的，不算输入（否则构建一跑，指纹就自己变了，缓存永远命中不了）。 */
-function looksDerived(abs: string): boolean {
-  try {
-    const head = readFileSync(abs, 'utf8').slice(0, 300)
-    return head.includes('AUTO-GENERATED') || head.includes('人手不改') || head.includes('DO NOT EDIT')
-  } catch {
-    return false
-  }
-}
-
-/** 走一棵树，返回仓库相对路径清单（跳过 node_modules 与 .git）。 */
-function walkTree(rootRel: string, out: string[] = []): string[] {
-  const walk = (absDir: string, relDir: string): void => {
-    let ents: any
-    try {
-      ents = readdirSync(absDir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const e of ents) {
-      if (e.name === 'node_modules' || e.name === '.git') continue
-      // 以点开头的目录与文件一律不进输入：这类路径按约定是工具自己用的（缓存、临时输出、
-      // 编辑器状态），不是手写源码。测试树里就有两处这样的遗留临时仓库副本（tests/.tmp-repo-out
-      // 与 .tmp-repo-out2），它们曾经被版本库跟踪过；跳过这一条让输入范围天然不含它们，
-      // 不必为具体目录名单列排除名单。
-      if (e.name.startsWith('.')) continue
-      const rel: string = relDir ? relDir + '/' + e.name : e.name
-      const abs: string = join(absDir, e.name)
-      if (e.isDirectory()) walk(abs, rel)
-      else if (e.isFile()) out.push(rel)
-    }
-  }
-  walk(join(ROOT, rootRel), rootRel)
-  return out
-}
-
-function sha256File(abs: string): string {
-  return createHash('sha256').update(readFileSync(abs)).digest('hex')
-}
-
-/** 手写输入清单：src / scripts / tests 三棵，去掉派生文件，再补上根上的几份配置。 */
-function listInputs(): string[] {
-  const out: string[] = []
-  for (const r of INPUT_ROOTS) {
-    for (const rel of walkTree(r)) {
-      const abs: string = join(ROOT, rel)
-      if (rel.startsWith('scripts/generated/')) continue
-      if (looksDerived(abs)) continue
-      out.push(rel)
-    }
-  }
-  for (const f of INPUT_EXTRA) if (existsSync(join(ROOT, f))) out.push(f)
-  return Array.from(new Set(out)).sort()
-}
-
-/** 产物清单：根上两份 dev、包内两份 pkg、派生进 src 的那批、几个生成目录。 */
-function listOutputs(): string[] {
-  const out: string[] = []
-  for (const f of ARTIFACT_FILES) if (existsSync(join(ROOT, f))) out.push(f)
-  for (const d of ARTIFACT_DIRS) {
-    if (!existsSync(join(ROOT, d))) continue
-    for (const rel of walkTree(d)) out.push(rel)
-  }
-  for (const rel of walkTree('src')) if (looksDerived(join(ROOT, rel))) out.push(rel)
-  return Array.from(new Set(out)).sort()
-}
-
-function inputFingerprint(): string {
-  const h = createHash('sha256')
-  h.update('v' + CACHE_VERSION + '|node' + process.version + '|mode:' + buildModeKey() + '|')
-  for (const rel of listInputs()) h.update(rel + '\0' + sha256File(join(ROOT, rel)) + '\n')
-  return h.digest('hex')
-}
-
-function buildModeKey(): string {
-  const flags = process.argv.slice(2).filter((a) => a.startsWith('--')).sort()
-  return flags.length ? flags.join(' ') : 'full'
-}
-
-function readCacheFile(): any {
-  try {
-    const raw = JSON.parse(readFileSync(CACHE_PATH, 'utf8'))
-    return raw && raw.version === CACHE_VERSION && raw.entries ? raw : { version: CACHE_VERSION, entries: {} }
-  } catch {
-    return { version: CACHE_VERSION, entries: {} }
-  }
-}
 
 function printArtifactSizes(devOnly: boolean, pkgOnly: boolean): void {
   const size = (p: string): string => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8').length + ' bytes' : 'skipped')
@@ -218,20 +109,20 @@ function tryBuildCacheHit(args: string[]): boolean {
     console.log('[build] 按要求强制重建（--force 或 DSH_BUILD_NO_CACHE=1），不使用缓存。')
     return false
   }
-  const entry: any = readCacheFile().entries[buildModeKey()]
-  if (!entry || !entry.fingerprint || !entry.outputs) return false
-  if (entry.fingerprint !== inputFingerprint()) {
+  const mode: string = buildModeKey()
+  const read = readCacheFile(ROOT, mode)
+  if (!read.ok || !read.entry) return false
+  if (read.entry.fingerprint !== inputFingerprint(ROOT, mode)) {
     console.log('[build] 手写输入有变化 → 正常构建。')
     return false
   }
-  const bad: string[] = []
-  for (const [rel, sha] of Object.entries(entry.outputs)) {
-    const abs: string = join(ROOT, rel)
-    if (!existsSync(abs) || sha256File(abs) !== sha) bad.push(rel)
-    if (bad.length >= 5) break
-  }
+  // 产物逐字节判断调用公共判据（scripts/lib/build-cache.mts 的 judgeProducts），不在构建里另写一套比较：
+  // 「产物新不新鲜」只有一份实现，构建与新鲜度门禁才不会分叉（#1326 AC④）。
+  // 这里传 last 记录里的全部产物；sources 传空是因为输入摘要已经单独比过，命中判断不需要回落路径。
+  const judged = judgeProducts({ root: ROOT, mode, products: Object.keys(read.entry.outputs), sources: [] })
+  const bad: string[] = judged.products.filter((p) => p.freshness !== 'fresh').map((p) => p.product)
   if (bad.length) {
-    console.log('[build] 产物与上次成功构建不一致 → 正常构建（' + bad.join(' / ') + '）。')
+    console.log('[build] 产物与上次成功构建不一致 → 正常构建（' + bad.slice(0, 5).join(' / ') + '）。')
     return false
   }
   // 命中时不写盘：产物一个字节不改、mtime 原样（理由见文件头缓存那段注释，#1325）。
@@ -246,10 +137,12 @@ function tryBuildCacheHit(args: string[]): boolean {
 function writeBuildCache(): void {
   try {
     const outputs: Record<string, string> = {}
-    for (const rel of listOutputs()) outputs[rel] = sha256File(join(ROOT, rel))
-    const cache: any = readCacheFile()
+    for (const rel of listOutputs(ROOT)) outputs[rel] = sha256File(join(ROOT, rel))
+    // 写回前先读已有缓存：别的构建模式（--pkg-only 等）的条目要留着，不能因为本档写入就整份丢掉。
+    const read = readCacheFile(ROOT, buildModeKey())
+    const cache: any = read.cache ?? { version: CACHE_VERSION, entries: {} }
     cache.version = CACHE_VERSION
-    cache.entries[buildModeKey()] = { fingerprint: inputFingerprint(), outputs, at: new Date().toISOString() }
+    cache.entries[buildModeKey()] = { fingerprint: inputFingerprint(ROOT, buildModeKey()), outputs, at: new Date().toISOString() }
     mkdirSync(dirname(CACHE_PATH), { recursive: true })
     writeFileSync(CACHE_PATH, JSON.stringify(cache), 'utf8')
   } catch (e) {
@@ -1642,22 +1535,10 @@ const devCode: string = devCodeRaw
     writeFileSync(join(pkgScripts, name), readFileSync(join(resolve(ROOT, 'scripts'), name)))
   }
   console.log(`[build] scripts 已随包分发 → package/scripts（${SHIPPED_SCRIPTS.length} 个文件：${SHIPPED_SCRIPTS.join('、')}）`)
-  // 触新 mtime：确保产物新鲜度门禁（verify-parse-leaf 检查产物 mtime > 源 mtime），原样复制需显式 touch
-  try {
-    const now: Date = new Date()
-    const touch = (dir: string): void => {
-      for (const ent of readdirSync(dir, { withFileTypes: true })) {
-        const p: string = join(dir, ent.name)
-        if (ent.isDirectory()) touch(p)
-        else try { utimesSync(p, now, now) } catch {}
-      }
-    }
-    touch(pkgLib)
-    touch(pkgShared)
-    touch(pkgDeck)
-    touch(pkgTracker)
-    touch(pkgScripts)
-  } catch {}
+  // 这里原先有一段 utimesSync 递归 touch（把 package/lib、package/deck 等产物目录的修改时间提到当前），
+  // 它存在的唯一理由是让旧的「按修改时间判产物新鲜」的几扇门禁不误报。判据换成内容摘要之后（#1326），
+  // 全仓已经没有判据再看 mtime；这段每次都白白制造几万个文件的修改时间变化，还会触发界面热更，
+  // 所以删除。原样复制出来的文件内容没变，也不需要再人为碰时间。
 
   // L1 冒烟：构建内 await import('package/lib/index.js') 入口 + node --check 全树
   // --check 全树
