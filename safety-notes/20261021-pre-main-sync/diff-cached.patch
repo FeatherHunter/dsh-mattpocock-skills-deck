@@ -1,0 +1,1908 @@
+diff --git a/src/deck/tools/issue-get.ts b/src/deck/tools/issue-get.ts
+index da326c43..602f2773 100644
+--- a/src/deck/tools/issue-get.ts
++++ b/src/deck/tools/issue-get.ts
+@@ -10,6 +10,8 @@ import { withCallScope } from '../shell/call-budget.js'
+ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+ // 超时住中央 YAML，调时间改 config/timeouts.yaml。
+ import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
++// #1090：进度区的结构化读回（{percent,note,updatedAt,entries}）与写侧共用同一份解析。
++import { parseProgressDetail } from '../../tracker/body-parse.js'
+ 
+ /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
+ function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+@@ -104,6 +106,9 @@ function issueBrief(issue: Record<string, unknown> | null | undefined) {
+     labels: Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : [],
+     assignees: Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : [],
+     updatedAt: issue.updatedAt || '', closedAt: issue.closedAt || '', url: issue.url || '', body: issue.body !== undefined ? issue.body : null,
++    // #1090：正文里的进度区按结构化形状回一份（旧字段一个不删，读的人想只取数字仍可读 body）。
++    // 没写进度时是 {percent:null,note:'',updatedAt:null,entries:[]}，不是 null——「没写」与「写坏了」分开看。
++    progress: parseProgressDetail(issue.body !== undefined ? issue.body : null),
+   }
+ }
+ 
+diff --git a/src/deck/tools/issue-patch.ts b/src/deck/tools/issue-patch.ts
+index 9cc1b33a..01718785 100644
+--- a/src/deck/tools/issue-patch.ts
++++ b/src/deck/tools/issue-patch.ts
+@@ -16,6 +16,10 @@ import { specCloseGuard } from '../shell/spec-close-guard.js'
+ import { withCallScope } from '../shell/call-budget.js'
+ import { withKeyLock } from '../shell/write-mutex.js'
+ import { ensureBody } from '../shell/minimal-spec.js'
++// #1090：进度区的读、写、核对统一走 shared 层的那一份口径（读与写共用同一份写法，不再各留一份正则）。
++import { applyProgressEntry, progressReadbackProblem } from '../../shared/issue-file/src/progress.js'
++import type { ProgressEntry } from '../../shared/issue-file/src/progress.js'
++import { progressEntryFromArg, stampNow } from '../../shared/issue-file/src/progress-tool.js'
+ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+ // 超时住中央 YAML，调时间改 config/timeouts.yaml。
+ import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+@@ -83,7 +87,16 @@ export const definition = {
+       assignees: { type: 'array', items: { type: 'string' }, description: '认领人（整批替换；给空数组就是取掉认领）' },
+       title: { type: 'string', description: '新的标题' },
+       body: { type: 'string', description: '新的正文' },
+-      progress: { type: 'string', description: '只改「## 进度」那一段的内容' },
++      progress: {
++        type: 'object',
++        description: '写一条进度记录：{percent, note}（#1090 起不再收一段自由文字）。工具自动盖当前时间、把这条加到「## 进度」区最上面，旧记录原样保留；正文超过 60KB 时拒绝写入、一个字节不动。',
++        properties: {
++          percent: { type: 'integer', description: '进度百分比，0..100 的整数' },
++          note: { type: 'string', description: '做到哪一步了的说明，必填，一句话（不能换行）' },
++        },
++        required: ['percent', 'note'],
++        additionalProperties: false,
++      },
+       close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
+       workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
+       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+@@ -98,49 +111,6 @@ function names(list: unknown) {
+   return Array.isArray(list) ? list.map((l) => (typeof l === 'string' ? l : (l && l.name) || '')).map((s) => String(s).trim()).filter(Boolean) : []
+ }
+ 
+-/** 只替换「## 进度」那一段：前面的正文与后面的其它区块原样保留。 */
+-export function replaceProgressSection(body: unknown, text: unknown) {
+-  const src = typeof body === 'string' ? body : ''
+-  const clean = String(text === undefined || text === null ? '' : text).replace(/\s*$/, '')
+-  const blockBase = '## 进度\n\n' + clean + '\n\n'
+-  // 标题认「## 进度」与「## 进度：80% / ## Progress: 40%」：后者是读进度的人认的写法，写进度的人也要认，否则会再插一段重复的进度区。
+-  // 结尾认「真正的文末」：多行模式下行尾的 $ 在每一行尾都成立，惰性匹配会停在标题行尾，只换掉标题五个字，旧内容原地不动。
+-  // $(?![\s\S]) 只在整个字符串的末尾成立，后面再没有字符，才是兜底分支要等的那个位置。
+-  // #1002：右边界加字段行终点：进度区后面是字段行（Status/Type/Blocked by/Labels）时停在字段行之前，
+-  // 否则字段行会被吞进进度段、再由改正文的整份分支补到文件末尾（C7）。没有进度区时插在字段行之前，不落到文末。
+-  const fieldAhead = '^\\s*(?:Status|Type|Blocked\\s+by|Labels)\\s*[:\\uFF1A]'
+-  const single = new RegExp('^##\\s*(?:进度|Progress)(?:\\s*[：:]\\s*\\d{1,3}\\s*%?)?\\s*$[\\s\\S]*?(?=^##\\s|' + fieldAhead + '|$(?![\\s\\S]))', 'mi')
+-  if (!single.test(src)) {
+-    const block = blockBase
+-    const fieldRe = new RegExp(fieldAhead, 'im')
+-    const fieldMatch = fieldRe.exec(src)
+-    if (fieldMatch) {
+-      const idx = fieldMatch.index
+-      const before = src.slice(0, idx).replace(/\s*$/, '')
+-      const after = src.slice(idx).replace(/^\s*/, '')
+-      return (before + '\n\n' + block + after).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
+-    }
+-    const skelRe = /^##\s*(?:Comments|Answer)\s*$/im
+-    const skelMatch = skelRe.exec(src)
+-    if (skelMatch) {
+-      const idx = skelMatch.index
+-      const before = src.slice(0, idx).replace(/\s*$/, '')
+-      const after = src.slice(idx).replace(/^\s*/, '')
+-      return (before + '\n\n' + block + after).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
+-    }
+-    return (src.replace(/\s*$/, '') + '\n\n' + block).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
+-  }
+-  const reAll = new RegExp('^##\\s*(?:进度|Progress)(?:\\s*[：:]\\s*\\d{1,3}\\s*%?)?\\s*$[\\s\\S]*?(?=^##\\s|' + fieldAhead + '|$(?![\\s\\S]))', 'gmi')
+-  let first = true
+-  const out = src.replace(reAll, function () {
+-    if (!first) return ''
+-    first = false
+-    return blockBase
+-  })
+-  // 新块后面若直接粘着下一个标题，补一个空行；历史脏数据（之前写坏留下的第二个进度区）已在上面清空，顺手把三连以上的空行压成一段。
+-  return out.replace(/([^\n])\n## /g, '$1\n\n## ').replace(/(?:\r?\n){3,}/g, '\n\n')
+-}
+-
+ /**
+  * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckIssuePatchDeps），
+  * 什么都不给也能跑：壳与这里的每一处都各自退默认。
+@@ -188,12 +158,22 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
+       comment: typeof a.comment === 'string' && a.comment.trim() !== '',
+       labels: addLabels.length > 0 || removeLabels.length > 0,
+       assignees: Array.isArray(a.assignees),
+-      text: typeof a.title === 'string' || typeof a.body === 'string' || typeof a.progress === 'string',
++      text: typeof a.title === 'string' || typeof a.body === 'string' || (a.progress !== undefined && a.progress !== null),
+       state: typeof a.close === 'boolean',
+     }
+     if (!wants.comment && !wants.labels && !wants.assignees && !wants.text && !wants.state) {
+       return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '这次没说清要改什么：至少点名一件（comment / addLabels / removeLabels / assignees / title / body / progress / close）。', { cost: { estimated: est } })
+     }
++    // #1090：进度参数按结构化收口，时间由这里盖（测试用 deps.now 的假时钟）。收不成时整笔拒绝，
++    // 不把一段自由文字塞进正文让读的人再猜一遍写法。
++    let progressEntry: ProgressEntry | null = null
++    if (a.progress !== undefined && a.progress !== null) {
++      const parsed = progressEntryFromArg(a.progress)
++      if (parsed.entry === null) {
++        return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, parsed.problem + '这次一个字都没动。', { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
++      }
++      progressEntry = { percent: parsed.entry.percent, note: parsed.entry.note, updatedAt: stampNow(toolEntryAt) }
++    }
+ 
+     // exec 的形状由 DSH 给（会话壳那批还没标类型，见 #1040），三处 exec.signal 各按纯类型断言收口：
+     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
+@@ -343,6 +323,23 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
+         }
+       }
+ 
++      // #1090：进度写后核对。写动作回了 ok 不算数，要能读回两件事才算写好：
++      // ① 读回来的进度区第一条与这次写入逐项相同（percent / note / updatedAt）；
++      // ② 把进度区剥掉后，剩下的正文与写前逐字相同（trim 两端再比：本地 Markdown 后端会重排正文两端空白）。
++      // 比对与原因的话住在 shared 的 progressReadbackProblem 里；这里只负责读回与逐项记账。
++      const verifyProgressWrite = async (want: ProgressEntry, before: string | null) => {
++        if (sc.outOfBudget()) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但剩余额度不够读回核对：别当成已经写好，稍后读一次现状确认。' }
++        const rawBack = await t.get(repo, key, {}, opCtx)
++        const backTimeout = timeoutMessage(rawBack as unknown as TransportResult)
++        if (backTimeout) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但读回核对超时（' + String(backTimeout).slice(0, 160) + '）：别当成已经写好，稍后读一次现状确认。' }
++        const back = must(rawBack)
++        const body = (back && back.ok === true && back.data && typeof back.data.body === 'string') ? back.data.body : null
++        if (body === null) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但写后没读回正文（后端原话：' + String((back && back.error && back.error.message) || '没给出原因').slice(0, 160) + '）：写进去的进度对不对不知道，别当成已经写好。' }
++        const problem = progressReadbackProblem(want, body, before)
++        if (problem) return { key: key, step: 'text', status: 'failed', reason: problem }
++        return { key: key, step: 'text', status: 'ok', fields: ['progress'], progress: want }
++      }
++
+       if (wants.text) {
+         // 正文读改写序列持同票锁（单次标题直写也一起 serial，保证与进度回写不交错）。
+         if (sc.outOfBudget()) over('text')
+@@ -352,10 +349,11 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
+             // 索引签名只为让下面按字段名赋值、delete 与取键名能过编译；写进去的键与值一个字没改。
+             const patch: Record<string, unknown> = {}
+             let progressBlocked = false
++            let beforeProgress: string | null = null
+             if (typeof a.title === 'string') patch.title = a.title
+             if (typeof a.body === 'string') patch.body = a.body
+-            if (typeof a.progress === 'string') {
+-              if (typeof a.body === 'string') patch.body = replaceProgressSection(a.body, a.progress)
++            if (progressEntry) {
++              if (typeof a.body === 'string') beforeProgress = a.body
+               else if (sc.outOfBudget()) { progressBlocked = true; over('text') }
+               else {
+                 const rawCur = await t.get(repo, key, {}, opCtx)
+@@ -365,10 +363,15 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
+                 const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
+                 // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。这次宁可报失败，让调用方等能读回再写，或改传整段 body。
+                 if (base === null) { progressBlocked = true; fail('text', { error: { message: '旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。' } }) }
+-                else patch.body = replaceProgressSection(ensureBody(base, 'task').body, a.progress)
++                else beforeProgress = ensureBody(base, 'task').body
++              }
++              if (!progressBlocked && beforeProgress !== null) {
++                const planned = applyProgressEntry(beforeProgress, progressEntry)
++                if (planned.next === null) { progressBlocked = true; fail('text', { error: { message: planned.problem } }) }
++                else patch.body = planned.next
+               }
+             }
+-            // 进度因读不到旧正文被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
++            // 进度被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
+             if (progressBlocked) delete patch.body
+             if (!progressBlocked || Object.keys(patch).length > 0) {
+               if (sc.outOfBudget()) over('text')
+@@ -377,8 +380,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
+                 const textTimeout = timeoutMessage(rawText as unknown as TransportResult)
+                 if (textTimeout) { lockTimeout = textTimeout; return }
+                 const r = must(rawText)
+-                if (r && r.ok === true) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
+-                else fail('text', r)
++                if (r && r.ok === true) {
++                  if (!progressEntry) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
++                  else items.push(await verifyProgressWrite(progressEntry, beforeProgress))
++                } else fail('text', r)
+               }
+             }
+           }, lockOpts)
+diff --git a/src/deck/tools/map-snapshot.ts b/src/deck/tools/map-snapshot.ts
+index c8a80817..afbe87d4 100644
+--- a/src/deck/tools/map-snapshot.ts
++++ b/src/deck/tools/map-snapshot.ts
+@@ -9,7 +9,7 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
+ import { sessionContextOfAsync } from '../shell/session-workdir.js'
+ import { childrenOf } from '../shell/edge-landing.js'
+ import { deriveDeck, parseProgress } from '../../tracker/deck-derive.js'
+-import { parseMapBody } from '../../tracker/body-parse.js'
++import { parseMapBody, parseProgressDetail } from '../../tracker/body-parse.js'
+ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+ import { withCallScope } from '../shell/call-budget.js'
+ // 超时住中央 YAML，调时间改 config/timeouts.yaml。
+@@ -63,7 +63,13 @@ function childRow(issue: Record<string, unknown>) {
+   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
+   // 进度直接从正文算（与汇总用的同一个函数，结果一致）：汇总那张表按池内身份存键，
+   // 行里拿裸票号去查恒查不到，之前有子票的地图就整包被外层拒收（只读空地图能过）。
+-  return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '', progress: parseProgress(issue.body) }
++  // #1090：数字（progress）保留给面板与既有读法；另给 progressDetail 结构化那一条，
++  // 里面含记录时间与说明，与 deck_issue_get 读回来的是同一份。
++  return {
++    key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy,
++    updatedAt: issue.updatedAt || '', progress: parseProgress(issue.body),
++    progressDetail: parseProgressDetail(issue.body),
++  }
+ }
+ 
+ // 薄行：只要画清单用得上的格，不要正文与进度（回包小、票多时不断；统计与进度表另有去处）。
+diff --git a/src/host/mapBody.ts b/src/host/mapBody.ts
+index 6db2bbba..9724b4be 100644
+--- a/src/host/mapBody.ts
++++ b/src/host/mapBody.ts
+@@ -1,14 +1,17 @@
+ /**
+  * src/host/mapBody.ts —— 地图正文解析（来源：src/host/mapBody.js，issue #1247 转写，本次只加类型标注与注释，逻辑一行未动）。
+  *
+- * 为什么要有它（一句话）：正文预处理、五区块解析、进度块三级锚定与票行映射；纯函数、零外部依赖。
++ * 为什么要有它（一句话）：正文预处理、五区块解析与票行映射；纯函数。
+  *
+- * 三条不能改的约定（改之前先看原 mapBody.js 头注释与调用点 index.ts）：
++ * 约定（改之前先看原 mapBody.js 头注释与调用点 index.ts）：
+  * 1. 行为零变化：逻辑逐行对应，只加类型标注与中文注释，不改任何运行时语义；相对导入保留 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
+  * 2. 只写可剥离 TypeScript：不新增运行时语法（禁用 enum 与构造函数参数属性），类型一律 import type 或内联标注，转译后与原 .js 逐行同义。
+- * 3. 不新增任何 import 边：只给已有引用加类型，不引入新模块依赖；Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接，不装 @types/node。
++ * 3. 依赖只留一条（#1090 起）：进度解析统一走 src/tracker/body-parse.ts，本文件不再留内联副本；
++ *    其余仍不引用别的文件，也不装 @types/node（Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接）。
+  */
+ 
++import { parseProgress } from '../tracker/body-parse.js'
++
+ // ---------------------------------------------------------------------------
+ // 类型（#1247 转 TypeScript：只写类型不写实现）。
+ //
+@@ -25,7 +28,7 @@ type WfArgs = any;
+ 
+ // src/host/mapBody.js —— 地图正文解析（H2 #446 从 host/index.js 98–189 搬出，纯结构、行为零变化）。
+ // 以后谁改它：改地图正文五区块结构或票字段映射的人。预估约 120 行，超 350 打回。
+-// 接线：由 index.js 动态 import 加载；纯函数、零外部依赖；本文件不引用其他新文件。
++// 接线：由 index.js 动态 import 加载；纯函数。进度解析自 #1090 起引用 tracker 叶子，不再内联第三份。
+ export function createMapBody(): any {
+     // ============ 数据流 ============
+     // T16：正文预处理 —— 剥 BOM + 字面 \n 还原为真实换行（历史坏格式 body 也能解析）
+@@ -114,21 +117,8 @@ export function createMapBody(): any {
+       return out
+     }
+ 
+-    // v1.5 T12 修订（B4）：进度块解析三级锚定 —— 进度区 = 契约固定章节「## 进度：N%」，先锚定标题行，防正文示例/规则文本劫持（#459/#460 实证）
+-    //   1) 标题行：## 进度：90%（行首 markdown 标题 · 进度区正形）
+-    //   2) 行首变体：进度：90% / Progress: 90%（无标题符号 · 兑现注释承诺）
+-    //   3) 全文兜底：任意出现（兼容老票随手格式 · 放最后不劫持前两层）
+-    function parseProgress(body?: any) {
+-      if (!body) return null
+-      const s = String(body)
+-      const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+-        || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+-        || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
+-      if (!m) return null
+-      const n = parseInt(m[1], 10)
+-      if (isNaN(n)) return null
+-      return Math.max(0, Math.min(100, n))
+-    }
++    // 进度解析：自 #1090 起统一走 src/tracker/body-parse.ts 的 parseProgress（文件顶部 import），
++    // 本文件不再保留内联副本。口径（顶层 `## 进度` 区、老票两种兼容写法、删全文兜底）见那个叶子。
+ 
+     function mapTicket(raw?: any) {
+       const labels = ((raw.labels && raw.labels.nodes) || []).map(function(x?: any) { return x.name })
+diff --git a/src/shared/issue-file/src/progress-tool.ts b/src/shared/issue-file/src/progress-tool.ts
+new file mode 100644
+index 00000000..313ac3e8
+--- /dev/null
++++ b/src/shared/issue-file/src/progress-tool.ts
+@@ -0,0 +1,54 @@
++/**
++ * src/shared/issue-file/src/progress-tool.ts —— deck_issue_patch 收进度参数用的纯函数（#1090）
++ *
++ * 为什么单独一份：工具层文件有 350 有效行的上限（tests/verify-file-granularity.ts 判），而「收参数、
++ * 盖时间戳」是纯逻辑：不碰后端、不碰 ctx、不读文件。放这里之后，src/deck/tools/issue-patch.ts
++ * 只留读回与记账的骨架。
++ *
++ * 约束：零 import（shared 层同层互引被规则禁止）。这里不引进度区的类型，只用同形的本地接口。
++ */
++
++/** 一条进度记录（与 src/shared/issue-file/src/progress.ts 的 ProgressEntry 同形，故意不 import）。 */
++export interface ProgressEntryLike {
++  percent: number
++  note: string
++  updatedAt: string | null
++}
++
++/** 把毫秒盖成 ISO 8601（带本机时区偏移），例如 2026-10-21T20:37:19+08:00。 */
++export function stampNow(ms: number): string {
++  const d = new Date(ms)
++  const pad = (n: number) => (n < 10 ? '0' + n : String(n))
++  const offset = -d.getTimezoneOffset()
++  const sign = offset >= 0 ? '+' : '-'
++  const abs = Math.abs(offset)
++  return String(d.getFullYear()) + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
++    + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
++    + sign + pad(Math.floor(abs / 60)) + ':' + pad(abs % 60)
++}
++
++/**
++ * 收口 progress 参数：只认 {percent: 0..100 整数, note: 非空一行}。
++ *
++ * 为什么不再收自由文字（#1090）：以前传字符串时，工具把它原样塞进区里，读的人按
++ * 「- 进度：N%（时间）：说明」的写法解析——写进去的是「90%」，读回来对不上，成了 null。
++ * 现在写读共用同一套写法，参数也按同一套收；收不成时回一句能照着改的话，整笔不动。
++ */
++export function progressEntryFromArg(arg: unknown): { entry: ProgressEntryLike | null; problem: string } {
++  if (typeof arg !== 'object' || arg === null || Array.isArray(arg)) {
++    return { entry: null, problem: 'progress 要写成 {percent, note} 对象（#1090 起不再收一段自由文字）：percent 是 0..100 的整数，note 是必填的一句话说明。' }
++  }
++  const obj = arg as Record<string, unknown>
++  const percent = obj.percent
++  const note = obj.note
++  if (typeof percent !== 'number' || !isFinite(percent) || Math.floor(percent) !== percent || percent < 0 || percent > 100) {
++    return { entry: null, problem: 'progress.percent 要是 0..100 的整数，这次收到的是 ' + String(percent) + '。' }
++  }
++  if (typeof note !== 'string' || note.trim() === '') {
++    return { entry: null, problem: 'progress.note 必填：用一句话写清做到哪一步了，不能为空。' }
++  }
++  if (note.indexOf('\n') >= 0 || note.indexOf('\r') >= 0) {
++    return { entry: null, problem: 'progress.note 只能是一行：进度区一条一行，带换行会把区里的写法打乱。' }
++  }
++  return { entry: { percent: percent, note: note.trim(), updatedAt: null }, problem: '' }
++}
+diff --git a/src/shared/issue-file/src/progress.ts b/src/shared/issue-file/src/progress.ts
+new file mode 100644
+index 00000000..c8a6a3f1
+--- /dev/null
++++ b/src/shared/issue-file/src/progress.ts
+@@ -0,0 +1,498 @@
++/**
++ * src/shared/issue-file/src/progress.ts —— 票正文「## 进度」区的读与写（唯一真源，#1090）
++ *
++ * 为什么住这里：进度以前散在三处——宿主内联（src/host/mapBody.ts）、面板派生（src/tracker/deck-derive.ts）、
++ * deck 工具（src/deck/tools/issue-patch.ts）各留一份正则。写进去的格式与读出来的正则对不上：传一段
++ * 自由文字写进正文，读回却是 null（#1089 定稿的起因）。#1090 把读、写、核对统一到这一个文件，另外三处
++ * 只调用这里的函数。放在 shared 层是因为 tracker / deck / host 三层都要用它，而这三层之间不能互相 import。
++ *
++ * 约束：纯函数——不碰 ctx、不碰 DOM、不读文件、不引任何其它模块（shared 层同层互引同样被规则禁止）。
++ *
++ * 区里的形状（写侧只产出这一种，读侧兼容老票的几种老写法）：
++ *
++ *   ## 进度
++ *
++ *   - 进度：90%（2026-10-21T20:15+08:00）：写完了读侧，正在跑门禁
++ *   - 进度：40%（时间未记录）：老票第一次被写入时搬过来的旧百分比
++ *
++ * 一条记录一行，最新在最上，第一条就是当前值；每条都必须带说明（老记录可能没有）。
++ * 标题固定写 `## 进度`、不带百分比；老票标题里带的百分比在第一次写入时搬成一条「时间未记录」的记录，
++ * 旧自由文字原样保留——不批量迁移、不改老票的位置。
++ * 本区只认顶层区块：代码块、引用块、HTML 注释里出现的同名标题不算（今天踩过的坑：正文里贴了一段
++ * 示例 `## 进度`，写入时把示例当成真的进度区替换掉了）。
++ */
++
++/** 进度区的固定标题：写侧永远只写这一行，不带百分比。
++ *
++ * 不外传：读、写两侧都在本文件里用它，外面的调用方不需要这个字面量；
++ * 共享层的字符串型常量若没有生产侧读者会被 tests/verify-contract-vocabulary.ts 判成「死了的常量」。
++ */
++const PROGRESS_HEADING = '## 进度'
++
++/**
++ * 正文长度硬顶（按字符数算）：GitHub 的票正文上限是 65536 字符，这里留一点余量。
++ * 超过就不写进度、也不自动搬走旧记录——搬旧记录是丢信息，得由人来决定。
++ */
++export const PROGRESS_BODY_LIMIT = 60 * 1024
++
++/** 老记录没有写时间时，时间那一格固定写这四个字，读回来 updatedAt 为 null。 */
++const PROGRESS_TIME_UNRECORDED = '时间未记录'
++
++/** 一条进度记录。 */
++export interface ProgressEntry {
++  /** 0..100 的整数。 */
++  percent: number
++  /** 做到哪一步的说明。老记录没有说明时是空串。 */
++  note: string
++  /** 写入时间（ISO 8601，带时区偏移）。老记录时间不知道时是 null。 */
++  updatedAt: string | null
++}
++
++/** 进度区的读回形状：entries 按「最新在前」排，第一条就是当前值。 */
++export interface ProgressDetail {
++  /** 当前百分比；没写进度、或只有自由文字时是 null（不是 0）。 */
++  percent: number | null
++  /** 当前那条记录的说明。 */
++  note: string
++  /** 当前那条记录的时间（ISO 8601）；老记录不知道时间时是 null。 */
++  updatedAt: string | null
++  /** 区里所有记录，最新在前（含从老标题百分比搬过来的那条）。 */
++  entries: ProgressEntry[]
++}
++
++// ——— 内部的按行扫描：保留每行原换行符，写回时除目标区外一个字节都不动 ———
++
++interface BodyLine {
++  /** 行内容（不含换行符）。 */
++  text: string
++  /** 这一行原来的换行符：\n、\r\n，文件末尾没有换行时是空串。 */
++  eol: string
++}
++
++interface LineMark {
++  /** 这一行是否落在代码围栏（``` / ~~~）里。 */
++  fenced: boolean
++  /** 这一行是否落在 HTML 注释里。 */
++  inComment: boolean
++  /** 顶层标题（围栏、注释里的不算）；不是标题时是 null。 */
++  heading: { level: number; title: string } | null
++}
++
++interface ProgressSection {
++  /** 标题所在行号。 */
++  heading: number
++  /** 区内第一行行号。 */
++  contentStart: number
++  /** 区结束行号（不含）：下一个顶层二级标题、顶层字段行或正文末尾。 */
++  end: number
++  /** 老票标题里带的百分比（`## 进度：90%`）；规范标题不带百分比时是 null。 */
++  headingPercent: number | null
++}
++
++interface ScannedEntry {
++  /** 这一行原文（写回时原样保留）。 */
++  raw: string
++  entry: ProgressEntry
++}
++
++interface ScannedSection {
++  entries: ScannedEntry[]
++  /** 认不出的非空行（看板上的自由文字）；写回时原样放到记录后面。 */
++  freeText: string[]
++}
++
++/** 按行切开，保留每行的换行符 —— 这样改一个区不会顺手改掉别处的 CRLF 或末尾换行。 */
++function splitBodyLines(body: string): BodyLine[] {
++  const out: BodyLine[] = []
++  let start = 0
++  for (let i = 0; i < body.length; i++) {
++    const ch = body.charAt(i)
++    if (ch !== '\n' && ch !== '\r') continue
++    let eol = '\r\n'
++    let skip = 1
++    if (ch === '\r' && body.charAt(i + 1) === '\n') { eol = '\r\n'; skip = 2 } else if (ch === '\r') { eol = '\r' } else { eol = '\n' }
++    out.push({ text: body.slice(start, i), eol })
++    start = i + skip
++    i = start - 1
++  }
++  if (start < body.length) out.push({ text: body.slice(start), eol: '' })
++  return out
++}
++
++function joinBodyLines(lines: readonly BodyLine[]): string {
++  let out = ''
++  lines.forEach((line) => { out += line.text + line.eol })
++  return out
++}
++
++/** 写回时优先沿用正文自己的换行符；空正文用 `\n`。 */
++function detectEol(lines: readonly BodyLine[]): string {
++  for (const line of lines) {
++    if (line.eol) return line.eol === '\r' ? '\r' : line.eol
++  }
++  return '\n'
++}
++
++/** 把 `90` 这类字符串收成 0..100；不是 1-3 位整数时回 null。 */
++function clampPercent(raw: string): number | null {
++  if (!/^\d{1,3}$/.test(raw)) return null
++  const n = parseInt(raw, 10)
++  if (isNaN(n)) return null
++  return Math.max(0, Math.min(100, n))
++}
++
++/** 标题行：最多三个前导空格、1-6 个 `#`，后面是标题文字（允许 `##进度` 这种不带空格的写法）。 */
++function parseHeading(text: string): { level: number; title: string } | null {
++  const m = /^ {0,3}(#{1,6})([\s\S]*)$/.exec(text)
++  if (!m) return null
++  return { level: m[1].length, title: m[2].replace(/^[ \t]+/, '').trim() }
++}
++
++/** 进度标题：`进度` / `Progress`，可带「：90%」这种老写法；`## 进度计划` 不算。 */
++function parseProgressTitle(title: string): { percent: number | null } | null {
++  const m = /^(?:进度|Progress)(?:\s*[：:]\s*(\d{1,3})\s*%?)?$/.exec(title)
++  if (!m) return null
++  if (m[1] === undefined) return { percent: null }
++  return { percent: clampPercent(m[1]) }
++}
++
++/** 顶层字段行：整份文件形态里，进度区到 Status/Type/Blocked by/Labels 为止。 */
++function isFieldLine(text: string): boolean {
++  return /^\s*(?:Status|Type|Blocked\s+by|Labels)\s*[:：]/.test(text)
++}
++
++/** 逐行标出「在不在代码块/注释里」，以及能不能当顶层标题看。 */
++function analyzeLines(lines: readonly BodyLine[]): LineMark[] {
++  const marks: LineMark[] = []
++  let fenceChar = ''
++  let fenceLen = 0
++  let inComment = false
++  for (const line of lines) {
++    const fenced = fenceLen > 0
++    const heading = (!fenced && !inComment) ? parseHeading(line.text) : null
++    marks.push({ fenced, inComment, heading })
++    if (fenced) {
++      const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line.text)
++      if (close && close[1].charAt(0) === fenceChar && close[1].length >= fenceLen) {
++        fenceChar = ''
++        fenceLen = 0
++      }
++      continue
++    }
++    if (inComment) {
++      if (line.text.indexOf('-->') >= 0) inComment = false
++      continue
++    }
++    const openComment = line.text.indexOf('<!--')
++    if (openComment >= 0) {
++      if (line.text.indexOf('-->', openComment + 4) < 0) inComment = true
++      continue
++    }
++    const openFence = /^ {0,3}(`{3,}|~{3,})/.exec(line.text)
++    if (openFence) { fenceChar = openFence[1].charAt(0); fenceLen = openFence[1].length }
++  }
++  return marks
++}
++
++/** 找出所有顶层二级「## 进度」区（老票可能有重复，写回时只留一个）。 */
++function findProgressSections(lines: readonly BodyLine[], marks: readonly LineMark[]): ProgressSection[] {
++  const out: ProgressSection[] = []
++  for (let i = 0; i < lines.length; i++) {
++    const head = marks[i].heading
++    if (!head || head.level !== 2) continue
++    const title = parseProgressTitle(head.title)
++    if (!title) continue
++    let end = lines.length
++    for (let j = i + 1; j < lines.length; j++) {
++      if (marks[j].fenced || marks[j].inComment) continue
++      const h = marks[j].heading
++      if (h && h.level === 2) { end = j; break }
++      if (isFieldLine(lines[j].text)) { end = j; break }
++    }
++    out.push({ heading: i, contentStart: i + 1, end, headingPercent: title.percent })
++    i = end - 1
++  }
++  return out
++}
++
++/** 从「90%」后面那段文字里拆出时间与说明：`（ISO 时间）：说明` / `（时间未记录）：说明`。 */
++function parseEntryTail(rawPercent: string, restText: string): ProgressEntry | null {
++  const percent = clampPercent(rawPercent)
++  if (percent === null) return null
++  let rest = String(restText || '')
++  let updatedAt: string | null = null
++  const paren = /^\s*[（(]\s*([^）)]*?)\s*[）)]\s*([\s\S]*)$/.exec(rest)
++  if (paren) {
++    const inner = paren[1]
++    if (/^\d{4}-\d{2}-\d{2}[T ]/.test(inner)) {
++      updatedAt = inner
++      rest = paren[2]
++    } else if (inner === PROGRESS_TIME_UNRECORDED) {
++      updatedAt = null
++      rest = paren[2]
++    }
++  }
++  let note = rest.trim()
++  if (note.startsWith('：') || note.startsWith(':')) note = note.slice(1).trim()
++  return { percent, note, updatedAt }
++}
++
++const ENTRY_BULLET_RE = /^\s*[-*+]\s+(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%([\s\S]*)$/
++const ENTRY_LINE_RE = /^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%([\s\S]*)$/
++const ENTRY_BARE_RE = /^\s*(\d{1,3})\s*%\s*$/
++
++/**
++ * 扫一个进度区：认记录行，其余行当自由文字留着（写回时原样带过去）。
++ *
++ * 自由文字连空行一起收：区里可能贴着一整段代码块示例（今天踩过的坑），把它搬一遍时
++ * 如果丢掉块内的空行、或者对每行做 trimEnd，示例就跟原样不一样了。写回时只裁掉
++ * 这一段两端的空行，中间一个字符都不动。
++ */
++function scanProgressSection(lines: readonly BodyLine[], marks: readonly LineMark[], section: ProgressSection): ScannedSection {
++  const entries: ScannedEntry[] = []
++  const freeText: string[] = []
++  for (let i = section.contentStart; i < section.end; i++) {
++    const text = lines[i].text
++    const mark = marks[i]
++    if (mark.fenced || mark.inComment || /^\s*>/.test(text)) {
++      freeText.push(text)
++      continue
++    }
++    const bullet = ENTRY_BULLET_RE.exec(text) || ENTRY_LINE_RE.exec(text)
++    if (bullet) {
++      const entry = parseEntryTail(bullet[1], bullet[2])
++      if (entry) { entries.push({ raw: text, entry }); continue }
++    }
++    const bare = ENTRY_BARE_RE.exec(text)
++    if (bare) {
++      const percent = clampPercent(bare[1])
++      if (percent !== null) { entries.push({ raw: text, entry: { percent, note: '', updatedAt: null } }); continue }
++    }
++    freeText.push(text)
++  }
++  return { entries, freeText }
++}
++
++// ——— 读：parseProgressDetail（结构化）与 parseProgress（只要数字的外壳） ———
++
++/**
++ * 从正文里读进度区的结构化内容。
++ *
++ * 按顺序：
++ *   1. 有顶层 `## 进度` 区 → 读区里的记录；标题带百分比的（老格式）补一条「时间未记录」的旧记录。
++ *      区里只有自由文字、没有数字 → percent 为 null（「未表达」，不是 0）。
++ *   2. 没有进度区 → 兼容老票的两种老写法：① 任意级别标题带百分比；② 行首 `进度：90%`。
++ *
++ * 不再做「全文任意位置出现进度：N%」的兜底：那一层会把正文里引用的别处进度读成自己的
++ * （#1089 明确删掉，测试里钉着「正文提到 进度：7% 而已」必须回 null）。
++ *
++ * @returns 结构化进度；正文里没写进度时 entries 为空、percent 为 null。
++ */
++export function parseProgressDetail(body: unknown): ProgressDetail {
++  const text = body == null ? '' : String(body)
++  const lines = splitBodyLines(text)
++  const marks = analyzeLines(lines)
++  const sections = findProgressSections(lines, marks)
++  if (sections.length > 0) {
++    const section = sections[0]
++    const scanned = scanProgressSection(lines, marks, section)
++    const entries: ProgressEntry[] = scanned.entries.map((item) => item.entry)
++    if (section.headingPercent !== null
++      && !entries.some((e) => e.percent === section.headingPercent && !e.note && !e.updatedAt)) {
++      entries.push({ percent: section.headingPercent, note: '', updatedAt: null })
++    }
++    if (entries.length === 0) return { percent: null, note: '', updatedAt: null, entries: [] }
++    const current = entries[0]
++    return { percent: current.percent, note: current.note, updatedAt: current.updatedAt, entries }
++  }
++  const legacy = readLegacyProgress(lines, marks)
++  if (!legacy) return { percent: null, note: '', updatedAt: null, entries: [] }
++  return { percent: legacy.percent, note: legacy.note, updatedAt: legacy.updatedAt, entries: [legacy] }
++}
++
++/** 老票兼容：先试「标题带百分比」，再试「行首进度：N%」；顺序与老口径一致。 */
++function readLegacyProgress(lines: readonly BodyLine[], marks: readonly LineMark[]): ProgressEntry | null {
++  for (let i = 0; i < lines.length; i++) {
++    const mark = marks[i]
++    if (mark.fenced || mark.inComment || !mark.heading) continue
++    const title = parseProgressTitle(mark.heading.title)
++    if (title && title.percent !== null) return { percent: title.percent, note: '', updatedAt: null }
++  }
++  for (let i = 0; i < lines.length; i++) {
++    if (marks[i].fenced || marks[i].inComment) continue
++    const m = ENTRY_LINE_RE.exec(lines[i].text)
++    if (!m) continue
++    const entry = parseEntryTail(m[1], m[2])
++    if (entry) return entry
++  }
++  return null
++}
++
++/**
++ * 从正文里读进度百分比：`parseProgressDetail(body).percent` 的数字外壳。
++ *
++ * 保留这个函数是因为面板派生与宿主行都按「数字或 null」读（客户端直接把数字画成进度条）；
++ * 口径与 #1090 之前相同：0..100 的整数，没写进度回 null（不是 0）。
++ */
++export function parseProgress(body: unknown): number | null {
++  return parseProgressDetail(body).percent
++}
++
++// ——— 写：把一条新记录放到区首，旧记录与自由文字原样保留 ———
++
++/** 把一条记录拼成固定写法：`- 进度：90%（时间）：说明`；说明为空时省略冒号那一段。 */
++export function formatProgressEntry(entry: ProgressEntry): string {
++  const raw = Number(entry.percent)
++  const percent = Math.max(0, Math.min(100, isNaN(raw) ? 0 : Math.round(raw)))
++  const time = entry.updatedAt ? String(entry.updatedAt) : PROGRESS_TIME_UNRECORDED
++  const note = entry.note == null ? '' : String(entry.note).trim()
++  return note ? `- 进度：${percent}%（${time}）：${note}` : `- 进度：${percent}%（${time}）`
++}
++
++/** 没有进度区时，新块插到哪一行之前：第一个顶层字段行 → ## Comments / ## Answer → 文末。 */
++function findProgressInsertIndex(lines: readonly BodyLine[], marks: readonly LineMark[]): number {
++  for (let i = 0; i < lines.length; i++) {
++    if (!marks[i].fenced && !marks[i].inComment && isFieldLine(lines[i].text)) return i
++  }
++  for (let i = 0; i < lines.length; i++) {
++    const head = marks[i].heading
++    if (head && head.level === 2 && /^(?:comments|answer|评论|回复)$/i.test(head.title)) return i
++  }
++  return lines.length
++}
++
++/**
++ * 把一条进度记录写进正文，返回新正文（纯函数，不读文件、不碰 ctx）。
++ *
++ * 规则（#1089 定稿）：
++ *   · 只动进度区，其余正文按行原样拷过去（换行符也保持原样）；
++ *   · 新记录放区首，旧记录原样保留，旧标题里的百分比搬成一条「时间未记录」的记录；
++ *   · 区里的自由文字原样保留在记录后面；
++ *   · 重复的进度区清掉，只留一个；
++ *   · 没有进度区时插在字段行/## Comments/## Answer 之前，否则放文末；
++ *   · 代码块、引用块、HTML 注释里的同名标题不当成进度区（示例不会被改掉）。
++ */
++export function replaceProgressSection(body: unknown, entry: ProgressEntry): string {
++  const source = body == null ? '' : String(body)
++  const lines = splitBodyLines(source)
++  if (lines.length === 0) {
++    return `${PROGRESS_HEADING}\n\n${formatProgressEntry(entry)}\n`
++  }
++  const marks = analyzeLines(lines)
++  const sections = findProgressSections(lines, marks)
++  const eol = detectEol(lines)
++  const tailEol = lines[lines.length - 1].eol
++  const newEntry = formatProgressEntry(entry)
++  if (sections.length > 0) {
++    const first = sections[0]
++    // 老票可能留着重复的进度区（以前写坏留下的）：按出现顺序把每一段的记录与自由文字都收进来，
++    // 合成一个区。只删重复的标题，不删里面的历史记录——清脏数据不能顺手丢进度。
++    const collectedEntries: ScannedEntry[] = []
++    const freeLines: string[] = []
++    sections.forEach((section) => {
++      const scanned = scanProgressSection(lines, marks, section)
++      scanned.entries.forEach((item) => collectedEntries.push(item))
++      if (section.headingPercent !== null
++        && !collectedEntries.some((item) => item.entry.percent === section.headingPercent && !item.entry.note && !item.entry.updatedAt)) {
++        collectedEntries.push({ raw: formatProgressEntry({ percent: section.headingPercent, note: '', updatedAt: null }), entry: { percent: section.headingPercent, note: '', updatedAt: null } })
++      }
++      scanned.freeText.forEach((line) => freeLines.push(line))
++    })
++    const block: BodyLine[] = [
++      { text: PROGRESS_HEADING, eol },
++      { text: '', eol },
++      { text: newEntry, eol },
++    ]
++    collectedEntries.forEach((item) => block.push({ text: item.raw.trimEnd(), eol }))
++    while (freeLines.length && freeLines[0].trim() === '') freeLines.shift()
++    while (freeLines.length && freeLines[freeLines.length - 1].trim() === '') freeLines.pop()
++    if (freeLines.length) {
++      block.push({ text: '', eol })
++      freeLines.forEach((line) => block.push({ text: line, eol }))
++    }
++    if (first.end < lines.length) block.push({ text: '', eol })
++    const byHeading: Record<number, ProgressSection> = {}
++    sections.forEach((section) => { byHeading[section.heading] = section })
++    const out: BodyLine[] = []
++    for (let i = 0; i < lines.length; i++) {
++      const section = byHeading[i]
++      if (section) {
++        if (i === first.heading) block.forEach((line) => out.push(line))
++        i = section.end - 1
++        continue
++      }
++      out.push(lines[i])
++    }
++    out[out.length - 1].eol = tailEol
++    return joinBodyLines(out)
++  }
++  const target = findProgressInsertIndex(lines, marks)
++  const before = lines.slice(0, target)
++  const after = lines.slice(target)
++  const block: BodyLine[] = []
++  if (before.length && before[before.length - 1].text.trim() !== '') block.push({ text: '', eol })
++  block.push({ text: PROGRESS_HEADING, eol })
++  block.push({ text: '', eol })
++  block.push({ text: newEntry, eol })
++  if (after.length) block.push({ text: '', eol })
++  const out = before.concat(block, after)
++  out[out.length - 1].eol = tailEol
++  return joinBodyLines(out)
++}
++
++/**
++ * 去掉正文里所有顶层进度区，返回剩下的正文。
++ *
++ * 用途只有一个：工具写完进度后核对「除进度区外一个字没动」——先把写前、写后的正文
++ * 各自剥掉进度区再逐字比较。这样比较不会被新记录本身干扰，也不用猜后端会怎么处理空白。
++ */
++export function stripProgressSections(body: unknown): string {
++  const source = body == null ? '' : String(body)
++  const lines = splitBodyLines(source)
++  const marks = analyzeLines(lines)
++  const sections = findProgressSections(lines, marks)
++  if (sections.length === 0) return source
++  const drop: Record<number, true> = {}
++  sections.forEach((section) => {
++    for (let i = section.heading; i < section.end; i++) drop[i] = true
++  })
++  return joinBodyLines(lines.filter((line, index) => !drop[index]))
++}
++
++// ——— 写工具用的两个纯函数：写进正文并判长度硬顶、写后核对（#1090） ———
++//
++// 这两件都只对「一段正文 + 一条记录」做判断，不碰后端；放在这里是因为它们要用本文件的解析与写入，
++// 而 shared 层内部不许互相 import，放到别的 shared 文件里反而要为拿这两个函数再加一条同层边。
++
++/**
++ * 把一条记录写进正文，并在写前、写后各判一次长度硬顶（#1089 定稿：超过 60KB 拒绝写入，不自动搬旧记录）。
++ *
++ * @returns next 是新正文；超限时 next 为 null、problem 说明为什么没写（调用方据此拒绝，正文一个字不动）。
++ */
++export function applyProgressEntry(body: string, entry: ProgressEntry, limit: number = PROGRESS_BODY_LIMIT): { next: string | null; problem: string } {
++  if (body.length > limit) {
++    return { next: null, problem: '正文已经 ' + body.length + ' 个字符，超过进度写入的硬顶 ' + limit + ' 个字符（GitHub 正文上限 65536，留了余量）：这次进度没写、正文一个字没动。要写请先把旧记录或正文缩短——工具不会自动搬走旧记录。' }
++  }
++  const next = replaceProgressSection(body, entry)
++  if (next.length > limit) {
++    return { next: null, problem: '写进这条进度后正文会到 ' + next.length + ' 个字符，超过硬顶 ' + limit + '：这次进度没写、正文一个字没动。要写请先缩短正文——工具不会自动搬走旧记录。' }
++  }
++  return { next: next, problem: '' }
++}
++
++/**
++ * 写后核对：读回来的第一条记录与这次写入逐项相同（percent / note / updatedAt），
++ * 且进度区以外的正文与写前逐字相同（两端空白不计：本地 Markdown 后端会重排正文两端）。
++ *
++ * @returns 全部对上回空串；任何一条不成立回一句说清差在哪、并提醒「别当成已经写好」的话。
++ */
++export function progressReadbackProblem(want: ProgressEntry, body: string, before: string | null): string {
++  const got = parseProgressDetail(body)
++  const first = got.entries.length > 0 ? got.entries[0] : null
++  const sameProgress = !!first && first.percent === want.percent && first.note === want.note && first.updatedAt === want.updatedAt
++  if (!sameProgress) return '写了进度，但读回来对不上：想写 ' + JSON.stringify(want) + '，读回第一条是 ' + JSON.stringify(first) + '：别当成已经写好。'
++  if (before !== null && stripProgressSections(before).trim() !== stripProgressSections(body).trim()) {
++    return '进度写进去了，但进度区以外的正文跟写前对不上：这次可能顺手动到了别的区块，别当成已经写好，先读一次复核。'
++  }
++  return ''
++}
+diff --git a/src/tracker/body-parse.ts b/src/tracker/body-parse.ts
+index 6c94f57a..82bc059c 100644
+--- a/src/tracker/body-parse.ts
++++ b/src/tracker/body-parse.ts
+@@ -7,6 +7,10 @@
+  *
+  * 约束：本文件必须保持纯函数（不碰 ctx / 不碰 DOM / 无共享状态 / 不自己读文件），否则失去叶子价值。
+  *
++ * #1090：进度区的读与写（parseProgressDetail / parseProgress / replaceProgressSection 等）搬到了
++ * src/shared/issue-file/src/progress.ts —— tracker / deck / host 三层共用那一份，本文件只把名字原样转出去，
++ * 调用方的 import 路径不变。
++ *
+  * 类型（#1148）：入参一律收成未知值。调用方交进来的是后端回包、老快照与手写数据，
+  * 字段可能缺席、可能是别的类型，所以这里不假设形状，读一格收口一格（运行时判断一个字没改，
+  * 只是把 jsdoc 里的形状搬成了类型标注）；返回值是本文件说了算的确定形状，调用方按导出的接口读。
+@@ -238,27 +242,20 @@ export function parseSpecBody(body: unknown): ParsedSpecSections {
+   return out
+ }
+ 
+-// ——— parseProgress：进度块三级锚定（## 进度：N% / 行首变体 / 全文兜底），clamp 0-100 ———
+-
+-/**
+- * 从正文里读进度百分比。
+- *
+- * 三级锚定按顺序试，先命中先用：① 标题行 `## 进度：90%`；② 行首变体 `进度：90%`（不带标题符号）；
+- * ③ 全文兜底（兼容老票随手格式，放最后是为了不劫持前两层）。
+- *
+- * @returns 0..100 的整数；正文里没有进度、或数字不是合法整数时回 null（不是 0）。
+- */
+-export function parseProgress(body: unknown): number | null {
+-  if (!body) return null
+-  const s = String(body)
+-  const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+-    || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+-    || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
+-  if (!m) return null
+-  const n = parseInt(m[1], 10)
+-  if (isNaN(n)) return null
+-  return Math.max(0, Math.min(100, n))
+-}
++// ——— 进度区的读与写：唯一真源搬到 `src/shared/issue-file/src/progress.ts`（#1090） ———
++//
++// 为什么搬走：进度原先是三份复制（本文件、面板派生 deck-derive、宿主内联 mapBody）各写一套正则，
++// 写侧与读侧对不上。#1090 把它们统一到 shared 层的那一个文件；本文件只把名字原样转出去，
++// 调用方（宿主、面板、deck 工具、门禁）的 import 路径不用改。
++export {
++  PROGRESS_BODY_LIMIT,
++  parseProgressDetail,
++  parseProgress,
++  formatProgressEntry,
++  replaceProgressSection,
++  stripProgressSections,
++} from '../shared/issue-file/src/progress.js'
++export type { ProgressEntry, ProgressDetail } from '../shared/issue-file/src/progress.js'
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // 二、票的分组与分层（宿主侧同步调用，输入是「票号 + 状态 + 认领 + 阻塞」这几格）
+diff --git a/src/tracker/deck-derive.ts b/src/tracker/deck-derive.ts
+index 958301e3..5fc2b377 100644
+--- a/src/tracker/deck-derive.ts
++++ b/src/tracker/deck-derive.ts
+@@ -20,6 +20,13 @@
+ 
+ import { STATE } from './contract/vocabulary.js'
+ import { effortOf, idOfParts } from './kernel/identity-keys.js'
++// #1090：进度解析统一到 shared 层的那一份口径（读与写共用同一份写法）。
++// 这里以前是第二份内联副本，与宿主内联、配对的两份一起漂移过，所以不再各留一份。
++// 不直接引 body-parse：同一层内互引会被依赖规则判红（.dependency-cruiser.ts 同层禁止），
++// 而进度解析本来就是跨层共用的纯函数，真源因此住在 src/shared/issue-file/src/progress.ts。
++import { parseProgress } from '../shared/issue-file/src/progress.js'
++
++export { parseProgress }
+ 
+ const OPEN = STATE.OPEN
+ const CLOSED = STATE.CLOSED
+@@ -147,24 +154,8 @@ function labelsOf(ticket: DeckTicket): readonly DeckLabelRaw[] {
+ /** 自己人手里的存在性判断；`Object.prototype` 上取，避免被票对象自带的 `hasOwnProperty` 覆盖。 */
+ const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k)
+ 
+-/**
+- * 从正文解析进度（与 host/index.js 既有口径一致的三级锚定）：
+- *   1) 标题行 `## 进度：90%`（行首 markdown 标题 · 进度区正形）
+- *   2) 行首变体 `进度：90%` / `Progress: 90%`（无标题符号）
+- *   3) 全文兜底（兼容老票随手格式 · 放最后不劫持前两层）
+- * 无进度 → null；非法/超界 → clamp 0..100。
+- */
+-export function parseProgress(body: unknown): number | null {
+-  if (body == null) return null
+-  const s = String(body)
+-  const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+-    || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+-    || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
+-  if (!m) return null
+-  const n = parseInt(m[1], 10)
+-  if (isNaN(n)) return null
+-  return Math.max(0, Math.min(100, n))
+-}
++// parseProgress 的实现在 src/shared/issue-file/src/progress.ts（#1090 起读写共用一处）。
++// 这里只再导出同一个函数，保持 src/tracker/index.ts 与 deck 工具既有的导入路径不变。
+ 
+ /** claimed 三态：true=有认领；false=已知且空（EMPTY []）；null=indeterminate（assignees MISSING）。 */
+ function claimedOf(ticket: DeckTicket): boolean | null {
+diff --git a/tests/gate-map.json b/tests/gate-map.json
+index 67baaa1e..58eb03b8 100644
+--- a/tests/gate-map.json
++++ b/tests/gate-map.json
+@@ -1,16 +1,16 @@
+ {
+   "version": 1,
+-  "generatedAt": "2026-10-21T10:15:29.377Z",
++  "generatedAt": "2026-10-21T13:12:08.751Z",
+   "generatedBy": "node scripts/gate-map.mts",
+-  "chainLength": 308,
+-  "gateCount": 308,
+-  "attributedGates": 270,
++  "chainLength": 309,
++  "gateCount": 309,
++  "attributedGates": 271,
+   "unattributedGates": 38,
+   "buildOutputOnlyGates": 21,
+   "completionRecordedGates": 6,
+   "smokeLength": 5,
+   "smokeCompletionRecordedGates": 2,
+-  "graphFileCount": 511,
++  "graphFileCount": 513,
+   "gates": [
+     {
+       "step": "node tests/verify-1207-splice-ts.ts",
+@@ -1109,6 +1109,40 @@
+       "expectedAssertions": 0,
+       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+     },
++    {
++      "step": "node tests/verify-1090-progress-roundtrip.ts",
++      "file": "tests/verify-1090-progress-roundtrip.ts",
++      "guards": [
++        "src/deck/tools/issue-create.ts",
++        "src/deck/tools/issue-get.ts",
++        "src/deck/tools/issue-patch.ts",
++        "src/deck/tools/map-plan-create.ts",
++        "src/deck/tools/map-snapshot.ts",
++        "src/host/refresh/gate.ts",
++        "src/host/refresh/ledger.ts",
++        "src/shared/refresh/src/budget.ts",
++        "src/shared/refresh/src/tool-cost.ts",
++        "src/tracker/body-parse.ts",
++        "src/tracker/deck-derive.ts",
++        "src/tracker/registry/core.ts",
++        "src/tracker/rooms/markdown/index.ts",
++        "tests/lib/deck-decide-stub.ts"
++      ],
++      "dirs": [
++        "src/deck/tools",
++        "src/host/refresh",
++        "src/shared/refresh/src",
++        "src/tracker",
++        "src/tracker/registry",
++        "src/tracker/rooms/markdown",
++        "tests/lib"
++      ],
++      "unattributed": false,
++      "buildOutputOnly": false,
++      "completionRecord": false,
++      "expectedAssertions": 0,
++      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
++    },
+     {
+       "step": "node tests/verify-1106-deck-surface.ts",
+       "file": "tests/verify-1106-deck-surface.ts",
+@@ -3494,11 +3528,11 @@
+       "file": "tests/verify-908-progress-replace.ts",
+       "guards": [
+         "src/deck/shell/minimal-spec.ts",
+-        "src/deck/tools/issue-patch.ts"
++        "src/tracker/body-parse.ts"
+       ],
+       "dirs": [
+         "src/deck/shell",
+-        "src/deck/tools"
++        "src/tracker"
+       ],
+       "unattributed": false,
+       "buildOutputOnly": false,
+@@ -5160,6 +5194,7 @@
+         "docs/agents",
+         "docs/agents/issue-tracker.md",
+         "scripts/fix-issue-body.mts",
++        "scripts/ts-hook.mts",
+         "src/tracker/body-parse.ts"
+       ],
+       "dirs": [
+@@ -5171,7 +5206,7 @@
+       "buildOutputOnly": false,
+       "completionRecord": false,
+       "expectedAssertions": 0,
+-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 1 条"
++      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 2 条"
+     },
+     {
+       "step": "node tests/verify-issue-comment.ts",
+@@ -6009,7 +6044,7 @@
+       "buildOutputOnly": false,
+       "completionRecord": false,
+       "expectedAssertions": 0,
+-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
++      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 11 条"
+     },
+     {
+       "step": "node tests/verify-platform-contract.ts",
+@@ -6064,18 +6099,19 @@
+       "file": "tests/verify-progress.ts",
+       "guards": [
+         "src/host/mapBody.ts",
+-        "tests/lib/eval-probe.ts",
++        "src/tracker/body-parse.ts",
+         "tests/lib/source-text.ts"
+       ],
+       "dirs": [
+         "src/host",
++        "src/tracker",
+         "tests/lib"
+       ],
+       "unattributed": false,
+       "buildOutputOnly": false,
+       "completionRecord": false,
+       "expectedAssertions": 0,
+-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
++      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
+     },
+     {
+       "step": "node tests/verify-prompt-config.ts",
+@@ -7852,6 +7888,7 @@
+       "node tests/verify-deck-tools-matrix.ts",
+       "node tests/verify-deck-tools.ts",
+       "node tests/verify-dependency-rules.ts",
++      "node tests/verify-1090-progress-roundtrip.ts",
+       "node tests/verify-1106-deck-surface.ts",
+       "node tests/verify-1150-plan-store-durable.ts",
+       "node tests/verify-1195-budget-start.ts",
+@@ -7864,7 +7901,6 @@
+       "node tests/verify-829-parent-reread.ts",
+       "node tests/verify-895-bulk-deadline.ts",
+       "node tests/verify-898-block-merge.ts",
+-      "node tests/verify-908-progress-replace.ts",
+       "node tests/verify-929-batch-cycle.ts",
+       "node tests/verify-971-markdown-parent.ts",
+       "node tests/verify-992-readonly-labels.ts",
+@@ -8007,6 +8043,7 @@
+       "node tests/verify-1003-single-outlet.ts",
+       "node tests/verify-1003-unified-decision.ts",
+       "node tests/verify-1082-work-route-table.ts",
++      "node tests/verify-1090-progress-roundtrip.ts",
+       "node tests/verify-1109-matches-timeout.ts",
+       "node tests/verify-1115-timer-handle.ts",
+       "node tests/verify-1150-plan-store-durable.ts",
+@@ -8094,6 +8131,7 @@
+       "node tests/verify-1003-single-outlet.ts",
+       "node tests/verify-1003-unified-decision.ts",
+       "node tests/verify-1083-work-path-persist.ts",
++      "node tests/verify-1090-progress-roundtrip.ts",
+       "node tests/verify-1106-deck-surface.ts",
+       "node tests/verify-1150-plan-store-durable.ts",
+       "node tests/verify-1195-budget-start.ts",
+@@ -8217,15 +8255,18 @@
+       "node tests/verify-build-artifacts.ts",
+       "node tests/verify-deck-slots.ts",
+       "node tests/verify-dependency-rules.ts",
++      "node tests/verify-1090-progress-roundtrip.ts",
+       "node tests/verify-1184-body-parse-gap.ts",
+       "node tests/verify-1286-snapshot.ts",
+       "node tests/verify-663-gh-install-inject.ts",
++      "node tests/verify-908-progress-replace.ts",
+       "node tests/verify-error-single-source.ts",
+       "node tests/verify-issue-body-script.ts",
+       "node tests/verify-labels-sync.ts",
+       "node tests/verify-log-count.ts",
+       "node tests/verify-log-fields.ts",
+       "node tests/verify-parse-leaf.ts",
++      "node tests/verify-progress.ts",
+       "node tests/verify-setup-describe.ts",
+       "node tests/verify-ui-description-single-source.ts"
+     ],
+@@ -8288,6 +8329,7 @@
+       "node tests/verify-deck-tools.ts",
+       "node tests/verify-dependency-rules.ts",
+       "node tests/verify-1003-unified-decision.ts",
++      "node tests/verify-1090-progress-roundtrip.ts",
+       "node tests/verify-1144-markdown-issue-address.ts",
+       "node tests/verify-1150-plan-store-durable.ts",
+       "node tests/verify-656-subworkspace-acceptance.ts",
+@@ -8378,6 +8420,7 @@
+       "node tests/verify-1058-markdown-read-log.ts",
+       "node tests/verify-1059-issue-write.ts",
+       "node tests/verify-1060-edge-log.ts",
++      "node tests/verify-1090-progress-roundtrip.ts",
+       "node tests/verify-1129-markdown-claim.ts",
+       "node tests/verify-1144-markdown-issue-address.ts",
+       "node tests/verify-1150-plan-store-durable.ts",
+@@ -8467,6 +8510,7 @@
+       "node tests/verify-deck-tools.ts",
+       "node tests/verify-gate-map.ts",
+       "node tests/verify-no-title.ts",
++      "node tests/verify-1090-progress-roundtrip.ts",
+       "node tests/verify-1109-matches-timeout.ts",
+       "node tests/verify-1115-timer-handle.ts",
+       "node tests/verify-1146-virtual-clock-liveness.ts",
+@@ -8611,9 +8655,9 @@
+   },
+   "coverage": {
+     "sourceRoot": "src",
+-    "fileCount": 525,
++    "fileCount": 527,
+     "dirCount": 56,
+-    "coveredFileCount": 525,
++    "coveredFileCount": 527,
+     "ungatedFileCount": 0,
+     "ungatedDirCount": 0,
+     "dedicatedDirCount": 49,
+@@ -8945,6 +8989,8 @@
+       "src/shared/host-timer/tsconfig.json",
+       "src/shared/issue-file/README.md",
+       "src/shared/issue-file/src/marker.ts",
++      "src/shared/issue-file/src/progress-tool.ts",
++      "src/shared/issue-file/src/progress.ts",
+       "src/shared/issue-file/tsconfig.json",
+       "src/shared/label-color/README.md",
+       "src/shared/label-color/src/colors.ts",
+@@ -9268,7 +9314,7 @@
+       },
+       {
+         "path": "src/shared/issue-file",
+-        "fileCount": 3
++        "fileCount": 5
+       },
+       {
+         "path": "src/shared/label-color",
+diff --git a/tests/tracker-contract/fixtures/golden-receipts/04-deck_issue_get.golden.json b/tests/tracker-contract/fixtures/golden-receipts/04-deck_issue_get.golden.json
+index 2640bc93..dc8b54e5 100644
+--- a/tests/tracker-contract/fixtures/golden-receipts/04-deck_issue_get.golden.json
++++ b/tests/tracker-contract/fixtures/golden-receipts/04-deck_issue_get.golden.json
+@@ -42,6 +42,12 @@
+       "labels": [
+         "wayfinder:task"
+       ],
++      "progress": {
++        "entries": [],
++        "note": "",
++        "percent": null,
++        "updatedAt": null
++      },
+       "state": "open",
+       "title": "金标准演示票",
+       "type": "issue",
+diff --git a/tests/tracker-contract/fixtures/golden-receipts/05-deck_map_snapshot.golden.json b/tests/tracker-contract/fixtures/golden-receipts/05-deck_map_snapshot.golden.json
+index 0b25e481..e004a8b5 100644
+--- a/tests/tracker-contract/fixtures/golden-receipts/05-deck_map_snapshot.golden.json
++++ b/tests/tracker-contract/fixtures/golden-receipts/05-deck_map_snapshot.golden.json
+@@ -40,6 +40,12 @@
+           "wayfinder:task"
+         ],
+         "progress": null,
++        "progressDetail": {
++          "entries": [],
++          "note": "",
++          "percent": null,
++          "updatedAt": null
++        },
+         "state": "open",
+         "title": "金标准演示票",
+         "updatedAt": "<TIME>"
+diff --git a/tests/tracker-contract/sections/deck.ts b/tests/tracker-contract/sections/deck.ts
+index 42ec05e8..c74011bc 100644
+--- a/tests/tracker-contract/sections/deck.ts
++++ b/tests/tracker-contract/sections/deck.ts
+@@ -87,10 +87,12 @@ export async function run(): Promise<AssertRecord[]> {
+     out.push({ name: P + name, ok, detail: detail || '' })
+   }
+ 
+-  // ── parseProgress（三锚定 + clamp + null）──
++  // ── parseProgress（进度区 + 两级老票兼容 + clamp + null；#1090 起删掉全文兜底）──
+   await assert('parseProgress 标题行', parseProgress('## 进度：42%') === 42, String(parseProgress('## 进度：42%')))
+   await assert('parseProgress 行首变体（Progress:）', parseProgress('Progress: 80%') === 80)
+-  await assert('parseProgress 全文兜底', parseProgress('正文提到 进度：7% 而已') === 7)
++  await assert('parseProgress 不再全文兜底（引用里出现不算）', parseProgress('正文提到 进度：7% 而已') === null)
++  await assert('parseProgress 规范条目', parseProgress('## 进度\n\n- 进度：63%（2026-10-21T20:00:00+08:00）：写完了') === 63)
++  await assert('parseProgress 代码块里的示例不算', parseProgress('\u0060\u0060\u0060\n## 进度：90%\n\u0060\u0060\u0060') === null)
+   await assert('parseProgress 超界 clamp 100', parseProgress('## 进度：130%') === 100)
+   await assert('parseProgress 无进度 → null', parseProgress('') === null && parseProgress(null) === null && parseProgress('no progress here') === null)
+ 
+diff --git a/tests/verify-1090-progress-roundtrip.ts b/tests/verify-1090-progress-roundtrip.ts
+new file mode 100644
+index 00000000..53b782d0
+--- /dev/null
++++ b/tests/verify-1090-progress-roundtrip.ts
+@@ -0,0 +1,220 @@
++// verify-1090-progress-roundtrip.ts —— #1090 防回归：进度写进去要读得回来（写、读、面板派生三处同一口径）
++// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1090-progress-roundtrip.ts，可独立运行。
++//
++// 为什么要有这一段（#1090 的验收）：改之前把 90% 写进正文、读回来却是 null，三处入口各说各话。
++// 这一段用真 Markdown 后端加真工具，走完「建票 → 写进度 → 三处读回」，逐条断言：
++//   ① deck_issue_patch 写一条进度，deck_issue_get 的 data.ticket.progress 与写入逐项相同（percent/note/updatedAt、entries 首条）；
++//   ② deck_map_snapshot 的 full 行 progressDetail 与数字 progress 同源，薄行仍不带进度；
++//   ③ deck 投影 deriveDeck 的 progressOf 从同一份正文读出同一个数字（面板那块用它）；
++//   ④ 正文里的代码块示例标题不被当成真的进度区；
++//   ⑤ 老格式「## 进度：90%」第一次被写入时，旧百分比搬成「时间未记录」一条，旧自由文字原样保留；
++//   ⑥ 重复的进度区合成一个、记录一条不丢；
++//   ⑦ 正文超过 60KB 时拒绝写入、正文一个字不动；
++//   ⑧ 写进度只动进度区，正文其他部分逐字不变；旧的自由文字进度参数不再收。
++const path = require('path')
++const fs = require('fs')
++const os = require('os')
++const { pathToFileURL } = require('url')
++// 判定出口桩（#1003 单出口）：壳拿不到它时会回「判定出口这次没装上」，夹具照生产接上。
++const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
++
++const ROOT: string = path.resolve(__dirname, '..')
++// 反引号用字符码拼出来，免得这段源码里出现三连反引号把代码块围栏写死。
++const FENCE = String.fromCharCode(96).repeat(3)
++const ISO_MS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/
++let failed = false
++let total = 0
++const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
++const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
++
++function makePlat() {
++  return {
++    path: path.posix,
++    fs: {
++      async resolve(p) { return String(p).replace(/\\/g, '/') },
++      async readText(t) { return fs.readFileSync(t, 'utf8') },
++      async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
++      async lstat(t) { try { return fs.statSync(t) } catch (e) { return null } },
++      async listDir(t) { try { return fs.readdirSync(t) } catch (e) { return [] } },
++      async stat(t) { try { return fs.statSync(t) } catch (e) { return null } },
++    },
++  }
++}
++
++async function main() {
++  console.log('#1090 防回归：进度写进去要读得回来（写、读、面板派生三处同一口径）')
++  const budget = await imp('src/shared/refresh/budget.js')
++  const ledgerMod = await imp('src/host/refresh/ledger.ts')
++  const gateMod = await imp('src/host/refresh/gate.ts')
++  const registryMod = await imp('src/tracker/registry/core.ts')
++  const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
++  const toolCost = await imp('src/shared/refresh/tool-cost.js')
++  const { stripProgressSections } = await imp('src/tracker/body-parse.ts')
++  const { deriveDeck } = await imp('src/tracker/deck-derive.ts')
++
++  // —— 真临时目录里的一份 Markdown 工作区（与 verify-971 同一套夹具口径）——
++  const rootA = fs.mkdtempSync(path.join(os.tmpdir(), '1090-progress-'))
++  const rootAPosix = rootA.replace(/\\/g, '/')
++  fs.mkdirSync(path.join(rootA, '.scratch', 'demo', 'issues'), { recursive: true })
++  const plat = makePlat()
++  const ctxA = { platform: plat, fs: plat.fs, cwd: rootAPosix, get(n) { return n === 'fs' ? plat.fs : undefined } }
++  let clock = 1700000000000
++  const ledger = ledgerMod.createLedger({ now: () => clock })
++  const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
++  const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ctxA), { matchesTimeout: 200 })
++  const dispose = registry.register(markdownModule)
++  const handleA = { cwd: rootAPosix, refId: '.scratch/demo' }
++  chooseWorkspace(rootAPosix, 'markdown')
++  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
++
++  const deps = {
++    gate: gate, registry: registry, budget: budget,
++    estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
++    backendCtx: ctxA, handleFor: () => handleA,
++    log: { fire: () => {} }, now: () => clock,
++    invalidate: () => {},
++    decideBackend: makeDecideStub(registry),
++    planStore: (() => { const t = new Map(); return { durable: true, load(id) { return t.get(id) || null }, save(id, s) { t.set(id, s) } } })(),
++  }
++  const planTool = (await imp('src/deck/tools/map-plan-create.ts')).createDeckMapPlanCreate(deps)
++  const patchTool = (await imp('src/deck/tools/issue-patch.ts')).createDeckIssuePatch(deps)
++  const getTool = (await imp('src/deck/tools/issue-get.ts')).createDeckIssueGet(deps)
++  const snapTool = (await imp('src/deck/tools/map-snapshot.ts')).createDeckMapSnapshot(deps)
++  const createTool = (await imp('src/deck/tools/issue-create.ts')).createDeckIssueCreate(deps)
++  const execA = { agent: { session: { id: 's-1090', cwd: rootAPosix } } }
++
++  // ═══ ① 建地图 + 一张子票，写一条进度再读回 ═══
++  const plan = await planTool.run(execA, {
++    planId: '1090-roundtrip-01', title: '进度回合地图',
++    children: [{ key: 'c1', title: '回合子票一' }],
++    edges: [{ from: 'c1', to: '@map', type: 'parent' }],
++  })
++  check(plan && plan.status === 'ok', '建地图加子票整体成功（实得 ' + (plan && plan.status) + '）')
++  const mapKey = String((plan.data && plan.data.mapKey) || '')
++  const builtKeys = (plan.data && plan.data.builtKeys) || []
++  const childKey = String(builtKeys.find((k) => String(k) !== mapKey) || '')
++  check(!!mapKey && !!childKey, '地图与子票票号都拿到了（地图 ' + mapKey + '，子票 ' + childKey + '）')
++
++  const before = await getTool.run(execA, { key: childKey })
++  const beforeBody = String((before.data && before.data.ticket && before.data.ticket.body) || '')
++  const w1 = await patchTool.run(execA, { key: childKey, progress: { percent: 90, note: '写完了' } })
++  check(w1 && w1.status === 'ok', '写一条进度回 ok（实得 ' + (w1 && w1.status) + '，说明 ' + String((w1 && w1.text) || '').slice(0, 120) + '）')
++  const w1item = ((w1 && w1.items) || []).find((i) => i.step === 'text') || {}
++  check(w1item.status === 'ok', '写后核对那一步自己回 ok（实得 ' + w1item.status + '，原因 ' + String(w1item.reason || '') + '）')
++
++  const g1 = await getTool.run(execA, { key: childKey })
++  const p1 = (g1.data && g1.data.ticket && g1.data.ticket.progress) || null
++  check(!!p1 && p1.percent === 90 && p1.note === '写完了', 'deck_issue_get 读回 percent 与说明都相同（实得 ' + JSON.stringify(p1) + '）')
++  check(!!p1 && ISO_MS.test(String(p1.updatedAt)), '时间由工具盖成 ISO 8601 带时区（实得 ' + String(p1 && p1.updatedAt) + '）')
++  check(!!p1 && Array.isArray(p1.entries) && p1.entries.length === 1 && p1.entries[0].percent === 90
++    && p1.entries[0].note === '写完了' && p1.entries[0].updatedAt === p1.updatedAt, '第一条记录就是刚写的这条（实得 ' + JSON.stringify(p1 && p1.entries) + '）')
++  const g1body = String((g1.data && g1.data.ticket && g1.data.ticket.body) || '')
++  check(g1body.indexOf('- 进度：90%') >= 0, '正文里写出了规范条目（实得含 = ' + (g1body.indexOf('- 进度：90%') >= 0) + '）')
++
++  // ⑧ 只动进度区：去掉进度区以后，正文其余部分与写前逐字相同。
++  check(stripProgressSections(beforeBody).trim() === stripProgressSections(g1body).trim(), '写进度只动进度区，正文其他部分逐字未动')
++
++  // 读工具的 section 参数能直接取进度区。
++  const gsection = await getTool.run(execA, { key: childKey, section: '进度' })
++  const section = (gsection.data && gsection.data.section) || null
++  check(!!section && String(section.name).indexOf('进度') >= 0 && String(section.text).indexOf('- 进度：90%') >= 0,
++    'section=进度 能直接取到进度区（实得 ' + JSON.stringify(section) + '）')
++
++  // ═══ ② 地图快照 full 行与数字进度同源，薄行不带进度 ═══
++  const snap = await snapTool.run(execA, { key: mapKey })
++  const rows = (snap.data && snap.data.children) || []
++  const row = rows.find((r) => String(r.key) === childKey)
++  check(!!row && row.progress === 90, '快照 full 行数字进度 90（实得 ' + String(row && row.progress) + '）')
++  check(!!row && !!row.progressDetail && row.progressDetail.percent === 90 && row.progressDetail.note === '写完了'
++    && row.progressDetail.updatedAt === p1.updatedAt, '快照 full 行结构化进度与 get 读回逐项相同（实得 ' + JSON.stringify(row && row.progressDetail) + '）')
++  const thin = await snapTool.run(execA, { key: mapKey, detail: 'thin' })
++  const thinRow = ((thin.data && thin.data.children) || []).find((r) => String(r.key) === childKey)
++  check(!!thinRow && thinRow.progress === undefined && thinRow.progressDetail === undefined, '薄行仍不带进度字段（守住回包大小）')
++
++  // ═══ ③ 面板派生（deriveDeck 的 progressOf）从同一份正文读出同一个数字 ═══
++  const ticketSeed = {
++    key: childKey, type: 'issue', title: '回合子票一', state: 'open', body: g1body, url: '',
++    createdAt: '', updatedAt: '', closedAt: null, parentKey: mapKey,
++    labels: [], assignees: [], comments: [], blockedBy: [], reason: '',
++  }
++  const mapSeed = {
++    key: mapKey, type: 'map', title: '进度回合地图', state: 'open', body: '', url: '',
++    createdAt: '', updatedAt: '', closedAt: null, parentKey: null,
++    labels: [], assignees: [], comments: [], blockedBy: [], reason: '', tickets: [ticketSeed],
++  }
++  const deck = deriveDeck({ maps: [mapSeed], issues: [] })
++  const progressValues = Object.keys(deck.progressOf).map((k) => deck.progressOf[k])
++  check(progressValues.indexOf(90) >= 0, '面板派生的 progressOf 也是 90（实得 ' + JSON.stringify(progressValues) + '）')
++
++  // ═══ ⑨ 旧的自由文字 progress 参数不再收，正文不动 ═══
++  const oldStyle = await patchTool.run(execA, { key: childKey, progress: '95%' })
++  check(oldStyle && oldStyle.status !== 'ok', '自由文字 progress 被拒（实得 ' + (oldStyle && oldStyle.status) + '）')
++  const gOld = await getTool.run(execA, { key: childKey })
++  check(String((gOld.data && gOld.data.ticket && gOld.data.ticket.body) || '') === g1body, '被拒以后正文一个字没动')
++
++  // ═══ ⑤ 老格式第一次被写入：旧百分比搬成一条「时间未记录」，旧自由文字保留 ═══
++  const legacyBody = '## 进度：90%\n\n以前随手写的一段旧文字。'
++  const lc = await createTool.run(execA, { title: '老格式进度票', body: legacyBody })
++  check(lc && lc.status === 'ok', '老格式票建成功（实得 ' + (lc && lc.status) + '）')
++  const legacyKey = String((lc.data && lc.data.ticket && lc.data.ticket.key) || '')
++  const lw = await patchTool.run(execA, { key: legacyKey, progress: { percent: 70, note: '按新写法再记一条' } })
++  check(lw && lw.status === 'ok', '老格式票写新进度回 ok（实得 ' + (lw && lw.status) + '，说明 ' + String((lw && lw.text) || '').slice(0, 160) + '）')
++  const lg = await getTool.run(execA, { key: legacyKey })
++  const lp = (lg.data && lg.data.ticket && lg.data.ticket.progress) || null
++  const lgbody = String((lg.data && lg.data.ticket && lg.data.ticket.body) || '')
++  check(!!lp && lp.percent === 70 && lp.entries.length === 2, '老格式票读回新记录在先、旧记录在后（实得 ' + JSON.stringify(lp) + '）')
++  check(!!lp && lp.entries.length === 2 && lp.entries[1].percent === 90 && lp.entries[1].updatedAt === null && lp.entries[1].note === '',
++    '旧标题里的百分比搬成「时间未记录」一条、说明为空（实得 ' + JSON.stringify(lp && lp.entries) + '）')
++  check(lgbody.indexOf('时间未记录') >= 0, '旧百分比那条写明了「时间未记录」')
++  check(lgbody.indexOf('以前随手写的一段旧文字。') >= 0, '旧自由文字原样保留')
++
++  // ═══ ⑥ 重复进度区合成一个、记录一条不丢 ═══
++  const dupBody = '## 进度\n\n- 进度：30%（2026-01-01T00:00:00+08:00）：旧一\n\n## 进度\n\n- 进度：40%（2026-01-02T00:00:00+08:00）：旧二\n'
++  const dc = await createTool.run(execA, { title: '重复进度区票', body: dupBody })
++  check(dc && dc.status === 'ok', '重复进度区票建成功（实得 ' + (dc && dc.status) + '）')
++  const dupKey = String((dc.data && dc.data.ticket && dc.data.ticket.key) || '')
++  const dw = await patchTool.run(execA, { key: dupKey, progress: { percent: 50, note: '合成一个' } })
++  check(dw && dw.status === 'ok', '重复进度区票写进度回 ok（实得 ' + (dw && dw.status) + '）')
++  const dg = await getTool.run(execA, { key: dupKey })
++  const dp = (dg.data && dg.data.ticket && dg.data.ticket.progress) || null
++  const dgbody = String((dg.data && dg.data.ticket && dg.data.ticket.body) || '')
++  check(!!dp && dp.percent === 50 && dp.entries.length === 3, '重复进度区的三条记录都在（实得 ' + JSON.stringify(dp) + '）')
++  check(!!dp && dp.entries.map((e) => e.percent).join(',') === '50,30,40', '顺序是新的最上、两段旧记录按出现顺序（实得 ' + (dp && dp.entries.map((e) => e.percent).join(',')) + '）')
++  const headingCount = dgbody.split(/\r?\n/).filter((l) => /^##\s*进度/.test(l)).length
++  check(headingCount === 1, '重复进度区只剩一个标题（实得 ' + headingCount + ' 个）')
++
++  // ═══ ④ 代码块里的示例标题不算真的进度区、也不被改写 ═══
++  const fenceBody = '顺手记一下写法：\n\n' + FENCE + '\n## 进度：99%\n' + FENCE + '\n'
++  const fc = await createTool.run(execA, { title: '代码块示例票', body: fenceBody })
++  check(fc && fc.status === 'ok', '代码块示例票建成功（实得 ' + (fc && fc.status) + '）')
++  const fenceKey = String((fc.data && fc.data.ticket && fc.data.ticket.key) || '')
++  const fw = await patchTool.run(execA, { key: fenceKey, progress: { percent: 20, note: '加一条' } })
++  check(fw && fw.status === 'ok', '代码块示例票写进度回 ok（实得 ' + (fw && fw.status) + '）')
++  const fg = await getTool.run(execA, { key: fenceKey })
++  const fp = (fg.data && fg.data.ticket && fg.data.ticket.progress) || null
++  const fgbody = String((fg.data && fg.data.ticket && fg.data.ticket.body) || '')
++  check(!!fp && fp.percent === 20, '示例里的 99% 没被当成当前进度（实得 ' + JSON.stringify(fp) + '）')
++  check(fgbody.indexOf(FENCE + '\n## 进度：99%\n' + FENCE) >= 0, '代码块示例原样保留、一个字没被改写')
++
++  // ═══ ⑦ 正文超过 60KB 时拒绝写入、正文一个字不动 ═══
++  const bigBody = '## 目的\n\n' + 'x'.repeat(62000)
++  const bc = await createTool.run(execA, { title: '超长正文票', body: bigBody })
++  check(bc && bc.status === 'ok', '超长正文票建成功（实得 ' + (bc && bc.status) + '）')
++  const bigKey = String((bc.data && bc.data.ticket && bc.data.ticket.key) || '')
++  const bBefore = await getTool.run(execA, { key: bigKey })
++  const bBeforeBody = String((bBefore.data && bBefore.data.ticket && bBefore.data.ticket.body) || '')
++  const bw = await patchTool.run(execA, { key: bigKey, progress: { percent: 10, note: '想写但超长' } })
++  check(bw && bw.status !== 'ok', '超过 60KB 时明确拒绝写入（实得 ' + (bw && bw.status) + '）')
++  const bwReasons = ((bw && bw.items) || []).map((i) => String((i.error && i.error.message) || i.reason || '')).join(' ')
++  check(bwReasons.indexOf('硬顶') >= 0 && bwReasons.indexOf('一个字没动') >= 0,
++    '拒绝说明里讲了 60KB 这条硬顶、也说了正文没动（实得：' + bwReasons.slice(0, 220) + '）')
++  const bAfter = await getTool.run(execA, { key: bigKey })
++  check(String((bAfter.data && bAfter.data.ticket && bAfter.data.ticket.body) || '') === bBeforeBody, '被拒以后正文一个字没动')
++
++  try { dispose.dispose() } catch (e) {}
++  try { fs.rmSync(rootA, { recursive: true, force: true }) } catch (e) {}
++  console.log('\n' + (failed ? '存在失败' : '全部通过 — #1090（' + total + ' 条）'))
++  process.exit(failed ? 1 : 0)
++}
++
++main().catch((e) => { console.error(e); process.exit(1) })
+diff --git a/tests/verify-1106-deck-surface.ts b/tests/verify-1106-deck-surface.ts
+index 6b822076..49a3c2a9 100644
+--- a/tests/verify-1106-deck-surface.ts
++++ b/tests/verify-1106-deck-surface.ts
+@@ -62,7 +62,7 @@ const FROZEN_SHAPE: Record<string, string> = {
+   deck_issue_create: 'title:string, body:string, kind:枚举(task|bug|map|spec|ticket), parentKey:string, blockedBy:数组<string>, labels:数组<string>, assignees:数组<string>, idempotencyKey:string, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[title] 多传=false',
+   deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(task|bug|map), labels:数组<string>, assignees:数组<string> 必填=[key,title] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[title,children] 多传=false',
+   deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[] 多传=false',
+-  deck_issue_patch: 'key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, progress:string, close:boolean, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[key] 多传=false',
++  deck_issue_patch: 'key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, progress:对象(percent:integer, note:string 必填=[percent,note] 多传=false), close:boolean, workRouteDetail:枚举(core|standard|full), effortId:string 必填=[key] 多传=false',
+   deck_issue_report: 'key:string, note:string, progress:number, workRouteDetail:枚举(core|standard|full), effortId:string, release:boolean 必填=[key] 多传=false',
+ }
+ 
+@@ -81,7 +81,7 @@ const FROZEN_DESC: Record<string, string> = {
+   deck_issue_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成它的原生依赖边（边没写成时票照建，回执逐条说明）。；title=票的标题；body=正文；缺省时按种类补最小骨架；kind=票的种类，缺省 task；parentKey=父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）；blockedBy=这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）；labels=要带的标签，会在必备标签之外追加；assignees=认领人；idempotencyKey=这一批写的幂等锚，重试时带同一个值；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+   deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+   deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+-  deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；progress=只改「## 进度」那一段的内容；close=true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
++  deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；progress=写一条进度记录：{percent, note}（#1090 起不再收一段自由文字）。工具自动盖当前时间、把这条加到「## 进度」区最上面，旧记录原样保留；正文超过 60KB 时拒绝写入、一个字节不动。；close=true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+   deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放，票不动）。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；progress=可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填；release=可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
+ }
+ 
+diff --git a/tests/verify-908-progress-replace.ts b/tests/verify-908-progress-replace.ts
+index 35a95ecc..176e6785 100644
+--- a/tests/verify-908-progress-replace.ts
++++ b/tests/verify-908-progress-replace.ts
+@@ -1,70 +1,87 @@
+-// verify-908-progress-replace.ts —— #908 回归：写进度只换标题、旧内容残留
++// verify-908-progress-replace.ts —— #908 回归：写进度只换一处、不留重复的进度区
+ // 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法行，判据与断言一条没动。
+ //
+ // 为什么要有这一条：deck_issue_patch 写进度时用的正则在多行模式下只匹配到标题行，
+ // 旧进度块留在正文末尾，票面上出现两段进度记录，而且调用回执是成功，调用方发现不了。
+-// 本文件把票里提到的六种正文形态钉死：有进度段的四种必须整体替换（旧内容不残留、标题恰好一条），
++// 本文件把票里提到的六种正文形态钉死：有进度段的四种必须整体替换成一段、标题恰好一条；
+ // 没有进度段的两种必须追加（不报错、标题恰好一条）。外加三条历史教训：带百分比的标题也要认、
+ // 英文 Progress 标题也要认、之前写坏留下的双进度区要一次清干净。
+ //
++// 2026-10-21 #1090 改写：写进度的函数从 deck_issue_patch 搬到 src/tracker/body-parse.ts，
++// 收的参数也从「一段自由文字」改成结构化记录 {percent, note, updatedAt}；语义按 #1089 定稿：
++// 新记录放区首、旧记录与自由文字原样保留（不再清掉旧进度——那是历史，不能丢），
++// 重复的进度区仍然只留一个。另加两条今天踩过的坑：代码块里的示例标题不能被当真的进度区改掉、
++// 老票标题里的百分比第一次写入时要搬成一条「时间未记录」的记录。
++//
+ // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-908-progress-replace.ts（不挂钩子会在加载 .ts 真源时 ERR_MODULE_NOT_FOUND）。
+ const path = require('path')
+ const { pathToFileURL } = require('url')
+ const ROOT = path.resolve(__dirname, '..')
+-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
++const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
+ let failed = false
+ let total = 0
+-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
++const check = (ok: boolean, msg: string) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+ 
+-function countProgressHeaders(s) {
++function countProgressHeaders(s: string): number {
+   // 只数真正的进度标题：## 进度计划这种只是名字带进度两个字，不算。
+   const m = String(s).match(/^##\s*(?:进度|Progress)(?:\s*[：:]\s*\d{1,3}\s*%?)?\s*$/gm)
+   return m ? m.length : 0
+ }
++const FENCE = String.fromCharCode(96).repeat(3)
++const NEW = { percent: 90, note: '新内容', updatedAt: '2026-10-21T20:00:00+08:00' }
++const NEW_LINE = '- 进度：90%（2026-10-21T20:00:00+08:00）：新内容'
+ 
+ async function main() {
+-  console.log('#908 写进度替换回归')
+-  const patchMod = await imp('src/deck/tools/issue-patch.ts')
++  console.log('#908 / #1090 写进度替换回归')
++  const leaf = await imp('src/tracker/body-parse.ts')
++  const replaceProgressSection = leaf.replaceProgressSection
++  const parseProgressDetail = leaf.parseProgressDetail
++  const stripProgressSections = leaf.stripProgressSections
+   const planMod = await imp('src/deck/shell/minimal-spec.ts')
+-  const replaceProgressSection = patchMod.replaceProgressSection
+   const ensureBody = planMod.ensureBody
+-  check(typeof replaceProgressSection === 'function', '读到替换函数 replaceProgressSection')
++  check(typeof replaceProgressSection === 'function', '读到替换函数 replaceProgressSection（tracker 叶子）')
++  check(typeof parseProgressDetail === 'function', '读到结构化解析 parseProgressDetail（tracker 叶子）')
++  check(typeof stripProgressSections === 'function', '读到剥进度区函数 stripProgressSections（tracker 叶子）')
+   check(typeof ensureBody === 'function', '读到补正文函数 ensureBody')
+ 
+-  const NEW = '2026-10-08 新内容'
+   // 票里给的六种形态：A 进度在文末、B 后面还有标题、C 同上但换行是 CRLF、D 标题带百分比、E 无进度段、F 空正文。
++  // A 区里那两行认不出是进度记录，按自由文字原样保留（#1089：旧内容不删不改）。
+   const A = '## Question\n\nx\n\n## 进度\n\n<!-- marker -->\n2026-10-06 旧内容\n'
+-  const B = '## Question\n\nx\n\n## 进度\n\nold\n\n## 其他\n\ny\n'
+-  const C = '## Question\r\nx\r\n\r\n## 进度\r\n\r\nold\r\n\r\n## 其他\r\n\ry\r\n'
++  const B = '## Question\n\nx\n\n## 进度\n\n- 进度：40%（时间未记录）：旧记录\n\n## 其他\n\ny\n'
++  const C = '## Question\r\nx\r\n\r\n## 进度\r\n\r\n- 进度：40%（时间未记录）：旧记录\r\n\r\n## 其他\r\ny\r\n'
+   const D = '## Question\n\nx\n\n## 进度：80%\n\nold\n'
+   const E = '## Question\n\nx\n'
+   const F = ''
+ 
+   const outA = replaceProgressSection(A, NEW)
+-  check(outA.includes(NEW), 'A 进度在文末：新内容写进去了')
+-  check(!outA.includes('旧内容') && !outA.includes('marker'), 'A 进度在文末：旧内容与旧标记都不残留')
++  check(outA.includes(NEW_LINE), 'A 进度在文末：新记录写进去了')
++  check(outA.includes('<!-- marker -->') && outA.includes('2026-10-06 旧内容'), 'A 进度在文末：区里的旧文字原样保留（不删历史）')
+   check(countProgressHeaders(outA) === 1, 'A 进度在文末：进度标题恰好一条（实际 ' + countProgressHeaders(outA) + ' 条）')
++  const aDetail = parseProgressDetail(outA)
++  check(aDetail.percent === 90 && aDetail.entries[0].note === '新内容', 'A 进度在文末：读回第一条就是新记录')
+ 
+   const outB = replaceProgressSection(B, NEW)
+-  check(outB.includes(NEW) && !outB.includes('old\n\n##'), 'B 后面还有标题：旧段被整段换掉')
++  check(outB.includes(NEW_LINE) && outB.includes('- 进度：40%（时间未记录）：旧记录'), 'B 后面还有标题：新记录在区首，旧记录原样保留')
+   check(countProgressHeaders(outB) === 1, 'B 后面还有标题：进度标题恰好一条')
+-  check(outB.includes(NEW + '\n\n## 其他'), 'B 后面还有标题：新块与下一个标题之间留一个空行')
++  check(outB.includes('\n\n## 其他'), 'B 后面还有标题：新块与下一个标题之间留一个空行')
++  check(outB.indexOf(NEW_LINE) < outB.indexOf('旧记录'), 'B 后面还有标题：新记录排在旧记录之前（最新在最上）')
+ 
+   const outC = replaceProgressSection(C, NEW)
+-  check(outC.includes(NEW), 'C CRLF 正文：新内容写进去了')
+-  check(!/(?:^|\n)old(?:\r?\n)/.test(outC), 'C CRLF 正文：旧内容不残留')
++  check(outC.includes(NEW_LINE), 'C CRLF 正文：新记录写进去了')
++  check(outC.includes('\r\n'), 'C CRLF 正文：原有换行符保留')
+   check(countProgressHeaders(outC) === 1, 'C CRLF 正文：进度标题恰好一条')
+ 
+   const outD = replaceProgressSection(D, NEW)
+-  check(outD.includes(NEW) && !outD.includes('old'), 'D 标题带百分比：旧段被整段换掉')
++  check(outD.includes(NEW_LINE) && outD.includes('- 进度：80%（时间未记录）'), 'D 标题带百分比：旧百分比搬成一条「时间未记录」的记录')
++  check(outD.includes('old'), 'D 标题带百分比：区里旧文字原样保留')
+   check(countProgressHeaders(outD) === 1, 'D 标题带百分比：进度标题恰好一条，不再另起一段')
+ 
+   const outE = replaceProgressSection(E, NEW)
+-  check(outE.includes(NEW) && outE.includes('## 进度'), 'E 无进度段：追加一段进度而不是报错')
++  check(outE.includes(NEW_LINE) && outE.includes('## 进度'), 'E 无进度段：追加一段进度而不是报错')
+   check(countProgressHeaders(outE) === 1, 'E 无进度段：进度标题恰好一条')
+ 
+   const outF = replaceProgressSection(F, NEW)
+-  check(outF.includes(NEW) && outF.includes('## 进度'), 'F 空正文：追加一段进度而不是报错')
++  check(outF.includes(NEW_LINE) && outF.includes('## 进度'), 'F 空正文：追加一段进度而不是报错')
+   check(countProgressHeaders(outF) === 1, 'F 空正文：进度标题恰好一条')
+ 
+   // 历史教训 1：补正文也要认带百分比的标题，否则先补一段再换一段，越修越多。
+@@ -73,34 +90,51 @@ async function main() {
+   check(countProgressHeaders(ensured.body) === 1, '补正文认带百分比的标题：正文里进度标题仍是一条')
+ 
+   // 历史教训 2：英文 Progress 标题也要认，认出来后统一写成中文标题，避免中英两段并存。
+-  const outEn = replaceProgressSection('## Progress: 40%\nold\n', NEW)
+-  check(outEn.includes(NEW) && !outEn.includes('old'), '英文标题：旧段被整段换掉')
++  const outEn = replaceProgressSection('## Progress: 40%\n\nold\n', NEW)
++  check(outEn.includes(NEW_LINE) && outEn.includes('- 进度：40%（时间未记录）'), '英文标题：旧百分比保留成记录')
+   check(countProgressHeaders(outEn) === 1, '英文标题：进度标题恰好一条')
++  check(!/^##\s*Progress/m.test(outEn), '英文标题：写回统一成中文「## 进度」')
+ 
+   // 历史教训 3：之前写坏留下的双进度区，一次写进度就清干净，不用人工再删一段。
+-  const outDouble = replaceProgressSection('## Question\nx\n\n## 进度\n\nold1\n\n## 进度\nold2\n', NEW)
+-  check(outDouble.includes(NEW) && !outDouble.includes('old1') && !outDouble.includes('old2'), '双进度脏数据：两段旧内容都不残留')
++  const outDouble = replaceProgressSection('## Question\nx\n\n## 进度\n\n- 进度：30%（时间未记录）：old1\n\n## 进度\n\n- 进度：20%（时间未记录）：old2\n', NEW)
++  check(outDouble.includes(NEW_LINE) && outDouble.includes('old1') && outDouble.includes('old2'), '双进度脏数据：两段旧记录都保留成一条条记录')
+   check(countProgressHeaders(outDouble) === 1, '双进度脏数据：进度标题恰好一条')
+ 
+   // 反向保护：名字里带进度的别的标题不是进度区，不能误伤。
+   const outOther = replaceProgressSection('## 进度计划\nxxx\n', NEW)
+   check(outOther.includes('## 进度计划\nxxx'), '别的标题：## 进度计划原样保留')
+-  check(outOther.includes(NEW) && countProgressHeaders(outOther) === 1, '别的标题：在后面追加真正的进度区')
++  check(outOther.includes(NEW_LINE) && countProgressHeaders(outOther) === 1, '别的标题：在后面追加真正的进度区')
++
++  // #1090 新坑：代码块里的示例标题不是真进度区，写进度不能改到示例。
++  const fencedOnly = '## Question\n\n' + FENCE + '\n## 进度：90%\n' + FENCE + '\n'
++  const outFenced = replaceProgressSection(fencedOnly, NEW)
++  check(outFenced.includes(FENCE + '\n## 进度：90%\n' + FENCE), '代码块示例：示例标题原样保留')
++  check(outFenced.includes('## 进度\n\n' + NEW_LINE), '代码块示例：真正的进度区追加在文末')
++  check(parseProgressDetail(outFenced).percent === 90 && outFenced.split('\n').filter((l: string) => l === '## 进度').length === 1, '代码块示例：真进度区只有一个（示例那个不算）')
++  const fencedBeforeReal = '## 进度\n\n' + FENCE + '\n## 进度\n\n- 进度：30%（时间未记录）：示例里的旧行\n' + FENCE + '\n'
++  const outFencedBeforeReal = replaceProgressSection(fencedBeforeReal, NEW)
++  check(outFencedBeforeReal.includes(FENCE + '\n## 进度\n\n- 进度：30%（时间未记录）：示例里的旧行\n' + FENCE), '代码块示例：真区前面的围栏内容不被当记录搬走')
++  check(outFencedBeforeReal.includes(NEW_LINE), '代码块示例：真区里的新记录写进去了')
+ 
+   // #1002：整份文件形态（之前只喂片段，所以一直绿着放过了这条缺陷）。
+   // G 整份有进度区：替换后字段行还在骨架之前，不被吞掉再补到文末。
+-  const fullWith = '<!-- DSH-IDEMPOTENCY-KEY: g -->\n# 标题\n\n## Question\n\nx\n\n## 进度\n\nold\n\nStatus: ready-for-agent\nBlocked by:\nLabels: bug\n\n## Comments\n\n\n## Answer\n\n'
++  const fullWith = '<!-- DSH-IDEMPOTENCY-KEY: g -->\n# 标题\n\n## Question\n\nx\n\n## 进度\n\n- 进度：30%（时间未记录）：old\n\nStatus: ready-for-agent\nBlocked by:\nLabels: bug\n\n## Comments\n\n\n## Answer\n\n'
+   const outG = replaceProgressSection(fullWith, NEW)
+-  check(outG.includes(NEW) && !outG.includes('\nold\n'), 'G 整份有进度：旧段被换掉')
++  check(outG.includes(NEW_LINE) && outG.includes('- 进度：30%（时间未记录）：old'), 'G 整份有进度：新记录写入、旧记录保留')
+   check(countProgressHeaders(outG) === 1, 'G 整份有进度：进度标题恰好一条')
+   check(outG.indexOf('Status:') < outG.indexOf('## Comments'), 'G 整份有进度：字段行还在骨架之前（被吞到文末就失败）')
+   // H 整份无进度区：插在字段行之前，不落到 Answer 之后。
+   const fullWithout = '<!-- DSH-IDEMPOTENCY-KEY: h -->\n# 标题\n\n## Question\n\nx\n\nStatus: ready-for-agent\nBlocked by:\nLabels: bug\n\n## Comments\n\n\n## Answer\n\n'
+   const outH = replaceProgressSection(fullWithout, NEW)
+-  check(outH.includes(NEW) && countProgressHeaders(outH) === 1, 'H 整份无进度：追加一段进度')
++  check(outH.includes(NEW_LINE) && countProgressHeaders(outH) === 1, 'H 整份无进度：追加一段进度')
+   check(outH.indexOf('## 进度') < outH.indexOf('Status:'), 'H 整份无进度：进度插在字段行之前（落到 Answer 之后就失败）')
+   check(outH.indexOf('Status:') < outH.indexOf('## Answer'), 'H 整份无进度：字段行还在 Answer 之前')
+ 
++  // #1090：写后核对靠 stripProgressSections —— 剥掉进度区，其余正文与写前逐字相同。
++  const beforeRest = stripProgressSections(fullWith).trim()
++  const afterRest = stripProgressSections(outG).trim()
++  check(beforeRest === afterRest, '写后核对：剥掉进度区后，正文其余部分逐字未动')
++
+   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
+   if (failed) process.exit(1)
+ }
+diff --git a/tests/verify-issue-body-script.ts b/tests/verify-issue-body-script.ts
+index 710bb96d..6e8e3226 100644
+--- a/tests/verify-issue-body-script.ts
++++ b/tests/verify-issue-body-script.ts
+@@ -88,7 +88,9 @@ function dryRun(text, issue) {
+ function truthNormalize(text) {
+   const code = 'import { normalizeBody } from ' + JSON.stringify(pathToFileURL(TRUTH).href) +
+     ';process.stdout.write(normalizeBody(Buffer.from(process.argv[1], "base64").toString("utf8")))'
+-  const res = spawnSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', code, Buffer.from(text, 'utf8').toString('base64')], {
++  // #1090 起 body-parse.ts 会 import 同树下的 .ts 叶子（progress.ts），裸 node 解不出说明符；
++  // 子进程也挂上仓里的装载钩子，跟链上入口同一套解析口径。
++  const res = spawnSync(process.execPath, ['--no-warnings', '--import', './scripts/ts-hook.mts', '--input-type=module', '-e', code, Buffer.from(text, 'utf8').toString('base64')], {
+     encoding: 'utf8',
+     maxBuffer: 8 * 1024 * 1024,
+   })
+diff --git a/tests/verify-parse-leaf.ts b/tests/verify-parse-leaf.ts
+index c8651a6f..0c730ff3 100644
+--- a/tests/verify-parse-leaf.ts
++++ b/tests/verify-parse-leaf.ts
+@@ -36,14 +36,17 @@ const SOURCES = [
+   sourcePath('src/host/ticketGrouping.js'),
+   sourcePath('src/host/issueList.js'),
+   sourcePath('src/host/issueDetail.js'),
++  // #1090：mapBody 的 parseProgress 改为从这份叶子引入，产物新鲜度要把叶子也算进来。
++  sourcePath('src/tracker/body-parse.ts'),
+   'scripts/build.mts',
+   'package/package.json',
+ ]
+ 
+-// 从源码抽取内联函数（沿用 verify-progress 的提取法；parseMapBody 依赖 normalizeBody，需同作用域求值）
++// 从源码抽取内联函数（parseMapBody 依赖 normalizeBody，需同作用域求值）
+ // 产物 = src/host/index.js 函数体逐字嵌入（scripts/build.mts 文本组合），4 空格缩进；2 空格为兼容回退
++// #1090：parseProgress 不在这里抽了——它已搬去 tracker 叶子，mapBody 只 import，差分改在下面直接比模块导出。
+ const extractFns = (src) => {
+-  const names = ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
++  const names = ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets']
+   const grabOne = (indentSpaces) => {
+     const body = names.map((n) => {
+       const m = src.match(new RegExp('function\\s+' + n + '\\([\\s\\S]*?\\n {' + indentSpaces + '}\\}'))
+@@ -52,7 +55,7 @@ const extractFns = (src) => {
+     if (!body.trim()) return null
+     try {
+       // 五个函数在同一个括号里声明、互相调用也在其中，外层一个变量都不用：改走共用入口 evalWithScope，作用域留空。
+-      return evalWithScope('(function(){' + body + ';return {normalizeBody,parseMapBody,parseProgress,computeLevels,groupTickets}})()', {})
++      return evalWithScope('(function(){' + body + ';return {normalizeBody,parseMapBody,computeLevels,groupTickets}})()', {})
+     } catch (e) { return null }
+   }
+   return grabOne(4) || grabOne(2)
+@@ -63,7 +66,7 @@ const rawGrab = (src, n, indentSpaces) => {
+   const m = src.match(new RegExp('function\\s+' + n + '\\([\\s\\S]*?\\n {' + indentSpaces + '}\\}'))
+   return m ? m[0] : ''
+ }
+-const rawAll = (src) => ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
++const rawAll = (src) => ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets']
+   .map((n) => rawGrab(src, n, 4) || rawGrab(src, n, 2) || rawGrab(src, n, 0)).join('\n')
+ 
+ async function main() {
+@@ -86,8 +89,8 @@ async function main() {
+ 
+   // ---- 加载叶子（ESM import，Windows 需 file:// URL）----
+   const leaf = await import('file://' + path.resolve('src/tracker/body-parse.ts').replace(/\\/g, '/'))
+-  const names = ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
+-  names.forEach((n) => check(typeof leaf[n] === 'function', 'src/tracker/body-parse.ts 导出 ' + n))
++  const names = ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets']
++  names.concat(['parseProgress']).forEach((n) => check(typeof leaf[n] === 'function', 'src/tracker/body-parse.ts 导出 ' + n))
+ 
+   // ---- Part A：_dev 产物差分（叶子 === 宿主侧实现，H2 后为 mapBody.js + host.js 拼回同一作用域）----
+   const hostFns = extractFns(hostSide)
+@@ -107,8 +110,6 @@ async function main() {
+     check(JSON.stringify(a) === JSON.stringify(b_), 'diff normalizeBody[' + i + '] 叶子===产物(_dev)')
+     // parseMapBody
+     check(JSON.stringify(leaf.parseMapBody(b)) === JSON.stringify(hostFns.parseMapBody(b)), 'diff parseMapBody[' + i + '] 叶子===产物(_dev)')
+-    // parseProgress
+-    check(JSON.stringify(leaf.parseProgress(b)) === JSON.stringify(hostFns.parseProgress(b)), 'diff parseProgress[' + i + '] 叶子===产物(_dev)')
+   })
+ 
+   // computeLevels / groupTickets 差分（DAG 分层样例）
+@@ -127,7 +128,6 @@ async function main() {
+   names.forEach((n) => check(!!pkgFns[n], '产物(_pkg) package/lib/index.js 含 ' + n + '（对照基准）'))
+   bodies.forEach((b, i) => {
+     check(JSON.stringify(leaf.parseMapBody(b)) === JSON.stringify(pkgFns.parseMapBody(b)), 'diff parseMapBody[' + i + '] 叶子===产物(_pkg)')
+-    check(JSON.stringify(leaf.parseProgress(b)) === JSON.stringify(pkgFns.parseProgress(b)), 'diff parseProgress[' + i + '] 叶子===产物(_pkg)')
+   })
+   check(JSON.stringify(leaf.computeLevels(tickets)) === JSON.stringify(pkgFns.computeLevels(tickets)), 'diff computeLevels 叶子===产物(_pkg)')
+ 
+@@ -138,6 +138,23 @@ async function main() {
+   check(pp('## 进度：120%') === 100, '真值 parseProgress clamp 120→100')
+   check(pp('## 进度：abc%') === null, '真值 parseProgress 非数字→null')
+   check(pp('## 进度：-5%') === null, '真值 parseProgress -5% 不匹配（-号挡字正则）→null')
++  // ---- Part C 之二：parseProgress 走模块导出比较（#1090 起 mapBody 不再有本地副本）----
++  // 真源是 src/tracker/body-parse.ts；这里直接加载构建产物 package/lib/mapBody.js，
++  // 拿它 createMapBody() 返回的 parseProgress 与叶子逐输入比较，确认产物里也接的是同一份实现。
++  const pkgMapMod = await import('file://' + path.resolve('package/lib/mapBody.js').replace(/\\/g, '/'))
++  const prodMap = typeof pkgMapMod.createMapBody === 'function' ? pkgMapMod.createMapBody() : null
++  check(!!prodMap && typeof prodMap.parseProgress === 'function', '产物 package/lib/mapBody.js 的 createMapBody() 带 parseProgress')
++  let progressDiff = 0
++  bodies.forEach((b) => {
++    if (!prodMap) { progressDiff += 1; return }
++    if (JSON.stringify(prodMap.parseProgress(b)) !== JSON.stringify(leaf.parseProgress(b))) progressDiff += 1
++  })
++  check(progressDiff === 0, 'diff parseProgress 叶子===产物(_pkg 模块导出)，不一致 ' + progressDiff + ' 处')
++  const srcMapText = sourceText('src/host/mapBody.js')
++  check(!/function\s+parseProgress\s*\(/.test(srcMapText), '真源 mapBody 没有本地 parseProgress（避免又分叉出一份）')
++  check(/import\s*\{[^}]*parseProgress[^}]*\}\s*from\s*['"]\.\.\/tracker\/body-parse\.js['"]/.test(srcMapText), '真源 mapBody 从 tracker 叶子引入 parseProgress')
++  check(/import\s*\{[^}]*parseProgress[^}]*\}\s*from\s*['"]\.\.\/tracker\/body-parse\.js['"]/.test(pkgMap), '产物 mapBody 保留对 tracker 叶子的 import（包内可解析）')
++
+   const cl = leaf.computeLevels(tickets)
+   check(cl.byNumber['1'] === 0 && cl.byNumber['2'] === 1 && cl.byNumber['3'] === 2, '真值 computeLevels 层级 0/1/2')
+   const gt = leaf.groupTickets(tickets)
+diff --git a/tests/verify-progress.ts b/tests/verify-progress.ts
+index 5b4a6c04..05374a46 100644
+--- a/tests/verify-progress.ts
++++ b/tests/verify-progress.ts
+@@ -1,68 +1,76 @@
+ // verify-progress.ts — dsh-waystation v1.5 T12/T16：进度块解析 + 正文容错 + 渲染契约校验
+ // 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
+-// 用法: node --import ./scripts/ts-hook.mts tests/verify-progress.ts（在插件根目录；本文件依赖 tests/lib/eval-probe.ts，不挂钩子跑不起来）
+-// 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) parseMapBody 端到端（真跑 src/host/mapBody.js 里那三个函数）
++// 用法: node --import ./scripts/ts-hook.mts tests/verify-progress.ts（在插件根目录）
++// 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) parseMapBody 端到端（真跑 src/host/mapBody.ts 里那三个函数）
+ // 2026-10-12 修订：原来还有「host/package 均带 progress 字段」与「client/package 均含进度渲染符号」两条，
+ //   那是读 host.js / package/lib/index.js / client.js / package/lib/client.js 的文本钉字段名与符号名，已删。
+-// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+-const { evalWithScope } = require('./lib/eval-probe.js')
+-// H2 #446：解析三函数搬到 mapBody.js、详情拼装搬到 issueDetail.js（行为零变化）；断言跟随位置，意图不变。
+-// 2026-10-18 #1247：mapBody 真源转成 TypeScript，读文本走共用入口的可求值形态（同名 .ts 优先、
+-//   按全仓唯一转译口径剥类型，与构建拼进产物的形态一致），正则判据与求值都不用改。
+-const { spliceableJs } = require('./lib/source-text.ts')
+-const hostMap = spliceableJs('src/host/mapBody.js')
++// 2026-10-21 #1090：进度解析不再由 mapBody 自己留一份实现，读写统一走 src/tracker/body-parse.ts；
++//   parseProgress 直接测叶子，mapBody 直接 import 真模块跑（不再从源码文本里抽函数求值——它现在带 import）。
++const path = require('path')
++const { pathToFileURL } = require('url')
++const { sourceText } = require('./lib/source-text.ts')
+ let failed = false
+ const check = (ok: boolean, msg: string) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
++const FENCE = String.fromCharCode(96).repeat(3)
+ 
+-// 提取正则的缩进必须跟“被求值文本”的实际缩进一致：spliceableJs 产出固定经 esbuild 重排，
+-// 函数体一律 2 空格缩进，所以收尾只认 '\n  }'。不能加 4 空格分支——内层块收尾正是 4 空格，
+-// 加了会提前截断（已实证：parseMapBody 被截成半个函数，求值直接炸）。
+-const CLOSE = '\\n  \\}'
+-const grab = (reName: string, argName: string) =>
+-  hostMap.match(new RegExp('function\\s+' + reName + '\\(' + argName + '\\) \\{' + '[\\s\\S]*?' + CLOSE))
+-// 1) parseProgress 单元测试（从 host 提取函数）
+-const fm = grab('parseProgress', 'body')
+-check(!!fm, 'host 含 parseProgress 定义')
+-const parseProgress = fm ? evalWithScope(fm[0], {}) : function () { return null }
+-const cases = [
+-  ['## 进度：90%\n下一步：x', 90],
+-  ['## 进度: 100%', 100],
+-  ['正文\n进度：5%', 5],
+-  ['## 进度：120%', 100],
+-  ['## 进度：abc%', null],
+-  ['无进度内容', null],
+-  ['## 进度：0%', 0],
+-  ['## 进度：95%', 95],
+-  // B4 回归：三级锚定 —— 正文示例/规则文本不劫持标题行进度区（#459/#460 实证）
+-  ['## 已对齐决定\n3. 每张新票写 ## 进度：0% 基准。\n## 进度：90%', 90],
+-  ['## 待 grill 点\n- 宽容：## 进度：90% 主格式\n## 进度：95%', 95],
+-  ['Progress: 40%', 40],
+-]
+-cases.forEach(function (c: [string, number | null]) {
+-  const got = parseProgress(c[0])
+-  check(got === c[1], 'parseProgress(' + JSON.stringify(c[0]) + ') = ' + got + '（期望 ' + c[1] + '）')
+-})
++async function main() {
++  // 1) parseProgress 单元测试（叶子真源；#1090 起 mapBody 不再自带副本）
++  const leaf = await import(pathToFileURL(path.resolve('src/tracker/body-parse.ts')).href)
++  check(typeof leaf.parseProgress === 'function', 'src/tracker/body-parse.ts 导出 parseProgress')
++  const parseProgress = leaf.parseProgress
++  const cases: Array<[string, number | null]> = [
++    ['## 进度：90%\n下一步：x', 90],
++    ['## 进度: 100%', 100],
++    ['正文\n进度：5%', 5],
++    ['## 进度：120%', 100],
++    ['## 进度：abc%', null],
++    ['无进度内容', null],
++    ['## 进度：0%', 0],
++    ['## 进度：95%', 95],
++    // B4 回归：标题行与行首两级兼容 —— 正文示例/规则文本不劫持标题行进度区（#459/#460 实证）
++    ['## 已对齐决定\n3. 每张新票写 ## 进度：0% 基准。\n## 进度：90%', 90],
++    ['## 待 grill 点\n- 宽容：## 进度：90% 主格式\n## 进度：95%', 95],
++    ['Progress: 40%', 40],
++    // #1090：规范写法（一条一行，最新在最上）读第一条就是当前值
++    ['## 进度\n\n- 进度：63%（2026-10-21T20:00:00+08:00）：写完了', 63],
++    ['## 进度\n\n- 进度：90%（2026-10-21T20:00:00+08:00）：新记录\n- 进度：80%（时间未记录）：旧记录', 90],
++    // #1090：删掉「全文兜底」——正文别处提到的数字不算进度
++    ['正文提到 进度：7% 而已', null],
++    // #1090：代码块里的示例标题不算真进度区
++    [FENCE + '\n## 进度：90%\n' + FENCE, null],
++  ]
++  cases.forEach(function (c: [string, number | null]) {
++    const got = parseProgress(c[0])
++    check(got === c[1], 'parseProgress(' + JSON.stringify(c[0]) + ') = ' + got + '（期望 ' + c[1] + '）')
++  })
++  const mapSrc = sourceText('src/host/mapBody.js')
++  check(!/function\s+parseProgress\s*\(/.test(mapSrc), 'mapBody 里不再有本地 parseProgress 实现（避免又分叉出一份）')
++  check(/import\s*\{[^}]*parseProgress[^}]*\}\s*from\s*['"]\.\.\/tracker\/body-parse\.js['"]/.test(mapSrc), 'mapBody 从 tracker 叶子引入 parseProgress')
+ 
+-// T16: normalizeBody 容错测试（从 host 提取；字面 \\n 还原 + 剥 BOM）
+-const nfm = grab('normalizeBody', 'raw')
+-check(!!nfm, 'host 含 normalizeBody 定义（T16）')
+-const normalizeBody = nfm ? evalWithScope(nfm[0], {}) : function (s) { return String(s || '') }
+-// 坏格式：BOM + 整篇字面 \\n（无真实换行）
+-const badBody = String.fromCharCode(0xfeff) + '## Destination\\n\\nDSH-Waystation **v1.5**\\n\\n## Notes\\n\\nnote here'
+-const normBad = normalizeBody(badBody)
+-check(!normBad.startsWith(String.fromCharCode(0xfeff)), 'normalizeBody 剥 BOM')
+-check(normBad.indexOf('\n') >= 0, 'normalizeBody 字面 \\n 还原为真实换行')
+-check(normBad.indexOf('\\n') < 0, 'normalizeBody 不再含字面 \\\\n')
+-check(normalizeBody('正常\n正文\n带真实换行') === '正常\n正文\n带真实换行', 'normalizeBody 不误伤正常正文')
+-check(normalizeBody('') === '', 'normalizeBody 空串安全')
+-// T16 端到端回归（#463/#445）：parseMapBody 必须经 normalizeBody 接线 —— 坏格式 body（BOM + 字面 \n）恢复 Destination
+-const pfm = grab('parseMapBody', 'body')
+-check(!!pfm, 'host 含 parseMapBody 定义（T16 端到端）')
+-// parseMapBody 内部要调 normalizeBody，直接求值原本靠外层作用域看得见它；这里改成显式给出。
+-const parseMapBody = pfm ? evalWithScope(pfm[0], { normalizeBody }) : function () { return { destination: '', notes: '' } }
+-const e2eOut = parseMapBody(badBody)
+-check(e2eOut.destination === 'DSH-Waystation **v1.5**', 'parseMapBody 端到端恢复 Destination（BOM+字面 \\n · #445 场景）')
+-check(e2eOut.notes === 'note here', 'parseMapBody 端到端恢复 Notes（#445 场景）')
++  // 2) 直接加载 mapBody 真模块（#1090 起它带 import，不再从源码文本抽函数求值）
++  const mapMod = await import(pathToFileURL(path.resolve('src/host/mapBody.ts')).href)
++  check(typeof mapMod.createMapBody === 'function', 'src/host/mapBody.ts 导出 createMapBody')
++  const mb = mapMod.createMapBody()
++  check(typeof mb.normalizeBody === 'function' && typeof mb.parseMapBody === 'function' && typeof mb.parseProgress === 'function', 'mapBody 实例带 normalizeBody / parseMapBody / parseProgress')
++  check(mb.parseProgress('## 进度：90%') === leaf.parseProgress('## 进度：90%'), 'mapBody 的 parseProgress 与叶子同一份实现（读数一致）')
+ 
+-if (failed) { console.log('\n存在失败'); process.exit(1) }
+-console.log('\n全部通过')
++  // T16: normalizeBody 容错测试（字面 \\n 还原 + 剥 BOM）
++  const normalizeBody = mb.normalizeBody
++  // 坏格式：BOM + 整篇字面 \n（无真实换行）
++  const badBody = String.fromCharCode(0xfeff) + '## Destination\\n\\nDSH-Waystation **v1.5**\\n\\n## Notes\\n\\nnote here'
++  const normBad = normalizeBody(badBody)
++  check(!normBad.startsWith(String.fromCharCode(0xfeff)), 'normalizeBody 剥 BOM')
++  check(normBad.indexOf('\n') >= 0, 'normalizeBody 字面 \\n 还原为真实换行')
++  check(normBad.indexOf('\\n') < 0, 'normalizeBody 不再含字面 \\\\n')
++  check(normalizeBody('正常\n正文\n带真实换行') === '正常\n正文\n带真实换行', 'normalizeBody 不误伤正常正文')
++  check(normalizeBody('') === '', 'normalizeBody 空串安全')
++  // T16 端到端回归（#463/#445）：parseMapBody 必须经 normalizeBody 接线 —— 坏格式 body（BOM + 字面 \\n）恢复 Destination
++  const e2eOut = mb.parseMapBody(badBody)
++  check(e2eOut.destination === 'DSH-Waystation **v1.5**', 'parseMapBody 端到端恢复 Destination（BOM+字面 \\n · #445 场景）')
++  check(e2eOut.notes === 'note here', 'parseMapBody 端到端恢复 Notes（#445 场景）')
++
++  if (failed) { console.log('\n存在失败'); process.exit(1) }
++  console.log('\n全部通过')
++}
++
++main().catch((e) => { console.error('  FAIL 异常：' + ((e && e.stack) || e)); process.exit(1) })

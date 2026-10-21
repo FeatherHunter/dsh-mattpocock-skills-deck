@@ -1,0 +1,24 @@
+ M scripts/derive-log-from-package.mts
+ M scripts/generated/logKernel.derived.js
+M  src/deck/tools/issue-get.ts
+M  src/deck/tools/issue-patch.ts
+M  src/deck/tools/map-snapshot.ts
+ M src/host/logFromPackage.ts
+M  src/host/mapBody.ts
+A  src/shared/issue-file/src/progress-tool.ts
+A  src/shared/issue-file/src/progress.ts
+M  src/tracker/body-parse.ts
+M  src/tracker/deck-derive.ts
+ M src/tracker/rooms/github/client.ts
+MM tests/gate-map.json
+M  tests/tracker-contract/fixtures/golden-receipts/04-deck_issue_get.golden.json
+M  tests/tracker-contract/fixtures/golden-receipts/05-deck_map_snapshot.golden.json
+M  tests/tracker-contract/sections/deck.ts
+A  tests/verify-1090-progress-roundtrip.ts
+M  tests/verify-1106-deck-surface.ts
+M  tests/verify-908-progress-replace.ts
+M  tests/verify-issue-body-script.ts
+M  tests/verify-parse-leaf.ts
+M  tests/verify-progress.ts
+?? src/shared/log-event-list.ts
+?? undefined/
