@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T03:13:00.526Z",
+  "generatedAt": "2026-10-21T04:29:13.465Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 307,
-  "gateCount": 307,
-  "attributedGates": 269,
+  "chainLength": 308,
+  "gateCount": 308,
+  "attributedGates": 270,
   "unattributedGates": 38,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 510,
+  "graphFileCount": 511,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -165,6 +165,7 @@
         "src/client/views/labels/labelColorPalette.ts",
         "src/client/views/labels/labelColorPatch.ts",
         "src/client/views/labels/useLabelColors.ts",
+        "src/client/views/listFilterRow.ts",
         "src/client/views/shared/RestFallbackBanner.ts",
         "src/client/views/shared/Tabs.ts",
         "src/client/views/shared/chips.ts",
@@ -210,7 +211,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 72 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 73 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -1726,6 +1727,7 @@
         "src/client/kernel/link.ts",
         "src/client/views/ListTab.ts",
         "src/client/views/ListTabRow.ts",
+        "src/client/views/listFilterRow.ts",
         "src/tracker/kernel/identity-keys.ts",
         "tests/lib/source-text.ts"
       ],
@@ -1739,7 +1741,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1286-snapshot.ts",
@@ -1850,6 +1852,7 @@
         "src/client/views/ListTab.ts",
         "src/client/views/ListTabRow.ts",
         "src/client/views/feedback/feedback-styles.ts",
+        "src/client/views/listFilterRow.ts",
         "src/tracker/kernel/identity-keys.ts",
         "tests/lib/source-text.ts"
       ],
@@ -1864,7 +1867,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-1304-deps-native.ts",
@@ -6800,6 +6803,51 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
+      "step": "node tests/verify-ui-feedback.ts",
+      "file": "tests/verify-ui-feedback.ts",
+      "guards": [
+        "scripts/build.mts",
+        "src/client/index.ts",
+        "src/client/kernel/row-actions.ts",
+        "src/client/kernel/ui-feedback.ts",
+        "src/client/panel/Dock.ts",
+        "src/client/views/DetailActionBar.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/IssueDetailComments.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/ListTabRow.ts",
+        "src/client/views/MapDetail.ts",
+        "src/client/views/MapDetailTop.ts",
+        "src/client/views/SettingsPage.ts",
+        "src/client/views/SettingsWorkspaces.ts",
+        "src/client/views/diagnosticLog/DiagnosticLogSection.ts",
+        "src/client/views/feedback/feedback-styles.ts",
+        "src/client/views/labels/LabelColorEntry.ts",
+        "src/client/views/listFilterRow.ts",
+        "src/client/views/shared/Tabs.ts",
+        "src/client/views/shared/liquidInk.ts",
+        "src/client/views/shared/workRouteTable.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "src/client",
+        "src/client/kernel",
+        "src/client/panel",
+        "src/client/views",
+        "src/client/views/diagnosticLog",
+        "src/client/views/feedback",
+        "src/client/views/labels",
+        "src/client/views/shared",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 21 条"
+    },
+    {
       "step": "node tests/verify-unmigrated-tests.ts",
       "file": "tests/verify-unmigrated-tests.ts",
       "guards": [
@@ -7375,6 +7423,7 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-typecheck.mts",
+      "node tests/verify-ui-feedback.ts",
       "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.ts",
       "node tests/verify-1327-freshness-content.ts",
@@ -7480,6 +7529,7 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-ui-feedback.ts",
       "node tests/verify-locale-config.ts"
     ],
     "src/client/floating": [
@@ -7560,6 +7610,7 @@
       "node tests/verify-setup-describe.ts",
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-ui-feedback.ts",
       "node tests/verify-workspace-file-note.ts",
       "node tests/verify-locale-completeness.ts",
       "node tests/verify-locale-config.ts"
@@ -7572,7 +7623,8 @@
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-667-dock-header-no-brand.ts",
       "node tests/verify-670-panel-first-frame.ts",
-      "node tests/verify-reuse.ts"
+      "node tests/verify-reuse.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/statusbar": [
       "node tests/verify-663-banner-chain.ts",
@@ -7631,6 +7683,7 @@
       "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-view.ts",
+      "node tests/verify-ui-feedback.ts",
       "node tests/verify-update-panel.ts"
     ],
     "src/client/views/cards": [
@@ -7640,15 +7693,18 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-diagnostic-log-actions.ts",
       "node tests/verify-diagnostic-log-model.ts",
-      "node tests/verify-settings-debug.ts"
+      "node tests/verify-settings-debug.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/feedback": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-1302-panel-list-skeleton.ts"
+      "node tests/verify-1302-panel-list-skeleton.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/labels": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-label-color-core.ts"
+      "node tests/verify-label-color-core.ts",
+      "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/pixel": [
       "node tests/verify-skill-detail-stack.ts"
@@ -7673,6 +7729,7 @@
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-reuse.ts",
+      "node tests/verify-ui-feedback.ts",
       "node tests/verify-visible-truth.ts"
     ],
     "src/client/views/skillDetail": [
@@ -8481,6 +8538,7 @@
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-ui-feedback.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.ts"
@@ -8508,9 +8566,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 524,
+    "fileCount": 525,
     "dirCount": 56,
-    "coveredFileCount": 524,
+    "coveredFileCount": 525,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -8642,6 +8700,7 @@
       "src/client/views/labels/labelColorPalette.ts",
       "src/client/views/labels/labelColorPatch.ts",
       "src/client/views/labels/useLabelColors.ts",
+      "src/client/views/listFilterRow.ts",
       "src/client/views/pixel/PixelBanner.ts",
       "src/client/views/pixel/PixelBtn.ts",
       "src/client/views/pixel/PixelDot.ts",

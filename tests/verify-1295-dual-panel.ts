@@ -231,6 +231,12 @@ G.fetchMapTickets = () => {}
 // ---- 动态导入必须在全局量齐备之后 ----
 const rowMod: any = await import('../src/client/views/ListTabRow.js')
 const listMod: any = await import('../src/client/views/ListTab.js')
+// 本次界面反馈需求：筛选药丸那一行搬成了独立叶子（要接三块液态墨块，ListTab 放不下）。
+// 这里直接加载真叶子；墨块钩子用空实现——这几道门禁只看行与按钮的形状，不测墨块对位。
+const filterRowMod: any = await import('../src/client/views/listFilterRow.js')
+G.listFilterRowNode = filterRowMod.listFilterRowNode
+G.useLiquidInk = () => null
+G.liquidInkRemember = () => {}
 const { MapDetail } = await import('../src/client/views/MapDetail.js')
 const headMod: any = await import('../src/client/views/MapDetailHead.js')
 const topMod: any = await import('../src/client/views/MapDetailTop.js')
@@ -279,7 +285,9 @@ function bgOf(style: string) {
 }
 function primaryButtons(html: string) {
   const out: Array<{ style: string, text: string }> = []
-  const re = /<button class="dsws-btn primary[^"]*" style="([^"]*)">([\s\S]*?)<\/button>/g
+  // 本次界面反馈需求给按钮加了 data-press / data-log 两个属性，属性顺序会插在 class 与 style 之间；
+  //   HTML 属性顺序不影响语义，这里放开中间的属性，仍只认 class 与行内 style 两段真值。
+  const re = /<button class="dsws-btn primary[^"]*"[^>]* style="([^"]*)">([\s\S]*?)<\/button>/g
   let m: any
   while ((m = re.exec(html))) {
     const text = m[2].replace(/<[^>]+>/g, '').replace(/^\[icon:[^\]]*\]/, '').trim()
