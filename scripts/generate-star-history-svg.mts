@@ -5,9 +5,13 @@
 //    保证每日 Action 在数据不变时不产生噪声提交。
 // 2. 手绘感来自确定性种子抖动（fnv1a + mulberry32），而不是 Math.random。
 // 3. 双 Y 轴：Total Stars 走左轴，Daily New 走右轴，各自按自己的最大值缩放。
-//    两条线共用一根轴时，总量一大、每日新增就被压成贴着 X 轴的一条平线；
-//    右轴的刻度数字、轴线与轴名全部染成 Daily 的颜色，读者一眼能看出哪根线读哪根轴。
-//    细节留给交互页。
+//    两条线共用一根轴时，总量一大、每日新增就被压成贴着 X 轴的一条平线。
+//    为了让读者一眼看出哪根线读哪根轴，两侧的轴线、轴名、刻度数字全部用各自系列的颜色：
+//    左边一列红字配红线，右边一列蓝字配蓝线。
+// 3.1 每套主题里，同一个系列只能有一个色值（曲线、轴线、轴名、刻度、峰值标注共用），
+//    不允许「曲线用鲜红、文字用深红」两套色板。深色主题的亮色对比度本来就够
+//    （红 6.96:1、蓝 9.02:1）；浅色主题整体压深到红 #b93a34（5.55:1）、蓝 #1d4ed8（6.59:1），
+//    这样 13px 的小字也过 WCAG AA 的 4.5:1，曲线在奶油底上反而更清楚。
 // 4. 字体走本机手写体回退链——SVG 以 <img> 渲染时不允许加载外部字体。
 // 5. 两条曲线都要平滑、都不许有尖锐折角，但平滑手法不同：Total 单调上升，用 Catmull-Rom
 //    就够；Daily 是小整数、天天上下跳，用单调三次插值（Fritsch–Carlson）过点，既圆滑，
@@ -21,8 +25,10 @@ type StarTheme = { bg: string; text: string; muted: string; grid: string; axis: 
 type StarPoint = { date: string; total: number; daily: number };
 
 const THEMES: Record<string, StarTheme> = {
+  // 浅色主题的红蓝比深色主题更深：奶油底上要保证 13px 刻度小字也过 AA 对比度，
+  // 曲线、轴线、轴名、刻度数字共用同一个色值（见文件头 3.1）。
   dark:  { bg: "#0b0e14", text: "#e6edf3", muted: "#9aa3b2", grid: "#232b3a", axis: "#cdd9e5", total: "#ff6b6b", daily: "#38bdf8" },
-  light: { bg: "#fffdf7", text: "#24292f", muted: "#57606a", grid: "#e8ebf0", axis: "#24292f", total: "#d94f4f", daily: "#2f81f7" },
+  light: { bg: "#fffdf7", text: "#24292f", muted: "#57606a", grid: "#e8ebf0", axis: "#24292f", total: "#b93a34", daily: "#1d4ed8" },
 };
 
 const FONT = '"Comic Sans MS","Comic Sans","Chalkboard SE","Marker Felt","Segoe Print",cursive';
@@ -162,12 +168,13 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
 
   const gridLines: string = yTicks.slice(1).map((v) =>
     `<line x1="${PAD_L}" y1="${Y(v).toFixed(1)}" x2="${W - PAD_R}" y2="${Y(v).toFixed(1)}" stroke="${t.grid}" stroke-width="1" opacity="0.7"/>`).join("\n  ");
+  // 两侧刻度数字各用自己系列的颜色：左列红字读 Total，右列蓝字读 Daily。
+  // 文字色与曲线、轴名、轴线同一个色值（每套主题每系列只有一种颜色），
+  // 这样「这根线读哪根尺子」不靠图例、全凭颜色对得上。
   const yLabels: string = yTicks.map((v) =>
-    `<text x="${PAD_L - 10}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="13" fill="${t.muted}">${v}</text>`).join("\n  ");
-  // 右轴刻度用 Daily 的颜色，和左轴的灰色刻度区分开：右轴顶上的轴名也是这个颜色，
-  // 读者顺着颜色就知道这条虚线读右边的数字。
+    `<text x="${PAD_L - 10}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="13" fill="${t.total}" data-axis="total">${v}</text>`).join("\n  ");
   const dLabels: string = dTicks.map((v) =>
-    `<text x="${W - PAD_R + 10}" y="${(Yd(v) + 4).toFixed(1)}" text-anchor="start" font-size="13" fill="${t.daily}">${v}</text>`).join("\n  ");
+    `<text x="${W - PAD_R + 10}" y="${(Yd(v) + 4).toFixed(1)}" text-anchor="start" font-size="13" fill="${t.daily}" data-axis="daily">${v}</text>`).join("\n  ");
   // 右轴的刻度位置不落在左轴的网格线上，只给数字会显得“浮空”；补一小段同色刻度线，
   // 让读者一眼看出这个数字读的是右边这条轴，而不是最近的横网格。
   const dAxisTicks: string = dTicks.map((v) =>
