@@ -4,7 +4,8 @@
 // 判据（五条，都是用户在列表页一眼能看出来的差别）：
 // 1. 列表顺序是三段：探索地图 → 规格 → 普通票。容器是正在推进的东西，排在前面；
 //    探索地图与规格各成一组，不混在一起。
-// 2. 容器组内按最近更新降序（容器不跟普通票一起按面板选的那个排序档排）。
+// 2. 容器组内跟随面板排序档（与普通票同一套比较：同样四个排序键 更新时间、创建时间、编号、标题；同方向；#1356 起改，
+//    旧口径「按最近更新降序」作废，旧行为只在 1286 设计文档里留档）。
 // 3. 规格行的身份：角标写「规格」、左侧色条是贵族蓝 #1D4ED8、编号徽章在「有未关」态是蓝。
 // 4. 规格三态按钮：0 张实施票=拆票（橙 #f59e0b）、有未关=执行（蓝 #1D4ED8）、全关=完成（绿 #3fb950）。
 // 5. 新会话按钮与主按钮永远同色实心（两枚按钮不是两个颜色）。
@@ -150,12 +151,12 @@ function issueOf(o: any) {
 function containerOf(o: any) {
   return Object.assign({ number: 1, key: '1', effortId: 'default', title: '容器', state: 'OPEN', labels: [], type: 'map', stats: { total: 2, closed: 0 } }, o)
 }
-function makeSt(issues: any[], maps: any[]) {
-  return {
+function makeSt(issues: any[], maps: any[], overrides?: { sortKey?: 'updatedAt' | 'createdAt' | 'number' | 'title', sortDir?: 'asc' | 'desc' }) {
+  return Object.assign({
     snapshot: { issues: issues, maps: maps, generatedMs: '2026-10-20T00:00:00Z' },
     tab: 'list', stateFilter: 'open', lblFilters: [], effFilters: [],
     sortKey: 'updatedAt', sortDir: 'desc', rowFlash: {}, writeAt: {}, cwd: 'D:\\ws',
-  } as any
+  }, overrides || {}) as any
 }
 
 // React 静态渲染时会为「子元素数组缺 key」与「服务端跑 useLayoutEffect」打警告。
@@ -254,16 +255,18 @@ function specRowHtml(stats: any) {
   check(btns.length === 2 && bgOf(btns[0].style) === bgOf(btns[1].style) && bgOf(btns[0].style) !== '', 'C4 探索地图行新会话按钮与主按钮同色（回归不动）')
 }
 
-// ============ D 组：列表顺序（探索地图 → 规格 → 普通票）与容器组内排序 ============
-function renderList(issues: any[], maps: any[]) {
-  const st = makeSt(issues, maps)
+// ============ D 组：列表顺序（探索地图 → 规格 → 普通票）与容器组内跟随排序档 ============
+// 两个容器的 updatedAt 与 createdAt 故意取相反的先后：这样「更新」与「创建」两列各自的
+// 升序与降序都能分辨出用的是哪一列；编号升序与更新时间降序的方向也正好相反。
+function renderList(issues: any[], maps: any[], overrides?: { sortKey?: 'updatedAt' | 'createdAt' | 'number' | 'title', sortDir?: 'asc' | 'desc' }) {
+  const st = makeSt(issues, maps, overrides)
   return withQuietReact(() => renderToStaticMarkup(React.createElement(listMod.ListTab, { st: st, narrow: false })))
 }
 {
-  const mapOld = issueOf({ number: 201, key: '201', title: 'MAP-OLD', type: 'map', updatedAt: '2026-10-01T00:00:00Z' })
-  const mapNew = issueOf({ number: 202, key: '202', title: 'MAP-NEW', type: 'map', updatedAt: '2026-10-05T00:00:00Z' })
-  const specOld = issueOf({ number: 203, key: '203', title: 'SPEC-OLD', type: 'spec', updatedAt: '2026-10-02T00:00:00Z' })
-  const specNew = issueOf({ number: 204, key: '204', title: 'SPEC-NEW', type: 'spec', updatedAt: '2026-10-06T00:00:00Z' })
+  const mapOld = issueOf({ number: 201, key: '201', title: 'MAP-OLD', type: 'map', updatedAt: '2026-10-01T00:00:00Z', createdAt: '2026-09-20T00:00:00Z' })
+  const mapNew = issueOf({ number: 202, key: '202', title: 'MAP-NEW', type: 'map', updatedAt: '2026-10-05T00:00:00Z', createdAt: '2026-09-10T00:00:00Z' })
+  const specOld = issueOf({ number: 203, key: '203', title: 'SPEC-OLD', type: 'spec', updatedAt: '2026-10-02T00:00:00Z', createdAt: '2026-09-25T00:00:00Z' })
+  const specNew = issueOf({ number: 204, key: '204', title: 'SPEC-NEW', type: 'spec', updatedAt: '2026-10-06T00:00:00Z', createdAt: '2026-09-05T00:00:00Z' })
   const ticketA = issueOf({ number: 205, key: '205', title: 'TICKET-A', type: 'task', updatedAt: '2026-10-09T00:00:00Z' })
   const ticketB = issueOf({ number: 206, key: '206', title: 'TICKET-B', type: 'task', updatedAt: '2026-10-03T00:00:00Z' })
   const maps = [
@@ -273,13 +276,58 @@ function renderList(issues: any[], maps: any[]) {
     containerOf({ number: 204, key: '204', title: 'SPEC-NEW', type: 'spec', stats: { total: 1, closed: 0 } }),
   ]
   // 故意乱序放进池子：排序不能依赖宿主给的顺序
-  const html = renderList([ticketB, specNew, mapOld, ticketA, specOld, mapNew], maps)
+  const pool = [ticketB, specNew, mapOld, ticketA, specOld, mapNew]
+  const html = renderList(pool, maps)
   const at = (t: string) => html.indexOf(t)
   check(at('MAP-NEW') >= 0 && at('MAP-OLD') >= 0 && at('SPEC-NEW') >= 0 && at('SPEC-OLD') >= 0 && at('TICKET-A') >= 0 && at('TICKET-B') >= 0, 'D0 六行都画出来了')
   check(at('MAP-NEW') < at('SPEC-NEW') && at('SPEC-NEW') < at('TICKET-A'), 'D1 列表顺序是「探索地图 → 规格 → 普通票」三段')
-  check(at('MAP-NEW') < at('MAP-OLD'), 'D2 探索地图组内按最近更新降序（10-05 在 10-01 前面）')
-  check(at('SPEC-NEW') < at('SPEC-OLD'), 'D3 规格组内按最近更新降序（10-06 在 10-02 前面）')
+  check(at('MAP-NEW') < at('MAP-OLD'), 'D2 面板档位是更新时间降序时，探索地图组内新的在前（跟面板排序档）')
+  check(at('SPEC-NEW') < at('SPEC-OLD'), 'D3 面板档位是更新时间降序时，规格组内新的在前（跟面板排序档）')
   check(at('TICKET-A') < at('TICKET-B'), 'D4 普通票仍按面板排序档排（最近更新降序，回归不动）')
+
+  // 换档：四个排序键（更新时间、创建时间、编号、标题）各按升/降，容器组都要跟着变。旧实现把容器写死按更新时间降序，下面这些会画反。
+  const before = (h: string, a: string, b: string) => h.indexOf(a) >= 0 && h.indexOf(b) >= 0 && h.indexOf(a) < h.indexOf(b)
+  const byNumberAsc = renderList(pool, maps, { sortKey: 'number', sortDir: 'asc' })
+  check(before(byNumberAsc, 'MAP-OLD', 'MAP-NEW') && before(byNumberAsc, 'SPEC-OLD', 'SPEC-NEW'), 'D5 编号升序下探索地图组与规格组都按编号从小到大')
+  check(before(byNumberAsc, 'MAP-OLD', 'SPEC-OLD') && before(byNumberAsc, 'SPEC-OLD', 'TICKET-A'), 'D6 换档后三段顺序不变（探索地图 → 规格 → 普通票）')
+  const byNumberDesc = renderList(pool, maps, { sortKey: 'number', sortDir: 'desc' })
+  check(before(byNumberDesc, 'MAP-NEW', 'MAP-OLD') && before(byNumberDesc, 'SPEC-NEW', 'SPEC-OLD'), 'D7 编号降序下探索地图组与规格组都按编号从大到小')
+  const byTitleAsc = renderList(pool, maps, { sortKey: 'title', sortDir: 'asc' })
+  check(before(byTitleAsc, 'MAP-NEW', 'MAP-OLD') && before(byTitleAsc, 'SPEC-NEW', 'SPEC-OLD'), 'D8 标题升序下容器组按标题（小写比较）排：MAP-NEW 在 MAP-OLD 前')
+  const byTitleDesc = renderList(pool, maps, { sortKey: 'title', sortDir: 'desc' })
+  check(before(byTitleDesc, 'MAP-OLD', 'MAP-NEW') && before(byTitleDesc, 'SPEC-OLD', 'SPEC-NEW'), 'D9 标题降序下容器组按标题反排：MAP-OLD 在 MAP-NEW 前')
+  const byCreatedAsc = renderList(pool, maps, { sortKey: 'createdAt', sortDir: 'asc' })
+  check(before(byCreatedAsc, 'MAP-NEW', 'MAP-OLD') && before(byCreatedAsc, 'SPEC-NEW', 'SPEC-OLD'), 'D10 创建时间升序下容器组按创建时间排：9 月 10 日在 9 月 20 日之前（与更新时间降序给出相反先后，能分辨出读的是哪一列）')
+  const byCreatedDesc = renderList(pool, maps, { sortKey: 'createdAt', sortDir: 'desc' })
+  check(before(byCreatedDesc, 'MAP-OLD', 'MAP-NEW') && before(byCreatedDesc, 'SPEC-OLD', 'SPEC-NEW'), 'D11 创建时间降序下容器组按创建时间反排：9 月 20 日在 9 月 10 日之前')
+  const byUpdatedAsc = renderList(pool, maps, { sortKey: 'updatedAt', sortDir: 'asc' })
+  check(before(byUpdatedAsc, 'MAP-OLD', 'MAP-NEW') && before(byUpdatedAsc, 'SPEC-OLD', 'SPEC-NEW'), 'D12 更新时间升序下容器组按更新时间正排（与面板档位更新时间降序方向相反）')
+
+  // 缺创建时间的容器：与普通票同口径——按空字符串参与比较（升序浮到组内最前、降序沉到最后），
+  //   而不是「退化成同编号兜底」。这一步把票面判据里那句「缺失按空串」钉住。
+  const mapNoCreated = issueOf({ number: 211, key: '211', title: 'MAP-NO-CREATED', type: 'map', updatedAt: '2026-10-01T00:00:00Z' })
+  const mapHasCreated = issueOf({ number: 212, key: '212', title: 'MAP-HAS-CREATED', type: 'map', updatedAt: '2026-10-01T00:00:00Z', createdAt: '2026-09-01T00:00:00Z' })
+  const mapsNoCreated = [
+    containerOf({ number: 211, key: '211', title: 'MAP-NO-CREATED', type: 'map', stats: { total: 0, closed: 0 } }),
+    containerOf({ number: 212, key: '212', title: 'MAP-HAS-CREATED', type: 'map', stats: { total: 0, closed: 0 } }),
+  ]
+  const createdAsc = renderList([mapHasCreated, mapNoCreated], mapsNoCreated, { sortKey: 'createdAt', sortDir: 'asc' })
+  check(before(createdAsc, 'MAP-NO-CREATED', 'MAP-HAS-CREATED'), 'D13 缺创建时间的容器按空字符串参与比较：升序时排在组内有创建时间的前面')
+  const createdDesc = renderList([mapHasCreated, mapNoCreated], mapsNoCreated, { sortKey: 'createdAt', sortDir: 'desc' })
+  check(before(createdDesc, 'MAP-HAS-CREATED', 'MAP-NO-CREATED'), 'D14 缺创建时间的容器按空字符串参与比较：降序时排在组内有创建时间的后面')
+
+  // 标题列按小写比较：两张容器标题只差大小写，算同一个主键，先后由编号升序兜底决定。
+  //   编号大的那张故意写小写——若实现漏了转小写，按标题升序会把小写那张画到前面。
+  const titleUpper = issueOf({ number: 210, key: '210', title: 'ALPHA', type: 'map', updatedAt: '2026-10-01T00:00:00Z' })
+  const titleLower = issueOf({ number: 211, key: '211', title: 'alpha', type: 'map', updatedAt: '2026-10-01T00:00:00Z' })
+  const mapsTitleCase = [
+    containerOf({ number: 210, key: '210', title: 'ALPHA', type: 'map', stats: { total: 0, closed: 0 } }),
+    containerOf({ number: 211, key: '211', title: 'alpha', type: 'map', stats: { total: 0, closed: 0 } }),
+  ]
+  const titleAsc = renderList([titleLower, titleUpper], mapsTitleCase, { sortKey: 'title', sortDir: 'asc' })
+  check(before(titleAsc, 'ALPHA', 'alpha'), 'D15 标题升序按小写比较：只差大小写的标题算同一个键，再按编号升序兜底（210 在 211 前）')
+  const titleDesc = renderList([titleLower, titleUpper], mapsTitleCase, { sortKey: 'title', sortDir: 'desc' })
+  check(before(titleDesc, 'ALPHA', 'alpha'), 'D16 标题降序同样先按小写比较、同键落到编号升序兜底（210 仍在前）')
 }
 
 // ============ E 组：口径只留一份（不许各写各的） ============

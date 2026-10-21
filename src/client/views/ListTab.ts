@@ -246,18 +246,9 @@ export     const ListTab = ({ st, narrow }: any) => {
         if (cKind === 'map') { mapOnlyIssues.push(x); continue }
         plainOpenIssues.push(x)
       }
-      // #1286：容器组内按最近更新降序。updatedAt 是宿主给的 ISO 时间串，字典序即时间序；
-      //   同一时刻用编号升序兜底，保证顺序稳定。
-      const sortContainers = function (arr: any[]) {
-        return arr.slice().sort(function (a: any, b: any) {
-          const av = String((a && a.updatedAt) || '')
-          const bv = String((b && b.updatedAt) || '')
-          if (av !== bv) return av < bv ? 1 : -1
-          return (a.number - b.number)
-        })
-      }
-      const sortedMaps = sortContainers(mapOnlyIssues)
-      const sortedSpecs = sortContainers(specOnlyIssues)
+      // #1356：容器组内不再另写排序，直接复用上面普通票的 sortIssues；三段拼接保持不变。
+      const sortedMaps = sortIssues(mapOnlyIssues)
+      const sortedSpecs = sortIssues(specOnlyIssues)
       const sortedOpen = sortIssues(plainOpenIssues)
       const closedSorted = sortIssues(closedIssues)
       const groups = compute(st)
