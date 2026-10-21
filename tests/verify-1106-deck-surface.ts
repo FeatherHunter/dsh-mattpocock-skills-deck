@@ -82,7 +82,7 @@ const FROZEN_DESC: Record<string, string> = {
   deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
   deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；progress=只改「## 进度」那一段的内容；close=true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
-  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要释放本会话的一条工作条目时带 release=true（只删本会话那一行，票本身不动）。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；progress=可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填；release=可选：传 true 表示把这张票从本会话的工作路线里释放掉（删掉本会话对它的那条工作条目；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
+  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放，票不动）。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；progress=可选：这次上报的进度自评，0 到 100 的整数；只作展示，不参与任何判定。不传时条目上不记这一格，也不沿用上一次的数字；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填；release=可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
 }
 
 /** 表二 · 信封表：两种形状的字段清单，一个不多一个不少。 */
@@ -394,23 +394,20 @@ async function main() {
     check(bad.length === 0, '进度自评不合规（超过 100 / 负数 / 小数 / 字符串）一律 bad-args + 六格' + (bad.length ? '：' + bad.join('；') : ''))
   }
   {
-    // 二d、释放入口（#1086）：带 release=true 的上报删掉本会话对这张票的工作条目，不记动作、不动票本身；
-    // 释放后回执照常带在办表（形状与正常上报一致），再释放同一条说不「本来就没有」，再上报能恢复。
+    // 二d、释放入口（#1086、#1349）：带 release=true 的上报只撤销从没实际处理过的误报，不记动作、不动票本身。
+    // 票 02 在本段前面的信封表里被 map_link 挂过父票、被 patch 改过，属于处理过的票：释放必须被拒、路径保留；
+    // 票 01 从头到尾只有上报，是纯误报，释放成功；再释放同一条说不「本来就没有」，再上报能恢复。
     const norm = (k: string) => String(k).replace(/^0+(?=\d)/, '')
     const beforeGet = await run('deck_issue_get', { key: '02', blocking: false })
     const beforeTicket = beforeGet.r && beforeGet.r.data && beforeGet.r.data.ticket
     const rel = await run('deck_issue_report', { key: '02', release: true, workRouteDetail: 'full' })
     check(!rel.threw && rel.r && rel.r.status === 'ok' && Object.keys(rel.r || {}).sort().join(',') === ENVELOPE_FULL.join(','),
-      '释放：成功回执正好 14 格（实得 ' + (rel.threw || Object.keys(rel.r || {}).length + ' 格') + '）')
+      '释放被拒：回执仍是成功的 14 格（实得 ' + (rel.threw || Object.keys(rel.r || {}).length + ' 格') + '）')
     const relWr = rel.r && rel.r.data && rel.r.data.workRoute
     const relEntries = (relWr && relWr.entries || []).filter((e: { ticketKey: string }) => norm(e.ticketKey) === '2')
-    check(!!relWr && relEntries.length === 0, '释放：在办表里已经没有这张票（实得 ' + JSON.stringify(relEntries) + '）')
-    // #1262 起写工具都记一条，这一支跑下来盘上不止一张票：剩余条数按在办表里本会话的真实条数核，
-    // 不写死 1（票 1、3、5 也各有记录，释放掉票 2 之后还剩 3 条）。
-    const relLeft = (relWr && relWr.entries || []).filter((e: { currentSession?: boolean }) => e.currentSession === true).length
-    check((rel.r && rel.r.notes || []).some((n: string) => n.indexOf('已把票 2 从本会话的工作路线里释放掉') === 0 && n.indexOf('还剩 ' + relLeft + ' 条在办') > 0),
-      '释放：备注写明删掉了哪张票与剩余条数（实得 ' + JSON.stringify(rel.r && rel.r.notes) + '）')
-    check(!(rel.r && rel.r.data && Object.prototype.hasOwnProperty.call(rel.r.data, 'progress')), '释放回执的 data 里不出现 progress 这一格（释放不记动作）')
+    check(!!relWr && relEntries.length === 1, '处理过的票释放被拒：在办表里这张票还在（实得 ' + JSON.stringify(relEntries) + '）')
+    check((rel.r && rel.r.notes || []).some((n: string) => n.indexOf('有过实际处理') >= 0 && n.indexOf('不能从工作路线里释放') >= 0 && n.indexOf('只用来撤销从没处理过的误报') >= 0),
+      '处理过的票释放被拒：备注说明干过实事、不能释放（实得 ' + JSON.stringify(rel.r && rel.r.notes) + '）')
     const afterGet = await run('deck_issue_get', { key: '02', blocking: false })
     const afterTicket = afterGet.r && afterGet.r.data && afterGet.r.data.ticket
     const faceOf = (t: any) => JSON.stringify(t && { state: t.state, assignees: t.assignees })
@@ -419,8 +416,24 @@ async function main() {
       '释放不改票本身：票照样读得回来，状态与认领人前后一致（前 ' + faceOf(beforeTicket) + '，后 ' + faceOf(afterTicket) + '）')
     const relAgain = await run('deck_issue_report', { key: '02', release: true })
     check(!relAgain.threw && relAgain.r && relAgain.r.status === 'ok'
-      && (relAgain.r.notes || []).some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0),
-      '再释放同一条：成功回执 + 备注说本来就没有（不冒充删掉）')
+      && (relAgain.r.notes || []).some((n: string) => n.indexOf('有过实际处理') >= 0 && n.indexOf('不能从工作路线里释放') >= 0),
+      '再释放处理过的票：仍说明干过实事、不能释放（不说「本来就不在」）')
+    // 地图 00 是夹具直接写在盘上的，本会话没建过、改过、关过、建过计划、挂过边：先普通上报记下一条纯误报，再释放它。
+    const seedReportOnly = await run('deck_issue_report', { key: '00' })
+    check(!seedReportOnly.threw && seedReportOnly.r && seedReportOnly.r.status === 'ok', '纯误报种子：普通上报地图 00 成功')
+    const relReportOnly = await run('deck_issue_report', { key: '00', release: true, workRouteDetail: 'full' })
+    const relReportOnlyWr = relReportOnly.r && relReportOnly.r.data && relReportOnly.r.data.workRoute
+    const relReportOnlyEntries = (relReportOnlyWr && relReportOnlyWr.entries || []).filter((e: { ticketKey: string }) => norm(e.ticketKey) === '0')
+    check(!relReportOnly.threw && relReportOnly.r && relReportOnly.r.status === 'ok' && relReportOnlyEntries.length === 0,
+      '纯误报（只上报过的地图 00）能释放：在办表里已经没有这张票（实得 ' + JSON.stringify(relReportOnlyEntries) + '）')
+    const relLeft = (relReportOnlyWr && relReportOnlyWr.entries || []).filter((e: { currentSession?: boolean }) => e.currentSession === true).length
+    check((relReportOnly.r && relReportOnly.r.notes || []).some((n: string) => n.indexOf('已把票 0 从本会话的工作路线里释放掉') === 0 && n.indexOf('还剩 ' + relLeft + ' 条在办') > 0),
+      '纯误报释放成功：备注写明删掉了哪张票与剩余条数（实得 ' + JSON.stringify(relReportOnly.r && relReportOnly.r.notes) + '）')
+    check(!(relReportOnly.r && relReportOnly.r.data && Object.prototype.hasOwnProperty.call(relReportOnly.r.data, 'progress')), '释放回执的 data 里不出现 progress 这一格（释放不记动作）')
+    const relReportOnlyAgain = await run('deck_issue_report', { key: '00', release: true })
+    check(!relReportOnlyAgain.threw && relReportOnlyAgain.r && relReportOnlyAgain.r.status === 'ok'
+      && (relReportOnlyAgain.r.notes || []).some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0),
+      '再释放同一条误报：成功回执 + 备注说本来就没有（不冒充删掉）')
     const relFalse = await run('deck_issue_report', { key: '02', release: false, workRouteDetail: 'full' })
     const relFalseWr = relFalse.r && relFalse.r.data && relFalse.r.data.workRoute
     check(!relFalse.threw && relFalse.r && relFalse.r.status === 'ok'

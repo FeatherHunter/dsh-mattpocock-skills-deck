@@ -9,6 +9,11 @@
 //    右轴的刻度数字、轴线与轴名全部染成 Daily 的颜色，读者一眼能看出哪根线读哪根轴。
 //    细节留给交互页。
 // 4. 字体走本机手写体回退链——SVG 以 <img> 渲染时不允许加载外部字体。
+// 5. 两条曲线都要平滑、都不许有尖锐折角，但平滑手法不同：Total 单调上升，用 Catmull-Rom
+//    就够；Daily 是小整数、天天上下跳，用单调三次插值（Fritsch–Carlson）过点，既圆滑，
+//    又保证任意两个相邻点之间不越过这两点的取值——不会像 Catmull-Rom 那样在两个低点
+//    之间插值出数据里根本不存在的波峰。手绘感来自数据点的确定性抖动，曲线本身走手写体的
+//    圆头圆角，不靠折线去模仿笔触。
 import fs from "fs";
 import { pathToFileURL } from "url";
 
@@ -60,11 +65,47 @@ function smoothPath(pts: number[][]): string {
   return d;
 }
 
-// 每日新增用直角折线连接：它的值是小整数、相邻两天跳得厉害，Catmull-Rom 平滑会在
-// 两个低点之间插值出数据里根本不存在的波峰；这条线现在挂在小量程的右轴上，假波峰会
-// 被放得更大，所以这里不套平滑。
-function straightPath(pts: number[][]): string {
-  return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
+// 每日新增用单调三次插值（Fritsch–Carlson）连接：它的值是小整数、相邻两天跳得厉害，
+// 需要一条圆滑、没有尖锐折角的手绘线；但普通的 Catmull-Rom 会在两个低点之间冲高，
+// 插值出数据里根本不存在的波峰，这条线又挂在小量程的右轴上，假波峰会被放得更大。
+// 单调三次插值过每个数据点、在拐点处切线连续，同时用切线限幅保证每段曲线都夹在该段
+// 两端取值之间：平滑但不撒谎。首尾两端只用外侧那一段的斜率，避免端点处翘头。
+export function monotonePath(pts: number[][]): string {
+  const n: number = pts.length;
+  if (n === 0) return "";
+  if (n === 1) return `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+
+  // h 是相邻点的横向距离，s 是各段斜率。x 轴按真实日期铺，抖动后仍严格递增，h 不会为 0。
+  const h: number[] = [], s: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    h.push(pts[i + 1][0] - pts[i][0]);
+    s.push(h[i] === 0 ? 0 : (pts[i + 1][1] - pts[i][1]) / h[i]);
+  }
+  // 每个点的切线初值：首尾取外侧段斜率，中间取左右两段斜率的平均。
+  const m: number[] = new Array<number>(n);
+  m[0] = s[0];
+  m[n - 1] = s[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = (s[i - 1] + s[i]) / 2;
+  // Fritsch–Carlson 限幅：切线方向与这一段走向相反时直接压平（否则曲线会先反着走再折回来，
+  // 冲高或塌坑），切线太陡则按 3/sqrt(a²+b²) 收紧。a、b 都非负且 a²+b² ≤ 9 是这一段
+  // 不过冲的充要条件。顺序处理时后一段只会把共享切线往小里改，前一段的约束仍然成立。
+  for (let i = 0; i < n - 1; i++) {
+    if (s[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+    let a: number = m[i] / s[i], b: number = m[i + 1] / s[i];
+    if (a < 0) { m[i] = 0; a = 0; }
+    if (b < 0) { m[i + 1] = 0; b = 0; }
+    const q: number = a * a + b * b;
+    if (q > 9) { const t: number = 3 / Math.sqrt(q); m[i] = t * a * s[i]; m[i + 1] = t * b * s[i]; }
+  }
+
+  let d: string = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    // 三次 Hermite 段的两个控制点：横向各走三分之一，纵向带上切线。
+    const c1x: number = pts[i][0] + h[i] / 3, c1y: number = pts[i][1] + (m[i] * h[i]) / 3;
+    const c2x: number = pts[i + 1][0] - h[i] / 3, c2y: number = pts[i + 1][1] - (m[i + 1] * h[i]) / 3;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${pts[i + 1][0].toFixed(1)} ${pts[i + 1][1].toFixed(1)}`;
+  }
+  return d;
 }
 
 export function buildSvg(data: StarPoint[], themeName: string = "dark"): string {
@@ -103,6 +144,11 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
   const totalPts: number[][] = data.map((d, i) => [X(i) + j(1.1), Y(d.total) + j(1.1)]);
   const dailyPts: number[][] = data.map((d, i) => [X(i) + j(1.1), Yd(d.daily) + j(1.1)]);
 
+  // 峰值标注：两条曲线各自的最高点直接标上数字，读者不用拿眼睛去对坐标轴估算。
+  // 取「第一次出现最高值」的那一天：Total 单调递增，所以通常就是最后一天；
+  // 位置用画出来的点（含抖动）而不是数学坐标，数字才会贴着曲线的尖。
+  const peakIndex = (values: number[]): number => values.indexOf(Math.max(...values));
+
   const axisY: number = PAD_T + plotH;
   const sketchy = (x1: number, y1: number, x2: number, y2: number): string => {
     let d: string = `M ${x1} ${y1}`;
@@ -118,38 +164,63 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
     `<line x1="${PAD_L}" y1="${Y(v).toFixed(1)}" x2="${W - PAD_R}" y2="${Y(v).toFixed(1)}" stroke="${t.grid}" stroke-width="1" opacity="0.7"/>`).join("\n  ");
   const yLabels: string = yTicks.map((v) =>
     `<text x="${PAD_L - 10}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="13" fill="${t.muted}">${v}</text>`).join("\n  ");
-  // 右轴刻度用 Daily 的颜色，和左轴的灰色刻度区分开：图例里的 Daily New 也是这个颜色，
+  // 右轴刻度用 Daily 的颜色，和左轴的灰色刻度区分开：右轴顶上的轴名也是这个颜色，
   // 读者顺着颜色就知道这条虚线读右边的数字。
   const dLabels: string = dTicks.map((v) =>
     `<text x="${W - PAD_R + 10}" y="${(Yd(v) + 4).toFixed(1)}" text-anchor="start" font-size="13" fill="${t.daily}">${v}</text>`).join("\n  ");
+  // 右轴的刻度位置不落在左轴的网格线上，只给数字会显得“浮空”；补一小段同色刻度线，
+  // 让读者一眼看出这个数字读的是右边这条轴，而不是最近的横网格。
+  const dAxisTicks: string = dTicks.map((v) =>
+    `<path d="${sketchy(W - PAD_R - 6, Yd(v), W - PAD_R, Yd(v))}" stroke="${t.daily}" stroke-width="1.4" fill="none" stroke-linecap="round"/>`).join("\n  ");
   const xLabels: string = xTicks.map((tk) =>
     `<text x="${X(tk.i).toFixed(1)}" y="${axisY + 24}" text-anchor="middle" font-size="13" fill="${t.muted}">${tk.label}</text>`).join("\n  ");
 
-  const legend: string = `
-  <rect x="${PAD_L + 14}" y="${PAD_T + 8}" width="152" height="52" rx="7" fill="${t.bg}" stroke="${t.text}" stroke-width="1.4" opacity="0.92"/>
-  <line x1="${PAD_L + 26}" y1="${PAD_T + 24}" x2="${PAD_L + 52}" y2="${PAD_T + 24}" stroke="${t.total}" stroke-width="3" stroke-linecap="round"/>
-  <text x="${PAD_L + 60}" y="${PAD_T + 28}" font-size="13">Total Stars</text>
-  <line x1="${PAD_L + 26}" y1="${PAD_T + 44}" x2="${PAD_L + 52}" y2="${PAD_T + 44}" stroke="${t.daily}" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round"/>
-  <text x="${PAD_L + 60}" y="${PAD_T + 48}" font-size="13">Daily New</text>`;
+  // 峰值数字的摆法：默认放在点上方 10px；靠近画布顶部就翻到点下方，
+  // 靠近左右边缘时把对齐方式改掉，避免数字顶出绘图区或压到右轴刻度。
+  // 描边用背景色做一圈底衬（paint-order=stroke 让描边垫在字下面），
+  // 这样数字压在网格线或曲线拐点上时仍然读得清。
+  const peakLabel = (pt: number[], value: number, color: string, kind: string): string => {
+    const px: number = pt[0];
+    const py: number = pt[1];
+    const y: number = py - 10 < PAD_T + 14 ? py + 19 : py - 10;
+    const anchor: string = px > W - PAD_R - 34 ? "end" : px < PAD_L + 34 ? "start" : "middle";
+    const x: number = anchor === "end" ? px - 6 : anchor === "start" ? px + 6 : px;
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" font-size="13" font-weight="600" fill="${color}" stroke="${t.bg}" stroke-width="3" paint-order="stroke" stroke-linejoin="round" data-peak="${kind}">${value}</text>`;
+  };
+  const peakLabels: string = data.length === 0 ? "" : [
+    peakLabel(totalPts[peakIndex(totals)], totals[peakIndex(totals)], t.total, "total"),
+    peakLabel(dailyPts[peakIndex(dailies)], dailies[peakIndex(dailies)], t.daily, "daily"),
+  ].join("\n  ");
 
-  const midY: number = (PAD_T + axisY) / 2;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <style>text{font-family:${FONT};fill:${t.text}}</style>
+  // 轴名横排放在各自那根轴的正上方，并且用该系列的颜色写，不再竖排。
+  // 竖排字要歪头读，在 README 的小图里尤其难受；轴名同时充当色键：
+  // 红色就是左边 Total、蓝色就是右边 Daily，所以整块图例可以省掉，图面更干净。
+  const axisTitles: string = [
+    `<text x="${PAD_L}" y="${PAD_T - 10}" font-size="12" font-weight="600" fill="${t.total}">Total Stars</text>`,
+    `<text x="${W - PAD_R}" y="${PAD_T - 10}" text-anchor="end" font-size="12" font-weight="600" fill="${t.daily}">Daily New</text>`,
+  ].join("\n  ");
+
+  // 默认字色必须写在根 <svg> 的 fill 属性上，不能写成 <style>text{fill:…}</style>：
+  // SVG 的 CSS 规则优先级高于元素上的 fill 属性，一旦在 <style> 里写 fill，
+  // 下面所有「轴名红/蓝、右轴刻度蓝、次要文字灰」的 fill 属性都会被悄悄盖掉，
+  // 全部退化成正文色（2026-10-21 排查「轴名染不上色」时发现的坑）。
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="${t.text}">
+  <style>text{font-family:${FONT}}</style>
   <rect width="100%" height="100%" fill="${t.bg}"/>
   <text x="${W / 2}" y="34" text-anchor="middle" font-size="21">⭐ Star History</text>
+  ${axisTitles}
   ${gridLines}
   <path d="${sketchy(PAD_L, axisY, W - PAD_R, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-  <path d="${sketchy(PAD_L, PAD_T, PAD_L, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-  <path d="${sketchy(W - PAD_R, PAD_T, W - PAD_R, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="${sketchy(PAD_L, PAD_T, PAD_L, axisY)}" stroke="${t.total}" stroke-width="1.6" fill="none" stroke-linecap="round" data-axis="total"/>
+  <path d="${sketchy(W - PAD_R, PAD_T, W - PAD_R, axisY)}" stroke="${t.daily}" stroke-width="1.6" fill="none" stroke-linecap="round" data-axis="daily"/>
+  ${dAxisTicks}
   ${yLabels}
   ${dLabels}
   ${xLabels}
-  <text x="18" y="${midY}" font-size="12" fill="${t.muted}" transform="rotate(-90 18 ${midY})" text-anchor="middle">Stars</text>
-  <text x="${W - 18}" y="${midY}" font-size="12" fill="${t.daily}" transform="rotate(90 ${W - 18} ${midY})" text-anchor="middle">New / day</text>
   <text x="${W / 2}" y="${H - 12}" font-size="12" fill="${t.muted}" text-anchor="middle">Date</text>
-  <path d="${straightPath(dailyPts)}" fill="none" stroke="${t.daily}" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.9"/>
+  <path d="${monotonePath(dailyPts)}" fill="none" stroke="${t.daily}" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
   <path d="${smoothPath(totalPts)}" fill="none" stroke="${t.total}" stroke-width="3" stroke-linecap="round"/>
-${legend}
+  ${peakLabels}
   <text x="${W - PAD_R}" y="${axisY + 44}" text-anchor="end" font-size="12" fill="${t.muted}">${totals[totals.length - 1]} stars · ${data[data.length - 1].date}</text>
 </svg>`;
 }

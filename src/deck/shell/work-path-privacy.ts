@@ -19,7 +19,7 @@
 export const PRIVACY_ALLOWED_FIELDS: readonly string[] = [
   'v', 'at', 'backend',
   'workers', 'session', 'label', 'labelAt', 'entries',
-  'ticketKey', 'effortId', 'title', 'action', 'actionAt', 'source', 'progress',
+  'ticketKey', 'effortId', 'title', 'action', 'actionAt', 'source', 'progress', 'hasWork',
 ];
 
 /** 凭证形状：命中任何一条就当成「这一份里有秘密」，整份不写。 */

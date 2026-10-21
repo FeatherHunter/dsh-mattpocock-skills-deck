@@ -183,7 +183,10 @@ async function main() {
     // `read.degraded` 是全仓已登记的降级结论线（#1052 起）。它会出现在这一趟里，是因为 S5 那一段的探测
     //   故意没有文件服务（`fs: null`），而 GitLab 房的识别路径自 #1130（2026-10-14）起不再把读不到吞掉，
     //   于是照它的口径记了一行 `matches:fs-unavailable`。这是那一段场景的预期产物，不是本图新增的事件名。
-  const known = ['detection.detect', 'detection.step', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'error.normalize', 'read.degraded', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
+  // 'gh.lane.saturated' 是 2026-10-21 map 1010 逐票复核（#960）新增的按需事件：出站准入排队放行时记一行
+  //   （谁在哪个桶、排了多久、当时多少在飞），用来判「闸满导致的等待」而不是旧机制；它只挂在 admission 排队分支，
+  //   属于本次新增的观测点，不是新故障路径。
+  const known = ['detection.detect', 'detection.step', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'gh.lane.saturated', 'error.normalize', 'read.degraded', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
     const unknown = [...allEvents].filter((e) => !known.includes(e));
     console.log('  事件集合：' + [...allEvents].sort().join(', '));
     must(unknown.length === 0, '无新增事件名', unknown.join(',')); }

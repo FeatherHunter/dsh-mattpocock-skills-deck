@@ -21,6 +21,9 @@
 //
 // #1086 补一支释放（applyRelease）：只从本会话那一页删掉一条工作条目，别的会话一概不碰；
 // 删空了就摘掉整页，免得盘上留下一页没条目的空会话。
+// #1349 把释放收紧成「只撤销误报」：条目上记一格 hasWork，建票、改票（含关票）、建计划、挂边都算
+// 干过实事，这样的票不能从工作路线里释放；只有一直只上报、没动过票的条目才能删。旧账没有这一格，
+// 读不清以前做过什么，一律按「干过实事」保守处理，宁可不删也不误删处理过的路径。
 
 import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES, utf8Bytes, newestPrefixThatFits } from '../../shared/refresh/src/chain-prune.js';
 
@@ -42,6 +45,8 @@ export interface WorkPathLedger {
       source: string;
       /** 最近一次上报带的进度自评（0 到 100 的整数）；最近一次没带就没有这一格，不沿用旧值。 */
       progress?: number;
+      /** 这个会话在这张票上做过实事（建、改、关、建计划、挂边）时为 true；只上报过为 false；旧账没有这一格表示不知道，按 true 处理。 */
+      hasWork?: boolean;
     }>;
   }>;
 }
@@ -83,11 +88,12 @@ export interface WorkPathReleaseInput {
 }
 
 /**
- * 释放的结果。removed=false 表示这条本来就不在本会话的工作路线里（不算失败：盘上没有可删的东西），
- * count 是释放后本会话还剩几条在办；成功时票键带回，方便调用方写回执备注。
+ * 释放的结果。removed=false 表示没有删：这条本来就不在本会话的工作路线里，或者这张票在本会话
+ * 干过实事、按 #1349 的规矩不许释放（后者多带 blocked='has-work'）。count 是这次调用之后本会话
+ * 还剩几条，成功时票键带回，方便调用方写回执备注。
  */
 export type WorkPathReleaseResult =
-  | { ok: true; ticketKey: string; removed: boolean; count: number }
+  | { ok: true; ticketKey: string; removed: boolean; count: number; blocked?: 'has-work' }
   | { ok: false; reason: string };
 
 /** 内存里的一条工作条目（与盘上 v3 的 entries 同形）。 */
@@ -99,6 +105,8 @@ export interface StoredEntry {
   actionAt: number;
   source: string;
   progress?: number;
+  /** 见 WorkPathLedger 里同名字段的说明：true=干过实事，false=只上报过，缺格=旧账不知道。 */
+  hasWork?: boolean;
 }
 
 export interface WorkerPage {
@@ -160,6 +168,9 @@ export function loadLedgerFromText(text: string): { ledger: RootLedger; bad: boo
         actionAt: typeof e.actionAt === 'number' ? e.actionAt : 0,
         source: typeof e.source === 'string' ? e.source : '',
       };
+      // 只认显式的 true/false；旧账没有这一格、或写了别的值，都当「不知道」，由释放那边按干过处理。
+      if (e.hasWork === true) entry.hasWork = true;
+      else if (e.hasWork === false) entry.hasWork = false;
       const loadedProgress = validProgress(e.progress);
       if (loadedProgress !== undefined) entry.progress = loadedProgress;
       page.entries.set(e.ticketKey, entry);
@@ -167,6 +178,22 @@ export function loadLedgerFromText(text: string): { ledger: RootLedger; bad: boo
     ledger.workers.set(w.session, page);
   }
   return { ledger, bad: false };
+}
+
+/**
+ * 记下这一笔之后，这张票在本会话算不算「干过实事」。
+ *
+ * 建票、改票（含关票）、建计划、挂边都算；只上报不算，但也不会把以前干过的实事抹掉 ——
+ * 关闭流程先 patch 再 report，后面那次上报不能把「改过」洗成「没干过」。旧账没有这一格时
+ * 保持不知道（undefined），释放那边按干过保守处理。不认识的动作也按干过处理，宁可拒绝释放，
+ * 也不把可能有用的路径删掉。
+ */
+function hasWorkAfter(prev: StoredEntry | undefined, action: string): boolean | undefined {
+  if (action === 'report') {
+    if (!prev) return false;
+    return prev.hasWork;
+  }
+  return true;
 }
 
 /** 把一条新记录合进账（就地改，账是刚从盘上读出来的、本函数独占的那一份）。返回这一条所在的页。 */
@@ -185,14 +212,17 @@ export function applyNote(ledger: RootLedger, input: WorkPathNoteInput, at: numb
   }
   const prev = page.entries.get(input.ticketKey);
   const progress = validProgress(input ? input.progress : undefined);
+  const action = input && typeof input.action === 'string' ? input.action : (prev ? prev.action : '');
   const entry: StoredEntry = {
     ticketKey: input.ticketKey,
     effortId: input && typeof input.effortId === 'string' ? input.effortId : (prev ? prev.effortId : ''),
     title: input && typeof input.title === 'string' ? input.title : (prev ? prev.title : ''),
-    action: input && typeof input.action === 'string' ? input.action : (prev ? prev.action : ''),
+    action: action,
     actionAt: at,
     source: input && typeof input.source === 'string' ? input.source : (prev ? prev.source : ''),
   };
+  const hasWork = hasWorkAfter(prev, action);
+  if (hasWork !== undefined) entry.hasWork = hasWork;
   if (progress !== undefined) entry.progress = progress;
   page.entries.set(input.ticketKey, entry);
   return page;
@@ -202,15 +232,21 @@ export function applyNote(ledger: RootLedger, input: WorkPathNoteInput, at: numb
  * 把本会话对某张票的那一条从账里删掉（就地改，账是刚从盘上读出来的、本函数独占的那一份）。
  *
  * 只动这一个会话的页：别的会话、别的票原样保留。删到本会话一条不剩时把整页摘掉，
- * 盘上不会留下一页空会话。返回 removed=false 表示本来就不在（不算错），count 是删完还剩几条。
+ * 盘上不会留下一页空会话。只有 hasWork=false（这个会话只上报过这张票）的条目才许删；
+ * 建过、改过、关过或建过计划、挂过边的票回 removed=false + blocked='has-work'，条目原样保留。
+ * 本来就不在也回 removed=false（不算错）。count 是这次调用之后本会话还剩几条。
  */
-export function applyRelease(ledger: RootLedger, sessionId: string, ticketKey: string): { removed: boolean; count: number } {
+export function applyRelease(ledger: RootLedger, sessionId: string, ticketKey: string): { removed: boolean; count: number; blocked?: 'has-work' } {
   const page = ledger.workers.get(sessionId);
   if (!page) return { removed: false, count: 0 };
-  const removed = page.entries.delete(ticketKey);
+  const entry = page.entries.get(ticketKey);
+  if (!entry) return { removed: false, count: page.entries.size };
+  // 没干过实事才许删：hasWork 缺格是旧账，读不清就按干过处理。
+  if (entry.hasWork !== false) return { removed: false, count: page.entries.size, blocked: 'has-work' };
+  page.entries.delete(ticketKey);
   const count = page.entries.size;
   if (count === 0) ledger.workers.delete(sessionId);
-  return { removed: removed, count: count };
+  return { removed: true, count: count };
 }
 
 /** 序列化成盘上形状（v3：版本、写盘时间、后端、按会话分的页）。 */
@@ -227,6 +263,7 @@ export function ledgerToText(ledger: RootLedger, at: number): string {
         actionAt: row.actionAt,
         source: row.source,
       };
+      if (row.hasWork !== undefined) outEntry.hasWork = row.hasWork;
       if (row.progress !== undefined) outEntry.progress = row.progress;
       entries.push(outEntry);
     }

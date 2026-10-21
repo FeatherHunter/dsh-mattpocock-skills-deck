@@ -39,6 +39,7 @@ declare function vocabularyParamsFrom(...args: any[]): any
 declare function getCachedSelection(...args: any[]): any
 declare function repoUrlFor(...args: any[]): any
 declare function issueUrlFor(...args: any[]): any
+declare function isEnabled(...args: any[]): any
     // 当前后端 id：st.selection → snapshot.selection → 按工作区缓存（**只在宿主还没回过任何一次之前**），三档都取不到就 null。#683（F1 · ADR 的 R6b）：第三档读的是本地那份镜像，而本次裁决把它降级成「本壳的临时镜像」（权威在宿主侧那份记录里），所以这道前提必须留着 —— 只有一份快照都还没有（宿主一次都没回过话）时才拿它垫一下（免得刷新页面先闪「还没有设置」）；宿主一旦回过话（哪怕回的是「这个工作区没有后端」）就以宿主的答复为准。
     export const currentBackendId = function (st: any): unknown {
       let sel = null
@@ -107,15 +108,33 @@ declare function issueUrlFor(...args: any[]): any
       const params = { repo: (typeof repoUrlFor === 'function' ? repoUrlFor(st) : (st && st.repo ? String(st.repo) : '')) }
       return promptText('newSpec', params)
     }
+    // #996 复核：提示词里拼不拼得出链接，全看 issueUrlFor 拿到什么；票面症状正是「/wayfinder 后面没有链接」。
+    //   这里只在按需级落一行 prompt.link：哪个提示词、哪个后端、编号是什么形态（empty/zero/number/other）、
+    //   链接是空还是有、结论 ok/empty-link。只记短枚举，不记工作区路径、不记标题与链接原文。
+    const logPromptLink = function (st: any, prompt: unknown, num: unknown, url: unknown): void {
+      try {
+        if (typeof isEnabled !== 'function' || !isEnabled('debug')) return
+        const n = Number(num)
+        let numKind = 'other'
+        if (num == null || num === '') numKind = 'empty'
+        else if (String(num) === '0' || (isFinite(n) && n === 0)) numKind = 'zero'
+        else if (isFinite(n)) numKind = 'number'
+        const backend = (typeof currentBackendId === 'function') ? String(currentBackendId(st) || '') : ''
+        const linkKind = url ? 'url' : 'empty'
+        try { log('debug', 'prompt.link', { prompt: String(prompt), backend: backend, numKind: numKind, linkKind: linkKind, verdict: linkKind === 'empty' ? 'empty-link' : 'ok' }) } catch (eLl) {}
+      } catch (e) {}
+    }
     // v5（#77 grilling 定版 2026-08-21）：mapHead 自包含化 —— 标识头三字段内联 complete 顶部，completePrompt 补 title 参数并填 {n}/{title}/{url}
     // #1281：完成提示词改成自包含（首行 /wayfinder、次行链接都写在正文里），这三个占位符一次填完；
     //   n/title 两个参数保留是为了不动各处调用点，正文不再使用它们。
     export const completePrompt = function (st: any, num: unknown, title: unknown, total: unknown, closed: unknown): string {
       void title
       const url = issueUrlFor(st, String(num || '')) // #231：后端声明模板单源；元数据未达即空（诚实缺形态）
+      if (typeof logPromptLink === 'function') logPromptLink(st, 'complete', num, url)
       return COMPLETE_PROMPT(st).split('{url}').join(url).split('{total}').join(String(total)).split('{closed}').join(String(closed))
     }
     export const inspectPrompt = function (st: any, num: unknown, title: unknown): string {
       const url = issueUrlFor(st, String(num || ''))
+      if (typeof logPromptLink === 'function') logPromptLink(st, 'inspect', num, url)
       return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(num || ''), title: String(title || ''), url: url })
     }

@@ -80,6 +80,8 @@ const dswsStatusHydN = { n: 0 }
 const dswsStatusFbLast = { reason: '' }
 // #776 观测：上一次记过的胶囊与父容器宽度（只在变化时记，避免每次提交刷屏）。
 const dswsWidthLinkLast = { cap: -1, parent: -1 }
+// #891/#995 复核：上一回记过的横幅（步骤 + 文案）与它出现的钟点；只在变化时落一行 guide.banner。
+const dswsBannerLast = { key: '', at: 0 }
 
 /**
  * 状态栏最外层容器的几何（#640）。整条状态栏（横幅那一行 + 胶囊那一行）都住在这个容器里，
@@ -267,6 +269,26 @@ export const StatusBar = (props: any) => {
   //   门控那一档读本地状态（上面那两个判定），其余读链快照。于是「黄条等仓库就绪」是顺序本身的结果：
   //   仓库那一步排在初始化之前，它没过就轮不到黄条（此前这条优先级链里根本没有仓库那一段）。
   const bannerStep = guideBannerStep(s, _gateActive || _backendUndecided)
+  // #891/#995/#916/#917 复核：几张口口相传的票子都卡在「黄条该消失时没消失」「本不该出现的黄条出现了」，
+  //   而今天没有任何一行日志记「横幅什么时候出现、出现的是哪一条、挂了多久才消失」。这里按边沿触发补一行常驻
+  //   info（只在步骤或文案变化时写）：出现记 shown、消失记 cleared，ageMs 是上一条挂了多久。字段只有短枚举与
+  //   毫秒数，不记工作区路径、不记标题。放在收起态早返回之前，保证收起/展开两种状态都记得到。
+  let _bannerMetaLog: any = null
+  try { if (bannerStep) _bannerMetaLog = (typeof guideBannerMeta === 'function') ? guideBannerMeta(s, bannerStep) : (bannerStep.banner || null) } catch (eBm) {}
+  const _bannerLogKey = bannerStep ? (String(bannerStep.id || '') + '|' + String((_bannerMetaLog && _bannerMetaLog.text) || '')) : ''
+  React.useEffect(function () {
+    try {
+      const now = Date.now()
+      if (dswsBannerLast.key === _bannerLogKey) return
+      const prev = dswsBannerLast
+      let text = ''
+      let tone = ''
+      try { if (_bannerMetaLog) { text = String(_bannerMetaLog.text || ''); tone = String(_bannerMetaLog.tone || '') } } catch (eT) {}
+      try { log('info', 'guide.banner', { step: String((bannerStep && bannerStep.id) || ''), banner: text, tone: tone, outcome: _bannerLogKey ? 'shown' : 'cleared', ageMs: prev.at ? (now - prev.at) : 0 }) } catch (eL) {}
+      dswsBannerLast.key = _bannerLogKey
+      dswsBannerLast.at = now
+    } catch (e) {}
+  }, [_bannerLogKey])
   // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认展开，按工作区记住。
   const deckFolded = isBannerFolded(s.cwd)
   const foldBanner = function () { try { setBannerFolded(s.cwd, true) } catch (e) {} }

@@ -30,8 +30,14 @@ declare const document: any
 export const LIQUID_INK_CLASS = 'dsws-ink'
 /** 容纳墨块与选项的容器类名；带这个类的容器会被本片补上 position:relative。 */
 export const LIQUID_INK_HOST_CLASS = 'dsws-ink-host'
-/** 非页签的选中项要加的类名（页签用既有的 .on，不必加）。 */
+/** 非页签的选中项要加的类名（页签用既有的 .on，不必加）。只当选中态标记用，不靠它隐藏底色与描边。 */
 export const LIQUID_INK_ON_CLASS = 'dsws-ink-on'
+/**
+ * 墨块此刻盖住的那一颗（由 liquidInkPlace 动态标，不是选中态标记）。
+ * 选中态可能有好多颗（多选标签组），但一块墨块只盖住一颗；盖住的那颗让出底色与描边避免双底，
+ * 同组其余选中项不带这个标记、保留自己的描边，这样「选了哪几个」还能一眼看出来。
+ */
+export const LIQUID_INK_COVER_ATTR = 'data-ink-cover'
 /** 第一次定位时先禁过渡，避免墨块从左上角飞过来。 */
 const INK_INSTANT_CLASS = 'dsws-ink-instant'
 
@@ -117,6 +123,24 @@ function readPx(el: any, name: string): number {
 }
 
 /**
+ * 把「墨块盖住的那颗」换成目标那颗：旧的那颗摘掉标记，新的一颗打上标记。
+ * 只改一个数据属性、且值没变时不写，所以不会触发观察器的回调（观察器只盯 class/style/hidden），
+ * 也就不会出现「改属性 → 收到变化 → 再改属性」的自激环路。
+ */
+function markCovered(ink: any, target: any): void {
+  const prev = ink.__dswsInkCovered
+  if (prev && prev !== target && prev.removeAttribute) {
+    try { prev.removeAttribute(LIQUID_INK_COVER_ATTR) } catch (e) {}
+  }
+  if (target && target.setAttribute) {
+    try {
+      if (target.getAttribute(LIQUID_INK_COVER_ATTR) !== '1') target.setAttribute(LIQUID_INK_COVER_ATTR, '1')
+    } catch (e2) {}
+  }
+  ink.__dswsInkCovered = target || null
+}
+
+/**
  * 把墨块移到这一组当前选中项的位置。返回有没有选中项（没有就把墨块藏起来）。
  * 只读一次目标元素的四个尺寸量，随后只写墨块自己的 CSS 变量，不动其它节点。
  */
@@ -127,12 +151,16 @@ export function liquidInkPlace(host: any, ink: any): boolean {
   const group = (ink.getAttribute && ink.getAttribute('data-ink-group')) || ''
   const target = inkTargetOf(host, group)
   if (!target) {
+    // 这一组一颗都没选中：墨块藏起来，盖住标记也摘掉（否则那颗会一直透明，看不出自己被选中）。
+    markCovered(ink, null)
     try {
       ink.style.opacity = '0'
       ink.style.pointerEvents = 'none'
     } catch (e) {}
     return false
   }
+  // 盖住的那颗让出底色与描边（避免双底）；同组其余选中项不动，继续显示自己的描边。
+  markCovered(ink, target)
   const x = readPx(target, 'offsetLeft')
   const y = readPx(target, 'offsetTop')
   const w = readPx(target, 'offsetWidth')

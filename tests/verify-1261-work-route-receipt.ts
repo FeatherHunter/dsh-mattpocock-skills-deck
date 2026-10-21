@@ -58,8 +58,9 @@ async function main() {
     && disk.workers[0].session === 's-a' && typeof disk.workers[0].label === 'string'
     && Array.isArray(disk.workers[0].entries) && disk.workers[0].entries.length === 1
     && disk.workers[0].entries[0].ticketKey === '701' && disk.workers[0].entries[0].action === 'report'
-    && disk.workers[0].entries[0].source === 'reported' && typeof disk.workers[0].entries[0].actionAt === 'number',
-    '盘上是 v3 形状（版本、时间、后端、会话页、条目全字段都在）')
+    && disk.workers[0].entries[0].source === 'reported' && typeof disk.workers[0].entries[0].actionAt === 'number'
+    && disk.workers[0].entries[0].hasWork === false,
+    '盘上是 v3 形状（版本、时间、后端、会话页、条目全字段都在）；纯上报的条目带 hasWork=false')
   // 同一会话同一票再报：后来居上，只留一条。
   await store.note({ rootKey: rootKey, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: '701', effortId: '', title: '甲票改名', action: 'report', source: 'reported' })
   const disk2 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
@@ -393,7 +394,47 @@ async function main() {
   check(relFlaky.ok === false && relFlaky.reason === 'readback-failed' && fs.readFileSync(disk5d, 'utf8').indexOf('905') < 0,
     '写后读回失败：回 readback-failed，但删除已经落盘（盘上 905 已不在）')
 
-  // ── 六、释放收口（#1086）：工具 value 顶层 release=true 走释放那一支 ──
+  // ── 五b、只有误报能释放（#1349）：建过、改过、关过、建过计划、挂过边的票不许删 ──
+  const home5w = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261rw-'))
+  const store5w = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5w, now: () => T0 }, memFs(home5w)))
+  const rk5w = 'ws-1261w'
+  const disk5w = home5w + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rk5w) + '.json'
+  const note5w = (ticketKey: string, action: string) => store5w.note({ rootKey: rk5w, sessionId: 's-a', sessionLabel: '', backend: 'markdown', ticketKey: ticketKey, effortId: '', title: '票 ' + ticketKey, action: action, source: 'auto' })
+  await note5w('931', 'create')
+  await note5w('932', 'edit')
+  await note5w('933', 'plan')
+  await note5w('934', 'link')
+  const relBlocked: any[] = []
+  for (const k of ['931', '932', '933', '934']) relBlocked.push(await store5w.release({ rootKey: rk5w, sessionId: 's-a', ticketKey: k }))
+  check(relBlocked.every((r: any) => r.ok === true && r.removed === false && r.blocked === 'has-work' && r.count === 4),
+    '建过 / 改过 / 建过计划 / 挂过边的票：释放被拒（removed=false、blocked=has-work、剩余条数不变）：' + JSON.stringify(relBlocked))
+  // 干过实事的票再上报一次：后一次上报不能把「做过实事」洗成「只上报过」。
+  await note5w('931', 'report')
+  const relBlockedAgain: any = await store5w.release({ rootKey: rk5w, sessionId: 's-a', ticketKey: '931' })
+  check(relBlockedAgain.ok === true && relBlockedAgain.removed === false && relBlockedAgain.blocked === 'has-work',
+    '建过票之后再上报：释放仍被拒（标记不被后一次上报冲掉）')
+  // 只上报过的票照旧能释放。
+  await note5w('935', 'report')
+  const relReportOnly: any = await store5w.release({ rootKey: rk5w, sessionId: 's-a', ticketKey: '935' })
+  check(relReportOnly.ok === true && relReportOnly.removed === true && relReportOnly.count === 4,
+    '只上报过的票能释放：removed=true，本会话还剩 4 条')
+  const disk5wData = JSON.parse(fs.readFileSync(disk5w, 'utf8'))
+  const rows5w = disk5wData.workers.filter((w: any) => w.session === 's-a')[0].entries
+  check(rows5w.length === 4 && rows5w.every((e: any) => e.hasWork === true) && !rows5w.some((e: any) => e.ticketKey === '935'),
+    '盘上：处理过的四条 hasWork=true 原样保留，误报那条已删')
+  // #1349 之前的旧账没有 hasWork 格：读不清就按干过保守处理，不许删，文件也一字不动。
+  const home5o = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261ro-'))
+  const rk5o = 'ws-1261o'
+  const disk5o = home5o + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rk5o) + '.json'
+  fs.mkdirSync(path.dirname(disk5o), { recursive: true })
+  const rawOld = JSON.stringify({ v: 3, at: T0, backend: 'markdown', workers: [{ session: 's-a', label: '', labelAt: T0, entries: [{ ticketKey: '941', effortId: '', title: '旧账票', action: 'report', actionAt: T0, source: 'reported' }] }] })
+  fs.writeFileSync(disk5o, rawOld, 'utf8')
+  const store5o = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home5o, now: () => T0 }, memFs(home5o)))
+  const relOld: any = await store5o.release({ rootKey: rk5o, sessionId: 's-a', ticketKey: '941' })
+  check(relOld.ok === true && relOld.removed === false && relOld.blocked === 'has-work' && fs.readFileSync(disk5o, 'utf8') === rawOld,
+    '旧账条目没有 hasWork 格：按做过实事保守处理，拒绝释放且文件一字不动')
+
+  // ── 六、释放收口（#1086、#1349）：工具 value 顶层 release=true 走释放那一支 ──
   const home6 = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261x-'))
   const store6 = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home6, now: () => T0 }, memFs(home6)))
   const rk6 = 'ws-1261x'
@@ -410,6 +451,13 @@ async function main() {
   const vRel2: any = { status: 'ok', release: true, data: { key: '701' }, notes: [] }
   await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vRel2)
   check(vRel2.notes.some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0), '再释放同一条：备注说本来就没有（不冒充删掉）')
+  // 建过票的票不能释放：回执必须说清、且在办表里仍然看得到（#1349）。
+  await store6.note({ rootKey: rk6, sessionId: 's-r', sessionLabel: '', backend: 'markdown', ticketKey: '705', effortId: '', title: '己票', action: 'create', source: 'auto' })
+  const vRelBlocked: any = { status: 'ok', release: true, data: { key: '705', title: '己票' }, notes: [] }
+  await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vRelBlocked)
+  check(vRelBlocked.data.workRoute && vRelBlocked.data.workRoute.entries.some((e: any) => e.ticketKey === '705')
+    && vRelBlocked.notes.some((n: string) => n.indexOf('有过实际处理') >= 0 && n.indexOf('不能从工作路线里释放') >= 0 && n.indexOf('只用来撤销从没处理过的误报') >= 0),
+    '建过票的票释放：备注说明有过实际处理、不能释放，在办表里仍然有这张票：' + JSON.stringify(vRelBlocked.notes))
   // release:false 与不带 release 都是正常上报。
   const vRelFalse: any = { status: 'ok', release: false, data: { key: '703', effortId: '', title: '丙票' }, notes: [] }
   await recordMod.recordWorkRoute(deps6, 'deck_issue_report', { sessionId: 's-r', workspaceKey: rk6, cwd: 'x' }, 'markdown', vRelFalse)

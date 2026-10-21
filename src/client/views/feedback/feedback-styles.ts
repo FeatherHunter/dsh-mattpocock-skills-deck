@@ -68,13 +68,15 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '@media (prefers-reduced-motion: reduce){.dsws-fb-skel{animation:none;background:rgba(255,255,255,.07)}}',
       // 本次界面反馈需求里的液态墨块与全控件按压/悬停：第 32 种反馈「选中块迁移」。墨块只在 transform 上做过渡
       //   （宽度/高度只在选项换行或折叠时变一次），拉伸回弹靠 linear() 的过冲，不新增颜色、不动布局。
-      //   容器由 leaf:liquidInk 补 position:relative；选中项原来的底色/描边让位给墨块，文字颜色照旧。
+      //   容器由 leaf:liquidInk 补 position:relative；墨块此刻盖住的那一颗把底色/描边让给它（避免双底），
+      //   文字颜色照旧。盖住哪一颗由 leaf 动态标在元素上（data-ink-cover），不是选中态标记——多选标签组里
+      //   同时选中的可能有好多颗，只有被墨块盖住的那颗让位，其余的保留自己的描边，才看得出选了哪几个。
       '.dsws-ink-host{position:relative}',
       '.dsws-ink-host .dsws-tab,.dsws-ink-host .dsws-chip{position:relative;z-index:1}',
       '.dsws-ink{position:absolute;left:0;top:0;width:var(--dsws-ink-w,0px);height:var(--dsws-ink-h,0px);border-radius:var(--dsws-ink-radius,6px);background:var(--dsws-ink-bg,rgba(255,255,255,.14));border:1px solid var(--dsws-ink-bd,transparent);box-sizing:border-box;pointer-events:none;z-index:0;will-change:transform;transform:translate3d(var(--dsws-ink-x,0px),var(--dsws-ink-y,0px),0);transition:transform .24s linear(0,.55 30%,1.06 62%,.99 84%,1),width .16s ease,height .16s ease,opacity .12s ease}',
       '.dsws-ink.dsws-ink-instant{transition:none!important}',
       '.dsws-ink-host .dsws-tab.on{background:transparent;border-color:transparent}',
-      '.dsws-ink-host .dsws-ink-on{background:transparent!important;border-color:transparent!important}',
+      '.dsws-ink-host [data-ink-cover="1"]{background:transparent!important;border-color:transparent!important}',
       // 页签只有悬停变色（原来连这个都没有）；药丸加一层轻微提亮，按下由通用按压态负责。
       '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}.dsws-chip:hover{filter:brightness(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.16)}}',
       // 选中的那一颗悬停时墨块已经在它底下，再补一档提亮，保证「悬停有反馈」对五颗页签每一颗都成立。
