@@ -54,6 +54,8 @@ const LEAVES = [
   { file: 'src/client/views/NoRepoCard.js', exports: ['NoRepoCard'], components: ['NoRepoCard'] },
   { file: 'src/client/views/ListTabClosed.js', exports: ['useClosedPageScroll', 'closedPagesNode', 'repoWebIssuesUrlOf'], components: [] }, // #690 新增：主列表「已关闭票按需翻页」的三个触发点（展开折叠行、切到已关闭、滚到底）与「已加载 x / 共 N」那一行（无组件，纯函数与钩子）
   { file: 'src/client/views/ListTabRow.js', exports: ['listIssueRow'], components: [] }, // V3 #463 由 ListTab.js 拆出：单行渲染（无组件，纯函数）
+  // 本次界面反馈需求：列表页状态/排序/标签三组筛选药丸那一行（含三块液态墨块）从 ListTab.ts 抽出。
+  { file: 'src/client/views/listFilterRow.ts', exports: ['listFilterRowNode'], components: [] },
   { file: 'src/client/views/ListTab.js', exports: ['ListTab'], components: ['ListTab'] },
   { file: 'src/client/views/SkillsTab.js', exports: ['SkillsTab'], components: ['SkillsTab'] },
   { file: 'src/client/views/ChecksTab.js', exports: ['ChecksTab'], components: ['ChecksTab'] },

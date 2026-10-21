@@ -40,7 +40,14 @@ const DEFAULT_RADIUS = '6px'
 
 function ensureHost(host: any): void {
   if (!host || !host.classList) return
-  try { host.classList.add(LIQUID_INK_HOST_CLASS) } catch (e) {}
+  try {
+    // 这个类已经存在时绝不能再 add。浏览器对「加一个已经有的类」照样记一条 class 属性变更，
+    // 而 useLiquidInk 的 MutationObserver 正盯着这个容器的 class（attributeFilter 里有 'class'）；
+    // 回调里又会 place → ensureHost，于是自己触发自己、永远停不下来，渲染进程连一帧都回不去。
+    // 2026-10-21 桌面窗口整窗卡死就是这条环路：先判一下，类在就直接返回。
+    if (host.classList.contains(LIQUID_INK_HOST_CLASS)) return
+    host.classList.add(LIQUID_INK_HOST_CLASS)
+  } catch (e) {}
 }
 
 /**
@@ -48,9 +55,24 @@ function ensureHost(host: any): void {
  * 本函数沿 DOM 往上找到最近的墨块容器，把 key 记在它的 data-ink-key 上。
  * 只写一个属性，不触发 React 重渲染；下一次 place 会优先找这颗还处于选中态的药丸。
  */
-export function liquidInkRemember(el: any, key: any): void {
+export function liquidInkRemember(el: any, key: any, group?: any): void {
   try {
     const k = key === null || key === undefined ? '' : String(key)
+    const g = group === null || group === undefined ? '' : String(group)
+    // 多选组要知道「最近一次点中的是哪一颗」：在点击的那颗药丸上记 data-ink-pick，
+    // 同组其余药丸先摘掉。取消选中后这一颗不再带 dsws-ink-on，墨块会自动退回同组第一个选中项。
+    if (g && el && el.setAttribute) {
+      let host = null
+      for (let node = el; node && node.nodeType === 1; node = node.parentNode) {
+        if (node.classList && node.classList.contains(LIQUID_INK_HOST_CLASS)) { host = node; break }
+      }
+      const scope = host || el.ownerDocument
+      try {
+        const olds = scope.querySelectorAll('[data-ink-pick="1"][data-ink-group="' + g + '"]')
+        for (let i = 0; i < olds.length; i++) { try { olds[i].removeAttribute('data-ink-pick') } catch (eO) {} }
+      } catch (eQ) {}
+      try { el.setAttribute('data-ink-pick', '1') } catch (eP) {}
+    }
     for (let node = el; node && node.nodeType === 1; node = node.parentNode) {
       if (node.classList && node.classList.contains(LIQUID_INK_HOST_CLASS)) {
         node.setAttribute('data-ink-key', k)
@@ -61,8 +83,18 @@ export function liquidInkRemember(el: any, key: any): void {
 }
 
 /** 找这一组当前的选中项：先认「最近点中且仍在选中态」的那颗，再退回第一个选中的（页签用 .on）。 */
-function inkTargetOf(host: any): any {
+function inkTargetOf(host: any, group: any): any {
   if (!host || !host.querySelector) return null
+  const g = group === null || group === undefined ? '' : String(group)
+  if (g) {
+    // 多选组：先认「最近点中且仍在选中态」的那颗；它若已取消选中，退回同组第一个选中项。
+    const escapedG = g.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    let picked: any = null
+    try { picked = host.querySelector('.' + LIQUID_INK_ON_CLASS + '[data-ink-group="' + escapedG + '"][data-ink-pick="1"]') } catch (eG) { picked = null }
+    if (picked) return picked
+    try { picked = host.querySelector('.' + LIQUID_INK_ON_CLASS + '[data-ink-group="' + escapedG + '"]') } catch (eG2) { picked = null }
+    return picked || null
+  }
   const key = host.getAttribute('data-ink-key')
   if (key) {
     let picked: any = null
@@ -91,7 +123,9 @@ function readPx(el: any, name: string): number {
 export function liquidInkPlace(host: any, ink: any): boolean {
   if (!host || !ink || !ink.style) return false
   ensureHost(host)
-  const target = inkTargetOf(host)
+  // 一块墨块盯一组：分组键写在墨块自己身上，同一容器里可以并排住三块（状态/排序/标签）。
+  const group = (ink.getAttribute && ink.getAttribute('data-ink-group')) || ''
+  const target = inkTargetOf(host, group)
   if (!target) {
     try {
       ink.style.opacity = '0'
@@ -132,7 +166,7 @@ export function liquidInkPlace(host: any, ink: any): boolean {
  * 组件侧入口：把返回的元素放进这一组的容器里（容器自己带 LIQUID_INK_HOST_CLASS 或由本 hook 补上），
  * 把 hostRef 指向同一个容器。选中态变化时组件照常重渲染，墨块在每次渲染后的布局阶段重新对位。
  */
-export function useLiquidInk(hostRef: any): any {
+export function useLiquidInk(hostRef: any, group?: any): any {
   const inkRef = React.useRef(null)
   const place = function () {
     try { liquidInkPlace(hostRef && hostRef.current, inkRef.current) } catch (e) {}
@@ -152,7 +186,18 @@ export function useLiquidInk(hostRef: any): any {
     try {
       const host = hostRef && hostRef.current
       if (host && typeof MutationObserver !== 'undefined') {
-        mo = new MutationObserver(function () { if (!cancelled) place() })
+        mo = new MutationObserver(function (records: any) {
+          if (cancelled) return
+          // 墨块自己的 style/class 也在被观察范围里（它是容器的子节点），对位时一改就会再收到一条记录。
+          //   只认「容器里除墨块以外」的变动，否则就会自己触发自己、把渲染进程占满（2026-10-21 整窗卡死那条环路）。
+          const ink = inkRef.current
+          for (let i = 0; i < (records ? records.length : 0); i++) {
+            const t = records[i] && records[i].target
+            if (t && ink && (t === ink || (t.nodeType === 1 && ink.contains && ink.contains(t)))) continue
+            place()
+            return
+          }
+        })
         mo.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] })
       }
     } catch (e) {}
@@ -167,5 +212,7 @@ export function useLiquidInk(hostRef: any): any {
       try { if (mo) mo.disconnect() } catch (e) {}
     }
   }, [])
-  return h('span', { className: LIQUID_INK_CLASS, ref: inkRef, 'aria-hidden': 'true' })
+  const inkProps: any = { className: LIQUID_INK_CLASS, ref: inkRef, 'aria-hidden': 'true' }
+  if (group !== null && group !== undefined && group !== '') inkProps['data-ink-group'] = String(group)
+  return h('span', inkProps)
 }

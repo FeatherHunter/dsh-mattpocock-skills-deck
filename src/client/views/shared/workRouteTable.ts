@@ -364,6 +364,9 @@ export const WorkRouteTrigger = ({ st }: any) => {
   const icon = h('span', {
     ref: iconRef,
     'data-work-route-trigger': 1,
+    className: 'dsws-hov',
+    'data-press': 'icon',
+    'data-log': 'head.workroute',
     role: 'button',
     tabIndex: 0,
     'aria-label': tr('workRouteTable.iconLabel'),

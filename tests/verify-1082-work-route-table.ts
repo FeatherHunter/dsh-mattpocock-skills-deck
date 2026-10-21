@@ -339,7 +339,8 @@ async function main() {
   // 位置与入口的形状按源码核对：表不再画在列表页正文，图标挂在头部那一行末尾。
   const dockSrc = sourceText('src/client/panel/Dock.ts')
   check(dockSrc.indexOf('h(WorkRouteTable') < 0, '列表页正文不再画在办表（列表不再被往下推）')
-  check(/tabs\.items\.concat\(\[\s*h\(WorkRouteTrigger/.test(dockSrc), '在办表图标接在头部那一行的末尾')
+  // 本次界面反馈需求把液态墨块作为第一个子节点塞进这一行，图标仍在 items 之后、仍是这一行最后一个子节点。
+  check(/\[tabs\.inkEl\]\.concat\(tabs\.items,\s*\[\s*h\(WorkRouteTrigger/.test(dockSrc), '在办表图标接在头部那一行的末尾（墨块在前、图标在最后）')
   const tabsSrc = sourceText('src/client/views/shared/Tabs.ts')
   check(tabsSrc.indexOf('dsws-ver') < 0 && tabsSrc.indexOf('DSW_VERSION') < 0, '头部那一行的版本号撤走了（改由图标提示显示）')
   const stylesSrc = sourceText('src/client/kernel/styles.ts')

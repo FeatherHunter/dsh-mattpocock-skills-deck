@@ -60,10 +60,12 @@ function logTargetOf(ev: any): any {
   return null
 }
 
-/** 只保留稳定枚举字符：小写字母、数字、点、横线、下划线；其它字符一律丢掉，避免自由文本混进日志。 */
+/** 只保留稳定枚举字符：小写字母、数字、点、横线、下划线；其它字符一律丢掉，避免自由文本混进日志。
+ *  先统一转小写：调用方写的是 camelCase 枚举（例如 list.row.newSession.1324），
+ *  若直接丢大写字母会记成 list.row.newsession 这种缺一段的残缺值；转小写后仍是稳定枚举，人能按原样找到按钮。 */
 function cleanToken(raw: any, max: number): string {
   if (raw === null || raw === undefined) return ''
-  const s = String(raw).trim()
+  const s = String(raw).trim().toLowerCase()
   if (!s) return ''
   let out = ''
   for (let i = 0; i < s.length && out.length < max; i++) {

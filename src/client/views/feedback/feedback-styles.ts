@@ -77,6 +77,8 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-ink-host .dsws-ink-on{background:transparent!important;border-color:transparent!important}',
       // 页签只有悬停变色（原来连这个都没有）；药丸加一层轻微提亮，按下由通用按压态负责。
       '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}.dsws-chip:hover{filter:brightness(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.16)}}',
+      // 选中的那一颗悬停时墨块已经在它底下，再补一档提亮，保证「悬停有反馈」对五颗页签每一颗都成立。
+      '@media (hover:hover) and (pointer:fine){.dsws-ink-host .dsws-tab:hover{filter:brightness(1.12)}}',
       // 通用按压/悬停：给清单里原来没有任何反馈的控件（仓库名、切后端、调色板、新建需求、+bug、
       //   workroute、地图卡片、折叠条、父链接、设置页按钮与插件行等）同一套语言；只用亮度与小位移。
       '.dsws-pressing{filter:brightness(.85)}',

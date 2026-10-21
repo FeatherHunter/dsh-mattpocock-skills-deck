@@ -712,6 +712,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'setupCard', file: 'src/client/views/SetupCard.ts' }, // #698 新增：盖住整个应用的「域文档布局」小卡（原先只渲染在黄条下面，工作区一初始化就没有地方可画）
   { id: 'ListTabClosed', file: 'src/client/views/ListTabClosed.ts' }, // #690 新增：折叠行展开、滚到底这两个触发点，与「已加载 x / 共 N」那一行（排在 ListTab 之前，ListTab 调它们）
   { id: 'ListTabRow', file: 'src/client/views/ListTabRow.ts' },
+  // 本次界面反馈需求：列表页三组筛选药丸那一行（含三块液态墨块）从 ListTab 抽出，ListTab 贴着 350 行上限。
+  { id: 'listFilterRow', file: 'src/client/views/listFilterRow.ts' },
   { id: 'listTab', file: 'src/client/views/ListTab.ts' },
   { id: 'prTab', file: 'src/client/views/PrTab.ts' },
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.ts' },

@@ -339,7 +339,7 @@ export default {
     // ==== leaf:pop (spliced by build) ====
     // ==== leaf:noRepoCard (spliced by build) ====
     // ==== leaf:setupCard (spliced by build) ====
-    // ==== leaf:ListTabClosed (spliced by build) ==== // ==== leaf:ListTabRow (spliced by build) ==== // ==== leaf:listTab (spliced by build) ====
+    // ==== leaf:ListTabClosed (spliced by build) ==== // ==== leaf:ListTabRow (spliced by build) ==== // ==== leaf:listFilterRow (spliced by build) ==== // ==== leaf:listTab (spliced by build) ====
 
     // ==== leaf:prTab (spliced by build) ====
 

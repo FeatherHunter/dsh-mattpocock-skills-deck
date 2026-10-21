@@ -21,6 +21,7 @@ declare const CONTAINER_CHIP_MARKER_CLASS: any;
 //   否则同一张票会「行画成地图、却排在普通票堆里」。
 declare function containerKindOf(...args: any[]): any;
 declare function closedPagesNode(...args: any[]): any;
+declare function listFilterRowNode(...args: any[]): any;
 declare function compute(...args: any[]): any;
 declare function darken(...args: any[]): any;
 declare function deckCountsOf(...args: any[]): any;
@@ -313,36 +314,6 @@ export     const ListTab = ({ st, narrow }: any) => {
       const filteredOpen = showOpen ? (st.stateFilter === 'blocked' ? openFiltered.filter(function (x: any) { return isOccupied(st, x) })
         : (st.stateFilter === 'frontier' ? openFiltered.filter(function (x: any) { return !isOccupied(st, x) }) : openFiltered)) : []
       const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedRows.filter(byLabel) : closedRows) : []
-      // v14-18：chips 常显深一档边框（边框色 = label 色 HSL 亮度 -16%）
-      const chip = (nm: any, withCount: any, on: any, isAll: any) => {
-        const c = colorOf[nm]
-        const borderColor = isAll ? 'rgba(255,255,255,.35)' : (darken(c, 0.16) || 'rgba(188,140,255,.6)')
-        const selColor = isAll ? 'rgba(255,255,255,.65)' : (c ? '#' + c : '#bc8cff')
-        return h('span', chipProps({
-          key: nm,
-          className: 'dsws-chip',
-          // v14-1：「全部」恒清空过滤并保持选中，与普通标签 toggle 语义分离
-          // #375：点选即记点击记忆（次数 + 最近点击时间，双键排序）
-          onClick: function (e: any) {
-            e.stopPropagation()
-            // v1.5：多选 toggle —— 选中/取消单个标签，互不覆盖
-            const cur = st.lblFilters || []
-            st.lblFilters = isAll ? [] : (cur.indexOf(nm) >= 0 ? cur.filter(function (x: any) { return x !== nm }) : cur.concat([nm]))
-            if (!isAll) {
-              const c = labelClicks[nm] || { n: 0, ts: 0 }
-              labelClicks[nm] = { n: c.n + 1, ts: Date.now() }
-              saveLabelClicks()
-            }
-            emit(st)
-          },
-          style: {
-            cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10,
-            background: isAll ? 'rgba(255,255,255,.08)' : (hexA(c, 0.18) || 'rgba(188,140,255,.16)'),
-            color: isAll ? 'var(--dsw-alias-label-secondary,#a1a1aa)' : (c ? '#' + c : '#bc8cff'),
-            border: '1px solid ' + (on ? selColor : borderColor),
-          },
-        }), nm)
-      }
       // KPI 口径：与全局一致，但跟随 effort 筛选（未选 effort 时就是全局）
       // #689：两个数字优先读宿主给的后端计数（deck.counts）—— 「已关闭」直接是它；「可接」= 后端说的未关闭
       //   张数减去本地数出来的阻塞（阻塞要逐票看指派人、看有没有开放阻塞者，后端计数给不了）。
@@ -419,32 +390,7 @@ export     const ListTab = ({ st, narrow }: any) => {
             }, style: { cursor: 'pointer', fontSize: 10, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: on ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }), nm))
           }),
         ]) : null,
-        // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
-        h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, marginBottom: 6 } }, [
-          ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k: any) {
-            const on = st.stateFilter === k
-            return h('span', chipProps({ key: 'stf-' + k, className: 'dsws-chip', onClick: function (e: any) {
-              e.stopPropagation(); st.stateFilter = k; listPrefs.stateFilter = k; saveListPrefs('stateFilter'); emit(st)
-            }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? 'rgba(188,140,255,.18)' : 'rgba(255,255,255,.06)', color: on ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(188,140,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
-          }),
-          h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
-          ['updatedAt', 'createdAt', 'number', 'title'].map(function (k: any) {
-            const on = st.sortKey === k
-            const arrow = on ? (st.sortDir === 'asc' ? '↑' : '↓') : ''
-            return h('span', chipProps({ key: 'srt-' + k, className: 'dsws-chip', onClick: function (e: any) {
-              e.stopPropagation()
-              if (st.sortKey === k) { st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc' }
-              else { st.sortKey = k; st.sortDir = (k === 'title') ? 'asc' : 'desc' }
-              listPrefs.sortKey = st.sortKey; listPrefs.sortDir = st.sortDir; saveListPrefs(['sortKey', 'sortDir']); emit(st)
-            }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? 'rgba(88,166,255,.16)' : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(88,166,255,.55)' : 'rgba(255,255,255,.15)') } }), tr('list.sort.' + k) + arrow)
-          }),
-          h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
-          chip(tr('list.all'), false, !st.lblFilters || !st.lblFilters.length, true),
-          // #405：filter row 默认可见数 9 → 4（与 per-row 一致）；+N 触发条件 + 数字同步
-          (st.expLabels ? sortedLabels : sortedLabels.slice(0, 4)).map(function (nm: any) { return chip(nm, true, (st.lblFilters || []).indexOf(nm) >= 0, false) }),
-          (!st.expLabels && sortedLabels.length > 4) ? h(Tip, { content: tr('list.tagsTitle', { names: sortedLabels.join('、') }) }, h('span', chipProps({ key: 'lbl-more', className: 'dsws-chip', onClick: function (e: any) { e.stopPropagation(); st.expLabels = true; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px dashed rgba(188,140,255,.55)', cursor: 'pointer' } }), '+' + (sortedLabels.length - 4))) : null,
-          st.expLabels ? h(Tip, { content: tr('list.tagsCollapseTitle') }, h('span', chipProps({ key: 'lbl-less', className: 'dsws-chip', onClick: function (e: any) { e.stopPropagation(); st.expLabels = false; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-caption,#8b8b95)', border: '1px dashed rgba(255,255,255,.3)', cursor: 'pointer' } }), tr('list.collapse'))) : null,
-        ]),
+        listFilterRowNode(h, st, colorOf, sortedLabels),
         // #690：历史票翻页那一行 —— 「已加载 x / 共 N」、翻页位置失效、取不到、后端不支持翻页各说各的
         //   （出处见 views/ListTabClosed.js 的注释；x 与折叠行那两个数同源：就是当前列表里真的画出来的行数）。
         closedPagesNode(h, st, closedRows.length),

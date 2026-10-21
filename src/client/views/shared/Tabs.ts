@@ -23,6 +23,7 @@
  * 而不是精确签名，是为了保证「只加类型、不加约束」——转译后一字不差。
  */
 declare const React: any;
+declare const useLiquidInk: any; // 液态墨块 hook（views/shared/liquidInk.ts，拼接序在本片之前）
 declare const portalTop: any;
 declare const snapFresh: any;
 declare const loadSnapshot: any;
@@ -55,7 +56,11 @@ export const useTabsRow = function (s: any, tabsRef: any) {
     setTabTip({ x: x, y: y, text: text })
   }
   const tabsTipOff = function () { setTabTip(null) }
-  const tabBtn = (id: any, icon: any, label: any, priority: any) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), 'data-priority': priority, onMouseMove: function (e: any) { tabsTip(e, label, priority) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s); if (!snapFresh(s)) loadSnapshot(s, false) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+  // 液态墨块：把它交给调用方放进同一个容器里，墨块自己会去找带 .on 的选中页签对位。
+  const inkHostRef = React.useRef(null)
+  const inkEl = useLiquidInk(inkHostRef)
+  // data-log 的值只收小写字母、数字、点和横线（见 kernel/ui-feedback.ts 的限字符规则），所以页签 id 一律转小写。
+  const tabBtn = (id: any, icon: any, label: any, priority: any) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), 'data-press': 'tab', 'data-log': 'panel.tab.' + String(id).toLowerCase(), 'data-ink-key': id, 'data-priority': priority, onMouseMove: function (e: any) { tabsTip(e, label, priority) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s); if (!snapFresh(s)) loadSnapshot(s, false) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
     Ic({ n: icon, size: 12 }),
     h('span', null, label),
   ])
@@ -85,12 +90,12 @@ export const useTabsRow = function (s: any, tabsRef: any) {
     //   与它那一整条点击处理都删了，改成一个入口：点下去弹一层浮层，浮层里上下排两张卡
     //   （探索地图 / 实施地图），由人自己选路，插件不替人判断。浮层与选卡后的拼装住
     //   kernel/entry-choice.ts，面板这一排与状态栏胶囊悬停菜单调的是同一组函数，开场白逐字相同。
-    h('button', { className: 'dsws-btn', 'data-priority': 2, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newWayfinderTitle'), 2) }, onMouseLeave: tabsTipOff, onClick: function (e: any) { entryChooserOpen(s, 'panel', e && e.currentTarget) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid ' + ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : ''), color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', fontWeight: 600 } }, [
+    h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'panel.newwayfinder', 'data-priority': 2, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newWayfinderTitle'), 2) }, onMouseLeave: tabsTipOff, onClick: function (e: any) { entryChooserOpen(s, 'panel', e && e.currentTarget) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid ' + ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : ''), color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', fontWeight: 600 } }, [
       Ic({ n: 'map', size: 11 }),
       h('span', null, tr('panel.newWayfinder')),
       Ic({ n: 'chev-down', size: 9 }),
     ]),
-    h('button', { className: 'dsws-btn', 'data-priority': 1, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newBugTitle'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), newSessionTitleNew('bug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
+    h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'panel.newbug', 'data-priority': 1, onMouseMove: function (e: any) { tabsTip(e, tr('panel.newBugTitle'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), newSessionTitleNew('bug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
       Ic({ n: 'bug', size: 11 }),
       h('span', null, tr('panel.newBug')),
     ]),
@@ -103,5 +108,5 @@ export const useTabsRow = function (s: any, tabsRef: any) {
     //   （在办表图标接在它后面，由面板那一侧挂上去）。
     (tabTip && portalTop) ? portalTop(h('div', { style: { position: 'fixed', left: tabTip.x, top: tabTip.y, zIndex: 2147483000, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', maxWidth: 220 } }, tabTip.text)) : null,
   ]
-  return { tabsRef: tabsRef, items: items }
+  return { tabsRef: tabsRef, items: items, inkHostRef: inkHostRef, inkEl: inkEl }
 }

@@ -93,6 +93,9 @@ export const LabelColorEntry = (props: any) => {
   const button = h('button', {
     type: 'button',
     'data-label-colors': 1,
+    className: 'dsws-hov',
+    'data-press': 'icon',
+    'data-log': 'head.palette',
     'aria-label': tip,
     onClick: function (e: any) {
       try { if (e && e.preventDefault) e.preventDefault() } catch (e1) { /* 忽略 */ }
