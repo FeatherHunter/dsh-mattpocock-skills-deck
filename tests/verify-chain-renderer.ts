@@ -9,7 +9,7 @@
  * 运行：node tests/verify-chain-renderer.ts
  */
 
-import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import assert from 'node:assert'
 // 取源入口（tests/lib/source-text.ts）：src/client 下的同名 .js 是 pixel-ts 写下的构建产物（这一阶段要删），
@@ -133,19 +133,10 @@ check(srForForm.includes('FormModalSeat') && srForForm.includes('dsws-modal'), '
 
 console.log('')
 console.log('-- 5) gh 登录黄条 inject-prompt 替换 openUrl（#308 修陈旧断言：bc72e16 迁移至后端 fixes） --')
-// #1294：提示词模板真源搬去 config/prompts/*.yaml，kernel/prompts.ts 只剩「读生成物」的外壳，
-//   所以「ghAuthLogin 模板存在」这句要问真源目录（按目录发现，不手写五族的名单）。判据语义不变：
-//   登录黄条注入的那条模板键必须在提示词真源里存在。
-const promptYamlDir = resolve(root, 'config/prompts')
-const prompts = readdirSync(promptYamlDir)
-  .filter((n) => /\.ya?ml$/.test(n))
-  .sort()
-  .map((n) => readFileSync(resolve(promptYamlDir, n), 'utf8'))
-  .join('\n')
-check(/(^|\n)ghAuthLogin:/.test(prompts), 'prompts 含 ghAuthLogin 模板')
-// 2026-10-17 删掉「ghAuthLogin 含 gh auth login 文案」这条：模板从 #716 起改成占位符
-// `{cli} auth login`，硬字 `gh` 已不在源码里；这条文案的真牙齿在 tests/verify-prompts.js
-// （按后端真渲染中英模板），这里钉的是过时的字符串形态，留着只会假红。
+// 2026-10-21：登录引导单源化 —— 提示词真源里那条旧的 ghAuthLogin 模板已删除（用户可见的只有
+//   后端声明的那一句），所以这里不再问 config/prompts/*.yaml，改由下面两条接住：
+//   状态栏按当前后端/通用 hint 解析、后端声明含 ghAuthLogin（见本节末尾）。
+//   2026-10-17 也曾删掉「模板含 gh auth login 文案」一条，理由相同：硬字 `gh` 只该活在后端声明里。
 // #308 修陈旧断言：bc72e16 后修复指引迁入后端 fixes（host/index.js 不再硬编码 prompt:ghAuthLogin，ChecksTab 不再硬编码 promptText 调用）
 const checksTab = file('src/client/views/ChecksTab.js')
 check(checksTab.includes('hintTextOf') && checksTab.includes('resolvePrompt'), 'ChecksTab 走通用 hint 解析（不再硬编码 ghAuthLogin，承接 fixContract）')

@@ -67,7 +67,7 @@ export interface PromptFragmentSpec {
 /**
  * 五份 YAML 的分类 —— 与「这条提示词在什么时候被注入」一一对应：
  *   workspace-initialization 工作区初始化（setupRun / switchAlign / switchLayout）
- *   repository-alignment  仓库与凭据对齐（ghAuthLogin / installSkillsFix / installSkills）
+ *   repository-alignment  仓库与凭据对齐（installSkillsFix / installSkills）
  *   map-advancement        地图推进（mapExecute / complete / fixate / mapInspect /
  *                          healthCheck / specExecute / specComplete / specSplit）
  *   ticket-action-templates 票面动作模板（tpl.* 一族）
@@ -138,7 +138,7 @@ export interface LanguageEntry {
 }
 
 // ---------------------------------------------------------------------------
-// 28 条模板 id（按注入时机分族）：改动这条表请连同 PROMPT_FRAGMENT_IDS 一起改 ——
+// 27 条模板 id（按注入时机分族）：改动这条表请连同 PROMPT_FRAGMENT_IDS 一起改 ——
 // 它们是真值表，不是字面量举例（见 AGENTS.md 「TypeScript 优先」节）。
 // ---------------------------------------------------------------------------
 
@@ -157,7 +157,6 @@ export const PROMPT_TEMPLATE_IDS: ReadonlyArray<PromptTemplateSpec> = [
   { id: 'switchAlign', family: 'workspace-initialization', placeholders: ['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout', 'from', 'to'] },
   { id: 'switchLayout', family: 'workspace-initialization', placeholders: ['from', 'to'] },
   // repository-alignment（仓库与凭据对齐）
-  { id: 'ghAuthLogin', family: 'repository-alignment', placeholders: ['cli', 'cliBrand'] },
   { id: 'installSkillsFix', family: 'repository-alignment', placeholders: [] },
   { id: 'installSkills', family: 'repository-alignment', placeholders: ['probeList', 'probeCount'] },
   // map-advancement（地图推进）
