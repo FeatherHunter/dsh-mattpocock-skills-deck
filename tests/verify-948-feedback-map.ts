@@ -5,7 +5,7 @@
 //
 // 盯住 #949 验收里的组合规矩（样式类的几条随「读源码文本钉形状」门禁一起删掉了，
 // 这里只留跑起来能验的部分）：
-//   1. 等待加代价加形状到反馈组合的映射是全函数，31 种全部分配、无遗漏，人已否的 6 种不在内。
+//   1. 等待加代价加形状到反馈组合的映射是全函数，32 种全部分配、无遗漏，人已否的 6 种不在内。
 // 外加三条组合铁律：高危险不用弹跳扩散自动消失气泡；小图标不用缩小下沉倾斜；
 // 无真实时间与真实进度不显示倒计时与百分比；同一时刻只有一个主力过程效果。
 const path = require('path')
@@ -20,10 +20,17 @@ async function main() {
   console.log('948 首批门禁：组合映射全函数 + 瞬间底座（#949）')
   const mod = await import(pathToFileURL(path.join(ROOT, 'src/shared/feedback-map.js')).href)
 
-  // —— 1. 31 种全部分配，6 种已否不在内 ——
+  // —— 1. 32 种全部分配，6 种已否不在内 ——
   const denied = ['A9', 'A10', 'B2', 'B8', 'B10', 'C13']
-  const catalog = mod.FEEDBACK_31 || []
-  check(Array.isArray(catalog) && catalog.length === 31, '31 种反馈全部分配（目录长 31）', '实际 ' + catalog.length)
+  const catalog = mod.FEEDBACK_32 || []
+  check(Array.isArray(catalog) && catalog.length === 32, '32 种反馈全部分配（目录长 32）', '实际 ' + catalog.length)
+  // 第 32 种是 A13「选中块迁移」：页签与筛选药丸换选中项时那块底滑过去。
+  // 它必须真的被组合映射用上，只在目录里挂个名不算登记。
+  check(catalog.includes('A13'), '第 32 种「选中块迁移」（A13）进了目录')
+  const pillCombo = mod.feedbackComboOf({ wait: 'instant', cost: 'low', shape: 'pill' })
+  check(JSON.stringify(pillCombo.moment).includes('ink-slide'), '药丸类（页签行与三组筛选药丸）的瞬间组合里有选中块迁移 ink-slide')
+  const rowCombo = mod.feedbackComboOf({ wait: 'instant', cost: 'low', shape: 'row' })
+  check(!JSON.stringify(rowCombo.moment).includes('ink-slide'), '行与按钮不给选中块迁移（它们没有「一组里选一颗」的选中态）')
   denied.forEach((k) => { check(!catalog.includes(k), '人已否 ' + k + ' 不在目录内') })
   const allocation = mod.ALLOCATION || {}
   const allocated = Object.values(allocation).flat()
