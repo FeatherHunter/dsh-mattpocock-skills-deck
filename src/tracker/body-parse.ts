@@ -7,6 +7,10 @@
  *
  * 约束：本文件必须保持纯函数（不碰 ctx / 不碰 DOM / 无共享状态 / 不自己读文件），否则失去叶子价值。
  *
+ * #1090：进度区的读与写（parseProgressDetail / parseProgress / replaceProgressSection 等）搬到了
+ * src/shared/issue-file/src/progress.ts —— tracker / deck / host 三层共用那一份，本文件只把名字原样转出去，
+ * 调用方的 import 路径不变。
+ *
  * 类型（#1148）：入参一律收成未知值。调用方交进来的是后端回包、老快照与手写数据，
  * 字段可能缺席、可能是别的类型，所以这里不假设形状，读一格收口一格（运行时判断一个字没改，
  * 只是把 jsdoc 里的形状搬成了类型标注）；返回值是本文件说了算的确定形状，调用方按导出的接口读。
@@ -238,27 +242,20 @@ export function parseSpecBody(body: unknown): ParsedSpecSections {
   return out
 }
 
-// ——— parseProgress：进度块三级锚定（## 进度：N% / 行首变体 / 全文兜底），clamp 0-100 ———
-
-/**
- * 从正文里读进度百分比。
- *
- * 三级锚定按顺序试，先命中先用：① 标题行 `## 进度：90%`；② 行首变体 `进度：90%`（不带标题符号）；
- * ③ 全文兜底（兼容老票随手格式，放最后是为了不劫持前两层）。
- *
- * @returns 0..100 的整数；正文里没有进度、或数字不是合法整数时回 null（不是 0）。
- */
-export function parseProgress(body: unknown): number | null {
-  if (!body) return null
-  const s = String(body)
-  const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-    || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-    || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
-  if (!m) return null
-  const n = parseInt(m[1], 10)
-  if (isNaN(n)) return null
-  return Math.max(0, Math.min(100, n))
-}
+// ——— 进度区的读与写：唯一真源搬到 `src/shared/issue-file/src/progress.ts`（#1090） ———
+//
+// 为什么搬走：进度原先是三份复制（本文件、面板派生 deck-derive、宿主内联 mapBody）各写一套正则，
+// 写侧与读侧对不上。#1090 把它们统一到 shared 层的那一个文件；本文件只把名字原样转出去，
+// 调用方（宿主、面板、deck 工具、门禁）的 import 路径不用改。
+export {
+  PROGRESS_BODY_LIMIT,
+  parseProgressDetail,
+  parseProgress,
+  formatProgressEntry,
+  replaceProgressSection,
+  stripProgressSections,
+} from '../shared/issue-file/src/progress.js'
+export type { ProgressEntry, ProgressDetail } from '../shared/issue-file/src/progress.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 二、票的分组与分层（宿主侧同步调用，输入是「票号 + 状态 + 认领 + 阻塞」这几格）

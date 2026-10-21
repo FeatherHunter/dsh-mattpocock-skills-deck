@@ -20,6 +20,13 @@
 
 import { STATE } from './contract/vocabulary.js'
 import { effortOf, idOfParts } from './kernel/identity-keys.js'
+// #1090：进度解析统一到 shared 层的那一份口径（读与写共用同一份写法）。
+// 这里以前是第二份内联副本，与宿主内联、配对的两份一起漂移过，所以不再各留一份。
+// 不直接引 body-parse：同一层内互引会被依赖规则判红（.dependency-cruiser.ts 同层禁止），
+// 而进度解析本来就是跨层共用的纯函数，真源因此住在 src/shared/issue-file/src/progress.ts。
+import { parseProgress } from '../shared/issue-file/src/progress.js'
+
+export { parseProgress }
 
 const OPEN = STATE.OPEN
 const CLOSED = STATE.CLOSED
@@ -147,24 +154,8 @@ function labelsOf(ticket: DeckTicket): readonly DeckLabelRaw[] {
 /** 自己人手里的存在性判断；`Object.prototype` 上取，避免被票对象自带的 `hasOwnProperty` 覆盖。 */
 const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k)
 
-/**
- * 从正文解析进度（与 host/index.js 既有口径一致的三级锚定）：
- *   1) 标题行 `## 进度：90%`（行首 markdown 标题 · 进度区正形）
- *   2) 行首变体 `进度：90%` / `Progress: 90%`（无标题符号）
- *   3) 全文兜底（兼容老票随手格式 · 放最后不劫持前两层）
- * 无进度 → null；非法/超界 → clamp 0..100。
- */
-export function parseProgress(body: unknown): number | null {
-  if (body == null) return null
-  const s = String(body)
-  const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-    || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-    || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
-  if (!m) return null
-  const n = parseInt(m[1], 10)
-  if (isNaN(n)) return null
-  return Math.max(0, Math.min(100, n))
-}
+// parseProgress 的实现在 src/shared/issue-file/src/progress.ts（#1090 起读写共用一处）。
+// 这里只再导出同一个函数，保持 src/tracker/index.ts 与 deck 工具既有的导入路径不变。
 
 /** claimed 三态：true=有认领；false=已知且空（EMPTY []）；null=indeterminate（assignees MISSING）。 */
 function claimedOf(ticket: DeckTicket): boolean | null {

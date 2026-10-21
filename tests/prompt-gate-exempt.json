@@ -10,13 +10,6 @@
     },
     {
       "surface": "registry",
-      "id": "ghAuthLogin",
-      "kind": "scope",
-      "rule": "scope",
-      "reason": "CLI 登录指引，不是跟踪器写/查命令，不属首批（总指挥 Q4 裁定：文本不动）"
-    },
-    {
-      "surface": "registry",
       "id": "installSkills",
       "kind": "scope",
       "rule": "scope",
