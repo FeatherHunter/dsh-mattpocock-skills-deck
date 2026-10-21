@@ -119,12 +119,13 @@
 
 ## 8. 实施与落地
 
-本决策与三张实施票 #1341、#1342、#1343 同批实施，每张票可独立交付、独立提交。本文只定规矩；逐项落地结果、门禁改动与验证证据记在各票正文里。实施完成后，本文不再追改代码行号，因为具体位置会随代码移动而过期——需要时以票面记录与源码为准。
+本决策本身由 [#1345 实施：把配置归属判据写成决策记录，并挂到开发指引上](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1345) 落地；规矩定下后，本轮收毛病的三张实施票 #1341、#1342、#1343 同批实施，每张票可独立交付、独立提交。本文只定规矩；逐项落地结果、门禁改动与验证证据记在各票正文里。实施完成后，本文不再追改代码行号，因为具体位置会随代码移动而过期——需要时以票面记录与源码为准。
 
 ## 9. 关联
 
 - 规格与结论落点：[#1336 规格单：配置归属——每个值只有一处定义，什么才该进数据文件](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1336)
 - 调查票：[#1330](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1330)
+- 立规矩的票：[#1345 实施：把配置归属判据写成决策记录，并挂到开发指引上](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1345)
 - 三张实施票：[#1341](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1341)、[#1342](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1342)、[#1343](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1343)
 - 研究笔记：`research/1330-yaml-配置化调查.md`
 - 既有数据文件路线：`docs/adr/20261016-time-config-yaml.md`、`docs/adr/20261020-ui-copy-data-driven.md`、#1278
