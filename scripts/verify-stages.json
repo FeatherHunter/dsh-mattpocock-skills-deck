@@ -15,9 +15,10 @@
     },
     {
       "name": "contract",
-      "说明": "契约与规则：门禁的门禁（归属表新鲜度、依赖规则、调用面）。",
+      "说明": "契约与规则：门禁的门禁（归属表新鲜度、依赖规则、调用面）与钉值门禁（分页额度）。",
       "match": [
         "verify-gate-map",
+        "verify-pagination",
         "verify-dependency",
         "verify-contract",
         "verify-deck-",

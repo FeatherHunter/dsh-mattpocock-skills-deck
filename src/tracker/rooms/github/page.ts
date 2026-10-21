@@ -43,10 +43,11 @@ import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
+import { PAGINATION } from '../pagination.js'
 
 // 一页的默认张数与上限（契约「分页契约」定的：缺省 50、上限 200，要多了按上限给，不是报错）。
-const DEFAULT_LIMIT = 50
-const MAX_LIMIT = 200
+const DEFAULT_LIMIT = PAGINATION.github.limitDefault
+const MAX_LIMIT = PAGINATION.github.limitMax
 
 /** limit 归一：不合法（缺、非整数、非正、无穷大）按缺省 50；超过上限按上限 200。 */
 function limitOf(opts: PageOpts | null | undefined): number {

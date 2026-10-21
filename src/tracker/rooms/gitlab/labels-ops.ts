@@ -83,11 +83,12 @@ import { classifyGlabError, failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { PAGINATION } from '../pagination.js'
 
 // ── 常量：本文件与门禁都读它们，改一处就能一起变 ──────────────────────────────
 
 /** 一次向 GitLab 要多少条标签。官方文档：`per_page` 默认 20、**上限 100**。 */
-export const LABEL_LIST_PER_PAGE = 100
+export const LABEL_LIST_PER_PAGE = PAGINATION.gitlab.labelListPerPage
 
 /**
  * 列标签最多翻多少页。
@@ -97,11 +98,11 @@ export const LABEL_LIST_PER_PAGE = 100
  * 而不是把手上这一批当全量交出去 —— 后者正是契约点名不许做的「静默返回残缺列表」。
  * 100 页 × 每页 100 条 = 10000 条，比真实仓库的标签数高三个数量级，正常仓库碰不到它。
  */
-export const LABEL_LIST_MAX_PAGES = 100
+export const LABEL_LIST_MAX_PAGES = PAGINATION.gitlab.labelListMaxPages
 
 /** 同时最多发几个改色请求。GitLab 没有单请求限速建议，默认与 GitHub 房同档。 */
-export const WRITE_CONCURRENCY_MAX = 4
-export const WRITE_CONCURRENCY_DEFAULT = 4
+export const WRITE_CONCURRENCY_MAX = PAGINATION.gitlab.labelWriteConcurrencyMax
+export const WRITE_CONCURRENCY_DEFAULT = PAGINATION.gitlab.labelWriteConcurrencyDefault
 
 /** 单次 glab 调用的超时（毫秒）。与同房其余读路径一致。 */
 

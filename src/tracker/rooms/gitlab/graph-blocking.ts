@@ -14,6 +14,7 @@ import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { PAGINATION } from '../pagination.js'
 
 // 仓库身份只取 refId/name，是因为阻塞读写只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -234,7 +235,7 @@ async function buildBlockMap(
   const map = new Map<string, string[]>()
   try {
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const listRes = await c.run(['api', `projects/${encodeURIComponent(id)}/issues?per_page=100`], { timeout: GITLAB_READ_TIMEOUT_MS })
+    const listRes = await c.run(['api', `projects/${encodeURIComponent(id)}/issues?per_page=${PAGINATION.gitlab.maxPerPage}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (listRes.code === 0) {
       let arr: unknown = []
       try {

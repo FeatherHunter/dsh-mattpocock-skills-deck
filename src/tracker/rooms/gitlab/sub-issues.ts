@@ -48,11 +48,12 @@ import { repoId } from './graph-blocking.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { PAGINATION } from '../pagination.js'
 
 // 一张地图最多装多少张子票：与 GitHub 房同一个硬上限（契约 operations.ts:244「1000 张硬上限」）。
-const MAX_SUB_ISSUES = 1000
+const MAX_SUB_ISSUES = PAGINATION.gitlab.subIssuesMax
 // 翻页扫仓时一页取多少张：与房内列表路径一致（issues.ts 的 listIssues 也是 100）。
-const PAGE_SIZE = 100
+const PAGE_SIZE = PAGINATION.gitlab.subIssuesPageSize
 // 列表页与重试共用这个超时；与房内其它读路径保持一致（issues.ts / graph-blocking.ts 都是 8000）。
 
 // 本房既有形状：仓库标识只取 partial，缺了按 404 那一档如实回而不是抛（与 issues.ts / labels.ts 同一份写法）。

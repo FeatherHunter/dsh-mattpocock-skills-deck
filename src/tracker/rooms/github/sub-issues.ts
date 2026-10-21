@@ -41,10 +41,11 @@ import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { SUB_ISSUES_QUERY } from './queries.js'
 import { parseRepo, repoId } from './issues.js'
 import { emitReadDegraded } from './read-log.js'
+import { PAGINATION } from '../pagination.js'
 
 // 每页 100 张（GraphQL 连接的单页上限），硬上限 1000 张（规格第 6.4 节：超过就明说只加载了前 1000 张）。
-const PAGE_SIZE = 100
-const MAX_SUB_ISSUES = 1000
+const PAGE_SIZE = PAGINATION.github.subIssuesPageSize
+const MAX_SUB_ISSUES = PAGINATION.github.subIssuesMax
 
 /**
  * listSubIssues(repo, mapKey, opts, ctx) -> OpResult<{items, total, fetched, capped, missing, dropped}>

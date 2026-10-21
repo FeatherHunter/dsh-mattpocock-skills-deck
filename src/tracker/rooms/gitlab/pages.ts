@@ -56,15 +56,16 @@ import { issuesPath } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { PAGINATION } from '../pagination.js'
 
 // 契约的分页口径：缺省一页 50 张、要多了按 200 封顶（`contract/results.ts` 的「分页契约」，与 GitHub 房同一套）。
-const DEFAULT_LIMIT = 50
-const MAX_LIMIT = 200
+const DEFAULT_LIMIT = PAGINATION.gitlab.limitDefault
+const MAX_LIMIT = PAGINATION.gitlab.limitMax
 // GitLab REST 的 per_page 上限（官方文档：默认 20、上限 100；本房 `labels-ops.ts` 顶上同一个常数、同一个出处）。
 // 为什么不能照 200 去问：远端会把 200 自己截到 100，而我们还以为这一页的大小是 200 —— 一页 100 行就成了
 // 「比 per_page 少」，于是把「还有下一页」误判成到底，历史从这儿少一段，而且没有任何报错。
 // 代价照实说：调用方要 200 行时这一趟只回 100 行 + 一个游标，接着翻就是（要多了按上限给，不是报错）。
-const MAX_PER_PAGE = 100
+const MAX_PER_PAGE = PAGINATION.gitlab.maxPerPage
 // 一趟读等远端的时限：与房内 list 那条同一档（10 秒）。
 
 // 入参只取识别要用的那几格：调用方可能拿半份仓库标识、半份筛选或半份分页选项进来。

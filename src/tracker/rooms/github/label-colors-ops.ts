@@ -39,6 +39,7 @@ import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo } from './labels.js'
 import { readRepoPermissions } from './repo-permissions.js'
 import { getRepoKey } from './repo.js'
+import { PAGINATION } from '../pagination.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
 type GhClient = ReturnType<typeof ghClient>;
@@ -49,10 +50,10 @@ function errBag(err: unknown): Record<string, unknown> {
 }
 
 /** 一次最多向 gh 要多少条标签。标签数达到这个数就当作「可能没拿全」，整条操作失败。 */
-export const LABEL_LIST_LIMIT = 1000
+export const LABEL_LIST_LIMIT = PAGINATION.github.labelListLimit
 /** 同时最多发几个改色请求。官方文档建议串行、每条之间最好隔一秒；并行撞上限流时单条会如实失败、可重试，所以默认直接拉满到上限，调用方仍可用上下文调小。 */
-export const WRITE_CONCURRENCY_MAX = 4
-export const WRITE_CONCURRENCY_DEFAULT = 4
+export const WRITE_CONCURRENCY_MAX = PAGINATION.github.labelWriteConcurrencyMax
+export const WRITE_CONCURRENCY_DEFAULT = PAGINATION.github.labelWriteConcurrencyDefault
 
 function repoSpec(repo: RepositoryRef): string | null {
   const parsed = parseRepo(repo)

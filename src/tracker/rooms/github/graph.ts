@@ -30,6 +30,7 @@ import { readDependencies } from './deps-read.js'
 // graph.ts 的有效行已被零增长基线冻结（只许减不许增），所以这里只留「读真值 → 算差集 → 委托写 → 读回」这条主干。
 import { writeBlockedByEdges } from './blocked-by-write.js'
 import type { EdgeTrail } from './blocked-by-write.js'
+import { PAGINATION } from '../pagination.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
 type GhClient = ReturnType<typeof ghClient>;
@@ -121,7 +122,7 @@ function isUnknownFlag(msg: unknown): boolean {
  */
 async function nativeBlockedByKeys(c: GhClient, parsed: ParsedRepo, numberKey: string, ctx: OpContext): Promise<Set<string> | null> {
   try {
-    const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}/dependencies/blocked_by?per_page=100`], { cwd: ctx && ctx.cwd })
+    const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}/dependencies/blocked_by?per_page=${PAGINATION.github.restPageSize}`], { cwd: ctx && ctx.cwd })
     if (!rr.ok) return null
     let j: unknown
     try { j = JSON.parse(rr.data.stdout || '') } catch { return null }
