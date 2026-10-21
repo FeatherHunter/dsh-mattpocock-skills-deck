@@ -23,12 +23,13 @@
  * shared:docLayout），界面只许消费这个名单，不许再写一份。
  */
 
-/** 域文档布局的取值：单上下文（根目录一份总表）还是多上下文（子项目各一份加一份总表）。 */
-export type DocLayoutValue = 'single' | 'multi'
-
 /**
  * 全部合法取值，顺序即「第一项默认选中」的那一项（初始化卡没有答过时按第一项预选，见
  * src/client/statusbar/StatusBackend.ts 的 SETUP_LAYOUT_FALLBACK）。
  * 只读：调用方要可变副本自己拷一份，不许改这份名单本身。
+ * 取值与类型只写这一处：类型从名单推出，加第三种取值只改这一行。
  */
-export const DOC_LAYOUT_VALUES: readonly DocLayoutValue[] = ['single', 'multi']
+export const DOC_LAYOUT_VALUES = ['single', 'multi'] as const
+
+/** 域文档布局的取值：单上下文（根目录一份总表）还是多上下文（子项目各一份加一份总表）；由上面的名单推出，别处不再手写联合。 */
+export type DocLayoutValue = (typeof DOC_LAYOUT_VALUES)[number]

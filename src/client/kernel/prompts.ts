@@ -14,13 +14,15 @@
  *
  * 客户端闭包里 PROMPT_TEMPLATE_DATA / PROMPT_FRAGMENT_DATA / LANGUAGES_YAML 这三个名字由
  *   kernel:promptData 那一片（见 src/client/index.ts 的 marker 注释）拼在 kernel:prompts 之前提供。
- *   客户端闭包不允许 module 级 import，所以本文件用 declare 把「外面有什么、长什么样」写下来 ——
+ *   客户端闭包不允许运行期的 module 级 import，所以本文件用 declare 把「外面有什么、长什么样」写下来 ——
  *   与 localeSvc / getCachedSelection 那些闭包名字同一套写法（见本文件末尾的类型段）。
+ *   纯类型的跨文件复用走 import type（构建时整条擦除，不产生运行期依赖）：域文档布局的取值类型就这么来的。
  *
  * 源码侧向 typecheck / 直接 import 的人暴露「外部接口」（prompt-data.ts 的几种 export type / interface / const），
  *   便于门禁或单测按类型显式 import；闭包侧只消费那三个 const。同一个真源两条路：源码端给类型与门禁用，
  *   客户端端给拼接用。
  */
+import type { SetupLayoutValue } from '../statusbar/StatusBackend.js'
     // #1292：原文件头 const PROMPTS = {...字面量...} 已经被替换为「读生成物 PROMPT_TEMPLATE_DATA」。
     //   生成物在构建期已深冻（Object.freeze），这里只做一次转手。
     export const PROMPTS: Readonly<Record<string, PromptEntry>> = PROMPT_TEMPLATE_DATA
@@ -396,8 +398,8 @@ type PromptLanguageConfig = {
   }>>
 }
 
-/** 域文档布局的两个取值，与 statusbar/StatusBackend.ts 的 SETUP_LAYOUT_VALUES 是同一套取值。 */
-type SetupLayoutValue = 'single' | 'multi'
+// 域文档布局的两个取值不再在这里写一份联合：类型从 statusbar/StatusBackend.ts 的 SetupLayoutValue 取，
+//   那里由拼进闭包的 DOC_LAYOUT_VALUES 推出（#1342：客户端里只留一处字面量）。
 
 /**
  * 登记表的形状——生成物 prompt-data.ts 已经按键联合类型校验过（详见 generate-prompt-config.mts 的

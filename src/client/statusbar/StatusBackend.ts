@@ -238,9 +238,9 @@ export const confirmStatusGate = function(s: StatusPickState): void { const id=s
 // 第二处写一遍签名，两边会慢慢走岔；本文件的类型价值在于它自己的导出面与状态字段，不在于替邻居立契约。
 // ---------------------------------------------------------------------------
 // #1342：域文档布局取值的名单不是本文件写的，由共享真源 src/shared/doc-layout/src/layouts.ts 拼进闭包
-// （见 scripts/build.mts 的 shared:docLayout）。这里只声明形状；写成 readonly SetupLayoutValue[] 是为了
-// 让上面那些「这个值在不在名单里」的判断仍然按两个字面量的联合收窄。
-declare const DOC_LAYOUT_VALUES: readonly SetupLayoutValue[]
+// （见 scripts/build.mts 的 shared:docLayout）。客户端这一侧的字面量只写这一处：下面的 SetupLayoutValue 从它推出，
+// kernel/prompts.ts 也从这里 type-only import，不再各写一份联合。
+declare const DOC_LAYOUT_VALUES: readonly ('single' | 'multi')[]
 declare function getCachedSetupLayout(cwd: unknown): SetupLayoutValue | string | null | undefined
 declare function setCachedSetupLayout(cwd: unknown, layout: unknown): void
 declare function emit(s: unknown): void
@@ -270,8 +270,8 @@ declare const host: { call(method: string, params?: Record<string, unknown>): Pr
 // 本文件自己用到的几个类型（#1209 加，写给读代码的人看的那部分在这里，不在上面那一堆 declare 里）
 // ---------------------------------------------------------------------------
 
-/** 域文档布局的两个合法取值，与 locale 里两句注入文案、卡片上两个选项一一对应。 */
-type SetupLayoutValue = 'single' | 'multi'
+/** 域文档布局的两个合法取值，由上面声明的 DOC_LAYOUT_VALUES 推出；与 locale 里两句注入文案、卡片上两个选项一一对应。 */
+export type SetupLayoutValue = (typeof DOC_LAYOUT_VALUES)[number]
 
 /** 这一趟收尾给出去的是哪一类（settleSwitchCard 的返回值；调用处按它落日志）。 */
 type SettlePhase = 'none' | 'setup' | 'blocked' | 'align-layout' | 'align'

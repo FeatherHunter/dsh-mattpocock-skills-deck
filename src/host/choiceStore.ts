@@ -24,6 +24,8 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promis
 import { join } from 'node:path'
 // 布局取值的唯一真源（#1342）：下面那份 LAYOUT_VALUES 从它拷一份给读写校验用，本文件不再自己写字面量。
 import { DOC_LAYOUT_VALUES } from '../shared/doc-layout/src/layouts.js'
+// 布局取值的类型也从真源取（#1342）：本文件不再手写 'single' | 'multi' 这份联合。
+import type { DocLayoutValue } from '../shared/doc-layout/src/layouts.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1208 转 TypeScript：只写类型不写实现）。
@@ -40,7 +42,7 @@ import { DOC_LAYOUT_VALUES } from '../shared/doc-layout/src/layouts.js'
 // ---------------------------------------------------------------------------
 
 /** 布局答案的取值：单上下文（根目录一份总表），还是多上下文（子项目各一份加一份总表）。 */
-export type LayoutValue = 'single' | 'multi'
+export type LayoutValue = DocLayoutValue
 
 /** 单条后端记录：用户亲手选的后端、宿主发的修订号、记住的时间；来源恒为 user（探测结论不许写进来）。 */
 export interface WorkspaceEntry { backendId: string; rev: number; pickedAt: number; source: 'user' }
