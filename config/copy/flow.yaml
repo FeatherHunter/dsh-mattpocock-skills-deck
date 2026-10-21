@@ -71,7 +71,7 @@ zh:
   detail.noComments: 无评论
   detail.commentsLoading: 加载中
   detail.commentsNotLoaded: 以下评论未加载，
-  detail.commentsMore: 加载下 50
+  detail.commentsMore: 加载下 {count}
   detail.commentsLoadFailed: 加载失败，可重试
   detail.commentsShownAll: 已显示 {shown}/{total} · 已加载全部
   detail.commentsShownMore: 已显示 {shown}/{total} · 可加载更多
@@ -313,7 +313,7 @@ en:
   detail.noComments: No comments
   detail.commentsLoading: Loading
   detail.commentsNotLoaded: "The comments below are not loaded, "
-  detail.commentsMore: Load next 50
+  detail.commentsMore: Load next {count}
   detail.commentsLoadFailed: Failed to load, retry available
   detail.commentsShownAll: Showing {shown}/{total} · all loaded
   detail.commentsShownMore: Showing {shown}/{total} · more available
