@@ -200,8 +200,12 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
     `<text x="${W - PAD_R}" y="${PAD_T - 10}" text-anchor="end" font-size="12" font-weight="600" fill="${t.daily}">Daily New</text>`,
   ].join("\n  ");
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <style>text{font-family:${FONT};fill:${t.text}}</style>
+  // 默认字色必须写在根 <svg> 的 fill 属性上，不能写成 <style>text{fill:…}</style>：
+  // SVG 的 CSS 规则优先级高于元素上的 fill 属性，一旦在 <style> 里写 fill，
+  // 下面所有「轴名红/蓝、右轴刻度蓝、次要文字灰」的 fill 属性都会被悄悄盖掉，
+  // 全部退化成正文色（2026-10-21 排查「轴名染不上色」时发现的坑）。
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="${t.text}">
+  <style>text{font-family:${FONT}}</style>
   <rect width="100%" height="100%" fill="${t.bg}"/>
   <text x="${W / 2}" y="34" text-anchor="middle" font-size="21">⭐ Star History</text>
   ${axisTitles}

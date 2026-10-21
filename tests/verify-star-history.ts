@@ -33,6 +33,13 @@ assert.ok(dark1.includes('>Total Stars<') && dark1.includes('>Daily New<'),'both
 assert.ok(!dark1.includes('rotate('),'axis titles must stay horizontal; nobody should have to tilt their head to read them');
 assert.ok(dark1.includes('data-axis="total"') && dark1.includes('data-axis="daily"'),'each axis spine must be drawn in its own series colour');
 assert.ok(dark1.includes('fill="#38bdf8"'),'right-axis ticks must be drawn in the daily colour');
+// 默认字色必须落在根 <svg> 的 fill 属性上、由子元素继承；写进 <style> 会盖掉所有
+// 元素自己的 fill 属性（SVG 里 CSS 规则优先级高于 presentation attribute），
+// 轴名染色、右轴蓝字、次要文字的灰都会悄悄失效——2026-10-21 排查「轴名染不上色」时踩过。
+const styleBlock: string = (dark1.match(/<style>([\s\S]*?)<\/style>/) || [])[1] || '';
+assert.ok(!styleBlock.includes('fill:'),'default text colour must not be set in <style>; it would override per-label fill attributes');
+assert.ok(/<svg[^>]*fill="#e6edf3"/.test(dark1),'dark theme: root svg must carry the default text colour as an inherited fill attribute');
+assert.ok(/<svg[^>]*fill="#24292f"/.test(light),'light theme: root svg must carry the default text colour as an inherited fill attribute');
 
 // —— 峰值标注：两条曲线各自的最高点必须标出数字，读者一眼能读数 ——
 // 用 data-peak 属性定位，避免把坐标轴刻度上的同一个数字误当成峰值标注。
