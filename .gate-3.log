@@ -1,0 +1,130 @@
+九个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）
+  PASS deck_context 装起来了，名字与定义一致
+  PASS deck_context 的描述在 350 字内（302 字）
+  PASS deck_issue_get 装起来了，名字与定义一致
+  PASS deck_issue_get 的描述在 350 字内（252 字）
+  PASS deck_map_snapshot 装起来了，名字与定义一致
+  PASS deck_map_snapshot 的描述在 350 字内（223 字）
+  PASS deck_issue_list 装起来了，名字与定义一致
+  PASS deck_issue_list 的描述在 350 字内（185 字）
+  PASS deck_issue_create 装起来了，名字与定义一致
+  PASS deck_issue_create 的描述在 350 字内（207 字）
+  PASS deck_map_plan_create 装起来了，名字与定义一致
+  PASS deck_map_plan_create 的描述在 350 字内（201 字）
+  PASS deck_map_link 装起来了，名字与定义一致
+  PASS deck_map_link 的描述在 350 字内（189 字）
+  PASS deck_issue_patch 装起来了，名字与定义一致
+  PASS deck_issue_patch 的描述在 350 字内（199 字）
+  PASS deck_issue_report 装起来了，名字与定义一致
+  PASS deck_issue_report 的描述在 350 字内（336 字）
+  PASS deck_context 正例：回 ok（实得 ok）
+  PASS deck_context 回显解析到的工作区根（D:/Temp/deck-tools-0RVTop）
+  PASS deck_context 回显后端与来源（{"id":"markdown","source":"explicit"}）
+  PASS deck_context 带回地图清单（[{"key":"00","title":"演示地图","state":"open","url":"D:/Temp/deck-tools-0RVTop/.scratch/demo/map.md"}]）
+  PASS deck_context 带回调用前的预估与调用后的真实花费
+(node:53084) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/.worktrees/1262-work-route-write-tools/src/shared/refresh/budget.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\.worktrees\1262-work-route-write-tools\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  PASS deck_issue_create 正例：建成了（key=01）
+  PASS deck_issue_create 说明「我替你加了什么」：["我替你补了正文区块：## 进度","这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。","我替你补了必备标签：wayfinder:task","工作路线摘要 · 本工作区在办 1 条（最近 1 条：#1）"]
+  PASS deck_issue_create 真的落到了盘上的票文件（01-untitled.md）
+  PASS 必备标签写进了票文件
+  PASS 进度区写进了票文件
+  PASS deck_issue_list 正例：列表回来了（2/2 行）
+  PASS deck_issue_list 只回薄行（不带正文与评论）
+  PASS deck_issue_list 按 query 子串过滤（命中刚才那张票）
+  PASS deck_issue_list 按 limit 截断（回 1 行）
+  PASS deck_issue_get 正例：票读回来了（01）
+  PASS deck_issue_get 给每条边标了落点（{"parent":"契约的父子列（分不出是原生层级还是平级链接，别把它当成原生层级）","blockedBy":"说不好（这次没读回来，别当它已经建好）","caveat":"这两个落点是从契约返回的字段读出来的；要精确知道这个后端把父子放在原生层级还是平级链接，看返回里本次写操作留下的 evidence（deck_map_link 会写）。"}）
+  PASS deck_issue_get 负向：读一张不存在的票 → ok:false / unsupported（实得 unsupported）
+  PASS deck_issue_get 负向：不给票号 → bad-args，不抛
+  PASS deck_map_snapshot 正例：地图读回来了（实得 ok）
+  PASS deck_map_snapshot 带回进度统计（{"total":1,"open":1,"closed":0,"frontier":1,"claimed":0,"blocked":0,"indeterminate":0,"levels":[{"total":1,"open":1,"closed":0}],"levelOf":{"demo\u000000":0,"demo\u000001":0}}）
+  PASS deck_map_snapshot 带回五个区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）
+  PASS deck_map_snapshot 五个区块各自成形（destination/notes 是文字，decisions/fog/outOfScope 是清单）
+  PASS deck_map_plan_create 正例：回三态之一（实得 ok）
+  PASS deck_map_plan_create 建成地图 + 3 张子票（["03","04","05"]）
+  PASS deck_map_plan_create 每条边都标出落点与证据：{"key":"04","role":"edge","status":"ok","op":"block","target":"03","landing":"正文行","evidence":"写后读回：结构字段里有这条依赖，正文里也写着指向 #03 的一行（这是把关系写进正文的那种落法）","ok":true}
+  PASS deck_map_plan_create 的中间态是落盘的（注入的 planStore 说它 durable）
+  PASS deck_map_plan_create 续跑：同一个 planId 再来一次只跳过、不重复建（skipped=["a1","a2","a3"]）
+  PASS 盘上的票文件数对得上（地图 1 + 子票 3 = 4 张新票，实得新增 4）
+  PASS deck_map_link 正例：补一条阻塞边（实得 ok）
+  PASS deck_map_link 标出这条边落在哪一列：{"key":"05","role":"edge","status":"ok","op":"block","target":"03","landing":"正文行","evidence":"写后读回：结构字段里有这条依赖，正文里也写着指向 #03 的一行（这是把关系写进正文的那种落法）","ok":true}
+  PASS 补边之后票文件还在（不会被写坏）
+  PASS deck_map_link 正例：同目录同值补父边直接成功（实得 ok）
+  PASS 同值父边逐项写了落点与证据：{"key":"05","role":"edge","status":"ok","op":"parent","target":"02","landing":"契约的父子列（分不出是原生层级还是平级链接，别把它当成原生层级）","evidence":"写后读回：票的 parentKey = 02（契约把父子放在这一列，分不出原生层级还是平级链接）","ok":true}
+  PASS ✗ 负向：父票不存在 → ok:false / unsupported（实得 unsupported）
+  PASS 做不到的那一条逐项写在 items 里：{"key":"05","role":"edge","status":"failed","op":"parent","target":"99","landing":"做不到","evidence":"后端原话：parent 99 not-found","ok":false}
+  PASS deck_issue_patch 正例：回三态之一（实得 ok）
+  PASS deck_issue_patch 评论那一步成了：[{"key":"01","step":"comment","status":"ok"},{"key":"01","step":"labels","status":"ok","labels":["wayfinder:task","wayfinder:research"]},{"key":"01","step":"close","status":"ok"}]
+  PASS deck_issue_patch 关闭那一步成了
+  PASS 认领在本地 Markdown 上真能做成，回 ok（实得 ok）
+  PASS 认领那一步带回了写进去的名字：{"key":"01","step":"assignees","status":"ok","assignees":["someone"]}
+  PASS deck_issue_patch 负向：什么都没点名 → bad-args，不抛
+  PASS deck_issue_report 正例：上报成了（票 01，实得 ok）
+  PASS deck_issue_report 回执带工作路线在办表（4 条，实得 4）
+  PASS 在办表第一条是刚上报的票（动作 report、来源 reported、现办、当前会话）：{"ticketKey":"1","title":"第一张演示票","sessionLabel":"会话 10399f","action":"report","actionAt":"2023-11-14T22:13:20.000Z","active":true,"currentSession":true,"source":"reported","progress":40}
+  PASS 同一张票在在办表里只有一条（4 条票、4 个票号）：["1","3","4","5"]
+  PASS 会话只露标签不露原始 id（实得 会话 10399f）
+  PASS 在办表这一条带这次上报的进度自评 40（实得 40）
+  PASS 回执 data 里也带这次上报的进度自评 40（实得 40）
+  PASS 单会话无撞单（collisions 键不出现，staleCount 在）
+  PASS notes 末尾带工作路线摘要：["备注只回显，不记进工作路线（路线上每条只留票键、时间与动作类别）。","工作路线摘要 · 本工作区在办 4 条（最近 3 条：#1、#3、#4），其余 1 条见 data.workRoute"]
+  PASS 回执全文没有原始会话 id（s-713 只进盘，不进回执）
+  PASS 回执带工作区钥匙（落哪一份文件由它定）
+  PASS 盘上是 v3 形状（一份账、一个会话页）
+  PASS 盘上是同一张票 + 原始会话 id：{"ticketKey":"1","effortId":"demo","title":"第一张演示票","action":"report","actionAt":1700000000000,"source":"reported","progress":40}
+  PASS 盘上条目也带进度自评 40（实得 40）
+  PASS 只读调用不碰盘（文件内容一字不动）
+  PASS 第二次上报同一张票：在办表还是 4 条（去重，不多也不少）
+  PASS 第二次上报：盘上还是同一条，动作停在 report（去重）
+  PASS 第二次上报没带进度：在办表这一条不再带旧数字（实得 undefined）
+  PASS 第二次上报没带进度：回执 data 里也没有 progress 这一格（实得 undefined）
+  PASS 第二次上报没带进度：盘上这一条也没有 progress 键（不沿用旧值）
+  PASS 进度自评不合规（超过 100 / 负数 / 小数 / 字符串 / 布尔）一律 bad-args、不抛、不带 data
+  PASS 进度自评不合规时盘上一字不动（不写坏数据）
+  PASS 进度自评 0 是合法值：条目上带 0（实得 0）
+  PASS 释放：成功回执带上在办表（实得 ok）
+  PASS 释放：在办表里没有这张票了（实得 3 条）
+  PASS 释放：备注写明删掉的是哪张票：["已把票 1 从本会话的工作路线里释放掉（本会话还剩 3 条在办；票本身的状态与认领人没有改动）。","工作路线摘要 · 本工作区在办 3 条（最近 3 条：#3、#4、#5）"]
+  PASS 释放回执的 data 里没有 progress 这一格（释放不记动作）
+  PASS 释放回执全文没有原始会话 id（只进盘）
+  PASS 释放：盘上这一条真没了
+  PASS 释放不改票本身：票照样读得回来，状态与认领人前后一致（前 {"state":"open","assignees":["someone"]}，后 {"state":"open","assignees":["someone"]}）
+  PASS 再释放同一条：成功回执 + 备注说本来就没有
+  PASS release:false 仍走正常上报：条目重新落上且只有一条（实得 1 条）
+  PASS deck_issue_report 负向：票不存在 → ok:false / unsupported（实得 unsupported）
+  PASS 失败回执不带在办表（这一格只属于成功的上报）
+  PASS deck_issue_report 负向：不给票号 → bad-args，不抛
+  PASS 绕开闸的请求数为 0（闸记的 {"requests":0,"points":0} == 传输层真发的 {"requests":0,"points":0}）
+  PASS 这些调用都记在「AI 工具」那一档（53 笔）
+  PASS 每笔工具调用至少过两次闸（选后端一次 + 真正读写一次）：53 笔闸 ≥ 26 次调用 × 2
+  PASS 没有一笔走到别的档去（{"user-action":0,"lifecycle":0,"background":0,"ai-tool":53}）
+  PASS 工具层没新造事件名：自有行只有 host.call / host.call.fail（53 行），另有判定出口的常驻结论线 detection.detect（27 行）
+  PASS deck 工具这条直调点也把判定结论写进日志了（每趟判定一条，27 条）
+  PASS 写之后失效了缓存（7 次）
+  PASS 探针远端上建票成功（实得 ok）
+  PASS 闸记下 2 条真实出站请求（实得 2）
+  PASS 账本「AI 工具」那一档记下同样多（2 条、4 点）
+  PASS 绕开闸的请求数仍然是 0
+  PASS ✗ probe：绕开闸发一条请求 → escaped 立刻多一条（0 → 1）
+  PASS ✗ 负向：后端抛错 → ok:false / unsupported + reason=backend-threw（实得 unsupported/backend-threw）
+  PASS 抛错这件事如实写在 text 里：后端实现抛错了（我没有把它抛给 AI，按三态返回）：这一次远端调用抛错了（已拦下）：后端实现在这里抛了（探针故意做坏）
+  PASS ✗ 负向：读路径上后端抛错也一样收成三态（unsupported）
+  PASS ✗ 负向：会话里没有工作区 → no-session-context（实得 no-session-context）
+  PASS 扫描到的工具层文件数（35：九个工具 + 两个共享壳）
+  PASS 工具层没有后端 id 的等值比较（零命中）
+  PASS ✗ probe：扫描规则能逮住 `backendId === 'github'` 这种写法
+  PASS 扫描规则不误伤正常的取用（不把「用了 backendId」当违规）
+  PASS 分片算式与 budget.shardPlan 逐值一致（{"tool":"deck_map_plan_create","tickets":61,"edges":0,"patches":0,"reads":0,"points":247,"requests":124,"withinCallCap":true,"overCallCap":"","withinHourCap":true,"shards":2,"perShard":31,"text":"这次 deck_map_plan_create 预计花 247 点、124 条出站请求，在硬顶之内；不过这次要建 61 张票，建议分 2 片、每片 31 张。"} vs {"shards":2,"perShard":31}）
+  PASS 61 张票这一笔按 budget.js 的硬顶判（points=247，顶=600）
+  PASS 超顶的那一笔被判出来（both：这次 deck_map_plan_create 预计花 2403 点、1202 条出站请求，同时超了点数与请求数两条单次硬顶。建议分 7 次调用，每片不超过 58 张票。）
+  PASS 判定出口缺席时回原因码 backend-threw（实得 "backend-threw"）
+  PASS 拒绝文案是一句话，不是对象（实得 "判定出口这次没装上，我没往下做。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。"）
+  PASS 拒绝带八位散列（实得 "9f4a1ed2"）
+  PASS 拒绝不是信封：没有 status / tool 那两格
+  PASS 注入等待口的那一趟照样正常收尾（实得 ok）
+  PASS 注进壳的等待口跟着上下文递到了工具侧（单次钳制读的就是它）
+
+全部通过 — 九个工具：过闸、三态、永不抛、不判后端（123 条）

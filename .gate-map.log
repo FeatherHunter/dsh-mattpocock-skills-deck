@@ -1,0 +1,118 @@
+门禁归属表与挑选规则门禁
+  PASS 规划函数给出了链，共 296 步
+  PASS 归属表是最新的：重新推导的结果与 tests/gate-map.json 一致（不一致就重跑 node scripts/gate-map.mts）
+  PASS 归属表的版本号是 1
+  PASS 归属表里记了生成时间 generatedAt
+  PASS 归属表记的链长 296 等于当前链的步数 296
+  PASS 归属表记的门禁条数 296 等于 gates 数组长度 296
+  PASS 归属表里的 step 集合与当前链上的 step 集合完全一致（只在链上不在表里 0 条，只在表里不在链上 0 条）
+  PASS 归属表里没有重复的 step
+  PASS 每扇门禁都写齐了 step / file / guards / dirs / unattributed 五个字段（缺字段 0 条）
+  PASS 每扇门禁都写了 reason，说明它的归属是怎么来的（空 reason 0 条）
+  PASS 归属表里记的每个 guards 路径都在磁盘上真实存在（不存在的 0 条）
+  PASS 归属统计自洽：能推出归属 265 步，推不出 31 步
+  PASS 推不出归属的门禁，每一扇都写清了原因
+  PASS byDir 里列出的门禁都在当前链上（不在链上的 0 条）
+  PASS byDir 覆盖了每个被守着目录的全部祖先层，查表不会查空（缺 0 层）
+  PASS 落盘的表里能推出归属的步数 265 不低于下限 200
+  PASS 刚推导出来的归属步数 265 不低于下限 200
+  PASS 能推出归属的与推不出的加起来等于门禁条数（265 + 31 = 296）
+  INFO 归属步数比下限高 65 步，可以把下限抬到 265
+  PASS 每扇门禁都写齐了 completionRecord（布尔）与 expectedAssertions（非负整数）两格（缺格或类型不对 0 条）
+  PASS 两格自洽：completionRecord 为 true 的都有正数期望，为 false 的期望都是 0（不自洽 0 条）
+  PASS 表头记的已开闸扇数 6 等于 gates 里 completionRecord 为 true 的条数 6
+  PASS 生成器里登记的已开闸门禁 6 扇，与表里的 6 扇一致
+  PASS 登记表里的门禁名都能在链上找到对应的一扇（找不到 0 个）
+  PASS 已开闸的门禁，源码里真的在交完成记录（表说有、源码里没有的 0 扇）
+  PASS 源码里在交完成记录的门禁，表里都登记了期望（没登记的 0 扇）
+  PASS 冒烟链上每一步在表里都有一条（链上 5 步、表里 5 条）
+  PASS 冒烟那几条都写齐了 gate / completionRecord / expectedAssertions 三格（缺格或类型不对 0 条）
+  PASS 冒烟那几条的 gate 与 gateNameOf(file) 一致（对不上 0 条）
+  PASS 冒烟那几条两格自洽：completionRecord 为 true 的都有正数期望（不自洽 0 条）
+  PASS 表头记的冒烟已开闸扇数 2 等于 smokeGates 里 completionRecord 为 true 的条数 2
+  PASS 生成器里登记的冒烟已开闸门禁 2 扇，与表里的 2 扇一致
+  PASS 冒烟登记表里的门禁名都能在冒烟清单上找到对应的一扇（找不到 0 个）
+  PASS 表里每条冒烟记录都能在 scripts.smoke 里找到那一步（找不到 0 条）
+  PASS 冒烟里已开闸的门禁，源码里真的在交完成记录（表说有、源码里没有的 0 扇）
+  PASS 冒烟里在交完成记录的门禁，表里都登记了期望（没登记的 0 扇）
+  PASS 反例自证的正例：记录齐全时判绿（完成记录齐全：3 条断言、0 条失败）
+  PASS 反例一（缺记录行）：判红并说明缺完成记录
+  PASS 反例二（数字对不上）：断言数 12 与期望 21 不符时判红（断言数 12 ≠ 归属表里记着的 21（少跑了 9 条））
+  PASS 反例三（记录行读不懂）：判红并说明这一行读不懂
+  PASS 反例四（门禁名对不上）：判红
+  PASS 反例五（记录自报有失败）：判红
+  PASS 反例六（退出码非零）：判红并报出退出码
+  PASS 覆盖面记的文件数与磁盘上 src/ 的文件数一致（表里 745，磁盘上 745）
+  PASS 覆盖面记的目录数与磁盘上 src/ 的目录数一致（表里 54，磁盘上 54）
+  PASS 同一个文件不会既算「有门禁守着」又出现在 ungated 里（重叠 0 个）
+  PASS src/ 下每个文件要么有门禁守着，要么在 ungated 里写清了原因，没有「既没门禁又没理由」的（0 个）
+  PASS guardedFiles 里没有磁盘上已经不存在的文件（多出来 0 个）
+  PASS ungated 里每一条都写了原因（空原因 0 条）
+  PASS ungatedDirs 里的目录都在磁盘上存在（不存在 0 个）
+  PASS 整目录没有门禁覆盖的 0 个目录都写了原因
+  PASS 归属写成目录的门禁，那些目录都在 guardedDirs 里（漏掉的 0 个；空目录不计）
+  PASS 归属写成目录的门禁，把那一层以下的文件都算成了已覆盖（漏掉的 0 个）
+  PASS 专属门禁目录数 53 等于 dedicatedDirs 的长度 53
+  PASS 有专属门禁的目录都是 src/ 下真实存在、且算作有门禁覆盖的目录（对不上的 0 个；空目录不计）
+  PASS 没有专属门禁的目录都在磁盘上存在、且文件数大于 0（对不上的 0 个）
+  PASS 有专属门禁的目录 53 加没有的 1 等于装着文件的 src/ 目录数 54（空目录不计）
+  PASS 专属门禁目录名单与 gates[].guards 重算的结果一致（对不上的 0 个）
+  PASS 归属表里确实有门禁点名了 src/ 下的目录或文件（重算得到 53 个目录，为 0 说明归属解析坏了）
+  INFO src/ 覆盖面：745/745 个文件有门禁，0 个没门禁；0 个目录整目录没覆盖；53/54 个目录有专属门禁（没专属门禁的 1 个：src/shared/config-store/src(4)）
+  PASS 找得到 src/client/views/versionControl/ 下的 .js 文件用来做场景测试（找到 src/client/views/versionControl/VersionControlTab.js）
+  PASS 场景一：选出来的门禁都在当前链上、没有重复（越界 0 条）
+  PASS 场景一：每一扇选中的门禁都写了被选中的原因
+  PASS 场景一：改 src/client/views/versionControl/VersionControlTab.js 不会退化成全链
+  PASS 场景一：归属表里 src/client/views/versionControl 这一层有门禁守着（共 7 扇），这条断言才有意义
+  PASS 场景一：守着 src/client/views/versionControl 这一层的门禁全被选中（该选 7 扇，漏 0 扇）
+  PASS 场景一：归属表里 src/client/views 这一层有门禁守着（共 29 扇），这条断言才有意义
+  PASS 场景一：守着 src/client/views 这一层的门禁全被选中（该选 29 扇，漏 0 扇）
+  PASS 场景一：归属表里 src/client 这一层有门禁守着（共 20 扇），这条断言才有意义
+  PASS 场景一：守着 src/client 这一层的门禁全被选中（该选 20 扇，漏 0 扇）
+  PASS 场景一：选中的 70 步比全链 296 步少
+  PASS 找得到 src/client/views/ 直接下面的 .js 文件（找到 src/client/views/ChecksTab.js）
+  PASS 场景二：选出来的门禁都在当前链上、没有重复（越界 0 条）
+  PASS 场景二：每一扇选中的门禁都写了被选中的原因
+  PASS 场景二：改 src/client/views/ChecksTab.js 不会退化成全链
+  PASS 场景二：归属表里 src/client/views 这一层有门禁守着（共 29 扇）
+  PASS 场景二：守着 src/client/views 这一层的门禁全被选中（漏 0 扇）
+  PASS 场景二：归属表里 src/client 这一层有门禁守着（共 20 扇）
+  PASS 场景二：守着 src/client 这一层的门禁全被选中（漏 0 扇）
+  PASS 底层共享模块 src/shared/refresh/budget.js 还在（场景三要用它）
+  PASS 场景三：自己扫出来的直接 import src/shared/refresh/budget.js 的文件有 9 个，足够支撑这条测试
+  PASS 场景三：有不直接守 src/shared/refresh/budget.js、但守着「import 了它的文件」的门禁，共 11 扇
+  PASS 场景三：选出来的门禁都在当前链上、没有重复（越界 0 条）
+  PASS 场景三：每一扇选中的门禁都写了被选中的原因
+  PASS 场景三：改 src/shared/refresh/budget.js 不会退化成全链
+  PASS 场景三：反向依赖 src/shared/refresh/budget.js 的那些门禁全被选中（该选 11 扇，漏 0 扇：）
+  PASS 场景三：选中的 162 步比全链 296 步少
+  PASS 场景四：改 package.json 会跑全链
+  PASS 场景四：全链就是链上的 296 步
+  PASS 场景四：写明是 package.json 触发的全链：「改了横切文件 package.json：它是仓库根目录下的文件（构建入口、发布清单、仓库配置），根目录的东西谁都在用，影响面铺满全仓」
+  PASS 场景五：src/__no_such_gate_dir__/ghost.js 确实不存在
+  PASS 场景五：改一个没有任何门禁守着的路径会跑全链
+  PASS 场景五：写明是哪个文件触发的全链
+  PASS 场景六：找到一扇守着 src/host/ 下具体文件的门禁用来做反向测试（tests/verify-1003-no-cwd-masquerade.ts 守着 src/host/gitCredentialExec.ts）
+  PASS 场景六：src/host/gitCredentialExec.ts 在变更清单里时，tests/verify-1003-no-cwd-masquerade.ts 被选中
+  PASS 场景六：把 src/host/gitCredentialExec.ts 从变更清单里拿掉后，tests/verify-1003-no-cwd-masquerade.ts 不再被选中（证明挑选确实在筛，不是全选）
+  PASS 场景六：只改 src/client/views/ChecksTab.js 时选中的 65 步少于全链 296 步
+  PASS 场景七：package.json 判定为横切文件 = true（实际 true）
+  PASS 场景七：tsconfig.client.json 判定为横切文件 = true（实际 true）
+  PASS 场景七：scripts/build.mts 判定为横切文件 = true（实际 true）
+  PASS 场景七：tests/verify-progress.ts 判定为横切文件 = true（实际 true）
+  PASS 场景七：docs/agents/verification.md 判定为横切文件 = true（实际 true）
+  PASS 场景七：research/489-appendix.md 判定为横切文件 = true（实际 true）
+  PASS 场景七：README.md 判定为横切文件 = true（实际 true）
+  PASS 场景七：host.js 判定为横切文件 = true（实际 true）
+  PASS 场景七：package/lib/client.js 判定为横切文件 = true（实际 true）
+  PASS 场景七：src/client/views/versionControl/VersionControlTab.ts 判定为横切文件 = false（实际 false）
+  PASS 场景七：src/host/mapBody.ts 判定为横切文件 = false（实际 false）
+  PASS 场景七：src/ 下找得到一个契约层文件用来验证（src/tracker/contract/backend-module.ts）
+  PASS 场景七：契约层文件 src/tracker/contract/backend-module.ts 判定为横切文件
+  PASS 场景七：改契约层文件 src/tracker/contract/backend-module.ts 会跑全链
+
+全部通过（109 条断言）
+(node:35664) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/.worktrees/1262-work-route-write-tools/tests/verify-gate-map.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\.worktrees\1262-work-route-write-tools\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)

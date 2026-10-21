@@ -1,0 +1,30 @@
+#1150 门禁：宿主接线注入落盘计划存储器（真落盘、断了能续跑）
+  PASS ✗ 夹具自检：拿裸路径串写盘会被拒（生产那份文件服务只认 resolve() 的产物）
+  PASS ✗ 夹具自检：那一次被拒的写入没有留下文件
+  PASS 宿主里装出九条工具：["deck_context","deck_issue_get","deck_map_snapshot","deck_issue_list","deck_issue_create","deck_map_plan_create","deck_map_link","deck_issue_patch","deck_issue_report"]
+  PASS 一条都不缺（missing = []）
+  PASS 第一跑回执说这次是落盘的（durable=true）
+  PASS 第一跑建出了地图票（mapKey=01）
+  PASS 第一跑如实报了「没全成」（status=partial，那条边的落点不存在）：这才是「建到一半」的现场
+  PASS 地图票与两张子票真的落到了盘上（票文件 0 → 3，回执 builtKeys 2 条）
+  PASS 盘上留下了一个计划游标文件：["deck-plan-7aa506dd-plan-store-1150.json"]
+  PASS 游标里的地图票号与回执一致（游标 01 ／ 回执 01）
+  PASS 游标里记下了已建的两张子票：{"c1":"02","c2":"03"}
+  PASS 续跑这一跑全成了（status=ok，notes=["地图票 01 上次已经建好了，这次直接接着做。"]）
+  PASS 地图票没有重建，还是同一张（01）
+  PASS 回执里那句「地图票上次已经建好了」来自盘上读回来的游标（第二套装配进程内存里是空的）
+  PASS 续跑没有重复建票（票文件仍是 3 个）
+  PASS 两张子票都被认出来跳过了：["c1","c2"]
+  PASS 整张图建成之后游标被清掉（写成空文件，读回来就是「没有」）
+  PASS 没有 resolve 的宿主里，回执没有对落盘说过假话（status=unsupported，reason=no-backend）
+  PASS 盘上没有游标文件（宁可没有，也不谎报落盘）：[]
+  PASS 工具自建读写那条路也真落盘（durable=true）
+  PASS 工具自建读写把游标写到了盘上：["deck-plan-D__Temp_plan-store-1150-q3MbeH-plan-store-1150-own.json"]
+  PASS 换一套新装配后，工具自建读写也能靠盘上游标接着建（status=ok，notes=["地图票 01 上次已经建好了，这次直接接着做。"]）
+  PASS 续跑没有重复建票（票文件 3 个）
+  PASS 没有 resolve 时票照建（mapKey=01）
+  PASS 工具自建读写碰上没有 resolve 的宿主时，如实说这次没落盘（durable=false）
+  PASS 回执里写明中间态只在进程内存里
+  PASS 盘上没有游标文件：[]
+
+全部通过 — 宿主接线把计划中间态真落盘，重启后靠它续跑（27 条断言）

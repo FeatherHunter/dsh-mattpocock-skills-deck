@@ -1,0 +1,86 @@
+[build] 手写输入有变化 → 正常构建。
+[build] DSW_VERSION=v1.9.0-beta.5 (package/package.json)
+[build] DSW_REPO_URL=https://github.com/FeatherHunter/dsh-mattpocock-skills-deck (package/package.json repository)
+[build] README 已同步 package/README.md（15165 bytes，源头 README.md）
+[src/shared/config-store] tsc --noEmit 通过
+[src/shared/config-store] labels.ts -> src/shared/config-store/labels.js（160 行）
+[src/shared/config-store] ports.ts -> src/shared/config-store/ports.js（3 行）
+[src/shared/config-store] settings.ts -> src/shared/config-store/settings.js（200 行）
+[src/shared/config-store] workspace.ts -> src/shared/config-store/workspace.js（159 行）
+[src/shared/host-timer] tsc --noEmit 通过
+[src/shared/host-timer] host-timers.ts -> src/shared/host-timer/host-timers.js（26 行）
+[src/shared/label-color] tsc --noEmit 通过
+[src/shared/label-color] colors.ts -> src/shared/label-color/colors.js（30 行）
+[src/shared/label-color] ports.ts -> src/shared/label-color/ports.js（3 行）
+[src/shared/label-color] prompt.ts -> src/shared/label-color/prompt.js（19 行）
+[src/shared/refresh] tsc --noEmit 通过
+[src/shared/refresh] attention.ts -> src/shared/refresh/attention.js（219 行）
+[src/shared/refresh] backend-quota.ts -> src/shared/refresh/backend-quota.js（60 行）
+[src/shared/refresh] backoff.ts -> src/shared/refresh/backoff.js（63 行）
+[src/shared/refresh] budget.ts -> src/shared/refresh/budget.js（83 行）
+[src/shared/refresh] chain-prune.ts -> src/shared/refresh/chain-prune.js（29 行）
+[src/shared/refresh] chain.ts -> src/shared/refresh/chain.js（349 行）
+[src/shared/refresh] create-write.ts -> src/shared/refresh/create-write.js（50 行）
+[src/shared/refresh] delta.ts -> src/shared/refresh/delta.js（124 行）
+[src/shared/refresh] failure-window.ts -> src/shared/refresh/failure-window.js（27 行）
+[src/shared/refresh] idempotency.ts -> src/shared/refresh/idempotency.js（87 行）
+[src/shared/refresh] page-budget.ts -> src/shared/refresh/page-budget.js（38 行）
+[src/shared/refresh] policy.ts -> src/shared/refresh/policy.js（129 行）
+[src/shared/refresh] ports.ts -> src/shared/refresh/ports.js（3 行）
+[src/shared/refresh] step-cost.ts -> src/shared/refresh/step-cost.js（30 行）
+[src/shared/refresh] tool-cost.ts -> src/shared/refresh/tool-cost.js（101 行）
+[src/shared/refresh] tuning.ts -> src/shared/refresh/tuning.js（8 行）
+[src/shared/refresh] write-detect.ts -> src/shared/refresh/write-detect.js（261 行）
+[src/shared/time-config] tsc --noEmit 通过
+[src/shared/time-config] values.ts -> src/shared/time-config/values.js（297 行）
+[src/shared/version-control] tsc --noEmit 通过
+[src/shared/version-control] capabilities.ts -> src/shared/version-control/capabilities.js（21 行）
+[src/shared/version-control] commands.ts -> src/shared/version-control/commands.js（101 行）
+[src/shared/version-control] parse-diff-files.ts -> src/shared/version-control/parse-diff-files.js（49 行）
+[src/shared/version-control] parse-log.ts -> src/shared/version-control/parse-log.js（33 行）
+[src/shared/version-control] parse-patch.ts -> src/shared/version-control/parse-patch.js（39 行）
+[src/shared/version-control] parse-refs.ts -> src/shared/version-control/parse-refs.js（50 行）
+[src/shared/version-control] parse-status.ts -> src/shared/version-control/parse-status.js（94 行）
+[src/shared/version-control] parse-worktrees.ts -> src/shared/version-control/parse-worktrees.js（81 行）
+[src/shared/version-control] ports.ts -> src/shared/version-control/ports.js（3 行）
+[src/shared/version-control] push-plan.ts -> src/shared/version-control/push-plan.js（45 行）
+[src/shared/version-control] rules.ts -> src/shared/version-control/rules.js（87 行）
+[src/shared/version-control] state.ts -> src/shared/version-control/state.js（206 行）
+[src/shared/version-control] write-reasons.ts -> src/shared/version-control/write-reasons.js（76 行）
+[src/shared/version-control] write-ticket.ts -> src/shared/version-control/write-ticket.js（71 行）
+[build] 客户端时间片段已摘 58 个常量 → .tmp/time-config.client.js
+[pixel-ts] 转译 166 个 TS 真源 → 同名 .js
+[pixel-ts] tsc --noEmit 通过
+[shared-ts] 转译 22 个 TS 真源 → 同名 .js
+[shared-ts] tsc --noEmit 通过
+[moved-trees] 词汇表五份拼段 -> src/tracker/contract/vocabulary.js（拼接输入就位）
+[build] 日志两半版本一致：dsh-log@0.3.4（宿主按包声明解析，客户端按本仓这一份打包）
+[derive-log] dist/client.js -> scripts/generated/logKernel.derived.js
+[build] 更新包面板取值来源：已安装 dsh-plugin-update@0.18.25（面板派生唯一数据源；打包前应已先升到 0.13.x 最新并提交锁文件）
+[derive-update] 官方工具派生 + 改名守卫：D:\dsh-plugin\dsh-mattpocock-skills-deck\node_modules\.pnpm\dsh-plugin-update@0.18.25\node_modules\dsh-plugin-update (0.18.25) -> scripts/generated/updateClient.derived.js
+[derive-update] 打包前请确认：已先跑 pnpm update dsh-plugin-update@^0.18.25 并提交锁文件（最新一版 → 派生 → 构建）
+[bundle-update-entry] 入口件绑定包：D:\dsh-plugin\dsh-mattpocock-skills-deck\node_modules\.pnpm\dsh-plugin-update@0.18.25\node_modules\dsh-plugin-update (0.18.25) -> scripts/generated/updateEntryPanel.bundle.js
+[moved-trees] 改写 src/tracker/detection/detectionService.ts：../../host/workspaceKey.js -> ../../lib/workspaceKey.js
+[moved-trees] 改写 src/tracker/index.ts：../host/tracker/capability.js -> ../lib/tracker/capability.js
+[moved-trees] 改写 src/tracker/index.ts：../host/tracker/snapshot.js -> ../lib/tracker/snapshot.js
+[moved-trees] 转译 246 份 TypeScript 进包（改写宿主引用 3 处），复制手写 JavaScript 0 份
+[moved-trees] 包内引用审计通过（package/lib、package/deck、package/tracker）
+[散文件投放] 21 份 TypeScript 进 package/shared
+[build] 发布清单校验通过：exports 与 main 点名的文件都在 package/ 里（5 条 exports）
+[build] scripts 已随包分发 → package/scripts（2 个文件：fix-issue-body.mts、wire-subissues.mts）
+[L1] host pkg 入口冒烟通过：name=dsh-mattpocock-skills-deck inject=connection,llm,sessionQuery apply=function
+[moved-trees] 改写 src/tracker/detection/detectionService.ts：../../host/workspaceKey.js -> ../../lib/workspaceKey.js
+[moved-trees] 改写 src/tracker/index.ts：../host/tracker/capability.js -> ../lib/tracker/capability.js
+[moved-trees] 改写 src/tracker/index.ts：../host/tracker/snapshot.js -> ../lib/tracker/snapshot.js
+[moved-trees] 转译 246 份 TypeScript 进包（改写宿主引用 3 处），复制手写 JavaScript 0 份
+[moved-trees] 包内引用审计通过（package/lib、package/deck、package/tracker）
+[散文件投放] 21 份 TypeScript 进 package/shared
+[build] 发布清单校验通过：exports 与 main 点名的文件都在 package/ 里（5 条 exports）
+[build] scripts 已随包分发 → package/scripts（2 个文件：fix-issue-body.mts、wire-subissues.mts）
+[L1] host pkg 入口冒烟通过：name=dsh-mattpocock-skills-deck inject=connection,llm,sessionQuery apply=function
+[build] OK
+  client.js (dev)      1896916 bytes
+  host.js (dev)        58072 bytes
+  package/lib/client.js (pkg) 1899355 bytes
+  package/lib/index.js (pkg)  58047 bytes
+[build] 构建只写仓库内产物，不碰本机已装配置

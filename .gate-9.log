@@ -1,0 +1,27 @@
+deck 工具挂起对抗门禁（竞速兜底 + 分类不变 + 中止即停）
+(node:71772) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/.worktrees/1262-work-route-write-tools/src/shared/refresh/budget.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\.worktrees\1262-work-route-write-tools\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  PASS 挂住的归一如实失败（实得 no-session-context）
+  PASS 归一挂住仍在竞速内回来（10000ms）
+  PASS 沙箱挂住读照样回来（实得 ok）
+  PASS 沙箱挂住仍在竞速内回来（15041ms）
+  PASS 挂住的后端诚实回没做成（实得 unsupported）
+  PASS 超时判成独立的超时原因（实得 backend-timeout）
+  PASS 后端挂住仍在钳制内回来（1501ms）
+  PASS 已中止的调用不抛
+  PASS 已中止的调用诚实回没做成
+  PASS 已中止的调用立刻回来（1ms）
+  PASS 抛错判成可重试（实得 backend-threw）
+  PASS 抛错原话带回 text
+  PASS 建票钩子挂住照样 OK（实得 ok）
+  PASS 建票钩子挂住仍在竞速内回来（10038ms）
+  PASS 游标挂住建图照样推进（实得 ok）
+  PASS 游标挂住仍在竞速内回来（10016ms）
+  PASS 装配层交出竞速 helper
+  PASS 成功原样透出
+  PASS 超时按失败回
+
+19 条断言，通过（总耗时 46849ms）
+GATE-RESULT {"gate":"verify-deck-no-hang","assertions":19,"failed":0}

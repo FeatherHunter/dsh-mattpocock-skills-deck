@@ -1,0 +1,28 @@
+#723 唯一刷新机制门禁（一套实例 / 五条路同源 / 宿主侧字段名）
+
+== 三、一套实例：写事件过门取数 ==
+  PASS 装配点交回来的是一套实例（focus / chainReadout / deltaRefresh / gate / writeEvents 都在同一个对象上）
+(node:16492) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/.worktrees/1262-work-route-write-tools/src/host/refresh/wiring.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\.worktrees\1262-work-route-write-tools\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  PASS wf.focus 上报成功并落在活跃集合里（{"ok":true,"root":"C:\\ws\\t19b-single","standing":"active","active":1,"keepers":1,"limit"）
+  PASS 同一套实例的闸把这一格标成活跃（key=52d1cb53）
+  PASS 写事件订阅收下了这一笔（stats().seen=1）
+  PASS 写事件过闸**真的被放行**（裁决=allow、闸的 sent 0 → 1）
+  PASS 裁决那一步真的走过（refresh.decide：[{"category":"background","kind":"patch","verdict":"allow","reason":"background-fits","tier":"green"}]）
+  PASS 写事件只过闸取数，不再往旧链读数里喂数据（旧写入口已删，胶囊待 #1263 重接）：{"ok":true,"at":1792395096500,"reason":"host.chain.empty","sessions":[]}
+  PASS 行级增量过闸的结论是放行（{"verdict":"allow","reason":"background-fits"}）
+
+== 四、负控：两套实例的旧形状必须重现后果 ==
+  PASS 负控夹具：两次装配拿到两套实例（闸都不是同一个）
+  PASS 负控：活跃集合只标在 wf.focus 那一套上，被读数的那一套没被标
+  PASS 负控：喂给标了活跃的那一套（wB）时它照常收下并放行（实得 "allow"）
+  PASS 负控：没标活跃的那一套门前就把这一笔拒了（seen=0）—— 生产里写事件等于没订上
+
+== 五、宿主侧字段名 ==
+  PASS 装配点带出来的字段名等于那个常量（chainField="workRoute"）
+  PASS 真快照回包上，按读数模块那一个常量取得出读数（reply[workRoute]）
+  PASS 负控：没接上读数时那个字段**不在**回包上（界面会如实说读不到，不拿空列表冒充「没有人在处理票」）
+
+全部通过 — 宿主里只有一套刷新机制（15 项断言）

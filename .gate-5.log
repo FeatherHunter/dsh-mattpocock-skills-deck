@@ -1,0 +1,40 @@
+#723（T19）门禁：闸的裁决 (放行/推迟/拒绝) 与写事件过门取数，都在真业务路径上走通
+  PASS ① 放行：patch.run 走通行级补行（mode=patch / reason=rows-changed）
+  PASS ① 裁决：闸放行并计数（sent 0 → 1）
+  PASS ① 记账：真发出去的 1 条记进了账（0 → 1）
+  PASS ① 漏网计数仍为 0（{"requests":0,"points":0}）
+  PASS ② 推迟：patch.run 没有抛异常（照契约回三态）
+  PASS ② 推迟：patch.run 如实回 mode=deferred（实得 deferred / reserve-kept-for-writes）
+  PASS ② 裁决：同一条闸对同一批输入回 defer（{"verdict":"defer","reason":"reserve-kept-for-writes"}）
+  PASS ② 裁决：这一笔进了推迟队列（deferred=1、pending=1）
+  PASS ② 推迟：一条请求都没发出去（0 条）——推迟不是「发了再失败」
+  PASS ② 漏网计数仍为 0
+  PASS ③ 拒绝：超单次硬顶的那一笔被拒（reason=ai-tool-over-call-cap）
+  PASS ③ 拒绝文案：给出「我花超了 / 额度被别人用掉了」那一句
+(node:73424) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/.worktrees/1262-work-route-write-tools/src/shared/refresh/delta.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\.worktrees\1262-work-route-write-tools\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  PASS ④ 上报之后闸把这一格标成活跃（key=486bb29f）
+  PASS ④ 放行真的发生了（verdict=allow / background-fits）
+  PASS ④ 闸的 sent 真的 +1（0 → 1）
+  PASS ④ 过闸带的钥匙与「标活跃」用的钥匙是同一把（标活跃=486bb29f、过闸=486bb29f）
+  PASS ④ 写事件订阅不再喂工作路线（链照实空着）：{"ok":true,"at":1792395096240,"reason":"host.chain.empty","sessions":[]}
+  PASS ④ 负控：不在活跃集合的那一笔被推迟（verdict=defer、sent 0 → 0）
+  PASS ④ 回包如实带回闸的结论（verdictOfGate=defer）
+  PASS ④ 负控：活跃集合标在另一把钥匙上时同一笔就被推迟（verdict=defer）—— 证明「两处钥匙同源」不是白测
+  PASS ④ 负控的回包也如实带结论（verdictOfGate=defer）
+  PASS ⑤ 真入口装出全部 9 个工具（缺 0 个）：["deck_context","deck_issue_get","deck_map_snapshot","deck_issue_list","deck_issue_create","deck_map_plan_create","deck_map_link","deck_issue_patch","deck_issue_report"]
+  PASS ⑤ 真被拒绝：回 ok:false / unsupported（实得 unsupported）
+  PASS ⑤ 真被拒绝：reason 是那个机器可读的拒绝代号（实得 ai-tool-refused）
+  PASS ⑤ 真被拒绝：给出了给 AI 看的那句原话（这次调用超过了插件给 AI 工具设的自己那道硬顶（额度没被别人用掉，是这一笔太大或这一小时攒太多了）。这次预计花 2407 点、1204 条出站请求；本小时 AI 工具已用 0 点…）
+  PASS ⑤ 真被拒绝：被拒的那一批一条都没发出去（账上只多了选后端那一次探测：0 条）
+    拒绝原文（超单次硬顶）：这次调用超过了插件给 AI 工具设的自己那道硬顶（额度没被别人用掉，是这一笔太大或这一小时攒太多了）。这次预计花 2407 点、1204 条出站请求；本小时 AI 工具已用 0 点、0 条；这一桶现在还剩 1750 点。建议分 7 次调用，每片不超过 58 张票（单次硬顶 600 点 / 400 条，每小时 2000 点 / 1500 条）。
+  PASS ⑤ 对照：额度够时同一入口同一工具真的做成（status=ok）
+  PASS ⑤ 额度到保底线：工具没有把异常抛给 AI（照契约回三态；threw=null）
+  PASS ⑤ 额度到保底线：回 ok:false / unsupported（实得 unsupported）
+  PASS ⑤ 额度到保底线：给出的原因代号是那两个之一（实得 gate-defer）
+  PASS ⑤ 额度到保底线：一笔都没发出去（0 → 0；没被静默放行）
+    拒绝原文（额度到保底线）：这一次选后端被闸推迟了（读的额度已用完，只剩给写留的保底：读让路，写保住），先不做。
+
+全部通过 — 闸的裁决、真拒绝与写事件过门取数都在真业务路径上走通（31 项断言）

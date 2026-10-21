@@ -1,0 +1,50 @@
+#1083 工作路线落盘：并发可信、时间与体积留存、换后端留档、日志与隐私口径
+  PASS 两个实例交替写：三笔都记成功，谁也没抛错
+  PASS 各自的本会话条数对（A 2 条、B 1 条）
+  PASS 第三个实例读回三条全在（A 写的 901/903 与 B 写的 902，实得 901,902,903）
+  PASS 盘上两页（两个会话各一页），写后读回能解析
+  PASS 日志里只有 workRoute.write / workRoute.read 两个事件（旧事件不再出现）
+  PASS 同一会话连写 25 张：一条不裁（没有 20 条上限，实得 25 条）
+  PASS 共享纯逻辑里 CHAIN_SESSION_CAP 已删除（旧上限不再存在）
+  PASS 共享纯逻辑换成 30 天保留期与 2MB 两条线
+  PASS 31 天后再写：30 天以前的条目在下一次写入时清掉，只剩新的一条
+  PASS 回执报的条数是裁剪之后的（本次 1 条，旧实现会把清掉的 25 条也算进去）
+  PASS 清理记一条 workRoute.write（kind=prune，count=清掉的 25 条）
+  PASS 超过 2MB 的账再写一笔：照样落上（没抛错）
+  PASS 裁剪后整份不超过 2MB（实得 2096602 字节）
+  PASS 最新的一条还在
+  PASS 被裁后最新的旧条目也还在（按时间从旧到新裁）
+  PASS 最旧的一条被裁掉
+  PASS 清理日志记下裁掉的条数（1064 = 4001 - 2937）
+  PASS 坏文件时回执照常带出在办表（不抛错）
+  PASS 回执备注说明盘上旧文件读不出来、按空账重写：["盘上的旧文件读不出来（形状不认识或解析失败），这次按空账重写了整份。","工作路线摘要 · 本工作区在办 1 条（最近 1 条：#704）"]
+  PASS 坏文件被整份重写成只含这次这一条的新账
+  PASS 读文件临时失败：当空账继续写、不抛错，成功结果带 warnings
+  PASS 读旧文件失败时 record 那条日志如实记 ok=false
+  PASS 读出口遇到坏文件：如实回 ok=false（不拿空表冒充「这个工作区没在办票」）
+  PASS 读出口失败记一行 workRoute.read（ok=false）
+  PASS 换后端：这次照样落上，warnings 说明旧记录已改名留档
+  PASS 旧后端那份改名留档（<根散列>.github.json）
+  PASS 留档文件里是旧后端的记录（901 在）
+  PASS 新文件不混旧条目（901 不在 markdown 账里）
+  PASS 换后端以后旧文件不再被读进来（再写一笔也不复活 901）
+  PASS 带空白与中文的标题快照允许落盘（旧「含空白即整份拒绝」的尺子不再用）
+  PASS 盘上确实留着标题快照原文（人读得懂的名字）
+  PASS 标题里带凭证形状：整份不写，诚实回 reason=privacy（实得 privacy）
+  PASS 凭证原文没有落盘，盘上还是上一次那份干净的账
+  PASS 凭证形状认得出 GitHub 令牌、授权头与 API 密钥
+  PASS 白名单里那 15 个字段名组成的账自检干净
+  PASS 出现白名单以外的字段名：当场拦下并指到字段（$.command：不在白名单的字段名）
+  PASS 白名单字段里的凭证原文也会被内容检查认出来（$.workers[0].title：像 GitHub 令牌）
+  PASS workRoute.write 的三类常规 kind 都出现过：record、persist、readback
+  PASS 清理时出现第四类 kind=prune
+  PASS write 每条只有八个白名单字段（sidHash、rootHash、kind、ok、action、count、why、detail），超出：无
+  PASS 隐私命中那条日志的原因与字段路径都写下来了，且不带被拦下的令牌（privacy / $.workers[0].entries[1].title：像 GitHub 令牌）
+  PASS read 那行只有 sidHash / rootHash / ok / why / detail 五格
+  PASS 读出口遇到坏文件：日志写明原因是 bad-shape（实得 bad-shape）
+  PASS 日志里没有工作区键原文与会话 id 原文（只有散列）
+  PASS 反证①：两个实例各写一张，盘上两张都在（内存真源那种坏实现会只剩后一张）
+  PASS 反证②：超过 30 天的老条目被清、30 天内的留下（清掉 1 条）
+  PASS 反证②（续）：体积上限能真的把整份压低（1192 字节 ≤ 1200）
+  PASS 反证②（续）：裁剪后最新的条目一定还在
+共 48 项，全部通过

@@ -1,0 +1,19 @@
+类型检查：14 份配置
+  scripts/tsconfig.json —— 声明 38 个源码文件，顺 import 共看到 50 个
+  src/deck/tsconfig.json —— 声明 44 个源码文件，顺 import 共看到 63 个
+  src/host/tsconfig.json —— 声明 79 个源码文件，顺 import 共看到 292 个
+  src/seam/tsconfig.json —— 声明 7 个源码文件，顺 import 共看到 7 个
+  src/shared/config-store/tsconfig.json —— 声明 4 个源码文件，顺 import 共看到 4 个
+  src/shared/host-timer/tsconfig.json —— 声明 1 个源码文件，顺 import 共看到 1 个
+  src/shared/label-color/tsconfig.json —— 声明 3 个源码文件，顺 import 共看到 3 个
+  src/shared/refresh/tsconfig.json —— 声明 17 个源码文件，顺 import 共看到 18 个
+  src/shared/time-config/tsconfig.json —— 声明 1 个源码文件，顺 import 共看到 1 个
+  src/shared/tsconfig.json —— 声明 22 个源码文件，顺 import 共看到 24 个
+  src/shared/version-control/tsconfig.json —— 声明 14 个源码文件，顺 import 共看到 15 个
+  src/tracker/tsconfig.json —— 声明 103 个源码文件，顺 import 共看到 133 个
+  tsconfig.client.json —— 声明 176 个源码文件，顺 import 共看到 177 个
+  tsconfig.contract.json —— 声明 20 个源码文件，顺 import 共看到 22 个
+src/ 下源码 490 份，被配置看到 490 份
+手写 JavaScript 名单 3 份，基线 3 份
+
+全绿：没有没人检查的源码，没有重复归属，类型检查都过，手写 JavaScript 名单没有变长。

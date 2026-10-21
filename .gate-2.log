@@ -1,0 +1,167 @@
+#1106 九个工具对外长什么样（参数表 / 信封表 / 点数表）
+— 一、参数表：九个定义的形状（参数名与顺序、必填、枚举、多传即拒）
+  PASS deck_context 的参数形状没动
+  PASS deck_issue_get 的参数形状没动
+  PASS deck_map_snapshot 的参数形状没动
+  PASS deck_issue_list 的参数形状没动
+  PASS deck_issue_create 的参数形状没动
+  PASS deck_map_plan_create 的参数形状没动
+  PASS deck_map_link 的参数形状没动
+  PASS deck_issue_patch 的参数形状没动
+  PASS deck_issue_report 的参数形状没动
+  PASS 九个工具给模型看的话没动过（工具本级一句 + 每个参数各一句）
+  PASS 没有各自说明的参数还是那十二个
+  PASS 每个对象节点都显式写了 additionalProperties:false（漏的：一个都没有）
+  PASS 九个工具的装配顺序冻着：deck_context,deck_issue_get,deck_map_snapshot,deck_issue_list,deck_issue_create,deck_map_plan_create,deck_map_link,deck_issue_patch,deck_issue_report
+— 二、信封表：两种形状、三态、八个原因码、失败不抛、记账数不外露
+  PASS deck_context 正例：回值且 ok（实得 ok）
+  PASS deck_context 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_context 记账数不上信封（回执里没有 claimed）
+  PASS deck_context 带回调用前的估算（{"points":6,"requests":3,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_context 预计花 6 点、3 条出站请求，在硬顶之内。"}）
+  PASS deck_context 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_issue_get 正例：回值且 ok（实得 ok）
+  PASS deck_issue_get 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_issue_get 记账数不上信封（回执里没有 claimed）
+  PASS deck_issue_get 带回调用前的估算（{"points":6,"requests":3,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_issue_get 预计花 6 点、3 条出站请求，在硬顶之内。"}）
+  PASS deck_issue_get 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_map_snapshot 正例：回值且 ok（实得 ok）
+  PASS deck_map_snapshot 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_map_snapshot 记账数不上信封（回执里没有 claimed）
+  PASS deck_map_snapshot 带回调用前的估算（{"points":6,"requests":3,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_map_snapshot 预计花 6 点、3 条出站请求，在硬顶之内。"}）
+  PASS deck_map_snapshot 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_issue_list 正例：回值且 ok（实得 ok）
+  PASS deck_issue_list 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_issue_list 记账数不上信封（回执里没有 claimed）
+  PASS deck_issue_list 带回调用前的估算（{"points":6,"requests":3,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_issue_list 预计花 6 点、3 条出站请求，在硬顶之内。"}）
+  PASS deck_issue_list 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_issue_create 正例：回值且 ok（实得 ok）
+  PASS deck_issue_create 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_issue_create 记账数不上信封（回执里没有 claimed）
+  PASS deck_issue_create 带回调用前的估算（{"points":7,"requests":4,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_issue_create 预计花 7 点、4 条出站请求，在硬顶之内。"}）
+  PASS deck_issue_create 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_map_plan_create 正例：回值且 ok（实得 ok）
+  PASS deck_map_plan_create 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_map_plan_create 记账数不上信封（回执里没有 claimed）
+  PASS deck_map_plan_create 带回调用前的估算（{"points":13,"requests":7,"withinCallCap":true,"shards":1,"perShard":2,"text":"这次 deck_map_plan_create 预计花 13 点、7 条出站请求，在硬顶之内。"}）
+  PASS deck_map_plan_create 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_map_link 正例：回值且 ok（实得 ok）
+  PASS deck_map_link 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_map_link 记账数不上信封（回执里没有 claimed）
+  PASS deck_map_link 带回调用前的估算（{"points":8,"requests":4,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_map_link 预计花 8 点、4 条出站请求，在硬顶之内。"}）
+  PASS deck_map_link 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_issue_patch 正例：回值且 ok（实得 ok）
+  PASS deck_issue_patch 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_issue_patch 记账数不上信封（回执里没有 claimed）
+  PASS deck_issue_patch 带回调用前的估算（{"points":8,"requests":4,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_issue_patch 预计花 8 点、4 条出站请求，在硬顶之内。"}）
+  PASS deck_issue_patch 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS deck_issue_report 正例：回值且 ok（实得 ok）
+  PASS deck_issue_report 回执正好 14 格，一格不多一格不少（实得 14 格：backend,cost,data,items,notes,ok,readBack,reason,repo,status,text,tool,touched,workspace）
+  PASS deck_issue_report 记账数不上信封（回执里没有 claimed）
+  PASS deck_issue_report 带回调用前的估算（{"points":6,"requests":3,"withinCallCap":true,"shards":1,"perShard":1,"text":"这次 deck_issue_report 预计花 6 点、3 条出站请求，在硬顶之内。"}）
+  PASS deck_issue_report 带回调用后的真实花费一格（{"requests":0,"points":0,"remaining":1750,"tier":"green"}）
+  PASS 上报成功回执带 data.workRoute（实得 ok）
+  PASS 在办表每条正好八格（实得 action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title）
+  PASS 不带进度上报：回执 data 里没有 progress 这一格（实得 undefined）
+  PASS 在办表里有刚上报的票（动作 report、来源 reported、当前会话）
+  PASS 在办表有 at 与 staleCount、单会话无 collisions 键
+  PASS notes 带工作路线摘要
+  PASS 回执全文没有原始会话 id（s-1106 只进盘，不进回执）
+  PASS 失败上报没有 data.workRoute（这一格只属于成功的写工具调用）
+  PASS 带进度上报：回执 data 里带进度 37（实得 37）
+  PASS 带进度上报：在办表这一条带进度 37（实得 {"ticketKey":"1","title":"信封表甲票","sessionLabel":"会话 176a49","action":"report","actionAt":"2023-11-14T22:13:20.000Z","active":true,"currentSession":true,"source":"reported","progress":37}）
+  PASS 带进度时在办表每条正好九格（实得 action,actionAt,active,currentSession,progress,sessionLabel,source,ticketKey,title）
+  PASS 不带进度再上报：在办表这一条不再带旧数字（实得 undefined）
+  PASS 不带进度再上报：回执 data 里没有 progress 这一格（实得 undefined）
+  PASS 不带进度时在办表这一条正好八格、progress 不出现（实得 action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title）
+  PASS 进度自评不合规（超过 100 / 负数 / 小数 / 字符串）一律 bad-args + 六格
+  PASS 释放：成功回执正好 14 格（实得 14 格）
+  PASS 释放：在办表里已经没有这张票（实得 []）
+  PASS 释放：备注写明删掉了哪张票与剩余条数（实得 ["已把票 2 从本会话的工作路线里释放掉（本会话还剩 3 条在办；票本身的状态与认领人没有改动）。","工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#5）"]）
+  PASS 释放回执的 data 里不出现 progress 这一格（释放不记动作）
+  PASS 释放不改票本身：票照样读得回来，状态与认领人前后一致（前 {"state":"open","assignees":[]}，后 {"state":"open","assignees":[]}）
+  PASS 再释放同一条：成功回执 + 备注说本来就没有（不冒充删掉）
+  PASS release:false 仍走正常上报：条目重新落上、回执带在办表
+  PASS 失败也回值、回执只有两种形状、三态自洽
+  PASS 失败的原因码都在八个码里（零例外）
+  PASS 九个工具 × 6 种怪参数（共 54 次）都回值不抛
+— 三、点数表：每一支调用在闸上记多少条、多少点
+  PASS 工作区概况：成功：这一笔记 4 条 / 2 点（实得 4 / 2，状态 ok）
+  PASS 建票：缺标题（还没走到选后端）：这一笔记 0 条 / 0 点（实得 0 / 0，状态 unsupported）
+  PASS 建票：成功、没有父子边：这一笔记 3 条 / 4 点（实得 3 / 4，状态 ok）
+  PASS 建票：成功、带父子边：这一笔记 4 条 / 6 点（实得 4 / 6，状态 ok）
+  PASS 读票：缺票号（还没走到选后端）：这一笔记 0 条 / 0 点（实得 0 / 0，状态 unsupported）
+  PASS 读票：这张票读不回来：这一笔记 2 条 / 3 点（实得 2 / 3，状态 unsupported）
+  PASS 读票：成功、跳反向边：这一笔记 2 条 / 3 点（实得 2 / 3，状态 ok）
+  PASS 读票：成功、读全量关系（缺省）：这一笔记 3 条 / 6 点（实得 3 / 6，状态 ok）
+  PASS 列票：成功（回多少行都一样）：这一笔记 3 条 / 5 点（实得 3 / 5，状态 ok）
+  PASS 看地图：成功、薄行也一样：这一笔记 3 条 / 5 点（实得 3 / 5，状态 ok）
+  PASS 看地图：这张地图读不回来：这一笔记 2 条 / 3 点（实得 2 / 3，状态 unsupported）
+  PASS 建图：缺标题（还没走到选后端）：这一笔记 0 条 / 0 点（实得 0 / 0，状态 unsupported）
+  PASS 建图：成功（按估算：3 张票 + 2 条边）：这一笔记 12 条 / 21 点（实得 12 / 21，状态 ok）
+  PASS 建图：计划标识带中文（后端挡下）：这一笔记 2 条 / 4 点（实得 2 / 4，状态 unsupported）
+  PASS 连边：两个都没给（还没走到选后端）：这一笔记 0 条 / 0 点（实得 0 / 0，状态 unsupported）
+  PASS 连边：挂父子（按估算：1 条边 + 读一次）：这一笔记 5 条 / 8 点（实得 5 / 8，状态 ok）
+  PASS 连边：清空阻塞（按估算：没有边 + 读一次）：这一笔记 4 条 / 6 点（实得 4 / 6，状态 ok）
+  PASS 改票：缺票号（还没走到选后端）：这一笔记 0 条 / 0 点（实得 0 / 0，状态 unsupported）
+  PASS 改票：成功（按估算：改一次 + 读一次）：这一笔记 5 条 / 8 点（实得 5 / 8，状态 ok）
+  PASS 上报：缺票号（还没走到选后端）：这一笔记 0 条 / 0 点（实得 0 / 0，状态 unsupported）
+  PASS 上报：成功：这一笔记 2 条 / 3 点（实得 2 / 3，状态 ok）
+  PASS 上报：成功、带进度自评（同价）：这一笔记 2 条 / 3 点（实得 2 / 3，状态 ok）
+  PASS 上报：这张票不存在（同价）：这一笔记 2 条 / 3 点（实得 2 / 3，状态 unsupported）
+  PASS 后端说做不到：列表这一支回 unsupported + backend-unsupported（实得 unsupported/backend-unsupported）
+  PASS 后端说做不到：列表这一笔记 2 条 / 3 点（实得 2 / 3）
+  PASS 后端说做不到：建票这一支回 unsupported + backend-unsupported（实得 unsupported/backend-unsupported）
+  PASS 后端说做不到：建票这一笔记 2 条 / 4 点（实得 2 / 4）
+  PASS 同一个计划标识并发叫两次：恰好一次被挡下、一次做成（挡下 1 次、做成 1 次）
+  PASS 被挡下的那一次回的是「还没走到选后端」的那种形状（6 格）
+  PASS 并发这一次只记做成的那一笔（1 张地图 + 1 张子票 + 1 条父子边 + 选后端 1 条 = 8 条 / 13 点），被挡下的不记（实得 8 条 / 13 点）
+— 四、越界：工具层不许出现直连外面的写法
+  PASS 越界写法表里这条真的会命中：起进程（require('child_process')）
+  PASS 越界写法表里这条不误伤正常写法：起进程（const childProcessName = 1）
+  PASS 越界写法表里这条真的会命中：联网（fetch('https://x')）
+  PASS 越界写法表里这条不误伤正常写法：联网（const fetchLabel = 1）
+  PASS 越界写法表里这条真的会命中：读环境（process.env.HOME）
+  PASS 越界写法表里这条不误伤正常写法：读环境（const processed = 1）
+  PASS 越界写法表里这条真的会命中：旧式取模块（require('node:fs')）
+  PASS 越界写法表里这条不误伤正常写法：旧式取模块（const requiredField = 1）
+  PASS 越界写法表里这条真的会命中：取 Node 能力（import fs from 'node:fs'）
+  PASS 越界写法表里这条不误伤正常写法：取 Node 能力（import x from './x.js'）
+  PASS 越界写法表里这条真的会命中：读写文件（fs.readFile(p)）
+  PASS 越界写法表里这条不误伤正常写法：读写文件（const fsLike = 1）
+  PASS 越界写法表里这条真的会命中：走命令行 gh（const cmd = 'gh issue view 1106'）
+  PASS 越界写法表里这条不误伤正常写法：走命令行 gh（const ghName = 'gh'）
+  PASS 越界写法表里这条真的会命中：动态求值（eval('1')）
+  PASS 越界写法表里这条不误伤正常写法：动态求值（const evaluate = 1）
+  PASS 越界写法表里这条真的会命中：动态构造函数（new Function('return 1')）
+  PASS 越界写法表里这条不误伤正常写法：动态构造函数（const funcFactory = 1）
+  PASS 允许形状表：时钟缺省 的越界写法真会被抓到（const t = Date.now()）
+  PASS 允许形状表：时钟缺省 的正常写法不误伤（now: (typeof d.now === 'function') ? d.now : Date.now）
+  PASS 允许形状表：超时钳制 的越界写法真会被抓到（setTimeout(f, 1)）
+  PASS 允许形状表：超时钳制 的正常写法不误伤（new Promise(function (r) { setTimeout(function () { r(1) }, 1) })）
+  PASS 工具层是九份工具 + 顺序表门面这十份（实际 context.ts,issue-create.ts,issue-get.ts,issue-list.ts,issue-patch.ts,issue-report.ts,map-link.ts,map-plan-create.ts,map-snapshot.ts,tool-order.ts）
+  PASS 十份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上
+  PASS 允许形状表在真实文件上确实被走到（时钟缺省 18 处、超时钳制 9 处），这套判据不是空转
+— 五、缺省与钳制：不传这个参数时是多少、传过头时收到多少
+  PASS 列票 不传条数（缺省 50）：回 50 行（实得 50）
+  PASS 列票 不传条数（缺省 50）：交给后端的过滤条件是 {"state":"open"}（实得 {"state":"open"}）
+  PASS 列票 传 30：回 30 行（实得 30）
+  PASS 列票 传 30：交给后端的过滤条件是 {"state":"open"}（实得 {"state":"open"}）
+  PASS 列票 传 500（超过上限 200）：回 200 行（实得 200）
+  PASS 列票 传 500（超过上限 200）：交给后端的过滤条件是 {"state":"open"}（实得 {"state":"open"}）
+  PASS 列票 传 0（不算数，退缺省 50）：回 50 行（实得 50）
+  PASS 列票 传 0（不算数，退缺省 50）：交给后端的过滤条件是 {"state":"open"}（实得 {"state":"open"}）
+  PASS 列票 传 state=all（全选就不往后端送这一格）：回 50 行（实得 50）
+  PASS 列票 传 state=all（全选就不往后端送这一格）：交给后端的过滤条件是 {}（实得 {}）
+  PASS 列票 传 type=map（在内存里筛，300 行都是 issue）：回 0 行（实得 0）
+  PASS 列票 传 type=map（在内存里筛，300 行都是 issue）：交给后端的过滤条件是 {"state":"open","type":"map"}（实得 {"state":"open","type":"map"}）
+  PASS 读票 不传评论数（缺省 50）、不传 blocking（缺省要反向边）：要后端的评论数是 50（实得 50）
+  PASS 读票 不传评论数（缺省 50）、不传 blocking（缺省要反向边）：会去取反向阻塞边（实得 取了）
+  PASS 读票 传评论数 30：要后端的评论数是 30（实得 30）
+  PASS 读票 传评论数 30：会去取反向阻塞边（实得 取了）
+  PASS 读票 传评论数 500（超过上限 200）：要后端的评论数是 200（实得 200）
+  PASS 读票 传评论数 500（超过上限 200）：会去取反向阻塞边（实得 取了）
+  PASS 读票 传评论数 0（不算数，退缺省 50）：要后端的评论数是 50（实得 50）
+  PASS 读票 传评论数 0（不算数，退缺省 50）：会去取反向阻塞边（实得 取了）
+  PASS 读票 传 blocking=false（跳过反向边）：要后端的评论数是 50（实得 50）
+  PASS 读票 传 blocking=false（跳过反向边）：跳过反向阻塞边（实得 没取）
+共 160 项，全部通过

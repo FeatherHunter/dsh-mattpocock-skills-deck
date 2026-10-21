@@ -1,0 +1,21 @@
+#781 工作路线记读同身份门禁（洗根 / 门前记链 / 读回等落定）
+
+== 一、子目录原文记入，落在归一化根那一格 ==
+(node:67588) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/.worktrees/1262-work-route-write-tools/src/shared/refresh/chain.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\.worktrees\1262-work-route-write-tools\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  PASS 子目录原文记进链（recorded:true）
+  PASS 这一格的根散列等于归一化根的散列（与读回侧同格）
+  PASS 新实例按根读回拿到那一笔（重启不丢）
+
+== 二、写事件不再喂链（note 被忽略），取数仍受门控 ==
+  PASS 写事件订阅不再喂链（note 被调 0 次）
+  PASS 取数那一路仍被门挡住（handle 回 null，不取数）
+
+== 三、focus 落定后读数里立刻有（不等就空） ==
+  PASS 慢盘实例先记一笔
+  PASS focus 等读盘落定（耗时 129ms ≥ 80ms）
+  PASS 落定后读数里立刻有 781（不用第二次快照）
+
+全部通过 — #781 记读同身份（共 8 项）

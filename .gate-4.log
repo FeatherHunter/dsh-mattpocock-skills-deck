@@ -1,0 +1,15 @@
+金标准回执夹具（#1015）：逐字节比对
+  解析：16 个模块经钩子解析，其中 14 个走.ts、2 个走.js。
+  PASS deck_context 逐字节一致（2060 字）
+  PASS deck_issue_create 逐字节一致（2475 字）
+  PASS deck_issue_list 逐字节一致（1486 字）
+  PASS deck_issue_get 逐字节一致（2075 字）
+  PASS deck_map_snapshot 逐字节一致（2019 字）
+  PASS deck_map_plan_create 逐字节一致（2502 字）
+  PASS deck_map_link 逐字节一致（2067 字）
+  PASS deck_issue_patch 逐字节一致（4312 字）
+  PASS deck_issue_report 逐字节一致（1999 字）
+  PASS deck_issue_report 逐字节一致（1965 字）
+  PASS two-room-shape 逐字节一致（1145 字）
+
+全部通过 — 九个工具回执逐字节一致（11 项）
