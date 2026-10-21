@@ -65,7 +65,7 @@
 构建与全部校验在隔离环境中执行，不污染当前工作区与已装形态：
 
 1. **隔离构建**：在隔离临时目录执行 `node scripts/build.mjs`，产物不落当前工作区。
-2. **产物新鲜度与双产物一致性**：根产物 `client.js`/`host.js` 与包内产物 `package/lib/client.js`/`package/lib/index.js` 逐字节一致，且 mtime 新于源码。
+2. **产物新鲜度与双产物一致性**：根产物 `client.js`/`host.js` 与包内产物 `package/lib/client.js`/`package/lib/index.js` 逐字节一致，且与构建缓存（`node_modules/.cache/dsh-build.json`）里记的上次成功构建产物摘要一致——判据看内容，不看修改时间；缓存不可用时退回按修改时间判断，并会打印 `INFO` 说明原因。
 3. **冒烟测试**：`npm run test:smoke` 必过（client / host / dispatch / render / naming）。
 4. **打包预览**：`npm pack --dry-run` 文件清单仅含白名单，不含密钥、多余文档与私密文件。
 5. **官方源包名占用预检**：显式指向官方源并跳过本地缓存，例如  

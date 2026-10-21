@@ -114,7 +114,7 @@ declare module 'node:fs' {
   export interface Stats {
     isFile(): boolean
     isDirectory(): boolean
-    /** 修改时间毫秒戳（产物新鲜度门禁拿它比先后）。 */
+    /** 修改时间毫秒戳（构建缓存不可用时，产物新鲜度门禁退回拿它和源码比先后）。 */
     mtimeMs: number
     size: number
   }
