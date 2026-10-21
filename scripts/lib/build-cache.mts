@@ -5,7 +5,11 @@
 // 和「门禁自己抄一份」两条路；抄一份一定会漂移（matrix-full.ts 与 matrix-smoke.ts 各抄一份源码清单，
 // 已经是要靠人记得同步的活例子）。所以把事实搬到这里，build.mts 反过来 import 它，门禁也 from 这里取判据。
 // 这个模块只导出纯函数与常量：加载它不跑构建、不打印、不写盘（唯一允许的顶层动作是用 import.meta.url
-// 推出仓库根路径，不碰文件系统）。
+// 推出仓库根路径，不碰文件系统）。唯一会打印的是 reportJudgements：它把一批判定结论按统一格式交给
+// 门禁的 check 回调打印，只在被调用时打印，加载模块本身仍然不打印。
+//
+// 本模块里的进程内记忆（见下方 memo 段）只对「读判据的门禁进程」成立；构建进程是缓存唯一的写者，
+// 它写回前必须重新读盘（readCacheFileUncached），不能复用开头判缓存命中时读到的那份快照。
 //
 // 关于「产物新鲜」的判据，从修改时间换成内容摘要（#1326）——为什么不再看修改时间：
 //   · 产物只是被 touch 过、被检出/还原过、从备份恢复过时，修改时间变了而内容没变，按时间判会假红；
@@ -138,8 +142,9 @@ export function buildModeKey(argv: string[] = process.argv.slice(2)): string {
 
 // 输入摘要与缓存读取都按 (root, mode) 在进程内记忆一次：一条输入摘要要读约 1049 个输入文件（约 100 毫秒），
 // 一扇门禁里可能判多批产物（verify-log-artifacts 有 78 个镜像），不记忆就会把同一趟扫描重复几十遍。
-// 门禁进程里输入与缓存都不会中途变化，所以记忆是安全的；行为证据脚本要在同一进程里改缓存、改产物，
-// 用 resetBuildCacheMemo() 主动失效即可。
+// 门禁进程里输入与缓存都不会中途变化，所以记忆是安全的；构建进程例外——它在开头读一次判命中，
+// 真构建几十秒后再写回，中间可能被别的会话写过缓存，所以写回前要用 readCacheFileUncached 重新读盘。
+// 行为证据脚本要在同一进程里改缓存、改产物，用 resetBuildCacheMemo() 主动失效即可。
 const memoInputFingerprint = new Map<string, string>()
 const memoCacheFile = new Map<string, CacheReadResult>()
 
@@ -185,8 +190,12 @@ export interface CacheReadResult {
   entry: CacheEntry | null
 }
 
-/** 五种读不到的情况分别给一句人话原因；不把「版本不符」笼统说成「缓存缺失」。 */
-function readCacheFileUncached(root: string, mode: string): CacheReadResult {
+/**
+ * 真正读盘的实现：五种读不到的情况分别给一句人话原因；不把「版本不符」笼统说成「缓存缺失」。
+ * 不走进程内记忆，因为构建进程写回缓存前必须看到磁盘上的最新内容（构建进程是缓存唯一的写者，
+ * 开头判缓存命中时读过的那份快照可能已经过时）。门禁读判据请用下面的 readCacheFile。
+ */
+export function readCacheFileUncached(root: string, mode: string): CacheReadResult {
   const file: string = cachePath(root)
   if (!existsSync(file)) {
     return { ok: false, reason: '文件不存在（还没有成功构建过，或 node_modules/.cache 被清过）', cache: null, entry: null }
@@ -241,9 +250,10 @@ const MISSING_REASON: string = '缺失（请先运行 node scripts/build.mts）'
 /**
  * 唯一一段「单个产物新不新鲜」的判断代码。
  * expectedSha 非空时走内容判据（与上次成功构建记录的摘要比）；为空时走回落的修改时间判据。
+ * fallbackCause 说明这次为什么没有内容判据，会拼进回落判红的说明里，让红行本身能自解释（不靠前一行 INFO）。
  * 两条路径共用同一个入口，是为了让「内容比较」与「回落比较」不会各长一套、日后悄悄分叉（AC④）。
  */
-function judgeOne(root: string, product: string, sources: string[], expectedSha: string | null): ProductJudgement {
+function judgeOne(root: string, product: string, sources: string[], expectedSha: string | null, fallbackCause: string = ''): ProductJudgement {
   const abs: string = join(root, product)
   if (!existsSync(abs)) return { product, freshness: 'missing', reason: MISSING_REASON }
   if (expectedSha !== null) {
@@ -252,24 +262,40 @@ function judgeOne(root: string, product: string, sources: string[], expectedSha:
     return {
       product,
       freshness: 'stale',
-      reason: '产物内容与上次成功构建不一致：' + product + '（可能被人手改过，或构建没跑完）。请运行 node scripts/build.mts 重建。',
+      // 门禁打印时已经带上产物名（「产物门禁 <产物>：…」），这里不再重复；文案保持两类原因的区别：
+      // 内容判据判红说的是「内容对不上」，回落判红会在 judgeByMtime 里说明「没有可用的构建记录」。
+      reason: '产物内容与上次成功构建不一致（可能被人手改过，或构建没跑完）。请运行 node scripts/build.mts 重建。',
     }
   }
-  return judgeByMtime(root, product, sources)
+  return judgeByMtime(root, product, sources, fallbackCause)
 }
 
 /**
  * 回落的旧判据：产物修改时间不晚于这几份源码（容差 1 秒）就算「按时间看是新鲜的」。
  * 没有可用构建记录时，手上的证据只有修改时间，所以只能说「没看出过期」，不能说「内容没变」。
  * 这条路径只在回落时使用，正常路径永远走内容摘要。
+ * fallbackCause 是这次回落的直接原因，会拼进判红的说明里，让单看一行红字也知道「这是回落判的」；
+ * 调用方没有给可比较的源码时，按修改时间也无从判断，必须判 stale 而不是当成新鲜——
+ * 构建命中判断就依赖这一条（否则缓存里某个产物的摘要坏了会被当成新鲜而跳过真构建）。
  */
-function judgeByMtime(root: string, product: string, sources: string[]): ProductJudgement {
+function judgeByMtime(root: string, product: string, sources: string[], fallbackCause: string): ProductJudgement {
+  if (sources.length === 0) {
+    return {
+      product,
+      freshness: 'stale',
+      reason: (fallbackCause ? fallbackCause + '，' : '') + '且调用方没有提供可比较的源码清单，无法判断是否过期；请运行 node scripts/build.mts',
+    }
+  }
   const productMtime: number = statSync(join(root, product)).mtimeMs
   for (const src of sources) {
     const abs: string = join(root, src)
     if (!existsSync(abs)) continue
     if (statSync(abs).mtimeMs > productMtime + 1000) {
-      return { product, freshness: 'stale', reason: '过期（' + src + ' 比产物新，请运行 node scripts/build.mts 重新构建）' }
+      return {
+        product,
+        freshness: 'stale',
+        reason: '过期（' + src + ' 比产物新，请运行 node scripts/build.mts 重新构建；这次没有可用的构建记录，只能按修改时间判断：' + fallbackCause + '）',
+      }
     }
   }
   return { product, freshness: 'fresh', reason: '按修改时间判断为新鲜' }
@@ -307,11 +333,12 @@ export function judgeProducts(options: { products: string[]; sources?: string[];
   const cache: CacheReadResult = readCacheFile(root, mode)
   if (!cache.ok) {
     const at: string = cache.cache && cache.cache.entries[mode] && cache.cache.entries[mode].at ? '缓存条目记下的上次成功构建时间是 ' + cache.cache.entries[mode].at + '。' : ''
+    const cause: string = '构建缓存' + cache.reason
     notices.push(
-      '构建缓存' + cache.reason + '，这次退回按修改时间判断（受影响产物：' + productsText(existing) + '）。' + at +
+      cause + '，这次退回按修改时间判断（受影响产物：' + productsText(existing) + '）。' + at +
       '要恢复内容判据请运行 node scripts/build.mts（这不是源码过期，是本机没有可用的构建记录）。',
     )
-    for (const product of existing) results.push(judgeOne(root, product, sources, null))
+    for (const product of existing) results.push(judgeOne(root, product, sources, null, cause))
     return { products: results.sort((a, b) => a.product.localeCompare(b.product)), notices }
   }
 
@@ -320,11 +347,12 @@ export function judgeProducts(options: { products: string[]; sources?: string[];
   // ③ 构建输入与上次成功构建不一致：缓存里没有逐文件输入摘要，说不出是哪一份变了，只能整批回落。
   const currentFingerprint: string = inputFingerprint(root, mode)
   if (currentFingerprint !== entry.fingerprint) {
+    const cause: string = '构建输入在上次成功构建之后有变化（缓存里没有逐个文件的内容摘要，无法指出是哪一份）'
     notices.push(
-      '构建输入在上次成功构建之后有变化（缓存里没有逐个文件的内容摘要，无法指出是哪一份），这次退回按修改时间判断（受影响产物：' + productsText(existing) + '）。' +
+      cause + '，这次退回按修改时间判断（受影响产物：' + productsText(existing) + '）。' +
       '上次成功构建时间是 ' + entry.at + '。要恢复内容判据请运行 node scripts/build.mts。',
     )
-    for (const product of existing) results.push(judgeOne(root, product, sources, null))
+    for (const product of existing) results.push(judgeOne(root, product, sources, null, cause))
     return { products: results.sort((a, b) => a.product.localeCompare(b.product)), notices }
   }
 
@@ -340,9 +368,38 @@ export function judgeProducts(options: { products: string[]; sources?: string[];
       '构建记录里没有这些产物的内容摘要（产物清单变过？）：' + productsText(notRecorded) + '。这部分退回按修改时间判断。' +
       '要恢复内容判据请运行 node scripts/build.mts。',
     )
-    for (const product of notRecorded) results.push(judgeOne(root, product, sources, null))
+    for (const product of notRecorded) {
+      results.push(judgeOne(root, product, sources, null, '构建记录里没有这个产物的内容摘要'))
+    }
   }
 
   return { products: results.sort((a, b) => a.product.localeCompare(b.product)), notices }
+}
+
+/**
+ * 门禁统一的「判定结论 → PASS/FAIL 行」打印辅助。十处门禁原来各抄一段一模一样的循环：打 INFO、
+ * 逐个产物 find 结论、拼 reason、调 check。判据只有一份，但这十份报错文案日后一定会漂，所以收拢到这里。
+ * options.label 是每行前缀（默认 '产物门禁 '），options.freshText 是判绿时括号里的说明
+ * （默认 '（存在且新鲜）'），options.products 指定打印顺序（默认按判定结果里排好的顺序）。
+ * 输出格式与原先逐字一致：先打 '  INFO <说明>'，再逐产物打 '<label><产物><继续或：reason>'。
+ */
+export interface JudgeReportOptions {
+  label?: string
+  freshText?: string
+  products?: string[]
+}
+
+export function reportJudgements(judged: JudgeResult, check: (ok: boolean, message: string) => void, options: JudgeReportOptions = {}): void {
+  const label: string = options.label === undefined ? '产物门禁 ' : options.label
+  const freshText: string = options.freshText === undefined ? '（存在且新鲜）' : options.freshText
+  for (const notice of judged.notices) console.log('  INFO ' + notice)
+  const products: string[] = options.products === undefined ? judged.products.map((p) => p.product) : options.products
+  for (const product of products) {
+    const found: ProductJudgement | undefined = judged.products.find((p) => p.product === product)
+    check(
+      !!found && found.freshness === 'fresh',
+      label + product + (!found ? '：判据没有给出这个产物的结论' : found.freshness === 'fresh' ? freshText : '：' + found.reason),
+    )
+  }
 }
 

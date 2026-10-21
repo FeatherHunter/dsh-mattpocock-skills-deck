@@ -55,7 +55,7 @@ import { buildDomain, buildSharedProductPath, domainPaths, findDomains, isLeafSo
 import { TRANSPILE_OPTIONS, inlineExportDeclarations, generatedHeader } from './lib/transpile-unit.mts'
 // #1326：构建缓存的事实（输入范围、产物清单、内容摘要算法、缓存读取）与唯一一份「产物新不新鲜」判据
 // 都搬到了 lib/build-cache.mts；构建只负责按这些事实证明能不能命中、真构建成功后写回缓存。
-import { CACHE_PATH, CACHE_VERSION, buildModeKey, inputFingerprint, judgeProducts, listOutputs, readCacheFile, sha256File } from './lib/build-cache.mts'
+import { CACHE_PATH, CACHE_VERSION, buildModeKey, inputFingerprint, judgeProducts, listOutputs, readCacheFile, readCacheFileUncached, sha256File } from './lib/build-cache.mts'
 
 // 域里允许住**不是域源码产物**的 .js（没有域源码里的同名真源，也不该被当成陈旧产物）：
 // 它们要么是手写模块、要么是域根散文件的转译产物，都住在域产物同一个目录（.build/shared/<域>/）里，
@@ -89,7 +89,7 @@ const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // 以前命中会把每个产物的 mtime 提到当前，好让「产物比源新」那几扇新鲜度门禁不误报；但本地以 link 方式
 // 装着的插件正被界面使用，DSH 按文件变化热更客户端产物，每次命中都把几百个产物的 mtime 提到当前，
 // 界面就跟着反复闪烁——验证链跑一次要命中十几回，面板就闪十几回。判据换成内容摘要后（#1326），
-// 这些门禁不再看修改时间，这里也就不需要再动任何 mtime。
+// 除缓存不可用时的回落判据外，全仓没有别处再看 mtime；这里也就不需要再动任何 mtime。
 //
 // 强制重建：node scripts/build.mts --force，或设 DSH_BUILD_NO_CACHE=1。
 // 缓存文件落在 node_modules/.cache/ 下（不进版本库，不会被提交）。
@@ -119,7 +119,11 @@ function tryBuildCacheHit(args: string[]): boolean {
   // 产物逐字节判断调用公共判据（scripts/lib/build-cache.mts 的 judgeProducts），不在构建里另写一套比较：
   // 「产物新不新鲜」只有一份实现，构建与新鲜度门禁才不会分叉（#1326 AC④）。
   // 这里传 last 记录里的全部产物；sources 传空是因为输入摘要已经单独比过，命中判断不需要回落路径。
+  // 真出现「记录里没有某个产物的摘要」时，判据在没有源码清单的情况下会判 stale 而不是假装新鲜，
+  // 于是照常走真构建、把记录补全——这正是命中判断想要的结果。
   const judged = judgeProducts({ root: ROOT, mode, products: Object.keys(read.entry.outputs), sources: [] })
+  // 判据回落时的说明不能吞掉：命中判断虽然不生成门禁 INFO 行，也要让人看得到「这次为什么按旧办法判」。
+  for (const notice of judged.notices) console.log('[build] 注意：' + notice)
   const bad: string[] = judged.products.filter((p) => p.freshness !== 'fresh').map((p) => p.product)
   if (bad.length) {
     console.log('[build] 产物与上次成功构建不一致 → 正常构建（' + bad.slice(0, 5).join(' / ') + '）。')
@@ -139,7 +143,10 @@ function writeBuildCache(): void {
     const outputs: Record<string, string> = {}
     for (const rel of listOutputs(ROOT)) outputs[rel] = sha256File(join(ROOT, rel))
     // 写回前先读已有缓存：别的构建模式（--pkg-only 等）的条目要留着，不能因为本档写入就整份丢掉。
-    const read = readCacheFile(ROOT, buildModeKey())
+    // 这里必须重新读盘（readCacheFileUncached），不能复用开头判缓存命中时读到的快照：
+    // 那个快照是几十秒前真构建开始前读的，这期间别的会话可能写回过缓存；构建进程是缓存唯一的写者，
+    // 但写者自己也要按磁盘最新内容合并，否则会把别人刚写进来的条目整份盖掉。
+    const read = readCacheFileUncached(ROOT, buildModeKey())
     const cache: any = read.cache ?? { version: CACHE_VERSION, entries: {} }
     cache.version = CACHE_VERSION
     cache.entries[buildModeKey()] = { fingerprint: inputFingerprint(ROOT, buildModeKey()), outputs, at: new Date().toISOString() }
