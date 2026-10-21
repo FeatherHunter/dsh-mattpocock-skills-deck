@@ -1,4 +1,4 @@
-// src/deck/tools/issue-create.ts —— deck_issue_create（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
+// src/deck/tools/issue-create.ts —— deck_issue_create（#713 第六批；#1019 换到新树、#1035 转 TypeScript；#1091 加维护者原话）
 //
 // 建一张票。三件小事由代码保证，不靠 AI 记得：
 //   1. 必备标签（按种类：地图 wayfinder:map、任务 wayfinder:task、缺陷 bug + needs-triage）缺就补，
@@ -7,6 +7,9 @@
 //   3. 创建幂等锚（#711 的契约字段 idempotencyKey）：同一个会话、同一个标题、同一批标签在 5 分钟窗口里
 //      重复调一次，契约层按锚回查，复用同一张票 —— 重试不会重复花钱，也不会多出票。
 //
+// #1091：带 originalWords 时把维护者原话一字不改写进正文的「## 维护者原话」区（位置规则在 shared 层），
+// 建完再读回核对一遍：建票回包是写动作的自述，不算「已经写好」。
+//
 // 返回值就是**写后的真状态**（契约 create 回的那张票），AI 不必再读一次确认。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
@@ -14,45 +17,22 @@ import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence,
 import type { EdgeEvidence } from '../shell/edge-landing.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
+// #1195：执行层失败（抛错 / 中止 / 超时 / 预算耗尽）的收口从两个写工具里抽出来共用，判据一字未改。
+import { numOpt, timeoutMessage, transportMessage, withCap } from '../shell/backend-transport.js'
+import type { TransportResult } from '../shell/backend-transport.js'
 // #1277：规格与实施票的票面对象类型标记（唯一真源，ADR 2.5）。标记由本工具写进正文最前面，
 // 后端建房时再把它挪进文件头（本地 Markdown 房会挪，GitHub 房今天的已知缺口见设计文档第 7 节）。
 import { isHeaderOnlyKind, markerKindAtStart, markerLineFor } from '../../shared/issue-file/src/marker.js'
+// #1091：维护者原话的入参收口与「追加 + 写后核对」都住在 shared 层（与 #1090 的进度区同一套形态）。
+import { PROGRESS_BODY_LIMIT } from '../../shared/issue-file/src/progress.js'
+import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-words.js'
+import { originalWordsFromArg } from '../../shared/issue-file/src/original-words-tool.js'
+import { bodyWriteFields, bodyWriteReadbackProblem, planBodyWrite } from '../shell/body-write.js'
+import type { BodyWritePlan } from '../shell/body-write.js'
 import * as budget from '../../shared/refresh/src/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
-
-/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，调用方退自己的默认。 */
-function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
-type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
-// 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
-function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
-  return Promise.race([
-    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
-    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
-  ])
-}
-// 执行层失败（抛错/中止/预算耗尽）与后端诚实失败的分界：前者在进壳之前会直接抛到
-// 壳的统一出口（reason=backend-threw，可重试），后者走逐项的 BACKEND_UNSUPPORTED（能力缺失，
-// 不当成 transient 重试）。壳外新加的钳制不能把前者改判成后者，否则 AI 会放弃重试。
-// 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的
-// backend-timeout（#1195），不再与真正的抛错共用 backend-threw。
-const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
-/** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
-type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
-/** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
-function transportMessage(result: TransportResult): string | null {
-  const e = result && result.error
-  if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
-  return null
-}
-/** 超时那一支的原话（kind 'timeout'）：调用处直接回独立原因码，不抛给壳。 */
-function timeoutMessage(result: TransportResult): string | null {
-  const e = result && result.error
-  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
-  return null
-}
 
 /** 落点证据函数的收口形状：第四个形参（额外字段）按可选算，其余与调用处传的三个实参一致。 */
 type EdgeEvidenceFn = (op: unknown, target: unknown, evidence: unknown, extra?: unknown) => Record<string, unknown>
@@ -76,19 +56,29 @@ export interface DeckIssueCreateDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_create',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成它的原生依赖边（边没写成时票照建，回执逐条说明）。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），带 originalWords 时把维护者原话一字不改写进正文的「## 维护者原话」区，重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成它的原生依赖边（边没写成时票照建，回执逐条说明）。',
   parameters: {
     type: 'object',
     properties: {
       title: { type: 'string', description: '票的标题' },
       body: { type: 'string', description: '正文；缺省时按种类补最小骨架' },
+      originalWords: {
+        type: 'object',
+        description: '建票时顺便追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序。三个后端都写进票的正文，不进评论；正文超过 60KB 时拒绝建票、一个字节不动。',
+        properties: {
+          text: { type: 'string', description: '维护者的原话正文，一字不改；可以多行，空行原样保留' },
+          source: { type: 'string', description: '出处，必填：票面写完整链接，本会话答复写「本会话（时间）」，文件写「路径:行号」，提交写短哈希' },
+        },
+        required: ['text', 'source'],
+        additionalProperties: false,
+      },
       kind: { type: 'string', enum: ['task', 'bug', 'map', 'spec', 'ticket'], description: '票的种类，缺省 task' },
       parentKey: { type: 'string', description: '父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）' },
       blockedBy: { type: 'array', items: { type: 'string' }, description: '这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）' },
       labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
-      workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
+      workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['title'],
@@ -173,11 +163,30 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
 
     const ensured = ensureLabels(a.labels, kind)
     const body = ensureBody(a.body, kind)
+    // #1091：维护者原话收口要赶在建票之前 —— 收不成、或正文会超过 60KB 时，这张票不建（一个字都不动）。
+    let originalWords: OriginalWordsEntry | null = null
+    if (a.originalWords !== undefined && a.originalWords !== null) {
+      const parsed = originalWordsFromArg(a.originalWords)
+      if (parsed.entry === null) {
+        return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, parsed.problem + '这张票没建。', { cost: { estimated: est } })
+      }
+      originalWords = parsed.entry
+    }
     // #1277：规格与实施票在正文最前面写一行对象类型标记（标记是唯一真源，ADR 2.5）。
     // 调用方正文里已经带了同一行时不再重复写；没带的才有这一行。
     if (isHeaderOnlyKind(kind)) {
       const markerLine = markerLineFor(kind)
       if (markerLine && markerKindAtStart(body.body) === null) body.body = markerLine + body.body
+    }
+    // #1091：原话区按「紧跟目的 / 正文最前」的规则追加；正文头部注释与一级标题会被跳过（shared 层判的）。
+    let bodyPlan: BodyWritePlan | null = null
+    if (originalWords) {
+      const planned = planBodyWrite(body.body, null, originalWords, PROGRESS_BODY_LIMIT)
+      if (planned.plan === null) {
+        return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, planned.problem + '这张票没建。', { cost: { estimated: est } })
+      }
+      bodyPlan = planned.plan
+      body.body = bodyPlan.next
     }
     const now = (typeof d.now === 'function') ? d.now() : Date.now()
     const anchor = a.idempotencyKey ? String(a.idempotencyKey) : anchorKeyFor({ tool: 'deck_issue_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: ensured.labels, now: now })
@@ -238,6 +247,25 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         }
       } catch (eHook) {}
       const items = []
+      // #1091：原话写后核对。建票回包是写动作的自述，不算数；要读回来逐字相同才算写好。
+      // 这一段与进度区（#1090）同一套口径：额度不够、读不回来、对不上，都逐项记失败并说「别当成已经写好」。
+      let originalProblem = ''
+      if (bodyPlan !== null) {
+        if (sc.outOfBudget()) originalProblem = '原话写动作回了成功，但剩余额度不够读回核对：别当成已经写好，稍后读一次现状确认。'
+        else {
+          const rawBack = await t.get(repo, String(issue.key || ''), {}, opCtx)
+          const backTimeout = timeoutMessage(rawBack as TransportResult)
+          const okBack = (rawBack && rawBack.ok === true) ? rawBack : null
+          const backBody = (okBack && okBack.data && typeof okBack.data.body === 'string') ? okBack.data.body : null
+          if (backTimeout) originalProblem = '原话写动作回了成功，但读回核对超时（' + String(backTimeout).slice(0, 160) + '）：别当成已经写好，稍后读一次现状确认。'
+          else if (backBody === null) originalProblem = '原话写动作回了成功，但写后没读回正文（后端原话：' + String((rawBack && rawBack.error && rawBack.error.message) || '没给出原因').slice(0, 160) + '）：写进去的对不对不知道，别当成已经写好。'
+          else originalProblem = bodyWriteReadbackProblem(bodyPlan, backBody)
+        }
+        if (originalProblem) items.push({ key: issue.key, step: 'text', status: 'failed', reason: originalProblem })
+        else items.push({ key: issue.key, step: 'text', status: 'ok', fields: bodyWriteFields(bodyPlan), originalWords: originalWords })
+      }
+      // 原话写后核对多花的那一次读：一次读 + 2 点，与标签/认领/关闭的写后读回同价。
+      const wordCost = bodyPlan ? { requests: 1, points: 2 } : { requests: 0, points: 0 }
       let parentLanded = true
       let parentEvidence = null
       // 父子边的判决（landed / not-landed / unconfirmed）要留到下面的回执抬头用，所以在块外先立一格。
@@ -312,47 +340,69 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         notes.push('父子边没建成，别把它当成已经挂上：逐条原因在上面的 items 里。')
         if (blockFailed) notes.push('阻塞边也没建成，别把它们当成已经挂上：逐条原因也在上面的 items 里。')
         if (labelFailed) items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
+        if (originalProblem) notes.push('维护者原话也没核对上：' + originalProblem)
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
             text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + edgeHead + '：' + why
               + (labelFailed ? '标签也没挂上：' + labelWhy : '')
-              + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : ''),
+              + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : '')
+              + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
             notes: notes,
             touched: issue.key ? [String(issue.key)] : [],
           },
-          claimed: { requests: 3 + blockCost.requests, points: 6 + blockCost.points },
+          claimed: { requests: 3 + blockCost.requests + wordCost.requests, points: 6 + blockCost.points + wordCost.points },
         }
       }
       if (labelFailed) {
         // 票建成了、标签没挂上：按部分成功回（照父子边没挂上的 PARTIAL 先例），不再报“我替你补了”。
         items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
         if (blockFailed) notes.push('阻塞边也没建成，别把它们当成已经挂上：逐条原因也在上面的 items 里。')
+        if (originalProblem) notes.push('维护者原话也没核对上：' + originalProblem)
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
             text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。标签没挂上：' + labelWhy
-              + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : ''),
+              + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : '')
+              + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
             notes: notes,
             touched: issue.key ? [String(issue.key)] : [],
           },
-          claimed: { requests: 3 + blockCost.requests, points: 6 + blockCost.points },
+          claimed: { requests: 3 + blockCost.requests + wordCost.requests, points: 6 + blockCost.points + wordCost.points },
         }
       }
-      const claimedBase = { requests: (rel ? 3 : 2) + blockCost.requests, points: (rel ? 6 : 4) + blockCost.points }
+      const claimedBase = { requests: (rel ? 3 : 2) + blockCost.requests + wordCost.requests, points: (rel ? 6 : 4) + blockCost.points + wordCost.points }
       if (blockFailed) {
         notes.push('阻塞边没建成，别把它们当成已经挂上：逐条原因在上面的 items 里。')
+        if (originalProblem) notes.push('维护者原话也没核对上：' + originalProblem)
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。阻塞边没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。阻塞边没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed
+              + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
+            data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
+            items: items,
+            notes: notes,
+            touched: issue.key ? [String(issue.key)] : [],
+          },
+          claimed: claimedBase,
+        }
+      }
+      // #1091：原话没核对上不算建成（票在、但原话对不对不知道）：与标签没挂上同一档，按部分成功回。
+      if (originalProblem) {
+        notes.push('维护者原话没核对上，别把它当成已经写好：逐条原因在上面的 items 里。')
+        return {
+          value: {
+            status: DECK_STATUS.PARTIAL,
+            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。维护者原话没核对上：' + originalProblem,
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
             notes: notes,

@@ -76,16 +76,19 @@ Issues and specs for this repo live as GitHub issues.
 
 一条原话由出处行和引用块两部分组成：
 
-- **出处行**写清这句话是从哪儿来的，读的人才能自己去核对。票面上说的写完整链接；本会话里说的写「本会话（时间）」；文件里写的写 `路径:行号`；提交里说的写短哈希。
-- **引用块**放原话本身：每一行前面加 `>`，原话里的空行也写成单独一行 `>`。
+- **出处行**：在引用块外面单独一行，以 `出处：` 开头，写清这句话是从哪儿来的，读的人才能自己去核对。票面上说的写完整链接；本会话里说的写「本会话（时间）」；文件里写的写 `路径:行号`；提交里说的写短哈希。
+- **引用块**：紧跟在出处行下面，放原话本身：每一行前面加 `>`，原话里的空行也写成单独一行 `>`。
 
-例如：
+例如（整段照下面这种形状写进正文）：
 
-> 出处：[#1089 地图15讨论：进度写哪、原话区的写法](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1089)
->
+```text
+## 维护者原话
+
+出处：本会话（2026-10-21T20:05+08:00）
 > 第一段原话，一个字都不改地抄在这里。
 >
 > 第二段原话；原话里本来有空行的地方，保留成单独一行 `>`。
+```
 
 几条规矩：
 
@@ -93,7 +96,7 @@ Issues and specs for this repo live as GitHub issues.
 - **只追加**：不编辑、不删除、不排序、不合并；同一句话带同一个出处已经记过，就跳过，不再记第二遍。
 - 条数不限，和正文共用一个 60KB 上限。
 
-原话区的工具写入与回读在票 [#1091 地图15开发：用户原话区](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1091) 与 [#1092 地图15开发：原话回读](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1092) 里落地；在那之前照本节写法写进正文即可，工具还不会替你校验这一区。
+写这一区用 `deck_issue_create` 与 `deck_issue_patch` 的 `originalWords: {text, source}` 参数（#1091 已落地）：`source` 必填，工具负责按上面的规则追加、只追加、同一段原话配同一个出处时幂等跳过，写完再把正文读回来逐字核对。读一侧（把这一区单独读回来给你看）在票 [#1092 地图15开发：原话回读](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1092) 里落地。
 
 **这两个区的写法以 #1089 的定稿为准**：上面的区块顺序与两个区的规则出自票 [#1089 地图15讨论：进度写哪、原话区的写法](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1089) 正文的「讨论结论（2026-10-21 定稿）」一节；当初为什么这样定、查过哪些一手材料，见 `research/1089-progress-and-user-voice.md`（每条结论都注了来源）。以后要改这套写法，先回那张票的定稿里改，再改这份文档——不要让规则只活在口口相传里。
 

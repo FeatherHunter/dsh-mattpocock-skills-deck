@@ -1,6 +1,6 @@
-// src/deck/tools/issue-patch.ts —— deck_issue_patch（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
+// src/deck/tools/issue-patch.ts —— deck_issue_patch（#713 第六批；#1019 换到新树、#1035 转 TypeScript；#1091 加维护者原话）
 //
-// 一次调用改一张票：评论 / 标签流转 / 认领 / 关闭重开 / 标题正文 / 进度区。
+// 一次调用改一张票：评论 / 标签流转 / 认领 / 关闭重开 / 标题正文 / 进度区 / 维护者原话区。
 // 只做调用方点名的那几件事，没点名的字段一个字都不碰（改票最怕「顺手改了别的东西」）。
 // 做完的每一步都单独记一条 item：哪一步成、哪一步没成、后端原话是什么。
 // 返回值就是写后的真状态（能读回就读回一次），AI 不必再读一次确认。
@@ -16,50 +16,22 @@ import { specCloseGuard } from '../shell/spec-close-guard.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { withKeyLock } from '../shell/write-mutex.js'
 import { ensureBody } from '../shell/minimal-spec.js'
+// #1195：执行层失败（抛错 / 中止 / 超时 / 预算耗尽）的收口从两个写工具里抽出来共用，判据一字未改。
+import { must, numOpt, timeoutMessage, withCap } from '../shell/backend-transport.js'
+import type { TransportResult } from '../shell/backend-transport.js'
 // #1090：进度区的读、写、核对统一走 shared 层的那一份口径（读与写共用同一份写法，不再各留一份正则）。
-import { applyProgressEntry, progressReadbackProblem } from '../../shared/issue-file/src/progress.js'
+// #1091：维护者原话区同理；两块一起写时的组合与写后核对住在 body-write。
+import { PROGRESS_BODY_LIMIT } from '../../shared/issue-file/src/progress.js'
 import type { ProgressEntry } from '../../shared/issue-file/src/progress.js'
 import { progressEntryFromArg, stampNow } from '../../shared/issue-file/src/progress-tool.js'
+import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-words.js'
+import { originalWordsFromArg } from '../../shared/issue-file/src/original-words-tool.js'
+import { planBodyWrite } from '../shell/body-write.js'
+import type { BodyWritePlan } from '../shell/body-write.js'
+import { textWriteVerify } from '../shell/text-write-verify.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
-
-/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
-function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
-type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
-// 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
-function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
-  return Promise.race([
-    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
-    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
-  ])
-}
-// 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
-// backend-threw（可重试），后者走逐项 fail（partial）。must() 包住每一次远端调用。
-// 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的
-// backend-timeout（#1195），不再与真正的抛错共用 backend-threw。
-const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
-/** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
-type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
-/** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
-function transportMessage(result: TransportResult): string | null {
-  const e = result && result.error
-  if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
-  return null
-}
-/** 执行层失败原样抛给壳（走 backend-threw，可重试）；不是执行层失败就把结果原样交回调用方。 */
-function must<T>(result: T): T {
-  const m = transportMessage(result as unknown as TransportResult)
-  if (m) throw new Error(m)
-  return result
-}
-/** 超时那一支的原话（kind 'timeout'）：调用处直接回独立原因码，不抛给壳。 */
-function timeoutMessage(result: TransportResult): string | null {
-  const e = result && result.error
-  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
-  return null
-}
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -76,7 +48,7 @@ export interface DeckIssuePatchDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_patch',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区、维护者原话区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。',
   parameters: {
     type: 'object',
     properties: {
@@ -87,6 +59,16 @@ export const definition = {
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人（整批替换；给空数组就是取掉认领）' },
       title: { type: 'string', description: '新的标题' },
       body: { type: 'string', description: '新的正文' },
+      originalWords: {
+        type: 'object',
+        description: '追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序；同一段原话 + 同一出处已经写过时幂等跳过。三个后端都写进票的正文，不进评论。正文超过 60KB 时拒绝写入、一个字节不动。',
+        properties: {
+          text: { type: 'string', description: '维护者的原话正文，一字不改；可以多行，空行原样保留' },
+          source: { type: 'string', description: '出处，必填：票面写完整链接，本会话答复写「本会话（时间）」，文件写「路径:行号」，提交写短哈希' },
+        },
+        required: ['text', 'source'],
+        additionalProperties: false,
+      },
       progress: {
         type: 'object',
         description: '写一条进度记录：{percent, note}（#1090 起不再收一段自由文字）。工具自动盖当前时间、把这条加到「## 进度」区最上面，旧记录原样保留；正文超过 60KB 时拒绝写入、一个字节不动。',
@@ -98,7 +80,7 @@ export const definition = {
         additionalProperties: false,
       },
       close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
-      workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
+      workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['key'],
@@ -158,11 +140,11 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       comment: typeof a.comment === 'string' && a.comment.trim() !== '',
       labels: addLabels.length > 0 || removeLabels.length > 0,
       assignees: Array.isArray(a.assignees),
-      text: typeof a.title === 'string' || typeof a.body === 'string' || (a.progress !== undefined && a.progress !== null),
+      text: typeof a.title === 'string' || typeof a.body === 'string' || (a.progress !== undefined && a.progress !== null) || (a.originalWords !== undefined && a.originalWords !== null),
       state: typeof a.close === 'boolean',
     }
     if (!wants.comment && !wants.labels && !wants.assignees && !wants.text && !wants.state) {
-      return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '这次没说清要改什么：至少点名一件（comment / addLabels / removeLabels / assignees / title / body / progress / close）。', { cost: { estimated: est } })
+      return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '这次没说清要改什么：至少点名一件（comment / addLabels / removeLabels / assignees / title / body / progress / originalWords / close）。', { cost: { estimated: est } })
     }
     // #1090：进度参数按结构化收口，时间由这里盖（测试用 deps.now 的假时钟）。收不成时整笔拒绝，
     // 不把一段自由文字塞进正文让读的人再猜一遍写法。
@@ -173,6 +155,16 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, parsed.problem + '这次一个字都没动。', { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
       }
       progressEntry = { percent: parsed.entry.percent, note: parsed.entry.note, updatedAt: stampNow(toolEntryAt) }
+    }
+    // #1091：维护者原话按 {text, source} 收口，收不成一样整笔拒绝——原话是一字不改的东西，
+    // 宁可不写，也不替调用方补一个猜出来的出处。
+    let originalWords: OriginalWordsEntry | null = null
+    if (a.originalWords !== undefined && a.originalWords !== null) {
+      const parsed = originalWordsFromArg(a.originalWords)
+      if (parsed.entry === null) {
+        return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, parsed.problem + '这次一个字都没动。', { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
+      }
+      originalWords = parsed.entry
     }
 
     // exec 的形状由 DSH 给（会话壳那批还没标类型，见 #1040），三处 exec.signal 各按纯类型断言收口：
@@ -323,57 +315,66 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         }
       }
 
-      // #1090：进度写后核对。写动作回了 ok 不算数，要能读回两件事才算写好：
-      // ① 读回来的进度区第一条与这次写入逐项相同（percent / note / updatedAt）；
-      // ② 把进度区剥掉后，剩下的正文与写前逐字相同（trim 两端再比：本地 Markdown 后端会重排正文两端空白）。
-      // 比对与原因的话住在 shared 的 progressReadbackProblem 里；这里只负责读回与逐项记账。
-      const verifyProgressWrite = async (want: ProgressEntry, before: string | null) => {
-        if (sc.outOfBudget()) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但剩余额度不够读回核对：别当成已经写好，稍后读一次现状确认。' }
-        const rawBack = await t.get(repo, key, {}, opCtx)
-        const backTimeout = timeoutMessage(rawBack as unknown as TransportResult)
-        if (backTimeout) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但读回核对超时（' + String(backTimeout).slice(0, 160) + '）：别当成已经写好，稍后读一次现状确认。' }
-        const back = must(rawBack)
-        const body = (back && back.ok === true && back.data && typeof back.data.body === 'string') ? back.data.body : null
-        if (body === null) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但写后没读回正文（后端原话：' + String((back && back.error && back.error.message) || '没给出原因').slice(0, 160) + '）：写进去的进度对不对不知道，别当成已经写好。' }
-        const problem = progressReadbackProblem(want, body, before)
-        if (problem) return { key: key, step: 'text', status: 'failed', reason: problem }
-        return { key: key, step: 'text', status: 'ok', fields: ['progress'], progress: want }
-      }
+      // #1090 / #1091：正文写后核对。写动作回了 ok 不算数，要能读回才算写好：
+      // 进度区第一条逐项相同、去掉进度区后其余正文逐字不变；原话逐字读得到、整份正文与计划的新正文逐字相同。
+      // 比对与记账住在 shared 层与 body-write / text-write-verify，这里只给「怎么读回」。
+      const verifyTextWrite = (plan: BodyWritePlan) => textWriteVerify({ key: key, plan: plan, outOfBudget: sc.outOfBudget(), read: () => t.get(repo, key, {}, opCtx) })
 
       if (wants.text) {
-        // 正文读改写序列持同票锁（单次标题直写也一起 serial，保证与进度回写不交错）。
+        // 正文读改写序列持同票锁（单次标题直写也一起 serial，保证与进度/原话回写不交错）。
         if (sc.outOfBudget()) over('text')
         else {
           lockTimeout = null
           const held = await withKeyLock(repo, key, async () => {
             // 索引签名只为让下面按字段名赋值、delete 与取键名能过编译；写进去的键与值一个字没改。
             const patch: Record<string, unknown> = {}
-            let progressBlocked = false
-            let beforeProgress: string | null = null
+            let bodyProblem: string | null = null
+            let beforeBase: string | null = null
+            let bodyPlan: BodyWritePlan | null = null
+            const explicitBody = typeof a.body === 'string'
             if (typeof a.title === 'string') patch.title = a.title
-            if (typeof a.body === 'string') patch.body = a.body
-            if (progressEntry) {
-              if (typeof a.body === 'string') beforeProgress = a.body
-              else if (sc.outOfBudget()) { progressBlocked = true; over('text') }
+            if (explicitBody) patch.body = a.body
+            // 点到了进度或原话时先拿到写前正文：传了整段 body 就用它，否则读回旧正文。
+            if (progressEntry || originalWords) {
+              if (explicitBody) beforeBase = a.body as string
+              else if (sc.outOfBudget()) bodyProblem = '剩余额度不够读回旧正文：这次正文一个字没动。'
               else {
                 const rawCur = await t.get(repo, key, {}, opCtx)
                 const currentTimeout = timeoutMessage(rawCur as unknown as TransportResult)
                 if (currentTimeout) { lockTimeout = currentTimeout; return }
                 const cur = must(rawCur)
                 const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
-                // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。这次宁可报失败，让调用方等能读回再写，或改传整段 body。
-                if (base === null) { progressBlocked = true; fail('text', { error: { message: '旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。' } }) }
-                else beforeProgress = ensureBody(base, 'task').body
+                // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。
+                // 这次宁可报失败，让调用方等能读回再写，或改传整段 body。
+                if (base === null) bodyProblem = '旧正文没读回来，不敢拿半截正文覆盖：这次正文没写，等能读回旧正文再写（若急用，改传整段 body）。'
+                // 进度区要追加到正文里，先按最小骨架补出「## 进度」；原话区不补（它的位置规则自己管）。
+                else beforeBase = progressEntry ? ensureBody(base, 'task').body : base
               }
-              if (!progressBlocked && beforeProgress !== null) {
-                const planned = applyProgressEntry(beforeProgress, progressEntry)
-                if (planned.next === null) { progressBlocked = true; fail('text', { error: { message: planned.problem } }) }
-                else patch.body = planned.next
+              // #1091：两块一起点时按「先进度、再原话」组合（组合规则住在 body-write）。
+              // strictRoundTrip 只在「不是整份替换」那一路打开：传了整段 body 时后端会套标题、
+              // 补文件头与字段行，读回来的整份正文本来就跟计划不一样，逐字比整份会误报。
+              if (beforeBase !== null && bodyProblem === null) {
+                const planned = planBodyWrite(beforeBase, progressEntry, originalWords, PROGRESS_BODY_LIMIT, !explicitBody)
+                if (planned.plan === null) bodyProblem = planned.problem
+                else bodyPlan = planned.plan
+              }
+              // 幂等：同一段原话 + 同一出处已经在正文里，且这次没有别的正文改动，就不重写正文（只记账）。
+              if (bodyProblem === null && bodyPlan !== null && bodyPlan.skipped && !explicitBody && typeof a.title !== 'string') {
+                items.push({ key: key, step: 'text', status: 'ok', fields: ['originalWords'], originalWords: originalWords, skipped: true })
+                return
+              }
+              // 计划出来的正文与自己一样时（幂等跳过、又传了整段 body）就别重复写：已经点过 body 的照样写它自己。
+              if (bodyProblem === null && bodyPlan !== null) {
+                if (explicitBody || bodyPlan.next !== beforeBase) patch.body = bodyPlan.next
+                else delete patch.body
               }
             }
-            // 进度被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
-            if (progressBlocked) delete patch.body
-            if (!progressBlocked || Object.keys(patch).length > 0) {
+            if (bodyProblem !== null) {
+              // 正文没写时标题照写；如果只点了正文，这次文字一个字不动，失败原因在这里记好。
+              delete patch.body
+              fail('text', { error: { message: bodyProblem } })
+            }
+            if (Object.keys(patch).length > 0) {
               if (sc.outOfBudget()) over('text')
               else {
                 const rawText = await t.update(repo, key, patch, opCtx)
@@ -381,8 +382,8 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
                 if (textTimeout) { lockTimeout = textTimeout; return }
                 const r = must(rawText)
                 if (r && r.ok === true) {
-                  if (!progressEntry) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
-                  else items.push(await verifyProgressWrite(progressEntry, beforeProgress))
+                  if (bodyPlan !== null && Object.prototype.hasOwnProperty.call(patch, 'body')) items.push(await verifyTextWrite(bodyPlan))
+                  else items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
                 } else fail('text', r)
               }
             }
