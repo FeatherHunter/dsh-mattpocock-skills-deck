@@ -118,9 +118,29 @@ async function edgeLanding() {
   const bodyLine = e.classifyEdgeLanding('block', '3', { issue: { body: 'Blocked by: #3', parentKey: '' }, dependencies: { blockedBy: [{ key: '3' }] } })
   check(bodyLine.kind === 'body-line', '阻塞边：字段里与正文里都有 → 正文行')
   const missing = e.classifyEdgeLanding('block', '3', { issue: { body: 'x' }, dependencies: { blockedBy: [] } })
-  check(missing.kind === 'unknown', '阻塞边：两处都没有 → 说不好')
+  check(missing.kind === 'missing', '阻塞边：读回来了、两处都没有 → 「不在票上」（不再混成「没读回来」）')
+  check(e.landingOf('block', { kind: 'missing' }) === e.EDGE_LANDING.READ_BACK_MISSING, '「读回来了、没有」这一档有自己的话，不说成「没读回来」')
+  // #790：正文里出现票号只是「作者写了这行字」，不是「这条边在盘上」的证据。
+  const bodyOnly = e.classifyEdgeLanding('block', '3', { issue: { body: 'Blocked by: #3', parentKey: '' }, dependencies: { blockedBy: [] } })
+  check(bodyOnly.kind === 'missing', '阻塞边：字段里没有、只有正文提到 → 不算落上')
+  const parentBodyOnly = e.classifyEdgeLanding('parent', '7', { issue: { body: '这一张归属 #7', parentKey: '' } })
+  check(parentBodyOnly.kind === 'missing', '父子边：字段里没有、只有正文提到 → 不算落上')
   const parent = e.classifyEdgeLanding('parent', '7', { issue: { body: 'x', parentKey: '7' } })
   check(parent.kind === 'contract', '父子边：只报到契约的父子列，不硬猜原生层级')
+
+  // 三态判据（#790）：只有写后读回的结构字段能确认一条边落上了；没读到就说没确认。
+  check(e.edgeVerdict('parent', '7', { issue: { parentKey: '7' } }) === 'landed', '读回里 parentKey = 目标 → 落上')
+  check(e.edgeVerdict('parent', '7', { issue: { parentKey: '', body: '这一张归属 #7' } }) === 'not-landed', '读回来了、没有这条父子 → 没落上（正文提到也不算）')
+  check(e.edgeVerdict('parent', '7', null) === 'unconfirmed', '没读到 → 没确认（既不算成功，也不说没落上）')
+  check(e.edgeVerdict('parent', '7', { issue: null, dependencies: null }) === 'unconfirmed', '读回失败（issue 为 null）→ 没确认')
+  check(e.edgeVerdict('block', '3', { dependencies: { blockedBy: [{ key: '3' }] } }) === 'landed', '读回里 blockedBy 有目标 → 落上')
+  check(e.edgeVerdict('block', '3', { dependencies: { blockedBy: [] } }) === 'not-landed', '读回来了、blockedBy 里没有 → 没落上')
+  check(e.edgeVerdict('block', '3', { issue: { body: 'Blocked by: #3' }, dependencies: { blockedBy: [] } }) === 'not-landed', '只有正文提到 → 没落上')
+  check(e.edgeVerdict('parent', '', { issue: { parentKey: '' } }) === 'unconfirmed', '没给目标 → 没确认（不猜）')
+  // 2026-10-15 对抗式审查补：直接给票本身（带 parentKey / blockedBy 的行）也算「读回来了」，
+  // 以前只认 {issue, dependencies} 与 body，字段明明对得上的读回会被判成「没读到」。
+  check(e.edgeVerdict('parent', '7', { parentKey: '7' }) === 'landed', '直接给票本身、parentKey = 目标 → 落上')
+  check(e.edgeVerdict('block', '3', { blockedBy: [{ key: '3' }] }) === 'landed', '直接给票本身、blockedBy 里有目标 → 落上')
 
   // #829 的教训：读回失败（issue 为 null）不许抛错，只能判说不好。
   let threw = false
