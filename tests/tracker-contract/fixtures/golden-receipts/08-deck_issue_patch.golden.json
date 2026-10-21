@@ -26,7 +26,7 @@
     "ticket": {
       "assignees": [],
       "blockedBy": [],
-      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
       "closedAt": null,
       "comments": [
         {
@@ -102,13 +102,13 @@
     }
   ],
   "notes": [
-    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard，要进度就传 full"
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
   ],
   "ok": true,
   "readBack": {
     "assignees": [],
     "blockedBy": [],
-    "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+    "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
     "closedAt": null,
     "comments": [
       {

@@ -157,6 +157,9 @@ async function loadChain(locale: LocalePair, backends: { github: BackendPick; ma
   //   prompts.js 自己声明 promptLang / promptText / currentBackendId，StatusBackend 声明 tr 的调用方向，
   //   所以下表里没有它们 —— 顶上就是遮蔽真身，测出来的就不是真行为了。
   const sandbox = {
+    // #1342：StatusBackend 的布局取值名单由构建从共享真源 src/shared/doc-layout 拼进闭包，
+    //   这里把几份真源当同一个函数体求值，所以按真值顶一份（取值本身由 verify-655 与 verify-683 把着）。
+    DOC_LAYOUT_VALUES: ['single', 'multi'],
     inject: function (st: any, text: any) { seen.injected.push(String(text)) },
     emit: function () {},
     isEnabled: function () { return false },

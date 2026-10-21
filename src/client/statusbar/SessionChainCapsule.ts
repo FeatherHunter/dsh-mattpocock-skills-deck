@@ -174,6 +174,9 @@ const capsuleOpenTicket = function (st: any, entry: any) {
  *     list 是当前会话全部记录（从新到旧，悬停里列出来）。
  */
 export const sessionChainCapsuleOf = function (st: any, sid: any) {
+  // #1355：本函数不做「这张表是谁算的」的归属判断 —— 读数里没有会话号，判不出。归属靠上游保证：宿主按请求里
+  //   那个会话号现算，客户端缓存不保留这张表，缺表会补发一次带当前会话号的请求。sid 保留在签名里（调用方照旧传）。
+  //   行上的 currentSession 只是行级过滤，它认不出整张表属于别人 —— 那种情况登记在票里另立票。
   void sid
   const view = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
   if (!view || view.state === 'idle') return { state: 'idle', reason: '', entry: null, list: [] }
@@ -328,7 +331,12 @@ export const SessionChainCapsule = function (props: any) {
       const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (rowTime ? ' ' + rowTime : '') + (staleWord ? ' ' + staleWord : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
-        className: 'dsws-chainmenu-row' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
+        className: 'dsws-chainmenu-row dsws-hov' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
+        // 接线（#1335 界面反馈）：这一行用户点得到（点它开那张票并打开面板），所以整行接 row 这一档，
+        // 文字行要有悬停反馈。日志标识带上行号与票号：同一张票在单子里可能占好几行，
+        // 只用票号会撞名，所以行号在前、票号在后，拼起来既唯一又认得出是哪张票。
+        'data-press': 'row',
+        'data-log': 'status.chainmenu.row.' + i + '.' + r.ticketKey,
         onClick: openRow(r),
         onMouseEnter: function () { setActiveRow(i) },
         onMouseLeave: function () { setActiveRow(null) },
@@ -363,13 +371,20 @@ export const SessionChainCapsule = function (props: any) {
     onMouseLeave: function () { chainLater(st, closeRef) },
   }, [
     h('span', {
-      className: 'dsws-capsule-chain',
+      className: 'dsws-capsule-chain dsws-hov',
       tabIndex: 0,
       role: 'link',
       'aria-label': spoken + ' · ' + tr('chainView.openTip'),
+      // 接线（#1335 界面反馈）：胶囊这一颗点了是开那张票并打开面板，它带文字（票号），
+      // 所以按压与悬停都要有；日志标识 status.capsule.chain 与单子里那些行分开认。
+      'data-press': 'button',
+      'data-log': 'status.capsule.chain',
       onClick: function (ev: any) { if (ev && ev.stopPropagation) ev.stopPropagation(); try { capsuleOpenTicket(st, e) } catch (eOpen2) {} try { openPanel(st) } catch (ePanel2) {} },
       onKeyDown: function (ev: any) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); try { capsuleOpenTicket(st, e) } catch (eOpen3) {} try { openPanel(st) } catch (ePanel3) {} } },
-      style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer' },
+      // 用户 2026-10-21 实测：这颗「定位图标 + #票号」的焦点圈是直角，跟旁边那些圆角控件不统一。
+      //   原因不是环画错了——环（悬停的内画描边与键盘焦点 outline）一直是跟着元素自己的边界形状走的，
+      //   这一颗原先没写圆角，所以环四四方方。补一个轻微圆角（4px，与菜单项、折叠条一致），环自然跟着变圆。
+      style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer', borderRadius: 4 },
     }, [Ic({ n: 'pin', size: 12 }), chainMapIconOf(eIsMap, 12), h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text)]),
     menu,
   ])

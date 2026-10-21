@@ -136,9 +136,9 @@ async function main() {
   const sessB = { sessionId: SID_B, workspaceKey: rootKey, cwd: ROOT_CWD }
   const callWrite = async (s: any, tool: string, value: any) => {
     clock += 5 * MINUTE
-    // #1303 起门禁收口的在办表缺省只带 core；这一段比的是「面板读数与回执逐字相同」，而面板读的是 full，
-    // 所以这里的探针值统一显式要 full，让断言继续盯原来的语义。
-    if (value && typeof value === 'object' && value.workRouteDetail === undefined) value.workRouteDetail = 'full'
+    // #1303 起门禁收口的在办表缺省只带 core；这一段比的是「面板读数与回执逐字相同」，而面板读的是全量细节
+    //（#1352 起这一档叫 standard，旧的 full 已退役），所以这里的探针值统一显式要 standard，比的是同一档。
+    if (value && typeof value === 'object' && value.workRouteDetail === undefined) value.workRouteDetail = 'standard'
     await recordMod.recordWorkRoute(deps, tool, s, 'markdown', value)
     return value
   }

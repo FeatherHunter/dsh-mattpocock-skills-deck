@@ -225,7 +225,9 @@ export const VersionControlTab = function (props: any) {
   // 悬停包裹层要把孩子的 key 带过去：不带的话，凡是用 tipNode 包过的元素在数组里都会触发
   //   React 的「Each child in a list should have a unique key prop」警告（#842 视觉预览顺手修）。
   const tipNode = function (content: any, child: any) { return content ? h(Tip, { key: child && child.key !== undefined ? child.key : undefined, content: content }, child) : child }
-  const button = function (label: any, onClick: any) { return h('button', { className: 'dsws-btn', type: 'button', onClick: onClick, style: { flex: 'none' } }, label) }
+  // 接线（#1335 界面反馈）：这一页的小按钮都走这个帮手，按压反馈与定位名在这里统一接上；
+  //   定位名由调用点给（第三个参数），同一页里同类按钮要分得开，所以各调用点自带后缀。
+  const button = function (label: any, onClick: any, logId: string) { return h('button', { className: 'dsws-btn dsws-hov', type: 'button', 'data-press': 'button', 'data-log': logId, onClick: onClick, style: { flex: 'none' } }, label) }
   const diffLine = function (l: any, i: any) {
     const kind = l && l.kind ? String(l.kind) : 'context'
     const raw = l && l.text !== undefined ? String(l.text) : ''
@@ -238,7 +240,7 @@ export const VersionControlTab = function (props: any) {
     else if (kind === 'filehead') { col = tone('caption') }
     return h('div', { key: i, 'data-vc-line': kind, style: { color: col, whiteSpace: 'pre-wrap', wordBreak: 'break-all' } }, body)
   }
-  const diffNode = function (row: any) {
+  const diffNode = function (row: any, rowId: string) {
     const d = row.diff
     if (!d) return null
     // #857 P6：读取中的差异画骨架条，不画一句会跳动的文字；失败那一支照旧给正文与重试。
@@ -248,7 +250,7 @@ export const VersionControlTab = function (props: any) {
       h('div', { key: 'l3', className: 'dsws-vc-skel', 'data-vc-skel': 1, style: { width: '70%', height: 12 } }),
     ])
     if (d.state !== 'ok') return h('div', { key: 'diff', className: 'dsws-vc-caption', 'data-vc-diff': d.state, style: { marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' } }, [
-      h('span', { key: 'text' }, d.text), d.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(d.retry, function () { retryDiff(row) })) : null,
+      h('span', { key: 'text' }, d.text), d.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(d.retry, function () { retryDiff(row) }, 'vc.row.diff.retry.' + rowId)) : null,
     ])
     return h('div', { key: 'diff', className: 'dsws-vc-card dsws-vc-diff', 'data-vc-diff': 'lines', style: { marginTop: 4 } }, [
       // 这一处差异指的是哪一段（未提交那一层写清「相对上一次提交的全部改动」）：
@@ -259,7 +261,7 @@ export const VersionControlTab = function (props: any) {
       d.shownNote ? h('div', { key: 'note', style: { color: tone('caption'), marginTop: 4 } }, d.shownNote) : null,
     ])
   }
-  const fileRow = function (row: any) {
+  const fileRow = function (row: any, rowId: string) {
     const open = ui.openDiff === diffKeyOf(row)
     // #851：字母徽章只在极窄档让位（门槛取折叠阶梯最后一档 300px，也就是组件跳到收尾档的那一档）——
     //   那一档里路径与计数优先，中文状态词仍在，字母只是冗余的视觉标记。
@@ -267,7 +269,9 @@ export const VersionControlTab = function (props: any) {
     const showBadge = !(width > 0 && width < VC_FOLD_BANDS[2])
     return h('div', { key: row.path, 'data-vc-file': 1, 'data-vc-open': open ? 1 : undefined, style: { borderTop: '1px solid var(--vc-line,#2a2d35)' } }, [
       // 文件行按 854 原型排两行：首行路径（等宽 12px），次行状态词（11px）；加减行数与暂存按钮右对齐。
-      h('div', { key: 'main', className: 'dsws-vc-row', onClick: function () { toggleDiff(row) }, style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' } }, [
+      // 接线（#1335 界面反馈）：文件行整行点得动（点开差异），所以整行按 row 档接按压与悬停反馈；
+      //   定位名带「组序号.行序号」，同一页里几组文件行不会撞名；路径不进定位名（路径会变，也不是标识）。
+      h('div', { key: 'main', className: 'dsws-vc-row dsws-hov', 'data-press': 'row', 'data-log': 'vc.row.open.' + rowId, onClick: function () { toggleDiff(row) }, style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' } }, [
         showBadge ? tipNode(row.changeText, h('span', { key: 'badge', className: 'dsws-vc-badge ' + String(row.badgeClass || ''), 'data-vc-badge': row.badge }, row.badge)) : null,
         h('div', { key: 'main', style: { flex: 1, minWidth: 0 } }, [
           tipNode(row.rowTip + (row.origPath ? '\n' + row.origPath : ''), h('span', { key: 'path', className: 'dsws-vc-mono', style: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)),
@@ -281,30 +285,30 @@ export const VersionControlTab = function (props: any) {
               h('span', { key: 'del', className: 'dsws-vc-del' }, row.delText),
             ])
           : null,
-      ].concat(vcRowStageNodes(h, { row: row, tone: tone, tipNode: tipNode, stagePaths: ops.stagePaths })).concat(vcRowUnstageNodes(h, { row: row, tone: tone, tipNode: tipNode, unstagePaths: ops.unstagePaths }))),
-      diffNode(row),
+      ].concat(vcRowStageNodes(h, { row: row, rowId: rowId, tone: tone, tipNode: tipNode, stagePaths: ops.stagePaths })).concat(vcRowUnstageNodes(h, { row: row, rowId: rowId, tone: tone, tipNode: tipNode, unstagePaths: ops.unstagePaths }))),
+      diffNode(row, rowId),
     ])
   }
-  const groupNode = function (g: any) {
+  const groupNode = function (g: any, gIndex: number) {
     return h('div', { key: g.key, 'data-vc-group': g.key }, [
       // #851 ⑤：分段小标题（原型 C 的 ix-sec）——小字、拉开字距、下压一条细分隔线；文字照旧是既有词条。
       tipNode(g.tip, h('div', { key: 'title', className: 'dsws-vc-sec', style: { display: 'flex', alignItems: 'center', gap: 6 } }, g.title)),
-      g.rows.map(fileRow),
-      g.moreCount > 0 ? h('div', { key: 'more', ref: moreSight.refOf(g.key), className: 'dsws-vc-link', onClick: function () { drawMore(g.key) }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, g.moreLabel) : null,
+      g.rows.map(function (r: any, i: number) { return fileRow(r, gIndex + '.' + i) }),
+      g.moreCount > 0 ? h('div', { key: 'more', ref: moreSight.refOf(g.key), className: 'dsws-vc-link dsws-hov', 'data-press': 'button', 'data-log': 'vc.more.group.' + gIndex, onClick: function () { drawMore(g.key) }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, g.moreLabel) : null,
     ])
   }
   const node = function (b: any) {
-    if (b.kind === 'hint') return h('div', { key: b.key, 'data-vc-hint': 1, style: { display: 'flex', gap: 6, alignItems: 'center', color: tone(b.tone), background: 'var(--vc-inset,#16181d)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px' } }, [h('span', { key: 'text', style: { flex: 1 } }, b.text), b.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.retry, retryScreen)) : null])
+    if (b.kind === 'hint') return h('div', { key: b.key, 'data-vc-hint': 1, style: { display: 'flex', gap: 6, alignItems: 'center', color: tone(b.tone), background: 'var(--vc-inset,#16181d)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px' } }, [h('span', { key: 'text', style: { flex: 1 } }, b.text), b.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.retry, retryScreen, 'vc.hint.retry')) : null])
     if (b.kind === 'error') return h('div', { key: b.key, 'data-vc-error': 1, style: { border: '1px dashed var(--vc-line2,#3a3f4a)', borderRadius: 'calc(var(--vc-radius,2px) * 2)', padding: '18px 14px', textAlign: 'center', fontSize: 12, color: tone(b.tone) } }, [
       // 可见正文只有一句按种类映射出来的词条句；宿主原话（中文）只进悬停，英文界面上不会串出中文。
       // key 挂在外层 span 上、不写进里面那个 div：内层这句是 verify-818 的反证补丁锚点，动它会把那条反证弄成「改不中」。
       h('span', { key: 'text', style: { display: 'contents' } }, tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text))),
-      b.retry ? h('div', { key: 'retry', style: { marginTop: 10 } }, button(b.retry, retryScreen)) : null,
-      b.ai ? h('div', { key: 'aibtn', style: { marginTop: 10 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff })) : null,
+      b.retry ? h('div', { key: 'retry', style: { marginTop: 10 } }, button(b.retry, retryScreen, 'vc.error.retry')) : null,
+      b.ai ? h('div', { key: 'aibtn', style: { marginTop: 10 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff, logId: 'error' })) : null,
     ])
     if (b.kind === 'band') return h('div', { key: b.key, 'data-vc-band': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, b.items.map(function (it: any, i: any) {
       // 提示带按 854 原型画：左侧 3px 语气色条加标记，主句加粗，正文第二行，交接按钮右置。
-      return h('div', { key: i, 'data-vc-band-item': it.key, style: { display: 'flex', gap: 9, alignItems: 'flex-start', color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderLeft: '3px solid ' + tone(it.tone), borderRadius: 'var(--vc-radius,6px)', padding: '9px 11px', lineHeight: 1.6 } }, [it.tone === 'caption' ? null : h('span', { key: 'mark', style: { flex: 'none', fontWeight: 800, fontSize: 11, paddingTop: 1 } }, '!'), h('div', { key: 'main', style: { flex: 1, minWidth: 0 } }, [tipNode(it.tip, h('span', { key: 'text', style: { fontWeight: 650 } }, it.text)), it.tip ? h('div', { key: 'body', style: { color: tone('caption'), marginTop: 2 } }, it.tip) : null]), it.ai ? h('span', { key: 'ai', style: { flex: 'none', marginLeft: 6 } }, vcAiButtonNode(h, { ai: it.ai, tr: tr, onOpen: openHandoff })) : null])
+      return h('div', { key: i, 'data-vc-band-item': it.key, style: { display: 'flex', gap: 9, alignItems: 'flex-start', color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderLeft: '3px solid ' + tone(it.tone), borderRadius: 'var(--vc-radius,6px)', padding: '9px 11px', lineHeight: 1.6 } }, [it.tone === 'caption' ? null : h('span', { key: 'mark', style: { flex: 'none', fontWeight: 800, fontSize: 11, paddingTop: 1 } }, '!'), h('div', { key: 'main', style: { flex: 1, minWidth: 0 } }, [tipNode(it.tip, h('span', { key: 'text', style: { fontWeight: 650 } }, it.text)), it.tip ? h('div', { key: 'body', style: { color: tone('caption'), marginTop: 2 } }, it.tip) : null]), it.ai ? h('span', { key: 'ai', style: { flex: 'none', marginLeft: 6 } }, vcAiButtonNode(h, { ai: it.ai, tr: tr, onOpen: openHandoff, logId: 'band.' + i })) : null])
     }))
     // 身份区按 854 布局 C 原型并成两行：首行仓库名加分支加同步状态右对齐，次行路径加读取时间加远端更新加重新读一次右对齐；拉取推送搬进视图条（模型仍在身份块里）。
     if (b.kind === 'identity') return h('div', { key: b.key, 'data-vc-identity': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, [
@@ -323,21 +327,24 @@ export const VersionControlTab = function (props: any) {
         b.readAtText ? h('span', { key: 'when', style: { flex: 'none' } }, b.readAtText) : null,
         b.sync.basis ? h('span', { key: 'dot2', style: { flex: 'none' } }, '·') : null,
         b.sync.basis ? tipNode(b.sync.basisTip, h('span', { key: 'basis', 'data-vc-basis': 1, style: { flex: 'none' } }, b.sync.basis)) : null,
-        h('button', { key: 'reload', className: 'dsws-btn' + (screenState === 'loading' ? ' dsws-fb-busy' : ''), type: 'button', 'data-vc-reload': 1, disabled: screenState === 'loading', onClick: reloadNow }, screenState === 'loading' ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('vc.reload')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : tr('vc.reload')),
+        // 接线（#1335 界面反馈）：「重新读一次」是这一页唯一的刷新入口，给它自己的定位名，便于事后认人。
+        h('button', { key: 'reload', className: 'dsws-btn dsws-hov' + (screenState === 'loading' ? ' dsws-fb-busy' : ''), type: 'button', 'data-vc-reload': 1, 'data-press': 'button', 'data-log': 'vc.reload', disabled: screenState === 'loading', onClick: reloadNow }, screenState === 'loading' ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('vc.reload')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : tr('vc.reload')),
       ]),
     ])
     const changeTail = b.kind === 'changes' ? [b.note ? h('div', { key: 'note', 'data-vc-note': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 4, lineHeight: 1.6 } }, b.note) : null,
-      b.retry ? h('div', { key: 'retry', style: { marginTop: 6 } }, button(b.retry, retryCommit)) : null,
+      b.retry ? h('div', { key: 'retry', style: { marginTop: 6 } }, button(b.retry, retryCommit, 'vc.changes.retry')) : null,
       b.empty ? h('div', { key: 'empty', className: 'dsws-vc-empty', style: { color: tone('caption'), marginTop: 4, textAlign: 'center' } }, b.emptyText) : null,
       b.groups.map(groupNode)] : []
     if (b.kind === 'changes' && b.commitMode) return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': 1 }, [
-      b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,
+      // 接线（#1335 界面反馈）：看单笔提交时的「回去」是行内文字按钮，按下要有反馈；它与改动页那颗「回去」不是同一颗，定位名分开。
+      b.back ? h('div', { key: 'back', className: 'dsws-vc-link dsws-hov', 'data-vc-back': 1, 'data-press': 'button', 'data-log': 'vc.commit.back', onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,
       h('span', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: tone('primary') } }, b.title),
       h('div', { key: 'summary', 'data-vc-summary': 1, style: { fontSize: 11, color: tone('primary'), marginTop: 2 } }, b.summary),
     ].concat(b.loading ? vcCommitSkelNodes(h) : [], changeTail))
     if (b.kind === 'changes') return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': b.commitMode ? 1 : undefined }, [
       // 「这笔提交改了什么」这一层（规格故事 32）：出路摆在最上面，别让用户找不到回去的路。
-      b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,
+      // 接线（#1335 界面反馈）：改动页那颗「回去」也给一组标识，与看单笔提交时那颗分开。
+      b.back ? h('div', { key: 'back', className: 'dsws-vc-link dsws-hov', 'data-vc-back': 1, 'data-press': 'button', 'data-log': 'vc.changes.back', onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,
       // 854 布局 C 原型的改动视图没有标题汇总行：标题就是页签，计数就是数字条，这里直接进数字条加视图条。
       vcStatsNode(h, { stats: vcStatsOf(screen), t: tr }),
       vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, actions: (writeUi && writeUi.actions) || null, runningOp: (writeUi && writeUi.running) || '', startPull: ops.startPull, startPush: ops.startPush, startFetch: ops.startFetch, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
@@ -347,15 +354,16 @@ export const VersionControlTab = function (props: any) {
       b.collapsed ? h('div', { key: 'collapsed', className: 'dsws-vc-caption', style: { marginTop: 2 } }, b.collapseText) : null,
       b.empty && !b.collapsed ? h('div', { key: 'empty', className: 'dsws-vc-empty', style: { color: tone('caption'), marginTop: 2, textAlign: 'center' } }, b.emptyText) : null,
       b.rows.map(function (c: any, i: any) {
-        return h('div', { key: c.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: c.open ? 'var(--vc-hover,rgba(255,255,255,.14))' : undefined } }, [
+        // 接线（#1335 界面反馈）：提交历史里一行就是一笔提交，整行点得动，按 row 档接按压与悬停反馈；定位名带序号。
+        return h('div', { key: c.key, className: 'dsws-vc-row dsws-vc-sep dsws-hov', 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, 'data-press': 'row', 'data-log': 'vc.commit.row.' + i, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: c.open ? 'var(--vc-hover,rgba(255,255,255,.14))' : undefined } }, [
           h('span', { key: 'badge', className: 'dsws-vc-badge', style: { flex: 'none' } }, '·'),
           tipNode(c.tip, h('div', { key: 'subject', style: { flex: 1, minWidth: 0 } }, [h('span', { key: 'short', className: 'dsws-vc-mono', 'data-vc-short': 1, style: { display: 'block' } }, c.short), h('span', { key: 'title', style: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tone('primary') } }, c.subject)])),
           h('span', { key: 'when', className: 'dsws-vc-mono', style: { flex: 'none', fontSize: 11, color: tone('caption') } }, c.when),
         ])
       }),
-      b.more.show ? h('div', { key: 'more', ref: moreSight.refOf('commits'), className: 'dsws-vc-link', 'data-vc-more': 1, onClick: loadMore, style: { padding: '3px 0' } }, b.more.label) : null,
+      b.more.show ? h('div', { key: 'more', ref: moreSight.refOf('commits'), className: 'dsws-vc-link dsws-hov', 'data-vc-more': 1, 'data-press': 'button', 'data-log': 'vc.more.commits', onClick: loadMore, style: { padding: '3px 0' } }, b.more.label) : null,
       b.more.allLoaded ? h('div', { key: 'allLoaded', style: { padding: '3px 0', color: tone('caption') } }, b.more.allLoaded) : null,
-      b.more.failText ? h('div', { key: 'fail', style: { display: 'flex', gap: 6, alignItems: 'center', color: tone('error') } }, [h('span', { key: 'text' }, b.more.failText), b.more.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.more.retry, loadMore)) : null]) : null,
+      b.more.failText ? h('div', { key: 'fail', style: { display: 'flex', gap: 6, alignItems: 'center', color: tone('error') } }, [h('span', { key: 'text' }, b.more.failText), b.more.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.more.retry, loadMore, 'vc.more.commits.retry')) : null]) : null,
     ])
     if (b.kind === 'other') return h('div', { key: b.key, 'data-vc-other': 1 }, [
       tipNode(b.tip, h('div', { key: 'title', className: 'dsws-vc-sec', style: { color: tone('primary') } }, b.title)),
@@ -373,13 +381,13 @@ export const VersionControlTab = function (props: any) {
         ])
       }),
       // 其他工作树也按同一套规矩分批（#819 发现 12）：一千棵时不一次画一千行。
-      b.moreCount > 0 ? h('div', { key: 'more', ref: moreSight.refOf('other'), className: 'dsws-vc-link', 'data-vc-other-more': 1, onClick: function () { drawMore('other') }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, b.moreLabel) : null,
+      b.moreCount > 0 ? h('div', { key: 'more', ref: moreSight.refOf('other'), className: 'dsws-vc-link dsws-hov', 'data-vc-other-more': 1, 'data-press': 'button', 'data-log': 'vc.more.other', onClick: function () { drawMore('other') }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, b.moreLabel) : null,
     ])
     if (b.kind === 'terminal') return h('div', { key: b.key, 'data-vc-terminal': 1, style: { display: 'flex', gap: 6, alignItems: 'center', color: tone('accent'), borderTop: '1px solid var(--vc-line,#2a2d35)', paddingTop: 6 } }, [
       // 「需要自己动手的事」是一句陈述，不是一个动作：这里没有替你打开命令行的能力，所以不摆任何看着能点的图标
       //   （#819 发现 7：外链图标摆在那里点不动，比不画图标更差）。
       tipNode(b.tip, h('span', { key: 'text' }, b.text)),
-      b.ai ? h('span', { key: 'ai', style: { marginLeft: 6 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff })) : null,
+      b.ai ? h('span', { key: 'ai', style: { marginLeft: 6 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff, logId: 'terminal' })) : null,
     ])
     return null
   }

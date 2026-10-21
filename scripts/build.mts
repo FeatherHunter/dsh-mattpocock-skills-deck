@@ -483,6 +483,10 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.ts' },
+  // #1355：每个会话自己的工作路线读数（剥表、补拉、三处接线共用的请求决策）从 storeSnapshot 拆到这里——
+  //   那片从 #707 起贴着 350 行上限，本票再加三件判断就会超。标记排在 storeSnapshot 之后：
+  //   本片只调用标在它前面的 snapNeedsOwnWorkRoute，且只在运行时调用，拼接次序按这条依赖关系排。
+  { name: 'workRouteOwn', file: 'src/client/kernel/work-route-own.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.ts' },
@@ -609,6 +613,10 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
+  // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
+  //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
+  //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
+  { marker: '// ==== shared:docLayout (spliced by build) ====', file: 'src/shared/doc-layout/src/layouts.ts' },
   // #1215 中央时间参数：全部时间旋钮只有一份真源（config/ 下的 timeouts.yaml / intervals.yaml / ttl.yaml），
   // 产物由生成器落到 .build/shared/time-config/values.js（真源是生成出来的 src/shared/time-config/src/values.ts；
   // 构建会先重跑生成器，见上面的预域再生；2026-10-19 第三阶段起共享层产物统一住 .build/shared/）。

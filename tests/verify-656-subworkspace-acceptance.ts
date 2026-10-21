@@ -341,9 +341,12 @@ async function main() {
   const subSnap = { ok: true, maps: [], issues: [], workspaceRoot: RAW.repo, generatedMs: 2 }
   C.rememberWorkspaceRoot(RAW.sub, RAW.repo)        // 子目录会话第一次收到回包时学到根
   C.setCachedSnapshot(RAW.sub, subSnap)             // 它把快照落了缓存
-  must(C.getCachedSnapshot(RAW.sub) === subSnap && C.getCachedSnapshot(RAW.repo) === subSnap,
+  // #1355 起落缓存会另存一份浅拷贝（按工作区共享的缓存不能带会话相关的读数），所以这里比的是
+  // 「子目录与根读到的是不是同一条条目、内容对不对」，不再拿调用方那个对象当同一性凭据。
+  const cachedAtRoot: any = C.getCachedSnapshot(RAW.repo)
+  must(cachedAtRoot === C.getCachedSnapshot(RAW.sub) && !!cachedAtRoot && cachedAtRoot.maps === subSnap.maps && cachedAtRoot.generatedMs === subSnap.generatedMs,
     '面板快照：子目录会话落下的那一份，根会话按根就能读到（同一个工作区一份数据，不占两个桶）',
-    'sub=' + !!C.getCachedSnapshot(RAW.sub) + ' root=' + !!C.getCachedSnapshot(RAW.repo))
+    'sub=' + !!C.getCachedSnapshot(RAW.sub) + ' root=' + !!cachedAtRoot)
 
   // —— B2 检查链快照（瘦身后只留一条读通路：同钥匙共用同一条链；兄弟隔离与后端语言矩阵由 #653 守）——
   {

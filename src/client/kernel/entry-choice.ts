@@ -247,6 +247,15 @@ export const EntryChooser = function (props: any) {
       key: 'card-' + kind,
       role: 'button',
       tabIndex: -1,
+      // 接线（#1335 界面反馈）：整张入口卡就是一颗按钮，按「整卡可点」接 row 形状；
+      //   日志名用卡的种类拼出来（map / spec 两个固定枚举），不写卡上那段展示文字。
+      // 这里不挂 dsws-hov，改挂专门的 .dsws-entrycard（2026-10-22 #1359）：这张卡自己按焦点画 2px outline，
+      //   通用悬停环会再从卡框底下透出 1px 环，两条环叠在一起。卡自己的悬停提亮（下面的内联 filter）照旧；
+      //   按下压暗改由样式侧一条只在入口卡上生效的规则负责——内联 filter 压得过通用按压规则，不单独写
+      //   一条 !important 规则就看不见按下时的压暗（样式见 feedback-styles.ts）。
+      className: 'dsws-entrycard',
+      'data-press': 'row',
+      'data-log': 'entry.card.' + kind,
       'aria-label': String(tr(kind === 'map' ? 'card.entry.explore.brow' : 'card.entry.impl.brow') || ''),
       onMouseEnter: function () { setFocusIdx(i) },
       onClick: function (e: any) { if (e && e.stopPropagation) e.stopPropagation(); pickEntry(st, kind) },
@@ -271,6 +280,9 @@ export const EntryChooser = function (props: any) {
     h('button', {
       key: 'close',
       className: 'dsws-btn ghost',
+      // 接线（#1335 界面反馈）：叉号是纯图标按钮，只接按压形状（图标小，下沉一像素会看着歪）。
+      'data-press': 'icon',
+      'data-log': 'entry.close',
       'aria-label': String(tr('card.entry.close') || ''),
       onClick: function (e: any) { if (e && e.stopPropagation) e.stopPropagation(); entryChooserClose(st) },
       style: { position: 'absolute', right: 9, top: 8, fontSize: 14, lineHeight: 1, color: '#8b8b95', background: 'none', border: 'none', cursor: 'pointer', padding: 0 },

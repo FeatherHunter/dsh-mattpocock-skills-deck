@@ -96,7 +96,10 @@ async function main() {
   })
   const noGhOut = await noGh.ensureReading('/ws', 'ws-1')
   check(noGhOut && noGhOut.ok === false, 'gh 不在认失败，不抛')
-  check(fired.length === 1, '失败不另记（靠既有 gh 那几行，不刷屏）')
+  // 2026-10-21（#1006 复核）：失败也留一行既有 host.call（ok=false + 原因码），回答「这轮冷却为什么开始」。
+  // 仍然只有 info 级、只有既有事件、只有字典里那几个键，不刷屏也不新增事件名。
+  check(fired.length === 2 && fired[1].level === 'info' && fired[1].event === 'host.call' && fired[1].fields.method === 'deck.quotaSync' && fired[1].fields.ok === false && fired[1].fields.reason === 'sync-empty',
+    '失败也留一行既有 host.call：ok=false 加原因码 sync-empty（成功那行不带 reason）')
   const badJson = mod.createDeckQuotaSync({
     send: async function (req, perform) { return perform() },
     syncDue: function () { return true },

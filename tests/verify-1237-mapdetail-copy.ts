@@ -49,6 +49,9 @@ globalThis.containerPromptText = cvMod.containerPromptText
 globalThis.containerCountKey = cvMod.containerCountKey
 globalThis.CONTAINER_ACCENT = cvMod.CONTAINER_ACCENT
 globalThis.CONTAINER_TINT = cvMod.CONTAINER_TINT
+// #1343：容器三态的两枚固定色也从中央色表取；视图单独求值时这两个全局量缺不得。
+globalThis.CONTAINER_EMPTY_COLOR = cvMod.CONTAINER_EMPTY_COLOR
+globalThis.CONTAINER_DONE_COLOR = cvMod.CONTAINER_DONE_COLOR
 globalThis.CONTAINER_CHIP_CLASS = cvMod.CONTAINER_CHIP_CLASS
 globalThis.CONTAINER_CHIP_LABEL_KEY = cvMod.CONTAINER_CHIP_LABEL_KEY
 globalThis.CONTAINER_CHIP_MARKER_CLASS = cvMod.CONTAINER_CHIP_MARKER_CLASS

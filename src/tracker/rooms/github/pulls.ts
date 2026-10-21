@@ -17,6 +17,7 @@ import type { OpContext } from '../../contract/contexts.js';
 import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** 仓库坐标：拥有者与仓库名，由调用方（issues 的 REST 兜底）保证形状。 */
 interface ParsedRepo {
@@ -29,8 +30,8 @@ export async function fetchAllPullsREST(parsed: ParsedRepo, ctx: OpContext): Pro
   const c = ghClient(ctx)
   // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
   const out: unknown[] = []
-  const MAX_PAGES = 10
-  const PAGE = 100
+  const MAX_PAGES = PAGINATION.github.restMaxPages
+  const PAGE = PAGINATION.github.restPageSize
   for (let p = 1; p <= MAX_PAGES; p++) {
     // 这一笔是列表富化的 REST 翻页：标签写 pulls.rest，跟同一次读里的 list.rest 分得开。
     const r = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls?state=all&per_page=' + PAGE + '&page=' + p], { cwd: ctx && ctx.cwd, via: 'pulls.rest' })
@@ -101,7 +102,7 @@ export async function enrichSinglePR(jr: unknown, parsed: ParsedRepo, ctx: OpCon
     }
     if (jb && !Array.isArray(jb.reviews)) {
       try {
-        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown) + '/reviews?per_page=100'], { cwd: ctx && ctx.cwd, via: 'pulls.reviews' })
+        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown) + '/reviews?per_page=' + PAGINATION.github.restPageSize], { cwd: ctx && ctx.cwd, via: 'pulls.reviews' })
         if (rv.ok) {
           const arr: unknown = JSON.parse(rv.data.stdout || 'null')
           if (Array.isArray(arr)) jb.reviews = arr

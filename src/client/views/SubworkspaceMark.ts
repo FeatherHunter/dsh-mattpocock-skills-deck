@@ -328,9 +328,12 @@ export const SubworkspaceMark = function (props: any) {
   // 下面几处把子元素写成数组（iconSvg 里面的 [path, rect]、[iconSvg]、[span]），数组里每个元素都要带 key：
   //   React 19 对「当子元素传进来的数组」逐个要 key，**哪怕数组里只有一个元素**，缺了就在控制台留一行警告。
   //   这里原先都没带，是这枚标志自带的开发期噪音（不影响画出来的样子，但会多一行查问题时要跳过的东西）。
+  // 本次界面反馈需求：子工作区标记本身能点（打开工作区根目录），它是纯图标，按用户口径只给按压态。
   const body = h('a', {
     href: 'javascript:void(0)',
     'data-subws-mark-link': 1,
+    'data-press': 'icon',
+    'data-log': 'sub.mark.open',
     'aria-label': aria,
     style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', flex: 'none' },
     onClick: function (e: any) {

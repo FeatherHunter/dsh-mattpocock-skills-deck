@@ -34,6 +34,9 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
       if (o && o.classList) { if (v) o.classList.add('lit'); else o.classList.remove('lit'); }
     } catch (err) { void err; }
   };
+  // 卡片身份取票号：票号是数字文本，清洗成小写字母数字后能进定位串（票标题是自由文本，不能进定位串）。
+  // 票号缺失时给个占位值 x，保证同屏两张卡不会撞成同一个名字。
+  const logKey = 'issue.' + (String(p.noText || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'x');
   const cls = "cd-card" + (p.closed ? " old closed" : "") + (blocked && !lit ? " dim" : "") + (lit ? " lit" : "");
   const corner = p.bugCorner ? "bug" : (p.closed ? null : (p.pickCorner === "ready" ? "ready" : (p.pickCorner === "doing" ? "doing" : null)));
   const setLitNow = function (e: any, v: boolean): void {
@@ -54,21 +57,28 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   kids.push(h(PixelCardTitle, { key: 'tt', text: p.title, suffix }));
   kids.push(h(PixelCardTags, { key: 'tg', tags: p.tags || [] }));
   if (p.note) kids.push(h(PixelCardNote, { key: 'nt', text: p.note }));
-  kids.push(h(PixelCardBtns, { key: 'ab', mainLabel: tr('card.act.' + (p.action || 'execute')), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
+  // 按钮组把自己的定位名前缀传下去：同一屏里多张票卡各带各的前缀，组里四颗按钮才认得出自己属于哪张卡。
+  kids.push(h(PixelCardBtns, { key: 'ab', logKey: logKey, mainLabel: tr('card.act.' + (p.action || 'execute')), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
   if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blocksChip.no, title: p.blocksChip.title }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: p.footActionText || '' }));
   if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
   const attrs: any = { className: cls, style: { "--cd-act": "#" + mainColor } };
   if (p.cardId) attrs.id = p.cardId;
   if (blocked) {
-    attrs.tabIndex = 0;
-    attrs.onClick = function (e: any): void { setLitNow(e, true); flip(true); };
-    attrs.onFocus = function (e: any): void { if (e && e.target === e.currentTarget) { setLitNow(e, true); flip(true); } };
-    attrs.onBlur = function (e: any): void {
-      setLitNow(e, false);
-      try { if (e && e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return; } catch (err) { void err; }
-      flip(false);
-    };
+    // 被挡住的票卡整张可以点（点一下点亮它）：这是「点整张卡」的动作，与卡内按钮各记各的。
+    // 这些属性一次写成一个对象字面量再合并：按压形状与定位串写在同一处，门禁扫源码时看得到。
+    Object.assign(attrs, {
+      tabIndex: 0,
+      'data-press': 'row',
+      'data-log': 'card.issue.' + logKey + '.row',
+      onClick: function (e: any): void { setLitNow(e, true); flip(true); },
+      onFocus: function (e: any): void { if (e && e.target === e.currentTarget) { setLitNow(e, true); flip(true); } },
+      onBlur: function (e: any): void {
+        setLitNow(e, false);
+        try { if (e && e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return; } catch (err) { void err; }
+        flip(false);
+      },
+    });
   }
   return h("div", attrs, kids);
 };

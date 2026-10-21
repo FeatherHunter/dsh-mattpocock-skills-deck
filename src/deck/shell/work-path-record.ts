@@ -26,21 +26,20 @@
 // 放进回执，所以回执形状与正常上报一致，data.workRoute 照旧带出。
 //
 // 输入输出的形状（与 DeckShellDeps 里 workRouteNote / workRouteRead / workRouteRelease 那三处注释同源）：
-//   note 输入 { rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, progress?, action, source }
+//   note 输入 { rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, action, source }
 //        输出 { ok: true, ticketKey, count, warnings? } | { ok: false, reason }
 //        warnings 是「这次落上了、但有件事要告诉人」的备注（#1083：盘上旧文件读不出来按空账重写、
 //        工作区换了后端旧记录改名留档），调用方原样拼进回执 notes，不改其他格。
-//   read 输入 { sessionId, rootKey, at, detail? }（detail 是 core / standard / full，缺省 full）
+//   read 输入 { sessionId, rootKey, at, detail? }（detail 是 core / standard，缺省 standard；老调用传 full 按 standard 处理）
 //        输出 { ok: true, readout, summary } | { ok: false, reason }
-//        其中 readout 已按 detail 投过影：工具回执那一支显式传档位，直接读出口不给就是全量。
+//        其中 readout 已按 detail 投过影：工具回执那一支显式传 core，直接读出口不给就是全量细节。
 //   release 输入 { rootKey, sessionId, ticketKey }
 //        输出 { ok: true, ticketKey, removed, count, blocked? } | { ok: false, reason }
 //        其中 removed=false 表示没删：本来就不在本会话的工作路线里，或这张票干过实事
 //        （blocked='has-work'，按 #1349 只许撤销误报），都不算失败。
 // 其中 rootKey 是 workspace.key（工作区键），落到哪一份文件由存储按 chainRootHash 换算。
 // 其中 readout 就是回执里 data.workRoute 的对象，summary 是 notes 里那句摘要（没有在办时为 null）。
-// 其中 progress 是这次上报的进度自评（0 到 100 的整数），只有 deck_issue_report 会带；
-// 不传时存储按「没带」处理，条目上就不出这一格（#1084）。
+// #1352 起上报不再带 progress：工作条目不再新增这一格，旧存档里已经记下的原样保留（不回溯删除）。
 //
 // 标题与工作单元是锦上添花：能从这次回执里认出来就写进去，认不出就省略键——
 // 存储约定传 undefined 保留上一次的值，传空串会覆盖（见 work-path-store.ts 的 note）。
@@ -190,7 +189,7 @@ export async function recordWorkRoute(
   const data = obj(vRec.data);
   const tickets = spec.ticketKeys(vRec);
   if (tickets.length === 0) return;
-  // 回执里在办表要多细（#1303）：五个写工具的 value 顶层可带 workRouteDetail，缺省 core。
+  // 回执里在办表要多细（#1303）：五个写工具的 value 顶层可带 workRouteDetail（core / standard），缺省 core。
   // 这个信号与 release 一样只走工具 value，信封不拷它，所以不会漏进回执。
   const detail = workPathDetailOf(vRec.workRouteDetail, 'core');
   // 释放是工具 value 顶层的内部信号（信封只拷固定那几格，不会漏进回执）：只有上报会带它。
@@ -213,9 +212,6 @@ export async function recordWorkRoute(
   const callRelease = releaseFn as NonNullable<typeof releaseFn>;
   const callNote = note as NonNullable<typeof note>;
   const callRead = read as NonNullable<typeof read>;
-  // 进度自评只有上报会带（#1084）：工具已经校验过 0 到 100，这里只认数字；缺席时省略键，
-  // 让存储按「这次没带进度」处理（不沿用旧值，也不把 undefined 写成空值）。
-  const progress = (spec.action === 'report' && data && typeof data.progress === 'number') ? data.progress : undefined;
   // 两句失败备注分开写，是为了不说假话：记这一步失败时盘上可能是旧内容，但换后端那一刻旧文件已经被
   // 改名留档、主文件这次可能根本不在；读回核对失败时盘上其实已经是这次写的新内容。原来一句
   // 「盘上还是上一次的样子」在两种情形下都不成立。逐张票写时还多一种「记了几张、剩下的没记上」，
@@ -287,7 +283,6 @@ export async function recordWorkRoute(
         // 认不出的标题与工作单元省略键，让存储保留上一次的值（传空串会把它抹掉）。
         if (facts.title !== '') input.title = facts.title;
         if (facts.effortId !== '') input.effortId = facts.effortId;
-        if (progress !== undefined) input.progress = progress;
         const noted = (await callNote(input)) as UnknownRecord | null;
         if (!noted || noted.ok !== true) {
           if (recorded > 0) partialNote(str(noted && noted.reason) || 'unknown');

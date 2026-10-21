@@ -39,7 +39,14 @@
         "labels": [
           "wayfinder:task"
         ],
+        "originalWords": [],
         "progress": null,
+        "progressDetail": {
+          "entries": [],
+          "note": "",
+          "percent": null,
+          "updatedAt": null
+        },
         "state": "open",
         "title": "金标准演示票",
         "updatedAt": "<TIME>"

@@ -12,15 +12,15 @@
 //   判断按「与当前会话某一笔的间隔」算，不按最早—最晚总跨度：A=0、B=20、C=35 分钟时，
 //   B 与 C 只差 15 分钟，该报；总跨度从 A 到 C 是 35 分钟，按跨度会把整票漏掉。
 //
-// 工作条目可选带 0 到 100 的进度自评（#1084）：原来的八格之外多一格 progress，
-// 只作展示、不参与判定；最近一次上报没带就不出这一格。合法性的唯一真源是
-// work-path-ledger.ts 的 validProgress，这里与盘上、工具参数校验共用同一把尺子。
-//
 // #1303 起在这里多一层「按档投影」：工具成功回执默认只带 core（票号、会话、时间，最多 20 条），
-// standard / full 逐级加标题、动作与进度自评；直接读出口（面板、诊断）仍默认 full，不受影响。
+// standard 再加标题、动作、来源与是否本会话；直接读出口（面板、诊断）也默认 standard，不受回执缺省影响。
+//
+// #1352 起进度自评退役：deck_issue_report 不再收 progress，在办表条目里也不再出现那一格；
+// #1084 记进旧存档的进度原样留在盘上（不回溯删除），只是不再投影进回执。workRouteDetail 的
+// full 档也随之退役——它当时唯一的增量就是这一格，现在与 standard 相同；老调用还传 full 时
+// 按 standard 处理，不退回 core 把标题与动作丢掉。
 
 import { chainSessionShardId } from '../../shared/refresh/src/chain.js';
-import { validProgress } from './work-path-ledger.js';
 import type { WorkPathLedger } from './work-path-store.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -40,8 +40,6 @@ export interface WorkPathReadoutEntry {
   active: boolean;
   currentSession: boolean;
   source: string;
-  /** 最近一次上报带的进度自评（0 到 100 的整数）；最近一次没带就没有这一格。 */
-  progress?: number;
 }
 
 export interface WorkPathReadoutCollision {
@@ -58,21 +56,25 @@ export interface WorkPathReadout {
 }
 
 /**
- * 回执里在办表要多细（#1303）：core 只留票号 / 会话 / 时间（默认），standard 再加标题与动作，full 再加进度自评。
- * 三档是逐级包含的，细节只在需要时取——写一张票不该把整个工作区的标题与状态全搬进上下文。
+ * 回执里在办表要多细（#1303）：core 只留票号 / 会话 / 时间（默认），standard 再加标题与动作（全部条目）。
+ * 两档是逐级包含的，细节只在需要时取——写一张票不该把整个工作区的标题与状态全搬进上下文。
  */
-export type WorkPathDetail = 'core' | 'standard' | 'full';
+export type WorkPathDetail = 'core' | 'standard';
 
-/** 三档的合法值，供参数校验与投影共用（顺序从粗到细）。 */
-export const WORK_PATH_DETAILS: WorkPathDetail[] = ['core', 'standard', 'full'];
+/** 两档的合法值，供参数校验与投影共用（顺序从粗到细）。 */
+export const WORK_PATH_DETAILS: WorkPathDetail[] = ['core', 'standard'];
 
 /**
- * 把外部给的值收成三档之一：认不出、没给都退到 fallback。
- * 两个调用方默认不同：工具回执缺省 core（省上下文），直接读出口缺省 full（面板与诊断要全量）。
+ * 把外部给的值收成 core / standard 之一：认不出、没给都退到 fallback。
+ * 两个调用方默认不同：工具回执缺省 core（省上下文），直接读出口缺省 standard（面板与诊断要全量细节）。
+ * #1303 的 full 档已随 #1352 退役：它唯一的增量是进度自评，而上报不再收进度。老调用还传 'full'
+ * 时按 standard 处理——调用方想看的是「比 core 多的标题与动作」，不能悄悄退成 core 把细节丢掉。
  */
-export function workPathDetailOf(value: unknown, fallback: WorkPathDetail = 'full'): WorkPathDetail {
+export function workPathDetailOf(value: unknown, fallback: WorkPathDetail = 'standard'): WorkPathDetail {
   const s = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  return s === 'core' || s === 'standard' || s === 'full' ? s : fallback;
+  if (s === 'core') return 'core';
+  if (s === 'standard' || s === 'full') return 'standard';
+  return fallback;
 }
 
 /** 回执里的在办表：比读出口多 detail（这档多细）与 total（全量条数），core 档截断时带 omitted。 */
@@ -102,11 +104,7 @@ interface FlatRow {
   action: string;
   actionAt: number;
   source: string;
-  progress?: number;
 }
-
-// 进度自评的合法性判据唯一真源是 work-path-ledger.ts 的 validProgress（与盘上同一把尺子）：
-// 只认 0 到 100 的整数，别的值（旧账、坏数据）当没有，不往回执里带。
 
 export function buildWorkPathReadout(
   ledger: WorkPathLedger | null,
@@ -131,7 +129,6 @@ export function buildWorkPathReadout(
           action: typeof e.action === 'string' ? e.action : '',
           actionAt: e.actionAt,
           source: typeof e.source === 'string' ? e.source : '',
-          progress: validProgress(e.progress),
         });
       }
     }
@@ -154,7 +151,6 @@ export function buildWorkPathReadout(
       currentSession: r.session === sessionId,
       source: r.source,
     };
-    if (r.progress !== undefined) entry.progress = r.progress;
     return entry;
   });
   const staleCount = entries.filter(function (e) { return !e.active; }).length;
@@ -216,7 +212,7 @@ export function buildWorkPathReadout(
  * 为什么 core 不带撞车提醒：撞车另有 notes 里独立一句，core 只回答「谁在办什么」，不重复搬表。
  */
 export function projectWorkPathReadout(readout: WorkPathReadout, detail: WorkPathDetail): WorkPathReadoutView {
-  const level = workPathDetailOf(detail, 'full');
+  const level = workPathDetailOf(detail, 'standard');
   const all = Array.isArray(readout.entries) ? readout.entries : [];
   const view: WorkPathReadoutView = {
     at: readout.at,
@@ -244,7 +240,6 @@ export function projectWorkPathReadout(readout: WorkPathReadout, detail: WorkPat
       currentSession: e.currentSession,
       source: e.source,
     };
-    if (level === 'full' && e.progress !== undefined) entry.progress = e.progress;
     return entry;
   });
   if (Array.isArray(readout.collisions) && readout.collisions.length > 0) view.collisions = readout.collisions;
@@ -279,7 +274,7 @@ export function buildWorkPathCollisionNote(readout: WorkPathReadout | null): str
 export function buildWorkPathSummary(readout: WorkPathReadout | WorkPathReadoutView | null): string | null {
   if (!readout || !Array.isArray(readout.entries) || readout.entries.length === 0) return null;
   const total = typeof (readout as any).total === 'number' ? (readout as any).total as number : readout.entries.length;
-  const detail = workPathDetailOf((readout as any).detail, 'full');
+  const detail = workPathDetailOf((readout as any).detail, 'standard');
   const shown = Math.min(SUMMARY_CLIP, readout.entries.length);
   const clip = readout.entries.slice(0, shown).map(function (e) { return '#' + String((e as any).ticketKey); }).join('、');
   let text = '工作路线摘要 · 本工作区在办 ' + total + ' 条（最近 ' + shown + ' 条：' + clip + '）';
@@ -288,10 +283,9 @@ export function buildWorkPathSummary(readout: WorkPathReadout | WorkPathReadoutV
     const omitted = typeof (readout as any).omitted === 'number' ? (readout as any).omitted as number : Math.max(0, total - readout.entries.length);
     if (omitted > 0) text += '，回执只带最近 ' + readout.entries.length + ' 条（另外 ' + omitted + ' 条没带）';
     else if (total > shown) text += '，其余 ' + (total - shown) + ' 条见 data.workRoute';
-    text += '；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard，要进度就传 full';
+    text += '；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard';
   } else {
     if (total > shown) text += '，其余 ' + (total - shown) + ' 条见 data.workRoute';
-    if (detail === 'standard') text += '；这次没带进度自评，要进度传 workRouteDetail: full';
   }
   const stale = typeof readout.staleCount === 'number' ? readout.staleCount : 0;
   if (stale > 0) text += '；其中 ' + stale + ' 条超过 1 天未动';

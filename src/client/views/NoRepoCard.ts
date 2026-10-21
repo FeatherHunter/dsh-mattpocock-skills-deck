@@ -21,9 +21,11 @@ declare function isNoRepoDismissed(...args: any[]): any;
 declare function isNoRepoNameValid(...args: any[]): any;
 declare function loadChain(...args: any[]): any;
 declare function loadSnapshot(...args: any[]): any;
+declare function missingCanonicalLabels(existingNames: unknown): string[];
 declare function promptTextFor(...args: any[]): any;
 declare function searchUrlFor(...args: any[]): any;
 declare function setNoRepoDismissed(...args: any[]): any;
+declare const CANONICAL_LABEL_NAMES: string[];
 declare const ChainRenderer: any;
 declare const FormModalSeat: any;
 declare const Tip: any;
@@ -40,16 +42,9 @@ declare const setupRunPrompt: any;
 declare const userHintOf: any;
 
     // ============ T2 #35 · NoRepo 红卡 + 表单（ListTab 首屏最优先 · 触发= checkRepo:bad && !dismissed）============
-    // #188 单源名集合（与 src/shared/labels.js 同步，名子集，不卡色）
-    const CANONICAL_LABELS_188 = ['bug','needs-triage','needs-info','ready-for-agent','ready-for-human','wayfinder:grilling','wayfinder:map','wayfinder:prototype','wayfinder:research','wayfinder:task']
-    function missingLabels188(existing: any) {
-      // 以标签名（小写）当键的存在表：键遍历时才出现，标 : any 才能按下标写入与读取。
-      const have: any = {}
-      ;(Array.isArray(existing)?existing:[]).forEach(function(n: any){ have[String(n||'').trim().toLowerCase()]=true })
-      const out: any[]=[]
-      CANONICAL_LABELS_188.forEach(function(n: any){ if(!have[n.toLowerCase()]) out.push(n) })
-      return out
-    }
+    // #1342：单源标签名单由构建拼进客户端闭包（scripts/build.mts 的 shared:trackerConstants 一项，
+    //   真源是 src/tracker/contract/canonical-labels.ts 与 src/tracker/label-names.ts），这里只按契约
+    //   声明形状、不再手抄第二份十行名字；补全判定直接用 missingCanonicalLabels（大小写不敏感、与单源同序）。
 export     const NoRepoCard = function (props: any) {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -69,13 +64,14 @@ export     const NoRepoCard = function (props: any) {
           h('div', { className: 'head' }, [
             h('span', { className:'dsws-spinner', style:{ width:13, height:13, borderWidth:2, display:'inline-block' } }),
             h('div', { style:{ flex:1, minWidth:0 } }, [
-              h('div', { className:'ttl', style:{ color:'#f59e0b' } }, '正在探测后端'),
-              h('div', { className:'desc', style:{ color:'#f59e0b' } }, '探测未决 — 若长时间停留请手动选择'),
+              h('div', { className:'ttl', style:{ color:'#f59e0b' } }, tr('switch.probeRunning')),
+              h('div', { className:'desc', style:{ color:'#f59e0b' } }, tr('switch.probePendingHint')),
             ]),
           ]),
           h('div', { className:'acts' }, [
-            h('button', { className:'dsws-btn', onClick:function(){ st.tab='list'; emit(st) }, style:{ fontSize:11, padding:'3px 10px' } }, '去设置页选择'),
-            h('button', { className:'dsws-btn primary', onClick:function(){ loadSnapshot(st,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'3px 10px' } }, '重试探测'),
+            // 本次界面反馈需求：等待态的两个按钮各带按压态、悬停反馈与点击日志，日志里能认出点的是哪一颗。
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'norepo.pending.goto', onClick:function(){ st.tab='list'; emit(st) }, style:{ fontSize:11, padding:'3px 10px' } }, tr('switch.goSettingsPick')),
+            h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.pending.retry', onClick:function(){ loadSnapshot(st,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'3px 10px' } }, tr('switch.retryProbe')),
           ]),
         ])
       }
@@ -84,12 +80,12 @@ export     const NoRepoCard = function (props: any) {
           h('div', { className: 'head' }, [
             Ic({ n: 'compass', size: 13, color: '#6e7681' }),
             h('div', { style: { flex: 1, minWidth: 0 } }, [
-              h('div', { className:'ttl', style:{ color:'#6e7681' } }, '未绑定后端'),
-              h('div', { className:'desc', style:{ color:'#8b8b95' } }, '当前工作区未选择 Tracker 后端 — 去设置页选择（Other 逃生舱）'),
+              h('div', { className:'ttl', style:{ color:'#6e7681' } }, tr('switch.unboundTitle')),
+              h('div', { className:'desc', style:{ color:'#8b8b95' } }, tr('switch.otherCardDesc')),
             ]),
           ]),
           h('div', { className: 'acts' }, [
-            h('button', { className:'dsws-btn primary', onClick:function(){ st.tab='list'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, '选择后端'),
+            h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.other.select', onClick:function(){ st.tab='list'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('switch.chooseBackend')),
           ]),
         ])
       }
@@ -181,17 +177,17 @@ export     const NoRepoCard = function (props: any) {
                 // 同样是「以小写标签名为键」的兜底聚合表，理由同上面的 have。
                 const agg: any={}
                 snap.issues.forEach(function(it: any){ (it.labels||[]).forEach(function(l: any){ agg[(l.name||'').toLowerCase()]=true }) })
-                return missingLabels188(Object.keys(agg))
+                return missingCanonicalLabels(Object.keys(agg))
               }
-              return missingLabels188(labs)
+              return missingCanonicalLabels(labs)
             }
             const initMissing = computeMissing(st.snapshot)
-            if (!card.labelStep) card.labelStep = { visible:false, repoStr:'', missing:[], have:0, total:10, checking:false }
+            if (!card.labelStep) card.labelStep = { visible:false, repoStr:'', missing:[], have:0, total:CANONICAL_LABEL_NAMES.length, checking:false }
             card.labelStep.visible = true
             card.labelStep.repoStr = repoStr2
             card.labelStep.missing = initMissing
-            card.labelStep.have = 10 - initMissing.length
-            card.labelStep.total = 10
+            card.labelStep.have = CANONICAL_LABEL_NAMES.length - initMissing.length
+            card.labelStep.total = CANONICAL_LABEL_NAMES.length
             card.labelStep.checking = true
             flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
             card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
@@ -201,7 +197,7 @@ export     const NoRepoCard = function (props: any) {
                 const miss2 = computeMissing(st.snapshot)
                 if (card.labelStep){
                   card.labelStep.missing = miss2
-                  card.labelStep.have = 10 - miss2.length
+                  card.labelStep.have = CANONICAL_LABEL_NAMES.length - miss2.length
                   card.labelStep.checking = false
                   emit(st)
                 }
@@ -240,11 +236,12 @@ export     const NoRepoCard = function (props: any) {
             h('div', { className: 'ttl' }, tr('panel.noRepoCardTitle')),
             h('div', { className: 'desc' }, tr('panel.noRepoCardDesc')),
           ]),
-          h(Tip, { content: tr('panel.noRepoCardDismiss') }, h('button', { className: 'dsws-btn ghost', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { padding: '2px 6px', flex: 'none' } }, Ic({ n: 'x', size: 12 }))),
+          h(Tip, { content: tr('panel.noRepoCardDismiss') }, h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'norepo.dismiss.icon', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { padding: '2px 6px', flex: 'none' } }, Ic({ n: 'x', size: 12 }))),
         ]),
         h('div', { className: 'acts' }, !card.expanded ? [
-          h('button', { className: 'dsws-btn primary', onClick: doExpand, style: { background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardAction')),
-          h('button', { className: 'dsws-btn ghost', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardDismiss')),
+          // 本次界面反馈需求：两个按钮各带按压态、悬停反馈与点击日志。
+          h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'norepo.card.expand', onClick: doExpand, style: { background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardAction')),
+          h('button', { className: 'dsws-btn ghost dsws-hov', 'data-press': 'button', 'data-log': 'norepo.card.dismiss', onClick: function (e: any) { e.stopPropagation(); doDismiss() }, style: { fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardDismiss')),
         ] : null),
         card.expanded ? h('div', { className: 'dsws-no-repo-form' }, [
           h('div', { className: 'row' }, [
@@ -272,20 +269,20 @@ export     const NoRepoCard = function (props: any) {
             return h('div', { className: 'err', style: { background: bg, border: '1px solid ' + bd, color: col, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' } }, [
               Ic({ n: 'alert', size: 11, color: col }),
               h('span', { style: { marginLeft: 4, flex: '1 1 auto' } }, card.error),
-              kind === 'no-git' ? h('a', { href: 'https://git-scm.com/', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
+              kind === 'no-git' ? h('a', { href: 'https://git-scm.com/', target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'norepo.err.gitdownload', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
               // #195 修复(第二轮)：no-gh 直接用后端提供的 prompt（多态），移除 <a> 链接兜底
-              kind === 'no-gh' ? h('button', { onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (!p) { try{ var bidN=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmN=(typeof moduleMetaOf==='function'&&bidN!=null)?moduleMetaOf(st,bidN):null; var np=mmN&&mmN.prompts&&mmN.prompts.noGhPrompt; if(np){ p=String(pickLangText(np)) } }catch(e){} } if (p && typeof inject === 'function') inject(st, p); }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
-              kind === 'not-logged-in' ? h('button', { onClick: function () { try{ var bidL=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmL=(typeof moduleMetaOf==='function'&&bidL!=null)?moduleMetaOf(st,bidL):null; var ppL=mmL&&mmL.prompts&&mmL.prompts.ghAuthLogin; var tL=ppL?String(pickLangText(ppL)):''; if(tL&&typeof inject==='function') inject(st,tL) }catch(e){} }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, tr('detail.authFailCta')) : null,
-              kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || searchUrlFor(st, card.name), target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
-              kind === 'network' ? h('button', { onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,
+              kind === 'no-gh' ? h('button', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'norepo.err.ghinstall', onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (!p) { try{ var bidN=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmN=(typeof moduleMetaOf==='function'&&bidN!=null)?moduleMetaOf(st,bidN):null; var np=mmN&&mmN.prompts&&mmN.prompts.noGhPrompt; if(np){ p=String(pickLangText(np)) } }catch(e){} } if (p && typeof inject === 'function') inject(st, p); }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
+              kind === 'not-logged-in' ? h('button', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'norepo.err.login', onClick: function () { try{ var bidL=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmL=(typeof moduleMetaOf==='function'&&bidL!=null)?moduleMetaOf(st,bidL):null; var ppL=mmL&&mmL.prompts&&mmL.prompts.ghAuthLogin; var tL=ppL?String(pickLangText(ppL)):''; if(tL&&typeof inject==='function') inject(st,tL) }catch(e){} }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, tr('detail.authFailCta')) : null,
+              kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || searchUrlFor(st, card.name), target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'norepo.err.exists', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
+              kind === 'network' ? h('button', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'norepo.err.retry', onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,
             ])
           })() : null,
           h('div', { className: 'row', style: { marginTop: 8 } }, [
-            h('button', { className: 'dsws-btn primary', disabled: card.loading || !isValid, onClick: doSubmit, style: { opacity: (!isValid || card.loading) ? 0.6 : 1, background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+            h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'norepo.form.submit', disabled: card.loading || !isValid, onClick: doSubmit, style: { opacity: (!isValid || card.loading) ? 0.6 : 1, background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
               card.loading ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, display: 'inline-block', verticalAlign: '-2px' } }) : null,
               h('span', null, card.loading ? tr('panel.noRepoFormSubmitting') : tr('panel.noRepoFormSubmit')),
             ]),
-            h('button', { className: 'dsws-btn', onClick: doCollapse, disabled: card.loading, style: { marginLeft: 6, fontSize: 11, padding: '4px 10px' } }, tr('panel.noRepoFormCancel')),
+            h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'norepo.form.cancel', onClick: doCollapse, disabled: card.loading, style: { marginLeft: 6, fontSize: 11, padding: '4px 10px' } }, tr('panel.noRepoFormCancel')),
           ]),
         ]) : null,
       ]) : null
@@ -293,7 +290,7 @@ export     const NoRepoCard = function (props: any) {
       const labelModal = labelVisible ? (function(){
         const ls = card.labelStep
         const have = typeof ls.have==='number'?ls.have:0
-        const total = ls.total||10
+        const total = ls.total||CANONICAL_LABEL_NAMES.length
         const missing = Array.isArray(ls.missing)?ls.missing:[]
         const checking = !!ls.checking
         const titleText = missing.length===0 ? tr('panel.labelsStepAllOk', {total: total}) : tr('panel.labelsStepTitle', {have: have, total: total})
@@ -322,8 +319,10 @@ export     const NoRepoCard = function (props: any) {
           missing.length ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8, background:'rgba(248,113,113,.08)', border:'1px solid rgba(248,113,113,.22)', borderRadius:4, padding:'6px 8px', wordBreak:'break-word' } }, tr('panel.labelsStepMissing', {list: missing.join(', ')})) : null,
           checking ? h('div', { style:{ fontSize:11, color:'#8b8b95', marginTop:6, display:'flex', alignItems:'center', gap:4 } }, [ h('span', { className:'dsws-spinner', style:{ width:10,height:10,borderWidth:1.5, display:'inline-block' } }), h('span', null, '检测中…') ]) : null,
           h('div', { style:{ display:'flex', gap:8, marginTop:14, justifyContent:'flex-end' } }, [
-            h('button', { className:'dsws-btn', onClick: doSkip, style:{ fontSize:11, padding:'4px 10px' } }, tr('panel.labelsStepSkip')),
-            missing.length ? h('button', { className:'dsws-btn primary', onClick: doInject, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, tr('panel.labelsStepAction')) : h('button', { className:'dsws-btn primary', onClick: doSkip, style:{ background:'#16a34a', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, '完成')
+            // 本次界面反馈需求：标签步骤的三个按钮各带按压态、悬停反馈与点击日志；
+            //   缺标签时的主按钮与补齐后的「完成」是两个不同控件，定位串必须不同。
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'norepo.labels.skip', onClick: doSkip, style:{ fontSize:11, padding:'4px 10px' } }, tr('panel.labelsStepSkip')),
+            missing.length ? h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.labels.action', onClick: doInject, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, tr('panel.labelsStepAction')) : h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'norepo.labels.done', onClick: doSkip, style:{ background:'#16a34a', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, '完成')
           ])
         ])
         const overlay = h('div', { className:'dsws-labels-overlay', onClick:function(e: any){ if(e.target===e.currentTarget) doSkip() }, style:{ position:'fixed', inset:'0', background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2147483000 } }, [inner])

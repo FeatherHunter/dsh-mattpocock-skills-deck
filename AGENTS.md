@@ -16,6 +16,10 @@ Five canonical triage roles (`needs-triage` / `needs-info` / `ready-for-agent` /
 
 Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain.md`.
 
+### 配置归属
+
+加新值、或者想把一个值搬进 `config/` 下的数据文件之前，先读 `docs/adr/20261021-config-ownership.md`。一句话：一个值只有一处定义；值该留在代码里还是搬成数据文件，用「编译器能不能直接把两份拷贝连起来」判断——能连起来的用导入连起来，连不上的才搬数据文件并配生成器与门禁。
+
 ### 提问方式
 
 需要人拿主意时，把问题直接写在对话正文里，不用弹窗式提问工具——弹窗会挡住正文解释，人看不到完整的来龙去脉。

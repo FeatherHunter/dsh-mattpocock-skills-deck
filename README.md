@@ -199,13 +199,15 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@pioneerAlone](https://github.com/pioneerAlone)🌹🌹🌹🌹🌹🌹 — [#298](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/298) 面板重复、[#274](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/274)/[#234](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/234) 状态栏误报、[#645](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/645) 镜像滞后一路追到底，[PR #273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/273)/[PR #316](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/316) 连交两份修复，重装体感一次清爽
 
-[@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) 等议题，[PR #287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287)/[PR #275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275)/[PR #106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) 连交三份修复，弹窗和 macOS 体验都顺了
+[@zhengcookie](https://github.com/zhengcookie)🌹🌹🌹🌹 — [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) 报出桌面端启动早期把安装目录当成工作区、改色弹窗误报没有后端，[#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁，[#1160](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1160) 又抓到 gh 登录态因为 3 秒探活超时被判成网络异常、反复误报，[#1291](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1291) 发现已关闭地图下还开着、没被认领的子票会从「可接任务」里整体消失，状态栏计数却还说有一张可接
 
-[@zhengcookie](https://github.com/zhengcookie)🌹🌹🌹 — [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) 报出桌面端启动早期把安装目录当成工作区、改色弹窗误报没有后端，[#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁，[#1160](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1160) 又抓到 gh 登录态因为 3 秒探活超时被判成网络异常、反复误报
+[@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) 等议题，[PR #287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287)/[PR #275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275)/[PR #106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) 连交三份修复，弹窗和 macOS 体验都顺了
 
 [@anupamme](https://github.com/anupamme)🌹🌹🌹 — [PR #727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727)/[PR #728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) 主动给数据通道加两道安全锁（两份已关闭），[PR #1156](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1156) 又指出模板脚本里写死的密钥（还在评审）
 
 [@9agj](https://github.com/9agj)🌹🌹🌹 — [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) 指出只读仓库下标签能力静默降级、README 也没写明任务板仓库要有 push 权限，[#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) 抓住建仓失败分类把真实 git 报错说成「权限不足」，[#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) 报出属主与运行用户不一致的工作区建仓必然失败（Android /sdcard 场景）；三张的修复都已合入
+
+[@gzy31007](https://github.com/gzy31007)🌹🌹 — [#1272](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1272) 对照 Matt 原版 wayfinder 指出插件把实施票也挂进探索地图，偏离了「地图只提问题、实施开始前就该交棒」的边界，[#1273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1273) 又揪出改票工具的成功回执会把同一张票面写两份、票面一大就多占一倍上下文
 
 [@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 揪出本地后端静默写坏票的暗坑，[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 亲手修好已合入
 
@@ -249,6 +251,8 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@271912980](https://github.com/271912980)🌹 — [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) 提出会话稳定寻址的好主意
 
+[@lilincen](https://github.com/lilincen) — 在讨论区 [#1301](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1301) 提出希望插件早日支持 GitLab
+
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
 </div>
@@ -285,12 +289,12 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 喜欢这个插件的话，这些可能你也用得上：
 
-**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** —— 34 款 opencode 经典配色一键换装 DSH，即点即换，重启不丢
+**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** —— 38 款 opencode 经典配色 + 20+自定义主题 一键换装 DSH。
 
-**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— Prompt 工具箱：24 条深度模板随手点，别再复制粘贴
+**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— 经常反复重复的模板化提示词，存成自定义模板，选中后直接注入，不再需要耗费精力。
 
-**[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** —— 给每个聊天机器人安个家：哪个工作区有助理在管、在不在线一眼看清，拖一下就能搬家
+**[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** —— 给 dsh-im 加了「助理」和「家」的概念。
 
-**[ilife](https://github.com/FeatherHunter/ilife)** —— 爱生活：居家生活套件，一个仓库七个插件，记账、卡路里、大厨、管家一次装好
+**[ilife](https://github.com/FeatherHunter/ilife)** —— ⚠️建设中⚠️爱生活：居家生活套件，记账、运动、饮食、体重、食谱、物品管理、作息规划、备忘录等。
 
 </div>

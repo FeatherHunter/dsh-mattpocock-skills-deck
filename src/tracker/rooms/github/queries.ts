@@ -13,6 +13,8 @@
  *  - 能力字段来源全覆盖：author/assignees/milestone/comments/parent/blockedBy。
  */
 
+import { PAGINATION } from '../../contract/pagination.js'
+
 // 单票必需字段（core + 能力字段来源）。`number` 作 keySource 注释明确不外泄。
 export const ISSUE_FRAGMENT = [
   'number', // keySource only → normalize String(number) → Issue.key（不产 number 字段）
@@ -53,8 +55,8 @@ export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
 // 为什么不并进 ISSUE_FRAGMENT：列表查询不需要反向边（每行多付一整条连接的钱），
 // 而且契约不允许把 blocking 塞进 Issue 实体；它只是 getDependencies 的投影。
 // 两条连接都带 pageInfo：到了后端一次能给的条数上限时，调用方要能如实说「可能不全」。
-// 条数只在这里写一遍：查询串与实际判「到没到上限」用的是同一个常量，改一处就行，不会两处漂移。
-export const DEPS_MAX = 50
+// 条数从共享分页表取（src/tracker/contract/pagination.ts 的 github.depsMax）：查询串与「到没到上限」的判定用同一个常量，不会两处漂移。
+export const DEPS_MAX = PAGINATION.github.depsMax
 
 export const DEPS_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   repository(owner:$owner,name:$name){

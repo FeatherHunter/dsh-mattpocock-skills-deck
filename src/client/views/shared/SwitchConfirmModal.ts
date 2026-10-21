@@ -115,7 +115,9 @@ export const SwitchConfirmModal = (props: any) => {
     const col = id === 'keep' ? '#4ade80' : id === 'migrate' ? '#f59e0b' : '#f87171'
     const locked = !!OPTION_LOCKED[id]
     const disabled = isTargetPending || locked
-    const row = h('div', { key: id, onClick: function(){ if(disabled) return; onOption(id) }, 'data-opt-id': id, 'data-opt-locked': locked ? 1 : 0, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, minHeight: 54, boxSizing: 'border-box', border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1 } }, [
+    // 接线（#1335 界面反馈）：这三行是「点整行即选中」，形状用 row 档；定位名带选项自身的键，日志里认得出点的是哪一行。
+    //   被锁住的那两行（迁移、清空）不给悬停高亮，免得看着像能点。
+    const row = h('div', { key: id, className: disabled ? '' : 'dsws-hov', 'data-press': 'row', 'data-log': 'switch.opt.' + String(id), onClick: function(){ if(disabled) return; onOption(id) }, 'data-opt-id': id, 'data-opt-locked': locked ? 1 : 0, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, minHeight: 54, boxSizing: 'border-box', border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1 } }, [
       h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { style: { fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, minHeight: 18 } }, [
           h('span', null, label),
@@ -128,7 +130,8 @@ export const SwitchConfirmModal = (props: any) => {
     ])
     return locked ? h(Tip, { key: id, content: tr(OPTION_LOCKED[id]) }, row) : row
   }
-  return h('div', { style: overlayStyle, onClick: function (e: any) { if (e.target === e.currentTarget) doClose() } }, [
+  // 接线（#1335 界面反馈）：点卡片外的空白会关掉这张卡，遮罩自己也是能点到的，所以接一组标识（other 档：它不是按钮）。
+  return h('div', { style: overlayStyle, 'data-press': 'other', 'data-log': 'switch.backdrop', onClick: function (e: any) { if (e.target === e.currentTarget) doClose() } }, [
     h('div', { style: cardStyle }, [
       // #191（用户反馈）：操作按钮与标题同行右侧（取消 + 确认切换 + ✕），顶部 Y 恒定，不占独立行
       // #669 第 5 件（用户 2026-09-21 真机截图）：面板窄的时候这一行原本把三颗按钮挤成了竖排
@@ -142,9 +145,10 @@ export const SwitchConfirmModal = (props: any) => {
         h('span', { style: { display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, flex: '0 1 auto', maxWidth: '100%', marginLeft: 'auto', boxSizing: 'border-box' } }, [
           // #669 第 6 件（ADR 20260921）：原来这里还有一颗「清除后端选择」—— 它与这张卡问的不是一件事
           //   （这张卡问「换成哪个」，那颗按钮说「我不要了」），2026-09-21 维护者拍板删掉（连带内核里那条路径）。
-          h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none' } }, tr('switch.cancel')),
-          h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none', background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
-          h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px', whiteSpace: 'nowrap', flex: 'none' } }, '✕'),
+          // 接线（#1335 界面反馈）：标题行那三颗按钮各接一组标识；✕ 是纯图标，只给按压反馈、不叠悬停样式。
+          h('button', { className: 'dsws-btn ghost dsws-hov', 'data-press': 'button', 'data-log': 'switch.cancel', onClick: doClose, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none' } }, tr('switch.cancel')),
+          h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'switch.confirm', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none', background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
+          h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'switch.close', onClick: doClose, style: { padding: '2px 6px', whiteSpace: 'nowrap', flex: 'none' } }, '✕'),
         ]),
       ]),
       // #191：内容区独立滚动（向下延伸），起始标记
@@ -178,7 +182,9 @@ export const SwitchConfirmModal = (props: any) => {
           const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : ''
           const isSelected = s.switchConfirm.targetBackendId === m.id
           const locked = (typeof isBackendUnavailable === 'function') ? isBackendUnavailable(m.id) : false
-          const btn = h('button', { key: m.id, type: 'button', 'data-target-id': m.id, 'data-target-locked': locked ? 1 : 0, disabled: !!locked, onClick: function(){ if (locked) return; onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1 } }, [
+          // 接线（#1335 界面反馈）：目标后端这几颗是药丸形状的按钮，定位名用后端自己的标识清洗成短名；
+          //   被锁住的那颗不给悬停高亮，免得看着像能点。
+          const btn = h('button', { key: m.id, type: 'button', className: locked ? '' : 'dsws-hov', 'data-press': 'button', 'data-log': 'switch.target.' + String(m.id == null ? 'x' : m.id).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').slice(0, 40), 'data-target-id': m.id, 'data-target-locked': locked ? 1 : 0, disabled: !!locked, onClick: function(){ if (locked) return; onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1 } }, [
             h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: col, flex: 'none' } }),
             h('span', null, m.label || m.id),
           ])

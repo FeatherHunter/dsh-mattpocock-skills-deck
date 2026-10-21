@@ -51,7 +51,8 @@ export const RestFallbackBanner = ({ st }: any) => {
     h('span', null, tr(view.key, view.params)),
     h('span', { style: { flex: 1 } }),
     h('button', {
-      type: 'button', 'data-rest-fallback-dismiss': 1, 'aria-label': tr('list.restFallbackDismiss'),
+      // 接线（#1335 界面反馈）：关闭那颗只有「×」一个符号，按压形状用 icon 档（小图标下沉会看着歪）。
+      type: 'button', 'data-rest-fallback-dismiss': 1, 'data-press': 'icon', 'data-log': 'banner.restfallback.dismiss', 'aria-label': tr('list.restFallbackDismiss'),
       onClick: function (e: any) {
         try { if (e && e.stopPropagation) e.stopPropagation() } catch (_) {}
         writeAt(dkey, view.at > 0 ? view.at : Date.now())

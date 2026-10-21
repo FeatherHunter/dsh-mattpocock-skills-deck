@@ -214,13 +214,15 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 
 [@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234, #645 (update failure caused by mirror lag) and opened PRs #273 (its root-cause analysis was absorbed into v1.7.3) and #316 (merged) — thanks for making the reinstall experience smooth again 🌹🌹🌹🌹🌹🌹
 
-[@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106 🌹🌹🌹🌹
+[@zhengcookie](https://github.com/zhengcookie) — reported #1003 (on desktop the install directory was mistaken for the workspace early in startup, so the colour dialog wrongly said there was no backend) and #960 (pinned the desktop crash-and-reload on the missing concurrency admission for outbound gh calls, with a verified patch), then #1160 (gh auth status read as a network failure because a 3 s liveness probe timed out, so the login banner kept coming back), then #1291 (open child tickets under a closed map vanished from the ready list while the status bar still counted one as available) 🌹🌹🌹🌹
 
-[@zhengcookie](https://github.com/zhengcookie) — reported #1003 (on desktop the install directory was mistaken for the workspace early in startup, so the colour dialog wrongly said there was no backend) and #960 (pinned the desktop crash-and-reload on the missing concurrency admission for outbound gh calls, with a verified patch), then #1160 (gh auth status read as a network failure because a 3 s liveness probe timed out, so the login banner kept coming back) 🌹🌹🌹
+[@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106 🌹🌹🌹🌹
 
 [@anupamme](https://github.com/anupamme) — opened PRs #727, #728 (two hardening suggestions for rpcChannel.js: prototype-pollution guard and resource limits, both closed) and PR #1156 (a hardcoded secret in template.sh, under review) 🌹🌹🌹
 
 [@9agj](https://github.com/9agj) — reported #992 (label actions silently degraded on read-only repos, and the README never said the board repo needs push access), #993 (repo-creation failures reported real git errors as "permission denied") and #994 (creating a workspace necessarily failed when the owner and the running user differ, e.g. Android /sdcard); all three fixes have landed 🌹🌹🌹
+
+[@gzy31007](https://github.com/gzy31007) — reported #1272 (the plugin binds implementation tickets into a wayfinder map, which goes against Matt's original wayfinder boundary: the map only asks questions and hands off before any build) and #1273 (the ticket-edit tool's success receipt carries the same written-back ticket twice, so a large ticket takes up twice the context) 🌹🌹
 
 [@qq1393950873-bit](https://github.com/qq1393950873-bit) — reported #970 (the local backend silently corrupted tickets) and opened PR #974, which fixed it (merged) 🌹🌹
 
@@ -263,6 +265,8 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 [@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs) 🌹
 
 [@271912980](https://github.com/271912980) — suggested in #257 that sessions become stable, addressable endpoints (session ID + semantic name) 🌹
+
+[@lilincen](https://github.com/lilincen) — started discussion #1301 asking for GitLab support
 
 And thanks to everyone who left thoughts in comments and discussions. If you hit a problem or have an idea, feel free to open an issue or start a discussion.
 

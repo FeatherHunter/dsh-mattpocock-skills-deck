@@ -23,6 +23,8 @@ import {
   WORKSPACE_JSON_REL,
   WORKSPACE_KNOWN_VERSION,
 } from '../../shared/config-store/src/workspace.js'
+// 布局取值的唯一真源（#1342）：核不自己留字面量，由这里把名单传进去。
+import { DOC_LAYOUT_VALUES } from '../../shared/doc-layout/src/layouts.js'
 import {
   parseWorkspaceFile as parseWith,
   stringifyWorkspaceFile as stringifyWith,
@@ -39,13 +41,21 @@ export const WORKSPACE_FILE_SOURCE = 'user'
 export { WORKSPACE_FILE_SOURCE_AUTO } from '../rules/workspace-file.js'
 
 /**
+ * 布局取值是不是唯一真源里的那两个之一。宿主写工作区文件前、从文件与记忆里挑布局时都问这一句；
+ * 别处不再写「等于 single 或等于 multi」——名单改了这里自动跟着变。
+ */
+export function isWorkspaceLayout(v: unknown): v is (typeof DOC_LAYOUT_VALUES)[number] {
+  return typeof v === 'string' && (DOC_LAYOUT_VALUES as readonly string[]).indexOf(v) >= 0
+}
+
+/**
  * 核的编解码器：核里那两个函数今天都是宽松入参（吃 any、按运行时形状自己判），
  * 类型上按纯侧的契约收口一次即可 —— 这里是唯一一处「纯侧的类型」与「核的实现」对上号的地方。
  * 这一层校验不改变行为：形状不对时核自己会回 ok:false 或只读，与拆分前一样。
  */
 const CODEC: WorkspaceCodec = {
-  parse: (text) => parseWorkspaceText(text) as ReturnType<WorkspaceCodec['parse']>,
-  encode: (fields) => stringifyWorkspace(fields) as ReturnType<WorkspaceCodec['encode']>,
+  parse: (text) => parseWorkspaceText(text, DOC_LAYOUT_VALUES) as ReturnType<WorkspaceCodec['parse']>,
+  encode: (fields) => stringifyWorkspace(fields, DOC_LAYOUT_VALUES) as ReturnType<WorkspaceCodec['encode']>,
 }
 
 /**

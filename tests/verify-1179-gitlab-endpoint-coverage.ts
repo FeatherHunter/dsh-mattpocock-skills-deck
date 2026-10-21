@@ -17,7 +17,9 @@
  *   二、找两类调用点 —— `['api', 路径, ...]` 这种数组实参，与 `.api(路径, ...)` 这种函数调用；
  *   三、把路径那一段文本解析成形状：字符串字面量原样取；模板串里的 `${...}` 与拼串的变量段写成 `{}`；
  *       `queries.ts` 里那几个拼路径的函数（projectPath / issuesPath / issuePath / notesPath /
- *       linksPath / milestonesPath）照它们自己的定义展开；认不出来的表达式一律写 `{}`。
+ *       linksPath / milestonesPath）照它们自己的定义展开；分页额度收进共享表后源码里写成
+ *       `PAGINATION.gitlab.maxPerPage` 这类成员访问，按契约层共享表 PAGINATION 的取值展开成数字
+ *       （它与采样登记表里实采的真实参数对齐）；认不出来的其余表达式一律写 `{}`。
  *   四、路径若是本文件里某个小助手（例如 `apiGet` / `apiPut`）的参数，就顺着这个参数回到它的调用点，
  *       把调用点那一段实参接着解析 —— 助手只是把路径转手，形状要看到调用方才算数。
  *
@@ -32,6 +34,7 @@ import path from 'node:path'
 import url from 'node:url'
 
 import { GITLAB_ENDPOINTS } from './tracker-contract/gitlab-endpoints.js'
+import { PAGINATION } from '../src/tracker/contract/pagination.js'
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..')
 const ROOM_DIR = path.join(ROOT, 'src/tracker/rooms/gitlab')
@@ -41,6 +44,17 @@ const TRANSPORT_FILE = 'client.ts'
 const MAX_DEPTH = 6
 /** 一个调用点最多展开出这么多种形状；超了就说明这段代码的形状不该由这个门禁来数。 */
 const MAX_HITS = 64
+/**
+ * 分页额度收进共享表（#1343）之后，源码里的路径写法从裸数字变成了 `PAGINATION.gitlab.maxPerPage` 这样的
+ * 成员访问。门禁要把源码发出去的路径与采样登记表逐字对上，就得把这种成员访问展开成数字。
+ *
+ * 为什么这里直接取共享表的值：采样登记表里的 `?per_page=100` 是 #1179 实采时真正发给 GitLab 的参数，
+ * 与 `PAGINATION.gitlab.maxPerPage` 是同一个数。数字真值由 tests/verify-pagination-limits.ts 的期望清单
+ * 独立钉住（改共享表必须同时改那扇门禁），这里只做「成员访问 → 路径文本」的翻译，不再抄第三份数字。
+ */
+const PAGINATION_LITERALS: { [member: string]: number } = {
+  'PAGINATION.gitlab.maxPerPage': PAGINATION.gitlab.maxPerPage,
+}
 
 let failed = false
 const check = (ok: boolean, msg: string) => {
@@ -351,7 +365,10 @@ function resolve(expr: string, text: string, scope: FuncRange | null, via: strin
     return [{ shape: '{}', via }]
   }
 
-  // 其余（成员访问、三元、String(...) 之类）一律按一个变量位置算。
+  // 共享表里的分页额度（PAGINATION.gitlab.maxPerPage 这类成员访问）按共享表的取值展开成数字；
+  //   其余展开不了的表达式（三元、String(...) 之类）仍按一个变量位置算。
+  const paged = PAGINATION_LITERALS[t]
+  if (paged !== undefined) return [{ shape: String(paged), via }]
   return [{ shape: '{}', via }]
 }
 
@@ -360,6 +377,8 @@ function resolveInterp(expr: string, text: string, scope: FuncRange | null, via:
   const t = expr.trim()
   const lit = literalOf(t)
   if (lit !== null) return [{ shape: lit, via }]
+  const paged = PAGINATION_LITERALS[t]
+  if (paged !== undefined) return [{ shape: String(paged), via }]
   const call = /^([A-Za-z_$][\w$]*)\s*\(/.exec(t)
   if (call && BUILDERS[call[1]]) {
     const open = t.indexOf('(', call.index)

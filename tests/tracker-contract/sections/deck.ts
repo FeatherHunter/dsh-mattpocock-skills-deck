@@ -87,10 +87,12 @@ export async function run(): Promise<AssertRecord[]> {
     out.push({ name: P + name, ok, detail: detail || '' })
   }
 
-  // ── parseProgress（三锚定 + clamp + null）──
+  // ── parseProgress（进度区 + 两级老票兼容 + clamp + null；#1090 起删掉全文兜底）──
   await assert('parseProgress 标题行', parseProgress('## 进度：42%') === 42, String(parseProgress('## 进度：42%')))
   await assert('parseProgress 行首变体（Progress:）', parseProgress('Progress: 80%') === 80)
-  await assert('parseProgress 全文兜底', parseProgress('正文提到 进度：7% 而已') === 7)
+  await assert('parseProgress 不再全文兜底（引用里出现不算）', parseProgress('正文提到 进度：7% 而已') === null)
+  await assert('parseProgress 规范条目', parseProgress('## 进度\n\n- 进度：63%（2026-10-21T20:00:00+08:00）：写完了') === 63)
+  await assert('parseProgress 代码块里的示例不算', parseProgress('\u0060\u0060\u0060\n## 进度：90%\n\u0060\u0060\u0060') === null)
   await assert('parseProgress 超界 clamp 100', parseProgress('## 进度：130%') === 100)
   await assert('parseProgress 无进度 → null', parseProgress('') === null && parseProgress(null) === null && parseProgress('no progress here') === null)
 

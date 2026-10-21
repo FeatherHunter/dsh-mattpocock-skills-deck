@@ -58,6 +58,8 @@ console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完�
   const body = sbSrc
   const calls: { bind: any[]; snapshot: any[]; chain: any[]; flashes: any[] } = { bind: [], snapshot: [], chain: [], flashes: [] }
   const sandbox: Record<string, any> = {
+    // #1342：StatusBackend 的布局取值名单由构建从共享真源拼进闭包，求值真源文本时按真值顶一份。
+    DOC_LAYOUT_VALUES: ['single', 'multi'],
     tr: (k: unknown) => String(k),
     emit: () => {},
     firstBackendIdOf: () => 'github',

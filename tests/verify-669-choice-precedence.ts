@@ -314,6 +314,8 @@ const makeSettle = function (steps: any, opts?: any) {
   const seen: Record<string, any> = { inject: [], flash: [], prompt: [], log: [] }
   const setupChainSteps = (st: any) => (st && st.chainSnapshot && st.chainSnapshot.steps) || []
   const sandbox: Record<string, any> = {
+    // #1342：StatusBackend 的布局取值名单由构建从共享真源拼进闭包，求值真源文本时按真值顶一份。
+    DOC_LAYOUT_VALUES: ['single', 'multi'],
     chainSteps: setupChainSteps,
     guideStepsFor: GUIDE.guideStepsFor,
     guideStepDone: GUIDE.guideStepDone,

@@ -289,23 +289,44 @@ mapInspect:
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
 specComplete:
-  version: 2
+  version: 3
   placeholders:
     - url
     - closed
     - total
-  use: 规格容器 · 完成态「完成」按钮：逐张核对后按边界关闭规格，不提供旁路（#1281）
+  use: 规格容器 · 完成态「完成」按钮：先认这次是怎么做的，把改动交付到仓库长期分支（没有版本库则以当前工作区为准），逐张核对后按边界关闭规格，不提供旁路（#1281、#1350）
   zh: |-
-    这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。先核对，再决定能不能关。
+    这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。先核对，再决定能不能关。关规格是向以后的人保证：这批改动已经在仓库长期保留的那条分支上、在你写下的提交上可复现地全绿、遗留都已处置——不只是子票都关了。
 
-    ## 核对
-    - [ ] 逐张打开实施 issue，对照验收判据核对是否真的做到；只看关闭状态不算数。
-    - [ ] 在集成分支上跑测试与类型检查，确认全绿。
-    - [ ] 规格正文与评论里还有没有没处理的「待定」「后续再说」。
+    ## 一、先认这次是怎么做的
+    - [ ] 读仓库自己的说明（例如 AGENTS.md、docs/agents 下的约定）和近期同类规格的收尾记录，认这次属于哪种做法：每张实施票分别用 /implement 实现；直接对这张规格跑过 /implement-spec（会产出集成分支，可能还有草稿 PR）；这个工作区没有版本库。
+    - [ ] 找到这次的分支、工作区副本和提交：散在多处的改动先合到同一条分支再往下核对；找不到、或改动只在临时目录里，先问用户改动在哪，不要假定已经交付。
+    - [ ] 确认要交出去的代码：每张实施票的改动是不是都已合进同一条长期分支（通常是 main，以仓库自己的叫法为准）。走 PR 的仓库，只认已合并且提交落在长期分支；草稿、待评审、合进别的分支都不算。实施票当初在集成分支上验完就关，是正常做法；规格不一样，要等集成分支也进了长期分支（本仓库的惯例是与 main 同一提交）才算交付完成。
+    - [ ] 读不到分支或 PR 状态时，判不了就不关，把情况交回用户。
 
-    ## 关闭规格（核对通过之后）
-    - [ ] 全部通过 → 在同一次 deck_issue_patch 调用里带 comment（逐张核对结论）和 close:true：工具会先发评论再关；缺评论、或还有实施 issue 没关，关闭都会被挡下来。
-    - [ ] 有任何一条没通过 → 不关闭：说明缺什么、建议重开哪张实施 issue 或补一张。
+    ## 二、核对（三种做法都要做）
+    - [ ] 逐张打开实施 issue，对照验收判据看代码、测试或运行结果，确认真的做到；只看关闭状态和票面自述不算数。
+    - [ ] 在最终交给仓库的那份代码上跑仓库规定的测试、类型检查和构建，记下分支名与提交号。在没含这些改动的主分支、有未提交改动的树、或别人的分支上跑出的绿不算数。
+    - [ ] 多张票改同一模块或接口时，合起来再核一遍：各自绿不等于一起绿。
+    - [ ] 收干净实施过程留下的临时物：实施工作区副本、已合并的临时分支、未提交改动、临时文件。没合并的分支不要删，把里面独有的提交列给用户。
+    - [ ] 规格正文与评论里的「待定」「后续再说」逐条处置：这次做完；转成新票并写下票号；用户确认不做。只把字眼找出来不算处置。
+
+    ## 三、把改动交给仓库（没有版本库就跳过这一节）
+    - [ ] 按仓库自己的落地方式走，不要为了关票硬造 PR：用 PR 合入的仓库，没有 PR 就建（标题用一句中文说清这次交付了什么，引用规格与实施票），草稿改成可评审；正文用 /pr 技能写（Summary / Evidence / Merge Danger），写清逐票结论与检查证据。/pr 只写正文，不建 PR、不合并 PR。
+    - [ ] 等 PR 合入长期分支后再关；只建了 PR、只改成可评审都不算。需要人合并就停下来，把 PR 链接和结论交给用户，并说明合入后再点「完成」。这是等待，不是失败；未经用户当场授权不要替人合并。
+    - [ ] 不用 PR 的仓库（本仓库的常态）：把这条分支合入长期分支并推送，确认长期分支包含这次的全部提交。PR 不是结案方式；只有长期分支里真的有了这些提交，才算交付完成。
+    - [ ] 改动还没提交就先提交并推送，只提交这次动过的路径，提交信息按仓库规范写清改了什么、为什么。
+    - [ ] 合入后拉回长期分支的最新提交，在上面重跑第二遍检查：合入会带进交叉影响，合入前的绿不能当结论。
+    - [ ] 不要让合并 PR 的关闭引用替你把票关掉（有的后端会按关键词自动关）；票一律走 deck_issue_patch 的核对评论后关闭。
+    - [ ] 长期分支还没含改动、PR 没合、只合了一部分：不关闭，写清差哪条与下一步，不要为这件事重开实施票。
+
+    ## 四、没有版本库的工作区
+    - [ ] 没有分支、提交历史和 PR 可做：以当前工作区为要交出去的代码，确认改动确实在这里（不是只在临时目录或子代理的副本里），检查照跑。
+    - [ ] 关闭评论注明「本工作区没有版本库，以上结论以当前工作区文件为准」，并写清检查命令与结果、改了哪些文件。
+
+    ## 五、关闭规格（核对与交付都通过之后）
+    - [ ] 全部通过 → 在同一次 deck_issue_patch 调用里带 comment 和 close:true：评论写清逐票核对结论、这次是怎么做的、分支名与提交号（或 PR 合并提交、没有版本库的说明）、跑了哪些检查与结果、遗留项的新票号；工具会先发评论再关，缺评论或还有实施 issue 没关都会被挡下来。
+    - [ ] 有任何一条没通过 → 不关闭：改动还没交出去就说卡在哪一步、下一步由谁做（如「等 PR #N 合并」）；验收没做到就说缺什么、建议重开哪张实施 issue 或补一张。
     - [ ] 没有「实施 issue 都关了顺手关」的旁路：关规格只有上面这一条路，先核对、再带核对评论关。
     - [ ] 人随时可以重开这张规格；重开只能由人在后端做，AI 的工具面上只允许关、不允许重开。
     - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
@@ -314,25 +335,46 @@ specComplete:
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
   en: |-
-    All implementation issues under this spec issue ({url}) are closed ({closed}/{total}). Verify first, then decide whether it can be closed.
+    All implementation issues under this spec issue ({url}) are closed ({closed}/{total}). Verify first, then decide whether it can be closed. Closing the spec promises future readers that this batch is already on the repository's long-lived branch, is reproducibly green on the commit you record, and has no unhandled leftovers — not merely that all sub-issues are closed.
 
-    ## Verify
-    - [ ] Open each implementation issue and check whether its acceptance criteria are truly met; a closed status alone does not count.
-    - [ ] Run tests and type checks on the integration branch and confirm they are green.
-    - [ ] Check the spec body and comments for leftovers such as "TBD" or "revisit later".
+    ## 1. Identify how this work was done
+    - [ ] Read the repository's own instructions (for example AGENTS.md and the conventions under docs/agents) and how recent comparable specs were wrapped up, then identify which shape this is: each implementation issue was implemented separately with /implement; /implement-spec was run on this spec (it creates an integration branch, possibly with a draft PR); this workspace has no version control.
+    - [ ] Locate this run's branches, worktrees and commits: if the changes are scattered, merge them into one branch before going further; if you cannot find them, or they exist only in a temporary directory, ask the user where the work is — do not assume it has been delivered.
+    - [ ] Confirm the code being handed over: is every implementation issue's change merged into the same long-lived branch (usually main; use the repository's own name)? Where the repository delivers through PRs, only a merged PR whose commits are on the long-lived branch counts; a draft, a PR awaiting review, or a PR merged into another branch does not. Implementation issues were correctly closed once merged into the integration branch; the spec is different — it counts only after that branch also lands on the long-lived branch (in this repository, the convention is being at the same commit as main).
+    - [ ] If you cannot read the branch or PR state, you cannot judge — do not close; hand the situation back to the user.
 
-    ## Close the spec (only after verification passes)
-    - [ ] All checks pass → in the same deck_issue_patch call pass comment (the verification result per ticket) and close:true: the tool leaves the comment first, then closes; a missing comment or any implementation issue still open blocks the close.
-    - [ ] Any check fails → do not close: state what is missing and suggest reopening or adding an implementation issue.
+    ## 2. Verify (in all three shapes)
+    - [ ] Open each implementation issue and check its acceptance criteria against code, tests or run results; a closed status and the ticket's own claim do not count.
+    - [ ] Run the repository's tests, type checks and build on the exact code being handed to the repository, and record the branch name and commit. A green run on a mainline without these changes, on a tree with uncommitted changes, or on someone else's branch does not count.
+    - [ ] When several tickets touch the same module or interface, verify them together: green separately does not mean green together.
+    - [ ] Clean up temporary artifacts from the implementation: implementer worktrees, merged temporary branches, uncommitted changes, temporary files. Do not delete unmerged branches — list the commits unique to them for the user.
+    - [ ] Handle every "TBD" / "revisit later" in the spec body and comments: do it now, or turn it into a new ticket and record its number, or get the user's explicit decision not to do it. Finding the words alone is not handling them.
+
+    ## 3. Hand the change to the repository (skip this section when there is no version control)
+    - [ ] Follow the repository's own way of landing changes, and do not fabricate a PR just to close the ticket: where the repository delivers through PRs, create the PR if there is none (title says in one Chinese sentence what this delivers and references the spec and implementation issues), turn a draft into one ready for review; write the body with the /pr skill (Summary / Evidence / Merge Danger), including per-ticket verdicts and check evidence. /pr only writes the body — it does not create or merge a PR.
+    - [ ] Close only after the PR is merged into the long-lived branch; merely opening a PR or marking it ready does not count. When a human merge is needed, stop and hand the PR link and verdicts to the user, and say they can click "Complete" after the merge. This is a wait, not a failure; do not merge on the user's behalf without their explicit go-ahead in this session.
+    - [ ] Where the repository does not deliver through PRs (the norm in this repository): merge this branch into the long-lived branch and push, then confirm the long-lived branch contains all commits from this run. A PR is not how work is closed; delivery is done only when those commits are really on the long-lived branch.
+    - [ ] If the changes are not committed yet, commit and push them first; stage only the paths this run touched, and write the commit message per the repository's convention, saying what changed and why.
+    - [ ] After the merge, pull the long-lived branch's latest commit and run the checks again on it: the merge can bring cross-effects, so a green run from before the merge is not the conclusion.
+    - [ ] Do not let a PR's closing references close tickets for you (some backends auto-close on keywords); tickets are closed only through deck_issue_patch's verification comment.
+    - [ ] If the long-lived branch does not yet contain the changes, the PR is not merged, or only part was merged: do not close; state exactly what is missing and the next step, and do not reopen implementation issues for this.
+
+    ## 4. Workspace with no version control
+    - [ ] There is no branch, commit history or PR to use: treat the current workspace as the code being handed over, confirm the changes are really there (not only in a temporary directory or a subagent's copy), and run the checks there.
+    - [ ] In the close comment, state "this workspace has no version control; the verdicts above are based on the files in the current workspace", and include the check commands, results, and which files changed.
+
+    ## 5. Close the spec (only after verification and delivery both pass)
+    - [ ] All checks pass → in the same deck_issue_patch call pass comment and close:true: the comment states the per-ticket verdicts, which shape this run was, the branch name and commit (or the PR's merge commit, or the no-version-control note), which checks ran with what results, and the new ticket numbers for leftovers; the tool leaves the comment first, then closes, and a missing comment or any implementation issue still open blocks the close.
+    - [ ] Any check fails → do not close: if the change has not been handed over, say where it stopped and who does the next step (e.g. "waiting for PR #N to merge"); if acceptance is not met, say what is missing and suggest reopening that implementation issue or adding one.
     - [ ] There is no "all sub-issues are closed, so close it" side path: closing the spec only goes through the line above — verify first, then close with the verification comment.
     - [ ] The human can reopen this spec at any time; reopening is a human-only action in the backend — the AI tool surface can close but not reopen.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
+    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session's actual course to review where the current workspace's environment can be further improved. Whether to run it is the user's decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
 specExecute:
-  version: 1
+  version: 2
   placeholders:
     - url
   use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）
@@ -341,6 +383,13 @@ specExecute:
     {url}
 
     按 /implement-spec 技能把这张规格实现完。
+
+    ## 降级路线（技能前提不成立时）
+    - [ ] 开工先验证：当前目录在 git 仓库内且有提交。之后建不出技能要的工作树，也切到这条路线。
+    - [ ] 默认串行：一次一个实现者子代理，地基票（类型、数据层、共享组件）先做，该票验证通过并关票后再起下一个。
+    - [ ] 两张票的文件不重叠才并发：子代理只改本票文件、只跑本票单测；构建、代码生成、全量测试与共享清单、索引文件的改动由你串行做。
+    - [ ] 提交与评审基线：git 可用、只是工作树建不出 → 集成分支按技能建，每票完成后由你在分支上串行提交，只暂存本票改动的路径；没有 git → 动手前把仓库复制到仓库外临时目录，收尾用 diff 作评审与回退依据，票里写「未提交」。
+    - [ ] 全部票关完后跑一次全量验证；交付时说明降级原因与验证结果。
 
     ## 收口
     - [ ] 每完成一张实施 issue，如实更新它的状态与正文。
@@ -355,6 +404,13 @@ specExecute:
     {url}
 
     Follow the /implement-spec skill to implement this whole spec.
+
+    ## Fallback route (when the skill's prerequisites do not hold)
+    - [ ] Verify the premise first: the current directory is inside a git repository and has commits. If you later cannot create the worktrees the skill needs, switch to this route too.
+    - [ ] Default to serial: one implementer subagent at a time; foundation tickets (types, data layer, shared components) first; start the next one only after the current ticket is verified and closed.
+    - [ ] Go concurrent only when two tickets touch disjoint files: a subagent only edits its own ticket's files and only runs its own ticket's unit tests; builds, code generation, the full test suite, and changes to shared manifests or index files are done by you serially.
+    - [ ] Commit and review baseline: when git works and only worktrees cannot be created, build the integration branch per the skill, and after each ticket you commit serially on the branch, staging only that ticket's changed paths; when there is no git, copy the repository to a temporary directory outside the repository before starting, use the diff as the review and rollback basis at the end, and write uncommitted in the tickets.
+    - [ ] After all tickets are closed, run one full verification; in the delivery note, state why the fallback was taken and the verification results.
 
     ## Wrap-up
     - [ ] After each implementation issue is done, update its state and body truthfully.

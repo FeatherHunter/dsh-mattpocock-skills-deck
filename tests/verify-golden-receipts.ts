@@ -84,10 +84,11 @@ const CALLS: GoldenCall[] = [
   // link 的两张子票 key 依赖 plan 的结果（固定为 04 blockedBy 03）。
   { file: '07-deck_map_link.golden.json', tool: 'deck_map_link', args: { key: '04', blockedBy: ['03'] } },
   { file: '08-deck_issue_patch.golden.json', tool: 'deck_issue_patch', args: { key: '01', comment: '金标准评论' } },
-  // #1084：上报可带 0 到 100 的进度自评；金标准也带一格，条目里就多一格 progress。
-  { file: '09-deck_issue_report.golden.json', tool: 'deck_issue_report', args: { key: '01', note: '金标准上报', progress: 62 } },
-  // 同一工具出两份基准时用 id 区分（否则后一次会盖掉前一次的结果）：第 10 份钉住
-  // 「不传进度」的形状——回执 data 与条目都不出现 progress，备注句也与以前逐字一致。
+  // #1352：上报的 progress 已退役——带这个键一律 bad-args，且不选后端、不花点数、不写盘。
+  // 这份基准钉住拒绝回执的形状与措辞；上报的快乐路径由第 10 份守。
+  { file: '09-deck_issue_report-retired-progress.golden.json', tool: 'deck_issue_report', args: { key: '01', progress: 62 } },
+  // 同一工具出两份基准时用 id 区分（否则后一次会盖掉前一次的结果）：第 10 份是不带
+  // progress 的正常上报——回执 data 与条目都不出现那一格。文件名沿用历史，不改。
   { file: '10-deck_issue_report-without-progress.golden.json', tool: 'deck_issue_report', id: 'report-without-progress', args: { key: '01', note: '金标准上报（不带进度）' } },
 ]
 

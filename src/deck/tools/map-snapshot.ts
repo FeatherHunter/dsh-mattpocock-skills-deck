@@ -9,7 +9,7 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { childrenOf } from '../shell/edge-landing.js'
 import { deriveDeck, parseProgress } from '../../tracker/deck-derive.js'
-import { parseMapBody } from '../../tracker/body-parse.js'
+import { parseMapBody, parseOriginalWords, parseProgressDetail } from '../../tracker/body-parse.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 import { withCallScope } from '../shell/call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -63,7 +63,16 @@ function childRow(issue: Record<string, unknown>) {
   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
   // 进度直接从正文算（与汇总用的同一个函数，结果一致）：汇总那张表按池内身份存键，
   // 行里拿裸票号去查恒查不到，之前有子票的地图就整包被外层拒收（只读空地图能过）。
-  return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '', progress: parseProgress(issue.body) }
+  // #1090：数字（progress）保留给面板与既有读法；另给 progressDetail 结构化那一条，
+  // 里面含记录时间与说明，与 deck_issue_get 读回来的是同一份。
+  return {
+    key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy,
+    updatedAt: issue.updatedAt || '', progress: parseProgress(issue.body),
+    progressDetail: parseProgressDetail(issue.body),
+    // #1092：full 行也带上「维护者原话」的结构化读回，与 deck_issue_get 是同一份（同一函数、逐字）。
+    // thin 行故意不加：薄行是「票多时只要清单」那一档，要原话的人应当逐张读 deck_issue_get。
+    originalWords: parseOriginalWords(issue.body),
+  }
 }
 
 // 薄行：只要画清单用得上的格，不要正文与进度（回包小、票多时不断；统计与进度表另有去处）。

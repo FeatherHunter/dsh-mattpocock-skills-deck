@@ -323,13 +323,15 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           const bg = 'rgba(245,158,11,.12)', bd='rgba(245,158,11,.45)', col='#f59e0b'
           if (isPending) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6 } }, [
             h('span', { className:'dsws-spinner', style:{ width:11, height:11, borderWidth:2, display:'inline-block' } }),
-            h('span', { style:{ flex:1 } }, '正在探测后端 — 若长时间停留请手动选择'),
-            h('button', { className:'dsws-btn', onClick:function(){ if(typeof host!=='undefined'&&host.call) host.call('wf.registry',{cwd:s.cwd||''}).then(function(){ loadSnapshot(s,true,true)}) }, style:{ fontSize:10, padding:'1px 6px', flex:'none' } }, '重试'),
+            h('span', { style:{ flex:1 } }, tr('switch.probeRunningHint')),
+            // 接线（#1335 界面反馈）：黄条上这颗「重试」是用户真的会点的按钮，按压反馈与点击日志都接上。
+            //   日志名只写固定枚举（不写按钮上的字），看日志时凭 panel.pending.retry 认出就是这一颗。
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.retry', onClick:function(){ if(typeof host!=='undefined'&&host.call) host.call('wf.registry',{cwd:s.cwd||''}).then(function(){ loadSnapshot(s,true,true)}) }, style:{ fontSize:10, padding:'1px 6px', flex:'none' } }, tr('pr.retry')),
           ])
           if (isMulti) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' } }, [
             Ic({n:'alert',size:11, color:col}),
-            h('span', { style:{ flex:1 } }, '检测到多个可用后端：' + sel.multiHit.join(', ') + ' — 建议显式绑定'),
-            h('button', { className:'dsws-btn', onClick:function(){ s.tab='list'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, '去设置页绑定'),
+            h('span', { style:{ flex:1 } }, tr('switch.multiHitLine', { list: sel.multiHit.join(', ') })),
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.bind', onClick:function(){ s.tab='list'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, tr('switch.goSettingsBind')),
           ])
           return null
         })(),
@@ -344,24 +346,29 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, [
               h('span', { className:'dsws-spinner', style:{ width:16, height:16, borderWidth:2, display:'inline-block' } }),
               h('div', { style:{ flex:1 } }, [
-                h('div', { style:{ fontSize:13, fontWeight:700, color:'#f59e0b' } }, '正在探测后端'),
-                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, '探测未决 — 若长时间停留请手动选择'),
+                h('div', { style:{ fontSize:13, fontWeight:700, color:'#f59e0b' } }, tr('switch.probeRunning')),
+                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, tr('switch.probePendingHint')),
               ]),
             ]),
             h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 } }, [
-              h('button', { className:'dsws-btn', onClick:function(){ s.tab='list'; emit(s); _openGateModal() }, style:{ fontSize:11, padding:'4px 10px' } }, '去设置页选择'),
-              h('button', { className:'dsws-btn primary', onClick:function(){ loadSnapshot(s,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'4px 10px' } }, '重试探测'),
+              h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.pick', onClick:function(){ s.tab='list'; emit(s); _openGateModal() }, style:{ fontSize:11, padding:'4px 10px' } }, tr('switch.goSettingsPick')),
+              h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'panel.pending.reprobe', onClick:function(){ loadSnapshot(s,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'4px 10px' } }, tr('switch.retryProbe')),
             ]),
           ])
         ]) : _isOther ? h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '12px', position:'relative', display:'flex', flexDirection:'column', alignItems:'stretch', gap:10 } }, [
-          h('div', { onClick: _openGateModal, style:{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', borderRadius:10, cursor:'pointer', color:'#58a6ff', fontSize:12, fontWeight:600 } }, [
+          // 接线（#1335 界面反馈）：这整条提示卡本身就是入口（点它去选后端），按「整卡可点」接 row 形状。
+          //   卡里那颗「去选择」只是行内的一枚字，不是另一颗按钮，点击仍由这张卡接住。
+          h('div', { className:'dsws-hov', 'data-press':'row', 'data-log':'panel.norepo.row', onClick: _openGateModal, style:{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', borderRadius:10, cursor:'pointer', color:'#58a6ff', fontSize:12, fontWeight:600 } }, [
             Ic({ n: 'compass', size:14, color:'#58a6ff' }),
             h('span', { style:{ flex:1 } }, '该工作区还没有设置 — 点击选择后端'),
             h('span', { style:{ fontSize:11, color:'#58a6ff', border:'1px solid rgba(56,139,253,.4)', borderRadius:6, padding:'1px 6px', background:'rgba(56,139,253,.12)' } }, '去选择'),
           ]),
           h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'0 2px' } }, '选择后将回到主线流程（列表/状态栏正常可用），仅设置页可见引导已隐藏主线'),
-          _gateOpen ? h('div', { onClick:function(e: any){ if(e.target===e.currentTarget) _closeGateModal() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'12px 16px', paddingTop:'12px', zIndex:5 } }, [
-            h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:'16px', width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
+          // 接线（#1335 界面反馈）：点遮罩空白处会关窗 —— 遮罩是用户真的会点的地方，接 other 形状。
+          //   弹窗盒自己不是控件（它的点击只是不让遮罩那条判定生效），但日志要能把「点空白关窗」与
+          //   「点弹窗里的字」分开，所以盒上单独挂一个 data-log；不挂 data-press，免得一按整块弹窗都变暗。
+          _gateOpen ? h('div', { 'data-press':'other', 'data-log':'panel.gate.overlay', onClick:function(e: any){ if(e.target===e.currentTarget) _closeGateModal() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'12px 16px', paddingTop:'12px', zIndex:5 } }, [
+            h('div', { 'data-log':'panel.gate.dialog', style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:'16px', width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
               h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, '请选择 Tracker 后端以继续')]),
               h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程（列表/状态栏正常可用）'),
               h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:10 } }, tr('gate.wipNotice')),
@@ -372,7 +379,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
                 // #669 第 6 件（ADR 20260921）：今天能选的只有 GitHub 与本地 Markdown —— 能力不全的后端
                 //   在门控窗里也置灰不可选（判据只问 isBackendUnavailable 一份），理由放鼠标悬停。
                 const locked = (typeof isBackendUnavailable==='function') && isBackendUnavailable(m.id)
-                const row = h('label', { key:m.id, 'data-target-id':m.id, 'data-target-locked': locked ? 1 : 0, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1 } }, [
+                // 接线（#1335 界面反馈）：整行都是可点的（点行等于点那颗 radio），接 row 形状；
+                //   日志名用后端标识 m.id（固定枚举，不是行上那行展示文字）拼出来，同屏两颗后端行不会撞名。
+                const row = h('label', { key:m.id, className:'dsws-hov', 'data-press':'row', 'data-log':'panel.gate.pick.' + m.id, 'data-target-id':m.id, 'data-target-locked': locked ? 1 : 0, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1 } }, [
                   h('input', { type:'radio', name:'dsws-gate-pick', checked:isSel, disabled: !!locked, onChange:function(){ if (locked) return; s.gateSelected=m.id; emit(s) } }),
                   h('span', { style:{ width:8, height:8, borderRadius:'50%', background:col, flex:'none' } }),
                   h('span', { style:{ fontSize:12, fontWeight:600 } }, m.label),
@@ -384,8 +393,8 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
               })),
               s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
               h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } }, [
-                h('button', { className:'dsws-btn ghost', onClick: _closeGateModal, style:{ fontSize:12 } }, '取消'),
-                h('button', { className:'dsws-btn primary', onClick: _confirmGate, style:{ background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:700, fontSize:12 } }, '确认并继续'),
+                h('button', { className:'dsws-btn ghost dsws-hov', 'data-press':'button', 'data-log':'panel.gate.cancel', onClick: _closeGateModal, style:{ fontSize:12 } }, '取消'),
+                h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'panel.gate.confirm', onClick: _confirmGate, style:{ background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:700, fontSize:12 } }, '确认并继续'),
               ]),
             ])
           ]) : null,

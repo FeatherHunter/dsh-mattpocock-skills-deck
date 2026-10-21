@@ -43,6 +43,11 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   }
   let k = 0
   const key = function (): string { k += 1; return 'pxd' + k }
+  // 下面三个计数器给正文里能点的元素编号：同一篇正文里链接、图片、技能引用都可能不止一个，
+  // 编号保证同屏里每颗控件的定位名都不同（文字会变，不能拿文字当定位名）。
+  let linkN = 0
+  let imgN = 0
+  let skillN = 0
   const openImg = function (src: string, alt: string): void {
     if (!st || !src) return
     st.pixelImgOverlay = { src: src, alt: String(alt || '').slice(0, 200) }
@@ -138,11 +143,16 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     rest = rest.replace(/`([^`]+)`/g, function (all: string, code: string) {
       const ref = skillRefOf(code)
       if (ref) {
+        skillN += 1
         return mark(h('code', {
           key: key(),
           className: 'pixel-skillref',
           role: 'button',
           tabIndex: 0,
+          // 接线（#1335 界面反馈）：正文里写到的技能名是一个能点的入口（role=button），
+          // 按下要有按压反馈；定位名只带编号，日志里能认出点的是第几个技能引用。
+          'data-press': 'button',
+          'data-log': 'sd.md.skill.' + skillN,
           onClick: function () { try { (p.onSkill as (n: string) => void)(ref) } catch (e) { /* 忽略 */ } },
         }, code))
       }
@@ -158,13 +168,29 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
       if (!/^https:/i.test(url)) return alt || ''
       const clickable = !inLink && !!st
       const props: Record<string, any> = { key: key(), src: url, alt: alt || 'Image', loading: 'lazy' }
-      if (clickable) props.onClick = function () { openImg(url, alt) }
+      if (clickable) {
+        imgN += 1
+        props.onClick = function () { openImg(url, alt) }
+        // 接线（#1335 界面反馈）：点图会放大，图片没有按钮那种固定形状，用 other 档；
+        // 编号让同屏多张图分得清点的是哪一张。
+        props['data-press'] = 'other'
+        props['data-log'] = 'sd.md.img.' + imgN
+      }
       return mark(h('img', props))
     })
     // ④ 链接：只认 http(s)；标签递归解析，共用同一张原子表（标签里的代码才找得回自己那条）
     rest = rest.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, function (all: string, label: string, url: string) {
       if (!/^https?:/i.test(url)) return label
-      return mark(h('a', { key: key(), href: url, target: '_blank', rel: 'noreferrer' }, pxInlineWith(label, true, atoms)))
+      linkN += 1
+      return mark(h('a', {
+        key: key(),
+        href: url,
+        target: '_blank',
+        rel: 'noreferrer',
+        // 接线（#1335 界面反馈）：正文里的外链用 link 这一档；链接文字会变，定位名只带编号。
+        'data-press': 'link',
+        'data-log': 'sd.md.link.' + linkN,
+      }, pxInlineWith(label, true, atoms)))
     })
     return expand(emphasisOf(rest))
   }
@@ -261,16 +287,22 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
       key: 'ov',
       className: 'pixel-overlay',
       style: { position: 'fixed', zIndex: 10000 },
+      // 接线（#1335 界面反馈）：点遮罩空白处会关掉放大层，遮罩自己也是能点到的，所以接一组标识；
+      // 它不是按钮，用 data-press 的 other 档，表示「按下去的是个没有固定形状的东西」。
+      'data-press': 'other',
+      'data-log': 'sd.md.img.backdrop',
       onClick: function (e: any) { try { if (e.target === e.currentTarget) { st.pixelImgOverlay = null; emit(st) } } catch (err) { /* 忽略 */ } },
     }, h('div', { className: 'pixel-modal', style: { maxWidth: '92%' } }, [
       h('div', { key: 't', className: 'pixel-top' }, [
         h('span', { key: 'a', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, ov.alt || 'Image'),
-        h(PixelBtn, { key: 'x', mini: true, onClick: function () { st.pixelImgOverlay = null; try { emit(st) } catch (err) { /* 忽略 */ } } }, '✕'),
+        // 按压形状是 icon 档：这颗只有「✕」一个符号，小图标下沉会看着歪。
+      h(PixelBtn, { key: 'x', mini: true, 'data-press': 'icon', 'data-log': 'sd.md.img.close', onClick: function () { st.pixelImgOverlay = null; try { emit(st) } catch (err) { /* 忽略 */ } } }, '✕'),
       ]),
       h('div', { key: 'b', className: 'pixel-body', style: { display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('img', { src: ov.src, alt: ov.alt || 'Image', style: { maxHeight: '60vh' } })),
       h('div', { key: 'f', className: 'pixel-bot' }, [
         h('span', { key: 'u', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 } }, ov.src),
-        h('a', { key: 'o', href: ov.src, target: '_blank', rel: 'noreferrer', style: { color: '#5b3df0', fontSize: 11, flex: 'none' } }, tr('sd.openLink')),
+        // 接线（#1335 界面反馈）：放大层底部那颗「打开原图」也是外链，用 link 档；它跟正文里的链接不是同一颗，定位名要分开。
+        h('a', { key: 'o', href: ov.src, target: '_blank', rel: 'noreferrer', 'data-press': 'link', 'data-log': 'sd.md.img.openlink', style: { color: '#5b3df0', fontSize: 11, flex: 'none' } }, tr('sd.openLink')),
       ]),
     ])) : null,
   ])

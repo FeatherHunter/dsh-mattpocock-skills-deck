@@ -1,0 +1,17 @@
+{
+  // 纯 TypeScript：本域只有一份取值名单，没有旧语言文件要兼容。
+  "compilerOptions": {
+    // 输出目标定死保守版本：Node 宿主与浏览器闭包两边都跑得动（与其它共享域同一套保证）。
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // 只做类型检查不产出：真正的 JS 由 scripts/build.mts 经 esbuild 转译生成。
+    "noEmit": true,
+    "strict": true,
+    // 纯数据与类型，不碰任何 Node 或浏览器专属能力。
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}

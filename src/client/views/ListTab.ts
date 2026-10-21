@@ -186,7 +186,9 @@ export     const ListTab = ({ st, narrow }: any) => {
       // #690：再并上「按需翻回来的那些页」里池子没有的行（issuePageRowsOf 已按身份去掉重复的），
       //   于是已关闭那一堆里既有首屏那一百条、也有用户翻出来的更早的票；静默刷新只换池子，页数据不动。
       const issues = ticketRowsOf((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).concat(issuePageRowsOf(st, 'list'))
-      // #374：多维排序 —— map 行恒置顶，map 组与普通组各自按所选维度排序；默认 更新时间↓（与现状一致）
+      // 列表排序：置顶的探索地图组与规格组各自按面板所选排序档排，组内与普通票共用下面同一套比较；
+      //   组间顺序固定「探索地图 → 规格 → 普通票」，不跨组比较时间。默认排序档是「编号升序」
+      //   （来自内核 store-prefs 里的初始偏好，不是「更新时间降序」）。
       // #1253 优化（行为不变，只是把重复计算挪到排序前算一次）：原来每比较一对票就要现做一次
       //   String(...) 转换与 localeCompare 的入参准备，一张五千行的列表要比较约六万次；现在先把
       //   每张票的比较键（数字键 / 小写标题 / 所选维度文本 / effort）各算一次，再让比较函数只用
@@ -235,7 +237,7 @@ export     const ListTab = ({ st, narrow }: any) => {
       }
       const mapOnlyIssues: any[] = []
       // #1286：规格容器单独一桶。列表顺序是「探索地图 → 规格 → 普通票」，
-      //   两类容器各自成组；组内按最近更新降序（容器是正在推进的东西，组内不看面板选的那个排序档）。
+      //   两类容器各自成组；组内顺序跟面板选的那个排序档走，与普通票共用同一套比较（#1356）。
       const specOnlyIssues: any[] = []
       const plainOpenIssues: any[] = []
       const closedIssues: any[] = []
@@ -246,18 +248,9 @@ export     const ListTab = ({ st, narrow }: any) => {
         if (cKind === 'map') { mapOnlyIssues.push(x); continue }
         plainOpenIssues.push(x)
       }
-      // #1286：容器组内按最近更新降序。updatedAt 是宿主给的 ISO 时间串，字典序即时间序；
-      //   同一时刻用编号升序兜底，保证顺序稳定。
-      const sortContainers = function (arr: any[]) {
-        return arr.slice().sort(function (a: any, b: any) {
-          const av = String((a && a.updatedAt) || '')
-          const bv = String((b && b.updatedAt) || '')
-          if (av !== bv) return av < bv ? 1 : -1
-          return (a.number - b.number)
-        })
-      }
-      const sortedMaps = sortContainers(mapOnlyIssues)
-      const sortedSpecs = sortContainers(specOnlyIssues)
+      // #1356：容器组内不再另写排序，直接复用上面普通票的 sortIssues；三段拼接保持不变。
+      const sortedMaps = sortIssues(mapOnlyIssues)
+      const sortedSpecs = sortIssues(specOnlyIssues)
       const sortedOpen = sortIssues(plainOpenIssues)
       const closedSorted = sortIssues(closedIssues)
       const groups = compute(st)
@@ -305,7 +298,8 @@ export     const ListTab = ({ st, narrow }: any) => {
         if (!labs.length) return ls.indexOf('needs-triage') >= 0
         return labs.some(function (l: any) { return ls.indexOf(l.name) >= 0 })
       }
-      // #1286：三段顺序 —— 探索地图 → 规格 → 普通票（容器组在前，普通票仍按面板排序档）
+      // #1286 / #1356：三段顺序 —— 探索地图 → 规格 → 普通票；三段各自按面板排序档排（组内同一套比较），
+      //   组间顺序固定，不跨组比较时间。
       const openRows = sortedMaps.concat(sortedSpecs).concat(sortedOpen).filter(effPass)
       const closedRows = closedSorted.filter(effPass)
       const openFiltered = (st.lblFilters && st.lblFilters.length) ? openRows.filter(byLabel) : openRows
@@ -333,15 +327,18 @@ export     const ListTab = ({ st, narrow }: any) => {
         // v1.5：已选标签过滤条（仅标签 · 颜色 = 该标签配置色 · 点 ✕ 关闭）
         (st.lblFilters && st.lblFilters.length) ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
           h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', flex: 'none' } }, tr('list.filterActive')),
-          (st.lblFilters || []).map(function (nm: any) {
+          (st.lblFilters || []).map(function (nm: any, i: any) {
             const c = colorOf[nm]
             const hex = c ? '#' + c : '#bc8cff'
             return h('span', { key: 'f-label-' + nm, className: 'dsws-chip', style: { fontSize: 10, background: hexA(c, 0.18) || 'rgba(188,140,255,.16)', color: hex, border: '1px solid ' + (darken(c, 0.16) || 'rgba(188,140,255,.6)') } }, [
               nm,
-              h('span', chipProps({ onClick: function (e: any) { e.stopPropagation(); st.lblFilters = (st.lblFilters || []).filter(function (x: any) { return x !== nm }); emit(st) }, 'aria-label': tr('list.filterRemoveAria', { name: nm }), style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
+              // 本次界面反馈需求：✕ 是一颗能点的小控件（去掉这一个标签的过滤），给它自己的按压态与点击日志；
+              //   定位串用它在已选标签条里的序号（标签名可能是中文，进不了定位串）。
+              h('span', chipProps({ 'data-press': 'chip', 'data-log': 'list.filter.remove.' + i, onClick: function (e: any) { e.stopPropagation(); st.lblFilters = (st.lblFilters || []).filter(function (x: any) { return x !== nm }); emit(st) }, 'aria-label': tr('list.filterRemoveAria', { name: nm }), style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
             ])
           }),
-          h('span', chipProps({ key: 'f-label-clear', className: 'dsws-chip', onClick: function (e: any) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }), tr('list.filterClear')),
+          // 本次界面反馈需求：「清除」药丸能点（清空已选标签），给它自己的按压态与点击日志。
+          h('span', chipProps({ key: 'f-label-clear', className: 'dsws-chip dsws-hov', 'data-press': 'chip', 'data-log': 'list.filter.clear', onClick: function (e: any) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }), tr('list.filterClear')),
         ]) : null,
         // B Timeline 定版（2026-08-28）：全屏红卡（NoRepoCard）不再挂载于列表页顶部——
         //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
@@ -369,7 +366,11 @@ export     const ListTab = ({ st, narrow }: any) => {
             if (btnTier === ' narrow-icon') { hcStyle.padding = '0'; hcStyle.justifyContent = 'center' }
             else if (btnTier === ' narrow-count') { hcStyle.padding = '1px 5px'; hcStyle.gap = 2 }
             return h(Tip, { content: tr('list.healthCheckTitle') + (isPartial ? '\n' + tr('list.partialTitle') : '') }, h('button', {
-              className: 'dsws-btn' + btnTier,
+              // 本次界面反馈需求：体检按钮带按压态与点击日志，点了它从日志一眼认出是它；
+              //   窄态（narrow-icon）下它只剩一枚图标，按用户口径只给按压态、不给下沉位移。
+              className: 'dsws-btn' + btnTier + (btnTier === ' narrow-icon' ? '' : ' dsws-hov'),
+              'data-press': 'button',
+              'data-log': 'list.healthcheck',
               onClick: function (e: any) { e.stopPropagation(); openHealthCheck(st) },
               style: hcStyle,
             }, [Ic({ n: 'clipboard', size: 11 }), (btnTier === ' narrow-count' || btnTier === '') ? h('span', null, tr('list.healthCheck') + (nHc == null ? '' : ' ' + nHc)) : null, (isPartial ? h('span', { 'aria-label': tr('list.partial'), style: { position: 'absolute', top: 1, right: 3, width: 5, height: 5, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 0 1px rgba(0,0,0,.6)', pointerEvents: 'none' } }) : null)]))
@@ -379,10 +380,12 @@ export     const ListTab = ({ st, narrow }: any) => {
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // effort 筛选行（仅多 effort 仓库出现）：点一下只看某个 effort，再点取消；与状态/label 过滤叠加
         multiEffort ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
-          h('span', chipProps({ key: 'eff-all', className: 'dsws-chip', onClick: function (e: any) { e.stopPropagation(); st.effFilters = []; emit(st) }, style: { cursor: 'pointer', fontSize: 10, background: !(st.effFilters || []).length ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: !(st.effFilters || []).length ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (!(st.effFilters || []).length ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.all')),
-          effortNames.map(function (nm: any) {
+          h('span', chipProps({ key: 'eff-all', className: 'dsws-chip dsws-hov', 'data-press': 'chip', 'data-log': 'list.effort.all', onClick: function (e: any) { e.stopPropagation(); st.effFilters = []; emit(st) }, style: { cursor: 'pointer', fontSize: 10, background: !(st.effFilters || []).length ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: !(st.effFilters || []).length ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (!(st.effFilters || []).length ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.all')),
+          effortNames.map(function (nm: any, i: any) {
             const on = (st.effFilters || []).indexOf(nm) >= 0
-            return h(Tip, { content: nm }, h('span', chipProps({ key: 'eff-' + nm, className: 'dsws-chip', 'aria-label': nm, onClick: function (e: any) {
+            // 本次界面反馈需求：effort 药丸能点（只看某个 effort），给它自己的按压态与点击日志；
+            //   定位串用序号（effort 名可能是任意字符，进不了定位串）。
+            return h(Tip, { content: nm }, h('span', chipProps({ key: 'eff-' + nm, className: 'dsws-chip dsws-hov', 'aria-label': nm, 'data-press': 'chip', 'data-log': 'list.effort.' + i, onClick: function (e: any) {
               e.stopPropagation()
               const cur = st.effFilters || []
               st.effFilters = on ? cur.filter(function (x: any) { return x !== nm }) : cur.concat([nm])
@@ -421,7 +424,8 @@ export     const ListTab = ({ st, narrow }: any) => {
         // #689：文案改成「已关闭 N（已加载 x）」—— N 是后端计数说的总数，x 是列表里真加载到的行数；
         //   两个不一样时（本仓现在就是）用户一眼能看出「还有多少没装进来」，而不是以为列表就是全部。
         (st.stateFilter === 'all' && closedRows.length) ? h('details', { style: { marginTop: 8 }, onToggle: function (e: any) { const open = !!(e && e.target && e.target.open); st.closedFoldOpen = open; emit(st); if (open) loadIssuePage(st, { view: 'list' }) } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 2px', userSelect: 'none' } }, [
+          // 本次界面反馈需求：折叠条能点（展开已关闭列表），给它自己的按压态与点击日志。
+          h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'list.fold.closed', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 2px', userSelect: 'none' } }, [
             Ic({ n: 'check', size: 11 }),
             h('span', null, tr('list.closedN', { n: foldCounts ? foldCounts.closed : closedRows.length, x: closedRows.length })),
           ]),

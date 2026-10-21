@@ -84,6 +84,8 @@ function makeSettle (steps: any, opts?: { blocksSetup?: boolean, debug?: boolean
   const o = opts || {}
   const seen: any = { inject: [], flash: [], prompt: [], log: [], decision: [] }
   const sandbox: any = {
+    // #1342：StatusBackend 的布局取值名单由构建从共享真源拼进闭包，求值真源文本时按真值顶一份。
+    DOC_LAYOUT_VALUES: ['single', 'multi'],
     chainSteps: (st: any) => (st && st.chainSnapshot && st.chainSnapshot.steps) || [],
     guideStepsFor: GUIDE.guideStepsFor,
     guideStepDone: GUIDE.guideStepDone,
@@ -168,6 +170,8 @@ function makeStatusFlow (steps: any, opts?: { layout?: string }): any {
   const o = opts || {}
   const seen: any = { inject: [], flash: [], log: [], decision: [], host: [] }
   const sandbox: any = {
+    // #1342：StatusBackend 的布局取值名单由构建从共享真源拼进闭包，求值真源文本时按真值顶一份。
+    DOC_LAYOUT_VALUES: ['single', 'multi'],
     chainSteps: (st: any) => (st && st.chainSnapshot && st.chainSnapshot.steps) || [],
     guideStepsFor: GUIDE.guideStepsFor,
     guideStepDone: GUIDE.guideStepDone,
@@ -217,6 +221,8 @@ console.log('== G 反证：三处实现各做坏一次，对应的断言必须�
   check(brokenSettle !== sbSrc, '反证 ② 的改法能在真源里落地')
   const seen2: any = { inject: [], flash: [], decision: [] }
   const sb2: any = {
+    // #1342：同 E 组 —— 布局取值名单来自共享真源，求值真源文本时按真值顶一份。
+    DOC_LAYOUT_VALUES: ['single', 'multi'],
     chainSteps: (st: any) => st.chainSnapshot.steps, guideStepsFor: GUIDE.guideStepsFor, guideStepDone: GUIDE.guideStepDone,
     firstBackendIdOf: () => 'github', tr: (k: string) => String(k),
     flash: () => {}, inject: (st: any, t: unknown) => seen2.inject.push(String(t)),

@@ -107,7 +107,9 @@ export const IssueDetail = function (props: any): any {
         const rawText = errRawOf(e)
         if (!rawText) return null
         return h('details', { style: { width: '100%', marginTop: 2, paddingTop: 4, borderTop: '1px solid rgba(248,113,113,.25)' } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
+          // 本次界面反馈需求：错误原文的折叠条能点，给它悬停反馈、按压态与自己的点击日志。
+          //   原文是自由文本，不进定位串。
+          h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.err.raw.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
           h('div', { style: { marginTop: 4, padding: '6px 8px', background: 'rgba(0,0,0,.18)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' } }, rawText),
         ])
       }
@@ -167,17 +169,21 @@ export const IssueDetail = function (props: any): any {
               h('span', { style: { wordBreak: 'break-word' } }, errSayOf(err)),
               errKindOf(err) ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, errKindOf(err)) : null,
               h('span', { style: { flex: 1 } }),
-              h('button', { className: 'dsws-btn primary', onClick: doRetry, style: { padding: '1px 8px', fontSize: 11, background: '#f87171', borderColor: 'transparent', color: '#fff' } }, '重试'),
+              // 本次界面反馈需求：错误态里「重试」与「在追踪器中查看」是用户此时仅有的两个出口，
+              //   各自带按压态、悬停反馈与点击日志；附近没有带 data-log 的祖先，不接就完全没有日志。
+              h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'detail.err.retry', onClick: doRetry, style: { padding: '1px 8px', fontSize: 11, background: '#f87171', borderColor: 'transparent', color: '#fff' } }, '重试'),
                             // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
               (function () {
                 const _u = issueUrlFor(st, issueNumber, issueEffort)
                 const _isHttp = /^https?:\/\//i.test(String(_u || ''))
                 const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
-                const _props = { className: 'dsws-btn ghost', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }
+                const _props = { className: 'dsws-btn ghost dsws-hov', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }
                 const _kids = [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]
+                // 本次界面反馈需求：https 与本地两条分支各带一个定位串，日志里能认出点的是哪一条；
+                //   定位串里不写票号以外的内容，票号是自由文本之外的标识仍不入串。
                 return _isHttp
-                  ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer' }, _props), _kids)
-                  : h('button', Object.assign({ type: 'button', onClick: _openLocal }, _props), _kids)
+                  ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer', 'data-press': 'link', 'data-log': 'detail.err.open' }, _props), _kids)
+                  : h('button', Object.assign({ type: 'button', onClick: _openLocal, 'data-press': 'button', 'data-log': 'detail.err.open.local' }, _props), _kids)
               })(),
             ]),
             errRawBlockOf(err),
@@ -349,7 +355,9 @@ export const IssueDetail = function (props: any): any {
             h('span', { style: { wordBreak: 'break-word' } }, errSayOf(err)),
             errKindOf(err) ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, errKindOf(err)) : null,
             h('span', { style: { flex: 1 } }),
-            h('button', { className: 'dsws-btn', onClick: doRetry, style: { padding: '1px 6px', fontSize: 11 } }, '重试'),
+            // 本次界面反馈需求：顶部错误横幅的「重试」与详情页错误态的「重试」会出现在同一屏，
+            //   两处定位串必须不同，否则日志分不出是哪一颗被点了。
+            h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'detail.err.retry.banner', onClick: doRetry, style: { padding: '1px 6px', fontSize: 11 } }, '重试'),
             !detail && snapIssue ? h('span', { style: { fontSize: 10, color: '#f59e0b' } }, '（显示快照降级）') : null,
           ]),
           errRawBlockOf(err),
@@ -383,7 +391,7 @@ export const IssueDetail = function (props: any): any {
           Ic({ n: 'map', size: 11, color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '' }),
           h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, '属于'),
           // T4 #554：所属地图链接压栈进下一层（保留返回路径，不断掉上一级）。
-          h('a', { href: '#', className: 'dsws-hov', 'data-press': 'row', 'data-log': 'issue.parent.' + parentMap.number, onClick: function (e: any) { e.preventDefault(); pushNav(st, 'map', parentMap.number, effortOf(parentMap)) }, style: { color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', textDecoration: 'underline', fontWeight: 600 } }, '#' + parentMap.number + ' ' + parentMap.title),
+          h('a', { href: '#', className: 'dsws-hov', 'data-press': 'row', 'data-log': 'issue.parent.' + parentMap.number, onClick: function (e: any) { e.preventDefault(); pushNav(st, 'map', parentMap.number, effortOf(parentMap)) }, style: { color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', textDecoration: 'underline', fontWeight: 600, display: 'inline-block', borderRadius: 3 } }, '#' + parentMap.number + ' ' + parentMap.title),
         ]) : null,
         // body
         h('div', { style: { padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [

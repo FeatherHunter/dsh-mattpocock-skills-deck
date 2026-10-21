@@ -29,9 +29,10 @@ export     const RunPanel = (props: any) => {
         ]),
         h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', margin: '6px 0' } }, tr('run.desc')),
         h('div', { className: 'dsws-uirow' }, [
-          h('button', { className: 'dsws-btn', onClick: function () { openPanel(s) } }, tr('run.openPanel')),
+          // 本次界面反馈需求：两个按钮各带按压态、悬停反馈与点击日志，日志里能认出点的是哪一颗。
+          h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'run.openpanel', onClick: function () { openPanel(s) } }, tr('run.openPanel')),
           // v25：设置面板为 shell 组件本地状态、无公开打开 API（已查证）→ 按钮引导路径（偏离记录见 T2a resolution）
-          h('button', { className: 'dsws-btn', onClick: function () { flash(s, tr('run.cfgGuide'), 'info') } }, tr('run.openCfg')),
+          h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'run.openconfig', onClick: function () { flash(s, tr('run.cfgGuide'), 'info') } }, tr('run.openCfg')),
         ]),
       ])
     }

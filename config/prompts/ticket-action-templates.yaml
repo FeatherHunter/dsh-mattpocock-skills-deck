@@ -1,16 +1,26 @@
 tpl.diagnose:
-  version: 15
+  version: 16
   placeholders:
     - url
-  use: 动作按钮「诊断」（needs-triage 票）· 只留收尾与工具节，诊断步骤交给 /triage 技能（#1281）
+  use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）
   zh: |-
     /triage
     {url}
 
-    按 /triage 技能诊断这张 issue。
+    按 /triage 技能诊断这张 issue；诊断不等于修复，只弄清问题与分流：不改业务代码、不开始实施。
+
+    ## 先核对是否已有实施
+    - [ ] 先看正文、评论与已有记录里有没有实施痕迹：验收标准全部满足的，按 /triage 处理“已实现”票的规则收口，不要重复实施；只做了一半的，写明还缺什么再继续诊断；没有实施记录的，按正常诊断走。
+
+    ## 调查（建议先查后问）
+    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
+    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
-    - [ ] 结束前把这张票的真实状态写进正文；结尾用提问格式收尾：有待维护者拍板的事，有几个就问几个，写成❓ Q1、Q2、Q3，逐个给推荐答案（➡️），等回复再动
+    - [ ] 结束前把这张票的真实状态写进正文；结尾用提问格式收尾：有待维护者拍板的事，有几个就问几个，写成❓ Q1、Q2、Q3，逐个给推荐答案（➡️），等回复再动。
+    - [ ] 说明回复后你准备执行什么标签动作；没有待拍板的问题时，写明这张票已转到哪个终态。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
@@ -19,10 +29,20 @@ tpl.diagnose:
     /triage
     {url}
 
-    Follow the /triage skill to diagnose this issue.
+    Follow the /triage skill to diagnose this issue; diagnosing is not fixing — only establish the problem and route it: do not change product code, and do not start implementing.
+
+    ## Check for existing implementation first
+    - [ ] First check the body, comments, and existing records for any implementation work: if every acceptance criterion is met, close it out per the /triage rules for an already-implemented ticket and do not re-implement; if it is only half done, state what is still missing and keep diagnosing; if no implementation is recorded, diagnose it as usual.
+
+    ## Investigate first (recommended: look before asking)
+    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
+    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template’s original question format.
 
     ## Wrap-up
-    - [ ] Before finishing, write the true state of this ticket into its body; end with the question format: list every decision the maintainer must make as ❓ Q1, Q2, Q3, each with a recommended answer (➡️), and wait for the reply before acting
+    - [ ] Before finishing, write the true state of this ticket into its body; end with the question format: list every decision the maintainer must make as ❓ Q1, Q2, Q3, each with a recommended answer (➡️), and wait for the reply before acting.
+    - [ ] State what label action you will take once the reply comes; if there is nothing to decide, state clearly which terminal state this ticket has been moved to.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
@@ -391,15 +411,21 @@ tpl.supplement:
     - [ ] After the user replies (next session): first check which questions the reply covers, then move the label back to needs-triage for re-triage — do not linger on needs-info
     - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 tpl.takeover:
-  version: 6
+  version: 7
   placeholders:
     - url
-  use: 动作按钮「接手」（ready-for-human 票）· 补 /wizard 落点（#1281）
+  use: 动作按钮「接手」（ready-for-human 票）· 恢复调查节；补 /wizard 落点（#1212、#1281）
   zh: |-
     /wayfinder
     {url}
 
     这张票需要人接手：按 wayfinder 技能推进，除用户亲自做的部分外都由你完成。
+
+    ## 调查（建议先查后问）
+    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
+    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 判断人工档位
     - [ ] 复核这个判定属于哪一类：判断类决策 / 外部权限 / 设计决策 / 需人工测试。
@@ -422,6 +448,12 @@ tpl.takeover:
     {url}
 
     This ticket needs a human hand: advance it with the wayfinder skill; everything except the parts the user must do themselves is yours.
+
+    ## Investigate first (recommended: look before asking)
+    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
+    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template’s original question format.
 
     ## Decide the human tier
     - [ ] Re-check which tier this decision belongs to: judgement call / external permission / design decision / manual testing.

@@ -150,6 +150,9 @@ async function main() {
   const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
   const sbSeen: { injected: string[]; decisions: Array<{ id: string; allowCard: boolean; askLayout: boolean }>; bound: any[] } = { injected: [], decisions: [], bound: [] }
   const sbSandbox = {
+    // #1342：布局取值名单收到共享真源 src/shared/doc-layout，构建时拼进界面闭包；这里是求值真源文本，
+    //   所以名单在函数体里是自由变量，按真值顶一份（取值本身由 verify-655 与 verify-683 把着）。
+    DOC_LAYOUT_VALUES: ['single', 'multi'],
     tr: (k: any) => String(k),
     emit: () => {},
     firstBackendIdOf: () => 'github',

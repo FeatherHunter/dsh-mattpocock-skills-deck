@@ -19,7 +19,11 @@ declare function Ic(props?: any): any;
 
 export const num = (txt: any, minW: any) => h('span', { className: 'dsws-num', style: minW ? { minWidth: minW } : null }, txt)
 // seg 的图标名与尺寸：调用方按状态挑图标（如环境段按好坏挑对勾/圆点/警告三角），尺寸缺省 12。
-export const seg = (icon: any, label: any, color: any, onGo: any, sz: any) => h('span', { className: 'dsws-seg', onClick: function (e: any) { e.stopPropagation(); onGo() }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: color } }, [
+// 接线（#1335 界面反馈）：整段就是一个可点的控件，所以挂 data-press 让它按下压暗，
+// 挂 data-log 让调试日志能认出刚才点的是哪一段。
+// logId 由调用方给，因为这个原语在状态栏里被复用成好几段（取件、缺陷、分诊、固定、环境），
+// 每段都要有自己的标识，否则同屏几段在日志里分不开；标识里不能写段上的文字。
+export const seg = (icon: any, label: any, color: any, onGo: any, sz: any, logId: any) => h('span', { className: 'dsws-seg dsws-hov', 'data-press': 'button', 'data-log': logId, onClick: function (e: any) { e.stopPropagation(); onGo() }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: color } }, [
   Ic({ n: icon, size: sz || 12 }),
   label,
 ])

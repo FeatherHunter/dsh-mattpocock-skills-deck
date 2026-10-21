@@ -296,6 +296,10 @@ export const StatusLogDot = function (props: any) {
     tabIndex: 0,
     role: 'button',
     'aria-label': dotTitle,
+    // 接线（#1335 界面反馈）：这颗绿点是纯图标控件（只有一个小圆点），所以只接按压压暗，
+    // 不加悬停类，免得小圆点按下时下沉一像素看着像错位。
+    'data-press': 'icon',
+    'data-log': 'status.logdot',
     onClick: function (e: any) { try { e.stopPropagation() } catch (e2) {}; toggleMenu() },
     onKeyDown: function (e: any) {
       if (!e) return
@@ -318,10 +322,17 @@ export const StatusLogDot = function (props: any) {
       fontSize: 13, padding: '8px 10px', borderRadius: 7, cursor: busy ? 'default' : 'pointer', alignItems: 'center', gap: 8, opacity: busy ? 0.55 : 1, whiteSpace: 'nowrap', // 行内不换行，菜单宽度贴合最长行。
     }
   }
-  const menuItem = function (key: any, icon: any, label: any, fn: any, danger: any) {
+  // 接线（#1335 界面反馈）：菜单项是能点的按钮（role 摆成 menuitem 不妨碍接线），
+  // 按压要压暗、悬停要有反馈。logId 由调用方给：四颗菜单项各写各的字面量，
+  // 日志里才分得出刚才点的是哪一颗（拿 key 拼出来的值在源码里只有一个形态，看不出哪颗是哪颗）。
+  const menuItem = function (key: any, icon: any, label: any, fn: any, danger: any, logId: any) {
     const busyLabel = busy === 'export' ? tr('logmenu.exporting') : (busy === 'clear' ? tr('logmenu.clearing') : null)
     const showBusy = !!busy && ((key === 'export' && busy === 'export') || (key === 'clear' && busy === 'clear'))
-    return hh('button', { key: key, role: 'menuitem', disabled: !!busy, onClick: function (e: any) { try { e.stopPropagation() } catch (e2) {}; fn() }, onMouseEnter: function () { setHoverKey(key) }, onMouseLeave: function () { setHoverKey(null) }, style: itemStyle(key, danger) }, [
+    return hh('button', { key: key, role: 'menuitem', disabled: !!busy,
+      className: 'dsws-hov',
+      'data-press': 'button',
+      'data-log': logId,
+      onClick: function (e: any) { try { e.stopPropagation() } catch (e2) {}; fn() }, onMouseEnter: function () { setHoverKey(key) }, onMouseLeave: function () { setHoverKey(null) }, style: itemStyle(key, danger) }, [
       (typeof Ic === 'function') ? Ic({ n: icon, size: 13, color: danger ? '#fca5a5' : undefined }) : null,
       hh('span', null, showBusy ? (busyLabel + '…') : label),
     ])
@@ -335,14 +346,19 @@ export const StatusLogDot = function (props: any) {
     style: Object.assign({ position: 'fixed', bottom: menuPos ? menuPos.bottom : 40, width: 'max-content', maxWidth: 'calc(100vw - 24px)', padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)' }, (menuPos && typeof menuPos.left === 'number') ? { left: menuPos.left } : { right: 12 }), // 水平居中于绿点（测不到锚点时沿用右边缘兜底），视口不够时定位函数已自动内收，宽度贴合最长行加内边距。
   }, [
     hh('div', { role: 'menu', 'aria-label': dotTitle }, [
-      menuItem('export', 'note', tr('logmenu.export'), doExport, false),
-      menuItem('open', 'external-link', tr('logmenu.openDir'), doOpenDir, false),
-      menuItem('copy', 'clipboard', tr('logmenu.copyPath'), doCopyPath, false),
+      menuItem('export', 'note', tr('logmenu.export'), doExport, false, 'status.logmenu.export'),
+      menuItem('open', 'external-link', tr('logmenu.openDir'), doOpenDir, false, 'status.logmenu.open'),
+      menuItem('copy', 'clipboard', tr('logmenu.copyPath'), doCopyPath, false, 'status.logmenu.copy'),
       hh('div', { style: { height: 1, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '4px 6px' } }),
-      menuItem('clear', 'alert', tr('logmenu.clear'), doClear, true),
+      menuItem('clear', 'alert', tr('logmenu.clear'), doClear, true, 'status.logmenu.clear'),
     ]),
   ]) : null
-  const confirmModal = clearConfirm ? PortalOverlay({ 'data-dsws-logmenu': '1', key: 'dsws-logconfirm', onClick: function (e: any) { try { if (e.target === e.currentTarget && busy !== 'clear') setClearConfirm(false) } catch (e2) {} }, style: { position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 20 } }, [
+  const confirmModal = clearConfirm ? PortalOverlay({ 'data-dsws-logmenu': '1', key: 'dsws-logconfirm', onClick: function (e: any) { try { if (e.target === e.currentTarget && busy !== 'clear') setClearConfirm(false) } catch (e2) {} },
+    // 接线（#1335 界面反馈）：点遮罩空白处会关掉这个确认框，遮罩自己也是能点到的，所以接一组标识；
+    // 它不是按钮，用 data-press 的 other 档，表示「按下去的是个没有固定形状的东西」。
+    'data-press': 'other',
+    'data-log': 'status.logconfirm.backdrop',
+    style: { position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 20 } }, [
     // #954：确认框本体搬进新叶子 LogDangerConfirm.js（本文件贴 350 行粒度红线，调用处一眼能读懂）。
     hh(LogDangerConfirmBox, { key: 'danger', h: hh, t: tr, busy: busy === 'clear', onConfirm: doConfirmClear, onCancel: function () { if (busy !== 'clear') setClearConfirm(false) } }),
   ]) : null

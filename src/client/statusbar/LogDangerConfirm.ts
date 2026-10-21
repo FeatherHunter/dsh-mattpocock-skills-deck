@@ -45,15 +45,24 @@ export const LogDangerConfirmBox = function (props: any) {
     h('div', { key: 'de', style: { fontSize: 12, color: '#9a9aa5', marginBottom: 12, lineHeight: 1.6 } }, t('logmenu.clearDesc')),
     h('div', { key: 'ac', style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 } }, [
       h('button', {
-        key: 'cancel', className: 'dsws-btn ghost', disabled: busy,
+        key: 'cancel', className: 'dsws-btn ghost dsws-hov', disabled: busy,
+        // 接线（#1335 界面反馈）：这颗按钮用户能点，所以按下要压暗、点了要留下一条调试日志。
+        // data-log 用 status.logconfirm.cancel：确认框里取消与确认同屏并存，
+        // 标识必须能分清是哪一颗，同时不能把按钮上的文字写进日志值。
+        'data-press': 'button',
+        'data-log': 'status.logconfirm.cancel',
         onClick: function () { if (!busy) p.onCancel() },
         style: { fontSize: 12 },
       }, t('logmenu.cancel')),
       h('button', {
         key: 'ok',
-        className: 'dsws-btn' + (busy ? ' dsws-fb-busy' : ''),
+        className: 'dsws-btn dsws-hov' + (busy ? ' dsws-fb-busy' : ''),
         disabled: busy,
         autoFocus: true,
+        // 接线（#1335 界面反馈）：确认键与取消键同屏，两颗都得有自己的按压反馈与点击日志标识，
+        // 否则事后从日志看不出刚才按的是哪一个。这里用 status.logconfirm.confirm。
+        'data-press': 'button',
+        'data-log': 'status.logconfirm.confirm',
         onClick: function () { if (!busy) p.onConfirm() },
         style: { fontSize: 12, fontWeight: 700, background: '#5c2b2b', borderColor: '#5c2b2b', color: '#fca5a5', opacity: busy ? 0.55 : 1, cursor: busy ? 'default' : 'pointer' },
       }, busy
@@ -79,12 +88,20 @@ export const LogDangerNotice = function (props: any) {
     (typeof Ic === 'function') ? (bad ? Ic({ n: 'x', size: 12 }) : Ic({ n: 'check', size: 12 })) : null,
     h('span', { key: 'tx', style: { flex: 1, fontSize: 12 } }, String(p.text || '')),
     bad ? h('button', {
-      key: 'retry', className: 'dsws-btn', disabled: p.busy === true,
+      key: 'retry', className: 'dsws-btn dsws-hov', disabled: p.busy === true,
+      // 接线（#1335 界面反馈）：重试键有文字，属于文字类控件，除按压压暗外还要悬停反馈；
+      // 点击日志用 status.lognotice.retry，与横幅上的叉（status.lognotice.close）分开认。
+      'data-press': 'button',
+      'data-log': 'status.lognotice.retry',
       onClick: function () { if (p.busy !== true) p.onRetry() },
       style: { borderColor: 'rgba(248,113,113,.6)', color: '#fca5a5', fontSize: 11, flex: 'none' },
     }, t('logmenu.retry')) : null,
     h('button', {
       key: 'close', className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': t('logmenu.noticeClose'),
+      // 接线（#1335 界面反馈）：这只是一颗纯图标叉，没有文字，所以只接按压压暗，
+      // 不加悬停类，免得小图标按下时下沉一像素、看着像错位。
+      'data-press': 'icon',
+      'data-log': 'status.lognotice.close',
       onClick: function () { p.onClose() },
       style: { padding: '1px 6px', display: 'inline-flex', alignItems: 'center', flex: 'none', marginLeft: 12 },
     }, (typeof Ic === 'function') ? Ic({ n: 'x', size: 11 }) : null),

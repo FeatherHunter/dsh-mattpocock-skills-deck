@@ -213,7 +213,9 @@ async function run() {
   // 读 .ts 真源（sourcePath 在同名 .js/.ts 并存时优先 .ts）：判据里的单引号与分支顺序都是源码形态。
   const clientSrc = fs.readFileSync(path.join(ROOT, sourcePath('src/client/kernel/probe-auto.js')), 'utf8')
   check(/res\.mode === 'deferred'/.test(clientSrc) && /res\.mode === 'stale-dropped'/.test(clientSrc), "④客户端认得出宿主那句「这一次没并进去」（deferred / stale-dropped），那一拍一个请求都不发")
-  check(/res\.mode === 'patch'/.test(clientSrc) && /applySnap\(res\.snapshot\)/.test(clientSrc), '④客户端吃宿主补好的那一份（res.mode === patch → applySnap(res.snapshot)）')
+  // #1355 起 applySnap 多带一个参数（这份表是不是本会话自己请求回来的）；判据只认「增量那一支确实把它交出去了」，
+  //   不钉参数个数以外的写法。
+  check(/res\.mode === 'patch'/.test(clientSrc) && /applySnap\(res\.snapshot(?:\s*,\s*[^)]*)?\)/.test(clientSrc), '④客户端吃宿主补好的那一份（res.mode === patch → applySnap(res.snapshot, …)）')
   const clientCode = stripComments(clientSrc)
   const patchBranch = clientCode.indexOf("res.mode === 'patch'")
   const poolBranch = clientCode.indexOf('return loadSnapshot(primary, true, true)')

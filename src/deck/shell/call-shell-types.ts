@@ -194,9 +194,8 @@ export interface DeckShellDeps {
   /**
    * 工作路线记一笔（#1261 起步、#1262 铺满，调用方是工具壳的成功收口）：缺席时跳过，不报错。
    * 五个写工具（report、create、patch、plan、link）各记一笔，读工具不记；一次调用里每张写到的票各一笔。
-   * 输入 `{ rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, progress?, action, source }`，
+   * 输入 `{ rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, action, source }`，
    * 其中 rootKey 是 workspace.key（工作区键），落到哪一份文件由存储按 chainRootHash 换算；
-   * 其中 progress 是这次上报的进度自评（0 到 100 的整数），只有 deck_issue_report 带；
    * 输出 `{ ok: true, ticketKey, count, warnings? }` 或 `{ ok: false, reason }`；
    * warnings 是「落上了、但有件事要告诉人」的备注（#1083：盘上旧文件读不出来按空账重写、换后端时旧记录改名留档），
    * 壳原样拼进回执 notes，不改其他格。
@@ -206,7 +205,7 @@ export interface DeckShellDeps {
   workRouteNote?: (input: UnknownRecord) => Promise<unknown>;
   /**
    * 工作路线读一笔（#1261 起步、#1262 与上面成对）：缺席时跳过，不报错。
-   * 输入 `{ sessionId, rootKey, at }`，输出 `{ ok: true, readout, summary } 或 { ok: false, reason }`，
+   * 输入 `{ sessionId, rootKey, at, detail? }`（detail 是 core / standard，缺省 standard），输出 `{ ok: true, readout, summary } 或 { ok: false, reason }`，
    * 其中 readout 是回执 data.workRoute 的对象，summary 是 notes 里那句摘要（没有在办时为 null），
    * collisionNote 是有撞车时才出现的提醒（一句，没有撞车为 null，同样进 notes、跟在摘要后面）。
    * 读出口本身是纯函数（见 work-path-readout.ts），不读盘不看钟，at 由壳按自己的时钟传进来。

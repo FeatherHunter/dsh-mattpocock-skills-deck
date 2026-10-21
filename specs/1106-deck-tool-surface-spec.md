@@ -26,17 +26,19 @@
 | `deck_issue_get` | `key` | `comments`（数字，最多带回几条评论，缺省 50，钳在 0–200）· `section`（字符串，只回正文里这一节，`##` 标题的子串；缺省回全文前 2000 字）· `blocking`（布尔，要不要反向阻塞边；**缺省要**，只有显式传 `false` 才跳过一次反向边查询）· `effortId` |
 | `deck_map_snapshot` | `key` | `frontierOnly`（布尔，只回可接的子票；缺省回全部）· `detail`（枚举 `full` / `thin`，缺省 `full`；`thin` 只回薄行，统计与进度表照算）· `effortId` |
 | `deck_issue_list` | 无 | `state`（枚举 `open` / `closed` / `all`，缺省 `open`）· `type`（枚举 `issue` / `map` / `all`，缺省 `all`）· `labels`（字符串数组，必须同时带上，AND）· `assignee` · `query`（标题与正文的子串）· `limit`（数字，缺省 50，钳在 1–200）· `effortId` |
-| `deck_issue_create` | `title` | `body`（缺省按种类补最小骨架）· `kind`（枚举 `task` / `bug` / `map`，缺省 `task`）· `parentKey` · `labels` · `assignees` · `idempotencyKey` · `effortId` |
-| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`；`from` 写 `@map` 指地图自己）· `effortId`；`children` 每项必填 `key`、`title`，可选 `body`、`kind`（同上三档）、`labels`、`assignees` |
-| `deck_map_link` | 无 | `key` 与 `edges` 二选一，两个都不给回 `bad-args`。`key`：要改的那张子票 · `parentKey`：要挂到的父票 · `blockedBy`：这张票被哪些票阻塞（**整批替换**，给空数组就是清空）· `edges`（一次改多张票，每项必填 `key`，其余同左）· `effortId` |
-| `deck_issue_patch` | `key` | `comment` · `addLabels` · `removeLabels` · `assignees`（整批替换，给空数组就是取掉认领）· `title` · `body` · `progress`（只改「## 进度」那一段）· `close`（布尔，`true` 关闭、`false` 重新打开）· `effortId` |
-| `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `progress`（数字，0 到 100 的整数，这次上报的进度自评；只写进本会话这张票的工作条目、只作展示，不参与任何判定；不传时这次不带进度，条目上不记这一格，也不沿用上一次的数字）· `effortId` · `release`（布尔，传 `true` 尝试撤销本会话对这个 ISSUE 的一条误报工作条目：只在从没实际处理过这张票时删得掉，建过、改过、关过、建过计划或挂过边的票不能释放、路径保留；票本身的状态与认领人不动） |
+| `deck_issue_create` | `title` | `body`（缺省按种类补最小骨架）· `kind`（枚举 `task` / `bug` / `map`，缺省 `task`）· `parentKey` · `labels` · `assignees` · `idempotencyKey` · `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` |
+| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`；`from` 写 `@map` 指地图自己）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId`；`children` 每项必填 `key`、`title`，可选 `body`、`kind`（同上三档）、`labels`、`assignees` |
+| `deck_map_link` | 无 | `key` 与 `edges` 二选一，两个都不给回 `bad-args`。`key`：要改的那张子票 · `parentKey`：要挂到的父票 · `blockedBy`：这张票被哪些票阻塞（**整批替换**，给空数组就是清空）· `edges`（一次改多张票，每项必填 `key`，其余同左）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` |
+| `deck_issue_patch` | `key` | `comment` · `addLabels` · `removeLabels` · `assignees`（整批替换，给空数组就是取掉认领）· `title` · `body` · `progress`（只改「## 进度」那一段）· `close`（布尔，`true` 关闭、`false` 重新打开）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` |
+| `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` · `release`（布尔，传 `true` 尝试撤销本会话对这个 ISSUE 的一条误报工作条目：只在从没实际处理过这张票时删得掉，建过、改过、关过、建过计划或挂过边的票不能释放、路径保留；票本身的状态与认领人不动） |
 
 三条口径写在表外，但同样冻着：
 
 - **多传即拒**：每个对象节点（根节点、`children` 的每一项、`edges` 的每一项）都显式写了 `additionalProperties: false`。挡下多传的键是宿主在调用入口按定义做的事；工具自己收到不认识的键时不报错，当没有。
 - **枚举不认识时按缺省走**：枚举取值由定义声明、由宿主在入口挡；工具内部收到不认识的值不报 `bad-args`，按缺省那一档处理（例如 `state` 给个不认识的字符串，当 `open` 用）。
 - **`effortId` 一律可选**：只有本地（Markdown）后端需要它，填票所在的目录名；根目录不填，远端后端忽略。
+
+**上报的 `progress` 已退役（#1352）**：`deck_issue_report` 的定义里不再有它；老调用带着这个键时，工具在选后端之前就以 `bad-args` 拒绝，并在回执里指路 `deck_issue_patch` 的 `progress`（写票面「## 进度」区）。拒绝不花点数、不写盘。`workRouteDetail` 的 `full` 档同步退役：它原先唯一的增量就是工作条目里的进度自评；老调用传 `full` 时按 `standard` 处理。
 
 表里的**缺省值与钳制范围**不是摆设，它们和参数名一样冻着。做法不是去抄源码里的数字（那只是把同一份东西抄第二遍），而是从外面撞：给工具换一个「只记录、不真读」的后端，看它不传这个参数时交下去的是什么、按哪个数截断——例如列票不传条数时回 50 行、传 500 时回 200 行（多出来的行被上限截掉）。改一个数就红。
 

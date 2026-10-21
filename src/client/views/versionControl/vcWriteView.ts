@@ -27,8 +27,10 @@ export const vcRowStageNodes = function (h: any, o: any) {
     return [o.tipNode(a.tip, h('span', { key: 'cterm', 'data-vc-conflict-terminal': 1, style: { flex: 'none', fontSize: 10, color: o.tone('warning'), whiteSpace: 'nowrap' } }, a.text))]
   }
   if (!a.show) return []
+  // 接线（#1335 界面反馈）：行内那颗「暂存」是行内文字按钮，按下要有按压反馈；
+  //   定位名带行标识（调用点给的组序号.行序号），同一页里几行都有一颗，靠它才分得清点的是哪一行。
   return [o.tipNode(a.tip, h('button', {
-    key: 'stage', className: 'dsws-btn', type: 'button', 'data-vc-stage': 1,
+    key: 'stage', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-stage': 1, 'data-press': 'button', 'data-log': 'vc.row.stage.' + String(o.rowId || 'x'),
     onClick: function (e: any) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.stagePaths([a.path]) },
     style: { flex: 'none' },
   }, a.text))]
@@ -37,8 +39,9 @@ export const vcRowStageNodes = function (h: any, o: any) {
 export const vcRowUnstageNodes = function (h: any, o: any) {
   const a = o && o.row ? o.row.unstageAction : null
   if (!a || a.show !== true) return []
+  // 接线（#1335 界面反馈）：行内那颗「撤回」与「暂存」是两种动作，各自一组标识；定位名同样带行标识。
   return [o.tipNode(a.tip, h('button', {
-    key: 'unstage', className: 'dsws-btn', type: 'button', 'data-vc-unstage': 1,
+    key: 'unstage', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-unstage': 1, 'data-press': 'button', 'data-log': 'vc.row.unstage.' + String(o.rowId || 'x'),
     onClick: function (e: any) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.unstagePaths([a.path]) },
     style: { flex: 'none' },
   }, a.text))]
@@ -58,9 +61,10 @@ export const vcActionsNode = function (h: any, o: any) {
   }
   return h('div', { key: 'actions', 'data-vc-actions': 1, style: { display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 } }, [
     h('div', { key: 'row', style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
-      o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, label('pull', a.pull.text))),
-      a.fetch ? o.tipNode(a.fetch.tip || a.fetch.text, h('button', { key: 'fetch', className: 'dsws-btn', type: 'button', 'data-vc-action': 'fetch', disabled: a.fetch.disabled === true, onClick: function () { o.startFetch('') }, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, a.fetch.text)) : null,
-      o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, label('push', a.push.text))),
+      // 接线（#1335 界面反馈）：身份行这三颗（拉取 / 更新 / 推送）是不同的动作，各接一组定位名。
+      o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-action': 'pull', 'data-press': 'button', 'data-log': 'vc.action.pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, label('pull', a.pull.text))),
+      a.fetch ? o.tipNode(a.fetch.tip || a.fetch.text, h('button', { key: 'fetch', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-action': 'fetch', 'data-press': 'button', 'data-log': 'vc.action.fetch', disabled: a.fetch.disabled === true, onClick: function () { o.startFetch('') }, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, a.fetch.text)) : null,
+      o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-action': 'push', 'data-press': 'button', 'data-log': 'vc.action.push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, label('push', a.push.text))),
     ]),
     hintNode('pull'),
     hintNode('fetch'),
@@ -72,8 +76,9 @@ export const vcActionsNode = function (h: any, o: any) {
 export const vcStageAllNode = function (h: any, o: any) {
   const s = o && o.stageAll
   if (!s || s.show !== true) return null
+  // 接线（#1335 界面反馈）：改动页那颗「全部暂存」是一颗独立按钮，给它自己的定位名。
   return o.tipNode(s.tip, h('button', {
-    key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
+    key: 'stageAll', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-stage-all': 1, 'data-press': 'button', 'data-log': 'vc.stageall', disabled: s.disabled === true,
     onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none' },
   }, (o.foldActions && o.foldActions.stageAll) || s.text))
 }
@@ -90,8 +95,9 @@ export const vcCommitAreaNode = function (h: any, o: any) {
     }),
     h('div', { key: 'row', style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
       h('span', { key: 'hint', style: { flex: 1, minWidth: 0, fontSize: 11.5, color: o.tone('caption') } }, c.hint),
+      // 接线（#1335 界面反馈）：改动页底部那颗「提交」给一组定位名，与视图条上的那颗提交分开（两处位置不同）。
       o.tipNode(c.tip || c.text, h('button', {
-        className: 'dsws-btn', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
+        className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-commit-btn': 1, 'data-press': 'button', 'data-log': 'vc.commit.submit', disabled: c.disabled === true,
         onClick: o.submitCommit, style: { flex: 'none' },
       }, (o.foldActions && o.foldActions.commit) || c.text)),
     ]),
@@ -110,14 +116,15 @@ export const vcViewBarNode = function (h: any, o: any) {
   return h('div', { key: 'viewbar', className: 'dsws-vc-viewbar', 'data-vc-viewbar': 1, 'data-vc-commit-area': 1 }, [
     h('div', { key: 'lbl', className: 'dsws-vc-viewbar-lbl', style: { marginBottom: 1 } }, o.t('vc.viewbar.submit')),
     h('div', { key: 'acts', className: 'dsws-vc-viewbar-row' }, [
-      a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn' + vcBusyClsOf(o.runningOp, 'pull'), type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none' } }, vcBusyKidsOf(h, o.runningOp, 'pull', label('pull', a.pull.text)))) : null,
-      a && a.fetch ? o.tipNode(a.fetch.tip || a.fetch.text, h('button', { key: 'fetch', className: 'dsws-btn' + vcBusyClsOf(o.runningOp, 'fetch'), type: 'button', 'data-vc-action': 'fetch', disabled: a.fetch.disabled === true, onClick: function () { o.startFetch('') }, style: { flex: 'none' } }, vcBusyKidsOf(h, o.runningOp, 'fetch', a.fetch.text))) : null,
-      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn primary' + vcBusyClsOf(o.runningOp, 'push'), type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none' } }, vcBusyKidsOf(h, o.runningOp, 'push', label('push', a.push.text)))) : null,
+      // 接线（#1335 界面反馈）：视图条上的几颗与改动页底部那几颗是同一个动作的不同位置，定位名要分开（viewbar. 一族）。
+      a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn dsws-hov' + vcBusyClsOf(o.runningOp, 'pull'), type: 'button', 'data-vc-action': 'pull', 'data-press': 'button', 'data-log': 'vc.viewbar.pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none' } }, vcBusyKidsOf(h, o.runningOp, 'pull', label('pull', a.pull.text)))) : null,
+      a && a.fetch ? o.tipNode(a.fetch.tip || a.fetch.text, h('button', { key: 'fetch', className: 'dsws-btn dsws-hov' + vcBusyClsOf(o.runningOp, 'fetch'), type: 'button', 'data-vc-action': 'fetch', 'data-press': 'button', 'data-log': 'vc.viewbar.fetch', disabled: a.fetch.disabled === true, onClick: function () { o.startFetch('') }, style: { flex: 'none' } }, vcBusyKidsOf(h, o.runningOp, 'fetch', a.fetch.text))) : null,
+      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn primary dsws-hov' + vcBusyClsOf(o.runningOp, 'push'), type: 'button', 'data-vc-action': 'push', 'data-press': 'button', 'data-log': 'vc.viewbar.push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none' } }, vcBusyKidsOf(h, o.runningOp, 'push', label('push', a.push.text)))) : null,
       a && a.pull && (a.pull.hint || a.pull.tip) ? h('span', { key: 'pullhint', 'data-vc-action-hint': 'pull', tabIndex: 0, style: { fontSize: 11 } }, String(a.pull.hint || a.pull.tip)) : null,
       a && a.push && (a.push.hint || a.push.tip) ? h('span', { key: 'pushhint', 'data-vc-action-hint': 'push', tabIndex: 0, style: { fontSize: 11 } }, String(a.push.hint || a.push.tip)) : null,
       a && (a.pull || a.push) && s && s.show === true ? h('span', { key: 'sep', style: { width: 1, height: 16, background: 'var(--vc-line2)', margin: '0 3px', flex: 'none' } }) : null,
       s && s.show === true ? o.tipNode(s.tip, h('button', {
-        key: 'stageAll', className: 'dsws-btn' + vcBusyClsOf(o.runningOp, 'stage'), type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
+        key: 'stageAll', className: 'dsws-btn dsws-hov' + vcBusyClsOf(o.runningOp, 'stage'), type: 'button', 'data-vc-stage-all': 1, 'data-press': 'button', 'data-log': 'vc.viewbar.stageall', disabled: s.disabled === true,
         onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none' },
       }, vcBusyKidsOf(h, o.runningOp, 'stage', (o.foldActions && o.foldActions.stageAll) || s.text))) : null,
       h('span', { key: 'grow', style: { flex: 1, minWidth: 8 } }),
@@ -130,7 +137,7 @@ export const vcViewBarNode = function (h: any, o: any) {
         style: { flex: 1, minWidth: 120 },
       }),
       o.tipNode(c.tip || c.text, h('button', {
-        className: 'dsws-btn primary' + vcBusyClsOf(o.runningOp, 'commit'), type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
+        className: 'dsws-btn primary dsws-hov' + vcBusyClsOf(o.runningOp, 'commit'), type: 'button', 'data-vc-commit-btn': 1, 'data-press': 'button', 'data-log': 'vc.viewbar.commit', disabled: c.disabled === true,
         onClick: o.submitCommit, style: { flex: 'none' },
       }, vcBusyKidsOf(h, o.runningOp, 'commit', (o.foldActions && o.foldActions.commit) || c.text))),
     ]),
@@ -149,10 +156,11 @@ export const vcWriteTailNodes = function (h: any, o: any) {
           // 动作词与主句都已经是词条句子（模型层翻好的），这里不再 tr 一次、也不许落到键名。
           h('span', { key: 'verb', style: { flex: 'none', fontWeight: 700, color: w.result.state === 'done' ? o.tone('success') : o.tone('error') } }, w.result.verb || o.tr(w.result.state === 'done' ? 'vc.op.done' : 'vc.op.failed')),
           o.tipNode(w.result.tip, h('span', { key: 'text', 'data-vc-op-text': 1, style: { flex: 1, minWidth: 0 } }, w.result.text)),
-          w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn', type: 'button', 'data-vc-op-retry': 1, onClick: o.retryResult, style: { flex: 'none' } }, o.tr('vc.retry')) : null,
+          // 接线（#1335 界面反馈）：上一次结果那行里的「重试」给一组定位名。
+          w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-op-retry': 1, 'data-press': 'button', 'data-log': 'vc.op.retry', onClick: o.retryResult, style: { flex: 'none' } }, o.tr('vc.retry')) : null,
         ]),
         w.result.limit ? h('div', { key: 'limit', 'data-vc-op-limit': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.5 } }, w.result.limit) : null,
-        w.result.ai ? h('div', { key: 'ai', style: { marginTop: 6 } }, vcAiButtonNode(h, { ai: w.result.ai, tr: o.tr, onOpen: o.openHandoff })) : null,
+        w.result.ai ? h('div', { key: 'ai', style: { marginTop: 6 } }, vcAiButtonNode(h, { ai: w.result.ai, tr: o.tr, onOpen: o.openHandoff, logId: 'result' })) : null,
       ])
     : null
   // 多远端 + 没有上游：候选远端来自失败回包的顶层 remotes，画成一排可点的入口（选中后带 remote 重跑预检）。
@@ -163,7 +171,11 @@ export const vcWriteTailNodes = function (h: any, o: any) {
   //   以前这里是跟在整页尾巴的整宽大面板（按钮在上、面板贴底），现在改成绝对定位的气泡：
   //   具体落点由入口组件那一处定位效果量到按钮底部再写进 top / left，这里只给气泡本体的样子与关掉的路。
   const confirm = c
-    ? [h('div', { key: 'confirmOverlay', 'data-vc-confirm-overlay': 1, onClick: o.cancelConfirm, style: { position: 'fixed', inset: 0, zIndex: 20, background: 'transparent' } }),
+    ? [h('div', { key: 'confirmOverlay', 'data-vc-confirm-overlay': 1, onClick: o.cancelConfirm,
+      // 接线（#1335 界面反馈）：点气泡外的那层透明覆盖等于取消确认，它也是能点到的，所以接一组标识；
+      // 它不是按钮，用 data-press 的 other 档，表示「按下去的是个没有固定形状的东西」。
+      'data-press': 'other', 'data-log': 'vc.confirm.backdrop',
+      style: { position: 'fixed', inset: 0, zIndex: 20, background: 'transparent' } }),
       h('div', { key: 'confirm', role: 'dialog', tabIndex: -1, 'data-vc-confirm': c.op, 'data-vc-popover': 1, style: { position: 'absolute', zIndex: 30, top: 0, left: 0, width: 360, maxWidth: 'calc(100% - 16px)', minWidth: 280, marginTop: 0, border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-elevated,#1a2438)', boxShadow: '0 8px 30px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { key: 'title', className: 'dsws-vc-dlg-t', style: { fontWeight: 700, color: o.tone('primary') } }, c.title),
         h('div', { key: 'body', className: 'dsws-vc-dlg-b', 'data-vc-confirm-body': 1, style: { color: o.tone('primary'), lineHeight: 1.6 } }, c.body),
@@ -173,8 +185,9 @@ export const vcWriteTailNodes = function (h: any, o: any) {
           ? h('select', { key: 'pick', 'data-vc-remote-pick': 1, value: c.remote || 'origin', onChange: function (e: any) { o.pickRemote(e && e.target ? e.target.value : '') }, style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--vc-line2,#3a3f4a)', background: 'var(--vc-inset,#0c0e12)', color: 'var(--vc-ink,#e6edf3)' } }, c.remotes.map(function (r: any) { return h('option', { key: r, value: r }, r) }))
           : null,
         h('div', { key: 'buttons', style: { display: 'flex', gap: 6, justifyContent: 'flex-end' } }, [
-          h('button', { key: 'cancel', className: 'dsws-btn ghost', type: 'button', 'data-vc-confirm-cancel': 1, onClick: o.cancelConfirm, style: {} }, o.tr('vc.confirm.cancel')),
-          h('button', { key: 'ok', className: 'dsws-btn primary', type: 'button', 'data-vc-confirm-ok': 1, onClick: o.confirmNow, style: { fontWeight: 700 } }, c.okText),
+          // 接线（#1335 界面反馈）：确认框里两颗（取消、确认）是两种动作，各接一组定位名。
+          h('button', { key: 'cancel', className: 'dsws-btn ghost dsws-hov', type: 'button', 'data-vc-confirm-cancel': 1, 'data-press': 'button', 'data-log': 'vc.confirm.cancel', onClick: o.cancelConfirm, style: {} }, o.tr('vc.confirm.cancel')),
+          h('button', { key: 'ok', className: 'dsws-btn primary dsws-hov', type: 'button', 'data-vc-confirm-ok': 1, 'data-press': 'button', 'data-log': 'vc.confirm.ok', onClick: o.confirmNow, style: { fontWeight: 700 } }, c.okText),
         ]),
       ])]
     : null
@@ -185,8 +198,9 @@ export const vcWriteTailNodes = function (h: any, o: any) {
     ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, 'data-vc-popover': 1, style: { position: 'absolute', zIndex: 30, top: 0, left: 0, width: 360, maxWidth: 'calc(100% - 16px)', minWidth: 280, marginTop: 0, border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-elevated,#1a2438)', boxShadow: '0 8px 30px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, rc.title),
         h('div', { key: 'body', 'data-vc-remote-choice-body': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.6 } }, rc.body),
-        h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name: any) {
-          return h('button', { key: name, className: 'dsws-btn', type: 'button', 'data-vc-remote': name, onClick: function () { o.pickRemote(name) }, style: {} }, name)
+        h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name: any, i: any) {
+          // 接线（#1335 界面反馈）：远端候选可能有好几个，按序号区分（远端名会变，不适合当定位名）。
+          return h('button', { key: name, className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-remote': name, 'data-press': 'button', 'data-log': 'vc.remote.pick.' + i, onClick: function () { o.pickRemote(name) }, style: {} }, name)
         })),
       ])
     : null
