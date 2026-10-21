@@ -6,7 +6,7 @@
  * 分不清「这条边真挂上了」「本来就挂着、这次一处没改」「走在半路折了」，也看不出**成环检查到底查没查**——
  * 而本房的规矩是「拿不准就不放行」（图读不全时这一趟一个字都不写），这件事此前只落在返回里。
  *
- * 分四件事断：
+ * 分五件事断：
  *   一、**每一档结论都留得下、而且与盘上事实对得上**：新挂记 added、改挂记 diff（撤一条挂一条）、
  *       解除记 removed、本来就到位记 noop、失败记 fail:档位；added / removed / kept 三格与
  *       「这次真改了几条边」逐趟对齐，noop 那几趟必须是 0 次写盘（靠文件服务的写调用计数器核，不靠读回来猜）。
@@ -14,7 +14,9 @@
  *       后两种都不能落盘，也不能只在返回里说。
  *   三、**形状与噪音**：每趟恰好一行、字段恰好登记的那八个（环检四个）、级别是常驻信息级、
  *       环检是调试级且关掉开关时一行不发、父子边不牵连环检那条线；没有 logEvent 的上下文照样写得出原来的结果、也不抛。
- *   四、**两向对账**：三张登记表（边类别、结论、环检结论）表里每一条都在本文件里走到过，表外一个都没出现。
+ *   四、**写盘那一步抛错时不许虚报**（#1182）：route 停在 none、added/removed/kept 三格全 0 —— 这一趟一个字都没写；
+ *       在补这一章之前，route 与增减是在「算出差集」那一刻就记下的，写盘随即抛错也照旧报 file 与「挂上了几条」。
+ *   五、**两向对账**：三张登记表（边类别、结论、环检结论）表里每一条都在本文件里走到过，表外一个都没出现。
  *
  * 全程在系统临时目录里造工作区，用与 tests/verify-1059-issue-write.ts 同一套 fs/platform 适配器形状；
  * 不打真网、不碰真实工作区（临时目录用完即删）。
@@ -57,8 +59,9 @@ const THE_EIGHT = 'added,kept,kind,latencyMs,ok,reason,removed,route'
 const THE_FOUR = 'blockers,latencyMs,nodes,verdict'
 
 /** 与 tests/verify-1059-issue-write.ts 同一套适配器形状：`unreadableFiles` 里的文件名在读的时候抛错；
- *  `writes` 记下每一次真的写文件（本门禁靠它核「这一趟到底写了几份」，而不是靠读回来猜）。 */
-function makeCtx(cwd: string, unreadableFiles: string[] = [], withLog = true, debugOn = true): Ctx {
+ *  `writes` 记下每一次真的写文件（本门禁靠它核「这一趟到底写了几份」，而不是靠读回来猜）；
+ *  `unwritableFiles` 里的文件名（含它派生的临时文件）在写的时候抛 EACCES——第七节要看「写盘抛错那一趟」。 */
+function makeCtx(cwd: string, unreadableFiles: string[] = [], withLog = true, debugOn = true, unwritableFiles: string[] = []): Ctx {
   const denied = (what: string, t: string) => {
     const e = new Error('EACCES: permission denied, ' + what + ' ' + t) as Error & { code?: string }
     e.code = 'EACCES'
@@ -73,7 +76,12 @@ function makeCtx(cwd: string, unreadableFiles: string[] = [], withLog = true, de
         if (unreadableFiles.includes(String(t).split('/').pop() as string)) throw denied('open', t)
         return fs.readFileSync(t, 'utf8')
       },
-      async writeText(t: string, c: string) { writes.push(t); fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+      async writeText(t: string, c: string) {
+        const base = String(t).split('/').pop() as string
+        // 原子发布先写 `<文件名>.<pid>.tmp` 再改名，所以「点名了这个文件」要连它派生的临时文件一起算上。
+        if (unwritableFiles.some((n) => base === n || base.indexOf(n + '.') === 0)) throw denied('open', t)
+        writes.push(t); fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8')
+      },
       async rename(a: string, b: string) { fs.renameSync(a, b) },
       async lstat(t: string) { try { return fs.statSync(t) } catch { return null } },
       async listDir(t: string) { try { return fs.readdirSync(t) } catch { return [] } },
@@ -415,7 +423,36 @@ console.log('== 六、形状、噪音与「没有日志上下文也不许变」 
   check(!/#\d|\d\d-[a-z]\.md|\.scratch|Blocked by/.test(text), '字段里没有票号、文件名、路径、字段原文 → ' + text)
 }
 
-console.log('== 七、三张表两向对账：表里每一条都走到过，表外一个都没出现 ==')
+console.log('== 七、写盘抛错那一趟：结论线上报 route=none、增减全 0，说的正是「一个字都没写」（#1182） ==')
+{
+  const root = ws('g', [['01-a.md', 'ready-for-agent'], ['02-b.md', 'ready-for-agent']])
+  // 两张票的文件都写不动（EACCES）：挂父与写阻塞边两条路都读得到、算得出，但写盘这一步会抛。
+  const ctx = makeCtx(root, [], true, true, ['01-a.md', '02-b.md'])
+  const b = createMarkdownBackend(ctx)
+  const before = readTicket(root, '01-a.md')
+
+  const writesBefore = ctx.writes.length
+  const linesBefore = countBefore(ctx)
+  const r = await b.setParent(REPO, '01', '02', {}, ctx)
+  check(r.ok === false, '写盘抛错：挂父如实失败（不许回成功）→ ' + (r.ok ? '竟然成功' : r.error.kind))
+  checkOneMore(ctx, linesBefore, '写盘抛错那一趟')
+  const f = checkEdgeShape(lastEdge(ctx), '写盘抛错那一趟')
+  check(f.kind === 'parent' && f.ok === false && f.route === 'none' && f.added === 0 && f.removed === 0 && f.kept === 0,
+    '写盘抛错：route=none、added/removed/kept 全 0（这一趟一个字都没写）→ ' + [f.kind, f.ok, f.route, f.added, f.removed, f.kept].join('/'))
+  check(ctx.writes.length === writesBefore, '写盘抛错：文件服务上一次成功的写都没有 → 实得 ' + (ctx.writes.length - writesBefore) + ' 次')
+  check(readTicket(root, '01-a.md') === before, '写盘抛错：那张票的内容一个字节都没变')
+
+  // 阻塞边那条路同一条口径：写盘抛错时不许报 file，也不许报「挂上了几条」。
+  const linesBeforeB = countBefore(ctx)
+  const s = await b.setBlockedBy(REPO, '02', ['01'], {}, ctx)
+  check(s.ok === false, '写盘抛错（阻塞边）：如实失败 → ' + (s.ok ? '竟然成功' : s.error.kind))
+  checkOneMore(ctx, linesBeforeB, '写盘抛错（阻塞边）那一趟')
+  const fb = checkEdgeShape(lastEdge(ctx), '写盘抛错（阻塞边）那一趟')
+  check(fb.kind === 'block' && fb.route === 'none' && fb.added === 0 && fb.removed === 0,
+    '写盘抛错（阻塞边）：route=none、added/removed 全 0 → ' + [fb.kind, fb.route, fb.added, fb.removed].join('/'))
+}
+
+console.log('== 八、三张表两向对账：表里每一条都走到过，表外一个都没出现 ==')
 {
   const kindTable = EDGE_KINDS as readonly string[]
   const missingKinds = kindTable.filter((k) => !seenKinds.has(k))
