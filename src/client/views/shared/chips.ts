@@ -41,7 +41,7 @@ export     const TypeChip = ({ type }: any) => {
       ])
     }
     // #949 瞬间底座（收敛：从 ListTab.js 搬出，列表文件守 350 行）：可点小药丸的键盘可达三件套。
-    //   Tab 停留靠 tabIndex: 0，外圈描边走样式叶子的 :focus-visible，不占布局；
+    //   Tab 停留靠 tabIndex: 0，焦点环走样式叶子的统一 :focus-visible 规则（DSH 焦点 token，往内画），不占布局；
     //   回车与空格沿用鼠标同一条路（调起 DOM click，不另写分支），布局文案都不动。
 export     const chipKeyDown = function (e: any) {
       const k = e && e.key

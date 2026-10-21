@@ -292,7 +292,7 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         key: idOf(x),
         className: 'dsws-aggrow' + _flashCls,
         // #949 瞬间底座：整行可点就要能被键盘走到。tabIndex 让 Tab 停留，
-        //   外圈描边走 styles.js 里 .dsws-panel :focus-visible，不占布局；
+        //   焦点环走反馈样式叶子里的统一 :focus-visible 规则（DSH 焦点 token，往控件里面画），不占布局；
         //   回车与空格沿用鼠标同一条路（调起 click），不另写分支。
         tabIndex: 0,
         role: 'button',

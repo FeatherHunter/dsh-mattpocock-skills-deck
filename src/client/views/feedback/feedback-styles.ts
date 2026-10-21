@@ -19,11 +19,18 @@
 export const FEEDBACK_STYLE_TEXT: string = [
       // #948 首批（#949 瞬间底座）：只叠加不顶布局，只用滤镜、外圈描边、阴影（描边蓝复用 #58a6ff）；ghost 整类与 .dsws-fb-dark 走外圈描边代替加深；悬停浮起挂既有 .dsws-btn 只加阴影。
       '.dsws-chip.dsws-pressing,.dsws-chip-fb.dsws-pressing{filter:brightness(.82)}.dsws-trow.dsws-pressing,.dsws-aggrow.dsws-pressing{filter:brightness(.9)}',
-      '.dsws-panel :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}',
+      // 键盘焦点环统一走 DSH 主题自己的两个 token（DSH 应用包 ui-theme 的 focus.css 就是这么写的）：
+      //   颜色 --dsw-focus-ring-color，缺省回落 --dsw-alias-state-business-primary（主题主色，深色主题下是
+      //   #7aaaff 那一档蓝）；宽度 --dsw-focus-ring-width。不再写死 #58a6ff，换主题时焦点环跟着变。
+      //   关键在 outline-offset 取负值（往控件里面画）：外扩的环会被页签行、按钮组这类 overflow:hidden
+      //   的容器裁断——用户实测过页签顶部、地图顶部复制/链接按钮的上下两截都断过。往内画永远裁不到。
+      //   选择器按根节点圈定：停靠面板里所有可聚焦控件（含设置页输入框）走 [data-dsws-host]；
+      //   独立挂在状态栏与浮层里的药丸、菜单、弹窗各有自己的根，逐个列上。
+      '[data-dsws-host] :focus-visible,.dsws-modal :focus-visible,.dsws-capsule:focus-visible,.dsws-capsule-word:focus-visible,.dsws-capsule-chain:focus-visible,[data-dsws-logdot]:focus-visible,[data-dsws-logmenu] :focus-visible,.dsws-takemenu :focus-visible,.dsws-bugmenu :focus-visible,.dsws-chainmenu :focus-visible,.dsws-skillpop :focus-visible,.dsws-skillpop-bridge :focus-visible,.dsws-hov:focus-visible,.dsws-btn:focus-visible,.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-workroute:focus-visible,.dsws-node:focus-visible,.dsws-aggrow:focus-visible,.dsws-trow:focus-visible,[data-press]:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:-2px}',
       '.dsws-btn:hover{box-shadow:0 6px 16px rgba(0,0,0,.45)}',
       '.dsws-btn.ghost.dsws-pressing{outline:2px solid rgba(255,255,255,.55);outline-offset:1px}',
       '.dsws-fb-dark.dsws-pressing,.dsws-fb-dark.fb-pressed{outline:2px solid rgba(255,255,255,.85);outline-offset:1px}',
-      '@media (prefers-reduced-motion: reduce){.dsws-chip.dsws-pressing,.dsws-chip-fb.dsws-pressing,.dsws-trow.dsws-pressing,.dsws-aggrow.dsws-pressing{filter:brightness(.82)}.dsws-panel :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}}',
+      '@media (prefers-reduced-motion: reduce){.dsws-chip.dsws-pressing,.dsws-chip-fb.dsws-pressing,.dsws-trow.dsws-pressing,.dsws-aggrow.dsws-pressing{filter:brightness(.82)}}',
       // #948 第二批（#950 瞬间点缀）：全部覆盖层实现，不占布局，不动宽高边距。
       //   大按钮涟漪与小图标外扩环二选一：涟漪只挂 .primary（::after 水波层，
       //   按钮先立相对定位并裁掉溢出），外扩环只挂 .ghost（阴影向外扩一圈，
@@ -83,7 +90,10 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-ink-host .dsws-tab.on{background:transparent;border-color:transparent}',
       '.dsws-ink-host [data-ink-cover="1"]{background:transparent!important;border-color:transparent!important}',
       // 页签只有悬停变色（原来连这个都没有）；药丸加一层轻微提亮，按下由通用按压态负责。
-      '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}.dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.16)}}',
+      // 药丸（.dsws-chip）里混着两种东西：能点的筛选药丸，和只是长得像药丸的静态角标（地图详情的「地图」、
+      //   状态章、label、effort 章）。悬停提亮只能给能点的那种——判据就是接线契约里的 data-press：挂了它才是控件。
+      //   2026-10-21 用户实测「地图详情顶部那个『地图』不能点却会亮」，就是因为这条规则只认类名。
+      '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}[data-press].dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.16)}}',
       // 选中的那一颗悬停时墨块已经在它底下，再补一档提亮，保证「悬停有反馈」对五颗页签每一颗都成立。
       '@media (hover:hover) and (pointer:fine){.dsws-ink-host .dsws-tab:hover:not(.dsws-pressing){filter:brightness(1.12)}}',
       // 通用按压/悬停：给清单里原来没有任何反馈的控件（仓库名、切后端、调色板、新建需求、+bug、
@@ -106,13 +116,14 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}',
       '.dsws-btn[data-press],[data-press="link"],[data-press="switch"]{transition:filter .12s ease,box-shadow .12s ease,transform .08s ease}',
       // 地图详情的工单卡：整张卡热与按下；卡片内部按钮各自还有自己的反馈，不互相顶掉。
-      '@media (hover:hover) and (pointer:fine){.dsws-node:hover{border-color:rgba(255,255,255,.28)!important;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.3)}}',
+      // 地图工单卡整张卡热起来时边框跟主题主色走（用户实测原来变灰白，跟「获得焦点」的语义对不上）：
+      //   颜色与下面的焦点环同一个 token，换主题时一起变；外圈阴影保留，卡片还是浮起来一点。
+      '@media (hover:hover) and (pointer:fine){.dsws-node:hover{border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))!important;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.3)}}',
       '.dsws-node.dsws-pressing{filter:brightness(.9)}',
       // 战雾（未揭晓）卡片靠整张 blur 表示「还没揭晓」。通用按压规则是纯亮度滤镜，特异度一样但注入更晚，
       //   按住时会把 blur 顶掉、卡片一下子变清晰，等于提前剧透。这里单给一条：模糊照旧，只把亮度压得更暗；
       //   :not(.revealed) 是因为已揭晓的卡片 filter 本来是 none，不能又给它糊回去。
       '.dsws-node.fog:not(.revealed).dsws-pressing{filter:blur(2.4px) brightness(.28)}',
-      // 键盘焦点：面板内已有规则，这里补到页签行、筛选药丸与清单里的小按钮，焦点环不删。
-      '.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-hov:focus-visible,.dsws-workroute:focus-visible{outline:1px solid #58a6ff;outline-offset:1px}',
+      // 键盘焦点环统一规则在上面（DSH 焦点 token + 负 offset 往内画），这里不再另写一套。
       '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-ink.dsws-ink-squash{animation:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}[data-press].dsws-pressing{transform:none!important}}',
     ].join('')

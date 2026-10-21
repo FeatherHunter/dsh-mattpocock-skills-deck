@@ -3,15 +3,18 @@
 // 1. 面板五颗页签、列表页三组筛选药丸：选中块是一整块自己滑过去的底（.dsws-ink），
 //    不是每颗按钮各换一次底色；墨块只写 transform 与 CSS 变量，对位时只读一次 offset* 尺寸
 //    （docs/adr/20260911-zero-layout-jitter.md：测量相只读、变更相只写，不量改交替）。
-// 2. 清单里每个可点控件都有悬停与按压反馈：悬停靠 .dsws-hov / .dsws-tab:hover / .dsws-chip:hover，
-//    按压靠 data-press 属性；两套都在 feedback-styles.ts 里，且减少动态时都有降级。
+// 2. 清单里每个可点控件都有悬停与按压反馈：悬停靠 [data-press] 属性（药丸与页签另有类名规则，
+//    静态角标没有 data-press、所以不许有假悬停），按压靠 data-press 属性；两套都在
+//    feedback-styles.ts 里，且减少动态时都有降级。键盘焦点环统一取 DSH 的 --dsw-focus-ring-color
+//    （缺省回落 --dsw-alias-state-business-primary）并往控件里面画，不写死颜色、不会被容器裁断。
 // 3. 点完之后能凭一条日志唯一定位到被点的那一颗：每个可点控件带同屏唯一的 data-log，
 //    统一由 kernel/ui-feedback.ts 写 debug 级 ui.action（调试开关关着时第一行早退、零开销）。
 // 4. 分流/分支里重复写的同名按钮（返回列表在多个渲染分支各一份）允许字面量重复；不同控件不许共用。
-// 5. 这扇门禁自己也要能判红：A–H 八组跑真实源码必须全绿，再喂十三种反例（漏接线、命名重复、
+// 5. 这扇门禁自己也要能判红：A–H 八组跑真实源码必须全绿，再喂一批反例（漏接线、命名重复、
 //    大写混入、另写一套样式、日志少一条、选中项重新露底色形成双底、对位改用会触发布局的尺寸接口、
 //    新叶子只加源码不登记构建清单、墨块拉伸的关键帧被删、墨块宿主的早退守卫被删、墨块的尺寸监听被删、
-//    悬停规则不再排除按压态、日志形状不再取最近的按压元素）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
+//    焦点环颜色又写死、地图卡片悬停边框又变灰）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -225,13 +228,23 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(feedbackCss.indexOf('.dsws-pressing{filter:brightness(.85)}') >= 0, 'F1 通用按压态：按下去整颗压暗一档（全清单共用）')
   check(feedbackCss.indexOf('@media (hover:hover) and (pointer:fine){.dsws-hov:hover') >= 0, 'F2 通用悬停态只对真鼠标生效（触屏不残留悬停样式）')
   check(feedbackCss.indexOf('.dsws-tab:hover:not(.on)') >= 0 && feedbackCss.indexOf('.dsws-ink-host .dsws-tab:hover:not(.dsws-pressing){filter:brightness(1.12)}') >= 0, 'F3 页签悬停：没选中的换底、选中的再提亮一档（五颗每一颗都有反馈）；按住的时候不再提亮，否则按下去反而变亮')
-  check(feedbackCss.indexOf('.dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12)') >= 0, 'F4 筛选药丸悬停有提亮与描边；按住的时候不再提亮')
+  check(feedbackCss.indexOf('[data-press].dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12)') >= 0, 'F4 可点的筛选药丸悬停有提亮与描边；按住的时候不再提亮')
+  // 药丸里混着静态角标（地图详情的「地图」、状态章、label 章）：没有 data-press 就不是控件，
+  //   一条悬停特效都不该有。悬停规则必须只认挂了 data-press 的那一颗，否则不可点的角标也会亮一下。
+  const chipHoverSegs = feedbackCss.split('}').filter((s) => s.indexOf('.dsws-chip:hover') >= 0)
+  const fakeChipHover = chipHoverSegs.filter((s) => s.indexOf('[data-press].dsws-chip:hover') < 0)
+  check(chipHoverSegs.length >= 1 && fakeChipHover.length === 0, 'F13 药丸悬停只给带 data-press 的可点药丸：静态角标（地图、label、状态章）不再假悬停' + (fakeChipHover.length ? '；漏网：' + fakeChipHover.map((s) => s.trim().slice(-70)).join(' | ') : ''))
   check(feedbackCss.indexOf(':active') < 0, 'F8 反馈样式真源里没有 :active（按压一律走委托挂的 .dsws-pressing：:active 按住后把指针拖走会粘住，祖先元素还会跟着一起匹配）')
   const hoverFilterSegs = feedbackCss.split('}').filter((s) => s.indexOf(':hover') >= 0 && (s.indexOf('filter:') >= 0 || s.indexOf('brightness(') >= 0))
   const hoverNotExcluded = hoverFilterSegs.filter((s) => s.indexOf('.dsws-pressing') < 0)
   check(hoverFilterSegs.length >= 3 && hoverNotExcluded.length === 0, 'F9 凡是给悬停加亮度的规则都同时排除按压态（按住时不能反而变亮）' + (hoverNotExcluded.length ? '；漏网：' + hoverNotExcluded.map((s) => s.trim().slice(-60)).join(' | ') : ''))
-  check(feedbackCss.indexOf('.dsws-node:hover{border-color') >= 0 && feedbackCss.indexOf('.dsws-node.dsws-pressing') >= 0, 'F5 地图工单卡整张卡悬停与按压都有（卡内按钮各自还有自己的）')
-  check(feedbackCss.indexOf('.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-hov:focus-visible') >= 0, 'F6 键盘焦点环补到页签、药丸与小按钮（不删焦点可见性）')
+  check(feedbackCss.indexOf('.dsws-node:hover{border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary') >= 0 && feedbackCss.indexOf('.dsws-node.dsws-pressing') >= 0, 'F5 地图工单卡整张卡悬停与按压都有，且悬停边框取主题主色（原来变灰白，跟「获得焦点」的语义对不上）')
+  check(feedbackCss.indexOf('outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary') >= 0 && feedbackCss.indexOf('outline-offset:-2px') >= 0, 'F6 键盘焦点环统一取 DSH 的焦点 token（--dsw-focus-ring-color，缺省回落主题主色），并往控件里面画（负 offset；外扩的环会被 overflow:hidden 的容器裁断）')
+  // 焦点环颜色不许写死：写死 #58a6ff 换主题不跟，用户实测看到的「灰色 / 旧蓝」都是这类。
+  const focusSegs = feedbackCss.split('}').filter((s) => s.indexOf(':focus-visible') >= 0)
+  const hardFocusColor = focusSegs.filter((s) => s.indexOf('var(--dsw-focus-ring-color') < 0)
+  check(focusSegs.length >= 1 && hardFocusColor.length === 0, 'F15 焦点环颜色不写死：一律取 --dsw-focus-ring-color（换主题跟着变）' + (hardFocusColor.length ? '；漏网：' + hardFocusColor.map((s) => s.trim().slice(-70)).join(' | ') : ''))
+  check(feedbackCss.indexOf('[data-dsws-host] :focus-visible') >= 0, 'F14 焦点环覆盖停靠面板里所有可聚焦控件（含设置页输入框），不只手挂类的几颗')
   check((feedbackCss.match(/prefers-reduced-motion/g) || []).length >= 4, 'F7 减少动态的降级覆盖到新效果（墨块、通用悬停、按压位移都关）')
   // 通用悬停与按下只按 data-press 属性给：2026-10-21 用户实测漏掉的那批控件（列表行内四颗按钮、
   //   地图/工单详情顶栏、地图底部动作区、父链接）全都是「属性接上了、悬停类忘了挂」。按属性给之后，
@@ -409,6 +422,30 @@ const variants: Variant[] = [
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F10',
     change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:0 0 0 1px rgba(255,255,255,.28),0 2px 10px rgba(0,0,0,.3)}}", ''),
+  },
+  {
+    label: '静态角标又有假悬停：药丸悬停规则不再只认 data-press',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F13',
+    change: (s) => replaceAll(s, '[data-press].dsws-chip:hover:not(.dsws-pressing)', '.dsws-chip:hover:not(.dsws-pressing)'),
+  },
+  {
+    label: '焦点环又往外画：页签与按钮组的上下圈被 overflow:hidden 的容器裁断',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F6',
+    change: (s) => replaceAll(s, 'outline-offset:-2px', 'outline-offset:2px'),
+  },
+  {
+    label: '焦点环颜色写死成旧蓝：换主题不跟',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F15',
+    change: (s) => replaceAll(s, 'outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:-2px', 'outline:2px solid #58a6ff;outline-offset:-2px'),
+  },
+  {
+    label: '地图卡片悬停边框又变回灰白：跟主题主色对不上',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F5',
+    change: (s) => replaceAll(s, 'border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))!important', 'border-color:rgba(255,255,255,.28)!important'),
   },
 ]
 for (const v of variants) {
