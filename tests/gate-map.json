@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-20T17:55:52.120Z",
+  "generatedAt": "2026-10-21T01:15:02.172Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 306,
   "gateCount": 306,
@@ -116,6 +116,7 @@
         "package/lib/client.js",
         "package/package.json",
         "scripts/build.mts",
+        "scripts/lib/build-cache.mts",
         "scripts/lib/effective-lines.mts",
         "src/client/floating/Pop.ts",
         "src/client/floating/SkillFloatList.ts",
@@ -207,7 +208,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 70 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 70 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -4454,6 +4455,7 @@
         "package/lib/client.js",
         "package/package.json",
         "scripts/build.mts",
+        "scripts/lib/build-cache.mts",
         "src/client/index.ts",
         "src/client/kernel/ctx.ts"
       ],
@@ -4461,6 +4463,7 @@
         "package",
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/client",
         "src/client/kernel"
       ],
@@ -4468,7 +4471,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-delta-patch.ts",
@@ -5305,19 +5308,21 @@
         "package/lib/client.js",
         "package/package.json",
         "scripts/build.mts",
+        "scripts/lib/build-cache.mts",
         "src/client/index.ts"
       ],
       "dirs": [
         "package",
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 4 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-label-color-core.ts",
@@ -5382,6 +5387,7 @@
         "package/lib/index.js",
         "scripts/build.mts",
         "scripts/generated/logKernel.derived.js",
+        "scripts/lib/build-cache.mts",
         "src/client",
         "src/client/kernel/log.ts",
         "src/host"
@@ -5390,6 +5396,7 @@
         "package/lib",
         "scripts",
         "scripts/generated",
+        "scripts/lib",
         "src/client",
         "src/client/kernel",
         "src/host"
@@ -5398,7 +5405,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-log-client.ts",
@@ -5406,6 +5413,7 @@
       "guards": [
         "package/lib/client.js",
         "scripts/build.mts",
+        "scripts/lib/build-cache.mts",
         "src/client/index.ts",
         "src/client/kernel/log.ts",
         "src/client/kernel/probe-snapshot.ts",
@@ -5417,6 +5425,7 @@
       "dirs": [
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/client",
         "src/client/kernel",
         "src/shared/time-config/src",
@@ -5426,7 +5435,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-log-count.ts",
@@ -5970,6 +5979,7 @@
         "package/lib/ticketGrouping.js",
         "package/package.json",
         "scripts/build.mts",
+        "scripts/lib/build-cache.mts",
         "src/host/index.ts",
         "src/host/issueDetail.ts",
         "src/host/issueList.ts",
@@ -5983,6 +5993,7 @@
         "package",
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/host",
         "src/tracker",
         "tests/lib"
@@ -5991,7 +6002,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-platform-contract.ts",
@@ -6001,6 +6012,7 @@
         "package/lib/index.js",
         "package/package.json",
         "scripts/build.mts",
+        "scripts/lib/build-cache.mts",
         "src/host/platform/darwin/index.ts",
         "src/host/platform/index.ts",
         "src/host/platform/linux/index.ts",
@@ -6010,6 +6022,7 @@
         "package",
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/host/platform",
         "src/host/platform/darwin",
         "src/host/platform/linux",
@@ -6019,7 +6032,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-policy.ts",
@@ -6678,6 +6691,7 @@
         "package/lib/client.js",
         "package/package.json",
         "scripts/build.mts",
+        "scripts/lib/build-cache.mts",
         "src/client/index.ts",
         "src/client/kernel/ctx.ts",
         "src/client/kernel/tabsfold.ts",
@@ -6688,6 +6702,7 @@
         "package",
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/client",
         "src/client/kernel",
         "tests/lib"
@@ -6696,7 +6711,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-tracker-contract.ts",
@@ -7367,18 +7382,25 @@
       "node tests/verify-997-vc-sight.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
+      "node tests/verify-ctx.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-issue232-sync.ts",
+      "node tests/verify-kernel.ts",
+      "node tests/verify-log-artifacts.ts",
+      "node tests/verify-log-client.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-store.ts",
       "node tests/verify-map-drill.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-multi-effort-panel.ts",
+      "node tests/verify-parse-leaf.ts",
+      "node tests/verify-platform-contract.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
+      "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-visible-truth.ts",
