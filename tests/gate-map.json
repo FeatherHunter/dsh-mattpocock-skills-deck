@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T13:14:44.646Z",
+  "generatedAt": "2026-10-21T13:28:11.057Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 310,
   "gateCount": 310,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 516,
+  "graphFileCount": 517,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -8654,9 +8654,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 531,
+    "fileCount": 532,
     "dirCount": 58,
-    "coveredFileCount": 531,
+    "coveredFileCount": 532,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 50,
@@ -8999,6 +8999,7 @@
       "src/shared/label-color/src/ports.ts",
       "src/shared/label-color/src/prompt.ts",
       "src/shared/label-color/tsconfig.json",
+      "src/shared/log-event-list.ts",
       "src/shared/matt-skills.ts",
       "src/shared/naming-attribution.ts",
       "src/shared/naming-titles.ts",
