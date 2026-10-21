@@ -4,7 +4,7 @@
  *
  * 职责：包内自洽（存在性、有效性、LICENSE/VERSION、增量体积）＋随包目录集合与单源名单的双向差集。
  * 第 6 段（2026-10-17 从已删的 tests/verify-matt-skills-sync.js 第 7a 段搬来）：随包目录集合
- *   与 src/shared/matt-skills.js 的 MATT_SKILL_PROBE_NAMES 双向差集必须为 0——本文件其余段落只查
+ *   与 src/shared/matt-skills.ts 的 MATT_SKILL_PROBE_NAMES 双向差集必须为 0——本文件其余段落只查
  *   每个目录自身是否自洽，查不出「漏发一个技能」或「多发一个单源里没有的目录」。
  *
  * 检查（空目录期跳过体积段）：
@@ -183,30 +183,31 @@ try {
 // 6) bundled 目录集合与单源 MATT_SKILL_PROBE_NAMES 双向差集为 0（2026-10-17 从 tests/verify-matt-skills-sync.js 第 7a 段搬来）
 // 为什么留这一条：本文件其余段落只查「每个目录自身是否自洽」，查不出「随包目录漏了一个技能、
 // 或者多出一个单源里没有的目录」——那种漂移只有和单源名单对集合才看得见。
-// 单源真源是 src/shared/matt-skills.ts（不是本文件里任何字面量）；2026-10-19 第三阶段起
-// 构建产物搬到了 .build/shared/matt-skills.js（esbuild 转译后字符串用双引号），
-// 所以这里读产物位，下面的名字匹配要同时接受单双引号。
-const SRC_MATT_SKILLS = path.join(ROOT, '.build/shared/matt-skills.js')
-if (existsSync(BUNDLED_DIR) && existsSync(SRC_MATT_SKILLS)) {
+// 单源真源是 src/shared/matt-skills.ts（不是本文件里任何字面量）。#1342 起这里直接 import 真源，
+// 不再从 .build 产物里正则抠名单：产物只是转译后的副本，抠它会把「产物没重建」误判成单源漂移。
+// require 里的 '.js' 说明符由 scripts/ts-hook.mts 指到同名 .ts 源码，加载的是源码而不是产物。
+let probeNames: string[] = []
+try {
+  const shared = require('../src/shared/matt-skills.js') as { MATT_SKILL_PROBE_NAMES?: string[] }
+  probeNames = [...(shared.MATT_SKILL_PROBE_NAMES || [])]
+  check(probeNames.length === 27, '单源探测名单应为 27 项（实 ' + probeNames.length + '）')
+} catch (e) {
+  check(false, '无法导入 src/shared/matt-skills.ts 的单源探测名单：' + (e as Error).message)
+}
+if (probeNames.length > 0 && existsSync(BUNDLED_DIR)) {
   const bundledDirs = readdirSync(BUNDLED_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .sort()
-  const sharedText = readFileSync(SRC_MATT_SKILLS, 'utf8')
-  const m = sharedText.match(/export const MATT_SKILL_PROBE_NAMES\s*=\s*\[([\s\S]*?)\]/)
-  if (!m) {
-    check(false, '.build/shared/matt-skills.js 里没有 MATT_SKILL_PROBE_NAMES 清单，无法比对随包目录集合')
-  } else {
-    const probeNames = [...m[1].matchAll(/["']([^"']+)["']/g)].map((x) => x[1]).sort()
-    const missing = probeNames.filter((n) => !bundledDirs.includes(n))
-    const extra = bundledDirs.filter((n) => !probeNames.includes(n))
-    check(
-      missing.length === 0 && extra.length === 0,
-      `bundled 目录集合与单源双向差集 0（缺 ${missing.join(',') || '无'}；多 ${extra.join(',') || '无'}）`,
-    )
-  }
-} else if (!existsSync(SRC_MATT_SKILLS)) {
-  check(false, '.build/shared/matt-skills.js 缺失（随包目录集合没有可比对的单源）')
+  const sortedProbeNames = [...probeNames].sort()
+  const missing = sortedProbeNames.filter((n) => !bundledDirs.includes(n))
+  const extra = bundledDirs.filter((n) => !sortedProbeNames.includes(n))
+  check(
+    missing.length === 0 && extra.length === 0,
+    'bundled 目录集合与单源双向差集 0（缺 ' + (missing.join(',') || '无') + '；多 ' + (extra.join(',') || '无') + '）',
+  )
+} else if (!existsSync(BUNDLED_DIR)) {
+  check(false, 'package/bundled-skills 缺失（随包目录集合没有可比对的单源）')
 }
 
 console.log('\n=== verify-bundled-skills ===')
