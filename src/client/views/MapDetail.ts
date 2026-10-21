@@ -345,7 +345,7 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         isSpec ? null : h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 4, fontSize: 12, color: '#4ade80', margin: '4px 0 2px' } }, [Ic({ n: 'target', size: 12, style: { marginTop: 2, flex: 'none' } }), h('div', { style: { flex: 1, minWidth: 0 } }, m.destination ? mdToHtml(m.destination, { st: st }) : tr('list.noDest'))]),
         // T17 修订：正文详情（Notes）默认折叠 —— <details> 收起，点击展开
         isSpec ? null : h('details', { style: { margin: '2px 0 4px' } }, [
-          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.notes.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 } }, [
+          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.notes.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, borderRadius: 4 } }, [
             Ic({ n: 'note', size: 11 }),
             h('span', null, tr('map.notesCap')),
           ]),
@@ -377,7 +377,7 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         ]),
         // 折叠块：Decisions / Fog / Out of scope（保留信息展示）
         isSpec ? null : h('details', { style: { marginTop: 10, marginBottom: 4 } }, [
-          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.decisions.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.decisions', { n: decisions.length })),
+          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.decisions.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', borderRadius: 4 } }, tr('map.decisions', { n: decisions.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, decisions.map(function (d: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, [
               h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, '· '),
@@ -389,13 +389,13 @@ export     const MapDetail = ({ st, g, drill }: any) => {
           })),
         ]),
         isSpec ? null : h('details', { style: { marginBottom: 4 } }, [
-          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.fog.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.fog', { n: fogList.length })),
+          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.fog.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', borderRadius: 4 } }, tr('map.fog', { n: fogList.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, fogList.map(function (f: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + f, { st: st }))
           })),
         ]),
         isSpec ? null : h('details', { style: { marginBottom: 4 } }, [
-          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.outofscope.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.outOfScope', { n: outOfScope.length })),
+          h('summary', { className: 'dsws-hov', 'data-press': 'row', 'data-log': 'map.outofscope.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', borderRadius: 4 } }, tr('map.outOfScope', { n: outOfScope.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, outOfScope.map(function (o: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + o, { st: st }))
           })),
