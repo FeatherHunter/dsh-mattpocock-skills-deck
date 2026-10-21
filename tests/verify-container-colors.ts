@@ -2,7 +2,7 @@
 // https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1296
 // 门禁归属: src/client/kernel/container-view.ts
 // 门禁归属: src/client/views/versionControl/vcStyles.ts
-// 判据（#1290 实施决策 G、#1280 第 4 节颜色四条）：
+// 判据（#1290 实施决策 G、#1280 第 4 节颜色四条、#1343 颜色收口）：
 // 1. 探索地图的身份色与规格（实施地图）的身份色，真值只剩中央色表 src/client/kernel/container-view.ts
 //    的 CONTAINER_ACCENT 一处；src 下任何其他文件再写一次这个色值就判红——写进注释也算，
 //    因为注释里的色值第二天就会被复制成代码。大小写变体同样算：`#C084FC`、`#1d4ed8` 与 `#1D4ED8`
@@ -17,13 +17,16 @@
 // #1343 追加（颜色收口）：容器三态里的两枚固定色——空态橙、完成态绿——也只许在中央色表里写一次。
 // 4. 中央色表的 CONTAINER_EMPTY_COLOR / CONTAINER_DONE_COLOR 真值各一处，运行时读出来与门禁里写死的
 //    期望值一致；改色表不改这里、或改这里不改色表，都会红——两边必须一起改，diff 里看得见。
-// 5. 守的是「容器三态消费端」这一圈，不是全仓零容忍：候选按判据动态圈——引用这两个状态色常量的文件，
-//    加上今天仍写裸 #f59e0b / #3fb950 且落在空态/完成态语境里的渲染点。全仓这两色共有几十处，大多是
-//    警告橙、打开/关闭绿、主题串与配色板（#1280 第 4 节定了不统一），全仓零容忍会把它们全判红，
-//    反而看不出真正该改的是哪几处。
-// 6. 候选消费端必须引用中央色表的状态色，且除中央色表外不许再写这两个色值；语义上确实不是第二份拷贝
-//    的渲染点按「路径 + 段」白名单放行（沿用下面版本控制蓝的先例），每条白名单都要被实际命中，
-//    过期白名单会红。
+// 5. 全仓零容忍：src 下所有 .ts/.mts/.tsx 原文都在扫描范围里（含注释、不区分大小写）。
+//    除中央色表外，两色每一处都必须落进 STATUS_EXCEPTIONS 的某一条「路径 + 段」里；白名单条目
+//    必须被实际命中，过期条目判红。今天全仓两色共 32 个文件 83 处（含中央色表各 1 处）。
+//    白名单只收语义上确实不是第二份拷贝的同值点——警告橙、票/issue 状态绿、标签色数据、主题串、
+//    颜色元数据、版本控制页签自带配色等，每条都写清改中央色时为什么不该顺带改它。
+// 6. 动态消费端那一圈仍单独检查：引用两个状态色常量、或裸色值落在空态/完成态语境里的文件，
+//    必须真的从中央色表取色；候选文件里声明的状态常量必须保留「typeof 判断 + 空串兜底」的守卫，
+//    防止有人把兜底换回写死的色值。候选文件自己的裸值同样要过第 5 条的白名单。
+// 7. 消费端与白名单分开检查：第八节管「谁在消费、有没有绕开中央色表」，第九节管「全仓每一处
+//    同值落点是否都有白名单条目、条目是否过期」。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-container-colors.ts
 // 做法：递归读 src/**/*.{ts,mts,tsx} 原文，按颜色值统计落点（不区分大小写）；中央色表与版本控制蓝
 //   按白名单放行，其余一律零容忍。不跑渲染，渲染侧的取色行为由上面那几扇门禁守。
@@ -51,16 +54,361 @@ const DONE = '#3fb950'
 // 加语境标记是为了让「新写的裸值渲染点」也逃不掉：只看常量引用的话，直接手写色值的消费端会漏掉。
 const STATUS_CONSTANTS = ['CONTAINER_EMPTY_COLOR', 'CONTAINER_DONE_COLOR']
 const RAW_SEMANTIC_MARKERS = ['mapEmpty', 'mapDone', 'cState', 'containerTri', 'containerNumber', 'CONTAINER_EMPTY_COLOR', 'CONTAINER_DONE_COLOR', 'DONE_GREEN', 'inspectTitle', 'doneTitle']
-// 语义上确实不是第二份拷贝的例外点：路径 + 段锁死，out 里的每一处都必须落在这一段所在的同一行。
-// 这里只放「有别的语义、今天同值只是巧合」的渲染点；警告橙、主题串等根本不属于容器三态消费端，不进这里。
+// 全仓同值点的白名单：路径 + 段锁死，段是命中行里必须出现的片段，每一条还必须被实际命中。
+// #1343 把范围从「容器三态消费端那一圈」扩到整个 src 之后，警告橙、票/issue 状态绿、标签色数据、
+// 主题串与颜色元数据都要在这里登记；每条 reason 说明「为什么这不是第二份会跟着漂的拷贝」。
 const STATUS_EXCEPTIONS = [
+  // ---- 警告橙：切换、探测、迁移、快照、限流、过期等「要提醒人」的状态提示色 ----
+  // 它们和容器空态橙不是同一套语义，中央色表改色时不该跟着变；今天同值只是共用同一支琥珀。
+  {
+    file: 'src/client/kernel/row-actions.ts',
+    segment: "'needs-triage', '#f59e0b'",
+    reason: 'needs-triage 动作按钮的警示橙（bc 给按钮上色）：这是 triage 标签色，用来提示需要分诊，与容器空态无关。',
+  },
+  {
+    file: 'src/client/kernel/row-actions.ts',
+    segment: "'wayfinder:prototype', '#f59e0b'",
+    reason: 'wayfinder:prototype 动作按钮的警示橙（rowActionText 的按钮色）：原型标签色，与容器空态无关。',
+  },
+  {
+    file: 'src/client/panel/Dock.ts',
+    segment: 'repoUnidentifiedTitle',
+    reason: '仓库未识别提示 chip 的警告色：这里要提醒人「这个仓库没认出来」，用的是 triage 警示橙。',
+  },
+  {
+    file: 'src/client/panel/Dock.ts',
+    segment: "headBox.tone === 'yellow'",
+    reason: '头部更新时间「黄」档的 CSS 变量兜底：时间已经旧了的提示，颜色是状态提示黄。',
+  },
+  {
+    file: 'src/client/panel/Dock.ts',
+    segment: "const bg = 'rgba(245,158,11,.12)'",
+    reason: '切换面板探测提示的整套琥珀底色与边框色组（rgba 配 #f59e0b）：这一块的警告配色。',
+  },
+  {
+    file: 'src/client/panel/Dock.ts',
+    segment: 'switch.goSettingsBind',
+    reason: '「去设置里绑定」按钮的背景：提醒人先完成绑定才能继续，属于警告动作按钮。',
+  },
+  {
+    file: 'src/client/panel/Dock.ts',
+    segment: 'switch.probe',
+    reason: '探测进行中 / 探测排队的两行提示文字（switch.probe*）：状态提示色。',
+  },
+  {
+    file: 'src/client/panel/Dock.ts',
+    segment: 'switch.retryProbe',
+    reason: '探测失败后「重试」按钮的背景：警告动作按钮复用同一支琥珀。',
+  },
+  {
+    file: 'src/client/panel/Dock.ts',
+    segment: 'gate.wipNotice',
+    reason: '功能未完成迁移的提示条（gate.wipNotice）：全仓同一句提示共用一支警告色。',
+  },
+  {
+    file: 'src/client/statusbar/StatusBar.ts',
+    segment: 'nav.triageTitle',
+    reason: '状态栏 triage 入口的警示橙：用颜色提示「有需要分诊的票」。',
+  },
+  {
+    file: 'src/client/statusbar/StatusBar.ts',
+    segment: 'nav.envTitle',
+    reason: '环境数量为负（读不到）时的黄色警示：环境状态异常提示。',
+  },
+  {
+    file: 'src/client/statusbar/StatusBar.ts',
+    segment: 'dsws-banner warn',
+    reason: '接口探测中的警告横幅（dsws-banner warn）：整条 banner 的文字与边框用琥珀，同一行两处。',
+  },
+  {
+    file: 'src/client/statusbar/StatusBar.ts',
+    segment: 'gate.wipNotice',
+    reason: '功能未完成迁移的提示条（gate.wipNotice）：与切换面板同一句提示、同一支警告色。',
+  },
+  {
+    file: 'src/client/views/ChecksTab.ts',
+    segment: "sts === 'current'",
+    reason: '检查项「进行中 / 当前」的琥珀圆点与文字（同一行两处）：步骤状态色。',
+  },
+  {
+    file: 'src/client/views/IssueDetail.ts',
+    segment: "isStale ? '#f59e0b'",
+    reason: '详情快照已过期的琥珀提示：提醒人这份数据可能是旧的。',
+  },
+  {
+    file: 'src/client/views/IssueDetail.ts',
+    segment: '显示快照降级',
+    reason: '「显示快照降级」提示文字的琥珀色：数据降级状态提示。',
+  },
+  {
+    file: 'src/client/views/IssueDetailComments.ts',
+    segment: 'rate-limit',
+    reason: '评论提交触发限流的提示色：用琥珀和网络失败（红）区分开。',
+  },
+  {
+    file: 'src/client/views/ListTab.ts',
+    segment: 'list.partial',
+    reason: '健康检查结果不完整（list.partial）的琥珀小点：结果状态提示。',
+  },
+  {
+    file: 'src/client/views/ListTab.ts',
+    segment: "t === 'yellow'",
+    reason: "列表行状态 tone=yellow 的取色函数：状态提示黄。",
+  },
+  {
+    file: 'src/client/views/ListTabClosed.ts',
+    segment: 'list.page',
+    reason: '已关闭列表的分页提示（list.page*）：全部在网页端 / 数据过期，用琥珀提示限制。',
+  },
+  {
+    file: 'src/client/views/NoRepoCard.ts',
+    segment: 'switch.probe',
+    reason: '仓库还没就绪时的探测中 / 排队提示文字（switch.probe*）：状态提示色。',
+  },
+  {
+    file: 'src/client/views/NoRepoCard.ts',
+    segment: 'switch.retryProbe',
+    reason: '探测失败后的「重试」按钮背景：警告动作按钮。',
+  },
+  {
+    file: 'src/client/views/NoRepoCard.ts',
+    segment: 'panel.labelsStepAction',
+    reason: '标签补建流程里「下一步」主按钮背景：引导动作按钮复用琥珀。',
+  },
+  {
+    file: 'src/client/views/SubworkspaceMark.ts',
+    segment: 'isWarn',
+    reason: '子工作区标记里被标为警告的条目：警告语义。',
+  },
+  {
+    file: 'src/client/views/labels/LabelColorDialog.ts',
+    segment: "closeXStyle.borderColor = '#f59e0b'",
+    reason: '标签色对话框关闭按钮「再点一次确认」的警告边框与文字（同一行两处）：防误关。',
+  },
+  {
+    file: 'src/client/views/labels/LabelColorDialog.ts',
+    segment: 'lc.draftHint',
+    reason: '有未保存标签色改动时的草稿提示：提醒人还有改动没保存。',
+  },
+  {
+    file: 'src/client/views/labels/LabelColorDialog.ts',
+    segment: 'lc.savedSome',
+    reason: '部分标签色保存失败的结果提示：部分成功的警告。',
+  },
+  {
+    file: 'src/client/views/labels/LabelColorDialog.ts',
+    segment: 'lc.unsupportedTitle',
+    reason: '标签色不受支持时的提示标题：警告语义。',
+  },
+  {
+    file: 'src/client/views/labels/LabelColorDialog.ts',
+    segment: "exitStyle.borderColor = '#f59e0b'",
+    reason: '退出确认按钮的警告边框与文字（同一行两处）：防误退出。',
+  },
+  {
+    file: 'src/client/views/labels/LabelColorDialog.ts',
+    segment: 'lc.copyNoBackend',
+    reason: '复制失败提示（没有可用后端）：警告语义。',
+  },
+  {
+    file: 'src/client/views/labels/LabelColorDialog.ts',
+    segment: 'lc.closeUnsaved',
+    reason: '关闭时「还有未保存改动」的警告文字：防误关。',
+  },
+  {
+    file: 'src/client/views/pixel/PixelDot.ts',
+    segment: "p.level === 'warn'",
+    reason: '像素风状态点的 warn 档取色：像素主题调色板里的警告色。',
+  },
+  {
+    file: 'src/client/views/shared/BackendSelector.ts',
+    segment: 'gate.wipNotice',
+    reason: '功能未完成迁移的提示条（gate.wipNotice）：与状态栏同一句提示、同一支警告色。',
+  },
+  {
+    file: 'src/client/views/shared/BackendSelector.ts',
+    segment: 'multiHitBadge',
+    reason: '多后端同时命中的标记徽章（同一行两处）：提醒人选中的 ID 命中多个后端。',
+  },
+  {
+    file: 'src/client/views/shared/BackendSelector.ts',
+    segment: 'multiHitLine',
+    reason: '多后端命中说明行：同一条提醒的正文。',
+  },
+  {
+    file: 'src/client/views/shared/BackendSelector.ts',
+    segment: 'pendingLine',
+    reason: '待选择提示行：提醒人还有选择没做完。',
+  },
+  {
+    file: 'src/client/views/shared/ChainRenderer.ts',
+    segment: "k === 'warn'",
+    reason: '执行链步骤的 warn 档色组（底色、边框、文字）：步骤状态色。',
+  },
+  {
+    file: 'src/client/views/shared/ChainRenderer.ts',
+    segment: "isCurrent ? '#f59e0b'",
+    reason: '执行链当前步骤的琥珀底色：步骤「正在进行」的状态色。',
+  },
+  {
+    file: 'src/client/views/shared/ChainRenderer.ts',
+    segment: '2px solid #f59e0b',
+    reason: '执行链当前步骤的琥珀边框。',
+  },
+  {
+    file: 'src/client/views/shared/ChainRenderer.ts',
+    segment: "isCurrent?'#f59e0b'",
+    reason: '执行链当前步骤标题文字的琥珀色。',
+  },
+  {
+    file: 'src/client/views/shared/ChainRenderer.ts',
+    segment: "levelToClass(level)==='warn'",
+    reason: '执行链状态点的 warn 档取色。',
+  },
+  {
+    file: 'src/client/views/shared/RestFallbackBanner.ts',
+    segment: "view.stale ? 'stale' : 'now'",
+    reason: '接口降级到 REST 时的横幅提示（stale / now 两档）：提醒人数据来源变了。',
+  },
+  {
+    file: 'src/client/views/shared/RestFallbackBanner.ts',
+    segment: "background: 'transparent', border: 'none', color: '#f59e0b'",
+    reason: '降级横幅的关闭按钮文字色：沿用横幅的警告色。',
+  },
+  {
+    file: 'src/client/views/shared/SwitchConfirmModal.ts',
+    segment: "id === 'migrate' ? '#f59e0b'",
+    reason: '切换确认里「迁移」选项的琥珀色：keep 绿 / migrate 琥珀 / 拒绝红三档。',
+  },
+  {
+    file: 'src/client/views/shared/SwitchConfirmModal.ts',
+    segment: 'gate.wipNotice',
+    reason: '功能未完成迁移的提示条（gate.wipNotice）：警告语义。',
+  },
+  {
+    file: 'src/client/views/shared/SwitchConfirmModal.ts',
+    segment: "migrateBlocked ? '#f87171' : '#f59e0b'",
+    reason: '迁移选项标题在未阻塞时的琥珀色；阻塞时转红。',
+  },
+  {
+    file: 'src/client/views/shared/chips.ts',
+    segment: "level === 'warn'",
+    reason: '通用状态点 Dot 的 warn 档取色：警告语义。',
+  },
+  {
+    file: 'src/client/views/shared/workRouteTable.ts',
+    segment: 'workRouteTable.staleSummary',
+    reason: '工作路线表 stale 计数摘要的琥珀色：提醒有数据过期。',
+  },
+  {
+    file: 'src/client/views/shared/workRouteTable.ts',
+    segment: 'workRouteTable.unreadable',
+    reason: '工作路线表不可读提示的琥珀色：读取失败提示。',
+  },
+  {
+    file: 'src/client/views/skillDetail/PixelSkillRow.ts',
+    segment: "level === 'warn'",
+    reason: '像素技能行状态色表的 warn 档：像素主题调色板。',
+  },
+
+  // ---- 成功 / 关闭绿：票与 issue 的状态色、标签色板绿 ----
+  // 容器完成态绿只在容器三态里用；这些绿各有出处，中央色表改色不该顺带改它们。
+  {
+    file: 'src/client/kernel/styles.ts',
+    segment: '.dsws-chip-g{',
+    reason: '标签「绿色」chip 的样式（.dsws-chip-g）：GitHub 标签色板里的绿，与容器完成态绿无关。',
+  },
+  {
+    file: 'src/client/kernel/styles.ts',
+    segment: '已关闭绿 #3fb950',
+    reason: '注释里说明标签 chip 配色时引用的「已关闭绿」：标签色板口径的说明文字。',
+  },
+  {
+    file: 'src/client/views/IssueDetail.ts',
+    segment: "isOpen ? '#3fb950'",
+    reason: 'issue 打开状态的绿：这是 issue 状态色，不是容器完成态。',
+  },
+  {
+    file: 'src/client/views/IssueDetail.ts',
+    segment: "s.state === 'CLOSED' ? '#3fb950'",
+    reason: 'issue 已关闭状态的绿：票 / issue 状态色。',
+  },
   {
     file: 'src/client/views/MapDetail.ts',
     segment: 'map.subClosed',
     reason: '子票已关闭的绿是票状态（CLOSED）的颜色，不是容器三态里那枚完成绿；今天同值只是历史巧合，改中央色不该顺带改子票状态色。',
   },
+  {
+    file: 'src/client/views/PrTab.ts',
+    segment: 'list.state.open',
+    reason: 'PR 打开状态的绿（list.state.open）：PR 状态色。',
+  },
+  {
+    file: 'src/client/views/TicketRow.ts',
+    segment: 'map.subClosed',
+    reason: '已关闭票行内绿色勾标记：票状态（CLOSED）色，不是容器完成态。',
+  },
+  {
+    file: 'src/client/views/shared/ticket.ts',
+    segment: "t.state === 'CLOSED'",
+    reason: '票状态条里的「已关闭」绿勾（done）：票状态色。',
+  },
+  {
+    file: 'src/client/views/shared/ticket.ts',
+    segment: "color: '#f59e0b', icon: 'alert' }",
+    reason: '票进度到 95% 与 100% 时的琥珀警示徽章（confirm / accept 两档，同一行两处）：进度状态色，不是容器空态。',
+  },
+  {
+    file: 'src/client/views/labels/labelColorPalette.ts',
+    segment: 'light-dark(#1a7f37,#3fb950)',
+    reason: 'GitHub 标签色板里的 green 条目（浅色 #1a7f37、深色 #3fb950）：标签色数据。',
+  },
+  {
+    file: 'src/tracker/rooms/markdown/index.ts',
+    segment: "darkColor: '#3fb950'",
+    reason: '本地 Markdown 房的标签颜色数据（darkColor）：标签色数据，不是容器完成态。',
+  },
+
+  // ---- 主题串与版本控制页签自带配色 ----
+  // 这些色值属于各自的主题 / 页签配色表，改中央色表不该顺带改它们。
+  {
+    file: 'src/client/views/cards/PixelCardsStyles.ts',
+    segment: '--cd-warn:#f59e0b',
+    reason: '像素卡片主题串里的警告色变量（--cd-warn）：主题自带调色板。',
+  },
+  {
+    file: 'src/client/views/skillDetail/PixelStyles.ts',
+    segment: '--pixel-warn:#f59e0b',
+    reason: '像素主题串里的警告色变量（--pixel-warn）：主题自带调色板。',
+  },
+  {
+    file: 'src/client/views/versionControl/VersionControlTab.ts',
+    segment: '--vc-warn,#f59e0b',
+    reason: '版本控制页签的警告色变量兜底（--vc-warn）：该页签自带配色表。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcStyles.ts',
+    segment: '--vc-warn:#f59e0b',
+    reason: '版本控制页签主题串里的警告色变量定义（中英两套主题各一处）：页签自带配色表。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcStyles.ts',
+    segment: 'var(--vc-warn,#f59e0b)',
+    reason: '版本控制徽章用 --vc-warn 变量、兜底里又写了一次同值（同一行两处）：页签配色表的兜底写法。',
+  },
+
+  // ---- 颜色元数据 ----
+  {
+    file: 'src/shared/feedback-map.ts',
+    segment: '琥珀 #f59e0b',
+    reason: '反馈映射表里说明「限流那一档走琥珀」的文字描述：颜色元数据，不参与渲染。',
+  },
 ]
-// 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份色值。
+// 今天全仓两色落点（不含中央色表）的登记数：新增或删除一处同值点都要同时改白名单与这里，
+// 让「又抄了一份」或「白名单漏了一处」在 diff 里直接看得见。
+const STATUS_REPO_HITS = 81
+const STATUS_REPO_FILES = 31
+// 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
   'src/client/floating/SkillFloatList.ts',
   'src/client/kernel/modal-fields.ts',
@@ -237,33 +585,72 @@ check(fileSet.has(VC_STYLES), '版本控制样式文件在扫描范围内：' + 
     })
   }
 
-  const used = new Set<number>()
+  // 候选文件里声明的状态色常量必须保留「typeof 判断 + 空串兜底」的守卫：客户端片段被单独求值时
+  // 中央色表的常量可能没有被注入，这时要退回空串，而不是退回写死的色值；直接裸引用也不行。
+  // 这条断言专门防有人把兜底改回 '#f59e0b' / '#3fb950'，或者把守卫整段删掉。
+  function keepsStringFallbackGuard(text: string, name: string): boolean {
+    return text.split(/\r?\n/).some((line: any) => {
+      const t = line.trim().replace(/\s+/g, ' ')
+      return t.includes("typeof " + name + " === 'string'") && t.includes('? ' + name + " : ''")
+    })
+  }
+
   const offenders: string[] = []
   for (const candidate of candidates) {
     check(takesStatusConstant(candidate.text), '容器三态消费端从中央色表取状态色：' + candidate.rel)
+    for (const name of STATUS_CONSTANTS) {
+      if (!new RegExp('declare\\s+const\\s+' + name + '\\b').test(candidate.text)) continue
+      check(keepsStringFallbackGuard(candidate.text, name), '消费端声明的 ' + name + ' 保留 typeof 判断与空串兜底守卫：' + candidate.rel)
+    }
     const hits = occurrences(candidate.rel, candidate.text, EMPTY).concat(occurrences(candidate.rel, candidate.text, DONE))
     for (const hit of hits) {
       const idx = STATUS_EXCEPTIONS.findIndex((exc: any) => exc.file === candidate.rel && hit.whole.includes(exc.segment))
-      if (idx >= 0) {
-        used.add(idx)
-        continue
-      }
+      if (idx >= 0) continue
       offenders.push(candidate.rel + ':' + hit.line + ' ' + hit.whole)
     }
   }
-  check(offenders.length === 0, '容器三态消费端没有自己再抄一份状态色（命中 ' + offenders.length + ' 处）' + (offenders.length ? '\n  ' + offenders.join('\n  ') : ''))
-  // 白名单只放真被用到的例外：过期条目会红，逼着删，免得名单越攒越像摆设。
+  check(offenders.length === 0, '容器三态消费端没有自己再抄一份状态色（白名单里语义不同的同值点除外；命中 ' + offenders.length + ' 处）' + (offenders.length ? '\n  ' + offenders.join('\n  ') : ''))
+}
+
+// ---- 九、全仓扫描：除中央色表外，两色每一处都要落进白名单，白名单条目必须被命中 ----
+{
+  // 这一节是 #1343 扩出来的全仓零容忍：不管文件是不是容器三态消费端，只要写了这两色之一，
+  // 就必须在 STATUS_EXCEPTIONS 里有一条路径 + 段对得上；同时对不上的条目判红，逼着删。
+  const repoHits: Array<{ rel: string; line: number; whole: string }> = []
+  for (const abs of files) {
+    const rel = relOf(abs)
+    if (rel === CENTER) continue
+    const text = fs.readFileSync(abs, 'utf8')
+    for (const hit of occurrences(rel, text, EMPTY)) repoHits.push({ rel: rel, line: hit.line, whole: hit.whole })
+    for (const hit of occurrences(rel, text, DONE)) repoHits.push({ rel: rel, line: hit.line, whole: hit.whole })
+  }
+  const hitFiles = new Set(repoHits.map((h) => h.rel))
+  check(repoHits.length === STATUS_REPO_HITS, '中央色表之外两色落点数与登记一致（登记 ' + STATUS_REPO_HITS + ' 处，实得 ' + repoHits.length + ' 处）')
+  check(hitFiles.size === STATUS_REPO_FILES, '中央色表之外两色落在 ' + STATUS_REPO_FILES + ' 个文件里（实得 ' + hitFiles.size + ' 个）')
+
+  const used = new Set<number>()
+  const offenders: string[] = []
+  for (const hit of repoHits) {
+    const idx = STATUS_EXCEPTIONS.findIndex((exc: any) => exc.file === hit.rel && hit.whole.includes(exc.segment))
+    if (idx >= 0) {
+      used.add(idx)
+      continue
+    }
+    offenders.push(hit.rel + ':' + hit.line + ' ' + hit.whole)
+  }
+  check(offenders.length === 0, '中央色表之外没有无归属的状态色同值点（全仓零容忍）' + (offenders.length ? '\n  命中：\n  ' + offenders.join('\n  ') : ''))
+  // 白名单只放真被用到的条目：过期条目会红，逼着删，免得名单越攒越像摆设。
   STATUS_EXCEPTIONS.forEach((exc: any, idx: number) => {
-    check(used.has(idx), '状态色例外被实际命中：' + exc.file + ' 的 ' + exc.segment + '（' + exc.reason + '）')
+    check(used.has(idx), '状态色白名单被实际命中：' + exc.file + ' 的 ' + exc.segment + '（' + exc.reason + '）')
   })
 }
 
-// ---- 九、两枚容器状态色的运行时真值：中央色表读出来与门禁写死的期望值一致 ----
+// ---- 十、两枚容器状态色的运行时真值：中央色表读出来与门禁写死的期望值一致 ----
 {
   const mod: any = await import('../src/client/kernel/container-view.js')
   check(mod.CONTAINER_EMPTY_COLOR === EMPTY, 'CONTAINER_EMPTY_COLOR 就是空态橙（' + (mod && mod.CONTAINER_EMPTY_COLOR) + '）')
   check(mod.CONTAINER_DONE_COLOR === DONE, 'CONTAINER_DONE_COLOR 就是完成态绿（' + (mod && mod.CONTAINER_DONE_COLOR) + '）')
 }
 
-console.log(failures ? '\n存在失败 — verify-container-colors 未通过' : '\n全部通过 — 容器身份色与两枚状态色都只剩中央色表一处（共 ' + total + ' 项断言）')
+console.log(failures ? '\n存在失败 — verify-container-colors 未通过' : '\n全部通过 — 容器身份色与两枚状态色都只剩中央色表一处，全仓同值点全部有白名单归属（共 ' + total + ' 项断言）')
 process.exit(failures ? 1 : 0)
