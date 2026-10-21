@@ -1,8 +1,8 @@
 /**
- * src/shared/labels.js — 单源标签清单（#188）
- * 契约：CANONICAL_LABELS[10] 为校验与文档单源（verify-labels-sync 仅比 name 集合，不卡色）
+ * src/tracker/contract/canonical-labels.ts — 核心标签的唯一真源（#188 起，2026-10-21 口径升级）
+ * 契约：CANONICAL_LABELS[10] 的名字、颜色、描述就是唯一清单；tests/verify-labels-sync.ts 逐字比对这三样
  * 来源：gh api repos/FeatherHunter/dsh-mattpocock-skills-deck/labels 19 条中 10 核心（2026-08-26 实测）
- * 用途：client NoRepoCard 标签步骤 Modal 与 PROMPTS.ensureLabels 同源校验；宿主不自动 gh label create，纯 UI 人机协作
+ * 用途：client 的标签步骤与 PROMPTS.ensureLabels 都从这里派生；宿主不自动 gh label create，纯 UI 人机协作
  */
 export const CANONICAL_LABELS = [
   { name: 'bug', color: 'd73a4a', description: "Something isn't working" },
