@@ -144,7 +144,7 @@ export const prompts = (function () {
       en: '/wizard help the user install the gh CLI — official page: https://cli.github.com/',
     },
     ghAuthLogin: {
-      zh: '请完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
+      zh: '/wizard 辅助用户完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
       en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
     },
     // #664：原先这里有 noGhPrompt（按系统分平台的安装长文）与 repoRemoteFix（缺仓长文）两段。
