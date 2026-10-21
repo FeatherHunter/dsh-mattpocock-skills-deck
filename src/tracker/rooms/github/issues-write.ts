@@ -23,6 +23,9 @@ import { getIssue, parseRepo, repoId } from './issues.js'
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。
 import { checkIdempotencyKey } from '../../../shared/refresh/src/idempotency.js'
 import { withAnchor, lookupByAnchor } from './idempotency.js'
+// #1298：规格票的对象类型标记必须留在正文第一行（GitHub 房按第一行认规格），而幂等锚默认也占第一行。
+// 标记写法只用共享包这一份真源，不在本房另拼一条注释。
+import { markerKindAtStart } from '../../../shared/issue-file/src/marker.js'
 // #104 `issue.write`：票写入的常驻结论线。轨迹形状与发射口在 ./write-log.js ——
 // 建票、改票、评论、改标签这几处要说的是同一件事，放一处免得各写各的。
 import { beginWriteTrail, emitIssueWrite } from './write-log.js'
@@ -40,6 +43,29 @@ type CaughtMsg = { message?: unknown } | null;
 function caughtMessage(e: unknown, len: number): string {
   const eb = e as CaughtMsg;
   return String((eb && eb.message) || e).slice(0, len)
+}
+
+/**
+ * 建票正文的拼装（#1298）：规格票的对象类型标记必须留在正文第一行。
+ *
+ * GitHub 房按正文第一行认规格（normalize.ts 的 isSpecBody），而幂等锚默认也写在第一行。
+ * deck_issue_create 建规格票时已经把标记放在正文最前，所以这里看到第一行是 spec 标记，
+ * 就把正文换成「标记第一行 + 锚第二行 + 其余」：标记仍在第一行，锚也还在票面上。
+ * 锚的回查是按行扫描的（shared/refresh 的 idempotencyKeyOf），不在第一行不影响幂等。
+ *
+ * 第一行不是 spec 标记时，行为与加这段之前完全一样：锚仍然写在正文最前。
+ */
+function withSpecMarkerFirst(body: string, idemKey: string): string {
+  const text = String(body || '')
+  if (!idemKey) return text
+  if (markerKindAtStart(text) !== 'spec') return withAnchor(text, idemKey)
+  const lines = text.split('\n')
+  // markerKindAtStart 认的是第一条非空行；标记行换到最前面，锚紧跟其后，其余内容顺序不动。
+  let at = 0
+  while (at < lines.length && !lines[at].trim()) at++
+  const markerLine = lines[at]
+  const rest = lines.slice(0, at).concat(lines.slice(at + 1)).join('\n')
+  return markerLine + '\n' + withAnchor(rest, idemKey)
 }
 
 /**
@@ -85,8 +111,26 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
       // 幂等命中：这一趟一张票都没建，把已有一张交回去 —— 结论线由出口按「一条写命令都没发」算成「复用」。
       if (found.hit) return { ok: true, data: found.issue }
     }
+    // #1298：实施票的父必须是规格票 —— 与本地 Markdown 房（markdown/issues-create.ts 的同一段校验）
+    // 同一口径（ADR 2.1）。契约层的类型只有 issue / map / spec，实施票在契约上是普通票、身份靠票面标记，
+    // 所以这里按字符串认；不先校验就建票的话，GitHub 会把实施票挂到探索地图或普通票下面，
+    // 拆票以后谁也找不到它们。校验放在幂等命中之后、真正建票之前：命中时一张票都没建，不用再核父。
+    const wantedKind = String(input.type || '').trim().toLowerCase()
+    if (wantedKind === 'ticket') {
+      const wantParent = input.parentKey === undefined || input.parentKey === null ? '' : String(input.parentKey).trim()
+      if (!wantParent) return fail(ERROR_KIND.PARSE, '实施票必须挂在规格票下：建 ticket 时要给 parentKey（填规格票号，不是探索地图的 00）。', input)
+      const parentRes = await getIssue(repo, wantParent, {}, ctx)
+      if (!parentRes || parentRes.ok !== true) {
+        const parentMsg = String((parentRes && parentRes.error && parentRes.error.message) || '后端没给出原因').slice(0, 300)
+        return fail(ERROR_KIND.NOTFOUND, '实施票的父票 ' + wantParent + ' 读不回来，这次没建（后端原话：' + parentMsg + '）。', String(wantParent))
+      }
+      const parentType = String(((parentRes.data || {}) as { type?: unknown }).type || '').trim().toLowerCase()
+      if (parentType !== 'spec') {
+        return fail(ERROR_KIND.PARSE, '实施票的父必须是规格票：' + wantParent + ' 在这边不是规格票（它可能是探索地图或普通票），这次没建。', parentType || '（没读到类型）')
+      }
+    }
     const c = ghClient(ctx)
-    const body = withAnchor(typeof input.body === 'string' ? input.body : '', idemKey)
+    const body = withSpecMarkerFirst(typeof input.body === 'string' ? input.body : '', idemKey)
     // 主路用 REST 建票：gh api 不支持经 stdin 传整包（执行层没有 stdin 口），改用 -f 逐字段传；
     // gh issue create 不认 --json，所以不走它。标签与认领建后另补（已有现成函数）。
     const createArgs = ['api', `repos/${parsed.owner}/${parsed.name}/issues`, '--method', 'POST', '-f', `title=${input.title.trim()}`, '-f', `body=${body}`, '--jq', '.']

@@ -18,7 +18,7 @@ disable-model-invocation: true
 
 3. 用下面的模板写规格说明，然后把它发布到项目的议题跟踪器。打上 `ready-for-agent` 分诊标签——不需要再做额外的分诊。
 
-如果这个项目的跟踪器是本插件自带的本地 Markdown 后端：用 `deck_issue_create` 建一张规格票（`kind=spec`，`parentKey` 填这个功能所在地图的票号）——规格本身就是一张票、也是实施票的容器；不要另外写 `spec.md` 文件。工具会把对象类型标记写进票面文件头，并自动带上 `ready-for-agent` 标签。
+如果这个项目的跟踪器是本插件自带的本地 Markdown 后端，或者是 GitHub：用 `deck_issue_create` 建一张规格票（`kind=spec`，`parentKey` 填这个功能所在地图的票号）——规格本身就是一张票、也是实施票的容器；不要另外写 `spec.md` 文件。工具会写对象类型标记（本地写进票面文件头，GitHub 写在正文第一行），两个后端都认得出这是规格；父子边也由工具落好（本地是 `<!-- parentKey: ... -->` 注释行，GitHub 是原生父子列），并自动带上 `ready-for-agent` 标签。
 
 <spec-template>
 

@@ -18,7 +18,7 @@ Check with the user that these seams match their expectations.
 
 3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
 
-If this project's tracker is the plugin's built-in local Markdown backend: create a spec ticket with `deck_issue_create` (`kind=spec`, `parentKey` set to the ticket number of the map this feature belongs to). The spec is itself a ticket and the container for implementation tickets - do not write a separate `spec.md` file. The tool writes the object-kind marker into the ticket's file header and applies the `ready-for-agent` label for you.
+If this project's tracker is the plugin's built-in local Markdown backend or GitHub: create a spec ticket with `deck_issue_create` (`kind=spec`, `parentKey` set to the ticket number of the map this feature belongs to). The spec is itself a ticket and the container for implementation tickets - do not write a separate `spec.md` file. The tool writes the object-kind marker so both backends recognise the spec (the ticket file header locally, the first body line on GitHub), records the parent link (a `<!-- parentKey: ... -->` comment locally, a native parent link on GitHub), and applies the `ready-for-agent` label for you.
 
 <spec-template>
 

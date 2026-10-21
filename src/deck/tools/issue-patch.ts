@@ -1,6 +1,7 @@
 // src/deck/tools/issue-patch.ts —— deck_issue_patch（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
 //
-// 一次调用改一张票：评论 / 标签流转 / 认领 / 关闭重开 / 标题正文 / 进度区。
+// 一次调用改一张票：评论 / 标签流转 / 认领 / 关闭 / 标题正文 / 进度区。
+// 重开动作不在 AI 工具面上提供（#1298）：要重开请人在后端手动改，工具这里只回一句「做不到」。
 // 只做调用方点名的那几件事，没点名的字段一个字都不碰（改票最怕「顺手改了别的东西」）。
 // 做完的每一步都单独记一条 item：哪一步成、哪一步没成、后端原话是什么。
 // 返回值就是写后的真状态（能读回就读回一次），AI 不必再读一次确认。
@@ -66,7 +67,7 @@ export interface DeckIssuePatchDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_patch',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、开关、标题正文、progress 区，一次只动点名的那些。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭（重开不在 AI 工具面上）、标题正文、progress 区，一次只动点名的那些。',
   parameters: {
     type: 'object',
     properties: {
@@ -78,7 +79,7 @@ export const definition = {
       title: { type: 'string', description: '新的标题' },
       body: { type: 'string', description: '新的正文' },
       progress: { type: 'string', description: '只改「## 进度」那一段的内容' },
-      close: { type: 'boolean', description: 'true 关闭这张票，false 重新打开' },
+      close: { type: 'boolean', description: 'true 关闭这张票：规格票要等下面实施票全部关闭、并留一条逐张核对结论的评论才准关；不传这个参数就不动状态；重开不在 AI 工具面上提供，请人在后端手动改' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
@@ -198,6 +199,8 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       // 锁内超时的传话格：锁回调里不能直接回整笔回执（那只会结束锁回调），超时原话先记在这里，
       // 锁出来以后统一回 timeoutReply；每次进锁前清零。
       let lockTimeout: string | null = null
+      // 本次调用里评论写成没成：关闭规格前要凭这一格（或票上原有评论）判「有没有留核对结论」。
+      let commentWritten = false
       // result 是后端回包（形状是运行时真值，契约层还没建模）：参数就地收窄成「只读 error.message」，
       // 下面那句读的还是原来那个 result，字段名与默认值一个字没改。
       const fail = (step: string, result: { error?: { message?: unknown } } | null | undefined) => {
@@ -231,7 +234,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
           const commentTimeout = timeoutMessage(rawComment as unknown as TransportResult)
           if (commentTimeout) return timeoutReply(commentTimeout)
           const r = must(rawComment)
-          if (r && r.ok === true) items.push({ key: key, step: 'comment', status: 'ok' })
+          if (r && r.ok === true) { items.push({ key: key, step: 'comment', status: 'ok' }); commentWritten = true }
           else fail('comment', r)
         }
       }
@@ -353,29 +356,73 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       }
 
       if (wants.state) {
-        if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
+        if (a.close !== true) {
+          // #1298 验收⑧：重开动作不在 AI 工具面上提供 —— 不调用后端，逐项如实记失败；
+          // 要重开请人去后端手动改。这里也不做「写后读回」，免得回执看起来像已经试过重开。
+          items.push({ key: key, step: 'reopen', status: 'failed', reason: '重开这张票的动作不在 AI 工具面上提供：要重开请人在后端手动改（这一步没有执行）。' })
+        } else if (sc.outOfBudget()) over('close')
         else {
-          const rawState = a.close === true ? await t.close(repo, key, {}, opCtx) : await t.reopen(repo, key, opCtx)
-          const stateTimeout = timeoutMessage(rawState as unknown as TransportResult)
-          if (stateTimeout) return timeoutReply(stateTimeout)
-          const r = must(rawState)
-          const stateStep = a.close === true ? 'close' : 'reopen'
-          const wantState = a.close === true ? 'closed' : 'open'
-          if (r && r.ok === true) {
-            // 「回了 ok」不等于「这张票真的关/开了」：判据只取写后读回这一次（#790 同一类）。
-            // 读回来的状态按契约是两态（三房都在归一里落成 open / closed），读不回来就不敢说已经改好。
-            const canRead = typeof t.get === 'function' && !sc.outOfBudget()
-            const after = canRead ? await t.get(repo, key, {}, opCtx) : null
-            const readOk = !!(after && after.ok === true)
-            const gotState = readOk ? String(((after.data || {}) as Record<string, unknown>).state || '').toLowerCase() : ''
-            if (!readOk) {
-              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：这张票现在是不是 ' + wantState + ' 不知道，别当成已经改好。' })
-            } else if (!gotState) {
-              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后读回来的票没带状态字段，判不了这张票现在是不是 ' + wantState + '：别当成已经改好。' })
-            } else if (gotState !== wantState) {
-              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后读回来的状态是 ' + gotState + '，不是 ' + wantState + '：别当成已经改好。' })
-            } else items.push({ key: key, step: stateStep, status: 'ok' })
-          } else fail(stateStep, r)
+          // #1298 验收⑤⑥⑦：关闭规格前必须先核对两件事 —— 子票全关、票上已有写明核对结论的评论。
+          // 读一次现状才判得了种类、评论与子票；读不回来就不关（别在看不见现状时动手）。
+          const rawBefore = await t.get(repo, key, {}, opCtx)
+          const beforeTimeout = timeoutMessage(rawBefore as unknown as TransportResult)
+          if (beforeTimeout) return timeoutReply(beforeTimeout)
+          const before = must(rawBefore)
+          if (!before || before.ok !== true) fail('close', before)
+          else {
+            const current = (before.data || {}) as Record<string, unknown>
+            const currentType = String(current.type || '').trim().toLowerCase()
+            let blocked = false
+            if (currentType === 'spec') {
+              // ① 子票没全关就不许关：回执写清缺哪几张（票号 + 标题），不能只说「还有子票」。
+              if (sc.outOfBudget()) { over('close'); blocked = true }
+              else {
+                const rawKids = await t.list(repo, { parentKey: key }, opCtx)
+                const kidsTimeout = timeoutMessage(rawKids as unknown as TransportResult)
+                if (kidsTimeout) return timeoutReply(kidsTimeout)
+                const kids = must(rawKids)
+                if (!kids || kids.ok !== true) { fail('close', kids); blocked = true }
+                else {
+                  const kidList: Array<Record<string, unknown>> = Array.isArray(kids.data) ? (kids.data as Array<Record<string, unknown>>) : []
+                  const openKids = kidList.filter((k) => String(k.state || '').trim().toLowerCase() !== 'closed')
+                  if (openKids.length) {
+                    items.push({ key: key, step: 'close', status: 'failed', reason: '规格还关不了：下面这 ' + openKids.length + ' 张实施票还没关 —— ' + openKids.map((k) => '#' + String(k.key || '') + ' ' + String(k.title || '')).join('；') + '。先逐张处理完再关。' })
+                    blocked = true
+                  }
+                }
+              }
+              // ② 关闭前必须有一条评论写明核对结论：本次调用写了评论，或者票上本来就有评论。
+              //    「看到子票都关了顺手关掉」的旁路不存在：没有这条评论，子票全关也不许关。
+              if (!blocked) {
+                const comments = Array.isArray(current.comments) ? current.comments : []
+                if (!commentWritten && comments.length === 0) {
+                  items.push({ key: key, step: 'close', status: 'failed', reason: '关闭规格前要先留一条评论，逐条写明核对结论：这次没写、票上也没有评论，所以没有关。带 comment 参数（写清每张实施票的核对结果）再调一次。' })
+                  blocked = true
+                }
+              }
+            }
+            if (!blocked) {
+              const rawState = await t.close(repo, key, {}, opCtx)
+              const stateTimeout = timeoutMessage(rawState as unknown as TransportResult)
+              if (stateTimeout) return timeoutReply(stateTimeout)
+              const r = must(rawState)
+              if (r && r.ok === true) {
+                // 「回了 ok」不等于「这张票真的关了」：判据只取写后读回这一次（#790 同一类）。
+                // 读回来的状态按契约是两态（三房都在归一里落成 open / closed），读不回来就不敢说已经改好。
+                const canRead = typeof t.get === 'function' && !sc.outOfBudget()
+                const after = canRead ? await t.get(repo, key, {}, opCtx) : null
+                const readOk = !!(after && after.ok === true)
+                const gotState = readOk ? String(((after.data || {}) as Record<string, unknown>).state || '').toLowerCase() : ''
+                if (!readOk) {
+                  items.push({ key: key, step: 'close', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：这张票现在是不是 closed 不知道，别当成已经改好。' })
+                } else if (!gotState) {
+                  items.push({ key: key, step: 'close', status: 'failed', reason: '写动作回了成功，但写后读回来的票没带状态字段，判不了这张票现在是不是 closed：别当成已经改好。' })
+                } else if (gotState !== 'closed') {
+                  items.push({ key: key, step: 'close', status: 'failed', reason: '写动作回了成功，但写后读回来的状态是 ' + gotState + '，不是 closed：别当成已经改好。' })
+                } else items.push({ key: key, step: 'close', status: 'ok' })
+              } else fail('close', r)
+            }
+          }
         }
       }
 

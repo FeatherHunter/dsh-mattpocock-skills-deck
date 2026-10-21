@@ -59,8 +59,7 @@ disable-model-invocation: true
 
 把已认可的工单发布出去。**怎么发布**取决于 `/setup-matt-pocock-skills` 配置的跟踪器；两种方式下工单本身是一样的，只是阻塞边的形态不同：
 
-- **本地文件（本插件自带的本地 Markdown 后端）** → 写进规格票所在 effort 的 `issues/` 目录：`.scratch/<feature-slug>/issues/<NN>-<slug>.md`，一张工单写一个文件。编号接在该目录现有最大编号之后（规格票已经占了一个号），不要重号。每个文件的「被谁阻塞」列出它依赖的编号／标题。文件头先写两行注释：`<!-- DSH-ISSUE-KIND: ticket -->` 和 `<!-- parentKey: <规格票号> -->`（归属只靠这一行，不写进标记）；正文用下面的模板，另外保留后端读得懂的字段行 `Status: ready-for-agent`、`Blocked by: <NN, NN>`、`Labels: ready-for-agent`。绝不要把所有工单合成一个文件。
-- **真实的议题跟踪器（GitHub、Linear、……）** → 按依赖顺序（先写阻塞方）一张工单发布一个议题，这样每张工单的阻塞边都能引用真实的标识符。平台有原生阻塞／子议题关系就用原生的；没有就把每张工单的「被谁阻塞」设成阻塞它的那些议题。除非另有指示，否则打上 `ready-for-agent` 分诊标签；这些工单在设计上就是 代理可以直接抓取的。
+- **本插件自带的本地 Markdown 后端，或 GitHub** → 用 `deck_issue_create` 逐张建实施票（`kind=ticket`，`parentKey` 填规格票号），再用 `deck_map_link` 的 `blockedBy` 挂阻塞边。按依赖顺序建（先把阻塞方建出来），每条阻塞边才引用得到已经存在的票。不要手写票文件，也不要把实施票挂到探索地图下面：它们的父永远是规格票。工具会把编号接在该 effort 现有最大编号之后（不会重号；中文标题会原样进文件名，不会落成 `01-untitled.md`），父子边也由工具落好（本地是 `<!-- parentKey: <规格票号> -->` 注释行，GitHub 是原生父子列），标签只留 `ready-for-agent`（传进来的 `wayfinder:*` 会被去掉）。
 
 处理**前沿**：凡是阻塞项都已完成的工单。对于一条纯线性的链条，就是从最上面一路做到最下面。
 

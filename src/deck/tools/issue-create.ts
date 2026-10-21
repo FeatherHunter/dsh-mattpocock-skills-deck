@@ -127,7 +127,8 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const kind = kindOf(a)
     const est = shell.estimateFor('deck_issue_create', a)
     // #1277：实施票的父必须是规格票（ADR 2.1）——没给父票就不建。给了父票的，父票到底是不是规格容器
-    // 由后端这一层核对（本地 Markdown 房会读父票文件头的 spec 标记；远端后端暂时只保证显式给了父票）。
+    // 由后端这一层核对：#1298 起两个后端都核 —— 本地 Markdown 房读父票文件头的 spec 标记，
+    // GitHub 房读父票的对象类型（既要读得回来，也要认得出是规格），不是规格票就如实失败、不建票。
     const wantedParent = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? '' : String(a.parentKey).trim()
     if (kind === 'ticket' && !wantedParent) {
       return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '实施票的父必须是规格票：kind=ticket 时要带 parentKey，填规格票号（不是探索地图的票号）。', { cost: { estimated: est } })
@@ -144,7 +145,23 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    const ensured = ensureLabels(a.labels, kind)
+    // #1298：实施票的标签集合只有 ready-for-agent，不带 wayfinder 系列（T7 验收③）。
+    // 规则层 ensureLabels 只补不删（minimal-spec.ts 冻结），所以先在这里滤掉 wayfinder 系列，
+    // 再交给它补必备标签；调用方带的其它标签照旧保留。去掉了哪些要写进回执，不能悄悄改。
+    let wantedLabels: unknown = a.labels
+    const droppedWayfinderLabels: string[] = []
+    if (kind === 'ticket' && Array.isArray(a.labels)) {
+      const kept: unknown[] = []
+      wantedLabels = kept
+      for (const item of a.labels) {
+        const name = typeof item === 'string'
+          ? item.trim()
+          : (item && typeof item === 'object' && typeof (item as { name?: unknown }).name === 'string' ? String((item as { name?: unknown }).name).trim() : '')
+        if (/^wayfinder:/i.test(name)) droppedWayfinderLabels.push(name)
+        else kept.push(item)
+      }
+    }
+    const ensured = ensureLabels(wantedLabels, kind)
     const body = ensureBody(a.body, kind)
     // #1277：规格与实施票在正文最前面写一行对象类型标记（标记是唯一真源，ADR 2.5）。
     // 调用方正文里已经带了同一行时不再重复写；没带的才有这一行。
@@ -178,6 +195,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       const created = await t.create(repo, input, opCtx)
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (droppedWayfinderLabels.length) notes.push('实施票的标签只留 ready-for-agent，这次去掉了 wayfinder 系列：' + droppedWayfinderLabels.join('、') + '。')
       if (body.added.length) notes.push('我替你补了正文区块：' + body.added.join('、'))
       if (!a.idempotencyKey) notes.push('这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。')
       // 执行层失败原样抛给壳（走 backend-threw，可重试）；后端诚实失败才走下面的部分成功。

@@ -113,6 +113,14 @@ function makeScriptedGh(sink: string[]) {
       return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
     }
     if (line.indexOf('issue close') >= 0) { const t = find(a[2]); if (t) t.state = 'closed'; return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' } }
+    // #1298：关闭 / 重开 / 改票之后的那次读回（gh issue view --json …）。以前这里没脚本化，
+    // 于是 GitHub 车道的关闭永远是「写命令成功、写后读回失败」，门禁只能看到 partial。
+    // 补上之后，T7 的规格关闭守卫与 T8 的双轨链路才能在 GitHub 车道断言真实状态。
+    if (line.indexOf('issue view') === 0) {
+      const t = find(a[2])
+      if (!t) return { code: 1, stdout: '', stderr: 'no such issue' }
+      return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
+    }
     if (line.indexOf('issue reopen') >= 0) { const t = find(a[2]); if (t) t.state = 'open'; return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' } }
     if (line.indexOf('issue edit') >= 0) {
       const t = find(a[2])
