@@ -200,7 +200,11 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       // #969 分档超时（读短写长探活最短）；#965 读写分桶拿名额（满了等；不传取消信号，拿不到只会等不会抛）。
       const rkBucket = isWriteGhArgs(args) ? 'write' : 'read'
       const rkTimeout = timeoutForGhArgs(args)
-      const rkRelease = await getGhLane().acquire({ bucket: rkBucket })
+      // #960 复核：排队段单独计时。gh.exec 的 latencyMs 含排队（从进函数算起），waitedMs 只记排队这一段，
+      //   两者一减就是命令自己的耗时 —— 票面问「是命令慢还是守在门口」时靠这两个数分辨。
+      const rkWaitT0 = Date.now()
+      const rkRelease = await getGhLane(logCtx).acquire({ bucket: rkBucket })
+      const rkWaitedMs = Date.now() - rkWaitT0
       const exe = await resolveGh()
       if (!exe) { try { if (rkRelease) rkRelease() } catch {} return { ok: false, kind: 'env', error: getGhLastError() } }
       // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。报在拿名额之后 —— 真要起进程了才报；
@@ -215,7 +219,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
@@ -228,7 +232,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
@@ -244,8 +248,29 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         else if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
         else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
+        // #916/#917 复核：被归成「没登录」时把归因条件和宿主环境一起记下来 —— 票面症状是「终端明明登录了，
+        //   面板却说没登录」。只看 kind=auth 分不清「确实没凭据」与「代理/网络坏了让 gh 打印出认证类字样」，
+        //   所以这里只记命中的是哪一组关键词（signal 短枚举）与宿主进程里有没有代理变量、有没有换配置目录
+        //   （proxySet / ghConfigDir 两个布尔），绝不记 stderr 原文与变量值。
+        if (kind === 'auth') {
+          let proxySet = false
+          let ghConfigDir = false
+          try {
+            const plat: any = await getPlatform()
+            if (plat && plat.env && typeof plat.env.get === 'function') {
+              proxySet = !!(plat.env.get('HTTPS_PROXY') || plat.env.get('HTTP_PROXY') || plat.env.get('ALL_PROXY') || plat.env.get('https_proxy') || plat.env.get('http_proxy'))
+              ghConfigDir = !!plat.env.get('GH_CONFIG_DIR')
+            }
+          } catch (eAuthEnv) {}
+          let signal = 'auth-phrase'
+          if (/not logged in/i.test(t)) signal = 'not-logged-in'
+          else if (/bad credentials|auth failed|failed to log in/i.test(t)) signal = 'bad-credentials'
+          else if (/token.*invalid|re-authenticate|auth refresh/i.test(t)) signal = 'token-invalid'
+          else if (/keyring/i.test(t)) signal = 'keyring'
+          try { if (logCtx) logCtx.fire('warn', 'gh.auth.env', { signal: signal, cwdHash: hash8(cwd || DEFAULT_CWD), exitCode: outcome.exitCode || -1, proxySet: proxySet, ghConfigDir: ghConfigDir }) } catch (eL) {}
+        }
         try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout }) } catch (eL) {}
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
@@ -263,7 +288,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           try { if (typeof getChainBackoff === 'function') getChainBackoff().then(function (b) { try { if (b) b.noteWriteActivity() } catch (e) {} }).catch(function () {}) } catch (eWr) {}
         }
       } catch (e) {}
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
       try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
       try { if (rkRelease) rkRelease() } catch {}

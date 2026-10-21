@@ -53,6 +53,14 @@ interface GhLaneOpts {
 }
 // 取消错误的形状：标准 Error 上加两个标记，调用方靠它们认出取消而非失败。
 type AdmissionCancelledError = Error & { code: string; admissionCancelled: boolean }
+// 日志出口（#960 复核）：可选注入；没注入时本文件照旧不写任何日志，准入行为一字不变。
+interface GhLogCtxLike {
+  fire(level: string, event: string, fields: Record<string, unknown>): void
+  isEnabled?(level: string): boolean
+}
+let laneLogCtx: GhLogCtxLike | null = null
+/** 把宿主的日志上下文接到这道门上：调用方在拿名额前传一次即可，没传也不影响准入。 */
+export function setGhLaneLogCtx(ctx: GhLogCtxLike | null | undefined): void { laneLogCtx = ctx || null }
 
 /** 取消错误的标记：调用方据此返回“取消”而非“失败”。 */
 export const ADMISSION_CANCELLED = 'admission-cancelled'
@@ -128,11 +136,24 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
       return Promise.resolve(releaseOf(bucket))
     }
     stats[bucket].waited += 1
+    // #960 复核：排上队的那一刻记下钟点，放行时把「等了多久、等候期间这只桶里还有谁」落一行按需日志。
+    //   为什么要有：票面问的是「准入这道门到底有没有把人憋死」，只看 gh.exec 的耗时分不清「命令慢」与「排队慢」。
+    const waitT0 = Date.now()
     // 类型说明：Promise 泛型只定放行函数的形状，运行时仍是原来那只 Promise。
     return new Promise<() => void>(function (resolve, reject) {
       // 类型说明：放行与取消函数先空着，随后立即补上，空只存在这两行之间。
       const waiter: GhWaiter = { settled: false, signal: signal, resolve: null, reject: null, bucket: bucket }
-      waiter.resolve = function (): void { resolve(releaseOf(bucket)) }
+      waiter.resolve = function (): void {
+        // #960：排队拿到名额时落一行 —— 桶名、放行时在飞数、上限、放行时队列残长、等了多久。
+        //   只记短枚举与数字，不记命令、路径、票号。按需级（先判调试开关），不采样。
+        try {
+          const waitedMs = Date.now() - waitT0
+          if (laneLogCtx && typeof laneLogCtx.fire === 'function' && (!laneLogCtx.isEnabled || laneLogCtx.isEnabled('debug'))) {
+            laneLogCtx.fire('debug', 'gh.lane.saturated', { bucket: bucket, inflight: running[bucket], max: maxOf[bucket], queued: queues[bucket].length, waitedMs: waitedMs })
+          }
+        } catch (eL) {}
+        resolve(releaseOf(bucket))
+      }
       waiter.reject = function (e: unknown): void { reject(e) }
       const onAbort = function (): void {
         if (waiter.settled) return
@@ -194,7 +215,8 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
 let defaultLane: ReturnType<typeof createGhAdmission> | null = null
 
 /** 进程内默认的一道准入：三个出站路（room client / detectionExec / runGh）共用它才叫“同一口径”。 */
-export function getGhLane(): ReturnType<typeof createGhAdmission> {
+export function getGhLane(logCtx?: GhLogCtxLike | null): ReturnType<typeof createGhAdmission> {
+  if (logCtx) setGhLaneLogCtx(logCtx)
   if (!defaultLane) defaultLane = createGhAdmission({ readMax: READ_BUCKET_MAX, writeMax: WRITE_BUCKET_MAX })
   return defaultLane
 }

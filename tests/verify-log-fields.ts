@@ -1,6 +1,6 @@
 // verify-log-fields.ts —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.ts，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 119 事件；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296：111 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296：119 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -371,6 +371,17 @@ const ALLOWED = {
   //   card 选了哪张（map / spec）；ok 开新会话的调用发出去没有；textLen 开场白的长度（只记长度不记正文）。
   'entry.open': ['from', 'cards'],
   'entry.pick': ['from', 'card', 'ok', 'textLen'],
+  // 2026-10-21 map 1010 逐票复核（#916/#917）：gh 命令被归成登录态问题时记下归因线索 —— 命中的关键词组、
+  //   宿主进程有没有代理变量、有没有换配置目录；不记 stderr 原文与变量值。
+  'gh.auth.env': ['signal', 'cwdHash', 'exitCode', 'proxySet', 'ghConfigDir'],
+  // 2026-10-21 map 1010 逐票复核（#960）：出站名额排队放行时一行，分开「命令本身慢」与「排队等」。
+  'gh.lane.saturated': ['bucket', 'inflight', 'max', 'queued', 'waitedMs'],
+  // 2026-10-21 map 1010 逐票复核（#891/#995/#916/#917）：状态栏黄条出现、消失或换文案时边沿记一行。
+  'guide.banner': ['step', 'banner', 'tone', 'outcome', 'ageMs'],
+  // 2026-10-21 map 1010 逐票复核（#891）：活跃探测节拍「没排上」与「排上了」各一行。
+  'probe.loop': ['reason', 'intervalMs', 'visible'],
+  // 2026-10-21 map 1010 逐票复核（#996）：完成/检查提示词拼链接时记编号形态与链接空不空。
+  'prompt.link': ['prompt', 'backend', 'numKind', 'linkKind', 'verdict'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 八键（六键照旧，`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 两键、gh.resolve.fail 两键，

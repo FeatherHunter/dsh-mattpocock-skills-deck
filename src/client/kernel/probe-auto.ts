@@ -264,10 +264,15 @@ export const startActiveProbeLoop = function (): void {
       } catch (e) {}
     };
     if (timer === undefined || typeof timer.interval !== 'function') {
+      // #891 复核：宿主没给定时器出口时这条活跃探测节拍根本排不上，而 #891 的「初始化完成后自动重算」
+      //   正挂在这条节拍上。这一行把「没排上」与「排上了」分开记，判「修复代码在、节拍从没跑」时不必再靠猜。
+      //   按需级，先判开关；这条循环每次重排才走一次，低频。
+      try { if (isEnabled('debug')) log('debug', 'probe.loop', { reason: 'no-timer', intervalMs: Math.round(Number(_attentionPlan.intervalMs) || 0), visible: (typeof attentionVisible === 'function' ? !!attentionVisible() : null) }); } catch (ePl) {}
       // 宿主没给定时器出口（单测与无计时器环境）：不排节拍，什么都不做。
       return;
     }
     shared._activeTimer = timer.interval(step, _attentionPlan.intervalMs);
+    try { if (isEnabled('debug')) log('debug', 'probe.loop', { reason: 'scheduled', intervalMs: Math.round(Number(_attentionPlan.intervalMs) || 0), visible: (typeof attentionVisible === 'function' ? !!attentionVisible() : null) }); } catch (ePl2) {}
   } catch (e) {}
 };
 // #746：对话框里的焦点/可见性只装一次（无定时器，纯事件）。装上后：切回本对话框即顺带催一次
