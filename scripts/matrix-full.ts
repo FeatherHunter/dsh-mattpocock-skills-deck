@@ -30,19 +30,10 @@ function check(ok: any, msg: any): void {
   console.log((ok ? '  PASS ' : '  FAIL ') + msg)
 }
 
-// 双闸门禁复用（与 matrix-smoke 同）
-// 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。缓存可用时比内容摘要；
-// 缓存不可用时回落按修改时间判断，原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
+// 双闸门禁复用（与 matrix-smoke 同）：判据在 scripts/lib/build-cache.mts，产物与源码清单在
+// scripts/lib/build-products.mts（#1342），两个矩阵脚本都不再各写一份字面量。
 const { judgeProducts, reportJudgements } = require('./lib/build-cache.mts')
-const PRODUCTS: string[] = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
-const SOURCES: string[] = [
-  'src/host/platform/win32/index.ts',
-  'src/host/platform/index.ts',
-  'src/host/platform/darwin/index.ts',
-  'src/host/platform/linux/index.ts',
-  'scripts/build.mts',
-  'package/package.json',
-]
+const { BUILD_PRODUCTS: PRODUCTS, BUILD_SOURCES: SOURCES } = require('./lib/build-products.mts')
 
 async function main(): Promise<void> {
   const args: string[] = process.argv.slice(2)

@@ -52,8 +52,8 @@ const makeHarness = function (srcText: string, opts?: any) {
     '\n; return { setCachedSelection: setCachedSelection, getCachedSelection: getCachedSelection, selectionByCwd: selectionByCwd,' +
     ' setCachedSetupLayout: setCachedSetupLayout, getCachedSetupLayout: getCachedSetupLayout, setupLayoutByCwd: setupLayoutByCwd,' +
     ' writeTableEntry: writeTableEntry, migrateCachedChoiceToKey: migrateCachedChoiceToKey, SELECTION_BY_CWD_KEY: SELECTION_BY_CWD_KEY, SETUP_LAYOUT_BY_CWD_KEY: SETUP_LAYOUT_BY_CWD_KEY }'
-  const factory = compileFn(['window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores'], body)
-  const api = factory(win, localStorage, function (level: unknown, event: unknown, fields: unknown) { logs.push({ level: level, event: event, fields: fields }) }, wsKey, wsKey, function () {}, {}, {})
+  const factory = compileFn(['window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores', 'DOC_LAYOUT_VALUES'], body)
+  const api = factory(win, localStorage, function (level: unknown, event: unknown, fields: unknown) { logs.push({ level: level, event: event, fields: fields }) }, wsKey, wsKey, function () {}, {}, {}, ['single', 'multi'])
   return { api: api, disk: disk, logs: logs, handlers: storageHandlers }
 }
 const tableOf = (h: any, key: string) => { try { return JSON.parse(h.disk[key] || '{}') || {} } catch (e) { return {} } }

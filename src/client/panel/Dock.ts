@@ -323,15 +323,15 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           const bg = 'rgba(245,158,11,.12)', bd='rgba(245,158,11,.45)', col='#f59e0b'
           if (isPending) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6 } }, [
             h('span', { className:'dsws-spinner', style:{ width:11, height:11, borderWidth:2, display:'inline-block' } }),
-            h('span', { style:{ flex:1 } }, '正在探测后端 — 若长时间停留请手动选择'),
+            h('span', { style:{ flex:1 } }, tr('switch.probeRunningHint')),
             // 接线（#1335 界面反馈）：黄条上这颗「重试」是用户真的会点的按钮，按压反馈与点击日志都接上。
             //   日志名只写固定枚举（不写按钮上的字），看日志时凭 panel.pending.retry 认出就是这一颗。
-            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.retry', onClick:function(){ if(typeof host!=='undefined'&&host.call) host.call('wf.registry',{cwd:s.cwd||''}).then(function(){ loadSnapshot(s,true,true)}) }, style:{ fontSize:10, padding:'1px 6px', flex:'none' } }, '重试'),
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.retry', onClick:function(){ if(typeof host!=='undefined'&&host.call) host.call('wf.registry',{cwd:s.cwd||''}).then(function(){ loadSnapshot(s,true,true)}) }, style:{ fontSize:10, padding:'1px 6px', flex:'none' } }, tr('pr.retry')),
           ])
           if (isMulti) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' } }, [
             Ic({n:'alert',size:11, color:col}),
-            h('span', { style:{ flex:1 } }, '检测到多个可用后端：' + sel.multiHit.join(', ') + ' — 建议显式绑定'),
-            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.bind', onClick:function(){ s.tab='list'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, '去设置页绑定'),
+            h('span', { style:{ flex:1 } }, tr('switch.multiHitLine', { list: sel.multiHit.join(', ') })),
+            h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.bind', onClick:function(){ s.tab='list'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, tr('switch.goSettingsBind')),
           ])
           return null
         })(),
@@ -346,13 +346,13 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, [
               h('span', { className:'dsws-spinner', style:{ width:16, height:16, borderWidth:2, display:'inline-block' } }),
               h('div', { style:{ flex:1 } }, [
-                h('div', { style:{ fontSize:13, fontWeight:700, color:'#f59e0b' } }, '正在探测后端'),
-                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, '探测未决 — 若长时间停留请手动选择'),
+                h('div', { style:{ fontSize:13, fontWeight:700, color:'#f59e0b' } }, tr('switch.probeRunning')),
+                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, tr('switch.probePendingHint')),
               ]),
             ]),
             h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 } }, [
-              h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.pick', onClick:function(){ s.tab='list'; emit(s); _openGateModal() }, style:{ fontSize:11, padding:'4px 10px' } }, '去设置页选择'),
-              h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'panel.pending.reprobe', onClick:function(){ loadSnapshot(s,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'4px 10px' } }, '重试探测'),
+              h('button', { className:'dsws-btn dsws-hov', 'data-press':'button', 'data-log':'panel.pending.pick', onClick:function(){ s.tab='list'; emit(s); _openGateModal() }, style:{ fontSize:11, padding:'4px 10px' } }, tr('switch.goSettingsPick')),
+              h('button', { className:'dsws-btn primary dsws-hov', 'data-press':'button', 'data-log':'panel.pending.reprobe', onClick:function(){ loadSnapshot(s,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'4px 10px' } }, tr('switch.retryProbe')),
             ]),
           ])
         ]) : _isOther ? h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '12px', position:'relative', display:'flex', flexDirection:'column', alignItems:'stretch', gap:10 } }, [

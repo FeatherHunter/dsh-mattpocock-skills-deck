@@ -126,6 +126,9 @@ G.containerTriState = cv.containerTriState
 G.containerPromptText = cv.containerPromptText
 G.containerCountKey = cv.containerCountKey
 G.CONTAINER_ACCENT = cv.CONTAINER_ACCENT
+// #1343：容器三态的两枚固定色也从中央色表取；视图单独求值时这两个全局量缺不得。
+G.CONTAINER_EMPTY_COLOR = cv.CONTAINER_EMPTY_COLOR
+G.CONTAINER_DONE_COLOR = cv.CONTAINER_DONE_COLOR
 G.CONTAINER_CHIP_CLASS = cv.CONTAINER_CHIP_CLASS
 G.CONTAINER_CHIP_LABEL_KEY = cv.CONTAINER_CHIP_LABEL_KEY
 

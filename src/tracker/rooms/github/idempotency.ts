@@ -36,6 +36,7 @@ import { ghVerdictOf } from './errors.js'
 import { parseRepo } from './issues.js'
 // 回看窗口住中央 YAML，调时间改 config/ttl.yaml。
 import { IDEMPOTENCY_LOOKBACK_MS } from '../../../shared/time-config/src/values.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** 按锚回查的返回：没找到照常建、找到了复用旧票、没做成如实失败（绝不把拿不准当没找到）。 */
 export type AnchorLookupOutcome =
@@ -62,7 +63,7 @@ function caughtText(e: unknown): string {
 /** 慢路只回看这么久以内创建的票：比正常重试窗口宽得多，又不会去翻历史票。 */
 
 /** 慢路最多把几张候选的正文读回来。到了这个数还没找到就如实说「拿不准」，绝不当成没找到。 */
-const MAX_BODY_FETCHES = 40
+const MAX_BODY_FETCHES = PAGINATION.github.anchorLookupBodyFetches
 
 /** 一次回查要找的几个字段。搜索接口与 issue 列表接口给的是同一套名字（number/body/state/createdAt/updatedAt）。 */
 const CANDIDATE_FIELDS = 'number,body,state,createdAt,updatedAt'
@@ -122,7 +123,7 @@ function lookupFailure(kind: ErrorKind, message: unknown, raw: unknown): { ok: f
  *  而这里靠「创建时间落在回看窗口内」收窄候选 —— 所以只要这个仓库在回看窗口内新建的票不超过
  *  列表取回的条数，刚建好那张就一定在候选里。取回条数越少，越可能出现「候选被别的更新票挤出榜单」，
  *  于是这里直接取 100（接口允许的最大值），把这种可能压到最小。 */
-const LIST_LIMIT = 100
+const LIST_LIMIT = PAGINATION.github.anchorLookupListLimit
 
 /**
  * 建后按锚回查（本间房的实现）。返回四态之一：
@@ -145,7 +146,7 @@ export async function lookupByAnchor(repo: RepositoryRef, key: string, ctx: OpCo
   // ① 快路：搜索接口。命中就到此为止（省掉慢路）。
   let searchError = null
   try {
-    const r = await c.execGh(['search', 'issues', '--repo', slug, '--match', 'body', '--json', CANDIDATE_FIELDS, '--limit', '20', key], { cwd: ctx && ctx.cwd })
+    const r = await c.execGh(['search', 'issues', '--repo', slug, '--match', 'body', '--json', CANDIDATE_FIELDS, '--limit', String(PAGINATION.github.anchorLookupSearchLimit), key], { cwd: ctx && ctx.cwd })
     if (!r.ok) searchError = (r.error && r.error.message) || '搜索接口报错'
     else {
       const rows = parseLines(r.data.stdout || '')

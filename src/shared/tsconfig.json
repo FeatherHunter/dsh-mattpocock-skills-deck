@@ -5,8 +5,8 @@
   // 不住任何域目录里，没有域配置圈它们；类型检查的缺口断言只认「至少一份配置看到」，
   // 没有这份配置，它们转成 .ts 当天就会被报成缺口。
   //
-  // 为什么 include 只点这四个位置、不写 "**/*.ts"：src/shared 下面住着六个域
-  // （label-color、refresh、version-control、config-store、host-timer、time-config），
+  // 为什么 include 只点这四个位置、不写 "**/*.ts"：src/shared 下面住着八个域
+  // （label-color、refresh、version-control、config-store、host-timer、time-config、issue-file、doc-layout），
   // 每个域的配置都声明了自己目录下的 src/**/*.ts；这里写成全树通配会把域源码再声明一遍，
   // 撞上「同一份源码不许两份配置同时声明」那条，直接红。所以点名只圈散文件，
   // 域源码的归属一字不动。新增散文件时把名字加进这里；散文件搬进域的那天把这一行删掉。

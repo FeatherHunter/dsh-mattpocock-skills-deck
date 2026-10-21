@@ -74,6 +74,11 @@
   这是宿主调共享的跨层方向，同层互引门禁不管这一方向。
   文本出入口（`parseConfig` / `stringifyConfig`）住宿主适配器，
   `yaml` 包也只在适配器里用，产物里没有任何引用（连裸包都没有）。
+- 工作区那一份的布局取值名单不写在核里：唯一真源是 `src/shared/doc-layout/src/layouts.ts`（#1342）。
+  核不能 import 它（同层互引禁令），所以 `parseWorkspace(doc, layouts)`、
+  `parseWorkspaceText(text, layouts)`、`stringifyWorkspace(value, layouts)` 都收一个
+  `readonly string[]` 参数；宿主适配器 `src/host/configStore.ts` 与 `src/deck/shell/workspace-anchor.ts`
+  从真源取 `DOC_LAYOUT_VALUES` 传进去。核只回答「传进来的名单里认不认得这个值」。
 - 共享层自己不调核：`src/shared` 内部文件之间不许互相引用（同层互引门禁），
   所以 `workspace-file.js` 那份老实现保持原样不动，等 #1003 把调用方切到
   宿主适配器（`src/host/configStore.js`，调核的唯一入口）之后再退役。

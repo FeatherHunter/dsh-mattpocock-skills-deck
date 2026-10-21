@@ -20,9 +20,6 @@ import type { CollectionKey } from './ports.js'
 
 export const COLLECTION_KEYS: CollectionKey[] = ['status', 'worktrees', 'refs', 'log', 'diffFiles', 'patch']
 
-/** 首屏一次读全的五个（patch 按需，不在首屏内）。 */
-export const FIRST_SCREEN_KEYS: CollectionKey[] = ['status', 'worktrees', 'refs', 'log', 'diffFiles']
-
 /** 运行中标记：核心给五个路径名，宿主查存在（#822：没有它最该拦的规则就没有输入）。 */
 export const RUNNING_MARKER_PATHS: string[] = [
   'MERGE_HEAD',
@@ -95,9 +92,6 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
     }
   }
 }
-
-/** 写命令的子命令清单（#841）：门禁拿它断言「面板会发出什么」。 */
-export const WRITE_SUBCOMMANDS: string[] = ['add', 'reset', 'commit', 'pull', 'push', 'fetch', 'ls-files', 'remote']
 
 /** 远端名与分支名的形状：只挡「会被当成选项」与「会破坏 argv」的形状，不重造 git 自己的取名规则。
  *  分支名允许斜杠（feature/x）；两者都不许以 - 开头、不许空白与 NUL。 */

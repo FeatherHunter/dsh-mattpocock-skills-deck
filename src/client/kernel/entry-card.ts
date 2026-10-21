@@ -34,8 +34,10 @@ const PANEL_FILL = '#0a0c10'
 const PANEL_STROKE = '#2a2d35'
 const MONO = 'Consolas,Menlo,monospace'
 // 「已完成」的绿不在这里另开一份：容器三态与实施票勾共用中央色表里的 CONTAINER_DONE_COLOR，
-// 卡面插图的勾也读它，免得多处各写一个绿、以后改色漏掉一处。兜底值只在拼接缺失时用。
-const DONE_GREEN = (typeof CONTAINER_DONE_COLOR === 'string' && CONTAINER_DONE_COLOR) ? CONTAINER_DONE_COLOR : '#3fb950'
+// 卡面插图的勾也读它，免得多处各写一个绿、以后改色漏掉一处。
+// #1343：不再写同值兜底——中央色表要是缺了，退回空串（真机不会缺），真源才真只有一处。
+//   空串只可能出现在门禁单独求值、中央色表没被拼进闭包的时候；别拿空串当同值兜底用。
+const DONE_GREEN = (typeof CONTAINER_DONE_COLOR === 'string' && CONTAINER_DONE_COLOR) ? CONTAINER_DONE_COLOR : ''
 // 实施地图这一侧的两个浅蓝：身份深蓝只用在卡边框上，文字与线条用浅一档的同族色。
 const IMPL_LINE = '#93c5fd'
 const IMPL_TEXT = '#bfdbfe'

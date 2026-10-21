@@ -609,6 +609,10 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
+  // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
+  //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
+  //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
+  { marker: '// ==== shared:docLayout (spliced by build) ====', file: 'src/shared/doc-layout/src/layouts.ts' },
   // #1215 中央时间参数：全部时间旋钮只有一份真源（config/ 下的 timeouts.yaml / intervals.yaml / ttl.yaml），
   // 产物由生成器落到 .build/shared/time-config/values.js（真源是生成出来的 src/shared/time-config/src/values.ts；
   // 构建会先重跑生成器，见上面的预域再生；2026-10-19 第三阶段起共享层产物统一住 .build/shared/）。

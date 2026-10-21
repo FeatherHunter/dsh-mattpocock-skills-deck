@@ -16,7 +16,7 @@
  *
  * 设计要点（对齐 G2 定版）：
  *  - 纯手动：不挂 prepare/prebuild，构建不自动联网；幂等（同 pin 重跑零 diff）
- *  - 单源：src/shared/matt-skills.js 的 27 项为真源，同步后与之双向差集为 0
+ *  - 单源：src/shared/matt-skills.ts 的 MATT_SKILL_PROBE_NAMES 为 27 项真源，同步后与之双向差集为 0
  *  - 校验：--verify 时在同步后自检（27 数、集合一致、frontmatter、LICENSE、VERSION）
  */
 
@@ -25,14 +25,13 @@ import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
+// #1342：名单直接从真源模块导入，不再用正则从源码文本里抠名字——后者改一处缩进就可能抠空。
+import { MATT_SKILL_PROBE_NAMES } from '../src/shared/matt-skills.ts'
 
 const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PIN_DEFAULT: string = 'v1.3.1'
 const REPO_URL: string = 'https://github.com/mattpocock/skills'
 const DEST_DIR: string = join(ROOT, 'package', 'bundled-skills')
-// 2026-10-19 第三阶段起 src/shared 下的 .js 只是构建产物、已全部搬进 .build/shared/，
-// 源码树里只剩 .ts 真源：这里读真源 .ts 原文（只做正则解析，不需要转译后的形态）。
-const SHARED_PATH: string = join(ROOT, 'src', 'shared', 'matt-skills.ts')
 
 type SyncArgs = { pin: string; verify: boolean; help: boolean }
 
@@ -62,11 +61,7 @@ function helpText(): string {
 }
 
 function readSharedNames(): string[] {
-  const src: string = readFileSync(SHARED_PATH, 'utf8')
-  const m: RegExpMatchArray | null = src.match(/export const MATT_SKILL_PROBE_NAMES\s*=\s*\[([\s\S]*?)\]/)
-  if (!m) throw new Error('无法从 src/shared/matt-skills.ts 解析 MATT_SKILL_PROBE_NAMES')
-  const names: string[] = [...m[1].matchAll(/'([^']+)'/g)].map((x: RegExpMatchArray) => x[1])
-  return names
+  return [...MATT_SKILL_PROBE_NAMES]
 }
 
 function extractFrontmatterName(skillMd: string): string | undefined {

@@ -12,6 +12,10 @@
  * 产物在 shared 层用裸包是允许的方向；入口守卫数字与适配器同值，行为一致由门禁钉。
  * 布局缺席：读（v1 老文件本来就没有）与写（调用方还没拿到值，如迁移与首次绑定）
  * 都允许缺，缺了整段省略，绝不编默认值；一旦写进去，覆盖写必须由调用方读改写保住。
+ *
+ * 布局取值的白名单不写在这里：唯一真源是 src/shared/doc-layout/src/layouts.ts，由调用方
+ * 作为 layouts 参数传进来（共享层内部不许互相引用，所以核不能直接 import 它，见上面那条
+ * 「自包含」的由来）。核只回答「传进来的名单里认不认得这个值」，自己不再保留一份字面量（#1342）。
  */
 
 import { parse as parseYaml } from 'yaml'
@@ -41,7 +45,6 @@ const COMMENT_LAYOUT_2 = '# multi=多上下文（各有各的用语，子项目�
 
 const SOURCES_V2 = ['user', 'migrated', 'detected']
 const SOURCES_V1 = ['user', 'migrated', 'detected', 'auto']
-const LAYOUTS = ['single', 'multi']
 const KNOWN_KEYS = ['version', 'backendId', 'pickedAt', 'source', 'layout']
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -87,8 +90,9 @@ function countAliases(text: string): number {
  * 文本入口：超大与别名两道守卫 → YAML 解析（钉死 core 模式）→ 校验。
  * 给不能用裸包引用的调用方（兼容垫片）；宿主适配器走自己的 parseConfig，
  * 两处守卫数字相同、行为一致（门禁从行为上钉住）。
+ * layouts 是这次允许的布局取值（调用方从唯一真源 src/shared/doc-layout 取，见文件头）。
  */
-export function parseWorkspaceText(text: unknown): ConfigParseResult {
+export function parseWorkspaceText(text: unknown, layouts: readonly string[]): ConfigParseResult {
   if (typeof text !== 'string') {
     return { ok: false, reason: 'yaml-error', message: '要解析的不是一段文字' }
   }
@@ -120,11 +124,12 @@ export function parseWorkspaceText(text: unknown): ConfigParseResult {
   if (doc === undefined || doc === null || (typeof doc === 'string' && (doc as string).trim() === '')) {
     return { ok: false, reason: 'bad-shape', message: '这份文件里什么都没有（空白文件）' }
   }
-  return parseWorkspace(doc)
+  return parseWorkspace(doc, layouts)
 }
 
-/** 校验一份已解析出来的工作区配置。版本高于认识时读成功标只读（写时由拼装拒绝）。 */
-export function parseWorkspace(doc: unknown): ConfigParseResult {
+/** 校验一份已解析出来的工作区配置。版本高于认识时读成功标只读（写时由拼装拒绝）。
+ *  layouts 是这次允许的布局取值（调用方从唯一真源 src/shared/doc-layout 取，见文件头）。 */
+export function parseWorkspace(doc: unknown, layouts: readonly string[]): ConfigParseResult {
   if (!isRecord(doc)) return fail('bad-shape', '工作区配置文件里放的不是一组「名字 → 值」，读到的是清单或一段文字')
   const strange = Object.keys(doc).filter((k) => KNOWN_KEYS.indexOf(k) < 0)
   if (strange.length > 0) {
@@ -158,8 +163,8 @@ export function parseWorkspace(doc: unknown): ConfigParseResult {
   }
   // 布局缺席允许：v1 老文件本来就没有；v2 文件缺了也照读（值里不带 layout 键）。
   // 写布局是调用方的事（有点确认/迁移时带上）；一旦写进去，覆盖写必须读改写保住。
-  if (doc['layout'] !== undefined && (typeof doc['layout'] !== 'string' || LAYOUTS.indexOf(doc['layout']) < 0)) {
-    return fail('bad-shape', '工作区配置文件里的 layout 必须是 single（单上下文）或 multi（多上下文）')
+  if (doc['layout'] !== undefined && (typeof doc['layout'] !== 'string' || layouts.indexOf(doc['layout']) < 0)) {
+    return fail('bad-shape', '工作区配置文件里的 layout 必须是这些取值之一：' + layouts.join('、'))
   }
   const value: Record<string, unknown> = {
     version,
@@ -172,8 +177,9 @@ export function parseWorkspace(doc: unknown): ConfigParseResult {
 }
 
 /** 拼装：模板 + 值，一律出版本 2；高版本拒绝写（旧版本不许把新字段抹掉）。
- *  version 缺席默认 2，传 1 视为升级写出（老版本 1 只用来读）；布局缺席整段省略。 */
-export function stringifyWorkspace(value: unknown): ConfigStringifyResult {
+ *  version 缺席默认 2，传 1 视为升级写出（老版本 1 只用来读）；布局缺席整段省略。
+ *  layouts 是这次允许的布局取值（调用方从唯一真源 src/shared/doc-layout 取，见文件头）。 */
+export function stringifyWorkspace(value: unknown, layouts: readonly string[]): ConfigStringifyResult {
   if (!isRecord(value)) return { ok: false, reason: 'bad-shape', message: '要写入的工作区配置不是一组「名字 → 值」' }
   const strange = Object.keys(value).filter((k) => KNOWN_KEYS.indexOf(k) < 0)
   if (strange.length > 0) {
@@ -195,7 +201,7 @@ export function stringifyWorkspace(value: unknown): ConfigStringifyResult {
     pickedAt: value['pickedAt'],
     source: value['source'],
     layout: value['layout'],
-  })
+  }, layouts)
   if (!check.ok) return { ok: false, reason: check.reason === 'unknown-keys' ? 'unknown-keys' : 'bad-shape', message: check.message, keys: check.keys }
   const v = (check as { ok: true; value: Record<string, unknown> }).value
   const lines = [...HEADER]

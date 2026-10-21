@@ -120,6 +120,9 @@ async function main() {
   for (const k of ['L', 'languageIds', 'localeMainTagOf', 'langChainFrom', 'langChainOf', 'uiLang', 'pickLangText', 'uiText', 'languageLabelOf']) {
     if (globalThis[k] === undefined) globalThis[k] = localeHelper[k]
   }
+  // #1342：normalizeSetupLayout 改读闭包里的 DOC_LAYOUT_VALUES（生产里由构建从共享真源拼进闭包）。
+  //   这里单独 import 片段，没有闭包，照上面几条先例把名单挂到 globalThis（ESM 裸标识符会回落到全局）。
+  if ((globalThis as any).DOC_LAYOUT_VALUES === undefined) (globalThis as any).DOC_LAYOUT_VALUES = ['single', 'multi']
   const P = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/prompts.js'))).href)
   // 2026-10-17 先修装载方式（判据一条没动）：locale-flow 等片段引用了构建期才拼接出来的
   //   SETTINGS_DEBUG_PUSH_WAIT_MS（真源 src/shared/time-config/values.js），单独 import 片段时

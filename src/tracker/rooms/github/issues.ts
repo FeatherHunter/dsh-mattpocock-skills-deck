@@ -34,6 +34,7 @@ import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
 import { pickFallbackReason } from './fallback-reason.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
 interface ParsedRepo {
@@ -102,8 +103,8 @@ async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Promise<O
   const c = ghClient(ctx)
   // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
   const out: unknown[] = []
-  const MAX_PAGES = 10
-  const PAGE = 100
+  const MAX_PAGES = PAGINATION.github.restMaxPages
+  const PAGE = PAGINATION.github.restPageSize
   // 本函数的起点：下面每一行降级日志带的是「这一笔从本函数入口到这里花掉的毫秒数」。
   const startsAt = Date.now()
   for (let p = 1; p <= MAX_PAGES; p++) {
@@ -205,7 +206,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     while (hasNext) {
       // 构造带变量查询：gh api graphql -f query -F owner -F name -F first -F after
       const query = LIST_QUERY
-      const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=100`]
+      const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.gql' })
@@ -233,7 +234,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       let prAfter = null
       let prHasNext = true
       while (prHasNext) {
-        const args = ['api', 'graphql', '-f', `query=${LIST_PR_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=100`]
+        const args = ['api', 'graphql', '-f', `query=${LIST_PR_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
         if (prAfter) args.push('-F', `after=${prAfter}`)
         else args.push('-F', 'after=')
         const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.pr' })

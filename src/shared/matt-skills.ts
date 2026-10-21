@@ -3,9 +3,11 @@
  *
  * 契约：
  *   1) MATT_SKILL_PROBE_NAMES：host 半运行时 import() 用作正交探测清单（chain 链上「技能已安装」检查）；
- *   2) MATT_SKILL_CATALOG / SKILLS：client 半「技能目录」（设置页 / 推荐 / T0 状态栏）渲染底座。
+ *      这份名单不手写，由下方 SKILLS_DATA 数据表一行派生（#1342：一个名字全仓只写一处）。
+ *   2) SKILLS：client 半「技能目录」（设置页 / 推荐 / T0 状态栏）渲染底座。
+ *      数组顺序就是面板上的展示顺序，别按字母重排。
  *      level ∈ 'ok' | 'warn' | 'alert'：驱动状态栏胶囊颜色与设置页标签。
- *      use 是中文短描述（en 在 locale skilldesc.<name> 翻译）。
+ *      条目不带描述字段——界面文案在渲染时按 name 取 locale 的 skilldesc.<name> 翻译。
  *
  * 历史：原注释承诺 `shared/matt-skills.js` 是「单一真源」，但 src 与 installed 两半的 SKILL_PROBE_NAMES 数组
  *       各自手写，client SKILLS 数组在 v1.5 之后漂移到只列 20 项（v1.7.3），丢失 grill-with-docs / wizard /
@@ -15,76 +17,52 @@
  * 本文件 = 单一真源；host 经 await import('../shared/matt-skills.js') 读；
  *                 client 由 scripts/build.mts 以 SHARED_SPLICE 拼入 src/client/index.ts。
  *                 splice 提取会剥掉 `export ` 前缀，因此本文件用 const SKILLS_DATA 命名原始数组，
- *                 再用 export const MATT_SKILL_CATALOG = SKILLS_DATA 与 export const SKILLS = SKILLS_DATA 双导出；
- *                 splice 后产物同时具备 MATT_SKILL_CATALOG 与 SKILLS 两种命名（兼容老 client 代码）。
+ *                 再以 export const SKILLS = SKILLS_DATA 导出给 client 片段用（#1342：原来还有一个
+ *                 MATT_SKILL_CATALOG 指向同一数组，全仓没人读，已删掉，只留 SKILLS 一个名字）。
  */
 
 // 技能状态档位只有这三个字面量：ok 表示就绪，warn 表示能用但要先看说明，alert 表示有问题先处理。
 // 状态栏胶囊颜色与设置页标签都按这三个字画，写错一个字母就会落到默认色，报警会被当成正常。
 type MattSkillLevel = 'ok' | 'warn' | 'alert'
 
-// 技能目录里的一行：name 是唯一键，level 决定颜色，use 是中文短描述（英文版在 locale 的 skilldesc.<name> 翻译里）。
-// name 必须与 MATT_SKILL_PROBE_NAMES 里同一个名字逐字相等，否则目录里会出现探测清单里没有的技能，两边又会分叉。
-type MattSkillEntry = { name: string; level: MattSkillLevel; use: string }
-
-export const MATT_SKILL_PROBE_NAMES: string[] = [
-  'ask-matt',
-  'code-review',
-  'codebase-design',
-  'diagnosing-bugs',
-  'domain-modeling',
-  'grill-with-docs',
-  'implement',
-  'improve-codebase-architecture',
-  'prototype',
-  'research',
-  'setup-matt-pocock-skills',
-  'tdd',
-  'to-spec',
-  'to-tickets',
-  'triage',
-  'wayfinder',
-  'wizard',
-  'grill-me',
-  'grilling',
-  'handoff',
-  'teach',
-  'to-questionnaire',
-  'wait-what',
-  'writing-for-agents',
-  'implement-spec',
-  'pr',
-  'retro'
-]
+// 技能目录里的一行：name 是唯一键，level 决定颜色。
+// 描述不放在这里：渲染时按 name 到 locale 的 skilldesc.<name> 取文案（#1342 删掉了全仓没人读的中文 use）。
+// 探测名单 MATT_SKILL_PROBE_NAMES 也从这张表派生，因此 27 个名字只在这一处写一遍。
+type MattSkillEntry = { name: string; level: MattSkillLevel }
 
 const SKILLS_DATA: MattSkillEntry[] = [
-  { name: 'ask-matt',                      level: 'warn', use: '技能路由器：不知道该用哪个 skill 时问它' },
-  { name: 'setup-matt-pocock-skills',      level: 'ok',   use: '仓库初始化：issue tracker / 标签 / 文档路径' },
-  { name: 'wayfinder',                     level: 'warn', use: '巨型项目决策地图（本插件服务的对象）' },
-  { name: 'grill-me',                      level: 'ok',   use: '脱离工作区的纯对话 grilling（不写文档）' },
-  { name: 'grill-with-docs',               level: 'ok',   use: '在仓库文档里追问与对齐（grilling + 文档引用）' },
-  { name: 'to-spec',                       level: 'warn', use: '把讨论固化成规格' },
-  { name: 'to-tickets',                    level: 'warn', use: '把规格拆成 tickets' },
-  { name: 'implement',                     level: 'warn', use: '把规格落成代码（task 型 ticket）' },
-  { name: 'handoff',                       level: 'warn', use: '把当前对话压缩成交接文档' },
-  { name: 'research',                      level: 'ok',   use: '后台调研，写进 repo 内 markdown 并引源' },
-  { name: 'prototype',                     level: 'ok',   use: '一次性原型回答设计问题' },
-  { name: 'triage',                        level: 'ok',   use: 'issue 分流：归类→验证→追问，直至 ready-for-agent' },
-  { name: 'wizard',                        level: 'ok',   use: '生成交互式 bash 引导完成人工才能做的步骤' },
-  { name: 'code-review',                   level: 'ok',   use: '按标准 + 规格双轴审查改动' },
-  { name: 'diagnosing-bugs',               level: 'ok',   use: '硬 bug 与性能回归诊断循环' },
-  { name: 'retro',                         level: 'ok',   use: '复盘编码会话，只提环境改进' },
-  { name: 'grilling',                      level: 'ok',   use: '穷追不舍的对齐提问（设计树）' },
-  { name: 'domain-modeling',               level: 'ok',   use: '领域术语与统一语言' },
-  { name: 'to-questionnaire',              level: 'ok',   use: '给第三方写一份可填写的问卷' },
-  { name: 'implement-spec',                level: 'warn', use: '把整份规格在集成分支上一次跑完' },
-  { name: 'tdd',                           level: 'ok',   use: '红-绿-重构' },
-  { name: 'codebase-design',               level: 'ok',   use: '深模块设计词汇' },
-  { name: 'improve-codebase-architecture', level: 'ok',   use: '扫 deepening opportunities 出 HTML 报告' },
-  { name: 'pr',                            level: 'ok',   use: '按固定三段形状写 PR 正文' },
-  { name: 'teach',                         level: 'ok',   use: '跨 session 教你新技能' },
-  { name: 'wait-what',                     level: 'ok',   use: '用大白话重说上一轮你没接住的内容' },
-  { name: 'writing-for-agents',            level: 'warn', use: '为 agent 写文档（skills / AGENTS.md）' },
+  { name: 'ask-matt',                      level: 'warn' },
+  { name: 'setup-matt-pocock-skills',      level: 'ok' },
+  { name: 'wayfinder',                     level: 'warn' },
+  { name: 'grill-me',                      level: 'ok' },
+  { name: 'grill-with-docs',               level: 'ok' },
+  { name: 'to-spec',                       level: 'warn' },
+  { name: 'to-tickets',                    level: 'warn' },
+  { name: 'implement',                     level: 'warn' },
+  { name: 'handoff',                       level: 'warn' },
+  { name: 'research',                      level: 'ok' },
+  { name: 'prototype',                     level: 'ok' },
+  { name: 'triage',                        level: 'ok' },
+  { name: 'wizard',                        level: 'ok' },
+  { name: 'code-review',                   level: 'ok' },
+  { name: 'diagnosing-bugs',               level: 'ok' },
+  { name: 'retro',                         level: 'ok' },
+  { name: 'grilling',                      level: 'ok' },
+  { name: 'domain-modeling',               level: 'ok' },
+  { name: 'to-questionnaire',              level: 'ok' },
+  { name: 'implement-spec',                level: 'warn' },
+  { name: 'tdd',                           level: 'ok' },
+  { name: 'codebase-design',               level: 'ok' },
+  { name: 'improve-codebase-architecture', level: 'ok' },
+  { name: 'pr',                            level: 'ok' },
+  { name: 'teach',                         level: 'ok' },
+  { name: 'wait-what',                     level: 'ok' },
+  { name: 'writing-for-agents',            level: 'warn' },
 ]
-export const MATT_SKILL_CATALOG: MattSkillEntry[] = SKILLS_DATA
+// 探测名单由数据表派生：增删技能只改上面的 SKILLS_DATA，名字不会两边分叉。
+// 这里的顺序跟随面板展示顺序；探测只按集合用（verify-bundled-skills 与 sync 脚本都做集合比对），顺序不参与判定。
+export const MATT_SKILL_PROBE_NAMES: string[] = SKILLS_DATA.map((s) => s.name)
+// #1342：技能目录只留 SKILLS 一个导出名。原先还多一个 MATT_SKILL_CATALOG 指向同一个数组，
+//   查遍仓内消费者（client 片段只 declare SKILLS、tests 只 import SKILLS、宿主只 import MATT_SKILL_PROBE_NAMES）
+//   没有任何地方读它，删掉。
 export const SKILLS: MattSkillEntry[] = SKILLS_DATA

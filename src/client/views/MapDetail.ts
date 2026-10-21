@@ -46,6 +46,9 @@ declare function containerKindOf(...args: any[]): any;
 declare function containerStateOf(...args: any[]): any;
 declare function containerTriState(...args: any[]): any;
 declare const CONTAINER_ACCENT: any;
+// #1343：容器三态的两枚固定色也从中央色表取（同 kernel/container-view.ts），这里只声明形状。
+declare const CONTAINER_DONE_COLOR: any;
+declare const CONTAINER_EMPTY_COLOR: any;
 declare function Ic(props?: any): any;
 declare const Tip: any;
 // 复制成功提示的停留时间（毫秒）。数值写在 config/ttl.yaml 的 copyFlashMs，
@@ -90,15 +93,23 @@ export     const MapDetail = ({ st, g, drill }: any) => {
       const cState = (typeof containerStateOf === 'function')
         ? containerStateOf({ stats: effStats })
         : (effStats && effStats.total === 0 ? 'empty' : (effStats && effStats.total > 0 && effStats.closed === effStats.total ? 'done' : 'open'))
-      // 三态配置（底色/文字/图标）：真源同在 container-view.ts。真源不在时退回同口径的老表。
+      // 三态配置（底色/文字/图标）：真源同在 container-view.ts。真源不在时退回同口径的老表；
+      //   其中空态橙与完成态绿也从中央色表取，不再抄一份同值（#1343）。
+      //   空串只可能出现在门禁单独求值、中央色表没被拼进闭包的时候；真机里它一定在，别拿空串当同值兜底用。
+      const triEmptyColor = function () {
+        return (typeof CONTAINER_EMPTY_COLOR === 'string' && CONTAINER_EMPTY_COLOR) ? CONTAINER_EMPTY_COLOR : ''
+      }
+      const triDoneColor = function () {
+        return (typeof CONTAINER_DONE_COLOR === 'string' && CONTAINER_DONE_COLOR) ? CONTAINER_DONE_COLOR : ''
+      }
       const tri = (typeof containerTriState === 'function')
         ? containerTriState(cKind, cState)
         : (cKind === 'spec'
-          ? (cState === 'empty' ? { labelKey: 'act.split', color: '#f59e0b', icon: 'branch', titleKey: 'spec.splitTitle' }
-            : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'spec.doneTitle' }
+          ? (cState === 'empty' ? { labelKey: 'act.split', color: triEmptyColor(), icon: 'branch', titleKey: 'spec.splitTitle' }
+            : (cState === 'done' ? { labelKey: 'act.done', color: triDoneColor(), icon: 'check', titleKey: 'spec.doneTitle' }
               : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.spec : '', icon: 'play', titleKey: 'spec.executeTitle' }))
-          : (cState === 'empty' ? { labelKey: 'act.inspect', color: '#f59e0b', icon: 'search', titleKey: 'map.inspectTitle' }
-            : (cState === 'done' ? { labelKey: 'act.done', color: '#3fb950', icon: 'check', titleKey: 'map.doneTitle' }
+          : (cState === 'empty' ? { labelKey: 'act.inspect', color: triEmptyColor(), icon: 'search', titleKey: 'map.inspectTitle' }
+            : (cState === 'done' ? { labelKey: 'act.done', color: triDoneColor(), icon: 'check', titleKey: 'map.doneTitle' }
               : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', icon: 'play', titleKey: 'map.executeTitle' })))
       // 区块字段防御性兜底：快照组装层已恒填 EMPTY（[] / ''），旧磁盘缓存/异常数据仍可能缺失，
       // 缺失时按空区块渲染（曾因 m.decisions 等 undefined 直接读 .length 抛 Cannot read properties of undefined）
@@ -245,6 +256,8 @@ export     const MapDetail = ({ st, g, drill }: any) => {
               ]),
               h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, t.title)]) }, h('div', { className: 'tt' }, t.title)),
               h('div', { className: 'sub', style: { fontSize: 8, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 1, minHeight: 12, display: 'flex', gap: 5, flexWrap: 'wrap' } }, [
+                // #1343：子票已关闭的绿是票状态（CLOSED）的颜色，不是容器三态的完成绿；今天与中央色表同值
+                //   只是历史巧合，所以这里保留原色值，由 tests/verify-container-colors.ts 按「路径 + 段」白名单放行。
                 t.state === 'CLOSED' ? h('span', { style: { color: '#3fb950', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'check', size: 8 }), h('span', null, tr('map.subClosed'))]) : null,
                 t.claimedBy ? h('span', { style: { color: '#58a6ff', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'person', size: 8 }), h('span', null, t.claimedBy)]) : null,
                 // #1286：被阻塞统一红 #f87171（与列表行同一个红）。这个红在本仓原本是「出错/失败」色，

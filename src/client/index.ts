@@ -135,25 +135,12 @@ export default {
     // ============================================================
     // 1. 技能目录 + 场景推荐映射
     // ============================================================
-    // T3：描述在渲染时 tr('skilldesc.<name>')（此处 use 字段为中文静态参考）
+    // T3：描述在渲染时 tr('skilldesc.<name>')
     // ==== shared:mattSkills (spliced by build) ====
     // #fix-banner：动态占位供 installSkills prompt 使用；probeList/probeCount 由 SKILLS 派生（与 host MATT_SKILL_PROBE_NAMES 同源）
     const installSkillsParams = function () {
       const names = (Array.isArray(SKILLS) ? SKILLS : []).map(function (s: any) { return s && s.name }).filter(Boolean)
       return { probeList: names.join(' / '), probeCount: String(names.length) }
-    }
-    const TYPE_SKILLS = {
-      research: ['research'],
-      prototype: ['prototype'],
-      grilling: ['grilling', 'domain-modeling'],
-      task: ['implement'],
-    }
-    const TYPE_LABEL = {
-      research: ['research', 'r', '研究'],
-      prototype: ['prototype', 'p', '原型'],
-      grilling: ['grilling', 'g', '对齐'],
-      task: ['task', 't', '任务'],
-      map: ['map', 'm', '地图'],
     }
     // 图标按类型分发。issue（普通票：没有 wayfinder 类型标签的票）故意没有图标 —— 徽章只出文字、灰底，
     // 前面挂一个圆点像多出来的项目符号，去掉后文字才左右对称；齿轮必须留给任务票，不让普通票兜底落进去（#626）
@@ -221,6 +208,11 @@ export default {
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
+    // #1342 域文档布局的两种取值（single / multi）只有一份真源（src/shared/doc-layout/src/layouts.ts →
+    // .build/shared/doc-layout/layouts.js）。宿主侧选择记忆与工作区配置核按普通相对 import 取同一份；
+    // 界面那一半不能运行时 import src/shared，与上面几份一样拼进闭包，状态栏与初始化卡按同一份名单校验，
+    // 不自己写第二份字面量。
+    // ==== shared:docLayout (spliced by build) ====
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:settingsViewState (spliced by build) ====
     // ==== kernel:settingsView (spliced by build) ====

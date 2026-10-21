@@ -27,6 +27,9 @@ import { pathToFileURL } from 'node:url'
 import * as realFs from 'node:fs/promises'
 import { TRANSPILE_OPTIONS } from '../scripts/lib/transpile-unit.mts'
 import { loadEsbuild } from '../scripts/lib/transpile-domains.mts'
+// #1342：布局取值的唯一真源搬到了 src/shared/doc-layout，选择记忆导出的那份必须与它逐字一致。
+// 这条 import 同时让门禁归属表知道：本门禁守着这份真源（改坏它这里会红）。
+import { DOC_LAYOUT_VALUES } from '../src/shared/doc-layout/src/layouts.js'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const MODULE_REL = 'src/host/choiceStore.ts'
@@ -212,6 +215,7 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
   const lg = await stL.getLayout(KEY)
   check(lg.ok === true && lg.found === true && lg.layout === 'single', '布局读得回来 —— 实得 ' + JSON.stringify(lg))
   check(JSON.stringify(LAYOUT_VALUES) === JSON.stringify(['single', 'multi']), '布局取值只有 single 与 multi 两种')
+  check(JSON.stringify(LAYOUT_VALUES) === JSON.stringify(DOC_LAYOUT_VALUES), '布局取值与唯一真源 src/shared/doc-layout/src/layouts.ts 逐字一致（#1342）')
   check((await stL.rememberLayout(KEY, '不认识')).ok === false, '不认识的布局取值不许写进去')
   check(JSON.parse(fs.readFileSync(choicesFilePath(layoutHome), 'utf8')).layouts[hashWorkspaceKey(KEY)].layout === 'single', '布局那一栏存的就是 {layout, pickedAt} 这个形状')
 
@@ -239,9 +243,16 @@ tmpDirs.push(brokenDir)
 // 反证求值的是「改坏之后的源码文本」：真源现在是 TypeScript，直接写进 .mjs 求值会报语法错，
 // 所以先按全仓唯一那份转译口径（TRANSPILE_OPTIONS，与构建同一份）转成 JavaScript 再求值。
 // 转译失败按落点缺失处理（当场红），不让门禁崩在没有结论的地方。
+// 反证变体写在系统临时目录里求值，而真源里可能有相对 import（#1342 起 choiceStore 也 import 了共享真源）。
+// 原样写进去的话，那些说明符会相对临时目录解析，变成「找不到模块」。所以先把它们换成本仓内的绝对
+// file URL：以真源所在目录（src/host）为基准解析，再交给 ts-hook 按「同名 .ts 优先」落回源码。
+const absolutizeSourceImports = function (code: string): string {
+  const sourceDir = path.join(ROOT, path.dirname(MODULE_REL))
+  return code.replace(/(\bfrom\s*|\bimport\s*\(\s*)(['"])(\.{1,2}\/[^'"]+)\2/g, (whole, head, quote, spec) => head + quote + pathToFileURL(path.resolve(sourceDir, spec)).href + quote)
+}
 const toRunnableJs = function (text: string): { text?: string; bad?: string } {
   try {
-    return { text: loadEsbuild().transformSync(text, TRANSPILE_OPTIONS).code }
+    return { text: absolutizeSourceImports(loadEsbuild().transformSync(text, TRANSPILE_OPTIONS).code) }
   } catch (e) {
     return { bad: '反证变体转译失败（' + ((e && e.message) || e) + '）' }
   }
