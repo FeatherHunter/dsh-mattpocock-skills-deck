@@ -39,6 +39,8 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 
 只用不会丢文件、不改写历史的命令，例如 `git status`、`git diff`、`git log`、`git add`、`git commit`、`git push`、`git pull --ff-only`。提交信息遵守上面“提交信息规范”里的中文要求。
 
+提交前先跑一次 `git status` 看清这次到底动了哪些文件，只 `git add` 本任务动过的路径；不要用 `git commit -a` 或 `git add -A` 一把抓——同一个工作区里可能还有别的会话没提交的改动，一把抓会把别人的活卷进自己的提交，或者把别人暂存好的文件提前带走。
+
 不要用任何可能丢文件或改写历史的命令，例如 `git reset --hard`、`git checkout .`、`git clean -f`、`git push --force`、`git rebase`、`git filter-branch`。拿不准某条命令会不会丢数据时，先停下来问人，不要自己试。
 
 ### TypeScript 优先，旧 JS 随改随迁，最终只留 TS
