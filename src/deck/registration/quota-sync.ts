@@ -15,8 +15,8 @@
 //
 // 住在平台区：宿主层文件之间不许互相引用，平台区是被排除的位置。
 // 本文件零导入，闸、账本、起 gh 三件全由接线方显式传入。
-// 日志不新增：走闸与落账自带既有的 gh.exec 与 quota.spend 两行，
-// 成功再记既有 host.call（deck.quotaSync），失败不另记（#1030 Q6）。
+// 日志不新增事件：走闸与落账自带既有的 gh.exec 与 quota.spend 两行，成功与失败都记既有 host.call
+// （deck.quotaSync，失败带 ok:false 与原因码，见 #1006 复核）；冷却期挡下的那些不记（预期行为，记了就是垃圾）。
 
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { QUOTA_SYNC_COOLDOWN_MS } from '../../shared/time-config/src/values.js'
@@ -88,6 +88,16 @@ export function createDeckQuotaSync(deps: unknown): { ensureReading: (cwd: unkno
     try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: 'deck.quotaSync', latencyMs: ms, ok: true, kind: 'deck-tool' }) } catch (eL) {}
   }
 
+  // 失败那一趟也留一行（#1006 复核补，仍是既有 host.call，不新增事件）。
+  // 为什么要有：从前同步失败只回一个原因码，日志里查不到「这一轮 60 秒冷却为什么开始」，
+  // 于是票面那种「失败 7 次、零原因」的现场只能靠猜。现在每次真去读了却没读成，都留原因码
+  // （sync-empty = gh 回话解析不出读数，sync-threw = 这一趟抛了，ensure-threw = 入口兜底）。
+  // 为什么用 info 不用告警：gh 不在的机器上失败是常态，告警会淹掉真问题；ok:false 足够对账。
+  // 冷却期挡下的不记 —— 那是预期行为，每次工具调用都会走一遍，记了就是垃圾。
+  function fireFailed(reason: string, ms: number): void {
+    try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: 'deck.quotaSync', latencyMs: ms, ok: false, kind: 'deck-tool', reason: reason }) } catch (eL) {}
+  }
+
   let flying: Promise<QuotaSyncResult> | null = null
 
   function doSync(cwd: unknown, workspaceKey: unknown): Promise<QuotaSyncResult> {
@@ -125,8 +135,9 @@ export function createDeckQuotaSync(deps: unknown): { ensureReading: (cwd: unkno
           },
         )
         if (applied) { fireSynced(Date.now() - t0); return { ok: true, fresh: true } }
+        fireFailed('sync-empty', Date.now() - t0)
         return { ok: false, reason: 'sync-empty' }
-      } catch (e) { return { ok: false, reason: 'sync-threw' } } finally {
+      } catch (e) { fireFailed('sync-threw', Date.now() - t0); return { ok: false, reason: 'sync-threw' } } finally {
         flying = null
       }
     })()
@@ -147,7 +158,7 @@ export function createDeckQuotaSync(deps: unknown): { ensureReading: (cwd: unkno
       if (r && r.ok) lastFailAt = 0
       else lastFailAt = Date.now()
       return r
-    } catch (e) { return { ok: false, reason: 'ensure-threw' } }
+    } catch (e) { fireFailed('ensure-threw', 0); return { ok: false, reason: 'ensure-threw' } }
   }
 
   return { ensureReading: ensureReading, parseRateLimit: parseRateLimit }

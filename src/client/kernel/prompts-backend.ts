@@ -111,6 +111,11 @@ declare function isEnabled(...args: any[]): any
     // #996 复核：提示词里拼不拼得出链接，全看 issueUrlFor 拿到什么；票面症状正是「/wayfinder 后面没有链接」。
     //   这里只在按需级落一行 prompt.link：哪个提示词、哪个后端、编号是什么形态（empty/zero/number/other）、
     //   链接是空还是有、结论 ok/empty-link。只记短枚举，不记工作区路径、不记标题与链接原文。
+    // #1210 复核：这个函数每次渲染提示词都会走一遍，实测约 3.6 行/秒（10-21 一天 18,490 行），
+    //   正常情况逐次记就是垃圾。所以只记两类：①链接为空 —— 这正是本事件要抓的形态，出现几次记几次；
+    //   ②每个后端、每种提示词在进程里第一次成功 —— 用来确认这条观测口径是通的。其余逐次成功不记。
+    //   这样故障时仍有逐条证据，正常时日志不再被读提示词灌满。
+    const promptLinkSeen: Record<string, boolean> = {}
     const logPromptLink = function (st: any, prompt: unknown, num: unknown, url: unknown): void {
       try {
         if (typeof isEnabled !== 'function' || !isEnabled('debug')) return
@@ -121,7 +126,13 @@ declare function isEnabled(...args: any[]): any
         else if (isFinite(n)) numKind = 'number'
         const backend = (typeof currentBackendId === 'function') ? String(currentBackendId(st) || '') : ''
         const linkKind = url ? 'url' : 'empty'
-        try { log('debug', 'prompt.link', { prompt: String(prompt), backend: backend, numKind: numKind, linkKind: linkKind, verdict: linkKind === 'empty' ? 'empty-link' : 'ok' }) } catch (eLl) {}
+        const verdict = linkKind === 'empty' ? 'empty-link' : 'ok'
+        if (verdict === 'ok') {
+          const seenKey = String(prompt) + '|' + backend
+          if (promptLinkSeen[seenKey]) return
+          promptLinkSeen[seenKey] = true
+        }
+        try { log('debug', 'prompt.link', { prompt: String(prompt), backend: backend, numKind: numKind, linkKind: linkKind, verdict: verdict }) } catch (eLl) {}
       } catch (e) {}
     }
     // v5（#77 grilling 定版 2026-08-21）：mapHead 自包含化 —— 标识头三字段内联 complete 顶部，completePrompt 补 title 参数并填 {n}/{title}/{url}

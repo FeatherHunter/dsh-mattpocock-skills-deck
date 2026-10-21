@@ -73,6 +73,11 @@ interface WorkspaceState {
   failuresSinceSuccess: number
   rateLimitedUntil: number
   backoffWindowStartedAt: number
+  // #1008/#1218 复核补的三格：这个窗口里「最近一次失败是谁、什么种类、连续第几次」。
+  // 为什么必须有：从前日志只记「推迟了」与推迟原因，回答不了票面那句「这 3 次是谁攒的」——
+  // 同一个窗口里可能既有登录失败又有网络失败，归因丢了就分不清该修哪条路。
+  // 只在失败时写入、成功时清空，纯记忆，不参与任何裁决（裁决只看 failuresSinceSuccess 与窗口起点）。
+  lastFailure: { category: string; kind: string; streak: number } | null
 }
 
 /** 推迟队列里的一条：同一工作区只留最后一次（后来的覆盖先来的，覆盖次数计入 coalesced）。 */
@@ -279,7 +284,7 @@ export function createGate(deps?: GateDeps) {
 
   function wsState(key: string): WorkspaceState {
     let s = workspaces.get(key)
-    if (!s) { s = { active: false, failuresSinceSuccess: 0, rateLimitedUntil: 0, backoffWindowStartedAt: 0 }; workspaces.set(key, s) }
+    if (!s) { s = { active: false, failuresSinceSuccess: 0, rateLimitedUntil: 0, backoffWindowStartedAt: 0, lastFailure: null }; workspaces.set(key, s) }
     return s
   }
 
@@ -287,6 +292,13 @@ export function createGate(deps?: GateDeps) {
     const s = wsState(key)
     return { active: !!s.active, failuresSinceSuccess: s.failuresSinceSuccess, rateLimited: s.rateLimitedUntil > now(), backoffWindowStartedAt: s.backoffWindowStartedAt }
   }
+
+  // #1008/#1218 复核补的失败归因：窗口里最近一次失败是谁（类别、种类、连续第几次），
+  // 只在失败窗口内写入、成功时清空，纯记忆不参与裁决；窗口外回 null，日志对象因此不多长字段，
+  // 正常时段的 refresh.decide 与从前一字不差。三个值都来自本闸自己的记忆，不查账本、不联网。
+  function failureAttribution(key: string) { const s = wsState(key); return (s.failuresSinceSuccess > 0 && s.lastFailure) ? { failuresSinceSuccess: s.failuresSinceSuccess, backoffWindowStartedAt: s.backoffWindowStartedAt, lastFailureCategory: s.lastFailure.category, lastFailureKind: s.lastFailure.kind, failureStreak: s.lastFailure.streak } : null }
+  function rememberFailure(key: string, category: string, kind: string, streak: number) { wsState(key).lastFailure = { category: category, kind: kind, streak: streak } }
+  function forgetFailure(key: string) { const s = wsState(key); s.failuresSinceSuccess = 0; s.lastFailure = null }
 
   /** 裁决的输入：类别 + 种类 + 桶的档位与账 + 工作区状态。 */
   function inputFor(req: NormalizedReq) {
@@ -307,14 +319,12 @@ export function createGate(deps?: GateDeps) {
   }
 
   // 账本三个事件之一（按需级 P1）：这一笔的结论与原因。外层先判调试开关，关着连字段对象都不组装。
-  function fireDecide(req: NormalizedReq, verdict: string, reason: string, tier: string) {
-    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', { category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: tier, cycle: req.cycle, keyHash: hash8(req.workspaceKey) }) } catch (eL) {}
-  }
+  // #1008/#1218：失败窗口里再补五个归因键（窗口外自动不加，正常时段的这一行与从前一字不差）。
+  function fireDecide(req: NormalizedReq, verdict: string, reason: string, tier: string) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', Object.assign({ category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: tier, cycle: req.cycle, keyHash: hash8(req.workspaceKey) }, failureAttribution(req.workspaceKey) || {})) } catch (eL) {} }
 
   // 账本三个事件之一（按需级 P1）：被跳过的那些（后台档被推迟、额度不足、过期丢弃）。
-  function fireSkipped(key: string, kind: string, reason: string, pending: number) {
-    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.skipped', { keyHash: hash8(key), kind: kind, reason: reason, pending: pending }) } catch (eL) {}
-  }
+  // #1008/#1218：同样只在失败窗口里补五个归因键。
+  function fireSkipped(key: string, kind: string, reason: string, pending: number) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.skipped', Object.assign({ keyHash: hash8(key), kind: kind, reason: reason, pending: pending }, failureAttribution(key) || {})) } catch (eL) {} }
 
   /** 只看结论不发送（界面与门禁都要能用同一套裁决问一句）。 */
   function decideFor(req?: GateRequest) {
@@ -360,11 +370,15 @@ export function createGate(deps?: GateDeps) {
     if (failure) {
       // 一次真失败：计数加一，窗口从此刻重开（窗口长短的判据在 refresh-core/src/failure-window.ts）。
       const next = failureWindow.recordFailure({ failures: wsState(req.workspaceKey).failuresSinceSuccess, windowStartedAt: 0 }, now())
-      wsState(req.workspaceKey).failuresSinceSuccess = next.failures
-      wsState(req.workspaceKey).backoffWindowStartedAt = next.windowStartedAt
+      const failed = wsState(req.workspaceKey)
+      failed.failuresSinceSuccess = next.failures
+      failed.backoffWindowStartedAt = next.windowStartedAt
+      // #1008/#1218：把「最近这一次失败是谁」记进本工作区，下一次裁决与跳过落日志时带出去。
+      rememberFailure(req.workspaceKey, req.category, req.kind, next.failures)
       throw failure
     }
-    wsState(req.workspaceKey).failuresSinceSuccess = 0
+    // 真成功：连续失败归零，归因一起清空（窗口已经关了，留着只会误导下一次读日志的人）。
+    forgetFailure(req.workspaceKey)
     return { requests: actual.requests, points: actual.points, claimed: reported || { requests: 0, points: 0 }, remaining: after.remaining, tier: after.tier, result: m.result }
   }
 

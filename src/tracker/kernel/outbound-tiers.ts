@@ -80,6 +80,32 @@ export function tierForGhArgs(args: unknown): 'write' | 'probe' | 'read' {
   return 'read'
 }
 
+/**
+ * 日志里那一格「哪一类命令」的短标签（#1007 复核补）。
+ *
+ * 为什么要有它：从前 gh.exec / gh.timeout 只记 `argv0: 'gh'`，失败时日志分不出是查登录态、
+ * 列票还是改票 —— 而票面要的正是「失败带命令名」。命令整行不能进日志（带仓库名、票号、
+ * 查询正文），所以只留两段：子命令族与动词（`issue:create`、`auth:status`），
+ * api 只留接口族的第一段（`api:graphql`、`api:repos`），参数部分（owner/repo、编号、查询串）一律丢掉。
+ *
+ * 取值是有限集合，便于按值聚合；认不出的子命令只回第一段（例如 `--version`），不会回空。
+ * 类型说明：收未知参数数组（兼容旧调用），运行时仍按数组判断。
+ */
+export function ghCommandLabel(args: unknown): string {
+  const parts = partsOf(args)
+  if (parts.length === 0) return ''
+  const head = parts[0]
+  if (head === 'api') {
+    // 接口族第一段就够定位：graphql / rate_limit / user / repos …… 后面的 owner、仓库名与编号不进日志。
+    const family = String(parts[1] || '').split('/')[0]
+    return family ? 'api:' + family : 'api'
+  }
+  // 只有第二段是纯小写动词时才拼进去（`issue view` 拼成 issue:view）；第二段是票号或路径时只留族名。
+  const second = String(parts[1] || '')
+  if (parts.length >= 2 && /^[a-z][a-z-]*$/.test(second)) return head + ':' + second
+  return head
+}
+
 /** 这一档等多久（毫秒）。类型说明：档位收字符串，未知档按读档处理，与原来一致。 */
 export function timeoutForTier(tier: string): number {
   if (tier === 'write') return WRITE_TIMEOUT_MS

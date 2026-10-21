@@ -299,8 +299,10 @@ for (const r of runs) {
   if (!res.ok || ghEvents.length !== 1) { runOk = false; check(false, '用 via=' + r.tag + ' 跑一笔：应当成功且只落一行 gh.exec（实得 ok=' + res.ok + '、行数 ' + ghEvents.length + '）'); continue }
   const f = ghEvents[0].fields
   check(f.via === r.tag, '真跑一笔：gh.exec 的 via 就是 ' + r.tag + '（实得 ' + JSON.stringify(f.via) + '）')
-  check(JSON.stringify(Object.keys(f).sort()) === JSON.stringify(['argv0', 'cwdHash', 'exitCode', 'kind', 'latencyMs', 'opId', 'via', 'waitedMs']),
-    '真跑一笔：gh.exec 的字段恰好是登记的那八格（实得 ' + Object.keys(f).sort().join('、') + '）')
+  // 2026-10-21（#1007 复核）：gh.exec 增补 cmd（这一条命令的短标签），八格变九格；
+  // 仍然逐格比对，多记少记都算红——多出来的键一样是原文泄漏的口子。
+  check(JSON.stringify(Object.keys(f).sort()) === JSON.stringify(['argv0', 'cmd', 'cwdHash', 'exitCode', 'kind', 'latencyMs', 'opId', 'via', 'waitedMs']),
+    '真跑一笔：gh.exec 的字段恰好是登记的九格（实得 ' + Object.keys(f).sort().join('、') + '）')
   check(f.exitCode === 0 && f.kind === 'ok', '真跑一笔：成功这一笔记的是退出码 0 与 kind=ok')
   // #1052 续：编号取自上下文（调用点给不了它），落进 gh.exec 之后才能与宿主那层 host.call 对上。
   check(f.opId === 'testop-7', '真跑一笔：gh.exec 记下了上下文里的操作编号（实得 ' + JSON.stringify(f.opId) + '）')

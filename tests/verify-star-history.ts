@@ -33,6 +33,14 @@ assert.ok(dark1.includes('>Total Stars<') && dark1.includes('>Daily New<'),'both
 assert.ok(!dark1.includes('rotate('),'axis titles must stay horizontal; nobody should have to tilt their head to read them');
 assert.ok(dark1.includes('data-axis="total"') && dark1.includes('data-axis="daily"'),'each axis spine must be drawn in its own series colour');
 assert.ok(dark1.includes('fill="#38bdf8"'),'right-axis ticks must be drawn in the daily colour');
+// —— 刻度数字的配色：两列各用系列色，并且每套主题里一个系列只有一个色值 ——
+// 左列红字描述 Total、右列蓝字描述 Daily；曲线、轴线、轴名、刻度、峰值标注共用这个色值，
+// 不再出现「曲线鲜红、文字深红」两套色板（浅色主题整体压深后，小字对比度才过 AA）。
+assert.ok(dark1.includes('text-anchor="end" font-size="13" fill="#ff6b6b" data-axis="total"'),'left tick labels must be drawn in the total colour');
+assert.ok(dark1.includes('text-anchor="start" font-size="13" fill="#38bdf8" data-axis="daily"'),'right tick labels must be drawn in the daily colour');
+assert.ok(!dark1.includes('text-anchor="end" font-size="13" fill="#9aa3b2"'),'left tick labels must not fall back to the neutral grey');
+assert.ok(light.includes('fill="#b93a34"') && light.includes('stroke="#b93a34"') && light.includes('fill="#1d4ed8"') && light.includes('stroke="#1d4ed8"'),'light theme: curve, axis and labels must share the darker palette (WCAG AA for 13px text)');
+assert.ok(!light.includes('#d94f4f') && !light.includes('#2f81f7'),'old bright light-theme colours must be gone; one series must have exactly one colour per theme');
 // 默认字色必须落在根 <svg> 的 fill 属性上、由子元素继承；写进 <style> 会盖掉所有
 // 元素自己的 fill 属性（SVG 里 CSS 规则优先级高于 presentation attribute），
 // 轴名染色、右轴蓝字、次要文字的灰都会悄悄失效——2026-10-21 排查「轴名染不上色」时踩过。

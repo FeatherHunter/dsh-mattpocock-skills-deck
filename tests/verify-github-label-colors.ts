@@ -37,7 +37,9 @@ const REF = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
 // gh.exec 的字段白名单：#1052 给这一条常驻事件增补了一格 via（「这一次是谁发的、走到哪一支」，
 // 见 tests/verify-github-gh-via.ts）、又增补了一格 opId（宿主起这一趟操作时的编号，用来把宿主那层
 // host.call 与房间这层串起来），所以这里是八格；与 tests/verify-log-fields.ts 的白名单一致。
-const GH_EXEC_FIELDS = ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode']
+// 2026-10-21（#1007 复核）：又增补了一格 cmd（这一条 gh 命令的短标签，如 label-colors:list），
+// 所以这里是九格；与 tests/verify-log-fields.ts 的白名单一致。
+const GH_EXEC_FIELDS = ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd']
 
 /** 从参数数组里读 `--flag value` 这种写法（不拼字符串再正则，标签名里可能有空格与冒号）。 */
 function flagsOf(args) {
