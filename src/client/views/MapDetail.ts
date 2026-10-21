@@ -95,6 +95,7 @@ export     const MapDetail = ({ st, g, drill }: any) => {
         : (effStats && effStats.total === 0 ? 'empty' : (effStats && effStats.total > 0 && effStats.closed === effStats.total ? 'done' : 'open'))
       // 三态配置（底色/文字/图标）：真源同在 container-view.ts。真源不在时退回同口径的老表；
       //   其中空态橙与完成态绿也从中央色表取，不再抄一份同值（#1343）。
+      //   空串只可能出现在门禁单独求值、中央色表没被拼进闭包的时候；真机里它一定在，别拿空串当同值兜底用。
       const triEmptyColor = function () {
         return (typeof CONTAINER_EMPTY_COLOR === 'string' && CONTAINER_EMPTY_COLOR) ? CONTAINER_EMPTY_COLOR : ''
       }

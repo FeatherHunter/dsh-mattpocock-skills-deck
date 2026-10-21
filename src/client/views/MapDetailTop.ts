@@ -56,6 +56,7 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: tri
     ? containerStateOf({ stats: effStats })
     : (effStats && effStats.total === 0 ? 'empty' : (effStats && effStats.total > 0 && effStats.closed === effStats.total ? 'done' : 'open'))
   // #1343：两枚固定色只从中央色表取，真源不在时退回空串，不再抄一份同值兜底。
+  //   空串只可能出现在门禁单独求值、中央色表没被拼进闭包的时候；真机里它一定在，别拿空串当同值兜底用。
   const triEmptyColor = function () {
     return (typeof CONTAINER_EMPTY_COLOR === 'string' && CONTAINER_EMPTY_COLOR) ? CONTAINER_EMPTY_COLOR : ''
   }

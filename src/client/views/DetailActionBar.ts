@@ -40,6 +40,7 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
   // 三态配置：真源在 container-view.ts（列表页同一份）。真源不在时（例如门禁单独求值本文件）
   //   退回同口径的老表：探索地图三态与今天一字不差。
   // #1343：两枚固定色只从中央色表取，真源不在时退回空串，不再抄一份同值兜底。
+  //   空串只可能出现在门禁单独求值、中央色表没被拼进闭包的时候；真机里它一定在，别拿空串当同值兜底用。
   const triEmptyColor = function () {
     return (typeof CONTAINER_EMPTY_COLOR === 'string' && CONTAINER_EMPTY_COLOR) ? CONTAINER_EMPTY_COLOR : ''
   }

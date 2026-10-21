@@ -49,6 +49,7 @@ declare const CONTAINER_CHIP_CLASS: any;
 declare const CONTAINER_CHIP_LABEL_KEY: any;
 declare const CONTAINER_CHIP_MARKER_CLASS: any;
 // #1343：容器三态里的两枚固定色（空态橙、完成态绿）同样只从中央色表取，本文件不再写同值兜底。
+//   空串只可能出现在门禁单独求值、中央色表没被拼进闭包的时候；真机里它一定在，别拿空串当同值兜底用。
 declare const CONTAINER_DONE_COLOR: any;
 declare const CONTAINER_EMPTY_COLOR: any;
 declare const CONTAINER_TINT: any;
