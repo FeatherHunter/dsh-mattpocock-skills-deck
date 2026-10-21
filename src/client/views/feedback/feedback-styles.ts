@@ -141,6 +141,12 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   边框的灰色都换成主题的焦点颜色。本叶子注入在内核样式之后、同特异度按次序胜出，所以在这里统一覆盖；
       //   主色按钮（.dsws-btn.primary:hover）那条边框是深色描边、不是灰边，排除掉不动。
       '@media (hover:hover) and (pointer:fine){.dsws-btn:not(.primary):hover:not(.dsws-pressing),.dsws-seg:hover:not(.dsws-pressing),.dsws-cfg-btn:hover:not(.dsws-pressing),.dsws-maprow:hover:not(.dsws-pressing),.dsws-trow:hover:not(.dsws-pressing),.dsws-aggrow:hover:not(.dsws-pressing){border-color:var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}}',
+      // 列表整行（工单列表、PR 列表里的行）的悬停高亮原来只是把行自带的 1px 透明边框换成主题色：
+      //   整个行一大片面积上只有一道 1px 细线，看起来比按钮、药丸上的环淡一半（2026-10-21 用户实测
+      //   追问「ISSUE 列表的 ITEM 焦点框好像比较淡，是因为宽度不够吗」）。整行不能提亮、不能位移
+      //   （会把同行内容带着变），所以在 1px 主题色边框之内再补一圈 1px 的内画阴影，合起来 2px，
+      //   与键盘焦点环同宽；阴影不占布局，行还是不会跳。
+      '@media (hover:hover) and (pointer:fine){.dsws-aggrow:hover:not(.dsws-pressing),.dsws-trow:hover:not(.dsws-pressing){box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}}',
       // 键盘焦点环统一规则在上面（DSH 焦点 token + 负 offset 往内画），这里不再另写一套。
       //   注：2026-10-21 用户先要求胶囊里所有环淡五成，随后又要求「胶囊状态栏的焦点效果可以去掉（内部胶囊的不用去）」——
       //   所以整条胶囊自己的环已经从焦点选择器与通用悬停规则里摘掉，这一条只负责让里面每颗子控件的环继续淡五成。
