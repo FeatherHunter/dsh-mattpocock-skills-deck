@@ -61,7 +61,7 @@ export function commandFor(key, opts) {
 }
 export const WRITE_SUBCOMMANDS = ["add", "commit", "pull", "push", "ls-files", "remote"];
 export const REMOTE_PATTERN = /^[A-Za-z0-9._-]+$/;
-export const BRANCH_PATTERN = /^(?!-)[^\s\u0000]+$/;
+export const BRANCH_PATTERN = /^(?!-)[^\s\u0000:\\]+$/;
 export function stageArgs(paths) {
   return ["add", "--"].concat(paths);
 }

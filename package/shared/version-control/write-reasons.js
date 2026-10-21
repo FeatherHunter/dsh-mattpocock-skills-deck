@@ -38,6 +38,7 @@ export function pathsProblem(paths) {
   if (!Array.isArray(paths) || paths.length === 0) return "bad-paths";
   for (const p of paths) {
     if (typeof p !== "string" || p === "" || p.indexOf("\0") >= 0) return "bad-paths";
+    if (p.charAt(0) === "-" || p.charAt(0) === ":") return "bad-paths";
   }
   return null;
 }
