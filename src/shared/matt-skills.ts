@@ -4,7 +4,7 @@
  * 契约：
  *   1) MATT_SKILL_PROBE_NAMES：host 半运行时 import() 用作正交探测清单（chain 链上「技能已安装」检查）；
  *      这份名单不手写，由下方 SKILLS_DATA 数据表一行派生（#1342：一个名字全仓只写一处）。
- *   2) MATT_SKILL_CATALOG / SKILLS：client 半「技能目录」（设置页 / 推荐 / T0 状态栏）渲染底座。
+ *   2) SKILLS：client 半「技能目录」（设置页 / 推荐 / T0 状态栏）渲染底座。
  *      数组顺序就是面板上的展示顺序，别按字母重排。
  *      level ∈ 'ok' | 'warn' | 'alert'：驱动状态栏胶囊颜色与设置页标签。
  *      条目不带描述字段——界面文案在渲染时按 name 取 locale 的 skilldesc.<name> 翻译。
@@ -17,8 +17,8 @@
  * 本文件 = 单一真源；host 经 await import('../shared/matt-skills.js') 读；
  *                 client 由 scripts/build.mts 以 SHARED_SPLICE 拼入 src/client/index.ts。
  *                 splice 提取会剥掉 `export ` 前缀，因此本文件用 const SKILLS_DATA 命名原始数组，
- *                 再用 export const MATT_SKILL_CATALOG = SKILLS_DATA 与 export const SKILLS = SKILLS_DATA 双导出；
- *                 splice 后产物同时具备 MATT_SKILL_CATALOG 与 SKILLS 两种命名（兼容老 client 代码）。
+ *                 再以 export const SKILLS = SKILLS_DATA 导出给 client 片段用（#1342：原来还有一个
+ *                 MATT_SKILL_CATALOG 指向同一数组，全仓没人读，已删掉，只留 SKILLS 一个名字）。
  */
 
 // 技能状态档位只有这三个字面量：ok 表示就绪，warn 表示能用但要先看说明，alert 表示有问题先处理。
@@ -62,5 +62,7 @@ const SKILLS_DATA: MattSkillEntry[] = [
 // 探测名单由数据表派生：增删技能只改上面的 SKILLS_DATA，名字不会两边分叉。
 // 这里的顺序跟随面板展示顺序；探测只按集合用（verify-bundled-skills 与 sync 脚本都做集合比对），顺序不参与判定。
 export const MATT_SKILL_PROBE_NAMES: string[] = SKILLS_DATA.map((s) => s.name)
-export const MATT_SKILL_CATALOG: MattSkillEntry[] = SKILLS_DATA
+// #1342：技能目录只留 SKILLS 一个导出名。原先还多一个 MATT_SKILL_CATALOG 指向同一个数组，
+//   查遍仓内消费者（client 片段只 declare SKILLS、tests 只 import SKILLS、宿主只 import MATT_SKILL_PROBE_NAMES）
+//   没有任何地方读它，删掉。
 export const SKILLS: MattSkillEntry[] = SKILLS_DATA
