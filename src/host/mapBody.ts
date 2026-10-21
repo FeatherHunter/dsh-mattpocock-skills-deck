@@ -1,13 +1,16 @@
 /**
  * src/host/mapBody.ts —— 地图正文解析（来源：src/host/mapBody.js，issue #1247 转写，本次只加类型标注与注释，逻辑一行未动）。
  *
- * 为什么要有它（一句话）：正文预处理、五区块解析、进度块三级锚定与票行映射；纯函数、零外部依赖。
+ * 为什么要有它（一句话）：正文预处理、五区块解析与票行映射；纯函数。
  *
- * 三条不能改的约定（改之前先看原 mapBody.js 头注释与调用点 index.ts）：
+ * 约定（改之前先看原 mapBody.js 头注释与调用点 index.ts）：
  * 1. 行为零变化：逻辑逐行对应，只加类型标注与中文注释，不改任何运行时语义；相对导入保留 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  * 2. 只写可剥离 TypeScript：不新增运行时语法（禁用 enum 与构造函数参数属性），类型一律 import type 或内联标注，转译后与原 .js 逐行同义。
- * 3. 不新增任何 import 边：只给已有引用加类型，不引入新模块依赖；Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接，不装 @types/node。
+ * 3. 依赖只留一条（#1090 起）：进度解析统一走 src/tracker/body-parse.ts，本文件不再留内联副本；
+ *    其余仍不引用别的文件，也不装 @types/node（Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接）。
  */
+
+import { parseProgress } from '../tracker/body-parse.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1247 转 TypeScript：只写类型不写实现）。
@@ -25,7 +28,7 @@ type WfArgs = any;
 
 // src/host/mapBody.js —— 地图正文解析（H2 #446 从 host/index.js 98–189 搬出，纯结构、行为零变化）。
 // 以后谁改它：改地图正文五区块结构或票字段映射的人。预估约 120 行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；纯函数、零外部依赖；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 加载；纯函数。进度解析自 #1090 起引用 tracker 叶子，不再内联第三份。
 export function createMapBody(): any {
     // ============ 数据流 ============
     // T16：正文预处理 —— 剥 BOM + 字面 \n 还原为真实换行（历史坏格式 body 也能解析）
@@ -114,21 +117,8 @@ export function createMapBody(): any {
       return out
     }
 
-    // v1.5 T12 修订（B4）：进度块解析三级锚定 —— 进度区 = 契约固定章节「## 进度：N%」，先锚定标题行，防正文示例/规则文本劫持（#459/#460 实证）
-    //   1) 标题行：## 进度：90%（行首 markdown 标题 · 进度区正形）
-    //   2) 行首变体：进度：90% / Progress: 90%（无标题符号 · 兑现注释承诺）
-    //   3) 全文兜底：任意出现（兼容老票随手格式 · 放最后不劫持前两层）
-    function parseProgress(body?: any) {
-      if (!body) return null
-      const s = String(body)
-      const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-        || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-        || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
-      if (!m) return null
-      const n = parseInt(m[1], 10)
-      if (isNaN(n)) return null
-      return Math.max(0, Math.min(100, n))
-    }
+    // 进度解析：自 #1090 起统一走 src/tracker/body-parse.ts 的 parseProgress（文件顶部 import），
+    // 本文件不再保留内联副本。口径（顶层 `## 进度` 区、老票两种兼容写法、删全文兜底）见那个叶子。
 
     function mapTicket(raw?: any) {
       const labels = ((raw.labels && raw.labels.nodes) || []).map(function(x?: any) { return x.name })
