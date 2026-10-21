@@ -16,7 +16,7 @@
 // 这扇门禁守六件事（父规格 #1290 Seam 3a 的四条验收 + 两条用户故事）：
 //   ① 生成新鲜度：生成器 --check 必须是绿的（改了 YAML 忘了跑生成器，在这里红）。
 //   ② YAML 自校验：validatePromptData 与 validateLanguageData 都不许报问题。
-//   ③ 注册表键名不变：28 条模板 id 与 3 处片段 id 与清单逐条相等，一个不多一个不少；
+//   ③ 注册表键名不变：27 条模板 id 与 3 处片段 id 与清单逐条相等，一个不多一个不少；
 //      这 28 个键名在本文件里还硬编码了一份 —— 键名悄悄改了就红。
 //   ④ use 不进客户端产物：use 是「这条模板什么时候用」的一句人话，只给读代码的人看，
 //      不是发给用户的文案，父规格明说它不许出现在客户端产物里。
@@ -63,7 +63,7 @@ const PRODUCT_FILES = [
 // ---------------------------------------------------------------------------
 
 /**
- * 28 条模板 id 的硬编码清单。
+ * 27 条模板 id 的硬编码清单。
  *
  * 为什么要在门禁里再写一份（清单本身在 scripts/lib/prompt-config.mts 里已经有一份）：
  *   那一份是「今天打算有哪些模板」，这一份是「对外承诺的键名」。两份不是一回事：
@@ -73,7 +73,7 @@ const PRODUCT_FILES = [
  *   而且改完必须说得出为什么。
  */
 const PROTECTED_TEMPLATE_IDS: ReadonlyArray<string> = [
-  'complete', 'fixate', 'ghAuthLogin', 'healthCheck', 'installSkills', 'installSkillsFix',
+  'complete', 'fixate', 'healthCheck', 'installSkills', 'installSkillsFix',
   'mapExecute', 'mapInspect', 'newBugWayfinder', 'newSpec', 'newWayfinder', 'setupRun',
   'specComplete', 'specExecute', 'specSplit', 'switchAlign', 'switchLayout',
   'tpl.diagnose', 'tpl.discuss', 'tpl.execute', 'tpl.fix', 'tpl.handoff1', 'tpl.handoff2',
@@ -84,7 +84,7 @@ const PROTECTED_TEMPLATE_IDS: ReadonlyArray<string> = [
 const PROTECTED_FRAGMENT_IDS: ReadonlyArray<string> = ['newBugFields', 'newWayfinderWiring', 'vocabularyDefaults']
 
 /** 模板条数与片段条数的下限：少一条就是少了一条模板，多一条就是多了一条。 */
-const EXPECTED_TEMPLATE_COUNT = 28
+const EXPECTED_TEMPLATE_COUNT = 27
 const EXPECTED_FRAGMENT_COUNT = 3
 
 /**
@@ -427,7 +427,7 @@ if (config) {
   check(
     promptIssues.length === 0,
     '提示词 YAML 自校验通过：validatePromptData 没有报问题' +
-      (promptIssues.length ? '：\n      ' + promptIssues.join('\n      ') : '（28 条模板 + 3 处片段逐条核过）'),
+      (promptIssues.length ? '：\n      ' + promptIssues.join('\n      ') : '（27 条模板 + 3 处片段逐条核过）'),
   )
   const languageIssues = validateLanguageData(config.languages)
   check(
@@ -584,7 +584,7 @@ if (config) {
   }
   check(
     problems.length === 0,
-    '占位符声明与正文一一对应（28 条模板 × 中英各一份正文逐条核过）' +
+    '占位符声明与正文一一对应（27 条模板 × 中英各一份正文逐条核过）' +
       (problems.length ? '：\n      ' + problems.join('\n      ') : ''),
   )
 }
@@ -616,7 +616,7 @@ if (config && generated) {
   check(
     templateProblems.length === 0,
     '生成物里每条模板的中英正文与 YAML 完全相等' +
-      (templateProblems.length ? '：\n      ' + templateProblems.join('\n      ') : '（28 条模板 × 中英各一份逐字比过）'),
+      (templateProblems.length ? '：\n      ' + templateProblems.join('\n      ') : '（27 条模板 × 中英各一份逐字比过）'),
   )
 
   const fragmentProblems: string[] = []

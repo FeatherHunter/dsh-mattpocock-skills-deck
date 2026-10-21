@@ -47,7 +47,8 @@ export const makeStore = (): any => ({
   cwd: '', lblFilters: [], effFilters: [], expLabels: false,
   // 由 wf.cwd 带回来的工作区根（2026-09-19 加）：归属标志的早到来源，收下与写表在 probe-snapshot.js。
   sessionWorkspaceRoot: '',
-  // #374：状态过滤 + 排序（默认 更新时间↓，与现状一致）
+  // 状态过滤 + 排序：默认档是「编号升序」，来自内核 listPrefs 的初始偏好（见 store-prefs）；
+  //   面板每次换档写回同一处，下次启动沿用。
   stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
   chainSnapshot: null, chainLoadedAt: '', backendChain: null, fullChain: null,
   snapMode: 'loading', snapError: null, snapLoading: false,

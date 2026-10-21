@@ -11,7 +11,8 @@
 // 跑法（从仓库根目录）: node --import ./scripts/ts-hook.mts tests/verify-1295-dual-panel.ts
 //
 // 这份门禁替票面八条验收标准守门（AC1–AC8）：
-//   AC1 列表顺序：探索地图 → 实施地图（规格）→ 普通票；容器组内按最近更新降序、同一时刻按编号升序。
+//   AC1 列表顺序：探索地图 → 实施地图（规格）→ 普通票；容器组内跟随面板排序档（#1356 起，
+//       旧口径「按最近更新降序」作废）；同一时刻先按工作区再按编号升序（与普通票同一套比较）。
 //       顺序基线（票池、放入顺序、期望顺序与分组）全部来自 tests/fixtures/1295-dual-panel/list-snapshot.json，
 //       本文件里不写第二份顺序数组——否则「基线」就成了测试代码自说自话。
 //   AC2 探索地图行：左侧色条紫 #c084fc、编号徽章紫、角标「地图」+ 地图图标，底色是紫的薄底。
@@ -262,8 +263,8 @@ function ticketOf(over: any) {
 function statsOf(total: number, closed: number) {
   return { levels: [{ open: total - closed, closed: closed, total: total }], total: total, closed: closed }
 }
-function makeListSt(issues: any[], maps: any[]) {
-  return {
+function makeListSt(issues: any[], maps: any[], overrides?: any) {
+  return Object.assign({
     snapshot: { issues: issues, maps: maps, generatedMs: '2026-10-20T00:00:00.000Z' },
     tab: 'list',
     stateFilter: listFx.st.stateFilter,
@@ -274,7 +275,7 @@ function makeListSt(issues: any[], maps: any[]) {
     rowFlash: {},
     writeAt: {},
     cwd: listFx.st.cwd,
-  } as any
+  }, overrides || {}) as any
 }
 function fillTemplate(tpl: any, stats: any) {
   return String(tpl).replace(/\{n\}/g, String(stats.total)).replace(/\{c\}/g, String(stats.closed))
@@ -384,6 +385,27 @@ let actualOrder: string[] = []
   const mapGroup = expected.groups.find((g: any) => g.group === 'map')
   check(actualOrder.indexOf(String(mapGroup.keys[0])) < actualOrder.indexOf(String(specGroup.keys[0])),
     failText('AC1f 组顺序压过时间：探索地图组整体排在规格组之前', mapGroup.label + ' 在 ' + specGroup.label + ' 之前', '实际顺序：' + actualOrder.join('、')))
+
+  // 第二场景：同一份票池换「编号升序」再画一遍。旧实现把容器组写死按 updatedAt 降序，
+  //   这一遍会画成 1202 在 1201 前；现在容器组跟随排序档，编号升序要求 1201 在前。
+  //   期望值也来自 fixture（altScenario），门禁里不写第二份顺序数组。
+  const alt = listFx.altScenario
+  const altSt = makeListSt(pool, listFx.maps.map((m: any) => containerOf(m)), alt.st)
+  const altHtml = withQuietReact(() => renderToStaticMarkup(React.createElement(listMod.ListTab, { st: altSt, narrow: false })))
+  const altOrder = rowOrder(altHtml)
+  check(altOrder.join(',') === alt.expected.order.join(','),
+    failText('AC1g 换「编号升序」档后列表顺序与 fixture 第二场景基线一致', alt.expected.order.join('、'), altOrder.join('、')))
+  let altCursor = 0
+  let altGroupsOk = true
+  const altDetails: string[] = []
+  for (const g of alt.expected.groups) {
+    const slice = altOrder.slice(altCursor, altCursor + g.keys.length)
+    altCursor += g.keys.length
+    if (slice.join(',') !== g.keys.join(',')) altGroupsOk = false
+    altDetails.push(g.label + '[' + slice.join('、') + ']')
+  }
+  check(altGroupsOk,
+    failText('AC1h 换档后三段分组仍与 fixture 第二场景一致（证明容器组真的跟随排序档）', alt.expected.groups.map((g: any) => g.label + '[' + g.keys.join('、') + ']').join(' / '), altDetails.join(' / ')))
 }
 
 // ============ AC2 / AC3：容器行的身份（角标 / 色条 / 编号徽章 / 底色）============

@@ -186,7 +186,9 @@ export     const ListTab = ({ st, narrow }: any) => {
       // #690：再并上「按需翻回来的那些页」里池子没有的行（issuePageRowsOf 已按身份去掉重复的），
       //   于是已关闭那一堆里既有首屏那一百条、也有用户翻出来的更早的票；静默刷新只换池子，页数据不动。
       const issues = ticketRowsOf((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).concat(issuePageRowsOf(st, 'list'))
-      // #374：多维排序 —— map 行恒置顶，map 组与普通组各自按所选维度排序；默认 更新时间↓（与现状一致）
+      // 列表排序：置顶的探索地图组与规格组各自按面板所选排序档排，组内与普通票共用下面同一套比较；
+      //   组间顺序固定「探索地图 → 规格 → 普通票」，不跨组比较时间。默认排序档是「编号升序」
+      //   （来自内核 store-prefs 里的初始偏好，不是「更新时间降序」）。
       // #1253 优化（行为不变，只是把重复计算挪到排序前算一次）：原来每比较一对票就要现做一次
       //   String(...) 转换与 localeCompare 的入参准备，一张五千行的列表要比较约六万次；现在先把
       //   每张票的比较键（数字键 / 小写标题 / 所选维度文本 / effort）各算一次，再让比较函数只用
@@ -235,7 +237,7 @@ export     const ListTab = ({ st, narrow }: any) => {
       }
       const mapOnlyIssues: any[] = []
       // #1286：规格容器单独一桶。列表顺序是「探索地图 → 规格 → 普通票」，
-      //   两类容器各自成组；组内按最近更新降序（容器是正在推进的东西，组内不看面板选的那个排序档）。
+      //   两类容器各自成组；组内顺序跟面板选的那个排序档走，与普通票共用同一套比较（#1356）。
       const specOnlyIssues: any[] = []
       const plainOpenIssues: any[] = []
       const closedIssues: any[] = []
@@ -246,18 +248,10 @@ export     const ListTab = ({ st, narrow }: any) => {
         if (cKind === 'map') { mapOnlyIssues.push(x); continue }
         plainOpenIssues.push(x)
       }
-      // #1286：容器组内按最近更新降序。updatedAt 是宿主给的 ISO 时间串，字典序即时间序；
-      //   同一时刻用编号升序兜底，保证顺序稳定。
-      const sortContainers = function (arr: any[]) {
-        return arr.slice().sort(function (a: any, b: any) {
-          const av = String((a && a.updatedAt) || '')
-          const bv = String((b && b.updatedAt) || '')
-          if (av !== bv) return av < bv ? 1 : -1
-          return (a.number - b.number)
-        })
-      }
-      const sortedMaps = sortContainers(mapOnlyIssues)
-      const sortedSpecs = sortContainers(specOnlyIssues)
+      // #1356：容器组内不再另有一套排序，直接复用普通票的 sortIssues（同四列、同方向、
+      //   键值相同时同样先 effort 再编号升序兜底）；三段拼接保持不变。
+      const sortedMaps = sortIssues(mapOnlyIssues)
+      const sortedSpecs = sortIssues(specOnlyIssues)
       const sortedOpen = sortIssues(plainOpenIssues)
       const closedSorted = sortIssues(closedIssues)
       const groups = compute(st)
@@ -305,7 +299,8 @@ export     const ListTab = ({ st, narrow }: any) => {
         if (!labs.length) return ls.indexOf('needs-triage') >= 0
         return labs.some(function (l: any) { return ls.indexOf(l.name) >= 0 })
       }
-      // #1286：三段顺序 —— 探索地图 → 规格 → 普通票（容器组在前，普通票仍按面板排序档）
+      // #1286 / #1356：三段顺序 —— 探索地图 → 规格 → 普通票；三段各自按面板排序档排（组内同一套比较），
+      //   组间顺序固定，不跨组比较时间。
       const openRows = sortedMaps.concat(sortedSpecs).concat(sortedOpen).filter(effPass)
       const closedRows = closedSorted.filter(effPass)
       const openFiltered = (st.lblFilters && st.lblFilters.length) ? openRows.filter(byLabel) : openRows
