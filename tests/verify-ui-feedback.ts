@@ -17,7 +17,7 @@
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
 //    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死、
 //    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角、整条胶囊自己的环又挂回来、
-//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px、入口浮层的卡又被通用悬停规则多画一圈环、入口卡又挂回 dsws-hov、入口卡自己的焦点圈被删、入口卡按下又没反馈）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -126,12 +126,14 @@ const MATRIX: [string, string, string[]][] = [
 const COUNTED_FILES: string[] = MATRIX.map(([f]) => f).concat(['src/client/views/ListTab.ts'])
 // 判据要读的全部文件（去重）：G 组的反例也在这同一批文本上改。
 const AUDIT_FILES: string[] = Array.from(new Set(COUNTED_FILES.concat([
-  // G 组的反例要动到这几份真源：构建清单、客户端入口、两个底座片、样式真源。
+  // G 组的反例要动到这几份真源：构建清单、客户端入口、两个底座片、样式真源；
+  // 入口浮层的卡（F29 读它挂的类名、焦点圈与悬停提亮，G 组反例也在这份文本上改）。
   'scripts/build.mts',
   'src/client/index.ts',
   'src/client/kernel/ui-feedback.ts',
   'src/client/views/shared/liquidInk.ts',
   'src/client/views/feedback/feedback-styles.ts',
+  'src/client/kernel/entry-choice.ts',
 ])))
 
 type AuditResult = { ok: boolean; msg: string }
@@ -285,7 +287,7 @@ function audit(read: (p: string) => string): AuditResult[] {
   //   会话链那颗「定位图标 + #票号」的焦点圈是直角。下面三条分别钉住这三件事。
   // 1) 整条胶囊自身不再有环：不挂复盘用的 dsws-hov，焦点选择器与通用悬停规则都不认 .dsws-capsule；
   //    里面每颗子控件（胶囊字、分段药丸、交接两段、会话链、刷新、时间）照旧保留各自的环。
-  check(feedbackCss.indexOf('.dsws-capsule:focus-visible') < 0 && feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover') >= 0 && statusBarSrc.indexOf("className: 'dsws-capsule'") >= 0 && statusBarSrc.indexOf("className: 'dsws-capsule dsws-hov'") < 0, 'F25 整条胶囊自己的焦点环与悬停环都摘掉了（用户要求「胶囊状态栏的焦点效果可以去掉，内部胶囊的不用去」），里面每颗子控件保留各自的环')
+  check(feedbackCss.indexOf('.dsws-capsule:focus-visible') < 0 && feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):not(.dsws-entrycard):hover') >= 0 && statusBarSrc.indexOf("className: 'dsws-capsule'") >= 0 && statusBarSrc.indexOf("className: 'dsws-capsule dsws-hov'") < 0, 'F25 整条胶囊自己的焦点环与悬停环都摘掉了（用户要求「胶囊状态栏的焦点效果可以去掉，内部胶囊的不用去」），里面每颗子控件保留各自的环；同一条选择器现在还排除入口浮层的卡，见 F29')
   // 2) 交接左右两半要一样高：左段有图标加「交接」两个字、右段只有一颗图标，按内容高度就对不齐；
   //    两段各自 align-self:stretch 撑满整行高度（左段一处、右段就绪与未就绪两分支各一处）。
   check(statusBarSrc.indexOf("borderRadius: '99px 0 0 99px', alignSelf: 'stretch'") >= 0 && (statusBarSrc.match(/borderRadius: '0 99px 99px 0', alignSelf: 'stretch'/g) || []).length >= 2, 'F26 交接左右两半撑满同一行高（左段与右段两个分支都写 alignSelf:stretch）：不然右段只有图标、比左段矮一截，半胶囊不对称')
@@ -296,8 +298,22 @@ function audit(read: (p: string) => string): AuditResult[] {
   // 通用悬停与按下只按 data-press 属性给：2026-10-21 用户实测漏掉的那批控件（列表行内四颗按钮、
   //   地图/工单详情顶栏、地图底部动作区、父链接）全都是「属性接上了、悬停类忘了挂」。按属性给之后，
   //   以后新控件只要接线就不会再漏，这条断言就是那个契约。
-  check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0, 'F10 悬停反馈按 data-press 属性统一给（不再逐颗挂 dsws-hov；真鼠标媒体查询里，触屏不残留；整条胶囊自己除外，见 F25）')
+  check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):not(.dsws-entrycard):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0, 'F10 悬停反馈按 data-press 属性统一给（不再逐颗挂 dsws-hov；真鼠标媒体查询里，触屏不残留；整条胶囊自己除外，见 F25；入口浮层的卡也除外，见 F29）')
   check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node).dsws-pressing{filter:brightness(.82)}') >= 0 && feedbackCss.indexOf('[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}') >= 0, 'F11 按下反馈也按属性统一给：按钮/链接/开关压暗并下沉一像素，整行与整卡只压暗（整块下沉会把同行元素带着错位）')
+  // 2026-10-22 用户实测（#1359）：入口浮层里悬停的那张卡，焦点圈与卡框之间透出一圈橘黄细线。
+  //   根因是同一张卡上叠了两套环：它自己按焦点画一圈 2px outline（内联样式），通用悬停规则又按
+  //   data-press="row" 给它画一圈 1px 主题色内画阴影；卡面 SVG 的边框从半像素起画、又是半透明的，
+  //   第二圈就从边框底下透出来，正好落在 outlineOffset 留出的那道暗缝里，看着像多出的一条暖色线。
+  //   修法照状态栏胶囊的先例（F25）：入口卡改挂专门的类 .dsws-entrycard、不再挂 dsws-hov，通用悬停
+  //   规则把它排除；卡自己的焦点圈（内联 2px outline、offset 2）与悬停提亮（内联 filter）照旧。按下压暗
+  //   另有一条只在入口卡上生效的规则：卡的内联 filter 会压过 F11 那条按 data-press 给的通用按压，
+  //   不单独写一条 !important 规则就看不出按下。
+  //   这条断言同时钉住四件事：样式侧要排除 .dsws-entrycard、按下压暗那条要在，卡侧要恰好只挂
+  //   .dsws-entrycard，焦点圈与悬停提亮不能被删。
+  const entryChoiceSrc = read('src/client/kernel/entry-choice.ts')
+  // 卡侧注释里写着「不挂 dsws-hov」，先剥掉行注释再找类名，免得判据被自己的说明误伤。
+  const entryChoiceCode = entryChoiceSrc.replace(/\/\/[^\n]*/g, '')
+  check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):not(.dsws-entrycard):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0 && feedbackCss.indexOf('.dsws-entrycard.dsws-pressing{filter:brightness(.82)!important}') >= 0 && entryChoiceCode.indexOf("className: 'dsws-entrycard'") >= 0 && entryChoiceCode.indexOf('dsws-hov') < 0 && entryChoiceSrc.indexOf("'data-press': 'row'") >= 0 && entryChoiceSrc.indexOf("'data-log': 'entry.card.'") >= 0 && entryChoiceSrc.indexOf("outline: focused ? '2px solid ' + accent : 'none'") >= 0 && entryChoiceSrc.indexOf('outlineOffset: 2') >= 0 && entryChoiceSrc.indexOf("filter: focused ? 'brightness(1.14)' : 'none'") >= 0, 'F29 入口浮层的整张卡不再被通用悬停规则多画一圈环（用户实测焦点圈与卡框之间透出一条橘黄细线）：只留它自己的 2px 焦点圈与悬停提亮，悬停规则与 dsws-hov 都不再命中它；按下时另有一条只在入口卡上生效的 !important 压暗规则（内联提亮会压过通用按压，不单独写就看不出按下；对照 F25 整条胶囊的同类做法）')
   check(feedbackCss.indexOf('[data-press].dsws-pressing{transform:none!important}') >= 0, 'F12 减少动态下按下的位移关掉、压暗保留（与规格「减少动态只关位移」一致）')
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')
@@ -468,7 +484,7 @@ const variants: Variant[] = [
     label: '通用悬停不再按 data-press 属性给：新控件又得逐颗挂类，漏一颗就没反馈',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F10',
-    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}", ''),
+    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):not(.dsws-entrycard):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}", ''),
   },
   {
     label: '静态角标又有假悬停：药丸悬停规则不再只认 data-press',
@@ -546,13 +562,37 @@ const variants: Variant[] = [
     label: '整条胶囊的假悬停又回来了：通用悬停规则不再排除 .dsws-capsule',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F25',
-    change: (s) => replaceAll(s, ':not(.dsws-node):not(.dsws-capsule):hover', ':not(.dsws-node):hover'),
+    change: (s) => replaceAll(s, ':not(.dsws-capsule):not(.dsws-entrycard):hover', ':not(.dsws-entrycard):hover'),
   },
   {
     label: '整条胶囊又挂回 dsws-hov：鼠标扫过整条外框都亮一圈',
     file: 'src/client/statusbar/StatusBar.ts',
     group: 'F25',
     change: (s) => replaceAll(s, "className: 'dsws-capsule'", "className: 'dsws-capsule dsws-hov'"),
+  },
+  {
+    label: '入口卡又被通用悬停规则多画一圈环：焦点圈与卡框之间那圈橘黄细线回来了',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F29',
+    change: (s) => replaceAll(s, ':not(.dsws-capsule):not(.dsws-entrycard):hover', ':not(.dsws-capsule):hover'),
+  },
+  {
+    label: '入口卡又挂回 dsws-hov：悬停时整张卡又被多画一圈环',
+    file: 'src/client/kernel/entry-choice.ts',
+    group: 'F29',
+    change: (s) => replaceAll(s, "className: 'dsws-entrycard'", "className: 'dsws-entrycard dsws-hov'"),
+  },
+  {
+    label: '入口卡自己的焦点圈被删了：悬停时连它自己那一圈环都没有',
+    file: 'src/client/kernel/entry-choice.ts',
+    group: 'F29',
+    change: (s) => replaceAll(s, "outline: focused ? '2px solid ' + accent : 'none',", ''),
+  },
+  {
+    label: '入口卡按下又没反馈了：内联提亮压过通用按压规则，按下时卡面纹丝不动',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F29',
+    change: (s) => replaceAll(s, '.dsws-entrycard.dsws-pressing{filter:brightness(.82)!important}', ''),
   },
   {
     label: '交接两段又没撑满整行高度：右段比左段矮，半胶囊不对称',

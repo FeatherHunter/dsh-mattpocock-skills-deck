@@ -123,8 +123,18 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   （整块下沉会把同行其它元素带着错位，这也和规格里「小图标不位移」一致）。
       //   行容器（.dsws-aggrow/.dsws-trow/.dsws-node）原有自己的悬停底色与更轻的按压，这里排除，不互相顶掉。
       //   胶囊根同样排除（用户 2026-10-21 要求整条胶囊的悬停环去掉，里面每颗子控件保留）。
-      '@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}',
+      //   入口浮层的整张卡也排除（2026-10-22 用户实测 #1359：这张卡自己按焦点画 2px outline，通用环又从卡框
+      //   底下透出来，焦点圈与卡框之间多出一条橘黄细线；根因是同一张卡叠了两套环，不是环色配错）。
+      //   入口卡改挂专门的类 .dsws-entrycard：卡自己的焦点圈与悬停提亮照旧，按下压暗单独写在下面一条
+      //   （卡的内联 style 里有提亮用的 filter，内联样式压得过通用按压规则，不抬 !important 就看不见压暗）。
+      //   全仓只有入口浮层这两张卡挂 .dsws-entrycard，其它控件（含按 data-press="row" 接线的整行/整卡）
+      //   不受影响。
+      '@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):not(.dsws-entrycard):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}',
       '[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node).dsws-pressing{filter:brightness(.82)}',
+      // 入口卡是一整张卡，按下只压暗、不下沉（同上面 data-press="row" 的约定）；它不挂 dsws-hov，上面那条
+      //   通用按压规则虽然命中，却会被卡的内联 filter 压住，所以单独写一条并抬 !important。这里的 .82
+      //   与上面那条通用按压是同一个压暗值，两处要一起改，否则两种控件的按下深浅会不一致。
+      '.dsws-entrycard.dsws-pressing{filter:brightness(.82)!important}',
       '[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}',
       '.dsws-btn[data-press],[data-press="link"],[data-press="switch"]{transition:filter .12s ease,box-shadow .12s ease,transform .08s ease}',
       // 地图详情的工单卡：整张卡热与按下；卡片内部按钮各自还有自己的反馈，不互相顶掉。

@@ -249,7 +249,11 @@ export const EntryChooser = function (props: any) {
       tabIndex: -1,
       // 接线（#1335 界面反馈）：整张入口卡就是一颗按钮，按「整卡可点」接 row 形状；
       //   日志名用卡的种类拼出来（map / spec 两个固定枚举），不写卡上那段展示文字。
-      className: 'dsws-hov',
+      // 这里不挂 dsws-hov，改挂专门的 .dsws-entrycard（2026-10-22 #1359）：这张卡自己按焦点画 2px outline，
+      //   通用悬停环会再从卡框底下透出 1px 环，两条环叠在一起。卡自己的悬停提亮（下面的内联 filter）照旧；
+      //   按下压暗改由样式侧一条只在入口卡上生效的规则负责——内联 filter 压得过通用按压规则，不单独写
+      //   一条 !important 规则就看不见按下时的压暗（样式见 feedback-styles.ts）。
+      className: 'dsws-entrycard',
       'data-press': 'row',
       'data-log': 'entry.card.' + kind,
       'aria-label': String(tr(kind === 'map' ? 'card.entry.explore.brow' : 'card.entry.impl.brow') || ''),
