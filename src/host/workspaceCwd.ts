@@ -5,7 +5,7 @@ import { resolveSessionCwd } from '../shared/session-cwd.js'
 // #1115：opCtxFor 那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
 // 类型与实现在同一行 import：有效行门禁的上限（350）压在这份文件上，合并写法是为了守住它。
 import { hostTimers, type HostTimerService } from '../shared/host-timer/src/host-timers.js'
-import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL, WORKSPACE_FILE_LEGACY_REL } from '../deck/shell/workspace-anchor.js'
+import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL, WORKSPACE_FILE_LEGACY_REL, isWorkspaceLayout } from '../deck/shell/workspace-anchor.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
 /**
@@ -148,7 +148,7 @@ export function createWorkspaceCwd(deps: Deps) {
     const usable = !!(f && typeof f.resolve === 'function' && typeof f.readText === 'function' && typeof f.writeText === 'function'); let target = null; let rec = null
     if (usable && f) { /* usable 已含 f 非空，写出来只是过类型检查 */ try { target = await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }); rec = parseWorkspaceFile(await f.readText(target)) } catch (eR) {} }
     if (v == null) {
-      if (rec && (rec.layout === 'single' || rec.layout === 'multi')) return { ok: true, cwd: cwd, layout: rec.layout, pickedAt: 0 }
+      if (rec && isWorkspaceLayout(rec.layout)) return { ok: true, cwd: cwd, layout: rec.layout, pickedAt: 0 }
       const r = (cs && typeof cs.getLayout === 'function') ? await cs.getLayout(cwd).catch(function () { return null }) : null
       return (r && r.found === true) ? { ok: true, cwd: cwd, layout: r.layout, pickedAt: r.pickedAt } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 }
     }
@@ -297,11 +297,11 @@ export function createWorkspaceCwd(deps: Deps) {
         const parsed = parseWorkspaceFile(txt)
         if (parsed && typeof parsed.backendId === 'string' && parsed.backendId) {
           existed = true;
-          if (parsed && (parsed.layout === 'single' || parsed.layout === 'multi')) existedLayout = parsed.layout;
+          if (parsed && isWorkspaceLayout(parsed.layout)) existedLayout = parsed.layout;
         }
       } catch (eR) {}
       // 布局保留旧值（覆盖写不丢用户已选的域文档布局结论；迁移那条由调用方把记忆里的布局递进来，递了就听递的）。
-      const _layout = (layout === 'single' || layout === 'multi') ? layout : existedLayout;
+      const _layout = isWorkspaceLayout(layout) ? layout : existedLayout;
       const text = stringifyWorkspaceFile({ backendId: backendId, pickedAt: Date.now(), source: _source, layout: (_layout === null || _layout === undefined) ? undefined : _layout })
       const target2 = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
       try {
@@ -356,7 +356,7 @@ export function createWorkspaceCwd(deps: Deps) {
       try {
         if (cs && typeof cs.getLayout === 'function') {
           const gotL = await cs.getLayout(key).catch(function () { return null })
-          if (gotL && gotL.found === true && (gotL.layout === 'single' || gotL.layout === 'multi')) memLayout = gotL.layout
+          if (gotL && gotL.found === true && isWorkspaceLayout(gotL.layout)) memLayout = gotL.layout
         }
       } catch (eGL) {}
       try {

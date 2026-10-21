@@ -216,7 +216,7 @@ import type { SetupLayoutValue } from '../statusbar/StatusBackend.js'
     // 会话状态里读这次选的布局；没选过（或值不认识）→ null，由调用处决定是「先问」还是「按缺省走」。
     export const normalizeSetupLayout = function (v: unknown): SetupLayoutValue | null {
       const t = String(v == null ? '' : v).toLowerCase()
-      return (t === 'single' || t === 'multi') ? t : null
+      return ((DOC_LAYOUT_VALUES as readonly string[]).indexOf(t) >= 0) ? (t as SetupLayoutValue) : null
     }
     export const readSetupLayout = function (st: PromptState | null | undefined): SetupLayoutValue | null { try { return normalizeSetupLayout(st && st.setupLayout) || normalizeSetupLayout((typeof getCachedSetupLayout === 'function') ? getCachedSetupLayout(st && st.cwd) : null) } catch (e) { return null } } // 2026-09-21：会话里没答过就沿用这个工作区记住过的那一份（按工作区持久化，见 store-prefs.js；两份都过一遍取值校验，不认识的取值一律当没答过）
     // 纯函数：modules = wf.registry modules 数组（元素可带 setupPrompt 键表）；dictOverride 供单测直喂 locale 字典（单测不依赖闭包 L）
@@ -399,7 +399,7 @@ type PromptLanguageConfig = {
 }
 
 // 域文档布局的两个取值不再在这里写一份联合：类型从 statusbar/StatusBackend.ts 的 SetupLayoutValue 取，
-//   那里由拼进闭包的 DOC_LAYOUT_VALUES 推出（#1342：客户端里只留一处字面量）。
+//   判断读拼进闭包的 DOC_LAYOUT_VALUES（#1342：客户端不再写这份名单的字面量）。
 
 /**
  * 登记表的形状——生成物 prompt-data.ts 已经按键联合类型校验过（详见 generate-prompt-config.mts 的
@@ -507,6 +507,9 @@ declare const PROMPT_TEMPLATE_DATA: Readonly<Record<string, PromptEntry>>
 declare const PROMPT_FRAGMENT_DATA: Readonly<Record<string, PromptFragmentEntry>>
 // #1292：语言清单（config/languages.yaml）的运行时值也由那一片提供，promptLanguages / promptLang 读它。
 declare const LANGUAGES_YAML: PromptLanguageConfig
+// #1342：布局取值名单由构建从共享真源（scripts/build.mts 的 shared:docLayout 片段）拼进闭包；
+//   本文件只声明这个名字，判断一律读它，不再手写联合。
+declare const DOC_LAYOUT_VALUES: readonly ('single' | 'multi')[]
 // #1292：「按当前后端渲染」那一族搬到 kernel/prompts-backend.ts 了（同一个闭包、不走 import），
 //   本文件还要用其中两个，所以在这里声明一下（写法与上面那些闭包名字同款）。
 declare function currentBackendId(...args: any[]): any

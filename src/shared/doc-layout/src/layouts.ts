@@ -27,7 +27,8 @@
  * 全部合法取值，顺序即「第一项默认选中」的那一项（初始化卡没有答过时按第一项预选，见
  * src/client/statusbar/StatusBackend.ts 的 SETUP_LAYOUT_FALLBACK）。
  * 只读：调用方要可变副本自己拷一份，不许改这份名单本身。
- * 取值与类型只写这一处：类型从名单推出，加第三种取值只改这一行。
+ * 取值与类型只写这一处：类型从名单推出。加第三种取值只改这一行的名单，但界面文案键
+ * （kernel/prompts.ts 的 SETUP_LAYOUT_TEXT_KEYS 与 config/copy 词表）要同步各补一条。
  */
 export const DOC_LAYOUT_VALUES = ['single', 'multi'] as const
 

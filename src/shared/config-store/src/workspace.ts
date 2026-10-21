@@ -164,7 +164,7 @@ export function parseWorkspace(doc: unknown, layouts: readonly string[]): Config
   // 布局缺席允许：v1 老文件本来就没有；v2 文件缺了也照读（值里不带 layout 键）。
   // 写布局是调用方的事（有点确认/迁移时带上）；一旦写进去，覆盖写必须读改写保住。
   if (doc['layout'] !== undefined && (typeof doc['layout'] !== 'string' || layouts.indexOf(doc['layout']) < 0)) {
-    return fail('bad-shape', '工作区配置文件里的 layout 必须是 single（单上下文）或 multi（多上下文）')
+    return fail('bad-shape', '工作区配置文件里的 layout 必须是这些取值之一：' + layouts.join('、'))
   }
   const value: Record<string, unknown> = {
     version,

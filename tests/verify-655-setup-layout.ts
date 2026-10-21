@@ -74,7 +74,7 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
   }
   const tail = '\n;return { PROMPTS: PROMPTS, setupRunParamsFrom: setupRunParamsFrom, setupRunPrompt: setupRunPrompt, setupOrRepoPrompt: setupOrRepoPrompt, injectSetupDecision: injectSetupDecision, setupBlockedByGuide: setupBlockedByGuide, setupRunTextForClick: setupRunTextForClick, consumePendingSetup: consumePendingSetup, readSetupLayout: readSetupLayout, normalizeSetupLayout: normalizeSetupLayout, SETUP_LAYOUT_TEXT_KEYS: SETUP_LAYOUT_TEXT_KEYS }'
   // 把剥掉行首 export 的内核源码整份当函数体造函数（原来那种按文本构造函数的写法），参数名在这儿显式列出，所以走 compileFn。
-  const factory = compileFn(['inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout'], body + tail)
+  const factory = compileFn(['inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout', 'DOC_LAYOUT_VALUES'], body + tail)
   const mod = factory(
     function (st: any, text: any) { injected.push(String(text)) },
     function (st: any) { emitted.push(st) },
@@ -84,7 +84,8 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
     moduleMetaOf,
     guide.guideStepsFor,
     guide.guideStepDone,
-    cached
+    cached,
+    ['single', 'multi']
   )
   return { mod: mod, injected: injected, emitted: emitted, logged: logged }
 }
