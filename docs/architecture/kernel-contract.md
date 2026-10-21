@@ -89,12 +89,14 @@
 | 文件 | 里面是哪一组模板 |
 |---|---|
 | `config/prompts/workspace-initialization.yaml` | 工作区初始化（`setupRun`、`switchAlign`、`switchLayout`） |
-| `config/prompts/repository-alignment.yaml` | 仓库与凭据对齐（`ghAuthLogin`、`installSkillsFix`、`installSkills`） |
+| `config/prompts/repository-alignment.yaml` | 仓库与凭据对齐（`installSkillsFix`、`installSkills`） |
 | `config/prompts/map-advancement.yaml` | 地图推进（`mapExecute`、`complete`、`fixate`、`mapInspect`、`healthCheck`、`specExecute`、`specComplete`、`specSplit`） |
 | `config/prompts/ticket-action-templates.yaml` | 票面动作模板（`tpl.*` 共十一条） |
 | `config/prompts/ticket-creation.yaml` | 建票入口（`newWayfinder`、`newSpec`、`newBugWayfinder`），另住两处片段 `newBugFields`、`newWayfinderWiring` |
 
-三处片段（`newBugFields`、`newWayfinderWiring`、`vocabularyDefaults`）不是完整模板，是模板正文里替换进去的一段话。它们不单独占一份文件，而是按同一把尺子——「什么时候注入」——住在对应族的那份 YAML 里：`newBugFields` 与 `newWayfinderWiring` 跟着建票入口住在 `ticket-creation.yaml`；`vocabularyDefaults` 是 `{cli}` / `{cliBrand}` 两个占位符的兜底说法，跟着 `ghAuthLogin` 与 `installSkills` 住在 `repository-alignment.yaml`。所以一份族文件里的顶层键 = 这一族的模板 id + 片段 id。
+三处片段（`newBugFields`、`newWayfinderWiring`、`vocabularyDefaults`）不是完整模板，是模板正文里替换进去的一段话。它们不单独占一份文件，而是按同一把尺子——「什么时候注入」——住在对应族的那份 YAML 里：`newBugFields` 与 `newWayfinderWiring` 跟着建票入口住在 `ticket-creation.yaml`；`vocabularyDefaults` 是 `{cli}` / `{cliBrand}` 两个占位符的兜底说法，跟着 `installSkills` 住在 `repository-alignment.yaml`。所以一份族文件里的顶层键 = 这一族的模板 id + 片段 id。
+
+登录引导不在这张表里：`ghAuthLogin` 这条模板 2026-10-21 已删除，用户可见的登录指引只由 GitHub 后端自己声明（`src/tracker/rooms/github/index.ts` 的 `prompts.ghAuthLogin`），客户端按「后端声明优先、注册表模板兜底」的既有链路取文案；今天只有 GitHub 会触发 `gh:authed`，所以兜底那一格不再需要自己的正文。
 
 源码里不再有提示词的字面量。`scripts/generate-prompt-config.mts` 读上面这五份 YAML 与 `config/languages.yaml`，写出 `src/client/kernel/prompt-data.ts`——这份是构建期现场生成的产物，不入库；客户端闭包从 `kernel/prompt-data.ts` 那一片拿到三个运行时名字：`PROMPT_TEMPLATE_DATA`（模板全表）、`PROMPT_FRAGMENT_DATA`（片段全表）、`LANGUAGES_YAML`（语言清单）。每条模板在产物里的形状是 `{ version, placeholders, zh, en }`；`use`（「这条模板什么时候用」的一句人话）只住在 YAML 里给读代码的人看，不进产物。
 
