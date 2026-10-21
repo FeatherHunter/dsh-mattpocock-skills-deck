@@ -16,7 +16,7 @@ newBugWayfinder:
     ## 调查（建议先查后问）
     - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
     - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 查历史
@@ -44,7 +44,7 @@ newBugWayfinder:
     ## Investigate first (recommended: look before asking)
     - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
     - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new `/research` pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Check history
@@ -72,7 +72,7 @@ newSpec:
     ## 调查（建议先查后问）
     - [ ] 建议先阅读仓内相关内容（文档、代码、相关 issue）后再提问。
     - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 讨论收尾（下面这些动作由用户手动执行，不要替用户做）
@@ -91,7 +91,7 @@ newSpec:
     ## Investigate (recommended: look before asking)
     - [ ] It is recommended to read related material in the repo (docs, code, related issues) before asking.
     - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new `/research` pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Discussion wrap-up (the user runs the actions below manually; do not run them on their behalf)
@@ -115,7 +115,7 @@ newWayfinder:
     ## 调查（建议先查后问）
     - [ ] 建议先阅读仓内相关内容（文档、代码、相关 issue）后再提问。
     - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
@@ -132,7 +132,7 @@ newWayfinder:
     ## Investigate (recommended: look before asking)
     - [ ] It is recommended to read related material in the repo (docs, code, related issues) before asking.
     - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new `/research` pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
