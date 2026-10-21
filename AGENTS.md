@@ -76,7 +76,7 @@ node --import ./scripts/ts-hook.mts tests/你的测试.ts
 
 **已知代价（不算故障）**：挂着钩子加载 `.ts` 时，Node 会打一条 `MODULE_TYPELESS_PACKAGE_JSON` 警告，提示可以给 `package.json` 加 `"type": "module"`。这条警告今天加载 `.js` 产物时同样会出现（原因相同：最近的 `package.json` 没有 `type` 字段），所以钩子没有引入新一类噪音。
 
-**「同名 `.ts` 优先」意味着测试加载的是源码，不是构建产物**：`src/client/views/**` 那 94 组同名文件里的 `.js` 是构建产物，钩子开着的时候测试加载的是 `.ts` 源码。产物有没有跟上源码，是那八扇带产物新鲜度判据的门禁（`verify-ctx`、`verify-kernel`、`verify-leaves`、`verify-parse-leaf`、`verify-tabsfold-leaf`、`verify-platform-contract`、`verify-log-client`、`verify-log-artifacts`）的职责，不是这里的。（这个数字会随转写推进变大：2026-10-18 由 #1251、#1253 两张票从 34 组推到 94 组，再改时顺手更新这一行。）
+**「同名 `.ts` 优先」意味着测试加载的是源码，不是构建产物**：`src/client/views/**` 那 94 组同名文件里的 `.js` 是构建产物，钩子开着的时候测试加载的是 `.ts` 源码。产物有没有跟上源码，是那八扇带产物新鲜度判据的门禁（`verify-ctx`、`verify-kernel`、`verify-leaves`、`verify-parse-leaf`、`verify-tabsfold-leaf`、`verify-platform-contract`、`verify-log-client`、`verify-log-artifacts`）的职责，不是这里的；另一扇 `verify-1327-freshness-content` 是判据自身的回归门禁（在临时目录里直接验证判据，也在真实树上判四个入口产物），它守判据不退化，不属于那八扇「用判据的门禁」。（这个数字会随转写推进变大：2026-10-18 由 #1251、#1253 两张票从 34 组推到 94 组，再改时顺手更新这一行。）
 
 **测试侧只能写可剥离的 TypeScript**：`enum`、构造函数参数属性（`constructor(private x: T)`）这类需要真正转换的写法，在测试与链上脚本里会直接报 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`——Node 的剥离模式只删类型标注，不做语法转换。构建侧由 esbuild 转译，能吃这些写法，所以「同一份源码两边都过」不能想当然。仓里目前没有这类写法，也没有门禁拦它，靠的就是这条规矩。
 

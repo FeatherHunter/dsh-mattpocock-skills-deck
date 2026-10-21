@@ -44,7 +44,7 @@
   gh issue list --repo FeatherHunter/dsh-mattpocock-skills-deck --state all --limit 2000 --json author --jq 'group_by(.author.login)[] | [.[0].author.login, length] | @tsv'
   gh pr list    --repo FeatherHunter/dsh-mattpocock-skills-deck --state all --limit 2000 --json author --jq 'group_by(.author.login)[] | [.[0].author.login, length] | @tsv'
   ```
-- 花数在中英两版与包内说明三处逐行一致：改完 `README.md` 跑 `node scripts/build.mjs` 重新生成 `package/README.md`（它是生成物，禁止手改），再跑 `node tests/verify-readme-sync.js` 与 `node tests/verify-release-contract.ts` 确认没有变红。
+- 花数在中英两版与包内说明三处逐行一致：改完 `README.md` 跑 `node scripts/build.mts` 重新生成 `package/README.md`（它是生成物，禁止手改），再跑 `node tests/verify-readme-sync.ts` 与 `node tests/verify-release-contract.ts` 确认没有变红。
 - 安装命令版本同源：中文、英文 README 与包内说明的锁定版本号与本次发布同源，无旧版本残留（与第 1 节第 2–4 项同源，由发布契约门禁覆盖）。
 
 ---
@@ -64,7 +64,7 @@
 
 构建与全部校验在隔离环境中执行，不污染当前工作区与已装形态：
 
-1. **隔离构建**：在隔离临时目录执行 `node scripts/build.mjs`，产物不落当前工作区。
+1. **隔离构建**：在隔离临时目录执行 `node scripts/build.mts`，产物不落当前工作区。
 2. **产物新鲜度与双产物一致性**：根产物 `client.js`/`host.js` 与包内产物 `package/lib/client.js`/`package/lib/index.js` 逐字节一致，且与构建缓存（`node_modules/.cache/dsh-build.json`）里记的上次成功构建产物摘要一致——判据看内容，不看修改时间；缓存不可用时退回按修改时间判断，并会打印 `INFO` 说明原因。
 3. **冒烟测试**：`npm run test:smoke` 必过（client / host / dispatch / render / naming）。
 4. **打包预览**：`npm pack --dry-run` 文件清单仅含白名单，不含密钥、多余文档与私密文件。

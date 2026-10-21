@@ -118,7 +118,8 @@ node --import ./scripts/ts-hook.mts tests/verify-t3-locale.ts     # 254 键双�
 
 > 新鲜度门禁：`verify-ctx` / `verify-kernel` / `verify-leaves` 等八扇门禁会比较「产物内容摘要」与构建缓存
 > （`node_modules/.cache/dsh-build.json`）里记的上次成功构建结果；判据只有一份，在 `scripts/lib/build-cache.mts`
-> 的 `judgeProducts`。对不上时会点名具体产物并提示重跑 `node scripts/build.mts`；缓存不可用（缺失、损坏、构建输入
+> 的 `judgeProducts`。另一扇 `verify-1327-freshness-content` 守判据本身不退化：它在临时目录里直接验证判据，也在真实树上
+> 判四个入口产物；八扇是「用判据的门禁」，它是「守判据的门禁」。对不上时会点名具体产物并提示重跑 `node scripts/build.mts`；缓存不可用（缺失、损坏、构建输入
 > 变过）时退回按修改时间判断，并打一行 `INFO` 说明原因、受影响产物与恢复办法——那不是源码过期。
 > 怎么排查见 `docs/agents/verification.md` 的「产物过期了怎么排查」一节。
 

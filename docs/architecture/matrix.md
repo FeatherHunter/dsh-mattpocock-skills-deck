@@ -35,7 +35,7 @@
 
 | 不变量 | 含义 | 在本矩阵的断言位置 |
 |--------|------|--------------------|
-| **I1 注入可判真** | 三端均经 `createPlatform(ctx, os, {homedir, env})` 注入单机可达；win32 护栏合法 `C:\Users\a` 直采 / 非法 `/c/Users/a`→USERPROFILE→HOMEDRIVE+HOMEPATH / darwin 3a10 / linux G1-G13 全量覆盖，不依赖真机三端（#113 验收③） | `scripts/matrix-smoke.js` `runOs('win32'/'darwin'/'linux')` 三分组；`scripts/matrix-full.js` 每 cell 复用相同注入 |
+| **I1 注入可判真** | 三端均经 `createPlatform(ctx, os, {homedir, env})` 注入单机可达；win32 护栏合法 `C:\Users\a` 直采 / 非法 `/c/Users/a`→USERPROFILE→HOMEDRIVE+HOMEPATH / darwin 3a10 / linux G1-G13 全量覆盖，不依赖真机三端（#113 验收③） | `scripts/matrix-smoke.ts` `runOs('win32'/'darwin'/'linux')` 三分组；`scripts/matrix-full.ts` 每 cell 复用相同注入 |
 | **I2 零手拼** | `src/host/platform/**/index.js` 零手拼 `+ '\\'`，`path` 全委托 `node:path`（win32→win32，POSIX→posix）无自实现，`joinHome` 异步等价，`REGISTRY` 静态 import 无变量动态 import（打包可断 #113 D4） | 两脚本首段静态扫描：剥注释后 `+\s*['"]\\` 零命中，`nodePath.win32/posix` 委托存在，`import win32/darwin/linux` 静态存在 |
 | **I3 双闸** | 产物门禁（`client.js`/`host.js` AUTO-GENERATED + `package/lib` 非空 + 四产物内容与上次成功构建记录一致）+ 运行时断言双重通过；`npm run verify` 全绿即平台层有约束力（#131 验收②） | 两脚本首段先查 `client.js`/`host.js` 的 AUTO-GENERATED 与 `package/lib` 非空，再调 `scripts/lib/build-cache.mts` 的 `judgeProducts`（与八扇新鲜度门禁同一份判据）判四产物；CI 另跑 `npm run build` + `npm run verify` |
 | **I4 真实适配器过 harness** | 后端必须经 `BackendModule.create(BackendContext{platform})` 产出 Tracker，`list/get/getDependencies` 返回 `OpResult` 不 throw，`normalize` 产出无 number/subIssues/blocking（harness 三断言），真实采样固件 `metadata.json` 含 source/desensitization | `runner/createRunnerContext` 产 platform 实例 + 工厂闭包持有；`runWithAdapter` 不抛 + OpResult 形状；`runPlayback` 验证 normalized 无旧字段 + diagnoseCapabilities 可跑 |
@@ -64,12 +64,12 @@
 
 ### 2.1 脚本
 
-`scripts/matrix-smoke.js` — 单机可判真，三 OS 注入，无需真机三端。
+`scripts/matrix-smoke.ts` — 单机可判真，三 OS 注入，无需真机三端。
 
 ```bash
 node scripts/build.mts          # 前置：先把产物构建出来；新鲜度按内容摘要判，不靠修改时间
-node scripts/matrix-smoke.js    # 默认 --os=all；单选 --os=win32|darwin|linux
-node scripts/matrix-smoke.js --os=win32  # CI 可按 matrix.os 传参
+node scripts/matrix-smoke.ts    # 默认 --os=all；单选 --os=win32|darwin|linux
+node scripts/matrix-smoke.ts --os=win32  # CI 可按 matrix.os 传参
 ```
 
 断言：
@@ -84,7 +84,7 @@ node scripts/matrix-smoke.js --os=win32  # CI 可按 matrix.os 传参
 
 ### 2.2 快照（本机 win32 单机注入三端，2026-08-24）
 
-> 运行：`node scripts/matrix-smoke.js --os=all`（产物已 `node scripts/build.mjs`）
+> 运行：`node scripts/matrix-smoke.ts --os=all`（产物已 `node scripts/build.mts`）
 
 | OS cell | platform.os | getHome | path.sep | tracker.id | playback | live preflight/list/get | 结果 |
 |---------|-------------|---------|----------|------------|----------|-------------------------|------|
@@ -104,12 +104,12 @@ node scripts/matrix-smoke.js --os=win32  # CI 可按 matrix.os 传参
 
 ### 3.1 脚本
 
-`scripts/matrix-full.js` — 9 cells 全量，离线可复现，有 token 自动走真链。
+`scripts/matrix-full.ts` — 9 cells 全量，离线可复现，有 token 自动走真链。
 
 ```bash
-node scripts/matrix-full.js                # 默认 --os=all --backend=all
-node scripts/matrix-full.js --os=linux --backend=github   # 单 cell
-node scripts/matrix-full.js --os=darwin --backend=markdown
+node scripts/matrix-full.ts                # 默认 --os=all --backend=all
+node scripts/matrix-full.ts --os=linux --backend=github   # 单 cell
+node scripts/matrix-full.ts --os=darwin --backend=markdown
 ```
 
 断言（每 cell）：
@@ -131,7 +131,7 @@ node scripts/matrix-full.js --os=darwin --backend=markdown
 
 - 汇总：**112/112 PASS**（双闸 8 + I2 10 + 9 cells × (platform 4 + backend 6-7) + 汇总门禁），`npm run verify` 全绿（`verify-platform-contract 145/145` + `verify-platform-linux 32/32` + `verify-tracker-contract 366/4/OK` + markdown 60/60）
 
-> 真实网络分支（有 token + 目标仓库写权限）自动追加 live 真创/真关断言；当前快照为离线 playback 可复现分支（见 `scripts/matrix-full.js --live`）。
+> 真实网络分支（有 token + 目标仓库写权限）自动追加 live 真创/真关断言；当前快照为离线 playback 可复现分支（见 `scripts/matrix-full.ts --live`）。
 
 ### 3.3 证据链归档（#111 判完成③：每 OS × 后端一张结果表）
 
@@ -162,10 +162,10 @@ jobs:
       - uses: pnpm/action-setup@v4  # 版本读 package.json 的 packageManager（pnpm@11.22），这里不重复写 version
       - uses: actions/setup-node@v4 with { node-version: 22, cache: pnpm }  # pnpm 11.22 要求 Node ≥ 22.13
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/build.mjs
+      - run: node scripts/build.mts
       - run: npm run verify   # 含 verify-platform-contract 145/145 + verify-platform-linux 32/32 + verify-tracker-contract 366/4/OK
-      - run: node scripts/matrix-smoke.js --os=all   # I1-I4 注入三端（单机三端亦可在任一 runner 上 --os=all 全量）
-      - run: node scripts/matrix-full.js --os=all --backend=all
+      - run: node scripts/matrix-smoke.ts --os=all   # I1-I4 注入三端（单机三端亦可在任一 runner 上 --os=all 全量）
+      - run: node scripts/matrix-full.ts --os=all --backend=all
 ```
 
 - **ubuntu 原生** = linux；**windows 原生** = win32；**macos 托管 runner** = darwin（`macos-latest`，无需自托管；若组织无 macos 配额则 job 标记 `continue-on-error` 并登记“需自托管 mac 或手动跑”，但本仓库已用 hosted runner 覆盖）
@@ -174,7 +174,7 @@ jobs:
 
 ### 4.3 darwin runner 若无的登记
 
-> 仓库现无 CI（无 `.github`/无 mac 运行器）→ 本票以 `macos-latest` hosted runner 覆盖 darwin。若组织策略禁用 macos runner，则在 `verify.yml` 中将 `macos-latest` job 设 `continue-on-error: true` 并在 `matrix.md` §2.2 注“需自托管 mac 或手动跑 `node scripts/matrix-smoke.js --os=darwin`”；但当前配置已直接覆盖，无需自托管。
+> 仓库现无 CI（无 `.github`/无 mac 运行器）→ 本票以 `macos-latest` hosted runner 覆盖 darwin。若组织策略禁用 macos runner，则在 `verify.yml` 中将 `macos-latest` job 设 `continue-on-error: true` 并在 `matrix.md` §2.2 注“需自托管 mac 或手动跑 `node scripts/matrix-smoke.ts --os=darwin`”；但当前配置已直接覆盖，无需自托管。
 
 ---
 
