@@ -87,7 +87,7 @@ const fail = function (msg) { failed = true; problems.push(msg); return false }
 const check = function (cond, msg) { if (!cond) { failed = true; problems.push(msg) } return !!cond }
 
 // ==================== 0. 契约常量（硬编码，改动要走评审） ====================
-const EXPECT_REGISTRY_ENTRIES = 28 // 注册表条目数（#1281：新增 newSpec / tpl.implement / specSplit / specExecute / specComplete 五条，23 → 28）（#725：progress 与 bodyFormat 两条整节删除，23 → 21；#771：新增 tpl.takeover 与 tpl.supplement，21 → 23；拆行/换引号不会让它少，因为 S1 用求值解析）
+const EXPECT_REGISTRY_ENTRIES = 27 // 注册表条目数（#1281：新增 newSpec / tpl.implement / specSplit / specExecute / specComplete 五条，23 → 28；2026-10-21：删 registry#ghAuthLogin —— 用户可见的登录指引只有 GitHub 后端那一句，YAML 这份在全部路径上被它遮住，28 → 27）（#725：progress 与 bodyFormat 两条整节删除，23 → 21；#771：新增 tpl.takeover 与 tpl.supplement，21 → 23；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 // #684：三个后端各加一条 healthCheck（体检科目），7/6/4。
@@ -112,7 +112,8 @@ const EXPECT_BACKEND_LITERALS = { github: 50, gitlab: 12, markdown: 7 }
 const EXPECT_HOST_PROMPT_CONSTS = 1 // src/host 全树 *_PROMPT 常量数
 // #716：github 那两条 rule 豁免（ensureLabels / repoAccessFix）所欠的债已经还清 —— 两条文案改成走工具，
 //   一个裸命令都不剩，所以从登记表里撤掉，10 → 8（撤掉的这两条从此受判定）。
-const EXPECT_EXEMPT = 8 // 豁免登记条数硬编码（防偷偷加豁免）
+// 2026-10-21：登录引导单源化 —— 删掉 registry#ghAuthLogin 这条 scope 登记（YAML 模板已删除），8 → 7。
+const EXPECT_EXEMPT = 7 // 豁免登记条数硬编码（防偷偷加豁免）
 
 // 受保护清单：全量覆盖 —— 所有扫描面的 id 减去「kind=rule 豁免」，一个不漏。
 // 下面 auditExemptTable 会断言这张硬编码清单与运行时算出来的集合逐条相等，所以清空它 / 删几行都会红。
@@ -122,7 +123,7 @@ const PROTECTED = [
   'registry#tpl.prototype', 'registry#tpl.takeover', 'registry#tpl.supplement', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
   'registry#specSplit', 'registry#specExecute', 'registry#specComplete', 'registry#newSpec',
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#switchLayout', 'registry#newWayfinder',
-  'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect', 'registry#healthCheck',
+  'registry#newBugWayfinder', 'registry#mapInspect', 'registry#healthCheck',
   'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#errorKinds',
   'backend:github#healthCheck', 'backend:github#commandVocabulary', 'backend:github#cliInstall',
   'backend:github#ensureLabels', 'backend:github#repoAccessFix',
@@ -131,17 +132,17 @@ const PROTECTED = [
   'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue',
   'backend:markdown#healthCheck', 'backend:markdown#commandVocabulary',
 ]
-// 必须受判定（kind 只许是 scope）的 8 条：它们登记「不属首批」，但门禁仍然判它们
+// 必须受判定（kind 只许是 scope）的 6 条：它们登记「不属首批」，但门禁仍然判它们
 const MUST_JUDGE = [
-  'registry#ghAuthLogin', 'registry#installSkills',
+  'registry#installSkills',
   'backend:github#ghAuthLogin',
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix',
   'backend:gitlab#subIssue', 'backend:markdown#subIssue',
 ]
-const EXPECT_MUST_JUDGE = 7 // 硬编码：清空这张表等于让这 7 条脱离判定，所以条数要卡死
+const EXPECT_MUST_JUDGE = 6 // 硬编码：清空这张表等于让这 6 条脱离判定，所以条数要卡死
 // #1293：OBJECT_PROTO_KEYS 随 auditRegistryShape 一起退场 —— 注册表现在由 registryFromEntries 从 YAML 解析结果
 //   造出普通对象，没有 JS 求值面，原型污染 / 不可枚举属性 / getter / Symbol 键这些形状都构造不出来。
-//   「被藏起来的条目」的兜底判据改成两条更直接的：条目数硬编码 28（EXPECT_REGISTRY_ENTRIES）+
+//   「被藏起来的条目」的兜底判据改成两条更直接的：条目数硬编码 27（EXPECT_REGISTRY_ENTRIES）+
 //   YAML 文本顶层键与解析 id 双向一致（主跑 S1 那两处）。auditRegistryShape 里唯一仍适用的
 //   「锚点/别名藏内容」判据没有丢，改由 yamlHidingShape 逐份 YAML 判（见 promptYamlHidingHits）。
 // 每个面允许的 rule 豁免集合（硬编码：改一个 id 或把 scope 改成 rule 都会与这张表对不上）
@@ -369,7 +370,7 @@ const auditExemptTable = function (list, surfaceIds, opts) {
       out.push('EXEMPT 的 rule 豁免集合与硬编码清单不一致：' + surface + ' 实得 [' + got.join(',') + ']，期望 [' + want.join(',') + ']')
     }
   })
-  // ⑤ 必须受判定的 8 条：必须存在、且 kind 只许是 scope（把 scope 改成 rule 即红）
+  // ⑤ 必须受判定的 6 条：必须存在、且 kind 只许是 scope（把 scope 改成 rule 即红）
   MUST_JUDGE.forEach(function (k) {
     const parts = k.split('#')
     if (o.skipSurfaces && o.skipSurfaces.indexOf(parts[0]) >= 0) return
@@ -419,7 +420,7 @@ const auditExemptTable = function (list, surfaceIds, opts) {
 // 为什么改这一段：#1292 把提示词正文的真源从「源码里的字面量」搬到了 config/prompts/ 下的五份 YAML
 //   （语言清单是 config/languages.yaml），生成器 scripts/generate-prompt-config.mts 按 YAML 写出
 //   src/client/kernel/prompt-data.ts，那份生成物是客户端闭包里的运行时数据（构建期现场生成、不入库）。
-//   判定口径一条没放松：注册表仍是「28 条、每条 version / placeholders / use / zh / en」，
+//   判定口径一条没放松：注册表仍是「27 条、每条 version / placeholders / use / zh / en」，
 //   读出来的文本仍逐条过 judge()，产物里的文本仍逐字段等于真源。变的只有「真源是文件而不是源码」。
 //
 // 为什么用共享读取核而不是自己解析 YAML：scripts/lib/prompt-config.mts 是生成器与门禁共用的那一份
@@ -607,7 +608,7 @@ const FALLBACK_LANGUAGES = {
 //   这些判据在新结构下无从触发，留着只是让读者以为还有一层保护。
 //   哪些判据接住了（判定强度对照表逐条写清：docs/design/1293-prompt-gate-strength.md）：
 //     · 锚点 / 别名藏内容 —— 保留，改由 yamlHidingShape 在 S1 逐份 YAML 判（promptYamlHidingHits）；
-//     · 被吞掉 / 藏起来的条目 —— 由「条目数硬编码 28 + YAML 文本顶层键与解析 id 双向一致」抓；
+//     · 被吞掉 / 藏起来的条目 —— 由「条目数硬编码 27 + YAML 文本顶层键与解析 id 双向一致」抓；
 //     · 原型链键 / Object.prototype 污染 / 不可枚举属性 / getter —— 新数据源里构造不出来，判据退场。
 // S2 正则解析（产物是整包，求值不现实）：忠实还原源码字符串字面量（与 tests/verify-prompts.ts 第 4c 节的产物解析同口径；
 //   #1293 起 tests/verify-prompt-newlines.ts 已整条并入本文件，本注释从前指向的那份文件不存在了）
@@ -1113,7 +1114,7 @@ const checkNoLiteralBackslashN = function () {
       checkText(s1Label, f.id, f.text)
     })
   }
-  check(yamlTexts >= EXPECT_REGISTRY_ENTRIES * langIds.length + 8, '#1293 真源只判到 ' + yamlTexts + ' 段正文（期望 ≥ ' + (EXPECT_REGISTRY_ENTRIES * langIds.length + 8) + '：28 条模板 × 每门语言 + 三处片段 8 段；少了就是扫描面静默变窄）')
+  check(yamlTexts >= EXPECT_REGISTRY_ENTRIES * langIds.length + 8, '#1293 真源只判到 ' + yamlTexts + ' 段正文（期望 ≥ ' + (EXPECT_REGISTRY_ENTRIES * langIds.length + 8) + '：模板条数 × 每门语言 + 三处片段 8 段；少了就是扫描面静默变窄）')
   // ② 两份客户端产物：模板正文 + 片段正文
   YAML_PRODUCT_FILES.forEach(function (rel) {
     const p = path.join(ROOT, rel)
@@ -1162,7 +1163,7 @@ const checkNoLiteralBackslashN = function () {
     }
   })
   check(roomTexts >= 1, '#1293 src/tracker/rooms/** 一条含换行的 zh/en 字面量都没扫到（扫描面静默变窄了；这条面与退休门禁同口径，至少该有一条）')
-  check(scanned >= EXPECT_REGISTRY_ENTRIES * 2 + 8, '#1293 只扫到 ' + scanned + ' 段提示词文本（期望 ≥ ' + (EXPECT_REGISTRY_ENTRIES * 2 + 8) + '：28 条模板 × zh/en + 三处片段 + 两份产物 + host + rooms；少了就是扫描面静默变窄）')
+  check(scanned >= EXPECT_REGISTRY_ENTRIES * 2 + 8, '#1293 只扫到 ' + scanned + ' 段提示词文本（期望 ≥ ' + (EXPECT_REGISTRY_ENTRIES * 2 + 8) + '：模板条数 × zh/en + 三处片段 + 两份产物 + host + rooms；少了就是扫描面静默变窄）')
   // 白名单必须保持为空 —— 从退休门禁原样接过来的第二道锁（条数与内容指纹都钉死）
   const fingerprint = require('crypto').createHash('sha256').update(ALLOWED_LITERAL_BSN.join('\u0000'), 'utf8').digest('hex').slice(0, 16)
   check(ALLOWED_LITERAL_BSN.length === EXPECT_ALLOWED_COUNT && fingerprint === EXPECT_ALLOWED_FINGERPRINT,
@@ -1759,8 +1760,8 @@ const contractChecksInner = function (reg, src) {
   const zhBlockCount = (reg['mapExecute'] && reg['mapExecute'].zh.split('## 正文格式').length) || 0
   if (zhBlockCount !== 1) fail('mapExecute zh 不应再内嵌「## 正文格式」段（#595 起改由 {bodyFormat} 标记，缺后端声明才落兜底版）')
   // #595：注册表里不再有写回脚本/插件目录的字面副本（GitHub 专用文本已整体搬进 github 后端声明）。
-  //   唯一允许提到 gh 的条目是注册表自带的 ghAuthLogin 登录引导（那个后端专用提示本身），故单列白名单。
-  const regNoGh = Object.keys(reg).filter(function (id) { return id !== 'ghAuthLogin' })
+  //   2026-10-21 登录引导单源化后，注册表里连 ghAuthLogin 那条模板也删了，所以全部条目一起判，不留白名单。
+  const regNoGh = Object.keys(reg)
   const leaked = regNoGh.filter(function (id) {
     const t = String(reg[id].zh || '') + String(reg[id].en || '')
     return /gh\s+auth|dsh plugin|fix-issue-body|wire-subissues/.test(t)
@@ -1774,6 +1775,7 @@ const contractChecksInner = function (reg, src) {
   //   判据来自第一性原理审查（票 792）：deck 工具集的能力边界就是 issue 与 map 的读写（外加认工作区、诊断），没有标签、
   //   文档、登录、装技能这几档 —— 不碰票的流程挂上它只是白挂；初始化 / 登录 / 装技能这几条还会把人引向此刻用不了的
   //   工具（初始化时后端记录还没落地，没登录时工具内部的命令行必然失败）。
+  //   2026-10-21：ghAuthLogin 已从注册表删除（用户可见的登录指引只剩后端那一句），登录这一档不再是注册表条目。
   //   下面两张表是这条规则的唯一声明，合起来必须正好覆盖注册表全部条目：第一张里的必须有工具节，第二张里的一条都不许有。
   //   改这两张表要走评审，并同步 src/client/kernel/prompts.js 顶上那段注释。
   const TOOL_SECTION_IDS = [
@@ -1789,12 +1791,11 @@ const contractChecksInner = function (reg, src) {
     'switchLayout', // 同上，改的是布局那句结论
     'installSkills', // 装技能套件，与跟踪器无关（不读写任何一张票，所以不带工具节）
     'installSkillsFix', // 同上
-    'ghAuthLogin', // 登录发生在跟踪器之外，工具此刻还用不了
     'tpl.handoff1', // 只写一份交接文档
     'tpl.handoff2', // 只读交接文档（维护者 2026-09-30 定稿：交接两条都不带工具节）
   ]
   if (TOOL_SECTION_IDS.length !== 20) fail('#792 TOOL_SECTION_IDS 条数 ' + TOOL_SECTION_IDS.length + '（定稿 20；#1281 新增五条）')
-  if (TOOL_SECTION_ABSENT_IDS.length !== 8) fail('#792 TOOL_SECTION_ABSENT_IDS 条数 ' + TOOL_SECTION_ABSENT_IDS.length + '（定稿 8）')
+  if (TOOL_SECTION_ABSENT_IDS.length !== 7) fail('#792 TOOL_SECTION_ABSENT_IDS 条数 ' + TOOL_SECTION_ABSENT_IDS.length + '（定稿 7；2026-10-21 删 ghAuthLogin，8 → 7）')
   Object.keys(reg).forEach(function (id) {
     const e = reg[id] || {}
     const zh = String(e.zh || ''), en = String(e.en || '')
@@ -2270,7 +2271,7 @@ const selfDigest = function () {
 //      从前那种「往源码里插一行字面量」的注入方式在 YAML 世界里没有对应物；
 //      期望也在几处走上「解析失败」而不是「求值失败」——判据没放宽，仍是子进程退出 1 且 FAIL 行点名；
 //   ⑤ 跨门禁一致性改比 YAML 的顶层键：族文件里模板与片段混在同层，扣掉登记过的片段 id 再双向比。
-//   判据强度不降：28 条受保护 id、use 逐条过 judge、字数与占位符一一对应、产物逐字段与真源相等，一条没松。
+//   判据强度不降：44 条受保护 id、use 逐条过 judge、字数与占位符一一对应、产物逐字段与真源相等，一条没松。
 //   本文件与夹具都没被掏空，自摘要跟着重算。
 // #1292 收尾：promptLang 补两条现实里会遇到的读取失败 —— 语言快照还没回来（getSnapshot 返回 null）
 //   或服务根本没装 getSnapshot 时，必须按清单的 default 走，不能掉进写死的 zh；LANG_CASES 相应加三条
@@ -2287,10 +2288,14 @@ const selfDigest = function () {
 //   不需要接着做时不生成规格、也不拆任何 ticket。版本底线 complete 12 → 13，自摘要跟着重算。
 // #1212 恢复：诊断与接手的调查节、诊断边界、收尾两条回到模板（#1281 删过头），
 //   V_MIN 抬到 tpl.diagnose 16 / tpl.takeover 7，两节断言补回，自摘要跟着重算。
+// 2026-10-21：登录引导单源化 —— 删掉注册表里的 ghAuthLogin 模板（用户可见的那句只由 GitHub 后端声明，
+//   YAML 那份在全部用户可见路径上被它遮住），EXPECT_REGISTRY_ENTRIES 28 → 27，受保护清单随之少一条，
+//   豁免表撤掉 registry#ghAuthLogin 这条 scope，MUST_JUDGE 与 TOOL_SECTION_ABSENT_IDS 各少一条。
+//   豁免登记表与门禁自身的摘要一并重算（payload 夹具没动）。
 const LOCK = {
-  'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
+  'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'b42f2d0bef5735da7e282c515df1339f1f96ef3d8bf8c21f55801a4b15aa695b',
+  'tests/verify-prompts.ts': '0b7fc11bac3a59b494e22dd0881ad57c789fb16e7aa5fd027d1c080a4e633b72',
 }
 // ---- LOCK-END ----
 
