@@ -289,12 +289,12 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 喜欢这个插件的话，这些可能你也用得上：
 
-**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** —— 34 款 opencode 经典配色一键换装 DSH，即点即换，重启不丢
+**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** —— 38 款 opencode 经典配色 + 20+自定义主题 一键换装 DSH。
 
-**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— Prompt 工具箱：24 条深度模板随手点，别再复制粘贴
+**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— 经常反复重复的模板化提示词，存成自定义模板，选中后直接注入，不再需要耗费精力。
 
-**[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** —— 给每个聊天机器人安个家：哪个工作区有助理在管、在不在线一眼看清，拖一下就能搬家
+**[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** —— 给 dsh-im 加了「助理」和「家」的概念。
 
-**[ilife](https://github.com/FeatherHunter/ilife)** —— 爱生活：居家生活套件，一个仓库七个插件，记账、卡路里、大厨、管家一次装好
+**[ilife](https://github.com/FeatherHunter/ilife)** —— ⚠️建设中⚠️爱生活：居家生活套件，记账、运动、饮食、体重、食谱、物品管理、作息规划、备忘录等。
 
 </div>
