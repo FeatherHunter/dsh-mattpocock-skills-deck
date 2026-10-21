@@ -395,7 +395,10 @@ export const StatusBar = (props: any) => {
         // 日志标识 status.handoff 与右边那颗纯图标的「打开」分开认。
         'data-press': 'button',
         'data-log': 'status.handoff',
-        style: { color: '#58a6ff' } }, [
+        // 用户 2026-10-21 要求：交接这两颗小控件共用的是一个胶囊外形（.dsws-split，99px 圆角、overflow:hidden），
+        //   高亮与焦点轮廓要是「胶囊被竖着切一刀」的左右两半，切口落在中间那颗分割线上，不是各占一半宽。
+        //   给左段左侧圆角、给右段右侧圆角，环画在控件里面时就自然成了半胶囊轮廓（环跟着 border-radius 走）。
+        style: { color: '#58a6ff', borderRadius: '99px 0 0 99px' } }, [
         Ic({ n: 'handoff', size: 12 }),
         h('span', { 'data-fold-priority': 8 }, tr('nav.handoff')),
       ])),
@@ -404,7 +407,8 @@ export const StatusBar = (props: any) => {
         // 接线（#1335 界面反馈）：这一颗只有图标（就绪前是转圈），所以只接按压压暗，不加悬停类。
         'data-press': 'icon',
         'data-log': 'status.handoff.open',
-        style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
+        // 右半颗胶囊：只有右侧两个角是圆的，左侧切口贴着中间那颗分割线（与左段合起来正好是一个完整胶囊被切开）。
+        style: s.handoffReady ? { color: '#58a6ff', borderRadius: '0 99px 99px 0' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default', borderRadius: '0 99px 99px 0' } }, [
         s.handoffSearching ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, boxSizing: 'border-box', display: 'inline-block', verticalAlign: '-2px' } }) : Ic({ n: s.handoffReady ? 'handoff-open' : 'handoff-off', size: 12 }),
       ])),
     ]),

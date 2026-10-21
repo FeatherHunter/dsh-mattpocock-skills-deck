@@ -15,7 +15,8 @@
 //    大写混入、另写一套样式、日志少一条、选中项重新露底色形成双底、对位改用会触发布局的尺寸接口、
 //    新叶子只加源码不登记构建清单、墨块拉伸的关键帧被删、墨块宿主的早退守卫被删、墨块的尺寸监听被删、
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
-//    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死、
+//    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -239,8 +240,8 @@ function audit(read: (p: string) => string): AuditResult[] {
   const hoverFilterSegs = feedbackCss.split('}').filter((s) => s.indexOf(':hover') >= 0 && (s.indexOf('filter:') >= 0 || s.indexOf('brightness(') >= 0))
   const hoverNotExcluded = hoverFilterSegs.filter((s) => s.indexOf('.dsws-pressing') < 0)
   check(hoverFilterSegs.length >= 3 && hoverNotExcluded.length === 0, 'F9 凡是给悬停加亮度的规则都同时排除按压态（按住时不能反而变亮）' + (hoverNotExcluded.length ? '；漏网：' + hoverNotExcluded.map((s) => s.trim().slice(-60)).join(' | ') : ''))
-  check(feedbackCss.indexOf('.dsws-node:hover{border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary') >= 0 && feedbackCss.indexOf('.dsws-node.dsws-pressing') >= 0, 'F5 地图工单卡整张卡悬停与按压都有，且悬停边框取主题主色（原来变灰白，跟「获得焦点」的语义对不上）')
-  check(feedbackCss.indexOf('outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary') >= 0 && feedbackCss.indexOf('outline-offset:-2px') >= 0, 'F6 键盘焦点环统一取 DSH 的焦点 token（--dsw-focus-ring-color，缺省回落主题主色），并往控件里面画（负 offset；外扩的环会被 overflow:hidden 的容器裁断）')
+  check(feedbackCss.indexOf('.dsws-node:hover{border-color:var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary') >= 0 && feedbackCss.indexOf('.dsws-node.dsws-pressing') >= 0, 'F5 地图工单卡整张卡悬停与按压都有，且悬停边框取主题主色（原来变灰白，跟「获得焦点」的语义对不上）')
+  check(feedbackCss.indexOf('outline:var(--dsw-focus-ring-width,2px) solid var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary') >= 0 && feedbackCss.indexOf('outline-offset:-2px') >= 0, 'F6 键盘焦点环统一取 DSH 的焦点 token（--dsw-focus-ring-color，缺省回落主题主色），并往控件里面画（负 offset；外扩的环会被 overflow:hidden 的容器裁断）')
   // 焦点环颜色不许写死：写死 #58a6ff 换主题不跟，用户实测看到的「灰色 / 旧蓝」都是这类。
   const focusSegs = feedbackCss.split('}').filter((s) => s.indexOf(':focus-visible') >= 0)
   const hardFocusColor = focusSegs.filter((s) => s.indexOf('var(--dsw-focus-ring-color') < 0)
@@ -254,15 +255,27 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(ringSegs.length >= 2 && ringHard.length === 0, 'F16 悬停高亮环一律取主题焦点色（--dsw-focus-ring-color），不再写死白色半透明（深色面板上就是一圈灰）' + (ringHard.length ? '；漏网：' + ringHard.map((s) => s.trim().slice(-70)).join(' | ') : ''))
   const ringWhite = feedbackCss.split('}').filter((s) => s.indexOf('box-shadow:0 0 0 1px rgba(255,255,255') >= 0)
   check(ringWhite.length === 0, 'F16b 样式真源里没有白色半透明外圈描边残留' + (ringWhite.length ? '；漏网：' + ringWhite.map((s) => s.trim().slice(-70)).join(' | ') : ''))
-  check(feedbackCss.indexOf('.dsws-btn:not(.primary):hover:not(.dsws-pressing),.dsws-seg:hover:not(.dsws-pressing)') >= 0 && feedbackCss.indexOf('{border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}') >= 0, 'F17 悬停时那圈原来是灰的边框（按钮、分段、配置按钮、地图行、工单行、列表行）统一换成主题焦点色')
-  check(feedbackCss.indexOf('.dsws-btn.ghost.dsws-pressing{outline:2px solid var(--dsw-focus-ring-color') >= 0 && feedbackCss.indexOf('.dsws-fb-dark.dsws-pressing,.dsws-fb-dark.fb-pressed{outline:2px solid var(--dsw-focus-ring-color') >= 0, 'F18 按下时的确认圈也走主题焦点色（原来是一圈白 outline）')
-  check(feedbackCss.indexOf('@keyframes dsws-ringout{0%{box-shadow:inset 0 0 0 0 var(--dsw-focus-ring-color') >= 0, 'F19 ghost 按下的确认光环颜色也取主题焦点色，不写死旧蓝')
+  check(feedbackCss.indexOf('.dsws-btn:not(.primary):hover:not(.dsws-pressing),.dsws-seg:hover:not(.dsws-pressing)') >= 0 && feedbackCss.indexOf('{border-color:var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}') >= 0, 'F17 悬停时那圈原来是灰的边框（按钮、分段、配置按钮、地图行、工单行、列表行）统一换成主题焦点色')
+  check(feedbackCss.indexOf('.dsws-btn.ghost.dsws-pressing{outline:2px solid var(--dsws-ring-color,var(--dsw-focus-ring-color') >= 0 && feedbackCss.indexOf('.dsws-fb-dark.dsws-pressing,.dsws-fb-dark.fb-pressed{outline:2px solid var(--dsws-ring-color,var(--dsw-focus-ring-color') >= 0, 'F18 按下时的确认圈也走主题焦点色（原来是一圈白 outline）')
+  check(feedbackCss.indexOf('@keyframes dsws-ringout{0%{box-shadow:inset 0 0 0 0 var(--dsws-ring-color,var(--dsw-focus-ring-color') >= 0, 'F19 ghost 按下的确认光环颜色也取主题焦点色，不写死旧蓝')
   // 2026-10-21 用户逐处实测报「焦点圈被截断」：页签顶部、详情页顶栏按钮上下、状态栏胶囊左右。
   //   查下来被裁的都是**往外画**的圈（box-shadow 正扩散），容器一 overflow:hidden 就切掉露在外面的那截。
   //   修法是所有高亮环一律画在控件里面（inset），跟着控件自己的圆角走——下面两条断言钉住这件事。
   const outsideRing = feedbackCss.split('}').filter((s) => s.indexOf(':hover') >= 0 && /box-shadow:0 0 0 1px/.test(s))
   check(outsideRing.length === 0, 'F20 悬停高亮环画在控件里面（inset）：外画的圈会被页签行、详情页顶栏按钮组、状态栏胶囊外层这些 overflow:hidden 的容器裁掉头尾' + (outsideRing.length ? '；漏网：' + outsideRing.map((s) => s.trim().slice(-70)).join(' | ') : ''))
   check(feedbackCss.indexOf('@keyframes dsws-ringout{0%{box-shadow:inset 0 0 0 0') >= 0 && feedbackCss.indexOf('100%{box-shadow:inset 0 0 0 2px transparent}}') >= 0, 'F21 按下确认光环也画在控件里面：原来向外扩十二像素的那圈，在没有内边距的按钮组里会被上下切掉')
+  // 2026-10-21 用户要求：状态栏胶囊与整条胶囊的焦点/悬停环「轻 50%」；交接那两颗小控件的轮廓要像
+  //   「胶囊被竖着切一刀」的左右两半。前者靠在胶囊作用域里覆盖可继承的环色，后者靠两段各自的圆角。
+  const capsuleTint = '.dsws-capsule{--dsws-ring-color:color-mix(in srgb,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)) 50%,transparent)}'
+  check(feedbackCss.indexOf(capsuleTint) >= 0, 'F22 状态栏胶囊里的环统一淡到五成：胶囊作用域把可继承的 --dsws-ring-color 设成焦点色掺一半透明，环的形状、粗细、位置都不变（用户要求「胶囊与整条胶囊的焦点效果轻 50%」）')
+  // 环色只有一个入口：每一处焦点/悬停/按下环都先经过 --dsws-ring-color 这一层，胶囊里才减得淡；
+  //   裸写焦点 token 的只允许剩下胶囊那条作用域声明（它本身就在算减半后的颜色）。
+  const wrappedRing = feedbackCss.split('var(--dsws-ring-color,var(--dsw-focus-ring-color').length - 1
+  const rawRing = feedbackCss.split('var(--dsw-focus-ring-color').length - 1
+  check(wrappedRing >= 8 && rawRing - wrappedRing === 1, 'F23 焦点/悬停/按下的环色一律先经过 --dsws-ring-color（实际经手 ' + wrappedRing + ' 处、裸写 ' + (rawRing - wrappedRing) + ' 处）：否则胶囊里减不淡，别处也会各写各的颜色')
+  const statusBarSrc = read('src/client/statusbar/StatusBar.ts')
+  const rightHalfCount = (statusBarSrc.match(/'0 99px 99px 0'/g) || []).length
+  check(statusBarSrc.indexOf("borderRadius: '99px 0 0 99px'") >= 0 && rightHalfCount >= 2 && statusBarSrc.indexOf("className: 'dsws-split-part dsws-hov'") >= 0 && statusBarSrc.indexOf("className: 'dsws-split-div'") >= 0, 'F24 交接那两颗小控件的高亮/焦点轮廓是「胶囊被竖着切一刀」：左段只圆左侧两个角、右段（就绪与未就绪两个分支都算）只圆右侧两个角，切口落在中间那颗分割线上，不是各占一半宽')
   check((feedbackCss.match(/prefers-reduced-motion/g) || []).length >= 4, 'F7 减少动态的降级覆盖到新效果（墨块、通用悬停、按压位移都关）')
   // 通用悬停与按下只按 data-press 属性给：2026-10-21 用户实测漏掉的那批控件（列表行内四颗按钮、
   //   地图/工单详情顶栏、地图底部动作区、父链接）全都是「属性接上了、悬停类忘了挂」。按属性给之后，
@@ -439,7 +452,7 @@ const variants: Variant[] = [
     label: '通用悬停不再按 data-press 属性给：新控件又得逐颗挂类，漏一颗就没反馈',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F10',
-    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.3)}}", ''),
+    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.3)}}", ''),
   },
   {
     label: '静态角标又有假悬停：药丸悬停规则不再只认 data-press',
@@ -457,19 +470,19 @@ const variants: Variant[] = [
     label: '焦点环颜色写死成旧蓝：换主题不跟',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F15',
-    change: (s) => replaceAll(s, 'outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:-2px', 'outline:2px solid #58a6ff;outline-offset:-2px'),
+    change: (s) => replaceAll(s, 'outline:var(--dsw-focus-ring-width,2px) solid var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)));outline-offset:-2px', 'outline:2px solid #58a6ff;outline-offset:-2px'),
   },
   {
     label: '地图卡片悬停边框又变回灰白：跟主题主色对不上',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F5',
-    change: (s) => replaceAll(s, 'border-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))!important', 'border-color:rgba(255,255,255,.28)!important'),
+    change: (s) => replaceAll(s, 'border-color:var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))!important', 'border-color:rgba(255,255,255,.28)!important'),
   },
   {
     label: '悬停高亮环又变回白色半透明：深色面板上就是一圈灰，换主题也不跟',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F16',
-    change: (s) => replaceAll(s, 'box-shadow:inset 0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}}', 'box-shadow:0 0 0 1px rgba(255,255,255,.16)}}'),
+    change: (s) => replaceAll(s, 'box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}}', 'box-shadow:0 0 0 1px rgba(255,255,255,.16)}}'),
   },
   {
     label: '悬停灰边框没换成焦点色：按钮、分段、配置按钮、地图行、工单行、列表行的悬停边框又变回灰色',
@@ -481,19 +494,37 @@ const variants: Variant[] = [
     label: '按下确认圈又变回一圈白：不跟主题焦点色',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F18',
-    change: (s) => replaceAll(s, 'outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:-2px', 'outline:2px solid rgba(255,255,255,.55);outline-offset:1px'),
+    change: (s) => replaceAll(s, 'outline:2px solid var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)));outline-offset:-2px', 'outline:2px solid rgba(255,255,255,.55);outline-offset:1px'),
   },
   {
     label: 'ghost 按下的外扩环颜色又写死成旧蓝：换主题不跟',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F19',
-    change: (s) => replaceAll(s, '0%{box-shadow:inset 0 0 0 0 var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}', '0%{box-shadow:0 0 0 0 rgba(88,166,255,.7)}'),
+    change: (s) => replaceAll(s, '0%{box-shadow:inset 0 0 0 0 var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}', '0%{box-shadow:0 0 0 0 rgba(88,166,255,.7)}'),
   },
   {
     label: '悬停高亮环又往外画：页签顶部、详情页顶栏按钮的上下圈又被 overflow:hidden 的容器裁断',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F20',
-    change: (s) => replaceAll(s, 'box-shadow:inset 0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.25)', 'box-shadow:0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)),0 2px 10px rgba(0,0,0,.25)'),
+    change: (s) => replaceAll(s, 'box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.25)', 'box-shadow:0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.25)'),
+  },
+  {
+    label: '胶囊里的环没有淡到五成：胶囊作用域不再覆盖可继承的环色',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F22',
+    change: (s) => s.replace('.dsws-capsule{--dsws-ring-color:color-mix(in srgb,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)) 50%,transparent)}', ''),
+  },
+  {
+    label: '环色绕过了可继承的那一层：胶囊里减不淡',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F23',
+    change: (s) => s + "\n// 反例：环色直接写焦点 token，不经过 --dsws-ring-color\nconst fakeRing = '.dsws-fake:hover{box-shadow:inset 0 0 0 1px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))}'\n",
+  },
+  {
+    label: '交接两段又变回整块直角：半胶囊轮廓没了',
+    file: 'src/client/statusbar/StatusBar.ts',
+    group: 'F24',
+    change: (s) => replaceAll(replaceAll(s, "borderRadius: '99px 0 0 99px'", ''), "borderRadius: '0 99px 99px 0'", ''),
   },
 ]
 for (const v of variants) {
