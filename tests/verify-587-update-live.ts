@@ -48,11 +48,6 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
   const manifestPath = path.join(pkgDir, 'package.json')
   const originalManifest: string = fs.readFileSync(manifestPath, 'utf8')
-  // 记下这份清单原来的修改时间。本机这份插件是「link 到仓库 package/」的安装，下面把清单版本临时
-  // 换成 9.9.9 那一步会直接改到仓库里的 package/package.json；内容能还原，修改时间却会停在当前。链上有几扇门禁按
-  // 「产物比源新」判过期（#1325 之前构建缓存命中会顺手把产物修改时间提到现在，把这些假红盖住了），
-  // 我们只验版本号怎么流转、不该在仓库里留下时间戳痕迹，所以还原内容时把修改时间一起还原。
-  const originalManifestStat = fs.statSync(manifestPath)
   const installedVersion = JSON.parse(originalManifest).version
   const profileDir = path.dirname(path.dirname(pkgDir))
   check(!!installedVersion, '读到磁盘上装的那一版（' + installedVersion + '）')
@@ -96,18 +91,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
     check(false, '真宿主判据跑通（异常：' + errText(e) + '）')
   } finally {
     fs.writeFileSync(manifestPath, originalManifest, 'utf8')
-    try {
-      fs.utimesSync(manifestPath, originalManifestStat.atime, originalManifestStat.mtime)
-    } catch (e) {
-      // 时间戳还原失败不影响本门禁的判据（版本号已经还原），但会让链上的新鲜度门禁多一次假红，
-      // 所以把它记成一条明确失败，别静默吞掉。
-      check(false, '清单还原后没能把修改时间一起还原（异常：' + errText(e) + '）')
-    }
     const back = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version
     check(back === installedVersion, '已把使用范围里的清单版本还原成原样（' + back + '）')
-    const backStat = fs.statSync(manifestPath)
-    // Windows 的 utimes 用毫秒精度写回，读回来的 mtimeMs 可能带亚毫秒小数，留 2ms 余量判「还是原样」。
-    check(Math.abs(backStat.mtimeMs - originalManifestStat.mtimeMs) <= 2, '清单还原后修改时间也回到原样（+' + (backStat.mtimeMs - originalManifestStat.mtimeMs).toFixed(2) + 'ms；不留下会让新鲜度门禁误判的时间戳）')
   }
 
   // ============ 二、真挂载渲染：发布产物委托 + 入口件在 jsdom 里真跑 ============

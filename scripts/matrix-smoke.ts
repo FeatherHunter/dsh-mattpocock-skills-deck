@@ -28,6 +28,9 @@ function check(ok: any, msg: any): void {
   console.log((ok ? '  PASS ' : '  FAIL ') + msg)
 }
 
+// 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。缓存可用时比内容摘要；
+// 缓存不可用时回落按修改时间判断，原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
+const { judgeProducts } = require('./lib/build-cache.mts')
 const PRODUCTS: string[] = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES: string[] = [
   'src/host/platform/win32/index.ts',
@@ -37,14 +40,6 @@ const SOURCES: string[] = [
   'scripts/build.mts',
   'package/package.json',
 ]
-function productStale(prod: string): string | null {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
-  const pm: number = fs.statSync(prod).mtimeMs
-  for (const s of SOURCES) {
-    if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
-  }
-  return null
-}
 
 async function main(): Promise<void> {
   const args: string[] = process.argv.slice(2)
@@ -68,9 +63,13 @@ async function main(): Promise<void> {
     const txt: string = fs.readFileSync(abs, 'utf8')
     check(txt.length > 1000, '产物门禁 ' + p + ' 非空（' + txt.length + ' bytes）')
   }
+  // 产物新鲜度判据全仓只有一份（scripts/lib/build-cache.mts 的 judgeProducts，#1326）：缓存可用时比内容摘要，
+  // 不可用时回落按修改时间判断，原因用 INFO 行打出来；失败文案直接用判据给的原因。
+  const judged: any = judgeProducts({ products: PRODUCTS, sources: SOURCES })
+  for (const n of (judged.notices as string[])) console.log('  INFO ' + n)
   for (const p of PRODUCTS) {
-    const why: string | null = productStale(p)
-    check(!why, '产物新鲜度 ' + p + (why ? '：' + why : '（新鲜）'))
+    const j: any = (judged.products as any[]).find((x: any): boolean => x.product === p)
+    check(!!j && j.freshness === 'fresh', '产物新鲜度 ' + p + (!j ? '：判据没有给出这个产物的结论' : j.freshness === 'fresh' ? '（新鲜）' : '：' + j.reason))
   }
   if (failed) { console.log('\n产物门禁存在失败 — 中止后续断言（请先 build）'); process.exit(1) }
 
