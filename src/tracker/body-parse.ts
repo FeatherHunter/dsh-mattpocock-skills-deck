@@ -257,6 +257,14 @@ export {
 } from '../shared/issue-file/src/progress.js'
 export type { ProgressEntry, ProgressDetail } from '../shared/issue-file/src/progress.js'
 
+// ——— 维护者原话区的读与写：唯一真源在 `src/shared/issue-file/src/original-words.ts`（#1092） ———
+//
+// 写侧一直只住 shared 那一份；#1092 把读一侧（parseOriginalWords）也放进同一个文件、共用同一套
+// 按行扫描，保证「写进去的原话」与「读回来的原话」逐字相同。本文件只把名字转出去，调用方
+// （deck 的读工具、门禁）的 import 路径统一走 tracker/body-parse，与进度区同一模式。
+export { parseOriginalWords } from '../shared/issue-file/src/original-words.js'
+export type { OriginalWordsDetailEntry, OriginalWordsEntry } from '../shared/issue-file/src/original-words.js'
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 二、票的分组与分层（宿主侧同步调用，输入是「票号 + 状态 + 认领 + 阻塞」这几格）
 // ─────────────────────────────────────────────────────────────────────────────

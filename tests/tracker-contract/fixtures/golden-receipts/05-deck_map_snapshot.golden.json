@@ -39,6 +39,7 @@
         "labels": [
           "wayfinder:task"
         ],
+        "originalWords": [],
         "progress": null,
         "progressDetail": {
           "entries": [],

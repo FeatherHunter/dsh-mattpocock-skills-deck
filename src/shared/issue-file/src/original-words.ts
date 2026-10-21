@@ -24,6 +24,11 @@
  * 标题固定写 `## 维护者原话`，位置紧跟 `## 目的`；没有目的区时放正文最前（跳过文件头注释与一级标题，
  * 免得把「文件头」或标题挤到区后面）。代码块、HTML 注释里的同名标题不算真的区（正文里贴一段示例时
  * 不会被改写，与进度区同一口径）。
+ *
+ * #1092 起这里同时是读一侧的唯一入口（`parseOriginalWords`）：deck_issue_get 与 deck_map_snapshot
+ * 都把正文交给它，读回来的原话逐字不变（引用块逐行去掉一个 `>` 前缀，单独一行 `>` 还原成空行，
+ * 不做 trim、不改行内空白），出处与记录时间随条目一起返回。读的规则和写侧共用同一份按行扫描，
+ * 不另写一套正则——这正是这张票要的「写入与读回逐字相同」。
  */
 
 /** 维护者原话区的标题文字（拼上 `## ` 才是完整标题行）。不导出：读写都在这份文件里，外面不需要这个字面量。 */
@@ -45,6 +50,33 @@ export interface OriginalWordsEntry {
   text: string
   /** 出处：票面完整链接、`本会话（时间）`、`路径:行号` 或提交短哈希，由调用方收口。 */
   source: string
+}
+
+/**
+ * 读回来的一条维护者原话：在写入形状上多一个记录时间。
+ *
+ * recordedAt 只能从出处的文字里认：这张票的边界是「只加读回、不改写入」，而写入格式（出处行 + 引用块）
+ * 里没有单独的时间字段，所以不能凭空多出一个来源。出处惯例里只有「本会话（2026-10-21T20:05+08:00）」
+ * 这一族带时间；认不出来时是 null，不拿票的修改时间顶替——那是「票什么时候被改过」，不是「这句话什么时候说的」。
+ */
+export interface OriginalWordsDetailEntry extends OriginalWordsEntry {
+  /** 出处里带 `T` 的 ISO 8601 时间片段，原样返回；出处没写时间时是 null。 */
+  recordedAt: string | null
+}
+
+/**
+ * 出处里的 ISO 8601 时间片段：只认带 `T` 的日期时间。
+ *
+ * 为什么日期-only 的写法（`2026-10-21`）不算：链接、路径、版本号里到处是这种日期，认了容易把
+ * 「这个文件是哪天的」当成「这句话是哪天说的」，反而给了读的人一个看似确定的错答案。
+ * 带不带秒、带不带时区都认；认出的片段原样返回，不重排成别的格式（这里是读出，不是改写）。
+ */
+const SOURCE_TIME_RE = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)/
+
+/** 从出处文字里认出记录时间；认不出返回 null（不猜、不拿别的时间顶替）。 */
+function recordedAtFromSource(source: string): string | null {
+  const m = SOURCE_TIME_RE.exec(source)
+  return m ? m[1] : null
 }
 
 // ——— 内部的按行扫描：保留每行原换行符，写回时除目标区外一个字节都不动 ———
@@ -201,12 +233,24 @@ function formatOriginalWordsEntry(entry: OriginalWordsEntry): string {
   return '出处：' + normalizeSource(entry.source) + '\n' + quoteLines(entry.text).join('\n')
 }
 
-/** 从正文里读出所有维护者原话条目（按出现顺序）。代码块、注释里的示例不算。 */
-function parseOriginalWordsEntries(body: string): OriginalWordsEntry[] {
-  const lines = splitBodyLines(body)
+/** 把读到的出处与引用块行收成一条读侧条目：正文逐字保留，记录时间从出处里认。 */
+function detailEntryOf(source: string, contentLines: readonly string[]): OriginalWordsDetailEntry {
+  return { text: normalizeText(contentLines.join('\n')), source: source, recordedAt: recordedAtFromSource(source) }
+}
+
+/**
+ * 从正文里读出所有维护者原话条目（按出现顺序）。代码块、注释里的示例不算。
+ *
+ * 这是读一侧的唯一入口（#1092）：deck_issue_get 与 deck_map_snapshot 都调它，别在工具里另写正则。
+ * 读的规矩与写侧一一对应：每行引用只去掉 `>` 和紧随的一个空格（不做 trim、不改行内空格），
+ * 单独一行 `>` 还原成空行；原话正文里的换行统一是 `\n`（写侧入库时就归一成这个）。
+ * 出处与记录时间随条目一起返回；记录时间只从出处文字里认（见 recordedAtFromSource 的说明）。
+ */
+export function parseOriginalWords(body: unknown): OriginalWordsDetailEntry[] {
+  const lines = splitBodyLines(body == null ? '' : String(body))
   const marks = analyzeLines(lines)
   const sections = findSections(lines, marks, ORIGINAL_WORDS_TITLE)
-  const out: OriginalWordsEntry[] = []
+  const out: OriginalWordsDetailEntry[] = []
   sections.forEach((section) => {
     let current: { source: string; lines: string[] } | null = null
     for (let i = section.contentStart; i < section.end; i++) {
@@ -214,7 +258,7 @@ function parseOriginalWordsEntries(body: string): OriginalWordsEntry[] {
       const text = lines[i].text
       const sourceMatch = SOURCE_LINE_RE.exec(text)
       if (sourceMatch) {
-        if (current) out.push({ text: normalizeText(current.lines.join('\n')), source: current.source })
+        if (current) out.push(detailEntryOf(current.source, current.lines))
         current = { source: normalizeSource(sourceMatch[1]), lines: [] }
         continue
       }
@@ -228,10 +272,10 @@ function parseOriginalWordsEntries(body: string): OriginalWordsEntry[] {
       }
       if (text.trim() === '') continue
       // 区里出现既不是出处、也不是引用块的非空行：这条原话到这里结束，后面的行不算它的内容。
-      out.push({ text: normalizeText(current.lines.join('\n')), source: current.source })
+      out.push(detailEntryOf(current.source, current.lines))
       current = null
     }
-    if (current) out.push({ text: normalizeText(current.lines.join('\n')), source: current.source })
+    if (current) out.push(detailEntryOf(current.source, current.lines))
   })
   return out
 }
@@ -312,7 +356,7 @@ export function applyOriginalWordsEntry(body: string, entry: OriginalWordsEntry,
   if (body.length > limit) {
     return { next: null, skipped: false, problem: '正文已经 ' + body.length + ' 个字符，超过原话写入的硬顶 ' + limit + ' 个字符（GitHub 正文上限 65536，留了余量）：这次原话没写、正文一个字没动。要写请先把正文缩短。' }
   }
-  const have = parseOriginalWordsEntries(body)
+  const have = parseOriginalWords(body)
   const duplicated = have.some((one) => one.source === want.source && one.text === want.text)
   if (duplicated) return { next: body, skipped: true, problem: '' }
   const next = replaceOriginalWordsSection(body, want)
@@ -334,7 +378,7 @@ export function applyOriginalWordsEntry(body: string, entry: OriginalWordsEntry,
 export function originalWordsPresenceProblem(want: OriginalWordsEntry, body: string): string {
   const text = normalizeText(want.text)
   const source = normalizeSource(want.source)
-  const have = parseOriginalWordsEntries(body)
+  const have = parseOriginalWords(body)
   const got = have.some((one) => one.source === source && one.text === text)
   if (got) return ''
   return '写了原话，但读回来的正文里找不到这一条（出处：' + (source || '空') + '）：别当成已经写好，先读一次现状复核。'

@@ -9,7 +9,7 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { childrenOf } from '../shell/edge-landing.js'
 import { deriveDeck, parseProgress } from '../../tracker/deck-derive.js'
-import { parseMapBody, parseProgressDetail } from '../../tracker/body-parse.js'
+import { parseMapBody, parseOriginalWords, parseProgressDetail } from '../../tracker/body-parse.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 import { withCallScope } from '../shell/call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -69,6 +69,9 @@ function childRow(issue: Record<string, unknown>) {
     key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy,
     updatedAt: issue.updatedAt || '', progress: parseProgress(issue.body),
     progressDetail: parseProgressDetail(issue.body),
+    // #1092：full 行也带上「维护者原话」的结构化读回，与 deck_issue_get 是同一份（同一函数、逐字）。
+    // thin 行故意不加：薄行是「票多时只要清单」那一档，要原话的人应当逐张读 deck_issue_get。
+    originalWords: parseOriginalWords(issue.body),
   }
 }
 

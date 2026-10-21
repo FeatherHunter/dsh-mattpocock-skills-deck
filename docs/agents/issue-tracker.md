@@ -96,7 +96,14 @@ Issues and specs for this repo live as GitHub issues.
 - **只追加**：不编辑、不删除、不排序、不合并；同一句话带同一个出处已经记过，就跳过，不再记第二遍。
 - 条数不限，和正文共用一个 60KB 上限。
 
-写这一区用 `deck_issue_create` 与 `deck_issue_patch` 的 `originalWords: {text, source}` 参数（#1091 已落地）：`source` 必填，工具负责按上面的规则追加、只追加、同一段原话配同一个出处时幂等跳过，写完再把正文读回来逐字核对。读一侧（把这一区单独读回来给你看）在票 [#1092 地图15开发：原话回读](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1092) 里落地。
+写这一区用 `deck_issue_create` 与 `deck_issue_patch` 的 `originalWords: {text, source}` 参数（#1091 已落地）：`source` 必填，工具负责按上面的规则追加、只追加、同一段原话配同一个出处时幂等跳过，写完再把正文读回来逐字核对。
+
+读这一区有两个入口（#1092 已落地）：
+
+- `deck_issue_get` 回 `originalWords: [{text, source, recordedAt}]`：`text` 与引用块逐字相同（只去掉每行一个 `>` 前缀，原话里的空行照旧是空行，不做 trim）；`source` 是出处行原文；`recordedAt` 只从出处文字里认带 `T` 的 ISO 8601 时间并原样返回，出处没写时间时是 `null`（不拿票的修改时间顶替）。只想看整区原文（含 `>` 前缀）时，给同一个工具传 `section: '维护者原话'`。
+- `deck_map_snapshot` 的 full 行带同一份 `originalWords`，thin 行故意不带（要原话的人逐张读 `deck_issue_get`）。
+
+解析只有一处实现：`src/shared/issue-file/src/original-words.ts` 的 `parseOriginalWords`，读工具与写侧共用同一套按行扫描。
 
 **这两个区的写法以 #1089 的定稿为准**：上面的区块顺序与两个区的规则出自票 [#1089 地图15讨论：进度写哪、原话区的写法](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1089) 正文的「讨论结论（2026-10-21 定稿）」一节；当初为什么这样定、查过哪些一手材料，见 `research/1089-progress-and-user-voice.md`（每条结论都注了来源）。以后要改这套写法，先回那张票的定稿里改，再改这份文档——不要让规则只活在口口相传里。
 
