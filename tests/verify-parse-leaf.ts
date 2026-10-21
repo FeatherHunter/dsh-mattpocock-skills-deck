@@ -17,6 +17,10 @@ let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // ---- 产物清单与驱动重建的源（T1：断言目标必须是「当前构建产物」，而非磁盘任意文件）----
+// 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。
+// 缓存可用时比「产物内容摘要 vs 上次成功构建记录」；缓存不可用时回落按修改时间判断，
+// 回落原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
+const { judgeProducts } = require('../scripts/lib/build-cache.mts')
 const PRODUCTS = ['host.js', 'package/lib/index.js']
 // H2 #446：宿主侧实现分散在两处（解析三函数搬到 mapBody.js，分组两函数留守 index.js）；产物侧同理跟随，意图不变。
 // #450 H6：分组两函数搬入 ticketGrouping.js（三处合流：mapBody + ticketGrouping + index）；新鲜度与抽取同理跟随。
@@ -36,16 +40,6 @@ const SOURCES = [
   'package/package.json',
 ]
 
-function productStale(prod) {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
-  const pm = fs.statSync(prod).mtimeMs
-  for (const s of SOURCES) {
-    if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) {
-      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
-    }
-  }
-  return null
-}
 
 // 从源码抽取内联函数（沿用 verify-progress 的提取法；parseMapBody 依赖 normalizeBody，需同作用域求值）
 // 产物 = src/host/index.js 函数体逐字嵌入（scripts/build.mts 文本组合），4 空格缩进；2 空格为兼容回退
@@ -75,10 +69,12 @@ const rawAll = (src) => ['normalizeBody', 'parseMapBody', 'parseProgress', 'comp
 
 async function main() {
   // ---- 产物新鲜度门禁（T1：先于一切断言，缺失/过期直接 FAIL）----
-  PRODUCTS.forEach((p) => {
-    const why = productStale(p)
-    check(!why, '产物门禁 ' + p + (why ? '：' + why : '（存在且新鲜）'))
-  })
+  const judged = judgeProducts({ products: PRODUCTS, sources: SOURCES })
+  judged.notices.forEach((n) => console.log('  INFO ' + n))
+  for (const p of PRODUCTS) {
+    const j = judged.products.find((x) => x.product === p)
+    check(!!j && j.freshness === 'fresh', '产物门禁 ' + p + (!j ? '：判据没有给出这个产物的结论' : j.freshness === 'fresh' ? '（存在且新鲜）' : '：' + j.reason))
+  }
   if (failed) { console.log('\n存在失败'); process.exit(1) }
 
   const host = fs.readFileSync('host.js', 'utf8')

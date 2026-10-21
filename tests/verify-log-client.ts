@@ -11,6 +11,9 @@ const { compileFn } = require('./lib/eval-probe.js')
 // 这一门的静态断言量的是「源码里写着哪个键、打哪支电话」，必须读 .ts 真源；
 // 运行夹具又需要可求值的 JavaScript（.ts 带类型标注），所以同一份真源再经 spliceableJs 转译一次。
 const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
+// 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。缓存可用时比内容摘要；
+// 缓存不可用时回落按修改时间判断，原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
+const { judgeProducts } = require('../scripts/lib/build-cache.mts')
 // 中央时间真值：发批间隔等时间数字只住 config/*.yaml，这里读同一份导出来比对，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 // 日志模块顶部那一行中央 import 在 compileFn 函数体里是非法的（函数体不许出现 import），
@@ -215,12 +218,15 @@ async function main() {
     const pkgPath = path.join(ROOT, 'package', 'lib', 'client.js')
     check(fs.existsSync(devPath), '开发产物存在（client.js，由构建生成）')
     check(fs.existsSync(pkgPath), '打包产物存在（package/lib/client.js，由构建生成）')
-    const stale = []
-    // #1254：入口与面板装配真源已转 .ts；log/probe-snapshot 同理跟真源（.ts 优先，孪生 .js 是 pixel-ts 产物）。
-    for (const s of ['src/client/kernel/log.ts', 'src/client/kernel/probe-snapshot.ts', 'src/client/panelAssembly.ts', 'src/client/index.ts', 'scripts/build.mts']) {
-      if (fs.existsSync(path.join(ROOT, s)) && fs.existsSync(devPath) && fs.statSync(path.join(ROOT, s)).mtimeMs > fs.statSync(devPath).mtimeMs + 1000) stale.push(s)
-    }
-    check(stale.length === 0, '产物新鲜（' + (stale.length ? '过期：' + stale.join('、') + '，请重跑 node scripts/build.mts' : '已同步') + '）')
+    // 产物新鲜度判据全仓只有一份（scripts/lib/build-cache.mts 的 judgeProducts，#1326）：缓存可用时比内容摘要，
+    // 不可用时回落按修改时间判断，原因用 INFO 行打出来；这里只查开发产物，覆盖面与原先一样。
+    const judged = judgeProducts({
+      products: ['client.js'],
+      sources: ['src/client/kernel/log.ts', 'src/client/kernel/probe-snapshot.ts', 'src/client/panelAssembly.ts', 'src/client/index.ts', 'scripts/build.mts'],
+    })
+    judged.notices.forEach((n) => console.log('  INFO ' + n))
+    const judgedDev = judged.products[0]
+    check(judgedDev.freshness === 'fresh', '产物新鲜（' + (judgedDev.freshness === 'fresh' ? '已同步' : judgedDev.reason) + '）')
     if (fs.existsSync(devPath) && fs.existsSync(pkgPath)) {
       const dev = fs.readFileSync(devPath, 'utf8')
       const pkg = fs.readFileSync(pkgPath, 'utf8')

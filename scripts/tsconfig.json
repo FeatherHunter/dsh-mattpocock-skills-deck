@@ -53,6 +53,7 @@
     "generate-time-config.mts",
     "generate-prompt-config.mts",
     "generate-locale-config.mts",
+    "lib/build-cache.mts",
     "lib/select-gates.mts",
     "lib/transpile-domains.mts",
     "lib/transpile-unit.mts",

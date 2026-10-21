@@ -8,6 +8,10 @@ const fs = require('fs')
 const path = require('path')
 
 const ROOT = path.resolve(__dirname, '..')
+
+// 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。缓存可用时比内容摘要；
+// 缓存不可用时回落按修改时间判断，原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
+const { judgeProducts } = require('../scripts/lib/build-cache.mts')
 let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -93,7 +97,12 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
     const mirrorNames = quotedEvents(fs.readFileSync(mirror, 'utf8'))
     const miss = names.filter((n) => !mirrorNames.has(n))
     if (miss.length) { problems.push(rel + ' 镜像缺 ' + miss.join('、')); continue }
-    if (fs.statSync(mirror).mtimeMs + 1000 < fs.statSync(f).mtimeMs) { problems.push(rel + ' 镜像比真源旧（请重跑 node scripts/build.mts）'); continue }
+    // 镜像与真源是不是同一次构建的产物：交全仓唯一判据（#1326）。产物路径与真源都换成仓库相对、正斜杠形式。
+    const relPosix = rel.split(path.sep).join('/')
+    const judged = judgeProducts({ products: ['package/lib/' + relPosix.replace(/\.ts$/, '.js')], sources: ['src/host/' + relPosix] })
+    judged.notices.forEach((n) => console.log('  INFO ' + n))
+    const judgedMirror = judged.products[0]
+    if (judgedMirror.freshness !== 'fresh') { problems.push(rel + ' ' + judgedMirror.reason); continue }
     mirrorOk += 1
   }
   check(mirrorChecked > 0, '宿主源码含日志事件的文件有 ' + mirrorChecked + ' 个')

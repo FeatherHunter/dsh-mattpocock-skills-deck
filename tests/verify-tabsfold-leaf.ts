@@ -17,20 +17,14 @@ let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // ---- 产物清单与驱动重建的源（T1：断言目标必须是「当前构建产物」，而非磁盘任意文件）----
+// 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。
+// 缓存可用时比「产物内容摘要 vs 上次成功构建记录」；缓存不可用时回落按修改时间判断，
+// 回落原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
+const { judgeProducts } = require('../scripts/lib/build-cache.mts')
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 // T2（#95）：Ctx 接线后 src/client/kernel/ctx.ts 也是驱动重建的源 —— 进新鲜度门禁，防陈旧产物假绿
 const SOURCES = ['src/client/index.ts', 'src/client/kernel/ctx.ts', 'scripts/build.mts', 'package/package.json'] // #1254：入口真源转写为 .ts
 
-function productStale(prod) {
-  if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mts）'
-  const pm = fs.statSync(prod).mtimeMs
-  for (const s of SOURCES) {
-    if (fs.existsSync(s) && fs.statSync(s).mtimeMs > pm + 1000) {
-      return '过期（' + s + ' 比产物新，请重新运行 node scripts/build.mts）'
-    }
-  }
-  return null
-}
 
 // 从源码抽取内联 tabsLevelDecide（去掉 const 前缀；函数体引用 TABS_FOLD_HYST，注入到求值作用域）
 const grab = (src) => {
@@ -48,10 +42,12 @@ const rawGrab = (src) => {
 
 async function main() {
   // ---- 产物新鲜度门禁（T1：先于一切断言，缺失/过期直接 FAIL）----
-  PRODUCTS.forEach((p) => {
-    const why = productStale(p)
-    check(!why, '产物门禁 ' + p + (why ? '：' + why : '（存在且新鲜）'))
-  })
+  const judged = judgeProducts({ products: PRODUCTS, sources: SOURCES })
+  judged.notices.forEach((n) => console.log('  INFO ' + n))
+  for (const p of PRODUCTS) {
+    const j = judged.products.find((x) => x.product === p)
+    check(!!j && j.freshness === 'fresh', '产物门禁 ' + p + (!j ? '：判据没有给出这个产物的结论' : j.freshness === 'fresh' ? '（存在且新鲜）' : '：' + j.reason))
+  }
   if (failed) { console.log('\n存在失败'); process.exit(1) }
 
   const cli = fs.readFileSync('client.js', 'utf8')
