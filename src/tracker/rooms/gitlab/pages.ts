@@ -56,7 +56,7 @@ import { issuesPath } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 // 契约的分页口径：缺省一页 50 张、要多了按 200 封顶（`contract/results.ts` 的「分页契约」，与 GitHub 房同一套）。
 const DEFAULT_LIMIT = PAGINATION.gitlab.limitDefault

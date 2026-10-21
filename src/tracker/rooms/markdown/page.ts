@@ -29,7 +29,7 @@ import { emitReadDegraded } from './read-log.js'
 import { enumerateIssueRows } from './issues-read.js'
 // 这三件与 counts 共用同一份实现：分页与计数说的必须是**同一批票**，两处各写一份判定迟早走样。
 import { labelsOf, hasAllLabels, narrowStateOf, readFailureMessage } from './counts.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 // 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
 type RepoWithPath = RepositoryRef & { path?: string }

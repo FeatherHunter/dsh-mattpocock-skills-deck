@@ -34,7 +34,7 @@ import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
 import { pickFallbackReason } from './fallback-reason.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
 interface ParsedRepo {

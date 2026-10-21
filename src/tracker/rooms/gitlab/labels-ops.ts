@@ -83,7 +83,7 @@ import { classifyGlabError, failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 // ── 常量：本文件与门禁都读它们，改一处就能一起变 ──────────────────────────────
 

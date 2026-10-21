@@ -1,12 +1,12 @@
 // tests/verify-pagination-limits.ts —— 分页与额度常量的钉值门禁（#1343 新增）。
 //
-// 门禁归属: src/tracker/rooms/pagination.ts
+// 门禁归属: src/tracker/contract/pagination.ts
 //
 // 为什么有这扇门禁：
 //   三个后端房间原先各自写着同一批「一次问后端要多少条、最多问几次」的数字：同一个 50/200 在 GitHub、
 //   GitLab、Markdown 三房各一份，同一个 100/1000 在 GitHub、GitLab 两房各一份。这些数字是后端接口的
 //   硬事实，不是给人调的旋钮；飘了不会有人报错，只会表现为「历史少了一段」「列表少了几条」。所以把它们
-//   收进 src/tracker/rooms/pagination.ts 一处，再用这扇门禁钉住：
+//   收进 src/tracker/contract/pagination.ts 一处，再用这扇门禁钉住：
 //     · 共享表本身的值必须与下面 EXPECTED 清单逐项相等 —— 改数字必须同时改这份清单，diff 里一次就能
 //       看见「哪个数从多少改成多少」，不会被悄悄改掉；
 //     · 三个后端房间的源码里不许再出现这些分页额度的裸数字（唯一允许写字面量的地方是共享表本身），
@@ -28,7 +28,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const SHARED = 'src/tracker/rooms/pagination.ts'
+const SHARED = 'src/tracker/contract/pagination.ts'
 const ROOMS_DIR = 'src/tracker/rooms'
 
 // 期望值清单：与共享表逐项相等。改共享表的数字必须同时改这里 —— 这是本门禁「改数字的 diff 能被看见」
@@ -176,13 +176,13 @@ function isCommentOnly(line: string): boolean {
 console.log('分页与额度常量门禁（#1343）')
 
 // 第一节：共享表与期望值清单逐项相等（改数字必须同时改门禁，diff 可见）。
-const sharedModule = (await import('../src/tracker/rooms/pagination.js')) as { PAGINATION: unknown }
+const sharedModule = (await import('../src/tracker/contract/pagination.js')) as { PAGINATION: unknown }
 const actualTable = sharedModule.PAGINATION
 const tableDiffs: string[] = []
 diffObject('', actualTable, EXPECTED, tableDiffs)
 check(
   tableDiffs.length === 0,
-  '共享表 src/tracker/rooms/pagination.ts 与门禁期望值清单逐项相等',
+  '共享表 src/tracker/contract/pagination.ts 与门禁期望值清单逐项相等',
   tableDiffs.length === 0
     ? undefined
     : {
@@ -230,9 +230,9 @@ const importHits: string[] = []
 for (const rel of scanned) {
   const text = fs.readFileSync(path.join(ROOT, rel), 'utf8')
   if (!text.includes('PAGINATION')) continue
-  if (!/from ['"](?:\.{1,2}\/)+pagination\.js['"]/.test(text)) importHits.push(rel)
+  if (!/from ['"](?:\.\.\/)+contract\/pagination\.js['"]/.test(text)) importHits.push(rel)
 }
-check(importHits.length === 0, '用了 PAGINATION 的房内文件都从共享表导入', importHits.length === 0 ? undefined : { path: importHits.join('、'), key: 'import', note: `这些文件用了 PAGINATION 却没有从 pagination.js 导入：${importHits.join('、')}` })
+check(importHits.length === 0, '用了 PAGINATION 的房内文件都从共享表导入', importHits.length === 0 ? undefined : { path: importHits.join('、'), key: 'import', note: `这些文件用了 PAGINATION 却没有从 contract/pagination.js 导入：${importHits.join('、')}` })
 
 // 第四节：共享表文件存在，且三个后端分组一个都不少（分组少了会让某一房静默退回「没页面大小」的默认值）。
 check(fs.existsSync(path.join(ROOT, SHARED)), `共享表文件存在：${SHARED}`, { path: SHARED, key: 'exists', note: '共享表文件不存在' })

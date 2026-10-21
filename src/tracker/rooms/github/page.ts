@@ -43,7 +43,7 @@ import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 // 一页的默认张数与上限（契约「分页契约」定的：缺省 50、上限 200，要多了按上限给，不是报错）。
 const DEFAULT_LIMIT = PAGINATION.github.limitDefault

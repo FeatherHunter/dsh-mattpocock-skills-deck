@@ -1,12 +1,11 @@
 // graph-blocking.ts —— 以后改阻塞关系语义时改它：Blocked by 行格式、原生 blocked_by 探测、读合并写回退、环检、阻塞读写两操作。
 // 抓取底座（repoId/fetchRawIssue）暂住本文件，亲缘文件从本文件单向导入（同房互引，老门禁放行；本文件不依赖亲缘文件）。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js'
+import type { ErrorKind, IssueType, State } from '../../contract/identity.js'
 import type { DepsOpts, SetOpts } from '../../contract/inputs.js'
 import type { Dependencies, OpResult } from '../../contract/results.js'
-import type { State, IssueType } from '../../contract/identity.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
@@ -14,7 +13,7 @@ import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 // 仓库身份只取 refId/name，是因为阻塞读写只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined

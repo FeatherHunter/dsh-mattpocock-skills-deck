@@ -36,7 +36,7 @@ import { ghVerdictOf } from './errors.js'
 import { parseRepo } from './issues.js'
 // 回看窗口住中央 YAML，调时间改 config/ttl.yaml。
 import { IDEMPOTENCY_LOOKBACK_MS } from '../../../shared/time-config/src/values.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** 按锚回查的返回：没找到照常建、找到了复用旧票、没做成如实失败（绝不把拿不准当没找到）。 */
 export type AnchorLookupOutcome =

@@ -17,7 +17,7 @@ import type { OpContext } from '../../contract/contexts.js';
 import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** 仓库坐标：拥有者与仓库名，由调用方（issues 的 REST 兜底）保证形状。 */
 interface ParsedRepo {

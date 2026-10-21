@@ -33,7 +33,7 @@ import { issuesPath } from './queries.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** 慢路最多看几张候选（按创建时间倒序的第一页）。到了这个数还没找到就如实说「拿不准」。 */
 const SCAN_LIMIT = PAGINATION.gitlab.anchorLookupScanLimit

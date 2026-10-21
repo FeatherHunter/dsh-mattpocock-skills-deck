@@ -39,7 +39,7 @@ import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo } from './labels.js'
 import { readRepoPermissions } from './repo-permissions.js'
 import { getRepoKey } from './repo.js'
-import { PAGINATION } from '../pagination.js'
+import { PAGINATION } from '../../contract/pagination.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
 type GhClient = ReturnType<typeof ghClient>;

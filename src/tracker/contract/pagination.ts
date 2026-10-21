@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/pagination.ts —— 三个后端房间（GitHub、GitLab、本地 Markdown）共用的分页与额度数字表。
+ * src/tracker/contract/pagination.ts —— 三个后端房间（GitHub、GitLab、本地 Markdown）共用的分页与额度数字表。
  *
  * 为什么要有这一份：
  *   这三个数字族原先在各房各写一份，同一个含义散在十几个文件里 —— 列出给界面的分页契约（缺省 50、上限 200）
