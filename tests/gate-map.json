@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T11:08:58.178Z",
+  "generatedAt": "2026-10-21T13:14:44.646Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 309,
-  "gateCount": 309,
-  "attributedGates": 272,
+  "chainLength": 310,
+  "gateCount": 310,
+  "attributedGates": 273,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 514,
+  "graphFileCount": 516,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1123,6 +1123,40 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+    },
+    {
+      "step": "node tests/verify-1090-progress-roundtrip.ts",
+      "file": "tests/verify-1090-progress-roundtrip.ts",
+      "guards": [
+        "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-patch.ts",
+        "src/deck/tools/map-plan-create.ts",
+        "src/deck/tools/map-snapshot.ts",
+        "src/host/refresh/gate.ts",
+        "src/host/refresh/ledger.ts",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/tool-cost.ts",
+        "src/tracker/body-parse.ts",
+        "src/tracker/deck-derive.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.ts"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/host/refresh",
+        "src/shared/refresh/src",
+        "src/tracker",
+        "src/tracker/registry",
+        "src/tracker/rooms/markdown",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-1106-deck-surface.ts",
@@ -3511,11 +3545,11 @@
       "file": "tests/verify-908-progress-replace.ts",
       "guards": [
         "src/deck/shell/minimal-spec.ts",
-        "src/deck/tools/issue-patch.ts"
+        "src/tracker/body-parse.ts"
       ],
       "dirs": [
         "src/deck/shell",
-        "src/deck/tools"
+        "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -5179,6 +5213,7 @@
         "docs/agents",
         "docs/agents/issue-tracker.md",
         "scripts/fix-issue-body.mts",
+        "scripts/ts-hook.mts",
         "src/tracker/body-parse.ts"
       ],
       "dirs": [
@@ -5190,7 +5225,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-issue-comment.ts",
@@ -6028,7 +6063,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-platform-contract.ts",
@@ -6080,18 +6115,19 @@
       "file": "tests/verify-progress.ts",
       "guards": [
         "src/host/mapBody.ts",
-        "tests/lib/eval-probe.ts",
+        "src/tracker/body-parse.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/host",
+        "src/tracker",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-prompt-config.ts",
@@ -7849,6 +7885,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1195-budget-start.ts",
@@ -7861,7 +7898,6 @@
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-898-block-merge.ts",
-      "node tests/verify-908-progress-replace.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -8000,6 +8036,7 @@
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-1082-work-route-table.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1150-plan-store-durable.ts",
@@ -8092,6 +8129,7 @@
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-1083-work-path-persist.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1195-budget-start.ts",
@@ -8215,15 +8253,18 @@
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-663-gh-install-inject.ts",
+      "node tests/verify-908-progress-replace.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue-body-script.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts",
       "node tests/verify-parse-leaf.ts",
+      "node tests/verify-progress.ts",
       "node tests/verify-setup-describe.ts",
       "node tests/verify-ui-description-single-source.ts"
     ],
@@ -8287,6 +8328,7 @@
       "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1144-markdown-issue-address.ts",
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -8377,6 +8419,7 @@
       "node tests/verify-1058-markdown-read-log.ts",
       "node tests/verify-1059-issue-write.ts",
       "node tests/verify-1060-edge-log.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1129-markdown-claim.ts",
       "node tests/verify-1144-markdown-issue-address.ts",
       "node tests/verify-1150-plan-store-durable.ts",
@@ -8466,6 +8509,7 @@
       "node tests/verify-deck-tools.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-no-title.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -8610,9 +8654,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 529,
+    "fileCount": 531,
     "dirCount": 58,
-    "coveredFileCount": 529,
+    "coveredFileCount": 531,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 50,
@@ -8947,6 +8991,8 @@
       "src/shared/host-timer/tsconfig.json",
       "src/shared/issue-file/README.md",
       "src/shared/issue-file/src/marker.ts",
+      "src/shared/issue-file/src/progress-tool.ts",
+      "src/shared/issue-file/src/progress.ts",
       "src/shared/issue-file/tsconfig.json",
       "src/shared/label-color/README.md",
       "src/shared/label-color/src/colors.ts",
@@ -9278,7 +9324,7 @@
       },
       {
         "path": "src/shared/issue-file",
-        "fileCount": 3
+        "fileCount": 5
       },
       {
         "path": "src/shared/label-color",

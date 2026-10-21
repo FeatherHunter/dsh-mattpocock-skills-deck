@@ -42,6 +42,12 @@
       "labels": [
         "wayfinder:task"
       ],
+      "progress": {
+        "entries": [],
+        "note": "",
+        "percent": null,
+        "updatedAt": null
+      },
       "state": "open",
       "title": "金标准演示票",
       "type": "issue",

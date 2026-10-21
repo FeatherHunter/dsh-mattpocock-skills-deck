@@ -16,6 +16,10 @@ import { specCloseGuard } from '../shell/spec-close-guard.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { withKeyLock } from '../shell/write-mutex.js'
 import { ensureBody } from '../shell/minimal-spec.js'
+// #1090：进度区的读、写、核对统一走 shared 层的那一份口径（读与写共用同一份写法，不再各留一份正则）。
+import { applyProgressEntry, progressReadbackProblem } from '../../shared/issue-file/src/progress.js'
+import type { ProgressEntry } from '../../shared/issue-file/src/progress.js'
+import { progressEntryFromArg, stampNow } from '../../shared/issue-file/src/progress-tool.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
@@ -83,7 +87,16 @@ export const definition = {
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人（整批替换；给空数组就是取掉认领）' },
       title: { type: 'string', description: '新的标题' },
       body: { type: 'string', description: '新的正文' },
-      progress: { type: 'string', description: '只改「## 进度」那一段的内容' },
+      progress: {
+        type: 'object',
+        description: '写一条进度记录：{percent, note}（#1090 起不再收一段自由文字）。工具自动盖当前时间、把这条加到「## 进度」区最上面，旧记录原样保留；正文超过 60KB 时拒绝写入、一个字节不动。',
+        properties: {
+          percent: { type: 'integer', description: '进度百分比，0..100 的整数' },
+          note: { type: 'string', description: '做到哪一步了的说明，必填，一句话（不能换行）' },
+        },
+        required: ['percent', 'note'],
+        additionalProperties: false,
+      },
       close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard', 'full'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作，full 再加进度自评' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
@@ -96,49 +109,6 @@ export const definition = {
 /** 从参数里收一束名字：字符串直接用，对象取它的 name，其余一律当空串丢掉（不猜）。 */
 function names(list: unknown) {
   return Array.isArray(list) ? list.map((l) => (typeof l === 'string' ? l : (l && l.name) || '')).map((s) => String(s).trim()).filter(Boolean) : []
-}
-
-/** 只替换「## 进度」那一段：前面的正文与后面的其它区块原样保留。 */
-export function replaceProgressSection(body: unknown, text: unknown) {
-  const src = typeof body === 'string' ? body : ''
-  const clean = String(text === undefined || text === null ? '' : text).replace(/\s*$/, '')
-  const blockBase = '## 进度\n\n' + clean + '\n\n'
-  // 标题认「## 进度」与「## 进度：80% / ## Progress: 40%」：后者是读进度的人认的写法，写进度的人也要认，否则会再插一段重复的进度区。
-  // 结尾认「真正的文末」：多行模式下行尾的 $ 在每一行尾都成立，惰性匹配会停在标题行尾，只换掉标题五个字，旧内容原地不动。
-  // $(?![\s\S]) 只在整个字符串的末尾成立，后面再没有字符，才是兜底分支要等的那个位置。
-  // #1002：右边界加字段行终点：进度区后面是字段行（Status/Type/Blocked by/Labels）时停在字段行之前，
-  // 否则字段行会被吞进进度段、再由改正文的整份分支补到文件末尾（C7）。没有进度区时插在字段行之前，不落到文末。
-  const fieldAhead = '^\\s*(?:Status|Type|Blocked\\s+by|Labels)\\s*[:\\uFF1A]'
-  const single = new RegExp('^##\\s*(?:进度|Progress)(?:\\s*[：:]\\s*\\d{1,3}\\s*%?)?\\s*$[\\s\\S]*?(?=^##\\s|' + fieldAhead + '|$(?![\\s\\S]))', 'mi')
-  if (!single.test(src)) {
-    const block = blockBase
-    const fieldRe = new RegExp(fieldAhead, 'im')
-    const fieldMatch = fieldRe.exec(src)
-    if (fieldMatch) {
-      const idx = fieldMatch.index
-      const before = src.slice(0, idx).replace(/\s*$/, '')
-      const after = src.slice(idx).replace(/^\s*/, '')
-      return (before + '\n\n' + block + after).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
-    }
-    const skelRe = /^##\s*(?:Comments|Answer)\s*$/im
-    const skelMatch = skelRe.exec(src)
-    if (skelMatch) {
-      const idx = skelMatch.index
-      const before = src.slice(0, idx).replace(/\s*$/, '')
-      const after = src.slice(idx).replace(/^\s*/, '')
-      return (before + '\n\n' + block + after).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
-    }
-    return (src.replace(/\s*$/, '') + '\n\n' + block).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
-  }
-  const reAll = new RegExp('^##\\s*(?:进度|Progress)(?:\\s*[：:]\\s*\\d{1,3}\\s*%?)?\\s*$[\\s\\S]*?(?=^##\\s|' + fieldAhead + '|$(?![\\s\\S]))', 'gmi')
-  let first = true
-  const out = src.replace(reAll, function () {
-    if (!first) return ''
-    first = false
-    return blockBase
-  })
-  // 新块后面若直接粘着下一个标题，补一个空行；历史脏数据（之前写坏留下的第二个进度区）已在上面清空，顺手把三连以上的空行压成一段。
-  return out.replace(/([^\n])\n## /g, '$1\n\n## ').replace(/(?:\r?\n){3,}/g, '\n\n')
 }
 
 /**
@@ -188,11 +158,21 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       comment: typeof a.comment === 'string' && a.comment.trim() !== '',
       labels: addLabels.length > 0 || removeLabels.length > 0,
       assignees: Array.isArray(a.assignees),
-      text: typeof a.title === 'string' || typeof a.body === 'string' || typeof a.progress === 'string',
+      text: typeof a.title === 'string' || typeof a.body === 'string' || (a.progress !== undefined && a.progress !== null),
       state: typeof a.close === 'boolean',
     }
     if (!wants.comment && !wants.labels && !wants.assignees && !wants.text && !wants.state) {
       return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '这次没说清要改什么：至少点名一件（comment / addLabels / removeLabels / assignees / title / body / progress / close）。', { cost: { estimated: est } })
+    }
+    // #1090：进度参数按结构化收口，时间由这里盖（测试用 deps.now 的假时钟）。收不成时整笔拒绝，
+    // 不把一段自由文字塞进正文让读的人再猜一遍写法。
+    let progressEntry: ProgressEntry | null = null
+    if (a.progress !== undefined && a.progress !== null) {
+      const parsed = progressEntryFromArg(a.progress)
+      if (parsed.entry === null) {
+        return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, parsed.problem + '这次一个字都没动。', { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
+      }
+      progressEntry = { percent: parsed.entry.percent, note: parsed.entry.note, updatedAt: stampNow(toolEntryAt) }
     }
 
     // exec 的形状由 DSH 给（会话壳那批还没标类型，见 #1040），三处 exec.signal 各按纯类型断言收口：
@@ -343,6 +323,23 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         }
       }
 
+      // #1090：进度写后核对。写动作回了 ok 不算数，要能读回两件事才算写好：
+      // ① 读回来的进度区第一条与这次写入逐项相同（percent / note / updatedAt）；
+      // ② 把进度区剥掉后，剩下的正文与写前逐字相同（trim 两端再比：本地 Markdown 后端会重排正文两端空白）。
+      // 比对与原因的话住在 shared 的 progressReadbackProblem 里；这里只负责读回与逐项记账。
+      const verifyProgressWrite = async (want: ProgressEntry, before: string | null) => {
+        if (sc.outOfBudget()) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但剩余额度不够读回核对：别当成已经写好，稍后读一次现状确认。' }
+        const rawBack = await t.get(repo, key, {}, opCtx)
+        const backTimeout = timeoutMessage(rawBack as unknown as TransportResult)
+        if (backTimeout) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但读回核对超时（' + String(backTimeout).slice(0, 160) + '）：别当成已经写好，稍后读一次现状确认。' }
+        const back = must(rawBack)
+        const body = (back && back.ok === true && back.data && typeof back.data.body === 'string') ? back.data.body : null
+        if (body === null) return { key: key, step: 'text', status: 'failed', reason: '进度写动作回了成功，但写后没读回正文（后端原话：' + String((back && back.error && back.error.message) || '没给出原因').slice(0, 160) + '）：写进去的进度对不对不知道，别当成已经写好。' }
+        const problem = progressReadbackProblem(want, body, before)
+        if (problem) return { key: key, step: 'text', status: 'failed', reason: problem }
+        return { key: key, step: 'text', status: 'ok', fields: ['progress'], progress: want }
+      }
+
       if (wants.text) {
         // 正文读改写序列持同票锁（单次标题直写也一起 serial，保证与进度回写不交错）。
         if (sc.outOfBudget()) over('text')
@@ -352,10 +349,11 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             // 索引签名只为让下面按字段名赋值、delete 与取键名能过编译；写进去的键与值一个字没改。
             const patch: Record<string, unknown> = {}
             let progressBlocked = false
+            let beforeProgress: string | null = null
             if (typeof a.title === 'string') patch.title = a.title
             if (typeof a.body === 'string') patch.body = a.body
-            if (typeof a.progress === 'string') {
-              if (typeof a.body === 'string') patch.body = replaceProgressSection(a.body, a.progress)
+            if (progressEntry) {
+              if (typeof a.body === 'string') beforeProgress = a.body
               else if (sc.outOfBudget()) { progressBlocked = true; over('text') }
               else {
                 const rawCur = await t.get(repo, key, {}, opCtx)
@@ -365,10 +363,15 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
                 const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
                 // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。这次宁可报失败，让调用方等能读回再写，或改传整段 body。
                 if (base === null) { progressBlocked = true; fail('text', { error: { message: '旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。' } }) }
-                else patch.body = replaceProgressSection(ensureBody(base, 'task').body, a.progress)
+                else beforeProgress = ensureBody(base, 'task').body
+              }
+              if (!progressBlocked && beforeProgress !== null) {
+                const planned = applyProgressEntry(beforeProgress, progressEntry)
+                if (planned.next === null) { progressBlocked = true; fail('text', { error: { message: planned.problem } }) }
+                else patch.body = planned.next
               }
             }
-            // 进度因读不到旧正文被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
+            // 进度被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
             if (progressBlocked) delete patch.body
             if (!progressBlocked || Object.keys(patch).length > 0) {
               if (sc.outOfBudget()) over('text')
@@ -377,8 +380,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
                 const textTimeout = timeoutMessage(rawText as unknown as TransportResult)
                 if (textTimeout) { lockTimeout = textTimeout; return }
                 const r = must(rawText)
-                if (r && r.ok === true) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
-                else fail('text', r)
+                if (r && r.ok === true) {
+                  if (!progressEntry) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
+                  else items.push(await verifyProgressWrite(progressEntry, beforeProgress))
+                } else fail('text', r)
               }
             }
           }, lockOpts)
