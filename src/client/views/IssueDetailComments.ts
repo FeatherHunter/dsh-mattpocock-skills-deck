@@ -1,7 +1,7 @@
 // views/IssueDetailComments.ts — Issue 详情评论区（从 IssueDetail.js 拆出，V3 #463，纯结构、行为零变化）
 // 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
 // src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
-// 以后谁改它：改评论提交、评论列表、加载下 50、输入框的人改它。
+// 以后谁改它：改评论提交、评论列表、加载更多按钮、输入框的人改它。
 // 接线：IssueDetail.js 的评论分组处调 renderIssueDetailComments，返回数组直接做分组子节点（此前是字面数组，原样）；
 //   确认下标、错误文案、提交动作内聚在本函数里，主文件只留显隐谓词（底部动作也要读它）。
 // 参数：h = 创建函数；st = 详情 store；detail = 详情自己那次取数（**评论一律以它为准**，见 #693）；
@@ -101,14 +101,14 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
           ])
         })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '8px', background: 'rgba(255,255,255,.03)', borderRadius: 6, border: '1px dashed rgba(255,255,255,.1)' } }, detail
           ? tr('detail.noComments')
-          : (mode === 'loading' ? '加载中…' : tr('detail.notYet'))),
-        // 加载下 50 按钮（T5 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）
+          : (mode === 'loading' ? tr('list.loading') : tr('detail.notYet'))),
+        // 加载更多按钮（T5 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）
         commentsNodes.length ? (function(){
           const fail = st.issueCommentsFailCount || 0
           if (fail >= 3) {
             return h('div', { style: { marginTop: 8, padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' } }, [
               Ic({ n: 'alert', size: 11 }),
-              h('span', null, '以下评论未加载，'),
+              h('span', null, tr('detail.commentsNotLoaded')),
                     // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
       (function () {
         const _u: any = issueUrlFor(st, issueNumber, _eff)
@@ -123,7 +123,7 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
           }
           const hasMore = (detail.comments && detail.comments.pageInfo) ? detail.comments.pageInfo.hasNextPage : commentsNodes.length >= 50
           if (!hasMore && fail===0) return null
-          const label = st.issueCommentsMoreLoading ? '加载中' : (fail>0 ? '重试' : '加载下 50')
+          const label = st.issueCommentsMoreLoading ? tr('detail.commentsLoading') : (fail>0 ? tr('pr.retry') : tr('detail.commentsMore'))
           return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 8 } }, [
             h('button', {
               // #952：分页加载中用呼吸备用（无转圈的文字按钮，永不与转圈同开）。
@@ -140,11 +140,13 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
               },
               style: { padding: '2px 10px', fontSize: 11, opacity: st.issueCommentsMoreLoading ? 0.5 : 1 }
             }, label),
-            fail>0 && fail<3 ? h(Tip, { content: '加载失败，可重试' }, h('span', { style: { fontSize: 11, color: '#8b8b95', cursor: 'help' } }, 'ⓘ')) : null,
+            fail>0 && fail<3 ? h(Tip, { content: tr('detail.commentsLoadFailed') }, h('span', { style: { fontSize: 11, color: '#8b8b95', cursor: 'help' } }, 'ⓘ')) : null,
           ])
         })() : null,
         // 超 50 的静默提示（T5 前占位，T5 后由 hasMore 驱动）
-        commentsNodes.length > 50 ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textAlign: 'center', marginTop: 6 } }, '已显示 ' + Math.min(50, commentsNodes.length) + '/' + commentsNodes.length + (st.issueCommentsHasMore===false ? ' · 已加载全部' : ' · 可加载更多')) : null,
+        commentsNodes.length > 50 ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textAlign: 'center', marginTop: 6 } }, st.issueCommentsHasMore===false
+          ? tr('detail.commentsShownAll', { shown: Math.min(50, commentsNodes.length), total: commentsNodes.length })
+          : tr('detail.commentsShownMore', { shown: Math.min(50, commentsNodes.length), total: commentsNodes.length })) : null,
         // #255 评论输入区：位于评论列表后、原只读提示处；MISSING 不渲染、EMPTY 渲染（零分支判据见谓词）。
         canComment ? h('div', { style: { padding: '2px 0 6px' } }, [
           st.cmtError ? h('div', { style: { marginBottom: 6, padding: '7px 9px', borderRadius: 6, fontSize: 11, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
