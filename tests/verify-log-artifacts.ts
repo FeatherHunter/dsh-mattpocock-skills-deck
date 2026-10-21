@@ -87,22 +87,40 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
   let mirrorOk = 0
   let mirrorChecked = 0
   const problems = []
+  // 先把「有点名事件的宿主真源」收成清单：真源与镜像都换成仓库相对、正斜杠形式，事件名一起留着。
+  const entries = []
   for (const f of hostFiles) {
     const rel = path.relative(path.join(ROOT, 'src', 'host'), f)
     const names = Array.from(quotedEvents(fs.readFileSync(f, 'utf8'))).filter((n) => KNOWN.includes(n))
     if (!names.length) continue
     mirrorChecked += 1
-    const mirror = path.join(ROOT, 'package', 'lib', rel.replace(/\.ts$/, '.js'))
-    if (!fs.existsSync(mirror)) { problems.push(rel + ' 无打包镜像'); continue }
-    const mirrorNames = quotedEvents(fs.readFileSync(mirror, 'utf8'))
-    const miss = names.filter((n) => !mirrorNames.has(n))
-    if (miss.length) { problems.push(rel + ' 镜像缺 ' + miss.join('、')); continue }
-    // 镜像与真源是不是同一次构建的产物：交全仓唯一判据（#1326）。产物路径与真源都换成仓库相对、正斜杠形式。
     const relPosix = rel.split(path.sep).join('/')
-    const judged = judgeProducts({ products: ['package/lib/' + relPosix.replace(/\.ts$/, '.js')], sources: ['src/host/' + relPosix] })
-    judged.notices.forEach((n) => console.log('  INFO ' + n))
-    const judgedMirror = judged.products[0]
-    if (judgedMirror.freshness !== 'fresh') { problems.push(rel + ' ' + judgedMirror.reason); continue }
+    entries.push({
+      rel,
+      names,
+      mirrorRel: 'package/lib/' + relPosix.replace(/\.ts$/, '.js'),
+      sourceRel: 'src/host/' + relPosix,
+    })
+  }
+  // 产物新鲜度一次判完整批镜像：镜像是与上次成功构建记录比；真源与镜像的对应关系由本段前面的事件名断言兜底。
+  // 逐个调判据会在缓存回落时把同一段长 INFO 刷几十遍（无变化的心跳重复记，AGENTS.md 日志纪律），所以整批只判一次、
+  // notices 只打一遍。
+  const judged = judgeProducts({
+    products: entries.map((e) => e.mirrorRel),
+    sources: entries.map((e) => e.sourceRel),
+  })
+  for (const n of judged.notices) console.log('  INFO ' + n)
+  for (const e of entries) {
+    const mirror = path.join(ROOT, e.mirrorRel)
+    if (!fs.existsSync(mirror)) { problems.push(e.rel + ' 无打包镜像'); continue }
+    const mirrorNames = quotedEvents(fs.readFileSync(mirror, 'utf8'))
+    const miss = e.names.filter((n) => !mirrorNames.has(n))
+    if (miss.length) { problems.push(e.rel + ' 镜像缺 ' + miss.join('、')); continue }
+    const judgedMirror = judged.products.find((p) => p.product === e.mirrorRel)
+    if (!judgedMirror || judgedMirror.freshness !== 'fresh') {
+      problems.push(e.rel + ' ' + (judgedMirror ? judgedMirror.reason : '判据没有给出这个产物的结论'))
+      continue
+    }
     mirrorOk += 1
   }
   check(mirrorChecked > 0, '宿主源码含日志事件的文件有 ' + mirrorChecked + ' 个')

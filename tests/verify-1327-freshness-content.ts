@@ -1,5 +1,7 @@
 // tests/verify-1327-freshness-content.ts —— 产物新鲜度「内容判据」的回归门禁（#1327）
-// 门禁归属: scripts/lib/build-cache.mts
+// 归属说明：它守的判据实现在 scripts/lib/build-cache.mts；本文件最后一段还会读真实树上的四个产物与几份
+// 源码，所以 gate-map 把它同时归到 scripts/lib 与那些源码路径。它守的是判据本身，真实树那一段只是顺手
+// 核对生产树上的产物仍然判 fresh。
 //
 // 守的是什么：产物新不新鲜，全仓只有一个判据——scripts/lib/build-cache.mts 的 judgeProducts()。
 // #1326 把这个判据从「比修改时间」换成了「比内容」：只有当
@@ -36,7 +38,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 // 判据只有一份实现（#1326）：这里加载的就是生产用的那一份，不另抄一套期望值。
-const { judgeProducts, inputFingerprint, sha256File, resetBuildCacheMemo, cachePath } =
+const { CACHE_VERSION, judgeProducts, inputFingerprint, sha256File, resetBuildCacheMemo, cachePath } =
   require('../scripts/lib/build-cache.mts')
 
 let failed = false
@@ -72,7 +74,7 @@ function writeGoodCache(): void {
   fs.writeFileSync(
     file,
     JSON.stringify({
-      version: 2,
+      version: CACHE_VERSION,
       entries: {
         full: {
           fingerprint: inputFingerprint(tmpRoot, 'full'),
@@ -109,6 +111,20 @@ try {
   check(!!j && String(j.reason).includes('内容'), '这一判是内容判据给的结论，不是回落的修改时间判据（' + describe(j) + '）')
   check(judged.notices.length === 0, '缓存与输入都对得上时不产生回落说明（共 ' + judged.notices.length + ' 条）')
 
+  // ---- ①b 产物内容没变、只把产物修改时间改得比源码还旧 → 仍判 fresh（#1326 AC①）----
+  // 旧的按修改时间判据在这里会假红（源码比产物新），内容判据必须完全不受修改时间影响。
+  const freshStat = fs.statSync(productAbs)
+  const older = new Date(Date.now() - 120_000)
+  fs.utimesSync(productAbs, older, older)
+  judged = judgedOf()
+  j = (judged.products as any[]).find((x: any) => x.product === PRODUCT)
+  check(!!j && j.freshness === 'fresh', '产物只被改旧修改时间（比源码还旧）时仍判 fresh（' + describe(j) + '）')
+  check(
+    !!j && String(j.reason).includes('内容') && !String(j.reason).includes('按修改时间'),
+    '这一判是内容判据给的结论，没有退回按修改时间判断（' + describe(j) + '）',
+  )
+  fs.utimesSync(productAbs, freshStat.atime, freshStat.mtime)
+
   // ---- ② 只改产物内容一个字节、修改时间原样放回 → stale，且点名具体产物 ----
   const before = fs.statSync(productAbs)
   fs.writeFileSync(productAbs, ORIGINAL.replace('v1', 'v2'))
@@ -118,13 +134,54 @@ try {
   judged = judgedOf()
   j = (judged.products as any[]).find((x: any) => x.product === PRODUCT)
   check(!!j && j.freshness === 'stale', '产物内容与构建记录不一致时判 stale（' + describe(j) + '）')
-  check(!!j && String(j.reason).includes(PRODUCT), 'stale 的原因里点名了具体产物 ' + PRODUCT + '，人能据此定位（' + describe(j) + '）')
+  check(!!j && j.product === PRODUCT, 'stale 的结论落在具体产物 ' + PRODUCT + ' 上（reason 不再重复产物名，门禁前缀已带出）（' + describe(j) + '）')
 
   // ---- ③ 把内容还原 → 又 fresh（内容判据两个方向都能转） ----
   fs.writeFileSync(productAbs, ORIGINAL)
   judged = judgedOf()
   j = (judged.products as any[]).find((x: any) => x.product === PRODUCT)
   check(!!j && j.freshness === 'fresh', '内容还原后重新判 fresh（' + describe(j) + '）')
+
+  // ---- ③b 源码内容变了、修改时间保持旧 → 整批回落，并说清是「构建输入变了」 ----
+  // 缓存里只记了整批输入的摘要，没有逐文件摘要，所以只能说「输入变了」、退回按修改时间判断。
+  const sourceStat = fs.statSync(sourceAbs)
+  fs.writeFileSync(sourceAbs, 'export const answer = 2\n')
+  fs.utimesSync(sourceAbs, sourceStat.atime, sourceStat.mtime)
+  resetBuildCacheMemo()
+  judged = judgedOf()
+  j = (judged.products as any[]).find((x: any) => x.product === PRODUCT)
+  check(
+    (judged.notices as string[]).some((n: string) => n.includes('构建输入在上次成功构建之后有变化')),
+    '缓存里的输入摘要与当前输入对不上时，说明里点出「构建输入变了」（' + (judged.notices[0] || '（没有说明）') + '）',
+  )
+  check(
+    !!j && j.freshness === 'fresh' && String(j.reason).includes('修改时间'),
+    '输入变过时整批回落，按修改时间判断（产物比源码新，判 fresh）（' + describe(j) + '）',
+  )
+  fs.writeFileSync(sourceAbs, 'export const answer = 1\n')
+  fs.utimesSync(sourceAbs, sourceStat.atime, sourceStat.mtime)
+  resetBuildCacheMemo()
+
+  // ---- ③c 记录里漏掉某个产物的摘要 → 点名它，且不给源码清单时必须判 stale（A3）----
+  // 构建的缓存命中判断就传空的源码清单：如果这里假装 fresh，判据会把「摘要坏了」当成「产物新鲜」而跳过真构建。
+  fs.writeFileSync(
+    cachePath(tmpRoot),
+    JSON.stringify({ version: CACHE_VERSION, entries: { full: { fingerprint: inputFingerprint(tmpRoot, 'full'), outputs: {}, at: new Date().toISOString() } } }),
+  )
+  resetBuildCacheMemo()
+  const judgedNoSources: any = judgeProducts({ products: [PRODUCT], root: tmpRoot })
+  ;(judgedNoSources.notices as string[]).forEach((n: string) => console.log('  INFO ' + n))
+  j = (judgedNoSources.products as any[]).find((x: any) => x.product === PRODUCT)
+  check(
+    (judgedNoSources.notices as string[]).some((n: string) => n.includes('构建记录里没有这些产物的内容摘要') && n.includes(PRODUCT)),
+    '记录里漏掉产物摘要时，说明里点名了具体产物 ' + PRODUCT + '（' + (judgedNoSources.notices[0] || '（没有说明）') + '）',
+  )
+  check(
+    !!j && j.freshness === 'stale' && String(j.reason).includes('没有提供可比较的源码清单'),
+    '没有源码清单可回落时判 stale，不假装新鲜（' + describe(j) + '）',
+  )
+  writeGoodCache()
+  resetBuildCacheMemo()
 
   // ---- ④ 删掉构建缓存 → 回落按修改时间判断，且回落不静默 ----
   fs.rmSync(cachePath(tmpRoot))
@@ -177,6 +234,11 @@ const REAL_SOURCES: string[] = [
 ]
 const real: any = judgeProducts({ products: REAL_PRODUCTS, sources: REAL_SOURCES })
 ;(real.notices as string[]).forEach((n: string) => console.log('  INFO ' + n))
+// 链上构建之后跑时缓存有效，四产物必须走内容判据、不产生回落说明；缓存不存在（新克隆、刚清过缓存）时
+// 允许回落、允许打 INFO，但产物仍必须判 fresh——否则这扇门禁单跑时会被环境差异判假红。
+if (fs.existsSync(cachePath())) {
+  check((real.notices as string[]).length === 0, '真实仓库有构建缓存时四产物走内容判据、不产生回落说明（共 ' + (real.notices as string[]).length + ' 条）')
+}
 for (const p of REAL_PRODUCTS) {
   const j: any = (real.products as any[]).find((x: any) => x.product === p)
   check(!!j && j.freshness === 'fresh', '正常仓库树上产物 ' + p + ' 判 fresh' + (j ? '（' + j.reason + '）' : '：判据没有给出结论'))

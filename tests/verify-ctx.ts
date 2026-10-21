@@ -15,18 +15,14 @@ const check = (ok: boolean, msg: string) => { console.log((ok ? '  PASS ' : '  F
 // 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。
 // 缓存可用时比「产物内容摘要 vs 上次成功构建记录」；缓存不可用时回落按修改时间判断，
 // 回落原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
-const { judgeProducts } = require('../scripts/lib/build-cache.mts')
+const { judgeProducts, reportJudgements } = require('../scripts/lib/build-cache.mts')
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const SOURCES = ['src/client/kernel/ctx.ts', 'src/client/index.ts', 'scripts/build.mts', 'package/package.json'] // #1254：入口真源转写为 .ts
 
 async function main() {
   // ---- 产物新鲜度门禁 ----
   const judged = judgeProducts({ products: PRODUCTS, sources: SOURCES })
-  judged.notices.forEach((n) => console.log('  INFO ' + n))
-  for (const p of PRODUCTS) {
-    const j = judged.products.find((x) => x.product === p)
-    check(!!j && j.freshness === 'fresh', '产物门禁 ' + p + (!j ? '：判据没有给出这个产物的结论' : j.freshness === 'fresh' ? '（存在且新鲜）' : '：' + j.reason))
-  }
+  reportJudgements(judged, check, { label: '产物门禁 ', products: PRODUCTS })
   if (failed) { console.log('\n存在失败'); process.exit(1) }
 
   // ---- 模块级：DswsCtx 缺省 null + createCx 8 字段 ----

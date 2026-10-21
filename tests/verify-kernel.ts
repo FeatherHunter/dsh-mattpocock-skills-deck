@@ -15,7 +15,7 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。
 // 缓存可用时比「产物内容摘要 vs 上次成功构建记录」；缓存不可用时回落按修改时间判断，
 // 回落原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
-const { judgeProducts } = require('../scripts/lib/build-cache.mts')
+const { judgeProducts, reportJudgements } = require('../scripts/lib/build-cache.mts')
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const MODULES = [
   { name: 'styles', exports: ['STYLE_TEXT'] },
@@ -87,7 +87,7 @@ const kernelFileOf = (m) => {
 const SOURCES = [
   'src/client/index.ts', 'scripts/build.mts', 'package/package.json', // #1254：入口真源转写为 .ts
   // #629：配色核心的两个产物是客户端闭包的输入（scripts/build.mts 的 SHARED_SPLICE 直接读它们），
-  // 加进这份「比产物新就判过期」的清单以后，「只重跑核心转译、没重跑主构建」会更早变红。
+  // 加进这份回落判据用的源码清单以后，「只重跑核心转译、没重跑主构建」会更早变红。
   // 这是 SOURCES 里第一次出现共享层的文件；另外八个既有共享拼接文件仍然不在清单里（存量空白，另票处理）。
   // 2026-10-19 第三阶段起产物住在仓库根的 .build/shared/，新鲜度要跟新落点比，所以路径改成产物位。
   '.build/shared/label-color/colors.js', '.build/shared/label-color/prompt.js',
@@ -97,11 +97,7 @@ const SOURCES = [
 async function main() {
   // ---- 产物新鲜度门禁 ----
   const judged = judgeProducts({ products: PRODUCTS, sources: SOURCES })
-  judged.notices.forEach((n) => console.log('  INFO ' + n))
-  for (const p of PRODUCTS) {
-    const j = judged.products.find((x) => x.product === p)
-    check(!!j && j.freshness === 'fresh', '产物门禁 ' + p + (!j ? '：判据没有给出这个产物的结论' : j.freshness === 'fresh' ? '（存在且新鲜）' : '：' + j.reason))
-  }
+  reportJudgements(judged, check, { label: '产物门禁 ', products: PRODUCTS })
   if (failed) { console.log('\n存在失败'); process.exit(1) }
 
   // ---- 产物已拼接（无标记残留）----

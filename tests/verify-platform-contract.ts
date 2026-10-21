@@ -33,7 +33,7 @@ function check(ok, msg) {
 // 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。
 // 缓存可用时比「产物内容摘要 vs 上次成功构建记录」；缓存不可用时回落按修改时间判断，
 // 回落原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
-const { judgeProducts } = require('../scripts/lib/build-cache.mts')
+const { judgeProducts, reportJudgements } = require('../scripts/lib/build-cache.mts')
 const PRODUCTS = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES = [
   'src/host/platform/win32/index.ts',
@@ -60,11 +60,7 @@ for (const p of ['package/lib/client.js', 'package/lib/index.js']) {
 // 产物新鲜度判据同上：全仓唯一实现（judgeProducts）。缓存可用时比内容摘要，不可用时回落按修改时间判断，
 // 回落原因打 INFO 行，失败文案直接用判据给的原因。
 const judged = judgeProducts({ products: PRODUCTS, sources: SOURCES })
-judged.notices.forEach((n) => console.log('  INFO ' + n))
-for (const p of PRODUCTS) {
-  const j = judged.products.find((x) => x.product === p)
-  check(!!j && j.freshness === 'fresh', '产物新鲜度 ' + p + (!j ? '：判据没有给出这个产物的结论' : j.freshness === 'fresh' ? '（新鲜）' : '：' + j.reason))
-}
+reportJudgements(judged, check, { label: '产物新鲜度 ', freshText: '（新鲜）', products: PRODUCTS })
 if (failed) { console.log('\n产物门禁存在失败 — 中止后续断言（请先 build）'); process.exit(1) }
 
 // 原先这里还有一段「零手拼 + 静态 import 查表（I2）」：读三端适配器与 platform/index.js 的源码文本，

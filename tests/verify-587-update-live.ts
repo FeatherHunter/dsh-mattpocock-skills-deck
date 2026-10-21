@@ -48,6 +48,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
   const manifestPath = path.join(pkgDir, 'package.json')
   const originalManifest: string = fs.readFileSync(manifestPath, 'utf8')
+  // 还原内容时要把修改时间一起还原：正常路径的内容判据不看 mtime，但缓存不可用时的回落判据按 mtime 判，
+  // 只还原内容会让 package/package.json 的修改时间停在测试跑完的这一刻，回落路径上的新鲜度门禁因此可能报假红。
+  const originalManifestStat = fs.statSync(manifestPath)
   const installedVersion = JSON.parse(originalManifest).version
   const profileDir = path.dirname(path.dirname(pkgDir))
   check(!!installedVersion, '读到磁盘上装的那一版（' + installedVersion + '）')
@@ -91,8 +94,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
     check(false, '真宿主判据跑通（异常：' + errText(e) + '）')
   } finally {
     fs.writeFileSync(manifestPath, originalManifest, 'utf8')
+    try {
+      fs.utimesSync(manifestPath, originalManifestStat.atime, originalManifestStat.mtime)
+    } catch (e) {
+      // 时间戳还原失败不影响内容判据（版本号已还原），但会让回落路径上的新鲜度门禁多一次假红，记成明确失败。
+      check(false, '清单修改时间还原（异常：' + errText(e) + '）')
+    }
     const back = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version
     check(back === installedVersion, '已把使用范围里的清单版本还原成原样（' + back + '）')
+    // Windows 的 utimes 只有毫秒精度，留 2ms 余量；差得多了说明还原没生效，回落判据会因此误判。
+    const backStat = fs.statSync(manifestPath)
+    check(Math.abs(backStat.mtimeMs - originalManifestStat.mtimeMs) <= 2, '清单还原后修改时间也回到原样（差 ' + (backStat.mtimeMs - originalManifestStat.mtimeMs).toFixed(2) + 'ms；回落判据不会因此误判）')
   }
 
   // ============ 二、真挂载渲染：发布产物委托 + 入口件在 jsdom 里真跑 ============
