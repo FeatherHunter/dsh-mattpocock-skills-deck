@@ -4,7 +4,10 @@
 // 1. buildSvg(data, theme) 是纯函数，无 IO、无全局随机——同输入必产出同字节，
 //    保证每日 Action 在数据不变时不产生噪声提交。
 // 2. 手绘感来自确定性种子抖动（fnv1a + mulberry32），而不是 Math.random。
-// 3. 单一比例尺：Total 与 Daily 画在同一坐标系，图上不撒谎；细节留给交互页。
+// 3. 双 Y 轴：Total Stars 走左轴，Daily New 走右轴，各自按自己的最大值缩放。
+//    两条线共用一根轴时，总量一大、每日新增就被压成贴着 X 轴的一条平线；
+//    右轴的刻度数字、轴线与轴名全部染成 Daily 的颜色，读者一眼能看出哪根线读哪根轴。
+//    细节留给交互页。
 // 4. 字体走本机手写体回退链——SVG 以 <img> 渲染时不允许加载外部字体。
 import fs from "fs";
 import { pathToFileURL } from "url";
@@ -18,7 +21,9 @@ const THEMES: Record<string, StarTheme> = {
 };
 
 const FONT = '"Comic Sans MS","Comic Sans","Chalkboard SE","Marker Felt","Segoe Print",cursive';
-const W = 840, H = 480, PAD_L = 64, PAD_R = 36, PAD_T = 64, PAD_B = 58;
+// PAD_R 从 36 改成 64：右边距现在要放 Daily 右轴的刻度数字（"10" 这种两位数）和轴名，
+// 再按 36 留白会把数字裁到画布外。
+const W = 840, H = 480, PAD_L = 64, PAD_R = 64, PAD_T = 64, PAD_B = 58;
 
 function fnv1a(str: string): number {
   let h: number = 0x811c9dc5;
@@ -55,6 +60,13 @@ function smoothPath(pts: number[][]): string {
   return d;
 }
 
+// 每日新增用直角折线连接：它的值是小整数、相邻两天跳得厉害，Catmull-Rom 平滑会在
+// 两个低点之间插值出数据里根本不存在的波峰；这条线现在挂在小量程的右轴上，假波峰会
+// 被放得更大，所以这里不套平滑。
+function straightPath(pts: number[][]): string {
+  return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
+}
+
 export function buildSvg(data: StarPoint[], themeName: string = "dark"): string {
   const t: StarTheme = THEMES[themeName] || THEMES.dark;
   const plotW: number = W - PAD_L - PAD_R, plotH: number = H - PAD_T - PAD_B;
@@ -66,19 +78,30 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
   const yStep: number = niceStep(maxTotal / 4);
   const yMax: number = Math.max(yStep, Math.ceil((maxTotal * 1.06) / yStep) * yStep);
 
+  // 右轴（Daily）自己的量程：刻度最多给 3 档，所以按“最大值的一半”来找步长，
+  // 例如最大值 8 时步长取 5、量程到 10，既不会出现 8 这种不好读的刻度，也不会把线顶到框上。
+  const dailies: number[] = data.map((d) => d.daily);
+  const maxDaily: number = Math.max(1, ...dailies);
+  const dStep: number = niceStep(maxDaily / 2);
+  const dMax: number = Math.max(dStep, Math.ceil((maxDaily * 1.06) / dStep) * dStep);
+
   const times: number[] = data.map((d) => Date.parse(d.date + "T00:00:00Z"));
   const minX: number = Math.min(...times), maxX: number = Math.max(...times);
   const X = (i: number): number => (data.length === 1 ? PAD_L + plotW / 2 : PAD_L + ((times[i] - minX) / (maxX - minX)) * plotW);
   const Y = (v: number): number => PAD_T + plotH - (v / yMax) * plotH;
+  // 右轴映射：和左轴共用同一条 0 基线（都从底部起），只是比例尺各自独立。
+  const Yd = (v: number): number => PAD_T + plotH - (v / dMax) * plotH;
 
   const yTicks: number[] = [];
   for (let v = 0; v <= yMax; v += yStep) yTicks.push(v);
+  const dTicks: number[] = [];
+  for (let v = 0; v <= dMax; v += dStep) dTicks.push(v);
   const want: number = Math.min(5, data.length);
   const xTicks: Array<{ i: number; label: string }> = [...new Set(Array.from({ length: want }, (_, k) => Math.round((k * (data.length - 1)) / (want - 1 || 1))))]
     .map((i) => ({ i, label: data[i].date.slice(5).replace("-", "/") }));
 
   const totalPts: number[][] = data.map((d, i) => [X(i) + j(1.1), Y(d.total) + j(1.1)]);
-  const dailyPts: number[][] = data.map((d, i) => [X(i) + j(1.1), Y(d.daily) + j(1.1)]);
+  const dailyPts: number[][] = data.map((d, i) => [X(i) + j(1.1), Yd(d.daily) + j(1.1)]);
 
   const axisY: number = PAD_T + plotH;
   const sketchy = (x1: number, y1: number, x2: number, y2: number): string => {
@@ -95,6 +118,10 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
     `<line x1="${PAD_L}" y1="${Y(v).toFixed(1)}" x2="${W - PAD_R}" y2="${Y(v).toFixed(1)}" stroke="${t.grid}" stroke-width="1" opacity="0.7"/>`).join("\n  ");
   const yLabels: string = yTicks.map((v) =>
     `<text x="${PAD_L - 10}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="13" fill="${t.muted}">${v}</text>`).join("\n  ");
+  // 右轴刻度用 Daily 的颜色，和左轴的灰色刻度区分开：图例里的 Daily New 也是这个颜色，
+  // 读者顺着颜色就知道这条虚线读右边的数字。
+  const dLabels: string = dTicks.map((v) =>
+    `<text x="${W - PAD_R + 10}" y="${(Yd(v) + 4).toFixed(1)}" text-anchor="start" font-size="13" fill="${t.daily}">${v}</text>`).join("\n  ");
   const xLabels: string = xTicks.map((tk) =>
     `<text x="${X(tk.i).toFixed(1)}" y="${axisY + 24}" text-anchor="middle" font-size="13" fill="${t.muted}">${tk.label}</text>`).join("\n  ");
 
@@ -113,11 +140,14 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
   ${gridLines}
   <path d="${sketchy(PAD_L, axisY, W - PAD_R, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
   <path d="${sketchy(PAD_L, PAD_T, PAD_L, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="${sketchy(W - PAD_R, PAD_T, W - PAD_R, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
   ${yLabels}
+  ${dLabels}
   ${xLabels}
   <text x="18" y="${midY}" font-size="12" fill="${t.muted}" transform="rotate(-90 18 ${midY})" text-anchor="middle">Stars</text>
+  <text x="${W - 18}" y="${midY}" font-size="12" fill="${t.daily}" transform="rotate(90 ${W - 18} ${midY})" text-anchor="middle">New / day</text>
   <text x="${W / 2}" y="${H - 12}" font-size="12" fill="${t.muted}" text-anchor="middle">Date</text>
-  <path d="${smoothPath(dailyPts)}" fill="none" stroke="${t.daily}" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.9"/>
+  <path d="${straightPath(dailyPts)}" fill="none" stroke="${t.daily}" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.9"/>
   <path d="${smoothPath(totalPts)}" fill="none" stroke="${t.total}" stroke-width="3" stroke-linecap="round"/>
 ${legend}
   <text x="${W - PAD_R}" y="${axisY + 44}" text-anchor="end" font-size="12" fill="${t.muted}">${totals[totals.length - 1]} stars · ${data[data.length - 1].date}</text>

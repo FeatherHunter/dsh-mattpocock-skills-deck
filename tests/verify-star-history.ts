@@ -13,7 +13,7 @@ assert.deepEqual(mergeHistory(existing,next), [{date:'2026-08-17',total:1,daily:
 const full=[{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily:2},{date:'2026-08-20',total:5,daily:2}];
 assert.deepEqual(mergeHistory(existing,full), full);
 
-// —— SVG 生成：确定性、单标题、双主题、完整坐标 ——
+// —— SVG 生成：确定性、单标题、双主题、双 Y 轴、完整坐标 ——
 const days: Array<{date: string, total: number, daily: number}>=[
   {date:'2026-08-17',total:1,daily:1},
   {date:'2026-08-19',total:3,daily:2},
@@ -29,5 +29,7 @@ assert.ok(dark1.includes('08/20'),'x axis carries date tick labels');
 assert.ok(dark1.includes('5 stars · 2026-08-20'),'caption shows latest total and date');
 assert.ok(dark1.includes('stroke-dasharray="6 4"'),'daily curve present');
 assert.ok(dark1.includes('viewBox="0 0 840 480"'),'fixed self-contained viewport');
+assert.ok(dark1.includes('New / day'),'daily series must carry its own right-axis title');
+assert.ok(dark1.includes('fill="#38bdf8"'),'right-axis ticks must be drawn in the daily colour');
 
 console.log('verify-star-history: all passed');
