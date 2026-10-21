@@ -26,7 +26,7 @@
     "ticket": {
       "assignees": [],
       "blockedBy": [],
-      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
       "closedAt": null,
       "comments": [
         {
@@ -108,7 +108,7 @@
   "readBack": {
     "assignees": [],
     "blockedBy": [],
-    "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+    "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
     "closedAt": null,
     "comments": [
       {

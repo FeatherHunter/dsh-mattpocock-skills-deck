@@ -114,7 +114,10 @@ export function ensureBody(body: unknown, kind: string): { body: string; added: 
   // 不补「## 进度」区 —— 进度区是给探索地图上的任务票记「做到哪一步」的，这两类票的状态由票的 state 表达。
   if (isHeaderOnlyKind(kind)) return { body: out, added: added }
   if (!hasProgressHeading(text)) {
-    out = (out.replace(/\s*$/, '') + '\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n').replace(/^\n+/, '')
+    // 2026-10-22 维护者决定：进度区不再带「做到哪一步了，在这里一行一行记」这行占位注释。
+    // 它在页面上看不见，用工具写完进度后还会留在正文里，读原始正文的人会分不清哪句是格式、哪句是原话；
+    // 票面只需要「## 进度」这一行标题，写进度的规则看 docs/agents/issue-tracker.md。
+    out = (out.replace(/\s*$/, '') + '\n\n## 进度\n').replace(/^\n+/, '')
     added.push('## 进度')
   }
   return { body: out, added: added }
