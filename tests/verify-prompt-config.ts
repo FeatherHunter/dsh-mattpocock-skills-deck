@@ -63,7 +63,7 @@ const PRODUCT_FILES = [
 // ---------------------------------------------------------------------------
 
 /**
- * 28 条模板 id 的硬编码清单。
+ * 27 条模板 id 的硬编码清单。
  *
  * 为什么要在门禁里再写一份（清单本身在 scripts/lib/prompt-config.mts 里已经有一份）：
  *   那一份是「今天打算有哪些模板」，这一份是「对外承诺的键名」。两份不是一回事：
@@ -73,7 +73,7 @@ const PRODUCT_FILES = [
  *   而且改完必须说得出为什么。
  */
 const PROTECTED_TEMPLATE_IDS: ReadonlyArray<string> = [
-  'complete', 'fixate', 'ghAuthLogin', 'healthCheck', 'installSkills', 'installSkillsFix',
+  'complete', 'fixate', 'healthCheck', 'installSkills', 'installSkillsFix',
   'mapExecute', 'mapInspect', 'newBugWayfinder', 'newSpec', 'newWayfinder', 'setupRun',
   'specComplete', 'specExecute', 'specSplit', 'switchAlign', 'switchLayout',
   'tpl.diagnose', 'tpl.discuss', 'tpl.execute', 'tpl.fix', 'tpl.handoff1', 'tpl.handoff2',
@@ -84,7 +84,7 @@ const PROTECTED_TEMPLATE_IDS: ReadonlyArray<string> = [
 const PROTECTED_FRAGMENT_IDS: ReadonlyArray<string> = ['newBugFields', 'newWayfinderWiring', 'vocabularyDefaults']
 
 /** 模板条数与片段条数的下限：少一条就是少了一条模板，多一条就是多了一条。 */
-const EXPECTED_TEMPLATE_COUNT = 28
+const EXPECTED_TEMPLATE_COUNT = 27
 const EXPECTED_FRAGMENT_COUNT = 3
 
 /**

@@ -36,6 +36,12 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
+// 常驻事件清单（#960 收尾接线）：客户端那半不能运行时 import 本仓源码，所以清单在这里序列化进派生文件；
+// 真源与宿主共用同一份 src/shared/log-event-list.ts，两边不会各写一份。
+import { LOG_EVENT_LIST } from '../src/shared/log-event-list.ts'
+
+/** 清单的 JSON 文本：嵌进派生文件里的建日志器配置（建库配置收对象，序列化后原样是对象字面量）。 */
+const CLIENT_EVENT_LIST_JSON: string = JSON.stringify(LOG_EVENT_LIST)
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
@@ -199,7 +205,7 @@ export function deriveClient(): void {
     '// 注意：broadcastLogSwitch 的声明在 probeSnapshot 分块里，拼入位置在本分块之后；这里若直接写名字，\n' +
     '// 加载时就会因先用后声明而抛错（渲染冒烟实测）。所以包一层转发函数，调用时（模块早已加载完）再解析，行为与直传一致。\n' +
     'const __broadcastLogSwitchLate = function () { try { if (typeof broadcastLogSwitch === \'function\') return broadcastLogSwitch.apply(null, arguments) } catch (e) {} }\n' +
-    'const __pkgLog = createClientLog({ host: host, timer: timer, storage: localStorage, broadcastLogSwitch: __broadcastLogSwitchLate }, { pluginId: \'wf\', prefix: \'wf\' })\n' +
+    'const __pkgLog = createClientLog({ host: host, timer: timer, storage: localStorage, broadcastLogSwitch: __broadcastLogSwitchLate }, { pluginId: \'wf\', prefix: \'wf\', eventList: ' + CLIENT_EVENT_LIST_JSON + ' })\n' +
     '// ---- 开机秒显的升级兜底（0.2.x→0.3.x）：包只读新键 dsws.debug.wf，裸旧键 dsws.debug 不认了；\n' +
     '// 老用户开着时会先闪一下关。持久化那份迁移归 settings-debug.js（settingsDebugLegacy，新键没有、旧键是对象\n' +
     '// 才搬，采样率证据也由它收），这里只把内存这份原地改成开，让导出的快照即刻为开——不能在这里 persist：\n' +

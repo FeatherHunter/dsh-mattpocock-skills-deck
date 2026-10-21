@@ -17,7 +17,7 @@
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
 //    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死、
 //    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角、整条胶囊自己的环又挂回来、
-//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -257,6 +257,10 @@ function audit(read: (p: string) => string): AuditResult[] {
   const ringWhite = feedbackCss.split('}').filter((s) => s.indexOf('box-shadow:0 0 0 1px rgba(255,255,255') >= 0)
   check(ringWhite.length === 0, 'F16b 样式真源里没有白色半透明外圈描边残留' + (ringWhite.length ? '；漏网：' + ringWhite.map((s) => s.trim().slice(-70)).join(' | ') : ''))
   check(feedbackCss.indexOf('.dsws-btn:not(.primary):hover:not(.dsws-pressing),.dsws-seg:hover:not(.dsws-pressing)') >= 0 && feedbackCss.indexOf('{border-color:var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}') >= 0, 'F17 悬停时那圈原来是灰的边框（按钮、分段、配置按钮、地图行、工单行、列表行）统一换成主题焦点色')
+  // 2026-10-21 用户实测追问：ISSUE 列表每一行的焦点/悬停框看着比别处淡，问是不是宽度不够。
+  //   查下来整行的悬停高亮一直只是把行自带的 1px 透明边框换成主题色：整行面积大，一道 1px 细线就显淡。
+  //   这里补一圈 1px 的内画阴影，与那 1px 边框接成 2px，和键盘焦点环同宽；行不提亮也不位移。
+  check(feedbackCss.indexOf('.dsws-aggrow:hover:not(.dsws-pressing),.dsws-trow:hover:not(.dsws-pressing){box-shadow:inset 0 0 0 1px var(--dsws-ring-color') >= 0, 'F28 列表整行的悬停高亮加粗到 2px（1px 主题色边框 + 1px 内画环，与键盘焦点环同宽）：原来整行只有一道 1px 细线，用户实测说看着比别处淡一半')
   check(feedbackCss.indexOf('.dsws-btn.ghost.dsws-pressing{outline:2px solid var(--dsws-ring-color,var(--dsw-focus-ring-color') >= 0 && feedbackCss.indexOf('.dsws-fb-dark.dsws-pressing,.dsws-fb-dark.fb-pressed{outline:2px solid var(--dsws-ring-color,var(--dsw-focus-ring-color') >= 0, 'F18 按下时的确认圈也走主题焦点色（原来是一圈白 outline）')
   check(feedbackCss.indexOf('@keyframes dsws-ringout{0%{box-shadow:inset 0 0 0 0 var(--dsws-ring-color,var(--dsw-focus-ring-color') >= 0, 'F19 ghost 按下的确认光环颜色也取主题焦点色，不写死旧蓝')
   // 2026-10-21 用户逐处实测报「焦点圈被截断」：页签顶部、详情页顶栏按钮上下、状态栏胶囊左右。
@@ -561,6 +565,12 @@ const variants: Variant[] = [
     file: 'src/client/statusbar/SessionChainCapsule.ts',
     group: 'F27',
     change: (s) => replaceAll(s, "cursor: 'pointer', borderRadius: 4 }", "cursor: 'pointer' }"),
+  },
+  {
+    label: '列表整行的悬停环又变回 1px：整行一大片面积上只剩一道细线，看着比别处淡',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F28',
+    change: (s) => replaceAll(s, '.dsws-aggrow:hover:not(.dsws-pressing),.dsws-trow:hover:not(.dsws-pressing){box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}', ''),
   },
 ]
 for (const v of variants) {

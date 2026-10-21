@@ -36,14 +36,17 @@ const SOURCES = [
   sourcePath('src/host/ticketGrouping.js'),
   sourcePath('src/host/issueList.js'),
   sourcePath('src/host/issueDetail.js'),
+  // #1090：mapBody 的 parseProgress 改为从这份叶子引入，产物新鲜度要把叶子也算进来。
+  sourcePath('src/tracker/body-parse.ts'),
   'scripts/build.mts',
   'package/package.json',
 ]
 
-// 从源码抽取内联函数（沿用 verify-progress 的提取法；parseMapBody 依赖 normalizeBody，需同作用域求值）
+// 从源码抽取内联函数（parseMapBody 依赖 normalizeBody，需同作用域求值）
 // 产物 = src/host/index.js 函数体逐字嵌入（scripts/build.mts 文本组合），4 空格缩进；2 空格为兼容回退
+// #1090：parseProgress 不在这里抽了——它已搬去 tracker 叶子，mapBody 只 import，差分改在下面直接比模块导出。
 const extractFns = (src) => {
-  const names = ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
+  const names = ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets']
   const grabOne = (indentSpaces) => {
     const body = names.map((n) => {
       const m = src.match(new RegExp('function\\s+' + n + '\\([\\s\\S]*?\\n {' + indentSpaces + '}\\}'))
@@ -52,7 +55,7 @@ const extractFns = (src) => {
     if (!body.trim()) return null
     try {
       // 五个函数在同一个括号里声明、互相调用也在其中，外层一个变量都不用：改走共用入口 evalWithScope，作用域留空。
-      return evalWithScope('(function(){' + body + ';return {normalizeBody,parseMapBody,parseProgress,computeLevels,groupTickets}})()', {})
+      return evalWithScope('(function(){' + body + ';return {normalizeBody,parseMapBody,computeLevels,groupTickets}})()', {})
     } catch (e) { return null }
   }
   return grabOne(4) || grabOne(2)
@@ -63,7 +66,7 @@ const rawGrab = (src, n, indentSpaces) => {
   const m = src.match(new RegExp('function\\s+' + n + '\\([\\s\\S]*?\\n {' + indentSpaces + '}\\}'))
   return m ? m[0] : ''
 }
-const rawAll = (src) => ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
+const rawAll = (src) => ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets']
   .map((n) => rawGrab(src, n, 4) || rawGrab(src, n, 2) || rawGrab(src, n, 0)).join('\n')
 
 async function main() {
@@ -86,8 +89,8 @@ async function main() {
 
   // ---- 加载叶子（ESM import，Windows 需 file:// URL）----
   const leaf = await import('file://' + path.resolve('src/tracker/body-parse.ts').replace(/\\/g, '/'))
-  const names = ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
-  names.forEach((n) => check(typeof leaf[n] === 'function', 'src/tracker/body-parse.ts 导出 ' + n))
+  const names = ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets']
+  names.concat(['parseProgress']).forEach((n) => check(typeof leaf[n] === 'function', 'src/tracker/body-parse.ts 导出 ' + n))
 
   // ---- Part A：_dev 产物差分（叶子 === 宿主侧实现，H2 后为 mapBody.js + host.js 拼回同一作用域）----
   const hostFns = extractFns(hostSide)
@@ -107,8 +110,6 @@ async function main() {
     check(JSON.stringify(a) === JSON.stringify(b_), 'diff normalizeBody[' + i + '] 叶子===产物(_dev)')
     // parseMapBody
     check(JSON.stringify(leaf.parseMapBody(b)) === JSON.stringify(hostFns.parseMapBody(b)), 'diff parseMapBody[' + i + '] 叶子===产物(_dev)')
-    // parseProgress
-    check(JSON.stringify(leaf.parseProgress(b)) === JSON.stringify(hostFns.parseProgress(b)), 'diff parseProgress[' + i + '] 叶子===产物(_dev)')
   })
 
   // computeLevels / groupTickets 差分（DAG 分层样例）
@@ -127,7 +128,6 @@ async function main() {
   names.forEach((n) => check(!!pkgFns[n], '产物(_pkg) package/lib/index.js 含 ' + n + '（对照基准）'))
   bodies.forEach((b, i) => {
     check(JSON.stringify(leaf.parseMapBody(b)) === JSON.stringify(pkgFns.parseMapBody(b)), 'diff parseMapBody[' + i + '] 叶子===产物(_pkg)')
-    check(JSON.stringify(leaf.parseProgress(b)) === JSON.stringify(pkgFns.parseProgress(b)), 'diff parseProgress[' + i + '] 叶子===产物(_pkg)')
   })
   check(JSON.stringify(leaf.computeLevels(tickets)) === JSON.stringify(pkgFns.computeLevels(tickets)), 'diff computeLevels 叶子===产物(_pkg)')
 
@@ -138,6 +138,23 @@ async function main() {
   check(pp('## 进度：120%') === 100, '真值 parseProgress clamp 120→100')
   check(pp('## 进度：abc%') === null, '真值 parseProgress 非数字→null')
   check(pp('## 进度：-5%') === null, '真值 parseProgress -5% 不匹配（-号挡字正则）→null')
+  // ---- Part C 之二：parseProgress 走模块导出比较（#1090 起 mapBody 不再有本地副本）----
+  // 真源是 src/tracker/body-parse.ts；这里直接加载构建产物 package/lib/mapBody.js，
+  // 拿它 createMapBody() 返回的 parseProgress 与叶子逐输入比较，确认产物里也接的是同一份实现。
+  const pkgMapMod = await import('file://' + path.resolve('package/lib/mapBody.js').replace(/\\/g, '/'))
+  const prodMap = typeof pkgMapMod.createMapBody === 'function' ? pkgMapMod.createMapBody() : null
+  check(!!prodMap && typeof prodMap.parseProgress === 'function', '产物 package/lib/mapBody.js 的 createMapBody() 带 parseProgress')
+  let progressDiff = 0
+  bodies.forEach((b) => {
+    if (!prodMap) { progressDiff += 1; return }
+    if (JSON.stringify(prodMap.parseProgress(b)) !== JSON.stringify(leaf.parseProgress(b))) progressDiff += 1
+  })
+  check(progressDiff === 0, 'diff parseProgress 叶子===产物(_pkg 模块导出)，不一致 ' + progressDiff + ' 处')
+  const srcMapText = sourceText('src/host/mapBody.js')
+  check(!/function\s+parseProgress\s*\(/.test(srcMapText), '真源 mapBody 没有本地 parseProgress（避免又分叉出一份）')
+  check(/import\s*\{[^}]*parseProgress[^}]*\}\s*from\s*['"]\.\.\/tracker\/body-parse\.js['"]/.test(srcMapText), '真源 mapBody 从 tracker 叶子引入 parseProgress')
+  check(/import\s*\{[^}]*parseProgress[^}]*\}\s*from\s*['"]\.\.\/tracker\/body-parse\.js['"]/.test(pkgMap), '产物 mapBody 保留对 tracker 叶子的 import（包内可解析）')
+
   const cl = leaf.computeLevels(tickets)
   check(cl.byNumber['1'] === 0 && cl.byNumber['2'] === 1 && cl.byNumber['3'] === 2, '真值 computeLevels 层级 0/1/2')
   const gt = leaf.groupTickets(tickets)
