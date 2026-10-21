@@ -80,8 +80,9 @@ export const MapDetailHead = ({ st, m, mt, multiEffort, kind }: any) => {
     line ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [
       Ic({ n: failed ? 'alert' : 'map', size: 11, color: failed ? '#f87171' : undefined }),
       h('span', { style: { minWidth: 0 } }, line),
-      failed ? h('button', { className: 'dsws-btn ghost', onClick: retry, style: ghostBtn }, tr('map.subCountRetry')) : null,
-      (failed && url) ? h('button', { className: 'dsws-btn ghost', onClick: openWeb, style: ghostBtn }, tr('list.openInTrackerTitle', { n: m.number })) : null,
+      // 本次界面反馈需求：取数失败时这两个按钮是用户唯一的出路，各自带按压态、悬停反馈与点击日志。
+      failed ? h('button', { className: 'dsws-btn ghost dsws-hov', 'data-press': 'button', 'data-log': 'map.head.retry', onClick: retry, style: ghostBtn }, tr('map.subCountRetry')) : null,
+      (failed && url) ? h('button', { className: 'dsws-btn ghost dsws-hov', 'data-press': 'button', 'data-log': 'map.head.open', onClick: openWeb, style: ghostBtn }, tr('list.openInTrackerTitle', { n: m.number })) : null,
     ]) : null,
   ])
 }

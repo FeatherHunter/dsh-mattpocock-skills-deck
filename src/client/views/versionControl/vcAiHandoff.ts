@@ -73,7 +73,9 @@ export const vcAiHandoffOf = function (o: any) {
 export const vcAiButtonNode = function (h: any, o: any) {
   const ai = (o && o.ai) || null
   if (!ai || !ai.kind) return null
-  return h('button', { key: 'ai', className: 'dsws-btn', type: 'button', 'data-vc-ai': String(ai.kind), onClick: function () { o.onOpen(ai) }, style: { fontSize: 10, padding: '0 6px', flex: 'none' } }, o.tr('vc.action.aiHandoff'))
+  // 接线（#1335 界面反馈）：这颗「让 AI 帮我解决」在页面里可能出现多处（错误块、提示带、结果尾巴），
+  //   定位名由调用点给后缀、前缀固定成 vc.ai.，日志里一眼看得出是这一族按钮，后半截认出是哪一处。
+  return h('button', { key: 'ai', className: 'dsws-btn dsws-hov', type: 'button', 'data-vc-ai': String(ai.kind), 'data-press': 'button', 'data-log': 'vc.ai.' + String(o.logId || 'handoff'), onClick: function () { o.onOpen(ai) }, style: { fontSize: 10, padding: '0 6px', flex: 'none' } }, o.tr('vc.action.aiHandoff'))
 }
 /** 按约定的形状开新会话（o: { opener, st, handoff }）；opener 缺席或抛错都回 false，不崩。 */
 export const vcOpenAiHandoff = function (o: any) {

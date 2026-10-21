@@ -18,12 +18,12 @@
  */
 export const FEEDBACK_STYLE_TEXT: string = [
       // #948 首批（#949 瞬间底座）：只叠加不顶布局，只用滤镜、外圈描边、阴影（描边蓝复用 #58a6ff）；ghost 整类与 .dsws-fb-dark 走外圈描边代替加深；悬停浮起挂既有 .dsws-btn 只加阴影。
-      '.dsws-chip:active,.dsws-chip-fb:active{filter:brightness(.82)}.dsws-trow:active,.dsws-aggrow:active{filter:brightness(.9)}',
+      '.dsws-chip.dsws-pressing,.dsws-chip-fb.dsws-pressing{filter:brightness(.82)}.dsws-trow.dsws-pressing,.dsws-aggrow.dsws-pressing{filter:brightness(.9)}',
       '.dsws-panel :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}',
       '.dsws-btn:hover{box-shadow:0 6px 16px rgba(0,0,0,.45)}',
-      '.dsws-btn.ghost:active{outline:2px solid rgba(255,255,255,.55);outline-offset:1px}',
-      '.dsws-fb-dark:active,.dsws-fb-dark.fb-pressed{outline:2px solid rgba(255,255,255,.85);outline-offset:1px}',
-      '@media (prefers-reduced-motion: reduce){.dsws-chip:active,.dsws-chip-fb:active,.dsws-trow:active,.dsws-aggrow:active{filter:brightness(.82)}.dsws-panel :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}}',
+      '.dsws-btn.ghost.dsws-pressing{outline:2px solid rgba(255,255,255,.55);outline-offset:1px}',
+      '.dsws-fb-dark.dsws-pressing,.dsws-fb-dark.fb-pressed{outline:2px solid rgba(255,255,255,.85);outline-offset:1px}',
+      '@media (prefers-reduced-motion: reduce){.dsws-chip.dsws-pressing,.dsws-chip-fb.dsws-pressing,.dsws-trow.dsws-pressing,.dsws-aggrow.dsws-pressing{filter:brightness(.82)}.dsws-panel :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}}',
       // #948 第二批（#950 瞬间点缀）：全部覆盖层实现，不占布局，不动宽高边距。
       //   大按钮涟漪与小图标外扩环二选一：涟漪只挂 .primary（::after 水波层，
       //   按钮先立相对定位并裁掉溢出），外扩环只挂 .ghost（阴影向外扩一圈，
@@ -35,16 +35,16 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   小图标（.ghost）整批无变形，只靠描边（首批）与外扩环确认。
       //   减少动态下动画变形全关，只剩图标加文字（悬浮气泡与底部小提示不受影响）。
       '.dsws-btn.primary{position:relative;overflow:hidden}',
-      '.dsws-btn.primary:active::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,rgba(255,255,255,.55),transparent 70%);opacity:0;animation:dsws-ripple .55s ease-out}',
+      '.dsws-btn.primary.dsws-pressing::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,rgba(255,255,255,.55),transparent 70%);opacity:0;animation:dsws-ripple .55s ease-out}',
       '@keyframes dsws-ripple{0%{opacity:.8;transform:scale(.4)}100%{opacity:0;transform:scale(1.6)}}',
-      '.dsws-btn.ghost:active{animation:dsws-ringout .6s ease-out}',
+      '.dsws-btn.ghost.dsws-pressing{animation:dsws-ringout .6s ease-out}',
       '@keyframes dsws-ringout{0%{box-shadow:0 0 0 0 rgba(88,166,255,.7)}100%{box-shadow:0 0 0 12px rgba(88,166,255,0)}}',
-      '.dsws-btn.primary:active{transform:scale(.98) translateY(1px)}',
-      '.dsws-modalbox .dsws-btn.primary:active{transform:scale(.98) translateY(1px) rotate(-1.2deg)}',
-      '.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen:active::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);opacity:0;animation:dsws-sheen .5s ease}',
+      '.dsws-btn.primary.dsws-pressing{transform:scale(.98) translateY(1px)}',
+      '.dsws-modalbox .dsws-btn.primary.dsws-pressing{transform:scale(.98) translateY(1px) rotate(-1.2deg)}',
+      '.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen.dsws-pressing::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);opacity:0;animation:dsws-sheen .5s ease}',
       '@keyframes dsws-sheen{0%{opacity:0;transform:translateX(-30%)}100%{opacity:.9;transform:translateX(30%)}}',
-      '.dsws-seg:active,.dsws-skillbtn:active,.dsws-cfg-btn:active,.dsws-skillpop-row:active{filter:brightness(.85)}',
-      '@media (prefers-reduced-motion: reduce){.dsws-btn.primary:active::after,.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen:active::before{animation:none;opacity:0}.dsws-btn.ghost:active{animation:none}.dsws-btn.primary:active,.dsws-modalbox .dsws-btn.primary:active{transform:none}}',
+      '.dsws-seg.dsws-pressing,.dsws-skillbtn.dsws-pressing,.dsws-cfg-btn.dsws-pressing,.dsws-skillpop-row.dsws-pressing{filter:brightness(.85)}',
+      '@media (prefers-reduced-motion: reduce){.dsws-btn.primary.dsws-pressing::after,.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen.dsws-pressing::before{animation:none;opacity:0}.dsws-btn.ghost.dsws-pressing{animation:none}.dsws-btn.primary.dsws-pressing,.dsws-modalbox .dsws-btn.primary.dsws-pressing{transform:none}}',
       // #951 短等待核心：转圈 overlay（宽高不动，文字占位、圈盖在上面）+ 结果闪光抖动（半秒自退）+ 减少动态降级只剩图标。
       //   绿跟提示条 ok 同色，红跟横幅 bad 同色，琥珀跟提示条 warn 同色，不设全局硬值，不引入占位红。
       '.dsws-fb-busy{position:relative}.dsws-fb-busy .fb-t{visibility:hidden}.dsws-fb-busy .fb-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}.dsws-fb-okflash{animation:dsws-fb-okflash .45s ease-out forwards}.dsws-fb-errflash{animation:dsws-fb-errflash .45s ease-out forwards}.dsws-fb-warnflash{animation:dsws-fb-warnflash .45s ease-out forwards}.dsws-fb-shake{animation:dsws-fb-shake .4s ease-out 1}@keyframes dsws-fb-okflash{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}100%{box-shadow:0 0 0 10px rgba(74,222,128,0)}}@keyframes dsws-fb-errflash{0%{box-shadow:0 0 0 0 rgba(248,113,113,.55)}100%{box-shadow:0 0 0 10px rgba(248,113,113,0)}}@keyframes dsws-fb-warnflash{0%{box-shadow:0 0 0 0 rgba(251,191,36,.55)}100%{box-shadow:0 0 0 10px rgba(251,191,36,0)}}@keyframes dsws-fb-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}55%{transform:translateX(3px)}80%{transform:translateX(-2px)}}@media (prefers-reduced-motion: reduce){.dsws-fb-okflash,.dsws-fb-errflash,.dsws-fb-warnflash,.dsws-fb-shake{animation:none}}',
@@ -66,8 +66,11 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-fb-skel{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.13),rgba(255,255,255,.05));background-size:200% 100%;animation:dsws-fb-skel 1.1s linear infinite}',
       '@keyframes dsws-fb-skel{to{background-position:-200% 0}}',
       '@media (prefers-reduced-motion: reduce){.dsws-fb-skel{animation:none;background:rgba(255,255,255,.07)}}',
-      // 本次界面反馈需求里的液态墨块与全控件按压/悬停：第 32 种反馈「选中块迁移」。墨块只在 transform 上做过渡
-      //   （宽度/高度只在选项换行或折叠时变一次），拉伸回弹靠 linear() 的过冲，不新增颜色、不动布局。
+      // 本次界面反馈需求里的液态墨块与全控件按压/悬停：第 32 种反馈「选中块迁移」。
+      //   位置：墨块只在 transform 上做过渡（宽度/高度只在选项换行或折叠时变一次），位移的过冲靠 linear() 缓动。
+      //   形变：拉伸回弹单独走 scale 属性的关键帧（dsws-ink-squash）。scale 是与 transform 独立的属性，
+      //   两边同时写不会互相覆盖：位移由 transform 过渡负责，形变由动画负责，合起来就是「滑过去时略微拉长、落定回弹」。
+      //   形变不引起版面重排，也不新增颜色。
       //   容器由 leaf:liquidInk 补 position:relative；墨块此刻盖住的那一颗把底色/描边让给它（避免双底），
       //   文字颜色照旧。盖住哪一颗由 leaf 动态标在元素上（data-ink-cover），不是选中态标记——多选标签组里
       //   同时选中的可能有好多颗，只有被墨块盖住的那颗让位，其余的保留自己的描边，才看得出选了哪几个。
@@ -75,24 +78,30 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-ink-host .dsws-tab,.dsws-ink-host .dsws-chip{position:relative;z-index:1}',
       '.dsws-ink{position:absolute;left:0;top:0;width:var(--dsws-ink-w,0px);height:var(--dsws-ink-h,0px);border-radius:var(--dsws-ink-radius,6px);background:var(--dsws-ink-bg,rgba(255,255,255,.14));border:1px solid var(--dsws-ink-bd,transparent);box-sizing:border-box;pointer-events:none;z-index:0;will-change:transform;transform:translate3d(var(--dsws-ink-x,0px),var(--dsws-ink-y,0px),0);transition:transform .24s linear(0,.55 30%,1.06 62%,.99 84%,1),width .16s ease,height .16s ease,opacity .12s ease}',
       '.dsws-ink.dsws-ink-instant{transition:none!important}',
+      '.dsws-ink.dsws-ink-squash{animation:dsws-ink-squash .3s ease-out}',
+      '@keyframes dsws-ink-squash{0%{scale:1.05 .94}55%{scale:1.015 .985}100%{scale:1 1}}',
       '.dsws-ink-host .dsws-tab.on{background:transparent;border-color:transparent}',
       '.dsws-ink-host [data-ink-cover="1"]{background:transparent!important;border-color:transparent!important}',
       // 页签只有悬停变色（原来连这个都没有）；药丸加一层轻微提亮，按下由通用按压态负责。
-      '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}.dsws-chip:hover{filter:brightness(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.16)}}',
+      '@media (hover:hover) and (pointer:fine){.dsws-tab:hover:not(.on){background:rgba(255,255,255,.07);color:var(--dsw-alias-label-primary,#e6edf3)}.dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.16)}}',
       // 选中的那一颗悬停时墨块已经在它底下，再补一档提亮，保证「悬停有反馈」对五颗页签每一颗都成立。
-      '@media (hover:hover) and (pointer:fine){.dsws-ink-host .dsws-tab:hover{filter:brightness(1.12)}}',
+      '@media (hover:hover) and (pointer:fine){.dsws-ink-host .dsws-tab:hover:not(.dsws-pressing){filter:brightness(1.12)}}',
       // 通用按压/悬停：给清单里原来没有任何反馈的控件（仓库名、切后端、调色板、新建需求、+bug、
       //   workroute、地图卡片、折叠条、父链接、设置页按钮与插件行等）同一套语言；只用亮度与小位移。
       '.dsws-pressing{filter:brightness(.85)}',
       '.dsws-tab.dsws-pressing,.dsws-chip.dsws-pressing{filter:brightness(.8)}',
-      '@media (hover:hover) and (pointer:fine){.dsws-hov:hover{box-shadow:0 0 0 1px rgba(255,255,255,.2),0 2px 10px rgba(0,0,0,.25);filter:brightness(1.06)}}',
+      '@media (hover:hover) and (pointer:fine){.dsws-hov:hover:not(.dsws-pressing){box-shadow:0 0 0 1px rgba(255,255,255,.2),0 2px 10px rgba(0,0,0,.25);filter:brightness(1.06)}}',
       '.dsws-hov.dsws-pressing{filter:brightness(.82);transform:translateY(1px);box-shadow:none;transition:transform .08s ease}',
       '.dsws-hov{transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}',
-      '@media (hover:hover) and (pointer:fine){.dsws-workroute:hover{filter:brightness(1.18)}}',
+      '@media (hover:hover) and (pointer:fine){.dsws-workroute:hover:not(.dsws-pressing){filter:brightness(1.18)}}',
       // 地图详情的工单卡：整张卡热与按下；卡片内部按钮各自还有自己的反馈，不互相顶掉。
       '@media (hover:hover) and (pointer:fine){.dsws-node:hover{border-color:rgba(255,255,255,.28)!important;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.3)}}',
       '.dsws-node.dsws-pressing{filter:brightness(.9)}',
+      // 战雾（未揭晓）卡片靠整张 blur 表示「还没揭晓」。通用按压规则是纯亮度滤镜，特异度一样但注入更晚，
+      //   按住时会把 blur 顶掉、卡片一下子变清晰，等于提前剧透。这里单给一条：模糊照旧，只把亮度压得更暗；
+      //   :not(.revealed) 是因为已揭晓的卡片 filter 本来是 none，不能又给它糊回去。
+      '.dsws-node.fog:not(.revealed).dsws-pressing{filter:blur(2.4px) brightness(.28)}',
       // 键盘焦点：面板内已有规则，这里补到页签行、筛选药丸与清单里的小按钮，焦点环不删。
       '.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-hov:focus-visible,.dsws-workroute:focus-visible{outline:1px solid #58a6ff;outline-offset:1px}',
-      '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}}',
+      '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-ink.dsws-ink-squash{animation:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}}',
     ].join('')

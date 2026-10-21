@@ -49,6 +49,10 @@ export     const chipKeyDown = function (e: any) {
     }
     // 同一三件套的打包写法：返回一个新对象（带上调用点给的那些 props），不去改调用方传进来的那个对象 ——
     //   传共享对象时不会被顺手带上三件套（评审 2026-10-09 指出的坑）。行为与逐个写那三行完全一致。
+// 药丸定位名的兜底序号：调用点自己给了定位名时用不上，兜底名只在没有定位名时兜底。
+let chipLogSeq = 0
 export     const chipProps = function (p: any) {
-      return Object.assign({ tabIndex: 0, role: 'button', onKeyDown: chipKeyDown }, p || {})
+      // 接线（#1335 界面反馈）：形状是 chip（按下压暗、悬停提亮）。
+      //   定位名优先用调用点给的；调用点没给时用带序号的兜底名，保证同一屏里两颗药丸不会共用一个名字。
+      return Object.assign({ tabIndex: 0, role: 'button', onKeyDown: chipKeyDown, 'data-press': 'chip', 'data-log': 'chip.fallback.' + (++chipLogSeq) }, p || {})
     }

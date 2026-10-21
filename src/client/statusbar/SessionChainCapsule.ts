@@ -328,7 +328,12 @@ export const SessionChainCapsule = function (props: any) {
       const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (rowTime ? ' ' + rowTime : '') + (staleWord ? ' ' + staleWord : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
-        className: 'dsws-chainmenu-row' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
+        className: 'dsws-chainmenu-row dsws-hov' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
+        // 接线（#1335 界面反馈）：这一行用户点得到（点它开那张票并打开面板），所以整行接 row 这一档，
+        // 文字行要有悬停反馈。日志标识带上行号与票号：同一张票在单子里可能占好几行，
+        // 只用票号会撞名，所以行号在前、票号在后，拼起来既唯一又认得出是哪张票。
+        'data-press': 'row',
+        'data-log': 'status.chainmenu.row.' + i + '.' + r.ticketKey,
         onClick: openRow(r),
         onMouseEnter: function () { setActiveRow(i) },
         onMouseLeave: function () { setActiveRow(null) },
@@ -363,10 +368,14 @@ export const SessionChainCapsule = function (props: any) {
     onMouseLeave: function () { chainLater(st, closeRef) },
   }, [
     h('span', {
-      className: 'dsws-capsule-chain',
+      className: 'dsws-capsule-chain dsws-hov',
       tabIndex: 0,
       role: 'link',
       'aria-label': spoken + ' · ' + tr('chainView.openTip'),
+      // 接线（#1335 界面反馈）：胶囊这一颗点了是开那张票并打开面板，它带文字（票号），
+      // 所以按压与悬停都要有；日志标识 status.capsule.chain 与单子里那些行分开认。
+      'data-press': 'button',
+      'data-log': 'status.capsule.chain',
       onClick: function (ev: any) { if (ev && ev.stopPropagation) ev.stopPropagation(); try { capsuleOpenTicket(st, e) } catch (eOpen2) {} try { openPanel(st) } catch (ePanel2) {} },
       onKeyDown: function (ev: any) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); try { capsuleOpenTicket(st, e) } catch (eOpen3) {} try { openPanel(st) } catch (ePanel3) {} } },
       style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer' },

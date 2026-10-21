@@ -368,7 +368,9 @@ export     const MapDetail = ({ st, g, drill }: any) => {
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, decisions.map(function (d: any, i: any) {
             return h('div', { key: i, style: { margin: '2px 0' } }, [
               h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, '· '),
-              (d.url ? h('a', { href: d.url, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'underline' } }, d.title) : h('span', null, d.title)),
+              // 本次界面反馈需求：决定条目里的外链能点，给它按压态、悬停反馈与自己的点击日志；
+              //   定位串只带序号，标题不进定位串（标题是自由文本，门禁按字符集逐条查）。
+              (d.url ? h('a', { href: d.url, target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'map.decision.link.' + i, style: { textDecoration: 'underline' } }, d.title) : h('span', null, d.title)),
               d.gist ? h('span', { style: { color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, ' — ' + d.gist) : null,
             ])
           })),

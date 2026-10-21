@@ -18,6 +18,14 @@ const { compileFn } = require('./lib/eval-probe.js')
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 
 // ---- Part A：CSS / JS 静态契约（双源同步） ----
+// #1335 界面反馈：胶囊根、品牌字、段、刷新按钮都额外挂了悬停类（dsws-hov），类名表不再只有一个词。
+//   判据要认的是「这颗元素身上有这一项类名」，不是「类名表正好只有这一项」；下面凡按 className
+//   精确匹配这几个类名的断言，都改用这个「类名表里含这一项」的写法。判据强度没有放松：
+//   元素仍然必须带这个类，只是允许它还带着别的类（类名表是空格分隔的，不会把 dsws-capsule-word
+//   误认成 dsws-capsule —— 要求整项相等，不是前缀相等）。
+const clsWith = function (name) {
+  return "className:\\s*['\"](?:[^\\s'\"]+\\s+)*" + name + "(?:\\s+[^\\s'\"]+)*['\"]"
+}
 const statChecks = function (src, tag) {
   const ok = (name, cond) => { if (!cond) throw new Error(tag + ' · ' + name); console.log('  PASS ' + tag + ' · ' + name) }
   // #1251：手写源 src/client/** 从 .js 转成 .ts 之后，esbuild 重新打印这些字符串——引号统一变双引号、
@@ -122,7 +130,7 @@ const statChecks = function (src, tag) {
   ok('V2 · 记下 dataset.fold 折叠段数与 dataset.foldTier 档号（调试与门禁的锚点）',
     /cap\.dataset\.fold\s*=\s*String\(/.test(src) && /cap\.dataset\.foldTier\s*=\s*String\(/.test(src))
   // 3d. foldRef 挂 capsule + ResizeObserver 监听
-  ok('V2 · capsule 根挂 ref: foldRef', /className:\s*['"]dsws-capsule['"][^}]*ref:\s*foldRef/.test(src))
+  ok('V2 · capsule 根挂 ref: foldRef', new RegExp(clsWith('dsws-capsule') + '[^}]*ref:\\s*foldRef').test(src))
   ok('V2 · foldRef = React.useRef(null)', /foldRef\s*=\s*React\.useRef\(null\)/.test(src))
   ok('V2 · ResizeObserver 监听 foldRef.current 进合并队列（926 同帧只跑一次）', /new ResizeObserver\(function\s*\(\)\s*\{\s*scheduleFold\(\)\s*;?\s*\}\)[\s\S]{0,200}roFold\.observe\(foldRef\.current\)/.test(src))
   ok('V2 · window resize 进合并队列（实时响应，926 起与观察器同一队列）', /window\.addEventListener\(['"]resize['"],\s*scheduleFold\)/.test(src))
@@ -139,7 +147,11 @@ const statChecks = function (src, tag) {
   ok('R13 · 胶囊 CSS 默认 width:100%（撑满 wrapper=输入区）', /\.dsws-capsule\{[^}]*width:100%/.test(src))
   ok('R13 · 胶囊 CSS box-sizing:border-box', /\.dsws-capsule\{[^}]*box-sizing:border-box/.test(src))
   ok('R13 · 胶囊 CSS max-width 复用宿主变量 --dsh-composer-card-max-width（与输入卡同源）', /--dsh-composer-card-max-width/.test(src))
-  ok('R13 · inline 胶囊 width:100%（不再用 iw 像素）', /className:\s*['"]dsws-capsule['"][\s\S]{0,120}width:\s*["']100%["']/.test(src))
+  //   判据看「胶囊那组属性里写着 width:100%」：#1335 给这颗元素又挂了悬停类、按压形状与点击日志标识，
+  //   onClick 主体也被 esbuild 拆成了多行，类名到 width 的字距从约 100 涨到约 180，原来的 120 字窗口
+  //   不够用了。窗口放宽到 400 字：同一组属性的距离在两百字以内，到下一颗元素的行内样式还隔着一千多字，
+  //   所以这条仍然只认「胶囊自己的那一组属性」。
+  ok('R13 · inline 胶囊 width:100%（不再用 iw 像素）', new RegExp(clsWith('dsws-capsule') + '[\\s\\S]{0,400}width:\\s*["\']100%["\']').test(src))
   ok('R13 · inline 不再含 iw 像素（旧方案已退休）', !/width:\s*iw\s*\+\s*'px'/.test(src))
   ok('R13 · 旧 fit-content 弃用', !/\.dsws-capsule\{[^}]*width:fit-content/.test(src) && !/style:\s*\{[^}]*width:\s*["']fit-content["']/.test(src))
   ok('R9 · 第一性原理：不再查询特定 textarea 类名（已去耦）', !/textarea\.uV2eYG_input/.test(src))
@@ -156,10 +168,12 @@ const statChecks = function (src, tag) {
   ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*["']flex["'],\s*justifyContent:\s*["']center["'][\s\S]{0,200}alignItems:\s*["']stretch["']/.test(src))
 
   // 期望 4：点击事件契约
-  ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
-  ok('capsule-word onClick → togglePanel(s) + stopPropagation', /className:\s*['"]dsws-capsule-word['"][^}]*onClick:[^}]*togglePanel\(s\)/.test(src) && /className:\s*['"]dsws-capsule-word['"][^}]*e\.stopPropagation/.test(src))
-  ok('seg onClick → e.stopPropagation + onGo()', /className:\s*['"]dsws-seg['"][^}]*e\.stopPropagation/.test(src) && /className:\s*['"]dsws-seg['"][^}]*onGo\(\)/.test(src))
-  ok('timebtn onClick → e.stopPropagation + refreshAll(s)', /className:\s*['"]dsws-timebtn['"][^}]*e\.stopPropagation/.test(src) && /className:\s*['"]dsws-timebtn['"][^}]*refreshAll\(s\)/.test(src))
+  //   这四条都改成「类名表里含这一项」的匹配（clsWith）：#1335 给这些控件挂了悬停类，类名表多一个词。
+  //   onClick 与它要认的那次调用之间仍不许跨过对象结尾（[^}]*），判据强度没有放松。
+  ok('capsule onClick → openPanel(s)', new RegExp(clsWith('dsws-capsule') + '[^}]*onClick:\\s*function\\s*\\(\\)\\s*\\{\\s*openPanel\\(s\\)').test(src))
+  ok('capsule-word onClick → togglePanel(s) + stopPropagation', new RegExp(clsWith('dsws-capsule-word') + '[^}]*onClick:[^}]*togglePanel\\(s\\)').test(src) && new RegExp(clsWith('dsws-capsule-word') + '[^}]*e\\.stopPropagation').test(src))
+  ok('seg onClick → e.stopPropagation + onGo()', new RegExp(clsWith('dsws-seg') + '[^}]*e\\.stopPropagation').test(src) && new RegExp(clsWith('dsws-seg') + '[^}]*onGo\\(\\)').test(src))
+  ok('timebtn onClick → e.stopPropagation + refreshAll(s)', new RegExp(clsWith('dsws-timebtn') + '[^}]*e\\.stopPropagation').test(src) && new RegExp(clsWith('dsws-timebtn') + '[^}]*refreshAll\\(s\\)').test(src))
 
   // 期望 5：EN locale i18n 键齐备
   // #1294：界面词表改为 config/copy/*.yaml 生成后再拼进产物，语言段的键在产物里带引号

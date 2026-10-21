@@ -23,13 +23,19 @@ export const PixelCardBtns = function (props?: CardBtnsProps): any {
   const cx = React.useContext(DswsCtx);
   const h = cx ? cx.h : React.createElement;
   const bg = '#' + String(p.mainColor || '8b5cf6');
+  // 日志标识由外层卡片传进来：同一屏可能同时摆着好几张卡，每张卡里的按钮要各认各的，不能共用一个名字。
+  // 定位串的固定部分写成字面量、变化的部分（哪张卡）接在后面——门禁是按字面量查字符集与唯一性的。
+  const logKey = String(((props as any) || {}).logKey || '');
   const ink = cardInkOn(bg);
   const stop = function (e: any): void { if (e && e.stopPropagation) e.stopPropagation(); };
   const st = { background: bg, color: ink };
   return h('div', { className: 'cd-actions' }, [
-    h('button', { key: 'm', className: 'cd-abtn label', style: st, onClick: function (e: any): void { stop(e); if (p.onMain) p.onMain(); } }, [h(PixelCardIcon, { key: 'i', n: p.icon }), p.mainLabel]),
-    h('button', { key: 'n', className: 'cd-abtn label', style: st, onClick: function (e: any): void { stop(e); if (p.onNew) p.onNew(); } }, [h(PixelCardIcon, { key: 'i', n: 'ext' }), tr('card.newSession')]),
-    h('button', { key: 'c', className: 'cd-abtn paper icon', title: tr('card.copyLink'), onClick: function (e: any): void { stop(e); if (p.onCopy) p.onCopy(); } }, h(PixelCardIcon, { n: 'clip' })),
-    h('button', { key: 'o', className: 'cd-abtn paper icon', title: tr('card.openLink'), onClick: function (e: any): void { stop(e); if (p.onOpen) p.onOpen(); } }, h(PixelCardIcon, { n: 'link' })),
+    // 四颗按钮是像素风控件：只接 data-press 与 data-log，不加 dsws-hov（像素按钮自己有那套外观，
+    // 悬停提亮与下沉位移由像素样式负责，叠两套会让按下时的位移对不上图标格）。
+    // 复制与打开是纯图标按钮，按压形状记 icon；有文字的主按钮与新会话按钮记 button。
+    h('button', { key: 'm', className: 'cd-abtn label', style: st, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.main', onClick: function (e: any): void { stop(e); if (p.onMain) p.onMain(); } }, [h(PixelCardIcon, { key: 'i', n: p.icon }), p.mainLabel]),
+    h('button', { key: 'n', className: 'cd-abtn label', style: st, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.new', onClick: function (e: any): void { stop(e); if (p.onNew) p.onNew(); } }, [h(PixelCardIcon, { key: 'i', n: 'ext' }), tr('card.newSession')]),
+    h('button', { key: 'c', className: 'cd-abtn paper icon', title: tr('card.copyLink'), 'data-press': 'icon', 'data-log': 'card.btn.' + logKey + '.copy', onClick: function (e: any): void { stop(e); if (p.onCopy) p.onCopy(); } }, h(PixelCardIcon, { n: 'clip' })),
+    h('button', { key: 'o', className: 'cd-abtn paper icon', title: tr('card.openLink'), 'data-press': 'icon', 'data-log': 'card.btn.' + logKey + '.open', onClick: function (e: any): void { stop(e); if (p.onOpen) p.onOpen(); } }, h(PixelCardIcon, { n: 'link' })),
   ]);
 };

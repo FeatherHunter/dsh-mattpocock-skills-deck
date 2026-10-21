@@ -51,11 +51,15 @@ export const SkillsTab = ({ st }: any): any => {
         if (typeof pixelOpenDetail === 'function') pixelOpenDetail(st, name, itemOf(name))
       }
       const chips = h('div', { style: { marginBottom: 8 } }, rec.map(function (r, i) {
+        // 本次界面反馈需求：推荐药丸能点开技能详情，给它按压态、悬停反馈与自己的点击日志；
+        //   定位串用序号（技能名可能带斜杠等字符，定位串只收小写字母数字与点横线下划线）。
         return h('span', {
           key: i,
-          className: 'dsws-chip dsws-chip-m pixel-chipref',
+          className: 'dsws-chip dsws-chip-m pixel-chipref dsws-hov',
           role: 'button',
           tabIndex: 0,
+          'data-press': 'chip',
+          'data-log': 'skill.chip.' + i,
           onClick: function () { openSkill(r) },
         }, '/' + r)
       }))

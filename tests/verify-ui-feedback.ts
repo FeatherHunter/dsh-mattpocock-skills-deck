@@ -8,13 +8,49 @@
 // 3. 点完之后能凭一条日志唯一定位到被点的那一颗：每个可点控件带同屏唯一的 data-log，
 //    统一由 kernel/ui-feedback.ts 写 debug 级 ui.action（调试开关关着时第一行早退、零开销）。
 // 4. 分流/分支里重复写的同名按钮（返回列表在多个渲染分支各一份）允许字面量重复；不同控件不许共用。
-// 5. 这扇门禁自己也要能判红：A–F 六组跑真实源码必须全绿，再喂八种反例（漏接线、命名重复、
+// 5. 这扇门禁自己也要能判红：A–H 八组跑真实源码必须全绿，再喂十三种反例（漏接线、命名重复、
 //    大写混入、另写一套样式、日志少一条、选中项重新露底色形成双底、对位改用会触发布局的尺寸接口、
-//    新叶子只加源码不登记构建清单）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    新叶子只加源码不登记构建清单、墨块拉伸的关键帧被删、墨块宿主的早退守卫被删、墨块的尺寸监听被删、
+//    悬停规则不再排除按压态、日志形状不再取最近的按压元素）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
 import { sourceText } from './lib/source-text.ts'
+import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
+
+// H 组要扫全仓客户端源文件，不能只扫清单里那几片，否则漏网的控件照样溜过去。
+// 仓库根从当前目录往上找（找得到 scripts 与 src 的那一层），不依赖运行方式。
+function repoRoot(): string {
+  let dir = process.cwd()
+  for (let i = 0; i < 6; i++) {
+    try {
+      const names = readdirSync(dir)
+      if (names.indexOf('scripts') >= 0 && names.indexOf('src') >= 0) return dir
+    } catch (e) {}
+    const up = join(dir, '..')
+    if (up === dir) break
+    dir = up
+  }
+  return process.cwd()
+}
+
+/** src/client 下全部 .ts 源文件（仓库相对路径，正斜杠）。 */
+const CLIENT_FILES: string[] = (() => {
+  const root = repoRoot()
+  const out: string[] = []
+  const walk = (dir: string, prefix: string) => {
+    let entries: any[] = []
+    try { entries = readdirSync(dir, { withFileTypes: true }) as any[] } catch (e) { return }
+    for (const e of entries) {
+      const rel = prefix ? prefix + '/' + e.name : e.name
+      if (e.isDirectory()) walk(join(dir, e.name), rel)
+      else if (e.name.endsWith('.ts')) out.push('src/client/' + rel)
+    }
+  }
+  walk(join(root, 'src', 'client'), '')
+  return out.sort()
+})()
 
 let failures = 0
 let total = 0
@@ -37,6 +73,47 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/views/SettingsPage.ts', '设置页 star/issue/版本号/插件行', ['settings.version', 'settings.star', 'settings.issue', 'settings.plugin.']],
   ['src/client/views/SettingsWorkspaces.ts', '工作区总览刷新与展开收起', ['settings.workspaces.toggle', 'settings.workspaces.refresh']],
   ['src/client/views/diagnosticLog/DiagnosticLogSection.ts', '调试开关与四颗日志按钮', ['settings.debug.toggle', 'settings.log.export', 'settings.log.open', 'settings.log.copy', 'settings.log.clear']],
+  // 2026-10-21 补全：清单之外的可点控件也补齐了接线（用户要求「把所有遗漏的控件都补全了」），
+  // 下面这些是补全时新接上的几片界面，每片都要有自己这一组定位串。
+  ['src/client/statusbar/StatusBar.ts', '状态栏胶囊、分段与横幅', ['status.capsule', 'status.seg.', 'status.banner.', 'status.menu.', 'status.handoff', 'status.refresh', 'status.gate.']],
+  ['src/client/statusbar/StatusLogMenu.ts', '状态栏日志菜单', ['status.logdot', 'status.logmenu.', 'status.logconfirm.backdrop']],
+  ['src/client/statusbar/LogDangerConfirm.ts', '日志危险操作确认', ['status.logconfirm.', 'status.lognotice.']],
+  ['src/client/statusbar/SessionChainCapsule.ts', '会话链胶囊', ['status.chainmenu.row.', 'status.capsule.chain']],
+  ['src/client/views/ListTab.ts', '列表页顶部按钮与筛选药丸', ['list.filter.remove.', 'list.filter.clear', 'list.healthcheck', 'list.effort.', 'list.fold.closed']],
+  ['src/client/views/ListTabClosed.ts', '已关闭列表', ['list.closed.web']],
+  ['src/client/views/IssueDetail.ts', '工单详情错误态控件', ['detail.err.']],
+  ['src/client/views/IssueDetailComments.ts', '评论区的错误态链接', ['detail.cmt.']],
+  ['src/client/views/MapDetail.ts', '地图详情里的决策链接', ['map.decision.link.']],
+  ['src/client/views/MapDetailHead.ts', '地图详情头部', ['map.head.retry', 'map.head.open']],
+  ['src/client/views/MapDetailSpecBody.ts', '规格地图页的折叠段', ['map.spec.section.']],
+  ['src/client/views/ChecksTab.ts', '环境检查页', ['check.fix.', 'check.recheck', 'check.diag.']],
+  ['src/client/views/PrTab.ts', '拉取请求页', ['pr.retry', 'pr.row.']],
+  ['src/client/views/RunPanel.ts', '运行面板', ['run.openpanel', 'run.openconfig']],
+  ['src/client/views/SkillsTab.ts', '技能页药丸', ['skill.chip.']],
+  ['src/client/views/SetupCard.ts', '设置向导卡片', ['setup.close', 'setup.cancel', 'setup.confirm']],
+  ['src/client/views/SubworkspaceMark.ts', '子工作区标记', ['sub.mark.open']],
+  ['src/client/views/TicketRow.ts', '工单行与行内按钮', ['ticket.row.', 'ticket.newsession.', 'ticket.link.', 'ticket.view.']],
+  ['src/client/views/NoRepoCard.ts', '无仓库红卡', ['norepo.pending.', 'norepo.other.', 'norepo.dismiss.', 'norepo.card.', 'norepo.err.', 'norepo.form.', 'norepo.labels.']],
+  ['src/client/views/labels/LabelColorDialog.ts', '标签色弹窗', ['lc.close.x', 'lc.save', 'lc.copy', 'lc.retry']],
+  ['src/client/views/labels/LabelColorRow.ts', '标签色每一行', ['lc.row.raw.toggle.', 'lc.row.swatch.']],
+  ['src/client/views/cards/PixelCardBtns.ts', '像素卡里的四颗按钮', ['card.btn.']],
+  ['src/client/views/cards/PixelIssueCard.ts', '像素工单卡', ['card.issue.']],
+  ['src/client/views/cards/PixelIssueMapCard.ts', '像素地图工单卡', ['card.map.']],
+  ['src/client/views/pixel/PixelBtn.ts', '像素按钮', ['pixel.btn.']],
+  ['src/client/views/pixel/PixelBanner.ts', '像素横幅', ['banner.retry', 'banner.dismiss']],
+  ['src/client/views/skillDetail/PixelContents.ts', '技能详情目录', ['sd.toc.row.']],
+  ['src/client/views/skillDetail/PixelMarkdown.ts', '技能详情正文里的链接与图片', ['sd.md.']],
+  ['src/client/views/skillDetail/PixelSkillDetailModal.ts', '技能详情弹窗', ['sd.detail.']],
+  ['src/client/views/skillDetail/PixelSkillRow.ts', '技能列表行', ['sd.skillrow.']],
+  ['src/client/views/versionControl/VersionControlTab.ts', '版本管理页', ['vc.row.open.', 'vc.reload', 'vc.commit.back', 'vc.changes.back']],
+  ['src/client/views/versionControl/vcAiHandoff.ts', '版本管理的 AI 交接', ['vc.ai.']],
+  ['src/client/views/versionControl/vcViews.ts', '版本管理的三个页签', ['vc.tab.']],
+  ['src/client/views/versionControl/vcWriteView.ts', '版本管理的写操作', ['vc.row.stage.', 'vc.viewbar.', 'vc.action.']],
+  ['src/client/views/shared/ChainRenderer.ts', '工作流步骤', ['chain.action.', 'chain.form.']],
+  ['src/client/views/shared/chips.ts', '兜底药丸', ['chip.fallback.']],
+  ['src/client/views/shared/md.ts', '正文里的链接与图片', ['md.link.', 'md.overlay.', 'md.img.']],
+  ['src/client/views/shared/RestFallbackBanner.ts', '兜底横幅', ['banner.restfallback.dismiss']],
+  ['src/client/views/shared/SwitchConfirmModal.ts', '切换后端确认框', ['switch.']],
 ]
 // E 组要数的文件：D 组清单（这些文件里每颗控件都该写 data-log）再加上列表主文件
 // （它自己不带 data-log，但它也算这块界面的一部分，留着是为了让命名纪律扫到整片列表页）。
@@ -78,6 +155,7 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(indexSrc.indexOf('// ==== kernel:uiFeedback (spliced by build) ====') >= 0 && indexSrc.indexOf('installUiFeedback()') >= 0, 'A8 客户端入口拼进这一片并在启动段调用一次')
   check(buildSrc.indexOf("file: 'src/client/kernel/ui-feedback.ts'") >= 0 && buildSrc.indexOf("file: 'src/client/views/shared/liquidInk.ts'") >= 0 && buildSrc.indexOf("file: 'src/client/views/listFilterRow.ts'") >= 0, 'A9 三个新片都登记进构建清单（不登记会静默不编译）')
   check(indexSrc.indexOf('// ==== leaf:liquidInk (spliced by build) ====') >= 0 && indexSrc.indexOf('// ==== leaf:listFilterRow (spliced by build) ====') >= 0, 'A10 两个新叶子的拼接标记都在入口里')
+  check(uiFeedback.indexOf('const pressed = pressTargetOf(ev)') >= 0 && uiFeedback.indexOf('pressed.getAttribute(UI_PRESS_ATTR)') >= 0, 'A11 日志的形状取离事件目标最近的那颗带 data-press 的元素（形状标在日志元素外面时也要记对，例如调试开关的开关标在外层 label 上）')
 
   // ============ B 组：液态墨块怎么动、不许碰布局 ============
   check(liquidInk.indexOf("export const LIQUID_INK_CLASS = 'dsws-ink'") >= 0 && liquidInk.indexOf('export function useLiquidInk') >= 0 && liquidInk.indexOf('export function liquidInkRemember') >= 0, 'B1 墨块对外只有三件：类名常量、组件入口 useLiquidInk、点击记忆 liquidInkRemember')
@@ -92,6 +170,11 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(feedbackCss.indexOf('.dsws-ink-host .dsws-tab.on{background:transparent') >= 0 && feedbackCss.indexOf('.dsws-ink-host [data-ink-cover="1"]{background:transparent!important') >= 0 && feedbackCss.indexOf('.dsws-ink-on{background:transparent') < 0, 'B10 墨块盖住的那一颗让出底色/描边，其余选中项保留（页签用 .on，药丸靠动态 data-ink-cover；若按 .dsws-ink-on 一刀切，多选标签组会把其余选中项的描边也吃掉）')
   check(liquidInk.indexOf("export const LIQUID_INK_COVER_ATTR = 'data-ink-cover'") >= 0 && liquidInk.indexOf('function markCovered') >= 0 && liquidInk.indexOf('setAttribute(LIQUID_INK_COVER_ATTR') >= 0 && liquidInk.indexOf('removeAttribute(LIQUID_INK_COVER_ATTR)') >= 0, 'B12 盖住标记由 liquidInk 动态标/摘（不是选中态标记，多选组里只盖一颗，避免双底又给其余选中项留描边）')
   check(feedbackCss.indexOf('.dsws-ink{position:absolute') < feedbackCss.indexOf('@media (prefers-reduced-motion: reduce){.dsws-ink'), 'B11 减少动态有降级：墨块仍在，只是不滑（不是整块消失）')
+  check(feedbackCss.indexOf('@keyframes dsws-ink-squash{0%{scale:') >= 0 && feedbackCss.indexOf('.dsws-ink.dsws-ink-squash{animation:dsws-ink-squash') >= 0, 'B13 墨块换项时真的有拉伸回弹：形变走独立 scale 属性与 dsws-ink-squash 关键帧（scale 与 transform 是两个属性，不会互相顶掉）')
+  check(liquidInk.indexOf("const INK_SQUASH_CLASS = 'dsws-ink-squash'") >= 0 && liquidInk.indexOf('ink.classList.remove(INK_SQUASH_CLASS)') >= 0 && liquidInk.indexOf('void ink.offsetWidth') >= 0 && liquidInk.indexOf('ink.classList.add(INK_SQUASH_CLASS)') >= 0, 'B14 换项时重播拉伸回弹（先摘类、强制一次重排、再挂上，动画才会重播）')
+  check(liquidInk.indexOf('ResizeObserver') >= 0 && liquidInk.indexOf('ro.observe(') >= 0, 'B15 墨块跟着选项的尺寸走（选项自身变宽——换行、字体晚到——也要重新对位）')
+  check(liquidInk.indexOf('if (host.classList.contains(LIQUID_INK_HOST_CLASS)) return') >= 0, 'B16 墨块宿主已经有那个类时直接返回（#1334 整窗卡死的复发守卫：加一个已经有的类也算一次 class 变更，观察器会自己触发自己）')
+  check(liquidInk.indexOf('t.classList.contains(LIQUID_INK_CLASS)') >= 0, 'B17 观察回调连兄弟墨块也跳过（一个容器里住三块墨块时——列表页三组筛选就是这个形状——A 换项重播回弹会点燃 B、C，再反点燃 A，整窗卡死；单块墨块的页面测不出来）')
 
   // ============ C 组：五颗页签 + 三组药丸都接上了 ============
   const tabs = read('src/client/views/shared/Tabs.ts')
@@ -140,14 +223,61 @@ function audit(read: (p: string) => string): AuditResult[] {
   // ============ F 组：悬停与按压的样式只有一套 ============
   check(feedbackCss.indexOf('.dsws-pressing{filter:brightness(.85)}') >= 0, 'F1 通用按压态：按下去整颗压暗一档（全清单共用）')
   check(feedbackCss.indexOf('@media (hover:hover) and (pointer:fine){.dsws-hov:hover') >= 0, 'F2 通用悬停态只对真鼠标生效（触屏不残留悬停样式）')
-  check(feedbackCss.indexOf('.dsws-tab:hover:not(.on)') >= 0 && feedbackCss.indexOf('.dsws-ink-host .dsws-tab:hover{filter:brightness(1.12)}') >= 0, 'F3 页签悬停：没选中的换底、选中的再提亮一档（五颗每一颗都有反馈）')
-  check(feedbackCss.indexOf('.dsws-chip:hover{filter:brightness(1.12)') >= 0, 'F4 筛选药丸悬停有提亮与描边')
+  check(feedbackCss.indexOf('.dsws-tab:hover:not(.on)') >= 0 && feedbackCss.indexOf('.dsws-ink-host .dsws-tab:hover:not(.dsws-pressing){filter:brightness(1.12)}') >= 0, 'F3 页签悬停：没选中的换底、选中的再提亮一档（五颗每一颗都有反馈）；按住的时候不再提亮，否则按下去反而变亮')
+  check(feedbackCss.indexOf('.dsws-chip:hover:not(.dsws-pressing){filter:brightness(1.12)') >= 0, 'F4 筛选药丸悬停有提亮与描边；按住的时候不再提亮')
+  check(feedbackCss.indexOf(':active') < 0, 'F8 反馈样式真源里没有 :active（按压一律走委托挂的 .dsws-pressing：:active 按住后把指针拖走会粘住，祖先元素还会跟着一起匹配）')
+  const hoverFilterSegs = feedbackCss.split('}').filter((s) => s.indexOf(':hover') >= 0 && (s.indexOf('filter:') >= 0 || s.indexOf('brightness(') >= 0))
+  const hoverNotExcluded = hoverFilterSegs.filter((s) => s.indexOf('.dsws-pressing') < 0)
+  check(hoverFilterSegs.length >= 3 && hoverNotExcluded.length === 0, 'F9 凡是给悬停加亮度的规则都同时排除按压态（按住时不能反而变亮）' + (hoverNotExcluded.length ? '；漏网：' + hoverNotExcluded.map((s) => s.trim().slice(-60)).join(' | ') : ''))
   check(feedbackCss.indexOf('.dsws-node:hover{border-color') >= 0 && feedbackCss.indexOf('.dsws-node.dsws-pressing') >= 0, 'F5 地图工单卡整张卡悬停与按压都有（卡内按钮各自还有自己的）')
   check(feedbackCss.indexOf('.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-hov:focus-visible') >= 0, 'F6 键盘焦点环补到页签、药丸与小按钮（不删焦点可见性）')
   check((feedbackCss.match(/prefers-reduced-motion/g) || []).length >= 4, 'F7 减少动态的降级覆盖到新效果（墨块、通用悬停、按压位移都关）')
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')
   }
+
+  // ============ H 组：全仓兜底 —— 有可点痕迹却没有接线的文件，一颗都不许剩 ============
+  // 这一组扫的是 src/client 下全部源文件，不是清单里那十几片：清单只保证「写进去的都合格」，
+  // 全仓扫描才保证「没写进去的也被揪出来」。判据只有两条：能点却没有日志接线、日志名字跨文件撞车。
+  const CLICKABLE = /onClick|href:|h\('summary'|role:\s*'button'/
+  const unwired: string[] = []
+  const dupHomes: Record<string, string[]> = {}
+  const allLogs: string[] = []
+  for (const f of CLIENT_FILES) {
+    // 类型声明文件只是描述控件长什么样，不是控件本身；跳过。
+    if (f.endsWith('.d.ts')) continue
+    const src = read(f)
+    if (!src) continue
+    // 注释里提到 onClick 不算这里有可点控件，先把注释去掉再判断。
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+    const re = /'data-log':\s*'([^']+)'/g
+    let m: any
+    let n = 0
+    while ((m = re.exec(src))) { n++; allLogs.push(m[1]); (dupHomes[m[1]] = dupHomes[m[1]] || []).push(f) }
+    // 「这颗控件接了线」看的是属性在不在，而不是有没有写死成一个字符串：
+    // 有些控件的名字是按参数拼出来的（例如状态栏的分段按钮 seg(...) 由调用方给标识），
+    // 那种写法接了线但扫不到字面量，判据要认它接了，不该把它算成漏网。
+    const hasLog = code.indexOf("'data-log'") >= 0
+    const hasPress = code.indexOf("'data-press'") >= 0
+    if (hasLog && !hasPress) unwired.push(f + '（有 data-log，没有 data-press）')
+    if (!hasLog && CLICKABLE.test(code)) unwired.push(f)
+  }
+  check(unwired.length === 0, 'H1 全仓客户端没有「能点却一颗都没接线」的文件，也没有「记了日志却没有按压形状」的文件' + (unwired.length ? '；漏网：' + unwired.join('、') : ''))
+  // 按压态一律走委托挂的 .dsws-pressing，不许有 CSS 的 :active 漏在别处：
+  // :active 按住后把指针拖走会粘住，祖先元素还会跟着一起匹配，用户的「按下去像没按」就是这么来的。
+  const activeLeaks: string[] = []
+  for (const f of CLIENT_FILES) {
+    if (f.endsWith('.d.ts')) continue
+    const src = read(f)
+    if (!src) continue
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+    if (code.indexOf(':active') >= 0) activeLeaks.push(f)
+  }
+  check(activeLeaks.length === 0, 'H4 全仓客户端没有 CSS 的 :active（按压一律走委托挂的 .dsws-pressing）' + (activeLeaks.length ? '；漏网：' + activeLeaks.join('、') : ''))
+  const dupAll = Object.keys(dupHomes).filter((k) => Array.from(new Set(dupHomes[k])).length > 1)
+  check(dupAll.length === 0, 'H2 全仓 data-log 跨文件唯一（同一个字面量不能属于两颗控件）' + (dupAll.length ? '；重名：' + dupAll.map((k) => k + '←' + Array.from(new Set(dupHomes[k])).join('/')).join('、') : ''))
+  const badShape = allLogs.filter((x) => !/^[a-z0-9._-]+$/.test(x))
+  check(badShape.length === 0, 'H3 全仓 data-log 只含小写字母、数字、点、横线、下划线' + (badShape.length ? '；违规：' + badShape.join('、') : ''))
   return out
 }
 
@@ -159,6 +289,9 @@ for (const r of audit(sourceText)) check(r.ok, r.msg)
 const base: Record<string, string> = {}
 for (const f of AUDIT_FILES) base[f] = sourceText(f)
 type Variant = { label: string; file: string; group: string; change: (s: string) => string }
+// 反例要改的文本常常出现不止一处（同一份规则写了两遍），所以替换要全部换掉，
+// 否则第一处换掉了、第二处还在，判据照样绿着，反例就白喂了。
+const replaceAll = (s: string, from: string, to: string): string => s.split(from).join(to)
 const variants: Variant[] = [
   {
     label: '漏接线：页签少了 +bug 的点击日志',
@@ -183,7 +316,7 @@ const variants: Variant[] = [
     label: '另写一套样式：通用按压态被换成了自己的一档',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F1',
-    change: (s) => s.replace('.dsws-pressing{filter:brightness(.85)}', '.dsws-pressing{opacity:.7}'),
+    change: (s) => replaceAll(s, '.dsws-pressing{filter:brightness(.85)}', '.dsws-pressing{opacity:.7}'),
   },
   {
     label: '日志少一条：点击落定那一行被删掉了',
@@ -208,6 +341,55 @@ const variants: Variant[] = [
     file: 'scripts/build.mts',
     group: 'A9',
     change: (s) => s.replace("file: 'src/client/views/shared/liquidInk.ts'", ''),
+  },
+  {
+    label: '墨块的拉伸回弹被删了：只剩位移，没有形变',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'B13',
+    change: (s) => replaceAll(s, '@keyframes dsws-ink-squash{0%{scale:1.05 .94}55%{scale:1.015 .985}100%{scale:1 1}}', ''),
+  },
+  {
+    label: '墨块宿主的早退守卫被删了：#1334 那条环路会复发',
+    file: 'src/client/views/shared/liquidInk.ts',
+    group: 'B16',
+    change: (s) => s.replace('if (host.classList.contains(LIQUID_INK_HOST_CLASS)) return', ''),
+  },
+  {
+    label: '兄弟墨块的跳过守卫被删了：一个容器里三块墨块会互相点燃，整窗卡死',
+    file: 'src/client/views/shared/liquidInk.ts',
+    group: 'B17',
+    change: (s) => s.replace('if (t && t.nodeType === 1 && t.classList && t.classList.contains(LIQUID_INK_CLASS)) continue', ''),
+  },
+  {
+    label: '墨块的尺寸监听被删了：选项变宽时墨块停在旧位置',
+    file: 'src/client/views/shared/liquidInk.ts',
+    group: 'B15',
+    change: (s) => replaceAll(s, 'ResizeObserver', 'ResizeWatcher'),
+  },
+  {
+    label: '悬停规则不再排除按压态：按住的时候反而变亮',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F9',
+    change: (s) => replaceAll(s, ':hover:not(.dsws-pressing)', ':hover'),
+  },
+  {
+    label: '日志形状不再取最近的按压元素：调试开关那类会记成 other',
+    file: 'src/client/kernel/ui-feedback.ts',
+    group: 'A11',
+    change: (s) => s.replace('const pressed = pressTargetOf(ev)', 'const pressed = null'),
+  },
+  {
+    label: '整片界面的接线被抹掉：能点却一颗日志都不记',
+    file: 'src/client/views/IssueDetail.ts',
+    group: 'H1',
+    // 把这一片里所有 data-log 属性都改名，文件照样能点，却再也认不出点了哪一颗。
+    change: (s) => replaceAll(s, "'data-log': ", "'data-log-off': "),
+  },
+  {
+    label: '别处又写了一份 CSS 的 :active：按住后拖走指针会粘住',
+    file: 'src/client/views/shared/Tabs.ts',
+    group: 'H4',
+    change: (s) => s + "\n// 反例：又用上了 CSS 的 :active\nconst fakeActive = '.dsws-tab:active{filter:brightness(.9)}'\n",
   },
 ]
 for (const v of variants) {

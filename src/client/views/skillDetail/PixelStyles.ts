@@ -10,7 +10,9 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ":root{--pixel-frame:#3a2c14;--pixel-paper:#f2e4c0;--pixel-card:#fffdf4;--pixel-ink:#2b2113;--pixel-ink2:#6b5b3e;--pixel-shadow:#241a0c;--pixel-gold:#e3a92f;--pixel-acc:#8b5cf6;--pixel-ok:#0e8a16;--pixel-bad:#a3231a;--pixel-warn:#f59e0b;--pixel-stripe:#ddcda1;--pixel-popline:#e8d9ae;--pixel-hi:#ffe1a1;--pixel-link:#5b3df0}",
   ".pixel-btn{font:700 12px ui-monospace,Menlo,Consolas,monospace;border:3px solid var(--pixel-frame);background:var(--pixel-paper);color:var(--pixel-ink);padding:4px 12px;cursor:pointer;box-shadow:2px 2px 0 var(--pixel-shadow);transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}",
   ".pixel-btn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--pixel-shadow);outline:2px solid var(--pixel-gold);outline-offset:1px}",
-  ".pixel-btn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--pixel-shadow)}",
+  // 按压态走委托挂的 .dsws-pressing（#1335 界面反馈）：不用 CSS 的 :active，
+  // 因为按住后把指针拖走 :active 会粘住，祖先元素还会跟着一起匹配。
+  ".pixel-btn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--pixel-shadow)}",
   ".pixel-btn:focus-visible{outline:2px dashed var(--pixel-gold);outline-offset:2px}",
   ".pixel-btn:disabled{opacity:.6;cursor:wait}",
   ".pixel-btn.hot{background:var(--pixel-acc);color:#fff}",

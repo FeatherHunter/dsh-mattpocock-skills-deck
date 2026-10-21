@@ -104,7 +104,9 @@ function renderStatic(url) {
 {
   const html = renderStatic(MD8)
   check(!html.includes('href="D:'), '已关闭行本地票没有裸 href 链接')
-  check(/<button(?=[^>]*class="dsws-btn ghost")(?=[^>]*type="button")[^>]*>act\.view<\/button>/.test(html),
+  //   类名写成「dsws-btn ghost 打头、后面还允许别的类」：#1335 界面反馈给这颗按钮挂了悬停类 dsws-hov，
+  //   按钮还是同一颗 ghost 按钮（仍是 type=button、文案仍是 act.view），类名表多一个词不算形状变了。
+  check(/<button(?=[^>]*class="dsws-btn ghost[^"]*")(?=[^>]*type="button")[^>]*>act\.view<\/button>/.test(html),
     '已关闭行本地票渲染的是查看 ghost 按钮（文案与原来一致，点调宿主）')
 }
 // C2：已关闭行 https 票 → 仍是 a[href]，不动

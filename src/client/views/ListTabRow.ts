@@ -251,18 +251,24 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         if (isSpec && containerTri) {
           const c = containerTri.color
           return h(Tip, { content: tr(containerTri.titleKey) }, h('button', {
-            className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''),
+            // 本次界面反馈需求：规格主按钮自己带按压态与点击日志 —— 它在整行里面，
+            //   只靠整行那条日志的话，点了它与点了行里别处记的是同一条，看不出点了哪颗。
+            className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : '') + ' dsws-hov',
+            'data-press': 'button',
+            'data-log': 'list.row.spec.' + (x.key != null ? x.key : x.number),
             onClick: function (e: any) { e.stopPropagation(); inject(st, specPromptText()) },
             style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: c, borderColor: 'transparent', color: isLightHex(c) ? '#140a1e' : '#ffffff', fontWeight: 600 },
           }, [Ic({ n: containerTri.icon, size: 10 }), narrow ? null : h('span', null, tr(containerTri.labelKey))]))
         }
         if (mapEmpty) {
           // 探索地图：没有子票 → 检查（这段逻辑照旧，行为不变）
-          return h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); let t = ''; try { t = inspectPrompt(st, x.number, x.title) } catch { const u = typeof issueUrlFor === 'function' ? (function () { try { return issueUrlFor(st, x.number, effortOf(x)) } catch (_) { return '' } })() : '', uu = u || (x.number != null ? '#' + String(x.number) : ''); t = uu ? '/wayfinder ' + uu : '/wayfinder'; try { t = promptTextFor(st, 'mapInspect', { n: String(x.number || ''), ['title']: String(x.title || ''), url: u }); if (u) t = '/wayfinder ' + u + '\n\n' + t } catch (_) {} } inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [Ic({ n: 'search', size: 10 }), narrow ? null : h('span', null, tr('act.inspect'))]))
+          // 本次界面反馈需求：这颗按钮自己带按压态与点击日志，否则点它记的是整行那条。
+          return h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : '') + ' dsws-hov', 'data-press': 'button', 'data-log': 'list.row.inspect.' + (x.key != null ? x.key : x.number), onClick: function (e: any) { e.stopPropagation(); let t = ''; try { t = inspectPrompt(st, x.number, x.title) } catch { const u = typeof issueUrlFor === 'function' ? (function () { try { return issueUrlFor(st, x.number, effortOf(x)) } catch (_) { return '' } })() : '', uu = u || (x.number != null ? '#' + String(x.number) : ''); t = uu ? '/wayfinder ' + uu : '/wayfinder'; try { t = promptTextFor(st, 'mapInspect', { n: String(x.number || ''), ['title']: String(x.title || ''), url: u }); if (u) t = '/wayfinder ' + u + '\n\n' + t } catch (_) {} } inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [Ic({ n: 'search', size: 10 }), narrow ? null : h('span', null, tr('act.inspect'))]))
         }
         if (mapDone) {
           // 探索地图：子票全关 → 完成（这段逻辑照旧，行为不变）
-          return h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e: any) { e.stopPropagation(); const t = completePrompt(st, x.number, x.title, containerObj.stats.total, containerObj.stats.closed); inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [Ic({ n: 'check', size: 10 }), narrow ? null: h('span', null, tr('act.done'))]))
+          // 本次界面反馈需求：这颗按钮自己带按压态与点击日志，否则点它记的是整行那条。
+          return h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : '') + ' dsws-hov', 'data-press': 'button', 'data-log': 'list.row.done.' + (x.key != null ? x.key : x.number), onClick: function (e: any) { e.stopPropagation(); const t = completePrompt(st, x.number, x.title, containerObj.stats.total, containerObj.stats.closed); inject(st, t) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [Ic({ n: 'check', size: 10 }), narrow ? null: h('span', null, tr('act.done'))]))
         }
         return mkRowAction(st, x, narrow, colorOf)
       })()
@@ -331,10 +337,12 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
             labels.map(function (l: any, i: any) {
               return h('span', { key: i, className: 'dsws-chip', style: { fontSize: 10, background: hexA(l.color, 0.18) || 'rgba(188,140,255,.16)', color: l.color ? '#' + l.color : '#bc8cff', border: '1px solid ' + (darken(l.color, 0.16) || 'rgba(188,140,255,.6)') } }, l.name)
             }),
-            labels.length > 0 ? h(Tip, { content: tr('list.tagsTitle', { names: allNames }) }, h('span', chipProps({ key: 'more', className: 'dsws-chip dsws-more', onClick: openPop }), '+0')) : null,
+            labels.length > 0 ? h(Tip, { content: tr('list.tagsTitle', { names: allNames }) }, h('span', chipProps({ key: 'more', className: 'dsws-chip dsws-more dsws-hov', 'data-press': 'chip', 'data-log': 'list.row.more.' + (x.key != null ? x.key : x.number), onClick: openPop }), '+0')) : null,
+            // 本次界面反馈需求：带所属地图的「被阻塞」药丸能点（点开看谁挡着），给它自己的按压态与点击日志；
+            //   没有所属地图的那一颗只是显示，同样点不动，不接线。
             blocked ? ((blk.map === null || blk.map === undefined)
               ? h(Tip, { content: tr('map.subBlocked', { who: blockedTip }) }, h('span', { key: 'blk', className: 'dsws-chip dsws-blocked', style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)' } }, [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))
-              : h(Tip, { content: tr('list.blockedTitle', { by: blockedTip }) }, h('span', chipProps({ key: 'blk', className: 'dsws-chip dsws-blocked', onClick: function (e: any) { e.stopPropagation(); openBlocked(blk) }, style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }), [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))) : null,
+              : h(Tip, { content: tr('list.blockedTitle', { by: blockedTip }) }, h('span', chipProps({ key: 'blk', className: 'dsws-chip dsws-blocked dsws-hov', 'data-press': 'chip', 'data-log': 'list.row.blocked.' + (x.key != null ? x.key : x.number), onClick: function (e: any) { e.stopPropagation(); openBlocked(blk) }, style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }), [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))) : null,
           ]),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' }, 'data-dsws-row-part': 'buttons' }, [
             isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [

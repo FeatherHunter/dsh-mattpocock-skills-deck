@@ -35,6 +35,12 @@ export     const MD_LINK_RE = /\[([^\]]+)\]\(([^\s)]+)\)/g
 export     const MD_TASK_RE = /^- \[([ xX])\]\s*(.*)$/
 export     const MD_IMG_RE = /!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+["']([^"']*)["'])?\s*\)/g
 export     const MD_HTML_IMG_RE = /<img\b[^>]*\/?>/gi
+// 定位名的序号源：markdown 正文里链接与可放大的图片都可能有很多个，靠这个序号让每一条的名字都不同。
+//   这个变量必须住在上面这三个正则之后、渲染器之内：tests/verify-markdown.ts 会从产物里把渲染器整段
+//   切出来单独求值（起点是 MD_LINK_RE，终点是 mdToHtml 的函数体末尾），住在切片之外的模块变量到那里
+//   就成了自由变量，一渲染就报 mdLogSeq is not defined（2026-10-21 踩过：声明写在 MD_LINK_RE 之前，
+//   切片从它下边才开始，切不到它）。
+let mdLogSeq = 0
 export     const mdEsc = function (s: any) { return String(s == null ? '' : s) }
 // 图片地址只认安全超文本协议，其余一律返回空，调用方降级为文字
 export     const mdSafeImgUrl = function (u: any) {
@@ -113,17 +119,21 @@ export     const mdImgOverlay = function (st: any) {
       const box = h('div', { role: 'dialog', 'aria-label': cur.alt || 'Image', tabIndex: -1, onKeyDown: onKey, style: { background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, maxWidth: '92%', maxHeight: '86%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,.55)' } }, [
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
           h('span', { style: { flex: 1, minWidth: 0, fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, cur.alt || 'Image'),
-          h('button', { className: 'dsws-btn ghost', autoFocus: true, onClick: function (e: any) { try { e.stopPropagation() } catch (e2) {} close() }, style: { padding: '2px 8px', fontSize: 11 }, 'aria-label': mdT('panel.closeDetailTitle', 'Close details') }, '✕'),
+          // 接线（#1335 界面反馈）：放大层左上角那颗只有「✕」一个符号，按压形状用 icon 档（小图标下沉会看着歪）。
+          h('button', { className: 'dsws-btn ghost', autoFocus: true, 'data-press': 'icon', 'data-log': 'md.overlay.close', onClick: function (e: any) { try { e.stopPropagation() } catch (e2) {} close() }, style: { padding: '2px 8px', fontSize: 11 }, 'aria-label': mdT('panel.closeDetailTitle', 'Close details') }, '✕'),
         ]),
         h('div', { style: { padding: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'auto' } }, [
           h('img', { src: cur.src, alt: cur.alt || 'Image', style: { maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 6 } }),
         ]),
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [
           h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, cur.src),
-          h('a', { href: cur.src, target: '_blank', rel: 'noreferrer', onClick: function (e: any) { try { e.stopPropagation() } catch (e2) {} }, style: { color: '#58a6ff', textDecoration: 'underline', flex: 'none' } }, mdT('env.actOpenUrl', 'Open link')),
+          // 接线（#1335 界面反馈）：底部那颗「打开原图」是外链，形状用 link 档；链接看得见字，给悬停反馈。
+          h('a', { href: cur.src, target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'md.overlay.openlink', onClick: function (e: any) { try { e.stopPropagation() } catch (e2) {} }, style: { color: '#58a6ff', textDecoration: 'underline', flex: 'none' } }, mdT('env.actOpenUrl', 'Open link')),
         ]),
       ])
-      const overlay = h('div', { onClick: function (e: any) { try { if (e.target === e.currentTarget) close() } catch (e2) {} }, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.62)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: 16 } }, [box])
+      // 接线（#1335 界面反馈）：点放大层的空白处会关掉它，这层遮罩自己也是能点到的，所以接一组标识；
+      //   它不是按钮，用 other 档，表示「按下去的是个没有固定形状的东西」。
+      const overlay = h('div', { 'data-press': 'other', 'data-log': 'md.img.backdrop', onClick: function (e: any) { try { if (e.target === e.currentTarget) close() } catch (e2) {} }, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.62)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: 16 } }, [box])
       try { if (typeof portalTop === 'function') return portalTop(overlay) } catch (e) {}
       return overlay
     }
@@ -165,7 +175,10 @@ export     const mdInline = function (text: any, keyBase: any, opts: any) {
       rest = rest.replace(MD_LINK_RE, function (m: any, label: any, url: any) {
         const u = mdSafeUrl(url)
         if (u === null) return label
-        linkParts.push(h('a', { key: 'l' + (k++), href: u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'underline' } }, mdInline(label, 'll' + k, { st: st, inLink: true })))
+        // 接线（#1335 界面反馈）：markdown 里的链接是外链，形状用 link 档；定位名带一个整篇递增的序号，
+        //   同一屏里可能有很多条链接，光看"链接"认不出是哪一条。
+        const linkIdx = k++
+        linkParts.push(h('a', { key: 'l' + linkIdx, href: u, target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'md.link.' + (++mdLogSeq) }, mdInline(label, 'll' + k, { st: st, inLink: true })))
         return '\u0001L' + (linkParts.length - 1) + '\u0001'
       })
       const makeImg = function (part: any, key: any) {
@@ -173,6 +186,10 @@ export     const mdInline = function (text: any, keyBase: any, opts: any) {
         // props 后面要按能不能点补一个 onClick 键，标 any 才能照原样挂（只加类型、不改代码）。
         const props: any = { key: key, src: part.src, alt: part.alt || 'Image', loading: 'lazy', decoding: 'async', style: mdImgStyle(part.width, part.height, !clickable) }
         if (clickable) {
+          // 接线（#1335 界面反馈）：点图会放大，它是「点一个不是按钮的东西」，形状用 other 档；
+          //   定位名带序号，同屏多张图靠它区分。
+          props['data-press'] = 'other'
+          props['data-log'] = 'md.img.zoom.' + (++mdLogSeq)
           props.onClick = function () { mdOpenImg(st, part.src, part.alt) }
         }
         const img = h('img', props)

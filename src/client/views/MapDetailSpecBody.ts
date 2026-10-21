@@ -132,7 +132,9 @@ export const MapDetailSpecBody = ({ st, m }: any) => {
   if (!items.length) return null
   return h('div', { style: { margin: '2px 0 4px' } }, items.map(function (c: any, i: number) {
     return h('details', { key: i, style: { margin: '2px 0 4px' } }, [
-      h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 } }, [
+      // 本次界面反馈需求：规格地图页的折叠标题也要能点，口径与探索地图页的折叠条一致（悬停、按下、点击日志三样齐全）。
+      //   定位串用段键（小写）或序号，段标题不进定位串（自由文本不进定位串）。
+      h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'map.spec.section.' + (c.key ? String(c.key).toLowerCase() : String(i)), style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 } }, [
         Ic({ n: 'note', size: 11 }),
         h('span', null, c.title),
       ]),

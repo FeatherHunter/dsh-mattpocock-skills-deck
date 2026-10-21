@@ -48,7 +48,8 @@ export const SetupLayoutCard = function (props: any) {
   const box = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': tr('setup.cardTitle'), style: { width: 480, maxWidth: '94vw' }, onClick: function (e: any) { e.stopPropagation() } }, [
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } }, [
       h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, tr('setup.cardTitle')),
-      h('button', { className: 'dsws-btn ghost', 'aria-label': tr('banner.setupPickCancel'), onClick: closeCard, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
+      // 本次界面反馈需求：这颗 ✕ 是纯图标按钮，按用户口径只给按压态（不给悬停下沉，免得小图标位移）。
+      h('button', { className: 'dsws-btn ghost', 'aria-label': tr('banner.setupPickCancel'), 'data-press': 'icon', 'data-log': 'setup.close', onClick: closeCard, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
     ]),
     (typeof layoutRadios === 'function') ? layoutRadios(st, h) : null,
     h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 8, lineHeight: 1.5 } }, tr('setup.cardBackend', { name: curLabel })),
@@ -58,8 +59,9 @@ export const SetupLayoutCard = function (props: any) {
       ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 6, lineHeight: 1.5 } }, tr('setup.layoutSwitchNote'))
       : null,
     h('div', { className: 'foot', style: { display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10, alignItems: 'center' } }, [
-      h('button', { className: 'dsws-btn', onClick: closeCard, style: { fontSize: 12, padding: '4px 10px' } }, tr('banner.setupPickCancel')),
-      h('button', { className: 'dsws-btn primary', onClick: function () { try { confirmStatusSetupPick(st) } catch (e) {} }, style: { fontSize: 12, padding: '4px 10px', fontWeight: 600 } }, tr('banner.setupPickConfirm')),
+      // 本次界面反馈需求：两个按钮各带按压态、悬停反馈与点击日志，日志里能认出点的是哪一颗。
+      h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'setup.cancel', onClick: closeCard, style: { fontSize: 12, padding: '4px 10px' } }, tr('banner.setupPickCancel')),
+      h('button', { className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'setup.confirm', onClick: function () { try { confirmStatusSetupPick(st) } catch (e) {} }, style: { fontSize: 12, padding: '4px 10px', fontWeight: 600 } }, tr('banner.setupPickConfirm')),
     ]),
   ])
   // 点卡外面那一层 = 取消：与 ✕、与「取消」按钮同一个去处（三处走同一个函数，免得有一条路悄悄不同）。
