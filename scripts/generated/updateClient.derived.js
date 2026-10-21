@@ -1,7 +1,7 @@
 // 由 dsh-plugin-update@0.2.0 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/config.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
 var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -28,7 +28,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/commands.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/commands.js
 var PACKAGE_NAME = "dsh-mattpocock-skills-deck";
 var NPM_REGISTRY = "https://registry.npmjs.org/";
 var INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -85,7 +85,7 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${targetName}@${version} --registry=${registry}`;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/client.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS
