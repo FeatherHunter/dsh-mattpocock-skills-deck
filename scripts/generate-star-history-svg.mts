@@ -164,7 +164,7 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
     `<line x1="${PAD_L}" y1="${Y(v).toFixed(1)}" x2="${W - PAD_R}" y2="${Y(v).toFixed(1)}" stroke="${t.grid}" stroke-width="1" opacity="0.7"/>`).join("\n  ");
   const yLabels: string = yTicks.map((v) =>
     `<text x="${PAD_L - 10}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="13" fill="${t.muted}">${v}</text>`).join("\n  ");
-  // 右轴刻度用 Daily 的颜色，和左轴的灰色刻度区分开：图例里的 Daily New 也是这个颜色，
+  // 右轴刻度用 Daily 的颜色，和左轴的灰色刻度区分开：右轴顶上的轴名也是这个颜色，
   // 读者顺着颜色就知道这条虚线读右边的数字。
   const dLabels: string = dTicks.map((v) =>
     `<text x="${W - PAD_R + 10}" y="${(Yd(v) + 4).toFixed(1)}" text-anchor="start" font-size="13" fill="${t.daily}">${v}</text>`).join("\n  ");
@@ -192,33 +192,31 @@ export function buildSvg(data: StarPoint[], themeName: string = "dark"): string 
     peakLabel(dailyPts[peakIndex(dailies)], dailies[peakIndex(dailies)], t.daily, "daily"),
   ].join("\n  ");
 
-  const legend: string = `
-  <rect x="${PAD_L + 14}" y="${PAD_T + 8}" width="152" height="52" rx="7" fill="${t.bg}" stroke="${t.text}" stroke-width="1.4" opacity="0.92"/>
-  <line x1="${PAD_L + 26}" y1="${PAD_T + 24}" x2="${PAD_L + 52}" y2="${PAD_T + 24}" stroke="${t.total}" stroke-width="3" stroke-linecap="round"/>
-  <text x="${PAD_L + 60}" y="${PAD_T + 28}" font-size="13">Total Stars</text>
-  <line x1="${PAD_L + 26}" y1="${PAD_T + 44}" x2="${PAD_L + 52}" y2="${PAD_T + 44}" stroke="${t.daily}" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round"/>
-  <text x="${PAD_L + 60}" y="${PAD_T + 48}" font-size="13">Daily New</text>`;
+  // 轴名横排放在各自那根轴的正上方，并且用该系列的颜色写，不再竖排。
+  // 竖排字要歪头读，在 README 的小图里尤其难受；轴名同时充当色键：
+  // 红色就是左边 Total、蓝色就是右边 Daily，所以整块图例可以省掉，图面更干净。
+  const axisTitles: string = [
+    `<text x="${PAD_L}" y="${PAD_T - 10}" font-size="12" font-weight="600" fill="${t.total}">Total Stars</text>`,
+    `<text x="${W - PAD_R}" y="${PAD_T - 10}" text-anchor="end" font-size="12" font-weight="600" fill="${t.daily}">Daily New</text>`,
+  ].join("\n  ");
 
-  const midY: number = (PAD_T + axisY) / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <style>text{font-family:${FONT};fill:${t.text}}</style>
   <rect width="100%" height="100%" fill="${t.bg}"/>
   <text x="${W / 2}" y="34" text-anchor="middle" font-size="21">⭐ Star History</text>
+  ${axisTitles}
   ${gridLines}
   <path d="${sketchy(PAD_L, axisY, W - PAD_R, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-  <path d="${sketchy(PAD_L, PAD_T, PAD_L, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-  <path d="${sketchy(W - PAD_R, PAD_T, W - PAD_R, axisY)}" stroke="${t.axis}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="${sketchy(PAD_L, PAD_T, PAD_L, axisY)}" stroke="${t.total}" stroke-width="1.6" fill="none" stroke-linecap="round" data-axis="total"/>
+  <path d="${sketchy(W - PAD_R, PAD_T, W - PAD_R, axisY)}" stroke="${t.daily}" stroke-width="1.6" fill="none" stroke-linecap="round" data-axis="daily"/>
   ${dAxisTicks}
   ${yLabels}
   ${dLabels}
   ${xLabels}
-  <text x="18" y="${midY}" font-size="12" fill="${t.muted}" transform="rotate(-90 18 ${midY})" text-anchor="middle">Stars</text>
-  <text x="${W - 18}" y="${midY}" font-size="12" fill="${t.daily}" transform="rotate(90 ${W - 18} ${midY})" text-anchor="middle">New / day</text>
   <text x="${W / 2}" y="${H - 12}" font-size="12" fill="${t.muted}" text-anchor="middle">Date</text>
   <path d="${monotonePath(dailyPts)}" fill="none" stroke="${t.daily}" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
   <path d="${smoothPath(totalPts)}" fill="none" stroke="${t.total}" stroke-width="3" stroke-linecap="round"/>
   ${peakLabels}
-${legend}
   <text x="${W - PAD_R}" y="${axisY + 44}" text-anchor="end" font-size="12" fill="${t.muted}">${totals[totals.length - 1]} stars · ${data[data.length - 1].date}</text>
 </svg>`;
 }

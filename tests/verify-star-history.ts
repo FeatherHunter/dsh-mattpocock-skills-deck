@@ -29,7 +29,9 @@ assert.ok(dark1.includes('08/20'),'x axis carries date tick labels');
 assert.ok(dark1.includes('5 stars · 2026-08-20'),'caption shows latest total and date');
 assert.ok(dark1.includes('stroke-dasharray="6 4"'),'daily curve present');
 assert.ok(dark1.includes('viewBox="0 0 840 480"'),'fixed self-contained viewport');
-assert.ok(dark1.includes('New / day'),'daily series must carry its own right-axis title');
+assert.ok(dark1.includes('>Total Stars<') && dark1.includes('>Daily New<'),'both axes must carry a horizontal title');
+assert.ok(!dark1.includes('rotate('),'axis titles must stay horizontal; nobody should have to tilt their head to read them');
+assert.ok(dark1.includes('data-axis="total"') && dark1.includes('data-axis="daily"'),'each axis spine must be drawn in its own series colour');
 assert.ok(dark1.includes('fill="#38bdf8"'),'right-axis ticks must be drawn in the daily colour');
 
 // —— 峰值标注：两条曲线各自的最高点必须标出数字，读者一眼能读数 ——
