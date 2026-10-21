@@ -165,12 +165,25 @@ export function liquidInkPlace(host: any, ink: any): boolean {
     } catch (e) {}
     return false
   }
-  // 盖住的那颗让出底色与描边（避免双底）；同组其余选中项不动，继续显示自己的描边。
-  markCovered(ink, target)
   const x = readPx(target, 'offsetLeft')
   const y = readPx(target, 'offsetTop')
   const w = readPx(target, 'offsetWidth')
   const h = readPx(target, 'offsetHeight')
+  const bg = (target.getAttribute && target.getAttribute('data-ink-bg')) || DEFAULT_BG
+  const bd = (target.getAttribute && target.getAttribute('data-ink-bd')) || 'transparent'
+  const radius = (host.getAttribute && host.getAttribute('data-ink-radius')) || DEFAULT_RADIUS
+  // 这一次落点的指纹：目标标识 + 位置 + 尺寸 + 底色、描边、圆角。
+  //   指纹完全相同，说明墨块本来就停在这颗控件上、一个像素都没动——这次调用只是悬停/按压的类变化，
+  //   或者同一容器里兄弟墨块的对位把观察器叫醒了，不是换项。
+  //   这时候要是还走下面的「摘类、强制重排、再挂类」，静止的墨块会每按一下都弹一次；
+  //   列表页三块墨块住同一个容器，一次点击能收到好几条记录，看起来就是「液态 tab 在抖」
+  //   （2026-10-21 用户实测报的就是编号组与标签组抖，那两组正好在同一个容器里、重渲染最频繁）。
+  //   目标标识优先用页签的 data-ink-key，没有就用文本内容（药丸的标签互不相同），免得两颗同宽同位置的选项被认成同一颗。
+  const targetKey = (target.getAttribute && target.getAttribute('data-ink-key')) || (target.textContent || '').slice(0, 24)
+  const sig = [targetKey, x, y, w, h, bg, bd, radius].join('|')
+  if (ink.__dswsInkPlaced && ink.__dswsInkSig === sig && ink.style.opacity === '1') return true
+  // 盖住的那颗让出底色与描边（避免双底）；同组其余选中项不动，继续显示自己的描边。
+  markCovered(ink, target)
   const first = !ink.__dswsInkPlaced
   try {
     if (first) ink.classList.add(INK_INSTANT_CLASS)
@@ -178,15 +191,13 @@ export function liquidInkPlace(host: any, ink: any): boolean {
     ink.style.setProperty('--dsws-ink-y', y + 'px')
     ink.style.setProperty('--dsws-ink-w', w + 'px')
     ink.style.setProperty('--dsws-ink-h', h + 'px')
-    const bg = target.getAttribute && target.getAttribute('data-ink-bg')
-    const bd = target.getAttribute && target.getAttribute('data-ink-bd')
-    ink.style.setProperty('--dsws-ink-bg', bg || DEFAULT_BG)
-    ink.style.setProperty('--dsws-ink-bd', bd || 'transparent')
-    const radius = (host.getAttribute && host.getAttribute('data-ink-radius')) || DEFAULT_RADIUS
+    ink.style.setProperty('--dsws-ink-bg', bg)
+    ink.style.setProperty('--dsws-ink-bd', bd)
     ink.style.setProperty('--dsws-ink-radius', radius)
     ink.style.opacity = '1'
     ink.style.pointerEvents = 'none'
   } catch (e) {}
+  ink.__dswsInkSig = sig
   if (first) {
     ink.__dswsInkPlaced = true
     const raf = (typeof window !== 'undefined' && window && window.requestAnimationFrame) ? window.requestAnimationFrame : null

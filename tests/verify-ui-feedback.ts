@@ -175,6 +175,7 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(liquidInk.indexOf('ResizeObserver') >= 0 && liquidInk.indexOf('ro.observe(') >= 0, 'B15 墨块跟着选项的尺寸走（选项自身变宽——换行、字体晚到——也要重新对位）')
   check(liquidInk.indexOf('if (host.classList.contains(LIQUID_INK_HOST_CLASS)) return') >= 0, 'B16 墨块宿主已经有那个类时直接返回（#1334 整窗卡死的复发守卫：加一个已经有的类也算一次 class 变更，观察器会自己触发自己）')
   check(liquidInk.indexOf('t.classList.contains(LIQUID_INK_CLASS)') >= 0, 'B17 观察回调连兄弟墨块也跳过（一个容器里住三块墨块时——列表页三组筛选就是这个形状——A 换项重播回弹会点燃 B、C，再反点燃 A，整窗卡死；单块墨块的页面测不出来）')
+  check(liquidInk.indexOf("const sig = [targetKey, x, y, w, h, bg, bd, radius].join('|')") >= 0 && liquidInk.indexOf('ink.__dswsInkSig === sig') >= 0 && liquidInk.indexOf("ink.style.opacity === '1') return true") >= 0, 'B18 墨块原地不动就不重播：落点指纹（目标标识+位置+尺寸+底色描边圆角）没变时直接返回，不摘/挂拉伸回弹——悬停按下的类变化与兄弟墨块对位都会把观察器叫醒，每叫一次就弹一下，看起来就是「液态 tab 在抖动」')
 
   // ============ C 组：五颗页签 + 三组药丸都接上了 ============
   const tabs = read('src/client/views/shared/Tabs.ts')
@@ -232,6 +233,12 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(feedbackCss.indexOf('.dsws-node:hover{border-color') >= 0 && feedbackCss.indexOf('.dsws-node.dsws-pressing') >= 0, 'F5 地图工单卡整张卡悬停与按压都有（卡内按钮各自还有自己的）')
   check(feedbackCss.indexOf('.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-hov:focus-visible') >= 0, 'F6 键盘焦点环补到页签、药丸与小按钮（不删焦点可见性）')
   check((feedbackCss.match(/prefers-reduced-motion/g) || []).length >= 4, 'F7 减少动态的降级覆盖到新效果（墨块、通用悬停、按压位移都关）')
+  // 通用悬停与按下只按 data-press 属性给：2026-10-21 用户实测漏掉的那批控件（列表行内四颗按钮、
+  //   地图/工单详情顶栏、地图底部动作区、父链接）全都是「属性接上了、悬停类忘了挂」。按属性给之后，
+  //   以后新控件只要接线就不会再漏，这条断言就是那个契约。
+  check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0, 'F10 悬停反馈按 data-press 属性统一给（不再逐颗挂 dsws-hov；真鼠标媒体查询里，触屏不残留）')
+  check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node).dsws-pressing{filter:brightness(.82)}') >= 0 && feedbackCss.indexOf('[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}') >= 0, 'F11 按下反馈也按属性统一给：按钮/链接/开关压暗并下沉一像素，整行与整卡只压暗（整块下沉会把同行元素带着错位）')
+  check(feedbackCss.indexOf('[data-press].dsws-pressing{transform:none!important}') >= 0, 'F12 减少动态下按下的位移关掉、压暗保留（与规格「减少动态只关位移」一致）')
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')
   }
@@ -390,6 +397,18 @@ const variants: Variant[] = [
     file: 'src/client/views/shared/Tabs.ts',
     group: 'H4',
     change: (s) => s + "\n// 反例：又用上了 CSS 的 :active\nconst fakeActive = '.dsws-tab:active{filter:brightness(.9)}'\n",
+  },
+  {
+    label: '墨块的同位置守卫被删了：静止的墨块每按一下都弹一次（液态 tab 抖动）',
+    file: 'src/client/views/shared/liquidInk.ts',
+    group: 'B18',
+    change: (s) => s.replace("if (ink.__dswsInkPlaced && ink.__dswsInkSig === sig && ink.style.opacity === '1') return true", ''),
+  },
+  {
+    label: '通用悬停不再按 data-press 属性给：新控件又得逐颗挂类，漏一颗就没反馈',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F10',
+    change: (s) => s.replace("@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:0 0 0 1px rgba(255,255,255,.28),0 2px 10px rgba(0,0,0,.3)}}", ''),
   },
 ]
 for (const v of variants) {

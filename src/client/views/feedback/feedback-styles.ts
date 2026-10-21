@@ -94,6 +94,17 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-hov.dsws-pressing{filter:brightness(.82);transform:translateY(1px);box-shadow:none;transition:transform .08s ease}',
       '.dsws-hov{transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}',
       '@media (hover:hover) and (pointer:fine){.dsws-workroute:hover:not(.dsws-pressing){filter:brightness(1.18)}}',
+      // 通用悬停与按下：接线契约只有 data-press 一个属性——凡是挂了它的控件，不必再逐颗挂 dsws-hov。
+      //   2026-10-21 用户实测漏掉的那批（列表行内四颗按钮、地图/工单详情顶栏、地图底部动作区、父链接）
+      //   全都是「按压属性接上了、悬停类忘了挂」，逐个补类只会再漏一次，所以改成按属性给反馈。
+      //   形状分的依据是 data-press 的取值（button/icon/link/switch 是按钮类，chip/tab 是药丸与页签，row 是整行/整卡）：
+      //   按钮类悬停提亮加一圈亮描边，按下压暗并下沉一像素；小图标按下不位移（圆点会糊），整行/整卡只压暗
+      //   （整块下沉会把同行其它元素带着错位，这也和规格里「小图标不位移」一致）。
+      //   行容器（.dsws-aggrow/.dsws-trow/.dsws-node）原有自己的悬停底色与更轻的按压，这里排除，不互相顶掉。
+      '@media (hover:hover) and (pointer:fine){[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):hover:not(.dsws-pressing){filter:brightness(1.14);box-shadow:0 0 0 1px rgba(255,255,255,.28),0 2px 10px rgba(0,0,0,.3)}}',
+      '[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node).dsws-pressing{filter:brightness(.82)}',
+      '[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}',
+      '.dsws-btn[data-press],[data-press="link"],[data-press="switch"]{transition:filter .12s ease,box-shadow .12s ease,transform .08s ease}',
       // 地图详情的工单卡：整张卡热与按下；卡片内部按钮各自还有自己的反馈，不互相顶掉。
       '@media (hover:hover) and (pointer:fine){.dsws-node:hover{border-color:rgba(255,255,255,.28)!important;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.3)}}',
       '.dsws-node.dsws-pressing{filter:brightness(.9)}',
@@ -103,5 +114,5 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-node.fog:not(.revealed).dsws-pressing{filter:blur(2.4px) brightness(.28)}',
       // 键盘焦点：面板内已有规则，这里补到页签行、筛选药丸与清单里的小按钮，焦点环不删。
       '.dsws-tab:focus-visible,.dsws-chip:focus-visible,.dsws-hov:focus-visible,.dsws-workroute:focus-visible{outline:1px solid #58a6ff;outline-offset:1px}',
-      '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-ink.dsws-ink-squash{animation:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}}',
+      '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-ink.dsws-ink-squash{animation:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}[data-press].dsws-pressing{transform:none!important}}',
     ].join('')
