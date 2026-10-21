@@ -88,7 +88,9 @@ function dryRun(text, issue) {
 function truthNormalize(text) {
   const code = 'import { normalizeBody } from ' + JSON.stringify(pathToFileURL(TRUTH).href) +
     ';process.stdout.write(normalizeBody(Buffer.from(process.argv[1], "base64").toString("utf8")))'
-  const res = spawnSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', code, Buffer.from(text, 'utf8').toString('base64')], {
+  // #1090 起 body-parse.ts 会 import 同树下的 .ts 叶子（progress.ts），裸 node 解不出说明符；
+  // 子进程也挂上仓里的装载钩子，跟链上入口同一套解析口径。
+  const res = spawnSync(process.execPath, ['--no-warnings', '--import', './scripts/ts-hook.mts', '--input-type=module', '-e', code, Buffer.from(text, 'utf8').toString('base64')], {
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,
   })
