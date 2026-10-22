@@ -17,7 +17,7 @@
   比的是特效的气质：
     A 素（基底）—— 药丸从中心点向外一颗颗冒出来；退场只做简单的淡出。
     B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
-    C 上浮小气泡 —— 小泡从最底下关闭按钮的底边出发，飞向各自的选项再凝成药丸；药丸是轻薄的玻璃质感。
+    C 上浮小气泡 —— 小泡从底部关闭按钮升起，沿各选项的下沿铺开，选项同时由虚到实地凝出来；框是薄玻璃质感。
     D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -148,37 +148,60 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .vB.deflate{animation:deflate .34s ease-in forwards}
 @keyframes deflate{to{opacity:0;transform:scale(.55,.7)}}
 
-/* ============ C 上浮小气泡：药丸像气泡一样浮上来 + 每颗吐小泡 ============ */
-/* 药丸不是"凭空出现"，是从那簇小泡里长出来的：先小而虚，再胀到原大，同时虹彩亮一下 */
-.vB.lvl-3 .pill{animation:pillForm .46s cubic-bezier(.2,.85,.3,1.25) backwards;animation-delay:var(--d,0ms);transform-origin:center center}
-@keyframes pillForm{0%{opacity:0;transform:scale(.66)}55%{opacity:1;transform:scale(1.045)}100%{opacity:1;transform:none}}
-.vB.lvl-3 .pill::after{animation:iridBloom .9s ease-out both;animation-delay:var(--d,0ms)}
-@keyframes iridBloom{0%{opacity:0;transform:scale(.94)}38%{opacity:1;transform:scale(1.015)}100%{opacity:.75;transform:scale(1)}}
-.vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(190,210,240,var(--ba,.55));border-radius:50%;opacity:0;pointer-events:none;will-change:transform,opacity;background:radial-gradient(circle at var(--hx,30%) var(--hy,28%),rgba(255,255,255,var(--hop,.5)),transparent 55%),radial-gradient(circle at 72% 78%,var(--tint,rgba(170,160,250,.14)),transparent 60%);box-shadow:0 0 6px rgba(170,190,230,.12),inset 0 0 3px rgba(255,255,255,.08);animation:bubRise 1.4s ease-out forwards}
-/* 每个小泡左上都有自己的高光点，位置和亮度每颗随机 */
-.vB .bub::before{content:'';position:absolute;left:var(--sx,22%);top:var(--sy,16%);width:30%;height:24%;background:radial-gradient(ellipse at center,rgba(255,255,255,.9),transparent 70%);border-radius:50%;opacity:var(--sop,.8)}
-@keyframes bubRise{0%{opacity:0;transform:translate(0,0) scale(.6)}18%{opacity:var(--op,.8)}55%{transform:translate(calc(var(--rz,0px)*.5 + var(--sway,0px)),-48px) scale(.95)}100%{opacity:0;transform:translate(var(--rz,0px),-90px) scale(1)}}
-/* 大量小泡从下方升上来汇进药丸：小泡在药丸的位置聚拢消失，药丸随即凝出来 */
-/* 小泡飞到位不是"到了就消失"，而是缩小着被吸进选项里；药丸在同一段时间里从这团泡里长出来 */
-.vB .bub.cvg{animation:bubMorph .66s cubic-bezier(.16,.72,.32,1) forwards}
-@keyframes bubMorph{
-  0%{opacity:0;transform:translate(0,0) scale(.18)}
-  14%{opacity:var(--op,.8);transform:translate(calc(var(--tx,0px)*.12),calc(var(--ty,0px)*.12)) scale(.66)}
-  55%{opacity:var(--op,.8);transform:translate(calc(var(--tx,0px)*.74),calc(var(--ty,0px)*.74 + var(--sway,0px)*.12)) scale(.98)}
-  80%{opacity:calc(var(--op,.8)*.92);transform:translate(var(--tx,0px),var(--ty,0px)) scale(1)}
-  100%{opacity:0;transform:translate(calc(var(--tx,0px)*1.01),calc(var(--ty,0px)*1.01 + 1px)) scale(.26)}
+/* ============ C 小泡凝聚成选项（整套重写） ============
+   这一版只有两件事在动：
+     1) 小泡从 × 的底边升起，飞到选项下沿、沿着选项轮廓铺开；
+     2) 选项框在同一段时间里由虚到实地凝出来。
+   选项框全程不移动、不缩放——只有 opacity 变化，所以不会有第二个动作跟小泡抢，
+   也就没有抖动。所有坐标在动画开始前一次性算好（见 spawnBubbles）。 */
+.vB.lvl-3{animation:none}
+.vB.lvl-3 .pill{
+  background:linear-gradient(180deg,rgba(208,228,250,.13),rgba(198,218,242,.04) 46%,rgba(150,170,205,.06));
+  border-color:rgba(170,195,235,.34);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 1px 10px rgba(140,180,255,.06);
+  text-shadow:0 1px 1px rgba(0,0,0,.3);
+  animation:cBoxIn .42s ease-out backwards;animation-delay:var(--d,0ms);
 }
-.vB .pill.escape{animation:escapeUp .5s ease-in forwards}
-@keyframes escapeUp{to{opacity:0;transform:translateY(-46px) scale(.75)}}
-.vB .pill.sink{animation:sinkDn .4s ease-in forwards;animation-delay:var(--d2,0ms)}
-@keyframes sinkDn{to{opacity:0;transform:translateY(10px) scale(.9)}}
-.vB.drift{animation:driftUp .42s ease-in forwards}
-@keyframes driftUp{to{opacity:0;transform:translateY(-18px)}}
-/* 气泡质感（只给 C 版）：薄薄的半透明底 + 顶一条细亮边 + 一点斜虹彩，轻，不压字 */
-.vB.lvl-3 .pill{background:linear-gradient(180deg,rgba(205,225,250,.11),rgba(195,215,242,.03) 45%,rgba(130,150,190,.05));border-color:rgba(165,190,230,.32);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 2px rgba(130,160,210,.08),0 1px 10px rgba(140,180,255,.07);text-shadow:0 1px 1px rgba(0,0,0,.35)}
-.vB.lvl-3 .pill::before{content:'';position:absolute;left:5%;top:0;width:58%;height:52%;background:radial-gradient(ellipse 60% 55% at 35% 30%,rgba(255,255,255,.20),transparent 72%);border-radius:50%;pointer-events:none}
-.vB.lvl-3 .pill::after{content:'';position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(115deg,transparent 34%,rgba(150,200,255,.055) 44%,rgba(200,160,255,.065) 51%,rgba(160,255,220,.04) 58%,transparent 68%);border-radius:99px;pointer-events:none}
-.vB.lvl-3 .pill:hover{transform:translateY(-2px) scale(1.03);border-color:rgba(180,205,240,.5);background:linear-gradient(180deg,rgba(212,230,252,.16),rgba(200,220,246,.05) 45%,rgba(140,160,200,.08));box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 14px rgba(150,190,255,.13)}
+@keyframes cBoxIn{from{opacity:0}to{opacity:1}}
+/* 静止时的一层薄膜高光：很淡，只让框看起来是玻璃做的 */
+.vB.lvl-3 .pill::before{
+  content:'';position:absolute;left:4%;top:0;width:56%;height:50%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(ellipse 62% 58% at 34% 28%,rgba(255,255,255,.20),transparent 72%);
+}
+/* 成形那一下：从中间往外扩一次淡光，扩完就没了，不吃掉常态样式 */
+.vB.lvl-3 .pill::after{
+  content:'';position:absolute;left:0;top:0;width:100%;height:100%;border-radius:99px;pointer-events:none;
+  background:radial-gradient(58% 130% at 50% 50%,rgba(178,214,255,.20),rgba(186,158,246,.10) 55%,transparent 76%);
+  opacity:0;animation:cBloom .62s ease-out forwards;animation-delay:var(--d,0ms);
+}
+@keyframes cBloom{0%{opacity:0;transform:scale(.74)}40%{opacity:.85;transform:scale(1)}100%{opacity:0;transform:scale(1.05)}}
+.vB.lvl-3 .pill:hover{border-color:rgba(182,206,242,.52);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 14px rgba(150,190,255,.12)}
+/* 点中和关闭都用同一种安静的淡出，不再有飞走、下沉这类跳动作 */
+.vB.lvl-3 .pill.picked{animation:cPick .28s ease-out forwards}
+@keyframes cPick{0%{transform:scale(1)}38%{transform:scale(1.02);border-color:rgba(196,150,252,.55)}100%{transform:scale(.97);opacity:0}}
+.vB.lvl-3 .pill.leaving{animation:cLeave .26s ease-in forwards;animation-delay:var(--d2,0ms)}
+@keyframes cLeave{to{opacity:0}}
+.vB.lvl-3.drift{animation:driftUp .3s ease-in forwards}
+@keyframes driftUp{to{opacity:0;transform:translateY(-8px)}}
+/* 小泡本体的长相（高光、虹彩、描边都由 dressBubble 逐颗随机） */
+.vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(190,210,240,var(--ba,.55));border-radius:50%;opacity:0;pointer-events:none;will-change:transform,opacity;background:radial-gradient(circle at var(--hx,30%) var(--hy,28%),rgba(255,255,255,var(--hop,.5)),transparent 55%),radial-gradient(circle at 72% 78%,var(--tint,rgba(170,160,250,.14)),transparent 60%);box-shadow:0 0 6px rgba(170,190,230,.12),inset 0 0 3px rgba(255,255,255,.08)}
+.vB .bub::before{content:'';position:absolute;left:var(--sx,22%);top:var(--sy,16%);width:30%;height:24%;background:radial-gradient(ellipse at center,rgba(255,255,255,.9),transparent 70%);border-radius:50%;opacity:var(--sop,.8)}
+/* 升起 → 在选项下沿摊开 → 化掉（只在 transform / opacity 上动） */
+.vB .bub.rise{animation:cRise .62s cubic-bezier(.22,.68,.3,1) forwards}
+@keyframes cRise{
+  0%{opacity:0;transform:translate3d(0,0,0) scale(.3)}
+  16%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .18),calc(var(--ty) * .18),0) scale(.72)}
+  62%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .62 + var(--sway) * .5),calc(var(--ty) * .62),0) scale(1)}
+  86%{opacity:calc(var(--op,.8) * .85);transform:translate3d(var(--tx),var(--ty),0) scale(.94)}
+  100%{opacity:0;transform:translate3d(var(--tx),calc(var(--ty) + 2px),0) scale(.4)}
+}
+/* 悬停时的小泡（原地升起一点点就化掉），很轻 */
+.vB .bub.hov{animation:cHover .8s ease-out forwards}
+@keyframes cHover{
+  0%{opacity:0;transform:translate3d(0,0,0) scale(.4)}
+  30%{opacity:var(--op,.6)}
+  100%{opacity:0;transform:translate3d(var(--tx),var(--ty),0) scale(.8)}
+}
 
 /* ============ D 微光扫过：出现时一道光带斜着扫过药丸 ============ */
 /* 路子来自搜到的按钮扫光做法：一道斜的半透明光带扫过去 */
@@ -383,7 +406,7 @@ var VARIANTS = {
   C: {
     name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「素」之上加梦幻感：小泡全部从最底下那个关闭按钮的底边出发，分别飞向各自要凝成的选项，落到选项宽度上就淡掉，选项紧接着凝出来（中间那颗先到，两边的后到）；药丸本身是薄薄的半透明玻璃质感，带细亮边和一点斜虹彩，轻不压字；悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
+    idea: '在「素」之上加梦幻感：小泡从最底下关闭按钮的底边升起，飞到各自选项的下沿、沿着框的轮廓铺开；选项框在同一段时间里由虚到实地凝出来，全程不位移也不缩放（只有一个 opacity 在变），所以没有第二个动作跟小泡抢，也就不会抖；框是薄薄的玻璃质感，成形那一下从中间扩一次淡光；点中和关闭都是安静的淡出；解释气泡多留一会儿。',
     tipSide: 'above',
     tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
@@ -549,8 +572,8 @@ function buildGroupHtml() {
        气泡那一版：药丸要等小泡从底部按钮飞过来，所以整组往后挪约半秒。 */
     var d;
     if (lv === 3) {
-      /* 药丸在小泡飞到七成左右开始长出来，和小泡被吸进去的收尾叠在一起 */
-      d = 590 + Math.round(Math.abs(i - c) * 45);
+      /* 小泡开始落到选项下沿时，选项框才淡进来（两边重叠，看着是一件事） */
+      d = 430 + Math.round(Math.abs(i - c) * 40);
     } else {
       d = Math.round(Math.abs(i - c) * 70);
     }
@@ -600,43 +623,8 @@ function dressBubble(s) {
   s.style.setProperty('--tint', TINTS[Math.floor(Math.random() * TINTS.length)]);
   s.style.setProperty('--ba', (0.35 + Math.random() * 0.35).toFixed(2));
 }
-/* 往组里吐一个空心小泡（悬停时用），从给定的位置往上飘一段后回到池子里 */
-function spawnOne(el, x, bottom, delayMs) {
-  var s = acquireBub();
-  s.className = 'bub';
-  dressBubble(s);
-  s.style.left = Math.round(x) + 'px';
-  s.style.bottom = Math.round(bottom) + 'px';
-  s.style.setProperty('--rz', Math.round(Math.random() * 40 - 20) + 'px');
-  s.style.animationDuration = (0.9 + Math.random() * 0.9).toFixed(2) + 's';
-  s.style.animationDelay = (delayMs || 0) + 'ms';
-  var sz = Math.round(4 + Math.random() * 6);
-  s.style.width = sz + 'px';
-  s.style.height = sz + 'px';
-  el.appendChild(s);
-  s._t = setTimeout(function () {
-    s._t = 0;
-    if (s.parentNode) s.parentNode.removeChild(s);
-    bubPool.push(s);
-  }, 2600);
-}
-/* 某颗药丸的中心点（相对于整组）：小泡就从这里吐出来 */
-function pillCenter(el, p) {
-  return {
-    x: p.offsetLeft + p.offsetWidth / 2,
-    b: el.offsetHeight - (p.offsetTop + p.offsetHeight / 2)
-  };
-}
-/* 每颗药丸"长出来"之前：所有小泡都从底部关闭按钮的底边出发，分别飞向各自要凝成的
-   那个选项，落到选项上时缩小着被吸进去；药丸在这段时间里从同一团泡中长出来，
-   两边时间重叠，看起来是一件事而不是"泡没了、框蹦出来"。
-
-   性能上的三个约定：
-   1) 只读一次：整组高度、按钮底边、每颗药丸的中心点先一次性算完，再统一写样式，
-      不在读、写之间来回穿插（那样每颗泡都会触发一次重排，属于布局抖动）。
-   2) 一次性插入：小泡先在 DocumentFragment 里备好，最后 append 一次。
-   3) 节点复用：小泡放进对象池反复用；一组泡共用一个清理定时器，换组时先清掉旧定时器，
-      避免旧定时器把新放上去的泡删掉。 */
+/* ===================== C 版：小泡从 × 升起、在选项下沿铺开、化成选项 ===================== */
+/* 小泡节点池：同一组里反复用同一批 span，不反复创建销毁 */
 var bubPool = [];
 function acquireBub() {
   var s = bubPool.pop();
@@ -648,69 +636,72 @@ function releaseBubs(host) {
   var list = host.querySelectorAll('.bub');
   for (var i = 0; i < list.length; i++) {
     var b = list[i];
-    if (b._t) { clearTimeout(b._t); b._t = 0; }
     if (b.parentNode) b.parentNode.removeChild(b);
     bubPool.push(b);
   }
 }
+/* 坐标只读一次、节点一次插入、节点复用、一组只留一个清理定时器：
+   动画期间不再读写布局，所以既不会抖，也没有每颗泡一次重排的开销。 */
+var BUB_PER_PILL = 7;
 function spawnBubbles(el) {
   var pills = el.querySelectorAll('.pill');
   if (!pills.length) return;
   if (S.bubTimer) { clearTimeout(S.bubTimer); S.bubTimer = 0; }
 
-  /* ---- 第一步：只读布局 ---- */
+  /* ---- 第一遍：只读，把所有要用的坐标算完 ---- */
   var btn = el.querySelector('.close');
-  var elH = el.offsetHeight, elW = el.offsetWidth;
-  var ox = btn ? (btn.offsetLeft + btn.offsetWidth / 2) : elW / 2;
-  /* 出发点比按钮底边再低 6px，往外冒的那一下更明显，也把上冲的距离再拉长一点 */
-  var ob = btn ? Math.max(0, elH - (btn.offsetTop + btn.offsetHeight) - 6) : 6;
+  var gH = el.offsetHeight;
+  var ox = btn ? btn.offsetLeft + btn.offsetWidth / 2 : el.offsetWidth / 2;
+  var oy = btn ? Math.max(0, gH - (btn.offsetTop + btn.offsetHeight) - 4) : 6;
   var n = pills.length, cc = (n - 1) / 2;
-  var plans = new Array(n);
+  var rows = new Array(n);
   for (var i = 0; i < n; i++) {
     var p = pills[i];
-    var cb = elH - (p.offsetTop + p.offsetHeight / 2);
-    plans[i] = {
-      cx: p.offsetLeft + p.offsetWidth / 2,
-      cb: cb,
-      halfW: Math.max(10, p.offsetWidth / 2 - 8),
-      dy: (ob - cb < 0) ? (ob - cb) : -60,
-      st: 120 + Math.round(Math.abs(i - cc) * 45)
+    rows[i] = {
+      left: p.offsetLeft,
+      w: p.offsetWidth,
+      /* 落点：选项下沿（气泡正好压在框的轮廓上化掉） */
+      edge: gH ? (gH - (p.offsetTop + p.offsetHeight) + 2) : 72,
+      st: 60 + Math.round(Math.abs(i - cc) * 40)
     };
+    if (!gH) { oy = 0; }
   }
 
-  /* ---- 第二步：只写，先在 fragment 里备好 ---- */
+  /* ---- 第二遍：只写，先在 fragment 里备齐 ---- */
   var frag = document.createDocumentFragment();
-  var maxEnd = 0;
+  var end = 0;
   for (var j = 0; j < n; j++) {
-    var plan = plans[j];
-    for (var k = 0; k < 8; k++) {
-      var s = acquireBub();
-      dressBubble(s);
-      s.className = 'bub cvg';
-      var sz = Math.round(3 + Math.random() * 5);
-      /* 起点：底部关闭按钮的底边（所有小泡共用这一个出发点） */
-      s.style.left = Math.round(ox - sz / 2) + 'px';
-      s.style.bottom = Math.round(ob - sz / 2) + 'px';
-      /* 落点：这颗药丸宽度上的随机一点，比出发点高 */
-      s.style.setProperty('--tx', Math.round(plan.cx + (Math.random() * 2 - 1) * plan.halfW - ox) + 'px');
-      s.style.setProperty('--ty', Math.round(plan.dy + (Math.random() * 8 - 4)) + 'px');
-      s.style.width = sz + 'px';
-      s.style.height = sz + 'px';
-      var dur = 0.56 + Math.random() * 0.2;
-      s.style.animationDuration = dur.toFixed(2) + 's';
-      var dly = Math.round(plan.st + Math.random() * 60);
-      s.style.animationDelay = dly + 'ms';
-      if (dly + dur * 1000 > maxEnd) maxEnd = dly + dur * 1000;
-      frag.appendChild(s);
+    var r = rows[j];
+    for (var k = 0; k < BUB_PER_PILL; k++) {
+      var b = acquireBub();
+      dressBubble(b);
+      b.className = 'bub rise';
+      var sz = 3 + Math.random() * 5;
+      /* 起点：× 的底边（所有小泡共用这一个出发点） */
+      b.style.left = (ox - sz / 2).toFixed(1) + 'px';
+      b.style.bottom = (oy - sz / 2).toFixed(1) + 'px';
+      b.style.width = sz.toFixed(1) + 'px';
+      b.style.height = sz.toFixed(1) + 'px';
+      /* 终点：沿这颗选项的宽度从左到右铺开，左右各留一点，再加一点抖动 */
+      var x = r.left + r.w * ((k + 0.5) / BUB_PER_PILL) + (Math.random() * 8 - 4);
+      var y = r.edge + (Math.random() * 5 - 2);
+      b.style.setProperty('--tx', (x - ox).toFixed(1) + 'px');
+      b.style.setProperty('--ty', (oy - y).toFixed(1) + 'px');
+      var dur = 0.58 + Math.random() * 0.12;
+      b.style.animationDuration = dur.toFixed(2) + 's';
+      var dly = r.st + k * 16 + Math.round(Math.random() * 30);
+      b.style.animationDelay = dly + 'ms';
+      if (dly + dur * 1000 > end) end = dly + dur * 1000;
+      frag.appendChild(b);
     }
   }
   el.appendChild(frag);
 
-  /* ---- 第三步：整组泡共用一个清理定时器 ---- */
+  /* ---- 第三遍：整组泡共用一个清理定时器 ---- */
   S.bubTimer = setTimeout(function () {
     S.bubTimer = 0;
     releaseBubs(el);
-  }, Math.round(maxEnd) + 120);
+  }, Math.round(end) + 120);
 }
 
 /* ===================== 候选项的悬停与点击 ===================== */
@@ -722,12 +713,6 @@ function bindGroup() {
     el.addEventListener('mouseenter', function () {
       showTip(el, item.reason);
       say('悬停「' + item.prompt + '」→ 解释气泡浮出来（' + sideText(S.tipSide) + '）', true);
-      /* 气泡那一版：悬停时这颗药丸也吐一个小泡 */
-      var gel = host.firstElementChild;
-      if (gel && gel.classList.contains('lvl-3') && !S.animating) {
-        var c = pillCenter(gel, el);
-        spawnOne(gel, c.x, c.b, 0);
-      }
     });
     el.addEventListener('mouseleave', function () {
       /* 「上浮小气泡」那一版多留一会儿再收走 */
@@ -767,6 +752,13 @@ function sinkOthers(others) {
     p.classList.add('sink');
   });
 }
+/* 气泡那一版收场：全部安静淡出，不做任何位移 */
+function leaveOthers(others) {
+  Array.prototype.forEach.call(others, function (p, i) {
+    p.style.setProperty('--d2', (i * 35) + 'ms');
+    p.classList.add('leaving');
+  });
+}
 /* kind：pick=点中一个，close=点关闭，replace=被新的一组覆盖。 */
 function dismissGroup(kind, pickedEl, next) {
   var host = $('sugg');
@@ -786,9 +778,9 @@ function dismissGroup(kind, pickedEl, next) {
       scatterOthers(others);
       dur = 470;
     } else if (lv === 3) {
-      pickedEl.classList.add('escape');
-      sinkOthers(others);
-      dur = 510;
+      pickedEl.classList.add('picked');
+      leaveOthers(others);
+      dur = 340;
     } else {
       pickedEl.classList.add('picked');
       scatterOthers(others);
@@ -804,7 +796,7 @@ function dismissGroup(kind, pickedEl, next) {
       dur = 340;
     } else if (lv === 3) {
       el.classList.add('drift');
-      dur = 430;
+      dur = 320;
     } else {
       el.classList.add('closing');
       dur = 320;
