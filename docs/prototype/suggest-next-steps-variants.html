@@ -17,7 +17,7 @@
   比的是特效的气质：
     A 素（基底）—— 药丸从中心点向外一颗颗冒出来；退场只做简单的淡出。
     B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
-    C 上浮小气泡 —— 每颗药丸凝出前，一团小泡从这颗中心向两侧扩散到宽度再融掉；药丸是轻薄的玻璃质感。
+    C 上浮小气泡 —— 小泡从最底下的关闭按钮那一个位置出发，飞向各自的选项再凝成药丸；药丸是轻薄的玻璃质感。
     D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -377,7 +377,7 @@ var VARIANTS = {
   C: {
     name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「素」之上加梦幻感：每颗药丸凝出来之前，先有一团小泡从这颗的中心那一个点出发，随机向两侧扩散到药丸的宽度，到位时融掉，药丸紧接着凝出来（中间那颗先散，两边的后散）；药丸本身是薄薄的半透明玻璃质感，带细亮边和一点斜虹彩，轻不压字；悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
+    idea: '在「素」之上加梦幻感：小泡全部从最底下的关闭按钮那个位置出发，分别飞向各自要凝成的选项，落到选项宽度上就淡掉，选项紧接着凝出来（中间那颗先到，两边的后到）；药丸本身是薄薄的半透明玻璃质感，带细亮边和一点斜虹彩，轻不压字；悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
     tipSide: 'above',
     tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
@@ -535,21 +535,27 @@ function buildGroupHtml() {
   var items = S.group.items;
   var n = items.length, c = (n - 1) / 2, maxD = 0;
   var lv = VARIANTS[S.variant].level;
-  /* 气泡那一版：药丸晚一点凝出来，先让小泡从中心那个点扩散到宽度 */
-  var base = (lv === 3) ? 360 : 0;
   var html = '<div class="vB lvl-' + lv + '">';
   html += '<div class="prow">';
   for (var i = 0; i < n; i++) {
-    /* 从中心点往外冒：中间的先出，两边的依次跟上；两边的药丸带着一点从中心向外的位置 */
-    var d = base + Math.round(Math.abs(i - c) * 70);
+    /* 从中心点往外冒：中间的先出，两边的依次跟上；两边的药丸带着一点从中心向外的位置。
+       气泡那一版：药丸要等小泡从底部按钮飞过来，所以整组往后挪约半秒。 */
+    var d;
+    if (lv === 3) {
+      d = 560 + Math.round(Math.abs(i - c) * 45);
+    } else {
+      d = Math.round(Math.abs(i - c) * 70);
+    }
     var dx = Math.round((c - i) * 8);
     if (d > maxD) maxD = d;
     var cls = 'pill' + (isCmd(items[i].prompt) ? ' cmd' : '');
     html += '<div class="' + cls + '" data-i="' + i + '" style="--d:' + d + 'ms;--dx:' + dx + 'px">' + esc(items[i].prompt) + '</div>';
   }
   html += '</div>';
-  /* 关闭按钮自己占一行，居中放在药丸下面，最后才淡入 */
-  html += '<div class="xrow"><button class="close" title="关闭（等于一个都不选）" style="--d:' + (maxD + 180) + 'ms">×</button></div>';
+  /* 关闭按钮自己占一行，居中放在药丸下面。气泡那一版它是出发点，所以最先出现；
+     其它变体让它最后才淡入，不抢戏。 */
+  var xd = (lv === 3) ? 0 : (maxD + 180);
+  html += '<div class="xrow"><button class="close" title="关闭（等于一个都不选）" style="--d:' + xd + 'ms">×</button></div>';
   html += '</div>';
   return html;
 }
@@ -607,33 +613,41 @@ function pillCenter(el, p) {
     b: el.offsetHeight - (p.offsetTop + p.offsetHeight / 2)
   };
 }
-/* 每颗药丸凝出来之前：全部小泡从这颗的中心那一个点出发，随机向两侧扩散到药丸的宽度，
-   扩散到位时淡掉，药丸紧接着凝出来。中间那颗先散，两边的后散。 */
+/* 每颗药丸凝出来之前：所有小泡都从底部关闭按钮那一个位置出发，分别飞向各自要凝成的
+   那个选项，落到选项宽度上就淡掉，药丸紧接着凝出来。 */
 function spawnBubbles(el) {
   var pills = el.querySelectorAll('.pill');
+  if (!pills.length) return;
+  var btn = el.querySelector('.close');
+  /* 出发点：最下面那一行关闭按钮的正中（整组的最底部） */
+  var ox = btn ? (btn.offsetLeft + btn.offsetWidth / 2) : el.offsetWidth / 2;
+  var ob = btn ? (el.offsetHeight - (btn.offsetTop + btn.offsetHeight / 2)) : 8;
   var n = pills.length, cc = (n - 1) / 2;
   Array.prototype.forEach.call(pills, function (p, idx) {
     var pc = pillCenter(el, p);
-    var st = Math.round(Math.abs(idx - cc) * 45);
-    var halfW = Math.max(14, p.offsetWidth / 2 - 10);
-    var count = 14;
-    for (var k = 0; k < count; k++) {
+    var halfW = Math.max(10, p.offsetWidth / 2 - 8);
+    var st = 120 + Math.round(Math.abs(idx - cc) * 45);
+    for (var k = 0; k < 8; k++) {
       (function () {
         var s = document.createElement('span');
         s.className = 'bub cvg';
         dressBubble(s);
-        var sz = Math.round(3 + Math.random() * 6);
-        /* 起点：这一颗药丸的中心（所有小泡都从这里出发） */
-        s.style.left = Math.round(pc.x - sz / 2) + 'px';
-        s.style.bottom = Math.round(pc.b - sz / 2) + 'px';
-        /* 目标：向两侧扩散到药丸宽度，高度上稍微飘一点 */
-        var spread = (Math.random() * 2 - 1);
-        s.style.setProperty('--tx', Math.round(spread * halfW) + 'px');
-        s.style.setProperty('--ty', Math.round(-2 - Math.random() * 14) + 'px');
+        var sz = Math.round(3 + Math.random() * 5);
+        /* 起点：底部关闭按钮那里（所有小泡共用这一个出发点） */
+        s.style.left = Math.round(ox - sz / 2) + 'px';
+        s.style.bottom = Math.round(ob - sz / 2) + 'px';
+        /* 落点：这颗药丸宽度上的随机一点，比出发点高（没有布局时给一个向上的默认距离） */
+        var tx = pc.x + (Math.random() * 2 - 1) * halfW - ox;
+        var dyBase = ob - pc.b;
+        if (!(dyBase < 0)) dyBase = -60;
+        var ty = dyBase + (Math.random() * 8 - 4);
+        s.style.setProperty('--tx', Math.round(tx) + 'px');
+        s.style.setProperty('--ty', Math.round(ty) + 'px');
         s.style.width = sz + 'px';
         s.style.height = sz + 'px';
-        s.style.animationDuration = (0.44 + Math.random() * 0.16).toFixed(2) + 's';
-        s.style.animationDelay = Math.round(st + Math.random() * 90) + 'ms';
+        var dist = Math.sqrt(tx * tx + ty * ty);
+        s.style.animationDuration = (0.45 + Math.min(0.25, dist / 420)).toFixed(2) + 's';
+        s.style.animationDelay = Math.round(st + Math.random() * 70) + 'ms';
         el.appendChild(s);
         setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 2600);
       })();
