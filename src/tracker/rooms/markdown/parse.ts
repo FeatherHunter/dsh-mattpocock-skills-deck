@@ -286,10 +286,17 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   }
   const key = String((meta && meta.key) || '00')
   // #1277：对象类型看文件头那行隐藏标记（ADR 2.5：标记是唯一真源，标签与正文形状只作兜底）。
-  // 本地房只关心其中一种：标记写着 spec 的票是规格容器。其余标记（ticket/research 等）不改变契约类型——
-  // 契约类型只有 issue / map / spec 三个取值，别的种类只活在标记与标签里。
+  // #1403：判定顺序与 T1 三房口径一致 —— 标记 → 类型标签（wayfinder:map）→ 正文形状（地图文件本身 / 老的 Type: map）。
+  //   先把标记判完：spec 标记是规格容器，ticket 标记是实施票（契约类型仍是普通票），这两种都不许被标签改判；
+  //   然后才看 wayfinder:map 标签：新建的地图票不再写 Type: map，只带这一枚标签，不认它就会读成普通票；
+  //   最后才是老的形状判据（map.md 本身、或老文件里的 Type: map），保证老数据照旧读得对。
   const markedKind = markerKindInHeader(raw)
-  const type = (meta && meta.isMap ? ISSUE_TYPE.MAP : (markedKind === 'spec' ? ISSUE_TYPE.SPEC : ISSUE_TYPE.ISSUE)) as IssueType
+  const hasMapLabel = labels.some((one: { name?: unknown }) => String((one && one.name) || '').trim().toLowerCase() === 'wayfinder:map')
+  const type = (markedKind === 'spec'
+    ? ISSUE_TYPE.SPEC
+    : (markedKind === 'ticket'
+      ? ISSUE_TYPE.ISSUE
+      : (((meta && meta.isMap) || hasMapLabel || typeRaw === 'map') ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE))) as IssueType
   // #971：父子关系以文件顶注释为准，有注释就用注释，没有注释的老文件才回落。
   // 地图文件本身没有父票（恒为空）；计划里用票文件冒充的地图（正文写着 Type: map、却没有父注释）同样视作没有父票。
   // 其余票没有注释时沿用调用方递进来的固定值（今天是 00，即老单根工作区的地图），保持老数据行为不变。
@@ -299,7 +306,8 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     parentKey = null
   } else if (fileParent.found) {
     parentKey = fileParent.value
-  } else if (typeRaw === 'map') {
+  } else if (hasMapLabel || typeRaw === 'map') {
+    // #1403：带 wayfinder:map 标签的新地图票没有父票（标签就是它的容器身份）；老文件里的 Type: map 同样算。
     parentKey = null
   } else {
     parentKey = meta && meta.parentKey !== undefined ? meta.parentKey : null

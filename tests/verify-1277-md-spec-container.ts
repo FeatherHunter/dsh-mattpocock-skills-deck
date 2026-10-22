@@ -7,7 +7,7 @@
 //  ③ 本地房建票：spec/ticket 的标记落在幂等锚之后、父注释之前；不写 Type: spec；正文里的旧标记被剥掉。
 //  ④ 整份替换正文：盘上的标记被搬回、读回来还是 spec；丢掉标记会被核对判坏。
 //  ⑤ 快照兜底：类型没标对但文件头有 spec 标记的行，仍被组装成规格容器（实施票挂它下面、不进普通票池）。
-//  ⑥ deck 规则侧：spec/ticket 的必备标签是 ready-for-agent，不补进度区；任务票行为不变。
+//  ⑥ deck 规则侧：spec/ticket 的必备标签是 ready-for-agent，进度区也补（#1403 起所有位置统一）；任务票行为不变。
 //
 // 门禁归属: src/shared/issue-file/src/marker.ts
 // 门禁归属: src/tracker/rooms/markdown/issues.ts
@@ -269,9 +269,9 @@ async function main(): Promise<void> {
     const ticketLabels = ensureLabels(['ready-for-agent'], 'ticket')
     check(ticketLabels.labels.length === 1 && ticketLabels.added.length === 0, '实施票已带必备标签时不重复补', ticketLabels)
     const specBody = ensureBody('## 问题陈述\n\n要做的事。', 'spec')
-    check(specBody.body.indexOf('## 进度') < 0 && specBody.added.length === 0, '规格票不补进度区', specBody)
+    check(specBody.body.indexOf('## 进度') >= 0 && specBody.added.join('、') === '## 进度', '规格票也补进度区（#1403 起所有位置统一）', specBody.added)
     const ticketBody = ensureBody('要构建什么：先做这一步。', 'ticket')
-    check(ticketBody.body.indexOf('## 进度') < 0 && ticketBody.added.length === 0, '实施票不补进度区', ticketBody)
+    check(ticketBody.body.indexOf('## 进度') >= 0 && ticketBody.added.join('、') === '## 进度', '实施票也补进度区（#1403 起所有位置统一）', ticketBody.added)
     const taskLabels = ensureLabels([], 'task')
     check(taskLabels.labels.indexOf('wayfinder:task') >= 0, '任务票行为不变（仍补 wayfinder:task）', taskLabels.labels)
     const taskBody = ensureBody('普通正文', 'task')

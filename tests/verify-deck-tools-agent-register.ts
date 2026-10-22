@@ -155,7 +155,7 @@ async function main() {
   const realDefineTool = realTools.defineTool
   const realAssert = realTools.assertSupportedJsonSchema
   check(typeof realDefineTool === 'function' && typeof realAssert === 'function', '真实现可加载（官方编译与原生判定都用它）')
-  const requiredOf = { deck_issue_create: ['title'], deck_issue_get: ['key'], deck_map_snapshot: ['key'], deck_issue_patch: ['key'], deck_issue_report: ['key'], deck_map_plan_create: ['title', 'children'] }
+  const requiredOf = { deck_issue_create: ['title', 'kind'], deck_issue_get: ['key'], deck_map_snapshot: ['key'], deck_issue_patch: ['key'], deck_issue_report: ['key'], deck_map_plan_create: ['title', 'children'] }
   for (const d of seven) {
     const opt = agent.buildAgentToolOptions(d)
     check(opt && opt.name === d.name && opt.description === d.description, d.name + ' 名字与一句话描述原样透出')

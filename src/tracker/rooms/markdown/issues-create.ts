@@ -36,7 +36,7 @@ type RepoWithPath = RepositoryRef & { path?: string }
 // 调用方递进来的创建输入：契约只收小写子集，运行时还会带大小写两种写法（Type/Labels）、
 // 状态行（status）、阻塞行（blockedBy）与整行字符串的 labels（见 buildIssueText 的读取）；
 // 经视图读，不拓契约签名。
-type CreateView = Omit<CreateInput, 'labels'> & { labels?: LabelInput[] | string; Type?: unknown; Labels?: unknown; status?: unknown; blockedBy?: unknown }
+type CreateView = Omit<CreateInput, 'labels'> & { labels?: LabelInput[] | string; Type?: unknown; Labels?: unknown; status?: unknown; blockedBy?: unknown; typeLine?: unknown }
 
 // 写者队列里取号落盘的结果：成功带落盘位置（命中锚复用旧票也走这里），失败带三段式。
 interface CreatePlacement {
@@ -117,6 +117,19 @@ function checkSingletonsForCreate(content: string, wantAnchor: boolean): string{
   if(countMarkerLines(content)>1) return '类型标记行翻倍了'
   return ''
 }
+/** Type 行只留四个老值：地图工单的 research / prototype / grilling / task。 */
+const TYPE_FIELD_VALUES=['research','prototype','grilling','task']
+/** 文件头 Type 行的取值：先看标签里那枚 wayfinder:<四值>，没有再认调用方明确传的四个老值；其余一律空串。
+ *  #1403 的「本地只写三类」就靠这一处收口 —— 契约三值（issue / map / spec）不会从任何一条路漏进 Type 行。 */
+function typeFieldOf(explicit: unknown, labelsStr: string): string{
+  const parts=String(labelsStr||'').split(/[,\uFF0C]+/)
+  for(const part of parts){
+    const m=/^wayfinder:(research|prototype|grilling|task)$/i.exec(part.trim())
+    if(m) return m[1].toLowerCase()
+  }
+  const raw=String(explicit||'').trim().toLowerCase()
+  return TYPE_FIELD_VALUES.indexOf(raw)>=0?raw:''
+}
 /** 建票时刻：本仓房间层的既有做法就是取真实时钟（comments.ts 那条评论时间同款），不另立时钟源。 */
 function builtAtIso(): string { return new Date().toISOString() }
 /** 从调用方输入里认出规格 / 实施票的标记值：明确传的 type 优先，其次是正文最前面那行标记；都没有回空串。
@@ -134,7 +147,6 @@ function buildIssueText(input: CreateView){
   // #1277：规格与实施票的标记写进文件头，不写 Type 行 —— ADR 2.1 已把 Type 的候选值收回到
   // research / prototype / grilling / task 四个老值，规格不再靠 Type 行表达。标记取值来源见 kindMarkerOf。
   const kindMarker=kindMarkerOf(input)
-  const typeField=kindMarker?'':(input.type?String(input.type):(input.Type?String(input.Type):''))
   const labelsInput = Array.isArray(input.labels) ? input.labels : (Array.isArray(input.Labels)? input.Labels : null)
   let labelsStr=''
   if(labelsInput && labelsInput.length){
@@ -149,6 +161,13 @@ function buildIssueText(input: CreateView){
     // 整行直接给字符串时，同样逐个剥净：这是「一次贴一整行」的用法，最容易把引号一起带进来
     labelsStr=String(input.labels).split(/[,\uFF0C]+/).map(function(s){return stripLabelDecoration(s)}).filter(Boolean).join(', ')
   }
+  // #1403：文件头只写三类 —— 规格与实施票写对象标记（上面 kindMarker），地图工单写 Type 行（去前缀的
+  // research / prototype / grilling / task），其余（map / bug / issue）不写类型行，也不写 Type: issue/map/bug。
+  // 地图工单的类型来自被选中那一枚 wayfinder 标签；还没迁移的调用点（地图骨架建子票）传的 input.type
+  // 正好是这四个老值时照旧写，保住旧行为；契约三值（issue / map / spec）一个字都不落到 Type 行。
+  // 新工具会明确交下 typeLine（地图工单是 label 去前缀，其余位置是一句空串），照它写；
+  // 没有 typeLine 的是还没迁移的旧调用点（地图骨架建子票），退回按传来的老值与标签推。
+  const typeField=kindMarker?'':(typeof input.typeLine==='string'?String(input.typeLine):typeFieldOf(input.type||input.Type, labelsStr))
   const rawBody=input.body?String(input.body):''
   // #1277：片段正文里夹带的标记行先剥掉：标记只由文件头那条表达（整份正文的处理见 cleanWholeBodyForCreate）。
   const bodyPart=isWholeIssueBody(rawBody)?cleanWholeBodyForCreate(rawBody):stripMarkerLines(rawBody.trim())

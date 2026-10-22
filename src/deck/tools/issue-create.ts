@@ -1,10 +1,13 @@
 // src/deck/tools/issue-create.ts —— deck_issue_create（#713 第六批；#1019 换到新树、#1035 转 TypeScript；#1091 加维护者原话）
 //
-// 建一张票。三件小事由代码保证，不靠 AI 记得：
-//   1. 必备标签（按种类：地图 wayfinder:map、任务 wayfinder:task、缺陷 bug + needs-triage）缺就补，
-//      补没补上按结果说 —— 只读仓库上没挂上时不说“补了”，按部分成功回并写清原因（#992）；
-//   2. 进度区（地图补五个区块，别的票补一个「## 进度」）；
-//   3. 创建幂等锚（#711 的契约字段 idempotencyKey）：同一个会话、同一个标题、同一批标签在 5 分钟窗口里
+// 建一张票。四件小事由代码保证，不靠 AI 记得：
+//   1. 位置值先收口（#1403 的两层词表）：kind 必填六个位置值，地图工单还要 label 四选一；
+//      旧的 task / ticket 直接拒绝并给迁移路径，不再悄悄回落成任务票；
+//   2. 必备标签（按位置表：地图 wayfinder:map、地图工单是 label 那一枚、规格与实施票 ready-for-agent、
+//      缺陷 bug + needs-triage、普通票不补）缺就补，补没补上按结果说 —— 只读仓库上没挂上时不说“补了”，
+//      按部分成功回并写清原因（#992）；
+//   3. 进度区（地图先补五个区块，所有位置值再补一个「## 进度」）；
+//   4. 创建幂等锚（#711 的契约字段 idempotencyKey）：同一个会话、同一个标题、同一批标签在 5 分钟窗口里
 //      重复调一次，契约层按锚回查，复用同一张票 —— 重试不会重复花钱，也不会多出票。
 //
 // #1091：带 originalWords 时把维护者原话一字不改写进正文的「## 维护者原话」区（位置规则在 shared 层），
@@ -17,12 +20,14 @@ import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence,
 import type { EdgeEvidence } from '../shell/edge-landing.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
+// #1403：位置值到契约类型 / 类型标签 / 正文标记 / 父票规则的唯一答案在这张表里（src/deck/rules/object-kind.ts）。
+import { resolveCreateKind } from '../rules/object-kind.js'
 // #1195：执行层失败（抛错 / 中止 / 超时 / 预算耗尽）的收口从两个写工具里抽出来共用，判据一字未改。
 import { numOpt, timeoutMessage, transportMessage, withCap } from '../shell/backend-transport.js'
 import type { TransportResult } from '../shell/backend-transport.js'
 // #1277：规格与实施票的票面对象类型标记（唯一真源，ADR 2.5）。标记由本工具写进正文最前面，
 // 后端建房时再把它挪进文件头（本地 Markdown 房会挪，GitHub 房今天的已知缺口见设计文档第 7 节）。
-import { isHeaderOnlyKind, markerKindAtStart, markerLineFor } from '../../shared/issue-file/src/marker.js'
+import { markerKindAtStart, markerKindInHeader, markerLineFor } from '../../shared/issue-file/src/marker.js'
 // #1091：维护者原话的入参收口与「追加 + 写后核对」都住在 shared 层（与 #1090 的进度区同一套形态）。
 import { PROGRESS_BODY_LIMIT } from '../../shared/issue-file/src/progress.js'
 import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-words.js'
@@ -56,7 +61,7 @@ export interface DeckIssueCreateDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_create',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票只在票面写对象类型标记），带 originalWords 时把维护者原话一字不改写进正文的「## 维护者原话」区，重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成原生依赖边（边没写成时票照建，回执逐条说明）。本地后端编号与文件头标记由工具写，不要手写票文件。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一张票：kind 必填，六值 map / map-ticket / spec / spec-ticket / bug / issue；map 与 spec 是顶层容器，地图工单挂探索地图、实施票挂规格，用 parentKey，工单要 label。自动补 label 与进度；规格与实施票写类型标记；originalWords 照抄；blockedBy 写成依赖边。本地后端编号与文件头标记由工具写，不要手写票文件。',
   parameters: {
     type: 'object',
     properties: {
@@ -72,27 +77,19 @@ export const definition = {
         required: ['text', 'source'],
         additionalProperties: false,
       },
-      kind: { type: 'string', enum: ['task', 'bug', 'map', 'spec', 'ticket'], description: '票的种类，缺省 task' },
-      parentKey: { type: 'string', description: '父票：规格票挂探索地图、实施票挂规格票（kind=ticket 时必填，父必须是规格票）' },
+      kind: { type: 'string', enum: ['map', 'map-ticket', 'spec', 'spec-ticket', 'bug', 'issue'], description: '票的位置，必填：map（探索地图）/ map-ticket（地图下的工单）/ spec（规格）/ spec-ticket（规格下的实施票）/ bug（缺陷）/ issue（普通票，万能兜底）。旧的 task / ticket 不再接受：task 改 map-ticket 并给 label，ticket 改 spec-ticket。' },
+      label: { type: 'string', enum: ['wayfinder:research', 'wayfinder:prototype', 'wayfinder:grilling', 'wayfinder:task'], description: '只有 kind=map-ticket 才收且必填：wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task，四选一。类型标签由它决定，别再放进 labels。' },
+      parentKey: { type: 'string', description: '父票：map-ticket 必填，父必须是探索地图；spec-ticket 必填，父必须是规格；map 与 spec 是顶层容器，不收 parentKey；bug 与 issue 可选，给了就必须是探索地图或规格。' },
       blockedBy: { type: 'array', items: { type: 'string' }, description: '这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）' },
-      labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加' },
+      labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加；除 issue 外不要再放类型标签（wayfinder:map / wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task / bug），类型标签由 kind 与 label 决定。' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
-    required: ['title'],
+    required: ['title', 'kind'],
     additionalProperties: false,
   },
-}
-
-/** 票的种类收口：认 map / bug / spec / ticket，其余（没给、给了别的词）一律当 task。
- *
- *  #1277 补上 spec 与 ticket 两档：它们与契约层的三种类型不同 —— 契约类型只有 issue / map / spec，
- *  实施票在契约上是普通票，身份只靠票面标记。 */
-function kindOf(a: Record<string, unknown>): string {
-  const k = String((a && a.kind) || 'task').trim()
-  return (k === 'map' || k === 'bug' || k === 'spec' || k === 'ticket') ? k : 'task'
 }
 
 /**
@@ -115,14 +112,18 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const toolEntryAt = (typeof d.now === 'function') ? d.now() : Date.now()
     const a: Record<string, unknown> = args || {}
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
-    const kind = kindOf(a)
     const est = shell.estimateFor('deck_issue_create', a)
-    // #1277：实施票的父必须是规格票（ADR 2.1）——没给父票就不建。给了父票的，父票到底是不是规格容器
-    // 由后端这一层核对（本地 Markdown 房会读父票文件头的 spec 标记；远端后端暂时只保证显式给了父票）。
-    const wantedParent = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? '' : String(a.parentKey).trim()
-    if (kind === 'ticket' && !wantedParent) {
-      return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '实施票的父必须是规格票：kind=ticket 时要带 parentKey，填规格票号（不是探索地图的票号）。', { cost: { estimated: est } })
+    // #1403：位置值先收口 —— kind 必填、label 只给地图工单、labels 里不许重复表达类型、顶层容器不收父票、
+    // 子票必须带父票。收不成就回一句人话，把合法值与迁移路径写清楚；这一步不碰后端、不花请求。
+    const argued = resolveCreateKind({ kind: a.kind, label: a.label, labels: a.labels, parentKey: a.parentKey })
+    if (!argued.ok) {
+      return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, String(argued.problem || '建票参数不对。') + '这张票没建。', { cost: { estimated: est } })
     }
+    // 收口之后这几个值一定在；写成带缺省的形式只是为了让编译器安静，运行时分支进不来。
+    const kind = String(argued.kind || '')
+    const contractType = String(argued.contractType || 'issue')
+    const markerValue = String(argued.marker || '')
+    const parentRule = String(argued.parent || 'optional')
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
@@ -161,7 +162,8 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    const ensured = ensureLabels(a.labels, kind)
+    // 标签按位置表补：地图工单补的是 label 那一枚，规格与实施票补 ready-for-agent，普通票一枚都不补。
+    const ensured = ensureLabels(argued.labels, kind, argued.label)
     const body = ensureBody(a.body, kind)
     // #1091：维护者原话收口要赶在建票之前 —— 收不成、或正文会超过 60KB 时，这张票不建（一个字都不动）。
     let originalWords: OriginalWordsEntry | null = null
@@ -172,10 +174,10 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       }
       originalWords = parsed.entry
     }
-    // #1277：规格与实施票在正文最前面写一行对象类型标记（标记是唯一真源，ADR 2.5）。
-    // 调用方正文里已经带了同一行时不再重复写；没带的才有这一行。
-    if (isHeaderOnlyKind(kind)) {
-      const markerLine = markerLineFor(kind)
+    // #1403：对象类型标记只给 spec 与 spec-ticket 写（标记值来自位置表），落在正文文件头、一级标题之前；
+    // map-ticket / bug / issue 一律不写标记。调用方正文里已经带了同一行时不再重复写。
+    if (markerValue) {
+      const markerLine = markerLineFor(markerValue)
       if (markerLine && markerKindAtStart(body.body) === null) body.body = markerLine + body.body
     }
     // #1091：原话区按「紧跟目的 / 正文最前」的规则追加；正文头部注释与一级标题会被跳过（shared 层判的）。
@@ -206,13 +208,55 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       const t = sc.tracker!
       const opCtx = sc.opCtx
       const rel = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? null : String(a.parentKey)
+      // 回执的 notes 要能装「父票只核了存在性」这类降级说明，所以在建票之前就立起来。
+      const notes: string[] = []
+      // #1403：父票先核一遍再建票。位置表只说「该不该有父票」，父票到底是不是对的容器要读盘才知道：
+      //   能读到契约类型（map / spec / issue）就核类型；后端没回类型字段时只核存在性，并在回执如实写降级说明；
+      //   读不到（不存在 / 超时 / 额度不够）就拒绝，不建一张挂错位置的票。
+      // 这一读是一次出站请求（1 条 2 点），成功路径的点数账在下面 parentCheck 里。
+      let parentCheck = { requests: 0, points: 0 }
+      if (rel) {
+        parentCheck = { requests: 1, points: 2 }
+        const refuse = (text: string, claimed: { requests: number, points: number }) => ({
+          value: { status: DECK_STATUS.UNSUPPORTED, reason: REFUSAL_REASONS.BAD_ARGS, text: text, data: { error: { kind: 'parent', message: text.slice(0, 300) } }, notes: notes },
+          claimed: claimed,
+        })
+        if (sc.outOfBudget()) return refuse('额度不够，没读父票：这张票没建。先核对父票号，再续。', { requests: 0, points: 0 })
+        const parentRead = await t.get(repo, rel, {}, opCtx)
+        const parentTimeout = timeoutMessage(parentRead as TransportResult)
+        if (parentTimeout) return refuse('父票 ' + rel + ' 没读回来（超时：' + String(parentTimeout).slice(0, 160) + '）：这张票没建。先按票号核对父票，再续。', parentCheck)
+        if (!parentRead || parentRead.ok !== true) {
+          const why = String((parentRead && parentRead.error && parentRead.error.message) || '后端没给出原因').slice(0, 200)
+          return refuse('父票 ' + rel + ' 读不到（后端原话：' + why + '）：这张票没建。父票必须已经存在。', parentCheck)
+        }
+        const parentData = (parentRead.data || {}) as Record<string, unknown>
+        const declaredType = (typeof parentData.type === 'string') ? String(parentData.type) : ''
+        const parentBody = (typeof parentData.body === 'string') ? parentData.body : ''
+        const declaredMarker = markerKindInHeader(parentBody)
+        // 契约类型优先；后端没回类型字段时退回票面标记（T1 的读侧判据），两个都没有才算「读不到类型」。
+        const parentKind = declaredType || (declaredMarker === 'map' ? 'map' : declaredMarker === 'spec' ? 'spec' : (declaredMarker ? 'issue' : ''))
+        if (!parentKind) {
+          notes.push('父票类型读不到，只核了存在性：父票 ' + rel + ' 已经在了，但它是不是该有的容器没法确认。')
+        } else if (parentRule === 'map') {
+          if (parentKind !== 'map') return refuse('父票 ' + rel + ' 不是探索地图（读到的是 ' + parentKind + '）：地图工单的父必须是探索地图。这张票没建。', parentCheck)
+        } else if (parentRule === 'spec') {
+          if (parentKind !== 'spec') return refuse('父票 ' + rel + ' 不是规格（读到的是 ' + parentKind + '）：实施票的父必须是规格。这张票没建。', parentCheck)
+        } else if (parentKind !== 'map' && parentKind !== 'spec') {
+          return refuse('父票 ' + rel + ' 不是探索地图或规格（读到的是 ' + parentKind + '）：普通票的父只能是这两种容器。这张票没建。', parentCheck)
+        } else {
+          notes.push('父票 ' + rel + ' 已核对：它是' + (parentKind === 'map' ? '探索地图' : '规格') + '。')
+        }
+      }
       // 建票入参是本文件自己拼的，两个可选字段（parentKey / assignees）下面按条件补：
       // 先声明成一张表，补字段时编译器才不拦（运行时拼出来的形状一字不变）。
-      const input: Record<string, unknown> = { title: title, body: body.body, type: kind, labels: ensured.labels, idempotencyKey: anchor }
+      // 调后端传的是契约三值（位置表算好的 contractType），不是位置值本身。
+      // typeLine 是本地 markdown 文件头 Type 行该写什么：地图工单写 label 去前缀的那一个，其余位置明确给空串；
+      // 远端后端不读它，契约类型仍由 type 走。给空串是为了让「issue 兜底也带了 wayfinder 标签」不会漏成 Type 行。
+      const typeLine = kind === 'map-ticket' ? String(argued.label || '').replace(/^wayfinder:/, '') : ''
+      const input: Record<string, unknown> = { title: title, body: body.body, type: contractType, typeLine: typeLine, labels: ensured.labels, idempotencyKey: anchor }
       if (rel) input.parentKey = rel
       if (Array.isArray(a.assignees) && a.assignees.length) input.assignees = a.assignees
       const created = await t.create(repo, input, opCtx)
-      const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (body.added.length) notes.push('我替你补了正文区块：' + body.added.join('、'))
       if (!a.idempotencyKey) notes.push('这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。')
@@ -354,7 +398,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
             notes: notes,
             touched: issue.key ? [String(issue.key)] : [],
           },
-          claimed: { requests: 3 + blockCost.requests + wordCost.requests, points: 6 + blockCost.points + wordCost.points },
+          claimed: { requests: 3 + parentCheck.requests + blockCost.requests + wordCost.requests, points: 6 + parentCheck.points + blockCost.points + wordCost.points },
         }
       }
       if (labelFailed) {
@@ -374,10 +418,10 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
             notes: notes,
             touched: issue.key ? [String(issue.key)] : [],
           },
-          claimed: { requests: 3 + blockCost.requests + wordCost.requests, points: 6 + blockCost.points + wordCost.points },
+          claimed: { requests: 3 + parentCheck.requests + blockCost.requests + wordCost.requests, points: 6 + parentCheck.points + blockCost.points + wordCost.points },
         }
       }
-      const claimedBase = { requests: (rel ? 3 : 2) + blockCost.requests + wordCost.requests, points: (rel ? 6 : 4) + blockCost.points + wordCost.points }
+      const claimedBase = { requests: (rel ? 3 + parentCheck.requests : 2) + blockCost.requests + wordCost.requests, points: (rel ? 6 + parentCheck.points : 4) + blockCost.points + wordCost.points }
       if (blockFailed) {
         notes.push('阻塞边没建成，别把它们当成已经挂上：逐条原因在上面的 items 里。')
         if (originalProblem) notes.push('维护者原话也没核对上：' + originalProblem)

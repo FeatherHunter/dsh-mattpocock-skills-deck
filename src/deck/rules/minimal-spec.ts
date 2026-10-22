@@ -13,31 +13,20 @@
 // 纯在哪：只做字符串与数组的计算，不取会话、不起进程、不读写文件、不读钟；进来的值
 // 一律当「形状不可信」先收口（收口函数与类型都在本文件里，不引别的目录）。
 // 例外是 src/shared/ 下的纯计算包：规格 / 实施票的判定与共享标记包共用一份，不在两侧各写一遍（#1277）。
-import { isHeaderOnlyKind } from '../../shared/issue-file/src/marker.js'
+import { labelsToEnsure, ruleForName, type PositionKind } from './object-kind.js'
 
 /** 票的种类（deck_issue_create 的 kind 参数与各工具的写路径共用这一套词）。
  *
- *  这里是本仓规则侧对「对象类型」的现有取值：地图 / 任务 / 缺陷是建票工具一开始就有的三种；
- *  #1277 补上规格（spec，实施地图的容器）与实施票（ticket，规格拆出来的施工票）。
- *  九值全集与更细的判定链归 #1275 的 ADR，本文件不一次扩到底。 */
-export type DeckKind = 'map' | 'task' | 'bug' | 'spec' | 'ticket'
+ *  #1403 起六个位置值：地图 / 地图工单 / 规格 / 实施票 / 缺陷 / 普通票。取值与「这个位置在三种后端
+ *  各是什么」的唯一答案在 object-kind.ts；这里只沿用旧名字 DeckKind，免得调用方跟着改名，
+ *  但它的取值已经交给那张位置表。旧值 task / ticket 仍被认（映射到地图工单 / 实施票），
+ *  只给还没迁移的调用点（地图骨架工具的子票）用，建票工具收到旧值会拒绝。 */
+export type DeckKind = PositionKind
 
 /** 拿不准是不是字符串时统一收口成字符串：不是字符串就当空串（调用方各自判空）。 */
 function str(v: unknown): string {
   return (typeof v === 'string') ? v : ''
 }
-
-/** 强制最小规范里那几枚必备标签：按票的种类给，缺的补上，已经有的不动。
- *
- *  规格与实施票为什么是 ready-for-agent：ADR §5 定下不再新增 wayfinder 标签，这两类票不是探索地图上的
- *  研判任务，而是可以直接开工的活；它们的身份靠票面标记，不靠标签。 */
-export const MINIMAL_LABELS: Readonly<Record<DeckKind, readonly string[]>> = Object.freeze({
-  map: Object.freeze(['wayfinder:map']),
-  task: Object.freeze(['wayfinder:task']),
-  bug: Object.freeze(['bug', 'needs-triage']),
-  spec: Object.freeze(['ready-for-agent']),
-  ticket: Object.freeze(['ready-for-agent']),
-})
 
 /** 地图那张票必带的五个区块（与共享层 parser.js 的 parseMapBody 认的五个标题逐字一致）。 */
 export const MAP_BLOCK_TITLES: readonly string[] = Object.freeze([
@@ -46,7 +35,7 @@ export const MAP_BLOCK_TITLES: readonly string[] = Object.freeze([
 
 /**
  * 把各种形态的标签清单（字符串、`{name}` 对象、两种混着来）归一成去空后的名字数组。
- * 与 anchor.ts 里的同名声函数各有一份：两处的用途不同（这里要按顺序比对，
+ * 与 anchor.ts 里的同名函数各有一份：两处的用途不同（这里要按顺序比对，
  * 那里要拼进哈希），合起来要跨文件传值，反而多一层耦合。
  */
 function labelNames(list: unknown): string[] {
@@ -56,11 +45,16 @@ function labelNames(list: unknown): string[] {
     .filter(Boolean)
 }
 
-/** 补必备标签：返回补完的清单与「我替你补了哪些」（原话写进返回值，让人看得见）。 */
-export function ensureLabels(labels: unknown, kind: string): { labels: string[]; added: string[] } {
+/**
+ * 补必备标签：返回补完的清单与「我替你补了哪些」（原话写进返回值，让人看得见）。
+ *
+ * 该补哪几枚完全由 object-kind.ts 的位置表回答（地图工单是 label 那一枚，规格与实施票是
+ * ready-for-agent，缺陷是 bug + needs-triage，普通票一枚都不补）。#1403 起不再有「认不出的种类
+ * 就按 task 补 wayfinder:task」这条兜底：那张位置表里没有的名字，标签一枚都不猜，交给调用方拒绝。
+ */
+export function ensureLabels(labels: unknown, kind: string, label?: unknown): { labels: string[]; added: string[] } {
   const have = labelNames(labels)
-  // kind 是运行时来的字符串：认得的那五种各有一套必备标签，认不出的一律按 task。
-  const want = MINIMAL_LABELS[kind as DeckKind] || MINIMAL_LABELS.task
+  const want = labelsToEnsure(kind, label)
   const added: string[] = []
   for (const name of want) {
     // 大小写不敏感地比：GitHub 的标签名不分大小写，`Wayfinder:Map` 算已经有了。
@@ -94,29 +88,31 @@ function hasProgressHeading(text: string): boolean {
 }
 
 /**
- * 补正文：地图补五个区块，别的票补一个进度区。
- * 判据是「正文里有没有认得出的那一行」，不是「有没有非空正文」——空正文照样要补。
+ * 补正文：地图先补五个区块，然后所有位置值都补一个进度区；进度区永远放在最后。
+ *
+ * #1403 起规格与实施票也补「## 进度」：位置表说所有 kind 建票统一补，地图五节在前、进度在五节之后。
+ * （#1277 当时不补，理由是规格与实施票的正文由技能模板写；现在统一到一条口径，模板里已有进度标题的
+ * 不会重复补 —— 判据仍是同一行标题，不是「有没有非空正文」。）
+ * 判据是「正文里有没有认得出的那一行」，所以空正文照样要补。
  */
 export function ensureBody(body: unknown, kind: string): { body: string; added: string[] } {
   const text = typeof body === 'string' ? body : ''
   const added: string[] = []
   let out = text
-  if (kind === 'map') {
+  const rule = ruleForName(kind)
+  if (rule && rule.mapBlocks) {
     const missing = missingMapBlocks(text)
     if (missing.length) {
       if (!out.trim()) out = '<!-- 这张地图的正文由 deck_map_plan_create 建骨架时补上 -->'
       out = out.replace(/\s*$/, '') + '\n' + missing.map((t) => '\n## ' + t + '\n').join('')
       for (const t of missing) added.push('## ' + t)
     }
-    return { body: out, added: added }
   }
-  // #1277：规格与实施票的正文由技能模板写（规格是 to-spec 的七节，实施票是 to-tickets 的四节），
-  // 不补「## 进度」区 —— 进度区是给探索地图上的任务票记「做到哪一步」的，这两类票的状态由票的 state 表达。
-  if (isHeaderOnlyKind(kind)) return { body: out, added: added }
+  // 进度区所有位置值都补（含规格与实施票）；已有同一判据的标题不重复补。
+  // 2026-10-22 维护者决定：进度区不再带「做到哪一步了，在这里一行一行记」这行占位注释。
+  // 它在页面上看不见，用工具写完进度后还会留在正文里，读原始正文的人会分不清哪句是格式、哪句是原话；
+  // 票面只需要「## 进度」这一行标题，写进度的规则看 docs/agents/issue-tracker.md。
   if (!hasProgressHeading(text)) {
-    // 2026-10-22 维护者决定：进度区不再带「做到哪一步了，在这里一行一行记」这行占位注释。
-    // 它在页面上看不见，用工具写完进度后还会留在正文里，读原始正文的人会分不清哪句是格式、哪句是原话；
-    // 票面只需要「## 进度」这一行标题，写进度的规则看 docs/agents/issue-tracker.md。
     out = (out.replace(/\s*$/, '') + '\n\n## 进度\n').replace(/^\n+/, '')
     added.push('## 进度')
   }

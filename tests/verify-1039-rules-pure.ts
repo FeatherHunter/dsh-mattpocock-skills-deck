@@ -43,11 +43,11 @@ async function minimalSpec() {
   const map = ms.ensureLabels([], 'map')
   check(map.labels.includes('wayfinder:map') && map.added.includes('wayfinder:map'), '地图票补上 wayfinder:map 并如实说补了什么')
   const task = ms.ensureLabels(['wayfinder:task'], 'task')
-  check(task.added.length === 0 && task.labels.length === 1, '任务票已有标签时不重复加')
+  check(task.added.length === 0 && task.labels.length === 1, '旧值 task 仍按地图工单补 wayfinder:task（地图骨架的未迁移调用点靠它）')
   const bug = ms.ensureLabels([{ name: 'BUG' }], 'bug')
   check(bug.added.includes('needs-triage') && !bug.added.includes('bug'), '缺陷票补 needs-triage；大小写不同的 bug 算已经有')
   const odd = ms.ensureLabels(undefined, '认不出的种类')
-  check(odd.labels.includes('wayfinder:task'), '认不出的种类按任务票补（不抛错）')
+  check(odd.added.length === 0 && odd.labels.length === 0, '认不出的种类不猜标签：一枚都不补，也不抛错（#1403 起不再回落 task）')
 
   // 进度区：没有就补一段；已经有了（含带百分比的标题）就不再补。
   const added = ms.ensureBody('## Question\n\nx\n', 'task')
@@ -57,11 +57,14 @@ async function minimalSpec() {
   const empty = ms.ensureBody('', 'task')
   check(countProgressHeaders(empty.body) === 1 && empty.body.indexOf('## 进度') === 0, '空正文也补一段进度，且不留下开头的空行')
 
-  // 地图：五个区块缺哪个补哪个，一个都不缺时不重复补。
+  // 地图：五个区块缺哪个补哪个，进度区随后补在五节之后（#1403 起所有位置值都补进度）。
   const mapBody = ms.ensureBody('## Destination\n\n去哪\n', 'map')
-  check(mapBody.added.length === 4, '地图缺四个区块时如实说补了四个（实际 ' + mapBody.added.length + '）')
+  check(mapBody.added.length === 5 && mapBody.added[4] === '## 进度',
+    '地图缺四个区块时补四个，再补一段进度（实际 ' + mapBody.added.length + '）')
   const allFive = '## Destination\n\nx\n\n## Notes\n\nx\n\n## Decisions so far\n\nx\n\n## Not yet specified\n\nx\n\n## Out of scope\n\nx\n'
-  check(ms.ensureBody(allFive, 'map').added.length === 0, '五个区块都在时不补（判据按区块标题原文判）')
+  const allFiveDone = ms.ensureBody(allFive, 'map')
+  check(allFiveDone.added.length === 1 && allFiveDone.added[0] === '## 进度',
+    '五个区块都在时不重复补区块，只补进度区（判据按区块标题原文判）')
 
   // 整份/片段：两条写路径共用同一条判据，四种形态都算整份。
   check(ms.isWholeIssueBody('<!-- DSH-IDEMPOTENCY-KEY: x -->\n# 标题\n\n## 进度\n'), '带一级标题与锚的算整份')
@@ -223,6 +226,99 @@ async function workspaceFile() {
 }
 
 /**
+ * 两层词表的真值表（#1403 / #1410）：六个位置值各自是什么契约类型、补哪些标签、写不写正文标记、
+ * 父票规则是什么。这张表就是实现里唯一那张位置表的镜像 —— 实现与验收各写一遍不是重复劳动：
+ * 实现写「代码怎么算」，这里写「人定的答案是什么」，两边对不上就是其中一边改了没同步。
+ */
+async function objectKind() {
+  console.log('— 两层词表：位置值、契约类型、标签、正文标记、父票规则')
+  const ok = await imp('src/deck/rules/object-kind.ts')
+  const ms = await imp('src/deck/rules/minimal-spec.ts')
+
+  check(ok.POSITION_KINDS.join('|') === 'map|map-ticket|spec|spec-ticket|bug|issue',
+    '位置值就是六个：map / map-ticket / spec / spec-ticket / bug / issue')
+
+  // 真值表：契约类型、必备标签、正文标记值、父票规则，六个位置值逐行对。
+  const TRUTH = [
+    ['map', 'map', ['wayfinder:map'], '', 'none'],
+    ['map-ticket', 'issue', ['wayfinder:task'], '', 'map'],
+    ['spec', 'spec', ['ready-for-agent'], 'spec', 'none'],
+    ['spec-ticket', 'issue', ['ready-for-agent'], 'ticket', 'spec'],
+    ['bug', 'issue', ['bug', 'needs-triage'], '', 'optional'],
+    ['issue', 'issue', [], '', 'optional'],
+  ]
+  for (const row of TRUTH) {
+    const kind = row[0], contract = row[1], wantLabels = row[2], marker = row[3], parent = row[4]
+    const rule = ok.ruleFor(kind)
+    check(!!rule && rule.contractType === contract, kind + ' 落到契约类型 ' + contract)
+    check(!!rule && rule.marker === marker, kind + ' 的正文标记值是「' + (marker || '不写') + '」')
+    check(!!rule && rule.parent === parent, kind + ' 的父票规则是 ' + parent)
+    const ensured = ms.ensureLabels([], kind, kind === 'map-ticket' ? 'wayfinder:task' : undefined)
+    check(wantLabels.every((n) => ensured.labels.includes(n)) && ensured.added.length === wantLabels.length,
+      kind + ' 补的标签正好是「' + (wantLabels.join('、') || '一枚都不补') + '」（实际补了 ' + ensured.added.join('、') + '）')
+  }
+
+  // 地图工单：四个 label 各建一条，补的就是选中的那一枚，不另补第二枚类型标签。
+  for (const one of ok.MAP_TICKET_LABELS) {
+    const ensured = ms.ensureLabels(['ready-for-agent'], 'map-ticket', one)
+    check(ensured.labels.includes(one) && ensured.labels.filter((n) => ok.isTypeLabel(n)).length === 1,
+      '地图工单选 ' + one + ' 时只补这一枚类型标签（不另补第二枚）')
+  }
+
+  // 万能兜底：issue 一枚标签都不补、也不校验；类型标签混在 labels 里照样原样带走。
+  const issued = ms.ensureLabels(['wayfinder:map', 'bug', 'ready-for-agent'], 'issue')
+  check(issued.added.length === 0 && issued.labels.length === 3, '兜底 issue 不补也不改任何标签（类型标签也原样带走）')
+
+  const TYPE_LABELS = ['wayfinder:map', 'wayfinder:research', 'wayfinder:prototype', 'wayfinder:grilling', 'wayfinder:task', 'bug']
+  check(TYPE_LABELS.every((n) => ok.isTypeLabel(n)), '六枚类型标签都认得')
+  check(!ok.isTypeLabel('ready-for-agent') && !ok.isTypeLabel('needs-triage'), 'triage 标签（ready-for-agent、needs-triage）不算类型标签')
+
+  // 正文骨架：六个位置值都补进度区；地图五节在前、进度在五节之后；已有同一判据的进度标题就不重复补。
+  for (const kind of ok.POSITION_KINDS) {
+    const b = ms.ensureBody('', kind)
+    check(countProgressHeaders(b.body) === 1, kind + ' 的正文补且只补一段进度区')
+  }
+  const mapBody = ms.ensureBody('', 'map').body
+  check(countProgressHeaders(mapBody) === 1 && mapBody.indexOf('## Out of scope') < mapBody.indexOf('## 进度'),
+    '地图的五节在前、进度区在五节之后')
+  check(ms.ensureBody('## 进度：80%\n', 'spec-ticket').added.length === 0, '规格实施票已经有进度标题时不再补')
+
+  // 拒绝例：缺 kind、旧值、label 用错位置、类型标签塞进 labels、顶层容器收父票、子票缺父票。
+  const REFUSALS = [
+    [{}, /kind/, '缺 kind'],
+    [{ kind: 'task' }, /map-ticket/, '旧值 task 给迁移路径（改 map-ticket 并给 label，或改 issue）'],
+    [{ kind: 'ticket' }, /spec-ticket/, '旧值 ticket 给迁移路径（改 spec-ticket）'],
+    [{ kind: 'story' }, /map-ticket/, '不认识的位置值列出六值'],
+    [{ kind: 'spec', label: 'wayfinder:task' }, /map-ticket/, '只有地图工单收 label'],
+    [{ kind: 'map-ticket', label: 'wayfinder:map', parentKey: '00' }, /wayfinder:research/, '地图工单的 label 只认四值'],
+    [{ kind: 'map-ticket', parentKey: '00' }, /label/, '地图工单必须给 label'],
+    [{ kind: 'map', parentKey: '00' }, /父票|parentKey/, '探索地图不收 parentKey'],
+    [{ kind: 'spec', parentKey: '00' }, /父票|parentKey/, '规格不收 parentKey'],
+    [{ kind: 'map', labels: ['wayfinder:map'] }, /类型标签由 kind/, '标签里塞类型标签被拒（文案点明由 kind 决定）'],
+    [{ kind: 'bug', labels: ['bug'] }, /类型标签由 kind/, 'bug 不能在 labels 里重复带类型标签'],
+    [{ kind: 'spec-ticket', labels: ['wayfinder:task'], parentKey: '01' }, /类型标签由 kind/, '实施票不能在 labels 里带类型标签'],
+    [{ kind: 'map-ticket', label: 'wayfinder:task' }, /parentKey/, '地图工单必须有父票'],
+    [{ kind: 'spec-ticket' }, /parentKey/, '实施票必须有父票'],
+  ]
+  for (const row of REFUSALS) {
+    const r = ok.resolveCreateKind(row[0])
+    check(r.ok === false && row[1].test(r.problem || ''), '拒绝：' + row[2])
+  }
+
+  // 通过例：一次算出契约类型、标记、标签与父票要求，调用方不必自己翻译。
+  const mapped = ok.resolveCreateKind({ kind: 'map-ticket', label: 'wayfinder:research', parentKey: '00', labels: ['ready-for-agent'] })
+  check(mapped.ok === true && mapped.contractType === 'issue' && mapped.marker === '' && mapped.label === 'wayfinder:research',
+    '地图工单翻译成契约类型 issue、不写正文标记、类型标签是选中的 label')
+  const specTicket = ok.resolveCreateKind({ kind: 'spec-ticket', parentKey: '01' })
+  check(specTicket.ok === true && specTicket.contractType === 'issue' && specTicket.marker === 'ticket', '实施票翻译成契约类型 issue、正文标记写 ticket')
+  const spec = ok.resolveCreateKind({ kind: 'spec' })
+  check(spec.ok === true && spec.contractType === 'spec' && spec.marker === 'spec', '规格翻译成契约类型 spec、正文标记写 spec')
+  const issue = ok.resolveCreateKind({ kind: 'issue', labels: ['bug'] })
+  check(issue.ok === true && issue.contractType === 'issue' && issue.marker === '' && issue.labels.length === 1,
+    '兜底 issue 原样接受任何标签（包括类型标签）')
+}
+
+/**
  * 纯侧禁用的写法表：每一条都配一个「必须命中」的最小例子与一个「不许命中」的反例。
  *
  * 为什么要配例子：表里任何一条写错（正则转义漏了、词边界写宽了），它就成了一条永不命中的死条目，
@@ -293,6 +389,7 @@ async function staticPurity() {
 async function main() {
   console.log('#1039 纯规则侧单测（不造宿主、不起桩）')
   await minimalSpec()
+  await objectKind()
   await anchor()
   await edgeLanding()
   await dependencyGraph()

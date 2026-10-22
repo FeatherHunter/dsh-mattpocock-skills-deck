@@ -21,7 +21,7 @@ import {
   isWholeIssueBody as isWholeIssueBodyRules,
 } from '../rules/minimal-spec.js'
 
-export { MAP_BLOCK_TITLES, MINIMAL_LABELS } from '../rules/minimal-spec.js'
+export { MAP_BLOCK_TITLES } from '../rules/minimal-spec.js'
 // 档位宽度一直是从 anchor.ts 来的（拆分前这个文件自己定义它，拆分后搬去了纯侧），
 // 这里照旧从那条路径转出去，调用方看到的来路不变。
 export { ANCHOR_WINDOW_MS } from '../rules/anchor.js'

@@ -18,7 +18,15 @@ export { ANCHOR_WINDOW_MS, anchorBucket, anchorKeyFor, labelNames } from './anch
 
 // —— 强制最小规范：必备标签、进度区、整份判据 ——
 export type { DeckKind } from './minimal-spec.js'
-export { MINIMAL_LABELS, MAP_BLOCK_TITLES, ensureBody, ensureLabels, isWholeIssueBody } from './minimal-spec.js'
+export { MAP_BLOCK_TITLES, ensureBody, ensureLabels, isWholeIssueBody } from './minimal-spec.js'
+
+// —— 建票的两层词表：位置值 → 契约类型 / 类型标签 / 正文标记 / 父票规则 ——
+// 这是「这个位置在三种后端各是什么」的唯一答案；必备标签与正文骨架都从这里取。
+export type { ContractType, CreateKindResolution, ObjectKindRule, ParentRule, PositionKind } from './object-kind.js'
+export {
+  MAP_TICKET_LABELS, OBJECT_KIND_RULES, POSITION_KINDS, TYPE_LABELS,
+  isTypeLabel, labelsToEnsure, ruleFor, ruleForName, resolveCreateKind, typeLabelIn,
+} from './object-kind.js'
 
 // —— 边的落点判定 ——
 export type { EdgeEvidence, EdgeVerdict, Relations } from './edge-landing.js'
