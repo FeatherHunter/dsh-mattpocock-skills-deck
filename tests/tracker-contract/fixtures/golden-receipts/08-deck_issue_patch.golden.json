@@ -106,51 +106,9 @@
   ],
   "ok": true,
   "readBack": {
-    "assignees": [],
-    "blockedBy": [],
-    "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
-    "closedAt": null,
-    "comments": [
-      {
-        "author": {
-          "login": "local"
-        },
-        "authorAssociation": "",
-        "body": "金标准评论",
-        "createdAt": "<TIME>",
-        "updatedAt": "<TIME>"
-      }
-    ],
-    "createdAt": "<TIME>",
-    "customFields": [
-      {
-        "name": "Type",
-        "options": [
-          "research",
-          "prototype",
-          "grilling",
-          "task"
-        ],
-        "type": "single",
-        "value": "task"
-      }
-    ],
-    "effortId": "demo",
     "key": "01",
-    "labels": [
-      {
-        "color": "10b981",
-        "description": "",
-        "name": "wayfinder:task"
-      }
-    ],
-    "parentKey": "00",
-    "reason": "",
     "state": "open",
-    "title": "金标准演示票",
-    "type": "issue",
-    "updatedAt": "<TIME>",
-    "url": "<ROOT>/.scratch/demo/issues/01-金标准演示票.md"
+    "updatedAt": "<TIME>"
   },
   "reason": "",
   "repo": {

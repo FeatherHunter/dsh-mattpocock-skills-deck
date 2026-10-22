@@ -241,7 +241,11 @@ export const startActiveProbeLoop = function (): void {
     if (!_attentionPlan.intervalMs) return;
     if (shared._activeTimer) {
       // 间隔变了（比如从「正在看」掉到「刚离开」）：重排一次，别让旧节拍继续跑。
-      try { clearInterval(shared._activeTimer); } catch (eClr) {}
+      // #1220：宿主交回的是可调用撤销器，全局 clearInterval 对它空操作；先走 timer.clearTimeout。
+      try {
+        if (timer && typeof timer.clearTimeout === 'function') timer.clearTimeout(shared._activeTimer)
+        else clearInterval(shared._activeTimer)
+      } catch (eClr) {}
       shared._activeTimer = null;
     }
     const step = function (): void {
@@ -272,13 +276,13 @@ export const startActiveProbeLoop = function (): void {
     if (timer === undefined || typeof timer.interval !== 'function') {
       // #891 复核：宿主没给定时器出口时这条活跃探测节拍根本排不上，而 #891 的「初始化完成后自动重算」
       //   正挂在这条节拍上。这一行把「没排上」与「排上了」分开记，判「修复代码在、节拍从没跑」时不必再靠猜。
-      //   按需级，先判开关；这条循环每次重排才走一次，低频。
-      try { if (isEnabled('debug')) log('debug', 'probe.loop', { reason: 'no-timer', intervalMs: Math.round(Number(_attentionPlan.intervalMs) || 0), visible: (typeof attentionVisible === 'function' ? !!attentionVisible() : null) }); } catch (ePl) {}
+      //   常驻级：这正是排查「自动重算从没跑」时最需要的一行，调试开关关着也要落盘（#1220 真机取证就卡在这里）。
+      try { log('info', 'probe.loop', { reason: 'no-timer', intervalMs: Math.round(Number(_attentionPlan.intervalMs) || 0), visible: (typeof attentionVisible === 'function' ? !!attentionVisible() : null), timerOk: false }); } catch (ePl) {}
       // 宿主没给定时器出口（单测与无计时器环境）：不排节拍，什么都不做。
       return;
     }
     shared._activeTimer = timer.interval(step, _attentionPlan.intervalMs);
-    try { if (isEnabled('debug')) log('debug', 'probe.loop', { reason: 'scheduled', intervalMs: Math.round(Number(_attentionPlan.intervalMs) || 0), visible: (typeof attentionVisible === 'function' ? !!attentionVisible() : null) }); } catch (ePl2) {}
+    try { log('info', 'probe.loop', { reason: 'scheduled', intervalMs: Math.round(Number(_attentionPlan.intervalMs) || 0), visible: (typeof attentionVisible === 'function' ? !!attentionVisible() : null), timerOk: true }); } catch (ePl2) {}
   } catch (e) {}
 };
 // #746：对话框里的焦点/可见性只装一次（无定时器，纯事件）。装上后：切回本对话框即顺带催一次

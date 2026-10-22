@@ -63,7 +63,15 @@ export const LOG_EVENT_LIST: {
     // 界面入口与引导横幅：一次打开记一条，不会被高频路径刷爆。
     'entry.open': { level: 'info', kind: 'resident', fields: ['from', 'cards'] },
     'entry.pick': { level: 'info', kind: 'resident', fields: ['from', 'card', 'ok', 'textLen'] },
-    'guide.banner': { level: 'info', kind: 'resident', fields: ['step', 'banner', 'tone', 'outcome', 'ageMs'] },
+    // #1363 增补：横幅为什么是这一条（或为什么一条都没有）——reason/decideStep 回答判定原因，
+    //   backendId/steps 是当时的后端与快照行数，wsHash/sidHash 让它与 chain.flow 那两行按工作区、会话对上。
+    'guide.banner': { level: 'info', kind: 'resident', fields: ['step', 'banner', 'tone', 'outcome', 'ageMs', 'reason', 'decideStep', 'backendId', 'steps', 'wsHash', 'sidHash'] },
+    // #1363 新增：检查链的请求与回包各一行（谁发起、带没带人的动作、结果写没写进会话、回的是不是旧快照）。
+    //   这是「界面为什么还是旧状态」这一问的唯一常驻落点，两幕故障的取证都靠它。
+    'chain.flow': { level: 'info', kind: 'resident', fields: ['side', 'outcome', 'reason', 'bypass', 'backendId', 'lang', 'steps', 'done', 'ageMs', 'wsHash', 'sidHash'] },
+    // #1220 新增：正在看时那条 5 秒探测节拍排上没排上（reason=no-timer 即「宿主没给 interval 出口」）。
+    //   从前这是按需级，调试开关关着就看不见；#891 的自动重算从没跑过，真机取证就卡在这一行上。
+    'probe.loop': { level: 'info', kind: 'resident', fields: ['reason', 'intervalMs', 'visible', 'timerOk'] },
     // 出站 gh 排队太久（#1101）：等多久、桶里在飞与排队多少；守卫文字取自附录 1.4 表。
     'gh.lane.wait': {
       level: 'info',

@@ -155,10 +155,10 @@ async function main() {
     check(tracker2.tickets.size === n1, '补挂不新建（' + n1 + ' 票不变）')
   }
 
-  // —— ④ 时间同源（#1245 对抗审查后：单次钳制与房兜底同 30 秒，游标 10 秒；放宽未经测量，不做） ——
+  // —— ④ 时间同源（#1245：房兜底 30 秒、游标 10 秒；单次钳制 2026-10-22 按列表实测从 30 秒放宽到 60 秒） ——
   {
     const t = values.TIME_YAML || {}
-    check(t.perOpTimeoutMs === 30000, '单次远端钳制 30 秒（实 ' + t.perOpTimeoutMs + '）')
+    check(t.perOpTimeoutMs === 60000, '单次远端钳制 60 秒（实 ' + t.perOpTimeoutMs + '）')
     check(t.githubClientTimeoutMs === 30000, '房兜底 30 秒（实 ' + t.githubClientTimeoutMs + '）')
     check(t.outboundWriteMs === 30000, '写档 30 秒（实 ' + t.outboundWriteMs + '）')
     check(t.deckStoreMs === 10000, '游标 10 秒（实 ' + t.deckStoreMs + '）')

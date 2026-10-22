@@ -11,6 +11,8 @@
 import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields } from '../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound/admission.js'
 import { getChainRide } from './refresh/chain-ride.js'
+// #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
+import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from '../shared/command-cleanup/src/command-cleanup.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../shared/time-config/src/values.js'
 
@@ -177,6 +179,9 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         // #723（T19）：这一条 `gh --version` 探测也是一笔真实出站（虽然不扣配额），照记一笔。
         reportOutbound(['--version'])
         const probeHandle = subprocess.spawn({ argv: ['gh', '--version'], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: PROC_PROBE_GRACE_MS })
+        // #1392：下面建计时器那一步在实例已销毁时会同步抛错，race 根本不会被调用；先给 done 接一个空处理，
+        //   免得这条探活子进程后来失败时变成未处理拒绝、把宿主带走（这个计时器本身按票面边界另票处理）。
+        void probeHandle.done.catch(function () {})
         const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(GH_VERSION_PROBE_MS).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
         const outProbe = (probeHandle.collected && probeHandle.collected.stdout) ? probeHandle.collected.stdout.readFrom(0) : { text: '' }
         if (probeOutcome && probeOutcome.exitCode === 0 && String(outProbe.text||'').includes('gh version')) { setGhPath('gh'); setGhLastError(null); return 'gh' }
@@ -208,10 +213,11 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       // #960 复核：排队段单独计时。gh.exec 的 latencyMs 含排队（从进函数算起），waitedMs 只记排队这一段，
       //   两者一减就是命令自己的耗时 —— 票面问「是命令慢还是守在门口」时靠这两个数分辨。
       const rkWaitT0 = Date.now()
-      const rkRelease = await getGhLane(logCtx).acquire({ bucket: rkBucket })
+      // #1392：归还包成幂等，下面每条退出路径都调 releaseSlot()，保证恰好一次。
+      const releaseSlot = onceRelease(await getGhLane(logCtx).acquire({ bucket: rkBucket }))
       const rkWaitedMs = Date.now() - rkWaitT0
       const exe = await resolveGh()
-      if (!exe) { try { if (rkRelease) rkRelease() } catch {} return { ok: false, kind: 'env', error: getGhLastError() } }
+      if (!exe) { releaseSlot(); return { ok: false, kind: 'env', error: getGhLastError() } }
       // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。报在拿名额之后 —— 真要起进程了才报；
       // resolveGh 失败那一条根本没有出站，不该记进账。
       reportOutbound(args)
@@ -225,11 +231,17 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         })
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
-        try { if (rkRelease) rkRelease() } catch {}
+        releaseSlot()
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
       // #969：等待上限按本条命令的分档暂定值（读短、写长、探活最短），不再一律 30 秒。
-      const to = timer.timeout(rkTimeout)
+      // #1392：实例已经被销毁时，建计时器这一步会同步抛 INACTIVE_EFFECT。startWaitTimeout 先收尾
+      //   （还名额、终止子进程、接住 done）再返回 null；其它错误收完尾照旧抛，保持原行为。
+      const to = startWaitTimeout(timer, rkTimeout, function () { abandonCommand(handle, releaseSlot) })
+      if (!to) {
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'disposed', exitCode: -1 }) } catch (eL) {}
+        return { ok: false, kind: 'disposed', error: DISPOSED_MESSAGE }
+      }
       let outcome
       try {
         outcome = await Promise.race([
@@ -237,8 +249,11 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
+        // #1392：这一路是「计时器已经建出来、实例随后才被销毁」——计时器被撤销时它的 Promise 会以拒绝
+        //   落定，race 跟着拒绝。收尾与销毁那一档相同；失败类别仍按原行为报 spawn：这一路也可能是
+        //   子进程自己失败，两种错误形状在这里分不开，不新增 kind 值。
+        abandonCommand(handle, releaseSlot)
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
-        try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
@@ -279,7 +294,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout, layer: 'host-clamp', via: String(via || ''), cmd: ghCommandLabel(args), waitedMs: rkWaitedMs }) } catch (eL) {}
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
-        try { if (rkRelease) rkRelease() } catch {}
+        releaseSlot()
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
       }
       // 彻底移除：issuePath 1A 白名单检测已移除（#345），只保留两项与面包屑无关的职责：
@@ -298,7 +313,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
       try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
-      try { if (rkRelease) rkRelease() } catch {}
+      releaseSlot()
       return { ok: true, text: out.text || '' }
     }
 
@@ -319,7 +334,9 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       const xpBucket = (xpIsGh && isWriteGhArgs(xpArgs)) ? 'write' : 'read'
       // 出站才拿名额（不传取消信号，拿不到只会等不会抛）；git 本地命令直行。
       let xpRelease = null
+      // #1392：归还包成幂等，下面每条退出路径都调 xpReleaseSlot()；git 本地命令没有名额，它是空转。
       if (xpIsOutbound) xpRelease = await getGhLane().acquire({ bucket: xpBucket })
+      const xpReleaseSlot = onceRelease(xpRelease)
       // #723（T19）：这一笔真实出站先报给闸（I1）。这条路的调用方是 git / glab / gh 三条，
       // 其中 gh 与 glab 是真实出站；git 只读远端地址、不起 HTTP 请求，但它是同一个进程出口，
       // 一起报能保证「起过几条命令」与账上的条数一一对应（宁可多记一笔，也不要漏一笔）。
@@ -335,11 +352,16 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
-        if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
+        xpReleaseSlot()
         return { ok: false, error: String((e && (e as { message?: unknown }).message) || e) }
       }
       // #969：gh 等待上限按分档暂定值；git / glab 沿用旧默认。
-      const to = timer.timeout(xpIsGh ? timeoutForGhArgs(xpArgs) : TIMEOUT_MS)
+      // #1392：同 runGh —— 实例销毁后建计时器会同步抛 INACTIVE_EFFECT；startWaitTimeout 收完尾返回 null。
+      const to = startWaitTimeout(timer, xpIsGh ? timeoutForGhArgs(xpArgs) : TIMEOUT_MS, function () { abandonCommand(handle, xpReleaseSlot) })
+      if (!to) {
+        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
+        return { ok: false, error: DISPOSED_MESSAGE }
+      }
       let outcome
       try {
         outcome = await Promise.race([
@@ -347,14 +369,16 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
+        // #1392：计时器建出来之后实例才被销毁，它被撤销时 Promise 以拒绝落定，race 跟着拒绝。
+        //   收尾与销毁那一档相同；失败对象保持原形状（没有 kind），不把这一路单独分类。
+        abandonCommand(handle, xpReleaseSlot)
         try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
-        if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
         return { ok: false, error: String((e && (e as { message?: unknown }).message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
-      if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
+      xpReleaseSlot()
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
       // #857：成功必须带整数退出码 0。调用方经 ctx.exec 转给 GitHub 命令执行器时，那边按“拿不到整数退出码就判失败”处理；缺了这个 0，评论写成功了面板也会报失败。
       return { ok: true, text: out.text || '', code: 0 }

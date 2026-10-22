@@ -37,6 +37,10 @@
     "src/client/panel/*.ts",
     "src/client/floating/*.ts",
     // #1254：客户端根三份（index/hostShim/panelAssembly）转成 .ts 后进类型检查；此前只圈子目录，根文件不在任何配置里。
-    "src/client/*.ts"
+    "src/client/*.ts",
+    // V2 地图详情页整棵树（model/view/wiring 三层）：先不接入生产，但源码要走类型检查。
+    // 它的 .ts 会按叶子登记进客户端闭包（scripts/build.mts 的 LEAF_MODULES），所以放在 views/ 下；
+    // 入口切换（Dock.ts 换成 V2 页面）另开一票，切换之前 src/client/index.ts 里只有标记、没有挂载点。
+    "src/client/views/mapDetailV2/**/*.ts"
   ]
 }

@@ -68,7 +68,8 @@ console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完�
     labelOf: (id: unknown) => String(id),
     flash: (st: unknown, t: unknown) => calls.flashes.push(String(t)),
     loadSnapshot: (st: unknown, a: unknown, b: unknown) => calls.snapshot.push({ force: a, mode: b }),
-    loadChain: (st: unknown, force: unknown) => calls.chain.push({ force: force }),
+    // #1363：这一趟重取必须带 trigger —— 不带它就被宿主的退避当成后台刷新挡回旧快照。
+    loadChain: (st: unknown, force: unknown, trigger: unknown) => calls.chain.push({ force: force, trigger: trigger }),
     moduleMetaOf: () => null,
     injectSetupDecision: () => 'setup-card',
     host: { call: (method: string, params: any) => { calls.bind.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
@@ -85,6 +86,7 @@ console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完�
   check(calls.chain.length === 1, '绑定成功之后确实又重取了一次链（实得 ' + calls.chain.length + ' 次）')
   check(calls.chain.length === 1 && calls.chain[0].force === true, '而且那一次是 force（绕过缓存，实得 force=' + (calls.chain[0] && calls.chain[0].force) + '）')
   check(calls.chain.length === 1 && calls.chain[0].force === true && calls.snapshot.length === 1, '两条重取都在绑定成功那一支里（不是失败分支）')
+  check(calls.chain.length === 1 && calls.chain[0].trigger === 'user-recheck', '而且那一次带 trigger=user-recheck：这是「人刚做的动作」，宿主必须真算，不许被退避挡回旧快照（#1363 场景一，实得 ' + JSON.stringify(calls.chain[0] && calls.chain[0].trigger) + '）')
 }
 
 console.log('')
@@ -331,7 +333,9 @@ console.log('== D 反证：把守卫做坏，C 里对应的那几条必须当场
   const variants = [
     {
       label: '守卫整段摘掉',
-      patches: [['if (_chainRespStale(norm, _mySeq, st)) {', 'if (false) {']],
+      // #1363：竞态守卫的判据改成先算一次布尔量、后面直接看它（回包那一行日志要用同一个判定），
+      //   所以掐语句级锚点：把这个布尔量恒置 false（意图不变：守卫整段失效）。
+      patches: [['const _staleReply = _chainRespStale(norm, _mySeq, st);', 'const _staleReply = false;']],
       must: ['现场 1 会话状态', '现场 1 过期那一次不落', '现场 3 换后端', '现场 5 同键先后'],
     },
     {

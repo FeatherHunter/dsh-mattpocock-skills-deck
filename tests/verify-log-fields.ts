@@ -416,11 +416,22 @@ const ALLOWED = {
   //   为什么要有：调试开关默认关着，名额排满的风暴在普通用户日志里一行都不留。
   'gh.lane.wait': ['bucket', 'waitedMs', 'inflight', 'max', 'queued'],
   // 2026-10-21 map 1010 逐票复核（#891/#995/#916/#917）：状态栏黄条出现、消失或换文案时边沿记一行。
-  'guide.banner': ['step', 'banner', 'tone', 'outcome', 'ageMs'],
+  // 2026-10-22（#1363）：黄条「该出没出、该消没消」的判定依据补齐 —— reason 为什么这么判（枚举）、
+  //   decideStep 判定落在哪一步、backendId 当时选定的后端、steps 快照里实际有几行、wsHash 与 sidHash
+  //   是哪个工作区哪个会话（各 8 位短散列，不记路径原文、不记会话标题）。
+  'guide.banner': ['step', 'banner', 'tone', 'outcome', 'ageMs', 'reason', 'decideStep', 'backendId', 'steps', 'wsHash', 'sidHash'],
   // 2026-10-21 map 1010 逐票复核（#891）：活跃探测节拍「没排上」与「排上了」各一行。
-  'probe.loop': ['reason', 'intervalMs', 'visible'],
+  // 2026-10-22（#1363/#1220）提升为常驻：节拍没排上正是「初始化完了黄条还在」的根因，调试开关默认关着时
+  //   一行都不留就等于根因永远看不见；timerOk 记这一拍有没有可用的定时器出口。
+  'probe.loop': ['reason', 'intervalMs', 'visible', 'timerOk'],
   // 2026-10-21 map 1010 逐票复核（#996）：完成/检查提示词拼链接时记编号形态与链接空不空。
   'prompt.link': ['prompt', 'backend', 'numKind', 'linkKind', 'verdict'],
+  // 2026-10-22（#1363）：每一次取环境链的请求与回包各一行（side 请求/回包、outcome 发出去/写进会话/
+  //   旧回包丢弃/空回包/出错、reason 这一趟的来路、bypass 有没有绕缓存、backendId、lang、steps 快照里
+  //   有几行、done 做完几步、ageMs 回包距发出多久、wsHash 与 sidHash 是哪个工作区哪个会话）。
+  //   为什么要有：状态栏不出条时，光看 guide.banner 只知道「没显示」，不知道是没发请求、被退避挡回、
+  //   还是回包写不进会话。
+  'chain.flow': ['side', 'outcome', 'reason', 'bypass', 'backendId', 'lang', 'steps', 'done', 'ageMs', 'wsHash', 'sidHash'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 九键（六键照旧，cmd 为 2026-10-21 #1007 复核增补；`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 七键（layer 为同日 #1007/#1224 复核增补，via / cmd / waitedMs / phase 为 2026-10-21 #1101 排查增补）、gh.resolve.fail 两键，

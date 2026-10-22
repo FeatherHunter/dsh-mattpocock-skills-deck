@@ -171,7 +171,7 @@ function num(v: unknown, d: number): number { const n = (typeof v === 'number' &
  *  赢的那一方到了没清它时，进程也能照常退出。**但这不等于「有活干时进程自己就活着」**：一场还没结算的
  *  调用如果只剩这笔等待在手，Node 会带着它收摊（#1157 实测 54 毫秒、退出码 0），所以那一整段
  *  由 in-flight-lease.ts 的存活租约圈住，见下面 execOp 里那句注释。
- *  单次远端调用的钳制计时走它，测试注入假时钟就能把「钳到点」那条路走通，不必真等 30 秒。
+ *  单次远端调用的钳制计时走它，测试注入假时钟就能把「钳到点」那条路走通，不必真等满 60 秒。
  *  为什么必须继续用全局 setTimeout：别的会话（#1052 两房）会把它换成假时钟来压缩等待；
  *  一旦把 setTimeout 捕获进模块级常量，压缩就失效了。 */
 function realSleep(ms: number, signal?: AbortLike | null): Promise<void> {
