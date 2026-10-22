@@ -7,7 +7,10 @@
  *   防分叉不靠导入，靠 tests/verify-cards-dir.ts 里那几条跨文件逐值比对。
  */
 export const PIXEL_CARDS_STYLE_TEXT: string[] = [
-  ':root{--cd-frame:#3a2c14;--cd-card:#f2e4c0;--cd-old:#e4d5b0;--cd-ink:#2b2113;--cd-ink2:#6b5b3e;--cd-shadow:#241a0c;--cd-gold:#e3a92f;--cd-map:#8b5cf6;--cd-ok:#0e8a16;--cd-sel:#0ea5e9;--cd-warn:#f59e0b;--cd-bad:#a3231a;--cd-dim:#9a8f78;--cd-paper:#fffdf4;--cd-take:#4a86c8;}',
+  // 深色投影用纯黑（2026-10-23 维护者问「深色版有办法能看到阴影吗」）：原来的 #241a0c 与页面炭灰底 #1e2023
+  // 明度几乎一样（对比 1.05:1），6px 硬投影在深色下等于没画；纯黑对 #1e2023 是 1.29:1，硬边看得见。
+  // 浅色那一组仍是 #241a0c（纸面上够用），两张皮肤只在各自主题下生效。
+  ':root{--cd-frame:#3a2c14;--cd-card:#f2e4c0;--cd-old:#e4d5b0;--cd-ink:#2b2113;--cd-ink2:#6b5b3e;--cd-shadow:#000000;--cd-gold:#e3a92f;--cd-map:#8b5cf6;--cd-ok:#0e8a16;--cd-sel:#0ea5e9;--cd-warn:#f59e0b;--cd-bad:#a3231a;--cd-dim:#9a8f78;--cd-paper:#fffdf4;--cd-take:#4a86c8;}',
   // #1380 浅色纸面：浅色下必须换一套的装饰色（棋盘底、点亮的墙格、红字、三种角标）先收成令牌。
   // 深色这一行就是原来写死在下面规则里的字面量，一个值、一个字节都没改；浅色覆盖靠它换色。
   ':root{--cd-stripe:#ddcda1;--cd-lit:#ffd97a;--cd-note:#8b241a;--cd-mark-bug:#d73a4a;--cd-mark-ready:#10b981;--cd-mark-doing:#2b62b0;}',
@@ -37,7 +40,8 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-hd{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--cd-ink2);font-family:ui-monospace,Menlo,Consolas,monospace}',
   '.cd-nonum{font-size:13px;font-weight:800;letter-spacing:1px;padding:2px 10px;border:2px solid var(--cd-frame);box-shadow:2px 2px 0 var(--cd-shadow);font-family:ui-monospace,Menlo,Consolas,monospace;white-space:nowrap}',
   '.cd-nonum.line{background:transparent;color:var(--cd-ink)}',
-  '.cd-tt{margin:2px 0;font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px}',
+  // 标题用纸面墨色写死：卡片本身是浅纸（深色主题下也是浅纸），标题若继承宿主的浅色字，对纸面只有 1.2:1，几乎看不清（#1387）。
+  '.cd-tt{margin:2px 0;font-size:13px;line-height:1.45;color:var(--cd-ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px}',
   '.cd-tt.tall{-webkit-line-clamp:3;min-height:0}',
   '.cd-take{font-size:11px;color:var(--cd-take)}',
   '.cd-lbrow{margin:2px 0;display:flex;flex-wrap:wrap}',
@@ -54,7 +58,11 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-corner b{right:-32px;top:2px}',
   '.cd-actions{display:flex;gap:6px;margin-top:2px}',
   '.cd-abtn{border:3px solid var(--cd-frame);cursor:pointer;box-shadow:2px 2px 0 var(--cd-shadow);display:inline-flex;align-items:center;justify-content:center;gap:4px;font-family:ui-monospace,Menlo,Consolas,monospace;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}',
-  '.cd-abtn.label{flex:1;font-size:12px;padding:5px 8px}',
+  // 主按钮与新会话按钮可以被压低：min-width:0 让它们在窄卡里一直缩到「图标 + 内边距」，多出来的空间还给同一行的图标按钮。
+  // 按钮里的文字包在 .cd-lbl 里，溢出裁掉；页面层会按整字算宽度（view/flow/TicketCardFlow.ts 的 fitFlowLabels），
+  // 所以收窄时是一整字一整字消失，不会停在半个字上。列表页卡片宽度固定，这段配置在那里没有可见变化。
+  '.cd-abtn.label{flex:1;min-width:0;overflow:hidden;font-size:12px;padding:5px 8px}',
+  '.cd-lbl{display:inline-block;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap;vertical-align:bottom}',
   '.cd-abtn.icon{flex:none;width:40px;padding:5px 0}',
   '.cd-abtn.paper{background:var(--cd-card);color:var(--cd-ink)}',
   '.cd-abtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--cd-shadow);outline:2px solid var(--cd-act,var(--cd-gold));outline-offset:1px}',

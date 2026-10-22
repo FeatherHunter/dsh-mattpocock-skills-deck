@@ -134,6 +134,9 @@ function loadTr (): { L: { zh: Record<string, string> }, tr: (key: string, param
 const CARD_LIGHT_DARK_TOKENS = [
   ['--cd-frame', '#3a2c14'], ['--cd-card', '#f2e4c0'], ['--cd-ink', '#2b2113'],
   ['--cd-gold', '#e3a92f'], ['--cd-warn', '#f59e0b'], ['--cd-stripe', '#ddcda1'],
+  // 深色投影 2026-10-23 由 #241a0c 改纯黑：原来的颜色与页面炭灰底 #1e2023 明度几乎相同，6px 硬投影等于没画。
+  // 浅色那一组仍是 #241a0c（纸面上够用），两套皮肤各管各的主题。
+  ['--cd-shadow', '#000000'],
 ]
 // 浅色（浅色纸面便签）定版值：与 #1378 的技能列表同一套纸，跨文件那四条在下面单独对。
 const CARD_LIGHT_TOKENS = [

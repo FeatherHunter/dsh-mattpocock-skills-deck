@@ -53,7 +53,7 @@ declare const ChecksTab: any;
 declare const IssueDetail: any;
 declare const LabelColorEntry: any;
 declare const ListTab: any;
-declare const MapDetail: any;
+declare const MapDetailV2Page: any; // #1402：地图详情页入口已切到 V2；老页 MapDetail 的源码与门禁都留着，出问题可以一行切回
 declare const NamingFailBanner: any;
 declare const NOTICE_COLOR: any;
 declare const PrTab: any;
@@ -401,7 +401,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
           // #1285：跨会话在办表已从列表页正文撤下（那张表占掉一大块，把票列表往下推）——
           //   改由头部那一行右端的图标点开一个浮层显示（views/shared/workRouteTable.ts 的 WorkRouteTrigger）。
-          s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null, s.tab === 'versionControl' ? h(VersionControlTab, { st: s, narrow: narrow }) : null, // #818 版本管理页签的内容分发：与上一条同排，Dock.js 正贴着 350 行上限（单独起一行会变 351，撞文件粒度门禁）
+          s.tab === 'list' ? (active ? h(MapDetailV2Page, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null, s.tab === 'versionControl' ? h(VersionControlTab, { st: s, narrow: narrow }) : null, // #818 版本管理页签的内容分发：与上一条同排，Dock.js 正贴着 350 行上限（单独起一行会变 351，撞文件粒度门禁）
           s.tab === 'pr' ? (showPrTab ? (hasIssueDetail ? h(IssueDetail, { st: s }) : h(PrTab, { st: s, narrow: narrow })) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,

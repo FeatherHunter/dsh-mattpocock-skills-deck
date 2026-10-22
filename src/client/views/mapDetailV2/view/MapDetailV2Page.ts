@@ -15,8 +15,8 @@
  *   4) 按模型渲染三块 + 图片放大浮层。
  *
  * 叶子约定（scripts/build.mts 的 LEAF_MODULES）：本文件会被拼进客户端闭包，运行时不能 import，
- * 需要的内核函数一律按名字 declare；import 只能是 type。这一页今天「已入库、未接入」：
- * 页面入口仍是 Dock 里的老 MapDetail，切换入口另开票（#1402），等维护者认可 V2 观感再做。
+ * 需要的内核函数一律按名字 declare；import 只能是 type。这一页从 #1402 起是地图详情页的真实入口
+ * （panel/Dock.ts 里列表页签的 active 分支），老页 MapDetail 的源码与门禁都留着，出问题可以一行切回。
  */
 declare function idOf(...args: any[]): any
 declare function effortOf(...args: any[]): any
