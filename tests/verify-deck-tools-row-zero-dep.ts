@@ -43,7 +43,7 @@ async function main() {
   const patch = readText('package/cordis.patch.yml')
   check(patch.indexOf('dsh-mattpocock-skills-deck/tools') >= 0, '装配补丁含工具行（agent 层能装上）')
 
-  // 2. 行模块交出九个加探针，且形状过真原生判定
+  // 2. 行模块交出九个加探针和建议，且形状过真原生判定
   let row = null
   try { row = await imp('src/deck/registration/agent-row.ts') } catch (e) {
     check(false, '行模块可加载（' + String((e && e.message) || e).slice(0, 120) + '）')
@@ -60,6 +60,7 @@ async function main() {
   const names = registered.map((t) => t.name)
   check(SEVEN_NAMES.every((n) => names.indexOf(n) >= 0), '行模块交出九个 deck 工具')
   check(names.indexOf('deck_probe') >= 0, '行模块交出探针')
+  check(names.indexOf('suggest_next_steps') >= 0, '行模块交出建议工具（单独登记，不进九工具）')
 
   // 形状：参数与输出都过仓库开发依赖里的真原生判定（与线上同版本）。
   let realAssert = null
@@ -70,7 +71,7 @@ async function main() {
   check(typeof realAssert === 'function', '真原生判定可加载（开发依赖与线上同版本）')
   if (typeof realAssert === 'function') {
     for (const t of registered) {
-      if (SEVEN_NAMES.indexOf(t.name) < 0) continue
+      if (SEVEN_NAMES.indexOf(t.name) < 0 && t.name !== 'suggest_next_steps') continue
       try { realAssert(t.parameters); realAssert(t.output.schema) } catch (e) {
         check(false, t.name + ' 形状过真原生判定（' + String((e && e.message) || e).split(';')[0].slice(0, 120) + '）')
         continue

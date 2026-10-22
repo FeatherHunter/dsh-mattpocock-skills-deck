@@ -607,8 +607,10 @@ async function main() {
     // map-plan-resume.ts（续跑时的批量锚预检与孤儿父边修复）。它们不是独立工具，不注册成工具，
     // 但这几份文件同样在工具层、同样受下面这套「不许直连外面」的扫描约束，所以照样列进这张名单——
     // 判据没有放宽：仍然是一张精确名单，多一份少一份都判红，只是名单本身随拆分更新了一次。
-    const EXPECTED_FILES = ['context.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'tool-order.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块这十三份（实际 ' + names.join(',') + '）')
+    // 2026-10 #1406 又加了一份 suggest-next-steps.ts：它是建议工具（不进九个追踪器工具的装配顺序表，
+    // 单独登记），但同样住在工具层，所以照样进这张名单、照样受同一套边界约束。
+    const EXPECTED_FILES = ['context.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'suggest-next-steps.ts', 'tool-order.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具这十四份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
     let sawTimer = 0
@@ -628,7 +630,7 @@ async function main() {
     }
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '十三份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
+      : '十四份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处），这套判据不是空转')
   }
 

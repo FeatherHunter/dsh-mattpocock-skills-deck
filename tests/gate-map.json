@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T18:35:22.010Z",
+  "generatedAt": "2026-10-22T18:58:51.545Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 325,
-  "gateCount": 325,
-  "attributedGates": 285,
+  "chainLength": 326,
+  "gateCount": 326,
+  "attributedGates": 286,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 22,
-  "completionRecordedGates": 7,
+  "completionRecordedGates": 8,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 543,
+  "graphFileCount": 545,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -7001,6 +7001,29 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 6 条"
     },
     {
+      "step": "node tests/verify-suggest-next-steps.ts",
+      "file": "tests/verify-suggest-next-steps.ts",
+      "guards": [
+        "src/deck/registration/agent-row.ts",
+        "src/deck/registration/host-assemble.ts",
+        "src/deck/registration/suggest-steps-register.ts",
+        "src/deck/rules/tool-order.ts",
+        "src/deck/tools/suggest-next-steps.ts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "src/deck/registration",
+        "src/deck/rules",
+        "src/deck/tools",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 105,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+    },
+    {
       "step": "node tests/verify-t1-getrepokey.ts",
       "file": "tests/verify-t1-getrepokey.ts",
       "guards": [
@@ -8189,14 +8212,16 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-895-bulk-deadline.ts",
-      "node tests/verify-927-gate-injection.ts"
+      "node tests/verify-927-gate-injection.ts",
+      "node tests/verify-suggest-next-steps.ts"
     ],
     "src/deck/rules": [
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1039-rules-pure.ts",
       "node tests/verify-1277-md-spec-container.ts",
       "node tests/verify-1403-kind-two-layer.ts",
-      "node tests/verify-1413-map-plan-two-layer.ts"
+      "node tests/verify-1413-map-plan-two-layer.ts",
+      "node tests/verify-suggest-next-steps.ts"
     ],
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.ts",
@@ -8257,7 +8282,8 @@
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.ts",
-      "node tests/verify-golden-receipts.ts"
+      "node tests/verify-golden-receipts.ts",
+      "node tests/verify-suggest-next-steps.ts"
     ],
     "src/host": [
       "node tests/verify-build-artifacts.ts",
@@ -9004,6 +9030,7 @@
       "node tests/verify-setup-describe.ts",
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-subdir-first-frame.ts",
+      "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-update-panel.ts",
@@ -9033,9 +9060,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 559,
+    "fileCount": 561,
     "dirCount": 71,
-    "coveredFileCount": 559,
+    "coveredFileCount": 561,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 52,
@@ -9242,6 +9269,7 @@
       "src/deck/registration/quota-sync.ts",
       "src/deck/registration/register-options.ts",
       "src/deck/registration/sandbox-guard.ts",
+      "src/deck/registration/suggest-steps-register.ts",
       "src/deck/rules/anchor.ts",
       "src/deck/rules/dependency-graph.ts",
       "src/deck/rules/edge-landing.ts",
@@ -9287,6 +9315,7 @@
       "src/deck/tools/map-plan-readback.ts",
       "src/deck/tools/map-plan-resume.ts",
       "src/deck/tools/map-snapshot.ts",
+      "src/deck/tools/suggest-next-steps.ts",
       "src/deck/tools/tool-order.ts",
       "src/deck/tsconfig.json",
       "src/host/bootstrap.ts",
