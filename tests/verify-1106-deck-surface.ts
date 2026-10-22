@@ -60,7 +60,7 @@ const FROZEN_SHAPE: Record<string, string> = {
   deck_map_snapshot: 'key:string, frontierOnly:boolean, detail:枚举(full|thin), effortId:string 必填=[key] 多传=false',
   deck_issue_list: 'state:枚举(open|closed|all), type:枚举(issue|map|spec|all), labels:数组<string>, assignee:string, query:string, limit:number, effortId:string 必填=[] 多传=false',
   deck_issue_create: "title:string, body:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), kind:枚举(map|map-ticket|spec|spec-ticket|bug|issue), label:枚举(wayfinder:research|wayfinder:prototype|wayfinder:grilling|wayfinder:task), parentKey:string, blockedBy:数组<string>, labels:数组<string>, assignees:数组<string>, idempotencyKey:string, workRouteDetail:枚举(core|standard), effortId:string 必填=[title,kind] 多传=false",
-  deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(task|bug|map), labels:数组<string>, assignees:数组<string> 必填=[key,title] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, workRouteDetail:枚举(core|standard), effortId:string 必填=[title,children] 多传=false',
+  deck_map_plan_create: 'title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(map-ticket|bug|issue), label:枚举(wayfinder:research|wayfinder:prototype|wayfinder:grilling|wayfinder:task), labels:数组<string>, assignees:数组<string> 必填=[key,title,kind] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, workRouteDetail:枚举(core|standard), effortId:string 必填=[title,children] 多传=false',
   deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, workRouteDetail:枚举(core|standard), effortId:string 必填=[] 多传=false',
   deck_issue_patch: "key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), progress:对象(percent:integer, note:string 必填=[percent,note] 多传=false), close:boolean, workRouteDetail:枚举(core|standard), effortId:string 必填=[key] 多传=false",
   deck_issue_report: 'key:string, note:string, workRouteDetail:枚举(core|standard), effortId:string, release:boolean 必填=[key] 多传=false',
@@ -109,11 +109,11 @@ const POINTS: PointsRow[] = [
   { label: '建图：缺标题（还没走到选后端）', tool: 'deck_map_plan_create', args: {}, own: [0, 0], select: false },
   {
     label: '建图：成功（按估算：3 张票 + 2 条边）', tool: 'deck_map_plan_create', select: true, own: 'est',
-    args: { planId: 'points-plan', title: '点数表地图', children: [{ key: 'a1', title: '子一' }, { key: 'a2', title: '子二' }], edges: [{ from: 'a2', to: 'a1', type: 'blocked-by' }] },
+    args: { planId: 'points-plan', title: '点数表地图', children: [{ key: 'a1', title: '子一', kind: 'issue' }, { key: 'a2', title: '子二', kind: 'issue' }], edges: [{ from: 'a2', to: 'a1', type: 'blocked-by' }] },
   },
   // 计划标识会原样当幂等键写进票面，字符集由后端定：中文会被后端挡下。
   // 这一支顺带钉住这条边界，以及它记账的价（1 条 / 4 点）。
-  { label: '建图：计划标识带中文（后端挡下）', tool: 'deck_map_plan_create', args: { planId: '点数表图', title: '点数表地图', children: [{ key: 'c1', title: '子一' }] }, own: [1, 4], select: true },
+  { label: '建图：计划标识带中文（后端挡下）', tool: 'deck_map_plan_create', args: { planId: '点数表图', title: '点数表地图', children: [{ key: 'c1', title: '子一', kind: 'issue' }] }, own: [1, 4], select: true },
   { label: '连边：两个都没给（还没走到选后端）', tool: 'deck_map_link', args: {}, own: [0, 0], select: false },
   { label: '连边：挂父子（按估算：1 条边 + 读一次）', tool: 'deck_map_link', args: { key: '02', parentKey: '00' }, own: 'est', select: true },
   { label: '连边：清空阻塞（按估算：没有边 + 读一次）', tool: 'deck_map_link', args: { key: '02', blockedBy: [] }, own: 'est', select: true },
@@ -275,7 +275,7 @@ async function main() {
     // 现在没有各自说明的是下面这十二个（数组本身有一句说明，条目里的字段没有）：这是本来就有的粗糙处，
     // 不在本票范围内，也不许在这里被悄悄改动 —— 变红说明模型看到的东西变了，得有人来看一眼再决定。
     const FROZEN_NO_DESC = [
-      'deck_map_plan_create.children[].title', 'deck_map_plan_create.children[].body', 'deck_map_plan_create.children[].kind',
+      'deck_map_plan_create.children[].title', 'deck_map_plan_create.children[].body',
       'deck_map_plan_create.children[].labels', 'deck_map_plan_create.children[].assignees',
       'deck_map_plan_create.edges[].from', 'deck_map_plan_create.edges[].to', 'deck_map_plan_create.edges[].type',
       'deck_map_plan_create.labels',
@@ -326,7 +326,7 @@ async function main() {
     ['deck_map_snapshot', { key: '00' }],
     ['deck_issue_list', { state: 'open' }],
     ['deck_issue_create', { title: '信封表丙票' }],
-    ['deck_map_plan_create', { planId: 'surface-plan', title: '信封表地图', children: [{ key: 'b1', title: '子一' }] }],
+    ['deck_map_plan_create', { planId: 'surface-plan', title: '信封表地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
     ['deck_map_link', { key: '02', parentKey: '00' }],
     ['deck_issue_patch', { key: '02', comment: '信封表：改一下' }],
     ['deck_issue_report', { key: '02' }],
@@ -544,7 +544,7 @@ async function main() {
   {
     // 同一份计划标识同时在两次执行里跑：先到的那次上锁，后到的那次在碰后端之前就被挡下，一分钱不记。
     // 这一支写着「计划标识正被别的执行占用」，平常跑不出来，所以这里并发叫两次把它逼出来。
-    const raceArgs = { planId: 'race-plan', title: '并发地图', children: [{ key: 'r1', title: '唯一子票' }] }
+    const raceArgs = { planId: 'race-plan', title: '并发地图', children: [{ key: 'r1', title: '唯一子票', kind: 'issue' }] }
     const before = claimedNow()
     const [one, two] = await Promise.all([run('deck_map_plan_create', raceArgs), run('deck_map_plan_create', raceArgs)])
     const after = claimedNow()

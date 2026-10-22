@@ -241,7 +241,7 @@ async function main() {
   const ws5 = strictWorkspace({ withoutResolve: true })
   const own3 = await toolLevel(ws5)
   const ownPlan3 = await own3.tool.run({ agent: { session: { id: 's-1150d', cwd: ws5.rootPosix } } }, {
-    planId: 'plan-store-1150-own-noresolve', title: '计划存储演示地图', children: [{ key: 'f1', title: '子票一' }],
+    planId: 'plan-store-1150-own-noresolve', title: '计划存储演示地图', children: [{ key: 'f1', title: '子票一', kind: 'issue' }],
   })
   check(!!(ownPlan3 && ownPlan3.data && ownPlan3.data.mapKey), '没有 resolve 时票照建（mapKey=' + (ownPlan3 && ownPlan3.data && ownPlan3.data.mapKey) + '）')
   check(ownPlan3 && ownPlan3.data && ownPlan3.data.durable === false, '工具自建读写碰上没有 resolve 的宿主时，如实说这次没落盘（durable=' + (ownPlan3 && ownPlan3.data && ownPlan3.data.durable) + '）')
