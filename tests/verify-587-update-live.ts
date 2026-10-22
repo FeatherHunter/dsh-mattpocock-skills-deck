@@ -84,7 +84,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
     // registrySpec() 只认版本号，link:/file: 一律归为 source-install——链接安装下磁盘文件和运行代码本来就是同一份，
     // 没有「磁盘已换新版、进程还跑旧版」这回事，读取器判 source-install 才是对的。
     // 所以这里按安装形态分别断言，两种形态都守住「不会报成别的、不会静默当成已是最新」。
-    const linkedInstall = /^(?:link|file):/.test(profileSpec)
+    // 注意还有第三种形态：profile 里写的是版本号，但 node_modules 下这份实际是 junction / 软链
+    // （本机用工作区源码安装，桌面 profile 的包目录指向仓库的 package）。这种形态下磁盘文件就是
+    // 运行代码的那一份，读取器同样判 source-install，所以这里按「安装目录的物理位置是否就是
+    // profile 里那个位置」来识别链接安装，而不是只看 profile 的写法。
+    const linkedInstall = /^(?:link|file):/.test(profileSpec) || fs.realpathSync(pkgDir) !== path.resolve(pkgDir)
     const expectedReason = linkedInstall ? 'source-install' : 'pending-restart'
     check(pending.blockedReason === expectedReason, '磁盘已是新版、进程仍跑旧版：' + (linkedInstall ? '链接安装报源码安装' : '报缺一次重启') + '（实际 ' + (pending.blockedReason || '无阻拦') + '，profile 写法 ' + (profileSpec || '空') + '）')
 

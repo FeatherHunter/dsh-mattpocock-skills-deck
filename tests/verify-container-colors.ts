@@ -19,7 +19,7 @@
 //    期望值一致；改色表不改这里、或改这里不改色表，都会红——两边必须一起改，diff 里看得见。
 // 5. 全仓零容忍：src 下所有 .ts/.mts/.tsx 原文都在扫描范围里（含注释、不区分大小写）。
 //    除中央色表外，两色每一处都必须落进 STATUS_EXCEPTIONS 的某一条「路径 + 段」里；白名单条目
-//    必须被实际命中，过期条目判红。今天全仓两色共 32 个文件 83 处（含中央色表各 1 处）。
+//    必须被实际命中，过期条目判红。今天全仓两色共 33 个文件 86 处（含中央色表各 1 处）。
 //    白名单只收语义上确实不是第二份拷贝的同值点——警告橙、票/issue 状态绿、标签色数据、主题串、
 //    颜色元数据、版本控制页签自带配色等，每条都写清改中央色时为什么不该顺带改它。
 // 6. 动态消费端那一圈仍单独检查：引用两个状态色常量、或裸色值落在空态/完成态语境里的文件，
@@ -397,6 +397,25 @@ const STATUS_EXCEPTIONS = [
     reason: '版本控制徽章用 --vc-warn 变量、兜底里又写了一次同值（同一行两处）：页签配色表的兜底写法。',
   },
 
+  // ---- 地图详情 V2：状态成功色变量缺省时的代换值 ----
+  // 以下三处都是「主题别名变量 + 同值兜底」的写法，兜底只是变量缺失时的替身，
+  // 不是容器完成态色在别处又抄了一份（与版本控制页签的 --vc-warn 兜底同一类）。
+  {
+    file: 'src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts',
+    segment: '.m2v2-dest',
+    reason: '地图详情 V2 档案区「目的地」行的状态成功色兜底：目的地是目标语义，不是容器完成态色。',
+  },
+  {
+    file: 'src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts',
+    segment: '.m2v2-count[data-status="ready"]',
+    reason: '地图详情 V2 子票计数「已认领」档的状态成功色兜底：这是票状态色，不是容器完成态色。',
+  },
+  {
+    file: 'src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts',
+    segment: '.m2v2-fill',
+    reason: '地图详情 V2 完成度进度条的填充色兜底：进度条借用状态成功色表达完成比例，与容器三态的完成色是两套语义。',
+  },
+
   // ---- 颜色元数据 ----
   {
     file: 'src/shared/feedback-map.ts',
@@ -406,8 +425,8 @@ const STATUS_EXCEPTIONS = [
 ]
 // 今天全仓两色落点（不含中央色表）的登记数：新增或删除一处同值点都要同时改白名单与这里，
 // 让「又抄了一份」或「白名单漏了一处」在 diff 里直接看得见。
-const STATUS_REPO_HITS = 81
-const STATUS_REPO_FILES = 31
+const STATUS_REPO_HITS = 84
+const STATUS_REPO_FILES = 32
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
   'src/client/floating/SkillFloatList.ts',
