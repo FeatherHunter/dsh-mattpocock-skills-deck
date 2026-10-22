@@ -499,7 +499,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       if (!counts.ok) notes.push('逐项校验没对上：计划里有 ' + counts.planned + ' 张（含地图票），按父票列出来 ' + (counts.actual === null ? '拿不到（后端没给出原因）' : counts.actual + ' 张') + '。以这个数字为准，别按计划数字往下走。')
       if (picked.note) notes.push(picked.note)
 
-      // ④b 建后读回核对（#1413）：张数对上只说明计数没错，类型标签、Type 行、父票与 ## 进度还得落到盘上才算对。
+      // ④b 建后读回核对（#1413）：张数对上只说明计数没错，类型标签、父票与 ## 进度还得落到盘上才算对。
       // 地图读一次；子票用上面按父票列出来的那一批逐张核，不另发列表调用，所以 claimed 仍按估算报。
       // 读不回来就如实说「这次没核对」，不硬判失败；核出问题记进 items（failed），结论自然落到 partial。
       if (state.mapKey && !sc.outOfBudget()) {
@@ -524,7 +524,11 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
         const rows = Array.isArray(liveRows) ? (liveRows as Record<string, unknown>[]) : []
         const rowByKey = new Map<string, Record<string, unknown>>()
         for (const row of rows) if (row && row.key !== undefined && row.key !== null) rowByKey.set(String(row.key), row)
-        const isMarkdown = String((pick as { backendId?: unknown }).backendId || '') === 'markdown'
+        // 只有读回来的正文是「整份文件」时才核 Type 行：本地 Markdown 房把整个文件当正文回（带幂等锚、
+        // 父票注释与状态/标签这类字段行），远端房的正文只是描述，没有 Type 行可核。这里按读回数据的形状
+        // 判断，不按后端身份分支 —— 工具层不许拿后端 id 做判断（verify-deck-tools 的静态扫描就查这个）。
+        const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:DSH-IDEMPOTENCY-KEY|DSH-ISSUE-KIND)\b|^\s*<!--\s*parentKey\s*:/m.test(text)
+        let checkedTypeLine = false
         for (const ch of children) {
           const planKey = String(ch.key)
           const ticketKey = String(state.keys[planKey] || '')
@@ -545,7 +549,8 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
           if (gotType !== wantType) problems.push('子票「' + planKey + '」有 ' + gotType + ' 枚类型标签（应为 ' + wantType + ' 枚）')
           if (String(row.parentKey || '') !== String(state.mapKey)) problems.push('子票「' + planKey + '」的父票是「' + String(row.parentKey || '') + '」（应为地图 ' + state.mapKey + '）')
           if (stripProgressSections(childBody) === childBody) problems.push('子票「' + planKey + '」没有 ## 进度')
-          if (isMarkdown) {
+          if (looksLikeWholeFile(childBody)) {
+            checkedTypeLine = true
             const typeRows = childBody.match(/^\s*Type\s*[：:].*$/gm) || []
             if (resolved.kind === 'map-ticket') {
               const bare = String(resolved.label || '').replace(/^wayfinder:/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -560,7 +565,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
           notes.push('建后读回核对有 ' + problems.length + ' 处没对上：' + problems.slice(0, 4).join('；') + (problems.length > 4 ? '；…' : '') + '。以盘上为准，别按计划数字往下走。')
           for (const one of problems.slice(0, 8)) items.push({ key: '', role: 'verify', status: 'failed', reason: one })
         } else if (mapRow && liveRows) {
-          notes.push('建后读回核对通过：地图五节与 ## 进度齐；' + Object.keys(state.keys).length + ' 张子票的父票、类型标签、## 进度' + (isMarkdown ? '与 Type 行' : '') + '都对。')
+          notes.push('建后读回核对通过：地图五节与 ## 进度齐；' + Object.keys(state.keys).length + ' 张子票的父票、类型标签、## 进度' + (checkedTypeLine ? '与 Type 行' : '') + '都对。')
         } else {
           notes.push('建后读回核对：地图读回来了，但子票没按父票列出来（' + String(picked.note || '后端没给出原因') + '），这次没核对子票。')
         }
