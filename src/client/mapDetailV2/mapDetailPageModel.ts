@@ -15,9 +15,12 @@
  * 「还有 N 张没取到」。这样计数与画面里卡片的张数永远一致，不会出现「计数说 37、页面只画 24」。
  */
 import type {
+  MapDetailCards,
   MapDetailPageInputs,
   MapDetailPageModel,
+  TicketBoard,
   TicketCardFacts,
+  TicketCardHandlers,
 } from './mapDetailTypes'
 // 模块说明符按仓内约定写 .js：scripts/ts-hook.mts 会把它改指同目录同名 .ts，测试与构建两边同一份源。
 import { ticketFeedOf } from './ticketFeed.js'
@@ -25,6 +28,20 @@ import { ticketFactsContextOf, ticketCardFactsOf } from './ticketCardFacts.js'
 import { orderTicketBoard, boardCountsOf } from './ticketBoard.js'
 import { mapProfileOf } from './mapProfile.js'
 import { cardPropsListOf } from './cardPropsOf.js'
+
+/**
+ * 两段卡片 + 页面要照着画的连续序列。维护者定的是「已完成接在被挡下面、不另起区块」，
+ * 所以 sequence 就是 open 接 closed；两段本身不复制数据，只是同一批 props 的两个视图。
+ */
+function cardPropsOfBoard(
+  board: TicketBoard,
+  handlers?: TicketCardHandlers | null,
+  colorOf?: Record<string, string> | null,
+): MapDetailCards {
+  const open = cardPropsListOf(board.open, handlers, colorOf)
+  const closed = cardPropsListOf(board.closed, handlers, colorOf)
+  return { open: open, closed: closed, sequence: open.concat(closed) }
+}
 
 /**
  * 一张地图 → 一整页模型。
@@ -52,9 +69,6 @@ export function mapDetailPageModelOf(input: MapDetailPageInputs): MapDetailPageM
     feed: feed,
     board: board,
     counts: counts,
-    cards: {
-      open: cardPropsListOf(board.open, handlers, colorOf),
-      closed: cardPropsListOf(board.closed, handlers, colorOf),
-    },
+    cards: cardPropsOfBoard(board, handlers, colorOf),
   }
 }

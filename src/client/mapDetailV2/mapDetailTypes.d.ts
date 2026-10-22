@@ -34,6 +34,26 @@ export interface MapTicketRow {
   type?: string | null
 }
 
+/**
+ * 容器的两种：探索地图（wayfinder:map，正文五区）与规格/实施地图（type=spec，正文七段）。
+ * 两种容器在页面上是同一种骨架，差别只在身份色、小签词、计数词与正文段数。
+ */
+export type ContainerKind = 'map' | 'spec'
+
+/**
+ * 规格正文七段：宿主 src/tracker/body-parse.ts 的 parseSpecBody 产物，客户端不做解析。
+ * 四段清单是字符串数组，三段（问题陈述 / 解决方案 / 补充说明）是整段话。
+ */
+export interface SpecSections {
+  problem?: string | null
+  solution?: string | null
+  userStories?: string[] | null
+  implDecisions?: string[] | null
+  testDecisions?: string[] | null
+  outOfScope?: string[] | null
+  furtherNotes?: string[] | null
+}
+
 /** 宿主算好的计数（groupTickets 的产物）；页面只在「按需取数已成功」时用它。 */
 export interface MapTicketStats {
   total?: number
@@ -209,6 +229,12 @@ export interface MapDecision {
  * 这几格由宿主 tracker/body-parse.ts 从正文五区解析后放进快照，客户端不做解析。
  */
 export interface MapRowContent extends MapRowLike {
+  /** 容器种类字段：'spec' 是规格/实施地图，'map' 是探索地图；缺省按探索地图。 */
+  type?: string | null
+  /** 标签（两种形状都可能）：type 缺失时靠 wayfinder:map 认探索地图。 */
+  labels?: MapTicketRow['labels']
+  /** 规格正文七段；探索地图没有这一格（它有 destination / notes 等五槽）。 */
+  sections?: SpecSections | null
   /** 地图编号（或行 key）。身份文本「MAP #编号」靠它。 */
   key?: string | number | null
   number?: number | null
@@ -227,8 +253,20 @@ export interface MapRowContent extends MapRowLike {
   error?: { error?: string | null } | null
 }
 
-/** 档案区四节的标识：顺序即页面上的顺序，由 MAP_PROFILE_SECTIONS 给定。 */
-export type MapProfileSectionId = 'notes' | 'decisions' | 'fog' | 'outOfScope'
+/**
+ * 档案区一节的标识：探索地图四节、规格七节，两种容器的顺序都由 mapProfile.ts 里的定义给定。
+ * 'notes' 与 'outOfScope' 两种容器都用，只是词条键不同（探索地图叫「正文详情」，规格叫「补充说明」）。
+ */
+export type MapProfileSectionId =
+  | 'notes'
+  | 'decisions'
+  | 'fog'
+  | 'outOfScope'
+  | 'problem'
+  | 'solution'
+  | 'userStories'
+  | 'implDecisions'
+  | 'testDecisions'
 
 /** 档案区的一条：文字必填，决策条目另带链接与那句话。 */
 export interface MapProfileItem {
@@ -253,6 +291,10 @@ export interface MapProfileFeedSegment {
 
 /** MAP 自身内容的刻画：档案区与头部要用到的全部东西，页面不再自己判。 */
 export interface MapProfile {
+  /** 这是哪一种容器：决定身份色、小签词与档案段数（页面据此换皮，不另判一次）。 */
+  kind: ContainerKind
+  /** 身份小签的词条键：探索地图 list.mapChip（地图），规格 list.specChip（规格）。 */
+  chipLabelKey: string
   /** 身份文本，形如 '#1314'；编号与 key 都取不到时是空串。 */
   noText: string
   /** 地图标题。 */
@@ -310,10 +352,18 @@ export interface MapDetailPageInputs {
   handlers?: TicketCardHandlers | null
 }
 
-/** 一整页的卡片：未完成一段、已完成一段，顺序与看板一致。 */
+/**
+ * 一整页的卡片：未完成的一段、已完成的一段，以及页面真正照着画的那一条连续序列。
+ *
+ * 维护者在 2026-10-22 定下：不再单独做「已完成」区块，已完成的卡片接在被挡的卡片下面，
+ * 整页就是一串卡片。所以 sequence（open 接 closed）才是画法层要遍历的那一份；
+ * open / closed 两段留着给需要分开数的调用方（子票那句、完成度），不另算一遍。
+ */
 export interface MapDetailCards {
   open: IssueCardProps[]
   closed: IssueCardProps[]
+  /** 页面按这个顺序从头画到尾：先是未完成（在办 → 可接 → 被挡），再是已完成。 */
+  sequence: IssueCardProps[]
 }
 
 /**
@@ -334,4 +384,3 @@ export interface MapDetailPageModel {
   /** 两段卡片的 props（已按看板顺序排好，直接摊给卡片组件）。 */
   cards: MapDetailCards
 }
-

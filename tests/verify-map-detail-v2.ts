@@ -85,7 +85,7 @@ section('0. 前置：七份真源都在、没有同名 .js、逻辑模块不 imp
   check(offenders.length === 0,
     '判断层只 import 同目录的兄弟模块，不 import 界面库与后端（违反的：' + (offenders.length ? offenders.join('、') : '无') + '）')
 
-  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapDecision', 'MapProfile', 'TicketCardHandlers', 'MapDetailPageInputs', 'MapDetailPageModel']
+  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapDecision', 'MapProfile', 'TicketCardHandlers', 'MapDetailPageInputs', 'MapDetailPageModel', 'ContainerKind', 'SpecSections', 'MapProfileSectionId']
   const typesSrc = fs.readFileSync(path.join(DIR, 'mapDetailTypes.d.ts'), 'utf8')
   const missingTypes = typeExports.filter((name) => typesSrc.indexOf('export interface ' + name) < 0 && typesSrc.indexOf('export type ' + name) < 0)
   check(missingTypes.length === 0, '数据契约里的关键类型都声明了（缺的：' + (missingTypes.length ? missingTypes.join('、') : '无') + '）')
@@ -339,10 +339,13 @@ section('6. 看板排序：三条性质 + 已完成段')
   const open = board.orderOpenTickets(FACTS)
   const closed = board.orderClosedTickets(FACTS)
   const numbers = (list) => list.map((one) => one.number).join(',')
-  check(numbers(open) === '1316,1332,1374,1400,1401,1348,1350',
-    '未完成段顺序：可接按编号在前，被挡的 #1374 紧跟在挡它的 #1332 之后，在办最后（实得 ' + show(numbers(open)) + '）')
-  check(open.indexOf(factOf(1374)) === open.indexOf(factOf(1332)) + 1,
-    '#1374 紧跟在挡它的 #1332 之后（实得 #1332 在第 ' + open.indexOf(factOf(1332)) + ' 位、#1374 在第 ' + open.indexOf(factOf(1374)) + ' 位）')
+  check(numbers(open) === '1348,1350,1316,1332,1400,1401,1374',
+    '未完成段顺序：在办 → 可接 → 被挡，段内按编号（实得 ' + show(numbers(open)) + '）')
+  const statusesInOrder = open.map(function (one) { return one.status })
+  check(show(statusesInOrder) === show(['doing', 'doing', 'ready', 'ready', 'ready', 'ready', 'blocked']),
+    '三段的分界与维护者口径一致：在办两张、可接四张、被挡一张（实得 ' + show(statusesInOrder.join(',')) + '）')
+  check(open[open.length - 1].number === 1374,
+    '被挡的票排在这一段的最后，不再插到挡它的那张旁边（实得最后一张是 #' + show(open[open.length - 1].number) + '）')
 
   // 一张挡路者挡住两张、其中一张自己还有下游：这几张必须连在该段里，但不保证两张被挡票相邻。
   const fanRows = [
@@ -354,7 +357,7 @@ section('6. 看板排序：三条性质 + 已完成段')
   const fanFacts = fanRows.map((row) => facts.ticketCardFactsOf(row, facts.ticketFactsContextOf(fanRows, ENV)))
   const fanOrder = board.orderOpenTickets(fanFacts).map((one) => one.number).join(',')
   check(fanOrder === '100,101,102,103',
-    '同一挡路者的两张票连续排在一起（逐层先序：挡路者 → 被挡之一 → 被挡之二 → 下游，实得 ' + show(fanOrder) + '）')
+    '被挡段按挡路者编号聚拢：同一挡路者挡住的两张连在一起（实得 ' + show(fanOrder) + '）')
   const fanNo = fanOrder.split(',').map((one) => Number(one))
   check(fanNo.indexOf(103) > fanNo.indexOf(101) && fanNo.indexOf(102) > fanNo.indexOf(100),
     '下游排在挡它的那张之后，第二张被挡票也排在挡路者之后')
@@ -411,8 +414,8 @@ section('6.1 脏数据：成环、自阻塞、缺编号')
   const keys = order.map((one) => one.number === null ? 'k:' + one.rowKey : String(one.number))
   check(order.length === cycleRows.length && new Set(keys).size === cycleRows.length,
     '成环、自阻塞、缺编号的票各出现一次，不丢不重（实得 ' + show(keys.join(',')) + '）')
-  check(keys.join(',') === 'k:,2003,2001,2002',
-    '脏数据排序确定：可接的无编号票按状态排最前，自阻塞的票当根、排在成环的两张之前（实得 ' + show(keys.join(',')) + '）')
+  check(keys.join(',') === 'k:,2002,2001,2003',
+    '脏数据排序确定：可接的无编号票排最前；被挡段按挡路者编号（2002 被 2001 挡，所以排在 2001 之前），自阻塞的最后（实得 ' + show(keys.join(',')) + '）')
   check(keys.indexOf('2001') >= 0 && keys.indexOf('2002') >= 0,
     '互相挡住的两张也画出来了（实得 ' + show(keys.join(',')) + '）')
   const noNumber = order.filter((one) => one.number === null)
@@ -545,7 +548,7 @@ section('8. 交叉一致性：行序打乱不影响每张卡的刻画')
 // ===========================================================================
 // 9. MAP 自身内容：身份 / 目的地 / 档案四节 / 完成度 / 子票那句
 // ===========================================================================
-section('9. MAP 自身内容：身份、目的地、档案四节、完成度、子票那句的段')
+section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规格七节）、完成度、子票那句的段')
 {
   const COUNTS = { total: 8, closed: 4, ready: 2, doing: 1, blocked: 1 }
   const MAP_ROW = {
@@ -608,6 +611,8 @@ section('9. MAP 自身内容：身份、目的地、档案四节、完成度、�
 
   const realFeed = feed.ticketFeedOf({ mode: 'real', items: [{ number: 1 }], stats: { total: 8, closed: 4 } }, null)
   const full = profile.mapProfileOf(MAP_ROW, realFeed, COUNTS)
+  check(full.kind === 'map' && full.chipLabelKey === 'list.mapChip',
+    '没有 type 的容器行按探索地图画：身份小签走 list.mapChip（实得 ' + show(full.kind) + ' / ' + show(full.chipLabelKey) + '）')
   check(full.noText === '#1314' && full.title === '插件日志持久化读回失败与宿主反复启动',
     '合成结果里的身份与标题（实得 ' + show(full.noText) + ' / ' + show(full.title) + '）')
   check(full.destination === MAP_ROW.destination && full.hasDestination === true,
@@ -655,6 +660,54 @@ section('9. MAP 自身内容：身份、目的地、档案四节、完成度、�
     '只有空白的目的地等于没有（不把空白画成一句话，实得 ' + show(blankDestination.destination) + '）')
   check(blankDestination.hasSections === false && blankDestination.progressPercent === 0 && blankDestination.noText === '',
     '空行 + 空计数：一份不骗人的空档案（实得 ' + show(blankDestination) + '）')
+
+  check(profile.containerKindOf({ type: 'spec' }) === 'spec' && profile.containerKindOf({}) === 'map' && profile.containerKindOf(null) === 'map',
+    '容器种类只看快照行的 type：spec 才算规格，认不出的一律按探索地图画')
+
+  const SPEC_ROW = {
+    type: 'spec',
+    number: 1380,
+    title: '  实施规格：卡片层收口  ',
+    sections: {
+      problem: '  现在卡片只在演示页里能用。  ',
+      solution: '',
+      userStories: [' 切片一：先写逻辑  ', '', null, '切片二：再写页面'],
+      implDecisions: ['判断收进纯函数'],
+      testDecisions: null,
+      outOfScope: [' 本轮不动入口 '],
+      furtherNotes: [' 补充一句 '],
+    },
+  }
+  const specSections = profile.mapProfileSectionsOf(SPEC_ROW)
+  check(specSections.map(function (one) { return one.id }).join(',') === 'problem,solution,userStories,implDecisions,testDecisions,outOfScope,notes',
+    '规格的档案是七节，顺序与宿主 parseSpecBody 的七个字段一一对应（实得 ' + show(specSections.map(function (one) { return one.id }).join(',')) + '）')
+  check(specSections.map(function (one) { return one.labelKey }).join(',') === 'spec.section.problem,spec.section.solution,spec.section.userStories,spec.section.implDecisions,spec.section.testDecisions,spec.section.outOfScope,spec.section.notes',
+    '七节的段名各有自己的词条键，不借探索地图的词（实得 ' + show(specSections[0].labelKey) + '）')
+  const specById = {}
+  specSections.forEach(function (one) { specById[one.id] = one })
+  check(specById.problem.count === 1 && specById.problem.items[0].text === '现在卡片只在演示页里能用。',
+    '问题陈述是一整段话一条，首尾空白去掉（实得 ' + show(specById.problem.items) + '）')
+  check(specById.userStories.count === 2 && specById.userStories.items[1].text === '切片二：再写页面',
+    '用户故事的清单里空行与非字符串丢掉，干净的条目保持顺序（实得 ' + show(specById.userStories.items) + '）')
+  check(specById.implDecisions.count === 1 && specById.testDecisions.count === 0 && specById.notes.count === 1 && specById.solution.count === 0,
+    '没有内容的节也保留（count 为 0），由页面决定收起还是画空态（实得 ' + specById.implDecisions.count + ' / ' + specById.testDecisions.count + ' / ' + specById.notes.count + '）')
+  check(specById.outOfScope.id === 'outOfScope' && specById.outOfScope.labelKey === 'spec.section.outOfScope' && specById.outOfScope.count === 1,
+    '规格的范围外与探索地图同名不同词：id 复用、段名取 spec.section.outOfScope（实得 ' + show(specById.outOfScope) + '）')
+
+  const specFull = profile.mapProfileOf(SPEC_ROW, realFeed, null)
+  check(specFull.kind === 'spec' && specFull.chipLabelKey === 'list.specChip',
+    '规格档案的身份小签走 list.specChip（实得 ' + show(specFull.chipLabelKey) + '）')
+  check(specFull.title === '实施规格：卡片层收口' && specFull.noText === '#1380',
+    '规格的身份与标题也去空白后带出（实得 ' + show(specFull.noText) + ' / ' + show(specFull.title) + '）')
+  check(show(specFull.feedSegments) === show([{ key: 'map.specSubCount', params: { n: 8, c: 4 } }]),
+    '规格的「子票那句」用 map.specSubCount，不再说成探索地图（实得 ' + show(specFull.feedSegments) + '）')
+  check(specFull.sections.length === 7 && specFull.hasSections === true,
+    '规格的档案恒为七节，有内容即 hasSections（实得 ' + specFull.sections.length + ' 节）')
+  const emptySpec = profile.mapProfileOf({ type: 'spec' }, null, null)
+  check(emptySpec.sections.length === 7 && emptySpec.sections.every(function (one) { return one.count === 0 }),
+    '空规格的七节都是 0 条（页面据此收起档案区）')
+  check(show(emptySpec.feedSegments) === show([]) && emptySpec.kind === 'spec',
+    '没有取数结果时那句不出，规格身份照旧（实得 ' + show(emptySpec.feedSegments) + '）')
 }
 
 
@@ -749,6 +802,8 @@ section('11. 一整页模型：计数与卡片张数一致，取数五态都画�
   check(model.profile.progressPercent === 33, '完成度按已完成张数算（实得 ' + show(model.profile.progressPercent) + '%）')
   check(model.cards.open.length === 2 && model.cards.closed.length === 1,
     '两段卡片的张数与计数对得上：未完成 ' + model.cards.open.length + ' 张、已完成 ' + model.cards.closed.length + ' 张')
+  check(model.cards.sequence.length === 3 && model.cards.sequence[0] === model.cards.open[0] && model.cards.sequence[1] === model.cards.open[1] && model.cards.sequence[2].closed === true,
+    '页面照着画的一条序列接好：未完成在前（顺序与 open 段一致）、已完成接在最后（实得 ' + show(model.cards.sequence.map(function (one) { return one.noText })) + '）')
   check(model.feed.state === 'ready' && model.feed.source === 'requested',
     '取数成功时用取回那份（实得 ' + show(model.feed.state) + ' / ' + show(model.feed.source) + '）')
   check(model.profile.feedSegments[0] && model.profile.feedSegments[0].key === 'map.subCount',
@@ -785,6 +840,16 @@ section('11. 一整页模型：计数与卡片张数一致，取数五态都画�
     '真的一张都没有时空态成立、两段都为空（实得 ' + show(emptyModel.feed.empty) + ' / ' + show(emptyModel.cards.open.length) + ' / ' + show(emptyModel.cards.closed.length) + '）')
   check(emptyModel.profile.progressPercent === 0 && emptyModel.profile.hasDestination === false,
     '空地图的完成度是 0，目的地也不是一句空话（实得 ' + show(emptyModel.profile.progressPercent) + ' / ' + show(emptyModel.profile.hasDestination) + '）')
+
+  const specModel = pageModel.mapDetailPageModelOf({
+    map: { type: 'spec', number: 1380, title: '规格', sections: { problem: '问题' }, tickets: [], stats: { total: 0 } },
+    bucket: { mode: 'real', items: [], stats: { total: 0 } },
+    cardIdPrefix: 'm1380', actionOf: ENV.actionOf, textOf: ENV.textOf,
+  })
+  check(specModel.profile.kind === 'spec' && specModel.profile.chipLabelKey === 'list.specChip',
+    '规格行走完整页模型后仍然是规格身份（实得 ' + show(specModel.profile.kind) + ' / ' + show(specModel.profile.chipLabelKey) + '）')
+  check(specModel.profile.feedSegments[0] && specModel.profile.feedSegments[0].key === 'map.specSubCount',
+    '规格的整页模型里「子票那句」用规格自己的词条（实得 ' + show(specModel.profile.feedSegments) + '）')
 }
 
 
