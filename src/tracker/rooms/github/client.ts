@@ -25,7 +25,7 @@ import { fail, rawText } from '../../kernel/preflight.js'
 // 记日志那层壳在内核一份（#1182 第 3 件）：本房只管给出级别、事件名与字段。
 import { guardEmit } from '../../kernel/log-emit.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
 // 默认超时住中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），这里只留别名。
 import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 // #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
@@ -286,6 +286,8 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
    * 失败时 error 的形状是 {kind, message, code}：code 是 gh 的退出码（拿不到时为 -1，例如命令根本没起来）。
    */
   async function execGh(args: string[], opts: GhExecOpts = {}): Promise<GhExecResult> {
+    // #1375：gh 的 -F 会把纯数字 owner 发成 JSON 数字，GraphQL 的 String! 直接拒收；出站前归一成 -f。
+    args = normalizeGhStringFields(args)
     const cwd = getCwd(ctx, opts.cwd)
     const t0 = Date.now()
     // 这一条是哪一类命令（#1007 复核）：算一次、所有分支共用，避免每处日志各拼一遍。

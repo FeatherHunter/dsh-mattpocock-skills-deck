@@ -41,7 +41,7 @@ try {
   check(false, '一、能读到分档超时纯函数（src/tracker/kernel/outbound-tiers.ts）', String((e && e.message) || e).slice(0, 200))
 }
 if (tiers) {
-  const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier } = tiers
+  const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier, normalizeGhStringFields } = tiers
   check(READ_TIMEOUT_MS === READ_BUDGET_MS, '一、读档是 ' + READ_BUDGET_MS / 1000 + ' 秒（暂定值，终值等测量回填）', '实得 ' + String(READ_TIMEOUT_MS))
   check(WRITE_TIMEOUT_MS === WRITE_BUDGET_MS, '一、写档是 ' + WRITE_BUDGET_MS / 1000 + ' 秒（#1245 从 30 秒放宽到 60 秒，值取自中央常量）', '实得 ' + String(WRITE_TIMEOUT_MS))
   check(PROBE_TIMEOUT_MS === PROBE_BUDGET_MS, '一、探活档是 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160：冷启动 keyring 加 TLS 经常超 3 秒，与谓词 15 秒对齐）', '实得 ' + String(PROBE_TIMEOUT_MS))
@@ -61,6 +61,29 @@ if (tiers) {
   // 调用方显式传的超时优先，不被档位覆盖
   check(timeoutForGhArgs(['issue', 'list'], 5000) === 5000, '一、调用方显式传的超时优先')
   check(timeoutForTier('write') === WRITE_BUDGET_MS && timeoutForTier('probe') === PROBE_BUDGET_MS && timeoutForTier('read') === READ_BUDGET_MS, '一、按档名取超时各走各的档')
+  // #1375：gh 的 -F 会做类型推断，纯数字的 owner（例如 776317107）被发成 JSON 数字，
+  // 而 GraphQL 把 $owner 与 $name 声明为 String!，于是回「Could not coerce ... to String」。
+  // 出站前必须把这两个字段归一成 -f，整型字段保持 -F。
+  const numericOwnerArgs = ['api', 'graphql', '-f', 'query=query($owner:String!,$name:String!){repository(owner:$owner,name:$name){nameWithOwner}}', '-F', 'owner=776317107', '-F', 'name=dsh-data-manager', '-F', 'number=13']
+  const normalized = normalizeGhStringFields(numericOwnerArgs)
+  const idxOwner = normalized.indexOf('owner=776317107')
+  const idxName = normalized.indexOf('name=dsh-data-manager')
+  const idxNumber = normalized.indexOf('number=13')
+  check(idxOwner > 0 && normalized[idxOwner - 1] === '-f', '一、纯数字 owner 的 GraphQL 字段改成 -f（#1375）', normalized.join(' '))
+  check(idxName > 0 && normalized[idxName - 1] === '-f', '一、repo name 同样改成 -f', normalized.join(' '))
+  check(idxNumber > 0 && normalized[idxNumber - 1] === '-F', '一、整型字段 number 仍保持 -F', normalized.join(' '))
+  check(numericOwnerArgs[4] === '-F', '一、归一化不改调用方传进来的数组')
+  const restArgs = ['api', 'repos/776317107/dsh-data-manager/issues/13']
+  check(normalizeGhStringFields(restArgs) === restArgs, '一、非 GraphQL 调用原样返回')
+  const alreadyRaw = ['api', 'graphql', '-f', 'query=x', '-f', 'owner=776317107', '-f', 'name=dsh-data-manager']
+  check(normalizeGhStringFields(alreadyRaw) === alreadyRaw, '一、已经是 -f 的调用原样返回')
+  const longField = normalizeGhStringFields(['api', 'graphql', '-f', 'query=x', '--field', 'owner=776317107'])
+  check(longField[4] === '-f', '一、--field 写法的 owner 也归一成 -f', longField.join(' '))
+  // 只测纯函数还不够：两个出站包装器真的把它接上了，才算修好。
+  const hostSource = readFileSync(nodePath.join(ROOT, 'src/host/git-process.ts'), 'utf8')
+  const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts'), 'utf8')
+  check(hostSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、host 的 runGh 出站前调用了归一化')
+  check(roomSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、房内 execGh 出站前调用了归一化')
 }
 
 // —— 二、慢网超时归网络档，不报没登录 ——
