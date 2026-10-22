@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T13:26:23.768Z",
+  "generatedAt": "2026-10-22T13:55:57.096Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 320,
-  "gateCount": 320,
-  "attributedGates": 281,
+  "chainLength": 322,
+  "gateCount": 322,
+  "attributedGates": 283,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 525,
+  "graphFileCount": 529,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2119,6 +2119,26 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 10 条）"
+    },
+    {
+      "step": "node tests/verify-1363-first-run-recovery.ts",
+      "file": "tests/verify-1363-first-run-recovery.ts",
+      "guards": [
+        "src/client/hostShim.ts",
+        "src/client/kernel/attention-heartbeat.ts",
+        "src/client/kernel/probe-auto.ts",
+        "src/host/refresh/chainBackoff.ts"
+      ],
+      "dirs": [
+        "src/client",
+        "src/client/kernel",
+        "src/host/refresh"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-1373-stale-table-graft.ts",
@@ -5873,6 +5893,21 @@
       "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
+      "step": "node tests/verify-map-detail-v2.ts",
+      "file": "tests/verify-map-detail-v2.ts",
+      "guards": [
+        "src/client/mapDetailV2"
+      ],
+      "dirs": [
+        "src/client/mapDetailV2"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-map-drill.ts",
       "file": "tests/verify-map-drill.ts",
       "guards": [
@@ -7823,6 +7858,7 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1305-client-session.ts",
+      "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-client-hardcode-gate.ts",
@@ -7866,6 +7902,7 @@
       "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1355-cross-session-table.ts",
+      "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
@@ -7927,6 +7964,9 @@
       "node tests/verify-workspace-file-note.ts",
       "node tests/verify-locale-completeness.ts",
       "node tests/verify-locale-config.ts"
+    ],
+    "src/client/mapDetailV2": [
+      "node tests/verify-map-detail-v2.ts"
     ],
     "src/client/panel": [
       "node tests/verify-leaves.ts",
@@ -8294,6 +8334,7 @@
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
+      "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-723-single-refresh-instance.ts",
@@ -8923,12 +8964,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 541,
-    "dirCount": 60,
-    "coveredFileCount": 541,
+    "fileCount": 545,
+    "dirCount": 61,
+    "coveredFileCount": 545,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 51,
+    "dedicatedDirCount": 52,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -8987,6 +9028,10 @@
       "src/client/kernel/tabsfold.ts",
       "src/client/kernel/ui-feedback.ts",
       "src/client/kernel/work-route-own.ts",
+      "src/client/mapDetailV2/mapDetailTypes.d.ts",
+      "src/client/mapDetailV2/ticketBoard.ts",
+      "src/client/mapDetailV2/ticketCardFacts.ts",
+      "src/client/mapDetailV2/ticketFeed.ts",
       "src/client/panel/Dock.ts",
       "src/client/panel/DockSync.ts",
       "src/client/panel/NamingFailBanner.ts",
@@ -9477,6 +9522,7 @@
       "src/client",
       "src/client/floating",
       "src/client/kernel",
+      "src/client/mapDetailV2",
       "src/client/panel",
       "src/client/statusbar",
       "src/client/views",
@@ -9539,6 +9585,7 @@
       "src/client",
       "src/client/floating",
       "src/client/kernel",
+      "src/client/mapDetailV2",
       "src/client/panel",
       "src/client/statusbar",
       "src/client/views",

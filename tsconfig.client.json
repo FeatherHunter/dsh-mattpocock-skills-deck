@@ -37,6 +37,9 @@
     "src/client/panel/*.ts",
     "src/client/floating/*.ts",
     // #1254：客户端根三份（index/hostShim/panelAssembly）转成 .ts 后进类型检查；此前只圈子目录，根文件不在任何配置里。
-    "src/client/*.ts"
+    "src/client/*.ts",
+    // V2 地图详情页的纯逻辑层：先不接入生产（不登记叶子、不进产物），只让类型检查看见它；
+    // 接入时搬进 src/client/views/ 并按叶子登记，届时删掉这一行。
+    "src/client/mapDetailV2/*.ts"
   ]
 }
