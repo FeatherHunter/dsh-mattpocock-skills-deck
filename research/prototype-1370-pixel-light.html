@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>1370 像素风原型（抛弃式，只为选浅色，不进生产）</title>
+<style>
+  body{font-family:system-ui,"Microsoft YaHei",sans-serif;background:#1c1917;color:#e7e5e4;margin:0;padding:20px;}
+  h1{font-size:18px;margin:0 0 4px;} .sub{font-size:12px;color:#a8a29e;margin-bottom:12px;}
+  table{border-collapse:collapse;font-size:12px;margin-bottom:16px;background:#292524;}
+  td,th{border:1px solid #44403c;padding:4px 8px;text-align:left;} th{color:#fbbf24;}
+  .grid{display:grid;grid-template-columns:repeat(4,minmax(280px,1fr));gap:14px;align-items:start;}
+  .variant{border:2px solid #44403c;} .variant h2{font-size:13px;margin:0;padding:8px 10px;background:#292524;color:#fde68a;}
+  .variant h2 small{display:block;color:#a8a29e;font-weight:400;margin-top:2px;}
+  /* ---- 像素风子集（结构与生产一致，只调颜色走变量） ---- */
+  .pixel-tab{padding:10px;font-size:12px;}
+  .v-dark{--frame:#3a2c14;--paper:#f2e4c0;--card:#fffdf4;--ink:#2b2113;--ink2:#6b5b3e;--shadow:#241a0c;--acc:#8b5cf6;--ok:#0e8a16;--warn:#f59e0b;--bad:#a3231a;--stripe:#ddcda1;--tab1:#93764f;--tab2:#8a6f4d;--ring:2px dashed #e3a92f;--ringOff:2px;}
+  .v-a{--frame:#3a2c14;--paper:#f6f1e6;--card:#fffdf8;--ink:#221d15;--ink2:#6f6252;--shadow:#241a0c;--acc:#15803d;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--stripe:#e7ddc8;--tab1:#efe8d9;--tab2:#e7ddc8;--ring:2px solid #4176E6;--ringOff:-2px;}
+  .v-b{--frame:#27241f;--paper:#f5f6f7;--card:#ffffff;--ink:#1f2937;--ink2:#6b7280;--shadow:#27241f;--acc:#4868B2;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--stripe:#e5e7eb;--tab1:#eef1f4;--tab2:#e5e9ee;--ring:2px solid #4176E6;--ringOff:-2px;}
+  .v-c{--frame:#57534e;--paper:#faf9f7;--card:#ffffff;--ink:#2b2113;--ink2:#78716c;--shadow:#a8a29e;--acc:#8b5cf6;--ok:#0e8a16;--warn:#9a6a00;--bad:#a3231a;--stripe:#e7e5e4;--tab1:#f5f4f2;--tab2:#eceae7;--ring:2px solid #4176E6;--ringOff:-2px;}
+  .pixel-tab{background-color:var(--tab2);background-image:repeating-conic-gradient(var(--tab1) 0% 25%,var(--tab2) 0% 50%);background-size:8px 8px;border:4px solid var(--frame);box-shadow:6px 6px 0 var(--shadow);color:var(--ink);}
+  .grp{color:var(--paper);font-weight:700;letter-spacing:1px;background:var(--frame);display:inline-block;padding:2px 8px;font-size:12px;margin-bottom:8px;}
+  .v-a .grp,.v-b .grp,.v-c .grp{color:var(--ink);}
+  .v-a .grp{background:var(--frame);color:var(--paper);}
+  .v-b .grp{background:var(--frame);color:#fff;}
+  .v-c .grp{background:var(--frame);color:#fff;}
+  .chip{display:inline-block;font:700 11px ui-monospace,monospace;background:var(--card);color:var(--ink);border:2px solid var(--frame);box-shadow:2px 2px 0 var(--shadow);padding:0 7px;margin-bottom:8px;}
+  .row{display:flex;gap:8px;align-items:center;background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:6px 10px;margin:8px 0;color:var(--ink);}
+  .row.rec{background:#efe8fb;} .v-a .row.rec{background:#eef7ef;} .v-b .row.rec{background:#eef2ff;} .v-c .row.rec{background:#f5f3ff;}
+  .dot{flex:none;width:10px;height:10px;border:2px solid var(--frame);} .d-ok{background:var(--ok);} .d-warn{background:var(--warn);} .d-bad{background:var(--bad);}
+  .sname{font:700 12px ui-monospace,monospace;min-width:110px;} .star{color:var(--acc);}
+  .suse{flex:1;font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .btn{font:700 11px ui-monospace,monospace;border:3px solid var(--frame);background:var(--paper);color:var(--ink);padding:1px 8px;box-shadow:2px 2px 0 var(--shadow);cursor:pointer;}
+  .btn.focus{outline:var(--ring);outline-offset:var(--ringOff);}
+  .note{font-size:11px;color:var(--ink2);margin-top:8px;line-height:1.7;}
+</style>
+</head>
+<body>
+<h1>1370 像素风原型：深色原版 + 三个浅色备选（抛弃式）</h1>
+<div class="sub">结构与生产一致（行、纸片按钮、硬阴影、等宽字体），只调颜色。焦点环按 #1368 定版：浅色三版统一用 #4176E6、宽 2 像素往里画；深色原版保留金色虚线。用哪张顺眼，直接说 A / B / C。</div>
+<table>
+<tr><th>变体</th><th>纸面</th><th>卡片</th><th>框</th><th>字</th><th>阴影</th><th>强调</th></tr>
+<tr><td>深色原版</td><td>#f2e4c0</td><td>#fffdf4</td><td>#3a2c14</td><td>#2b2113</td><td>#241a0c</td><td>#8b5cf6</td></tr>
+<tr><td>A 纸面便签（对齐版本管理浅色）</td><td>#f6f1e6</td><td>#fffdf8</td><td>#3a2c14</td><td>#221d15</td><td>#241a0c</td><td>#15803d</td></tr>
+<tr><td>B 冷灰纸</td><td>#f5f6f7</td><td>#ffffff</td><td>#27241f</td><td>#1f2937</td><td>#27241f</td><td>#4868B2</td></tr>
+<tr><td>C 暖白轻描边</td><td>#faf9f7</td><td>#ffffff</td><td>#57534e</td><td>#2b2113</td><td>#a8a29e</td><td>#8b5cf6</td></tr>
+</table>
+<div class="grid">
+<div class="variant"><h2>深色原版（基线）<small>棋盘棕底 · 金色虚线焦点环</small></h2><div class="pixel-tab v-dark">
+<div class="grp">通用建议</div><div><span class="chip">/ask-matt</span></div>
+<div class="row rec"><span class="dot d-ok"></span><span class="sname">/ask-matt<span class="star"> ★</span></span><span class="suse">技能路由器：不知道该用哪个 skill 时问它</span><button class="btn">加载</button><button class="btn focus">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/wayfinder</span><span class="suse">为多议题项目建决策地图与子票拆解</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/research</span><span class="suse">后台调研，写进 repo 内 markdown 并引源</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/prototype</span><span class="suse">一次性原型回答设计问题</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/grilling</span><span class="suse">在你拍板前反复追问澄清，直到设计落地</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-bad"></span><span class="sname">/diagnosing-bugs</span><span class="suse">硬 bug / 性能回归：定位→假设→验证</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/tdd</span><span class="suse">测试驱动开发：先写失败测试，再写最小实现</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/retro</span><span class="suse">复盘编码会话，只提环境改进</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="note">深色页签底是棕色棋盘，卡片米白，描边深棕。</div>
+</div></div>
+<div class="variant"><h2>A 纸面便签<small>纸面 #f6f1e6 · 与版本管理浅色同纸 · 描边最重</small></h2><div class="pixel-tab v-a">
+<div class="grp">通用建议</div><div><span class="chip">/ask-matt</span></div>
+<div class="row rec"><span class="dot d-ok"></span><span class="sname">/ask-matt<span class="star"> ★</span></span><span class="suse">技能路由器：不知道该用哪个 skill 时问它</span><button class="btn">加载</button><button class="btn focus">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/wayfinder</span><span class="suse">为多议题项目建决策地图与子票拆解</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/research</span><span class="suse">后台调研，写进 repo 内 markdown 并引源</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/prototype</span><span class="suse">一次性原型回答设计问题</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/grilling</span><span class="suse">在你拍板前反复追问澄清，直到设计落地</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-bad"></span><span class="sname">/diagnosing-bugs</span><span class="suse">硬 bug / 性能回归：定位→假设→验证</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/tdd</span><span class="suse">测试驱动开发：先写失败测试，再写最小实现</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/retro</span><span class="suse">复盘编码会话，只提环境改进</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="note">A：纸面偏黄，与版本管理浅色是同一张纸，像素味最浓。</div>
+</div></div>
+<div class="variant"><h2>B 冷灰纸<small>纸面 #f5f6f7 · 框 #27241f · 现代感最强</small></h2><div class="pixel-tab v-b">
+<div class="grp">通用建议</div><div><span class="chip">/ask-matt</span></div>
+<div class="row rec"><span class="dot d-ok"></span><span class="sname">/ask-matt<span class="star"> ★</span></span><span class="suse">技能路由器：不知道该用哪个 skill 时问它</span><button class="btn">加载</button><button class="btn focus">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/wayfinder</span><span class="suse">为多议题项目建决策地图与子票拆解</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/research</span><span class="suse">后台调研，写进 repo 内 markdown 并引源</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/prototype</span><span class="suse">一次性原型回答设计问题</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/grilling</span><span class="suse">在你拍板前反复追问澄清，直到设计落地</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-bad"></span><span class="sname">/diagnosing-bugs</span><span class="suse">硬 bug / 性能回归：定位→假设→验证</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/tdd</span><span class="suse">测试驱动开发：先写失败测试，再写最小实现</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/retro</span><span class="suse">复盘编码会话，只提环境改进</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="note">B：纸面偏灰，字是冷黑，推荐行是淡蓝，最像系统原生浅色。</div>
+</div></div>
+<div class="variant"><h2>C 暖白轻描边<small>纸面 #faf9f7 · 框变浅 · 阴影最轻</small></h2><div class="pixel-tab v-c">
+<div class="grp">通用建议</div><div><span class="chip">/ask-matt</span></div>
+<div class="row rec"><span class="dot d-ok"></span><span class="sname">/ask-matt<span class="star"> ★</span></span><span class="suse">技能路由器：不知道该用哪个 skill 时问它</span><button class="btn">加载</button><button class="btn focus">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/wayfinder</span><span class="suse">为多议题项目建决策地图与子票拆解</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/research</span><span class="suse">后台调研，写进 repo 内 markdown 并引源</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/prototype</span><span class="suse">一次性原型回答设计问题</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-warn"></span><span class="sname">/grilling</span><span class="suse">在你拍板前反复追问澄清，直到设计落地</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-bad"></span><span class="sname">/diagnosing-bugs</span><span class="suse">硬 bug / 性能回归：定位→假设→验证</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/tdd</span><span class="suse">测试驱动开发：先写失败测试，再写最小实现</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="row"><span class="dot d-ok"></span><span class="sname">/retro</span><span class="suse">复盘编码会话，只提环境改进</span><button class="btn">加载</button><button class="btn">详情</button></div>
+<div class="note">C：框和阴影都放轻，像素味最淡，最干净。</div>
+</div></div>
+</div>
+</body>
+</html>
