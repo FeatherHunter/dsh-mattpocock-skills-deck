@@ -17,7 +17,7 @@
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
 //    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死、
 //    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角、整条胶囊自己的环又挂回来、
-//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px、入口浮层的卡又被通用悬停规则多画一圈环、入口卡又挂回 dsws-hov、入口卡自己的焦点圈被删、入口卡按下又没反馈）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px、入口浮层的卡又被通用悬停规则多画一圈环、入口卡又挂回 dsws-hov、入口卡自己的焦点圈被删、入口卡按下又没反馈、五处浅色个例只改样式没挂标记、只挂标记没改样式）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -381,6 +381,68 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(lightBadProps.length === 0,
     'F31 浅色个例修复层只改颜色类属性（color/background/border-color/fill/stroke/box-shadow），不改尺寸、间距、布局' +
     (lightBadProps.length ? '；越界属性：' + Array.from(new Set(lightBadProps)).join('、') : ''))
+
+  // ============ F32：五处浅色个例必须「组件挂标记、样式认标记」两头对齐（#1379 收口） ============
+  // 为什么加这一条：浅色覆盖层全靠选择器命中组件里的类名或 data 属性。选择器写错一个字符，CSS 照样合法、
+  //   整份样式也不会报错，只是浅色下那几个字又回到看不清；反过来，组件里的标记被删掉，规则还在、却再也命不中，
+  //   门禁同样绿着。这种「规则在、标记没挂」或「标记在、规则漏了」的漂移，只能由一条同时读组件源码与样式层的
+  //   断言钉住：每处写清三样东西 —— 组件里必须出现的标记、浅色层里必须出现的完整选择器（连前缀一起写死，
+  //   前缀被摘也会红）、以及给人看的界面名（报错时能直接指到哪一处）。
+  const LIGHT_CASES: { what: string; file: string; marks: string[]; sels: string[] }[] = [
+    {
+      what: '票详情顶部错误横幅正文与「显示快照降级」小字',
+      file: 'src/client/views/IssueDetail.ts',
+      marks: ["className: 'dsws-detail-err'", "className: 'dsws-detail-err-degraded'"],
+      sels: ['body:not([data-ds-dark-theme]) .dsws-detail-err{', 'body:not([data-ds-dark-theme]) .dsws-detail-err-degraded{'],
+    },
+    {
+      what: '已关闭列表的「未完成 / 游标失效 / 取不到」提示文字',
+      file: 'src/client/views/ListTabClosed.ts',
+      marks: ["className: 'dsws-closed-note'", "'data-state': 'warn'", "'data-state': 'bad'"],
+      sels: ['body:not([data-ds-dark-theme]) .dsws-closed-note[data-state="warn"]{', 'body:not([data-ds-dark-theme]) .dsws-closed-note[data-state="bad"]{'],
+    },
+    {
+      what: '拉取请求页签的三种状态字（打开 / 已关闭 / 已合并）',
+      file: 'src/client/views/PrTab.ts',
+      marks: ["'data-state': prStateKind(x)", "className: 'dsws-chip dsws-pr-state'"],
+      sels: [
+        'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="open"] .dsws-idnum,',
+        'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="open"] .dsws-pr-state{',
+        'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="closed"] .dsws-idnum,',
+        'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="closed"] .dsws-pr-state{',
+        'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="merged"] .dsws-idnum,',
+        'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="merged"] .dsws-pr-state{',
+      ],
+    },
+    {
+      what: '无仓库提示卡的语义图标（罗盘 / 警告三角）',
+      file: 'src/client/views/NoRepoCard.ts',
+      marks: ["'data-state': 'pending'", "'data-state': 'other'", "'data-state': 'bad'"],
+      sels: ['body:not([data-ds-dark-theme]) .dsws-no-repo-card[data-state="other"]>.head>svg{', 'body:not([data-ds-dark-theme]) .dsws-no-repo-card[data-state="bad"]>.head>svg{'],
+    },
+    {
+      what: '环境检查页签每条检查项的状态字与状态圆点',
+      file: 'src/client/views/ChecksTab.ts',
+      marks: ["'data-state': meta.state", "className: 'dsws-ccard-dot'"],
+      sels: [
+        'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="done"] .nm{',
+        'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="current"] .nm{',
+        'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="fail"] .nm{',
+        'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="pending"] .nm{',
+        'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="current"] .dsws-ccard-dot{',
+      ],
+    },
+  ]
+  const lightCaseReds: string[] = []
+  for (const c of LIGHT_CASES) {
+    const src = read(c.file)
+    if (!src) { lightCaseReds.push(c.what + '：读不到组件源码 ' + c.file); continue }
+    for (const mk of c.marks) { if (src.indexOf(mk) < 0) lightCaseReds.push(c.what + '：组件里没挂标记 ' + mk) }
+    for (const sel of c.sels) { if (lightCss.indexOf(sel) < 0) lightCaseReds.push(c.what + '：浅色层里没有这条规则 ' + sel) }
+  }
+  check(LIGHT_CASES.length === 5 && lightCaseReds.length === 0,
+    'F32 五处浅色个例两头对齐：组件里挂着稳定标记（类名或 data-state），浅色层里有一条带 body:not([data-ds-dark-theme]) 前缀、专认这个标记的规则（' + LIGHT_CASES.length + ' 处；只改一头就红）' +
+    (lightCaseReds.length ? '；对不上：' + lightCaseReds.join('；') : ''))
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')
   }
@@ -695,6 +757,24 @@ const variants: Variant[] = [
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F31',
     change: (s) => replaceAll(s, 'color:var(--dsw-alias-label-secondary)!important}', 'color:#61666b!important}'),
+  },
+  {
+    label: '票详情的错误横幅又退回无名内联 div：浅色规则再也命不中，正文回到 2.56:1',
+    file: 'src/client/views/IssueDetail.ts',
+    group: 'F32',
+    change: (s) => replaceAll(s, "className: 'dsws-detail-err', ", ''),
+  },
+  {
+    label: '拉取请求「已合并」那一条浅色规则被删了：状态字又回到 2.54:1',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F32',
+    change: (s) => replaceAll(s, '[data-state="merged"]', ''),
+  },
+  {
+    label: '环境检查的状态圆点少了类名：浅色规则命不中圆点，警告橙圆点又回到 2.15:1',
+    file: 'src/client/views/ChecksTab.ts',
+    group: 'F32',
+    change: (s) => replaceAll(s, "className: 'dsws-ccard-dot'", ''),
   },
 ]
 for (const v of variants) {

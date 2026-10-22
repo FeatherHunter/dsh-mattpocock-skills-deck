@@ -202,7 +202,7 @@ export const FEEDBACK_STYLE_TEXT: string = [
       'body:not([data-ds-dark-theme]) .dsws-loading-shade>span:first-child{color:var(--dsw-alias-label-primary)!important}',
       // 链路横幅（警告级）：警告橙文字压在 12% 琥珀底上 2.15:1，改成深琥珀 4.94:1。
       'body:not([data-ds-dark-theme]) .dsws-chain-banner--warn{color:color-mix(in srgb,var(--dsw-alias-state-warn-label) 65%,var(--dsw-alias-label-primary))!important}',
-      // 链路横幅（错误级）：原色 #f87171 压 12% 红底 2.77:1，改成深红 5.59:1。
+      // 链路横幅（错误级）：原色是写死的错误红，压 12% 红底 2.77:1，改成深红 5.59:1。
       'body:not([data-ds-dark-theme]) .dsws-chain-banner--bad{color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 80%,var(--dsw-alias-label-primary))!important}',
       // 链路横幅（信息级）：原色 #58a6ff 压 12% 蓝底 2.54:1，改成深蓝 5.01:1。
       'body:not([data-ds-dark-theme]) .dsws-chain-banner--info{color:color-mix(in srgb,var(--dsw-alias-link) 82%,var(--dsw-alias-label-primary))!important}',
@@ -216,6 +216,36 @@ export const FEEDBACK_STYLE_TEXT: string = [
 
       // 环境检查页签每条检查项下面的提示字（.dsws-ccard .dt）：原色 #d97706，白底 3.19:1，12px 小字看不清；改成深琥珀 5.43:1。
       'body:not([data-ds-dark-theme]) .dsws-ccard .dt{color:color-mix(in srgb,var(--dsw-alias-state-warn-label) 65%,var(--dsw-alias-label-primary))!important}',
+
+      // #1379 收口：五处个例的组件侧已挂稳定类名 / data-state，下面按状态给浅色值。
+      // 票详情顶部错误横幅的正文（IssueDetail.ts 的 .dsws-detail-err）：原色是写死的错误红，压在 8% 红底上只有 2.56:1；改用宿主错误色掺 20% 主字色后 5.82:1——语义仍是错误红，掺主字色只为压深一档保证可读，换肤时跟着宿主走。
+      'body:not([data-ds-dark-theme]) .dsws-detail-err{color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 80%,var(--dsw-alias-label-primary))!important}',
+      // 同一横幅里的「（显示快照降级）」小字（.dsws-detail-err-degraded）：原色是写死的警告橙，压在同一条 8% 红底上只有 1.99:1；改成宿主警告标签色掺 35% 主字色后 5.03:1——警告语义由 --dsw-alias-state-warn-label 承担，不再用写死的橙。
+      'body:not([data-ds-dark-theme]) .dsws-detail-err-degraded{color:color-mix(in srgb,var(--dsw-alias-state-warn-label) 65%,var(--dsw-alias-label-primary))!important}',
+      // 已关闭列表的「在网页上看全部 / 游标已失效」两条提示（.dsws-closed-note[data-state="warn"]）：原色是写死的警告橙，白底 2.15:1；改成宿主警告标签色掺 35% 主字色后 5.43:1。
+      'body:not([data-ds-dark-theme]) .dsws-closed-note[data-state="warn"]{color:color-mix(in srgb,var(--dsw-alias-state-warn-label) 65%,var(--dsw-alias-label-primary))!important}',
+      // 已关闭列表的「取不到下一页」提示（.dsws-closed-note[data-state="bad"]）：原色是写死的错误红，白底 2.77:1；改成宿主错误色掺 20% 主字色后 6.28:1。
+      'body:not([data-ds-dark-theme]) .dsws-closed-note[data-state="bad"]{color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 80%,var(--dsw-alias-label-primary))!important}',
+      // 拉取请求页签「打开」那一行的票号与状态药丸（.dsws-aggrow[data-state="open"]）：原色是写死的完成绿，白底 2.54:1、药丸压 15% 绿底 2.23:1；改成宿主成功色掺 45% 主字色后 5.82:1 / 5.11:1——绿色本身比琥珀亮，掺得比警告色更深才有余量。
+      'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="open"] .dsws-idnum,body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="open"] .dsws-pr-state{color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 55%,var(--dsw-alias-label-primary))!important;border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 55%,var(--dsw-alias-label-primary))!important}',
+      // 拉取请求页签「已关闭」那一行（.dsws-aggrow[data-state="closed"]）：原色是写死的次要灰，白底 3.08:1、药丸压 15% 灰底 2.67:1；改成宿主次要字色后 5.80:1 / 5.04:1——它本来就是「中性灰」的意思，次要字色正是宿主里同一语义的 token。
+      'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="closed"] .dsws-idnum,body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="closed"] .dsws-pr-state{color:var(--dsw-alias-label-secondary)!important;border-color:var(--dsw-alias-label-secondary)!important}',
+      // 拉取请求页签「已合并」那一行（.dsws-aggrow[data-state="merged"]）：原色是中央色表里的探索紫，白底 2.64:1、药丸压 16% 紫底 2.29:1；改成宿主成功色掺 45% 主字色后 5.82:1 / 5.05:1——已合并是「成功收尾」，浅色下用宿主成功色比紫色更贴语义，也不与地图卡的紫撞色。
+      'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="merged"] .dsws-idnum,body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="merged"] .dsws-pr-state{color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 55%,var(--dsw-alias-label-primary))!important;border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 55%,var(--dsw-alias-label-primary))!important}',
+      // 无仓库提示卡「未选后端」的罗盘图标（.dsws-no-repo-card[data-state="other"]>.head>svg）：原色是写死的次要灰，压 8% 灰底 4.17:1（图形 3:1 本来够，但它是写死的十六进制、不跟主题）；改成宿主次要字色后 5.27:1——图标颜色内联在 svg 上，只有 !important 盖得住。
+      'body:not([data-ds-dark-theme]) .dsws-no-repo-card[data-state="other"]>.head>svg{color:var(--dsw-alias-label-secondary)!important}',
+      // 无仓库提示卡「建仓失败」的警告三角（.dsws-no-repo-card[data-state="bad"]>.head>svg）：原色是写死的错误红，白底 2.77:1，图形要 3:1 也不够；改成宿主错误色掺 20% 主字色后 6.28:1。
+      'body:not([data-ds-dark-theme]) .dsws-no-repo-card[data-state="bad"]>.head>svg{color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 80%,var(--dsw-alias-label-primary))!important}',
+      // 环境检查页签「已完成」那条检查项的名字（.dsws-ccard[data-state="done"] .nm）：原色是写死的浅绿，白底 1.74:1；改成宿主成功色掺 45% 主字色后 5.82:1。
+      'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="done"] .nm{color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 55%,var(--dsw-alias-label-primary))!important}',
+      // 环境检查页签「进行中」那条检查项的名字（.dsws-ccard[data-state="current"] .nm）：原色是写死的警告橙，白底 2.15:1；改成宿主警告标签色掺 35% 主字色后 5.43:1。
+      'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="current"] .nm{color:color-mix(in srgb,var(--dsw-alias-state-warn-label) 65%,var(--dsw-alias-label-primary))!important}',
+      // 环境检查页签「失败」那条检查项的名字（.dsws-ccard[data-state="fail"] .nm）：原色是写死的错误红，白底 2.77:1；改成宿主错误色掺 20% 主字色后 6.28:1。
+      'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="fail"] .nm{color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 80%,var(--dsw-alias-label-primary))!important}',
+      // 环境检查页签「还没轮到」那条检查项的名字（.dsws-ccard[data-state="pending"] .nm）：原色是写死的浅灰，白底 2.56:1；改成宿主次要字色后 5.80:1。
+      'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="pending"] .nm{color:var(--dsw-alias-label-secondary)!important}',
+      // 环境检查页签「进行中」那条的状态圆点（.dsws-ccard[data-state="current"] .dsws-ccard-dot）：原底色是写死的警告橙，白底 2.15:1，图形要 3:1 不够；改成宿主警告标签色掺 35% 主字色后 5.43:1，圆点里的白字仍读得清。
+      'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="current"] .dsws-ccard-dot{background:color-mix(in srgb,var(--dsw-alias-state-warn-label) 65%,var(--dsw-alias-label-primary))!important}',
 
       // #1379 浅色个例修复层（结束）
       '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-ink.dsws-ink-squash{animation:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}[data-press].dsws-pressing{transform:none!important}}',
