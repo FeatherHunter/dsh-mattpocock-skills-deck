@@ -110,9 +110,13 @@ export async function readbackMapPlan(args: MapPlanReadbackArgs): Promise<MapPla
     const expected = labelsToEnsure(resolved.kind, resolved.label)
     const missingLabels = expected.filter((n) => lower.indexOf(String(n).toLowerCase()) < 0)
     if (missingLabels.length) problems.push('子票「' + planKey + '」缺标签：' + missingLabels.join('、'))
-    const wantType = expected.filter((n) => isTypeLabel(n)).length
-    const gotType = names.filter((n) => isTypeLabel(n)).length
-    if (gotType !== wantType) problems.push('子票「' + planKey + '」有 ' + gotType + ' 枚类型标签（应为 ' + wantType + ' 枚）')
+    // issue 兜底不推导类型标签、labels 原样传递（#1403）：它带 wayfinder:* 是调用方给的原样，不按「应为 0 枚」判错。
+    // 其他位置值的类型标签由工具补，读回来枚数必须与应补的一致。
+    if (resolved.kind !== 'issue') {
+      const wantType = expected.filter((n) => isTypeLabel(n)).length
+      const gotType = names.filter((n) => isTypeLabel(n)).length
+      if (gotType !== wantType) problems.push('子票「' + planKey + '」有 ' + gotType + ' 枚类型标签（应为 ' + wantType + ' 枚）')
+    }
     if (String(row.parentKey || '') !== String(mapKey)) problems.push('子票「' + planKey + '」的父票是「' + String(row.parentKey || '') + '」（应为地图 ' + mapKey + '）')
     if (stripProgressSections(childBody) === childBody) problems.push('子票「' + planKey + '」没有 ## 进度')
     if (looksLikeWholeFile(childBody)) {

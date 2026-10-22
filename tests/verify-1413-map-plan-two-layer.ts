@@ -121,7 +121,7 @@ async function main() {
     { key: 'grilling', title: '追问票：把决定问出来', kind: 'map-ticket', label: 'wayfinder:grilling' },
     { key: 'task', title: '工单票：拆成可做的活', kind: 'map-ticket', label: 'wayfinder:task' },
     { key: 'bug', title: '缺陷票：修一条回归', kind: 'bug' },
-    { key: 'issue', title: '普通票：顺手记一笔', kind: 'issue', labels: ['docs'] },
+    { key: 'issue', title: '普通票：顺手记一笔', kind: 'issue', labels: ['docs', 'wayfinder:research'] },
   ]
   const edges = [{ from: 'bug', to: 'research', type: 'blocked-by' }]
   const body = '# 两层地图骨架\n\n## Destination\n\n把两层词表落到地图工具上\n\n## Notes\n\n保留这句原有的话。\n'
@@ -192,7 +192,7 @@ async function main() {
       const text = fileOf(issueKey)
       check(parentComment(mapKey).test(text), '普通票的文件头父票注释是地图')
       check(labelsOf(text).indexOf('docs') >= 0, '普通票保留调用方给的 docs 标签')
-      check(typeLabelCount(text) === 0, '普通票不补任何类型标签（实得 ' + JSON.stringify(labelsOf(text)) + '）')
+      check(typeLabelCount(text) === 1 && labelsOf(text).indexOf('wayfinder:research') >= 0, '普通票原样保留调用方给的类型标签（labels 原样传递，实得 ' + JSON.stringify(labelsOf(text)) + '）')
       check(typeLines(text).length === 0, '普通票不写 Type 行')
       check(hasProgress(text), '普通票的正文补了 ## 进度')
     }
