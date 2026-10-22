@@ -3,9 +3,12 @@
  *
  * 这一页做什么（维护者原话「把所有的卡片都放在页面内，被完成的聚集在下方」+ 七条答复）：
  *   顶栏（原样沿用老页那一行：返回列表 / 面包屑 / 身份三态 / 执行 / 新会话 / 复制 / 打开）
- *   → 地图档案（MAP 自身内容：标题、目的地、四枚计数、完成度、子票那句、四或七个抽屉）
+ *   → 地图档案（MAP 自身内容：标题、目的地、四枚计数、完成度、子票那句；点标题进 issue 详情页看全文）
  *   → 一条连续卡片流（在办 → 可接 → 被挡 → 已完成，结案的收在最后；维护者答 Q3a=B / Q3b）
  * 没有「层级」：老页按层分组、层与层之间画闸门，V2 不展示层级（层级仍由宿主算，只是不画）。
+ *
+ * 2026-10-23 维护者定：页内不再展示正文详情 / 已定决策 / 战雾 / 范围外，也不重复「地图 + 编号」那一行；
+ * 想看这张图自己的完整信息，点标题进 issue 详情页（把 issue 详情页打磨好一处，地图跟着受益）。
  *
  * 它只做四件事，其余全在别处：
  *   1) 取数：调 wiring/useMapTicketsFeed（进页面就拉这张图的全部子票，含已关闭的）。老页的取数与
@@ -26,6 +29,7 @@ declare function containerKindOf(...args: any[]): any
 declare function containerStateOf(...args: any[]): any
 declare function containerTriState(...args: any[]): any
 declare function popNav(...args: any[]): any
+declare function pushNav(...args: any[]): any
 declare function MapDetailTop(props?: any): any
 declare function mapDetailPageModelOf(...args: any[]): any
 declare function useMapTicketsFeed(...args: any[]): any
@@ -103,6 +107,15 @@ export function MapDetailV2Page(props: any): any {
   const cState = containerStateOf({ stats: effStats })
   const tri = containerTriState(cKind, cState)
 
+  // 点标题看地图自己的档案：压入这张地图的 issue 详情页（地图在 GitHub 上就是一条 issue，
+  // 全文、已定决策、评论都在那一页）。与子票卡的 enterSubDetail 走同一个导航栈，返回逐级弹回。
+  // 编号取不到时不动作：宁可不跳，也不要压一个打不开的页面。
+  const openArchive = function () {
+    const n = Number(m && m.number)
+    if (!isFinite(n) || n <= 0) return
+    if (typeof pushNav === 'function') pushNav(st, 'issue', n, effortOf(m))
+  }
+
   return h('div', { className: 'm2v2-page' }, [
     // 顶栏：维护者要求这一行不变，所以原样复用老页的 MapDetailTop（内含逐字折叠机与 data-detail-* 标记）。
     h(MapDetailTop, {
@@ -110,7 +123,11 @@ export function MapDetailV2Page(props: any): any {
       goBack: function () { popNav(st) }, kind: cKind, tri: tri,
     }),
     // 地图档案：MAP 自己的内容（替代老页的 MapDetailHead + Destination + Notes + 三段折叠）。
-    h(MapProfileHeader, { key: 'profile', st: st, profile: model.profile, feed: model.feed, busy: busy }),
+    // 长正文不在这里画，点标题进这张地图的 issue 详情页看（openArchive）。
+    h(MapProfileHeader, {
+      key: 'profile', st: st, profile: model.profile, feed: model.feed, busy: busy,
+      onOpenArchive: openArchive,
+    }),
     // 卡片流：一条连续的流，顺序由模型排好（在办 → 可接 → 被挡 → 已完成）。
     h(TicketCardFlow, { key: 'flow', cards: model.cards.sequence, empty: model.feed.empty }),
     // 图片放大浮层：与议题详情共用同一渲染函数与同一共享状态（markdown 里的图能点开）。

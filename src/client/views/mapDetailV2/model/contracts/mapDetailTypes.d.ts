@@ -40,20 +40,6 @@ export interface MapTicketRow {
  */
 export type ContainerKind = 'map' | 'spec'
 
-/**
- * 规格正文七段：宿主 src/tracker/body-parse.ts 的 parseSpecBody 产物，客户端不做解析。
- * 四段清单是字符串数组，三段（问题陈述 / 解决方案 / 补充说明）是整段话。
- */
-export interface SpecSections {
-  problem?: string | null
-  solution?: string | null
-  userStories?: string[] | null
-  implDecisions?: string[] | null
-  testDecisions?: string[] | null
-  outOfScope?: string[] | null
-  furtherNotes?: string[] | null
-}
-
 /** 宿主算好的计数（groupTickets 的产物）；页面只在「按需取数已成功」时用它。 */
 export interface MapTicketStats {
   total?: number
@@ -211,76 +197,23 @@ export interface TicketBoardCounts {
 }
 
 /**
- * 地图正文「Decisions so far」里的一条决策：标题、链接与那句话。
- * 形状与 src/tracker/body-parse.ts 的 MapDecision 一字不差——解析在宿主做，客户端只读结果，
- * 不在页面里另解析一遍正文（两份解析器迟早对不上）。
- */
-export interface MapDecision {
-  /** 决策标题。 */
-  title: string
-  /** 决策的链接；那行没写链接时是空串。 */
-  url: string
-  /** 去掉标题之后剩下的那句话。 */
-  gist: string
-}
-
-/**
- * 快照里的地图行：比 MapRowLike 多读「地图自身内容」几格。
- * 这几格由宿主 tracker/body-parse.ts 从正文五区解析后放进快照，客户端不做解析。
+ * 快照里的地图行：页面只读「这是哪一种容器、标题、目的地、编号、快照错误」这几格。
+ *
+ * 正文五区（笔记 / 已定决策 / 战雾 / 范围外）与规格七段不再由本页展示：维护者 2026-10-23 定
+ * 「地图详情页不展示正文详情，点标题进 issue 详情页看这张图自己的信息」，那一页显示的是
+ * GitHub issue 的完整正文与评论，页面不再需要宿主预先解析好的分节数据。
  */
 export interface MapRowContent extends MapRowLike {
   /** 容器种类字段：'spec' 是规格/实施地图，'map' 是探索地图；缺省按探索地图。 */
   type?: string | null
-  /** 标签（两种形状都可能）：type 缺失时靠 wayfinder:map 认探索地图。 */
-  labels?: MapTicketRow['labels']
-  /** 规格正文七段；探索地图没有这一格（它有 destination / notes 等五槽）。 */
-  sections?: SpecSections | null
-  /** 地图编号（或行 key）。身份文本「MAP #编号」靠它。 */
+  /** 地图编号（或行 key）。 */
   key?: string | number | null
   number?: number | null
   title?: string | null
   /** ## Destination：目的地那一句。 */
   destination?: string | null
-  /** ## Notes：备注（可能带 markdown）。 */
-  notes?: string | null
-  /** ## Decisions so far：已定的决策清单。 */
-  decisions?: MapDecision[] | null
-  /** ## Not yet specified：还没定的事（战雾）。 */
-  fog?: string[] | null
-  /** ## Out of scope：明确不做的。 */
-  outOfScope?: string[] | null
   /** 快照组装失败时宿主写在行上的错误。 */
   error?: { error?: string | null } | null
-}
-
-/**
- * 档案区一节的标识：探索地图四节、规格七节，两种容器的顺序都由 mapProfile.ts 里的定义给定。
- * 'notes' 与 'outOfScope' 两种容器都用，只是词条键不同（探索地图叫「正文详情」，规格叫「补充说明」）。
- */
-export type MapProfileSectionId =
-  | 'notes'
-  | 'decisions'
-  | 'fog'
-  | 'outOfScope'
-  | 'problem'
-  | 'solution'
-  | 'userStories'
-  | 'implDecisions'
-  | 'testDecisions'
-
-/** 档案区的一条：文字必填，决策条目另带链接与那句话。 */
-export interface MapProfileItem {
-  text: string
-  url?: string
-}
-
-/** 档案区一节：标识、词条键、条目、条数。页面按 labelKey 取字、按 items 画。 */
-export interface MapProfileSection {
-  id: MapProfileSectionId
-  /** 节标题词条键；词条里可能带 {n}（沿用老页 map.decisions 等键）。 */
-  labelKey: string
-  count: number
-  items: MapProfileItem[]
 }
 
 /** 子票那句的组成段：键 + 占位参数，由页面按词条拼。为什么不直接给整句：中文是词条的事，模型不认语言。 */
@@ -289,14 +222,16 @@ export interface MapProfileFeedSegment {
   params?: Record<string, string | number>
 }
 
-/** MAP 自身内容的刻画：档案区与头部要用到的全部东西，页面不再自己判。 */
+/**
+ * MAP 自身内容的刻画：标题、目的地、计数、完成度、「子票那句」与快照错误。
+ *
+ * 档案区（正文、已定决策、战雾、范围外、规格七段）不在这里：那部分已经移出本页，
+ * 点标题进 issue 详情页看原文（维护者 2026-10-23 定）。身份小签与编号也删了：
+ * 顶栏的面包屑与身份小签已经写着同一个编号，页内再说一遍是重复（维护者 2026-10-23 定）。
+ */
 export interface MapProfile {
-  /** 这是哪一种容器：决定身份色、小签词与档案段数（页面据此换皮，不另判一次）。 */
+  /** 这是哪一种容器：决定「子票那句」的计数词，以及规格没有目的地时不画空态提示。 */
   kind: ContainerKind
-  /** 身份小签的词条键：探索地图 list.mapChip（地图），规格 list.specChip（规格）。 */
-  chipLabelKey: string
-  /** 身份文本，形如 '#1314'；编号与 key 都取不到时是空串。 */
-  noText: string
   /** 地图标题。 */
   title: string
   /** ## Destination 原文。 */
@@ -309,10 +244,6 @@ export interface MapProfile {
   progressPercent: number
   /** 子票那句由哪几段拼成（取数状态、是否被截断、差额）；后端明确不支持时是空数组（老页一个字都不加）。 */
   feedSegments: MapProfileFeedSegment[]
-  /** 档案区四节。 */
-  sections: MapProfileSection[]
-  /** 四节里至少有一条内容（空地图时全部为空，页面据此收起档案区或画空态）。 */
-  hasSections: boolean
   /** 快照错误（截到 160 字）；没有错误时是空串。 */
   errorText: string
 }

@@ -332,8 +332,8 @@ export default {
     // ==== leaf:detailActionBar (spliced by build) ====
     // ==== leaf:mapDetailSpecBody (spliced by build) ====
 
-    // #1398 V2 地图详情页（先不接入）：纯逻辑 → 适配层与整页模型 → 接线 → 档案区 / 卡片流 → 页面容器。
-    //   今天「已入库、未接入」：入口仍是上面老 MapDetail（Dock 里那一处），切换入口另开票 #1402。
+    // #1398 V2 地图详情页：纯逻辑 → 适配层与整页模型 → 接线 → 档案区 / 卡片流 → 页面容器。
+    //   #1402 已把入口切到这一页（Dock 列表页签的 active 分支）；老 MapDetail 的叶子与门禁都留着，可一行切回。
     // ==== leaf:mapV2TicketFacts (spliced by build) ====
     // ==== leaf:mapV2TicketBoard (spliced by build) ====
     // ==== leaf:mapV2TicketFeed (spliced by build) ====
@@ -342,7 +342,6 @@ export default {
     // ==== leaf:mapV2PageModel (spliced by build) ====
     // ==== leaf:mapV2UseFeed (spliced by build) ====
     // ==== leaf:mapV2Actions (spliced by build) ====
-    // ==== leaf:mapV2ProfileDrawers (spliced by build) ====
     // ==== leaf:mapV2ProfileHeader (spliced by build) ====
     // ==== leaf:mapV2CardFlow (spliced by build) ====
     // ==== leaf:mapV2Page (spliced by build) ====

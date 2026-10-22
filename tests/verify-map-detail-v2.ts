@@ -29,8 +29,9 @@
  *      不依赖调用栈深度。
  *   6. 取数五态：取回那份 / 正在取 / 不支持 / 取失败 / 还没有桶，各自画哪份数据、怎么说原因，
  *      以及 capped / missing 只属于「取回那份」。
- *   7. MAP 自身内容：身份 / 目的地 / 档案四节 / 完成度 / 「子票那句」的段，空地图、取数中
+ *   7. MAP 自身内容：标题 / 目的地 / 计数 / 完成度 / 「子票那句」的段，空地图、取数中
  *      （同一句话、数字用短横占位，不额外写「正在取子票」）、后端不支持、取失败、capped / missing 各画成什么。
+ *      档案正文不进入这一层：地图页不展示它，点标题进 issue 详情页看原文。
  *   8. 纯函数：判断层不 import 界面库、不读后端（动作与词条都从参数进），同目录没有落回来的 .js 产物。
  *   9. 适配层：一张票的刻画摊成卡片 props 时四处理名不漏（bug→bugCorner、footText→footActionText、
  *      blocks→blocksChip、closed 由 status 得出），四个按钮把「是哪张票」交回页面。
@@ -45,6 +46,8 @@
  *      （不额外写「正在取子票」，也不空出一行），取数中计数写占位、那句的数字也写占位；
  *      「正在取数」只用进度条轨道上的流动斜纹表达；没有子票时整块隐藏但留位置。
  *      进入页面时不会因为取数状态增删行让卡片上下抖。同样只读源码文本。
+ *   14. 紧凑标题：页内不再重复「地图 / 规格 + 编号」那一行（顶栏已经写着同一个编号），
+ *      标题本身是进「地图档案」的入口（点标题压入这张地图的 issue 详情页）；页面源码里没有抽屉组件。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -122,7 +125,7 @@ section('0. 前置：七份真源都在、没有同名 .js、逻辑模块不 imp
   check(offenders.length === 0,
     '判断层只 import 同目录的兄弟模块，不 import 界面库与后端（违反的：' + (offenders.length ? offenders.join('、') : '无') + '）')
 
-  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapDecision', 'MapProfile', 'TicketCardHandlers', 'MapDetailPageInputs', 'MapDetailPageModel', 'ContainerKind', 'SpecSections', 'MapProfileSectionId']
+  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapProfile', 'TicketCardHandlers', 'MapDetailPageInputs', 'MapDetailPageModel', 'ContainerKind']
   const typesSrc = fs.readFileSync(path.join(DIR, 'contracts/mapDetailTypes.d.ts'), 'utf8')
   const missingTypes = typeExports.filter((name) => typesSrc.indexOf('export interface ' + name) < 0 && typesSrc.indexOf('export type ' + name) < 0)
   check(missingTypes.length === 0, '数据契约里的关键类型都声明了（缺的：' + (missingTypes.length ? missingTypes.join('、') : '无') + '）')
@@ -585,7 +588,7 @@ section('8. 交叉一致性：行序打乱不影响每张卡的刻画')
 // ===========================================================================
 // 9. MAP 自身内容：身份 / 目的地 / 档案四节 / 完成度 / 子票那句
 // ===========================================================================
-section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规格七节）、完成度、子票那句的段')
+section('9. MAP 自身内容：标题、目的地、完成度、子票那句的段（档案正文不在这一层）')
 {
   const COUNTS = { total: 8, closed: 4, ready: 2, doing: 1, blocked: 1 }
   const MAP_ROW = {
@@ -594,28 +597,13 @@ section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规�
     title: '  插件日志持久化读回失败与宿主反复启动  ',
     destination: '查清插件日志里两类异常的真实成因',
     notes: ' 这里有一段备注 ',
-    decisions: [
-      { title: '收起层级', gist: '不再按层分组', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1' },
-      { title: '已完成的放下方', gist: '' },
-      { title: '', gist: '', url: '' },
-    ],
-    fog: ['规格页怎么画还没定', '  ', null],
-    outOfScope: ['规格详情页'],
   }
 
-  const ids = profile.MAP_PROFILE_SECTIONS.map((one) => one.id).join(',')
-  check(ids === 'notes,decisions,fog,outOfScope',
-    '档案四节的顺序固定为 笔记 → 已定决策 → 战雾 → 范围外（实得 ' + show(ids) + '）')
-  const labelKeys = profile.MAP_PROFILE_SECTIONS.map((one) => one.labelKey).join(',')
-  check(labelKeys === 'map.notesCap,map.decisions,map.fog,map.outOfScope',
-    '四节各自沿用老页词条键（实得 ' + show(labelKeys) + '）')
+  // 维护者 2026-10-23：地图页不再展示正文档案（笔记 / 决策 / 战雾 / 范围外），
+  // 点标题进 issue 详情页看原文；所以模型里也不该再有分节数据，免得页面两个来源各画一份。
+  check(profile.MAP_PROFILE_SECTIONS === undefined && profile.SPEC_PROFILE_SECTIONS === undefined && profile.mapProfileSectionsOf === undefined,
+    '档案分节不再由这一层提供（页面没有第二个正文来源）')
 
-  check(profile.mapNumberOf({ number: 1314 }) === 1314 && profile.mapNumberOf({ key: '1315' }) === 1315,
-    '编号先看 number，再看 key（实得 ' + show(profile.mapNumberOf({ number: 1314 })) + ' / ' + show(profile.mapNumberOf({ key: '1315' })) + '）')
-  check(profile.mapNumberOf({ key: '没有数字' }) === null && profile.mapNumberOf(null) === null,
-    '取不到编号时是 null，不把脏 key 猜成数字（实得 ' + show(profile.mapNumberOf({ key: '没有数字' })) + ' / ' + show(profile.mapNumberOf(null)) + '）')
-  check(profile.mapNoTextOf({ number: 1314 }) === '#1314' && profile.mapNoTextOf({}) === '',
-    '身份文本带 # 前缀；没有编号时是空串（实得 ' + show(profile.mapNoTextOf({})) + '）')
 
   check(profile.mapProgressPercentOf(COUNTS) === 50, '完成度 = 已完成 / 子票总数（4 / 8 → 50%，实得 ' + show(profile.mapProgressPercentOf(COUNTS)) + '）')
   check(profile.mapProgressPercentOf({ total: 0, closed: 0, ready: 0, doing: 0, blocked: 0 }) === 0,
@@ -623,40 +611,17 @@ section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规�
   check(profile.mapProgressPercentOf({ total: 3, closed: 5, ready: 0, doing: 0, blocked: 0 }) === 100 &&
     profile.mapProgressPercentOf(null) === 0, '脏数据不越界：超过 100% 截到 100，没有计数是 0')
 
-  const sections = profile.mapProfileSectionsOf(MAP_ROW)
-  check(sections.length === 4, '四节都给出（实得 ' + sections.length + '）')
-  const byId = {}
-  for (const one of sections) byId[one.id] = one
-
-  check(byId.notes.count === 1 && byId.notes.items[0].text === '这里有一段备注',
-    'Notes 整段话算一条，首尾空白去掉（实得 ' + show(byId.notes.items) + '）')
-  check(byId.decisions.count === 2,
-    '决策里标题和那句话都为空的条目丢掉，不画空行（实得 ' + byId.decisions.count + ' 条）')
-  check(byId.decisions.items[0].text === '收起层级 — 不再按层分组' && byId.decisions.items[0].url === MAP_ROW.decisions[0].url,
-    '一条决策画成「标题 — 那句话」，链接原样带上（实得 ' + show(byId.decisions.items[0]) + '）')
-  check(byId.decisions.items[1].text === '已完成的放下方' && !('url' in byId.decisions.items[1]),
-    '决策只有标题时不留一个空破折号，也不带空链接（实得 ' + show(byId.decisions.items[1]) + '）')
-  check(byId.fog.count === 1 && byId.fog.items[0].text === '规格页怎么画还没定',
-    '战雾里的空行、非字符串丢掉（实得 ' + show(byId.fog.items) + '）')
-  check(byId.outOfScope.count === 1 && byId.outOfScope.items[0].text === '规格详情页',
-    '范围外照实画（实得 ' + show(byId.outOfScope.items) + '）')
-
-  const emptyMapRow = {}
-  const emptySections = profile.mapProfileSectionsOf(emptyMapRow)
-  check(emptySections.every((one) => one.count === 0 && one.items.length === 0),
-    '空地图四节都是 0 条（页面据此收起档案区或画空态）')
-
   const realFeed = feed.ticketFeedOf({ mode: 'real', items: [{ number: 1 }], stats: { total: 8, closed: 4 } }, null)
   const full = profile.mapProfileOf(MAP_ROW, realFeed, COUNTS)
-  check(full.kind === 'map' && full.chipLabelKey === 'list.mapChip',
-    '没有 type 的容器行按探索地图画：身份小签走 list.mapChip（实得 ' + show(full.kind) + ' / ' + show(full.chipLabelKey) + '）')
-  check(full.noText === '#1314' && full.title === '插件日志持久化读回失败与宿主反复启动',
-    '合成结果里的身份与标题（实得 ' + show(full.noText) + ' / ' + show(full.title) + '）')
+  check(full.kind === 'map', '没有 type 的容器行按探索地图画（实得 ' + show(full.kind) + '）')
+  check(full.title === '插件日志持久化读回失败与宿主反复启动',
+    '合成结果里的标题（实得 ' + show(full.title) + '）')
   check(full.destination === MAP_ROW.destination && full.hasDestination === true,
     '目的地原文带出，hasDestination 说有没有（实得 ' + show(full.hasDestination) + '）')
   check(show(full.counts) === show(COUNTS) && full.progressPercent === 50,
     '看板计数原样带出，完成度按同一份计数算（实得 ' + show(full.counts) + ' / ' + full.progressPercent + '）')
-  check(full.hasSections === true && full.sections.length === 4, '有内容时 hasSections=true')
+  check(Object.keys(full).sort().join(',') === 'counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title',
+    'MAP 自身内容只剩页面要画的七格：标题 / 目的地 / 计数 / 完成度 / 子票那句 / 错误 / 容器种类（没有档案与身份行）')
   check(full.errorText === '', '没有快照错误时 errorText 是空串（页面不画红字）')
 
   check(show(full.feedSegments) === show([{ key: 'map.subCount', params: { n: 8, c: 4 } }]),
@@ -698,7 +663,7 @@ section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规�
   const blankDestination = profile.mapProfileOf({ destination: '   ' }, null, null)
   check(blankDestination.hasDestination === false && blankDestination.destination === '',
     '只有空白的目的地等于没有（不把空白画成一句话，实得 ' + show(blankDestination.destination) + '）')
-  check(blankDestination.hasSections === false && blankDestination.progressPercent === 0 && blankDestination.noText === '',
+  check(blankDestination.progressPercent === 0 && blankDestination.title === '',
     '空行 + 空计数：一份不骗人的空档案（实得 ' + show(blankDestination) + '）')
 
   check(profile.containerKindOfRow({ type: 'spec' }) === 'spec' && profile.containerKindOfRow({}) === 'map' && profile.containerKindOfRow(null) === 'map',
@@ -708,44 +673,18 @@ section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规�
     type: 'spec',
     number: 1380,
     title: '  实施规格：卡片层收口  ',
-    sections: {
-      problem: '  现在卡片只在演示页里能用。  ',
-      solution: '',
-      userStories: [' 切片一：先写逻辑  ', '', null, '切片二：再写页面'],
-      implDecisions: ['判断收进纯函数'],
-      testDecisions: null,
-      outOfScope: [' 本轮不动入口 '],
-      furtherNotes: [' 补充一句 '],
-    },
+    destination: '规格没有目的地这一节',
   }
-  const specSections = profile.mapProfileSectionsOf(SPEC_ROW)
-  check(specSections.map(function (one) { return one.id }).join(',') === 'problem,solution,userStories,implDecisions,testDecisions,outOfScope,notes',
-    '规格的档案是七节，顺序与宿主 parseSpecBody 的七个字段一一对应（实得 ' + show(specSections.map(function (one) { return one.id }).join(',')) + '）')
-  check(specSections.map(function (one) { return one.labelKey }).join(',') === 'spec.section.problem,spec.section.solution,spec.section.userStories,spec.section.implDecisions,spec.section.testDecisions,spec.section.outOfScope,spec.section.notes',
-    '七节的段名各有自己的词条键，不借探索地图的词（实得 ' + show(specSections[0].labelKey) + '）')
-  const specById = {}
-  specSections.forEach(function (one) { specById[one.id] = one })
-  check(specById.problem.count === 1 && specById.problem.items[0].text === '现在卡片只在演示页里能用。',
-    '问题陈述是一整段话一条，首尾空白去掉（实得 ' + show(specById.problem.items) + '）')
-  check(specById.userStories.count === 2 && specById.userStories.items[1].text === '切片二：再写页面',
-    '用户故事的清单里空行与非字符串丢掉，干净的条目保持顺序（实得 ' + show(specById.userStories.items) + '）')
-  check(specById.implDecisions.count === 1 && specById.testDecisions.count === 0 && specById.notes.count === 1 && specById.solution.count === 0,
-    '没有内容的节也保留（count 为 0），由页面决定收起还是画空态（实得 ' + specById.implDecisions.count + ' / ' + specById.testDecisions.count + ' / ' + specById.notes.count + '）')
-  check(specById.outOfScope.id === 'outOfScope' && specById.outOfScope.labelKey === 'spec.section.outOfScope' && specById.outOfScope.count === 1,
-    '规格的范围外与探索地图同名不同词：id 复用、段名取 spec.section.outOfScope（实得 ' + show(specById.outOfScope) + '）')
 
   const specFull = profile.mapProfileOf(SPEC_ROW, realFeed, null)
-  check(specFull.kind === 'spec' && specFull.chipLabelKey === 'list.specChip',
-    '规格档案的身份小签走 list.specChip（实得 ' + show(specFull.chipLabelKey) + '）')
-  check(specFull.title === '实施规格：卡片层收口' && specFull.noText === '#1380',
-    '规格的身份与标题也去空白后带出（实得 ' + show(specFull.noText) + ' / ' + show(specFull.title) + '）')
+  check(specFull.kind === 'spec', '规格行的容器种类是 spec（实得 ' + show(specFull.kind) + '）')
+  check(specFull.title === '实施规格：卡片层收口',
+    '规格的标题也去空白后带出（实得 ' + show(specFull.title) + '）')
   check(show(specFull.feedSegments) === show([{ key: 'map.specSubCount', params: { n: 8, c: 4 } }]),
     '规格的「子票那句」用 map.specSubCount，不再说成探索地图（实得 ' + show(specFull.feedSegments) + '）')
-  check(specFull.sections.length === 7 && specFull.hasSections === true,
-    '规格的档案恒为七节，有内容即 hasSections（实得 ' + specFull.sections.length + ' 节）')
+  check(Object.keys(specFull).sort().join(',') === 'counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title',
+    '规格与探索地图用同一份 MAP 自身内容，没有另一套字段')
   const emptySpec = profile.mapProfileOf({ type: 'spec' }, null, null)
-  check(emptySpec.sections.length === 7 && emptySpec.sections.every(function (one) { return one.count === 0 }),
-    '空规格的七节都是 0 条（页面据此收起档案区）')
   check(show(emptySpec.feedSegments) === show([]) && emptySpec.kind === 'spec',
     '没有取数结果时那句不出，规格身份照旧（实得 ' + show(emptySpec.feedSegments) + '）')
 }
@@ -837,8 +776,8 @@ section('11. 一整页模型：计数与卡片张数一致，取数五态都画�
     textOf: ENV.textOf,
     handlers: { onMain: function (one) { seen.push(one.number) } },
   })
-  check(model.profile.noText === '#1314' && model.profile.title === MAP.title,
-    '档案的身份与标题来自地图行（实得 ' + show(model.profile.noText) + ' / ' + show(model.profile.title) + '）')
+  check(model.profile.title === MAP.title,
+    '档案的标题来自地图行（实得 ' + show(model.profile.title) + '）')
   check(show(model.counts) === show({ total: 3, closed: 1, ready: 1, doing: 0, blocked: 1 }),
     '计数与宿主 groupTickets 的五个桶同口径（实得 ' + show(model.counts) + '）')
   check(model.profile.progressPercent === 33, '完成度按已完成张数算（实得 ' + show(model.profile.progressPercent) + '%）')
@@ -884,12 +823,12 @@ section('11. 一整页模型：计数与卡片张数一致，取数五态都画�
     '空地图的完成度是 0，目的地也不是一句空话（实得 ' + show(emptyModel.profile.progressPercent) + ' / ' + show(emptyModel.profile.hasDestination) + '）')
 
   const specModel = pageModel.mapDetailPageModelOf({
-    map: { type: 'spec', number: 1380, title: '规格', sections: { problem: '问题' }, tickets: [], stats: { total: 0 } },
+    map: { type: 'spec', number: 1380, title: '规格', tickets: [], stats: { total: 0 } },
     bucket: { mode: 'real', items: [], stats: { total: 0 } },
     cardIdPrefix: 'm1380', actionOf: ENV.actionOf, textOf: ENV.textOf,
   })
-  check(specModel.profile.kind === 'spec' && specModel.profile.chipLabelKey === 'list.specChip',
-    '规格行走完整页模型后仍然是规格身份（实得 ' + show(specModel.profile.kind) + ' / ' + show(specModel.profile.chipLabelKey) + '）')
+  check(specModel.profile.kind === 'spec' && specModel.profile.title === '规格',
+    '规格行走完整页模型后仍然是规格容器、标题照旧（实得 ' + show(specModel.profile.kind) + ' / ' + show(specModel.profile.title) + '）')
   check(specModel.profile.feedSegments[0] && specModel.profile.feedSegments[0].key === 'map.specSubCount',
     '规格的整页模型里「子票那句」用规格自己的词条（实得 ' + show(specModel.profile.feedSegments) + '）')
 }
@@ -957,6 +896,17 @@ section('§12 入口接线')
   const pageSourceText = fs.readFileSync(path.join(ROOT, REL, 'view/MapDetailV2Page.ts'), 'utf8')
   check(pageSourceText.indexOf("mode || '') === 'loading'") >= 0 && pageSourceText.indexOf('busy: busy') >= 0,
     '页面把「正在按需取子票」传给档案区（第一帧与取数中都是 busy）')
+
+  // ---- 紧凑标题：档案入口挪到标题上（m02892）----
+  check(headerText.indexOf('onOpenArchive') >= 0 && headerText.indexOf('mapv2.archive.open') >= 0 &&
+    headerText.indexOf('m2v2-id') < 0 && headerText.indexOf('MapProfileDrawers') < 0,
+    '档案区不再有自己的身份行与抽屉；标题自己就是进档案的入口（带定位串，可键盘进入）')
+  check(pageSourceText.indexOf('pushNav') >= 0 && pageSourceText.indexOf("pushNav(st, 'issue', n, effortOf(m))") >= 0 &&
+    pageSourceText.indexOf('onOpenArchive: openArchive') >= 0,
+    '点标题压入这张地图自己的 issue 详情页（地图就是一条 issue，正文与评论都在那里）')
+  check(stylesText.indexOf('.m2v2-title-link') >= 0 && stylesText.indexOf('.m2v2-drawer') < 0 &&
+    stylesText.indexOf('.m2v2-id') < 0,
+    '标题可点有自己的悬停 / 焦点样式；抽屉与身份行的样式已删干净')
 
   // ---- 整卡点按进详情（m02533）----
   const propsContractText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/cardProps.d.ts'), 'utf8')

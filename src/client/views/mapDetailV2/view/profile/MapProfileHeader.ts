@@ -1,29 +1,25 @@
 /**
- * views/mapDetailV2/view/profile/MapProfileHeader.ts —— 地图档案区：MAP 自己的内容怎么展示（维护者答 Q2=A）。
+ * views/mapDetailV2/view/profile/MapProfileHeader.ts —— 地图档案区：MAP 自己的内容怎么展示。
  *
- * 一块信息卡从上到下：身份（MAP / 规格 小签 + #编号）→ 标题 → 目的地一句话 → 四枚计数
- * （可接 / 已认领 / 被阻塞 / 已关闭）→ 完成度进度条 → 「子票那句」（本图 N 张子票 / 没取到）→
- * 四或七个抽屉 → 地图行自带的错误。它替代老页的 MapDetailHead（老页那句「本图 N 张子票」与
- * 目的地在这里，只是从两行文字变成一块能一眼看全的档案）。
+ * 维护者 2026-10-23 定的两件事：
+ *   1) 地图页不再展示「正文详情 / 已定决策 / 战雾 / 范围外」这些长内容，点标题进 issue 详情页，
+ *      看这张地图自己的完整 issue 正文与评论（以后打磨 issue 详情页即可，地图页保持紧凑）；
+ *   2) 页内不再重复「地图 / 规格 + 编号」这一行：顶栏的面包屑与身份小签已经写着同一个编号。
+ *
+ * 所以这一块从上到下只剩四样：标题（可点进档案）→ 目的地一句话 → 四枚计数 →
+ * 「进度条 + 子票那句」同一行 → 地图行自带的错误。它替代老页的 MapDetailHead 与三块正文折叠。
  *
  * 为什么这些值全从 profile 拿：档案里每个数字与每句文案的口径都在 model/container/mapProfile.ts 里定死
- * （与老页 views/MapDetailHead.ts 的取数口径对齐），这一层只做排版。两个容器（探索地图 / 规格）唯一的
- * 差别是小签词与「子票那句」用的词条键，也已经由模型按 kind 选好（chipLabelKey / feedSegments）。
+ * （与老页 views/MapDetailHead.ts 的取数口径对齐），这一层只做排版。
  *
- * 2026-10-23 维护者两次反馈取数中的样子：先说「正在取子票…」独占一行、随后消失让卡片上下抖；
- * 随后又说这一行干脆别要（删掉、或并到别的行、或做成 toast）。现在按「删掉」处理，并把「正在取数」
- * 这个信息并进已有的进度条：轨道上画流动斜纹（页面对 busy 打 data-busy，样式负责动画，
- * 尊重 prefers-reduced-motion 时停掉动画），不再多写一行字。
- * 维护者第三次反馈：不要专门给「子票那句」留一行，档案区里直接接下面的内容。现在 meta 只有两行：
- * 计数行与「进度条 + 子票那句同排」；那句话挂在进度条右边（空间不够时在同一行内折行），
- * 不再占独立一行。取数中它说的是同一句话、数字换成短横占位，取到后原地换数字；
- * 确实一张子票都没有时整块用 visibility 隐藏，位置仍然留着，不把卡片往上拽。
+ * 取数中的样子（维护者 2026-10-23 四次反馈后定）：不写「正在取子票」、不空出一行，计数与百分比写短横占位，
+ * 进度条轨道上画流动斜纹（页面对 busy 打 data-busy，样式负责动画，尊重 prefers-reduced-motion 时停掉动画）；
+ * 「子票那句」仍说同一句话、未知数字用占位，取到后原地换数字。没有子票时整块 visibility:hidden，位置留着。
  */
 import type { MapProfile, TicketFeed } from '../../model/contracts/mapDetailTypes'
 
 declare function Ic(props?: any): any
 declare function mdToHtml(...args: any[]): any
-declare function MapProfileDrawers(props?: any): any
 
 /** 四枚计数：顺序固定为 可接 → 已认领 → 被阻塞 → 已关闭（与卡片流「在办 → 可接 → 被挡 → 已完成」不是一回事，
  *  这里是「现在各有多少张」，按票的三个活状态加一个终态排，好扫）。 */
@@ -39,8 +35,7 @@ const PLACEHOLDER = '–'
 
 /**
  * 完成度一行：左边「地图进度」，中间细条，右边百分比；「子票那句」挂在百分比后面，同排。
- * 维护者 2026-10-23 第三次反馈：不要再给那句话单独留一行（原来删掉「正在取子票」后空了一行），
- * 所以它现在是这一行里的一个 span，档案区下面直接就是抽屉。
+ * 维护者 2026-10-23 第三次反馈：不要再给那句话单独留一行，所以它现在是这一行里的一个 span。
  * 取数中总张数还不知道时，轨道留空、百分比写「–」、整行打 data-busy——「正在取数」由轨道上的
  * 流动斜纹表达；那句仍是同一句话、数字换成短横占位，宽度与取到后接近，不会因为换字而突然折行。
  */
@@ -71,9 +66,43 @@ function progressNode(h: any, profile: MapProfile, feed: TicketFeed | null, busy
 }
 
 /**
- * 画档案区。props: { st, profile: MapProfile, feed: TicketFeed | null, busy: boolean }。
- * st 只为目的地与抽屉里的正文渲染（mdToHtml 需要它认仓库路径与图片）；
- * busy 表示「正在按需取子票」（页面传进来，取数敲门与回来之间为真）。
+ * 标题：页面上唯一进入「地图档案」的入口。
+ * 为什么整块标题都能点：维护者 2026-10-23 定「点 card 直接进 issue 详情页，只不过是这个 map 的信息」，
+ * 页面上没有别的地图身份卡，标题就是这张图自己的名片；再放一颗独立按钮会多占一行。
+ * 末尾那个「档案」小签是可见线索，免得用户不知道标题能点。键盘 Enter / 空格与点击同效。
+ */
+function titleNode(h: any, profile: MapProfile, onOpenArchive: (() => void) | null): any {
+  const title = profile.title || ''
+  if (!onOpenArchive) return h('h1', { key: 'title', className: 'm2v2-title' }, title)
+  const activate = function () { onOpenArchive() }
+  return h('h1', {
+    key: 'title',
+    className: 'm2v2-title m2v2-title-link',
+    role: 'button',
+    tabIndex: 0,
+    title: tr('map.archive'),
+    'data-press': 'row',
+    'data-log': 'mapv2.archive.open',
+    onClick: activate,
+    onKeyDown: function (e: any) {
+      if (!e || e.target !== e.currentTarget) return
+      const k = e && e.key
+      if (k === 'Enter' || k === ' ') {
+        try { if (e.preventDefault) e.preventDefault() } catch (err) {}
+        activate()
+      }
+    },
+  }, [
+    h('span', { key: 'txt', className: 'm2v2-title-txt' }, title),
+    h('span', { key: 'go', className: 'm2v2-title-go', 'aria-hidden': '1' }, tr('map.archive') + ' ›'),
+  ])
+}
+
+/**
+ * 画档案区。props: { st, profile: MapProfile, feed: TicketFeed | null, busy: boolean, onOpenArchive }。
+ * st 只为目的地的 markdown 渲染（mdToHtml 需要它认仓库路径与图片）；
+ * busy 表示「正在按需取子票」（页面传进来，取数敲门与回来之间为真）；
+ * onOpenArchive 是点标题后的动作（页面压入这张地图自己的 issue 详情页）。
  */
 export function MapProfileHeader(props: any): any {
   const cx = React.useContext(DswsCtx)
@@ -82,6 +111,7 @@ export function MapProfileHeader(props: any): any {
   const profile: MapProfile = props && props.profile
   const feed: TicketFeed | null = (props && props.feed) || null
   const busy: boolean = !!(props && props.busy)
+  const onOpenArchive = (props && typeof props.onOpenArchive === 'function') ? props.onOpenArchive : null
   if (!profile) return null
 
   const counts = profile.counts || { total: 0, closed: 0, ready: 0, doing: 0, blocked: 0 }
@@ -124,14 +154,9 @@ export function MapProfileHeader(props: any): any {
       ]))
 
   return h('section', { className: 'm2v2-profile' }, [
-    h('div', { key: 'id', className: 'm2v2-id' }, [
-      h('span', { key: 'chip', className: 'm2v2-chip' }, tr(profile.chipLabelKey || 'card.map')),
-      h('span', { key: 'no', className: 'm2v2-no' }, profile.noText || ''),
-    ]),
-    h('h1', { key: 'title', className: 'm2v2-title' }, profile.title || ''),
+    titleNode(h, profile, onOpenArchive),
     destination,
     metaNode,
-    h(MapProfileDrawers, { key: 'drawers', sections: profile.sections }),
     profile.errorText
       ? h('div', { key: 'err', className: 'm2v2-err' }, [
         h('span', { key: 'ic' }, Ic({ n: 'alert', size: 12 })),

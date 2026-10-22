@@ -24,10 +24,15 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
 
   // 档案区（MAP 自身内容）：普通信息卡，用同一族的中性面板色，比「地」亮一档。
   '.m2v2-profile{border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:12px;padding:12px 14px;background:var(--m2v2-panel,var(--dsw-alias-bg-layer-1,rgba(255,255,255,.03)));min-width:0}',
-  '.m2v2-id{display:flex;align-items:center;gap:8px;min-width:0}',
-  '.m2v2-chip{flex:none;font-size:10px;line-height:16px;letter-spacing:.08em;padding:0 6px;border-radius:6px;border:1px solid currentColor;color:var(--dsw-alias-label-caption,#8b8b95)}',
-  '.m2v2-no{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;color:var(--dsw-alias-label-primary,#e6edf3)}',
-  '.m2v2-title{margin:6px 0 0;font-size:15px;line-height:1.4;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);word-break:break-word}',
+  // 标题是进「地图档案」的入口（维护者 2026-10-23 定）：整块可点，末尾一枚「档案」小签提示能点。
+  // 页内不再画「地图 / 规格 + 编号」那一行：顶栏的面包屑与身份小签已经写着同一个编号。
+  '.m2v2-title{display:flex;align-items:baseline;gap:8px;margin:0;font-size:15px;line-height:1.4;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3)}',
+  '.m2v2-title-txt{min-width:0;word-break:break-word}',
+  '.m2v2-title-go{flex:none;align-self:center;font-size:10px;font-weight:500;line-height:16px;letter-spacing:.04em;padding:0 6px;border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:999px;color:var(--dsw-alias-label-caption,#8b8b95)}',
+  '.m2v2-title-link{margin-left:-4px;padding:2px 4px;border-radius:6px;cursor:pointer;transition:background .12s ease}',
+  '.m2v2-title-link:hover{background:var(--dsw-alias-bg-layer-2,rgba(255,255,255,.06))}',
+  '.m2v2-title-link:hover .m2v2-title-go{color:var(--dsw-alias-label-secondary,#a1a1aa);border-color:var(--dsw-alias-label-caption,#8b8b95)}',
+  '.m2v2-title-link:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:1px}',
 
   // 目的地：一句话说清「要去哪」。老页用绿色目标图标，这里沿用同一语义与色。
   '.m2v2-dest{display:flex;align-items:flex-start;gap:4px;margin-top:6px;font-size:12px;line-height:1.55;color:var(--dsw-alias-state-success-primary,#3fb950);word-break:break-word}',
@@ -68,17 +73,6 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-feed{flex:0 1 auto;font-size:11px;line-height:1.55;color:var(--dsw-alias-label-caption,#8b8b95);word-break:break-word}',
   '.m2v2-feed[data-state="failed"]{color:var(--dsw-alias-state-error-primary,#f87171)}',
   '.m2v2-err{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:var(--dsw-alias-state-error-primary,#f87171);word-break:break-word}',
-
-  // 档案抽屉：正文详情 / 已定决策 / 战雾 / 范围外（规格是另外七节），默认收起，点标题展开。
-  '.m2v2-drawers{display:flex;flex-direction:column;gap:2px;margin-top:10px}',
-  '.m2v2-drawer>summary{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;border-radius:4px;list-style:none}',
-  '.m2v2-drawer>summary::-webkit-details-marker{display:none}',
-  '.m2v2-drawer>summary::before{content:"▸";font-size:9px;color:var(--dsw-alias-label-caption,#8b8b95);transition:transform .12s ease}',
-  '.m2v2-drawer[open]>summary::before{transform:rotate(90deg)}',
-  '.m2v2-drawer>summary:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
-  '.m2v2-drawer-body{margin-top:4px;padding-left:10px;border-left:2px solid var(--dsw-alias-border-l1,#2a2d35);font-size:12px;line-height:1.55;color:var(--dsw-alias-label-secondary,#a1a1aa);word-break:break-word}',
-  '.m2v2-drawer-item{margin:2px 0}',
-  '.m2v2-drawer-item a{color:inherit;text-decoration:underline}',
 
   // 卡片流：卡片自带像素皮肤（含深浅两套），这里只负责排法，不再给卡片套第二层皮肤。
   // 排法（维护者 2026-10-23）：一张卡有一个「最小宽度」——四颗按钮缩到只剩图标时的宽度，算下来

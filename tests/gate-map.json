@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T18:27:17.652Z",
+  "generatedAt": "2026-10-22T20:29:08.884Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 324,
   "gateCount": 324,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 543,
+  "graphFileCount": 542,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -9013,9 +9013,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 559,
+    "fileCount": 558,
     "dirCount": 71,
-    "coveredFileCount": 559,
+    "coveredFileCount": 558,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 52,
@@ -9158,7 +9158,6 @@
       "src/client/views/mapDetailV2/model/tickets/ticketFeed.ts",
       "src/client/views/mapDetailV2/view/MapDetailV2Page.ts",
       "src/client/views/mapDetailV2/view/flow/TicketCardFlow.ts",
-      "src/client/views/mapDetailV2/view/profile/MapProfileDrawers.ts",
       "src/client/views/mapDetailV2/view/profile/MapProfileHeader.ts",
       "src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts",
       "src/client/views/mapDetailV2/wiring/pageActionHandlers.ts",
@@ -9730,7 +9729,7 @@
       },
       {
         "path": "src/client/views/mapDetailV2/view",
-        "fileCount": 5
+        "fileCount": 4
       },
       {
         "path": "src/client/views/mapDetailV2/view/flow",
@@ -9738,7 +9737,7 @@
       },
       {
         "path": "src/client/views/mapDetailV2/view/profile",
-        "fileCount": 2
+        "fileCount": 1
       },
       {
         "path": "src/client/views/mapDetailV2/view/skin",
