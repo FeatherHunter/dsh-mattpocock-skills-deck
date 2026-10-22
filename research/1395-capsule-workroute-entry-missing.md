@@ -1,4 +1,4 @@
-#1395 调研：胶囊状态栏的工作路线入口为什么会在「存档里有记录」时整段消失
+# #1395 调研：胶囊状态栏的工作路线入口为什么会在「存档里有记录」时整段消失
 
 > 票 #1395 · 只读调研，不改生产代码 · 落盘日期 2026-10-22
 > 基线提交 `90be46cf`（当前分支 `main`；动笔时工作树里另有与本票无关的未提交改动：`src/host/git-process.ts`、`src/shared/command-cleanup/**`、`tests/gate-map.json`、`tests/verify-1392-disposed-timer.ts`）。下文行号都以这个提交为准。
@@ -20,7 +20,7 @@
 最可能的两条失败路径（详见 Q5）：
 
 1. **读数算了、但一行都不属于本会话** → 胶囊 `empty` → 整段不画，而且永远不会自愈（补拉判据只看表缺不缺）。触发点集中在会话号：请求里没带会话号（`src/client/kernel/probe-snapshot.ts:208`），或带的是 A、存档里写的是 B（`src/deck/shell/work-path-readout.ts:151` 严格相等，没有别名解析）。
-2. **补拉没发出去，或发了但回包没有表** → 一直停在 `idle`。`snapNeedsOwnWorkRoute` 有四道闸（`src/client/kernel/store-snapshot.ts:135`），`ensureOwnWorkRoute` 对同一份快照只补一次（`src/client/kernel/work-route-own.ts:32-33`），切会话那条分支在新 store 没有快照时直接不发请求（`work-route-own.ts:71`）；而一旦发出去找了车，回包还可能按「过期」被丢掉（`src/client/kernel/probe-stale.ts:58-64`）。
+2. **补拉没发出去，或发了但回包没有表** → 一直停在 `idle`。`snapNeedsOwnWorkRoute` 有四道闸（`src/client/kernel/store-snapshot.ts:135`），`ensureOwnWorkRoute` 对同一份快照只补一次（`src/client/kernel/work-route-own.ts:32-33`），切会话那条分支在新 store 没有快照时直接不发请求（`src/client/kernel/work-route-own.ts:71`）；而一旦发出去找了车，回包还可能按「过期」被丢掉（`src/client/kernel/probe-stale.ts:58-64`）。
 
 ## 二、逐条回答
 
@@ -57,7 +57,7 @@
 
 **生产侧（宿主）。**
 
-【已确认】每个回包交出去之前现挂一次：`src/host/snapshotEnvelope.ts:125-135` 的 `withWorkRouteTable(reply, args)`——回包不是 `ok:true` 就原样返回（`:126`），没接读出口也原样返回（`:127`），否则 `reply[field] = await d.workRouteTableReadout(reply, { sessionId: args && args.sessionId })`（`:130`），抛错时写 `{ ok:false, reason:'read-failed' }`（`:132`）。写的是回包对象本身，不是拷贝（`:91-94` 的 `put`）。
+【已确认】每个回包交出去之前现挂一次：`src/host/snapshotEnvelope.ts:125-135` 的 `withWorkRouteTable(reply, args)`——回包不是 `ok:true` 就原样返回（`:126`），没接读出口也原样返回（`:127`），否则 `reply[field] = await d.workRouteTableReadout(reply, { sessionId: args && args.sessionId })`（`:130`），抛错时写 `{ ok:false, reason:'read-failed' }`（`:132`）。写的是回包对象本身，不是拷贝（读出口那侧的 `put` 在 `src/host/refresh/workRouteReadoutForHost.ts:91-94`，直接赋值给 `reply[WORK_ROUTE_TABLE_FIELD]`）。
 
 【已确认】快照与刷新两条路都是「先取数、再在外层挂表」：`src/host/sessionSnapshot.ts:94`（`handleSnapshot`）与 `src/host/sessionRefresh.ts:83-87`（`handleRefresh`，`:86` 那行）。
 
@@ -108,7 +108,7 @@
 
 【已确认】但「搭车拿到 A 的表」在单次请求上不成立：搭车返回的是 `snapshotOf` / `refreshOf` 内部的原始回包，挂表发生在**搭车之后**、用**本次调用的** `args.sessionId` 现算（`src/host/sessionSnapshot.ts:94`、`src/host/sessionRefresh.ts:86`、`src/host/snapshotEnvelope.ts:130`）。客户端那一层也已按会话挡过：租到别人的在途请求之前先比会话号，不同就不复用（`src/client/kernel/probe-stale.ts:74-76`，注释写明理由是「回包里的表是按它那个会话算好的」）。
 
-【已确认】真正能出问题的是**同一份回包对象被两次挂表先后改写**：`shortCircuit()` 命中缓存时返回缓存里那**同一个对象**（`src/host/sessionSnapshot.ts:105-116`，`:114`），挂表又是就地写（`src/host/snapshotEnvelope.ts:91-94`、`:130`）。两个会话几乎同时要快照时，后挂的那一份会盖掉先挂的。这正是 #1358（仍在打开）记录的事，票面写明「目前没有已知的可复现路径，属预防性加固」。
+【已确认】真正能出问题的是**同一份回包对象被两次挂表先后改写**：`shortCircuit()` 命中缓存时返回缓存里那**同一个对象**（`src/host/sessionSnapshot.ts:105-116`，`:114`），挂表又是就地写（`src/host/refresh/workRouteReadoutForHost.ts:91-94`、`src/host/snapshotEnvelope.ts:130`）。两个会话几乎同时要快照时，后挂的那一份会盖掉先挂的。这正是 #1358（仍在打开）记录的事，票面写明「目前没有已知的可复现路径，属预防性加固」。
 
 【推断】若 A 的回包在 B 挂完表之后才被宿主序列化发出去，A 就会收到 B 的表，里面 A 的行全是 `currentSession:false` → `empty` → 整段不画；这条与「不重启的某些时刻」吻合，也与重启与否无关。缺的一环：**宿主把 handler 的返回值交给 IPC 序列化的时机**——这一步在 DSH 宿主里，本仓看不到，所以没法从源码上断定它能不能发生。
 
@@ -152,7 +152,7 @@
 | # | 失败路径 | 胶囊表现 | 判定证据（源码分支与字段） |
 |---|---|---|---|
 | 1 | 宿主根本没把表挂上：没接读出口，或回包不是 `ok:true`，`withWorkRouteTable` 原样返回 | `idle`，整段不画 | `src/host/snapshotEnvelope.ts:125-127`、`src/host/sessionSnapshot.ts:91-93`、`src/client/views/shared/workRouteTable.ts:150` |
-| 2 | 宿主如实报了读不到（`no-binding` / `no-workspace` / `read-failed`） | `unreadable`，有一枚 11 像素小图标 | `src/host/refresh/workRouteReadoutForHost.ts:95`、`:96-97`、`:108`；`src/client/views/shared/workRouteTable.ts:152`；`SessionChainCapsule.ts:274-278`。**出现小图标就不是本症状** |
+| 2 | 宿主如实报了读不到（`no-binding` / `no-workspace` / `read-failed`） | `unreadable`，有一枚 11 像素小图标 | `src/host/refresh/workRouteReadoutForHost.ts:95`、`:96-97`、`:108`；`src/client/views/shared/workRouteTable.ts:152`；`src/client/statusbar/SessionChainCapsule.ts:274-278`。**出现小图标就不是本症状** |
 | 3 | 客户端根本没有快照：重启首帧只有磁盘水合、cwd 还没就绪、host 不可用、请求失败或 30 秒超时 | `idle`，整段不画 | `src/client/kernel/probe-snapshot.ts:159-163`（空 cwd）、`:169`（没 host）、`:288-311`（失败与超时）；`src/client/views/shared/workRouteTable.ts:148`；`src/client/statusbar/StatusBar.ts:186` 的 `statusbar.fallback` 会记 `no-snapshot` / `no-cwd` / `snap-error` 三档之一 |
 | 4 | 存档读到了但是空的：文件不存在（读出口回 `ok:true` 空表），或换后端把整份改名留档、新账从空开始 | `empty`，整段不画 | `src/deck/shell/work-path-store.ts:332`、`:344-347`、`:170-186`；`src/client/views/shared/workRouteTable.ts:176` |
 | 5 | 表里有行、但一行都不属于本会话：请求没带会话号（空串）或两侧号不同 | `empty`，整段不画 | `src/deck/shell/work-path-readout.ts:151`（严格相等）；`src/client/kernel/probe-snapshot.ts:208`（没号就不带）；`src/host/refresh/workRouteReadoutForHost.ts:102`（空串照算）；`src/client/statusbar/SessionChainCapsule.ts:185-188`（过滤后空） |
@@ -175,7 +175,7 @@
 
 【已确认】先核现有事件能不能覆盖——**都覆盖不到**：
 
-- `snapshot.built`（`research/489-appendix.md` 第 1 章 #10，表在第 `:252` 行）：字段只有 `maps/specs/issues/labels/open/closed/partial/fallback/latencyMs`，**没有会话号，也不记工作路线表**；落点在 `adoptSnapLog`（`src/host/snapshotEnvelope.ts:104-114`）。
+- `snapshot.built`（`research/489-appendix.md` 第 1 章 #10，表在第 `:252` 行）：字段只有 `maps/specs/issues/labels/open/closed/partial/fallback/latencyMs`，**没有会话号，也不记工作路线表**；落点是 `adoptSnapLog`（`src/host/snapshotEnvelope.ts:104-114`，刷新路另有一份在 `src/host/sessionRefresh.ts:78`）。
 - `host.call` 的 `reason`（#26，附录 `:259`）：`work-route-missing` 只出现在**成功行**（`src/client/kernel/probe-snapshot.ts:215-216`、`:236`），失败行 `host.call.fail` 不带 reason（附录 #27，`:260`）。它只能证明「客户端认为缺表、发过一次强制补拉」，分不出「发了但失败」与「根本没发」，更答不了「回来的表里有几行属于本会话」。
 - `statusbar.fallback`（#38，附录 `:268`；`src/client/statusbar/StatusBar.ts:186`）：只有一个 `reason`，枚举是 `no-snapshot` / `no-cwd` / `snap-error`。**恰好缺「有快照、但没有可用的表」这一档**，也分不出 `idle` 与 `empty`。
 - `workRoute.write` / `workRoute.read`（#110 / #111，附录 `:317`、`:318`；`src/deck/shell/work-path-store.ts:99-108`）：`workRoute.read` 只在读盘失败时发一行（`:105-108`、`:345`、`:349`、`:352`），正常读回**一条都不记**，也不记「读到几条、其中几条是本会话」。`workRoute.write` 记的是写侧，回答不了读侧。
