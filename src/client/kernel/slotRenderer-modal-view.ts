@@ -257,7 +257,7 @@ declare function resolveFailText(...args: any[]): any;
             if (typeof host !== 'undefined' && host.call) {
               await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined }) // hint 只报「用户亲手选过的那条」：#669 第 6 件 / ADR 20260921
               try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
-              try { if (typeof loadChain === 'function') loadChain(st, true) } catch(_){}
+              try { if (typeof loadChain === 'function') loadChain(st, true, 'user-recheck') } catch(_){} // #1363：表单提交是人动手做的，链重取按人的动作报上去
             }
           } catch(_){}
         } catch (e) {

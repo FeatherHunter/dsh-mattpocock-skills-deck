@@ -186,7 +186,13 @@ export const attentionBeat = function (): void {
 export const startAttentionHeartbeat = function (): void {
   try {
     if (typeof globalThis !== 'undefined' && (globalThis as any).__dswsOldBeatTimer) {
-      try { clearInterval((globalThis as any).__dswsOldBeatTimer); } catch (eOld) {}
+      // #1220：宿主交回的句柄是一支可调用的撤销器函数，全局 clearInterval 对它空操作（撤不掉也不报错）。
+      //   先走 timer.clearTimeout（它按 dispose → 调用句柄本身 → 全局 clearTimeout 三档处理），再退回全局 clearInterval。
+      try {
+        const oldTimer: any = (globalThis as any).__dswsOldBeatTimer
+        if (timer && typeof timer.clearTimeout === 'function') timer.clearTimeout(oldTimer)
+        else clearInterval(oldTimer)
+      } catch (eOld) {}
       (globalThis as any).__dswsOldBeatTimer = null;
     }
     if (shared._beatTimer) return;
@@ -222,6 +228,12 @@ export const startAttentionSignals = function (): void {
 /** 页面要关掉/销毁时最后报一次「我不再活跃了」（能发出去就发，发不出去也不留尾巴）。 */
 export const stopAttentionSignals = function (): void {
   try { reportWorkspaceAttention(null, 'panel-hidden', null); } catch (e) {}
-  try { if (shared._beatTimer && typeof clearInterval === 'function') clearInterval(shared._beatTimer); } catch (e2) {}
+  // #1220：同 startAttentionHeartbeat 里的撤销口径——宿主句柄是撤销器，得走 timer.clearTimeout。
+  try {
+    if (shared._beatTimer) {
+      if (timer && typeof timer.clearTimeout === 'function') timer.clearTimeout(shared._beatTimer)
+      else if (typeof clearInterval === 'function') clearInterval(shared._beatTimer)
+    }
+  } catch (e2) {}
   try { shared._beatTimer = null; } catch (e3) {}
 };

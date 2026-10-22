@@ -225,6 +225,8 @@ const KEYS: Array<[string, string, string]> = [
   ['buildLockStaleMs', 'BUILD_LOCK_STALE_MS', 'ttl'],
   // —— backoff：退避序列 ——
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
+  // —— 初始化等待那一路的等待封顶（#1363）：超过多久必真算一次 ——
+  ['chainSetupPendingCapMs', 'CHAIN_SETUP_PENDING_CAP_MS', 'timeouts'],
 ]
 
 /** 小编辑距离：拼错的键名能指到它想写的那个键，而不是一句“未知键”。 */

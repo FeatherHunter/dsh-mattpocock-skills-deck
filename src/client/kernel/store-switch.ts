@@ -304,7 +304,9 @@ export const confirmSwitchConfirm = function (st: any): void {
       if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)
       // #709（T5）：绑定后端属于「做完可能改变它的动作」这一类事件——走内核那一个事件入口
       //   （chainEventRefresh），头部与状态栏那边等这一次的结果。typeof 兜底见 probe-chain.js 的说明。
-      _chainP = (typeof chainEventRefresh === 'function') ? chainEventRefresh(st, 'action-done') : ((typeof loadChain === 'function') ? loadChain(st, true, 'action-done') : null)
+      // #1363：切换后端是用户亲手点的动作，按 'user-recheck' 报上去（永不降档），否则会被后台退避挡回旧快照；
+      //   'action-done' 这个名字只留在注释里，宿主那边只认 trigger 字符串。
+      _chainP = (typeof chainEventRefresh === 'function') ? chainEventRefresh(st, 'user-recheck') : ((typeof loadChain === 'function') ? loadChain(st, true, 'user-recheck') : null)
     } catch (eLoad) {}
     // 有证据就当场决定；没有就等这次强制重取回来的链（上面那一取，同时也是状态栏要用的那一取）再决定。
     //   _hadToWait 是上面算好的那一份（与 _routed 配对，保证只落一次）。

@@ -228,7 +228,10 @@ export const confirmStatusGate = function(s: StatusPickState): void { const id=s
     //   （实测：点确认 → 横幅出现 11.4 秒，其中 8.16 秒纯等定时器）。同仓另外两条路本来就是
     //   `loadSnapshot + loadChain` 一对（`kernel/store-switch.js` 切后端那条、`views/NoRepoCard.js` 建完仓库那条），
     //   只有蓝条这条门控路少了后半句。
-    try{ if(typeof loadChain==='function') loadChain(s,true) }catch(eLc){}
+    // #1363 场景一：只「重取」不够，这一次还得被宿主当成人的动作（trigger 'user-recheck'）——
+    //   否则它会落进后台退避档，被挡下时宿主原样回一份选后端之前的旧快照（里面连仓库那一行都没有），
+    //   横幅链于是继续什么都不显示。选后端是用户亲手做的，修法就是把这一次的意图如实带上去。
+    try{ if(typeof loadChain==='function') loadChain(s,true,'user-recheck') }catch(eLc){}
     } else { s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); try{ flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); }); } };
 
 // ---------------------------------------------------------------------------
@@ -261,7 +264,7 @@ declare function userPickSelection(backendId: unknown, repoRef: unknown, prev: u
 declare function setCachedSelection(cwd: unknown, selection: unknown): void
 declare function adoptBoundRev(s: unknown, res: unknown): void
 declare function loadSnapshot(s: unknown, force?: boolean, soft?: boolean): void
-declare function loadChain(s: unknown, force?: boolean): void
+declare function loadChain(s: unknown, force?: boolean, trigger?: string): void
 declare function setPresentationMap(modules: unknown): void
 declare function labelOf(backendId: unknown): string
 declare const host: { call(method: string, params?: Record<string, unknown>): Promise<any> }

@@ -371,13 +371,21 @@ async function main() {
   ok(ghClick.logs.length === 1 && ghClick.logs[0].level === 'info' && ghClick.logs[0].fields.step === 'gh:installed' && ghClick.logs[0].fields.outcome === 'text', '这一回记成常驻日志：哪一步 + 给出去的是哪一类（text）')
   ok(Object.keys(ghClick.logs[0].fields).length === 2, '日志字段就这两个（不记注入正文、不记路径）')
 
-  console.log('== 第 7 组：链快照里「没有」仓库那一行时，横幅不许跳到黄条（真机现场 2026-09-21）==')
+  console.log('== 第 7 组：链快照里「没有」仓库那一行时，既不跳到黄条、也不静默（#661 / #1363）==')
   // 现场：全新空目录里选完 GitHub，宿主探测把「空目录」当成过期工作区、把客户端这一下选的后端也一并作废，
   //   于是后端链没组装，链快照里只剩这六行（.scratch/665-diag-bar.out 的读数）。
   const CHAIN_NO_REPO_ROW = { 'selection:backendSelected': 'current', 'tracker:initialized': 'current', 'skill:wayfinder': 'pending', 'skill:setup-matt-pocock-skills': 'pending', 'skill:ask-matt': 'pending', 'env:home': 'done' }
   const stNoRepoRow = stateOf(chainOf(CHAIN_NO_REPO_ROW), { backend: 'github', backends: backends })
   const noRowBanner = bannerOf(mod, stNoRepoRow, false)
-  ok(noRowBanner === null, '仓库那一行不在快照里 → 横幅不许落到「该工作区尚未初始化」上（实得 ' + (noRowBanner && noRowBanner.id) + '）')
+  // #1363 场景一：从前这里一条横幅都不出（人不知道下一步做什么、也分不清「还没查到」与「确实没有」）。
+  //   现在快照里有别的行、偏偏缺这条挡路的行时，出的是那条中性兜底（点一下走重查），不再是「尚未初始化」黄条。
+  ok(!!noRowBanner && noRowBanner.id === 'chain:unread', '仓库那一行不在快照里 → 出的是中性兜底那一条、不是「该工作区尚未初始化」黄条（实得 ' + (noRowBanner && noRowBanner.id) + '）')
+  const noRowMeta = (typeof mod.guideBannerMeta === 'function') ? mod.guideBannerMeta(stNoRepoRow, noRowBanner) : (noRowBanner && noRowBanner.banner)
+  ok(!!noRowMeta && noRowMeta.text === 'banner.chainUnread', '中性兜底用的是新加的那对词条键（实得 ' + (noRowMeta && noRowMeta.text) + '）')
+  ok(!!noRowBanner && !!noRowBanner.missing && noRowBanner.missing.type === 'recheck', '中性兜底的按钮走既有的重查那一路（人亲手点的那次永不降档）')
+  // 快照里一行都没有（读数还没到）时仍然安静等着，不许提前出任何横幅（#661 第④条）。
+  const stNoSnapshot = stateOf({ steps: [] }, { backend: 'github', backends: backends })
+  ok(bannerOf(mod, stNoSnapshot, false) === null, '快照一行都还没有 → 仍然安静等着，不出横幅')
   ok(mod.setupBlockedByGuide(stNoRepoRow, 'github') === true, '同一份快照：那道「不注入」的阀门仍然是关着的（挡住初始化）')
   const beforeNoRow = seen.injected.length
   const noRowDecision = mod.injectSetupDecision(stNoRepoRow, 'github', { allowCard: true })

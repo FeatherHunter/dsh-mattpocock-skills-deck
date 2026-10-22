@@ -121,7 +121,7 @@ export     const NoRepoCard = function (props: any) {
                 } else { try{ onSubmit({}) }catch(e){} }
               } catch(e){ try{ onSubmit({}) }catch(e2){} }
             },
-            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true, backendId:(typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} }, // hint 只报「用户亲手选过的那条」：#669 第 6 件 / ADR 20260921
+            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true, backendId:(typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined}) }catch(e){}; try{ loadChain(st,true,'user-recheck') }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} }, // hint 只报「用户亲手选过的那条」：#669 第 6 件 / ADR 20260921；#1363：人动手触发的重取带 'user-recheck'，别被退避挡回旧快照
             tr: tr,
             resolvePrompt: function(id: any,pa: any){ try{ if(id==='setupRun'){ if(typeof injectSetupDecision!=='function') return (typeof setupRunPrompt==='function')?setupRunPrompt(st):''; return (injectSetupDecision(st,undefined,{injectNow:false,allowCard:true})==='setup'&&typeof setupRunPrompt==='function')?setupRunPrompt(st):'' } return promptTextFor(st,id,pa)}catch(e){ return '' } }
           }) : null
@@ -167,7 +167,7 @@ export     const NoRepoCard = function (props: any) {
             if (!labelsGuide) {
               flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
               card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
-              loadSnapshot(st, true, true); loadChain(st, true)
+              loadSnapshot(st, true, true); loadChain(st, true, 'user-recheck') // #1363：建仓是人动手做的，链重取按人的动作报上去
               return
             }
             // GitHub：进入标签步骤 Modal（不设常驻黄条，流程内单步）
@@ -204,7 +204,7 @@ export     const NoRepoCard = function (props: any) {
                 }
               }catch(e){ if(card.labelStep) card.labelStep.checking=false; emit(st) }
             }).catch(function(){ if(card.labelStep) card.labelStep.checking=false; emit(st) })
-            loadChain(st, true)
+            loadChain(st, true, 'user-recheck') // #1363：建仓是人动手做的，链重取按人的动作报上去
           } else {
             const kind = (res && res.errorKind) || 'unknown'
             const raw = (res && res.error) || ''
