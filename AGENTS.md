@@ -47,6 +47,10 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 
 不要用任何可能丢文件或改写历史的命令，例如 `git reset --hard`、`git checkout .`、`git clean -f`、`git push --force`、`git rebase`、`git filter-branch`。拿不准某条命令会不会丢数据时，先停下来问人，不要自己试。
 
+### 并行会话：同一工作区有多路会话时
+
+默认每个会话去自己的工作树里干活，各自装一份依赖，产物和构建缓存各归各；只有要在正在运行的界面里亲眼看到效果时才回主工作区，而且同一时刻只让一个会话在主工作区里跑构建。暂存前先看这次改动清单，只交自己确认过的路径，同一个分支的提交窗口一次只归一个会话。完整步骤见 `docs/agents/parallel-sessions.md`。
+
 ### TypeScript 优先，旧 JS 随改随迁，最终只留 TS
 
 最终目标是项目里手写代码只有 TypeScript，没有手写 JavaScript（构建产物和派生文件生成的 `.js` 不算）。以后凡是需求、修 bug、做规划、写设计时动到本插件的手写代码，一律优先用 TypeScript 写；存量 JavaScript 不单独立项重写，采取“动到哪里就转到哪里”的方式转，直到清零。本条继承 `tsconfig.client.json` 里“摸到谁再转谁，不搞大爆炸”的口径，并把它推广到全仓。
