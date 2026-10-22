@@ -62,8 +62,9 @@ export async function specCloseGuard(input: {
     return { kind: 'refuse', rule: 'spec-close-unreadable', text: '这张票没读回来（后端原话：' + msg + '）：判不了它是普通票还是规格，先不关。等能读回再调一次。', data: { error: { message: msg } }, reads: 1 }
   }
   const data: Record<string, unknown> = (rawSelf.data && typeof rawSelf.data === 'object') ? rawSelf.data as Record<string, unknown> : {}
-  // 判「是不是规格」两个判据取或：本地后端在正文首行/文件头认对象类型标记（parse 会归成 type='spec'），
-  // GitHub 后端只认正文首行，而幂等锚会占住首行，所以那边要用 markerKindInHeader 兜底（#1277 记账的识别差异，本票不改识别）。
+  // 判「是不是规格」两个判据取或：三个后端的归一层都按正文文件头标记把 type 标成 spec（#1403 T1 读侧统一）。
+  // 这里再用 markerKindInHeader 兜一次，是因为远端回包可能只带原始正文、或老缓存里 type 还没归一；
+  // 两边同一条判据（第一个标题之前、整行精确），不会互相打架，也不会有哪家把规格读成普通票。
   const isSpec = String(data.type || '') === 'spec' || markerKindInHeader(String(data.body || '')) === 'spec'
   if (!isSpec) return { kind: 'not-spec' }
 

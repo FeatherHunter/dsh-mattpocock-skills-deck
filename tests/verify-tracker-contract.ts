@@ -27,6 +27,9 @@
  *      后端上把票文件读出来看锚在不在、第二次盘上文件数与修改时间都没变；真实 GitHub / GitLab 模块
  *      上验锚进了远端请求正文、以及搜索没命中时靠「列出来逐张读票面」照样复用；回查拿不准时如实
  *      失败、一张票都不建。见 sections/idempotency.js。
+ *  11. object-kind 段（#1403 T1 / #1408）：同一份「首行幂等锚、第二行规格标记」的正文，
+ *      GitHub 房、GitLab 房、本地 Markdown 房归一化后的对象类型一致判成 spec；标记落在
+ *      首个标题之后或与别的字挤在同一行，三家都判 issue。见 sections/object-kind.ts。
  *
  * 每段含「✗ probe」违规样例自证测试会逮。
  * 运行：node tests/verify-tracker-contract.ts
@@ -50,6 +53,7 @@ import countsSection from './tracker-contract/sections/counts.js'
 import listPageSection from './tracker-contract/sections/listPage.js'
 import idempotencySection from './tracker-contract/sections/idempotency.js'
 import roomGitlabExtrasSection from './tracker-contract/sections/room-gitlab-extras.js'
+import objectKindSection from './tracker-contract/sections/object-kind.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -240,7 +244,7 @@ try {
   results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection, idempotencySection, roomGitlabExtrasSection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection, idempotencySection, roomGitlabExtrasSection, objectKindSection]) {
   try {
     const r = await s.run()
     results.push(...r)

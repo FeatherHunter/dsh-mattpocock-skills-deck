@@ -14,6 +14,7 @@
  */
 
 import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
+import { markerKindInHeader } from '../../../shared/issue-file/src/marker.js'
 import type { Actor, IssueType, State } from '../../contract/identity.js'
 import type { Comment, Issue, IssueRef, Label, Milestone } from '../../contract/entities.js'
 
@@ -71,7 +72,24 @@ function deriveKey(raw: unknown): string {
   return '0'
 }
 
+/**
+ * 票面正文：GitLab 的 REST 回包把正文放在 description，房内少数聚合形状用 body 这个名字。
+ * 两处读同一格，取值规则收在这里一份，免得识别与父子关系读到不一样的正文。
+ */
+function bodyOf(raw: unknown): string {
+  const bag = asBag(raw)
+  if (!bag) return ''
+  if (typeof bag['description'] === 'string') return bag['description'] as string
+  if (typeof bag['body'] === 'string') return bag['body'] as string
+  return ''
+}
+
 function deriveType(raw: unknown): IssueType {
+  // #1403 T1 读侧统一：判定顺序的红线是**正文文件头标记最前**（标记 → 标签 → 形状，
+  // 依据是 GLOSSARY.md「对象类型」词条）。判据与 GitHub 房、本地 Markdown 房同一份：
+  // 共享包 markerKindInHeader 只看第一个标题之前那一段，首行幂等锚不影响第二行的规格标记。
+  // GitLab 房原先没有这条判据，带规格标记的票会被读成普通票（#1286 时记成已知缺口）。
+  if (markerKindInHeader(bodyOf(raw)) === 'spec') return ISSUE_TYPE.SPEC as IssueType
   const labels = normalizeLabels(raw)
   if (labels.some((l) => l.name === 'wayfinder:map')) return ISSUE_TYPE.MAP as IssueType
   const bag = asBag(raw)
@@ -288,13 +306,7 @@ export function rewriteDescriptionWithPartOf(oldBody: string | null | undefined,
 
 function deriveParentKey(raw: unknown): string | null {
   const bag = asBag(raw)
-  const body =
-    bag && typeof bag['description'] === 'string'
-      ? (bag['description'] as string)
-      : bag && typeof bag['body'] === 'string'
-        ? (bag['body'] as string)
-        : ''
-  const declared = parsePartOfLine(body)
+  const declared = parsePartOfLine(bodyOf(raw))
   if (declared) return declared
   if (bag && typeof bag['parentKey'] === 'string') return bag['parentKey'] as string
   if (bag && bag['parentKey'] === null) return null
@@ -318,12 +330,7 @@ export function normalizeIssue(raw: unknown): Issue {
   const bag = asBag(raw)
 
   const title = bag && typeof bag['title'] === 'string' ? (bag['title'] as string) : ''
-  const body =
-    bag && typeof bag['description'] === 'string'
-      ? (bag['description'] as string)
-      : bag && typeof bag['body'] === 'string'
-        ? (bag['body'] as string)
-        : ''
+  const body = bodyOf(raw)
   const url =
     bag && typeof bag['web_url'] === 'string'
       ? (bag['web_url'] as string)

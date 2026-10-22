@@ -2,8 +2,9 @@
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1286-snapshot.ts，可独立运行。
 //
 // 断四件事：
-//  ① 归一层：正文首行独占一行那串隐藏标记的票，认成规格（type='spec'）；普通票仍是普通票；
-//     标记不在首行就不算（只认首行）。
+//  ① 归一层：正文文件头（第一个 `#` 标题之前）独占一行那串隐藏标记的票，认成规格（type='spec'）；
+//     普通票仍是普通票；标记落在首个标题之后、或与别的字挤在同一行，都不算；
+//     「幂等锚占第一行、规格标记占第二行」的正文照样认（GitHub / GitLab / 本地 Markdown 三房同一判据）。
 //  ② 判定的红线：正文标记排最前 —— 既带标记又带 wayfinder:map 标签的票判成规格
 //     （GLOSSARY.md「对象类型」词条：标记 → 标签 → 形状，标记是唯一真源）。
 //  ③ 组装层：规格进容器数组、不进「未挂图票」那一份（漏了那处，列表页会出两行），
@@ -17,7 +18,7 @@ let failed = false
 let total = 0
 const check = (ok: boolean, msg: string, detail?: unknown): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail !== undefined && detail !== null ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
 
-/** 规格容器在正文首行的隐藏标记（与 contract/vocabulary.ts 的 SPEC_BODY_MARKER 同一串）。 */
+/** 规格容器在正文文件头的隐藏标记（与 contract/vocabulary.ts 的 SPEC_BODY_MARKER 同一串）。 */
 const MARKER = '<!-- DSH-ISSUE-KIND: spec -->'
 
 /** 一份写全的规格正文：七段各一段，后面几段各一行。 */
@@ -43,7 +44,7 @@ const SPEC_BODY = [
   '- 不做写侧改造。',
   '',
   '## 补充说明',
-  '- 标记只认首行。',
+  '- 标记只认文件头。',
 ].join('\n')
 
 /** 池里的一行：形状与归一层产出的 Issue 一致（组装层只读这几格）。 */
@@ -68,18 +69,24 @@ async function main() {
   check(spec.type === 'spec', '正文首行带隐藏标记的票认成规格（type=spec）', spec.type)
   const plain = gh.normalizeIssue({ number: 101, title: '普通票', body: '就是一段普通正文' })
   check(plain.type === 'issue', '普通票仍是普通票（type=issue）', plain.type)
-  const notFirst = gh.normalizeIssue({ number: 102, title: '标记不在首行', body: '一段正文\n' + MARKER })
-  check(notFirst.type === 'issue', '标记不在首行不算规格（只认首行、整行精确匹配）', notFirst.type)
+  // #1403 T1 读侧统一：判据是「第一个标题之前」，不是「正文首行」。写侧建带幂等锚的票时锚就排在正文最前，
+  // 所以规格标记常常落在第二行——只认首行会把这类票漏掉。
+  const anchoredSpec = '<!-- DSH-IDEMPOTENCY-KEY: spec-anchor -->\n' + MARKER + '\n\n## 问题陈述\n现在改一处规格要翻三个文件。\n'
+  const anchored = gh.normalizeIssue({ number: 104, title: '带锚的规格', body: anchoredSpec })
+  check(anchored.type === 'spec', '幂等锚占第一行、规格标记占第二行 → 仍认成规格（判据是文件头）', anchored.type)
+  const notFirst = gh.normalizeIssue({ number: 102, title: '标记不在文件头', body: '## 问题陈述\n一段正文\n' + MARKER })
+  check(notFirst.type === 'issue', '标记落在首个标题之后不算规格（文件头判据、整行精确匹配）', notFirst.type)
 
   // ② 正文标记优先（红线：标记是唯一真源，标签只在这张票没有标记时才看）
   const both = gh.normalizeIssue({ number: 103, title: '又标签又标记', body: SPEC_BODY, labels: [{ name: 'wayfinder:map' }] })
   check(both.type === 'spec', '标记与标签同时在场时判成规格（正文标记优先）', both.type)
 
-  // GitLab 房这一版没有接规格识别（#1286 收回 GitLab 房改动时只改了源码，没同步这条断言；
-  // 设计文档 docs/design/1286-implementation-map-visual.md 第 4.1 节把这个缺口记成「等另一张票补镜像」）。
-  // 这里钉住当前已知状态：规格标记落到 GitLab 房仍然是普通票，别让它悄悄漂成一种没人记得的约定。
+  // #1403 T1 读侧统一：GitLab 房补上了与另外两房同一条判据（共享包 markerKindInHeader），
+  // #1286 时记成已知缺口的那一格到这里收口：规格标记落到 GitLab 房也读成规格。
   const glSpec = gl.normalizeIssue({ iid: 200, title: '规格', description: SPEC_BODY })
-  check(glSpec.type === 'issue', 'GitLab 房暂未接规格识别（已知缺口，等单独的票补镜像）', glSpec.type)
+  check(glSpec.type === 'spec', 'GitLab 房：正文文件头的规格标记读成规格（type=spec）', glSpec.type)
+  const glAnchored = gl.normalizeIssue({ iid: 202, title: '带锚的规格', description: anchoredSpec })
+  check(glAnchored.type === 'spec', 'GitLab 房：首行锚、第二行规格标记 → 规格', glAnchored.type)
   const glPlain = gl.normalizeIssue({ iid: 201, title: '普通票', description: '普通正文' })
   check(glPlain.type === 'issue', 'GitLab 房的普通票仍是普通票', glPlain.type)
 

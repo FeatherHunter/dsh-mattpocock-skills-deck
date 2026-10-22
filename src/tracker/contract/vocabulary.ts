@@ -41,23 +41,23 @@ export const ISSUE_TYPE = Object.freeze({
 })
 
 /**
- * 规格（实施地图）容器在正文首行的隐藏标记。
+ * 规格（实施地图）容器在正文文件头的隐藏标记。
  *
  * 为什么用正文标记而不是标签：探索地图有 `wayfinder:map` 标签可认，规格没有自己的标签
- * （也不许带 `wayfinder:map` —— 带了就会被认成探索地图），所以靠正文第一行独占一行的
+ * （也不许带 `wayfinder:map` —— 带了就会被认成探索地图），所以靠正文文件头独占一行的
  * 这段隐藏标记来认。写法：`<!-- DSH-ISSUE-KIND: spec -->`，前后各留空行更好。
  *
- * 认法（各房归一层的 `deriveType` 照这条做）：正文首行去掉首尾空白后整行精确等于这一串
- * 才算规格；正文别处提到这一串不算数；首行不是它就按普通票处理。判定顺序上标记排在标签
- * 前面（GLOSSARY.md「对象类型（objectKind）」词条：标记 → 标签 → 形状，标记是唯一真源）。
+ * 认法（三个后端的归一层都调 `src/shared/issue-file/src/marker.ts` 的 `markerKindInHeader`）：
+ * 只扫第一个 `#` 标题之前的那一段（没有标题时取前 10 行），整行精确等于这一串才算规格；
+ * 正文别处提到这一串、或标记落在标题之后，都不算数。所以「幂等锚占第一行、标记占第二行」
+ * 的正文照样认——写侧建带锚的票时锚就排在正文最前面。判定顺序上标记排在标签前面
+ * （GLOSSARY.md「对象类型（objectKind）」词条：标记 → 标签 → 形状，标记是唯一真源）。
  *
- * 这一版只有 GitHub 房实现（`src/tracker/rooms/github/normalize.ts` 的 `isSpecBody`）；
- * GitLab 房没做，归另一张票（#326 一次会话只动一个房间）——别以为那边已经同步。这里只放
- * 这一串常量（契约目录只放类型与常量、不放行为；两个房间本来就不许互引）。
- *
- * #1277 现状与缺口：本地房与宿主快照的判据已经搬到 `src/shared/issue-file/src/marker.ts`（唯一真源）；
- * 这一串常量还不能并过去 —— 契约目录的门禁只许它自引，不许引共享包，而 GitHub 房只读契约层。等 GitHub
- * 房改为认文件头标记时一起并（见 `docs/design/1277-md-spec-container.md` §7 第 7 条）。
+ * #1403 T1 读侧统一：GitHub 房（`src/tracker/rooms/github/normalize.ts` 的 `isSpecBody`）、
+ * GitLab 房（`src/tracker/rooms/gitlab/normalize.ts` 的 `deriveType`）与本地 Markdown 房
+ * （`src/tracker/rooms/markdown/parse.ts`）用同一条判据、同一个共享包函数，结论一致。
+ * 这里只放这一串常量：契约目录只放类型与常量、不放行为，也不许引共享包
+ * （tests/verify-contract-types.ts 第二项），所以判定逻辑留在各房归一层，别把这份常量当成实现。
  */
 export const SPEC_BODY_MARKER = '<!-- DSH-ISSUE-KIND: spec -->'
 

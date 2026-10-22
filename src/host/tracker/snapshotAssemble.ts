@@ -68,9 +68,10 @@ function isClosedRow(it: any): boolean {
 }
 
 // #1277 B 兜底（视图兜底）：后端没把类型标成规格时，票面文件头那行隐藏标记仍是唯一真源（ADR 2.5）。
-//   为什么放在组装层而不是房间里：GitHub 写侧今天把标记挤到正文第二行（幂等锚占了第一行），GitHub 房
-//   只认首行，而 #326 一次改动只许动一个房间，本票不能改那个房 —— 界面不能因此把规格降级成普通票。
-//   这里只补「行说是普通票、票面文件头却写着 spec」这一种；已经标成 map/spec 的行一个字不动。
+//   为什么还留着这一层：老快照缓存、或者将来某个后端漏了这条判据时，界面不能因此把规格降级成普通票——
+//   这里按同一个共享判据（isSpecHeaderMarked，第一个标题之前）再兜一次。#1403 T1 之后 GitHub / GitLab /
+//   本地 Markdown 三个房都按文件头认规格，正常路径不会走到这里；它只补「行说是普通票、票面文件头却写着
+//   spec」这一种，已经标成 map/spec 的行一个字不动。
 //   浅拷贝一份改 type，后续容器判定、池过滤、sections 解析全用归一后的行，别的字段原样透传。
 function withNormalizedType(it: any): any {
   if (!it) return it
@@ -120,10 +121,9 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
   const thinTickets: Record<string, any>[] = []
   // 容器有两种：探索地图（type='map'）与规格/实施地图（type='spec'）。
   // 两类容器共用这一份数组（快照里仍叫 maps），客户端靠 type 字段分辨种类，不另开一个数组。
-  // 规格的识别分两层：各房归一层先按票面标记把 type 标成 spec（GitHub 房认正文首行的隐藏标记，
-  // 本地 Markdown 房认文件头标记，见 rooms/markdown/parse.ts）；房没标对时由本文件上面的
-  // withNormalizedType 按票面标记兜底（#1277 的 B 视图兜底）。GitLab 房这一版还没接规格识别，
-  // 归另一张票（#326 一次会话只动一个房间）——两边不是镜像关系，别照着这边给那边「补同一份」。
+  // 规格的识别分两层：各房归一层先按票面文件头标记把 type 标成 spec（GitHub、GitLab、本地 Markdown
+  // 三个房同一条判据、同一个共享包函数 markerKindInHeader，见各房 normalize / parse 的 deriveType）；
+  // 房没标对时由本文件上面的 withNormalizedType 按同一判据兜底（#1277 的 B 视图兜底）。
   const maps = rows
     .filter((i) => i && (i.type === 'map' || i.type === 'spec'))
     .map((m) => {

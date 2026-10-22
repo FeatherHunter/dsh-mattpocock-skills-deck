@@ -14,7 +14,8 @@
  *  - `parentKey: string|null` 核心字段永远存在；子票只认原生 parent（忽略 task list）。
  */
 
-import { STATE, ISSUE_TYPE, SPEC_BODY_MARKER } from '../../contract/vocabulary.js'
+import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
+import { markerKindInHeader } from '../../../shared/issue-file/src/marker.js'
 import type { Comment, Issue, IssueRef, Label, Milestone, Review } from '../../contract/entities.js';
 import type { Actor, IssueType, State } from '../../contract/identity.js';
 
@@ -107,18 +108,20 @@ function deriveKey(raw: unknown): string {
 }
 
 /**
- * 规格容器（实施地图）的识别：正文首行独占一行的那段隐藏标记
- * （标记串见 contract/vocabulary.ts 的 SPEC_BODY_MARKER）。
+ * 规格容器（实施地图）的识别：正文文件头（第一个标题之前）独占一行的隐藏标记
+ * `<!-- DSH-ISSUE-KIND: spec -->`（#1403 T1 读侧统一：三房同一判据，GitHub 房不再只看首行）。
  *
- * 认法：正文首行去掉首尾空白后整行精确等于标记串才算数；正文别处提到这一串不算数。
- * 为什么住在房里：契约目录只放类型与常量、不放行为；能同时被两个房间引到的只有契约与内核
- * 两层，所以识别判断只能各房自己写一份。这一版只有 GitHub 房实现；GitLab 房没做，归另一张票
- * （#326 一次会话只动一个房间，两个房间本来就不许互引），别把这里当成两房共用的内核。
+ * 认法直接复用共享包 src/shared/issue-file/src/marker.ts 的 markerKindInHeader：
+ * 只扫第一个标题之前的那一段（没有标题时取前 10 行），整行精确匹配才作数。
+ * 这样「幂等锚占第一行、规格标记占第二行」的正文照样认成规格——写侧建带锚的票时锚就排在
+ * 正文最前面，只认首行会把这类票漏掉；而正文里顺手提到这一串字、或标记落在标题之后，
+ * 都不算数。
+ *
+ * 为什么判定住在房里：契约目录只放类型与常量、不放行为；各房拿共享包的纯函数自己调，
+ * 判据只有一份，结论三家一致。
  */
 export function isSpecBody(body: unknown): boolean {
-  if (typeof body !== 'string') return false
-  const first = body.replace(/^\uFEFF/, '').split(/\r?\n/, 1)[0]
-  return first.trim() === SPEC_BODY_MARKER
+  return typeof body === 'string' && markerKindInHeader(body) === 'spec'
 }
 
 function deriveType(raw: unknown): IssueType {
