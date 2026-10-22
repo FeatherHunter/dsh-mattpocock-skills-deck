@@ -3,17 +3,23 @@
  *
  * 铺到哪一层（维护者 2026-10-22 答 Q6=A）：只有 ISSUE 卡片有深浅两套像素皮肤（views/cards 已做完），
  * 页面外壳跟随宿主的主题变量，不另铺一套纸面皮肤——外壳再铺一次会与宿主割裂，也是 #1366 定版之外的活。
- * 所以这里所有颜色都取宿主的 --dsw-alias-* 令牌并带一个回退值：宿主换主题时外壳自己跟着变，
- * 不认 body[data-ds-dark-theme] 这个像素皮肤的开关。
+ *
+ * 2026-10-23 维护者看演示页后补了一条要求：深色底不要纯黑、浅色底不要纯白，视觉上要舒适。
+ * 所以只有「内容区的地」与「地图档案那张信息卡」这两层改用自己固定的两档中性色（炭灰 / 暖白），
+ * 这也是本文件唯一认 body[data-ds-dark-theme] 的地方；文字、按钮、状态色、卡片皮肤仍取宿主的
+ * --dsw-alias-* 令牌（带一个回退值），顶栏那一行完全没动。
  *
  * 注入方式与其它样式叶子同一条缝（src/client/index.ts 里 styles.insert）。
  */
 export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   // 整页：一列。地图档案区一块，卡片流一块，已完成就接在卡片流最下面（维护者定的连续一条流）。
-  '.m2v2-page{display:flex;flex-direction:column;gap:10px;padding-bottom:24px;min-width:0}',
+  // 三档中性色只在 .m2v2-page 上定义、由子元素继承：炭灰底 + 亮一档的面板 + 一档描边，避免纯黑纯白。
+  '.m2v2-page{--m2v2-ground:#1e2023;--m2v2-panel:#272a2e;--m2v2-line:#3b3e43;display:flex;flex-direction:column;gap:10px;padding-bottom:24px;min-width:0;background:var(--m2v2-ground)}',
+  // 浅色主题：暖白底 + 纸白面板 + 浅描边。判断方式与卡片皮肤一致（宿主浅色时 body 上没有 data-ds-dark-theme）。
+  'body:not([data-ds-dark-theme]) .m2v2-page{--m2v2-ground:#ece6d8;--m2v2-panel:#f7f4ea;--m2v2-line:#d8cfbd}',
 
-  // 档案区（MAP 自身内容）：普通信息卡，跟随宿主主题。
-  '.m2v2-profile{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;padding:12px 14px;background:var(--dsw-alias-bg-layer-1,rgba(255,255,255,.03));min-width:0}',
+  // 档案区（MAP 自身内容）：普通信息卡，用同一族的中性面板色，比「地」亮一档。
+  '.m2v2-profile{border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:12px;padding:12px 14px;background:var(--m2v2-panel,var(--dsw-alias-bg-layer-1,rgba(255,255,255,.03)));min-width:0}',
   '.m2v2-id{display:flex;align-items:center;gap:8px;min-width:0}',
   '.m2v2-chip{flex:none;font-size:10px;line-height:16px;letter-spacing:.08em;padding:0 6px;border-radius:6px;border:1px solid currentColor;color:var(--dsw-alias-label-caption,#8b8b95)}',
   '.m2v2-no{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;color:var(--dsw-alias-label-primary,#e6edf3)}',
