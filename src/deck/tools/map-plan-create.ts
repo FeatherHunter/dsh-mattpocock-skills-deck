@@ -524,10 +524,11 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
         const rows = Array.isArray(liveRows) ? (liveRows as Record<string, unknown>[]) : []
         const rowByKey = new Map<string, Record<string, unknown>>()
         for (const row of rows) if (row && row.key !== undefined && row.key !== null) rowByKey.set(String(row.key), row)
-        // 只有读回来的正文是「整份文件」时才核 Type 行：本地 Markdown 房把整个文件当正文回（带幂等锚、
-        // 父票注释与状态/标签这类字段行），远端房的正文只是描述，没有 Type 行可核。这里按读回数据的形状
-        // 判断，不按后端身份分支 —— 工具层不许拿后端 id 做判断（verify-deck-tools 的静态扫描就查这个）。
-        const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:DSH-IDEMPOTENCY-KEY|DSH-ISSUE-KIND)\b|^\s*<!--\s*parentKey\s*:/m.test(text)
+        // 只有读回来的正文是「整份文件」时才核 Type 行：本地 Markdown 房把整个文件当正文回，文件头除了
+        // 幂等锚还会多出 parentKey 与 created 两行注释、正文里有 Status/Labels/Type 字段行；远端房这两行
+        // 文件头注释不会落进正文（父边走原生边），正文也就没有 Type 行可核。这里按读回数据的形状判断，
+        // 不按后端身份分支 —— 工具层不许拿后端 id 做判断（verify-deck-tools 的静态扫描就查这个）。
+        const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:parentKey|created)\s*:/m.test(text)
         let checkedTypeLine = false
         for (const ch of children) {
           const planKey = String(ch.key)

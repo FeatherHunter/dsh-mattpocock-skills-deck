@@ -162,7 +162,7 @@ async function main() {
   const ticketFiles = (): string[] => { try { return fs.readdirSync(issuesDir).filter((f) => f.endsWith('.md')) } catch (e) { return [] } }
 
   // ① 建票带一条原话：写进正文、位置紧跟目的、写后核对那一步自报 ok。
-  const created = await createTool.run(execA, { title: '原话摆放票', body: purposeBody, originalWords: e1 })
+  const created = await createTool.run(execA, { title: '原话摆放票', body: purposeBody, kind: 'issue', originalWords: e1 })
   check(!!created && created.status === 'ok', '建票带原话回 ok（实得 ' + String(created && created.status) + '，说明 ' + String((created && created.text) || '').slice(0, 160) + '）')
   const cKey = String((created.data && created.data.ticket && created.data.ticket.key) || '')
   const cItem = ((created && created.items) || []).find((i: any) => i.step === 'text') || {}
@@ -200,17 +200,17 @@ async function main() {
 
   // ⑤ 建票带缺出处的原话：这张票不建（一个文件都不多）。
   const filesBefore = ticketFiles().length
-  const badCreate = await createTool.run(execA, { title: '不该建出来的票', originalWords: { text: '没有出处' } })
+  const badCreate = await createTool.run(execA, { title: '不该建出来的票', kind: 'issue', originalWords: { text: '没有出处' } })
   check(!!badCreate && badCreate.status !== 'ok', '建票带缺出处的原话被拒（实得 ' + String(badCreate && badCreate.status) + '）')
   check(ticketFiles().length === filesBefore, '被拒以后没有多建出票文件')
 
   // ⑥ 正文本来就超 60KB：建票直接拒绝，不写半截。
-  const bigCreate = await createTool.run(execA, { title: '超长正文带原话', body: '## 目的\n\n' + 'x'.repeat(62000), originalWords: e1 })
+  const bigCreate = await createTool.run(execA, { title: '超长正文带原话', body: '## 目的\n\n' + 'x'.repeat(62000), kind: 'issue', originalWords: e1 })
   check(!!bigCreate && bigCreate.status !== 'ok', '正文超过 60KB 时带原话建票被拒（实得 ' + String(bigCreate && bigCreate.status) + '）')
   check(ticketFiles().length === filesBefore, '超长正文被拒以后也没有多建出票文件')
 
   // ⑦ 进度与原话一起写：两块都落上，写后核对一次交代两块。
-  const bothTicket = await createTool.run(execA, { title: '进度与原话一起写的票', body: '## 目的\n\n一起写。\n' })
+  const bothTicket = await createTool.run(execA, { title: '进度与原话一起写的票', body: '## 目的\n\n一起写。\n', kind: 'issue' })
   const bothKey = String((bothTicket.data && bothTicket.data.ticket && bothTicket.data.ticket.key) || '')
   const e3 = { text: '一起写的原话', source: '文件:research/1089-progress-and-user-voice.md:1' }
   const both = await patchTool.run(execA, { key: bothKey, progress: { percent: 50, note: '一半' }, originalWords: e3 })

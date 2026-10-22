@@ -97,7 +97,7 @@ async function main() {
   const boomAll = { preflight: () => { throw new Error('探针故意做坏') }, list: () => { throw new Error('探针故意做坏') }, get: () => { throw new Error('探针故意做坏') }, create: () => { throw new Error('探针故意做坏') }, update: () => { throw new Error('探针故意做坏') }, comment: () => { throw new Error('探针故意做坏') } }
   const cases = [
     ['issue-report', 'src/deck/tools/issue-report.ts', 'createDeckIssueReport', { key: '7' }],
-    ['issue-create', 'src/deck/tools/issue-create.ts', 'createDeckIssueCreate', { title: '分家演练票' }],
+    ['issue-create', 'src/deck/tools/issue-create.ts', 'createDeckIssueCreate', { title: '分家演练票', kind: 'issue' }],
     ['context', 'src/deck/tools/context.ts', 'createDeckContext', {}],
     ['issue-patch', 'src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', { key: '7', comment: '分家演练' }],
   ]
