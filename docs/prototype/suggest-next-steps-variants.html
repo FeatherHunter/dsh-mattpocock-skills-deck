@@ -14,11 +14,12 @@
     推荐气泡浮在胶囊正上方，落在对话区与输入区之间的空当里，不改变对话区的高度。
 
   三个变体（?variant=A|B|C）：布局按反馈定为「一行居中的药丸」（B 基底），
-  三个变体比的是动画的多少与气质：
-    A 素 —— 只有最必要的小动作：药丸依次轻轻上浮、悬停时轻轻抬起、解释气泡淡入淡出。
-    B 稳 —— 在「素」之上加：胶囊上沿闪一下微光并荡开一圈涟漪、药丸逐颗带回弹地顶上来、
-            点中的那颗先闪一下再收掉、其余的错峰散开、关闭时整组上飘淡出、
-            解释气泡从小尖角那侧展开。
+  以 A 素为基底改，三个变体比的是动画的多少与气质：
+    A 素（基底）—— 一行居中的药丸，关闭按钮自己占一行居中放在药丸下面；
+            冒出来时胶囊上沿正中的圆点荡开一圈干净的水波，药丸从中心点向外冒出来；
+            点掉或关掉时只做简单的淡出。
+    B 稳 —— 在「素」之上加：水波变双圈、点中的那颗先闪一下再收掉、
+            其余的错峰散开、关闭时整组上飘淡出、解释气泡从小尖角那侧展开。
     C 活 —— 在「稳」之上再加：冒出来约一秒后轻轻呼吸两下、鼠标移开后解释气泡多留一会儿。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -109,19 +110,23 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .caret.c-right{border-bottom-color:transparent;border-left-color:transparent}
 
 /* ===================== 三个变体：都以 B 为基底（一行居中的药丸），比的是动画的多少与气质 ===================== */
-.vB{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;width:max-content;max-width:100%;margin:0 auto;animation:fadeRise .22s ease-out backwards}
+.vB{position:relative;width:max-content;max-width:100%;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:7px;animation:fadeRise .22s ease-out backwards}
+.vB .prow{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;max-width:100%}
+/* 关闭按钮自己占一行，居中放在药丸下面：平时不抢戏，找的时候一眼能找到 */
+.vB .xrow{display:flex;justify-content:center;width:100%}
 /* 药丸用正常字体：提示词未必是斜杠命令，也可能是一句普通的话（只有斜杠命令才用等宽字体） */
 .vB .pill{font-size:12.5px;line-height:1.5;color:#e6edf3;background:#151922;border:1px solid #333a47;border-radius:99px;padding:3px 12px;cursor:pointer;user-select:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform-origin:center bottom;animation:popIn .34s cubic-bezier(.2,.9,.3,1.45) backwards;animation-delay:var(--d,0ms);transition:transform .16s cubic-bezier(.2,.9,.3,1.35),border-color .16s,background .16s,box-shadow .16s}
 .vB .pill.cmd{font-family:var(--mono);font-size:12px}
 .vB .pill:hover{transform:translateY(-2px) scale(1.04);border-color:#5a7fb0;background:#1d2430}
-@keyframes popIn{0%{opacity:0;transform:translateY(10px) scale(.86)}60%{opacity:1;transform:translateY(-2px) scale(1.03)}100%{opacity:1;transform:none}}
+@keyframes popIn{0%{opacity:0;transform:translateY(12px) translateX(var(--dx,0px)) scale(.8)}60%{opacity:1;transform:translateY(-2px) scale(1.03)}100%{opacity:1;transform:none}}
 @keyframes fadeRise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-/* 冒出来的那一下：胶囊上沿闪一点微光，荡开一圈涟漪（轻的那一版不做） */
-.vB .ripple{position:absolute;left:50%;bottom:-11px;width:150px;height:32px;margin-left:-75px;border:1px solid rgba(192,132,252,.5);border-radius:50%;opacity:0;pointer-events:none;animation:ripple .72s ease-out forwards}
-.vB .dot{position:absolute;left:50%;bottom:-10px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--primary);box-shadow:0 0 12px 3px rgba(192,132,252,.55);opacity:0;pointer-events:none;animation:dotFlash .9s ease-out forwards}
-@keyframes ripple{0%{opacity:.6;transform:scale(.3)}100%{opacity:0;transform:scale(1.7)}}
-@keyframes dotFlash{0%{opacity:.9;transform:scale(.6)}40%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(.6)}}
-.vB.lvl-1 .ripple,.vB.lvl-1 .dot{display:none}
+/* 冒出来的那一下：胶囊上沿正中的圆点荡开干净的水波（素的那一版只有单圈） */
+.vB .dot{position:absolute;left:50%;bottom:-9px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#c084fc;box-shadow:0 0 10px 2px rgba(192,132,252,.5);opacity:0;pointer-events:none;animation:dotPure .9s ease-out forwards}
+.vB .ripple{position:absolute;left:50%;bottom:-19px;width:26px;height:26px;margin-left:-13px;border:1px solid rgba(192,132,252,.6);border-radius:50%;opacity:0;pointer-events:none;animation:ringPure .8s ease-out forwards}
+.vB .ripple.r2{animation-delay:.18s}
+.vB.lvl-1 .ripple.r2{display:none}
+@keyframes dotPure{0%{opacity:0;transform:scale(.4)}18%{opacity:.95;transform:scale(1)}55%{opacity:.6}100%{opacity:0;transform:scale(.7)}}
+@keyframes ringPure{0%{opacity:.75;transform:scale(.3)}100%{opacity:0;transform:scale(2.4)}}
 /* 点中的那颗：先闪一下再收掉 */
 .vB .pill.picked{animation:pickFlash .4s cubic-bezier(.2,.9,.3,1.3) forwards}
 @keyframes pickFlash{0%{transform:none}28%{transform:scale(1.14);border-color:#c084fc;background:#2a2140;box-shadow:0 0 0 5px rgba(192,132,252,.16)}100%{transform:scale(.9);opacity:0}}
@@ -139,7 +144,7 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 /* 活的那一版：点中的时候整组轻轻发光一下 */
 .vB.glow{animation:glow .5s ease-out forwards}
 @keyframes glow{0%{box-shadow:0 0 0 0 rgba(192,132,252,.45)}100%{box-shadow:0 0 0 16px rgba(192,132,252,0)}}
-.vB .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75;transform-origin:center bottom;animation:popIn .34s cubic-bezier(.2,.9,.3,1.45) backwards;animation-delay:var(--d,0ms);transition:opacity .16s,color .16s,border-color .16s}
+.vB .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75;animation:fadeRise .3s ease-out backwards;animation-delay:var(--d,0ms);transition:opacity .16s,color .16s,border-color .16s}
 .vB .close:hover{opacity:1;color:var(--text);border-color:var(--border2)}
 
 /* ===================== 原型自己的面板 ===================== */
@@ -272,7 +277,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px so
         <li>鼠标停在某个候选项上——解释气泡从小尖角那侧展开（它不会落到胶囊那一侧）。</li>
         <li>点其中一个——那颗先闪一下，提示词填进输入框，其余的错峰散开，整组消失（不替你发送）。</li>
         <li>再点一次「调一次新的一组」——第二组直接覆盖第一组。</li>
-        <li>点 × ——整组上飘淡出，等于一个都不选。</li>
+        <li>点药丸下面那一行单独的 × ——整组收走，等于一个都不选。</li>
         <li>点「重放冒出来的动画」——再看一次冒出来的动作。</li>
         <li>点「宽栏 / 窄栏」——看窄栏下换行会不会把气泡拆坏。</li>
       </ol>
@@ -319,18 +324,18 @@ var GROUPS = [
 /* 三个变体现在共用同一个基底（一行居中的药丸），比的是动画的多少与气质。 */
 var VARIANTS = {
   A: {
-    name: 'A — 素（最轻的动画）',
+    name: 'A — 素（基底）',
     level: 1,
-    idea: '一样是一行居中的药丸，只给最必要的动作：药丸依次轻轻上浮冒出来，悬停时轻轻抬起，解释气泡淡入淡出。点掉或关掉时直接淡出，不做多余表演。',
+    idea: '基底长这样：一行居中的药丸，关闭按钮自己占一行居中放在药丸下面；冒出来时胶囊上沿正中的圆点荡开一圈干净的水波，药丸从中心点向外一颗颗冒出来；点掉或关掉时只做简单的淡出。',
     tipSide: 'above',
     tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸。',
-    narrow: '这一行会换行成两行，每颗药丸不被拆开。',
+    narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
     cost: '安静是优点，但也可能让人没注意到它。'
   },
   B: {
-    name: 'B — 稳（推荐）',
+    name: 'B — 稳',
     level: 2,
-    idea: '在「素」之上加几个小动作：冒出来时胶囊上沿闪一下微光并荡开一圈涟漪；药丸逐颗带回弹地顶上来；点中的那颗先闪一下再收掉，其余的错峰散开；关闭时整组上飘淡出；解释气泡从小尖角那侧展开。',
+    idea: '在「素」之上加几个小动作：水波变成双圈；点中的那颗先闪一下再收掉，其余的错峰散开；关闭时整组上飘淡出；解释气泡从小尖角那侧展开。',
     tipSide: 'above',
     tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸；出现时从小尖角那侧张开。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开。',
@@ -348,7 +353,7 @@ var VARIANTS = {
 };
 
 var S = {
-  variant: 'B',
+  variant: 'A',
   narrow: false,
   groupIndex: -1,
   group: null,
@@ -486,13 +491,21 @@ function placeTip(anchor, prefer) {
 function isCmd(prompt) { return /^\s*\//.test(prompt); }
 function buildGroupHtml() {
   var items = S.group.items;
+  var n = items.length, c = (n - 1) / 2, maxD = 0;
   var html = '<div class="vB lvl-' + VARIANTS[S.variant].level + '">';
-  html += '<span class="ripple"></span><span class="dot"></span>';
-  for (var i = 0; i < items.length; i++) {
+  html += '<span class="ripple"></span><span class="ripple r2"></span><span class="dot"></span>';
+  html += '<div class="prow">';
+  for (var i = 0; i < n; i++) {
+    /* 从中心点往外冒：中间的先出，两边的依次跟上；两边的药丸带着一点从中心向外的位置 */
+    var d = Math.round(Math.abs(i - c) * 70);
+    var dx = Math.round((c - i) * 8);
+    if (d > maxD) maxD = d;
     var cls = 'pill' + (isCmd(items[i].prompt) ? ' cmd' : '');
-    html += '<div class="' + cls + '" data-i="' + i + '" style="--d:' + (i * 55) + 'ms">' + esc(items[i].prompt) + '</div>';
+    html += '<div class="' + cls + '" data-i="' + i + '" style="--d:' + d + 'ms;--dx:' + dx + 'px">' + esc(items[i].prompt) + '</div>';
   }
-  html += '<button class="close" title="关闭（等于一个都不选）" style="--d:' + (items.length * 55) + 'ms">×</button>';
+  html += '</div>';
+  /* 关闭按钮自己占一行，居中放在药丸下面，最后才淡入 */
+  html += '<div class="xrow"><button class="close" title="关闭（等于一个都不选）" style="--d:' + (maxD + 180) + 'ms">×</button></div>';
   html += '</div>';
   return html;
 }
@@ -558,8 +571,10 @@ function dismissGroup(kind, pickedEl, next) {
   if (!el) { S.group = (kind === 'replace' ? next : null); render(); return; }
   S.animating = true;
   el.classList.remove('breath');
+  /* 素的那一版退场只做简单的淡出；稳和活才做闪光散开、上飘这些 */
+  var lv = VARIANTS[S.variant].level;
   var dur = 200;
-  if (kind === 'pick' && pickedEl) {
+  if (kind === 'pick' && pickedEl && lv >= 2) {
     pickedEl.classList.add('picked');
     var others = el.querySelectorAll('.pill:not(.picked)');
     Array.prototype.forEach.call(others, function (p, i) {
@@ -568,7 +583,7 @@ function dismissGroup(kind, pickedEl, next) {
     });
     if (el.classList.contains('lvl-3')) el.classList.add('glow');
     dur = 430;
-  } else if (kind === 'close') {
+  } else if (kind === 'close' && lv >= 2) {
     el.classList.add('closing');
     dur = 320;
   } else {
