@@ -4,7 +4,7 @@
  * 为什么要有它（一句话）：宿主启动时要做两件事，一是把随包带的技能目录注册成一个高优先级的技能来源（盖过家目录里的旧副本），二是把技能名单与链条要的三项技能名惰性读出来，收在这里组装，调用点只按名取。
  *
  * 三条不能改的约定（改之前先看文件头原来那段注释与调用点 index.js）：
- * 1. 由 index.js 动态引用加载，依赖全显式传入（只有 ctx 一件），本文件不引用其它新文件，技能名单的真源是 shared/matt-skills.js，链条三项的真源是链目录视图。
+ * 1. 由 index.js 动态引用加载，依赖全显式传入（只有 ctx 一件），本文件不静态引用其它新文件（shared 的散文件只在用到时动态 import，读不到就回退），技能名单的真源是 shared/matt-skills.js，链条三项的真源是链目录视图。
  * 2. 随包来源的排序号固定写 350（家目录两档是 400 与 500，数字越小越优先），来源名固定写 bundled-mattpocock，改了旧副本就盖不住。
  * 3. 技能目录找不到时只记一行警告就退，不抛错，因为随包目录在某些安装形态下本来就不在。
  */
@@ -27,6 +27,12 @@ interface BootstrapDeps {
 export interface BootstrapPhones {
   getMattSkillProbeNames: () => Promise<string[]>
   getChainSkillNames: () => Promise<string[]>
+}
+
+/** /ask-matt 正文末尾要追加的规则节：skillName 管「拼给谁」，section 是要拼上去的原文。 */
+interface AskMattExtra {
+  skillName: string
+  section: string
 }
 
 /**
@@ -204,6 +210,14 @@ export function createBootstrap(deps: BootstrapDeps): BootstrapPhones {
                   // @ts-expect-error —— 见上，node:path 同理。
                   const dir: string = loc && loc.directory ? loc.directory : (await import('node:path')).dirname(p)
                   if (opts && opts.signal && opts.signal.aborted) throw opts.signal.reason
+                  // #1412：模型执行 /ask-matt 时读到的正文在这里定稿。上游原文照旧，只在归属技能是
+                  // ask-matt 时把插件追加的「推荐下一步」规则节拼到末尾。每次都从盘上原文重新拼，
+                  // 不在解析结果上累加，所以同一个技能反复读也不会把规则节叠两遍。
+                  let content: string = parsed.content
+                  const askMatt: AskMattExtra | null = await loadAskMattExtra()
+                  if (askMatt && parsed.name === askMatt.skillName) {
+                    content = (content ? String(content).replace(/\s+$/, '') + '\n\n' : '') + askMatt.section
+                  }
                   return {
                     name: parsed.name,
                     description: parsed.description,
@@ -213,7 +227,7 @@ export function createBootstrap(deps: BootstrapDeps): BootstrapPhones {
                     provider: PROVIDER_NAME,
                     resourceBase: { kind: 'directory', path: dir },
                     path: p,
-                    content: parsed.content
+                    content: content
                   }
                 } catch { return undefined }
               }
@@ -261,6 +275,22 @@ export function createBootstrap(deps: BootstrapDeps): BootstrapPhones {
         CHAIN_SKILL_NAMES = ['wayfinder', 'setup-matt-pocock-skills', 'ask-matt']
       }
       return CHAIN_SKILL_NAMES as string[]
+    }
+    // #1412 /ask-matt 的「推荐下一步」规则节：真源是 shared/ask-matt-next-steps.ts，上游
+    // package/bundled-skills/ask-matt/SKILL.md 一个字不动；只在 provider.get() 返回正文时拼到末尾。
+    // 读不到规则文件时回退成空：规则缺失不该让 /ask-matt 整体读不出来，技能正文照常返回。
+    let ASK_MATT_EXTRA: AskMattExtra | null = null
+    async function loadAskMattExtra(): Promise<AskMattExtra | null> {
+      if (ASK_MATT_EXTRA !== null) return ASK_MATT_EXTRA
+      try {
+        const m: any = await import('../shared/ask-matt-next-steps.js')
+        const skillName: string = String((m && m.ASK_MATT_SKILL_NAME) || '')
+        const section: string = String((m && m.ASK_MATT_NEXT_STEPS_SECTION) || '').trim()
+        if (skillName && section) ASK_MATT_EXTRA = { skillName: skillName, section: section }
+      } catch (e: unknown) {
+        // 不做内联兜底：这里没有第二份可信的规则原文，宁可这次不追加，也不能自己编一份。
+      }
+      return ASK_MATT_EXTRA
     }
   return { getMattSkillProbeNames, getChainSkillNames }
 }
