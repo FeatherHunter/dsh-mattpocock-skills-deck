@@ -7,7 +7,10 @@
  *   防分叉不靠导入，靠 tests/verify-cards-dir.ts 里那几条跨文件逐值比对。
  */
 export const PIXEL_CARDS_STYLE_TEXT: string[] = [
-  ':root{--cd-frame:#3a2c14;--cd-card:#f2e4c0;--cd-old:#e4d5b0;--cd-ink:#2b2113;--cd-ink2:#6b5b3e;--cd-shadow:#241a0c;--cd-gold:#e3a92f;--cd-map:#8b5cf6;--cd-ok:#0e8a16;--cd-sel:#0ea5e9;--cd-warn:#f59e0b;--cd-bad:#a3231a;--cd-dim:#9a8f78;--cd-paper:#fffdf4;--cd-take:#4a86c8;}',
+  // 深色投影用纯黑（2026-10-23 维护者问「深色版有办法能看到阴影吗」）：原来的 #241a0c 与页面炭灰底 #1e2023
+  // 明度几乎一样（对比 1.05:1），6px 硬投影在深色下等于没画；纯黑对 #1e2023 是 1.29:1，硬边看得见。
+  // 浅色那一组仍是 #241a0c（纸面上够用），两张皮肤只在各自主题下生效。
+  ':root{--cd-frame:#3a2c14;--cd-card:#f2e4c0;--cd-old:#e4d5b0;--cd-ink:#2b2113;--cd-ink2:#6b5b3e;--cd-shadow:#000000;--cd-gold:#e3a92f;--cd-map:#8b5cf6;--cd-ok:#0e8a16;--cd-sel:#0ea5e9;--cd-warn:#f59e0b;--cd-bad:#a3231a;--cd-dim:#9a8f78;--cd-paper:#fffdf4;--cd-take:#4a86c8;}',
   // #1380 浅色纸面：浅色下必须换一套的装饰色（棋盘底、点亮的墙格、红字、三种角标）先收成令牌。
   // 深色这一行就是原来写死在下面规则里的字面量，一个值、一个字节都没改；浅色覆盖靠它换色。
   ':root{--cd-stripe:#ddcda1;--cd-lit:#ffd97a;--cd-note:#8b241a;--cd-mark-bug:#d73a4a;--cd-mark-ready:#10b981;--cd-mark-doing:#2b62b0;}',
