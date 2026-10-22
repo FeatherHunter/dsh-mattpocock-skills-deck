@@ -15,9 +15,9 @@
 
   四个变体（?variant=A|B|C|D）：布局都是 A 素的基底（一行居中的药丸 + 关闭按钮单独一行在下），
   比的是特效的气质：
-    A 素（基底）—— 圆点单圈水波，药丸从中心点向外冒出来；退场只做简单的淡出。
+    A 素（基底）—— 药丸从中心点向外一颗颗冒出来；退场只做简单的淡出。
     B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
-    C 上浮小气泡 —— 药丸像气泡一样浮上来，圆点处冒出几个空心小泡；点中的往上飘走，其余下沉。
+    C 上浮小气泡 —— 药丸像气泡一样浮上来，每颗冒出来时从自己头顶吐两个小泡，悬停也吐；点中的往上飘走，其余下沉。
     D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -118,13 +118,6 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .vB .pill:hover{transform:translateY(-2px) scale(1.04);border-color:#5a7fb0;background:#1d2430}
 @keyframes popIn{0%{opacity:0;transform:translateY(12px) translateX(var(--dx,0px)) scale(.8)}60%{opacity:1;transform:translateY(-2px) scale(1.03)}100%{opacity:1;transform:none}}
 @keyframes fadeRise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-/* 冒出来的那一下：胶囊上沿正中的圆点荡开干净的水波（素的那一版只有单圈） */
-.vB .dot{position:absolute;left:50%;bottom:-9px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#c084fc;box-shadow:0 0 10px 2px rgba(192,132,252,.5);opacity:0;pointer-events:none;animation:dotPure .9s ease-out forwards}
-.vB .ripple{position:absolute;left:50%;bottom:-19px;width:26px;height:26px;margin-left:-13px;border:1px solid rgba(192,132,252,.6);border-radius:50%;opacity:0;pointer-events:none;animation:ringPure .8s ease-out forwards}
-.vB .ripple.r2{animation-delay:.18s}
-.vB.lvl-1 .ripple.r2{display:none}
-@keyframes dotPure{0%{opacity:0;transform:scale(.4)}18%{opacity:.95;transform:scale(1)}55%{opacity:.6}100%{opacity:0;transform:scale(.7)}}
-@keyframes ringPure{0%{opacity:.75;transform:scale(.3)}100%{opacity:0;transform:scale(2.4)}}
 /* 点中的那颗：先闪一下再收掉 */
 .vB .pill.picked{animation:pickFlash .4s cubic-bezier(.2,.9,.3,1.3) forwards}
 @keyframes pickFlash{0%{transform:none}28%{transform:scale(1.14);border-color:#c084fc;background:#2a2140;box-shadow:0 0 0 5px rgba(192,132,252,.16)}100%{transform:scale(.9);opacity:0}}
@@ -139,8 +132,8 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 /* 活的那一版：点中的时候整组轻轻发光一下 */
 .vB.glow{animation:glow .5s ease-out forwards}
 @keyframes glow{0%{box-shadow:0 0 0 0 rgba(192,132,252,.45)}100%{box-shadow:0 0 0 16px rgba(192,132,252,0)}}
-.vB .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75;animation:fadeRise .3s ease-out backwards;animation-delay:var(--d,0ms);transition:opacity .16s,color .16s,border-color .16s}
-.vB .close:hover{opacity:1;color:var(--text);border-color:var(--border2)}
+.vB .close{flex:none;background:transparent;border:0;color:#6b707b;font-size:13px;line-height:1;cursor:pointer;opacity:.6;padding:2px 10px;animation:fadeRise .3s ease-out backwards;animation-delay:var(--d,0ms);transition:opacity .16s,color .16s}
+.vB .close:hover{opacity:1;color:var(--text)}
 
 /* ============ B 果冻弹性：弹簧过冲入场 + 果冻晃动 + 压扁退场 ============ */
 /* 路子来自搜到的果冻按钮做法：按压缩小、回弹时横竖反向抖两下 */
@@ -153,7 +146,7 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .vB.deflate{animation:deflate .34s ease-in forwards}
 @keyframes deflate{to{opacity:0;transform:scale(.55,.7)}}
 
-/* ============ C 上浮小气泡：药丸像气泡一样浮上来 + 圆点冒出几个空心小泡 ============ */
+/* ============ C 上浮小气泡：药丸像气泡一样浮上来 + 每颗吐小泡 ============ */
 .vB.lvl-3 .pill{animation:bubbleRise .5s cubic-bezier(.2,.8,.3,1.1) backwards;animation-delay:var(--d,0ms)}
 @keyframes bubbleRise{0%{opacity:0;transform:translateY(18px) scale(.7)}100%{opacity:1;transform:none}}
 .vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(180,200,230,.5);border-radius:50%;opacity:0;pointer-events:none;animation:bubRise 1.4s ease-out forwards}
@@ -297,7 +290,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px so
     <div class="card">
       <h2>怎么走完整一趟</h2>
       <ol>
-        <li>底部条点「调一次新的一组」——气泡从胶囊上方冒出来（胶囊上沿闪一下微光，荡开一圈涟漪）。</li>
+        <li>底部条点「调一次新的一组」——气泡从胶囊上方冒出来（药丸从中心点向外一颗颗冒出来）。</li>
         <li>鼠标停在某个候选项上——解释气泡从小尖角那侧展开（它不会落到胶囊那一侧）。</li>
         <li>点其中一个——那颗先闪一下，提示词填进输入框，其余的错峰散开，整组消失（不替你发送）。</li>
         <li>再点一次「调一次新的一组」——第二组直接覆盖第一组。</li>
@@ -350,7 +343,7 @@ var VARIANTS = {
   A: {
     name: 'A — 素（基底）',
     level: 1,
-    idea: '基底长这样：一行居中的药丸，关闭按钮自己占一行居中放在药丸下面；冒出来时胶囊上沿正中的圆点荡开一圈干净的水波，药丸从中心点向外一颗颗冒出来；点掉或关掉时只做简单的淡出。',
+    idea: '基底长这样：一行居中的药丸，关闭按钮自己占一行居中放在药丸下面；药丸从中心点向外一颗颗冒出来；点掉或关掉时只做简单的淡出。',
     tipSide: 'above',
     tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
@@ -359,7 +352,7 @@ var VARIANTS = {
   B: {
     name: 'B — 果冻弹性',
     level: 2,
-    idea: '在「素」之上加果冻感：入场带弹簧过冲再横竖反向抖两下才定住；悬停时整颗晃一下；点中的那颗先压扁再弹出，其余的错峰散开；关闭时整组像泄气一样收掉；水波是双圈。',
+    idea: '在「素」之上加果冻感：入场带弹簧过冲再横竖反向抖两下才定住；悬停时整颗晃一下；点中的那颗先压扁再弹出，其余的错峰散开；关闭时整组像泄气一样收掉。',
     tipSide: 'above',
     tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸；出现时从小尖角那侧张开。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
@@ -368,7 +361,7 @@ var VARIANTS = {
   C: {
     name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「素」之上加梦幻感：药丸像气泡一样从下面浮上来，圆点处同时冒出几个空心小泡往上飘；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
+    idea: '在「素」之上加梦幻感：药丸像气泡一样从下面浮上来，每颗冒出来时从自己头顶吐两个小泡，悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
     tipSide: 'above',
     tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
@@ -526,7 +519,6 @@ function buildGroupHtml() {
   var items = S.group.items;
   var n = items.length, c = (n - 1) / 2, maxD = 0;
   var html = '<div class="vB lvl-' + VARIANTS[S.variant].level + '">';
-  html += '<span class="ripple"></span><span class="ripple r2"></span><span class="dot"></span>';
   html += '<div class="prow">';
   for (var i = 0; i < n; i++) {
     /* 从中心点往外冒：中间的先出，两边的依次跟上；两边的药丸带着一点从中心向外的位置 */
@@ -556,26 +548,40 @@ function renderVariant() {
 function startEntrance() {
   var el = $('sugg').firstElementChild;
   if (!el) return;
-  /* 「上浮小气泡」那一版：圆点处冒出几个空心小泡往上飘 */
+  /* 「上浮小气泡」那一版：每颗药丸冒出来时从自己头顶吐小泡 */
   if (el.classList.contains('lvl-3')) spawnBubbles(el);
 }
-/* 往组里撒几个空心小泡，从圆点的位置往上飘一段后消失 */
+/* 往组里吐一个空心小泡，从给定的位置往上飘一段后消失 */
+function spawnOne(el, x, bottom, delayMs) {
+  var s = document.createElement('span');
+  s.className = 'bub';
+  s.style.left = Math.round(x) + 'px';
+  s.style.bottom = Math.round(bottom) + 'px';
+  s.style.setProperty('--rz', Math.round(Math.random() * 40 - 20) + 'px');
+  s.style.animationDuration = (0.9 + Math.random() * 0.9).toFixed(2) + 's';
+  s.style.animationDelay = (delayMs || 0) + 'ms';
+  var sz = Math.round(4 + Math.random() * 6);
+  s.style.width = sz + 'px';
+  s.style.height = sz + 'px';
+  el.appendChild(s);
+  setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 2600);
+}
+/* 某颗药丸的中心点（相对于整组）：小泡就从这里吐出来 */
+function pillCenter(el, p) {
+  return {
+    x: p.offsetLeft + p.offsetWidth / 2,
+    b: el.offsetHeight - (p.offsetTop + p.offsetHeight / 2)
+  };
+}
+/* 每颗药丸冒出来时从自己头顶吐两个小泡，时间跟着这颗药丸的出场延迟走 */
 function spawnBubbles(el) {
-  for (var i = 0; i < 7; i++) {
-    (function () {
-      var s = document.createElement('span');
-      s.className = 'bub';
-      s.style.left = 'calc(50% + ' + Math.round(Math.random() * 120 - 60) + 'px)';
-      s.style.setProperty('--rz', Math.round(Math.random() * 40 - 20) + 'px');
-      s.style.animationDuration = (0.9 + Math.random() * 0.9).toFixed(2) + 's';
-      s.style.animationDelay = (Math.random() * 0.35).toFixed(2) + 's';
-      var sz = Math.round(4 + Math.random() * 7);
-      s.style.width = sz + 'px';
-      s.style.height = sz + 'px';
-      el.appendChild(s);
-      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 2600);
-    })();
-  }
+  var pills = el.querySelectorAll('.pill');
+  Array.prototype.forEach.call(pills, function (p) {
+    var c = pillCenter(el, p);
+    var d = parseInt(p.style.getPropertyValue('--d'), 10) || 0;
+    spawnOne(el, c.x - 6 + Math.random() * 12, c.b, d);
+    spawnOne(el, c.x - 6 + Math.random() * 12, c.b, d + 140);
+  });
 }
 
 /* ===================== 候选项的悬停与点击 ===================== */
@@ -587,6 +593,12 @@ function bindGroup() {
     el.addEventListener('mouseenter', function () {
       showTip(el, item.reason);
       say('悬停「' + item.prompt + '」→ 解释气泡浮出来（' + sideText(S.tipSide) + '）', true);
+      /* 气泡那一版：悬停时这颗药丸也吐一个小泡 */
+      var gel = host.firstElementChild;
+      if (gel && gel.classList.contains('lvl-3') && !S.animating) {
+        var c = pillCenter(gel, el);
+        spawnOne(gel, c.x, c.b, 0);
+      }
     });
     el.addEventListener('mouseleave', function () {
       /* 「上浮小气泡」那一版多留一会儿再收走 */
