@@ -16,7 +16,8 @@
 // 构建时生成的 src/shared/time-config/src/values.ts 里读，不在源码里写第二份数字。
 // 读法沿用 scripts/lib/copy-config.mts 的 readTimeValues（读生成物的文本、按行取数），
 // 不走 import：构建主流程里生成器跑在本文件被调用之后，静态 import 在刚检出的机器上会找不到文件。
-// 刚检出（生成物还不存在）时，本文件先现场跑一次生成器再读，构建第一次就能跑起来。
+// 刚检出（生成物还不存在）、或者生成物还是加锁之前的旧版本（文件在、但没有三档构建锁参数）时，
+// 本文件先现场跑一次生成器再读，构建第一次就能跑起来。
 //
 // 定时器一定 unref：拿锁等待与持锁心跳都不该拖住进程退出；心跳之外，构建主流程
 // 每个大阶段的边界会调一次 pulseBuildLock 同步刷新一次心跳（同步段里事件循环不转，
@@ -121,13 +122,41 @@ export function loadBuildLockTimes(repoRoot: string): BuildLockTimes {
   return { waitMs: out['BUILD_LOCK_WAIT_MS'], heartbeatMs: out['BUILD_LOCK_HEARTBEAT_MS'], staleMs: out['BUILD_LOCK_STALE_MS'] }
 }
 
-/** 生成物不存在时现场跑一次生成器（幂等：已存在就不跑，避免每次拿锁都多一次进程）。 */
+/** 三档参数在生成物里的常量名，与 scripts/generate-time-config.mts 的 KEYS 映射一一对应。 */
+const BUILD_LOCK_TIME_KEYS: readonly string[] = ['BUILD_LOCK_WAIT_MS', 'BUILD_LOCK_HEARTBEAT_MS', 'BUILD_LOCK_STALE_MS']
+
+/** 生成物里三档构建锁参数齐不齐：按生成物的固定格式逐行看，不 import（这是构建产物，源码里没有）。 */
+function hasBuildLockTimes(abs: string): boolean {
+  let text: string
+  try {
+    text = readFileSync(abs, 'utf8')
+  } catch {
+    return false
+  }
+  return BUILD_LOCK_TIME_KEYS.every((key) => new RegExp('^export const ' + key + ': number = -?\\d+', 'm').test(text))
+}
+
+/**
+ * 生成物不存在、或者存在但缺三档构建锁参数时，现场跑一次生成器（幂等：已存在且三键齐全就不跑，
+ * 避免每次拿锁都多一次进程）。
+ *
+ * 为什么「存在也要看键」：values.ts 是被 .gitignore 忽略的构建产物，升级过的工作区里一定还留着
+ * 上一版生成的旧文件。只判断文件存不存在的话，旧文件会被当成最新的用，拿锁时就报「YAML 里没写
+ * buildLockWaitMs」——而 YAML 里其实刚加过，真正要做的是把生成物重算一遍。合入构建锁后第一次
+ * 构建就会撞上，本机实测直接让构建主流程崩掉，所以这里必须按内容判断，不能只看文件在不在。
+ */
 function ensureTimeValues(repoRoot: string): void {
-  if (existsSync(join(repoRoot, 'src', 'shared', 'time-config', 'src', 'values.ts'))) return
+  const abs: string = join(repoRoot, 'src', 'shared', 'time-config', 'src', 'values.ts')
+  if (existsSync(abs) && hasBuildLockTimes(abs)) return
   const r = spawnSync(process.execPath, [join(repoRoot, 'scripts', 'generate-time-config.mts')], { encoding: 'utf8' })
-  if (r.status !== 0 || !existsSync(join(repoRoot, 'src', 'shared', 'time-config', 'src', 'values.ts'))) {
+  if (r.status !== 0 || !existsSync(abs)) {
     throw new Error('[build] 构建锁：中央时间参数的生成物不存在，现场生成也没成功——'
       + '请先跑一次 node scripts/generate-time-config.mts（' + String((r.stderr || r.stdout || '')).split(/\r?\n/)[0] + '）')
+  }
+  if (!hasBuildLockTimes(abs)) {
+    throw new Error('[build] 构建锁：时间参数生成物里没有三档构建锁参数——先确认 config/ 下的 timeouts.yaml、'
+      + 'intervals.yaml、ttl.yaml 写了 timeouts.buildLockWaitMs、intervals.buildLockHeartbeatMs、'
+      + 'ttl.buildLockStaleMs，再跑一次 node scripts/generate-time-config.mts')
   }
 }
 
