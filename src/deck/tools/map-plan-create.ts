@@ -16,14 +16,13 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { createMemoryPlanStore, createFilePlanStore, planCursorDir } from '../shell/plan-cursor.js'
-import { matchAnchor, isAnchorHit } from '../../shared/refresh/src/idempotency.js'
+import { readbackMapPlan } from './map-plan-readback.js'
+import { adoptAnchoredChildren, repairOrphanParents } from './map-plan-resume.js'
 import { applyParentEdge, applyBlockEdges, statusOfItems, childrenOf } from '../shell/edge-landing.js'
-import { ensureLabels, ensureBody, anchorKeyFor, MAP_BLOCK_TITLES } from '../shell/minimal-spec.js'
+import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 // #1413：子票的位置与标签口径只在 rules/object-kind.ts 那份位置表里写一份，这里照它收口，不再自带一套。
-import { resolveCreateKind, labelsToEnsure, isTypeLabel, MAP_TICKET_LABELS } from '../rules/object-kind.js'
+import { resolveCreateKind, MAP_TICKET_LABELS } from '../rules/object-kind.js'
 import type { CreateKindResolution } from '../rules/object-kind.js'
-// 「这张票有没有 ## 进度」用共享的进度区剥离判，别在这里再抄一条进度标题的正则。
-import { stripProgressSections } from '../../shared/issue-file/src/progress.js'
 import * as budget from '../../shared/refresh/src/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -326,27 +325,8 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       }
 
       // ①b 批量锚预检：一次列表把已建的子票认回来（命中就跳过创建）；拿不准就照常走，不挡事。
-      try {
-        const untouched = children.filter((ch) => !state.keys[String(ch.key)])
-        if (untouched.length) {
-          const all = await t.list(repo, { state: 'all' }, opCtx)
-          const rows = (all && all.ok === true && Array.isArray(all.data)) ? all.data : null
-          const cands = rows ? rows.filter((r: Record<string, unknown>) => r && typeof r.body === 'string').map((r: Record<string, unknown>) => ({ key: String(r.key), body: r.body, state: r.state })) : []
-          if (cands.length) {
-            for (const ch of untouched) {
-              let m = null
-              try { m = matchAnchor(cands, repo.refId, 'deck-plan-' + planId + '-child-' + String(ch.key)) } catch (eM) { m = null }
-              if (m && isAnchorHit(m)) {
-                // 命中那一支的形状（带 key）与没命中那一支（带 status / reason）编译器合不成一个，按类型断言取 key，取到的值一字不动。
-                state.keys[String(ch.key)] = String((m as { key?: string }).key)
-                state.done.push('child:' + String(ch.key))
-                items.push({ key: String((m as { key?: string }).key), role: 'child', planKey: String(ch.key), title: String(ch.title), status: 'ok', skipped: true })
-              }
-            }
-            await store.save(planId, state)
-          }
-        }
-      } catch (ePre) {}
+      // 认回本身住在 map-plan-resume.ts：发后端的次数、items 的文案和顺序都和拆之前逐字一致。
+      await adoptAnchoredChildren({ tracker: t, repo: repo, opCtx: opCtx, planId: planId, children: children, state: state, items: items, store: store })
 
       // ② 子票：按分片上限做这一片；已经建成的键跳过（这就是「续跑要跳过的键」）。
       // 这一片同时建（各子票互相独立；本地后端的取号落盘在房间的写者队列里串行，不会取重号）。
@@ -356,36 +336,8 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       // #1245：孤儿修复——已建跳过的子票若父边缺失（首次建后挂边前被掐断），在此补挂，不再建新票。
       // 为什么只修跳过的：待建的子票本次新建时自带 parentKey；跳过的已落盘但可能父票为空（快照按父票列时看不到它们）。
       // 判据只认写后读回的结构字段，读不回来就不修、不报错；剩余额度不够时也不修，等下一次带同 planId 再来。
-      if (skippedKeys.length && state.mapKey && !sc.outOfBudget()) {
-        const repairs = await Promise.all(skippedKeys.map(async (planKey) => {
-          const ticketKey = String(state.keys[String(planKey)] || '')
-          if (!ticketKey || sc.outOfBudget()) return null
-          let got = null
-          try { got = await t.get(repo, ticketKey, {}, opCtx) } catch (eGet) { got = null }
-          const lived = (got && (got as { ok?: unknown }).ok === true) ? ((got as { data?: unknown }).data as Record<string, unknown> | null) : null
-          const liveParent = lived ? String((lived as Record<string, unknown>).parentKey ?? '') : ''
-          if (!lived || liveParent === String(state.mapKey)) return null
-          try {
-            const r = await applyParentEdge(t, repo, opCtx, ticketKey, state.mapKey)
-            return { planKey: planKey, ticketKey: ticketKey, item: (r as { item?: unknown }).item, applied: !!(r as { applied?: unknown }).applied }
-          } catch (eRep) { return null }
-        }))
-        let repaired = 0
-        for (const r of repairs) {
-          if (!r) continue
-          if (r.applied) {
-            repaired += 1
-            state.done.push('repaired-parent:' + String(r.planKey))
-            items.push(Object.assign({ role: 'edge', planKey: String(r.planKey) }, (r.item as Record<string, unknown> || {})))
-          } else if (r.item) {
-            items.push(Object.assign({ role: 'edge', planKey: String(r.planKey) }, (r.item as Record<string, unknown>)))
-          }
-        }
-        if (repaired) {
-          notes.push('续跑时补挂了 ' + repaired + ' 张孤儿票的父边（首次建后挂边前被掐断留下的）：' + skippedKeys.slice(0, 8).join('、') + '。')
-          await store.save(planId, state)
-        }
-      }
+      // 补挂本身住在 map-plan-resume.ts：发后端的次数、items 与 notes 的文案和顺序都和拆之前逐字一致。
+      await repairOrphanParents({ tracker: t, repo: repo, opCtx: opCtx, planId: planId, skippedKeys: skippedKeys, state: state, items: items, notes: notes, store: store, outOfBudget: () => sc.outOfBudget() })
       const shard = pending.slice(0, est.perShard)
       let restKeys = pending.slice(est.perShard).map((ch) => String(ch.key))
       const made = await Promise.all(shard.map(async (ch) => {
@@ -502,77 +454,14 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       // ④b 建后读回核对（#1413）：张数对上只说明计数没错，类型标签、父票与 ## 进度还得落到盘上才算对。
       // 地图读一次；子票用上面按父票列出来的那一批逐张核，不另发列表调用，所以 claimed 仍按估算报。
       // 读不回来就如实说「这次没核对」，不硬判失败；核出问题记进 items（failed），结论自然落到 partial。
-      if (state.mapKey && !sc.outOfBudget()) {
-        const problems: string[] = []
-        let mapRow: Record<string, unknown> | null = null
-        try {
-          const gotMap = await t.get(repo, state.mapKey, {}, opCtx)
-          mapRow = (gotMap && (gotMap as { ok?: unknown }).ok === true) ? (((gotMap as { data?: unknown }).data as Record<string, unknown> | null) || null) : null
-        } catch (eGetMap) { mapRow = null }
-        const mapBody = mapRow ? String(mapRow.body || '') : ''
-        if (!mapRow) {
-          notes.push('建后读回核对：地图票 ' + state.mapKey + ' 没读回来，这次没核对（不判失败）。')
-        } else {
-          const heads = MAP_BLOCK_TITLES.map((h) => mapBody.indexOf('## ' + h))
-          const missingHeads = MAP_BLOCK_TITLES.filter((h, i) => heads[i] < 0)
-          if (missingHeads.length) problems.push('地图缺五节里的：' + missingHeads.join('、'))
-          if (stripProgressSections(mapBody) === mapBody) problems.push('地图没有 ## 进度')
-          const at = mapBody.search(/^##\s*进度\s*$/m)
-          const knownHeads = heads.filter((i) => i >= 0)
-          if (at >= 0 && knownHeads.length && at < Math.max.apply(null, knownHeads)) problems.push('地图的 ## 进度没有排在五节之后')
-        }
-        const rows = Array.isArray(liveRows) ? (liveRows as Record<string, unknown>[]) : []
-        const rowByKey = new Map<string, Record<string, unknown>>()
-        for (const row of rows) if (row && row.key !== undefined && row.key !== null) rowByKey.set(String(row.key), row)
-        // 只有读回来的正文是「整份文件」时才核 Type 行：本地 Markdown 房把整个文件当正文回，文件头除了
-        // 幂等锚还会多出 parentKey 与 created 两行注释、正文里有 Status/Labels/Type 字段行；远端房这两行
-        // 文件头注释不会落进正文（父边走原生边），正文也就没有 Type 行可核。这里按读回数据的形状判断，
-        // 不按后端身份分支 —— 工具层不许拿后端 id 做判断（verify-deck-tools 的静态扫描就查这个）。
-        const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:parentKey|created)\s*:/m.test(text)
-        let checkedTypeLine = false
-        for (const ch of children) {
-          const planKey = String(ch.key)
-          const ticketKey = String(state.keys[planKey] || '')
-          const resolved = childKinds.get(planKey)
-          if (!ticketKey || !resolved || !resolved.ok) continue
-          const row = rowByKey.get(ticketKey)
-          if (!row) { problems.push('子票「' + planKey + '」（票号 ' + ticketKey + '）没按父票列出来'); continue }
-          const childBody = String(row.body || '')
-          const names = (Array.isArray(row.labels) ? row.labels : []).map((x) => {
-            return (typeof x === 'string') ? x : String((x && (x as { name?: unknown }).name) || '')
-          }).filter(Boolean)
-          const lower = names.map((n) => String(n).toLowerCase())
-          const expected = labelsToEnsure(resolved.kind, resolved.label)
-          const missingLabels = expected.filter((n) => lower.indexOf(String(n).toLowerCase()) < 0)
-          if (missingLabels.length) problems.push('子票「' + planKey + '」缺标签：' + missingLabels.join('、'))
-          const wantType = expected.filter((n) => isTypeLabel(n)).length
-          const gotType = names.filter((n) => isTypeLabel(n)).length
-          if (gotType !== wantType) problems.push('子票「' + planKey + '」有 ' + gotType + ' 枚类型标签（应为 ' + wantType + ' 枚）')
-          if (String(row.parentKey || '') !== String(state.mapKey)) problems.push('子票「' + planKey + '」的父票是「' + String(row.parentKey || '') + '」（应为地图 ' + state.mapKey + '）')
-          if (stripProgressSections(childBody) === childBody) problems.push('子票「' + planKey + '」没有 ## 进度')
-          if (looksLikeWholeFile(childBody)) {
-            checkedTypeLine = true
-            const typeRows = childBody.match(/^\s*Type\s*[：:].*$/gm) || []
-            if (resolved.kind === 'map-ticket') {
-              const bare = String(resolved.label || '').replace(/^wayfinder:/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-              const want = new RegExp('^\\s*Type\\s*[：:]\\s*' + bare + '\\s*$', 'im')
-              if (!want.test(childBody)) problems.push('子票「' + planKey + '」的 Type 行不是 ' + bare + '（实得 ' + typeRows.join(' / ').slice(0, 60) + '）')
-            } else if (typeRows.length) {
-              problems.push('子票「' + planKey + '」不该有 Type 行（实得 ' + typeRows.join(' / ').slice(0, 60) + '）')
-            }
-          }
-        }
-        if (problems.length) {
-          notes.push('建后读回核对有 ' + problems.length + ' 处没对上：' + problems.slice(0, 4).join('；') + (problems.length > 4 ? '；…' : '') + '。以盘上为准，别按计划数字往下走。')
-          for (const one of problems.slice(0, 8)) items.push({ key: '', role: 'verify', status: 'failed', reason: one })
-        } else if (mapRow && liveRows) {
-          notes.push('建后读回核对通过：地图五节与 ## 进度齐；' + Object.keys(state.keys).length + ' 张子票的父票、类型标签、## 进度' + (checkedTypeLine ? '与 Type 行' : '') + '都对。')
-        } else {
-          notes.push('建后读回核对：地图读回来了，但子票没按父票列出来（' + String(picked.note || '后端没给出原因') + '），这次没核对子票。')
-        }
-      } else if (sc.outOfBudget()) {
-        notes.push('建后读回核对：剩余额度不够，这次没核对。')
-      }
+      // 核对本身住在 map-plan-readback.ts（六十多行，拆出去只为把本文件压回 350 行有效行以内）：
+      // 发后端的次数、notes 与 items 的文案和先后顺序都和拆之前逐字一致。
+      const readback = await readbackMapPlan({
+        tracker: t, repo: repo, opCtx: opCtx, mapKey: state.mapKey, outOfBudget: sc.outOfBudget(),
+        liveRows: liveRows, pickedNote: picked.note, children: children, childKinds: childKinds, keys: state.keys,
+      })
+      for (const one of readback.notes) notes.push(one)
+      for (const one of readback.items) items.push(one)
 
       // #746：地图票直达命名守护（调用会话即建号会话；子票走既有索引轮询分配；hook 不影响返回）。
       try { if (typeof d.onTicketCreated === 'function' && state.mapKey) await d.onTicketCreated({ sessionId: s.sessionId, key: String(state.mapKey), title: title }) } catch (eHook) {}
