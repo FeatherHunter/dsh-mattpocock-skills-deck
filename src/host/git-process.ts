@@ -8,7 +8,7 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel } from '../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields } from '../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound/admission.js'
 import { getChainRide } from './refresh/chain-ride.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -192,6 +192,8 @@ export function createRepoKeys(deps: RepoKeysDeps) {
     //   repoAccess / ghAuth）。从前函数只认前两位、多传的第三个被丢掉，宿主那一路的 gh.exec 行
     //   因此全是不带 via 的空格（2026-10-20 一天 51,564 行），事后分不出探测、面板读、改票各占多少。
     async function runGh(args: string[], cwd: string, via?: string): Promise<GhCallResult> {
+      // #1375：gh 的 -F 会把纯数字 owner 发成 JSON 数字，GraphQL 的 String! 直接拒收；出站前归一成 -f。
+      args = normalizeGhStringFields(args)
       const ghT0 = Date.now()
       // #1003 契约（2026-10-12 维护者拍板）：拿不到工作区目录时如实失败，不许拿进程目录顶上——
       //   gh 命令会按工作区解析仓库身份（`gh repo view`、`gh api` 等），落到别人的目录就是在错的仓库上读或写。
