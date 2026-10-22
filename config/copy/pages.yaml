@@ -49,8 +49,9 @@ zh:
   chainView.openTip: 打开宿主记下的这张票
   chainView.capsuleDoing: 在办
   chainView.capsuleListTitle: 当前会话处理记录
-  chainView.capsuleHeaderLine1: 工作路线 · 本会话 {n} 条 · {time} 更新
-  chainView.capsuleHeaderLine2: 本工作区另有 {x} 个会话在办 {y} 条
+  chainView.capsuleHeaderTitle: 工作路线
+  chainView.capsuleHeaderOwn: 本会话 {n} 条
+  chainView.capsuleHeaderOthers: 另有 {x} 个会话在办 {y} 条
   chainView.capsuleStale: 陈旧
   chainView.titleMissing: 标题未取到
   chainView.action.create: 建票
@@ -120,8 +121,9 @@ en:
   chainView.openTip: Open this ticket as the host recorded it
   chainView.capsuleDoing: working on
   chainView.capsuleListTitle: Current session activity
-  chainView.capsuleHeaderLine1: Work route · this session {n} · updated {time}
-  chainView.capsuleHeaderLine2: "{x} other sessions working on {y} in this workspace"
+  chainView.capsuleHeaderTitle: Work route
+  chainView.capsuleHeaderOwn: this session {n}
+  chainView.capsuleHeaderOthers: "{x} other sessions, {y} entries"
   chainView.capsuleStale: stale
   chainView.titleMissing: title unavailable
   chainView.action.create: opened a ticket

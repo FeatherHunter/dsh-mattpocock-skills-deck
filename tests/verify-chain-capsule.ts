@@ -11,7 +11,7 @@
 //   C 折叠让位表没被动过（还是 12 段）与环境段那条词条已经落了。
 //   D 同一份读数：胶囊判据与面板在办表读的是同一格（与 workRouteTableOf 对拍，不另抄一份期望值）。
 //   E 地图那一条：认身份换图标，文字通道仍留号（#780）。
-//   F #1263 两行 head、420 宽、跨天与陈旧标记。
+//   F #1404 表头单行：左右两簇、四段词条、两枚发丝线，外加 420 宽、跨天与陈旧标记。
 // 【2026-10-12 清理】原先 B、C 两组里还有一批读文件文本钉形状的断言，断言对象都是
 //   文件文本，按维护者「清掉读源码文本钉形状的门禁」的要求撤掉，逐条说明留在各组的注释里。
 import { readFileSync, existsSync } from 'node:fs'
@@ -327,82 +327,234 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
   check(!!plainRow && String(plainRow.p['aria-label']).indexOf('type.map') < 0, '普通票那行不冒充地图')
 }
 
-console.log('F) #1263 two-line header plus width, cross-day and stale')
+console.log('F) #1404 表头单行：左右两簇、四段词条、两枚发丝线与尺寸契约')
 {
   const nowMs = Date.now()
-  // 「一小时前」在本地时间 0 点到 1 点之间会落到昨天，而下面断言这一行在同一个日历日内只显示时和分；
-  // 夹具落到昨天时组件会改显示「月-日 时:分」，断言就会在凌晨跑门禁时假红。这里把「就近」夹在今天之内：
-  // 一天刚开始时取今天 0 点，其余时刻仍取一小时前，既保住「这是最近的一条」的含义，也不受运行时刻影响。
+  // 「一小时前」在本地时间 0 点到 1 点之间会落到昨天，而推断这次只要求「最近一条是今天」；
+  //   夹具落到昨天时表头时间会改显示「月-日 时:分」，断言就会在凌晨跑门禁时假红。这里把「就近」夹在今天之内。
   const startOfToday = new Date(nowMs)
   startOfToday.setHours(0, 0, 0, 0)
   const freshAt = Math.max(startOfToday.getTime(), nowMs - 60 * 60 * 1000)
   const staleAt = nowMs - 25 * 60 * 60 * 1000
-  const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
-  const trCalls = []
-  const tr = function (k, params) { trCalls.push({ k: k, params: params }); return String(k) + (params ? ' ' + JSON.stringify(params) : '') }
-  const built = loadCap({
-    React: { createElement: h, useContext: function () { return { h: h } }, useRef: function (v) { return { current: v } }, useState: function () { return [null, function () {}] } },
-    tr: tr,
-  })
+  const pad2 = function (n: any) { return (n < 10 ? '0' : '') + String(n) }
+  const freshDay = new Date(freshAt)
+  const freshHHmm = pad2(freshDay.getHours()) + ':' + pad2(freshDay.getMinutes())
+  const h = function (t: any, p: any) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
+  // 表头四段给真中文词条（切段函数按 {name} 占位符切原文，所以这里给的是带占位符的原文）；其余词条回键名。
+  const WORDS: any = {
+    'chainView.capsuleHeaderTitle': '工作路线',
+    'chainView.capsuleHeaderOwn': '本会话 {n} 条',
+    'chainView.capsuleHeaderOthers': '另有 {x} 个会话在办 {y} 条',
+    'chainView.readAtFull': '{time} 更新',
+  }
+  const trFor = function (calls: any[]) {
+    return function (k: any, params: any) {
+      calls.push({ k: String(k), params: params })
+      let s = (WORDS[k] !== undefined) ? String(WORDS[k]) : String(k)
+      if (params) s = s.replace(/\{(\w+)\}/g, function (m: any, name: any) { return (name in params) ? String(params[name]) : m })
+      return s
+    }
+  }
+  const ReactStub = { createElement: h, useContext: function () { return { h: h } }, useRef: function (v: any) { return { current: v } }, useState: function () { return [null, function () {}] } }
+  const textsOf = function (n: any): any[] {
+    const out: any[] = []
+    const walk = function (x: any) {
+      if (x === null || x === undefined) return
+      if (typeof x === 'string' || typeof x === 'number') { out.push(String(x)); return }
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      if (typeof x === 'object') { const kids = childrenOf(x); for (let i = 0; i < kids.length; i++) walk(kids[i]) }
+    }
+    walk(n)
+    return out
+  }
+  const nodesOf = function (n: any, tag: any): any[] {
+    const out: any[] = []
+    const walk = function (x: any) {
+      if (x === null || x === undefined) return
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      if (typeof x !== 'object') return
+      if (x.t === tag) out.push(x)
+      const kids = childrenOf(x)
+      for (let i = 0; i < kids.length; i++) walk(kids[i])
+    }
+    walk(n)
+    return out
+  }
+  // 假 h 的 children 是「按参数原样装进 c」，传数组时会多一层嵌套；真 React 会拍平。
+  //   这里按真 React 的语义把数组拍平，只留元素节点（字符串也留，后面对段文字还要用）。
+  const childrenOf = function (n: any): any[] {
+    const out: any[] = []
+    const walk = function (x: any) {
+      if (x === null || x === undefined) return
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      out.push(x)
+    }
+    const raw = n ? (Array.isArray(n.c) ? n.c : n.children) : null
+    const kids = Array.isArray(raw) ? raw : []
+    for (let i = 0; i < kids.length; i++) walk(kids[i])
+    return out
+  }
+  const elementOf = function (n: any, text: any): any {
+    let hit: any = null
+    const walk = function (x: any) {
+      if (hit || x === null || x === undefined) return
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      if (typeof x !== 'object') return
+      const kids = childrenOf(x)
+      for (let i = 0; i < kids.length; i++) if (typeof kids[i] === 'string' && kids[i] === text) { hit = x; return }
+      for (let i = 0; i < kids.length; i++) walk(kids[i])
+    }
+    walk(n)
+    return hit
+  }
+  const findMenu = function (n: any): any {
+    let found: any = null
+    const walk = function (x: any) {
+      if (found || x === null || x === undefined || typeof x !== 'object') return
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      if (x.overlay === true) { found = x; return }
+      const kids = childrenOf(x)
+      for (let i = 0; i < kids.length; i++) walk(kids[i])
+    }
+    walk(n)
+    return found
+  }
+  const isHeaderNode = function (n: any) {
+    return !!n && typeof n === 'object' && n.p && n.p.style && n.p.style.fontSize === 11 && n.p.style.padding === '2px 8px'
+  }
+  const stringStyle = function (n: any) { return (n && n.p && n.p.style) ? n.p.style : {} }
+  const hairInfoOf = function (svg: any, hh: any) {
+    const sp = (svg && svg.p) ? svg.p : {}
+    const grads = nodesOf(svg, 'linearGradient')
+    const g: any = grads[0]
+    const stops = childrenOf(g).filter(function (s: any) { return s && s.t === 'stop' })
+    const lines: any[] = nodesOf(svg, 'rect').concat(nodesOf(svg, 'line'))
+    const lineHit = lines.filter(function (l: any) {
+      const lp = l.p || {}
+      const thick = lp.width === 1 || lp.strokeWidth === 1
+      const tall = lp.height === hh || (lp.y1 === 0 && lp.y2 === hh)
+      return thick && tall
+    })[0] || null
+    const fillRef = lines.filter(function (l: any) {
+      const lp = l.p || {}
+      const paint = String(lp.fill || lp.stroke || '')
+      return paint.indexOf('url(#') === 0
+    }).length > 0
+    return {
+      w: sp.width, h: sp.height,
+      hidden: sp['aria-hidden'] === true || String(sp['aria-hidden']) === 'true',
+      userSpace: !!g && g.p.gradientUnits === 'userSpaceOnUse',
+      stopCount: stops.length,
+      peak: stops.length === 3 ? Number(stops[1].p.stopOpacity) : NaN,
+      currentColor: stops.length > 0 && stops.every(function (s: any) { return s.p.stopColor === 'currentColor' }),
+      lineHit: !!lineHit,
+      fillRef: fillRef,
+    }
+  }
+
+  // 一、本会话两条（最近一条在今天内），别的会话两个、共三条 → 表头两簇齐全
+  const trCalls: any[] = []
+  const built = loadCap({ React: ReactStub, tr: trFor(trCalls) })
   const st = { snapshot: { workRouteTable: tableFor([
     entryOf('951', { title: 'fresh', actionAt: new Date(freshAt).toISOString() }),
     entryOf('950', { title: '', actionAt: new Date(staleAt).toISOString() }),
     entryOf('800', { title: 'other', sessionLabel: 'sess-other', currentSession: false, actionAt: new Date(freshAt).toISOString() }),
+    entryOf('801', { title: 'other2', sessionLabel: 'sess-other', currentSession: false, actionAt: new Date(freshAt).toISOString() }),
+    entryOf('802', { title: 'other3', sessionLabel: 'sess-third', currentSession: false, actionAt: new Date(freshAt).toISOString() }),
   ]) }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
   const open = built.SessionChainCapsule({ st: st, sid: 's1' })
-  let menuNode = null
-  ;(function find(n) {
-    if (!n || menuNode) return
-    if (Array.isArray(n)) { n.forEach(find); return }
-    if (typeof n !== 'object') return
-    if (n.overlay === true) { menuNode = n; return }
-    ;(n.c || []).forEach(find)
-    ;(n.children || []).forEach(find)
-  })(open)
+  const menuNode: any = findMenu(open)
   check(!!menuNode, 'menu opens')
-  const style = (menuNode && menuNode.props && menuNode.props.style) || {}
-  check(style.width === 420 && style.maxWidth === 420 && style.maxHeight === 380, 'popover width 420 and max height 380')
-  const line1 = trCalls.filter(function (c) { return c.k === 'chainView.capsuleHeaderLine1' })[0]
-  check(!!line1 && line1.params && line1.params.n === 2 && typeof line1.params.time === 'string' && /^\d{2}:\d{2}$/.test(line1.params.time), 'line one carries own count 2 plus local HH:mm')
-  const line2 = trCalls.filter(function (c) { return c.k === 'chainView.capsuleHeaderLine2' })[0]
-  check(!!line2 && line2.params && line2.params.x === 1 && line2.params.y === 1, 'line two counts other sessions')
-  const texts = []
-  ;(function walk(n) {
-    if (n === null || n === undefined) return
-    if (typeof n === 'string') { texts.push(n); return }
-    if (Array.isArray(n)) { n.forEach(walk); return }
-    if (typeof n === 'object') { (n.c || []).forEach(walk); (n.children || []).forEach(walk) }
-  })(menuNode)
-  const staleWordHit = texts.some(function (s) { return s.indexOf('chainView.capsuleStale') >= 0 })
+  const menuStyle: any = (menuNode && menuNode.props && menuNode.props.style) || {}
+  check(menuStyle.width === 420 && menuStyle.maxWidth === 420 && menuStyle.maxHeight === 380, 'popover width 420 and max height 380')
+  const menuKids: any[] = childrenOf(menuNode)
+  check(!!menuKids[0] && menuKids[0].t === 'div', '表头是弹层里的第一个节点')
+  const headerNodes = menuKids.filter(isHeaderNode)
+  check(headerNodes.length === 1, '表头只有一个节点（不再有上下两行）')
+  const head: any = headerNodes[0]
+  const hs: any = stringStyle(head)
+  check(hs.display === 'flex' && hs.alignItems === 'center' && hs.justifyContent === 'space-between', '表头是一行两端对齐的 flex 行')
+  check(hs.whiteSpace === 'nowrap', '表头整行不换行')
+  check(hs.gap === 8, '两簇间距 8px')
+  check(hs.fontSize === 11 && hs.lineHeight === '18px' && hs.padding === '2px 8px', '字号 11px、行高 18px、上下内边距 2px（单行总高 22px）')
+  check(head.p.tabIndex === undefined && head.p.role === undefined && head.p.onClick === undefined && head.p.onMouseEnter === undefined && head.p.onMouseLeave === undefined, '表头不可聚焦、不可点、没有悬停反馈')
+
+  const clusters: any[] = childrenOf(head).filter(function (n: any) { return !!n && typeof n === 'object' && n.t })
+  check(clusters.length === 2, '表头分成左右两簇')
+  const left: any = clusters[0]
+  const right: any = clusters[1]
+  const leftStyle: any = stringStyle(left)
+  const rightStyle: any = stringStyle(right)
+  check(leftStyle.display === 'inline-flex' && leftStyle.alignItems === 'center' && leftStyle.gap === 6, '左簇是簇内间距 6px 的横向行')
+  check(leftStyle.flex === 'none', '左簇不收缩')
+  check(rightStyle.display === 'inline-flex' && rightStyle.alignItems === 'center' && rightStyle.gap === 6, '右簇是簇内间距 6px 的横向行')
+  check(String(rightStyle.flex || '').indexOf('1') >= 0 && String(rightStyle.flex || '').indexOf('auto') >= 0, '右簇允许收缩（放不下时收窄）')
+  const rightText = childrenOf(right).filter(function (n: any) { return !!n && typeof n === 'object' && n.t === 'span' })[0]
+  check(!!rightText && stringStyle(rightText).overflow === 'hidden' && stringStyle(rightText).textOverflow === 'ellipsis' && stringStyle(rightText).whiteSpace === 'nowrap', '右簇放不下时以省略号收尾')
+
+  const leftTexts = textsOf(left)
+  check(leftTexts[0] === '工作路线', '左簇头一段是短标题「工作路线」')
+  const titleNode: any = elementOf(left, '工作路线')
+  check(String(stringStyle(titleNode).fontWeight) === '600', '「工作路线」用半粗字重')
+  check(leftTexts.join('') === '工作路线本会话 2 条' + freshHHmm + ' 更新', '左簇依次是标题、本会话条数、更新时间（实得 ' + leftTexts.join('') + '）')
+  const ownNum: any = elementOf(left, '2')
+  check(!!ownNum && String(stringStyle(ownNum).fontVariantNumeric) === 'tabular-nums' && typeof stringStyle(ownNum).color === 'string', '本会话条数用等宽数字且比说明文字亮一档')
+
+  const svgs: any[] = nodesOf(head, 'svg')
+  check(svgs.length === 2, '表头里有两枚内联 SVG 发丝线')
+  const innerHair: any = svgs.filter(function (s: any) { const si = hairInfoOf(s, 15); return si.w === 7 && si.h === 15 })[0]
+  const groupHair: any = svgs.filter(function (s: any) { const si = hairInfoOf(s, 17); return si.w === 6 && si.h === 17 })[0]
+  check(!!innerHair && !!groupHair, '内部那枚 7×15、组间那枚 6×17')
+  const innerInfo = hairInfoOf(innerHair, 15)
+  check(innerInfo.hidden, '内部发丝线从无障碍树里隐藏')
+  check(innerInfo.userSpace && innerInfo.stopCount === 3 && innerInfo.currentColor && innerInfo.lineHit && innerInfo.fillRef, '内部发丝线是 1px 竖线、渐变按 userSpaceOnUse 从透明到峰值再到透明、颜色跟随当前文字色')
+  check(Math.abs(innerInfo.peak - 0.62) < 0.001, '内部线峰值不透明度约 62%')
+  const groupInfo = hairInfoOf(groupHair, 17)
+  check(groupInfo.hidden, '组间发丝线从无障碍树里隐藏')
+  check(groupInfo.userSpace && groupInfo.stopCount === 3 && groupInfo.currentColor && groupInfo.lineHit && groupInfo.fillRef, '组间发丝线同样是 1px 竖线、userSpaceOnUse 渐隐、颜色跟随当前文字色')
+  check(Math.abs(groupInfo.peak - 0.78) < 0.001, '组间线峰值不透明度约 78%')
+
+  const rightTexts = textsOf(right)
+  check(rightTexts.join('') === '另有 2 个会话在办 3 条', '右簇是一整句「另有 2 个会话在办 3 条」（实得 ' + rightTexts.join('') + '）')
+  const xNum: any = elementOf(right, '2')
+  const yNum: any = elementOf(right, '3')
+  check(!!xNum && !!yNum && String(stringStyle(xNum).fontVariantNumeric) === 'tabular-nums' && String(stringStyle(yNum).fontVariantNumeric) === 'tabular-nums', '右簇两个数字也用等宽数字')
+
+  const callOf = function (key: string) { return trCalls.filter(function (c: any) { return c.k === key })[0] }
+  check(!!callOf('chainView.capsuleHeaderTitle'), '短标题词条被调用')
+  check(!!callOf('chainView.capsuleHeaderOwn'), '本会话条数词条被调用')
+  const timeCall: any = callOf('chainView.readAtFull')
+  check(!!timeCall && !!timeCall.params && timeCall.params.time === freshHHmm, '更新时间复用「{time} 更新」词条并带上本地时钟')
+  check(!!callOf('chainView.capsuleHeaderOthers'), '「另有 …」词条被调用')
+  check(!trCalls.some(function (c: any) { return c.k === 'chainView.capsuleHeaderLine1' || c.k === 'chainView.capsuleHeaderLine2' }), '两行表头的老词条不再被调用')
+
+  const texts = textsOf(menuNode)
+  const staleWordHit = texts.some(function (s: any) { return s.indexOf('chainView.capsuleStale') >= 0 })
   check(staleWordHit, 'rows older than 24h carry the stale marker')
-  const datedHit = texts.some(function (s) { return /\d{2}-\d{2} \d{2}:\d{2}/.test(s) })
+  const datedHit = texts.some(function (s: any) { return /\d{2}-\d{2} \d{2}:\d{2}/.test(s) })
   check(datedHit, 'cross-day rows carry month-day plus time')
-  const rowNodes = []
-  ;(function walkRows(n) {
-    if (n === null || n === undefined) return
-    if (Array.isArray(n)) { n.forEach(walkRows); return }
-    if (typeof n === 'object' && n.overlay) { (n.children || []).forEach(walkRows); return }
-    if (typeof n === 'object') {
-      if (n.p && typeof n.p.className === 'string' && n.p.className.indexOf('dsws-chainmenu-row') >= 0) { rowNodes.push(n); return }
-      ;(n.c || []).forEach(walkRows)
-    }
-  })(open)
+  const rowNodes = menuKids.filter(function (n: any) { return !!n && typeof n === 'object' && n.p && typeof n.p.className === 'string' && n.p.className.indexOf('dsws-chainmenu-row') >= 0 })
   check(rowNodes.length === 2, 'only current session rows are listed')
-  const staleAria = rowNodes.some(function (r) { return String(r.p['aria-label'] || '').indexOf('chainView.capsuleStale') >= 0 })
+  const staleAria = rowNodes.some(function (r: any) { return String(r.p['aria-label'] || '').indexOf('chainView.capsuleStale') >= 0 })
   check(staleAria, 'stale marker also reaches the accessible name')
-}
-{
-  // 单条记录、没有别的会话 → 第二行 head 不出现（#1263 原纪律）。
-  const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
-  const seen = []
-  const tr = function (k) { seen.push(String(k)); return String(k) }
-  const built = loadCap({
-    React: { createElement: h, useContext: function () { return { h: h } }, useRef: function (v) { return { current: v } }, useState: function () { return [null, function () {}] } },
-    tr: tr,
-  })
-  const st = { snapshot: { workRouteTable: tableFor([entryOf('951', { title: 'solo' })]) }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
-  built.SessionChainCapsule({ st: st, sid: 's1' })
-  check(seen.indexOf('chainView.capsuleHeaderLine2') < 0, 'no other sessions means no second line')
+
+  // 二、只有本会话一条、没有别的会话 → 右簇与组间那枚线都不渲染，表头仍是一行高
+  const soloCalls: any[] = []
+  const soloBuilt = loadCap({ React: ReactStub, tr: trFor(soloCalls) })
+  const soloSt = { snapshot: { workRouteTable: tableFor([entryOf('951', { title: 'solo', actionAt: new Date(freshAt).toISOString() })]) }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
+  const soloOpen = soloBuilt.SessionChainCapsule({ st: soloSt, sid: 's1' })
+  const soloMenu: any = findMenu(soloOpen)
+  const soloKids: any[] = childrenOf(soloMenu)
+  const soloHeaders = soloKids.filter(isHeaderNode)
+  check(soloHeaders.length === 1, '没有别的会话时表头仍只有一个节点')
+  const soloHead: any = soloHeaders[0]
+  const soloClusters: any[] = childrenOf(soloHead).filter(function (n: any) { return !!n && typeof n === 'object' && n.t })
+  check(soloClusters.length === 1, '没有其他会话时右簇不渲染')
+  check(textsOf(soloHead).join('') === '工作路线本会话 1 条' + freshHHmm + ' 更新', '只剩左簇三段（实得 ' + textsOf(soloHead).join('') + '）')
+  const soloSvgs: any[] = nodesOf(soloHead, 'svg')
+  check(soloSvgs.length === 1 && hairInfoOf(soloSvgs[0], 15).w === 7 && hairInfoOf(soloSvgs[0], 15).h === 15, '没有其他会话时只剩内部那枚 7×15 发丝线')
+  check(!soloCalls.some(function (c: any) { return c.k === 'chainView.capsuleHeaderOthers' }), '没有其他会话时不调用「另有 …」词条')
+  check(stringStyle(soloHead).lineHeight === '18px' && stringStyle(soloHead).padding === '2px 8px', '表头恒为一行高（18 + 2 + 2 = 22px）')
 }
 
 console.log(failed ? '\n存在失败' : '\n全部通过')
