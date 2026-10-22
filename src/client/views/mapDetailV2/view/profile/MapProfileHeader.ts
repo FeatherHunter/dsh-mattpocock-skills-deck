@@ -77,10 +77,14 @@ export function MapProfileHeader(props: any): any {
       h('div', { key: 'txt', style: { flex: 1, minWidth: 0 } },
         (typeof mdToHtml === 'function' ? mdToHtml(profile.destination, { st: st }) : profile.destination)),
     ])
-    : h('div', { className: 'm2v2-dest m2v2-dest-empty' }, [
-      h('span', { key: 'ic', className: 'm2v2-dest-ic' }, Ic({ n: 'target', size: 12 })),
-      h('span', { key: 'txt' }, tr('list.noDest')),
-    ])
+    // 规格没有「目的地」这一节（规格正文是问题、方案、用户故事、实现决策那些），所以不画「未填写」的样子：
+    // 探索地图缺目的地时仍要提示一句，让写图的人知道这格该填。
+    : (profile.kind === 'spec'
+      ? null
+      : h('div', { className: 'm2v2-dest m2v2-dest-empty' }, [
+        h('span', { key: 'ic', className: 'm2v2-dest-ic' }, Ic({ n: 'target', size: 12 })),
+        h('span', { key: 'txt' }, tr('list.noDest')),
+      ]))
 
   return h('section', { className: 'm2v2-profile' }, [
     h('div', { key: 'id', className: 'm2v2-id' }, [
