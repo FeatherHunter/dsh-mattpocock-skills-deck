@@ -348,7 +348,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
                 // 这次宁可报失败，让调用方等能读回再写，或改传整段 body。
                 if (base === null) bodyProblem = '旧正文没读回来，不敢拿半截正文覆盖：这次正文没写，等能读回旧正文再写（若急用，改传整段 body）。'
                 // 进度区要追加到正文里，先按最小骨架补出「## 进度」；原话区不补（它的位置规则自己管）。
-                else beforeBase = progressEntry ? ensureBody(base, 'task').body : base
+                else beforeBase = progressEntry ? ensureBody(base, 'issue').body : base
               }
               // #1091：两块一起点时按「先进度、再原话」组合（组合规则住在 body-write）。
               // strictRoundTrip 只在「不是整份替换」那一路打开：传了整段 body 时后端会套标题、

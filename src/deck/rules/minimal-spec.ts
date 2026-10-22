@@ -13,14 +13,13 @@
 // 纯在哪：只做字符串与数组的计算，不取会话、不起进程、不读写文件、不读钟；进来的值
 // 一律当「形状不可信」先收口（收口函数与类型都在本文件里，不引别的目录）。
 // 例外是 src/shared/ 下的纯计算包：规格 / 实施票的判定与共享标记包共用一份，不在两侧各写一遍（#1277）。
-import { labelsToEnsure, ruleForName, type PositionKind } from './object-kind.js'
+import { labelsToEnsure, ruleFor, type PositionKind } from './object-kind.js'
 
 /** 票的种类（deck_issue_create 的 kind 参数与各工具的写路径共用这一套词）。
  *
  *  #1403 起六个位置值：地图 / 地图工单 / 规格 / 实施票 / 缺陷 / 普通票。取值与「这个位置在三种后端
- *  各是什么」的唯一答案在 object-kind.ts；这里只沿用旧名字 DeckKind，免得调用方跟着改名，
- *  但它的取值已经交给那张位置表。旧值 task / ticket 仍被认（映射到地图工单 / 实施票），
- *  只给还没迁移的调用点（地图骨架工具的子票）用，建票工具收到旧值会拒绝。 */
+ *  各是什么」的唯一答案在 object-kind.ts；这里只沿用旧名字 DeckKind，免得调用方跟着改名。
+ *  旧值 task / ticket 不再被认：调用点已全部改用新值（#1403 不保留兼容期）。 */
 export type DeckKind = PositionKind
 
 /** 拿不准是不是字符串时统一收口成字符串：不是字符串就当空串（调用方各自判空）。 */
@@ -99,7 +98,7 @@ export function ensureBody(body: unknown, kind: string): { body: string; added: 
   const text = typeof body === 'string' ? body : ''
   const added: string[] = []
   let out = text
-  const rule = ruleForName(kind)
+  const rule = ruleFor(kind)
   if (rule && rule.mapBlocks) {
     const missing = missingMapBlocks(text)
     if (missing.length) {

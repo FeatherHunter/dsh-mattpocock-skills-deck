@@ -25,7 +25,7 @@ export { MAP_BLOCK_TITLES, ensureBody, ensureLabels, isWholeIssueBody } from './
 export type { ContractType, CreateKindResolution, ObjectKindRule, ParentRule, PositionKind } from './object-kind.js'
 export {
   MAP_TICKET_LABELS, OBJECT_KIND_RULES, POSITION_KINDS, TYPE_LABELS,
-  isTypeLabel, labelsToEnsure, ruleFor, ruleForName, resolveCreateKind, typeLabelIn,
+  isTypeLabel, labelsToEnsure, ruleFor, resolveCreateKind, typeLabelIn,
 } from './object-kind.js'
 
 // —— 边的落点判定 ——

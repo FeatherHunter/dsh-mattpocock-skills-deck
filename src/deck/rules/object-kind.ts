@@ -88,30 +88,11 @@ export const OBJECT_KIND_RULES: Readonly<Record<PositionKind, ObjectKindRule>> =
   }),
 })
 
-/**
- * 旧词到新位置的对照：只给还没迁移的调用点与写侧读旧值时用。
- * 地图骨架工具 deck_map_plan_create 的子票从 #1413 起改用 map-ticket / bug / issue 三个位置值，不再走这张表；
- * 建票工具**不**走它：收到旧值要拒绝并给出迁移路径，见 resolveCreateKind。
- */
-const LEGACY_NAME_TO_KIND: Readonly<Record<string, PositionKind>> = Object.freeze({
-  task: 'map-ticket',
-  ticket: 'spec-ticket',
-})
-
 /** 按位置值取那一行；认不出的名字回 null（调用方自己决定是拒绝还是当没有）。 */
 export function ruleFor(kind: unknown): ObjectKindRule | null {
   const k = String(kind === undefined || kind === null ? '' : kind).trim()
   const rule = OBJECT_KIND_RULES[k as PositionKind]
   return rule || null
-}
-
-/** 按名字取那一行，旧值 task / ticket 也认（映射到新的位置），供未迁移的调用点与写侧共用。 */
-export function ruleForName(kind: unknown): ObjectKindRule | null {
-  const rule = ruleFor(kind)
-  if (rule) return rule
-  const k = String(kind === undefined || kind === null ? '' : kind).trim()
-  const mapped = LEGACY_NAME_TO_KIND[k]
-  return mapped ? OBJECT_KIND_RULES[mapped] : null
 }
 
 /** 这枚标签是不是类型标签（六枚之一）。大小写不敏感：GitHub 的标签名不分大小写。 */
@@ -138,13 +119,10 @@ export function typeLabelIn(labels: unknown): string {
 /**
  * 这一类建票时要补的标签（按顺序）。
  * 地图工单补的就是 label 那一枚，不再另补第二枚类型标签；issue 一枚都不补 —— 兜底就是原样透传。
- * 旧值 task / ticket 在这里各给一套老标签，让还没迁移的调用点行为不变。
+ * 旧值 task / ticket 从 #1403 起不再认：按位置表取不到就一枚也不补，由调用方拒绝（见 resolveCreateKind）。
  */
 export function labelsToEnsure(kind: unknown, label?: unknown): string[] {
-  const k = String(kind === undefined || kind === null ? '' : kind).trim()
-  if (k === 'task') return ['wayfinder:task']
-  if (k === 'ticket') return ['ready-for-agent']
-  const rule = ruleFor(k)
+  const rule = ruleFor(kind)
   if (!rule) return []
   if (rule.kind === 'map-ticket') {
     const one = String(label === undefined || label === null ? '' : label).trim()

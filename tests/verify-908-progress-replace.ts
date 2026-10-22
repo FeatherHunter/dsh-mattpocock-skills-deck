@@ -85,7 +85,7 @@ async function main() {
   check(countProgressHeaders(outF) === 1, 'F 空正文：进度标题恰好一条')
 
   // 历史教训 1：补正文也要认带百分比的标题，否则先补一段再换一段，越修越多。
-  const ensured = ensureBody('## 进度：80%\nold\n', 'task')
+  const ensured = ensureBody('## 进度：80%\nold\n', 'issue')
   check(ensured.added.length === 0, '补正文认带百分比的标题：不再重复追加进度区')
   check(countProgressHeaders(ensured.body) === 1, '补正文认带百分比的标题：正文里进度标题仍是一条')
 

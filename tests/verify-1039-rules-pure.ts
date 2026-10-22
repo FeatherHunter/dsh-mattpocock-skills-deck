@@ -39,22 +39,24 @@ async function minimalSpec() {
   const ms = await imp('src/deck/rules/minimal-spec.ts')
   console.log('— 强制最小规范')
 
-  // 必备标签：地图、任务、缺陷三种各有各的；已经有的不重复加，大小写不同也算已经有。
+  // 必备标签：地图、地图工单、缺陷三种各有各的；已经有的不重复加，大小写不同也算已经有。
   const map = ms.ensureLabels([], 'map')
   check(map.labels.includes('wayfinder:map') && map.added.includes('wayfinder:map'), '地图票补上 wayfinder:map 并如实说补了什么')
-  const task = ms.ensureLabels(['wayfinder:task'], 'task')
-  check(task.added.length === 0 && task.labels.length === 1, '旧值 task 仍按地图工单补 wayfinder:task（地图骨架的未迁移调用点靠它）')
+  const task = ms.ensureLabels(['wayfinder:task'], 'map-ticket', 'wayfinder:task')
+  check(task.added.length === 0 && task.labels.length === 1, '地图工单的 label 就是那一枚类型标签：已有就不再补')
+  const legacyName = ms.ensureLabels([], 'task')
+  check(legacyName.added.length === 0 && legacyName.labels.length === 0, '旧值 task 不再按旧映射补标签（#1403 不保留兼容期）')
   const bug = ms.ensureLabels([{ name: 'BUG' }], 'bug')
   check(bug.added.includes('needs-triage') && !bug.added.includes('bug'), '缺陷票补 needs-triage；大小写不同的 bug 算已经有')
   const odd = ms.ensureLabels(undefined, '认不出的种类')
   check(odd.added.length === 0 && odd.labels.length === 0, '认不出的种类不猜标签：一枚都不补，也不抛错（#1403 起不再回落 task）')
 
   // 进度区：没有就补一段；已经有了（含带百分比的标题）就不再补。
-  const added = ms.ensureBody('## Question\n\nx\n', 'task')
-  check(added.added.includes('## 进度') && countProgressHeaders(added.body) === 1, '任务票没有进度区时补一段')
-  const kept = ms.ensureBody('## 进度：80%\nold\n', 'task')
+  const added = ms.ensureBody('## Question\n\nx\n', 'map-ticket')
+  check(added.added.includes('## 进度') && countProgressHeaders(added.body) === 1, '地图工单没有进度区时补一段')
+  const kept = ms.ensureBody('## 进度：80%\nold\n', 'map-ticket')
   check(kept.added.length === 0 && countProgressHeaders(kept.body) === 1, '已经有带百分比的进度标题时不再补')
-  const empty = ms.ensureBody('', 'task')
+  const empty = ms.ensureBody('', 'map-ticket')
   check(countProgressHeaders(empty.body) === 1 && empty.body.indexOf('## 进度') === 0, '空正文也补一段进度，且不留下开头的空行')
 
   // 地图：五个区块缺哪个补哪个，进度区随后补在五节之后（#1403 起所有位置值都补进度）。
