@@ -84,6 +84,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1407-next-steps-reminders': 87,
   'verify-suggest-next-steps': 105,
   'verify-1412-ask-matt-next-steps': 48,
+  // 2026-10-23 #1409：界面借会话事件流取数通路（两叶子 + 源码守卫）；113 条是单跑实测得出的。
+  'verify-1409-suggest-stream': 113,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
