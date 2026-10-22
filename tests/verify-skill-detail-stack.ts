@@ -1,14 +1,18 @@
 // tests/verify-skill-detail-stack.ts —— 详情栈的门禁（2026-10-10 人拍板：详情里点开另一篇就压一层，最多三层）
 // 用法：在插件根目录执行 node tests/verify-skill-detail-stack.ts，可独立运行（jsdom + 真实 React，不联网）。
 //
-// 守四件事：
+// 守五件事：
 //   1) 压栈与栈顶别名：打开一篇是一层，st.pixelDetail 恒等于栈顶（外面原来的读法不用改）。
 //   2) 从详情里点开另一篇：正文里写到的、随包真有的技能名（`/grill-with-docs`）做成可点入口，点一下压一层；
 //      当前这一篇自己的名字不做入口；外层没接 onOpenSkill 时一个假入口都不做（反证）。
 //   3) 三层上限：开第四层时把**最深**那层挤掉，栈深恒不超过三。
 //   4) 关一层回到上一层，关完回列表；被挤掉那层迟到的读数不许再动界面。
+//   5) 浅色皮肤（#1378）：像素家族的深色令牌原样住在 :root，浅色只在宿主没挂深色标记时
+//      于 .pixel-tab 上换一组 A 纸面便签令牌，装饰色全部走 --pixel-* 令牌；色值写错、
+//      深色值被挪进浅色选择器、装饰色写回裸值都会在最后一段报红。
 //
-// 反证：最后一段把 onOpenSkill 摘掉，同一套断言必须看出「没有可点入口」；改坏压栈或挤掉逻辑，前两段会红。
+// 反证：把 onOpenSkill 摘掉，「没有可点入口」必须成立；改坏压栈或挤掉逻辑，前两段会红。
+//   浅色那一段另有两组内存反例（删掉浅色覆盖 / 改错一个浅色令牌），必须同样报红。
 import { JSDOM } from 'jsdom'
 import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
@@ -19,6 +23,9 @@ import vm from 'node:vm'
 //   它按构建唯一口径把 .ts 真源转成可直接拼接的 JavaScript（中央时间 import 行与行首 export 都已处理），
 //   拼进 vm 的仍是同一段运行期代码，断言一条没动。
 import { spliceableJs } from './lib/source-text.ts'
+// 2026-10-22（#1378 浅色皮肤）：本门禁现在还兼管 skillDetail 目录下那块像素皮肤的浅色令牌，
+//   判据读的就是样式真源本身（PIXEL_STYLE_TEXT），见文件末尾「浅色皮肤」那一节。
+import { PIXEL_STYLE_TEXT } from '../src/client/views/skillDetail/PixelStyles.ts'
 
 // 2026-10-17 先修：这两片像素叶子在加载时读中央时间常量 SKILL_SKELETON_DELAY_MS（#1215 引入，
 //   真源 src/shared/time-config/values.js，构建时由 buildTimeConfigClientFragment() 注入闭包）。
@@ -121,6 +128,127 @@ await act(async () => { root.render(React.createElement(Comp, { st: bare, full: 
 if (pending['grill-me']) { const r = pending['grill-me']; delete pending['grill-me']; r({ ok: true, md: '用 `/grill-with-docs` 打磨设计文档', path: 'C:/x/a.md' }) }
 await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs'] })); await new Promise((r) => setTimeout(r, 20)) })
 check(container.querySelectorAll('code.pixel-skillref').length === 0, '反证：没接 onOpenSkill 时不做假入口')
+
+// ==== 浅色皮肤（#1378）：像素家族——深色原值不动，浅色换成 A 纸面便签 ====
+// 判据只看样式文本本身，不看渲染：色值写错、深色值被挪进浅色选择器、装饰色又写回裸值，都会报红。
+// 先跑真文本（必须全过），再把同一段文本在内存里变坏两次，同一套判据必须报红——证明这扇门能红也能绿。
+const PIXEL_CSS = PIXEL_STYLE_TEXT.join('')
+// 深色（也就是今天的外观）逐条原值。改这里等于改了深色外观，所以逐条钉死。
+const PIXEL_DARK_TOKENS = [
+  ['--pixel-frame', '#3a2c14'], ['--pixel-paper', '#f2e4c0'], ['--pixel-card', '#fffdf4'],
+  ['--pixel-ink', '#2b2113'], ['--pixel-acc', '#8b5cf6'], ['--pixel-stripe', '#ddcda1'],
+]
+// 浅色（A 纸面便签）定版值：纸面、卡片、描边、字、强调深绿，以及浅色棋盘的两种纸色。
+const PIXEL_LIGHT_TOKENS = [
+  ['--pixel-frame', '#3a2c14'], ['--pixel-paper', '#f6f1e6'], ['--pixel-card', '#fffdf8'],
+  ['--pixel-ink', '#221d15'], ['--pixel-ink2', '#6f6252'], ['--pixel-acc', '#15803d'],
+  ['--pixel-ok', '#15803d'], ['--pixel-warn', '#b45309'], ['--pixel-bad', '#b91c1c'],
+  ['--pixel-stripe', '#e7ddc8'], ['--pixel-tab1', '#efe8d9'], ['--pixel-tab2', '#e7ddc8'],
+]
+// 这些是深色原值里浅色绝不会用到的：出现在浅色覆盖里，就说明有人把深色令牌挪了过去。
+const PIXEL_DARK_ONLY = ['#f2e4c0', '#fffdf4', '#2b2113', '#6b5b3e', '#8b5cf6', '#ddcda1', '#e3a92f', '#ffe1a1', '#5b3df0', '#e8d9ae', '#0e8a16', '#a3231a']
+// 已经收进 --pixel-* 令牌的装饰色：令牌定义那几行剥掉之后，规则体里不该再有这些裸值。
+const PIXEL_BARE_DECOR = ['#93764f', '#8a6f4d', '#d9f2dc', '#fbe3e1', '#fdf0d3', '#9a6a00', '#c9503f', '#9a8f78', '#efe8fb', '#e3a92f', '#241a0c', '#f2e4c0', '#0e8a16']
+
+// 把一段像素样式文本按浅深两套的判据过一遍，返回不通过的原因（空数组＝全过）。
+// 抽成函数只为一件事：下面的反例要在内存里把同一段文本变坏，再用同一套判据跑一遍。
+function pixelLightProblems(css: string): string[] {
+  const out: string[] = []
+  // 1) 基础 :root 令牌仍是今天的深色原值（深色零变化的底线）。
+  const rootBlocks = (css.match(/:root\{[^}]*\}/g) || []).join('')
+  if (!rootBlocks) out.push('找不到基础 :root 令牌')
+  for (const pair of PIXEL_DARK_TOKENS) {
+    if (rootBlocks.indexOf(pair[0] + ':' + pair[1]) < 0) out.push('深色令牌 ' + pair[0] + ' 不再是 ' + pair[1])
+  }
+  // 2) 浅色覆盖有且只有一组，且只挂在宿主的深色标记上（面板里不许自造开关）。
+  const marks = css.match(/body:not\(\[data-ds-dark-theme\]\)/g) || []
+  if (marks.length !== 1) out.push('浅色覆盖只该有一组（实得 ' + marks.length + ' 组）')
+  const light = css.match(/body:not\(\[data-ds-dark-theme\]\) \.pixel-tab\s*\{([^}]*)\}/)
+  if (!light) {
+    out.push('缺少 body:not([data-ds-dark-theme]) .pixel-tab 这一组浅色覆盖')
+  } else {
+    const decl = light[1]
+    for (const pair of PIXEL_LIGHT_TOKENS) {
+      if (decl.indexOf(pair[0] + ':' + pair[1]) < 0) out.push('浅色令牌 ' + pair[0] + ' 该是定版值 ' + pair[1])
+    }
+    // 浅色那一组只许写 --pixel-* 令牌：多写一条普通属性，就是在浅色下另起一套结构。
+    for (const one of decl.split(';')) {
+      const chip = one.trim()
+      if (chip !== '' && !/^--pixel-[a-z0-9-]+:[^;]+$/.test(chip)) out.push('浅色覆盖里混进了不是令牌的写法：' + chip)
+    }
+    for (const val of PIXEL_DARK_ONLY) {
+      if (decl.toLowerCase().indexOf(val) >= 0) out.push('深色原值 ' + val + ' 被挪进了浅色覆盖（浅色该是一套新值）')
+    }
+  }
+  if (/data-(?!ds-dark-theme)[a-z-]*theme/.test(css)) out.push('出现了宿主深色标记以外的主题标记（面板不许自造开关）')
+  if (css.indexOf('prefers-color-scheme') >= 0) out.push('出现 prefers-color-scheme：深浅只认宿主标记，不猜系统主题')
+  // 3) 裸色检查：装饰色收进令牌后，规则体里不该再有直接写死的色值。令牌定义那几行先剥掉再扫。
+  const rulesOnly = css.replace(/:root\{[^}]*\}/g, '').replace(/body:not\(\[data-ds-dark-theme\]\) \.pixel-tab\s*\{[^}]*\}/g, '')
+  for (const raw of PIXEL_BARE_DECOR) {
+    if (rulesOnly.toLowerCase().indexOf(raw) >= 0) out.push('规则体里还有裸装饰色 ' + raw + '（该走 --pixel-* 令牌）')
+  }
+  if (/#fff(?![0-9a-f])/i.test(rulesOnly)) out.push('规则体里还有裸的白色字（该走 --pixel-acc-ink）')
+  // 4) 浅色下必须真的看得到：棋盘与棋盘上的分组标题都得走令牌，不能再写死纸色。
+  if (!/\.pixel-tab\{[^}]*var\(--pixel-tab1\)/.test(css)) out.push('.pixel-tab 的棋盘没用 --pixel-tab1')
+  if (!/\.pixel-tab\{[^}]*var\(--pixel-tab2\)/.test(css)) out.push('.pixel-tab 的棋盘没用 --pixel-tab2')
+  if (!/\.pixel-tab \.dsws-grp\{[^}]*color:var\(--pixel-tab-ink\)/.test(css)) out.push('.pixel-tab .dsws-grp 的字色没用 --pixel-tab-ink（浅色棋盘上会看不见）')
+  // 5) 两条硬线：全仓同值点白名单锁着的那一处警告色只能有一份；容器身份色一处都不许碰。
+  if (css.split('--pixel-warn:#f59e0b').length - 1 !== 1) out.push('--pixel-warn:#f59e0b 该有且只有一处（verify-container-colors 的白名单锁着它）')
+  if (/#1d4ed8/i.test(css)) out.push('出现了容器身份蓝 #1d4ed8（全仓零容忍，链接请用 #2563eb）')
+  if (/#c084fc/i.test(css)) out.push('出现了探索地图身份紫 #c084fc（全仓零容忍）')
+  return out
+}
+
+// 纸面上的字要看得清：把浅色令牌里的几对前景/背景真算一遍对比度（WCAG 的算法，正文线 4.5:1）。
+function pixelLum(hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+}
+function pixelContrast(a: string, b: string): number {
+  const la = pixelLum(a), lb = pixelLum(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+const pixelProblems = pixelLightProblems(PIXEL_CSS)
+check(pixelProblems.length === 0, '浅色皮肤：深色令牌原样、浅色是定版纸面、装饰色全走令牌' + (pixelProblems.length ? '\n    不过 ' + pixelProblems.length + ' 条：\n      ' + pixelProblems.join('\n      ') : ''))
+
+// 反例 a：把浅色覆盖整段删掉 —— 同一套判据必须报红（只在内存里改文本，不落盘）
+const noLightCss = PIXEL_CSS.replace(/body:not\(\[data-ds-dark-theme\]\) \.pixel-tab\s*\{[^}]*\}/, '')
+const noLightProblems = pixelLightProblems(noLightCss)
+check(noLightCss !== PIXEL_CSS && noLightProblems.length > 0, '反例 a：删掉浅色覆盖 → 判据报红（' + noLightProblems.length + ' 条：' + noLightProblems.slice(0, 2).join('；') + '）')
+
+// 反例 b：把一个浅色令牌值改成深色原值 —— 同一套判据必须报红
+const wrongToneCss = PIXEL_CSS.replace('--pixel-paper:#f6f1e6', '--pixel-paper:#f2e4c0')
+const wrongToneProblems = pixelLightProblems(wrongToneCss)
+check(wrongToneCss !== PIXEL_CSS && wrongToneProblems.length > 0, '反例 b：把一个浅色令牌值改错 → 判据报红（' + wrongToneProblems.length + ' 条：' + wrongToneProblems.slice(0, 2).join('；') + '）')
+
+// 浅色纸面上的对比度：真算一遍，不凭眼睛。正文与次要字走 4.5:1 那条线；
+// 强调绿在浅色里只当图形元素用（列表圆点、星号、块引用左边框、悬停描边），按 WCAG 1.4.11 的 3:1 判。
+{
+  const lightDecl = (PIXEL_CSS.match(/body:not\(\[data-ds-dark-theme\]\) \.pixel-tab\s*\{([^}]*)\}/) || ['', ''])[1]
+  const valOf = function (name: string): string {
+    const m = lightDecl.match(new RegExp(name + ':(#[0-9a-fA-F]{6})'))
+    return m ? m[1].toLowerCase() : ''
+  }
+  const groups = [
+    { line: 4.5, pairs: [['ink/paper', '--pixel-ink', '--pixel-paper'], ['ink2/card', '--pixel-ink2', '--pixel-card'], ['link/paper', '--pixel-link', '--pixel-paper']] },
+    { line: 3, pairs: [['acc/paper', '--pixel-acc', '--pixel-paper']] },
+  ]
+  const shown: string[] = []
+  const low: string[] = []
+  for (const group of groups) {
+    for (const p of group.pairs) {
+      const ratio = pixelContrast(valOf(p[1]), valOf(p[2]))
+      shown.push(p[0] + ' ' + ratio.toFixed(2))
+      if (!(ratio >= group.line)) low.push(p[0] + ' ' + valOf(p[1]) + ' on ' + valOf(p[2]) + ' = ' + ratio.toFixed(2) + '（该 ≥ ' + group.line + '）')
+    }
+  }
+  check(low.length === 0, '浅色纸面上的字与图形都过线：字 4.5:1、强调色 3:1（' + shown.join('、') + '）' + (low.length ? ' —— 不达标：' + low.join('；') : ''))
+}
 
 console.log('合计 ' + pass + ' 通过 / ' + fail + ' 失败')
 if (fail) console.log('存在失败')
