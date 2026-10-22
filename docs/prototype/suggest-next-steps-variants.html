@@ -17,7 +17,7 @@
   比的是特效的气质：
     A 素（基底）—— 药丸从中心点向外一颗颗冒出来；退场只做简单的淡出。
     B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
-    C 上浮小气泡 —— 小泡从底部关闭按钮匀速升起、飞进各选项，选项跟着被一颗颗点亮；框是薄玻璃质感。
+    C 上浮小气泡 —— 小泡从下方对话区随机冒出来、飞进选项里侧，整行跟着落下的泡数一起变清楚；框是薄玻璃质感。
     D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -148,29 +148,29 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .vB.deflate{animation:deflate .34s ease-in forwards}
 @keyframes deflate{to{opacity:0;transform:scale(.55,.7)}}
 
-/* ============ C 小泡凝聚成选项（整套重写） ============
-   这一版只有一个动作：小泡从 × 的底边升起，匀速飞进各自选项的内部、边飞边化掉。
-   选项框不单独做一段入场动画，它的清楚程度跟着小泡走——每落下一颗就清楚一分，
-   七颗落完正好完全清楚（分七级跳变的做法见下面 .pill 的 steps(7,start)）。
-   小泡匀速度、框跟着它一级级变清楚，所以看不出"泡停在半路等框"或者"快到终点突然加速"。
-   所有坐标在动画开始前一次性算好（见 spawnBubbles）。 */
+/* ============ C 小泡凝聚成选项（重做：从对话区随机冒出，整体凝成一个框） ============
+   这一版只有一个动作：小泡从下方的对话区（状态栏胶囊与输入框那一带）随机冒出来，
+   各自用随机的速度、随机的路线、随机的出发时刻，飞进这一行选项的里侧，边飞边化掉。
+   选项行不单独做入场动画：脚本逐帧数「已经落下几颗泡」，整行共用同一个透明度，
+   落一颗清楚一点，全部落完才完全清楚。整行只有一个透明度，所以它看起来是一个
+   整体在凝聚，而不是几个框各自出现。 */
 .vB.lvl-3{animation:none}
+.vB.lvl-3 .prow{opacity:0}                       /* 由脚本逐帧抬高，泡落一颗清楚一点 */
+.vB.lvl-3 .xrow{opacity:0;margin-top:10px;position:relative;z-index:2}   /* 关闭按钮紧挨着选项行 */
 .vB.lvl-3 .pill{
   background:linear-gradient(180deg,rgba(208,228,250,.13),rgba(198,218,242,.04) 46%,rgba(150,170,205,.06));
   border-color:rgba(170,195,235,.34);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 1px 10px rgba(140,180,255,.06);
   text-shadow:0 1px 1px rgba(0,0,0,.3);
-  /* 框不是"等一会儿再淡进来"，而是每落下一颗泡就清楚一分：
-     分成七级跳变，跳变时刻正好是小泡到达的时刻（steps 的 7 级对 7 颗泡）。 */
-  animation:cBoxIn .324s steps(7,start) backwards;animation-delay:var(--d,0ms);
+  animation:none;                                  /* 不做自己的入场动画，透明度由脚本统一给 */
 }
-@keyframes cBoxIn{from{opacity:0}to{opacity:1}}
 /* 静止时的一层薄膜高光：很淡，只让框看起来是玻璃做的 */
 .vB.lvl-3 .pill::before{
   content:'';position:absolute;left:4%;top:0;width:56%;height:50%;border-radius:50%;pointer-events:none;
   background:radial-gradient(ellipse 62% 58% at 34% 28%,rgba(255,255,255,.20),transparent 72%);
 }
 .vB.lvl-3 .pill:hover{border-color:rgba(182,206,242,.52);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 14px rgba(150,190,255,.12)}
+.vB.lvl-3 .close{animation:none}                   /* 关闭按钮跟选项行一起由脚本点亮 */
 /* 点中和关闭都用同一种安静的淡出，不再有飞走、下沉这类跳动作 */
 .vB.lvl-3 .pill.picked{animation:cPick .28s ease-out forwards}
 @keyframes cPick{0%{transform:scale(1)}38%{transform:scale(1.02);border-color:rgba(196,150,252,.55)}100%{transform:scale(.97);opacity:0}}
@@ -181,15 +181,15 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 /* 小泡本体的长相（高光、虹彩、描边都由 dressBubble 逐颗随机） */
 .vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(190,210,240,var(--ba,.55));border-radius:50%;opacity:0;pointer-events:none;will-change:transform,opacity;background:radial-gradient(circle at var(--hx,30%) var(--hy,28%),rgba(255,255,255,var(--hop,.5)),transparent 55%),radial-gradient(circle at 72% 78%,var(--tint,rgba(170,160,250,.14)),transparent 60%);box-shadow:0 0 6px rgba(170,190,230,.12),inset 0 0 3px rgba(255,255,255,.08)}
 .vB .bub::before{content:'';position:absolute;left:var(--sx,22%);top:var(--sy,16%);width:30%;height:24%;background:radial-gradient(ellipse at center,rgba(255,255,255,.9),transparent 70%);border-radius:50%;opacity:var(--sop,.8)}
-/* 升起 → 一路钻进选项里 → 边钻进边化掉（只在 transform / opacity 上动）。
-   全程 linear：速度从头到尾一样，没有"快到终点突然加速"。
-   淡出和缩小都发生在还在移动的最后一段，所以不会出现"停在一个位置等人"的画面。 */
-.vB .bub.rise{animation:cRise .52s linear forwards}
+/* 一颗泡的一生：从对话区冒头 → 一路飘到选项里侧 → 边飘边化掉。
+   速度曲线每颗不一样（脚本随机挑一条），所以看起来像各自在飘，不像一排被推上去。
+   化掉发生在还在移动的最后一段，不会出现"停在一个位置等人"的画面。 */
+.vB .bub.rise{animation:cRise .6s ease-out forwards}
 @keyframes cRise{
-  0%{opacity:0;transform:translate3d(0,0,0) scale(.34)}
-  14%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .14),calc(var(--ty) * .14),0) scale(.66)}
-  62%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .62 + var(--sway) * .5),calc(var(--ty) * .62),0) scale(.92)}
-  100%{opacity:0;transform:translate3d(var(--tx),var(--ty),0) scale(.42)}
+  0%{opacity:0;transform:translate3d(0,0,0) scale(.3)}
+  16%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .16 + var(--sway) * .4),calc(var(--ty) * .16),0) scale(.62)}
+  64%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .64 + var(--sway) * .3),calc(var(--ty) * .64),0) scale(.95)}
+  100%{opacity:0;transform:translate3d(var(--tx),var(--ty),0) scale(.4)}
 }
 /* 悬停时的小泡（原地升起一点点就化掉），很轻 */
 .vB .bub.hov{animation:cHover .8s ease-out forwards}
@@ -402,11 +402,11 @@ var VARIANTS = {
   C: {
     name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「素」之上加梦幻感：小泡从最底下关闭按钮的底边升起，匀速飞进各自选项的内部、边飞边化掉；选项框不单独做入场动画，它的清楚程度跟着小泡走——每落下一颗就清楚一分，七颗落完正好完全清楚。因为小泡是匀速的、框是跟着它一级级变清楚的，所以看不出「泡停在半路等框」，也没有快到终点突然加速；框是薄薄的玻璃质感；点中和关闭都是安静的淡出；解释气泡多留一会儿。',
+    idea: '在「素」之上加梦幻感：小泡从下方的对话区（状态栏胶囊与输入框那一带）随机冒出来——起点不是同一个点，横向铺开、出发时刻和飞行速度也各不相同，所以看着像想法自己一颗颗浮上来，而不是一排被扫射上去。泡飞进这一行选项的里侧、边飞边化掉；选项行不做自己的入场动画，而是整行共用一个透明度，脚本按「已经落下几颗泡」逐帧抬高它，所以是泡落一颗、这一行清楚一点，全部落完才完全清楚，看起来是一个整体在凝聚。关闭按钮紧挨着选项行，跟它一起亮起来；点中和关闭都是安静的淡出；解释气泡多留一会儿。',
     tipSide: 'above',
     tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
-    narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
-    cost: '小泡和上飘都是装饰，读理由的时候余光会被吸走一点。'
+    narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行，紧贴着。',
+    cost: '小泡是装饰，读理由的时候余光会被吸走一点；成形要约一秒，比别的变体慢。'
   },
   D: {
     name: 'D — 微光扫过',
@@ -431,6 +431,7 @@ var S = {
   domKey: '',      /* 画在页面上的那一组是哪一组（状态变了但这一组没变时就不重画，免得动画重放） */
   animating: false,/* 退场动画期间不重画 DOM */
   bubTimer: 0,     /* 一组小泡共用的清理定时器 */
+  formation: 0,    /* 气泡那一版逐帧抬高透明度的 rAF 句柄 */
   log: []
 };
 
@@ -557,12 +558,6 @@ function placeTip(anchor, prefer) {
 /* ===================== 三个变体的画法（共用 B 基底：一行居中的药丸） ===================== */
 /* 提示词不一定是斜杠命令：普通句子用正常字体，斜杠命令才用等宽字体。 */
 function isCmd(prompt) { return /^\s*\//.test(prompt); }
-/* C 版小泡的三个时间常数。这里的数字必须和 CSS 里 .vB.lvl-3 .pill 的
-   animation-duration 对上：框的清晰度分七级跳变，每级正好是一颗小泡落下的时刻。
-   七颗泡、级间隔 BUB_STEP 毫秒，所以框的逐级变清楚用 6 * BUB_STEP = 324 毫秒，
-   并且从第一颗泡到达（BUB_TRAVEL 之后）才开始。 */
-var BUB_PER_PILL = 7, BUB_STEP = 54, BUB_TRAVEL = 480, BUB_START = 40;
-function pillRevealDelay(stepFromCenter) { return BUB_TRAVEL + BUB_START + stepFromCenter * 60; }
 function buildGroupHtml() {
   var items = S.group.items;
   var n = items.length, c = (n - 1) / 2, maxD = 0;
@@ -571,10 +566,10 @@ function buildGroupHtml() {
   html += '<div class="prow">';
   for (var i = 0; i < n; i++) {
     /* 从中心点往外冒：中间的先出，两边的依次跟上；两边的药丸带着一点从中心向外的位置。
-       气泡那一版：第一列小泡到达时框才开始清楚，之后每落一颗就清楚一分。 */
+       气泡那一版整行共用一个透明度、由脚本按落下的泡数逐帧抬高，所以这里不给延迟。 */
     var d;
     if (lv === 3) {
-      d = pillRevealDelay(Math.abs(i - c));
+      d = 0;
     } else {
       d = Math.round(Math.abs(i - c) * 70);
     }
@@ -584,7 +579,7 @@ function buildGroupHtml() {
     html += '<div class="' + cls + '" data-i="' + i + '" style="--d:' + d + 'ms;--dx:' + dx + 'px">' + esc(items[i].prompt) + '</div>';
   }
   html += '</div>';
-  /* 关闭按钮自己占一行，居中放在药丸下面。气泡那一版它是出发点，所以最先出现；
+  /* 关闭按钮自己占一行，居中放在药丸下面。气泡那一版它紧挨着选项行，和选项行一起被点亮；
      其它变体让它最后才淡入，不抢戏。 */
   var xd = (lv === 3) ? 0 : (maxD + 180);
   html += '<div class="xrow"><button class="close" title="关闭（等于一个都不选）" style="--d:' + xd + 'ms">×</button></div>';
@@ -598,6 +593,7 @@ function renderVariant() {
   var key = S.variant + '|' + S.groupIndex;
   if (S.domKey === key && host.firstElementChild) return;      /* 这一组没变，别把入场动画重放一遍 */
   if (S.bubTimer) { clearTimeout(S.bubTimer); S.bubTimer = 0; }
+  if (S.formation) { cancelAnimationFrame(S.formation); S.formation = 0; }   /* 旧的逐帧抬高停掉 */
   releaseBubs(host);                                           /* 小泡回池子，下一次直接复用 */
   host.innerHTML = buildGroupHtml();
   S.domKey = key;
@@ -613,8 +609,8 @@ function startEntrance() {
 /* 每个小泡的长相全部随机：明暗、摇摆幅度、高光位置亮度、虹彩颜色、描边浓淡，没有两颗完全一样 */
 var TINTS = ['rgba(170,160,250,.14)', 'rgba(150,200,255,.14)', 'rgba(160,255,220,.10)', 'rgba(255,170,220,.10)'];
 function dressBubble(s) {
-  s.style.setProperty('--op', (0.5 + Math.random() * 0.45).toFixed(2));
-  s.style.setProperty('--sway', Math.round(Math.random() * 28 - 14) + 'px');
+  s.style.setProperty('--op', (0.55 + Math.random() * 0.4).toFixed(2));
+  s.style.setProperty('--sway', Math.round(Math.random() * 40 - 20) + 'px');
   s.style.setProperty('--hop', (0.3 + Math.random() * 0.4).toFixed(2));
   s.style.setProperty('--sop', (0.5 + Math.random() * 0.4).toFixed(2));
   s.style.setProperty('--hx', Math.round(22 + Math.random() * 20) + '%');
@@ -622,9 +618,9 @@ function dressBubble(s) {
   s.style.setProperty('--sx', Math.round(14 + Math.random() * 20) + '%');
   s.style.setProperty('--sy', Math.round(10 + Math.random() * 14) + '%');
   s.style.setProperty('--tint', TINTS[Math.floor(Math.random() * TINTS.length)]);
-  s.style.setProperty('--ba', (0.35 + Math.random() * 0.35).toFixed(2));
+  s.style.setProperty('--ba', (0.4 + Math.random() * 0.35).toFixed(2));
 }
-/* ===================== C 版：小泡从 × 升起、在选项下沿铺开、化成选项 ===================== */
+/* ===================== C 版：小泡从对话区随机冒出，整体凝成一行选项 ===================== */
 /* 小泡节点池：同一组里反复用同一批 span，不反复创建销毁 */
 var bubPool = [];
 function acquireBub() {
@@ -641,68 +637,95 @@ function releaseBubs(host) {
     bubPool.push(b);
   }
 }
-/* 坐标只读一次、节点一次插入、节点复用、一组只留一个清理定时器：
-   动画期间不再读写布局，所以既不会抖，也没有每颗泡一次重排的开销。 */
-function spawnBubbles(el) {
-  var pills = el.querySelectorAll('.pill');
-  if (!pills.length) return;
-  if (S.bubTimer) { clearTimeout(S.bubTimer); S.bubTimer = 0; }
+/* C 版的四个旋钮，都放在这一处方便调：
+   每颗选项配几颗泡、出发时刻最多晚多少、飞行时长范围、起点落在哪一段高度。 */
+var BUB_PER_PILL = 8;
+var BUB_DELAY_MAX = 360;          /* 每颗泡随机晚 0~360 毫秒出发，所以到达顺序是乱的 */
+var BUB_TRAVEL_MIN = 320, BUB_TRAVEL_MAX = 660;
+var BUB_FROM_TOP = -8, BUB_FROM_BOTTOM = -130;   /* 起点：从紧贴选项行一直到输入框那一带（负数表示在选项行下面） */
+/* 每颗泡的速度曲线也随机：不要求匀速，只要求看起来像自己飘上去的 */
+var BUB_EASES = ['ease-out', 'ease-in-out', 'cubic-bezier(.25,.6,.3,1)', 'cubic-bezier(.4,0,.6,1)', 'cubic-bezier(.2,.7,.35,1.1)'];
 
-  /* ---- 第一遍：只读，把所有要用的坐标算完 ---- */
-  var btn = el.querySelector('.close');
+/* 坐标只读一次、节点一次插入、节点复用；成形期间用 rAF 逐帧抬高整行的透明度，
+   只写一个 opacity，不读布局、不重排。 */
+function spawnBubbles(el) {
+  var prow = el.querySelector('.prow');
+  var xrow = el.querySelector('.xrow');
+  if (!prow) return;
+  if (S.bubTimer) { clearTimeout(S.bubTimer); S.bubTimer = 0; }
+  if (S.formation) { cancelAnimationFrame(S.formation); S.formation = 0; }
+
+  /* ---- 第一遍：只读布局，读不到就给一组兜底数字（jsdom 里没有排版） ---- */
   var gH = el.offsetHeight;
-  var ox = btn ? btn.offsetLeft + btn.offsetWidth / 2 : el.offsetWidth / 2;
-  var oy = btn ? Math.max(0, gH - (btn.offsetTop + btn.offsetHeight) - 4) : 6;
-  var n = pills.length, cc = (n - 1) / 2;
-  var rows = new Array(n);
-  for (var i = 0; i < n; i++) {
-    var p = pills[i];
-    rows[i] = {
-      left: p.offsetLeft,
-      w: p.offsetWidth,
-      /* 落点不是框的外面，是框的里面：小泡要看得见地被吸进选项，边钻边化掉 */
-      sink: gH ? (gH - (p.offsetTop + p.offsetHeight * 0.62)) : 78,
-      st: BUB_START + Math.round(Math.abs(i - cc) * 60)
-    };
-    if (!gH) { oy = 0; }
+  var pr = { left: prow.offsetLeft, top: prow.offsetTop, w: prow.offsetWidth, h: prow.offsetHeight };
+  if (!(gH > 0 && pr.w > 0)) { gH = 120; pr = { left: 280, top: 20, w: 560, h: 30 }; }
+  var total = Math.max(BUB_PER_PILL * (el.querySelectorAll('.pill').length || 1), 8);
+
+  /* 落点先把整行均匀铺满，再把这串位置打乱：每个位置都有泡落下去，
+     但谁先谁后是乱的，所以不会像扫射一样从左到右一路过去。 */
+  var slots = [];
+  for (var t = 0; t < total; t++) slots.push(t);
+  for (var q = slots.length - 1; q > 0; q--) {
+    var r2 = Math.floor(Math.random() * (q + 1));
+    var tmp = slots[q]; slots[q] = slots[r2]; slots[r2] = tmp;
   }
 
   /* ---- 第二遍：只写，先在 fragment 里备齐 ---- */
   var frag = document.createDocumentFragment();
-  var end = 0;
-  for (var j = 0; j < n; j++) {
-    var r = rows[j];
-    for (var k = 0; k < BUB_PER_PILL; k++) {
-      var b = acquireBub();
-      dressBubble(b);
-      b.className = 'bub rise';
-      var sz = 3 + Math.random() * 5;
-      /* 起点：× 的底边（所有小泡共用这一个出发点） */
-      b.style.left = (ox - sz / 2).toFixed(1) + 'px';
-      b.style.bottom = (oy - sz / 2).toFixed(1) + 'px';
-      b.style.width = sz.toFixed(1) + 'px';
-      b.style.height = sz.toFixed(1) + 'px';
-      /* 终点：钻进这颗选项内部，沿宽度从左到右铺开，左右各留一点，再加一点抖动 */
-      var x = r.left + r.w * ((k + 0.5) / BUB_PER_PILL) + (Math.random() * 8 - 4);
-      var y = r.sink + (Math.random() * 4 - 2);
-      b.style.setProperty('--tx', (x - ox).toFixed(1) + 'px');
-      b.style.setProperty('--ty', (oy - y).toFixed(1) + 'px');
-      /* 每颗泡都走同样长的路、用同样长的时间：速度从头到尾一样。
-         到达时刻 = st + k * BUB_STEP + BUB_TRAVEL，正好逐个对上框的一级清晰度。 */
-      b.style.animationDuration = (BUB_TRAVEL / 1000).toFixed(2) + 's';
-      var dly = r.st + k * BUB_STEP + Math.round(Math.random() * 8);
-      b.style.animationDelay = dly + 'ms';
-      if (dly + BUB_TRAVEL > end) end = dly + BUB_TRAVEL;
-      frag.appendChild(b);
-    }
+  var arrivals = [];
+  var now0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  for (var j = 0; j < total; j++) {
+    var b = acquireBub();
+    dressBubble(b);
+    b.className = 'bub rise';
+    var sz = 3.5 + Math.random() * 6;
+    /* 起点：横向铺满整个对话区（不是同一个原点），纵向在胶囊/输入框那一带 */
+    var fromX = pr.left + pr.w * (0.04 + Math.random() * 0.92);
+    var fromY = BUB_FROM_TOP + Math.random() * (BUB_FROM_BOTTOM - BUB_FROM_TOP);
+    b.style.left = (fromX - sz / 2).toFixed(1) + 'px';
+    b.style.bottom = (fromY - sz / 2).toFixed(1) + 'px';
+    b.style.width = sz.toFixed(1) + 'px';
+    b.style.height = sz.toFixed(1) + 'px';
+    /* 终点：这一行选项里侧的一块随机位置，不都堆在边缘 */
+    var slot = slots[j];
+    var tx = pr.left + pr.w * ((slot + 0.5) / total) + (Math.random() * 10 - 5);
+    var ty = gH - (pr.top + pr.h * (0.25 + Math.random() * 0.55));
+    b.style.setProperty('--tx', (tx - fromX).toFixed(1) + 'px');
+    b.style.setProperty('--ty', (fromY - ty).toFixed(1) + 'px');
+    var dur = BUB_TRAVEL_MIN + Math.random() * (BUB_TRAVEL_MAX - BUB_TRAVEL_MIN);
+    b.style.animationDuration = Math.round(dur) + 'ms';
+    b.style.animationTimingFunction = BUB_EASES[Math.floor(Math.random() * BUB_EASES.length)];
+    var dly = Math.round(Math.random() * BUB_DELAY_MAX);
+    b.style.animationDelay = dly + 'ms';
+    arrivals.push(now0 + dly + dur);
+    frag.appendChild(b);
   }
   el.appendChild(frag);
+  arrivals.sort(function (a, b2) { return a - b2; });
 
-  /* ---- 第三遍：整组泡共用一个清理定时器 ---- */
-  S.bubTimer = setTimeout(function () {
-    S.bubTimer = 0;
-    releaseBubs(el);
-  }, Math.round(end) + 120);
+  /* ---- 第三遍：整行共用一个透明度，落一颗泡清楚一点 ----
+     只有一个 opacity 在变，所以看起来是「一个整体」在凝聚，不是几个框各自出现。 */
+  var landed = 0;
+  prow.style.opacity = '0';
+  if (xrow) xrow.style.opacity = '0';
+  function tick(now) {
+    if (!el.isConnected || el !== $('sugg').firstElementChild) { S.formation = 0; return; }
+    var tnow = now || ((window.performance && performance.now) ? performance.now() : Date.now());
+    while (landed < arrivals.length && arrivals[landed] <= tnow) landed++;
+    var lit = landed / arrivals.length;
+    var v = lit >= 1 ? 1 : 0.04 + 0.96 * Math.pow(lit, 0.8);
+    prow.style.opacity = v.toFixed(3);
+    if (xrow) xrow.style.opacity = (lit >= 1 ? 1 : v * v).toFixed(3);   /* 关闭按钮比选项行慢半拍亮起来 */
+    if (landed < arrivals.length) {
+      S.formation = requestAnimationFrame(tick);
+    } else {
+      prow.style.opacity = '1';
+      if (xrow) xrow.style.opacity = '1';
+      S.formation = 0;
+      S.bubTimer = setTimeout(function () { S.bubTimer = 0; releaseBubs(el); }, 260);
+    }
+  }
+  S.formation = requestAnimationFrame(tick);
 }
 
 /* ===================== 候选项的悬停与点击 ===================== */
@@ -766,6 +789,12 @@ function dismissGroup(kind, pickedEl, next) {
   var el = host.firstElementChild;
   if (!el) { S.group = (kind === 'replace' ? next : null); render(); return; }
   S.animating = true;
+  /* 成形还没结束就点中或关闭了：先停掉逐帧抬高，把整行直接点亮，
+     否则退场动画会乘在一个很低的透明度上，看起来像什么都没发生。 */
+  if (S.formation) { cancelAnimationFrame(S.formation); S.formation = 0; }
+  var prowNow = el.querySelector('.prow'), xrowNow = el.querySelector('.xrow');
+  if (prowNow) prowNow.style.opacity = '1';
+  if (xrowNow) xrowNow.style.opacity = '1';
   /* 退场按档位分开：素只做简单淡出，果冻压扁弹出，气泡上飘下沉，微光闪光上飘 */
   var lv = VARIANTS[S.variant].level;
   var dur = 200;
