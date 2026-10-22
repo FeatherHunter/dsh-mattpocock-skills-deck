@@ -13,14 +13,12 @@
   承载面：宿主官方槽位 conversation.input.dock（状态栏胶囊就挂在这里，见 src/client/statusbar/StatusBar.ts:360-443）。
     推荐气泡浮在胶囊正上方，落在对话区与输入区之间的空当里，不改变对话区的高度。
 
-  三个变体（?variant=A|B|C）：布局按反馈定为「一行居中的药丸」（B 基底），
-  以 A 素为基底改，三个变体比的是动画的多少与气质：
-    A 素（基底）—— 一行居中的药丸，关闭按钮自己占一行居中放在药丸下面；
-            冒出来时胶囊上沿正中的圆点荡开一圈干净的水波，药丸从中心点向外冒出来；
-            点掉或关掉时只做简单的淡出。
-    B 稳 —— 在「素」之上加：水波变双圈、点中的那颗先闪一下再收掉、
-            其余的错峰散开、关闭时整组上飘淡出、解释气泡从小尖角那侧展开。
-    C 活 —— 在「稳」之上再加：冒出来约一秒后轻轻呼吸两下、鼠标移开后解释气泡多留一会儿。
+  四个变体（?variant=A|B|C|D）：布局都是 A 素的基底（一行居中的药丸 + 关闭按钮单独一行在下），
+  比的是特效的气质：
+    A 素（基底）—— 圆点单圈水波，药丸从中心点向外冒出来；退场只做简单的淡出。
+    B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
+    C 上浮小气泡 —— 药丸像气泡一样浮上来，圆点处冒出几个空心小泡；点中的往上飘走，其余下沉。
+    D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
   → 那颗闪一下、提示词填进输入框、其余散开、整组消失 → 再点一次「调一次新的一组」
@@ -138,14 +136,40 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 @keyframes floatUp{to{opacity:0;transform:translateY(-12px) scale(.96)}}
 .vB.replaced{animation:fadeOut .17s ease-in forwards}
 @keyframes fadeOut{to{opacity:0;transform:translateY(4px)}}
-/* 活的那一版：冒出来一秒后轻轻呼吸两下，提醒人「它在这儿」 */
-.vB.breath{animation:breath 1.5s ease-in-out 2}
-@keyframes breath{0%,100%{opacity:1;transform:none}50%{opacity:.72;transform:translateY(-1px) scale(.995)}}
 /* 活的那一版：点中的时候整组轻轻发光一下 */
 .vB.glow{animation:glow .5s ease-out forwards}
 @keyframes glow{0%{box-shadow:0 0 0 0 rgba(192,132,252,.45)}100%{box-shadow:0 0 0 16px rgba(192,132,252,0)}}
 .vB .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75;animation:fadeRise .3s ease-out backwards;animation-delay:var(--d,0ms);transition:opacity .16s,color .16s,border-color .16s}
 .vB .close:hover{opacity:1;color:var(--text);border-color:var(--border2)}
+
+/* ============ B 果冻弹性：弹簧过冲入场 + 果冻晃动 + 压扁退场 ============ */
+/* 路子来自搜到的果冻按钮做法：按压缩小、回弹时横竖反向抖两下 */
+.vB.lvl-2 .pill{animation:jellyIn .55s cubic-bezier(.2,.9,.3,1.3) backwards;animation-delay:var(--d,0ms)}
+@keyframes jellyIn{0%{opacity:0;transform:translateY(12px) translateX(var(--dx,0px)) scale(.6)}55%{opacity:1;transform:translateY(-3px) scale(1.06,.94)}75%{transform:translateY(0) scale(.97,1.03)}100%{opacity:1;transform:none}}
+.vB.lvl-2 .pill:hover{animation:jellyWob .5s ease-out;transform:translateY(-2px);border-color:#5a7fb0;background:#1d2430}
+@keyframes jellyWob{0%{transform:scale(1,1)}30%{transform:scale(1.08,.92)}55%{transform:scale(.94,1.06)}80%{transform:scale(1.02,.98)}100%{transform:scale(1,1)}}
+.vB .pill.jellyPop{animation:jellyPop .46s ease-in forwards}
+@keyframes jellyPop{0%{transform:scale(1)}30%{transform:scale(1.18,.82);opacity:1;border-color:#c084fc}100%{transform:scale(.6,1.25);opacity:0}}
+.vB.deflate{animation:deflate .34s ease-in forwards}
+@keyframes deflate{to{opacity:0;transform:scale(.55,.7)}}
+
+/* ============ C 上浮小气泡：药丸像气泡一样浮上来 + 圆点冒出几个空心小泡 ============ */
+.vB.lvl-3 .pill{animation:bubbleRise .5s cubic-bezier(.2,.8,.3,1.1) backwards;animation-delay:var(--d,0ms)}
+@keyframes bubbleRise{0%{opacity:0;transform:translateY(18px) scale(.7)}100%{opacity:1;transform:none}}
+.vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(180,200,230,.5);border-radius:50%;opacity:0;pointer-events:none;animation:bubRise 1.4s ease-out forwards}
+@keyframes bubRise{0%{opacity:0;transform:translate(0,0) scale(.6)}18%{opacity:.8}100%{opacity:0;transform:translate(var(--rz,0px),-90px) scale(1)}}
+.vB .pill.escape{animation:escapeUp .5s ease-in forwards}
+@keyframes escapeUp{to{opacity:0;transform:translateY(-46px) scale(.75)}}
+.vB .pill.sink{animation:sinkDn .4s ease-in forwards;animation-delay:var(--d2,0ms)}
+@keyframes sinkDn{to{opacity:0;transform:translateY(10px) scale(.9)}}
+.vB.drift{animation:driftUp .42s ease-in forwards}
+@keyframes driftUp{to{opacity:0;transform:translateY(-18px)}}
+
+/* ============ D 微光扫过：出现时一道光带斜着扫过药丸 ============ */
+/* 路子来自搜到的按钮扫光做法：一道斜的半透明光带扫过去 */
+.vB .pill{position:relative}
+.vB.lvl-4 .pill::after{content:'';position:absolute;top:0;bottom:0;left:-60%;width:45%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.22),transparent);transform:skewX(-18deg);animation:sheenSw .8s ease-out backwards;animation-delay:calc(var(--d,0ms) + .3s);pointer-events:none}
+@keyframes sheenSw{from{left:-60%}to{left:130%}}
 
 /* ===================== 原型自己的面板 ===================== */
 .side{display:flex;flex-direction:column;gap:12px}
@@ -246,11 +270,11 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px so
       <ol>
         <li>推荐气泡能不能让人一眼看出是「想法冒出来」，而不是一排普通按钮？</li>
         <li>解释气泡怎么跟着推荐气泡走，又不挡住底下的状态栏胶囊？</li>
-        <li>动画给到多少才不吵（素 / 稳 / 活三档）？</li>
+        <li>动画给哪种气质（素 / 果冻 / 气泡 / 微光四种）？</li>
         <li>提示词未必是斜杠命令（一句话也算），怎么排才不别扭？</li>
         <li>输入列变窄时，气泡会不会断成一截一截？</li>
       </ol>
-      <p class="tagline">本页只回答「长什么样」，不写真实工具逻辑；数据是假的。布局按反馈定为「一行居中的药丸」，三个变体比的是动画的多少与气质。</p>
+      <p class="tagline">本页只回答「长什么样」，不写真实工具逻辑；数据是假的。布局都是 A 素的基底，四个变体比的是特效的气质。</p>
     </div>
 
     <div class="card">
@@ -333,22 +357,31 @@ var VARIANTS = {
     cost: '安静是优点，但也可能让人没注意到它。'
   },
   B: {
-    name: 'B — 稳',
+    name: 'B — 果冻弹性',
     level: 2,
-    idea: '在「素」之上加几个小动作：水波变成双圈；点中的那颗先闪一下再收掉，其余的错峰散开；关闭时整组上飘淡出；解释气泡从小尖角那侧展开。',
+    idea: '在「素」之上加果冻感：入场带弹簧过冲再横竖反向抖两下才定住；悬停时整颗晃一下；点中的那颗先压扁再弹出，其余的错峰散开；关闭时整组像泄气一样收掉；水波是双圈。',
     tipSide: 'above',
     tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸；出现时从小尖角那侧张开。',
-    narrow: '这一行会换行成两行，每颗药丸不被拆开。',
-    cost: '动作多了几拍，但每拍都在 0.4 秒以内，不吵。'
+    narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
+    cost: '每颗都在抖，候选项多的时候会觉得闹。'
   },
   C: {
-    name: 'C — 活（再加两件事）',
+    name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「稳」之上再加两件事：气泡冒出来一秒后轻轻呼吸两下，提醒人「它在这儿」；鼠标移开后解释气泡再留一会儿才收回去，不那么一闪而过。',
+    idea: '在「素」之上加梦幻感：药丸像气泡一样从下面浮上来，圆点处同时冒出几个空心小泡往上飘；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
     tipSide: 'above',
-    tipWhere: '同「稳」，但鼠标移开后多留 0.9 秒才收走。',
-    narrow: '这一行会换行成两行，每颗药丸不被拆开。',
-    cost: '呼吸那一拍如果正好落在你正在读字的时候，会稍微打断注意力。'
+    tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
+    narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
+    cost: '小泡和上飘都是装饰，读理由的时候余光会被吸走一点。'
+  },
+  D: {
+    name: 'D — 微光扫过',
+    level: 4,
+    idea: '在「素」之上加一道光：冒出来后一道斜的光带从药丸上扫过去一遍，之后就安静了；悬停时边框发亮；点中的那颗闪一下加整组发光；关闭时上飘淡出。',
+    tipSide: 'above',
+    tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸；出现时从小尖角那侧张开。',
+    narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
+    cost: '光扫只有出现那一下，错过就没了；之后和「素」几乎一样安静。'
   }
 };
 
@@ -523,10 +556,26 @@ function renderVariant() {
 function startEntrance() {
   var el = $('sugg').firstElementChild;
   if (!el) return;
-  /* 「活」的那一版：冒出来约一秒后轻轻呼吸两下，提醒人它在这儿 */
-  setTimeout(function () {
-    if (el.classList.contains('lvl-3') && document.body.contains(el)) el.classList.add('breath');
-  }, 900);
+  /* 「上浮小气泡」那一版：圆点处冒出几个空心小泡往上飘 */
+  if (el.classList.contains('lvl-3')) spawnBubbles(el);
+}
+/* 往组里撒几个空心小泡，从圆点的位置往上飘一段后消失 */
+function spawnBubbles(el) {
+  for (var i = 0; i < 7; i++) {
+    (function () {
+      var s = document.createElement('span');
+      s.className = 'bub';
+      s.style.left = 'calc(50% + ' + Math.round(Math.random() * 120 - 60) + 'px)';
+      s.style.setProperty('--rz', Math.round(Math.random() * 40 - 20) + 'px');
+      s.style.animationDuration = (0.9 + Math.random() * 0.9).toFixed(2) + 's';
+      s.style.animationDelay = (Math.random() * 0.35).toFixed(2) + 's';
+      var sz = Math.round(4 + Math.random() * 7);
+      s.style.width = sz + 'px';
+      s.style.height = sz + 'px';
+      el.appendChild(s);
+      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 2600);
+    })();
+  }
 }
 
 /* ===================== 候选项的悬停与点击 ===================== */
@@ -540,8 +589,8 @@ function bindGroup() {
       say('悬停「' + item.prompt + '」→ 解释气泡浮出来（' + sideText(S.tipSide) + '）', true);
     });
     el.addEventListener('mouseleave', function () {
-      /* 「活」的那一版多留一会儿再收走 */
-      hideTip(VARIANTS[S.variant].level >= 3 ? 900 : 0);
+      /* 「上浮小气泡」那一版多留一会儿再收走 */
+      hideTip(VARIANTS[S.variant].level === 3 ? 900 : 0);
     });
     el.addEventListener('click', function () {
       if (S.animating) return;
@@ -564,28 +613,61 @@ function bindGroup() {
 }
 
 /* ===================== 整组收场 ===================== */
+/* 没被选中的药丸：错峰散开（果冻、微光用）或往下沉（气泡用） */
+function scatterOthers(others) {
+  Array.prototype.forEach.call(others, function (p, i) {
+    p.style.setProperty('--d2', (i * 45) + 'ms');
+    p.classList.add('scatter');
+  });
+}
+function sinkOthers(others) {
+  Array.prototype.forEach.call(others, function (p, i) {
+    p.style.setProperty('--d2', (i * 45) + 'ms');
+    p.classList.add('sink');
+  });
+}
 /* kind：pick=点中一个，close=点关闭，replace=被新的一组覆盖。 */
 function dismissGroup(kind, pickedEl, next) {
   var host = $('sugg');
   var el = host.firstElementChild;
   if (!el) { S.group = (kind === 'replace' ? next : null); render(); return; }
   S.animating = true;
-  el.classList.remove('breath');
-  /* 素的那一版退场只做简单的淡出；稳和活才做闪光散开、上飘这些 */
+  /* 退场按档位分开：素只做简单淡出，果冻压扁弹出，气泡上飘下沉，微光闪光上飘 */
   var lv = VARIANTS[S.variant].level;
   var dur = 200;
-  if (kind === 'pick' && pickedEl && lv >= 2) {
-    pickedEl.classList.add('picked');
-    var others = el.querySelectorAll('.pill:not(.picked)');
-    Array.prototype.forEach.call(others, function (p, i) {
-      p.style.setProperty('--d2', (i * 45) + 'ms');
-      p.classList.add('scatter');
-    });
-    if (el.classList.contains('lvl-3')) el.classList.add('glow');
-    dur = 430;
-  } else if (kind === 'close' && lv >= 2) {
-    el.classList.add('closing');
-    dur = 320;
+  var others = el.querySelectorAll('.pill:not(.picked)');
+  if (kind === 'pick' && pickedEl) {
+    if (lv === 1) {
+      el.classList.add('replaced');
+      dur = 220;
+    } else if (lv === 2) {
+      pickedEl.classList.add('jellyPop');
+      scatterOthers(others);
+      dur = 470;
+    } else if (lv === 3) {
+      pickedEl.classList.add('escape');
+      sinkOthers(others);
+      dur = 510;
+    } else {
+      pickedEl.classList.add('picked');
+      scatterOthers(others);
+      el.classList.add('glow');
+      dur = 430;
+    }
+  } else if (kind === 'close') {
+    if (lv === 1) {
+      el.classList.add('replaced');
+      dur = 200;
+    } else if (lv === 2) {
+      el.classList.add('deflate');
+      dur = 340;
+    } else if (lv === 3) {
+      el.classList.add('drift');
+      dur = 430;
+    } else {
+      el.classList.add('closing');
+      dur = 320;
+    }
   } else {
     el.classList.add('replaced');
     dur = 180;
@@ -723,7 +805,7 @@ function readURL() {
 
 /* ===================== 变体切换 ===================== */
 function cycle(d) {
-  var keys = ['A', 'B', 'C'];
+  var keys = ['A', 'B', 'C', 'D'];
   var i = keys.indexOf(S.variant);
   S.variant = keys[(i + d + keys.length) % keys.length];
   hideTip();
