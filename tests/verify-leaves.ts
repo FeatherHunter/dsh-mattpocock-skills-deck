@@ -83,6 +83,8 @@ const LEAVES = [
   // 后一个是订阅层（借事件流、等整轮结束交付）加一个不渲染东西的挂载组件。
   { file: 'src/client/statusbar/suggestFacts.ts', exports: ['SUGGEST_TOOL_NAME', 'SUGGEST_MIN_ITEMS', 'SUGGEST_MAX_ITEMS', 'SUGGEST_PROMPT_MAX_CHARS', 'SUGGEST_REASON_MAX_CHARS', 'suggestHash', 'suggestClipText', 'suggestItemsOf', 'suggestEventOf'], components: [] },
   { file: 'src/client/statusbar/suggestStream.ts', exports: ['createSuggestStream', 'SuggestStreamMount'], components: ['SuggestStreamMount'] },
+  { file: 'src/client/statusbar/suggestTimeline.ts', exports: ['suggestBubbleCounts', 'suggestRowOpacity', 'suggestCloseOpacity', 'suggestLandedCount', 'suggestBubblePlan'], components: [] },
+  { file: 'src/client/statusbar/suggestEngine.ts', exports: ['createSuggestEngine'], components: [] },
   // #1411 新增：状态胶囊上方的下一步建议气泡。外观旋钮（含层级常量）、样式文本、渲染与交互薄壳三片；
   // 外观与样式在入口的「0. 样式」区按「外观在前、样式在后」拼接，薄壳在订阅层之前。
   { file: 'src/client/statusbar/suggestAppearance.ts', exports: ['SUGGEST_Z', 'SUGGEST_APPEARANCE'], components: [] },

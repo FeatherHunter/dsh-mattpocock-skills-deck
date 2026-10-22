@@ -325,6 +325,9 @@ export default {
     //   —— 状态栏那边只留接线：把胶囊元素与两张跨调用带着走的表交给机器。
     // #1409：界面借会话事件流取数通路（纯函数在前、订阅层在后，状态栏那边只挂一行组件）。
     // ==== leaf:suggestFacts (spliced by build) ====
+    // #1411：小泡动效的时间线（纯函数）与 DOM 执行者。时间线在前、执行者在后，气泡薄壳最后用它们。
+    // ==== leaf:suggestTimeline (spliced by build) ====
+    // ==== leaf:suggestEngine (spliced by build) ====
     // #1411：建议气泡的渲染与交互薄壳。排在订阅层之前 —— 订阅层拿到建议后直接渲染它。
     // ==== leaf:suggestBubble (spliced by build) ====
     // ==== leaf:suggestStream (spliced by build) ====

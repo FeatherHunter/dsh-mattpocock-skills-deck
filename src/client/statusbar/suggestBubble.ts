@@ -24,6 +24,7 @@ declare const Tip: any;
 declare function inject(...args: any[]): any;
 declare const SUGGEST_Z: any;
 declare const SUGGEST_APPEARANCE: any;
+declare function createSuggestEngine(...args: any[]): any;
 
 /** 一组建议最多显示多少颗按钮：与工具/取数层同一组上下限，界面这层只防越界，不重复校验内容。 */
 const SUGGEST_VIEW_MAX_ITEMS = 4
@@ -86,6 +87,8 @@ export const SuggestBubble = function (props: any) {
   const items = suggestViewItemsOf(group && group.items)
   const groupKey = (group && group.id !== undefined && group.id !== null) ? String(group.id) : '0'
   const probeRef = React.useRef(null)
+  const layerRef = React.useRef(null)
+  const engineRef = React.useRef(null)
   const posState = React.useState(function () {
     const viewWidth = (typeof window !== 'undefined' && Number(window.innerWidth)) || 0
     return { left: Math.round(viewWidth / 2), bottom: 120 }
@@ -112,10 +115,41 @@ export const SuggestBubble = function (props: any) {
     }
   }, [groupKey])
 
+  // 动效：整组挂上页面浮层以后建一次执行器（量布局、生成小泡、逐帧抬高透明度）；
+  // 换了组或卸载时把它关掉。jsdom 里量不到布局，run 直接返回 false，整组按最终态显示。
+  React.useEffect(function () {
+    if (!items.length) return undefined
+    let engine: any = null
+    try {
+      const layerEl = layerRef.current
+      if (layerEl) {
+        engine = createSuggestEngine(layerEl)
+        try { engine.run() } catch (eRun) {}
+        engineRef.current = engine
+      }
+    } catch (eEngine) { engine = null }
+    return function () {
+      if (engineRef.current === engine) engineRef.current = null
+      if (engine) { try { engine.dispose() } catch (eDispose) {} }
+    }
+  }, [groupKey])
+
   /** 关掉整组：一条不选也走这里。 */
   function dismiss() {
     if (!onDismiss) return
     try { onDismiss() } catch (eDismiss) {}
+  }
+  /**
+   * 退场：能演就交给动效执行器（300 毫秒内交给 dismiss），演不了立刻整组消失。
+   * kind 是 'pick'（选中一条，稍长）或 'fade'（关闭整组，短一点）。
+   */
+  function playOut(kind: string) {
+    let animated = false
+    try {
+      const engine = engineRef.current
+      animated = engine ? engine.playOut(kind, dismiss) : false
+    } catch (ePlay) { animated = false }
+    if (!animated) dismiss()
   }
 
   // 键盘：Esc 关整组（焦点不管在哪都能关）；回车/空格落在按钮上时由下面的 onPillKey 处理。
@@ -132,7 +166,7 @@ export const SuggestBubble = function (props: any) {
   /** 选中一条：先交给既有注入口子，再让整组消失（注入失败也消失，界面不卡着）。 */
   function pick(prompt: string) {
     try { inject(st, prompt) } catch (eInject) {}
-    dismiss()
+    playOut('pick')
   }
   /** 键盘回车/空格 = 点这一颗；preventDefault 掉浏览器的默认激活，避免同一次按键触发两次。 */
   function onPillKey(ev: any, prompt: string) {
@@ -149,7 +183,7 @@ export const SuggestBubble = function (props: any) {
   }
   function onCloseClick(ev: any) {
     try { if (ev && ev.stopPropagation) ev.stopPropagation() } catch (eStop) {}
-    dismiss()
+    playOut('fade')
   }
   function pillNodeOf(item: any, index: number) {
     const prompt = item.prompt
@@ -173,6 +207,7 @@ export const SuggestBubble = function (props: any) {
   if (!items.length) return null
 
   const layerProps = {
+    ref: layerRef,
     className: 'dsws-sugg-layer',
     role: 'group',
     'aria-label': tr('suggest.group'),
