@@ -17,7 +17,7 @@
   比的是特效的气质：
     A 素（基底）—— 药丸从中心点向外一颗颗冒出来；退场只做简单的淡出。
     B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
-    C 上浮小气泡 —— 大量小泡升上来汇进每颗的位置再凝成药丸；点中的往上飘走，其余下沉。
+    C 上浮小气泡 —— 大量小泡升上来汇进每颗的位置再凝成半透明玻璃质感的药丸；点中的往上飘走，其余下沉。
     D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -160,6 +160,11 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 @keyframes sinkDn{to{opacity:0;transform:translateY(10px) scale(.9)}}
 .vB.drift{animation:driftUp .42s ease-in forwards}
 @keyframes driftUp{to{opacity:0;transform:translateY(-18px)}}
+/* 气泡质感（只给 C 版）：半透明玻璃底 + 左上高光点 + 右下虹彩反光 + 顶一条亮边 */
+.vB.lvl-3 .pill{background:linear-gradient(180deg,rgba(200,220,245,.14),rgba(200,220,245,.04) 45%,rgba(150,170,210,.08));border-color:rgba(150,180,220,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -2px 4px rgba(140,170,220,.12),0 2px 14px rgba(140,180,255,.10);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.vB.lvl-3 .pill::before{content:'';position:absolute;left:6%;top:2px;width:46%;height:55%;background:radial-gradient(ellipse at center,rgba(255,255,255,.30),transparent 70%);border-radius:50%;pointer-events:none}
+.vB.lvl-3 .pill::after{content:'';position:absolute;right:10%;bottom:1px;width:26%;height:40%;background:radial-gradient(ellipse at center,rgba(192,150,250,.16),transparent 70%);border-radius:50%;pointer-events:none}
+.vB.lvl-3 .pill:hover{transform:translateY(-2px) scale(1.04);border-color:rgba(180,205,240,.7);background:linear-gradient(180deg,rgba(210,228,250,.20),rgba(210,228,250,.07) 45%,rgba(160,180,220,.12));box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 18px rgba(150,190,255,.22)}
 
 /* ============ D 微光扫过：出现时一道光带斜着扫过药丸 ============ */
 /* 路子来自搜到的按钮扫光做法：一道斜的半透明光带扫过去 */
@@ -364,7 +369,7 @@ var VARIANTS = {
   C: {
     name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「素」之上加梦幻感：每颗药丸凝出来之前，先有大量小泡从下方升上来汇进这颗的位置，小泡聚拢消失的同时药丸凝出来（中间的先汇，两边的后汇）；悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
+    idea: '在「素」之上加梦幻感：每颗药丸凝出来之前，先有大量小泡从下方升上来汇进这颗的位置，小泡聚拢消失的同时药丸凝出来（中间的先汇，两边的后汇）；药丸本身是半透明玻璃质感，带高光点和虹彩边；悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
     tipSide: 'above',
     tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
