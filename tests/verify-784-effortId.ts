@@ -115,10 +115,10 @@ async function main(): Promise<void> {
   check(l0.status === 'ok' && l0.data.total >= 4, '列表不带时两份一起（' + l0.data.total + ' 行，与今天一致）')
 
   // 建票：带 beta 建到 beta
-  const cB = await tools.deck_issue_create.run(exec, { title: 'Beta 新票', effortId: 'beta' })
+  const cB = await tools.deck_issue_create.run(exec, { title: 'Beta 新票', kind: 'issue', effortId: 'beta' })
   check(cB.status === 'ok' && cB.data.ticket.effortId === 'beta', '建票带 beta 落在 beta（key=' + (cB.data.ticket && cB.data.ticket.key) + '）')
   // 建票不带：在多 effort 下必须 conflict（与今天逐字一致，不许改成猜）
-  const c0 = await tools.deck_issue_create.run(exec, { title: '不带 scope 的新票' })
+  const c0 = await tools.deck_issue_create.run(exec, { title: '不带 scope 的新票', kind: 'issue' })
   check(c0.ok === false, '建票不带时照旧失败（conflict，与今天一致）：' + String(c0.text).slice(0, 80))
 
   // 改票：带 beta 改 beta 的 01
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
   check(linkB.status === 'ok', '补边带 beta 落在 beta（' + linkB.status + '）')
 
   // 批量建图：带 alpha 建到 alpha
-  const plan = await tools.deck_map_plan_create.run(exec, { title: 'Alpha 批量图', effortId: 'alpha', planId: 'plan-784-7-a', children: [{ key: 'b1', title: '批量子票一' }] })
+  const plan = await tools.deck_map_plan_create.run(exec, { title: 'Alpha 批量图', effortId: 'alpha', planId: 'plan-784-7-a', children: [{ key: 'b1', title: '批量子票一', kind: 'issue' }] })
   check(plan.status === 'ok' && plan.data.mapKey, '批量建图带 alpha 建成（map=' + (plan.data && plan.data.mapKey) + '）')
   const snapAfter = await tools.deck_map_snapshot.run(exec, { key: plan.data.mapKey, effortId: 'alpha' })
   check(snapAfter.status === 'ok', '批量建的图能在 alpha 里读回来')

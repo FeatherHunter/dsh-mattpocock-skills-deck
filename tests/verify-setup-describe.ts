@@ -40,13 +40,13 @@ const EMDASH = String.fromCharCode(0x2014)  // —
 const G = {
   zh: {
     github: { trackerLine: '本仓库为 GitHub ' + ARROW + ' 提议 GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\n本次已选后端：GitHub。' },
-    markdown: { trackerLine: '本仓库为本地文件 ' + ARROW + ' 提议 Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\n本次已选后端：Markdown ' + EMDASH + ' 先以技能自带的本地模板（issue-tracker-local.md）为起点生成 docs/agents/issue-tracker.md，再把模板里三段旧做法改成 deck 工具口径：规格不是 .scratch/<feature-slug>/spec.md 文件，而是一张票（kind=spec，属于地图时挂地图）；实施票用 deck_issue_create 建，编号与文件头标记由工具写，不要手写 .scratch/<feature-slug>/issues/ 下的文件；认领与状态用 deck_issue_patch 改，不要手改 Status/Assignees 行。生成完读回这份文档，核对这三段都是 deck 口径。' },
+    markdown: { trackerLine: '本仓库为本地文件 ' + ARROW + ' 提议 Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\n本次已选后端：Markdown ' + EMDASH + ' 先以技能自带的本地模板（issue-tracker-local.md）为起点生成 docs/agents/issue-tracker.md，再把模板里三段旧做法改成 deck 工具口径：规格不是 .scratch/<feature-slug>/spec.md 文件，而是一张票（kind=spec，是顶层容器，不挂地图、不传 parentKey）；实施票用 deck_issue_create 建（kind=spec-ticket，parentKey 填规格票号），编号与文件头标记由工具写，不要手写 .scratch/<feature-slug>/issues/ 下的文件；认领与状态用 deck_issue_patch 改，不要手改 Status/Assignees 行。生成完读回这份文档，核对这三段都是 deck 口径。' },
     gitlab: { trackerLine: '本仓库为 GitLab ' + ARROW + ' 提议 GitLab Issues', trackerChoice: 'GitLab Issues', backendNote: '\n\n本次已选后端：GitLab ' + EMDASH + ' 请按 GitLab 模板生成 docs/agents/issue-tracker.md' },
     default: { trackerLine: '本仓库为 GitHub ' + ARROW + ' 提议 GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\n本次未指定后端，已按默认 GitHub 初始化；可在设置页随时切换' },
   },
   en: {
     github: { trackerLine: 'this repo is on GitHub ' + ARROW + ' propose GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\nSelected backend: GitHub.' },
-    markdown: { trackerLine: 'this repo uses local files ' + ARROW + ' propose Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\nSelected backend: Markdown ' + EMDASH + ' start from the skill\'s bundled local template (issue-tracker-local.md) to generate docs/agents/issue-tracker.md, then rewrite three legacy passages in deck-tool terms: the spec is not a .scratch/<feature-slug>/spec.md file but a ticket (kind=spec, attached to its map when it belongs to one); create implementation tickets with deck_issue_create (numbers and header markers are written by the tool — do not hand-write files under .scratch/<feature-slug>/issues/); claim and update status with deck_issue_patch instead of hand-editing the Status/Assignees lines. Read the generated file back and check these three passages are in deck-tool terms.' },
+    markdown: { trackerLine: 'this repo uses local files ' + ARROW + ' propose Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\nSelected backend: Markdown ' + EMDASH + ' start from the skill\'s bundled local template (issue-tracker-local.md) to generate docs/agents/issue-tracker.md, then rewrite three legacy passages in deck-tool terms: the spec is not a .scratch/<feature-slug>/spec.md file but a ticket (kind=spec, a top-level container, not attached to a map and given no parentKey); create implementation tickets with deck_issue_create (kind=spec-ticket, with the spec number in parentKey; numbers and header markers are written by the tool — do not hand-write files under .scratch/<feature-slug>/issues/); claim and update status with deck_issue_patch instead of hand-editing the Status/Assignees lines. Read the generated file back and check these three passages are in deck-tool terms.' },
     gitlab: { trackerLine: 'this repo is on GitLab ' + ARROW + ' propose GitLab Issues', trackerChoice: 'GitLab Issues', backendNote: '\n\nSelected backend: GitLab ' + EMDASH + ' please generate docs/agents/issue-tracker.md from the GitLab template.' },
     default: { trackerLine: 'this repo is on GitHub ' + ARROW + ' propose GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\nNo backend explicitly selected, defaulting to GitHub; you can switch anytime in Settings ' + ARROW + ' Backend.' },
   },
@@ -217,6 +217,10 @@ async function main() {
     check(note.indexOf('deck_issue_patch') >= 0, lang + ' 本地后端说明点名用 deck_issue_patch 认领与改票（#1384）')
     check(note.indexOf(lang === 'zh' ? '不要手写' : 'do not hand-write') >= 0, lang + ' 本地后端说明要求不要手写票文件（#1384）')
     check(note.indexOf(lang === 'zh' ? '按本地 Markdown 模板生成' : 'from the local Markdown template') < 0, lang + ' 本地后端说明不再让人照抄旧模板（#1384）')
+    // #1416：两层词表落地后，本地后端说明必须说新值 —— 规格是顶层容器、实施票是 spec-ticket；旧值一处不留。
+    check(note.indexOf('kind=spec-ticket') >= 0, lang + ' 本地后端说明说清实施票 kind=spec-ticket（#1416）')
+    check(note.indexOf('kind=ticket') < 0, lang + ' 本地后端说明不再出现旧的 kind=ticket（#1416）')
+    check(note.indexOf(lang === 'zh' ? '不挂地图' : 'not attached to a map') >= 0, lang + ' 本地后端说明说清规格是顶层容器（#1416）')
   }
   // #1384：本票只改 markdown 这一条，其它三条后端说明逐字不变 ——
   //   这里用写死的字面再钉一次（不用上面的 EMDASH / ARROW 常量拼，免得自己跟自己比），改词条时手滑会当场红。
