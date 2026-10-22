@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T01:36:33.911Z",
+  "generatedAt": "2026-10-22T01:54:18.949Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 314,
   "gateCount": 314,
@@ -1885,22 +1885,21 @@
       "guards": [
         "src/client/kernel/store-derived.ts",
         "src/client/statusbar/checksums.ts",
+        "src/host/sessionSnapshot.ts",
         "src/host/tracker/snapshot.ts",
-        "src/host/tracker/snapshotAssemble.ts",
-        "tests/lib/eval-probe.ts",
-        "tests/lib/source-text.ts"
+        "src/host/tracker/snapshotAssemble.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/host/tracker",
-        "tests/lib"
+        "src/host",
+        "src/host/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-1295-dual-panel.ts",
@@ -8041,6 +8040,7 @@
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
+      "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
@@ -8658,7 +8658,6 @@
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
-      "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-423-title-clamp-browser.ts",

@@ -106,7 +106,7 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   check(!!backOpen && backOpen.state === 'OPEN' && backOpen.title === 't603',
     '二.2b #1291：已关闭地图里还开着的那张子票以完整行回到首屏（实得 ' + JSON.stringify(snap.issues.filter((i) => i.key === '603').map((i) => ({ key: i.key, state: i.state, title: i.title }))) + '）')
   check(openMap && openMap.tickets.length === 2, '二.3 开放地图的子票一行不少（实得 ' + (openMap && openMap.tickets.length) + ' 张）')
-  check(snap.issues.length === 2 && snap.issues.map((i) => i.key).sort().join(',') === '603,800', '二.4 真正没挂图的票照旧在 issues 里，图下还开着的那张也在（实得 ' + JSON.stringify(snap.issues.map((i) => i.key)) + '）')
+  check(snap.issues.length === 2 && snap.issues.map((i) => i.key).sort().join(',') === '603,800', '二.4 真正没挂图的票照旧在 issues 里，地图下还开着的那张也在（实得 ' + JSON.stringify(snap.issues.map((i) => i.key)) + '）')
 }
 
 // ── 三、宿主电话：正文只用来解析进度，剥掉；编号与状态补齐给界面 ─────────────────

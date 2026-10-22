@@ -5,7 +5,7 @@
 //   两边的变化原因不同（组装口径变 vs 缓存策略变），测试策略也不同（纯组装可直接断言，编排要注夹具）。
 // 什么约定不能改：
 //   1. 组装只做直通，不补默认值；同池不分片，拉取请求与普通工单各算各的，BAD 单独隔离。
-//   2. 已关闭地图里自己已关闭的子票不进首屏但留瘦身行；还开着的子票照常进 issues（#691/#907/#1291 口径，见函数内注释）。
+//   2. 已关闭容器（地图或规格）里自己已关闭的子票不进首屏但留瘦身行；还开着的子票照常进 issues（#691/#907/#1291 口径，见函数内注释）。
 //   3. 行为与拆分前逐行一致：本文件内容即原来 snapshot.ts 的对应段落原样搬运，只加 export，不改逻辑。
 // 跨文件边只有两条（snapshot.ts → 本文件，被依赖方）：assembleSnapshot（编排器每趟重建调它）与
 //   failKindOfListError（list 失败分类）；poolIdOf/thinRowOf 只在本文件内用，不导出。
@@ -61,6 +61,12 @@ function thinRowOf(t: any): Record<string, any> | null {
   }
 }
 
+// 大写的 CLOSED 是本仓库的统一口径（upcaseSnapStates 在电话层再盖一次），这里自己也认小写，免得看后端脸色。
+// 容器（要不要把子票藏起来）与子票（要不要被藏）两处判据共用这一句 —— 同一条口径只写一遍（#1291 复核）。
+function isClosedRow(it: any): boolean {
+  return String((it && it.state) || '').toUpperCase() === 'CLOSED'
+}
+
 // #1277 B 兜底（视图兜底）：后端没把类型标成规格时，票面文件头那行隐藏标记仍是唯一真源（ADR 2.5）。
 //   为什么放在组装层而不是房间里：GitHub 写侧今天把标记挤到正文第二行（幂等锚占了第一行），GitHub 房
 //   只认首行，而 #326 一次改动只许动一个房间，本票不能改那个房 —— 界面不能因此把规格降级成普通票。
@@ -78,17 +84,17 @@ function withNormalizedType(it: any): any {
 // 组装（纯函数）：maps（挂一层 tickets）+ 未挂图票（孤儿：破链 / 根票；map 节点本身不算孤儿——它已在 maps[] 作为容器）。
 // 同池：拉取请求与普通工单都进 tickets/issues，不分片；拷贝原样带字段（EMPTY 保持空值，MISSING 保持省略）。
 //
-// #691（阶段 3）：已关闭地图里已经关闭的子票不进首屏 —— 用户点开那张地图时才按需抓（宿主电话 wf.mapTickets）。
-//   为什么：首屏那份行数据是「打开面板就要看的东西」，而一张已关闭地图里的已关闭子票属于历史，不必每次重建都付它的
-//   取数与体积（规格第 6.4 节）。地图行本身照旧留着（它是容器），只是不带子票；列表上那个进度环也因此不画
+// #691（阶段 3）：已关闭容器（地图或规格）里已经关闭的子票不进首屏 —— 用户点开那个容器时才按需抓（宿主电话 wf.mapTickets）。
+//   为什么：首屏那份行数据是「打开面板就要看的东西」，而一张已关闭容器里的已关闭子票属于历史，不必每次重建都付它的
+//   取数与体积（规格第 6.4 节）。容器行本身照旧留着（它是容器），只是不带子票；列表上那个进度环也因此不画
 //   （环要靠子票算，见 views/ListTabRow.js）。
-//   一处要紧的细节：这些子票既不算「挂在图上的行」，也不算「未挂图的票」—— 否则它们会从 issues 那条路
+//   一处要紧的细节：这些子票既不算「挂在容器上的行」，也不算「未挂容器的票」—— 否则它们会从 issues 那条路
 //   悄悄漏回首屏，等于白改。
-// #1291：这条取舍的边界是**子票自己的状态**，不是容器的状态。地图关掉了，图下还开着、没人认领、也没被阻塞的
-//   子票仍然是可以直接接活的任务，它不能跟着容器一起隐没：隐没之后它既不在任何图的 tickets 里、也不进 issues，
+// #1291：这条取舍的边界是**子票自己的状态**，不是容器的状态。容器关掉了，它下面还开着、没人认领、也没被阻塞的
+//   子票仍然是可以直接接活的任务，它不能跟着容器一起隐没：隐没之后它既不在任何容器的 tickets 里、也不进 issues，
 //   列表一行都看不到，而状态栏与 KPI 仍按后端 counts.open 说「可接 N 张」—— 数字与列表对不上。
-//   所以只把「容器已关闭、子票自己也是 CLOSED」的行藏起来；子票还开着的照常以完整行进 issues（地图容器的
-//   tickets 仍为空，与 #691 一致）。
+//   所以只把「容器已关闭、子票自己也是 CLOSED」的行藏起来；子票还开着的照常以完整行进 issues（容器行的
+//   tickets 仍为空，与 #691 一致）。地图与规格两类容器共用下面这段分支，所以规格收了也一样。
 // #907：同一条取舍曾让工作路线那一行查不到标题（标题只从快照给得出的行里查）。所以这些行现在另留一份
 //   瘦身行（thinTickets，只有票号、标题、状态、是不是地图）专供查标题：首屏口径不变，取数也不多花一次。
 export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
@@ -106,7 +112,7 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
       byParent.set(pk, arr)
     }
   }
-  // 已关闭地图里自己已关闭的子票：按池内身份收在一处，供下面算 issues 时排除（见本函数开头的说明）。
+  // 已关闭容器里自己已关闭的子票：按池内身份收在一处，供下面算 issues 时排除（见本函数开头的说明）。
   // 名字里带 ClosedChildren 是提醒后来人：判据落在子票自己的状态上，不是只看容器（#1291）。
   const hiddenClosedChildren = new Set<string>()
   // #907：这些子票虽然不进首屏，但要留一份瘦身行（见 thinRowOf）供工作路线查标题 ——
@@ -130,13 +136,11 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
       const bp: any = isSpec ? null : parseMapBody(m.body)
       const sp: any = isSpec ? parseSpecBody(m.body) : null
       const own = byParent.get(idOfParts(effortOf(m), m.key)) || []
-      // 大写的 CLOSED 是本仓库的统一口径（upcaseSnapStates 在电话层再盖一次），这里自己也认小写，免得看后端脸色。
-      const isClosed = String((m && m.state) || '').toUpperCase() === 'CLOSED'
+      const isClosed = isClosedRow(m)
       if (isClosed) for (const t of own) {
         // #1291：只藏「自己已关闭」的子票。还开着（以及状态缺失、没法当历史票看）的子票不藏，
-        //   它们随后会从下面 issues 那条「未挂图的票」通道以完整行回到首屏；地图容器的 tickets 照旧为空。
-        const childClosed = String((t && t.state) || '').toUpperCase() === 'CLOSED'
-        if (!childClosed) continue
+        //   它们随后会从下面 issues 那条「未挂图的票」通道以完整行回到首屏；容器行的 tickets 照旧为空。
+        if (!isClosedRow(t)) continue
         hiddenClosedChildren.add(poolIdOf(t))
         const thin = thinRowOf(t)
         if (thin) thinTickets.push(thin)
