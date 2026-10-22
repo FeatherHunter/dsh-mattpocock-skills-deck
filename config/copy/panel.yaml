@@ -304,6 +304,10 @@ zh:
   vc.sync.unknownTip: 无法识别的类型为：{kind}
   vc.other.more: 另有 {n} 个已收起，下滑会自动显示
   vc.other.prunableUnknownTip: 当前 git 版本无法判断该工作树目录是否存在；无法判断不等于不存在。
+  suggest.group: 下一步建议
+  suggest.close: 关闭（等于一条都不选）
+  suggest.ariaPill: "{prompt}；推荐理由：{reason}"
+  suggest.live: 有 {n} 条下一步建议
 en:
   nav.word: Consolidate
   nav.takeable: Ready
@@ -598,3 +602,7 @@ en:
   vc.sync.unknownTip: "The unrecognized value is: {kind}"
   vc.other.more: "{n} more not shown; scrolling down shows them"
   vc.other.prunableUnknownTip: This git version cannot tell whether this worktree directory still exists; cannot tell does not mean it is still there.
+  suggest.group: Next-step suggestions
+  suggest.close: Close (choosing none)
+  suggest.ariaPill: "{prompt}; why: {reason}"
+  suggest.live: "{n} next-step suggestions available"

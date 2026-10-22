@@ -2,7 +2,7 @@
 //
 // 职责：借官方对话界面已经保持着的会话事件流（sessions.binding(sid).eventSource）只读订阅，
 // 认出建议工具的 tool/call，等同一轮 turn/end 之后把解析好的建议清单交给上层（onReady），
-// 并挂成一个不渲染任何东西的组件交给状态栏。
+// 并挂成一个组件交给状态栏；#1411 起这个组件把建议交给状态胶囊上方的气泡去渲染。
 //
 // 硬约束（票面与平台契约）：
 //   - 只借不保：绝不调用会话服务里那几个保活接口（retain、保活作用域、using 一律不碰）。保持订阅
@@ -21,6 +21,8 @@ declare function suggestClipText(...args: any[]): any;
 declare function suggestItemsOf(...args: any[]): any;
 declare function suggestEventOf(...args: any[]): any;
 declare function isEnabled(...args: any[]): any;
+// #1411：建议气泡的渲染薄壳（由相邻叶子提供，构建时按 index.ts 的标记次序拼在本文件之前）。
+declare const SuggestBubble: any;
 
 /** 已认出的调用编号最多记多少条：只是防「对话极长时集合无界」的下限，超了整清一次再记。 */
 const SUGGEST_SEEN_LIMIT = 500
@@ -169,23 +171,54 @@ export const createSuggestStream = function (options: any) {
 }
 
 /**
- * 挂载组件：只做接线，不渲染任何东西（本票不产出任何用户可见的界面，#1411 才做气泡）。
+ * 挂载组件：把 #1409 的取数通路接到 #1411 的建议气泡上。
  * 为什么做成组件而不是写进 StatusBar：StatusBar.ts 已经贴着单文件 350 有效行的粒度红线，
- * 在那里加 useEffect 会超线；这里挂一个返回 null 的组件，状态栏只需要在已有行里加一个子节点。
- * sid 变化（切会话）时 React 会先跑上一轮的清理再建新流 —— 旧订阅退掉、新会话重新借。
+ * 在那里加 useEffect 会超线；这里挂一个组件，状态栏只需要在已有行里加一个子节点。
+ * sid 变化（切会话）时 React 会先跑上一轮的清理再建新流 —— 旧订阅退掉、新会话重新借；
+ * 同时清掉上一组建议，绝不让旧会话的建议留在新会话上。
+ * 本组件自身不读会话、不 retain：取数只走 createSuggestStream 里那条只读订阅。
  */
 export const SuggestStreamMount = function (props: any) {
   const sid = (props && props.sid) ? String(props.sid) : ''
   const cx = React.useContext(DswsCtx)
+  // 状态栏的同一份会话 store：气泡点选时要把提示词交给既有注入口子（kernel:api-io 的 inject）。
+  let st: any = null
+  try {
+    st = (cx && cx.storeSvc && typeof cx.storeSvc.useStore === 'function') ? cx.storeSvc.useStore(sid) : null
+  } catch (eStore) { st = null }
+  const groupState = React.useState(null)
+  const group = groupState[0]
+  const setGroup = groupState[1]
+  // 每一组给一个递增编号：同一条内容再来一次也算新组，保证界面能重挂（第二组覆盖第一组）。
+  const seqRef = React.useRef(0)
   React.useEffect(function () {
     if (!sid) return undefined
+    let alive = true
     let sessionsSvc: any = null
     try {
       sessionsSvc = (cx && cx.ctx && typeof cx.ctx.get === 'function') ? cx.ctx.get('sessions') : null
     } catch (eSvc) { sessionsSvc = null }
-    // #1411 的接缝：拿到整轮结束后的建议清单时回调；本票先给空函数，不渲染、不弹任何东西。
-    const stream = createSuggestStream({ sessions: sessionsSvc, sid: sid, onReady: function (items: any) {} })
-    return function () { try { stream.dispose() } catch (eDispose) {} }
+    // 换会话先清掉上一组：旧会话的建议不能留在新会话上。
+    setGroup(null)
+    const stream = createSuggestStream({
+      sessions: sessionsSvc,
+      sid: sid,
+      onReady: function (items: any) {
+        if (!alive) return
+        seqRef.current = seqRef.current + 1
+        setGroup({ id: seqRef.current, items: items })
+      },
+    })
+    return function () {
+      alive = false
+      try { stream.dispose() } catch (eDispose) {}
+    }
   }, [sid])
-  return null
+  if (!group) return null
+  return React.createElement(SuggestBubble, {
+    st: st,
+    sid: sid,
+    group: group,
+    onDismiss: function () { setGroup(null) },
+  })
 }
