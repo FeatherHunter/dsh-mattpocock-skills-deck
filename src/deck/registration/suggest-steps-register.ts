@@ -44,9 +44,15 @@ export const SUGGEST_REGISTER_WAIT_MS = REGISTER_RETRY_WAIT_MS
 /** 工具服务从上下文里取：行模块与宿主接线两处上下文形状不同，两个格子都认。 */
 function toolsServiceOf(ctx: unknown): ToolsServiceLike | null {
   const bag = (ctx && typeof ctx === 'object') ? ctx as UnknownRecord : {}
-  const direct = bag.tools as ToolsServiceLike | null | undefined
+  // 读服务属性本身也要包住：Cordis 的上下文是代理，读一个没有 inject 的服务属性会直接抛
+  // 「cannot get property "tools" without inject」，而不是回 undefined。取服务抛错与取不到同义，
+  // 一律当缺席处理——这里不包住，异常会从 async 钩子的第一段逃出去，宿主加载期会把未处理的
+  // rejected Promise 判成致命错误，真机启动直接退出码 1（#1406 补的启动期崩溃就出在这）。
+  let direct: ToolsServiceLike | null | undefined
+  try { direct = bag.tools as ToolsServiceLike | null | undefined } catch (e) { direct = null }
   if (direct && typeof direct.register === 'function') return direct
-  const getter = bag.get
+  let getter: unknown
+  try { getter = bag.get } catch (e) { getter = null }
   if (typeof getter === 'function') {
     try {
       const viaGet = (getter as (name: string) => unknown)('tools') as ToolsServiceLike | null | undefined

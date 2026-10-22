@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T20:38:27.249Z",
+  "generatedAt": "2026-10-22T20:45:31.365Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 330,
   "gateCount": 330,
@@ -7120,19 +7120,21 @@
         "src/deck/registration/suggest-steps-register.ts",
         "src/deck/rules/tool-order.ts",
         "src/deck/tools/suggest-next-steps.ts",
+        "src/host/refresh/wiring.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
         "src/deck/registration",
         "src/deck/rules",
         "src/deck/tools",
+        "src/host/refresh",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 105,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "expectedAssertions": 111,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-t1-getrepokey.ts",
@@ -8577,7 +8579,8 @@
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-naming-title-fact.ts",
-      "node tests/verify-refresh-workspace-key.ts"
+      "node tests/verify-refresh-workspace-key.ts",
+      "node tests/verify-suggest-next-steps.ts"
     ],
     "src/host/tracker": [
       "node tests/verify-1277-md-spec-container.ts",

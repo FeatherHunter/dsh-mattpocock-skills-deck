@@ -311,7 +311,10 @@ export function createRefreshWiring(deps: any): any {
   // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
   let deckToolsP: Promise<any> | null = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function (): Promise<any> { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx), undefined) } catch (eH: any) {} // #741 注册那一步：表装好就向 agent 交九个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）。末尾的 undefined 是“轮数与间隔都用缺省”（五轮、每轮两秒）：原 JS 只传四个实参，被调方按缺席取缺省；这里显式写出才能过类型检查，运行期走的是同一条缺省分支。
   // #1406：建议工具单独登记一次（与九工具那条钩子并列，不进 DECK_TOOL_ORDER）。失败只落日志，不影响九个追踪器工具。
-  try { hookSuggestNextSteps(d.ctx, { log: logCtx }) } catch (eSuggest: any) {}
+  // #1406 补（2026-10-23）：hookSuggestNextSteps 是 async，开头读上下文若抛错会变成 rejected Promise，
+  // 那一行同步 try/catch 抓不到；宿主加载期会把未处理的 rejection 判成致命错误（真机启动即退出 1）。
+  // 所以给返回的 Promise 再挂一层 .catch 兜底：登记失败只落既有日志，绝不拖垮启动。
+  try { hookSuggestNextSteps(d.ctx, { log: logCtx }).catch(function (eSuggest: any) {}) } catch (eSuggest: any) {}
   async function deckToolsForHost(): Promise<any> {
     if (!deckToolsP) {
       deckToolsP = (async function (): Promise<any> {        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }

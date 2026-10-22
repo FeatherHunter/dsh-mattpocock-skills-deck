@@ -11,6 +11,7 @@
 //   ④ 工具在 agent 工具列表里、不在 DECK_TOOL_ORDER；九工具的装配顺序与文件清单仍是冻结的九条；
 //   ⑤ 负向自检：把建议工具塞进装配顺序时，本门禁用的判据必须判红——只跑正向的门禁守不住任何东西。
 const path = require('path')
+const fs = require('fs')
 const { pathToFileURL } = require('url')
 const { printGateResult } = require('./lib/gate-result.ts')
 
@@ -270,6 +271,48 @@ async function main() {
   let hookCrashed = false
   try { await registerMod.hookSuggestNextSteps(null, null, { retries: 0, waitMs: 0 }) } catch (e) { hookCrashed = true }
   check(!hookCrashed, '钩子对空上下文也不抛（行起不来不连累整行）')
+
+  // ── 8b. Cordis 风格上下文：读没 inject 的服务属性会抛，钩子必须 resolve 而不是 reject ──
+  // 真机启动崩溃（#1406 补的回归用例）：dsh 的 ctx 是 Proxy，读 ctx.tools 会抛
+  // 「cannot get property "tools" without inject」。async 钩子把这一抛漏出去，就是未处理的
+  // rejected Promise，宿主加载期判致命、退出码 1。这里用 Proxy 复现那一下，钉住两层兜底：
+  // 取服务本身不抛（回 no-tools-service），以及 tools 抛了还能走 ctx.get('tools') 的回退分支。
+  const guardedLog = makeLog()
+  const guardedCtx = new Proxy({}, {
+    get: function (target, prop) {
+      if (prop === 'tools') throw new Error('cannot get property "tools" without inject')
+      return Reflect.get(target, prop)
+    },
+  })
+  let guardedRejected = false
+  let guardedRes = null
+  try {
+    guardedRes = await registerMod.hookSuggestNextSteps(guardedCtx, { log: guardedLog.log, now: fakeClock(0) }, { retries: 0, waitMs: 0 })
+  } catch (e) { guardedRejected = true }
+  check(!guardedRejected, 'Cordis 风格上下文（读 tools 即抛）下钩子不 reject')
+  check(guardedRes && guardedRes.registered === false && guardedRes.reason === 'no-tools-service', 'Cordis 风格上下文下如实回 no-tools-service')
+  check(guardedLog.fired.length === 1 && guardedLog.fired[0].event === 'host.call.fail' && guardedLog.fired[0].fields.errorKind === 'missing-dep',
+    'Cordis 风格上下文下登记失败仍落 host.call.fail')
+
+  const fallbackSvc = { register: function () { return function () {} } }
+  const fallbackCtx = new Proxy({}, {
+    get: function (target, prop) {
+      if (prop === 'tools') throw new Error('cannot get property "tools" without inject')
+      if (prop === 'get') return function (name) { return name === 'tools' ? fallbackSvc : undefined }
+      return Reflect.get(target, prop)
+    },
+  })
+  const fallbackRes = await registerMod.hookSuggestNextSteps(fallbackCtx, { log: makeLog().log, now: fakeClock(0) }, { retries: 0, waitMs: 0 })
+  check(fallbackRes.registered === true, '读 tools 抛错但 ctx.get("tools") 有服务时仍能登记（回退分支有效）')
+
+  // ── 8c. 宿主接线源码守卫：登记 Promise 必须挂 .catch ──
+  // 同步 try/catch 抓不到 async 函数返回的 rejected Promise，所以接线处必须另有 .catch。
+  // 这条守卫看的是接线源码本身：只改回同步 try/catch 时，门禁立刻红。
+  const wiringSource = fs.readFileSync(path.join(ROOT, 'src/host/refresh/wiring.ts'), 'utf8')
+  const wiringCallAt = wiringSource.indexOf('hookSuggestNextSteps(')
+  const wiringTail = wiringCallAt >= 0 ? wiringSource.slice(wiringCallAt, wiringCallAt + 240) : ''
+  check(wiringCallAt >= 0, '宿主接线里仍在调用建议工具登记钩子')
+  check(wiringTail.indexOf('.catch(') >= 0, '宿主接线给登记钩子的 Promise 挂了 .catch 兜底（异步异常不会逃逸）')
 
   // ── 9. 锁九：DECK_TOOL_ORDER / 工厂表 / 文件清单仍是冻结的九条 ──
   const orderMod = await imp('src/deck/rules/tool-order.ts')
