@@ -714,6 +714,21 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'mapDetail', file: 'src/client/views/MapDetail.ts' },
   { id: 'detailActionBar', file: 'src/client/views/DetailActionBar.ts' }, // #1286 由 MapDetail.ts 拆出：容器详情页底部的三态动作组（探索地图与规格共用，MapDetail 贴着 350 行上限）
   { id: 'mapDetailSpecBody', file: 'src/client/views/MapDetailSpecBody.ts' }, // #1286 由 MapDetail.ts 拆出：规格（实施地图）详情页的正文七段（MapDetail 贴着 350 行上限）
+  // #1398 V2 地图详情页（先不接入）：先纯逻辑（票的刻画 / 看板顺序 / 取数状态），再容器档案与两张适配层
+  //   （票 → 卡片 props、整页一次算完），最后接线与三块界面。次序即依赖次序，必须都排在页面容器之前。
+  { id: 'mapV2TicketFacts', file: 'src/client/views/mapDetailV2/model/tickets/ticketCardFacts.ts' },
+  { id: 'mapV2TicketBoard', file: 'src/client/views/mapDetailV2/model/tickets/ticketBoard.ts' },
+  { id: 'mapV2TicketFeed', file: 'src/client/views/mapDetailV2/model/tickets/ticketFeed.ts' },
+  { id: 'mapV2Profile', file: 'src/client/views/mapDetailV2/model/container/mapProfile.ts' },
+  { id: 'mapV2CardProps', file: 'src/client/views/mapDetailV2/model/assembly/cardPropsOf.ts' },
+  { id: 'mapV2PageModel', file: 'src/client/views/mapDetailV2/model/assembly/mapDetailPageModel.ts' },
+  { id: 'mapV2Styles', file: 'src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts' }, // 页面外壳样式（卡片皮肤仍由 cardsStyles 那一片提供，深浅两套在卡片自己身上）
+  { id: 'mapV2UseFeed', file: 'src/client/views/mapDetailV2/wiring/useMapTicketsFeed.ts' }, // 进页面就拉这张图的全部子票（含已关闭），取数状态由模型翻译成人话
+  { id: 'mapV2Actions', file: 'src/client/views/mapDetailV2/wiring/pageActionHandlers.ts' }, // 卡片四个按钮的回调（注入提示词 / 新会话 / 复制链接 / 打开）
+  { id: 'mapV2ProfileDrawers', file: 'src/client/views/mapDetailV2/view/profile/MapProfileDrawers.ts' },
+  { id: 'mapV2ProfileHeader', file: 'src/client/views/mapDetailV2/view/profile/MapProfileHeader.ts' },
+  { id: 'mapV2CardFlow', file: 'src/client/views/mapDetailV2/view/flow/TicketCardFlow.ts' },
+  { id: 'mapV2Page', file: 'src/client/views/mapDetailV2/view/MapDetailV2Page.ts' },
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.ts' },
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.ts' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
   { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.ts' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）

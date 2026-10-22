@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T14:31:13.135Z",
+  "generatedAt": "2026-10-22T15:43:07.417Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 322,
   "gateCount": 322,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 532,
+  "graphFileCount": 539,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5899,10 +5899,10 @@
       "step": "node tests/verify-map-detail-v2.ts",
       "file": "tests/verify-map-detail-v2.ts",
       "guards": [
-        "src/client/mapDetailV2"
+        "src/client/views/mapDetailV2"
       ],
       "dirs": [
-        "src/client/mapDetailV2"
+        "src/client/views/mapDetailV2"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -7968,9 +7968,6 @@
       "node tests/verify-locale-completeness.ts",
       "node tests/verify-locale-config.ts"
     ],
-    "src/client/mapDetailV2": [
-      "node tests/verify-map-detail-v2.ts"
-    ],
     "src/client/panel": [
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
@@ -8067,6 +8064,9 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-label-color-core.ts",
       "node tests/verify-ui-feedback.ts"
+    ],
+    "src/client/views/mapDetailV2": [
+      "node tests/verify-map-detail-v2.ts"
     ],
     "src/client/views/pixel": [
       "node tests/verify-skill-detail-stack.ts",
@@ -8968,11 +8968,11 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 548,
-    "dirCount": 61,
-    "coveredFileCount": 548,
+    "fileCount": 555,
+    "dirCount": 73,
+    "coveredFileCount": 555,
     "ungatedFileCount": 0,
-    "ungatedDirCount": 0,
+    "ungatedDirCount": 2,
     "dedicatedDirCount": 52,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
@@ -9032,13 +9032,6 @@
       "src/client/kernel/tabsfold.ts",
       "src/client/kernel/ui-feedback.ts",
       "src/client/kernel/work-route-own.ts",
-      "src/client/mapDetailV2/cardPropsOf.ts",
-      "src/client/mapDetailV2/mapDetailPageModel.ts",
-      "src/client/mapDetailV2/mapDetailTypes.d.ts",
-      "src/client/mapDetailV2/mapProfile.ts",
-      "src/client/mapDetailV2/ticketBoard.ts",
-      "src/client/mapDetailV2/ticketCardFacts.ts",
-      "src/client/mapDetailV2/ticketFeed.ts",
       "src/client/panel/Dock.ts",
       "src/client/panel/DockSync.ts",
       "src/client/panel/NamingFailBanner.ts",
@@ -9111,6 +9104,20 @@
       "src/client/views/labels/labelColorPatch.ts",
       "src/client/views/labels/useLabelColors.ts",
       "src/client/views/listFilterRow.ts",
+      "src/client/views/mapDetailV2/model/assembly/cardPropsOf.ts",
+      "src/client/views/mapDetailV2/model/assembly/mapDetailPageModel.ts",
+      "src/client/views/mapDetailV2/model/container/mapProfile.ts",
+      "src/client/views/mapDetailV2/model/contracts/mapDetailTypes.d.ts",
+      "src/client/views/mapDetailV2/model/tickets/ticketBoard.ts",
+      "src/client/views/mapDetailV2/model/tickets/ticketCardFacts.ts",
+      "src/client/views/mapDetailV2/model/tickets/ticketFeed.ts",
+      "src/client/views/mapDetailV2/view/MapDetailV2Page.ts",
+      "src/client/views/mapDetailV2/view/flow/TicketCardFlow.ts",
+      "src/client/views/mapDetailV2/view/profile/MapProfileDrawers.ts",
+      "src/client/views/mapDetailV2/view/profile/MapProfileHeader.ts",
+      "src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts",
+      "src/client/views/mapDetailV2/wiring/pageActionHandlers.ts",
+      "src/client/views/mapDetailV2/wiring/useMapTicketsFeed.ts",
       "src/client/views/pixel/PixelBanner.ts",
       "src/client/views/pixel/PixelBtn.ts",
       "src/client/views/pixel/PixelDot.ts",
@@ -9529,7 +9536,6 @@
       "src/client",
       "src/client/floating",
       "src/client/kernel",
-      "src/client/mapDetailV2",
       "src/client/panel",
       "src/client/statusbar",
       "src/client/views",
@@ -9537,6 +9543,17 @@
       "src/client/views/diagnosticLog",
       "src/client/views/feedback",
       "src/client/views/labels",
+      "src/client/views/mapDetailV2",
+      "src/client/views/mapDetailV2/model",
+      "src/client/views/mapDetailV2/model/assembly",
+      "src/client/views/mapDetailV2/model/container",
+      "src/client/views/mapDetailV2/model/contracts",
+      "src/client/views/mapDetailV2/model/tickets",
+      "src/client/views/mapDetailV2/view",
+      "src/client/views/mapDetailV2/view/flow",
+      "src/client/views/mapDetailV2/view/profile",
+      "src/client/views/mapDetailV2/view/skin",
+      "src/client/views/mapDetailV2/wiring",
       "src/client/views/pixel",
       "src/client/views/primitives",
       "src/client/views/shared",
@@ -9592,7 +9609,6 @@
       "src/client",
       "src/client/floating",
       "src/client/kernel",
-      "src/client/mapDetailV2",
       "src/client/panel",
       "src/client/statusbar",
       "src/client/views",
@@ -9600,6 +9616,7 @@
       "src/client/views/diagnosticLog",
       "src/client/views/feedback",
       "src/client/views/labels",
+      "src/client/views/mapDetailV2",
       "src/client/views/pixel",
       "src/client/views/primitives",
       "src/client/views/shared",
@@ -9643,6 +9660,46 @@
     ],
     "dirsWithoutDedicated": [
       {
+        "path": "src/client/views/mapDetailV2/model",
+        "fileCount": 7
+      },
+      {
+        "path": "src/client/views/mapDetailV2/model/assembly",
+        "fileCount": 2
+      },
+      {
+        "path": "src/client/views/mapDetailV2/model/container",
+        "fileCount": 1
+      },
+      {
+        "path": "src/client/views/mapDetailV2/model/contracts",
+        "fileCount": 1
+      },
+      {
+        "path": "src/client/views/mapDetailV2/model/tickets",
+        "fileCount": 3
+      },
+      {
+        "path": "src/client/views/mapDetailV2/view",
+        "fileCount": 5
+      },
+      {
+        "path": "src/client/views/mapDetailV2/view/flow",
+        "fileCount": 1
+      },
+      {
+        "path": "src/client/views/mapDetailV2/view/profile",
+        "fileCount": 2
+      },
+      {
+        "path": "src/client/views/mapDetailV2/view/skin",
+        "fileCount": 1
+      },
+      {
+        "path": "src/client/views/mapDetailV2/wiring",
+        "fileCount": 2
+      },
+      {
         "path": "src/shared/command-cleanup",
         "fileCount": 3
       },
@@ -9680,6 +9737,15 @@
       }
     ],
     "ungated": [],
-    "ungatedDirs": []
+    "ungatedDirs": [
+      {
+        "path": "src/client/mapDetailV2",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/client/views/mapDetailV2/view/chrome",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      }
+    ]
   }
 }

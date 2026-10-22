@@ -1,5 +1,5 @@
 /**
- * src/client/mapDetailV2/mapDetailPageModel.ts —— 把一页要画的东西一次算好：档案、取数状态、看板、卡片 props。
+ * views/mapDetailV2/model/assembly/mapDetailPageModel.ts —— 把一页要画的东西一次算好：档案、取数状态、看板、卡片 props。
  *
  * 为什么要有这一层：页面容器要做的判断其实有先后次序——先判「取到的数据有多全」（ticketFeedOf），
  * 再给每张票刻画（ticketCardFactsOf），再排序（orderTicketBoard），再数数（boardCountsOf），
@@ -21,13 +21,18 @@ import type {
   TicketBoard,
   TicketCardFacts,
   TicketCardHandlers,
-} from './mapDetailTypes'
-// 模块说明符按仓内约定写 .js：scripts/ts-hook.mts 会把它改指同目录同名 .ts，测试与构建两边同一份源。
-import { ticketFeedOf } from './ticketFeed.js'
-import { ticketFactsContextOf, ticketCardFactsOf } from './ticketCardFacts.js'
-import { orderTicketBoard, boardCountsOf } from './ticketBoard.js'
-import { mapProfileOf } from './mapProfile.js'
-import { cardPropsListOf } from './cardPropsOf.js'
+} from '../contracts/mapDetailTypes'
+// 这一份是界面闭包里的叶子（scripts/build.mts 的 LEAF_MODULES），不能有运行时的 import：
+// 下面这七个函数由构建按登记次序先拼进同一个函数作用域，这里只声明形状让类型检查通过。
+// 为什么只有这一份这样写：模型层其余模块只 import 类型，可以同时被测试直接 require、被构建拼进闭包；
+// 唯独「把它们按次序串起来」这一步必须调运行时函数。
+declare function ticketFeedOf(bucket: any, map: any): any;
+declare function ticketFactsContextOf(rows: any, env: any): any;
+declare function ticketCardFactsOf(row: any, ctx: any): any;
+declare function orderTicketBoard(facts: any): any;
+declare function boardCountsOf(facts: any): any;
+declare function mapProfileOf(m: any, feed: any, counts: any): any;
+declare function cardPropsListOf(facts: any, handlers: any, colorOf: any): any;
 
 /**
  * 两段卡片 + 页面要照着画的连续序列。维护者定的是「已完成接在被挡下面、不另起区块」，
@@ -58,12 +63,14 @@ export function mapDetailPageModelOf(input: MapDetailPageInputs): MapDetailPageM
     textOf: input.textOf,
   }
   const ctx = ticketFactsContextOf(feed.rows, env)
-  const facts: TicketCardFacts[] = feed.rows.map(function (row) { return ticketCardFactsOf(row, ctx) })
+  const facts: TicketCardFacts[] = feed.rows.map(function (row: any) { return ticketCardFactsOf(row, ctx) })
   const board = orderTicketBoard(facts)
   const counts = boardCountsOf(facts)
   const profile = mapProfileOf(input.map, feed, counts)
   const colorOf = input.colorOf || null
-  const handlers = input.handlers || null
+  const rawHandlers = input.handlers || null
+  // handlers 可以是回调对象，也可以是「拿到这批行再给回调」的函数：后者让页面先看见行、再造回调。
+  const handlers = typeof rawHandlers === 'function' ? rawHandlers(feed.rows) : rawHandlers
   return {
     profile: profile,
     feed: feed,

@@ -1,5 +1,5 @@
 /**
- * src/client/mapDetailV2/ticketFeed.ts —— 三条取数来路合成一份「现在能画什么」。
+ * views/mapDetailV2/model/tickets/ticketFeed.ts —— 三条取数来路合成一份「现在能画什么」。
  *
  * 为什么要收成一处：地图的子票有三条来路——
  *   ① 首屏快照里那份（老地图的详情页就是靠它；已关闭的地图快照里不带子票）；
@@ -14,7 +14,7 @@
  * 与老页 views/MapDetailHead.ts 的取数口径逐条对齐（:37-43）：取数成功用取回那份的 stats，
  * 否则退回快照的 stats；后端明确回 unsupported 时按快照画、不报错。
  */
-import type { MapRowLike, MapTicketRow, MapTicketsBucket, TicketFeed } from './mapDetailTypes'
+import type { MapRowLike, MapTicketRow, MapTicketsBucket, TicketFeed } from '../contracts/mapDetailTypes'
 
 /** 读成数组：给的东西不是数组时当空数组，不做类型猜测。 */
 function rowsOf(value: MapTicketRow[] | null | undefined): MapTicketRow[] {

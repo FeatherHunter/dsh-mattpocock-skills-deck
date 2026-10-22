@@ -1,5 +1,5 @@
 /**
- * src/client/mapDetailV2/cardPropsOf.ts —— 一张票的刻画 → 卡片组件认的 props。
+ * views/mapDetailV2/model/assembly/cardPropsOf.ts —— 一张票的刻画 → 卡片组件认的 props。
  *
  * 为什么单独一层：views/cards 的卡片组件只认 IssueCardProps（视图契约），V2 的逻辑层
  * 只产出 TicketCardFacts（业务刻画）。两者之间有四处形状对不上——这一层专职把它们对齐：
@@ -13,8 +13,8 @@
  * 这一份是纯函数：不读 React、不碰 DOM、不连后端。四个按钮点下去之后做什么也不在这里决定，
  * 由页面传 handlers 进来；这里只负责把「是哪张票」一并交给回调，页面不必自己记住它是从哪张卡来的。
  */
-import type { IssueCardProps } from '../views/cards/cardProps'
-import type { TicketCardFacts, TicketCardHandlers } from './mapDetailTypes'
+import type { IssueCardProps } from '../../../cards/cardProps'
+import type { TicketCardFacts, TicketCardHandlers } from '../contracts/mapDetailTypes'
 
 /** 把回调包成「点哪张卡就把哪张票交回去」：页面只认票，不认 DOM 事件。 */
 function bind(facts: TicketCardFacts, handler: ((facts: TicketCardFacts) => void) | undefined) {

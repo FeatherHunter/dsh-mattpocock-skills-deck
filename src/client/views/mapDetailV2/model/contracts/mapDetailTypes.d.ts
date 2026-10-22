@@ -1,5 +1,5 @@
 /**
- * src/client/mapDetailV2/mapDetailTypes.d.ts —— V2 地图详情页的数据契约（纯类型，永不转译）。
+ * views/mapDetailV2/model/contracts/mapDetailTypes.d.ts —— V2 地图详情页的数据契约（纯类型，永不转译）。
  *
  * 为什么单独立一份：这一页从宿主拿数据的路有三条（首屏快照 / wf.mapTickets 按需取全量 / 取失败），
  * 三条路的行形状不完全一样。把三条路收成一份最小并集，后面的推导函数就只认这一份形状，
@@ -10,7 +10,7 @@
  * 那一件事单独做，免得「先不接入」这句话在代码上变成空话。
  */
 
-import type { IssueCardProps } from '../views/cards/cardProps'
+import type { IssueCardProps } from '../../../cards/cardProps'
 
 /** 子票行的最小并集：只列 V2 真正读到的字段；其余字段即使有，也不在这里承诺。 */
 export interface MapTicketRow {
@@ -348,8 +348,14 @@ export interface MapDetailPageInputs {
   actionOf: (row: MapTicketRow) => SourceActionKind
   /** 词条取字（真页传 tr）。 */
   textOf: (key: string) => string
-  /** 四个按钮的页面回调。 */
-  handlers?: TicketCardHandlers | null
+  /**
+   * 四个按钮的页面回调；也可以给一个「拿到这批行再给回调」的函数。
+   *
+   * 为什么要有后一种写法：主按钮注入的提示词要看票的原始标签（生产侧 rowActionKind 要认出容器与
+   * 实施票），页面必须先拿到「这次画的是哪些行」才造得出回调；而这批行是模型算出来的。
+   * 交给模型调用一次，页面就不必在外面先猜一遍行，也不必把行再递一遍。
+   */
+  handlers?: TicketCardHandlers | ((rows: MapTicketRow[]) => TicketCardHandlers | null) | null
 }
 
 /**

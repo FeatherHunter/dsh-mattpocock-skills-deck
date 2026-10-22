@@ -1,5 +1,5 @@
 /**
- * src/client/mapDetailV2/ticketBoard.ts —— 未完成票的排法、已完成票的收法、看板计数。
+ * views/mapDetailV2/model/tickets/ticketBoard.ts —— 未完成票的排法、已完成票的收法、看板计数。
  *
  * 页面要的效果（维护者 2026-10-22 定的口径）：不按层级分组，所有卡片平铺在同一页里；
  * 未完成的分三段摆——先「在办」，再「可接」，最后「被挡」；已完成的卡片不另起区块，
@@ -21,7 +21,7 @@
  *
  * 复杂度 O(n log n)，n 是子票张数；不递归、不走图，十万张票也不会撑爆调用栈。
  */
-import type { TicketBoard, TicketBoardCounts, TicketCardFacts, TicketCardStatus } from './mapDetailTypes'
+import type { TicketBoard, TicketBoardCounts, TicketCardFacts, TicketCardStatus } from '../contracts/mapDetailTypes'
 
 /**
  * 状态段的次序：在办 → 可接 → 被挡。已关闭不进这一段（单独一段，排在最后画），

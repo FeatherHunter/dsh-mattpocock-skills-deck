@@ -1,5 +1,5 @@
 /**
- * src/client/mapDetailV2/ticketCardFacts.ts —— 一条子票行 → 一张 ISSUE 卡片要画的东西。
+ * views/mapDetailV2/model/tickets/ticketCardFacts.ts —— 一条子票行 → 一张 ISSUE 卡片要画的东西。
  *
  * 为什么要有这一份：卡片组件（views/cards/PixelIssueCard.ts）只认 props，不认识票的数据形状。
  * 从「宿主给的行」到「卡片要的 props」之间有几处判断——四种状态、九种动作收成八种样张、
@@ -21,7 +21,7 @@ import type {
   TicketCardStatus,
   TicketFactsContext,
   TicketFactsEnv,
-} from './mapDetailTypes'
+} from '../contracts/mapDetailTypes'
 
 /**
  * 生产侧九种行级动作 → 卡片八种样张键。

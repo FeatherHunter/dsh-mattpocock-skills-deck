@@ -1,5 +1,5 @@
 /**
- * src/client/mapDetailV2/mapProfile.ts —— MAP 自身内容的刻画：身份、目的地、档案区、完成度与「子票那句」。
+ * views/mapDetailV2/model/container/mapProfile.ts —— MAP 自身内容的刻画：身份、目的地、档案区、完成度与「子票那句」。
  *
  * 为什么单独一份：地图详情页里除了子票卡片，还有一块「这张地图本身是什么」的内容——
  * 标题、## Destination 那句、档案区（探索地图是笔记 / 已定决策 / 战雾 / 范围外四节，
@@ -34,7 +34,7 @@ import type {
   SpecSections,
   TicketBoardCounts,
   TicketFeed,
-} from './mapDetailTypes'
+} from '../contracts/mapDetailTypes'
 
 /** 宿主一次最多取回的子票张数；capped 时老页就是按这个数说「只加载了前 1000 张」。 */
 export const MAP_PROFILE_CAPPED_LIMIT = 1000
@@ -58,14 +58,15 @@ export const SPEC_PROFILE_SECTIONS: ReadonlyArray<{ id: MapProfileSectionId; lab
   { id: 'notes', labelKey: 'spec.section.notes' },
 ]
 
-/** 两种容器的身份小签词条键（与 src/client/kernel/container-view.ts 的 CONTAINER_CHIP_LABEL_KEY 同值）。 */
-const CONTAINER_CHIP_LABEL_KEY: Record<ContainerKind, string> = {
+/** 两种容器的身份小签词条键（与 src/client/kernel/container-view.ts 的 CONTAINER_CHIP_LABEL_KEY 同值）。
+ *  名字前面加 MAP_PROFILE_ 是为了拼进客户端闭包时不给内核同名常量撞车（闭包里所有片段同处一个函数作用域）。 */
+const MAP_PROFILE_CHIP_LABEL_KEY: Record<ContainerKind, string> = {
   map: 'list.mapChip',
   spec: 'list.specChip',
 }
 
 /** 两种容器的「子票那句」开头用的词条键（与 containerCountKey 同值）。 */
-const CONTAINER_COUNT_KEY: Record<ContainerKind, string> = {
+const MAP_PROFILE_COUNT_KEY: Record<ContainerKind, string> = {
   map: 'map.subCount',
   spec: 'map.specSubCount',
 }
@@ -86,7 +87,7 @@ function integerOf(value: number | string | null | undefined): number | null {
  * 这是哪一种容器：以快照行的 type 为准（宿主 snapshotAssemble 已把两种容器归一并放进同一个 maps 数组）。
  * 认不出的一律当探索地图——V2 页面的老入口本来就是地图详情页，宁可按地图画也不要把地图画成规格。
  */
-export function containerKindOf(m: MapRowContent | null | undefined): ContainerKind {
+export function containerKindOfRow(m: MapRowContent | null | undefined): ContainerKind {
   return m && String(m.type || '') === 'spec' ? 'spec' : 'map'
 }
 
@@ -168,7 +169,7 @@ export function mapProfileSectionsOf(
   kind?: ContainerKind,
 ): MapProfileSection[] {
   const row = m || {}
-  const which: ContainerKind = kind || containerKindOf(row)
+  const which: ContainerKind = kind || containerKindOfRow(row)
   const sections: MapProfileSection[] = []
 
   if (which === 'spec') {
@@ -225,7 +226,7 @@ export function mapFeedSegmentsOf(
   const stats = f.stats || {}
   const n = integerOf(stats.total) !== null ? (integerOf(stats.total) as number) : f.rows.length
   const c = integerOf(stats.closed) !== null ? (integerOf(stats.closed) as number) : 0
-  const countKey = CONTAINER_COUNT_KEY[kind || 'map']
+  const countKey = MAP_PROFILE_COUNT_KEY[kind || 'map']
   const segments: MapProfileFeedSegment[] = [{ key: countKey, params: { n, c } }]
   if (f.capped) segments.push({ key: 'map.subCountCapped', params: { n: MAP_PROFILE_CAPPED_LIMIT } })
   if (f.missing > 0) segments.push({ key: 'map.subCountShort', params: { n: f.missing } })
@@ -252,12 +253,12 @@ export function mapProfileOf(
   counts: TicketBoardCounts | null | undefined,
 ): MapProfile {
   const row = m || {}
-  const kind = containerKindOf(row)
+  const kind = containerKindOfRow(row)
   const destination = textOf(row.destination)
   const sections = mapProfileSectionsOf(row, kind)
   return {
     kind,
-    chipLabelKey: CONTAINER_CHIP_LABEL_KEY[kind],
+    chipLabelKey: MAP_PROFILE_CHIP_LABEL_KEY[kind],
     noText: mapNoTextOf(row),
     title: textOf(row.title),
     destination,

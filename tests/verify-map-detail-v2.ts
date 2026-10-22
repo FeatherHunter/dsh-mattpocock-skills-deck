@@ -1,4 +1,4 @@
-// 门禁归属: src/client/mapDetailV2
+// 门禁归属: src/client/views/mapDetailV2
 /**
  * tests/verify-map-detail-v2.ts —— V2 地图详情页「纯逻辑层」的专属门禁。
  *
@@ -8,10 +8,13 @@
  *   摆在哪里、数据不全时怎么说——这些判断一旦错了，页面写得多好看都是错的。
  *   这一层今天没有任何门禁碰过，改坏了不会有第二处拦住。
  *
- * 被测对象是谁：src/client/mapDetailV2/ 下的 .ts 真源（不是产物）。这一批代码按
- *   「先不接入」的约定没有登记进客户端闭包、不进构建产物，所以门禁直接 require 真源
- *   （经 scripts/ts-hook.mts 做类型剥离）。等接入时它们会搬进 views/ 并登记为叶子，
- *   那时这套判据仍然成立：断言的是行为，不是文件位置。
+ * 被测对象是谁：src/client/views/mapDetailV2/model/ 下的 .ts 真源（不是产物）。这一批代码已经按叶子
+ *   登记进客户端闭包（scripts/build.mts 的 LEAF_MODULES），但页面还没有任何入口调用它（「已入库、未接入」），
+ *   所以门禁直接读真源（经 scripts/ts-hook.mts 做类型剥离）。六份纯函数模块只 import 类型、可以像普通模块
+ *   一样 require；组合函数那一份拼进闭包后只能靠作用域里的名字调它们，所以门禁按构建同一口径转译后注入
+ *   那六个函数再求值——这样门禁验的就是闭包里会跑的那份文本，不是 paraphrase。
+ *   页面外壳（view/、wiring/）不在这条门禁的断言范围里：它要 React 与宿主电话，由可评审演示页
+ *   （.scratch/v2-map-detail/page/）与真机验收覆盖。
  *
  * 断的十件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
@@ -49,22 +52,45 @@ function section (title) { console.log(''); console.log('== ' + title + ' ==') }
 const show = (v) => (typeof v === 'string' ? JSON.stringify(v) : JSON.stringify(v))
 
 const ROOT = path.resolve(__dirname, '..')
-const REL = 'src/client/mapDetailV2'
-const DIR = path.join(ROOT, REL)
+const REL = 'src/client/views/mapDetailV2'
+const MODEL_REL = REL + '/model'
+const DIR = path.join(ROOT, MODEL_REL)
 
-const facts = require('../src/client/mapDetailV2/ticketCardFacts.ts')
-const board = require('../src/client/mapDetailV2/ticketBoard.ts')
-const feed = require('../src/client/mapDetailV2/ticketFeed.ts')
-const profile = require('../src/client/mapDetailV2/mapProfile.ts')
-const cardProps = require('../src/client/mapDetailV2/cardPropsOf.ts')
-const pageModel = require('../src/client/mapDetailV2/mapDetailPageModel.ts')
+// 前五份只 import 类型，可以像普通模块一样直接 require（走 ts-hook 剥类型）。
+const facts = require('../src/client/views/mapDetailV2/model/tickets/ticketCardFacts.ts')
+const board = require('../src/client/views/mapDetailV2/model/tickets/ticketBoard.ts')
+const feed = require('../src/client/views/mapDetailV2/model/tickets/ticketFeed.ts')
+const profile = require('../src/client/views/mapDetailV2/model/container/mapProfile.ts')
+const cardProps = require('../src/client/views/mapDetailV2/model/assembly/cardPropsOf.ts')
+
+// 最后一份是「把上面几个按次序串起来」的组合函数。它将来要当界面闭包里的叶子拼进 client.js，
+// 所以只能 import 类型、靠作用域里的名字调那六个函数（见该文件开头的说明）。门禁按同一种方式求值：
+// 读真源文本 → 按构建同一口径转译 → 把六个函数当参数注入，得到与闭包里一字不差的那份代码。
+const { spliceableJs } = require('./lib/source-text.ts')
+const { compileFn } = require('./lib/eval-probe.ts')
+const ASSEMBLY_FNS = ['ticketFeedOf', 'ticketFactsContextOf', 'ticketCardFactsOf', 'orderTicketBoard', 'boardCountsOf', 'mapProfileOf', 'cardPropsListOf']
+const ASSEMBLY_VALUES = [feed.ticketFeedOf, facts.ticketFactsContextOf, facts.ticketCardFactsOf, board.orderTicketBoard, board.boardCountsOf, profile.mapProfileOf, cardProps.cardPropsListOf]
+function loadPageModel () {
+  const body = spliceableJs(MODEL_REL + '/assembly/mapDetailPageModel.ts') + '\nreturn { mapDetailPageModelOf: mapDetailPageModelOf }'
+  const factory = compileFn(ASSEMBLY_FNS, body)
+  return factory.apply(null, ASSEMBLY_VALUES)
+}
+const pageModel = loadPageModel()
 
 // ===========================================================================
 // 0. 前置：真源都在，旁边没有同名 .js 产物，判断层不 import 界面库与后端
 // ===========================================================================
 section('0. 前置：七份真源都在、没有同名 .js、逻辑模块不 import 界面库与后端')
 {
-  const wanted = ['mapDetailTypes.d.ts', 'ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts', 'mapProfile.ts', 'cardPropsOf.ts', 'mapDetailPageModel.ts']
+  const wanted = [
+    'contracts/mapDetailTypes.d.ts',
+    'tickets/ticketCardFacts.ts',
+    'tickets/ticketBoard.ts',
+    'tickets/ticketFeed.ts',
+    'container/mapProfile.ts',
+    'assembly/cardPropsOf.ts',
+    'assembly/mapDetailPageModel.ts',
+  ]
   const missing = wanted.filter((name) => !fs.existsSync(path.join(DIR, name)))
   check(missing.length === 0, '七份真源都在（缺的：' + (missing.length ? missing.join('、') : '无') + '）')
 
@@ -86,7 +112,7 @@ section('0. 前置：七份真源都在、没有同名 .js、逻辑模块不 imp
     '判断层只 import 同目录的兄弟模块，不 import 界面库与后端（违反的：' + (offenders.length ? offenders.join('、') : '无') + '）')
 
   const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapDecision', 'MapProfile', 'TicketCardHandlers', 'MapDetailPageInputs', 'MapDetailPageModel', 'ContainerKind', 'SpecSections', 'MapProfileSectionId']
-  const typesSrc = fs.readFileSync(path.join(DIR, 'mapDetailTypes.d.ts'), 'utf8')
+  const typesSrc = fs.readFileSync(path.join(DIR, 'contracts/mapDetailTypes.d.ts'), 'utf8')
   const missingTypes = typeExports.filter((name) => typesSrc.indexOf('export interface ' + name) < 0 && typesSrc.indexOf('export type ' + name) < 0)
   check(missingTypes.length === 0, '数据契约里的关键类型都声明了（缺的：' + (missingTypes.length ? missingTypes.join('、') : '无') + '）')
 }
@@ -661,7 +687,7 @@ section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规�
   check(blankDestination.hasSections === false && blankDestination.progressPercent === 0 && blankDestination.noText === '',
     '空行 + 空计数：一份不骗人的空档案（实得 ' + show(blankDestination) + '）')
 
-  check(profile.containerKindOf({ type: 'spec' }) === 'spec' && profile.containerKindOf({}) === 'map' && profile.containerKindOf(null) === 'map',
+  check(profile.containerKindOfRow({ type: 'spec' }) === 'spec' && profile.containerKindOfRow({}) === 'map' && profile.containerKindOfRow(null) === 'map',
     '容器种类只看快照行的 type：spec 才算规格，认不出的一律按探索地图画')
 
   const SPEC_ROW = {
