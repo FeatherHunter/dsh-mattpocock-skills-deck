@@ -203,11 +203,19 @@ async function main() {
       try { return await tools[name].run(exec, args) } catch (e) { return { ok: false, status: 'threw', reason: String((e && e.message) || e) } }
     }
     // ① 建票
-    const create = await run('deck_issue_create', { title: '矩阵第一张票', kind: 'task' })
+    const create = await run('deck_issue_create', { title: '矩阵第一张票', kind: 'issue' })
     rows.create = create
     const evCreate = laneEvidence(lane)
     // ② 建整张地图骨架
-    const plan = await run('deck_map_plan_create', { planId: 'mx-' + lane.id, title: '矩阵地图 ' + lane.id, children: [{ key: 'c1', title: '子票一' }, { key: 'c2', title: '子票二' }], edges: [{ from: 'c2', to: 'c1', type: 'blocked-by' }] })
+    // #1403 T3 起计划子票的 kind 必填，地图工单还要带 label；按目标口径写，等 T3 合入后由它校验。
+    const plan = await run('deck_map_plan_create', {
+      planId: 'mx-' + lane.id, title: '矩阵地图 ' + lane.id,
+      children: [
+        { key: 'c1', title: '子票一', kind: 'map-ticket', label: 'wayfinder:task' },
+        { key: 'c2', title: '子票二', kind: 'map-ticket', label: 'wayfinder:task' },
+      ],
+      edges: [{ from: 'c2', to: 'c1', type: 'blocked-by' }],
+    })
     rows.plan = plan
     const evPlan = laneEvidence(lane)
     const mapKey = String((plan.data && plan.data.mapKey) || '00')
@@ -285,7 +293,7 @@ async function main() {
   //
   // 这一段为什么是「两条链路」而不是「两张对照表」：上面那一段验的是「同一个工具在三个后端上落到哪里」，
   // 这里验的是「一条完整的拆票→实施→收口链路，在两个后端上是不是同一种玩法」。节点固定五个：
-  //   A 建探索地图（父子 + 阻塞边）→ B /to-spec 建规格 → C /to-tickets 建实施票 → D /implement 首行与三态按钮 → E /close-spec 收口。
+  //   A 建探索地图（父子 + 阻塞边）→ B /to-spec 建顶层规格 → C /to-tickets 建实施票 → D /implement 首行与三态按钮 → E /close-spec 收口。
   // 每个节点都留可重放证据（票号、落盘文件、命令），最后写进 .tmp/1299-dual-lane-evidence.md。
   {
     const SPEC_BODY = [
@@ -335,7 +343,10 @@ async function main() {
         const plan = await run('deck_map_plan_create', {
           planId: 'dual-' + lane.id,
           title: '双轨链路地图 ' + lane.id,
-          children: [{ key: 'r1', title: '调研一' }, { key: 'r2', title: '调研二' }],
+          children: [
+            { key: 'r1', title: '调研一', kind: 'map-ticket', label: 'wayfinder:research' },
+            { key: 'r2', title: '调研二', kind: 'map-ticket', label: 'wayfinder:research' },
+          ],
           edges: [{ from: 'r2', to: 'r1', type: 'blocked-by' }],
         })
         const mapKey = String((plan && plan.data && plan.data.mapKey) || '')
@@ -355,44 +366,48 @@ async function main() {
           '[' + lane.id + '] 双轨 A 阻塞边留落点与证据：' + (aBlock ? aBlock.landing + ' ｜ ' + aBlock.evidence : '（没有这条边）'))
         evidenceLines.push('- [' + lane.id + '] A 探索地图：票 ' + mapKey + '；父子边 契约父子列（' + aChildKeys.map((k) => k + '→' + mapKey).join('、') + '）；阻塞边 ' + (aBlock && aBlock.landing) + '；现场：' + laneEvidence(lane))
 
-        // B：/to-spec 建规格票（挂在地图下）
-        const createSpec = await run('deck_issue_create', { title: '双轨规格票 ' + lane.id, kind: 'spec', parentKey: mapKey, body: SPEC_BODY })
+        // B：/to-spec 建规格票。规格从 #1403 起与探索地图同级、是顶层容器，不挂到地图下。
+        const createSpec = await run('deck_issue_create', { title: '双轨规格票 ' + lane.id, kind: 'spec', body: SPEC_BODY })
         const specKey = String((createSpec && createSpec.data && createSpec.data.ticket && createSpec.data.ticket.key) || '')
         const bParent = edgeOf(createSpec, 'parent')
         const specGet = await run('deck_issue_get', { key: specKey })
         const specBrief = ticketOf(specGet)
-        const specJudge = String(specBrief.type || '') === 'spec' || marker.markerKindInHeader(specBrief.body) === 'spec'
+        // T1 读侧统一后，两条车道的契约类型都归一成 spec；这里只认 type，不再靠标记兜底。
+        const specJudge = String(specBrief.type || '') === 'spec'
+        // #1403：规格是顶层容器，读回来不该带父票。本地 markdown 房目前对「文件头没有父注释的普通票」
+        // 仍回落 #971 的老默认值 00（parse.ts 的 parentKey 缺省），所以 markdown 车道这两条会红到读侧
+        // 把 spec 的缺省父票改成 null 为止；这是 T1 读侧的范围，T4b 只把门禁按新口径钉住，不掩盖。
         const specRel = relOf(specGet)
         const listed = await run('deck_issue_list', { state: 'all' })
         const specRow = ((listed && listed.data && listed.data.issues) || []).filter((row) => String(row.key) === specKey)[0] || null
-        check(createSpec && createSpec.ok === true && specKey !== '' && !!bParent && bParent.status === 'ok',
-          '[' + lane.id + '] 双轨 B 建规格票：票 ' + specKey + '，父边 ' + (bParent ? bParent.status + ' / ' + bParent.landing : '（没回）'))
-        check(!!specGet && specGet.ok === true && specJudge && specRel === mapKey,
-          '[' + lane.id + '] 双轨 B 规格票可识别且挂在地图下（对象类型两车道同判；GitHub 契约层 type 仍是 issue 是 #1277 §7.1 已知差异）：type=' + String(specBrief.type) + '，标记=' + String(marker.markerKindInHeader(specBrief.body)) + '，父票=' + specRel)
-        check(!!specRow && specRow.type === 'spec' && specRow.parentKey === mapKey,
-          '[' + lane.id + '] 双轨 B 列表页也把这张认成规格：type=' + String(specRow && specRow.type) + '，父票=' + String(specRow && specRow.parentKey))
+        check(createSpec && createSpec.ok === true && specKey !== '' && !bParent,
+          '[' + lane.id + '] 双轨 B 建规格票：票 ' + specKey + '，规格是顶层容器、没有父边' + (bParent ? '（实得 ' + bParent.status + ' / ' + bParent.landing + '）' : ''))
+        check(!!specGet && specGet.ok === true && specJudge && specRel === '',
+          '[' + lane.id + '] 双轨 B 规格票可识别且是顶层（无父票）：type=' + String(specBrief.type) + '，父票=' + JSON.stringify(specRel))
+        check(!!specRow && specRow.type === 'spec' && !specRow.parentKey,
+          '[' + lane.id + '] 双轨 B 列表页也把这张认成规格：type=' + String(specRow && specRow.type) + '，父票=' + JSON.stringify(specRow && specRow.parentKey))
         if (lane.id === 'markdown') {
           const specFile = lane.ticketFileOf(specKey)
           const specText = lane.readTicket(specFile)
           const lines = specText.split('\n')
           check(specFile.indexOf('双轨规格票') >= 0 && specFile.indexOf('untitled') < 0,
             '[' + lane.id + '] 双轨 B 规格票文件名带中文标题、不落 01-untitled.md：' + specFile)
-          check(/^<!-- DSH-IDEMPOTENCY-KEY:/.test(lines[0] || '') && (lines[1] || '') === '<!-- DSH-ISSUE-KIND: spec -->' && (lines[2] || '') === '<!-- parentKey: ' + mapKey + ' -->',
-            '[' + lane.id + '] 双轨 B 规格票文件头顺序（锚 → 标记 → parentKey）：' + JSON.stringify(lines.slice(0, 4)))
+          check(/^<!-- DSH-IDEMPOTENCY-KEY:/.test(lines[0] || '') && (lines[1] || '') === '<!-- DSH-ISSUE-KIND: spec -->' && /^<!-- created: /.test(lines[2] || '') && lines.slice(0, 6).every((l) => !/^<!--\s*parentKey:/.test(l)),
+            '[' + lane.id + '] 双轨 B 规格票文件头顺序（锚 → 标记 → 建票时间，无父注释）：' + JSON.stringify(lines.slice(0, 4)))
           check(specText.indexOf('Type: spec') < 0, '[' + lane.id + '] 双轨 B 规格票不再写 Type: spec 行（标记是唯一真源）')
         } else {
-          check(marker.markerKindInHeader(specBrief.body) === 'spec',
-            '[' + lane.id + '] 双轨 B 规格票正文第一段带对象类型标记（GitHub 契约层认第一行锚，标记紧跟第二行）：' + JSON.stringify(String(specBrief.body || '').split('\n').slice(0, 2)))
+          check(marker.markerKindInHeader(specBrief.body) === 'spec' && String(specBrief.type || '') === 'spec',
+            '[' + lane.id + '] 双轨 B 规格票正文第一段带对象类型标记、契约类型也归一成 spec：type=' + String(specBrief.type) + '，' + JSON.stringify(String(specBrief.body || '').split('\n').slice(0, 2)))
         }
         const emptySnap = await run('deck_map_snapshot', { key: specKey })
         const emptyState = await snapshotState(emptySnap)
         check(!!emptySnap && emptySnap.ok === true && emptyState.state === 'empty' && emptyState.tri.labelKey === 'act.split' && emptyState.tri.color === '#f59e0b',
           '[' + lane.id + '] 双轨 B 三态按钮空态：还没实施票 → 「拆票」橙色（' + emptyState.state + ' / ' + emptyState.tri.labelKey + ' / ' + emptyState.tri.color + '）')
-        evidenceLines.push('- [' + lane.id + '] B 规格票：票 ' + specKey + (lane.id === 'markdown' ? '；文件 ' + lane.ticketFileOf(specKey) : '；落点 原生父子列'))
+        evidenceLines.push('- [' + lane.id + '] B 规格票：票 ' + specKey + (lane.id === 'markdown' ? '；文件 ' + lane.ticketFileOf(specKey) : '；落点 顶层容器（无父票）'))
 
         // C：/to-tickets 建两张实施票（挂规格下，不传 labels，工具默认只给 ready-for-agent）
-        const createT1 = await run('deck_issue_create', { title: '实施票一 ' + lane.id, kind: 'ticket', parentKey: specKey, body: TICKET_BODY })
-        const createT2 = await run('deck_issue_create', { title: '实施票二 ' + lane.id, kind: 'ticket', parentKey: specKey, body: TICKET_BODY })
+        const createT1 = await run('deck_issue_create', { title: '实施票一 ' + lane.id, kind: 'spec-ticket', parentKey: specKey, body: TICKET_BODY })
+        const createT2 = await run('deck_issue_create', { title: '实施票二 ' + lane.id, kind: 'spec-ticket', parentKey: specKey, body: TICKET_BODY })
         const t1Key = String((createT1 && createT1.data && createT1.data.ticket && createT1.data.ticket.key) || '')
         const t2Key = String((createT2 && createT2.data && createT2.data.ticket && createT2.data.ticket.key) || '')
         const t1Get = await run('deck_issue_get', { key: t1Key })

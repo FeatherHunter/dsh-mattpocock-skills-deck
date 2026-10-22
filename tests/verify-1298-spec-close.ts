@@ -155,19 +155,20 @@ async function main() {
   let plainKey = ''
   let emptySpecKey = ''
   {
-    const noParent = await callTool('deck_issue_create', { title: '没挂规格的实施票', kind: 'ticket', body: '**要构建什么：** 做一件事\n' })
-    check(noParent.ok === false && noParent.reason === 'bad-args', '① 负向：kind=ticket 不带 parentKey → bad-args，不落盘（实得 ' + (noParent && noParent.reason) + '）')
+    const noParent = await callTool('deck_issue_create', { title: '没挂规格的实施票', kind: 'spec-ticket', body: '**要构建什么：** 做一件事\n' })
+    check(noParent.ok === false && noParent.reason === 'bad-args', '① 负向：kind=spec-ticket 不带 parentKey → bad-args，不落盘（实得 ' + (noParent && noParent.reason) + '）')
 
-    const s = await callTool('deck_issue_create', { title: '演示规格：收口核对', kind: 'spec', parentKey: '00', body: '## 问题陈述\n\n验证关规格的三道闸。\n' })
+    // 规格是与探索地图同级的顶层容器（#1403）：建规格不传 parentKey，也不挂到任何地图下。
+    const s = await callTool('deck_issue_create', { title: '演示规格：收口核对', kind: 'spec', body: '## 问题陈述\n\n验证关规格的三道闸。\n' })
     specKey = String((s.data && s.data.ticket && s.data.ticket.key) || '')
     check(envelopeOk(s) && s.status === 'ok' && specKey, '造票：规格建成了（key=' + specKey + '）')
     check(!!(s.data && s.data.ticket && s.data.ticket.type === 'spec'), '规格读回来契约类型就是 spec（实得 ' + (s.data && s.data.ticket && s.data.ticket.type) + '）')
     const sText = ticketTextOf(specKey)
     check(sText.indexOf('ready-for-agent') >= 0 && sText.indexOf('wayfinder:') < 0, '③ 规格票的必备标签只有 ready-for-agent，不带 wayfinder: 系列')
 
-    const a = await callTool('deck_issue_create', { title: '实施票 A', kind: 'ticket', parentKey: specKey, body: '**要构建什么：** 做 A\n' })
+    const a = await callTool('deck_issue_create', { title: '实施票 A', kind: 'spec-ticket', parentKey: specKey, body: '**要构建什么：** 做 A\n' })
     implA = String((a.data && a.data.ticket && a.data.ticket.key) || '')
-    const b = await callTool('deck_issue_create', { title: '实施票 B', kind: 'ticket', parentKey: specKey, body: '**要构建什么：** 做 B\n' })
+    const b = await callTool('deck_issue_create', { title: '实施票 B', kind: 'spec-ticket', parentKey: specKey, body: '**要构建什么：** 做 B\n' })
     implB = String((b.data && b.data.ticket && b.data.ticket.key) || '')
     check(implA && implB && implA !== implB, '造票：两张实施票建成了（' + implA + '、' + implB + '）')
     const aText = ticketTextOf(implA)
@@ -175,11 +176,11 @@ async function main() {
     check(aText.indexOf('parentKey: ' + specKey) >= 0, '① 实施票的父注释指向那张规格（文件头：' + JSON.stringify(aText.split('\n').slice(0, 4)) + '）')
     check(aText.indexOf('ready-for-agent') >= 0 && aText.indexOf('wayfinder:') < 0, '③ 实施票的必备标签只有 ready-for-agent，不带 wayfinder: 系列')
 
-    const p = await callTool('deck_issue_create', { title: '普通票：与规格无关', kind: 'task', body: '普通正文\n' })
+    const p = await callTool('deck_issue_create', { title: '普通票：与规格无关', kind: 'issue', body: '普通正文\n' })
     plainKey = String((p.data && p.data.ticket && p.data.ticket.key) || '')
     check(envelopeOk(p) && p.status === 'ok' && plainKey, '造票：普通票建成了（key=' + plainKey + '）')
 
-    const e = await callTool('deck_issue_create', { title: '空规格：还没有实施票', kind: 'spec', parentKey: '00', body: '## 问题陈述\n\n还没有拆实施票。\n' })
+    const e = await callTool('deck_issue_create', { title: '空规格：还没有实施票', kind: 'spec', body: '## 问题陈述\n\n还没有拆实施票。\n' })
     emptySpecKey = String((e.data && e.data.ticket && e.data.ticket.key) || '')
     check(envelopeOk(e) && e.status === 'ok' && emptySpecKey, '造票：空规格建成了（key=' + emptySpecKey + '）')
   }
@@ -285,7 +286,8 @@ async function main() {
     const guardText = fs.readFileSync(path.join(ROOT, 'src', 'deck', 'shell', 'spec-close-guard.ts'), 'utf8')
     const rules = ['spec-close-children-open', 'spec-close-no-children', 'spec-close-no-comment', 'spec-close-unreadable', 'spec-close-children-unreadable']
     check(rules.every((rule) => guardText.indexOf(rule) >= 0), '⑤⑥⑦ 关规格的三道闸与两条读不回兜底都实现在 spec-close-guard.ts（规则码：' + rules.join('、') + '）')
-    check(guardText.indexOf('markerKindInHeader') >= 0 && guardText.indexOf('childrenOf') >= 0, '⑤ 判规格用了 markerKindInHeader（GitHub 车道兜底），数子票用了 childrenOf')
+    check(guardText.indexOf('markerKindInHeader') >= 0 && guardText.indexOf('childrenOf') >= 0, '⑤ 判规格用了 type 与 markerKindInHeader 两条读侧判据，数子票用了 childrenOf')
+    check(guardText.indexOf("=== 'ticket'") >= 0, '⑤ 子票只认实施票：正文文件头 ticket 标记，或父票就是这张规格')
     check(patchText.indexOf('specCloseGuard') >= 0, '⑤ issue-patch 的关规格前置闸走的是 spec-close-guard 这份唯一实现')
   }
 
@@ -322,7 +324,7 @@ async function main() {
   // ── ① 实施票必须挂规格：代码里那道拒绝也在 ──
   {
     const createText = fs.readFileSync(path.join(ROOT, 'src', 'deck', 'tools', 'issue-create.ts'), 'utf8')
-    check(createText.indexOf('实施票的父必须是规格票') >= 0, '① deck_issue_create 的源码里写着「实施票的父必须是规格票」')
+    check(createText.indexOf('实施票的父必须是规格') >= 0, '① deck_issue_create 的源码里写着「实施票的父必须是规格」')
   }
 
   ws.cleanup()

@@ -1,4 +1,5 @@
 <!-- DSH-IDEMPOTENCY-KEY: T8-SPEC-SAMPLE-BAD -->
+<!-- parentKey: 00 -->
 # 规格样本：违规（#1299 T8）
 
 <!-- DSH-ISSUE-KIND: spec -->

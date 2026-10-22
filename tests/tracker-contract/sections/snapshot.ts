@@ -105,8 +105,10 @@ const SPEC_SAMPLE_HEADINGS = ['问题陈述', '解决方案', '用户故事', '�
  * 规格票面样本的判据（#1299 T8）：一份合规的规格票面必须同时满足这几条硬形状；
  * 返回空数组表示全过，否则逐条点名违规码。门禁拿它同时验「合规样本通过」与「违规样本被抓到」。
  *
- * 这七条不是又发明一套判据：标记位置、单例、不再写类型行、父注释指向探索地图、标签集合，
+ * 这七条不是又发明一套判据：标记位置、单例、不再写类型行、规格不能有父票、标签集合，
  * 分别对应 ADR 2.1 / 2.5 与 #1277 第 2 节的约定；七节正文对应规格容器的正文形状。
+ * 规格从 #1403 起与探索地图同级、是顶层容器，所以判据从「父注释必须指向探索地图 00」
+ * 反过来变成「文件头不允许出现任何父注释」。
  */
 function specSampleViolations(text: unknown): string[] {
   const raw = typeof text === 'string' ? text : ''
@@ -114,7 +116,7 @@ function specSampleViolations(text: unknown): string[] {
   if (markerKindInHeader(raw) !== 'spec') bad.push('marker-not-in-header')
   if (countMarkerLines(raw) !== 1) bad.push('marker-count')
   if (/^\s*Type\s*[:：]\s*spec\s*$/im.test(raw)) bad.push('type-spec-line')
-  if (!/<!--\s*parentKey:\s*00\s*-->/.test(raw)) bad.push('parent-not-map')
+  if (/<!--\s*parentKey:/.test(raw)) bad.push('spec-has-parent')
   const labelsLine = (raw.split(/\r?\n/).filter((line) => /^Labels\s*[:：]/.test(line.trim()))[0] || '').trim()
   if (labelsLine.indexOf('ready-for-agent') < 0) bad.push('labels-not-ready')
   if (/wayfinder:/i.test(labelsLine)) bad.push('wayfinder-label')
@@ -184,12 +186,12 @@ export async function run() {
 
   // ── 规格容器与实施票（#1277）：三层快照 + 视图兜底 ──
   {
-    // 地图 m1 下挂规格 s1（规格是容器、同时是地图的子票），s1 下挂实施票 t2；
+    // 地图 m1 与规格 s1 都是顶层容器（规格不挂父票），s1 下挂实施票 t2；
     // p1 是普通票；s2 的契约类型是 issue、但票面文件头有规格标记 —— B 兜底要把它判成规格容器，
     // 并把挂在它下面的 t3 一起收进容器，而不是漏成两张普通票。
     const rows = [
       base({ key: 'm1', type: 'map', title: 'M' }),
-      base({ key: 's1', type: 'spec', title: 'S', parentKey: 'm1', body: '## 问题陈述\n问题\n\n## 解决方案\n方案\n\n## 用户故事\n- 故事\n\n## 实现决策\n决策\n\n## 测试决策\n测试\n\n## 不在范围内\n范围\n\n## 补充说明\n补充\n' }),
+      base({ key: 's1', type: 'spec', title: 'S', parentKey: null, body: '## 问题陈述\n问题\n\n## 解决方案\n方案\n\n## 用户故事\n- 故事\n\n## 实现决策\n决策\n\n## 测试决策\n测试\n\n## 不在范围内\n范围\n\n## 补充说明\n补充\n' }),
       base({ key: 't2', type: 'issue', title: 'T2', parentKey: 's1', body: '**要构建什么：** 做一件事\n' }),
       base({ key: 'p1', type: 'issue', title: 'P1' }),
       base({ key: 's2', type: 'issue', title: 'S2', body: '<!-- DSH-ISSUE-KIND: spec -->\n\n## 问题陈述\n问题\n' }),
@@ -210,13 +212,13 @@ export async function run() {
     const byKey = (k: string): SnapshotMapNode => maps.filter((m) => m.key === k)[0]
     await assert('规格作为容器进 maps、与地图同数组靠 type 分辨（实得 ' + JSON.stringify(maps.map((m) => m.key + ':' + m.type)) + '）',
       maps.length === 3 && !!byKey('s1') && byKey('s1').type === 'spec' && !!byKey('m1') && byKey('m1').type === 'map')
-    await assert('三层挂载：地图下挂规格、规格下挂实施票',
-      byKey('m1').tickets.some((t) => t.key === 's1') && byKey('s1').tickets.length === 1 && byKey('s1').tickets[0].key === 't2')
+    await assert('两层挂载：规格下挂实施票，地图下不再挂规格',
+      !byKey('m1').tickets.some((t) => t.key === 's1') && byKey('s1').tickets.length === 1 && byKey('s1').tickets[0].key === 't2')
     await assert('视图兜底：契约类型是 issue、票面文件头有规格标记的行判成规格容器', !!byKey('s2') && byKey('s2').type === 'spec')
     await assert('违规样本：标记写在标题之后不算文件头，仍留在普通票池', !byKey('s3') && snap.issues.some((i) => i.key === 's3' && i.type === 'issue'))
     await assert('实施票与规格都不进普通票池', !snap.issues.some((i) => i.key === 's1' || i.key === 's2' || i.key === 't2' || i.key === 't3'))
-    await assert('deck 覆盖全量：地图下的规格 + 规格下的实施票 + 普通票（容器节点不重复计数）',
-      snap.deck.stats.total === 5, JSON.stringify(snap.deck.stats))
+    await assert('deck 覆盖全量：两个顶层容器下的实施票 + 普通票（容器节点不重复计数）',
+      snap.deck.stats.total === 4, JSON.stringify(snap.deck.stats))
     const sections = (byKey('s1') as unknown as { sections?: Record<string, unknown> }).sections
     const SPEC_KEYS = ['problem', 'solution', 'userStories', 'implDecisions', 'testDecisions', 'outOfScope', 'furtherNotes']
     await assert('规格填七段 sections、不混进地图五槽',
@@ -233,13 +235,13 @@ export async function run() {
     const okCodes = specSampleViolations(specOkText)
     await assert('spec 合规样本落盘且七条形状全过', specOkText.length > 0 && okCodes.length === 0, JSON.stringify(okCodes))
     const badCodes = specSampleViolations(specBadText)
-    const badExpected = ['marker-not-in-header', 'marker-count', 'type-spec-line', 'parent-not-map', 'wayfinder-label', 'sections-missing']
+    const badExpected = ['marker-not-in-header', 'marker-count', 'type-spec-line', 'spec-has-parent', 'wayfinder-label', 'sections-missing']
     await assert('spec 违规样本逐条被抓到（预期至少含 ' + badExpected.join('、') + '）',
       specBadText.length > 0 && badExpected.every((code) => badCodes.indexOf(code) >= 0), JSON.stringify(badCodes))
     // 再把两份样本原样当「契约类型没标对的票面」喂给拼装器：合规的进容器、违规的留普通票池。
     const sampleRows = [
       base({ key: 'm1', type: 'map', title: 'M' }),
-      base({ key: 'k1', type: 'issue', title: '合规样本', parentKey: 'm1', body: specOkText }),
+      base({ key: 'k1', type: 'issue', title: '合规样本', parentKey: null, body: specOkText }),
       base({ key: 'k2', type: 'issue', title: '违规样本', parentKey: 'm1', body: specBadText }),
     ]
     const sampleRegistry = createRegistry(emptyCtx, { matchesTimeout: 50 })

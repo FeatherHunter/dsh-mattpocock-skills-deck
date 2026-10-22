@@ -169,21 +169,22 @@ async function main() {
   let createdKey = ''
   let planMapKey713 = ''
   {
-    const r = await callTool('deck_issue_create', { title: '第一张演示票', kind: 'task', body: '正文在这里' })
+    const r = await callTool('deck_issue_create', { title: '第一张演示票', kind: 'issue', body: '正文在这里' })
     createdKey = String((r.data && r.data.ticket && r.data.ticket.key) || '')
     check(envelopeOk(r) && r.status === 'ok' && createdKey, 'deck_issue_create 正例：建成了（key=' + createdKey + '）')
-    check(r.items.length === 0 && (r.notes || []).some((n) => n.indexOf('必备标签') >= 0), 'deck_issue_create 说明「我替你加了什么」：' + JSON.stringify(r.notes))
+    check(r.items.length === 0 && !(r.notes || []).some((n) => n.indexOf('必备标签') >= 0), 'deck_issue_create 对普通票不硬塞类型标签（notes：' + JSON.stringify(r.notes) + '）')
     const files = ws.ticketFiles()
     check(files.length === 1, 'deck_issue_create 真的落到了盘上的票文件（' + files.join('、') + '）')
     const text = files.length ? ws.readTicket(files[0]) : ''
-    check(text.indexOf('wayfinder:task') >= 0, '必备标签写进了票文件')
+    check(text.indexOf('wayfinder:') < 0, '普通票（issue）不带 wayfinder: 系列标签')
     check(text.indexOf('## 进度') >= 0, '进度区写进了票文件')
   }
 
-  // ── ②a deck_issue_create 的 spec / ticket 两档（#1277）：票面文件头写对象类型标记 ──
+  // ── ②a deck_issue_create 的 spec / spec-ticket 两档（#1277、#1403）：票面文件头写对象类型标记 ──
   let specKey = ''
   {
-    const r = await callTool('deck_issue_create', { title: '演示规格票', kind: 'spec', parentKey: '00', body: '## 问题陈述\n\n规格正文\n' })
+    // 规格是与探索地图同级的顶层容器（#1403）：建规格不传 parentKey。
+    const r = await callTool('deck_issue_create', { title: '演示规格票', kind: 'spec', body: '## 问题陈述\n\n规格正文\n' })
     specKey = String((r.data && r.data.ticket && r.data.ticket.key) || '')
     check(envelopeOk(r) && r.status === 'ok' && specKey, 'deck_issue_create 正例：建成规格票（key=' + specKey + '）')
     check(!!(r.data && r.data.ticket && r.data.ticket.type === 'spec'), '规格票读回来契约类型就是 spec（实得 ' + (r.data && r.data.ticket && r.data.ticket.type) + '）')
@@ -191,10 +192,11 @@ async function main() {
     const text = specFile ? ws.readTicket(specFile) : ''
     const header = String(text).split('\n').slice(0, 6).join('\n')
     check(text.indexOf('<!-- DSH-ISSUE-KIND: spec -->') >= 0 && header.indexOf('<!-- DSH-ISSUE-KIND: spec -->') >= 0, '规格票的文件头写了对象类型标记（前 6 行：' + JSON.stringify(header) + '）')
+    check(header.indexOf('parentKey:') < 0, '规格是顶层容器，票面不写父注释（前 6 行：' + JSON.stringify(header) + '）')
     check(text.indexOf('Type: spec') < 0, '规格票不再写 Type: spec 这一行')
-    check(text.indexOf('## 进度') < 0, '规格票不补进度区')
+    check(text.indexOf('## 进度') >= 0, '规格票也补进度区（#1403 起所有位置统一）')
     check(text.indexOf('ready-for-agent') >= 0, '规格票带的必备标签是 ready-for-agent')
-    const t = await callTool('deck_issue_create', { title: '演示实施票', kind: 'ticket', parentKey: specKey, body: '**要构建什么：** 做一件事\n' })
+    const t = await callTool('deck_issue_create', { title: '演示实施票', kind: 'spec-ticket', parentKey: specKey, body: '**要构建什么：** 做一件事\n' })
     const ticketKey = String((t.data && t.data.ticket && t.data.ticket.key) || '')
     check(envelopeOk(t) && t.status === 'ok' && ticketKey, 'deck_issue_create 正例：建成实施票（key=' + ticketKey + '）')
     const tFile = ws.ticketFiles().filter((f) => f.indexOf(ticketKey + '-') >= 0)[0] || ''
@@ -252,7 +254,13 @@ async function main() {
   {
     const planArgs = {
       planId: 'plan-713-a', title: '演示地图甲',
-      children: [{ key: 'a1', title: '子票一' }, { key: 'a2', title: '子票二' }, { key: 'a3', title: '子票三' }],
+      // #1403 T3 起计划子票的 kind 必填，且地图工单要带 label；这里按目标口径写，
+      // 当前分支的工具只把子票当普通工单建，字段先被忽略，合并 T3 后由 T3 的校验接手。
+      children: [
+        { key: 'a1', title: '子票一', kind: 'map-ticket', label: 'wayfinder:task' },
+        { key: 'a2', title: '子票二', kind: 'map-ticket', label: 'wayfinder:task' },
+        { key: 'a3', title: '子票三', kind: 'map-ticket', label: 'wayfinder:task' },
+      ],
       edges: [{ from: 'a2', to: 'a1', type: 'blocked-by' }],
     }
     const filesBefore = ws.ticketFiles().length
@@ -462,7 +470,7 @@ async function main() {
     const dp = registry.register(probe)
     chooseWorkspace(ws.rootPosix, 'probe-remote')   // 把工作区文件改写成选了探针远端（等同旧写法 registry.bind(handle, 'probe-remote')）
     const before = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted }
-    const r = await tools.deck_issue_create.run(exec, { title: '远端那一张' })
+    const r = await tools.deck_issue_create.run(exec, { title: '远端那一张', kind: 'issue' })
     const after = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted }
     check(envelopeOk(r) && r.ok === true, '探针远端上建票成功（实得 ' + (r && r.status) + '）')
     check(after.accounted.requests - before.accounted.requests === 2, '闸记下 2 条真实出站请求（实得 ' + (after.accounted.requests - before.accounted.requests) + '）')
@@ -498,7 +506,7 @@ async function main() {
     const d2 = registry.register(mod)
     chooseWorkspace(ws.rootPosix, 'boom')
     try {
-      const r = await tools.deck_issue_create.run(exec, { title: '会抛的那一张' })
+      const r = await tools.deck_issue_create.run(exec, { title: '会抛的那一张', kind: 'issue' })
       check(envelopeOk(r) && r.ok === false && r.status === 'unsupported' && r.reason === 'backend-threw', '✗ 负向：后端抛错 → ok:false / unsupported + reason=backend-threw（实得 ' + (r && r.status) + '/' + (r && r.reason) + '）')
       check(typeof r.text === 'string' && r.text.indexOf('后端实现抛错') >= 0, '抛错这件事如实写在 text 里：' + String(r && r.text).slice(0, 80))
       const r2 = await tools.deck_context.run(exec, {})
