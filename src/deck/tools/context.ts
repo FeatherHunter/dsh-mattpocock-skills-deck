@@ -64,6 +64,27 @@ export const definition = {
   parameters: { type: 'object', properties: {}, additionalProperties: false },
 }
 
+/** 给人看的用法说明里所有后端共用的那 381 字：改一个字就是行为变更，非本地后端原样回这一句。 */
+const BASE_HOWTO = '写票之前先用本工具确认工作区与后端；建票用 deck_issue_create，建整张地图骨架用 deck_map_plan_create，补边用 deck_map_link，改票用 deck_issue_patch，上报当前在办哪张票用 deck_issue_report，读一张票用 deck_issue_get，看一张地图的全部子票用 deck_map_snapshot，按状态与 label 和 assignee 列薄行用 deck_issue_list。要快数：扫数先用 deck_issue_list 薄行；单票反向边不急就 deck_issue_get 传 blocking=false（跳过一次全仓扫描）；子票清单要全不断就 deck_map_snapshot 传 detail=thin（统计不变）。工作区与仓库不接受参数：它们只从当前会话取。'
+
+/** 本地后端才追加的那一段建票契约：票就是工作区里的文件，规格与实施票都走 deck 工具，不手写票文件。 */
+const LOCAL_HOWTO_SUFFIX = '本地后端补一条建票契约：票就是工作区里的文件；规格就是票（kind=spec，属于地图时 parentKey 填地图票号）；实施票用 deck_issue_create 建（kind=ticket，parentKey 填规格票号，blockedBy 填依赖）；补边用 deck_map_link，改票用 deck_issue_patch，认领会写 Assignees 行；不要手写票文件（不要自己写 .scratch 下的文件），技能原文若让你手写，以本工具为准。'
+
+/**
+ * 按后端 id 算出用法说明（纯函数：同一个后端 id 永远回同样的话）。
+ *
+ * 取舍：后端专属的用法说明本应住在每个后端自己的声明里，由后端自己报出 prompts 数据，deck 层只负责透出。
+ * 但 deck 层现在拿不到后端的 prompts 数据（装配层没有把那份数据递进来），所以这次先在 context.ts 里按后端分叉：
+ * 票就存在工作区文件里的那一种后端（本地文件后端）追加建票契约，其它后端原样回改前的那句话。
+ * 将来装配层能把后端声明递进来时，把这段本地契约搬到后端声明里，context.ts 只做透出，不再自己看后端是谁。
+ * 本地文件后端的判断复用共享层的具名判断（不用在这里写后端 id 的等值比较，门禁也不许写）。
+ */
+export function howtoFor(backendId: string | null | undefined): string {
+  const id = (typeof backendId === 'string') ? backendId : ''
+  if (knownWritePermissions(id) !== null) return BASE_HOWTO + LOCAL_HOWTO_SUFFIX
+  return BASE_HOWTO
+}
+
 /** 一张地图在清单里长什么样（只放人需要的那几格，正文不进清单；票本身没有层级格，不带它——带空值整包会被外层拒收）。 */
 function mapRow(issue: Record<string, unknown>) {
   return { key: issue.key, title: issue.title, state: issue.state, url: issue.url || '' }
@@ -196,8 +217,8 @@ export function createDeckContext(deps?: DeckContextDeps) {
             initialized: pre ? pre.ok === true : null,
             preflight: pre ? { ok: pre.ok === true, message: String((pre.error && pre.error.message) || '').slice(0, 300) } : null,
             maps: maps,
-            // 这一句是给 AI 的用法说明（描述只有路由，语义放这里）。
-            howto: '写票之前先用本工具确认工作区与后端；建票用 deck_issue_create，建整张地图骨架用 deck_map_plan_create，补边用 deck_map_link，改票用 deck_issue_patch，上报当前在办哪张票用 deck_issue_report，读一张票用 deck_issue_get，看一张地图的全部子票用 deck_map_snapshot，按状态与 label 和 assignee 列薄行用 deck_issue_list。要快数：扫数先用 deck_issue_list 薄行；单票反向边不急就 deck_issue_get 传 blocking=false（跳过一次全仓扫描）；子票清单要全不断就 deck_map_snapshot 传 detail=thin（统计不变）。工作区与仓库不接受参数：它们只从当前会话取。',
+            // 这一句是给 AI 的用法说明（描述只有路由，语义放这里；本地后端追加建票契约，见上面 howtoFor）。
+            howto: howtoFor(pick.backendId),
             quota: { perCallPoints: budget.AI_TOOL_MAX_POINTS_PER_CALL, perCallRequests: budget.AI_TOOL_MAX_REQUESTS_PER_CALL, perHourPoints: budget.AI_TOOL_MAX_POINTS_PER_HOUR, perHourRequests: budget.AI_TOOL_MAX_REQUESTS_PER_HOUR, maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL },
           },
           notes: notes,
