@@ -41,10 +41,10 @@
  *      卡片标题用纸面墨色（深色主题下卡片仍是浅纸，标题继承浅色字会看不清）。
  *   12b. 整卡点按进详情：适配层把 onCard 一并交给卡片，接线层用 enterSubDetail 按标签分流到票详情
  *      或子地图详情，卡片组件只有收到 onCard 才把整张卡做成可点（否则保持「点一下点亮挡路关系」）。
- *   13. 档案区高度稳定：计数 / 完成度 / 子票那句固定成一块，取数中计数写占位、子票那句说同一句
- *      带短横占位的话（不额外写「正在取子票」，也不空出一行），「正在取数」只用进度条轨道上的
- *      流动斜纹表达；没有子票时整块隐藏但留位置。进入页面时不会因为取数状态增删行让卡片上下抖。
- *      同样只读源码文本。
+ *   13. 档案区高度稳定：计数 / 完成度固定成一块，子票那句挂在进度条同一行、不再单独占一行
+ *      （不额外写「正在取子票」，也不空出一行），取数中计数写占位、那句的数字也写占位；
+ *      「正在取数」只用进度条轨道上的流动斜纹表达；没有子票时整块隐藏但留位置。
+ *      进入页面时不会因为取数状态增删行让卡片上下抖。同样只读源码文本。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -938,7 +938,7 @@ section('§12 入口接线')
 
   const headerText = fs.readFileSync(path.join(ROOT, REL, 'view/profile/MapProfileHeader.ts'), 'utf8')
   check(headerText.indexOf('m2v2-meta') >= 0 && headerText.indexOf("'data-empty'") >= 0,
-    '档案区的计数 / 完成度 / 子票那句固定成一块（取数中占位，没有子票时整块隐藏但留位置）')
+    '档案区的计数 / 完成度固定成一块（取数中占位，没有子票时整块隐藏但留位置）')
   check(headerText.indexOf('PLACEHOLDER') >= 0 && headerText.indexOf('busy') >= 0,
     '档案区在取数中显示占位短横，不按状态增删行')
   check(headerText.indexOf('map.subCountLoading') < 0 && headerText.indexOf("'data-busy'") >= 0,
@@ -947,8 +947,13 @@ section('§12 入口接线')
     stylesText.indexOf('@keyframes m2v2-stripes') >= 0 &&
     stylesText.indexOf('prefers-reduced-motion') >= 0,
     '取数中进度条轨道画流动斜纹，系统要求减少动效时停掉动画')
-  check(stylesText.indexOf('.m2v2-meta[data-empty="1"]{visibility:hidden}') >= 0 && stylesText.indexOf('min-height:17px') >= 0,
-    '没有子票时 meta 用 visibility 隐藏（位置保留），子票那句永远占一行高度')
+  check(headerText.indexOf('function feedLine') < 0 && headerText.indexOf('progressNode(h, profile, feed, busy)') >= 0,
+    '子票那句画在进度条这一行里，不再有独立的 feed 行（维护者：不要这一行，直接接下面的内容）')
+  check(stylesText.indexOf('.m2v2-meta[data-empty="1"]{visibility:hidden}') >= 0 &&
+    stylesText.indexOf('.m2v2-prog{display:flex;flex-wrap:wrap') >= 0 &&
+    stylesText.indexOf('.m2v2-feed{flex:0 1 auto') >= 0 &&
+    stylesText.indexOf('min-height:17px') < 0,
+    '没有子票时 meta 用 visibility 隐藏（位置保留）；子票那句挂在进度条同一行，不再单独占一行')
   const pageSourceText = fs.readFileSync(path.join(ROOT, REL, 'view/MapDetailV2Page.ts'), 'utf8')
   check(pageSourceText.indexOf("mode || '') === 'loading'") >= 0 && pageSourceText.indexOf('busy: busy') >= 0,
     '页面把「正在按需取子票」传给档案区（第一帧与取数中都是 busy）')

@@ -14,10 +14,10 @@
  * 随后又说这一行干脆别要（删掉、或并到别的行、或做成 toast）。现在按「删掉」处理，并把「正在取数」
  * 这个信息并进已有的进度条：轨道上画流动斜纹（页面对 busy 打 data-busy，样式负责动画，
  * 尊重 prefers-reduced-motion 时停掉动画），不再多写一行字。
- * 三行仍然固定成一块 m2v2-meta：计数写占位短横、进度条留空轨道并带斜纹、子票那句说一句带占位的
- * 完整话（「本图 – 张子票（已关闭 – 张）」）——删掉那句话后这一行空着不好看（维护者第三次反馈），
- * 所以保留句子、只把未知数字换成短横。取到后原地换成真数字，高度不变；确实一张子票都没有时
- * 整块用 visibility 隐藏，位置仍然留着，不把卡片往上拽。
+ * 维护者第三次反馈：不要专门给「子票那句」留一行，档案区里直接接下面的内容。现在 meta 只有两行：
+ * 计数行与「进度条 + 子票那句同排」；那句话挂在进度条右边（空间不够时在同一行内折行），
+ * 不再占独立一行。取数中它说的是同一句话、数字换成短横占位，取到后原地换数字；
+ * 确实一张子票都没有时整块用 visibility 隐藏，位置仍然留着，不把卡片往上拽。
  */
 import type { MapProfile, TicketFeed } from '../../model/contracts/mapDetailTypes'
 
@@ -38,33 +38,20 @@ const COUNT_CHIPS: { status: string; labelKey: string }[] = [
 const PLACEHOLDER = '–'
 
 /**
- * 「子票那句」：模型给的几段话拼成一行。取数中模型给的是带占位短横的同一句话
- * （「本图 – 张子票（已关闭 – 张）」），不再写「正在取子票」，也不会空出一整行
- * （维护者 2026-10-23 的两次反馈：「正在取子票」那行不要；删掉后空一行也不行）。
- * 「正在取数」由进度条上的斜纹表达。这一行永远占一行的高度（样式里给了 min-height）：
- * 取到数以后只是把短横换成数字，不会把下面的内容顶走。
+ * 完成度一行：左边「地图进度」，中间细条，右边百分比；「子票那句」挂在百分比后面，同排。
+ * 维护者 2026-10-23 第三次反馈：不要再给那句话单独留一行（原来删掉「正在取子票」后空了一行），
+ * 所以它现在是这一行里的一个 span，档案区下面直接就是抽屉。
+ * 取数中总张数还不知道时，轨道留空、百分比写「–」、整行打 data-busy——「正在取数」由轨道上的
+ * 流动斜纹表达；那句仍是同一句话、数字换成短横占位，宽度与取到后接近，不会因为换字而突然折行。
  */
-function feedLine(h: any, profile: MapProfile, feed: TicketFeed | null): any {
-  const segments = profile.feedSegments || []
-  const text = segments.map(function (segment: any) {
-    return tr(segment.key, segment.params || {})
-  }).join(' · ')
-  return h('div', {
-    key: 'feed',
-    className: 'm2v2-feed',
-    'data-state': feed ? String(feed.state || '') : '',
-  }, text)
-}
-
-/**
- * 完成度：按已完成张数算的细条。取数中总张数还不知道，就先画一条空轨道、右边写「–」，
- * 并给整行打 data-busy：「正在取数」就靠轨道上的流动斜纹表达，不再多占一行文字。
- * 取到以后原位置换成真实百分比（一张子票都没有时这块最终会被 meta 整块隐藏，只占位不显示）。
- */
-function progressNode(h: any, profile: MapProfile, busy: boolean): any {
+function progressNode(h: any, profile: MapProfile, feed: TicketFeed | null, busy: boolean): any {
   const total = profile.counts ? profile.counts.total : 0
   const known = total > 0
   const percent = known ? profile.progressPercent : 0
+  const segments = profile.feedSegments || []
+  const feedText = segments.map(function (segment: any) {
+    return tr(segment.key, segment.params || {})
+  }).join(' · ')
   return h('div', {
     key: 'prog',
     className: 'm2v2-prog',
@@ -74,6 +61,12 @@ function progressNode(h: any, profile: MapProfile, busy: boolean): any {
     h('div', { key: 'track', className: 'm2v2-track' },
       h('div', { className: 'm2v2-fill', style: { width: percent + '%' } })),
     h('span', { key: 'num', className: 'm2v2-prog-num' }, known ? (percent + '%') : (busy ? PLACEHOLDER : '0%')),
+    h('span', {
+      key: 'feed',
+      className: 'm2v2-feed',
+      'data-state': feed ? String(feed.state || '') : '',
+      title: feedText,
+    }, feedText),
   ])
 }
 
@@ -102,7 +95,7 @@ export function MapProfileHeader(props: any): any {
       'data-status': chip.status,
     }, tr(chip.labelKey, { n: unknownCounts ? PLACEHOLDER : n }))
   }))
-  // 取数成功且确实一张子票都没有时，这三行一起用 visibility 藏起来：文字不重复出现（「本图 0 张子票」
+  // 取数成功且确实一张子票都没有时，这两行一起用 visibility 藏起来：文字不重复出现（「本图 0 张子票」
   // 交给卡片流的空态说一次），但位置留着，卡片不会因为这块消失而往上跳。
   const quietEmpty = !busy && !!(feed && feed.state === 'ready' && counts.total === 0)
   const metaNode = h('div', {
@@ -112,8 +105,7 @@ export function MapProfileHeader(props: any): any {
     'aria-busy': busy ? 'true' : 'false',
   }, [
     countsNode,
-    progressNode(h, profile, busy),
-    feedLine(h, profile, feed),
+    progressNode(h, profile, feed, busy),
   ])
 
   const destination = profile.hasDestination
