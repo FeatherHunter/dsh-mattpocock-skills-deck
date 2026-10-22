@@ -66,11 +66,16 @@ export function MapDetailV2Page(props: any): any {
   const st = props && props.st
   const g = props && props.g
   const m = g && g.m
+
+  // hooks 必须先于任何提前 return 调用（React 的规矩：同一次挂载里 hook 数量不能变）。
+  // 这里先取数、再判这张图在不在；useMapTicketsFeed 自己会处理 m 为空的情况（effect 里直接 return），
+  // 所以 m 从无到有时不会因为 hook 数量变化让整页崩掉。
+  // 空 m 这个分支今天走不到：唯一挂载点只在 g.m 存在时才画这一页（panel/Dock.ts:117、:404），
+  // 真走到时也只是一个空容器，返回列表仍由 DSH 的标签与侧栏兜底，不会把用户困在页里。
+  const bucket = useMapTicketsFeed(st, m)
   if (!m) return h('div', { className: 'm2v2-page' })
 
   const mId = idOf(m)
-  // 一进页面就拉全部子票（含已关闭）：V2 要把已完成的票也画出来，不能只靠快照里那点数据。
-  const bucket = useMapTicketsFeed(st, m)
   const colorOf = buildColorOf(st)
   const cardIdPrefix = cardIdPrefixOf(mId)
 
@@ -88,6 +93,8 @@ export function MapDetailV2Page(props: any): any {
   })
 
   // 顶栏三态与老页同源（kernel/container-view.ts）：取数成功后用真实统计，取不到时退回快照里的 stats。
+  // 注意档案区的四枚计数按「画出来的行」数（mapDetailPageModel.ts:13-15 写明是有意），取数被 1000 张
+  // 上限截断时两处分母可能不同；档案里的「子票那句」会把截断与差额补出来，不让数字悄悄对不上。
   const effStats = (bucket && bucket.mode === 'real' && bucket.stats) ? bucket.stats : (m.stats || null)
   const cKind = containerKindOf(m) || 'map'
   const cState = containerStateOf({ stats: effStats })
@@ -104,6 +111,8 @@ export function MapDetailV2Page(props: any): any {
     // 卡片流：一条连续的流，顺序由模型排好（在办 → 可接 → 被挡 → 已完成）。
     h(TicketCardFlow, { key: 'flow', cards: model.cards.sequence, empty: model.feed.empty }),
     // 图片放大浮层：与议题详情共用同一渲染函数与同一共享状态（markdown 里的图能点开）。
-    (typeof mdImgOverlay === 'function' ? mdImgOverlay(st) : null),
+    // 外面套一个 display:contents 的容器只是为了给数组子元素一个 key（浮层没打开时返回 null）。
+    h('div', { key: 'overlay', style: { display: 'contents' } },
+      (typeof mdImgOverlay === 'function' ? mdImgOverlay(st) : null)),
   ])
 }

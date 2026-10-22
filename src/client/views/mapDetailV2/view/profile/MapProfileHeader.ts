@@ -33,6 +33,7 @@ function feedLine(h: any, profile: MapProfile, feed: TicketFeed | null): any {
     return tr(segment.key, segment.params || {})
   }).join(' · ')
   return h('div', {
+    key: 'feed',
     className: 'm2v2-feed',
     'data-state': feed ? String(feed.state || '') : '',
   }, text)
@@ -41,7 +42,7 @@ function feedLine(h: any, profile: MapProfile, feed: TicketFeed | null): any {
 /** 完成度：按已完成张数算的细条；一张子票都没有时不画（0% 的条没有信息量）。 */
 function progressNode(h: any, profile: MapProfile): any {
   if (!profile.counts || !(profile.counts.total > 0)) return null
-  return h('div', { className: 'm2v2-prog' }, [
+  return h('div', { key: 'prog', className: 'm2v2-prog' }, [
     h('span', { key: 'cap', className: 'm2v2-prog-cap' }, tr('map.progressCap')),
     h('div', { key: 'track', className: 'm2v2-track' },
       h('div', { className: 'm2v2-fill', style: { width: profile.progressPercent + '%' } })),
@@ -62,17 +63,24 @@ export function MapProfileHeader(props: any): any {
   if (!profile) return null
 
   const counts = profile.counts || { total: 0, closed: 0, ready: 0, doing: 0, blocked: 0 }
-  const chips = COUNT_CHIPS.map(function (chip: { status: string; labelKey: string }) {
-    const n = (counts as any)[chip.status] || 0
-    return h('span', {
-      key: chip.status,
-      className: 'm2v2-count',
-      'data-status': chip.status,
-    }, tr(chip.labelKey, { n: n }))
-  })
+  // 空地图不画四枚全 0 的计数：四颗 0 不提供信息，还会和下面「本图 0 张子票」那句重复。
+  const countsNode = counts.total > 0
+    ? h('div', { key: 'counts', className: 'm2v2-counts' }, COUNT_CHIPS.map(function (chip: { status: string; labelKey: string }) {
+      const n = (counts as any)[chip.status] || 0
+      return h('span', {
+        key: chip.status,
+        className: 'm2v2-count',
+        'data-status': chip.status,
+      }, tr(chip.labelKey, { n: n }))
+    }))
+    : null
+  // 取数成功且确实一张子票都没有时，「本图 0 张子票」交给卡片流的空态说一次，档案区这里留白，
+  // 同一句话不在页面上出现两遍；loading / 取不到 / 被截断这些情形仍由这句交代。
+  const quietEmpty = !!(feed && feed.state === 'ready' && counts.total === 0)
+  const feedLineNode = quietEmpty ? null : feedLine(h, profile, feed)
 
   const destination = profile.hasDestination
-    ? h('div', { className: 'm2v2-dest' }, [
+    ? h('div', { key: 'dest', className: 'm2v2-dest' }, [
       h('span', { key: 'ic', className: 'm2v2-dest-ic' }, Ic({ n: 'target', size: 12 })),
       h('div', { key: 'txt', style: { flex: 1, minWidth: 0 } },
         (typeof mdToHtml === 'function' ? mdToHtml(profile.destination, { st: st }) : profile.destination)),
@@ -81,7 +89,7 @@ export function MapProfileHeader(props: any): any {
     // 探索地图缺目的地时仍要提示一句，让写图的人知道这格该填。
     : (profile.kind === 'spec'
       ? null
-      : h('div', { className: 'm2v2-dest m2v2-dest-empty' }, [
+      : h('div', { key: 'dest', className: 'm2v2-dest m2v2-dest-empty' }, [
         h('span', { key: 'ic', className: 'm2v2-dest-ic' }, Ic({ n: 'target', size: 12 })),
         h('span', { key: 'txt' }, tr('list.noDest')),
       ]))
@@ -93,9 +101,9 @@ export function MapProfileHeader(props: any): any {
     ]),
     h('h1', { key: 'title', className: 'm2v2-title' }, profile.title || ''),
     destination,
-    h('div', { key: 'counts', className: 'm2v2-counts' }, chips),
+    countsNode,
     progressNode(h, profile),
-    feedLine(h, profile, feed),
+    feedLineNode,
     h(MapProfileDrawers, { key: 'drawers', sections: profile.sections }),
     profile.errorText
       ? h('div', { key: 'err', className: 'm2v2-err' }, [
