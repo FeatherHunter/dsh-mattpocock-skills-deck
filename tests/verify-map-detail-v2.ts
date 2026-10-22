@@ -2,8 +2,8 @@
 /**
  * tests/verify-map-detail-v2.ts —— V2 地图详情页「纯逻辑层」的专属门禁。
  *
- * 为什么要有这一条：V2 页面还在长，第一批落地的是四个不依赖界面的判断模块
- *   （行 → 卡片的刻画、未完成/已完成的排法、三条取数来路的合成、数据契约）。它们
+ * 为什么要有这一条：V2 页面还在长，第一批落地的是五个不依赖界面的判断模块
+ *   （行 → 卡片的刻画、未完成/已完成的排法、三条取数来路的合成、MAP 自身内容的刻画、数据契约）。它们
  *   决定了页面上一张卡片画成什么样、摆在哪里、数据不全时怎么说——这些判断一旦错了，
  *   页面写得多好看都是错的。这一层今天没有任何门禁碰过，改坏了不会有第二处拦住。
  *
@@ -12,7 +12,7 @@
  *   （经 scripts/ts-hook.mts 做类型剥离）。等接入时它们会搬进 views/ 并登记为叶子，
  *   那时这套判据仍然成立：断言的是行为，不是文件位置。
  *
- * 断的七件事：
+ * 断的八件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
  *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
@@ -20,11 +20,13 @@
  *      卡片 id 一定带调用方给的前缀）。
  *   4. 阻塞关系双向：被挡卡指向编号最小的开着阻塞者；挡路卡指向「确实被挡、编号最小」的那张。
  *   5. 看板排序三条性质：每张票恰好出现一次（含成环、自阻塞、撞编号的脏数据）、输入顺序不影响结果、
- *      被挡卡紧挨挡它的那张且排在其后；已完成段按结案时间倒序。很长的阻塞链用显式栈走完，
+ *      被挡卡紧跟在挡它的那张之后；已完成段按结案时间倒序。很长的阻塞链用显式栈走完，
  *      不依赖调用栈深度。
  *   6. 取数五态：取回那份 / 正在取 / 不支持 / 取失败 / 还没有桶，各自画哪份数据、怎么说原因，
  *      以及 capped / missing 只属于「取回那份」。
- *   7. 纯函数：三份逻辑模块没有任何运行时 import（动作与词条都从参数进），同目录没有落回来的 .js 产物。
+ *   7. MAP 自身内容：身份 / 目的地 / 档案四节 / 完成度 / 「子票那句」的段，空地图、取数中、
+ *      后端不支持、取失败、capped / missing 各画成什么。
+ *   8. 纯函数：四份逻辑模块没有任何运行时 import（动作与词条都从参数进），同目录没有落回来的 .js 产物。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -49,27 +51,28 @@ const DIR = path.join(ROOT, REL)
 const facts = require('../src/client/mapDetailV2/ticketCardFacts.ts')
 const board = require('../src/client/mapDetailV2/ticketBoard.ts')
 const feed = require('../src/client/mapDetailV2/ticketFeed.ts')
+const profile = require('../src/client/mapDetailV2/mapProfile.ts')
 
 // ===========================================================================
 // 0. 前置：真源都在，旁边没有同名 .js 产物，三个模块都没有运行时 import
 // ===========================================================================
-section('0. 前置：四份真源都在、没有同名 .js、三份逻辑模块没有运行时 import')
+section('0. 前置：五份真源都在、没有同名 .js、四份逻辑模块没有运行时 import')
 {
-  const wanted = ['mapDetailTypes.d.ts', 'ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts']
+  const wanted = ['mapDetailTypes.d.ts', 'ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts', 'mapProfile.ts']
   const missing = wanted.filter((name) => !fs.existsSync(path.join(DIR, name)))
-  check(missing.length === 0, '四份真源都在（缺的：' + (missing.length ? missing.join('、') : '无') + '）')
+  check(missing.length === 0, '五份真源都在（缺的：' + (missing.length ? missing.join('、') : '无') + '）')
 
   const strayJs = wanted.filter((name) => name.endsWith('.ts') && fs.existsSync(path.join(DIR, name.slice(0, -3) + '.js')))
   check(strayJs.length === 0, '真源旁边没有同名 .js 产物（多出来的：' + (strayJs.length ? strayJs.join('、') : '无') + '）')
 
-  const runtimeImporters = ['ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts'].filter((name) => {
+  const runtimeImporters = ['ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts', 'mapProfile.ts'].filter((name) => {
     const src = fs.readFileSync(path.join(DIR, name), 'utf8')
     return /^import\s+(?!type\b)/m.test(src)
   })
   check(runtimeImporters.length === 0,
-    '三份逻辑模块没有运行时 import（只允许 import type；违反的：' + (runtimeImporters.length ? runtimeImporters.join('、') : '无') + '）')
+    '四份逻辑模块没有运行时 import（只允许 import type；违反的：' + (runtimeImporters.length ? runtimeImporters.join('、') : '无') + '）')
 
-  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts']
+  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapDecision', 'MapProfile']
   const typesSrc = fs.readFileSync(path.join(DIR, 'mapDetailTypes.d.ts'), 'utf8')
   const missingTypes = typeExports.filter((name) => typesSrc.indexOf('export interface ' + name) < 0 && typesSrc.indexOf('export type ' + name) < 0)
   check(missingTypes.length === 0, '数据契约里的关键类型都声明了（缺的：' + (missingTypes.length ? missingTypes.join('、') : '无') + '）')
@@ -121,6 +124,18 @@ section('2. 状态判定：已关闭 > 在办 > 被挡 > 可接，阻塞者不�
     '阻塞者不在本图（9999 没在 openByNumber 里）→ 可接，与宿主 frontier 同口径')
   check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: ['1332'] }, openByNumber) === 'blocked',
     '字符串形式的阻塞者编号同样认')
+  // 本地 / effort 后端的票号补零：行 key '01' 被 parseInt 成 1，阻塞者却原样写 '01'。
+  // 不归一的话整张地图的阻塞关系会静默失效（被挡票全画成可接），这条判据钉住归一。
+  check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: ['01'] }, { '1': true }) === 'blocked',
+    '补零编号 01 与 1 当成同一张票（实得 ' + show(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: ['01'] }, { '1': true })) + '）')
+  check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [' 01 '] }, { '1': true }) === 'blocked',
+    '编号两端的空白也去掉再比（实得 ' + show(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [' 01 '] }, { '1': true })) + '）')
+  // 有意的放宽（与宿主 groupTickets 只认 OPEN 不同）：状态缺失或写法不认识时按「开着」判。
+  // 若照着宿主只认 OPEN，脏行会被当成已关闭，悄悄从看板上消失；宁可让它显眼地排进可接。
+  check(facts.ticketCardStatusOf({ title: '状态缺失' }, openByNumber) === 'ready',
+    '状态缺失的脏行按开着判、排在可接里（与宿主 groupTickets 的有意差异）')
+  check(facts.ticketCardStatusOf({ state: 'REOPENED' }, openByNumber) === 'ready',
+    '不认识的状态写法同样按开着判')
 }
 
 // ===========================================================================
@@ -172,7 +187,7 @@ section('3. 卡片刻画：编号 / 标题 / 小签 / BUG / 认领 / 更新日 /
   check(ready.updatedText === '10-20', '更新日截成 MM-DD（实得 ' + show(ready.updatedText) + '）')
   check(ready.footText === 'card.pickReady' && ready.pickCorner === 'ready',
     '可接卡的页脚键与左下角角标（实得 ' + show(ready.footText) + ' / ' + show(ready.pickCorner) + '）')
-  check(ready.cardId === 'm1314-1332', '卡片 id 带调用方给的前缀（实得 ' + show(ready.cardId) + '）')
+  check(ready.cardId === 'm1314-1332-i-1332', '卡片 id 是前缀+编号+行 key：撞号时两张卡也不会共用同一个 DOM id（实得 ' + show(ready.cardId) + '）')
   check(ready.rowKey === 'i-1332', '行自己的 key 原样保留（实得 ' + show(ready.rowKey) + '）')
 
   const doing = factOf(1348)
@@ -181,6 +196,16 @@ section('3. 卡片刻画：编号 / 标题 / 小签 / BUG / 认领 / 更新日 /
   check(doing.footText === 'card.doing' && doing.pickCorner === 'doing' &&
     show(doing.tags) === show([{ text: 'type.research', color: '0ea5e9' }]),
     '在办卡的页脚键、角标、小签（实得 ' + show(doing.footText) + ' / ' + show(doing.pickCorner) + ' / ' + show(doing.tags) + '）')
+
+  // p101 定版：认领优先，在办票画「在办」角标而不是 BUG 三角；结案票才保留 BUG。
+  const doingBug = facts.ticketCardFactsOf({ number: 1601, title: '在办的 bug 票', state: 'OPEN', labels: ['bug'], claimedBy: 'someone' },
+    facts.ticketFactsContextOf([{ number: 1601, title: '在办的 bug 票', state: 'OPEN', claimedBy: 'someone' }], ENV))
+  check(doingBug.status === 'doing' && doingBug.bug === false && doingBug.pickCorner === 'doing',
+    '在办 + bug：画在办角标，不给 BUG 三角（实得 status=' + show(doingBug.status) + '、bug=' + show(doingBug.bug) + '、角标=' + show(doingBug.pickCorner) + '）')
+  const closedBug = facts.ticketCardFactsOf({ number: 1602, title: '结案的 bug 票', state: 'CLOSED', labels: ['bug'] },
+    facts.ticketFactsContextOf([{ number: 1602, title: '结案的 bug 票', state: 'CLOSED' }], ENV))
+  check(closedBug.status === 'closed' && closedBug.bug === true,
+    '结案 + bug：BUG 三角保留（实得 status=' + show(closedBug.status) + '、bug=' + show(closedBug.bug) + '）')
 
   const grill = factOf(1316)
   check(grill.action === 'grill' && show(grill.tags) === show([{ text: 'type.grilling', color: '9d7cd8' }]),
@@ -226,13 +251,13 @@ section('3. 卡片刻画：编号 / 标题 / 小签 / BUG / 认领 / 更新日 /
 section('4. 阻塞关系：被挡卡指向编号最小的开着阻塞者，挡路卡指向确实被挡的第一张')
 {
   const blocked = factOf(1374)
-  check(blocked.status === 'blocked' && show(blocked.blockedBy) === show({ no: '1332', title: '订阅源切成八段', cardId: 'm1314-1332' }),
+  check(blocked.status === 'blocked' && show(blocked.blockedBy) === show({ no: '1332', title: '订阅源切成八段', cardId: 'm1314-1332-i-1332' }),
     '#1374 被 #1332 挡住：编号、标题、对方卡片 id 三样都指向它（实得 ' + show(blocked.blockedBy) + '）')
   check(blocked.footText === 'card.blockedCount' && blocked.pickCorner === null,
     '被挡卡的页脚键与「没有角标」（实得 ' + show(blocked.footText) + ' / ' + show(blocked.pickCorner) + '）')
 
   const blocker = factOf(1332)
-  check(show(blocker.blocks) === show({ no: '1374', title: '一个进程只建一个日志实例', cardId: 'm1314-1374' }),
+  check(show(blocker.blocks) === show({ no: '1374', title: '一个进程只建一个日志实例', cardId: 'm1314-1374-i-1374' }),
     '挡路卡 #1332 指向它挡住的第一张 #1374（实得 ' + show(blocker.blocks) + '）')
 
   const claimedButBlocked = factOf(1350)
@@ -251,6 +276,31 @@ section('4. 阻塞关系：被挡卡指向编号最小的开着阻塞者，挡�
     ], ENV))
   check(show(onlyClaimedChild.blocks) === show({ no: '1501', title: '被挡的', cardId: 'm1314-1501' }),
     '挡路卡的挡路条指向真正被挡的那张，认领了的不算（实得 ' + show(onlyClaimedChild.blocks) + '）')
+
+  // 一张票被两张挡住时，两侧必须指向同一对：被挡卡说被主阻塞者（编号最小）挡，
+  // 只有主阻塞者才画「阻塞的就是这张」，另一张不能也说自己挡住它。
+  const multiRows = [
+    { key: 'm-10', number: 10, title: '次阻塞者', state: 'OPEN' },
+    { key: 'm-1', number: 1, title: '主阻塞者', state: 'OPEN' },
+    { key: 'm-5', number: 5, title: '被两张挡的', state: 'OPEN', blockedBy: [10, 1] },
+  ]
+  const multiCtx = facts.ticketFactsContextOf(multiRows, ENV)
+  const multiFacts = multiRows.map((row) => facts.ticketCardFactsOf(row, multiCtx))
+  const multiOf = (no) => multiFacts.filter((one) => one.number === no)[0]
+  check(show(multiOf(5).blockedBy) === show({ no: '1', title: '主阻塞者', cardId: 'm1314-1-m-1' }),
+    '被两张挡的票只指主阻塞者（编号最小的 #1，实得 ' + show(multiOf(5).blockedBy) + '）')
+  check(show(multiOf(1).blocks) === show({ no: '5', title: '被两张挡的', cardId: 'm1314-5-m-5' }),
+    '主阻塞者 #1 的挡路条指向那张被挡票（实得 ' + show(multiOf(1).blocks) + '）')
+  check(multiOf(10).blocks === null,
+    '次阻塞者 #10 不说自己挡住它，两侧说法一致（实得 ' + show(multiOf(10).blocks) + '）')
+  // 补零编号进阻塞关系：行 key '01' 解析成 1，阻塞者写 '01' 也要挂得上去。
+  const paddedRows = [
+    { key: '01', number: 1, title: '补零挡路者', state: 'OPEN' },
+    { key: '02', number: 2, title: '被挡住', state: 'OPEN', blockedBy: ['01'] },
+  ]
+  const paddedFacts = paddedRows.map((row) => facts.ticketCardFactsOf(row, facts.ticketFactsContextOf(paddedRows, ENV)))
+  check(paddedFacts[1].status === 'blocked' && show(paddedFacts[1].blockedBy) === show({ no: '1', title: '补零挡路者', cardId: 'm1314-1-01' }),
+    '补零编号的阻塞关系建得起来（实得 status=' + show(paddedFacts[1].status) + '、blockedBy=' + show(paddedFacts[1].blockedBy) + '）')
 }
 
 // ===========================================================================
@@ -261,7 +311,7 @@ section('5. 卡片 id：前缀由调用方给，同屏两张地图不会撞同�
   const ctxB = facts.ticketFactsContextOf(ROWS, Object.assign({}, ENV, { cardIdPrefix: 'other' }))
   const a = FACTS[0]
   const b = facts.ticketCardFactsOf(ROWS[0], ctxB)
-  check(a.cardId === 'm1314-1332' && b.cardId === 'other-1332',
+  check(a.cardId === 'm1314-1332-i-1332' && b.cardId === 'other-1332-i-1332',
     '同一张票在两个前缀下拿到不同的卡片 id（实得 ' + show(a.cardId) + ' / ' + show(b.cardId) + '）')
   const noPrefix = facts.ticketFactsContextOf(ROWS, Object.assign({}, ENV, { cardIdPrefix: '' }))
   check(facts.ticketCardFactsOf(ROWS[0], noPrefix).cardId === null,
@@ -277,11 +327,31 @@ section('6. 看板排序：三条性质 + 已完成段')
   const closed = board.orderClosedTickets(FACTS)
   const numbers = (list) => list.map((one) => one.number).join(',')
   check(numbers(open) === '1316,1332,1374,1400,1401,1348,1350',
-    '未完成段顺序：可接按编号在前，被挡的 #1374 紧挨 #1332，在办最后（实得 ' + show(numbers(open)) + '）')
+    '未完成段顺序：可接按编号在前，被挡的 #1374 紧跟在挡它的 #1332 之后，在办最后（实得 ' + show(numbers(open)) + '）')
   check(open.indexOf(factOf(1374)) === open.indexOf(factOf(1332)) + 1,
-    '#1374 紧挨在挡它的 #1332 之后（实得 #1332 在第 ' + open.indexOf(factOf(1332)) + ' 位、#1374 在第 ' + open.indexOf(factOf(1374)) + ' 位）')
+    '#1374 紧跟在挡它的 #1332 之后（实得 #1332 在第 ' + open.indexOf(factOf(1332)) + ' 位、#1374 在第 ' + open.indexOf(factOf(1374)) + ' 位）')
+
+  // 一张挡路者挡住两张、其中一张自己还有下游：这几张必须连在该段里，但不保证两张被挡票相邻。
+  const fanRows = [
+    { key: 'f-100', number: 100, title: '挡路者', state: 'OPEN' },
+    { key: 'f-101', number: 101, title: '被挡之一', state: 'OPEN', blockedBy: [100] },
+    { key: 'f-102', number: 102, title: '被挡之二', state: 'OPEN', blockedBy: [100] },
+    { key: 'f-103', number: 103, title: '下游', state: 'OPEN', blockedBy: [101] },
+  ]
+  const fanFacts = fanRows.map((row) => facts.ticketCardFactsOf(row, facts.ticketFactsContextOf(fanRows, ENV)))
+  const fanOrder = board.orderOpenTickets(fanFacts).map((one) => one.number).join(',')
+  check(fanOrder === '100,101,102,103',
+    '同一挡路者的两张票连续排在一起（逐层先序：挡路者 → 被挡之一 → 被挡之二 → 下游，实得 ' + show(fanOrder) + '）')
+  const fanNo = fanOrder.split(',').map((one) => Number(one))
+  check(fanNo.indexOf(103) > fanNo.indexOf(101) && fanNo.indexOf(102) > fanNo.indexOf(100),
+    '下游排在挡它的那张之后，第二张被挡票也排在挡路者之后')
   check(numbers(closed) === '1317,1315,1331',
     '已完成段按结案时间倒序、同刻按编号（实得 ' + show(numbers(closed)) + '）')
+  const oddStamp = board.orderClosedTickets([
+    { number: null, rowKey: 'bad', status: 'closed', closedAt: '不是日期' },
+    { number: 7, rowKey: '7', status: 'closed', closedAt: '2026-10-18' },
+  ]).map((one) => one.rowKey).join(',')
+  check(oddStamp === '7,bad', '结案时间认不出的票排在最后，不丢也不乱序（实得 ' + show(oddStamp) + '）')
   check(closed.every((one) => one.status === 'closed') && open.every((one) => one.status !== 'closed'),
     '两段按状态分开，没有一张混进去')
 
@@ -344,8 +414,33 @@ section('6.1 脏数据：成环、自阻塞、缺编号')
   const dupOrder = board.orderOpenTickets(dupFacts)
   check(dupOrder.length === 2 && dupOrder.map((one) => one.rowKey).sort().join(',') === 'dup-a,dup-b',
     '两张票撞同一个编号时两张都画出来，不静默丢一张（实得 ' + show(dupOrder.map((one) => one.rowKey).join(',')) + '）')
+  check(dupFacts[0].cardId !== dupFacts[1].cardId && dupFacts[0].cardId === 'm1314-3001-dup-a',
+    '撞编号的两张卡拿到不同 DOM id，点被挡卡不会亮错（实得 ' + show(dupFacts.map((one) => one.cardId).join(' / ')) + '）')
 
-  // 很长的阻塞链：递归走图会在几千层时爆栈，显式栈必须能走完（这条判据替掉「靠人记住链不会太长」）。
+  // 连编号带行 key 都一样的两张脏行：靠「输入里的第几张」区分，仍然各画一次。
+  const sameRows = [
+    { key: 'dup-same', number: 3002, title: '同号同 key 一', state: 'OPEN' },
+    { key: 'dup-same', number: 3002, title: '同号同 key 二', state: 'OPEN' },
+  ]
+  const sameFacts = sameRows.map((row) => facts.ticketCardFactsOf(row, facts.ticketFactsContextOf(sameRows, ENV)))
+  const sameOrder = board.orderOpenTickets(sameFacts)
+  check(sameOrder.length === 2 && sameOrder.map((one) => one.title).join(',') === '同号同 key 一,同号同 key 二',
+    '编号和行 key 都相同的两张脏行也各画一次（实得 ' + show(sameOrder.map((one) => one.title).join(',')) + '）')
+
+  // 两行都没有编号、也没有 key：内容完全一样，只靠「输入里的第几张」区分，仍要各画一次。
+  const blankRows = [
+    { title: '无编号一', state: 'OPEN' },
+    { title: '无编号二', state: 'OPEN' },
+  ]
+  const blankFacts = blankRows.map((row) => facts.ticketCardFactsOf(row, facts.ticketFactsContextOf(blankRows, ENV)))
+  const blankOrder = board.orderOpenTickets(blankFacts)
+  const blankBackward = board.orderOpenTickets(blankFacts.slice().reverse())
+  check(blankOrder.length === 2 && blankOrder.map((one) => one.title).sort().join(',') === '无编号一,无编号二',
+    '两行都没有编号也没有 key 时也各画一次（实得 ' + show(blankOrder.map((one) => one.title).join(',')) + '）')
+  check(blankOrder.map((one) => one.title).join(',') === blankBackward.map((one) => one.title).join(','),
+    '这种空白行的次序不随输入顺序变（实得 ' + show(blankOrder.map((one) => one.title).join(',')) + ' / ' + show(blankBackward.map((one) => one.title).join(',')) + '）')
+
+  // 很长的阻塞链：递归走图会在几千层时爆栈，显式队列必须能走完（这条判据替掉「靠人记住链不会太长」）。
   const CHAIN = 20000
   const chainRows = []
   for (let i = 1; i <= CHAIN; i += 1) {
@@ -376,8 +471,8 @@ section('7. 取数五态：取回那份 / 正在取 / 不支持 / 取失败 / �
 
   const realFallback = feed.ticketFeedOf({ mode: 'real', items: [] }, snapshot)
   check(realFallback.stats && realFallback.stats.total === 9, '取回那份没给 stats 时退回快照的 stats（实得 ' + show(realFallback.stats) + '）')
-  check(realFallback.empty === true && realFallback.total === null,
-    '取回 0 张：empty=true、total=null（没给总数时不许拿行数冒充，实得 ' + show(realFallback.total) + '）')
+  check(realFallback.empty === false && realFallback.total === null,
+    '取回 0 张但快照说本图共 9 张：不说「没有子票」、total 不拿行数冒充（实得 empty=' + show(realFallback.empty) + '、total=' + show(realFallback.total) + '）')
 
   const loading = feed.ticketFeedOf({ mode: 'loading' }, snapshot)
   check(loading.state === 'loading' && loading.source === 'snapshot' && loading.rows.length === 1 &&
@@ -396,8 +491,13 @@ section('7. 取数五态：取回那份 / 正在取 / 不支持 / 取失败 / �
     '其它取数失败：原因截到 120 字（实得 ' + failedFeed.failedMessage.length + ' 字）')
 
   const emptyFailed = feed.ticketFeedOf({ mode: 'err', error: { kind: 'parse' } }, null)
-  check(emptyFailed.state === 'failed' && emptyFailed.failedMessage === 'parse' && emptyFailed.empty === true,
-    '没有 message 时退回 kind 当原因；一行都没有时 empty=true（实得 ' + show(emptyFailed.failedMessage) + ' / ' + show(emptyFailed.empty) + '）')
+  check(emptyFailed.state === 'failed' && emptyFailed.failedMessage === '' && emptyFailed.empty === false,
+    '取失败时不以内部档位词当原因（不画「子票没取到：parse」），也不说成「没有子票」（实得 ' + show(emptyFailed.failedMessage) + ' / ' + show(emptyFailed.empty) + '）')
+
+  const badReal = feed.ticketFeedOf({ mode: 'real', items: '这不是数组' }, snapshot)
+  check(badReal.state === 'failed' && badReal.source === 'snapshot' && badReal.rows.length === 1 &&
+    badReal.total === null && badReal.empty === false,
+    '桶说成功但 items 不是数组：按失败画，不静默拿快照冒充完整数据（实得 ' + show(badReal.state) + ' / ' + show(badReal.rows.length) + ' / ' + show(badReal.empty) + '）')
 
   const noBucket = feed.ticketFeedOf(null, snapshot)
   check(noBucket.state === 'ready' && noBucket.source === 'snapshot' && noBucket.rows.length === 1,
@@ -428,6 +528,122 @@ section('8. 交叉一致性：行序打乱不影响每张卡的刻画')
   const noBlockers = facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: null }, {})
   check(noBlockers === 'ready', '没有阻塞者时判可接（实得 ' + show(noBlockers) + '）')
 }
+
+// ===========================================================================
+// 9. MAP 自身内容：身份 / 目的地 / 档案四节 / 完成度 / 子票那句
+// ===========================================================================
+section('9. MAP 自身内容：身份、目的地、档案四节、完成度、子票那句的段')
+{
+  const COUNTS = { total: 8, closed: 4, ready: 2, doing: 1, blocked: 1 }
+  const MAP_ROW = {
+    number: 1314,
+    key: '1314',
+    title: '  插件日志持久化读回失败与宿主反复启动  ',
+    destination: '查清插件日志里两类异常的真实成因',
+    notes: ' 这里有一段备注 ',
+    decisions: [
+      { title: '收起层级', gist: '不再按层分组', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1' },
+      { title: '已完成的放下方', gist: '' },
+      { title: '', gist: '', url: '' },
+    ],
+    fog: ['规格页怎么画还没定', '  ', null],
+    outOfScope: ['规格详情页'],
+  }
+
+  const ids = profile.MAP_PROFILE_SECTIONS.map((one) => one.id).join(',')
+  check(ids === 'notes,decisions,fog,outOfScope',
+    '档案四节的顺序固定为 笔记 → 已定决策 → 战雾 → 范围外（实得 ' + show(ids) + '）')
+  const labelKeys = profile.MAP_PROFILE_SECTIONS.map((one) => one.labelKey).join(',')
+  check(labelKeys === 'map.notesCap,map.decisions,map.fog,map.outOfScope',
+    '四节各自沿用老页词条键（实得 ' + show(labelKeys) + '）')
+
+  check(profile.mapNumberOf({ number: 1314 }) === 1314 && profile.mapNumberOf({ key: '1315' }) === 1315,
+    '编号先看 number，再看 key（实得 ' + show(profile.mapNumberOf({ number: 1314 })) + ' / ' + show(profile.mapNumberOf({ key: '1315' })) + '）')
+  check(profile.mapNumberOf({ key: '没有数字' }) === null && profile.mapNumberOf(null) === null,
+    '取不到编号时是 null，不把脏 key 猜成数字（实得 ' + show(profile.mapNumberOf({ key: '没有数字' })) + ' / ' + show(profile.mapNumberOf(null)) + '）')
+  check(profile.mapNoTextOf({ number: 1314 }) === '#1314' && profile.mapNoTextOf({}) === '',
+    '身份文本带 # 前缀；没有编号时是空串（实得 ' + show(profile.mapNoTextOf({})) + '）')
+
+  check(profile.mapProgressPercentOf(COUNTS) === 50, '完成度 = 已完成 / 子票总数（4 / 8 → 50%，实得 ' + show(profile.mapProgressPercentOf(COUNTS)) + '）')
+  check(profile.mapProgressPercentOf({ total: 0, closed: 0, ready: 0, doing: 0, blocked: 0 }) === 0,
+    '一张子票都没有时完成度是 0（画满一条进度条会骗人）')
+  check(profile.mapProgressPercentOf({ total: 3, closed: 5, ready: 0, doing: 0, blocked: 0 }) === 100 &&
+    profile.mapProgressPercentOf(null) === 0, '脏数据不越界：超过 100% 截到 100，没有计数是 0')
+
+  const sections = profile.mapProfileSectionsOf(MAP_ROW)
+  check(sections.length === 4, '四节都给出（实得 ' + sections.length + '）')
+  const byId = {}
+  for (const one of sections) byId[one.id] = one
+
+  check(byId.notes.count === 1 && byId.notes.items[0].text === '这里有一段备注',
+    'Notes 整段话算一条，首尾空白去掉（实得 ' + show(byId.notes.items) + '）')
+  check(byId.decisions.count === 2,
+    '决策里标题和那句话都为空的条目丢掉，不画空行（实得 ' + byId.decisions.count + ' 条）')
+  check(byId.decisions.items[0].text === '收起层级 — 不再按层分组' && byId.decisions.items[0].url === MAP_ROW.decisions[0].url,
+    '一条决策画成「标题 — 那句话」，链接原样带上（实得 ' + show(byId.decisions.items[0]) + '）')
+  check(byId.decisions.items[1].text === '已完成的放下方' && !('url' in byId.decisions.items[1]),
+    '决策只有标题时不留一个空破折号，也不带空链接（实得 ' + show(byId.decisions.items[1]) + '）')
+  check(byId.fog.count === 1 && byId.fog.items[0].text === '规格页怎么画还没定',
+    '战雾里的空行、非字符串丢掉（实得 ' + show(byId.fog.items) + '）')
+  check(byId.outOfScope.count === 1 && byId.outOfScope.items[0].text === '规格详情页',
+    '范围外照实画（实得 ' + show(byId.outOfScope.items) + '）')
+
+  const emptyMapRow = {}
+  const emptySections = profile.mapProfileSectionsOf(emptyMapRow)
+  check(emptySections.every((one) => one.count === 0 && one.items.length === 0),
+    '空地图四节都是 0 条（页面据此收起档案区或画空态）')
+
+  const realFeed = feed.ticketFeedOf({ mode: 'real', items: [{ number: 1 }], stats: { total: 8, closed: 4 } }, null)
+  const full = profile.mapProfileOf(MAP_ROW, realFeed, COUNTS)
+  check(full.noText === '#1314' && full.title === '插件日志持久化读回失败与宿主反复启动',
+    '合成结果里的身份与标题（实得 ' + show(full.noText) + ' / ' + show(full.title) + '）')
+  check(full.destination === MAP_ROW.destination && full.hasDestination === true,
+    '目的地原文带出，hasDestination 说有没有（实得 ' + show(full.hasDestination) + '）')
+  check(show(full.counts) === show(COUNTS) && full.progressPercent === 50,
+    '看板计数原样带出，完成度按同一份计数算（实得 ' + show(full.counts) + ' / ' + full.progressPercent + '）')
+  check(full.hasSections === true && full.sections.length === 4, '有内容时 hasSections=true')
+  check(full.errorText === '', '没有快照错误时 errorText 是空串（页面不画红字）')
+
+  check(show(full.feedSegments) === show([{ key: 'map.subCount', params: { n: 8, c: 4 } }]),
+    '取回那份：只说「本图 N 张子票（已关闭 C 张）」（实得 ' + show(full.feedSegments) + '）')
+
+  const cappedFeed = feed.ticketFeedOf({ mode: 'real', items: [{ number: 1 }], stats: { total: 8, closed: 4 }, capped: true, missing: 2 }, null)
+  const cappedSegs = profile.mapFeedSegmentsOf(cappedFeed)
+  check(cappedSegs.map((one) => one.key).join(',') === 'map.subCount,map.subCountCapped,map.subCountShort',
+    '被截断与差额各补一段，顺序在正句之后（实得 ' + show(cappedSegs.map((one) => one.key).join(',')) + '）')
+  check(cappedSegs[1].params.n === 1000 && cappedSegs[2].params.n === 2,
+    'capped 按宿主上限说「前 1000 张」，missing 说还剩几张（实得 ' + show(cappedSegs[1].params) + ' / ' + show(cappedSegs[2].params) + '）')
+
+  const loadingSegs = profile.mapFeedSegmentsOf(feed.ticketFeedOf({ mode: 'loading' }, null))
+  check(show(loadingSegs) === show([{ key: 'map.subCountLoading' }]),
+    '正在取：只说「正在取」，不说成 0 张（实得 ' + show(loadingSegs) + '）')
+  const unsupportedSegs = profile.mapFeedSegmentsOf(feed.ticketFeedOf({ mode: 'err', error: { kind: 'unsupported' } }, null))
+  check(show(unsupportedSegs) === show([]), '后端明确不支持：一个字都不加（实得 ' + show(unsupportedSegs) + '）')
+
+  const longError = '取数失败的原因'.repeat(40)
+  const failedSegs = profile.mapFeedSegmentsOf(feed.ticketFeedOf({ mode: 'err', error: { kind: 'network', message: longError } }, null))
+  check(failedSegs.length === 1 && failedSegs[0].key === 'map.subCountFail' && failedSegs[0].params.msg.length === 120,
+    '取失败：原因走词条并截到 120 字（实得 ' + failedSegs.length + ' 段 / ' + (failedSegs[0] && failedSegs[0].params.msg.length) + ' 字）')
+
+  const snapshotSegs = profile.mapFeedSegmentsOf(feed.ticketFeedOf(null, { tickets: [], stats: { total: 5, closed: 2 } }))
+  check(show(snapshotSegs) === show([{ key: 'map.subCount', params: { n: 5, c: 2 } }]),
+    '还没有桶时按快照 stats 说（实得 ' + show(snapshotSegs) + '）')
+  check(show(profile.mapFeedSegmentsOf(null)) === show([]) && show(profile.mapFeedSegmentsOf(undefined)) === show([]),
+    '没有取数结果时没有那一段（实得 ' + show(profile.mapFeedSegmentsOf(null)) + '）')
+
+  const errorRow = { error: { error: 'x'.repeat(200) } }
+  check(profile.mapErrorTextOf(errorRow).length === 160, '快照错误截到 160 字（实得 ' + profile.mapErrorTextOf(errorRow).length + ' 字）')
+  check(profile.mapErrorTextOf({ error: '  宿主说组装失败  ' }) === '宿主说组装失败',
+    '错误直接是字符串时也读得懂，首尾空白去掉（实得 ' + show(profile.mapErrorTextOf({ error: '  宿主说组装失败  ' })) + '）')
+  check(profile.mapErrorTextOf({}) === '', '没有错误时是空串（实得 ' + show(profile.mapErrorTextOf({})) + '）')
+
+  const blankDestination = profile.mapProfileOf({ destination: '   ' }, null, null)
+  check(blankDestination.hasDestination === false && blankDestination.destination === '',
+    '只有空白的目的地等于没有（不把空白画成一句话，实得 ' + show(blankDestination.destination) + '）')
+  check(blankDestination.hasSections === false && blankDestination.progressPercent === 0 && blankDestination.noText === '',
+    '空行 + 空计数：一份不骗人的空档案（实得 ' + show(blankDestination) + '）')
+}
+
 
 console.log('')
 console.log('通过 ' + passed + ' 条，失败 ' + failed + ' 条')

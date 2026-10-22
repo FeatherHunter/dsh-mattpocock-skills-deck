@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T13:55:57.096Z",
+  "generatedAt": "2026-10-22T14:23:01.670Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 322,
   "gateCount": 322,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 529,
+  "graphFileCount": 530,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2127,18 +2127,21 @@
         "src/client/hostShim.ts",
         "src/client/kernel/attention-heartbeat.ts",
         "src/client/kernel/probe-auto.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/bannerChain.ts",
         "src/host/refresh/chainBackoff.ts"
       ],
       "dirs": [
         "src/client",
         "src/client/kernel",
+        "src/client/statusbar",
         "src/host/refresh"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-1373-stale-table-graft.ts",
@@ -7989,6 +7992,7 @@
       "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1355-cross-session-table.ts",
+      "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -8964,9 +8968,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 545,
+    "fileCount": 546,
     "dirCount": 61,
-    "coveredFileCount": 545,
+    "coveredFileCount": 546,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 52,
@@ -9029,6 +9033,7 @@
       "src/client/kernel/ui-feedback.ts",
       "src/client/kernel/work-route-own.ts",
       "src/client/mapDetailV2/mapDetailTypes.d.ts",
+      "src/client/mapDetailV2/mapProfile.ts",
       "src/client/mapDetailV2/ticketBoard.ts",
       "src/client/mapDetailV2/ticketCardFacts.ts",
       "src/client/mapDetailV2/ticketFeed.ts",

@@ -96,9 +96,29 @@ export function ticketLabelNamesOf(row: MapTicketRow): string[] {
   return out
 }
 
+/**
+ * 编号的规范键：'01'、' 1 '、1 都折成 '1'。
+ *
+ * 为什么必须归一：本地与 effort 后端的票号是补零的（行 key 写成 '01'，宿主 parseInt 成 1），
+ * 但 blockedBy 里常常原样保留 '01'。不归一时，索引里只有 '1'，查 '01' 永远查不到，
+ * 整张地图的阻塞关系会被静默判成「可接」——卡片没有暗层、没有封条，看板也不把它排到挡路者后面。
+ * 归一之后两端都用同一个键；认不出的写法（比如 'x'）原样保留，脏数据照样能当键用。
+ */
+function numberKeyOf(raw: unknown): string {
+  const trimmed = text(raw).trim()
+  if (!trimmed) return ''
+  const digits = /^0*(\d+)$/.exec(trimmed)
+  return digits ? String(Number(digits[1])) : trimmed
+}
+
 /** 认领人：先看 claimedBy，没有再取 assignees 的第一个登录名。两边都没有就是没人在办。 */
 function claimedPersonOf(row: MapTicketRow): string {
-  if (row && row.claimedBy) return text(row.claimedBy)
+  const claimed = row ? (row.claimedBy as unknown) : null
+  if (claimed) {
+    // 宿主两条数据路都已转成字符串；这里再挡一次对象形状，免得页面上出现「[object Object] 已认领」。
+    if (typeof claimed === 'object') return text((claimed as { login?: unknown }).login) || text((claimed as { name?: unknown }).name)
+    return text(claimed)
+  }
   const list = row && Array.isArray(row.assignees) ? row.assignees : []
   for (const person of list) {
     if (person && person.login) return text(person.login)
@@ -106,12 +126,12 @@ function claimedPersonOf(row: MapTicketRow): string {
   return ''
 }
 
-/** 阻塞者编号列表：数字与字符串都读成去掉两端空白的字符串。 */
+/** 阻塞者编号列表：数字与字符串都读，统一成规范键（'01' 与 '1' 是同一张票）。 */
 function blockerNumbersOf(row: MapTicketRow): string[] {
   const out: string[] = []
   const list = row && Array.isArray(row.blockedBy) ? row.blockedBy : []
   for (const raw of list) {
-    const key = text(raw).trim()
+    const key = numberKeyOf(raw)
     if (key) out.push(key)
   }
   return out
@@ -123,6 +143,10 @@ function blockerNumbersOf(row: MapTicketRow): string[] {
  * 仍开着、没人认领、且至少有一个「页面上仍在开着」的阻塞者 → blocked；其余 → ready。
  *
  * 只把页面内的票算作阻塞者：阻塞者不在本图或已关闭时，这张票就是可以动的（与 frontier 同口径）。
+ *
+ * 一处有意的放宽：宿主只会给 OPEN / CLOSED 两种状态；万一某行状态缺失或写法不认识，这里不把它
+ * 当已关闭（那会让它悄悄从看板上消失），而是照开着的流程继续判。代价是它可能被算成「可接」，
+ * 与宿主 groupTickets 的计数在这种脏行上会对不上——脏行值得被看见，不该被静默抹掉。
  */
 export function ticketCardStatusOf(row: MapTicketRow, openByNumber: Record<string, boolean>): TicketCardStatus {
   if (text(row && row.state).toUpperCase() === CLOSED_STATE) return 'closed'
@@ -150,12 +174,17 @@ export function cardActionOf(sourceAction: SourceActionKind | string): CardActio
 }
 
 /**
- * 更新日 MM-DD：只在前十位确实长得像日期时才截。
- * 认不出就给空串——页脚宁可空着，也不把一段乱码当日期画出去。
+ * 更新日 MM-DD：只在前十位确实长得像日期、月与日也落在取值范围里时才截。
+ * 认不出就给空串——页脚宁可空着，也不把一段乱码（例如 2026-99-99）当日期画出去。
  */
 export function updatedTextOf(row: MapTicketRow): string {
   const raw = text(row && row.updatedAt)
-  return /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(5, 10) : ''
+  const matched = /^\d{4}-(\d{2})-(\d{2})/.exec(raw)
+  if (!matched) return ''
+  const month = Number(matched[1])
+  const day = Number(matched[2])
+  if (!(month >= 1 && month <= 12 && day >= 1 && day <= 31)) return ''
+  return matched[1] + '-' + matched[2]
 }
 
 /** 标签自带颜色优先（后端给了就信它），其次查调用方给的色表。 */
@@ -181,6 +210,20 @@ function typeTagsOf(row: MapTicketRow, ctx: TicketFactsContext): Array<{ text: s
 }
 
 /**
+ * 卡片元素 id：前缀 + 编号，行 key 与编号不同时再接上行 key。
+ *
+ * 为什么带上行 key：正常数据里 key 就是编号（宿主 prepareRow 把 key 原样转成字符串），
+ * 两张卡天然不同名；脏数据里两张行可能写同一个编号，只拼编号会让两张卡共用一个 DOM id，
+ * 点被挡卡时「点亮挡它的那张」就会亮错。编号与行 key 都相同（或都缺）的那种脏数据没法从
+ * 阻塞关系上区分，仍然会同 id——这一条写进数据契约，不再假装能救。
+ */
+export function rowCardIdOf(prefix: string | null | undefined, numberKey: string, rowKey: string): string | null {
+  if (!prefix || !numberKey) return null
+  const suffix = rowKey && rowKey !== numberKey ? '-' + rowKey : ''
+  return prefix + '-' + numberKey + suffix
+}
+
+/**
  * 建全图索引：谁还开着、每张票的标题与卡片 id、每张票挡住的第一张是谁。
  *
  * 为什么先建索引：卡片要显示「被 #1332 挡住」和「阻塞的就是这张 #1374」，
@@ -200,24 +243,28 @@ export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv):
     const key = String(number)
     openByNumber[key] = text(row.state).toUpperCase() !== CLOSED_STATE
     titleByNumber[key] = text(row.title)
-    cardIdByNumber[key] = env.cardIdPrefix ? env.cardIdPrefix + '-' + key : null
+    // 同号只认先出现的那张：阻塞关系按编号找，撞号时没有更好的答案；这样每次跑到的 id 也一样。
+    if (cardIdByNumber[key] === undefined) {
+      cardIdByNumber[key] = rowCardIdOf(env.cardIdPrefix, key, text(row.key) || key)
+    }
   }
 
   for (const row of rows) {
     const number = ticketNumberOf(row)
     if (number === null) continue
     if (ticketCardStatusOf(row, openByNumber) !== 'blocked') continue
+    // 只记「主阻塞者」挡住的那张：被挡卡画的是主阻塞者，挡路卡也得指回同一张，
+    // 否则同一对票会两边说法不一致（A 说挡住 B，B 却说自己被 D 挡住）。
+    const primary = primaryBlockerNumberOf(row, openByNumber)
+    if (!primary) continue
     const blockedKey = String(number)
-    for (const blockerNo of blockerNumbersOf(row)) {
-      if (!openByNumber[blockerNo]) continue
-      const previous = firstBlockedByBlocker[blockerNo]
-      if (previous === undefined) {
-        firstBlockedByBlocker[blockerNo] = blockedKey
-        continue
-      }
-      // 同一张挡路卡挡住好几张时，红条只指一张：取编号最小的那张，顺序稳定、可复现。
-      if (parseInt(blockedKey, 10) < parseInt(previous, 10)) firstBlockedByBlocker[blockerNo] = blockedKey
+    const previous = firstBlockedByBlocker[primary]
+    if (previous === undefined) {
+      firstBlockedByBlocker[primary] = blockedKey
+      continue
     }
+    // 同一张挡路卡挡住好几张时，红条只指一张：取编号最小的那张，顺序稳定、可复现。
+    if (parseInt(blockedKey, 10) < parseInt(previous, 10)) firstBlockedByBlocker[primary] = blockedKey
   }
 
   return {
@@ -233,10 +280,10 @@ export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv):
 }
 
 /** 主阻塞者：页面上还开着的那几张阻塞者里编号最小的一个；按编号取保证每次跑结果一样。 */
-function primaryBlockerNumberOf(row: MapTicketRow, ctx: TicketFactsContext): string {
+function primaryBlockerNumberOf(row: MapTicketRow, openByNumber: Record<string, boolean>): string {
   let best = ''
   for (const blockerNo of blockerNumbersOf(row)) {
-    if (!ctx.openByNumber[blockerNo]) continue
+    if (!openByNumber[blockerNo]) continue
     if (!best || parseInt(blockerNo, 10) < parseInt(best, 10)) best = blockerNo
   }
   return best
@@ -258,18 +305,21 @@ function refOf(numberKey: string, ctx: TicketFactsContext): CardTicketRef {
  * 三条不变量（门禁逐条钉住）：
  *  ① 已关闭的票不给 blockedBy / blocks / claimedBy / pickCorner —— 结案卡不表现「谁挡着它」；
  *  ② 只有 status==='blocked' 的票才有 blockedBy —— 与「在办优先」一致，认领了就不再画暗层；
- *  ③ cardId 一定带前缀，同屏两张地图（双面板）里同号票不会撞同一个 DOM id。
+ *  ③ cardId 一定带前缀，同屏两张地图（双面板）里同号票不会撞同一个 DOM id；行 key 与编号
+ *     不同时 id 再接上行 key，撞号的两张卡也不会共用一个 DOM id（两样都一样的脏数据除外）。
  */
 export function ticketCardFactsOf(row: MapTicketRow, ctx: TicketFactsContext): TicketCardFacts {
   const number = ticketNumberOf(row)
   const numberKey = number === null ? '' : String(number)
+  // 行自己的 key 优先：它是同屏唯一性的第一道保险（脏数据里撞号时靠它区分两张行）。
+  const rowKey = text(row.key) || numberKey
   const status = ticketCardStatusOf(row, ctx.openByNumber)
   const closed = status === 'closed'
   const action = cardActionOf(ctx.actionOf(row))
 
   let blockedBy: CardTicketRef | null = null
   if (status === 'blocked') {
-    const blockerNo = primaryBlockerNumberOf(row, ctx)
+    const blockerNo = primaryBlockerNumberOf(row, ctx.openByNumber)
     if (blockerNo) blockedBy = refOf(blockerNo, ctx)
   }
 
@@ -283,20 +333,21 @@ export function ticketCardFactsOf(row: MapTicketRow, ctx: TicketFactsContext): T
 
   return {
     number,
-    // 行自己的 key 优先：它是同屏唯一性的最后一道保险（脏数据里撞号时靠它区分两张行）。
-    rowKey: text(row.key) || numberKey,
+    rowKey,
     noText: numberKey ? '#' + numberKey : '',
     title: text(row.title),
     status,
     action,
     tags: typeTagsOf(row, ctx),
-    bug: ticketLabelNamesOf(row).indexOf('bug') >= 0,
+    // 在办的票优先画「在办」角标，不再给 BUG 三角（p101 定版 cornerFor：先判认领，再判 bug）。
+    // 组件本身是 BUG 优先，所以这处优先级必须在这里定死，不能把两个布尔一起丢给页面。
+    bug: status !== 'doing' && ticketLabelNamesOf(row).indexOf('bug') >= 0,
     claimedBy: closed ? '' : claimedPersonOf(row),
     updatedText: updatedTextOf(row),
     closedAt: text(row.closedAt),
     footText: ctx.textOf(CARD_STATUS_COPY_KEY[status]),
     pickCorner,
-    cardId: numberKey ? ctx.cardIdByNumber[numberKey] || null : null,
+    cardId: rowCardIdOf(ctx.cardIdPrefix, numberKey, rowKey),
     blockedBy,
     blocks,
   }
