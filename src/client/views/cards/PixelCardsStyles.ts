@@ -70,6 +70,8 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-abtn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--cd-shadow)}',
   '.cd-abtn svg{flex:none;display:block}',
   '.cd-bseal{position:absolute;left:-10px;top:64px;right:-10px;background:#a3231a;color:#fff;text-align:center;font-size:12px;letter-spacing:2px;padding:2px 0;border-top:3px solid var(--cd-frame);border-bottom:3px solid var(--cd-frame);transform:rotate(-6deg);box-shadow:3px 3px 0 var(--cd-shadow);pointer-events:none}',
+  // 可跳转的卡上封条自己接点按（点亮挡路关系），其余卡上封条仍是纯装饰、不吃点击。
+  '.cd-bseal.act{pointer-events:auto;cursor:pointer}',
   '.cd-dimveil{position:absolute;inset:-12px;background:rgba(58,36,19,.42);color:#fff9ec;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:2px;pointer-events:none;z-index:5}',
   '.cd-card.lit .cd-dimveil{display:none}',
   '.cd-card .cd-bchip{display:none;position:absolute;left:8px;top:8px;z-index:8;max-width:240px}',

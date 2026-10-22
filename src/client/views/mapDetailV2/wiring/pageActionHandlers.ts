@@ -5,6 +5,9 @@
  * 是开浏览器还是开本机文件。这些全都要问宿主（inject / copyText / host.call），所以收在这一份里；
  * 模型与画法层都不碰宿主，换宿主时只改这一处。
  *
+ * 整卡点按也收在这一份：进详情页要压导航栈（pushNav），而栈是宿主的；模型与画法层都不碰导航，
+ * 页面把「打开哪张票」的决定按行交回这里，与 IssueDetail 的子票行共用同一个分流函数（enterSubDetail）。
+ *
  * 为什么回调要先把票还原成「原始行」：主按钮注入的提示词由 rowActionText 按原始行算（它要看标签，
  * 例如带 ready-for-agent 的实施票注入的是 /implement，地图与规格则走容器三态）。卡片交回来的是
  * 「刻画」（facts），所以这里要按「编号 + 行自己的 key」把行找回来——行就是模型画这批卡时用的
@@ -21,6 +24,7 @@ declare function openInNewSession(...args: any[]): any
 declare function copyText(...args: any[]): any
 declare function issueUrlFor(...args: any[]): any
 declare function effortOf(...args: any[]): any
+declare function enterSubDetail(st: any, x: any, issueEffort: any): void
 
 /** 原始行的两份索引：一份按行自己的 key，一份按编号。 */
 interface RowIndex {
@@ -82,7 +86,7 @@ function urlOf(st: any, facts: TicketCardFacts, row: MapTicketRow | null): strin
 }
 
 /**
- * 造一张地图上所有卡片的四个回调。
+ * 造一张地图上所有卡片的回调（四个按钮 + 整卡点按进详情）。
  *
  * rows 由模型交回来（mapDetailPageModelOf 支持「拿到这批行再给回调」的写法），所以这里不必再取一次数，
  * 也不会出现「回调认的行」与「画出来的卡」不是同一批的情况。
@@ -127,6 +131,18 @@ export function pageActionHandlersOf(st: any, rows: MapTicketRow[]): TicketCardH
           host.call('wf.openPath', { path: url })
         }
       } catch (e) {}
+    },
+    /**
+     * 整卡点按：进这张票的详情页。
+     *
+     * 分流交给 enterSubDetail（views/subIssueRouting.ts）：这张票自己是地图或规格时压地图详情，
+     * 其余压票详情。它看的是行上的标签与 type，不是卡面（卡面只有八种动作、认不出容器），
+     * 所以必须拿原始行去问，不能拿 facts 猜。
+     */
+    onCard: function (facts: TicketCardFacts): void {
+      const row = sourceRowOf(facts, index)
+      if (!row) return
+      try { enterSubDetail(st, row, effortOf(row)) } catch (e) {}
     },
   }
 }

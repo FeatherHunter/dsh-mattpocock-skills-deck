@@ -56,6 +56,7 @@ export function cardPropsOf(
     onNew: bind(facts, h.onNew),
     onCopy: bind(facts, h.onCopy),
     onOpen: bind(facts, h.onOpen),
+    onCard: bind(facts, h.onCard),
   }
 }
 

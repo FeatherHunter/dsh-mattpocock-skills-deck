@@ -17,7 +17,7 @@
  *   （.scratch/v2-map-detail/page/）与真机验收覆盖；#1402 切入口之后，第 11 条只对「接线那一行」做源码断言，
  *   防止有人把入口改回老页而没有任何门禁出声。
  *
- * 断的十三件事：
+ * 断的十四件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
  *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
@@ -38,7 +38,9 @@
  *   11. 入口接线：Dock 的列表页签在选中一张图时画的是 V2 页（不是老页），V2 页面调到了取数、整页模型、
  *      四个按钮的回调与皮肤，且图纸铺满 Dock 内容区的那条样式还在。第 11 条只读源码文本，不渲染 React。
  *   12. 卡片流自适应：卡片有最小宽度与自然宽度两档（208 / 300），按钮文字包在 .cd-lbl 里按整字收窄，
- *      卡片标题用纸面墨色（深色主题下卡片仍是浅纸，标题继承浅色字会看不清）。同样只读源码文本。
+ *      卡片标题用纸面墨色（深色主题下卡片仍是浅纸，标题继承浅色字会看不清）。
+ *   12b. 整卡点按进详情：适配层把 onCard 一并交给卡片，接线层用 enterSubDetail 按标签分流到票详情
+ *      或子地图详情，卡片组件只有收到 onCard 才把整张卡做成可点（否则保持「点一下点亮挡路关系」）。
  *   13. 档案区高度稳定：计数 / 完成度 / 子票那句固定成一块，取数中显示占位、没有子票时整块隐藏但留位置，
  *      进入页面时不会因为「正在取子票」这一行的出现与消失让卡片上下抖。同样只读源码文本。
  *
@@ -747,7 +749,7 @@ section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规�
 // ===========================================================================
 // 10. 适配层：一张票的刻画 → 卡片 props
 // ===========================================================================
-section('10. 适配层：四处理名不漏，四个按钮把「是哪张票」交回页面')
+section('10. 适配层：四处理名不漏，四个按钮与整卡点按都把「是哪张票」交回页面')
 {
   const ENV = { cardIdPrefix: 'm1314', colorOf: { 'wayfinder:task': '10b981' }, actionOf: function () { return 'execute' }, textOf: function (key) { return key } }
   const ROWS = [
@@ -787,19 +789,21 @@ section('10. 适配层：四处理名不漏，四个按钮把「是哪张票」�
     onNew: function (one) { seen.push(['new', one.number]) },
     onCopy: function (one) { seen.push(['copy', one.number]) },
     onOpen: function (one) { seen.push(['open', one.number]) },
+    onCard: function (one) { seen.push(['card', one.number]) },
   }, null)
   withHandlers.onMain()
   withHandlers.onNew()
   withHandlers.onCopy()
   withHandlers.onOpen()
-  check(show(seen) === show([['main', 1332], ['new', 1332], ['copy', 1332], ['open', 1332]]),
-    '四个按钮都只把「这张票」交回页面，页面不必自己记来源（实得 ' + show(seen) + '）')
+  withHandlers.onCard()
+  check(show(seen) === show([['main', 1332], ['new', 1332], ['copy', 1332], ['open', 1332], ['card', 1332]]),
+    '四个按钮与整卡点按都只把「这张票」交回页面，页面不必自己记来源（实得 ' + show(seen) + '）')
   check(withHandlers.onLitChange === undefined && withHandlers.lit === undefined,
     '点亮状态交给卡片自己管，页面不硬塞（实得 ' + show(withHandlers.lit) + '）')
 
   const noHandlers = cardProps.cardPropsOf(factOf(1332), null, null)
-  check(noHandlers.onMain === null && noHandlers.onNew === null && noHandlers.onCopy === null && noHandlers.onOpen === null,
-    '没给回调时四个按钮都是 null（与卡片组件「可空回调」的约定一致）')
+  check(noHandlers.onMain === null && noHandlers.onNew === null && noHandlers.onCopy === null && noHandlers.onOpen === null && noHandlers.onCard === null,
+    '没给回调时四个按钮与整卡点按都是 null（与卡片组件「可空回调」的约定一致）')
 
   const list = cardProps.cardPropsListOf(FACT_LIST, null, null)
   check(list.length === 3 && list[0].noText === '#1332' && list[2].noText === '#1315',
@@ -937,6 +941,20 @@ section('§12 入口接线')
   const pageSourceText = fs.readFileSync(path.join(ROOT, REL, 'view/MapDetailV2Page.ts'), 'utf8')
   check(pageSourceText.indexOf("mode || '') === 'loading'") >= 0 && pageSourceText.indexOf('busy: busy') >= 0,
     '页面把「正在按需取子票」传给档案区（第一帧与取数中都是 busy）')
+
+  // ---- 整卡点按进详情（m02533）----
+  const propsContractText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/cardProps.d.ts'), 'utf8')
+  check(propsContractText.indexOf('onCard?:') >= 0,
+    '卡片契约里有整卡点按回调 onCard（无此回调时卡片刻意不接整卡点击）')
+  const cardText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/PixelIssueCard.ts'), 'utf8')
+  check(cardText.indexOf('p.onCard') >= 0 && cardText.indexOf("'.card'") >= 0 && cardText.indexOf('onKeyDown') >= 0,
+    '卡片只拿 onCard 把整张卡做成可点（带定位串，键盘回车 / 空格也能进）')
+  const handlersText = fs.readFileSync(path.join(ROOT, REL, 'wiring/pageActionHandlers.ts'), 'utf8')
+  check(handlersText.indexOf('enterSubDetail') >= 0 && handlersText.indexOf('onCard') >= 0,
+    '整卡点按交给 enterSubDetail 分流（票详情或子地图详情，与 IssueDetail 的子票行同一入口）')
+  const chromeText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/PixelBlockedChrome.ts'), 'utf8')
+  check(chromeText.indexOf('onActivate') >= 0 && cardsStyleText.indexOf('.cd-bseal.act{pointer-events:auto') >= 0,
+    '可跳转的被挡卡把「点亮挡路关系」挪到红封条上（封条自己接点按，不误开详情）')
 }
 
 

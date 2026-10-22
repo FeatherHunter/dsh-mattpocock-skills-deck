@@ -21,6 +21,10 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   const st = CARD_ACTION_STYLE[p.action || "execute"] || CARD_ACTION_STYLE.execute;
   const mainColor = cardColorOf(st.colorKey, p.colorOf || null);
   const blocked = !!(p.blockedBy && p.blockedBy.no);
+  // 整卡点按只有页面明确给了 onCard 才接：卡片在别处（例如原型演示）仍可以只做「点一下点亮挡路关系」，
+  // 不会因为组件升级就悄悄多出一个跳转。
+  const onCard: (() => void) | null = typeof p.onCard === 'function' ? p.onCard : null;
+  const canOpen = onCard !== null;
   const ini = p.lit === undefined ? false : !!p.lit;
   const pair = React.useState(ini);
   const lit = p.lit !== undefined ? !!p.lit : pair[0];
@@ -52,7 +56,9 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   if (corner) kids.push(h(PixelCornerMark, { key: 'cor', kind: corner }));
   const headNo = h(PixelCardNo, { key: 'no', text: p.noText, action: p.action, colorOf: p.colorOf || null });
   kids.push(h('div', { key: 'hd', className: 'cd-hd' }, [headNo, p.closed ? h(PixelClosedSeal, { key: 'c' }) : null]));
-  if (blocked && p.blockedBy) kids.push(h(PixelBlockedSeal, { key: 'bs', no: p.blockedBy.no }));
+  // 可跳转的卡上，整卡点击已经用于「进详情」，点亮挡路关系挪到红封条上（封条上写着被谁挡住，
+  // 点它看挡路的那张；点卡片其余地方一律进详情）。不能跳转的卡保持旧行为：点整张卡点亮。
+  if (blocked && p.blockedBy) kids.push(h(PixelBlockedSeal, { key: 'bs', no: p.blockedBy.no, onActivate: canOpen ? function (): void { flip(!lit); } : null }));
   const suffix = p.claimedBy ? h("span", { className: "cd-take" }, tr("card.claimedBy", { n: p.claimedBy })) : null;
   kids.push(h(PixelCardTitle, { key: 'tt', text: p.title, suffix }));
   kids.push(h(PixelCardTags, { key: 'tg', tags: p.tags || [] }));
@@ -63,15 +69,13 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: p.footActionText || '' }));
   if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
   const attrs: any = { className: cls, style: { "--cd-act": "#" + mainColor } };
+  if (blocked || canOpen) attrs.style.cursor = 'pointer';
   if (p.cardId) attrs.id = p.cardId;
   if (blocked) {
-    // 被挡住的票卡整张可以点（点一下点亮它）：这是「点整张卡」的动作，与卡内按钮各记各的。
-    // 这些属性一次写成一个对象字面量再合并：按压形状与定位串写在同一处，门禁扫源码时看得到。
+    // 被挡住的票卡可以聚焦：聚焦（键盘 Tab 过来）时点亮它自己与挡路的那张，暗层让开、红条出现。
+    // 鼠标点击在可跳转的卡上另有含义（进详情），所以点亮挡路关系只留两条路：聚焦，或点红封条。
     Object.assign(attrs, {
       tabIndex: 0,
-      'data-press': 'row',
-      'data-log': 'card.issue.' + logKey + '.row',
-      onClick: function (e: any): void { setLitNow(e, true); flip(true); },
       onFocus: function (e: any): void { if (e && e.target === e.currentTarget) { setLitNow(e, true); flip(true); } },
       onBlur: function (e: any): void {
         setLitNow(e, false);
@@ -79,6 +83,34 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
         flip(false);
       },
     });
+    // 不能跳转的卡保持旧行为：点整张卡就是点亮挡路关系（原型里的「点我看阻塞在哪里」）。
+    // 能跳转的卡不接这一下，整卡点击留给详情；点亮改由红封条与键盘聚焦触发。
+    if (!canOpen) {
+      attrs['data-press'] = 'row';
+      attrs['data-log'] = 'card.issue.' + logKey + '.row';
+      attrs.onClick = function (e: any): void { setLitNow(e, true); flip(true); };
+    }
+  }
+  if (canOpen) {
+    // 整卡点按进详情。卡内四颗按钮与红封条各自 stopPropagation，点它们不会顺带把详情页打开。
+    // 键盘用 Enter / 空格，与 IssueDetail 的子票行同一套手感；只认卡片自己收到的事件，
+    // 避免焦点在按钮上按回车时既点按钮又跳详情。
+    attrs.tabIndex = 0;
+    attrs.role = 'button';
+    attrs['data-press'] = 'row';
+    attrs['data-log'] = 'card.issue.' + logKey + '.card';
+    attrs.onClick = function (e: any): void {
+      try { if (e && e.stopPropagation) e.stopPropagation(); } catch (err) { void err; }
+      if (onCard) onCard();
+    };
+    attrs.onKeyDown = function (e: any): void {
+      if (!e || e.target !== e.currentTarget) return;
+      const k = e.key;
+      if (k === 'Enter' || k === ' ') {
+        try { if (e.preventDefault) e.preventDefault(); } catch (err) { void err; }
+        if (onCard) onCard();
+      }
+    };
   }
   return h("div", attrs, kids);
 };

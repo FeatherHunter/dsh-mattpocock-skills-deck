@@ -332,6 +332,11 @@ export interface TicketCardHandlers {
   onCopy?: (facts: TicketCardFacts) => void
   /** 「打开外链」按钮（或本机路径）。 */
   onOpen?: (facts: TicketCardFacts) => void
+  /**
+   * 点整张卡：进这张票的详情页；这张票自己若是地图或规格，就进那张容器。
+   * 四个按钮各管各的动作，整卡点按只做「打开」这一件事。
+   */
+  onCard?: (facts: TicketCardFacts) => void
 }
 
 /** 合成一整页模型要的外部输入：地图行、取数桶、页面给的动作与词条来源、四个按钮的页面回调。 */

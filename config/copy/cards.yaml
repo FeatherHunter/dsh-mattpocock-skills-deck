@@ -27,7 +27,7 @@ zh:
   card.claimedBy: "{n} 已认领"
   card.blockedBy: 被 {n} 挡住
   card.blockedSeal: 被 {n} 阻塞
-  card.blockedDim: 被阻塞，点我看阻塞在哪里
+  card.blockedDim: 被阻塞，点红条看阻塞在哪里
   card.blockerIs: 阻塞的就是这张
   card.blockedCount: 被挡
   card.sub: 子票
@@ -83,7 +83,7 @@ en:
   card.claimedBy: Claimed by {n}
   card.blockedBy: Blocked by {n}
   card.blockedSeal: Blocked by {n}
-  card.blockedDim: Blocked; click me to see where
+  card.blockedDim: Blocked; click the red strip to see where
   card.blockerIs: This is the blocker
   card.blockedCount: Blocked
   card.sub: Sub
