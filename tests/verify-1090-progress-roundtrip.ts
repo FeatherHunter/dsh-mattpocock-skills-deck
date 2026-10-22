@@ -86,7 +86,7 @@ async function main() {
   // ═══ ① 建地图 + 一张子票，写一条进度再读回 ═══
   const plan = await planTool.run(execA, {
     planId: '1090-roundtrip-01', title: '进度回合地图',
-    children: [{ key: 'c1', title: '回合子票一' }],
+    children: [{ key: 'c1', title: '回合子票一', kind: 'issue' }],
     edges: [{ from: 'c1', to: '@map', type: 'parent' }],
   })
   check(plan && plan.status === 'ok', '建地图加子票整体成功（实得 ' + (plan && plan.status) + '）')
@@ -154,7 +154,7 @@ async function main() {
 
   // ═══ ⑤ 老格式第一次被写入：旧百分比搬成一条「时间未记录」，旧自由文字保留 ═══
   const legacyBody = '## 进度：90%\n\n以前随手写的一段旧文字。'
-  const lc = await createTool.run(execA, { title: '老格式进度票', body: legacyBody })
+  const lc = await createTool.run(execA, { title: '老格式进度票', kind: 'issue', body: legacyBody })
   check(lc && lc.status === 'ok', '老格式票建成功（实得 ' + (lc && lc.status) + '）')
   const legacyKey = String((lc.data && lc.data.ticket && lc.data.ticket.key) || '')
   const lw = await patchTool.run(execA, { key: legacyKey, progress: { percent: 70, note: '按新写法再记一条' } })
@@ -170,7 +170,7 @@ async function main() {
 
   // ═══ ⑥ 重复进度区合成一个、记录一条不丢 ═══
   const dupBody = '## 进度\n\n- 进度：30%（2026-01-01T00:00:00+08:00）：旧一\n\n## 进度\n\n- 进度：40%（2026-01-02T00:00:00+08:00）：旧二\n'
-  const dc = await createTool.run(execA, { title: '重复进度区票', body: dupBody })
+  const dc = await createTool.run(execA, { title: '重复进度区票', kind: 'issue', body: dupBody })
   check(dc && dc.status === 'ok', '重复进度区票建成功（实得 ' + (dc && dc.status) + '）')
   const dupKey = String((dc.data && dc.data.ticket && dc.data.ticket.key) || '')
   const dw = await patchTool.run(execA, { key: dupKey, progress: { percent: 50, note: '合成一个' } })
@@ -185,7 +185,7 @@ async function main() {
 
   // ═══ ④ 代码块里的示例标题不算真的进度区、也不被改写 ═══
   const fenceBody = '顺手记一下写法：\n\n' + FENCE + '\n## 进度：99%\n' + FENCE + '\n'
-  const fc = await createTool.run(execA, { title: '代码块示例票', body: fenceBody })
+  const fc = await createTool.run(execA, { title: '代码块示例票', kind: 'issue', body: fenceBody })
   check(fc && fc.status === 'ok', '代码块示例票建成功（实得 ' + (fc && fc.status) + '）')
   const fenceKey = String((fc.data && fc.data.ticket && fc.data.ticket.key) || '')
   const fw = await patchTool.run(execA, { key: fenceKey, progress: { percent: 20, note: '加一条' } })
@@ -198,7 +198,7 @@ async function main() {
 
   // ═══ ⑦ 正文超过 60KB 时拒绝写入、正文一个字不动 ═══
   const bigBody = '## 目的\n\n' + 'x'.repeat(62000)
-  const bc = await createTool.run(execA, { title: '超长正文票', body: bigBody })
+  const bc = await createTool.run(execA, { title: '超长正文票', kind: 'issue', body: bigBody })
   check(bc && bc.status === 'ok', '超长正文票建成功（实得 ' + (bc && bc.status) + '）')
   const bigKey = String((bc.data && bc.data.ticket && bc.data.ticket.key) || '')
   const bBefore = await getTool.run(execA, { key: bigKey })

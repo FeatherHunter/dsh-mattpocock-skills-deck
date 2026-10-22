@@ -87,7 +87,7 @@ async function main() {
   // ① 建 1 地图加 2 子票加 2 条父边：票全建成，边全成功，整体成功。
   const plan = await planTool.run(execA, {
     planId: '971-flat-01', title: '扁平地图',
-    children: [{ key: 'c1', title: '扁平子票一' }, { key: 'c2', title: '扁平子票二' }],
+    children: [{ key: 'c1', title: '扁平子票一', kind: 'issue' }, { key: 'c2', title: '扁平子票二', kind: 'issue' }],
     edges: [{ from: 'c1', to: '@map', type: 'parent' }, { from: 'c2', to: '@map', type: 'parent' }],
   })
   check(plan && plan.status === 'ok', '扁平建图整体成功（实得 ' + (plan && plan.status) + '，边 ' + JSON.stringify((plan.items || []).filter((i) => i.role === 'edge').map((i) => i.status)) + '）')

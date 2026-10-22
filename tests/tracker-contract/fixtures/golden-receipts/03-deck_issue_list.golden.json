@@ -37,9 +37,7 @@
         "assignees": [],
         "effortId": "demo",
         "key": "01",
-        "labels": [
-          "wayfinder:task"
-        ],
+        "labels": [],
         "parentKey": "00",
         "state": "open",
         "title": "金标准演示票",

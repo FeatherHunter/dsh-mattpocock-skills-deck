@@ -273,7 +273,7 @@ async function main() {
     const H2 = await buildHost(5000)
     const b2 = H2.gate.stats()
     let r2 = null
-    try { r2 = await H2.table.tools.deck_map_plan_create.run(EXEC, { planId: 'over-cap', title: '超顶地图', children: Array.from({ length: 400 }, (_, i) => ({ key: 'c' + i, title: '子票' + i })) }) } catch (e) { r2 = { ok: false, status: 'threw', reason: String(e && e.message), text: String(e && e.message) } }
+    try { r2 = await H2.table.tools.deck_map_plan_create.run(EXEC, { planId: 'over-cap', title: '超顶地图', children: Array.from({ length: 400 }, (_, i) => ({ key: 'c' + i, title: '子票' + i, kind: 'issue' })) }) } catch (e) { r2 = { ok: false, status: 'threw', reason: String(e && e.message), text: String(e && e.message) } }
     check(H2.table.names.length === DECK_TOOL_NAMES.length && H2.table.missing.length === 0, '⑤ 真入口装出全部 ' + DECK_TOOL_NAMES.length + ' 个工具（缺 ' + H2.table.missing.length + ' 个）：' + JSON.stringify(H2.table.names))
     check(r2 && r2.ok === false && r2.status === 'unsupported', '⑤ 真被拒绝：回 ok:false / unsupported（实得 ' + (r2 && r2.status) + '）')
     check(r2 && r2.reason === 'ai-tool-refused', '⑤ 真被拒绝：reason 是那个机器可读的拒绝代号（实得 ' + (r2 && r2.reason) + '）')
@@ -286,7 +286,7 @@ async function main() {
     // ⑤b 对照：额度够、这一笔也不超顶 → 同一入口同一工具真的做成（证明 ⑤a 不是「永远拒绝」的假夹具）
     const H3 = await buildHost(5000)
     let r3 = null
-    try { r3 = await H3.table.tools.deck_issue_create.run(EXEC, { title: '额度够的这一笔', kind: 'task' }) } catch (e) { r3 = { ok: false, status: 'threw', reason: String(e && e.message), text: String(e && e.message) } }
+    try { r3 = await H3.table.tools.deck_issue_create.run(EXEC, { title: '额度够的这一笔', kind: 'issue' }) } catch (e) { r3 = { ok: false, status: 'threw', reason: String(e && e.message), text: String(e && e.message) } }
     check(r3 && r3.ok === true, '⑤ 对照：额度够时同一入口同一工具真的做成（status=' + (r3 && r3.status) + '）',
       '这一条也失败就说明 ⑤a 的拒绝不是额度造成的：' + JSON.stringify({ status: r3 && r3.status, reason: r3 && r3.reason, text: String((r3 && r3.text) || '').slice(0, 160) }))
 
@@ -297,7 +297,7 @@ async function main() {
     const b1 = H1.gate.stats()
     let threw1 = null
     let r1 = null
-    try { r1 = await H1.table.tools.deck_issue_create.run(EXEC, { title: '额度已到保底线的这一笔', kind: 'task' }) } catch (e) { threw1 = e }
+    try { r1 = await H1.table.tools.deck_issue_create.run(EXEC, { title: '额度已到保底线的这一笔', kind: 'issue' }) } catch (e) { threw1 = e }
     check(threw1 === null, '⑤ 额度到保底线：工具没有把异常抛给 AI（照契约回三态；threw=' + (threw1 && threw1.message) + '）')
     check(!!r1 && r1.ok === false && r1.status === 'unsupported', '⑤ 额度到保底线：回 ok:false / unsupported（实得 ' + (r1 && r1.status) + '）')
     check(!!r1 && (r1.reason === 'ai-tool-refused' || r1.reason === 'gate-defer'), '⑤ 额度到保底线：给出的原因代号是那两个之一（实得 ' + (r1 && r1.reason) + '）')

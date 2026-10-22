@@ -112,7 +112,7 @@ async function main() {
   const wordsOf = (res: any): any[] => (res && res.data && res.data.ticket && res.data.ticket.originalWords) || []
 
   // ═══ ① 建票带一条刁钻原话，再读回来逐字相同 ═══
-  const created = await createTool.run(execA, { title: '原话读回票', body: '## 目的\n\n把原话读回来。\n', originalWords: e1 })
+  const created = await createTool.run(execA, { title: '原话读回票', kind: 'issue', body: '## 目的\n\n把原话读回来。\n', originalWords: e1 })
   check(!!created && created.status === 'ok', '建票带原话回 ok（实得 ' + String(created && created.status) + '，说明 ' + String((created && created.text) || '').slice(0, 160) + '）')
   const cKey = String((created.data && created.data.ticket && created.data.ticket.key) || '')
   check(!!cKey, '拿到建出来的票号（实得 ' + cKey + '）')
@@ -159,7 +159,7 @@ async function main() {
   // ═══ ④ 地图快照 full 行同一份、thin 行不带 ═══
   const plan = await planTool.run(execA, {
     planId: '1092-roundtrip-01', title: '原话读回地图',
-    children: [{ key: 'c1', title: '原话读回子票' }],
+    children: [{ key: 'c1', title: '原话读回子票', kind: 'issue' }],
     edges: [{ from: 'c1', to: '@map', type: 'parent' }],
   })
   check(plan && plan.status === 'ok', '建地图加子票整体成功（实得 ' + String(plan && plan.status) + '）')

@@ -97,8 +97,8 @@ type PointsRow = { label: string, tool: string, args: Record<string, unknown>, o
 const POINTS: PointsRow[] = [
   { label: '工作区概况：成功', tool: 'deck_context', args: {}, own: [3, 2], select: true },
   { label: '建票：缺标题（还没走到选后端）', tool: 'deck_issue_create', args: {}, own: [0, 0], select: false },
-  { label: '建票：成功、没有父子边', tool: 'deck_issue_create', args: { title: '点数表甲票', kind: 'task' }, own: [2, 4], select: true },
-  { label: '建票：成功、带父子边', tool: 'deck_issue_create', args: { title: '点数表乙票', parentKey: '00' }, own: [3, 6], select: true },
+  { label: '建票：成功、没有父子边', tool: 'deck_issue_create', args: { title: '点数表甲票', kind: 'issue' }, own: [2, 4], select: true },
+  { label: '建票：成功、带父子边', tool: 'deck_issue_create', args: { title: '点数表乙票', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '00' }, own: [4, 8], select: true },
   { label: '读票：缺票号（还没走到选后端）', tool: 'deck_issue_get', args: {}, own: [0, 0], select: false },
   { label: '读票：这张票读不回来', tool: 'deck_issue_get', args: { key: '999999' }, own: [1, 3], select: true },
   { label: '读票：成功、跳反向边', tool: 'deck_issue_get', args: { key: '01', blocking: false }, own: [1, 3], select: true },
@@ -315,8 +315,8 @@ async function main() {
   }
 
   // 先按顺序建出后面要用的票：01 甲票、02 乙票（乙票挂在 00 地图下）。
-  await run('deck_issue_create', { title: '信封表甲票', kind: 'task', body: '正文' })
-  await run('deck_issue_create', { title: '信封表乙票', parentKey: '00' })
+  await run('deck_issue_create', { title: '信封表甲票', kind: 'issue', body: '正文' })
+  await run('deck_issue_create', { title: '信封表乙票', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '00' })
 
   // ── 二、信封表 ──
   console.log('— 二、信封表：两种形状、三态、八个原因码、失败不抛、记账数不外露')
@@ -325,7 +325,7 @@ async function main() {
     ['deck_issue_get', { key: '01' }],
     ['deck_map_snapshot', { key: '00' }],
     ['deck_issue_list', { state: 'open' }],
-    ['deck_issue_create', { title: '信封表丙票' }],
+    ['deck_issue_create', { title: '信封表丙票', kind: 'issue' }],
     ['deck_map_plan_create', { planId: 'surface-plan', title: '信封表地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
     ['deck_map_link', { key: '02', parentKey: '00' }],
     ['deck_issue_patch', { key: '02', comment: '信封表：改一下' }],
@@ -437,7 +437,7 @@ async function main() {
     // 二e、建票时带 blockedBy（#1299）：票建成后把这批票写成它的原生依赖边；票照建，边写后读回逐条报。
     // 这一段走真实的本地 Markdown 房：边会落到票文件的 `Blocked by:` 行上，再读一次票就能看见。
     const before = claimedNow()
-    const made = await run('deck_issue_create', { title: '带阻塞边的新票', blockedBy: ['01', '#01'] })
+    const made = await run('deck_issue_create', { title: '带阻塞边的新票', kind: 'issue', blockedBy: ['01', '#01'] })
     const after = claimedNow()
     const key = String((made.r && made.r.data && made.r.data.ticket && made.r.data.ticket.key) || '')
     check(!made.threw && made.r && made.r.status === 'ok' && !!key,
@@ -532,7 +532,7 @@ async function main() {
       check(afterList.requests - before.requests === 2 && afterList.points - before.points === 3,
         '后端说做不到：列表这一笔记 2 条 / 3 点（实得 ' + (afterList.requests - before.requests) + ' / ' + (afterList.points - before.points) + '）')
       const beforeCreate = claimedNow()
-      const created = await run('deck_issue_create', { title: '后端说建不成的那一张' })
+      const created = await run('deck_issue_create', { title: '后端说建不成的那一张', kind: 'issue' })
       const afterCreate = claimedNow()
       check(created.r && created.r.status === 'unsupported' && created.r.reason === 'backend-unsupported',
         '后端说做不到：建票这一支回 unsupported + backend-unsupported（实得 ' + (created.r && created.r.status) + '/' + (created.r && created.r.reason) + '）')

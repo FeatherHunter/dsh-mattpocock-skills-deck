@@ -189,7 +189,7 @@ async function main() {
   check(entryOf(vReport, '701')[0].actionAt === new Date(clock5).toISOString(), '上报：回执里的动作时间就是这一次的时刻')
 
   // 建票：动作 create、来源 auto，标题与工作单元从 data.ticket 取。
-  const vCreate: any = { status: 'ok', data: { ticket: { key: '901', title: '新票甲', effortId: 'eff-1' }, kind: 'task' }, touched: ['901'], notes: [] }
+  const vCreate: any = { status: 'ok', data: { ticket: { key: '901', title: '新票甲', effortId: 'eff-1' }, kind: 'issue' }, touched: ['901'], notes: [] }
   await call5('deck_issue_create', vCreate)
   const diskCreate = diskRows(home5, 'ws-w').filter((e: any) => e.ticketKey === '901')
   check(vCreate.data.workRoute && entryOf(vCreate, '901').length === 1
