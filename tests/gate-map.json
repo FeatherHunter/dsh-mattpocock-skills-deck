@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T09:17:24.718Z",
+  "generatedAt": "2026-10-22T13:26:23.768Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 319,
-  "gateCount": 319,
-  "attributedGates": 280,
+  "chainLength": 320,
+  "gateCount": 320,
+  "attributedGates": 281,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 523,
+  "graphFileCount": 525,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2157,6 +2157,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-1392-disposed-timer.ts",
+      "file": "tests/verify-1392-disposed-timer.ts",
+      "guards": [
+        "src/host/git-process.ts",
+        "src/shared/command-cleanup/src/command-cleanup.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/shared/command-cleanup/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -8151,6 +8168,7 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1305-session-permit.ts",
+      "node tests/verify-1392-disposed-timer.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-524-pr-detail.ts",
@@ -8332,6 +8350,10 @@
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-session-title.ts",
       "node tests/verify-locale-completeness.ts"
+    ],
+    "src/shared/command-cleanup": [],
+    "src/shared/command-cleanup/src": [
+      "node tests/verify-1392-disposed-timer.ts"
     ],
     "src/shared/doc-layout": [],
     "src/shared/doc-layout/src": [
@@ -8901,12 +8923,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 538,
-    "dirCount": 58,
-    "coveredFileCount": 538,
+    "fileCount": 541,
+    "dirCount": 60,
+    "coveredFileCount": 541,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 50,
+    "dedicatedDirCount": 51,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -9227,6 +9249,9 @@
       "src/seam/style.ts",
       "src/seam/timer.ts",
       "src/seam/tsconfig.json",
+      "src/shared/command-cleanup/README.md",
+      "src/shared/command-cleanup/src/command-cleanup.ts",
+      "src/shared/command-cleanup/tsconfig.json",
       "src/shared/config-store/README.md",
       "src/shared/config-store/src/labels.ts",
       "src/shared/config-store/src/ports.ts",
@@ -9479,6 +9504,8 @@
       "src/host/tracker",
       "src/seam",
       "src/shared",
+      "src/shared/command-cleanup",
+      "src/shared/command-cleanup/src",
       "src/shared/config-store",
       "src/shared/config-store/src",
       "src/shared/doc-layout",
@@ -9539,6 +9566,7 @@
       "src/host/tracker",
       "src/seam",
       "src/shared",
+      "src/shared/command-cleanup/src",
       "src/shared/doc-layout/src",
       "src/shared/host-timer/src",
       "src/shared/issue-file/src",
@@ -9560,6 +9588,10 @@
       "src/tracker/rooms/markdown"
     ],
     "dirsWithoutDedicated": [
+      {
+        "path": "src/shared/command-cleanup",
+        "fileCount": 3
+      },
       {
         "path": "src/shared/config-store",
         "fileCount": 6
