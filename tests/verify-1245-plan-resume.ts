@@ -94,7 +94,7 @@ async function main() {
   {
     const tracker = makeStubTracker({ latencyMs: 5 })
     const mem = storeMod.createMemoryPlanStore()
-    const kids = [{ key: 'a', title: '甲' }, { key: 'b', title: '乙' }]
+    const kids = [{ key: 'a', title: '甲', kind: 'issue' }, { key: 'b', title: '乙', kind: 'issue' }]
     const p1 = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 500 }))
     const r1: any = await p1.run(execOf(), { title: '自动图', children: kids })
     const v1 = r1.value || r1
@@ -114,7 +114,7 @@ async function main() {
   {
     const tracker = makeStubTracker({ latencyMs: 90 })
     const mem = storeMod.createMemoryPlanStore()
-    const kids = ['k1', 'k2', 'k3', 'k4'].map((k) => ({ key: k, title: '子票' + k }))
+    const kids = ['k1', 'k2', 'k3', 'k4'].map((k) => ({ key: k, title: '子票' + k, kind: 'issue' }))
     const p1 = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 300, toolMarginMs: 150 }))
     const r1: any = await p1.run(execOf(), { title: '图', children: kids, planId: 'p1245-stop' })
     const v1 = r1.value || r1
@@ -133,7 +133,7 @@ async function main() {
   {
     const tracker = makeStubTracker({ latencyMs: 5, dropParent: true })
     const mem = storeMod.createMemoryPlanStore()
-    const kids = [{ key: 'c1', title: '丙' }]
+    const kids = [{ key: 'c1', title: '丙', kind: 'issue' }]
     const p1 = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 500 }))
     const r1: any = await p1.run(execOf(), { title: '孤儿图', children: kids, planId: 'p1245-orphan' })
     const v1 = r1.value || r1
@@ -168,7 +168,7 @@ async function main() {
   {
     const tracker = makeStubTracker({ latencyMs: 5 })
     const mem = storeMod.createMemoryPlanStore()
-    const kids = [{ key: 'd1', title: '丁' }]
+    const kids = [{ key: 'd1', title: '丁', kind: 'issue' }]
     const pa = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 500 }))
     const ra: any = await pa.run(execOf(), { title: '同名图', children: kids, planId: 'p1245-first' })
     const va = ra.value || ra

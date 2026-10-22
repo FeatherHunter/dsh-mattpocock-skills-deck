@@ -168,6 +168,8 @@ async function main() {
           return { ok: true, data: { key: key, title: input.title, state: 'open', body: String(input.body || ''), labels: [], assignees: [], parentKey: null, parentError: { kind: 'network', message: 'HTTP 422: sub_issue_id must be a database id' } } }
         },
         async get(repoArg, key) {
+          // #1403 起 kind=issue 带父票时，建票前会先读一次父票；父票 78 在这里答成探索地图。
+          if (String(key) === '78') return { ok: true, data: { key: '78', title: '地图', state: 'open', type: 'map', body: '', labels: [], assignees: [], parentKey: null } }
           return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], parentKey: null } }
         },
         async setParent(repoArg, key, parentKey) {
@@ -202,7 +204,7 @@ async function main() {
     check(String(lr.text || '').includes('失败') && String(lr.text || '').includes('90'), 'D3 顶层带失败摘要（含票号与失败字样）：' + String(lr.text).slice(0, 120))
     check(String(item.evidence || '').length > 0, 'D4 逐条有非空证据：' + String(item.evidence).slice(0, 80))
 
-    const cr = await createTool.run(exec, { title: '带父票的新票', parentKey: '78' })
+    const cr = await createTool.run(exec, { title: '带父票的新票', kind: 'issue', parentKey: '78' })
     check(cr.status === 'partial', 'E1 票建成、边没挂上 → partial（实得 ' + cr.status + '）')
     check(String(cr.text || '').includes('没挂上') && !String(cr.text || '').includes('建好了（父票'), 'E2 不再报“建好了（父票 X）”，而说没挂上：' + String(cr.text).slice(0, 140))
     const citem = (cr.items || [])[0] || {}
@@ -246,6 +248,8 @@ async function main() {
           return { ok: true, data: { key: '92', title: input.title, state: 'open', body: '', labels: [], assignees: [], parentKey: input.parentKey || null } }
         },
         async get(repoArg, key) {
+          // #1403 起建票前会先读父票 78：这一读要成功，写后读回 92 才失败，H 测的才是「边没确认」。
+          if (String(key) === '78') return { ok: true, data: { key: '78', title: '地图', state: 'open', type: 'map', body: '', labels: [], assignees: [], parentKey: null } }
           return { ok: false, error: { kind: 'network', message: 'HTTP 403: API rate limit exceeded' } }
         },
         async setParent(repoArg, key, parentKey) {
@@ -262,7 +266,7 @@ async function main() {
     const dispEcho = registry.register(stubEcho)
     chooseWorkspace('/ws/790', 'stub-790-echo')
     const createEcho = createMod.createDeckIssueCreate(deps)
-    const crEcho = await createEcho.run(exec, { title: '回包写着父票、读回失败', parentKey: '78' })
+    const crEcho = await createEcho.run(exec, { title: '回包写着父票、读回失败', kind: 'issue', parentKey: '78' })
     const crEchoItem = (crEcho.items || [])[0] || {}
     check(crEcho.status === 'partial', 'H1 写后读回失败 → partial，不因建票回包写着父票就算落上（实得 ' + crEcho.status + '）')
     check(!String(crEcho.text || '').includes('建好了（父票'), 'H2 不报「建好了（父票 X）」：' + String(crEcho.text).slice(0, 140))
@@ -279,6 +283,8 @@ async function main() {
           return { ok: true, data: { key: '93', title: input.title, state: 'open', body: '这一张归属 #78。', labels: [], assignees: [], parentKey: null } }
         },
         async get(repoArg, key) {
+          // #1403 起建票前会先读父票 78；读回子票 93 时正文仍写着归属 #78，但 parentKey 是空的。
+          if (String(key) === '78') return { ok: true, data: { key: '78', title: '地图', state: 'open', type: 'map', body: '', labels: [], assignees: [], parentKey: null } }
           return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '这一张归属 #78。', labels: [], assignees: [], parentKey: null } }
         },
         async setParent(repoArg, key, parentKey) {
@@ -295,7 +301,7 @@ async function main() {
     const dispBody = registry.register(stubBody)
     chooseWorkspace('/ws/790', 'stub-790-body')
     const createBody = createMod.createDeckIssueCreate(deps)
-    const crBody = await createBody.run(exec, { title: '正文提到父票号', parentKey: '78' })
+    const crBody = await createBody.run(exec, { title: '正文提到父票号', kind: 'issue', parentKey: '78' })
     const crBodyItem = (crBody.items || [])[0] || {}
     check(crBody.status === 'partial', 'I1 正文提到父票号不算落上 → partial（实得 ' + crBody.status + '）')
     check(!String(crBody.text || '').includes('（父票'), 'I2 顶层不说「（父票 78）」：' + String(crBody.text).slice(0, 140))
@@ -359,7 +365,7 @@ async function main() {
     chooseWorkspace('/ws/790', 'stub-790-plan')
     const planMod = await imp('src/deck/tools/map-plan-create.ts')
     const planTool = planMod.createDeckMapPlanCreate(deps)
-    const planRun = await planTool.run(exec, { title: '地图', children: [{ key: 'c1', title: '子票一' }], edges: [{ from: '@map', to: 'c1', type: 'parent' }] })
+    const planRun = await planTool.run(exec, { title: '地图', children: [{ key: 'c1', title: '子票一', kind: 'issue' }], edges: [{ from: '@map', to: 'c1', type: 'parent' }] })
     const childItem = (planRun.items || []).filter((i) => i.role === 'child')[0] || {}
     check(childItem.status === 'failed', 'L1 父子边没挂上 → 这张子票记 failed，不报 ok（实得 ' + childItem.status + '）')
     check(/父子边没挂上/.test(String(childItem.reason || '')), 'L2 原因里点明父子边没挂上：' + String(childItem.reason || '').slice(0, 140))

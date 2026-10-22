@@ -145,7 +145,7 @@ async function main() {
     const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: storeMod.createMemoryPlanStore(), toolTimeoutMs: 8000, toolMarginMs: 200 }))
     const r = await plan.run(execOf(), {
       title: '图A', planId: 'p-898-a',
-      children: [{ key: 'a', title: 'A' }, { key: 'b', title: 'B' }, { key: 'c', title: 'C' }],
+      children: [{ key: 'a', title: 'A', kind: 'issue' }, { key: 'b', title: 'B', kind: 'issue' }, { key: 'c', title: 'C', kind: 'issue' }],
       edges: [{ from: 'c', to: 'a', type: 'blocked-by' }, { from: 'c', to: 'b', type: 'blocked-by' }],
     })
     const v = r.value || r
@@ -209,7 +209,7 @@ async function main() {
     const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: storeMod.createMemoryPlanStore(), toolTimeoutMs: 8000, toolMarginMs: 200 }))
     const r = await plan.run(execOf(), {
       title: '图E', planId: 'p-898-e',
-      children: [{ key: 'a', title: 'A' }, { key: 'b', title: 'B' }],
+      children: [{ key: 'a', title: 'A', kind: 'issue' }, { key: 'b', title: 'B', kind: 'issue' }],
       edges: [{ from: 'a', to: 'b', type: 'blocked-by' }, { from: 'b', to: 'a', type: 'blocked-by' }],
     })
     const v = r.value || r

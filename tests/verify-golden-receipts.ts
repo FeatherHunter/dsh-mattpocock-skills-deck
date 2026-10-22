@@ -75,12 +75,12 @@ const MAP_MD = '# 金标准底图\n\nStatus: ready-for-agent\n\n## Destination\n
 type GoldenCall = { file: string, tool: string, id?: string, args: Record<string, unknown> }
 const CALLS: GoldenCall[] = [
   { file: '01-deck_context.golden.json', tool: 'deck_context', args: {} },
-  { file: '02-deck_issue_create.golden.json', tool: 'deck_issue_create', args: { title: '金标准演示票', kind: 'task', body: '正文' } },
+  { file: '02-deck_issue_create.golden.json', tool: 'deck_issue_create', args: { title: '金标准演示票', kind: 'issue', body: '正文' } },
   { file: '03-deck_issue_list.golden.json', tool: 'deck_issue_list', args: { state: 'open' } },
   // get 的 key 依赖 create 的结果（固定为 01），snapshot 的 key 固定为 00（底图）。
   { file: '04-deck_issue_get.golden.json', tool: 'deck_issue_get', args: { key: '01', blocking: false } },
   { file: '05-deck_map_snapshot.golden.json', tool: 'deck_map_snapshot', args: { key: '00' } },
-  { file: '06-deck_map_plan_create.golden.json', tool: 'deck_map_plan_create', args: { planId: 'golden-1', title: '金标准地图', children: [{ key: 'a1', title: '金子票一' }, { key: 'a2', title: '金子票二' }], edges: [] } },
+  { file: '06-deck_map_plan_create.golden.json', tool: 'deck_map_plan_create', args: { planId: 'golden-1', title: '金标准地图', children: [{ key: 'a1', title: '金子票一', kind: 'issue' }, { key: 'a2', title: '金子票二', kind: 'issue' }], edges: [] } },
   // link 的两张子票 key 依赖 plan 的结果（固定为 04 blockedBy 03）。
   { file: '07-deck_map_link.golden.json', tool: 'deck_map_link', args: { key: '04', blockedBy: ['03'] } },
   { file: '08-deck_issue_patch.golden.json', tool: 'deck_issue_patch', args: { key: '01', comment: '金标准评论' } },

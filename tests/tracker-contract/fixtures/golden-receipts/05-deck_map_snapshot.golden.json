@@ -36,9 +36,7 @@
         "assignees": [],
         "blockedBy": [],
         "key": "01",
-        "labels": [
-          "wayfinder:task"
-        ],
+        "labels": [],
         "originalWords": [],
         "progress": null,
         "progressDetail": {
@@ -52,12 +50,7 @@
         "updatedAt": "<TIME>"
       }
     ],
-    "labels": [
-      {
-        "color": "10b981",
-        "name": "wayfinder:task"
-      }
-    ],
+    "labels": [],
     "map": {
       "key": "00",
       "labels": [],

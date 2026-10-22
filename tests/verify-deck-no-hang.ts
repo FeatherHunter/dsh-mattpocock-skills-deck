@@ -198,7 +198,7 @@ async function main() {
     const boom = () => { throw new Error('探针故意做坏') }
     const mod = await imp('src/deck/tools/issue-create.ts')
     const tool = mod.createDeckIssueCreate(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker({ create: boom })), budget: budget }))
-    const r = await tool.run(execFor(), { title: '会抛的那一张' })
+    const r = await tool.run(execFor(), { title: '会抛的那一张', kind: 'issue' })
     check(r && r.ok === false && r.reason === 'backend-threw', '抛错判成可重试（实得 ' + (r && r.reason) + '）')
     check(typeof r.text === 'string' && r.text.indexOf('后端实现抛错') >= 0, '抛错原话带回 text')
   }
@@ -209,7 +209,7 @@ async function main() {
     const mod = await imp('src/deck/tools/issue-create.ts')
     const tool = mod.createDeckIssueCreate(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, onTicketCreated: hanging }))
     const t1 = Date.now()
-    const r = await tool.run(execFor(), { title: '钩子挂住的那一张' })
+    const r = await tool.run(execFor(), { title: '钩子挂住的那一张', kind: 'issue' })
     const dt = Date.now() - t1
     check(r && r.status === 'ok', '建票钩子挂住照样 OK（实得 ' + (r && r.status) + '）')
     check(dt < 12000, '建票钩子挂住仍在竞速内回来（' + dt + 'ms）')
@@ -222,7 +222,7 @@ async function main() {
     const store = { durable: true, load: hanging, save: async () => {}, remove: async () => {} }
     const tool = mod.createDeckMapPlanCreate(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, planStore: store, toolTimeoutMs: 60000, toolMarginMs: 5000 }))
     const t1 = Date.now()
-    const r = await tool.run(execFor(), { title: '游标挂住的图', children: [{ key: 'c1', title: '子票一' }], planId: 'hang-plan-1' })
+    const r = await tool.run(execFor(), { title: '游标挂住的图', children: [{ key: 'c1', title: '子票一', kind: 'issue' }], planId: 'hang-plan-1' })
     const dt = Date.now() - t1
     const v = (r && r.value) || r
     check(v && (v.status === 'ok' || v.status === 'partial'), '游标挂住建图照样推进（实得 ' + (v && v.status) + '）')

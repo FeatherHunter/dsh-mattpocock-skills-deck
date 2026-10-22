@@ -184,7 +184,7 @@ async function main() {
     const tracker = makeStubTracker({ latencyMs: 90 })
     const mem = storeMod.createMemoryPlanStore()
     const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 300, toolMarginMs: 150 }))
-    const kids = ['k1', 'k2', 'k3', 'k4'].map((k) => ({ key: k, title: '子票' + k }))
+    const kids = ['k1', 'k2', 'k3', 'k4'].map((k) => ({ key: k, title: '子票' + k, kind: 'issue' }))
     const r1 = await plan.run(execOf(), { title: '图', children: kids, planId: 'p-stop-1' })
     const v1 = r1.value || r1
     check(v1.status === 'partial', '预算打满 → 部分成功（实得 ' + v1.status + '）')
@@ -209,7 +209,7 @@ async function main() {
     const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 2000, toolMarginMs: 200 }))
     let threw = false
     let r = null
-    try { r = await plan.run(execOf(), { title: '图2', children: [{ key: 'a', title: '甲' }, { key: 'b', title: '乙' }], planId: 'p-clamp-1' }) }
+    try { r = await plan.run(execOf(), { title: '图2', children: [{ key: 'a', title: '甲', kind: 'issue' }, { key: 'b', title: '乙', kind: 'issue' }], planId: 'p-clamp-1' }) }
     catch (e) { threw = true }
     const v = (r && (r.value || r)) || {}
     check(!threw, '超支调用不抛异常')
@@ -240,7 +240,7 @@ async function main() {
     const mem = storeMod.createMemoryPlanStore()
     const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 200 }))
     const before = tracker.calls.create
-    const r = await plan.run(execOf(), { title: '图4', children: [{ key: 'k1', title: '新1' }, { key: 'k2', title: '新2' }], planId: 'p-pre-k2' })
+    const r = await plan.run(execOf(), { title: '图4', children: [{ key: 'k1', title: '新1', kind: 'issue' }, { key: 'k2', title: '新2', kind: 'issue' }], planId: 'p-pre-k2' })
     const v = r.value || r
     check(tracker.calls.create - before === 2, '命中预检跳过创建（新增创建 ' + (tracker.calls.create - before) + ' 次：地图 1 + 新子票 1）')
     check(v.data && (v.data.restKeys || []).length === 0, '无剩余')
@@ -253,7 +253,7 @@ async function main() {
     const deps = shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 200 })
     const planA = planMod.createDeckMapPlanCreate(deps)
     const planB = planMod.createDeckMapPlanCreate(deps)
-    const kids = [{ key: 'm1', title: '慢1' }, { key: 'm2', title: '慢2' }]
+    const kids = [{ key: 'm1', title: '慢1', kind: 'issue' }, { key: 'm2', title: '慢2', kind: 'issue' }]
     const pA = planA.run(execOf(), { title: '图5', children: kids, planId: 'p-mutex-1' })
     await sleep(30)
     const rB = await planB.run(execOf(), { title: '图5', children: kids, planId: 'p-mutex-1' })
@@ -270,7 +270,7 @@ async function main() {
     const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 8000, toolMarginMs: 200 }))
     const r = await plan.run(execOf(), {
       title: '图6', planId: 'p-poison-1',
-      children: [{ key: 'a', title: 'A' }, { key: 'b', title: 'B' }],
+      children: [{ key: 'a', title: 'A', kind: 'issue' }, { key: 'b', title: 'B', kind: 'issue' }],
       edges: [{ from: 'a', to: 'b', type: 'blocked-by' }, { from: 'b', to: 'a', type: 'blocked-by' }],
     })
     const v = r.value || r
