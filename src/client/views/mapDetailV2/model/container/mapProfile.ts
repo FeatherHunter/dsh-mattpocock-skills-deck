@@ -208,7 +208,8 @@ export function mapProfileSectionsOf(
 /**
  * 「子票那句」由哪几段拼成。老页是一句 tr() 拼好的字符串，V2 给段：页面按词条拼，
  * 换语言、改词条都不用来改这份判断。计数词按容器种类选（地图 map.subCount / 规格 map.specSubCount）。
- *  - loading：只说正在取（不说 0 张）；
+ *  - loading：一句话都不说（维护者 2026-10-23：不要再写「正在取子票」那一行；
+ *    页面把「正在取数」放进进度条的流动斜纹里）。这里刻意不说成 0 张，也不留一句占位文字；
  *  - unsupported：一个字都不加；
  *  - failed：说原因（已截 120 字）；
  *  - 其它：本图 N 张子票（已关闭 C 张）＋ capped / missing 两段补充。
@@ -219,7 +220,7 @@ export function mapFeedSegmentsOf(
 ): MapProfileFeedSegment[] {
   const f = feed || null
   if (!f) return []
-  if (f.state === 'loading') return [{ key: 'map.subCountLoading' }]
+  if (f.state === 'loading') return []
   if (f.state === 'unsupported') return []
   if (f.state === 'failed') return [{ key: 'map.subCountFail', params: { msg: f.failedMessage || '' } }]
 

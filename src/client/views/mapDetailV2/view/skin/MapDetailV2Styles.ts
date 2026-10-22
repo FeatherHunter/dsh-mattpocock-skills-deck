@@ -35,8 +35,9 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-dest-empty{color:var(--dsw-alias-label-caption,#8b8b95)}',
 
   // 档案区的「计数 / 完成度 / 子票那句」三行固定成一块（维护者 2026-10-23：进入时「正在取子票」独占一行、
-  // 随后消失，卡片跟着抖一下）。三行永远在位：取数中显示占位，取到后原地换数字；确实没有子票时整块
-  // visibility:hidden——位置留着，卡片不会被这块消失往上拽。
+  // 随后消失，卡片跟着抖一下；后来又明确这一行不要）。三行永远在位：取数中显示占位、子票那句留空、
+  // 「正在取数」交给下面进度条上的流动斜纹，取到后原地换数字；确实没有子票时整块 visibility:hidden——
+  // 位置留着，卡片不会被这块消失往上拽。
   '.m2v2-meta{display:flex;flex-direction:column}',
   '.m2v2-meta[data-empty="1"]{visibility:hidden}',
 
@@ -49,14 +50,20 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-count[data-status="closed"]{color:var(--dsw-alias-label-caption,#8b8b95)}',
 
   // 完成度：一条细进度条（按已完成张数算，替代老页的「层级进度」）。
+  // 取数中（data-busy="1"）轨道上画流动斜纹：这句话已经从档案区删掉，把「正在取数」放进这条已有的轨道，
+  // 既不新增行、也不改变任何一块的高度。颜色取中性灰，深浅两套底色上都看得见；系统要求减少动效时停掉动画，
+  // 只留静态斜纹，仍然是「还没取到」的样子。
   '.m2v2-prog{display:flex;align-items:center;gap:8px;margin-top:10px}',
   '.m2v2-prog-cap{flex:none;font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95)}',
   '.m2v2-track{flex:1;height:6px;min-width:80px;border-radius:999px;background:var(--dsw-alias-bg-layer-2,rgba(255,255,255,.08));overflow:hidden}',
+  '.m2v2-prog[data-busy="1"] .m2v2-track{background-image:repeating-linear-gradient(135deg,rgba(128,128,128,.55) 0,rgba(128,128,128,.55) 6px,transparent 6px,transparent 12px);background-size:24px 24px;animation:m2v2-stripes .9s linear infinite}',
+  '@keyframes m2v2-stripes{from{background-position:0 0}to{background-position:24px 0}}',
+  '@media (prefers-reduced-motion: reduce){.m2v2-prog[data-busy="1"] .m2v2-track{animation:none}}',
   '.m2v2-fill{height:100%;border-radius:999px;background:var(--dsw-alias-state-success-primary,#3fb950);transition:width .2s ease}',
   '.m2v2-prog-num{flex:none;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-variant-numeric:tabular-nums}',
 
-  // 「子票那句」：本图 N 张子票 / 正在取 / 没取到 / 被截断 / 有差额，都在这一个元素里说。
-  // 这一行永远占一行的高度（取数中、取到后、取不到都是同一行），换字不换高度。
+  // 「子票那句」：本图 N 张子票 / 没取到 / 被截断 / 有差额，都在这一个元素里说。
+  // 取数中它是空的（不再写「正在取子票」），但永远占一行的高度：换字、清空都不改变高度。
   '.m2v2-feed{margin-top:6px;font-size:11px;line-height:1.55;min-height:17px;color:var(--dsw-alias-label-caption,#8b8b95);word-break:break-word}',
   '.m2v2-feed[data-state="failed"]{color:var(--dsw-alias-state-error-primary,#f87171)}',
   '.m2v2-err{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:var(--dsw-alias-state-error-primary,#f87171);word-break:break-word}',
