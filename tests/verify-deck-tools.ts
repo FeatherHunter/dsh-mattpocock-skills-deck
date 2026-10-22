@@ -297,6 +297,16 @@ async function main() {
     check(envelopeOk(r), 'deck_issue_patch 正例：回三态之一（实得 ' + (r && r.status) + '）')
     check((r.items || []).some((i) => i.step === 'comment' && i.status === 'ok'), 'deck_issue_patch 评论那一步成了：' + JSON.stringify(r.items))
     check((r.items || []).some((i) => i.step === 'close' && i.status === 'ok'), 'deck_issue_patch 关闭那一步成了')
+    // #1273：回执里写后回读的整票只能有一份。data.ticket 留整票；readBack 只留核对用的摘要，
+    // 不许再装 body/comments——PTC 会话读的就是 run() 的原始信封，否则同一张票会进两次上下文。
+    const receiptText = JSON.stringify(r)
+    check(!!(r.data && r.data.ticket && typeof r.data.ticket.body === 'string'), 'deck_issue_patch 回执的 data.ticket 仍是整票（写后回读的正文在）')
+    check(!!r.readBack && typeof r.readBack === 'object' && !('body' in r.readBack) && !('comments' in r.readBack), 'deck_issue_patch 回执的 readBack 只是核对摘要（不带 body/comments）：' + JSON.stringify(r.readBack))
+    check(!!r.readBack && String(r.readBack.key) === String(createdKey) && r.readBack.state === 'closed' && typeof r.readBack.updatedAt === 'string' && r.readBack.updatedAt !== '', 'readBack 摘要带票号、写后状态与更新时间（能核对改没改成）：' + JSON.stringify(r.readBack))
+    check(!!r.readBack && Object.keys(r.readBack).sort().join(',') === 'key,state,updatedAt', 'readBack 摘要只带这三格，字段增删会被这条断言看见：' + JSON.stringify(r.readBack))
+    check((receiptText.match(/正文在这里/g) || []).length === 1, '回执 JSON 里整票正文只出现一份（data.ticket 一份，readBack 不再重复）')
+    const roundTripped = JSON.parse(JSON.stringify(r))
+    check((JSON.stringify(roundTripped).match(/正文在这里/g) || []).length === 1, '回执过一次 JSON 往返（连接、fetch 与 PTC 会话交给模型前的边界）后正文仍只有一份')
     // 认领这一步在 #1174 之前是「本地 Markdown 做不到」的负向例子：它只把状态改成 claimed，
     // 不记认领人，回读只能拿 @me 占位，所以工具层只能回 partial。现在本地房把名字写进票面、
     // 原样读回，这一步就该如实成功——这条断言跟着产品决定改了方向，不是放松检查。

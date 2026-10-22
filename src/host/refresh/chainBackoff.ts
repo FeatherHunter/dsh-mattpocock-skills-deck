@@ -76,6 +76,8 @@ export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
             allGreenTtlMs: central.CHAIN_ALL_GREEN_TTL_MS,
             preflightTtlMs: central.PREFLIGHT_TTL_MS,
             preflightRetryAfterFailure: budget.PREFLIGHT_RETRY_AFTER_FAILURE,
+            // #1363 场景二：初始化等待那一路的等待封顶（取值见 config/timeouts.yaml）。0 表示这一档不可用，按旧口径走。
+            setupPendingCapMs: Math.max(0, Math.floor(Number(central.CHAIN_SETUP_PENDING_CAP_MS) || 0)),
           }
           return { backoff: _backoff, limits: _limits }
         } catch (e: any) { return null }
@@ -127,6 +129,17 @@ export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
     if (trigger === 'user-recheck') {
       try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.backoff', { keyHash: hash8(key), decision: 'user-recheck-bypass' }) } catch (eL: any) {}
       return { needed: true, reason: 'user-recheck-bypass', waitMs: 0, cached: lastReply }
+    }
+    // #1363 场景二：初始化产物是会话里写文件，检查链没有对应事件，只能靠正在看时的 5 秒节拍反复求值；
+    // 连续没进展时退避会一路升到 5 分钟档，黄条要等很久才消失。'setup-pending' 那一路加等待封顶：
+    // 距离上一次求值已经超过封顶就无条件真算一次。只影响这一路，人手重查与其它后台事件的退避口径不变。
+    if (trigger === 'setup-pending' && st) {
+      const capMs: number = Math.max(0, Math.floor(Number(r.limits.setupPendingCapMs) || 0))
+      const waitedMs: number = nowMs - Number(st.evaluatedAtMs || 0)
+      if (capMs > 0 && waitedMs >= capMs) {
+        try { if (logCtx) logCtx.fire('info', 'chain.backoff', { keyHash: hash8(key), decision: 'recompute', reason: 'setup-pending-cap', waitMs: 0, step: st.step, trigger: 'setup-pending' }) } catch (eL: any) {}
+        return { needed: true, reason: 'setup-pending-cap', waitMs: 0, cached: lastReply }
+      }
     }
     const v: any = r.backoff.chainRefreshVerdict(st ? { step: st.step, evaluatedAtMs: st.evaluatedAtMs, allGreen: st.allGreen } : null, nowMs, r.limits)
     // 手里一份快照都没有的时候必须算：否则界面第一次进来就没东西可画（退避不该把首屏也拦住）。

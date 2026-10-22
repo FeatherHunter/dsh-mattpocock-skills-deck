@@ -144,7 +144,8 @@ async function main() {
   check(totalCapped.length <= DETAIL_TOTAL_CAP * 1.1, '总量大致守住了上限（结构开销是估算，有小量超出）')
 
   // ── 9. readBack 与 data.ticket 是同一份时只送一次，别把预算吃两遍 ──
-  //     （deckIssuePatch.js:159/161 把同一份同时放进 data.ticket 与 readBack）
+  //     #1273 之前 deck_issue_patch 两个格子装同一份整票；源头已改成整票只在 data.ticket、
+  //     顶层 readBack 只留核对摘要 {key, state, updatedAt}。下面守的是渲染层这道护栏，与源头形状无关。
   const back = { key: '759', state: 'closed', body: '正文' }
   const dedup = all({ status: 'ok', text: '票改好了。', data: { ticket: back, requested: ['state'] }, readBack: back })
   check((dedup.match(/正文/g) || []).length === 1, 'readBack 与 data.ticket 同一份时只投影一次')
@@ -157,6 +158,16 @@ async function main() {
   check(noDup.indexOf('760') >= 0 && noDup.indexOf('759') >= 0, '两份不同时两份都在')
   const valueDiff = all({ status: 'ok', text: '票改好了。', data: { ticket: back }, readBack: { key: '759', state: 'open', body: '正文' } })
   check((valueDiff.match(/正文/g) || []).length === 2, '内容不同时即便票号相同也两份都送（不吃掉真差异）')
+  // #1273 收口后的真实形状：data.ticket 是整票，顶层 readBack 只是核对摘要。两份内容不同，
+  // 摘要照常投影；过一遍 JSON 往返（连接、fetch、PTC 会话交给模型前都会过这一道）后整票正文
+  // 仍只有一份，写后回读的核对信号也还在。这条守的是渲染形状；源头不许回退由 verify-deck-tools
+  // 量原始信封的那几条守（渲染层拿的是夹具，测不到源头）。
+  // 读法上别把这条当成去重护栏：两格内容不同，正文本来就只该出现一次。
+  const digestReceipt = { status: 'ok', text: '票改好了。', data: { ticket: back, requested: ['state'] }, readBack: { key: '759', state: 'closed', updatedAt: '2026-10-22T00:00:00Z' } }
+  const digestRoundTrip = all(JSON.parse(JSON.stringify(digestReceipt)))
+  check((digestRoundTrip.match(/正文/g) || []).length === 1, '#1273 形状：JSON 往返后整票正文只出现一次')
+  check(digestRoundTrip.indexOf('updatedAt') >= 0 && digestRoundTrip.indexOf('2026-10-22') >= 0,
+    '#1273 形状：写后回读的核对摘要仍然看得见（能核对改没改成）')
 
   // ── 10. 畸形输入不许崩，也不许悄悄不给 ──
   const cyclic = { status: 'ok', text: '摘要。' }

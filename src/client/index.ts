@@ -60,6 +60,8 @@ declare const PIXEL_STYLE_TEXT: any;
 declare const FEEDBACK_STYLE_TEXT: any;
 declare const installUiFeedback: any;
 declare const PIXEL_CARDS_STYLE_TEXT: any;
+// #1398 V2 地图详情页的页面外壳样式（卡片皮肤仍是 PIXEL_CARDS_STYLE_TEXT 那一片）。
+declare const MAP_DETAIL_V2_STYLE_TEXT: any;
 declare const L: any;
 declare const LANG_CONFIG: any;
 declare const localeAdopt: any;
@@ -285,6 +287,9 @@ export default {
     // ==== leaf:pixelBanner (spliced by build) ====
     // ==== leaf:pixelStatusLine (spliced by build) ==== // ==== leaf:cardsTheme (spliced by build) ==== // ==== leaf:cardsStyles (spliced by build) ==== // ==== leaf:cardPin (spliced by build) ==== // ==== leaf:cardTitle (spliced by build) ==== // ==== leaf:cardNo (spliced by build) ==== // ==== leaf:cardTags (spliced by build) ==== // ==== leaf:cardNote (spliced by build) ==== // ==== leaf:cardFoot (spliced by build) ==== // ==== leaf:cardStamp (spliced by build) ==== // ==== leaf:blockedChrome (spliced by build) ==== // ==== leaf:cardBtns (spliced by build) ==== // ==== leaf:mapDots (spliced by build) ==== // ==== leaf:cardHead (spliced by build) ==== // ==== leaf:issueCard (spliced by build) ==== // ==== leaf:issueMapCard (spliced by build) ==== // ==== leaf:mapCard (spliced by build) ==== // S1/S6/S7 三张卡：先主题与皮肤，再共享小件，最后大卡，次序即依赖次序。
     styles.insert(PIXEL_CARDS_STYLE_TEXT)
+    // #1398 V2 地图详情页的页面外壳样式（卡片皮肤、深浅两套仍在上面 cardsStyles 那一片里）。
+    // ==== leaf:mapV2Styles (spliced by build) ====
+    styles.insert(MAP_DETAIL_V2_STYLE_TEXT)
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====
 
@@ -326,6 +331,21 @@ export default {
     // ==== leaf:mapDetail (spliced by build) ====
     // ==== leaf:detailActionBar (spliced by build) ====
     // ==== leaf:mapDetailSpecBody (spliced by build) ====
+
+    // #1398 V2 地图详情页（先不接入）：纯逻辑 → 适配层与整页模型 → 接线 → 档案区 / 卡片流 → 页面容器。
+    //   今天「已入库、未接入」：入口仍是上面老 MapDetail（Dock 里那一处），切换入口另开票 #1402。
+    // ==== leaf:mapV2TicketFacts (spliced by build) ====
+    // ==== leaf:mapV2TicketBoard (spliced by build) ====
+    // ==== leaf:mapV2TicketFeed (spliced by build) ====
+    // ==== leaf:mapV2Profile (spliced by build) ====
+    // ==== leaf:mapV2CardProps (spliced by build) ====
+    // ==== leaf:mapV2PageModel (spliced by build) ====
+    // ==== leaf:mapV2UseFeed (spliced by build) ====
+    // ==== leaf:mapV2Actions (spliced by build) ====
+    // ==== leaf:mapV2ProfileDrawers (spliced by build) ====
+    // ==== leaf:mapV2ProfileHeader (spliced by build) ====
+    // ==== leaf:mapV2CardFlow (spliced by build) ====
+    // ==== leaf:mapV2Page (spliced by build) ====
 
     // ==== leaf:subIssueRouting (spliced by build) ==== // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:issueDetailFold (spliced by build) ==== // ==== leaf:useIssueDetailFold (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
 

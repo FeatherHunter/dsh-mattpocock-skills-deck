@@ -157,6 +157,22 @@ export const loadChain = function (st: any, force: any, trigger: any): any {
   const _hintBid: any = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined;
   const args: any = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, _hintBid ? { backendId: _hintBid } : {}, force ? { force: true } : {}, { lang: _langForChain }, trigger ? { trigger: String(trigger) } : {});
   const chainT0: number = Date.now();
+  // #1363 诊断：链请求与回包各留一行常驻日志。回答「这一次是谁发起的、带没带人的动作、结果有没有落进会话、
+  //   回来的是不是一份旧快照」——这次两幕故障的取证就卡在这三问上（从前只有 host.call 的耗时，没有这一步的口径）。
+  //   字段与两边共用的那几项（工作区短哈希、会话短哈希）合在一处算，回包那一行直接复用。
+  const _chainFlowBase: any = (function (): any {
+    try {
+      return {
+        reason: String(trigger || ''),
+        bypass: !!force,
+        backendId: _backendIdForChain,
+        lang: _langForChain,
+        wsHash: dswsLogHash(String((typeof wsKeyOf === 'function' ? wsKeyOf(st.cwd) : st.cwd) || '')),
+        sidHash: dswsLogHash(String(st.sessionId || '')),
+      }
+    } catch (eFlow) { return {} }
+  })();
+  try { log('info', 'chain.flow', Object.assign({ side: 'request', outcome: 'sent' }, _chainFlowBase)); } catch (eFl) {}
   // 在途登记：这一次请求的序号记在这把键上（#669 第 4 件）。发出去就记，
   //   回包时凭它跟「这个键上最新那次的序号」比一次，比不过就是要丢的那一次（见下面那段竞态说明）。
   const _mySeq: number = (_chainSeqN += 1);
@@ -172,7 +188,15 @@ export const loadChain = function (st: any, force: any, trigger: any): any {
     // 现在这版之前还有一个 2026-09-20 的写法：把「当前在途的那一次」在发请求时就冻成一个布尔值，
     //   于是它是拿「发这一次的时候上一次还在不在飞」当判据，正好判反 —— 晚到的旧结果被采纳、
     //   新的那一次反被丢掉；更糟的是那把键一旦停在被丢掉的那一次上，后面换后端的重取会连着被丢。
-    if (_chainRespStale(norm, _mySeq, st)) {
+    const _staleReply: boolean = _chainRespStale(norm, _mySeq, st);
+    // #1363 诊断：回包落地这一行——outcome 说清「写进会话 / 被判过期 / 回话里没有内容」，
+    //   steps/done 是宿主回的那份快照本身的读数，ageMs 是这一次往返的耗时。排查「界面为什么还是旧状态」时先看它。
+    try {
+      const _replySnap: any = (res && (res.fullSnapshot || res.snapshot)) || null;
+      const _replySteps: any[] = (_replySnap && Array.isArray(_replySnap.steps)) ? _replySnap.steps : [];
+      log('info', 'chain.flow', Object.assign({ side: 'reply', outcome: _staleReply ? 'stale' : ((res && res.ok && _replySnap) ? 'adopted' : 'empty'), steps: _replySteps.length, done: _replySteps.filter(function (s: any): boolean { return s && s.status === 'done' }).length, ageMs: Date.now() - chainT0 }, _chainFlowBase));
+    } catch (eFl2) {}
+    if (_staleReply) {
       try { if (isEnabled('debug')) log('debug', 'chain.stale.drop', { keyHash: dswsLogHash(norm) }); } catch (eDrop) {}
       return null;
     }
@@ -196,6 +220,8 @@ export const loadChain = function (st: any, force: any, trigger: any): any {
     return null;
   }).catch(function (e: any): any {
     try { log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); log('warn', 'chain.derive.error', { stepId: 'chain.load', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); } catch (eL) {}
+    // #1363 诊断：异常也要在 chain.flow 上落一行，否则日志里只剩请求没有回包，看不出是「没回来」还是「回来了但丢弃」。
+    try { log('info', 'chain.flow', Object.assign({ side: 'reply', outcome: 'error', ageMs: Date.now() - chainT0 }, _chainFlowBase)); } catch (eFl3) {}
     // #709（T5）：这里从前也会排一次 8 秒后的重试。同样退役——宿主异常不该自己给自己续命，
     // 等四种事件里的下一个到来时自然再试一次。
     return null;

@@ -32,6 +32,7 @@ declare function envTotal(...args: any[]): any;
 declare function guideBannerMeta(...args: any[]): any;
 declare function guideBannerParams(...args: any[]): any;
 declare function guideBannerStep(...args: any[]): any;
+declare function guideBannerDiagnosis(...args: any[]): any;
 declare function hydrateFromCache(...args: any[]): any;
 declare function Ic(props?: any): any;
 declare function Icon(...args: any[]): any;
@@ -73,6 +74,8 @@ declare function workspaceFileNoteEl(...args: any[]): any;
 // 值引用的组件与常量（传给 h 当组件用；绿点开关读字段；RDOM 是渲染目标标记）。
 declare const FormModalSeat: any;
 declare const logSwitch: any;
+// #1363 日志标记：guide.banner 那一行要带工作区短哈希（与 chain.flow 的 wsHash 同一口径）；
+//   短哈希在 bannerChain 的 guideBannerDiagnosis 里算好，这里不直接引 wsKeyOf。
 declare const RDOM: any;
 declare const SessionChainCapsule: any;
 declare const SkillFloatList: any;
@@ -282,14 +285,14 @@ export const StatusBar = (props: any) => {
   //   按 guideStepsFor(当前后端) 的顺序逐个看，第一个没过、且带横幅的那一步就是它；
   //   门控那一档读本地状态（上面那两个判定），其余读链快照。于是「黄条等仓库就绪」是顺序本身的结果：
   //   仓库那一步排在初始化之前，它没过就轮不到黄条（此前这条优先级链里根本没有仓库那一段）。
-  const bannerStep = guideBannerStep(s, _gateActive || _backendUndecided)
+  // #1363：判定、原因代号与日志要用的标识一次取齐（guideBannerDiagnosis 是 guideBannerStep 的带判据版本；
+  //   老入口还在，这里优先新入口）。这个文件有 350 有效行上限，判定细节与散列都在 bannerChain 那一份，这里只拿结果。
+  const _bannerDiag: any = (typeof guideBannerDiagnosis === 'function') ? guideBannerDiagnosis(s, _gateActive || _backendUndecided) : { step: guideBannerStep(s, _gateActive || _backendUndecided), reason: '', stepId: '', backendId: '', steps: 0, wsHash: '', sidHash: '', meta: null, key: '' }
+  const bannerStep = _bannerDiag.step, _bannerMetaLog = _bannerDiag.meta, _bannerLogKey = _bannerDiag.key
   // #891/#995/#916/#917 复核：几张口口相传的票子都卡在「黄条该消失时没消失」「本不该出现的黄条出现了」，
   //   而今天没有任何一行日志记「横幅什么时候出现、出现的是哪一条、挂了多久才消失」。这里按边沿触发补一行常驻
   //   info（只在步骤或文案变化时写）：出现记 shown、消失记 cleared，ageMs 是上一条挂了多久。字段只有短枚举与
   //   毫秒数，不记工作区路径、不记标题。放在收起态早返回之前，保证收起/展开两种状态都记得到。
-  let _bannerMetaLog: any = null
-  try { if (bannerStep) _bannerMetaLog = (typeof guideBannerMeta === 'function') ? guideBannerMeta(s, bannerStep) : (bannerStep.banner || null) } catch (eBm) {}
-  const _bannerLogKey = bannerStep ? (String(bannerStep.id || '') + '|' + String((_bannerMetaLog && _bannerMetaLog.text) || '')) : ''
   React.useEffect(function () {
     try {
       const now = Date.now()
@@ -298,7 +301,12 @@ export const StatusBar = (props: any) => {
       let text = ''
       let tone = ''
       try { if (_bannerMetaLog) { text = String(_bannerMetaLog.text || ''); tone = String(_bannerMetaLog.tone || '') } } catch (eT) {}
-      try { log('info', 'guide.banner', { step: String((bannerStep && bannerStep.id) || ''), banner: text, tone: tone, outcome: _bannerLogKey ? 'shown' : 'cleared', ageMs: prev.at ? (now - prev.at) : 0 }) } catch (eL) {}
+      // #1363 增补字段：reason/decideStep 回答「为什么这一条或为什么没有」（waiting-snapshot / missing-blocks-setup /
+      //   gate-open / step-not-done / all-done）；backendId/steps 是当时的后端与快照行数；wsHash/sidHash 让这一行能与
+      //   chain.flow 那两行按工作区、会话对上（只记短哈希，不落路径与标题）。
+      //   出现/消失看的是「这一步到底有没有」（bannerStep），不是边沿键：没有横幅时键也带着原因代号（cleared|all-done 之类），
+      //   拿键判真值会把「一条都没有」记成 shown —— 真机日志里出现过 step 与 banner 都空、outcome 却写 shown 的行。
+      try { log('info', 'guide.banner', { step: String((bannerStep && bannerStep.id) || ''), banner: text, tone: tone, outcome: bannerStep ? 'shown' : 'cleared', ageMs: prev.at ? (now - prev.at) : 0, reason: _bannerDiag.reason, decideStep: _bannerDiag.stepId, backendId: _bannerDiag.backendId, steps: _bannerDiag.steps, wsHash: _bannerDiag.wsHash, sidHash: _bannerDiag.sidHash }) } catch (eL) {}
       dswsBannerLast.key = _bannerLogKey
       dswsBannerLast.at = now
     } catch (e) {}
