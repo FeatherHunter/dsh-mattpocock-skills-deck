@@ -807,6 +807,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'StatusLogMenu', file: 'src/client/statusbar/StatusLogMenu.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
+  // #1409：界面借会话事件流取数通路的两个叶子。纯函数那片先拼（订阅层要调用它导出的识别与解析），
+  //   订阅层那片再拼（状态栏要挂它导出的 SuggestStreamMount）。顺序反了闭包里会拿到未定义的自由变量。
+  { id: 'suggestFacts', file: 'src/client/statusbar/suggestFacts.ts' },
+  { id: 'suggestStream', file: 'src/client/statusbar/suggestStream.ts' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
