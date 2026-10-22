@@ -17,7 +17,7 @@
  *   （.scratch/v2-map-detail/page/）与真机验收覆盖；#1402 切入口之后，第 11 条只对「接线那一行」做源码断言，
  *   防止有人把入口改回老页而没有任何门禁出声。
  *
- * 断的十二件事：
+ * 断的十三件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
  *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
@@ -39,6 +39,8 @@
  *      四个按钮的回调与皮肤，且图纸铺满 Dock 内容区的那条样式还在。第 11 条只读源码文本，不渲染 React。
  *   12. 卡片流自适应：卡片有最小宽度与自然宽度两档（208 / 300），按钮文字包在 .cd-lbl 里按整字收窄，
  *      卡片标题用纸面墨色（深色主题下卡片仍是浅纸，标题继承浅色字会看不清）。同样只读源码文本。
+ *   13. 档案区高度稳定：计数 / 完成度 / 子票那句固定成一块，取数中显示占位、没有子票时整块隐藏但留位置，
+ *      进入页面时不会因为「正在取子票」这一行的出现与消失让卡片上下抖。同样只读源码文本。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -924,6 +926,17 @@ section('§12 入口接线')
   const flowText = fs.readFileSync(path.join(ROOT, REL, 'view/flow/TicketCardFlow.ts'), 'utf8')
   check(flowText.indexOf('fitFlowLabels') >= 0 && flowText.indexOf("querySelectorAll('.cd-abtn.label')") >= 0,
     '卡片流会按整字收窄按钮文字（fitFlowLabels 找 .cd-abtn.label 里的 .cd-lbl）')
+
+  const headerText = fs.readFileSync(path.join(ROOT, REL, 'view/profile/MapProfileHeader.ts'), 'utf8')
+  check(headerText.indexOf('m2v2-meta') >= 0 && headerText.indexOf("'data-empty'") >= 0,
+    '档案区的计数 / 完成度 / 子票那句固定成一块（取数中占位，没有子票时整块隐藏但留位置）')
+  check(headerText.indexOf('PLACEHOLDER') >= 0 && headerText.indexOf('busy') >= 0,
+    '档案区在取数中显示占位短横，不按状态增删行')
+  check(stylesText.indexOf('.m2v2-meta[data-empty="1"]{visibility:hidden}') >= 0 && stylesText.indexOf('min-height:17px') >= 0,
+    '没有子票时 meta 用 visibility 隐藏（位置保留），子票那句永远占一行高度')
+  const pageSourceText = fs.readFileSync(path.join(ROOT, REL, 'view/MapDetailV2Page.ts'), 'utf8')
+  check(pageSourceText.indexOf("mode || '') === 'loading'") >= 0 && pageSourceText.indexOf('busy: busy') >= 0,
+    '页面把「正在按需取子票」传给档案区（第一帧与取数中都是 busy）')
 }
 
 

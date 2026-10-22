@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T17:56:35.098Z",
+  "generatedAt": "2026-10-22T17:56:52.229Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 324,
-  "gateCount": 324,
-  "attributedGates": 285,
+  "chainLength": 322,
+  "gateCount": 322,
+  "attributedGates": 283,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 540,
+  "graphFileCount": 539,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -968,7 +968,6 @@
         "src/deck/rules/dependency-graph.ts",
         "src/deck/rules/edge-landing.ts",
         "src/deck/rules/minimal-spec.ts",
-        "src/deck/rules/object-kind.ts",
         "src/deck/rules/tool-table.ts",
         "src/deck/rules/workspace-file.ts"
       ],
@@ -979,7 +978,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-1053-issue-write.ts",
@@ -2198,44 +2197,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
-    },
-    {
-      "step": "node tests/verify-1403-kind-two-layer.ts",
-      "file": "tests/verify-1403-kind-two-layer.ts",
-      "guards": [
-        "src/deck/rules/object-kind.ts",
-        "src/deck/tools/issue-create.ts",
-        "src/tracker/rooms/markdown/issues-create.ts",
-        "src/tracker/rooms/markdown/parse.ts"
-      ],
-      "dirs": [
-        "src/deck/rules",
-        "src/deck/tools",
-        "src/tracker/rooms/markdown"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
-    },
-    {
-      "step": "node tests/verify-1413-map-plan-two-layer.ts",
-      "file": "tests/verify-1413-map-plan-two-layer.ts",
-      "guards": [
-        "src/deck/rules/minimal-spec.ts",
-        "src/deck/rules/object-kind.ts",
-        "src/deck/tools/map-plan-create.ts"
-      ],
-      "dirs": [
-        "src/deck/rules",
-        "src/deck/tools"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -7080,7 +7041,6 @@
         "tests/tracker-contract/sections/idempotency.ts",
         "tests/tracker-contract/sections/labels.ts",
         "tests/tracker-contract/sections/listPage.ts",
-        "tests/tracker-contract/sections/object-kind.ts",
         "tests/tracker-contract/sections/preflight.ts",
         "tests/tracker-contract/sections/registry.ts",
         "tests/tracker-contract/sections/room-gitlab-extras.ts",
@@ -7101,7 +7061,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 18 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 17 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-typecheck.mts",
@@ -8174,9 +8134,7 @@
     "src/deck/rules": [
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1039-rules-pure.ts",
-      "node tests/verify-1277-md-spec-container.ts",
-      "node tests/verify-1403-kind-two-layer.ts",
-      "node tests/verify-1413-map-plan-two-layer.ts"
+      "node tests/verify-1277-md-spec-container.ts"
     ],
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.ts",
@@ -8226,8 +8184,6 @@
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1385-howto.ts",
-      "node tests/verify-1403-kind-two-layer.ts",
-      "node tests/verify-1413-map-plan-two-layer.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -8780,7 +8736,6 @@
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1182-ticket-file-publish.ts",
       "node tests/verify-1277-md-spec-container.ts",
-      "node tests/verify-1403-kind-two-layer.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -9013,9 +8968,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 556,
+    "fileCount": 555,
     "dirCount": 71,
-    "coveredFileCount": 556,
+    "coveredFileCount": 555,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 52,
@@ -9227,7 +9182,6 @@
       "src/deck/rules/edge-landing.ts",
       "src/deck/rules/index.ts",
       "src/deck/rules/minimal-spec.ts",
-      "src/deck/rules/object-kind.ts",
       "src/deck/rules/time.ts",
       "src/deck/rules/tool-order.ts",
       "src/deck/rules/tool-table.ts",
