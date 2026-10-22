@@ -1,7 +1,9 @@
 // tests/verify-1385-howto.ts —— #1385：deck_context 的用法说明按后端分支，本地后端追加建票契约
 // 门禁归属: src/deck/tools/context.ts, src/deck/tools/issue-create.ts, src/deck/tools/issue-patch.ts
 // 验证（每条都能被删掉/改坏而变红）：
-//   1) 本地后端（markdown）的 howto 含建票契约关键词：规格就是票（kind=spec）、kind=ticket 带 parentKey 与 blockedBy、补边用 deck_map_link、不要手写票文件；
+//   1) 本地后端（markdown）的 howto 含建票契约关键词：规格就是票（kind=spec，顶层容器不挂地图）、
+//      实施票 kind=spec-ticket 带 parentKey 与 blockedBy、地图工单 kind=map-ticket 带 label、普通票 kind=issue、
+//      补边用 deck_map_link、不要手写票文件；旧写法 kind=ticket / kind=task 必须消失；
 //   2) 其它后端（github/gitlab）的 howto 与改前逐字一致，一个字不多一个字不少；
 //   3) deck_issue_create / deck_issue_patch 的描述在 350 字内，且含本地后端最必要的一两句。
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-1385-howto.ts
@@ -35,7 +37,12 @@ async function main() {
   const local = fn('markdown')
   check(typeof local === 'string' && local.indexOf(BASE_HOWTO) === 0, '本地后端 howto 以改前那 381 字开头（老话一句不少）')
   check(local.indexOf('规格就是票') >= 0, '本地后端 howto 说清「规格就是票」')
-  check(local.indexOf('kind=ticket') >= 0, '本地后端 howto 说清实施票 kind=ticket')
+  check(local.indexOf('kind=spec-ticket') >= 0, '本地后端 howto 说清实施票 kind=spec-ticket')
+  check(local.indexOf('kind=map-ticket') >= 0, '本地后端 howto 说清地图工单 kind=map-ticket')
+  check(local.indexOf('kind=issue') >= 0, '本地后端 howto 说清普通票 kind=issue 的兜底')
+  check(local.indexOf('kind=ticket') < 0 && local.indexOf('kind=task') < 0, '本地后端 howto 里旧的 kind=ticket / kind=task 已经消失')
+  check(local.indexOf('顶层容器') >= 0, '本地后端 howto 说清规格是顶层容器（不挂地图、不传 parentKey）')
+  check(local.indexOf('wayfinder:task') >= 0, '本地后端 howto 列出地图工单可选的 label')
   check(local.indexOf('parentKey') >= 0, '本地后端 howto 说清 parentKey 填谁')
   check(local.indexOf('不要手写票文件') >= 0, '本地后端 howto 说清不要手写票文件')
   check(local.indexOf('.scratch') >= 0, '本地后端 howto 点名 .scratch 下的票文件不要手写')

@@ -55,13 +55,14 @@ check(zhOf('tpl.implement').indexOf('/implement\n{url}\n\n按 /implement 技能�
 check(zhOf('specSplit').indexOf('/to-tickets\n{url}') === 0, 'specSplit 首行 /to-tickets')
 // #1383：拆票提示词写死 deck 工具建票（关键词包含判据，不脆断整段逐字）。
 //   中英各含：先用 deck_context 确认后端、用 deck_issue_create 建实施票
-//   （kind=ticket、parentKey 填规格票号、blockedBy 填依赖）、本地后端不要手写 .scratch 票文件。
+//   （kind=spec-ticket、parentKey 填规格票号、blockedBy 填依赖）、本地后端不要手写 .scratch 票文件。
 check(zhOf('specSplit').indexOf('deck_context') >= 0, 'specSplit.zh 先用 deck_context 确认后端')
 check(enOf('specSplit').indexOf('deck_context') >= 0, 'specSplit.en 先用 deck_context 确认后端')
 check(zhOf('specSplit').indexOf('deck_issue_create') >= 0, 'specSplit.zh 用 deck_issue_create 建实施票')
 check(enOf('specSplit').indexOf('deck_issue_create') >= 0, 'specSplit.en 用 deck_issue_create 建实施票')
-check(zhOf('specSplit').indexOf('kind=ticket') >= 0, 'specSplit.zh 实施票 kind=ticket')
-check(enOf('specSplit').indexOf('kind=ticket') >= 0, 'specSplit.en 实施票 kind=ticket')
+check(zhOf('specSplit').indexOf('kind=spec-ticket') >= 0, 'specSplit.zh 实施票 kind=spec-ticket')
+check(enOf('specSplit').indexOf('kind=spec-ticket') >= 0, 'specSplit.en 实施票 kind=spec-ticket')
+check(zhOf('specSplit').indexOf('kind=ticket') < 0 && enOf('specSplit').indexOf('kind=ticket') < 0, 'specSplit 中英都不再出现旧的 kind=ticket')
 check(zhOf('specSplit').indexOf('parentKey') >= 0, 'specSplit.zh parentKey 填这张规格票号')
 check(enOf('specSplit').indexOf('parentKey') >= 0, 'specSplit.en parentKey 填这张规格票号')
 check(zhOf('specSplit').indexOf('blockedBy') >= 0, 'specSplit.zh blockedBy 填依赖票号')

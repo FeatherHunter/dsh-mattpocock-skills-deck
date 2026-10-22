@@ -186,11 +186,11 @@ async function main() {
   check(res && res.registered && res.registered.join(',') === SEVEN_NAMES.join(','), '一次注册九个，一个不少')
   check(!res.missing || res.missing.length === 0, '缺件清单为空')
   const one = svc.registered.filter((t) => t.name === 'deck_issue_create')[0]
-  const out = await one.execute({ title: '演示票' }, { agent: { session: { cwd: '/ws', id: 's1' } } })
+  const out = await one.execute({ title: '演示票', kind: 'issue' }, { agent: { session: { cwd: '/ws', id: 's1' } } })
   check(out && out.status === 'ok' && out.text === '桩回包：deck_issue_create', '执行转发到宿主那张表并只回它的 value')
   check(out && !Object.hasOwn(out, 'claimed'), '记账数不外露（闸里已经记过）')
   // 九个逐个真执行一遍：转发的路每条都通，回包都有状态与一句话。
-  const demoArgs = { deck_context: {}, deck_issue_get: { key: '01' }, deck_map_snapshot: { key: '01' }, deck_issue_list: {}, deck_issue_create: { title: 't' }, deck_map_plan_create: { title: 't', children: [] }, deck_map_link: { key: '01' }, deck_issue_patch: { key: '01' }, deck_issue_report: { key: '01' } }
+  const demoArgs = { deck_context: {}, deck_issue_get: { key: '01' }, deck_map_snapshot: { key: '01' }, deck_issue_list: {}, deck_issue_create: { title: 't', kind: 'issue' }, deck_map_plan_create: { title: 't', children: [] }, deck_map_link: { key: '01' }, deck_issue_patch: { key: '01' }, deck_issue_report: { key: '01' } }
   for (const t of svc.registered) {
     const got = await t.execute(demoArgs[t.name], { agent: { session: { cwd: '/ws' } } })
     check(got && typeof got.status === 'string' && typeof got.text === 'string' && got.text.length > 0, t.name + ' 执行通，回包带状态与一句话')
