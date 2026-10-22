@@ -43,12 +43,31 @@ function zhOf(id) {
   const entry = templateOf(id)
   return entry ? String(entry.zh || '') : ''
 }
+function enOf(id) {
+  const entry = templateOf(id)
+  return entry ? String(entry.en || '') : ''
+}
 
 const newSpecEntry = templateOf('newSpec')
 check(!!newSpecEntry && newSpecEntry.version === 1, 'newSpec 条目存在且 v1')
 check(zhOf('newSpec').indexOf('/grill-with-docs\n请帮我讨论一个需求') === 0, 'newSpec 首行是 /grill-with-docs 且收尾提醒 to-spec（正文在注册表）')
 check(zhOf('tpl.implement').indexOf('/implement\n{url}\n\n按 /implement 技能实施这张票。') === 0, 'tpl.implement 首行 /implement、次行 {url}')
 check(zhOf('specSplit').indexOf('/to-tickets\n{url}') === 0, 'specSplit 首行 /to-tickets')
+// #1383：拆票提示词写死 deck 工具建票（关键词包含判据，不脆断整段逐字）。
+//   中英各含：先用 deck_context 确认后端、用 deck_issue_create 建实施票
+//   （kind=ticket、parentKey 填规格票号、blockedBy 填依赖）、本地后端不要手写 .scratch 票文件。
+check(zhOf('specSplit').indexOf('deck_context') >= 0, 'specSplit.zh 先用 deck_context 确认后端')
+check(enOf('specSplit').indexOf('deck_context') >= 0, 'specSplit.en 先用 deck_context 确认后端')
+check(zhOf('specSplit').indexOf('deck_issue_create') >= 0, 'specSplit.zh 用 deck_issue_create 建实施票')
+check(enOf('specSplit').indexOf('deck_issue_create') >= 0, 'specSplit.en 用 deck_issue_create 建实施票')
+check(zhOf('specSplit').indexOf('kind=ticket') >= 0, 'specSplit.zh 实施票 kind=ticket')
+check(enOf('specSplit').indexOf('kind=ticket') >= 0, 'specSplit.en 实施票 kind=ticket')
+check(zhOf('specSplit').indexOf('parentKey') >= 0, 'specSplit.zh parentKey 填这张规格票号')
+check(enOf('specSplit').indexOf('parentKey') >= 0, 'specSplit.en parentKey 填这张规格票号')
+check(zhOf('specSplit').indexOf('blockedBy') >= 0, 'specSplit.zh blockedBy 填依赖票号')
+check(enOf('specSplit').indexOf('blockedBy') >= 0, 'specSplit.en blockedBy 填依赖票号')
+check(zhOf('specSplit').indexOf('.scratch') >= 0, 'specSplit.zh 本地后端不要手写 .scratch 票文件')
+check(enOf('specSplit').indexOf('.scratch') >= 0, 'specSplit.en 本地后端不要手写 .scratch 票文件')
 check(zhOf('specExecute').indexOf('/implement-spec\n{url}') === 0, 'specExecute 首行 /implement-spec')
 check(zhOf('specComplete').indexOf('这张规格 issue（{url}）下面的实施 issue 已经全部关闭') >= 0, 'specComplete 是规格收口模板（逐张核对后关闭）')
 check(zhOf('complete').indexOf('/wayfinder\n{url}\n\n## 完成核对') === 0, 'complete 自包含：首行 /wayfinder、次行 {url}、完成核对节')

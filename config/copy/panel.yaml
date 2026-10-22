@@ -81,7 +81,7 @@ zh:
   setup.markdown.backendNote: |-
     
 
-    本次已选后端：Markdown — 请按本地 Markdown 模板生成 docs/agents/issue-tracker.md（.scratch 结构）
+    本次已选后端：Markdown — 先以技能自带的本地模板（issue-tracker-local.md）为起点生成 docs/agents/issue-tracker.md，再把模板里三段旧做法改成 deck 工具口径：规格不是 .scratch/<feature-slug>/spec.md 文件，而是一张票（kind=spec，属于地图时挂地图）；实施票用 deck_issue_create 建，编号与文件头标记由工具写，不要手写 .scratch/<feature-slug>/issues/ 下的文件；认领与状态用 deck_issue_patch 改，不要手改 Status/Assignees 行。生成完读回这份文档，核对这三段都是 deck 口径。
   setup.markdown.labelReqs: ""
   setup.gitlab.trackerLine: 本仓库为 GitLab → 提议 GitLab Issues
   setup.gitlab.trackerChoice: GitLab Issues
@@ -373,7 +373,7 @@ en:
   setup.markdown.backendNote: |-
     
 
-    Selected backend: Markdown — please generate docs/agents/issue-tracker.md from the local Markdown template (.scratch structure).
+    Selected backend: Markdown — start from the skill's bundled local template (issue-tracker-local.md) to generate docs/agents/issue-tracker.md, then rewrite three legacy passages in deck-tool terms: the spec is not a .scratch/<feature-slug>/spec.md file but a ticket (kind=spec, attached to its map when it belongs to one); create implementation tickets with deck_issue_create (numbers and header markers are written by the tool — do not hand-write files under .scratch/<feature-slug>/issues/); claim and update status with deck_issue_patch instead of hand-editing the Status/Assignees lines. Read the generated file back and check these three passages are in deck-tool terms.
   setup.markdown.labelReqs: ""
   setup.gitlab.trackerLine: this repo is on GitLab → propose GitLab Issues
   setup.gitlab.trackerChoice: GitLab Issues

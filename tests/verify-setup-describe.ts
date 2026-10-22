@@ -40,13 +40,13 @@ const EMDASH = String.fromCharCode(0x2014)  // —
 const G = {
   zh: {
     github: { trackerLine: '本仓库为 GitHub ' + ARROW + ' 提议 GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\n本次已选后端：GitHub。' },
-    markdown: { trackerLine: '本仓库为本地文件 ' + ARROW + ' 提议 Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\n本次已选后端：Markdown ' + EMDASH + ' 请按本地 Markdown 模板生成 docs/agents/issue-tracker.md（.scratch 结构）' },
+    markdown: { trackerLine: '本仓库为本地文件 ' + ARROW + ' 提议 Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\n本次已选后端：Markdown ' + EMDASH + ' 先以技能自带的本地模板（issue-tracker-local.md）为起点生成 docs/agents/issue-tracker.md，再把模板里三段旧做法改成 deck 工具口径：规格不是 .scratch/<feature-slug>/spec.md 文件，而是一张票（kind=spec，属于地图时挂地图）；实施票用 deck_issue_create 建，编号与文件头标记由工具写，不要手写 .scratch/<feature-slug>/issues/ 下的文件；认领与状态用 deck_issue_patch 改，不要手改 Status/Assignees 行。生成完读回这份文档，核对这三段都是 deck 口径。' },
     gitlab: { trackerLine: '本仓库为 GitLab ' + ARROW + ' 提议 GitLab Issues', trackerChoice: 'GitLab Issues', backendNote: '\n\n本次已选后端：GitLab ' + EMDASH + ' 请按 GitLab 模板生成 docs/agents/issue-tracker.md' },
     default: { trackerLine: '本仓库为 GitHub ' + ARROW + ' 提议 GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\n本次未指定后端，已按默认 GitHub 初始化；可在设置页随时切换' },
   },
   en: {
     github: { trackerLine: 'this repo is on GitHub ' + ARROW + ' propose GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\nSelected backend: GitHub.' },
-    markdown: { trackerLine: 'this repo uses local files ' + ARROW + ' propose Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\nSelected backend: Markdown ' + EMDASH + ' please generate docs/agents/issue-tracker.md from the local Markdown template (.scratch structure).' },
+    markdown: { trackerLine: 'this repo uses local files ' + ARROW + ' propose Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\nSelected backend: Markdown ' + EMDASH + ' start from the skill\'s bundled local template (issue-tracker-local.md) to generate docs/agents/issue-tracker.md, then rewrite three legacy passages in deck-tool terms: the spec is not a .scratch/<feature-slug>/spec.md file but a ticket (kind=spec, attached to its map when it belongs to one); create implementation tickets with deck_issue_create (numbers and header markers are written by the tool — do not hand-write files under .scratch/<feature-slug>/issues/); claim and update status with deck_issue_patch instead of hand-editing the Status/Assignees lines. Read the generated file back and check these three passages are in deck-tool terms.' },
     gitlab: { trackerLine: 'this repo is on GitLab ' + ARROW + ' propose GitLab Issues', trackerChoice: 'GitLab Issues', backendNote: '\n\nSelected backend: GitLab ' + EMDASH + ' please generate docs/agents/issue-tracker.md from the GitLab template.' },
     default: { trackerLine: 'this repo is on GitHub ' + ARROW + ' propose GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\nNo backend explicitly selected, defaulting to GitHub; you can switch anytime in Settings ' + ARROW + ' Backend.' },
   },
@@ -209,6 +209,23 @@ async function main() {
     }
   }
   check((L.zh['setup.markdown.labelReqs'] || '') === '' && (L.en['setup.markdown.labelReqs'] || '') === '', 'markdown labelReqs 为空（Markdown 不要求标签齐全）')
+  // #1384（规格 #1382）：本地后端 setup 后端说明改写成 deck 工具口径 ——
+  //   以技能自带的本地模板为起点，但三段旧做法必须改写，不许再让人照抄模板。
+  for (const lang of ['zh', 'en']) {
+    const note = L[lang]['setup.markdown.backendNote'] || ''
+    check(note.indexOf('deck_issue_create') >= 0, lang + ' 本地后端说明点名用 deck_issue_create 建实施票（#1384）')
+    check(note.indexOf('deck_issue_patch') >= 0, lang + ' 本地后端说明点名用 deck_issue_patch 认领与改票（#1384）')
+    check(note.indexOf(lang === 'zh' ? '不要手写' : 'do not hand-write') >= 0, lang + ' 本地后端说明要求不要手写票文件（#1384）')
+    check(note.indexOf(lang === 'zh' ? '按本地 Markdown 模板生成' : 'from the local Markdown template') < 0, lang + ' 本地后端说明不再让人照抄旧模板（#1384）')
+  }
+  // #1384：本票只改 markdown 这一条，其它三条后端说明逐字不变 ——
+  //   这里用写死的字面再钉一次（不用上面的 EMDASH / ARROW 常量拼，免得自己跟自己比），改词条时手滑会当场红。
+  check(G.zh.github.backendNote === '\n\n本次已选后端：GitHub。', 'github 中文后端说明逐字不变（#1384 只改 markdown）')
+  check(G.en.github.backendNote === '\n\nSelected backend: GitHub.', 'github 英文后端说明逐字不变（#1384 只改 markdown）')
+  check(G.zh.gitlab.backendNote === '\n\n本次已选后端：GitLab — 请按 GitLab 模板生成 docs/agents/issue-tracker.md', 'gitlab 中文后端说明逐字不变（#1384 只改 markdown）')
+  check(G.en.gitlab.backendNote === '\n\nSelected backend: GitLab — please generate docs/agents/issue-tracker.md from the GitLab template.', 'gitlab 英文后端说明逐字不变（#1384 只改 markdown）')
+  check(G.zh.default.backendNote === '\n\n本次未指定后端，已按默认 GitHub 初始化；可在设置页随时切换', 'default 中文后端说明逐字不变（#1384 只改 markdown）')
+  check(G.en.default.backendNote === '\n\nNo backend explicitly selected, defaulting to GitHub; you can switch anytime in Settings → Backend.', 'default 英文后端说明逐字不变（#1384 只改 markdown）')
   // #619：旧的调色盘文案整段删除，解析结果里也不该再产出这一项
   //   （原来这里是两条「键值 == 金样」的精确相等断言，现在换成「这一项不存在」）
   check(!('paletteNote' in P.setupRunParamsFrom(stubs, 'markdown', L.zh)) && !('paletteNote' in P.setupRunParamsFrom(stubs, 'markdown', L.en)), 'markdown 解析结果里不再产出 paletteNote 这一项（#619）')
