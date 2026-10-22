@@ -17,7 +17,7 @@
   比的是特效的气质：
     A 素（基底）—— 药丸从中心点向外一颗颗冒出来；退场只做简单的淡出。
     B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
-    C 上浮小气泡 —— 小泡从底部关闭按钮升起，沿各选项的下沿铺开，选项同时由虚到实地凝出来；框是薄玻璃质感。
+    C 上浮小气泡 —— 小泡从底部关闭按钮匀速升起、飞进各选项，选项跟着被一颗颗点亮；框是薄玻璃质感。
     D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -149,18 +149,20 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 @keyframes deflate{to{opacity:0;transform:scale(.55,.7)}}
 
 /* ============ C 小泡凝聚成选项（整套重写） ============
-   这一版只有两件事在动：
-     1) 小泡从 × 的底边升起，飞到选项下沿、沿着选项轮廓铺开；
-     2) 选项框在同一段时间里由虚到实地凝出来。
-   选项框全程不移动、不缩放——只有 opacity 变化，所以不会有第二个动作跟小泡抢，
-   也就没有抖动。所有坐标在动画开始前一次性算好（见 spawnBubbles）。 */
+   这一版只有一个动作：小泡从 × 的底边升起，匀速飞进各自选项的内部、边飞边化掉。
+   选项框不单独做一段入场动画，它的清楚程度跟着小泡走——每落下一颗就清楚一分，
+   七颗落完正好完全清楚（分七级跳变的做法见下面 .pill 的 steps(7,start)）。
+   小泡匀速度、框跟着它一级级变清楚，所以看不出"泡停在半路等框"或者"快到终点突然加速"。
+   所有坐标在动画开始前一次性算好（见 spawnBubbles）。 */
 .vB.lvl-3{animation:none}
 .vB.lvl-3 .pill{
   background:linear-gradient(180deg,rgba(208,228,250,.13),rgba(198,218,242,.04) 46%,rgba(150,170,205,.06));
   border-color:rgba(170,195,235,.34);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 1px 10px rgba(140,180,255,.06);
   text-shadow:0 1px 1px rgba(0,0,0,.3);
-  animation:cBoxIn .42s ease-out backwards;animation-delay:var(--d,0ms);
+  /* 框不是"等一会儿再淡进来"，而是每落下一颗泡就清楚一分：
+     分成七级跳变，跳变时刻正好是小泡到达的时刻（steps 的 7 级对 7 颗泡）。 */
+  animation:cBoxIn .324s steps(7,start) backwards;animation-delay:var(--d,0ms);
 }
 @keyframes cBoxIn{from{opacity:0}to{opacity:1}}
 /* 静止时的一层薄膜高光：很淡，只让框看起来是玻璃做的 */
@@ -168,13 +170,6 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
   content:'';position:absolute;left:4%;top:0;width:56%;height:50%;border-radius:50%;pointer-events:none;
   background:radial-gradient(ellipse 62% 58% at 34% 28%,rgba(255,255,255,.20),transparent 72%);
 }
-/* 成形那一下：从中间往外扩一次淡光，扩完就没了，不吃掉常态样式 */
-.vB.lvl-3 .pill::after{
-  content:'';position:absolute;left:0;top:0;width:100%;height:100%;border-radius:99px;pointer-events:none;
-  background:radial-gradient(58% 130% at 50% 50%,rgba(178,214,255,.20),rgba(186,158,246,.10) 55%,transparent 76%);
-  opacity:0;animation:cBloom .62s ease-out forwards;animation-delay:var(--d,0ms);
-}
-@keyframes cBloom{0%{opacity:0;transform:scale(.74)}40%{opacity:.85;transform:scale(1)}100%{opacity:0;transform:scale(1.05)}}
 .vB.lvl-3 .pill:hover{border-color:rgba(182,206,242,.52);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 14px rgba(150,190,255,.12)}
 /* 点中和关闭都用同一种安静的淡出，不再有飞走、下沉这类跳动作 */
 .vB.lvl-3 .pill.picked{animation:cPick .28s ease-out forwards}
@@ -186,14 +181,15 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 /* 小泡本体的长相（高光、虹彩、描边都由 dressBubble 逐颗随机） */
 .vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(190,210,240,var(--ba,.55));border-radius:50%;opacity:0;pointer-events:none;will-change:transform,opacity;background:radial-gradient(circle at var(--hx,30%) var(--hy,28%),rgba(255,255,255,var(--hop,.5)),transparent 55%),radial-gradient(circle at 72% 78%,var(--tint,rgba(170,160,250,.14)),transparent 60%);box-shadow:0 0 6px rgba(170,190,230,.12),inset 0 0 3px rgba(255,255,255,.08)}
 .vB .bub::before{content:'';position:absolute;left:var(--sx,22%);top:var(--sy,16%);width:30%;height:24%;background:radial-gradient(ellipse at center,rgba(255,255,255,.9),transparent 70%);border-radius:50%;opacity:var(--sop,.8)}
-/* 升起 → 在选项下沿摊开 → 化掉（只在 transform / opacity 上动） */
-.vB .bub.rise{animation:cRise .62s cubic-bezier(.22,.68,.3,1) forwards}
+/* 升起 → 一路钻进选项里 → 边钻进边化掉（只在 transform / opacity 上动）。
+   全程 linear：速度从头到尾一样，没有"快到终点突然加速"。
+   淡出和缩小都发生在还在移动的最后一段，所以不会出现"停在一个位置等人"的画面。 */
+.vB .bub.rise{animation:cRise .52s linear forwards}
 @keyframes cRise{
-  0%{opacity:0;transform:translate3d(0,0,0) scale(.3)}
-  16%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .18),calc(var(--ty) * .18),0) scale(.72)}
-  62%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .62 + var(--sway) * .5),calc(var(--ty) * .62),0) scale(1)}
-  86%{opacity:calc(var(--op,.8) * .85);transform:translate3d(var(--tx),var(--ty),0) scale(.94)}
-  100%{opacity:0;transform:translate3d(var(--tx),calc(var(--ty) + 2px),0) scale(.4)}
+  0%{opacity:0;transform:translate3d(0,0,0) scale(.34)}
+  14%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .14),calc(var(--ty) * .14),0) scale(.66)}
+  62%{opacity:var(--op,.8);transform:translate3d(calc(var(--tx) * .62 + var(--sway) * .5),calc(var(--ty) * .62),0) scale(.92)}
+  100%{opacity:0;transform:translate3d(var(--tx),var(--ty),0) scale(.42)}
 }
 /* 悬停时的小泡（原地升起一点点就化掉），很轻 */
 .vB .bub.hov{animation:cHover .8s ease-out forwards}
@@ -406,7 +402,7 @@ var VARIANTS = {
   C: {
     name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「素」之上加梦幻感：小泡从最底下关闭按钮的底边升起，飞到各自选项的下沿、沿着框的轮廓铺开；选项框在同一段时间里由虚到实地凝出来，全程不位移也不缩放（只有一个 opacity 在变），所以没有第二个动作跟小泡抢，也就不会抖；框是薄薄的玻璃质感，成形那一下从中间扩一次淡光；点中和关闭都是安静的淡出；解释气泡多留一会儿。',
+    idea: '在「素」之上加梦幻感：小泡从最底下关闭按钮的底边升起，匀速飞进各自选项的内部、边飞边化掉；选项框不单独做入场动画，它的清楚程度跟着小泡走——每落下一颗就清楚一分，七颗落完正好完全清楚。因为小泡是匀速的、框是跟着它一级级变清楚的，所以看不出「泡停在半路等框」，也没有快到终点突然加速；框是薄薄的玻璃质感；点中和关闭都是安静的淡出；解释气泡多留一会儿。',
     tipSide: 'above',
     tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
@@ -561,6 +557,12 @@ function placeTip(anchor, prefer) {
 /* ===================== 三个变体的画法（共用 B 基底：一行居中的药丸） ===================== */
 /* 提示词不一定是斜杠命令：普通句子用正常字体，斜杠命令才用等宽字体。 */
 function isCmd(prompt) { return /^\s*\//.test(prompt); }
+/* C 版小泡的三个时间常数。这里的数字必须和 CSS 里 .vB.lvl-3 .pill 的
+   animation-duration 对上：框的清晰度分七级跳变，每级正好是一颗小泡落下的时刻。
+   七颗泡、级间隔 BUB_STEP 毫秒，所以框的逐级变清楚用 6 * BUB_STEP = 324 毫秒，
+   并且从第一颗泡到达（BUB_TRAVEL 之后）才开始。 */
+var BUB_PER_PILL = 7, BUB_STEP = 54, BUB_TRAVEL = 480, BUB_START = 40;
+function pillRevealDelay(stepFromCenter) { return BUB_TRAVEL + BUB_START + stepFromCenter * 60; }
 function buildGroupHtml() {
   var items = S.group.items;
   var n = items.length, c = (n - 1) / 2, maxD = 0;
@@ -569,11 +571,10 @@ function buildGroupHtml() {
   html += '<div class="prow">';
   for (var i = 0; i < n; i++) {
     /* 从中心点往外冒：中间的先出，两边的依次跟上；两边的药丸带着一点从中心向外的位置。
-       气泡那一版：药丸要等小泡从底部按钮飞过来，所以整组往后挪约半秒。 */
+       气泡那一版：第一列小泡到达时框才开始清楚，之后每落一颗就清楚一分。 */
     var d;
     if (lv === 3) {
-      /* 小泡开始落到选项下沿时，选项框才淡进来（两边重叠，看着是一件事） */
-      d = 430 + Math.round(Math.abs(i - c) * 40);
+      d = pillRevealDelay(Math.abs(i - c));
     } else {
       d = Math.round(Math.abs(i - c) * 70);
     }
@@ -642,7 +643,6 @@ function releaseBubs(host) {
 }
 /* 坐标只读一次、节点一次插入、节点复用、一组只留一个清理定时器：
    动画期间不再读写布局，所以既不会抖，也没有每颗泡一次重排的开销。 */
-var BUB_PER_PILL = 7;
 function spawnBubbles(el) {
   var pills = el.querySelectorAll('.pill');
   if (!pills.length) return;
@@ -660,9 +660,9 @@ function spawnBubbles(el) {
     rows[i] = {
       left: p.offsetLeft,
       w: p.offsetWidth,
-      /* 落点：选项下沿（气泡正好压在框的轮廓上化掉） */
-      edge: gH ? (gH - (p.offsetTop + p.offsetHeight) + 2) : 72,
-      st: 60 + Math.round(Math.abs(i - cc) * 40)
+      /* 落点不是框的外面，是框的里面：小泡要看得见地被吸进选项，边钻边化掉 */
+      sink: gH ? (gH - (p.offsetTop + p.offsetHeight * 0.62)) : 78,
+      st: BUB_START + Math.round(Math.abs(i - cc) * 60)
     };
     if (!gH) { oy = 0; }
   }
@@ -682,16 +682,17 @@ function spawnBubbles(el) {
       b.style.bottom = (oy - sz / 2).toFixed(1) + 'px';
       b.style.width = sz.toFixed(1) + 'px';
       b.style.height = sz.toFixed(1) + 'px';
-      /* 终点：沿这颗选项的宽度从左到右铺开，左右各留一点，再加一点抖动 */
+      /* 终点：钻进这颗选项内部，沿宽度从左到右铺开，左右各留一点，再加一点抖动 */
       var x = r.left + r.w * ((k + 0.5) / BUB_PER_PILL) + (Math.random() * 8 - 4);
-      var y = r.edge + (Math.random() * 5 - 2);
+      var y = r.sink + (Math.random() * 4 - 2);
       b.style.setProperty('--tx', (x - ox).toFixed(1) + 'px');
       b.style.setProperty('--ty', (oy - y).toFixed(1) + 'px');
-      var dur = 0.58 + Math.random() * 0.12;
-      b.style.animationDuration = dur.toFixed(2) + 's';
-      var dly = r.st + k * 16 + Math.round(Math.random() * 30);
+      /* 每颗泡都走同样长的路、用同样长的时间：速度从头到尾一样。
+         到达时刻 = st + k * BUB_STEP + BUB_TRAVEL，正好逐个对上框的一级清晰度。 */
+      b.style.animationDuration = (BUB_TRAVEL / 1000).toFixed(2) + 's';
+      var dly = r.st + k * BUB_STEP + Math.round(Math.random() * 8);
       b.style.animationDelay = dly + 'ms';
-      if (dly + dur * 1000 > end) end = dly + dur * 1000;
+      if (dly + BUB_TRAVEL > end) end = dly + BUB_TRAVEL;
       frag.appendChild(b);
     }
   }
