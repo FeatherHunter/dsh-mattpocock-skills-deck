@@ -132,6 +132,8 @@ const KEYS: Array<[string, string, string]> = [
   ['predicateFallbackTimeoutMs', 'PREDICATE_FALLBACK_TIMEOUT_MS', 'timeouts'],
   // —— 检测链里预取 gh 登录名的一次性竞速超时（detectChain.ts 的 timer.timeout(2500)，单源头改造时收拢）——
   ['ghLoginPrefetchMs', 'GH_LOGIN_PREFETCH_MS', 'timeouts'],
+  // —— 同工作区构建互斥锁（#1365）：拿不到锁时的等待上限 ——
+  ['buildLockWaitMs', 'BUILD_LOCK_WAIT_MS', 'timeouts'],
   // —— intervals：节拍间隔 ——
   ['probeIntervalMs', 'PROBE_INTERVAL_MS', 'intervals'],
   ['probeIntervalYellowMs', 'PROBE_INTERVAL_YELLOW_MS', 'intervals'],
@@ -173,6 +175,8 @@ const KEYS: Array<[string, string, string]> = [
   ['draftRefocusRetryMs', 'DRAFT_REFOCUS_RETRY_MS', 'intervals'],
   ['nativeTabRetryIntervalMs', 'NATIVE_TAB_RETRY_INTERVAL_MS', 'intervals'],
   ['skillSkeletonDelayMs', 'SKILL_SKELETON_DELAY_MS', 'intervals'],
+  // —— 构建互斥锁的心跳间隔（#1365）：持锁期间证明还活着 ——
+  ['buildLockHeartbeatMs', 'BUILD_LOCK_HEARTBEAT_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],
@@ -217,6 +221,8 @@ const KEYS: Array<[string, string, string]> = [
   ['skillFloatCloseDelayMs', 'SKILL_FLOAT_CLOSE_DELAY_MS', 'ttl'],
   ['labelCopyFlashMs', 'LABEL_COPY_FLASH_MS', 'ttl'],
   ['skillDetailCopiedFlashMs', 'SKILL_DETAIL_COPIED_FLASH_MS', 'ttl'],
+  // —— 构建互斥锁的陈旧判定有效期（#1365）：超期无心跳就接管 ——
+  ['buildLockStaleMs', 'BUILD_LOCK_STALE_MS', 'ttl'],
   // —— backoff：退避序列 ——
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
 ]

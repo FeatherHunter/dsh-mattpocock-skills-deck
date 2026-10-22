@@ -56,6 +56,9 @@ import { TRANSPILE_OPTIONS, inlineExportDeclarations, generatedHeader } from './
 // #1326：构建缓存的事实（输入范围、产物清单、内容摘要算法、缓存读取）与唯一一份「产物新不新鲜」判据
 // 都搬到了 lib/build-cache.mts；构建只负责按这些事实证明能不能命中、真构建成功后写回缓存。
 import { CACHE_PATH, CACHE_VERSION, buildModeKey, inputFingerprint, judgeProducts, listOutputs, readCacheFile, readCacheFileUncached, sha256File } from './lib/build-cache.mts'
+// #1365：同工作区构建互斥的跨进程文件锁（#1323 方案甲）。缓存没命中、真要构建时才拿锁；
+// 命中直接退出的那条路不碰锁（锁只盖住删目录与写产物的那一段）。
+import { acquireBuildLock, pulseBuildLock, releaseBuildLock } from './lib/build-lock.mts'
 
 // 域里允许住**不是域源码产物**的 .js（没有域源码里的同名真源，也不该被当成陈旧产物）：
 // 它们要么是手写模块、要么是域根散文件的转译产物，都住在域产物同一个目录（.build/shared/<域>/）里，
@@ -1656,7 +1659,16 @@ const devOnly: boolean = args.includes('--dev-only')
 const pkgOnly: boolean = args.includes('--pkg-only')
 
 // 先看缓存：手写输入与产物都没变，就没必要再花 30 秒重跑一遍打包（链上 13 扇门禁各跑一次，只有第一次该付这个钱）。
-if (tryBuildCacheHit(args)) process.exit(0)
+// 拿构建锁（#1365 方案甲）：从这里起真构建开始删目录、写产物，锁盖到 writeBuildCache() 之后。
+// 拿锁成功后先复核一次缓存——排队等的这段时间里，前面那个构建很可能已经把活干完了，
+// 这时直接释放锁退出，不用再重建一遍。
+const buildLock = acquireBuildLock({ repoRoot: ROOT, cacheDir: join(ROOT, 'node_modules', '.cache'), breakStale: args.includes('--break-stale-lock') })
+// 兜底：真构建中途抛错，进程退出时同步释放，保证不留死锁（正常走完在 writeBuildCache() 后显式释放）。
+process.on('exit', () => { releaseBuildLock(buildLock) })
+if (tryBuildCacheHit(args)) {
+  releaseBuildLock(buildLock)
+  process.exit(0)
+}
 const version: string = dswVersion()
 const repoUrl: string = dswRepoUrl()
 console.log(`[build] DSW_VERSION=${version} (package/package.json)`)
@@ -1666,6 +1678,9 @@ console.log(`[build] DSW_REPO_URL=${repoUrl} (package/package.json repository)`)
 gateBuildArtifacts()
 ensureBundledSkills()
 syncReadme(version, repoUrl)
+// 大阶段边界：同步刷新一次锁心跳（同步段里事件循环不转，定时器指不上，只有边界上的同步写能证明进程还活着）。
+// 下面几个 pulseBuildLock 都是同一个意思，不再逐个解释。
+pulseBuildLock(buildLock)
 
 // 内置 TypeScript 域的逐文件转译：src/shared 下每个带 tsconfig.json 的目录算一个域，
 // 每个域先跑类型检查、再把它的 src/*.ts 逐份转译成同目录同名的 .js。
@@ -1829,6 +1844,7 @@ function checkPixelTs(): void {
 // 887 客户端 TS 真源：只跑类型检查，不再逐文件写同名 .js。拼接缝读的是 .ts 真源本身
 // （readSpliceFragmentSource 按扩展名分派，转译发生在拼接那一刻），所以这一段不产出文件。
 checkPixelTs()
+pulseBuildLock(buildLock)
 
 // #1256 散文件 TS 真源（src/shared 下不属于域源码的）：真源是同目录的 .ts，esbuild 逐文件转译出 .js
 // （AUTO-GENERATED 头，gitignore 不入库），tsc --noEmit 只做类型检查。
@@ -1917,11 +1933,13 @@ function checkSharedTs(): void {
 // 转译失败或类型不过当场抛错，不进 fallback（内容问题重跑复制也一样）。
 buildSharedTs()
 checkSharedTs()
+pulseBuildLock(buildLock)
 
 // #1018 词汇表拼接输入：产物是客户端闭包的输入，必须比 buildClient 先就位。
 // 包内投放（package/deck、package/tracker、package/lib 里的转译产物）由 buildHost 内的
 // deployMovedTrees 负责，那里包目录已经清好；这里只管拼闭包要用的并排那一份。
 buildVocabularySpliceInput()
+pulseBuildLock(buildLock)
 
 // #1016 两半版本一致断言：宿主那一半与客户端那一半必须来自同一个 dsh-log 版本。
 // 为什么必须有这一条：宿主侧从裸包名 'dsh-log/host' 取用（装机时按 package/package.json 里声明的版本解析），
@@ -1967,6 +1985,7 @@ function assertLogHalvesVersionMatch(): void {
 // 两个包 dist 缺失时会报错并提示先跑各自的 build。
 // 两半版本一致的断言放在派生之前：错配当场拦住，不留给运行时（理由见上面那条注释）。
 assertLogHalvesVersionMatch()
+pulseBuildLock(buildLock)
 try {
   deriveClient()
 } catch (e) {
@@ -2010,3 +2029,5 @@ console.log('[build] 构建只写仓库内产物，不碰本机已装配置')
 
 // 走到这里说明这一遍是真构建、而且成功了：记下输入指纹与产物哈希，供下一次比对（下一次若一致就跳过构建）。
 writeBuildCache()
+// 真构建写完了，放锁：等锁的人拿到锁后会先复核缓存（一般直接命中退出，不用再建一遍）。
+releaseBuildLock(buildLock)

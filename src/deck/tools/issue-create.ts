@@ -56,7 +56,7 @@ export interface DeckIssueCreateDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_create',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票不补进度区、改在票面写对象类型标记），带 originalWords 时把维护者原话一字不改写进正文的「## 维护者原话」区，重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成它的原生依赖边（边没写成时票照建，回执逐条说明）。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug / spec / ticket），自动补必备 label 与进度区（规格与实施票只在票面写对象类型标记），带 originalWords 时把维护者原话一字不改写进正文的「## 维护者原话」区，重复调用按锚复用同一张。带了 blockedBy 会在票建成后写成原生依赖边（边没写成时票照建，回执逐条说明）。本地后端编号与文件头标记由工具写，不要手写票文件。',
   parameters: {
     type: 'object',
     properties: {

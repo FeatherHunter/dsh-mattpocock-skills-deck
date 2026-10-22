@@ -90,6 +90,9 @@ intervals:
   nativeTabRetryIntervalMs: 1000
   # 技能原文超过这么久还没取回来就先摆骨架屏：2 秒（886 v3 定版：2 秒内到货不铺，避免闪一下）。
   skillSkeletonDelayMs: 2000
+  # 构建互斥锁持锁期间的心跳间隔：15 秒。心跳只证明「持锁进程还活着」，不延长任何东西；
+  # 陈旧判定（见 ttl 那一档的 buildLockStaleMs）按心跳的新鲜度来，所以这一档必须远小于那一档（#1365）。
+  buildLockHeartbeatMs: 15000
 
 backoff:
   # 检查链的退避序列：8 秒 → 30 秒 → 2 分钟 → 5 分钟。任何一步有进展立刻回到第一档。

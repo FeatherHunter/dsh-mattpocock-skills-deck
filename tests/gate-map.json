@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T04:07:01.104Z",
+  "generatedAt": "2026-10-22T09:17:24.718Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 317,
-  "gateCount": 317,
-  "attributedGates": 278,
+  "chainLength": 319,
+  "gateCount": 319,
+  "attributedGates": 280,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
@@ -2060,6 +2060,26 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
     },
     {
+      "step": "node tests/verify-1323-build-lock.ts",
+      "file": "tests/verify-1323-build-lock.ts",
+      "guards": [
+        "scripts/build.mts",
+        "scripts/lib/build-lock.mts",
+        "scripts/ts-hook.mts",
+        "src/shared/time-config/src/values.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "scripts/lib",
+        "src/shared/time-config/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
+    },
+    {
       "step": "node tests/verify-1325-build-cache-nowrite.ts",
       "file": "tests/verify-1325-build-cache-nowrite.ts",
       "guards": [
@@ -2120,6 +2140,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1385-howto.ts",
+      "file": "tests/verify-1385-howto.ts",
+      "guards": [
+        "src/deck/tools/context.ts",
+        "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-patch.ts"
+      ],
+      "dirs": [
+        "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -6759,7 +6796,9 @@
         "src/client/views/skillDetail/PixelMarkdown.ts",
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillOps.ts",
+        "src/client/views/skillDetail/PixelStyles.ts",
         "src/shared/time-config/src/values.ts",
+        "tests/lib/contrast.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -6772,7 +6811,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-snapshot-cache-first.ts",
@@ -7041,6 +7080,7 @@
         "src/client/views/SubworkspaceMark.ts",
         "src/client/views/TicketRow.ts",
         "src/client/views/cards/PixelCardBtns.ts",
+        "src/client/views/cards/PixelCardsStyles.ts",
         "src/client/views/cards/PixelIssueCard.ts",
         "src/client/views/cards/PixelIssueMapCard.ts",
         "src/client/views/diagnosticLog/DiagnosticLogSection.ts",
@@ -7063,6 +7103,7 @@
         "src/client/views/skillDetail/PixelMarkdown.ts",
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillRow.ts",
+        "src/client/views/skillDetail/PixelStyles.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcViews.ts",
@@ -7090,7 +7131,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 57 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 59 条"
     },
     {
       "step": "node tests/verify-unmigrated-tests.ts",
@@ -7656,6 +7697,7 @@
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-1297-entry.ts",
+      "node tests/verify-1323-build-lock.ts",
       "node tests/verify-1325-build-cache-nowrite.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-ctx.ts",
@@ -7705,6 +7747,7 @@
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1297-entry.ts",
+      "node tests/verify-1323-build-lock.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -8079,6 +8122,7 @@
       "node tests/verify-1195-timeout-split.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1298-spec-close.ts",
+      "node tests/verify-1385-howto.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -8365,6 +8409,7 @@
     "src/shared/time-config/src": [
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-1245-plan-resume.ts",
+      "node tests/verify-1323-build-lock.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",

@@ -54,6 +54,7 @@
     "generate-prompt-config.mts",
     "generate-locale-config.mts",
     "lib/build-cache.mts",
+    "lib/build-lock.mts",
     "lib/build-products.mts",
     "lib/select-gates.mts",
     "lib/transpile-domains.mts",
