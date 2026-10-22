@@ -349,7 +349,8 @@ export const IssueDetail = function (props: any): any {
           ]),
         ]),
         // 顶部 err 横幅（有 src 时可重试，不遮挡主体）：主行给人看的一句话，档位作可选小标签，原文可展开
-        mode === 'err' && err ? h('div', { style: { padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+        // #1379 收口：横幅挂稳定类名，浅色层才有选择器可命中（颜色字面量不动，深色照旧走内联色）。
+        mode === 'err' && err ? h('div', { className: 'dsws-detail-err', style: { padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', flexDirection: 'column', gap: 6 } }, [
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
             Ic({ n: 'alert', size: 11 }),
             h('span', { style: { wordBreak: 'break-word' } }, errSayOf(err)),
@@ -358,7 +359,8 @@ export const IssueDetail = function (props: any): any {
             // 本次界面反馈需求：顶部错误横幅的「重试」与详情页错误态的「重试」会出现在同一屏，
             //   两处定位串必须不同，否则日志分不出是哪一颗被点了。
             h('button', { className: 'dsws-btn dsws-hov', 'data-press': 'button', 'data-log': 'detail.err.retry.banner', onClick: doRetry, style: { padding: '1px 6px', fontSize: 11 } }, '重试'),
-            !detail && snapIssue ? h('span', { style: { fontSize: 10, color: '#f59e0b' } }, '（显示快照降级）') : null,
+            // #1379 收口：这句「显示快照降级」也压在 8% 红底上（原色是写死的警告橙，只有约 2:1），同样挂类名走浅色层。
+            !detail && snapIssue ? h('span', { className: 'dsws-detail-err-degraded', style: { fontSize: 10, color: '#f59e0b' } }, '（显示快照降级）') : null,
           ]),
           errRawBlockOf(err),
         ]) : null,

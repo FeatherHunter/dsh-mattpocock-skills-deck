@@ -55,14 +55,15 @@ export const closedPagesNode = function (h: any, st: any, loadedCount: any) {
       if (!started) return null
       const bits = []
       if (stat.notice === 'noweb') {
-        bits.push(h('span', { key: 'web', style: { color: '#f59e0b' } }, tr('list.pageAllOnWeb')))
+        // #1379 收口：这一行三处提示都挂同一个类名 + data-state，浅色层按状态换深一档的颜色（内联色不动）。
+        bits.push(h('span', { key: 'web', className: 'dsws-closed-note', 'data-state': 'warn', style: { color: '#f59e0b' } }, tr('list.pageAllOnWeb')))
         const url = repoWebIssuesUrlOf(st)
         // 本次界面反馈需求：这个链接是本页唯一能去追踪器看全部票的入口，给它按压态、悬停反馈与点击日志。
         if (url) bits.push(h('a', { key: 'weblink', className: 'dsws-btn ghost dsws-hov', 'data-press': 'link', 'data-log': 'list.closed.web', href: url, target: '_blank', rel: 'noreferrer', style: { padding: '0 6px', fontSize: 10, textDecoration: 'none' } }, tr('act.view')))
       } else if (stat.notice === 'stale') {
-        bits.push(h('span', { key: 'stale', style: { color: '#f59e0b' } }, tr('list.pageStale')))
+        bits.push(h('span', { key: 'stale', className: 'dsws-closed-note', 'data-state': 'warn', style: { color: '#f59e0b' } }, tr('list.pageStale')))
       } else if (stat.notice === 'fail') {
-        bits.push(h('span', { key: 'fail', style: { color: '#f87171' } }, tr('list.pageFail')))
+        bits.push(h('span', { key: 'fail', className: 'dsws-closed-note', 'data-state': 'bad', style: { color: '#f87171' } }, tr('list.pageFail')))
       }
       if (stat.loading) bits.push(h('span', { key: 'loading', style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr('list.loading')))
       bits.push(h('span', { key: 'count' }, tr('list.pageLoaded', { x: x, n: n })))

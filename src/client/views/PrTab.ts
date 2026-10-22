@@ -96,11 +96,13 @@ export const PrTab = function (props: any) {
     var upd = x.updatedAt ? String(x.updatedAt).slice(0, 10) : ''
     // 本次界面反馈需求：整行能点，接上委托按压态与点击日志（行里的元素另有各自分别的值）。
     //   定位串只带 PR 号，标题不进定位串。
-    return h('div', { key: String(key), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'data-press': 'row', 'data-log': 'pr.row.' + key, 'aria-label': '#' + String(key) + ' ' + String(x.title || ''), onClick: function () { openPr(x) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer' } }, [
+    // #1379 收口：状态种类同时标成 data-state，浅色层按状态把状态字换成深一档的颜色（内联色不动）。
+    return h('div', { key: String(key), className: 'dsws-aggrow', 'data-state': prStateKind(x), tabIndex: 0, role: 'button', 'data-press': 'row', 'data-log': 'pr.row.' + key, 'aria-label': '#' + String(key) + ' ' + String(x.title || ''), onClick: function () { openPr(x) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer' } }, [
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
         h('span', { className: 'dsws-idnum', style: { color: stl.color, borderColor: stl.color } }, '#' + String(key)),
         h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: 600 } }, String(x.title || ('#' + String(key)))),
-        h('span', { className: 'dsws-chip', style: { fontSize: 10, flex: 'none', background: stl.bg, color: stl.color, border: '1px solid ' + stl.color } }, tr(stl.key)),
+        // 状态药丸另挂一个类名：同一行里的标签药丸也叫 .dsws-chip，浅色层不能连带改到它们。
+        h('span', { className: 'dsws-chip dsws-pr-state', style: { fontSize: 10, flex: 'none', background: stl.bg, color: stl.color, border: '1px solid ' + stl.color } }, tr(stl.key)),
       ]),
       h('div', { style: { marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [
         login ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [Ic({ n: 'person', size: 10 }), h('span', null, '@' + login)]) : null,

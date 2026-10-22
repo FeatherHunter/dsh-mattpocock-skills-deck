@@ -24,7 +24,7 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-card.dsws-pressing{transform:translate(2px,2px);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),1px 1px 0 var(--cd-shadow)}',
   // 点亮的卡片另有一条更重的悬停规则（层级更高），压下去时要压过它，否则按了看不出变化。
   '.cd-card.lit.dsws-pressing,.cd-card.dim.lit.dsws-pressing{transform:translate(2px,2px)}',
-  '.cd-card:focus-visible{outline:2px dashed var(--cd-gold);outline-offset:4px}',
+  'body[data-ds-dark-theme] .cd-card:focus-visible{outline:2px dashed var(--cd-gold);outline-offset:4px}',
   '.cd-card.lit,.cd-card.dim.lit{box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),0 0 0 6px var(--cd-gold),6px 6px 0 var(--cd-shadow)}',
   '.cd-card.lit:hover,.cd-card.dim.lit:hover{transform:translate(-2px,-2px);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),0 0 0 6px var(--cd-gold),7px 8px 0 var(--cd-shadow)}',
   '.cd-pin{position:absolute;left:50%;top:-10px;margin-left:-8px;width:16px;height:16px;background:#c0392b;border:2px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.5),inset -2px -2px 0 var(--cd-shadow)}',
@@ -54,7 +54,7 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-abtn.icon{flex:none;width:40px;padding:5px 0}',
   '.cd-abtn.paper{background:var(--cd-card);color:var(--cd-ink)}',
   '.cd-abtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--cd-shadow);outline:2px solid var(--cd-act,var(--cd-gold));outline-offset:1px}',
-  '.cd-abtn:focus-visible{outline:2px dashed var(--cd-act,var(--cd-gold));outline-offset:2px}',
+  'body[data-ds-dark-theme] .cd-abtn:focus-visible{outline:2px dashed var(--cd-act,var(--cd-gold));outline-offset:2px}',
   '.cd-abtn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--cd-shadow)}',
   '.cd-abtn svg{flex:none;display:block}',
   '.cd-bseal{position:absolute;left:-10px;top:64px;right:-10px;background:#a3231a;color:#fff;text-align:center;font-size:12px;letter-spacing:2px;padding:2px 0;border-top:3px solid var(--cd-frame);border-bottom:3px solid var(--cd-frame);transform:rotate(-6deg);box-shadow:3px 3px 0 var(--cd-shadow);pointer-events:none}',
