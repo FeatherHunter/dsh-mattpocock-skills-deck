@@ -17,7 +17,7 @@
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
 //    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死、
 //    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角、整条胶囊自己的环又挂回来、
-//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px、入口浮层的卡又被通用悬停规则多画一圈环、入口卡又挂回 dsws-hov、入口卡自己的焦点圈被删、入口卡按下又没反馈、五处浅色个例只改样式没挂标记、只挂标记没改样式）各一次，每种反例至少要在预期那一组里报一条 FAIL。
+//    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px、入口浮层的卡又被通用悬停规则多画一圈环、入口卡又挂回 dsws-hov、入口卡自己的焦点圈被删、入口卡按下又没反馈、五处浅色个例只改样式没挂标记、只挂标记没改样式、卡片与技能两份皮肤的焦点前缀被摘、浅色层引用的宿主令牌名拼错、多行提示浮层退回按内联样式命中）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
 // 做法：读真源文本断言形状与清单，不另抄一份实现；样式判据读 feedback-styles.ts 这一份叶子。
@@ -143,9 +143,11 @@ const AUDIT_FILES: string[] = Array.from(new Set(COUNTED_FILES.concat([
 function cssTextOfSource(src: string): string {
   const noComments = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
   const lits: string[] = []
-  const re = /'((?:[^'\\]|\\.)*)'/g
+  // 样式叶子有两种写法：cards/feedback 用单引号，skillDetail 的 PixelStyles 用双引号。
+  // 两种都要收：只认一种会把整份皮肤判成「零条规则」而静默漏检（#1377 评审现场踩过：F30 只数到 2 条）。
+  const re = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g
   let m: any
-  while ((m = re.exec(noComments))) lits.push(m[1])
+  while ((m = re.exec(noComments))) lits.push(m[1] !== undefined ? m[1] : m[2])
   return lits.join('')
 }
 
@@ -329,22 +331,35 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):not(.dsws-entrycard):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0 && feedbackCss.indexOf('.dsws-entrycard.dsws-pressing{filter:brightness(.82)!important}') >= 0 && entryChoiceCode.indexOf("className: 'dsws-entrycard'") >= 0 && entryChoiceCode.indexOf('dsws-hov') < 0 && entryChoiceSrc.indexOf("'data-press': 'row'") >= 0 && entryChoiceSrc.indexOf("'data-log': 'entry.card.'") >= 0 && entryChoiceSrc.indexOf("outline: focused ? '2px solid ' + accent : 'none'") >= 0 && entryChoiceSrc.indexOf('outlineOffset: 2') >= 0 && entryChoiceSrc.indexOf("filter: focused ? 'brightness(1.14)' : 'none'") >= 0, 'F29 入口浮层的整张卡不再被通用悬停规则多画一圈环（用户实测焦点圈与卡框之间透出一条橘黄细线）：只留它自己的 2px 焦点圈与悬停提亮，悬停规则与 dsws-hov 都不再命中它；按下时另有一条只在入口卡上生效的 !important 压暗规则（内联提亮会压过通用按压，不单独写就看不出按下；对照 F25 整条胶囊的同类做法）')
   check(feedbackCss.indexOf('[data-press].dsws-pressing{transform:none!important}') >= 0, 'F12 减少动态下按下的位移关掉、压暗保留（与规格「减少动态只关位移」一致）')
   // ============ F30/F31：浅色跟随（#1379） ============
-  // 背景：卡片皮肤文件在反馈样式之后注入，它那两条金虚线焦点规则原本深浅两套都命中，
-  //   把「浅色跟随宿主焦点环」盖掉了。F30 钉住这两条只在深色下存在；F31 钉住浅色个例修复层
-  //   的边界：只有一段、每条选择器都只在浅色命中、不许写死色值、只许改颜色类属性。
-  const cardsCss = cssTextOfSource(read('src/client/views/cards/PixelCardsStyles.ts'))
-  const cardFocusSels: string[] = []
-  for (const r of (cardsCss.match(/[^{}]+\{[^{}]*\}/g) || [])) {
-    if (r.indexOf(':focus-visible') < 0) continue
-    for (const part of r.slice(0, r.indexOf('{')).split(',')) {
-      const t = part.trim()
-      if (t) cardFocusSels.push(t)
+  // 背景：两份像素皮肤（卡片、技能列表与详情）都写在反馈样式之后注入，它们那几条金虚线焦点规则
+  //   原本深浅两套都命中，把「浅色跟随宿主焦点环」盖掉了。F30 钉住两份皮肤里的焦点规则只在深色下存在；
+  //   F31 钉住浅色个例修复层的边界：只有一段、每条选择器都只在浅色命中、不许写死色值、只许改颜色类属性、
+  //   引用的宿主令牌名与清单逐字一致（拼错一个字母浏览器就静默回落，颜色当场失效）。
+  // 2026-10-22 #1377 评审：原来只扫卡片皮肤一份，技能皮肤里 .pixel-btn / .pixel-skillrow / .pixel-skillref /
+  //   .pixel-chipref 的焦点规则还留在源码里，换一次注入次序就会复发。现在两份一起扫，含 :focus-within 也算。
+  const FOCUS_SKIN_FILES = [
+    'src/client/views/cards/PixelCardsStyles.ts',
+    'src/client/views/skillDetail/PixelStyles.ts',
+  ]
+  // 深色守卫允许两种写法，两种都只在宿主挂了深色标记时命中，浅色一个字节都碰不到：
+  //   body[data-ds-dark-theme] ...     —— 卡片皮肤用的，多一份 (0,1,0) 权重，金虚线因此在深色下胜出（今天就是这样）；
+  //   :where(body[data-ds-dark-theme]) —— 技能皮肤用的，:where 不参与权重计算，选择器总权重与改动前一模一样，
+  //     深色下「谁盖谁」不变（若写成前缀写法，像素按钮与技能行的金圈会反过来盖住宿主蓝环，probe 实测过）。
+  const isDarkGuarded = (sel: string): boolean => sel.indexOf('body[data-ds-dark-theme] ') === 0 || sel.indexOf(':where(body[data-ds-dark-theme]) ') === 0
+  const focusSels: { file: string; sel: string }[] = []
+  for (const skinFile of FOCUS_SKIN_FILES) {
+    const skinCss = cssTextOfSource(read(skinFile))
+    for (const r of (skinCss.match(/[^{}]+\{[^{}]*\}/g) || [])) {
+      for (const part of r.slice(0, r.indexOf('{')).split(',')) {
+        const t = part.trim()
+        if (t && (t.indexOf(':focus-visible') >= 0 || t.indexOf(':focus-within') >= 0)) focusSels.push({ file: skinFile, sel: t })
+      }
     }
   }
-  const cardFocusBare = cardFocusSels.filter((sel) => sel.indexOf('body[data-ds-dark-theme] ') !== 0)
-  check(cardFocusSels.length >= 2 && cardFocusBare.length === 0,
-    'F30 卡片皮肤的焦点环只在深色下是金虚线（' + cardFocusSels.length + ' 条 :focus-visible 选择器全部以 body[data-ds-dark-theme] 开头；浅色不命中，落到全局宿主焦点环）' +
-    (cardFocusBare.length ? '；未加前缀：' + cardFocusBare.join(' | ') : ''))
+  const focusBare = focusSels.filter((one) => !isDarkGuarded(one.sel))
+  check(focusSels.length >= 5 && focusBare.length === 0,
+    'F30 两份像素皮肤（卡片、技能列表与详情）的焦点规则只在深色下存在（' + focusSels.length + ' 条含 :focus-visible / :focus-within 的选择器，全部带深色守卫 body[data-ds-dark-theme] 或 :where(body[data-ds-dark-theme])；浅色不命中，落到全局宿主焦点环）' +
+    (focusBare.length ? '；未加前缀：' + focusBare.map((one) => one.file + ' 的 ' + one.sel).join(' | ') : ''))
 
   const LIGHT_START = '// #1379 浅色个例修复层（开始）'
   const LIGHT_END = '// #1379 浅色个例修复层（结束）'
@@ -361,7 +376,9 @@ function audit(read: (p: string) => string): AuditResult[] {
       if (t) lightSels.push(t)
     }
   }
-  const lightBare = lightSels.filter((sel) => sel.indexOf('body:not([data-ds-dark-theme]) ') !== 0)
+  // 允许多写一条裸的 body:not([data-ds-dark-theme])：浅色层开头要用它声明几个可继承的派生色，
+  //   选择器本身仍然只在浅色命中（只是没有后代），不算漏了前缀。
+  const lightBare = lightSels.filter((sel) => sel.indexOf('body:not([data-ds-dark-theme]) ') !== 0 && sel !== 'body:not([data-ds-dark-theme])')
   check(lightRules.length >= 20 && lightBare.length === 0,
     'F31 浅色个例修复层每条选择器都只在浅色命中（' + lightRules.length + ' 条规则，全部以 body:not([data-ds-dark-theme]) 开头），且条数不少于实际修过的个例数（20）' +
     (lightBare.length ? '；漏了前缀：' + lightBare.join(' | ') : ''))
@@ -369,13 +386,35 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(lightLiterals.length === 0,
     'F31 浅色个例修复层不许写死色值（一律走 --dsw-* 宿主变量或 color-mix 派生），换肤时才会跟着变' +
     (lightLiterals.length ? '；写死：' + Array.from(new Set(lightLiterals)).join('、') : ''))
+  // 2026-10-22 #1377 评审：F31 原来只拦「写死色值」，令牌名写错拦不住——var(--dsw-alias-label-secondry)
+  //   这种拼写错误，CSS 照样合法、浏览器静默回落成空值，浅色下那几个字又看不见了。
+  //   这里把浅色层用到的 --dsw-alias-* 名字全部收出来，与清单逐字比对：多一个、少一个都红。
+  //   清单就是今天实际用到的宿主令牌，去重排序；新加令牌要同时改这里，等于把「引用了哪个宿主语义」写进账。
+  const LIGHT_HOST_TOKENS = [
+    '--dsw-alias-label-primary',
+    '--dsw-alias-label-primary-foreground',
+    '--dsw-alias-label-secondary',
+    '--dsw-alias-link',
+    '--dsw-alias-state-business-tertiary',
+    '--dsw-alias-state-error-primary',
+    '--dsw-alias-state-success-primary',
+    '--dsw-alias-state-warn-label',
+  ]
+  const lightTokens = Array.from(new Set((lightCss.match(/var\((--dsw-alias-[a-z0-9-]+)/g) || []).map((one) => one.slice(4)))).sort()
+  const extraTokens = lightTokens.filter((one) => LIGHT_HOST_TOKENS.indexOf(one) < 0)
+  const missingTokens = LIGHT_HOST_TOKENS.filter((one) => lightTokens.indexOf(one) < 0)
+  check(extraTokens.length === 0 && missingTokens.length === 0,
+    'F31 浅色层引用的宿主令牌名与清单逐字一致（' + lightTokens.length + ' 个）：拼错一个字母浏览器就静默回落，颜色当场失效' +
+    (extraTokens.length ? '；多出：' + extraTokens.join('、') : '') +
+    (missingTokens.length ? '；少了：' + missingTokens.join('、') : ''))
   const LIGHT_PROPS = new Set(['color', 'background', 'background-color', 'border-color', 'fill', 'stroke', 'box-shadow'])
   const lightBadProps: string[] = []
   for (const r of lightRules) {
     const body = r.slice(r.indexOf('{') + 1, r.lastIndexOf('}'))
     for (const d of body.split(';')) {
       const p = d.split(':')[0].trim().toLowerCase()
-      if (p && !LIGHT_PROPS.has(p)) lightBadProps.push(p)
+      // 自定义属性（名字以 -- 开头）是浅色层内部共用的派生色，不是尺寸、间距或布局，放行。
+      if (p && !LIGHT_PROPS.has(p) && p.indexOf('--') !== 0) lightBadProps.push(p)
     }
   }
   check(lightBadProps.length === 0,
@@ -388,7 +427,9 @@ function audit(read: (p: string) => string): AuditResult[] {
   //   门禁同样绿着。这种「规则在、标记没挂」或「标记在、规则漏了」的漂移，只能由一条同时读组件源码与样式层的
   //   断言钉住：每处写清三样东西 —— 组件里必须出现的标记、浅色层里必须出现的完整选择器（连前缀一起写死，
   //   前缀被摘也会红）、以及给人看的界面名（报错时能直接指到哪一处）。
-  const LIGHT_CASES: { what: string; file: string; marks: string[]; sels: string[] }[] = [
+  // 有的个例横跨多份组件源码（多行提示浮层的 Tip 调用点就有三个文件），所以除了主 file/marks，
+  // 还可以用 moreMarks 补上别处该出现的标记（文件、标记成对写）。
+  const LIGHT_CASES: { what: string; file: string; marks: string[]; moreMarks?: [string, string][]; sels: string[] }[] = [
     {
       what: '票详情顶部错误横幅正文与「显示快照降级」小字',
       file: 'src/client/views/IssueDetail.ts',
@@ -432,16 +473,34 @@ function audit(read: (p: string) => string): AuditResult[] {
         'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="current"] .dsws-ccard-dot{',
       ],
     },
+    {
+      what: '多行提示浮层（地图详情头、票详情、环境检查）的第一行小标签与第二行标题',
+      file: 'src/client/views/MapDetailHead.ts',
+      marks: ["className: 'dsws-tip'"],
+      moreMarks: [
+        ['src/client/views/IssueDetail.ts', "className: 'dsws-tip'"],
+        ['src/client/views/ChecksTab.ts', "className: 'dsws-tip'"],
+      ],
+      sels: [
+        'body:not([data-ds-dark-theme]) .dsws-tip>div>div:first-child{',
+        'body:not([data-ds-dark-theme]) .dsws-tip>div>div:nth-child(2){',
+      ],
+    },
   ]
   const lightCaseReds: string[] = []
   for (const c of LIGHT_CASES) {
     const src = read(c.file)
     if (!src) { lightCaseReds.push(c.what + '：读不到组件源码 ' + c.file); continue }
     for (const mk of c.marks) { if (src.indexOf(mk) < 0) lightCaseReds.push(c.what + '：组件里没挂标记 ' + mk) }
+    for (const [moreFile, moreMark] of (c.moreMarks || [])) {
+      const moreSrc = read(moreFile)
+      if (!moreSrc) { lightCaseReds.push(c.what + '：读不到组件源码 ' + moreFile); continue }
+      if (moreSrc.indexOf(moreMark) < 0) lightCaseReds.push(c.what + '：组件里没挂标记 ' + moreMark + '（' + moreFile + '）')
+    }
     for (const sel of c.sels) { if (lightCss.indexOf(sel) < 0) lightCaseReds.push(c.what + '：浅色层里没有这条规则 ' + sel) }
   }
-  check(LIGHT_CASES.length === 5 && lightCaseReds.length === 0,
-    'F32 五处浅色个例两头对齐：组件里挂着稳定标记（类名或 data-state），浅色层里有一条带 body:not([data-ds-dark-theme]) 前缀、专认这个标记的规则（' + LIGHT_CASES.length + ' 处；只改一头就红）' +
+  check(LIGHT_CASES.length === 6 && lightCaseReds.length === 0,
+    'F32 六处浅色个例两头对齐：组件里挂着稳定标记（类名或 data-state），浅色层里有一条带 body:not([data-ds-dark-theme]) 前缀、专认这个标记的规则（' + LIGHT_CASES.length + ' 处；只改一头就红）' +
     (lightCaseReds.length ? '；对不上：' + lightCaseReds.join('；') : ''))
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')
@@ -747,6 +806,12 @@ const variants: Variant[] = [
     change: (s) => replaceAll(s, 'body[data-ds-dark-theme] ', ''),
   },
   {
+    label: '技能皮肤的焦点选择器也把深色守卫摘掉了：浅色下按钮、技能行、正文技能名的焦点环又变回皮肤里的金圈',
+    file: 'src/client/views/skillDetail/PixelStyles.ts',
+    group: 'F30',
+    change: (s) => replaceAll(replaceAll(s, ':where(body[data-ds-dark-theme]) ', ''), 'body[data-ds-dark-theme] ', ''),
+  },
+  {
     label: '浅色修复层里有一条选择器漏了 body:not([data-ds-dark-theme]) 前缀：深色也被改到',
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F31',
@@ -757,6 +822,12 @@ const variants: Variant[] = [
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F31',
     change: (s) => replaceAll(s, 'color:var(--dsw-alias-label-secondary)!important}', 'color:#61666b!important}'),
+  },
+  {
+    label: '浅色层引用的宿主令牌名拼错了：浏览器静默回落，那几个字又回到看不清（CSS 与旧判据都不会报错）',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F31',
+    change: (s) => replaceAll(s, 'var(--dsw-alias-label-secondary)', 'var(--dsw-alias-label-secondry)'),
   },
   {
     label: '票详情的错误横幅又退回无名内联 div：浅色规则再也命不中，正文回到 2.56:1',
@@ -775,6 +846,12 @@ const variants: Variant[] = [
     file: 'src/client/views/ChecksTab.ts',
     group: 'F32',
     change: (s) => replaceAll(s, "className: 'dsws-ccard-dot'", ''),
+  },
+  {
+    label: '多行提示浮层的类名标记被删掉：浅色规则再也命不中，第一行小标签又回到 3.38:1',
+    file: 'src/client/views/IssueDetail.ts',
+    group: 'F32',
+    change: (s) => replaceAll(s, "className: 'dsws-tip', ", ''),
   },
 ]
 for (const v of variants) {

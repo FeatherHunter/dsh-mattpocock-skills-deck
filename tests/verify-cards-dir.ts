@@ -126,7 +126,7 @@ function loadTr (): { L: { zh: Record<string, string> }, tr: (key: string, param
   return { L, tr }
 }
 
-// ==== 浅色皮肤（#1380）：票卡、地图卡与技能列表共用同一套 A 纸面 ====
+// ==== 浅色皮肤（#1380）：票卡、地图卡与技能列表共用同一套浅色纸面 ====
 // 判据只看两份样式文本本身，不看渲染：色值写错、深色值被挪进浅色选择器、纸色与技能列表分叉、
 // 该走令牌的装饰色又写回裸值，都会报红。抽成纯函数只为一件事：下面要在内存里把同一段文本变坏三次，
 // 再用同一套判据跑一遍，证明这扇门能红也能绿（反例只改文本，不落盘）。
@@ -135,7 +135,7 @@ const CARD_LIGHT_DARK_TOKENS = [
   ['--cd-frame', '#3a2c14'], ['--cd-card', '#f2e4c0'], ['--cd-ink', '#2b2113'],
   ['--cd-gold', '#e3a92f'], ['--cd-warn', '#f59e0b'], ['--cd-stripe', '#ddcda1'],
 ]
-// 浅色（A 纸面便签）定版值：与 #1378 的技能列表同一套纸，跨文件那四条在下面单独对。
+// 浅色（浅色纸面便签）定版值：与 #1378 的技能列表同一套纸，跨文件那四条在下面单独对。
 const CARD_LIGHT_TOKENS = [
   ['--cd-frame', '#3a2c14'], ['--cd-card', '#f6f1e6'], ['--cd-paper', '#fffdf8'],
   ['--cd-old', '#efe8d9'], ['--cd-ink', '#221d15'], ['--cd-ink2', '#6f6252'],
@@ -234,19 +234,8 @@ function cardLightProblems (cardsCss: string, pixelCss: string): string[] {
   return out
 }
 
-/** WCAG 相对亮度与对比度：浅色纸面上的字要真算一遍，不凭眼睛。 */
-function cardLightLum (hex: string): number {
-  const n = parseInt(hex.slice(1), 16)
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) {
-    const c = v / 255
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
-  })
-  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
-}
-function cardLightContrast (a: string, b: string): number {
-  const la = cardLightLum(a), lb = cardLightLum(b)
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
-}
+/** WCAG 相对亮度与对比度：浅色纸面上的字要真算一遍，不凭眼睛。算法与技能详情栈门禁共用 tests/lib/contrast.ts。 */
+const { relativeLuminance: cardLightLum, contrastRatio: cardLightContrast } = require('./lib/contrast.ts')
 
 let WIN = null
 let DOC = null
@@ -766,7 +755,7 @@ async function main (): Promise<void> {
     check(parsedRules === blocks, '解析出来的规则条数 ' + parsedRules + ' 与规则文本里的 ' + blocks + ' 个声明块对得上（没有静默丢规则）')
   }
 
-  // ---- 5.7 浅色皮肤（#1380）：票卡与地图卡换成和技能列表同一套 A 纸面 ----
+  // ---- 5.7 浅色皮肤（#1380）：票卡与地图卡换成和技能列表同一套浅色纸面 ----
   // 判据只看两份样式文本，不看渲染：深色原值仍在、浅色覆盖只挂在宿主标记上、纸色与技能列表不分叉、
   // 该走令牌的装饰色不再写死。先跑真文本（必须全过），再在内存里把文本变坏三次，同一套判据必须报红。
   {
