@@ -4,10 +4,35 @@
  * 拼回 src/client/index.ts 的样式标记处，与 kernel/styles.js、vcStyles.js 同一套做法。
  * 注入仍走同一个 styles.insert 接缝（index.js 里紧接着再 insert 一次）。
  * 类名前缀一律 pixel-，只被本目录的组件引用，不外溢；令牌 --pixel-* 挂 :root。
- * 固定一套配色（原型定版那套纸面深框），跟随宿主主题换肤是 888 的活，本票不定。
+ *
+ * 两套皮肤（#1378）：深色是今天定版的「纸面深框」，下面的 :root 原值一个字没动；
+ *   浅色是 A 纸面便签，与版本管理页签的浅色同一张纸（纸面 #f6f1e6、卡片 #fffdf8、描边 #3a2c14、
+ *   强调深绿 #15803d）。切换只认宿主的深色标记（body[data-ds-dark-theme]）：人在 DSH 里切一次
+ *   主题就整体换肤，面板里不另做开关。做法与 src/client/views/versionControl/vcStyles.ts:31-43
+ *   的自动档一致——深色值留在 :root 不动，浅色只在 body:not([data-ds-dark-theme]) .pixel-tab 上换令牌。
+ *   为什么挂在 .pixel-tab 而不是 :root：像素家族全部画在这棵子树里（列表、详情弹窗、图片放大层、
+ *   遮罩），令牌靠继承往下走；挂到 :root 会漏进别的页签，那不是这次的范围。
+ *   装饰色（棋盘两色、图标底色、印章、状态行上边框、块引用与推荐行底、代码块、遮罩）以前写死在
+ *   规则里，现在收成 --pixel-* 令牌：深色值就是今天的字面量（深色零变化），浅色值按 A 纸面便签给。
  */
 export const PIXEL_STYLE_TEXT: string[] = [
   ":root{--pixel-frame:#3a2c14;--pixel-paper:#f2e4c0;--pixel-card:#fffdf4;--pixel-ink:#2b2113;--pixel-ink2:#6b5b3e;--pixel-shadow:#241a0c;--pixel-gold:#e3a92f;--pixel-acc:#8b5cf6;--pixel-ok:#0e8a16;--pixel-bad:#a3231a;--pixel-warn:#f59e0b;--pixel-stripe:#ddcda1;--pixel-popline:#e8d9ae;--pixel-hi:#ffe1a1;--pixel-link:#5b3df0}",
+  // ---- 装饰色令牌：深色值就是以前写在各条规则里的那些字面量，一个不差（深色零变化的底线）----
+  // 收成令牌只为让浅色能整套换掉。每一对「令牌:值」都对应今天规则里的同一个字面量：
+  //   棋盘两色（tab1 / tab2）、棋盘上的字（tab-ink，原来是 paper 色）、三颗图标的底色与警告字色、
+  //   印章、状态行上边框、块引用底、推荐行底、代码块前景/背景、遮罩、强调色上的字、提交成功/失败闪的底色。
+  ":root{--pixel-tab1:#93764f;--pixel-tab2:#8a6f4d;--pixel-tab-ink:#f2e4c0;--pixel-ok-bg:#d9f2dc;--pixel-bad-bg:#fbe3e1;--pixel-warn-bg:#fdf0d3;--pixel-ic-warn-ink:#9a6a00;--pixel-seal:#c9503f;--pixel-statusline-edge:#9a8f78;--pixel-quote-bg:#efe8fb;--pixel-rec-bg:#efe8fb;--pixel-pre-bg:#241a0c;--pixel-pre-ink:#f2e4c0;--pixel-overlay:rgba(28,16,4,.55);--pixel-acc-ink:#fff}",
+  // ---- 浅色（A 纸面便签）：只认宿主有没有挂深色标记，面板里没有第二个开关 ----
+  // 挂在 .pixel-tab 上：像素家族全在这棵子树里（列表、详情弹窗、图片放大层、遮罩），令牌靠继承往下走，
+  // 不会漏到别的页签。这一段只写令牌，不写别的属性——浅色换的是色，不是结构。
+  // 几处定版值的理由：
+  //   link 用 #2563eb（深绿留给强调色）：链接要能和强调绿分开，否则正文里的链接看起来像强调；
+  //     设计文档里给出的那档信息蓝不能用——它是容器身份蓝，verify-container-colors 全仓零容忍；
+  //     #2563eb 是同一色系里更深一档，纸面底对比过 4.5:1，过正文线。
+  //   quote 用纸面下沉 #efe8d9、rec 用浅绿 #eef7ef（原型 .row.rec 的浅色值），两者不同，浅色下分得开。
+  //   pre 保持墨块（深底浅字）：纸面上的代码块是一块压上去的墨，比浅底更清楚，对比 14:1。
+  //   overlay 用描边色压 45%：浅色下面板后面的东西还看得见轮廓，又不至于抢戏。
+  "body:not([data-ds-dark-theme]) .pixel-tab{--pixel-frame:#3a2c14;--pixel-paper:#f6f1e6;--pixel-card:#fffdf8;--pixel-ink:#221d15;--pixel-ink2:#6f6252;--pixel-shadow:#241a0c;--pixel-gold:#a16207;--pixel-acc:#15803d;--pixel-ok:#15803d;--pixel-bad:#b91c1c;--pixel-warn:#b45309;--pixel-stripe:#e7ddc8;--pixel-popline:#e7ddc8;--pixel-hi:#dff2e3;--pixel-link:#2563eb;--pixel-tab1:#efe8d9;--pixel-tab2:#e7ddc8;--pixel-tab-ink:#3a2c14;--pixel-ok-bg:#d9f2dc;--pixel-bad-bg:#fbe3e1;--pixel-warn-bg:#fdf0d3;--pixel-ic-warn-ink:#b45309;--pixel-seal:#c9503f;--pixel-statusline-edge:#b9ab90;--pixel-quote-bg:#efe8d9;--pixel-rec-bg:#eef7ef;--pixel-pre-bg:#241a0c;--pixel-pre-ink:#f6f1e6;--pixel-overlay:rgba(58,44,20,.45);--pixel-acc-ink:#fff}",
   ".pixel-btn{font:700 12px ui-monospace,Menlo,Consolas,monospace;border:3px solid var(--pixel-frame);background:var(--pixel-paper);color:var(--pixel-ink);padding:4px 12px;cursor:pointer;box-shadow:2px 2px 0 var(--pixel-shadow);transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}",
   ".pixel-btn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--pixel-shadow);outline:2px solid var(--pixel-gold);outline-offset:1px}",
   // 按压态走委托挂的 .dsws-pressing（#1335 界面反馈）：不用 CSS 的 :active，
@@ -15,26 +40,26 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-btn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--pixel-shadow)}",
   ".pixel-btn:focus-visible{outline:2px dashed var(--pixel-gold);outline-offset:2px}",
   ".pixel-btn:disabled{opacity:.6;cursor:wait}",
-  ".pixel-btn.hot{background:var(--pixel-acc);color:#fff}",
+  ".pixel-btn.hot{background:var(--pixel-acc);color:var(--pixel-acc-ink)}",
   ".pixel-btn.mini{padding:1px 8px;font-size:11px}",
   ".pixel-spin{display:none;width:10px;height:10px;background:var(--pixel-acc);margin-right:6px;vertical-align:-1px;animation:pixel-blk .6s steps(2,end) infinite}",
   ".pixel-btn.loading .pixel-spin{display:inline-block}",
   "@keyframes pixel-blk{50%{opacity:.15}}",
-  ".pixel-dot{flex:none;width:10px;height:10px;border:2px solid var(--pixel-frame);background:var(--pixel-dc,#0e8a16)}",
+  ".pixel-dot{flex:none;width:10px;height:10px;border:2px solid var(--pixel-frame);background:var(--pixel-dc,var(--pixel-ok))}",
   ".pixel-num{flex:none;font:700 11px ui-monospace,monospace;background:var(--pixel-frame);color:var(--pixel-paper);padding:0 6px;min-width:26px;text-align:center}",
   ".pixel-ic{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border:2px solid var(--pixel-frame);font-weight:800;font-size:12px;margin-right:6px;vertical-align:-3px}",
-  ".pixel-ic-ok{background:#d9f2dc;color:var(--pixel-ok)}.pixel-ic-err{background:#fbe3e1;color:var(--pixel-bad)}.pixel-ic-warn{background:#fdf0d3;color:#9a6a00}.pixel-ic-idle{background:var(--pixel-stripe);color:var(--pixel-ink2)}",
-  ".pixel-seal{position:absolute;left:50%;top:-13px;margin-left:-11px;width:22px;height:22px;background:#c9503f;border:3px solid var(--pixel-frame)}",
+  ".pixel-ic-ok{background:var(--pixel-ok-bg);color:var(--pixel-ok)}.pixel-ic-err{background:var(--pixel-bad-bg);color:var(--pixel-bad)}.pixel-ic-warn{background:var(--pixel-warn-bg);color:var(--pixel-ic-warn-ink)}.pixel-ic-idle{background:var(--pixel-stripe);color:var(--pixel-ink2)}",
+  ".pixel-seal{position:absolute;left:50%;top:-13px;margin-left:-11px;width:22px;height:22px;background:var(--pixel-seal);border:3px solid var(--pixel-frame)}",
   // 加载中的三句节奏话（2026-10-10 人拍板放回）：按顺序 1 秒一句。
   // 纯 CSS 轮播，客户端不排任何定时器：三句叠在网格的同一格里，各自错开一秒显示。
   ".pixel-statusline .pixel-seq{display:grid;align-items:center}",
   ".pixel-statusline .pixel-seq>span{grid-area:1/1;opacity:0;animation:pixel-seq 3s step-end infinite both}",
   "@keyframes pixel-seq{0%{opacity:0}1%,33.3%{opacity:1}33.4%,100%{opacity:0}}",
   ".pixel-skel{height:14px;background:var(--pixel-stripe);border:2px solid var(--pixel-frame);margin:8px 0;animation:pixel-blk 1s steps(2,end) infinite}",
-  ".pixel-banner{background:#fbe3e1;border:3px solid var(--pixel-frame);border-left:10px solid var(--pixel-bad);box-shadow:3px 3px 0 var(--pixel-shadow);padding:8px 10px;font-size:13px;margin:10px 0;display:flex;gap:8px;align-items:center}",
-  ".pixel-banner.warn{background:#fdf0d3;border-left-color:var(--pixel-warn)}",
+  ".pixel-banner{background:var(--pixel-bad-bg);border:3px solid var(--pixel-frame);border-left:10px solid var(--pixel-bad);box-shadow:3px 3px 0 var(--pixel-shadow);padding:8px 10px;font-size:13px;margin:10px 0;display:flex;gap:8px;align-items:center}",
+  ".pixel-banner.warn{background:var(--pixel-warn-bg);border-left-color:var(--pixel-warn)}",
   ".pixel-banner .grow{flex:1}",
-  ".pixel-statusline{font-size:12.5px;background:var(--pixel-card);border:3px solid var(--pixel-frame);border-top:8px solid #9a8f78;box-shadow:2px 2px 0 var(--pixel-shadow);padding:5px 8px;margin:0 0 10px}",
+  ".pixel-statusline{font-size:12.5px;background:var(--pixel-card);border:3px solid var(--pixel-frame);border-top:8px solid var(--pixel-statusline-edge);box-shadow:2px 2px 0 var(--pixel-shadow);padding:5px 8px;margin:0 0 10px}",
   ".pixel-toc{background:var(--pixel-card);border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow);margin:0 0 10px;font-size:12.5px}",
   ".pixel-toc b{display:block;background:var(--pixel-frame);color:var(--pixel-paper);font:700 12px ui-monospace,monospace;letter-spacing:2px;padding:4px 10px}",
   ".pixel-toc a{display:flex;gap:8px;align-items:center;color:var(--pixel-ink);text-decoration:none;font-weight:700;padding:6px 10px;cursor:pointer}",
@@ -56,8 +81,8 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-doc ol{counter-reset:pixel-it}",
   ".pixel-doc ol>li{counter-increment:pixel-it;position:relative;padding-left:38px;margin:7px 0}",
   ".pixel-doc ol>li::before{content:counter(pixel-it);position:absolute;left:0;top:2px;font:700 12px ui-monospace,monospace;background:var(--pixel-frame);color:var(--pixel-paper);padding:0 6px;border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow)}",
-  ".pixel-doc blockquote{border-left:8px solid var(--pixel-acc);background:#efe8fb;margin:10px 0;padding:6px 12px}",
-  ".pixel-doc pre{background:#241a0c;color:#f2e4c0;padding:10px 12px;font:12px/1.7 ui-monospace,monospace;overflow:auto;white-space:pre-wrap;border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow)}",
+  ".pixel-doc blockquote{border-left:8px solid var(--pixel-acc);background:var(--pixel-quote-bg);margin:10px 0;padding:6px 12px}",
+  ".pixel-doc pre{background:var(--pixel-pre-bg);color:var(--pixel-pre-ink);padding:10px 12px;font:12px/1.7 ui-monospace,monospace;overflow:auto;white-space:pre-wrap;border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow)}",
   ".pixel-doc code{font:400 12px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);padding:1px 6px;border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);white-space:nowrap}",
   ".pixel-doc pre code{background:none;border:none;box-shadow:none;padding:0;color:inherit;font:inherit;white-space:pre-wrap}",
   ".pixel-doc a{color:var(--pixel-link)}",
@@ -88,20 +113,20 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-doc img{max-width:100%;max-height:220px;object-fit:contain;display:block;margin:8px 0;border:3px solid var(--pixel-frame);background:var(--pixel-card);cursor:zoom-in}",
   ".pixel-doc label.pixel-task{display:flex;gap:8px;align-items:flex-start;margin:5px 0}",
   ".pixel-skillrow{display:flex;gap:8px;align-items:center;background:var(--pixel-card);border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow);padding:6px 10px;margin:8px 0;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}",
-  ".pixel-skillrow.rec{background:#efe8fb}",
-  ".pixel-skillrow:hover,.pixel-skillrow:focus-within{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--pixel-shadow);outline:2px solid var(--pixel-dc,#e3a92f);outline-offset:1px}",
+  ".pixel-skillrow.rec{background:var(--pixel-rec-bg)}",
+  ".pixel-skillrow:hover,.pixel-skillrow:focus-within{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--pixel-shadow);outline:2px solid var(--pixel-dc,var(--pixel-gold));outline-offset:1px}",
   ".pixel-sname{font:700 13px ui-monospace,Menlo,Consolas,monospace;min-width:120px}",
   ".pixel-sname .pixel-star{color:var(--pixel-acc)}",
   ".pixel-suse{flex:1;font-size:12px;color:var(--pixel-ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-  ".pixel-overlay{position:absolute;inset:0;background:rgba(28,16,4,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:14px}",
+  ".pixel-overlay{position:absolute;inset:0;background:var(--pixel-overlay);display:flex;align-items:center;justify-content:center;z-index:200;padding:14px}",
   ".pixel-modal{background:var(--pixel-paper);border:4px solid var(--pixel-frame);box-shadow:8px 8px 0 var(--pixel-shadow);width:min(680px,94vw);max-height:86vh;display:flex;flex-direction:column;position:relative}",
   ".pixel-top{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:3px solid var(--pixel-frame);font:700 13px ui-monospace,Menlo,Consolas,Microsoft YaHei,sans-serif}",
   ".pixel-body{padding:12px 16px;overflow:auto;flex:1;min-height:120px}",
   ".pixel-bot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:3px solid var(--pixel-frame)}",
   ".pixel-f-ok{animation:pixel-fok .5s steps(3,end)}",
   ".pixel-f-err{animation:pixel-ferr .5s steps(3,end)}",
-  "@keyframes pixel-fok{0%{background:#d9f2dc}100%{background:var(--pixel-paper)}}",
-  "@keyframes pixel-ferr{0%{background:#fbe3e1}100%{background:var(--pixel-paper)}}",
+  "@keyframes pixel-fok{0%{background:var(--pixel-ok-bg)}100%{background:var(--pixel-paper)}}",
+  "@keyframes pixel-ferr{0%{background:var(--pixel-bad-bg)}100%{background:var(--pixel-paper)}}",
   ".pixel-shake{animation:pixel-shk .4s steps(4,end)}",
   "@keyframes pixel-shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}",
   // ---- 文字色兜底（2026-10-10 真机修复）----
@@ -115,11 +140,11 @@ export const PIXEL_STYLE_TEXT: string[] = [
   // ---- 整个技能页签（不只是列表块）----
   // 原型那一页的底是棕色棋盘纸，卡片压在纸上。页签根节点自己铺这个底，头行、段选与推荐徽章
   // 都改成像素语言；类名一律以 .pixel-tab 起头，避免影响别的页签（.dsws-* 是共用的）。
-  ".pixel-tab{position:relative;background-color:#8a6f4d;background-image:repeating-conic-gradient(#93764f 0% 25%,#8a6f4d 0% 50%);background-size:8px 8px;border:4px solid var(--pixel-frame);box-shadow:6px 6px 0 var(--pixel-shadow);padding:10px}",
-  ".pixel-tab .dsws-grp{color:var(--pixel-paper);font-weight:700;letter-spacing:1px}",
-  ".pixel-tab .dsws-grp svg{color:var(--pixel-paper)}",
+  ".pixel-tab{position:relative;background-color:var(--pixel-tab2);background-image:repeating-conic-gradient(var(--pixel-tab1) 0% 25%,var(--pixel-tab2) 0% 50%);background-size:8px 8px;border:4px solid var(--pixel-frame);box-shadow:6px 6px 0 var(--pixel-shadow);padding:10px}",
+  ".pixel-tab .dsws-grp{color:var(--pixel-tab-ink);font-weight:700;letter-spacing:1px}",
+  ".pixel-tab .dsws-grp svg{color:var(--pixel-tab-ink)}",
   ".pixel-tab .dsws-seg{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-paper);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);padding:1px 8px;border-radius:0;cursor:pointer}",
-  ".pixel-tab .dsws-seg.on{background:var(--pixel-acc);color:#fff}",
+  ".pixel-tab .dsws-seg.on{background:var(--pixel-acc);color:var(--pixel-acc-ink)}",
   ".pixel-tab .dsws-chip{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);border-radius:0;padding:0 7px}",
   // ---- 详情占满可见区域（2026-10-10 人拍板，两轮真机反馈后改成量父容器）----
   // 列表让位、详情本体就是内容；正文在盒子里自己滚，底栏那两颗按钮停在**用户可见区域的底部**。

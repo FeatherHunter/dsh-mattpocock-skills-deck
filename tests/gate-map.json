@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T04:02:25.436Z",
+  "generatedAt": "2026-10-22T04:28:43.833Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 316,
   "gateCount": 316,
@@ -6742,6 +6742,7 @@
         "src/client/views/skillDetail/PixelMarkdown.ts",
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillOps.ts",
+        "src/client/views/skillDetail/PixelStyles.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/source-text.ts"
       ],
@@ -6755,7 +6756,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-snapshot-cache-first.ts",
