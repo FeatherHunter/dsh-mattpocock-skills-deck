@@ -63,7 +63,8 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-prog-num{flex:none;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-variant-numeric:tabular-nums}',
 
   // 「子票那句」：本图 N 张子票 / 没取到 / 被截断 / 有差额，都在这一个元素里说。
-  // 取数中它是空的（不再写「正在取子票」），但永远占一行的高度：换字、清空都不改变高度。
+  // 取数中它说的是同一句话、数字换成短横占位（不再写「正在取子票」，也不会空出一行），
+  // 永远占一行的高度：换字不改变高度。
   '.m2v2-feed{margin-top:6px;font-size:11px;line-height:1.55;min-height:17px;color:var(--dsw-alias-label-caption,#8b8b95);word-break:break-word}',
   '.m2v2-feed[data-state="failed"]{color:var(--dsw-alias-state-error-primary,#f87171)}',
   '.m2v2-err{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:var(--dsw-alias-state-error-primary,#f87171);word-break:break-word}',

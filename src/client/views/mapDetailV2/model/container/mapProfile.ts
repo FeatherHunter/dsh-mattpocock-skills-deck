@@ -39,6 +39,11 @@ import type {
 /** 宿主一次最多取回的子票张数；capped 时老页就是按这个数说「只加载了前 1000 张」。 */
 export const MAP_PROFILE_CAPPED_LIMIT = 1000
 
+/** 取数中还不知道的总数、已完成数用这个短横占位，与档案区计数行用的是同一个符号。
+ *  它让「子票那句」在取数中仍然是一句完整的话（本图 – 张子票（已关闭 – 张）），
+ *  不会留出一行空白（维护者 2026-10-23 第三次反馈：原来那句话删掉后那里空了一行）。 */
+const FEED_PLACEHOLDER = '–'
+
 /** 探索地图的档案四节：顺序即页面上的顺序，词条沿用老页 map.decisions 等键（zh/en 都在 config/copy/flow.yaml）。 */
 export const MAP_PROFILE_SECTIONS: ReadonlyArray<{ id: MapProfileSectionId; labelKey: string }> = [
   { id: 'notes', labelKey: 'map.notesCap' },
@@ -208,8 +213,9 @@ export function mapProfileSectionsOf(
 /**
  * 「子票那句」由哪几段拼成。老页是一句 tr() 拼好的字符串，V2 给段：页面按词条拼，
  * 换语言、改词条都不用来改这份判断。计数词按容器种类选（地图 map.subCount / 规格 map.specSubCount）。
- *  - loading：一句话都不说（维护者 2026-10-23：不要再写「正在取子票」那一行；
- *    页面把「正在取数」放进进度条的流动斜纹里）。这里刻意不说成 0 张，也不留一句占位文字；
+ *  - loading：仍说「本图 N 张子票（已关闭 C 张）」这一句，但数字用短横占位（维护者 2026-10-23：
+ *    不要再写「正在取子票」那一行；删掉后那里空了一行，所以保留这句话、只把未知数字换成占位）。
+ *    快照 stats 已经说了张数时直接说真数；「正在取数」由页面进度条上的流动斜纹表达；
  *  - unsupported：一个字都不加；
  *  - failed：说原因（已截 120 字）；
  *  - 其它：本图 N 张子票（已关闭 C 张）＋ capped / missing 两段补充。
@@ -220,7 +226,18 @@ export function mapFeedSegmentsOf(
 ): MapProfileFeedSegment[] {
   const f = feed || null
   if (!f) return []
-  if (f.state === 'loading') return []
+  if (f.state === 'loading') {
+    // 快照 stats 已经知道张数时就说真数（取回后不会换字，页面不闪）；不知道才用短横占位。
+    // 这里不返回空段：空段会让档案区空出一整行（维护者 2026-10-23 反馈）。
+    const stats = f.stats || {}
+    const total = integerOf(stats.total)
+    const countKey = MAP_PROFILE_COUNT_KEY[kind || 'map']
+    if (total !== null && total > 0) {
+      const closed = integerOf(stats.closed) !== null ? (integerOf(stats.closed) as number) : 0
+      return [{ key: countKey, params: { n: total, c: closed } }]
+    }
+    return [{ key: countKey, params: { n: FEED_PLACEHOLDER, c: FEED_PLACEHOLDER } }]
+  }
   if (f.state === 'unsupported') return []
   if (f.state === 'failed') return [{ key: 'map.subCountFail', params: { msg: f.failedMessage || '' } }]
 
