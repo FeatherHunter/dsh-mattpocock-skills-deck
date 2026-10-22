@@ -283,7 +283,8 @@ export function ticketCardFactsOf(row: MapTicketRow, ctx: TicketFactsContext): T
 
   return {
     number,
-    rowKey: numberKey || text(row.key),
+    // 行自己的 key 优先：它是同屏唯一性的最后一道保险（脏数据里撞号时靠它区分两张行）。
+    rowKey: text(row.key) || numberKey,
     noText: numberKey ? '#' + numberKey : '',
     title: text(row.title),
     status,

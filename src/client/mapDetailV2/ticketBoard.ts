@@ -16,8 +16,8 @@
  *   ② 输入顺序不影响结果（根与附件段都按「状态优先级 → 编号」排定，是确定性的）；
  *   ③ 每个被挡票都排在挡它的那张之后，且中间只隔着同一张票挡住的其它票（紧挨着）。
  *
- * 复杂度：排序 O(n log n)，走图 O(n + 边数)。没有递归深度风险：票数与阻塞链深度都在百级以内，
- * 而递归只沿「挡住谁」这条边往下走。
+ * 复杂度：排序 O(n log n)，走图 O(n + 边数)。走图用显式栈而不是递归：阻塞链有多长都不受
+ * 调用栈深度限制，脏数据里一条很长甚至自指的链也不会把页面撑崩。
  */
 import type { TicketBoard, TicketBoardCounts, TicketCardFacts, TicketCardStatus } from './mapDetailTypes'
 
@@ -38,9 +38,15 @@ function compareForPlacement(left: TicketCardFacts, right: TicketCardFacts): num
   return left.rowKey < right.rowKey ? -1 : left.rowKey > right.rowKey ? 1 : 0
 }
 
-/** 一张票的唯一名字：排序去重、走图防环都用它，不依赖对象身份。 */
+/**
+ * 一张票的唯一名字：走图防环、认已输出都用它，不依赖对象身份。
+ *
+ * 编号后面还要带上行自己的 key：正常数据里这些行 key 也唯一，但脏数据里两张票可能撞同一个
+ * 编号——只用编号当名字会让后一张被当成「已经画过」而静默丢掉。带上行 key 才能做到
+ * 「每张行恰好出现一次」，撞号的两张都还在页面上。
+ */
 function keyOf(facts: TicketCardFacts): string {
-  return facts.number === null ? 'k:' + facts.rowKey : 'n:' + String(facts.number)
+  return facts.number === null ? 'k:' + facts.rowKey : 'n:' + String(facts.number) + '#' + facts.rowKey
 }
 
 /**
@@ -71,23 +77,37 @@ export function orderOpenTickets(facts: readonly TicketCardFacts[]): TicketCardF
   }
   for (const blockerNo of Object.keys(attachedTo)) attachedTo[blockerNo].sort(compareForPlacement)
 
+  // 先标记再入栈：一张票只可能被挂在一段附件里或当一次根，标记放在出栈时做会漏掉
+  // 「同一张票被两处指向」的脏数据，放在入栈时才真正保证「每张票画一次」。
   const order: TicketCardFacts[] = []
   const emitted: Record<string, boolean> = {}
-  const visit = function (one: TicketCardFacts): void {
+  const stack: TicketCardFacts[] = []
+  const push = function (one: TicketCardFacts): void {
     const key = keyOf(one)
     if (emitted[key]) return
     emitted[key] = true
-    order.push(one)
-    const children = attachedTo[String(one.number)] || []
-    for (const child of children) visit(child)
+    stack.push(one)
+  }
+
+  // 出栈顺序就是递归先序：先自己，再按排好的次序走附件。压栈时倒着压，出栈才顺着走。
+  const drain = function (): void {
+    while (stack.length > 0) {
+      const one = stack.pop() as TicketCardFacts
+      order.push(one)
+      const children = attachedTo[String(one.number)] || []
+      for (let i = children.length - 1; i >= 0; i -= 1) push(children[i])
+    }
   }
 
   roots.sort(compareForPlacement)
-  for (const root of roots) visit(root)
+  for (let i = roots.length - 1; i >= 0; i -= 1) push(roots[i])
+  drain()
 
   // 脏数据兜底：互相挡住、谁也到不了根的那几张票，也要画出来（不能因为数据成环就整片空白）。
+  // 必须等根那一片走完再算：先算的话，根下面的附件还没标记，会被误当成「到不了根」的孤儿。
   const leftovers = open.filter(function (one) { return !emitted[keyOf(one)] }).sort(compareForPlacement)
-  for (const one of leftovers) visit(one)
+  for (let i = leftovers.length - 1; i >= 0; i -= 1) push(leftovers[i])
+  drain()
   return order
 }
 
@@ -106,7 +126,10 @@ export function orderClosedTickets(facts: readonly TicketCardFacts[]): TicketCar
   return closed.sort(function (left, right) {
     const byStamp = closedStampOf(right) - closedStampOf(left)
     if (byStamp !== 0) return byStamp
-    return numberOrLast(left) - numberOrLast(right)
+    const byNumber = numberOrLast(left) - numberOrLast(right)
+    if (byNumber !== 0) return byNumber
+    // 没有编号的票在这里会拿到同一个「最后」值；再用行 key 兜底，排序才不受输入顺序影响。
+    return left.rowKey < right.rowKey ? -1 : left.rowKey > right.rowKey ? 1 : 0
   })
 }
 

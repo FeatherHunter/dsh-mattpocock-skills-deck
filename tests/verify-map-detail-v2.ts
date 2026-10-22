@@ -19,8 +19,9 @@
  *      页脚词条键、角标，以及三条不变量（结案卡不表现阻塞关系、只有被挡卡才有 blockedBy、
  *      卡片 id 一定带调用方给的前缀）。
  *   4. 阻塞关系双向：被挡卡指向编号最小的开着阻塞者；挡路卡指向「确实被挡、编号最小」的那张。
- *   5. 看板排序三条性质：每张票恰好出现一次（含成环、自阻塞的脏数据）、输入顺序不影响结果、
- *      被挡卡紧挨挡它的那张且排在其后；已完成段按结案时间倒序。
+ *   5. 看板排序三条性质：每张票恰好出现一次（含成环、自阻塞、撞编号的脏数据）、输入顺序不影响结果、
+ *      被挡卡紧挨挡它的那张且排在其后；已完成段按结案时间倒序。很长的阻塞链用显式栈走完，
+ *      不依赖调用栈深度。
  *   6. 取数五态：取回那份 / 正在取 / 不支持 / 取失败 / 还没有桶，各自画哪份数据、怎么说原因，
  *      以及 capped / missing 只属于「取回那份」。
  *   7. 纯函数：三份逻辑模块没有任何运行时 import（动作与词条都从参数进），同目录没有落回来的 .js 产物。
@@ -127,16 +128,16 @@ section('2. 状态判定：已关闭 > 在办 > 被挡 > 可接，阻塞者不�
 // ===========================================================================
 // 夹具：票号、状态、阻塞关系、标签形状都按真后端的几种写法来。
 const ROWS = [
-  { number: 1332, rowKey: 'i-1332', title: '订阅源切成八段', state: 'OPEN', labels: ['wayfinder:task', 'bug'], updatedAt: '2026-10-20T10:00:00Z' },
-  { number: 1374, rowKey: 'i-1374', title: '一个进程只建一个日志实例', state: 'OPEN', labels: ['wayfinder:task'], blockedBy: [1332], updatedAt: '2026-10-21T08:00:00Z' },
-  { number: 1316, rowKey: 'i-1316', title: '决定读回失败的处置策略', state: 'OPEN', labels: ['wayfinder:grilling'], updatedAt: '2026-10-19' },
-  { number: 1348, rowKey: 'i-1348', title: '宿主启动次数在一千到四千之间', state: 'OPEN', labels: ['wayfinder:research'], claimedBy: 'FeatherHunter', updatedAt: '2026-10-21' },
-  { number: 1350, rowKey: 'i-1350', title: '被挡但有人在办的票', state: 'OPEN', labels: ['wayfinder:research'], claimedBy: 'someone', blockedBy: [1332] },
-  { number: 1315, rowKey: 'i-1315', title: '定位读回失败在哪一层', state: 'CLOSED', labels: [{ name: 'wayfinder:research', color: '#0ea5e9' }], closedAt: '2026-10-18T09:00:00Z', updatedAt: '2026-10-18' },
-  { number: 1317, rowKey: 'i-1317', title: '把真重启与重复写分开', state: 'CLOSED', labels: ['wayfinder:research'], closedAt: '2026-10-18T11:00:00Z' },
-  { number: 1331, rowKey: 'i-1331', title: '一个进程只建一个日志实例（方案）', state: 'CLOSED', labels: ['wayfinder:task'], closedAt: '2026-10-17' },
-  { number: 1400, rowKey: 'i-1400', title: '行自带类型兜底的原型票', state: 'OPEN', labels: ['needs-triage'], type: 'prototype' },
-  { number: 1401, rowKey: 'i-1401', title: '普通票没有类型小签', state: 'OPEN', labels: ['needs-triage'] },
+  { key: 'i-1332', number: 1332, title: '订阅源切成八段', state: 'OPEN', labels: ['wayfinder:task', 'bug'], updatedAt: '2026-10-20T10:00:00Z' },
+  { key: 'i-1374', number: 1374, title: '一个进程只建一个日志实例', state: 'OPEN', labels: ['wayfinder:task'], blockedBy: [1332], updatedAt: '2026-10-21T08:00:00Z' },
+  { key: 'i-1316', number: 1316, title: '决定读回失败的处置策略', state: 'OPEN', labels: ['wayfinder:grilling'], updatedAt: '2026-10-19' },
+  { key: 'i-1348', number: 1348, title: '宿主启动次数在一千到四千之间', state: 'OPEN', labels: ['wayfinder:research'], claimedBy: 'FeatherHunter', updatedAt: '2026-10-21' },
+  { key: 'i-1350', number: 1350, title: '被挡但有人在办的票', state: 'OPEN', labels: ['wayfinder:research'], claimedBy: 'someone', blockedBy: [1332] },
+  { key: 'i-1315', number: 1315, title: '定位读回失败在哪一层', state: 'CLOSED', labels: [{ name: 'wayfinder:research', color: '#0ea5e9' }], closedAt: '2026-10-18T09:00:00Z', updatedAt: '2026-10-18' },
+  { key: 'i-1317', number: 1317, title: '把真重启与重复写分开', state: 'CLOSED', labels: ['wayfinder:research'], closedAt: '2026-10-18T11:00:00Z' },
+  { key: 'i-1331', number: 1331, title: '一个进程只建一个日志实例（方案）', state: 'CLOSED', labels: ['wayfinder:task'], closedAt: '2026-10-17' },
+  { key: 'i-1400', number: 1400, title: '行自带类型兜底的原型票', state: 'OPEN', labels: ['needs-triage'], type: 'prototype' },
+  { key: 'i-1401', number: 1401, title: '普通票没有类型小签', state: 'OPEN', labels: ['needs-triage'] },
 ]
 const ACTIONS = { 1316: 'discuss', 1348: 'research', 1317: 'takeover', 1400: 'prototype', 1401: 'implement' }
 const COLOR_OF = {
@@ -172,6 +173,7 @@ section('3. 卡片刻画：编号 / 标题 / 小签 / BUG / 认领 / 更新日 /
   check(ready.footText === 'card.pickReady' && ready.pickCorner === 'ready',
     '可接卡的页脚键与左下角角标（实得 ' + show(ready.footText) + ' / ' + show(ready.pickCorner) + '）')
   check(ready.cardId === 'm1314-1332', '卡片 id 带调用方给的前缀（实得 ' + show(ready.cardId) + '）')
+  check(ready.rowKey === 'i-1332', '行自己的 key 原样保留（实得 ' + show(ready.rowKey) + '）')
 
   const doing = factOf(1348)
   check(doing.status === 'doing' && doing.action === 'research' && doing.claimedBy === 'FeatherHunter',
@@ -287,6 +289,16 @@ section('6. 看板排序：三条性质 + 已完成段')
   check(emitted.length === ROWS.length && new Set(emitted).size === ROWS.length,
     '十张票每张恰好出现一次（出现 ' + emitted.length + ' 次，去重后 ' + new Set(emitted).size + ' 张）')
 
+  // 没有编号的两张结案票、结案时间相同：只靠「时间 + 编号」分不出先后，排序必须自己可复现。
+  const tiedClosed = [
+    { number: null, rowKey: 'b', status: 'closed', closedAt: '2026-10-18' },
+    { number: null, rowKey: 'a', status: 'closed', closedAt: '2026-10-18' },
+  ]
+  const tieForward = board.orderClosedTickets(tiedClosed).map((one) => one.rowKey).join(',')
+  const tieBackward = board.orderClosedTickets(tiedClosed.slice().reverse()).map((one) => one.rowKey).join(',')
+  check(tieForward === 'a,b' && tieBackward === 'a,b',
+    '已完成段并列时用行 key 兜底，输入倒序也同序（实得 ' + show(tieForward) + ' / ' + show(tieBackward) + '）')
+
   const reversed = board.orderOpenTickets(FACTS.slice().reverse())
   const rotated = board.orderOpenTickets(FACTS.slice(3).concat(FACTS.slice(0, 3)))
   check(numbers(reversed) === numbers(open) && numbers(rotated) === numbers(open),
@@ -322,6 +334,28 @@ section('6.1 脏数据：成环、自阻塞、缺编号')
     '互相挡住的两张也画出来了（实得 ' + show(keys.join(',')) + '）')
   const noNumber = order.filter((one) => one.number === null)
   check(noNumber.length === 1 && noNumber[0].rowKey === '', '缺编号的票按行 key 兜底（number=null、rowKey=' + show(noNumber.length ? noNumber[0].rowKey : null) + '）')
+
+  // 撞编号的脏数据：两张行写成同一个编号。只拿编号认名字会把第二张当成「已经画过」静默丢掉。
+  const dupRows = [
+    { key: 'dup-a', number: 3001, title: '撞号一', state: 'OPEN' },
+    { key: 'dup-b', number: 3001, title: '撞号二', state: 'OPEN' },
+  ]
+  const dupFacts = dupRows.map((row) => facts.ticketCardFactsOf(row, facts.ticketFactsContextOf(dupRows, ENV)))
+  const dupOrder = board.orderOpenTickets(dupFacts)
+  check(dupOrder.length === 2 && dupOrder.map((one) => one.rowKey).sort().join(',') === 'dup-a,dup-b',
+    '两张票撞同一个编号时两张都画出来，不静默丢一张（实得 ' + show(dupOrder.map((one) => one.rowKey).join(',')) + '）')
+
+  // 很长的阻塞链：递归走图会在几千层时爆栈，显式栈必须能走完（这条判据替掉「靠人记住链不会太长」）。
+  const CHAIN = 20000
+  const chainRows = []
+  for (let i = 1; i <= CHAIN; i += 1) {
+    chainRows.push(i === 1 ? { key: 'c-1', number: 1, title: '链头', state: 'OPEN' } : { key: 'c-' + i, number: i, title: '链上第 ' + i + ' 张', state: 'OPEN', blockedBy: [i - 1] })
+  }
+  const chainCtx = facts.ticketFactsContextOf(chainRows, ENV)
+  const chainFacts = chainRows.map((row) => facts.ticketCardFactsOf(row, chainCtx))
+  const chainOrder = board.orderOpenTickets(chainFacts)
+  check(chainOrder.length === CHAIN && chainOrder[0].number === 1 && chainOrder[CHAIN - 1].number === CHAIN,
+    '两千层以上的阻塞链能走完且顺序沿链展开（实得 ' + chainOrder.length + ' 张，首尾 ' + show(chainOrder[0].number) + ' / ' + show(chainOrder[CHAIN - 1].number) + '）')
 }
 
 // ===========================================================================
