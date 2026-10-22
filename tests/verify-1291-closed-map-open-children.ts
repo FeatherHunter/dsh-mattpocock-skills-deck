@@ -155,7 +155,7 @@ const equality = function (label: string, snap: any): any {
   const rows = sd.openIssuesOf(st).filter(function (x: any): boolean { return !sd.isOccupied(st, x) })
   const csx: any = checksums.checksumsOf(st)
   check(csx.fr === rows.length, label + '：可接数字与可接列表行数相等（数字 ' + csx.fr + ' / 行数 ' + rows.length + '）')
-  // 列表顶部 KPI 的「可接」与状态栏同源，但面试界面里走的是 ListTab 自己那一行算式（views/ListTab.ts:317-320：
+  // 列表顶部 KPI 的「可接」与状态栏同源，但列表界面里走的是 ListTab 自己那一行算式（views/ListTab.ts:317-320：
   //   可接 = 后端未关闭张数 - 本地数出来的占用；拿不到计数时 = 池子里的未关闭行数 - 占用）。这里按同一份池子与
   //   占用逐项再算一遍，确认 KPI 数字同样等于列表行数，而不只是状态栏那颗数字对得上。
   const kpiCounts = sd.deckCountsOf(st, false)
