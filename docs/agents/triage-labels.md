@@ -42,6 +42,4 @@ The `/wayfinder` skill requires all five wayfinder labels to exist. Every wayfin
 - `wayfinder:grilling` — grilling/discussion ticket
 - `wayfinder:task` — implementation task ticket
 
-用 `deck_issue_create` 建票时不用手工传这些类型标签：工具按 `kind` 推导（`map` 补 `wayfinder:map`；`map-ticket` 补 `label` 指定的那一枚；`bug` 补 `bug` 与 `needs-triage`；`spec` 与 `spec-ticket` 不带 wayfinder 标签；`issue` 原样传递）。除 `issue` 外，再把类型标签塞进 `labels` 会被拒绝。
-
 Edit the `Label` column to match whatever label strings you actually use.
