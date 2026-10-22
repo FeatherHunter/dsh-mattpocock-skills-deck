@@ -18,8 +18,6 @@ disable-model-invocation: true
 
 3. 用下面的模板写规格说明，然后把它发布到项目的议题跟踪器。打上 `ready-for-agent` 分诊标签——不需要再做额外的分诊。
 
-如果这个项目的跟踪器是本插件自带的本地 Markdown 后端：用 `deck_issue_create` 建一张规格票（`kind=spec`，`parentKey` 填这个功能所在地图的票号）——规格本身就是一张票、也是实施票的容器；不要另外写 `spec.md` 文件。工具会把对象类型标记写进票面文件头，并自动带上 `ready-for-agent` 标签。
-
 <spec-template>
 
 ## 问题陈述
@@ -50,7 +48,7 @@ disable-model-invocation: true
 - 这些模块中将被修改的接口
 - 来自开发者的技术澄清
 - 架构决策
-- 模式变更
+- 数据结构变更
 - API 契约
 - 具体的交互
 
