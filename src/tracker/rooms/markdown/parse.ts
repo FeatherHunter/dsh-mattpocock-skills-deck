@@ -299,6 +299,8 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
       : (((meta && meta.isMap) || hasMapLabel || typeRaw === 'map') ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE))) as IssueType
   // #971：父子关系以文件顶注释为准，有注释就用注释，没有注释的老文件才回落。
   // 地图文件本身没有父票（恒为空）；计划里用票文件冒充的地图（正文写着 Type: map、却没有父注释）同样视作没有父票。
+  // #1403：规格是顶层容器，盘中没写父注释就是没有父票 —— 本地房老数据里规格可能落在默认 00（根地图）下，
+  //   新口径不认这个默认；有老父注释的规格仍按注释读（存量票不回填）。规格的判定看上面的对象类型：标记优先后 type 就是 spec。
   // 其余票没有注释时沿用调用方递进来的固定值（今天是 00，即老单根工作区的地图），保持老数据行为不变。
   const fileParent = parentKeyFromFile(raw)
   let parentKey = null
@@ -308,6 +310,9 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     parentKey = fileParent.value
   } else if (hasMapLabel || typeRaw === 'map') {
     // #1403：带 wayfinder:map 标签的新地图票没有父票（标签就是它的容器身份）；老文件里的 Type: map 同样算。
+    parentKey = null
+  } else if (type === ISSUE_TYPE.SPEC) {
+    // #1403：规格没有父注释时就是顶层容器，不回落调用方给的 00。
     parentKey = null
   } else {
     parentKey = meta && meta.parentKey !== undefined ? meta.parentKey : null
