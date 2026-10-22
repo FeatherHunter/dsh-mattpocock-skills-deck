@@ -34,6 +34,12 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-dest-ic{flex:none;margin-top:2px}',
   '.m2v2-dest-empty{color:var(--dsw-alias-label-caption,#8b8b95)}',
 
+  // 档案区的「计数 / 完成度 / 子票那句」三行固定成一块（维护者 2026-10-23：进入时「正在取子票」独占一行、
+  // 随后消失，卡片跟着抖一下）。三行永远在位：取数中显示占位，取到后原地换数字；确实没有子票时整块
+  // visibility:hidden——位置留着，卡片不会被这块消失往上拽。
+  '.m2v2-meta{display:flex;flex-direction:column}',
+  '.m2v2-meta[data-empty="1"]{visibility:hidden}',
+
   // 四个计数（可接 / 已认领 / 被阻塞 / 已关闭）：子票总数与已完成由进度条那一行交代，这里不重复。
   '.m2v2-counts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}',
   '.m2v2-count{font-size:11px;line-height:18px;padding:0 8px;border-radius:999px;background:var(--dsw-alias-bg-layer-2,rgba(255,255,255,.06));color:var(--dsw-alias-label-secondary,#a1a1aa)}',
@@ -50,7 +56,8 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-prog-num{flex:none;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-variant-numeric:tabular-nums}',
 
   // 「子票那句」：本图 N 张子票 / 正在取 / 没取到 / 被截断 / 有差额，都在这一个元素里说。
-  '.m2v2-feed{margin-top:6px;font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95);word-break:break-word}',
+  // 这一行永远占一行的高度（取数中、取到后、取不到都是同一行），换字不换高度。
+  '.m2v2-feed{margin-top:6px;font-size:11px;line-height:1.55;min-height:17px;color:var(--dsw-alias-label-caption,#8b8b95);word-break:break-word}',
   '.m2v2-feed[data-state="failed"]{color:var(--dsw-alias-state-error-primary,#f87171)}',
   '.m2v2-err{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:var(--dsw-alias-state-error-primary,#f87171);word-break:break-word}',
 

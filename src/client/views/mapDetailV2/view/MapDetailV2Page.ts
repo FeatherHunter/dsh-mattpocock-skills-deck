@@ -95,6 +95,9 @@ export function MapDetailV2Page(props: any): any {
   // 顶栏三态与老页同源（kernel/container-view.ts）：取数成功后用真实统计，取不到时退回快照里的 stats。
   // 注意档案区的四枚计数按「画出来的行」数（mapDetailPageModel.ts:13-15 写明是有意），取数被 1000 张
   // 上限截断时两处分母可能不同；档案里的「子票那句」会把截断与差额补出来，不让数字悄悄对不上。
+  // 取数中给档案区一个稳定的占位（维护者 2026-10-23：进入页时「正在取子票」独占一行又消失，高度抖一下）。
+  // bucket 还没有（第一帧、effect 刚要发请求）或正在取，都算 busy；档案区据此显示占位而不增删行。
+  const busy = !bucket || String(bucket.mode || '') === 'loading'
   const effStats = (bucket && bucket.mode === 'real' && bucket.stats) ? bucket.stats : (m.stats || null)
   const cKind = containerKindOf(m) || 'map'
   const cState = containerStateOf({ stats: effStats })
@@ -107,7 +110,7 @@ export function MapDetailV2Page(props: any): any {
       goBack: function () { popNav(st) }, kind: cKind, tri: tri,
     }),
     // 地图档案：MAP 自己的内容（替代老页的 MapDetailHead + Destination + Notes + 三段折叠）。
-    h(MapProfileHeader, { key: 'profile', st: st, profile: model.profile, feed: model.feed }),
+    h(MapProfileHeader, { key: 'profile', st: st, profile: model.profile, feed: model.feed, busy: busy }),
     // 卡片流：一条连续的流，顺序由模型排好（在办 → 可接 → 被挡 → 已完成）。
     h(TicketCardFlow, { key: 'flow', cards: model.cards.sequence, empty: model.feed.empty }),
     // 图片放大浮层：与议题详情共用同一渲染函数与同一共享状态（markdown 里的图能点开）。

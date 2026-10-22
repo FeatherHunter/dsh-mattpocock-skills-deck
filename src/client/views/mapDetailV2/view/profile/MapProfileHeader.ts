@@ -9,6 +9,13 @@
  * 为什么这些值全从 profile 拿：档案里每个数字与每句文案的口径都在 model/container/mapProfile.ts 里定死
  * （与老页 views/MapDetailHead.ts 的取数口径对齐），这一层只做排版。两个容器（探索地图 / 规格）唯一的
  * 差别是小签词与「子票那句」用的词条键，也已经由模型按 kind 选好（chipLabelKey / feedSegments）。
+ *
+ * 2026-10-23 维护者反馈：进入页面时「正在取子票…」独占一行、随后消失，卡片跟着上下抖一下。
+ * 原因是档案区按取数状态增删行：快照里没有子票时（例如已关闭的地图）先进页面的人只看到标题与目的地；
+ * 开始取数时多出一行「正在取子票」；取回来之后又多出计数行与进度条。每一次都让下面的卡片换位置。
+ * 现在把三行固定成一块 m2v2-meta：计数、进度、子票那句无论有没有数据都在原来的位置，
+ * 取数中显示占位（计数写「–」、进度条留空、那句写「正在取子票」），取到后原地换成真数字，
+ * 高度不变；确实一张子票都没有时整块用 visibility 隐藏，位置仍然留着，不把卡片往上拽。
  */
 import type { MapProfile, TicketFeed } from '../../model/contracts/mapDetailTypes'
 
@@ -25,13 +32,20 @@ const COUNT_CHIPS: { status: string; labelKey: string }[] = [
   { status: 'closed', labelKey: 'map.grpClosed' },
 ]
 
-/** 「子票那句」：模型给的几段话拼成一行；没取到的时候整行标红（data-state 让样式接）。 */
-function feedLine(h: any, profile: MapProfile, feed: TicketFeed | null): any {
+/** 取数占位用的短横：中文词条里是「可接 {n}」「地图进度 {n}%」这样的句子，填进去不会变成空白。 */
+const PLACEHOLDER = '–'
+
+/**
+ * 「子票那句」：模型给的几段话拼成一行；取数中用「正在取子票…」占这一行的位置。
+ * 这一行永远占一行的高度（样式里给了 min-height）：取到数以后只是换字，不会把下面的内容顶走。
+ */
+function feedLine(h: any, profile: MapProfile, feed: TicketFeed | null, busy: boolean): any {
   const segments = profile.feedSegments || []
-  if (!segments.length) return null
-  const text = segments.map(function (segment: any) {
-    return tr(segment.key, segment.params || {})
-  }).join(' · ')
+  const text = busy
+    ? tr('map.subCountLoading')
+    : segments.map(function (segment: any) {
+      return tr(segment.key, segment.params || {})
+    }).join(' · ')
   return h('div', {
     key: 'feed',
     className: 'm2v2-feed',
@@ -39,20 +53,26 @@ function feedLine(h: any, profile: MapProfile, feed: TicketFeed | null): any {
   }, text)
 }
 
-/** 完成度：按已完成张数算的细条；一张子票都没有时不画（0% 的条没有信息量）。 */
-function progressNode(h: any, profile: MapProfile): any {
-  if (!profile.counts || !(profile.counts.total > 0)) return null
+/**
+ * 完成度：按已完成张数算的细条。取数中总张数还不知道，就先画一条空轨道、右边写「–」；
+ * 取到以后原位置换成真实百分比（一张子票都没有时这块最终会被 meta 整块隐藏，只占位不显示）。
+ */
+function progressNode(h: any, profile: MapProfile, busy: boolean): any {
+  const total = profile.counts ? profile.counts.total : 0
+  const known = total > 0
+  const percent = known ? profile.progressPercent : 0
   return h('div', { key: 'prog', className: 'm2v2-prog' }, [
     h('span', { key: 'cap', className: 'm2v2-prog-cap' }, tr('map.progressCap')),
     h('div', { key: 'track', className: 'm2v2-track' },
-      h('div', { className: 'm2v2-fill', style: { width: profile.progressPercent + '%' } })),
-    h('span', { key: 'num', className: 'm2v2-prog-num' }, profile.progressPercent + '%'),
+      h('div', { className: 'm2v2-fill', style: { width: percent + '%' } })),
+    h('span', { key: 'num', className: 'm2v2-prog-num' }, known ? (percent + '%') : (busy ? PLACEHOLDER : '0%')),
   ])
 }
 
 /**
- * 画档案区。props: { st, profile: MapProfile, feed: TicketFeed | null }。
- * st 只为目的地与抽屉里的正文渲染（mdToHtml 需要它认仓库路径与图片）。
+ * 画档案区。props: { st, profile: MapProfile, feed: TicketFeed | null, busy: boolean }。
+ * st 只为目的地与抽屉里的正文渲染（mdToHtml 需要它认仓库路径与图片）；
+ * busy 表示「正在按需取子票」（页面传进来，取数敲门与回来之间为真）。
  */
 export function MapProfileHeader(props: any): any {
   const cx = React.useContext(DswsCtx)
@@ -60,24 +80,32 @@ export function MapProfileHeader(props: any): any {
   const st = props && props.st
   const profile: MapProfile = props && props.profile
   const feed: TicketFeed | null = (props && props.feed) || null
+  const busy: boolean = !!(props && props.busy)
   if (!profile) return null
 
   const counts = profile.counts || { total: 0, closed: 0, ready: 0, doing: 0, blocked: 0 }
-  // 空地图不画四枚全 0 的计数：四颗 0 不提供信息，还会和下面「本图 0 张子票」那句重复。
-  const countsNode = counts.total > 0
-    ? h('div', { key: 'counts', className: 'm2v2-counts' }, COUNT_CHIPS.map(function (chip: { status: string; labelKey: string }) {
-      const n = (counts as any)[chip.status] || 0
-      return h('span', {
-        key: chip.status,
-        className: 'm2v2-count',
-        'data-status': chip.status,
-      }, tr(chip.labelKey, { n: n }))
-    }))
-    : null
-  // 取数成功且确实一张子票都没有时，「本图 0 张子票」交给卡片流的空态说一次，档案区这里留白，
-  // 同一句话不在页面上出现两遍；loading / 取不到 / 被截断这些情形仍由这句交代。
-  const quietEmpty = !!(feed && feed.state === 'ready' && counts.total === 0)
-  const feedLineNode = quietEmpty ? null : feedLine(h, profile, feed)
+  const unknownCounts = busy && !(counts.total > 0)
+  // 计数行永远画出来（取数中写占位短横）：它出现/消失会改变档案区高度，卡片就会跟着上下跳。
+  const countsNode = h('div', { key: 'counts', className: 'm2v2-counts' }, COUNT_CHIPS.map(function (chip: { status: string; labelKey: string }) {
+    const n = (counts as any)[chip.status] || 0
+    return h('span', {
+      key: chip.status,
+      className: 'm2v2-count',
+      'data-status': chip.status,
+    }, tr(chip.labelKey, { n: unknownCounts ? PLACEHOLDER : n }))
+  }))
+  // 取数成功且确实一张子票都没有时，这三行一起用 visibility 藏起来：文字不重复出现（「本图 0 张子票」
+  // 交给卡片流的空态说一次），但位置留着，卡片不会因为这块消失而往上跳。
+  const quietEmpty = !busy && !!(feed && feed.state === 'ready' && counts.total === 0)
+  const metaNode = h('div', {
+    key: 'meta',
+    className: 'm2v2-meta',
+    'data-empty': quietEmpty ? '1' : '0',
+  }, [
+    countsNode,
+    progressNode(h, profile, busy),
+    feedLine(h, profile, feed, busy),
+  ])
 
   const destination = profile.hasDestination
     ? h('div', { key: 'dest', className: 'm2v2-dest' }, [
@@ -101,9 +129,7 @@ export function MapProfileHeader(props: any): any {
     ]),
     h('h1', { key: 'title', className: 'm2v2-title' }, profile.title || ''),
     destination,
-    countsNode,
-    progressNode(h, profile),
-    feedLineNode,
+    metaNode,
     h(MapProfileDrawers, { key: 'drawers', sections: profile.sections }),
     profile.errorText
       ? h('div', { key: 'err', className: 'm2v2-err' }, [
