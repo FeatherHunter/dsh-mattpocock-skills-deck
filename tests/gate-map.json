@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T20:45:31.365Z",
+  "generatedAt": "2026-10-22T20:55:30.572Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 330,
   "gateCount": 330,
@@ -7121,6 +7121,7 @@
         "src/deck/rules/tool-order.ts",
         "src/deck/tools/suggest-next-steps.ts",
         "src/host/refresh/wiring.ts",
+        "src/shared/refresh-workspace-key.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
@@ -7128,13 +7129,14 @@
         "src/deck/rules",
         "src/deck/tools",
         "src/host/refresh",
+        "src/shared",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 111,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "expectedAssertions": 128,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-t1-getrepokey.ts",
@@ -8615,6 +8617,7 @@
       "node tests/verify-naming-guardian.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-session-title.ts",
+      "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-locale-completeness.ts"
     ],
     "src/shared/command-cleanup": [],

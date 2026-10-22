@@ -82,7 +82,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-settings-view': 215,
   'verify-1158-completion-evidence': 50,
   'verify-1407-next-steps-reminders': 87,
-  'verify-suggest-next-steps': 111,
+  'verify-suggest-next-steps': 128,
   'verify-1412-ask-matt-next-steps': 48,
   // 2026-10-23 #1409：界面借会话事件流取数通路（两叶子 + 源码守卫）；113 条是单跑实测得出的。
   'verify-1409-suggest-stream': 113,

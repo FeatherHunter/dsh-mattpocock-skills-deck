@@ -11,6 +11,11 @@
 // （@deepseek-ai/dsh-tools 的 assertSupportedJsonSchema，本仓库既有门禁按它逐字验过），
 // 该子集里没有 minItems / maxItems。所以「2~4 条」这条约束写在参数说明里，由本文件自己钳制，
 // 上下限另导出成常量（MIN_ITEMS / MAX_ITEMS）供界面侧引用，不依赖参数模式去保证。
+//
+// 会话目录为什么本文件还要自己补一处回退：九颗追踪器工具由宿主代执行，代执行那层会先造一个带目录的
+// exec；本工具在行里本地执行，拿到的 exec 是平台原生形状——真机探针证明会话顶层没有目录，目录住在
+// exec.agent.session.header 里（与 agent-row.ts 的 sessionHintOf 同口径）。共享的会话目录壳
+// （src/deck/shell/session-workdir.ts）被九工具共用、行为冻结，所以只在本文件补自己这一份回退。
 
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
@@ -153,6 +158,65 @@ export function resolveSuggestItems(args: unknown): SuggestResolution {
   return { accepted: true, reason: '', text: text, items: items, counts: { received: received, returned: items.length, clipped: clipped }, notes: notes }
 }
 
+/** 从 header 取到目录后的结论：与共享壳成功支同形（多出来的 text 只是让两支结构一致）。 */
+interface HeaderSessionOk {
+  ok: true
+  cwd: string
+  workspaceKey: string
+  sessionId: string
+  source: string
+  text: string
+}
+
+/**
+ * 仅供本工具用的会话目录回退：从 exec.agent.session.header 里取目录与会话号。
+ *
+ * 为什么需要：真机里本工具拿到的 exec 是平台原生形状，会话顶层没有目录，目录住在 header 里
+ * （agent-row.ts 的 sessionHintOf 对这件事有完整注释与同样的取值顺序）。取不到就回 null，
+ * 由调用方按「没有会话上下文」如实拒绝。
+ * source 记真实位置，排错时一眼看出是从 header 的哪一格拿到的；工作区键按同目录的短散列兜底。
+ */
+function sessionFromHeader(exec: unknown): HeaderSessionOk | null {
+  try {
+    const e = (exec || {}) as UnknownRecord
+    const agent = (e.agent || {}) as UnknownRecord
+    const sessionRaw = (agent.session || e.session || null) as UnknownRecord | null
+    if (!sessionRaw || typeof sessionRaw !== 'object') return null
+    const session: UnknownRecord = sessionRaw
+    const header = session.header as UnknownRecord | null | undefined
+    if (!header || typeof header !== 'object') return null
+    let cwd = ''
+    let source = ''
+    if (typeof header.cwd === 'string' && header.cwd.trim()) {
+      cwd = header.cwd.trim()
+      source = 'exec.agent.session.header.cwd'
+    } else if (typeof header.workspaceRoot === 'string' && header.workspaceRoot.trim()) {
+      cwd = header.workspaceRoot.trim()
+      source = 'exec.agent.session.header.workspaceRoot'
+    }
+    if (!cwd) return null
+    let sessionId = ''
+    if (typeof session.id === 'string' && session.id) sessionId = session.id
+    else if (typeof session.sessionId === 'string' && session.sessionId) sessionId = session.sessionId
+    else if (typeof header.id === 'string' && header.id) sessionId = header.id
+    else if (typeof header.sessionId === 'string' && header.sessionId) sessionId = header.sessionId
+    else if (typeof agent.sessionId === 'string' && agent.sessionId) sessionId = agent.sessionId
+    return { ok: true, cwd: cwd, workspaceKey: 'ws-' + hash8(cwd), sessionId: sessionId, source: source, text: '' }
+  } catch (ePick) { return null }
+}
+
+/**
+ * 先走共享壳的会话目录（六个位置），失败再看 header 一处回退。
+ * 两支都取不到就把共享壳的失败支原样带回：reason 与 sessionId 照旧交给日志与回执，不另造语义。
+ */
+async function sessionContextOrHeader(exec: unknown) {
+  const base = await sessionContextOfAsync(exec)
+  if (base.ok) return base
+  const fromHeader = sessionFromHeader(exec)
+  if (fromHeader) return fromHeader
+  return base
+}
+
 /** 成功与拒绝在日志里都落 info 的 host.call：reason 记清是条数还是拒绝原因，ok 分辨成功失败。 */
 function logReasonOf(res: SuggestResolution): string {
   if (!res.accepted) {
@@ -201,11 +265,15 @@ export function createSuggestNextSteps(deps?: SuggestDeps) {
         return shell.unsupported(SUGGEST_TOOL_NAME, REFUSAL_REASONS.BAD_ARGS,
           '参数不是一个对象，我没法做：请按这个工具的参数说明（items 里的 prompt 与 reason）重调一次。', { tookMs: ms })
       }
-      const session = await sessionContextOfAsync(exec)
+      const session = await sessionContextOrHeader(exec)
       if (!session.ok) {
         const ms = now() - t0
-        fireLog(ms, false, session.reason, '')
-        return shell.unsupported(SUGGEST_TOOL_NAME, session.reason, session.text, { session: { id: session.sessionId }, tookMs: ms })
+        const reason = session.reason || REFUSAL_REASONS.NO_SESSION
+        fireLog(ms, false, reason, '')
+        // 正文用本工具自己的口径：九工具那句「不动任何票」是追踪器的说法，建议工具不写票。
+        return shell.unsupported(SUGGEST_TOOL_NAME, reason,
+          '这次没拿到当前会话的工作区目录，没法记录建议：请重调一次；一直这样就去看日志。',
+          { session: { id: session.sessionId }, tookMs: ms })
       }
       const resolved = resolveSuggestItems(args)
       const ms = now() - t0

@@ -30,6 +30,9 @@ const ORDER = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issu
 const ALLOWED_HOST_CALL = ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason']
 const ALLOWED_HOST_CALL_FAIL = ['method', 'kind', 'errorHash', 'pluginId', 'errorKind', 'opId', 'cwdHash']
 const EXEC = { agent: { session: { cwd: '/ws/proj', id: 'sess-7' } } }
+// 真机形状的 exec：会话顶层没有目录，目录住在 header 里（#1406 真机缺口回归用）。
+const EXEC_HEADER_CWD = { agent: { session: { header: { cwd: '/ws/hdr', id: 'sess-hdr' } } } }
+const EXEC_HEADER_WORKSPACE = { agent: { session: { header: { workspaceRoot: '/ws/hdr-root', id: 'sess-hdr2' } } } }
 const SPEC_DESCRIPTION = '在回复末尾推荐 2~4 条下一步提示词，界面会显示成气泡；只在有明确下一步时调用。'
 
 function makeLog() {
@@ -206,6 +209,44 @@ async function main() {
   let brokenEnv = null
   try { brokenEnv = await brokenLogRunner.run(EXEC, { items: two }) } catch (e) { brokenCrashed = true }
   check(!brokenCrashed && brokenEnv && brokenEnv.ok === true, '日志口抛错也不影响工具回执（不向对话冒泡）')
+
+  // ── 5b. 真机会话目录在 header 里：本工具自己的回退（#1406 真机缺口回归） ──
+  // 九颗追踪器工具由宿主代执行，代执行那层会先造一个带 cwd 的 exec；本工具在行里本地执行，
+  // exec 是平台原生形状——桌面真机上会话顶层没有目录，目录住在 exec.agent.session.header 里。
+  // 这里按真机形状复现：只有 header.cwd 时必须成功，且回执与日志都能对上目录与会话号。
+  const keyMod = await imp('src/shared/refresh-workspace-key.ts')
+  const hdrLog = makeLog()
+  const hdrRunner = tool.createSuggestNextSteps({ log: hdrLog.log, now: fakeClock(0) })
+  const hdrEnv = await hdrRunner.run(EXEC_HEADER_CWD, { items: two })
+  check(hdrEnv.ok === true && hdrEnv.status === 'ok', '只有 header.cwd 时也能拿到会话、正常回执')
+  check(hdrEnv.workspace && hdrEnv.workspace.root === '/ws/hdr', '工作区根取自 header.cwd')
+  check(hdrEnv.workspace && hdrEnv.workspace.sessionId === 'sess-hdr', '会话号取自 header.id')
+  check(hdrEnv.workspace && hdrEnv.workspace.source === 'exec.agent.session.header.cwd', '回执如实记下目录来自 header.cwd 这一格')
+  check(hdrEnv.workspace && hdrEnv.workspace.key === 'ws-' + keyMod.hash8('/ws/hdr'), '工作区键按 header 目录的短散列兜底')
+  check(hdrEnv.data && Array.isArray(hdrEnv.data.items) && hdrEnv.data.items.length === 2 && hdrEnv.data.items[0].prompt === '/to-tickets',
+    'header 回退下建议清单照常回执')
+  check(hdrLog.fired.length === 1 && hdrLog.fired[0].event === 'host.call' && hdrLog.fired[0].fields.ok === true,
+    'header 回退下成功日志仍是 host.call 且 ok 为真')
+  check(hdrLog.fired[0] && hdrLog.fired[0].fields.cwdHash === keyMod.hash8('/ws/hdr'), 'header 回退下日志记工作区散列')
+  check(hdrLog.fired[0] && hdrLog.fired[0].fields.reason === 'items=2;returned=2;clipped=0', 'header 回退下日志 reason 照旧记条数')
+  check(hdrLog.fired[0] && keysWithin(hdrLog.fired[0].fields, ALLOWED_HOST_CALL), 'header 回退下日志字段都在白名单内')
+  const hdrWsLog = makeLog()
+  const hdrWsRunner = tool.createSuggestNextSteps({ log: hdrWsLog.log, now: fakeClock(0) })
+  const hdrWsEnv = await hdrWsRunner.run(EXEC_HEADER_WORKSPACE, { items: two })
+  check(hdrWsEnv.ok === true && hdrWsEnv.workspace && hdrWsEnv.workspace.root === '/ws/hdr-root', 'header.workspaceRoot 也能取到目录')
+  check(hdrWsEnv.workspace && hdrWsEnv.workspace.source === 'exec.agent.session.header.workspaceRoot',
+    '回执如实记下目录来自 header.workspaceRoot 这一格')
+  check(hdrWsEnv.workspace && hdrWsEnv.workspace.sessionId === 'sess-hdr2', 'header 回退下会话号仍能取到')
+  // 顶层有目录时以共享壳为准（补回退不能改既有优先级）。
+  check(okEnv.workspace && okEnv.workspace.source === 'exec.agent.session.cwd', '顶层有目录时仍走共享壳，目录来源不变')
+  // 两处都没有才拒绝，且正文用本工具自己的说法（建议工具不写票，别搬追踪器那句「不动任何票」）。
+  const noCtxLog = makeLog()
+  const noCtxRunner = tool.createSuggestNextSteps({ log: noCtxLog.log, now: fakeClock(0) })
+  const noCtx = await noCtxRunner.run({ agent: { session: { header: {} } } }, { items: two })
+  check(noCtx.ok === false && noCtx.reason === 'no-session-context', 'header 里也没有目录时仍如实拒绝')
+  check(String(noCtx.text || '').indexOf('没法记录建议') >= 0 && String(noCtx.text || '').indexOf('不动任何票') < 0,
+    '拒绝正文用本工具的口径（不写票）')
+  check(noCtxLog.fired[0] && noCtxLog.fired[0].fields.reason === 'no-session-context', 'header 也取不到时仍落一行日志')
 
   // ── 6. 独立登记：agent 工具列表里有它，九工具顺序表里没有它 ──
   const row = await imp('src/deck/registration/agent-row.ts')
