@@ -34,6 +34,34 @@ export const ensureOwnWorkRoute = function (st: any, load: any): void {
     if (typeof load === 'function') load(st, true, true, 'work-route-missing')
   } catch (e) {}
 }
+// #1373 · 304 回包捎来的新表能不能挂上去，只这一处说了算。正常那一路（probe-snapshot 的 304 分支）
+//   与迟到那一路（probe-select 迟到的非正文分支）都调它：两处各写一遍的话，「什么算更新」迟早长岔。
+//   规则：本地没表照旧收（#1355 的老行为）；本地有表时，只收 ok:true 的那一份，且本地坏了、
+//   或来者 readout.at 更新才换 —— 同旧、更旧、坏读数一律不换，不拿坏的顶掉好的。
+//   为什么看 readout.at：宿主每次回包都是按请求那一刻现读账本现算的，at 就是那次读账本的时间，
+//   来者比本地新，当且仅当它读到的账本比本地晚。换表不原地改旧快照（旧对象可能还被别处拿着）。
+export const adoptWorkRouteTableIfNewer = function (st: any, snap: any): boolean {
+  try {
+    if (!snap || typeof snap !== 'object' || snap.workRouteTable === undefined || snap.workRouteTable === null) return false
+    if (!st || typeof st !== 'object' || !st.snapshot || typeof st.snapshot !== 'object') return false
+    const incoming: any = snap.workRouteTable
+    const local: any = st.snapshot.workRouteTable
+    if (local === undefined || local === null) {
+      st.snapshot = Object.assign({}, st.snapshot, { workRouteTable: incoming })
+      return true
+    }
+    if (!incoming || typeof incoming !== 'object' || incoming.ok !== true) return false
+    if (!local || typeof local !== 'object' || local.ok !== true) {
+      st.snapshot = Object.assign({}, st.snapshot, { workRouteTable: incoming })
+      return true
+    }
+    const inAt: any = (incoming.readout && typeof incoming.readout.at === 'string') ? Date.parse(incoming.readout.at) : NaN
+    const localAt: any = (local.readout && typeof local.readout.at === 'string') ? Date.parse(local.readout.at) : NaN
+    if (!isFinite(inAt) || !isFinite(localAt) || !(inAt > localAt)) return false
+    st.snapshot = Object.assign({}, st.snapshot, { workRouteTable: incoming })
+    return true
+  } catch (e) { return false }
+}
 // #1355 · 三处接线（换目录、挂载、切会话）共用这一个决策，免得同一个判断散落三处后改漏一处。
 //   mode：apply=换目录/摘要目录变化，mount=组件挂载，switch=切会话。返回 null 表示这次不发请求；
 //   否则给 loadSnapshot 的 force/silent/why（缺表补拉一律强制且静默，why 进日志原因格）。

@@ -44,6 +44,7 @@ declare const setCachedSnapshot: any;
 declare const setPresentationMap: any;
 declare const startAutoProbe: any;
 declare const touchProbeAt: any;
+declare const adoptWorkRouteTableIfNewer: any;
 // 进工作区时补问一次「这个工作区用哪个后端」（I1：几十字节的事实不搭 16 MB 的车）。
 // 宿主那边这条电话本来就有（wf.selection），只是界面进工作区时一条都不用 —— 全仓原先只有设置页在调。
 // 判据（口径只此一处）：
@@ -130,6 +131,9 @@ export const _installLateSnapshotSelection = function (st: any, snap: any, reqNo
     mine.done = true;
     let changed: boolean = false;
     if (snap.selection !== undefined && typeof mergeSelection === 'function') { try { if (mergeSelection(st, snap.selection)) changed = true; } catch (eSel) {} }
+    // #1373：迟到的 304 同样可能捎着更新的工作路线读数 —— 只补 selection 的老路会把它丢掉，
+    //   胶囊就还是空的。判据与正常那一路共用 adoptWorkRouteTableIfNewer，换上才记 changed（会 emit）。
+    try { if (typeof adoptWorkRouteTableIfNewer === 'function' && adoptWorkRouteTableIfNewer(st, snap)) changed = true } catch (eWrLate) {}
     if (snap.repository !== undefined) { try { st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository); } catch (eRep) {} }
     st.selPending = false;
     try { st.snapPending = false; } catch (ePendLate) {}

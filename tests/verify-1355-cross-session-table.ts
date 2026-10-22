@@ -265,7 +265,7 @@ const partB = async function (store: any, ui: any): Promise<void> {
   // #1355：剥表、补拉、三处接线共用决策这三件的真源在 kernel/work-route-own.ts；
   //   下面 B4 的生产路径与 E 的扇出都直接跑它（不再读界面源码文本、也不手写一遍判断）。
   const ownSrc = loadSpliced('src/client/kernel/work-route-own.js',
-    ['snapshotWithoutWorkRoute', 'ensureOwnWorkRoute', 'snapshotRequestPlan', 'runSnapshotRequestPlan'],
+    ['snapshotWithoutWorkRoute', 'ensureOwnWorkRoute', 'snapshotRequestPlan', 'runSnapshotRequestPlan', 'adoptWorkRouteTableIfNewer'],
     { snapNeedsOwnWorkRoute: store.snapNeedsOwnWorkRoute })
 
   const deferredOf = function (): any {
@@ -311,6 +311,8 @@ const partB = async function (store: any, ui: any): Promise<void> {
       _snapRequestKeyWas: function (): boolean { return true },
       reportWorkspaceAttention: function (): void {},
       askSelectionOnce: function (): void {},
+      // #1373：304 分支的收表判据住在 work-route-own，台架把真函数递进去（不是 mock），跑的才是生产判据。
+      adoptWorkRouteTableIfNewer: ownSrc.adoptWorkRouteTableIfNewer,
       mergeSelection: function (): boolean { return false },
       setCachedSetupLayout: function (): void {},
       shared: {},
