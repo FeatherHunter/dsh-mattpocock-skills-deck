@@ -1,7 +1,7 @@
 // tests/verify-1385-howto.ts —— #1385：deck_context 的用法说明按后端分支，本地后端追加建票契约
 // 门禁归属: src/deck/tools/context.ts, src/deck/tools/issue-create.ts, src/deck/tools/issue-patch.ts
 // 验证（每条都能被删掉/改坏而变红）：
-//   1) 本地后端（markdown）的 howto 含建票契约关键词：规格就是票、kind=ticket 带 parentKey、不要手写票文件；
+//   1) 本地后端（markdown）的 howto 含建票契约关键词：规格就是票（kind=spec）、kind=ticket 带 parentKey 与 blockedBy、补边用 deck_map_link、不要手写票文件；
 //   2) 其它后端（github/gitlab）的 howto 与改前逐字一致，一个字不多一个字不少；
 //   3) deck_issue_create / deck_issue_patch 的描述在 350 字内，且含本地后端最必要的一两句。
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-1385-howto.ts
@@ -40,6 +40,9 @@ async function main() {
   check(local.indexOf('不要手写票文件') >= 0, '本地后端 howto 说清不要手写票文件')
   check(local.indexOf('.scratch') >= 0, '本地后端 howto 点名 .scratch 下的票文件不要手写')
   check(local.indexOf('Assignees') >= 0, '本地后端 howto 说清认领写 Assignees 行')
+  check(local.indexOf('kind=spec') >= 0, '本地后端 howto 说清规格票 kind=spec')
+  check(local.indexOf('blockedBy') >= 0, '本地后端 howto 说清依赖填 blockedBy')
+  check(local.indexOf('deck_map_link') >= 0, '本地后端 howto 说清补边用 deck_map_link')
 
   // —— 其它后端：逐字不变 ——
   for (const id of ['github', 'gitlab']) {
