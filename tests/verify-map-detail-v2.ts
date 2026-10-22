@@ -17,7 +17,7 @@
  *   （.scratch/v2-map-detail/page/）与真机验收覆盖；#1402 切入口之后，第 11 条只对「接线那一行」做源码断言，
  *   防止有人把入口改回老页而没有任何门禁出声。
  *
- * 断的十一件事：
+ * 断的十二件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
  *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
@@ -37,6 +37,8 @@
  *   10. 一整页模型：一次算好档案、取数状态、看板、计数与两段卡片 props，且计数与卡片张数一致。
  *   11. 入口接线：Dock 的列表页签在选中一张图时画的是 V2 页（不是老页），V2 页面调到了取数、整页模型、
  *      四个按钮的回调与皮肤，且图纸铺满 Dock 内容区的那条样式还在。第 11 条只读源码文本，不渲染 React。
+ *   12. 卡片流自适应：卡片有最小宽度与自然宽度两档（208 / 300），按钮文字包在 .cd-lbl 里按整字收窄，
+ *      卡片标题用纸面墨色（深色主题下卡片仍是浅纸，标题继承浅色字会看不清）。同样只读源码文本。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -907,6 +909,21 @@ section('§12 入口接线')
   const stylesText = fs.readFileSync(path.join(ROOT, REL, 'view/skin/MapDetailV2Styles.ts'), 'utf8')
   check(stylesText.indexOf('.dsws-body>.m2v2-page') >= 0,
     '皮肤里保留了「铺满 Dock 内容区」的那条规则（否则底色会缩成面板中间一张色卡）')
+
+  const cardsStyleText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/PixelCardsStyles.ts'), 'utf8')
+  check(cardsStyleText.indexOf('.cd-lbl') >= 0 && cardsStyleText.indexOf('.cd-abtn.label{flex:1;min-width:0') >= 0,
+    '卡片按钮里的文字包在 .cd-lbl 里、文字按钮可以被压低（否则窄卡里按钮会顶出去）')
+  const titleRuleAt = cardsStyleText.indexOf('.cd-tt{')
+  const titleInkAt = cardsStyleText.indexOf('color:var(--cd-ink)', titleRuleAt)
+  check(titleRuleAt >= 0 && titleInkAt > titleRuleAt && titleInkAt - titleRuleAt < 160,
+    '卡片标题用纸面墨色（深色主题下卡片仍是浅纸，继承浅色字只有 1.2:1）')
+
+  check(stylesText.indexOf('.m2v2-flow .cd-card') >= 0 && stylesText.indexOf('--m2v2-card-min') >= 0,
+    '卡片流按最小宽度排在页面皮肤里（208px 起排、最多 300px，一行尽量多放）')
+
+  const flowText = fs.readFileSync(path.join(ROOT, REL, 'view/flow/TicketCardFlow.ts'), 'utf8')
+  check(flowText.indexOf('fitFlowLabels') >= 0 && flowText.indexOf("querySelectorAll('.cd-abtn.label')") >= 0,
+    '卡片流会按整字收窄按钮文字（fitFlowLabels 找 .cd-abtn.label 里的 .cd-lbl）')
 }
 
 

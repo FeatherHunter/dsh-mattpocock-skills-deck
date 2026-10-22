@@ -14,7 +14,7 @@
 export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   // 整页：一列。地图档案区一块，卡片流一块，已完成就接在卡片流最下面（维护者定的连续一条流）。
   // 三档中性色只在 .m2v2-page 上定义、由子元素继承：炭灰底 + 亮一档的面板 + 一档描边，避免纯黑纯白。
-  '.m2v2-page{--m2v2-ground:#1e2023;--m2v2-panel:#272a2e;--m2v2-line:#3b3e43;display:flex;flex-direction:column;gap:10px;padding-bottom:24px;min-width:0;background:var(--m2v2-ground)}',
+  '.m2v2-page{--m2v2-ground:#1e2023;--m2v2-panel:#272a2e;--m2v2-line:#3b3e43;--m2v2-card-min:208px;display:flex;flex-direction:column;gap:10px;padding-bottom:24px;min-width:0;background:var(--m2v2-ground)}',
   // #1402 接入真实入口后：Dock 的内容区是 .dsws-body（内边距 10px 12px，见 panel/Dock.ts:401 与 kernel/styles.ts:46），
   // 页面的底色如果只铺在自己的盒子里，会在面板四周留一圈宿主底色，看起来像一张内嵌的色卡。
   // 这一条只对 Dock 里的直接子元素生效（演示页没有 .dsws-body，不受影响）：抵消那圈内边距、补回内容缩进，并撑满可视高度。
@@ -65,7 +65,20 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-drawer-item{margin:2px 0}',
   '.m2v2-drawer-item a{color:inherit;text-decoration:underline}',
 
-  // 卡片流：卡片自带固定宽度与像素皮肤（含深浅两套），这里只负责排列，不再给卡片套第二层皮肤。
-  '.m2v2-flow{display:flex;flex-wrap:wrap;gap:18px 16px;align-items:flex-start;margin-top:6px}',
+  // 卡片流：卡片自带像素皮肤（含深浅两套），这里只负责排法，不再给卡片套第二层皮肤。
+  // 排法（维护者 2026-10-23）：一张卡有一个「最小宽度」——四颗按钮缩到只剩图标时的宽度，算下来
+  // 两颗图标按钮 40×2 + 两颗文字按钮各 38（图标 12 + 缝 4 + 内边距 16 + 边框 6）+ 三处按钮缝 18 = 174，
+  // 加卡片描边与内边距 30，最小 204px；取 208px 留 2px 余量，即 --m2v2-card-min。
+  // 用栅格（grid + auto-fit）：一行先按最小宽度 208 尽量多排几列（列数 = 可用宽度 ÷（208 + 列间距）向下取整），
+  // 再把这一行剩下的宽度平均分给各列；每张卡最多保留原型定下的自然宽度 300px（只剩一张时不会被拉成一条长条）。
+  // 为什么不用 flex-wrap：flex 是逐行决定张数的，最后一行不足时卡片会被撑到 300px，出现「第一行五张窄卡、
+  // 第二行三张宽卡」这种同一页里卡片宽窄不一的情况；栅格一次算出列数，所有行共用同一套列宽。
+  // 卡片自己的样式默认按 content-box 算宽度，这里必须改成 border-box：否则最小宽度 208 只是内容宽，
+  // 加上 4px 描边与左右内边距会变成 234px，一行能塞的张数就比算好的少一张。
+  // 实际手感：面板 565px → 2 列、每列约 274px（按钮文字完整）；520px → 2 列、约 244px（文字开始逐字收）；
+  // 480px → 2 列、208px（按钮只剩图标，这就是最小宽度）；1200px → 5 列、约 220px。
+  '.m2v2-flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(var(--m2v2-card-min,208px),100%),1fr));gap:18px 16px;margin-top:6px;min-width:0}',
+  // 面板本身比最小宽度还窄时（极窄侧栏），min(…,100%) 让卡片跟着面板继续缩，不要横向溢出。
+  '.m2v2-flow .cd-card{box-sizing:border-box;width:100%;max-width:300px}',
   '.m2v2-empty{font-size:12px;color:var(--dsw-alias-label-caption,#8b8b95);padding:8px 2px}',
 ]

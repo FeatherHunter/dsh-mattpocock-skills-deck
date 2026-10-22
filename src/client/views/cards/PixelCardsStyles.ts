@@ -40,7 +40,8 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-hd{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--cd-ink2);font-family:ui-monospace,Menlo,Consolas,monospace}',
   '.cd-nonum{font-size:13px;font-weight:800;letter-spacing:1px;padding:2px 10px;border:2px solid var(--cd-frame);box-shadow:2px 2px 0 var(--cd-shadow);font-family:ui-monospace,Menlo,Consolas,monospace;white-space:nowrap}',
   '.cd-nonum.line{background:transparent;color:var(--cd-ink)}',
-  '.cd-tt{margin:2px 0;font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px}',
+  // 标题用纸面墨色写死：卡片本身是浅纸（深色主题下也是浅纸），标题若继承宿主的浅色字，对纸面只有 1.2:1，几乎看不清（#1387）。
+  '.cd-tt{margin:2px 0;font-size:13px;line-height:1.45;color:var(--cd-ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px}',
   '.cd-tt.tall{-webkit-line-clamp:3;min-height:0}',
   '.cd-take{font-size:11px;color:var(--cd-take)}',
   '.cd-lbrow{margin:2px 0;display:flex;flex-wrap:wrap}',
@@ -57,7 +58,11 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-corner b{right:-32px;top:2px}',
   '.cd-actions{display:flex;gap:6px;margin-top:2px}',
   '.cd-abtn{border:3px solid var(--cd-frame);cursor:pointer;box-shadow:2px 2px 0 var(--cd-shadow);display:inline-flex;align-items:center;justify-content:center;gap:4px;font-family:ui-monospace,Menlo,Consolas,monospace;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}',
-  '.cd-abtn.label{flex:1;font-size:12px;padding:5px 8px}',
+  // 主按钮与新会话按钮可以被压低：min-width:0 让它们在窄卡里一直缩到「图标 + 内边距」，多出来的空间还给同一行的图标按钮。
+  // 按钮里的文字包在 .cd-lbl 里，溢出裁掉；页面层会按整字算宽度（view/flow/TicketCardFlow.ts 的 fitFlowLabels），
+  // 所以收窄时是一整字一整字消失，不会停在半个字上。列表页卡片宽度固定，这段配置在那里没有可见变化。
+  '.cd-abtn.label{flex:1;min-width:0;overflow:hidden;font-size:12px;padding:5px 8px}',
+  '.cd-lbl{display:inline-block;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap;vertical-align:bottom}',
   '.cd-abtn.icon{flex:none;width:40px;padding:5px 0}',
   '.cd-abtn.paper{background:var(--cd-card);color:var(--cd-ink)}',
   '.cd-abtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--cd-shadow);outline:2px solid var(--cd-act,var(--cd-gold));outline-offset:1px}',
