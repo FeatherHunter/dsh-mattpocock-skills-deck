@@ -15,6 +15,10 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   // 整页：一列。地图档案区一块，卡片流一块，已完成就接在卡片流最下面（维护者定的连续一条流）。
   // 三档中性色只在 .m2v2-page 上定义、由子元素继承：炭灰底 + 亮一档的面板 + 一档描边，避免纯黑纯白。
   '.m2v2-page{--m2v2-ground:#1e2023;--m2v2-panel:#272a2e;--m2v2-line:#3b3e43;display:flex;flex-direction:column;gap:10px;padding-bottom:24px;min-width:0;background:var(--m2v2-ground)}',
+  // #1402 接入真实入口后：Dock 的内容区是 .dsws-body（内边距 10px 12px，见 panel/Dock.ts:401 与 kernel/styles.ts:46），
+  // 页面的底色如果只铺在自己的盒子里，会在面板四周留一圈宿主底色，看起来像一张内嵌的色卡。
+  // 这一条只对 Dock 里的直接子元素生效（演示页没有 .dsws-body，不受影响）：抵消那圈内边距、补回内容缩进，并撑满可视高度。
+  '.dsws-body>.m2v2-page{margin:-10px -12px;min-height:100%;padding:10px 12px 24px}',
   // 浅色主题：暖白底 + 纸白面板 + 浅描边。判断方式与卡片皮肤一致（宿主浅色时 body 上没有 data-ds-dark-theme）。
   'body:not([data-ds-dark-theme]) .m2v2-page{--m2v2-ground:#ece6d8;--m2v2-panel:#f7f4ea;--m2v2-line:#d8cfbd}',
 
