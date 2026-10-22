@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T16:26:53.873Z",
+  "generatedAt": "2026-10-22T16:43:16.551Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 322,
   "gateCount": 322,
@@ -7041,6 +7041,7 @@
         "tests/tracker-contract/sections/idempotency.ts",
         "tests/tracker-contract/sections/labels.ts",
         "tests/tracker-contract/sections/listPage.ts",
+        "tests/tracker-contract/sections/object-kind.ts",
         "tests/tracker-contract/sections/preflight.ts",
         "tests/tracker-contract/sections/registry.ts",
         "tests/tracker-contract/sections/room-gitlab-extras.ts",
@@ -7061,7 +7062,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 17 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 18 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-typecheck.mts",
