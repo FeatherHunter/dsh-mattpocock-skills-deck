@@ -432,6 +432,7 @@ var S = {
   animating: false,/* 退场动画期间不重画 DOM */
   bubTimer: 0,     /* 一组小泡共用的清理定时器 */
   formation: 0,    /* 气泡那一版逐帧抬高透明度的 rAF 句柄 */
+  bubInfo: '',     /* 这一组配了几颗泡、按选项宽度怎么分配，显示在右侧状态面板里 */
   log: []
 };
 
@@ -637,12 +638,15 @@ function releaseBubs(host) {
     bubPool.push(b);
   }
 }
-/* C 版的四个旋钮，都放在这一处方便调：
-   每颗选项配几颗泡、出发时刻最多晚多少、飞行时长范围、起点落在哪一段高度。 */
-var BUB_PER_PILL = 8;
+/* C 版的旋钮，都放在这一处方便调：
+   气泡数量按选项宽度给、出发时刻最多晚多少、飞行时长范围、起点怎么分成两类。 */
+var BUB_PX_PER_BUB = 20;          /* 选项每 20 像素配一颗泡：所以越宽的选项框，气泡越多 */
+var BUB_MIN_PER_PILL = 4;         /* 再窄的选项也至少配这几颗，免得看着像没泡 */
 var BUB_DELAY_MAX = 360;          /* 每颗泡随机晚 0~360 毫秒出发，所以到达顺序是乱的 */
 var BUB_TRAVEL_MIN = 320, BUB_TRAVEL_MAX = 660;
-var BUB_FROM_TOP = -8, BUB_FROM_BOTTOM = -130;   /* 起点：从紧贴选项行一直到输入框那一带（负数表示在选项行下面） */
+var BUB_FROM_BUTTON = 0.8;        /* 八成气泡的起点：关闭按钮下方那一片，它们是凝成选项框的主力 */
+var BUB_BUTTON_SPREAD = 90;       /* 按钮下方那一片的横向半宽，让泡从按钮两侧铺开而不是挤在一条竖线上 */
+var BUB_FROM_TOP = -8, BUB_FROM_BOTTOM = -130;   /* 剩下两成游离气泡的起点高度（负数表示在选项行下面） */
 /* 每颗泡的速度曲线也随机：不要求匀速，只要求看起来像自己飘上去的 */
 var BUB_EASES = ['ease-out', 'ease-in-out', 'cubic-bezier(.25,.6,.3,1)', 'cubic-bezier(.4,0,.6,1)', 'cubic-bezier(.2,.7,.35,1.1)'];
 
@@ -658,13 +662,33 @@ function spawnBubbles(el) {
   /* ---- 第一遍：只读布局，读不到就给一组兜底数字（jsdom 里没有排版） ---- */
   var gH = el.offsetHeight;
   var pr = { left: prow.offsetLeft, top: prow.offsetTop, w: prow.offsetWidth, h: prow.offsetHeight };
+  var pillNodes = el.querySelectorAll('.pill');
   if (!(gH > 0 && pr.w > 0)) { gH = 120; pr = { left: 280, top: 20, w: 560, h: 30 }; }
-  var total = Math.max(BUB_PER_PILL * (el.querySelectorAll('.pill').length || 1), 8);
+  /* 关闭按钮的中心与底边：主力气泡就从它下面冒出来（jsdom 里没有排版，给一组兜底数字） */
+  var btn = el.querySelector('.close');
+  var hasBtn = !!(btn && btn.offsetWidth > 0);
+  var bx = hasBtn ? btn.offsetLeft + btn.offsetWidth / 2 : pr.left + pr.w / 2;
+  var btnW = hasBtn ? btn.offsetWidth : 26;
+  var by = hasBtn && btn.offsetHeight > 0 ? gH - (btn.offsetTop + btn.offsetHeight) : -14;
 
-  /* 落点先把整行均匀铺满，再把这串位置打乱：每个位置都有泡落下去，
+  /* 每颗选项配几颗泡，按它自己的宽度算：宽的选项泡多、窄的泡少 */
+  var perPill = [], total = 0, sumW = 0;
+  for (var pi = 0; pi < pillNodes.length; pi++) sumW += pillNodes[pi].offsetWidth;
+  for (var pj = 0; pj < pillNodes.length; pj++) {
+    var pwd0 = pillNodes[pj].offsetWidth;
+    var n0 = sumW > 0 ? Math.max(BUB_MIN_PER_PILL, Math.round(pwd0 / BUB_PX_PER_BUB)) : 8;
+    perPill.push(n0); total += n0;
+  }
+  if (!total) { perPill = [8]; total = 8; }
+  S.bubInfo = '共 ' + total + ' 颗；按选项宽度分配 ' + perPill.join(' / ') + '（越宽的选项框，泡越多）';
+  renderState();
+
+  /* 落点先把每颗选项里都铺满，再把这串位置打乱：每个位置都有泡落下去，
      但谁先谁后是乱的，所以不会像扫射一样从左到右一路过去。 */
   var slots = [];
-  for (var t = 0; t < total; t++) slots.push(t);
+  for (var s0 = 0; s0 < perPill.length; s0++) {
+    for (var s1 = 0; s1 < perPill[s0]; s1++) slots.push(s0);
+  }
   for (var q = slots.length - 1; q > 0; q--) {
     var r2 = Math.floor(Math.random() * (q + 1));
     var tmp = slots[q]; slots[q] = slots[r2]; slots[r2] = tmp;
@@ -679,16 +703,31 @@ function spawnBubbles(el) {
     dressBubble(b);
     b.className = 'bub rise';
     var sz = 3.5 + Math.random() * 6;
-    /* 起点：横向铺满整个对话区（不是同一个原点），纵向在胶囊/输入框那一带 */
-    var fromX = pr.left + pr.w * (0.04 + Math.random() * 0.92);
-    var fromY = BUB_FROM_TOP + Math.random() * (BUB_FROM_BOTTOM - BUB_FROM_TOP);
+    var fromX, fromY;
+    var fromBtn = Math.random() < BUB_FROM_BUTTON;
+    b.setAttribute('data-from', fromBtn ? 'btn' : 'far');
+    if (fromBtn) {
+      /* 主力（八成）：从关闭按钮下方那一片冒上来，横向在按钮两侧铺开，
+         纵向从按钮底边再往下走一段，所以它们要先穿过按钮那一带才够到选项框。 */
+      fromX = bx + (Math.random() * 2 - 1) * (btnW / 2 + BUB_BUTTON_SPREAD);
+      fromX = Math.max(pr.left - 40, Math.min(pr.left + pr.w + 40, fromX));
+      fromY = by - 14 - Math.random() * 100 - Math.random() * 16;
+    } else {
+      /* 少数（两成）：从对话区别处游离过来，横向铺满、高度在胶囊到输入框之间 */
+      fromX = pr.left + pr.w * (0.04 + Math.random() * 0.92);
+      fromY = BUB_FROM_TOP + Math.random() * (BUB_FROM_BOTTOM - BUB_FROM_TOP);
+    }
     b.style.left = (fromX - sz / 2).toFixed(1) + 'px';
     b.style.bottom = (fromY - sz / 2).toFixed(1) + 'px';
     b.style.width = sz.toFixed(1) + 'px';
     b.style.height = sz.toFixed(1) + 'px';
-    /* 终点：这一行选项里侧的一块随机位置，不都堆在边缘 */
+    /* 终点：落在它自己那颗选项的里侧，宽选项里落点多、窄选项里落点少 */
     var slot = slots[j];
-    var tx = pr.left + pr.w * ((slot + 0.5) / total) + (Math.random() * 10 - 5);
+    var pillEl = pillNodes[slot] || pillNodes[0];
+    var laidOut = !!(pillEl && pillEl.offsetWidth > 0);
+    var pl = laidOut ? pillEl.offsetLeft : pr.left + pr.w * (slot / Math.max(perPill.length, 1));
+    var pw = laidOut ? pillEl.offsetWidth : pr.w / Math.max(perPill.length, 1);
+    var tx = pl + pw * (0.15 + Math.random() * 0.7);
     var ty = gH - (pr.top + pr.h * (0.25 + Math.random() * 0.55));
     b.style.setProperty('--tx', (tx - fromX).toFixed(1) + 'px');
     b.style.setProperty('--ty', (fromY - ty).toFixed(1) + 'px');
@@ -789,6 +828,7 @@ function dismissGroup(kind, pickedEl, next) {
   var el = host.firstElementChild;
   if (!el) { S.group = (kind === 'replace' ? next : null); render(); return; }
   S.animating = true;
+  S.bubInfo = '';
   /* 成形还没结束就点中或关闭了：先停掉逐帧抬高，把整行直接点亮，
      否则退场动画会乘在一个很低的透明度上，看起来像什么都没发生。 */
   if (S.formation) { cancelAnimationFrame(S.formation); S.formation = 0; }
@@ -897,6 +937,9 @@ function renderState() {
   lines.push(['输入框里的内容', S.filled ? ('「' + S.filled + '」—— 只填进来，没有替你发送') : '空的']);
   lines.push(['解释气泡上次出现的位置', !S.tipSide ? '还没出现过' : (sideText(S.tipSide) + (S.tipVisible ? '（不落在胶囊那一侧）' : '（刚才出现过，现在已收起）'))]);
   lines.push(['输入列宽度', S.narrow ? '360px（窄栏）' : '720px（宽栏）']);
+  if (S.variant === 'C') {
+    lines.push(['这一组的小泡', S.bubInfo || '还没有（模型还没调用）']);
+  }
   box.innerHTML = lines.map(function (r) {
     return '<div class="kv"><b>' + esc(r[0]) + '</b><span class="val">' + esc(r[1]) + '</span></div>';
   }).join('');
