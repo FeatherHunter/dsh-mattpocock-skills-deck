@@ -13,16 +13,22 @@
   承载面：宿主官方槽位 conversation.input.dock（状态栏胶囊就挂在这里，见 src/client/statusbar/StatusBar.ts:360-443）。
     推荐气泡浮在胶囊正上方，落在对话区与输入区之间的空当里，不改变对话区的高度。
 
-  三个变体（?variant=A|B|C）：
-    A 竖排小堆叠 —— 一列小圆角片，从胶囊里一张张顶上来；解释气泡贴在片子右边。
-    B 横排胶囊   —— 一行药丸贴着胶囊上沿横排；解释气泡浮在药丸上方，带小尖角。
-    C 会话式小卡片 —— 一张带尾巴的对话卡片，里头一行一个候选项；解释气泡浮在卡片右边。
+  三个变体（?variant=A|B|C）：布局按反馈定为「一行居中的药丸」（B 基底），
+  三个变体比的是动画的多少与气质：
+    A 素 —— 只有最必要的小动作：药丸依次轻轻上浮、悬停时轻轻抬起、解释气泡淡入淡出。
+    B 稳 —— 在「素」之上加：胶囊上沿闪一下微光并荡开一圈涟漪、药丸逐颗带回弹地顶上来、
+            点中的那颗先闪一下再收掉、其余的错峰散开、关闭时整组上飘淡出、
+            解释气泡从小尖角那侧展开。
+    C 活 —— 在「稳」之上再加：冒出来约一秒后轻轻呼吸两下、鼠标移开后解释气泡多留一会儿。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
-  → 提示词填进输入框、整组消失 → 再点一次「调一次新的一组」→ 第二组覆盖第一组
-  → 点 × 关闭（关闭等于一个都不选）。「宽栏 / 窄栏」看窄栏下会不会断裂。
+  → 那颗闪一下、提示词填进输入框、其余散开、整组消失 → 再点一次「调一次新的一组」
+  → 第二组覆盖第一组 → 点 × 关闭（关闭等于一个都不选）。「宽栏 / 窄栏」看窄栏下会不会断裂。
 
   运行：双击本文件即可（无后端、无依赖）。URL 里 ?variant=A|B|C 可分享给没在看的人。
+
+  上一轮比过的另两种结构（竖排小堆叠、会话式小卡片）留在提交 ba24fae0 里；
+  按反馈改为「一行居中的药丸」作基底。
 
   数据来源（读源码得来的事实，不是编的）：
     - src/client/kernel/styles.ts:154-179（胶囊真样式：单行、nowrap、按优先级折叠）
@@ -94,7 +100,7 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .dsws-num{display:inline-block;min-width:5ch;text-align:center;font-variant-numeric:tabular-nums;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11px;line-height:1.5;white-space:nowrap}
 
 /* ===================== 第二层：解释气泡（照 HoverTip.ts 的真样式值） ===================== */
-.tip{position:fixed;z-index:2147483000;max-width:220px;display:none;background:#0c0e12;border:1px solid #3a3f4a;border-radius:10px;padding:7px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-size:11px;line-height:1.5;color:#e6edf3;pointer-events:none;white-space:pre-wrap;word-break:break-word;opacity:0;transform:scale(.96);transition:opacity .12s ease-out,transform .12s cubic-bezier(.2,.9,.3,1.3)}
+.tip{position:fixed;z-index:2147483000;max-width:220px;display:none;background:#0c0e12;border:1px solid #3a3f4a;border-radius:10px;padding:7px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-size:11px;line-height:1.5;color:#e6edf3;pointer-events:none;white-space:pre-wrap;word-break:break-word;opacity:0;transform:scale(.92);transform-origin:50% 100%;transition:opacity .13s ease-out,transform .16s cubic-bezier(.2,.9,.3,1.45)}
 .tip.on{opacity:1;transform:scale(1)}
 .caret{position:absolute;width:7px;height:7px;background:#0c0e12;border:1px solid #3a3f4a;transform:rotate(45deg)}
 .caret.c-down{border-top-color:transparent;border-left-color:transparent}
@@ -102,36 +108,39 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .caret.c-left{border-top-color:transparent;border-right-color:transparent}
 .caret.c-right{border-bottom-color:transparent;border-left-color:transparent}
 
-/* ===================== 变体 A：竖排小堆叠 ===================== */
-.vA{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:max-content;max-width:100%}
-.vA .toprow{display:flex;align-items:center;gap:6px;max-width:100%}
-.vA .chip{font-family:var(--mono);font-size:12px;line-height:1.5;color:#e6edf3;background:#181c25;border:1px solid #333a47;border-radius:11px;padding:4px 11px;cursor:pointer;user-select:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform-origin:left center;animation:riseIn .26s cubic-bezier(.2,.85,.3,1.25) backwards;transition:transform .16s cubic-bezier(.2,.9,.3,1.3),border-color .16s,background .16s}
-.vA .chip:hover{transform:translateY(-1px) scale(1.03);border-color:#5a7fb0;background:#1d2430}
-@keyframes riseIn{from{opacity:0;transform:translateY(12px) scale(.9)}to{opacity:1;transform:none}}
-.vA .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75}
-.vA .close:hover{opacity:1;color:var(--text);border-color:var(--border2)}
-
-/* ===================== 变体 B：横排胶囊 ===================== */
-.vB{display:flex;align-items:center;gap:6px;flex-wrap:wrap;animation:popUp .3s cubic-bezier(.2,.9,.3,1.25) backwards;transform-origin:left bottom}
-@keyframes popUp{0%{opacity:0;transform:translateY(14px) scale(.9)}62%{opacity:1;transform:translateY(-3px) scale(1.015)}100%{opacity:1;transform:none}}
-.vB .pill{font-family:var(--mono);font-size:12px;line-height:1.5;color:#e6edf3;background:#151922;border:1px solid #333a47;border-radius:99px;padding:3px 11px;cursor:pointer;user-select:none;transition:transform .16s cubic-bezier(.2,.9,.3,1.3),border-color .16s,background .16s}
-.vB .pill:hover{transform:translateY(-2px);border-color:#5a7fb0;background:#1d2430}
-.vB .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75}
+/* ===================== 三个变体：都以 B 为基底（一行居中的药丸），比的是动画的多少与气质 ===================== */
+.vB{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;width:max-content;max-width:100%;margin:0 auto;animation:fadeRise .22s ease-out backwards}
+/* 药丸用正常字体：提示词未必是斜杠命令，也可能是一句普通的话（只有斜杠命令才用等宽字体） */
+.vB .pill{font-size:12.5px;line-height:1.5;color:#e6edf3;background:#151922;border:1px solid #333a47;border-radius:99px;padding:3px 12px;cursor:pointer;user-select:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform-origin:center bottom;animation:popIn .34s cubic-bezier(.2,.9,.3,1.45) backwards;animation-delay:var(--d,0ms);transition:transform .16s cubic-bezier(.2,.9,.3,1.35),border-color .16s,background .16s,box-shadow .16s}
+.vB .pill.cmd{font-family:var(--mono);font-size:12px}
+.vB .pill:hover{transform:translateY(-2px) scale(1.04);border-color:#5a7fb0;background:#1d2430}
+@keyframes popIn{0%{opacity:0;transform:translateY(10px) scale(.86)}60%{opacity:1;transform:translateY(-2px) scale(1.03)}100%{opacity:1;transform:none}}
+@keyframes fadeRise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* 冒出来的那一下：胶囊上沿闪一点微光，荡开一圈涟漪（轻的那一版不做） */
+.vB .ripple{position:absolute;left:50%;bottom:-11px;width:150px;height:32px;margin-left:-75px;border:1px solid rgba(192,132,252,.5);border-radius:50%;opacity:0;pointer-events:none;animation:ripple .72s ease-out forwards}
+.vB .dot{position:absolute;left:50%;bottom:-10px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--primary);box-shadow:0 0 12px 3px rgba(192,132,252,.55);opacity:0;pointer-events:none;animation:dotFlash .9s ease-out forwards}
+@keyframes ripple{0%{opacity:.6;transform:scale(.3)}100%{opacity:0;transform:scale(1.7)}}
+@keyframes dotFlash{0%{opacity:.9;transform:scale(.6)}40%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(.6)}}
+.vB.lvl-1 .ripple,.vB.lvl-1 .dot{display:none}
+/* 点中的那颗：先闪一下再收掉 */
+.vB .pill.picked{animation:pickFlash .4s cubic-bezier(.2,.9,.3,1.3) forwards}
+@keyframes pickFlash{0%{transform:none}28%{transform:scale(1.14);border-color:#c084fc;background:#2a2140;box-shadow:0 0 0 5px rgba(192,132,252,.16)}100%{transform:scale(.9);opacity:0}}
+/* 没被选中的：错峰散开 */
+.vB .pill.scatter{animation:scatter .3s ease-in forwards;animation-delay:var(--d2,0ms)}
+@keyframes scatter{to{opacity:0;transform:translateY(7px) scale(.9)}}
+/* 整组退场：关闭是上飘淡出，被新的一组覆盖是直接淡出 */
+.vB.closing{animation:floatUp .3s ease-in forwards}
+@keyframes floatUp{to{opacity:0;transform:translateY(-12px) scale(.96)}}
+.vB.replaced{animation:fadeOut .17s ease-in forwards}
+@keyframes fadeOut{to{opacity:0;transform:translateY(4px)}}
+/* 活的那一版：冒出来一秒后轻轻呼吸两下，提醒人「它在这儿」 */
+.vB.breath{animation:breath 1.5s ease-in-out 2}
+@keyframes breath{0%,100%{opacity:1;transform:none}50%{opacity:.72;transform:translateY(-1px) scale(.995)}}
+/* 活的那一版：点中的时候整组轻轻发光一下 */
+.vB.glow{animation:glow .5s ease-out forwards}
+@keyframes glow{0%{box-shadow:0 0 0 0 rgba(192,132,252,.45)}100%{box-shadow:0 0 0 16px rgba(192,132,252,0)}}
+.vB .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75;transform-origin:center bottom;animation:popIn .34s cubic-bezier(.2,.9,.3,1.45) backwards;animation-delay:var(--d,0ms);transition:opacity .16s,color .16s,border-color .16s}
 .vB .close:hover{opacity:1;color:var(--text);border-color:var(--border2)}
-
-/* ===================== 变体 C：会话式小卡片 ===================== */
-.vC{position:relative;display:flex;flex-direction:column;align-items:flex-start;animation:growUp .3s cubic-bezier(.2,.9,.3,1.2) backwards;transform-origin:left bottom}
-@keyframes growUp{from{opacity:0;transform:translateY(14px) scaleY(.72)}to{opacity:1;transform:none}}
-.vC .card{position:relative;max-width:min(320px,100%);background:#141821;border:1px solid #333a47;border-radius:12px;padding:7px 9px 8px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-.vC .card::after{content:'';position:absolute;left:16px;bottom:-5px;width:9px;height:9px;background:#141821;border-right:1px solid #333a47;border-bottom:1px solid #333a47;transform:rotate(45deg)}
-.vC .head{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--cap);padding:0 2px 5px}
-.vC .head .t{flex:1}
-.vC .close{flex:none;width:18px;height:18px;border-radius:99px;border:1px dashed #3a3f4a;background:transparent;color:var(--cap);font-size:11px;line-height:1;cursor:pointer;opacity:.75}
-.vC .close:hover{opacity:1;color:var(--text)}
-.vC .row{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:4px 6px;color:#e6edf3;font-family:var(--mono);font-size:12px;line-height:1.5;cursor:pointer}
-.vC .row:hover{background:rgba(255,255,255,.07)}
-.vC .row .c{color:var(--primary);font-family:inherit}
-.vC .row .p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ===================== 原型自己的面板 ===================== */
 .side{display:flex;flex-direction:column;gap:12px}
@@ -194,6 +203,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px so
             <ul>
               <li>工具只管展示不管判断，模型传什么就显示什么；模型漏调也允许。</li>
               <li>参数是一次 2 到 4 项，每项是「提示词原文 + 一句话推荐理由」。</li>
+              <li>提示词原文不一定是斜杠命令，也可以是一句普通的话（例如「认可，开始动手。」）。</li>
               <li>气泡挂在状态栏胶囊正上方，点一个只把提示词填进输入框，不替你发送。</li>
             </ul>
             下面这几件事还没定，想接着往下走的话，可以从里面挑一个开始。
@@ -229,12 +239,13 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px so
     <div class="card">
       <h2>这次原型要回答什么</h2>
       <ol>
-        <li>推荐气泡怎么让人一眼看出是「想法冒出来」，而不是一排普通按钮？</li>
+        <li>推荐气泡能不能让人一眼看出是「想法冒出来」，而不是一排普通按钮？</li>
         <li>解释气泡怎么跟着推荐气泡走，又不挡住底下的状态栏胶囊？</li>
-        <li>三个变体在结构上差在哪（布局、信息层级、主操作）？</li>
+        <li>动画给到多少才不吵（素 / 稳 / 活三档）？</li>
+        <li>提示词未必是斜杠命令（一句话也算），怎么排才不别扭？</li>
         <li>输入列变窄时，气泡会不会断成一截一截？</li>
       </ol>
-      <p class="tagline">本页只回答「长什么样」，不写真实工具逻辑；数据是假的。</p>
+      <p class="tagline">本页只回答「长什么样」，不写真实工具逻辑；数据是假的。布局按反馈定为「一行居中的药丸」，三个变体比的是动画的多少与气质。</p>
     </div>
 
     <div class="card">
@@ -257,11 +268,12 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px so
     <div class="card">
       <h2>怎么走完整一趟</h2>
       <ol>
-        <li>底部条点「调一次新的一组」——气泡从胶囊上方冒出来。</li>
-        <li>鼠标停在某个候选项上——解释气泡浮出来（它不会落到胶囊那一侧）。</li>
-        <li>点其中一个——提示词填进输入框，整组消失（不替你发送）。</li>
+        <li>底部条点「调一次新的一组」——气泡从胶囊上方冒出来（胶囊上沿闪一下微光，荡开一圈涟漪）。</li>
+        <li>鼠标停在某个候选项上——解释气泡从小尖角那侧展开（它不会落到胶囊那一侧）。</li>
+        <li>点其中一个——那颗先闪一下，提示词填进输入框，其余的错峰散开，整组消失（不替你发送）。</li>
         <li>再点一次「调一次新的一组」——第二组直接覆盖第一组。</li>
-        <li>点 × ——整组关闭，等于一个都不选。</li>
+        <li>点 × ——整组上飘淡出，等于一个都不选。</li>
+        <li>点「重放冒出来的动画」——再看一次冒出来的动作。</li>
         <li>点「宽栏 / 窄栏」——看窄栏下换行会不会把气泡拆坏。</li>
       </ol>
     </div>
@@ -283,54 +295,60 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px so
 
 <script>
 /* ===================== 假数据：模型调用 suggest_next_steps 时传进来的东西 ===================== */
-/* 形状按交接里的决定：一次 2 到 4 项，每项是「提示词原文 + 一句话推荐理由」。 */
+/* 形状按交接里的决定：一次 2 到 4 项，每项是「提示词原文 + 一句话推荐理由」。
+   提示词原文不一定是斜杠命令，也可能是一句普通的话（例如「认可，开始动手。」），
+   所以下面三组故意混着放：全是普通句子、全是斜杠命令、两者混着。 */
 var GROUPS = [
-  { label: '第 1 组', items: [
+  { label: '第 1 组（都是普通句子）', items: [
+    { prompt: '认可，开始动手。', reason: '方向已经定下来了，接下来把结论变成真东西就行。' },
+    { prompt: '先把这轮的结论写成一份交接。', reason: '这段上下文换个人接也能接着走，交接是最省事的一步。' },
+    { prompt: '把刚才定下的三件事拆成三张票。', reason: '拆完就能分头开工，不用每次都重新商量一遍。' }
+  ]},
+  { label: '第 2 组（都是斜杠命令）', items: [
     { prompt: '/to-tickets', reason: '这次的讨论已经定下方向，可以拆成能开工的实施票。' },
-    { prompt: '/ask-matt',   reason: '不确定该走哪条流程时，让它按现在的处境挑一个合适的技能。' },
-    { prompt: '/grill-me',   reason: '还有没定的地方想先被追问一轮，把隐患问出来。' }
+    { prompt: '/ask-matt',   reason: '不确定该走哪条流程时，让它按现在的处境挑一个合适的技能。' }
   ]},
-  { label: '第 2 组', items: [
-    { prompt: '/to-spec', reason: '把这次的结论写成一份规格，再决定怎么开工。' },
-    { prompt: '/retro',  reason: '想复盘刚才这一段做得怎么样的时候用它。' }
-  ]},
-  { label: '第 3 组', items: [
-    { prompt: '/to-tickets',  reason: '把规格拆成能开工的实施票。' },
-    { prompt: '/implement',   reason: '按规格直接动手改代码。' },
-    { prompt: '/code-review', reason: '改完之后让另一双眼睛看一遍。' },
-    { prompt: '/pr',          reason: '确认没问题之后写成待合并的说明。' }
+  { label: '第 3 组（混着来）', items: [
+    { prompt: '认可，开始动手。',   reason: '方案已经说清楚了，直接进实现。' },
+    { prompt: '/to-spec',           reason: '动手前先把规格写下来，免得做着做着改了口径。' },
+    { prompt: '把这轮的改动记到票据上。', reason: '记一笔，后面复盘和交接都省事。' },
+    { prompt: '/code-review',       reason: '改完之后让另一双眼睛看一遍。' }
   ]}
 ];
 
+/* 三个变体现在共用同一个基底（一行居中的药丸），比的是动画的多少与气质。 */
 var VARIANTS = {
   A: {
-    name: 'A — 竖排小堆叠',
-    idea: '每个候选项是一张小圆角片，从胶囊里一张张顶上来（最底下那张先出），看上去像想法从胶囊里冒出来。',
-    tipSide: 'right',
-    tipWhere: '贴在触发的那张片子右边；右边放不下就改到左边，永远不落到胶囊那一侧。',
-    narrow: '片子本身不拆，整列宽度跟着输入列收窄；候选项多时（4 个）会占掉一块竖向空间。',
-    cost: '竖向占地方，4 个候选项时会把对话区压掉一截。'
-  },
-  B: {
-    name: 'B — 横排胶囊',
-    idea: '所有候选项排成一行药丸，贴着胶囊上沿；整行从胶囊那一侧往上弹出来（带一点过冲），像一句话里的几个备选。',
+    name: 'A — 素（最轻的动画）',
+    level: 1,
+    idea: '一样是一行居中的药丸，只给最必要的动作：药丸依次轻轻上浮冒出来，悬停时轻轻抬起，解释气泡淡入淡出。点掉或关掉时直接淡出，不做多余表演。',
     tipSide: 'above',
     tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸。',
-    narrow: '这一行会换行成两行，但每颗药丸不被拆开。',
-    cost: '候选项多了像一排标签栏，读起来不像「想法」而像「筛选项」。'
+    narrow: '这一行会换行成两行，每颗药丸不被拆开。',
+    cost: '安静是优点，但也可能让人没注意到它。'
+  },
+  B: {
+    name: 'B — 稳（推荐）',
+    level: 2,
+    idea: '在「素」之上加几个小动作：冒出来时胶囊上沿闪一下微光并荡开一圈涟漪；药丸逐颗带回弹地顶上来；点中的那颗先闪一下再收掉，其余的错峰散开；关闭时整组上飘淡出；解释气泡从小尖角那侧展开。',
+    tipSide: 'above',
+    tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸；出现时从小尖角那侧张开。',
+    narrow: '这一行会换行成两行，每颗药丸不被拆开。',
+    cost: '动作多了几拍，但每拍都在 0.4 秒以内，不吵。'
   },
   C: {
-    name: 'C — 会话式小卡片',
-    idea: '整组做成一张带尾巴的对话卡片，尾巴指向胶囊，里头一行一个候选项；卡片标题是「接着可以」这样的半句话。',
-    tipSide: 'right',
-    tipWhere: '浮在卡片右边，跟着卡片一起移动。',
-    narrow: '卡片宽度跟着输入列收窄，条目一行一个。',
-    cost: '比另两个变体重；标题那句是组长自己加的字（模型只传了提示词原文和理由）。'
+    name: 'C — 活（再加两件事）',
+    level: 3,
+    idea: '在「稳」之上再加两件事：气泡冒出来一秒后轻轻呼吸两下，提醒人「它在这儿」；鼠标移开后解释气泡再留一会儿才收回去，不那么一闪而过。',
+    tipSide: 'above',
+    tipWhere: '同「稳」，但鼠标移开后多留 0.9 秒才收走。',
+    narrow: '这一行会换行成两行，每颗药丸不被拆开。',
+    cost: '呼吸那一拍如果正好落在你正在读字的时候，会稍微打断注意力。'
   }
 };
 
 var S = {
-  variant: 'A',
+  variant: 'B',
   narrow: false,
   groupIndex: -1,
   group: null,
@@ -338,6 +356,8 @@ var S = {
   tipSide: '',
   tipVisible: false,
   tipAnchor: null,
+  domKey: '',      /* 画在页面上的那一组是哪一组（状态变了但这一组没变时就不重画，免得动画重放） */
+  animating: false,/* 退场动画期间不重画 DOM */
   log: []
 };
 
@@ -393,14 +413,21 @@ function foldCapsule() {
 /* ===================== 第二层：解释气泡 ===================== */
 /* 样式照 src/client/views/primitives/HoverTip.ts:163-191；定位是这里现算的。 */
 var tipEl = $('tip');
-function hideTip() {
-  tipEl.classList.remove('on');
-  tipEl.style.display = 'none';
-  S.tipVisible = false;
-  S.tipAnchor = null;
-  renderState();
+var tipTimer = null;
+/* 收走解释气泡。delay 大于 0 时晚一点再收：「活」的那一版鼠标移开后多留一会儿。 */
+function hideTip(delay) {
+  clearTimeout(tipTimer);
+  var go = function () {
+    tipEl.classList.remove('on');
+    tipEl.style.display = 'none';
+    S.tipVisible = false;
+    S.tipAnchor = null;
+    renderState();
+  };
+  if (delay) { tipTimer = setTimeout(go, delay); } else { go(); }
 }
 function showTip(anchor, text) {
+  clearTimeout(tipTimer);
   tipEl.innerHTML = '<span class="tx"></span><i class="caret"></i>';
   tipEl.querySelector('.tx').textContent = text;
   tipEl.style.display = 'block';
@@ -413,7 +440,7 @@ function placeTip(anchor, prefer) {
   var r = anchor.getBoundingClientRect();
   var tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
   var vw = window.innerWidth, vh = window.innerHeight;
-  var gap = 10, side = prefer;
+  var gap = 13, side = prefer;
 
   /* 选边：优先问过的方位；放不下就换边。
      注意：胶囊在下方，所以「下方」这一边永远不用——解释气泡不能挡住胶囊。 */
@@ -434,6 +461,8 @@ function placeTip(anchor, prefer) {
   tipEl.style.top = top + 'px';
 
   var caret = tipEl.querySelector('.caret');
+  /* 展开的方向跟着小尖角走：尖角在哪一侧，解释气泡就从哪一侧张开 */
+  tipEl.style.transformOrigin = side === 'above' ? '50% 100%' : (side === 'right' ? '0% 50%' : '100% 50%');
   caret.className = 'caret';
   if (side === 'above') {
     caret.classList.add('c-down');
@@ -452,45 +481,39 @@ function placeTip(anchor, prefer) {
   renderState();
 }
 
-/* ===================== 三个变体的画法（结构不同，不只是换颜色） ===================== */
+/* ===================== 三个变体的画法（共用 B 基底：一行居中的药丸） ===================== */
+/* 提示词不一定是斜杠命令：普通句子用正常字体，斜杠命令才用等宽字体。 */
+function isCmd(prompt) { return /^\s*\//.test(prompt); }
+function buildGroupHtml() {
+  var items = S.group.items;
+  var html = '<div class="vB lvl-' + VARIANTS[S.variant].level + '">';
+  html += '<span class="ripple"></span><span class="dot"></span>';
+  for (var i = 0; i < items.length; i++) {
+    var cls = 'pill' + (isCmd(items[i].prompt) ? ' cmd' : '');
+    html += '<div class="' + cls + '" data-i="' + i + '" style="--d:' + (i * 55) + 'ms">' + esc(items[i].prompt) + '</div>';
+  }
+  html += '<button class="close" title="关闭（等于一个都不选）" style="--d:' + (items.length * 55) + 'ms">×</button>';
+  html += '</div>';
+  return html;
+}
 function renderVariant() {
   var host = $('sugg');
-  if (!S.group) { host.innerHTML = ''; return; }
-  var items = S.group.items;
-  var html = '';
-
-  if (S.variant === 'A') {
-    /* 竖排小堆叠：每项一张小片，自下而上依次冒出来；关闭按钮跟在最上面那张片右边 */
-    html = '<div class="vA">';
-    for (var i = 0; i < items.length; i++) {
-      var delay = (items.length - 1 - i) * 70;
-      var chip = '<div class="chip" data-i="' + i + '" style="animation-delay:' + delay + 'ms">' + esc(items[i].prompt) + '</div>';
-      if (i === 0) {
-        html += '<div class="toprow">' + chip + '<button class="close" title="关闭（等于一个都不选）">×</button></div>';
-      } else {
-        html += chip;
-      }
-    }
-    html += '</div>';
-  } else if (S.variant === 'B') {
-    /* 横排胶囊：所有项排成一行，贴着胶囊上沿 */
-    html = '<div class="vB">';
-    for (var j = 0; j < items.length; j++) {
-      html += '<div class="pill" data-i="' + j + '">' + esc(items[j].prompt) + '</div>';
-    }
-    html += '<button class="close" title="关闭（等于一个都不选）">×</button></div>';
-  } else {
-    /* 会话式小卡片：一张带尾巴的卡片，里头一行一个候选项 */
-    html = '<div class="vC"><div class="card"><div class="head"><span class="t">接着可以</span>' +
-           '<button class="close" title="关闭（等于一个都不选）">×</button></div>';
-    for (var k = 0; k < items.length; k++) {
-      html += '<button class="row" data-i="' + k + '"><span class="c">›</span><span class="p">' + esc(items[k].prompt) + '</span></button>';
-    }
-    html += '</div></div>';
-  }
-
-  host.innerHTML = html;
+  if (S.animating) return;                                    /* 退场动画期间不重画 DOM */
+  if (!S.group) { host.innerHTML = ''; S.domKey = ''; return; }
+  var key = S.variant + '|' + S.groupIndex;
+  if (S.domKey === key && host.firstElementChild) return;      /* 这一组没变，别把入场动画重放一遍 */
+  host.innerHTML = buildGroupHtml();
+  S.domKey = key;
   bindGroup();
+  startEntrance();
+}
+function startEntrance() {
+  var el = $('sugg').firstElementChild;
+  if (!el) return;
+  /* 「活」的那一版：冒出来约一秒后轻轻呼吸两下，提醒人它在这儿 */
+  setTimeout(function () {
+    if (el.classList.contains('lvl-3') && document.body.contains(el)) el.classList.add('breath');
+  }, 900);
 }
 
 /* ===================== 候选项的悬停与点击 ===================== */
@@ -503,27 +526,62 @@ function bindGroup() {
       showTip(el, item.reason);
       say('悬停「' + item.prompt + '」→ 解释气泡浮出来（' + sideText(S.tipSide) + '）', true);
     });
-    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('mouseleave', function () {
+      /* 「活」的那一版多留一会儿再收走 */
+      hideTip(VARIANTS[S.variant].level >= 3 ? 900 : 0);
+    });
     el.addEventListener('click', function () {
-      /* 点中一个：提示词原文填进输入框（不发送），整组消失，下一次调用才重新出来 */
+      if (S.animating) return;
+      /* 点中一个：提示词原文填进输入框（不发送），整组收场，下一次调用才重新出来 */
       $('fakeInput').value = item.prompt;
       S.filled = item.prompt;
-      say('点击「' + item.prompt + '」→ 提示词填进输入框，整组消失（不替你发送）', true);
-      S.group = null;
-      hideTip();
-      render();
+      say('点击「' + item.prompt + '」→ 提示词填进输入框（不替你发送），那颗闪一下，其余的错峰散开', true);
+      dismissGroup('pick', el);
     });
   });
   var close = host.querySelector('.close');
   if (close) {
     close.addEventListener('click', function (e) {
       e.stopPropagation();
-      say('点了关闭 → 整组消失，等于一个都不选', true);
-      S.group = null;
-      hideTip();
-      render();
+      if (S.animating) return;
+      say('点了关闭 → 整组上飘淡出，等于一个都不选', true);
+      dismissGroup('close', null);
     });
   }
+}
+
+/* ===================== 整组收场 ===================== */
+/* kind：pick=点中一个，close=点关闭，replace=被新的一组覆盖。 */
+function dismissGroup(kind, pickedEl, next) {
+  var host = $('sugg');
+  var el = host.firstElementChild;
+  if (!el) { S.group = (kind === 'replace' ? next : null); render(); return; }
+  S.animating = true;
+  el.classList.remove('breath');
+  var dur = 200;
+  if (kind === 'pick' && pickedEl) {
+    pickedEl.classList.add('picked');
+    var others = el.querySelectorAll('.pill:not(.picked)');
+    Array.prototype.forEach.call(others, function (p, i) {
+      p.style.setProperty('--d2', (i * 45) + 'ms');
+      p.classList.add('scatter');
+    });
+    if (el.classList.contains('lvl-3')) el.classList.add('glow');
+    dur = 430;
+  } else if (kind === 'close') {
+    el.classList.add('closing');
+    dur = 320;
+  } else {
+    el.classList.add('replaced');
+    dur = 180;
+  }
+  hideTip(0);
+  setTimeout(function () {
+    S.animating = false;
+    S.domKey = '';
+    S.group = (kind === 'replace' ? next : null);
+    render();
+  }, dur);
 }
 function sideText(side) {
   if (side === 'above') return '在气泡上方';
@@ -534,25 +592,27 @@ function sideText(side) {
 
 /* ===================== 一次模型调用 ===================== */
 function callTool() {
+  if (S.animating) { toast('上一组还在收场，稍等一下'); return; }
   var had = !!S.group;
   S.groupIndex = (S.groupIndex + 1) % GROUPS.length;
-  S.group = GROUPS[S.groupIndex];
-  say('模型调用 suggest_next_steps（' + S.group.label + '，' + S.group.items.length + ' 个候选项）→ 气泡组冒出来' +
+  var next = GROUPS[S.groupIndex];
+  say('模型调用 suggest_next_steps（' + next.label + '，' + next.items.length + ' 个候选项）→ 气泡组冒出来' +
       (had ? '（覆盖上一组）' : ''), true);
-  hideTip();
-  render();
+  hideTip(0);
+  if (had) { dismissGroup('replace', null, next); }
+  else { S.group = next; render(); }
 }
 function replay() {
   if (!S.group) { toast('当前没有气泡组，先点「调一次新的一组」'); return; }
+  S.domKey = '';
   renderVariant();
   say('重放冒出来的动画');
 }
 function closeGroup() {
   if (!S.group) { toast('当前没有气泡组'); return; }
-  say('点了关闭 → 整组消失，等于一个都不选', true);
-  S.group = null;
-  hideTip();
-  render();
+  if (S.animating) return;
+  say('点了关闭 → 整组上飘淡出，等于一个都不选', true);
+  dismissGroup('close', null);
 }
 function toggleNarrow() {
   S.narrow = !S.narrow;
