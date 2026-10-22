@@ -60,7 +60,8 @@ export     const NoRepoCard = function (props: any) {
       const isOther = !!(sel && sel.backendId===null && !sel.pending)
       // PendingCard：pending=true 时无论 repoBad 都显示等待态（提示不阻断，pending 不 fallback）
       if (isPending) {
-        return h('div', { className: 'dsws-no-repo-card', style:{ background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)' } }, [
+        // #1379 收口：三张卡各标 data-state，浅色层据此给卡头图标换色（图标颜色是内联的，CSS 只够得着 svg 自己）。
+        return h('div', { className: 'dsws-no-repo-card', 'data-state': 'pending', style:{ background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)' } }, [
           h('div', { className: 'head' }, [
             h('span', { className:'dsws-spinner', style:{ width:13, height:13, borderWidth:2, display:'inline-block' } }),
             h('div', { style:{ flex:1, minWidth:0 } }, [
@@ -76,7 +77,7 @@ export     const NoRepoCard = function (props: any) {
         ])
       }
       if (isOther) {
-        return h('div', { className: 'dsws-no-repo-card', style:{ background:'rgba(110,118,129,.08)', border:'1px solid rgba(110,118,129,.35)' } }, [
+        return h('div', { className: 'dsws-no-repo-card', 'data-state': 'other', style:{ background:'rgba(110,118,129,.08)', border:'1px solid rgba(110,118,129,.35)' } }, [
           h('div', { className: 'head' }, [
             Ic({ n: 'compass', size: 13, color: '#6e7681' }),
             h('div', { style: { flex: 1, minWidth: 0 } }, [
@@ -229,7 +230,7 @@ export     const NoRepoCard = function (props: any) {
         })
       }
       // 构建红卡主体（show 时）
-      const cardEl = show ? h('div', { className: 'dsws-no-repo-card' }, [
+      const cardEl = show ? h('div', { className: 'dsws-no-repo-card', 'data-state': 'bad' }, [
         h('div', { className: 'head' }, [
           Ic({ n: 'alert', size: 13, color: '#f87171' }),
           h('div', { style: { flex: 1, minWidth: 0 } }, [

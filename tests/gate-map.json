@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T04:07:01.104Z",
+  "generatedAt": "2026-10-22T07:30:42.396Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 317,
   "gateCount": 317,
@@ -6759,7 +6759,9 @@
         "src/client/views/skillDetail/PixelMarkdown.ts",
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillOps.ts",
+        "src/client/views/skillDetail/PixelStyles.ts",
         "src/shared/time-config/src/values.ts",
+        "tests/lib/contrast.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -6772,7 +6774,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-snapshot-cache-first.ts",
@@ -7041,6 +7043,7 @@
         "src/client/views/SubworkspaceMark.ts",
         "src/client/views/TicketRow.ts",
         "src/client/views/cards/PixelCardBtns.ts",
+        "src/client/views/cards/PixelCardsStyles.ts",
         "src/client/views/cards/PixelIssueCard.ts",
         "src/client/views/cards/PixelIssueMapCard.ts",
         "src/client/views/diagnosticLog/DiagnosticLogSection.ts",
@@ -7063,6 +7066,7 @@
         "src/client/views/skillDetail/PixelMarkdown.ts",
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillRow.ts",
+        "src/client/views/skillDetail/PixelStyles.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcViews.ts",
@@ -7090,7 +7094,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 57 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 59 条"
     },
     {
       "step": "node tests/verify-unmigrated-tests.ts",

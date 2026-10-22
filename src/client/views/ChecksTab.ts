@@ -134,10 +134,12 @@ export const ChecksTab = ({ st }: any) => {
   //   垂直步骤明细：每步 = 状态圆点 + 名称 + 描述（动作按钮按行级 primaryAction 渲染）
   const statusMeta = function (s: any) {
     const sts = s.status
-    if (sts === 'done') return { dot: '#16a34a', color: '#4ade80', label: '\u2713' }
-    if (sts === 'current') return { dot: '#f59e0b', color: '#f59e0b', label: '!' }
-    if (sts === 'fail') return { dot: '#ef4444', color: '#f87171', label: '\u2715' }
-    return { dot: '#6b7280', color: '#a1a1aa', label: '\u2026' }
+    // #1379 收口：四个分支各带一个归一后的状态名 state，行上标成 data-state 供浅色层逐态换色。
+    //   state 只描述「这一行属于哪一态」，与颜色、文案同源，不另算一份判据。
+    if (sts === 'done') return { state: 'done', dot: '#16a34a', color: '#4ade80', label: '\u2713' }
+    if (sts === 'current') return { state: 'current', dot: '#f59e0b', color: '#f59e0b', label: '!' }
+    if (sts === 'fail') return { state: 'fail', dot: '#ef4444', color: '#f87171', label: '\u2715' }
+    return { state: 'pending', dot: '#6b7280', color: '#a1a1aa', label: '\u2026' }
   }
   // 修复契约（2026-08-28）：hint = 修复指引文案（host 由后端 fixes 解析；'prompt:' 前缀经 resolvePrompt 解出，UI 零派生）；
   //   动作按钮 = 检查失败时的可执行修复入口（inject-prompt / open-url / rpc / form / refresh），执行后走既有重求值闭环。
@@ -197,11 +199,11 @@ export const ChecksTab = ({ st }: any) => {
       // 本次界面反馈需求：每步的主修复按钮带按压态、悬停反馈与点击日志；定位串用步序号（步 id 带冒号，进不了定位串）。
       return h('button', { key: 'fix-primary', className: 'dsws-btn primary dsws-hov', 'data-press': 'button', 'data-log': 'check.fix.' + i, tabIndex: 0, disabled: !!repoSync, onClick: function () { runAction(primaryAction) }, style: { fontSize: 12, padding: '6px 14px', flex: 'none', whiteSpace: 'nowrap' } }, alabel)
     })() : null
-    return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, padding: primaryBtn ? '10px 12px' : undefined, border: primaryBtn ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : undefined, borderRadius: 10, background: primaryBtn ? 'var(--dsw-alias-bg-layer-1,#10131a)' : undefined } }, [
-      h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
+    return h('div', { key: s.id || i, className: 'dsws-ccard', 'data-state': meta.state, style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, padding: primaryBtn ? '10px 12px' : undefined, border: primaryBtn ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : undefined, borderRadius: 10, background: primaryBtn ? 'var(--dsw-alias-bg-layer-1,#10131a)' : undefined } }, [
+      h('span', { className: 'dsws-ccard-dot', style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
       h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { className: 'nm', style: { color: meta.color, fontWeight: primaryBtn ? 600 : 400 } }, String(label)),
-        finalDesc ? h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.desc')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, finalDesc)]) }, h('div', { className: 'dt dsws-ellip', style: { color: '#8b8b95' } }, finalDesc)) : null,
+        finalDesc ? h(Tip, { className: 'dsws-tip', content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.desc')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, finalDesc)]) }, h('div', { className: 'dt dsws-ellip', style: { color: '#8b8b95' } }, finalDesc)) : null,
         hintText ? h('div', { className: 'dt', style: { color: '#d97706', lineHeight: 1.5, marginTop: 2, whiteSpace: 'pre-wrap' } }, hintText) : null,
       ]),
       primaryBtn,
