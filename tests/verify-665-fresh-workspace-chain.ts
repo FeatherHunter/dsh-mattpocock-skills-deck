@@ -436,31 +436,58 @@ async function main() {
   //   空白抹平、并允许把 if(...) 那层括号拆成 `if ...`，再按抹平后的形状找下标、把下标换回原文去切片。
   //   拆下来的是待求值的那份文本（spliceableJs 的输出）：拆完要能直接喂进沙箱。
   //   找不到那段就原样返回，下面那圈静默跳过、不当场判红（以源码文本形状为对象的断言早先已按维护者口径整段删除）。
-  const flatten = (t: string) => t.replace(/if\s*\(/g, 'if ').replace(/\s+/g, '')
+  // flatten 把两边拉到同一个形状再比：去空白、去分号（转译必加分号，真源里可写可不写，#1372）、
+  //   把 if( 那层括号拆成 if 。锚点与下标换算两边都按同一个「保留字符」口径数。
+  const flatten = (t: string) => t.replace(/if\s*\(/g, 'if ').replace(/;/g, '').replace(/\s+/g, '')
+  // 保留字符：flatten 之后还留着的字符。下面两个循环都按这个口径数，不然一定对不上。
+  //   注意 flatten 的第一步会吃掉 if 后面的左括号（/if\\s*\\(/ 整个换成 if 再去空白），
+  //   所以这里同样跳过「if（中间可隔空白）后面的那个左括号」；只跳空白与分号是不够的，
+  //   每遇到一个 if ( 就会差一个字符（#1372 修第二遍时亲手量出来的 drift）。
+  // 注：下面闭包里读到的 sbJs 在后面一行才定义，调用时它已经就绪（调用都在 if (foundAnchor) 里）。
+  const droppedParenAt = (i: number): boolean => {
+    if (sbJs[i] !== '(') return false
+    let j = i - 1
+    while (j >= 0 && /\s/.test(sbJs[j])) j--
+    return j >= 1 && sbJs[j - 1] === 'i' && sbJs[j] === 'f'
+  }
+  const keptCharAt = (i: number): boolean => {
+    const c = sbJs[i]
+    if (/\s/.test(c) || c === ';') return false
+    return !droppedParenAt(i)
+  }
   const flatAnchor = flatten('try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}')
   const foundAnchor = flatten(sourceText('src/client/statusbar/StatusBackend.js')).indexOf(flatAnchor) >= 0
   const sbJs = spliceableJs('src/client/statusbar/StatusBackend.js')
   let brokenText = sbJs
   if (foundAnchor) {
     const flatSb = flatten(sbJs)
-    // 按「抹平后第 atAnchor 个保留字符」换回 sbJs 的下标（flatten 只删除空白、替换 `if (`，不改保留字符的先后）。
+    // 按「抹平后第 atAnchor 个保留字符」换回 sbJs 的下标（flatten 只删除空白与分号、替换 `if (`，不改保留字符的先后）。
     const atAnchor = flatSb.indexOf(flatAnchor)
+    if (atAnchor < 0) {
+      // 真源里找得到、待求值文本里找不到：两边排法没对上，反证没跑。必须当场变红，
+      // 不许静默跳过（静默跳过就是 #1372：三条反证断言一次都不执行，门禁照绿）。
+      ok(false, '反证没跑：锚点在真源里找得到，在待求值文本里找不到（两边排法没对上），先修锚点再谈反证')
+    }
     let origAt = -1
     let kept = 0
     for (let i = 0; i < sbJs.length; i++) {
-      if (/\s/.test(sbJs[i])) continue
+      if (!keptCharAt(i)) continue
+      if (kept === atAnchor) { origAt = i; break }
       kept++
     }
     if (origAt >= 0) {
-      // 终点：从 origAt 起数够「抹平后模板那一段」的非空白字符数。
+      // 终点：从 origAt 起数够「抹平后模板那一段」的保留字符数。
       const want = flatAnchor.length
       let seenCount = 0
       let end = origAt
       while (end < sbJs.length && seenCount < want) {
-        if (!/\s/.test(sbJs[end])) seenCount++
+        if (keptCharAt(end)) seenCount++
         end++
       }
       brokenText = sbJs.slice(0, origAt) + sbJs.slice(end)
+    } else if (atAnchor >= 0) {
+      // 锚点找得到却换不回下标：映射口径 drift，同样当场变红，不许静默跳过。
+      ok(false, '反证没跑：锚点在待求值文本里找得到，却换不回原文下标（映射口径 drift），先修映射再谈反证')
     }
   }
   // 【已删除】原先这里有一条 ok(brokenText !== sbText, '反证：能在真源里拆掉…')——它断言的是手写源码里必须
