@@ -54,6 +54,8 @@ declare const process: {
   stderr: { write(chunk: string): void }
   /** 信号与退出事件的订阅（如 'SIGINT'、'exit'）。 */
   on(event: string, listener: (...args: any[]) => void): void
+  /** 向进程发信号：signal 0 不杀进程，只问「这个 pid 还在不在」（构建锁拿它判断持锁进程死没死）。 */
+  kill(pid: number, signal?: number | string): boolean
 }
 
 declare const console: {
@@ -130,6 +132,8 @@ declare module 'node:fs' {
   export function mkdirSync(path: any, ...args: any[]): any
   export function existsSync(path: any): boolean
   export function rmSync(path: any, ...args: any[]): void
+  /** 改名（同盘原子操作）：构建锁拿它把旧锁改名再接管，改名只会成功一家，不会有两家同时建成。 */
+  export function renameSync(oldPath: any, newPath: any): void
   export function cpSync(src: any, dest: any, ...args: any[]): void
   export function utimesSync(path: any, ...args: any[]): void
   export function mkdtempSync(prefix: string, ...args: any[]): string
@@ -194,10 +198,14 @@ declare module 'node:os' {
   export function tmpdir(): string
   export function platform(): string
   export function homedir(): string
+  /** 本机主机名：构建锁写进锁文件，报错与日志里指到哪台机器。 */
+  export function hostname(): string
 }
 
 declare module 'node:crypto' {
   export function createHash(algorithm: string): any
+  /** 随机字节：构建锁拿它生成随机串，释放与刷新时核对「这把锁还是不是我的」。 */
+  export function randomBytes(size: number): any
 }
 
 declare module 'node:vm' {

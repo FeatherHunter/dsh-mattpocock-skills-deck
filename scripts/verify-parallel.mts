@@ -307,7 +307,8 @@ function buildTasks(list: GateStep[]): Carriage[] {
       cmd: 'node scripts/build.mts',
       file: 'scripts/build.mts',
       label: 'scripts/build.mts（预构建：让后面十几扇门禁直接命中构建缓存）',
-      // 预构建是提速手段，不是门禁：它失败不算链红（比如同一台机器上还有别人在构建，两边撞了）。
+      // 预构建是提速手段，不是门禁：它失败不算链红（比如同一台机器上还有别人在构建——
+      // #1365 起构建带跨进程锁，两边撞上时后到的人排队等，超时才报错退出；等锁与超时都不算红）。
       // 真需要构建的门禁自己会再跑一次，失败会由它们如实报出来。
       optional: true
     }
