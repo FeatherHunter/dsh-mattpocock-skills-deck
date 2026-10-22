@@ -25,8 +25,8 @@ import { resolveCreateKind } from '../rules/object-kind.js'
 // #1195：执行层失败（抛错 / 中止 / 超时 / 预算耗尽）的收口从两个写工具里抽出来共用，判据一字未改。
 import { numOpt, timeoutMessage, transportMessage, withCap } from '../shell/backend-transport.js'
 import type { TransportResult } from '../shell/backend-transport.js'
-// #1277：规格与实施票的票面对象类型标记（唯一真源，ADR 2.5）。标记由本工具写进正文最前面，
-// 后端建房时再把它挪进文件头（本地 Markdown 房会挪，GitHub 房今天的已知缺口见设计文档第 7 节）。
+// #1277：规格与实施票的票面对象类型标记（唯一真源，ADR 2.5）。标记由本工具写进正文最前面；
+// 后端建房时再把它挪进文件头，#1403 读侧统一后三个后端都按文件头认这份标记。
 import { markerKindAtStart, markerKindInHeader, markerLineFor } from '../../shared/issue-file/src/marker.js'
 // #1091：维护者原话的入参收口与「追加 + 写后核对」都住在 shared 层（与 #1090 的进度区同一套形态）。
 import { PROGRESS_BODY_LIMIT } from '../../shared/issue-file/src/progress.js'

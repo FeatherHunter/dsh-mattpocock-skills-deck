@@ -1,6 +1,7 @@
 # ADR：对象类型的判定口径（#1275）
 
 > 日期：2026-10-20 定版（#1275 讨论票的结论；地图 #1274「双轨插件形态：探索地图与实施地图」下的落地前置）
+> 修订：2026-10-22（#1403）——建票入参的 kind 改成六个位置值并新增二级参数 label；读侧对象类型词表不变，改动见第 6 节。
 > 地位：本文件是「一张票是什么对象、怎么认出来、认不出时怎么办」的唯一依据。凡与本文冲突的旧写法以本文为准；未来任何讨论若改动本决策，以未来版本为准（根 `GLOSSARY.md`「版本与效力」同款两条规则）。
 > 关联：#1275（讨论票，结论落点）· #1274（地图，本决策的来源）· #1277（本地 Markdown 房落地）· #1280（验收与门禁）· #1281（提示词与按钮文案）· `GLOSSARY.md` 的「对象类型词条」· `research/1275-object-kind-identification.md`（外部资料调研，175 行）· `src/deck/rules/minimal-spec.ts`（规则侧现状）· `src/tracker/rooms/markdown/parse.ts`（本地房现状）· `src/tracker/rooms/markdown/patch-body.ts`（整段替换正文的搬回逻辑）· `src/client/kernel/store-derived.ts`（动作类型那条阶梯）· `src/shared/refresh/src/idempotency.ts`（判据只写一份的先例：deck 侧 `src/deck/tools/map-plan-create.ts:19` 与三个后端房 `github/issues-write.ts:24`、`markdown/issues-create.ts:25`、`gitlab/issues.ts:20` 引同一份）
 
@@ -26,9 +27,9 @@
 
 ## 2. 决策
 
-### 2.1 唯一真源是正文首行的隐藏标记
+### 2.1 唯一真源是正文文件头的隐藏标记
 
-对象类型的唯一真源是票面首行、一级标题之前的那行隐藏注释：
+对象类型的唯一真源是票面文件头（第一个一级标题之前）的那行隐藏注释：
 
 `<!-- DSH-ISSUE-KIND: <kind> -->`
 
@@ -54,7 +55,7 @@
 
 标记允许丢失：丢了退回标签与正文形状，不因此判错。
 
-**代码里的名字**：这个概念在代码里叫 `objectKind`。规则层现在那个三值枚举 `DeckKind`（map / task / bug）扩成这九值，扩完不再叫 DeckKind，改叫 `objectKind`；`deck_issue_create` 的 `kind` 入参与 `deck_map_plan_create` 的子票 `kind` 都改用这一个九值枚举（原来的三个值 map / task / bug 都在九值之内，老调用不用改）。
+**代码里的名字**：这个概念在代码里叫 `objectKind`。规则层现在那个三值枚举 `DeckKind`（map / task / bug）扩成这九值，扩完不再叫 DeckKind，改叫 `objectKind`；`deck_issue_create` 的 `kind` 入参与 `deck_map_plan_create` 的子票 `kind` 都改用这一个九值枚举（原来的三个值 map / task / bug 都在九值之内，老调用不用改）。2026-10-22 修订（#1403）：建票入参的 kind 后来改成六个位置值，不与这个九值枚举同名同义（见第 6 节）；`deck_map_plan_create` 的子票 kind 同步收成 map-ticket / bug / issue，与建票工具共用同一张位置表。
 
 ### 2.2 判定顺序：标记 → 类型标签 → 正文形状
 
@@ -62,7 +63,7 @@
 
 | 步骤 | 认什么 | 认出哪些取值 |
 |---|---|---|
-| 1. 正文首行隐藏标记 | 九个合法值 | 地图、规格、实施票、调研票、原型票、讨论票、任务票、缺陷票、普通票 |
+| 1. 正文文件头隐藏标记（见第 6 节修订） | 九个合法值 | 地图、规格、实施票、调研票、原型票、讨论票、任务票、缺陷票、普通票 |
 | 2. 类型标签 | 六枚：wayfinder:map / wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task / bug | 地图、调研票、原型票、讨论票、任务票、缺陷票 |
 | 3. 正文形状（兜底） | 三种专属形状 | 地图、规格、实施票 |
 
@@ -123,7 +124,7 @@ wayfinder 技能产出的四种票（调研票、原型票、讨论票、任务�
 
 - 新建判据包（标记语法、九个合法值、搬回规则、形状清单的读取），放在 `src/shared/` 下；deck 侧、三个房、客户端引同一份（先例 `src/shared/refresh/src/idempotency.ts`：deck 侧 `src/deck/tools/map-plan-create.ts:19` 与三个房 `github/issues-write.ts:24`、`markdown/issues-create.ts:25`、`gitlab/issues.ts:20` 已经引同一份）。
 - 把形状清单从技能模板生成出来（config/ 下 YAML 单一真源 + 生成器，照 #1278 的套路），并加门禁保证清单不脱节。
-- 规则层的 `DeckKind` 扩成九值并改名 `objectKind`；`deck_issue_create` 与 `deck_map_plan_create` 的 kind 入参改用它。
+- 规则层的 `DeckKind` 扩成九值并改名 `objectKind`；`deck_issue_create` 与 `deck_map_plan_create` 的 kind 入参改用它。（2026-10-22 修订：建票入参换成六个位置值，见第 6 节）
 - 改补标签的兜底：认不出的 kind 不再默认补 `wayfinder:task`（`src/deck/rules/minimal-spec.ts:52`、`src/deck/tools/map-plan-create.ts:359`）。
 - 标记的写入与保留四处：建票时写入标记行（值来自建票入参）、整份替换正文时搬回、建票时剥掉传入的那一行、单例校验至多一条。
 - 文件头注释的识别要认得标记行，三处一起改：本地房读回票面（`src/tracker/rooms/markdown/parse.ts`）、补回一级标题时的插入位置（`src/tracker/rooms/markdown/patch-body.ts:83`）、写父票注释时的插入位置（`src/tracker/rooms/markdown/issues-patch.ts:302-315`）。
@@ -140,3 +141,55 @@ wayfinder 技能产出的四种票（调研票、原型票、讨论票、任务�
 - `specs/` 目录下的施工规格文档（如 `specs/1010-ts-rewrite-spec.md`）不是票，不在九值之内。
 - 面板长什么样、验收清单、提示词文案、本地 Markdown 房的具体改造点，分别归 #1279、#1280、#1281、#1277。
 - 地图 #1274 下所有子票完成后，才对这个地图执行 to-spec 与 to-tickets；本决策是那两步的输入。
+
+---
+
+## 6. 2026-10-22 修订：建票位置值与对象类型分开（#1403）
+
+第 2.1 节把「建票入参的 kind」定成九值对象类型枚举；实际用起来这个参数说不清一张票长在什么上面：地图下的调研票、原型票、讨论票、任务票，和地图本身、规格、实施票、缺陷票挤在同一个参数里，调用方只能靠 labels 手工补类型标签，认不出的值还会被悄悄改成任务票。2026-10-22 的规格 #1403 把它改掉，本节是修订后的权威口径；与本节冲突的旧写法（第 2.1、4 节提到建票 kind 的地方）以本节为准。
+
+### 6.1 建票改六个位置值，另加二级参数 label
+
+| `deck_issue_create` 的 kind | 含义 | 自动写的类型标签 | 正文文件头标记 | 契约类型 | 父票 |
+|---|---|---|---|---|---|
+| `map` | 探索地图（顶层容器） | `wayfinder:map` | 无 | `map` | 不收 |
+| `map-ticket` | 探索地图下的工单 | `label` 指定的那一枚（不另补） | 无（本地房写 Type 行） | `issue` | 必须是探索地图 |
+| `spec` | 规格 / 实施地图（顶层容器） | 无 | `spec` | `spec` | 不收 |
+| `spec-ticket` | 规格下的实施票 | 无 | `ticket` | `issue` | 必须是规格 |
+| `bug` | 缺陷票 | `bug` + `needs-triage` | 无 | `issue` | 可选；给了必须是地图或规格 |
+| `issue` | 普通票，万能兜底 | 无（labels 原样传递） | 无 | `issue` | 可选；给了必须是地图或规格 |
+
+`label` 只在 `kind:"map-ticket"` 时必填，取值四选一：`wayfinder:research`、`wayfinder:prototype`、`wayfinder:grilling`、`wayfinder:task`；其他 kind 传 `label` 直接拒绝。`kind` 必填，缺省不再回落成任务票。旧值 `task` 与 `ticket` 直接拒绝，报错里给迁移路径（`ticket` → `spec-ticket`；`task` → `map-ticket` + `label:"wayfinder:task"` 或 `issue`），不留兼容期。
+
+### 6.2 类型标签只有一个来源
+
+类型标签（`wayfinder:map`、`wayfinder:research`、`wayfinder:prototype`、`wayfinder:grilling`、`wayfinder:task`、`bug` 六枚）只由位置表推导，调用方不再手工补。除 `issue` 外，`labels` 里出现任何一枚类型标签都拒绝，并写清「类型标签由 kind/label 决定」；`issue` 是兜底，传什么标签就落什么标签（包括两枚以上），工具不推导也不校验。`ready-for-agent` 这类 triage 角色标签不属于类型标签，可以继续和任何 kind 一起传。
+
+### 6.3 标记与 Type 行只写该写的
+
+- 只有 `spec` 与 `spec-ticket` 写正文文件头标记 `<!-- DSH-ISSUE-KIND: ... -->`，值用读侧对象类型名 `spec` / `ticket`（不用建票参数名 `spec-ticket`）。
+- 本地 Markdown 房给 `map-ticket` 写类型行 `research` / `prototype` / `grilling` / `task`（从 `label` 去掉 `wayfinder:` 前缀）；`bug` 与 `issue` 不写类型行，避免后端从标签反推。
+- 地图是契约类型 `map`，靠契约类型与 `wayfinder:map` 标签表达，也不写标记。
+
+### 6.4 契约类型映射与读侧
+
+工具在调后端之前把位置值翻译成契约三值：`map` → `map`，`spec` → `spec`，其余 → `issue`。读侧对象类型的判定顺序仍是标记 → 类型标签 → 正文形状，九个取值不变；规格容器改为三个后端统一按正文文件头标记（第一个一级标题之前）判定，实施票按文件头 `ticket` 标记或「父票是规格」判定（#1403 读侧统一）。
+
+### 6.5 进度区
+
+六种 kind 建票统一补 `## 进度`，放在正文最后；地图的五个正文区块在前。此前「规格与实施票不补进度区」的写法作废。
+
+### 6.6 代码落点
+
+- 位置表唯一来源：`src/deck/rules/object-kind.ts`（六个位置值 → 契约类型 / 类型标签 / 正文标记 / 父票规则 / label 是否必填，一张表算完；`resolveCreateKind` 做纯校验并给出全部拒绝文案）。
+- 建票工具：`src/deck/tools/issue-create.ts`（调后端前翻译契约类型；父票先读一次核类型，读不到类型时核存在性并在回执里写明降级）。
+- 地图骨架工具：`src/deck/tools/map-plan-create.ts`（地图本体固定 `map`；子票只用 `map-ticket` / `bug` / `issue`，与建票工具共用同一张位置表）。
+- 本地房写入：`src/tracker/rooms/markdown/issues-create.ts`（文件头只写三类：规格/实施票标记、地图工单 Type 行、其余不写）。
+- 读侧统一：`src/tracker/rooms/markdown/parse.ts`、`src/tracker/rooms/github/normalize.ts`、`src/tracker/rooms/gitlab/normalize.ts`（规格容器都调共享包 `markerKindInHeader`）。
+
+### 6.7 不动的部分
+
+读侧九个对象类型与判定顺序、置信度两档、动作类型的阶梯、`deck_issue_list` 的 `type`（仍是契约类型 issue / map / spec / all）、存量票不回填标记，都不因这次修订改变。
+
+---
+

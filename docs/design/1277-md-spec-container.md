@@ -15,7 +15,7 @@ Markdown 后端的读取逻辑只认地图，规格要么变成普通票、要�
 改造按两张地图上已经定下的口径分成两半，两半合起来才算完成：
 
 - **A 是模型改造**：标记语法与搬回规则落成一个共享包；本地房建票时写标记、读票时认标记、整份替换正文
-  时保住标记；`deck_issue_create` 的 `kind` 认识规格与实施票，并自动把标记写进正文。
+  时保住标记；`deck_issue_create` 的 `kind` 用六个位置值里的 `spec` 与 `spec-ticket`（#1403 起；旧写法 `ticket` 被拒绝并给迁移路径），并自动把标记写进正文。
 - **B 是视图兜底**：宿主组装快照时，遇到「后端没把类型标成规格、但票面文件头里明明有规格标记」的行，
   仍然把它当成规格容器放进快照。这样别的后端（今天最现实的是 GitHub 写侧，见第 7 节）暂时没跟上时，
   界面不会把规格降级成一张普通票。
@@ -150,10 +150,11 @@ snapshot.issues = 普通票（不含地图、规格、实施票）
 
 ## 6. deck 工具侧的改动
 
-- `deck_issue_create` 的 `kind` 枚举加 `spec` 与 `ticket`；两种新种类的必备标签都是
-  `ready-for-agent`（不带 wayfinder 标签），正文不补「## 进度」区。建票时工具把标记行写在正文最前面
-  （后端建房时再把它挪进文件头；GitHub 房今天挪不了，见第 7 节）。
-- **实施票的父必须是规格票**：`kind=ticket` 没带 `parentKey` 时工具直接拒绝（ADR 2.1 的建票约束）；
+- `deck_issue_create` 的 `kind` 在 #1403 起用六个位置值里的 `spec` 与 `spec-ticket`（旧写法
+  `ticket` 被拒绝并给迁移路径）；两种新种类的必备标签都是 `ready-for-agent`（不带 wayfinder 标签）。
+  #1403 起所有 kind 建票统一补「## 进度」区（放在正文最后），本节原先「规格与实施票不补」的写法作废。
+  建票时工具把标记行写在正文最前面（后端建房时再把它挪进文件头；GitHub 房那条路 #1403 已补，见第 7 节）。
+- **实施票的父必须是规格票**：`kind=spec-ticket` 没带 `parentKey` 时工具直接拒绝（ADR 2.1 的建票约束）；
   本地房在建票时再核一遍父票——找不到父票、或父票文件头没有 spec 标记，都如实失败、不落盘
   （#1280 验收②「不能挂到探索地图」）。只给「显式父票号」这一层是两层保险：工具挡住「忘了给父票」，
   后端挡住「给了一张不是规格的父票」。
@@ -163,25 +164,27 @@ snapshot.issues = 普通票（不含地图、规格、实施票）
 
 ## 7. 已知缺口与后续票
 
-1. **GitHub 写侧**：`src/tracker/rooms/github/idempotency.ts` 的 `withAnchor` 把幂等锚固定在正文第一
-   行，工具写进去的标记落到第二行，`src/tracker/rooms/github/normalize.ts` 的 `isSpecBody` 只认第一
-   行。本票不能动 GitHub 房（#326 一次改动只动一个房间），所以「用 deck 工具在 GitHub 上建规格票」这
-   条路今天建出来的票在 GitHub 房内认不出规格；B 兜底能让界面照样显示成规格。修它要单独开票（用户父
-   票与写侧标记写入口）。
+1. **GitHub 写侧（#1403 已修）**：`src/tracker/rooms/github/idempotency.ts` 的 `withAnchor` 把幂等锚
+   固定在正文第一行，工具写进去的标记落到第二行；本票当时 `src/tracker/rooms/github/normalize.ts` 的
+   `isSpecBody` 只认第一行，所以在 GitHub 上建出来的规格票房内认不出。规格 #1403 把三个后端的规格判据
+   统一成读正文文件头标记（共享包 `markerKindInHeader`：第一个一级标题之前），GitHub 房的 `isSpecBody`
+   改调这一份，幂等锚占首行、标记落在第二行也认得出；契约测试的
+   `tests/tracker-contract/sections/object-kind.ts` 覆盖这条。B 兜底仍保留，给标记丢失的老票用。
 2. **GitHub REST 降级**：`src/host/tracker/parent-repair.ts` 只给 `wayfinder:map` 修父子关系，规格在
    降级路径上会变成没有子票的空容器（#1286 设计文档 §4.1 ③）。本票不修。
-3. **规则层九值改名**：`DeckKind` 只扩到本票需要的 `map / task / bug / spec / ticket`，改名
-   `objectKind` 与另外四个值归 #1275 的落地清单（ADR 2.6、§4）。
+3. **规则层九值改名**：本票当时只把 `DeckKind` 扩到 `map / task / bug / spec / ticket`。后续 #1403 已把
+   读侧对象类型收成九值 `objectKind`，并把建票入参改成六个位置值（ADR 第 6 节）；本票写的 `kind=ticket`
+   是旧写法，新调用点用 `spec-ticket`。
 4. **形状兜底与「推断」小标**：ADR 2.3 的正文形状判定与界面小标不在本票范围（归 #1275 与 #1281）。
 5. **旧 `spec.md` 文档**：`docs/architecture/tracker-backend-design-contract.md` 与本地技能说明里的
    `spec.md` 约定本票一并改成「规格票」，历史提案文档只加一句「已被 #1277 取代」。
 6. **远端后端「整份替换正文」搬回标记**：ADR 2.5 的保护①在本地房由 `mergeWholeBodyForPatch` 做；
    GitHub 房没有等价保护，`deck_issue_patch` 这一层今天也没有搬回逻辑——远端轨道用整段 body 改规格票
    正文时，标记可能被冲掉。本票只在设计里记账，不实现（要动 deck 改票工具 + GitHub 房，另开票）。
-7. **两条车道的判定宽窄**：GitHub 房只认正文第一行，本地房认文件头（首个一级标题之前任意一行），
-   这是 ADR 2.5 给两种载体的不同落点；快照的 B 兜底让界面两边显示一致，但后端 `get` 回来的契约类型
-   今天仍可能不同。标记串在 `src/tracker/contract/vocabulary.ts`（`SPEC_BODY_MARKER`）与共享包各一份：
-   契约目录按门禁不许引共享包，等 GitHub 房改为读文件头时一起并（#1275 落地清单）。
+7. **两条车道的判定宽窄（#1403 已统一）**：本票落地时 GitHub 房只认正文第一行，本地房认文件头（首个
+   一级标题之前任意一行）；规格 #1403 把两个房都改成读文件头标记，读侧口径统一。标记串
+   `src/tracker/contract/vocabulary.ts` 的 `SPEC_BODY_MARKER` 仍然保留（契约目录按门禁不许引共享包），
+   判据本体在共享包一份，两边靠门禁对齐。
 8. **规格关闭前核对实施票（#1298 已补）**：#1280 验收里「实施票没全关时关规格必须失败并说清缺哪
    几张」「关闭前必须留一条逐条核对评论」「AI 只能关、不能重开」三条都把判定收在
    `src/deck/shell/spec-close-guard.ts`（`deck_issue_patch` 在写动作之前调用它）：关规格前先读这张票
@@ -195,7 +198,7 @@ snapshot.issues = 普通票（不含地图、规格、实施票）
 1. 用 `deck_issue_create`（`kind=spec`）在本地工作区建一张规格票 → 盘上文件头出现标记、不出现
    `Type: spec`；读回来的契约类型是 `spec`。
 2. 再建一张实施票（`parentKey` 指向规格）→ 盘上文件头父注释指向规格；读回来的父关系一致。
-   负例：没带父票的 ticket、父票是探索地图或普通票的 ticket，都要如实失败且盘上不落盘。
+   负例：没带父票的 spec-ticket、父票是探索地图或普通票的 spec-ticket，都要如实失败且盘上不落盘。
 3. 组装快照 → 规格进容器列表，实施票在规格的 `tickets` 里，两处都不出现在普通票池。
 4. 用整份正文改一次规格票的正文（不带标记）→ 盘上标记仍在，读回来还是 `spec`。
 5. 构造「类型没标对、正文文件头有规格标记」的行喂给快照组装 → 仍然当规格容器（B 兜底）。

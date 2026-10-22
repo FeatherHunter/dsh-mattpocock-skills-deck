@@ -60,7 +60,7 @@ interface RepositoryRef {
 
 ```ts
 type State      = 'open' | 'closed'                     // deck 只认两态；GH OPEN/CLOSED、md Status→state 归 #115 后端归一
-type IssueType  = 'issue' | 'map' | 'spec'             // wayfinder 语义；显式标记（map、spec 可空）；spec = 规格（实施地图）容器，正文首行隐藏标记认出（#1286）
+type IssueType  = 'issue' | 'map' | 'spec'             // wayfinder 语义；显式标记（map、spec 可空）；spec = 规格（实施地图）容器，正文文件头标记认出（#1403 起三个后端统一）
 type ClosedReason = 'completed' | 'not_planned' | 'reopened' | 'duplicate' | string   // 开放 string
 type ActorKind    = 'user' | 'bot' | 'organization' | string
 type FieldType    = 'text' | 'number' | 'date' | 'single' | 'multi' | string
