@@ -17,7 +17,7 @@
   比的是特效的气质：
     A 素（基底）—— 药丸从中心点向外一颗颗冒出来；退场只做简单的淡出。
     B 果冻弹性 —— 入场带弹簧过冲再抖两下；悬停时整颗晃；点中的压扁弹出；关闭时泄气收掉。
-    C 上浮小气泡 —— 小泡从最底下的关闭按钮那一个位置出发，飞向各自的选项再凝成药丸；药丸是轻薄的玻璃质感。
+    C 上浮小气泡 —— 小泡从最底下关闭按钮的底边出发，飞向各自的选项再凝成药丸；药丸是轻薄的玻璃质感。
     D 微光扫过 —— 冒出来后一道斜光带从药丸上扫过一遍；点中闪光加整组发光；关闭上飘。
 
   走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
@@ -377,7 +377,7 @@ var VARIANTS = {
   C: {
     name: 'C — 上浮小气泡',
     level: 3,
-    idea: '在「素」之上加梦幻感：小泡全部从最底下的关闭按钮那个位置出发，分别飞向各自要凝成的选项，落到选项宽度上就淡掉，选项紧接着凝出来（中间那颗先到，两边的后到）；药丸本身是薄薄的半透明玻璃质感，带细亮边和一点斜虹彩，轻不压字；悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
+    idea: '在「素」之上加梦幻感：小泡全部从最底下那个关闭按钮的底边出发，分别飞向各自要凝成的选项，落到选项宽度上就淡掉，选项紧接着凝出来（中间那颗先到，两边的后到）；药丸本身是薄薄的半透明玻璃质感，带细亮边和一点斜虹彩，轻不压字；悬停时也吐一个；点中的那颗像逃跑的气泡一样往上飘走，其余的往下沉；关闭时整组往上飘散；解释气泡多留一会儿。',
     tipSide: 'above',
     tipWhere: '同「素」，但鼠标移开后多留 0.9 秒才收走。',
     narrow: '这一行会换行成两行，每颗药丸不被拆开；关闭按钮还是自己一行。',
@@ -619,9 +619,9 @@ function spawnBubbles(el) {
   var pills = el.querySelectorAll('.pill');
   if (!pills.length) return;
   var btn = el.querySelector('.close');
-  /* 出发点：最下面那一行关闭按钮的正中（整组的最底部） */
+  /* 出发点：最下面那一行关闭按钮的底边（气泡从这个按钮的底部开始往上冒） */
   var ox = btn ? (btn.offsetLeft + btn.offsetWidth / 2) : el.offsetWidth / 2;
-  var ob = btn ? (el.offsetHeight - (btn.offsetTop + btn.offsetHeight / 2)) : 8;
+  var ob = btn ? Math.max(0, el.offsetHeight - (btn.offsetTop + btn.offsetHeight)) : 6;
   var n = pills.length, cc = (n - 1) / 2;
   Array.prototype.forEach.call(pills, function (p, idx) {
     var pc = pillCenter(el, p);
@@ -633,7 +633,7 @@ function spawnBubbles(el) {
         s.className = 'bub cvg';
         dressBubble(s);
         var sz = Math.round(3 + Math.random() * 5);
-        /* 起点：底部关闭按钮那里（所有小泡共用这一个出发点） */
+        /* 起点：底部关闭按钮的底边（所有小泡共用这一个出发点） */
         s.style.left = Math.round(ox - sz / 2) + 'px';
         s.style.bottom = Math.round(ob - sz / 2) + 'px';
         /* 落点：这颗药丸宽度上的随机一点，比出发点高（没有布局时给一个向上的默认距离） */
