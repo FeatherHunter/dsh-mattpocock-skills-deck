@@ -1,5 +1,5 @@
 complete:
-  version: 13
+  version: 14
   placeholders:
     - url
     - closed
@@ -28,11 +28,11 @@ complete:
     ## 收尾
     - [ ] 结束前把这次核对与交接的结论写进 map 正文；状态与实际不符（漏关 / 误开）就据实写清楚。
     - [ ] 关闭前确认 map 上有一条总结评论（结论与交接结果），没有就补上；关闭后把结果告诉用户。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     {url}
@@ -56,15 +56,15 @@ complete:
     ## Wrap-up
     - [ ] Before finishing, write the conclusion of this check and handoff into the map body; where the recorded state does not match reality (missed close / erroneous close), say so plainly.
     - [ ] Before closing, make sure the map has a summary comment (the conclusion and handoff result); add one if missing, and tell the user the result afterwards.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 fixate:
-  version: 8
+  version: 9
   placeholders: []
-  use: "沉淀 · 思维对齐 · 成果沉淀 · v8 #1269 加 /retro 提醒（会话任务全部完成时提醒用户执行一次，不替用户执行）"
+  use: "沉淀 · 思维对齐 · 成果沉淀 · v9 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
   zh: |-
     告一段落。暂停推进，执行「思维对齐 · 成果沉淀」，从第一性原理出发：
 
@@ -87,11 +87,11 @@ fixate:
     - [ ] 无对应 ticket、但属于某 map → 写入 alignment note（对齐记录）`.scratch/alignment/<ts>-<短标题>.md`（相对当前工作目录；短标题 ≤10 字，用连字符或下划线代替空格），并在该 map 的 Notes 追加一行指针（路径 + 日期）
     - [ ] 无 ticket 也无 map → 写入对齐记录文件，并告诉我完整路径；建图/建票时由接手会话搬入对应 ticket
     - [ ] 属 map 层面的条目（如目的地/雾区调整）→ 照写进所选位置，条目末尾标注「map 层面，随建图搬入」
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     This phase wraps up here. Pause progress and run the "alignment & consolidation" pass, from first principles:
 
@@ -114,13 +114,13 @@ fixate:
     - [ ] If no corresponding ticket but within a map → write an alignment note to `.scratch/alignment/<ts>-<short>.md` (relative to the current working directory; short ≤20 chars, hyphen or underscore instead of spaces), and append a one-line pointer (path + date) to the map Notes
     - [ ] If no ticket and no map → write the alignment note and tell me the full path; when a map/ticket is created, the taking-over session migrates it into the corresponding ticket
     - [ ] Map-level items (e.g. Destination/Fog adjustments) → still write them in the chosen place, and mark the item "map-level, migrate when the map is built"
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 healthCheck:
-  version: 2
+  version: 3
   placeholders:
     - subject
   use: 「体检」按钮 · 所有后端共用的总纲（游离票归位：先出建议清单、人点头才动手）；后端自己的科目由后端声明、经 {subject} 填空
@@ -165,6 +165,7 @@ healthCheck:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     ## Health check (put orphaned open tickets where they belong)
 
@@ -206,30 +207,31 @@ healthCheck:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 mapExecute:
-  version: 17
+  version: 18
   placeholders: []
   use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）
   zh: |-
     请按 wayfinder 技能推进这张 map。
 
     ## 收尾
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     Please advance this map with the wayfinder skill.
 
     ## Wrap-up
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 mapInspect:
-  version: 9
+  version: 10
   placeholders:
     - n
     - title
@@ -262,6 +264,7 @@ mapInspect:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     ## Target map
     - No: #{n}
@@ -288,8 +291,9 @@ mapInspect:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 specComplete:
-  version: 3
+  version: 4
   placeholders:
     - url
     - closed
@@ -329,11 +333,11 @@ specComplete:
     - [ ] 有任何一条没通过 → 不关闭：改动还没交出去就说卡在哪一步、下一步由谁做（如「等 PR #N 合并」）；验收没做到就说缺什么、建议重开哪张实施 issue 或补一张。
     - [ ] 没有「实施 issue 都关了顺手关」的旁路：关规格只有上面这一条路，先核对、再带核对评论关。
     - [ ] 人随时可以重开这张规格；重开只能由人在后端做，AI 的工具面上只允许关、不允许重开。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     All implementation issues under this spec issue ({url}) are closed ({closed}/{total}). Verify first, then decide whether it can be closed. Closing the spec promises future readers that this batch is already on the repository's long-lived branch, is reproducibly green on the commit you record, and has no unhandled leftovers — not merely that all sub-issues are closed.
 
@@ -368,13 +372,13 @@ specComplete:
     - [ ] Any check fails → do not close: if the change has not been handed over, say where it stopped and who does the next step (e.g. "waiting for PR #N to merge"); if acceptance is not met, say what is missing and suggest reopening that implementation issue or adding one.
     - [ ] There is no "all sub-issues are closed, so close it" side path: closing the spec only goes through the line above — verify first, then close with the verification comment.
     - [ ] The human can reopen this spec at any time; reopening is a human-only action in the backend — the AI tool surface can close but not reopen.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session's actual course to review where the current workspace's environment can be further improved. Whether to run it is the user's decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 specExecute:
-  version: 2
+  version: 3
   placeholders:
     - url
   use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）
@@ -394,11 +398,11 @@ specExecute:
     ## 收口
     - [ ] 每完成一张实施 issue，如实更新它的状态与正文。
     - [ ] 全部实施 issue 关闭后，提醒用户点规格详情页的「完成」按钮做收口核对（不是自动关闭）。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /implement-spec
     {url}
@@ -415,13 +419,13 @@ specExecute:
     ## Wrap-up
     - [ ] After each implementation issue is done, update its state and body truthfully.
     - [ ] When all implementation issues are closed, remind the user to click "Complete" in the spec detail for the wrap-up check (not an automatic close).
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 specSplit:
-  version: 2
+  version: 3
   placeholders:
     - url
   use: 规格容器 · 空态「拆票」按钮（首行 /to-tickets）（#1281）
@@ -440,11 +444,11 @@ specSplit:
     - [ ] 把拆出的实施 issue 数量与编号告诉用户。
     - [ ] 把「已拆成 N 张实施 issue」写进这张规格 issue 的正文，方便下次打开知道进度。
     - [ ] 提醒用户：之后在规格详情里点「执行」逐票推进；全部实施 issue 关闭后点「完成」做收口核对。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /to-tickets
     {url}
@@ -460,8 +464,8 @@ specSplit:
     - [ ] Tell the user how many implementation issues were created and their numbers.
     - [ ] Write "split into N implementation issues" into this spec issue’s body so the next session can see the progress.
     - [ ] Remind the user: push tickets one by one with the "Execute" button in the spec detail; when all implementation issues are closed, click "Complete" for the wrap-up check.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.

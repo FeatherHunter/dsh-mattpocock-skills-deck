@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T18:19:05.650Z",
+  "generatedAt": "2026-10-22T18:35:22.010Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 324,
-  "gateCount": 324,
+  "chainLength": 325,
+  "gateCount": 325,
   "attributedGates": 285,
-  "unattributedGates": 39,
+  "unattributedGates": 40,
   "buildOutputOnlyGates": 22,
-  "completionRecordedGates": 6,
+  "completionRecordedGates": 7,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 543,
@@ -2218,6 +2218,25 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1407-next-steps-reminders.ts",
+      "file": "tests/verify-1407-next-steps-reminders.ts",
+      "guards": [
+        "config/prompts/map-advancement.yaml",
+        "config/prompts/repository-alignment.yaml",
+        "config/prompts/ticket-action-templates.yaml",
+        "config/prompts/ticket-creation.yaml",
+        "config/prompts/workspace-initialization.yaml"
+      ],
+      "dirs": [
+        "config/prompts"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 87,
+      "reason": "读到的路径都落在 config/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-1413-map-plan-two-layer.ts",
@@ -7608,6 +7627,7 @@
     ],
     "config/prompts": [
       "node tests/verify-1298-spec-close.ts",
+      "node tests/verify-1407-next-steps-reminders.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-prompts.ts"
     ],

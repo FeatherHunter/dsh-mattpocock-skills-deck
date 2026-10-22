@@ -1,5 +1,5 @@
 tpl.diagnose:
-  version: 16
+  version: 17
   placeholders:
     - url
   use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）
@@ -25,6 +25,7 @@ tpl.diagnose:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /triage
     {url}
@@ -47,8 +48,9 @@ tpl.diagnose:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 tpl.discuss:
-  version: 16
+  version: 17
   placeholders:
     - url
   use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）
@@ -65,11 +67,11 @@ tpl.discuss:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     {url}
@@ -83,13 +85,13 @@ tpl.discuss:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 tpl.execute:
-  version: 16
+  version: 17
   placeholders:
     - url
   use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -106,11 +108,11 @@ tpl.execute:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     {url}
@@ -124,13 +126,13 @@ tpl.execute:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 tpl.fix:
-  version: 14
+  version: 15
   placeholders:
     - url
   use: 动作按钮「修复」（bug 票）· 首行 /implement；补 /diagnosing-bugs 落点（#1281）
@@ -148,11 +150,11 @@ tpl.fix:
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；做完了就关闭，没做完写明缺什么。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /implement
     {url}
@@ -167,11 +169,11 @@ tpl.fix:
 
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; close it when done, state what is missing when not.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 tpl.handoff1:
   version: 5
   placeholders:
@@ -213,7 +215,7 @@ tpl.handoff2:
     ## Continue
     - [ ] From first principles, continue with the unfinished work
 tpl.implement:
-  version: 1
+  version: 2
   placeholders:
     - url
   use: 动作按钮「实施」（ready-for-agent 实施票）· 首行 /implement（#1281）
@@ -231,11 +233,11 @@ tpl.implement:
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；做完了就关闭，没做完写明缺什么。
     - [ ] 如果这张票属于某张规格 issue，且它是最后一张实施 issue，提醒用户回到规格详情点「完成」做收口核对。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /implement
     {url}
@@ -250,13 +252,13 @@ tpl.implement:
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; close it when done, state what is missing when not.
     - [ ] If this ticket belongs to a spec issue and it is the last implementation issue, remind the user to go back to the spec detail and click "Complete" for the wrap-up check.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 tpl.prototype:
-  version: 10
+  version: 11
   placeholders:
     - url
   use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -273,11 +275,11 @@ tpl.prototype:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     {url}
@@ -291,13 +293,13 @@ tpl.prototype:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 tpl.research:
-  version: 10
+  version: 11
   placeholders:
     - url
   use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -314,11 +316,11 @@ tpl.research:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     {url}
@@ -332,16 +334,16 @@ tpl.research:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 tpl.supplement:
-  version: 4
+  version: 5
   placeholders:
     - url
-  use: "动作按钮「补充」（needs-info 票）· 清单式 · v4 #1269 加 /retro 提醒（会话任务全部完成时提醒用户执行一次，不替用户执行）"
+  use: "动作按钮「补充」（needs-info 票）· 清单式 · v5 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
   zh: |-
     /wayfinder
     {url}
@@ -351,6 +353,7 @@ tpl.supplement:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
 
     ## 读全
     - [ ] 读全该 issue（正文、评论、标签、认领、阻塞关系）
@@ -375,7 +378,6 @@ tpl.supplement:
     - [ ] 结束前把“缺失项、已提问题、等待对象”写进正文
     - [ ] 等待期间：不实施、不修改代码、不关闭该 issue
     - [ ] 用户回复后（下一次会话）：先核对答复覆盖了哪些问题，再把标签转回 needs-triage 重新分流，不停留在 needs-info
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
   en: |-
     /wayfinder
     {url}
@@ -385,6 +387,7 @@ tpl.supplement:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report handled and in-progress issue numbers promptly with the deck_issue_report tool
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 
     ## Read the whole issue
     - [ ] Read the whole issue (body, comments, labels, claim, blocking relationships)
@@ -409,9 +412,8 @@ tpl.supplement:
     - [ ] Before finishing, write into the body what is missing, what was asked, and who we are waiting for
     - [ ] Do not implement, modify code, or close the issue while waiting
     - [ ] After the user replies (next session): first check which questions the reply covers, then move the label back to needs-triage for re-triage — do not linger on needs-info
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 tpl.takeover:
-  version: 7
+  version: 8
   placeholders:
     - url
   use: 动作按钮「接手」（ready-for-human 票）· 恢复调查节；补 /wizard 落点（#1212、#1281）
@@ -438,11 +440,11 @@ tpl.takeover:
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态与下一步写进正文。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     {url}
@@ -466,8 +468,8 @@ tpl.takeover:
 
     ## Wrap-up
     - [ ] Before finishing, write the true state and next step of this ticket into its body.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.

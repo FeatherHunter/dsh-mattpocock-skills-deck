@@ -81,6 +81,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-settings-templates': 65,
   'verify-settings-view': 215,
   'verify-1158-completion-evidence': 50,
+  'verify-1407-next-steps-reminders': 87,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
