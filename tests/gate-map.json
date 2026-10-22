@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T17:18:04.179Z",
+  "generatedAt": "2026-10-22T17:56:18.454Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 323,
-  "gateCount": 323,
-  "attributedGates": 284,
+  "chainLength": 324,
+  "gateCount": 324,
+  "attributedGates": 285,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
@@ -2218,6 +2218,24 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1413-map-plan-two-layer.ts",
+      "file": "tests/verify-1413-map-plan-two-layer.ts",
+      "guards": [
+        "src/deck/rules/minimal-spec.ts",
+        "src/deck/rules/object-kind.ts",
+        "src/deck/tools/map-plan-create.ts"
+      ],
+      "dirs": [
+        "src/deck/rules",
+        "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -8157,7 +8175,8 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1039-rules-pure.ts",
       "node tests/verify-1277-md-spec-container.ts",
-      "node tests/verify-1403-kind-two-layer.ts"
+      "node tests/verify-1403-kind-two-layer.ts",
+      "node tests/verify-1413-map-plan-two-layer.ts"
     ],
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.ts",
@@ -8208,6 +8227,7 @@
       "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1385-howto.ts",
       "node tests/verify-1403-kind-two-layer.ts",
+      "node tests/verify-1413-map-plan-two-layer.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
