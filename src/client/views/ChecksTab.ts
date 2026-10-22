@@ -203,7 +203,7 @@ export const ChecksTab = ({ st }: any) => {
       h('span', { className: 'dsws-ccard-dot', style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
       h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { className: 'nm', style: { color: meta.color, fontWeight: primaryBtn ? 600 : 400 } }, String(label)),
-        finalDesc ? h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.desc')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, finalDesc)]) }, h('div', { className: 'dt dsws-ellip', style: { color: '#8b8b95' } }, finalDesc)) : null,
+        finalDesc ? h(Tip, { className: 'dsws-tip', content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.desc')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, finalDesc)]) }, h('div', { className: 'dt dsws-ellip', style: { color: '#8b8b95' } }, finalDesc)) : null,
         hintText ? h('div', { className: 'dt', style: { color: '#d97706', lineHeight: 1.5, marginTop: 2, whiteSpace: 'pre-wrap' } }, hintText) : null,
       ]),
       primaryBtn,

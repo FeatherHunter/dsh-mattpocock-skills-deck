@@ -1,13 +1,17 @@
 /**
  * views/cards/PixelCardsStyles.ts - S1/S6/S7 skin truth.
  * Same insert seam as vcStyles. Class prefix cd-. Values pixel-equal to p101/p102/p2.
+ *
+ * 配置归属（docs/adr/20261021-config-ownership.md）：本文件是按文本拼进客户端闭包的样式叶子，
+ *   与 skillDetail 的 PixelStyles.ts 之间不能 import，所以同一套浅色纸色两份皮肤各写一份；
+ *   防分叉不靠导入，靠 tests/verify-cards-dir.ts 里那几条跨文件逐值比对。
  */
 export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   ':root{--cd-frame:#3a2c14;--cd-card:#f2e4c0;--cd-old:#e4d5b0;--cd-ink:#2b2113;--cd-ink2:#6b5b3e;--cd-shadow:#241a0c;--cd-gold:#e3a92f;--cd-map:#8b5cf6;--cd-ok:#0e8a16;--cd-sel:#0ea5e9;--cd-warn:#f59e0b;--cd-bad:#a3231a;--cd-dim:#9a8f78;--cd-paper:#fffdf4;--cd-take:#4a86c8;}',
   // #1380 浅色纸面：浅色下必须换一套的装饰色（棋盘底、点亮的墙格、红字、三种角标）先收成令牌。
   // 深色这一行就是原来写死在下面规则里的字面量，一个值、一个字节都没改；浅色覆盖靠它换色。
   ':root{--cd-stripe:#ddcda1;--cd-lit:#ffd97a;--cd-note:#8b241a;--cd-mark-bug:#d73a4a;--cd-mark-ready:#10b981;--cd-mark-doing:#2b62b0;}',
-  // 浅色（A 纸面便签）只认宿主有没有挂深色标记，面板里没有第二个开关；这一段只写 --cd-* 令牌，不写结构。
+  // 浅色（纸面便签：原型里选定的纸面底、卡片白、深色描边、深绿强调）只认宿主有没有挂深色标记，面板里没有第二个开关；这一段只写 --cd-* 令牌，不写结构。
   // 纸色与技能列表（PixelStyles.ts 的 .pixel-tab）同一套：卡片底 = 纸面 #f6f1e6、纸底 = 卡片白 #fffdf8，
   // 描边同 #3a2c14；强调绿 #15803d 与技能列表的 --pixel-acc 同值，跨文件门禁会逐条对。
   // 地图身份色保留紫色一系：深色是亮紫 #8b5cf6，浅色纸上用深一档的墨紫 #6d28d9（对纸面 6.31:1），

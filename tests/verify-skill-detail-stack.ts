@@ -8,7 +8,7 @@
 //   3) 三层上限：开第四层时把**最深**那层挤掉，栈深恒不超过三。
 //   4) 关一层回到上一层，关完回列表；被挤掉那层迟到的读数不许再动界面。
 //   5) 浅色皮肤（#1378）：像素家族的深色令牌原样住在 :root，浅色只在宿主没挂深色标记时
-//      于 .pixel-tab 上换一组 A 纸面便签令牌，装饰色全部走 --pixel-* 令牌；色值写错、
+//      于 .pixel-tab 上换一组浅色纸面便签令牌（原型里选定的纸面底、卡片白、深色描边、深绿强调），装饰色全部走 --pixel-* 令牌；色值写错、
 //      深色值被挪进浅色选择器、装饰色写回裸值都会在最后一段报红。
 //
 // 反证：把 onOpenSkill 摘掉，「没有可点入口」必须成立；改坏压栈或挤掉逻辑，前两段会红。
@@ -129,7 +129,7 @@ if (pending['grill-me']) { const r = pending['grill-me']; delete pending['grill-
 await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs'] })); await new Promise((r) => setTimeout(r, 20)) })
 check(container.querySelectorAll('code.pixel-skillref').length === 0, '反证：没接 onOpenSkill 时不做假入口')
 
-// ==== 浅色皮肤（#1378）：像素家族——深色原值不动，浅色换成 A 纸面便签 ====
+// ==== 浅色皮肤（#1378）：像素家族——深色原值不动，浅色换成浅色纸面便签（原型里选定的纸面底、卡片白、深色描边、深绿强调） ====
 // 判据只看样式文本本身，不看渲染：色值写错、深色值被挪进浅色选择器、装饰色又写回裸值，都会报红。
 // 先跑真文本（必须全过），再把同一段文本在内存里变坏两次，同一套判据必须报红——证明这扇门能红也能绿。
 const PIXEL_CSS = PIXEL_STYLE_TEXT.join('')
@@ -138,7 +138,7 @@ const PIXEL_DARK_TOKENS = [
   ['--pixel-frame', '#3a2c14'], ['--pixel-paper', '#f2e4c0'], ['--pixel-card', '#fffdf4'],
   ['--pixel-ink', '#2b2113'], ['--pixel-acc', '#8b5cf6'], ['--pixel-stripe', '#ddcda1'],
 ]
-// 浅色（A 纸面便签）定版值：纸面、卡片、描边、字、强调深绿，以及浅色棋盘的两种纸色。
+// 浅色（浅色纸面便签）定版值：纸面、卡片、描边、字、强调深绿，以及浅色棋盘的两种纸色。
 const PIXEL_LIGHT_TOKENS = [
   ['--pixel-frame', '#3a2c14'], ['--pixel-paper', '#f6f1e6'], ['--pixel-card', '#fffdf8'],
   ['--pixel-ink', '#221d15'], ['--pixel-ink2', '#6f6252'], ['--pixel-acc', '#15803d'],
@@ -200,18 +200,8 @@ function pixelLightProblems(css: string): string[] {
 }
 
 // 纸面上的字要看得清：把浅色令牌里的几对前景/背景真算一遍对比度（WCAG 的算法，正文线 4.5:1）。
-function pixelLum(hex: string): number {
-  const n = parseInt(hex.slice(1), 16)
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) {
-    const c = v / 255
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
-  })
-  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
-}
-function pixelContrast(a: string, b: string): number {
-  const la = pixelLum(a), lb = pixelLum(b)
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
-}
+// 算法本身放在 tests/lib/contrast.ts，与卡片门禁共用一份；这里只留原来的两个名字，调用点不用改。
+import { relativeLuminance as pixelLum, contrastRatio as pixelContrast } from './lib/contrast.ts'
 
 const pixelProblems = pixelLightProblems(PIXEL_CSS)
 check(pixelProblems.length === 0, '浅色皮肤：深色令牌原样、浅色是定版纸面、装饰色全走令牌' + (pixelProblems.length ? '\n    不过 ' + pixelProblems.length + ' 条：\n      ' + pixelProblems.join('\n      ') : ''))

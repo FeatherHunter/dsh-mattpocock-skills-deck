@@ -6,14 +6,19 @@
  * 类名前缀一律 pixel-，只被本目录的组件引用，不外溢；令牌 --pixel-* 挂 :root。
  *
  * 两套皮肤（#1378）：深色是今天定版的「纸面深框」，下面的 :root 原值一个字没动；
- *   浅色是 A 纸面便签，与版本管理页签的浅色同一张纸（纸面 #f6f1e6、卡片 #fffdf8、描边 #3a2c14、
- *   强调深绿 #15803d）。切换只认宿主的深色标记（body[data-ds-dark-theme]）：人在 DSH 里切一次
+ *   浅色换成纸面便签那一套（原型里选定的纸面底、卡片白、深色描边、深绿强调），与版本管理页签的浅色
+ *   同一张纸（纸面 #f6f1e6、卡片 #fffdf8、描边 #3a2c14、强调深绿 #15803d）。切换只认宿主的深色标记
+ *   （body[data-ds-dark-theme]）：人在 DSH 里切一次
  *   主题就整体换肤，面板里不另做开关。做法与 src/client/views/versionControl/vcStyles.ts:31-43
  *   的自动档一致——深色值留在 :root 不动，浅色只在 body:not([data-ds-dark-theme]) .pixel-tab 上换令牌。
  *   为什么挂在 .pixel-tab 而不是 :root：像素家族全部画在这棵子树里（列表、详情弹窗、图片放大层、
  *   遮罩），令牌靠继承往下走；挂到 :root 会漏进别的页签，那不是这次的范围。
  *   装饰色（棋盘两色、图标底色、印章、状态行上边框、块引用与推荐行底、代码块、遮罩）以前写死在
- *   规则里，现在收成 --pixel-* 令牌：深色值就是今天的字面量（深色零变化），浅色值按 A 纸面便签给。
+ *   规则里，现在收成 --pixel-* 令牌：深色值就是今天的字面量（深色零变化），浅色值按纸面便签那一套给。
+ *
+ * 配置归属（docs/adr/20261021-config-ownership.md）：本文件是按文本拼进客户端闭包的样式叶子，
+ *   与 cards 的 PixelCardsStyles.ts 之间不能 import，所以同一套浅色纸色两份皮肤各写一份；
+ *   防分叉不靠导入，靠 tests/verify-cards-dir.ts 里那几条跨文件逐值比对。
  */
 export const PIXEL_STYLE_TEXT: string[] = [
   ":root{--pixel-frame:#3a2c14;--pixel-paper:#f2e4c0;--pixel-card:#fffdf4;--pixel-ink:#2b2113;--pixel-ink2:#6b5b3e;--pixel-shadow:#241a0c;--pixel-gold:#e3a92f;--pixel-acc:#8b5cf6;--pixel-ok:#0e8a16;--pixel-bad:#a3231a;--pixel-warn:#f59e0b;--pixel-stripe:#ddcda1;--pixel-popline:#e8d9ae;--pixel-hi:#ffe1a1;--pixel-link:#5b3df0}",
@@ -22,7 +27,7 @@ export const PIXEL_STYLE_TEXT: string[] = [
   //   棋盘两色（tab1 / tab2）、棋盘上的字（tab-ink，原来是 paper 色）、三颗图标的底色与警告字色、
   //   印章、状态行上边框、块引用底、推荐行底、代码块前景/背景、遮罩、强调色上的字、提交成功/失败闪的底色。
   ":root{--pixel-tab1:#93764f;--pixel-tab2:#8a6f4d;--pixel-tab-ink:#f2e4c0;--pixel-ok-bg:#d9f2dc;--pixel-bad-bg:#fbe3e1;--pixel-warn-bg:#fdf0d3;--pixel-ic-warn-ink:#9a6a00;--pixel-seal:#c9503f;--pixel-statusline-edge:#9a8f78;--pixel-quote-bg:#efe8fb;--pixel-rec-bg:#efe8fb;--pixel-pre-bg:#241a0c;--pixel-pre-ink:#f2e4c0;--pixel-overlay:rgba(28,16,4,.55);--pixel-acc-ink:#fff}",
-  // ---- 浅色（A 纸面便签）：只认宿主有没有挂深色标记，面板里没有第二个开关 ----
+  // ---- 浅色（纸面便签：原型里选定的纸面底、卡片白、深色描边、深绿强调）：只认宿主有没有挂深色标记，面板里没有第二个开关 ----
   // 挂在 .pixel-tab 上：像素家族全在这棵子树里（列表、详情弹窗、图片放大层、遮罩），令牌靠继承往下走，
   // 不会漏到别的页签。这一段只写令牌，不写别的属性——浅色换的是色，不是结构。
   // 几处定版值的理由：
@@ -38,7 +43,12 @@ export const PIXEL_STYLE_TEXT: string[] = [
   // 按压态走委托挂的 .dsws-pressing（#1335 界面反馈）：不用 CSS 的 :active，
   // 因为按住后把指针拖走 :active 会粘住，祖先元素还会跟着一起匹配。
   ".pixel-btn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--pixel-shadow)}",
-  ".pixel-btn:focus-visible{outline:2px dashed var(--pixel-gold);outline-offset:2px}",
+  // 焦点环跟随宿主（#1377 规格）：浅色这一条不命中，落回全局 [data-dsws-host] :focus-visible 的 2px 宿主蓝环（往内画）。
+  // 深色这一条照旧保留；今天它同样被注入更晚的全局规则盖住，所以深色外观零变化。
+  // 深色守卫写成 :where(body[data-ds-dark-theme])：:where 自己不参与权重计算，选择器总权重与改动前一样，
+  //   深色下「谁盖谁」不变；若直接写 body[data-ds-dark-theme] 前缀，会多一份 (0,1,0) 权重，
+  //   这条金虚线就会盖住宿主蓝环，深色外观当场变样（probe-review-focus 实测过）。
+  ":where(body[data-ds-dark-theme]) .pixel-btn:focus-visible{outline:2px dashed var(--pixel-gold);outline-offset:2px}",
   ".pixel-btn:disabled{opacity:.6;cursor:wait}",
   ".pixel-btn.hot{background:var(--pixel-acc);color:var(--pixel-acc-ink)}",
   ".pixel-btn.mini{padding:1px 8px;font-size:11px}",
@@ -89,9 +99,12 @@ export const PIXEL_STYLE_TEXT: string[] = [
   // 正文里能点开的技能名（2026-10-10 人拍板）：平时跟普通代码一模一样，指上去才亮出焦点色边框，
   // 免得整篇正文到处是彩色。推荐条那几颗 chip 同理。
   ".pixel-doc code.pixel-skillref{cursor:pointer}",
-  ".pixel-doc code.pixel-skillref:hover,.pixel-doc code.pixel-skillref:focus-visible{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
+  // 悬停仍按深浅两套给（悬停不是焦点）；焦点分支只在深色下保留，浅色把焦点环交还给全局宿主规则。
+  ".pixel-doc code.pixel-skillref:hover{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
+  ":where(body[data-ds-dark-theme]) .pixel-doc code.pixel-skillref:focus-visible{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
   ".pixel-tab .dsws-chip.pixel-chipref{cursor:pointer}",
-  ".pixel-tab .dsws-chip.pixel-chipref:hover,.pixel-tab .dsws-chip.pixel-chipref:focus-visible{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
+  ".pixel-tab .dsws-chip.pixel-chipref:hover{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
+  ":where(body[data-ds-dark-theme]) .pixel-tab .dsws-chip.pixel-chipref:focus-visible{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
   // 顶栏在窄面板里不许挤成两行：标题一行（放不下就省略号），按钮与层号牌各自不换行。
   ".pixel-top>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}",
   ".pixel-top .pixel-btn{white-space:nowrap;flex:none}",
@@ -114,7 +127,10 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-doc label.pixel-task{display:flex;gap:8px;align-items:flex-start;margin:5px 0}",
   ".pixel-skillrow{display:flex;gap:8px;align-items:center;background:var(--pixel-card);border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow);padding:6px 10px;margin:8px 0;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}",
   ".pixel-skillrow.rec{background:var(--pixel-rec-bg)}",
-  ".pixel-skillrow:hover,.pixel-skillrow:focus-within{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--pixel-shadow);outline:2px solid var(--pixel-dc,var(--pixel-gold));outline-offset:1px}",
+  // 悬停与焦点拆开：悬停不是焦点，深浅两套照旧；:focus-within 只在深色下画整行的圈，
+  // 浅色这一行不画环，交给宿主给里面那颗拿到焦点的控件画焦点环。
+  ".pixel-skillrow:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--pixel-shadow);outline:2px solid var(--pixel-dc,var(--pixel-gold));outline-offset:1px}",
+  ":where(body[data-ds-dark-theme]) .pixel-skillrow:focus-within{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--pixel-shadow);outline:2px solid var(--pixel-dc,var(--pixel-gold));outline-offset:1px}",
   ".pixel-sname{font:700 13px ui-monospace,Menlo,Consolas,monospace;min-width:120px}",
   ".pixel-sname .pixel-star{color:var(--pixel-acc)}",
   ".pixel-suse{flex:1;font-size:12px;color:var(--pixel-ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
