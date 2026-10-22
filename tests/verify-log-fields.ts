@@ -229,7 +229,13 @@ const ALLOWED = {
   //   panel.open 去掉 mode 字段（面板只有 DSH 原生右侧边栏一条路，形态不再有第二种取值）。
   'panel.open': ['hasCache', 'snapFresh', 'keyHash', 'snapVersion', 'backendId'],
   'statusbar.hydrate': ['cwdSource'],
-  'statusbar.fallback': ['reason'],
+  // 2026-10-22（#1395）statusbar.fallback 增补两格：胶囊「工作路线」那一段画不画的判据结论从三档扩到六档
+  //   （补 work-route-idle 有快照但还没有工作路线表 / work-route-empty 有表但没有本会话的行 /
+  //   work-route-unreadable 工作路线表读坏了），另记 tableRows 这张表一共几行、ownRows 其中标了本会话的几行
+  //   （没有表时两格都记 -1）。为什么要有：出事时日志里只有前三个 reason，分不清「还没有快照」与
+  //   「有表但没有本会话的行」，而这两种分别指向补拉链路与「这张表是谁算的」两条完全不同的修法。
+  //   只记枚举与计数，不记票号、路径、会话号原文。
+  'statusbar.fallback': ['reason', 'tableRows', 'ownRows'],
   'dock.rehydrate': ['sidHash', 'cwdChanged', 'polluted'],
   'storage.fail': ['key', 'op'],
   'chain.derive.error': ['stepId', 'errorHash'],

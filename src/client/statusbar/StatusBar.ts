@@ -61,6 +61,9 @@ declare function showStatusTakeMenu(...args: any[]): any;
 declare function snapFresh(...args: any[]): any;
 // #1355：这一下要不要补拉本会话的工作路线表、按什么方式发（判据与实现在 kernel/work-route-own）。
 declare function runSnapshotRequestPlan(...args: any[]): any;
+// #1395：胶囊那一段「画不画」的判据结论（含 work-route-idle / empty / unreadable 三档）由同目录
+//   SessionChainCapsule.ts 的 logStatusFallback 记一行；本文件只给状态变化。
+declare function logStatusFallback(...args: any[]): any;
 declare function splitTimeStr(...args: any[]): any;
 declare function togglePanel(...args: any[]): any;
 declare function useStatusMenus(...args: any[]): any;
@@ -79,7 +82,6 @@ declare const CONTAINER_ACCENT: any;
 
 // #491 房外埋点：模块级计数（组件外一次，避免每渲染重置；只记枚举与计数，不记路径原文）。
 const dswsStatusHydN = { n: 0 }
-const dswsStatusFbLast = { reason: '' }
 // #776 观测：上一次记过的胶囊与父容器宽度（只在变化时记，避免每次提交刷屏）。
 const dswsWidthLinkLast = { cap: -1, parent: -1 }
 // #891/#995 复核：上一回记过的横幅（步骤 + 文案）与它出现的钟点；只在变化时落一行 guide.banner。
@@ -183,7 +185,9 @@ export const StatusBar = (props: any) => {
   //   可能还是上一个会话的快照。这里单独补一眼：缺自己的 workRouteTable 就补拉一次。
   //   同一次提交里上面两条也走同一个判据，忙不忙由它挡（snapLoading / selPending）；普通冷启动仍走既有的在途复用。
   React.useEffect(function () { runSnapshotRequestPlan(s, true, 'switch', snapFresh(s), loadSnapshot) }, [sid])
-  React.useEffect(function () { try { const r = !s.snapshot ? 'no-snapshot' : (!s.cwd ? 'no-cwd' : (s.snapMode === 'err' ? 'snap-error' : '')); if (r !== dswsStatusFbLast.reason) { dswsStatusFbLast.reason = r; if (r) log('info', 'statusbar.fallback', { reason: r }) } } catch (eL) {} }, [s.snapshot, s.cwd, s.snapMode])
+  // #1395：胶囊「工作路线」那一段画不画的判据结论（含「有表但没有本会话的行」这一档）由同目录
+  //   SessionChainCapsule.ts 的 logStatusFallback 按退化形状变化记一行；这里只负责在状态变化时把状态交给它。
+  React.useEffect(function () { logStatusFallback(s, sid) }, [s.snapshot, s.cwd, s.snapMode, sid])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr } = csx
   // 2026-08-28 优化3：胶囊状态栏任何情况下都不隐藏（#187「未选后端隐藏整条」门控退休，仅留导航引导）。

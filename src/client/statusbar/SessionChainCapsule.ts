@@ -192,6 +192,42 @@ export const sessionChainCapsuleOf = function (st: any, sid: any) {
   return { state: 'ok', reason: '', entry: own[0], list: own }
 };
 
+/**
+ * #1395 房外埋点：把上面这条判据的结论落进常驻事件 statusbar.fallback，给「这一段为什么不画」留现场。
+ *
+ * 此前状态栏只记 no-snapshot / no-cwd / snap-error 三档，分不清「还没有快照」（idle，整段不画）与
+ * 「有快照但没有本会话的行」（empty，也整段不画）；这两者指向完全不同的修法（补拉链路 vs 这张表是谁算的）。
+ * 这里在原三档之后补三档（work-route-idle / work-route-empty / work-route-unreadable），并记表一共几行、
+ * 其中标了本会话的几行（没有表时两格都记 -1）。只记枚举与计数，不记票号、路径、会话号原文。
+ * 同一种退化形状只记第一行，换形状才再记；正常（ok）不记，保持常驻最小。
+ */
+const dswsCapsuleFbLast = { key: '' }
+export const logStatusFallback = function (st: any, sid: any) {
+  try {
+    if (!st) return
+    const view = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
+    const rows = (view && Array.isArray(view.rows)) ? view.rows : null
+    const tableRows = rows ? rows.length : -1
+    let ownRows = -1
+    if (rows) ownRows = rows.filter(function (r: any) { return r && r.currentSession === true }).length
+    let reason = ''
+    if (!st.snapshot) reason = 'no-snapshot'
+    else if (!st.cwd) reason = 'no-cwd'
+    else if (st.snapMode === 'err') reason = 'snap-error'
+    else {
+      const cap = sessionChainCapsuleOf(st, sid)
+      const capState = (cap && typeof cap.state === 'string') ? cap.state : ''
+      if (capState === 'idle') reason = 'work-route-idle'
+      else if (capState === 'empty') reason = 'work-route-empty'
+      else if (capState === 'unreadable') reason = 'work-route-unreadable'
+    }
+    const key = reason + '|' + tableRows + '|' + ownRows
+    if (key === dswsCapsuleFbLast.key) return
+    dswsCapsuleFbLast.key = key
+    if (reason) log('info', 'statusbar.fallback', { reason: reason, tableRows: tableRows, ownRows: ownRows })
+  } catch (eFb) {}
+};
+
 /** 关掉这张单子（开关与 BUG / 可接菜单同形：关标记、清位置、刷界面）。 */
 function chainHide(st: any) {
   if (!st) return

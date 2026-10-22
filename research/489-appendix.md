@@ -265,7 +265,7 @@
 | 34 | issuePath.record（已退役，见 1.3 落定说明） | 信息（已退役，不再埋点） | 原白名单 ref 票号引用、source 来源、titleHash 标题散列（已失效，只作追溯） | H_TITLE（已失效） | — | kernel/store.js:81 记录（已随 #345 移除） |
 | 35 | settings.save（已退役，见 1.3 落定说明） | 信息（已退役，不再埋点） | 原白名单 openIn 打开位置、tplChangedCount 模板改了几处（已失效，只作追溯） | —（不记模板正文） | — | 原落点为 views/SettingsPage.js 的「打开位置」即时保存；2026-09-21 该项删除后落点消失 |
 | 36 | panel.open | 信息 | hasCache 是否有缓存、snapFresh 快照是否新鲜、keyHash 工作区键散列、snapVersion 快照版本号、backendId 后端标识（2026-09-21 去掉 mode：面板只有 DSH 原生右侧边栏一条路，形态没有第二种取值） | H_CWD | — | kernel/router.js 点开面板处 |
-| 38 | statusbar.fallback | 信息（纠偏纳入） | reason 退化原因（枚举） | — | — | statusbar/StatusBar.js:59 胶囊永不隐藏 |
+| 38 | statusbar.fallback | 信息（纠偏纳入） | reason 退化原因（枚举：no-snapshot 还没有快照 / no-cwd 还没有工作区目录 / snap-error 快照取数出错 / work-route-idle 有快照但还没有工作路线表 / work-route-empty 有表但没有本会话的行 / work-route-unreadable 工作路线表读坏了；后三档 2026-10-22 #1395 增补）、tableRows 这张表一共几行（没有表记 -1；#1395 增补）、ownRows 其中标了本会话的几行（没有表记 -1；#1395 增补） | — | — | statusbar/StatusBar.ts 的 statusbar.fallback 那一行 effect（2026-10-22 #1395 起：胶囊那一段整段画不画的判据一变就记一行；从前只有前三个 reason，出事时分不清「还没有快照」与「有表但没有本会话的行」） |
 | 39 | dock.rehydrate | 告警 | sidHash、cwdChanged 工作区是否变了、polluted 是否污染 | H_CWD | R_WIN_ABS | panel/Dock.js:34 跟随、54 污染自愈 |
 | 40 | storage.fail | 告警 | key 键名枚举、op 读或写 | — | — | kernel/store.js:14、kernel/config.js:13 读本地存储 |
 | 41 | chain.derive.error | 告警（纠偏纳入） | stepId 步骤标识、errorHash 错误散列 | H_ERR、T120 | R_TOKEN_BEARER | kernel/probe.js:61 链派生 |
