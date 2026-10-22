@@ -126,6 +126,128 @@ function loadTr (): { L: { zh: Record<string, string> }, tr: (key: string, param
   return { L, tr }
 }
 
+// ==== 浅色皮肤（#1380）：票卡、地图卡与技能列表共用同一套 A 纸面 ====
+// 判据只看两份样式文本本身，不看渲染：色值写错、深色值被挪进浅色选择器、纸色与技能列表分叉、
+// 该走令牌的装饰色又写回裸值，都会报红。抽成纯函数只为一件事：下面要在内存里把同一段文本变坏三次，
+// 再用同一套判据跑一遍，证明这扇门能红也能绿（反例只改文本，不落盘）。
+// 深色（也就是今天的外观）逐条原值：改这里等于改了深色外观，所以钉死。
+const CARD_LIGHT_DARK_TOKENS = [
+  ['--cd-frame', '#3a2c14'], ['--cd-card', '#f2e4c0'], ['--cd-ink', '#2b2113'],
+  ['--cd-gold', '#e3a92f'], ['--cd-warn', '#f59e0b'], ['--cd-stripe', '#ddcda1'],
+]
+// 浅色（A 纸面便签）定版值：与 #1378 的技能列表同一套纸，跨文件那四条在下面单独对。
+const CARD_LIGHT_TOKENS = [
+  ['--cd-frame', '#3a2c14'], ['--cd-card', '#f6f1e6'], ['--cd-paper', '#fffdf8'],
+  ['--cd-old', '#efe8d9'], ['--cd-ink', '#221d15'], ['--cd-ink2', '#6f6252'],
+  ['--cd-shadow', '#241a0c'], ['--cd-gold', '#15803d'], ['--cd-ok', '#15803d'],
+  ['--cd-sel', '#1e40af'], ['--cd-warn', '#b45309'], ['--cd-bad', '#b91c1c'],
+  ['--cd-dim', '#7d7061'], ['--cd-take', '#2456c9'], ['--cd-map', '#6d28d9'],
+  ['--cd-stripe', '#e7ddc8'], ['--cd-card2', '#efe8d9'], ['--cd-lit', '#b45309'],
+  ['--cd-note', '#b91c1c'], ['--cd-mark-bug', '#b91c1c'], ['--cd-mark-ready', '#15803d'],
+  ['--cd-mark-doing', '#1e40af'],
+]
+// 这些是深色原值里浅色绝不会用到的：出现在浅色覆盖里，就说明有人把深色令牌挪了过去。
+const CARD_DARK_ONLY = [
+  '#f2e4c0', '#fffdf4', '#e4d5b0', '#2b2113', '#6b5b3e', '#8b5cf6', '#0e8a16',
+  '#0ea5e9', '#a3231a', '#9a8f78', '#4a86c8', '#e3a92f', '#ddcda1', '#ffd97a',
+  '#8b241a', '#d73a4a', '#10b981', '#2b62b0',
+]
+// 已经收进 --cd-* 令牌的装饰色：令牌定义那几行剥掉之后，规则体里不该再有这些裸值。
+const CARD_BARE_DECOR = ['#ddcda1', '#fffdf4', '#ffd97a', '#8b241a', '#d73a4a', '#10b981', '#2b62b0']
+
+const CARD_LIGHT_RE = /body:not\(\[data-ds-dark-theme\]\) \.cd-card\s*\{([^}]*)\}/
+const PIXEL_LIGHT_RE = /body:not\(\[data-ds-dark-theme\]\) \.pixel-tab\s*\{([^}]*)\}/
+
+/** 从一段声明里只取 --*: #rrggbb 的令牌对，别的写法（rgba、普通属性）不进来。 */
+function cardTokensOf (decl: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const one of String(decl).split(';')) {
+    const m = one.trim().match(/^(--[a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\s*$/)
+    if (m) out[m[1]] = m[2].toLowerCase()
+  }
+  return out
+}
+
+/** 把一段票卡样式文本与技能列表样式文本按浅深两套的判据过一遍，返回不通过的原因（空数组＝全过）。 */
+function cardLightProblems (cardsCss: string, pixelCss: string): string[] {
+  const out: string[] = []
+  // 1) 基础 :root 令牌仍是今天的深色原值（深色零变化的底线）。
+  const rootText = (cardsCss.match(/:root\{[^}]*\}/g) || []).join('')
+  if (!rootText) out.push('找不到基础 :root 令牌')
+  for (const pair of CARD_LIGHT_DARK_TOKENS) {
+    if (rootText.indexOf(pair[0] + ':' + pair[1]) < 0) out.push('深色令牌 ' + pair[0] + ' 不再是 ' + pair[1])
+  }
+  // 2) 浅色覆盖有且只有一组，且只挂在宿主的深色标记上（面板里不许自造开关）。
+  const marks = cardsCss.match(/body:not\(\[data-ds-dark-theme\]\)/g) || []
+  if (marks.length !== 1) out.push('浅色覆盖只该有一组（实得 ' + marks.length + ' 组）')
+  const light = cardsCss.match(CARD_LIGHT_RE)
+  const lightDecl = light ? light[1] : ''
+  if (!light) {
+    out.push('缺少 body:not([data-ds-dark-theme]) .cd-card 这一组浅色覆盖')
+  } else {
+    // 浅色那一组只许写 --cd-* 令牌，值只能是六位十六进制：多写一条普通属性，就是在浅色下另起一套结构。
+    for (const one of lightDecl.split(';')) {
+      const chip = one.trim()
+      if (chip !== '' && !/^--cd-[a-z0-9-]+:\s*#[0-9a-fA-F]{6}$/.test(chip)) out.push('浅色覆盖里混进了不是令牌的写法：' + chip)
+    }
+    const tokens = cardTokensOf(lightDecl)
+    for (const pair of CARD_LIGHT_TOKENS) {
+      if (tokens[pair[0]] !== pair[1]) out.push('浅色令牌 ' + pair[0] + ' 该是定版值 ' + pair[1] + '（实得 ' + (tokens[pair[0]] || '没写') + '）')
+    }
+    for (const val of CARD_DARK_ONLY) {
+      if (lightDecl.toLowerCase().indexOf(val) >= 0) out.push('深色原值 ' + val + ' 被挪进了浅色覆盖（浅色该是一套新值）')
+    }
+  }
+  if (/data-(?!ds-dark-theme)[a-z-]*theme/.test(cardsCss)) out.push('出现了宿主深色标记以外的主题标记（面板不许自造开关）')
+  if (cardsCss.indexOf('prefers-color-scheme') >= 0) out.push('出现 prefers-color-scheme：深浅只认宿主标记，不猜系统主题')
+  // 3) 规则体里的装饰色都走令牌：令牌定义那几行剥掉之后，不该再看到这些裸值。
+  const rulesOnly = cardsCss.replace(/:root\{[^}]*\}/g, '').replace(CARD_LIGHT_RE, '')
+  for (const raw of CARD_BARE_DECOR) {
+    if (rulesOnly.toLowerCase().indexOf(raw) >= 0) out.push('规则体里还有裸装饰色 ' + raw + '（浅色该走 --cd-* 令牌）')
+  }
+  // 4) 浅色下必须真的看得到：棋盘、纸底、点亮的墙格、红字都得走令牌，不能再写死深色纸色。
+  if (!/\.cd-grid2\{[^}]*background:var\(--cd-stripe\)/.test(cardsCss)) out.push('.cd-grid2 的棋盘底没用 --cd-stripe')
+  if (!/\.cd-readout\{[^}]*background:var\(--cd-paper\)/.test(cardsCss)) out.push('.cd-readout 的纸底没用 --cd-paper')
+  if (!/\.cd-wall i\.lit\{[^}]*outline:3px solid var\(--cd-lit\)/.test(cardsCss)) out.push('.cd-wall i.lit 的外圈没用 --cd-lit（浅色纸上会看不见）')
+  if (!/\.cd-note\{[^}]*color:var\(--cd-note\)/.test(cardsCss)) out.push('.cd-note 的红字没用 --cd-note')
+  // 5) 跨文件：票卡与技能列表必须是同一套纸（#1377 的硬要求：纸色不分叉）。
+  const pixelLight = pixelCss.match(PIXEL_LIGHT_RE)
+  if (!pixelLight) {
+    out.push('技能列表（PixelStyles.ts）里找不到 body:not([data-ds-dark-theme]) .pixel-tab 浅色块')
+  } else {
+    const pixelTokens = cardTokensOf(pixelLight[1])
+    const cardTokens = cardTokensOf(lightDecl)
+    const pairs = [
+      ['--cd-card', '--pixel-paper'], ['--cd-paper', '--pixel-card'],
+      ['--cd-frame', '--pixel-frame'], ['--cd-gold', '--pixel-acc'],
+    ]
+    for (const pair of pairs) {
+      const a = cardTokens[pair[0]]
+      const b = pixelTokens[pair[1]]
+      if (!a || !b || a !== b) out.push('纸色分叉了：' + pair[0] + '（' + (a || '没写') + '）与 ' + pair[1] + '（' + (b || '没写') + '）该同值')
+    }
+  }
+  // 6) 两条硬线：容器颜色门禁锁着的那一处警告色只能有一份；容器身份色一处都不许碰。
+  if (cardsCss.split('--cd-warn:#f59e0b').length - 1 !== 1) out.push('--cd-warn:#f59e0b 该有且只有一处（verify-container-colors 的白名单锁着它）')
+  if (/#1d4ed8/i.test(cardsCss)) out.push('出现了容器身份蓝 #1d4ed8（全仓零容忍）')
+  if (/#c084fc/i.test(cardsCss)) out.push('出现了探索地图身份紫 #c084fc（全仓零容忍）')
+  return out
+}
+
+/** WCAG 相对亮度与对比度：浅色纸面上的字要真算一遍，不凭眼睛。 */
+function cardLightLum (hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+}
+function cardLightContrast (a: string, b: string): number {
+  const la = cardLightLum(a), lb = cardLightLum(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
 let WIN = null
 let DOC = null
 
@@ -642,6 +764,53 @@ async function main (): Promise<void> {
     const blocks = rules.join('').split('{').length - 1
     check(badRules.length === 0, '每一条皮肤规则都被浏览器解析（解析不出来的：' + (badRules.length ? badRules.join('、') : '无') + '）')
     check(parsedRules === blocks, '解析出来的规则条数 ' + parsedRules + ' 与规则文本里的 ' + blocks + ' 个声明块对得上（没有静默丢规则）')
+  }
+
+  // ---- 5.7 浅色皮肤（#1380）：票卡与地图卡换成和技能列表同一套 A 纸面 ----
+  // 判据只看两份样式文本，不看渲染：深色原值仍在、浅色覆盖只挂在宿主标记上、纸色与技能列表不分叉、
+  // 该走令牌的装饰色不再写死。先跑真文本（必须全过），再在内存里把文本变坏三次，同一套判据必须报红。
+  {
+    const cardsSrc = sourceText('src/client/views/cards/PixelCardsStyles.ts')
+    const pixelSrc = sourceText('src/client/views/skillDetail/PixelStyles.ts')
+    const problems = cardLightProblems(cardsSrc, pixelSrc)
+    check(problems.length === 0, '浅色皮肤：深色令牌原样、浅色是定版纸面、纸色与技能列表不分叉' + (problems.length ? '\n    不过 ' + problems.length + ' 条：\n      ' + problems.join('\n      ') : ''))
+
+    // 反例 a：把浅色覆盖整段删掉 —— 同一套判据必须报红（只在内存里改文本，不落盘）
+    const noLightCards = cardsSrc.replace(CARD_LIGHT_RE, '')
+    const noLightProblems = cardLightProblems(noLightCards, pixelSrc)
+    check(noLightCards !== cardsSrc && noLightProblems.length > 0, '反例 a：删掉浅色覆盖 → 判据报红（' + noLightProblems.length + ' 条：' + noLightProblems.slice(0, 2).join('；') + '）')
+
+    // 反例 b：把一个浅色令牌值改回深色原值 —— 同一套判据必须报红
+    const wrongToneCards = cardsSrc.replace('--cd-card:#f6f1e6', '--cd-card:#f2e4c0')
+    const wrongToneProblems = cardLightProblems(wrongToneCards, pixelSrc)
+    check(wrongToneCards !== cardsSrc && wrongToneProblems.length > 0, '反例 b：把一个浅色令牌值改回深色值 → 判据报红（' + wrongToneProblems.length + ' 条：' + wrongToneProblems.slice(0, 2).join('；') + '）')
+
+    // 反例 c：让技能列表先改纸色、票卡不跟 —— 跨文件一致性必须报红
+    const forkedPixel = pixelSrc.replace(/--pixel-card:\s*#fffdf8/, '--pixel-card:#ffffff')
+    const forkProblems = cardLightProblems(cardsSrc, forkedPixel)
+    check(forkedPixel !== pixelSrc && forkProblems.some((m) => m.indexOf('纸色分叉') >= 0), '反例 c：技能列表的纸色与票卡分叉 → 判据报红（' + forkProblems.filter((m) => m.indexOf('纸色分叉') >= 0).join('；') + '）')
+
+    // 浅色纸面上的对比度：真算一遍。正文与次要字走 4.5:1；强调色、地图色、次要灰只当图形元素或大字，按 3:1。
+    const lightDecl = (cardsSrc.match(CARD_LIGHT_RE) || ['', ''])[1]
+    const tokens = cardTokensOf(lightDecl)
+    const groups: Array<{ line: number, pairs: string[][] }> = [
+      { line: 4.5, pairs: [['ink/paper', '--cd-ink', '--cd-paper'], ['ink/card', '--cd-ink', '--cd-card'], ['ink2/card', '--cd-ink2', '--cd-card'], ['take/card', '--cd-take', '--cd-card'], ['bad/card', '--cd-bad', '--cd-card'], ['note/card', '--cd-note', '--cd-card']] },
+      { line: 3, pairs: [['gold/card', '--cd-gold', '--cd-card'], ['map/card', '--cd-map', '--cd-card'], ['dim/card', '--cd-dim', '--cd-card']] },
+      { line: 4.5, pairs: [['white/mark-bug', '#ffffff', '--cd-mark-bug'], ['white/mark-ready', '#ffffff', '--cd-mark-ready'], ['white/mark-doing', '#ffffff', '--cd-mark-doing']] },
+    ]
+    const shown: string[] = []
+    const low: string[] = []
+    for (const group of groups) {
+      for (const p of group.pairs) {
+        const fg = p[1].charAt(0) === '#' ? p[1] : tokens[p[1]]
+        const bg = p[2].charAt(0) === '#' ? p[2] : tokens[p[2]]
+        if (!fg || !bg) { low.push(p[0] + ' 的令牌没写（' + p[1] + ' / ' + p[2] + '）'); continue }
+        const ratio = cardLightContrast(fg, bg)
+        shown.push(p[0] + ' ' + ratio.toFixed(2))
+        if (!(ratio >= group.line)) low.push(p[0] + ' ' + fg + ' on ' + bg + ' = ' + ratio.toFixed(2) + '（该 ≥ ' + group.line + '）')
+      }
+    }
+    check(low.length === 0, '浅色纸面上的字与图形都过线：正文 4.5:1、图形与角标 3:1 起（' + shown.join('、') + '）' + (low.length ? ' —— 不达标：' + low.join('；') : ''))
   }
 
   // =========================================================================
