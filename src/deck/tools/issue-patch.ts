@@ -431,6 +431,12 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       const back = (typeof t.get === 'function' && !sc.outOfBudget()) ? await t.get(repo, key, {}, opCtx) : null
       const readBack = (back && back.ok === true) ? back.data : null
       if (!readBack) notes.push('写后没读回来（后端原话：' + String((back && back.error && back.error.message) || '没给出原因').slice(0, 160) + '）：上面每步是照后端的回答记的。')
+      // #1273：整票只装一份，放在 data.ticket（api 文档承诺「返回值就是写后的真状态」，工作路线也按它记账）；
+      // 顶层 readBack 只放核对用的三格。以前顶层也塞整票，渲染层靠对象引用相等去重只在同进程成立，
+      // 一旦经过连接、fetch 或 PTC 会话的 JSON 边界，同一张票就连正文带评论整份进上下文两遍。
+      // 三格与 data.ticket 出自同一次写后回读，所以「readBack 说改成什么了」和「data.ticket 里是什么」始终一致。
+      const readBackRecord = (readBack || {}) as Record<string, unknown>
+      const readBackDigest = readBack ? { key: String(readBackRecord.key ?? key), state: readBackRecord.state == null ? null : String(readBackRecord.state), updatedAt: readBackRecord.updatedAt ?? null } : null
       const status = statusOfItems(items)
       if (status !== DECK_STATUS.OK) notes.push('有的步骤没成，逐条原因在上面：别把没成的那一步当成已经改好。')
       return {
@@ -441,7 +447,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
           workRouteDetail: a.workRouteDetail,
           data: { requested: Object.keys(wants).filter((k) => wants[k]), ticket: readBack },
           items: items,
-          readBack: readBack,
+          readBack: readBackDigest,
           notes: notes,
           touched: touched,
         },
