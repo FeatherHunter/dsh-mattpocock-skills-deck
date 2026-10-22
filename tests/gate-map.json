@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T15:43:07.417Z",
+  "generatedAt": "2026-10-22T16:26:53.873Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 322,
   "gateCount": 322,
@@ -8969,10 +8969,10 @@
   "coverage": {
     "sourceRoot": "src",
     "fileCount": 555,
-    "dirCount": 73,
+    "dirCount": 71,
     "coveredFileCount": 555,
     "ungatedFileCount": 0,
-    "ungatedDirCount": 2,
+    "ungatedDirCount": 0,
     "dedicatedDirCount": 52,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
@@ -9737,15 +9737,6 @@
       }
     ],
     "ungated": [],
-    "ungatedDirs": [
-      {
-        "path": "src/client/mapDetailV2",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/client/views/mapDetailV2/view/chrome",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      }
-    ]
+    "ungatedDirs": []
   }
 }

@@ -11,16 +11,18 @@
 //   C 折叠让位表没被动过（还是 12 段）与环境段那条词条已经落了。
 //   D 同一份读数：胶囊判据与面板在办表读的是同一格（与 workRouteTableOf 对拍，不另抄一份期望值）。
 //   E 地图那一条：认身份换图标，文字通道仍留号（#780）。
-//   F #1263 两行 head、420 宽、跨天与陈旧标记。
+//   F #1404 表头单行：左右两簇、四段词条、两枚分隔线，外加 420 宽、跨天与陈旧标记。
 // 【2026-10-12 清理】原先 B、C 两组里还有一批读文件文本钉形状的断言，断言对象都是
 //   文件文本，按维护者「清掉读源码文本钉形状的门禁」的要求撤掉，逐条说明留在各组的注释里。
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
 import { sourcePath, spliceableJs } from './lib/source-text.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+// 门禁要从生成物里拿导出（例如界面词表 L_PAGES）时用它：按仓库相对路径动态导入，与别的门禁同一写法。
+const imp = (rel: string) => import(pathToFileURL(resolve(ROOT, rel)).href)
 let passed = 0, failed = 0
 function ok(msg) { passed++; console.log('  PASS ' + msg) }
 function bad(msg) { failed++; console.log('  FAIL ' + msg) }
@@ -327,82 +329,180 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
   check(!!plainRow && String(plainRow.p['aria-label']).indexOf('type.map') < 0, '普通票那行不冒充地图')
 }
 
-console.log('F) #1263 two-line header plus width, cross-day and stale')
+console.log('F) #1404 表头单行：左右两簇、四段词条、两枚分隔线与尺寸契约')
 {
   const nowMs = Date.now()
-  // 「一小时前」在本地时间 0 点到 1 点之间会落到昨天，而下面断言这一行在同一个日历日内只显示时和分；
-  // 夹具落到昨天时组件会改显示「月-日 时:分」，断言就会在凌晨跑门禁时假红。这里把「就近」夹在今天之内：
-  // 一天刚开始时取今天 0 点，其余时刻仍取一小时前，既保住「这是最近的一条」的含义，也不受运行时刻影响。
+  // 「一小时前」在本地时间 0 点到 1 点之间会落到昨天，而推断这次只要求「最近一条是今天」；
+  //   夹具落到昨天时表头时间会改显示「月-日 时:分」，断言就会在凌晨跑门禁时假红。这里把「就近」夹在今天之内。
   const startOfToday = new Date(nowMs)
   startOfToday.setHours(0, 0, 0, 0)
   const freshAt = Math.max(startOfToday.getTime(), nowMs - 60 * 60 * 1000)
   const staleAt = nowMs - 25 * 60 * 60 * 1000
-  const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
-  const trCalls = []
-  const tr = function (k, params) { trCalls.push({ k: k, params: params }); return String(k) + (params ? ' ' + JSON.stringify(params) : '') }
-  const built = loadCap({
-    React: { createElement: h, useContext: function () { return { h: h } }, useRef: function (v) { return { current: v } }, useState: function () { return [null, function () {}] } },
-    tr: tr,
-  })
+  const pad2 = function (n: any) { return (n < 10 ? '0' : '') + String(n) }
+  const freshDay = new Date(freshAt)
+  const freshHHmm = pad2(freshDay.getHours()) + ':' + pad2(freshDay.getMinutes())
+  const h = function (t: any, p: any) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
+  // 期望文案不手抄：从词表生成物的中文段取词，再用与 tr 相同的占位符替换得到期望文本。
+  //   （#1294：词表真源在 config/copy/pages.yaml，运行时代码与这里读的是同一份生成物 locale-data.ts；
+  //     门禁里再抄一遍字面量就等于同一个值有两处定义，改 YAML 会假红。）
+  const pagesUrl = sourcePath('src/client/kernel/locale-pages.js')
+  const pages = (await imp(pagesUrl) as any).L_PAGES
+  const zh = pages.zh
+  const en = pages.en
+  const CAP_HEAD_KEYS = ['chainView.capsuleHeaderTitle', 'chainView.capsuleHeaderOwn', 'chainView.capsuleHeaderOthers', 'chainView.readAtFull']
+  check(CAP_HEAD_KEYS.every(function (k: any) { return zh[k] !== undefined && en[k] !== undefined }), '表头四段词条中英文都有（键对等）')
+  const zhText = function (k: any, params?: any) {
+    let s = (zh[k] !== undefined) ? String(zh[k]) : String(k)
+    if (params) s = s.replace(/\{(\w+)\}/g, function (m: any, name: any) { return (name in params) ? String(params[name]) : m })
+    return s
+  }
+  const trFor = function (calls: any[]) {
+    return function (k: any, params: any) {
+      calls.push({ k: String(k), params: params })
+      return zhText(k, params)
+    }
+  }
+  const textsOf = function (n: any): any[] {
+    const out: any[] = []
+    const walk = function (x: any) {
+      if (x === null || x === undefined) return
+      if (typeof x === 'string' || typeof x === 'number') { out.push(String(x)); return }
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      if (typeof x === 'object') { const kids = childrenOf(x); for (let i = 0; i < kids.length; i++) walk(kids[i]) }
+    }
+    walk(n)
+    return out
+  }
+  const nodesOf = function (n: any, tag: any): any[] {
+    const out: any[] = []
+    const walk = function (x: any) {
+      if (x === null || x === undefined) return
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      if (typeof x !== 'object') return
+      if (x.t === tag) out.push(x)
+      const kids = childrenOf(x)
+      for (let i = 0; i < kids.length; i++) walk(kids[i])
+    }
+    walk(n)
+    return out
+  }
+  // 假 h 的 children 是「按参数原样装进 c」，传数组时会多一层嵌套；真 React 会拍平。
+  //   这里按真 React 的语义把数组拍平，只留元素节点（字符串也留，后面对段文字还要用）。
+  const childrenOf = function (n: any): any[] {
+    const out: any[] = []
+    const walk = function (x: any) {
+      if (x === null || x === undefined) return
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      out.push(x)
+    }
+    const raw = n ? (Array.isArray(n.c) ? n.c : n.children) : null
+    const kids = Array.isArray(raw) ? raw : []
+    for (let i = 0; i < kids.length; i++) walk(kids[i])
+    return out
+  }
+  const findMenu = function (n: any): any {
+    let found: any = null
+    const walk = function (x: any) {
+      if (found || x === null || x === undefined || typeof x !== 'object') return
+      if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) walk(x[i]); return }
+      if (x.overlay === true) { found = x; return }
+      const kids = childrenOf(x)
+      for (let i = 0; i < kids.length; i++) walk(kids[i])
+    }
+    walk(n)
+    return found
+  }
+  const isHeaderNode = function (n: any) {
+    return !!n && typeof n === 'object' && n.p && n.p.style && n.p.style.fontSize === 11 && n.p.style.padding === '2px 8px'
+  }
+  const stringStyle = function (n: any) { return (n && n.p && n.p.style) ? n.p.style : {} }
+
+  // 一、本会话两条（最近一条在今天内），别的会话两个、共三条 → 表头两簇齐全
+  const trCalls: any[] = []
+  const built = loadCap({ tr: trFor(trCalls) })
   const st = { snapshot: { workRouteTable: tableFor([
     entryOf('951', { title: 'fresh', actionAt: new Date(freshAt).toISOString() }),
     entryOf('950', { title: '', actionAt: new Date(staleAt).toISOString() }),
     entryOf('800', { title: 'other', sessionLabel: 'sess-other', currentSession: false, actionAt: new Date(freshAt).toISOString() }),
+    entryOf('801', { title: 'other2', sessionLabel: 'sess-other', currentSession: false, actionAt: new Date(freshAt).toISOString() }),
+    entryOf('802', { title: 'other3', sessionLabel: 'sess-third', currentSession: false, actionAt: new Date(freshAt).toISOString() }),
   ]) }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
   const open = built.SessionChainCapsule({ st: st, sid: 's1' })
-  let menuNode = null
-  ;(function find(n) {
-    if (!n || menuNode) return
-    if (Array.isArray(n)) { n.forEach(find); return }
-    if (typeof n !== 'object') return
-    if (n.overlay === true) { menuNode = n; return }
-    ;(n.c || []).forEach(find)
-    ;(n.children || []).forEach(find)
-  })(open)
+  const menuNode: any = findMenu(open)
   check(!!menuNode, 'menu opens')
-  const style = (menuNode && menuNode.props && menuNode.props.style) || {}
-  check(style.width === 420 && style.maxWidth === 420 && style.maxHeight === 380, 'popover width 420 and max height 380')
-  const line1 = trCalls.filter(function (c) { return c.k === 'chainView.capsuleHeaderLine1' })[0]
-  check(!!line1 && line1.params && line1.params.n === 2 && typeof line1.params.time === 'string' && /^\d{2}:\d{2}$/.test(line1.params.time), 'line one carries own count 2 plus local HH:mm')
-  const line2 = trCalls.filter(function (c) { return c.k === 'chainView.capsuleHeaderLine2' })[0]
-  check(!!line2 && line2.params && line2.params.x === 1 && line2.params.y === 1, 'line two counts other sessions')
-  const texts = []
-  ;(function walk(n) {
-    if (n === null || n === undefined) return
-    if (typeof n === 'string') { texts.push(n); return }
-    if (Array.isArray(n)) { n.forEach(walk); return }
-    if (typeof n === 'object') { (n.c || []).forEach(walk); (n.children || []).forEach(walk) }
-  })(menuNode)
-  const staleWordHit = texts.some(function (s) { return s.indexOf('chainView.capsuleStale') >= 0 })
+  const menuStyle: any = (menuNode && menuNode.props && menuNode.props.style) || {}
+  check(menuStyle.width === 420 && menuStyle.maxWidth === 420 && menuStyle.maxHeight === 380, 'popover width 420 and max height 380')
+  const menuKids: any[] = childrenOf(menuNode)
+  check(!!menuKids[0] && menuKids[0].t === 'div', '表头是弹层里的第一个节点')
+  const headerNodes = menuKids.filter(isHeaderNode)
+  check(headerNodes.length === 1, '表头只有一个节点（不再有上下两行）')
+  const head: any = menuKids[0]
+  const hs: any = stringStyle(head)
+  // 只断言「是不是一行、是不是横向摆」以及单行高的判据；不钉簇内间距、字重、省略号三件套这类内部样式。
+  check(hs.display === 'flex' && hs.alignItems === 'center' && hs.whiteSpace === 'nowrap', '表头是一行不换行的横向 flex 行')
+  check(hs.fontSize === 11 && hs.lineHeight === '18px' && hs.padding === '2px 8px', '字号 11px、行高 18px、上下内边距 2px（单行总高 22px）')
+  check(head.p.tabIndex === undefined && head.p.role === undefined && head.p.onClick === undefined && head.p.onMouseEnter === undefined && head.p.onMouseLeave === undefined, '表头不可聚焦、不可点、没有悬停反馈')
+
+  const clusters: any[] = childrenOf(head).filter(function (n: any) { return !!n && typeof n === 'object' && n.t })
+  check(clusters.length === 2, '表头分成左右两簇')
+  const left: any = clusters[0]
+  const right: any = clusters[1]
+  // 「右簇靠右」只看这一个结构抓手：自动外边距吸收两簇之间的空白，把右簇推到行尾。
+  //   布局结果最终由浏览器算，像素级对齐由 D:\temp\1404-header-proof 的证明页人工核对；规格不新增像素级门禁。
+  check(stringStyle(right).marginLeft === 'auto', '右簇用自动外边距推到行尾（自动外边距吸收两簇之间的空白）')
+
+  const leftTexts = textsOf(left)
+  const leftExpected = zhText('chainView.capsuleHeaderTitle') + zhText('chainView.capsuleHeaderOwn', { n: 2 }) + zhText('chainView.readAtFull', { time: freshHHmm })
+  check(leftTexts.join('') === leftExpected, '左簇依次是标题、本会话条数、更新时间（实得 ' + leftTexts.join('') + '）')
+
+  const hiddenSvg = function (s: any) { const p = (s && s.p) || {}; return p['aria-hidden'] === true || String(p['aria-hidden']) === 'true' }
+  const svgs: any[] = nodesOf(head, 'svg')
+  check(svgs.length === 2 && svgs.every(hiddenSvg), '表头里有两枚分隔线 SVG（都从无障碍树里隐藏）')
+
+  const rightTexts = textsOf(right)
+  check(rightTexts.join('') === zhText('chainView.capsuleHeaderOthers', { x: 2, y: 3 }), '右簇是一整句「另有 … 个会话在办 … 条」（实得 ' + rightTexts.join('') + '）')
+
+  const callOf = function (key: string) { return trCalls.filter(function (c: any) { return c.k === key })[0] }
+  check(!!callOf('chainView.capsuleHeaderTitle'), '短标题词条被调用')
+  // 这两段词条取的是带占位符的原文，数字由切段函数替换后单独成节点（tr 因此不接参数）；
+  //   参数对不对由上面「左簇整行文字」与「右簇整行文字」逐字对拍，不另断言内部切段方式。
+  const ownCall: any = callOf('chainView.capsuleHeaderOwn')
+  check(!!ownCall, '本会话条数词条被调用')
+  const timeCall: any = callOf('chainView.readAtFull')
+  check(!!timeCall && !!timeCall.params && timeCall.params.time === freshHHmm, '更新时间复用「{time} 更新」词条并带上本地时钟')
+  const othersCall: any = callOf('chainView.capsuleHeaderOthers')
+  check(!!othersCall, '「另有 …」词条被调用')
+  check(!trCalls.some(function (c: any) { return c.k === 'chainView.capsuleHeaderLine1' || c.k === 'chainView.capsuleHeaderLine2' }), '两行表头的老词条不再被调用')
+
+  const texts = textsOf(menuNode)
+  const staleWord = zhText('chainView.capsuleStale')
+  const staleWordHit = texts.some(function (s: any) { return s.indexOf(staleWord) >= 0 })
   check(staleWordHit, 'rows older than 24h carry the stale marker')
-  const datedHit = texts.some(function (s) { return /\d{2}-\d{2} \d{2}:\d{2}/.test(s) })
+  const datedHit = texts.some(function (s: any) { return /\d{2}-\d{2} \d{2}:\d{2}/.test(s) })
   check(datedHit, 'cross-day rows carry month-day plus time')
-  const rowNodes = []
-  ;(function walkRows(n) {
-    if (n === null || n === undefined) return
-    if (Array.isArray(n)) { n.forEach(walkRows); return }
-    if (typeof n === 'object' && n.overlay) { (n.children || []).forEach(walkRows); return }
-    if (typeof n === 'object') {
-      if (n.p && typeof n.p.className === 'string' && n.p.className.indexOf('dsws-chainmenu-row') >= 0) { rowNodes.push(n); return }
-      ;(n.c || []).forEach(walkRows)
-    }
-  })(open)
+  const rowNodes = menuKids.filter(function (n: any) { return !!n && typeof n === 'object' && n.p && typeof n.p.className === 'string' && n.p.className.indexOf('dsws-chainmenu-row') >= 0 })
   check(rowNodes.length === 2, 'only current session rows are listed')
-  const staleAria = rowNodes.some(function (r) { return String(r.p['aria-label'] || '').indexOf('chainView.capsuleStale') >= 0 })
+  const staleAria = rowNodes.some(function (r: any) { return String(r.p['aria-label'] || '').indexOf(staleWord) >= 0 })
   check(staleAria, 'stale marker also reaches the accessible name')
-}
-{
-  // 单条记录、没有别的会话 → 第二行 head 不出现（#1263 原纪律）。
-  const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
-  const seen = []
-  const tr = function (k) { seen.push(String(k)); return String(k) }
-  const built = loadCap({
-    React: { createElement: h, useContext: function () { return { h: h } }, useRef: function (v) { return { current: v } }, useState: function () { return [null, function () {}] } },
-    tr: tr,
-  })
-  const st = { snapshot: { workRouteTable: tableFor([entryOf('951', { title: 'solo' })]) }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
-  built.SessionChainCapsule({ st: st, sid: 's1' })
-  check(seen.indexOf('chainView.capsuleHeaderLine2') < 0, 'no other sessions means no second line')
+
+  // 二、只有本会话一条、没有别的会话 → 右簇与组间那条分隔线都不渲染，表头仍是一行高
+  const soloCalls: any[] = []
+  const soloBuilt = loadCap({ tr: trFor(soloCalls) })
+  const soloSt = { snapshot: { workRouteTable: tableFor([entryOf('951', { title: 'solo', actionAt: new Date(freshAt).toISOString() })]) }, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: 2 } }
+  const soloOpen = soloBuilt.SessionChainCapsule({ st: soloSt, sid: 's1' })
+  const soloMenu: any = findMenu(soloOpen)
+  const soloKids: any[] = childrenOf(soloMenu)
+  const soloHeaders = soloKids.filter(isHeaderNode)
+  check(soloHeaders.length === 1, '没有别的会话时表头仍只有一个节点')
+  const soloHead: any = soloHeaders[0]
+  const soloClusters: any[] = childrenOf(soloHead).filter(function (n: any) { return !!n && typeof n === 'object' && n.t })
+  check(soloClusters.length === 1, '没有其他会话时右簇不渲染')
+  const soloExpected = zhText('chainView.capsuleHeaderTitle') + zhText('chainView.capsuleHeaderOwn', { n: 1 }) + zhText('chainView.readAtFull', { time: freshHHmm })
+  check(textsOf(soloHead).join('') === soloExpected, '只剩左簇三段（实得 ' + textsOf(soloHead).join('') + '）')
+  const soloSvgs: any[] = nodesOf(soloHead, 'svg')
+  check(soloSvgs.length === 1 && soloSvgs.every(hiddenSvg), '没有其他会话时只剩内部那条分隔线')
+  check(!soloCalls.some(function (c: any) { return c.k === 'chainView.capsuleHeaderOthers' }), '没有其他会话时不调用「另有 …」词条')
+  check(stringStyle(soloHead).lineHeight === '18px' && stringStyle(soloHead).padding === '2px 8px', '表头恒为一行高（18 + 2 + 2 = 22px）')
 }
 
 console.log(failed ? '\n存在失败' : '\n全部通过')
