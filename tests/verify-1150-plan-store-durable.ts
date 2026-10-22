@@ -176,7 +176,7 @@ async function main() {
   check(first.table && first.table.missing && first.table.missing.length === 0, '一条都不缺（missing = ' + JSON.stringify(first.table && first.table.missing) + '）')
 
   const exec = { agent: { session: { id: 's-1150', cwd: ws.rootPosix } } }
-  const children = [{ key: 'c1', title: '子票一' }, { key: 'c2', title: '子票二' }]
+  const children = [{ key: 'c1', title: '子票一', kind: 'issue' }, { key: 'c2', title: '子票二', kind: 'issue' }]
   const ticketsBefore = ws.ticketFiles().length
 
   // ── 第一段：建到一半（那条边的落点不存在，所以这一跑不会是「全成」，中间态必须留在盘上） ──
@@ -217,7 +217,7 @@ async function main() {
   const third = await assemble(ws3, logs)
   const plan3 = await third.table.tools.deck_map_plan_create.run(
     { agent: { session: { id: 's-1150b', cwd: ws3.rootPosix } } },
-    { planId: 'plan-store-1150-noresolve', title: '计划存储演示地图', children: [{ key: 'd1', title: '子票一' }] },
+    { planId: 'plan-store-1150-noresolve', title: '计划存储演示地图', children: [{ key: 'd1', title: '子票一', kind: 'issue' }] },
   )
   check(plan3 && !(plan3.data && plan3.data.durable === true), '没有 resolve 的宿主里，回执没有对落盘说过假话（status=' + (plan3 && plan3.status) + '，reason=' + (plan3 && plan3.reason) + '）')
   check(ws3.cursorFiles().length === 0, '盘上没有游标文件（宁可没有，也不谎报落盘）：' + JSON.stringify(ws3.cursorFiles()))
@@ -228,12 +228,12 @@ async function main() {
   const ownExec = { agent: { session: { id: 's-1150c', cwd: ws4.rootPosix } } }
   const ownPlan1 = await own1.tool.run(ownExec, {
     planId: 'plan-store-1150-own', title: '计划存储演示地图',
-    children: [{ key: 'e1', title: '子票一' }, { key: 'e2', title: '子票二' }], edges: [{ from: 'e1', to: '没有这张票' }],
+    children: [{ key: 'e1', title: '子票一', kind: 'issue' }, { key: 'e2', title: '子票二', kind: 'issue' }], edges: [{ from: 'e1', to: '没有这张票' }],
   })
   check(ownPlan1 && ownPlan1.data && ownPlan1.data.durable === true, '工具自建读写那条路也真落盘（durable=' + (ownPlan1 && ownPlan1.data && ownPlan1.data.durable) + '）')
   check(ws4.cursorFiles().length === 1, '工具自建读写把游标写到了盘上：' + JSON.stringify(ws4.cursorFiles()))
   const own2 = await toolLevel(ws4)
-  const ownPlan2 = await own2.tool.run(ownExec, { planId: 'plan-store-1150-own', title: '计划存储演示地图', children: [{ key: 'e1', title: '子票一' }, { key: 'e2', title: '子票二' }] })
+  const ownPlan2 = await own2.tool.run(ownExec, { planId: 'plan-store-1150-own', title: '计划存储演示地图', children: [{ key: 'e1', title: '子票一', kind: 'issue' }, { key: 'e2', title: '子票二', kind: 'issue' }] })
   check(ownPlan2 && ownPlan2.status === 'ok' && !!(ownPlan2.notes && ownPlan2.notes.some((n) => String(n).indexOf('上次已经建好了') >= 0)), '换一套新装配后，工具自建读写也能靠盘上游标接着建（status=' + (ownPlan2 && ownPlan2.status) + '，notes=' + JSON.stringify(ownPlan2 && ownPlan2.notes) + '）')
   check(ws4.ticketFiles().length === 3, '续跑没有重复建票（票文件 ' + ws4.ticketFiles().length + ' 个）')
 
@@ -241,7 +241,7 @@ async function main() {
   const ws5 = strictWorkspace({ withoutResolve: true })
   const own3 = await toolLevel(ws5)
   const ownPlan3 = await own3.tool.run({ agent: { session: { id: 's-1150d', cwd: ws5.rootPosix } } }, {
-    planId: 'plan-store-1150-own-noresolve', title: '计划存储演示地图', children: [{ key: 'f1', title: '子票一' }],
+    planId: 'plan-store-1150-own-noresolve', title: '计划存储演示地图', children: [{ key: 'f1', title: '子票一', kind: 'issue' }],
   })
   check(!!(ownPlan3 && ownPlan3.data && ownPlan3.data.mapKey), '没有 resolve 时票照建（mapKey=' + (ownPlan3 && ownPlan3.data && ownPlan3.data.mapKey) + '）')
   check(ownPlan3 && ownPlan3.data && ownPlan3.data.durable === false, '工具自建读写碰上没有 resolve 的宿主时，如实说这次没落盘（durable=' + (ownPlan3 && ownPlan3.data && ownPlan3.data.durable) + '）')

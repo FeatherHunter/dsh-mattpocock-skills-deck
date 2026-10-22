@@ -89,8 +89,9 @@ export const OBJECT_KIND_RULES: Readonly<Record<PositionKind, ObjectKindRule>> =
 })
 
 /**
- * 旧词到新位置的对照：只给还没迁移的调用点用（地图骨架工具 deck_map_plan_create 的子票仍传 task / bug / map）。
- * 建票工具**不**走这张表：它收到旧值要拒绝并给出迁移路径，见 resolveCreateKind。
+ * 旧词到新位置的对照：只给还没迁移的调用点与写侧读旧值时用。
+ * 地图骨架工具 deck_map_plan_create 的子票从 #1413 起改用 map-ticket / bug / issue 三个位置值，不再走这张表；
+ * 建票工具**不**走它：收到旧值要拒绝并给出迁移路径，见 resolveCreateKind。
  */
 const LEGACY_NAME_TO_KIND: Readonly<Record<string, PositionKind>> = Object.freeze({
   task: 'map-ticket',
