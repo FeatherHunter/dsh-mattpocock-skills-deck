@@ -149,22 +149,24 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 /* ============ C 上浮小气泡：药丸像气泡一样浮上来 + 每颗吐小泡 ============ */
 .vB.lvl-3 .pill{animation:bubbleRise .5s cubic-bezier(.2,.8,.3,1.1) backwards;animation-delay:var(--d,0ms)}
 @keyframes bubbleRise{0%{opacity:0;transform:translateY(18px) scale(.7)}100%{opacity:1;transform:none}}
-.vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(180,200,230,.5);border-radius:50%;opacity:0;pointer-events:none;animation:bubRise 1.4s ease-out forwards}
-@keyframes bubRise{0%{opacity:0;transform:translate(0,0) scale(.6)}18%{opacity:.8}100%{opacity:0;transform:translate(var(--rz,0px),-90px) scale(1)}}
+.vB .bub{position:absolute;bottom:-6px;border:1px solid rgba(190,210,240,var(--ba,.55));border-radius:50%;opacity:0;pointer-events:none;background:radial-gradient(circle at var(--hx,30%) var(--hy,28%),rgba(255,255,255,var(--hop,.5)),transparent 55%),radial-gradient(circle at 72% 78%,var(--tint,rgba(170,160,250,.14)),transparent 60%);box-shadow:0 0 6px rgba(170,190,230,.12),inset 0 0 3px rgba(255,255,255,.08);animation:bubRise 1.4s ease-out forwards}
+/* 每个小泡左上都有自己的高光点，位置和亮度每颗随机 */
+.vB .bub::before{content:'';position:absolute;left:var(--sx,22%);top:var(--sy,16%);width:30%;height:24%;background:radial-gradient(ellipse at center,rgba(255,255,255,.9),transparent 70%);border-radius:50%;opacity:var(--sop,.8)}
+@keyframes bubRise{0%{opacity:0;transform:translate(0,0) scale(.6)}18%{opacity:var(--op,.8)}55%{transform:translate(calc(var(--rz,0px)*.5 + var(--sway,0px)),-48px) scale(.95)}100%{opacity:0;transform:translate(var(--rz,0px),-90px) scale(1)}}
 /* 大量小泡从下方升上来汇进药丸：小泡在药丸的位置聚拢消失，药丸随即凝出来 */
 .vB .bub.cvg{animation:bubConverge .55s ease-out forwards}
-@keyframes bubConverge{0%{opacity:0;transform:translate(0,0) scale(.5)}25%{opacity:.9}100%{opacity:0;transform:translate(var(--tx,0px),var(--ty,-50px)) scale(.85)}}
+@keyframes bubConverge{0%{opacity:0;transform:translate(0,0) scale(.5)}25%{opacity:var(--op,.9)}60%{opacity:var(--op,.9);transform:translate(calc(var(--tx,0px)*.7 + var(--sway,0px)),calc(var(--ty,-50px)*.7)) scale(.8)}100%{opacity:0;transform:translate(var(--tx,0px),var(--ty,-50px)) scale(.85)}}
 .vB .pill.escape{animation:escapeUp .5s ease-in forwards}
 @keyframes escapeUp{to{opacity:0;transform:translateY(-46px) scale(.75)}}
 .vB .pill.sink{animation:sinkDn .4s ease-in forwards;animation-delay:var(--d2,0ms)}
 @keyframes sinkDn{to{opacity:0;transform:translateY(10px) scale(.9)}}
 .vB.drift{animation:driftUp .42s ease-in forwards}
 @keyframes driftUp{to{opacity:0;transform:translateY(-18px)}}
-/* 气泡质感（只给 C 版）：半透明玻璃底 + 左上高光点 + 右下虹彩反光 + 顶一条亮边 */
-.vB.lvl-3 .pill{background:linear-gradient(180deg,rgba(200,220,245,.14),rgba(200,220,245,.04) 45%,rgba(150,170,210,.08));border-color:rgba(150,180,220,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -2px 4px rgba(140,170,220,.12),0 2px 14px rgba(140,180,255,.10);text-shadow:0 1px 2px rgba(0,0,0,.5)}
-.vB.lvl-3 .pill::before{content:'';position:absolute;left:6%;top:2px;width:46%;height:55%;background:radial-gradient(ellipse at center,rgba(255,255,255,.30),transparent 70%);border-radius:50%;pointer-events:none}
-.vB.lvl-3 .pill::after{content:'';position:absolute;right:10%;bottom:1px;width:26%;height:40%;background:radial-gradient(ellipse at center,rgba(192,150,250,.16),transparent 70%);border-radius:50%;pointer-events:none}
-.vB.lvl-3 .pill:hover{transform:translateY(-2px) scale(1.04);border-color:rgba(180,205,240,.7);background:linear-gradient(180deg,rgba(210,228,250,.20),rgba(210,228,250,.07) 45%,rgba(160,180,220,.12));box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 18px rgba(150,190,255,.22)}
+/* 气泡质感（只给 C 版）：上亮下暗的玻璃底 + 左上大块高光 + 一道斜虹彩 + 四边亮边 */
+.vB.lvl-3 .pill{background:linear-gradient(180deg,rgba(215,232,252,.20),rgba(200,220,245,.05) 40%,rgba(120,140,180,.10));border-color:rgba(170,195,235,.55);box-shadow:inset 0 1px 1px rgba(255,255,255,.45),inset 0 -3px 6px rgba(120,150,200,.18),inset 2px 0 4px rgba(255,255,255,.06),inset -2px 0 4px rgba(150,140,220,.08),0 3px 16px rgba(140,180,255,.14);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.vB.lvl-3 .pill::before{content:'';position:absolute;left:4%;top:0;width:60%;height:60%;background:radial-gradient(ellipse 60% 55% at 35% 30%,rgba(255,255,255,.38),transparent 70%);border-radius:50%;pointer-events:none}
+.vB.lvl-3 .pill::after{content:'';position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(115deg,transparent 30%,rgba(150,200,255,.10) 42%,rgba(200,160,255,.12) 50%,rgba(160,255,220,.08) 58%,transparent 70%);border-radius:99px;pointer-events:none}
+.vB.lvl-3 .pill:hover{transform:translateY(-2px) scale(1.04);border-color:rgba(185,210,245,.75);background:linear-gradient(180deg,rgba(222,238,255,.26),rgba(210,228,250,.08) 40%,rgba(130,150,190,.14));box-shadow:inset 0 1px 1px rgba(255,255,255,.55),0 3px 20px rgba(150,190,255,.24)}
 
 /* ============ D 微光扫过：出现时一道光带斜着扫过药丸 ============ */
 /* 路子来自搜到的按钮扫光做法：一道斜的半透明光带扫过去 */
@@ -562,10 +564,25 @@ function startEntrance() {
   /* 「上浮小气泡」那一版：每颗药丸冒出来时从自己头顶吐小泡 */
   if (el.classList.contains('lvl-3')) spawnBubbles(el);
 }
+/* 每个小泡的长相全部随机：明暗、摇摆幅度、高光位置亮度、虹彩颜色、描边浓淡，没有两颗完全一样 */
+var TINTS = ['rgba(170,160,250,.14)', 'rgba(150,200,255,.14)', 'rgba(160,255,220,.10)', 'rgba(255,170,220,.10)'];
+function dressBubble(s) {
+  s.style.setProperty('--op', (0.5 + Math.random() * 0.45).toFixed(2));
+  s.style.setProperty('--sway', Math.round(Math.random() * 28 - 14) + 'px');
+  s.style.setProperty('--hop', (0.3 + Math.random() * 0.4).toFixed(2));
+  s.style.setProperty('--sop', (0.5 + Math.random() * 0.4).toFixed(2));
+  s.style.setProperty('--hx', Math.round(22 + Math.random() * 20) + '%');
+  s.style.setProperty('--hy', Math.round(20 + Math.random() * 18) + '%');
+  s.style.setProperty('--sx', Math.round(14 + Math.random() * 20) + '%');
+  s.style.setProperty('--sy', Math.round(10 + Math.random() * 14) + '%');
+  s.style.setProperty('--tint', TINTS[Math.floor(Math.random() * TINTS.length)]);
+  s.style.setProperty('--ba', (0.35 + Math.random() * 0.35).toFixed(2));
+}
 /* 往组里吐一个空心小泡，从给定的位置往上飘一段后消失 */
 function spawnOne(el, x, bottom, delayMs) {
   var s = document.createElement('span');
   s.className = 'bub';
+  dressBubble(s);
   s.style.left = Math.round(x) + 'px';
   s.style.bottom = Math.round(bottom) + 'px';
   s.style.setProperty('--rz', Math.round(Math.random() * 40 - 20) + 'px');
@@ -592,21 +609,22 @@ function spawnBubbles(el) {
   Array.prototype.forEach.call(pills, function (p, idx) {
     var pc = pillCenter(el, p);
     var st = Math.round(Math.abs(idx - cc) * 70);
-    for (var k = 0; k < 5; k++) {
+    for (var k = 0; k < 12; k++) {
       (function () {
         var s = document.createElement('span');
         s.className = 'bub cvg';
-        var sz = Math.round(3 + Math.random() * 5);
-        var sx = pc.x + (Math.random() * 52 - 26) - sz / 2;
-        var sy = pc.b - (36 + Math.random() * 28) - sz / 2;
+        dressBubble(s);
+        var sz = Math.round(3 + Math.random() * 6);
+        var sx = pc.x + (Math.random() * 60 - 30) - sz / 2;
+        var sy = pc.b - (40 + Math.random() * 40) - sz / 2;
         s.style.left = Math.round(sx) + 'px';
         s.style.bottom = Math.round(sy) + 'px';
         s.style.setProperty('--tx', Math.round(pc.x - (sx + sz / 2)) + 'px');
         s.style.setProperty('--ty', Math.round((sy + sz / 2) - pc.b) + 'px');
         s.style.width = sz + 'px';
         s.style.height = sz + 'px';
-        s.style.animationDuration = (0.45 + Math.random() * 0.15).toFixed(2) + 's';
-        s.style.animationDelay = Math.round(st + Math.random() * 80) + 'ms';
+        s.style.animationDuration = (0.5 + Math.random() * 0.3).toFixed(2) + 's';
+        s.style.animationDelay = Math.round(st + Math.random() * 150) + 'ms';
         el.appendChild(s);
         setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 2600);
       })();
