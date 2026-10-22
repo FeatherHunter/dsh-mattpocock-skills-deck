@@ -22,7 +22,8 @@
     "verify:fast": "node scripts/verify-parallel.mts --tier fast",
     "verify:changed": "node scripts/verify-parallel.mts --changed",
     "verify": "node scripts/verify-chain.ts",
-    "sync:matt": "node scripts/sync-matt-skills.mts --pin v1.3.1 --verify"
+    "sync:matt": "node scripts/sync-matt-skills.mts --pin v1.3.1 --verify",
+    "thanks:update": "node scripts/update-thanks.mts"
   },
   "dependencies": {
     "dsh-log": "^0.3.4",

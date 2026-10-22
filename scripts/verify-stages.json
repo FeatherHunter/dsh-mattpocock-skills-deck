@@ -39,6 +39,7 @@
         "freshness",
         "verify-readme-sync",
         "verify-star-history",
+        "verify-thanks",
         "verify-locale-completeness",
         "verify-locale-config"
       ]

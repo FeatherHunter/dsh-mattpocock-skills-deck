@@ -73,6 +73,7 @@
     "ui-verify-new-settings.mts",
     "ui-verify-registry.mts",
     "update-star-history.mts",
+    "update-thanks.mts",
     "verify-all.mts",
     "verify-chain.ts",
     "verify-parallel.mts",

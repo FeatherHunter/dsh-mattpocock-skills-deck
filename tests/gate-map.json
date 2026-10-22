@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T03:47:54.755Z",
+  "generatedAt": "2026-10-22T04:02:25.436Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 315,
-  "gateCount": 315,
+  "chainLength": 316,
+  "gateCount": 316,
   "attributedGates": 278,
-  "unattributedGates": 37,
-  "buildOutputOnlyGates": 20,
+  "unattributedGates": 38,
+  "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
@@ -7384,6 +7384,26 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+    },
+    {
+      "step": "node tests/verify-thanks-table.ts",
+      "file": "tests/verify-thanks-table.ts",
+      "guards": [
+        "docs/README.en.md",
+        "docs/thanks-data.json",
+        "package/README.md",
+        "scripts/update-thanks.mts"
+      ],
+      "dirs": [
+        "docs",
+        "package",
+        "scripts"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "读到的路径都落在 docs、package、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     }
   ],
   "smokeGates": [
@@ -7440,7 +7460,8 @@
     ],
     "docs": [
       "node tests/verify-992-readonly-labels.ts",
-      "node tests/verify-release-contract.ts"
+      "node tests/verify-release-contract.ts",
+      "node tests/verify-thanks-table.ts"
     ],
     "docs/adr": [
       "node tests/verify-error-rule-samples.ts",
@@ -7501,7 +7522,8 @@
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-update-panel.ts",
-      "node tests/verify-readme-sync.ts"
+      "node tests/verify-readme-sync.ts",
+      "node tests/verify-thanks-table.ts"
     ],
     "package/bundled-skills": [
       "node tests/verify-1206-glossary-naming.ts",
@@ -7636,7 +7658,8 @@
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.ts",
-      "node tests/verify-star-history.ts"
+      "node tests/verify-star-history.ts",
+      "node tests/verify-thanks-table.ts"
     ],
     "scripts/generated": [
       "node tests/verify-build-artifacts.ts",

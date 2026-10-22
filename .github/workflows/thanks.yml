@@ -1,0 +1,49 @@
+name: Thanks Table
+on:
+  schedule:
+    # 每天凌晨跑一次，与 Star History（02:17）错开十几分钟，两份任务同时写 README 会撞车。
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+# 同一时间只允许一个更新任务在跑：两个任务同时改同一批文件会互相覆盖，也会把 push 撞成非快进。
+concurrency:
+  group: thanks
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      # 第三方步骤统一固定到提交哈希：井号后面的版本只给人看，实际跑的是前面的哈希。标签会被覆盖，哈希不会；以后升级走 Dependabot 的更新请求，不要手工改回标签。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@8207627860267406c7fd3f82b0f8c3b6 # v7.0.0
+        with:
+          # 仓库脚本是 .mts，Node 20 不认识这个扩展名（ERR_UNKNOWN_FILE_EXTENSION）；Node 22.18 起才默认剥类型。
+          # 这个下限跟根 package.json 的 engines 对齐，别再退回 20。
+          node-version: 22
+      - name: Update thanks table
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # 只拉比游标新的编号：脚本自己会停在游标处，老数据一个都不重看；
+          # 拿到一半、gh 报错、第一页是空的，脚本直接退出，一个字节都不写。
+          node scripts/update-thanks.mts
+      - name: Commit if changed
+        run: |
+          if git diff --quiet README.md docs/README.en.md docs/thanks-data.json package/README.md; then echo "No change"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/README.en.md docs/thanks-data.json package/README.md
+          git commit -m "致谢表自动更新：把新编号贡献并进来，中英两表按花数与最后活跃重排"
+          # 从 checkout 到 push 之间 main 可能又被别的提交推前了，直接 push 会被拒（! [rejected] main -> main (fetch first)）。
+          # 先同步远端再推；合并冲突或并发撞车时重试三次，仍失败就红，下一次定时任务会接着补。
+          for i in 1 2 3; do
+            if git fetch origin main && git merge --no-edit origin/main && git push origin main; then
+              exit 0
+            fi
+            git merge --abort 2>/dev/null || true
+            sleep 10
+          done
+          echo "::error::同步远端后仍推不上去，已重试 3 次。"
+          exit 1

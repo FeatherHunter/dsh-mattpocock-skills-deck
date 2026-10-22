@@ -212,61 +212,39 @@ MIT © FeatherHunter
 
 Thanks to everyone who opened an issue, sent a PR, or joined a discussion — you made this plugin better bit by bit.
 
-[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234, #645 (update failure caused by mirror lag) and opened PRs #273 (its root-cause analysis was absorbed into v1.7.3) and #316 (merged) — thanks for making the reinstall experience smooth again 🌹🌹🌹🌹🌹🌹
-
-[@zhengcookie](https://github.com/zhengcookie) — reported #1003 (on desktop the install directory was mistaken for the workspace early in startup, so the colour dialog wrongly said there was no backend) and #960 (pinned the desktop crash-and-reload on the missing concurrency admission for outbound gh calls, with a verified patch), then #1160 (gh auth status read as a network failure because a 3 s liveness probe timed out, so the login banner kept coming back), then #1291 (open child tickets under a closed map vanished from the ready list while the status bar still counted one as available) 🌹🌹🌹🌹
-
-[@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106 🌹🌹🌹🌹
-
-[@anupamme](https://github.com/anupamme) — opened PRs #727, #728 (two hardening suggestions for rpcChannel.js: prototype-pollution guard and resource limits, both closed) and PR #1156 (a hardcoded secret in template.sh, under review) 🌹🌹🌹
-
-[@9agj](https://github.com/9agj) — reported #992 (label actions silently degraded on read-only repos, and the README never said the board repo needs push access), #993 (repo-creation failures reported real git errors as "permission denied") and #994 (creating a workspace necessarily failed when the owner and the running user differ, e.g. Android /sdcard); all three fixes have landed 🌹🌹🌹
-
-[@gzy31007](https://github.com/gzy31007) — reported #1272 (the plugin binds implementation tickets into a wayfinder map, which goes against Matt's original wayfinder boundary: the map only asks questions and hands off before any build) and #1273 (the ticket-edit tool's success receipt carries the same written-back ticket twice, so a large ticket takes up twice the context) 🌹🌹
-
-[@qq1393950873-bit](https://github.com/qq1393950873-bit) — reported #970 (the local backend silently corrupted tickets) and opened PR #974, which fixed it (merged) 🌹🌹
-
-[@hyperion2144](https://github.com/hyperion2144) — reported #110 on environment checks and #646 (register the DSH native sidebar directly instead of going through better-sidebar) 🌹🌹
-
-[@arnold117](https://github.com/arnold117) — reported #574 (in the local Markdown backend several work units collided under one number, so only the first was visible and comments landed in the wrong file) and opened PR #575, which fixed it (merged) — thanks for letting multiple work units in one repo read and write their own files 🌹🌹
-
-[@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks 🌹🌹
-
-[@WDXXZH](https://github.com/WDXXZH) — reported #1137 (the setup wizard's layout copy still said CONTEXT.md while the skill it calls only knows GLOSSARY.md) 🌹
-
-[@Drayee](https://github.com/Drayee) — reported #1101 (two problems with root causes and fixes: the gh path cache never refreshes, so the panel times out once its queue fills; and no action in the check chain ever opens the question dialog, it only injects a prompt) 🌹
-
-[@30892096](https://github.com/30892096) — reported #1100 (the GitHub backend reads native relations back blind: landed parent and blocked-by edges are reported as failed, and a blocked-by batch write aborts entirely on one 422) 🌹
-
-[@fishke22](https://github.com/fishke22) — opened PR #1000 (made the four fields of the new-bug form required and dropped the old copy that built a ticket from an empty form; merged) 🌹
-
-[@jack2jiehua](https://github.com/jack2jiehua) — reported #930 (a write landing on the wrong backend, and the write probe stuck grey) 🌹
-
-[@asesr](https://github.com/asesr) — reported #926 (used real measurements to pin down the statusbar stutter, with a verified patch) 🌹
-
-[@SKADI0718](https://github.com/SKADI0718) — opened #856 (later withdrawn by the author) 🌹
-
-[@li873582595](https://github.com/li873582595) — reported #835 (the official desktop build keeps disconnecting and reconnecting during init with the plugin installed, gone after uninstall) 🌹
-
-[@zerocodefast](https://github.com/zerocodefast) — opened #823 (invited this plugin to the awesome-ai-plugins list with a suggested entry) 🌹
-
-[@seameafst](https://github.com/seameafst) — reported #793 (pressing the new-requirement entry then Enter sends an empty template because the requirement text is never collected, with full root cause and two fix options) 🌹
-
-[@SbDonger](https://github.com/SbDonger) — reported #640 (statusbar and input box misaligned, leaving a wide band above the input) 🌹
-
-[@snmtg1008](https://github.com/snmtg1008) — left a self-tested fix for the false "local data directory is not writable" report on #476
-
-[@dis0neplay](https://github.com/dis0neplay) — opened PR #493 (fix CI and the Pages root redirect; closed at the requester's direction) 🌹
-
-[@xiSage](https://github.com/xiSage) — reported #435 (self-hosted GitLab repos not recognized) and started discussion #436 (turning the plugin off for one workspace) 🌹
-
-[@tafcear](https://github.com/tafcear) — reported #422 (a quieter statusbar for non-coding workspaces) — thanks for freeing non-coding workspaces from the setup banner 🌹
-
-[@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs) 🌹
-
-[@271912980](https://github.com/271912980) — suggested in #257 that sessions become stable, addressable endpoints (session ID + semantic name)
-
-[@lilincen](https://github.com/lilincen) — started discussion #1301 asking for GitLab support
+<!-- THANKS-TABLE-EN-START -->
+| Contributor | Tribute | Contributions |
+| --- | --- | --- |
+| [@pioneerAlone](https://github.com/pioneerAlone) | 🌹🌹🌹🌹🌹🌹 | [#234](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/234) [#274](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/274) [#298](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/298) [#645](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/645) [#273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/273) [#316](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/316) |
+| [@zhengcookie](https://github.com/zhengcookie) | 🌹🌹🌹🌹🌹 | [#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) [#1160](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1160) [#1291](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1291) [#1005](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1005) |
+| [@Shimmernight](https://github.com/Shimmernight) | 🌹🌹🌹🌹 | [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) [#106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) [#275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275) [#287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287) |
+| [@anupamme](https://github.com/anupamme) | 🌹🌹🌹 | [#727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727) [#728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) [#1156](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1156) |
+| [@9agj](https://github.com/9agj) | 🌹🌹🌹 | [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) [#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) [#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) |
+| [@776317107](https://github.com/776317107) | 🌹🌹 | [#1375](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1375) [#1376](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1376) |
+| [@gzy31007](https://github.com/gzy31007) | 🌹🌹 | [#1272](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1272) [#1273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1273) |
+| [@qq1393950873-bit](https://github.com/qq1393950873-bit) | 🌹🌹 | [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) [#974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) |
+| [@hyperion2144](https://github.com/hyperion2144) | 🌹🌹 | [#110](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/110) [#646](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/646) |
+| [@arnold117](https://github.com/arnold117) | 🌹🌹 | [#574](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/574) [#575](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/575) |
+| [@xiSage](https://github.com/xiSage) | 🌹🌹 | [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) |
+| [@angenet](https://github.com/angenet) | 🌹🌹 | [#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295) |
+| [@lilincen](https://github.com/lilincen) | 🌹 | [#1301](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1301) |
+| [@WDXXZH](https://github.com/WDXXZH) | 🌹 | [#1137](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1137) |
+| [@Drayee](https://github.com/Drayee) | 🌹 | [#1101](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1101) |
+| [@30892096](https://github.com/30892096) | 🌹 | [#1100](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1100) |
+| [@fishke22](https://github.com/fishke22) | 🌹 | [#1000](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1000) |
+| [@jack2jiehua](https://github.com/jack2jiehua) | 🌹 | [#930](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/930) |
+| [@asesr](https://github.com/asesr) | 🌹 | [#926](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/926) |
+| [@SKADI0718](https://github.com/SKADI0718) | 🌹 | [#856](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/856) |
+| [@li873582595](https://github.com/li873582595) | 🌹 | [#835](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/835) |
+| [@zerocodefast](https://github.com/zerocodefast) | 🌹 | [#823](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/823) |
+| [@seameafst](https://github.com/seameafst) | 🌹 | [#793](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/793) |
+| [@SbDonger](https://github.com/SbDonger) | 🌹 | [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) |
+| [@snmtg1008](https://github.com/snmtg1008) | 🌹 | [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) |
+| [@dis0neplay](https://github.com/dis0neplay) | 🌹 | [#493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) |
+| [@tafcear](https://github.com/tafcear) | 🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) |
+| [@21967201](https://github.com/21967201) | 🌹 | [#321](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/321) |
+| [@271912980](https://github.com/271912980) | 🌹 | [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) |
+<!-- THANKS-TABLE-EN-END -->
 
 And thanks to everyone who left thoughts in comments and discussions. If you hit a problem or have an idea, feel free to open an issue or start a discussion.
 
