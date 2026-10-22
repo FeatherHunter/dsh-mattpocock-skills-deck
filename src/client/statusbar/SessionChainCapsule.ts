@@ -282,11 +282,12 @@ const capsuleStaleOf = function (at: any, now: any) {
 };
 
 // #1404: 表头压成一行用的三件小工具。叶子纪律照旧：不新增运行时 import，文字全走 tr。
-//   两枚发丝线用内联 SVG 画（1px 竖线 + 竖向渐隐），颜色写 currentColor，跟着表头文字色走，
-//   深浅两套主题共用同一套几何与不透明度；宽度、高度、峰值不透明度只在下面一处写死。
-const chainHairlineOf = function (h: any, key: any, width: any, height: any, peak: any) {
-  // 同一张页面里两枚线的尺寸不同，用尺寸拼出渐变 id；两枚各自 7×15 与 6×17，不会撞名。
-  const id = 'dsws-chain-hair-' + String(width) + 'x' + String(height)
+//   两枚分隔线（1px 竖线、两端渐隐）用内联 SVG 画，颜色写 currentColor，跟着表头文字色走，
+//   深浅两套主题共用同一套几何与不透明度；宽度、高度、峰值不透明度写死在下面两处调用点，改样式要两处一起改。
+const chainSeparatorOf = function (h: any, key: any, width: any, height: any, peak: any) {
+  // 渐变 id 按尺寸拼。SVG id 在整个文档里唯一：将来若真出现同尺寸的两枚分隔线，后一枚的渐变定义不生效，
+  //   两枚会共用前一条——两条定义完全一样，共用不影响观感；别指望靠尺寸来防撞名。
+  const id = 'dsws-chain-sep-' + String(width) + 'x' + String(height)
   const cx = width / 2
   const lineWidth = 1
   return h('svg', { key: key, width: width, height: height, 'aria-hidden': 'true', style: { flex: 'none', display: 'block' } }, [
@@ -322,9 +323,9 @@ const chainSegmentedOf = function (h: any, text: any, params: any, numStyle: any
 };
 /**
  * #1404：工作路线弹层的表头，压成一行、两端对齐。
- *   左簇：短标题「工作路线」+ 本会话条数 + 内部发丝线 + 更新时间；右簇：组间发丝线 + 「另有 … 个会话在办 … 条」。
- *   簇内间距 6px、两簇之间 8px；整行不换行，左簇不收缩，右簇允许收缩并以省略号收尾。
- *   别的会话数为 0 时右簇与组间那枚线都不渲染，表头仍是一行高——不额外留空位，也不改成两行。
+ *   左簇：短标题「工作路线」+ 本会话条数 + 内部那条分隔线 + 更新时间；右簇：组间那条分隔线 + 「另有 … 个会话在办 … 条」。
+ *   簇内间距 6px、两簇之间 8px；整行不换行，左簇不收缩，右簇可收缩、由自动外边距推到行尾并以省略号收尾。
+ *   别的会话数为 0 时右簇与组间那条分隔线都不渲染，表头仍是一行高——不额外留空位，也不改成两行。
  *   表头只做说明，不可聚焦、不可点，也不做悬停反馈（票行才有交互）。
  */
 const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any, otherRowCount: any, headTime: any) {
@@ -333,12 +334,14 @@ const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any,
   const numStyle = { fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' }
   const title = h('span', { key: 'title', style: { flex: 'none', fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, tr('chainView.capsuleHeaderTitle'))
   const own = h('span', { key: 'own', style: { flex: 'none', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOwn'), { n: ownCount }, numStyle))
-  const innerHair = chainHairlineOf(h, 'hairInner', 7, 15, 0.62)
+  const innerSep = chainSeparatorOf(h, 'sepInner', 7, 15, 0.62)
   const time = h('span', { key: 'time', style: { flex: 'none', color: captionColor } }, tr('chainView.readAtFull', { time: headTime }))
-  const left = h('span', { key: 'ownSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', whiteSpace: 'nowrap' } }, [title, own, innerHair, time])
+  const left = h('span', { key: 'ownSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', whiteSpace: 'nowrap' } }, [title, own, innerSep, time])
+  // 右簇靠自动外边距推到行尾：marginLeft:'auto' 吸收两簇之间的空白，容器上的 justifyContent:'space-between'
+  //   只是原先的写法、留着无害；空间不足时 flex-shrink 收窄，里面的文字仍以省略号收尾。
   const others = otherCount > 0
-    ? h('span', { key: 'otherSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: '1 1 auto', minWidth: 0, whiteSpace: 'nowrap' } }, [
-      chainHairlineOf(h, 'hairGroup', 6, 17, 0.78),
+    ? h('span', { key: 'otherSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: '0 1 auto', minWidth: 0, whiteSpace: 'nowrap', marginLeft: 'auto' } }, [
+      chainSeparatorOf(h, 'sepGroup', 6, 17, 0.78),
       h('span', { key: 'othersText', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOthers'), { x: otherCount, y: otherRowCount }, numStyle)),
     ])
     : null
@@ -420,8 +423,8 @@ export const SessionChainCapsule = function (props: any) {
       borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
     },
   }, [
-    // #1404：表头是一行——左簇（标题 / 本会话条数 / 内部发丝线 / 更新时间）与右簇（组间发丝线 / 「另有 …」），
-    //   两端对齐、整行不换行；没有别的会话时右簇与组间那枚线都不渲染，表头仍是一行高。
+    // #1404：表头是一行——左簇（标题 / 本会话条数 / 内部那条分隔线 / 更新时间）与右簇（组间那条分隔线 / 「另有 …」），
+    //   两端对齐、整行不换行；没有别的会话时右簇与组间那条分隔线都不渲染，表头仍是一行高。
     chainHeaderOf(h, tr, displayed.length, otherCount, otherRows.length, headTime),
     displayed.map(function (r: any, i: any) {
       const word = r.actionKey ? tr(r.actionKey) : r.action
