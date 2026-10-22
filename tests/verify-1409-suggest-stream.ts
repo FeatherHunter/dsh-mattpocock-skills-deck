@@ -1,5 +1,5 @@
 // tests/verify-1409-suggest-stream.ts —— 门禁：界面借会话事件流的取数通路（#1409）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1409-suggest-stream.ts（可独立运行）。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1409-suggest-stream.ts（可独立运行）。
 //
 // 为什么要有这一扇：这条通路要做的事很小，但每一格都容易在后续改动里被顺手破坏 ——
 //   ① 只借官方界面已经保持着的订阅（sessions.binding(sid).eventSource），绝不 retain 保活；
@@ -153,6 +153,12 @@ async function main() {
   check(facts.SUGGEST_MAX_ITEMS === tool.MAX_ITEMS && facts.SUGGEST_MAX_ITEMS === 4, '最多条数两侧一致且为 4')
   check(facts.SUGGEST_PROMPT_MAX_CHARS === tool.PROMPT_MAX_CHARS && facts.SUGGEST_PROMPT_MAX_CHARS === 500, '提示词上限两侧一致且为 500')
   check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 200, '理由上限两侧一致且为 200')
+  // 气泡叶子在本地再钳一次条数（构建时是同一闭包里的常量，不能跨文件 import），所以读源码把第四个 4
+  // 与工具上限连起来：以后谁只改一处，这条就红，不用靠人记得同步。
+  const bubbleSource = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestBubble.ts'), 'utf8')
+  const viewMaxMatch = /const SUGGEST_VIEW_MAX_ITEMS\s*=\s*(\d+)/.exec(bubbleSource)
+  check(!!viewMaxMatch && Number(viewMaxMatch[1]) === tool.MAX_ITEMS,
+    '气泡叶子的 SUGGEST_VIEW_MAX_ITEMS 与工具上限一致（都是 ' + tool.MAX_ITEMS + '）')
 
   // ── 3. 短散列：日志里只出现这种形状的会话号与调用编号 ──
   const hash = facts.suggestHash(SID)

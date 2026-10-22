@@ -5,8 +5,7 @@
 // 以及「已落 n 颗时选项行与关闭按钮行各自该多清楚」。DOM 那一片（suggestEngine.ts）只负责测量、
 // 生成节点和逐帧套用这里算好的计划 —— 这样时间线可以在门禁里用假随机数直接验，不必真跑动画。
 //
-// 数值全部来自 suggestAppearance（外观旋钮集中一处）；口径见原型 C 版定稿与
-// D:/temp/sns1397/notes/ui-bubble.md 的数值清单。
+// 数值全部来自 suggestAppearance（外观旋钮集中一处）；口径是规格 #1397 定稿原型 C 版的数值清单。
 //
 // 契约（与仓库其它叶子文件同一套）：模块真源是 ESM 导出，构建时剥掉行首 export 拼进 apply
 // 闭包；运行时不许跨文件 import；不许 export default；只写可剥离的 TypeScript。

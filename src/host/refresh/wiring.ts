@@ -41,8 +41,8 @@ import { createOutboundControl } from '../platform/outbound-control.js'
 // 取值只有一份真源（中央 YAML 的 deckEnsureMs 键），这里直接读它生成出来的值，不再经 TUNING 中转、不留回落。
 import { DECK_ENSURE_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
-import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js'
-import { hookSuggestNextSteps } from '../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表） // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
+import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
+import { hookSuggestNextSteps } from '../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
 import { publishDeckTable, noteDeckGate } from '../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
 import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js'
 import { createDeckQuotaSync } from '../../deck/registration/quota-sync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）

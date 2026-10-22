@@ -15,8 +15,8 @@
 export const SUGGEST_Z = 2147482000
 
 /**
- * 气泡的全部外观旋钮（长度单位是 CSS 像素）。数值口径与原型 C 版定稿一致，
- * 来源见 D:/temp/sns1397/notes/ui-bubble.md 的数值清单；改这里就能整体改外观。
+ * 气泡的全部外观旋钮（长度单位是 CSS 像素）。数值口径与规格 #1397 定稿的原型 C 版（上浮小泡方案）
+ * 一致；改这里就能整体改外观。
  */
 export const SUGGEST_APPEARANCE = {
   /** 气泡底边离状态胶囊顶边的距离。 */
@@ -40,7 +40,7 @@ export const SUGGEST_APPEARANCE = {
   closePadX: 10,
   closeIdleOpacity: 0.6,
 
-  // —— 小泡与动效（原型 C 版定稿的数值，口径见 D:/temp/sns1397/notes/ui-bubble.md）——
+  // —— 小泡与动效（原型 C 版定稿的数值，口径与规格 #1397 一致）——
   /** 每颗选项配几颗小泡：每 bubblePxPerPill 像素一颗，最少 bubbleMinPerPill 颗。 */
   bubblePxPerPill: 20,
   bubbleMinPerPill: 4,

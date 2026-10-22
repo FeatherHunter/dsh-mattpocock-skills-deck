@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T20:55:30.572Z",
+  "generatedAt": "2026-10-22T21:21:18.349Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 330,
   "gateCount": 330,
@@ -2253,6 +2253,7 @@
         "src/client",
         "src/client/index.ts",
         "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestFacts.ts",
         "src/client/statusbar/suggestStream.ts",
         "src/deck/tools/suggest-next-steps.ts",
@@ -2268,8 +2269,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 113,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
+      "expectedAssertions": 114,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-1411-suggest-appearance.ts",

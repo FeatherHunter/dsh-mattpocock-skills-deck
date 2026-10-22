@@ -33,7 +33,7 @@ export const ASK_MATT_NEXT_STEPS_HEADING = '## 推荐下一步（本插件追加
 export const ASK_MATT_NEXT_STEPS_SECTION = [
   ASK_MATT_NEXT_STEPS_HEADING,
   '',
-  '按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步：这颗工具会把 2~4 条下一步提示词显示成可点的气泡，点一下就能发出去。',
+  '按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步：这颗工具会把 2~4 条下一步提示词显示成可点的气泡，点一下就会把它填进输入框，不会替你发送。',
   '',
   '**什么时候调用**：这一轮的事做完或明确告一段落，并且下一步有具体动作可做——有票可动、有分支可开、有命令要跑、有决定要拍。活没干完、在等用户回答、或者只是礼貌收尾时，不调用。',
   '',
