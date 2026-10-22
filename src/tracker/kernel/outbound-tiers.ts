@@ -118,3 +118,29 @@ export function timeoutForGhArgs(args: unknown, explicitTimeout?: unknown): numb
   if (typeof explicitTimeout === 'number' && isFinite(explicitTimeout) && explicitTimeout > 0) return explicitTimeout
   return timeoutForTier(tierForGhArgs(args))
 }
+
+/**
+ * 把 GraphQL 调用里的 owner 与 name 从 `-F` 改成 `-f`。
+ *
+ * 为什么要改：`gh api -F` 会按值推断类型，纯数字的 GitHub 账号（例如 776317107）会被发成
+ * JSON 数字；而 GraphQL 查询把 `$owner` 与 `$name` 声明为 `String!`，gh 于是回
+ * `Variable $owner of type String! was provided invalid value`（#1375）。`-f` 是原始字符串，
+ * 不做类型推断。只改这两个字段，`number`、`first` 等整型字段继续用 `-F`。
+ *
+ * 没有要改的地方时原样返回同一个数组，调用方可以放心直接赋值。
+ */
+export function normalizeGhStringFields(args: string[]): string[] {
+  if (!Array.isArray(args) || args[0] !== 'api' || String(args[1] || '').indexOf('graphql') !== 0) return args
+  let changed = false
+  const out: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if ((a === '-F' || a === '--field') && typeof args[i + 1] === 'string' && /^(owner|name)=/.test(args[i + 1])) {
+      out.push('-f')
+      changed = true
+    } else {
+      out.push(a)
+    }
+  }
+  return changed ? out : args
+}
