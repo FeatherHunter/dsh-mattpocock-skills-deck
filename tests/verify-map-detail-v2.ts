@@ -14,9 +14,10 @@
  *   一样 require；组合函数那一份拼进闭包后只能靠作用域里的名字调它们，所以门禁按构建同一口径转译后注入
  *   那六个函数再求值——这样门禁验的就是闭包里会跑的那份文本，不是 paraphrase。
  *   页面外壳（view/、wiring/）不在这条门禁的断言范围里：它要 React 与宿主电话，由可评审演示页
- *   （.scratch/v2-map-detail/page/）与真机验收覆盖。
+ *   （.scratch/v2-map-detail/page/）与真机验收覆盖；#1402 切入口之后，第 11 条只对「接线那一行」做源码断言，
+ *   防止有人把入口改回老页而没有任何门禁出声。
  *
- * 断的十件事：
+ * 断的十一件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
  *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
@@ -34,6 +35,8 @@
  *   9. 适配层：一张票的刻画摊成卡片 props 时四处理名不漏（bug→bugCorner、footText→footActionText、
  *      blocks→blocksChip、closed 由 status 得出），四个按钮把「是哪张票」交回页面。
  *   10. 一整页模型：一次算好档案、取数状态、看板、计数与两段卡片 props，且计数与卡片张数一致。
+ *   11. 入口接线：Dock 的列表页签在选中一张图时画的是 V2 页（不是老页），V2 页面调到了取数、整页模型、
+ *      四个按钮的回调与皮肤，且图纸铺满 Dock 内容区的那条样式还在。第 11 条只读源码文本，不渲染 React。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -876,6 +879,34 @@ section('11. 一整页模型：计数与卡片张数一致，取数五态都画�
     '规格行走完整页模型后仍然是规格身份（实得 ' + show(specModel.profile.kind) + ' / ' + show(specModel.profile.chipLabelKey) + '）')
   check(specModel.profile.feedSegments[0] && specModel.profile.feedSegments[0].key === 'map.specSubCount',
     '规格的整页模型里「子票那句」用规格自己的词条（实得 ' + show(specModel.profile.feedSegments) + '）')
+}
+
+
+// ---------------------------------------------------------------------------
+// §12 入口接线（#1402）
+// ---------------------------------------------------------------------------
+// 为什么只读源码、不渲染：这一页要 React 与宿主的电话（st.g 那套分组对象、Dock 的页签状态），
+// 在门禁里搭出整台宿主不值当；真正会坏的两处却一眼能看见——入口画的是哪一页、页面有没有调错名字。
+// 所以这里断言三份文件的文本：Dock 的挂载点、V2 页面调到的四个名字、皮肤里让底色铺满 Dock 的那条规则。
+section('§12 入口接线')
+{
+  const dockText = fs.readFileSync(path.join(ROOT, 'src/client/panel/Dock.ts'), 'utf8')
+  check(dockText.indexOf('declare const MapDetailV2Page') >= 0,
+    'Dock 声明了 V2 页面（不再是老页 MapDetail）')
+  check(dockText.indexOf('h(MapDetailV2Page, { st: s, g: active })') >= 0,
+    '列表页签选中一张图时，Dock 画的是 V2 页')
+  check(dockText.indexOf('h(MapDetail, { st: s, g: active })') < 0,
+    '老页 MapDetail 已经不在挂载点上（源码与门禁留着只为回滚）')
+
+  const pageText = fs.readFileSync(path.join(ROOT, REL, 'view/MapDetailV2Page.ts'), 'utf8')
+  const pageDeps = ['useMapTicketsFeed', 'mapDetailPageModelOf', 'pageActionHandlersOf', 'MapDetailTop']
+  const pageMissing = pageDeps.filter(function (name) { return pageText.indexOf(name) < 0 })
+  check(pageMissing.length === 0,
+    'V2 页面调到了取数、整页模型、四个按钮的回调与老页顶栏（缺 ' + show(pageMissing) + '）')
+
+  const stylesText = fs.readFileSync(path.join(ROOT, REL, 'view/skin/MapDetailV2Styles.ts'), 'utf8')
+  check(stylesText.indexOf('.dsws-body>.m2v2-page') >= 0,
+    '皮肤里保留了「铺满 Dock 内容区」的那条规则（否则底色会缩成面板中间一张色卡）')
 }
 
 
