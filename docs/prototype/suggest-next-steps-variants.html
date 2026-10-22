@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 — suggest_next_steps 的下一步推荐气泡</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+
+  这个问题：suggest_next_steps 工具的「下一步推荐气泡」应该长什么样。
+  分支判定：这是「界面应该长什么样」→ UI 分支（同一处承载面上的多个变体 + 底部悬浮切换条）。
+
+  承载面：宿主官方槽位 conversation.input.dock（状态栏胶囊就挂在这里，见 src/client/statusbar/StatusBar.ts:360-443）。
+    推荐气泡浮在胶囊正上方，落在对话区与输入区之间的空当里，不改变对话区的高度。
+
+  三个变体（?variant=A|B|C）：
+    A 竖排小堆叠 —— 一列小圆角片，从胶囊里一张张顶上来；解释气泡贴在片子右边。
+    B 横排胶囊   —— 一行药丸贴着胶囊上沿横排；解释气泡浮在药丸上方，带小尖角。
+    C 会话式小卡片 —— 一张带尾巴的对话卡片，里头一行一个候选项；解释气泡浮在卡片右边。
+
+  走完整一趟：底部条里点「调一次新的一组」→ 气泡冒出来 → 鼠标悬停看解释 → 点一个
+  → 提示词填进输入框、整组消失 → 再点一次「调一次新的一组」→ 第二组覆盖第一组
+  → 点 × 关闭（关闭等于一个都不选）。「宽栏 / 窄栏」看窄栏下会不会断裂。
+
+  运行：双击本文件即可（无后端、无依赖）。URL 里 ?variant=A|B|C 可分享给没在看的人。
+
+  数据来源（读源码得来的事实，不是编的）：
+    - src/client/kernel/styles.ts:154-179（胶囊真样式：单行、nowrap、按优先级折叠）
+    - src/client/views/primitives/HoverTip.ts:163-191（悬浮说明真样式：bg layer-3、border l2、
+      圆角 10、11px 字、带小尖角、pointer-events:none、挂顶 zIndex）
+    - src/client/statusbar/StatusBar.ts:360-443（胶囊挂在 conversation.input.dock 槽位）
+    - src/client/views/feedback/feedback-styles.ts:29-31,168（焦点环与悬停反馈）
+  假宿主部分：对话气泡与输入卡是按感觉摆的近似，不是宿主真样式；胶囊那一行用的是真样式值。
+-->
+<style>
+:root{
+  --bg:#07080b; --layer1:#10131a; --layer2:#16181d; --layer3:#0c0e12; --card:#1a1d24; --card2:#20242e;
+  --border:#2a2d35; --border2:#3a3f4a;
+  --text:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --primary:#c084fc; --ok:#4ade80; --warn:#f59e0b; --bad:#f87171; --blue:#58a6ff;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+  --cw:720px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:14px}
+.pbadge{position:fixed;top:8px;left:8px;background:#ff3b30;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;z-index:100000;letter-spacing:.02em}
+.mono{font-family:var(--mono)}
+code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+
+/* ===================== 页面骨架：左边假宿主，右边原型自己的面板 ===================== */
+.page{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:14px;padding:30px 16px 320px;align-items:start}
+@media(max-width:1180px){.page{grid-template-columns:minmax(0,1fr)}}
+
+/* ===================== 假宿主窗口 ===================== */
+.hostwin{border:1px solid var(--border);border-radius:14px;background:#0a0c11;overflow:hidden;display:flex;flex-direction:column;height:min(760px, calc(100vh - 200px));min-height:560px}
+.hosttop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:#0d1016;font-size:12px;color:var(--cap)}
+.hosttop .d{width:9px;height:9px;border-radius:50%;background:#2f343d}
+.hosttop .t{margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv{flex:1;overflow:auto;padding:18px 20px 10px;display:flex;flex-direction:column;gap:14px}
+.msg{max-width:78%;font-size:13.5px}
+.msg .who{font-size:11px;color:var(--cap);margin-bottom:3px}
+.msg.user{align-self:flex-end;text-align:right}
+.msg.user .body{background:#1b1f28;border:1px solid var(--border);border-radius:12px 12px 4px 12px;padding:8px 12px;display:inline-block;text-align:left}
+.msg.bot{align-self:flex-start}
+.msg.bot .body{border-left:2px solid var(--primary);padding:2px 0 2px 10px;color:#dfe5ec}
+.msg.bot ul{margin:6px 0;padding-left:18px}
+.msg.bot li{margin:2px 0}
+
+/* 输入列：宽度由「宽栏 / 窄栏」控制，胶囊跟着它一起变宽变窄 */
+.composer{padding:6px 16px 16px;background:linear-gradient(180deg,rgba(7,8,11,0),#07080b 34%)}
+.composer-col{width:var(--cw);max-width:100%;margin:0 auto;position:relative;--dsh-composer-card-max-width:var(--cw);--dsh-composer-side-clearance:0px}
+.dock{position:relative;margin-bottom:7px}
+.sugg{position:absolute;left:0;right:0;bottom:calc(100% + 9px);z-index:40;pointer-events:none}
+.sugg > *{pointer-events:auto}
+.inputcard{display:flex;align-items:flex-end;gap:8px;border:1px solid var(--border);border-radius:16px;background:#12151b;padding:9px 10px 9px 14px}
+.inputcard textarea{flex:1;min-height:42px;max-height:140px;background:transparent;border:0;outline:0;resize:none;color:var(--text);font:inherit;font-size:13.5px;line-height:1.55;padding:4px 0}
+.inputcard textarea::placeholder{color:#5b606b}
+.sendbtn{flex:none;width:32px;height:32px;border-radius:10px;border:1px solid #2f3a4d;background:#1b2230;color:#9fb3c8;font-size:14px;cursor:pointer}
+.sendbtn:hover{background:#222c3d;color:var(--text)}
+
+/* ===================== 状态栏胶囊：照 src/client/kernel/styles.ts 的真样式值摆 ===================== */
+.dsws-capsule{width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:space-between;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}
+.dsws-capsule{max-width:var(--dsh-composer-card-max-width,100%)}
+.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:0 0 auto;min-width:0;max-width:max-content;justify-content:flex-start;column-gap:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}
+.dsws-capsule .dsws-seg{flex:none}
+.dsws-capsule .dsws-timebtn{flex:none}
+/* 窄栏时按优先级逐段收起（真仓库里由 statusbar/capFold.ts 判定，这里照同样口径做一份） */
+.dsws-capsule [data-fold-priority].dsws-folded{display:none}
+.dsws-seg{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px solid transparent;display:inline-flex;align-items:center;gap:4px}
+.dsws-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}
+.dsws-timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}
+.dsws-timebtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3)}
+.dsws-num{display:inline-block;min-width:5ch;text-align:center;font-variant-numeric:tabular-nums;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11px;line-height:1.5;white-space:nowrap}
+
+/* ===================== 第二层：解释气泡（照 HoverTip.ts 的真样式值） ===================== */
+.tip{position:fixed;z-index:2147483000;max-width:220px;display:none;background:#0c0e12;border:1px solid #3a3f4a;border-radius:10px;padding:7px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-size:11px;line-height:1.5;color:#e6edf3;pointer-events:none;white-space:pre-wrap;word-break:break-word;opacity:0;transform:scale(.96);transition:opacity .12s ease-out,transform .12s cubic-bezier(.2,.9,.3,1.3)}
+.tip.on{opacity:1;transform:scale(1)}
+.caret{position:absolute;width:7px;height:7px;background:#0c0e12;border:1px solid #3a3f4a;transform:rotate(45deg)}
+.caret.c-down{border-top-color:transparent;border-left-color:transparent}
+.caret.c-up{border-bottom-color:transparent;border-right-color:transparent}
+.caret.c-left{border-top-color:transparent;border-right-color:transparent}
+.caret.c-right{border-bottom-color:transparent;border-left-color:transparent}
+
+/* ===================== 变体 A：竖排小堆叠 ===================== */
+.vA{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:max-content;max-width:100%}
+.vA .toprow{display:flex;align-items:center;gap:6px;max-width:100%}
+.vA .chip{font-family:var(--mono);font-size:12px;line-height:1.5;color:#e6edf3;background:#181c25;border:1px solid #333a47;border-radius:11px;padding:4px 11px;cursor:pointer;user-select:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform-origin:left center;animation:riseIn .26s cubic-bezier(.2,.85,.3,1.25) backwards;transition:transform .16s cubic-bezier(.2,.9,.3,1.3),border-color .16s,background .16s}
+.vA .chip:hover{transform:translateY(-1px) scale(1.03);border-color:#5a7fb0;background:#1d2430}
+@keyframes riseIn{from{opacity:0;transform:translateY(12px) scale(.9)}to{opacity:1;transform:none}}
+.vA .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75}
+.vA .close:hover{opacity:1;color:var(--text);border-color:var(--border2)}
+
+/* ===================== 变体 B：横排胶囊 ===================== */
+.vB{display:flex;align-items:center;gap:6px;flex-wrap:wrap;animation:popUp .3s cubic-bezier(.2,.9,.3,1.25) backwards;transform-origin:left bottom}
+@keyframes popUp{0%{opacity:0;transform:translateY(14px) scale(.9)}62%{opacity:1;transform:translateY(-3px) scale(1.015)}100%{opacity:1;transform:none}}
+.vB .pill{font-family:var(--mono);font-size:12px;line-height:1.5;color:#e6edf3;background:#151922;border:1px solid #333a47;border-radius:99px;padding:3px 11px;cursor:pointer;user-select:none;transition:transform .16s cubic-bezier(.2,.9,.3,1.3),border-color .16s,background .16s}
+.vB .pill:hover{transform:translateY(-2px);border-color:#5a7fb0;background:#1d2430}
+.vB .close{flex:none;width:20px;height:20px;border-radius:99px;border:1px dashed #3a3f4a;background:#12151b;color:var(--cap);font-size:12px;line-height:1;cursor:pointer;opacity:.75}
+.vB .close:hover{opacity:1;color:var(--text);border-color:var(--border2)}
+
+/* ===================== 变体 C：会话式小卡片 ===================== */
+.vC{position:relative;display:flex;flex-direction:column;align-items:flex-start;animation:growUp .3s cubic-bezier(.2,.9,.3,1.2) backwards;transform-origin:left bottom}
+@keyframes growUp{from{opacity:0;transform:translateY(14px) scaleY(.72)}to{opacity:1;transform:none}}
+.vC .card{position:relative;max-width:min(320px,100%);background:#141821;border:1px solid #333a47;border-radius:12px;padding:7px 9px 8px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.vC .card::after{content:'';position:absolute;left:16px;bottom:-5px;width:9px;height:9px;background:#141821;border-right:1px solid #333a47;border-bottom:1px solid #333a47;transform:rotate(45deg)}
+.vC .head{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--cap);padding:0 2px 5px}
+.vC .head .t{flex:1}
+.vC .close{flex:none;width:18px;height:18px;border-radius:99px;border:1px dashed #3a3f4a;background:transparent;color:var(--cap);font-size:11px;line-height:1;cursor:pointer;opacity:.75}
+.vC .close:hover{opacity:1;color:var(--text)}
+.vC .row{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:4px 6px;color:#e6edf3;font-family:var(--mono);font-size:12px;line-height:1.5;cursor:pointer}
+.vC .row:hover{background:rgba(255,255,255,.07)}
+.vC .row .c{color:var(--primary);font-family:inherit}
+.vC .row .p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===================== 原型自己的面板 ===================== */
+.side{display:flex;flex-direction:column;gap:12px}
+.card{border:1px solid var(--border);border-radius:12px;background:var(--layer2);padding:12px 13px}
+.card h2{font-size:13px;margin:0 0 8px;display:flex;align-items:baseline;gap:8px;justify-content:space-between}
+.card h2 .hint{font-size:11.5px;color:var(--cap);font-weight:400}
+.card ol,.card ul{margin:6px 0;padding-left:18px}
+.card li{margin:4px 0;font-size:12.5px;color:#d6dbe3}
+.card p{margin:5px 0;font-size:12.5px;color:#d6dbe3}
+.kv{display:flex;gap:8px;font-size:12px;margin:3px 0;color:var(--sec)}
+.kv b{color:var(--text);font-weight:600;min-width:88px;flex:none}
+.kv .val{color:#d6dbe3}
+pre{background:#0c0e12;border:1px solid var(--border);border-radius:8px;padding:8px 9px;font-family:var(--mono);font-size:11px;line-height:1.55;color:#c9d3e0;overflow:auto;max-height:190px;margin:6px 0 0;white-space:pre-wrap;word-break:break-word}
+.log{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto}
+.log .row{display:flex;gap:8px;font-size:11.5px;line-height:1.5;color:var(--sec);border-left:2px solid var(--border);padding-left:7px}
+.log .row .t{color:var(--cap);font-family:var(--mono);flex:none}
+.log .row .m{color:#d6dbe3}
+.log .row.hit{border-left-color:var(--primary)}
+.tagline{font-size:11.5px;color:var(--cap)}
+
+/* ===================== 底部悬浮切换条 ===================== */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:99999;display:flex;justify-content:center;pointer-events:none}
+.barin{pointer-events:auto;margin-bottom:14px;background:#181b22;border:1px solid var(--border2);border-radius:99px;box-shadow:0 12px 34px rgba(0,0,0,.6);padding:7px 10px;display:flex;flex-direction:column;gap:6px;max-width:min(1400px,96vw)}
+.barnav{display:flex;align-items:center;gap:10px}
+.arrow{width:34px;height:30px;border-radius:99px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:16px;line-height:1;cursor:pointer}
+.arrow:hover{border-color:var(--primary);color:#e9d5ff}
+.cur{text-align:center;font-size:13px;font-weight:700;min-width:280px}
+.cur small{display:block;font-size:10.5px;color:var(--cap);font-weight:400}
+.barbody{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:6px;justify-content:center}
+.barbody .gl{font-size:11px;color:var(--cap)}
+.op{font-size:11.5px;border:1px solid var(--border);border-radius:99px;padding:2px 9px;background:var(--layer1);color:var(--sec);cursor:pointer}
+.op:hover{border-color:var(--primary);color:#e9d5ff}
+.op.on{border-color:var(--primary);background:rgba(192,132,252,.15);color:#e9d5ff;font-weight:600}
+kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:120px;background:#221533;border:1px solid rgba(192,132,252,.55);color:#e9d5ff;font-size:12px;border-radius:8px;padding:7px 12px;z-index:100001;opacity:0;transition:opacity .15s}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="pbadge">原型 · 不是产品界面</div>
+
+<div class="page">
+  <!-- ===================== 左边：假宿主窗口 ===================== -->
+  <div class="hostcol">
+    <div class="hostwin">
+      <div class="hosttop">
+        <span class="d"></span><span class="d"></span><span class="d"></span>
+        <span class="t">假宿主窗口 —— 对话气泡与输入卡是按感觉摆的近似；状态栏胶囊那一行用的是仓里的真样式值</span>
+      </div>
+
+      <div class="conv">
+        <div class="msg user">
+          <div class="who">你</div>
+          <div class="body">把 suggest_next_steps 这个工具的下一步推荐气泡定下来：状态栏胶囊正上方冒出来，悬停看理由，点一个把提示词填进输入框。</div>
+        </div>
+        <div class="msg bot">
+          <div class="who">助手</div>
+          <div class="body">
+            已经按交接里的决定走完这一轮：
+            <ul>
+              <li>工具只管展示不管判断，模型传什么就显示什么；模型漏调也允许。</li>
+              <li>参数是一次 2 到 4 项，每项是「提示词原文 + 一句话推荐理由」。</li>
+              <li>气泡挂在状态栏胶囊正上方，点一个只把提示词填进输入框，不替你发送。</li>
+            </ul>
+            下面这几件事还没定，想接着往下走的话，可以从里面挑一个开始。
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="composer-col" id="composerCol">
+          <!-- 宿主官方槽位 conversation.input.dock：胶囊挂在这里；推荐气泡浮在它正上方 -->
+          <div class="dock" id="dock">
+            <div class="sugg" id="sugg"></div>
+            <div class="dsws-capsule" id="capsule">
+              <span class="dsws-capsule-word" data-fold-priority="1"><span aria-hidden="true">◆</span>MattSkills</span>
+              <span class="dsws-seg" data-fold-priority="12">在办 <span class="dsws-num">#1382</span></span>
+              <span class="dsws-seg" data-fold-priority="9">可接 <span class="dsws-num">2</span></span>
+              <span class="dsws-seg" data-fold-priority="10">BUG <span class="dsws-num">1</span></span>
+              <span class="dsws-seg" data-fold-priority="8">交接 <span class="dsws-num">1</span></span>
+              <span class="dsws-timebtn" data-fold-priority="6">16:20</span>
+            </div>
+          </div>
+          <div class="inputcard">
+            <textarea id="fakeInput" placeholder="在这里输入…（原型：点推荐气泡只把提示词填进来，不会替你发送）"></textarea>
+            <button class="sendbtn" title="发送（原型里不接任何后端）">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 右边：原型自己的说明与状态面板 ===================== -->
+  <aside class="side">
+    <div class="card">
+      <h2>这次原型要回答什么</h2>
+      <ol>
+        <li>推荐气泡怎么让人一眼看出是「想法冒出来」，而不是一排普通按钮？</li>
+        <li>解释气泡怎么跟着推荐气泡走，又不挡住底下的状态栏胶囊？</li>
+        <li>三个变体在结构上差在哪（布局、信息层级、主操作）？</li>
+        <li>输入列变窄时，气泡会不会断成一截一截？</li>
+      </ol>
+      <p class="tagline">本页只回答「长什么样」，不写真实工具逻辑；数据是假的。</p>
+    </div>
+
+    <div class="card">
+      <h2>当前变体 <span class="hint" id="varName"></span></h2>
+      <div id="varDesc"></div>
+    </div>
+
+    <div class="card">
+      <h2>当前状态</h2>
+      <div id="stateBox"></div>
+      <h2 style="margin-top:12px">模型这一轮传进来的原始数据</h2>
+      <pre id="rawBox"></pre>
+    </div>
+
+    <div class="card">
+      <h2>事件日志 <span class="hint">最新在上面</span></h2>
+      <div class="log" id="logBox"></div>
+    </div>
+
+    <div class="card">
+      <h2>怎么走完整一趟</h2>
+      <ol>
+        <li>底部条点「调一次新的一组」——气泡从胶囊上方冒出来。</li>
+        <li>鼠标停在某个候选项上——解释气泡浮出来（它不会落到胶囊那一侧）。</li>
+        <li>点其中一个——提示词填进输入框，整组消失（不替你发送）。</li>
+        <li>再点一次「调一次新的一组」——第二组直接覆盖第一组。</li>
+        <li>点 × ——整组关闭，等于一个都不选。</li>
+        <li>点「宽栏 / 窄栏」——看窄栏下换行会不会把气泡拆坏。</li>
+      </ol>
+    </div>
+  </aside>
+</div>
+
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<!-- ===================== 底部悬浮切换条 ===================== -->
+<div class="bar"><div class="barin">
+  <div class="barnav">
+    <button class="arrow" id="prev" title="上一个变体（←）">‹</button>
+    <div class="cur" id="cur"></div>
+    <button class="arrow" id="next" title="下一个变体（→）">›</button>
+  </div>
+  <div class="barbody" id="barbody"></div>
+</div></div>
+
+<script>
+/* ===================== 假数据：模型调用 suggest_next_steps 时传进来的东西 ===================== */
+/* 形状按交接里的决定：一次 2 到 4 项，每项是「提示词原文 + 一句话推荐理由」。 */
+var GROUPS = [
+  { label: '第 1 组', items: [
+    { prompt: '/to-tickets', reason: '这次的讨论已经定下方向，可以拆成能开工的实施票。' },
+    { prompt: '/ask-matt',   reason: '不确定该走哪条流程时，让它按现在的处境挑一个合适的技能。' },
+    { prompt: '/grill-me',   reason: '还有没定的地方想先被追问一轮，把隐患问出来。' }
+  ]},
+  { label: '第 2 组', items: [
+    { prompt: '/to-spec', reason: '把这次的结论写成一份规格，再决定怎么开工。' },
+    { prompt: '/retro',  reason: '想复盘刚才这一段做得怎么样的时候用它。' }
+  ]},
+  { label: '第 3 组', items: [
+    { prompt: '/to-tickets',  reason: '把规格拆成能开工的实施票。' },
+    { prompt: '/implement',   reason: '按规格直接动手改代码。' },
+    { prompt: '/code-review', reason: '改完之后让另一双眼睛看一遍。' },
+    { prompt: '/pr',          reason: '确认没问题之后写成待合并的说明。' }
+  ]}
+];
+
+var VARIANTS = {
+  A: {
+    name: 'A — 竖排小堆叠',
+    idea: '每个候选项是一张小圆角片，从胶囊里一张张顶上来（最底下那张先出），看上去像想法从胶囊里冒出来。',
+    tipSide: 'right',
+    tipWhere: '贴在触发的那张片子右边；右边放不下就改到左边，永远不落到胶囊那一侧。',
+    narrow: '片子本身不拆，整列宽度跟着输入列收窄；候选项多时（4 个）会占掉一块竖向空间。',
+    cost: '竖向占地方，4 个候选项时会把对话区压掉一截。'
+  },
+  B: {
+    name: 'B — 横排胶囊',
+    idea: '所有候选项排成一行药丸，贴着胶囊上沿；整行从胶囊那一侧往上弹出来（带一点过冲），像一句话里的几个备选。',
+    tipSide: 'above',
+    tipWhere: '浮在药丸正上方，带小尖角指住那颗药丸。',
+    narrow: '这一行会换行成两行，但每颗药丸不被拆开。',
+    cost: '候选项多了像一排标签栏，读起来不像「想法」而像「筛选项」。'
+  },
+  C: {
+    name: 'C — 会话式小卡片',
+    idea: '整组做成一张带尾巴的对话卡片，尾巴指向胶囊，里头一行一个候选项；卡片标题是「接着可以」这样的半句话。',
+    tipSide: 'right',
+    tipWhere: '浮在卡片右边，跟着卡片一起移动。',
+    narrow: '卡片宽度跟着输入列收窄，条目一行一个。',
+    cost: '比另两个变体重；标题那句是组长自己加的字（模型只传了提示词原文和理由）。'
+  }
+};
+
+var S = {
+  variant: 'A',
+  narrow: false,
+  groupIndex: -1,
+  group: null,
+  filled: '',
+  tipSide: '',
+  tipVisible: false,
+  tipAnchor: null,
+  log: []
+};
+
+/* ===================== 小工具 ===================== */
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function now() {
+  var d = new Date();
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+function say(msg, hit) {
+  S.log.unshift({ t: now(), m: msg, hit: !!hit });
+  renderLog();
+}
+function toast(msg) {
+  var t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { t.classList.remove('on'); }, 2400);
+}
+
+/* ===================== 状态栏胶囊 ===================== */
+/* 胶囊那一行是照 src/client/kernel/styles.ts 的真样式摆的；这里只补一小段可点的反馈。 */
+(function () {
+  var cap = $('capsule');
+  cap.addEventListener('click', function () { toast('（原型）胶囊本身没有新行为'); });
+})();
+
+/* 窄栏时胶囊自己逐段收起：优先级数字越大越先收（品牌 1 最后收）。
+   真仓库里这段判定在 src/client/statusbar/capFold.ts，原型里照同样口径做一份。 */
+function foldCapsule() {
+  var cap = $('capsule');
+  var segs = Array.prototype.slice.call(cap.querySelectorAll('[data-fold-priority]'));
+  segs.forEach(function (s) { s.classList.remove('dsws-folded'); });
+  var guard = 0;
+  while (cap.scrollWidth > cap.clientWidth && guard < 20) {
+    guard++;
+    var rest = segs.filter(function (s) { return !s.classList.contains('dsws-folded'); });
+    if (!rest.length) break;
+    rest.sort(function (a, b) {
+      return parseInt(b.getAttribute('data-fold-priority'), 10) - parseInt(a.getAttribute('data-fold-priority'), 10);
+    });
+    rest[0].classList.add('dsws-folded');
+  }
+}
+
+/* ===================== 第二层：解释气泡 ===================== */
+/* 样式照 src/client/views/primitives/HoverTip.ts:163-191；定位是这里现算的。 */
+var tipEl = $('tip');
+function hideTip() {
+  tipEl.classList.remove('on');
+  tipEl.style.display = 'none';
+  S.tipVisible = false;
+  S.tipAnchor = null;
+  renderState();
+}
+function showTip(anchor, text) {
+  tipEl.innerHTML = '<span class="tx"></span><i class="caret"></i>';
+  tipEl.querySelector('.tx').textContent = text;
+  tipEl.style.display = 'block';
+  tipEl.classList.add('on');
+  S.tipVisible = true;
+  S.tipAnchor = anchor;
+  placeTip(anchor, VARIANTS[S.variant].tipSide);
+}
+function placeTip(anchor, prefer) {
+  var r = anchor.getBoundingClientRect();
+  var tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var gap = 10, side = prefer;
+
+  /* 选边：优先问过的方位；放不下就换边。
+     注意：胶囊在下方，所以「下方」这一边永远不用——解释气泡不能挡住胶囊。 */
+  if (side === 'right' && r.right + gap + tw > vw - 8) side = 'left';
+  if (side === 'left' && r.left - gap - tw < 8) side = 'right';
+  if (side === 'above' && r.top - gap - th < 8) side = 'right';
+  if (side === 'right' && r.right + gap + tw > vw - 8) side = 'above';
+
+  var left, top;
+  if (side === 'right') { left = r.right + gap; top = r.top + r.height / 2 - th / 2; }
+  else if (side === 'left') { left = r.left - gap - tw; top = r.top + r.height / 2 - th / 2; }
+  else { left = r.left + r.width / 2 - tw / 2; top = r.top - gap - th; }
+
+  /* 别跑出窗口 */
+  left = Math.max(8, Math.min(left, vw - tw - 8));
+  top = Math.max(8, Math.min(top, vh - th - 8));
+  tipEl.style.left = left + 'px';
+  tipEl.style.top = top + 'px';
+
+  var caret = tipEl.querySelector('.caret');
+  caret.className = 'caret';
+  if (side === 'above') {
+    caret.classList.add('c-down');
+    caret.style.left = (r.left + r.width / 2 - left - 3.5) + 'px';
+    caret.style.top = (th - 3.5) + 'px';
+  } else if (side === 'right') {
+    caret.classList.add('c-left');
+    caret.style.left = '-4px';
+    caret.style.top = (r.top + r.height / 2 - top - 3.5) + 'px';
+  } else {
+    caret.classList.add('c-right');
+    caret.style.right = '-4px';
+    caret.style.top = (r.top + r.height / 2 - top - 3.5) + 'px';
+  }
+  S.tipSide = side;
+  renderState();
+}
+
+/* ===================== 三个变体的画法（结构不同，不只是换颜色） ===================== */
+function renderVariant() {
+  var host = $('sugg');
+  if (!S.group) { host.innerHTML = ''; return; }
+  var items = S.group.items;
+  var html = '';
+
+  if (S.variant === 'A') {
+    /* 竖排小堆叠：每项一张小片，自下而上依次冒出来；关闭按钮跟在最上面那张片右边 */
+    html = '<div class="vA">';
+    for (var i = 0; i < items.length; i++) {
+      var delay = (items.length - 1 - i) * 70;
+      var chip = '<div class="chip" data-i="' + i + '" style="animation-delay:' + delay + 'ms">' + esc(items[i].prompt) + '</div>';
+      if (i === 0) {
+        html += '<div class="toprow">' + chip + '<button class="close" title="关闭（等于一个都不选）">×</button></div>';
+      } else {
+        html += chip;
+      }
+    }
+    html += '</div>';
+  } else if (S.variant === 'B') {
+    /* 横排胶囊：所有项排成一行，贴着胶囊上沿 */
+    html = '<div class="vB">';
+    for (var j = 0; j < items.length; j++) {
+      html += '<div class="pill" data-i="' + j + '">' + esc(items[j].prompt) + '</div>';
+    }
+    html += '<button class="close" title="关闭（等于一个都不选）">×</button></div>';
+  } else {
+    /* 会话式小卡片：一张带尾巴的卡片，里头一行一个候选项 */
+    html = '<div class="vC"><div class="card"><div class="head"><span class="t">接着可以</span>' +
+           '<button class="close" title="关闭（等于一个都不选）">×</button></div>';
+    for (var k = 0; k < items.length; k++) {
+      html += '<button class="row" data-i="' + k + '"><span class="c">›</span><span class="p">' + esc(items[k].prompt) + '</span></button>';
+    }
+    html += '</div></div>';
+  }
+
+  host.innerHTML = html;
+  bindGroup();
+}
+
+/* ===================== 候选项的悬停与点击 ===================== */
+function bindGroup() {
+  var host = $('sugg');
+  var nodes = host.querySelectorAll('[data-i]');
+  Array.prototype.forEach.call(nodes, function (el) {
+    var item = S.group.items[parseInt(el.getAttribute('data-i'), 10)];
+    el.addEventListener('mouseenter', function () {
+      showTip(el, item.reason);
+      say('悬停「' + item.prompt + '」→ 解释气泡浮出来（' + sideText(S.tipSide) + '）', true);
+    });
+    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('click', function () {
+      /* 点中一个：提示词原文填进输入框（不发送），整组消失，下一次调用才重新出来 */
+      $('fakeInput').value = item.prompt;
+      S.filled = item.prompt;
+      say('点击「' + item.prompt + '」→ 提示词填进输入框，整组消失（不替你发送）', true);
+      S.group = null;
+      hideTip();
+      render();
+    });
+  });
+  var close = host.querySelector('.close');
+  if (close) {
+    close.addEventListener('click', function (e) {
+      e.stopPropagation();
+      say('点了关闭 → 整组消失，等于一个都不选', true);
+      S.group = null;
+      hideTip();
+      render();
+    });
+  }
+}
+function sideText(side) {
+  if (side === 'above') return '在气泡上方';
+  if (side === 'right') return '在气泡右边';
+  if (side === 'left') return '在气泡左边';
+  return '未出现';
+}
+
+/* ===================== 一次模型调用 ===================== */
+function callTool() {
+  var had = !!S.group;
+  S.groupIndex = (S.groupIndex + 1) % GROUPS.length;
+  S.group = GROUPS[S.groupIndex];
+  say('模型调用 suggest_next_steps（' + S.group.label + '，' + S.group.items.length + ' 个候选项）→ 气泡组冒出来' +
+      (had ? '（覆盖上一组）' : ''), true);
+  hideTip();
+  render();
+}
+function replay() {
+  if (!S.group) { toast('当前没有气泡组，先点「调一次新的一组」'); return; }
+  renderVariant();
+  say('重放冒出来的动画');
+}
+function closeGroup() {
+  if (!S.group) { toast('当前没有气泡组'); return; }
+  say('点了关闭 → 整组消失，等于一个都不选', true);
+  S.group = null;
+  hideTip();
+  render();
+}
+function toggleNarrow() {
+  S.narrow = !S.narrow;
+  document.documentElement.style.setProperty('--cw', S.narrow ? '360px' : '720px');
+  foldCapsule();
+  say(S.narrow ? '切到窄栏（输入列 360px，胶囊自己逐段收起）' : '切回宽栏（输入列 720px）');
+  render();
+}
+function clearInput() {
+  $('fakeInput').value = '';
+  S.filled = '';
+  say('清空输入框');
+  render();
+}
+
+/* ===================== 渲染 ===================== */
+function renderState() {
+  var box = $('stateBox');
+  var g = S.group;
+  var lines = [];
+  lines.push(['气泡组', g ? (S.group.label + ' · ' + g.items.length + ' 个候选项 · 已经冒出来，等着人点') : '没有（模型还没调用，或被人点掉/关掉了）']);
+  lines.push(['输入框里的内容', S.filled ? ('「' + S.filled + '」—— 只填进来，没有替你发送') : '空的']);
+  lines.push(['解释气泡上次出现的位置', !S.tipSide ? '还没出现过' : (sideText(S.tipSide) + (S.tipVisible ? '（不落在胶囊那一侧）' : '（刚才出现过，现在已收起）'))]);
+  lines.push(['输入列宽度', S.narrow ? '360px（窄栏）' : '720px（宽栏）']);
+  box.innerHTML = lines.map(function (r) {
+    return '<div class="kv"><b>' + esc(r[0]) + '</b><span class="val">' + esc(r[1]) + '</span></div>';
+  }).join('');
+
+  var raw = $('rawBox');
+  if (g) {
+    raw.textContent = JSON.stringify({ steps: g.items.map(function (it) { return { prompt: it.prompt, reason: it.reason }; }) }, null, 2);
+  } else {
+    raw.textContent = '（现在没有气泡组，模型这一轮还没传东西过来）';
+  }
+}
+function renderLog() {
+  var box = $('logBox');
+  box.innerHTML = S.log.map(function (r) {
+    return '<div class="row' + (r.hit ? ' hit' : '') + '"><span class="t">' + esc(r.t) + '</span><span class="m">' + esc(r.m) + '</span></div>';
+  }).join('') || '<div class="row"><span class="m">还没有动作。</span></div>';
+}
+function renderVariantDoc() {
+  var v = VARIANTS[S.variant];
+  $('varName').textContent = v.name;
+  $('varDesc').innerHTML =
+    '<p><b>这一版想说明什么：</b>' + esc(v.idea) + '</p>' +
+    '<div class="kv"><b>解释气泡</b><span class="val">' + esc(v.tipWhere) + '</span></div>' +
+    '<div class="kv"><b>窄栏时</b><span class="val">' + esc(v.narrow) + '</span></div>' +
+    '<div class="kv"><b>代价</b><span class="val">' + esc(v.cost) + '</span></div>';
+}
+function renderBar() {
+  var v = VARIANTS[S.variant];
+  $('cur').innerHTML = v.name + '<small>← → 切换变体 · URL 里是 ?variant=' + S.variant + '</small>';
+  $('barbody').innerHTML =
+    '<span class="gl">演示</span>' +
+    '<button class="op" id="opCall">调一次新的一组</button>' +
+    '<button class="op" id="opReplay">重放冒出来的动画</button>' +
+    '<button class="op' + (S.narrow ? ' on' : '') + '" id="opNarrow">' + (S.narrow ? '窄栏 360px' : '宽栏 720px') + '</button>' +
+    '<button class="op" id="opClose">关闭这一组</button>' +
+    '<button class="op" id="opClear">清空输入框</button>' +
+    '<span class="gl"><kbd>←</kbd><kbd>→</kbd> 切变体（焦点在输入框里时不接管按键）</span>';
+  $('opCall').onclick = callTool;
+  $('opReplay').onclick = replay;
+  $('opNarrow').onclick = toggleNarrow;
+  $('opClose').onclick = closeGroup;
+  $('opClear').onclick = clearInput;
+}
+function render() {
+  renderVariant();
+  renderVariantDoc();
+  renderState();
+  renderBar();
+  foldCapsule();
+  syncURL();
+}
+
+/* ===================== URL 同步（file:// 下 history 可能被拒，退回 hash） ===================== */
+function syncURL() {
+  var u = new URL(location.href);
+  u.searchParams.set('variant', S.variant);
+  if (S.narrow) u.searchParams.set('narrow', '1'); else u.searchParams.delete('narrow');
+  try { history.replaceState(null, '', u.toString()); } catch (e) {
+    try { location.hash = 'variant=' + S.variant + (S.narrow ? '&narrow=1' : ''); } catch (e2) {}
+  }
+}
+function readURL() {
+  var p = new URLSearchParams(location.search);
+  if (!p.toString() && location.hash) p = new URLSearchParams(location.hash.replace(/^#/, ''));
+  var v = (p.get('variant') || '').toUpperCase();
+  if (VARIANTS[v]) S.variant = v;
+  if (p.get('narrow') === '1') { S.narrow = true; document.documentElement.style.setProperty('--cw', '360px'); }
+}
+
+/* ===================== 变体切换 ===================== */
+function cycle(d) {
+  var keys = ['A', 'B', 'C'];
+  var i = keys.indexOf(S.variant);
+  S.variant = keys[(i + d + keys.length) % keys.length];
+  hideTip();
+  say('切到变体 ' + VARIANTS[S.variant].name);
+  render();
+}
+document.getElementById('prev').onclick = function () { cycle(-1); };
+document.getElementById('next').onclick = function () { cycle(1); };
+window.addEventListener('keydown', function (e) {
+  var t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') { cycle(-1); return }
+  if (e.key === 'ArrowRight') { cycle(1); return }
+});
+window.addEventListener('resize', function () {
+  /* 窗口变了尺寸：解释气泡跟着它的锚点重新摆一次（而不是直接消失） */
+  if (S.tipVisible && S.tipAnchor && document.contains(S.tipAnchor)) placeTip(S.tipAnchor, VARIANTS[S.variant].tipSide);
+  else hideTip();
+  foldCapsule();
+});
+
+/* ===================== 起手 ===================== */
+readURL();
+say('打开原型：变体 ' + VARIANTS[S.variant].name);
+callTool();   /* 一进来就先冒一组，让人一眼看见东西长什么样 */
+render();
+</script>
+</body>
+</html>
