@@ -13,7 +13,7 @@
 
 [![版本](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck?label=%E7%89%88%E6%9C%AC)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载量](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.npmjs.org%2Fdownloads%2Fpoint%2Flast-month%2Fdsh-mattpocock-skills-deck&query=%24.downloads&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&suffix=%2F%E6%9C%88&color=brightgreen)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载总量](https://img.shields.io/npm/dt/dsh-mattpocock-skills-deck?label=%E4%B8%8B%E8%BD%BD%E6%80%BB%E9%87%8F&color=red)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![最近更新](https://img.shields.io/github/last-commit/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%9C%80%E8%BF%91%E6%9B%B4%E6%96%B0&color=FE7D37)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/commits/main) [![月提交](https://img.shields.io/github/commit-activity/m/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%8F%90%E4%BA%A4%E6%95%B0&color=DFAB01)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/graphs/commit-activity) [![技能包](https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E5%8C%85-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills) [![欢迎提交PR🌹](https://img.shields.io/badge/%E6%AC%A2%E8%BF%8E%E6%8F%90%E4%BA%A4PR%F0%9F%8C%B9-red.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)
 
-<span style="color:red">欢迎提交PR，不要求完美无瑕，有缺陷也会在合入后进行优化而不是拒绝，星星之火🔥可以燎原！</span><br>
+<span style="color:red">🔥 欢迎提交PR，不要求完美无瑕，有缺陷也会在合入后进行优化而不是拒绝，星星之火🔥可以燎原！ 🔥</span><br>
 唯一要求：使用技能 /pr 填写PR信息。
 
 </div>
