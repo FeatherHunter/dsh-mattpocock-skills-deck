@@ -11,7 +11,9 @@
 
 *Part the fog of war, see the end — MattSkillsDeck handles the rest.*
 
-[![版本](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck?label=%E7%89%88%E6%9C%AC)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载量](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.npmjs.org%2Fdownloads%2Fpoint%2Flast-month%2Fdsh-mattpocock-skills-deck&query=%24.downloads&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&suffix=%2F%E6%9C%88&color=brightgreen)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载总量](https://img.shields.io/npm/dt/dsh-mattpocock-skills-deck?label=%E4%B8%8B%E8%BD%BD%E6%80%BB%E9%87%8F&color=red)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![最近更新](https://img.shields.io/github/last-commit/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%9C%80%E8%BF%91%E6%9B%B4%E6%96%B0&color=FE7D37)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/commits/main) [![月提交](https://img.shields.io/github/commit-activity/m/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%8F%90%E4%BA%A4%E6%95%B0&color=DFAB01)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/graphs/commit-activity) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-lightgrey.svg)](LICENSE) [![技能包](https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E5%8C%85-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills) [![期待你参与](https://img.shields.io/badge/%E6%9C%9F%E5%BE%85%E4%BD%A0%E5%8F%82%E4%B8%8E-brightgreen.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)
+[![版本](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck?label=%E7%89%88%E6%9C%AC)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载量](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.npmjs.org%2Fdownloads%2Fpoint%2Flast-month%2Fdsh-mattpocock-skills-deck&query=%24.downloads&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&suffix=%2F%E6%9C%88&color=brightgreen)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载总量](https://img.shields.io/npm/dt/dsh-mattpocock-skills-deck?label=%E4%B8%8B%E8%BD%BD%E6%80%BB%E9%87%8F&color=red)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![最近更新](https://img.shields.io/github/last-commit/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%9C%80%E8%BF%91%E6%9B%B4%E6%96%B0&color=FE7D37)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/commits/main) [![月提交](https://img.shields.io/github/commit-activity/m/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%8F%90%E4%BA%A4%E6%95%B0&color=DFAB01)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/graphs/commit-activity) [![技能包](https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E5%8C%85-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills) [![欢迎提交PR🌹](https://img.shields.io/badge/%E6%AC%A2%E8%BF%8E%E6%8F%90%E4%BA%A4PR%F0%9F%8C%B9-red.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)
+
+欢迎提交PR，不要求完美无瑕，有缺陷也会在合入后进行优化而不是拒绝，星星之火🔥可以燎原！唯一要求：使用技能 /pr 填写PR信息。
 
 </div>
 
@@ -197,61 +199,36 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
 
-[@pioneerAlone](https://github.com/pioneerAlone)🌹🌹🌹🌹🌹🌹 — [#298](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/298) 面板重复、[#274](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/274)/[#234](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/234) 状态栏误报、[#645](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/645) 镜像滞后一路追到底，[PR #273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/273)/[PR #316](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/316) 连交两份修复，重装体感一次清爽
-
-[@zhengcookie](https://github.com/zhengcookie)🌹🌹🌹🌹 — [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) 报出桌面端启动早期把安装目录当成工作区、改色弹窗误报没有后端，[#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁，[#1160](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1160) 又抓到 gh 登录态因为 3 秒探活超时被判成网络异常、反复误报，[#1291](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1291) 发现已关闭地图下还开着、没被认领的子票会从「可接任务」里整体消失，状态栏计数却还说有一张可接
-
-[@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) 等议题，[PR #287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287)/[PR #275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275)/[PR #106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) 连交三份修复，弹窗和 macOS 体验都顺了
-
-[@anupamme](https://github.com/anupamme)🌹🌹🌹 — [PR #727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727)/[PR #728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) 主动给数据通道加两道安全锁（两份已关闭），[PR #1156](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1156) 又指出模板脚本里写死的密钥（还在评审）
-
-[@9agj](https://github.com/9agj)🌹🌹🌹 — [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) 指出只读仓库下标签能力静默降级、README 也没写明任务板仓库要有 push 权限，[#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) 抓住建仓失败分类把真实 git 报错说成「权限不足」，[#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) 报出属主与运行用户不一致的工作区建仓必然失败（Android /sdcard 场景）；三张的修复都已合入
-
-[@gzy31007](https://github.com/gzy31007)🌹🌹 — [#1272](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1272) 对照 Matt 原版 wayfinder 指出插件把实施票也挂进探索地图，偏离了「地图只提问题、实施开始前就该交棒」的边界，[#1273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1273) 又揪出改票工具的成功回执会把同一张票面写两份、票面一大就多占一倍上下文
-
-[@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 揪出本地后端静默写坏票的暗坑，[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 亲手修好已合入
-
-[@hyperion2144](https://github.com/hyperion2144)🌹🌹 — [#110](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/110) 报出环境检查问题，[#646](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/646) 还指了条原生侧边栏的明路
-
-[@arnold117](https://github.com/arnold117)🌹🌹 — [#574](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/574) 揪出多单元撞号读错写错，[PR #575](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/575) 亲手修好已合入
-
-[@angenet](https://github.com/angenet)🌹🌹 — [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295)/[#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) 两轮 macOS 实测，环境检测更稳了
-
-[@WDXXZH](https://github.com/WDXXZH)🌹 — [#1137](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1137) 指出 setup 向导的布局文案还写着 CONTEXT.md，而它随即调用的技能只认 GLOSSARY.md
-
-[@Drayee](https://github.com/Drayee)🌹 — [#1101](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1101) 一次报出两个问题并附上根因与改法：gh 路径一旦探到就永不刷新，堆到队列满时面板整体超时；提问场景只往对话里注入一句话，没有一种动作真的弹出问答框
-
-[@30892096](https://github.com/30892096)🌹 — [#1100](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1100) 指出 GitHub 后端回读原生关系时，已经落地的父子边与阻塞边会被报成失败，阻塞边批量写还会因为一条 422 整批中止
-
-[@fishke22](https://github.com/fishke22)🌹 — [PR #1000](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1000) 把「新增 BUG 单」入口表单的四项改成必填、删掉引导空表单直接建单的旧文案，已合入
-
-[@jack2jiehua](https://github.com/jack2jiehua)🌹 — [#930](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/930) 抓到写操作落错后端的险情，还顺手指出写探测恒灰
-
-[@asesr](https://github.com/asesr)🌹 — [#926](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/926) 用实测数据揪出状态栏卡顿的真凶，还附了验证过的补丁
-
-[@SKADI0718](https://github.com/SKADI0718)🌹 — [#856](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/856) 热心出手，虽然最后撤回心意照样上榜
-
-[@li873582595](https://github.com/li873582595)🌹 — [#835](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/835) 报出桌面初始化阶段断连重连的现象
-
-[@zerocodefast](https://github.com/zerocodefast)🌹 — [#823](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/823) 牵线把本插件推进精选清单
-
-[@seameafst](https://github.com/seameafst)🌹 — [#793](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/793) 把空模板回车的坑连根因带修法一次讲透
-
-[@SbDonger](https://github.com/SbDonger)🌹 — [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) 一眼发现状态栏与输入框错位
-
-[@snmtg1008](https://github.com/snmtg1008) — [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) 留下本地目录误报的完整自救方案
-
-[@dis0neplay](https://github.com/dis0neplay)🌹 — [PR #493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) 出手修好 CI 与页面跳转
-
-[@xiSage](https://github.com/xiSage)🌹 — [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) 报出自托管仓库无法识别，还在讨论区 [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) 出了按区关闭的好主意
-
-[@tafcear](https://github.com/tafcear)🌹 — [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) 一句话让非编码工作区清静下来
-
-[@21967201](https://github.com/21967201)🌹 — [PR #321](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/321) 把标签文档补齐整
-
-[@271912980](https://github.com/271912980) — [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) 提出会话稳定寻址的好主意
-
-[@lilincen](https://github.com/lilincen) — 在讨论区 [#1301](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1301) 提出希望插件早日支持 GitLab
+| 贡献者 | 致敬 | 贡献 |
+| --- | --- | --- |
+| [@pioneerAlone](https://github.com/pioneerAlone) | 🌹🌹🌹🌹🌹🌹 | #298 #274 #234 #645 #273 #316 |
+| [@zhengcookie](https://github.com/zhengcookie) | 🌹🌹🌹🌹 | #1003 #960 #1160 #1291 |
+| [@Shimmernight](https://github.com/Shimmernight) | 🌹🌹🌹🌹 | #277 #287 #275 #106 |
+| [@anupamme](https://github.com/anupamme) | 🌹🌹🌹 | #727 #728 #1156 |
+| [@9agj](https://github.com/9agj) | 🌹🌹🌹 | #992 #993 #994 |
+| [@gzy31007](https://github.com/gzy31007) | 🌹🌹 | #1272 #1273 |
+| [@qq1393950873-bit](https://github.com/qq1393950873-bit) | 🌹🌹 | #970 #974 |
+| [@hyperion2144](https://github.com/hyperion2144) | 🌹🌹 | #110 #646 |
+| [@arnold117](https://github.com/arnold117) | 🌹🌹 | #574 #575 |
+| [@angenet](https://github.com/angenet) | 🌹🌹 | #295 #262 |
+| [@WDXXZH](https://github.com/WDXXZH) | 🌹 | #1137 |
+| [@Drayee](https://github.com/Drayee) | 🌹 | #1101 |
+| [@30892096](https://github.com/30892096) | 🌹 | #1100 |
+| [@fishke22](https://github.com/fishke22) | 🌹 | #1000 |
+| [@jack2jiehua](https://github.com/jack2jiehua) | 🌹 | #930 |
+| [@asesr](https://github.com/asesr) | 🌹 | #926 |
+| [@SKADI0718](https://github.com/SKADI0718) | 🌹 | #856 |
+| [@li873582595](https://github.com/li873582595) | 🌹 | #835 |
+| [@zerocodefast](https://github.com/zerocodefast) | 🌹 | #823 |
+| [@seameafst](https://github.com/seameafst) | 🌹 | #793 |
+| [@SbDonger](https://github.com/SbDonger) | 🌹 | #640 |
+| [@snmtg1008](https://github.com/snmtg1008) |  | #476 |
+| [@dis0neplay](https://github.com/dis0neplay) | 🌹 | #493 |
+| [@xiSage](https://github.com/xiSage) | 🌹 | #435 #436 |
+| [@tafcear](https://github.com/tafcear) | 🌹 | #422 |
+| [@21967201](https://github.com/21967201) | 🌹 | #321 |
+| [@271912980](https://github.com/271912980) |  | #257 |
+| [@lilincen](https://github.com/lilincen) |  | #1301 |
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
