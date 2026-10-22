@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-21T17:09:37.946Z",
+  "generatedAt": "2026-10-22T01:36:33.911Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 313,
-  "gateCount": 313,
-  "attributedGates": 276,
+  "chainLength": 314,
+  "gateCount": 314,
+  "attributedGates": 277,
   "unattributedGates": 37,
   "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
@@ -1878,6 +1878,29 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
+    },
+    {
+      "step": "node tests/verify-1291-closed-map-open-children.ts",
+      "file": "tests/verify-1291-closed-map-open-children.ts",
+      "guards": [
+        "src/client/kernel/store-derived.ts",
+        "src/client/statusbar/checksums.ts",
+        "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/host/tracker",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1295-dual-panel.ts",
@@ -7716,6 +7739,7 @@
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
+      "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1295-dual-panel.ts",
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1298-spec-close.ts",
@@ -7800,6 +7824,7 @@
       "node tests/verify-deck-slots.ts",
       "node tests/verify-no-title.ts",
       "node tests/verify-1281-entries.ts",
+      "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1355-cross-session-table.ts",
       "node tests/verify-655-setup-layout.ts",
@@ -8168,6 +8193,7 @@
     "src/host/tracker": [
       "node tests/verify-1277-md-spec-container.ts",
       "node tests/verify-1286-snapshot.ts",
+      "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
@@ -8632,6 +8658,7 @@
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
+      "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-423-title-clamp-browser.ts",

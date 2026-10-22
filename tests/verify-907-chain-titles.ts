@@ -3,13 +3,15 @@
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-907-chain-titles.ts（插件根目录）
 //
 // 现场与修法（票 #907 的诊断写在 issue 正文里）：
-//   已关闭地图的子票不进首屏（#691 的体积取舍），而工作路线那一行的标题只从快照给得出的行里查，
+//   已关闭地图里**自己已关闭**的子票不进首屏（#691 的体积取舍；#1291 起还开着的子票回到首屏），
+//   而工作路线那一行的标题只从快照给得出的行里查，
 //   于是那几行的标题位画成了票号（「#901 #901」）。修法：宿主给这些行另留一份**瘦身行**
 //   （thinTickets：票号、标题、状态、是不是地图），界面查标题时也读它；连瘦身行都没有的票号，
 //   那一行留白，「标题未取到」只出现在无障碍名（悬停提示）里。
 //
 // 这一条门禁跑真代码，四件：
-//   一、宿主组装：已关闭地图的子票进瘦身行、不进首屏两个筐子；首屏行数与 deck 计数都不受影响。
+//   一、宿主组装：已关闭地图里已关闭的子票进瘦身行、不进首屏两个筐子，还开着的子票回到 issues
+//       （#1291）；首屏行数与 deck 计数都不受影响。
 //   二、信封：瘦身行走的是那一份字段清单，两条电话（wf.snapshot / wf.refresh）的调用点一处不漏。
 //   三、界面查标题：按票号查到标题；哪儿都没有的票号仍是空，不凭空编一个。
 //   四、画法：有标题画标题；没标题留白、不画第二个票号；那句话只在无障碍名里；那一行仍然点得开。
@@ -82,7 +84,7 @@ function textOf(node) {
 const countIn = function (text, sub) { return String(text).split(sub).length - 1 }
 
 async function main() {
-  console.log('#907 工作路线标题门禁（瘦身行 / 首屏口径不变 / 留白 / 词条）')
+  console.log('#907 工作路线标题门禁（瘦身行 / 图下开着的子票回首屏 / 留白 / 词条）')
 
   // ---------- 一、宿主组装：真编排器跑一遍 ----------
   const snapMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'tracker', 'snapshot.js')).href)
@@ -93,13 +95,14 @@ async function main() {
     mk(100, { type: 'map', state: 'closed', title: '已关闭的地图' }),
     mk(101, { parentKey: '100', state: 'closed', title: '子票甲' }),
     mk(102, { parentKey: '100', state: 'closed', title: '子票乙' }),
+    mk(103, { parentKey: '100', state: 'open', title: '图下还开着的子票' }), // #1291：它得回首屏
     mk(200, { state: 'open', title: '独立的票' }),
     mk(300, { type: 'map', state: 'open', title: '还开着的地图' }),
     mk(301, { parentKey: '300', state: 'open', title: '开着的地图里的子票' }),
   ]
   const tracker = {
     list: async function () { return { ok: true, data: all.map(function (x) { return Object.assign({}, x) }) } },
-    counts: async function () { return { ok: true, data: { open: 3, closed: 3, total: 6 } } },
+    counts: async function () { return { ok: true, data: { open: 4, closed: 3, total: 7 } } },
   }
   const composer = snapMod.createSnapshotComposer({ get: function () { return tracker } }, { snapshotTtl: 1 })
   const ref = { backend: 'github', refId: 'o/r', name: 'o/r', url: 'https://github.com/o/r' }
@@ -109,18 +112,18 @@ async function main() {
   const ids = function (rows) { return (rows || []).map(function (x) { return String(x.key) }).sort() }
   const map100 = (snap.maps || []).filter(function (m) { return String(m.key) === '100' })[0] || {}
   const map300 = (snap.maps || []).filter(function (m) { return String(m.key) === '300' })[0] || {}
-  check(ids(map100.tickets).length === 0, '已关闭地图的子票不进首屏（实得 ' + JSON.stringify(ids(map100.tickets)) + '）')
-  check(ids(snap.issues).join(',') === '200', '首屏未挂图的票只有那张独立的（实得 ' + JSON.stringify(ids(snap.issues)) + '）')
+  check(ids(map100.tickets).length === 0, '已关闭地图的容器行不带子票（实得 ' + JSON.stringify(ids(map100.tickets)) + '）')
+  check(ids(snap.issues).join(',') === '103,200', '#1291：图下还开着的子票回到首屏，和独立那张并列（实得 ' + JSON.stringify(ids(snap.issues)) + '）')
   check(ids(map300.tickets).join(',') === '301', '还开着的地图的子票照旧留在图上（实得 ' + JSON.stringify(ids(map300.tickets)) + '）')
-  check(ids(snap.thinTickets).join(',') === '101,102', '已关闭地图的子票另有一份瘦身行（实得 ' + JSON.stringify(ids(snap.thinTickets)) + '）')
+  check(ids(snap.thinTickets).join(',') === '101,102', '已关闭地图里已关闭的子票另有一份瘦身行，开着的那张不进来（实得 ' + JSON.stringify(ids(snap.thinTickets)) + '）')
   const thin101 = (snap.thinTickets || []).filter(function (x) { return String(x.key) === '101' })[0] || {}
   check(thin101.title === '子票甲' && String(thin101.state).toLowerCase() === 'closed' && thin101.number === 101 && thin101.type === 'issue',
     '瘦身行带齐票号、标题、状态与类型（实得 ' + JSON.stringify({ title: thin101.title, state: thin101.state, number: thin101.number, type: thin101.type }) + '）')
   check(Object.keys(thin101).sort().join(',') === 'effortId,key,number,state,title,type',
     '瘦身行只留这么几样，正文与评论不带进来（实得 ' + JSON.stringify(Object.keys(thin101).sort()) + '）')
   const poolRows = [].concat(map100.tickets || [], map300.tickets || [], snap.issues || []).filter(function (x) { return x.isPullRequest !== true })
-  check(poolRows.length === 2, '首屏池子里只有两行票，瘦身行没被算法数进去（实得 ' + poolRows.length + '）')
-  check(!!snap.deck && !!snap.deck.counts && snap.deck.counts.total === 6, 'deck 计数照旧来自后端（实得 ' + JSON.stringify(snap.deck && snap.deck.counts) + '）')
+  check(poolRows.length === 3, '首屏池子里只有三行票（独立那张、图下开着那张、开放地图那张），瘦身行没被算法数进去（实得 ' + poolRows.length + '）')
+  check(!!snap.deck && !!snap.deck.counts && snap.deck.counts.total === 7, 'deck 计数照旧来自后端（实得 ' + JSON.stringify(snap.deck && snap.deck.counts) + '）')
 
   // ---------- 二、信封：字段清单只有一处，两条电话都不漏 ----------
   const envMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'snapshotEnvelope.ts')).href)

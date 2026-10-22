@@ -6,8 +6,10 @@ import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
  *   一、**拉全**：GitHub 的 listSubIssues 按页翻到底，用连接上的 totalCount 核对「拉到的张数 == 总数」，
  *       对不上就把差额（missing）带回来；撞到 1000 张硬上限时 capped 为真、也带回来。
  *       全程用脚本化的 gh（不打真网、不碰真仓库），只断「它答应了什么就做到什么」，不锁查询语句怎么写。
- *   二、**已关闭地图不进首屏**：宿主编排 composeSnapshot 组装出来的快照里，已关闭的地图只有容器行、
- *       不带子票；而那些子票**也不许**从「未挂图的票」那条路漏回首屏。开放地图的子票一行不少。
+ *   二、**已关闭地图不带子票**：宿主编排 composeSnapshot 组装出来的快照里，已关闭的地图只有容器行、
+ *       不带子票；它下面**自己已关闭**的子票也不许从「未挂图的票」那条路漏回首屏，而**还开着的**子票
+ *       必须照常回到首屏、字段完整（#1291：不然列表看不到它，可接数字却还把它算进去）。开放地图的
+ *       子票一行不少。
  *
  * 运行：node tests/verify-691-map-subissues.ts
  */
@@ -81,12 +83,12 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   check(r5.ok === false && r5.error.kind === 'parse', '一.10 地图编号不是数字 → 解析档失败（GitHub 侧只认数字）')
 }
 
-// ── 二、宿主编排：已关闭地图不带子票，且它的子票不从 issues 漏回首屏 ──────────────
+// ── 二、宿主编排：已关闭地图不带子票；它已关闭的子票不漏回首屏，还开着的子票要回去 ──
 {
   const mkIssue = (key: any, state: any, parentKey: any, type?: any) => ({ key: String(key), type: type || 'issue', state: state, title: 't' + key, body: '', url: '', parentKey: parentKey === undefined ? null : parentKey, updatedAt: '2026-01-01', isPullRequest: false })
   const all = [
     mkIssue(600, 'CLOSED', null, 'map'), // 已关闭的地图（容器行）
-    mkIssue(601, 'CLOSED', '600'), mkIssue(602, 'CLOSED', '600'), mkIssue(603, 'OPEN', '600'), // 它的三张子票
+    mkIssue(601, 'CLOSED', '600'), mkIssue(602, 'CLOSED', '600'), mkIssue(603, 'OPEN', '600'), // 它的三张子票：两张已关闭、一张还开着
     mkIssue(700, 'OPEN', null, 'map'), // 开放的地图
     mkIssue(701, 'OPEN', '700'), mkIssue(702, 'CLOSED', '700'), // 它的两张子票
     mkIssue(800, 'OPEN', null), // 一张没挂图的票
@@ -98,10 +100,13 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   const closedMap = snap.maps.find((m) => m.key === '600')
   const openMap = snap.maps.find((m) => m.key === '700')
   check(closedMap && Array.isArray(closedMap.tickets) && closedMap.tickets.length === 0, '二.1 已关闭的地图在快照里只有容器行、不带子票（实得 ' + (closedMap && closedMap.tickets && closedMap.tickets.length) + ' 张）')
-  const leaked = snap.issues.filter((i) => ['601', '602', '603'].includes(i.key))
-  check(leaked.length === 0, '二.2 被挡在外面的那三张子票没有从「未挂图的票」漏回首屏（实得 ' + leaked.length + ' 张）')
+  const leaked = snap.issues.filter((i) => ['601', '602'].includes(i.key))
+  check(leaked.length === 0, '二.2 已关闭地图里已关闭的两张子票没有从「未挂图的票」漏回首屏（实得 ' + leaked.length + ' 张）')
+  const backOpen = snap.issues.find((i) => i.key === '603')
+  check(!!backOpen && backOpen.state === 'OPEN' && backOpen.title === 't603',
+    '二.2b #1291：已关闭地图里还开着的那张子票以完整行回到首屏（实得 ' + JSON.stringify(snap.issues.filter((i) => i.key === '603').map((i) => ({ key: i.key, state: i.state, title: i.title }))) + '）')
   check(openMap && openMap.tickets.length === 2, '二.3 开放地图的子票一行不少（实得 ' + (openMap && openMap.tickets.length) + ' 张）')
-  check(snap.issues.length === 1 && snap.issues[0].key === '800', '二.4 真正没挂图的票照旧在 issues 里（实得 ' + JSON.stringify(snap.issues.map((i) => i.key)) + '）')
+  check(snap.issues.length === 2 && snap.issues.map((i) => i.key).sort().join(',') === '603,800', '二.4 真正没挂图的票照旧在 issues 里，图下还开着的那张也在（实得 ' + JSON.stringify(snap.issues.map((i) => i.key)) + '）')
 }
 
 // ── 三、宿主电话：正文只用来解析进度，剥掉；编号与状态补齐给界面 ─────────────────
@@ -138,5 +143,5 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   check(r2.ok === false && r2.error.kind === 'unsupported', '三.6 后端没实现这条读路径 → unsupported（界面据此照旧画快照那份）')
 }
 
-console.log(failed ? '\n存在失败 — verify-691-map-subissues 未通过' : '\n全部通过 — 地图子票拉全与已关闭地图不进首屏的判据都在')
+console.log(failed ? '\n存在失败 — verify-691-map-subissues 未通过' : '\n全部通过 — 地图子票拉全与已关闭地图子票去向的判据都在')
 process.exit(failed ? 1 : 0)
