@@ -30,7 +30,7 @@
  *   6. 取数五态：取回那份 / 正在取 / 不支持 / 取失败 / 还没有桶，各自画哪份数据、怎么说原因，
  *      以及 capped / missing 只属于「取回那份」。
  *   7. MAP 自身内容：身份 / 目的地 / 档案四节 / 完成度 / 「子票那句」的段，空地图、取数中
- *      （不说话，只剩进度条上的斜纹）、后端不支持、取失败、capped / missing 各画成什么。
+ *      （同一句话、数字用短横占位，不额外写「正在取子票」）、后端不支持、取失败、capped / missing 各画成什么。
  *   8. 纯函数：判断层不 import 界面库、不读后端（动作与词条都从参数进），同目录没有落回来的 .js 产物。
  *   9. 适配层：一张票的刻画摊成卡片 props 时四处理名不漏（bug→bugCorner、footText→footActionText、
  *      blocks→blocksChip、closed 由 status 得出），四个按钮把「是哪张票」交回页面。
@@ -41,9 +41,10 @@
  *      卡片标题用纸面墨色（深色主题下卡片仍是浅纸，标题继承浅色字会看不清）。
  *   12b. 整卡点按进详情：适配层把 onCard 一并交给卡片，接线层用 enterSubDetail 按标签分流到票详情
  *      或子地图详情，卡片组件只有收到 onCard 才把整张卡做成可点（否则保持「点一下点亮挡路关系」）。
- *   13. 档案区高度稳定：计数 / 完成度 / 子票那句固定成一块，取数中计数写占位、子票那句留空、
- *      「正在取数」只用进度条轨道上的流动斜纹表达（不再有「正在取子票」那一行），没有子票时整块隐藏但留位置。
- *      进入页面时不会因为取数状态增删行让卡片上下抖。同样只读源码文本。
+ *   13. 档案区高度稳定：计数 / 完成度 / 子票那句固定成一块，取数中计数写占位、子票那句说同一句
+ *      带短横占位的话（不额外写「正在取子票」，也不空出一行），「正在取数」只用进度条轨道上的
+ *      流动斜纹表达；没有子票时整块隐藏但留位置。进入页面时不会因为取数状态增删行让卡片上下抖。
+ *      同样只读源码文本。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -669,8 +670,11 @@ section('9. MAP 自身内容：身份、目的地、档案（探索四节 / 规�
     'capped 按宿主上限说「前 1000 张」，missing 说还剩几张（实得 ' + show(cappedSegs[1].params) + ' / ' + show(cappedSegs[2].params) + '）')
 
   const loadingSegs = profile.mapFeedSegmentsOf(feed.ticketFeedOf({ mode: 'loading' }, null))
-  check(show(loadingSegs) === show([]),
-    '正在取：一句话都不说（不写「正在取子票」，也不说成 0 张；实得 ' + show(loadingSegs) + '）')
+  check(show(loadingSegs) === show([{ key: 'map.subCount', params: { n: '–', c: '–' } }]),
+    '正在取：同一句话、数字换成短横占位（不写「正在取子票」，也不说成 0 张；实得 ' + show(loadingSegs) + '）')
+  const loadingKnownSegs = profile.mapFeedSegmentsOf(feed.ticketFeedOf({ mode: 'loading' }, { stats: { total: 8, closed: 4 } }))
+  check(show(loadingKnownSegs) === show([{ key: 'map.subCount', params: { n: 8, c: 4 } }]),
+    '正在取但快照已经说了张数：直接说真数，取回来后不换字（实得 ' + show(loadingKnownSegs) + '）')
   const unsupportedSegs = profile.mapFeedSegmentsOf(feed.ticketFeedOf({ mode: 'err', error: { kind: 'unsupported' } }, null))
   check(show(unsupportedSegs) === show([]), '后端明确不支持：一个字都不加（实得 ' + show(unsupportedSegs) + '）')
 
