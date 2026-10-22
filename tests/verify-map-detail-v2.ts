@@ -2,17 +2,18 @@
 /**
  * tests/verify-map-detail-v2.ts —— V2 地图详情页「纯逻辑层」的专属门禁。
  *
- * 为什么要有这一条：V2 页面还在长，第一批落地的是五个不依赖界面的判断模块
- *   （行 → 卡片的刻画、未完成/已完成的排法、三条取数来路的合成、MAP 自身内容的刻画、数据契约）。它们
- *   决定了页面上一张卡片画成什么样、摆在哪里、数据不全时怎么说——这些判断一旦错了，
- *   页面写得多好看都是错的。这一层今天没有任何门禁碰过，改坏了不会有第二处拦住。
+ * 为什么要有这一条：V2 页面还在长，先落地的是不依赖界面的判断层与适配层
+ *   （行 → 卡片的刻画、未完成/已完成的排法、三条取数来路的合成、MAP 自身内容的刻画、
+ *   刻画 → 卡片 props 的适配、一整页模型的合成、数据契约）。它们决定了页面上一张卡片画成什么样、
+ *   摆在哪里、数据不全时怎么说——这些判断一旦错了，页面写得多好看都是错的。
+ *   这一层今天没有任何门禁碰过，改坏了不会有第二处拦住。
  *
  * 被测对象是谁：src/client/mapDetailV2/ 下的 .ts 真源（不是产物）。这一批代码按
  *   「先不接入」的约定没有登记进客户端闭包、不进构建产物，所以门禁直接 require 真源
  *   （经 scripts/ts-hook.mts 做类型剥离）。等接入时它们会搬进 views/ 并登记为叶子，
  *   那时这套判据仍然成立：断言的是行为，不是文件位置。
  *
- * 断的八件事：
+ * 断的十件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
  *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
@@ -26,7 +27,10 @@
  *      以及 capped / missing 只属于「取回那份」。
  *   7. MAP 自身内容：身份 / 目的地 / 档案四节 / 完成度 / 「子票那句」的段，空地图、取数中、
  *      后端不支持、取失败、capped / missing 各画成什么。
- *   8. 纯函数：四份逻辑模块没有任何运行时 import（动作与词条都从参数进），同目录没有落回来的 .js 产物。
+ *   8. 纯函数：判断层不 import 界面库、不读后端（动作与词条都从参数进），同目录没有落回来的 .js 产物。
+ *   9. 适配层：一张票的刻画摊成卡片 props 时四处理名不漏（bug→bugCorner、footText→footActionText、
+ *      blocks→blocksChip、closed 由 status 得出），四个按钮把「是哪张票」交回页面。
+ *   10. 一整页模型：一次算好档案、取数状态、看板、计数与两段卡片 props，且计数与卡片张数一致。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -52,27 +56,36 @@ const facts = require('../src/client/mapDetailV2/ticketCardFacts.ts')
 const board = require('../src/client/mapDetailV2/ticketBoard.ts')
 const feed = require('../src/client/mapDetailV2/ticketFeed.ts')
 const profile = require('../src/client/mapDetailV2/mapProfile.ts')
+const cardProps = require('../src/client/mapDetailV2/cardPropsOf.ts')
+const pageModel = require('../src/client/mapDetailV2/mapDetailPageModel.ts')
 
 // ===========================================================================
-// 0. 前置：真源都在，旁边没有同名 .js 产物，三个模块都没有运行时 import
+// 0. 前置：真源都在，旁边没有同名 .js 产物，判断层不 import 界面库与后端
 // ===========================================================================
-section('0. 前置：五份真源都在、没有同名 .js、四份逻辑模块没有运行时 import')
+section('0. 前置：七份真源都在、没有同名 .js、逻辑模块不 import 界面库与后端')
 {
-  const wanted = ['mapDetailTypes.d.ts', 'ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts', 'mapProfile.ts']
+  const wanted = ['mapDetailTypes.d.ts', 'ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts', 'mapProfile.ts', 'cardPropsOf.ts', 'mapDetailPageModel.ts']
   const missing = wanted.filter((name) => !fs.existsSync(path.join(DIR, name)))
-  check(missing.length === 0, '五份真源都在（缺的：' + (missing.length ? missing.join('、') : '无') + '）')
+  check(missing.length === 0, '七份真源都在（缺的：' + (missing.length ? missing.join('、') : '无') + '）')
 
   const strayJs = wanted.filter((name) => name.endsWith('.ts') && fs.existsSync(path.join(DIR, name.slice(0, -3) + '.js')))
   check(strayJs.length === 0, '真源旁边没有同名 .js 产物（多出来的：' + (strayJs.length ? strayJs.join('、') : '无') + '）')
 
-  const runtimeImporters = ['ticketCardFacts.ts', 'ticketBoard.ts', 'ticketFeed.ts', 'mapProfile.ts'].filter((name) => {
+  // 判断层与适配层可以互相 import（同一目录内的纯函数），但不许 import 界面库、不许摸后端。
+  // 动作与词条仍从参数进，所以这里的 import 只会指向同目录的兄弟模块。
+  const offenders = wanted.filter((name) => {
+    if (!name.endsWith('.ts')) return false
     const src = fs.readFileSync(path.join(DIR, name), 'utf8')
-    return /^import\s+(?!type\b)/m.test(src)
+    const specs = []
+    const re = /^import\s+(?!type\b)[^'"]*from\s+['"]([^'"]+)['"]/gm
+    let m
+    while ((m = re.exec(src)) !== null) specs.push(m[1])
+    return specs.some((spec) => spec.indexOf('./') !== 0)
   })
-  check(runtimeImporters.length === 0,
-    '四份逻辑模块没有运行时 import（只允许 import type；违反的：' + (runtimeImporters.length ? runtimeImporters.join('、') : '无') + '）')
+  check(offenders.length === 0,
+    '判断层只 import 同目录的兄弟模块，不 import 界面库与后端（违反的：' + (offenders.length ? offenders.join('、') : '无') + '）')
 
-  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapDecision', 'MapProfile']
+  const typeExports = ['MapTicketRow', 'MapTicketsBucket', 'TicketCardFacts', 'TicketFactsEnv', 'TicketFeed', 'TicketBoard', 'TicketBoardCounts', 'MapRowContent', 'MapDecision', 'MapProfile', 'TicketCardHandlers', 'MapDetailPageInputs', 'MapDetailPageModel']
   const typesSrc = fs.readFileSync(path.join(DIR, 'mapDetailTypes.d.ts'), 'utf8')
   const missingTypes = typeExports.filter((name) => typesSrc.indexOf('export interface ' + name) < 0 && typesSrc.indexOf('export type ' + name) < 0)
   check(missingTypes.length === 0, '数据契约里的关键类型都声明了（缺的：' + (missingTypes.length ? missingTypes.join('、') : '无') + '）')
@@ -642,6 +655,136 @@ section('9. MAP 自身内容：身份、目的地、档案四节、完成度、�
     '只有空白的目的地等于没有（不把空白画成一句话，实得 ' + show(blankDestination.destination) + '）')
   check(blankDestination.hasSections === false && blankDestination.progressPercent === 0 && blankDestination.noText === '',
     '空行 + 空计数：一份不骗人的空档案（实得 ' + show(blankDestination) + '）')
+}
+
+
+// ===========================================================================
+// 10. 适配层：一张票的刻画 → 卡片 props
+// ===========================================================================
+section('10. 适配层：四处理名不漏，四个按钮把「是哪张票」交回页面')
+{
+  const ENV = { cardIdPrefix: 'm1314', colorOf: { 'wayfinder:task': '10b981' }, actionOf: function () { return 'execute' }, textOf: function (key) { return key } }
+  const ROWS = [
+    { key: 'i-1332', number: 1332, title: '挡路的那张', state: 'OPEN' },
+    { key: 'i-1374', number: 1374, title: '被挡的那张', state: 'OPEN', blockedBy: [1332] },
+    { key: 'i-1315', number: 1315, title: '结案的 bug 票', state: 'CLOSED', labels: ['bug'] },
+  ]
+  const CTX = facts.ticketFactsContextOf(ROWS, ENV)
+  const FACT_LIST = ROWS.map(function (row) { return facts.ticketCardFactsOf(row, CTX) })
+  const factOf = function (no) { return FACT_LIST.filter(function (one) { return one.number === no })[0] }
+
+  const props = cardProps.cardPropsOf(factOf(1332), null, ENV.colorOf)
+  check(props.action === 'execute' && props.closed === false && props.footActionText === 'card.pickReady',
+    '动作、结案态与页脚词原样搬过去（实得 ' + show(props.action) + ' / ' + show(props.closed) + ' / ' + show(props.footActionText) + '）')
+  check(show(props.blocksChip) === show({ no: '1374', title: '被挡的那张' }),
+    'blocks 改名叫 blocksChip，挡路条画得出来（实得 ' + show(props.blocksChip) + '）')
+  check(props.bugCorner === false, '没 bug 标签时不给 BUG 三角（实得 ' + show(props.bugCorner) + '）')
+  check(show(props.tags) === show(factOf(1332).tags) && props.updatedText === factOf(1332).updatedText,
+    '类型小签与更新日原样搬过去（实得 ' + show(props.tags) + ' / ' + show(props.updatedText) + '）')
+
+  const blockedProps = cardProps.cardPropsOf(factOf(1374), null, null)
+  check(show(blockedProps.blockedBy) === show({ no: '1332', title: '挡路的那张', cardId: 'm1314-1332-i-1332' }),
+    'blockedBy 带上编号、标题与那张卡的 DOM id（实得 ' + show(blockedProps.blockedBy) + '）')
+  check(blockedProps.blocksChip === null, '被挡卡没有挡路条（实得 ' + show(blockedProps.blocksChip) + '）')
+
+  const closedProps = cardProps.cardPropsOf(factOf(1315), null, null)
+  check(closedProps.closed === true && closedProps.bugCorner === true && closedProps.footActionText === 'card.closedState',
+    '结案卡进结案态、保留 BUG 三角、页脚写已结案（实得 ' + show(closedProps.closed) + ' / ' + show(closedProps.bugCorner) + ' / ' + show(closedProps.footActionText) + '）')
+  check(closedProps.blockedBy === null && closedProps.blocksChip === null,
+    '结案卡不表现阻塞关系（实得 ' + show(closedProps.blockedBy) + ' / ' + show(closedProps.blocksChip) + '）')
+  check(props.colorOf === ENV.colorOf, '页面给的标签色原样交给卡片（实得 ' + show(props.colorOf) + '）')
+  check(props.note === undefined, '没有真实摘要时不画 note，不拿假话占位（实得 ' + show(props.note) + '）')
+
+  const seen = []
+  const withHandlers = cardProps.cardPropsOf(factOf(1332), {
+    onMain: function (one) { seen.push(['main', one.number]) },
+    onNew: function (one) { seen.push(['new', one.number]) },
+    onCopy: function (one) { seen.push(['copy', one.number]) },
+    onOpen: function (one) { seen.push(['open', one.number]) },
+  }, null)
+  withHandlers.onMain()
+  withHandlers.onNew()
+  withHandlers.onCopy()
+  withHandlers.onOpen()
+  check(show(seen) === show([['main', 1332], ['new', 1332], ['copy', 1332], ['open', 1332]]),
+    '四个按钮都只把「这张票」交回页面，页面不必自己记来源（实得 ' + show(seen) + '）')
+  check(withHandlers.onLitChange === undefined && withHandlers.lit === undefined,
+    '点亮状态交给卡片自己管，页面不硬塞（实得 ' + show(withHandlers.lit) + '）')
+
+  const noHandlers = cardProps.cardPropsOf(factOf(1332), null, null)
+  check(noHandlers.onMain === null && noHandlers.onNew === null && noHandlers.onCopy === null && noHandlers.onOpen === null,
+    '没给回调时四个按钮都是 null（与卡片组件「可空回调」的约定一致）')
+
+  const list = cardProps.cardPropsListOf(FACT_LIST, null, null)
+  check(list.length === 3 && list[0].noText === '#1332' && list[2].noText === '#1315',
+    '分段摊 props 保持传入顺序与张数（实得 ' + show(list.map(function (one) { return one.noText })) + '）')
+}
+
+// ===========================================================================
+// 11. 一整页模型：档案、取数状态、看板、计数、两段卡片 props 一次算好
+// ===========================================================================
+section('11. 一整页模型：计数与卡片张数一致，取数五态都画得对')
+{
+  const ENV = { colorOf: { 'wayfinder:task': '10b981' }, actionOf: function () { return 'execute' }, textOf: function (key) { return key } }
+  const MAP = { number: 1314, key: '1314', title: '插件日志持久化读回失败与宿主反复启动', destination: '让日志能如实落盘', tickets: [], stats: { total: 0 } }
+  const ROWS = [
+    { key: 'i-1332', number: 1332, title: '可接的那张', state: 'OPEN' },
+    { key: 'i-1374', number: 1374, title: '被挡的那张', state: 'OPEN', blockedBy: [1332] },
+    { key: 'i-1315', number: 1315, title: '结案的那张', state: 'CLOSED', closedAt: '2026-10-18T09:00:00Z' },
+  ]
+  const seen = []
+  const model = pageModel.mapDetailPageModelOf({
+    map: MAP,
+    bucket: { mode: 'real', items: ROWS, stats: { total: 3, closed: 1 } },
+    cardIdPrefix: 'm1314',
+    colorOf: ENV.colorOf,
+    actionOf: ENV.actionOf,
+    textOf: ENV.textOf,
+    handlers: { onMain: function (one) { seen.push(one.number) } },
+  })
+  check(model.profile.noText === '#1314' && model.profile.title === MAP.title,
+    '档案的身份与标题来自地图行（实得 ' + show(model.profile.noText) + ' / ' + show(model.profile.title) + '）')
+  check(show(model.counts) === show({ total: 3, closed: 1, ready: 1, doing: 0, blocked: 1 }),
+    '计数与宿主 groupTickets 的五个桶同口径（实得 ' + show(model.counts) + '）')
+  check(model.profile.progressPercent === 33, '完成度按已完成张数算（实得 ' + show(model.profile.progressPercent) + '%）')
+  check(model.cards.open.length === 2 && model.cards.closed.length === 1,
+    '两段卡片的张数与计数对得上：未完成 ' + model.cards.open.length + ' 张、已完成 ' + model.cards.closed.length + ' 张')
+  check(model.feed.state === 'ready' && model.feed.source === 'requested',
+    '取数成功时用取回那份（实得 ' + show(model.feed.state) + ' / ' + show(model.feed.source) + '）')
+  check(model.profile.feedSegments[0] && model.profile.feedSegments[0].key === 'map.subCount',
+    '子票那句按取回那份的 stats 说（实得 ' + show(model.profile.feedSegments) + '）')
+  model.cards.open[0].onMain()
+  check(show(seen) === show([1332]),
+    '页面回调经整页模型仍然收到「这张票」，链路不断（实得 ' + show(seen) + '）')
+
+  const loadingModel = pageModel.mapDetailPageModelOf({
+    map: { number: 7, title: '快照里的地图', tickets: [{ number: 1, title: '快照票', state: 'OPEN' }], stats: { total: 1 } },
+    bucket: { mode: 'loading' },
+    cardIdPrefix: 'm7', actionOf: ENV.actionOf, textOf: ENV.textOf,
+  })
+  check(loadingModel.feed.state === 'loading' && loadingModel.cards.open.length === 1,
+    '正在取时先按快照画，不把「还没拿到」画成「没有」（实得 ' + show(loadingModel.feed.state) + ' / ' + show(loadingModel.cards.open.length) + '）')
+
+  const cappedModel = pageModel.mapDetailPageModelOf({
+    map: MAP,
+    bucket: { mode: 'real', items: ROWS, stats: { total: 1200, closed: 1 }, total: 1200, capped: true, missing: 3 },
+    cardIdPrefix: 'm1314', actionOf: ENV.actionOf, textOf: ENV.textOf,
+  })
+  const cappedKeys = cappedModel.profile.feedSegments.map(function (seg) { return seg.key })
+  check(show(cappedKeys) === show(['map.subCount', 'map.subCountCapped', 'map.subCountShort']),
+    '被上限截断与差额都要明说（实得 ' + show(cappedKeys) + '）')
+  check(cappedModel.cards.open.length + cappedModel.cards.closed.length === 3,
+    '计数按画出来的行算，与卡片张数一致（实得 ' + (cappedModel.cards.open.length + cappedModel.cards.closed.length) + ' 张）')
+
+  const emptyModel = pageModel.mapDetailPageModelOf({
+    map: { number: 9, title: '空地图', tickets: [], stats: { total: 0 } },
+    bucket: { mode: 'real', items: [], stats: { total: 0 } },
+    cardIdPrefix: 'm9', actionOf: ENV.actionOf, textOf: ENV.textOf,
+  })
+  check(emptyModel.feed.empty === true && emptyModel.cards.open.length === 0 && emptyModel.cards.closed.length === 0,
+    '真的一张都没有时空态成立、两段都为空（实得 ' + show(emptyModel.feed.empty) + ' / ' + show(emptyModel.cards.open.length) + ' / ' + show(emptyModel.cards.closed.length) + '）')
+  check(emptyModel.profile.progressPercent === 0 && emptyModel.profile.hasDestination === false,
+    '空地图的完成度是 0，目的地也不是一句空话（实得 ' + show(emptyModel.profile.progressPercent) + ' / ' + show(emptyModel.profile.hasDestination) + '）')
 }
 
 

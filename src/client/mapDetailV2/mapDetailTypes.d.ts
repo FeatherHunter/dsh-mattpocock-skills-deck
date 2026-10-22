@@ -10,6 +10,8 @@
  * 那一件事单独做，免得「先不接入」这句话在代码上变成空话。
  */
 
+import type { IssueCardProps } from '../views/cards/cardProps'
+
 /** 子票行的最小并集：只列 V2 真正读到的字段；其余字段即使有，也不在这里承诺。 */
 export interface MapTicketRow {
   /** 行自己的 key（快照与按需取数两边都有）；没有编号时靠它给卡片 id 起名字。 */
@@ -271,5 +273,65 @@ export interface MapProfile {
   hasSections: boolean
   /** 快照错误（截到 160 字）；没有错误时是空串。 */
   errorText: string
+}
+
+/**
+ * 一张卡片的四个按钮被点按后要做什么。
+ *
+ * 为什么由页面传进来而不是模型自己决定：模型不认识导航栈、宿主电话与注入渠道；
+ * 它只负责把「这张票的刻画」一并交给回调，页面据此做注入提示词、开新会话、复制链接、打开外链。
+ */
+export interface TicketCardHandlers {
+  /** 主按钮（按这张票的动作而定：诊断 / 执行 / 修复 / 接手 / 补充 / 研究 / 讨论 / 原型）。 */
+  onMain?: (facts: TicketCardFacts) => void
+  /** 「新会话」按钮。 */
+  onNew?: (facts: TicketCardFacts) => void
+  /** 「复制链接」按钮。 */
+  onCopy?: (facts: TicketCardFacts) => void
+  /** 「打开外链」按钮（或本机路径）。 */
+  onOpen?: (facts: TicketCardFacts) => void
+}
+
+/** 合成一整页模型要的外部输入：地图行、取数桶、页面给的动作与词条来源、四个按钮的页面回调。 */
+export interface MapDetailPageInputs {
+  /** 快照里的地图行（含正文五区解析结果）。 */
+  map: MapRowContent
+  /** 按需取数桶；首屏还没有时传 null，模型按快照画并标 loading。 */
+  bucket?: MapTicketsBucket | null
+  /** 卡片 DOM id 前缀：调用方按「工作单元 + 地图编号」给。 */
+  cardIdPrefix: string
+  /** 标签名 → 十六进制色；页面传 buildColorOf(st)。 */
+  colorOf?: Record<string, string> | null
+  /** 这张票的生产侧动作（真页传 rowActionKind）。 */
+  actionOf: (row: MapTicketRow) => SourceActionKind
+  /** 词条取字（真页传 tr）。 */
+  textOf: (key: string) => string
+  /** 四个按钮的页面回调。 */
+  handlers?: TicketCardHandlers | null
+}
+
+/** 一整页的卡片：未完成一段、已完成一段，顺序与看板一致。 */
+export interface MapDetailCards {
+  open: IssueCardProps[]
+  closed: IssueCardProps[]
+}
+
+/**
+ * 一整页要画的东西：地图档案、取数状态、看板、计数、两段卡片 props。
+ *
+ * 页面容器只负责发取数请求、把宿主电话与导航接进 handlers，然后把这份模型交给画法层。
+ * 这样「怎么判断」全在纯函数里，画法层只认这一份形状；换皮肤、换布局都不动判断。
+ */
+export interface MapDetailPageModel {
+  /** MAP 自身内容（档案区 + 头部 + 完成度 + 子票那句）。 */
+  profile: MapProfile
+  /** 取数状态（页面据 state 决定画「正在取」「取不到」还是两段卡片）。 */
+  feed: TicketFeed
+  /** 看板的刻画（画法层偶尔要读某张票的 fact，例如给卡加 note 之外的信息）。 */
+  board: TicketBoard
+  /** 看板计数（与 profile.counts 同一份，留一份给画法层少读一层）。 */
+  counts: TicketBoardCounts
+  /** 两段卡片的 props（已按看板顺序排好，直接摊给卡片组件）。 */
+  cards: MapDetailCards
 }
 

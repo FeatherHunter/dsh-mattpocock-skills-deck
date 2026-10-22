@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-22T14:23:01.670Z",
+  "generatedAt": "2026-10-22T14:31:13.135Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 322,
   "gateCount": 322,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 530,
+  "graphFileCount": 532,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -8968,9 +8968,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 546,
+    "fileCount": 548,
     "dirCount": 61,
-    "coveredFileCount": 546,
+    "coveredFileCount": 548,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 52,
@@ -9032,6 +9032,8 @@
       "src/client/kernel/tabsfold.ts",
       "src/client/kernel/ui-feedback.ts",
       "src/client/kernel/work-route-own.ts",
+      "src/client/mapDetailV2/cardPropsOf.ts",
+      "src/client/mapDetailV2/mapDetailPageModel.ts",
       "src/client/mapDetailV2/mapDetailTypes.d.ts",
       "src/client/mapDetailV2/mapProfile.ts",
       "src/client/mapDetailV2/ticketBoard.ts",
