@@ -204,34 +204,34 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 | 贡献者 | 致敬 | 贡献 |
 | --- | --- | --- |
-| [@pioneerAlone](https://github.com/pioneerAlone) | 🌹🌹🌹🌹🌹🌹 | #298 #274 #234 #645 #273 #316 |
-| [@zhengcookie](https://github.com/zhengcookie) | 🌹🌹🌹🌹 | #1003 #960 #1160 #1291 |
-| [@Shimmernight](https://github.com/Shimmernight) | 🌹🌹🌹🌹 | #277 #287 #275 #106 |
-| [@anupamme](https://github.com/anupamme) | 🌹🌹🌹 | #727 #728 #1156 |
-| [@9agj](https://github.com/9agj) | 🌹🌹🌹 | #992 #993 #994 |
-| [@gzy31007](https://github.com/gzy31007) | 🌹🌹 | #1272 #1273 |
-| [@qq1393950873-bit](https://github.com/qq1393950873-bit) | 🌹🌹 | #970 #974 |
-| [@hyperion2144](https://github.com/hyperion2144) | 🌹🌹 | #110 #646 |
-| [@arnold117](https://github.com/arnold117) | 🌹🌹 | #574 #575 |
-| [@angenet](https://github.com/angenet) | 🌹🌹 | #295 #262 |
-| [@WDXXZH](https://github.com/WDXXZH) | 🌹 | #1137 |
-| [@Drayee](https://github.com/Drayee) | 🌹 | #1101 |
-| [@30892096](https://github.com/30892096) | 🌹 | #1100 |
-| [@fishke22](https://github.com/fishke22) | 🌹 | #1000 |
-| [@jack2jiehua](https://github.com/jack2jiehua) | 🌹 | #930 |
-| [@asesr](https://github.com/asesr) | 🌹 | #926 |
-| [@SKADI0718](https://github.com/SKADI0718) | 🌹 | #856 |
-| [@li873582595](https://github.com/li873582595) | 🌹 | #835 |
-| [@zerocodefast](https://github.com/zerocodefast) | 🌹 | #823 |
-| [@seameafst](https://github.com/seameafst) | 🌹 | #793 |
-| [@SbDonger](https://github.com/SbDonger) | 🌹 | #640 |
-| [@snmtg1008](https://github.com/snmtg1008) |  | #476 |
-| [@dis0neplay](https://github.com/dis0neplay) | 🌹 | #493 |
-| [@xiSage](https://github.com/xiSage) | 🌹 | #435 #436 |
-| [@tafcear](https://github.com/tafcear) | 🌹 | #422 |
-| [@21967201](https://github.com/21967201) | 🌹 | #321 |
-| [@271912980](https://github.com/271912980) |  | #257 |
-| [@lilincen](https://github.com/lilincen) |  | #1301 |
+| [@pioneerAlone](https://github.com/pioneerAlone) | 🌹🌹🌹🌹🌹🌹 | [#298](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/298) [#274](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/274) [#234](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/234) [#645](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/645) [#273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/273) [#316](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/316) |
+| [@zhengcookie](https://github.com/zhengcookie) | 🌹🌹🌹🌹 | [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) [#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) [#1160](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1160) [#1291](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1291) |
+| [@Shimmernight](https://github.com/Shimmernight) | 🌹🌹🌹🌹 | [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) [#287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287) [#275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275) [#106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) |
+| [@anupamme](https://github.com/anupamme) | 🌹🌹🌹 | [#727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727) [#728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) [#1156](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1156) |
+| [@9agj](https://github.com/9agj) | 🌹🌹🌹 | [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) [#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) [#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) |
+| [@gzy31007](https://github.com/gzy31007) | 🌹🌹 | [#1272](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1272) [#1273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1273) |
+| [@qq1393950873-bit](https://github.com/qq1393950873-bit) | 🌹🌹 | [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) [#974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) |
+| [@hyperion2144](https://github.com/hyperion2144) | 🌹🌹 | [#110](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/110) [#646](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/646) |
+| [@arnold117](https://github.com/arnold117) | 🌹🌹 | [#574](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/574) [#575](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/575) |
+| [@angenet](https://github.com/angenet) | 🌹🌹 | [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295) [#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) |
+| [@lilincen](https://github.com/lilincen) | 🌹 | [#1301](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1301) |
+| [@WDXXZH](https://github.com/WDXXZH) | 🌹 | [#1137](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1137) |
+| [@Drayee](https://github.com/Drayee) | 🌹 | [#1101](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1101) |
+| [@30892096](https://github.com/30892096) | 🌹 | [#1100](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1100) |
+| [@fishke22](https://github.com/fishke22) | 🌹 | [#1000](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1000) |
+| [@jack2jiehua](https://github.com/jack2jiehua) | 🌹 | [#930](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/930) |
+| [@asesr](https://github.com/asesr) | 🌹 | [#926](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/926) |
+| [@SKADI0718](https://github.com/SKADI0718) | 🌹 | [#856](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/856) |
+| [@li873582595](https://github.com/li873582595) | 🌹 | [#835](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/835) |
+| [@zerocodefast](https://github.com/zerocodefast) | 🌹 | [#823](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/823) |
+| [@seameafst](https://github.com/seameafst) | 🌹 | [#793](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/793) |
+| [@SbDonger](https://github.com/SbDonger) | 🌹 | [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) |
+| [@dis0neplay](https://github.com/dis0neplay) | 🌹 | [#493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) |
+| [@snmtg1008](https://github.com/snmtg1008) | 🌹 | [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) |
+| [@xiSage](https://github.com/xiSage) | 🌹 | [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) |
+| [@tafcear](https://github.com/tafcear) | 🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) |
+| [@21967201](https://github.com/21967201) | 🌹 | [#321](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/321) |
+| [@271912980](https://github.com/271912980) | 🌹 | [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) |
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
