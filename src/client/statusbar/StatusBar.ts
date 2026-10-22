@@ -300,7 +300,9 @@ export const StatusBar = (props: any) => {
       // #1363 增补字段：reason/decideStep 回答「为什么这一条或为什么没有」（waiting-snapshot / missing-blocks-setup /
       //   gate-open / step-not-done / all-done）；backendId/steps 是当时的后端与快照行数；wsHash/sidHash 让这一行能与
       //   chain.flow 那两行按工作区、会话对上（只记短哈希，不落路径与标题）。
-      try { log('info', 'guide.banner', { step: String((bannerStep && bannerStep.id) || ''), banner: text, tone: tone, outcome: _bannerLogKey ? 'shown' : 'cleared', ageMs: prev.at ? (now - prev.at) : 0, reason: _bannerDiag.reason, decideStep: _bannerDiag.stepId, backendId: _bannerDiag.backendId, steps: _bannerDiag.steps, wsHash: _bannerDiag.wsHash, sidHash: _bannerDiag.sidHash }) } catch (eL) {}
+      //   出现/消失看的是「这一步到底有没有」（bannerStep），不是边沿键：没有横幅时键也带着原因代号（cleared|all-done 之类），
+      //   拿键判真值会把「一条都没有」记成 shown —— 真机日志里出现过 step 与 banner 都空、outcome 却写 shown 的行。
+      try { log('info', 'guide.banner', { step: String((bannerStep && bannerStep.id) || ''), banner: text, tone: tone, outcome: bannerStep ? 'shown' : 'cleared', ageMs: prev.at ? (now - prev.at) : 0, reason: _bannerDiag.reason, decideStep: _bannerDiag.stepId, backendId: _bannerDiag.backendId, steps: _bannerDiag.steps, wsHash: _bannerDiag.wsHash, sidHash: _bannerDiag.sidHash }) } catch (eL) {}
       dswsBannerLast.key = _bannerLogKey
       dswsBannerLast.at = now
     } catch (e) {}

@@ -8,15 +8,20 @@
 //      只能靠正在看时那条 5 秒节拍反复重算；而客户端那片 timer 包装从前没有转发 interval，
 //      节拍从来没排上过（真机日志 probe.loop 全是 no-timer）。
 //
-// 本门禁量三件事（都是跑起来的结果，不读源码里有没有某个字）：
+// 本门禁量四件事（都是跑起来的结果，不读源码里有没有某个字）：
 //   A. hostShim 的 timer 包装真的转发了 interval：宿主有 interval 用宿主的、撤销能撤掉；
 //      宿主没有退回页面自己那一档，也撤得掉。
 //   B. chainBackoff 对 'setup-pending' 这一路的等待封顶：等满 15 秒无条件真算一次；
 //      同一个时刻换别的后台触发名仍然按退避等；人手重查照旧无条件算。
 //   C. probe-auto 的活跃节拍真的排得上：宿主有 interval 时按宿主给的间隔排、隔变要重排；
 //      宿主没有时如实记 no-timer 且不排；排上之后每一拍会带 'setup-pending' 让链重算（#891 的接线）。
+//   D. 显示层的判定本身认得出两幕：选完后端拿回的还是选之前那份旧快照（里面没有仓库那一行）时，
+//      不再一条都不出，而是出中性提示条；初始化与技能都做完后一条都不出。这是「黄条该出现时出现、
+//      该消失时消失」的最后一跳，此前没有门禁直接喂快照给它。
 //
 // 门禁归属: src/client/hostShim.ts
+// 门禁归属: src/client/statusbar/StatusBar.ts
+// 门禁归属: src/client/statusbar/bannerChain.ts
 // 门禁归属: src/client/kernel/probe-auto.ts
 // 门禁归属: src/client/kernel/attention-heartbeat.ts
 // 门禁归属: src/host/refresh/chainBackoff.ts
@@ -26,6 +31,7 @@
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
 import { CHAIN_SETUP_PENDING_CAP_MS } from '../src/shared/time-config/values.js'
+import { guideStepsFor, guideStepDone, guideBannerOf, guideMissingOf } from '../src/shared/tracker/guide-steps.js'
 
 let failed = false
 let total = 0
@@ -199,12 +205,81 @@ const partC = async function (): Promise<void> {
   check(noTimer.length === 1 && noTimer[0].fields.timerOk === false, '常驻记一行 probe.loop reason=no-timer、timerOk=false（实得 ' + JSON.stringify(noTimer) + '）')
 }
 
+// ---------------------------------------------------------------------------------------------
+// D. 显示层：直接把链快照喂给判定函数，量两幕里「该出哪一条」这个结论本身
+// ---------------------------------------------------------------------------------------------
+const partD = function (): void {
+  console.log('#1363 D. 显示层认得出「快照缺了挡路那一行」，两幕该出的横幅都判得出来')
+  const scope: Record<string, any> = {
+    guideStepsFor: guideStepsFor,
+    guideStepDone: guideStepDone,
+    guideBannerOf: guideBannerOf,
+    guideMissingOf: guideMissingOf,
+    dswsLogHash: function (s: any): string { return 'h' + String(s || '').length },
+    wsKeyOf: function (x: any): string { return String(x || '') },
+  }
+  const mod = loadSpliced('src/client/statusbar/bannerChain.js', ['guideBannerDecision', 'guideBannerStep', 'guideBannerDiagnosis'], scope)
+  const stOf = function (backendId: string, steps: any[]): any {
+    return { cwd: 'D:\\ws1363', sessionId: 'sess-1363', selection: { backendId: backendId }, chainSnapshot: { steps: steps } }
+  }
+  const done = function (id: string): any { return { id: id, status: 'done' } }
+  const pending = function (id: string): any { return { id: id, status: 'pending' } }
+
+  // D1. 后端已选、快照还没到：安静等着，不出横幅（#661 第④条：快照没到不许当成没过）。
+  const wait = mod.guideBannerDecision(stOf('github', []), false)
+  check(wait.step === null && wait.reason === 'waiting-snapshot' && wait.stepId === 'gh:remote', '快照一行都没有时不出横幅、原因记 waiting-snapshot（实得 ' + JSON.stringify(wait) + '）')
+
+  // D2. 场景一那一刻：选完后端、拿回来的还是选之前的旧快照（真机上是 4 行通用步骤，没有仓库/CLI 那几行）。
+  //     旧代码在这里整条链都不出（静默），现在要出那条中性的「环境状态没取到，点此重新检查」。
+  const staleRows = [pending('tracker:initialized'), pending('skill:wayfinder'), pending('skill:setup-matt-pocock-skills'), pending('skill:ask-matt')]
+  const unread = mod.guideBannerDecision(stOf('github', staleRows), false)
+  check(unread.step && unread.step.id === 'chain:unread' && unread.reason === 'missing-blocks-setup', '旧快照缺仓库那一行时出中性提示条，原因记 missing-blocks-setup（实得 ' + JSON.stringify({ id: unread.step && unread.step.id, reason: unread.reason }) + '）')
+  const unreadMeta = mod.guideBannerDiagnosis(stOf('github', staleRows), false)
+  check(unreadMeta.meta && unreadMeta.meta.text === 'banner.chainUnread' && unreadMeta.meta.tone === 'warn', '中性提示条的文案与颜色取自这一条自己的声明（实得 ' + JSON.stringify(unreadMeta.meta) + '）')
+  check(unreadMeta.steps === 4 && unreadMeta.backendId === 'github', '日志字段带上当时快照行数与后端 id（实得 steps=' + unreadMeta.steps + '、backendId=' + unreadMeta.backendId + '）')
+  const unreadMissing = guideMissingOf(unread.step, staleRows)
+  check(unreadMissing && unreadMissing.type === 'recheck', '中性提示条那颗按钮走「人亲手重查」那一路（实得 ' + JSON.stringify(unreadMissing) + '）')
+  check(String(unreadMeta.key).indexOf('chain:unread|') === 0, '边沿键分得清是这一条（实得 ' + unreadMeta.key + '）')
+
+  // D3. 重算回来了：缺 CLI / 缺仓库按清单顺序各自出对应那条；仓库那条排在初始化之前（修复后第一条黄条是仓库那条）。
+  const noCli = mod.guideBannerDecision(stOf('github', [pending('gh:installed'), pending('gh:authed'), pending('gh:remote'), pending('tracker:initialized')]), false)
+  check(noCli.step && noCli.step.id === 'gh:installed' && noCli.reason === 'step-not-done', '缺命令行工具时先出装 CLI 那条（实得 ' + JSON.stringify({ id: noCli.step && noCli.step.id, reason: noCli.reason }) + '）')
+  const noRepoSteps = [done('gh:installed'), done('gh:authed'), pending('gh:remote'), pending('tracker:initialized')]
+  const noRepo = mod.guideBannerDecision(stOf('github', noRepoSteps), false)
+  check(noRepo.step && noRepo.step.id === 'gh:remote' && noRepo.reason === 'step-not-done', '命令行与登录都过了、只缺仓库时出仓库那条（实得 ' + JSON.stringify({ id: noRepo.step && noRepo.step.id, reason: noRepo.reason }) + '）')
+  const noRepoMeta = mod.guideBannerDiagnosis(stOf('github', noRepoSteps), false)
+  check(noRepoMeta.meta && noRepoMeta.meta.text === 'banner.repo', '缺仓库时用的是仓库那条文案（实得 ' + JSON.stringify(noRepoMeta.meta) + '）')
+
+  // D4. 场景二：Markdown 工作区初始化还挂着时出初始化那条；初始化与技能都做完后一条都不出（黄条该消失就消失）。
+  const mdSteps = [pending('tracker:initialized'), pending('skill:wayfinder'), pending('skill:setup-matt-pocock-skills'), pending('skill:ask-matt')]
+  const mdSetup = mod.guideBannerDecision(stOf('markdown', mdSteps), false)
+  check(mdSetup.step && mdSetup.step.id === 'tracker:initialized' && mdSetup.reason === 'step-not-done', 'Markdown 工作区没初始化完时出初始化那条（实得 ' + JSON.stringify({ id: mdSetup.step && mdSetup.step.id, reason: mdSetup.reason }) + '）')
+  const mdDone = mod.guideBannerDecision(stOf('markdown', [done('tracker:initialized'), done('skill:wayfinder'), done('skill:setup-matt-pocock-skills'), done('skill:ask-matt')]), false)
+  check(mdDone.step === null && mdDone.reason === 'all-done', '初始化与技能都做完了就不再出横幅、原因记 all-done（实得 ' + JSON.stringify(mdDone) + '）')
+
+  // D5. 全绿之后：GitHub 那条清单也一条都不出（六步全 done）。
+  const ghAllSteps = [done('gh:installed'), done('gh:authed'), done('gh:remote'), done('tracker:initialized'), done('skill:wayfinder'), done('skill:setup-matt-pocock-skills'), done('skill:ask-matt')]
+  const ghAll = mod.guideBannerDecision(stOf('github', ghAllSteps), false)
+  check(ghAll.step === null && ghAll.reason === 'all-done', 'GitHub 六步全过时一条横幅都不出（实得 ' + JSON.stringify(ghAll) + '）')
+
+  // D6. 一条都没有时边沿键仍带原因（日志看得出状态在迁移），但 StatusBar 判出现/消失必须看 bannerStep。
+  const clearKey = mod.guideBannerDiagnosis(stOf('github', []), false)
+  check(clearKey.step === null && String(clearKey.key).indexOf('cleared|waiting-snapshot') === 0, '没有横幅时边沿键以 cleared|原因 开头（实得 ' + clearKey.key + '）')
+  const barSrc = sourceText('src/client/statusbar/StatusBar.js')
+  check(/outcome:\s*bannerStep\s*\?\s*'shown'\s*:\s*'cleared'/.test(barSrc), 'guide.banner 的出现/消失按 bannerStep 判断（键非空不能当有横幅；真机日志出现过 step 与 banner 都空、outcome 却记 shown 的行）')
+
+  // D7. 老入口与判定入口同结论（兼容调用方拿到的仍是同一条）。
+  check(mod.guideBannerStep(stOf('github', staleRows), false) === unread.step, 'guideBannerStep 与 guideBannerDecision 同一条结论')
+}
+
 const main = async function (): Promise<void> {
   partA()
   console.log('')
   await partB()
   console.log('')
   await partC()
+  console.log('')
+  partD()
   console.log('\n' + (failed ? '不通过' : '全部通过') + ' — ' + total + ' 条断言')
   process.exit(failed ? 1 : 0)
 }
