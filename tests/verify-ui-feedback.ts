@@ -133,8 +133,21 @@ const AUDIT_FILES: string[] = Array.from(new Set(COUNTED_FILES.concat([
   'src/client/kernel/ui-feedback.ts',
   'src/client/views/shared/liquidInk.ts',
   'src/client/views/feedback/feedback-styles.ts',
+  'src/client/views/cards/PixelCardsStyles.ts',
   'src/client/kernel/entry-choice.ts',
 ])))
+
+// 把样式真源（字符串数组 + 行注释）还原成纯 CSS 文本：#1379 的 F30/F31 要按「规则」切分，
+// 不能只对整份源码做 includes —— 那样改坏一条规则、另一条还在，判据照样绿着。
+// 先剥注释再收单引号字面量：注释里的引号、花括号不参与判据，免得被自己写的说明文字带偏。
+function cssTextOfSource(src: string): string {
+  const noComments = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+  const lits: string[] = []
+  const re = /'((?:[^'\\]|\\.)*)'/g
+  let m: any
+  while ((m = re.exec(noComments))) lits.push(m[1])
+  return lits.join('')
+}
 
 type AuditResult = { ok: boolean; msg: string }
 
@@ -315,6 +328,59 @@ function audit(read: (p: string) => string): AuditResult[] {
   const entryChoiceCode = entryChoiceSrc.replace(/\/\/[^\n]*/g, '')
   check(feedbackCss.indexOf('[data-press]:not(.dsws-aggrow):not(.dsws-trow):not(.dsws-node):not(.dsws-capsule):not(.dsws-entrycard):hover:not(.dsws-pressing){filter:brightness(1.14)') >= 0 && feedbackCss.indexOf('.dsws-entrycard.dsws-pressing{filter:brightness(.82)!important}') >= 0 && entryChoiceCode.indexOf("className: 'dsws-entrycard'") >= 0 && entryChoiceCode.indexOf('dsws-hov') < 0 && entryChoiceSrc.indexOf("'data-press': 'row'") >= 0 && entryChoiceSrc.indexOf("'data-log': 'entry.card.'") >= 0 && entryChoiceSrc.indexOf("outline: focused ? '2px solid ' + accent : 'none'") >= 0 && entryChoiceSrc.indexOf('outlineOffset: 2') >= 0 && entryChoiceSrc.indexOf("filter: focused ? 'brightness(1.14)' : 'none'") >= 0, 'F29 入口浮层的整张卡不再被通用悬停规则多画一圈环（用户实测焦点圈与卡框之间透出一条橘黄细线）：只留它自己的 2px 焦点圈与悬停提亮，悬停规则与 dsws-hov 都不再命中它；按下时另有一条只在入口卡上生效的 !important 压暗规则（内联提亮会压过通用按压，不单独写就看不出按下；对照 F25 整条胶囊的同类做法）')
   check(feedbackCss.indexOf('[data-press].dsws-pressing{transform:none!important}') >= 0, 'F12 减少动态下按下的位移关掉、压暗保留（与规格「减少动态只关位移」一致）')
+  // ============ F30/F31：浅色跟随（#1379） ============
+  // 背景：卡片皮肤文件在反馈样式之后注入，它那两条金虚线焦点规则原本深浅两套都命中，
+  //   把「浅色跟随宿主焦点环」盖掉了。F30 钉住这两条只在深色下存在；F31 钉住浅色个例修复层
+  //   的边界：只有一段、每条选择器都只在浅色命中、不许写死色值、只许改颜色类属性。
+  const cardsCss = cssTextOfSource(read('src/client/views/cards/PixelCardsStyles.ts'))
+  const cardFocusSels: string[] = []
+  for (const r of (cardsCss.match(/[^{}]+\{[^{}]*\}/g) || [])) {
+    if (r.indexOf(':focus-visible') < 0) continue
+    for (const part of r.slice(0, r.indexOf('{')).split(',')) {
+      const t = part.trim()
+      if (t) cardFocusSels.push(t)
+    }
+  }
+  const cardFocusBare = cardFocusSels.filter((sel) => sel.indexOf('body[data-ds-dark-theme] ') !== 0)
+  check(cardFocusSels.length >= 2 && cardFocusBare.length === 0,
+    'F30 卡片皮肤的焦点环只在深色下是金虚线（' + cardFocusSels.length + ' 条 :focus-visible 选择器全部以 body[data-ds-dark-theme] 开头；浅色不命中，落到全局宿主焦点环）' +
+    (cardFocusBare.length ? '；未加前缀：' + cardFocusBare.join(' | ') : ''))
+
+  const LIGHT_START = '// #1379 浅色个例修复层（开始）'
+  const LIGHT_END = '// #1379 浅色个例修复层（结束）'
+  const lsAt = feedbackCss.indexOf(LIGHT_START)
+  const leAt = feedbackCss.indexOf(LIGHT_END)
+  const lightSingle = lsAt >= 0 && leAt > lsAt && feedbackCss.indexOf(LIGHT_START, lsAt + 1) < 0 && feedbackCss.indexOf(LIGHT_END, leAt + 1) < 0
+  check(lightSingle, 'F31 浅色个例修复层只有一段（起止标记各出现一次）：两段叠在一起就说不清哪条规则管哪个元素，也没法逐条核对')
+  const lightCss = lightSingle ? cssTextOfSource(feedbackCss.slice(lsAt + LIGHT_START.length, leAt)) : ''
+  const lightRules = lightCss.match(/[^{}]+\{[^{}]*\}/g) || []
+  const lightSels: string[] = []
+  for (const r of lightRules) {
+    for (const part of r.slice(0, r.indexOf('{')).split(',')) {
+      const t = part.trim()
+      if (t) lightSels.push(t)
+    }
+  }
+  const lightBare = lightSels.filter((sel) => sel.indexOf('body:not([data-ds-dark-theme]) ') !== 0)
+  check(lightRules.length >= 20 && lightBare.length === 0,
+    'F31 浅色个例修复层每条选择器都只在浅色命中（' + lightRules.length + ' 条规则，全部以 body:not([data-ds-dark-theme]) 开头），且条数不少于实际修过的个例数（20）' +
+    (lightBare.length ? '；漏了前缀：' + lightBare.join(' | ') : ''))
+  const lightLiterals = lightCss.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\b(red|blue|green|orange|yellow|purple|pink|brown|black|white|gray|grey|gold|silver|teal|navy|maroon|olive|lime|aqua|cyan|magenta|fuchsia)\b/g) || []
+  check(lightLiterals.length === 0,
+    'F31 浅色个例修复层不许写死色值（一律走 --dsw-* 宿主变量或 color-mix 派生），换肤时才会跟着变' +
+    (lightLiterals.length ? '；写死：' + Array.from(new Set(lightLiterals)).join('、') : ''))
+  const LIGHT_PROPS = new Set(['color', 'background', 'background-color', 'border-color', 'fill', 'stroke', 'box-shadow'])
+  const lightBadProps: string[] = []
+  for (const r of lightRules) {
+    const body = r.slice(r.indexOf('{') + 1, r.lastIndexOf('}'))
+    for (const d of body.split(';')) {
+      const p = d.split(':')[0].trim().toLowerCase()
+      if (p && !LIGHT_PROPS.has(p)) lightBadProps.push(p)
+    }
+  }
+  check(lightBadProps.length === 0,
+    'F31 浅色个例修复层只改颜色类属性（color/background/border-color/fill/stroke/box-shadow），不改尺寸、间距、布局' +
+    (lightBadProps.length ? '；越界属性：' + Array.from(new Set(lightBadProps)).join('、') : ''))
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')
   }
@@ -611,6 +677,24 @@ const variants: Variant[] = [
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F28',
     change: (s) => replaceAll(s, '.dsws-aggrow:hover:not(.dsws-pressing),.dsws-trow:hover:not(.dsws-pressing){box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}', ''),
+  },
+  {
+    label: '卡片皮肤那两条焦点规则的深色前缀被摘掉：浅色下卡片焦点环又变回金虚线，不再跟随宿主蓝',
+    file: 'src/client/views/cards/PixelCardsStyles.ts',
+    group: 'F30',
+    change: (s) => replaceAll(s, 'body[data-ds-dark-theme] ', ''),
+  },
+  {
+    label: '浅色修复层里有一条选择器漏了 body:not([data-ds-dark-theme]) 前缀：深色也被改到',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F31',
+    change: (s) => replaceAll(s, 'body:not([data-ds-dark-theme]) .dsws-chain-form label', '.dsws-chain-form label'),
+  },
+  {
+    label: '浅色修复层里把宿主变量换成了写死的 #61666b：换肤时不会跟着宿主走',
+    file: 'src/client/views/feedback/feedback-styles.ts',
+    group: 'F31',
+    change: (s) => replaceAll(s, 'color:var(--dsw-alias-label-secondary)!important}', 'color:#61666b!important}'),
   },
 ]
 for (const v of variants) {
