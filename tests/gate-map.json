@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T08:18:22.090Z",
+  "generatedAt": "2026-10-23T08:34:02.549Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 330,
   "gateCount": 330,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 12,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 552,
+  "graphFileCount": 553,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1297,6 +1297,7 @@
         "src/host/platformChannel.ts",
         "src/host/workspaceCwd.ts",
         "src/refresh/contract/host-timer-ports.ts",
+        "src/refresh/registry/deck-tool-bridge.ts",
         "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/refresh-runtime.ts",
         "src/refresh/rooms/host/snapshot-build.ts",
@@ -1309,6 +1310,7 @@
         "src/client/kernel",
         "src/host",
         "src/refresh/contract",
+        "src/refresh/registry",
         "src/refresh/rooms/host",
         "tests/lib"
       ],
@@ -1316,7 +1318,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-1125-gate-coverage.ts",
@@ -4286,7 +4288,7 @@
       "step": "node tests/verify-969-tiered-timeout.ts",
       "file": "tests/verify-969-tiered-timeout.ts",
       "guards": [
-        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
         "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/time-config/src/values.ts",
@@ -4983,9 +4985,9 @@
         "src/refresh/kernel/index-window-rules.ts",
         "src/refresh/kernel/snapshot-diff.ts",
         "src/refresh/rooms/client/refresh-timer.ts",
-        "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/issue-index-scan.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
         "src/refresh/rooms/host/refresh-runtime.ts",
         "tests/lib/source-text.ts"
       ],
@@ -5357,6 +5359,7 @@
         "src/host/platform/index.ts",
         "src/host/platformChannel.ts",
         "src/host/versionControl.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
         "src/refresh/rooms/host/git-execution.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
@@ -5381,7 +5384,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-github-gh-via.ts",
@@ -8617,6 +8620,7 @@
     ],
     "src/refresh/registry": [
       "node tests/verify-deck-quota-sync.ts",
+      "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-927-gate-injection.ts"
     ],
     "src/refresh/rooms": [],
@@ -9256,9 +9260,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 572,
+    "fileCount": 573,
     "dirCount": 78,
-    "coveredFileCount": 572,
+    "coveredFileCount": 573,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
     "dedicatedDirCount": 54,
@@ -9613,6 +9617,7 @@
       "src/refresh/rooms/host/issue-list-fetch.ts",
       "src/refresh/rooms/host/outbound-admission.ts",
       "src/refresh/rooms/host/outbound-control.ts",
+      "src/refresh/rooms/host/probe-handler.ts",
       "src/refresh/rooms/host/quota-ledger.ts",
       "src/refresh/rooms/host/refresh-assembly.ts",
       "src/refresh/rooms/host/refresh-gate.ts",
@@ -10009,7 +10014,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 37
+        "fileCount": 38
       },
       {
         "path": "src/shared/command-cleanup",

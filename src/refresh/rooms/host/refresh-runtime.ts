@@ -18,24 +18,15 @@ import { createLedger } from './quota-ledger.js'
 import { createGate } from './refresh-gate.js'
 import { createWriteEvents } from './write-event-subscription.js'
 import { createAttention, createFocusHandler } from './host-attention.js'
-// #723（T19c）第 D 件：九个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），九个
-// 工厂由 ../../../host/platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
-// 宿主层里再读一次那九个文件就要新增 9 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
-import { DECK_TOOL_FILES, withCap } from '../../../deck/registration/host-assemble.js'
-import { createDeckToolsForHost } from '../../registry/deck-tool-bridge.js'
-// #1150：批量建图的计划游标（中间态）要真落盘，存储器在这里造、随工具依赖注入。落盘目录与文件名约定
-// 都住在 plan-cursor.ts 里（planCursorDir / createFilePlanStore），不在这里另写一份。
-import { createFilePlanStore, planCursorDir } from '../../../deck/shell/plan-cursor.js'
+// #723（T19c）第 D 件：九个 deck_* 工具的桥段已并入登记层（#1429 B12），这里只留装配胶水：
+// 建桥（createDeckToolBridge）与登记（hookDeckAgentTools，见下）。withCap 留在这里是给保读数（#758）用的，
+// DECK_TOOL_FILES 随桥段搬去桥里（各模块仍只有一份定义，见桥文件头）。
+import { withCap } from '../../../deck/registration/host-assemble.js'
+import { createDeckToolBridge } from '../../registry/deck-tool-bridge.js'
 // #1261：工作路线的新落盘（每个工作区一份 <根散列>.json）与读出口，两支合在一起从这里递进工具依赖。
 // #1082：这套读写零件的惰性装配与面板「跨会话在办表」的挂载口搬去 work-route-readout.ts
 // （wiring 贴着 350 有效行红线；两件合一个文件，接线处只多一条同层边，已记进同层豁免清单）。
 import { createLazyWorkRouteBindings, createWorkRouteTableReadout, WORK_ROUTE_TABLE_FIELD } from './work-route-readout.js'
-// #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
-import { hostTimers } from '../../contract/host-timer-ports.js'
-// #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）由宿主实现、随进程注入一次，房间只认形状、
-// 不再从宿主 import。这里与 src/host/platformChannel.ts 的 backendCtxForRooms 是两处注入点，
-// 缺一处那条路上的房间会按环境失败大声报出来（宁可报错，也不静默绕过名额闸）。
-import { createOutboundControl } from './outbound-control.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
@@ -44,20 +35,12 @@ import { DECK_ENSURE_TIMEOUT_MS } from '../../../shared/time-config/src/values.j
 import { createNamingSummary, readFirstUserText } from '../../../host/platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
-import { publishDeckTable, noteDeckGate } from '../../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
-import { createSandboxPolicyFor } from '../../../deck/registration/sandbox-guard.js'
 import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/refresh/rooms/host/refresh-assembly.js 一处。
 import { createPatchForHost } from './refresh-assembly.js'
-import * as budget from '../../kernel/host-budget.js'
-import * as toolCost from '../../kernel/tool-call-budget.js'
-// #1215 中央时间参数（deckEnsureMs / deckLocalReadMs / shellResolveMs）只有一份真源 config/timeouts.yaml，
-// 这里直接读它生成出来的值，不再各写一份数字。
-import { DECK_LOCAL_READ_TIMEOUT_MS, SHELL_RESOLVE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、九个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../contract/workspace-keys.js'
-import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../../deck/shell/workspace-anchor.js'
 export { workspaceKeyOf } from '../../contract/workspace-keys.js'
 
 // ---------------------------------------------------------------------------
@@ -299,145 +282,33 @@ export function createRefreshWiring(deps: any): any {
     now: function (): number { return Date.now() },
   })
 
-  // ── D（#723 T19c）：九个 deck_* 工具在宿主里装起来 ─────────────────────────────────────────
-  // 把九个工具工厂交给共享层装配口 createDeckTools，并把它要的依赖如实给全：gate（本文件造的那一个闸）、
-  // registry（后端注册表，选后端走它的三级联）、budget 与 estimate/costInputFrom（额度与算账两件）、
-  // handleFor（会话→注册表里绑过的真实句柄）、backendCtx（platform / fs / exec，exec 走 platformChannel
-  // 的 detectionExec，也就是起进程那一层）、invalidate（写后作废那个工作区的快照缓存）、hourUsage（问账本）。
-  // planStore（#1150）：把一个**落盘**的计划游标存储器注入批量建图工具，建一半断掉能靠它续跑。
-  // 注入的是工厂而不是现成的一份：本函数（宿主装配）在进程启动时只跑一次，那时还不知道这次调用落在哪个
-  // 工作区；而游标按工作区分区，两个工作区里的同名计划标识不能互相认成「上次建过」（认错了会跳过该建的票）。
-  // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——照官方工具写法，插件不 import 框架包，
-  // 注册纯数据对象；从前这里动态 import 自带副本，挂载后全部工具调用报 prepare undefined。
-  // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
-  let deckToolsP: Promise<any> | null = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function (): Promise<any> { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx), undefined) } catch (eH: any) {} // #741 注册那一步：表装好就向 agent 交九个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）。末尾的 undefined 是“轮数与间隔都用缺省”（五轮、每轮两秒）：原 JS 只传四个实参，被调方按缺席取缺省；这里显式写出才能过类型检查，运行期走的是同一条缺省分支。
+  // ── D（#723 T19c · #1429 B12）：九个 deck_* 工具的桥段已并入登记层 ──────────────────
+  // deckToolsForHost 闭包（含 memo、planStoreFor、readWorkspaceFileText 与后端 ctx 组装）住
+  // src/refresh/registry/deck-tool-bridge.ts 的 createDeckToolBridge；门禁与单测走的仍是同一个函数
+  // （下面回包的 deckToolsForHost 字段直接交桥实例的方法，wf.deckExec 与各单测行为零变化）。
+  // gate / ledger 与后端上下文仍是本文件造的那一份，现取现传进桥；建议工具登记（#1406）在下面原样保留。
+  const deckBridge: any = createDeckToolBridge({
+    ctx: d.ctx,
+    getTrackerRegistry: d.getTrackerRegistry,
+    getPlatform: d.getPlatform,
+    canonicalKey: d.canonicalKey,
+    setCache: d.setCache,
+    detectionExec: d.detectionExec,
+    gate: gate,
+    ledger: ledger,
+    logCtx: logCtx,
+    workspaceKeyOf: workspaceKeyOf,
+    loadWorkRouteBindings: loadWorkRouteBindings,
+    ensureDeckReading: ensureDeckReading,
+    onDeckWrite: onDeckWrite,
+    sessionTitleSnapshotOf: sessionTitleSnapshotOf,
+  })
+  try { hookDeckAgentTools(d.ctx, deckBridge.deckToolsForHost, function (): Promise<any> { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx), undefined) } catch (eH: any) {} // #741 注册那一步：表装好就向 agent 交九个工具，成败落既有日志（装表函数住桥实例，这里经 deckBridge 取）。末尾的 undefined 是“轮数与间隔都用缺省”（五轮、每轮两秒）：原 JS 只传四个实参，被调方按缺席取缺省；这里显式写出才能过类型检查，运行期走的是同一条缺省分支。
   // #1406：建议工具单独登记一次（与九工具那条钩子并列，不进 DECK_TOOL_ORDER）。失败只落日志，不影响九个追踪器工具。
   // #1406 补（2026-10-23）：hookSuggestNextSteps 是 async，开头读上下文若抛错会变成 rejected Promise，
   // 那一行同步 try/catch 抓不到；宿主加载期会把未处理的 rejection 判成致命错误（真机启动即退出 1）。
   // 所以给返回的 Promise 再挂一层 .catch 兜底：登记失败只落既有日志，绝不拖垮启动。
   try { hookSuggestNextSteps(d.ctx, { log: logCtx }).catch(function (eSuggest: any) {}) } catch (eSuggest: any) {}
-  async function deckToolsForHost(): Promise<any> {
-    if (!deckToolsP) {
-      deckToolsP = (async function (): Promise<any> {        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }
-        let registry: any = null
-        try { registry = d.getTrackerRegistry ? await d.getTrackerRegistry() : null } catch (eR: any) { registry = null }
-        if (!registry || typeof registry.select !== 'function') return Object.assign({}, empty, { reason: 'no-registry' })
-        let platform: any = null
-        try { platform = d.getPlatform ? await d.getPlatform() : null } catch (eP: any) { platform = null }
-        // 后端 ctx 一次取好、之后每笔调用复用同一份：壳按调用同步取它，所以这里不能给一个异步函数。
-        const backendObj = {
-          platform: platform,
-          fs: (function (): any { try { return (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('fs') : undefined } catch (e: any) { return undefined } })(),
-          // #1109：选后端那条兜底等待（缺省 30 秒）要用宿主这一支 timer 服务，不能用全局时钟。
-          //   不给的话这里就落到全局 setTimeout 上：门禁没法用假计时器看住它（30 秒真等不起），
-          //   一挂住就只能干等，也数不清「显式绑定命中时一次计时器都没起」。形状与 OpContext.timers
-          //   一致，与平台通道那一处（platformChannel.js 的 getTimers）同源，都是宿主 ctx 的 timer 服务。
-          timers: (function (): any {
-            try {
-              const t: any = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
-              if (!t || typeof t.timeout !== 'function') return undefined
-              // 撤销那一档的判据在共享层一处（#1115）：真句柄是可调用的撤销器，全局 clearTimeout 与
-              // 先判 .dispose 两种写法在它上面都是空操作，详见 src/refresh/contract/host-timer-ports.ts 文件头。
-              return hostTimers(t)
-            } catch (e: any) { return undefined }
-          })(),
-          exec: function (): any {
-            if (typeof d.detectionExec === 'function') { try { return d.detectionExec.apply(null, arguments) } catch (e: any) { return Promise.reject(e) } }
-            return Promise.resolve({ ok: false, kind: 'env', error: '这个宿主实例没有把起进程的出口（detectionExec）传进来，远端后端的读写做不了' })
-          },
-          logEvent: function (level: any, event: any, fields: any): void { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e: any) {} },
-          isEnabled: function (level: any): any { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e: any) { return level === 'error' || level === 'warn' } },
-          // #1159：出站控制面（进程级能力，随这份后端上下文注入一次）。房间起 gh 命令前拿名额、
-          // 认取消、写完记账都从这里取；缺了房间按环境失败返回，不静默绕过名额闸。
-          outbound: createOutboundControl(),
-        }
-        /**
-         * #1150：批量建图的计划游标存储器，按这一次调用的工作区现造一份落盘的。
-         * 为什么现造：装配（上面这段）在进程启动时只跑一次，那时还不知道这次调用落在哪个工作区；
-         *   而游标按工作区分区（文件名里带工作区键），两个工作区里的同名计划标识不能互相认成「上次建过」。
-         * 为什么读写前先 resolve：宿主那份文件服务是目标形状 —— readText / writeText 收的是 resolve() 的
-         *   产物（{ targetKey, displayPath }），给裸路径串会被拒（docs/cache-and-diagnostics.md 第 7.1 节）。
-         *   目录不用谁来建：父目录由 writeText 递归创建，宿主那份文件服务没有 mkdir。
-         * 缺文件能力就回 null：工具那边退到按工作区自建的那条路或进程内存，并在回执里如实说 durable。
-         * 缺 resolve 也回 null（2026-10-14 深挖补的一刀）：没有它就造不出文件服务要的目标对象，只能把裸路径
-         *   串递过去 —— 那正是 #1150 修掉的那种「说落盘、其实没落」。宁可退回内存并如实说 durable:false。
-         */
-        function planStoreFor(info: any): any {
-          try {
-            const fsSvc: any = backendObj.fs
-            if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') return null
-            const cwd = String((info && info.cwd) || '')
-            if (!cwd) return null
-            const plat: any = backendObj.platform
-            const join: any = (plat && plat.path && typeof plat.path.join === 'function') ? plat.path.join : null
-            const target = function (p: any): Promise<any> { return Promise.resolve(fsSvc.resolve(p)) }
-            return createFilePlanStore({
-              io: {
-                readText: function (p: any): Promise<any> { return target(p).then(function (t: any): any { return fsSvc.readText(t) }) },
-                writeText: function (p: any, text: any): Promise<any> { return target(p).then(function (t: any): any { return fsSvc.writeText(t, text) }) },
-              },
-              dir: planCursorDir(cwd, join),
-              workspaceKey: (info && info.workspaceKey) || '',
-              now: Date.now,
-            })
-          } catch (e: any) { return null }
-        }
-        // 工作路线的新落盘装配（#1261 建、#1083 加固、#1082 起与面板读数共用一份）：
-        // 家目录、文件读写、改名与日志的细节都在 work-route-readout.ts 里，这里只取现成的实例。
-        // 取不到就留给三支依赖各自回「没落上 / 没接上」的诚实原因，不静默跳过。
-        let workRouteBindings: any = null
-        try { workRouteBindings = await loadWorkRouteBindings() } catch (eW: any) {}
-        const built: any = createDeckToolsForHost({
-          gate: gate,
-          registry: registry,
-          budget: budget,
-          estimate: toolCost.estimateToolCost,
-          costInputFrom: toolCost.toolCostInputFrom,
-          // 句柄就是「哪个工作区」这一件事。以前这里还要去注册表的绑定表里找这个目录有没有被绑过、
-          // 好把当时那个句柄原样交回去；绑定表在 #1138 删掉之后，句柄只由这份状态自己给出，与别处同构。
-          handleFor: function (s: any): any { return { cwd: (s && s.cwd) || '' } },
-          // 934：会话目录洗加锚根的宿主唯一异步出口（与绑定侧同一把钥匙）；缺席时壳沿用原始目录。
-          canonicalKey: (typeof d.canonicalKey === 'function') ? function (raw: any): any { return d.canonicalKey(raw) } : undefined,
-          // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。挂住时同样按缺席跳过。
-          // #1138：这里原来还递一个 readChoice（读本机记忆 H）——H 自 2026-10-12 起就不参与判定了，
-          //   壳里也没有任何调用点，留着只会让后来的人以为 H 还有话语权，所以整行删掉。
-          readWorkspaceFileText: function (rootCwd: any): Promise<any> { try { const fsSvc: any = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); const p: any = Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t: any): any { return fsSvc.readText(t) }, function (): any { return null }).then(function (txt: any): any { return (typeof txt === 'string' && txt) ? txt : null }, function (): any { return null }); return withCap(p, DECK_LOCAL_READ_TIMEOUT_MS).then(function (r: any): any { return (r && r.ok === true) ? r.value : null }, function (): any { return null }) } catch (e: any) { return Promise.resolve(null) } },
-          parseWorkspaceFile: parseWorkspaceFile,
-          sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
-          backendCtx: function (): any { return backendObj },
-          // #1150：批量建图的计划游标落盘（按这次调用的工作区现造一份；看见 planStoreFor 上面那段注释）。
-          planStore: planStoreFor,
-          // #1147 决策 10a：仓库标识补全（resolve 步）的等待上限毫秒数。壳缺席时取 8000，
-          //   这里显式传入同一数值 —— 这个上限的值由装配层拥有，不再是壳里无人认领的缺省（行为零变化）。
-          //   #1215：这个数（8000）住中央 YAML 的 shellResolveMs，装配层与壳读同一份生成值。
-          resolveTimeoutMs: SHELL_RESOLVE_TIMEOUT_MS,
-          invalidate: function (info: any): void { try { const root: any = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e: any) {} },
-          onTicketCreated: onDeckWrite, // #746 建票直达命名守护
-          // #1263：上报成功收口记一笔 + 读在办表（壳经这两支调到；装配失败时给没落上的诚实回执，不静默跳过）。
-          // 会话标题快照由宿主侧填（与 titleFactOf 同一条取法；取不到留空，读出口显示散列前 6 位）。
-          workRouteNote: function (input: any): any { try { const enriched: any = (input && typeof input === 'object') ? Object.assign({}, input) : {}; if (!enriched.sessionLabel) { const t = sessionTitleSnapshotOf(enriched.sessionId); if (t) enriched.sessionLabel = t } return workRouteBindings ? workRouteBindings.note(enriched) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
-          workRouteRead: function (input: any): any { try { return workRouteBindings ? workRouteBindings.read(input) : { ok: false, reason: 'no-store' } } catch (e: any) { return { ok: false, reason: 'read-failed' } } },
-          // #1086：释放（带 release=true 的上报）走这一支；装配失败时回没释放的诚实原因，由回执备注如实写出。
-          workRouteRelease: function (input: any): any { try { return workRouteBindings ? workRouteBindings.release(input) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
-          hourUsage: function (): any { try { return ledger.hourOf('ai-tool') || {} } catch (e: any) { return {} } },
-          ensureReading: function (cwd: any, workspaceKey: any): Promise<any> { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
-          noteGate: function (info: any): void { try { noteDeckGate(info) } catch (eN: any) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见
-          log: logCtx || null,
-          // #723（T19c）：工作区键用与活跃集合同一把短散列（workspaceKeyOf）——**不许**在这里用别的归一
-          // （散列层级不同、长度不同、空串，都会让闸里那一格从来不是活跃，于是每一笔都被判推迟；
-          // 这一条有门禁盯着：tests/verify-delta-wiring.js，
-          // 另加 #724 的「同一个工作区根在闸里只许有一格」tests/verify-refresh-workspace-key.js）。
-          //（原先还点着 tests/verify-deck-tools-host-wiring.js，那条门禁 2026-10-14 整份删掉了：
-          //  它的判据没有一条是独占的，见 #1173。）
-          workspaceKeyOf: workspaceKeyOf,
-          now: Date.now,
-        })
-        return Object.assign({ reason: '', files: DECK_TOOL_FILES }, built)
-      })().catch(function (): any { return { tools: {}, names: [], definitions: [], missing: [], reason: 'assembly-failed', files: DECK_TOOL_FILES } })
-      try { publishDeckTable(deckToolsP) } catch (eP: any) {} // #758 同进程共享格：表一开装就行里直接取，不经调用面；跨进程时格子永远是空的，行按原路退回
-    }
-    return await deckToolsP
-  }
 
   // ── E（#723 T19c）：行级增量真的能在宿主里跑起来 ────────────────────────────────────────────
   // 以前探测到变化之后没人去跑 src/refresh/rooms/host/row-patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
@@ -492,7 +363,7 @@ export function createRefreshWiring(deps: any): any {
     // #1082：面板「跨会话在办表」的挂载口（wf.snapshot 与 wf.refresh 两条路共用同一个函数；#1271 起唯一的读数口）。
     workRouteTableReadout: attachWorkRouteTable,
     workRouteTableField: WORK_ROUTE_TABLE_FIELD,
-    deckToolsForHost: deckToolsForHost,
+    deckToolsForHost: deckBridge.deckToolsForHost,
     deltaRefresh: deltaRefresh,
     deltaEnter: deltaEnter,
     syncAttention: syncAttention,
