@@ -129,3 +129,35 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
 
   return { scan: scan, commit: commitByCwd, state: state }
 }
+
+
+// ── 扫描入口（#1429 索引扫描拆分）：原 issue-list-fetch.ts 的 _idxState + fetchIssueIndexWindowed +
+// commitIssueIndex 整体搬入（注释与实现一字不动，只换落点；上面那段 E 件水印口径说明跟着走）。
+// 内含唯一一份窗口状态（createIssueIndexWindowState 在这里只造一次）：调用方经同名转交字段进来，
+// 扫与推落在同一份状态上，不另起第二份。为什么工厂参数仍叫 d：搬来的闭包体点 d.X，零改写就是零行为差。
+// 依赖由取数入口现取现传（getRepoKey / readDiskCache / 取数入口自己的 fetchIssueIndex / Date.now），
+// 与拆分前 _idxState 传的那一份逐字一致。
+export function createIssueIndexScan(deps: any): any {
+  const d: any = deps || {}
+  let stP: any = null
+  function _st(): any {
+    if (!stP) stP = createIssueIndexWindowState({ getRepoKey: d.getRepoKey, readDiskCache: d.readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return d.fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
+    return stP
+  }
+    // 增量索引：把「只问变化」的时间窗与水印合并进完整基线，再判有没有真的变。为什么必须合并：
+    //   拿全量基线去比一个只含增量的结果，两边大小天然不同，会每次都判成「变了」，后果是每分钟一次
+    //   全量重建；为什么水印取「扫描发起之前」：取结束时两次扫描之间会留缝，缝里的改动永远看不到。
+    // #723（T19c）第 E 件 · 水印收口：这一条路**不再自己推进水印与基线**（从前是「探测一回来就推」，
+    //   那条变化还没并进任何列表，水印先走了就掉出下一次的窗口，谁也再见不到它）。只算「下一次该
+    //   从哪儿扫」并如实交回去，推不推由调用方决定，唯一推进口是 commitIssueIndex。状态与规则住在
+    //   ./platform/issueIndexWindow.js（调用方 issue-list-fetch.ts 当时贴着 350 行上限，那一段搬过去了；为什么住那一层见那一份文件头）。
+  // 尾参 opts 标成可选：原 .js 里 cacheSnapshotIsCurrent 只传 cwd 一个实参，少传在运行时就是 undefined，原样透传给 st.scan；标成必选 tsc 会报 2554，改成 `?` 不产生任何运行时代码。
+  async function fetchIssueIndexWindowed(cwd: any, opts?: any): Promise<any> {
+    try { const st: any = _st(); return await st.scan(cwd, opts) } catch (e: any) { return { ok: false, error: { kind: 'env', error: String((e && e.message) || e) } } }
+  }
+  /** 水印与基线唯一的推进口：只在「变化真的并进列表之后」（或探测回来说没变）调它。 */
+  async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any): Promise<any> {
+    try { const st: any = _st(); return await st.commit(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
+  }
+  return { fetchIssueIndexWindowed: fetchIssueIndexWindowed, commitIssueIndex: commitIssueIndex }
+}

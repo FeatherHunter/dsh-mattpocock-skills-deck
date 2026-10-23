@@ -231,31 +231,26 @@ export function createIssueList(deps: any): any {
         return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
       } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
-    // 增量索引：把「只问变化」的时间窗与水印合并进完整基线，再判有没有真的变。为什么必须合并：
-    //   拿全量基线去比一个只含增量的结果，两边大小天然不同，会每次都判成「变了」，后果是每分钟一次
-    //   全量重建；为什么水印取「扫描发起之前」：取结束时两次扫描之间会留缝，缝里的改动永远看不到。
-    // #723（T19c）第 E 件 · 水印收口：这一条路**不再自己推进水印与基线**（从前是「探测一回来就推」，
-    //   那条变化还没并进任何列表，水印先走了就掉出下一次的窗口，谁也再见不到它）。只算「下一次该
-    //   从哪儿扫」并如实交回去，推不推由调用方决定，唯一推进口是 commitIssueIndex。状态与规则住在
-    //   ./platform/issueIndexWindow.js（本文件贴着 350 行上限，那一段搬过去了；为什么住那一层见文件头）。
-    // 宿主侧禁止静态引入新文件（D7），所以这里仍走动态 import（与本块既有范式一致）。
-    let _idxWinP: any = null
-    function _idxWin(): Promise<any> { if (!_idxWinP) _idxWinP = import('../../kernel/index-window-rules.js'); return _idxWinP }
-    let _idxStateP: any = null
-    function _idxState(): Promise<any> {
-      if (!_idxStateP) _idxStateP = import('./issue-index-scan.js').then(function (m: any) {
-        return m.createIssueIndexWindowState({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
+    // ── 索引扫描入口（#1429）：窗口扫描与水印推进住同目录 issue-index-scan.ts（createIssueIndexScan，
+    //   内含唯一一份窗口状态，不另起第二份）；这里只留同名转交字段（index.ts / probe-handler / 单测写法不变），
+    //   仍走动态 import（宿主侧禁止静态引入新文件 D7，与既有范式一致）。
+    let _idxScanP: any = null
+    function _idxScan(): Promise<any> {
+      if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
+        return m.createIssueIndexScan({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
       })
-      return _idxStateP
+      return _idxScanP
     }
-    // 尾参 opts 标成可选：原 .js 里 cacheSnapshotIsCurrent 只传 cwd 一个实参（见下面第 261 行），少传在运行时就是 undefined，原样透传给 st.scan；标成必选 tsc 会报 2554，改成 `?` 不产生任何运行时代码。
+    // 尾参 opts 标成可选：原 .js 里 cacheSnapshotIsCurrent 只传 cwd 一个实参（见下面 cacheSnapshotIsCurrent），少传在运行时就是 undefined，原样透传给扫描入口；标成必选 tsc 会报 2554，改成 `?` 不产生任何运行时代码。
     async function fetchIssueIndexWindowed(cwd: any, opts?: any): Promise<any> {
-      try { const st: any = await _idxState(); return await st.scan(cwd, opts) } catch (e: any) { return { ok: false, error: { kind: 'env', error: String((e && e.message) || e) } } }
+      try { const sc: any = await _idxScan(); return await sc.fetchIssueIndexWindowed(cwd, opts) } catch (e: any) { return { ok: false, error: { kind: 'env', error: String((e && e.message) || e) } } }
     }
     /** 水印与基线唯一的推进口：只在「变化真的并进列表之后」（或探测回来说没变）调它。 */
     async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any): Promise<any> {
-      try { const st: any = await _idxState(); return await st.commit(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
+      try { const sc: any = await _idxScan(); return await sc.commitIssueIndex(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
     }
+    let _idxWinP: any = null
+    function _idxWin(): Promise<any> { if (!_idxWinP) _idxWinP = import('../../kernel/index-window-rules.js'); return _idxWinP }
     // ---- 原 index.js 475–488：缓存有效性判断与快照落盘收纳 ----
     const cacheSnapshotIsCurrent: any = async function (snap: any, cwd: any): Promise<any> {
       try {
