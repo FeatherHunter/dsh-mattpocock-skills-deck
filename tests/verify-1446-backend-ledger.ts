@@ -69,7 +69,11 @@ async function main() {
   const glEnsured = l2.ensureBackend('gitlab', gl)
   check(glEnsured.created.join(',') === 'requests', '只计请求的后端只建 requests 一桶（实得 ' + glEnsured.created.join(',') + '）')
   check(l2.ensureBackend('markdown', md).created.length === 0 && l2.bucketsOf('markdown').length === 0, '离网后端不建桶（没有额度这回事，不摆一本空账）')
-  check(l2.ensureBackend('bitbucket', unknown).created.length === 0, '未知后端不建桶（桶的形状还没量出来，猜一个等于凭空造额度）')
+  const unkEnsured = l2.ensureBackend('bitbucket', unknown)
+  check(unkEnsured.created.join(',') === 'requests' && l2.bucketsOf('bitbucket').join(',') === 'requests',
+    '未知后端只建 requests 一桶，专门记请求数（实得 ' + unkEnsured.created.join(',') + '）')
+  check(l2.view('bitbucket', 'requests').remaining === null && l2.view('bitbucket', 'requests').tier === null && l2.view('bitbucket', 'requests').synced === false,
+    '未知后端的 requests 桶不接读数：剩余量与档位恒空，不拿 0 冒充（实得 ' + JSON.stringify({ remaining: l2.view('bitbucket', 'requests').remaining, tier: l2.view('bitbucket', 'requests').tier }) + '）')
   // 口径变更：先按双桶建、落读数，再改成只计请求 —— 旧桶连同旧读数必须清掉。
   // 这里用只带 kind 的模型：switchy 不是内置后端，拿 GitHub 那份（backendId 写着 github）来建会被上面的核对挡住。
   l2.ensureBackend('switchy', { kind: 'two-buckets' })
@@ -151,11 +155,18 @@ async function main() {
   check(l5.view('gitlab', 'requests').used !== 100, '只计请求的后端不把点数折算成用量（实得 ' + l5.view('gitlab', 'requests').used + '）')
   check(l5.hourOf('plugin', 'gitlab').requests === 4 && l5.hourOf('plugin', 'gitlab').points === 100,
     '只计请求的后端仍然把点数记进分档计数（账面对得上，用量不折）')
-  // 离网与未知：没有桶，spend 必须当场抛（装配错不许静默丢账）。
+  // 离网：没有桶，spend 必须当场抛（装配错不许静默丢账）。
   const eMarkdown = throws(() => l5.spend({ account: 'plugin', backendId: 'markdown', bucket: 'rest', requests: 1, points: 0 }))
   check(eMarkdown.indexOf('没有这个桶') >= 0, '离网后端没有桶，记账当场抛（' + eMarkdown + '）')
-  const eUnknown = throws(() => l5.spend({ account: 'plugin', backendId: 'bitbucket', bucket: 'requests', requests: 1, points: 0 }))
-  check(eUnknown.indexOf('没有这个桶') >= 0, '未知后端没有桶，记账当场抛（' + eUnknown + '）')
+  // 未知：只有一个 requests 桶，能记请求数（规格第 8 节「未知模型只记请求数」），
+  // 而 rest / graphql 这类按额度形状分的桶它一个都没有，拿它们记账要当场抛。
+  l5.spend({ account: 'plugin', backendId: 'bitbucket', bucket: 'requests', requests: 1, points: 0 })
+  const unkCount = l5.snapshot().byAccount.plugin['bitbucket/requests'] || { requests: 0, points: 0 }
+  check(unkCount.requests === 1, '未知后端的请求数照实落进分档计数（实得 ' + unkCount.requests + '）')
+  check(l5.view('bitbucket', 'requests').remaining === null && l5.view('bitbucket', 'requests').used === 0,
+    '未知后端没有读数，所以读数视图保持全空、不拿记下的条数冒充剩余量（实得 ' + JSON.stringify({ remaining: l5.view('bitbucket', 'requests').remaining, used: l5.view('bitbucket', 'requests').used }) + '）')
+  const eUnknownShape = throws(() => l5.spend({ account: 'plugin', backendId: 'bitbucket', bucket: 'graphql', requests: 1 }))
+  check(eUnknownShape.indexOf('没有这个桶') >= 0, '未知后端没有按额度形状分的桶，拿 graphql 记账当场抛（' + eUnknownShape + '）')
   const eWrong = throws(() => l5.spend({ account: 'plugin', backendId: 'github', bucket: 'requests', requests: 1 }))
   check(eWrong.indexOf('没有这个桶') >= 0, '桶不属于这个后端时当场抛，不把账记到别人的桶上（' + eWrong + '）')
   const eAccount = throws(() => l5.spend({ account: 'nobody', backendId: 'github', bucket: 'rest', requests: 1 }))

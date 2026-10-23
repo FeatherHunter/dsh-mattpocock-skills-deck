@@ -178,15 +178,17 @@ const BUCKET_NAMES: readonly LedgerBucketName[] = ['rest', 'graphql', 'requests'
  * 每种口径建哪些桶（#1446 的形状真源）：
  *   - 双桶：rest 数请求、graphql 数点数，两桶各自一份额度；
  *   - 只计请求：一个 requests 桶；
- *   - 离网与未知：不建桶——离网根本没有额度这回事，未知则连桶的形状都还没量出来，
- *     猜一个形状等于凭空造出一份额度。真有人拿这两种后端来记账，spend 会因为桶缺席当场抛，
- *     那正是我们要的「装配错当场炸」，不是静默丢账。
+ *   - 离网：不建桶——没有额度这回事，也不该摆一本「花了多少」的空账；真有人拿它记账，
+ *     spend 会因为桶缺席当场抛，那正是我们要的「装配错当场炸」，不是静默丢账；
+ *   - 未知：只建一个 requests 桶，作用是记「发出去几条请求」这件实测事实（规格第 8 节：
+ *     未知模型只记请求数）。这个桶不接读数，所以剩余量与档位恒空，
+ *     既不会凭空造出一份额度，也不会把真花掉的请求数丢掉。
  */
 const BUCKETS_BY_KIND: Record<BackendBudgetKind, readonly LedgerBucketName[]> = {
   'two-buckets': ['rest', 'graphql'],
   'requests-only': ['requests'],
   'off-network': [],
-  unknown: [],
+  unknown: ['requests'],
 }
 
 /** 按口径取它应有的桶（返回只读数组，调用方不许改这份表）。 */
