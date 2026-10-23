@@ -89,8 +89,8 @@ function judge(b: any, pb: any) {
 
 async function main() {
   console.log('最坏每小时用量门禁（#706 T2：定时那一半按中央时间参数与 budget.js 的常量算上界，两桶与读份额都要过关）')
-  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
-  const pageBudget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'page-budget.js')).href)
+  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
+  const pageBudget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'page-allowance.js')).href)
   // 注入器：budget.js 只剩自有常量与函数，时间常量走中央——两边拼成判据吃的那一份；
   // 后面的 Object.assign 变体都基于它拧，保证“拧坏必须判红”依然咬得住。
   const B0 = Object.assign({}, budget, { PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, QUOTA_SYNC_INTERVAL_MS })

@@ -49,10 +49,10 @@ async function main() {
   const shellMod = await imp('src/deck/shell/call-shell.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const shapeMod = await imp('src/tracker/registry/shape.ts')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
 
   // —— I2 先行：注册表只做系统无关洗（斜杠与尾斜杠归一，大小写不动） ——

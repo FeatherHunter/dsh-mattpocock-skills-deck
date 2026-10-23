@@ -74,8 +74,8 @@ export function findDomains(): string[] {
  * 映射只做一次前缀换算：「src/shared/<相对路径>」→「.build/shared/<相对路径>」，不重新推导目录形状。
  * 形状（源码 src/x.ts → 产物 <域>/x.js）仍然只有 deriveOutputPath() 一份实现，改也只改那一处。
  *
- * @param {string} productRel 仓库相对的产物路径（`src/shared/refresh/budget.js`）或相对 src/shared 的路径
- * @returns {string} 仓库相对的产物落点（`.build/shared/refresh/budget.js`）
+ * @param {string} productRel 仓库相对的产物路径（`src/shared/session-cwd.ts` 这类散文件）或相对 src/shared 的路径
+ * @returns {string} 仓库相对的产物落点（`.build/shared/session-cwd.js`：只换前缀，形状不动）
  */
 export function buildSharedProductPath(productRel: string): string {
   const rel: string = String(productRel).replace(/\\/g, '/')
@@ -165,7 +165,7 @@ export function domainFromSourcePath(sourcePath: string): string {
 }
 
 /**
- * 把一份源码转译成产物文本。参数是**仓库相对**的源码路径（如 `src/shared/refresh/src/budget.ts`），
+ * 把一份源码转译成产物文本。参数是**仓库相对**的源码路径（如 `src/shared/label-color/src/colors.ts`），
  * 因为产物头部那句「真源在哪」必须带域路径，只给文件名写不出来。
  */
 export function transpileUnit(sourcePath: string): string {

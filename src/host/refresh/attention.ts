@@ -7,7 +7,7 @@
 //      至于定时器本身由谁拿着、怎么起停，不是这个文件的事务（起 gh 与落盘留 JS、纯逻辑进 TS）；
 //   ③ 台账：谁在活跃、谁刚离开、整桌收摊没有，给闸与界面问一句。
 //
-// 纯逻辑全部住在 refresh-core/src/attention.ts（产物 src/shared/refresh/attention.js）：活跃集合的
+// 纯逻辑全部住在 src/refresh/kernel/attention-model.ts（产物 .build/refresh/kernel/attention-model.js）：活跃集合的
 // 名额分配与淘汰、「同一工作区根只占一个名额」的判定、90 秒无信号的收摊判定，都由它算。数字一个
 // 都不在这里：全部从 budget.js 取好注入（见 attentionLimits）。这就是「薄壳」两个字的含义 ——
 // 本文件里没有一条 if 在决定谁该被淘汰。
@@ -23,10 +23,10 @@
 // （2026-10-18 #1247 从 attention.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做翻译与台账，所以类型只收依赖形状，不收任何判定规则。）
-import * as budget from '../../shared/refresh/src/budget.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
 import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/src/values.js'
-import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../shared/refresh/src/attention.js'
-import type { AttentionSignalKind } from '../../shared/refresh/src/attention.js'
+import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../refresh/kernel/attention-model.js'
+import type { AttentionSignalKind } from '../../refresh/kernel/attention-model.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1247 转写：只写类型不写实现）。

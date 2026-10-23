@@ -78,11 +78,11 @@ async function main() {
 
   // G3/G4) 工具层：写成功但读票失败 → 证据带读失败原话；正常仍 ok
   {
-    const budget = await imp('src/shared/refresh/budget.js')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
     const ledgerMod = await imp('src/host/refresh/ledger.ts')
     const gateMod = await imp('src/host/refresh/gate.ts')
     const registryMod = await imp('src/tracker/registry/core.ts')
-    const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
     const gate = gateMod.createGate({ ledger: ledger, now: () => clock })

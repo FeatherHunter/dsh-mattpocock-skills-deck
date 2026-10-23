@@ -215,7 +215,7 @@ async function main() {
   // 九颗追踪器工具由宿主代执行，代执行那层会先造一个带 cwd 的 exec；本工具在行里本地执行，
   // exec 是平台原生形状——桌面真机上会话顶层没有目录，目录住在 exec.agent.session.header 里。
   // 这里按真机形状复现：只有 header.cwd 时必须成功，且回执与日志都能对上目录与会话号。
-  const keyMod = await imp('src/shared/refresh-workspace-key.ts')
+  const keyMod = await imp('src/refresh/contract/workspace-keys.ts')
   const hdrLog = makeLog()
   const hdrRunner = tool.createSuggestNextSteps({ log: hdrLog.log, now: fakeClock(0) })
   const hdrEnv = await hdrRunner.run(EXEC_HEADER_CWD, { items: two })

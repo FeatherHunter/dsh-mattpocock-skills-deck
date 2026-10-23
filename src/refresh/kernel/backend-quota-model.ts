@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/backend-quota.ts —— 每个后端的额度桶长什么样、一笔花费怎么按后端算价（#719 收口）
+ * src/refresh/kernel/backend-quota-model.ts —— 每个后端的额度桶长什么样、一笔花费怎么按后端算价（#719 收口，#1425 随整组搬入 src/refresh）
  *
  * 解决的是什么问题：账本与闸是按「桶」记账的，而桶的形状不是三个后端共用的。
  * GitHub 有两个互相独立的桶——REST 数请求条数、GraphQL 数点数，两桶各自一份额度、互不折算；
@@ -15,7 +15,7 @@
  * 关于 GitLab 的那一格，口径写死为「按请求数计费，具体数值待实测」：今天没有实测依据，
  * 就不写一个看起来像真的点数制。宁可缺一个数，也不要多一个编出来的数。
  *
- * 为什么本文件一个数字都不写、全部是形状与判定：刷新核心的产物（src/shared/refresh/*.js）之间
+ * 为什么本文件一个数字都不写、全部是形状与判定：刷新核心的产物（.build/refresh/kernel/*.js）之间
  * 不许互相 import（tests/verify-dependency-rules.ts 的「同层不许互引」一条门禁守着这件事）。
  * 额度常量因此只有一处物理真源（budget.ts），
  * 做法与 policy.ts / backoff.ts / tool-cost.ts 一致。

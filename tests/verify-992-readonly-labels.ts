@@ -161,11 +161,11 @@ async function main(): Promise<void> {
 
   // ── E) 工具层按结果说话 ──
   {
-    const budget = await imp('src/shared/refresh/budget.js')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
     const ledgerMod = await imp('src/host/refresh/ledger.ts')
     const gateMod = await imp('src/host/refresh/gate.ts')
     const registryMod = await imp('src/tracker/registry/core.ts')
-    const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
     const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
@@ -259,11 +259,11 @@ async function main(): Promise<void> {
     check(String(gh.fixes['gh:repoAccess'].hint.zh).includes('fork'), 'G5 检查页 gh:repoAccess 详情同样指路 fork')
     check(!/[\u4e00-\u9fff]/.test(String(gh.fixes['gh:repoAccess'].hint.en)), 'G6 检查页英文详情无中文')
     // deck_context：GitHub 只读 → 能力位 + 提示；可写 → 无提示；无方法 → 未知不抛
-    const budget = await imp('src/shared/refresh/budget.js')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
     const ledgerMod = await imp('src/host/refresh/ledger.ts')
     const gateMod = await imp('src/host/refresh/gate.ts')
     const registryMod = await imp('src/tracker/registry/core.ts')
-    const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
     const ctxMod = await imp('src/deck/tools/context.ts')
     async function runCtx(stubId, trackerImpl) {
       let clock = 1700000000000

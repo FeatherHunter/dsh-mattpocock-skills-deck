@@ -122,7 +122,7 @@ function execFor(cwd) {
 
 async function main() {
   console.log('deck 工具挂起对抗门禁（竞速兜底 + 分类不变 + 中止即停）')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const t0 = Date.now()

@@ -8,8 +8,8 @@
 // 不开浏览器、直接拿两组输入跑出来对比（tests/verify-visible-truth.ts 就是这么验的）。
 //
 // 三条纪律，改这个文件的人先看这三条：
-//   1. **刷新阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 refresh-core 的 budget.ts，
-//      构建时把 src/shared/refresh/budget.js 拼进界面闭包（见 scripts/build.mts 的 shared:refreshBudget）。
+//   1. **刷新阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 src/refresh/kernel/host-budget.ts，
+//      构建时把这份真源拼进界面闭包（见 scripts/build.mts 的 shared:refreshBudget）。
 //      本文件里不写任何一个刷新阈值 —— 写了就是第二份数字，改一处漏一处。
 //      唯一的例外是下面那个「一分钟」的刻度常量 TRUTH_MINUTE_MS：它只把「离现在多久」折成人话
 //      （刚刚 / N 分钟前 / N 小时前 / N 天前），不参与也不影响新鲜度判定 —— 新鲜度仍只由

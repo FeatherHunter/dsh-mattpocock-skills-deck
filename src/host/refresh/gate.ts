@@ -18,16 +18,16 @@
 //
 // 二级限流（Retry-After）也是降档信号：noteRetryAfter() 一次就把所在桶按红档处理（主桶没用完也降档），并把那个工作区标成撞限流。
 // #998：连续失败到门槛之后由 failure-window.js 那台状态机放一笔探针进来试（细节见那个文件）。
-import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../shared/refresh/src/policy.js'
-import type { PolicyInput } from '../../shared/refresh/src/policy.js'
+import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../refresh/kernel/admission-policy.js'
+import type { PolicyInput } from '../../refresh/kernel/admission-policy.js'
 // 说明符指向真源后，policy 的精确类型第一次被 tsc 看见（从前读转译产物，类型已被剥掉）。
 // 本文件的本地接口刻意只记「形状」（类别、种类、档位都是 string）：查表与兜底那两条分支
 // 靠运行时判，不靠类型判。归一化结果喂给裁决之前，在 inputFor / planOf 两处收窄一次，
 // 运行时一个字节都不变。真要给这几格加取值校验，另立一票，别顺手放宽 policy 的签名。
 import { FAILURE_HALF_OPEN_DELAY_MS, DEFER_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, CHAIN_BACKOFF_MS } from '../../shared/time-config/src/values.js'
-import * as budget from '../../shared/refresh/src/budget.js'
-import * as failureWindow from '../../shared/refresh/src/failure-window.js'
-import { measureStep, noteStepOutbound } from '../../shared/refresh/src/step-cost.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
+import * as failureWindow from '../../refresh/kernel/failure-window.js'
+import { measureStep, noteStepOutbound } from '../../refresh/kernel/step-pricing.js'
 import { refusalTextRef } from './refusal-text.js'
 
 // ---------------------------------------------------------------------------
@@ -368,7 +368,7 @@ export function createGate(deps?: GateDeps) {
     const account = ACCOUNT_OF_CATEGORY[req.category] || 'plugin'
     const after = ledger.spend({ account: account, bucket: req.bucket, kind: req.kind, requests: actual.requests, points: actual.points })
     if (failure) {
-      // 一次真失败：计数加一，窗口从此刻重开（窗口长短的判据在 refresh-core/src/failure-window.ts）。
+      // 一次真失败：计数加一，窗口从此刻重开（窗口长短的判据在 src/refresh/kernel/failure-window.ts）。
       const next = failureWindow.recordFailure({ failures: wsState(req.workspaceKey).failuresSinceSuccess, windowStartedAt: 0 }, now())
       const failed = wsState(req.workspaceKey)
       failed.failuresSinceSuccess = next.failures
@@ -389,7 +389,7 @@ export function createGate(deps?: GateDeps) {
   async function send(req: GateRequest, perform?: StepPerform) {
     const r = normalize(req)
     const v: GateDecision = decide(inputFor(r), limits)
-    // 放了探针进来试的那一笔：窗口起点改成此刻（见 refresh-core/src/failure-window.ts）。
+    // 放了探针进来试的那一笔：窗口起点改成此刻（见 src/refresh/kernel/failure-window.ts）。
     // ① 这一笔要是失败，下一次等待从此刻重新算，不会连环重试；② 这一笔要是成功，下面的归零当场开锁。
     if (v.verdict === 'allow' && v.reason === 'failure-half-open') {
       wsState(r.workspaceKey).backoffWindowStartedAt = failureWindow.consumeHalfOpenTrial(now())

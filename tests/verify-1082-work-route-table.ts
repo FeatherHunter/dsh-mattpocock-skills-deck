@@ -120,8 +120,8 @@ async function main() {
   console.log('#1082 跨会话在办表：宿主读数与工具回执同源，界面逐条画出来')
   const bindingsMod = await imp('src/deck/shell/work-path-bindings.ts') as any
   const recordMod = await imp('src/deck/shell/work-path-record.js') as any
-  const keyMod = await imp('src/shared/refresh-workspace-key.js') as any
-  const chainMod = await imp('src/shared/refresh/chain.js') as any
+  const keyMod = await imp('src/refresh/contract/workspace-keys.js') as any
+  const chainMod = await imp('src/refresh/kernel/refresh-chain.js') as any
   const tableMod = await imp('src/host/refresh/workRouteReadoutForHost.ts') as any
   const envMod = await imp('src/host/snapshotEnvelope.ts') as any
   const snapMod = await imp('src/host/sessionSnapshot.ts') as any

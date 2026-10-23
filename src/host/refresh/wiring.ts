@@ -30,7 +30,7 @@ import { createFilePlanStore, planCursorDir } from '../../deck/shell/plan-cursor
 // （wiring 贴着 350 有效行红线；两件合一个文件，接线处只多一条同层边，已记进同层豁免清单）。
 import { createLazyWorkRouteBindings, createWorkRouteTableReadout, WORK_ROUTE_TABLE_FIELD } from './workRouteReadoutForHost.js'
 // #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
-import { hostTimers } from '../../shared/host-timer/src/host-timers.js'
+import { hostTimers } from '../../refresh/contract/host-timer-ports.js'
 // #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）由宿主实现、随进程注入一次，房间只认形状、
 // 不再从宿主 import。这里与 src/host/platformChannel.ts 的 backendCtxForRooms 是两处注入点，
 // 缺一处那条路上的房间会按环境失败大声报出来（宁可报错，也不静默绕过名额闸）。
@@ -48,16 +48,16 @@ import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js
 import { createDeckQuotaSync } from '../../deck/registration/quota-sync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
 import { createPatchForHost } from '../platform/refreshAssembly.js'
-import * as budget from '../../shared/refresh/src/budget.js'
-import * as toolCost from '../../shared/refresh/src/tool-cost.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
+import * as toolCost from '../../refresh/kernel/tool-call-budget.js'
 // #1215 中央时间参数（deckEnsureMs / deckLocalReadMs / shellResolveMs）只有一份真源 config/timeouts.yaml，
 // 这里直接读它生成出来的值，不再各写一份数字。
 import { DECK_LOCAL_READ_TIMEOUT_MS, SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、九个 deck_* 工具、行级增量、检查链记账」五处同源。
-import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
+import { hash8, workspaceKeyOf } from '../../refresh/contract/workspace-keys.js'
 import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
-export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
+export { workspaceKeyOf } from '../../refresh/contract/workspace-keys.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
@@ -336,7 +336,7 @@ export function createRefreshWiring(deps: any): any {
               const t: any = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
               if (!t || typeof t.timeout !== 'function') return undefined
               // 撤销那一档的判据在共享层一处（#1115）：真句柄是可调用的撤销器，全局 clearTimeout 与
-              // 先判 .dispose 两种写法在它上面都是空操作，详见 src/shared/host-timer/src/host-timers.ts 文件头。
+              // 先判 .dispose 两种写法在它上面都是空操作，详见 src/refresh/contract/host-timer-ports.ts 文件头。
               return hostTimers(t)
             } catch (e: any) { return undefined }
           })(),

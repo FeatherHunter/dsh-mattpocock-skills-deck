@@ -41,7 +41,7 @@ import {
   idempotencyKeyOf,
   matchAnchor,
   isAnchorHit,
-} from '../../../src/shared/refresh/idempotency.js'
+} from '../../../src/refresh/contract/idempotency-keys.js'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)
 

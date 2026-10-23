@@ -43,12 +43,12 @@ function makePlat() {
 
 async function main() {
   console.log('#1090 防回归：进度写进去要读得回来（写、读、面板派生三处同一口径）')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const { stripProgressSections } = await imp('src/tracker/body-parse.ts')
   const { deriveDeck } = await imp('src/tracker/deck-derive.ts')
 

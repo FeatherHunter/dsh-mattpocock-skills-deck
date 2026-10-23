@@ -445,15 +445,6 @@
       "note": "F1 装配：用户选的后端那份状态文件（H）的实例在此建 —— 读它的是两处（绑定写入、判定读取），而它内部那条读-改-写队列必须全进程只有一条，所以两处共用这一个实例（与同文件里探测服务的装配同一类）"
     },
     {
-      "file": "src/host/detectChain.ts",
-      "spec": "./refresh/refreshSource.js",
-      "resolved": "src/host/refresh/refreshSource.ts",
-      "layer": "host",
-      "count": 1,
-      "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#709 新增功能：链求值这一步要判「这一次是人亲手点的还是插件自己的动作」（挂载时那一次强制刷新不许记成人手动过的），判据归 refreshSource.js 一处；链路顶层已在同层内（它本来就要加载 refresh/chainBackoff.js 与 tracker/detection/*），要消掉这条边得连同链求值这一步一起搬层，属单独重构"
-    },
-    {
       "file": "src/host/index.ts",
       "spec": "./refresh/wiring.js",
       "resolved": "src/host/refresh/wiring.ts",
@@ -731,42 +722,6 @@
       "count": 1,
       "owner": "#1017（读依赖图后 .ts 边首次可见）",
       "note": "同层互引的存量边：prompt 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
-    },
-    {
-      "file": "src/shared/refresh/src/backoff.ts",
-      "spec": "./ports.js",
-      "resolved": "src/shared/refresh/src/ports.ts",
-      "layer": "shared",
-      "count": 1,
-      "owner": "#1017（读依赖图后 .ts 边首次可见）",
-      "note": "同层互引的存量边：backoff 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
-    },
-    {
-      "file": "src/shared/refresh/src/budget.ts",
-      "spec": "./ports.js",
-      "resolved": "src/shared/refresh/src/ports.ts",
-      "layer": "shared",
-      "count": 1,
-      "owner": "#1017（读依赖图后 .ts 边首次可见）",
-      "note": "同层互引的存量边：budget 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
-    },
-    {
-      "file": "src/shared/refresh/src/policy.ts",
-      "spec": "./ports.js",
-      "resolved": "src/shared/refresh/src/ports.ts",
-      "layer": "shared",
-      "count": 1,
-      "owner": "#1017（读依赖图后 .ts 边首次可见）",
-      "note": "同层互引的存量边：policy 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
-    },
-    {
-      "file": "src/shared/refresh/src/write-detect.ts",
-      "spec": "./ports.js",
-      "resolved": "src/shared/refresh/src/ports.ts",
-      "layer": "shared",
-      "count": 1,
-      "owner": "#1017（读依赖图后 .ts 边首次可见）",
-      "note": "同层互引的存量边：write-detect 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
     },
     {
       "file": "src/shared/version-control/src/capabilities.ts",

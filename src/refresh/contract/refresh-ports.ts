@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/ports.ts —— 新刷新机制的插口形状（只放形状，不放运行时代码）
+ * src/refresh/contract/refresh-ports.ts —— 新刷新机制的插口形状（只放形状，不放运行时代码）
  *
  * 这份文件回答的是「核心与外面之间传的是什么东西」，所以只写形状：一笔出站调用属于哪一类、
  * 闸当前在哪个档位、一次裁决的结论长什么样、工具调用前的花费预估长什么样。
@@ -12,7 +12,7 @@
  * 2. 裁决规则与原因代号表。什么情况下放行、什么时候降级、什么时候推迟，归 policy.ts（后面的票）；
  *    这里只留 reason 这个字段，不抄一张取值表。
  *
- * 产物 src/shared/refresh/ports.js 是一个只剩模块标识的空壳：类型在转译时被擦掉，
+ * 产物 .build/refresh/contract/refresh-ports.js 是一个只剩模块标识的空壳：类型在转译时被擦掉，
  * 现在没有任何运行时代码 import 它。它保留着有三条理由（与两份先例一致）：形态一致比省一个文件重要；
  * 核心长大后要有落点；门禁靠它确认「插口确实由核心定」这条纪律。
  */
@@ -229,4 +229,4 @@ export interface ChainFreshness {
  * 这份形状定义在哪个文件里。
  * 类型在转译时会被擦掉，产物里只剩这一行模块标识，用来证明「产物确实来自这份源码」。
  */
-export const PORTS_SOURCE = 'src/shared/refresh/src/ports.ts'
+export const PORTS_SOURCE = 'src/refresh/contract/refresh-ports.ts'

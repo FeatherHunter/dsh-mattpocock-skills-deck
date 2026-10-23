@@ -2,7 +2,7 @@
 //
 // 一次把一整张地图的骨架建出来：地图票 + 一票子票 + 子票之间的依赖边，最后逐项校验计数。
 // 它贵，所以三件事都做在明面上：
-//   1. **先算账再动手**：调用前算出点数、出站请求条数、会不会超单次顶、建议分几片（refresh-core/src/tool-cost.ts）；
+//   1. **先算账再动手**：调用前算出点数、出站请求条数、会不会超单次顶、建议分几片（src/refresh/kernel/tool-call-budget.ts）；
 //      超过一片就只做第一片，把「下一次要带的子票清单」原样回给 AI，自己绝不一口气建几百张。
 //   2. **可续跑的中间态**：每建成一张票、每建成一条边都记一笔（deps.planStore 落盘；没注入时按工作区
 //      目录建文件游标，再不行退化成进程内存，那时返回值里会如实说「这次不是落盘的」）。
@@ -23,8 +23,8 @@ import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js
 // #1413：子票的位置与标签口径只在 rules/object-kind.ts 那份位置表里写一份，这里照它收口，不再自带一套。
 import { resolveCreateKind, MAP_TICKET_LABELS } from '../rules/object-kind.js'
 import type { CreateKindResolution } from '../rules/object-kind.js'
-import * as budget from '../../shared/refresh/src/budget.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS, DECK_STORE_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 

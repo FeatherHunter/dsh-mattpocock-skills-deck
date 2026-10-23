@@ -28,7 +28,7 @@ export interface ShellSession {
   sessionId?: unknown;
 }
 
-/** 额度常量表：字段名与 refresh-core/src/budget.ts 的导出同名。 */
+/** 额度常量表：字段名与 src/refresh/kernel/host-budget.ts 的导出同名。 */
 export interface DeckLimits {
   maxPointsPerCall: number;
   maxRequestsPerCall: number;

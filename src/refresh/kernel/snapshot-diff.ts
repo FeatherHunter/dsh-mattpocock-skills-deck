@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/delta.ts —— 行级增量刷新的纯逻辑：差分、合并、水印、世代号、派生值
+ * src/refresh/kernel/snapshot-diff.ts —— 行级增量刷新的纯逻辑：差分、合并、水印、世代号、派生值
  *
  * 这个文件只回答四个问题，四个都是纯计算，不读盘、不联网、不看时钟（时间由调用方传进来）：
  *   ① 这一次探测回来的变化里，哪些票是「行级补一下」，哪些情况只能整池重建；
@@ -18,15 +18,15 @@
  * 那条变化就再也发现不了了；本文件把「能不能推进」变成一条可以单独测的判定（watermarkAfter）。
  *
  * 形状照本域前四份（ports / budget / idempotency / policy）：产物落
- * src/shared/refresh/delta.js，逐字由根构建脚本的逐文件转译那一段生成（#1023 第二刀起，本域不再有
- * 各自的构建脚本）。本文件不 import 任何其他产物 ——
- * src/shared/ 同层互引会被 tests/verify-dependency-rules.ts 判红，需要用的东西一律由调用方传进来。
+ * .build/refresh/kernel/snapshot-diff.js，逐字由根构建脚本的 refresh-ts 那一段生成（#1425 起本域的新家
+ * 在 src/refresh/，产物不再有各自的构建脚本）。本文件不 import 任何其他产物 ——
+ * 需要用的东西一律由调用方传进来（与 policy.ts 同一条纪律：数字只许调用方给，不许产物之间互引）。
  */
 
 // 这里原来有一行 `export const DELTA_SOURCE = 'src/shared/refresh/src/delta.ts'`。#719 把它删掉：
 // 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
-// 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
+// 空壳产物（src/refresh/contract/refresh-ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 // ---------- 一、索引与差分的形状 ----------
 

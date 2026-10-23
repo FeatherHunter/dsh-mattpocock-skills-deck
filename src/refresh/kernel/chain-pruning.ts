@@ -2,7 +2,7 @@
  * 留存量的两条线（30 天、2MB）与两种存档形状共用的裁剪算法。
  *
  * 两种存档形状各自序列化，但留存口径是同一套，所以数字与能共用的算法只写在这里：
- *   - 链（ChainState，src/shared/refresh/src/chain.ts）：一个会话一格，按会话分格的缓存；
+ *   - 链（ChainState，src/refresh/kernel/refresh-chain.ts）：一个会话一格，按会话分格的缓存；
  *   - 工作路线存档（RootLedger，src/deck/shell/work-path-ledger.ts）：工作区根一份，按会话分页。
  * 两边的差别只在「怎么拼成准备落盘的 JSON」，怎么判断「留多少条」共用本文件。
  *

@@ -1,7 +1,7 @@
 // src/host/refresh/chainBackoff.ts —— 检查链「下一次什么时候再算」的宿主薄壳（#709 · T5 第四批）
 //
-// 分工：算这一步的规则全是纯函数，住在 refresh-core/src/backoff.ts（产物 src/shared/refresh/backoff.js）；
-// 数字的唯一真源是 refresh-core/src/budget.ts。本文件自己一个数字都不写，只做四件事：
+// 分工：算这一步的规则全是纯函数，住在 src/refresh/kernel/failure-backoff.ts（产物 .build/refresh/kernel/failure-backoff.js）；
+// 数字的唯一真源是 src/refresh/kernel/host-budget.ts。本文件自己一个数字都不写，只做四件事：
 //   ① 把 budget.js 里的那四个数字取出来装成 BackoffLimits；
 //   ② 把每个工作区（严格说是每条链的缓存键）的退避态记在内存里；
 //   ③ 把「这一刻该不该重算」的结论连同原因代号交回调用方；
@@ -66,7 +66,7 @@ export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
     if (!_initP) {
       _initP = (async function (): Promise<any> {
         try {
-          const ms: any[] = await Promise.all([import('../../shared/refresh/src/backoff.js'), import('../../shared/refresh/src/budget.js'), import('../../shared/time-config/src/values.js')])
+          const ms: any[] = await Promise.all([import('../../refresh/kernel/failure-backoff.js'), import('../../refresh/kernel/host-budget.js'), import('../../shared/time-config/src/values.js')])
           const budget: any = ms[1] || {}
           const central: any = ms[2] || {}
           if (!Array.isArray(central.CHAIN_BACKOFF_MS) || central.CHAIN_BACKOFF_MS.length < 2) return null

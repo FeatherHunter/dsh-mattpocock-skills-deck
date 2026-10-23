@@ -1,8 +1,8 @@
 // src/host/detectChain.ts —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；harness 注册留守入口，处理器体经 handleDetect/handleChain 供给。
-import { refreshSourceOf } from './refresh/refreshSource.js'
-import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
+import { refreshSourceOf } from '../refresh/contract/trigger-classification.js'
+import { workspaceKeyOf } from '../refresh/contract/workspace-keys.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
 

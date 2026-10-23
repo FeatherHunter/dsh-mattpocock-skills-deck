@@ -216,7 +216,7 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
  * @property {string|null} [parentKey]
  * @property {LabelInput[]} [labels]
  * @property {AssigneeInput[]} [assignees]
- * @property {string} [idempotencyKey] 创建幂等锚（#711）：同一个锚提交两次只多出一张票、返回同一个 key；不传时行为与没有这个字段之前完全一样。语义与「回查拿不准必须如实失败」见同目录的 contract-idempotency.js，锚怎么构造与命中判据见 refresh-core/src/idempotency.ts
+ * @property {string} [idempotencyKey] 创建幂等锚（#711）：同一个锚提交两次只多出一张票、返回同一个 key；不传时行为与没有这个字段之前完全一样。语义与「回查拿不准必须如实失败」见同目录的 contract-idempotency.js，锚怎么构造与命中判据见 src/refresh/contract/idempotency-keys.ts
  */
 
 /** close 选项。 */

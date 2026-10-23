@@ -12,7 +12,7 @@
 import nodePath from 'node:path'
 import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
 import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
-import { anchorLineFor } from '../src/shared/refresh/idempotency.js'
+import { anchorLineFor } from '../src/refresh/contract/idempotency-keys.js'
 
 let failed = false
 let total = 0

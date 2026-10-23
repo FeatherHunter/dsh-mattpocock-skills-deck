@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/backoff.ts —— 「下一次什么时候再查」的纯函数（#709 检查链与命名守护改事件驱动）
+ * src/refresh/kernel/failure-backoff.ts —— 「下一次什么时候再查」的纯函数（#709 检查链与命名守护改事件驱动）
  *
  * 这个文件只回答四件事，里面没有一行读盘、联网、看时钟、起定时器的代码：
  *   ① 检查链还有没做好的步骤时，下一次要等多久（8 秒 → 30 秒 → 2 分钟 → 5 分钟，有进展立刻回快档）；
@@ -13,16 +13,16 @@
  * 的答案，不是「现在就挂一个循环」的许可：宿主与客户端拿这个答案只做两件事——要么当场放行、
  * 要么写进待办等下一个事件。
  *
- * 数字一个都不在这里写：全部来自 src/shared/refresh/src/budget.ts（那是唯一真源），由调用方取好装进
+ * 数字一个都不在这里写：全部来自 src/refresh/kernel/host-budget.ts（那是唯一真源），由调用方取好装进
  * BackoffLimits 传进来。理由与 policy.ts 一样：产物文件之间同层互引会被
  * tests/verify-dependency-rules.ts 判红，所以本文件不 import 任何产物的常量。
  */
-import type { BackoffLimits, ChainBackoffState, ChainFreshness } from './ports.js'
+import type { BackoffLimits, ChainBackoffState, ChainFreshness } from '../contract/refresh-ports.js'
 
 // 这里原来有一行 `export const BACKOFF_SOURCE = 'src/shared/refresh/src/backoff.ts'`。#719 把它删掉：
 // 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
-// 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
+// 空壳产物（src/refresh/contract/refresh-ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 /** 退避序列最少要有几档：只有一档就没有「退」这件事，门禁按它核对调用方传进来的序列。 */
 export const MIN_BACKOFF_STEPS = 2

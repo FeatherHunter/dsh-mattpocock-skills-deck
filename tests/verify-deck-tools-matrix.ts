@@ -100,14 +100,14 @@ function remoteLane(id, scripted, module, sink) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   console.log('三后端矩阵门禁（#713 T9：同一个动作在 github / gitlab / markdown 上分别落到哪里）')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
   const gitlabBackend = (await imp('src/tracker/rooms/gitlab/index.ts')).gitlabBackend
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   // #1299 T8：双轨链路要用的三处真源——客户端容器三态、行首动作、对象类型标记。
   const cv = await imp('src/client/kernel/container-view.ts')
   const sd = await imp('src/client/kernel/store-derived.ts')

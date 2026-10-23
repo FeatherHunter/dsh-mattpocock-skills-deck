@@ -12,7 +12,7 @@
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw } from './register-options.js'
 import { createSuggestNextSteps, definition } from '../tools/suggest-next-steps.js'
 import { REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js'
-import { hash8 } from '../../shared/refresh-workspace-key.js'
+import { hash8 } from '../../refresh/contract/workspace-keys.js'
 
 /** 外层递进来的东西（工具服务、上下文、日志）形状都不由本文件定，逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>

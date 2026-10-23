@@ -92,7 +92,7 @@ export const SYNC = Object.freeze({
    *  住 config/ttl.yaml 的 syncSnapFreshMs。 */
   SNAP_FRESH_MS: SYNC_SNAP_FRESH_MS,
   /** #707：面板可见时「我还在看这个工作区」的本地心跳间隔（零配额、不出网，只上报事实）。
-   *  与 refresh-core/src/budget.ts 的 ATTENTION_HEARTBEAT_MS 同一个数：那边是宿主与核心用的唯一真源，
+   *  与 src/refresh/kernel/host-budget.ts 的 ATTENTION_HEARTBEAT_MS 同一个数：那边是宿主与核心用的唯一真源，
    *  这里给客户端用（客户端半边今天不 import 核心产物，跨端常量一律落在契约层，见本文件头）。
    *  住 config/intervals.yaml 的 attentionHeartbeatMs——两份消费处锁在同一把 YAML 键上。 */
   ATTENTION_HEARTBEAT_MS: ATTENTION_HEARTBEAT_MS,

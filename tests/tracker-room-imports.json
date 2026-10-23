@@ -1,10 +1,11 @@
 {
-  "note": "房间（src/tracker/rooms/<名字>/）可以引用的房外目录：这份 JSON 是唯一真源（#1136 定的形态，决策见 docs/adr/20261014-tracker-room-boundary.md）。为什么不直接写在 .dependency-cruiser.ts 里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键就直接拒绝启动（报 data MUST NOT have additional properties），所以登记表放在这份数据文件里，由规则文件与 tests/verify-dependency-rules.ts 共同读取 —— 一份数据、两个读者。房间说明 src/tracker/rooms/README.md 只指路，不抄第二份：抄两份正是这次漂移（#1136）的机制。每条必须写清「为什么在」与「归哪张票」，门禁的五条判据会逐条核对（活着 / 有名有据 / 不吃自己 / 不被吸收 / 报分母），写不出理由、或者匹配不到任何源码文件的条目过不了门禁。#1159 把逐文件点名的四条（preflight / error-rules / identity-keys / detection/workspace-ownership）并进了 kernel/ 一条，把四条 shared 子目录并进了 ^src/shared/ 一条，删掉了早已没房间引用的 host/platform 一条，又把名额闸与搭车账本改成从 ctx.outbound 注入（形状在 src/tracker/contract/outbound.ts）、把出站档位策略随 tiers.ts 搬进内核，于是 ^src/host/refresh/ 与 ^src/host/outbound/ 两条也删掉 —— 房间的房外依赖从此只剩下面三条目录级条目。",
+  "note": "房间（src/tracker/rooms/<名字>/）可以引用的房外目录：这份 JSON 是唯一真源（#1136 定的形态，决策见 docs/adr/20261014-tracker-room-boundary.md）。为什么不直接写在 .dependency-cruiser.ts 里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键就直接拒绝启动（报 data MUST NOT have additional properties），所以登记表放在这份数据文件里，由规则文件与 tests/verify-dependency-rules.ts 共同读取 —— 一份数据、两个读者。房间说明 src/tracker/rooms/README.md 只指路，不抄第二份：抄两份正是这次漂移（#1136）的机制。每条必须写清「为什么在」与「归哪张票」，门禁的五条判据会逐条核对（活着 / 有名有据 / 不吃自己 / 不被吸收 / 报分母），写不出理由、或者匹配不到任何源码文件的条目过不了门禁。#1159 把逐文件点名的四条（preflight / error-rules / identity-keys / detection/workspace-ownership）并进了 kernel/ 一条，把四条 shared 子目录并进了 ^src/shared/ 一条，删掉了早已没房间引用的 host/platform 一条，又把名额闸与搭车账本改成从 ctx.outbound 注入（形状在 src/tracker/contract/outbound.ts）、把出站档位策略随 tiers.ts 搬进内核，于是 ^src/host/refresh/ 与 ^src/host/outbound/ 两条也删掉 —— 房间的房外依赖从此只剩下面三条目录级条目。#1425 把刷新机制纯逻辑与契约搬进 src/refresh/（内核与契约是房间的永久依赖），登记加第四条，上面这句“三条”从此指历史。",
   "protected": "^src/tracker/rooms/",
   "entries": [
     { "pattern": "^src/tracker/contract/", "why": "契约层：三房唯一公共面（纯类型与数据）", "ticket": 1014 },
     { "pattern": "^src/tracker/kernel/", "why": "共享内核：与具体后端无关、房间与宿主都要用的判定件（#1159 建的归口，与契约层的分界见 docs/adr/20261014-tracker-room-boundary.md）", "ticket": 1159 },
-    { "pattern": "^src/shared/", "why": "共享模块：跟踪器形状层与四个自包含计算核（标签配色、刷新、配置存储等）", "ticket": 1159 }
+    { "pattern": "^src/shared/", "why": "共享模块：跟踪器形状层与三个自包含计算核（标签配色、版本控制、配置存储等）", "ticket": 1159 },
+    { "pattern": "^src/refresh/", "why": "刷新机制新家：房间引纯逻辑核与契约（gitlab 建票判据引内核、两房幂等引契约；宿主房与契约的永久依赖，#1426-#1428 房搬入后复查）", "ticket": 1425 }
   ],
-  "maxEntries": 3
+  "maxEntries": 4
 }

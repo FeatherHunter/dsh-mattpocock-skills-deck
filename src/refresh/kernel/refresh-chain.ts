@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/chain.ts —— 会话↔票 工作路线（纯逻辑）
+ * src/refresh/kernel/refresh-chain.ts —— 会话↔票 工作路线（纯逻辑）
  *
  * 这张链回答一个问题：**每个会话正在处理哪些票**。界面怎么画是另一张票（#721），这里只定数据侧：
  * 一条记录长什么样、键怎么拼、同一个会话留几张、哪些调用算「在处理」、落盘时哪些字必须被挡在外面。
@@ -20,7 +20,7 @@
  *      逐个字符串看一遍，宁可这一次不落盘，也不许把原文写出去（自检函数已随 #1271 与旧缓存一起删除）。
  *
  * #1083 起留存量不再按「每个会话 20 张」硬切，改按时间与体积：超过 30 天的条目在下一次落盘时清掉，
- * 整份仍超过 2MB 就按时间从旧到新裁。这两个数字住 src/shared/refresh/src/chain-prune.ts
+ * 整份仍超过 2MB 就按时间从旧到新裁。这两个数字住 src/refresh/kernel/chain-pruning.ts
  * （工作路线存档也共用同一套口径）；链的裁剪实现要用本文件的键构造与形状工具，
  * 旧链退役前它住在唯一调用方 src/host/refresh/workRoute.ts（#1271 已删；共享层文件之间不许互相引用）。
  *
@@ -31,7 +31,7 @@
 // 这里原来有一行 `export const CHAIN_SOURCE = 'src/shared/refresh/src/chain.ts'`。#719 把它删掉：
 // 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
-// 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
+// 空壳产物（src/refresh/contract/refresh-ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 // 留存量的两条线（30 天、2MB）在 chain-prune.ts：那里是数字的唯一住处；链的裁剪实现在
 // 旧链退役前由 src/host/refresh/workRoute.ts 用本文件的键与形状工具（#1271 已删；共享层文件之间不许互相引用）。

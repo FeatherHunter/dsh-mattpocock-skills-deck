@@ -29,7 +29,7 @@ import { originalWordsFromArg } from '../../shared/issue-file/src/original-words
 import { planBodyWrite } from '../shell/body-write.js'
 import type { BodyWritePlan } from '../shell/body-write.js'
 import { textWriteVerify } from '../shell/text-write-verify.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 

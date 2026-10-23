@@ -1,7 +1,7 @@
 // tests/verify-1106-deck-surface.ts —— #1106：九个 deck 工具对外的样子（参数表 / 信封表 / 点数表）
 // 门禁归属: src/deck/tools
 // 门禁归属: src/deck/shell/call-shell.ts
-// 门禁归属: src/shared/refresh/src/tool-cost.ts
+// 门禁归属: src/refresh/kernel/tool-call-budget.ts
 //
 // 这份门禁只回答一个问题：九个对外工具「长什么样」，是不是还和冻下来的对照面一样？
 // 给人读的那一份表在 specs/1106-deck-tool-surface-spec.md —— 那边给人读，这边给机器盯，
@@ -197,12 +197,12 @@ function makeWorkspace() {
 
 async function main() {
   console.log('#1106 九个工具对外长什么样（参数表 / 信封表 / 点数表）')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
 
   // ── 组装：真闸 + 真账本 + 真注册表 + 真实本地 Markdown 后端 ──
   const ws = makeWorkspace()

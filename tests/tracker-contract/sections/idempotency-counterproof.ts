@@ -10,7 +10,7 @@
 // 它自己的成功判据恰恰是「那几条断言失败了」。
 
 import { createRegistry } from '../../../src/tracker/registry/core.ts'
-import { anchorLineFor, idempotencyKeyOf } from '../../../src/shared/refresh/idempotency.js'
+import { anchorLineFor, idempotencyKeyOf } from '../../../src/refresh/contract/idempotency-keys.js'
 
 // ── 坏实现：锚照样写进票面，但「回查」查的是自己实例里的一张临时表（不看票面）──
 function makeBrokenBackend(store: { tickets: any[] }): any {

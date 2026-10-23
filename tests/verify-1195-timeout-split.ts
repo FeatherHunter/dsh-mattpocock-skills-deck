@@ -87,7 +87,7 @@ function execFor(cwd) {
 
 async function main() {
   console.log('1195 超时分家门禁（上报 / 建票 / 上下文 / 改票：超时与抛错各走各的码）')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   // 注意各操作的形参个数（壳按 backend.ts 的原形调，ctx 永远是最后一个）：

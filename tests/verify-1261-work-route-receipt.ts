@@ -38,7 +38,7 @@ async function main() {
   console.log('#1261 上报一次，回执见在办，盘上有记录')
   const bindingsMod = await imp('src/deck/shell/work-path-bindings.ts') as { createWorkRouteBindings: (io: unknown) => any }
   const recordMod = await imp('src/deck/shell/work-path-record.js') as { recordWorkRoute: (...a: any[]) => Promise<void> }
-  const chainMod = await imp('src/shared/refresh/chain.js') as { chainRootHash: (k: string) => string }
+  const chainMod = await imp('src/refresh/kernel/refresh-chain.js') as { chainRootHash: (k: string) => string }
   const readoutMod = await imp('src/deck/shell/work-path-readout.ts') as {
     buildWorkPathReadout: (l: unknown, o: { sessionId: string, at: number }) => any,
     buildWorkPathSummary: (r: unknown) => string | null,

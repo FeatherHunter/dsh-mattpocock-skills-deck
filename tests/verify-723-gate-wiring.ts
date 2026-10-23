@@ -49,9 +49,9 @@ function row(n: number, state: string, updatedAt: string) {
 
 async function main() {
   console.log('#723（T19）门禁：闸的裁决 (放行/推迟/拒绝) 与写事件过门取数，都在真业务路径上走通')
-  const delta = await imp('src/shared/refresh/delta.js')
+  const delta = await imp('src/refresh/kernel/snapshot-diff.js')
   const win = await imp('src/shared/tracker/indexWindow.js')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const patchMod = await imp('src/host/refresh/patch.js')

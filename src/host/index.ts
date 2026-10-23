@@ -268,7 +268,7 @@ export default {
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 
-    // #707（T3）视野模型：判定在 refresh-core/src/attention.ts 的产物里；#723（T19）起用接线那一份同一个实例—— wf.focus 上报的「我在看谁」必须与写事件白名单、闸的活跃集合同源（票面 3c）。
+    // #707（T3）视野模型：判定在 src/refresh/kernel/attention-model.ts 那份纯函数里；#723（T19）起用接线那一份同一个实例—— wf.focus 上报的「我在看谁」必须与写事件白名单、闸的活跃集合同源（票面 3c）。
     harness.handle('wf.focus', function (args: WfArgs) { return _refreshWiringP!.then(function (w: any) { return w.focus(args) }) })
     harness.handle('wf.gateStats', function () { const t0 = Date.now(); return _refreshWiringP!.then(function (w: any) { const out = w.stats(); try { if (logCtx) logCtx.fire('info', 'host.call', { method: 'wf.gateStats', latencyMs: Date.now() - t0, ok: true, kind: 'gate-stats' }) } catch (eL) {} return out }) }) // #927：闸的三个累计数（撞限流 / 记账对不上 / 绕闸）的只读出口——观察期就靠它看；成功一行走既有 host.call
     // ---- H5 #449 接线：2 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ---- 留守：harness.handle 注册留守（apply 同步注册，动态加载无法同步供给）；isRateLimitError 留守（H2 已注：H5 三处同步判别经显式参数复用同一份）。 这一组的拆分缘由见账本 §6。

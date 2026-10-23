@@ -17,7 +17,7 @@
 //
 //   调用方给的东西：
 //     read      现成的读出口（输入 { rootKey, sessionId, at }，输出 { ok, readout } 或 { ok:false, reason }）
-//     rootKeyOf 工作区根 → 工作区键（与工具会话里的 workspaceKey 是同一把钥匙，见 shared/refresh-workspace-key.ts）
+//     rootKeyOf 工作区根 → 工作区键（与工具会话里的 workspaceKey 是同一把钥匙，见 src/refresh/contract/workspace-keys.ts）
 //     now       取时间（门禁注入固定时钟；生产是 Date.now）
 //     回包不是 ok:true 时原样返回 —— 失败快照不许挂一份看起来成功的读数。
 import { createWorkRouteBindings } from '../../deck/shell/work-path-bindings.js'

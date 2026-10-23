@@ -8,7 +8,7 @@
 //   3. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符。
 //   4. 只写可剥离类型：类型一律经 import type 引入或就地声明，不新增任何运行时边。
 //   5. 住在平台装配扇出区、不引用任何宿主层文件的格局不变：只引用共享层，状态走命名守护公开方法。
-import { hash8 } from '../../shared/refresh-workspace-key.js'
+import { hash8 } from '../../refresh/contract/workspace-keys.js'
 import { NAMING_STAGES } from '../../shared/naming-tracking.js'
 // 摘要超时住中央 YAML（config/timeouts.yaml 的 namingSummaryTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。

@@ -24,8 +24,8 @@ import { withWorkspaceWriter } from './write-queue.js'
 // 全在刷新核心的产物里（唯一一处判据），本文件只负责把锚写进票文件、并从盘上按锚找票。
 // #1174：回查的**结论**也交给那份判据（matchAnchor）—— 旧实现自己写了一套「比中锚就算命中」，
 // 少了「候选必须还开着」这一条，于是票关掉之后拿同一个锚再提交，会把新活记到那张关着的旧票上。
-import { anchorLineFor, checkIdempotencyKey, idempotencyKeyOf, matchAnchor, isAnchorHit, isAnchorUnsupported, anchorUnsupported, describeAnchorFailure } from '../../../shared/refresh/src/idempotency.js'
-import type { AnchorCandidate, AnchorMatch } from '../../../shared/refresh/src/idempotency.js'
+import { anchorLineFor, checkIdempotencyKey, idempotencyKeyOf, matchAnchor, isAnchorHit, isAnchorUnsupported, anchorUnsupported, describeAnchorFailure } from '../../../refresh/contract/idempotency-keys.js'
+import type { AnchorCandidate, AnchorMatch } from '../../../refresh/contract/idempotency-keys.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
 import type { CreateInput, LabelInput } from '../../contract/inputs.js'

@@ -1,5 +1,5 @@
 /**
- * src/shared/host-timer/src/host-timers.ts —— 宿主计时器服务（ctx.get('timer')）到 OpContext.timers 的共用包装（#1115）。
+ * src/refresh/contract/host-timer-ports.ts —— 宿主计时器服务（ctx.get('timer')）到 OpContext.timers 的共用包装（#1115）。
  *
  * 为什么要有它：宿主计时器服务由 DSH 里的 @deepseek-ai/cordis-plugin-timer 提供，它的 timeout(回调, 毫秒)
  * 交回的是**一支可调用的函数** —— cordis 的 effect 撤销器。2026-10-14 实测的三种撤销方式：

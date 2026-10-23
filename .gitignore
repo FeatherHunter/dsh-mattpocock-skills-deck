@@ -80,6 +80,8 @@ _research/
 # #1018：新树投放的包内产物（构建从 src/deck、src/tracker 转译复制过去的镜像），同样不入库
 /package/deck/
 /package/tracker/
+# #1425：刷新新家的包内产物（构建从 src/refresh 转译过去的镜像），同样不入库
+/package/refresh/
 
 # 日志系统的编译产物不入库（发布前跑 build:dsh-log 本地生成，本地保留文件可跑测试）
 /packages/dsh-log/dist/

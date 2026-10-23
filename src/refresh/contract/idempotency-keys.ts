@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/idempotency.ts —— 创建幂等锚：锚长什么样、回查找什么、算不算命中
+ * src/refresh/contract/idempotency-keys.ts —— 创建幂等锚：锚长什么样、回查找什么、算不算命中
  *
  * 这份文件只回答三个问题，别的什么都不做：
  *   1. 一个调用方给的幂等键，落到票面上的那一行稳定标识长什么样（anchorLineFor / markerOf）；
@@ -222,4 +222,4 @@ export function describeAnchorFailure(m: AnchorMatch): string {
 // 这里原来有一行 `export const IDEMPOTENCY_SOURCE = 'src/shared/refresh/src/idempotency.ts'`。#719 把它删掉：
 // 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
-// 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
+// 空壳产物（src/refresh/contract/refresh-ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。

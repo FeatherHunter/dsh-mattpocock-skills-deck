@@ -1,7 +1,7 @@
 // src/host/refresh/writeEvents.ts —— 写事件订阅（#710 T6 · 第二批）
 //
 // 这个文件干一件事：把「会话里有人写东西」变成「面板立刻知道」。它自己一行判定规则都没有——
-// 判定全在 refresh-core/src/write-detect.ts 那份纯函数里（产物 src/shared/refresh/write-detect.js），
+// 判定全在 src/refresh/kernel/write-event-detection.ts 那份纯函数里（产物 .build/refresh/kernel/write-event-detection.js），
 // 这里只做四件外面才做得了的事：订事件、过工作区那道门、按 10 秒合并窗口收口、把取数交给闸。
 //
 // 依据（票面 #710 与 docs/architecture/refresh-budget-architecture.html 第十一章、第十二章、第十五章）：
@@ -30,7 +30,7 @@
 // （2026-10-18 #1247 从 writeEvents.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做订阅、过门、合并窗口与过闸，白名单的钥匙与活跃集合用同一把短散列，绝不另写归一。）
-import { detectWrite, actionFor } from '../../shared/refresh/src/write-detect.js'
+import { detectWrite, actionFor } from '../../refresh/kernel/write-event-detection.js'
 import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/time-config/src/values.js'
 
 // ---------------------------------------------------------------------------

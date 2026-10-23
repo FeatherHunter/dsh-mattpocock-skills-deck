@@ -21,7 +21,7 @@
  * DECK_ENSURE_TIMEOUT_MS，本表直接用它，不再写数字字面量；
  * tests/verify-time-config.ts 断言两者相等。调时间请改 YAML。
  */
-import { DECK_ENSURE_TIMEOUT_MS } from '../../time-config/values.js'
+import { DECK_ENSURE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 调参表的形状：三个字段都可选，缺字段时调用方用代码缺省值顶上。 */
 export interface SharedTuning {

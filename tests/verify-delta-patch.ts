@@ -25,11 +25,11 @@ function imp(rel) { return import(pathToFileURL(path.join(ROOT, rel)).href) }
 
 async function main() {
   console.log('行级增量门禁（#708 T4：只补变的那几条、只走薄查询、水印与待办、世代号、counts 红线）')
-  const delta = await imp(path.join('src', 'shared', 'refresh', 'delta.js'))
+  const delta = await imp(path.join('src', 'refresh', 'kernel', 'snapshot-diff.js'))
   // 2026-10-17 修：原来写成 path.join('src','tracker','indexWindow.js') 再 replace 反斜杠串，
   //   只在 Windows 命中（path.join 产反斜杠），POSIX 上 replace 空转、import 直接 ERR_MODULE_NOT_FOUND。
   const win = await imp(path.join('src', 'shared', 'tracker', 'indexWindow.js'))
-  const budget = await imp(path.join('src', 'shared', 'refresh', 'budget.js'))
+  const budget = await imp(path.join('src', 'refresh', 'kernel', 'host-budget.js'))
   const ledgerMod = await imp(path.join('src', 'host', 'refresh', 'ledger.ts'))
   const gateMod = await imp(path.join('src', 'host', 'refresh', 'gate.ts'))
   const patchMod = await imp(path.join('src', 'host', 'refresh', 'patch.js'))

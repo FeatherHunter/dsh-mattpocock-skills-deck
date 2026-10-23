@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/write-detect.ts —— 写事件判定表（纯函数）
+ * src/refresh/kernel/write-event-detection.ts —— 写事件判定表（纯函数）
  *
  * 这个文件只回答一个问题：一次**已经成功**的工具调用，算不算「有人往工单仓库里写了东西」？
  * 答完还有第二问：如果算，改的是哪一张票？答案只有三种：确定写、可疑、其余。
@@ -31,10 +31,10 @@
  * 所以四个 code 旧名也要认）。只有「结果」形态才可能产生前两档；`tool/call` 与 `*-start` 是调用刚开始，
  * 没有成功与否的信息，一律走第三档。Windows 上执行命令的工具名是 `pwsh`。
  */
-import type { DetectInput, DetectResult, DetectTier, EventAction, WriteDetectLimits } from './ports.js'
+import type { DetectInput, DetectResult, DetectTier, EventAction, WriteDetectLimits } from '../contract/refresh-ports.js'
 
 /** 这份文件定义在哪个文件里。产物里留着它，用来证明「产物确实来自这份源码」。 */
-export const WRITE_DETECT_SOURCE = 'src/shared/refresh/src/write-detect.ts'
+export const WRITE_DETECT_SOURCE = 'src/refresh/kernel/write-event-detection.ts'
 
 /** 三档（字面就是账本与日志里记的档名，只许加、不许改字面）；数组次序就是「谁更重」。 */
 export const TIERS: readonly DetectTier[] = ['write-confirmed', 'probe-now', 'default-tick']

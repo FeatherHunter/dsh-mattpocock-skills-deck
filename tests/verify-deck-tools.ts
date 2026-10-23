@@ -67,18 +67,18 @@ function makeWorkspace() {
 
 async function main() {
   console.log('九个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const planMod = await imp('src/deck/shell/minimal-spec.ts')
   const shellMod = await imp('src/deck/shell/call-shell.ts')
   // #1261：工作路线用同一份真实现（临时家目录 + 固定时钟），门禁用假口会把「记没记上」变成自证——
   // 记一笔真落盘、读一笔真读盘，断言直接看盘上的文件与回执。
   const workRouteMod = await imp('src/deck/shell/work-path-bindings.ts')
-  const chainMod = await imp('src/shared/refresh/chain.js')
+  const chainMod = await imp('src/refresh/kernel/refresh-chain.js')
   // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上，否则下面这些正例一条都跑不到真实路径。

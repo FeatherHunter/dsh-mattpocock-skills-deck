@@ -3,7 +3,7 @@
  *
  * 契约层答应的事只有一条：同一个锚提交两次，只多出一张票、返回同一个 key（语义见
  * src/host/tracker/contract-idempotency.js）。锚的构造与「找到的票算不算命中」的判据在
- * 刷新核心的产物（src/shared/refresh/idempotency.js），这里只做 GitLab 专属的两件事：
+ * 刷新核心的产物（.build/refresh/contract/idempotency-keys.js），这里只做 GitLab 专属的两件事：
  *   ① 把锚那一行写进 issue 的 description（由 issues.js 拼 description 时加上，本文件提供 helper）；
  *   ② **建后按锚回查**：先从 GitLab 上把「可能已经建过的那张票」找出来。
  *
@@ -19,8 +19,8 @@
  *    「拿不准」当成「没找到」正是重复建票的来路，而且是看起来成功了的那种。
  */
 
-import { anchorLineFor, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../shared/refresh/src/idempotency.js'
-import type { AnchorCandidate, AnchorMatch } from '../../../shared/refresh/src/idempotency.js'
+import { anchorLineFor, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../refresh/contract/idempotency-keys.js'
+import type { AnchorCandidate, AnchorMatch } from '../../../refresh/contract/idempotency-keys.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { ErrorKind } from '../../contract/identity.js'
 import type { Issue, RepositoryRef } from '../../contract/entities.js'

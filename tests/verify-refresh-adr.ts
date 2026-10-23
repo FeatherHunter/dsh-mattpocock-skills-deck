@@ -86,7 +86,7 @@ async function main() {
   check(scansSrc && readsTs,
     '当场核一遍：tests/verify-file-granularity.ts 扫的确实是 src 那棵树，而且真的把 .ts 真源读进来（#1017 换轨后）')
   const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
-  const frozenRel = 'src/shared/refresh/src/chain.ts'
+  const frozenRel = 'src/refresh/kernel/refresh-chain.ts'
   let frozenAt = null
   let frozenMetric = null
   try {
@@ -102,8 +102,8 @@ async function main() {
     + (typeof frozenAt === 'number' ? '冻结值 ' + frozenAt : '基线里没有它，当前有效行 ' + chainLines + '，上限 350') + '）')
 
   // ④ 额度常量的落点与做法写全了。
-  check(text.indexOf('只有一处物理真源') >= 0 && text.indexOf('src/shared/refresh/src/budget.ts') >= 0,
-    'ADR 写明额度常量只有一处物理真源：src/shared/refresh/src/budget.ts')
+  check(text.indexOf('只有一处物理真源') >= 0 && text.indexOf('src/refresh/kernel/host-budget.ts') >= 0,
+    'ADR 写明额度常量只有一处物理真源：src/refresh/kernel/host-budget.ts')
   const injections = ['policy.ts', 'backoff.ts', 'tool-cost.ts']
   check(injections.every((n) => text.indexOf(n) >= 0),
     'ADR 写明宿主侧取好再传进纯函数，并点到三处同做法的先例：' + injections.join('、'))
@@ -116,9 +116,9 @@ async function main() {
   check(text.indexOf('两个互相独立的桶') >= 0 && text.indexOf('互不折算') >= 0,
     'ADR 写明 GitHub 是两个互相独立、互不折算的桶')
   // ⑤b 模型文件真的在，而且真的没有写死额度数值（与 verify-backend-quota-model 同一条纪律）。
-  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/shared/refresh/src/backend-quota.ts）。
-  const modelPath = path.join(ROOT, '.build', 'shared', 'refresh', 'backend-quota.js')
-  check(fs.existsSync(modelPath), 'ADR 说的那份额度模型产物真的在：.build/shared/refresh/backend-quota.js')
+  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/refresh/kernel/backend-quota-model.ts）。
+  const modelPath = path.join(ROOT, '.build', 'refresh', 'kernel', 'backend-quota-model.js')
+  check(fs.existsSync(modelPath), 'ADR 说的那份额度模型产物真的在：.build/refresh/kernel/backend-quota-model.js')
   if (fs.existsSync(modelPath)) {
     const modelText = fs.readFileSync(modelPath, 'utf8')
     check(!/\b5000\b/.test(modelText), '当场核一遍：那份模型里没有写死 GitHub 的额度数值（5000 不出现）')
@@ -127,9 +127,9 @@ async function main() {
   // ⑥ 最坏用量按页数上界算这条也在，并指到上界常量与那个算式。
   check(text.indexOf('MAX_PAGES') >= 0 && text.indexOf('worstCaseRebuildCost') >= 0 && text.indexOf('page-budget.ts') >= 0,
     'ADR 写明最坏用量按页数上界算，并指到 MAX_PAGES 与 page-budget.ts 的算式')
-  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/shared/refresh/src/page-budget.ts）。
-  const pageBudgetPath = path.join(ROOT, '.build', 'shared', 'refresh', 'page-budget.js')
-  check(fs.existsSync(pageBudgetPath), 'ADR 说的那个算式产物真的在：.build/shared/refresh/page-budget.js')
+  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/refresh/kernel/page-allowance.ts）。
+  const pageBudgetPath = path.join(ROOT, '.build', 'refresh', 'kernel', 'page-allowance.js')
+  check(fs.existsSync(pageBudgetPath), 'ADR 说的那个算式产物真的在：.build/refresh/kernel/page-allowance.js')
 
   // ⑦ ADR 必须如实记下今天的缺口（I3 只落地了一半），不许把没做的写成做完。
   check(text.indexOf('现在的缺口') >= 0 && text.indexOf('没有落地') >= 0,

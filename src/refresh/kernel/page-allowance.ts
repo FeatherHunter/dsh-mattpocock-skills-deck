@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/page-budget.ts —— 一次整池重建要翻几页、花多少钱（#719 收口）
+ * src/refresh/kernel/page-allowance.ts —— 一次整池重建要翻几页、花多少钱（#719 收口，#1425 随整组搬入 src/refresh）
  *
  * 解决的是什么问题：整池重建的钱是按「翻了几页」算出来的。同一张票在只有 30 张票的仓库里
  * 一页就到底，在 500 张票的仓库里要翻 5 页。以前全仓只认一个写死的页数（5 页），于是两种仓库
@@ -10,10 +10,10 @@
  *     理由与「最坏」这两个字同源：实测是这一次的真相，上界是任何一次都不会超过的那条线；
  *     拿实测当最坏会把最坏情况算小，而门禁存在的意义正是盯住最坏情况。
  *
- * 为什么本文件一个数字都不写、全部从参数进来：刷新核心的产物（src/shared/refresh/*.js）之间
+ * 为什么本文件一个数字都不写、全部从参数进来：刷新核心的产物（.build/refresh/kernel/*.js）之间
  * 不许互相 import（tests/verify-dependency-rules.ts 的「同层不许互引」一条门禁守着这件事）。
  * 额度与单价常量因此仍然只有一处物理真源
- * （src/shared/refresh/src/budget.ts），由宿主侧从 budget.js 取好再传进来 —— 做法与
+ * （src/refresh/kernel/host-budget.ts），由宿主侧从 budget.js 取好再传进来 —— 做法与
  * policy.ts / backoff.ts / tool-cost.ts 完全一致。这里只放形状与算式。
  */
 

@@ -23,7 +23,7 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 async function main() {
   console.log('闸记账门禁（#706 T2：闸的累计账 == 实际出站请求数，两桶各自独立）')
-  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
+  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
   const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'ledger.ts')).href)
   const gateMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'gate.ts')).href)
 

@@ -1,4 +1,4 @@
-// src/shared/refresh/refusal-text.js —— AI 工具被拒时回给 AI 的那句话（#998 从宿主闸搬出）
+// src/host/refresh/refusal-text.ts —— AI 工具被拒时回给 AI 的那句话（#998 从宿主闸搬出）
 //
 // 为什么搬出来：src/host/refresh/gate.js 贴着 350 行单文件上限（tests/verify-file-granularity.ts），
 // #998 给「连续失败」留出口那件事要往闸里加十几行，就得先搬走同等量的东西。搬出来的只挑纯的：

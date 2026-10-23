@@ -210,7 +210,7 @@ export default {
     // ==== shared:labelColors (spliced by build) ====
     // ==== shared:labelColorPrompt (spliced by build) ====
     // #715 诚实显示：新鲜度阈值（5 分钟黄 / 30 分钟红）、写入合并窗口、降档的延迟承诺，
-    // 只有一份真源（src/shared/refresh/src/budget.ts → src/shared/refresh/budget.js），拼进来给界面读；
+    // 只有一份真源（src/refresh/kernel/host-budget.ts，#1425 起从 src/shared/refresh/src/budget.ts 搬来），拼进来给界面读；
     // 判据与渲染见 views/shared/truthLines.js 与 views/ListTab.js。
     // ==== shared:refreshBudget (spliced by build) ====
     // #842 写操作：能不能暂存/提交/拉取/推送的判定只有一份真源（src/shared/version-control/src/rules.ts →

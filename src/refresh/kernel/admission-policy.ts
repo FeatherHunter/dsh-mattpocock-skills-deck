@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/policy.ts —— 裁决的纯函数：给一笔请求，答「放行 / 降级 / 推迟」
+ * src/refresh/kernel/admission-policy.ts —— 裁决的纯函数：给一笔请求，答「放行 / 降级 / 推迟」
  *
  * 这个文件只回答一个问题：这一笔去 GitHub 的调用，现在放行、降级，还是推迟？输入是四样东西
  * （请求类别、这一桶的档位、这一桶的已用额度、这个工作区当前的状态），输出是结论加一句原因代号。
@@ -21,10 +21,10 @@
  * 第十章叙述里的 5 秒 → 30 秒 → 停、10 分钟 → 30 分钟 → 停 是「顺序」的说法，具体数值以 budget.ts 为准，
  * 这条不一致记在 docs/adr/20260923-refresh-budget-architecture.md 的「两处如实记录」一节里。
  */
-import type { QuotaTier, RequestCategory, VerdictResult } from './ports.js'
+import type { QuotaTier, RequestCategory, VerdictResult } from '../contract/refresh-ports.js'
 
 /** 这份文件定义在哪个文件里。产物里留着它，用来证明「产物确实来自这份源码」。 */
-export const POLICY_SOURCE = 'src/shared/refresh/src/policy.ts'
+export const POLICY_SOURCE = 'src/refresh/kernel/admission-policy.ts'
 
 // ---------- 一、请求的种类（闸按它决定「这笔能不能花」） ----------
 
@@ -99,7 +99,7 @@ export interface WorkspaceState {
   /**
    * 到了门槛之后，「这一笔可不可以放进来试一次」的结论。
    *
-   * 由闸按 src/shared/refresh/src/failure-window.ts 那台状态机算好传进来（那边才是窗口长短的单一真源）。
+   * 由闸按 src/refresh/kernel/failure-window.ts 那台状态机算好传进来（那边才是窗口长短的单一真源）。
    * 不传（或传 false）时行为与从前一模一样：到门槛就一律推迟 —— 这样没接这一格的地方
    * （门禁、单测、别的调用方）一个字都不用改。
    */

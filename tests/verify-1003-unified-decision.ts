@@ -74,10 +74,10 @@ function makeGateLedger(gateMod: any, ledgerMod: any): any {
 async function main() {
   console.log('#1003 一期门禁：统一判定四条');
   const shellMod = await imp('src/deck/shell/call-shell.ts');
-  const budget = await imp('src/shared/refresh/budget.js');
+  const budget = await imp('src/refresh/kernel/host-budget.js');
   const ledgerMod = await imp('src/host/refresh/ledger.ts');
   const gateMod = await imp('src/host/refresh/gate.ts');
-  const toolCost = await imp('src/shared/refresh/tool-cost.js');
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js');
   const decMod = await imp('src/tracker/detection/backendDecision.ts');
   const { decideBackend, decidePure } = decMod;
 

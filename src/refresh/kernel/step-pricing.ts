@@ -1,4 +1,4 @@
-// src/shared/refresh/src/step-cost.ts —— 这一步的真实花费归属（#1069 从 src/shared/step-cost.js 搬来）
+// src/refresh/kernel/step-pricing.ts —— 这一步的真实花费归属（#1069 从 src/shared/step-cost.js 搬来，#1425 随整组搬入 src/refresh）
 //
 // 为什么搬到这里：这份逻辑是宿主闸独用的按步记账（gate.ts 贴着单文件行数上限，
 // 放不进去；宿主层的文件之间又不许互相引用，只能落在共享层）。它原来在 src/shared/ 根下，

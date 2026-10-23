@@ -275,11 +275,11 @@ module.exports = {
       name: 'refresh-kernel-no-io',
       severity: 'error',
       comment:
-        '内核只算数：内核范围（旧位置 src/shared/refresh/src/ 与 indexWindow，将来 src/refresh/kernel/）'
+        '内核只算数：内核范围（src/refresh/kernel/ 与 src/shared/tracker/indexWindow.ts，后者 #1427 搬走）'
         + '不许引运行环境能力（dependencyTypes core：文件、网络、进程、计时器都算）。'
-        + '旧位置唯一一条存量边（step-cost.ts -> async_hooks）记在 tests/refresh-baseline.json，#1425 带走；'
-        + '新家 kernel/ 从零开始守。',
-      from: { path: '^src/shared/refresh/src/|^src/shared/tracker/indexWindow\\.ts$|^src/refresh/kernel/' },
+        + '唯一一条存量边（step-pricing.ts -> async_hooks）记在 tests/refresh-baseline.json，由 #1430 定夺'
+        + '（改成参数传入 / 非输入输出白名单 / 随基线清零删条目），清零前保留；其余从零开始守。',
+      from: { path: '^src/refresh/kernel/|^src/shared/tracker/indexWindow\\.ts$' },
       to: { dependencyTypes: ['core'] },
     },
     {
@@ -305,10 +305,13 @@ module.exports = {
       name: 'refresh-outside-only-contract',
       severity: 'error',
       comment:
-        '外面只许碰契约：新家之外的代码要用搬进来的东西，只许引用 src/refresh/contract/；'
-        + '内核、房间、登记的实现细节不对外。今天新家里还没有手写源码，这条从零开始守。',
+        '外面不许深引房间与登记：新家之外的代码要用搬进来的东西，房间与登记的实现细节'
+        + '（^src/refresh/rooms/、^src/refresh/registry/）不对外。内核（kernel/）与契约（contract/）是公开的：'
+        + 'deck 工具引预算数字、宿主闸引裁决与形状，禁了内核这些调用当场无处可去。'
+        + '#1425 对规格地图第 24 行的修正：原文禁的是“房内部具体文件”，此前实现把内核也圈进来是错的。'
+        + '今天房里还没有手写源码，房间与登记这两档从零开始守。',
       from: { path: '^src/', pathNot: ['^src/refresh/'] },
-      to: { path: '^src/refresh/kernel/|^src/refresh/rooms/|^src/refresh/registry/' },
+      to: { path: '^src/refresh/rooms/|^src/refresh/registry/' },
     },
 
     // ── 图上的环 ────────────────────────────────────────────────────────────────────────────

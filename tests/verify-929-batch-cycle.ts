@@ -35,8 +35,8 @@ const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok 
 const registryMod = await imp('src/tracker/registry/core.ts')
 const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
 const linkMod = await imp('src/deck/tools/map-link.ts')
-const budget = await imp('src/shared/refresh/budget.js')
-const toolCost = await imp('src/shared/refresh/tool-cost.js')
+const budget = await imp('src/refresh/kernel/host-budget.js')
+const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
 
 /** 一套真件环境：真 github 房 + 真注册表 + 真 deck_map_link，只把 gh 传输层换成脚本化的假「服务端」。 */
 function makeEnv(opts) {

@@ -20,7 +20,7 @@
 //
 // 这个文件不联网、不起定时器：同步服务端剩余读数的节拍由调用方按 budget.js 的 QUOTA_SYNC_INTERVAL_MS
 // 问 `syncDue()`，真去打那次不扣配额的 `gh api rate_limit` 的是闸那一路（它也走闸、也记账）。
-import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../shared/refresh/src/budget.js'
+import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../refresh/kernel/host-budget.js'
 import { QUOTA_SYNC_INTERVAL_MS } from '../../shared/time-config/src/values.js'
 import { createPageBook } from './recordRepoPages.js'
 

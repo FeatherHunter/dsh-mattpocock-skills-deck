@@ -20,7 +20,7 @@
 // full 档也随之退役——它当时唯一的增量就是这一格，现在与 standard 相同；老调用还传 full 时
 // 按 standard 处理，不退回 core 把标题与动作丢掉。
 
-import { chainSessionShardId } from '../../shared/refresh/src/chain.js';
+import { chainSessionShardId } from '../../refresh/kernel/refresh-chain.js';
 import type { WorkPathLedger } from './work-path-store.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;

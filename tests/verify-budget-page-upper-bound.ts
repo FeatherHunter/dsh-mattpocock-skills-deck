@@ -33,8 +33,8 @@ const pricesOf = (b: any) => ({
 
 async function main() {
   console.log('页数上界门禁（#719 T15：最坏用量按 MAX_PAGES 算，账本按每个仓库的实测页数估）')
-  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
-  const pb = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'page-budget.js')).href)
+  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
+  const pb = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'page-allowance.js')).href)
   const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'ledger.ts')).href)
 
   const prices = pricesOf(budget)

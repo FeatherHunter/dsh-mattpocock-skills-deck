@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/tool-cost.ts —— AI 工具的「调用前算账」（#713 第六批）
+ * src/refresh/kernel/tool-call-budget.ts —— AI 工具的「调用前算账」（#713 第六批）
  *
  * 解决的是什么问题：AI 一次 `deck_map_plan_create` 可以一口气建几十张票，每张票都要花掉
  * 真实的 GitHub 配额。事后记账只能告诉人「刚才花了多少」；这一份要回答的是**动手之前**的四句话：
@@ -7,12 +7,12 @@
  * 依据：docs/architecture/refresh-budget-architecture.html 第四章与维护者 2026-09-23 定的
  * 「单次 ≤600 点且 ≤400 次请求、每小时 ≤2000 点且 ≤1500 次请求、一次最多建 60 张子票」。
  *
- * 为什么本文件一个数字都不写、全部从参数进来：刷新核心的产物（src/shared/refresh/*.js）之间
+ * 为什么本文件一个数字都不写、全部从参数进来：刷新核心的产物（.build/refresh/kernel/*.js）之间
  * 不许互相 import（tests/verify-dependency-rules.ts 的「同层不许互引」一条门禁守着这件事；
  * 产物由构建逐份生成，每份产物的路径都由同名源码机械推出，不再需要另一条门禁比对新鲜度）。
  * 同一个仓库里 policy.ts 与 backoff.ts 也是这个做法：
  * 数字由宿主侧从 budget.js 现取现传（见 src/host/tools/ 里各工具构造 limits 的那一行），
- * 这里只留形状与算式。额度常量因此仍然只有一处物理真源：src/shared/refresh/src/budget.ts。
+ * 这里只留形状与算式。额度常量因此仍然只有一处物理真源：src/refresh/kernel/host-budget.ts。
  *
  * 单价怎么定的（这里是「最坏情况估算」，不是精算，理由与实测校正见票面「实测校正」一句）：
  *   - 建一张票：4 点、2 条请求（一条建票 mutation，一条把父票/标签接上）。
@@ -27,7 +27,7 @@
  * 三种调用形态共用这一个算式：只给票数、只给边数、或两者都给都行；没给的按 0 算。
  */
 
-/** 额度与硬顶：字段名与 src/shared/refresh/src/budget.ts 的导出同名，调用方对照着取即可。 */
+/** 额度与硬顶：字段名与 src/refresh/kernel/host-budget.ts 的导出同名，调用方对照着取即可。 */
 export interface ToolCostLimits {
   /** 一次调用最多花多少点（budget.AI_TOOL_MAX_POINTS_PER_CALL）。 */
   maxPointsPerCall: number

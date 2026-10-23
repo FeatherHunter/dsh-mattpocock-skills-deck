@@ -63,14 +63,13 @@ import { acquireBuildLock, pulseBuildLock, releaseBuildLock } from './lib/build-
 // 域里允许住**不是域源码产物**的 .js（没有域源码里的同名真源，也不该被当成陈旧产物）：
 // 它们要么是手写模块、要么是域根散文件的转译产物，都住在域产物同一个目录（.build/shared/<域>/）里，
 // 域的双向对账（checkDomainConsistency）要按名字豁免它们，否则会把它们报成「无源产物」。
-// 今天三份：
-//   · refresh/chain-ride.js、refresh/refusal-text.js —— #1023 时代的手写 .js，真身后来搬去
-//     src/host/refresh/ 下，产物位上已经没有同名 .js；这两条留着是防御性声明（真出现同名文件时不会被静默当成产物），
-//     不是今天的现实。
+// 今天一份：
 //   · version-control/exec-envelope.js —— 真源是 src/shared/version-control/exec-envelope.ts（域根上的散文件，
 //     不属于 <域>/src/ 那一圈域源码），产物由 buildSharedTs 写进同一个 .build/shared/version-control/ 目录。
+// #1425 删掉 refresh 那条：refresh/chain-ride.js、refresh/refusal-text.js 是 #1023 时代的手写 .js 的防御性声明，
+// refresh 域本身已经搬空（源码进 src/refresh/，产物进 .build/refresh/），.build/shared/refresh/ 不再出现，
+// 留着这条只会让人以为 refresh 域还在。
 const HAND_WRITTEN_IN_DOMAINS: Record<string, string[]> = {
-  refresh: ['chain-ride.js', 'refusal-text.js'],
   'version-control': ['exec-envelope.js'],
 }
 
@@ -609,10 +608,11 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   { marker: '// ==== shared:labelColors (spliced by build) ====', file: 'src/shared/label-color/src/colors.ts' },
   { marker: '// ==== shared:labelColorPrompt (spliced by build) ====', file: 'src/shared/label-color/src/prompt.ts' },
   // #715 诚实显示：新鲜度阈值（5 分钟黄 / 30 分钟红）、合并窗口（10 秒）、降档的延迟承诺，
-  // 全部只有一份真源 src/shared/refresh/src/budget.ts。
+  // 全部只有一份真源 src/refresh/kernel/host-budget.ts（#1425 起从 src/shared/refresh/src/budget.ts 搬来）。
+  // 拼接标记的名字沿用 shared:refreshBudget（src/client/index.ts 与 truthLines.ts 按这个名字对接，改名要动界面两处）；
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
   // 所以按同一套拼接做法把这一份真源拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
-  { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/shared/refresh/src/budget.ts' },
+  { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/refresh/kernel/host-budget.ts' },
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
@@ -1030,7 +1030,8 @@ ${PKG_CLIENT_SHIMS}
 //   计算域同口径（同一份转译参数，行首导出改写也调同一份实现），拼进闭包的形态与别家一致。
 //
 // 二、新树投放：package/ 按 src/ 的相对位置镜像（package/lib 对 src/host、package/deck
-//   对 src/deck、package/tracker 对 src/tracker；package/shared 对 src/shared 早就是这样），
+//   对 src/deck、package/tracker 对 src/tracker、package/refresh 对 src/refresh（#1425 起）；
+//   package/shared 对 src/shared 早就是这样），
 //   这样源码里以 .js 结尾的相对引用在包里原样成立，不用改源码。TypeScript 逐文件转译成
 //   JavaScript（只剥类型、不打包，引用原样保留），手写 JavaScript 直接复制。
 //   发布包的目录与入口登记见 package/package.json（files 加 deck、tracker 两项，
@@ -1057,6 +1058,12 @@ const MOVED_TREE_MAP: { src: string; pkg: string }[] = [
   { src: 'src/host', pkg: 'package/lib' },
   { src: 'src/deck', pkg: 'package/deck' },
   { src: 'src/tracker', pkg: 'package/tracker' },
+  // #1425 起刷新机制的新家也按镜像进包：src/refresh/** → package/refresh/**。
+  // 镜像成立的依据是两边深度永远相等（都只换一节前缀），源码里的相对引用在包里原样成立；
+  // 唯一跨出树的两档（../contract/ 与 ../../shared/time-config/）在包里落在同样位置，
+  // rewriteMovedSpecifiers 不用加分支，直通即可（摊平的那一档只有 src/shared/<域>/src/ 形状，
+  // 刷新文件里没有这一档）。
+  { src: 'src/refresh', pkg: 'package/refresh' },
 ]
 
 /** 源码相对路径推包内相对路径：换树前缀、后缀 .ts 换 .js，别的都不动。 */
@@ -1067,10 +1074,10 @@ function pkgPathForSrc(srcRel: string): string {
       return m.pkg + rel.slice(m.src.length).replace(/\.ts$/, '.js')
     }
   }
-  throw new Error(`[moved-trees] 认不出这份文件属于哪棵新树：「${srcRel}」（只收 src/host、src/deck、src/tracker 三棵）`)
+  throw new Error(`[moved-trees] 认不出这份文件属于哪棵新树：「${srcRel}」（只收 src/host、src/deck、src/tracker、src/refresh 四棵）`)
 }
 
-/** 扫出三棵新树里的 TypeScript 真源（不含纯类型声明），次序固定，日志可比对。 */
+/** 扫出四棵新树里的 TypeScript 真源（不含纯类型声明），次序固定，日志可比对。 */
 function collectMovedTs(): string[] {
   const out: string[] = []
   for (const m of MOVED_TREE_MAP) {
@@ -1239,7 +1246,7 @@ function copyJsTree(srcAbs: string, dstAbs: string): number {
 }
 
 /**
- * 包内引用审计：lib、deck、tracker 三处产物里的相对引用，条条都要在包内落到实文件。
+ * 包内引用审计：lib、deck、tracker、refresh 四处产物里的相对引用，条条都要在包内落到实文件。
  * 转译漏写、复制漏抄、源码引用了不存在的文件，都会在这里当场红，而不是等用户装机后失败。
  *
  * 只看真正的引用语句：先去掉块注释（JSDoc 里的 import() 类型注解不是引用，
@@ -1286,7 +1293,7 @@ function auditPackageSpecifiers(dirs: string[]): void {
   console.log(`[moved-trees] 包内引用审计通过（${dirs.join('、')}）`)
 }
 
-/** 新树投放：三棵树的 .ts 转译进包、手写 .js 复制进包，最后审计引用。幂等，可重跑。 */
+/** 新树投放：四棵树的 .ts 转译进包、手写 .js 复制进包，最后审计引用。幂等，可重跑。 */
 function deployMovedTrees(): void {
   const sources = collectMovedTs()
   let rewrote: number = 0
@@ -1301,12 +1308,12 @@ function deployMovedTrees(): void {
   // gitlab 房已无手写 .js（2026-10-14 #1147 转完 13+1 个文件，全部 .ts 化；copyJsTree 遇到同名 .ts 会自动跳过 .js，这里只抄还剩 .js 的文件）。词汇表并排产物不归这里抄（见 copyJsTree）。
   const copiedJs = copyJsTree(resolve(ROOT, 'src/tracker'), resolve(ROOT, 'package/tracker'))
   console.log(`[moved-trees] 转译 ${sources.length} 份 TypeScript 进包（改写宿主引用 ${rewrote} 处），复制手写 JavaScript ${copiedJs} 份`)
-  auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker'])
+  auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker', 'package/refresh'])
 }
 
 /** 散文件投放（#1256）：src/shared 下不属于域源码（`<域>/src/`）的 .ts 转译进 package/shared。
  *
- * 为什么单独一段：collectMovedTs 只扫 src/host、src/deck、src/tracker 三棵新树，域产物的包内镜像
+ * 为什么单独一段：collectMovedTs 只扫 src/host、src/deck、src/tracker、src/refresh 四棵新树，域产物的包内镜像
  * （deployDomainProducts）只收每个域 `src/` 下的源码，两处都够不着这里的散文件——不补这一段，
  * package/shared 里就没有它们，包内相对引用审计（tests/verify-build-artifacts.ts 4f）当场红。
  * 口径与 src/shared/tsconfig.json 的 include 一致：根上 *.ts、每个子目录根上的 *.ts
@@ -1426,19 +1433,24 @@ async function buildHost({ version }: { version: string }): Promise<{ devCode: s
   // （host.js 文本里出现 .build/shared/time-config/values.js）会先暴露出来，不会静默错到底。
   // 域源码的说明符写成 `../shared/<域>/src/<名>.js`（指向真源，tsc 靠扩展名替换解析到 .ts），
 // 而 .build/shared 下是摊平的 `<域>/<名>.js`：先把带 /src/ 的那一档折掉，再统一换前缀。
+// 刷新文件（#1425 起住 src/refresh/）的说明符写成 `../../refresh/<层>/<名>.js`（从 src/host/ 出发两档），
+// dev 产物里按同一基准（src/host/）换成仓库根的 .build/refresh/。包内那一半不用换：
+// package/refresh 与 src/refresh 镜像，相对引用原样成立（见 MOVED_TREE_MAP 那条注释）。
 const devCode: string = devCodeRaw
   .replace(/(['"])\.\.\/shared\/([A-Za-z0-9_.-]+)\/src\//g, '$1../../.build/shared/$2/')
   .replace(/(['"])\.\.\/shared\//g, '$1../../.build/shared/')
+  .replace(/(['"])\.\.\/\.\.\/refresh\//g, '$1../../.build/refresh/')
   gatePrecheck(devCode, 'host-dev')
   write('host.js', devCode)
 
   // ---- _pkg：.js 原样复制＋.ts 转译投放 —— src/host 的手写 .js → package/lib，
-  //   三棵新树的 .ts 转译成 .js 进包（deployMovedTrees），src/shared → package/shared ----
+  //   四棵新树的 .ts 转译成 .js 进包（deployMovedTrees），src/shared → package/shared ----
   // 幂等清理：先清旧产物再复制；lib/client.js 工厂壳由 buildClient 负责，不在此删
   const pkgLib: string = resolve(ROOT, 'package/lib')
   const pkgShared: string = resolve(ROOT, 'package/shared')
   const pkgDeck: string = resolve(ROOT, 'package/deck')
   const pkgTracker: string = resolve(ROOT, 'package/tracker')
+  const pkgRefresh: string = resolve(ROOT, 'package/refresh') // #1425 起：刷新新家的包内镜像位
   // 清理 package/lib 下的 host 树（保留 lib/client.js）：从前只点名删 index.js、platform、
   // tracker、logPkg 四处，搬家后 host 树里多了 refresh、outbound 与根上 7 份 .ts 的产物，
   // 点名删会漏。改成“除 client.js 外全清”，再由复制与投放两步重写——产物要么是复制来的，
@@ -1451,13 +1463,14 @@ const devCode: string = devCodeRaw
       try { rmSync(join(pkgLib, ent), { recursive: true, force: true }) } catch {}
     }
   }
-  for (const p of [pkgShared, pkgDeck, pkgTracker]) {
+  for (const p of [pkgShared, pkgDeck, pkgTracker, pkgRefresh]) {
     try { rmSync(p, { recursive: true, force: true }) } catch {}
   }
   mkdirSync(pkgLib, { recursive: true })
   mkdirSync(pkgShared, { recursive: true })
   mkdirSync(pkgDeck, { recursive: true })
   mkdirSync(pkgTracker, { recursive: true })
+  mkdirSync(pkgRefresh, { recursive: true })
   // 复制 src/host → package/lib：只收 .js。搬家后 src/host 里住进了 16 份 .ts 真源，
   // 整树照搬会把源码带进发布包；.ts 的包内产物由下面的 deployMovedTrees 转译写入。
   // 同目录有同名 .ts 的 .js 是并排转译产物（今天没有，防御性跳过），归转译步骤写。
@@ -1950,6 +1963,65 @@ function checkSharedTs(): void {
   console.log('[shared-ts] tsc --noEmit 通过')
 }
 
+// ---------- 刷新新家产物（#1425）：src/refresh/** → .build/refresh/** ----------
+//
+// 为什么另起一段、不并进上面的 shared-ts：三件事不一样 ——
+// ① 根不一样（src/refresh/ 整棵递归，shared-ts 只收 src/shared 根上与子目录根上一层）；
+// ② 类型检查走另一份配置（src/refresh/tsconfig.json，contract/kernel/rooms/registry 四层全圈，
+//    住户 #1426-#1428 搬进来不用再改配置）；
+// ③ 落点前缀不一样（.build/refresh/）。除此之外口径完全一样：同一份 TRANSPILE_OPTIONS、
+//    同一行首导出改写（门禁按 .js 路径直读文本，尾部导出块会被当成废块，口径见 buildSharedTs 那段注释）、
+//    同一句话产物头（第一行 AUTO-GENERATED，4g 门禁只认这一行）。
+// dev 产物里 `../../refresh/` 那一句改写（见 buildHost）与词汇门禁读的都是这里写出来的文件，
+// 缺了构建当场红不了，要等门禁跑起来才暴露，所以与 shared-ts 同一节拍：转译与类型检查都放在
+// 主流程里、跑在 buildHost 之前。
+function refreshTruthFiles(): string[] {
+  const refreshAbs: string = resolve(ROOT, 'src/refresh')
+  const out: string[] = []
+  if (!existsSync(refreshAbs)) return out
+  const walk = (d: string): void => {
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const p: string = join(d, ent.name)
+      if (ent.isDirectory()) { walk(p); continue }
+      if (!ent.name.endsWith('.ts') || ent.name.endsWith('.d.ts')) continue
+      out.push(relative(ROOT, p).replace(/\\/g, '/'))
+    }
+  }
+  walk(refreshAbs)
+  return out.sort()
+}
+function buildRefreshTree(): void {
+  const files: string[] = refreshTruthFiles()
+  if (files.length === 0) { console.log('[refresh-ts] src/refresh 下没有 TS 真源，跳过。'); return }
+  const require = createRequire(resolve(ROOT, 'package.json'))
+  let esbuild: any
+  try { esbuild = require('esbuild') } catch (e) { throw new Error('[refresh-ts] 没装 esbuild（先跑 pnpm install 再构建）：' + ((e as Error) && (e as Error).message || e)) }
+  for (const rel of files) {
+    const source: string = readFileSync(resolve(ROOT, rel), 'utf8')
+    let code: string
+    try { code = esbuild.transformSync(source, TRANSPILE_OPTIONS).code }
+    catch (e) { throw new Error('[refresh-ts] 转译失败 ' + rel + '：' + ((e as Error) && (e as Error).message || e)) }
+    const normalized: string = code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
+    let inlined: string
+    try { inlined = inlineExportDeclarations(normalized, '[refresh-ts]') }
+    catch (e) { inlined = normalized }
+    const outRel: string = rel.replace(/^src\//, '.build/').replace(/\.ts$/, '.js')
+    mkdirSync(dirname(resolve(ROOT, outRel)), { recursive: true })
+    writeFileSync(resolve(ROOT, outRel), '// AUTO-GENERATED by node scripts/build.mts (refresh-ts) — DO NOT EDIT. Source: ' + rel + '\n' + inlined)
+  }
+  console.log(`[refresh-ts] 转译 ${files.length} 个 TS 真源 → .build/refresh/ 下的 .js`)
+}
+function checkRefreshTree(): void {
+  if (refreshTruthFiles().length === 0) return
+  const require = createRequire(resolve(ROOT, 'package.json'))
+  let tscBin: string
+  try { tscBin = resolve(dirname(require.resolve('typescript/package.json')), 'bin/tsc') }
+  catch (e) { throw new Error('[refresh-ts] 没装 typescript（先跑 pnpm install 再构建）：' + ((e as Error) && (e as Error).message || e)) }
+  const r: any = spawnSync(process.execPath, [tscBin, '-p', resolve(ROOT, 'src/refresh/tsconfig.json')], { encoding: 'utf8' })
+  if (r.status !== 0) throw new Error('[refresh-ts] tsc --noEmit 未通过：\n' + (r.stdout || '') + (r.stderr || ''))
+  console.log('[refresh-ts] tsc --noEmit 通过')
+}
+
 // #1256 散文件 TS 真源：先转译再跑类型检查。与 pixel-ts 同一节拍：产物是门禁文本直读的输入
 // （.build/shared/ 下那几份；dev host.js 的 ../shared 引用也指到这里），缺了构建当场红不了，
 // 要等门禁跑起来才暴露，所以放在主流程里、跑在 buildHost 之前。
@@ -1959,6 +2031,9 @@ function checkSharedTs(): void {
 // 转译失败或类型不过当场抛错，不进 fallback（内容问题重跑复制也一样）。
 buildSharedTs()
 checkSharedTs()
+pulseBuildLock(buildLock)
+buildRefreshTree()
+checkRefreshTree()
 pulseBuildLock(buildLock)
 
 // #1018 词汇表拼接输入：产物是客户端闭包的输入，必须比 buildClient 先就位。

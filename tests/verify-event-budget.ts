@@ -97,8 +97,8 @@ function judge(b, s, pb) {
 
 async function main() {
   console.log('事件花费门禁（#706 T2：定时 + 事件两半加起来，整桶、读份额、写保底、点数四道都要过关）')
-  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
-  const pageBudget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'page-budget.js')).href)
+  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
+  const pageBudget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'page-allowance.js')).href)
   // 注入器：budget.js 只剩自有常量与函数，时间常量走中央——两边拼成判据吃的那一份；
   // 后面的 Object.assign 变体都基于它拧，保证“拧坏必须判红”依然咬得住。
   const B0 = Object.assign({}, budget, { PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, QUOTA_SYNC_INTERVAL_MS })

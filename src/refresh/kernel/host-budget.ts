@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/budget.ts —— 全部节拍与额度的唯一真源
+ * src/refresh/kernel/host-budget.ts —— 全部节拍与额度的唯一真源
  *
  * 这份文件只有两样东西：常量（多久跑一次、每小时能花多少、上限是多少）与由这些常量算出来的算式。
  * 后面每一张落地票（闸、视野模型、行级增量、写事件、工具花费预估）都 import 这里的名字，
@@ -24,7 +24,7 @@
  * 单位约定：以 MS 结尾的是毫秒；points 是 GraphQL 点数；requests 是真实发出的 HTTP 请求条数
  * （不是「逻辑上一次调用」——分页、重试、兜底链都要算进去）。
  */
-import type { QuotaTier } from './ports.js'
+import type { QuotaTier } from '../contract/refresh-ports.js'
 
 // #1215 中央时间参数：下面这些节拍与 TTL 名字的唯一真源是 config/*.yaml
 // （intervals.yaml / ttl.yaml），经 src/shared/time-config/values.js 生成常量。
@@ -32,7 +32,7 @@ import type { QuotaTier } from './ports.js'
 // 对外不再转出（调用方要名字请直接从 time-config 引：二传会让 esbuild 起别名，域转译过不去）。
 // 各名字的含义见 YAML 对应键的注释；原来跟在各名字上面的旧注释保留在原节位置，
 // 描述的仍是该名字，数值以 YAML 为准。
-import { PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, PROBE_INTERVAL_LINGER_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, CHAIN_ALL_GREEN_TTL_MS, PATCH_MERGE_WINDOW_MS, DEFER_EXPIRY_MS, ACTIVE_LINGER_MS, ATTENTION_HEARTBEAT_MS, ATTENTION_EXPIRY_MS, QUOTA_SYNC_INTERVAL_MS, FRESHNESS_YELLOW_MS, FRESHNESS_RED_MS } from '../../time-config/values.js'
+import { PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, PROBE_INTERVAL_LINGER_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, CHAIN_ALL_GREEN_TTL_MS, PATCH_MERGE_WINDOW_MS, DEFER_EXPIRY_MS, ACTIVE_LINGER_MS, ATTENTION_HEARTBEAT_MS, ATTENTION_EXPIRY_MS, QUOTA_SYNC_INTERVAL_MS, FRESHNESS_YELLOW_MS, FRESHNESS_RED_MS } from '../../shared/time-config/values.js'
 
 // ---------- 一、节拍（多久跑一次） ----------
 
@@ -122,7 +122,7 @@ export const MAX_ACTIVE_WORKSPACES = 2
 /**
  * 一个仓库最坏要翻多少页：10 页。最坏用量按这个上界算，不是按「这次看到几页」算
  *（定稿第十四章「账本记每个仓库的实测页数；最坏用量按页数上界算」）。
- * 算式在 src/shared/refresh/src/page-budget.ts（worstCaseRebuildCost）：实测页数与这个上界取大的那个。
+ * 算式在 src/refresh/kernel/page-allowance.ts（worstCaseRebuildCost）：实测页数与这个上界取大的那个。
  * 门禁 verify-budget-worstcase / verify-event-budget 与账本的最坏列都走那一个入口，
  * 所以改这个数会同时改动它们的结论——那正是想要的效果，不是要顺手同步的负担。
  */
@@ -265,7 +265,7 @@ export const COUNT_COST_REQUESTS = 1
 /**
  * 一个仓库的工单池平时要翻几页：5 页（本仓实测）。
  * 它是「估」用的典型值，不是上界——最坏用量一律按 MAX_PAGES 算（见下面那条注释与
- * src/shared/refresh/src/page-budget.ts）。账本另记每个仓库自己的实测页数，小仓库不必按 5 页估。
+ * src/refresh/kernel/page-allowance.ts）。账本另记每个仓库自己的实测页数，小仓库不必按 5 页估。
  */
 export const REBUILD_PAGE_COUNT = 5
 export const REBUILD_PR_PAGE_COUNT = 1

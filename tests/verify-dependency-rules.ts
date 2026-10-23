@@ -635,8 +635,8 @@ export function collectUnresolvedRoomEdges(modules: unknown): UnresolvedRoomEdge
  * 判据七（未解析的路径边）：有同名源码的放行（未构建检出上的产物位），既没产物也没源码的判红。
  *
  * 为什么用「有没有同名源码」而不是按路径形状放行：形状一样的两条边里，一条是还没构建的产物位
- * （src/shared/refresh/idempotency.js 对应 src/shared/refresh/src/idempotency.ts），另一条是写错的路径
- * （idempotensy.js）。只看形状会把后者一起放行，等于改松；看源码在不在，两种才分得开。
+ * （下面自检夹具里那条 idempotency.js：构建后有同名源码），另一条是写错的路径（idempotensy.js）。
+ * 只看形状会把后者一起放行，等于改松；看源码在不在，两种才分得开。
  * exists 由调用方注入，自检夹具就能用它把「有源码 / 没源码 / 仓库外」三种情形都走一遍。
  */
 export function unresolvedPathEdgeProblems(
@@ -765,14 +765,14 @@ function selfCheck(): void {
   if (r4.fresh.length === 0) pass('没有违规时判绿（判据本身不无中生有）')
   else fail('没有违规时不应有 fresh')
   const refreshV: Violation = {
-    from: 'src/shared/refresh/src/step-cost.ts',
+    from: 'src/refresh/kernel/step-pricing.ts',
     to: 'async_hooks',
     rule: { name: 'refresh-kernel-no-io', severity: 'error' },
   }
-  const r5 = classifyViolations([refreshV], new Set(), new Set(['src/shared/refresh/src/step-cost.ts|async_hooks']))
+  const r5 = classifyViolations([refreshV], new Set(), new Set(['src/refresh/kernel/step-pricing.ts|async_hooks']))
   if (r5.tolerated.length === 1 && r5.fresh.length === 0) pass('在册的刷新基线边放行')
   else fail('在册的刷新基线边应放行，实际 tolerated=' + r5.tolerated.length + ' fresh=' + r5.fresh.length)
-  const r6 = classifyViolations([refreshV], new Set(['src/shared/refresh/src/step-cost.ts|async_hooks']))
+  const r6 = classifyViolations([refreshV], new Set(['src/refresh/kernel/step-pricing.ts|async_hooks']))
   if (r6.fresh.length === 1) pass('同层清单放行不了刷新规则的违规（两份清单不互通）')
   else fail('刷新规则的违规用了同层清单的键时仍应判红，实际 fresh=' + r6.fresh.length)
 

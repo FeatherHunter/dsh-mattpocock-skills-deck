@@ -87,10 +87,10 @@ async function main() {
   //   #1138 起「人亲手选过」只有一种凭据：工作区文件里的那条记录（见 src/host/workspaceCwd.js 的 wf.bind）。
   //   原先排在最前面的「注册表里的进程内绑定」已经整段删除，所以这里不再有「内存胜一切」那一条。
   const shellMod = await imp('src/deck/shell/call-shell.ts')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const decMod947 = await imp('src/tracker/detection/backendDecision.ts')
   const sOf = (cwd: string): any => ({ cwd: cwd, workspaceKey: 'k947', sessionId: 's947', source: 't', text: '' })
   const shellOf = (reg: any, extra?: any): any => shellMod.createDeckShell(Object.assign({ gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod947.decideBackend }, extra || {}))

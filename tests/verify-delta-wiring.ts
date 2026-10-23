@@ -34,9 +34,9 @@ function main() {
 
 async function run() {
   console.log('增量接线门禁（#723 T19c · 第 E 件：客户端吃增量结果、水印收口成一条）')
-  const delta = await imp('src/shared/refresh/delta.js')
+  const delta = await imp('src/refresh/kernel/snapshot-diff.js')
   const win = await imp('src/shared/tracker/indexWindow.js')
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const issueListMod = await imp('src/host/issueList.js')
   const commentMod = await imp('src/host/commentThreads.js')
   const wiringMod = await imp('src/host/refresh/wiring.js')

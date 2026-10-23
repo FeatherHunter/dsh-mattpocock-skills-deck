@@ -43,8 +43,8 @@ console.log('\n— 退避算术本身：把纯函数真跑一遍 —')
 {
   // 这一段是功能断言，不是查字符串：把退避做坏（例如让它永远停在第 0 档、或者忽略「有进展回快档」），
   // 下面这几条会立刻红。门禁只查「函数在不在」是挡不住这种改法的。
-  const bo = await import('../src/shared/refresh/backoff.js')
-  const budget = await import('../src/shared/refresh/budget.js')
+  const bo = await import('../src/refresh/kernel/failure-backoff.js')
+  const budget = await import('../src/refresh/kernel/host-budget.js')
   const limits = {
     backoffMs: CHAIN_BACKOFF_MS,
     allGreenTtlMs: CHAIN_ALL_GREEN_TTL_MS,

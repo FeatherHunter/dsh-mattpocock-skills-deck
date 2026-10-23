@@ -6,7 +6,7 @@
  * 与标签配色那两条（contract-label-colors.js）、按页取票（contract-page.js）同一个做法。
  *
  * 锚的构造规则与「回查命中要满足什么条件」不在这一份里，在 TypeScript 核心
- * refresh-core/src/idempotency.ts（产物 src/shared/refresh/idempotency.js）：那是纯逻辑，
+ * src/refresh/contract/idempotency-keys.ts（产物 .build/refresh/contract/idempotency-keys.js）：那是纯逻辑，
  * 三个后端共用一处判据。这一份只写契约层对外答应了什么。
  */
 

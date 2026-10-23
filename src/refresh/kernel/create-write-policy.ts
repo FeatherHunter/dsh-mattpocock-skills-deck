@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/create-write.ts —— 建票那一次写请求的结果判据（纯函数，#722）
+ * src/refresh/kernel/create-write-policy.ts —— 建票那一次写请求的结果判据（纯函数，#722）
  *
  * 这个文件只回答两个问题，别的都不管：
  *   ① 这一次建票请求的回包，说明「票建出来了没有」？
@@ -30,7 +30,7 @@
 // 这里原来有一行 `export const CREATE_WRITE_SOURCE = 'src/shared/refresh/src/create-write.ts'`。#719 把它删掉：
 // 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
-// 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
+// 空壳产物（src/refresh/contract/refresh-ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 /** 四档结论。字面会被门禁与报告引用，只许加、不许改字面。 */
 export type CreateWriteVerdict = 'created' | 'never-sent' | 'endpoint-absent' | 'maybe-written'

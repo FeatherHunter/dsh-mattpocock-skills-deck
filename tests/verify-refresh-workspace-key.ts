@@ -207,7 +207,7 @@ async function main() {
 
   // ── 一、钥匙只有一处：接线的转出 = 共享层那一把（同一个函数，不是两份实现）──
   const wiringMod = await imp('src/host/refresh/wiring.js')
-  const sharedMod = await imp('src/shared/refresh-workspace-key.js')
+  const sharedMod = await imp('src/refresh/contract/workspace-keys.js')
   check(typeof wiringMod.workspaceKeyOf === 'function', '接线转出 workspaceKeyOf（宿主这一侧取钥匙的唯一入口）')
   check(wiringMod.workspaceKeyOf === sharedMod.workspaceKeyOf, '接线转出的那把与共享层那把是同一个函数（实现只有一处）')
 

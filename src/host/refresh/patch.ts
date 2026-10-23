@@ -1,7 +1,7 @@
 // src/host/refresh/patch.ts —— 行级增量刷新的宿主侧那半边（#708 T4 第三批）
 //
-// 这个文件干的是「跑腿」的三件事，纯逻辑一件都不在这里（那三件在 refresh-core/src/delta.ts 的产物
-// src/shared/refresh/delta.js 里，本文件每一步都调它）：
+// 这个文件干的是「跑腿」的三件事，纯逻辑一件都不在这里（那三件在 src/refresh/kernel/snapshot-diff.ts 的产物
+// .build/refresh/kernel/snapshot-diff.js 里，本文件每一步都调它）：
 //   ① 只取变的那几条：把窗口探测回来的索引与列表手上那份比一遍，变了的那几条各发一条薄查询
 //      （取数三件套 thinArgs/rowOf/fetchRows 在 ./fetchThinRows.js，本文件只负责调它）；
 //   ② 并进现有列表：把那几条换进行里、产出新的版本号，派生值按 delta.derivedAfter 处置；
@@ -38,7 +38,7 @@
 // 待办只记票键字符串，路径与命令原文一个都不进；保证待办的去重与上限在 rememberPending 一处。
 // ---------------------------------------------------------------------------
 
-import * as delta from '../../shared/refresh/src/delta.js'
+import * as delta from '../../refresh/kernel/snapshot-diff.js'
 import { fetchThinRows } from './fetchThinRows.js'
 
 /** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */

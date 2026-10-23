@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "note": "1424 建：旧位置文件在搬家中转期的分层规则豁免，只许缩不许长，见 src/refresh/README.md“机器规则与基线”一节。",
+  "note": "1424 建，1425 随文件搬到新家：新家内核的分层规则豁免，只许缩不许长，见 src/refresh/README.md“机器规则与基线”一节。",
   "entries": [
     {
-      "file": "src/shared/refresh/src/step-cost.ts",
+      "file": "src/refresh/kernel/step-pricing.ts",
       "resolved": "async_hooks",
       "rule": "refresh-kernel-no-io",
       "why": "用 AsyncLocalStorage 在异步链路上带每步计数，不碰文件与网络；是运行环境能力但不是输入输出。",
-      "ticket": "#1425 搬 A 组时带走：要么把计数上下文改成参数传入，要么随文件搬迁重新论证并转成新家注释。"
+      "ticket": "#1425 已带到新家；#1430 收尾时定夺（改成参数传入 / 非输入输出白名单 / 随基线清零删条目），清零前保留。"
     }
   ]
 }

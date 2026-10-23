@@ -19,7 +19,7 @@
 
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
-import { hash8 } from '../../shared/refresh-workspace-key.js'
+import { hash8 } from '../../refresh/contract/workspace-keys.js'
 
 /** 外层递进来的东西（参数、exec、日志、时钟）形状都不由本文件定，逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>

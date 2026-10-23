@@ -34,8 +34,8 @@ import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-wo
 import { originalWordsFromArg } from '../../shared/issue-file/src/original-words-tool.js'
 import { bodyWriteFields, bodyWriteReadbackProblem, planBodyWrite } from '../shell/body-write.js'
 import type { BodyWritePlan } from '../shell/body-write.js'
-import * as budget from '../../shared/refresh/src/budget.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // 工具定义（唯一事实）搬去了同目录的 issue-create-parts.ts：只为把本文件压回 350 行有效行以内，

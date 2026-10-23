@@ -5,14 +5,14 @@
 // #968 技能按需多一个显式注入 getChainSkillNames（链条目录里要的三项技能名，查链时只问这三项）。
 // #1161：内置房间清单从前写在本文件里（三段 try 各 import 一间房），现在只认装配点
 //   src/tracker/registry/builtins.ts —— 宿主侧不再认识任何具体房间（规则 rooms-imported-only-by-assembly）。
-import type { HostTimerService } from '../shared/host-timer/src/host-timers.js'
+import type { HostTimerService } from '../refresh/contract/host-timer-ports.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound/admission.js'
 // #1159：给房间的那份后端上下文要挂上出站控制面（实现见 outbound-control.ts，只做转发）。
 import { createOutboundControl } from './platform/outbound-control.js'
 // #1115：宿主计时器服务交回的是可调用的撤销器（不是数字句柄、也没有 dispose 方法），
 //   撤销的三档判据收在共享层一处；本文件两处 timers 口都只用它，不再各写一遍。
-import { hostTimers } from '../shared/host-timer/src/host-timers.js'
+import { hostTimers } from '../refresh/contract/host-timer-ports.js'
 // 时间参数住中央 YAML：PROC_GRACE_MS 是单次等待上限，住 config/timeouts.yaml；STATUS_CACHE_MS 是有效期，住 config/ttl.yaml。调时间改对应的那一份。
 import { STATUS_CACHE_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
 

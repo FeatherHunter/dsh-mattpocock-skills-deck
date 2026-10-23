@@ -1,5 +1,5 @@
 /**
- * src/shared/refresh/src/attention.ts —— 视野模型的纯逻辑：谁在活跃、谁该被淘汰、什么时候全部收摊
+ * src/refresh/kernel/attention-model.ts —— 视野模型的纯逻辑：谁在活跃、谁该被淘汰、什么时候全部收摊
  *
  * 这个文件只回答五个问题，一行读盘、联网、看时钟的代码都没有（时间由调用方当参数传进来），
  * 所以它能在单测里把「切窗口、切工作区、心跳断了、窗口崩了」这些情形一次性穷举干净：
@@ -29,7 +29,7 @@
 // 这里原来有一行 `export const ATTENTION_SOURCE = 'src/shared/refresh/src/attention.ts'`。#719 把它删掉：
 // 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
-// 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
+// 空壳产物（src/refresh/contract/refresh-ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 /** 活跃集合的硬上限取不到调用方给的数字时用它兜底（真源是 budget.ts 的 MAX_ACTIVE_WORKSPACES）。 */
 export const ATTENTION_ACTIVE_CAP_FALLBACK = 2

@@ -128,12 +128,12 @@ async function assemble(ws, logs) {
  * 等价于进程重启（进程内存里什么都没有，上一段留下的东西只能从盘上读回来）。
  */
 async function toolLevel(ws) {
-  const budget = await imp('src/shared/refresh/budget.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const { createDeckMapPlanCreate } = await imp('src/deck/tools/map-plan-create.ts')
   const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
   // 判定出口（#1003 单出口）：装配方总是递给工具，这里照生产接法给上；夹具走内存账本说「这个工作区选过了」。
