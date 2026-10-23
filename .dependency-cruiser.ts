@@ -11,12 +11,12 @@
 // 不需要转写。里面那行 require 读的是 JSON 登记表（Node 原生支持 require JSON），照旧。
 //
 // 怎么跑（在仓库根目录，手工复核用）：
-//   pnpm exec depcruise src\host src\shared src\seam src\tracker --config .dependency-cruiser.ts --output-type err-long --no-progress
+//   pnpm exec depcruise src\host src\shared src\seam src\tracker src\client src\refresh --config .dependency-cruiser.ts --output-type err-long --no-progress
 // 正式门禁是 tests/verify-dependency-rules.ts，它把本配置跑一遍、再核对存量豁免清单，最后判红或判绿。
 // 退出码就是「error 级违规的条数」，所以命令行直接跑也能当门禁用。
 //
 // 三条口径上的约定（改本文件前先读这三条）：
-//   1. 只看 src/host、src/shared、src/seam、src/tracker 四棵树 —— 前三棵与两条老门禁的扫描域逐字相同；
+//   1. 只看六棵树 —— src/host、src/shared、src/seam、src/tracker、src/client、src/refresh，前三棵与两条老门禁的扫描域逐字相同；
 //      第四棵 src/tracker 是 #1136 补上的：房间（src/tracker/rooms/**）在那棵树里，而房间只靠 import 边
 //      入图，没人引的房间文件根本不进图（实测盘上 65 个房间源码只有 56 个进得来）。写进根清单之后，
 //      「图是完整的」就不再依赖「import 边碰巧够长」，房间纪律也才真的落在房间上。
@@ -24,13 +24,16 @@
 //      OPTIONAL_TREES 一起喂给引擎。它多数文件本来就被 src/host/tools/** 的 import 边带进图里，
 //      写进根清单是为了让「图是完整的」不靠 import 边碰巧够长：实测有两个文件
 //      （src/deck/rules/index.ts 与 src/deck/registration/agent-row.ts）只有写进根清单才会进图。
-//      src/client/** 不进这个图：那里每个 .ts 旁边都有一份构建生成的同名 .js，
-//      同一个逻辑模块会在图里出现两次（真源一次、产物一次），引用边会重复计数。
+//      第五棵 src/client 是 #1424 补上的：2026-10-19 纯 TS 化之后，树上不再有构建产物同名 .js
+//      （共享产物去 .build/，客户端打包直读 .ts），原来「产物重复计数」的顾虑已不存在，
+//      手写源码从此进图（实测 196 个 .ts 全进）；之前说它不进图的那句已经删掉，不要加回来。
+//      第六棵 src/refresh 是刷新机制的新家（规格 #1419）：#1424 建骨架时里面还没有手写源码，
+//      先进根清单占位，#1425 起搬进去的文件自动进图、自动受下面四条刷新规则管。
 //   2. tsPreCompilationDeps 开着：类型级别的 import（import type）也算一条引用边。
 //      老门禁是扫文本的，import type 那行同样带 from '...'，所以那时候也算；这里必须对齐，不能悄悄放松。
 //   3. 非字面量动态 import（例如 await import('./' + name + '.js')）是 dependency-cruiser 的盲区——
 //      解析器只在参数是字符串字面量时才产生依赖。老门禁的口径是「一律算违规」，这条严格度不能丢，
-//      所以由 tests/verify-dependency-rules.ts 用文本扫描补上（今天这四棵树里一条都没有）。
+//      所以由 tests/verify-dependency-rules.ts 用文本扫描补上（今天这六棵树里一条都没有）。
 
 // 房间（src/tracker/rooms/<名字>/）可以引用的房外目录，来自 tests/tracker-room-imports.json。
 //
@@ -264,13 +267,57 @@ module.exports = {
       to: { dependencyTypes: ['core'] },
     },
 
+    // ── 刷新分层四条（#1424，规格 #1419）────────────────────────────────────────────
+    // 为什么是四个条目而不是三个：零引用按方向拆成两条，因为一条规则里多个 to 条件是「同时成立」
+    // 才判（AND），宿主→界面与界面→宿主合写成一条会变成「同时引用两边才红」，判据直接变空。
+    // 起点都写成单串轮替（不用数组），这样 tests/verify-dependency-rules.ts 的判据六能逐条验「图上活着」。
+    {
+      name: 'refresh-kernel-no-io',
+      severity: 'error',
+      comment:
+        '内核只算数：内核范围（旧位置 src/shared/refresh/src/ 与 indexWindow，将来 src/refresh/kernel/）'
+        + '不许引运行环境能力（dependencyTypes core：文件、网络、进程、计时器都算）。'
+        + '旧位置唯一一条存量边（step-cost.ts -> async_hooks）记在 tests/refresh-baseline.json，#1425 带走；'
+        + '新家 kernel/ 从零开始守。',
+      from: { path: '^src/shared/refresh/src/|^src/shared/tracker/indexWindow\\.ts$|^src/refresh/kernel/' },
+      to: { dependencyTypes: ['core'] },
+    },
+    {
+      name: 'refresh-host-room-no-client-refs',
+      severity: 'error',
+      comment:
+        '宿主房间不引用界面房间：宿主房（旧位置见起点里的长名单，将来 src/refresh/rooms/host/）'
+        + '引 src/client/kernel/ 或 src/refresh/rooms/client/ 就判红。两边要说话走登记与契约。'
+        + '例外：src/host/index.ts 里的旧探测处理段门禁看不见（文件级规则不认函数段），由 #1429 搬走，见目标地图 D4。',
+      from: { path: '^src/host/refresh/|^src/host/issueList\\.ts$|^src/host/issueDetail\\.ts$|^src/host/commentThreads\\.ts$|^src/host/snapshotBuild\\.ts$|^src/host/sessionRefresh\\.ts$|^src/host/sessionSnapshot\\.ts$|^src/host/detectChain\\.ts$|^src/host/git-process\\.ts$|^src/host/gitCredentialExec\\.ts$|^src/host/platform/refreshAssembly\\.ts$|^src/host/platform/outbound-control\\.ts$|^src/host/platform/issueIndexWindow\\.ts$|^src/host/outbound/admission\\.ts$|^src/deck/shell/call-budget\\.ts$|^src/refresh/rooms/host/' },
+      to: { path: '^src/client/kernel/|^src/refresh/rooms/client/' },
+    },
+    {
+      name: 'refresh-client-room-no-host-refs',
+      severity: 'error',
+      comment:
+        '界面房间不引用宿主房间：起点是 src/client/kernel/（将来加 src/refresh/rooms/client/），'
+        + '终点是上面那条的起点名单。方向反过来也要判，理由同上。',
+      from: { path: '^src/client/kernel/|^src/refresh/rooms/client/' },
+      to: { path: '^src/host/refresh/|^src/host/issueList\\.ts$|^src/host/issueDetail\\.ts$|^src/host/commentThreads\\.ts$|^src/host/snapshotBuild\\.ts$|^src/host/sessionRefresh\\.ts$|^src/host/sessionSnapshot\\.ts$|^src/host/detectChain\\.ts$|^src/host/git-process\\.ts$|^src/host/gitCredentialExec\\.ts$|^src/host/platform/refreshAssembly\\.ts$|^src/host/platform/outbound-control\\.ts$|^src/host/platform/issueIndexWindow\\.ts$|^src/host/outbound/admission\\.ts$|^src/deck/shell/call-budget\\.ts$|^src/refresh/rooms/host/' },
+    },
+    {
+      name: 'refresh-outside-only-contract',
+      severity: 'error',
+      comment:
+        '外面只许碰契约：新家之外的代码要用搬进来的东西，只许引用 src/refresh/contract/；'
+        + '内核、房间、登记的实现细节不对外。今天新家里还没有手写源码，这条从零开始守。',
+      from: { path: '^src/', pathNot: ['^src/refresh/'] },
+      to: { path: '^src/refresh/kernel/|^src/refresh/rooms/|^src/refresh/registry/' },
+    },
+
     // ── 图上的环 ────────────────────────────────────────────────────────────────────────────
     {
       name: 'circular-dependency',
       severity: 'error',
       comment:
         '禁止循环依赖。两条老门禁都管不到环（只按同层/跨房两条线判），这条是新增的判据；'
-        + '今天这三棵树里一条环都没有，所以它是从零开始守。',
+        + '今天这六棵树里一条环都没有，所以它是从零开始守。',
       from: {},
       to: { circular: true },
     },
@@ -281,7 +328,7 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     // 类型级别的 import 也算边（见文件头第 2 条）。
     tsPreCompilationDeps: true,
-    // 三棵树的扫描范围由命令行参数给出（门禁脚本里写着），这里不再写 exclude：
+    // 六棵树的扫描范围由命令行参数给出（门禁脚本里写着），这里不再写 exclude：
     // exclude 掉被引用的目录会让引用变成「解析不到」，反而制造噪音。
     // 显式指定扩展名列表无关紧要——能被扫到哪些扩展名由装没装 typescript 决定（见 package.json 的 devDependencies）。
   },

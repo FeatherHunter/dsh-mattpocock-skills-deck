@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T03:15:14.020Z",
+  "generatedAt": "2026-10-23T07:14:34.920Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 330,
   "gateCount": 330,
@@ -680,6 +680,7 @@
       "file": "tests/verify-dependency-rules.ts",
       "guards": [
         "scripts/gate-map.mts",
+        "src/client",
         "src/deck",
         "src/deck/registration/host-assemble.ts",
         "src/deck/rules/anchor.ts",
@@ -688,10 +689,12 @@
         "src/host",
         "src/host/index.ts",
         "src/host/outbound/admission.ts",
+        "src/refresh",
         "src/seam",
         "src/seam/gate.ts",
         "src/shared",
         "src/shared/refresh/src/idempotency.ts",
+        "src/shared/refresh/src/step-cost.ts",
         "src/tracker",
         "src/tracker/contract/operations.ts",
         "src/tracker/contract/vocabulary.ts",
@@ -699,11 +702,13 @@
         "src/tracker/rooms/github/idempotency.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
+        "tests/refresh-baseline.json",
         "tests/same-layer-baseline.json",
         "tests/tracker-room-imports.json"
       ],
       "dirs": [
         "scripts",
+        "src/client",
         "src/deck",
         "src/deck/registration",
         "src/deck/rules",
@@ -711,6 +716,7 @@
         "src/deck/tools",
         "src/host",
         "src/host/outbound",
+        "src/refresh",
         "src/seam",
         "src/shared",
         "src/shared/refresh/src",
@@ -725,7 +731,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 21 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 25 条"
     },
     {
       "step": "node tests/verify-gate-map.ts",
@@ -8063,6 +8069,7 @@
     "src/client": [
       "node tests/verify-leaves.ts",
       "node tests/verify-contract-vocabulary.ts",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1297-entry.ts",
@@ -8597,6 +8604,9 @@
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts"
+    ],
+    "src/refresh": [
+      "node tests/verify-dependency-rules.ts"
     ],
     "src/seam": [
       "node tests/verify-chain-env-e2e.ts",
@@ -9200,12 +9210,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 568,
-    "dirCount": 71,
-    "coveredFileCount": 568,
+    "fileCount": 574,
+    "dirCount": 78,
+    "coveredFileCount": 574,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 52,
+    "dedicatedDirCount": 53,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -9544,6 +9554,12 @@
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.ts",
       "src/host/workspaceLabelColors.ts",
+      "src/refresh/README.md",
+      "src/refresh/contract/.gitkeep",
+      "src/refresh/kernel/.gitkeep",
+      "src/refresh/registry/.gitkeep",
+      "src/refresh/rooms/client/.gitkeep",
+      "src/refresh/rooms/host/.gitkeep",
       "src/seam/editor.ts",
       "src/seam/gate.ts",
       "src/seam/index.ts",
@@ -9817,6 +9833,13 @@
       "src/host/platform/win32",
       "src/host/refresh",
       "src/host/tracker",
+      "src/refresh",
+      "src/refresh/contract",
+      "src/refresh/kernel",
+      "src/refresh/registry",
+      "src/refresh/rooms",
+      "src/refresh/rooms/client",
+      "src/refresh/rooms/host",
       "src/seam",
       "src/shared",
       "src/shared/command-cleanup",
@@ -9880,6 +9903,7 @@
       "src/host/platform/win32",
       "src/host/refresh",
       "src/host/tracker",
+      "src/refresh",
       "src/seam",
       "src/shared",
       "src/shared/command-cleanup/src",
@@ -9943,6 +9967,30 @@
       {
         "path": "src/client/views/mapDetailV2/wiring",
         "fileCount": 2
+      },
+      {
+        "path": "src/refresh/contract",
+        "fileCount": 1
+      },
+      {
+        "path": "src/refresh/kernel",
+        "fileCount": 1
+      },
+      {
+        "path": "src/refresh/registry",
+        "fileCount": 1
+      },
+      {
+        "path": "src/refresh/rooms",
+        "fileCount": 2
+      },
+      {
+        "path": "src/refresh/rooms/client",
+        "fileCount": 1
+      },
+      {
+        "path": "src/refresh/rooms/host",
+        "fileCount": 1
       },
       {
         "path": "src/shared/command-cleanup",

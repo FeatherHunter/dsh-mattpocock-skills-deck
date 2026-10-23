@@ -14,7 +14,7 @@
 //   二、工具看不见的引用：非字面量动态 import。解析器只在参数是字符串字面量时才产生依赖，所以
 //       await import(name)、import(`./x/${n}.js`)、import('./' + name) 这类写法在图上完全不存在。
 //       老门禁的口径是「一律算违规」（#1014 Q2 明确要求沿用这条严格度），所以由本文件用文本扫描补上。
-//   三、空间不许是空的：三棵树必须真实扫到源码文件、图上必须有模块。扫到 0 个一律判红——
+//   三、空间不许是空的：六棵树必须真实扫到源码文件、图上必须有模块。扫到 0 个一律判红——
 //      老门禁在「一个文件都没扫到」时照样打印 PASS，这正是本票要修的假绿。
 //   四、规则不许空转（#1136 补的五条结构判据 + 一条分母）：每条规则的起点、登记表每条条目都必须在
 //      磁盘上匹配到真实源码文件；登记表每条要写 why 与 ticket、条数不许超过只许减的上限；登记表不许
@@ -40,7 +40,7 @@
 //   应当判红；跑完删掉。本文件启动时先跑内存夹具，夹具里包含「故意违规」与「空集合」两组反例。
 //
 // 与外部的衔接：
-//   规则文件 .dependency-cruiser.ts 的头部注释写着三条口径约定（只看三棵树、类型级 import 也算边、
+//   规则文件 .dependency-cruiser.ts 的头部注释写着三条口径约定（只看六棵树、类型级 import 也算边、
 //   非字面量动态引用由本文件补），改规则前先读那里。
 //   tests/verify-gate-map.js 检查「每个源码文件都有门禁覆盖」，本文件读的 .dependency-cruiser.ts 与
 //   tests/same-layer-baseline.json 会被它算成归属依据，所以规则的落点改名字时两处要一起动。
@@ -53,11 +53,14 @@ import { fileURLToPath } from 'node:url'
 import { scanCode } from '../scripts/gate-map.mts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-// 前三棵与两条老门禁的扫描域逐字相同。src/client/** 不进图（那里同名 .js 是构建产物，会重复计数）。
+// 前三棵与两条老门禁的扫描域逐字相同。第五棵 src/client 是 #1424 补上的：2026-10-19 纯 TS 化之后树上
+// 不再有构建产物同名 .js（共享产物去 .build/，客户端打包直读 .ts），原来「产物重复计数」的顾虑已不存在，
+// 手写源码从此进图（实测 196 个 .ts 全进）。第六棵 src/refresh 是刷新机制的新家，#1424 建骨架时还是空的，
+// 先进根清单占位，#1425 起搬进去的文件自动进图。
 // 第四棵 src/tracker 是 #1136 补上的：房间（src/tracker/rooms/**）在那棵树里，而房间只靠 import 边入图，
 // 没人引的房间文件根本不进图 —— 实测盘上 65 个房间源码只有 56 个进得来（缺的 9 个是 gitlab 房的
 // 8 个 .js 与 markdown/normalize.ts）。写进根清单，「图是完整的」和「房间纪律真有判域」才不靠边碰巧够长。
-const SCAN_TREES = ['src/host', 'src/shared', 'src/seam', 'src/tracker']
+const SCAN_TREES = ['src/host', 'src/shared', 'src/seam', 'src/tracker', 'src/client', 'src/refresh']
 // 第四棵树是「有就扫、没有也不算缺」：src/deck/ 是把 deck 业务代码搬过去之后的目标树
 // （CONTEXT.md 的 deck 重构词条里写着它的位置）。实测它多数文件本来就会被 src/host/tools/**
 // 的 import 边带进图里（37 个里 35 个），只有 src/deck/rules/index.ts 与
@@ -67,9 +70,13 @@ const SCAN_TREES = ['src/host', 'src/shared', 'src/seam', 'src/tracker']
 const OPTIONAL_TREES = ['src/deck']
 const CONFIG_REL = '.dependency-cruiser.ts'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
+// 刷新基线（#1424 建）：旧位置文件在搬家中转期的分层规则豁免，只许缩不许长。
+// 清单见 tests/refresh-baseline.json，每行写着为什么留、哪张票清掉。
+// 清单变空的那张票（#1430）要把下面的读取块与这个常量一起删掉，不要留一个永远为空的清单。
+const REFRESH_BASELINE_REL = 'tests/refresh-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
-// 同层互引五条 + 房间纪律三条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。
+// 同层互引五条 + 房间纪律三条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 刷新分层四条 + 禁循环一条。
 // 出现在这里的作用是「配置被改松就判红」：少一条、名字改了、severity 不是 error，都会在下面对不上。
 const EXPECTED_RULES = [
   'same-layer-import-platform',
@@ -90,6 +97,11 @@ const EXPECTED_RULES = [
   'deck-deep-import',
   'deck-rules-stay-pure',
   'deck-rules-no-node-builtins',
+  // #1424 补的四条：刷新分层（三组，零引用按方向拆成两条）。都必须是 error，少一条等于分层少守一面。
+  'refresh-kernel-no-io',
+  'refresh-host-room-no-client-refs',
+  'refresh-client-room-no-host-refs',
+  'refresh-outside-only-contract',
   'circular-dependency',
 ]
 const SAME_LAYER_RULE_PREFIX = 'same-layer-import-'
@@ -216,7 +228,7 @@ export function scanNonLiteralDynamicRefs(rel: string, code: string): NonLiteral
       bad = !(code[afterClose] === ')' || code[afterClose] === ',')
     } else if (first === '`') {
       // 模板串：带 ${} 插值的一定是拼出来的；不带插值的在老门禁里也算非字面量（spec 记 'template'），
-      // 口径从严，一律判违规——今天三棵树里一条都没有，将来真要用就显式记进豁免并说明理由。
+      // 口径从严，一律判违规——今天六棵树里一条都没有，将来真要用就显式记进豁免并说明理由。
       const tpl = endOfTemplate(code, afterParen)
       bad = true
       void tpl
@@ -224,6 +236,13 @@ export function scanNonLiteralDynamicRefs(rel: string, code: string): NonLiteral
       bad = true
     }
     if (!bad) continue
+    // 环境声明行（declare 开头）是类型位：编译直接擦掉，永远不会变成运行时调用，
+    // 而图盲区只管运行时的边。客户端进图后照出来的真例：portal.ts 的 declare function require。
+    // 反过来也成立：declare 行里不可能藏真正的动态引用（环境声明不许带初始化器与函数体），跳过不漏报。
+    const lineStart = code.lastIndexOf('\n', m.index - 1) + 1
+    const lineEnd = code.indexOf('\n', m.index)
+    const lineText = code.slice(lineStart, lineEnd === -1 ? code.length : lineEnd)
+    if (/^\s*declare[\s{]/.test(lineText)) continue
     const line = code.slice(0, m.index).split('\n').length
     out.push({ file: rel, line, snippet: code.slice(m.index, m.index + 70).split('\n')[0].trim() })
   }
@@ -242,12 +261,16 @@ export function scanNonLiteralDynamicRefs(rel: string, code: string): NonLiteral
 // ---------------------------------------------------------------------------
 
 /**
- * 只有同层互引允许走存量豁免；房间纪律、第三方包、循环依赖一律判红。
- * allowed 的键是 file|resolved（与 tests/same-layer-baseline.json 的键一致）。
+ * 只有同层互引允许走存量豁免，刷新分层规则允许走刷新基线；房间纪律、第三方包、循环依赖一律判红。
+ * allowed 的键是 file|resolved（与 tests/same-layer-baseline.json 的键一致），
+ * refreshAllowed 的键也是 file|resolved（与 tests/refresh-baseline.json 的键一致）。
+ * 两份清单不互通：同层清单里的键放行不了刷新规则的违规，反过来也一样（下面 r6 就是这条的夹具）。
  */
+const REFRESH_RULE_PREFIX = 'refresh-'
 export function classifyViolations(
   violations: Violation[],
   allowed: Set<string>,
+  refreshAllowed: Set<string> = new Set(),
 ): { fresh: Violation[], tolerated: Violation[] } {
   const fresh: Violation[] = []
   const tolerated: Violation[] = []
@@ -255,7 +278,9 @@ export function classifyViolations(
     const name = String((v.rule && v.rule.name) || '')
     const key = String(v.from || '') + '|' + String(v.to || '')
     const isSameLayer = name.startsWith(SAME_LAYER_RULE_PREFIX)
+    const isRefresh = name.startsWith(REFRESH_RULE_PREFIX)
     if (isSameLayer && allowed.has(key)) tolerated.push(v)
+    else if (isRefresh && refreshAllowed.has(key)) tolerated.push(v)
     else fresh.push(v)
   }
   return { fresh, tolerated }
@@ -638,18 +663,18 @@ export function unresolvedPathEdgeProblems(
 }
 
 // ---------------------------------------------------------------------------
-// 三、扫描域：三棵树里到底有没有文件
+// 三、扫描域：六棵树里到底有没有文件
 // ---------------------------------------------------------------------------
 
 /**
- * 这次实际要进图的树：三棵树必看，src/deck 存在就一起看
+ * 这次实际要进图的树：六棵树必看，src/deck 存在就一起看
  * （见上面 OPTIONAL_TREES 的注释：那棵树一出现，deck 深引规则就该有判据可判）。
  */
 function cruiseRoots(): string[] {
   return SCAN_TREES.concat(OPTIONAL_TREES.filter((tree) => existsSync(join(ROOT, tree))))
 }
 
-/** 递归收集扫描域里的源码文件；三棵树都在、且至少扫到一个文件，才算扫描域成立。 */
+/** 递归收集扫描域里的源码文件；六棵树都在、且至少扫到一个文件，才算扫描域成立。 */
 export function collectScopeFiles(): ScopeFile[] {
   const out: ScopeFile[] = []
   for (const tree of cruiseRoots()) {
@@ -671,8 +696,8 @@ export function collectScopeFiles(): ScopeFile[] {
 }
 
 /**
- * 空集合判红：三棵树缺一棵、一个文件都没扫到、图上一个模块都没有，都不许判绿。
- * treeExists 留成参数是为了自检能用「假装三棵树都不存在」的夹具把它试出来，
+ * 空集合判红：六棵树缺一棵、一个文件都没扫到、图上一个模块都没有，都不许判绿。
+ * treeExists 留成参数是为了自检能用「假装六棵树都不存在」的夹具把它试出来，
  * 正式运行时不传，按磁盘实况查。
  */
 export function scopeProblems(
@@ -684,7 +709,7 @@ export function scopeProblems(
   for (const tree of SCAN_TREES) {
     if (!treeExists(tree)) problems.push('扫描域的目录不存在：' + tree)
   }
-  if (!files.length) problems.push('三棵树里一个源码文件都没扫到（空集合不许判绿）')
+  if (!files.length) problems.push('六棵树里一个源码文件都没扫到（空集合不许判绿）')
   if (moduleCount <= 0) problems.push('依赖图里一个模块都没有（空集合不许判绿）')
   return problems
 }
@@ -708,6 +733,7 @@ function selfCheck(): void {
     ['// 注释里写 import(name) 不算数\nconst f = 1', '注释里的不算（原老门禁夹具同款）', 0],
     ["const g = 'import(name)'", '字符串里的不算', 0],
     ["/** @param {import('./c.js').X} a */\nmodule.exports = {}", 'JSDoc 类型引用不算（原老门禁夹具同款）', 0],
+    ['declare function require(...args: any[]): any;', '环境声明里的 require 形态不是运行时调用（客户端进图后 portal.ts 的真例）', 0],
   ]
   for (const [src, label, expect] of cases) {
     const got = scanNonLiteralDynamicRefs('src/shared/fixture.js', src).length
@@ -738,14 +764,25 @@ function selfCheck(): void {
   const r4 = classifyViolations([], new Set())
   if (r4.fresh.length === 0) pass('没有违规时判绿（判据本身不无中生有）')
   else fail('没有违规时不应有 fresh')
+  const refreshV: Violation = {
+    from: 'src/shared/refresh/src/step-cost.ts',
+    to: 'async_hooks',
+    rule: { name: 'refresh-kernel-no-io', severity: 'error' },
+  }
+  const r5 = classifyViolations([refreshV], new Set(), new Set(['src/shared/refresh/src/step-cost.ts|async_hooks']))
+  if (r5.tolerated.length === 1 && r5.fresh.length === 0) pass('在册的刷新基线边放行')
+  else fail('在册的刷新基线边应放行，实际 tolerated=' + r5.tolerated.length + ' fresh=' + r5.fresh.length)
+  const r6 = classifyViolations([refreshV], new Set(['src/shared/refresh/src/step-cost.ts|async_hooks']))
+  if (r6.fresh.length === 1) pass('同层清单放行不了刷新规则的违规（两份清单不互通）')
+  else fail('刷新规则的违规用了同层清单的键时仍应判红，实际 fresh=' + r6.fresh.length)
 
-  // 空集合：三棵树缺目录、扫到 0 个文件、图上 0 个模块，三种都要报问题。
+  // 空集合：六棵树缺目录、扫到 0 个文件、图上 0 个模块，三种都要报问题。
   const p1 = scopeProblems([], 0, () => false)
   if (p1.length >= 3) pass('空集合判红（缺目录 + 零文件 + 零模块都报）')
   else fail('空集合应报至少 3 个问题，实际 ' + p1.length + '：' + JSON.stringify(p1))
   const p1b = scopeProblems([], 0, () => true)
-  if (p1b.length === 2) pass('三棵树都在但零文件零模块时仍判红（这就是老门禁的假绿点）')
-  else fail('三棵树都在、零文件零模块时应报 2 个问题，实际 ' + p1b.length + '：' + JSON.stringify(p1b))
+  if (p1b.length === 2) pass('六棵树都在但零文件零模块时仍判红（这就是老门禁的假绿点）')
+  else fail('六棵树都在、零文件零模块时应报 2 个问题，实际 ' + p1b.length + '：' + JSON.stringify(p1b))
   const p2 = scopeProblems([{ rel: 'src/seam/gate.ts', abs: join(ROOT, 'src/seam/gate.ts') }], 3, () => true)
   if (p2.length === 0) pass('扫描域正常时不误报')
   else fail('扫描域正常时不该报问题：' + JSON.stringify(p2))
@@ -1221,6 +1258,33 @@ if (!existsSync(baselineAbs)) {
   }
 }
 
+// 刷新基线：与上面同层豁免同形，但两份清单不互通（见 classifyViolations 注释）。
+// 每一行必须写清为什么留（why）与哪张票负责清掉（ticket），缺一个就判红 ——
+// 没有理由的豁免行和死规则一样会骗人。
+type RefreshBaselineEntry = { file: string, resolved: string, why?: string, ticket?: string | number }
+let refreshAllowed = new Set<string>()
+const refreshBaselineAbs = join(ROOT, REFRESH_BASELINE_REL)
+if (!existsSync(refreshBaselineAbs)) {
+  fail('刷新基线清单不存在：' + REFRESH_BASELINE_REL)
+} else {
+  let refreshEntries: RefreshBaselineEntry[] = []
+  try {
+    const parsed = JSON.parse(readFileSync(refreshBaselineAbs, 'utf8')) as { entries?: RefreshBaselineEntry[] }
+    refreshEntries = Array.isArray(parsed.entries) ? parsed.entries : []
+  } catch (e) {
+    fail('刷新基线清单不是合法 JSON：' + String((e as Error).message))
+  }
+  if (!refreshEntries.length) fail('刷新基线清单是空的（最后一行被清掉的那张票要把读取块与常量一起删，不要留空清单）')
+  else {
+    const bad = refreshEntries.filter((e) => !String((e && e.why) || '').trim() || !String((e && e.ticket) || '').trim())
+    if (bad.length) fail('刷新基线里 ' + bad.length + ' 行没写 why 或 ticket：' + bad.map((e) => String(e.file)).join('、'))
+    else {
+      refreshAllowed = new Set(refreshEntries.map((e) => String(e.file) + '|' + String(e.resolved)))
+      info('刷新基线 ' + refreshEntries.length + ' 条（只许减不许增）')
+    }
+  }
+}
+
 // 非字面量动态引用（工具盲区）
 const nonLiteral: NonLiteralRef[] = []
 for (const f of files) {
@@ -1253,14 +1317,17 @@ if (coreDependencyCount > 0) {
   fail('真图上一条「内置模块」依赖都没有：deck-rules-no-node-builtins 的 dependencyTypes 判据在当前 dependency-cruiser 上已经命不中了（类别名可能改了），先修判据再谈其它')
 }
 
-const { fresh, tolerated } = classifyViolations(violations, allowed)
+const { fresh, tolerated } = classifyViolations(violations, allowed, refreshAllowed)
+const toleratedKey = (v: Violation) => String(v.from || '') + '|' + String(v.to || '')
+const toleratedSameLayer = tolerated.filter((v) => allowed.has(toleratedKey(v))).length
+const toleratedRefresh = tolerated.filter((v) => refreshAllowed.has(toleratedKey(v))).length
 const byRule = new Map<string, number>()
 for (const v of violations) {
   const name = String((v.rule && v.rule.name) || '(未命名规则)')
   byRule.set(name, (byRule.get(name) || 0) + 1)
 }
 info('图上违规合计 ' + violations.length + ' 条：' + [...byRule.entries()].map(([n, c]) => n + ' ' + c + ' 条').join('、'))
-info('其中在存量豁免里放行 ' + tolerated.length + ' 条，新增 ' + fresh.length + ' 条')
+info('其中存量豁免放行 ' + toleratedSameLayer + ' 条、刷新基线放行 ' + toleratedRefresh + ' 条，新增 ' + fresh.length + ' 条')
 for (const v of fresh) {
   const name = String((v.rule && v.rule.name) || '')
   const comment = String((v.rule && v.rule.comment) || '')
@@ -1280,13 +1347,20 @@ if (stale.length) {
 } else {
   info('豁免清单没有可清理的条目（' + allowed.size + ' 条全在）')
 }
+const refreshLiveKeys = new Set(violations.map((v) => toleratedKey(v)))
+const refreshStale = [...refreshAllowed].filter((k) => !refreshLiveKeys.has(k))
+if (refreshStale.length) {
+  for (const k of refreshStale) info('刷新基线条目已消除可清理：' + k.split('|')[0] + ' -> ' + k.split('|')[1] + '（拆分票记得同票删条目）')
+} else {
+  info('刷新基线没有可清理的条目（' + refreshAllowed.size + ' 条全在）')
+}
 
 if (nonLiteral.length) {
   for (const hit of nonLiteral) {
     fail('非字面量动态引用（依赖图看不见，图上没有这条边）：' + hit.file + ':' + hit.line + '  ' + hit.snippet)
   }
 } else {
-  pass('三棵树里没有非字面量动态引用（工具盲区当前是空的）')
+  pass('六棵树里没有非字面量动态引用（工具盲区当前是空的）')
 }
 
 if (failed) {
@@ -1297,5 +1371,5 @@ console.log('\n引用方向门禁通过（同层 ' + (byRule.get('same-layer-imp
   ' + ' + (byRule.get('same-layer-import-host') || 0) +
   ' + ' + (byRule.get('same-layer-import-shared') || 0) +
   ' + ' + (byRule.get('same-layer-import-seam') || 0) +
-  ' + ' + (byRule.get('same-layer-import-tracker') || 0) + ' 条存量已记名，房间纪律与禁循环零违规；' +
+  ' + ' + (byRule.get('same-layer-import-tracker') || 0) + ' 条存量已记名，房间纪律、禁循环与刷新分层零新增违规；' +
   '房间模块 ' + roomModuleCount + '/' + roomFilesOnDisk + ' 个进图）')
