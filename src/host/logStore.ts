@@ -27,9 +27,10 @@ type Deps = any;
 type WfArgs = any;
 
 // src/host/logStore.js —— 宿主日志库（#490 host 底座，落实设计 #335 第 1、2、4 章的 host 部分；#500 拆出电话组）。
-// 以后谁改它：改宿主落盘位置、按天分文件、防抖刷盘或开关持久化的人。导出/清空/开关三个电话体在 ./logPhones.js。
+// 以后谁改它：改宿主落盘位置、按天分文件或防抖刷盘的人。导出/清空/开关三个电话体在 ./logPhones.js。
 // 接线：由 src/host/index.js 动态 import 加载；文件服务、计时器、取缓存目录函数全部显式传入；电话组经本文件动态 import 加载（单向引用）。
 // 它只做五件事：内存队列、级别判断、按天文件名、单写者刷盘、失败计数。宿主是唯一的落盘者。两文件各不超 300 行（#500 留余量）。
+// #1432：调试开关只认本机设置文件一处真源。本文件不再读写缓存目录里那份旧版开关文件，开关从装配处递进来的 switchSource 问。
 // 防抖窗口（设计 2.2 字面：窗口内多次调用合并为一次读改写）。
 // 这个窗口管的是「短窗内来的多行日志合成一次落盘」：写日志的那一侧每记一行都会喊一次刷盘，
 // 真按每次调用各写一次会把磁盘和文件服务拖住，所以窗口内的多次调用只换一次读改写。
@@ -39,8 +40,7 @@ import { LOG_WRITE_DEBOUNCE_MS as LOG_DEBOUNCE_MS } from '../shared/time-config/
 export { LOG_DEBOUNCE_MS }
 // 缓存目录下的独立日志子目录名（设计 2.1：.dsh-mattskillsdeck-cache/logs/）。
 export const LOG_DIR_NAME = 'logs'
-// 开关持久化文件名（设计 1.3：与命名守护 naming-guardian.json 同例，全文覆写，失败不抛错）。
-export const LOG_SWITCH_FILE = 'log-switch.json'
+// 开关不再有本文件自己的存档文件（#1432：真源是本机设置文件的 debug.enabled）——缓存目录里那份旧版开关文件是复印件，已整条删除。
 // 按天文件名：每个自然天一个文件，命名 YYYY-MM-DD.log（如 2026-09-06.log）。只分桶，不自动清理。
 // 短指纹（与客户端散列同算法）：目录只记散列不记原文，失败行自身也只带散列。
 function hashText(text?: any) {
@@ -61,6 +61,8 @@ export function createLogStore(deps?: any): any {
   const getCacheDir = input.getCacheDir
   const getPlatform = input.getPlatform
   const defaultCwd = input.DEFAULT_CWD || ''
+  // #1432：开关读写的真源口（装配处把本机设置文件的读写两格包成 { get, set } 递进来）；没接线时为 null。
+  const switchSource = input.switchSource || null
   // 内存队列：调用处只进队列就返回，另起链路写盘。队列里是待写行对象。
   let queue: any[] = []
   // 累计丢弃数：写盘失败与通道丢弃都只计数不抛错。
@@ -217,36 +219,27 @@ export function createLogStore(deps?: any): any {
   function getSwitchState() {
     return { enabled: switchEnabled, sampleRate: switchSampleRate }
   }
-  // 开关从盘上读回：缓存目录下 log-switch.json，全文覆写，失败不抛错。重启后保持，对账以宿主为准。
+  // 开关的真源在用户主目录的设置文件里（#1432），本文件不再自己存一份：装配处把读写两格作为 switchSource 递进来，
+  // 开机这里问一次并把值搬进内存（问不到就按关闭处理，不抛错）。老调用方没接线时保持「没人告诉过，按关闭」。
   async function loadSwitch() {
     if (switchLoaded) return getSwitchState()
     switchLoaded = true
     try {
-      const dir = typeof getCacheDir === 'function' ? await getCacheDir() : null
-      if (!dir) return getSwitchState()
-      const target = await resolveTarget(await joinLogPath(dir, LOG_SWITCH_FILE))
-      const txt = await readTarget(target)
-      if (!txt) return getSwitchState()
-      const parsed = JSON.parse(txt)
-      if (parsed && typeof parsed.enabled === 'boolean') switchEnabled = parsed.enabled
-      if (parsed && typeof parsed.sampleRate === 'number') switchSampleRate = parsed.sampleRate
-    } catch (e) { notePersistFail('readBack', 'read-fail', '') }
+      if (switchSource && typeof switchSource.get === 'function') {
+        const on = await switchSource.get()
+        if (on === true || on === false) switchEnabled = on
+      }
+    } catch (e) {}
     return getSwitchState()
   }
-  async function persistSwitch() {
-    let failDir = ''
-    try {
-      const dir = typeof getCacheDir === 'function' ? await getCacheDir() : null
-      if (!dir) { notePersistFail('persistSwitch', 'no-dir', ''); return }
-      failDir = String(dir || '')
-      const target = await resolveTarget(await joinLogPath(dir, LOG_SWITCH_FILE))
-      await writeTarget(target, JSON.stringify({ enabled: switchEnabled, sampleRate: switchSampleRate }))
-    } catch (e) { notePersistFail('persistSwitch', 'write-fail', failDir) }
-  }
+  // 拨开关只改内存里这一份，再把新值交给真源去落盘（switchSource.set）；落盘成败不改变本次回包里的生效值，
+  // 与旧实现「失败只计数不抛错」同一口径。没接线时只改内存，不写盘。
   async function setSwitch(enabled?: any, sampleRate?: any) {
     switchEnabled = enabled === true
     if (typeof sampleRate === 'number' && isFinite(sampleRate)) switchSampleRate = sampleRate
-    await persistSwitch()
+    try {
+      if (switchSource && typeof switchSource.set === 'function') await switchSource.set(switchEnabled)
+    } catch (e) {}
     return getSwitchState()
   }
   // 启动头：每次启动在日志头写入进程标识、启动时间与实际目录；目录漂移时写实际目录头、不迁移旧日志。

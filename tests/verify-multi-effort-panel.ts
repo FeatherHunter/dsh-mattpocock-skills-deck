@@ -175,8 +175,11 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
 // ---------- ④ 阻断表按 effort 作用域 + 列表接线（筛选 chips / KPI 跟随） ----------
 {
   const mapBlockOfSrc = extractConst(derivedSrc, 'mapBlockOf')
+  // #1431 起阻断表内部多调了同文件的规范键（normIdentityKey：纯数字去前导零，非数字原样保留），
+  // 拼函数体时把它一起带上，否则一跑就 ReferenceError；断言口径不变（仍只看跨 effort 不串）。
+  const normKeySrc = extractConst(derivedSrc, 'normIdentityKey')
   // 阻断表那段同样是几段源码拼成函数体、没有参数名，所以走 compileFn。
-  const mapBlockOf = compileFn([], identitySrc + '\n' + mapBlockOfSrc + '\nreturn mapBlockOf')()
+  const mapBlockOf = compileFn([], identitySrc + '\n' + normKeySrc + '\n' + mapBlockOfSrc + '\nreturn mapBlockOf')()
   // alpha#01 的阻塞者写的是 #02，但 alpha 里没有 02；beta 里的 02 是 open —— 不许跨 effort 认领
   const cross = { maps: [
     { key: '00', number: 0, effortId: 'alpha', title: 'Alpha Map', tickets: [

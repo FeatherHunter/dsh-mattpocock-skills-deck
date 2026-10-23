@@ -26,7 +26,7 @@
     "thanks:update": "node scripts/update-thanks.mts"
   },
   "dependencies": {
-    "dsh-log": "^0.3.4",
+    "dsh-log": "^0.4.1",
     "dsh-plugin-update": "^0.18.38",
     "ws": "^8.22.0",
     "yaml": "^2.9.1"

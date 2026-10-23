@@ -6,13 +6,15 @@
  *   kernel:log 与 kernel:settingsTemplates 之后 —— 运行时那份日志内核在 npm 包 dsh-log 里（log.js 只是 #564 留而不搬的旧真源，改它既不进产物、
  *   还会让 verify-client-no-undef 变红）。本片与界面偏好、动作模板共用同一个待写队列与同一份文档。
  * 维护者 2026-10-12 拍板（#1012 评论 6113252694）：真源是本机设置文件 <用户主目录>/.dsh/mattskillsdeck/settings.yaml 的 debug 节
- *   { enabled, sampleRate }；宿主那份 log-switch.json 只是副本。本地开关快照（开机秒显用）走包的 persist，
- *   日志包 0.3.x 起落在 dsws.debug.wf（包按插件标识派生键，不按前缀）；裸键 dsws.debug 只剩一个用处：「升级前
- *   用户选过什么」的线索，加载那一刻搬一次（采样率一并带进证据，做法见 settingsDebugLegacy 头上那段迁移注释）。
- *   一条缺口：宿主副本眼下仍是「日志记不记」的实际闸门（宿主那份 log-switch.json 副本），副本没
- *   接上就记不下调试行；改宿主不在本票范围，本片只能把结果回给界面（文案带限定语）并在下一次机会自己重推一次。
+ *   { enabled, sampleRate }。#1432（2026-10-23）把最后一份复印件也删了：宿主开机时直接读这份设置文件的 debug.enabled，
+ *   缓存目录里那份单独的开关文件不再存在，也不再有谁读写它 —— 「日志记不记」只看这一份设置文件。
+ *   本地开关快照（开机秒显用）走包的 persist，日志包 0.3.x 起落在 dsws.debug.wf（包按插件标识派生键，不按前缀）；
+ *   裸键 dsws.debug 只剩一个用处：「升级前用户选过什么」的线索，加载那一刻搬一次（采样率一并带进证据，
+ *   做法见 settingsDebugLegacy 头上那段迁移注释）。
+ *   原来那条缺口已经不在了：从前宿主那份开关文件没接上就记不下调试行，界面只能带限定语说明；现在宿主直读设置文件，
+ *   拨开关时那次通知只是让正在运行的宿主立刻按新值生效，没通知到会在下一次机会自动重推。
  *
- * 写这一侧：先写设置文件，写进去了就算成功（内存、旧键快照、广播，顺手把宿主副本推成一样）；这条路接不下（文档问不到、更高
+ * 写这一侧：先写设置文件，写进去了就算成功（内存、旧键快照、广播，顺手通知正在运行的宿主按新值生效）；这条路接不下（文档问不到、更高
  *   版本、形状对不上）才退回包里的 setLogSwitch，错误码、超时、代际、失败分类一字不改；老路真成功了才把这一笔记进队列（记早了
  *   会留下「界面说失败、文件里却写着那个值」的假象）。队列里那两笔同形：section 'debug'，记号 \u0000debug\u0000 + 格名（见
  *   settingsDebugJournalKeyOf），kernel/settings-view.js 的 viewFlagSettle 与 settings-view-write.js 的三处分派。
@@ -41,7 +43,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
     // 等待时长住中央 YAML（调时间改 config/timeouts.yaml）：界面闭包由构建把产物拼进来，本文件只声明名字。
     declare const SETTINGS_DEBUG_PUSH_WAIT_MS: number
     let debugAdopted = false
-    // 宿主那份副本跟没跟上：接不上就记下来，等下一次机会自愈（见 settingsDebugPushToHost）。settingsDebugHostPush 是最近一次推送
+    // 宿主有没有收到这次改动：没收到就记下来，等下一次机会自愈（见 settingsDebugPushToHost）。settingsDebugHostPush 是最近一次推送
     //   的结果（Promise<boolean>）：拨开关那一趟要把它回给界面，界面才知道要不要说限定语。下面三格是在途去重（2026-10-12 复核第三轮
     //   建议 1）：busy ＝ 最近一趟还在飞；next ＝ 飞行期间又来过的最后一笔请求；last ＝ 整条链尾的 promise（排队那一趟拿它当自己的结果）。
     let settingsDebugHostStale = false
@@ -49,7 +51,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
     let settingsDebugPushBusy = false
     let settingsDebugPushNext: { on: boolean } | null = null
     let settingsDebugPushLast = Promise.resolve(true)
-    // 旧键在模块加载那一刻的样子：必须在包的 reconcileLogSwitch（它会用宿主副本覆盖本地）之前读，否则读到的不是升级前的选择。
+    // 旧键在模块加载那一刻的样子：必须在包的 reconcileLogSwitch（它会用宿主读到的开关值覆盖本地）之前读，否则读到的不是升级前的选择。
     // 存储键迁移（日志包 0.3.x）：开关从 dsws.debug 搬到 dsws.debug.wf（包的 debugStorageKey 按插件标识派生，本插件标识即 wf），
     // 形状里也不再带 sampleRate。新键有值就认新键；新键没有、旧键有，才是刚升级——把旧选择搬过去（走包的 persist，
     // 写出的形状与新版一致），采样率只留在这份证据里给设置文件采纳（包的新形状里没有它的位置，文件才是它此后的真源）。
@@ -79,7 +81,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
     const settingsDebugItem = function (name: string, value: unknown): { section: string; name: string; value: unknown; key: string } { return { section: 'debug', name: name, value: value, key: settingsDebugJournalKeyOf(name) } }
     // idle 档那一笔「还没定论」的簿子：用户拨开关时文档从没问过（这一拨自己把它问起来）、老路还没回话 —— 这一刻既不能记进待写队列
     //   （老路可能被拒，文件里一个字都不许留），又不能不留痕迹：采纳只看待写队列与 journal，看不见这一笔就会照文件里的旧值把内存与宿主
-    //   副本顶回去（2026-10-12 复核实得：用户从开拨到关、文档先到手时，宿主最后停在开）。老路定了论就清空（成了交给 rememberChoice 落进文件，被拒就撤掉）。
+    //   宿主那边的值顶回去（2026-10-12 复核实得：用户从开拨到关、文档先到手时，宿主最后停在开）。老路定了论就清空（成了交给 rememberChoice 落进文件，被拒就撤掉）。
     let settingsDebugUndecided: Record<string, { section: string; name: string; value: unknown; key: string }> = {}
     const settingsDebugUndecidedClear = function (): void { settingsDebugUndecided = {} }
     // 文档里的 debug 节：形状对不上（更高版本插件写的文件、或不是一组「名字 → 值」）时回 null。
@@ -171,8 +173,8 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
         log('warn', 'host.call.fail', { method: 'wf.logSetSwitch', kind: 'set-switch-' + kind, errorHash: hashed })
       } catch (eL) {}
     }
-    // 把真源推给宿主那份副本（best-effort，回 Promise<boolean>：副本接上了没有）。失败只记一行分类告警并标成「没接上」，
-    //   等下一次机会自己再推（settingsDebugRetryHost 与 adopt 开头那一趟）—— 副本跟不上不是用户的错，真源已经定了。在途去重
+    // 通知正在运行的宿主按新值生效（best-effort，回 Promise<boolean>：这次通知送到了没有）。失败只记一行分类告警并标成「没送到」，
+    //   等下一次机会自己再推（settingsDebugRetryHost 与 adopt 开头那一趟）—— 通知没送到不是用户的错，真源已经定了。在途去重
     //   （2026-10-12 复核第三轮建议 1）：最近一趟还在飞时不再发新电话，只留最后一趟等它落地再发 —— 慢宿主下每一帧都发会堆出
     //   好几趟同时在途、还带着新旧不同的值，谁先到全看回话顺序；返回链尾的 promise，排队那一趟拿到的是它自己那一趟的结果。
     //   发出去的只有 enabled 一格：宿主开关电话的契约就是 { enabled }（日志包 0.3.x 起多余字段直接忽略），采样率的真源
@@ -206,7 +208,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
       })
       return settingsDebugPushLast
     }
-    // 真值落地那一趟（拨开关与文档到手后采纳都走它）：内存 → 旧键秒显快照 → 广播给界面 → 推给宿主副本。先改内存再广播，
+    // 真值落地那一趟（拨开关与文档到手后采纳都走它）：内存 → 旧键秒显快照 → 广播给界面 → 通知宿主。先改内存再广播，
     //   界面拿到的就是已经稳下来的世界；skipPush 那一档给「老路刚推过同一个值」的补记用，省一次重复的宿主电话。
     const settingsDebugApplyTruth = function (on: unknown, rate: unknown, skipPush?: unknown): { enabled: boolean; sampleRate: number } {
       const next = { enabled: on === true, sampleRate: settingsDebugRateOf(rate) }
@@ -228,7 +230,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
         const rate = settingsDebugRateOf(sampleRate)
         // 文档从没问过这一档（新会话第一次打开设置页）：先把这一笔记进「还没定论」的簿子，再交给包里的老路并把文档问起来。
         //   为什么必须记：这个拨动自己把文档问起来，同一趟采纳紧跟着就跑；队列里没有痕迹的话，那趟采纳会照文件里的旧值
-        //   把老路刚写好的内存与宿主副本顶回去，而这一次选择此后没有机会再进文件 —— 用户在 idle 下拨的那一下永久丢失。
+        //   把老路刚写好的内存与宿主那边的值顶回去，而这一次选择此后没有机会再进文件 —— 用户在 idle 下拨的那一下永久丢失。
         //   为什么不能直接记待写队列：老路可能被拒，那时文件里一个字都不许留（留了就成不了「界面说没成」的假象）。
         if (viewFlagState.status === 'idle') {
           settingsDebugUndecided[settingsDebugJournalKeyOf('enabled')] = settingsDebugItem('enabled', on)
@@ -273,8 +275,8 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
       return false
     }
     // 用户在诊断日志分组拨开关走这一个（跑腿 settingsDebugToggle 经开关写入笔调它）。返回形状在包里的 setLogSwitch 之上多一格
-    //   hostPushed：只说宿主那份副本接上没有（false 时界面要把话说全），ok 仍是「真源落地了没有」。文件这条路接得
-    //   下：真源当场就定了 —— 改内存、写旧键快照、广播、推宿主副本，宿主失败也回 ok: true。接不下：原样调包里的
+    //   hostPushed：只说这次通知有没有送到正在运行的宿主（false 时界面要把话说全），ok 仍是「真源落地了没有」。文件这条路接得
+    //   下：真源当场就定了 —— 改内存、写旧键快照、广播、通知宿主，宿主没收到也回 ok: true。接不下：原样调包里的
     //   setLogSwitch（老路：宿主是真源，错误码与分类一字不改），返回原样交给界面。
     export const settingsDebugToggle = function (enabled: unknown, sampleRate: unknown): any {
       let took = false
@@ -305,7 +307,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
       try { return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: 'host-unavailable' }) } catch (e3) { return Promise.resolve({ ok: false, enabled: false, error: 'host-unavailable' }) }
     }
     // 队列里还压着用户刚拨的那一笔时，采纳这一步什么都不做：用户这一下发生在文件读回来之后、落盘之前，文件里那份
-    //   还是旧值，照文件覆盖内存会让用户看见自己刚拨的开关又弹回去。此刻内存、旧键快照、宿主副本都已经在拨的那一下
+    //   还是旧值，照文件覆盖内存会让用户看见自己刚拨的开关又弹回去。此刻内存、旧键快照、宿主那边的值都已经在拨的那一下
     //   落好了，落盘那一趟会把这笔写进文件（同一个队列）。
     const settingsDebugHasPending = function (): boolean {
       try {
@@ -320,7 +322,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
       } catch (e) {}
       return false
     }
-    // 副本没接上时的自愈口子：诊断日志分组每次重新画一遍就由界面调它一次（views/diagnosticLog/DiagnosticLogSection.ts 里的 React.useEffect），只在这一份确实
+    // 宿主没收到改动时的自愈口子：诊断日志分组每次重新画一遍就由界面调它一次（views/diagnosticLog/DiagnosticLogSection.ts 里的 React.useEffect），只在这一份确实
     //   没接上时才推。为什么不能只挂在「文档到手」那一趟上：viewFlagSubscribe 是一次性订阅（kernel/settings-view-state.js 的整批
     //   清空），一个会话只到手一趟，挂那一趟等于永远不重推（2026-10-12 复核指出）。
     export const settingsDebugRetryHost = function (): boolean {
@@ -330,8 +332,8 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
         return true
       } catch (e) { return false }
     }
-    // 文档到手（或判定问不到）时定真值，并把它落到内存、旧键快照、界面与宿主副本上，只做一次。开头那一段也是自愈口子
-    //   之一（另一处是上面那个导出件：文档比拨动晚到时，那一趟就能把上一次没推上去的副本补上）。
+    // 文档到手（或判定问不到）时定真值，并把它落到内存、旧键快照、界面与宿主上，只做一次。开头那一段也是自愈口子
+    //   之一（另一处是上面那个导出件：文档比拨动晚到时，那一趟就能把上一次没送到的那次通知补上）。
     export const settingsDebugAdoptFromDoc = function (): void {
       try {
         if (settingsDebugHostStale) settingsDebugPushToHost(logSwitch.enabled === true)
@@ -339,7 +341,7 @@ declare function setTimeout(fn: (...args: any[]) => void, ms: number): unknown;
         debugAdopted = true
         if (settingsDebugHasPending()) return
         // 问回来的那一份不像设置文档（老宿主、占位电话答上来的东西）：没有文件这一份真源可采，保持原样 —— 这里绝不
-        //   许照着它改内存或推宿主副本，采纳的每一个分支都要以「文件里那一份」为据。
+        //   许照着它改内存或去通知宿主，采纳的每一个分支都要以「文件里那一份」为据。
         if (!settingsDebugDocLooksReal(viewFlagState.doc)) return
         const inDoc = settingsDebugEnabledInDoc()
         const rateInDoc = settingsDebugRateInDoc()
