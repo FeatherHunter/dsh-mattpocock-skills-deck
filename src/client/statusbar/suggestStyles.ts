@@ -38,9 +38,8 @@ export const SUGGEST_STYLE_TEXT: string = [
   '.dsws-sugg-close:focus-visible{opacity:1;outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
   // 小泡：绝对定位于整组之内，落在选项行下面一层（z-index 1），由引擎逐颗安排出发与落点。
   '.dsws-sugg-bub{position:absolute;z-index:1;left:0;top:0;border-radius:50%;pointer-events:none;background:' + SUGGEST_APPEARANCE.bubbleBg + ';border:1px solid ' + SUGGEST_APPEARANCE.bubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.bubbleGlow + ';opacity:0;will-change:transform,opacity}',
-  // 选中一条后的退场：整组轻轻上移淡出；关闭与覆盖走更短的淡出。
-  '@keyframes dsws-sugg-pick{to{opacity:0;transform:translateY(-6px) scale(.985)}}',
-  '.dsws-sugg-layer.dsws-sugg-picking{animation:dsws-sugg-pick ' + SUGGEST_APPEARANCE.pickMs + 'ms ease-in forwards}',
+  // 关闭与第二组覆盖的退场：整组淡出；选中一条的退场不再走整组 CSS 动画，
+  // 改由引擎按每颗胶囊的位置生成小泡向上飘走（见 suggestEngine 的 playOut('pick')）。
   '@keyframes dsws-sugg-fade{to{opacity:0}}',
   '.dsws-sugg-layer.dsws-sugg-fading{animation:dsws-sugg-fade ' + SUGGEST_APPEARANCE.fadeMs + 'ms ease-in forwards}',
   // 读屏专用播报节点：视觉上不占位，只让读屏软件念出「有几条建议」。
@@ -49,6 +48,6 @@ export const SUGGEST_STYLE_TEXT: string = [
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill{background:' + SUGGEST_APPEARANCE.lightPillBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + ';text-shadow:none}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill:hover{border-color:' + SUGGEST_APPEARANCE.lightPillHoverBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillHoverShadow + '}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-bub{background:' + SUGGEST_APPEARANCE.lightBubbleBg + ';border-color:' + SUGGEST_APPEARANCE.lightBubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightBubbleGlow + '}',
-  // 系统要求减少动效：去掉过渡与退场动画（小泡由引擎直接跳过）。
-  '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close{transition:none}.dsws-sugg-layer.dsws-sugg-picking,.dsws-sugg-layer.dsws-sugg-fading{animation-duration:1ms}}',
+  // 系统要求减少动效：去掉过渡与淡出动画（小泡由引擎直接跳过）。
+  '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close{transition:none}.dsws-sugg-layer.dsws-sugg-fading{animation-duration:1ms}}',
 ].join('\n')
