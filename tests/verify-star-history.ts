@@ -1,4 +1,4 @@
-import { aggregateByDay, mergeHistory } from '../scripts/star-history.mts';
+import { aggregateByDay, mergeHistory, withZeroStart } from '../scripts/star-history.mts';
 import { buildSvg, monotonePath } from '../scripts/generate-star-history-svg.mts';
 import assert from 'node:assert/strict';
 
@@ -79,5 +79,9 @@ for (let i = 0; i < segs.length - 1; i++) {
   const slopeOut: number = (b[1] - a[5]) / (b[0] - a[4]);
   assert.ok(Math.abs(slopeIn - slopeOut) < 0.1,`knot ${i+1} is a sharp corner: incoming slope ${slopeIn} vs outgoing ${slopeOut}`);
 }
+
+assert.deepEqual(withZeroStart([]), [], 'empty stays empty');
+assert.deepEqual(withZeroStart([{date:'2026-08-17',total:2,daily:2}]), [{date:'2026-08-16',total:0,daily:0},{date:'2026-08-17',total:2,daily:2}]);
+assert.deepEqual(withZeroStart([{date:'2026-08-16',total:0,daily:0},{date:'2026-08-17',total:2,daily:2}]), [{date:'2026-08-16',total:0,daily:0},{date:'2026-08-17',total:2,daily:2}], 'idempotent');
 
 console.log('verify-star-history: all passed');

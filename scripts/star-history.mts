@@ -28,6 +28,17 @@ export function aggregateByDay(starredAtList: string[]): StarDay[] {
   });
 }
 
+/** 零星日起点：首日前一天补 {total:0,daily:0}，两条曲线都从原点起画。
+ * 幂等（已有零星行直接返回）；空数组保持空（“拉不到数据不动产物”语义归更新脚本）。 */
+export function withZeroStart(days: StarDay[]): StarDay[] {
+  if (!Array.isArray(days) || days.length === 0) return [];
+  const first: StarDay = days[0];
+  if (first.total === 0 && first.daily === 0) return days;
+  const prev: Date = new Date(first.date + "T00:00:00Z");
+  prev.setUTCDate(prev.getUTCDate() - 1);
+  return [{ date: prev.toISOString().slice(0, 10), total: 0, daily: 0 }, ...days];
+}
+
 export function mergeHistory(existing: StarDay[] | null | undefined, nextAggregated: StarDay[] | null | undefined): StarDay[] {
   // existing 与 nextAggregated 均为按日聚合数组，返回合并后按 date 去重、total 重算
   const map = new Map<string, number>();
