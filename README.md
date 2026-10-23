@@ -29,10 +29,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.9.0-beta.9）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.9 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.9.0-beta.10）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.10 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.10 --registry https://registry.npmjs.org
 ```
 
 <h2 align="center"><sub>BOARD</sub><br>任务板</h2>
@@ -41,17 +41,17 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分，可以做到session并发处理。效率加倍省心。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 列表中展示：探索地图、实施地图、普通ISSUE。并且提供便捷按钮一键注入prompt。<br><img src="assets/readme/中文-深色-右侧面板-列表-列表.png" width="400" alt="任务板列表：可接阻塞已关闭归位" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 实战案例：任务经过拆分，可以大量同时执行任务。<br><img src="assets/readme/中文-深色-工作区-多ISSUE并发.png" width="400" alt="多工作区多会话并发" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 列表中展示：探索地图、实施地图、普通ISSUE。并且提供便捷按钮一键注入prompt。<br><img src="assets/readme/中文-深色-右侧面板-列表-列表.png" width="100%" alt="任务板列表：可接阻塞已关闭归位" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 实战案例：任务经过拆分，可以大量同时执行任务。<br><img src="assets/readme/中文-深色-工作区-多ISSUE并发.png" width="100%" alt="多工作区多会话并发" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 地图详情：像素风卡片呈现所有可以执行的任务。<br><img src="assets/readme/中文-深色-右侧面板-列表-Map详情.png" width="400" alt="地图详情卡片墙可接与已结案" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 单票详情：描述、验收、进度、评论等信息不再需要打开原始文件。<br><img src="assets/readme/中文-深色-右侧面板-列表-ISSUE详情.png" width="400" alt="单票详情描述验收进度评论" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 地图详情：像素风卡片呈现所有可以执行的任务。<br><img src="assets/readme/中文-深色-右侧面板-列表-Map详情.png" width="100%" alt="地图详情卡片墙可接与已结案" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 单票详情：描述、验收、进度、评论等信息不再需要打开原始文件。<br><img src="assets/readme/中文-深色-右侧面板-列表-ISSUE详情.png" width="100%" alt="单票详情描述验收进度评论" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -63,10 +63,10 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 胶囊状态栏：核心信息直接呈现，快捷入口方便高效。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 可接任务、故障、需要诊断分流、刷新、ISSUE处理路径表。清晰可见。<br><img src="assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="400" alt="对话框胶囊栏输入框区域" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 工作路线：清晰展示当前会话处理ISSUE的心路历程。<br><img src="assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="400" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 可接任务、故障、需要诊断分流、刷新、ISSUE处理路径表。清晰可见。<br><img src="assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="100%" alt="对话框胶囊栏输入框区域" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 工作路线：清晰展示当前会话处理ISSUE的心路历程。<br><img src="assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="100%" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -78,10 +78,10 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 新增需求：在“探索流程”和“实施流程”中二选一，通过插件引导最终将所有IDEA落地。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 右侧面板，按需选择不同流程。<br><img src="assets/readme/中文-深色-右侧面板-新增需求-选择弹窗.png" width="400" alt="右侧面板新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 胶囊栏，按需选择不同流程。<br><img src="assets/readme/中文-深色-胶囊状态栏-新增需求-选择弹窗.png" width="400" alt="胶囊状态栏新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 右侧面板，按需选择不同流程。<br><img src="assets/readme/中文-深色-右侧面板-新增需求-选择弹窗.png" width="100%" alt="右侧面板新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 胶囊栏，按需选择不同流程。<br><img src="assets/readme/中文-深色-胶囊状态栏-新增需求-选择弹窗.png" width="100%" alt="胶囊状态栏新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -93,10 +93,10 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 内置 27 个技能（v1.3.1）：同时提供技能原文，在使用过程中提供便利的学习原文途径。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 可以注入到对话框。可以查看技能详情<br><img src="assets/readme/中文-深色-右侧面板-技能页面-列表.png" width="400" alt="技能页面列表一行讲清用途" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 技能详情页面，方便学习原始技能。<br><img src="assets/readme/中文-深色-右侧面板-技能页面-详情.png" width="400" alt="技能页面详情完整说明" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 可以注入到对话框。可以查看技能详情<br><img src="assets/readme/中文-深色-右侧面板-技能页面-列表.png" width="100%" alt="技能页面列表一行讲清用途" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 技能详情页面，方便学习原始技能。<br><img src="assets/readme/中文-深色-右侧面板-技能页面-详情.png" width="100%" alt="技能页面详情完整说明" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -108,10 +108,10 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 根据办公环境不同提供多样后端：GitHub、本地 Markdown、GitLab。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 在不同后端中进行切换。<br><img src="assets/readme/中文-深色-右侧面板-切换后端.png" width="400" alt="设置页后端选择器" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 环境逐项自检。如果不准确点击刷新重新检测。<br><img src="assets/readme/中文-深色-右侧面板-环境检查-列表.png" width="400" alt="环境检查列表" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 在不同后端中进行切换。<br><img src="assets/readme/中文-深色-右侧面板-切换后端.png" width="100%" alt="设置页后端选择器" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 环境逐项自检。如果不准确点击刷新重新检测。<br><img src="assets/readme/中文-深色-右侧面板-环境检查-列表.png" width="100%" alt="环境检查列表" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -123,11 +123,11 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 提供简化的版本管理页面，方便查看。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 改动：fetch、pull、push、add、commit<br><img src="assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="260" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 提交历史<br><img src="assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="260" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 工作树<br><img src="assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="260" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="33%">👇 改动：fetch、pull、push、add、commit<br><img src="assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="100%" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="33%">👇 提交历史<br><img src="assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="100%" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="33%">👇 工作树<br><img src="assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="100%" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -139,10 +139,10 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 按钮颜色 = label标签颜色。调色板可以给每类标签配置颜色。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 设置主页<br><img src="assets/readme/中文-深色-设置面板-主页.png" width="400" alt="设置面板主页" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 调色板：设置标签颜色可以改变按钮颜色。<br><img src="assets/readme/中文-深色-右侧面板-调色板-设置label颜色.png" width="400" alt="调色板设置标签颜色" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 设置主页<br><img src="assets/readme/中文-深色-设置面板-主页.png" width="100%" alt="设置面板主页" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 调色板：设置标签颜色可以改变按钮颜色。<br><img src="assets/readme/中文-深色-右侧面板-调色板-设置label颜色.png" width="100%" alt="调色板设置标签颜色" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -154,18 +154,18 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 六步完成工作区的初始化。
 
-<table>
+<table width="100%">
   <tr>
-    <td valign="top">👇 第 1 步：选择工作区并新建会话<br><img src="assets/init/中文-深色-1-创建新工作区.png" width="280" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 第 2 步：新会话提示选择后端<br><img src="assets/init/中文-深色-2-新建会话-选择后端.png" width="400" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 第 1 步：选择工作区并新建会话<br><img src="assets/init/中文-深色-1-创建新工作区.png" width="100%" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 第 2 步：新会话提示选择后端<br><img src="assets/init/中文-深色-2-新建会话-选择后端.png" width="100%" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
   <tr>
-    <td valign="top">👇 第 3 步：选择后端为 GitHub<br><img src="assets/init/中文-深色-3-选择后端为github.png" width="400" alt="第3步：选择后端为 GitHub" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 第 4 步：点击确认后注入提示词<br><img src="assets/init/中文-深色-4-点击确认后-注入prompt.png" width="400" alt="第4步：点击确认后注入提示词" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 第 3 步：选择后端为 GitHub<br><img src="assets/init/中文-深色-3-选择后端为github.png" width="100%" alt="第3步：选择后端为 GitHub" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 第 4 步：点击确认后注入提示词<br><img src="assets/init/中文-深色-4-点击确认后-注入prompt.png" width="100%" alt="第4步：点击确认后注入提示词" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
   <tr>
-    <td valign="top">👇 第 5 步：等待 AI 执行初始化<br><img src="assets/init/中文-深色-5-等待AI执行.png" width="400" alt="第5步：等待 AI 执行初始化" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 第 6 步：环境检测不通过时需要补齐并刷新。<br><img src="assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="400" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 第 5 步：等待 AI 执行初始化<br><img src="assets/init/中文-深色-5-等待AI执行.png" width="100%" alt="第5步：等待 AI 执行初始化" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top" width="50%">👇 第 6 步：环境检测不通过时需要补齐并刷新。<br><img src="assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="100%" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
