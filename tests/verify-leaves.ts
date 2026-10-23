@@ -81,7 +81,7 @@ const LEAVES = [
   { file: 'src/client/statusbar/SessionChainCapsule.js', exports: ['sessionChainCapsuleOf', 'SessionChainCapsule'], components: ['SessionChainCapsule'] },
   // #1409 新增：界面借会话事件流取数通路的两个叶子。前一个是纯函数（认调用、解析参数、钳制），
   // 后一个是订阅层（借事件流、等整轮结束交付）加一个不渲染东西的挂载组件。
-  { file: 'src/client/statusbar/suggestFacts.ts', exports: ['SUGGEST_TOOL_NAME', 'SUGGEST_MIN_ITEMS', 'SUGGEST_MAX_ITEMS', 'SUGGEST_PROMPT_MAX_CHARS', 'SUGGEST_REASON_MAX_CHARS', 'suggestHash', 'suggestClipText', 'suggestItemsOf', 'suggestEventOf'], components: [] },
+  { file: 'src/client/statusbar/suggestFacts.ts', exports: ['SUGGEST_TOOL_NAME', 'SUGGEST_MIN_ITEMS', 'SUGGEST_MAX_ITEMS', 'SUGGEST_INTRO_MAX_CHARS', 'SUGGEST_PROMPT_MAX_CHARS', 'SUGGEST_REASON_MAX_CHARS', 'suggestHash', 'suggestClipText', 'suggestItemsOf', 'suggestEventOf'], components: [] },
   { file: 'src/client/statusbar/suggestStream.ts', exports: ['createSuggestStream', 'SuggestStreamMount'], components: ['SuggestStreamMount'] },
   { file: 'src/client/statusbar/suggestTimeline.ts', exports: ['suggestBubbleCounts', 'suggestRowOpacity', 'suggestCloseOpacity', 'suggestLandedCount', 'suggestBubblePlan'], components: [] },
   { file: 'src/client/statusbar/suggestEngine.ts', exports: ['createSuggestEngine'], components: [] },

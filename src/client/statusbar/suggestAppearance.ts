@@ -31,6 +31,8 @@ export const SUGGEST_APPEARANCE = {
   pillPadX: 12,
   pillGapPx: 6,
   pillMaxWidthPx: 360,
+  /** 一颗选项里「简介」与「提示词」之间的间距（#1451 加了简介这一格）。 */
+  pillIntroGapPx: 6,
   /** 选项行与关闭按钮行之间的间距。 */
   groupGapPx: 7,
   closeRowMarginTopPx: 10,

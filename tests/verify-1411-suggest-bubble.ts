@@ -173,13 +173,18 @@ async function main() {
     tipCalls.length = 0
     const m = await mount({
       initial: [
-        { prompt: '/next', reason: '因为还有一张票没关' },
-        { prompt: '继续收尾', reason: '' },
+        { intro: '接着做', prompt: '/next', reason: '因为还有一张票没关' },
+        { intro: '收尾', prompt: '继续收尾', reason: '' },
       ],
       capsuleRect: { left: 100, top: 700, width: 400, height: 36 },
     })
     check(m.pills().length === 2, '基本：显示 2 颗选项')
-    check(m.pills()[0].textContent === '/next', '基本：第一颗文字就是提示词')
+    // #1451：一颗选项里是两段——简介（短标签）在前、提示词在后；两颗时每颗最大宽度均分整组（(720-6)/2=357）。
+    check(m.pills()[0].querySelector('.dsws-sugg-intro') !== null && m.pills()[0].querySelector('.dsws-sugg-intro').textContent === '接着做',
+      '基本：简介单独一段显示在提示词前面')
+    check(m.pills()[0].querySelector('.dsws-sugg-cmd') !== null && m.pills()[0].querySelector('.dsws-sugg-cmd').textContent === '/next',
+      '基本：提示词一段显示在简介后面')
+    check(m.pills()[0].style.maxWidth === '357px' && m.pills()[1].style.maxWidth === '357px', '基本：两颗时每颗最大宽度均分整组（(720-6)/2=357）')
     check(m.pills()[0].className.indexOf('cmd') >= 0, '基本：斜杠命令加 cmd 字形类')
     const layer = m.layer()
     check(layer !== null, '基本：气泡层已渲染')
@@ -192,15 +197,38 @@ async function main() {
     check(layer.style.maxWidth.indexOf('100vw') >= 0 && layer.style.maxWidth.indexOf('720') >= 0, '基本：层最大宽度受视口与旋钮共同约束')
     check(layer.style.left === '300px', '基本：锚点横向 = 胶囊中心（100+400/2）')
     check(layer.style.bottom === '77px', '基本：锚点纵向 = 视口高 - 胶囊顶 + 9（768-700+9）')
-    check(m.pills()[0].getAttribute('aria-label') === '/next；推荐理由：因为还有一张票没关', '基本：选项 aria-label 含推荐理由（读屏可读）')
+    check(m.pills()[0].getAttribute('aria-label') === '接着做 /next；推荐理由：因为还有一张票没关', '基本：选项 aria-label 念「简介 提示词」并含推荐理由（读屏可读）')
     check(tipCalls.indexOf('因为还有一张票没关') >= 0 && tipCalls.every(function (c) { return c === '因为还有一张票没关' }), '基本：有理由的选项挂既有 Tip，内容就是理由')
-    check(m.pills()[1].getAttribute('aria-label') === '继续收尾', '基本：没理由的选项 aria-label 只念提示词')
+    check(m.pills()[1].getAttribute('aria-label') === '收尾 继续收尾', '基本：没理由的选项 aria-label 念「简介 提示词」，不念理由')
     check(m.sr() !== null && m.sr().getAttribute('role') === 'status' && m.sr().getAttribute('aria-live') === 'polite', '基本：读屏播报节点 role=status aria-live=polite')
     check(m.sr().textContent === '有 2 条下一步建议', '基本：读屏播报条数')
     check(m.closeBtn() !== null && m.closeBtn().getAttribute('type') === 'button', '基本：关闭是真按钮')
     check(m.closeBtn().getAttribute('aria-label') === '关闭（等于一条都不选）', '基本：关闭按钮 aria-label 说明含义')
     check(portalCalls.length >= 1, '基本：层经 PortalOverlay 挂载（与胶囊菜单同招）')
     await m.unmount()
+
+    // 三条、四条时也要排得进一行：宽度按条数均分，条数越多每颗越窄（#1451）。
+    const m3 = await mount({
+      initial: [
+        { intro: '一', prompt: '/one', reason: '' },
+        { intro: '二', prompt: '/two', reason: '' },
+        { intro: '三', prompt: '/three', reason: '' },
+      ],
+    })
+    check(m3.pills().length === 3 && m3.pills().every(function (p) { return p.style.maxWidth === '236px' }),
+      '基本：三条时每颗最大宽度均分整组（(720-12)/3=236，三条排得进一行）')
+    await m3.unmount()
+    const m4 = await mount({
+      initial: [
+        { intro: '一', prompt: '/one', reason: '' },
+        { intro: '二', prompt: '/two', reason: '' },
+        { intro: '三', prompt: '/three', reason: '' },
+        { intro: '四', prompt: '/four', reason: '' },
+      ],
+    })
+    check(m4.pills().length === 4 && m4.pills().every(function (p) { return p.style.maxWidth === '175px' }),
+      '基本：四条时每颗最大宽度均分整组（(720-18)/4=175）')
+    await m4.unmount()
   }
 
   // ---------- 2. 点一条：走既有 inject、不发送、整组消失 ----------
@@ -327,6 +355,8 @@ async function main() {
     check(css.indexOf(':focus-visible') >= 0, '样式：键盘焦点可见')
     check(css.indexOf('.dsws-sugg-sr') >= 0, '样式：读屏节点视觉隐藏')
     check(css.indexOf('--dsw-alias-') >= 0, '样式：颜色走宿主主题 token（亮暗主题都不用另写）')
+    check(css.indexOf('.dsws-sugg-intro') >= 0 && css.indexOf('.dsws-sugg-cmd') >= 0, '样式：简介与提示词两段的样式存在（简介不压缩、提示词省略）')
+    check(css.indexOf('gap:' + appearanceMod.SUGGEST_APPEARANCE.pillIntroGapPx + 'px') >= 0, '样式：简介与提示词的间距来自外观旋钮')
     check(css.indexOf('prefers-reduced-motion') >= 0, '样式：尊重系统减少动效偏好')
   }
 
@@ -348,6 +378,7 @@ async function main() {
     check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillFontPx') >= 0 && stylesSrc.indexOf('12.5') < 0, '守卫：样式尺寸来自外观旋钮，不写死数字')
     check(stylesSrc.indexOf('--dsw-alias-') >= 0, '守卫：样式颜色只用主题 token')
     check(bubbleSrc.indexOf('setInterval') < 0 && bubbleSrc.indexOf('setTimeout') < 0, '守卫：气泡薄壳不新增定时器')
+    check(bubbleSrc.indexOf('dsws-sugg-intro') >= 0 && bubbleSrc.indexOf('dsws-sugg-cmd') >= 0, '守卫：气泡薄壳把简介与提示词分成两段渲染')
     check(bubbleCode.indexOf('sessions') < 0 && bubbleCode.indexOf('retain') < 0 && bubbleCode.indexOf('.binding') < 0, '守卫：气泡薄壳不碰会话服务（只读订阅在取数层）')
     check(streamSrc.indexOf('SuggestBubble') >= 0, '接线：取数层的挂载组件把建议交给气泡')
     check(indexSrc.indexOf('leaf:suggestAppearance') >= 0 && indexSrc.indexOf('leaf:suggestStyles') >= 0 && indexSrc.indexOf('leaf:suggestBubble') >= 0, '接线：三片叶子在入口登记了拼接标记')
