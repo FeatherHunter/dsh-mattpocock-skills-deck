@@ -271,6 +271,8 @@ export function createUnsupportedFake(id) {
   return {
     id: id || 'unsupported-fake',
     label: '做不到的假身',
+    // 做不到的假身只验自动补桩行为，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({ list: async () => ({ ok: true, data: [] }) }),
     matches: async () => false,
   }
@@ -309,6 +311,8 @@ export function createGithubFake(seed) {
       },
     }),
     matches: async () => false,
+    // GitHub 假身只演标签读写与失败分档，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     _repoLabels: repoLabels,
   }
 }
@@ -329,6 +333,8 @@ export function createMarkdownFake(seed, id) {
   return {
     id: id || 'markdown-fake',
     label: '本地 Markdown 假身',
+    // 本地假身只读写工作区配色文件，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({
       listLabels: async () => {
         const problem = readProblem()
@@ -376,6 +382,8 @@ export function createTruncatingFake(seed) {
   return {
     id: seed.id || 'truncating-fake',
     label: '取不全的假身',
+    // 取不全的假身只验残缺判定，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({
       listLabels: async () => ({ ok: true, data: all.slice(0, pageSize).map((name) => ({ name: name, color: '0e8a16' })) }),
     }),
@@ -391,6 +399,8 @@ export function createIncompleteFake(id, kind) {
   return {
     id: id || 'incomplete-fake',
     label: '取不全就整体失败的假身',
+    // 失败样本假身只演失败分档，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({
       listLabels: async () => ({
         ok: false,
@@ -826,7 +836,8 @@ export async function run() {
       })
       return { host: host, events: events, execVias: execVias }
     }
-    const mod = (id, impl) => ({ id: id, label: id, create: () => impl, matches: async () => false })
+    // 宿主行为这一组的假身只验宿主分发，不断言额度，所以按离网口径声明。
+    const mod = (id, impl) => ({ id: id, label: id, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => impl, matches: async () => false })
     const changes = [{ name: 'bug', color: '0b7285' }]
 
     // ① 正常一路：回包键位、标签形状、逐条记账，以及「后端多给的字段不许漏给客户端」
@@ -920,8 +931,9 @@ export async function run() {
         listLabels: async () => ({ ok: true, data: [{ name: id, color: '', description: '' }] }),
         setLabelColors: async (repo, cs) => { writeCalls.push(id); return { ok: true, data: { applied: cs.map((x) => ({ name: x.name, color: x.color })), failed: [] } } },
       })
-      regMulti.register({ id: 'labels-multi-c', label: 'c', create: () => implMulti('labels-multi-c'), matches: async () => true })
-      regMulti.register({ id: 'labels-multi-d', label: 'd', create: () => implMulti('labels-multi-d'), matches: async () => true })
+      // 多后端候选这一组的假身只验宿主仲裁，不断言额度，所以按离网口径声明。
+      regMulti.register({ id: 'labels-multi-c', label: 'c', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => implMulti('labels-multi-c'), matches: async () => true })
+      regMulti.register({ id: 'labels-multi-d', label: 'd', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => implMulti('labels-multi-d'), matches: async () => true })
       const hMulti = mkHost(regMulti)
       const rlMulti = await hMulti.host.handleListLabels({ cwd: '/ws/multi' })
       await assert('conflict 档正面样本：两个后端同时命中 → conflict，并说清是哪个没定下来', rlMulti.ok === false && rlMulti.error.kind === 'conflict' && String(rlMulti.error.message).includes('同时对应'), JSON.stringify(rlMulti))
@@ -980,7 +992,8 @@ export async function run() {
 
       // 待定：身份识别超时未决（注册表的 pending），也不许当作「干净的没选定」悄悄开工
       const regPending = mkReg()
-      const dp = regPending.register({ id: 'labels-pending-fake', label: 'p', create: () => ({}), matches: () => new Promise(() => {}) })
+      // 待定态的假身只验识别未完成时不开工，不断言额度，所以按离网口径声明。
+      const dp = regPending.register({ id: 'labels-pending-fake', label: 'p', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: () => new Promise(() => {}) })
       const rlPending = await mkHost(regPending).host.handleListLabels({ cwd: '/ws/pending' })
       await assert('conflict 档正面样本：身份识别尚未完成（待定）→ conflict，不许静默挑一个后端', rlPending.ok === false && rlPending.error.kind === 'conflict' && String(rlPending.error.message).includes('等识别完成后再重试'), JSON.stringify(rlPending))
       // #631 追加：待定时声明也不许开工 —— 那时名单里的名字只是注册序的暂时赢家，仲裁根本还没完。

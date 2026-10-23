@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T13:44:06.225Z",
+  "generatedAt": "2026-10-23T15:23:14.278Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 334,
-  "gateCount": 334,
-  "attributedGates": 294,
+  "chainLength": 335,
+  "gateCount": 335,
+  "attributedGates": 295,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 13,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 553,
+  "graphFileCount": 559,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2286,7 +2286,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 114,
+      "expectedAssertions": 140,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -7385,6 +7385,38 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 18 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-tracker-session.ts",
+      "file": "tests/verify-tracker-session.ts",
+      "guards": [
+        "src/tracker/contract/backend-module.ts",
+        "src/tracker/contract/contexts.ts",
+        "src/tracker/contract/operations-catalog.ts",
+        "src/tracker/contract/results.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/registry/shape.ts",
+        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/session/budget-reading.ts",
+        "src/tracker/session/budget.ts",
+        "src/tracker/session/interceptors.ts",
+        "src/tracker/session/open-tracker.ts"
+      ],
+      "dirs": [
+        "src/tracker/contract",
+        "src/tracker/registry",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown",
+        "src/tracker/session"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 10 条"
+    },
+    {
       "step": "node tests/verify-typecheck.mts",
       "file": "tests/verify-typecheck.mts",
       "guards": [
@@ -7429,7 +7461,9 @@
         "scripts/build.mts",
         "src/client/index.ts",
         "src/client/kernel/entry-choice.ts",
+        "src/client/kernel/modal-fields.ts",
         "src/client/kernel/row-actions.ts",
+        "src/client/kernel/styles.ts",
         "src/client/kernel/ui-feedback.ts",
         "src/client/panel/Dock.ts",
         "src/client/statusbar/LogDangerConfirm.ts",
@@ -7457,6 +7491,8 @@
         "src/client/views/SubworkspaceMark.ts",
         "src/client/views/TicketRow.ts",
         "src/client/views/cards/PixelCardBtns.ts",
+        "src/client/views/cards/PixelCardNo.ts",
+        "src/client/views/cards/PixelCardTags.ts",
         "src/client/views/cards/PixelCardsStyles.ts",
         "src/client/views/cards/PixelIssueCard.ts",
         "src/client/views/cards/PixelIssueMapCard.ts",
@@ -7483,6 +7519,7 @@
         "src/client/views/skillDetail/PixelStyles.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
+        "src/client/views/versionControl/vcStyles.ts",
         "src/client/views/versionControl/vcViews.ts",
         "src/client/views/versionControl/vcWriteView.ts",
         "tests/lib/source-text.ts"
@@ -7508,7 +7545,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 59 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 64 条"
     },
     {
       "step": "node tests/verify-unmigrated-tests.ts",
@@ -8980,7 +9017,8 @@
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.ts",
-      "node tests/verify-markdown-label-colors.ts"
+      "node tests/verify-markdown-label-colors.ts",
+      "node tests/verify-tracker-session.ts"
     ],
     "src/tracker/detection": [
       "node tests/verify-deck-quota-sync.ts",
@@ -9049,7 +9087,8 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue297.ts",
       "node tests/verify-refresh-workspace-key.ts",
-      "node tests/verify-tracker-contract.ts"
+      "node tests/verify-tracker-contract.ts",
+      "node tests/verify-tracker-session.ts"
     ],
     "src/tracker/rooms": [
       "node tests/verify-no-mixed-session.ts",
@@ -9093,7 +9132,8 @@
       "node tests/verify-labels-sync.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
-      "node tests/verify-tracker-contract.ts"
+      "node tests/verify-tracker-contract.ts",
+      "node tests/verify-tracker-session.ts"
     ],
     "src/tracker/rooms/gitlab": [
       "node tests/verify-deck-tools-matrix.ts",
@@ -9110,6 +9150,7 @@
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-tracker-contract.ts",
+      "node tests/verify-tracker-session.ts",
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/tracker/rooms/markdown": [
@@ -9147,7 +9188,11 @@
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts",
-      "node tests/verify-refresh-workspace-key.ts"
+      "node tests/verify-refresh-workspace-key.ts",
+      "node tests/verify-tracker-session.ts"
+    ],
+    "src/tracker/session": [
+      "node tests/verify-tracker-session.ts"
     ],
     "tests": [
       "node tests/verify-contract-vocabulary.ts",
@@ -9368,12 +9413,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 573,
-    "dirCount": 72,
-    "coveredFileCount": 573,
+    "fileCount": 579,
+    "dirCount": 73,
+    "coveredFileCount": 579,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 54,
+    "dedicatedDirCount": 55,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -9820,6 +9865,7 @@
       "src/tracker/capability-assertions.ts",
       "src/tracker/contract/README.md",
       "src/tracker/contract/backend-module.ts",
+      "src/tracker/contract/budget-model.ts",
       "src/tracker/contract/canonical-labels.ts",
       "src/tracker/contract/capability-answer.ts",
       "src/tracker/contract/contexts.ts",
@@ -9946,6 +9992,11 @@
       "src/tracker/rooms/markdown/write-log.ts",
       "src/tracker/rooms/markdown/write-queue.ts",
       "src/tracker/rooms/markdown/write.ts",
+      "src/tracker/session/budget-reading.ts",
+      "src/tracker/session/budget.ts",
+      "src/tracker/session/interceptors.ts",
+      "src/tracker/session/open-tracker.ts",
+      "src/tracker/session/pipeline.ts",
       "src/tracker/tsconfig.json",
       "src/tracker/ui-description.ts"
     ],
@@ -10021,7 +10072,8 @@
       "src/tracker/rooms",
       "src/tracker/rooms/github",
       "src/tracker/rooms/gitlab",
-      "src/tracker/rooms/markdown"
+      "src/tracker/rooms/markdown",
+      "src/tracker/session"
     ],
     "dedicatedDirs": [
       "src",
@@ -10077,7 +10129,8 @@
       "src/tracker/rooms",
       "src/tracker/rooms/github",
       "src/tracker/rooms/gitlab",
-      "src/tracker/rooms/markdown"
+      "src/tracker/rooms/markdown",
+      "src/tracker/session"
     ],
     "dirsWithoutDedicated": [
       {

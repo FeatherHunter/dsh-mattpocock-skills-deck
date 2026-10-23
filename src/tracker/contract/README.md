@@ -45,7 +45,7 @@
    三个后端「哪几条我实现、哪几条我明确不支持」的逐条登记，是**审计用的文字**
    （写在各自实现里与票面上），不是运行时读的表。
 
-## 能力的上限：25 条，全部写在这一层（2026-10-14 定的规矩）
+## 能力的上限：26 条，全部写在这一层（2026-10-14 定的规矩，规格 1439 起加读预算）
 
 这份契约管的是**能力上限**：一个后端最多能被要求做哪些事，名字都在这里。后端面对每一条只有两种回法——
 **我实现**，或者**我不支持**。**后端不许有自己独有的对外方法**：凡是实例上叫得到名字的东西，
@@ -55,11 +55,11 @@
 也就永远不会因为漏掉某个后端而在某一天炸掉。谁要加一个能力，先把名字加进 `operations-catalog.ts`
 与 `Tracker`，再让后端去实现；实现不了就如实回 `unsupported`，不许换个名字偷偷提供。
 
-25 条分两段，因为「没有答案」的含义不一样：
+26 条分两段，因为「没有答案」的含义不一样：
 
 | 段 | 条数 | 名字 | 注册表怎么兜底 |
 | --- | --- | --- | --- |
-| **操作** | 22 | `preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、`update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、`initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`、`getRepoPermissions`、`listSubIssues`、`ensureLabelColorsFile` | 缺的方法自动补一个「我不支持」的桩（`src/tracker/registry/shape.ts` 的 `unsupportedStub`）。调用方直接调，拿到 `error.kind === 'unsupported'` 这句回答 |
+| **操作** | 23 | `preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、`update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、`initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`、`getRepoPermissions`、`listSubIssues`、`ensureLabelColorsFile`、`readBudget`（读预算，规格 1439 起是第 23 条，只读不花，永远放行、不记账） | 缺的方法自动补一个「我不支持」的桩（`src/tracker/registry/shape.ts` 的 `unsupportedStub`）。调用方直接调，拿到 `error.kind === 'unsupported'` 这句回答 |
 | **定位口** | 3 | `getRepoKey`、`describe`、`issueAddress` | 不补桩。它们没有「我不支持」这种答案：问「这个仓库叫什么」，答案是名字或者空，空也是答案。缺席就是缺席，调用方拿空值继续往下走 |
 
 三条操作是 2026-10-14 从「某一个后端的私有扩展」收进来的，理由都是同一条——**它们的读者在后端之外**：
@@ -125,12 +125,12 @@ node node_modules/typescript/bin/tsc -p tsconfig.contract.json
 
 其余文件：
 
-- `operations.ts` —— 能力层：`Tracker` 接口（25 条能力 = 22 条操作 + 3 条定位口），
+- `operations.ts` —— 能力层：`Tracker` 接口（26 条能力 = 23 条操作 + 3 条定位口），
   以及后端能拿出来的那一份 `RoomOperations`（`Partial<Tracker>`：少实现几条是合规的常态，
   缺的操作由注册表补「我不支持」的桩）。三个后端工厂都标了这个返回类型，签名核对交给编译器。
-- `operations-catalog.ts` —— **名录单源**：`OPERATIONS`（22 条操作名）、`LOCATORS`（3 条定位口名）
-  两个 `as const` 数组，合起来是 `CAPABILITIES`（25 条）；`operations.ts` 的 `OpName` 由它生成
+- `operations-catalog.ts` —— **名录单源**：`OPERATIONS`（23 条操作名）、`LOCATORS`（3 条定位口名）
+  两个 `as const` 数组，合起来是 `CAPABILITIES`（26 条）；`operations.ts` 的 `OpName` 由它生成
   （`typeof OPERATIONS[number]`），`index.ts` 的 `OPERATIONS` 从它转出
   （同一份数组、同一个引用，注册表读的那一份）。加一条能力只改这里一处。
-- `backend-module.ts` —— 模块对象形状：`id` / `label` / `create` / `matches` 四件套，
+- `backend-module.ts` —— 模块对象形状：`id` / `label` / `create` / `matches` / `budget` 五件套（预算口径规格 1439 起必填），
   加品牌色板、设置页文案键、链接模板、界面能力位、检查目录、修复知识、默认调色盘。

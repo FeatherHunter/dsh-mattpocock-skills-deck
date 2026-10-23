@@ -31,6 +31,9 @@ const EXPECTED_OPNAMES: string[] = [
   'getRepoPermissions',              // #992 问仓库写权限（push/triage 两个布尔）；原先只是 GitHub 的只读旁路
   'listSubIssues',                   // #691 取一张地图的全部子票；原先挂在 GitHub 的房内扩展上，读者是宿主电话
   'ensureLabelColorsFile',           // #618 往工作区放一份用户可手改的标签配色文件；原先挂在本地 Markdown 的房内扩展上
+  // #1439/#1441：第 23 条操作 readBudget（规格既定接口：额度读数是一个房间操作，永远放行不记账）。
+  // 冻结名单本就是变化探测器，既定接口变化就更新期望值；顺序上它是 OPERATIONS 末尾新增的一条，不挪动已有名字。
+  'readBudget',                      // #1439 额度读数（房间操作三态：双桶/只计请求/离网/未知；裁决只读缓存，不在 admit 里现取）
 ]
 const LEGACY_OPS: string[] = ['detect', 'label', 'subIssue', 'blockedBy', 'syncSnapshot']
 

@@ -7,13 +7,14 @@
  *    品牌色板）、怎么认出我（matches）、怎么把我造出来（create），外加一堆**只读的界面描述数据**
  *    （设置页文案键、检查项目录、修复指引、默认调色盘、链接模板）。
  * 2. **Tracker 实例**（`operations.ts`）：`create(ctx)` 造出来的那一份能干活的，
- *    有 25 条能力（22 条操作 + 3 条定位口）；具体哪几条真会做由后端自己决定。
+ *    有 26 条能力（23 条操作 + 3 条定位口）；具体哪几条真会做由后端自己决定。
  *
  * 分两层的原因：模块对象在**没有工作区、没有登录、什么都不确定**的时候就要存在
  * （界面靠它画「有哪些后端可选」），而 Tracker 需要进程级能力（起进程、文件服务）才能造。
  *
- * ── 注册表只校验五件事（`src/tracker/registry/shape.ts` 的 `validateMod`） ───────────────────
- * 模块是对象、`id` 非空、`label` 是字符串、`create` 是函数、`matches` 是函数；
+ * ── 注册表只校验六件事（`src/tracker/registry/shape.ts` 的 `validateMod`） ───────────────────
+ * 模块是对象、`id` 非空、`label` 是字符串、`create` 是函数、`matches` 是函数、
+ * `budget` 是合法的预算口径声明（规格 1439 起必填：没有口径，会话管线无从解释读数）；
  * 外加 `id !== 'other'`（那个保留串已弃用）。
  * **其余字段全部可选** —— 本文件把两房真实用到的键取并集，可选的标 `?`。
  * 缺字段不是错误：缺 `describe` 时注册表回退一个骨架引用，缺 `presentation` 时界面用默认色。
@@ -26,6 +27,7 @@
  */
 
 import type { BackendId } from './identity.js'
+import type { BackendBudgetModel } from './budget-model.js'
 import type { RepositoryRef } from './entities.js'
 import type { BackendContext, OpContext, RepoHandle } from './contexts.js'
 import type {
@@ -138,7 +140,7 @@ export interface RoomFixEntry {
 /**
  * 后端模块对象（第三方后端注册时写的东西）。
  *
- * 必填四件套：`id`、`label`、`create`、`matches`。其余可选，缺了也不会报错（见文件头）。
+ * 必填五件套：`id`、`label`、`create`、`matches`、`budget`。其余可选，缺了也不会报错（见文件头）。
  */
 export interface BackendModule {
   /**
@@ -175,6 +177,14 @@ export interface BackendModule {
    * 不许拿 `create` 时那份 `BackendContext` 顶替——那份里没有 `cwd`。
    */
   matches(handle: RepoHandle, ctx: OpContext): boolean | Promise<boolean>
+
+  /**
+   * 花额度的口径声明（规格 1439 起必填）。
+   * 会话管线照它解释读数（三态按口径分流）与记账（离网记零花）；缺了它，调用方看到多少剩余额度
+   * 都不知道按什么算，所以注册表在注册时就拒绝，而不是等调用时再猜。三种内置口径：
+   * GitHub 双桶、GitLab 只计请求、本地 Markdown 离网。形状真源见本目录的 `budget-model.ts`。
+   */
+  budget: BackendBudgetModel
 
   /**
    * 产出仓库身份（`refId` / `name` / `url`）。

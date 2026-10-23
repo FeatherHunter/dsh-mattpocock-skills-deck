@@ -2,7 +2,7 @@
  * src/tracker/rooms/gitlab/index.ts — GitLab 后端适配器（主缝实现），本文件是这个房间的 TypeScript 真源。
  *
  * 定版：#135（labels/milestone分流）+ #144 一页纸（数据归一8文件表 + blocking双路径 + preflight + parentKey归一 + 三底座）
- * 严格对照契约名录（`../../contract/operations-catalog.ts` 的 22 条操作 + 3 条定位口）与实体形状；
+ * 严格对照契约名录（`../../contract/operations-catalog.ts` 的 23 条操作 + 3 条定位口）与实体形状；
  * 按 #113 平台抽象（ctx.platform / ctx.exec / ctx.fs）。
  * 能力诚实：未就绪op由registry Proxy补unsupported桩，此处不再自造布尔capabilities表。
  *
@@ -393,6 +393,8 @@ export const gitlabBackend = {
   },
   create: createGitlabBackend,
   matches,
+  // 预算口径（规格 1439 起必填）：只计请求——没有点数那一桶，也没有第二桶可言。
+  budget: { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false },
   prompts,
   fixes,
 } satisfies BackendModule

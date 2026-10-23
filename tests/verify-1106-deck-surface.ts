@@ -512,8 +512,10 @@ async function main() {
   }
   {
     // 后端说「做不到」那一支（票面点名的缝：工具表工厂的依赖参数）。本地房间不会这样失败，所以另挂一个后端。
+    // 这个后端只用来复现“后端说做不到”，不断言额度，记账走工具侧估算，所以按离网口径声明（注册表只验形状，不按口径限流）。
     const refusing = {
       id: 'refuse-1106', label: '会说做不到的后端', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'refuse-1106',
         async list() { return { ok: false, error: { kind: 'unsupported', message: '这次故意说做不到（门禁探针）' } } },
@@ -644,8 +646,10 @@ async function main() {
     const ROWS = Array.from({ length: 300 }, (_, i) => ({ key: 'r' + (i + 1), title: '假行 ' + (i + 1), state: 'open', type: 'issue', labels: [], assignees: [], updatedAt: '', url: '', effortId: '', parentKey: null }))
     const ONE_ISSUE = { key: '01', title: '假票', state: 'open', type: 'issue', labels: [], assignees: [], body: '正文', comments: [], parentKey: null }
     const seen: Array<{ call: string, filter?: unknown, opts?: unknown }> = []
+    // 这个后端只用来记录工具传了什么条件，不断言额度，所以按离网口径声明。
     const recorder = {
       id: 'record-1106', label: '只记录、不真读的后端', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'record-1106',
         async list(_repo: unknown, filter: unknown) { seen.push({ call: 'list', filter: filter }); return { ok: true, data: ROWS } },

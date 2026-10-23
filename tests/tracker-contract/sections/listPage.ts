@@ -201,6 +201,8 @@ export function createUnsupportedFake(id?: string): BackendModule {
   return {
     id: id || 'page-unsupported-fake',
     label: '做不到的假身',
+    // 做不到的假身只验自动补桩行为，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({ list: async () => ({ ok: true, data: [] }) }),
     matches: async () => false,
   } as unknown as BackendModule
@@ -214,6 +216,8 @@ export function createPagingFake(seed?: PagingFakeSeed): BackendModule & { _call
   return {
     id: s.id || 'page-fake',
     label: '能翻页的假身',
+    // 能翻页的假身只验分页语义，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({
       list: async () => ({ ok: true, data: [] }),
       listPage: async (_repo: unknown, filter?: unknown, opts?: PageOpts) => {
@@ -241,6 +245,8 @@ export function createGuessingFake(): BackendModule {
   return {
     id: 'page-guessing-fake',
     label: '数不全却回总数的假身',
+    // 反例假身只验残缺必败，不断言额度，所以按离网口径声明。
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({
       list: async () => ({ ok: true, data: [] }),
       listPage: async () => ({ ok: true, data: { items: [{ key: '1', state: 'closed' }], nextCursor: null, total: 1 } }),

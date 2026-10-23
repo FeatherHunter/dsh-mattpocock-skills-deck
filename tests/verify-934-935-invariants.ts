@@ -120,8 +120,9 @@ async function main() {
   {
     const fakeCtx = { platform: { path: path.posix, fs: makeFs() }, fs: makeFs(), get(name) { return undefined } }
     const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, fakeCtx), { matchesTimeout: 200 })
-    registry.register({ id: 'b1', label: 'B1', create: () => ({}), matches: async () => true })
-    registry.register({ id: 'b2', label: 'B2', create: () => ({}), matches: async () => true })
+    // 两个假后端只用来验多命中冲突，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+    registry.register({ id: 'b1', label: 'B1', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => true })
+    registry.register({ id: 'b2', label: 'B2', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => true })
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)

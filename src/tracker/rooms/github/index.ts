@@ -196,7 +196,7 @@ export const prompts = (function () {
 
 /**
  * BackendModule（供 registry.register 用）。
- * - id/label/create/matches 四件套；select/describe 由 registry 托管，不属 OpName
+ * - id/label/create/matches/budget 五件套（预算口径规格 1439 起必填）；select/describe 由 registry 托管，不属 OpName
  * - 额外只读 view：describe / 三个链接能力（供 registry 转发）
  */
 export const githubModule = {
@@ -218,6 +218,8 @@ export const githubModule = {
   },
   create: createGithubBackend,
   matches: githubMatches,
+  // 预算口径（规格 1439 起必填）：双桶——休息限额按请求数、查询限额按点数，两桶各自独立、都计数。
+  budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true },
   describe,
   // 链接三件（#1110 实现决定第 14 条 / #1133 改名 / #1141 删旧名）：名字讲的是「地址」，
   // 因为本地那家给过票文件路径不是网址（#1144 起那条改回空串）；实现只有 repo.ts 里那一份。

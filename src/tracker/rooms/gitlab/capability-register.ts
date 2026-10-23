@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/capability-register.ts —— GitLab 后端对 25 条能力的回答（数据）
+ * src/tracker/rooms/gitlab/capability-register.ts —— GitLab 后端对 26 条能力的回答（数据）
  *
  * 四类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
  * `src/tracker/contract/capability-answer.ts` 的文件头，这里不重复。
@@ -27,12 +27,12 @@
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
 /**
- * GitLab 后端：24 条能力真提供，1 条明确不支持。
+ * GitLab 后端：24 条能力真提供，1 条明确不支持，1 条未来会开发（读预算，承接 #1439）。
  *
- * 顺序照契约名录（22 条操作在前、3 条定位口在后），读的人可以两边对着看。
+ * 顺序照契约名录（23 条操作在前、3 条定位口在后），读的人可以两边对着看。
  */
 export const GITLAB_CAPABILITY_REGISTER = {
-  // —— 操作 22 条：21 条真实现 ——
+  // —— 操作 23 条：21 条真实现 ——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },
@@ -62,6 +62,9 @@ export const GITLAB_CAPABILITY_REGISTER = {
   // 文件没有任何读者，改了不算数 —— 硬做出来正好撞上契约那句禁止。这不是欠账：欠账是
   // 「形态成立、只是没做」，它连形态都不成立。理由见 md 表的依据列。
   ensureLabelColorsFile: { tier: 'unsupported-by-design', stubBy: 'registry' },
+  // 规格 1439 的读预算：形态成立（读缓存剩余额度），但房间实现随会话迁移后续票落地，
+  // 今天先记未来会开发。承接规格 1439，实现之前调用方拿到的是注册表补的「不支持」桩。
+  readBudget: { tier: 'planned', ticket: '#1439' },
 
   // —— 定位口 3 条：全部提供 ——
   // getRepoKey 是这一轮补的第三条。定位口没有「我不支持」这种答案，注册表也不替它们补桩：

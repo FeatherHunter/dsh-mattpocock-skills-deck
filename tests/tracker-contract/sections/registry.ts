@@ -26,13 +26,15 @@ import type { OpContext, RepoHandle } from '../../../src/tracker/contract/contex
 import type { RepositoryRef } from '../../../src/tracker/contract/entities.ts'
 
 /**
- * 造一个测试用后端模块：必填四件套给全，缺的操作由注册表按 OPERATIONS 自动补桩。
+ * 造一个测试用后端模块：必填五件套给全（规格 1439 起预算口径必填，缺了注册表当场拒绝），缺的操作由注册表按 OPERATIONS 自动补桩。
+ * 假模块不断言额度，一律按离网口径声明。
  * over 只覆盖顶层字段（label、create、matches、链接三件），调用方传什么形状，运行时就是什么形状——
  * 类型上按 Partial 收，类型故意写坏的两个地方（nonobj 的 create、slow 的 matches）在各自调用点断言。
  */
 const mkModule = (id: string, over: Partial<BackendModule> = {}): BackendModule => Object.assign({
   id,
   label: id,
+  budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
   create: () => ({ list: async () => ({ ok: true, data: [] }) }),
   matches: async () => false,
 }, over)

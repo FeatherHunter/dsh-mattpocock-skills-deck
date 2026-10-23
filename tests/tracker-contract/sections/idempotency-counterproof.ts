@@ -35,7 +35,8 @@ function makeBrokenBackend(store: { tickets: any[] }): any {
 
 function makeBrokenFake(id: string, share?: any): any {
   const s = share || { id: id || 'anchor-fake', store: { tickets: [] } }
-  return { id: s.id, label: '坏假身（回查只认内存）', matches: async () => false, create: () => makeBrokenBackend(s.store), _share: s }
+  // 坏假身只验幂等反例（回查错了必须被逮住），不断言额度，所以按离网口径声明。
+  return { id: s.id, label: '坏假身（回查只认内存）', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, matches: async () => false, create: () => makeBrokenBackend(s.store), _share: s }
 }
 
 const base = { backend: 'anchor-fake', refId: 'acme/demo', name: 'demo', url: '' }

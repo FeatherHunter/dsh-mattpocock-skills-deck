@@ -162,7 +162,8 @@ async function main() {
     const regCore = await imp('src/tracker/registry/core.ts');
     let matched = false;
     const reg2 = regCore.createRegistry();
-    reg2.register({ id: 'github', label: 'G', create: () => ({}), matches: async () => { matched = true; return true; } });
+    // 这个假后端只用来验空目录不起认领，创建函数不会被调到，所以按离网口径声明（注册表只验形状，不按口径限流）。
+    reg2.register({ id: 'github', label: 'G', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => { matched = true; return true; } });
     const sel = await reg2.select({ cwd: '' }, { caller: 'test-d3' });
     check(!matched && sel.backendId === null, 'D3 空目录注册表不起 matches（无外部命令）', JSON.stringify(sel));
   }

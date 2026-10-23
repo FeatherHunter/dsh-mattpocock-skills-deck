@@ -74,7 +74,8 @@ const makeDetection = async function () {
   const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
   const real = await import(url('src/tracker/detection/detectionService.ts'))
   const registry = createRegistry(undefined, { matchesTimeout: 500 })
-  const mk = (id: string, matches?: () => Promise<boolean>) => ({ id, label: id, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
+  // 假后端只用来走判定链，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const mk = (id: string, matches?: () => Promise<boolean>) => ({ id, label: id, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
   registry.register(mk('github', async () => false))
   registry.register(mk('markdown', async () => false))
   registry.register(mk('gitlab', async () => false))
@@ -425,7 +426,8 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   const { createDetectionService } = await import(url('src/tracker/detection/detectionService.ts'))
   const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
   const regA = createRegistry(undefined, { matchesTimeout: 500 })
-  const mkA = (id: string, matches?: () => Promise<boolean>) => ({ id, label: id, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
+  // 反证用的假后端同样只走判定，不断言额度，所以按离网口径声明。
+  const mkA = (id: string, matches?: () => Promise<boolean>) => ({ id, label: id, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
   regA.register(mkA('github'))
   regA.register(mkA('markdown'))
   const platA = { fs: { resolve: async (rel: string, o: any) => path.resolve((o && o.cwd) || '.', rel), readText: async (p: string) => fs.readFileSync(p, 'utf8'), lstat: async (p: string) => fs.lstatSync(p), stat: async (p: string) => fs.statSync(p), readdir: async (p: string) => fs.readdirSync(p) }, path: path }

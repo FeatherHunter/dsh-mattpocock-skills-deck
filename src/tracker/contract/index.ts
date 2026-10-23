@@ -55,6 +55,7 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').RepoPermissions>>} getRepoPermissions 问仓库写权限（push/triage 两个布尔）；GitHub 真去问，本地 Markdown 与 GitLab 回 unsupported。调用方拿不到就按「未知」处理，不许当成「能写」
  * @property {(repo: RepositoryRef, mapKey: string, opts: Record<string, never>|undefined, ctx: OpContext) => Promise<OpResult<import('./results.js').SubIssueList>>} listSubIssues 取一张地图的全部子票（翻页拉到底，1000 张硬上限）；返回里 capped/missing/dropped 三项是「有没有拿全」的诚实交代。GitHub 实现，本地 Markdown 与 GitLab 回 unsupported
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').LabelColorsFilePlacement>>} ensureLabelColorsFile 往工作区放一份用户可手改的默认标签配色文件（文件已存在时一个字都不改）；本地 Markdown 实现，GitHub 与 GitLab 回 unsupported
+ * @property {(ctx: OpContext) => Promise<OpResult<import('../session/budget-reading.js').BudgetReading>>} readBudget 读缓存里的剩余额度，只读不花（规格 1439 第 23 条操作）；永远放行、不记账，直达房间
  *
  * 定位口三条（没有「我不支持」这种答案，缺席就是缺席，调用方拿空值往下走）：
  * @property {(cwd: string, ctx: OpContext) => Promise<{owner: string, name: string}|null>} getRepoKey 从工作区目录解析出 owner/name；解析不出来回 null（不是异常）。只有需要连远端的后端才有
@@ -74,9 +75,9 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * `Object.freeze` 留着：原来那份就是冻住的，金标准夹具断言它冻住（改了口径不改行为）。
  * 冻的是同一份数组（名录那份），不产生第二份拷贝。
  *
- * 这里只是**操作**那一半（22 条）。另有三条定位口（`getRepoKey` / `describe` / `issueAddress`）
+ * 这里只是**操作**那一半（23 条，规格 1439 起含读预算）。另有三条定位口（`getRepoKey` / `describe` / `issueAddress`）
  * 不进这份数组：它们没有「我不支持」这种答案，注册表不替它们补桩，`includes` 判据也不适用。
- * 两半合起来是 `CAPABILITIES`（25 条，见 `operations-catalog.ts`）。
+ * 两半合起来是 `CAPABILITIES`（26 条，见 `operations-catalog.ts`）。
  */
 export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
 
@@ -311,3 +312,13 @@ export const TRACKER_CONTRACT = Object.freeze({
   issueType: ISSUE_TYPE,
   errorKind: ERROR_KIND,
 })
+
+// ── 会话与预算管线的类型出口（规格 1439）────────────────────────────────────────
+// 为什么经这里转出：上层（deck 工具、宿主电话）只认契约层这一扇门，不直引会话目录。
+// 全是 `export type`（转译后不留运行时引用），契约门禁第二项认这一写法，不算运行时实现。
+// 预算形状的真源就是本目录的 `budget-model.ts`，这里只是转手，不复制定义。
+export type { BackendBudgetModel, BudgetKind } from './budget-model.js'
+export type { BudgetReading, BucketLevel } from './budget-model.js'
+export type { AdmitInput, AdmitDecision, AdmitPort, AccountInput, AccountPort } from './budget-model.js'
+export type { PipelineDeps } from '../session/pipeline.js'
+export type { TrackerSession, OpenTrackerResult, OpenTrackerReason, OpenTrackerOptions, SelectionResolver } from '../session/open-tracker.js'

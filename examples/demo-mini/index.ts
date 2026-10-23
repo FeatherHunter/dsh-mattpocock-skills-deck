@@ -164,11 +164,13 @@ export function createDemoBackend(ctx: BackendContext): Tracker {
  * BackendModule（供 registry.register 用）
  * - DSH 插件 manifest 预留：dsh.contributes.trackers [{id:'demo-mini', module:'examples/demo-mini'}]
  * - Disposable 按代隔离，on('bind') stale 语义由 registry 保证
+ * - 示例后端只跑种子数据与离线固件，不花真实额度，所以按离网口径声明（规格 1439 起注册必填这一格）
  */
 export const demoModule = {
   id: 'demo-mini',
   label: 'Demo Mini',
   presentation: { color: '#8250df' },
+  budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
   create: createDemoBackend,
   matches: demoMatches,
 }
@@ -178,6 +180,7 @@ export const demoModuleAcme = {
   id: 'acme.demo',
   label: 'Acme Demo',
   presentation: { color: '#8250df' },
+  budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
   create: createDemoBackend,
   matches: demoMatches,
 }

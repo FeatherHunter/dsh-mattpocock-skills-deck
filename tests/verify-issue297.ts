@@ -20,8 +20,9 @@ function ok(cond, msg) { if (cond) { console.log('  PASS ' + msg); passed++; } e
 console.log('== #297 空目录失效维度 + #669 对它的收窄 ==');
 // Mock regs
 const reg = createRegistry({}, { matchesTimeout: 30 });
-reg.register({ id: 'markdown', label: 'Markdown', create: () => ({ id: 'markdown', preflight: async () => ({ ok: true }) }), matches: async () => false });
-reg.register({ id: 'github', label: 'GitHub', create: () => ({ id: 'github', preflight: async () => ({ ok: true }) }), matches: async () => false });
+// 两个假后端只用来验空目录认领，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+reg.register({ id: 'markdown', label: 'Markdown', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id: 'markdown', preflight: async () => ({ ok: true }) }), matches: async () => false });
+reg.register({ id: 'github', label: 'GitHub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id: 'github', preflight: async () => ({ ok: true }) }), matches: async () => false });
 
 const mkPlat = (names) => ({
   fs: { resolve: async (p) => p, readText: async () => { throw new Error('no file') }, lstat: async () => null, listDir: async () => names },

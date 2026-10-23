@@ -591,6 +591,8 @@ function main(): void {
   // 编译还不会说话（运行时形状，类型检查看不见）。所以这里真建一个注册表，
   // 拿一个残模块试注册——必须被拒（且理由是形状）；同时拿一个有效最小模块试注册——
   // 必须能进（正控：证明探针自己能建表能注册，拒掉残模块是真咬住了，不是探针坏了啥都拒）。
+  // 规格 1439 起预算必填：有效最小模块要带一份合法预算，另加一个只缺预算的残模块，
+  // 它必须被拒且理由点名预算（缺预算不是「形状大体对」，是装配时就该拦下的事）。
   {
     const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mts')
     const hookUrl = pathToFileURL(hookAbs).href
@@ -599,8 +601,10 @@ function main(): void {
       ` let garbageRejected = false;` +
       ` try { reg.register({ id: 'neg-entry', label: 'neg-entry' }); } catch (e) { garbageRejected = !!(e && e.code === 'shape'); }` +
       ` let validAccepted = false;` +
-      ` try { const d = reg.register({ id: 'pos-entry', label: 'pos-entry', create: () => ({}), matches: () => false }); validAccepted = !!d; } catch (e) { validAccepted = false; }` +
-      ` console.log(JSON.stringify({ garbageRejected, validAccepted }));` +
+      ` try { const d = reg.register({ id: 'pos-entry', label: 'pos-entry', create: () => ({}), matches: () => false, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false } }); validAccepted = !!d; } catch (e) { validAccepted = false; }` +
+      ` let noBudgetRejected = false;` +
+      ` try { reg.register({ id: 'neg-budget', label: 'neg-budget', create: () => ({}), matches: () => false }); } catch (e) { noBudgetRejected = !!(e && e.code === 'shape' && String(e.message || '').indexOf('budget') >= 0); }` +
+      ` console.log(JSON.stringify({ garbageRejected, validAccepted, noBudgetRejected }));` +
       ` }).catch((e) => { console.log(JSON.stringify({ loadError: String((e && e.message) || e) })); })`
     const rr = spawnSync(process.execPath, ['--import', hookUrl, '--eval', evalScript], { encoding: 'utf8', timeout: 120000 })
     if (rr.error) {
@@ -608,7 +612,7 @@ function main(): void {
     } else if (rr.status !== 0) {
       check(false, '运行时反面证明能跑起来（退出码 ' + rr.status + '）：' + String(rr.stderr || '').slice(-300))
     } else {
-      let got: { garbageRejected?: unknown; validAccepted?: unknown; loadError?: unknown } | null = null
+      let got: { garbageRejected?: unknown; validAccepted?: unknown; noBudgetRejected?: unknown; loadError?: unknown } | null = null
       try { got = JSON.parse(String(rr.stdout || '').trim().split(/\r?\n/).pop()) } catch { got = null }
       if (!got || got.loadError) {
         check(false, '注册表真建得起来（加载 core 失败）：' + String((got && got.loadError) || rr.stdout || '').slice(-200))
@@ -622,6 +626,11 @@ function main(): void {
           got.validAccepted === true,
           '有效最小模块真注册时能进（正控：探针自己没坏）' +
             (got.validAccepted === true ? '' : '：有效模块都没进去，是探针写法坏了，不是注册表坏了，先修探针'),
+        )
+        check(
+          got.noBudgetRejected === true,
+          '缺预算的模块真注册时被拒且理由点名预算（规格 1439 起预算必填）' +
+            (got.noBudgetRejected === true ? '' : '：缺预算竟然通过了——预算必填这道口可能被拿掉，速查'),
         )
       }
     }
