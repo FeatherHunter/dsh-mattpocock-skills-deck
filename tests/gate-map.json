@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T15:23:14.278Z",
+  "generatedAt": "2026-10-23T15:40:57.376Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 335,
-  "gateCount": 335,
-  "attributedGates": 295,
+  "chainLength": 337,
+  "gateCount": 337,
+  "attributedGates": 297,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 13,
@@ -2406,6 +2406,44 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
+    },
+    {
+      "step": "node tests/verify-1433-snapshot-layout-file.ts",
+      "file": "tests/verify-1433-snapshot-layout-file.ts",
+      "guards": [
+        "docs/agents",
+        "docs/agents/workspace.yaml",
+        "src/host/choiceStore.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/host",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1434-workspace-legacy-cleanup.ts",
+      "file": "tests/verify-1434-workspace-legacy-cleanup.ts",
+      "guards": [
+        "docs/agents",
+        "docs/agents/workspace.yaml",
+        "src/host/workspaceCwd.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1436-own-work-route.ts",
@@ -7952,6 +7990,8 @@
       "node tests/verify-1129-markdown-claim.ts",
       "node tests/verify-1130-gitlab-marker-read.ts",
       "node tests/verify-1305-session-permit.ts",
+      "node tests/verify-1433-snapshot-layout-file.ts",
+      "node tests/verify-1434-workspace-legacy-cleanup.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -8601,6 +8641,8 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
+      "node tests/verify-1433-snapshot-layout-file.ts",
+      "node tests/verify-1434-workspace-legacy-cleanup.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
@@ -8810,6 +8852,7 @@
       "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-1392-disposed-timer.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
+      "node tests/verify-1433-snapshot-layout-file.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
