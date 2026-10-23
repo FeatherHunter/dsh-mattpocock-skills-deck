@@ -21,7 +21,8 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   // 不换成强调绿——地图卡与票卡要在同一屏上分得开，身份色不能跟着纸色一起变成绿色。
   // 旧卡（old）用纸面下沉 #efe8d9；--cd-card2 只给浅色的棋盘墙当底，深色不定义，墙面保持透明。
   'body:not([data-ds-dark-theme]) .cd-card{--cd-frame:#3a2c14;--cd-card:#f6f1e6;--cd-paper:#fffdf8;--cd-old:#efe8d9;--cd-ink:#221d15;--cd-ink2:#6f6252;--cd-shadow:#241a0c;--cd-gold:#15803d;--cd-ok:#15803d;--cd-sel:#1e40af;--cd-warn:#b45309;--cd-bad:#b91c1c;--cd-dim:#7d7061;--cd-take:#2456c9;--cd-map:#6d28d9;--cd-stripe:#e7ddc8;--cd-card2:#efe8d9;--cd-lit:#b45309;--cd-note:#b91c1c;--cd-mark-bug:#b91c1c;--cd-mark-ready:#15803d;--cd-mark-doing:#1e40af;}',
-  '.cd-card{width:300px;background:var(--cd-card);border:4px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),6px 6px 0 var(--cd-shadow);padding:10px 11px;position:relative;display:flex;flex-direction:column;gap:6px;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}',
+  // 卡片容器自己落墨色（#1387 第一条）：卡片是浅纸，深色下继承宿主浅字只有约 1.07 比 1，标题之外的行都会跟着看不清。
+  '.cd-card{width:300px;background:var(--cd-card);color:var(--cd-ink);border:4px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),6px 6px 0 var(--cd-shadow);padding:10px 11px;position:relative;display:flex;flex-direction:column;gap:6px;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}',
   '.cd-card.old{background:var(--cd-old);box-shadow:inset 2px 2px 0 #f7edd3,inset -2px -2px 0 #7d5730,6px 6px 0 var(--cd-shadow)}',
   '.cd-card.wide{width:340px;padding:11px 13px;gap:8px;min-height:230px;cursor:pointer}',
   '.cd-card.mapcard{width:404px;padding:11px 13px;gap:8px}',
@@ -72,7 +73,11 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-abtn.icon{flex:none;width:40px;padding:5px 0}',
   '.cd-abtn.paper{background:var(--cd-card);color:var(--cd-ink)}',
   '.cd-abtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--cd-shadow);outline:2px solid var(--cd-act,var(--cd-gold));outline-offset:1px}',
-  'body[data-ds-dark-theme] .cd-abtn:focus-visible{outline:2px dashed var(--cd-act,var(--cd-gold));outline-offset:2px}',
+  // 深色纸面按钮的焦点环用金虚线（#1387 第二条）：原来随卡动作色，深色下画出来是紫色。
+  'body[data-ds-dark-theme] .cd-abtn.paper:focus-visible{outline:2px dashed var(--cd-gold);outline-offset:2px}',
+  // 深色实心按钮的焦点环用自己的墨色虚线（#1387 第三条）：底色有十种，环若随动作色会与底同色；
+  // 金虚线对其中七种底色不足 3 比 1，例如金对亮黄只有 1.36 比 1，而随按钮墨色最低 4.36 比 1，虚线形状不变。
+  'body[data-ds-dark-theme] .cd-abtn.label:focus-visible{outline:2px dashed currentColor;outline-offset:2px}',
   '.cd-abtn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--cd-shadow)}',
   '.cd-abtn svg{flex:none;display:block}',
   '.cd-bseal{position:absolute;left:-10px;top:64px;right:-10px;background:#a3231a;color:#fff;text-align:center;font-size:12px;letter-spacing:2px;padding:3px 6px 2px;border-top:3px solid var(--cd-frame);border-bottom:3px solid var(--cd-frame);transform:rotate(-6deg);box-shadow:3px 3px 0 var(--cd-shadow);pointer-events:none}',
@@ -112,5 +117,6 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-readout.idle{border-top-color:var(--cd-dim);color:var(--cd-ink2)}',  '.cd-hd b{font-size:13px;color:var(--cd-ink)}',
   '.cd-st{margin-left:auto;padding:1px 8px;background:var(--cd-ok);color:#fff;font-size:11px;border:2px solid var(--cd-frame);transform:rotate(-6deg);box-shadow:2px 2px 0 var(--cd-shadow)}',
   '.cd-st.open{background:var(--cd-sel)}',
-  '.cd-card.mapcard h3{margin:2px 0;font-size:13.5px;line-height:1.4}',
+  // 地图卡标题同样落墨色（#1387 的另一半）：地图卡没有沿用票卡标题组件，h3 会继承宿主浅字。
+  '.cd-card.mapcard h3{margin:2px 0;font-size:13.5px;line-height:1.4;color:var(--cd-ink)}',
 ];

@@ -187,7 +187,7 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
               if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { try { ev.preventDefault() } catch (ePd) {} doSubmit() }
             },
             onChange: function (ev: any) { st.cmtDraft = ev.target.value; st.cmtResult = null; emit(st) },
-            style: { width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 56, fontSize: 12, lineHeight: 1.5, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'rgba(255,255,255,.03)', color: 'var(--dsw-alias-label-primary,#e6edf3)', outline: 'none' },
+            style: { width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 56, fontSize: 12, lineHeight: 1.5, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'rgba(255,255,255,.03)', color: 'var(--dsw-alias-label-primary,#e6edf3)' }, // 焦点环走全局宿主环（#1387 第五条）：行内隐藏会盖住键盘焦点，删掉后落到宿主蓝内环。
           }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 } }, [
             h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, 'Markdown · ⌘+Enter / Ctrl+Enter 发送'),

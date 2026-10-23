@@ -109,7 +109,8 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] .dsws-btn:disabled{opacity:.4;cursor:not-allowed}",
   "[data-vc-root] textarea,[data-vc-root] input{background:var(--vc-inset);border:1px solid var(--vc-line2);border-radius:var(--vc-radius);color:var(--vc-ink)}",
   "[data-vc-root] textarea::placeholder,[data-vc-root] input::placeholder{color:var(--vc-faint)}",
-  "[data-vc-root] textarea:focus,[data-vc-root] input:focus{outline:2px solid var(--vc-accent);outline-offset:1px}",
+  // 输入框焦点环跟随宿主（#1387 第四条）：原来用本页强调绿；颜色、宽窄与内画都与全局宿主环同一表达式，换主题自动跟。
+  "[data-vc-root] textarea:focus,[data-vc-root] input:focus{outline:2px solid var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)));outline-offset:-2px}",
   ".dsws-vc-caption{font-size:11.5px;color:var(--vc-faint,inherit)}",
   // 空态文字：深色 12，浅色 12.5（原型 v3-empty）。
   ".dsws-vc-empty{font-size:12px}",
