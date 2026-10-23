@@ -66,8 +66,9 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
 {
   const reg = createRegistry({}, { matchesTimeout: 3000 })
   // 注册 github + markdown 两个后端（显式分支已注册则产 Selection）
-  const gh = { id:'github', label:'GitHub', create: () => ({ id:'github', preflight: async()=>({ok:true}) }), matches: async()=>false }
-  const md = { id:'markdown', label:'Markdown', create: () => ({ id:'markdown', preflight: async()=>({ok:true}) }), matches: async()=>false }
+  // 这两个假后端只用来验显式识别，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const gh = { id:'github', label:'GitHub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id:'github', preflight: async()=>({ok:true}) }), matches: async()=>false }
+  const md = { id:'markdown', label:'Markdown', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id:'markdown', preflight: async()=>({ok:true}) }), matches: async()=>false }
   reg.register(gh); reg.register(md)
   const platformOk = {
     fs: {
@@ -85,21 +86,24 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
 {
   const reg = createRegistry({}, { matchesTimeout: 30 })
   // 两个后端都命中 → multiHit；一个超时 → pending
-  const m1 = { id:'github', label:'G', create:()=>({}), matches: async()=>true }
-  const m2 = { id:'markdown', label:'M', create:()=>({}), matches: async()=>true }
+  // 这两个假后端只用来验多命中与超时，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const m1 = { id:'github', label:'G', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async()=>true }
+  const m2 = { id:'markdown', label:'M', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async()=>true }
   reg.register(m1); reg.register(m2)
   const sel = await reg.select({ cwd:'/tmp/x' }, {})
   ok(sel.backendId==='github' && sel.source==='matches' && Array.isArray(sel.multiHit) && sel.multiHit.length===2, 'multiHit 平局=注册序 + 暴露')
 
   const reg2 = createRegistry({}, { matchesTimeout: 15 })
-  const slow = { id:'slow', label:'S', create:()=>({}), matches: async(handle, ctx)=>{ await new Promise(r=>setTimeout(r, 100)); return true } }
+  // 这个假后端只用来占住一路认领、复现超时，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const slow = { id:'slow', label:'S', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async(handle, ctx)=>{ await new Promise(r=>setTimeout(r, 100)); return true } }
   reg2.register(slow)
   const sel2 = await reg2.select({ cwd:'/tmp/y' }, {})
   ok(sel2.pending===true && sel2.backendId===null && sel2.source==='fallback', 'pending 超时 → pending:true + fallback null（不静默 Other）')
 
   // 有命中 + 悬而未决 → 选中仍 pending:true
   const reg3 = createRegistry({}, { matchesTimeout: 15 })
-  const fast = { id:'fast', label:'F', create:()=>({}), matches: async()=>true }
+  // 这个假后端只用来与挂住的那一路对照，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const fast = { id:'fast', label:'F', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async()=>true }
   reg3.register(fast); reg3.register(slow)
   const sel3 = await reg3.select({ cwd:'/tmp/z' }, {})
   ok(sel3.backendId==='fast' && sel3.pending===true, '有命中 + pending 并存')
@@ -107,8 +111,9 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
 // detectionService 二联 explicit>matches
 {
   const reg = createRegistry({}, { matchesTimeout: 30 })
-  const mdMod = { id:'markdown', label:'M', create: () => ({ id:'markdown', preflight: async()=>({ok:true}) }), matches: async (h)=> String(h.cwd).includes('md') }
-  const ghMod = { id:'github', label:'G', create: () => ({ id:'github', preflight: async()=>({ok:true}) }), matches: async (h)=> String(h.cwd).includes('gh') }
+  // 这两个假后端只用来验二联探测的优先级，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const mdMod = { id:'markdown', label:'M', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id:'markdown', preflight: async()=>({ok:true}) }), matches: async (h)=> String(h.cwd).includes('md') }
+  const ghMod = { id:'github', label:'G', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id:'github', preflight: async()=>({ok:true}) }), matches: async (h)=> String(h.cwd).includes('gh') }
   reg.register(mdMod); reg.register(ghMod)
   const platformA = { fs: { resolve: async(p)=>p, readText: async()=> '# Issue tracker: GitHub\n', lstat: async()=>null }, path:{join:(...a)=>a.join('/'), sep:'/'}, resolveExecutable: async()=>null, getHome: async()=>null, env:{get:()=>undefined,has:()=>false} }
   const svcA = createDetectionService({ registry: reg, getPlatform: async()=>platformA, getFs: ()=>platformA.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
@@ -129,8 +134,9 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
 console.log('\n== ② per-workspace 隔离 + 覆盖层「用户说了算」 ==')
 {
   const reg = createRegistry({}, { matchesTimeout:30 })
-  reg.register({ id:'github', label:'G', create:()=>({}), matches: async()=>false })
-  reg.register({ id:'markdown', label:'M', create:()=>({}), matches: async()=>false })
+  // 这两个假后端只用来验卸载后的缓存清理，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  reg.register({ id:'github', label:'G', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async()=>false })
+  reg.register({ id:'markdown', label:'M', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async()=>false })
   const ws = createWorkspaceStore({ttl:30000})
   ws.set({ cwd:'/tmp/a' }, { selection:{ backendId:'github', source:'explicit', ref:{backend:'github',refId:'a',name:'a',url:''} } })
   ws.set({ cwd:'/tmp/b' }, { selection:{ backendId:'markdown', source:'matches', ref:{backend:'markdown',refId:'b',name:'b',url:''} } })
@@ -159,8 +165,9 @@ console.log('\n== ② per-workspace 隔离 + 覆盖层「用户说了算」 ==')
   // 后端被卸载后的缓存清理：口径已从「注册表把绑定标 stale 再发 bind」改成「注册表发一条 unregister（带 id），
   //   缓存按『这一格答的是不是这个被卸掉的后端』清」（见 src/tracker/detection/workspaceStore.ts 的 invalidateByBackend）。
   const regStale = createRegistry({}, {})
-  regStale.register({ id:'github', label:'G', create:()=>({}), matches: async()=>false })
-  regStale.register({ id:'markdown', label:'M', create:()=>({}), matches: async()=>false })
+  // 这两个假后端只用来验过期注册表的行为，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  regStale.register({ id:'github', label:'G', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async()=>false })
+  regStale.register({ id:'markdown', label:'M', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create:()=>({}), matches: async()=>false })
   const wsStale = createWorkspaceStore({ttl:30000})
   wsStale.set({cwd:'/tmp/s'},   {selection:{backendId:'github',   source:'explicit'}})
   wsStale.set({cwd:'/tmp/s2'},  {selection:{backendId:'markdown', source:'matches'}})

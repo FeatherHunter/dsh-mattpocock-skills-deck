@@ -459,8 +459,10 @@ async function main() {
     // 上面那一段跑的是本地 Markdown 后端：它一个出站请求都不发，所以「账为 0」是对的。
     // 要证明「真的过了闸、真的记了账」，得用一个会真发出站请求的后端 —— 探针远端：
     // 它的每个操作都照生产里传输层的做法「每真发一条就报给闸一次」。
+    // 探针远端只为证明请求真的过了闸：记账走显式上报，与预算口径无关，所以按离网口径声明（注册表只验形状，不按口径限流）。
     const probe = {
       id: 'probe-remote', label: '探针远端（会真发出站请求）', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'probe-remote',
         async create(repo, input) { fire(2, 4); return { ok: true, data: { key: 'P1', title: input.title, state: 'open', body: String(input.body || ''), labels: [], assignees: [] } } },
@@ -494,8 +496,10 @@ async function main() {
       create_: null,
     }
     // 直接注册一个 create 会抛的后端：工具必须把异常收成三态返回
+    // 这个后端只用来复现实现抛错被收成三态返回，不断言额度，所以按离网口径声明。
     const mod = {
       id: 'boom', label: '会抛的后端', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'boom',
         async create() { throw new Error('后端实现在这里抛了（探针故意做坏）') },

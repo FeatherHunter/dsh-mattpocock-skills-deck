@@ -6,6 +6,8 @@
 import { createSnapshotEnvelope } from '../../../host/snapshotEnvelope.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../../../tracker/ui-description.js'
+// #1433：布局的唯一真源是工作区文件，快照读文件认格式与 workspaceCwd 走同一处（跨层引用，不算同层互引）。
+import { parseWorkspaceFile, WORKSPACE_FILE_REL, isWorkspaceLayout } from '../../../deck/shell/workspace-anchor.js'
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
 import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
 
@@ -83,7 +85,15 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   // #653 快照多带 workspaceRoot（即开头算出的 cwd，已锚到工作区根）；客户端靠它按根分桶并渲染归属提示，自己算不出根故由宿主带过去。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #683（F1 · ADR 的 R6）：快照里带上记住的布局答案（同 R4 那条路：落后的那扇窗不靠它就永远停在老答案上）。
-  async function readSetupLayoutOf(cwd: string) { try { const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore() : null; if (!cs || typeof cs.getLayout !== 'function') return null; const r = await cs.getLayout(cwd); return (r && r.found === true) ? { layout: r.layout, pickedAt: r.pickedAt } : null } catch (e) { return null } }
+  // #1433：读的顺序与 wf.setupLayout 同一条（先工作区文件、再本机记忆）——此前只读记忆，手改文件后快照永远答老答案。
+  async function readSetupLayoutOf(cwd: string) {
+    try {
+      const plat = await Promise.resolve(getPlatform()).catch(function () { return null }); let f: any = (plat && (plat as any).fs) || null
+      if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) {} }
+      if (f && typeof f.resolve === 'function' && typeof f.readText === 'function') { try { const rec = parseWorkspaceFile(await f.readText(await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }))); if (rec && isWorkspaceLayout(rec.layout)) return { layout: rec.layout, pickedAt: 0 } } catch (eR) {} }
+    } catch (e) {}
+    try { const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore() : null; if (!cs || typeof cs.getLayout !== 'function') return null; const r = await cs.getLayout(cwd); return (r && r.found === true) ? { layout: r.layout, pickedAt: r.pickedAt } : null } catch (e) { return null }
+  }
   let snapSampleN = 0
   let _sharedInflightP: Promise<typeof import('../../../host/snapshotInflight.js')> | null = null // #729：本地表已撤，改用与刷新路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）
   function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('../../../host/snapshotInflight.js'); return _sharedInflightP }
@@ -111,8 +121,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         const nowRev = Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0
         const sameBackend = String((s.selection && s.selection.backendId) || '') === String(_selEarly.backendId)
         const sameLayout = String((s.setupLayout && s.setupLayout.layout) || '') === String((_layEarly && _layEarly.layout) || '')
-        if (sameBackend && prevRev === nowRev && (sameLayout || !_layEarly)) return s
-        const cp = Object.assign({}, s, { selection: _selEarly, rev: nowRev }); if (_layEarly) cp.setupLayout = _layEarly; return cp
+        if (sameBackend && prevRev === nowRev && sameLayout) return s
+        const cp = Object.assign({}, s, { selection: _selEarly, rev: nowRev }); cp.setupLayout = _layEarly; return cp // #1433：布局以这一轮为准（含空：文件与记忆都没有时不留缓存里那份旧答案）
       }
       try { if (logCtx) logCtx.fire('info', 'snapshot.request', { cwdHash: hash8(cwd), backend: String((_selEarly && _selEarly.backendId) || ''), force: isForce }) } catch (eL) {}
       const cachedEntry = getCache(cwd)
@@ -317,7 +327,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         const diskb = await readDiskCache(repo0b)
         if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
-          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true }), cwd) }
+          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true, setupLayout: _layEarly }), cwd) } // #1433：磁盘回放也按这一轮的布局盖（文件为准，空就抹掉旧答案）
         }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')

@@ -137,7 +137,8 @@ async function main(): Promise<void> {
   check(snapAfter.status === 'ok', '批量建的图能在 alpha 里读回来')
 
   // 远端忽略：用探针远端验证带不带 effortId 行为一致（后端忽略它）
-  const probe = { id: 'probe-remote', label: '探针远端', matches: async () => false, create: () => ({ id: 'probe-remote', async create(repo, input) { return { ok: true, data: { key: 'P1', title: input.title, state: 'open', body: '', labels: [], assignees: [], effortId: '' } } }, async get(repo, key) { return { ok: true, data: { key: String(key), title: 'P1', state: 'open', body: '', labels: [], assignees: [], parentKey: null, effortId: '' } } }, async list(repo) { return { ok: true, data: [] } } }) }
+  // 探针远端只用来验 effortId 被远端忽略，不不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const probe = { id: 'probe-remote', label: '探针远端', matches: async () => false, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id: 'probe-remote', async create(repo, input) { return { ok: true, data: { key: 'P1', title: input.title, state: 'open', body: '', labels: [], assignees: [], effortId: '' } } }, async get(repo, key) { return { ok: true, data: { key: String(key), title: 'P1', state: 'open', body: '', labels: [], assignees: [], parentKey: null, effortId: '' } } }, async list(repo) { return { ok: true, data: [] } } }) }
   const dp = registry.register(probe)
   chooseWorkspace(ws.rootPosix, 'probe-remote')   // 把工作区文件改写成选了探针远端（等同旧写法 registry.bind(handle, 'probe-remote')）
   const r1 = await tools.deck_issue_get.run(exec, { key: 'P1' })

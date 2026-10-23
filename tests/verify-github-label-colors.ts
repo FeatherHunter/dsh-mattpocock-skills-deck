@@ -569,7 +569,8 @@ const SEED = [
   const regBoth = createRegistry({ logEvent: () => {}, isEnabled: () => false, outbound: createOutboundControl() }, { matchesTimeout: 200 })
   // 先注册另一个也认领这个工作区的后端：这样注册序排前面的赢家是它，不是 GitHub——
   // 于是下面「交给 github」这条断言就真的在证明「按面板说的走」，而不是碰巧撞上了注册序。
-  const dOther = regBoth.register({ id: 'other-local', label: 'other', create: () => ({}), matches: async () => true })
+  // 这个桩只用来占注册序、证明按面板选择走，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const dOther = regBoth.register({ id: 'other-local', label: 'other', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => true })
   const dGh = regBoth.register(githubModule)
   const host = createWorkspaceCwd(ctxHost)
 

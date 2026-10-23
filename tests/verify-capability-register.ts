@@ -40,7 +40,7 @@ type RegisterView = { readonly [name: string]: { readonly tier: CapabilityTier; 
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..')
 
-/** 契约名录的全部 25 个名字（22 条操作 + 3 条定位口）：登记表要有多少行，就是它说了算。 */
+/** 契约名录的全部 26 个名字（23 条操作 + 3 条定位口）：登记表要有多少行，就是它说了算。 */
 const CATALOG: string[] = [...OPERATIONS, ...LOCATORS]
 
 /** md 表「登记」列里那四个词 ↔ 数据里的四档。前三个词是 2026-10-14 #1147 决策 9 定下的，
@@ -101,12 +101,12 @@ for (const backend of BACKENDS) {
   const mdRows = readMdTable(fs.readFileSync(path.join(ROOT, backend.md), 'utf8'))
   const mdNames = mdRows.map((r) => r.name)
 
-  // —— 一、登记数据本身：25 条齐全、与名录同集（类型层已经管住，这里是运行时的第二道）——
+  // —— 一、登记数据本身：26 条齐全、与名录同集（类型层已经管住，这里是运行时的第二道）——
   const dataMissing = CATALOG.filter((n) => !dataNames.includes(n))
   const dataExtra = dataNames.filter((n) => !CATALOG.includes(n))
   check(
     dataMissing.length === 0 && dataExtra.length === 0 && dataNames.length === CATALOG.length,
-    backend.id + ' 的登记数据 25 条齐全、与名录同集（共 ' + dataNames.length + ' 条；缺 ' +
+    backend.id + ' 的登记数据 26 条齐全、与名录同集（共 ' + dataNames.length + ' 条；缺 ' +
       (dataMissing.length ? dataMissing.join('、') : NOTHING) + '；多 ' + (dataExtra.length ? dataExtra.join('、') : NOTHING) + '）',
   )
 

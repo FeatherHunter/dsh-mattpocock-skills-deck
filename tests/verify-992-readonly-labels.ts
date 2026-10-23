@@ -172,8 +172,10 @@ async function main(): Promise<void> {
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
     const registry = registryMod.createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
     const labelErr = { kind: 'auth', message: '你在「acme/demo」上只有读权限，没有给票打标签的权限——这次没挂上的标签（bug、needs-triage）没写进去' }
+    // 两个桩只用来复现标签挂不上与对照组，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
     const mkStub = (withErr) => ({
       id: withErr ? 'stub-992-err' : 'stub-992-ok', label: '桩', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: withErr ? 'stub-992-err' : 'stub-992-ok',
         async create(repoArg, input) {
@@ -271,7 +273,8 @@ async function main(): Promise<void> {
       const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
       ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
       const registry = registryMod.createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
-      const stub = { id: stubId, label: '桩', matches: async () => false, create: () => trackerImpl }
+      // 这个桩只用来走能力位分支，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      const stub = { id: stubId, label: '桩', matches: async () => false, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => trackerImpl }
       const disp = registry.register(stub)
       const handle = { cwd: '/ws/992', refId: 'o/r' }
       chooseWorkspace('/ws/992', stubId)   // 这个工作区选过了：文件里写着这一次要用的桩 id（旧写法 registry.bind(handle, stubId)）

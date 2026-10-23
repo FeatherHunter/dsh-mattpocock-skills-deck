@@ -87,7 +87,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-suggest-next-steps': 128,
   'verify-1412-ask-matt-next-steps': 48,
   // 2026-10-23 #1409：界面借会话事件流取数通路（两叶子 + 源码守卫）；113 条是单跑实测得出的。
-  'verify-1409-suggest-stream': 114,
+  // 2026-10-23 #1441 修红灯：这扇加了断言，单跑实测是 140 条，按加了断言就改期望的口径把期望改准（门禁本身全绿）。
+  'verify-1409-suggest-stream': 140,
   'verify-1411-suggest-bubble': 73,
   // 2026-10-23 #1411 第二次提交：小泡动效与外观（纯函数时间线 + 假 DOM 驱动执行器 + 旋钮钉值）；
   // 104 条是单跑实测得出的。

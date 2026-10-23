@@ -161,6 +161,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fake', label: 'fake',
+      // 快照桩只用来组装快照，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -202,6 +204,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fake', label: 'fake',
+      // 快照桩只用来组装快照，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => ({ ok: true, data: rows }) }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -247,6 +251,8 @@ export async function run() {
     const sampleRegistry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     sampleRegistry.register({
       id: 'fake', label: 'fake',
+      // 快照桩只用来组装快照，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => ({ ok: true, data: sampleRows }) }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -273,6 +279,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fake', label: 'fake',
+      // 快照桩只用来组装快照，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -318,6 +326,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fake', label: 'fake',
+      // 快照桩只用来组装快照，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         list: async () => ({ ok: true, data: ALL }),
         getDependencies: async () => { depCalls++; return { ok: true, data: { blockedBy: [], blocking: [] } } },
@@ -342,6 +352,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'unsup', label: 'unsup',
+      // 这个桩只用来复现不支持的操作不缓存，不断言额度，所以按离网口径声明。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         getDependencies: async () => { unsupCalls++; return { ok: false, error: { kind: 'unsupported', message: 'no graph' } } },
       }),
@@ -360,6 +372,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fast', label: 'fast',
+      // 这个桩只用来复现快路径，不断言额度，所以按离网口径声明。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         list: async () => { listCalls++; return { ok: true, data: ALL } },
         snapshotFast: async () => { fastUsed++; return { ok: true, data: ALL } },
@@ -377,6 +391,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'half', label: 'half',
+      // 这个桩只用来复现快路径回落，不断言额度，所以按离网口径声明。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         list: async () => { listCalls++; return { ok: true, data: ALL } },
         snapshotFast: async () => { fastUsed++; return { ok: true, data: null } }, // 不完整 → 回落
@@ -401,6 +417,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'mapbody', label: 'mapbody',
+      // 这个桩只用来复现正文区块解析，不断言额度，所以按离网口径声明。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => ({ ok: true, data: MAP_BODY }) }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -439,6 +457,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'prpool', label: 'prpool',
+      // 这个桩只用来复现工单与拉取请求同池，不断言额度，所以按离网口径声明。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => ({ ok: true, data: prData }) }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -477,8 +497,9 @@ export async function run() {
     let listCalls = 0
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     const mkBackend = () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } })
-    registry.register({ id: 'ka', label: 'ka', create: mkBackend, matches: async () => true } as unknown as BackendModule)
-    registry.register({ id: 'kb', label: 'kb', create: mkBackend, matches: async () => true } as unknown as BackendModule)
+    // 这两个桩只用来复现缓存按后端隔离，不断言额度，所以按离网口径声明。
+    registry.register({ id: 'ka', label: 'ka', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: mkBackend, matches: async () => true } as unknown as BackendModule)
+    registry.register({ id: 'kb', label: 'kb', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: mkBackend, matches: async () => true } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
     await composer.composeSnapshot('ka', ref, {})
     await composer.composeSnapshot('kb', ref, {})
@@ -495,7 +516,8 @@ export async function run() {
   {
     let listCalls = 0
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
-    registry.register({ id: 'lruref', label: 'lruref', create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }), matches: async () => true } as unknown as BackendModule)
+    // 这个桩只用来复现命中刷新顺序，不断言额度，所以按离网口径声明。
+    registry.register({ id: 'lruref', label: 'lruref', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }), matches: async () => true } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
     const R = (i: number) => ({ backend: 'lruref', refId: 'lru-' + i, name: 'L' + i, url: '' })
     for (let i = 0; i < 20; i++) await composer.composeSnapshot('lruref', R(i), {})
@@ -518,6 +540,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fmpool', label: 'fmpool',
+      // 这个桩只用来复现假值与缺失同键各算各的，不断言额度，所以按离网口径声明。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => ({ ok: true, data: mixed }) }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -540,6 +564,8 @@ export async function run() {
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'prlog', label: 'prlog',
+      // 这个桩只用来复现组装器日志，不断言额度，所以按离网口径声明。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({ list: async () => ({ ok: true, data: ALL }) }),
       matches: async () => true,
     } as unknown as BackendModule)
@@ -574,8 +600,10 @@ export async function run() {
     // 本来就是要验证“拿不到计数时不写 deck.counts”的反例，类型上不可能是合规的 Counts。
     const mkReg = (countsImpl: () => unknown) => {
       const reg = createRegistry(emptyCtx, { matchesTimeout: 50 })
+      // 这个桩只用来复现后端计数进快照，不断言额度，所以按离网口径声明。
       reg.register({
         id: 'counted', label: 'counted',
+        budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
         create: () => ({
           list: async () => ({ ok: true, data: POOL }),
           counts: async () => { countsCalls++; return countsImpl() },
@@ -610,6 +638,7 @@ export async function run() {
         const reg2 = createRegistry(emptyCtx, { matchesTimeout: 50 })
         reg2.register({
           id: 'counted', label: 'counted',
+          budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
           create: () => ({
             list: async () => ({ ok: true, data: POOL }),
             counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 649 } }),
@@ -658,6 +687,7 @@ export async function run() {
       const reg6 = createRegistry(emptyCtx, { matchesTimeout: 50 })
       reg6.register({
         id: 'counted', label: 'counted',
+        budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
         create: () => ({
           list: async () => ({ ok: true, data: POOL.concat([base({ key: '9', title: 'PR9', isPullRequest: true, mergedAt: null, reviews: [] })]) }),
           counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 2 } }),

@@ -27,11 +27,11 @@ import type { PartiallyProvidedCapability, ProvidedCapability, StubbedByBackend 
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { MARKDOWN_CAPABILITY_REGISTER } from './capability-register.js'
 
-// —— Markdown 交出来的成员：22 条能力 + id ——
+// —— Markdown 交出来的成员：22 条能力 + id（读预算记未来会开发，不进成员集合） ——
 // 这份集合不再手写，从本房的登记数据推出来：明说「提供」的名字、明说「做了但没做到位」的名字（#1174 第四档，
 // 它们的实现是有的），再加上「明确不支持、但后端自己在实例上补了显式桩」的那 4 条（登记里 `stubBy: 'backend'`）。
 // 定位口要摘掉两条：本后端只有 `describe` / `issueAddress` 住在模块对象上（`markdownModule`）、不在工厂实例上，
-// 所以这里点名摘它们；`getRepoKey` 则相反 —— 以前它在登记里写「由注册表补桩」，可注册表只按 22 条操作那个
+// 所以这里点名摘它们；`getRepoKey` 则相反 —— 以前它在登记里写「由注册表补桩」，可注册表只按 23 条操作那个
 // 名录补桩、不给定位口补，于是实例上没有这个方法却又不被要求有（#1174 决策 2）。现在它按「提供」登记、
 // 在实例上真实现一条回空的，于是它留在成员集合里。
 // 为什么集合与形状住在房间文件里（而不是判定文件）：判定收在 src/tracker/capability-assertions.ts，
@@ -397,6 +397,8 @@ export const markdownModule = {
   labelPalette: defaultLabelPalette,
   create: createMarkdownBackend,
   matches,
+  // 预算口径（规格 1439 起必填）：离网——本地文件不花任何额度，账恒记零花。
+  budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
   // #231：本地 Markdown 无远程链接 —— 票的地址随票走（#1142 的票 url；#1144 后 issueAddress 回空串），
   // links 仅留提及识别正则；开仓为打开文件夹
   links: { linkPatternSource: "#(\\d+)" },

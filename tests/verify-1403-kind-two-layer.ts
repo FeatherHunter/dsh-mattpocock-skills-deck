@@ -209,8 +209,10 @@ async function main() {
   // ── 三b、父票类型读不到时的降级说明（本地后端总会回类型，这里挂一个不回类型的后端探针） ──
   console.log('— 三b、父票类型读不到的降级：只核存在性，回执照实说明')
   {
+    // 这个桩只用来复现父票类型读不到的降级，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
     const stub = {
       id: 'stub-1403', label: '不回父票类型的后端', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-1403',
         async list() { return { ok: true, data: { issues: [], total: 0, returned: 0 } } },

@@ -161,6 +161,8 @@ async function main() {
     // 桩后端：setParent 总说成功，但 get 总说没父（复现“回执成功、实查没有”）
     const stub = {
       id: 'stub-790', label: '桩（写成功、读回缺父）', matches: async () => false,
+      // 本桩只复现读写行为，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-790',
         async create(repoArg, input) {
@@ -213,6 +215,8 @@ async function main() {
     // 正向对照：读写一致时仍 ok
     const stubOk = {
       id: 'stub-790-ok', label: '桩（读写一致）', matches: async () => false,
+      // 本桩只复现读写行为，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-790-ok',
         async create(repoArg, input) {
@@ -242,6 +246,8 @@ async function main() {
     //    （#790 残留：契约回包是写动作的自我介绍，不是「盘上有这条边」的证据）
     const stubEcho = {
       id: 'stub-790-echo', label: '桩（建票回包写着父票、读回失败）', matches: async () => false,
+      // 本桩只复现读写行为，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-790-echo',
         async create(repoArg, input) {
@@ -277,6 +283,8 @@ async function main() {
     //    （#790 残留：正文里出现「归属 #78」是作者写的字，不是这条边落上的证据）
     const stubBody = {
       id: 'stub-790-body', label: '桩（正文提到父票号、读回没有父子）', matches: async () => false,
+      // 本桩只复现读写行为，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-790-body',
         async create(repoArg, input) {
@@ -311,6 +319,8 @@ async function main() {
     // J) 阻塞边：写成功、读回失败 → 说「没读回来」，不说「没出现在票上」
     const stubBlockRead = {
       id: 'stub-790-blockread', label: '桩（阻塞边写成功、读回失败）', matches: async () => false,
+      // 本桩只复现读写行为，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-790-blockread',
         async create(repoArg, input) {
@@ -350,6 +360,8 @@ async function main() {
     //    （parentError 是房自己的原话，建骨架以前从不读它，于是整图会报 status:'ok' 而边其实一条没挂）
     const stubPlan = {
       id: 'stub-790-plan', label: '桩（子票建成、父子边没挂上）', matches: async () => false,
+      // 本桩只复现读写行为，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-790-plan',
         async create(repoArg, input) {
@@ -376,6 +388,8 @@ async function main() {
     //     连读回那一支都永远走不到，于是「写命令成功、盘上没记上」被报成 ok）
     const stubSteps = {
       id: 'stub-790-steps', label: '桩（写动作自述成功、读回来的票不认）', matches: async () => false,
+      // 本桩只复现读写行为，不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-790-steps',
         async get(repoArg, key) { return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], parentKey: null } } },

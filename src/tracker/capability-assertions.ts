@@ -37,7 +37,7 @@ import type { GithubBackendMembers, createGithubBackend } from './registry/built
 import type { GitlabBackendMembers, createGitlabBackend } from './registry/builtins.js'
 import type { MarkdownBackendMembers, createMarkdownBackend } from './registry/builtins.js'
 
-/** 名录两段合起来的全部名字（25 个）。 */
+/** 名录两段合起来的全部名字（26 个，规格 1439 起含读预算）。 */
 type _CapabilityName = (typeof OPERATIONS)[number] | (typeof LOCATORS)[number]
 
 /** 只能用 never 实例化的约束：传进来的不是 never，编译当场红。 */

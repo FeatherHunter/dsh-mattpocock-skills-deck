@@ -2,12 +2,12 @@
  * tests/verify-1182-docs-paths.ts —— 两份接入文档里的路径与条数不许再落后于代码（#1182 第 5 件）。
  *
  * 为什么要这一条：`tests/tracker-contract/README.md` 与 `ONBOARDING.md` 是新人接一个新后端的第一份路标，
- * 但目录归位（`src/host/tracker/backends/` → `src/tracker/rooms/`）与契约扩容（13 条操作 → 22 条操作）
+ * 但目录归位（`src/host/tracker/backends/` → `src/tracker/rooms/`）与契约扩容（13 条操作 → 22 条操作 → 规格 1439 起 23 条操作）
  * 之后，这两份文档一直写着旧路径与旧条数：#1174 的收尾评论把这两笔列为「留给下一张票」。
  * 旧路标比没有路标更贵 —— 照它去找目录，得到的是「这个目录不存在」，而不是「文档过时了」。
  *
  * 这道门禁断四件事：
- *   一、**真源**：契约名录（`src/tracker/contract/operations-catalog.ts`）今天就是 22 条操作 + 3 条定位口。
+ *   一、**真源**：契约名录（`src/tracker/contract/operations-catalog.ts`）今天就是 23 条操作 + 3 条定位口。
  *   二、**条数**：两份文档里凡是写「N 条操作」/「N ops」的地方，N 必须等于名录里的操作条数（今天 22）。
  *   三、**旧目录**：两份文档里不许再出现 `src/host/tracker/backends` 这个搬家前的目录字面量。
  *   四、**路径可落地**：两份文档里反引号包起来的 `src/...` 路径（带 `*` 或 `<id>` 这类占位的不算）
@@ -30,7 +30,7 @@ const check = (ok: boolean, msg: string) => {
 }
 
 console.log('== 一、真源：契约名录今天的条数 ==')
-check(OPERATIONS.length === 22, '契约名录里操作是 22 条 → 实得 ' + OPERATIONS.length + ' 条')
+check(OPERATIONS.length === 23, '契约名录里操作是 23 条 → 实得 ' + OPERATIONS.length + ' 条')
 check(LOCATORS.length === 3, '契约名录里定位口是 3 条 → 实得 ' + LOCATORS.length + ' 条')
 
 console.log('== 二、两份文档里写的操作条数要跟真源一致 ==')

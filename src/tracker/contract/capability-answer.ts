@@ -56,13 +56,13 @@
 // 能力的名字只有一个真源（`operations-catalog.ts`），本文件不另抄一份名字。
 import type { OPERATIONS, LOCATORS } from './operations-catalog.js'
 
-/** 22 条操作的名字（异步、会失败，「我不支持」是一个合法答案）。 */
+/** 23 条操作的名字（异步、会失败，「我不支持」是一个合法答案）。 */
 export type OperationCapability = (typeof OPERATIONS)[number]
 
 /** 3 条定位口的名字（把目录 / 仓库 / 票号翻成身份与地址，「没有」就是空值，不是失败）。 */
 export type LocatorCapability = (typeof LOCATORS)[number]
 
-/** 25 条能力的名字（两段合起来）——契约的上限，也是登记表要有多少行。 */
+/** 26 条能力的名字（两段合起来）——契约的上限，也是登记表要有多少行。 */
 export type CapabilityName = OperationCapability | LocatorCapability
 
 /**
@@ -89,7 +89,7 @@ export type CapabilityStanding =
 export type CapabilityTier = CapabilityStanding['tier']
 
 /**
- * 一个后端对 25 条能力的完整回答。
+ * 一个后端对 26 条能力的完整回答。
  *
  * 用 `Record` 而不是 `Partial<Record>`：少写一条编译期报「缺少属性」，多写一个名录之外的名字
  * 报「对象字面量只能指定已知属性」。各房的数据文件都写成 `as const satisfies CapabilityRegister`。

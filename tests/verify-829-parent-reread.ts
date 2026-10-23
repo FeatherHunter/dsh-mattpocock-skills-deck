@@ -88,8 +88,10 @@ async function main() {
     const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
     const registry = registryMod.createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+    // 这个桩只用来复现写后读回失败，不不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
     const stubReadFail = {
       id: 'stub-829-readfail', label: '桩（写成功、读票失败）', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
         id: 'stub-829-readfail',
         async get() {

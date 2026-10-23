@@ -128,9 +128,11 @@ export function createAnchorFake(id, share) {
   const s = share || { id: id || 'anchor-fake', store: createTicketStore() }
   s.lookupWorks = s.lookupWorks !== false
   if (id) s.id = id
+  // 按锚判重的假身只验幂等语义，不断言额度，所以按离网口径声明。
   return {
     id: s.id,
     label: '按锚判重的假身',
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     matches: async () => false,
     create: () => newAnchorFakeBackend(s),
     _share: s,

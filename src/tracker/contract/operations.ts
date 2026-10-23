@@ -1,5 +1,5 @@
 /**
- * src/tracker/contract/operations.ts —— 契约的能力层：25 条能力，一个后端能被要求做的全部事情
+ * src/tracker/contract/operations.ts —— 契约的能力层：26 条能力，一个后端能被要求做的全部事情
  *
  * ── 这份文件回答一个问题 ────────────────────────────────────────────────────────
  * 「一个后端要能做哪些事，每件事收什么、回什么。」答完这一份，上层就能不认识后端是谁。
@@ -60,13 +60,14 @@ import type {
   UpdatePatch,
 } from './inputs.js'
 import type { OPERATIONS } from './operations-catalog.js'
+import type { BudgetReading } from './budget-model.js'
 
 /**
- * 22 条契约操作的名字，**由名录单源生成**（`operations-catalog.ts` 的 `OPERATIONS` 数组）：
+ * 23 条契约操作的名字，**由名录单源生成**（`operations-catalog.ts` 的 `OPERATIONS` 数组）：
  * `preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、
  * `update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、
  * `initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`、`getRepoPermissions`、
- * `listSubIssues`、`ensureLabelColorsFile`。
+ * `listSubIssues`、`ensureLabelColorsFile`、`readBudget`（读预算，规格 1439 起是第 23 条）。
  *
  * 为什么这么写（原来是一份手抄的联合类型）：手抄的联合类型与运行时那份 `OPERATIONS` 数组
  * 是两份数据，靠人眼对齐，漏改一处的后果是「类型说有、注册表不补桩」—— 那种错只在运行时
@@ -83,7 +84,7 @@ import type { OPERATIONS } from './operations-catalog.js'
 export type OpName = (typeof OPERATIONS)[number]
 
 /**
- * 一个后端适配器对上层承诺的全部能力：**22 条操作 + 3 条定位口，共 25 条**。
+ * 一个后端适配器对上层承诺的全部能力：**23 条操作 + 3 条定位口，共 26 条**。
  *
  * 谁实现：GitHub 后端与本地 Markdown 后端（GitLab 后端本轮不动，它拿到的是注册表补的桩）。
  * 谁消费：deck 九个工具（经共享壳）、注册表、宿主电话、面板。
@@ -286,8 +287,17 @@ export interface Tracker {
    */
   ensureLabelColorsFile(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<LabelColorsFilePlacement>>
 
+  /**
+   * 读预算：读缓存里的剩余额度，只读不花（规格 1439 第 23 条操作）。
+   *
+   * 它是操作里唯一不走裁决与记账的那一条：回来的就是读数本身，让它再过一遍裁决等于
+   * 「量体温之前先问体温计热不热」，记账则等于「看额度这件事自己花额度」。
+   * 没实现的后端由注册表补「我不支持」的桩（读数三态里「没量出来」那一支就是给它准备的）。
+   */
+  readBudget(ctx: OpContext): Promise<OpResult<BudgetReading>>
+
   // ── 定位口三条 ────────────────────────────────────────────────────────────────
-  // 与上面 22 条操作的区别只有一条，但很要紧：它们**没有「我不支持」这种答案**。
+  // 与上面 23 条操作的区别只有一条，但很要紧：它们**没有「我不支持」这种答案**。
   // 问「这个仓库在这个后端上叫什么」，答案是名字或者空；空也是答案，不是失败。
   // 所以注册表不替它们补桩，缺席就是缺席，调用方拿空值继续往下走（不抛、不拦）。
   // 名字用「地址」不用「网址」：本地文件后端给过票文件路径，路径也是地址。

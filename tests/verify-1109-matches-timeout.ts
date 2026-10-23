@@ -166,8 +166,10 @@ async function main() {
     '控制组：谁都不命中且都答完了 → 干净回落（实得 ' + JSON.stringify(selFree) + '）')
 
   // ── ③ 超时那一路：挂住不答的后端必须落成「还没答完」，不是「没有后端」 ──
+  // 挂住的假后端只用来占一路认领，创建函数不会被调到，所以按离网口径声明（注册表只验形状，不按口径限流）。
   const hanging = {
     id: 'probe-1109-hanging', label: '门禁夹具：永不回话的假后端',
+    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
     create: () => ({}),
     matches: () => new Promise(() => {}),
   }

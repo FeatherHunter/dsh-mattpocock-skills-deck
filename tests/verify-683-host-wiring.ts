@@ -52,7 +52,8 @@ const makeStore = function (keys: string[]) {
 }
 const makeService = function (store: any, wsStore?: any) {
   const registry = createRegistry(undefined, { matchesTimeout: 500 })
-  const mk = (id: string) => ({ id: id, label: id, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
+  // 假后端只用来走宿主接线，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  const mk = (id: string) => ({ id: id, label: id, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
   registry.register(mk('github'))
   registry.register(mk('markdown'))
   const platform = {
@@ -302,7 +303,8 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
     await store.rememberWorkspace(ws, 'markdown')
     await store.rememberWorkspace(ws, 'github') // rev 推到 2
     const registry = createRegistry(undefined, { matchesTimeout: 500 })
-    const mk = (id: string) => ({ id: id, label: id, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
+    // 这一组的假后端同样只走判定，不断言额度，所以按离网口径声明。
+    const mk = (id: string) => ({ id: id, label: id, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
     registry.register(mk('github')); registry.register(mk('markdown'))
     const platform = { fs: { resolve: async (rel: string, o: any) => path.resolve((o && o.cwd) || '.', rel), readText: async (p: string) => fs.readFileSync(p, 'utf8'), lstat: async (p: string) => fs.lstatSync(p), stat: async (p: string) => fs.statSync(p), readdir: async (p: string) => fs.readdirSync(p) }, path: path }
     const svcTrue = createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, getChoiceStore: async () => store, exec: null })

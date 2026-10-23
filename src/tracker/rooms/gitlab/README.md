@@ -2,7 +2,7 @@
 
 这份文件写给「以后要改这一房的人」。房间的通用规矩（跨房引用怎么判、一次会话只改一个房间）在上一级的 `src/tracker/rooms/README.md`，契约层的书面承诺在 `src/tracker/contract/README.md`，这里不重复。**这一份只讲这一家与另外两家不一样的地方**——照着它走，就不会把 GitHub 或本地 Markdown 的习惯硬套到 GitLab 上。
 
-能力账（25 条逐条登记：哪条做了、哪条为什么不做）在 `docs/tracker/capability-gitlab.md`。程序侧的同一份答案是 `capability-register.ts`，两边由门禁 `tests/verify-capability-register.ts` 逐条比对，改一边不改另一边会红。
+能力账（26 条逐条登记：哪条做了、哪条为什么不做）在 `docs/tracker/capability-gitlab.md`。程序侧的同一份答案是 `capability-register.ts`，两边由门禁 `tests/verify-capability-register.ts` 逐条比对，改一边不改另一边会红。
 
 **用户第一次在这台机器上配 GitLab**（装命令行工具、登录、建一个能用的项目）时，把同目录的 `SETUP-PROMPT.md` 整段贴进对话框即可。那一份是写给用户的现场指引，与「改这一房的代码」无关。
 
@@ -60,7 +60,7 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 | 文件 | 管什么 |
 |---|---|
 | `index.ts` | 工厂：把各文件的操作拼成 `Tracker` 成员，并把能力登记表挂上去 |
-| `capability-register.ts` | 25 条能力的数据化回答（纯数据，不许有分支） |
+| `capability-register.ts` | 26 条能力的数据化回答（纯数据，不许有分支） |
 | `client.ts` | 唯一跑 `glab` 的地方 |
 | `queries.ts` | 拼 API 地址与查询参数 |
 | `normalize.ts` | 把 GitLab 的形状转成契约的 `Issue` |

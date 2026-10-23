@@ -365,8 +365,9 @@ async function main() {
     const WORKSPACE_FILE_REL: string = anchor.WORKSPACE_FILE_REL
     const parseWorkspaceFile = anchor.parseWorkspaceFile
     const registry = (await import(url('src/tracker/registry/core.ts'))).createRegistry()
-    registry.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
-    registry.register({ id: 'markdown', label: '本地 Markdown', create: () => ({}), matches: async () => false })
+    // 两个假后端只用来验绑定读写，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
+    registry.register({ id: 'github', label: 'GitHub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => false })
+    registry.register({ id: 'markdown', label: '本地 Markdown', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => false })
     // #1138：绑定（用户为这个工作区选定后端）不再写注册表里那份进程内副本，唯一去处是工作区文件
     //   docs/agents/workspace.yaml。所以这一组换了两件事同时验：写——真 wf.bind 处理体把文件写到工作区根这一层；
     //   读——统一判定出口 decideBackend 从那份文件读回同一个人选。
@@ -512,7 +513,8 @@ async function main() {
     // 后端声明那一半：真判定函数去读，读的必须正好是根上那一条路径
     const detectExplicit = (await import(url('src/tracker/detection/explicitDetector.ts'))).detectExplicit
     const reg = (await import(url('src/tracker/registry/core.ts'))).createRegistry()
-    reg.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
+    // 这个假后端只用来验显式判读的是哪条路径，不会被真正调用，所以按离网口径声明。
+    reg.register({ id: 'github', label: 'GitHub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => false })
     const readPaths: string[] = []
     const spyFs = Object.assign({}, fixtureFs, {
       async resolve(p: string, opts?: { cwd?: string }) {

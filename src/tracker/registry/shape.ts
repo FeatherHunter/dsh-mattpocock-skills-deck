@@ -1,7 +1,7 @@
 /**
  * src/tracker/registry/shape.ts — 注册形状校验与缺方法包桩（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
  * 以后谁改它：改后端模块形状校验（id/label/create/matches）或缺方法 unsupported 包桩语义的人。预估约 90 行，超 350 打回。
- * 接线：只被 core.ts 引用；本文件不引用其他新文件。
+ * 接线：只被 core.ts 引用；预算形状只从契约层引用类型与数据（契约层在同层互引判域之外）。
  * 第一性原理（#125 定版，承接原 registry.js）：
  *  - 能力 = 运行时调用结果：注册**只验模块形状**，不因「缺某 op」拒绝；
  *    `create()` 产物按 Proxy 包桩——缺的**操作**自动补 `unsupported` 桩（准入墙消失，诚实桩不误导）。
@@ -14,6 +14,8 @@
 import { ERROR_KIND } from '../contract/vocabulary.js'
 import { OPERATIONS } from '../contract/index.js'
 import { fail } from '../kernel/preflight.js'
+import { BUDGET_KINDS } from '../contract/budget-model.js'
+import type { BackendBudgetModel } from '../contract/budget-model.js'
 import type { BackendId } from '../contract/identity.js'
 import type { BackendContext, RepoHandle } from '../contract/contexts.js'
 import type { BackendModule } from '../contract/backend-module.js'
@@ -84,7 +86,7 @@ export function unsupportedStub(opName: string, backendId: BackendId, hooks: Par
 /**
  * 把 BackendModule.create 产物包成 Tracker：
  *  - id 固定为模块 id（自报不一致 = 说谎 → 拒绝）；
- *  - `OPERATIONS`（22 条操作）里缺的方法 → unsupported 桩；
+ *  - `OPERATIONS`（23 条操作，规格 1439 起含读预算）里缺的方法 → unsupported 桩；
  *  - 其余未知属性原样透传（今天已不允许后端有独有对外方法，透传只为不改变既有行为；
  *    真出现独有方法应在契约评审里被拦下，不靠这一层拦）。
  */
@@ -108,6 +110,26 @@ export function wrapTracker(mod: BackendModule, impl: RoomOperations | null | un
   }) as unknown as Tracker
 }
 
+/**
+ * 预算声明的形状问题（纯函数，不碰注册表，调用方把理由原样展示，不再转述）。
+ * 回空数组表示形状成立；否则每一条点名缺的是哪一格。
+ * 为什么住在这里而不是契约层：它是运行时实现（函数），契约目录只许有类型与数据；
+ * 而它唯一的使用者就是下面这一个校验，所以跟着使用者走，不再单独占一份文件。
+ * 口径类型本身（BackendBudgetModel）住在契约层，这里只引用类型与名字表。
+ */
+function describeBudgetProblems(budget: unknown): string[] {
+  if (!budget || typeof budget !== 'object') return ['budget 必须是一个对象（后端模块缺预算声明）']
+  const b = budget as Partial<Record<keyof BackendBudgetModel, unknown>>
+  const problems: string[] = []
+  if (typeof b.kind !== 'string' || (BUDGET_KINDS as readonly string[]).indexOf(b.kind) < 0) {
+    problems.push("budget.kind 非法（只能是 'two-buckets' / 'requests-only' / 'off-network' / 'unknown' 四者之一）")
+  }
+  if (typeof b.countsRequests !== 'boolean') problems.push('budget.countsRequests 缺布尔值（请求数进不进账，必须明说）')
+  if (typeof b.countsPoints !== 'boolean') problems.push('budget.countsPoints 缺布尔值（点数进不进账，必须明说）')
+  if (typeof b.independentBuckets !== 'boolean') problems.push('budget.independentBuckets 缺布尔值（两种限额通不相通，必须明说）')
+  return problems
+}
+
 /** 模块形状校验（原 createRegistry 内闭包，纯函数无闭包依赖，V1 #461 原样上提）。类型说明：收未知输入做断言式校验，通过后调用方拿到契约 BackendModule。 */
 export function validateMod(mod: unknown): asserts mod is BackendModule {
   if (!mod || typeof mod !== 'object') throw new TrackerRegistryError('shape', 'BackendModule must be an object')
@@ -117,6 +139,12 @@ export function validateMod(mod: unknown): asserts mod is BackendModule {
   if (typeof m.label !== 'string') throw new TrackerRegistryError('shape', 'label must be a string')
   if (typeof m.create !== 'function') throw new TrackerRegistryError('shape', 'create must be a function')
   if (typeof m.matches !== 'function') throw new TrackerRegistryError('shape', 'matches must be a function')
+  // 规格 1439 起预算必填：没有口径，会话管线无从解释读数。理由点名缺的是哪一格，
+  // 调用方照原文展示，不再转述（缺声明与形状不对都是同一道口，同一套说法）。
+  const budgetProblems = describeBudgetProblems((m as { budget?: unknown }).budget)
+  if (budgetProblems.length > 0) {
+    throw new TrackerRegistryError('shape', `BackendModule '${m.id}' budget invalid: ${budgetProblems.join('；')}`)
+  }
   if (m.id === 'other') {
     throw new TrackerRegistryError('other-not-registrable', "'other' 已弃用：无后端请用 Selection.backendId:null（不造后端，不造假身份）")
   }
