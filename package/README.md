@@ -45,15 +45,15 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 单仓多票：可接、阻塞、已关闭自动归位，地图永远置顶<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-列表.png" width="400" alt="任务板列表：可接阻塞已关闭归位" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 多区并发：多个工作区、几十个会话同时跑，谁卡在哪一眼看清<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-工作区-多ISSUE并发.png" width="400" alt="多工作区多会话并发" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 列表中展示：探索地图、实施地图、普通ISSUE。并且提供便捷按钮一键注入prompt。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-列表.png" width="400" alt="任务板列表：可接阻塞已关闭归位" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 实战案例：任务经过拆分，可以大量同时执行任务。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-工作区-多ISSUE并发.png" width="400" alt="多工作区多会话并发" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td valign="top">👇 地图详情：可接与已结案分色铺满卡片墙，进度环直接给到第几格<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-Map详情.png" width="400" alt="地图详情卡片墙可接与已结案" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 单票详情：描述、验收、进度、评论全在面板里，回话不必跳终端<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-ISSUE详情.png" width="400" alt="单票详情描述验收进度评论" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 地图详情：像素风卡片呈现所有可以执行的任务。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-Map详情.png" width="400" alt="地图详情卡片墙可接与已结案" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 单票详情：描述、验收、进度、评论等信息不再需要打开原始文件。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-ISSUE详情.png" width="400" alt="单票详情描述验收进度评论" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -67,8 +67,8 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 一条胶囊装下可接、故障、诊断、沉淀、交接与环境进度<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="400" alt="对话框胶囊栏输入框区域" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 工作路线摊开：本会话在办什么、还有几十个会话在跑，一眼在列<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="400" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 可接任务、故障、需要诊断分流、刷新、ISSUE处理路径表。清晰可见。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="400" alt="对话框胶囊栏输入框区域" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 工作路线：清晰展示当前会话处理ISSUE的心路历程。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="400" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -82,8 +82,8 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 右侧面板一点，弹窗里挑需求类型<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-新增需求-选择弹窗.png" width="400" alt="右侧面板新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 胶囊上同样一点即建，手不离输入框<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-新增需求-选择弹窗.png" width="400" alt="胶囊状态栏新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 右侧面板，按需选择不同流程。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-新增需求-选择弹窗.png" width="400" alt="右侧面板新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 胶囊栏，按需选择不同流程。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-新增需求-选择弹窗.png" width="400" alt="胶囊状态栏新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -97,8 +97,8 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 一行一个技能，中文讲清什么时候该用它<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-列表.png" width="400" alt="技能页面列表一行讲清用途" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 点开详情看完整说明，确认无误再加载<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-详情.png" width="400" alt="技能页面详情完整说明" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 可以注入到对话框。可以查看技能详情<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-列表.png" width="400" alt="技能页面列表一行讲清用途" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 技能详情页面，方便学习原始技能。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-详情.png" width="400" alt="技能页面详情完整说明" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -112,8 +112,8 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 一条跑道随时换，切回来数据还在<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-切换后端.png" width="400" alt="设置页后端选择器" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 环境自检逐项过，不通过的照提示补<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-环境检查-列表.png" width="400" alt="环境检查列表" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 在不同后端中进行切换。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-切换后端.png" width="400" alt="设置页后端选择器" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 环境逐项自检。如果不准确点击刷新重新检测。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-环境检查-列表.png" width="400" alt="环境检查列表" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -127,9 +127,9 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 改动：这次改了哪些文件、各加删多少<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="260" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 提交历史：落到哪次提交、提交信息是什么<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="260" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 工作树：几棵树在并行、各自停在哪一步<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="260" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 改动：fetch、pull、push、add、commit<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="260" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 提交历史<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="260" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 工作树<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="260" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -143,8 +143,8 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 设置主页：所有入口一处收齐<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-设置面板-主页.png" width="400" alt="设置面板主页" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 调色板：每类标签一种颜色，扫一眼就知道是什么票<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-调色板-设置label颜色.png" width="400" alt="调色板设置标签颜色" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 设置主页<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-设置面板-主页.png" width="400" alt="设置面板主页" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 调色板：设置标签颜色可以改变按钮颜色。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-调色板-设置label颜色.png" width="400" alt="调色板设置标签颜色" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -158,8 +158,8 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <table>
   <tr>
-    <td valign="top">👇 第 1 步：创建新工作区<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-1-创建新工作区.png" width="280" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 第 2 步：新建会话并选择后端<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-2-新建会话-选择后端.png" width="400" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 第 1 步：选择工作区并新建会话<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-1-创建新工作区.png" width="280" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 第 2 步：新会话提示选择后端<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-2-新建会话-选择后端.png" width="400" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
   <tr>
     <td valign="top">👇 第 3 步：选择后端为 GitHub<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-3-选择后端为github.png" width="400" alt="第3步：选择后端为 GitHub" style="border:1px solid #30363d;border-radius:6px"></td>
@@ -167,7 +167,7 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
   </tr>
   <tr>
     <td valign="top">👇 第 5 步：等待 AI 执行初始化<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-5-等待AI执行.png" width="400" alt="第5步：等待 AI 执行初始化" style="border:1px solid #30363d;border-radius:6px"></td>
-    <td valign="top">👇 第 6 步：环境检测不通过时照提示补齐<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="400" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 第 6 步：环境检测不通过时需要补齐并刷新。<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="400" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
