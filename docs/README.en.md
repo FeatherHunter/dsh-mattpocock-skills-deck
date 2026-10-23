@@ -256,26 +256,6 @@ And thanks to everyone who left thoughts in comments and discussions. If you hit
 
 👏Welcome PRs and issues. A single spark can start a prairie fire 🔥. Any suggestion, opinion, idea or rant — come join the group and talk.
 
-Bugs and feature requests go straight to ISSUEs for better traceability; casual chat and quick Q&A live in the groups.
-
-QQ group is permanent, WeChat group is time-limited, Feishu group is permanent — all three are the DSH plugin community group.
-
 <img src="../assets/contact-qq-permanent.jpg" width="260" alt="DSH plugin community group QQ QR code" /> <img src="../assets/contact-wechat-weekly.png" width="260" alt="DSH plugin community group WeChat QR code" /> <img src="../assets/contact-feishu-permanent.png" width="260" alt="DSH plugin community group Feishu QR code" />
-
-QQ group number 1020866453 — search the number to join if scanning fails.
-
-WeChat QR code is valid for 7 days and refreshed weekly; if expired, use QQ or Feishu instead.
-
-</div>
-
-<div align="center">
-
-<a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=20261023" />
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261023" />
-    <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261023" />
-  </picture>
-</a>
 
 </div>
