@@ -70,10 +70,8 @@ const SCAN_TREES = ['src/host', 'src/shared', 'src/seam', 'src/tracker', 'src/cl
 const OPTIONAL_TREES = ['src/deck']
 const CONFIG_REL = '.dependency-cruiser.ts'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
-// 刷新基线（#1424 建）：旧位置文件在搬家中转期的分层规则豁免，只许缩不许长。
+// 刷新基线（#1424 建，#1430 删）：搬家中转期的分层规则豁免已清零，清单文件与读取块按门禁自己的要求一并删除，最终形态无豁免。
 // 清单见 tests/refresh-baseline.json，每行写着为什么留、哪张票清掉。
-// 清单变空的那张票（#1430）要把下面的读取块与这个常量一起删掉，不要留一个永远为空的清单。
-const REFRESH_BASELINE_REL = 'tests/refresh-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
 // 同层互引五条 + 房间纪律三条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 刷新分层四条 + 禁循环一条。
@@ -261,26 +259,21 @@ export function scanNonLiteralDynamicRefs(rel: string, code: string): NonLiteral
 // ---------------------------------------------------------------------------
 
 /**
- * 只有同层互引允许走存量豁免，刷新分层规则允许走刷新基线；房间纪律、第三方包、循环依赖一律判红。
- * allowed 的键是 file|resolved（与 tests/same-layer-baseline.json 的键一致），
- * refreshAllowed 的键也是 file|resolved（与 tests/refresh-baseline.json 的键一致）。
- * 两份清单不互通：同层清单里的键放行不了刷新规则的违规，反过来也一样（下面 r6 就是这条的夹具）。
+ * 只有同层互引允许走存量豁免；刷新分层规则自 #1430 起无豁免（基线已清零删除），
+ * 房间纪律、第三方包、循环依赖一律判红。
+ * allowed 的键是 file|resolved（与 tests/same-layer-baseline.json 的键一致）。
+ * 清单的键不跨规则生效：同层清单里的键放行不了刷新规则的违规（下面 r5、r6 就是这条的夹具）。
  */
-const REFRESH_RULE_PREFIX = 'refresh-'
 export function classifyViolations(
   violations: Violation[],
   allowed: Set<string>,
-  refreshAllowed: Set<string> = new Set(),
 ): { fresh: Violation[], tolerated: Violation[] } {
   const fresh: Violation[] = []
   const tolerated: Violation[] = []
   for (const v of violations) {
     const name = String((v.rule && v.rule.name) || '')
     const key = String(v.from || '') + '|' + String(v.to || '')
-    const isSameLayer = name.startsWith(SAME_LAYER_RULE_PREFIX)
-    const isRefresh = name.startsWith(REFRESH_RULE_PREFIX)
-    if (isSameLayer && allowed.has(key)) tolerated.push(v)
-    else if (isRefresh && refreshAllowed.has(key)) tolerated.push(v)
+    if (name.startsWith(SAME_LAYER_RULE_PREFIX) && allowed.has(key)) tolerated.push(v)
     else fresh.push(v)
   }
   return { fresh, tolerated }
@@ -769,12 +762,12 @@ function selfCheck(): void {
     to: 'async_hooks',
     rule: { name: 'refresh-kernel-no-io', severity: 'error' },
   }
-  const r5 = classifyViolations([refreshV], new Set(), new Set(['src/refresh/kernel/step-pricing.ts|async_hooks']))
-  if (r5.tolerated.length === 1 && r5.fresh.length === 0) pass('在册的刷新基线边放行')
-  else fail('在册的刷新基线边应放行，实际 tolerated=' + r5.tolerated.length + ' fresh=' + r5.fresh.length)
-  const r6 = classifyViolations([refreshV], new Set(['src/refresh/kernel/step-pricing.ts|async_hooks']))
-  if (r6.fresh.length === 1) pass('同层清单放行不了刷新规则的违规（两份清单不互通）')
-  else fail('刷新规则的违规用了同层清单的键时仍应判红，实际 fresh=' + r6.fresh.length)
+  const r5 = classifyViolations([refreshV], new Set(['src/refresh/kernel/step-pricing.ts|async_hooks']))
+  if (r5.fresh.length === 1) pass('刷新规则的违规没有基线可放行（#1430 基线已删，同层清单也放行不了它）')
+  else fail('刷新规则的违规应判红，实际 tolerated=' + r5.tolerated.length + ' fresh=' + r5.fresh.length)
+  const r6 = classifyViolations([sameLayer, refreshV], new Set(['src/shared/a.js|src/shared/b.js', 'src/refresh/kernel/step-pricing.ts|async_hooks']))
+  if (r6.tolerated.length === 1 && r6.fresh.length === 1) pass('同层键只放行同层边，刷新违规仍判红（清单键不跨规则生效）')
+  else fail('混合输入应 tolerated=1 fresh=1，实际 tolerated=' + r6.tolerated.length + ' fresh=' + r6.fresh.length)
 
   // 空集合：六棵树缺目录、扫到 0 个文件、图上 0 个模块，三种都要报问题。
   const p1 = scopeProblems([], 0, () => false)
@@ -1261,32 +1254,7 @@ if (!existsSync(baselineAbs)) {
   }
 }
 
-// 刷新基线：与上面同层豁免同形，但两份清单不互通（见 classifyViolations 注释）。
-// 每一行必须写清为什么留（why）与哪张票负责清掉（ticket），缺一个就判红 ——
-// 没有理由的豁免行和死规则一样会骗人。
-type RefreshBaselineEntry = { file: string, resolved: string, why?: string, ticket?: string | number }
-let refreshAllowed = new Set<string>()
-const refreshBaselineAbs = join(ROOT, REFRESH_BASELINE_REL)
-if (!existsSync(refreshBaselineAbs)) {
-  fail('刷新基线清单不存在：' + REFRESH_BASELINE_REL)
-} else {
-  let refreshEntries: RefreshBaselineEntry[] = []
-  try {
-    const parsed = JSON.parse(readFileSync(refreshBaselineAbs, 'utf8')) as { entries?: RefreshBaselineEntry[] }
-    refreshEntries = Array.isArray(parsed.entries) ? parsed.entries : []
-  } catch (e) {
-    fail('刷新基线清单不是合法 JSON：' + String((e as Error).message))
-  }
-  if (!refreshEntries.length) fail('刷新基线清单是空的（最后一行被清掉的那张票要把读取块与常量一起删，不要留空清单）')
-  else {
-    const bad = refreshEntries.filter((e) => !String((e && e.why) || '').trim() || !String((e && e.ticket) || '').trim())
-    if (bad.length) fail('刷新基线里 ' + bad.length + ' 行没写 why 或 ticket：' + bad.map((e) => String(e.file)).join('、'))
-    else {
-      refreshAllowed = new Set(refreshEntries.map((e) => String(e.file) + '|' + String(e.resolved)))
-      info('刷新基线 ' + refreshEntries.length + ' 条（只许减不许增）')
-    }
-  }
-}
+// 刷新基线最终形态（#1430）：清单文件 tests/refresh-baseline.json 已删，读取块、类型与常量一并删除，刷新规则无豁免、违规直接判红。
 
 // 非字面量动态引用（工具盲区）
 const nonLiteral: NonLiteralRef[] = []
@@ -1320,17 +1288,16 @@ if (coreDependencyCount > 0) {
   fail('真图上一条「内置模块」依赖都没有：deck-rules-no-node-builtins 的 dependencyTypes 判据在当前 dependency-cruiser 上已经命不中了（类别名可能改了），先修判据再谈其它')
 }
 
-const { fresh, tolerated } = classifyViolations(violations, allowed, refreshAllowed)
+const { fresh, tolerated } = classifyViolations(violations, allowed)
 const toleratedKey = (v: Violation) => String(v.from || '') + '|' + String(v.to || '')
 const toleratedSameLayer = tolerated.filter((v) => allowed.has(toleratedKey(v))).length
-const toleratedRefresh = tolerated.filter((v) => refreshAllowed.has(toleratedKey(v))).length
 const byRule = new Map<string, number>()
 for (const v of violations) {
   const name = String((v.rule && v.rule.name) || '(未命名规则)')
   byRule.set(name, (byRule.get(name) || 0) + 1)
 }
 info('图上违规合计 ' + violations.length + ' 条：' + [...byRule.entries()].map(([n, c]) => n + ' ' + c + ' 条').join('、'))
-info('其中存量豁免放行 ' + toleratedSameLayer + ' 条、刷新基线放行 ' + toleratedRefresh + ' 条，新增 ' + fresh.length + ' 条')
+info('其中存量豁免放行 ' + toleratedSameLayer + ' 条，新增 ' + fresh.length + ' 条（刷新规则无豁免）')
 for (const v of fresh) {
   const name = String((v.rule && v.rule.name) || '')
   const comment = String((v.rule && v.rule.comment) || '')
@@ -1349,13 +1316,6 @@ if (stale.length) {
   for (const k of stale) info('豁免条目已消除可清理：' + k.split('|')[0] + ' -> ' + k.split('|')[1] + '（拆分票记得同票删条目）')
 } else {
   info('豁免清单没有可清理的条目（' + allowed.size + ' 条全在）')
-}
-const refreshLiveKeys = new Set(violations.map((v) => toleratedKey(v)))
-const refreshStale = [...refreshAllowed].filter((k) => !refreshLiveKeys.has(k))
-if (refreshStale.length) {
-  for (const k of refreshStale) info('刷新基线条目已消除可清理：' + k.split('|')[0] + ' -> ' + k.split('|')[1] + '（拆分票记得同票删条目）')
-} else {
-  info('刷新基线没有可清理的条目（' + refreshAllowed.size + ' 条全在）')
 }
 
 if (nonLiteral.length) {

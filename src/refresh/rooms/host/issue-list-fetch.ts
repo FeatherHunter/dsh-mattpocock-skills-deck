@@ -249,8 +249,6 @@ export function createIssueList(deps: any): any {
     async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any): Promise<any> {
       try { const sc: any = await _idxScan(); return await sc.commitIssueIndex(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
     }
-    let _idxWinP: any = null
-    function _idxWin(): Promise<any> { if (!_idxWinP) _idxWinP = import('../../kernel/index-window-rules.js'); return _idxWinP }
     // ---- 原 index.js 475–488：缓存有效性判断与快照落盘收纳 ----
     const cacheSnapshotIsCurrent: any = async function (snap: any, cwd: any): Promise<any> {
       try {

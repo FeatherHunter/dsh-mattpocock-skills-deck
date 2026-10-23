@@ -277,10 +277,10 @@ module.exports = {
       comment:
         '内核只算数：内核范围就是 src/refresh/kernel/（src/shared/tracker/indexWindow.ts #1427 已搬进来，改名 index-window-rules.ts）'
         + '不许引运行环境能力（dependencyTypes core：文件、网络、进程、计时器都算）。'
-        + '唯一一条存量边（step-pricing.ts -> async_hooks）记在 tests/refresh-baseline.json，由 #1430 定夺'
-        + '（改成参数传入 / 非输入输出白名单 / 随基线清零删条目），清零前保留；其余从零开始守。',
+        + '唯一例外是 Node 内置的 async_hooks（#1430 定版）：存量边（step-pricing.ts -> async_hooks）由 #1430 在 to 侧 pathNot 放行'
+        + '：step-pricing.ts 用它在异步链路里透传本步计数，不碰文件不联网（要加第二个例外先改规格 #1419）；基线清单已随 #1430 删除；刷新规则无豁免，其余从零开始守。',
       from: { path: '^src/refresh/kernel/' },
-      to: { dependencyTypes: ['core'] },
+      to: { pathNot: ['async_hooks'], dependencyTypes: ['core'] },
     },
     {
       name: 'refresh-host-room-no-client-refs',
