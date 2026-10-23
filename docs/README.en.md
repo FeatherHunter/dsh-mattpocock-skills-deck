@@ -250,17 +250,21 @@ And thanks to everyone who left thoughts in comments and discussions. If you hit
 
 </div>
 
-<h2 align="center"><sub>CONNECT</sub><br>Connect</h2>
+<h2 align="center"><sub>CONNECT</sub><br>Feedback and Contact</h2>
 
 <div align="center">
 
-Scan to join the topic group — QR code never expires. Casual chat in the group, bugs and feature requests via Issues for better traceability.
+👏Welcome PRs and issues. A single spark can start a prairie fire 🔥. Any suggestion, opinion, idea or rant — come join the group and talk.
 
-<img src="../assets/qr-topic-group.png" width="280" alt="Scan to join topic group, dsh-mattpocock-skills">
-<br>
-<strong>Join topic group</strong>
-<br>
-<sub>dsh-mattpocock-skills · permanent QR code</sub>
+Bugs and feature requests go straight to ISSUEs for better traceability; casual chat and quick Q&A live in the groups.
+
+QQ group is permanent, WeChat group is time-limited, Feishu group is permanent — all three are the DSH plugin community group.
+
+<img src="../assets/contact-qq-permanent.jpg" width="260" alt="DSH plugin community group QQ QR code" /> <img src="../assets/contact-wechat-weekly.png" width="260" alt="DSH plugin community group WeChat QR code" /> <img src="../assets/contact-feishu-permanent.png" width="260" alt="DSH plugin community group Feishu QR code" />
+
+QQ group number 1020866453 — search the number to join if scanning fails.
+
+WeChat QR code is valid for 7 days and refreshed weekly; if expired, use QQ or Feishu instead.
 
 </div>
 
