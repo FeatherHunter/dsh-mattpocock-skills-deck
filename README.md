@@ -39,7 +39,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-把一整仓库的活装进一块随时能扫一眼的面板：地图、规格、票自动归位，每行都标着此刻该做的那一个动作，点一下指令就填进输入框，确认即发。
+DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分，可以做到session并发处理。效率加倍省心。
 
 <table>
   <tr>
@@ -61,7 +61,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-离手最近的一条状态栏：可接、故障、诊断、沉淀、交接、环境一次报清，点一下直达对应面板；正在推进的会话路线也挂在上面，切换会话不用回翻聊天记录。
+胶囊状态栏：核心信息直接呈现，快捷入口方便高效。
 
 <table>
   <tr>
@@ -76,7 +76,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-想到什么，随手就是一张票：一键起需求，类型选好，带上下文的指令已经写好，确认即发，不再手打模板。
+新增需求：在“探索流程”和“实施流程”中二选一，通过插件引导最终将所有IDEA落地。
 
 <table>
   <tr>
@@ -91,7 +91,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-随包 27 个技能（快照 v1.3.1）装好即用，却不用背命令：技能页把每个技能压成一行中文说明，顶部直接给当下最该用的推荐，点「加载」斜杠指令自动填进输入框。完整名单与教程见 Matt 官方 [aihero.dev/skills](https://www.aihero.dev/skills)。
+内置 27 个技能（v1.3.1）：同时提供技能原文，在使用过程中提供便利的学习原文途径。
 
 <table>
   <tr>
@@ -106,7 +106,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-面板不绑死一种存法：GitHub、本地 Markdown、GitLab 与无后端都能接，换跑道只换数据源，原数据留在原地、切回即见。开工前环境自检把缺的项一次列清，照提示补齐就能干。
+根据办公环境不同提供多样后端：GitHub、本地 Markdown、GitLab。
 
 <table>
   <tr>
@@ -121,7 +121,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-日常提交的三个视角收进面板：改了哪些文件、提交历史长什么样、几棵树在并行，不必再切终端敲 git 命令。
+提供简化的版本管理页面，方便查看。
 
 <table>
   <tr>
@@ -137,7 +137,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-面板长什么样由你定：设置页集中所有入口，调色板给每类标签配一套颜色，深浅主题下都一眼可辨。
+按钮颜色 = label标签颜色。调色板可以给每类标签配置颜色。
 
 <table>
   <tr>
@@ -152,7 +152,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 
 <div align="center">
 
-从空工作区到能开工，六步走完，不用查文档：选后端、确认注入、等 AI 执行，最后环境自检兜底。
+六步完成工作区的初始化。
 
 <table>
   <tr>
