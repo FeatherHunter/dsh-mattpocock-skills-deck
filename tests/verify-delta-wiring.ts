@@ -38,7 +38,7 @@ async function run() {
   const win = await imp('src/refresh/kernel/index-window-rules.js')
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const issueListMod = await imp('src/refresh/rooms/host/issue-list-fetch.js')
-  const commentMod = await imp('src/refresh/rooms/host/comment-thread-fetch.js')
+  const probeMod = await imp('src/refresh/rooms/host/probe-handler.js')
   const wiringMod = await imp('src/refresh/rooms/host/refresh-runtime.js')
 
   // ---- 假世界：一份内存快照 + 一个记账的传输层 + 一份可摆布的窗口索引 ----
@@ -132,14 +132,14 @@ async function run() {
   const rawSend = wiring.gate.send
   wiring.gate.send = function (req, perform) { seenKeys.push(String((req && req.workspaceKey) || '')); return rawSend.apply(wiring.gate, arguments) }
 
-  const comments = commentMod.createCommentThreads({
+  // #1429 D4：探针电话改由 probe-handler.ts 直接组装（只收 16 个探针依赖，多余的不再传）。
+  const comments = probeMod.createProbeHandler({
     canonicalKey: async (p) => String(p),
     selectEarly: async () => null,          // 探测走 GitHub 那一条（窗口索引 + 行级增量）
     isComposerSelection: () => false,
     getTrackerRegistry: async () => null,
     getPlatform: async () => ({ path: path.posix }),
     ctx: { get: () => undefined },
-    DEFAULT_CWD: CWD,
     errText: (e) => String((e && e.message) || e),
     fetchIssueIndexWindowed: (cwd) => issueList.fetchIssueIndexWindowed(cwd),
     commitIssueIndex: (cwd, wm) => issueList.commitIssueIndex(cwd, wm),
@@ -150,7 +150,6 @@ async function run() {
     setCache: (v) => { if (v && v.snapshot) cacheBox.snapshot = v.snapshot },
     lastIssueIndexByRepo: {},
     lastProbeAtByRepo: {},
-    logCtx: logCtx,
   })
 
   // ---- ① 探测说变了：只发薄查询，并把补好的那一份交回客户端 ----

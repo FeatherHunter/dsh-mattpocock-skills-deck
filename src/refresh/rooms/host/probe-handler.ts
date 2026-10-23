@@ -5,7 +5,7 @@
  * 行级增量的逻辑自成一体，留在一起改探针要读完整文件的上下文，拆出来之后探针只改这一个文件。
  *
  * 来源：src/refresh/rooms/host/comment-thread-fetch.ts 的 handleProbe（#1429 C3 拆分，只移动代码、
- * 行为零变化；拆分当下调用点仍经 comment-thread-fetch 转交，D4 才把入口接到这里）。
+ * 行为零变化；D4 起宿主入口与门禁夹具都直连这里，comment-thread-fetch 不再暴露探针）。
  *
  * 不能改的约定（与原来完全一致）：
  * 1. 探针水印只在变化真的并进列表之后才推进（commitIssueIndex），没并进去时一个字节都不动，

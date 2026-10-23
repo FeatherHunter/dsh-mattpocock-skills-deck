@@ -1,15 +1,14 @@
 /**
- * src/refresh/rooms/host/comment-thread-fetch.ts —— 单票详情与评论读写及增量探针（来源：src/refresh/rooms/host/comment-thread-fetch.js，H5 #449 从 host/index.js 389–670 搬出电话体，纯结构、行为零变化；本次只加类型标注与注释，逻辑一行未动；#1429 C3 把探针处理器拆到 probe-handler.js，本文件只保留转交）。
+ * src/refresh/rooms/host/comment-thread-fetch.ts —— 单票详情与评论读写（来源：src/refresh/rooms/host/comment-thread-fetch.js，H5 #449 从 host/index.js 389–670 搬出电话体，纯结构、行为零变化；本次只加类型标注与注释，逻辑一行未动；#1429 C3 把探针处理器拆到 probe-handler.js，本文件只保留转交）。
  *
  * 为什么要有它（一句话）：单票详情、评论分页读写与面板增量探针原来都挤在宿主入口里，搬到这里之后调用点只按名取，
- * 详情字段、分页策略与探针水印各自改各自的，不互相绊倒。
+ * 详情字段与分页策略各自改各自的，不互相绊倒。
  *
  * 三条不能改的约定（改之前先看原来文件头那三行与调用点 index.js）：
  * 1. 由 index.js 动态引用加载，normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件只引用原来那两个模块，不新增引用。
  * 2. 评论分页是 GraphQL 优先、失败退回 REST，退回条件（限流、分页失败）与原来完全一致，改了任何一条都会让面板在弱网下丢评论。
- * 3. 探针水印只在变化真的并进列表之后才推进（commitIssueIndex），没并进去时一个字节都不动，否则那条变化会被挤出下一次的扫描窗口，此后再也发现不了。
+ * 3. 探针水印的约定搬到 probe-handler.ts（原来第 3 条，字句未动）：本文件不再经手水印。
  */
-import { createProbeHandler } from './probe-handler.js'
 // #1115：opCtx 上那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
 import { hostTimers } from '../../contract/host-timer-ports.js'
 
@@ -24,7 +23,6 @@ import { hostTimers } from '../../contract/host-timer-ports.js'
 /** 组装函数收到的依赖：目录归一、后端选择、注册表、执行口、索引与缓存等，全由调用点显式传入。 */
 interface CommentThreadsDeps {
   normCwd: any
-  canonicalKey: any
   selectEarly: any
   isComposerSelection: any
   getTrackerRegistry: any
@@ -39,27 +37,19 @@ interface CommentThreadsDeps {
   execProc: any
   fetchIssueDetail: any
   fetchIssueIndex: any
-  fetchIssueIndexWindowed: any
-  commitIssueIndex: any
-  deltaRefresh: any
   issueIndexFromSnapshot: any
-  issueIndexChanged: any
-  rememberIssueIndex: any
-  getCache: any
   setCache: any
-  lastIssueIndexByRepo: any
-  lastProbeAtByRepo: any
   logCtx: any
 }
 
 /**
- * 组装单票详情、评论读写与增量探针电话（依赖全显式传入）。
+ * 组装单票详情与评论读写电话（依赖全显式传入；探针电话 #1429 D4 起由 probe-handler.ts 组装）。
  *
- * 为什么：六个电话共享同一套前奏（空目录闸、分发判据、仓库键），收在一个组装函数里只是为了与原来 index.js 的电话体一一对应。
- * 什么约定不能改：返回对象的六个字段名是调用点按名取的，改名调用点就拿不到。
+ * 为什么：五个电话共享同一套前奏（空目录闸、分发判据、仓库键），收在一个组装函数里只是为了与原来 index.js 的电话体一一对应。
+ * 什么约定不能改：返回对象的五个字段名是调用点按名取的，改名调用点就拿不到。
  */
 export function createCommentThreads(deps: CommentThreadsDeps): any {
-  const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, deltaRefresh, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps as any
+  const { normCwd, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, issueIndexFromSnapshot, setCache, logCtx } = deps as any
   // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
   async function fetchIssueCommentsREST(n: any, after: any, cwd: any): Promise<any> {
     const repo: any = await getRepoKey(cwd)
@@ -262,8 +252,5 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       return r
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
-  // 探针处理器（handleProbe）已拆到 probe-handler.ts（#1429 C3 拆分）：下面这一行只做转交，
-  // 处理体、注释与水印约定都在那边，行为零变化（D4 才把入口直接接到那边）。
-  const _probe = createProbeHandler({ canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, errText })
-  return { fetchIssueCommentsREST, fetchIssueComments, handleIssueDetail, handleIssueComments, handleCommentIssue, handleProbe: _probe.handleProbe }
+  return { fetchIssueCommentsREST, fetchIssueComments, handleIssueDetail, handleIssueComments, handleCommentIssue }
 }
