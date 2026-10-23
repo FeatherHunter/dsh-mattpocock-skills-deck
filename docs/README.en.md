@@ -259,3 +259,15 @@ And thanks to everyone who left thoughts in comments and discussions. If you hit
 <table align="center"><tr><td align="center"><b>QQ Group</b></td><td align="center"><b>WeChat Group</b></td><td align="center"><b>Feishu Group</b></td></tr><tr><td><img src="../assets/contact-qq-permanent.jpg" width="260" alt="DSH plugin community group QQ QR code" /></td><td><img src="../assets/contact-wechat-weekly.png" width="260" alt="DSH plugin community group WeChat QR code" /></td><td><img src="../assets/contact-feishu-permanent.png" width="260" alt="DSH plugin community group Feishu QR code" /></td></tr></table>
 
 </div>
+
+<div align="center">
+
+<a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=20261023" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261023" />
+    <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261023" />
+  </picture>
+</a>
+
+</div>
