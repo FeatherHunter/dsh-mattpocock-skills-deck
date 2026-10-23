@@ -9,8 +9,10 @@
  *  1. 读会话的裁决口一律放行（理由 'read-path'）：旧路读操作根本不过闸，照抄写路径的剩余量裁决会在
  *     低额度时把读拒掉，那是行为变化，不是迁移。写会话的裁决仍走装配层那一份（与 deck 工具同一份口径），
  *     写权限由判定出口的 canWrite 决定，取不到就当没就绪。
- *  2. 记账口暂时仍是空实现（与 1442、1443、1444 同一口径）：1446 才把账本换成后端预算模型记账。
- *     旧路读写操作也不进账本，今天照抄会凭空多出消耗。
+ *  2. 记账口自 #1446 起是真记账：房间在成功信封上自报用量（OpUsage），换算成「后端 + 桶」的
+ *     几笔交给账本（见 src/refresh/kernel/backend-accounting.ts）。读路径也一样记账——「不被额度拦」
+ *     与「花了多少要记下来」是两件事，前者是裁决，后者是量账；1439 之前读路径不记账才让账本越走越偏。
+ *     开会话时顺手调一次 ensureBackend：账本按后端建模，桶要先建出来，写第一笔时才不会因为桶缺席当场炸。
  *  3. 仓库身份随会话一起交出去（openTracker 回包里的 repoRef）：写操作要一个 RepositoryRef，
  *     判定出口没带时在这里用 describe 补一次；GitHub 仍缺 refId 时按旧的评论写路径同一条三级解析
  *     退到 getRepoKey（git remote → .git/config → gh repo view）。调用方不再自己问注册表。
@@ -19,6 +21,7 @@
  * 不开整套读写路径。本文件的开会话也复用它——读数仍然直达房间，不裁决不记账。
  */
 import { openTracker } from '../../../tracker/session/open-tracker.js'
+import { spendsOfAccount } from '../../kernel/backend-accounting.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 import type { SelectionResolver } from '../../../tracker/session/open-tracker.js'
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
@@ -41,6 +44,12 @@ export interface SessionOpenerDeps {
   getRepoKey?: (cwd: string) => Promise<{ owner?: string; name?: string } | null>
   /** 日志口（只用于开会话失败时的诊断，事件名 read.session）。 */
   logCtx?: { fire?: (level: unknown, event: unknown, fields: unknown) => void } | null
+  /**
+   * 把「这个后端按什么口径花钱」交给账本（账本据此建桶；#1446 加）。
+   * 为什么由装配方注入而不是本文件去拿账本：本文件不持有账本，只持有桥给的三个端口；
+   * 装配方（refresh-runtime）手里才有账本实例。缺省不调：门禁与单测里不注入就保持旧行为。
+   */
+  ensureBackend?: (backendId: string, budget: unknown) => void
 }
 
 /** 一层会话：会话本身、这一次的仓库身份、以及「这个会话能不能写」的结论。 */
@@ -88,8 +97,25 @@ const readAdmit: AdmitPort = function (): { allowed: true; reason: string } {
   return { allowed: true, reason: 'read-path' }
 }
 
-/** 记账口：空实现（见文件头第 2 条，真实用量归 1446；旧路读写操作都不进账本）。 */
+/** 记账口缺席时的空实现：没有账本可写就什么也不记（门禁与单测里常见，生产由桥注入真实现）。 */
 const emptyAccount: AccountPort = function (): void {}
+
+/**
+ * 记一笔（#1446）：真正的换算是纯函数（backend-accounting.ts），这里只负责把几笔交给账本。
+ * 账本是装配方经实时器给的，本文件只知道「有个 spend 可调」，不解释后端口径。
+ */
+function realAccount(deps: SessionOpenerDeps): AccountPort {
+  return function (input: any): void {
+    const ledger: any = deps.ledger
+    if (!ledger || typeof ledger.spend !== 'function') return
+    const spends = spendsOfAccount(input)
+    const backendId: string = input && typeof input.backendId === 'string' ? input.backendId : ''
+    if (!backendId) return // 没有后端编号就没有账本上的格，宁可少记也不编一格出来
+    for (const spend of spends) {
+      ledger.spend({ account: 'plugin', backendId: backendId, bucket: spend.bucket, kind: input.op, requests: spend.requests, points: spend.points })
+    }
+  }
+}
 
 /**
  * 造开会话的函数。返回的函数永远回值、不抛：注册表没就绪、目录为空、会话开不成，
@@ -97,6 +123,9 @@ const emptyAccount: AccountPort = function (): void {}
  */
 export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opts?: OpenSessionOptions) => Promise<OpenSessionResult> {
   const ports = buildTrackerPorts({ ledger: deps.ledger })
+  // #1446：刷新这条路自己换算记账（换算是纯函数，见 kernel/backend-accounting.ts）；
+  // 桥里那份账号是 deck 工具那条路的，与本文件这份不共用（两条路的 caller 不同，账要分开记）。
+  const accountPort: AccountPort = realAccount(deps)
   const logCtx = deps.logCtx || null
   function openFail(reason: string, detail?: string): SessionFailure {
     try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('debug', 'read.session', { ok: false, reason: reason }) } catch (eL: any) {}
@@ -141,7 +170,8 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         registry: registry,
         getCachedReading: ports.getCachedReading as any,
         admit: (write ? ports.admit : readAdmit) as any,
-        account: (write ? ports.account : emptyAccount) as any,
+        // #1446：读写两条路都记账（读路径的裁决仍恒放行，见文件头第 1 条；记账不是裁决）。
+        account: accountPort as any,
         canWrite: !!(opts && opts.canWrite === true),
         ...(write
           ? { canWriteFromSelection: true, canWriteReason: '写会话的写权限由判定出口回答（取不到就是没就绪，不默认放开）' }
@@ -152,6 +182,8 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         return openFail(String((opened && opened.reason) || 'open-failed'), String((opened && opened.detail) || ''))
       }
       const session: TrackerSession = opened.session
+      // #1446：账本按后端建模，桶要先建出来（同一后端模型不变时这一步幂等，不会每次重建）。
+      try { if (typeof deps.ensureBackend === 'function') deps.ensureBackend(String(session.backendId), session.budget) } catch (eE: any) {}
       const repoRef: RepositoryRef | null = await resolveRepoRef(cwdStr, String(session.backendId), session, (opened.repoRef || null) as RepositoryRef | null)
       return {
         ok: true,

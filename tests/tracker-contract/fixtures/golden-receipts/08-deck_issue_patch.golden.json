@@ -5,10 +5,12 @@
   },
   "cost": {
     "actual": {
+      "backendId": "markdown",
+      "budgetKind": "off-network",
+      "offNetwork": true,
       "points": 8,
-      "remaining": -1,
-      "requests": 4,
-      "tier": "off-network"
+      "readKnown": true,
+      "requests": 4
     },
     "estimated": {
       "perShard": 1,
@@ -17,7 +19,8 @@
       "shards": 1,
       "text": "这次 deck_issue_patch 预计花 8 点、4 条出站请求，在硬顶之内。",
       "withinCallCap": true
-    }
+    },
+    "note": "本后端不需要额度（离网口径）。"
   },
   "data": {
     "requested": [
@@ -83,8 +86,7 @@
     }
   ],
   "notes": [
-    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard",
-    "本后端不需要额度（离网口径）：这次记 0 条、0 点，剩余额度与档位不适用。"
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
   ],
   "ok": true,
   "readBack": {

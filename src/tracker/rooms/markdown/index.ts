@@ -17,6 +17,8 @@ import { ensureLabelColors } from './label-colors.js'
 import { useBuiltinLabelColors } from './label-colors-palette.js'
 import { failAs } from './error-fail.js'
 import { emitReadDegraded } from './read-log.js'
+// #1446：本地房的读额度是一条纯回答（离网口径），实现在 ./budget.ts。
+import { readMarkdownBudget } from './budget.js'
 // node:path 无类型声明（与 path.ts 同款）：压住这一行，拿到的 nodePath 按 any 用。
 // @ts-expect-error node:path has no types here (types: []), same as path.ts
 import nodePath from 'node:path'
@@ -27,7 +29,7 @@ import type { PartiallyProvidedCapability, ProvidedCapability, StubbedByBackend 
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { MARKDOWN_CAPABILITY_REGISTER } from './capability-register.js'
 
-// —— Markdown 交出来的成员：22 条能力 + id（读预算记未来会开发，不进成员集合） ——
+// —— Markdown 交出来的成员：23 条能力 + id（读预算自 #1446 起「明确提供功能」，随本条进成员集合） ——
 // 这份集合不再手写，从本房的登记数据推出来：明说「提供」的名字、明说「做了但没做到位」的名字（#1174 第四档，
 // 它们的实现是有的），再加上「明确不支持、但后端自己在实例上补了显式桩」的那 4 条（登记里 `stubBy: 'backend'`）。
 // 定位口要摘掉两条：本后端只有 `describe` / `issueAddress` 住在模块对象上（`markdownModule`）、不在工厂实例上，
@@ -297,6 +299,8 @@ export function createMarkdownBackend(ctx: OpContext) {
     // 空也是答案，不是失败」，所以这不是一条失败桩，是一条诚实回空的实现。
     // 契约 `operations.ts` 里那句「本地 Markdown 后端没有这条」也随这次改成「算不出来就回空」。
     getRepoKey: async ()=>null,
+    // 读额度（#1446）：本地房是离网口径，答案固定为「离网」，不读盘、不调任何东西。
+    readBudget: async ()=>readMarkdownBudget(),
   } satisfies MarkdownBackendShape
 }
 /** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——

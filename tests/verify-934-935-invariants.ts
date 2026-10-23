@@ -108,7 +108,9 @@ async function main() {
     chooseWorkspace(sA.cwd, 'markdown')
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
-    ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
+    // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+    ledger.ensureBackend('github', { kind: 'two-buckets' })
+    ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
     const depsAB = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey, workspaceKeyOf }
     const pickA = await openedOfI(depsAB, execA, sA)
     // 第二路用原始写法进，但上下文已归一，显式必须命中
@@ -126,7 +128,9 @@ async function main() {
     registry.register({ id: 'b2', label: 'B2', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => true })
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
-    ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
+    // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+    ledger.ensureBackend('github', { kind: 'two-buckets' })
+    ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
     const depsM = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey: async (x) => String(x), workspaceKeyOf }
     const s = { cwd: '/ws-multi', workspaceKey: 'deadbeef', sessionId: 's-m' }
     const pick = await openedOfI(depsM, {}, s)

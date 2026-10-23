@@ -41,7 +41,9 @@ function makeDeps(store: Record<string, unknown>) {
   // 账本与闸：给一份「刚同步过、额度充足」的读数 —— 不然闸会按「剩余为 0」把后台档判成
   // reserve-kept-for-writes（那是另一条路径，本门禁要测的是「同一套实例」下的放行）。
   const ledger = LedgerMod.createLedger({ now: () => CLOCK })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
   const gate = GateMod.createGate({ ledger: ledger, now: () => CLOCK, logCtx: store.logCtx })
   store.ledger = ledger
   store.gate = gate

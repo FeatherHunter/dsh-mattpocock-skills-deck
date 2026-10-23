@@ -25,6 +25,8 @@ import { fail, rawText } from '../../kernel/preflight.js'
 // 记日志那层壳在内核一份（#1182 第 3 件）：本房只管给出级别、事件名与字段。
 import { guardEmit } from '../../kernel/log-emit.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
+// #1446：每一次真实出站同时记进「这一次操作」的计数器（op-usage.ts 在操作表外层取走）。
+import { noteGithubUsage } from './op-usage.js'
 import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
 // 默认超时住中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），这里只留别名。
 import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
@@ -34,6 +36,17 @@ import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/src/values
 import type { OutboundControl } from '../../contract/outbound.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITHUB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+
+/**
+ * 一个 gh 客户端自己数到的真实出站（#1446）：请求条数与点数。
+ * 客户端是「谁真正发了命令」的那一层，用量只在这里数一次；上层拿到的永远是这一份的分身。
+ */
+export interface GhUsage {
+  /** 真正发出去的请求条数（一次命令一条）。 */
+  requests: number
+  /** 真正花掉的点数（只有 graphql 命令算 1，其余为 0）。 */
+  points: number
+}
 
 /** gh 执行成功的数据：三件套，调用方读 stdout 解析，stderr 留查，code 为 0。 */
 export interface GhExecData {
@@ -169,12 +182,18 @@ function getOutbound(ctx: OpContext): OutboundControl | null {
  * 房内不报的后果是账对不上（漏网计数会露出来），所以没接上时这里什么都不做 —— 不允许
  * 「没接上就自己发出去还不说」。
  */
-function reportOutbound(ctx: OpContext, args: string[]): void {
+function reportOutbound(ctx: OpContext, args: string[], usage?: GhUsage): void {
   try {
-    const gate = (ctx && (ctx as unknown as Record<string, unknown>).gate) as OutboundGate | null | undefined;
-    if (!gate || typeof gate.noteOutbound !== 'function') return
     const isGraphql = String(args && args[0] || '').indexOf('graphql') >= 0
-    gate.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
+    const entry = { requests: 1, points: isGraphql ? 1 : 0 }
+    // 留在客户端上的计数：这一次操作结束时随成功信封交给记账侧（#1446）。
+    if (usage) { usage.requests += entry.requests; usage.points += entry.points }
+    // 同时记进这一次操作的异步上下文：操作表外层用它拼信封，并发操作各算各的。
+    noteGithubUsage(entry)
+    const gate = (ctx && (ctx as unknown as Record<string, unknown>).gate) as OutboundGate | null | undefined;
+    // 没接上闸时也照样留下客户端计数：用量是房间自己数的，不该因为闸缺席就丢。
+    if (!gate || typeof gate.noteOutbound !== 'function') return
+    gate.noteOutbound(entry)
   } catch { /* 报账失败不许影响已经起来的这一条命令 */ }
 }
 
@@ -199,9 +218,11 @@ function getCwd(ctx: OpContext, explicitCwd: string | undefined): string | undef
  *
  * 为什么收契约上下文：gh 路径走平台解析、进程走上下文执行、超时走分档表，三个底座全在上下文里，不直读全局。
  */
-export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhExecOpts) => Promise<GhExecResult>; execJson: (args: string[], opts?: GhExecOpts) => Promise<GhJsonResult>; run: (args: string[], cwdOrId?: unknown) => Promise<GhExecResult> } {
+export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhExecOpts) => Promise<GhExecResult>; execJson: (args: string[], opts?: GhExecOpts) => Promise<GhJsonResult>; run: (args: string[], cwdOrId?: unknown) => Promise<GhExecResult>; usage: GhUsage } {
   const platform = getPlatform(ctx)
   const exec = getExec(ctx)
+  // 这个客户端实例自己数到的出站：调用方可以在操作结束后原样读走，不需要另做前后相减。
+  const usage: GhUsage = { requests: 0, points: 0 }
 
   // #7 gh.resolve.fail（告警，常驻）：只记是否配备用路径与错误散列，不记路径原文。
   function emitResolveFail(message: unknown): void {
@@ -228,7 +249,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       // 避免因为 subprocess.resolveExecutable 的 PATH 与 pwsh 的 PATH 不一致导致 414 这类外部建票永远拉不到
       if (exec) {
         try {
-          reportOutbound(ctx, ['--version'])
+          reportOutbound(ctx, ['--version'], usage)
           const probe = await exec('gh', ['--version'], { cwd: cwd || getCwd(ctx, undefined), timeout: GITHUB_PROBE_TIMEOUT_MS })
           if (probe && probe.stdout && String(probe.stdout).includes('gh version')) {
             return { ok: true, ghPath: 'gh' }
@@ -390,7 +411,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     try {
       // #723（T19）：这一笔真实出站先报给闸（I1）。报在拿名额之后 —— 排队等待不算这一笔，
       // 真要起进程了才报，取消排队的不进账，账与真实出站一一对应。
-      reportOutbound(ctx, args)
+      reportOutbound(ctx, args, usage)
       // #1007：起进程这一段同样与「到点」赛跑 —— 执行器要是不落地，房内的表到点就掀桌子。
       const raced = await raceDeadline(exec('gh', args, { cwd, timeout, signal: laneSignal }))
       if (isDeadlineHit(raced)) return selfTimeoutOutcome('inflight')
@@ -494,6 +515,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     execGh,
     execJson,
     run, // 兼容旧调用
+    usage, // #1446：这一次客户端生命周期内真正发出去的请求与点数
     // 便捷：gh api --paginate 模拟（简单封装，调用方传 --paginate 时由 execGh 直接交 gh 处理）
   }
 }

@@ -125,13 +125,22 @@ async function main() {
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
   const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 起账本按后端分桶：先建出 github 这只后端，读数再按后端 id 落账。
+  // 这里只建一只 —— 读缓存口不带后端时靠「账本里只有一只后端」认出它，与本段只关心
+  // 「裁决看到真读数」这一点相符；多只后端时歧义归装配层（见 quotaPart 的 backendId 来源）。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // 只计请求的后端（GitLab）只有 requests 一格：它也要有真读数，否则裁决看到的是「还没量出来」。
+  ledger.ensureBackend('gitlab', { kind: 'requests-only' })
+  ledger.syncServer('gitlab', { requests: { limit: 2000, remaining: 2000, reset: clock + 3600000 } }, clock)
 
   // #1442：工具不再自己过闸 —— 每次操作的准入搬进了 Tracker 会话管线（读缓存 → 裁决 → 转发 → 记账）。
   // 这一段把装配层配的那三件（src/refresh/registry/deck-tool-bridge.ts 的 buildTrackerPorts）
   // 原样接过来，只在外面裹一层计数：门禁不另抄一份裁决口径，也能看清「哪一次操作被放行、什么时候记的账」。
   const bridgeMod = await imp('src/refresh/registry/deck-tool-bridge.ts')
-  const trackerPorts = bridgeMod.buildTrackerPorts({ ledger: ledger })
+  // 注册表在下面才建出来（模块要一条条 register）：先留一格，注册完再按「账本 + 注册表」重建，
+  // 这样读数口才认得出每个后端的预算口径（离网后端回「已知且不需要额度」，而不是「还没量出来」）。
+  let trackerPorts = bridgeMod.buildTrackerPorts({ ledger: ledger })
   let pipelineWindows = 0        // 已放行、还没记账的操作窗口数（管线一次操作一个）
   let admitCalls = 0
   let accountCalls = 0
@@ -198,6 +207,7 @@ async function main() {
     // 这个车道的「用户亲手选过谁」写进夹具账本（等价于往工作区文件里写一行）。
     chooseWorkspace(lane.handle.cwd, lane.id)
   }
+  trackerPorts = bridgeMod.buildTrackerPorts({ ledger: ledger, registry: registry })
   const byCwd = new Map(lanes.map((l) => [l.handle.cwd, l]))
   const laneOf = (id) => lanes.find((l) => l.id === id)
 

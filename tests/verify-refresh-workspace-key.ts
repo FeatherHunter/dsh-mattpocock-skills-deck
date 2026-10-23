@@ -130,7 +130,9 @@ async function makeHost() {
   })
 
   const ledger = ledgerMod.createLedger({ now: () => clock })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const realGate = gateMod.createGate({ ledger: ledger, now: () => clock })
   const seen = []   // 每一次过闸：带了哪把钥匙、什么种类、闸怎么判的
   const gate = {

@@ -307,7 +307,8 @@ const ALLOWED = {
   // 2026-09-23 #706（T2 第二批）新增三条按需事件（附录 1.5 节 #75～#77）：闸与账本自己产生的三条轨迹 ——
   //   一笔花费（哪一档、哪个桶、几条真实出站请求、几点、记完还剩多少）、一次裁决（类别、种类、结论、原因代号、档位）、
   //   一次跳过（工作区键散列、种类、原因、推迟队列里现在几条）。都只记枚举、散列与数字，不记路径原文与命令原文。
-  'quota.spend': ['account', 'bucket', 'requests', 'points', 'remaining'],
+  // #1446 起账本按「后端/桶」分格，记账日志必须能说清记到哪个后端头上（schema 增字段：含义稳定、旧字段不改含义）。
+  'quota.spend': ['account', 'backendId', 'bucket', 'requests', 'points', 'remaining'],
   // 2026-10-21（#1008/#1218 复核）按需 #76 refresh.decide 与 #77 refresh.skipped 在「这个工作区还处在
   //   连续失败窗口里」时增补五个归因键，窗口外一个都不带（正常时段的这两行与从前一字不差）：
   //   failuresSinceSuccess 连续失败几次、backoffWindowStartedAt 这串从什么时候开始、lastFailureCategory 最近一次

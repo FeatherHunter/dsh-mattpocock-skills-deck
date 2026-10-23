@@ -141,10 +141,13 @@ async function main() {
   /** 建一个世界：真闸 + 真账本 + 真注册表 + 可数 select + 测试本地裁决记账三件套。 */
   async function buildWorld(backendId: string, reading: unknown, extraModules: any[] = []) {
     const ledger = ledgerMod.createLedger({ now: () => clock });
+    // #1446 起账本按「后端 + 桶」记账：先把这个后端的口径建出来，读数才有桶可落。
+    const readingKind = (reading && (reading as any).kind) || 'off-network';
+    ledger.ensureBackend(backendId, { kind: readingKind });
     // 生产里 ensureReading 在选后端前把账本煨热：这里同做法，有读数就先同步进账本。
     if (reading && (reading as any).known === true && (reading as any).buckets && (reading as any).buckets.rest) {
       const buckets = (reading as any).buckets;
-      ledger.syncServer({
+      ledger.syncServer(backendId, {
         rest: { limit: buckets.rest.limit, remaining: buckets.rest.remaining, reset: clock + 3600000 },
         graphql: { limit: buckets.graphql.limit, remaining: buckets.graphql.remaining, reset: clock + 3600000 },
       }, clock);
@@ -163,7 +166,7 @@ async function main() {
         const model = (input && input.budget) || {};
         if (model.kind === 'off-network') return;
         const claimed = (input && input.result && input.result.claimed) || { requests: 0, points: 0 };
-        ledger.spend({ account: 'ai-tool', bucket: 'graphql', requests: claimed.requests || 0, points: claimed.points || 0 });
+        ledger.spend({ account: 'ai-tool', backendId: (input && input.backendId) || backendId, bucket: 'graphql', requests: claimed.requests || 0, points: claimed.points || 0 });
       },
       getCachedReading: () => reading,
     };
@@ -185,7 +188,7 @@ async function main() {
       tools, gate, ledger,
       selectCount: () => selectCount,
       claimed: () => ({ requests: gate.stats().claimed.requests, points: gate.stats().claimed.points }),
-      hour: () => ledger.hourOf('ai-tool'),
+      hour: () => ledger.hourOf('ai-tool', backendId),
       run: async (name: string, args: unknown) => {
         try { return { r: await tools[name].run(exec, args), threw: '' }; }
         catch (e) { return { r: null, threw: String((e as Error && (e as Error).message) || e) }; }
@@ -224,10 +227,13 @@ async function main() {
     check(h.requests === 0 && h.points === 0, '账本记 0（实得 ' + JSON.stringify(h) + '）');
     const ctx = await w.run('deck_context', {});
     const actual = ctx.r && ctx.r.cost && ctx.r.cost.actual;
-    check(!!actual && actual.remaining === -1 && actual.tier === 'off-network',
-      '离网回执不带 0 剩余与红色档位（实得 ' + JSON.stringify(actual) + '）');
-    check(!!ctx.r && (ctx.r.notes || []).some((n: string) => n.indexOf('不需要额度') >= 0),
-      '离网回执写明本后端不需要额度（实得 ' + JSON.stringify(ctx.r && ctx.r.notes) + '）');
+    // #1446：离网回执不再拿 -1 / 'off-network' 冒充水位，改成四格事实 + 一句人话；remaining/tier 根本不出现。
+    check(!!actual && actual.backendId === 'markdown' && actual.budgetKind === 'off-network' && actual.readKnown === true && actual.offNetwork === true,
+      '离网回执带四格事实（实得 ' + JSON.stringify(actual) + '）');
+    check(!!actual && actual.remaining === undefined && actual.tier === undefined,
+      '离网回执不带 remaining / tier（实得 ' + JSON.stringify(actual) + '）');
+    check(!!ctx.r && !!ctx.r.cost && String(ctx.r.cost.note || '').indexOf('不需要额度') >= 0,
+      '离网回执用 cost.note 写明本后端不需要额度（实得 ' + JSON.stringify(ctx.r && ctx.r.cost) + '）');
   }
 
   // ── 二、双桶桩（有额度同步）：成功行为与当前一致，回执带真实读数 ──
@@ -237,8 +243,10 @@ async function main() {
     check(!threw && !!r && r.status === 'ok', '双桶桩读成功（实得 ' + (threw || (r && r.status) + '/' + (r && r.reason)) + '）');
     check(w.selectCount() === 0, '双桶桩也没调选择接口（实得 ' + w.selectCount() + ' 次）');
     const actual = r && r.cost && r.cost.actual;
-    check(!!actual && typeof actual.remaining === 'number' && actual.remaining >= 0,
-      '双桶桩回执带真实剩余额度（实得 ' + JSON.stringify(actual) + '）');
+    check(!!actual && actual.readKnown === true && actual.offNetwork === false && actual.budgetKind === 'two-buckets'
+      && typeof actual.remaining === 'number' && actual.remaining >= 0 && typeof actual.tier === 'string',
+      '双桶桩回执带四格事实与真实水位（实得 ' + JSON.stringify(actual) + '）');
+    check(!!r && !!r.cost && !r.cost.note, '双桶桩回执没有未知/离网说明（实得 ' + JSON.stringify(r && r.cost) + '）');
   }
 
   // ── 三、双桶桩额度见底：拒绝且不花额度 ──

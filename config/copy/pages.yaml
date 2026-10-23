@@ -37,6 +37,11 @@ zh:
   truth.notRefreshing: 未在刷新（同时活跃上限 2）
   truth.lag: 数据可能落后 {min} 分钟
   truth.writing: 更新中
+  truth.budgetGraphql: GraphQL 剩 {remaining}/{limit}
+  truth.budgetRest: REST 剩 {remaining}/{limit}
+  truth.budgetRequests: 请求额度剩 {remaining}/{limit}
+  truth.budgetOffNetwork: 本后端不出站，不需要额度
+  truth.budgetUnknown: 额度读数还没同步上来
   list.restFallbackNonQuota: 这次取数走了 REST 通道（数据可能略旧）
   list.restFallbackStaleNonQuota: 上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧
   chainView.title: 每个会话在处理哪些票
@@ -110,6 +115,11 @@ en:
   truth.notRefreshing: Not refreshing (concurrent active limit 2)
   truth.lag: Data may lag up to {min} min
   truth.writing: Updating
+  truth.budgetGraphql: "GraphQL {remaining}/{limit} left"
+  truth.budgetRest: "REST {remaining}/{limit} left"
+  truth.budgetRequests: "Request quota {remaining}/{limit} left"
+  truth.budgetOffNetwork: This backend makes no outbound calls; no quota needed
+  truth.budgetUnknown: Quota reading has not synced yet
   list.restFallbackNonQuota: This fetch went through the REST channel (data may be slightly stale)
   list.restFallbackStaleNonQuota: Last fetch went through the REST channel ({n} min ago) — data may be slightly stale
   chainView.title: Which tickets each session is working on

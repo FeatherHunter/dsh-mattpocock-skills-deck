@@ -136,6 +136,8 @@ export async function openTracker(handle: RepoHandle, options: OpenTrackerOption
       getCachedReading: options.getCachedReading,
       admit: options.admit,
       account: options.account,
+      // #1446：会话属于哪个后端，管线记账时按它给账本分格（会话不再另起一个后端编号）。
+      backendId: selection.backendId,
       onEvent: options.onEvent,
     }
     const session = {

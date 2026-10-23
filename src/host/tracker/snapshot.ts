@@ -59,10 +59,74 @@ interface SnapshotComposerRegistry {
   get: (id: string) => any
 }
 
+// —— 额度读数（#1446）——
+// 快照 refresh 里的 tier / deferred / paused / notRefreshing 四格说的是刷新闸自己的账；
+// 「这个后端还剩多少额度」是另一件事，由宿主的刷数预算按后端报上来（生产者在 refresh-runtime 的
+// budgetState，接线归 Lead）。这一层只做搬运与形状校验：拿到就写进 refresh.backend，拿不到就不写这一格。
+// 为什么不写一个空壳：界面看到「没有 backend」会说「读数还没同步上来」；若塞 remaining: 0，
+// 界面就会报假耗尽 —— 不知道和耗尽必须分得开。
+// 字段只增不改：四个旧格子的语义、取值与次序一字不动，老客户端读不到 backend 也不会受影响。
+export type RefreshBudgetKind = 'two-buckets' | 'requests' | 'none'
+export type RefreshBudgetReason = 'not-measured' | 'unavailable' | 'unsupported'
+export interface RefreshBudgetBucket {
+  remaining: number
+  limit: number
+}
+export interface RefreshBackendBudget {
+  id: string
+  budgetKind: RefreshBudgetKind
+  readKnown: boolean
+  offNetwork: boolean
+  buckets?: { rest?: RefreshBudgetBucket; graphql?: RefreshBudgetBucket }
+  requests?: RefreshBudgetBucket
+  reason?: RefreshBudgetReason
+}
+// 生产者可以只回读数本身，也可以回 {ok, readout} 这层包装（与 workRouteTableReadout 同一种口子）；
+// 只回 null 表示「这一趟拿不到」，编排器保持旧形状。
+export type BudgetReadout = Omit<RefreshBackendBudget, 'id'>
+type BudgetReadoutEnvelope = { ok?: boolean; readout?: BudgetReadout }
+
 interface SnapshotComposerOpts {
   snapshotTtl?: number
   depsTtl?: number
   logCtx?: { fire: (...args: any[]) => unknown; isEnabled: (...args: any[]) => boolean }
+  // 读某个后端当前的额度读数；拿不到就回 null（或干脆不接这个口子）。抛错按拿不到处理，不许打断快照重建。
+  budgetReadout?: (backendId: string) => BudgetReadout | BudgetReadoutEnvelope | null | undefined | Promise<BudgetReadout | BudgetReadoutEnvelope | null | undefined>
+}
+
+// 读数里的数字只认「非负整数」：额度是条数，出现小数、负数或 NaN 说明上游给的东西不是读数，
+// 当成拿不到比当成 0 安全（界面只会说「还没同步上来」，不会报假耗尽）。
+const BUDGET_KINDS: string[] = ['two-buckets', 'requests', 'none']
+function isBudgetCount(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 && Math.floor(v) === v
+}
+function budgetBucketOf(v: any): RefreshBudgetBucket | null {
+  if (!v || typeof v !== 'object') return null
+  if (!isBudgetCount(v.remaining) || !isBudgetCount(v.limit)) return null
+  return { remaining: v.remaining, limit: v.limit }
+}
+// 把生产者给的东西收敛成客户端认识的那一格；认不出来就回 null（编排器据此不写 backend）。
+function backendBudgetOf(backendId: string, raw: any): RefreshBackendBudget | null {
+  const r = (raw && typeof raw === 'object' && raw.ok === true && raw.readout && typeof raw.readout === 'object') ? raw.readout : raw
+  if (!r || typeof r !== 'object') return null
+  if (typeof r.budgetKind !== 'string' || BUDGET_KINDS.indexOf(r.budgetKind) < 0) return null
+  const out: RefreshBackendBudget = {
+    id: backendId,
+    budgetKind: r.budgetKind as RefreshBudgetKind,
+    readKnown: r.readKnown === true,
+    offNetwork: r.offNetwork === true,
+  }
+  const graphql = budgetBucketOf(r.buckets && r.buckets.graphql)
+  const rest = budgetBucketOf(r.buckets && r.buckets.rest)
+  if (graphql || rest) {
+    out.buckets = {}
+    if (graphql) out.buckets.graphql = graphql
+    if (rest) out.buckets.rest = rest
+  }
+  const requests = budgetBucketOf(r.requests)
+  if (requests) out.requests = requests
+  if (r.reason === 'not-measured' || r.reason === 'unavailable' || r.reason === 'unsupported') out.reason = r.reason
+  return out
 }
 
 interface ComposeOpts {
@@ -106,6 +170,18 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
   // 标记未使用的内部 helper：issueIndexVersion 是历史遗留的索引版号算法，当前组装走 snapshotVersionOf；
   // 留在这里只为如实保留原文件的完整面貌，不删除、不改动，调用方仍按原来路径取数。
   void issueIndexVersion
+
+  // 读一次额度读数：没接、抛错、形状不对都算「这一趟拿不到」，一律回 null。
+  // 为什么吞异常：额度读数只是快照上的一个附加事实，读它失败不能连累快照本身（老行为必须保持可用）。
+  const readBackendBudget = async (backendId: string): Promise<RefreshBackendBudget | null> => {
+    const read = opts && opts.budgetReadout
+    if (typeof read !== 'function') return null
+    try {
+      return backendBudgetOf(backendId, await read(backendId))
+    } catch (e) {
+      return null
+    }
+  }
 
   return {
     // 宿主编排 composeSnapshot（非 op）：list 全量 → 组装 maps/tickets/未挂图票 → deck 派生 → 缓存。
@@ -184,7 +260,12 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       // tier 是额度档位：今天宿主这一侧还没有闸的账本读数（闸与账本接进宿主是后面的事），所以如实留 null。
       //   留 null 的直接后果是界面不说「数据可能落后 X 分钟」——这是对的：不知道就不说，不许编一个。
       //   deferred / paused / notRefreshing 同理：没有那个事实就是 false，界面一个字都不显示。
-      snapshot.refresh = { tier: null, deferred: false, paused: false, notRefreshing: false }
+      // #1446：额度读数与这一趟重建同窗取（快照缓存 TTL 5 秒，版号把它一起带走）；拿不到就不写 backend，
+      //   保持今天这份 refresh 的形状 —— 少一格字段是「不知道」，写成 0 才是谎报耗尽。
+      const backendBudget = await readBackendBudget(backendId)
+      const refresh: any = { tier: null, deferred: false, paused: false, notRefreshing: false }
+      if (backendBudget) refresh.backend = backendBudget
+      snapshot.refresh = refresh
       try{ const ver=snapshotVersionOf(snapshot); snapshot.version=ver; snapshot.etag=ver; }catch(e){}
       const ent={snapshot, version:snapshot.version||'', at:Date.now()};
       touchSnapLRU(sk, ent);

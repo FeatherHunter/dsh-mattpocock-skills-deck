@@ -58,7 +58,9 @@ async function main() {
   const windowSince = []
   let clock = CLOCK0
   const ledger = ledgerMod.createLedger({ now: () => clock })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS }, graphql: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS }, graphql: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS } }, clock)
   const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
   gate.setWorkspace(WS, { active: true })
   const logLines = []
@@ -114,7 +116,8 @@ async function main() {
   check(st1.generation === 4 && r1.generation === 4, '世代号推进一格（3 → ' + st1.generation + '）')
   check(st1.pending.length === 0, '并进去之后待办是空的（实得 ' + st1.pending.length + ' 条）')
   check(logLines.some((l) => l.name === 'refresh.patch' && l.fields.mode === 'patch' && l.fields.watermark === 'advanced'), '补行落了一行 refresh.patch（按需级、字段里不出现路径原文）')
-  check(ledger.hour('plugin', 'rest').requests === 0 && ledger.view('graphql').used === 0 && gate.stats().accounted.requests === 0,
+  // #1446 账本按后端分键：小时计数与读数都按「后端/桶名」取。
+  check(ledger.hour('plugin', 'github/rest').requests === 0 && ledger.view('github', 'graphql').used === 0 && gate.stats().accounted.requests === 0,
     '②记账口径：读路径不花额度，REST 桶 0 条、GraphQL 0 点、闸上一笔都没记（#1444 起薄行走只读会话）')
 
   // ---- ③ 取数失败：待办仍在、水印不动、下次仍能发现 ----
@@ -148,7 +151,7 @@ async function main() {
   check(r3.mode === 'patch' && r3.rows.length === 1 && r3.rows[0] === '102', '③下一次仍然发现了同一条变化并补上了它（' + JSON.stringify(r3.rows) + '）')
   check((await patch.state(CWD)).pending.length === 0, '③补上之后待办清空')
   check(windowSince[winIdx2] === windowSince[winIdx3], '③失败那一次与下一次问的是同一个窗口起点（水印没动，那条变化没掉出窗口）')
-  check(gate.stats().accounted.requests === 0 && gate.stats().escaped.requests === 0 && ledger.hour('plugin', 'rest').requests === 0,
+  check(gate.stats().accounted.requests === 0 && gate.stats().escaped.requests === 0 && ledger.hour('plugin', 'github/rest').requests === 0,
     '读路径零记账：闸上一笔都没记、REST 桶 0 条、漏网 0（accounted ' + gate.stats().accounted.requests + '）')
 
   // ---- ④ 迟到的整池结果不许覆盖更新的增量结果 ----

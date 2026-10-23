@@ -144,6 +144,9 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
     model = ((modules.filter(function (m) { return m && m.id === backendId; })[0] || {}).budget || {}) as UnknownRecord;
   } catch { model = {}; }
   const offline = str(model.kind) === 'off-network';
+  // #1446：闸按后端模型选桶（只计请求的后端只有 requests 这一桶），并且告诉闸「这是哪个后端」——
+  // 不传 backendId 时闸只能按未知后端算，两桶保底与分桶读数就落不到这个后端头上。
+  const bucketFor = str(model.kind) === 'requests-only' ? 'requests' : 'graphql';
   const admitVolumes = { points: num(est.points), requests: num(est.requests), childTickets: num(est.tickets) };
   let admit: UnknownRecord;
   if (offline) {
@@ -155,11 +158,11 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
     if (typeof gate.admitAiTool !== 'function') return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '额度闸这次没装上，我没往下做。' };
     let probe: UnknownRecord;
     try {
-      probe = (await gate.admitAiTool({ points: 0, requests: 1, childTickets: 0 }, { workspaceKey: s.workspaceKey, bucket: 'rest' })) as UnknownRecord;
+      probe = (await gate.admitAiTool({ points: 0, requests: 1, childTickets: 0 }, { workspaceKey: s.workspaceKey, bucket: bucketFor, backendId: backendId })) as UnknownRecord;
     } catch { return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。' }; }
     if (!probe || probe.admitted !== true) return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(probe && (probe.detail || probe.reason || probe.text)) + '），先不做。' };
     try {
-      admit = (await gate.admitAiTool(admitVolumes, { workspaceKey: s.workspaceKey, kind: 'tool-batch', bucket: 'graphql' })) as UnknownRecord;
+      admit = (await gate.admitAiTool(admitVolumes, { workspaceKey: s.workspaceKey, kind: 'tool-batch', bucket: bucketFor, backendId: backendId })) as UnknownRecord;
     } catch { return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。' }; }
     if (!admit || admit.admitted !== true) return { ok: false, reason: REFUSAL_REASONS.OVER_CAP, text: str(admit && admit.text) || '这次调用超过了插件给 AI 工具设的硬顶，我没有动手。' };
   }
@@ -252,29 +255,79 @@ export interface DeckCallRequest {
 function envelope(tool: string, status: string, extra?: UnknownRecord): UnknownRecord {
   return Object.assign({ ok: status === DECK_STATUS.OK, status: status, tool: tool, reason: '', text: '' }, extra || {});
 }
-/** 剩余额度那一格：离网没有额度可言（哨兵 -1 加直说），没同步的按未知处理（未知不拦事）。 */
+/**
+ * 读支出那一格的四件事实（#1446）：这次算在哪个后端上、它按什么口径花钱、读数知不知道、离不离网。
+ * 为什么先摆事实再谈水位：旧回执用 remaining:-1 / tier:'off-network' 这类哨兵冒充数字，读的人分不清
+ * 「量出来是 1」与「根本没有这个数」；四格事实永远在，水位（remaining/tier）只在真量到且该后端有额度时附上。
+ */
+interface BudgetFacts {
+  backendId: string;
+  budgetKind: string;
+  readKnown: boolean;
+  offNetwork: boolean;
+}
+
+/** 额度读数还没同步上来时的说明（人话，不写哨兵）：未知不拦事，但这一笔不按额度记账。 */
+const NOTE_READING_UNKNOWN = '额度读数还没同步上来，这次不按额度记账。';
+/** 离网后端的说明：本来就没有额度这回事，既不记条数也不记点数。 */
+const NOTE_OFF_NETWORK = '本后端不需要额度（离网口径）。';
+
+/**
+ * 按后端口径解释一次读数，答「这一笔的账该怎么写」。
+ * 返回的 actual 里一定有 backendId/budgetKind/readKnown/offNetwork；remaining 与 tier 只在
+ * 模型有额度且读数真是那个形状时才加，未知与离网一律不带水位。
+ * 为什么离网也算 readKnown:true：这不是「没量到」，而是「量过了，本后端根本没有额度」——
+ * 与面板 budgetState（refresh-runtime.ts）同一口径，两处说法必须一致，否则人会以为哪里坏了。
+ */
 async function quotaPart(d: UnknownRecord, session: TrackerSession): Promise<{ actual: UnknownRecord; note: string | null }> {
   const model = (session.budget || {}) as unknown as UnknownRecord;
-  if (str(model.kind) === 'off-network') {
-    return {
-      actual: { remaining: -1, tier: 'off-network' },
-      note: '本后端不需要额度（离网口径）：这次记 0 条、0 点，剩余额度与档位不适用。',
-    };
-  }
+  const kind = str(model.kind) || 'unknown';
+  const facts: BudgetFacts = {
+    backendId: str(openedBackendIdOf(session)),
+    budgetKind: kind,
+    readKnown: false,
+    offNetwork: kind === 'off-network',
+  };
+  if (facts.offNetwork) return { actual: Object.assign({}, facts, { readKnown: true }) as unknown as UnknownRecord, note: NOTE_OFF_NETWORK };
   try {
     if (typeof d.getCachedReading === 'function') {
       const reading = ((await d.getCachedReading()) || {}) as UnknownRecord;
-      if (reading && reading.known === true && reading.kind === 'two-buckets') {
+      // 两桶后端看查询桶（与旧口径一致）；只计请求的后端看请求那一格。读数形状对不上就按未知处理，
+      // 不拿另一种桶的数字冒充（例如拿 REST 请求数当 GraphQL 点数）。
+      if (kind === 'two-buckets' && reading && reading.known === true && reading.kind === 'two-buckets') {
         const buckets = (reading.buckets || {}) as UnknownRecord;
         const graphql = (buckets.graphql || {}) as UnknownRecord;
-        const remaining = num(graphql.remaining);
-        const limit = num(graphql.limit);
-        // 档位吃的是已用比例（与账本同口径），剩余额度要先换算成已用才喂进去。
-        return { actual: { remaining: remaining, tier: tierFor(limit > 0 ? 1 - remaining / limit : 1) }, note: null };
+        const remaining = graphql.remaining;
+        const limit = graphql.limit;
+        // 读数说「已知」但那一格不是有限数字（形状不对）时按未知处理：宁可写「还没同步上来」，
+        // 也不能把缺格兜成 0 再算出一个假档位 —— 回执是给人看额度的地方，不能编。
+        if (typeof remaining === 'number' && isFinite(remaining) && typeof limit === 'number' && isFinite(limit)) {
+          // 档位吃的是已用比例（与账本同口径），剩余额度要先换算成已用才喂进去。
+          return {
+            actual: Object.assign({}, facts, { readKnown: true, remaining: remaining, tier: tierFor(limit > 0 ? 1 - remaining / limit : 1) }) as unknown as UnknownRecord,
+            note: null,
+          };
+        }
+      }
+      if (kind === 'requests-only' && reading && reading.known === true && reading.kind === 'requests-only') {
+        const requests = (reading.requests || {}) as UnknownRecord;
+        const remaining = requests.remaining;
+        const limit = requests.limit;
+        if (typeof remaining === 'number' && isFinite(remaining) && typeof limit === 'number' && isFinite(limit)) {
+          return {
+            actual: Object.assign({}, facts, { readKnown: true, remaining: remaining, tier: tierFor(limit > 0 ? 1 - remaining / limit : 1) }) as unknown as UnknownRecord,
+            note: null,
+          };
+        }
       }
     }
   } catch { /* 读缓存炸了按未知处理，与管线同口径。 */ }
-  return { actual: { remaining: -1, tier: 'unknown' }, note: '额度读数还没同步上来，剩余额度这次按未知处理（未知不拦事，见裁决口径）。' };
+  return { actual: facts as unknown as UnknownRecord, note: NOTE_READING_UNKNOWN };
+}
+
+/** 会话属于哪个后端（会话壳一定有 backendId；取不到就空串，回执里如实空着，不编一个 id）。 */
+function openedBackendIdOf(session: TrackerSession): string {
+  try { return str((session as unknown as UnknownRecord).backendId); } catch { return ''; }
 }
 
 /**
@@ -333,14 +386,23 @@ export async function callDeckSession(req: DeckCallRequest, work: (ctx: unknown)
   }
   const claimed = (rawClaimed && typeof rawClaimed === 'object') ? rawClaimed as UnknownRecord : {};
   const quota = await quotaPart(d, opened.session);
+  // 实际花费 = 这一笔花了多少（requests/points，旧字段照留）+ 四格后端口径事实（#1446）。
+  // remaining/tier 只在 quotaPart 真量到水位时才在里面；未知与离网时这两格根本不出现，
+  // 不再用 -1 / 'unknown' / 'off-network' 冒充数字——不知道就如实说不出数，理由写在 cost.note。
+  const actual: UnknownRecord = Object.assign(
+    { requests: num((claimed as UnknownRecord).requests), points: num((claimed as UnknownRecord).points) },
+    quota.actual,
+  );
+  const cost: UnknownRecord = {
+    estimated: { points: num(est.points), requests: num(est.requests), withinCallCap: est.withinCallCap, shards: est.shards, perShard: est.perShard, text: str(est.text) },
+    actual: actual,
+  };
+  if (quota.note) cost.note = quota.note;
   const out = envelope(tool, DECK_STATUS.OK, {
     workspace: { root: str(s.cwd), key: str(s.workspaceKey) },
     backend: { id: backendId, source: opened.source },
     repo: { backend: str((req.repo as UnknownRecord || {}).backend), refId: str((req.repo as UnknownRecord || {}).refId), name: str((req.repo as UnknownRecord || {}).name), url: str((req.repo as UnknownRecord || {}).url) },
-    cost: {
-      estimated: { points: num(est.points), requests: num(est.requests), withinCallCap: est.withinCallCap, shards: est.shards, perShard: est.perShard, text: str(est.text) },
-      actual: { requests: num((claimed as UnknownRecord).requests), points: num((claimed as UnknownRecord).points), remaining: (quota.actual as UnknownRecord).remaining, tier: str((quota.actual as UnknownRecord).tier) },
-    },
+    cost: cost,
   });
   // 合并工具自己的结果（与壳里 mergeOutcome 同形：状态与八格照抄，touched 触发写后失效）。
   const v = vRec || {};
@@ -351,7 +413,6 @@ export async function callDeckSession(req: DeckCallRequest, work: (ctx: unknown)
   out.data = v.data !== undefined ? v.data : null;
   out.items = Array.isArray(v.items) ? v.items : [];
   out.notes = Array.isArray(v.notes) ? v.notes : [];
-  if (quota.note) (out.notes as unknown[]).push(quota.note);
   out.readBack = v.readBack !== undefined ? v.readBack : null;
   const touched = Array.isArray(v.touched) ? (v.touched as unknown[]).filter(function (k): k is string { return typeof k === 'string' && !!k; }) : [];
   out.touched = touched;

@@ -59,7 +59,9 @@ async function main(): Promise<void> {
   // 这里原来写的是 registry.bind(handle, 'markdown')，注册表的绑定口子已整段删掉（见
   // src/tracker/registry/core.ts 文件头），夹具跟着改用工作区文件表达同一件事。
   chooseWorkspace(ws.rootPosix, 'markdown')
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id) { return t.get(String(id)) || null }, save(id, s) { t.set(String(id), s) } } })()
   // decideBackend：生产装配总是给（见 src/refresh/registry/deck-tool-bridge.ts 的 decideBackend: decideBackendFn），
   //   壳拿不到它时一律回「判定出口这次没装上」。夹具照生产的接法给上判定出口桩，桩直接调生产判定出口

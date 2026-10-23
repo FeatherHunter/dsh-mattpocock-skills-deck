@@ -87,19 +87,22 @@ function mkGate() {
   const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/quota-ledger.ts')).href)
   const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/refresh-gate.ts')).href)
   const ledger = ledgerMod.createLedger({ now: () => CLOCK })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
+  // #1446 起账本按「后端 + 桶」记账：先按两桶口径建桶，读数才有地方落。
+  const BACKEND = 'github'
+  ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
+  ledger.syncServer(BACKEND, { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
   const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
   gate.setWorkspace('ws-panel', { active: true })
   function transport(requests, points) { gate.noteOutbound({ requests: requests, points: points }) }
   const before = gate.stats()
-  const out = await gate.send({ source: 'panel.refresh', kind: 'detail', bucket: 'graphql', workspaceKey: 'ws-panel' }, async function () { transport(2, 2); return { ok: true, snapshot: '面板那份数据' } })
+  const out = await gate.send({ source: 'panel.refresh', kind: 'detail', bucket: 'graphql', workspaceKey: 'ws-panel', backendId: BACKEND }, async function () { transport(2, 2); return { ok: true, snapshot: '面板那份数据' } })
   const after = gate.stats()
   check(out.sent === true && !!out.result && out.result.snapshot === '面板那份数据', '⑥ 过闸的调用把真做出来的东西带回来了（result 原样）')
   check(after.accounted.requests - before.accounted.requests === 2 && after.accounted.points - before.accounted.points === 2, '⑥ 真发的 2 条 2 点都记进了账')
   check(after.mismatch === before.mismatch, '⑥ 没报数的调用不算「对不上」（对不上次数没动）')
   check(gate.escaped().requests === 0 && gate.escaped().points === 0, '⑥ 过闸之后绕闸条数是 0（这一条正是观察期要盯的数）')
   const lieBefore = gate.stats().mismatch
-  await gate.send({ source: 'panel.refresh', kind: 'detail', bucket: 'graphql', workspaceKey: 'ws-panel' }, async function () { transport(3, 0); return { requests: 1, points: 0 } })
+  await gate.send({ source: 'panel.refresh', kind: 'detail', bucket: 'graphql', workspaceKey: 'ws-panel', backendId: BACKEND }, async function () { transport(3, 0); return { requests: 1, points: 0 } })
   check(gate.stats().mismatch === lieBefore + 1, '⑥ 报假数（发 3 条报 1 条）仍然当场对出来')
 }
 
@@ -114,6 +117,9 @@ function mkGate() {
   const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/refresh-gate.ts')).href)
   const CLOCK = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => CLOCK })
+  // #1446 起读数只落进「这个后端」的桶：这一扇固定验 GitHub 的两桶口径。
+  const BACKEND = 'github'
+  ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
   const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
   gate.setWorkspace('/ws', { active: true })
   const readCalls = []
@@ -124,18 +130,18 @@ function mkGate() {
       return { ok: true, data: { known: true, kind: 'two-buckets', buckets: { rest: { limit: 5000, remaining: 0 }, graphql: { limit: 5000, remaining: 5000 } } } }
     },
     syncDue: () => true,
-    syncServer: (readings) => ledger.syncServer(readings),
+    syncServer: (readings) => ledger.syncServer(BACKEND, readings),
     logCtx: null,
   })
   const r = await sync.ensureReading('/ws', 'ws-panel')
   check(r.ok === true && r.fresh === true, '⑦ 读数这条路照旧成功（实得 ' + JSON.stringify(r) + '）')
   check(readCalls.length === 1 && readCalls[0] === '/ws', '⑦ 读一次预算、按这次调用的工作区目录读（实得 ' + JSON.stringify(readCalls) + '）')
-  const restRemaining = ledger.view('rest').remaining
-  const graphqlRemaining = ledger.view('graphql').remaining
+  const restRemaining = ledger.view(BACKEND, 'rest').remaining
+  const graphqlRemaining = ledger.view(BACKEND, 'graphql').remaining
   check(restRemaining === 0 && graphqlRemaining > 0, '⑦ 读数按桶落账：见底的那一桶记 0、另一桶照旧有数（实得 rest=' + restRemaining + ' / graphql=' + graphqlRemaining + '）')
   // 降档由裁决算：rest 见底（红档）→ AI 工具的写被推迟；graphql 还满着 → 同一笔照旧放行。
-  const restVerdict = gate.decideFor({ source: 'tool.call', kind: 'write', bucket: 'rest', workspaceKey: '/ws' })
-  const gqlVerdict = gate.decideFor({ source: 'tool.call', kind: 'tool-batch', bucket: 'graphql', workspaceKey: '/ws' })
+  const restVerdict = gate.decideFor({ source: 'tool.call', kind: 'write', bucket: 'rest', workspaceKey: '/ws', backendId: BACKEND })
+  const gqlVerdict = gate.decideFor({ source: 'tool.call', kind: 'tool-batch', bucket: 'graphql', workspaceKey: '/ws', backendId: BACKEND })
   check(restVerdict.verdict === 'defer' && restVerdict.reason === 'ai-tool-below-remaining', '⑦ 只剩 0 的那一桶被降档：AI 工具那一笔被推迟（实得 ' + restVerdict.verdict + '/' + restVerdict.reason + '）')
   check(gqlVerdict.verdict === 'allow' && gqlVerdict.reason === 'ai-tool-within-caps', '⑦ 另一桶还满着：同一档照旧放行，不被别桶连坐（实得 ' + gqlVerdict.verdict + '/' + gqlVerdict.reason + '）')
 }
@@ -146,7 +152,9 @@ function mkGate() {
   const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/quota-ledger.ts')).href)
   const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/refresh-gate.ts')).href)
   const ledger = ledgerMod.createLedger({ now: () => CLOCK })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
+  const BACKEND = 'github'
+  ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
+  ledger.syncServer(BACKEND, { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
   const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
   gate.setWorkspace('/ws', { active: true })
   const pc = createPlatformChannel({
@@ -156,7 +164,7 @@ function mkGate() {
   })
   const panelExec = function (c, a, o) {
     const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0
-    return gate.send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: '/ws' }, function () { return pc.detectionExec(c, a, o, 'snapshot') }).then(function (r) { return r.result })
+    return gate.send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: '/ws', backendId: BACKEND }, function () { return pc.detectionExec(c, a, o, 'snapshot') }).then(function (r) { return r.result })
   }
   await panelExec('gh', ['api', 'repos/o/r/issues'], { cwd: '.' })
   await panelExec('gh', ['api', 'graphql'], { cwd: '.' })

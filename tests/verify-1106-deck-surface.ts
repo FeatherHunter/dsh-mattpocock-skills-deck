@@ -222,7 +222,9 @@ async function main() {
   // #1138：把「用户选过 markdown」写进夹具账本（等价于工作区文件里那一行）。原来这里是
   // registry.bind(handle, 'markdown')，绑定层已随 #1138 整段删掉。
   chooseWorkspace(ws.rootPosix, 'markdown')
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id: string) { return t.get(String(id)) || null }, save(id: string, s: unknown) { t.set(String(id), s) } } })()
   // #1261：工作路线用同一份真实现（临时家目录 + 固定时钟），上报回执的在办表形状由下面「二b」钉死。
   const workRouteMod = await imp('src/deck/shell/work-path-bindings.ts') as { createWorkRouteBindings: (io: unknown) => { note: (i: unknown) => Promise<unknown>, read: (i: unknown) => unknown } }
@@ -354,7 +356,16 @@ async function main() {
     check(Object.prototype.hasOwnProperty.call(r, 'claimed') === false, name + ' 记账数不上信封（回执里没有 claimed）')
     check(!!(r && r.cost && r.cost.estimated && typeof r.cost.estimated.points === 'number' && typeof r.cost.estimated.requests === 'number'),
       name + ' 带回调用前的估算（' + JSON.stringify(r && r.cost && r.cost.estimated) + '）')
-    check(!!(r && r.cost && r.cost.actual && typeof r.cost.actual.remaining === 'number'), name + ' 带回调用后的真实花费一格（' + JSON.stringify(r && r.cost && r.cost.actual) + '）')
+    // #1446 起真实花费回执先带四格事实（哪个后端、什么预算口径、读数知道不知道、离不离网）；
+    // remaining 与 tier 只在「读数已知且这个后端有额度」时才出现 —— 离网与未知不许出现假 0 与假档位。
+    const actual = r && r.cost && r.cost.actual
+    check(!!actual && typeof actual.backendId === 'string' && typeof actual.budgetKind === 'string'
+      && typeof actual.readKnown === 'boolean' && typeof actual.offNetwork === 'boolean',
+      name + ' 带回调用后的四格事实（' + JSON.stringify(actual) + '）')
+    check(!!actual && (actual.readKnown === true && actual.offNetwork !== true
+      ? (typeof actual.remaining === 'number' && typeof actual.tier === 'string')
+      : (!('remaining' in actual) && !('tier' in actual) && !!(r.cost && typeof r.cost.note === 'string'))),
+      name + ' 只有读数已知且有额度才带水位，未知与离网改用一句人话（' + JSON.stringify(actual) + '）')
   }
   {
     // 二b、在办表（#1261 起步、#1262 铺满）：写工具成功收口才有 data.workRoute，失败调用没有这一格；原始会话 id 不进回执。

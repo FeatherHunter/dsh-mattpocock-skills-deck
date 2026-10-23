@@ -44,7 +44,24 @@ export interface TrackerError {
  * 拿 `r.error` 时编译器知道它一定在（那种「两个字段都可能没有」的写法，
  * 正是仓库里若干 `res.error && res.error.message` 兜底的来路）。
  */
-export type OpResult<T> = { ok: true; data: T } | { ok: false; error: TrackerError }
+export type OpResult<T> = { ok: true; data: T; usage?: OpUsage } | { ok: false; error: TrackerError }
+
+/**
+ * 一次操作实际花掉的量（请求数、点数），由房间在成功信封上自报（#1446 A3 加）。
+ *
+ * 为什么放在回值上而不是让调用方自己估：估算只在调用**之前**做（tool-call-budget），
+ * 真实用量只有真正发出命令的那一层知道；房间的客户端本来就数着每一笔出站，
+ * 让它把数留在信封上，是唯一「既不重复数、也不靠猜」的来源。
+ * 口径由后端自己声明（BackendBudgetModel 的 countsRequests/countsPoints），
+ * 记账实现照声明取舍，不按 backendId 写等值分支。
+ * 可选：离网后端（Markdown）没有额度这回事，不给这一格；调用方读到缺席时按「零花」记账并留一行诊断。
+ */
+export interface OpUsage {
+  /** 这一次实际发出的请求条数。 */
+  readonly requests: number
+  /** 这一次实际花掉的点数（只有双桶口径的后端认这一格，其余恒 0）。 */
+  readonly points: number
+}
 
 /**
  * 环境预检的结果（`preflight` 专用）。

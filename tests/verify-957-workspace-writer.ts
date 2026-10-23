@@ -113,7 +113,9 @@ async function main() {
     const decMod957 = await imp('src/tracker/detection/backendDecision.ts')
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger: ledger, logCtx: null, now: () => 1700000000000 })
-    ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
+    // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+    ledger.ensureBackend('github', { kind: 'two-buckets' })
+    ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
     const sOf = (cwd) => ({ cwd: cwd, workspaceKey: 'k957', sessionId: 's957', source: 't', text: '' })
     const mkDeps = (reg, extra) => Object.assign({ gate: gate, registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod957.decideBackend }, extra || {})
     const doubleReg = { bound: () => undefined, has: (id) => id === 'github' || id === 'markdown', describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }), select: async () => ({ backendId: 'github', source: 'matches', ref: null, multiHit: ['github', 'markdown'] }), get: () => ({}), modules: () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }, { id: 'markdown', budget: { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false } }] }

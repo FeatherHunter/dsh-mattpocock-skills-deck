@@ -246,7 +246,9 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
   // 不是拿一个测试内部自己编的名字去问 —— 断言的是取数路径给出的身份。
   const assertSource = (label: string, chainSource: string, wantCategory: string): void => {
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
-    ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
+    // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+    ledger.ensureBackend('github', { kind: 'two-buckets' })
+    ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
     const gate = gateMod.createGate({ ledger: ledger, now: () => 1700000000000 })
     const cls = gateMod.classify(chainSource)
     const verdict = gate.decideFor({ source: chainSource, kind: 'chain', workspaceKey: 'ws-1' })

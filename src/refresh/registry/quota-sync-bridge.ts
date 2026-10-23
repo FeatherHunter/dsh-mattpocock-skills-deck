@@ -33,7 +33,7 @@ export type SessionBudgetResult = { ok: true; data: SessionBudgetReading } | { o
 /** 读一次预算的出口：接线方递进来的 Tracker 会话 readBudget（按工作区目录读）。 */
 export type ReadBudgetFn = (cwd: unknown) => Promise<SessionBudgetResult | SessionBudgetReading | null | undefined>;
 /** 落账两桶的形状（账本 syncServer 收的就是这一份，reset 占位见下）。 */
-export interface LedgerReadings { rest: { limit: number; remaining: number; reset: number }; graphql: { limit: number; remaining: number; reset: number } }
+export interface LedgerReadings { rest?: { limit: number; remaining: number; reset: number }; graphql?: { limit: number; remaining: number; reset: number }; requests?: { limit: number; remaining: number; reset: number } }
 /** 额度同步的依赖：账本的两件、读预算的会话出口、日志口；缺一件即缺席。 */
 export interface QuotaSyncDeps { syncDue?: unknown; syncServer?: unknown; readBudget?: unknown; logCtx?: QuotaSyncLogCtx | null; cooldownMs?: unknown }
 /** 宿主日志口：成功记既有 host.call；失败靠既有那几行，不另记不刷屏。 */
@@ -101,7 +101,19 @@ export function createDeckQuotaSync(deps: unknown): { ensureReading: (cwd: unkno
         let applied = false
         // 经会话读一次（房间自己读 gh）：未知读数等于没读到，不落账、不抛，调用方照旧走原流程。
         const reading = asReading(await readBudget(cwd))
-        if (reading && reading.known === true && reading.kind === 'two-buckets' && reading.buckets) {
+        // #1446：只计请求的后端（GitLab 这种）只有 requests 一格，同样要能同步进账本；
+        // 离网后端没有桶（账本不建），读数也恒离网，这里自然跳过。
+        if (reading && reading.known === true && reading.kind === 'requests-only') {
+          const req1 = (reading as { requests?: SessionBucket | null }).requests
+          const lr = req1 ? num(req1.limit) : null
+          const rr = req1 ? num(req1.remaining) : null
+          if (lr !== null && rr !== null) {
+            try {
+              (syncServer as (readings: LedgerReadings) => void)({ requests: { limit: lr, remaining: rr, reset: 0 } });
+              applied = true
+            } catch (eS) {}
+          }
+        } else if (reading && reading.known === true && reading.kind === 'two-buckets' && reading.buckets) {
           const rest = reading.buckets.rest as SessionBucket | null | undefined;
           const graphql = reading.buckets.graphql as SessionBucket | null | undefined;
           const l1 = rest ? num(rest.limit) : null

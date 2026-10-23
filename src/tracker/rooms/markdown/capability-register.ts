@@ -21,7 +21,7 @@
  */
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
-/** 本地 Markdown 后端：26 条里 18 条真提供、3 条做了但有对不上的输入、4 条明确不支持（后端自己补桩）、1 条未来会开发（读预算，承接 #1439）。
+/** 本地 Markdown 后端：26 条里 19 条真提供（含 #1446 落地的读预算）、3 条做了但有对不上的输入、4 条明确不支持（后端自己补桩）。
  *
  *  `getRepoKey` 为什么算「提供」而不是「不支持」：契约对定位口只有一种答案形态 —— 名字或者空，
  *  空也是答案、不是失败（见 `contract/operations.ts` 定位口那一段）。本地房的身份就是工作区目录本身，
@@ -70,9 +70,9 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
   initProject: { tier: 'unsupported-by-design', stubBy: 'backend' },
   getRepoPermissions: { tier: 'unsupported-by-design', stubBy: 'backend' },
   listSubIssues: { tier: 'unsupported-by-design', stubBy: 'backend' },
-  // 规格 1439 的读预算：形态成立（离网本来就不花额度，读数恒为离网那一支），
-  // 但房间实现随会话迁移后续票落地，今天先记未来会开发。承接规格 1439。
-  readBudget: { tier: 'planned', ticket: '#1439' },
+  // 读预算（#1446 落地）：本地房是离网口径，读数恒为「离网」那一支，不读盘、不调任何东西。
+  // 实现在 ./budget.ts；这里从「未来会开发」改成「明确提供功能」，是因为调用方今天就会问到它。
+  readBudget: { tier: 'provided' },
 
   // —— 定位口 3 条：全部提供；其中两条在模块对象上，getRepoKey 在实例上、答案恒为空 ——
   getRepoKey: { tier: 'provided' },
