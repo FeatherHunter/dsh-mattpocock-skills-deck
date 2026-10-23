@@ -41,8 +41,9 @@ const fsSvc = { readFileSync: () => '', writeFileSync: () => {}, existsSync: () 
 const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
 const platformSvc = { getHome: async () => '', path: { join: (...a) => a.join('/') }, // #1138 之后：绑定工作区要真的把选择写进工作区文件，所以文件通道得是完整形状
 // （`src/host/workspaceCwd.js` 要求 resolve / readText / writeText 三件齐全，缺一件就如实回 no-channel）。
-// 这里给的是内存桩：读回空串（本来就没有那份文件）、写入什么都不做，够这条冒烟演完「绑定→读标签→改配色」。
-fs: { mkdir: async () => {}, resolve: async (k) => String(k), readText: async () => '', writeText: async () => {} }, resolveExecutable: async () => 'gh', env: { get: () => undefined } }
+// 这里给的是内存桩：文件本来就没有（读按确实没有报 ENOENT）、写入进内存表，删从内存表里删。
+// #1434 起写完要读回比对，「写入什么都不做」的桩会让读回对不上而报写失败，所以这只桩必须把写进去的东西原样读回来。
+fs: (() => { const mem: Record<string, string> = {}; return { mkdir: async () => {}, resolve: async (k) => String(k), readText: async (p) => { const k = String(p); if (!(k in mem)) throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }); return mem[k] }, writeText: async (p, c) => { mem[String(p)] = String(c) }, rm: async (p) => { delete mem[String(p)] } } })(), resolveExecutable: async () => 'gh', env: { get: () => undefined } }
 const services = {
   subprocess, timer, fs: fsSvc, platform: platformSvc,
   connection: { fetch: { register: (r) => { route = r; return () => {} } } },
