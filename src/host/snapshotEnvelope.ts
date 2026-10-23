@@ -136,3 +136,95 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
 
   return { buildSnap: buildSnap, adoptSnapLog: adoptSnapLog, withWorkRouteTable: withWorkRouteTable }
 }
+// ============================ #1436：胶囊首帧那条只读电话 ============================
+//
+// 为什么这条电话的家安在这里：胶囊要在「打开会话的第一帧」显示这个会话处理过哪些票，
+//   而答案就在本机一份小存档里（<主目录>/.dsh/mattskillsdeck/work-path/<工作区散列>.json）；
+//   从前界面只能等宿主把整个仓库的快照重建一遍（wf.refresh，本机实测中位 25 秒以上）才能看到它。
+//   这个文件已经拿着同一份读数出口（见上面的 EnvelopeDeps.workRouteTableReadout，快照回包挂表也用它），
+//   所以把「只读那份存档、如实回一张表」的第二个消费者放在这里，不必再新开一个宿主入口文件
+//   （src/host/index.ts 的动态装配边在门禁里是记名存量，新增一个同层文件会多一条新边）。
+//
+// 三条不能改的约定：
+// 1. 只读：不写账本、不建仓、不加锁、不调 gh。读不出来就如实回 { ok:false, reason }，
+//    不抛异常、不拿空名单冒充「没有记录」—— 调用方要靠 reason 区分「真的没有」与「读这一步坏了」。
+// 2. 工作区路径必须先经 canonicalKey 再散列成工作区键：账本里的键是宿主规整过的路径算出来的
+//    （Windows 盘符小写、保留反斜杠），自己再归一化一次会算出第二格，同一个工作区就成了两份账本
+//    （src/refresh/contract/workspace-keys.ts:42 有同样的告诫）。
+// 3. 日志沿用既有事件 host.call / host.call.fail（电话名 wf.workRoute、kind=work-route），
+//    不新增事件名、不记路径原文与会话号原文。
+
+/** 这条电话的依赖：读存档的那一口、把工作区路径规整成键的那一口、日志口；全部由入口显式传入。 */
+type OwnWorkRouteDeps = {
+  readout?: ((reply: unknown, ctx: { sessionId?: unknown }) => Promise<unknown> | unknown) | null
+  canonicalKey?: ((cwd: string) => unknown) | null
+  logCtx?: { fire(level: string, event: string, fields?: unknown): void } | null
+}
+
+/**
+ * 造一条只读的「本会话处理过哪些票」电话。返回值只有 handleWorkRoute 一个方法：
+ * 入参是客户端送来的 JSON（{ sessionId, cwd }），回 { ok:true, workRouteTable } —— 外层 ok 只说
+ * 「这条电话跑完了」，里面那张表自己的 ok 才是「读到了没有」。
+ */
+export function createOwnWorkRoutePhone(deps?: OwnWorkRouteDeps) {
+  const d = (deps || {}) as OwnWorkRouteDeps
+  const readout = (typeof d.readout === 'function') ? d.readout : null
+  const canonicalKey = (typeof d.canonicalKey === 'function') ? d.canonicalKey : null
+  const logCtx = d.logCtx || null
+
+  /** 错误归类的短散列（与 src/host/mapTickets.ts:44 同一份 5381 散列）；日志只记散列，不把报错原文写进常驻日志。 */
+  function hash8(s?: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+
+  /**
+   * 电话体记一行日志：沿用既有事件 host.call / host.call.fail，电话名写 method、类别写 kind；不记路径与会话号原文。
+   * reason 记「这张表最后是什么结论」—— ready 读到了、no-workspace 没有工作区目录、no-session 没有会话号、
+   * no-binding 宿主没接上读口、read-failed 读存档抛错、shape 回话形状不对。
+   * 为什么连「诚实地回了失败」也要记：客户端只看到表是坏的，分不清「这个会话真没有记录」与
+   * 「读这一步没走通」；宿主这一行是唯一能分开两者的现场。
+   */
+  function phoneLog(t0: number, ok: boolean, err?: unknown, reason?: unknown): void {
+    try {
+      if (!logCtx || typeof logCtx.fire !== 'function') return
+      const base = { method: 'wf.workRoute', kind: 'work-route' }
+      if (ok) logCtx.fire('info', 'host.call', Object.assign({}, base, { latencyMs: Date.now() - t0, ok: true, reason: String(reason || 'ready') }))
+      else logCtx.fire('warn', 'host.call.fail', Object.assign({}, base, { errorHash: hash8(String((err && (err as Error).message) || err || 'work-route-failed')), errorKind: 'read-failed' }))
+    } catch (eL) {}
+  }
+
+  /** 读一份存档的形状校验：只要不是对象就当成「读这一步坏了」，不把 undefined 当成「没有记录」。 */
+  function shapeOf(table?: unknown): unknown {
+    const t = table as { ok?: unknown; readout?: unknown } | null | undefined
+    if (!t || typeof t !== 'object') return { ok: false, reason: 'host.work-route.read-failed' }
+    if (t.ok === true && (!t.readout || typeof t.readout !== 'object')) return { ok: false, reason: 'host.work-route.shape' }
+    return t
+  }
+
+  async function handleWorkRoute(args?: unknown): Promise<unknown> {
+    const a = (args && typeof args === 'object') ? (args as { sessionId?: unknown; cwd?: unknown }) : {}
+    const sid: string = String(a.sessionId == null ? '' : a.sessionId)
+    const rawCwd: string = String(a.cwd == null ? '' : a.cwd).trim()
+    const t0: number = Date.now()
+    let table: any
+    if (!rawCwd) { table = { ok: false, reason: 'host.work-route.no-workspace' }; phoneLog(t0, true, null, table.reason) }
+    else if (!sid) { table = { ok: false, reason: 'host.work-route.no-session' }; phoneLog(t0, true, null, table.reason) }
+    else if (!readout) { table = { ok: false, reason: 'host.work-route.no-binding' }; phoneLog(t0, true, null, table.reason) }
+    else {
+      // 先规整再读：账本按规整后的路径散列存放，这里少走一步就会读出第二格（见上面约定 2）。
+      let root: string = rawCwd
+      try { if (canonicalKey) { const c = await canonicalKey(rawCwd); if (c) root = String(c) } } catch (eK) {}
+      try {
+        const out = await readout({ ok: true, workspaceRoot: root }, { sessionId: sid })
+        table = shapeOf(out)
+        // 读存档本身成功时也把结论记出来：ok:true 是「读到了，表在外面」；ok:false 的 reason
+        // 区分「这个会话真没有记录」与「读这一步坏了」，这正是客户端分不清的地方。
+        phoneLog(t0, true, null, (table && table.ok === true) ? 'ready' : (table && table.reason) || 'read-failed')
+      } catch (eR) {
+        table = { ok: false, reason: 'host.work-route.read-failed' }
+        phoneLog(t0, false, eR)
+      }
+    }
+    return { ok: true, workRouteTable: table }
+  }
+
+  return { handleWorkRoute: handleWorkRoute }
+}

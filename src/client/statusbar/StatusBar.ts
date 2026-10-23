@@ -42,6 +42,8 @@ declare function isBannerFolded(...args: any[]): any;
 declare function isEnabled(...args: any[]): any;
 declare function loadChain(...args: any[]): any;
 declare function loadSnapshot(...args: any[]): any;
+// #1436：首帧/换目录/切会话都顺手读一次本机 work-path 存档（只读电话 wf.workRoute），不等整份快照重建。
+declare function loadOwnWorkRoute(...args: any[]): any;
 declare function newBugWayfinderText(...args: any[]): any;
 declare function newSessionTitleNew(...args: any[]): any;
 declare function newWayfinderText(...args: any[]): any;
@@ -170,7 +172,7 @@ export const StatusBar = (props: any) => {
         loadChain(s, false)
         // #1355：水合来的可能是同工作区别的会话的快照 —— 里面没有当前会话的 workRouteTable，胶囊会一直空着。
         //   要不要补拉、补拉走强制还是静默，全由 kernel/work-route-own 的 snapshotRequestPlan 一处决定，这一行只把它发出去。
-        runSnapshotRequestPlan(s, hydrated, 'apply', snapFresh(s), loadSnapshot)
+        runSnapshotRequestPlan(s, hydrated, 'apply', snapFresh(s), loadSnapshot); loadOwnWorkRoute(s)
       }
     }
     if (summaryCwd) { apply(summaryCwd, 'summary'); return }
@@ -185,15 +187,15 @@ export const StatusBar = (props: any) => {
   React.useEffect(function () {
     loadChain(s, false)
     // #1355：挂载首帧若水合到别的会话的快照，同样要补拉自己的表（判据与上面 apply 那条是同一份）。
-    runSnapshotRequestPlan(s, false, 'mount', snapFresh(s), loadSnapshot)
+    runSnapshotRequestPlan(s, false, 'mount', snapFresh(s), loadSnapshot); loadOwnWorkRoute(s)
   }, [])
   // #1355：切到另一个会话时，cwd 往往已经由会话摘要同步就位（apply 那条路径整个不跑），但新 store 水合来的缓存
   //   可能还是上一个会话的快照。这里单独补一眼：缺自己的 workRouteTable 就补拉一次。
   //   同一次提交里上面两条也走同一个判据，忙不忙由它挡（snapLoading / selPending）；普通冷启动仍走既有的在途复用。
-  React.useEffect(function () { runSnapshotRequestPlan(s, true, 'switch', snapFresh(s), loadSnapshot) }, [sid])
+  React.useEffect(function () { runSnapshotRequestPlan(s, true, 'switch', snapFresh(s), loadSnapshot); loadOwnWorkRoute(s) }, [sid])
   // #1395：胶囊「工作路线」那一段画不画的判据结论（含「有表但没有本会话的行」这一档）由同目录
   //   SessionChainCapsule.ts 的 logStatusFallback 按退化形状变化记一行；这里只负责在状态变化时把状态交给它。
-  React.useEffect(function () { logStatusFallback(s, sid) }, [s.snapshot, s.cwd, s.snapMode, sid])
+  React.useEffect(function () { logStatusFallback(s, sid) }, [s.snapshot, s.cwd, s.snapMode, s.ownWorkRoute, sid])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr } = csx
   // 2026-08-28 优化3：胶囊状态栏任何情况下都不隐藏（#187「未选后端隐藏整条」门控退休，仅留导航引导）。

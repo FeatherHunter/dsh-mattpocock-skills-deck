@@ -40,7 +40,7 @@ declare const document: any;
 declare const window: any;
 declare const hydrateFromCache: any;
 declare const snapshotWithoutWorkRoute: any;
-declare const ensureOwnWorkRoute: any;
+declare const loadOwnWorkRoute: any;
 declare const chainEventRefresh: any;
 declare const loadChain: any;
 declare const setupPendingOf: any;
@@ -136,10 +136,10 @@ export const probeNow = function (fromFocus: any): void {
           st2.snapError = null;
           scheduleFlashClear(st2);
           emit(st2);
-          ensureOwnWorkRoute(st2, loadSnapshot);
+          loadOwnWorkRoute(st2);
         });
         try { emit(primary); } catch (eEmit) {}
-        ensureOwnWorkRoute(primary, loadSnapshot);
+        loadOwnWorkRoute(primary);
         return true;
       };
       // ① 宿主已经补好行级增量：直接用，一条大查询都不发。
@@ -362,7 +362,7 @@ export const refreshAll = function (st: any): void {
             try { if (typeof applySnapshotSelection === 'function') applySnapshotSelection(st2, newSnap); } catch (eSel) {}
             try { scheduleFlashClear(st2); } catch (eSch) {}
             emit(st2);
-            ensureOwnWorkRoute(st2, loadSnapshot);
+            loadOwnWorkRoute(st2);
           });
         }
       }

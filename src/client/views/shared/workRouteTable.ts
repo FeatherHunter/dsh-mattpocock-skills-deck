@@ -44,6 +44,9 @@ declare const Ic: any;
 declare const portalTop: any;
 declare const DSW_VERSION: any;
 declare function h(...args: any[]): any;
+// #1436：只读电话那条链（同闭包更早的片段提供）—— 用户点「重试」时重读本机记录。
+// #1436：首帧只读那条链（同闭包更早的片段提供）—— 取当前会话那一格。
+declare function ownWorkRouteSlotOf(...args: any[]): any;
 
 /** 快照里这个字段的名字；宿主读数模块用的是同一个名字。 */
 export const WORK_ROUTE_TABLE_FIELD = 'workRouteTable'
@@ -141,12 +144,10 @@ const unreadableView = function (reason: string): WorkRouteTableView {
 }
 
 /**
- * 取数路径：只读 st.snapshot 里那一个字段，把形状逐格收好。宿主没挂字段时回 idle；
- * 宿主说读坏了（ok:false）时把宿主给的原因代号透出来；宿主说读到了但条目为空就是 empty。
+ * #1436 · 把宿主回包里那一个字段（raw）解成能画的视图。快照里挂的那张表与只读电话 wf.workRoute 的读数
+ *   是同一个形状，所以两处共用这一份解析 —— 别在胶囊里再写一遍，两处迟早长岔。
  */
-export const workRouteTableOf = function (st: any): WorkRouteTableView {
-  if (!st || !st.snapshot || typeof st.snapshot !== 'object') return idleView()
-  const raw = st.snapshot[WORK_ROUTE_TABLE_FIELD]
+export const workRouteTableViewOf = function (raw: any): WorkRouteTableView {
   if (raw === undefined || raw === null) return idleView()
   if (typeof raw !== 'object') return unreadableView('host.work-route.shape')
   if (raw.ok !== true) return unreadableView(String(raw.reason || 'host.work-route.read-failed'))
@@ -179,6 +180,15 @@ export const workRouteTableOf = function (st: any): WorkRouteTableView {
     staleCount: staleCount,
     rows: rows,
   }
+}
+
+/**
+ * 取数路径：只读 st.snapshot 里那一个字段，交给 workRouteTableViewOf 解析。宿主没挂字段时回 idle；
+ * 宿主说读坏了（ok:false）时把宿主给的原因代号透出来；宿主说读到了但条目为空就是 empty。
+ */
+export const workRouteTableOf = function (st: any): WorkRouteTableView {
+  if (!st || !st.snapshot || typeof st.snapshot !== 'object') return idleView()
+  return workRouteTableViewOf(st.snapshot[WORK_ROUTE_TABLE_FIELD])
 }
 
 /**
@@ -401,4 +411,36 @@ export const WorkRouteTrigger = ({ st }: any) => {
     },
   }, [body])) : null
   return h(Tip, { content: tr('workRouteTable.iconTip', { version: DSW_VERSION }), targetRef: iconRef }, h('span', { className: 'dsws-workroute', 'aria-label': tr('workRouteTable.iconLabel'), style: { display: 'inline-flex', alignItems: 'center', flex: 'none', overflow: 'visible' } }, [icon, pop]))
+}
+
+
+/** #1436 · 只读电话那一格还在读（loading）时返回胶囊要画的「读取中」；其余情形回 null（不画失败）。 */
+export const capsuleOwnRouteFallbackOf = function (slot: any): any {
+  const state = (slot && typeof slot === 'object') ? String(slot.state || '') : ''
+  if (state === 'loading') return { state: 'loading', reason: '', entry: null, list: [] }
+  return null
+}
+
+/**
+ * #1436 · 胶囊先读哪一份：首帧那条只读电话的读数（本机 work-path 存档，几十毫秒）优先，读到就先用它；
+ *   还没到、读坏了、或宿主版本太旧没有这条电话（off），才退回去看快照里挂的那张（老链路）。
+ *   读的过程中如果上一格已经读到过表，就继续显示那一份（旧数据先顶着，不让界面回退成空白）。
+ *   返回 { view, fallback }：view 是能照旧画的那份表；fallback 只在「一次都还没读到」时为读取中那一档。
+ *   放在这里而不是胶囊文件里：胶囊贴着 350 行上限，而且这件事与这张表的读数形状本就是一件事。
+ */
+export const capsuleOwnRoutePick = function (st: any): any {
+  const slot = (typeof ownWorkRouteSlotOf === 'function') ? ownWorkRouteSlotOf(st) : null
+  const slotView = (slot && typeof workRouteTableViewOf === 'function') ? workRouteTableViewOf(slot.raw) : null
+  const usable = (slotView && (slotView.state === 'ok' || slotView.state === 'empty')) ? slotView : null
+  const snapView = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
+  return { view: usable || snapView, fallback: usable ? null : capsuleOwnRouteFallbackOf(slot) }
+}
+
+/** #1436 · 读取中那一档在胶囊里的样子：一枚转圈（告诉人「正在读」，而不是「没有记录」）。 */
+export const capsuleOwnRouteFallbackNode = function (h: any, tr: any, view: any, Ic: any): any {
+  return h('span', {
+    className: 'dsws-capsule-chain-loading dsws-hov', role: 'status',
+    'aria-label': tr('chainView.ownRouteLoading'),
+    style: { display: 'inline-flex', alignItems: 'center', flex: 'none' },
+  }, [h('span', { className: 'dsws-spin', style: { display: 'inline-flex' } }, Ic({ n: 'refresh', size: 11 }))])
 }

@@ -229,7 +229,8 @@ async function main() {
     const nIndex = countLines('src/host/index.ts')
     check(nIndex <= 400, '宿主入口不超过四百行，实得 ' + nIndex + ' 行。')
     const nPhones = (readText('src/host/index.ts').match(/harness\.handle\(/g) || []).length
-    check(nPhones === 59, '宿主电话五十九条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1436 加了一条只读电话 wf.workRoute（胶囊首帧读本机 work-path 存档），59 → 60。
+    check(nPhones === 60, '宿主电话六十条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

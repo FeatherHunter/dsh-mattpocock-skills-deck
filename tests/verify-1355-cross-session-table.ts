@@ -264,8 +264,10 @@ const partB = async function (store: any, ui: any): Promise<void> {
 
   // #1355：剥表、补拉、三处接线共用决策这三件的真源在 kernel/work-route-own.ts；
   //   下面 B4 的生产路径与 E 的扇出都直接跑它（不再读界面源码文本、也不手写一遍判断）。
+  // #1436：缺表不再发强制整份刷新（那支真机中位 25 秒），改由首帧只读电话 wf.workRoute 读本机存档；
+  //   所以这里只测决策与剥表，读取本身在 tests/verify-1436-own-work-route.ts 里测。
   const ownSrc = loadSpliced('src/client/kernel/work-route-own.js',
-    ['snapshotWithoutWorkRoute', 'ensureOwnWorkRoute', 'snapshotRequestPlan', 'runSnapshotRequestPlan', 'adoptWorkRouteTableIfNewer'],
+    ['snapshotWithoutWorkRoute', 'snapshotRequestPlan', 'runSnapshotRequestPlan', 'adoptWorkRouteTableIfNewer'],
     { snapNeedsOwnWorkRoute: store.snapNeedsOwnWorkRoute })
 
   const deferredOf = function (): any {
@@ -443,12 +445,11 @@ const partB = async function (store: any, ui: any): Promise<void> {
   check(store.snapNeedsOwnWorkRoute(stB4) === true, 'B 的回包没带表 → 判据说缺自己的表')
   const capIdle: any = ui.capsule.sessionChainCapsuleOf(stB4, 'sess-B')
   check(capIdle.state === 'idle', '这时 B 的胶囊回 idle，绝不显示 A 那几行（实得 ' + String(capIdle.state) + '）')
-  // 生产路径触发这一次补拉：换目录那条接线（StatusBar.apply）拿到这份快照后，调的就是同一个决策函数。
+  // #1436：换目录那条接线（StatusBar.apply）拿到这份缺表快照后，快照决策照旧只看新鲜度——
+  //   这份快照水合过且新鲜，所以它不发请求；缺的那张名单交给首帧只读电话（另测），不再触发整份重建。
   const fired: boolean = ownSrc.runSnapshotRequestPlan(stB4, true, 'apply', true, m4.loadSnapshot)
-  check(fired === true, 'B4：换目录接线接过这份缺表快照后，确实按决策发出了补拉')
-  await tick()
-  check(m4.calls.length === 3 && !!m4.calls[2].params && m4.calls[2].params.sessionId === 'sess-B',
-    '随后 B 补拉一次，请求带着 B 自己的会话号（实得 ' + JSON.stringify(m4.calls[2] && m4.calls[2].params && m4.calls[2].params.sessionId) + '）')
+  check(fired === false && m4.calls.length === 2,
+    'B4：缺表不再触发整份重建（水合且新鲜时决策为不发，实得 ' + String(fired) + ' / ' + m4.calls.length + ' 次）')
 
   // B5. 两个会话都发强制请求：force 搭 force 原来是允许的，跨会话一律不搭。
   const m5 = makeSnapMod()
@@ -492,7 +493,7 @@ const partB = async function (store: any, ui: any): Promise<void> {
 const partC = function (store: any): void {
   console.log('#1355 C. 换目录 / 挂载 / 切会话共用同一个决策函数')
   const own = loadSpliced('src/client/kernel/work-route-own.js',
-    ['snapshotWithoutWorkRoute', 'ensureOwnWorkRoute', 'snapshotRequestPlan', 'runSnapshotRequestPlan'],
+    ['snapshotWithoutWorkRoute', 'snapshotRequestPlan', 'runSnapshotRequestPlan'],
     { snapNeedsOwnWorkRoute: store.snapNeedsOwnWorkRoute })
 
   const tableB: any = {
@@ -506,7 +507,8 @@ const partC = function (store: any): void {
   const stHave: any = { sessionId: 'sess-B', snapshot: { ok: true, maps: [], workRouteTable: tableB }, snapLoading: false, selPending: false }
   const modes = ['apply', 'mount', 'switch']
 
-  // C1. 缺表：三条接线一律强制、静默补拉，不看新鲜期，也不因为 mode 是 switch 就跳过。
+  // C1. 缺表：#1436 起快照决策不再看有没有表（缺的名单由只读电话补），只按 mode 与新鲜期走。
+  //   真值表：switch 一律不发；水合过且新鲜 → 不发；挂载未满足时静默；换目录未水合时不静默（保留加载反馈）。
   let needOk = true
   let needCases = 0
   modes.forEach(function (mode: any): void {
@@ -514,11 +516,17 @@ const partC = function (store: any): void {
       ;[true, false].forEach(function (fresh: any): void {
         needCases += 1
         const plan: any = own.snapshotRequestPlan(stNeed, hydrated, mode, fresh)
-        if (!plan || plan.force !== true || plan.silent !== true || plan.why !== 'work-route-missing') needOk = false
+        const want: any = (mode === 'switch' || (hydrated && fresh))
+          ? null
+          : { force: false, silent: mode === 'mount' ? true : !!hydrated, why: undefined }
+        const same: boolean = (want === null)
+          ? plan === null
+          : (!!plan && plan.force === want.force && plan.silent === want.silent && plan.why === want.why)
+        if (!same) needOk = false
       })
     })
   })
-  check(needOk, '缺表时三条接线 × 是否水合 × 是否新鲜共 ' + needCases + ' 种组合都强制静默补拉，并带缺表原因')
+  check(needOk, '缺表不再是补拉理由：三条接线 × 是否水合 × 是否新鲜共 ' + needCases + ' 种组合都只按快照自己的新鲜度走')
 
   // C2. 表在手：旧行为一个字不丢 —— 切会话不发；挂载与换目录按「水合过且新鲜」决定。
   check(own.snapshotRequestPlan(stHave, true, 'switch', true) === null
@@ -539,27 +547,16 @@ const partC = function (store: any): void {
   // C3. 真发那一步：按决策调用传进来的 loadSnapshot，参数逐格对上；决策说不发就一次也不碰。
   const calls: any[] = []
   const load = function (st: any, force: any, silent: any, why: any): void { calls.push({ st: st, force: force, silent: silent, why: why }) }
-  check(own.runSnapshotRequestPlan(stNeed, false, 'apply', false, load) === true && calls.length === 1
-    && calls[0].st === stNeed && calls[0].force === true && calls[0].silent === true && calls[0].why === 'work-route-missing',
-    '缺表：按决策真发一次，参数是 st / true / true / work-route-missing')
+  const stCold: any = { sessionId: 'sess-B', snapshot: null, snapLoading: false, selPending: false }
+  check(own.runSnapshotRequestPlan(stCold, false, 'mount', false, load) === true && calls.length === 1
+    && calls[0].st === stCold && calls[0].force === false && calls[0].silent === true && calls[0].why === undefined,
+    '冷启动挂载：按决策真发一次普通静默请求（参数 st / false / true / undefined）')
   const before: number = calls.length
   check(own.runSnapshotRequestPlan(stHave, true, 'switch', true, load) === false && calls.length === before,
     '表在手切会话：决策说不用发，就一次也不调用 loadSnapshot')
 
-  // C4. 同一份快照只补一次：宿主没换快照时不在同一份回包上反复发；换了一份新的再补。
-  const stOnce: any = { sessionId: 'sess-B', snapshot: { ok: true, maps: [] }, snapLoading: false, selPending: false }
-  const onceCalls: any[] = []
-  const loadOnce = function (st: any, force: any, silent: any, why: any): void { onceCalls.push({ st: st, force: force, silent: silent, why: why }) }
-  own.ensureOwnWorkRoute(stOnce, loadOnce)
-  own.ensureOwnWorkRoute(stOnce, loadOnce)
-  check(onceCalls.length === 1, '同一份快照连着判两次只补一次（失败也等下一份快照再试，实得 ' + onceCalls.length + ' 次）')
-  stOnce.snapshot = { ok: true, maps: [], version: 'vNext' }
-  own.ensureOwnWorkRoute(stOnce, loadOnce)
-  check(onceCalls.length === 2, '换了一份新快照后重新补一次（实得 ' + onceCalls.length + ' 次）')
-  const stHas: any = { sessionId: 'sess-B', snapshot: { ok: true, maps: [], workRouteTable: tableB } }
-  const hasCalls: any[] = []
-  own.ensureOwnWorkRoute(stHas, function (): void { hasCalls.push(1) })
-  check(hasCalls.length === 0, '表在手时一次也不补（缺不缺的判据收在 snapNeedsOwnWorkRoute 里）')
+  // C4. #1436 起旧的 ensureOwnWorkRoute（缺表补一次快照）整支删除，原先这里那三条断言一并去掉；
+  //   「同一份读数在途只读一次 / 迟到回包按会话键丢弃」改在 tests/verify-1436-own-work-route.ts 里测。
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -616,7 +613,7 @@ const partD = function (ui: any): void {
 const partE = async function (store: any): Promise<void> {
   console.log('#1355 E. 同工作区扇出与探测补丁不把别人的表带给别人')
   const own = loadSpliced('src/client/kernel/work-route-own.js',
-    ['snapshotWithoutWorkRoute', 'ensureOwnWorkRoute'], { snapNeedsOwnWorkRoute: store.snapNeedsOwnWorkRoute })
+    ['snapshotWithoutWorkRoute'], { snapNeedsOwnWorkRoute: store.snapNeedsOwnWorkRoute })
   const tableA: any = {
     ok: true,
     readout: {
@@ -631,6 +628,8 @@ const partE = async function (store: any): Promise<void> {
   }
   const makeProbe = function (opts: any): any {
     const loadCalls: any[] = []
+    // #1436：扇出/补丁之后每个会话改读一次本机存档（只读电话），不再为此发整份重建。
+    const ownReads: any[] = []
     const emits: any[] = []
     const hostCalls: any[] = []
     const scope: Record<string, any> = {
@@ -663,7 +662,7 @@ const partE = async function (store: any): Promise<void> {
       document: undefined, window: undefined,
       hydrateFromCache: function (): boolean { return false },
       snapshotWithoutWorkRoute: own.snapshotWithoutWorkRoute,
-      ensureOwnWorkRoute: own.ensureOwnWorkRoute,
+      loadOwnWorkRoute: function (st: any): void { ownReads.push({ st: st }) },
       chainEventRefresh: function (): any { return Promise.resolve(null) },
       loadChain: function (): any { return Promise.resolve(null) },
       setupPendingOf: function (): any { return false },
@@ -675,11 +674,11 @@ const partE = async function (store: any): Promise<void> {
       tr: function (k: any): string { return String(k) },
     }
     const mod = loadSpliced('src/refresh/rooms/client/refresh-timer.js', ['probeNow', 'refreshAll'], scope)
-    return { mod: mod, loadCalls: loadCalls, emits: emits, hostCalls: hostCalls }
+    return { mod: mod, loadCalls: loadCalls, ownReads: ownReads, emits: emits, hostCalls: hostCalls }
   }
 
   // E1. 探测补丁路径：宿主回包带着「请求它的那个会话」的表，同组三个 store 都收到剥了表的快照，
-  //     并各补一次带自己会话号的请求。
+  //     并各读一次本机的存档（#1436：不再为这张名单发整份重建）。
   const shared1: any = { cwd: 'D:\\ws1355', sessionId: 'sess-A', snapshot: baseSnap() }
   const stA1: any = { cwd: 'D:\\ws1355', sessionId: 'sess-A', snapshot: baseSnap() }
   const stB1: any = { cwd: 'D:\\ws1355', sessionId: 'sess-B', snapshot: baseSnap() }
@@ -696,13 +695,13 @@ const partE = async function (store: any): Promise<void> {
   check(stA1.snapshot.workRouteTable === undefined && stB1.snapshot.workRouteTable === undefined,
     '同组另外两个会话收到的快照同样没有别人的表')
   check(stA1.snapshot !== stB1.snapshot && stA1.snapshot !== hostSnap, '每个 store 手上是各自的对象，不是同一份共享对象')
-  check(p1.loadCalls.length === 3, '同组三个 store 各补一次自己的请求（实得 ' + p1.loadCalls.length + ' 次）')
-  check(p1.loadCalls.every(function (c: any): boolean { return c.force === true && c.silent === true && c.why === 'work-route-missing' }),
-    '每次补拉都是强制、静默、且带缺表原因')
-  const bPull: any = p1.loadCalls.filter(function (c: any): boolean { return c.st === stB1 })[0]
-  check(!!bPull && bPull.st.sessionId === 'sess-B', '给 B 补拉用的是 B 自己的 store（会话号 sess-B）')
+  check(p1.loadCalls.length === 0, '同组三个 store 都没有被触发整份快照重建（实得 ' + p1.loadCalls.length + ' 次）')
+  check(p1.ownReads.length === 3, '同组三个 store 各读一次本机工作路线存档（实得 ' + p1.ownReads.length + ' 次）')
+  const bPull: any = p1.ownReads.filter(function (c: any): boolean { return c.st === stB1 })[0]
+  check(!!bPull && bPull.st.sessionId === 'sess-B', '给 B 读存档用的是 B 自己的 store（会话号 sess-B）')
 
-  // E2. 手动刷新路径：主会话自己拉到一份带表的快照，扇出给同工作区另一个会话时表要剥掉，并触发对方补拉。
+  // E2. 手动刷新路径：主会话自己拉到一份带表的快照，扇出给同工作区另一个会话时表要剥掉，
+  //     并让对方读一次自己的存档（#1436）。
   const shared2: any = { cwd: 'D:\\other-ws', sessionId: 'sess-Z', snapshot: baseSnap() }
   const stA2: any = { cwd: 'D:\\ws1355', sessionId: 'sess-A', snapshot: baseSnap(), refreshing: false }
   const stB2: any = { cwd: 'D:\\ws1355', sessionId: 'sess-B', snapshot: baseSnap() }
@@ -717,11 +716,11 @@ const partE = async function (store: any): Promise<void> {
   check(!!stA2.snapshot && !!stA2.snapshot.workRouteTable, '手动刷新：主会话自己那份快照留着表（本来就是按它的会话号算的）')
   check(!!stB2.snapshot && stB2.snapshot.workRouteTable === undefined, '扇出给 B 的快照里没有 A 的表')
   const eLoads: any[] = p2.loadCalls
-  check(eLoads.length === 2, '手动刷新只发主会话那一次加载 + B 的一次补拉（实得 ' + eLoads.length + ' 次）')
+  check(eLoads.length === 1, '手动刷新只发主会话那一次快照加载（实得 ' + eLoads.length + ' 次）')
   check(!!eLoads[0] && eLoads[0].st === stA2 && eLoads[0].force === true && eLoads[0].silent === true,
-    '第一次是主会话自己的强制静默刷新')
-  check(!!eLoads[1] && eLoads[1].st === stB2 && eLoads[1].force === true && eLoads[1].silent === true && eLoads[1].why === 'work-route-missing',
-    '第二次是 B 的缺表补拉（force / silent / why 逐格对上）')
+    '这一次是主会话自己的强制静默刷新')
+  check(p2.ownReads.length === 1 && !!p2.ownReads[0] && p2.ownReads[0].st === stB2,
+    'B 收到剥了表的快照后读一次自己的存档（实得 ' + p2.ownReads.length + ' 次）')
 }
 
 async function main(): Promise<void> {

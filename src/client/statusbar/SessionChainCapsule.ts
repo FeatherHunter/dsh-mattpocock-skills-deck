@@ -34,6 +34,7 @@
  * 也不要写 export default（构建侧 inlineExportDeclarations 不收 as 改名）。
  */
 // 调用的动作函数（在办表读数、动作词条键、地图跳转、菜单定位开关）。
+declare function capsuleOwnRouteFallbackNode(...args: any[]): any; declare function capsuleOwnRoutePick(...args: any[]): any; declare function ownWorkRouteSlotOf(...args: any[]): any;
 declare function clearStatusClose(...args: any[]): any;
 declare function findMapByIdentity(...args: any[]): any;
 declare function Ic(props?: any): any;
@@ -178,7 +179,10 @@ export const sessionChainCapsuleOf = function (st: any, sid: any) {
   //   那个会话号现算，客户端缓存不保留这张表，缺表会补发一次带当前会话号的请求。sid 保留在签名里（调用方照旧传）。
   //   行上的 currentSession 只是行级过滤，它认不出整张表属于别人 —— 那种情况登记在票里另立票。
   void sid
-  const view = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
+  // #1436：先看首帧那条只读电话的读数（本机存档，不用等整份快照重建）；一次都还没读到时画「读取中」。
+  const pick = (typeof capsuleOwnRoutePick === 'function') ? capsuleOwnRoutePick(st) : null
+  const view = (pick && pick.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null)
+  if (pick && pick.fallback && (!view || view.state === 'idle' || view.state === 'empty')) return pick.fallback
   if (!view || view.state === 'idle') return { state: 'idle', reason: '', entry: null, list: [] }
   if (view.state === 'empty') return { state: 'empty', reason: '', entry: null, list: [] }
   if (view.state !== 'ok') return { state: 'unreadable', reason: String((view && view.reason) || 'host.work-route.shape'), entry: null, list: [] }
@@ -217,9 +221,10 @@ export const logStatusFallback = function (st: any, sid: any) {
     else {
       const cap = sessionChainCapsuleOf(st, sid)
       const capState = (cap && typeof cap.state === 'string') ? cap.state : ''
-      if (capState === 'idle') reason = 'work-route-idle'
+      if (capState === 'loading') reason = 'work-route-loading'
       else if (capState === 'empty') reason = 'work-route-empty'
       else if (capState === 'unreadable') reason = 'work-route-unreadable'
+      else if (capState === 'idle') { const slot = (typeof ownWorkRouteSlotOf === 'function') ? ownWorkRouteSlotOf(st) : null; reason = (slot && slot.state === 'off') ? 'work-route-off' : 'work-route-idle' }
     }
     const key = reason + '|' + tableRows + '|' + ownRows
     if (key === dswsCapsuleFbLast.key) return
@@ -379,6 +384,7 @@ export const SessionChainCapsule = function (props: any) {
   const st = props ? props.st : null
   const sid = props ? props.sid : ''
   const view = sessionChainCapsuleOf(st, sid)
+  if (view.state === 'loading') return (typeof capsuleOwnRouteFallbackNode === 'function') ? capsuleOwnRouteFallbackNode(h, tr, view, Ic) : null
   if (view.state === 'idle' || view.state === 'empty') return null
   if (view.state !== 'ok') {
     return h('span', { className: 'dsws-capsule-chain-broken', style: { display: 'inline-flex', alignItems: 'center', flex: 'none' } }, [

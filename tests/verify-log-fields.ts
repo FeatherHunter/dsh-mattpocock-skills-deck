@@ -235,6 +235,8 @@ const ALLOWED = {
   //   （没有表时两格都记 -1）。为什么要有：出事时日志里只有前三个 reason，分不清「还没有快照」与
   //   「有表但没有本会话的行」，而这两种分别指向补拉链路与「这张表是谁算的」两条完全不同的修法。
   //   只记枚举与计数，不记票号、路径、会话号原文。
+  // 2026-10-23（#1436）再补两档：work-route-loading 还在读本机存档、胶囊在转圈；work-route-off 本机读法
+  //   暂时不可用、已安静退回旧快照。字段不变，仍只有 reason / tableRows / ownRows 三格。
   'statusbar.fallback': ['reason', 'tableRows', 'ownRows'],
   'dock.rehydrate': ['sidHash', 'cwdChanged', 'polluted'],
   'storage.fail': ['key', 'op'],
