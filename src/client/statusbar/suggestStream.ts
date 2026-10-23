@@ -1,8 +1,9 @@
 // src/client/statusbar/suggestStream.ts —— 「下一步建议」取数通路里的订阅层（#1409）
 //
 // 职责：借官方对话界面已经保持着的会话事件流（sessions.binding(sid).eventSource）只读订阅，
-// 认出建议工具的 tool/call，等同一轮 turn/end 之后把解析好的建议清单交给上层（onReady），
-// 并挂成一个组件交给状态栏；#1411 起这个组件把建议交给状态胶囊上方的气泡去渲染。
+// 认出建议工具的调用（原生预设是 tool/call，PTC 预设是 tool/ptc-dispatch-start），等同一轮
+// turn/end 之后把解析好的建议清单交给上层（onReady），并挂成一个组件交给状态栏；#1411 起这个
+// 组件把建议交给状态胶囊上方的气泡去渲染。
 //
 // 硬约束（票面与平台契约）：
 //   - 只借不保：绝不调用会话服务里那几个保活接口（retain、保活作用域、using 一律不碰）。保持订阅
@@ -45,6 +46,9 @@ export const createSuggestStream = function (options: any) {
   let binding: any = null
   let pending: any = null
   let lastEndedTurn: any = null
+  // PTC 预设的派发事件本身不带轮次，只能跟着 turn/start 走：记下当前这一轮的编号，
+  // 给那些事件补轮次。原生 tool/call 自带轮次，不依赖它。
+  let currentTurn: any = null
   let seenCount = 0
   const seenCalls: any = {}
 
@@ -86,17 +90,26 @@ export const createSuggestStream = function (options: any) {
   function takeEvent(event: any) {
     const info = suggestEventOf(event)
     if (!info) return
+    if (info.kind === 'turn-start') {
+      currentTurn = info.turn
+      return
+    }
     if (info.kind === 'turn-end') {
       lastEndedTurn = info.turn
-      if (pending && pending.turn <= info.turn) {
+      currentTurn = null
+      // PTC 调用可能是在界面挂载时这一轮已经开始了（没看到 turn/start），那时轮次补不出来；
+      // 只要它是在这条 turn/end 之前收到的，就属于这一轮，照常交付。
+      if (pending && (pending.turn === null || pending.turn <= info.turn)) {
         const job = pending
         deliver('delivered', job.turn, job.callId, job.items)
       }
       return
     }
     const callId = info.callId
+    // 原生 tool/call 自带轮次；PTC 的派发事件没有，用当前轮次补上；都补不出来就记 null，等 turn/end 收尾。
+    const callTurn = (info.turn === null || info.turn === undefined) ? currentTurn : info.turn
     if (seenCalls[callId] === true) {
-      logCall('dup', callId, info.turn, 0, 0, '')
+      logCall('dup', callId, callTurn, 0, 0, '')
       return
     }
     seenCalls[callId] = true
@@ -107,19 +120,19 @@ export const createSuggestStream = function (options: any) {
       seenCalls[callId] = true
       seenCount = 1
     }
-    const parsed = suggestItemsOf(info.argumentsText)
+    const parsed = suggestItemsOf(info.argumentsValue)
     if (!parsed.ok) {
-      logCall(parsed.reason === 'bad-shape' ? 'bad-shape' : 'bad-args', callId, info.turn, 0, 0, parsed.reason)
+      logCall(parsed.reason === 'bad-shape' ? 'bad-shape' : 'bad-args', callId, callTurn, 0, 0, parsed.reason)
       return
     }
-    logCall('seen', callId, info.turn, parsed.items.length, parsed.clipped, '')
-    if (lastEndedTurn !== null && info.turn <= lastEndedTurn) {
-      deliver('already-ended', info.turn, callId, parsed.items)
+    logCall('seen', callId, callTurn, parsed.items.length, parsed.clipped, '')
+    if (callTurn !== null && lastEndedTurn !== null && callTurn <= lastEndedTurn) {
+      deliver('already-ended', callTurn, callId, parsed.items)
       return
     }
     // 同一轮里出现第二条建议调用时以后来的为准（票面④）：模型可能在一次回复里重调工具。
-    pending = { turn: info.turn, callId: callId, items: parsed.items }
-    logReady('queued', callId, info.turn, parsed.items.length)
+    pending = { turn: callTurn, callId: callId, items: parsed.items }
+    logReady('queued', callId, callTurn, parsed.items.length)
   }
 
   /** 事件流通知：只认 append 增量；replace 是打开旧会话时的历史重放，不能当新调用冒泡。 */
@@ -157,6 +170,7 @@ export const createSuggestStream = function (options: any) {
     disposed = true
     pending = null
     lastEndedTurn = null
+    currentTurn = null
     for (const key in seenCalls) delete seenCalls[key]
     seenCount = 0
     const stopFn = stop

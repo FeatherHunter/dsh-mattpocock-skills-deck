@@ -3,9 +3,10 @@
 //
 // 为什么要有这一扇：这条通路要做的事很小，但每一格都容易在后续改动里被顺手破坏 ——
 //   ① 只借官方界面已经保持着的订阅（sessions.binding(sid).eventSource），绝不 retain 保活；
-//   ② 只认 durable tool/call，别把历史重放（replace）或流式增量当成新调用；
+//   ② 只认 durable 的调用事件（原生预设 tool/call、PTC 预设 tool/ptc-dispatch-start），别把历史
+//      重放（replace）或流式增量当成新调用；
 //   ③ 等同一轮的 turn/end 再交付，不靠计时器；同一编号只交付一次；同一轮两次以后来的为准；
-//   ④ 参数原文解析失败、形状不对、条数不够时不出结果、只记日志；拿不到事件流安静不做；
+//   ④ 参数解析失败、形状不对、条数不够时不出结果、只记日志；拿不到事件流安静不做；
 //   ⑤ 日志只落散列与计数，绝不落提示词与理由原文。
 // 所以这里用假事件流逐条断言外部行为（交付了什么、记了什么日志），再用源码守卫钉住
 // 「不许 retain」「不许新增定时器」「挂载点在状态栏里」「界面与工具两侧的上下限一致」。
@@ -29,9 +30,23 @@ const GOOD_ARGS = JSON.stringify({ items: [
   { prompt: '/to-tickets', reason: '把计划拆成票' },
   { prompt: '/grill', reason: '先拷问一下方案' },
 ] })
+// PTC 预设的事件形态：参数必须是结构化对象（平台在派发前已解析过），不是 JSON 文本。
+const PTC_ITEMS = { items: [
+  { prompt: '/ptc-one', reason: 'PTC 里的第一条' },
+  { prompt: '/ptc-two', reason: 'PTC 里的第二条' },
+] }
 
 function callEvent(callId, turn, args, name) {
   return { type: 'tool/call', data: { turn: turn, step: 1, callId: callId, name: name || 'suggest_next_steps', arguments: args } }
+}
+function ptcCallEvent(subCallId, args, name) {
+  return { type: 'tool/ptc-dispatch-start', data: {
+    rootCallId: 'call_root', parentCallId: 'call_root', subCallId: subCallId,
+    name: name || 'suggest_next_steps', arguments: args,
+  } }
+}
+function startEvent(turn) {
+  return { type: 'turn/start', data: { turn: turn, step: 1 } }
 }
 function endEvent(turn) {
   return { type: 'turn/end', data: { turn: turn, reason: { kind: 'completed' } } }
@@ -187,7 +202,15 @@ async function main() {
   ] }))
   check(parsedExtra.ok === true && parsedExtra.items[0].prompt === '/a' && parsedExtra.items[0].reason === 'r1', '两侧空白 trim 掉、多余键不往下传')
   check(Object.keys(parsedExtra.items[0]).join(',') === 'prompt,reason', '每个条目只留 prompt 与 reason 两格')
-  check(facts.suggestItemsOf({}).ok === false && facts.suggestItemsOf({}).reason === 'bad-json', '参数不是字符串时判 bad-json')
+  check(facts.suggestItemsOf(null).ok === false && facts.suggestItemsOf(null).reason === 'bad-json', '参数既不是字符串也不是对象时判 bad-json')
+  check(facts.suggestItemsOf(42).reason === 'bad-json', '参数是数字等其它类型时判 bad-json')
+  check(facts.suggestItemsOf({}).reason === 'bad-shape', '参数是对象但没有 items 时判 bad-shape（PTC 坏形状走这条路）')
+  const parsedObject = facts.suggestItemsOf({ items: [
+    { prompt: '/obj-one', reason: '对象参数第一条' },
+    { prompt: '/obj-two', reason: '对象参数第二条' },
+  ] })
+  check(parsedObject.ok === true && parsedObject.items.length === 2 && parsedObject.items[0].prompt === '/obj-one', '参数已是结构化对象时直接解析（PTC 派发事件的形态）')
+  check(facts.suggestItemsOf([1, 2]).reason === 'bad-shape', '参数本身就是数组时判 bad-shape')
   check(facts.suggestItemsOf('{oops').reason === 'bad-json', 'JSON 解析失败判 bad-json')
   check(facts.suggestItemsOf('[1,2]').reason === 'bad-shape', '顶层不是对象判 bad-shape')
   check(facts.suggestItemsOf(JSON.stringify({ items: 'nope' })).reason === 'bad-shape', 'items 不是数组判 bad-shape')
@@ -214,16 +237,26 @@ async function main() {
   const parsedNoReason = facts.suggestItemsOf(JSON.stringify({ items: [{ prompt: '/a' }, { prompt: '/b' }] }))
   check(parsedNoReason.ok === true && parsedNoReason.items[0].reason === '', '缺理由的条目按空理由收（不因少一句解释丢掉整条提示词）')
 
-  // ── 6. 事件识别：只认 durable tool/call 与 turn/end ──
+  // ── 6. 事件识别：只认 durable 的调用事件（tool/call 与 tool/ptc-dispatch-start）与 turn/start、turn/end ──
   const foundCall = facts.suggestEventOf(callEvent('call_A', 3, GOOD_ARGS))
-  check(foundCall && foundCall.kind === 'call' && foundCall.callId === 'call_A' && foundCall.turn === 3 && foundCall.argumentsText === GOOD_ARGS, '认出建议工具的 tool/call（turn、callId、参数原文都带出）')
+  check(foundCall && foundCall.kind === 'call' && foundCall.callId === 'call_A' && foundCall.turn === 3 && foundCall.argumentsValue === GOOD_ARGS, '认出建议工具的 tool/call（turn、callId、参数原文都带出）')
   check(facts.suggestEventOf(callEvent('call_B', 3, GOOD_ARGS, 'pwsh')) === null, '别的工具不认')
   const foundEnd = facts.suggestEventOf(endEvent(7))
   check(foundEnd && foundEnd.kind === 'turn-end' && foundEnd.turn === 7, '认出 turn/end 并带出轮次')
   check(facts.suggestEventOf({ type: 'turn/end', data: { turn: 'x' } }) === null, '轮次不是数字的 turn/end 不认')
   check(facts.suggestEventOf(callEvent('', 1, GOOD_ARGS)) === null, '没有调用编号的 tool/call 不认')
+  const foundTurnStart = facts.suggestEventOf(startEvent(4))
+  check(foundTurnStart && foundTurnStart.kind === 'turn-start' && foundTurnStart.turn === 4, '认出 turn/start 并带出轮次（给 PTC 调用补轮次用）')
+  check(facts.suggestEventOf({ type: 'turn/start', data: { turn: 'x' } }) === null, '轮次不是数字的 turn/start 不认')
+  const ptcEvent = ptcCallEvent('call_ptc:1', PTC_ITEMS)
+  const foundPtc = facts.suggestEventOf(ptcEvent)
+  check(foundPtc && foundPtc.kind === 'call' && foundPtc.callId === 'call_ptc:1' && foundPtc.turn === null, '认出 PTC 派发里的建议工具调用（callId 用 subCallId、事件本身没有轮次）')
+  check(foundPtc && foundPtc.argumentsValue === ptcEvent.data.arguments, 'PTC 调用把事件里的结构化参数原样带出（不需要再解析一次）')
+  check(facts.suggestEventOf(ptcCallEvent('call_ptc:2', PTC_ITEMS, 'pwsh')) === null, 'PTC 派发里别的工具不认')
+  check(facts.suggestEventOf({ type: 'tool/ptc-dispatch-start', data: { name: 'suggest_next_steps', subCallId: '', arguments: PTC_ITEMS } }) === null, 'PTC 派发没有调用编号时不认')
+  check(facts.suggestEventOf({ type: 'tool/ptc-dispatch', data: { subCallId: 'call_ptc:1', name: 'suggest_next_steps', arguments: PTC_ITEMS } }) === null, 'PTC 结果事件不认（一次调用只认派发那一下）')
   check(facts.suggestEventOf(null) === null && facts.suggestEventOf({}) === null, '空事件不认、不抛')
-  check(facts.suggestEventOf({ type: 'assistant/live-chunk', data: { chunk: { id: 'call_A', type: 'tool-call-delta' } } }) === null, '流式增量不认（完整参数只信 durable tool/call）')
+  check(facts.suggestEventOf({ type: 'assistant/live-chunk', data: { chunk: { id: 'call_A', type: 'tool-call-delta' } } }) === null, '流式增量不认（完整参数只信 durable 的调用事件）')
   check(facts.suggestEventOf({ type: 'assistant/message', data: { message: { content: [{ type: 'tool-call', id: 'call_A', name: 'suggest_next_steps', arguments: GOOD_ARGS }] } } }) === null, 'assistant/message 里的工具调用块也不认（同一次调用只交付一次）')
 
   // ── 7. 借不到事件流：安静不做，只留一条能指路的日志 ──
@@ -304,6 +337,53 @@ async function main() {
     } finally { cap.restore() }
   }
 
+  // ── 8b. PTC 预设：调用记在 tool/ptc-dispatch-start，轮次靠 turn/start 补齐 ──
+  {
+    const cap = captureLog()
+    try {
+      const env = makeEnv()
+      const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: SID, onReady: env.onReady })
+      env.notify([startEvent(5)])
+      check(env.ready.length === 0, 'turn/start 本身不交付任何东西（只用来记当前轮次）')
+      env.notify([ptcCallEvent('call_00_ptc:2', PTC_ITEMS)])
+      check(env.ready.length === 0, 'PTC 调用先排队等整轮结束')
+      check(lastOutcome(cap.records, 'suggest.call') === 'seen', 'PTC 调用同样记 suggest.call seen')
+      const ptcRow = rowsOf(cap.records, 'suggest.call')[0]
+      check(ptcRow.fields.turn === 5 && ptcRow.fields.items === 2, 'PTC 调用的轮次从 turn/start 补齐、条数照常记')
+      env.notify([endEvent(5)])
+      check(env.ready.length === 1, 'PTC 调用在同一轮 turn/end 之后交付一次')
+      check(env.ready[0][0].prompt === '/ptc-one' && env.ready[0][1].prompt === '/ptc-two', '交付的是 PTC 事件里的结构化参数解析出的清单（顺序保留）')
+      check(lastOutcome(cap.records, 'suggest.ready') === 'delivered', 'PTC 交付这一趟也记 delivered')
+      stream.dispose()
+    } finally { cap.restore() }
+  }
+  {
+    const cap = captureLog()
+    try {
+      const env = makeEnv()
+      const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: SID, onReady: env.onReady })
+      // 界面在一轮中途才挂上：没看到 turn/start，只能等 turn/end 收尾（轮次补不出来，照常交付）。
+      env.notify([ptcCallEvent('call_mid:1', PTC_ITEMS)])
+      check(env.ready.length === 0, '中途挂载时 PTC 调用也先排队')
+      check(lastOutcome(cap.records, 'suggest.call') === 'seen', '中途挂载的 PTC 调用照常收下')
+      env.notify([endEvent(6)])
+      check(env.ready.length === 1, '中途挂载时 turn/end 照样交付（之前没看到 turn/start 不影响交付）')
+      check(rowsOf(cap.records, 'suggest.call')[0].fields.turn === null, '补不出轮次时日志里 turn 记 null（不编造轮次）')
+      stream.dispose()
+    } finally { cap.restore() }
+  }
+  {
+    const cap = captureLog()
+    try {
+      const env = makeEnv()
+      const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: SID, onReady: env.onReady })
+      env.notify([startEvent(2), ptcCallEvent('call_dup:1', PTC_ITEMS), ptcCallEvent('call_dup:1', PTC_ITEMS), endEvent(2)])
+      check(env.ready.length === 1 && env.ready[0][0].prompt === '/ptc-one', 'PTC 同一编号出现两次只交付一次')
+      check(hasOutcome(cap.records, 'suggest.call', 'dup'), 'PTC 重复的那次记 dup 后丢掉')
+      stream.dispose()
+    } finally { cap.restore() }
+  }
+
   // ── 9. 去重与「同一轮以后来的为准」 ──
   {
     const cap = captureLog()
@@ -365,7 +445,7 @@ async function main() {
       env.notify([endEvent(2)], 'settle-assistant')
       check(env.ready.length === 0, 'prepend / settle-assistant 这些非增量变化也都不冒泡')
       env.notify([{ type: 'assistant/live-chunk', data: { chunk: { id: 'call_A', type: 'tool-call-delta' } } }, { type: 'assistant/message', data: {} }])
-      check(env.ready.length === 0, '流式增量与助手消息块不交付（完整参数只认 durable tool/call）')
+      check(env.ready.length === 0, '流式增量与助手消息块不交付（完整参数只认 durable 的调用事件）')
       stream.dispose()
     } finally { cap.restore() }
   }
@@ -506,6 +586,8 @@ async function main() {
   check(buildSrc.indexOf("id: 'suggestFacts'") >= 0 && buildSrc.indexOf("id: 'suggestStream'") >= 0, '构建清单登记了两个新叶子')
   const factsSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestFacts.ts'), 'utf8')
   check(factsSrc.indexOf("'suggest_next_steps'") >= 0, '界面侧工具名是字面量（不靠运行时拼）')
+  check(factsSrc.indexOf("'tool/ptc-dispatch-start'") >= 0 && factsSrc.indexOf("'turn-start'") >= 0, '事件识别里显式包含 PTC 派发与 turn/start（两种预设都要认）')
+  check(streamSrc.indexOf("'turn-start'") >= 0, '订阅层处理 turn/start（PTC 调用靠它补轮次）')
   check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 200/.test(factsSrc), '界面侧四个上下限常量是字面量')
   const toolSrc = fs.readFileSync(path.join(ROOT, 'src/deck/tools/suggest-next-steps.ts'), 'utf8')
   check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 200/.test(toolSrc), '工具侧四个上下限常量是字面量（两边数字由上面的导入比对钉住）')
