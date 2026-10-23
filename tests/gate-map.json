@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T09:19:26.222Z",
+  "generatedAt": "2026-10-23T10:52:32.297Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 332,
   "gateCount": 332,
@@ -9312,10 +9312,10 @@
   "coverage": {
     "sourceRoot": "src",
     "fileCount": 573,
-    "dirCount": 78,
+    "dirCount": 72,
     "coveredFileCount": 573,
     "ungatedFileCount": 0,
-    "ungatedDirCount": 6,
+    "ungatedDirCount": 0,
     "dedicatedDirCount": 54,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
@@ -10097,31 +10097,6 @@
       }
     ],
     "ungated": [],
-    "ungatedDirs": [
-      {
-        "path": "src/host/outbound",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/host/refresh",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/shared/host-timer",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/shared/host-timer/src",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/shared/refresh",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/shared/refresh/src",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      }
-    ]
+    "ungatedDirs": []
   }
 }
