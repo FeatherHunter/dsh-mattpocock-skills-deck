@@ -14,6 +14,7 @@
 // 每一次远端调用单独钳制，超时只坏自己那一项；同计划标识并发第二跑直接拒绝。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
+import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { createMemoryPlanStore, createFilePlanStore, planCursorDir } from '../shell/plan-cursor.js'
 import { readbackMapPlan } from './map-plan-readback.js'
@@ -243,7 +244,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BACKEND_UNSUPPORTED, '同一个计划标识（' + planId.slice(0, 60) + '）正在另一次执行里跑（进行中），这次没动手：等它做完再来，或换一个 planId。', { cost: { estimated: est } })
     }
     ACTIVE_PLANS.set(planId, 1)
-    const pick = await shell.pickBackend(exec, s)
+    const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_map_plan_create', kind: 'write' })
     if (!pick.ok) { ACTIVE_PLANS.delete(planId); return shell.unsupported('deck_map_plan_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } }) }
     const repo = shell.repoOf(pick, s)
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
@@ -286,7 +287,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
     let out = null
     try {
-      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: nowFn })
+      out = await callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_map_plan_create', sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: nowFn })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!

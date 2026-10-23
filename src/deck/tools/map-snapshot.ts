@@ -7,6 +7,7 @@
 // parseMapBody 解析，同样是单源。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
+import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { childrenOf } from '../shell/edge-landing.js'
 import { deriveDeck, parseProgress } from '../../tracker/deck-derive.js'
 import { parseMapBody, parseOriginalWords, parseProgressDetail } from '../../tracker/body-parse.js'
@@ -112,7 +113,7 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
     if (!s.ok) return shell.unsupported('deck_map_snapshot', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_map_snapshot', REFUSAL_REASONS.BAD_ARGS, '要看哪一张地图：把地图那张票的票号写在 key 里。', { cost: { estimated: est } })
 
-    const pick = await shell.pickBackend(exec, s)
+    const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_map_snapshot', kind: 'read' })
     if (!pick.ok) return shell.unsupported('deck_map_snapshot', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
@@ -120,7 +121,7 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
 
     // exec 的形状由 DSH 给（会话壳那批还没标类型，见 #1040），三处 exec.signal 各按纯类型断言收口：
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
-    return shell.call({ tool: 'deck_map_snapshot', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c: unknown) => {
+    return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_map_snapshot', sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c: unknown) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。

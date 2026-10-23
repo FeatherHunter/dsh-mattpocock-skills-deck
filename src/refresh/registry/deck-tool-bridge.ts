@@ -28,12 +28,65 @@ import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js
 import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
 import * as budget from '../kernel/host-budget.js'
 import * as toolCost from '../kernel/tool-call-budget.js'
+import { writeReserve } from '../kernel/host-budget.js'
 
 
 /** 未知形状的对象（接线递进来的依赖包先按这形接住，用到哪格验哪格，不猜）。 */
 type UnknownRecord = Record<string, unknown>;
 /** 装配依赖包：九个工具工厂要的全部依赖，由宿主接线方现取现传（与门禁里直接喂给工厂的那一份同形）。 */
 export interface HostToolDeps { gate?: unknown; registry?: unknown; budget?: unknown; estimate?: unknown; costInputFrom?: unknown; handleFor?: unknown; backendCtx?: unknown; invalidate?: unknown }
+
+/**
+ * 配出 Tracker 会话要的三件（#1442，读缓存、裁决、记账各一件）。
+ * 读数以账本即时视图为准：两桶都没同步过就报未知（未知不拦事，见参考裁决）；
+ * 裁决与参考裁决同口径（硬顶先行、未知与离网放行、已知耗尽推迟）；记账按口径分桶，
+ * 离网恒记零花——各操作真实用量 1443 才进账本，本票只保证账上不记假数。
+ */
+function buildTrackerPorts(base: UnknownRecord): { getCachedReading: () => unknown; admit: (input: unknown) => Promise<unknown>; account: (input: unknown) => Promise<void> } {
+  // 账本视图里总额度叫 allowance（不是 limit）：这里按 allowance 取，裁决的写保底才算得对。
+  const ledger = (base.ledger || null) as { view?: (bucket: string) => { remaining: number; allowance: number; reserve: number; synced: boolean } } | null;
+  const getCachedReading = function (): unknown {
+    try {
+      if (!ledger || typeof ledger.view !== 'function') return { known: false, reason: 'not-measured' };
+      const rest = ledger.view('rest');
+      const graphql = ledger.view('graphql');
+      if ((!rest || !rest.synced) && (!graphql || !graphql.synced)) return { known: false, reason: 'not-measured' };
+      return {
+        known: true, kind: 'two-buckets',
+        buckets: {
+          rest: { remaining: (rest && rest.remaining) || 0, limit: (rest && rest.allowance) || 0 },
+          graphql: { remaining: (graphql && graphql.remaining) || 0, limit: (graphql && graphql.allowance) || 0 },
+        },
+      };
+    } catch { return { known: false, reason: 'unavailable' }; }
+  };
+  const admit = async function (input: unknown): Promise<unknown> {
+    const rec = (input || {}) as UnknownRecord;
+    const op = String(rec.op || '');
+    const model = (rec.budget || {}) as UnknownRecord;
+    const reading = (rec.reading || {}) as UnknownRecord;
+    const writes = ['create', 'close', 'reopen', 'comment', 'update', 'setLabels', 'setAssignees', 'setParent', 'setBlockedBy'];
+    if (writes.indexOf(op) >= 0 && rec.canWrite === false) return { allowed: false, kind: 'rate-limit', reason: 'hard-cap:no-write', message: '硬顶：这次调用没有写权限，写操作直接拒绝。' };
+    if (!reading || reading.known === false) return { allowed: true, reason: 'unknown-reading' };
+    if (model.kind === 'off-network' || reading.kind === 'off-network') return { allowed: true, reason: 'off-network' };
+    const levels: Array<{ remaining: number; limit: number }> = [];
+    if (reading.kind === 'requests-only') levels.push((reading.requests || {}) as { remaining: number; limit: number });
+    else if (reading.kind === 'two-buckets') {
+      const buckets = (reading.buckets || {}) as UnknownRecord;
+      if (model.kind === 'requests-only') levels.push((buckets.rest || {}) as { remaining: number; limit: number });
+      else if (model.independentBuckets) levels.push((buckets.rest || {}) as { remaining: number; limit: number }, (buckets.graphql || {}) as { remaining: number; limit: number });
+      else levels.push((buckets.graphql || {}) as { remaining: number; limit: number });
+    }
+    for (const level of levels) {
+      const remaining = (typeof level.remaining === 'number' && isFinite(level.remaining)) ? level.remaining : 0;
+      const limit = (typeof level.limit === 'number' && isFinite(level.limit)) ? level.limit : 0;
+      if (remaining <= writeReserve(limit)) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: '额度的一个桶已经见底，这次先不执行。' };
+    }
+    return { allowed: true, reason: 'sufficient' };
+  };
+  const account = async function (): Promise<void> { /* 各操作真实用量 1443 才进账本，本票只保证账上不记假数。 */ };
+  return { getCachedReading: getCachedReading, admit: admit, account: account };
+}
 
 /** 声明文件读取的等待上限（毫秒）：挂住的文件服务不能卡住选后端，超时按缺席跳过。数值与位置全冻（#1030 Q4），真源见中央 YAML。 */
 export const DECK_ASSEMBLY_TIMEOUT_MS = CENTRAL_DECK_ASSEMBLY_TIMEOUT_MS
@@ -79,7 +132,15 @@ export function createDeckToolsForHost(toolDeps: unknown): unknown {
   }
   const createTools = createDeckTools as (factories: unknown, deps: unknown) => unknown;
   const decideBackendFn = (decideBackend as unknown) || null;
-  return createTools(DECK_TOOL_FACTORIES, { toolDeps: Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn }) })
+  // #1442：Tracker 会话要的三件（读缓存、裁决、记账）由装配层配齐，九个工具只管调会话，不自己找闸与账本。
+  // 调用方已经配好的不动（门禁直调工厂时自带桩，本层不覆盖）；1443 才接真正的分桶读数缓存，
+  // 本票的读缓存先从账本即时读（同步过就有数，没同步过就诚实报未知，未知不拦事）。
+  const ports = buildTrackerPorts(base);
+  const toolDeps = Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn });
+  if (typeof toolDeps.getCachedReading !== 'function') toolDeps.getCachedReading = ports.getCachedReading;
+  if (typeof toolDeps.admit !== 'function') toolDeps.admit = ports.admit;
+  if (typeof toolDeps.account !== 'function') toolDeps.account = ports.account;
+  return createTools(DECK_TOOL_FACTORIES, { toolDeps: toolDeps })
 }
 
 
@@ -174,6 +235,7 @@ export function createDeckToolBridge(deps: any): any {
         try { workRouteBindings = await loadWorkRouteBindings() } catch (eW: any) {}
         const built: any = createDeckToolsForHost({
           gate: gate,
+          ledger: ledger,
           registry: registry,
           budget: budget,
           estimate: toolCost.estimateToolCost,

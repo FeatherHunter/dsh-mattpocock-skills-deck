@@ -11,6 +11,7 @@
 // 没有「看到子票都关了顺手关」的旁路：唯一的触发条件就是收口核对通过，而这条评论本身就是核对通过的证据。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
+import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { statusOfItems } from '../shell/edge-landing.js'
 import { specCloseGuard } from '../shell/spec-close-guard.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
@@ -127,7 +128,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
     if (a.close === false) {
       return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.OVER_CAP, '重开不在这个 AI 工具面上：这个工具只允许关闭，不允许重新打开；要重开请人回到后端（GitHub 的票页面，或本地 .scratch 目录下的票文件）手动做。这次一个字都没动。', { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     }
-    const pick = await shell.pickBackend(exec, s)
+    const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_patch', kind: 'write' })
     if (!pick.ok) return shell.unsupported('deck_issue_patch', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
@@ -169,7 +170,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
 
     // exec 的形状由 DSH 给（会话壳那批还没标类型，见 #1040），三处 exec.signal 各按纯类型断言收口：
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
-    return shell.call({ tool: 'deck_issue_patch', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c: unknown) => {
+    return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_issue_patch', sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c: unknown) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
