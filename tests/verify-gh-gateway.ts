@@ -160,8 +160,8 @@ function loadRegistry(file) {
 
 async function runtimePart() {
   console.log('\n== 运行期：漏网计数（真跑一遍账本 + 闸，用假的传输层） ==')
-  const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'ledger.ts')).href)
-  const gateMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'gate.ts')).href)
+  const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'quota-ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'refresh-gate.ts')).href)
   let clock = 1700000000000
   const build = function () {
     const ledger = ledgerMod.createLedger({ now: () => clock })

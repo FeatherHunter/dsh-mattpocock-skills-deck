@@ -77,8 +77,8 @@ async function main() {
   console.log('1195 预算起算点门禁（入口前耗时进预算）')
   const budgetMod = await imp('src/deck/shell/call-budget.ts')
   const budget = await imp('src/refresh/kernel/host-budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
 
   // ① 单元：startedAt 进剩余额度
   {

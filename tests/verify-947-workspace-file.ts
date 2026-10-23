@@ -88,8 +88,8 @@ async function main() {
   //   原先排在最前面的「注册表里的进程内绑定」已经整段删除，所以这里不再有「内存胜一切」那一条。
   const shellMod = await imp('src/deck/shell/call-shell.ts')
   const budget = await imp('src/refresh/kernel/host-budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const decMod947 = await imp('src/tracker/detection/backendDecision.ts')
   const sOf = (cwd: string): any => ({ cwd: cwd, workspaceKey: 'k947', sessionId: 's947', source: 't', text: '' })

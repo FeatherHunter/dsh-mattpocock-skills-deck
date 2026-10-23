@@ -1,4 +1,4 @@
-// workRouteReadoutForHost.ts —— 宿主里「工作路线读数」的两件装配（#1082）。
+// work-route-readout.ts —— 宿主里「工作路线读数」的两件装配（#1082）。
 //
 // 两件东西住在一起，是因为它们共用同一个实例、也同属「宿主接线」这一层的事，而宿主同层互引要记存量豁免
 // （tests/same-layer-baseline.json）—— 合成一个文件，接线处只多一条边，不把两笔债分开记。
@@ -20,7 +20,7 @@
 //     rootKeyOf 工作区根 → 工作区键（与工具会话里的 workspaceKey 是同一把钥匙，见 src/refresh/contract/workspace-keys.ts）
 //     now       取时间（门禁注入固定时钟；生产是 Date.now）
 //     回包不是 ok:true 时原样返回 —— 失败快照不许挂一份看起来成功的读数。
-import { createWorkRouteBindings } from '../../deck/shell/work-path-bindings.js'
+import { createWorkRouteBindings } from '../../../deck/shell/work-path-bindings.js'
 
 /** 快照回包上这个字段的名字；界面（client/views/shared/workRouteTable.ts）读的是同一个名字。 */
 export const WORK_ROUTE_TABLE_FIELD = 'workRouteTable'

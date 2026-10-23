@@ -1,6 +1,6 @@
 {
   // 刷新机制新家的 TypeScript 配置（#1425 建）：纯逻辑核与契约层搬进 src/refresh/ 之后，
-  // 这 20 份真源的类型检查归这一份配置管。旧的两份配置（src/shared/refresh、src/shared/host-timer）
+  // 这 30 份真源的类型检查归这一份配置管（#1425 二十份内核与契约，#1426 十份宿主房）。旧的两份配置（src/shared/refresh、src/shared/host-timer）
   // 随着最后一批源码搬出而删除 —— 一个文件只属于一份配置，旧配置留着会因圈住 0 个文件而触发门禁。
   // rooms/host、rooms/client、registry 三个目录现在还是空的（住户 #1426-#1428 才搬进来），
   // 通配先圈上，住户搬进来的那一票不用再动配置。

@@ -16,7 +16,7 @@
  *   src/host/commentThreads.js 的 opCtx、
  *   src/host/workspaceCwd.js 的 opCtxFor、
  *   src/host/snapshotBuild.ts 的 tmpCtx 与 ctxSel、
- *   src/host/refresh/wiring.js 的 backendObj.timers。
+ *   src/refresh/rooms/host/refresh-runtime.js 的 backendObj.timers。
  *
  * 依据（2026-10-14 从 DSH 自带的 @deepseek-ai/cordis-plugin-timer/src/index.ts 逐行核过）：
  *   · timeout(回调, 毫秒) 交回 ctx.effect() 的撤销器 —— 一支可调用的函数，没有 dispose 方法；

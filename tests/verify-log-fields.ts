@@ -309,7 +309,7 @@ const ALLOWED = {
   //   failuresSinceSuccess 连续失败几次、backoffWindowStartedAt 这串从什么时候开始、lastFailureCategory 最近一次
   //   是哪一类、lastFailureKind 最近一次是什么种类、failureStreak 连续第几次。
   //   为什么要有：从前只记「推迟了」与推迟原因，回答不了「这 3 次是谁攒的」——同一窗口里可能既有登录失败又有网络失败。
-  //   五个值都来自闸自己的记忆（src/host/refresh/gate.ts 的 WorkspaceState），不查账本、不联网。
+  //   五个值都来自闸自己的记忆（src/refresh/rooms/host/refresh-gate.ts 的 WorkspaceState），不查账本、不联网。
   'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak'],
   'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak'],
   // 2026-09-23 #708（T4 第三批）新增一条按需事件（附录 1.5 节 #82）：一次行级增量跑完之后的结论 ——
@@ -551,6 +551,8 @@ function collectCalls() {
   const files = listJsFiles(path.join(ROOT, 'src', 'host')).concat(listJsFiles(path.join(ROOT, 'src', 'client')))
     // #1095：埋点跟着搬家走了（src/deck、src/tracker 新树），扫描根一起跟上；只读不断言，旧根不动。
     .concat(listJsFiles(path.join(ROOT, 'src', 'deck'))).concat(listJsFiles(path.join(ROOT, 'src', 'tracker')))
+    // #1426：刷新埋点跟着宿主房搬进 src/refresh/rooms/host/，扫描根一起跟上；旧根不动。
+    .concat(listJsFiles(path.join(ROOT, 'src', 'refresh')))
   // 2026-10-20 #1294：locale.ts 的埋点走一个 localeLogEmit 发射壳 —— 它把级别、事件名、字段原样转给 log，
   //   只是晚一拍进微任务写（这份内核排在 kernel:log 之前，激活过程中就要注册语言）。壳名不补进扫描口径，
   //   上面两条 locale.registration* 就会被判成「全仓未找到」，白名单也收不到它们的字段。

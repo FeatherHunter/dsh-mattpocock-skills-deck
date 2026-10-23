@@ -1,69 +1,69 @@
-// src/host/refresh/wiring.ts —— 刷新机制的宿主接线（#723 T19）
+// src/refresh/rooms/host/refresh-runtime.ts —— 刷新机制的宿主接线（#723 T19）
 //
 // 这个文件只做一件事：把刷新机制那几件已经落库的东西**在宿主里真的装起来**，并交回去。它不判断任何业务：
-// 闸与账本是 gate.js 与 ledger.js 的产物，写事件订阅是 writeEvents.js 的产物，工作路线读写是
-// workRouteReadoutForHost.js 懒装配的那一套 —— 这里只把它们之间的依赖接上。单开一个文件而不写进
+// 闸与账本是 refresh-gate.js 与 quota-ledger.js 的产物，写事件订阅是 write-event-subscription.js 的产物，工作路线读写是
+// work-route-readout.js 懒装配的那一套 —— 这里只把它们之间的依赖接上。单开一个文件而不写进
 // src/host/index.js 的原因：那个文件贴着 350 行上限（verify-file-granularity 的零增长基线），#723 起不许再加行。
 //
 // 装起来的四件（票面 3a/3b/3c/3e）：
 //   a 闸与账本：createLedger + createGate，send 真的被调用（后面几件取数都经它）；
 //   b 写事件订阅：createWriteEvents(...).attach(ctx)，活跃集合变化时 allowRoot / 切走时 forgetRoot；
 //   c 视野模型：wf.focus 那一份「当前在看谁」就是这里的唯一来源（syncAttention 读它）；
-//   e 工作路线读写：懒装配的那一套（workRouteReadoutForHost.js），工具收口与面板读数共用。
+//   e 工作路线读写：懒装配的那一套（work-route-readout.js），工具收口与面板读数共用。
 //
 // 日志：本文件不新增事件。它调到的每一个模块各自记自己那几行（闸的 refresh.decide / refresh.skipped、
 // 账本的 quota.spend、写事件的 write.event、工作路线落盘的 workRoute.write / workRoute.read（由 work-path-store.ts 记）——
 // 旧的会话票缓存与旧链读数已随 #1271 退役）。
-import { createLedger } from './ledger.js'
-import { createGate } from './gate.js'
-import { createWriteEvents } from './writeEvents.js'
-import { createAttention, createFocusHandler } from './attention.js'
+import { createLedger } from './quota-ledger.js'
+import { createGate } from './refresh-gate.js'
+import { createWriteEvents } from './write-event-subscription.js'
+import { createAttention, createFocusHandler } from './host-attention.js'
 // #723（T19c）第 D 件：九个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），九个
-// 工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
+// 工厂由 ../../../host/platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
 // 宿主层里再读一次那九个文件就要新增 9 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
-import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/registration/host-assemble.js'
+import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../../deck/registration/host-assemble.js'
 // #1150：批量建图的计划游标（中间态）要真落盘，存储器在这里造、随工具依赖注入。落盘目录与文件名约定
 // 都住在 plan-cursor.ts 里（planCursorDir / createFilePlanStore），不在这里另写一份。
-import { createFilePlanStore, planCursorDir } from '../../deck/shell/plan-cursor.js'
+import { createFilePlanStore, planCursorDir } from '../../../deck/shell/plan-cursor.js'
 // #1261：工作路线的新落盘（每个工作区一份 <根散列>.json）与读出口，两支合在一起从这里递进工具依赖。
-// #1082：这套读写零件的惰性装配与面板「跨会话在办表」的挂载口搬去 workRouteReadoutForHost.ts
+// #1082：这套读写零件的惰性装配与面板「跨会话在办表」的挂载口搬去 work-route-readout.ts
 // （wiring 贴着 350 有效行红线；两件合一个文件，接线处只多一条同层边，已记进同层豁免清单）。
-import { createLazyWorkRouteBindings, createWorkRouteTableReadout, WORK_ROUTE_TABLE_FIELD } from './workRouteReadoutForHost.js'
+import { createLazyWorkRouteBindings, createWorkRouteTableReadout, WORK_ROUTE_TABLE_FIELD } from './work-route-readout.js'
 // #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
-import { hostTimers } from '../../refresh/contract/host-timer-ports.js'
+import { hostTimers } from '../../contract/host-timer-ports.js'
 // #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）由宿主实现、随进程注入一次，房间只认形状、
 // 不再从宿主 import。这里与 src/host/platformChannel.ts 的 backendCtxForRooms 是两处注入点，
 // 缺一处那条路上的房间会按环境失败大声报出来（宁可报错，也不静默绕过名额闸）。
-import { createOutboundControl } from '../platform/outbound-control.js'
+import { createOutboundControl } from '../../../host/platform/outbound-control.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
 // 取值只有一份真源（中央 YAML 的 deckEnsureMs 键），这里直接读它生成出来的值，不再经 TUNING 中转、不留回落。
-import { DECK_ENSURE_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
-import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
-import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
-import { hookSuggestNextSteps } from '../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
-import { publishDeckTable, noteDeckGate } from '../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
-import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js'
-import { createDeckQuotaSync } from '../../deck/registration/quota-sync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
-// #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
-import { createPatchForHost } from '../platform/refreshAssembly.js'
-import * as budget from '../../refresh/kernel/host-budget.js'
-import * as toolCost from '../../refresh/kernel/tool-call-budget.js'
+import { DECK_ENSURE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { createNamingSummary, readFirstUserText } from '../../../host/platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
+import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
+import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
+import { publishDeckTable, noteDeckGate } from '../../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
+import { createSandboxPolicyFor } from '../../../deck/registration/sandbox-guard.js'
+import { createDeckQuotaSync } from '../../../deck/registration/quota-sync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
+// #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
+import { createPatchForHost } from '../../../host/platform/refreshAssembly.js'
+import * as budget from '../../kernel/host-budget.js'
+import * as toolCost from '../../kernel/tool-call-budget.js'
 // #1215 中央时间参数（deckEnsureMs / deckLocalReadMs / shellResolveMs）只有一份真源 config/timeouts.yaml，
 // 这里直接读它生成出来的值，不再各写一份数字。
-import { DECK_LOCAL_READ_TIMEOUT_MS, SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_LOCAL_READ_TIMEOUT_MS, SHELL_RESOLVE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、九个 deck_* 工具、行级增量、检查链记账」五处同源。
-import { hash8, workspaceKeyOf } from '../../refresh/contract/workspace-keys.js'
-import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
-export { workspaceKeyOf } from '../../refresh/contract/workspace-keys.js'
+import { hash8, workspaceKeyOf } from '../../contract/workspace-keys.js'
+import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../../deck/shell/workspace-anchor.js'
+export { workspaceKeyOf } from '../../contract/workspace-keys.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
 //
 // 为什么 deps 整包按 any 收：这包是宿主入口现拼的（src/host/index.ts 里那一行
-// import('./refresh/wiring.js')），字段多达二十个且随宿主演进增减，调用方还有门禁里
+// import('../refresh/rooms/host/refresh-runtime.js')），字段多达二十个且随宿主演进增减，调用方还有门禁里
 // 手捏的各种夹具形状。类型在这里假装列全，只会让后来加字段的人先改两处类型再改一处
 // 逻辑；收窄发生在下面各使用点的 typeof 判断、可选链与 try 包裹里，不在这里替调用方假设。
 // 同理各回调的入参按 any 收：它们递进的工厂（quota-sync、writeEvents、patch 那几件）
@@ -160,7 +160,7 @@ export function createRefreshWiring(deps: any): any {
     } catch (eE: any) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
   }
 
-  // 写事件触发的那一次取数（b）：闸放行之后真去做的那一步；真取行级增量（refresh/patch.js 的 run）由 T18 那批接。
+  // 写事件触发的那一次取数（b）：闸放行之后真去做的那一步；真取行级增量（src/refresh/rooms/host/row-patch.js 的 run）由 T18 那批接。
   async function fetchForWriteEvent(step: any, meta: any): Promise<any> {
     return { requests: 0, points: 0 }
   }
@@ -249,7 +249,7 @@ export function createRefreshWiring(deps: any): any {
    * #723（T19）最关键的一处：闸那边如果没接活跃集合，写事件触发的那一次取数会被**恒判推迟**
    * （policy.js 的 background-inactive：后台档不在活跃集合里就一次都不发）—— 接线看起来接上了、
    * 实际一笔都发不出去。所以这两个去处必须由同一份「当前在看谁」同时喂，钥匙也必须是同一把：
-   * writeEvents 过闸时带的 workspaceKey 是它自己的短散列（rootHash，见 writeEvents.js 的 fire），
+   * writeEvents 过闸时带的 workspaceKey 是它自己的短散列（rootHash，见 write-event-subscription.js 的 fire），
    * 闸按那把钥匙认活跃集合，所以这里标活跃用的也是同一把（#724 起只有一处实现：workspaceKeyOf）。
    */
   async function syncAttention(): Promise<any> {
@@ -382,7 +382,7 @@ export function createRefreshWiring(deps: any): any {
           } catch (e: any) { return null }
         }
         // 工作路线的新落盘装配（#1261 建、#1083 加固、#1082 起与面板读数共用一份）：
-        // 家目录、文件读写、改名与日志的细节都在 workRouteReadoutForHost.ts 里，这里只取现成的实例。
+        // 家目录、文件读写、改名与日志的细节都在 work-route-readout.ts 里，这里只取现成的实例。
         // 取不到就留给三支依赖各自回「没落上 / 没接上」的诚实原因，不静默跳过。
         let workRouteBindings: any = null
         try { workRouteBindings = await loadWorkRouteBindings() } catch (eW: any) {}
@@ -439,7 +439,7 @@ export function createRefreshWiring(deps: any): any {
   }
 
   // ── E（#723 T19c）：行级增量真的能在宿主里跑起来 ────────────────────────────────────────────
-  // 以前探测到变化之后没人去跑 refresh/patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
+  // 以前探测到变化之后没人去跑 src/refresh/rooms/host/row-patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
   //「探测说变了」之后调用。依赖由宿主入口显式传入：readSnapshot / writeSnapshot 读写的正是宿主那份快照缓存与
   // 磁盘缓存（与客户端看到的列表同一份）；send / decide 是闸的两半，读路径的账与裁决一个字都另不算。
   let patchRunner: any = null
@@ -467,7 +467,7 @@ export function createRefreshWiring(deps: any): any {
   }
 
   /**
-   * 跑一次行级增量，回 patch.run 的原话（见 refresh/patch.js 文件头那一张表）。
+   * 跑一次行级增量，回 patch.run 的原话（见 src/refresh/rooms/host/row-patch.js 文件头那一张表）。
    * 只在两条依赖齐了才跑（跑 gh 的出口与探测索引的出口）——缺任何一个都如实回 failed，
    * 让调用方照旧走整池那条老路，绝不假装补过。
    */

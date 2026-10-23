@@ -198,8 +198,8 @@ function makeWorkspace() {
 async function main() {
   console.log('#1106 九个工具对外长什么样（参数表 / 信封表 / 点数表）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')

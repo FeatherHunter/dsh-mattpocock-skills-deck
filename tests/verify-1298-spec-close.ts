@@ -90,8 +90,8 @@ function walkSources(dir, out) {
 async function main() {
   console.log('#1298 门禁：规格三态与自动关闭权限（关规格三道闸 + 只关不重开）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')

@@ -1,4 +1,4 @@
-// src/host/refresh/attention.ts —— 视野模型的宿主薄壳（#707 T3 第二批）
+// src/refresh/rooms/host/host-attention.ts —— 视野模型的宿主薄壳（#707 T3 第二批）
 //
 // 这个文件只干三件事，判定一行都没有：
 //   ① 收下界面报上来的「我在看谁」（宿主电话 wf.focus），把工作区根按宿主既有出口
@@ -23,10 +23,10 @@
 // （2026-10-18 #1247 从 attention.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做翻译与台账，所以类型只收依赖形状，不收任何判定规则。）
-import * as budget from '../../refresh/kernel/host-budget.js'
-import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/src/values.js'
-import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../refresh/kernel/attention-model.js'
-import type { AttentionSignalKind } from '../../refresh/kernel/attention-model.js'
+import * as budget from '../../kernel/host-budget.js'
+import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../../shared/time-config/src/values.js'
+import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../kernel/attention-model.js'
+import type { AttentionSignalKind } from '../../kernel/attention-model.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1247 转写：只写类型不写实现）。
@@ -327,7 +327,7 @@ export function createAttention(deps?: AttentionDeps | null): Attention {
  *
  * #723（T19）加的两个入参：
  *   - `attention`：已经建好的那一份视野模型。宿主里只许有一份「当前在看谁」（票面 3c）——
- *     接线那一侧（src/host/refresh/wiring.js）拿它喂写事件白名单与闸的活跃集合；这里要是另建一份，
+ *     接线那一侧（src/refresh/rooms/host/refresh-runtime.js）拿它喂写事件白名单与闸的活跃集合；这里要是另建一份，
  *     两处看到的就是两个不同的世界。给了就用它，没给才现造（门禁与单测里手工拼实例的那几处走这条兜底）。
  *   - `afterReport(out)`：每次上报之后回调一次。接线那一侧用它把活跃集合同步给白名单与闸；回调抛错
  *     不许影响上报结果（上报的结论已经算出来了）。

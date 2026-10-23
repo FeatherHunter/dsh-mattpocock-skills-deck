@@ -1,4 +1,4 @@
-// src/host/refresh/gate.js —— 刷新机制的唯一出口闸（#706 T2 第二批）
+// src/refresh/rooms/host/refresh-gate.js —— 刷新机制的唯一出口闸（#706 T2 第二批）
 //
 // 依据：定稿第三章「三层 + 一道闸」与第四章第 01 件。它只回答一句：这一笔去 GitHub 的调用，
 // 现在放行、降级，还是推迟？放行之后再记一笔真实花费。裁决本身一行都不在这里 —— 它调 refresh-core
@@ -18,17 +18,17 @@
 //
 // 二级限流（Retry-After）也是降档信号：noteRetryAfter() 一次就把所在桶按红档处理（主桶没用完也降档），并把那个工作区标成撞限流。
 // #998：连续失败到门槛之后由 failure-window.js 那台状态机放一笔探针进来试（细节见那个文件）。
-import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../refresh/kernel/admission-policy.js'
-import type { PolicyInput } from '../../refresh/kernel/admission-policy.js'
+import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../kernel/admission-policy.js'
+import type { PolicyInput } from '../../kernel/admission-policy.js'
 // 说明符指向真源后，policy 的精确类型第一次被 tsc 看见（从前读转译产物，类型已被剥掉）。
 // 本文件的本地接口刻意只记「形状」（类别、种类、档位都是 string）：查表与兜底那两条分支
 // 靠运行时判，不靠类型判。归一化结果喂给裁决之前，在 inputFor / planOf 两处收窄一次，
 // 运行时一个字节都不变。真要给这几格加取值校验，另立一票，别顺手放宽 policy 的签名。
-import { FAILURE_HALF_OPEN_DELAY_MS, DEFER_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, CHAIN_BACKOFF_MS } from '../../shared/time-config/src/values.js'
-import * as budget from '../../refresh/kernel/host-budget.js'
-import * as failureWindow from '../../refresh/kernel/failure-window.js'
-import { measureStep, noteStepOutbound } from '../../refresh/kernel/step-pricing.js'
-import { refusalTextRef } from './refusal-text.js'
+import { FAILURE_HALF_OPEN_DELAY_MS, DEFER_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, CHAIN_BACKOFF_MS } from '../../../shared/time-config/src/values.js'
+import * as budget from '../../kernel/host-budget.js'
+import * as failureWindow from '../../kernel/failure-window.js'
+import { measureStep, noteStepOutbound } from '../../kernel/step-pricing.js'
+import { refusalTextRef } from './refusal-messages.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
@@ -180,7 +180,7 @@ export const CALL_SITE_CATEGORIES: Readonly<Record<string, string>> = {
   'naming.sweep': 'background',        // 命名守护的兜底一跳
   'quota.sync': 'background',          // 每分钟读一次服务端剩余（不扣配额，但仍是真实出站）
   'tool.call': 'ai-tool',              // AI 通过我们的工具发起的调用
-  'event.write': 'background',         // #723（T19）写完一笔触发的那次取数（writeEvents.js 发）
+  'event.write': 'background',         // #723（T19）写完一笔触发的那次取数（write-event-subscription.js 发）
 }
 
 /** 请求种类 → 记哪一个桶。REST 数请求条数、GraphQL 数点数，两桶各自一份额度与档位。 */
@@ -254,7 +254,7 @@ function shortHash(s: unknown): string {
 
 /**
  * 建一道闸。deps: { ledger, logCtx?, now?, hash8? }。
- * ledger 是本目录的账本（ledger.js）—— 两个文件不互相 import：宿主接线的时候把它们拼起来，
+ * ledger 是本目录的账本（quota-ledger.js）—— 两个文件不互相 import：宿主接线的时候把它们拼起来，
  * 闸只按形状用它（view / spend / noteRateLimited / hourOf / syncDue）。
  */
 export function createGate(deps?: GateDeps) {

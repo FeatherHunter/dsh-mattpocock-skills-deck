@@ -7,7 +7,7 @@
 //      这条是整扇门禁的意义所在：哪天假计时器不再复现真机形状，这里当场变红；
 //   ③ 两个真实调用点用「句柄是函数」的假计时器服务真跑一遍，断言那笔等待答完之后不再悬着：
 //      a. 平台通道的 getTimers（经它自己建的探测服务，src/host/platformChannel.js:316 / :326 那一份）；
-//      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/host/refresh/wiring.ts 那一份）；
+//      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/refresh/rooms/host/refresh-runtime.ts 那一份）；
 //   ④ 六个调用点都走共享层那一份（静态钉住），共享层那份自己不 import 任何模块；
 //   ⑤ 客户端那一份同款判断（src/client/hostShim.ts 的 timer.clearTimeout）也真跑一遍三档 ——
 //      客户端叶子文件是构建时拼进闭包的文本，不能用 import 引共享层那份源码，只能照抄一套判断，
@@ -291,7 +291,7 @@ async function main() {
     check(!!registry && typeof registry.select === 'function', '生产装配路径交得出后端注册表（deck 工具那条路要它）')
     const fakeDeck = makeCordisTimer()
     const deckTimer = { timeout: (fn: TimerFn, ms?: number) => fakeDeck.service.timeout(fn, ms) }
-    const { createRefreshWiring } = await imp('src/host/refresh/wiring.ts')
+    const { createRefreshWiring } = await imp('src/refresh/rooms/host/refresh-runtime.ts')
     const wiring = createRefreshWiring({
       ctx: { on: () => () => {}, get: (name: string) => (name === 'fs' ? fsSvc : (name === 'timer' ? deckTimer : undefined)) },
       logCtx: { fire: () => {}, isEnabled: () => false },
@@ -321,7 +321,7 @@ async function main() {
     { file: 'src/host/commentThreads.ts', calls: 1 },
     { file: 'src/host/workspaceCwd.ts', calls: 1 },
     { file: 'src/host/snapshotBuild.ts', calls: 2 },
-    { file: 'src/host/refresh/wiring.ts', calls: 1 },
+    { file: 'src/refresh/rooms/host/refresh-runtime.ts', calls: 1 },
   ]
   for (const site of SITES) {
     const text = fs.readFileSync(path.join(ROOT, site.file), 'utf8')
@@ -329,9 +329,9 @@ async function main() {
     check(got === site.calls, site.file + '：' + site.calls + ' 处计时器口都走共享层那一份（实得 ' + got + ' 处 hostTimers( 调用）')
     check(!/clearTimeout\s*:\s*(?:function|\()/.test(text), site.file + '：没有自己写 clearTimeout 字段的残留（六处原先的形态）')
     // 说明符自 #1425 起指向新家 `refresh/contract/host-timer-ports.js`（与调用文件同基准的相对路径：
-    // src/host/ 下的用 `../refresh/` 上一层，src/host/refresh/ 下的用 `../../refresh/` 上两层；
+    // src/host/ 下的用 `../refresh/contract/` 上一层，src/refresh/rooms/host/ 下的（#1426 起是宿主房）用 `../../contract/` 上两层；
     // tsc 靠扩展名替换解析到同名 .ts，包内镜像与 .build 产物由构建写）；判据是「引用的是新家那一份」。
-    check(/from '(?:\.\.\/)+refresh\/contract\/host-timer-ports\.js'/.test(text), site.file + '：静态引用了新家那一份（相对路径按目录深度）')
+    check(/from '(?:\.\.\/)+(?:refresh\/)?contract\/host-timer-ports\.js'/.test(text), site.file + '：静态引用了新家那一份（相对路径按目录深度）')
   }
   {
     const src = fs.readFileSync(path.join(ROOT, 'src/refresh/contract/host-timer-ports.ts'), 'utf8')

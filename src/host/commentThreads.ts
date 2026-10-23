@@ -308,7 +308,7 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // 增量索引（本轮新增）：改走 fetchIssueIndexWindowed —— 它只回答「自上次以来有没有变」，
       //   并把增量并进完整基线后给出 changed。这里不再自己维护一份基线、也不再自行比对：
       //   两份状态会各自漂移，而漂移的后果是面板长期显示旧数据且不报错（静默漏报，最难查）。
-      // #723（T19c）第 E 件：探测说变了之后，**先把变的那几条补进列表**（refresh/patch.js 的
+      // #723（T19c）第 E 件：探测说变了之后，**先把变的那几条补进列表**（src/refresh/rooms/host/row-patch.js 的
       //   行级增量：一张票一条薄查询），再回给客户端那一份补好的结果 —— 从前这一步没人做，
       //   客户端只能整池重建，于是「只补变的那几条」那条窄路白写了。
       //   水印只在这一步真的并进列表之后才推进（commitIssueIndex），被推迟 / 被丢弃 / 失败时

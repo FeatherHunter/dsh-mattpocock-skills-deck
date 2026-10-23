@@ -81,8 +81,8 @@ const execFor = (cwd) => ({ agent: { session: { id: 's-p', cwd: cwd || 'D:/demo'
 
 async function main() {
   console.log('deck 并发隔离门禁（同票不丢、异票并行、锁超时诚实）')
-  const gateMod = await imp('src/host/refresh/gate.ts')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const keyLock = await imp('src/deck/shell/write-mutex.ts')
   const patchMod = await imp('src/deck/tools/issue-patch.ts')
 

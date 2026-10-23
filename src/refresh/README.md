@@ -41,6 +41,9 @@
   （`rooms/`、`registry/`）不对外；内核（`kernel/`）与契约（`contract/`）是公开的，
    deck 工具引预算数字、宿主闸引裁决与形状都走这两层（#1425 对规格地图第 24 行的修正：
    原文禁的是“房内部具体文件”，此前把内核也圈进来是错的）。
+   装配例外（#1426）：宿主入口（`src/host/index.ts`）是房间的永久装配点，一直豁免；
+   另外四处（`detectChain`、`git-process`、`platform/refreshAssembly`、`platform/outbound-control`）是过渡——
+   它们 #1427 整份搬进宿主房后豁免即删。这个名单只许缩不许长。
 4. 例外：`src/host/index.ts` 里的旧探测处理段（wf.probe）在搬家完成前暂时留在原地，
    文件级门禁看不见函数段，它的搬迁由 #1429 负责，见目标地图 D4。
 
@@ -64,7 +67,7 @@
 - `refresh-host-room-no-client-refs`：宿主房间引用界面房间就判红。
 - `refresh-client-room-no-host-refs`：界面房间引用宿主房间就判红。
 - `refresh-outside-only-contract`：新家之外的代码深引房间或登记的实现细节就判红
-  （规则名是 #1424 起的名字，沿用；禁的不是内核，见上层边界第 3 条）。
+  （规则名是 #1424 起的名字，沿用；禁的不是内核，见上层边界第 3 条；装配例外见第 3 条末尾）。
 
 搬家中转期间，旧位置的文件暂时豁免，豁免清单在 `tests/refresh-baseline.json`。
 这份清单只许缩、不许长：每次搬走一批，就删掉对应行；新文件不许进清单。

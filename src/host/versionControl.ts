@@ -45,7 +45,7 @@ import { withGhLane } from './outbound/admission.js'
 import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
 // 单条 git 命令的默认超时住中央 YAML（config/timeouts.yaml 的 vcRunTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 它管的是「调用方没给 TIMEOUT_MS 时，一条 git 命令最多跑多久」——接线给了 TIMEOUT_MS 就以接线那个为准。
-// 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），
+// 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），
 // 值由 tests/verify-time-config.ts 看守一致。
 import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
 

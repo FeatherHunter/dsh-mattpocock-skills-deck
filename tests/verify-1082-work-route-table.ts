@@ -16,7 +16,7 @@
 // 手法：主缝用真的工作路线存储（临时家目录 + 固定时钟），从工具壳写票收口处（recordWorkRoute）
 // 一路跑到面板快照挂载口；次缝把真源码按构建同一套做法装进假 React 渲染，看真实版面文字。
 //
-// 门禁归属: src/host/refresh/workRouteReadoutForHost.ts
+// 门禁归属: src/refresh/rooms/host/work-route-readout.ts
 // 门禁归属: src/host/snapshotEnvelope.ts
 // 门禁归属: src/host/sessionSnapshot.ts
 // 门禁归属: src/host/sessionRefresh.ts
@@ -122,7 +122,7 @@ async function main() {
   const recordMod = await imp('src/deck/shell/work-path-record.js') as any
   const keyMod = await imp('src/refresh/contract/workspace-keys.js') as any
   const chainMod = await imp('src/refresh/kernel/refresh-chain.js') as any
-  const tableMod = await imp('src/host/refresh/workRouteReadoutForHost.ts') as any
+  const tableMod = await imp('src/refresh/rooms/host/work-route-readout.ts') as any
   const envMod = await imp('src/host/snapshotEnvelope.ts') as any
   const snapMod = await imp('src/host/sessionSnapshot.ts') as any
   const refMod = await imp('src/host/sessionRefresh.ts') as any

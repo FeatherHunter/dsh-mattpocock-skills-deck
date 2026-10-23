@@ -6,7 +6,7 @@
 // ctx.get('sessionTitle').get(session) 拿最新标题快照（含 source.kind）。这条读法错了，判据就会拿不到事实、
 // 悄悄退回旧启发式——功能看着还在，但加固等于没生效，所以这段读法要单独钉住。
 //
-// 测法：从 src/host/refresh/wiring.ts 里把 titleFactOf 这个表达式原样抽出来编译（仓库既有先例：
+// 测法：从 src/refresh/rooms/host/refresh-runtime.ts 里把 titleFactOf 这个表达式原样抽出来编译（仓库既有先例：
 // tests/lib/render-subws-mark.js 用 new Function 抽真产物里的函数），再按 DSH 两个服务的形状喂假服务。
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -23,7 +23,7 @@ function check(ok: unknown, msg: string, detail?: unknown) {
   else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + detail : '')) }
 }
 
-const src = readFileSync(join(ROOT, 'src/host/refresh/wiring.ts'), 'utf8')
+const src = readFileSync(join(ROOT, 'src/refresh/rooms/host/refresh-runtime.ts'), 'utf8')
 const rawLine = src.split('\n').map(function (l) { return l.trim() }).find(function (l) { return l.indexOf('titleFactOf: function') === 0 })
 // 转 TS 后这行只带 any 标注（形参与内部 const、catch），行为与旧 JS 一致；抽出来之前先脱掉标注再编译。
 const line = rawLine ? rawLine.replace(/:\s*any\b/g, '') : rawLine

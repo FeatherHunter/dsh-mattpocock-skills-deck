@@ -30,9 +30,9 @@ async function main() {
   //   只在 Windows 命中（path.join 产反斜杠），POSIX 上 replace 空转、import 直接 ERR_MODULE_NOT_FOUND。
   const win = await imp(path.join('src', 'shared', 'tracker', 'indexWindow.js'))
   const budget = await imp(path.join('src', 'refresh', 'kernel', 'host-budget.js'))
-  const ledgerMod = await imp(path.join('src', 'host', 'refresh', 'ledger.ts'))
-  const gateMod = await imp(path.join('src', 'host', 'refresh', 'gate.ts'))
-  const patchMod = await imp(path.join('src', 'host', 'refresh', 'patch.js'))
+  const ledgerMod = await imp(path.join('src', 'refresh', 'rooms', 'host', 'quota-ledger.ts'))
+  const gateMod = await imp(path.join('src', 'refresh', 'rooms', 'host', 'refresh-gate.ts'))
+  const patchMod = await imp(path.join('src', 'refresh', 'rooms', 'host', 'row-patch.js'))
 
   // ---- 假世界：一份内存快照、一个记账的传输层、一份可摆布的窗口索引 ----
   function row(n, state, updatedAt, title) {

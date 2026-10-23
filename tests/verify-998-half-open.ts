@@ -29,8 +29,8 @@ const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok 
 async function main() {
   console.log('闸的连续失败出口门禁（#998：到门槛必须留一笔探针，不许自锁）')
   const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
-  const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'ledger.ts')).href)
-  const gateMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'gate.ts')).href)
+  const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'quota-ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'refresh-gate.ts')).href)
   const policy = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'admission-policy.js')).href)
 
   let clock = 1700000000000

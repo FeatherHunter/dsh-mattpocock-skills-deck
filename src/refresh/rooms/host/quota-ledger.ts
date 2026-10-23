@@ -1,4 +1,4 @@
-// src/host/refresh/ledger.js —— 刷新机制的账本（#706 T2 第二批）
+// src/refresh/rooms/host/quota-ledger.js —— 刷新机制的账本（#706 T2 第二批）
 //
 // 这个文件只干一件事：把「花了多少、还剩多少」记准，好让闸能说「这一笔能不能花」。
 // 依据是定稿第三章（闸持有两个桶的账，每分钟从免费接口同步一次服务端剩余）与第四章
@@ -20,13 +20,13 @@
 //
 // 这个文件不联网、不起定时器：同步服务端剩余读数的节拍由调用方按 budget.js 的 QUOTA_SYNC_INTERVAL_MS
 // 问 `syncDue()`，真去打那次不扣配额的 `gh api rate_limit` 的是闸那一路（它也走闸、也记账）。
-import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../refresh/kernel/host-budget.js'
-import { QUOTA_SYNC_INTERVAL_MS } from '../../shared/time-config/src/values.js'
-import { createPageBook } from './recordRepoPages.js'
+import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../kernel/host-budget.js'
+import { QUOTA_SYNC_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
+import { createPageBook } from '../../../host/refresh/recordRepoPages.js'
 
 // 页数实测账的类型与取值仍从本文件出（调用方原来怎么写还怎么写）：实现已搬至 ./recordRepoPages.js。
-export type { ObservedPages, RepoPageRecord } from './recordRepoPages.js'
-export { PAGE_PRICES, PAGE_UPPER_BOUND } from './recordRepoPages.js'
+export type { ObservedPages, RepoPageRecord } from '../../../host/refresh/recordRepoPages.js'
+export { PAGE_PRICES, PAGE_UPPER_BOUND } from '../../../host/refresh/recordRepoPages.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）：下面这些是账本自己的形状。

@@ -75,8 +75,8 @@ async function main() {
   console.log('#1003 一期门禁：统一判定四条');
   const shellMod = await imp('src/deck/shell/call-shell.ts');
   const budget = await imp('src/refresh/kernel/host-budget.js');
-  const ledgerMod = await imp('src/host/refresh/ledger.ts');
-  const gateMod = await imp('src/host/refresh/gate.ts');
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts');
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts');
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js');
   const decMod = await imp('src/tracker/detection/backendDecision.ts');
   const { decideBackend, decidePure } = decMod;

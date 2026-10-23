@@ -24,7 +24,7 @@
 // 门禁归属: src/client/statusbar/bannerChain.ts
 // 门禁归属: src/client/kernel/probe-auto.ts
 // 门禁归属: src/client/kernel/attention-heartbeat.ts
-// 门禁归属: src/host/refresh/chainBackoff.ts
+// 门禁归属: src/refresh/rooms/host/chain-backoff.ts
 //
 // 用法（在插件根目录；不需要先构建，本门禁跑的是真源码）：
 //   node --import ./scripts/ts-hook.mts tests/verify-1363-first-run-recovery.ts
@@ -97,7 +97,7 @@ const partA = function (): void {
 const partB = async function (): Promise<void> {
   console.log('#1363 B. setup-pending 等满封顶就无条件重算，别的后台触发名与手人重查口径不变')
   check(CHAIN_SETUP_PENDING_CAP_MS === 15000, '封顶值来自中央配置 config/timeouts.yaml 的 chainSetupPendingCapMs（实得 ' + CHAIN_SETUP_PENDING_CAP_MS + '）')
-  const mod = await import('../src/host/refresh/chainBackoff.js')
+  const mod = await import('../src/refresh/rooms/host/chain-backoff.js')
   const cb = mod.createChainBackoff({ logCtx: { fire: function (): void {}, isEnabled: function (): boolean { return false } } })
   const t0 = 1700000000000
   const snap = { steps: [{ id: 'a', status: 'done' }, { id: 'b', status: 'pending' }] }

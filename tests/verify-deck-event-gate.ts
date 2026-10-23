@@ -14,7 +14,7 @@
  *   B. 每条监听器在「消费事件数据之前」已经过了工作区门（门 = 看 session.header.cwd 或按会话 id 放行）。
  *   C. 事件对象不许整份进日志/落盘调用（只许进白名单字段）。
  *   D. （#710 新增的运行期用例）**别的工作区的事件到达之后**：真把一条别的会话的写命令喂给
- *      src/host/refresh/writeEvents.ts，断言它被工作区白名单拦住、而且没有留下任何痕迹
+ *      src/refresh/rooms/host/write-event-subscription.ts，断言它被工作区白名单拦住、而且没有留下任何痕迹
  *      —— 不调闸、不记日志、不写内存表、不产生任何判定结果。同时用一条「自己工作区」的正向用例
  *      证明拦住不是因为整条路都不动，并证明取数只从闸里走（把闸摘掉时一次都不发）。
  *
@@ -59,7 +59,9 @@ const PROBE_DIR = 'tests/fixtures/deck-event-gate'
  * 口径与 verify-file-granularity 的 DERIVED_DIRS 同款。不跳过的话，谁跑过一次构建，门禁就会拿
  * 同一份代码的副本再判一次「这条订阅没登记」，红得没有道理。
  */
-const DERIVED_PATHS = ['package/lib', 'package/scripts', 'host.js', 'client.js']
+// package/refresh 是构建由 src/refresh 逐份转译的派生产物（#1425 起）：与源码逐一对应，扫它只会把同一处订阅报两遍
+//（产物路径还对不上登记表里的源码路径）。真订阅点只看源码，产物目录整棵跳过（package/lib 与 package/scripts 同理是捆绑产物）。
+const DERIVED_PATHS = ['package/lib', 'package/scripts', 'package/refresh', 'host.js', 'client.js']
 
 let failed = false
 const check = (ok, msg, detail) => {
@@ -74,17 +76,17 @@ const check = (ok, msg, detail) => {
  * 这里只许出现仓库里真实的订阅点。门禁自己的探针样本（tests/fixtures/deck-event-gate/ 下）
  * 一律经 --registry 传参，不许混进这张表。
  *
- * 形状：{ file: 'src/host/refresh/writeEvents.ts', reason: '写事件源：只认自己工作区的写命令，用来触发刷新' }
+ * 形状：{ file: 'src/refresh/rooms/host/write-event-subscription.ts', reason: '写事件源：只认自己工作区的写命令，用来触发刷新' }
  *
  * #710（T6）把真实订阅点预填在这里：
- *   ① 写事件源（本票的 src/host/refresh/writeEvents.ts）：订 tools/result（首选）与会话事件（可回看），
+ *   ① 写事件源（本票的 src/refresh/rooms/host/write-event-subscription.ts）：订 tools/result（首选）与会话事件（可回看），
  *      只认自己工作区的写命令，用来触发补行或探测。
  *   （原先的 ② 工作路线订阅点 src/host/refresh/workRoute.ts 随 #1271 整份退役：旧链不再订阅会话事件，
  *      在办改走工具回执归档，登记行同步删除。）
  */
 const REGISTRY = [
   {
-    file: 'src/host/refresh/writeEvents.ts',
+    file: 'src/refresh/rooms/host/write-event-subscription.ts',
     reason: '写事件源（#710 T6）：订阅面是整个 DSH，别的会话、子代理、工作区的事件都会到我们手上，' +
       '所以第一件事就是按工作区根白名单放行；只有自己工作区里「成功的写操作」才触发补行或探测。',
   },
@@ -288,7 +290,7 @@ if (!argv.includes('--skip-runtime')) {
     // 生产里这支函数由接线处从 src/host/index.js 传进来，测试里我们自己接一支同样口径的。
     const wk = await import(pathToFileURL(path.join(REPO, 'src', 'host', 'workspaceKey.ts')).href)
     deps.canonicalKey = (cwd) => wk.canonicalWorkspaceKey(cwd, { getPlatform: async () => platform, getFs: () => fsSvc, logCtx: logCtx })
-    const { createWriteEvents } = await import(pathToFileURL(path.join(REPO, 'src', 'host', 'refresh', 'writeEvents.ts')).href)
+    const { createWriteEvents } = await import(pathToFileURL(path.join(REPO, 'src', 'refresh', 'rooms', 'host', 'write-event-subscription.ts')).href)
     const own = createWriteEvents(deps)
     check(String(await own.allowRoot('D:\\mine')).length > 0, '先把 d:\\mine 加进白名单（宿主接线时按当前服务的工作区调它）')
 
@@ -365,7 +367,7 @@ if (!argv.includes('--skip-runtime')) {
       '把闸摘掉时：只判定、不取数（绝不绕过闸自己发请求）')
 
     // ---- 静态隐私断言：这个文件本身没有任何落盘出口，也没有把参数交给日志 ----
-    const src = fs.readFileSync(path.join(REPO, 'src', 'host', 'refresh', 'writeEvents.ts'), 'utf8')
+    const src = fs.readFileSync(path.join(REPO, 'src', 'refresh', 'rooms', 'host', 'write-event-subscription.ts'), 'utf8')
     check(!/\b(writeFile|writeFileSync|writeText|writeTextFile|createWriteStream|appendFile|persist|saveToDisk)\s*\(/.test(src),
       '写事件订阅那条路本身没有落盘出口（参数不落盘）')
     check(!/fire\s*\([^)]*\bcommand\b/.test(src) && !/fire\s*\([^)]*\barguments\b/.test(src),

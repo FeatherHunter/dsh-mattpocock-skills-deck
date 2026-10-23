@@ -3,7 +3,7 @@
 // 接线：由 index.ts 动态 import 加载；harness 注册留守入口，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from '../refresh/contract/trigger-classification.js'
 import { workspaceKeyOf } from '../refresh/contract/workspace-keys.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
-import { getChainRide } from './refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
+import { getChainRide } from '../refresh/rooms/host/chain-coalescing.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
 
 // ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
@@ -120,7 +120,7 @@ type RegistryView = { modules(): BackendModuleView[] }
 /** 谓词注册回调拿到的运行期上下文：宿主在契约 PredicateContext 之上多喂了一格 lang（正文按它选文案）。 */
 type PredicateCtx = PredicateContext & { lang?: string }
 
-/** 退避与全绿缓存（纯函数那一份，薄壳住 src/host/refresh/chainBackoff.js）：本文件只调 verdict 与 note。 */
+/** 退避与全绿缓存（纯函数那一份，薄壳住 src/refresh/rooms/host/chain-backoff.js）：本文件只调 verdict 与 note。 */
 type ChainBackoff = {
   verdict(key: string, nowMs: number, opts: unknown): Promise<{ needed?: boolean; reason?: unknown; waitMs?: unknown; cached?: unknown }>
   note(key: string, snap: unknown, at: number, result: unknown): Promise<unknown>
@@ -194,7 +194,7 @@ export function createDetectChain(deps: DetectChainDeps) {
   }
   // #969：链上不再自带超时数字（分档由出站两路按命令认：读 12 秒、探活 15 秒；自带 30 秒会盖掉分档）。
   function ghOptsFor(cwdIn: string): { cwd: string } { return { cwd: cwdIn } }
-  // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/host/refresh/chainBackoff.js，
+  // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/refresh/rooms/host/chain-backoff.js，
   // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
   // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
   async function handleDetect(args: ChainArgs) {

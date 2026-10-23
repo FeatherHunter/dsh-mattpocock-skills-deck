@@ -16,7 +16,7 @@
 // 数字与二分算法不写在这里：它们与工作路线链共用 src/refresh/kernel/chain-pruning.ts，
 // 那边是 30 天/2MB 的唯一住处。本文件只负责「这种存档形状怎么序列化」。
 //
-// 术语边界：本文件说的「账」指工作路线存档（work-path），不是 src/host/refresh/ledger.ts 的配额账本；
+// 术语边界：本文件说的「账」指工作路线存档（work-path），不是 src/refresh/rooms/host/quota-ledger.ts 的配额账本；
 // 两者不同的东西，只是都用「账」这个日常词。
 //
 // #1086 补一支释放（applyRelease）：只从本会话那一页删掉一条工作条目，别的会话一概不碰；

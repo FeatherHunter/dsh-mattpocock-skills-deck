@@ -101,8 +101,8 @@ function remoteLane(id, scripted, module, sink) {
 async function main() {
   console.log('三后端矩阵门禁（#713 T9：同一个动作在 github / gitlab / markdown 上分别落到哪里）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
   const gitlabBackend = (await imp('src/tracker/rooms/gitlab/index.ts')).gitlabBackend

@@ -171,8 +171,8 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   await import('../scripts/ts-hook.mts')
 
   const budget = await loadModule('../src/refresh/kernel/host-budget.js') as Record<string, (...a: never[]) => unknown>
-  const ledgerMod = await loadModule('../src/host/refresh/ledger.ts') as Record<string, (...a: never[]) => unknown>
-  const gateMod = await loadModule('../src/host/refresh/gate.ts') as Record<string, (...a: never[]) => unknown>
+  const ledgerMod = await loadModule('../src/refresh/rooms/host/quota-ledger.ts') as Record<string, (...a: never[]) => unknown>
+  const gateMod = await loadModule('../src/refresh/rooms/host/refresh-gate.ts') as Record<string, (...a: never[]) => unknown>
   const registryMod = await loadModule('../src/tracker/registry/core.ts') as Record<string, (...a: never[]) => unknown>
   const markdownModule = ((await loadModule('../src/tracker/rooms/markdown/index.ts')) as { markdownModule: unknown }).markdownModule
   const toolCost = await loadModule('../src/refresh/kernel/tool-call-budget.js') as Record<string, (...a: never[]) => unknown>

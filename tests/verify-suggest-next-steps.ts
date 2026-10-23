@@ -350,7 +350,7 @@ async function main() {
   // ── 8c. 宿主接线源码守卫：登记 Promise 必须挂 .catch ──
   // 同步 try/catch 抓不到 async 函数返回的 rejected Promise，所以接线处必须另有 .catch。
   // 这条守卫看的是接线源码本身：只改回同步 try/catch 时，门禁立刻红。
-  const wiringSource = fs.readFileSync(path.join(ROOT, 'src/host/refresh/wiring.ts'), 'utf8')
+  const wiringSource = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/refresh-runtime.ts'), 'utf8')
   const wiringCallAt = wiringSource.indexOf('hookSuggestNextSteps(')
   const wiringTail = wiringCallAt >= 0 ? wiringSource.slice(wiringCallAt, wiringCallAt + 240) : ''
   check(wiringCallAt >= 0, '宿主接线里仍在调用建议工具登记钩子')

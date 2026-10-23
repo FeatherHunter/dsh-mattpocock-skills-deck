@@ -160,7 +160,7 @@ export function createPlatformChannel(deps: Deps) {
   function backendLogEnabled(level: string): boolean { try { return backendLogCtx ? backendLogCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } }
   // #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）是进程级能力，随这份后端上下文注入一次。
   // 房间只认契约形状（src/tracker/contract/outbound.ts），不再从宿主 import；这一处与
-  // src/host/refresh/wiring.js 的 backendObj 是两处注入点，缺一处那条路上的房间会按环境失败。
+  // src/refresh/rooms/host/refresh-runtime.js 的 backendObj 是两处注入点，缺一处那条路上的房间会按环境失败。
   const backendCtxForRooms = { logEvent: backendLogEvent, isEnabled: backendLogEnabled, outbound: createOutboundControl() }
   // #606 房外埋点 helper：工作区只记短指纹，不记原始路径。
   function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch { return '00000000' } }

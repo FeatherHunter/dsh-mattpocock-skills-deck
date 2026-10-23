@@ -10,7 +10,7 @@
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
 import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields } from '../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound/admission.js'
-import { getChainRide } from './refresh/chain-ride.js'
+import { getChainRide } from '../refresh/rooms/host/chain-coalescing.js'
 // #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
 import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from '../shared/command-cleanup/src/command-cleanup.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。

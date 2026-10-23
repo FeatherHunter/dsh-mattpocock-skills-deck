@@ -83,29 +83,29 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/platform/namingSummary.ts', access: 'SUMMARY_TIMEOUT_MS', gen: 'NAMING_SUMMARY_TIMEOUT_MS', key: 'namingSummaryTimeoutMs' },
   { file: 'src/host/namingGuardian.ts', access: 'NAMING_FALLBACK_MS', gen: 'NAMING_FALLBACK_INTERVAL_MS', key: 'namingFallbackIntervalMs' },
   { file: 'src/host/skillProbeCache.ts', access: 'SKILL_PROBE_CACHE_MS', gen: 'SKILL_PROBE_CACHE_MS', key: 'skillProbeCacheMs' },
-  { file: 'src/host/refresh/chain-ride.ts', access: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs' },
-  { file: 'src/host/refresh/wiring.ts', access: 'DECK_ENSURE_TIMEOUT_MS', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
-  { file: 'src/host/refresh/wiring.ts', access: 'DECK_LOCAL_READ_TIMEOUT_MS', gen: 'DECK_LOCAL_READ_TIMEOUT_MS', key: 'deckLocalReadMs' },
-  { file: 'src/host/refresh/wiring.ts', access: 'SHELL_RESOLVE_TIMEOUT_MS', gen: 'SHELL_RESOLVE_TIMEOUT_MS', key: 'shellResolveMs' },
-  { file: 'src/host/refresh/gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
-  { file: 'src/host/refresh/gate.ts', access: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
-  { file: 'src/host/refresh/gate.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
-  { file: 'src/host/refresh/gate.ts', access: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
-  { file: 'src/host/refresh/gate.ts', access: 'RECONCILE_INTERVAL_MS', gen: 'RECONCILE_INTERVAL_MS', key: 'reconcileIntervalMs' },
-  { file: 'src/host/refresh/gate.ts', access: 'REBUILD_MIN_INTERVAL_YELLOW_MS', gen: 'REBUILD_MIN_INTERVAL_YELLOW_MS', key: 'rebuildMinIntervalYellowMs' },
-  { file: 'src/host/refresh/gate.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
-  { file: 'src/host/refresh/attention.ts', access: 'ACTIVE_LINGER_MS', gen: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
-  { file: 'src/host/refresh/attention.ts', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
-  { file: 'src/host/refresh/attention.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
-  { file: 'src/host/refresh/attention.ts', access: 'PROBE_INTERVAL_LINGER_MS', gen: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
-  { file: 'src/host/refresh/attention.ts', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
-  { file: 'src/host/refresh/ledger.ts', access: 'QUOTA_SYNC_INTERVAL_MS', gen: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
-  { file: 'src/host/refresh/writeEvents.ts', access: 'PATCH_MERGE_WINDOW_MS', gen: 'PATCH_MERGE_WINDOW_MS', key: 'patchMergeWindowMs' },
-  { file: 'src/host/refresh/writeEvents.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  { file: 'src/refresh/rooms/host/chain-coalescing.ts', access: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs' },
+  { file: 'src/refresh/rooms/host/refresh-runtime.ts', access: 'DECK_ENSURE_TIMEOUT_MS', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
+  { file: 'src/refresh/rooms/host/refresh-runtime.ts', access: 'DECK_LOCAL_READ_TIMEOUT_MS', gen: 'DECK_LOCAL_READ_TIMEOUT_MS', key: 'deckLocalReadMs' },
+  { file: 'src/refresh/rooms/host/refresh-runtime.ts', access: 'SHELL_RESOLVE_TIMEOUT_MS', gen: 'SHELL_RESOLVE_TIMEOUT_MS', key: 'shellResolveMs' },
+  { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
+  { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
+  { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
+  { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'RECONCILE_INTERVAL_MS', gen: 'RECONCILE_INTERVAL_MS', key: 'reconcileIntervalMs' },
+  { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'REBUILD_MIN_INTERVAL_YELLOW_MS', gen: 'REBUILD_MIN_INTERVAL_YELLOW_MS', key: 'rebuildMinIntervalYellowMs' },
+  { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  { file: 'src/refresh/rooms/host/host-attention.ts', access: 'ACTIVE_LINGER_MS', gen: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
+  { file: 'src/refresh/rooms/host/host-attention.ts', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  { file: 'src/refresh/rooms/host/host-attention.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  { file: 'src/refresh/rooms/host/host-attention.ts', access: 'PROBE_INTERVAL_LINGER_MS', gen: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
+  { file: 'src/refresh/rooms/host/host-attention.ts', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/refresh/rooms/host/quota-ledger.ts', access: 'QUOTA_SYNC_INTERVAL_MS', gen: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
+  { file: 'src/refresh/rooms/host/write-event-subscription.ts', access: 'PATCH_MERGE_WINDOW_MS', gen: 'PATCH_MERGE_WINDOW_MS', key: 'patchMergeWindowMs' },
+  { file: 'src/refresh/rooms/host/write-event-subscription.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
   // —— 动态 import（发布包里源码树不在时允许取不到，由调用方照旧求值）：名字走 central 命名空间，门禁认动态 import 行 ——
-  { file: 'src/host/refresh/chainBackoff.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
-  { file: 'src/host/refresh/chainBackoff.ts', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
-  { file: 'src/host/refresh/chainBackoff.ts', access: 'PREFLIGHT_TTL_MS', gen: 'PREFLIGHT_TTL_MS', key: 'preflightTtlMs' },
+  { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
+  { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'PREFLIGHT_TTL_MS', gen: 'PREFLIGHT_TTL_MS', key: 'preflightTtlMs' },
   { file: 'src/host/versionControlCheck.ts', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
   // —— 宿主早先已是真引用的（第一轮接入，沿用） ——
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'READ_TIMEOUT_MS', gen: 'OUTBOUND_READ_TIMEOUT_MS', key: 'outboundReadMs' },
@@ -313,7 +313,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/kernel/write-event-detection.ts', name: 'mergeWindowMs', reason: '函数内局部变量，接的是注入的 limits（上游是 PATCH_MERGE_WINDOW_MS），不是新参数' },
   { file: 'src/refresh/kernel/write-event-detection.ts', name: 'probeIntervalMs', reason: '函数内局部变量，接的是注入的 limits（上游是 PROBE_INTERVAL_MS），不是新参数' },
   // —— 别名：恒等于已登记的参数，改一边自动跟另一边，不需要第二把锁 ——
-  { file: 'src/host/refresh/ledger.ts', name: 'SYNC_INTERVAL_MS', reason: '别名，恒等于 QUOTA_SYNC_INTERVAL_MS（已登记），引用即跟随' },
+  { file: 'src/refresh/rooms/host/quota-ledger.ts', name: 'SYNC_INTERVAL_MS', reason: '别名，恒等于 QUOTA_SYNC_INTERVAL_MS（已登记），引用即跟随' },
   // —— 注入结构体的字段：值由调用方按已登记参数装进来，本文件不写数字 ——
   { file: 'src/refresh/kernel/admission-policy.ts', name: 'rebuildMinGapMs', reason: '注入字段，接的是上游 REBUILD_MIN_INTERVAL_YELLOW_MS（已登记），缺省 0' },
   // —— 读钟算出来的测量值（耗时、时刻）：调 YAML 改不了它，不是可调参数 ——
@@ -334,7 +334,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/detectChain.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/host/detectChain.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
   { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 hostTimeoutMs 装进来）' },
-  { file: 'src/host/refresh/chain-ride.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
+  { file: 'src/refresh/rooms/host/chain-coalescing.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'expiryMs', reason: '注入字段的本地接住（上游是 ATTENTION_EXPIRY_MS），不是新参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'probeMs', reason: '注入字段的本地接住（上游是 PROBE_INTERVAL_MS），不是新参数' },
@@ -379,10 +379,10 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/platform/issueIndexWindow.ts', name: 'startedMs', reason: '读钟时刻（这趟扫描什么时候开始的），不是可调参数' },
   { file: 'src/host/platform/issueIndexWindow.ts', name: 'nextWatermarkMs', reason: '算出来的下一个水位时刻，不是可调参数' },
   { file: 'src/host/platform/issueIndexWindow.ts', name: 'watermarkMs', reason: '上次扫到哪儿的时刻（状态字段），不是可调参数' },
-  { file: 'src/host/refresh/attention.ts', name: 'humanMs', reason: '读出来的「人最后一次动键盘鼠标」的时刻，不是可调参数' },
-  { file: 'src/host/refresh/chainBackoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
-  { file: 'src/host/refresh/patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
-  { file: 'src/host/refresh/patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
+  { file: 'src/refresh/rooms/host/host-attention.ts', name: 'humanMs', reason: '读出来的「人最后一次动键盘鼠标」的时刻，不是可调参数' },
+  { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
+  { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
+  { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
   { file: 'src/host/tracker/snapshot.ts', name: 'snapshotTtl', reason: '透传参数，缺省接 SNAPSHOT_TTL_MS（已登记为 snapshotTtlMs）' },
@@ -505,7 +505,7 @@ async function main(): Promise<void> {
     const imported = importRe.test(src) || (dynamicRe.test(src) && src.includes(row.gen))
     // 数字比值相等；数组比引用，跨源码/产物两份实例时退到“值相等 + 源码里真引用了这个名字”
     // （手抄一个相同数组的作弊写法会被 import 断言拦住：没写 import 行就判红）。
-    // 模块根本不导出这个名字时（只在内部用，如 budget.ts；或只走动态 import，如 chainBackoff.js），
+    // 模块根本不导出这个名字时（只在内部用，如 budget.ts；或只走动态 import，如 chain-backoff.js），
     // got 是 undefined，比不出值——这时 import 行断言是唯一的证据（字面量那一头由第四节接着看）。
     const same = Array.isArray(eff)
       ? got === timeMod[row.gen] || (imported && (got === undefined || eqValue(got, eff)))

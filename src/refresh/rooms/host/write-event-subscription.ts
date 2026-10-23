@@ -1,4 +1,4 @@
-// src/host/refresh/writeEvents.ts —— 写事件订阅（#710 T6 · 第二批）
+// src/refresh/rooms/host/write-event-subscription.ts —— 写事件订阅（#710 T6 · 第二批）
 //
 // 这个文件干一件事：把「会话里有人写东西」变成「面板立刻知道」。它自己一行判定规则都没有——
 // 判定全在 src/refresh/kernel/write-event-detection.ts 那份纯函数里（产物 .build/refresh/kernel/write-event-detection.js），
@@ -24,14 +24,14 @@
 //
 // 接线（宿主侧一处，本票没做）：`createWriteEvents({ gate, fetch, canonicalKey, logCtx })` 拿到实例之后 ——
 //   `w.attach(ctx)` 订两条事件；`w.allowRoot(<当前在看的工作区根>)` 把要服务的工作区加进白名单
-//   （活跃集合变化时调，来源是视野模型 src/host/refresh/attention.js）；`w.forgetRoot(<切走的工作区根>)` 收摊。
+//   （活跃集合变化时调，来源是视野模型 src/refresh/rooms/host/host-attention.js）；`w.forgetRoot(<切走的工作区根>)` 收摊。
 //   本票没有动 src/host/index.js（全库共用的大文件，别的票同时在改），这一处接线请统筹者统一做。
 //
 // （2026-10-18 #1247 从 writeEvents.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做订阅、过门、合并窗口与过闸，白名单的钥匙与活跃集合用同一把短散列，绝不另写归一。）
-import { detectWrite, actionFor } from '../../refresh/kernel/write-event-detection.js'
-import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/time-config/src/values.js'
+import { detectWrite, actionFor } from '../../kernel/write-event-detection.js'
+import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1247 转写：只写类型不写实现）。
@@ -241,7 +241,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     // （workspaceKey || 'unknown' 那一格），而那一格永远不会被 setWorkspace 标成活跃 —— 后台档的
     // background-inactive 于是**恒**把这里的每一笔判成推迟：接线看起来接上了，实际一次都发不出去。
     // rootHash 就是「归我们的那个工作区根」的钥匙（上面 isOurs 那道门用的也是它）；接线那一侧
-    // （wiring.js 的 syncAttention）拿同一把钥匙标活跃，所以这一笔才放行得出来。
+    // （refresh-runtime.js 的 syncAttention）拿同一把钥匙标活跃，所以这一笔才放行得出来。
     lastGateKey = rootHash
     const out: any = await gate.send(
       { source: WRITE_EVENT_SOURCE, kind: kind, workspaceKey: rootHash, plan: [{ action: plan.action, ticket: plan.ticket }], cycle: cycle },
@@ -256,7 +256,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
 
   // 按需级 P1：外层先判调试开关，关着连字段对象都不组装（每一次成功的工具调用都会过这里，属高频路径）。
   // 节流两条：同一工作区一秒只记第一条；兜底那一档（什么都没触发）根本不记 —— 记了只是噪声。
-  // 最后一行把「判开关」与「发射」写在同一行，是仓库日志守卫门禁认的形状（与 gate.js 的 fireDecide 同款）。
+  // 最后一行把「判开关」与「发射」写在同一行，是仓库日志守卫门禁认的形状（与 refresh-gate.js 的 fireDecide 同款）。
   function logEvent(shape: any, rootHash: string, verdict: any, plan: any, cycle: string, tool: string, waitedMs: number, result: string): void {
     try {
       if (!logCtx || !logCtx.isEnabled('debug')) return
@@ -287,7 +287,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     stats.seen += 1
     // #723（T19）修掉的一处真错：这一行原来多套了一层散列（hash8(hash8(root))），而 sessionRoots 里存的
     // **已经是散列**（见 isOurs 里的 sessionRoots.set(id, rootHash)，以及它拿同一个值去 allowedRoots.has）。
-    // 于是同一条工作区根有了两把钥匙：「标活跃」那一侧（wiring.js 的 syncAttention → gate.setWorkspace）
+    // 于是同一条工作区根有了两把钥匙：「标活跃」那一侧（refresh-runtime.js 的 syncAttention → gate.setWorkspace）
     // 用 hash8(root)，「过闸」这一侧（下面 fire 里的 workspaceKey: rootHash）拿到的是 hash8(hash8(root))。
     // 两把钥匙对不上，闸那一格就永远是 active=false，后台档的 background-inactive 把这条路上**每一笔**
     // 都判成推迟 —— 接线看起来接上了，生产里一次都发不出去。现在与 isOurs 用的是同一个值。

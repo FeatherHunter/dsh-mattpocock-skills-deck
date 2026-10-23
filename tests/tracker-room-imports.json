@@ -5,7 +5,7 @@
     { "pattern": "^src/tracker/contract/", "why": "契约层：三房唯一公共面（纯类型与数据）", "ticket": 1014 },
     { "pattern": "^src/tracker/kernel/", "why": "共享内核：与具体后端无关、房间与宿主都要用的判定件（#1159 建的归口，与契约层的分界见 docs/adr/20261014-tracker-room-boundary.md）", "ticket": 1159 },
     { "pattern": "^src/shared/", "why": "共享模块：跟踪器形状层与三个自包含计算核（标签配色、版本控制、配置存储等）", "ticket": 1159 },
-    { "pattern": "^src/refresh/", "why": "刷新机制新家：房间引纯逻辑核与契约（gitlab 建票判据引内核、两房幂等引契约；宿主房与契约的永久依赖，#1426-#1428 房搬入后复查）", "ticket": 1425 }
+    { "pattern": "^src/refresh/", "why": "刷新机制新家：房间引纯逻辑核与契约（gitlab 建票判据引内核、两房幂等引契约；宿主房与契约的永久依赖。#1426 已复查：宿主房十份搬入后房间仍只引内核与契约，房不引房；#1427–#1428 继续复查）", "ticket": 1425 }
   ],
   "maxEntries": 4
 }

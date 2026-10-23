@@ -6,7 +6,7 @@
 // 的每一笔都被判「不在活跃集合里」而推迟，接线看起来接上了，生产里一次都发不出去）。
 //
 // 为什么单开一份共享文件的实现、而不是写在宿主某个文件里：宿主要用它的有三处 ——
-//   · src/host/refresh/wiring.js（活跃集合、写事件白名单、九个 deck_* 工具、行级增量那一半）；
+//   · src/refresh/rooms/host/refresh-runtime.js（活跃集合、写事件白名单、九个 deck_* 工具、行级增量那一半）；
 //   · src/host/detectChain.js（检查链求值那一笔记账的钥匙）。
 // 宿主层的文件之间不许互相引用（tests/verify-dependency-rules.ts），而宿主入口 src/host/index.js
 // 已经贴着 350 行上限、没法再把这一份依赖注入给链那一侧。所以「算钥匙」这件事落在共享层一处，

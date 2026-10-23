@@ -286,7 +286,7 @@ module.exports = {
       name: 'refresh-host-room-no-client-refs',
       severity: 'error',
       comment:
-        '宿主房间不引用界面房间：宿主房（旧位置见起点里的长名单，将来 src/refresh/rooms/host/）'
+        '宿主房间不引用界面房间：宿主房（旧位置见起点里的长名单，#1426 起另有 src/refresh/rooms/host/ 十份住户）'
         + '引 src/client/kernel/ 或 src/refresh/rooms/client/ 就判红。两边要说话走登记与契约。'
         + '例外：src/host/index.ts 里的旧探测处理段门禁看不见（文件级规则不认函数段），由 #1429 搬走，见目标地图 D4。',
       from: { path: '^src/host/refresh/|^src/host/issueList\\.ts$|^src/host/issueDetail\\.ts$|^src/host/commentThreads\\.ts$|^src/host/snapshotBuild\\.ts$|^src/host/sessionRefresh\\.ts$|^src/host/sessionSnapshot\\.ts$|^src/host/detectChain\\.ts$|^src/host/git-process\\.ts$|^src/host/gitCredentialExec\\.ts$|^src/host/platform/refreshAssembly\\.ts$|^src/host/platform/outbound-control\\.ts$|^src/host/platform/issueIndexWindow\\.ts$|^src/host/outbound/admission\\.ts$|^src/deck/shell/call-budget\\.ts$|^src/refresh/rooms/host/' },
@@ -309,8 +309,10 @@ module.exports = {
         + '（^src/refresh/rooms/、^src/refresh/registry/）不对外。内核（kernel/）与契约（contract/）是公开的：'
         + 'deck 工具引预算数字、宿主闸引裁决与形状，禁了内核这些调用当场无处可去。'
         + '#1425 对规格地图第 24 行的修正：原文禁的是“房内部具体文件”，此前实现把内核也圈进来是错的。'
-        + '今天房里还没有手写源码，房间与登记这两档从零开始守。',
-      from: { path: '^src/', pathNot: ['^src/refresh/'] },
+        + '#1426 装配例外：宿主入口（src/host/index.ts）是房间的永久装配点，豁免一直留；'
+        + '另外四处（detectChain、git-process、platform/refreshAssembly、platform/outbound-control）是过渡——'
+        + '它们 #1427 整份搬进宿主房、边变房内边后豁免即删。这个名单只许缩不许长。',
+      from: { path: '^src/', pathNot: ['^src/refresh/', '^src/host/index\\.ts$', '^src/host/detectChain\\.ts$', '^src/host/git-process\\.ts$', '^src/host/platform/refreshAssembly\\.ts$', '^src/host/platform/outbound-control\\.ts$'] },
       to: { path: '^src/refresh/rooms/|^src/refresh/registry/' },
     },
 

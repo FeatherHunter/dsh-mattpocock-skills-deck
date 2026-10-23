@@ -15,13 +15,13 @@
  *
  * ── 注入点（两处都要挂） ─────────────────────────────────────────────────────
  *   · `src/host/platformChannel.ts` 的 `backendCtxForRooms`（平台通道那条路，快照与探测都走它）
- *   · `src/host/refresh/wiring.js` 的 `backendObj`（deck 工具那条路）
+ *   · `src/refresh/rooms/host/refresh-runtime.js` 的 `backendObj`（deck 工具那条路）
  * 两处都是「房间 create 时注入一次」的那份进程级上下文；缺一处，那条路上的房间会按环境失败返回
  * （有意为之：宁可大声报错，也不静默绕过名额闸）。
  */
 
 import { getGhLane, isAdmissionCancelled } from '../outbound/admission.js'
-import { getChainRide } from '../refresh/chain-ride.js'
+import { getChainRide } from '../../refresh/rooms/host/chain-coalescing.js'
 import type { OutboundControl } from '../../tracker/contract/outbound.js'
 
 /**

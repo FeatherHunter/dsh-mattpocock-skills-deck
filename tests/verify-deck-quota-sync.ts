@@ -171,7 +171,7 @@ async function main() {
   }
   // 注册表在 #1138 之后只剩「我这儿有哪些后端」与「这个仓库是谁」两件事，原来那个「进程内绑定一次」的口子
   //   （bound）已整段删除；这里要走到「壳真的选出后端」那一步（写用途要求 canWrite:true），凭据只有一个来源：
-  //   工作区里那份工作区文件。生产里由宿主读出来递给壳（src/host/refresh/wiring.js 的 readWorkspaceFileText），
+  //   工作区里那份工作区文件。生产里由宿主读出来递给壳（src/refresh/rooms/host/refresh-runtime.js 的 readWorkspaceFileText），
   //   夹具照这条口径直接给原文。
   const stubRegistry = {
     has: function () { return true },

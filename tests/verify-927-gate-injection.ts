@@ -84,8 +84,8 @@ function mkGate() {
 // ── ⑥ 活件：过闸的调用把结果带回来；没报数不算「对不上」；报假数仍被抓 ──
 {
   const CLOCK = 1700000000000
-  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/ledger.ts')).href)
-  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/gate.ts')).href)
+  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/quota-ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/refresh-gate.ts')).href)
   const ledger = ledgerMod.createLedger({ now: () => CLOCK })
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
   const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
@@ -125,8 +125,8 @@ function mkGate() {
 // ── ⑧ 活件：面板那一路真走一遍（真 platformChannel + 真闸）：账与真发数一致、绕闸为 0 ──
 {
   const CLOCK = 1700000000000
-  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/ledger.ts')).href)
-  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/gate.ts')).href)
+  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/quota-ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/refresh-gate.ts')).href)
   const ledger = ledgerMod.createLedger({ now: () => CLOCK })
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
   const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })

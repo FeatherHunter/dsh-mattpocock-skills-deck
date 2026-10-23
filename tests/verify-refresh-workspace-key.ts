@@ -7,7 +7,7 @@
 // 交给闸，而活跃集合用的是短散列，于是链的失败计数与限流标记落在另一格里，probe/patch 的退避看不到）。
 //
 // 这一条跑**真代码**、不做静态断言就下结论：
-//   真接线 src/host/refresh/wiring.js 的 createRefreshWiring + 真闸与真账本（refresh/gate.js、ledger.js）
+//   真接线 src/refresh/rooms/host/refresh-runtime.js 的 createRefreshWiring + 真闸与真账本（rooms/host/refresh-gate.ts、quota-ledger.ts）
 //   + 真检查链 src/host/detectChain.ts 的 createDetectChain（gh 那一侧在假进程接缝上跑，不起真进程）。
 // 它盯三件事：
 //   一、钥匙只有一处：接线转出来的那把与共享层那一把是**同一个函数**；
@@ -104,9 +104,9 @@ function makeSpawn() {
  * 记下来的那一列就是我们唯一要看的东西 —— 每一次过闸带进了哪把钥匙。
  */
 async function makeHost() {
-  const wiringMod = await imp('src/host/refresh/wiring.js')
-  const gateMod = await imp('src/host/refresh/gate.ts')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const wiringMod = await imp('src/refresh/rooms/host/refresh-runtime.js')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const detectChainMod = await imp('src/host/detectChain.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
@@ -206,7 +206,7 @@ async function main() {
   console.log('同一个工作区根在闸里只许有一格（#724：真接线 + 真闸 + 真检查链 + 一次真工具调用）')
 
   // ── 一、钥匙只有一处：接线的转出 = 共享层那一把（同一个函数，不是两份实现）──
-  const wiringMod = await imp('src/host/refresh/wiring.js')
+  const wiringMod = await imp('src/refresh/rooms/host/refresh-runtime.js')
   const sharedMod = await imp('src/refresh/contract/workspace-keys.js')
   check(typeof wiringMod.workspaceKeyOf === 'function', '接线转出 workspaceKeyOf（宿主这一侧取钥匙的唯一入口）')
   check(wiringMod.workspaceKeyOf === sharedMod.workspaceKeyOf, '接线转出的那把与共享层那把是同一个函数（实现只有一处）')

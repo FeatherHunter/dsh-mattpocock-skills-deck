@@ -32,7 +32,7 @@ import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idSha
 //   · runOne 那些裸数字改成的是另一组键：单条只读命令的超时（vcReadCmdTimeoutMs / vcLsFilesTimeoutMs）与
 //     「整趟预算」（vcHeadCallBudgetMs / vcReadCallBudgetMs / vcLsFilesCallBudgetMs / vcRemoteListCallBudgetMs）。
 // 单条超时与整趟预算是两件事：前者管某一条命令最多跑多久，后者管挂在这一步上的所有命令合起来的上限。
-// 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
+// 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
 import {
   VC_ADD_TIMEOUT_MS as ADD_TIMEOUT_MS,
   VC_COMMIT_TIMEOUT_MS as COMMIT_TIMEOUT_MS,

@@ -123,8 +123,8 @@ function execFor(cwd) {
 async function main() {
   console.log('deck 工具挂起对抗门禁（竞速兜底 + 分类不变 + 中止即停）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const t0 = Date.now()
   // 断言跑完之前一直拖住事件循环，理由与两个原生口的来历见本文件上面 installTimeCompression 前的注释。
   // 1 秒只是随手挑的间隔：它不回话、不推进虚拟时钟，唯一作用是被事件循环算作一个还活着的句柄。

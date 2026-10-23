@@ -39,7 +39,7 @@ async function run() {
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const issueListMod = await imp('src/host/issueList.js')
   const commentMod = await imp('src/host/commentThreads.js')
-  const wiringMod = await imp('src/host/refresh/wiring.js')
+  const wiringMod = await imp('src/refresh/rooms/host/refresh-runtime.js')
 
   // ---- 假世界：一份内存快照 + 一个记账的传输层 + 一份可摆布的窗口索引 ----
   const row = (n, state, updatedAt) => ({ number: n, key: String(n), title: '票 ' + n, state: state, updatedAt: updatedAt, labels: [], assignees: [], createdAt: '2026-09-01T00:00:00Z' })

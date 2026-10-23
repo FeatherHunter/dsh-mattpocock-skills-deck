@@ -123,7 +123,7 @@ export interface GateSendResult {
   [key: string]: unknown;
 }
 
-/** 宿主闸（src/host/refresh/gate.js 的产物）：先判硬顶，再记账。 */
+/** 宿主闸（src/refresh/rooms/host/refresh-gate.js 的产物）：先判硬顶，再记账。 */
 export interface GateLike {
   admitAiTool(usage: UnknownRecord, meta: UnknownRecord): AdmitResult;
   send(meta: UnknownRecord, fn: () => Promise<unknown>): Promise<GateSendResult>;

@@ -44,10 +44,10 @@ let failed = false
 let total = 0
 const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-/** 值扫这三棵树里的前两棵：生产代码。 */
-const VALUE_DIRS = ['src/host', 'src/client']
-/** 名字扫这三棵：生产代码 + 测试与门禁。 */
-const NAME_DIRS = ['src/host', 'src/client', 'tests']
+/** 值扫生产代码三棵树（#1426 起加 src/refresh：宿主房代码搬进新家，产出的值住在那里）。 */
+const VALUE_DIRS = ['src/host', 'src/client', 'src/refresh']
+/** 名字扫这四棵：生产代码 + 测试与门禁。 */
+const NAME_DIRS = ['src/host', 'src/client', 'src/refresh', 'tests']
 /** 契约层就是整棵 src/shared（共享词汇表）加整棵 src/refresh（刷新机制的新家，#1425 起）。 */
 const CONTRACT_DIRS = ['src/shared', 'src/refresh']
 /** 本门禁自己的文件：扫描时要跳过（它必然写出待查的名字，算成读者就是自证）。 */
@@ -195,7 +195,7 @@ async function main() {
   console.log('共享层词汇门禁（#719 T15：整棵 src/shared 的字符串型常量都要有出处，死了的判红）')
   const valueText = textOf(VALUE_DIRS)
   const nameText = textOf(NAME_DIRS)
-  check(valueText.length > 0, '生产代码扫到了内容（src/host 与 src/client 两棵树，' + valueText.length + ' 个字符）')
+  check(valueText.length > 0, '生产代码扫到了内容（src/host、src/client、src/refresh 三棵树，' + valueText.length + ' 个字符）')
   check(nameText.length > valueText.length, '名字那一份比值那一份大（多扫了 tests 那棵树，' + nameText.length + ' 个字符）')
   // 自证防护：本门禁自己的文件必须真的没被扫进去（它里面写着待查的名字，算成读者就是自证）。
   check(nameText.indexOf('死了的字符串型常量') < 0, '本门禁自己的文件没有被算进读者那一段文本（排除生效）')

@@ -29,7 +29,7 @@ export interface SharedTuning {
   readBucketMax?: number
   /** 写桶上限，来源同文件 :26（WRITE_BUCKET_MAX）。 */
   writeBucketMax?: number
-  /** deck 调用前置保读数等待，来源 src/host/refresh/wiring.js:38（DECK_ENSURE_TIMEOUT_MS）。 */
+  /** deck 调用前置保读数等待，来源 src/refresh/rooms/host/refresh-runtime.js:38（DECK_ENSURE_TIMEOUT_MS）。 */
   deckEnsureTimeoutMs?: number
 }
 

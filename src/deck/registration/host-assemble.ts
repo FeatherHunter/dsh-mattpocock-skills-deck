@@ -4,7 +4,7 @@
 // 这个文件只做一件事：把 src/host/tools/ 下九个工具文件里的工厂函数读进来，交给共享层的装配口
 // createDeckTools（src/shared/deck-tools/plan.js）装成一张表 { 名字 → { definition, run } }。
 // 它自己不判断任何业务：闸、后端注册表、额度常量、会话→句柄、后端 ctx、写后失效缓存这些依赖
-// 都由宿主接线方现取现传（见 src/host/refresh/wiring.js 的 deckToolsForHost）。
+// 都由宿主接线方现取现传（见 src/refresh/rooms/host/refresh-runtime.js 的 deckToolsForHost）。
 //
 // 为什么这个文件住在 src/host/platform/，而不是 src/host/tools/ 或 src/host/refresh/：
 //   同层互引门禁（tests/verify-dependency-rules.ts）把 src/host/ 整棵树算作「宿主层」，

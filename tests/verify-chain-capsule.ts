@@ -2,7 +2,7 @@
 // verify-chain-capsule.ts —— 门禁：状态栏胶囊里「这个会话在办哪张票」那一段
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-chain-capsule.ts，可独立运行。
 //
-// #1271 起这一段只读一个来源：面板快照的 workRouteTable 字段（宿主 refresh/workRouteReadoutForHost.ts
+// #1271 起这一段只读一个来源：面板快照的 workRouteTable 字段（宿主 src/refresh/rooms/host/work-route-readout.ts
 // 的产物，与工具回执 data.workRoute 同一份读数）；旧链的 workRoute 字段、碎片号、读数模块与旧叶子已退役。
 // 门禁按组量：
 //   A 判据（纯函数，不开浏览器）：没快照/没挂字段 → 空（整段不画）；表里没记录/当前会话没记录 → 空；
