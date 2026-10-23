@@ -101,8 +101,8 @@ export function isTodayName(name: unknown): name is string {
 
 /**
  * 拨开关落定后弹哪一句（原 SettingsPage.js 里 toggleDbg 成功分支那条嵌套三元，原样搬成具名函数）。
- * 三个分支各说各的，不许互相借用文案：成功且宿主副本跟上了，弹不带限定语的那句；
- * 成功但副本没跟上，弹带限定语的那句（开、关两个方向各一句，方向写反会把话说反）；
+ * 三个分支各说各的，不许互相借用文案：成功且正在运行的宿主已经收到这次改动，弹不带限定语的那句；
+ * 成功但宿主还没收到，弹带限定语的那句（开、关两个方向各一句，方向写反会把话说反）；
  * 失败了走上面的失败翻译，不弹成功句。
  */
 export function switchToastKey(res: unknown): DiagnosticLocaleKey {
@@ -114,10 +114,10 @@ export function switchToastKey(res: unknown): DiagnosticLocaleKey {
 }
 
 /**
- * 拨开关落定后提示条的颜色档（原 SettingsPage.js 里 flash 那一句：成功且副本跟上才走 ok，其余走 warn）。
- * 成功但副本没跟上时走 warn 是有意的：那不是一次完全的成功，绿色会骗人。
+ * 拨开关落定后提示条的颜色档（原 SettingsPage.js 里 flash 那一句：成功且宿主收到才走 ok，其余走 warn）。
+ * 成功但宿主没收到这次改动时走 warn 是有意的：正在运行的宿主暂时没跟上，绿色会骗人。
  * 注意它与行内那一闪不是同一个东西：行内那一闪只看写进真源成功没有（成功就绿），
- * 提示条这一档还要看宿主副本跟上没有。两处判据不同，不要合并成一个。
+ * 提示条这一档还要看正在运行的宿主收到没有。两处判据不同，不要合并成一个。
  */
 export function switchToastKind(res: unknown): 'ok' | 'warn' {
   if (!isRecord(res) || res['ok'] !== true) return 'warn';

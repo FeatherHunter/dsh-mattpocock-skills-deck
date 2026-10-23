@@ -86,7 +86,7 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
         renderWsOverview(h, sharedSt, overview.wsOverview, overview.loadRef, foldVer, setFoldVer),
 
         // #492 沉底调试分组（布局文案沿 #334 原型：主开关默认关，写经 settingsDebugToggle（真源是本机设置文件的
-        //   debug 节，宿主那份只是副本，见 #1012 第 8 条），保存即广播；四键调宿主三电话加复用目录电话）
+        //   debug 节，宿主开机直接读它，见 #1012 第 8 条与 #1432），保存即广播；四键调宿主三电话加复用目录电话）
         h(DiagnosticLogSection, { sessionId: props && props.sessionId }),
         // 增-2（#520）：底部作者其他插件独立区域（默认展开，每行点开跳对应仓库首页；不新增本地存档键）
         h('div', { className: 'dsws-cfg-group' }, [

@@ -177,8 +177,8 @@ zh:
   cfg.dbgConfirmClear: 确认清空
   cfg.dbgSwitchOnToast: 调试日志已打开：控制台开始打印详细日志
   cfg.dbgSwitchOffToast: 调试日志已关闭：不再记详细日志；关闭也不影响导出
-  cfg.dbgSwitchOnNoHost: 调试日志已打开：这一笔已写进本机设置文件；宿主那份副本还没接上，本机日志暂时记不下调试行（下一次机会会自动重推）
-  cfg.dbgSwitchOffNoHost: 调试日志已关：这一笔已写进本机设置文件；宿主那份副本还开着，调试行还在记（下一次机会会自动重推）
+  cfg.dbgSwitchOnNoHost: 调试日志已打开：这一笔已写进本机设置文件；正在运行的宿主还没收到这次改动，本机日志暂时记不下调试行（下一次机会会自动重推）
+  cfg.dbgSwitchOffNoHost: 调试日志已关：这一笔已写进本机设置文件；正在运行的宿主还在按旧值记录调试行（下一次机会会自动重推）
   cfg.dbgSwitchFail: 开关保存失败，已保持原状态，请重试
   cfg.dbgSwitchFailNoHost: 开关保存失败：面板没接上宿主通道（宿主还没就绪，或插件没装全），已保持原状态
   cfg.dbgSwitchFailTimeout: 开关保存失败：宿主超过 {{SETTINGS_DEBUG_PUSH_WAIT_MS/1000}} 秒没有回应，已保持原状态，请重试
@@ -419,8 +419,8 @@ en:
   cfg.dbgConfirmClear: Clear now
   cfg.dbgSwitchOnToast: "Debug log on: detailed logs now print to the console"
   cfg.dbgSwitchOffToast: "Debug log off: detailed logging stopped; exporting still works"
-  cfg.dbgSwitchOnNoHost: Debug log on and saved to this machine settings file, but the host copy is not in sync yet, so debug lines are not being recorded (it will retry automatically)
-  cfg.dbgSwitchOffNoHost: Debug log off and saved to this machine settings file, but the host copy is still on, so debug lines keep being recorded (it will retry automatically)
+  cfg.dbgSwitchOnNoHost: Debug log on and saved to this machine settings file, but the running host has not picked up this change yet, so debug lines are not being recorded (it will retry automatically)
+  cfg.dbgSwitchOffNoHost: Debug log off and saved to this machine settings file, but the running host is still recording debug lines with the previous value (it will retry automatically)
   cfg.dbgSwitchFail: Could not save the switch — kept the previous state, please retry
   cfg.dbgSwitchFailNoHost: "Could not save the switch: the panel has no channel to the host (host not ready, or the plugin did not load fully) — kept the previous state"
   cfg.dbgSwitchFailTimeout: "Could not save the switch: the host did not answer within {{SETTINGS_DEBUG_PUSH_WAIT_MS/1000}} seconds — kept the previous state, please retry"

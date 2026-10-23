@@ -11,8 +11,8 @@ importers:
   .:
     dependencies:
       dsh-log:
-        specifier: ^0.3.4
-        version: 0.3.4
+        specifier: ^0.4.1
+        version: 0.4.1
       dsh-plugin-update:
         specifier: ^0.18.38
         version: 0.18.38
@@ -597,6 +597,11 @@ packages:
 
   dsh-log@0.3.4:
     resolution: {integrity: sha512-uCG6sLTze5YjmZmLln2KAeCCepsKvzGhnpZmkym/3OKNOsMKH5sA2lunwrLoOfmLxxju3/ZkKQmLp76Fklpw2w==}
+    engines: {node: '>=22'}
+    hasBin: true
+
+  dsh-log@0.4.1:
+    resolution: {integrity: sha512-C07uqa+dnHWjZUDllcF5gx98l3Hds+GIIou1jWCOOvBthQvaNoC1LG85PvYY+tr62RmQU07hEqOXqXMYXmmazg==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -1277,6 +1282,8 @@ snapshots:
       watskeburt: 6.0.0
 
   dsh-log@0.3.4: {}
+
+  dsh-log@0.4.1: {}
 
   dsh-plugin-update@0.18.38:
     dependencies:

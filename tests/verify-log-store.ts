@@ -54,9 +54,10 @@ function makeTimer() {
   }
   return { timeout, calls }
 }
-function makeStore(mem, cacheDir) {
+function makeStore(mem, cacheDir, extra) {
   const timer = makeTimer()
-  return { timer, deps: { fs: makeFs(mem), timer, getCacheDir: async () => cacheDir, getPlatform: async () => makePlatform(), DEFAULT_CWD: '/work' } }
+  const deps = Object.assign({ fs: makeFs(mem), timer, getCacheDir: async () => cacheDir, getPlatform: async () => makePlatform(), DEFAULT_CWD: '/work' }, extra || {})
+  return { timer, deps }
 }
 
 async function main() {
@@ -87,8 +88,8 @@ async function main() {
   // logStore.js 里那行写的是“别名接中央常量、缺表回落 1000”，所以这里断言值仍是 1000 毫秒，
   // 并且确实接的是那个中央常量（源码里能读到 LOG_WRITE_DEBOUNCE_MS 这个名字）。
   check(LOG_DEBOUNCE_MS === 1000 && src.includes('LOG_WRITE_DEBOUNCE_MS'), '防抖窗口为 1000 毫秒（设计 2.2 字面；#1215 起取值住中央 YAML 的 logWriteDebounceMs）')
-  check(mod.LOG_SWITCH_FILE === 'log-switch.json', '开关文件名常量导出为 log-switch.json（持久化）')
-  check(src.includes('log-switch.json'), '开关持久化落点为缓存目录下 log-switch.json')
+  check(!('LOG_SWITCH_FILE' in mod), '开关文件常量已删除（#1432：开关只认本机设置文件的 debug.enabled，不再另存一份）')
+  check(!src.includes('log-switch.json') && src.includes('switchSource'), '旧回退实现不再读写开关文件，开关改成问装配处递进来的 switchSource')
   check(src.includes('host.start'), '启动时在日志头写入进程标识与启动时间（host.start）')
   const logAt = src.indexOf('function log(level')
   let firstLineOk = false
@@ -183,18 +184,19 @@ async function main() {
     check(setRes && setRes.ok === true && setRes.enabled === true, '开关写电话回参与设计 2.5 同形（ok、enabled 生效值）')
   }
 
-  // ---- 开关重启保持：打开后落盘，新实例读回仍为打开 ----
+  // ---- 开关重启保持：开关只有一处真源，新实例问同一个来源仍读回打开（#1432）----
   {
     const mem = makeMemoryFiles()
-    const first = makeStore(mem, '/cache')
+    const truth = { enabled: null }
+    const switchSource = { get: async () => truth.enabled, set: async (on) => { truth.enabled = on; return on } }
+    const first = makeStore(mem, '/cache', { switchSource })
     const storeA = createLogStore(first.deps)
     await storeA.setSwitch(true, 0.5)
-    const second = makeStore(mem, '/cache')
-    // 共用同一份内存文件，模拟重启后的新实例。
-    second.deps.fs = makeFs(mem)
+    check(mem.writes === 0, '拨开关不写缓存目录里的文件（#1432：开关只进本机设置文件）')
+    const second = makeStore(mem, '/cache', { switchSource })
     const storeB = createLogStore(second.deps)
     const loaded = await storeB.loadSwitch()
-    check(loaded.enabled === true, '开关打开后重启保持（对账以宿主为准）')
+    check(loaded.enabled === true, '开关打开后重启保持（新实例问同一个开关来源）')
   }
 
   // ---- 失败只计数：写盘失败不抛错，累计丢弃数增长 ----
@@ -204,7 +206,7 @@ async function main() {
     const { deps } = makeStore(mem, '/cache')
     const store = createLogStore(deps)
     await store.setSwitch(true, 1)
-    // 开关持久化同样走失败的文件服务，失败不抛错；清零写计数只看日志行。
+    // 开关不再走文件服务（#1432）；下面三行日志在写盘失败时只计数、不抛错。
     const before = store.getDroppedCount()
     store.log('info', 'evt-fail-1', {})
     store.log('info', 'evt-fail-2', {})

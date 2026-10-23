@@ -324,7 +324,30 @@ export default {
 
     // ---- #490 host 日志底座 + #564 切日志包：优先走包派生（./logFromPackage.js），失败回退旧实现（旧文件留而不搬） ----
     let _logP: Promise<any> | null = null
-    function _log(): Promise<any> { if (!_logP) _logP = (async function(){ try { const adapter = await import('./logFromPackage.js'); const _rc: any = await import('./rpcChannel.js'); return await adapter.createLogFromPackage({ fs: fs, timer: timer, getCacheDir: function(...args: any[]){ return getCacheDir.apply(null, args) }, getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, pluginVersion: _rc.readServingPackageVersion() }) } catch (ePkg) { const mod = await import('./logStore.js'); return mod.createLogStore({ fs: fs, timer: timer, getCacheDir: function(...args: any[]){ return getCacheDir.apply(null, args) }, getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD }) } })(); return _logP }
+    function _log(): Promise<any> {
+      if (!_logP) _logP = (async function () {
+        // #1432：调试日志开关只有本机设置文件一处真源。宿主这边把 settingsPhones 的读写两格包成日志包认识的
+        //   switchSource 递下去：包不再自己存开关文件，开机读哪一格、拨开关写哪一格都由设置文件说话。
+        //   读不到这个方法时 switchSource 留空，日志包与旧实现按原来的方式工作（回退路径不至于打不开）。
+        let switchSource: any = null
+        try {
+          const s: any = await _settings()
+          if (s && typeof s.readDebugSwitchEnabled === 'function') {
+            switchSource = { get: function () { return s.readDebugSwitchEnabled() }, set: function (on: any) { return (typeof s.writeDebugSwitchEnabled === 'function') ? s.writeDebugSwitchEnabled(on) : null } }
+          }
+        } catch (eSettings) {}
+        const src = switchSource
+        try {
+          const adapter = await import('./logFromPackage.js')
+          const _rc: any = await import('./rpcChannel.js')
+          return await adapter.createLogFromPackage({ fs: fs, timer: timer, getCacheDir: function (...args: any[]) { return getCacheDir.apply(null, args) }, getPlatform: function (...args: any[]) { return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, pluginVersion: _rc.readServingPackageVersion(), switchSource: src })
+        } catch (ePkg) {
+          const mod = await import('./logStore.js')
+          return mod.createLogStore({ fs: fs, timer: timer, getCacheDir: function (...args: any[]) { return getCacheDir.apply(null, args) }, getPlatform: function (...args: any[]) { return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, switchSource: src })
+        }
+      })()
+      return _logP
+    }
     harness.handle('wf.logBatch', async function (args: WfArgs) { const h = await _log(); return h.handleLogBatch(args) })
     harness.handle('wf.logExport', async function (args: WfArgs) { const h = await _log(); return h.handleLogExport(args) })
     harness.handle('wf.logClear', async function (args: WfArgs) { const h = await _log(); return h.handleLogClear(args) })

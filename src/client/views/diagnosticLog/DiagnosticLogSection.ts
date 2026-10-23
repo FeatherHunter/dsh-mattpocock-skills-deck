@@ -53,7 +53,7 @@ export const DiagnosticLogSection = (props: { sessionId?: unknown }): unknown =>
   const sessionId = props ? props.sessionId : undefined;
   const sharedSt = cx ? cx.storeSvc.useStore(sessionId) : useStore(sessionId);
   // #492调试分组：开关秒显读内存这一份（构建产物里的 logSwitch），拨动走 settingsDebugToggle 写进
-  //   本机设置文件的 debug 节（#1012 第 8 条：真源是设置文件，宿主那份只是副本），底座广播刷新；
+  //   本机设置文件的 debug 节（#1012 第 8 条：#1432 起这是唯一一处真源，宿主开机直接读它，不再另存一份开关），底座广播刷新；
   //   导出日志那四键仍走宿主电话。
   const [dbgPending, setDbgPending] = React.useState(false);
   const [dbgBusy, setDbgBusy] = React.useState(null);
@@ -61,7 +61,7 @@ export const DiagnosticLogSection = (props: { sessionId?: unknown }): unknown =>
   // #951：开关落定后行内闪光（成功绿跟提示 ok 同色，失败琥珀跟提示 warn 同色，半秒自退）
   const [dbgFlash, setDbgFlash] = React.useState('');
   const [lastExport, setLastExport] = React.useState(null);
-  // 宿主那份副本没跟上时的自愈口子（#1012 第 8 条）：这一页每次重新画一遍就跑一次 —— 故意不写依赖数组。
+  // 宿主没收到开关改动时的自愈口子（#1012 第 8 条）：这一页每次重新画一遍就跑一次 —— 故意不写依赖数组。
   //   为什么不写：DSH 宿主那侧的设置对话框不在本仓，「设置分组每次打开都会重新挂载这一页」只是本仓的推断、
   //   核不了；若它其实是一直挂着，只挂载跑一次的口子在同一次挂载里就没有第二次机会，文案里那句
   //   「下一次机会会自动重推」会变成做不到的承诺。改成每次渲染都跑，页面重画一遍就够。
@@ -155,7 +155,7 @@ export const DiagnosticLogSection = (props: { sessionId?: unknown }): unknown =>
   const ops: DiagnosticLogOps = createDiagnosticLogOps(deps);
 
   // #492 沉底调试分组（布局文案沿 #334 原型：主开关默认关，写经 settingsDebugToggle（真源是本机设置文件的
-  //   debug 节，宿主那份只是副本，见 #1012 第 8 条），保存即广播；四键调宿主三电话加复用目录电话）
+  //   debug 节，宿主开机直接读它，见 #1012 第 8 条与 #1432），保存即广播；四键调宿主三电话加复用目录电话）
   return h('div', { className: 'dsws-cfg-group' }, [
     h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'gear', size: 13 }), h('span', null, tr('cfg.dbgTitle'))]),
     h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.dbgDesc')),

@@ -139,7 +139,7 @@ export function createSettingsPhones(deps?: any): any {
 
   // 进程内串行队列，两笔写不会同时进读改写，后到的写会等前面的写落盘之后再开始。
   let writeQueue = Promise.resolve()
-  function serialWrite(task?: any) {
+  function serialWrite(task?: any): Promise<any> {
     const next = writeQueue.then(task, task)
     writeQueue = next.then(function() {}, function() {})
     return next
@@ -202,6 +202,57 @@ export function createSettingsPhones(deps?: any): any {
     })
   }
 
+  // 调试日志开关那一格（#1432：开关只认本机设置文件一处真源，宿主开机时直接来问这里）。
+  // 回 true 或 false 表示文件里写明的值；回 null 表示这一趟问不出值（文件还没建、内容坏了、或者主目录拿不到），
+  // 调用方把 null 当作「按默认值（关）处理」。这里一律不抛：开关缺席不该挡住日志底座初始化。
+  // 成功与失败各记一行既有电话日志（host.call / host.call.fail），电话名沿用宿主开关电话的名字，不新增事件名。
+  async function readDebugSwitchEnabled(): Promise<boolean | null> {
+    const t0 = Date.now()
+    let out: boolean | null = null
+    let failKind = ''
+    try {
+      const home = await resolveHome()
+      if (!home || typeof readLocalSettings !== 'function') failKind = 'no-home'
+      else {
+        const raw: any = await readLocalSettings(home, buildIo())
+        if (raw && raw.ok === true) {
+          const debug = raw.value && typeof raw.value === 'object' ? raw.value.debug : null
+          if (debug && typeof debug === 'object' && typeof debug.enabled === 'boolean') out = debug.enabled
+          else failKind = 'no-debug-switch'
+        } else failKind = String((raw && raw.reason) || 'read-not-ok')
+      }
+    } catch (e) { failKind = 'read-throw' }
+    if (out === null) phoneLog('wf.logGetSwitch', t0, { ok: false, error: { kind: failKind } })
+    else phoneLog('wf.logGetSwitch', t0, { ok: true })
+    return out
+  }
+
+  // 写调试日志开关那一格：只改本机设置文件 debug.enabled 这一格，文件里其余内容原样保留。
+  // 走与 setSettings 同一条串行队列，避免两笔读改写交错；文件不在、内容坏了、只读或写不进去都回 null，
+  // 调用方据此知道这一笔没有落盘。值本来就相等时不再写盘（客户端先把文件写好再来通知宿主，多半走这一趟）。
+  async function writeDebugSwitchEnabled(enabled?: any): Promise<boolean | null> {
+    const t0 = Date.now()
+    const on = enabled === true
+    const out = await serialWrite(async function (): Promise<boolean | null> {
+      try {
+        const home = await resolveHome()
+        if (!home || typeof readLocalSettings !== 'function' || typeof writeLocalSettings !== 'function') return null
+        const before: any = await readLocalSettings(home, buildIo())
+        if (!before || before.ok !== true || before.readonly === true) return null
+        const value = before.value && typeof before.value === 'object' ? before.value : null
+        if (!value) return null
+        const debug = value.debug && typeof value.debug === 'object' ? value.debug : {}
+        if (debug.enabled === on) return on
+        const next = Object.assign({}, value, { debug: Object.assign({}, debug, { enabled: on }) })
+        const made: any = await writeLocalSettings(next, home, buildIo())
+        return made && made.ok === true ? on : null
+      } catch (e) { return null }
+    })
+    if (out === null) phoneLog('wf.logSetSwitch', t0, { ok: false, error: { kind: 'write-not-ok' } })
+    else phoneLog('wf.logSetSwitch', t0, { ok: true })
+    return out
+  }
+
   // 带日志的包装：形状与仓库既有叶子完全一致（见 workspaceCwd.js 的 loggedPhone），
   //   按电话名逐条包住处理体，出口只记一行（成功 host.call，业务失败与抛错 host.call.fail）。
   //   写成这个形状而不是各写一份包装，是为了让日志覆盖门禁的既有判据照样量得到这两条电话，
@@ -213,7 +264,13 @@ export function createSettingsPhones(deps?: any): any {
     }
   }
 
-  return { handleGetSettings: loggedPhone('wf.getSettings', handleGetSettings), handleSetSettings: loggedPhone('wf.setSettings', handleSetSettings) }
+  return {
+    handleGetSettings: loggedPhone('wf.getSettings', handleGetSettings),
+    handleSetSettings: loggedPhone('wf.setSettings', handleSetSettings),
+    // #1432：宿主开关来源（index.ts 的 _log() 把它包成 switchSource 递给日志包与旧回退实现）。
+    readDebugSwitchEnabled,
+    writeDebugSwitchEnabled,
+  }
 }
 
 export default { createSettingsPhones, isSettingsAbsenceError }

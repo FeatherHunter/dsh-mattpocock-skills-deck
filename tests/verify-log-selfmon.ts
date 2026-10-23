@@ -71,11 +71,13 @@ const logSrc = spliceableJs('src/client/kernel/log.js')
 }
 
 async function main() {
-  // 九、复现 47：开关文件坏而日志文件好，失败行落盘且三键齐。
+  // 九、复现 47（#1432 改口径）：当天日志文件第一次写失败、第二次成功，失败行仍能落盘且三键齐。
+  //   原来这档造的是「开关文件坏、日志文件好」，开关文件已经整条删掉，改成让真正在用的日志文件坏一次，
+  //   量的是同一个东西：一次写盘失败之后，那条 log.persist.fail 失败行自己还能写进文件。
   {
     const modUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'logStore.js')).href
     const mod = await import(modUrl)
-    const mem = { texts: new Map() }
+    const mem = { texts: new Map(), logWrites: 0 }
     const memFs = {
       async resolve(p) { return { __target: String(p) } },
       async readText(t) {
@@ -85,13 +87,17 @@ async function main() {
       },
       async writeText(t, text) {
         const key = t && t.__target ? t.__target : String(t)
-        if (String(key).endsWith('log-switch.json')) throw new Error('模拟开关文件写失败')
+        if (String(key).endsWith('.log')) {
+          mem.logWrites += 1
+          if (mem.logWrites === 1) throw new Error('模拟写盘失败')
+        }
         mem.texts.set(key, String(text))
       },
     }
     const platform = { os: 'test-os', path: { join(...parts) { return parts.join('/').replace(/\/+/g, '/') } }, fs: { async resolve(p) { return { __target: String(p) } }, async mkdir() {}, async listDir() { return [] } } }
     const timer = { timeout(fn, ms) { if (typeof fn === 'number') return new Promise((r) => setTimeout(() => r({ exitCode: -1 }), fn)); return setTimeout(fn, ms) } }
     const store = mod.createLogStore({ fs: memFs, timer, getCacheDir: async () => '/cache', getPlatform: async () => platform, DEFAULT_CWD: '/work' })
+    // 开关不再有自己那份文件（#1432）：setSwitch 不写盘，这里只把它当「打开日志」的开关用。
     await store.setSwitch(true, 1)
     store.log('info', 'evt-partial', {})
     store.flush()
@@ -99,8 +105,8 @@ async function main() {
     const today = mod.formatLogFileName(new Date())
     const keys = Array.from(mem.texts.keys()).filter((k) => k.endsWith('/' + today))
     const body = keys.length ? String(mem.texts.get(keys[0]) || '') : ''
-    check(body.includes('\"event\":\"log.persist.fail\"'), '复现 47：开关文件坏而日志好，失败行落盘')
-    check(body.includes('\"op\":\"persistSwitch\"') && body.includes('\"reason\":\"write-fail\"'), '复现 47：失败行带操作与原因枚举')
+    check(body.includes('\"event\":\"log.persist.fail\"'), '复现 47：写盘失败一次之后，失败行仍然落盘')
+    check(body.includes('\"op\":\"writeBatch\"') && body.includes('\"reason\":\"write-fail\"'), '复现 47：失败行带操作与原因枚举')
     check(/\"dirHash\":\"[0-9a-f]{8}\"/.test(body), '复现 47：目录只记 8 位散列，不记原文')
   }
 
