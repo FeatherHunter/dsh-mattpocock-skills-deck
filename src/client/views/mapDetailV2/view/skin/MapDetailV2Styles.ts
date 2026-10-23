@@ -24,15 +24,16 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
 
   // 档案区（MAP 自身内容）：普通信息卡，用同一族的中性面板色，比「地」亮一档。
   '.m2v2-profile{border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:12px;padding:12px 14px;background:var(--m2v2-panel,var(--dsw-alias-bg-layer-1,rgba(255,255,255,.03)));min-width:0}',
-  // 标题是进「地图档案」的入口（维护者 2026-10-23 定）：整块可点，末尾一枚「档案」小签提示能点。
+  // 整块档案是进「地图档案」的入口（维护者 2026-10-23 第二次反馈：可点区域只有标题一行，太小）。
+  // 悬停只提亮描边并加一圈淡影，不换面板底色——浅色主题下面板是暖白纸，改用宿主的深色层会脏。
   // 页内不再画「地图 / 规格 + 编号」那一行：顶栏的面包屑与身份小签已经写着同一个编号。
   '.m2v2-title{display:flex;align-items:baseline;gap:8px;margin:0;font-size:15px;line-height:1.4;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3)}',
   '.m2v2-title-txt{min-width:0;word-break:break-word}',
   '.m2v2-title-go{flex:none;align-self:center;font-size:10px;font-weight:500;line-height:16px;letter-spacing:.04em;padding:0 6px;border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:999px;color:var(--dsw-alias-label-caption,#8b8b95)}',
-  '.m2v2-title-link{margin-left:-4px;padding:2px 4px;border-radius:6px;cursor:pointer;transition:background .12s ease}',
-  '.m2v2-title-link:hover{background:var(--dsw-alias-bg-layer-2,rgba(255,255,255,.06))}',
-  '.m2v2-title-link:hover .m2v2-title-go{color:var(--dsw-alias-label-secondary,#a1a1aa);border-color:var(--dsw-alias-label-caption,#8b8b95)}',
-  '.m2v2-title-link:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:1px}',
+  '.m2v2-profile-link{cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}',
+  '.m2v2-profile-link:hover{border-color:var(--dsw-alias-label-caption,#8b8b95);box-shadow:0 0 0 3px var(--dsw-alias-bg-layer-2,rgba(255,255,255,.06))}',
+  '.m2v2-profile-link:hover .m2v2-title-go{color:var(--dsw-alias-label-secondary,#a1a1aa);border-color:var(--dsw-alias-label-caption,#8b8b95)}',
+  '.m2v2-profile-link:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
 
   // 目的地：一句话说清「要去哪」。老页用绿色目标图标，这里沿用同一语义与色。
   '.m2v2-dest{display:flex;align-items:flex-start;gap:4px;margin-top:6px;font-size:12px;line-height:1.55;color:var(--dsw-alias-state-success-primary,#3fb950);word-break:break-word}',

@@ -46,8 +46,8 @@
  *      （不额外写「正在取子票」，也不空出一行），取数中计数写占位、那句的数字也写占位；
  *      「正在取数」只用进度条轨道上的流动斜纹表达；没有子票时整块隐藏但留位置。
  *      进入页面时不会因为取数状态增删行让卡片上下抖。同样只读源码文本。
- *   14. 紧凑标题：页内不再重复「地图 / 规格 + 编号」那一行（顶栏已经写着同一个编号），
- *      标题本身是进「地图档案」的入口（点标题压入这张地图的 issue 详情页）；页面源码里没有抽屉组件。
+ *   14. 紧凑档案：页内不再重复「地图 / 规格 + 编号」那一行（顶栏已经写着同一个编号），
+ *      整块档案都是进「地图档案」的入口（点它压入这张地图的 issue 详情页）；页面源码里没有抽屉组件。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
  */
@@ -897,16 +897,21 @@ section('§12 入口接线')
   check(pageSourceText.indexOf("mode || '') === 'loading'") >= 0 && pageSourceText.indexOf('busy: busy') >= 0,
     '页面把「正在按需取子票」传给档案区（第一帧与取数中都是 busy）')
 
-  // ---- 紧凑标题：档案入口挪到标题上（m02892）----
+  // ---- 紧凑档案：整块档案是入口（m02892、m03176）----
   check(headerText.indexOf('onOpenArchive') >= 0 && headerText.indexOf('mapv2.archive.open') >= 0 &&
     headerText.indexOf('m2v2-id') < 0 && headerText.indexOf('MapProfileDrawers') < 0,
-    '档案区不再有自己的身份行与抽屉；标题自己就是进档案的入口（带定位串，可键盘进入）')
+    '档案区不再有自己的身份行与抽屉；档案区带定位串、可键盘进入')
   check(pageSourceText.indexOf('pushNav') >= 0 && pageSourceText.indexOf("pushNav(st, 'issue', n, effortOf(m))") >= 0 &&
     pageSourceText.indexOf('onOpenArchive: openArchive') >= 0,
-    '点标题压入这张地图自己的 issue 详情页（地图就是一条 issue，正文与评论都在那里）')
-  check(stylesText.indexOf('.m2v2-title-link') >= 0 && stylesText.indexOf('.m2v2-drawer') < 0 &&
+    '点档案区压入这张地图自己的 issue 详情页（地图就是一条 issue，正文与评论都在那里）')
+  check(headerText.indexOf('m2v2-profile-link') >= 0 && headerText.indexOf('insideOwnControl') >= 0 &&
+    headerText.indexOf('m2v2-title-link') < 0,
+    '可点的是整块档案（不再只有标题一行）；档案区里的链接与图片仍然各管各的交互')
+  check(stylesText.indexOf('.m2v2-profile-link:hover') >= 0 &&
+    stylesText.indexOf('.m2v2-profile-link:focus-visible') >= 0 &&
+    stylesText.indexOf('.m2v2-title-link') < 0 && stylesText.indexOf('.m2v2-drawer') < 0 &&
     stylesText.indexOf('.m2v2-id') < 0,
-    '标题可点有自己的悬停 / 焦点样式；抽屉与身份行的样式已删干净')
+    '整块档案有自己的悬停 / 焦点样式；抽屉与身份行的样式已删干净')
 
   // ---- 整卡点按进详情（m02533）----
   const propsContractText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/cardProps.d.ts'), 'utf8')

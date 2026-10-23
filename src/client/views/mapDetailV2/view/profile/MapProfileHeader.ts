@@ -6,7 +6,7 @@
  *      看这张地图自己的完整 issue 正文与评论（以后打磨 issue 详情页即可，地图页保持紧凑）；
  *   2) 页内不再重复「地图 / 规格 + 编号」这一行：顶栏的面包屑与身份小签已经写着同一个编号。
  *
- * 所以这一块从上到下只剩四样：标题（可点进档案）→ 目的地一句话 → 四枚计数 →
+ * 所以这一块从上到下只剩四样：标题（整块档案都能点进 issue 详情页）→ 目的地一句话 → 四枚计数 →
  * 「进度条 + 子票那句」同一行 → 地图行自带的错误。它替代老页的 MapDetailHead 与三块正文折叠。
  *
  * 为什么这些值全从 profile 拿：档案里每个数字与每句文案的口径都在 model/container/mapProfile.ts 里定死
@@ -66,43 +66,36 @@ function progressNode(h: any, profile: MapProfile, feed: TicketFeed | null, busy
 }
 
 /**
- * 标题：页面上唯一进入「地图档案」的入口。
- * 为什么整块标题都能点：维护者 2026-10-23 定「点 card 直接进 issue 详情页，只不过是这个 map 的信息」，
- * 页面上没有别的地图身份卡，标题就是这张图自己的名片；再放一颗独立按钮会多占一行。
- * 末尾那个「档案」小签是可见线索，免得用户不知道标题能点。键盘 Enter / 空格与点击同效。
+ * 标题：整块档案里最显眼的一行，但它自己不再单独接点按——入口是整块档案（见下面的 section），
+ * 这样鼠标不用精确落在这一行字上，档案区里任何空白处都能点进 issue 详情页。末尾那枚「档案」小签
+ * 仍然只画在标题里，作为「这里能点」的可见线索。
  */
-function titleNode(h: any, profile: MapProfile, onOpenArchive: (() => void) | null): any {
+function titleNode(h: any, profile: MapProfile, openable: boolean): any {
   const title = profile.title || ''
-  if (!onOpenArchive) return h('h1', { key: 'title', className: 'm2v2-title' }, title)
-  const activate = function () { onOpenArchive() }
-  return h('h1', {
-    key: 'title',
-    className: 'm2v2-title m2v2-title-link',
-    role: 'button',
-    tabIndex: 0,
-    title: tr('map.archive'),
-    'data-press': 'row',
-    'data-log': 'mapv2.archive.open',
-    onClick: activate,
-    onKeyDown: function (e: any) {
-      if (!e || e.target !== e.currentTarget) return
-      const k = e && e.key
-      if (k === 'Enter' || k === ' ') {
-        try { if (e.preventDefault) e.preventDefault() } catch (err) {}
-        activate()
-      }
-    },
-  }, [
+  return h('h1', { key: 'title', className: 'm2v2-title' }, [
     h('span', { key: 'txt', className: 'm2v2-title-txt' }, title),
-    h('span', { key: 'go', className: 'm2v2-title-go', 'aria-hidden': '1' }, tr('map.archive') + ' ›'),
+    openable
+      ? h('span', { key: 'go', className: 'm2v2-title-go', 'aria-hidden': '1' }, tr('map.archive') + ' ›')
+      : null,
   ])
+}
+
+/**
+ * 档案区内部的链接与图片有自己的动作（仓库路径、附件图），点它们时不能顺带把整块档案也打开。
+ * 只在事件路上判断，不改这些元素本身：有 closest 就用它，没有就按「不是链接」处理。
+ */
+function insideOwnControl(e: any): boolean {
+  const target = e && e.target
+  if (!target || typeof target.closest !== 'function') return false
+  try { return !!target.closest('a,button,img') } catch (err) { return false }
 }
 
 /**
  * 画档案区。props: { st, profile: MapProfile, feed: TicketFeed | null, busy: boolean, onOpenArchive }。
  * st 只为目的地的 markdown 渲染（mdToHtml 需要它认仓库路径与图片）；
  * busy 表示「正在按需取子票」（页面传进来，取数敲门与回来之间为真）；
- * onOpenArchive 是点标题后的动作（页面压入这张地图自己的 issue 详情页）。
+ * onOpenArchive 是点整块档案后的动作（页面压入这张地图自己的 issue 详情页）；
+ * 整块可点时键盘 Enter / 空格与点击同效，档案区里的链接与图片仍然各管各的。
  */
 export function MapProfileHeader(props: any): any {
   const cx = React.useContext(DswsCtx)
@@ -153,8 +146,37 @@ export function MapProfileHeader(props: any): any {
         h('span', { key: 'txt' }, tr('list.noDest')),
       ]))
 
-  return h('section', { className: 'm2v2-profile' }, [
-    titleNode(h, profile, onOpenArchive),
+  // 维护者 2026-10-23：能点进详情页的区域太小（只有标题一行），改成整块档案都能点。
+  // 档案区里没有别的按钮，四个计数与进度条只是文字与色块，所以整块做成一个可点区域不会抢谁的交互；
+  // 唯一要躲开的是目的地里可能出现的链接与附件图（它们自己带动作），见 insideOwnControl。
+  const openable = !!onOpenArchive
+  const sectionProps: any = {
+    className: 'm2v2-profile' + (openable ? ' m2v2-profile-link' : ''),
+  }
+  if (openable) {
+    Object.assign(sectionProps, {
+      role: 'button',
+      tabIndex: 0,
+      title: tr('map.archive'),
+      'data-press': 'row',
+      'data-log': 'mapv2.archive.open',
+      onClick: function (e: any) {
+        if (insideOwnControl(e)) return
+        onOpenArchive()
+      },
+      onKeyDown: function (e: any) {
+        if (!e || e.target !== e.currentTarget) return
+        const k = e && e.key
+        if (k === 'Enter' || k === ' ') {
+          try { if (e.preventDefault) e.preventDefault() } catch (err) {}
+          onOpenArchive()
+        }
+      },
+    })
+  }
+
+  return h('section', sectionProps, [
+    titleNode(h, profile, openable),
     destination,
     metaNode,
     profile.errorText
