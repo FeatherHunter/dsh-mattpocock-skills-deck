@@ -122,7 +122,17 @@ export function createRefreshWiring(deps: any): any {
   const logCtx: any = d.logCtx || null
 
   const ledger: any = d.ledger || createLedger({ logCtx: logCtx })
-  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx })
+  // 后端的花钱口径由各后端模块自己声明（规格 #1439）：闸不维护静态表，这里从注册表现取一份注入进去。
+  // 取不到（注册表还没就绪、或这个后端没登记）就按「未知」口径，闸据此只记请求数，不凭空判两桶。
+  function budgetModelOf(backendId: string): any {
+    try {
+      const reg: any = (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null
+      const mods: any[] = (reg && typeof reg.modules === 'function') ? reg.modules() : []
+      for (let i = 0; i < mods.length; i += 1) if (mods[i] && mods[i].id === backendId) return mods[i].budget || { kind: 'unknown' }
+    } catch (e) { /* 取不到声明不拦本次调用，按未知口径记账 */ }
+    return { kind: 'unknown' }
+  }
+  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModelOf })
 
   // #758 剩余额度读数接线：动手前先保一次读数（差就经会话读一次，不差不打）；失败只影响这一次调用。
   // #1443 改道：不再经闸打免费的 gh 直调，读数走 Tracker 会话的 readBudget（房间自己读 gh，读预算本身不花额度）。

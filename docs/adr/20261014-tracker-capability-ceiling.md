@@ -1,4 +1,4 @@
-# ADR：Tracker 能力上限（25 条）
+# ADR：Tracker 能力上限（26 条）
 
 > 日期：2026-10-14
 > 状态：已定版
@@ -14,10 +14,12 @@
 
 ## 2. 决定：契约层定义能力的上限，后端只回答“实现”或“不支持”
 
-从 2026-10-14 起，**全部 25 条能力都写在契约层**：
+从 2026-10-14 起，**全部能力都写在契约层**：
 
-- **操作 22 条**：`preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、`update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、`initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`、`getRepoPermissions`、`listSubIssues`、`ensureLabelColorsFile`。
+- **操作 23 条**：`preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、`update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、`initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`、`getRepoPermissions`、`listSubIssues`、`ensureLabelColorsFile`、`readBudget`。
 - **定位口 3 条**：`getRepoKey`、`describe`、`issueAddress`。
+
+> 2026-10-23 修订（规格 #1439）：第 26 条能力 `readBudget` 加入契约，回答“这个后端还剩多少额度”，三种诚实结果见 `src/tracker/contract/budget-model.ts`；其余 25 条不动。
 
 规矩只有三条：
 

@@ -77,7 +77,8 @@ async function main() {
     // #1446 起账本按后端分桶：先建出 github 这只后端，再按后端 id 落读数，闸才能读到「已知」的额度。
     ledger.ensureBackend('github', { kind: 'two-buckets' })
     ledger.syncServer('github', { rest: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
-    const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
+    // 口径声明自 #1448 起由装配处注入（旧静态表已退役）；这份门禁要的是 GitHub 两桶口径。
+    const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, budgetModelOf: () => ({ kind: 'two-buckets' }) })
     gate.setWorkspace(WS, { active: true })
     const gets: string[] = []
     // 假会话：读路径只经它取数（#1444 起薄行不再直调 gh、也不再经闸 send）。
@@ -156,7 +157,7 @@ async function main() {
       const ledger = Object.assign({}, base, { spend: (e) => { entries.push(e); return base.spend(e) } })
       const decides = []
       const logCtx = { isEnabled: () => true, fire: (level, event, fields) => { if (event === 'refresh.decide') decides.push(typeof fields === 'function' ? fields() : fields) } }
-      const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, logCtx: logCtx })
+      const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, logCtx: logCtx, budgetModelOf: () => ({ kind: 'two-buckets' }) })
       const w = wiringMod.createRefreshWiring({
         ctx: { on: () => () => {} }, logCtx: logCtx, canonicalKey: async (x) => String(x),
         getCacheDir: async () => cacheDir, ledger: ledger, gate: gate,
@@ -270,7 +271,7 @@ async function main() {
       // 读数先落账（与实际顺序一致：宿主每分钟同步一次剩余），闸再按这份账判档 —— 顺序反了的话
       // 闸看到的是「还没读过读数」那一份（档位红），什么都会推迟，那就测不到想测的东西。
       base.syncServer('github', { rest: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 } }, CLOCK)
-      const gate = gateMod.createGate({ ledger: base, now: () => CLOCK })
+      const gate = gateMod.createGate({ ledger: base, now: () => CLOCK, budgetModelOf: () => ({ kind: 'two-buckets' }) })
       const w = wiringMod.createRefreshWiring({
         ctx: { on: () => () => {}, get: (n) => (n === 'fs' ? plat.fs : undefined) },
         logCtx: { fire: () => {}, isEnabled: () => false },

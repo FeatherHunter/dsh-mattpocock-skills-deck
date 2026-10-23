@@ -32,7 +32,8 @@ async function main() {
   // #1446 起账本按「后端 + 桶」记账：这一扇只验一个两桶后端，先按口径建桶，再统一在入口补后端标识。
   const BACKEND = 'github'
   ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
-  const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
+  // 口径声明自 #1448 起由装配处注入（旧静态表已退役）；这一扇验的是 GitHub 两桶记账。
+  const gate = gateMod.createGate({ ledger: ledger, now: () => clock, budgetModelOf: () => ({ kind: 'two-buckets' }) })
   const send = (req, fn) => gate.send(Object.assign({ backendId: BACKEND }, req), fn)
   // 假的传输层：真发出去的那几条请求由它数着，每一条都报给闸（生产里这一层就是起 gh 进程那一层）。
   const transport = { requests: 0, points: 0 }

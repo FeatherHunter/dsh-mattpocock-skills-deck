@@ -91,7 +91,7 @@ function mkGate() {
   const BACKEND = 'github'
   ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
   ledger.syncServer(BACKEND, { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
-  const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
+  const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, budgetModelOf: () => ({ kind: 'two-buckets' }) })
   gate.setWorkspace('ws-panel', { active: true })
   function transport(requests, points) { gate.noteOutbound({ requests: requests, points: points }) }
   const before = gate.stats()
@@ -120,7 +120,7 @@ function mkGate() {
   // #1446 起读数只落进「这个后端」的桶：这一扇固定验 GitHub 的两桶口径。
   const BACKEND = 'github'
   ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
-  const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
+  const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, budgetModelOf: () => ({ kind: 'two-buckets' }) })
   gate.setWorkspace('/ws', { active: true })
   const readCalls = []
   const sync = mod.createDeckQuotaSync({
@@ -155,7 +155,7 @@ function mkGate() {
   const BACKEND = 'github'
   ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
   ledger.syncServer(BACKEND, { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
-  const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
+  const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, budgetModelOf: () => ({ kind: 'two-buckets' }) })
   gate.setWorkspace('/ws', { active: true })
   const pc = createPlatformChannel({
     ctx: {}, subprocess: mkSubprocess(), timer: neverTimer, fs: null, DEFAULT_CWD: '.', TIMEOUT_MS: 5000,

@@ -27,12 +27,12 @@
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
 /**
- * GitLab 后端：25 条能力真提供（含 #1446 落地的读预算），1 条明确不支持。
+ * GitLab 后端：26 条能力里 25 条真提供（含 #1446 落地的读预算），1 条按设计明确不支持。
  *
  * 顺序照契约名录（23 条操作在前、3 条定位口在后），读的人可以两边对着看。
  */
 export const GITLAB_CAPABILITY_REGISTER = {
-  // —— 操作 23 条：21 条真实现 ——
+  // —— 操作 23 条：22 条真实现，1 条按设计不支持 ——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },

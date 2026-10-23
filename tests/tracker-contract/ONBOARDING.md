@@ -1,15 +1,15 @@
-# Tracker 后端接入门槛（每后端必交四件）— #173
+# Tracker 后端接入门槛（每后端必交五件）— #173，#1439 起加第五件
 
-本文件是“新增一个 tracker 后端”在契约测试侧的 **checklist**。契约内容已定稿（#124-#128），门槛只约束“**如何证明你满足契约**”，不改契约。
+本文件是“新增一个 tracker 后端”在契约测试侧的 **checklist**。契约内容已定稿（#124-#128），门槛只约束“**如何证明你满足契约**”，不改契约。2026-10-23（规格 #1439）起多交一件：**预算模型与额度读数**——每个后端的额度口径由后端自己声明，闸与账本只读声明算账。
 
 ## 结论先行
 
-> 一个后端只有在 **同时**满足以下四件时，才算“接入完成”：
-> 1. 适配器代码  2. 真实采样固件  3. 生成脚本  4. 门禁集成且不回归
+> 一个后端只有在 **同时**满足以下五件时，才算“接入完成”：
+> 1. 适配器代码  2. 真实采样固件  3. 生成脚本  4. 门禁集成且不回归  5. 预算模型与额度读数
 
 下游三张后端图（#114/#115/#116）的“落地”验收即“**本后端真实适配器过 harness**”，以本文件为判据。
 
-## 四件清单
+## 五件清单
 
 ### ① 适配器代码 — `src/tracker/rooms/<backendId>/`
 
@@ -43,6 +43,44 @@
 - 错误分类：失败**返回**而非抛；`kind` 仅八种（`env/auth/rate-limit/conflict/unsupported/not-found/network/parse`），`classifyError` 顺序（`env>not-found`, `auth>rate-limit`, 兜底 `network`）已在 `src/tracker/kernel/preflight.ts` 固化，后端显式产 `conflict/unsupported`。
 
 - 按操作域拆文件（避免 God file）：`issues.ts`/`comments.ts`/`labels.ts`/`graph.ts`/`normalize.ts`/`client.ts`/`errors.ts`/`preflight.ts` 等，`index.ts` 仅装配。
+
+### ⑤ 预算模型与额度读数（#1439 新增）
+
+**⑤-a 预算模型必填**
+
+每个后端必须在模块里交一份预算声明，说清“我的额度长什么样”。四个字段缺一个，注册表直接拒绝：
+
+```ts
+// 每个后端自己说清额度口径；闸与账本只读这份声明，不读 backendId
+export const myBudget = {
+  kind: 'requests-only',   // two-buckets | requests-only | off-network | unknown 四选一
+  countsRequests: true,    // 请求数进不进账本，必须明说
+  countsPoints: false,     // 点数进不进账本，必须明说
+  independentBuckets: false // 只有“两个桶各自独立”的后端才写 true
+}
+```
+
+- 四个种类各自的意思：`two-buckets` 请求数与点数分两个独立桶（GitHub）；`requests-only` 只有一个按次数计的额度（GitLab）；`off-network` 不需要额度（本地 Markdown）；`unknown` 暂时说不清（账本只记发出去的请求数）。
+- 真源与形状：`src/tracker/contract/budget-model.ts`；校验在 `src/tracker/registry/shape.ts`。缺声明或形状不对，注册当场失败，报错点名缺哪一格，原文形如：`BackendModule 'my-backend' budget invalid: budget 必须是一个对象（后端模块缺预算声明）`。
+- 不要拿 `unknown` 掩盖一个已知口径，也不要按 backendId 写等值分支（静态门禁会判红）。
+- 三个内置后端今天的声明：GitHub 两个独立桶、GitLab 只计请求数、Markdown 离网，分别住在各自房间的 `index.ts`。
+
+**⑤-b 额度读数 readBudget 的三态**
+
+`readBudget` 是操作名录里的第 23 条（整套能力名录的第 26 条）。它只回答事实，不裁决、不记账、不抛；三种结果都必须诚实：
+
+```ts
+// 读到了：已知的额度口径与剩余
+{ ok: true, reading: { known: true, kind: 'requests-only', requests: { limit: 600, remaining: 590 } } }
+// 读不到：未知，必须带原因，不许拿 0 冒充
+{ ok: true, reading: { known: false, reason: 'not-measured' | 'unavailable' | 'unsupported' } }
+// 离网后端：不需要额度
+{ ok: true, reading: { known: true, kind: 'off-network' } }
+```
+
+- 三个 reason 的分工：`not-measured` 是还没测到（例如命令不在本机）；`unavailable` 是测到了但这次取不到（鉴权失败、网络错误、解析失败）；`unsupported` 是这个后端根本没有这项能力。
+- 参考实现：GitHub 在 `src/tracker/rooms/github/budget.ts`（REST 与 GraphQL 两个桶）、GitLab 在 `src/tracker/rooms/gitlab/budget.ts`（读 `RateLimit-Limit`/`RateLimit-Remaining` 响应头）、Markdown 在 `src/tracker/rooms/markdown/budget.ts`（恒离网）。
+- 参考测试：`tests/verify-tracker-session.ts`（三态与不裁决不记账）、`tests/verify-1443-github-readbudget.ts`、`tests/verify-1446-gitlab-budget.ts`、`tests/verify-1447-gitlab-e2e.ts`。
 
 ### ② 真实采样固件 — `tests/tracker-contract/fixtures/<backendId>-real/`
 

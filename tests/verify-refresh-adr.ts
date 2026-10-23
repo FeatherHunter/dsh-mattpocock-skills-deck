@@ -115,13 +115,14 @@ async function main() {
     'ADR 写明本地 Markdown 后端不出站、不计费')
   check(text.indexOf('两个互相独立的桶') >= 0 && text.indexOf('互不折算') >= 0,
     'ADR 写明 GitHub 是两个互相独立、互不折算的桶')
-  // ⑤b 模型文件真的在，而且真的没有写死额度数值（与 verify-backend-quota-model 同一条纪律）。
-  // 2026-10-19 第三阶段起共享层产物住仓库根的 .build/shared/（真源 src/refresh/kernel/backend-quota-model.ts）。
-  const modelPath = path.join(ROOT, '.build', 'refresh', 'kernel', 'backend-quota-model.js')
-  check(fs.existsSync(modelPath), 'ADR 说的那份额度模型产物真的在：.build/refresh/kernel/backend-quota-model.js')
-  if (fs.existsSync(modelPath)) {
-    const modelText = fs.readFileSync(modelPath, 'utf8')
-    check(!/\b5000\b/.test(modelText), '当场核一遍：那份模型里没有写死 GitHub 的额度数值（5000 不出现）')
+  // ⑤b 口径声明的真源在契约层，旧静态模型表随 #1448 退役（不许两份真源并存）。
+  const budgetTruthPath = path.join(ROOT, 'src', 'tracker', 'contract', 'budget-model.ts')
+  check(fs.existsSync(budgetTruthPath), '口径声明的真源在契约层：src/tracker/contract/budget-model.ts')
+  const oldModelPath = path.join(ROOT, 'src', 'refresh', 'kernel', 'backend-quota-model.ts')
+  check(!fs.existsSync(oldModelPath), '旧静态模型表已删除：src/refresh/kernel/backend-quota-model.ts 不在')
+  if (fs.existsSync(budgetTruthPath)) {
+    const modelText = fs.readFileSync(budgetTruthPath, 'utf8')
+    check(!/\b5000\b/.test(modelText), '当场核一遍：真源里没有写死 GitHub 的额度数值（5000 不出现）')
   }
 
   // ⑥ 最坏用量按页数上界算这条也在，并指到上界常量与那个算式。

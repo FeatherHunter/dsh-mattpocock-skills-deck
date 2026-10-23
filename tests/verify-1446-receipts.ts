@@ -8,7 +8,16 @@
 // 本文件经 planGates 目录约定自动进链，不用在 gate-map 登记。
 import { createLedger } from '../src/refresh/rooms/host/quota-ledger.ts';
 import { createGate } from '../src/refresh/rooms/host/refresh-gate.ts';
-import { backendBudgetModel } from '../src/refresh/kernel/backend-quota-model.ts';
+// 口径声明自 #1439 起在契约层定形状、由各后端模块自己交（旧静态表已随 #1448 退役）。
+// 这份门禁要的是「三个内置后端各自的口径」，直接照契约写三份，不绕回注册表（那里要异步装配）。
+const BUDGETS: Record<string, { kind: string; countsRequests: boolean; countsPoints: boolean; independentBuckets: boolean }> = {
+  github: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true },
+  gitlab: { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false },
+  markdown: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
+};
+function budgetOf(backendId: string) {
+  return BUDGETS[backendId] || { kind: 'unknown', countsRequests: true, countsPoints: false, independentBuckets: false };
+}
 import { callDeckSession } from '../src/deck/tools/tracker-session.ts';
 import { tierFor } from '../src/refresh/kernel/host-budget.ts';
 
@@ -27,7 +36,7 @@ const ESTIMATE = { points: 5, requests: 3, withinCallCap: true, shards: 1, perSh
 function callReq(backendId: string, reading: unknown, opts?: { throwWork?: boolean }) {
   const session = {
     backendId: backendId,
-    budget: backendBudgetModel(backendId),
+    budget: budgetOf(backendId),
     cwd: '/ws/1446',
     workspaceKey: 'ws-1446',
     call: async (fn: unknown) => (fn as (s: unknown, c: unknown) => unknown)({ id: backendId }, { cwd: '/ws/1446', caller: 'refresh' }),
@@ -115,7 +124,8 @@ async function main() {
     const ledger = createLedger({ now: () => CLOCK, logCtx: logCtx });
     ledger.ensureBackend('github', { kind: 'two-buckets' });
     ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 0, reset: CLOCK + 3600000 } }, CLOCK);
-    const gate = createGate({ ledger: ledger, now: () => CLOCK, logCtx: logCtx });
+    // 预算口径自 #1448 起不再有静态表：闸按这个注入口拿声明（装配处从注册表取，这里用上面那三份契约口径）。
+    const gate = createGate({ ledger: ledger, now: () => CLOCK, logCtx: logCtx, budgetModelOf: budgetOf });
     gate.setWorkspace('ws-1446', { active: true });
 
     const deferred = await gate.send({ source: 'tool.call', kind: 'tool-batch', bucket: 'graphql', workspaceKey: 'ws-1446', backendId: 'github' }, async () => ({ requests: 1, points: 0 })) as any;
@@ -135,7 +145,7 @@ async function main() {
     const okLedger = createLedger({ now: () => CLOCK, logCtx: logCtx });
     okLedger.ensureBackend('github', { kind: 'two-buckets' });
     okLedger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 3000, reset: CLOCK + 3600000 } }, CLOCK);
-    const okGate = createGate({ ledger: okLedger, now: () => CLOCK });
+    const okGate = createGate({ ledger: okLedger, now: () => CLOCK, budgetModelOf: budgetOf });
     okGate.setWorkspace('ws-1446', { active: true });
     const sent = await okGate.send({ source: 'tool.call', kind: 'tool-batch', bucket: 'graphql', workspaceKey: 'ws-1446', backendId: 'github' }, async () => ({ requests: 1, points: 2 })) as any;
     check(!!sent && sent.sent === true, '闸成功：真的发出去（实得 ' + JSON.stringify({ sent: sent && sent.sent, verdict: sent && sent.verdict }) + '）');
@@ -154,7 +164,7 @@ async function main() {
   // ── 七、未知后端（不带 backendId）：只记请求数，回执不带水位 ──
   {
     const ledger = createLedger({ now: () => CLOCK });
-    const gate = createGate({ ledger: ledger, now: () => CLOCK });
+    const gate = createGate({ ledger: ledger, now: () => CLOCK, budgetModelOf: budgetOf });
     gate.setWorkspace('ws-unknown', { active: true });
     const r = await gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: 'ws-unknown' }, async () => ({ requests: 1, points: 0 })) as any;
     check(!!r && r.sent === true, '未知后端：照常发（实得 ' + (r && r.sent) + '）');

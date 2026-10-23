@@ -32,7 +32,7 @@
 import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../kernel/host-budget.js'
 import { QUOTA_SYNC_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
 import { createPageBook } from './repo-page-accounting.js'
-import type { BackendBudgetKind } from '../../kernel/backend-quota-model.js'
+import type { BudgetKind } from '../../../tracker/contract/budget-model.js'
 import type { QuotaTier } from '../../contract/refresh-ports.js'
 
 // 页数实测账的类型与取值仍从本文件出（调用方原来怎么写还怎么写）：实现已搬至 ./repo-page-accounting.js。
@@ -132,7 +132,7 @@ export interface LedgerBackendModel {
 /** ensureBackend 的结局：这次建了哪些桶、是不是因为口径变了而重建（方便调用方与门禁核对）。 */
 export interface EnsureBackendResult {
   backendId: string
-  kind: BackendBudgetKind
+  kind: BudgetKind
   buckets: LedgerBucketName[]
   created: LedgerBucketName[]
   rebuilt: boolean
@@ -140,7 +140,7 @@ export interface EnsureBackendResult {
 
 /** 一个后端在账本里的登记：口径与它应有的桶（口径变了就按新的重建）。 */
 interface BackendRecord {
-  kind: BackendBudgetKind
+  kind: BudgetKind
   buckets: LedgerBucketName[]
 }
 
@@ -169,7 +169,7 @@ export const LEDGER_ACCOUNTS: readonly LedgerAccountName[] = ['plugin', 'user-ac
 export const SYNC_INTERVAL_MS = QUOTA_SYNC_INTERVAL_MS
 
 /** 四种口径的合法名字（与额度模型那一份是同一个联合类型；这里只给运行时校验用）。 */
-const BUDGET_KINDS: readonly BackendBudgetKind[] = ['two-buckets', 'requests-only', 'off-network', 'unknown']
+const BUDGET_KINDS: readonly BudgetKind[] = ['two-buckets', 'requests-only', 'off-network', 'unknown']
 
 /** 三种桶的名字（同样是运行时校验用）。 */
 const BUCKET_NAMES: readonly LedgerBucketName[] = ['rest', 'graphql', 'requests']
@@ -184,7 +184,7 @@ const BUCKET_NAMES: readonly LedgerBucketName[] = ['rest', 'graphql', 'requests'
  *     未知模型只记请求数）。这个桶不接读数，所以剩余量与档位恒空，
  *     既不会凭空造出一份额度，也不会把真花掉的请求数丢掉。
  */
-const BUCKETS_BY_KIND: Record<BackendBudgetKind, readonly LedgerBucketName[]> = {
+const BUCKETS_BY_KIND: Record<BudgetKind, readonly LedgerBucketName[]> = {
   'two-buckets': ['rest', 'graphql'],
   'requests-only': ['requests'],
   'off-network': [],
@@ -192,7 +192,7 @@ const BUCKETS_BY_KIND: Record<BackendBudgetKind, readonly LedgerBucketName[]> = 
 }
 
 /** 按口径取它应有的桶（返回只读数组，调用方不许改这份表）。 */
-export function bucketsForKind(kind: BackendBudgetKind): readonly LedgerBucketName[] {
+export function bucketsForKind(kind: BudgetKind): readonly LedgerBucketName[] {
   return BUCKETS_BY_KIND[kind] || []
 }
 
@@ -225,9 +225,9 @@ function isBucketName(v: string): v is LedgerBucketName {
 }
 
 /** 从额度模型里读出口径；模型缺了或口径不认识就当场抛（装配错不许被当成「未知后端」糊过去）。 */
-function kindOf(model?: LedgerBackendModel): BackendBudgetKind {
+function kindOf(model?: LedgerBackendModel): BudgetKind {
   const raw = model && typeof model.kind === 'string' ? model.kind : ''
-  if (BUDGET_KINDS.indexOf(raw as BackendBudgetKind) >= 0) return raw as BackendBudgetKind
+  if (BUDGET_KINDS.indexOf(raw as BudgetKind) >= 0) return raw as BudgetKind
   throw new Error('ensureBackend 要一份后端额度模型（kind 只认 two-buckets / requests-only / off-network / unknown），实得 ' + JSON.stringify(raw))
 }
 

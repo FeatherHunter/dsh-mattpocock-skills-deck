@@ -422,10 +422,17 @@ const STATUS_EXCEPTIONS = [
     segment: '琥珀 #f59e0b',
     reason: '反馈映射表里说明「限流那一档走琥珀」的文字描述：颜色元数据，不参与渲染。',
   },
+  {
+    // #1448 收口补登：这一处是 #1436 加的状态栏横幅「重新检查」按钮，落在白名单之外，
+    // 于是本分支的全链一直红在「登记 84 处、实得 85 处」。它不是容器空态色，是操作提示按钮的警示橙。
+    file: 'src/client/statusbar/StatusBar.ts',
+    segment: "alt ? h('button'",
+    reason: '状态栏横幅「重新检查」按钮的警示橙：这是操作提示按钮的颜色，与容器空态无关。',
+  },
 ]
 // 今天全仓两色落点（不含中央色表）的登记数：新增或删除一处同值点都要同时改白名单与这里，
 // 让「又抄了一份」或「白名单漏了一处」在 diff 里直接看得见。
-const STATUS_REPO_HITS = 84
+const STATUS_REPO_HITS = 85
 const STATUS_REPO_FILES = 32
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [

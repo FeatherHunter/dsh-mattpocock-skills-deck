@@ -26,9 +26,9 @@ import type { PolicyInput } from '../../kernel/admission-policy.js'
 // 运行时一个字节都不变。真要给这几格加取值校验，另立一票，别顺手放宽 policy 的签名。
 import { FAILURE_HALF_OPEN_DELAY_MS, DEFER_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, CHAIN_BACKOFF_MS } from '../../../shared/time-config/src/values.js'
 import * as budget from '../../kernel/host-budget.js'
-// 后端口径（两桶 / 只计请求 / 离网 / 未知）在注册表里是各后端模块自己声明的那一份；闸在这里只读一份静态表，
-// 是为了不反向依赖宿主层（宿主层文件之间不许互相引用）。真接了自定义后端，装配方用 deps.budgetModelOf 注入。
-import { backendBudgetModel } from '../../kernel/backend-quota-model.js'
+// 后端口径（两桶 / 只计请求 / 离网 / 未知）的唯一真源是各后端模块自己的 budget 声明（规格 #1439，
+// 契约层 src/tracker/contract/budget-model.ts）。闸自己不猜口径：生产装配从注册表取到声明后经
+// deps.budgetModelOf 注入进来；没注入时一律按「未知」算（只记请求数，绝不凭空当成两桶）。
 import * as failureWindow from '../../kernel/failure-window.js'
 import { measureStep, noteStepOutbound } from '../../kernel/step-pricing.js'
 import { refusalTextRef } from './refusal-messages.js'
@@ -265,7 +265,7 @@ export function createGate(deps?: GateDeps) {
   const logCtx = opts.logCtx || null
   const hash8 = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
   const limits = policyLimits(opts.budget)
-  const budgetModelOf = typeof opts.budgetModelOf === 'function' ? opts.budgetModelOf : backendBudgetModel
+  const budgetModelOf = typeof opts.budgetModelOf === 'function' ? opts.budgetModelOf : function (): unknown { return { kind: 'unknown' } }
 
   /**
    * 把一次归一后的请求翻译成「哪个后端的哪一桶、有没有额度、读数知不知道」。

@@ -32,15 +32,16 @@ function throws(fn: () => void): string {
 async function main() {
   console.log('账本按后端分键门禁（#1446：键 = 后端/桶，口径决定建哪些桶）')
   const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
-  const quota = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'backend-quota-model.js')).href)
   const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'quota-ledger.ts')).href)
 
   let clock = 1700000000000
   const newLedger = () => ledgerMod.createLedger({ now: () => clock })
-  const gh = quota.backendBudgetModel('github')
-  const gl = quota.backendBudgetModel('gitlab')
-  const md = quota.backendBudgetModel('markdown')
-  const unknown = quota.backendBudgetModel('bitbucket')
+  // 口径声明自 #1439 起住在各后端模块（旧静态表已随 #1448 退役）；这里直接写三份声明，形状与契约一致。
+  // backendId 是「模型自报的后端」：装配方拿错口径时账本要靠它当场抛（⑥ 段那条反例要用）。
+  const gh = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true, backendId: 'github' }
+  const gl = { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false, backendId: 'gitlab' }
+  const md = { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false, backendId: 'markdown' }
+  const unknown = { kind: 'unknown', countsRequests: true, countsPoints: false, independentBuckets: false }
 
   // ---------- ① 键与空账 ----------
   const l1 = newLedger()
