@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 /**
  * tests/verify-github-label-colors.ts —— GitHub 房间「列标签 / 批量改色」两条契约操作的门禁（#620）。
  *

@@ -22,11 +22,11 @@
 // 问 `syncDue()`，真去打那次不扣配额的 `gh api rate_limit` 的是闸那一路（它也走闸、也记账）。
 import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../kernel/host-budget.js'
 import { QUOTA_SYNC_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
-import { createPageBook } from '../../../host/refresh/recordRepoPages.js'
+import { createPageBook } from './repo-page-accounting.js'
 
-// 页数实测账的类型与取值仍从本文件出（调用方原来怎么写还怎么写）：实现已搬至 ./recordRepoPages.js。
-export type { ObservedPages, RepoPageRecord } from '../../../host/refresh/recordRepoPages.js'
-export { PAGE_PRICES, PAGE_UPPER_BOUND } from '../../../host/refresh/recordRepoPages.js'
+// 页数实测账的类型与取值仍从本文件出（调用方原来怎么写还怎么写）：实现已搬至 ./repo-page-accounting.js。
+export type { ObservedPages, RepoPageRecord } from './repo-page-accounting.js'
+export { PAGE_PRICES, PAGE_UPPER_BOUND } from './repo-page-accounting.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）：下面这些是账本自己的形状。
@@ -185,8 +185,8 @@ export function createLedger(deps?: LedgerDeps) {
     return Math.min(share, serverSide)
   }
 
-  // 页数实测账已搬至 ./recordRepoPages.js（#1255）：键的维度不一样（按仓库，不按档位 × 桶），
-  // 调用方也不同（只在估算与总览里读）。这里只持有实例，方向是 ledger → recordRepoPages，反向不依赖。
+  // 页数实测账已搬至 ./repo-page-accounting.js（#1255）：键的维度不一样（按仓库，不按档位 × 桶），
+  // 调用方也不同（只在估算与总览里读）。这里只持有实例，方向是 quota-ledger → repo-page-accounting，反向不依赖。
   const pageBook = createPageBook({ now: now })
 
   /** 闸要的那份账：额度、已用、剩余（保守下界）、写保底、档位。桶名给错直接抛，不静默返回一份假的。 */
@@ -312,7 +312,7 @@ export function createLedger(deps?: LedgerDeps) {
       byAccount[name] = { hour: hourOf(name) }
       for (const b of LEDGER_BUCKETS) byAccount[name][b] = { requests: accounts[name][b].requests, points: accounts[name][b].points }
     }
-    // 页数实测也进总览：拼法在 recordRepoPages.ts 的 snapshotPages() 里，与拆分前一字相同。
+    // 页数实测也进总览：拼法在 repo-page-accounting.ts 的 snapshotPages() 里，与拆分前一字相同。
     const pages = pageBook.snapshotPages()
     return { buckets: views, byAccount: byAccount, free: { requests: free.requests, points: free.points }, total: { requests: total.requests, points: total.points }, pages: pages, hourKey: hourKey }
   }

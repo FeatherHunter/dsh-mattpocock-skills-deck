@@ -113,7 +113,7 @@ export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
    * 返回 { needed, reason, waitMs, cached }：cached 是「被退避挡下时可以直接回给界面的那一份」。
    *
    * #724 修正（真机 107 次全败的真身）：这里从前回的是光一份快照（{steps, currentIndex, …}），
-   * 而调用方（src/host/detectChain.js）在退避挡下时把它原样当了回包交回去。客户端认的回包形状是
+   * 而调用方（src/refresh/rooms/host/check-chain-evaluation.js）在退避挡下时把它原样当了回包交回去。客户端认的回包形状是
    * `res.ok && (res.fullSnapshot || res.snapshot)`（src/client/kernel/probe-chain.js），一份光快照没有 ok
    * 那一栏 → 客户端判成「回话里没有内容」，于是每次没带 force 的取数都失败（界面那一格于是永远是 --，
    * 而宿主这边其实早就有读数）。所以现在记的是上一次那份完整回包，退避挡下就原样回它；

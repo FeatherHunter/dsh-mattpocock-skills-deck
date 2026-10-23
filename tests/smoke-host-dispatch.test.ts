@@ -14,7 +14,7 @@ const modRaw = await import('../package/lib/index.js')
 const mod = modRaw.default ?? modRaw
 
 // 登记受踪会话时必须给一个真实存在的目录。2026-10-12 的 #1003 之后，空目录会被宿主如实拒绝
-// （src/host/git-process.ts:75-78 在起 gh 命令之前就返回失败），命名守护因此拉不到议题索引，
+// （src/refresh/rooms/host/git-execution.ts:75-78 在起 gh 命令之前就返回失败），命名守护因此拉不到议题索引，
 // 会话就永远停在草稿档、升不到编号档——那不是「还在等」，是「被拒绝」。
 // 这里取仓库根目录：它一定存在，而且不随「从哪个目录跑测试」变化。不要图省事改回空串。
 const ROOT = pathMod.resolve(pathMod.dirname(fileURLToPath(import.meta.url)), '..')

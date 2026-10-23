@@ -16,7 +16,7 @@
 //      ② 在发每一条之前查一次，剩余额度不够就一条都不写，等下一次带同一个 planId 再来。
 import { matchAnchor, isAnchorHit } from '../../refresh/contract/idempotency-keys.js'
 import { applyParentEdge } from '../shell/edge-landing.js'
-import type { DeckTrackerLike } from '../shell/call-budget.js'
+import type { DeckTrackerLike } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 
 /**
  * 游标里这一段用到的几格。形状与 map-plan-create.ts 的 PlanState 逐格一致，两边靠结构兼容对接；

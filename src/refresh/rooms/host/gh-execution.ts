@@ -1,7 +1,7 @@
 /**
- * src/host/gitCredentialExec.ts（来源：src/host/gitCredentialExec.js，#839；本次只加类型标注与注释，逻辑一行未动）。
+ * src/refresh/rooms/host/gh-execution.ts（来源：src/refresh/rooms/host/gh-execution.js，#839；本次只加类型标注与注释，逻辑一行未动）。
  */
- // src/host/gitCredentialExec.js —— 安全地跑「可能弹凭据提示」的 git 命令（#839）
+ // src/refresh/rooms/host/gh-execution.js —— 安全地跑「可能弹凭据提示」的 git 命令（#839）
 //
 // 这一层是地图 810「拉取/推送在面板里点得完」的前置：git 需要凭据时会在终端等输入、或者让凭据助手
 // 弹一个 GUI 窗口，插件现在起进程一律把标准输入钉成 ignore，碰上就挂住。这个文件给出「能安全地跑」
@@ -47,7 +47,7 @@
 // 三个数的分工：CALL_BUDGET_MS 是「一次调用（一次用户动作）」的总预算默认值；MIN/MAX_BUDGET_MS 是夹取范围——
 // 调用方给的每操作预算与总预算都要夹在这两个数之间（上限用来守住「到点强杀」这条兜底，别被一个大数废掉）。
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
-import { GIT_CREDENTIAL_CALL_BUDGET_MS as CALL_BUDGET_MS, GIT_CREDENTIAL_MIN_BUDGET_MS as MIN_BUDGET_MS, GIT_CREDENTIAL_MAX_BUDGET_MS as MAX_BUDGET_MS, GIT_CREDENTIAL_PROBE_TIMEOUT_MS, GIT_CREDENTIAL_LS_REMOTE_BUDGET_MS, GIT_CREDENTIAL_FETCH_BUDGET_MS, GIT_CREDENTIAL_PULL_BUDGET_MS, GIT_CREDENTIAL_PUSH_BUDGET_MS, GIT_CREDENTIAL_DEFAULT_BUDGET_MS, GIT_LOW_SPEED_TIMEOUT_MS } from '../shared/time-config/src/values.js'
+import { GIT_CREDENTIAL_CALL_BUDGET_MS as CALL_BUDGET_MS, GIT_CREDENTIAL_MIN_BUDGET_MS as MIN_BUDGET_MS, GIT_CREDENTIAL_MAX_BUDGET_MS as MAX_BUDGET_MS, GIT_CREDENTIAL_PROBE_TIMEOUT_MS, GIT_CREDENTIAL_LS_REMOTE_BUDGET_MS, GIT_CREDENTIAL_FETCH_BUDGET_MS, GIT_CREDENTIAL_PULL_BUDGET_MS, GIT_CREDENTIAL_PUSH_BUDGET_MS, GIT_CREDENTIAL_DEFAULT_BUDGET_MS, GIT_LOW_SPEED_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 每类操作的默认预算（毫秒）：写操作要联网，给得比只读命令宽；到点一律强杀。
  *  真源是中央 YAML（config/timeouts.yaml 的 gitCredentialLsRemoteBudgetMs / gitCredentialFetchBudgetMs /

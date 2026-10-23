@@ -18,8 +18,8 @@
 //
 // 门禁归属: src/refresh/rooms/host/work-route-readout.ts
 // 门禁归属: src/host/snapshotEnvelope.ts
-// 门禁归属: src/host/sessionSnapshot.ts
-// 门禁归属: src/host/sessionRefresh.ts
+// 门禁归属: src/refresh/rooms/host/session-snapshot-cache.ts
+// 门禁归属: src/refresh/rooms/host/session-refresh-schedule.ts
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 // 门禁归属: src/client/panel/Dock.ts
 // 门禁归属: src/client/kernel/probe-snapshot.ts
@@ -124,8 +124,8 @@ async function main() {
   const chainMod = await imp('src/refresh/kernel/refresh-chain.js') as any
   const tableMod = await imp('src/refresh/rooms/host/work-route-readout.ts') as any
   const envMod = await imp('src/host/snapshotEnvelope.ts') as any
-  const snapMod = await imp('src/host/sessionSnapshot.ts') as any
-  const refMod = await imp('src/host/sessionRefresh.ts') as any
+  const snapMod = await imp('src/refresh/rooms/host/session-snapshot-cache.ts') as any
+  const refMod = await imp('src/refresh/rooms/host/session-refresh-schedule.ts') as any
 
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1082-'))
   let clock = T0

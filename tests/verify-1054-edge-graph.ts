@@ -1,4 +1,4 @@
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 // tests/verify-1054-edge-graph.ts —— #1054 关系与边专属门禁（不联网）
 //
 // 测什么（两件事，缺一不可）：

@@ -38,7 +38,7 @@ function makeSpy(): { rows: LogRow[]; ctx: { fire: (level: string, event: string
 const PLATFORM = { os: 'win32', path: nodePath, getHome: async () => nodePath.join('D:', 'fakehome') };
 async function makeChain(spy: ReturnType<typeof makeSpy>, o?: any) {
   o = o || {}; let evals = 0;
-  const dcMod = await import(url('src/host/detectChain.ts'));
+  const dcMod = await import(url('src/refresh/rooms/host/check-chain-evaluation.ts'));
   const dh = dcMod.createDetectChain({
     canonicalKey: async (c) => String(c || ''), DEFAULT_CWD: 'D:/repo', resetGhCache: () => {},
     getDetectionService: async () => ({ detect: async () => { await new Promise((r) => setTimeout(r, o.detectMs || 80)); return { selection: { backendId: 'github', source: 'auto' } }; } }),
@@ -70,7 +70,7 @@ async function makeRunGh(spy: ReturnType<typeof makeSpy>, o?: any) {
     };
   } };
   const timer = { timeout: (ms) => { timeouts.push(ms); return new Promise((r) => setTimeout(r, ms)); }, setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) };
-  const rkMod = await import(url('src/host/git-process.ts'));
+  const rkMod = await import(url('src/refresh/rooms/host/git-execution.ts'));
   const rk = rkMod.createRepoKeys({ subprocess, timer, fs: null, DEFAULT_CWD: 'D:/repo', TIMEOUT_MS: 30000,
     repoKeys: {}, repoRoots: {}, getGhPath: () => ghPath, setGhPath: (v) => { ghPath = v; }, getGhLastError: () => ghErr, setGhLastError: (v) => { ghErr = v; },
     getPlatform: async () => ({ resolveExecutable: async () => 'C:/fake/gh.exe' }),
@@ -134,12 +134,12 @@ async function main() {
     for (const r of spy.rows) allEvents.add(r.event); }
   title('S3 准入：满了排队等，等不是失败，峰值不超读桶');
   { const spy = makeSpy(); const g = await makeRunGh(spy, {});
-    const laneMod0 = await import(url('src/host/outbound/admission.ts'));
+    const laneMod0 = await import(url('src/refresh/rooms/host/outbound-admission.ts'));
     const readMax = laneMod0.getGhLane().limits().readMax;
     const n = readMax + 6;
     const jobs = []; for (let i = 0; i < n; i++) jobs.push(g.runGh(['issue', 'list', '--limit', '5'], 'D:/repo'));
     const rs = await Promise.all(jobs);
-    const laneMod = await import(url('src/host/outbound/admission.ts'));
+    const laneMod = await import(url('src/refresh/rooms/host/outbound-admission.ts'));
     const snap = laneMod.getGhLane().snapshot();
     console.log('  [lane] readPeak=' + snap.readPeak + ' readWaited=' + snap.readWaited + ' max=' + snap.readMax);
     spy.dump(['gh.exec', 'gh.timeout']);

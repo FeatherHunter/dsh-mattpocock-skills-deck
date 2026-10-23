@@ -193,10 +193,10 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
   }
   const countOf = (spawns: RecordedSpawn[], cmd0: string, cmd1: string) => spawns.filter((s) => s.rest && String(s.argv[1]) === cmd0 && String(s.argv[2]) === cmd1).length
 
-  const repoKeysMod = await imp(join(ROOTDIR, 'src/host/git-process.ts'))
+  const repoKeysMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/git-execution.ts'))
   const detMod = await imp(join(ROOTDIR, 'src/tracker/detection/detectionService.ts'))
   const githubMod = await imp(join(ROOTDIR, 'src/tracker/rooms/github/index.ts'))
-  const detectChainMod = await imp(join(ROOTDIR, 'src/host/detectChain.ts'))
+  const detectChainMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/check-chain-evaluation.ts'))
   const gateMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/refresh-gate.ts'))
   const ledgerMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/quota-ledger.ts'))
 

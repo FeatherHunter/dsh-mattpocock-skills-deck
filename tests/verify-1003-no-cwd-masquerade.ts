@@ -30,7 +30,7 @@ const check = (ok: boolean, msg: string) => { if (ok) { console.log('  PASS ' + 
 
 console.log('== ① 凭据 git 出口：空目录如实失败，且一次都没起进程 ==')
 {
-  const mod = await imp('src/host/gitCredentialExec.js')
+  const mod = await imp('src/refresh/rooms/host/gh-execution.js')
   const calls: Array<{ exe: unknown; cwd: unknown; argv: unknown }> = []
   const runGit = async function (exe: unknown, cwd: unknown, argv: unknown) { calls.push({ exe, cwd, argv }); return { kind: 'ok', stdout: 'ok', truncated: false } }
   const deps = {

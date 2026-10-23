@@ -44,7 +44,7 @@ import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { createWorkspaceCwd } from '../../../src/host/workspaceCwd.js'
 import { createDetectionService } from '../../../src/tracker/detection/detectionService.ts'
 import { decideBackend as decDecideBackend, selectionFromOutlet as decSelectionFromOutlet } from '../../../src/tracker/detection/backendDecision.ts'
-import { createOutboundControl } from '../../../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../../../src/refresh/rooms/host/outbound-control.ts'
 try { decDecideBackend.selectionFromOutlet = decSelectionFromOutlet } catch (eAttachDec) {}
 import nodePath from 'node:path'
 // #1138：夹具手里的「工作区文件」账本（虚拟目录，不碰盘）。这两件都在 tests/lib/deck-decide-stub.js，

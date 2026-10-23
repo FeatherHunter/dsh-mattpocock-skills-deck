@@ -116,8 +116,8 @@ async function twoTrips(first: () => Promise<unknown>, second: () => Promise<unk
 }
 
 async function main() {
-  const snapMod = await import(url('src/host/sessionSnapshot.ts'))
-  const refMod = await import(url('src/host/sessionRefresh.ts'))
+  const snapMod = await import(url('src/refresh/rooms/host/session-snapshot-cache.ts'))
+  const refMod = await import(url('src/refresh/rooms/host/session-refresh-schedule.ts'))
 
   title('A) 快照路：强制撞强制只重建 1 次，且后来者记 dedup.hit')
   {
@@ -225,8 +225,8 @@ async function main() {
       const brokenTreeSrc = fsx.readFileSync(brokenTreePath, 'utf8')
       fsx.writeFileSync(brokenTreePath, brokenTreeSrc.split('ongoing.isForce === true || !isForce').join('false'))
       const treeUrl = (rel: string) => pathToFileURL(nodePath.join(tmpTree, rel)).href
-      const snapRolled = await import(treeUrl('src/host/sessionSnapshot.ts'))
-      const refRolled = await import(treeUrl('src/host/sessionRefresh.ts'))
+      const snapRolled = await import(treeUrl('src/refresh/rooms/host/session-snapshot-cache.ts'))
+      const refRolled = await import(treeUrl('src/refresh/rooms/host/session-refresh-schedule.ts'))
       {
         const counter = { n: 0 }
         const table = makeTable()

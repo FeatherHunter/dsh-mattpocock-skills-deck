@@ -146,7 +146,7 @@ async function main() {
     '旧字段名还在 = #1271 退役没做干净')
 
   // 行为：真 sessionSnapshot 的回包上，按那个常量取得出新表（拿一份真读数注入）
-  const snapMod = await import(url('src/host/sessionSnapshot.ts'))
+  const snapMod = await import(url('src/refresh/rooms/host/session-snapshot-cache.ts'))
   const one = { ok: true as const, reason: 'ok' as const, at: 1700000000000, rows: [{ ticketKey: 'acme/demo#701', sessionLabel: 'sess-2', currentSession: true, action: 'comment', actionAt: new Date(1700000000000).toISOString() }] }
   const table = new Map()
   const envMod = await import(url('src/host/snapshotEnvelope.ts'))

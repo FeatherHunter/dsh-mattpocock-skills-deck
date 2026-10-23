@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
+const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // tests/verify-992-readonly-labels.ts —— #992 只读仓库标签能力降级专属门禁（不联网）
 //
 // 测什么（定版“最终方案”第 1–6 项 + Q6/Q7；第 7 项 `gh:labels` 清理属 #1001，不在这里）：
@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   console.log('#992 只读仓库标签能力降级专属门禁（不联网）')
   const { ERROR_KIND } = await imp('src/tracker/contract/vocabulary.ts')
   // 选后端的判定出口（#1003 单出口）。下面 E）与 G）两段都是经工具壳调后端的，生产装配总是把它递给工具
-  //   （见 src/deck/registration/host-assemble.ts 的 `decideBackend: decideBackendFn`），壳拿不到它时
+  //   （见 src/refresh/registry/deck-tool-bridge.ts 的 `decideBackend: decideBackendFn`），壳拿不到它时
   //   会一律回「判定出口这次没装上」，两段都跑不到真实路径。夹具照生产的接法给上判定出口桩
   //   （makeDecideStub），桩直接调生产那一个判定出口。
   //   #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件。两段夹具里原来写的是

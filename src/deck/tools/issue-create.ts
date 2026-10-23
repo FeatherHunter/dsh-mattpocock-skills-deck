@@ -18,7 +18,7 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
 import type { EdgeEvidence } from '../shell/edge-landing.js'
-import { withCallScope } from '../shell/call-budget.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 // #1403：位置值到契约类型 / 类型标签 / 正文标记 / 父票规则的唯一答案在这张表里（src/deck/rules/object-kind.ts）。
 import { resolveCreateKind } from '../rules/object-kind.js'

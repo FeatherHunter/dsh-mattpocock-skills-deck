@@ -1,5 +1,5 @@
 /**
- * src/host/commentThreads.ts —— 单票详情与评论读写及增量探针（来源：src/host/commentThreads.js，H5 #449 从 host/index.js 389–670 搬出电话体，纯结构、行为零变化；本次只加类型标注与注释，逻辑一行未动）。
+ * src/refresh/rooms/host/comment-thread-fetch.ts —— 单票详情与评论读写及增量探针（来源：src/refresh/rooms/host/comment-thread-fetch.js，H5 #449 从 host/index.js 389–670 搬出电话体，纯结构、行为零变化；本次只加类型标注与注释，逻辑一行未动）。
  *
  * 为什么要有它（一句话）：单票详情、评论分页读写与面板增量探针原来都挤在宿主入口里，搬到这里之后调用点只按名取，
  * 详情字段、分页策略与探针水印各自改各自的，不互相绊倒。
@@ -9,9 +9,9 @@
  * 2. 评论分页是 GraphQL 优先、失败退回 REST，退回条件（限流、分页失败）与原来完全一致，改了任何一条都会让面板在弱网下丢评论。
  * 3. 探针水印只在变化真的并进列表之后才推进（commitIssueIndex），没并进去时一个字节都不动，否则那条变化会被挤出下一次的扫描窗口，此后再也发现不了。
  */
-import { idOfParts } from '../tracker/kernel/identity-keys.js'
+import { idOfParts } from '../../../tracker/kernel/identity-keys.js'
 // #1115：opCtx 上那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
-import { hostTimers } from '../refresh/contract/host-timer-ports.js'
+import { hostTimers } from '../../contract/host-timer-ports.js'
 
 // ---------------------------------------------------------------------------
 // 类型（本次转 TypeScript：只写类型不写实现）。

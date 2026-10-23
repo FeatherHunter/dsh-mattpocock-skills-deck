@@ -13,9 +13,9 @@
  *
  * 给谁用（宿主里要把 ctx.get('timer') 包成 OpContext.timers 的每一处，共六处调用点）：
  *   src/host/platformChannel.js 的 getTimers 与兜底二联的 ctx2、
- *   src/host/commentThreads.js 的 opCtx、
+ *   src/refresh/rooms/host/comment-thread-fetch.js 的 opCtx、
  *   src/host/workspaceCwd.js 的 opCtxFor、
- *   src/host/snapshotBuild.ts 的 tmpCtx 与 ctxSel、
+ *   src/refresh/rooms/host/snapshot-build.ts 的 tmpCtx 与 ctxSel、
  *   src/refresh/rooms/host/refresh-runtime.js 的 backendObj.timers。
  *
  * 依据（2026-10-14 从 DSH 自带的 @deepseek-ai/cordis-plugin-timer/src/index.ts 逐行核过）：

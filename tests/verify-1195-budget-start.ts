@@ -75,7 +75,7 @@ function execFor(cwd) {
 
 async function main() {
   console.log('1195 预算起算点门禁（入口前耗时进预算）')
-  const budgetMod = await imp('src/deck/shell/call-budget.ts')
+  const budgetMod = await imp('src/refresh/rooms/host/tool-call-budget-enforcement.ts')
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')

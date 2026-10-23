@@ -69,7 +69,7 @@ const REPORT_RE = /noteOutbound\s*\(|ghGate\b|refresh\/gate\.js/
  * 同时报出「未登记的出站调用点 <新名字>」与「过时登记 <旧名字>」成对的两条（#1095、#1147、#1161 都留下过这种对）。
  */
 const EXITS = [
-  { file: 'src/host/git-process.ts', role: 'gateway', reason: '宿主侧取数层的执行出口：runGh 起 gh、execProc 起任意命令（含 gh 与 git），全仓绝大多数 GitHub 出站都从这里出去。#723（T19）接线：每一笔真实出站在起进程之前报给闸（reportOutbound）。' },
+  { file: 'src/refresh/rooms/host/git-execution.ts', role: 'gateway', reason: '宿主侧取数层的执行出口：runGh 起 gh、execProc 起任意命令（含 gh 与 git），全仓绝大多数 GitHub 出站都从这里出去。#723（T19）接线：每一笔真实出站在起进程之前报给闸（reportOutbound）。' },
   { file: 'src/host/platformChannel.ts', role: 'gateway', reason: '操作上下文交给后端的那种 exec 出口（tracker 三个房间与快照那几路都走它）。#723（T19）接线：detectionExec 起进程之前把这一笔报给闸（注入的 gate.noteOutbound）。' },
   { file: 'src/tracker/rooms/github/client.ts', role: 'gateway', reason: 'GitHub 房间执行 gh 的地方（exec(\'gh\', args) 与 gh --version 探测），最终落到上面两个出口。#723（T19）接线：execGh 与 gh --version 探测都先报给闸（ctx.gate 注进来）。' },
   { file: 'src/host/versionControl.ts', role: 'gateway', reason: '版本管理页签三条只读电话起 git 的地方（第一版零网络、不碰 GitHub）。按 repoKeys.js 的先例与 #817 票面要求，每条命令起进程之前都报一笔给闸（reportOutbound），保证「起过几条命令」与账上条数一一对应。' },
@@ -98,7 +98,7 @@ function listJsFiles(dir, skipAbs) {
       if (ent.name === 'node_modules' || ent.name.startsWith('.')) continue
       const p = path.join(d, ent.name)
       if (ent.isDirectory()) { if (path.resolve(p) === skipAbs) continue; walk(p) }
-      // #1095：搬家后出口文件有 .ts（src/host/git-process.ts、src/tracker/rooms/github/client.ts），只扫 .js 会把它们当成「过时登记」误判。
+      // #1095：搬家后出口文件有 .ts（src/refresh/rooms/host/git-execution.ts、src/tracker/rooms/github/client.ts），只扫 .js 会把它们当成「过时登记」误判。
       else if (ent.name.endsWith('.js') || ent.name.endsWith('.ts')) out.push(p)
     }
   }

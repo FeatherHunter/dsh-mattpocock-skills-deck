@@ -16,7 +16,7 @@ import { MAP_BLOCK_TITLES } from '../shell/minimal-spec.js'
 import { labelsToEnsure, isTypeLabel } from '../rules/object-kind.js'
 import type { CreateKindResolution } from '../rules/object-kind.js'
 import { stripProgressSections } from '../../shared/issue-file/src/progress.js'
-import type { DeckTrackerLike } from '../shell/call-budget.js'
+import type { DeckTrackerLike } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 
 /** 建后读回核对的入参：全是调用方手上已经有的东西，这里不再取一次会话、不再选一次后端。 */
 export interface MapPlanReadbackArgs {

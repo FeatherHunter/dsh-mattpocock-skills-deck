@@ -17,7 +17,7 @@
  *
  * （2026-10-18 #1247 从 refreshSource.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
  * 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；导出形态与原来一一对应，
- * 因为 src/host/detectChain.ts 按具名引用 refreshSourceOf，改了名字那一侧会直接断掉。）
+ * 因为 src/refresh/rooms/host/check-chain-evaluation.ts 按具名引用 refreshSourceOf，改了名字那一侧会直接断掉。）
  */
 
 // ---------------------------------------------------------------------------

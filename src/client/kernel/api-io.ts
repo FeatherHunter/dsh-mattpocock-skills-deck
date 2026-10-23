@@ -186,7 +186,7 @@
     // raw（后端原文，原样交出去让人自己判断；客户端自己发现的前置错误没有原文，给空串）。
     const dswsErrorKinds = ['env', 'auth', 'rate-limit', 'conflict', 'unsupported', 'not-found', 'network', 'parse']
     // 宿主老写法 → 八档。只登记 src/host 里确实还会送过来的那几个字面量
-    // （src/host/issueDetail.js 与 src/host/commentThreads.js）：'404' 与 'notFound' → not-found，
+    // （src/refresh/rooms/host/issue-detail-fetch.js 与 src/refresh/rooms/host/comment-thread-fetch.js）：'404' 与 'notFound' → not-found，
     // 'rateLimit' → rate-limit；'env' / 'parse' / 'network' / 'unsupported' 与八档同名，直接透传、不必登记。
     // 'graphql' 是宿主那一层「GraphQL 回包里带着 errors、拿不到数据」的记号：宿主发出它之前，已经先把
     // 限流（isRateLimitError 分支）与找不到（not found 分支）两路分走了，剩下的就是「回包不是我们能用的

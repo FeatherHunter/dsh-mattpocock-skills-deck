@@ -137,7 +137,7 @@ function makeLab() {
 async function makeRunner(lab, opts) {
   const o = opts || {}
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
-  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts')).href)
+  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'gh-execution.ts')).href)
   const log = { spawns: [], terminations: 0, events: [], outbound: 0 }
   const vc = hostMod.createVersionControl({
     subprocess: makeRealSubprocess(log),
@@ -183,8 +183,8 @@ async function main() {
 
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
   // （2026-10-18 #1247：gitCredentialExec 真源已转成 TypeScript，路径跟到 .ts；本仓 Node 下限原生剥类型，直读语义一致。）
-  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts')).href)
-  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts'), 'utf8')
+  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'gh-execution.ts')).href)
+  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'gh-execution.ts'), 'utf8')
   const hostCode = hostSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
   // ---- A) 静态契约：这一族命令的安全开关一个都不许少 ----

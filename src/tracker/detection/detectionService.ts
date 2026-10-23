@@ -24,7 +24,7 @@ import type { Selection } from '../contract/results.js'
 import type { ExplicitDetectCtx } from './explicitDetector.js'
 
 // ── 本文件用到的外部形状 ──────────────────────────────────────────────────────────
-// 按仓里既有口径（样板见 src/host/git-process.ts 头部）：形状按本文件实际用到的部分写，不把别人的
+// 按仓里既有口径（样板见 src/refresh/rooms/host/git-execution.ts 头部）：形状按本文件实际用到的部分写，不把别人的
 // 类型整包搬进来；从外面进来的东西一律按最小形状收，收不到就按 unknown 挡一道。各字段可选与否
 // 跟着本文件的分支走：代码里有「没有就退让」的那几件就是可选的，没有退让分支的就是必需的。
 /** 平台层：本文件只碰这几格（文件系统、路径拼接）。 */
@@ -243,7 +243,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
    *   「人亲手选过」）不在里面，而改色电话的写用途正是按它决定放不放行。从前它自己直调出口，原话当场就有；
    *   现在它改吃这份带缓存的探测结果，就得把原话一并留着，分档依据不许自己再推一遍。
    * 为什么不塞进 detect 的返回或缓存条目里：wf.detect 那条电话把整个结果摊开回给客户端
-   *   （src/host/detectChain.ts 的 `{ ok: true, ...res }`），塞进去等于把内部判定细节变成对外结构——
+   *   （src/refresh/rooms/host/check-chain-evaluation.ts 的 `{ ok: true, ...res }`），塞进去等于把内部判定细节变成对外结构——
    *   本票边界写明「不动对外返回结构」。所以另存一份，只有带 `withOutlet: true` 来问的那一路拿得到。
    * 读得到的前提与缓存一致：这一份与 store 的写入发生在同一处、同一个键；store 里没有可用条目时，
    *   detect 根本走不到「回原话」那一步，所以过了期的原话不会被读走。
@@ -369,7 +369,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       //   更不往出口递记忆口子（getChoiceStore）——出口已经不读它了。
       // #1048：把日志出口一并递给统一判定出口 —— 结论线（常驻 detection.detect）与步骤线（按需
       //   detection.step）都在出口那一处发，四条路（面板、deck 工具、改色电话、探测服务）因此说同一件事。
-      //   以前是面板那条路自己在 src/host/detectChain.ts 里补发一条结论，出口这一层什么也不记；
+      //   以前是面板那条路自己在 src/refresh/rooms/host/check-chain-evaluation.ts 里补发一条结论，出口这一层什么也不记；
       //   出口发得出之后，那条重复的已删。日志出口是可选的：这里没有（平台层没递）就只是留不下轨迹，判定照做。
       const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: caller, signal: opts.signal, autodetect: autoHook, logCtx: logCtx }).catch(function () { return null })
       outletAnswer = o || null

@@ -1,18 +1,18 @@
-// src/host/platform/issueIndexWindow.ts —— 从同目录 issueIndexWindow.js 逐行转写而来，只加类型标注与注释，运行时逻辑一个字未动。
+// src/refresh/rooms/host/issue-index-scan.ts —— 从同目录 issueIndexWindow.js 逐行转写而来，只加类型标注与注释，运行时逻辑一个字未动。
 //
 // 为什么要转写这一份：「远端有没有变」那套状态与水印的持有者，转成 TypeScript 后调用方
 //   （同在宿主层的 issueList.js）能按类型取用扫描与推进入口，水印口径仍与原来逐行一致。
 // 什么约定不能改：
 //   1. 水印与基线只在变化真的并进列表之后才推进：本文件只算「下一次该从哪儿扫」，推不推由调用方说了算。
 //   2. 唯一的推进口是下面的 commit（探测回来说没变、或变化真的并进了快照，才允许调它），只许往前走。
-//   3. 同名但不同目录的另一份 src/shared/tracker/indexWindow.js 是时间窗与水印规则的真源，
+//   3. 同名但不同目录的另一份 src/refresh/kernel/index-window-rules.js 是时间窗与水印规则的真源，
 //      本文件只是它的持有者与装配点，两份互不干扰：改规则去共享层那一份，改持有状态才动这一份。
 //   4. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符。
 //   5. 只写可剥离类型：类型一律经 import type 引入或就地声明，不新增任何运行时边。
 //   6. 本文件不新增事件，也不自己记日志（判断与发射都不在这里）。
-import * as indexWindow from '../../shared/tracker/indexWindow.js'
+import * as indexWindow from '../../kernel/index-window-rules.js'
 
-// 构造参数由 src/host/issueList.js 注入，按实际读到的格子声明，缺省一律按没有处理。
+// 构造参数由 src/refresh/rooms/host/issue-list-fetch.js 注入，按实际读到的格子声明，缺省一律按没有处理。
 interface IssueIndexWindowDeps {
   // 取仓库键（工作区目录原文进来，仓库三元组出去）
   getRepoKey?: (cwd: string) => Promise<{ owner: string; name: string } | null | undefined>
@@ -30,7 +30,7 @@ interface RepoHit {
   rk: string
 }
 
-// 建一份「窗口索引状态」。deps 由 src/host/issueList.js 注入：
+// 建一份「窗口索引状态」。deps 由 src/refresh/rooms/host/issue-list-fetch.js 注入：
 //   getRepoKey(cwd)              → { owner, name }
 //   readDiskCache(repo)          → 磁盘上那份快照（给重启后的第一次扫描立起点）
 //   fetchIssueIndex(cwd, since)  → 只问窗口内的变化，回 { ok, repo, index, count }

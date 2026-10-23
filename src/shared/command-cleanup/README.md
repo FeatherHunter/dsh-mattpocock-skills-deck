@@ -15,7 +15,7 @@ gh/git 子进程还在飞，它落定时要建一个等待上限计时器；计�
 
 - 手写真源：`src/shared/command-cleanup/src/command-cleanup.ts`。
 - 构建产物：由 `scripts/build.mts` 按「目录里有 `tsconfig.json`」自动认域后生成，**不进版本库、不要手改**。
-- 调用方：`src/host/git-process.ts` 的 `runGh` 与 `execProc` 两处进程出口。
+- 调用方：`src/refresh/rooms/host/git-execution.ts` 的 `runGh` 与 `execProc` 两处进程出口。
   拿名额之后写 `const releaseSlot = onceRelease(拿到的那支归还函数)`；
   建等待计时器时用 `startWaitTimeout(timer, 毫秒, 收尾回调)`，返回空就说明实例已销毁，
   按失败结果返回给调用方即可。

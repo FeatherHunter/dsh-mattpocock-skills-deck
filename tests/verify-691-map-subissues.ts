@@ -1,4 +1,4 @@
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 /**
  * tests/verify-691-map-subissues.js — 「地图子票拉全 · 已关闭地图不进首屏」门禁（#691 阶段 3）。
  *

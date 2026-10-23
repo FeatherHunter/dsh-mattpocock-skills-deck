@@ -87,7 +87,7 @@ const countDateNow = async (fn) => {
 
 async function main() {
   const platMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'platformChannel.js')).href)
-  const repoMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'git-process.ts')).href)
+  const repoMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'git-execution.ts')).href)
 
   // ---- 一、开关打开：每条命令一行、五个字段齐、链名对得上、路径只落短指纹 ----
   {

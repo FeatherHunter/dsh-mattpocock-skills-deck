@@ -1,4 +1,4 @@
-const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
+const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // tests/verify-829-parent-reread.ts —— #829 补 #790 未盖住的两处（不联网）
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名与这行注释，判据与断言一条没动。
 // 测什么（第一性原理：报单人重试三次，第二次可能撞“重复”；读回失败不能只说 parent 为空）：

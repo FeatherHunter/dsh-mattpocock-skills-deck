@@ -1,4 +1,4 @@
-// src/deck/registration/quota-sync.ts —— 剩余额度读数的那截接线（#758）
+// src/refresh/registry/quota-sync-bridge.ts —— 剩余额度读数的那截接线（#758）
 // （旧 src/host/platform/deckQuotaSync.js，#1019 机械搬家只挪位置不改行为。）
 //
 // 只讲一件事：闸的裁决要看剩余额度，可剩余额度读数从没有任何一路写入

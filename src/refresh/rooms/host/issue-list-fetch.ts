@@ -1,5 +1,5 @@
 /**
- * src/host/issueList.ts —— 列表与地图降级拉取（来源：src/host/issueList.js，H2 #446 从 host/index.js 246–455/475–488/491–536 搬出，纯结构、行为零变化；本次只加类型标注与注释，逻辑一行未动）。
+ * src/refresh/rooms/host/issue-list-fetch.ts —— 列表与地图降级拉取（来源：src/refresh/rooms/host/issue-list-fetch.js，H2 #446 从 host/index.js 246–455/475–488/491–536 搬出，纯结构、行为零变化；本次只加类型标注与注释，逻辑一行未动）。
  *
  * 为什么要有它（一句话）：面板列表要的全量票、地图票、轻量索引与配额耗尽时的降级通道原来都挤在宿主入口里，
  * 搬到这里之后改分页策略、改索引口径、改缓存有效性的人只动这一份，不碰入口。
@@ -240,10 +240,10 @@ export function createIssueList(deps: any): any {
     //   ./platform/issueIndexWindow.js（本文件贴着 350 行上限，那一段搬过去了；为什么住那一层见文件头）。
     // 宿主侧禁止静态引入新文件（D7），所以这里仍走动态 import（与本块既有范式一致）。
     let _idxWinP: any = null
-    function _idxWin(): Promise<any> { if (!_idxWinP) _idxWinP = import('../shared/tracker/indexWindow.js'); return _idxWinP }
+    function _idxWin(): Promise<any> { if (!_idxWinP) _idxWinP = import('../../kernel/index-window-rules.js'); return _idxWinP }
     let _idxStateP: any = null
     function _idxState(): Promise<any> {
-      if (!_idxStateP) _idxStateP = import('./platform/issueIndexWindow.js').then(function (m: any) {
+      if (!_idxStateP) _idxStateP = import('./issue-index-scan.js').then(function (m: any) {
         return m.createIssueIndexWindowState({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
       })
       return _idxStateP

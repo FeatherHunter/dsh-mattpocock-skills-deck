@@ -1,14 +1,14 @@
-// src/host/issueDetail.ts —— 单详情与快照拼装（H2 #446 从 host/index.js 546–840 搬出，纯结构、行为零变化）。
+// src/refresh/rooms/host/issue-detail-fetch.ts —— 单详情与快照拼装（H2 #446 从 host/index.js 546–840 搬出，纯结构、行为零变化）。
 // 2026-10-14（#1161）从 .js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 以后谁改它：改详情查询字段（GraphQL/REST 双通道）或快照拼装结构的人。预估约 330 行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件除装配点
 //   （src/tracker/registry/builtins.ts，见下方 githubRoom）外不引用其他新文件。
-// #1161：从前这里是 `import { pullStateOf } from '../tracker/rooms/github/normalize.js'` —— 宿主直接深引
+// #1161：从前这里是 `import { pullStateOf } from '../../../tracker/rooms/github/normalize.js'` —— 宿主直接深引
 //   房间实现。宿主侧不许再这样引（规则 rooms-imported-only-by-assembly），改经装配点取。
 // #1170：装配点不再从房间公开面转出（那是临时脚手架），改成装配点自己取出这几件交给宿主
 //   （src/tracker/registry/builtins.ts 的 loadGithubHostExtras）。懒加载一次、之后复用同一个 Promise。
 //
-// 类型怎么标的（与 src/host/git-process.ts 的 #1155 口径一致）：注入进来的能力按本文件实际用到的部分写成
+// 类型怎么标的（与 src/refresh/rooms/host/git-execution.ts 的 #1155 口径一致）：注入进来的能力按本文件实际用到的部分写成
 // 最小接口；后端回来的 JSON 走 JSON.parse（它的返回类型天然是 any），所以 any 只出现在「后端 JSON → 内部
 // 结构」这条边界上（承接字段的局部变量与遍历回调的参数），不扩散到注入依赖与对外返回的形状里。
 interface RepoKey { owner: string; name: string }
@@ -33,11 +33,11 @@ interface Deps {
 }
 
 /** 装配点交出来的 github 房那几件实现（#1170）。 */
-type GithubExtras = import('../tracker/registry/builtins.js').GithubHostExtras
+type GithubExtras = import('../../../tracker/registry/builtins.js').GithubHostExtras
 
 let _ghExtrasP: Promise<GithubExtras> | null = null
 function githubExtras(): Promise<GithubExtras> {
-  if (!_ghExtrasP) _ghExtrasP = import('../tracker/registry/builtins.js').then(function (m) { return m.loadGithubHostExtras() })
+  if (!_ghExtrasP) _ghExtrasP = import('../../../tracker/registry/builtins.js').then(function (m) { return m.loadGithubHostExtras() })
   return _ghExtrasP
 }
 

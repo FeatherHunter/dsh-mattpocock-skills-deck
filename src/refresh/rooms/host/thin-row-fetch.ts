@@ -1,4 +1,4 @@
-// src/host/refresh/fetchThinRows.ts —— 行级增量的取数三件套（#1255 从 patch.ts 拆出）
+// src/refresh/rooms/host/thin-row-fetch.ts —— 行级增量的取数三件套（#1255 从 patch.ts 拆出）
 //
 // 为什么单列：取数（发请求、拼行）与合并（水印、待办、世代）是两件事。
 // 取数这边只认三样：发请求的宿主句柄、计数表、工作区标识，全由调用方以参数注入；
@@ -34,7 +34,7 @@ function thinArgs(repo: any, number: any): string[] {
     '--jq', '{number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}']
 }
 
-/** 把一条薄查询的回包转成列表里那一行的形状（与 src/host/issueList.js 的 fetchIssues 同口径）。 */
+/** 把一条薄查询的回包转成列表里那一行的形状（与 src/refresh/rooms/host/issue-list-fetch.js 的 fetchIssues 同口径）。 */
 function rowOf(x: any): any {
   return {
     number: x.number,

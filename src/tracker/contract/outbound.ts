@@ -33,7 +33,7 @@ export type OutboundBucket = 'read' | 'write' | 'probe'
  * 出站控制面（宿主实现，房间只读形状）。
  *
  * `acquire` 回的是一个**放行函数**而不是句柄对象：这是仓里名额闸本来的用法
- * （见 `src/host/outbound/admission.ts` 的「用法」注释），照搬过来不另造形状。
+ * （见 `src/refresh/rooms/host/outbound-admission.ts` 的「用法」注释），照搬过来不另造形状。
  * 调用方必须把它放进 `finally` 里放回，漏放会永久占掉一个名额。
  */
 export interface OutboundControl {

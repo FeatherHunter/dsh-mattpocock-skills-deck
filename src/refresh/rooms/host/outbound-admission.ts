@@ -22,7 +22,7 @@
  * 终值仍以测量回填（#967 测量 / #966 收口）为准。
  */
 
-import { TUNING } from '../../refresh/contract/tuning-parameters.js'
+import { TUNING } from '../../contract/tuning-parameters.js'
 
 // 取值住共用调参表（真源 src/refresh/contract/tuning-parameters.ts），这里只留缺表回落的缺省值（与今天一致）。
 export const READ_BUCKET_MAX = TUNING.readBucketMax ?? 64

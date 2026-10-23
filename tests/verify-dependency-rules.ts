@@ -884,6 +884,9 @@ function selfCheckRoomStructure(): void {
     { source: join(ROOT, 'src/tracker/rooms/gitlab/index.ts') },
     { source: 'src/host/index.js' },
   ]
+  // 注意：这里的起点与上面的 rels 都是 frozen 的抽象夹具，不跟源码搬家走（#1425 的教训：
+  //   机械改写曾把这张表的旧路径换成新家，判据输入被换掉后自检先红）。`^src/host/outbound/` 配 rels 里
+  //   那一行旧地址，正好凑出「清单里有、图上没有」这一例；两处要改一起改，不许只动一处。
   const silent = graphScopeProblems([{ name: 'silent-rule', severity: 'error', from: { path: '^src/host/outbound/' } }], graphModules, rels)
   if (silent.length === 1 && silent[0].includes('silent-rule')) {
     pass('判据六（图上活着）：扫描域里有文件、图上一个模块都没命中的规则判红')

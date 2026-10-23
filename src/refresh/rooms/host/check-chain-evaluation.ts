@@ -1,26 +1,26 @@
-// src/host/detectChain.ts —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
+// src/refresh/rooms/host/check-chain-evaluation.ts —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；harness 注册留守入口，处理器体经 handleDetect/handleChain 供给。
-import { refreshSourceOf } from '../refresh/contract/trigger-classification.js'
-import { workspaceKeyOf } from '../refresh/contract/workspace-keys.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
-import { getChainRide } from '../refresh/rooms/host/chain-coalescing.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
-import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
+import { refreshSourceOf } from '../../contract/trigger-classification.js'
+import { workspaceKeyOf } from '../../contract/workspace-keys.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
+import { getChainRide } from './chain-coalescing.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
+import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../../../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
 
 // ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
 // 为什么逐条写在这里：本文件的依赖对象是 src/host/index.ts 里现拼的接线（转制后编译器看得见，形状以各文件的类型为准），
 // 所以这一组类型就是「本文件按什么形状读它们」的书面约定，只列本文件真正读到的格子。
 // 标注只给编译器看，运行期形状一个字没改——产物逐字节比对是这条约定的验收办法。
 // 共享层的形状按「类型引用」取：那些文件是 JS + JSDoc，这种写法与他们自己的 JSDoc 一致。
-type CheckItem = import('../shared/tracker/chain-types.js').CheckItem
-type Platform = import('./platform/index.js').Platform
+type CheckItem = import('../../../shared/tracker/chain-types.js').CheckItem
+type Platform = import('../../../host/platform/index.js').Platform
 // 谓词上下文这一格不在上面那排「按类型引用取」里：predicatePrimitives.js 与本文件同属 host 层，
 //   同层互引门禁只放行在册的存量边（tests/same-layer-baseline.json 只许减不许增），所以就地声明。
 //   真源是 src/host/tracker/predicatePrimitives.js 的 JSDoc 契约（platform / backendId / cwd / signal /
 //   extras）：那边加了字段、改了名字，这里要跟着改。按本文件的老规矩只列真正读到的格子——
 //   正文里只读 pctx.cwd 与 pctx.lang 两格（lang 是宿主在契约之上额外喂的那一格）。
 type PredicateContext = { cwd?: string; lang?: string }
-type PreflightExec = import('../tracker/detection/preflightScope.js').PreflightExec
-type FixDecl = import('../tracker/fix-contract.js').FixDecl
+type PreflightExec = import('../../../tracker/detection/preflightScope.js').PreflightExec
+type FixDecl = import('../../../tracker/fix-contract.js').FixDecl
 
 /** 链入口的入参（客户端带上来的那几格；都可能缺，正文里读前都判过）。 */
 type ChainArgs = {
@@ -176,7 +176,7 @@ export function createDetectChain(deps: DetectChainDeps) {
   async function openPreflightScope(): Promise<PreflightScope | null> {
     try {
       // 给它的执行器 = 宿主那条真出口（第 4 位是日志用的链名，runGh 只认前两位、多传不坏）。
-      const mod = await import('../tracker/detection/preflightScope.js')
+      const mod = await import('../../../tracker/detection/preflightScope.js')
       if (typeof mod.createPreflightScope !== 'function') return null
       return mod.createPreflightScope(function (cmd, args, opts, via) { return runGh(args, (opts && opts.cwd) || undefined, via) })
     } catch (e) { return null }
@@ -269,8 +269,8 @@ export function createDetectChain(deps: DetectChainDeps) {
         } else {
           backendId = (args && args.backendId) || null
         }
-        const genMod = await import('./tracker/generic.js')
-        const predMod = await import('./tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
+        const genMod = await import('../../../host/tracker/generic.js')
+        const predMod = await import('../../../host/tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
         // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
         //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
         //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
@@ -375,9 +375,9 @@ export function createDetectChain(deps: DetectChainDeps) {
         let backendChain: BackendChainPack | null = null
         try{
           if (backendId) {
-            const catDirs = await import('../shared/tracker/check-catalog-dirs.js')
-            const catViews = await import('../shared/tracker/check-catalog-views.js')
-            const chainMod = await import('../shared/tracker/chain-validate.js')
+            const catDirs = await import('../../../shared/tracker/check-catalog-dirs.js')
+            const catViews = await import('../../../shared/tracker/check-catalog-views.js')
+            const chainMod = await import('../../../shared/tracker/chain-validate.js')
             // 目录项直递转换函数：catalogFor 给的是目录的 CatalogItem，catalogItemToCheckItem
             // 要的是目录项输入形态（id/label/scope/check），两份都是与 chain-types 同源的本地形态，
             // 格子逐字对齐，直接递进去，不转类型也不改值（运行期原样递进去）。
@@ -388,7 +388,7 @@ export function createDetectChain(deps: DetectChainDeps) {
             //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
             if (items.length) {
               try {
-                const fixMod = await import('../tracker/fix-contract.js')
+                const fixMod = await import('../../../tracker/fix-contract.js')
                 const regT = await getTrackerRegistry()
                 const tmods = (regT && typeof regT.modules === 'function') ? regT.modules() : []
                 const tmod = (tmods || []).find(function (m) { return m && String(m.id) === String(backendId) && m.fixes }) || null
@@ -424,7 +424,7 @@ export function createDetectChain(deps: DetectChainDeps) {
         let fullSnapshot: SnapStepsView | null = null
         let fullChain = null
         try {
-          const chainMod3 = await import('../shared/tracker/chain-validate.js')
+          const chainMod3 = await import('../../../shared/tracker/chain-validate.js')
           const genSnap = genericSnapRaw || chainAndSnap.snapshot
           const backSnap = (backendChain && backendChain.snapshot) || null
           const genSteps = (genSnap && Array.isArray(genSnap.steps)) ? genSnap.steps : []
@@ -433,7 +433,7 @@ export function createDetectChain(deps: DetectChainDeps) {
           const allStepsRaw = genSteps.concat(backSteps)
           let allSteps = allStepsRaw
           try {
-            const guideMod = await import('../shared/tracker/guide-steps.js')
+            const guideMod = await import('../../../shared/tracker/guide-steps.js')
             if (guideMod && typeof guideMod.orderStepsByGuide === 'function') {
               allSteps = guideMod.orderStepsByGuide(guideMod.guideStepsFor(backendId || null), allStepsRaw) as StepView[]   // 清单那一份把入参与产物都写成宽松的 Object（JSDoc 只记形状不记字段），这里按步骤形状收回来——运行期原样用
             }

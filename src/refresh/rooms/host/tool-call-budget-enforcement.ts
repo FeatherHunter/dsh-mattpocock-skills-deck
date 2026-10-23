@@ -1,4 +1,4 @@
-// src/deck/shell/call-budget.ts —— 批量调用的执行上下文（#895；#1040 转 TypeScript）
+// src/refresh/rooms/host/tool-call-budget-enforcement.ts —— 批量调用的执行上下文（#895；#1040 转 TypeScript）
 //
 // 为什么有这个文件：单次工具调用有墙钟上限（agent 注册那份 AGENT_TOOL_TIMEOUT_MS），
 // 而批量活要发几十次远端调用。超限被外层掐死会丢掉全部进度，所以调用自己要会看钟：
@@ -14,11 +14,11 @@
 // 后端房间可按需读 ctx.memo（房间 → 壳是允许的方向），ctx.memo 缺席时一切照旧——面板与旧调用方不受影响。
 // 日志：不新增事件名、不记新字段（复用宿主壳既有的 host.call 两行）。
 
-import { canon, createCallMemo, isArr, repoIdOf, rosterAddCreated, rosterAdoptList, rosterDirty, rosterUpsert, type CallMemo } from './call-memo.js'
-import { withInFlightLease } from './in-flight-lease.js'
+import { canon, createCallMemo, isArr, repoIdOf, rosterAddCreated, rosterAdoptList, rosterDirty, rosterUpsert, type CallMemo } from '../../../deck/shell/call-memo.js'
+import { withInFlightLease } from '../../../deck/shell/in-flight-lease.js'
 // 三个预算数住中央 YAML（config/timeouts.yaml 的 tool* 三键）：这里只留别名，
 // 对外导出的仍是 DEFAULT_* 名字，调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
-import { TOOL_TIMEOUT_MS, TOOL_MARGIN_MS, PER_OP_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { TOOL_TIMEOUT_MS, TOOL_MARGIN_MS, PER_OP_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 单次执行允许的最长时间（毫秒）：与 agent 注册那份 AGENT_TOOL_TIMEOUT_MS 同值，改一边必须同步另一边。
  *  同值由 tests/verify-895-bulk-deadline.js 第⑦节断言看守（注册侧文件不引用其他层的文件，不能靠 import 收成一份）。

@@ -9,7 +9,7 @@
  * 3. 不新增任何 import 边：只给已有引用加类型，不引入新模块依赖；Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接，不装 @types/node。
  */
 
-// 运行时的 process 兜底声明（与 src/host/git-process.ts:30 同形）：本 tsconfig 有意不加载任何类型包，Node 运行时保证 process 存在；只声明本文件实际用到的形状，不产生运行时代码。
+// 运行时的 process 兜底声明（与 src/refresh/rooms/host/git-execution.ts:30 同形）：本 tsconfig 有意不加载任何类型包，Node 运行时保证 process 存在；只声明本文件实际用到的形状，不产生运行时代码。
 declare const process: any;
 
 // ---------------------------------------------------------------------------

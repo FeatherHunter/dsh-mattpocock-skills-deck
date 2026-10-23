@@ -1,7 +1,7 @@
 // src/host/tracker/predicateCore.ts —— 从同目录 predicateCore.js 逐行转写而来，只加类型标注与注释，运行时逻辑一个字未动。
 //
 // 为什么要转写这一份：谓词注册表是通用链与后端链共用的装配入口，转成 TypeScript 后调用方
-//   （src/host/detectChain.ts 经动态导入取 createPredicateRegistry 与 toPredicateResults）能按类型取用，
+//   （src/refresh/rooms/host/check-chain-evaluation.ts 经动态导入取 createPredicateRegistry 与 toPredicateResults）能按类型取用，
 //   注册、分发与超时的行为仍与原来逐行一致。
 // 什么约定不能改：
 //   1. 未注册的后端或预检谓词一律按待定返回，不猜测、不标不可用，调用方按诚实未知处理。

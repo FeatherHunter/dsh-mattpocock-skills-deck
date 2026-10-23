@@ -7,9 +7,9 @@
 //   src/tracker/registry/builtins.ts —— 宿主侧不再认识任何具体房间（规则 rooms-imported-only-by-assembly）。
 import type { HostTimerService } from '../refresh/contract/host-timer-ports.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tiers.js'
-import { getGhLane } from './outbound/admission.js'
+import { getGhLane } from '../refresh/rooms/host/outbound-admission.js'
 // #1159：给房间的那份后端上下文要挂上出站控制面（实现见 outbound-control.ts，只做转发）。
-import { createOutboundControl } from './platform/outbound-control.js'
+import { createOutboundControl } from '../refresh/rooms/host/outbound-control.js'
 // #1115：宿主计时器服务交回的是可调用的撤销器（不是数字句柄、也没有 dispose 方法），
 //   撤销的三档判据收在共享层一处；本文件两处 timers 口都只用它，不再各写一遍。
 import { hostTimers } from '../refresh/contract/host-timer-ports.js'
@@ -115,7 +115,7 @@ interface Deps {
   getGate?(): unknown
 }
 
-// 运行时的 process 声明（与 src/host/git-process.ts:28 同形）：本文件只在「平台适配器造不出来」的
+// 运行时的 process 声明（与 src/refresh/rooms/host/git-execution.ts:28 同形）：本文件只在「平台适配器造不出来」的
 // 最后一道兜底里读它，且都按「可能不存在」写（见 nodeOs 兜底与 envSrc）。
 declare const process: { env?: Record<string, string | undefined>; platform?: string } | undefined
 

@@ -44,7 +44,7 @@ const ALLOWED = {
   // 2026-10-21（#1007 复核）再增补一格 cmd：这一条 gh 命令是哪种子命令，形状是短标签
   //   （api:graphql / api:repos / issue:create / auth:status），第二段不是纯动词时只留第一段。
   //   为什么要有：从前只有 argv0='gh'，一次失败分不清是「查登录态失败」还是「改票失败」；命令参数与编号一律不进日志。
-  //   落点：src/tracker/rooms/github/client.ts 与 src/host/git-process.ts 的 gh.exec 调用点。
+  //   落点：src/tracker/rooms/github/client.ts 与 src/refresh/rooms/host/git-execution.ts 的 gh.exec 调用点。
   'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd'],
   // 2026-10-14（#1052 补做）常驻 #108 `read.degraded`：一条读操作「本来能成、这一趟没成，或者成得不完整」
   //   的结论线，一趟一行（命令成功了、可回包不是合法 JSON / 缺东西 / 游标失效 / 只拿到前几页 / 被上限截断
@@ -74,7 +74,7 @@ const ALLOWED = {
   //   为什么要有：`maps` 是容器总数（探索地图与规格都住在 maps 数组里，数组名是历史名），只有总数时分不清
   //   「这一份里根本没有规格」与「有规格却没认出来」；`specs` 与 `maps` 配对读：specs=0 且 maps>0 说明
   //   这一轮一张规格都没认出来（识别或数据来源问题），specs=maps 说明全是规格、没有探索地图。
-  //   只记计数：容器键名、标题一个都不记。落点两处：src/host/snapshotEnvelope.ts 与 src/host/sessionRefresh.ts 的 adoptSnapLog。
+  //   只记计数：容器键名、标题一个都不记。落点两处：src/host/snapshotEnvelope.ts 与 src/refresh/rooms/host/session-refresh-schedule.ts 的 adoptSnapLog。
   'snapshot.built': ['maps', 'specs', 'issues', 'labels', 'fallback', 'latencyMs', 'open', 'closed', 'partial'],
   'probe.eval': ['repoKeyHash', 'since', 'count', 'changed'],
   'panelSync.eval': ['repoKeyHash', 'baseline', 'dirty', 'failures'],
@@ -90,7 +90,7 @@ const ALLOWED = {
   //   后两键的意义：三态与档位必须与返回给调用方的那一份**同源**（从前结论线按赢家现推，四类「判不出来」
   //   的场景日志写 no-backend、结果写 undetermined —— 日志在骗人），覆盖度则回答「没发现矛盾是真没有，
   //   还是这一层根本没看」。原有五键一个不改：cwdHash 工作区散列、explicit 是不是文件里明写的、
-  //   matches 命中数、pending 待定、selection 选中结果。落点由 src/host/detectChain.ts 挪到
+  //   matches 命中数、pending 待定、selection 选中结果。落点由 src/refresh/rooms/host/check-chain-evaluation.ts 挪到
   //   src/tracker/detection/backendDecision.ts（出口一处）。
   'detection.detect': ['cwdHash', 'explicit', 'matches', 'pending', 'selection', 'origin', 'state', 'latencyMs', 'conflict', 'gap', 'coverage'],
   // 2026-10-14（#1048）新增按需 #98 `detection.step`：判定链每一步一行（看了哪一层、这一层什么结论、
@@ -188,7 +188,7 @@ const ALLOWED = {
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
   // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
   //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，
-  //   按「允许字段就是能记的全部字段」的口径把它从白名单里去掉（落点：src/host/detectChain.ts）。
+  //   按「允许字段就是能记的全部字段」的口径把它从白名单里去掉（落点：src/refresh/rooms/host/check-chain-evaluation.ts）。
   'chain.cache.hit': ['keyHash', 'lang', 'deferred', 'reason', 'waitMs'],
   'chain.predicate': ['id', 'status', 'latencyMs'],
   'skill.probe': ['name', 'level', 'via'],

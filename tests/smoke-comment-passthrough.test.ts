@@ -81,7 +81,7 @@ if (await waitRoute()) {
   check(!!route && route.path === '/api/dsws', '通道注册在 /api/dsws（客户端请求路径与宿主注册路径同源）')
   // 1) 校验：缺 body → parse
   // 每次调用都带 cwd：#1003 空目录闸之后，宿主电话要求调用方给出工作区目录
-  //（`src/host/commentThreads.js:173-176`：没给就按「工作区还没就绪」直接拒绝，连参数校验都走不到），
+  //（`src/refresh/rooms/host/comment-thread-fetch.js:173-176`：没给就按「工作区还没就绪」直接拒绝，连参数校验都走不到），
   // 而这条冒烟测的是参数校验与透传，不是空目录那一支，所以按「工作区已就绪」发。
   const bad = unwrap(await callHandler('commentIssue', { number: 255, cwd: 'D:/work/repo' }))
   check(!!bad && bad.ok === false && bad.error && bad.error.kind === 'parse', '缺 body → {ok:false,kind:parse}')

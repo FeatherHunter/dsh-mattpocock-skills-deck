@@ -26,7 +26,7 @@
  *
  * 日志：新增内存复用位这一类东西要留日志点（AGENTS.md 的埋点纪律）。按 docs/design/335-logging-contract.md
  * 第 3 章判定，它属于「调用次数少、但要看得见命中/未命中」的那一类，所以记成**按需**（debug 级，
- * 只在调试开关打开时落盘），由调用方（src/host/detectChain.ts）在这一次求值结束时记一行
+ * 只在调试开关打开时落盘），由调用方（src/refresh/rooms/host/check-chain-evaluation.ts）在这一次求值结束时记一行
  * chain.preflight.reuse：只记工作区短指纹、两个枚举（检查名、这次是复用还是真问）与条数，
  * 不记命令原文、不记路径原文。
  * 本文件自己不记 —— 它不持有宿主那套日志出口，也不该为了记一行去要一个。

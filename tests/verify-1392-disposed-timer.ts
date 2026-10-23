@@ -19,13 +19,13 @@
 // 唯一可靠的「已销毁」信号就是那次调用抛出的 INACTIVE_EFFECT。所以判据只看错误码，不看 message
 // （message 文案会随框架版本变）。
 //
-// 门禁归属: src/host/git-process.ts
+// 门禁归属: src/refresh/rooms/host/git-execution.ts
 // 门禁归属: src/shared/command-cleanup/src/command-cleanup.ts
 //
 // 用法（在插件根目录；不需要先构建，本门禁跑的是真源码）：
 //   node --import ./scripts/ts-hook.mts tests/verify-1392-disposed-timer.ts
-import { createRepoKeys } from '../src/host/git-process.ts'
-import { getGhLane, resetGhLaneForTest } from '../src/host/outbound/admission.ts'
+import { createRepoKeys } from '../src/refresh/rooms/host/git-execution.ts'
+import { getGhLane, resetGhLaneForTest } from '../src/refresh/rooms/host/outbound-admission.ts'
 
 let failed = false
 let total = 0

@@ -1,4 +1,4 @@
-// src/host/refresh/recordRepoPages.ts —— 按仓库记的「重建页数实测账」（#1255 从 ledger.ts 拆出）
+// src/refresh/rooms/host/repo-page-accounting.ts —— 按仓库记的「重建页数实测账」（#1255 从 ledger.ts 拆出）
 //
 // 为什么单列一本账：账本里原来有两种账，键的维度不一样 ——
 // 额度账按「档位 × 桶」记（三个档位、两个桶），页数账按「仓库」记（每个仓库自己的实测页数）。
@@ -10,8 +10,8 @@
 //   · 每个仓库记三样：最近一次翻了几页、历史上最多见过几页、累计重建过几次；
 //   · 没记过的仓库按 1 页估，不编一个典型值出来；
 //   · 最坏用量按「实测最大值与页数上界取大者」算，算式只在 shared/refresh/page-budget.js 里。
-import { MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../refresh/kernel/host-budget.js'
-import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../refresh/kernel/page-allowance.js'
+import { MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../kernel/host-budget.js'
+import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../kernel/page-allowance.js'
 
 /** 单个仓库的重建页数实测。 */
 export interface RepoPageRecord {

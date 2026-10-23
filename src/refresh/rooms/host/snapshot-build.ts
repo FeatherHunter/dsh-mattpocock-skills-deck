@@ -1,4 +1,4 @@
-// src/host/snapshotBuild.ts —— 面板快照组装与地图详情拉取（从 issueDetail.ts 拆出，#599）。
+// src/refresh/rooms/host/snapshot-build.ts —— 面板快照组装与地图详情拉取（从 issueDetail.ts 拆出，#599）。
 //
 // 为什么拆：issueDetail.js 当时 349 行，紧贴「src 文件 ≤350 行」的门禁（tests/verify-file-granularity.ts），
 // 而本票要在那张文件里给「已合并」补状态归一，加不进去。按仓库既有做法（拆分管线的先例见
@@ -13,13 +13,13 @@
 //
 // #1115：本文件两处 opCtx（viewer 预取与 select 三级联）的计时器口改用共享层那一份实现；
 //   原先各写一遍的全局 clearTimeout 在真句柄上是空操作，撤销不掉那笔等待（详见该文件头注释）。
-import type { HostTimerService } from '../refresh/contract/host-timer-ports.js'
-import { hostTimers } from '../refresh/contract/host-timer-ports.js'
+import type { HostTimerService } from '../../contract/host-timer-ports.js'
+import { hostTimers } from '../../contract/host-timer-ports.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
-import { projectUiDescription } from '../tracker/ui-description.js'
+import { projectUiDescription } from '../../../tracker/ui-description.js'
 // 界面描述的投影要求后端模块是契约里那一份（interface BackendModule）：这里引用同一个类型，
 // 而不是另抄一份形状——抄一份的话，契约加字段时这里不会跟着变，投影就会静默少键。
-import type { BackendModule } from '../tracker/contract/backend-module.js'
+import type { BackendModule } from '../../../tracker/contract/backend-module.js'
 
 // ── 依赖与回包形状（票 #1155 补类型标注）─────────────────────────────────────────
 // 为什么在这里逐条写：本文件的依赖对象是 src/host/index.ts 里现拼出来的那份接线（转制后旧注记里“编译器看不见”已过时，

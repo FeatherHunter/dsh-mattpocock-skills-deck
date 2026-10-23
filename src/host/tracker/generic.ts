@@ -1,7 +1,7 @@
 // src/host/tracker/generic.ts —— 从同目录 generic.js 逐行转写而来，只加类型标注与注释，运行时逻辑一个字未动。
 //
 // 为什么要转写这一份：通用检查目录是宿主检查链的入口之一，转成 TypeScript 后调用方
-//   （src/host/detectChain.ts 经动态导入取 registerGenericPredicates 与 resolveGenericChain）能按类型取用，
+//   （src/refresh/rooms/host/check-chain-evaluation.ts 经动态导入取 registerGenericPredicates 与 resolveGenericChain）能按类型取用，
 //   行为仍与原来逐行一致。
 // 什么约定不能改：
 //   1. 通用目录在任意后端下输出一致，谓词只读、失败返回而非抛出，注册表只验形状不验内容。

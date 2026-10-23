@@ -108,7 +108,7 @@ function roomInfoEnabled(ctx: OpContext): boolean {
 }
 
 /**
- * 这一层起 gh 命令时用的默认超时（毫秒）。#723（T19）把它交出去：`src/host/detectChain.js` 里
+ * 这一层起 gh 命令时用的默认超时（毫秒）。#723（T19）把它交出去：`src/refresh/rooms/host/check-chain-evaluation.js` 里
  * 那条链要按「命令 + 工作目录 + 超时」认「是不是同一件事」，从前它在自己文件里又写了一遍
  * 30000 —— 两处各写一份，改一处就会静默对不上（实测踩过：一边带 30000、一边不带，白问两遍）。
  * 现在那个文件从宿主接线接这一个数（`src/host/registerPhones.js` 转发），全仓只有这一处字面量。

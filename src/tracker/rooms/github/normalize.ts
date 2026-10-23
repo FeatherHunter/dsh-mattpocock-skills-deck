@@ -357,7 +357,7 @@ function deriveMergedAt(raw: unknown): string | null {
  *   二、REST 兜底路上，/issues 与 /pulls 对已合并的拉取请求都给 state=closed（2026-09-11 真仓核过），
  *       所以两条路本来就同口径。
  * 契约保持两态，界面另按合并时间把这类条目显示成「已合并」（判据在 client 的 views/shared/stateKind.js）。
- * 宿主单票详情那条路（src/host/issueDetail.js）也调它，保证两处状态口径一致。
+ * 宿主单票详情那条路（src/refresh/rooms/host/issue-detail-fetch.js）也调它，保证两处状态口径一致。
  */
 export function pullStateOf(raw: unknown): State {
   const bag = asBag(raw);

@@ -28,9 +28,9 @@ const check = (ok: unknown, msg: string, detail?: unknown): void => {
 console.log('== #969 分档超时（读 ' + READ_BUDGET_MS / 1000 + ' 秒／写 ' + WRITE_BUDGET_MS / 1000 + ' 秒／探活 ' + PROBE_BUDGET_MS / 1000 + ' 秒） ==')
 
 // #1159：房间的出站能力从「直接 import 宿主件」改成「宿主注入一份 ctx.outbound」，
-// 所以夹具里也得挂上那一份。这里用生产那份（src/host/platform/outbound-control.ts，只做转发），
+// 所以夹具里也得挂上那一份。这里用生产那份（src/refresh/rooms/host/outbound-control.ts，只做转发），
 // 顺带证明「注入进来的端口确实能让房间正常出站」；缺了它房内会大声报 env 错、一笔都不发。
-const { createOutboundControl } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/platform/outbound-control.ts')).href)
+const { createOutboundControl } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-control.ts')).href)
 const outbound = createOutboundControl()
 
 // —— 一、纯函数分档：读的短、写的长、探活的最短 ——
@@ -80,7 +80,7 @@ if (tiers) {
   const longField = normalizeGhStringFields(['api', 'graphql', '-f', 'query=x', '--field', 'owner=776317107'])
   check(longField[4] === '-f', '一、--field 写法的 owner 也归一成 -f', longField.join(' '))
   // 只测纯函数还不够：两个出站包装器真的把它接上了，才算修好。
-  const hostSource = readFileSync(nodePath.join(ROOT, 'src/host/git-process.ts'), 'utf8')
+  const hostSource = readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
   const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts'), 'utf8')
   check(hostSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、host 的 runGh 出站前调用了归一化')
   check(roomSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、房内 execGh 出站前调用了归一化')
@@ -160,7 +160,7 @@ if (tiers) {
 
 // —— 五、取数层超时也记超时行，且超时那一次归网络档 ——
 {
-  const src = readFileSync(nodePath.join(ROOT, 'src/host/git-process.ts'), 'utf8')
+  const src = readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
   // 超时杀掉后记超时行（gh.timeout），且超时那一次按网络档返回（不是没登录也不是找不到）
   check(/gh\.timeout/.test(src), '五、取数层超时记超时行（gh.timeout）')
   check(/signal\s*===\s*['"]timeout['"]/.test(src) && /network/.test(src), '五、超时信号归网络档（慢网显示未知）')
@@ -171,7 +171,7 @@ if (tiers) {
 // —— 六、房内自己掐表（#1007）：排队段也算进这只表，且与「调用方取消」分得开 ——
 {
   const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
-  const { getGhLane } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/outbound/admission.ts')).href)
+  const { getGhLane } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
 
   // 执行器卡住、连取消都不理：promise 永不落地。房内不能因此被无限拖住。

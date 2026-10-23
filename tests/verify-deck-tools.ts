@@ -79,7 +79,7 @@ async function main() {
   // 记一笔真落盘、读一笔真读盘，断言直接看盘上的文件与回执。
   const workRouteMod = await imp('src/deck/shell/work-path-bindings.ts')
   const chainMod = await imp('src/refresh/kernel/refresh-chain.js')
-  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
+  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/refresh/registry/deck-tool-bridge.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上，否则下面这些正例一条都跑不到真实路径。
   //   #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件。下面那次

@@ -74,10 +74,10 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlWrite.ts', access: 'PULL_TIMEOUT_MS', gen: 'VC_PULL_TIMEOUT_MS', key: 'vcPullTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'PUSH_TIMEOUT_MS', gen: 'VC_PUSH_TIMEOUT_MS', key: 'vcPushTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'FETCH_TIMEOUT_MS', gen: 'VC_FETCH_TIMEOUT_MS', key: 'vcFetchTimeoutMs' },
-  { file: 'src/host/gitCredentialExec.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
-  { file: 'src/host/gitCredentialExec.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
-  { file: 'src/host/gitCredentialExec.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
-  { file: 'src/host/gitCredentialExec.ts', access: 'GIT_LOW_SPEED_TIMEOUT_MS', gen: 'GIT_LOW_SPEED_TIMEOUT_MS', key: 'gitLowSpeedTimeoutMs' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'GIT_LOW_SPEED_TIMEOUT_MS', gen: 'GIT_LOW_SPEED_TIMEOUT_MS', key: 'gitLowSpeedTimeoutMs' },
   { file: 'src/host/workspaceKey.ts', access: 'WORKSPACE_ROOT_TTL_MS', gen: 'WORKSPACE_ROOT_TTL_MS', key: 'workspaceRootTtlMs' },
   { file: 'src/host/logStore.ts', access: 'LOG_DEBOUNCE_MS', gen: 'LOG_WRITE_DEBOUNCE_MS', key: 'logWriteDebounceMs' },
   { file: 'src/host/platform/namingSummary.ts', access: 'SUMMARY_TIMEOUT_MS', gen: 'NAMING_SUMMARY_TIMEOUT_MS', key: 'namingSummaryTimeoutMs' },
@@ -134,8 +134,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
   { file: 'src/refresh/contract/tuning-parameters.ts', access: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
   { file: 'src/shared/version-control/src/write-ticket.ts', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
-  { file: 'src/shared/tracker/indexWindow.ts', access: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs' },
-  { file: 'src/shared/tracker/indexWindow.ts', access: 'SKEW_MS', gen: 'TRACKER_INDEX_SKEW_MS', key: 'trackerIndexSkewMs' },
+  { file: 'src/refresh/kernel/index-window-rules.ts', access: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs' },
+  { file: 'src/refresh/kernel/index-window-rules.ts', access: 'SKEW_MS', gen: 'TRACKER_INDEX_SKEW_MS', key: 'trackerIndexSkewMs' },
   { file: 'src/shared/tracker/sync.ts', access: 'SYNC.EVAL_GAP_MS', gen: 'SYNC_EVAL_GAP_MS', key: 'syncEvalGapMs' },
   { file: 'src/shared/tracker/sync.ts', access: 'SYNC.DIRTY_PROBE_DEBOUNCE_MS', gen: 'SYNC_DIRTY_PROBE_DEBOUNCE_MS', key: 'syncDirtyProbeDebounceMs' },
   { file: 'src/shared/tracker/sync.ts', access: 'SYNC.OVERLAP_SKEW_MS', gen: 'SYNC_OVERLAP_SKEW_MS', key: 'syncOverlapSkewMs' },
@@ -154,12 +154,12 @@ const REFERENCES: RefRow[] = [
   { file: 'src/deck/registration/register-options.ts', access: 'REGISTER_RETRY_WAIT_MS', gen: 'REGISTER_RETRY_WAIT_MS', key: 'registerRetryWaitMs' },
   // —— 宿主 tracker：谓词回落超时（函数内裸用导入常量，模块不导出：门禁走源码 import 断言） ——
   { file: 'src/host/tracker/predicateCore.ts', access: 'PREDICATE_FALLBACK_TIMEOUT_MS', gen: 'PREDICATE_FALLBACK_TIMEOUT_MS', key: 'predicateFallbackTimeoutMs' },
-  { file: 'src/deck/shell/call-budget.ts', access: 'DEFAULT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs' },
-  { file: 'src/deck/shell/call-budget.ts', access: 'DEFAULT_TOOL_MARGIN_MS', gen: 'TOOL_MARGIN_MS', key: 'toolMarginMs' },
-  { file: 'src/deck/shell/call-budget.ts', access: 'DEFAULT_PER_OP_TIMEOUT_MS', gen: 'PER_OP_TIMEOUT_MS', key: 'perOpTimeoutMs' },
+  { file: 'src/refresh/rooms/host/tool-call-budget-enforcement.ts', access: 'DEFAULT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs' },
+  { file: 'src/refresh/rooms/host/tool-call-budget-enforcement.ts', access: 'DEFAULT_TOOL_MARGIN_MS', gen: 'TOOL_MARGIN_MS', key: 'toolMarginMs' },
+  { file: 'src/refresh/rooms/host/tool-call-budget-enforcement.ts', access: 'DEFAULT_PER_OP_TIMEOUT_MS', gen: 'PER_OP_TIMEOUT_MS', key: 'perOpTimeoutMs' },
   { file: 'src/deck/rules/anchor.ts', access: 'ANCHOR_WINDOW_MS', gen: 'ANCHOR_WINDOW_MS', key: 'anchorWindowMs' },
   { file: 'src/deck/shell/write-mutex.ts', access: 'DEFAULT_KEY_LOCK_TIMEOUT_MS', gen: 'KEY_LOCK_TIMEOUT_MS', key: 'keyLockMs' },
-  { file: 'src/deck/registration/host-assemble.ts', access: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs' },
+  { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs' },
   // —— 界面半边：门禁把它当模块直接 import 跑，引用是真的（构建拼进闭包时剥掉 import 行） ——
   { file: 'src/client/kernel/log.ts', access: 'LOG_FLUSH_MS', gen: 'LOG_FLUSH_MS', key: 'logFlushMs' },
   { file: 'src/client/kernel/log.ts', access: 'LOG_WATCHDOG_MS', gen: 'LOG_WATCHDOG_MS', key: 'logWatchdogMs' },
@@ -287,7 +287,7 @@ const PERMANENT: PermanentRow[] = [
   { file: 'src/shared/naming-tracking.ts', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
   { file: 'src/client/kernel/attention-heartbeat.ts', snippet: "intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0", reason: '心跳计划的状态初值（0 = 还没定下节拍 / 还没跳过），真值由刷新预算注入，不是新参数' },
   { file: 'src/client/kernel/router.ts', snippet: 'commitMs: -1, fitMs: 0', reason: '面板时钟的状态初值（-1 / 0 = 还没提交过），不是可调时长' },
-  { file: 'src/shared/tracker/indexWindow.ts', snippet: 'sinceMs: 0', reason: '还没有水位时从头全量（0 = 没有上次扫到哪儿），不是可调时长' },
+  { file: 'src/refresh/kernel/index-window-rules.ts', snippet: 'sinceMs: 0', reason: '还没有水位时从头全量（0 = 没有上次扫到哪儿），不是可调时长' },
   // —— 单位不是毫秒（调它等于改语义，不是调时间） ——
   { file: 'src/refresh/kernel/failure-backoff.ts', snippet: 'MIN_BACKOFF_STEPS = 2', reason: '退避步数下限（几档）：只有一档就没有「退」这件事，门禁按它核对序列；改它等于改校验语义' },
 ]
@@ -327,12 +327,12 @@ const EXEMPTS: ExemptRow[] = [
   // —— 名字巧合：叫 Window 但不是时间 ——
   { file: 'src/tracker/rooms/github/idempotency.ts', name: 'inWindow', reason: '过滤后的候选数组（“窗口内的数据”），不是毫秒数' },
   // —— 第二层：函数级透传与计算值（门禁覆盖率扫描捞出来的，逐个定性） ——
-  { file: 'src/deck/registration/quota-sync.ts', name: 'resetMs', reason: '服务端回传的重置时刻算出来的剩余量，不是可调参数' },
+  { file: 'src/refresh/registry/quota-sync-bridge.ts', name: 'resetMs', reason: '服务端回传的重置时刻算出来的剩余量，不是可调参数' },
   { file: 'src/deck/rules/anchor.ts', name: 'windowMs', reason: '透传变量，缺省接 ANCHOR_WINDOW_MS（已登记）' },
   { file: 'src/deck/tools/map-link.ts', name: 'lockTimeoutMs', reason: '透传变量，缺省走 DEFAULT_KEY_LOCK_TIMEOUT_MS（已登记，见 write-mutex.ts:86）' },
-  { file: 'src/deck/registration/quota-sync.ts', name: 'cooldownMs', reason: '透传变量，缺省走 QUOTA_SYNC_COOLDOWN_MS（已登记）' },
-  { file: 'src/host/detectChain.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
-  { file: 'src/host/detectChain.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
+  { file: 'src/refresh/registry/quota-sync-bridge.ts', name: 'cooldownMs', reason: '透传变量，缺省走 QUOTA_SYNC_COOLDOWN_MS（已登记）' },
+  { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
+  { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
   { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 hostTimeoutMs 装进来）' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
@@ -367,18 +367,18 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/client/views/shared/truthLines.ts', name: 'ageMs', reason: '算出来的时间差（距今多久），不是可调参数' },
   { file: 'src/client/views/versionControl/vcBlocks.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
-  { file: 'src/host/gitCredentialExec.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
-  { file: 'src/host/gitCredentialExec.ts', name: 'timeoutMs', reason: '透传参数，缺省接 GIT_CREDENTIAL_PROBE_TIMEOUT_MS（已登记）' },
-  { file: 'src/host/gitCredentialExec.ts', name: 'lowSpeedSeconds', reason: '派生变量：由已登记的 GIT_LOW_SPEED_TIMEOUT_MS 除以 1000 得到（git 的 lowSpeedTime 只认秒），除数不是时长' },
-  { file: 'src/host/gitCredentialExec.ts', name: 'deadline', reason: '算出来的截止时刻（Date.now() 加整趟预算），不是可调参数' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'timeoutMs', reason: '透传参数，缺省接 GIT_CREDENTIAL_PROBE_TIMEOUT_MS（已登记）' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'lowSpeedSeconds', reason: '派生变量：由已登记的 GIT_LOW_SPEED_TIMEOUT_MS 除以 1000 得到（git 的 lowSpeedTime 只认秒），除数不是时长' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'deadline', reason: '算出来的截止时刻（Date.now() 加整趟预算），不是可调参数' },
   { file: 'src/host/namingGuardian.ts', name: 'delay', reason: '派生变量：缺省接已登记的 NAMING_SWEEP_SOON_MS，正常路径用调用方给的 delayMs' },
   { file: 'src/shared/naming-tracking.ts', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'delay', reason: '派生变量：backoffDelayMs(state) 算出来的本次等待时长，序列本身已登记为 chainBackoffMs' },
   { file: 'src/tracker/rooms/github/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
   { file: 'src/tracker/rooms/gitlab/client.ts', name: 'timeout', reason: '同上，透传参数' },
-  { file: 'src/host/platform/issueIndexWindow.ts', name: 'startedMs', reason: '读钟时刻（这趟扫描什么时候开始的），不是可调参数' },
-  { file: 'src/host/platform/issueIndexWindow.ts', name: 'nextWatermarkMs', reason: '算出来的下一个水位时刻，不是可调参数' },
-  { file: 'src/host/platform/issueIndexWindow.ts', name: 'watermarkMs', reason: '上次扫到哪儿的时刻（状态字段），不是可调参数' },
+  { file: 'src/refresh/rooms/host/issue-index-scan.ts', name: 'startedMs', reason: '读钟时刻（这趟扫描什么时候开始的），不是可调参数' },
+  { file: 'src/refresh/rooms/host/issue-index-scan.ts', name: 'nextWatermarkMs', reason: '算出来的下一个水位时刻，不是可调参数' },
+  { file: 'src/refresh/rooms/host/issue-index-scan.ts', name: 'watermarkMs', reason: '上次扫到哪儿的时刻（状态字段），不是可调参数' },
   { file: 'src/refresh/rooms/host/host-attention.ts', name: 'humanMs', reason: '读出来的「人最后一次动键盘鼠标」的时刻，不是可调参数' },
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
@@ -389,7 +389,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/tracker/snapshot.ts', name: 'depsTtl', reason: '同上' },
   { file: 'src/host/versionControl.ts', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.ts', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
-  { file: 'src/shared/tracker/indexWindow.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
+  { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/client/kernel/probe-auto.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },
   { file: 'src/client/kernel/probe-auto.ts', name: 'FOCUS_PROBE_MIN_MS', reason: '派生变量，取 SYNC.FOCUS_PROBE_MIN_MS（已登记为 syncFocusProbeMinMs），兜底取拼进闭包的 SYNC_FOCUS_PROBE_MIN_MS；引用即跟随' },
@@ -559,7 +559,7 @@ async function main(): Promise<void> {
   // 定时器参数位：先找调用点，再按括号配对取出这一整次调用的参数列表，逐个顶层参数看是不是裸数字。
   // 从前只用一条正则、并且要求「逗号前面是没括号的回调」，于是下面两类写法整个漏过门禁：
   //   · timer.timeout(2000)——仓里自己的定时口，延时可以是唯一的那个参数（#1160 收尾自审时真漏了一个：
-  //     src/host/git-process.ts 起 `gh --version` 那一次挂的是裸 2000）；
+  //     src/refresh/rooms/host/git-execution.ts 起 `gh --version` 那一次挂的是裸 2000）；
   //   · setTimeout(() => {…}, 5000)——箭头回调自带括号，逗号前那一段被 [^,()]* 挡掉，匹配不上。
   // 所以改成取整段参数再判：只认「某个顶层参数本身就是数字」这一种形态，
   // 回调体内部的数字（timer.timeout(() => { i + 1 }, 5000) 里的 1）不算，免得凭空多报。

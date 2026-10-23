@@ -1,4 +1,4 @@
-// src/host/repoKeys.js —— 执行与仓库钥匙（H1 #445 从 host/index.js 496–720 搬出，纯结构、行为零变化）
+// src/refresh/rooms/host/git-execution.ts —— 执行与仓库钥匙（H1 #445 从 host/index.js 496–720 搬出，纯结构、行为零变化）
 // 以后谁改它：改外部进程执行（gh/git）、工作区钥匙规整或仓库根与磁盘缓存策略的人。预估约 270 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；本文件不引用其他新文件。
 // 显式传参编辑：共享状态归 index.js 持有——ghPath/ghLastError 经存取器读写，repoKeys/repoRoots 按引用共享，cache 重赋值改 setCache；resetGhCache 的 _workspaceStore 直访改 clearWorkspaceStore（状态归 platformChannel）。行为与搬前一致。
@@ -8,13 +8,13 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields } from '../tracker/kernel/outbound-tiers.js'
-import { getGhLane } from './outbound/admission.js'
-import { getChainRide } from '../refresh/rooms/host/chain-coalescing.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields } from '../../../tracker/kernel/outbound-tiers.js'
+import { getGhLane } from './outbound-admission.js'
+import { getChainRide } from './chain-coalescing.js'
 // #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
-import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from '../shared/command-cleanup/src/command-cleanup.js'
+import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from '../../../shared/command-cleanup/src/command-cleanup.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../shared/time-config/src/values.js'
+import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../../../shared/time-config/src/values.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
@@ -132,7 +132,7 @@ interface RepoKeysDeps {
 }
 
 /** 工作区钥匙模块（动态 import 进来的 .js）：本文件只按这两条读法用它，别的导出不管。 */
-type WorkspaceKeyModule = typeof import('./workspaceKey.js')
+type WorkspaceKeyModule = typeof import('../../../host/workspaceKey.js')
 
 export function createRepoKeys(deps: RepoKeysDeps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
@@ -403,7 +403,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
     let _workspaceKeyMod: WorkspaceKeyModule | null = null
     async function canonicalKey(raw?: string) {
       try {
-        if (!_workspaceKeyMod) _workspaceKeyMod = await import('./workspaceKey.js')
+        if (!_workspaceKeyMod) _workspaceKeyMod = await import('../../../host/workspaceKey.js')
         const m = _workspaceKeyMod
         const fn = m.canonicalWorkspaceKey || (m.default && m.default.canonicalWorkspaceKey)
         if (typeof fn !== 'function') { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(raw), fallback: true } }) } catch (eL) {}; return raw }

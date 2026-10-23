@@ -11,7 +11,7 @@
 import nodePath from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createPlatformChannel } from '../src/host/platformChannel.js'
-import { createRepoKeys } from '../src/host/git-process.ts'
+import { createRepoKeys } from '../src/refresh/rooms/host/git-execution.ts'
 
 const ROOT = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 let failed = 0
@@ -105,7 +105,7 @@ function mkGate() {
 
 // ── ⑦ 活件：读数里剩 0 时，真的按服务端给的重置时刻降了档（#927 ①） ──
 {
-  const mod = await import(pathToFileURL(nodePath.join(ROOT, 'src/deck/registration/quota-sync.ts')).href)
+  const mod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/registry/quota-sync-bridge.ts')).href)
   const notes = []
   const resetSec = Math.floor((Date.now() + 600000) / 1000)
   const body = JSON.stringify({ resources: { core: { limit: 5000, remaining: 0, reset: resetSec }, graphql: { limit: 5000, remaining: 5000, reset: resetSec } } })

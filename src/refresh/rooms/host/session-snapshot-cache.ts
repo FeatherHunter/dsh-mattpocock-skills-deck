@@ -1,13 +1,13 @@
-// src/host/sessionSnapshot.ts —— 会话快照电话（H4 #448 从 host/index.js 310–658 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
+// src/refresh/rooms/host/session-snapshot-cache.ts —— 会话快照电话（H4 #448 从 host/index.js 310–658 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给。
 // #723（T19）：信封组装（字段清单与落盘那一步的日志）搬到了同目录的 ./snapshotEnvelope.ts —— 这个文件
 // 贴着 350 行上限，要让出位置把「每个会话在处理哪些票」的读数挂到快照回包上（票面 3e）。搬的时候只搬不改。
-import { createSnapshotEnvelope } from './snapshotEnvelope.js'
+import { createSnapshotEnvelope } from '../../../host/snapshotEnvelope.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
-import { projectUiDescription } from '../tracker/ui-description.js'
+import { projectUiDescription } from '../../../tracker/ui-description.js'
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
-import { SNAPSHOT_TTL_MS } from '../shared/time-config/src/values.js'
+import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都堆在文件顶部：本文件的依赖全部由接线处 index.js 那份对象注入（JS 不查编译错误），
@@ -67,8 +67,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   const buildSnap = env.buildSnap
   const adoptSnapLog = env.adoptSnapLog
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
-  let _dedupeP: Promise<typeof import('../shared/tracker/list-dedupe.js')> | null = null
-  function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
+  let _dedupeP: Promise<typeof import('../../../shared/tracker/list-dedupe.js')> | null = null
+  function _dedupe() { if (!_dedupeP) _dedupeP = import('../../../shared/tracker/list-dedupe.js'); return _dedupeP }
   // #595：快照带后端的 prompts 声明（正文格式按当前后端解析）。盘缓存存的是旧 backendModules、无 prompts，直接回放会丢两步写回，故命中时用当前注册表重挂，取不到保留原值。
   async function freshBackendModules() {
     try {
@@ -85,8 +85,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   // #683（F1 · ADR 的 R6）：快照里带上记住的布局答案（同 R4 那条路：落后的那扇窗不靠它就永远停在老答案上）。
   async function readSetupLayoutOf(cwd: string) { try { const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore() : null; if (!cs || typeof cs.getLayout !== 'function') return null; const r = await cs.getLayout(cwd); return (r && r.found === true) ? { layout: r.layout, pickedAt: r.pickedAt } : null } catch (e) { return null } }
   let snapSampleN = 0
-  let _sharedInflightP: Promise<typeof import('./snapshotInflight.js')> | null = null // #729：本地表已撤，改用与刷新路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）
-  function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('./snapshotInflight.js'); return _sharedInflightP }
+  let _sharedInflightP: Promise<typeof import('../../../host/snapshotInflight.js')> | null = null // #729：本地表已撤，改用与刷新路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）
+  function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('../../../host/snapshotInflight.js'); return _sharedInflightP }
   // #1082：跨会话在办表的读数也在回包交出去之前现挂（异步读盘）；信封没这一口（旧测试手捏的）就不挂。
   async function attachWorkRouteTable(reply: unknown, args: Args) {
     return (env && typeof env.withWorkRouteTable === 'function') ? await env.withWorkRouteTable(reply, args) : reply
@@ -153,7 +153,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           // #927：面板取数这一路的每条命令都过闸（分类是「人的动作」那一档：只记账、不降档）；没给 send 时照旧直发。
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'snapshot'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'snapshot') }).then(function (r) { return r.result }) } }
-          const { createSnapshotComposer } = await import('./tracker/snapshot.js')
+          const { createSnapshotComposer } = await import('../../../host/tracker/snapshot.js')
           // 本地（JSDoc）那份 composeSnapshot 把第四个参数写窄成了 { force?: boolean }，而这里确实还传了
           // ifNoneMatch；composer 只按本地类型标注，不碰它的实现。
           const composer: Composer = createSnapshotComposer(reg, { snapshotTtl: SNAPSHOT_TTL_MS })
@@ -299,7 +299,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true }), cwd) }
         }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
-        const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
+        const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         const composer2: Composer = createComposer2(reg2, { snapshotTtl: SNAPSHOT_TTL_MS })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }

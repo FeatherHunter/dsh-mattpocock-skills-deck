@@ -3,7 +3,7 @@
  * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export，拼回 src/client/index.ts
  * 里那条 leaf:bannerChain 拼接标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
  * 顺序与「这一步没过时给什么」只有一份真源：src/shared/tracker/guide-steps.ts 的 GUIDE_STEPS
- *   （宿主按它给链快照排序，见 src/host/detectChain.ts；本文件与检查页一样只读它，不自己再排一份）。
+ *   （宿主按它给链快照排序，见 src/refresh/rooms/host/check-chain-evaluation.ts；本文件与检查页一样只读它，不自己再排一份）。
  * 界面只分发、后端只声明：动作词表见 src/client/kernel/actions.ts，清单里的 missing 只说用哪一种。
  * 以后谁改它：改「状态栏什么时候出哪条横幅、那颗按钮点下去干什么」的人。预估约 190 行，超 350 打回。
   * （#1251：本文件由同名 .js 转成 .ts，只补类型标注（形参一律 any）与环境声明，运行时行为一字不动。约束：不许加运行时 import（跨文件名字一律 ambient declare，构建拼闭包时拒收残留 import）；不许 export default；只写可剥离类型。）

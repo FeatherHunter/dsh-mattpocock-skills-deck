@@ -153,7 +153,7 @@ function execOf(cwd) { return { agent: { session: { cwd: cwd || 'C:/fake-ws', id
 
 async function main() {
   console.log('#895 回归门禁：批量限时自停与续跑（缩放假预算）')
-  const scopeMod = await imp('src/deck/shell/call-budget.ts')
+  const scopeMod = await imp('src/refresh/rooms/host/tool-call-budget-enforcement.ts')
   const storeMod = await imp('src/deck/shell/plan-cursor.ts')
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
@@ -293,7 +293,7 @@ async function main() {
 
   // ── ⑦ 超时常量同源：注册侧外层上限与壳内预算必须同值 ──
   // register-options.ts 不引用其他层的文件，两处常量不能靠 import 收成一份，
-  // 改一边不同步另一边时由这一节变红。两处注释见 src/deck/shell/call-budget.ts:20-24
+  // 改一边不同步另一边时由这一节变红。两处注释见 src/refresh/rooms/host/tool-call-budget-enforcement.ts:20-24
   // 与 src/deck/registration/register-options.ts:33-38。
   // #1215 S6 起加第三边：两处字面量还要与中央 YAML 的生效值同值（YAML 缺键时回落底座顶上，
   // 与生成器 load() 同一条规则；tests/verify-time-config.ts 第二节另有一份同值断言，两边互为备份）。

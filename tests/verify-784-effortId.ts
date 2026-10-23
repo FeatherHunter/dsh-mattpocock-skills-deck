@@ -61,7 +61,7 @@ async function main(): Promise<void> {
   chooseWorkspace(ws.rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id) { return t.get(String(id)) || null }, save(id, s) { t.set(String(id), s) } } })()
-  // decideBackend：生产装配总是给（见 src/deck/registration/host-assemble.ts 的 decideBackend: decideBackendFn），
+  // decideBackend：生产装配总是给（见 src/refresh/registry/deck-tool-bridge.ts 的 decideBackend: decideBackendFn），
   //   壳拿不到它时一律回「判定出口这次没装上」。夹具照生产的接法给上判定出口桩，桩直接调生产判定出口
   //   读上面那份工作区文件（写用途只认文件里的记录，这正是 #1003 契约期望行为第 4 条）。
   const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: ws.ctx, handleFor: () => handle, log: { fire: () => {} }, now: () => clock, planStore, decideBackend: makeDecideStub(registry) }

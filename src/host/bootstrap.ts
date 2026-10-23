@@ -9,7 +9,7 @@
  * 3. 技能目录找不到时只记一行警告就退，不抛错，因为随包目录在某些安装形态下本来就不在。
  */
 
-// 运行时的 process 声明（与 src/host/git-process.ts:30 同形）：本文件只在拼随包目录候选路径时读它，且按「可能不存在」写（见下面那行 typeof 守卫）。
+// 运行时的 process 声明（与 src/refresh/rooms/host/git-execution.ts:30 同形）：本文件只在拼随包目录候选路径时读它，且按「可能不存在」写（见下面那行 typeof 守卫）。
 declare const process: { cwd?: () => string } | undefined
 
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 // 这个文件干的是「跑腿」的三件事，纯逻辑一件都不在这里（那三件在 src/refresh/kernel/snapshot-diff.ts 的产物
 // .build/refresh/kernel/snapshot-diff.js 里，本文件每一步都调它）：
 //   ① 只取变的那几条：把窗口探测回来的索引与列表手上那份比一遍，变了的那几条各发一条薄查询
-//      （取数三件套 thinArgs/rowOf/fetchRows 在 ./fetchThinRows.js，本文件只负责调它）；
+//      （取数三件套 thinArgs/rowOf/fetchRows 在 ./thin-row-fetch.js，本文件只负责调它）；
 //   ② 并进现有列表：把那几条换进行里、产出新的版本号，派生值按 delta.derivedAfter 处置；
 //   ③ 持久化待办：被推迟 / 被丢弃 / 失败的取数进待办（水印不前进），切进工作区先清待办、有待办就整池。
 //
@@ -39,7 +39,7 @@
 // ---------------------------------------------------------------------------
 
 import * as delta from '../../kernel/snapshot-diff.js'
-import { fetchThinRows } from '../../../host/refresh/fetchThinRows.js'
+import { fetchThinRows } from './thin-row-fetch.js'
 
 /** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */
 interface DeltaState {
@@ -76,7 +76,7 @@ export const DELTA_FIELD = 'delta'
  *   readSnapshot(cwd) → 现在列表所在的那份快照，没有就回 null
  *   writeSnapshot(cwd, snap) → 把并好的快照写回（内存与磁盘都由接线方负责）
  *   indexOfSnapshot(snap) → 从快照里取出「列表手上那份索引」（注入 indexWindow.indexFromSnapshot）
- *   windowRules → src/shared/tracker/indexWindow.js 那个模块（scanWindow / seedFromSnapshot）
+ *   windowRules → src/refresh/kernel/index-window-rules.js 那个模块（scanWindow / seedFromSnapshot）
  *   probeIndex(cwd, sinceIso) → 只问窗口内的变化，回 { ok, index } 或 { ok:false, error }
  *   getRepoKey(cwd) / runGh(args, cwd) → 取那几条薄查询用的两件工具
  *   send(req, perform) → 可选。给了就由它去发（生产里是闸的 send：先裁决、再记账）；
@@ -174,7 +174,7 @@ export function createPatch(deps?: PatchDeps | null): any {
     return { mode: 'rebuild', reason: 'pending-todo', pending: n }
   }
 
-  // 取数三件套（thinArgs/rowOf/fetchThinRows）已搬至 ./fetchThinRows.js（#1255）：只发请求、拼行，
+  // 取数三件套（thinArgs/rowOf/fetchThinRows）已搬至 ./thin-row-fetch.js（#1255）：只发请求、拼行，
   // 合并、水印、待办仍在这里。调用点在 run() 第 ⑧ 步。
 
   /**
@@ -253,7 +253,7 @@ export function createPatch(deps?: PatchDeps | null): any {
     }
     // ⑦ 变的那几条太多：一条一请求地补过去已经不划算，交给整池（整池 13 点 7 条请求，见 budget.js）。
     if (plan.changed.length > maxRows) { stats.rebuildNeeded += 1; fire('rebuild', 'too-many-rows', { keyHash: keyHash, changed: plan.changed.length, pending: st.pending.length }); return { mode: 'rebuild', reason: 'too-many-rows', changed: plan.changed.length } }
-    // ⑧ 取那几条薄的（取数三件套在 ./fetchThinRows.js，依赖由这里注入）。
+    // ⑧ 取那几条薄的（取数三件套在 ./thin-row-fetch.js，依赖由这里注入）。
     const startedGeneration = st.generation
     const got: any = await fetchThinRows({ host: d, stats: stats, wsKeyOf: wsKeyOf }, cwd, repo, plan.changed)
     if (!got.ok) {

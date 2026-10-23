@@ -20,7 +20,7 @@
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-1291-closed-map-open-children.ts（插件根目录）
 // 门禁归属: src/host/tracker/snapshotAssemble.ts
 // 门禁归属: src/host/tracker/snapshot.ts
-// 门禁归属: src/host/sessionSnapshot.ts
+// 门禁归属: src/refresh/rooms/host/session-snapshot-cache.ts
 // 门禁归属: src/client/kernel/store-derived.ts
 // 门禁归属: src/client/statusbar/checksums.ts
 import fs from 'node:fs'
@@ -138,7 +138,7 @@ const resA: any = await snapshotOf('fake-a', mkRows({}), { open: 1, closed: 14, 
 //   状态栏与 KPI 的「可接」读 counts ? max(0, counts.open - occCount) : frontierCount
 //   （src/client/statusbar/checksums.ts:36-38；ListTab.ts:316-321 同一条式子）。
 // 先按宿主真口径把快照拼成客户端看到的那一份：容器行 + 各容器子票 + 未挂图的票合成一份扁平 issues
-//   （src/host/sessionSnapshot.ts:168-204 的 allForList；#589 去重在这里不会遇到重复，组装层已保证三段互斥）。
+//   （src/refresh/rooms/host/session-snapshot-cache.ts:168-204 的 allForList；#589 去重在这里不会遇到重复，组装层已保证三段互斥）。
 //   不拼的话，组装层「容器与子票分开」的形状会让客户端复算漏掉地图子票，相等可能只是恰好都为零。
 const clientSnapshotOf = function (snap: any): any {
   const all: any[] = []

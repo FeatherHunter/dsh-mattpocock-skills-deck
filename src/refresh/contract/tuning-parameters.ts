@@ -10,7 +10,7 @@
  * 与今天的行为一致。所以字段都是可选的：删掉哪个字段，调用方就回到今天的数，不炸。
  *
  * 不进表的（记名在此，理由见 #1069 正文）：
- *   · 单次工具调用总预算 300000（src/deck/shell/call-budget.ts:25）与其孪生兄弟
+ *   · 单次工具调用总预算 300000（src/refresh/rooms/host/tool-call-budget-enforcement.ts:25）与其孪生兄弟
  *     （src/deck/registration/register-options.ts:39）：后者零导入引不了表，且有门禁
  *     看守两处同值，单搬一边必炸另一边，等统一数值那张票再动；
  *   · wiring.js 的本地读 5000、call-budget 的余量 15000 与单次钳制 30000：与表里
@@ -25,7 +25,7 @@ import { DECK_ENSURE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 调参表的形状：三个字段都可选，缺字段时调用方用代码缺省值顶上。 */
 export interface SharedTuning {
-  /** 读桶上限，来源 src/host/outbound/admission.ts:25（READ_BUCKET_MAX）。 */
+  /** 读桶上限，来源 src/refresh/rooms/host/outbound-admission.ts:25（READ_BUCKET_MAX）。 */
   readBucketMax?: number
   /** 写桶上限，来源同文件 :26（WRITE_BUCKET_MAX）。 */
   writeBucketMax?: number

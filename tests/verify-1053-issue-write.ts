@@ -1,4 +1,4 @@
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 // tests/verify-1053-issue-write.ts —— #1053 写路径专属门禁（不联网）
 //
 // 测什么：GitHub 房间三条写路径的常驻结论线真发得出来、字段就是各自登记的那几个，

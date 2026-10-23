@@ -33,7 +33,7 @@ import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
 import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.ts'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { normalizeIssue as ghNormalize } from '../../../src/tracker/rooms/github/normalize.ts'
-import { createOutboundControl } from '../../../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../../../src/refresh/rooms/host/outbound-control.ts'
 import {
   IDEMPOTENCY_MARKER_PREFIX,
   anchorLineFor,

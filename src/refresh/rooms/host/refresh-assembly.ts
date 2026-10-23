@@ -1,4 +1,4 @@
-// src/host/platform/refreshAssembly.ts —— 从同目录 refreshAssembly.js 逐行转写而来，只加类型标注与注释，运行时逻辑一个字未动。
+// src/refresh/rooms/host/refresh-assembly.ts —— 从同目录 refreshAssembly.js 逐行转写而来，只加类型标注与注释，运行时逻辑一个字未动。
 //
 // 为什么要转写这一份：行级增量那半边在宿主里的装配点，转成 TypeScript 后接线形状可见，
 //   依赖仍由宿主接线方现取现传，本文件不判断任何业务。
@@ -9,8 +9,8 @@
 //   3. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符。
 //   4. 只写可剥离类型：类型一律就地声明或经 import type 引入，不新增任何运行时边。
 //   5. 本文件自己不记日志：跑腿件按需落的那一行事件与字段都没变。
-import { createPatch } from '../../refresh/rooms/host/row-patch.js'
-import * as indexWindow from '../../shared/tracker/indexWindow.js'
+import { createPatch } from './row-patch.js'
+import * as indexWindow from '../../kernel/index-window-rules.js'
 
 // 装一个行级增量跑腿件。deps 原样转给 row-patch.js（它的依赖清单见那个文件的文件头），
 // 只是把 windowRules 固定成共享层那一个模块 —— 时间窗与水印的规则只许有一份真源。
@@ -21,5 +21,5 @@ export function createPatchForHost(deps: Record<string, any> | null | undefined)
 // 这一层读的是哪几个文件（给排查与门禁看：这两条边就是这个文件存在的理由）。
 export const REFRESH_ASSEMBLY_FILES = Object.freeze([
   'src/refresh/rooms/host/row-patch.js',
-  'src/shared/tracker/indexWindow.js',
+  'src/refresh/kernel/index-window-rules.js',
 ])

@@ -36,7 +36,7 @@ function hash8(text: unknown): string {
 /** 单次执行允许的最长时间（毫秒）：盖住批量建票在正常网络下的最坏情况；超预算的调用壳里已经提前拦下。
  *  2026-10-14 由 120000 放宽到 300000（票 #1040）：这一个常量同时管着注册侧的外层上限与行模块的三路等待，
  *  原先两分钟常在批量建图半路被外层掐死、整包进度作废。它引用中央时间参数的 TOOL_TIMEOUT_MS，
- *  与 src/deck/shell/call-budget.ts 是同一份值（那边 import 的也是它），天然同值，不用两边同步；
+ *  与 src/refresh/rooms/host/tool-call-budget-enforcement.ts 是同一份值（那边 import 的也是它），天然同值，不用两边同步；
  *  同源由 tests/verify-895-bulk-deadline.js 第⑦节断言看守。
  *  为什么宁可放宽也不许为了「省额度」做慢做坏，见 docs/adr/20261014-quota-function-first.md。 */
 export const AGENT_TOOL_TIMEOUT_MS = TOOL_TIMEOUT_MS

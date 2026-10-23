@@ -275,21 +275,21 @@ module.exports = {
       name: 'refresh-kernel-no-io',
       severity: 'error',
       comment:
-        '内核只算数：内核范围（src/refresh/kernel/ 与 src/shared/tracker/indexWindow.ts，后者 #1427 搬走）'
+        '内核只算数：内核范围就是 src/refresh/kernel/（src/shared/tracker/indexWindow.ts #1427 已搬进来，改名 index-window-rules.ts）'
         + '不许引运行环境能力（dependencyTypes core：文件、网络、进程、计时器都算）。'
         + '唯一一条存量边（step-pricing.ts -> async_hooks）记在 tests/refresh-baseline.json，由 #1430 定夺'
         + '（改成参数传入 / 非输入输出白名单 / 随基线清零删条目），清零前保留；其余从零开始守。',
-      from: { path: '^src/refresh/kernel/|^src/shared/tracker/indexWindow\\.ts$' },
+      from: { path: '^src/refresh/kernel/' },
       to: { dependencyTypes: ['core'] },
     },
     {
       name: 'refresh-host-room-no-client-refs',
       severity: 'error',
       comment:
-        '宿主房间不引用界面房间：宿主房（旧位置见起点里的长名单，#1426 起另有 src/refresh/rooms/host/ 十份住户）'
+        '宿主房间不引用界面房间：宿主房就是 src/refresh/rooms/host/（旧位置 #1427 已搬空，起点名单同步瘦身）'
         + '引 src/client/kernel/ 或 src/refresh/rooms/client/ 就判红。两边要说话走登记与契约。'
         + '例外：src/host/index.ts 里的旧探测处理段门禁看不见（文件级规则不认函数段），由 #1429 搬走，见目标地图 D4。',
-      from: { path: '^src/host/refresh/|^src/host/issueList\\.ts$|^src/host/issueDetail\\.ts$|^src/host/commentThreads\\.ts$|^src/host/snapshotBuild\\.ts$|^src/host/sessionRefresh\\.ts$|^src/host/sessionSnapshot\\.ts$|^src/host/detectChain\\.ts$|^src/host/git-process\\.ts$|^src/host/gitCredentialExec\\.ts$|^src/host/platform/refreshAssembly\\.ts$|^src/host/platform/outbound-control\\.ts$|^src/host/platform/issueIndexWindow\\.ts$|^src/host/outbound/admission\\.ts$|^src/deck/shell/call-budget\\.ts$|^src/refresh/rooms/host/' },
+      from: { path: '^src/refresh/rooms/host/' },
       to: { path: '^src/client/kernel/|^src/refresh/rooms/client/' },
     },
     {
@@ -297,9 +297,9 @@ module.exports = {
       severity: 'error',
       comment:
         '界面房间不引用宿主房间：起点是 src/client/kernel/（将来加 src/refresh/rooms/client/），'
-        + '终点是上面那条的起点名单。方向反过来也要判，理由同上。',
+        + '终点就是宿主房 src/refresh/rooms/host/（旧位置 #1427 已搬空）。方向反过来也要判，理由同上。',
       from: { path: '^src/client/kernel/|^src/refresh/rooms/client/' },
-      to: { path: '^src/host/refresh/|^src/host/issueList\\.ts$|^src/host/issueDetail\\.ts$|^src/host/commentThreads\\.ts$|^src/host/snapshotBuild\\.ts$|^src/host/sessionRefresh\\.ts$|^src/host/sessionSnapshot\\.ts$|^src/host/detectChain\\.ts$|^src/host/git-process\\.ts$|^src/host/gitCredentialExec\\.ts$|^src/host/platform/refreshAssembly\\.ts$|^src/host/platform/outbound-control\\.ts$|^src/host/platform/issueIndexWindow\\.ts$|^src/host/outbound/admission\\.ts$|^src/deck/shell/call-budget\\.ts$|^src/refresh/rooms/host/' },
+      to: { path: '^src/refresh/rooms/host/' },
     },
     {
       name: 'refresh-outside-only-contract',
@@ -310,9 +310,10 @@ module.exports = {
         + 'deck 工具引预算数字、宿主闸引裁决与形状，禁了内核这些调用当场无处可去。'
         + '#1425 对规格地图第 24 行的修正：原文禁的是“房内部具体文件”，此前实现把内核也圈进来是错的。'
         + '#1426 装配例外：宿主入口（src/host/index.ts）是房间的永久装配点，豁免一直留；'
-        + '另外四处（detectChain、git-process、platform/refreshAssembly、platform/outbound-control）是过渡——'
-        + '它们 #1427 整份搬进宿主房、边变房内边后豁免即删。这个名单只许缩不许长。',
-      from: { path: '^src/', pathNot: ['^src/refresh/', '^src/host/index\\.ts$', '^src/host/detectChain\\.ts$', '^src/host/git-process\\.ts$', '^src/host/platform/refreshAssembly\\.ts$', '^src/host/platform/outbound-control\\.ts$'] },
+        + '#1427 常驻使用边：platformChannel 与 versionControl 引用出站准入/控制面与 gh 执行（D3/C11/C9 搬家前的宿主同层边，调用方永不搬家）；十一份 deck 工具壳引用宿主房的工具调用预算执行（F1 搬家前的 deck 同层边，壳只认这一处房间实现）。'
+        + '#1427 删过渡四处（detectChain、git-process、refreshAssembly、outbound-control 已搬进房、边变房内边）。'
+        + '这个名单只许缩不许长。',
+      from: { path: '^src/', pathNot: ['^src/refresh/', '^src/host/index\\.ts$', '^src/host/platformChannel\\.ts$', '^src/host/versionControl\\.ts$', '^src/deck/tools/'] },
       to: { path: '^src/refresh/rooms/|^src/refresh/registry/' },
     },
 

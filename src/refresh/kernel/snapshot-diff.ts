@@ -32,7 +32,7 @@
 
 /**
  * 索引里一条票的样子：`'状态|更新时间'` 这样一根字符串（例如 `'OPEN|2026-09-23T01:02:03Z'`）。
- * 口径与 src/shared/tracker/indexWindow.js 完全一致 —— 那边负责「窗口取回来的增量怎么并进基线」，
+ * 口径与 src/refresh/kernel/index-window-rules.js 完全一致 —— 那边负责「窗口取回来的增量怎么并进基线」，
  * 本文件负责「并完之后的完整索引跟列表手上那份差在哪几条」，两边用的是同一根字符串。
  */
 export type IndexEntry = string

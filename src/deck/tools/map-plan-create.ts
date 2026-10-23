@@ -14,7 +14,7 @@
 // 每一次远端调用单独钳制，超时只坏自己那一项；同计划标识并发第二跑直接拒绝。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
-import { withCallScope } from '../shell/call-budget.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { createMemoryPlanStore, createFilePlanStore, planCursorDir } from '../shell/plan-cursor.js'
 import { readbackMapPlan } from './map-plan-readback.js'
 import { adoptAnchoredChildren, repairOrphanParents } from './map-plan-resume.js'

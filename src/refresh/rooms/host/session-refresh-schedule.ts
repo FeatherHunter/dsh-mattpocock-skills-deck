@@ -1,4 +1,4 @@
-// src/host/sessionRefresh.ts —— 会话刷新电话（H4 #448 从 host/index.js 660–982 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
+// src/refresh/rooms/host/session-refresh-schedule.ts —— 会话刷新电话（H4 #448 从 host/index.js 660–982 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
 // 以后谁改它：改强制刷新或磁盘缓存的人。预估约330行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 // #652 改动：入口 cwd 由「原样入参」改成与 wf.snapshot 同一把规整钥匙（含工作区根），两条路的宿主单槽快照才同桶。
@@ -8,9 +8,9 @@
 //   现在信封与「挂读数」那一步都改用接线处传进来的 snapshotEnvelope（与 wf.snapshot 同一个实例、同一份 buildSnap），
 //   两条路的字段集合由构造保证相等；tests/verify-reply-envelope-parity.js 每次运行都比一遍。
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
-import { projectUiDescription } from '../tracker/ui-description.js'
+import { projectUiDescription } from '../../../tracker/ui-description.js'
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
-import { SNAPSHOT_TTL_MS } from '../shared/time-config/src/values.js'
+import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都收在文件顶部：本文件的依赖全部由接线处 index.js 注入（那份是 JS，不检查编译错误），
@@ -72,13 +72,13 @@ export function createSessionRefresh(deps: RefreshDeps) {
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）—— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
   // #1295：再加一个 specs（这一轮认出几张「实施地图」= 规格容器；maps 是容器总数，maps 减 specs 即探索地图张数）。
-  //   老直连快照路（src/host/snapshotBuild.ts）只认 wayfinder:map 标签、不产规格容器，那条路 specs 恒 0 属正常。
+  //   老直连快照路（src/refresh/rooms/host/snapshot-build.ts）只认 wayfinder:map 标签、不产规格容器，那条路 specs 恒 0 属正常。
   //   这里与 src/host/snapshotEnvelope.ts 的 adoptSnapLog 是同一个事件的两份实现，字段必须一起改，否则
   //   「快照路」与「强制刷新路」记出来的字段不一样，拿日志对账时会被误导。
   async function adoptSnapLog(snap: SnapOut, c: string) { try { if (logCtx && snap && snap.fromCache !== true) { const _d: Deck = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, specs: ((snap.maps || []) as any[]).filter(function (m: any) { return !!m && m.type === 'spec' }).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) as SnapOut }
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
-  let _dedupeP: Promise<typeof import('../shared/tracker/list-dedupe.js')> | null = null
-  function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
+  let _dedupeP: Promise<typeof import('../../../shared/tracker/list-dedupe.js')> | null = null
+  function _dedupe() { if (!_dedupeP) _dedupeP = import('../../../shared/tracker/list-dedupe.js'); return _dedupeP }
   /** 回包交给界面之前，把「跨会话在办表」的读数挂上（与 wf.snapshot 同一个挂载口；#1271 起唯一的读数口）。 */
   async function handleRefresh(args: Args) {
     if (!env) return { ok: false, error: 'snapshot-envelope-not-wired' }
@@ -86,8 +86,8 @@ export function createSessionRefresh(deps: RefreshDeps) {
     return await env.withWorkRouteTable(reply, args)
   }
   // #729 一次性方案：强制刷新也进与快照路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）。
-  let _sharedInflightP: Promise<typeof import('./snapshotInflight.js')> | null = null
-  function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('./snapshotInflight.js'); return _sharedInflightP }
+  let _sharedInflightP: Promise<typeof import('../../../host/snapshotInflight.js')> | null = null
+  function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('../../../host/snapshotInflight.js'); return _sharedInflightP }
   async function refreshOf(args: Args) {
       // #1003 空目录闸：同快照，不拿进程目录冒充去重建，诚实失败等就绪。
       const _rawRefCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
@@ -125,7 +125,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           // #927：刷新这一路的每条命令也过闸（分类同上：人的动作那一档，只记账、不降档）；没给 send 时照旧直发。
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
-          const { createSnapshotComposer } = await import('./tracker/snapshot.js')
+          const { createSnapshotComposer } = await import('../../../host/tracker/snapshot.js')
           const composer: Composer = createSnapshotComposer(reg, { snapshotTtl: SNAPSHOT_TTL_MS })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
@@ -285,7 +285,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
         // #366 fix: wf.refresh must bypass disk cache short-circuit (force rebuild with fresh generatedMs)
         void 0;
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
-        const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
+        const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         const composer2: Composer = createComposer2(reg2, { snapshotTtl: SNAPSHOT_TTL_MS })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')

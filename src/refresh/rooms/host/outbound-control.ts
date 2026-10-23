@@ -1,5 +1,5 @@
 /**
- * src/host/platform/outbound-control.ts —— 出站控制面的宿主实现（房间要的那三样本事）
+ * src/refresh/rooms/host/outbound-control.ts —— 出站控制面的宿主实现（房间要的那三样本事）
  *
  * ── 这个文件只做转发 ─────────────────────────────────────────────────────────
  * 名额闸在 `../outbound/admission.ts`、搭车账本在 `../refresh/chain-ride.ts`，本文件不复制它们的
@@ -20,9 +20,9 @@
  * （有意为之：宁可大声报错，也不静默绕过名额闸）。
  */
 
-import { getGhLane, isAdmissionCancelled } from '../outbound/admission.js'
-import { getChainRide } from '../../refresh/rooms/host/chain-coalescing.js'
-import type { OutboundControl } from '../../tracker/contract/outbound.js'
+import { getGhLane, isAdmissionCancelled } from './outbound-admission.js'
+import { getChainRide } from './chain-coalescing.js'
+import type { OutboundControl } from '../../../tracker/contract/outbound.js'
 
 /**
  * 造一份出站控制面。每次调用都返回一个新对象，但它们背后是同一份进程级单例

@@ -1,4 +1,4 @@
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 // tests/verify-929-batch-cycle.ts —— 门禁：同一批并发补阻塞边不许造出环（#929）
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-929-batch-cycle.ts，可独立运行。
 //

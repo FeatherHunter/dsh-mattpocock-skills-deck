@@ -1,4 +1,4 @@
-const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
+const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // verify-deck-tools-matrix.ts —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
 // 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.ts，可独立运行。
 //
@@ -114,7 +114,7 @@ async function main() {
   // 行级动作全家已从 store-derived.ts 抽到 row-actions.ts，动作断言改从新片取。
   const ra = await imp('src/client/kernel/row-actions.ts')
   const marker = await imp('src/shared/issue-file/src/marker.ts')
-  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
+  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/refresh/registry/deck-tool-bridge.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上。这里给的是**真人选出口的夹具**（makeDecideStub，见
   //   tests/lib/deck-decide-stub.js）：它把夹具的内存账本当工作区文件读，所以下面每个车道

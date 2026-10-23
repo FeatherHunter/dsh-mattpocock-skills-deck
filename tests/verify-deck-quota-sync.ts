@@ -29,8 +29,8 @@ async function main() {
   console.log('剩余额度读数接线门禁（#758：只接断开的线，不改裁决数字）')
 
   let mod = null
-  try { mod = await imp('src/deck/registration/quota-sync.ts') } catch (e) {
-    check(false, '接线模块可加载（src/deck/registration/quota-sync.ts）：' + String((e && e.message) || e))
+  try { mod = await imp('src/refresh/registry/quota-sync-bridge.ts') } catch (e) {
+    check(false, '接线模块可加载（src/refresh/registry/quota-sync-bridge.ts）：' + String((e && e.message) || e))
     console.log('\n' + total + ' 条断言，失败')
     process.exit(1)
   }

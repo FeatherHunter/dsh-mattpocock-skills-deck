@@ -21,7 +21,8 @@ import { createAttention, createFocusHandler } from './host-attention.js'
 // #723（T19c）第 D 件：九个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），九个
 // 工厂由 ../../../host/platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
 // 宿主层里再读一次那九个文件就要新增 9 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
-import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../../deck/registration/host-assemble.js'
+import { DECK_TOOL_FILES, withCap } from '../../../deck/registration/host-assemble.js'
+import { createDeckToolsForHost } from '../../registry/deck-tool-bridge.js'
 // #1150：批量建图的计划游标（中间态）要真落盘，存储器在这里造、随工具依赖注入。落盘目录与文件名约定
 // 都住在 plan-cursor.ts 里（planCursorDir / createFilePlanStore），不在这里另写一份。
 import { createFilePlanStore, planCursorDir } from '../../../deck/shell/plan-cursor.js'
@@ -34,7 +35,7 @@ import { hostTimers } from '../../contract/host-timer-ports.js'
 // #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）由宿主实现、随进程注入一次，房间只认形状、
 // 不再从宿主 import。这里与 src/host/platformChannel.ts 的 backendCtxForRooms 是两处注入点，
 // 缺一处那条路上的房间会按环境失败大声报出来（宁可报错，也不静默绕过名额闸）。
-import { createOutboundControl } from '../../../host/platform/outbound-control.js'
+import { createOutboundControl } from './outbound-control.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
@@ -45,9 +46,9 @@ import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/regist
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
 import { publishDeckTable, noteDeckGate } from '../../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
 import { createSandboxPolicyFor } from '../../../deck/registration/sandbox-guard.js'
-import { createDeckQuotaSync } from '../../../deck/registration/quota-sync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
-// #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
-import { createPatchForHost } from '../../../host/platform/refreshAssembly.js'
+import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
+// #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/refresh/rooms/host/refresh-assembly.js 一处。
+import { createPatchForHost } from './refresh-assembly.js'
 import * as budget from '../../kernel/host-budget.js'
 import * as toolCost from '../../kernel/tool-call-budget.js'
 // #1215 中央时间参数（deckEnsureMs / deckLocalReadMs / shellResolveMs）只有一份真源 config/timeouts.yaml，

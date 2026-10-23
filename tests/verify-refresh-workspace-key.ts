@@ -8,7 +8,7 @@
 //
 // 这一条跑**真代码**、不做静态断言就下结论：
 //   真接线 src/refresh/rooms/host/refresh-runtime.js 的 createRefreshWiring + 真闸与真账本（rooms/host/refresh-gate.ts、quota-ledger.ts）
-//   + 真检查链 src/host/detectChain.ts 的 createDetectChain（gh 那一侧在假进程接缝上跑，不起真进程）。
+//   + 真检查链 src/refresh/rooms/host/check-chain-evaluation.ts 的 createDetectChain（gh 那一侧在假进程接缝上跑，不起真进程）。
 // 它盯三件事：
 //   一、钥匙只有一处：接线转出来的那把与共享层那一把是**同一个函数**；
 //      （2026-10-12 修订：原来还有半条读 wiring.js 源码文本、数「自己抄了几处散列」的断言，已删。）
@@ -107,7 +107,7 @@ async function makeHost() {
   const wiringMod = await imp('src/refresh/rooms/host/refresh-runtime.js')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
-  const detectChainMod = await imp('src/host/detectChain.ts')
+  const detectChainMod = await imp('src/refresh/rooms/host/check-chain-evaluation.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
 
