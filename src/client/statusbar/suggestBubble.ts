@@ -1,9 +1,13 @@
 // src/client/statusbar/suggestBubble.ts —— 「下一步建议」气泡的渲染与交互薄壳（#1411）
 //
-// 职责：把取数层（#1409 的 suggestStream）交来的 items = {prompt, reason}[] 画成状态胶囊上方
-// 的一组气泡：每颗选项是一颗按钮，悬停看推荐理由（复用既有 Tip，层级沿用它的默认值），点一下
-// 把提示词交给既有的「填进输入框」口子（kernel 的 inject，自带补尾换行、注入提示与光标落末尾），
+// 职责：把取数层（#1409 的 suggestStream）交来的 items = {intro, prompt, reason}[] 画成状态胶囊
+// 上方的一组气泡：每颗选项是一颗按钮，按钮上是「十字以内的简介 + 提示词」（#1451：原来只印整句
+// 提示词，几条一挤就竖着堆成三行，还读不过来），悬停看推荐理由（复用既有 Tip，层级沿用它的默认值），
+// 点一下把提示词交给既有的「填进输入框」口子（kernel 的 inject，自带补尾换行、注入提示与光标落末尾），
 // 随后整组消失；点关闭按钮同样整组消失（等于一条都不选）。
+//
+// 一行排满：每颗按钮的最大宽度按当前条数均分整组宽度（见下面 pillCapPx），条数越多每颗越窄，
+// 三条、四条都排得进一行；只有窄到每颗连一个字都放不下时，才靠选项行的 flex-wrap 换行。
 //
 // 为什么挂页面浮层而不是就地渲染：状态栏那一层有 overflow 裁剪，就地渲染会把气泡切掉。
 // 挂 body 的做法与胶囊弹菜单同一招（kernel:portal 的 PortalOverlay 直接调用，第二个参数是子节点），
@@ -42,8 +46,9 @@ export const suggestViewItemsOf = function (items: any) {
       if (!item || typeof item !== 'object') continue
       const prompt = item.prompt
       if (typeof prompt !== 'string' || !prompt) continue
+      const intro = (typeof item.intro === 'string') ? item.intro : ''
       const reason = (typeof item.reason === 'string') ? item.reason : ''
-      out.push({ prompt: prompt, reason: reason })
+      out.push({ intro: intro, prompt: prompt, reason: reason })
     }
   } catch (eItems) {}
   return out
@@ -95,6 +100,16 @@ export const SuggestBubble = function (props: any) {
   })
   const pos = posState[0]
   const setPos = posState[1]
+
+  // 一次一行排满的宽度预算：整组最大宽度减去按钮之间的间隙，再按当前条数均分；每颗不超过单颗
+  // 上限。为什么这么算：三条各取 360 像素时一行要 720 多，只能一颗一行，正好是 #1451 报的
+  // 「三个选项竖着排」；均分后三条各约 236 像素，一条就排得下。四条时每颗约 175 像素，仍在
+  // 可读范围里；真窄到放不下时才换行。
+  const pillGapPx = Number(SUGGEST_APPEARANCE && SUGGEST_APPEARANCE.pillGapPx) || 0
+  const groupMaxWidthPx = Number(SUGGEST_APPEARANCE && SUGGEST_APPEARANCE.maxWidthPx) || 0
+  const singleMaxWidthPx = Number(SUGGEST_APPEARANCE && SUGGEST_APPEARANCE.pillMaxWidthPx) || 0
+  const evenSharePx = items.length ? Math.floor((groupMaxWidthPx - pillGapPx * (items.length - 1)) / items.length) : 0
+  const pillCapPx = (evenSharePx > 0 ? Math.min(singleMaxWidthPx, evenSharePx) : singleMaxWidthPx) || singleMaxWidthPx
 
   // 位置：挂载后先量一次；视口变化（窗口缩放、页面滚动）再量。都是 DOM 监听，卸载即摘。
   React.useEffect(function () {
@@ -186,19 +201,30 @@ export const SuggestBubble = function (props: any) {
     playOut('fade')
   }
   function pillNodeOf(item: any, index: number) {
+    const intro = (typeof item.intro === 'string') ? item.intro : ''
     const prompt = item.prompt
     const reason = item.reason
     const isCommand = prompt.charAt(0) === '/'
+    // 读屏念「简介 提示词」；没有简介的旧事件只念提示词。
+    const spoken = intro ? intro + ' ' + prompt : prompt
+    // 有简介时按钮里是两段：简介不参与压缩、提示词超长单行省略；没有简介时沿用一段纯文本。
+    const label = intro
+      ? [
+          React.createElement('span', { key: 'suggest-intro-' + index, className: 'dsws-sugg-intro' }, intro),
+          React.createElement('span', { key: 'suggest-cmd-' + index, className: 'dsws-sugg-cmd' }, prompt),
+        ]
+      : prompt
     const button = React.createElement('button', {
       key: 'suggest-pill-' + index,
       type: 'button',
       className: 'dsws-sugg-pill' + (isCommand ? ' cmd' : ''),
       'data-press': 'button',
       'data-log': 'suggest.pill',
-      'aria-label': reason ? tr('suggest.ariaPill', { prompt: prompt, reason: reason }) : prompt,
+      style: { maxWidth: pillCapPx + 'px' },
+      'aria-label': reason ? tr('suggest.ariaPill', { prompt: spoken, reason: reason }) : spoken,
       onClick: function (ev: any) { onPillClick(ev, prompt) },
       onKeyDown: function (ev: any) { onPillKey(ev, prompt) },
-    }, prompt)
+    }, label)
     if (!reason) return button
     // 悬停提示复用既有 Tip：内容就是推荐理由，层级用它的默认值（永远在气泡之上）。
     return React.createElement(Tip, { content: reason, key: 'suggest-tip-' + index }, button)

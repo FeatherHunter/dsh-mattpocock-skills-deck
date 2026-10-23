@@ -19,6 +19,7 @@ export const SUGGEST_TOOL_NAME = 'suggest_next_steps'
 export const SUGGEST_MIN_ITEMS = 2
 export const SUGGEST_MAX_ITEMS = 4
 /** 单项文本上限：按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。必须与工具侧一致。 */
+export const SUGGEST_INTRO_MAX_CHARS = 10
 export const SUGGEST_PROMPT_MAX_CHARS = 500
 export const SUGGEST_REASON_MAX_CHARS = 200
 
@@ -47,7 +48,7 @@ export const suggestClipText = function (text: any, max: any) {
 }
 
 /**
- * 把工具参数解析成建议清单。只认 { items: [{ prompt, reason }, ...] }。
+ * 把工具参数解析成建议清单。只认 { items: [{ intro, prompt, reason }, ...] }。
  *
  * 参数有两种形态，都要收：原生预设的 tool/call 给的是模型原始 JSON 文本（字符串，要 JSON.parse）；
  * PTC 预设的 tool/ptc-dispatch-start 给的已经是解析好的对象（平台转交前解析过一遍）。两路后端
@@ -80,12 +81,15 @@ export const suggestItemsOf = function (argumentsValue: any) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) { dropped += 1; continue }
     const promptText = typeof entry.prompt === 'string' ? entry.prompt.trim() : ''
     if (!promptText) { dropped += 1; continue }
-    // 理由允许缺失（界面按空串展示），但类型不是字符串时也按空串收，不因此丢掉整条提示词。
+    // 简介与理由都允许缺失：简介缺失时界面只显示提示词（旧事件里没有这一格），
+    // 类型不是字符串也按空串收，不因此丢掉整条提示词。
+    const introText = typeof entry.intro === 'string' ? entry.intro.trim() : ''
     const reasonText = typeof entry.reason === 'string' ? entry.reason.trim() : ''
+    const introPart = suggestClipText(introText, SUGGEST_INTRO_MAX_CHARS)
     const promptPart = suggestClipText(promptText, SUGGEST_PROMPT_MAX_CHARS)
     const reasonPart = suggestClipText(reasonText, SUGGEST_REASON_MAX_CHARS)
-    if (promptPart.clipped || reasonPart.clipped) clipped += 1
-    items.push({ prompt: promptPart.text, reason: reasonPart.text })
+    if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1
+    items.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text })
   }
   if (items.length < SUGGEST_MIN_ITEMS) {
     return { ok: false, reason: 'too-few', items: [] as any[], clipped: clipped, dropped: dropped }

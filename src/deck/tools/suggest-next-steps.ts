@@ -3,6 +3,10 @@
 // 这颗工具的参数里就直接带着给界面用的建议清单：界面从这次工具调用的参数本身读走建议、
 // 渲染成气泡，工具这边只做校验、钳制、截断与回执，不写票、不落任何状态。
 //
+// 每条建议由三格组成：一句十个字以内的简介（界面上当短标签，一眼说清这一步做什么）、一句可以
+// 直接执行的提示词、一句理由（悬停时显示）。为什么单要一个简介：界面上的胶囊一行排不下整句
+// 提示词，三条竖着堆成一列也读不过来（#1451）。
+//
 // 为什么单独一份、不进九个 deck_* 工具的装配顺序表：那九颗是追踪器工具，参数表、回执表、
 // 点数表与装配顺序都是冻结契约（#1106 门禁逐字冻结）；建议工具不属于追踪器，走「只增不改的
 // 独立登记」，先例是同样在九工具之外单独注册的 deck_probe（见 agent-row.ts）。
@@ -29,7 +33,8 @@ export const SUGGEST_TOOL_NAME = 'suggest_next_steps'
 /** 建议条数的合法区间：少于下限整次拒绝，多于上限从尾部截断。界面侧按同一组数再校验一次。 */
 export const MIN_ITEMS = 2
 export const MAX_ITEMS = 4
-/** 单项文本上限：提示词与理由各一个。按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。 */
+/** 单项文本上限：简介、提示词、理由各一个。按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。 */
+export const INTRO_MAX_CHARS = 10
 export const PROMPT_MAX_CHARS = 500
 export const REASON_MAX_CHARS = 200
 
@@ -46,10 +51,11 @@ export const definition = {
         items: {
           type: 'object',
           properties: {
+            intro: { type: 'string', description: '简介：一句话说清这一步做什么，不超过 10 个字；界面把它当短标签显示在提示词前面。' },
             prompt: { type: 'string', description: '可以直接执行的下一步提示词，例如 /to-tickets。' },
             reason: { type: 'string', description: '一句话说明为什么建议这一步。' },
           },
-          required: ['prompt', 'reason'],
+          required: ['intro', 'prompt', 'reason'],
           additionalProperties: false,
         },
       },
@@ -59,8 +65,9 @@ export const definition = {
   },
 }
 
-/** 一条建议：提示词加一句话理由（两者都已截断到上限之内）。 */
+/** 一条建议：十字以内的简介、提示词、一句话理由（三者都已截断到上限之内）。 */
 export interface SuggestItem {
+  intro: string
   prompt: string
   reason: string
 }
@@ -106,10 +113,10 @@ function asString(value: unknown): string {
 }
 
 /**
- * 校验并整理参数：只认 { items: [{ prompt, reason }, ...] }。
+ * 校验并整理参数：只认 { items: [{ intro, prompt, reason }, ...] }。
  *
  * 规矩（本票冻结，界面票照它写）：
- * - items 不是数组、少于两条、任意一条缺 prompt 或 reason（trim 后为空）——整次拒绝，不补编建议；
+ * - items 不是数组、少于两条、任意一条缺 intro 或 prompt 或 reason（trim 后为空）——整次拒绝，不补编建议；
  * - 多于四条——从尾部截到前四条，保留模型给的顺序；
  * - 单项超长——截断并补省略号，不报错。
  * 返回值里 accepted 是唯一稳定的「成功/拒绝」标记，调用方不要靠 items.length 判断。
@@ -139,17 +146,19 @@ export function resolveSuggestItems(args: unknown): SuggestResolution {
   for (let i = 0; i < kept.length; i++) {
     const entry = kept[i]
     const rec = (entry && typeof entry === 'object' && !Array.isArray(entry)) ? entry as UnknownRecord : null
+    const intro = asString(rec ? rec.intro : '').trim()
     const prompt = asString(rec ? rec.prompt : '').trim()
     const reason = asString(rec ? rec.reason : '').trim()
-    if (!prompt || !reason) {
+    if (!intro || !prompt || !reason) {
       return refuse(REFUSAL_REASONS.BAD_ARGS,
-        '这次的建议里第 ' + (i + 1) + ' 条缺提示词或理由，我没记下任何建议：请每条都给 prompt 与 reason 再调一次。',
+        '这次的建议里第 ' + (i + 1) + ' 条缺简介、提示词或理由，我没记下任何建议：请每条都给 intro、prompt 与 reason 再调一次。',
         notes.concat(['bad-item:' + (i + 1)]), received)
     }
+    const introPart = clipText(intro, INTRO_MAX_CHARS)
     const promptPart = clipText(prompt, PROMPT_MAX_CHARS)
     const reasonPart = clipText(reason, REASON_MAX_CHARS)
-    if (promptPart.clipped || reasonPart.clipped) clipped += 1
-    items.push({ prompt: promptPart.text, reason: reasonPart.text })
+    if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1
+    items.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text })
   }
   if (clipped > 0) notes.push('clipped:' + clipped)
   const text = received > MAX_ITEMS
@@ -263,7 +272,7 @@ export function createSuggestNextSteps(deps?: SuggestDeps) {
         const ms = now() - t0
         fireLog(ms, false, REFUSAL_REASONS.BAD_ARGS + ':args', '')
         return shell.unsupported(SUGGEST_TOOL_NAME, REFUSAL_REASONS.BAD_ARGS,
-          '参数不是一个对象，我没法做：请按这个工具的参数说明（items 里的 prompt 与 reason）重调一次。', { tookMs: ms })
+          '参数不是一个对象，我没法做：请按这个工具的参数说明（items 里的 intro、prompt 与 reason）重调一次。', { tookMs: ms })
       }
       const session = await sessionContextOrHeader(exec)
       if (!session.ok) {
