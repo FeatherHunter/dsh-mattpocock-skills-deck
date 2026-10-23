@@ -6,11 +6,18 @@
  *
  * 三条不能改的约定（改之前先看原来文件头那三行与调用点 index.js）：
  * 1. 由 index.js 动态引用加载，normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件只引用原来那两个模块，不新增引用。
- * 2. 评论分页是 GraphQL 优先、失败退回 REST，退回条件（限流、分页失败）与原来完全一致，改了任何一条都会让面板在弱网下丢评论。
+ * 2. #1444 起详情与评论的读路径经宿主注入的只读会话（deps.openSession）调房间 get，不再由调用方直调 gh；
+ *    会话开不成或能力失败时保留 {ok:false,error} 的失败形状，让上层照旧降级用缓存，不许抛、不许假装成功。
  * 3. 探针水印的约定搬到 probe-handler.ts（原来第 3 条，字句未动）：本文件不再经手水印。
  */
 // #1115：opCtx 上那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
 import { hostTimers } from '../../contract/host-timer-ports.js'
+
+// 评论分页的两个数字（#1444）：首屏与每次「加载更多」各取 50 条，一次最多加载到 200 条。
+// 这是契约 GetOpts.comments 的默认值与上限（三个后端房间同数），房间侧也会按 200 截断；
+// 放在文件顶端一处，详情与评论两个处理器共用，不在函数里各写一份。
+const COMMENTS_PAGE = 50
+const COMMENTS_MAX = 200
 
 // ---------------------------------------------------------------------------
 // 类型（本次转 TypeScript：只写类型不写实现）。
@@ -22,6 +29,8 @@ import { hostTimers } from '../../contract/host-timer-ports.js'
 
 /** 组装函数收到的依赖：目录归一、后端选择、注册表、执行口、索引与缓存等，全由调用点显式传入。 */
 interface CommentThreadsDeps {
+  /** #1444：拿只读会话的装配口（宿主接线注入；缺省时读路径诚实失败，不再退回直调 gh）。 */
+  openSession?: any
   normCwd: any
   selectEarly: any
   isComposerSelection: any
@@ -33,6 +42,7 @@ interface CommentThreadsDeps {
   errText: any
   isRateLimitError: any
   getRepoKey: any
+  /** #1444 起读路径不再直调 gh；字段留着是因为宿主接线 src/host/index.ts 是禁改文件，删注入会牵动它的调用点。 */
   runGh: any
   execProc: any
   fetchIssueDetail: any
@@ -49,66 +59,31 @@ interface CommentThreadsDeps {
  * 什么约定不能改：返回对象的五个字段名是调用点按名取的，改名调用点就拿不到。
  */
 export function createCommentThreads(deps: CommentThreadsDeps): any {
-  const { normCwd, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, issueIndexFromSnapshot, setCache, logCtx } = deps as any
-  // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
-  async function fetchIssueCommentsREST(n: any, after: any, cwd: any): Promise<any> {
-    const repo: any = await getRepoKey(cwd)
-    if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo' } }
-    try {
-      // REST 分页：after 为已加载数（如 "50"），page = floor(after/50)+1；GraphQL cursor 场景下退化为 page 2 起
-      let page: number = 1
-      if (after) {
-        const num: number = Number(after)
-        if (!isNaN(num) && num >= 0) page = Math.floor(num / 50) + 2
-        else page = 2
-      } else {
-        page = 1
-      }
-      const r: any = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/comments?per_page=50&page=' + page], cwd)
-      if (!r.ok) {
-        if (r.kind === 'notfound' || /404/i.test(String(r.error||''))) return { ok: false, error: { kind: '404', message: String(r.error||'not found') } }
-        if (isRateLimitError(r)) return { ok: false, error: { kind: 'rateLimit', message: String(r.error||'rate limit') } }
-        return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'request failed') } }
-      }
-      const arr: any = JSON.parse(r.text) || []
-      const nodes: any = arr.map(function (c: any) { return { author: { login: (c.user && c.user.login) || '' }, authorAssociation: c.author_association || '', body: c.body || '', createdAt: c.created_at, updatedAt: c.updated_at } })
-      const hasNext: boolean = nodes.length === 50
-      const endCursor: string = String((Number(after||0) + nodes.length))
-      return { ok: true, nodes: nodes, pageInfo: { hasNextPage: hasNext, endCursor: endCursor }, fallback: 'rest' }
-    } catch (e: any) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
+  const { normCwd, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, getRepoKey, execProc, setCache } = deps as any
+  // #1444：读路径只认只读会话（deps.openSession）。会话由宿主按目录选好后端，本文件不再自己分发、
+  // 也不再直调 gh；开不成时如实失败，让上层照旧降级用缓存。
+  async function openReadSession(cwd: any): Promise<any> {
+    if (typeof deps.openSession !== 'function') return { ok: false, reason: 'not-wired', detail: '宿主没有注入只读会话装配口' }
+    return await deps.openSession(cwd)
   }
-  async function fetchIssueComments(n: any, after: any, cwd: any): Promise<any> {
-    const repo: any = await getRepoKey(cwd)
-    if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo' } }
-    if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
-    // GraphQL 优先（cursor 分页）
-    const query: string = 'query($owner:String!,$name:String!,$n:Int!,$after:String){repository(owner:$owner,name:$name){issue(number:$n){comments(first:50, after:$after){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}}}}}'
-    // after 为 null 时传空字符串，GraphQL 会视为空 cursor（首段）；需传递变量 after 否则报错，故用 -F after= 值，空则首段
-    const afterVal: any = after || null
-    for (let attempt: number = 0; attempt < 2; attempt++) {
-      const args: string[] = ['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name, '-F', 'n=' + n]
-      if (afterVal) args.push('-F', 'after=' + afterVal)
-      else args.push('-F', 'after=')
-      const r: any = await runGh(args, cwd)
-      if (!r.ok) {
-        if (isRateLimitError(r)) { try { if (logCtx) logCtx.fire('warn', 'graphql.fallback', { scope: '单票', reason: 'rate-limit' }) } catch (eL: any) {}; return fetchIssueCommentsREST(n, after, cwd) }
-        if (r.kind === 'notfound' || /not found|could not resolve/i.test(String(r.error||''))) return { ok: false, error: { kind: 'notFound', message: String(r.error||'not found') } }
-        if (r.kind !== 'network') return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'network') } }
-        continue
-      }
-      try {
-        const j: any = JSON.parse(r.text)
-        if (j.errors) {
-          if (isRateLimitError({ error: JSON.stringify(j.errors) })) { try { if (logCtx) logCtx.fire('warn', 'graphql.fallback', { scope: '单票', reason: 'rate-limit' }) } catch (eL: any) {}; return fetchIssueCommentsREST(n, after, cwd) }
-          if (/not found|could not resolve/i.test(JSON.stringify(j.errors))) return { ok: false, error: { kind: 'notFound', message: JSON.stringify(j.errors).slice(0,300) } }
-          return { ok: false, error: { kind: 'graphql', message: JSON.stringify(j.errors).slice(0,300) } }
-        }
-        const com: any = j.data && j.data.repository && j.data.repository.issue && j.data.repository.issue.comments
-        if (!com) return { ok: false, error: { kind: 'notFound', message: 'issue not found' } }
-        return { ok: true, nodes: com.nodes || [], pageInfo: com.pageInfo || { hasNextPage: false, endCursor: null } }
-      } catch (e: any) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
-    }
-    return { ok: false, error: { kind: 'network', message: 'GraphQL 评论分页请求失败（重试后仍失败）' } }
+  // 会话开不成时的失败形状：沿用本文件读路径原来的 {ok:false,error}。kind 归到 env ——
+  // 这是环境没就绪（没认出工作区、没有可用后端、会话还在等），不是这张票不存在。
+  function readSessionFailure(opened: any): any {
+    const reason: string = opened && opened.reason ? String(opened.reason) : 'unknown'
+    const detail: string = opened && opened.detail ? '：' + String(opened.detail) : ''
+    return { ok: false, error: { kind: 'env', message: '这个工作区的只读会话没开成（' + reason + '）' + detail + '，等会话可用后再试。' } }
+  }
+  // 会话回包可能缺 data：缺了也按失败交回去，不让调用点读到 undefined 再炸。
+  function getFailure(r: any): any {
+    if (r && r.ok === false) return r
+    return { ok: false, error: { kind: 'network', message: '只读会话没有交回单票数据' } }
+  }
+  // 仓库引用：优先让注册表按目录与后端解析（与写路径同一份 describe），解析不出时退回旧兜底形状。
+  async function repoRefFor(cwd: any, backendId: any): Promise<any> {
+    let repoRef: any = null
+    try { repoRef = (await getTrackerRegistry()).describe({ cwd: cwd }, backendId) } catch (eDesc: any) {}
+    if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+    return repoRef
   }
   async function handleIssueDetail(args: any): Promise<any> {
     const n: any = args && args.number
@@ -118,56 +93,46 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     const cwd: any = await normCwd(_rawDetailCwd)
     if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     try {
-      // 第一性原理分发：经 index 从会话启停模块转供给共享判据（H4 同例），不各留一份拷贝。
-      const _sel: any = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
-      const useTracker: any = isComposerSelection(_sel)
-      if (useTracker) {
-        const reg: any = await getTrackerRegistry()
-        const backendId: any = _sel.backendId
-        const tracker: any = reg.get(backendId)
-        if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
-        let repoRef: any = null
-        try { repoRef = reg.describe({ cwd }, backendId) } catch {}
-        if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-        // effort 维度：effort 是寻址范围，客户端带上来就放进 ref（不带 = 全仓库，单 effort 后端行为不变）
-        if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
-        const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
-        const key: string = String(n).padStart(2, '0')
-        const r: any = await tracker.get(repoRef, key, {}, opCtx)
-        if (!r || !r.ok) return r
-        // 统一为 fetchIssueDetail 的返回形状（{ok, issue}），便于客户端复用
-        const iss: any = r.data
-        // 适配客户端期望的 issue 形状：补充 number / labels 节点等
-        if (iss && iss.key != null && iss.number == null) {
-          const nn: number = parseInt(iss.key, 10)
-          if (!isNaN(nn)) iss.number = nn
-        }
-        // 将 key 归一为字符串
-        if (iss && iss.key != null) iss.key = String(iss.key)
-        // 详情需要包含 comments / blockedBy 等，markdown 的 get 已包含
-        return { ok: true, issue: {
-          number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
-          effortId: iss.effortId !== undefined && iss.effortId !== null ? String(iss.effortId) : '',
-          title: iss.title || '',
-          state: iss.state === 'closed' ? 'CLOSED' : 'OPEN',
-          body: iss.body || '',
-          url: iss.url || '',
-          updatedAt: iss.updatedAt || '',
-          createdAt: iss.createdAt || '',
-          closedAt: iss.closedAt || null,
-          author: iss.author,
-          labels: { nodes: (iss.labels || []).map(function(l: any){ return { name: l.name, color: l.color || '' } }) },
-          assignees: { nodes: (iss.assignees || []).map(function(a: any){ return typeof a === 'string' ? { login: a } : a }) },
-          comments: iss.comments || { nodes: [] },
-          subIssues: iss.subIssues || { totalCount: 0, nodes: [] },
-          blockedBy: { nodes: (iss.blockedBy || []).map(function(b: any){ if (typeof b === 'number') return { number: b }; if (b && b.key != null) { const nn = parseInt(b.key,10); return { number: isNaN(nn) ? b.key : nn, title: b.title||'', state: b.state==='closed'?'CLOSED':'OPEN' }; } return b; }) },
-          blocking: { nodes: [] },
-        } }
+      // 读路径只认会话（#1444）：会话开成之后，后端选择、读额度与记账都由它兜住，本文件不再自己分发。
+      const opened: any = await openReadSession(cwd)
+      if (!opened || opened.ok !== true) return readSessionFailure(opened)
+      const repoRef: any = await repoRefFor(cwd, opened.backendId)
+      // effort 维度：effort 是寻址范围，客户端带上来就放进 ref（不带 = 全仓库，单 effort 后端行为不变）
+      if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
+      const key: string = String(n).padStart(2, '0')
+      const r: any = await opened.call(function (session: any, opCtx: any) {
+        if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
+        return session.get(repoRef, key, {}, opCtx)
+      })
+      if (!r || r.ok !== true) return getFailure(r)
+      // 统一为 fetchIssueDetail 的返回形状（{ok, issue}），便于客户端复用
+      const iss: any = r.data
+      // 适配客户端期望的 issue 形状：补充 number / labels 节点等
+      if (iss && iss.key != null && iss.number == null) {
+        const nn: number = parseInt(iss.key, 10)
+        if (!isNaN(nn)) iss.number = nn
       }
-      // 快照已标是拉取请求时把提示直通给详情房，让详情房先查拉取请求（不经快照房与列表房，前端房也不动）
-      const hintPR: any = args && args.isPullRequest === true ? { isPullRequest: true } : undefined
-      const r: any = await fetchIssueDetail(Number(n), cwd, hintPR)
-      return r
+      // 将 key 归一为字符串
+      if (iss && iss.key != null) iss.key = String(iss.key)
+      // 详情需要包含 comments / blockedBy 等，markdown 的 get 已包含
+      return { ok: true, issue: {
+        number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
+        effortId: iss.effortId !== undefined && iss.effortId !== null ? String(iss.effortId) : '',
+        title: iss.title || '',
+        state: iss.state === 'closed' ? 'CLOSED' : 'OPEN',
+        body: iss.body || '',
+        url: iss.url || '',
+        updatedAt: iss.updatedAt || '',
+        createdAt: iss.createdAt || '',
+        closedAt: iss.closedAt || null,
+        author: iss.author,
+        labels: { nodes: (iss.labels || []).map(function(l: any){ return { name: l.name, color: l.color || '' } }) },
+        assignees: { nodes: (iss.assignees || []).map(function(a: any){ return typeof a === 'string' ? { login: a } : a }) },
+        comments: iss.comments || { nodes: [] },
+        subIssues: iss.subIssues || { totalCount: 0, nodes: [] },
+        blockedBy: { nodes: (iss.blockedBy || []).map(function(b: any){ if (typeof b === 'number') return { number: b }; if (b && b.key != null) { const nn = parseInt(b.key,10); return { number: isNaN(nn) ? b.key : nn, title: b.title||'', state: b.state==='closed'?'CLOSED':'OPEN' }; } return b; }) },
+        blocking: { nodes: [] },
+      } }
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
   async function handleIssueComments(args: any): Promise<any> {
@@ -179,40 +144,35 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     const cwd: any = await normCwd(_rawCommentsCwd)
     if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     try {
-      // 第一性原理分发：经 index 从会话启停模块转供给共享判据（H4 同例），不各留一份拷贝。
-      const _sel: any = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
-      const useTracker: any = isComposerSelection(_sel)
-      if (useTracker) {
-        const reg: any = await getTrackerRegistry()
-        const backendId: any = _sel.backendId
-        const tracker: any = reg.get(backendId)
-        if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
-        let repoRef: any = null
-        try { repoRef = reg.describe({ cwd }, backendId) } catch {}
-        if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-        // effort 维度：评论也按 effort 寻址（不带 = 全仓库；多 effort 同号时后端会诚实报 conflict）
-        if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
-        const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
-        const key: string = String(n).padStart(2, '0')
-        const r: any = await tracker.get(repoRef, key, {}, opCtx)
-        if (!r || !r.ok) return r
-        const iss: any = r.data
-        const nodes: any = (iss.comments || []).map(function(c: any){ return { author: c.author || { login: '' }, authorAssociation: c.authorAssociation || '', body: c.body || '', createdAt: c.createdAt || '', updatedAt: c.updatedAt || '' } })
-        // 简单分页：after 为已加载数
-        const afterNum: number = after != null ? Number(after) : 0
-        const start: number = isNaN(afterNum) ? 0 : afterNum
-        const pageNodes: any = nodes.slice(start, start + 50)
-        const hasNext: boolean = start + 50 < nodes.length
-        return { ok: true, nodes: pageNodes, pageInfo: { hasNextPage: hasNext, endCursor: String(start + pageNodes.length) } }
-      }
-      const r: any = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
-      return r
+      // 同详情：读评论也只经只读会话；会话开不成时诚实失败，让上层照旧用缓存。
+      const opened: any = await openReadSession(cwd)
+      if (!opened || opened.ok !== true) return readSessionFailure(opened)
+      // 已加载条数就是这个文件的游标（endCursor 一直写的是这个数），夹在 0..200。
+      const afterNum: number = after != null ? Number(after) : 0
+      const loaded: number = isNaN(afterNum) ? 0 : Math.max(0, Math.min(COMMENTS_MAX, Math.floor(afterNum)))
+      // 首屏 50；加载更多把 first 抬到「已加载 + 50」，到 200 为止。每次都从 0 取到 first，
+      // 用整段替换房间交回的评论（契约的 Issue.comments 是数组，没有游标字段），再只交新增的一段。
+      const want: number = Math.min(loaded + COMMENTS_PAGE, COMMENTS_MAX)
+      const repoRef: any = await repoRefFor(cwd, opened.backendId)
+      // effort 维度：评论也按 effort 寻址（不带 = 全仓库；多 effort 同号时后端会诚实报 conflict）
+      if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
+      const key: string = String(n).padStart(2, '0')
+      const r: any = await opened.call(function (session: any, opCtx: any) {
+        if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
+        return session.get(repoRef, key, { comments: { first: want } }, opCtx)
+      })
+      if (!r || r.ok !== true) return getFailure(r)
+      const iss: any = r.data
+      const all: any = (iss.comments || []).map(function(c: any){ return { author: c.author || { login: '' }, authorAssociation: c.authorAssociation || '', body: c.body || '', createdAt: c.createdAt || '', updatedAt: c.updatedAt || '' } })
+      // 客户端拿到 nodes 后是逐条追加（src/client/kernel/api-io.ts 里的 existing.push），
+      // 交全量会把已经加载过的评论再插一遍；这里只交 loaded 之后的新增段。
+      const delta: any = all.slice(loaded)
+      // hasNextPage：还没到 200，且这一趟按「50 条一档」拿满了；拿不满说明后端已经没有更多。
+      const step: number = Math.min(COMMENTS_PAGE, COMMENTS_MAX - loaded)
+      const hasNext: boolean = loaded + delta.length < COMMENTS_MAX && delta.length >= step
+      return { ok: true, nodes: delta, pageInfo: { hasNextPage: hasNext, endCursor: String(loaded + delta.length) } }
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
-  // #255 · IssueDetail 评论输入区（GitHub 单点 · MISSING 零分支）· 宿主透传 = 本次唯一宿主改动。
-  // 第一性原理：能力 = 运行时事实（G5 调用即知，无能力表）；路径 = registry.select → tracker.comment（契约第 8 号 op），
-  // 预检不进入评论链（去耦合：评论路径与预检仅共享错误分类常量）。成功即失效面板快照缓存（#213 白名单同语义），
-  // 推进只来自重求值（client 击穿详情缓存重取 + probe 增量确认），无乐观插入。错误直透 TrackerError{kind,message}。
   async function handleCommentIssue(args: any): Promise<any> {
     const n: any = args && args.number
     const body: any = args && args.body
@@ -252,5 +212,5 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       return r
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
-  return { fetchIssueCommentsREST, fetchIssueComments, handleIssueDetail, handleIssueComments, handleCommentIssue }
+  return { handleIssueDetail, handleIssueComments, handleCommentIssue }
 }

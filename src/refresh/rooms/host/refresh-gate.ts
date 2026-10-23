@@ -424,6 +424,19 @@ export function createGate(deps?: GateDeps) {
     return { sent: true, verdict: v.verdict, reason: v.reason, detail: (REASONS as Readonly<Record<string, string>>)[v.reason] || '', requests: requests, points: points, remaining: remaining, tier: tier, steps: r.plan.length, result: result }
   }
 
+  /**
+   * 检查链求值那一笔的专用入口（#1444）。
+   *
+   * 为什么单开一个名字：链求值自己一条请求都不发（这一轮每条真实出站在传输层各报一笔），但它的裁决、
+   * 日志与统计仍必须走闸；从前是调用方自己拼 {kind:'chain'} 再递一个永远回 0 条的发送函数，读代码的人
+   * 分不清「记账」与「发送」。收成一个名字之后，调用方不再出现 send，闸内行为与从前那一笔逐字一致：
+   * 同一套 decide / fireDecide / 推迟队列 / sent 计数，发送函数照旧回 0 条、0 点。
+   * 反例：给这里塞一个真会发请求的发送函数，求值就会重复记账（真实出站已在传输层报过一次）。
+   */
+  async function noteChainEval(req?: GateRequest) {
+    return send(Object.assign({}, req || {}, { kind: 'chain' }), async function () { return { requests: 0, points: 0 } })
+  }
+
   /** 传输层每真发一条就报一次（生产里挂在起 gh 进程那一层）。绕开闸发的那几条就靠它露出来。 */
   function noteOutbound(entry?: OutboundReport) {
     const e = entry || {}
@@ -486,6 +499,7 @@ export function createGate(deps?: GateDeps) {
 
   return {
     send: send,
+    noteChainEval: noteChainEval,
     decideFor: decideFor,
     planOf: planOf,
     admitAiTool: admitAiTool,

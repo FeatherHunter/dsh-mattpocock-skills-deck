@@ -46,10 +46,13 @@ async function run() {
   // 时间要一致：水印离「现在」太久（超过 7 天）会被窗口规则判成整扫，那就测不到增量那条路了。
   const NOW0 = Date.now()
   const WM0 = NOW0 - 3600000
+  // 假索引里的更新时间要落在「窗口起点之后」，否则 #1444 起由取数入口自己按 since 过滤，
+  // 老日期会被全部滤掉，差分就看不到任何变化。留一个未来时刻还能让后续每一拍都落在窗口内。
+  const FIX_AT = new Date(NOW0 + 3600000).toISOString()
   const seeded = {
     ok: true, repo: { owner: 'o', name: 'r' }, workspaceRoot: CWD, version: 'v0', generatedMs: NOW0 - 60000,
-    maps: [{ number: 100, key: '100', state: 'OPEN', updatedAt: '2026-09-17T00:00:00Z', tickets: [row(101, 'OPEN', '2026-09-20T00:00:00Z')] }],
-    issues: [row(101, 'OPEN', '2026-09-20T00:00:00Z'), row(102, 'OPEN', '2026-09-19T00:00:00Z'), row(103, 'OPEN', '2026-09-18T00:00:00Z')],
+    maps: [{ number: 100, key: '100', state: 'OPEN', updatedAt: FIX_AT, tickets: [row(101, 'OPEN', FIX_AT)] }],
+    issues: [row(101, 'OPEN', FIX_AT), row(102, 'OPEN', FIX_AT), row(103, 'OPEN', FIX_AT)],
     labels: [], deck: { counts: { open: 3, closed: 0, total: 3 }, partial: false, levels: [] },
     delta: { structureVersion: delta.DELTA_STRUCTURE_VERSION, watermarkMs: WM0, generation: 3, pending: [], pendingAt: 0, pendingReason: '' },
   }
@@ -65,7 +68,33 @@ async function run() {
   // 传输层：真发一条就报给闸一次（生产里这一层是起 gh 进程的那一层）。
   function noteOutbound(n) { transport.requests += n; try { ledgerGate.noteOutbound({ requests: n, points: 0 }) } catch (e) {} }
   let ledgerGate = null
-  let windowIndex = { 101: 'CLOSED|2026-09-23T00:00:00Z', 102: 'OPEN|2026-09-19T00:00:00Z', 103: 'OPEN|2026-09-18T00:00:00Z' }
+  let windowIndex = { 101: 'CLOSED|' + FIX_AT, 102: 'OPEN|' + FIX_AT, 103: 'OPEN|' + FIX_AT }
+  // #1444：薄行取数改经只读会话（不再经闸 send / runGh）。冒牌会话就是「房间」：
+  // 方法直接读 windowIndex，get 的调用次数就是这一条门禁盯的「这次发了几条薄查询」。
+  const sessionGets: string[] = []
+  const fakeTracker: any = {
+    list: async () => ({ ok: true, data: [] }),
+    listPage: async () => {
+      const items = Object.keys(windowIndex).map((k) => ({ key: k, title: '票 ' + k, state: String((windowIndex as any)[k]).split('|')[0].toLowerCase(), updatedAt: String((windowIndex as any)[k]).split('|')[1], createdAt: '2026-09-01T00:00:00Z', labels: [], assignees: [] }))
+      return { ok: true, data: { items: items, nextCursor: null, total: items.length } }
+    },
+    get: async (ref: any, key: any) => {
+      sessionGets.push(String(key))
+      const parts = String((windowIndex as any)[key] || 'OPEN|').split('|')
+      return { ok: true, data: { key: String(key), title: '票 ' + key, state: String(parts[0]).toLowerCase(), updatedAt: parts[1], createdAt: '2026-09-01T00:00:00Z', labels: [], assignees: [], isPullRequest: false, mergedAt: null } }
+    },
+    getDependencies: async () => ({ ok: true, data: { blockedBy: [], blocking: [] } }),
+    listSubIssues: async () => ({ ok: true, data: { items: [], total: 0, fetched: 0, capped: false, missing: [], dropped: [] } }),
+    readBudget: async () => ({ ok: true, data: { known: false, reason: 'test' } }),
+  }
+  // 注册表只要三格：选后端、取实例、报预算声明；预算内容这一条路不看（读裁决恒放行）。
+  const fakeRegistry: any = {
+    select: async () => ({ backendId: 'markdown' }),
+    get: () => fakeTracker,
+    modules: () => [{ id: 'markdown', budget: {} }],
+  }
+  // 取数入口自己开的那趟会话（索引与地图走它）：与上面同一份冒牌房间，免得两套桩各说各话。
+  const stubOpenSession = async (cwd: any) => ({ ok: true, backendId: 'markdown', call: (fn: any) => fn(fakeTracker, { cwd: cwd, caller: 'refresh' }) })
   const urlOf = (args) => String((args || []).filter((a) => typeof a === 'string' && a.indexOf('repos/') === 0)[0] || '')
   const runGh = async (args, cwd) => {
     calls.push(args)
@@ -94,6 +123,7 @@ async function run() {
     rememberIssueIndex: () => {},
     readDiskCache: async () => disk.snap,
     logCtx: logCtx,
+    openSession: stubOpenSession,
   })
 
   const wiring = wiringMod.createRefreshWiring({
@@ -101,7 +131,7 @@ async function run() {
     logCtx: logCtx,
     canonicalKey: async (p) => String(p),
     getCacheDir: async () => CWD,
-    getTrackerRegistry: async () => null,
+    getTrackerRegistry: async () => fakeRegistry, // #1444：行级增量经只读会话取薄行，装配口要能选出一个后端
     getPlatform: async () => ({ path: path.posix }),
     detectionExec: async () => ({ ok: false, kind: 'env', error: '门禁里不发真请求' }),
     getCache: () => cacheBox,
@@ -110,7 +140,9 @@ async function run() {
     writeDiskCache: async (repo, snap) => { disk.snap = snap },
     runGh: runGh,
     getRepoKey: async () => ({ owner: 'o', name: 'r' }),
-    fetchIssueIndex: (cwd, sinceIso) => issueList.fetchIssueIndex(cwd, sinceIso),
+    // 记下补行那条路自己问索引时用的窗口起点：defer 那一拍不走到这里，切回来之后起点应当
+    // 落在「上一次真的并进去」的水印上（这是「水印只在并入后才动」的行为证据）。
+    fetchIssueIndex: (cwd, sinceIso) => { probeSince.push(String(sinceIso || '')); return issueList.fetchIssueIndex(cwd, sinceIso) },
     issueIndexFromSnapshot: (snap) => win.indexFromSnapshot(snap),
   })
   ledgerGate = wiring.gate
@@ -153,27 +185,26 @@ async function run() {
   })
 
   // ---- ① 探测说变了：只发薄查询，并把补好的那一份交回客户端 ----
-  const thinBefore = () => calls.filter((a) => urlOf(a).indexOf('/issues/') >= 0).length
-  const poolCalls = () => calls.filter((a) => a.indexOf('--paginate') >= 0 && String(a[a.indexOf('--jq') + 1] || '').indexOf('title') >= 0).length
+  const thinBefore = () => sessionGets.length
   const r1 = await comments.handleProbe({ cwd: CWD })
   check(r1 && r1.ok === true && r1.changed === true, '探测检出变化（' + JSON.stringify({ ok: r1 && r1.ok, changed: r1 && r1.changed }) + '）')
   check(r1 && r1.mode === 'patch', '变了就先把变的那几条补进列表（mode=' + (r1 && r1.mode) + '）')
-  check(thinBefore() === 1, '①取数路径：这一次只发出 1 条请求（变的那一张票一条薄查询），实发 ' + thinBefore() + ' 条')
-  check(poolCalls() === 0, '①取数路径：整池那条大查询一次都没被触发（--paginate + 带 title 的那条），实发 ' + poolCalls() + ' 条')
+  check(thinBefore() === 1, '①取数路径：这一次只发出 1 条会话 get（变的那一张票一条薄查询），实发 ' + thinBefore() + ' 条')
+  check(calls.length === 0, '①取数路径：一次 gh 都没发（runGh 实发 ' + calls.length + ' 条）')
   check(r1 && r1.snapshot && r1.snapshot.ok === true && Array.isArray(r1.snapshot.issues), '②客户端要的那一格里有补好的快照（交给界面直接落列表）')
   const row101 = (r1 && r1.snapshot && r1.snapshot.issues || []).filter((x) => Number(x.number) === 101)[0]
   check(!!row101 && row101.state === 'CLOSED', '补进去的那一行就是薄查询回来的新值（101 → ' + (row101 && row101.state) + '）')
   check(r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs > seeded.delta.watermarkMs, '③水印在变化并进列表之后推进了（' + seeded.delta.watermarkMs + ' → ' + (r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs) + '）')
   check(logLines.some((l) => l.name === 'refresh.patch' && l.fields.mode === 'patch'), '补行这一步落了一行既有事件 refresh.patch（没有新造事件名）')
   const st1 = ledgerGate.stats()
-  check(st1.accounted.requests === 1, '①那一条薄查询是**经闸的 send** 发出去的（闸记下 ' + st1.accounted.requests + ' 条；探测索引那一条走的是存量出口，只报账不裁决，见 verify-gh-gateway.ts）')
-  check(st1.sent > 0 && st1.deferred === 0, '①这一次真的**放行**了（闸的裁决是 send 不是 defer）：sent=' + st1.sent + '、deferred=' + st1.deferred)
+  check(st1.accounted.requests === 0, '①读路径不花额度：闸一笔都没记（accounted=' + st1.accounted.requests + '）')
+  check(st1.sent === 0 && st1.deferred === 0, '①也没有经闸 send 发出去的请求（sent=' + st1.sent + '、deferred=' + st1.deferred + '）')
   check(seenKeys.length > 0 && seenKeys.every((k) => k.length === 8), '③两处用的是同一把钥匙：这条路上每一笔过的 workspaceKey 都是 8 位短散列（实得 ' + JSON.stringify(seenKeys.slice(0, 3)) + '…）')
   check(seenKeys.every((k) => k === wsKey), '③而且与活跃集合/写事件白名单里那一格**逐字相同**（' + wsKey + '）——层级不同、长度不同或空串都会让每一笔被判推迟')
 
-  // ---- ③ 被推迟的那一档：水印一个字节都不动，变化进待办 ----
+  // ---- ③ 被推迟的那一档：水印、窗口、薄查询都不动，变化进待办 ----
   wiring.gate.setWorkspace(wsKey, { active: false })   // 人已切走：闸按后台档推迟这一次取数
-  windowIndex = { 101: 'CLOSED|2026-09-23T00:00:00Z', 102: 'CLOSED|2026-09-24T00:00:00Z', 103: 'OPEN|2026-09-18T00:00:00Z' }
+  windowIndex = { 101: 'CLOSED|' + FIX_AT, 102: 'CLOSED|' + FIX_AT, 103: 'OPEN|' + FIX_AT }
   const wmBeforeDefer = cacheBox.snapshot.delta.watermarkMs
   const thinBeforeDefer = thinBefore()
   const decideBefore = decideLog.length
@@ -181,8 +212,7 @@ async function run() {
   const r2 = await comments.handleProbe({ cwd: CWD })
   const decideDefer = decideLog.slice(decideBefore)
   check(decideDefer.some((d) => d.verdict === 'defer' && d.reason === 'background-inactive'), '③人切走之后闸**真的**把它推迟了（裁决原文：' + JSON.stringify(decideDefer) + '）')
-  // 这一拍里第一次索引请求就是那条窗口扫描（第二次是补行那条路自己的探查）：窗口起点看第一次。
-  const sinceAtDefer = probeSince[sinceFrom2]
+  check(probeSince.length === sinceFrom2, '③被推迟时补行那条路连窗口索引都没问（探针实发 ' + (probeSince.length - sinceFrom2) + ' 次）')
   check(r2 && r2.ok === true && r2.changed === true && r2.mode === 'deferred', '③被推迟的那一档如实回报（' + JSON.stringify(r2).slice(0, 200) + '）')
   check(thinBefore() === thinBeforeDefer, '③被推迟时一条薄查询都没发出去（实发 ' + (thinBefore() - thinBeforeDefer) + ' 条）')
   const wmAfterDefer = cacheBox.snapshot.delta.watermarkMs
@@ -193,7 +223,7 @@ async function run() {
   const sinceFrom3 = probeSince.length
   const r3 = await comments.handleProbe({ cwd: CWD })
   const sinceAfter = probeSince[sinceFrom3]
-  check(sinceAfter === sinceAtDefer, '③被推迟之后窗口起点没有前移，下一次仍然从同一处扫起（' + sinceAtDefer + ' → ' + sinceAfter + '）')
+  check(probeSince.length === sinceFrom3 + 1 && Date.parse(sinceAfter) > Date.parse(probeSince[0]), '③切回来之后窗口从「上一次真的并进去」的水印起扫（' + probeSince[0] + ' → ' + sinceAfter + '）')
   check(r3 && r3.changed === true && r3.mode === 'patch', '③切回来之后同一条变化**仍然被发现并补上**（mode=' + (r3 && r3.mode) + '）')
   const row102 = (cacheBox.snapshot.issues || []).filter((x) => Number(x.number) === 102)[0]
   check(!!row102 && row102.state === 'CLOSED', '③补上去的那一行就是它（102 → ' + (row102 && row102.state) + '）')

@@ -10,7 +10,7 @@
 //   所以「界面恒显示取到了、空的」这件事，此前没有任何门禁会在红灯里看见。本门禁补上这一段。
 //
 // 四段：
-//   ① 放行：patch.run 的探测与薄查询被放行、记账、漏网计数仍为 0；
+//   ① 放行：patch.run 的探测被放行；薄行走只读会话、不经闸 send、不花额度，漏网计数仍为 0；
 //   ② 推迟：额度压到 0 时闸判 defer，patch.run 如实回 mode=deferred，一条请求都不发、也不抛异常；
 //   ③ 拒绝：AI 工具那一档超顶时闸拒绝并给出文案；
 //   ④ 写事件那条真路径（生产装配件 createRefreshWiring）：
@@ -76,22 +76,24 @@ async function main() {
     ledger.syncServer({ rest: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
     const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
     gate.setWorkspace(WS, { active: true })
-    const calls = []
+    const gets: string[] = []
+    // 假会话：读路径只经它取数（#1444 起薄行不再直调 gh、也不再经闸 send）。
+    const session = {
+      get: async (ref: any, key: any) => {
+        gets.push(String(key))
+        return { ok: true, data: { key: String(key), effortId: 'e', type: 'issue', title: '票 ' + key, state: 'closed', body: '', url: 'https://github.com/o/r/issues/' + key, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-23T00:00:00Z', closedAt: null, parentKey: null, labels: [], assignees: [{ login: 'me' }], author: { login: 'me' }, blockedBy: [], isPullRequest: false, mergedAt: null, reviews: [] } }
+      },
+    }
     const patch = patchMod.createPatch({
       now: () => CLOCK, workspaceKeyOf: () => WS,
       readSnapshot: async () => store, writeSnapshot: async (cwd, snap) => { Object.assign(store, snap) },
       indexOfSnapshot: win.indexFromSnapshot, windowRules: win,
       getRepoKey: async () => ({ owner: 'o', name: 'r' }),
       probeIndex: async () => ({ ok: true, index: { '301': 'CLOSED|2026-09-23T00:00:00Z', '302': 'OPEN|2026-09-19T00:00:00Z', '303': 'OPEN|2026-09-18T00:00:00Z' } }),
-      runGh: async (args: string[]) => {
-        calls.push(args)
-        const n = Number(args[1].split('/').pop())
-        return { ok: true, text: JSON.stringify({ number: n, title: '票 ' + n, state: 'closed', labels: [], assignees: [], user: { login: 'me' }, updated_at: '2026-09-23T00:00:00Z', created_at: '2026-09-01T00:00:00Z' }) }
-      },
-      send: (req, perform) => gate.send(req, async () => { const out = await perform(); gate.noteOutbound({ requests: 1, points: 0 }); return out }),
+      openSession: async () => ({ ok: true, backendId: 'github', budget: {}, call: (fn: any) => fn(session, { cwd: CWD, caller: 'refresh' }) }),
       decide: (req) => gate.decideFor(req),
     })
-    return { store, ledger, gate, patch, calls }
+    return { store, ledger, gate, patch, gets }
   }
 
   // ── ① 放行 ──
@@ -101,8 +103,9 @@ async function main() {
     const r = await w.patch.run(CWD)
     const after = w.gate.stats()
     check(r.mode === 'patch', '① 放行：patch.run 走通行级补行（mode=' + r.mode + ' / reason=' + r.reason + '）')
-    check(after.sent - before.sent === 1, '① 裁决：闸放行并计数（sent ' + before.sent + ' → ' + after.sent + '）')
-    check(after.accounted.requests - before.accounted.requests === 1, '① 记账：真发出去的 1 条记进了账（' + before.accounted.requests + ' → ' + after.accounted.requests + '）')
+    check(after.sent - before.sent === 0, '① 读路径不经闸 send：放行只由探测那一步问过裁决（sent ' + before.sent + ' → ' + after.sent + '）')
+    check(after.accounted.requests - before.accounted.requests === 0, '① 读路径不花额度：闸上一笔都没记（accounted ' + before.accounted.requests + ' → ' + after.accounted.requests + '）')
+    check(w.gets.length === 1 && w.gets[0] === '301', '① 取数：只问变的那一张票（会话 get ' + JSON.stringify(w.gets) + '）')
     check(w.gate.escaped().requests === 0, '① 漏网计数仍为 0（' + JSON.stringify(w.gate.escaped()) + '）')
   }
 
@@ -118,7 +121,7 @@ async function main() {
     const sent = await w.gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: WS }, async () => ({ requests: 1, points: 0 }))
     check(sent && sent.sent === false && sent.verdict === 'defer', '② 裁决：同一条闸对同一批输入回 defer（' + JSON.stringify({ verdict: sent.verdict, reason: sent.reason }) + '）')
     check(w.gate.stats().deferred - before.deferred >= 1 && w.gate.stats().pending >= 1, '② 裁决：这一笔进了推迟队列（deferred=' + w.gate.stats().deferred + '、pending=' + w.gate.stats().pending + '）')
-    check(w.calls.length === 0, '② 推迟：一条请求都没发出去（' + w.calls.length + ' 条）——推迟不是「发了再失败」')
+    check(w.gets.length === 0, '② 推迟：一条薄查询都没发出去（' + w.gets.length + ' 条）——推迟不是「发了再失败」')
     check(w.gate.escaped().requests === 0, '② 漏网计数仍为 0')
   }
 

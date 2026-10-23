@@ -38,6 +38,8 @@ const READ_CALL_FILES = [
   'src/tracker/rooms/github/pulls.ts',
   // 反向阻塞边的原生投影（#1304）：一次 GraphQL 同时取回正向与反向两条连接。
   'src/tracker/rooms/github/deps-read.ts',
+  // 单票评论的多页取齐（#1444 从 issues.ts 拆出）：翻页那一支自己起 gh，via 写 get.gql。
+  'src/tracker/rooms/github/comment-paging.ts',
 ]
 
 /**

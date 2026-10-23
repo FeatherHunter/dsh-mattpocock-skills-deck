@@ -182,6 +182,31 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
       resetGhCache: () => repoKeys.resetGhCache(),
       getDetectionService: async () => svc, getPlatform: async () => platform, getTrackerRegistry: async () => registry,
       getRepoKey: repoKeys.getRepoKey, runGh: repoKeys.runGh,
+      // #1444：检查链不再直调 gh，登录态与仓库可达问只读会话。这里的假会话把两条能力接到同一处假进程接缝上
+      //（与真房间同序：找 gh → gh auth status → api repos/o/n；取登录名走 api user），所以本门禁数的
+      //「一次评估对外问了几条 REST」仍然量的是同一件事，只是现在问的人换成了会话。
+      openSession: async () => ({
+        ok: true, backendId: 'github',
+        call: function (fn) {
+          const session = {
+            preflight: async function (handle) {
+              const ghp = await platform.resolveExecutable('gh')
+              if (!ghp) return { ok: false, error: { kind: 'env', message: 'gh not found', raw: '' } }
+              const a = await detectionExec('gh', ['auth', 'status'], { cwd: handle && handle.cwd })
+              if (a.code !== 0) return { ok: false, error: { kind: 'auth', message: 'auth status failed', raw: '' } }
+              const ref = handle && handle.refId ? String(handle.refId) : ''
+              const b = await detectionExec('gh', ['api', 'repos/' + ref], { cwd: handle && handle.cwd })
+              if (b.code !== 0) return { ok: false, error: { kind: 'not-found', message: 'api repos failed', raw: '' } }
+              return { ok: true }
+            },
+            getCurrentUser: async function () {
+              const u = await detectionExec('gh', ['api', 'user', '-q', '.login'])
+              return u.code === 0 ? { ok: true, data: { login: String(u.stdout || '').trim() } } : { ok: false, error: { kind: 'auth', message: 'api user failed' } }
+            },
+          }
+          return fn(session, { cwd: ROOTDIR, caller: 'refresh' })
+        },
+      }),
       timer: { timeout: (ms) => new Promise((r) => setTimeout(() => r(null), ms)), setTimeout: (fn, ms) => setTimeout(fn, ms) },
       probeSkill: async () => ({ ok: true, level: 'ok', detail: 'fake' }),
       mdParseOkPredicate: async () => ({ status: 'pass', detail: 'fake' }),

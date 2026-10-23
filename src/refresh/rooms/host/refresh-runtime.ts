@@ -36,7 +36,7 @@ import { createNamingSummary, readFirstUserText } from '../../../host/platform/n
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
 import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
-import { openTracker } from '../../../tracker/session/open-tracker.js'
+import { createReadSessionOpener } from './read-session.js' // #1444：刷新后台读路径的会话装配口（六个取数文件共用这一份）
 import { createOutboundControl } from './outbound-control.js'
 import { hostTimers } from '../../contract/host-timer-ports.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/refresh/rooms/host/refresh-assembly.js 一处。
@@ -153,24 +153,24 @@ export function createRefreshWiring(deps: any): any {
     }
     return syncBackendObj
   }
+  // #1444：刷新后台读路径的会话装配口（六个取数文件共用这一份）。
+  // 为什么在接线里造而不是让取数文件自己造：闸、账本、后端上下文与注册表都在本文件手里，
+  // 各取数文件自己去接就会接出第二本账、第二套活跃集合（#723 抓过的那类「接上了却各走各的」）。
+  const openSession = createReadSessionOpener({
+    getTrackerRegistry: function (): any { return (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null },
+    ledger: ledger,
+    backendCtx: syncBackendCtxOf,
+    logCtx: logCtx,
+  })
   // 经 Tracker 会话读一次预算：只调 readBudget（管线里它直达房间，不裁决不记账）。
   // 读不到（没注册表、会话打不开、读数未知）都回失败形状，不抛 —— 桥按失败退避，工具照旧走原流程。
+  // #1444 起读数也走同一个开会话口：上面那个 openSession 的裁决与记账对 readBudget 不生效
+  // （管线里 readBudget 直达房间），所以这一处的语义与 1443 时完全一样，只是不再各写一份装配。
   async function readSessionBudget(cwd: unknown): Promise<any> {
     try {
-      let registry: any = null
-      try { registry = (typeof d.getTrackerRegistry === 'function') ? await d.getTrackerRegistry() : null } catch (eR: any) { registry = null }
-      if (!registry || typeof registry.select !== 'function' || typeof registry.get !== 'function') return { ok: false, error: { kind: 'env', message: 'no-registry' } }
-      const opened: any = await openTracker({ cwd: String(cwd || '') }, {
-        registry: registry,
-        getCachedReading: async function (): Promise<any> { return { known: false, reason: 'not-measured' } },
-        admit: async function (): Promise<any> { return { allowed: true, reason: 'quota-sync' } },
-        account: async function (): Promise<void> {},
-        canWrite: false,
-        canWriteReason: '额度同步只读预算，不做写操作',
-      })
-      if (!opened || opened.ok !== true) return { ok: false, error: { kind: 'env', message: String((opened && opened.detail) || (opened && opened.reason) || 'open-failed') } }
-      const opCtx = Object.assign({}, syncBackendCtxOf(), { cwd: String(cwd || ''), signal: undefined })
-      return await opened.session.readBudget(opCtx)
+      const opened: any = await openSession(cwd)
+      if (!opened || opened.ok !== true) return { ok: false, error: { kind: 'env', message: String((opened && opened.reason) || 'open-failed') + (opened && opened.detail ? ':' + String(opened.detail) : '') } }
+      return await opened.call(function (session: any, opCtx: any): any { return session.readBudget(opCtx) })
     } catch (eS: any) { return { ok: false, error: { kind: 'env', message: String((eS && eS.message) || eS) } } }
   }
   function quotaSyncOf(): any {
@@ -377,9 +377,8 @@ export function createRefreshWiring(deps: any): any {
         indexOfSnapshot: function (snap: any): any { return (typeof d.issueIndexFromSnapshot === 'function') ? d.issueIndexFromSnapshot(snap) : {} },
         probeIndex: function (cwd: any, sinceIso: any): any { return (typeof d.fetchIssueIndex === 'function') ? d.fetchIssueIndex(cwd, sinceIso) : Promise.resolve({ ok: false }) },
         getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
-        runGh: function (args2: any, cwd: any): any { return (typeof d.runGh === 'function') ? d.runGh(args2, cwd) : Promise.resolve({ ok: false, error: 'no-runGh' }) },
-        send: function (req: any, perform: any): any { return gate.send(req, perform) },
         decide: function (req: any): any { return gate.decideFor(req) },
+        openSession: openSession, // #1444：薄行取数改走只读会话（取数文件不再经 send/runGh）
         // 与活跃集合、写事件白名单同一把短散列（见 syncAttention）：不一致就会让探测这条路每一笔都被判「推迟」。
         workspaceKeyOf: workspaceKeyOf,
         now: Date.now,
@@ -415,6 +414,7 @@ export function createRefreshWiring(deps: any): any {
     workRouteTableReadout: attachWorkRouteTable,
     workRouteTableField: WORK_ROUTE_TABLE_FIELD,
     deckToolsForHost: deckBridge.deckToolsForHost,
+    openSession: openSession, // #1444：六个读写取数文件经它拿只读会话（写路径 1445 才换）
     deltaRefresh: deltaRefresh,
     deltaEnter: deltaEnter,
     syncAttention: syncAttention,

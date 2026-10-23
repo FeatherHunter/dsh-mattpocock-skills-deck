@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T17:30:27.901Z",
+  "generatedAt": "2026-10-23T18:49:25.514Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 338,
-  "gateCount": 338,
-  "attributedGates": 298,
+  "chainLength": 342,
+  "gateCount": 342,
+  "attributedGates": 302,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 13,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 561,
+  "graphFileCount": 564,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2535,6 +2535,79 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；源码里的路径字面量 1 条"
+    },
+    {
+      "step": "node tests/verify-1444-chain.ts",
+      "file": "tests/verify-1444-chain.ts",
+      "guards": [
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-1444-comments.ts",
+      "file": "tests/verify-1444-comments.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/tracker/rooms/github/issues.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-1444-list-detail-thin.ts",
+      "file": "tests/verify-1444-list-detail-thin.ts",
+      "guards": [
+        "src/refresh/kernel/index-window-rules.ts",
+        "src/refresh/rooms/host",
+        "src/refresh/rooms/host/issue-detail-fetch.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/thin-row-fetch.ts"
+      ],
+      "dirs": [
+        "src/refresh/kernel",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1444-snapshot.ts",
+      "file": "tests/verify-1444-snapshot.ts",
+      "guards": [
+        "src/host/mapBody.ts",
+        "src/host/ticketGrouping.ts",
+        "src/refresh/rooms/host/snapshot-build.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -5116,19 +5189,17 @@
         "src/refresh/kernel/snapshot-diff.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
-        "src/refresh/rooms/host/row-patch.ts",
-        "src/shared/time-config/src/values.ts"
+        "src/refresh/rooms/host/row-patch.ts"
       ],
       "dirs": [
         "src/refresh/kernel",
-        "src/refresh/rooms/host",
-        "src/shared/time-config/src"
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
     },
     {
       "step": "node tests/verify-delta-wiring.ts",
@@ -5545,6 +5616,7 @@
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/client.ts",
+        "src/tracker/rooms/github/comment-paging.ts",
         "src/tracker/rooms/github/counts.ts",
         "src/tracker/rooms/github/deps-read.ts",
         "src/tracker/rooms/github/issues.ts",
@@ -5565,7 +5637,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-github-label-colors.ts",
@@ -8695,6 +8767,7 @@
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-1436-own-work-route.ts",
+      "node tests/verify-1444-snapshot.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -8822,6 +8895,7 @@
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1261-work-route-receipt.ts",
       "node tests/verify-1442-tracker-tools.ts",
+      "node tests/verify-1444-list-detail-thin.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -8909,6 +8983,10 @@
       "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1443-static-gate.ts",
+      "node tests/verify-1444-chain.ts",
+      "node tests/verify-1444-comments.ts",
+      "node tests/verify-1444-list-detail-thin.ts",
+      "node tests/verify-1444-snapshot.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -9024,7 +9102,6 @@
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.ts",
       "node tests/verify-budget-worstcase.ts",
-      "node tests/verify-delta-patch.ts",
       "node tests/verify-event-budget.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-gate-accounting.ts",
@@ -9206,6 +9283,7 @@
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1304-deps-native.ts",
       "node tests/verify-1443-github-readbudget.ts",
+      "node tests/verify-1444-comments.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -9516,9 +9594,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 581,
+    "fileCount": 584,
     "dirCount": 73,
-    "coveredFileCount": 581,
+    "coveredFileCount": 584,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 55,
@@ -9864,6 +9942,7 @@
       "src/refresh/rooms/host/.gitkeep",
       "src/refresh/rooms/host/chain-backoff.ts",
       "src/refresh/rooms/host/chain-coalescing.ts",
+      "src/refresh/rooms/host/chain-env-map.ts",
       "src/refresh/rooms/host/check-chain-evaluation.ts",
       "src/refresh/rooms/host/comment-thread-fetch.ts",
       "src/refresh/rooms/host/gh-execution.ts",
@@ -9876,6 +9955,7 @@
       "src/refresh/rooms/host/outbound-control.ts",
       "src/refresh/rooms/host/probe-handler.ts",
       "src/refresh/rooms/host/quota-ledger.ts",
+      "src/refresh/rooms/host/read-session.ts",
       "src/refresh/rooms/host/refresh-assembly.ts",
       "src/refresh/rooms/host/refresh-gate.ts",
       "src/refresh/rooms/host/refresh-runtime.ts",
@@ -10015,6 +10095,7 @@
       "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/checks.ts",
       "src/tracker/rooms/github/client.ts",
+      "src/tracker/rooms/github/comment-paging.ts",
       "src/tracker/rooms/github/comments.ts",
       "src/tracker/rooms/github/counts.ts",
       "src/tracker/rooms/github/cycle-check.ts",
@@ -10280,7 +10361,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 38
+        "fileCount": 40
       },
       {
         "path": "src/shared/command-cleanup",

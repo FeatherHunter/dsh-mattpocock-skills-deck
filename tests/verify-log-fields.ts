@@ -7,6 +7,8 @@
 //   常驻 #26 host.call 增补 reason（deck.quotaSync 同步失败、或 #1355 缺本会话工作路线表补拉时带原因码）、
 //   按需 #76 refresh.decide 与 #77 refresh.skipped 在失败窗口里增补五个归因键（连续几次、窗口起点、最近一次类别与种类）。
 //   事件总数仍 119，字段键数增加；字段含义见下面各行的中文注释与附录 1.4/1.5 对照表。
+// 2026-10-24（#1444 收口）：新增按需 #130 read.session（刷新后台只读会话开不成的结局名一行；
+//   成功不记，避免每趟刷新刷噪音）。字段说明见下面 read.session 一行与附录 1.5。
 // 2026-10-21（#1101 排查）再给 #5 gh.exec 与 #6 gh.timeout 补归因格，并新增常驻 #125 gh.lane.wait
 //   （排队等到三秒以上、按桶五分钟节流）；事件总数 119 → 120。字段说明见下面 gh.timeout 与 gh.lane.wait 两段注释。
 //   为什么要补：#1007 要能分开查登录态与改票、#1006 要查配额同步为什么失败、#1008/#1218 要查退避窗口里那几次失败是谁攒的。
@@ -447,6 +449,12 @@ const ALLOWED = {
   'suggest.bind': ['outcome', 'sidHash', 'reason'],
   'suggest.call': ['outcome', 'sidHash', 'callIdHash', 'turn', 'items', 'clipped', 'reason'],
   'suggest.ready': ['outcome', 'sidHash', 'callIdHash', 'turn', 'items'],
+  // 2026-10-24（#1444 收口）：刷新后台那条只读会话开会话失败时的一行调试线。只记两格：
+  //   ok 恒为 false（成功开会话不记，避免每趟刷新刷一行噪音）、reason 没开成的结局名
+  //   （workspace-not-ready 调用方没给目录 / no-registry 注册表没就绪 / open-failed 选后端失败 /
+  //   no-backend、multi-match、pending 选后端的三种结局 / open-threw 开会话时抛了）。
+  //   为什么要有：刷新读不到数据时，光看界面降级分不清是没后端可选、后端认不出、还是注册表没起来。
+  'read.session': ['ok', 'reason'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 九键（六键照旧，cmd 为 2026-10-21 #1007 复核增补；`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 七键（layer 为同日 #1007/#1224 复核增补，via / cmd / waitedMs / phase 为 2026-10-21 #1101 排查增补）、gh.resolve.fail 两键，

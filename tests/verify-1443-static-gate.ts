@@ -15,7 +15,8 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 // A2 到期说明：刷新后台读写链归位（1444/1445）后，未迁路径清零，名单同步缩到空，只减不增。
 const A2_EXPIRY = 'A2 清零时删除（1444/1445 归位后，未迁路径清零，名单缩到空）'
 // A2 未迁的直接调 gh 站点（房内直调，调用方永不搬家那几处除外）：
-const A2_RUNGH_FILES = ['git-execution.ts', 'comment-thread-fetch.ts', 'check-chain-evaluation.ts', 'thin-row-fetch.ts', 'snapshot-build.ts', 'issue-detail-fetch.ts', 'issue-list-fetch.ts']
+// #1444/#1445 已把列表、索引、详情、薄行、地图详情、检查链搬进只读会话，名单里没有的才允许含 runGh(。
+const A2_RUNGH_FILES = ['git-execution.ts']
 // 注册表选择的唯一合法调用点（新路自动识别，旧壳已删）：
 const SELECT_SANCTIONED = ['src/deck/tools/tracker-session.ts']
 

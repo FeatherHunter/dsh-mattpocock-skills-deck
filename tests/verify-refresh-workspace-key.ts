@@ -139,6 +139,12 @@ async function makeHost() {
       seen.push({ key: String((req && req.workspaceKey) || ''), kind: String((req && req.kind) || ''), source: String((req && req.source) || ''), verdict: out && out.verdict, reason: out && out.reason, sent: !!(out && out.sent) })
       return out
     },
+    // #1444：链求值那一笔改由闸上的 noteChainEval 产生（调用方不再自己拼发送）；这里照样把过闸带的钥匙记下来。
+    noteChainEval: async (req) => {
+      const out = await realGate.noteChainEval(req)
+      seen.push({ key: String((req && req.workspaceKey) || ''), kind: 'chain', source: String((req && req.source) || ''), verdict: out && out.verdict, reason: out && out.reason, sent: !!(out && out.sent) })
+      return out
+    },
     decideFor: (req) => realGate.decideFor(req),
     setWorkspace: (k, p) => realGate.setWorkspace(k, p),
     workspaceView: (k) => realGate.workspaceView(k),

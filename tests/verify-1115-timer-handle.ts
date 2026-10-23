@@ -320,7 +320,8 @@ async function main() {
     { file: 'src/host/platformChannel.ts', calls: 2 },
     { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', calls: 1 },
     { file: 'src/host/workspaceCwd.ts', calls: 1 },
-    { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 2 },
+    // #1444：viewer 预取那一段随读路径搬进会话后整段删了，这里只剩选后端那一处计时器口。
+    { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 1 },
     { file: 'src/refresh/registry/deck-tool-bridge.ts', calls: 1 },
   ]
   for (const site of SITES) {
