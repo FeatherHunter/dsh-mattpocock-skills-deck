@@ -37,19 +37,22 @@ const MISSING = Object.freeze({
   installSkills: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'installSkills' }),
 })
 
-/** 步骤没过时出哪一条横幅（文案与按钮标签是 locale 词条键名，界面不许写死文字；null = 这一步不出横幅）。 */
-const BANNER = Object.freeze({
+/** 步骤没过时出哪一条横幅（文案与按钮标签是 locale 词条键名，界面不许写死文字；null = 这一步不出横幅）。
+ *  recheckBtn 是「主按钮旁边还带一颗重查按钮」的标签键（#1438）：今天只有登录失败那一条声明它 ——
+ *  检查已经答对了（红），可用户在插件外面把登录修好之后，这条横幅上原来没有一颗点了会重查的按钮，
+ *  只能自己到「环境检查」页去点。它复用「登录状态暂时确认不了」那版按钮的词条：两处是同一个动作，
+ *  界面上就该是同一句话，不另造第三个说法。 */
+type GuideBanner = { text: string; btn: string; tone: string; recheckBtn?: string }
+
+const BANNER: Readonly<Record<string, Readonly<GuideBanner>>> = Object.freeze({
   gate: Object.freeze({ text: 'banner.gate', btn: 'banner.gateBtn', tone: 'info' }),
   ghCli: Object.freeze({ text: 'banner.ghcli', btn: 'banner.ghcliBtn', tone: 'warn' }),
-  ghAuth: Object.freeze({ text: 'banner.ghauth', btn: 'banner.ghauthBtn', tone: 'warn' }),
+  ghAuth: Object.freeze({ text: 'banner.ghauth', btn: 'banner.ghauthBtn', tone: 'warn', recheckBtn: 'banner.ghauthUnknownBtn' }),
   ghAuthUnknown: Object.freeze({ text: 'banner.ghauthUnknown', btn: 'banner.ghauthUnknownBtn', tone: 'warn' }),
   setup: Object.freeze({ text: 'banner.setup', btn: 'banner.setupBtn', tone: 'warn' }),
   skills: Object.freeze({ text: 'banner.skills', btn: 'banner.skillsBtn', tone: 'warn' }),
   repo: Object.freeze({ text: 'banner.repo', btn: 'banner.repoBtn', tone: 'warn' }),
 })
-
-/** 横幅声明：三个字段都是 locale 词条键名，界面按它们查文案，不许在这里写死中文。 */
-type GuideBanner = { text: string; btn: string; tone: string }
 
 /** 缺失动作声明：type 定分发去向；prompt 键名注入走后端提示词，text 固定原话走清单直给（今天没有用 text 的步骤，留着是给将来别的后端备的）。 */
 type GuideMissing = { type: string; prompt?: string; text?: string }

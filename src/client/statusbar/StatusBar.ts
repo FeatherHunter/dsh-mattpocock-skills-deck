@@ -54,6 +54,7 @@ declare function probeHandoffReady(...args: any[]): any;
 declare function refreshAll(...args: any[]): any;
 declare function runCapFold(...args: any[]): any;
 declare function runGuideMissing(...args: any[]): any;
+declare function runGuideRecheck(...args: any[]): any;
 declare function scheduleStatusClose(...args: any[]): any;
 declare function seg(...args: any[]): any;
 declare function setBannerFolded(...args: any[]): any;
@@ -475,20 +476,20 @@ export const StatusBar = (props: any) => {
     // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
     return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, workspaceFileNoteEl(s), capsule])
   }
-  const bann = function (text: any, btnLabel: any, onBtn: any, foldable: any) {
+  const bann = function (text: any, btnLabel: any, onBtn: any, foldable: any, alt: any) {
     // #669：这颗叉（收起整个功能区）与左边那颗主按钮之间留 12px —— 原来只隔 6px，两颗按钮长得一样高、
     //   一样是描边方块，用户冲黄条那颗主按钮点下去、手一偏就落在叉上，于是「点了黄条，整条状态栏全没了」。
     //   留开距离不能让手不偏，但能让两颗按钮在视觉上分成两组，点之前看得出来是两件事。这一段保留。
     // 2026-09-21 按维护者要求还原：2026-09-20 那次一度把它改成带字的「收起」（怕纯图形叉被读成「关掉这条黄条」），
     //   维护者看过真机之后要求退回改动前的图形叉。叉形字形 11px、悬停与无障碍名仍是全称「收起MattSkillsDeck」。
+    // #1438：有些横幅在主按钮旁边还要一颗次要按钮（今天只有登录失败那条 —— 检查已经答对了「没登录」，
+    //   可人到插件外面把登录修好之后，这条横幅上原来没有一颗点了会重查的按钮，只能自己绕到环境检查页）。
+    //   进行中置灰并转圈，点不出第二趟；没声明就不画，那颗叉永远只有一颗。
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
       Ic({ n: 'alert', size: 13 }),
       h('span', { style: { flex: 1 } }, text),
-      h('button', { className: 'dsws-btn dsws-hov', style: { borderColor: 'rgba(245,158,11,.6)' },
-        // 接线（#1335 界面反馈）：黄条主按钮有文字，按压与悬停都要有；日志标识 status.banner.action。
-        'data-press': 'button',
-        'data-log': 'status.banner.action',
-        onClick: onBtn }, btnLabel),
+      h('button', { className: 'dsws-btn dsws-hov', style: { borderColor: 'rgba(245,158,11,.6)' }, 'data-press': 'button', 'data-log': 'status.banner.action', onClick: onBtn }, btnLabel),
+      alt ? h('button', { className: 'dsws-btn ghost dsws-hov', style: { color: '#f59e0b', borderColor: 'rgba(245,158,11,.6)', marginLeft: 6, opacity: alt.busy ? 0.6 : 1 }, 'data-press': 'button', 'data-log': 'status.banner.recheck', onClick: alt.onClick, disabled: !!alt.busy }, [h('span', { className: 'dsws-rficon' + (alt.busy ? ' dsws-spin' : ''), style: { marginRight: 4 } }, [Ic({ n: 'refresh', size: 11 })]), tr(alt.label)]) : null,
       foldable ? h(Tip, { content: tr('banner.foldDeck') }, h('button', { className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'),
         // 接线（#1335 界面反馈）：黄条那颗叉是纯图标，只接按压压暗；日志标识 status.banner.fold。
         'data-press': 'icon',
@@ -513,7 +514,9 @@ export const StatusBar = (props: any) => {
         ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, tr('switch.probeRunning')), h('button', { className:'dsws-btn dsws-hov', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, 'data-press':'button', 'data-log':'status.banner.retry', onClick:function(){ loadSnapshot(s,true,true) } }, tr('pr.retry')), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), 'data-press':'icon', 'data-log':'status.banner.pending.fold', style:{ borderColor:'rgba(245,158,11,.6)', color:'#f59e0b', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
         : infoBar(_selReading)
     }
-    const node = bann(tr(meta.text, guideBannerParams(s, bannerStep)), tr(meta.btn), function () { runGuideMissing(s, bannerStep) }, true)
+    // #1438：登录失败那条横幅在主按钮旁边再给一颗「重新检查」（声明里没有就不画）；点下去走 bannerChain 的重查入口。
+    const alt = meta.recheckBtn ? { label: meta.recheckBtn, busy: !!s.refreshing, onClick: function () { if (!s.refreshing) runGuideRecheck(s, bannerStep.id) } } : null
+    const node = bann(tr(meta.text, guideBannerParams(s, bannerStep)), tr(meta.btn), function () { runGuideMissing(s, bannerStep) }, true, alt)
     // #698：这一支原先在黄条正文下面挂那张布局小卡；卡已搬去弹窗座位（上面那一处），
     //   所以这里不再拼它 —— 黄条照旧出，卡在哪个分支都画得出来。
     return node
