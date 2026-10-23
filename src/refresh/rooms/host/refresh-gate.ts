@@ -1,8 +1,8 @@
 // src/refresh/rooms/host/refresh-gate.js —— 刷新机制的唯一出口闸（#706 T2 第二批）
 //
 // 依据：定稿第三章「三层 + 一道闸」与第四章第 01 件。它只回答一句：这一笔去 GitHub 的调用，
-// 现在放行、降级，还是推迟？放行之后再记一笔真实花费。裁决本身一行都不在这里 —— 它调 refresh-core
-// 那份纯函数产物 policy.js（第一批的成果），数字全部从 budget.js 取好注入。所以本文件里没有一条裁决规则、
+// 现在放行、降级，还是推迟？放行之后再记一笔真实花费。裁决本身一行都不在这里 —— 它调 kernel
+// 那份纯函数产物 admission-policy.js（第一批的成果），数字全部从 host-budget.js 取好注入。所以本文件里没有一条裁决规则、
 // 没有一个额度数字，这两个 import 就是「只许复用、不许再写一份」的落地方式。
 //
 // 守住五件事（票面点名的五条硬要求，逐条对应下面一段代码）：
@@ -95,7 +95,7 @@ interface Counters { requests: number; points: number }
 /** 传输层报上来的一笔花费：条数与点数缺了或不是数都按 0 算（条数缺了就当 1 条，见 noteOutbound）。 */
 interface OutboundReport { requests?: unknown; points?: unknown }
 
-/** 裁决的结论（形状来自 policy.js 的 decide）：放行、降档还是推迟，外加一句原因。 */
+/** 裁决的结论（形状来自 admission-policy.js 的 decide）：放行、降档还是推迟，外加一句原因。 */
 interface GateDecision { verdict: string; reason: string }
 
 /** 真去做事的那一步：返回它自己报的花费（会被拿来实现对账）。 */
@@ -157,7 +157,7 @@ interface GateDeps {
 /** 工作区状态能从外面改的那一格（现在只有「在不在用」）。 */
 interface WorkspacePatch { active?: unknown }
 
-/** 四个类别（谁在做事）。与 policy.js 的 RequestCategory 同一套取值。 */
+/** 四个类别（谁在做事）。与 admission-policy.js 的 RequestCategory 同一套取值。 */
 export const GATE_CATEGORIES: readonly string[] = ['user-action', 'lifecycle', 'background', 'ai-tool']
 
 /** 类别 → 记哪一档账。插件自己的刷新（后台与生命周期）记一档，人的动作与 AI 工具各记一档。 */
@@ -402,7 +402,7 @@ export function createGate(deps?: GateDeps) {
       deferred.set(r.workspaceKey, { req: r, category: r.category, kind: r.kind, bucket: r.bucket, at: now() })
       stats.deferred += 1
       fireSkipped(r.workspaceKey, r.kind, v.reason, deferred.size)
-      // REASONS 是 policy.js 里那张「原因 → 给人看的一句话」，键是那几个固定原因；v.reason 是裁决给回来的字符串，
+      // REASONS 是 admission-policy.js 里那张「原因 → 给人看的一句话」，键是那几个固定原因；v.reason 是裁决给回来的字符串，
       // 查不到就是空串（下面 `|| ''` 就是这道兜底）。断言成字符串键的表只为过签名，兜底一字未改。
       return { sent: false, verdict: 'defer', reason: v.reason, detail: (REASONS as Readonly<Record<string, string>>)[v.reason] || '', requests: 0, points: 0 }
     }

@@ -275,7 +275,7 @@ export const REBUILD_PR_PAGE_COUNT = 1
  *（定稿第三章「一次重建的单价」）。13 与 7 是两个算式，不是两个手写的数。
  *
  * 这两个数是**典型值**（按上一条那个常用页数算），最坏用量不在这里——最坏按页数上界
- * MAX_PAGES 算，算式见 page-budget.ts 的 worstCaseRebuildCost；门禁（verify-budget-worstcase /
+ * MAX_PAGES 算，算式见 page-allowance.ts 的 worstCaseRebuildCost；门禁（verify-budget-worstcase /
  * verify-event-budget）与账本的最坏列都走那一个入口。把「典型」与「最坏」分成两个算式，
  * 是为了不让「13 点」这个典型值被当成最坏值用。
  */

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T08:41:20.627Z",
+  "generatedAt": "2026-10-23T08:57:51.850Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 330,
   "gateCount": 330,
@@ -710,7 +710,6 @@
         "src/tracker/rooms/github/idempotency.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
-        "tests/refresh-baseline.json",
         "tests/same-layer-baseline.json",
         "tests/tracker-room-imports.json"
       ],
@@ -738,7 +737,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 23 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 22 条"
     },
     {
       "step": "node tests/verify-gate-map.ts",

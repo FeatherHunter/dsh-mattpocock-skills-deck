@@ -8,7 +8,7 @@
 //
 // 本文件不 import 闸、后端注册表、额度常量、算账函数这类运行时依赖：它们都由接线方（或测试）从构造函数传进来。
 // 这不是洁癖 —— 额度常量住在 src/refresh/kernel/host-budget.ts，本层不该反向去取，所以只能由调用方取好传进来
-// （做法与宿主侧的 gate.js / ledger.js、纯函数层的 policy.ts / backoff.ts 一致）。
+// （做法与宿主侧的 refresh-gate.ts / quota-ledger.ts、纯函数层的 admission-policy.ts / failure-backoff.ts 一致）。
 // 本文件自己的运行时 import 只有三处：./in-flight-lease.js（并发同票串行）、./work-path-record.js
 // （#1261 成功收口记一笔）与中央超时的值；其余形状全部 `import type` 自 ./call-shell-types.js，只借形状。
 // （work-path-record.ts 内部另外运行时 import 了一处共享纯逻辑，那笔边记在它自己的文件头上。）
@@ -97,7 +97,7 @@ function num(v: unknown): number { return (typeof v === 'number' && isFinite(v))
 function str(v: unknown): string { return (typeof v === 'string') ? v : '' }
 /**
  * 缺省等待口：真定时器。只有这里碰全局时钟，deps.sleep 一注入就绕开了它。
- * 收到中止信号就提前放行——工具侧拿它当单次调用的钳制（call-budget.ts 的 sleepFn），
+ * 收到中止信号就提前放行——工具侧拿它当单次调用的钳制（tool-call-budget-enforcement.ts 的 sleepFn），
  * 调用方一中止，等待不该还硬挺着；没有信号时与原来一模一样。
  */
 function realSleep(ms: number, signal?: WaitSignal | null): Promise<unknown> {
@@ -129,7 +129,7 @@ function hash8(text: unknown): string {
   return ('0000000' + h.toString(16)).slice(-8)
 }
 
-/** 额度常量从 budget.js 取好传进来时的对照表：字段名与 src/refresh/kernel/host-budget.ts 的导出同名。 */
+/** 额度常量从 host-budget.js 取好传进来时的对照表：字段名与 src/refresh/kernel/host-budget.ts 的导出同名。 */
 export function limitsFromBudget(b: unknown): DeckLimits {
   const src = (b || {}) as UnknownRecord
   return {

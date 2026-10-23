@@ -36,7 +36,7 @@
 > 模块文件顶层仅导出声明的常量/函数/纯数据（可被 verify 测试直接 import）。
 > 拼装顺序不是随手可换的：#1294 要求 `kernel:localeData` 先于 `kernel:locale`（取词表生成物）；#1296 起 `kernel:containerView` 必须先于 `kernel:styles` —— `STYLE_TEXT` 在模块求值时就拼好字符串、直接读中央色表 `CONTAINER_ACCENT`，晚于它会落在 `const` 的暂时性死区里。下面 styles 一行的依赖栏记的正是这一条。
 > 表里的行是冻结当时的模块名单，后来又添了新片：#1292 添了 `kernel/prompt-data.ts` 与 `kernel/prompts-backend.ts`，另有 `kernel/prompts-setup.ts`、`kernel/health-check.ts`、`kernel/modal-fields.ts` 等片是更早的票添的，本表没有逐行补齐。#1294 又删掉十份 locale 片段（`locale-panel` 到 `locale-spec` 十份），把它们并成两份：生成物 `kernel/locale-data.ts` 与合并器兼取词助手 `kernel/locale.ts`。#1297 添了入口浮层的两片：`kernel/entry-card.ts`（卡面画法与断行）与 `kernel/entry-choice.ts`（浮层、选卡与两处宿主共用的拼装），两片在 `kernel:router` 之后、`leaf:tabs`/`leaf:statusBar` 之前拼进来，且 entryCard 必须在前（entryChoice 画卡要调它）。#444 的「15 模块」是当时那次的基准，不是今天的总数。
-> 「模块文件」一列写的是冻结当时的文件名，多数还是 `.js`。内核脚本后来陆续转成了 TypeScript（#1209 转三份拼接片段，#1251 转其余六十二份），今天 `src/client/kernel/` 下全是 `.ts` 真源，同名 `.js` 是构建产物、不入库；本表只在提示词与界面词表有关的行上按今天的真源写（#1294 起 locale 两行也是）。
+> 「模块文件」一列写的是冻结当时的文件名，多数还是 `.js`。内核脚本后来陆续转成了 TypeScript（#1209 转三份拼接片段，#1251 转其余六十二份），今天 `src/client/kernel/` 下全是 `.ts` 真源，同名 `.js` 是构建产物、不入库；本表只在提示词与界面词表有关的行上按今天的真源写（#1294 起 locale 两行也是）。#1428 起 probe 系六片、store-snapshot、slotRenderer-repo-sync 搬进 `src/refresh/rooms/client/` 并改名（新名见 `src/refresh/README.md`），本表这九行的旧名按此换算，标记名与接口不变。
 
 | 模块文件 | 导出（接口） | 依赖（闭包内引用） | 说明 |
 |---|---|---|---|

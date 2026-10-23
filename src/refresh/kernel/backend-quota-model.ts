@@ -9,7 +9,7 @@
  *
  * 本文件不写任何**额度数值**。服务端上限（每小时多少）由账本每分钟从服务端读数里取回来
  * （GitHub 走那个不扣配额的 `gh api rate_limit`），这里的模型只回答「有几个桶、每个桶按什么单位
- * 计数、两桶独不独立、这个后端到底计不计费」。这样做的原因与 budget.ts 同源：额度常量只能有
+ * 计数、两桶独不独立、这个后端到底计不计费」。这样做的原因与 host-budget.ts 同源：额度常量只能有
  * 一处物理真源，而「服务端此刻还剩多少」本来就只能现场读，写死一个数就会骗人。
  *
  * 关于 GitLab 的那一格，口径写死为「按请求数计费，具体数值待实测」：今天没有实测依据，
@@ -17,8 +17,8 @@
  *
  * 为什么本文件一个数字都不写、全部是形状与判定：刷新核心的产物（.build/refresh/kernel/*.js）之间
  * 不许互相 import（tests/verify-dependency-rules.ts 的「同层不许互引」一条门禁守着这件事）。
- * 额度常量因此只有一处物理真源（budget.ts），
- * 做法与 policy.ts / backoff.ts / tool-cost.ts 一致。
+ * 额度常量因此只有一处物理真源（host-budget.ts），
+ * 做法与 admission-policy.ts / failure-backoff.ts / tool-call-budget.ts 一致。
  */
 
 /** 一个后端有几种额度口径。 */

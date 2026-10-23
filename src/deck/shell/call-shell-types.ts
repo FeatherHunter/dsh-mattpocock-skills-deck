@@ -273,7 +273,7 @@ export interface CallCtx {
   gate: GateLike;
   now: () => number;
   /**
-   * 等待口也放进这格：工具侧算单次预算钳制时（call-budget.ts 的 sleepFn）先看自己那层 opts，
+   * 等待口也放进这格：工具侧算单次预算钳制时（tool-call-budget-enforcement.ts 的 sleepFn）先看自己那层 opts，
    * 再看这里。壳不把它放进来，注入的假时钟就够不到钳制那一处，只能真等。
    */
   sleep: (ms: number, signal?: WaitSignal | null) => Promise<unknown>;

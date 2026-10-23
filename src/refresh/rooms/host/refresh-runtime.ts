@@ -231,7 +231,7 @@ export function createRefreshWiring(deps: any): any {
    * 每次 wf.focus 上报之后调一次：新来的进白名单、切走的收摊，两个去处一起改。
    *
    * #723（T19）最关键的一处：闸那边如果没接活跃集合，写事件触发的那一次取数会被**恒判推迟**
-   * （policy.js 的 background-inactive：后台档不在活跃集合里就一次都不发）—— 接线看起来接上了、
+   * （admission-policy.js 的 background-inactive：后台档不在活跃集合里就一次都不发）—— 接线看起来接上了、
    * 实际一笔都发不出去。所以这两个去处必须由同一份「当前在看谁」同时喂，钥匙也必须是同一把：
    * writeEvents 过闸时带的 workspaceKey 是它自己的短散列（rootHash，见 write-event-subscription.js 的 fire），
    * 闸按那把钥匙认活跃集合，所以这里标活跃用的也是同一把（#724 起只有一处实现：workspaceKeyOf）。

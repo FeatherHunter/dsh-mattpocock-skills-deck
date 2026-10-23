@@ -65,9 +65,9 @@ async function main() {
   check(text.indexOf('20260913-builtin-ts-shape.md') >= 0, 'ADR 引用了 docs/adr/20260913-builtin-ts-shape.md 作为形态依据')
   check(fs.existsSync(path.join(ROOT, TS_ADR_REL)), '形态依据那份 ADR 文件真的在：' + TS_ADR_REL)
 
-  // ③ 那句话必须写全：src/shared/refresh/ 的 .ts 不受 350 行约束，理由是三条。
+  // ③ 那句话必须写全：src/refresh/kernel/ 下的 .ts 不受 350 行约束，理由是三条。
   check(text.indexOf('不受「单文件 350 行」这条数字约束') >= 0,
-    'ADR 写明 src/shared/refresh/ 下的 .ts 源文件不受「单文件 350 行」这条数字约束')
+    'ADR 写明 src/refresh/kernel/ 下的 .ts 源文件不受「单文件 350 行」这条数字约束')
   check(text.indexOf('零增长基线') >= 0 && text.indexOf('只许减不许增') >= 0,
     '理由之一写明了：#1017 换轨后那条门禁也读 .ts 真源，超线的那份按零增长基线冻结（只许减不许增），不强制拆')
   check(text.indexOf('产物之间零相对引用是硬约束') >= 0 && /拆\s*`?\.ts`?/.test(text) && text.indexOf('重复代码') >= 0,

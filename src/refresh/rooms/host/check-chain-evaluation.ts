@@ -194,8 +194,8 @@ export function createDetectChain(deps: DetectChainDeps) {
   }
   // #969：链上不再自带超时数字（分档由出站两路按命令认：读 12 秒、探活 15 秒；自带 30 秒会盖掉分档）。
   function ghOptsFor(cwdIn: string): { cwd: string } { return { cwd: cwdIn } }
-  // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/refresh/rooms/host/chain-backoff.js，
-  // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
+  // #709（T5）：退避与全绿缓存整段交给 kernel 的纯函数裁定（薄壳 src/refresh/rooms/host/chain-backoff.js，
+  // 数字真源是 host-budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
   // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
   async function handleDetect(args: ChainArgs) {
       const _rawDetectCwd = (args && args.cwd) || ''; if (!String(_rawDetectCwd).trim()) return { ok: true, handle: { cwd: '' }, selection: null, repoHandle: { cwd: '', refId: '' }, explicit: { raw: null, parsed: { explicitBackendId: null } }, preflight: null, skillProbes: null, at: Date.now(), workspaceNotReady: true }; const cwd = await canonicalKey(_rawDetectCwd) // #1003 空目录闸：没目录不冒充
@@ -221,7 +221,7 @@ export function createDetectChain(deps: DetectChainDeps) {
       const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
       const trigger = String((args && args.trigger) || '')
       // #709（T5 补）这一次求值是什么身份（人亲手点的 / 插件自己的动作）。插件自己也会调这个入口
-      //（挂载、快照回包、动作做完之后再补一次），那种调用不带 trigger。判据只有 refreshSource.js 一处：
+      //（挂载、快照回包、动作做完之后再补一次），那种调用不带 trigger。判据只有 trigger-classification.ts 一处：
       // 带 trigger='user-recheck' 的算人的动作，其余一律归后台档 —— 挂载时那一次强制刷新走的正是后者。
       // 不分开的话，账本会把插件自己的动作记成「人手动过」，而人的动作在闸上永不降档。
       const chainSource = refreshSourceOf(trigger)

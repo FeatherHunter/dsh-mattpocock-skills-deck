@@ -336,8 +336,8 @@ function ticketFromArgs(args: unknown): string | null {
 }
 
 /**
- * 三档各自要做什么。数字全部由调用方从 budget.ts 取好传进来（PATCH_MERGE_WINDOW_MS 与
- * PROBE_INTERVAL_MS），本文件一个额度数字都不写——与 policy.ts 同一条纪律。
+ * 三档各自要做什么。数字全部由调用方从 host-budget.ts 取好传进来（PATCH_MERGE_WINDOW_MS 与
+ * PROBE_INTERVAL_MS），本文件一个额度数字都不写——与 admission-policy.ts 同一条纪律。
  * 「确定写但票号未知」要降成「立刻探测」：补行得指名道姓改哪一行，说不出票号就没法只补那一行，
  * 这时先探一次、再看哪几条变了（探一次仍比整池重建便宜得多）。
  */

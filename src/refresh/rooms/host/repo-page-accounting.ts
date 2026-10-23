@@ -1,15 +1,15 @@
-// src/refresh/rooms/host/repo-page-accounting.ts —— 按仓库记的「重建页数实测账」（#1255 从 ledger.ts 拆出）
+// src/refresh/rooms/host/repo-page-accounting.ts —— 按仓库记的「重建页数实测账」（#1255 从 quota-ledger.ts 拆出）
 //
 // 为什么单列一本账：账本里原来有两种账，键的维度不一样 ——
 // 额度账按「档位 × 桶」记（三个档位、两个桶），页数账按「仓库」记（每个仓库自己的实测页数）。
 // 两种账的调用方也不同：额度账是闸每一笔都问，页数账只在整池重建估算与总览里读。
-// 拆出来之后 ledger.ts 只持有实例（createPageBook），跨文件边只有一条（ledger → 本文件），
-// 反向不依赖：本文件只认 shared/refresh/page-budget.js 与 budget.js 的纯函数。
+// 拆出来之后 quota-ledger.ts 只持有实例（createPageBook），跨文件边只有一条（quota-ledger → 本文件），
+// 反向不依赖：本文件只认 page-allowance.ts 与 host-budget.ts 的纯函数。
 //
-// 口径（从 ledger.ts 原样搬来，行为一字未动）：
+// 口径（从 quota-ledger.ts 原样搬来，行为一字未动）：
 //   · 每个仓库记三样：最近一次翻了几页、历史上最多见过几页、累计重建过几次；
 //   · 没记过的仓库按 1 页估，不编一个典型值出来；
-//   · 最坏用量按「实测最大值与页数上界取大者」算，算式只在 shared/refresh/page-budget.js 里。
+//   · 最坏用量按「实测最大值与页数上界取大者」算，算式只在 page-allowance.ts 里。
 import { MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../kernel/host-budget.js'
 import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../kernel/page-allowance.js'
 
@@ -26,8 +26,8 @@ export interface RepoPageRecord {
 export interface ObservedPages { issuePages?: unknown; prPages?: unknown; at?: unknown }
 
 /**
- * 重建那几页的单价，全部来自 budget.js（本文件不写任何一个额度或单价数字）。
- * 交给 shared/refresh/page-budget.js 的纯函数算账，理由同 ledger.ts 文件头：单一物理真源在 budget.ts。
+ * 重建那几页的单价，全部来自 host-budget.ts（本文件不写任何一个额度或单价数字）。
+ * 交给 page-allowance.ts 的纯函数算账，理由同 quota-ledger.ts 文件头：单一物理真源在 host-budget.ts。
  */
 export const PAGE_PRICES = Object.freeze({
   listPagePoints: PAGE_COST_POINTS,
@@ -42,7 +42,7 @@ export const PAGE_PRICES = Object.freeze({
 /** 最坏用量那条线用的页数上界（budget.MAX_PAGES）。 */
 export const PAGE_UPPER_BOUND = MAX_PAGES
 
-/** 收未知输入、归一成数：非数字与 NaN 都算 0（与 ledger.ts 的 num 同形，各管各的归一）。 */
+/** 收未知输入、归一成数：非数字与 NaN 都算 0（与 quota-ledger.ts 的 num 同形，各管各的归一）。 */
 function num(v: unknown): number {
   return (typeof v === 'number' && isFinite(v)) ? v : 0
 }
@@ -53,7 +53,7 @@ export interface PageBookDeps {
 }
 
 /**
- * 建一本按仓库记的页数账。调用方（ledger.ts）持有实例，把五个方法挂进自己的回包；
+ * 建一本按仓库记的页数账。调用方（quota-ledger.ts）持有实例，把五个方法挂进自己的回包；
  * 总览要的那一份「每个仓库的页数节」由 snapshotPages() 原样供给。
  */
 export function createPageBook(deps?: PageBookDeps): {
@@ -73,7 +73,7 @@ export function createPageBook(deps?: PageBookDeps): {
    * 最近一次翻了几页、历史上最多见过几页、累计重建过几次。
    * 为什么要记「最多见过几页」而不只记最近一次：最坏上界要的是一个不会被突破的数，
    * 只记最近一次的话，某次翻到 12 页、下一次回到 3 页，最坏上界就又变回 10 页了 ——
-   * 那等于把已经发生过的事忘掉。算式在 shared/refresh/page-budget.js，只此一处。
+   * 那等于把已经发生过的事忘掉。算式在 page-allowance.ts，只此一处。
    */
   const pagesByRepo: Record<string, RepoPageRecord> = {}
 
@@ -115,7 +115,7 @@ export function createPageBook(deps?: PageBookDeps): {
 
   /**
    * 这个仓库最坏一次重建要花多少：实测页数与页数上界（MAX_PAGES）取大的那个。
-   * 门禁核对最坏用量走的是同一个算式（shared/refresh/page-budget.js），两处不会各算一份。
+   * 门禁核对最坏用量走的是同一个算式（page-allowance.ts），两处不会各算一份。
    */
   function worstRebuild(repoKey: string) {
     const p = pagesFor(repoKey)
@@ -130,7 +130,7 @@ export function createPageBook(deps?: PageBookDeps): {
 
   /**
    * 给总览的那一份「每个仓库的页数节」：实测三样 + 最坏用量 + 报告，原样拼好。
-   * ledger.ts 的 snapshot() 直接调它，拼法与拆分前一字相同。
+   * quota-ledger.ts 的 snapshot() 直接调它，拼法与拆分前一字相同。
    */
   function snapshotPages(): Record<string, unknown> {
     const pages: Record<string, unknown> = {}

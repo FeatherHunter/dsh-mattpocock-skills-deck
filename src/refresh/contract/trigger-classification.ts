@@ -5,7 +5,7 @@
  * 客户端会带 trigger='user-recheck' 上来；另一种是插件自己按的（面板挂载、快照回包、
  * 动作做完之后再补一次），那一种客户端不带 trigger。
  *
- * 这两种在账本上完全不一样（账本与闸在 src/refresh/rooms/host/refresh-gate.js 与 ledger.js）：
+ * 这两种在账本上完全不一样（账本与闸在 src/refresh/rooms/host/refresh-gate.ts 与 quota-ledger.ts）：
  * 人的动作有两件特权 —— 永不降档（额度再紧、撞了限流也照做），也不吃后台那一档的自限；
  * 插件自己的动作则要按后台档算。不把这两种分开的话，插件每次挂载都会被记成「人手动过」，
  * 于是「到底是谁在花这笔钱」在账上就再也看不出来了。

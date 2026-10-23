@@ -6,19 +6,19 @@
  * 里面没有一行读盘、联网、看时钟的代码，所以它能被整块测干净（tests/verify-budget-worstcase.js
  * 与 tests/verify-gate-accounting.js 都会真跑它）。
  *
- * 形状在 ports.ts（请求类别、档位、三种结论）；数字在 budget.ts（几秒探一次、每小时能花多少、
+ * 形状在 refresh-ports.ts（请求类别、档位、三种结论）；数字在 host-budget.ts（几秒探一次、每小时能花多少、
  * AI 工具那两组硬顶）。**本文件一样都不重复。**
  *
- * 为什么不直接 import budget.ts 的常量，而要调用方把数字装进 PolicyLimits 传进来：
+ * 为什么不直接 import host-budget.ts 的常量，而要调用方把数字装进 PolicyLimits 传进来：
  * 产物文件之间同层互引会被 tests/verify-dependency-rules.ts 判红（src/shared/ 内部不许互相引用，
- * 该门禁只许减不许增），而 ports.ts 那种 `import type` 在转译时会被擦掉、不产生引用边。
- * 所以数字统一由调用方（src/refresh/rooms/host/refresh-gate.js）从 budget.ts 取好再注入，本文件一个额度数字都不写。
+ * 该门禁只许减不许增），而 refresh-ports.ts 那种 `import type` 在转译时会被擦掉、不产生引用边。
+ * 所以数字统一由调用方（src/refresh/rooms/host/refresh-gate.js）从 host-budget.ts 取好再注入，本文件一个额度数字都不写。
  *
  * 三档降级顺序（定稿第十章）在本文件里就是 DEGRADE_ORDER 这一条数组，顺序写死：先降「别处变化」
- * 的灵敏度，再降后台对账的频率，最后才动本地写入的即时性。数值取自 budget.ts（那是唯一真源）：
- * 黄档探测放慢到 budget.ts 的 PROBE_INTERVAL_YELLOW_MS，红档探测全停；后台对账到黄档就停
+ * 的灵敏度，再降后台对账的频率，最后才动本地写入的即时性。数值取自 host-budget.ts（那是唯一真源）：
+ * 黄档探测放慢到 host-budget.ts 的 PROBE_INTERVAL_YELLOW_MS，红档探测全停；后台对账到黄档就停
  * （第四章定的「黄档后台刷新全停」）；本地写入的即时性在任何档都不动（写保底额度不吃「读用剩多少」那一套）。
- * 第十章叙述里的 5 秒 → 30 秒 → 停、10 分钟 → 30 分钟 → 停 是「顺序」的说法，具体数值以 budget.ts 为准，
+ * 第十章叙述里的 5 秒 → 30 秒 → 停、10 分钟 → 30 分钟 → 停 是「顺序」的说法，具体数值以 host-budget.ts 为准，
  * 这条不一致记在 docs/adr/20260923-refresh-budget-architecture.md 的「两处如实记录」一节里。
  */
 import type { QuotaTier, RequestCategory, VerdictResult } from '../contract/refresh-ports.js'
@@ -47,27 +47,27 @@ export const REQUEST_KINDS: readonly RequestKind[] = [
   'quota-read', 'probe', 'patch', 'rebuild', 'reconcile', 'preflight', 'chain', 'naming', 'detail', 'write', 'tool-batch',
 ]
 
-// ---------- 二、裁决要用的那套数字（全部由调用方从 budget.ts 取来传入） ----------
+// ---------- 二、裁决要用的那套数字（全部由调用方从 host-budget.ts 取来传入） ----------
 
-/** 这一套数字全部来自 budget.ts，由调用方取好传进来；本文件不抄任何一个。 */
+/** 这一套数字全部来自 host-budget.ts，由调用方取好传进来；本文件不抄任何一个。 */
 export interface PolicyLimits {
-  /** 绿档变化探测间隔（budget.ts 的 PROBE_INTERVAL_MS）。 */
+  /** 绿档变化探测间隔（host-budget.ts 的 PROBE_INTERVAL_MS）。 */
   probeIntervalMs: number
-  /** 黄档变化探测间隔（budget.ts 的 PROBE_INTERVAL_YELLOW_MS）。 */
+  /** 黄档变化探测间隔（host-budget.ts 的 PROBE_INTERVAL_YELLOW_MS）。 */
   probeIntervalYellowMs: number
-  /** 后台对账间隔（budget.ts 的 RECONCILE_INTERVAL_MS）。 */
+  /** 后台对账间隔（host-budget.ts 的 RECONCILE_INTERVAL_MS）。 */
   reconcileIntervalMs: number
-  /** 黄档两次整池重建之间的最短间隔（budget.ts 的 REBUILD_MIN_INTERVAL_YELLOW_MS）。 */
+  /** 黄档两次整池重建之间的最短间隔（host-budget.ts 的 REBUILD_MIN_INTERVAL_YELLOW_MS）。 */
   rebuildMinIntervalYellowMs: number
-  /** AI 工具单次点数硬顶（budget.ts 的 AI_TOOL_MAX_POINTS_PER_CALL）。 */
+  /** AI 工具单次点数硬顶（host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_CALL）。 */
   aiToolMaxPointsPerCall: number
-  /** AI 工具单次请求数硬顶（budget.ts 的 AI_TOOL_MAX_REQUESTS_PER_CALL）。 */
+  /** AI 工具单次请求数硬顶（host-budget.ts 的 AI_TOOL_MAX_REQUESTS_PER_CALL）。 */
   aiToolMaxRequestsPerCall: number
-  /** AI 工具每小时点数硬顶（budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR）。 */
+  /** AI 工具每小时点数硬顶（host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR）。 */
   aiToolMaxPointsPerHour: number
-  /** AI 工具每小时请求数硬顶（budget.ts 的 AI_TOOL_MAX_REQUESTS_PER_HOUR）。 */
+  /** AI 工具每小时请求数硬顶（host-budget.ts 的 AI_TOOL_MAX_REQUESTS_PER_HOUR）。 */
   aiToolMaxRequestsPerHour: number
-  /** 失败退避序列（budget.ts 的 CHAIN_BACKOFF_MS；有进展就回到第一档）。 */
+  /** 失败退避序列（host-budget.ts 的 CHAIN_BACKOFF_MS；有进展就回到第一档）。 */
   failureBackoffMs: readonly number[]
 }
 
@@ -110,7 +110,7 @@ export interface WorkspaceState {
 export interface AiToolCall {
   points: number
   requests: number
-  /** 这一笔要建多少张子票（批量工具才带；分片建议由调用方按 budget.ts 的 shardPlan 算）。 */
+  /** 这一笔要建多少张子票（批量工具才带；分片建议由调用方按 host-budget.ts 的 shardPlan 算）。 */
   childTickets?: number
 }
 
@@ -185,7 +185,7 @@ export interface DegradePlan {
   sacrificed: DegradeStage | 'none'
 }
 
-/** 档位 → 四样东西的安排。数值全部取自传进来的 limits（也就是 budget.ts）。 */
+/** 档位 → 四样东西的安排。数值全部取自传进来的 limits（也就是 host-budget.ts）。 */
 export function degradePlanFor(tier: QuotaTier, limits: PolicyLimits): DegradePlan {
   if (tier === 'green') {
     return {
@@ -305,7 +305,7 @@ export interface AiToolAdmission {
 /**
  * AI 工具那一档的准入：单次硬顶 + 每小时硬顶 + 剩余额度保底线，三样都过才放行。
  *
- * 为什么不把它并进 decide()：AI 工具超顶的结论是「拒绝」，而 ports.ts 里那三种结论
+ * 为什么不把它并进 decide()：AI 工具超顶的结论是「拒绝」，而 refresh-ports.ts 里那三种结论
  * 都不是失败（放行 / 降级 / 推迟）。拒绝是第四种东西，所以它单独一条路：闸先问准入，
  * 过了再走 decide() 的资源那一侧。
  */
@@ -329,7 +329,7 @@ export function aiToolAdmission(call: AiToolCall, hour: HourSpend, quota: QuotaV
 
 /**
  * 连续失败第 n 次之后，下一次要等多久。
- * 序列取自 budget.ts 的 CHAIN_BACKOFF_MS（同一套「有进展就回到第一档」的纪律），本文件不另写一份数字。
+ * 序列取自 host-budget.ts 的 CHAIN_BACKOFF_MS（同一套「有进展就回到第一档」的纪律），本文件不另写一份数字。
  * 没有失败（n ≤ 0）时返回 0：立刻可以再试。
  */
 export function nextAttemptDelayMs(failuresSinceSuccess: number, limits: PolicyLimits): number {

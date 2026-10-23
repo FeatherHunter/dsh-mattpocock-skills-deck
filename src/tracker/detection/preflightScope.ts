@@ -17,11 +17,11 @@
  * 三条边界（写在这里，免得以后有人把它改成缓存）：
  *   ① **不是缓存，是复用位**：它绑在一次评估上，评估结束（一次 wf.chain 调用返回）就随对象一起丢掉，
  *      模块级、盘上都不留 —— 下一次评估照样重新问一次外部。这样做的原因是环境预检的寿命另有真源
- *      （refresh-core 的 backoff.ts：成功 10 分钟、失败立刻重试一次），跨评估的寿命归那条纯函数裁定，
+ *      （kernel 的 failure-backoff.ts：成功 10 分钟、失败立刻重试一次），跨评估的寿命归那条纯函数裁定，
  *      本文件不越过它自己攒一份缓存。
  *   ② **不跨评估串味**：两次评估各拿一个自己的作用域，谁也不读别人的结论（也没有东西可读 —— 用完即弃）。
  *   ③ **只复用这两条、只复用成功的**：环境预检成名的那两条命令（登录态、仓库可达）；失败的那一份
- *      不留下（下一问照样真问一次），因为「失败之后还允不允许立刻再试一次」由 refresh-core 的
+ *      不留下（下一问照样真问一次），因为「失败之后还允不允许立刻再试一次」由 kernel 的
  *      preflightRetryAllowed 定（上限 1 次，防重试风暴），本文件不替它做决定。
  *
  * 日志：新增内存复用位这一类东西要留日志点（AGENTS.md 的埋点纪律）。按 docs/design/335-logging-contract.md
@@ -128,7 +128,7 @@ export function createPreflightScope(exec: PreflightExec): {
    * 包了一层的外部命令执行器。**签名与原来一模一样**，调用方不需要知道有这一层。
    *
    * 命中条件只有两条：① 这条命令是成名的环境预检；② 上一次问的结论是成功的。
-   * 为什么只复用成功的：失败不缓存（与 refresh-core 的 preflightUsable 同一口径），
+   * 为什么只复用成功的：失败不缓存（与 kernel 的 preflightUsable 同一口径），
    * 免得一次网络抖动被同一轮后面的调用当成「已经问过了」。
    */
   function scopedExec(cmd: string, args: string[], opts: PreflightExecOptions | undefined, via: string | undefined): Promise<PreflightAnswer> {
@@ -140,7 +140,7 @@ export function createPreflightScope(exec: PreflightExec): {
     return Promise.resolve()
       .then(function () { return exec(cmd, a, opts, via) })
       .then(function (value) {
-        // 成功才留下 —— 失败那份不缓存（与 refresh-core 的 preflightUsable 同一口径）。
+        // 成功才留下 —— 失败那份不缓存（与 kernel 的 preflightUsable 同一口径）。
         // 两条出站路的成功形状不同（detectionExec 回 code，runGh 回 ok/kind），所以两种都认。
         if (value && (value.ok === true || value.code === 0)) answered.set(key, { value: value, hits: 0 })
         return value

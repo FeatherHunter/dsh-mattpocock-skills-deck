@@ -375,7 +375,7 @@
         try { if (res && res.ok === true) log('info', 'host.call', { method: 'wf.commentIssue', latencyMs: Date.now() - ciT0, ok: true, kind: 'comment' }); else log('warn', 'host.call.fail', { method: 'wf.commentIssue', kind: 'comment', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'comment-not-ok')), 120, 'error')) }) } catch (eL) {}
         if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty'), raw: '' } }
         // #715：评论真写进远端之后，记下「这一行刚写过」的时刻 —— 列表那一行据此在合并窗口内显示
-        //   「更新中」，窗口一过自动消失（窗口长度取自 budget.ts，标记本身不改状态也不改布局）。
+        //   「更新中」，窗口一过自动消失（窗口长度取自 host-budget.ts，标记本身不改状态也不改布局）。
         if (res.ok === true) { try { if (typeof markRowWrite === 'function') markRowWrite(st, num, ciEffort) } catch (eW) {}; return { ok: true, comment: res.data != null ? res.data : (res.comment || null) } }
         // #1111：跟踪器侧已经统一成八档（rate-limit / not-found 带连字符），直接透传就够；
         // dswsNormalizeError 是给宿主尚未迁移的通道留的兼容层（老写法 'rateLimit' / 'notFound' / '404'），

@@ -20,7 +20,7 @@
  * 形状照本域前四份（ports / budget / idempotency / policy）：产物落
  * .build/refresh/kernel/snapshot-diff.js，逐字由根构建脚本的 refresh-ts 那一段生成（#1425 起本域的新家
  * 在 src/refresh/，产物不再有各自的构建脚本）。本文件不 import 任何其他产物 ——
- * 需要用的东西一律由调用方传进来（与 policy.ts 同一条纪律：数字只许调用方给，不许产物之间互引）。
+ * 需要用的东西一律由调用方传进来（与 admission-policy.ts 同一条纪律：数字只许调用方给，不许产物之间互引）。
  */
 
 // 这里原来有一行 `export const DELTA_SOURCE = 'src/shared/refresh/src/delta.ts'`。#719 把它删掉：
@@ -43,7 +43,7 @@ export type IssueIndex = Record<string, IndexEntry>
 /**
  * 一次增量最多补几行。超过这个数就整池，不再一条一请求地补过去。
  *
- * 为什么是这个数：一条薄查询 = 1 条出站请求、1~2 点（budget.ts 的 PATCH_COST_REQUESTS 与
+ * 为什么是这个数：一条薄查询 = 1 条出站请求、1~2 点（host-budget.ts 的 PATCH_COST_REQUESTS 与
  * PATCH_COST_POINTS_MIN / MAX）；一次整池 = 7 条请求、13 点（REBUILD_COST_*）。
  * 6 行顶多 12 点，还在整池的价钱以下；再多就不划算了，而且「一次变化这么多行」本身
  * 说明这不是日常的关一张票、改一个标签，整池拿回来的东西还更全（计数、层级、阻塞边都在）。

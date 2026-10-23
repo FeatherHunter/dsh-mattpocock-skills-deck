@@ -14,7 +14,7 @@
  * 要么写进待办等下一个事件。
  *
  * 数字一个都不在这里写：全部来自 src/refresh/kernel/host-budget.ts（那是唯一真源），由调用方取好装进
- * BackoffLimits 传进来。理由与 policy.ts 一样：产物文件之间同层互引会被
+ * BackoffLimits 传进来。理由与 admission-policy.ts 一样：产物文件之间同层互引会被
  * tests/verify-dependency-rules.ts 判红，所以本文件不 import 任何产物的常量。
  */
 import type { BackoffLimits, ChainBackoffState, ChainFreshness } from '../contract/refresh-ports.js'
@@ -83,7 +83,7 @@ export function noteChainEvaluation(state: ChainBackoffState, evaluatedAtMs: num
  * 上一次全绿的结果还能不能直接用（不必重算）。
  *
  * 判据两条都成立才算还能用：① 上一次求值确实全绿；② 距离那一次还没超过全绿缓存寿命（30 分钟，
- * 数字来自 budget.ts 的 CHAIN_ALL_GREEN_TTL_MS）。没求过值（evaluatedAtMs ≤ 0）一律当「不能用」，
+ * 数字来自 host-budget.ts 的 CHAIN_ALL_GREEN_TTL_MS）。没求过值（evaluatedAtMs ≤ 0）一律当「不能用」，
  * 免得第一次进面板就拿着一个不存在的结论说自己全绿。
  *
  * 时钟回拨（now 比上次求值还早）当「不能用」处理：宁可多查一次，也不拿一份来路不明的时间戳当真。
@@ -124,7 +124,7 @@ export function chainRefreshVerdict(state: ChainBackoffState, nowMs: number, lim
 /**
  * 环境预检（登录态、仓库可达）的这份结果还能不能复用。
  *
- * 成功：寿命 10 分钟（budget.ts 的 PREFLIGHT_TTL_MS 是同一个数字，本文件不另写）。
+ * 成功：寿命 10 分钟（host-budget.ts 的 PREFLIGHT_TTL_MS 是同一个数字，本文件不另写）。
  * 失败：**不缓存**，一律返回 false —— 失败之后的那一次立刻重试由调用方按
  * preflightRetryAllowed 判，不靠这里缓存。
  */
@@ -140,7 +140,7 @@ export function preflightUsable(ok: boolean, checkedAtMs: number, nowMs: number,
 /**
  * 环境预检失败之后，还允许「立刻再试一次」吗。
  *
- * 规则：一次求值里最多立刻重试 preflightRetryAfterFailure 次（budget.ts 里定为 1），
+ * 规则：一次求值里最多立刻重试 preflightRetryAfterFailure 次（host-budget.ts 里定为 1），
  * 再失败就等下一个事件。这样做的原因是防重试风暴：预检失败通常是网络或登录态的问题，
  * 连环重试只会把同一份失败重复烧一遍；而且这一次重试要计入会话的退避计数（谁退避、退多快，
  * 由闸那一侧的 policy.nextAttemptDelayMs 算，本文件不重复那套数字）。

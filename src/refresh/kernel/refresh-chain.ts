@@ -13,7 +13,7 @@
  *   1. **键要带会话 id**：键 =（工作区根散列，后端，票 key）再显式带上会话 id。只按根分桶会在
  *      「同一个仓库开着两个会话」时互相覆盖（票面硬要求里点名的失败现场）。
  *   2. **只记写与明确的处理动作**：读不进链。判据不是「有没有票号」，而是「这次动作是不是写」
- *      —— 所以本文件的入口收的是判定表（write-detect.ts）给的那一档，读工具、只读子命令、
+ *      —— 所以本文件的入口收的是判定表（write-event-detection.ts）给的那一档，读工具、只读子命令、
  *      没成功的调用一律不记（第十三章那张表里「工作路线把看了一眼也记成在处理」的处置）。
  *   3. **落盘只存散列与票键**：会话 id 只以散列形态出现，工作区根只以短指纹出现；命令原文、
  *      路径原文、令牌一个字符都不许进链（隐私红线，与仓库日志纪律同口径）。旧链落盘前用旧自检
@@ -246,7 +246,7 @@ const VERB_ACTIONS: Readonly<Record<string, string>> = {
   close: 'state', reopen: 'state', link: 'link', plan: 'plan',
 }
 
-/** 判定表里「这次是写」的那一档（write-detect.ts 的 DetectTier 字面，只抄字面不抄规则）。 */
+/** 判定表里「这次是写」的那一档（write-event-detection.ts 的 DetectTier 字面，只抄字面不抄规则）。 */
 const WRITE_TIER = 'write-confirmed'
 
 export interface ChainDecisionInput {
@@ -254,7 +254,7 @@ export interface ChainDecisionInput {
   source: ChainSource | string
   /** 工具名（我们自己的工具用得上；Windows 上执行命令的那个叫 `pwsh`）。 */
   tool?: string
-  /** 判定表给的档位（write-detect.ts 的 tier）。没给就按「认不出」处理，不记。 */
+  /** 判定表给的档位（write-event-detection.ts 的 tier）。没给就按「认不出」处理，不记。 */
   tier?: string | null
   /** 判定表给的原因代号（DETECT_REASONS 的键）。 */
   reason?: string | null

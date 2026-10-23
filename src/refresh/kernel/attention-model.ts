@@ -13,9 +13,9 @@
  * 第四章第 02 件（活跃的定义、两个活跃怎么分额度、心跳、信号失效怎么办、多窗口的兜底），
  * 以及第一章不变量 I2（后台零定时器，只留限时收尾）与 I4（用量与工作区数量无关）。
  *
- * 数字一个都不在这里：全部来自 budget.ts，由调用方取好装进 AttentionLimits 传进来。
- * 为什么不直接 import budget.ts：产物文件之间同层互引会被 tests/verify-dependency-rules.ts
- * 判红（src/shared/ 内部不许互相引用），所以照 policy.ts 的先例，数字由调用方注入。
+ * 数字一个都不在这里：全部来自 host-budget.ts，由调用方取好装进 AttentionLimits 传进来。
+ * 为什么不直接 import host-budget.ts：产物文件之间同层互引会被 tests/verify-dependency-rules.ts
+ * 判红（产物之间不许互相引用），所以照 admission-policy.ts 的先例，数字由调用方注入。
  *
  * **两条设计上要命的取舍，先说清：**
  *   ① 键是「工作区根」，不是窗口，也不是会话。界面上报的就是工作区根，而窗口与会话都不止一个
@@ -31,7 +31,7 @@
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
 // 空壳产物（src/refresh/contract/refresh-ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
-/** 活跃集合的硬上限取不到调用方给的数字时用它兜底（真源是 budget.ts 的 MAX_ACTIVE_WORKSPACES）。 */
+/** 活跃集合的硬上限取不到调用方给的数字时用它兜底（真源是 host-budget.ts 的 MAX_ACTIVE_WORKSPACES）。 */
 export const ATTENTION_ACTIVE_CAP_FALLBACK = 2
 
 /** 一次上报是什么让界面「在看」这个工作区。枚举写死：取值表就是这一串。 */
@@ -70,19 +70,19 @@ export interface AttentionReport {
   atMs?: number
 }
 
-/** 裁决要用的那套数字，全部由调用方从 budget.ts 取来传入。 */
+/** 裁决要用的那套数字，全部由调用方从 host-budget.ts 取来传入。 */
 export interface AttentionLimits {
-  /** 活跃集合的硬上限（budget.ts 的 MAX_ACTIVE_WORKSPACES）。 */
+  /** 活跃集合的硬上限（host-budget.ts 的 MAX_ACTIVE_WORKSPACES）。 */
   maxActive: number
-  /** 「刚离开的那个」还算活跃多久（budget.ts 的 ACTIVE_LINGER_MS）。 */
+  /** 「刚离开的那个」还算活跃多久（host-budget.ts 的 ACTIVE_LINGER_MS）。 */
   lingerMs: number
-  /** 没有任何上报多久就全部收摊（budget.ts 的 ATTENTION_EXPIRY_MS）。 */
+  /** 没有任何上报多久就全部收摊（host-budget.ts 的 ATTENTION_EXPIRY_MS）。 */
   expiryMs: number
-  /** 正在看的那个的探测间隔（budget.ts 的 PROBE_INTERVAL_MS）。 */
+  /** 正在看的那个的探测间隔（host-budget.ts 的 PROBE_INTERVAL_MS）。 */
   probeIntervalMs: number
-  /** 刚离开的那个的探测间隔（budget.ts 的 PROBE_INTERVAL_LINGER_MS）。 */
+  /** 刚离开的那个的探测间隔（host-budget.ts 的 PROBE_INTERVAL_LINGER_MS）。 */
   probeIntervalLingerMs: number
-  /** 面板可见时本地心跳的间隔（budget.ts 的 ATTENTION_HEARTBEAT_MS）。 */
+  /** 面板可见时本地心跳的间隔（host-budget.ts 的 ATTENTION_HEARTBEAT_MS）。 */
   heartbeatMs: number
 }
 

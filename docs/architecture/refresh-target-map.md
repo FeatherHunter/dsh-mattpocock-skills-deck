@@ -27,7 +27,7 @@ src/refresh/
 
 ## 二、59 个文件对照表
 
-### A 组：纯逻辑候选（17 个，今在 src/shared/refresh/src/，去 kernel/ 与 contract/）
+### A 组：纯逻辑候选（17 个，起草时在 src/shared/refresh/src/，去 kernel/ 与 contract/；#1425 起已搬空）
 
 | # | 旧位置 | 新位置 | 改名理由（一句话：拥有什么、替谁做决定） |
 |---|---|---|---|
@@ -49,7 +49,7 @@ src/refresh/
 | A16 | src/shared/refresh/src/ports.ts | src/refresh/contract/refresh-ports.ts | 它拥有对外端口的形状，进 contract；加刷新域前缀 |
 | A17 | src/shared/refresh/src/tuning.ts | src/refresh/contract/tuning-parameters.ts | 它拥有可调参数的形状（节拍、阈值），替“哪些旋钮可以调”做决定；它是契约面 |
 
-### B 组：宿主房候选（13 个，今在 src/host/refresh/，去 rooms/host/）
+### B 组：宿主房候选（13 个，起草时在 src/host/refresh/，去 rooms/host/；#1426 起已搬空）
 
 | # | 旧位置 | 新位置 | 改名理由 |
 |---|---|---|---|
@@ -95,7 +95,7 @@ src/refresh/
 | D3 | src/host/outbound/admission.ts | src/refresh/rooms/host/outbound-admission.ts | 拥有出站准入判定执行，替“这笔调用放不放”做决定 |
 | D4 | src/host/index.ts（仅 wf.probe 段） | src/refresh/rooms/host/probe-handler.ts | 拥有探测取数入口的宿主处理，替“探测请求进来先干什么”做决定；从宿主顶层入口拆出 |
 
-### E 组：客户端房（9 个，今在 src/client/kernel/，去 rooms/client/）
+### E 组：客户端房（9 个，起草时在 src/client/kernel/，去 rooms/client/；#1428 起已搬空）
 
 | # | 旧位置 | 新位置 | 改名理由 |
 |---|---|---|---|
@@ -143,6 +143,8 @@ src/refresh/
 
 判据落点：新增规则并入 tests/verify-dependency-rules.ts 那一扇，不新开门禁脚本（规格测试决策已定）。
 
+终态（#1430，已验证）：分层四条定版——`refresh-kernel-no-io` 唯一例外是 `async_hooks`（to 侧 pathNot，step-pricing 透传计数用，不碰文件不联网）；两房零引用两条零违规；`refresh-outside-only-contract` 禁房间与登记深引、内核与契约公开（#1425 对第 24 行的修正）。`tests/refresh-baseline.json` 已删，门禁里读取块与分类第三参数一并移除；同层 82 条存量零新增。
+
 ## 五、ADR 变更草案（docs/adr/20260924-refresh-budget-architecture.md → v2）
 
 要改的章节：
@@ -151,7 +153,9 @@ src/refresh/
 - 新增一节“目录与命名”：写入本图第一、二节的分层规则与命名规则（目录回答哪一层哪个角色、文件回答拥有什么替谁做决定、缩写只用 GLOSSARY 已有词）。
 - 全文路径引用：凡出现 src/shared/refresh、src/host/refresh、src/client/kernel/probe-* 的地方改为新路径。
 
-明确不动的：六条不变量 I1–I6 的文字一个字不动；三个后端各自的额度模型不动；余量数值不动；日志事件名与字段不动。
+明确不动的：六条不变量 I1–I6 的判据语义一个字不动；三个后端各自的额度模型不动；余量数值不动；日志事件名与字段不动。
+
+落点（#1430 v2 实际做法，与草案有三处出入，均有理由）：一、标题已按草案改成“纯逻辑进 `src/refresh/kernel/` · 契约进 `src/refresh/contract/`”。二、“目录与命名”落在 §3 内一款，没有单立一节——ADR 正文多处交叉引用 §3–§8，单立新节要么重排编号、要么挂在末尾割裂上下文；分层与命名的内容已全。三、“产物零相对引用”保留原句没有按草案改写——门禁认这个字串，改写会杀掉判据；内核与房之间零直引的意思由分层四条守着。四、“六条文字不动”指判据语义，`怎么判` 里的落点（闸/预算/退避/测试文件名）随“全文路径引用”一条更新，旧名在正文各留一处备查（门禁认 `budget.js` 等字串）。
 
 ## 六、批次与回滚
 
@@ -165,8 +169,12 @@ src/refresh/
 
 每批单独提交、单独可回滚（一次 revert）；搬家只移动与改导入，不改数值与算式；基线只许缩不许长。
 
+各批状态（#1430）：第零批到第四批（#1425–#1429）全部完成并合入本分支，收口即本票；分支上 10 余个提交见 `git log main..refactor/refresh-modules`。
+
 ## 七、已知风险
 
 - 当前工作区另有 V2 客户端改动未提交（卡片与地图详情相关），第三批搬客户端文件前先与该会话协调，避免把别人的改动卷进搬家提交。
 - 搬家后无 re-export 壳，每批必须一次改完全部导入点，改动面大，评审按“只移动 + 改导入”机械核对。
 - 按文件名断言的门禁与挑选规则（gate-map）需同步改，否则出现休眠门禁；装载钩子“同名 .ts 优先”要求引用说明符同步改，否则本机绿 CI 红。
+
+收口（#1430）：三条风险均已关闭——V2 客户端改动协调：第三批按“只暂存本票路径”提交，未发生卷入；无 re-export 壳：每批一次改全导入点，全量验证链覆盖；门禁与钩子：每票同步改 gate-map 与引用说明符，无休眠门禁（收口再全量验证一次）。

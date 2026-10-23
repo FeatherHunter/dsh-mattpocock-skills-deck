@@ -1,6 +1,6 @@
 // src/refresh/kernel/step-pricing.ts —— 这一步的真实花费归属（#1069 从 src/shared/step-cost.js 搬来，#1425 随整组搬入 src/refresh）
 //
-// 为什么搬到这里：这份逻辑是宿主闸独用的按步记账（gate.ts 贴着单文件行数上限，
+// 为什么搬到这里：这份逻辑是宿主闸独用的按步记账（refresh-gate.ts 贴着单文件行数上限，
 // 放不进去；宿主层的文件之间又不许互相引用，只能落在共享层）。它原来在 src/shared/ 根下，
 // 根那一层没有 TypeScript 域、构建也不投放那里的产物，原地改名会断了运行时的引用。
 // 搬进 refresh 域后，由同一条域构建链转译，产物落在 step-cost.js，引用不断。
@@ -29,7 +29,7 @@ interface StepOutboundEntry { requests?: unknown; points?: unknown }
 /** measureStep 的返回：结果与抛错二选一，actual 永远是这一步的真实花费。 */
 export interface StepMeasure<T> { result: T | null; thrown: unknown; actual: StepCounters }
 
-/** 调用方给的任何数都从这里过：不是有限数就当 0（与 gate.ts 里那个同名函数同一口径，各自文件里各写一遍，不跨文件复用）。 */
+/** 调用方给的任何数都从这里过：不是有限数就当 0（与 refresh-gate.ts 里那个同名函数同一口径，各自文件里各写一遍，不跨文件复用）。 */
 function num(v: unknown): number { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 
 /** 包住一步真正的发送，回来时带上这一步实际发出去的条数与点数（抛错也带）。 */

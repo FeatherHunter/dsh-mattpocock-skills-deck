@@ -7,9 +7,9 @@
  * 插口由核心定，跑腿的活全在外面。
  *
  * 这里明确不写的两样东西（免得后来人到处找）：
- * 1. 数字。探测几秒、每小时能花多少点、AI 工具那一档的两组硬顶——唯一真源是 budget.ts，
+ * 1. 数字。探测几秒、每小时能花多少点、AI 工具那一档的两组硬顶——唯一真源是 host-budget.ts，
  *    本文件一个数字都不抄，避免同一个额度写在两处。
- * 2. 裁决规则与原因代号表。什么情况下放行、什么时候降级、什么时候推迟，归 policy.ts（后面的票）；
+ * 2. 裁决规则与原因代号表。什么情况下放行、什么时候降级、什么时候推迟，归 admission-policy.ts（后面的票）；
  *    这里只留 reason 这个字段，不抄一张取值表。
  *
  * 产物 .build/refresh/contract/refresh-ports.js 是一个只剩模块标识的空壳：类型在转译时被擦掉，
@@ -24,7 +24,7 @@
  * - 'user-action'：人在界面上亲手做的（点刷新、点开票、翻页、发评论、改标签、建票）。
  *   永远是放行——人的动作不该被算法拦住，红档也照做。
  * - 'ai-tool'：AI 通过我们提供的那批工具发起的调用。单列一档：不享受「永不降档」，
- *   也不按「后台超出即推迟」处理，而是有自己的单次与每小时硬顶（数字见 budget.ts），
+ *   也不按「后台超出即推迟」处理，而是有自己的单次与每小时硬顶（数字见 host-budget.ts），
  *   超顶直接拒绝并明说用了多少、顶在哪。
  * - 'lifecycle'：生命周期动作，典型是「切进一个工作区」的那一次。额度够就放行；
  *   不够时降级为「只出缓存 + 只探测不重建」，界面照样毫秒级铺满。
@@ -35,7 +35,7 @@ export type RequestCategory = 'user-action' | 'ai-tool' | 'lifecycle' | 'backgro
 
 /**
  * 闸当前在哪个档位。档位由闸按「用掉的额度占可用户额度的比例」自己算出来，
- * 不需要人干预，也不需要重启；阈值与算式在 budget.ts（tierFor）。
+ * 不需要人干预，也不需要重启；阈值与算式在 host-budget.ts（tierFor）。
  *
  * - 'green'：用掉不足六成，按正常节拍跑。
  * - 'yellow'：六成到八成五，活跃探测放慢、重建要等一段最短间隔、后台刷新全停。
@@ -51,7 +51,7 @@ export type QuotaTier = 'green' | 'yellow' | 'red'
  * - 'allow'：按原样执行。
  * - 'degrade'：执行，但只做降级后的那一部分（例如只出缓存、只探测不重建）。
  * - 'defer'：这次先不做。推迟不等于排队堆积：同一个工作区在推迟队列里只保留最后一次请求
- *   （多次合并成一次），并且带过期时间（数字见 budget.ts 的 DEFER_EXPIRY_MS），
+ *   （多次合并成一次），并且带过期时间（数字见 host-budget.ts 的 DEFER_EXPIRY_MS），
  *   过期直接丢，不排队、不堆积、不重试。
  */
 export type Verdict = 'allow' | 'degrade' | 'defer'
@@ -59,7 +59,7 @@ export type Verdict = 'allow' | 'degrade' | 'defer'
 /**
  * 一次裁决的完整结果：结论加一句「为什么」。
  *
- * reason 是给人看的原因代号（例如「后台档，额度不足」），取值表由 policy.ts 定；
+ * reason 是给人看的原因代号（例如「后台档，额度不足」），取值表由 admission-policy.ts 定；
  * 账本里 refresh.decide 那条事件记的就是这里的结论与原因，所以两边的词要对得上，
  * 但词表不在这份形状文件里。
  */
@@ -72,21 +72,21 @@ export interface VerdictResult {
  * 工具调用前的花费预估，同时也是「这一笔要不要分片」的建议。
  *
  * 批量工具（建地图、批量建票、批量建边）在真正动手之前先算一次，把这份结果写进返回：
- * 超顶就当场拒绝并说清用了多少，绝不先花后说。字段本身是数字与判断，怎么算归 tool-cost.ts，
- * 允许的上限与分片大小归 budget.ts。
+ * 超顶就当场拒绝并说清用了多少，绝不先花后说。字段本身是数字与判断，怎么算归 tool-call-budget.ts，
+ * 允许的上限与分片大小归 host-budget.ts。
  */
 export interface ToolCostEstimate {
   /** 预计花掉的 GraphQL 点数。 */
   points: number
   /** 预计发出的出站 HTTP 请求条数；分页、重试、兜底链都要算进来，不能只算「逻辑上一次调用」。 */
   requests: number
-  /** 点数与请求数都在单次硬顶之内（上限见 budget.ts 的 AI_TOOL_MAX_POINTS_PER_CALL 与 AI_TOOL_MAX_REQUESTS_PER_CALL）。 */
+  /** 点数与请求数都在单次硬顶之内（上限见 host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_CALL 与 AI_TOOL_MAX_REQUESTS_PER_CALL）。 */
   callWithinCaps: boolean
-  /** 把这一笔算进本小时的累计之后，仍在每小时硬顶之内（上限见 budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR 与 AI_TOOL_MAX_REQUESTS_PER_HOUR）。 */
+  /** 把这一笔算进本小时的累计之后，仍在每小时硬顶之内（上限见 host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR 与 AI_TOOL_MAX_REQUESTS_PER_HOUR）。 */
   hourWithinCaps: boolean
-  /** 建议分成几次调用；不用分片时是 1（算法见 budget.ts 的 shardPlan）。 */
+  /** 建议分成几次调用；不用分片时是 1（算法见 host-budget.ts 的 shardPlan）。 */
   shards: number
-  /** 每一片最多处理几张；永远不会超过每片的上限（budget.ts 的 AI_TOOL_SHARD_SIZE）。 */
+  /** 每一片最多处理几张；永远不会超过每片的上限（host-budget.ts 的 AI_TOOL_SHARD_SIZE）。 */
   perShard: number
 }
 
@@ -146,7 +146,7 @@ export interface DetectResult {
   tier: DetectTier
   /** 认出来的票号（数字串，如 '12'）；认不出就是 null。 */
   ticket: string | null
-  /** 原因代号，取值表在 write-detect.ts 的 DETECT_REASONS。 */
+  /** 原因代号，取值表在 write-event-detection.ts 的 DETECT_REASONS。 */
   reason: string
 }
 
@@ -164,23 +164,23 @@ export interface EventAction {
   mergeWindowMs: number
 }
 
-/** 判定要用到的两个数字，由调用方从 budget.ts 取好注入（本文件与 write-detect.ts 都不写数字）。 */
+/** 判定要用到的两个数字，由调用方从 host-budget.ts 取好注入（本文件与 write-event-detection.ts 都不写数字）。 */
 export interface WriteDetectLimits {
-  /** 同一工作区里写事件触发的取数合并窗口（budget.ts 的 PATCH_MERGE_WINDOW_MS）。 */
+  /** 同一工作区里写事件触发的取数合并窗口（host-budget.ts 的 PATCH_MERGE_WINDOW_MS）。 */
   mergeWindowMs: number
-  /** 认不出写没写时退回的兜底探测节拍（budget.ts 的 PROBE_INTERVAL_MS）。 */
+  /** 认不出写没写时退回的兜底探测节拍（host-budget.ts 的 PROBE_INTERVAL_MS）。 */
   probeIntervalMs: number
 }
 
 // ---------- 检查链的退避与缓存（#709「检查链与命名守护改事件驱动」加的第三组形状） ----------
 //
-// backoff.ts 只算「这一刻该等多久」，数字一律由调用方从 budget.ts 取好、装进 BackoffLimits 传进来。
-// 这样做有两个原因：数字的唯一真源是 budget.ts（同一份额度不许写在两处）；产物文件之间同层互引
-// 会被 tests/verify-dependency-rules.ts 判红，所以 backoff.ts 连预算产物的常量也不能 import。
+// failure-backoff.ts 只算「这一刻该等多久」，数字一律由调用方从 host-budget.ts 取好、装进 BackoffLimits 传进来。
+// 这样做有两个原因：数字的唯一真源是 host-budget.ts（同一份额度不许写在两处）；产物文件之间同层互引
+// 会被 tests/verify-dependency-rules.ts 判红，所以 failure-backoff.ts 连预算产物的常量也不能 import。
 
 /**
- * 退避与缓存寿命这一组数字的容器，由调用方从 budget.ts 取好再传进来。
- * 四个字段分别对应 budget.ts 的 CHAIN_BACKOFF_MS、CHAIN_ALL_GREEN_TTL_MS、PREFLIGHT_TTL_MS、
+ * 退避与缓存寿命这一组数字的容器，由调用方从 host-budget.ts 取好再传进来。
+ * 四个字段分别对应 host-budget.ts 的 CHAIN_BACKOFF_MS、CHAIN_ALL_GREEN_TTL_MS、PREFLIGHT_TTL_MS、
  * PREFLIGHT_RETRY_AFTER_FAILURE。
  */
 export interface BackoffLimits {
@@ -219,7 +219,7 @@ export interface ChainBackoffState {
 export interface ChainFreshness {
   /** 这一刻要不要真的重算一次。 */
   needed: boolean
-  /** 为什么是这个结论的原因代号（例如「全绿缓存还能用」），取值表由 backoff.ts 给。 */
+  /** 为什么是这个结论的原因代号（例如「全绿缓存还能用」），取值表由 failure-backoff.ts 给。 */
   reason: string
   /** needed 为假时，按退避还要再等多少毫秒；needed 为真时是 0。 */
   waitMs: number

@@ -6,18 +6,18 @@
  * 被算成同一个价钱：小仓库被算贵了，真出变化时反而没有余量。这份文件把两件事分开：
  *   - **实测算的页数**：账本记下每个仓库上一次重建实际翻了几页（账本在宿主侧，见
  *     src/refresh/rooms/host/quota-ledger.js 的 notePages / pagesFor），下一次按这个数估。
- *   - **上界算的页数**：最坏用量一律按页数上界（budget.ts 的 MAX_PAGES）算，不按实测算。
+ *   - **上界算的页数**：最坏用量一律按页数上界（host-budget.ts 的 MAX_PAGES）算，不按实测算。
  *     理由与「最坏」这两个字同源：实测是这一次的真相，上界是任何一次都不会超过的那条线；
  *     拿实测当最坏会把最坏情况算小，而门禁存在的意义正是盯住最坏情况。
  *
  * 为什么本文件一个数字都不写、全部从参数进来：刷新核心的产物（.build/refresh/kernel/*.js）之间
  * 不许互相 import（tests/verify-dependency-rules.ts 的「同层不许互引」一条门禁守着这件事）。
  * 额度与单价常量因此仍然只有一处物理真源
- * （src/refresh/kernel/host-budget.ts），由宿主侧从 budget.js 取好再传进来 —— 做法与
- * policy.ts / backoff.ts / tool-cost.ts 完全一致。这里只放形状与算式。
+ * （src/refresh/kernel/host-budget.ts），由宿主侧从 host-budget.js 取好再传进来 —— 做法与
+ * admission-policy.ts / failure-backoff.ts / tool-call-budget.ts 完全一致。这里只放形状与算式。
  */
 
-/** 重建那几页的单价与条数上界（值由调用方从 budget.js 取好传进来，本文件不写数字）。 */
+/** 重建那几页的单价与条数上界（值由调用方从 host-budget.js 取好传进来，本文件不写数字）。 */
 export interface PagePrices {
   /** 列表薄片段一页的点数（budget.PAGE_COST_POINTS）。 */
   listPagePoints: number
