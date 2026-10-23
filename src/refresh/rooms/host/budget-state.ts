@@ -5,7 +5,9 @@
 // 三条不许改的约定：
 // 1. 读数未知、离网、后端不认识，一律不给数字、不给档位（客户端照这个形状渲染「不需要额度」「还没同步上来」）。
 // 2. two-buckets 要两桶都有读数才算知道；缺一桶按未知处理，绝不拿一桶冒充两桶。
-// 3. 客户端不推算后端类型，只读 budgetKind —— 所以答案里的 kind 必须来自注册表里的预算声明，不许按 backendId 猜。
+// 3. 客户端不推算后端类型，只读 budgetKind —— 所以答案里的 kind 必须由注册表里的预算声明翻译成面板词
+//    （two-buckets / requests / none），不许按 backendId 猜。翻译只在这一处做：面板生产者说注册表词、
+//    面板消费者说面板词，两个词表在 #1447 之前没有接上，GitLab 的 requests-only 会被消费方当成不认识的口径整格丢掉。
 
 /** 一个桶的水位：limit 是这条桶的额度上限（读数没给上限时退化成 remaining，不编造）。 */
 export interface BudgetBucketLevel {
@@ -44,6 +46,17 @@ function backendModelOf(deps: BudgetStateDeps, backendId: string): any {
   return null
 }
 
+/**
+ * 把注册表里的预算口径翻成面板词：two-buckets 原样、requests-only 翻 requests、off-network 翻 none。
+ * 不认识的口径保持 unknown（消费方会按白名单丢掉这一格）——宁可面板不说话，也不把未知口径猜成三种之一。
+ */
+function panelKindOf(kind: string): string {
+  if (kind === 'two-buckets') return 'two-buckets'
+  if (kind === 'requests-only') return 'requests'
+  if (kind === 'off-network') return 'none'
+  return 'unknown'
+}
+
 /** 账本里某一格的水位（没读数回 null，不用 0 冒充量过的 0）。 */
 function ledgerLevelOf(ledger: any, backendId: string, bucket: string): BudgetBucketLevel | null {
   try {
@@ -65,20 +78,20 @@ export function createBudgetState(deps: BudgetStateDeps): (backendId: any) => Bu
     if (!model) return null
     const kind: string = String(model.kind || 'unknown')
     if (kind === 'off-network') {
-      return { id: id, budgetKind: kind, readKnown: true, offNetwork: true }
+      return { id: id, budgetKind: panelKindOf(kind), readKnown: true, offNetwork: true }
     }
     if (kind === 'requests-only') {
       const lv = ledgerLevelOf(deps.ledger, id, 'requests')
       return lv
-        ? { id: id, budgetKind: kind, readKnown: true, offNetwork: false, requests: lv }
-        : { id: id, budgetKind: kind, readKnown: false, offNetwork: false, reason: 'not-measured' }
+        ? { id: id, budgetKind: panelKindOf(kind), readKnown: true, offNetwork: false, requests: lv }
+        : { id: id, budgetKind: panelKindOf(kind), readKnown: false, offNetwork: false, reason: 'not-measured' }
     }
     if (kind === 'two-buckets') {
       const rest = ledgerLevelOf(deps.ledger, id, 'rest')
       const graphql = ledgerLevelOf(deps.ledger, id, 'graphql')
       return (rest && graphql)
-        ? { id: id, budgetKind: kind, readKnown: true, offNetwork: false, buckets: { rest: rest, graphql: graphql } }
-        : { id: id, budgetKind: kind, readKnown: false, offNetwork: false, reason: 'not-measured' }
+        ? { id: id, budgetKind: panelKindOf(kind), readKnown: true, offNetwork: false, buckets: { rest: rest, graphql: graphql } }
+        : { id: id, budgetKind: panelKindOf(kind), readKnown: false, offNetwork: false, reason: 'not-measured' }
     }
     return { id: id, budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported' }
   }

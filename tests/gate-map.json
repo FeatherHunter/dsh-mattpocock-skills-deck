@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T21:18:44.002Z",
+  "generatedAt": "2026-10-23T21:52:04.331Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 347,
-  "gateCount": 347,
-  "attributedGates": 308,
+  "chainLength": 348,
+  "gateCount": 348,
+  "attributedGates": 309,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 13,
@@ -2730,6 +2730,34 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 6 条"
+    },
+    {
+      "step": "node tests/verify-1447-gitlab-e2e.ts",
+      "file": "tests/verify-1447-gitlab-e2e.ts",
+      "guards": [
+        "src/client/views/shared/truthLines.ts",
+        "src/deck/tools/tracker-session.ts",
+        "src/refresh/kernel/backend-accounting.ts",
+        "src/refresh/kernel/budget-admission.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/budget-state.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/session/open-tracker.ts"
+      ],
+      "dirs": [
+        "src/client/views/shared",
+        "src/deck/tools",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/session"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -8758,6 +8786,7 @@
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -8865,6 +8894,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-receipts.ts",
+      "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -9036,6 +9066,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1446-receipts.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -9131,6 +9162,7 @@
       "node tests/verify-1446-backend-ledger.ts",
       "node tests/verify-1446-receipts.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -9468,6 +9500,7 @@
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1446-gitlab-budget.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
@@ -9522,6 +9555,7 @@
     "src/tracker/session": [
       "node tests/verify-1443-github-readbudget.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-tracker-session.ts"
     ],
     "tests": [
