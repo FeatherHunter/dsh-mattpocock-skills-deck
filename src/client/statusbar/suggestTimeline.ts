@@ -132,3 +132,48 @@ export const suggestBubblePlan = function (layout: any, rand: any) {
   }
   return { bubbles: bubbles, total: bubbles.length }
 }
+
+/**
+ * 算「选中一条之后」的退场计划（#1451）：每一颗选项胶囊化作若干小泡，从胶囊所在的位置向上飘走。
+ * layout 与 suggestBubblePlan 是同一份量好的布局；rand 可注入（测试用），缺省 Math.random。
+ * 返回 { bubbles, total, endMs }：每颗 { size, fromX, fromY, toY, delayMs, durationMs, ease, sway }，
+ * endMs 是最后一颗飞完的时刻，调用方按它加一点余量再收起整组。
+ * 没有量到胶囊（layout 不可用或 pills 为空）时返回 total 0，调用方据此直接收起，不演动画。
+ */
+export const suggestPickPlan = function (layout: any, rand: any) {
+  const random = (typeof rand === 'function') ? rand : Math.random
+  const layoutSafe = (layout && typeof layout === 'object') ? layout : {}
+  const pills = Array.isArray(layoutSafe.pills) ? layoutSafe.pills : []
+  if (!pills.length) return { bubbles: [], total: 0, endMs: 0 }
+
+  const eases = Array.isArray(SUGGEST_APPEARANCE.easeList) ? SUGGEST_APPEARANCE.easeList : ['ease-out']
+  const bubbles: any[] = []
+  let endMs = 0
+  for (let i = 0; i < pills.length; i++) {
+    const pill = pills[i] || { left: 0, top: 0, width: 0, height: 0 }
+    const pillLeft = Number(pill.left) || 0
+    const pillTop = Number(pill.top) || 0
+    const pillWidth = Math.max(0, Number(pill.width) || 0)
+    const pillHeight = Math.max(0, Number(pill.height) || 0)
+    const count = Math.min(
+      SUGGEST_APPEARANCE.pickBubbleMaxPerPill,
+      Math.max(
+        SUGGEST_APPEARANCE.pickBubbleMinPerPill,
+        Math.round(pillWidth / SUGGEST_APPEARANCE.pickBubblePxPerPill)
+      )
+    )
+    for (let n = 0; n < count; n++) {
+      const size = SUGGEST_APPEARANCE.bubbleSizeMin + random() * SUGGEST_APPEARANCE.bubbleSizeRange
+      const fromX = pillLeft + pillWidth * (0.2 + random() * 0.6)
+      const fromY = pillTop + pillHeight * (0.25 + random() * 0.5)
+      const rise = SUGGEST_APPEARANCE.pickBubbleRiseMinPx + random() * (SUGGEST_APPEARANCE.pickBubbleRiseMaxPx - SUGGEST_APPEARANCE.pickBubbleRiseMinPx)
+      const delayMs = random() * SUGGEST_APPEARANCE.pickBubbleDelayMaxMs
+      const durationMs = SUGGEST_APPEARANCE.pickBubbleTravelMinMs + random() * (SUGGEST_APPEARANCE.pickBubbleTravelMaxMs - SUGGEST_APPEARANCE.pickBubbleTravelMinMs)
+      const ease = eases[Math.floor(random() * eases.length) % eases.length]
+      const sway = (random() * 2 - 1) * SUGGEST_APPEARANCE.pickBubbleSwayPx
+      endMs = Math.max(endMs, delayMs + durationMs)
+      bubbles.push({ size: size, fromX: fromX, fromY: fromY, toY: fromY - rise, delayMs: delayMs, durationMs: durationMs, ease: ease, sway: sway })
+    }
+  }
+  return { bubbles: bubbles, total: bubbles.length, endMs: endMs }
+}

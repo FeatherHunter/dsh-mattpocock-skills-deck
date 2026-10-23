@@ -4,7 +4,8 @@
 // 上方的一组气泡：每颗选项是一颗按钮，按钮上是「十字以内的简介 + 提示词」（#1451：原来只印整句
 // 提示词，几条一挤就竖着堆成三行，还读不过来），悬停看推荐理由（复用既有 Tip，层级沿用它的默认值），
 // 点一下把提示词交给既有的「填进输入框」口子（kernel 的 inject，自带补尾换行、注入提示与光标落末尾），
-// 随后整组消失；点关闭按钮同样整组消失（等于一条都不选）。
+// 随后关闭按钮立刻消失、每颗胶囊化作小泡向上飘走，飘完整组收起（#1451 用户拍板）；
+// 点关闭按钮同样整组消失（等于一条都不选），走的是更短的整组淡出。
 //
 // 一行排满：每颗按钮的最大宽度按当前条数均分整组宽度（见下面 pillCapPx），条数越多每颗越窄，
 // 三条、四条都排得进一行；只有窄到每颗连一个字都放不下时，才靠选项行的 flex-wrap 换行。
@@ -94,6 +95,8 @@ export const SuggestBubble = function (props: any) {
   const probeRef = React.useRef(null)
   const layerRef = React.useRef(null)
   const engineRef = React.useRef(null)
+  // 已经进入退场：点选与关闭只认第一次，免得退出途中再点一下重复注入、重复关整组。
+  const leavingRef = React.useRef(false)
   const posState = React.useState(function () {
     const viewWidth = (typeof window !== 'undefined' && Number(window.innerWidth)) || 0
     return { left: Math.round(viewWidth / 2), bottom: 120 }
@@ -155,10 +158,13 @@ export const SuggestBubble = function (props: any) {
     try { onDismiss() } catch (eDismiss) {}
   }
   /**
-   * 退场：能演就交给动效执行器（300 毫秒内交给 dismiss），演不了立刻整组消失。
-   * kind 是 'pick'（选中一条，稍长）或 'fade'（关闭整组，短一点）。
+   * 退场：能演就交给动效执行器，演不了立刻整组消失。
+   * kind 是 'pick'（选中一条：胶囊化作小泡上飘，整体约半秒）或 'fade'（关闭整组：约 170 毫秒淡出）。
+   * 只认第一次调用，重复点击不会重复触发。
    */
   function playOut(kind: string) {
+    if (leavingRef.current) return
+    leavingRef.current = true
     let animated = false
     try {
       const engine = engineRef.current
