@@ -1,4 +1,4 @@
-// src/refresh/rooms/host/git-execution.ts —— 执行与仓库钥匙（H1 #445 从 host/index.js 496–720 搬出，纯结构、行为零变化）
+// src/refresh/rooms/host/git-execution.ts —— git 本地执行与仓库钥匙（H1 #445 从 host/index.js 496–720 搬出，纯结构、行为零变化；#1429 C8 把 gh 命令执行并入 gh-execution.js，这里只组装、不再拥有 gh）
 // 以后谁改它：改外部进程执行（gh/git）、工作区钥匙规整或仓库根与磁盘缓存策略的人。预估约 270 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；本文件不引用其他新文件。
 // 显式传参编辑：共享状态归 index.js 持有——ghPath/ghLastError 经存取器读写，repoKeys/repoRoots 按引用共享，cache 重赋值改 setCache；resetGhCache 的 _workspaceStore 直访改 clearWorkspaceStore（状态归 platformChannel）。行为与搬前一致。
@@ -8,13 +8,13 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields } from '../../../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
-import { getChainRide } from './chain-coalescing.js'
+import { createGhExecution } from './gh-execution.js'
 // #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
 import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from '../../../shared/command-cleanup/src/command-cleanup.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../../../shared/time-config/src/values.js'
+import { PROC_GRACE_MS } from '../../../shared/time-config/src/values.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
@@ -92,11 +92,6 @@ interface LogCtx {
   fire(level: string, event: string, fields: unknown): void
 }
 
-/** gh 调用的结果：成的那支一定带文本；败的那支带归一化类别与错误正文（code/text 不是每条都有）。 */
-interface GhCallOk { ok: true; text: string }
-interface GhCallFail { ok: false; kind: string; error: string | null; code?: number; text?: string }
-type GhCallResult = GhCallOk | GhCallFail
-
 /** 通用进程执行的结果：成的那支必须带整数退出码 0（#857），败的那支只保证有错误正文。 */
 interface ProcOk { ok: true; text: string; code: number }
 interface ProcFail { ok: false; error: string; code?: number }
@@ -136,6 +131,11 @@ type WorkspaceKeyModule = typeof import('../../../host/workspaceKey.js')
 
 export function createRepoKeys(deps: RepoKeysDeps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
+  // #1429（C8/gh 拆分）：gh 执行体已并入 gh-execution.ts，这里只做组装——gh 专属依赖连同
+  // 三个共享小件（reportOutbound、hash8、canonicalKey，两边共用、只许有一份）一起传过去；
+  // 出去的 resolveGh/resetGhCache/runGh 三个字段名与原来一字不差，老调用方不用改。
+  const _gh = createGhExecution({ subprocess, timer, DEFAULT_CWD, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, clearWorkspaceStore, setCache, namingSweepSoon, getChainBackoff, logCtx, reportOutbound, hash8, canonicalKey })
+  const { resolveGh, resetGhCache, runGh } = _gh
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
   // #491 房外埋点 helpers：hash8 只记散列不记原文；P1 事件外层先判开关再组装字段（字段函数只在守卫通过后求值）。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
@@ -162,160 +162,6 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       g.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
     } catch (e) { /* 报账失败不许影响已经起来的这一条命令 */ }
   }
-
-    // ============ gh 封装 ============
-    // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
-    async function resolveGh(): Promise<string | null> {
-      if (getGhPath()) return getGhPath()
-      const platform = await getPlatform()
-      // 2026-08-29 去重（research 实锤「DSH_GH_PATH 三端不一致」）：DSH_GH_PATH 兜底已下沉至 composePlatform
-      //   通用层单点拥有（platform.resolveExecutable('gh') 内置 env.get+lstat 校验），此处不再重复实现，
-      //   host 只保留未命中的诚实错误信息与 ghPath 缓存。
-      const p = await platform.resolveExecutable('gh').catch(function () { return null })
-      if (p) { setGhPath(p); setGhLastError(null); return p }
-      // 回退：platform 未找到时，直接探测 gh 是否在 PATH 可执行（与 pwsh 的 where gh 一致）
-      // 避免因 subprocess.resolveExecutable 的 PATH 与用户终端 PATH 分叉导致 414 这类外部建票永远拉不到
-      try {
-        // #723（T19）：这一条 `gh --version` 探测也是一笔真实出站（虽然不扣配额），照记一笔。
-        reportOutbound(['--version'])
-        const probeHandle = subprocess.spawn({ argv: ['gh', '--version'], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: PROC_PROBE_GRACE_MS })
-        // #1392：下面建计时器那一步在实例已销毁时会同步抛错，race 根本不会被调用；先给 done 接一个空处理，
-        //   免得这条探活子进程后来失败时变成未处理拒绝、把宿主带走（这个计时器本身按票面边界另票处理）。
-        void probeHandle.done.catch(function () {})
-        const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(GH_VERSION_PROBE_MS).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
-        const outProbe = (probeHandle.collected && probeHandle.collected.stdout) ? probeHandle.collected.stdout.readFrom(0) : { text: '' }
-        if (probeOutcome && probeOutcome.exitCode === 0 && String(outProbe.text||'').includes('gh version')) { setGhPath('gh'); setGhLastError(null); return 'gh' }
-      } catch {}
-      setGhLastError('gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）')
-      try { if (logCtx) { let hasGhPath = false; try { hasGhPath = !!(platform && platform.env && platform.env.get && platform.env.get('DSH_GH_PATH')) } catch (eH) {} logCtx.fire('warn', 'gh.resolve.fail', { hasDSH_GH_PATH: hasGhPath, errorHash: hash8(getGhLastError()) }) } } catch (eL) {}
-      return null
-    }
-    // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
-    function resetGhCache() { setGhPath(null); setGhLastError(null); try { if (typeof clearWorkspaceStore === 'function') clearWorkspaceStore(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
-
-    // #1101：第三个参数 via 是「这一次 gh 调用是谁发的、走的哪一支」（调用点写死的短标签，例如
-    //   repoAccess / ghAuth）。从前函数只认前两位、多传的第三个被丢掉，宿主那一路的 gh.exec 行
-    //   因此全是不带 via 的空格（2026-10-20 一天 51,564 行），事后分不出探测、面板读、改票各占多少。
-    async function runGh(args: string[], cwd: string, via?: string): Promise<GhCallResult> {
-      // #1375：gh 的 -F 会把纯数字 owner 发成 JSON 数字，GraphQL 的 String! 直接拒收；出站前归一成 -f。
-      args = normalizeGhStringFields(args)
-      const ghT0 = Date.now()
-      // #1003 契约（2026-10-12 维护者拍板）：拿不到工作区目录时如实失败，不许拿进程目录顶上——
-      //   gh 命令会按工作区解析仓库身份（`gh repo view`、`gh api` 等），落到别人的目录就是在错的仓库上读或写。
-      //   这一条发生在拿名额之前，所以没有名额要还；如实回一条环境档失败，让调用方按「还没就绪」处理。
-      if (!(typeof cwd === 'string' && cwd.trim())) {
-        try { if (logCtx) logCtx.fire('warn', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(''), latencyMs: Date.now() - ghT0, kind: 'no-cwd', exitCode: -1 }) } catch (eL) {}
-        return { ok: false, kind: 'env', error: '这个工作区还没就绪（还没认出是哪个目录），所以这一次没有执行任何 gh 命令' }
-      }
-      // #969 分档超时（读短写长探活最短）；#965 读写分桶拿名额（满了等；不传取消信号，拿不到只会等不会抛）。
-      const rkBucket = isWriteGhArgs(args) ? 'write' : 'read'
-      const rkTimeout = timeoutForGhArgs(args)
-      // #960 复核：排队段单独计时。gh.exec 的 latencyMs 含排队（从进函数算起），waitedMs 只记排队这一段，
-      //   两者一减就是命令自己的耗时 —— 票面问「是命令慢还是守在门口」时靠这两个数分辨。
-      const rkWaitT0 = Date.now()
-      // #1392：归还包成幂等，下面每条退出路径都调 releaseSlot()，保证恰好一次。
-      const releaseSlot = onceRelease(await getGhLane(logCtx).acquire({ bucket: rkBucket }))
-      const rkWaitedMs = Date.now() - rkWaitT0
-      const exe = await resolveGh()
-      if (!exe) { releaseSlot(); return { ok: false, kind: 'env', error: getGhLastError() } }
-      // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。报在拿名额之后 —— 真要起进程了才报；
-      // resolveGh 失败那一条根本没有出站，不该记进账。
-      reportOutbound(args)
-      let handle
-      try {
-        handle = subprocess.spawn({
-          argv: [exe].concat(args),
-          cwd: cwd, // 走到这里 cwd 一定非空（空的那条在上面早返回了）：不再写「缺省回退兜底值」那种死写法
-          stdio: { stdin: 'ignore', stdout: { maxBytes: 4 * 1024 * 1024 }, stderr: { maxBytes: 256 * 1024 } },
-          graceMs: PROC_GRACE_MS,
-        })
-      } catch (e) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
-        releaseSlot()
-        return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
-      }
-      // #969：等待上限按本条命令的分档暂定值（读短、写长、探活最短），不再一律 30 秒。
-      // #1392：实例已经被销毁时，建计时器这一步会同步抛 INACTIVE_EFFECT。startWaitTimeout 先收尾
-      //   （还名额、终止子进程、接住 done）再返回 null；其它错误收完尾照旧抛，保持原行为。
-      const to = startWaitTimeout(timer, rkTimeout, function () { abandonCommand(handle, releaseSlot) })
-      if (!to) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'disposed', exitCode: -1 }) } catch (eL) {}
-        return { ok: false, kind: 'disposed', error: DISPOSED_MESSAGE }
-      }
-      let outcome
-      try {
-        outcome = await Promise.race([
-          handle.done,
-          to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
-        ])
-      } catch (e) {
-        // #1392：这一路是「计时器已经建出来、实例随后才被销毁」——计时器被撤销时它的 Promise 会以拒绝
-        //   落定，race 跟着拒绝。收尾与销毁那一档相同；失败类别仍按原行为报 spawn：这一路也可能是
-        //   子进程自己失败，两种错误形状在这里分不开，不新增 kind 值。
-        abandonCommand(handle, releaseSlot)
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
-        return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
-      }
-      const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
-      const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
-      const all = (err.text || '') + (out.text || '')
-      if (outcome.exitCode !== 0) {
-        let kind = 'exit'
-        const t = all.toLowerCase()
-        // #969：等满分档被杀掉的一律归网络档（慢网下显示未知而不是没登录），即使没有任何输出文本。
-        const rkTimedOut = !!(outcome && outcome.signal === 'timeout')
-        if (rkTimedOut) kind = 'network'
-        else if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
-        else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
-        else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
-        // #916/#917 复核：被归成「没登录」时把归因条件和宿主环境一起记下来 —— 票面症状是「终端明明登录了，
-        //   面板却说没登录」。只看 kind=auth 分不清「确实没凭据」与「代理/网络坏了让 gh 打印出认证类字样」，
-        //   所以这里只记命中的是哪一组关键词（signal 短枚举）与宿主进程里有没有代理变量、有没有换配置目录
-        //   （proxySet / ghConfigDir 两个布尔），绝不记 stderr 原文与变量值。
-        if (kind === 'auth') {
-          let proxySet = false
-          let ghConfigDir = false
-          try {
-            const plat: any = await getPlatform()
-            if (plat && plat.env && typeof plat.env.get === 'function') {
-              proxySet = !!(plat.env.get('HTTPS_PROXY') || plat.env.get('HTTP_PROXY') || plat.env.get('ALL_PROXY') || plat.env.get('https_proxy') || plat.env.get('http_proxy'))
-              ghConfigDir = !!plat.env.get('GH_CONFIG_DIR')
-            }
-          } catch (eAuthEnv) {}
-          let signal = 'auth-phrase'
-          if (/not logged in/i.test(t)) signal = 'not-logged-in'
-          else if (/bad credentials|auth failed|failed to log in/i.test(t)) signal = 'bad-credentials'
-          else if (/token.*invalid|re-authenticate|auth refresh/i.test(t)) signal = 'token-invalid'
-          else if (/keyring/i.test(t)) signal = 'keyring'
-          try { if (logCtx) logCtx.fire('warn', 'gh.auth.env', { signal: signal, cwdHash: hash8(cwd || DEFAULT_CWD), exitCode: outcome.exitCode || -1, proxySet: proxySet, ghConfigDir: ghConfigDir }) } catch (eL) {}
-        }
-        // #1101：超时那一行补上 via / cmd / waitedMs —— 面板「所有功能超时」只能靠这三格分清
-        //   是哪个入口（探测、面板读、写票）在排队还是命令本身跑不完；同族 gh.exec 行也带 via。
-        try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout, layer: 'host-clamp', via: String(via || ''), cmd: ghCommandLabel(args), waitedMs: rkWaitedMs }) } catch (eL) {}
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
-        try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
-        releaseSlot()
-        return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
-      }
-      // 彻底移除：issuePath 1A 白名单检测已移除（#345），只保留两项与面包屑无关的职责：
-      //   ① create/edit 等写操作失效快照缓存，支撑右侧面板增量更新；
-      //   ② create 成功仍触发 namingSweepSoon(500)——#266 建号感知快路径（新会话 0.5-2s 内归属编号档）不随面包屑退役。
-      try {
-        const a = Array.isArray(args) ? args : []
-        if (a.length >= 2 && a[0] === 'issue' && /^(create|edit|close|comment|reopen)$/.test(String(a[1]))) {
-          try { let rkWrite = cwd; try { rkWrite = await canonicalKey(cwd || DEFAULT_CWD) } catch {} setCache({ ts: 0, snapshot: null, error: null, cwd: rkWrite }) } catch {} // #696 只清自己根
-          if (String(a[1]) === 'create') { try { namingSweepSoon(500) } catch (eW) {} }
-          // #709（T5）「写入成功之后」这一类事件：写很可能改变检查链（首次建号、仓库刚有内容等），
-          // 所以把退避拉回第一档 —— 下一个事件到来时立刻真算一次，不必等到退到 5 分钟那一档。
-          try { if (typeof getChainBackoff === 'function') getChainBackoff().then(function (b) { try { if (b) b.noteWriteActivity() } catch (e) {} }).catch(function () {}) } catch (eWr) {}
-        }
-      } catch (e) {}
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
-      // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
-      try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
-      releaseSlot()
-      return { ok: true, text: out.text || '' }
-    }
 
     // 通用进程执行（#344 前置检查用：git / cmd 等，不经 shell，错误不归一化）
     // #606 补测点：少数自建操作上下文（评论读取、单票详情、初始化与推送）的 ctx.exec 直连这里，

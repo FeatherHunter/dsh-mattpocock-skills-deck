@@ -80,7 +80,8 @@ if (tiers) {
   const longField = normalizeGhStringFields(['api', 'graphql', '-f', 'query=x', '--field', 'owner=776317107'])
   check(longField[4] === '-f', '一、--field 写法的 owner 也归一成 -f', longField.join(' '))
   // 只测纯函数还不够：两个出站包装器真的把它接上了，才算修好。
-  const hostSource = readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
+  // #1429 C8：host 的 runGh 已并入 gh-execution.ts，读新家。
+  const hostSource = readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/gh-execution.ts'), 'utf8')
   const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts'), 'utf8')
   check(hostSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、host 的 runGh 出站前调用了归一化')
   check(roomSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、房内 execGh 出站前调用了归一化')
@@ -160,7 +161,8 @@ if (tiers) {
 
 // —— 五、取数层超时也记超时行，且超时那一次归网络档 ——
 {
-  const src = readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
+  // #1429 C8：取数层 gh 超时逻辑已并入 gh-execution.ts，读新家。
+  const src = readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/gh-execution.ts'), 'utf8')
   // 超时杀掉后记超时行（gh.timeout），且超时那一次按网络档返回（不是没登录也不是找不到）
   check(/gh\.timeout/.test(src), '五、取数层超时记超时行（gh.timeout）')
   check(/signal\s*===\s*['"]timeout['"]/.test(src) && /network/.test(src), '五、超时信号归网络档（慢网显示未知）')

@@ -57,7 +57,7 @@ const check = (ok, msg, detail) => {
 const SPAWN_RE = /(?:^|[^A-Za-z0-9_$.])(?:subprocess\s*\.\s*spawn|spawn|spawnSync)\s*\(\s*[/{]/g
 const EXEC_RE = /(?:^|[^A-Za-z0-9_$.])exec(?:File|FileSync)?\s*\(\s*['"][A-Za-z]/g
 /** 「把这一笔报给闸」的写法。真能起 gh 的出口必须有它（登记表说了话，代码得做到）。 */
-const REPORT_RE = /noteOutbound\s*\(|ghGate\b|refresh\/gate\.js/
+const REPORT_RE = /noteOutbound\s*\(|reportOutbound\s*\(|ghGate\b|refresh\/gate\.js/ // #1429 C8：gh-execution.ts 经注入的 reportOutbound 报账（本体在 git-execution.ts 里调 gate.noteOutbound），包装器名也要认
 
 /**
  * 出口登记表。**新增能起 gh 进程的代码必须在这里加一行**，并写清理由。
@@ -69,7 +69,8 @@ const REPORT_RE = /noteOutbound\s*\(|ghGate\b|refresh\/gate\.js/
  * 同时报出「未登记的出站调用点 <新名字>」与「过时登记 <旧名字>」成对的两条（#1095、#1147、#1161 都留下过这种对）。
  */
 const EXITS = [
-  { file: 'src/refresh/rooms/host/git-execution.ts', role: 'gateway', reason: '宿主侧取数层的执行出口：runGh 起 gh、execProc 起任意命令（含 gh 与 git），全仓绝大多数 GitHub 出站都从这里出去。#723（T19）接线：每一笔真实出站在起进程之前报给闸（reportOutbound）。' },
+  { file: 'src/refresh/rooms/host/git-execution.ts', role: 'gateway', reason: '宿主侧 git 本地执行的出口：execProc 起任意命令（含 gh 与 git）；gh 命令执行 #1429 C8 起住 gh-execution.ts，见下一行。#723（T19）接线：每一笔真实出站在起进程之前报给闸（reportOutbound）。' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', role: 'gateway', reason: '宿主侧 gh 命令执行的出口：resolveGh 探活与 runGh 两处 spawn。#1429 C8 从 git-execution.ts 并入；报账经注入的 reportOutbound（本体在 git-execution.ts 里调 gate.noteOutbound），每一笔真实出站照旧先报闸。' },
   { file: 'src/host/platformChannel.ts', role: 'gateway', reason: '操作上下文交给后端的那种 exec 出口（tracker 三个房间与快照那几路都走它）。#723（T19）接线：detectionExec 起进程之前把这一笔报给闸（注入的 gate.noteOutbound）。' },
   { file: 'src/tracker/rooms/github/client.ts', role: 'gateway', reason: 'GitHub 房间执行 gh 的地方（exec(\'gh\', args) 与 gh --version 探测），最终落到上面两个出口。#723（T19）接线：execGh 与 gh --version 探测都先报给闸（ctx.gate 注进来）。' },
   { file: 'src/host/versionControl.ts', role: 'gateway', reason: '版本管理页签三条只读电话起 git 的地方（第一版零网络、不碰 GitHub）。按 repoKeys.js 的先例与 #817 票面要求，每条命令起进程之前都报一笔给闸（reportOutbound），保证「起过几条命令」与账上条数一一对应。' },
