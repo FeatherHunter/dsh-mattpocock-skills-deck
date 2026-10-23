@@ -11,7 +11,7 @@ let fail = 0
 const check = (ok: unknown, msg: string) => { if (!ok) { fail++; console.error('FAIL', msg) } else { pass++; console.log('PASS', msg) } }
 async function main() {
   const ROOT = path.resolve(import.meta.dirname, '..')
-  const mod = await import(pathToFileURL(path.join(ROOT, 'src/host/issueDetail.js')).href)
+  const mod = await import(pathToFileURL(path.join(ROOT, 'src/refresh/rooms/host/issue-detail-fetch.js')).href)
   const prNode = { number: 106, title: '拉取请求标题', state: 'CLOSED', body: '正文', url: 'https://x/pull/106', updatedAt: 'u', createdAt: 'c', closedAt: 'd', mergedAt: null, author: { login: 'a' }, labels: { nodes: [] }, assignees: { nodes: [] }, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }, reviews: { nodes: [] } }
   const issueNode = { number: 7, title: '工单标题', state: 'OPEN', body: '正文', url: 'https://x/issues/7', updatedAt: 'u', createdAt: 'c', closedAt: null, author: { login: 'a' }, labels: { nodes: [] }, assignees: { nodes: [] }, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }, subIssues: { totalCount: 0, nodes: [] }, blockedBy: { nodes: [] }, blocking: { nodes: [] } }
   function stub(mode: string) {

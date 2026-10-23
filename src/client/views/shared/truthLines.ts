@@ -8,12 +8,12 @@
 // 不开浏览器、直接拿两组输入跑出来对比（tests/verify-visible-truth.ts 就是这么验的）。
 //
 // 三条纪律，改这个文件的人先看这三条：
-//   1. **刷新阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 refresh-core 的 budget.ts，
-//      构建时把 src/shared/refresh/budget.js 拼进界面闭包（见 scripts/build.mts 的 shared:refreshBudget）。
+//   1. **刷新阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 src/refresh/kernel/host-budget.ts，
+//      构建时把这份真源拼进界面闭包（见 scripts/build.mts 的 shared:refreshBudget）。
 //      本文件里不写任何一个刷新阈值 —— 写了就是第二份数字，改一处漏一处。
 //      唯一的例外是下面那个「一分钟」的刻度常量 TRUTH_MINUTE_MS：它只把「离现在多久」折成人话
 //      （刚刚 / N 分钟前 / N 小时前 / N 天前），不参与也不影响新鲜度判定 —— 新鲜度仍只由
-//      budget.ts 的 freshnessLevel 判（见 truthFreshnessBox 把 tone 原样带出去）。
+//      host-budget.ts 的 freshnessLevel 判（见 truthFreshnessBox 把 tone 原样带出去）。
 //   2. **降级标记不在这里**：`fallback`（'rest' 之类）只由宿主快照组装处按真实降级事实写入
 //      （src/host/tracker/snapshot.ts）。界面这一侧只读不写：谁在这里补一句赋值让横幅亮起来，
 //      就是把诚实做成了假装。tests/verify-visible-truth.ts 有一条静态断言盯着这件事。
@@ -127,7 +127,7 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
   return lines
 }
 // 行上那个「更新中」标记的窗口：一次写入成功之后，这一行在合并窗口内还算「正在更新」。
-// 窗口长度就是 budget.ts 的 PATCH_MERGE_WINDOW_MS（10 秒），这里不另写一个数字。
+// 窗口长度就是 host-budget.ts 的 PATCH_MERGE_WINDOW_MS（10 秒），这里不另写一个数字。
 export const truthWriteWindowOpen = function (atMs: any, nowMs: any) {
   const at = (typeof atMs === 'number' && isFinite(atMs)) ? atMs : 0
   if (!at) return false

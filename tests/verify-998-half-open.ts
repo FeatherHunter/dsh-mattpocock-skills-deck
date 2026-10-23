@@ -28,10 +28,10 @@ const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok 
 
 async function main() {
   console.log('闸的连续失败出口门禁（#998：到门槛必须留一笔探针，不许自锁）')
-  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
-  const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'ledger.ts')).href)
-  const gateMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'gate.ts')).href)
-  const policy = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'policy.js')).href)
+  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
+  const ledgerMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'quota-ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'refresh-gate.ts')).href)
+  const policy = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'admission-policy.js')).href)
 
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -139,7 +139,7 @@ async function main() {
   const lifeTrial = policy.decide(Object.assign({}, base, { category: 'lifecycle', workspace: { active: true, failuresSinceSuccess: 9, halfOpenTrialDue: true } }), limits)
   check(lifeTrial.verdict === 'degrade' && lifeTrial.reason === 'lifecycle-cache-only', '生命周期那一档照旧只出缓存，探针那一格管不着它（实得 ' + lifeTrial.reason + '）')
 
-  const fw = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'failure-window.js')).href)
+  const fw = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'failure-window.js')).href)
   const seq = CHAIN_BACKOFF_MS
   const extra = FAILURE_HALF_OPEN_DELAY_MS
   check(fw.windowLengthMs(3, seq[2], extra) === seq[2] + extra, '窗口长度 = 第 n 次失败那一档 + 额外那一段（实得 ' + fw.windowLengthMs(3, seq[2], extra) + '）')

@@ -1,13 +1,13 @@
 // tests/verify-1115-timer-handle.ts —— 门禁：#1115 宿主计时器交回的是可调用句柄，撤销必须真的撤掉
 //
 // 这一条盯四件事：
-//   ① 共享层那一份撤销判据（src/shared/host-timer/src/host-timers.ts）在**真形状**的句柄上真的撤得掉，
+//   ① 共享层那一份撤销判据（src/refresh/contract/host-timer-ports.ts）在**真形状**的句柄上真的撤得掉，
 //      顺带把另外两档（数字句柄、带 dispose 的对象句柄）也照顾到；
 //   ② 反面样本：原先那两种写法（直接全局 clearTimeout、先判 .dispose 再回退）在真形状上确实撤不掉 ——
 //      这条是整扇门禁的意义所在：哪天假计时器不再复现真机形状，这里当场变红；
 //   ③ 两个真实调用点用「句柄是函数」的假计时器服务真跑一遍，断言那笔等待答完之后不再悬着：
 //      a. 平台通道的 getTimers（经它自己建的探测服务，src/host/platformChannel.js:316 / :326 那一份）；
-//      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/host/refresh/wiring.ts 那一份）；
+//      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/refresh/registry/deck-tool-bridge.ts 那一份，#1429 B12 起随桥段搬过去）；
 //   ④ 六个调用点都走共享层那一份（静态钉住），共享层那份自己不 import 任何模块；
 //   ⑤ 客户端那一份同款判断（src/client/hostShim.ts 的 timer.clearTimeout）也真跑一遍三档 ——
 //      客户端叶子文件是构建时拼进闭包的文本，不能用 import 引共享层那份源码，只能照抄一套判断，
@@ -131,17 +131,17 @@ async function main() {
   console.log('#1115 宿主计时器句柄的撤销：真形状是可调用函数，六处调用点收成共享层一份')
 
   // ── 产地在盘上（真实调用点那两段读的是构建后的模块；缺了就先构建一次）──
-  // 2026-10-19 第三阶段起共享层产物从源码树搬进仓库根的 .build/shared/（真源仍是
-  // src/shared/host-timer/src/host-timers.ts）；这里守的是「构建真能把这域产物写出来」。
-  const PRODUCT = path.join(ROOT, '.build/shared/host-timer/host-timers.js')
+  // #1425 起这份真源搬进 src/refresh/，产物由构建的 refresh-ts 段写进仓库根的 .build/refresh/
+  // （真源仍是 src/refresh/contract/host-timer-ports.ts）；这里守的是「构建真能把这份产物写出来」。
+  const PRODUCT = path.join(ROOT, '.build/refresh/contract/host-timer-ports.js')
   if (!fs.existsSync(PRODUCT)) {
     console.log('  共享层产物不在盘上，先跑一次 node scripts/build.mts ……')
     const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build.mts')], { cwd: ROOT, stdio: 'inherit' })
     check(r.status === 0, '共享层产物缺失时能靠 node scripts/build.mts 补上（退出码 ' + String(r.status) + '）')
   }
-  check(fs.existsSync(PRODUCT), '域产物 .build/shared/host-timer/host-timers.js 在盘上（构建脚本按域目录里的 tsconfig.json 自动认域）')
+  check(fs.existsSync(PRODUCT), '新家产物 .build/refresh/contract/host-timer-ports.js 在盘上（构建 refresh-ts 段写）')
 
-  const { hostTimers } = await imp('src/shared/host-timer/src/host-timers.ts')
+  const { hostTimers } = await imp('src/refresh/contract/host-timer-ports.ts')
 
   // ── ① 真形状长什么样（先把它钉死，后面两条正反样本才有据可依）──
   {
@@ -291,7 +291,7 @@ async function main() {
     check(!!registry && typeof registry.select === 'function', '生产装配路径交得出后端注册表（deck 工具那条路要它）')
     const fakeDeck = makeCordisTimer()
     const deckTimer = { timeout: (fn: TimerFn, ms?: number) => fakeDeck.service.timeout(fn, ms) }
-    const { createRefreshWiring } = await imp('src/host/refresh/wiring.ts')
+    const { createRefreshWiring } = await imp('src/refresh/rooms/host/refresh-runtime.ts')
     const wiring = createRefreshWiring({
       ctx: { on: () => () => {}, get: (name: string) => (name === 'fs' ? fsSvc : (name === 'timer' ? deckTimer : undefined)) },
       logCtx: { fire: () => {}, isEnabled: () => false },
@@ -318,25 +318,27 @@ async function main() {
   // ── ⑧ 六个调用点都走共享层那一份（静态钉住；谁把内联写法搬回来，这里当场红）──
   const SITES = [
     { file: 'src/host/platformChannel.ts', calls: 2 },
-    { file: 'src/host/commentThreads.ts', calls: 1 },
+    { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', calls: 1 },
     { file: 'src/host/workspaceCwd.ts', calls: 1 },
-    { file: 'src/host/snapshotBuild.ts', calls: 2 },
-    { file: 'src/host/refresh/wiring.ts', calls: 1 },
+    { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 2 },
+    { file: 'src/refresh/registry/deck-tool-bridge.ts', calls: 1 },
   ]
   for (const site of SITES) {
     const text = fs.readFileSync(path.join(ROOT, site.file), 'utf8')
     const got = (text.match(/hostTimers\(/g) || []).length
     check(got === site.calls, site.file + '：' + site.calls + ' 处计时器口都走共享层那一份（实得 ' + got + ' 处 hostTimers( 调用）')
     check(!/clearTimeout\s*:\s*(?:function|\()/.test(text), site.file + '：没有自己写 clearTimeout 字段的残留（六处原先的形态）')
-    // 说明符自 2026-10-20 起指向真源 `<域>/src/<名>.js`（tsc 靠扩展名替换解析到同名 .ts，
-    // 发布包与 .build 下的产物由构建改写回域根）；这里接受新旧两种写法，判据是「引用的是共享层那一份」。
-    check(/from '(?:\.\.\/)+shared\/host-timer\/(?:src\/)?host-timers\.js'/.test(text), site.file + '：静态引用了共享层那一份（相对路径按目录深度）')
+    // 说明符自 #1425 起指向新家 `refresh/contract/host-timer-ports.js`（与调用文件同基准的相对路径：
+    // src/host/ 下的用 `../refresh/contract/` 上一层，src/refresh/rooms/host/ 下的（#1426 起是宿主房）用 `../../contract/` 上两层，
+    // src/refresh/registry/ 下的（#1429 B12 起桥段住这里）用 `../contract/` 上一层；
+    // tsc 靠扩展名替换解析到同名 .ts，包内镜像与 .build 产物由构建写）；判据是「引用的是新家那一份」。
+    check(/from '(?:\.\.\/)+(?:refresh\/)?contract\/host-timer-ports\.js'/.test(text), site.file + '：静态引用了新家那一份（相对路径按目录深度）')
   }
   {
-    const src = fs.readFileSync(path.join(ROOT, 'src/shared/host-timer/src/host-timers.ts'), 'utf8')
+    const src = fs.readFileSync(path.join(ROOT, 'src/refresh/contract/host-timer-ports.ts'), 'utf8')
     // 只看代码，不看注释：文件头注释里本来就要提到 ctx.get('timer') 这个来处。
     const codeOnly = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-    check(!/^\s*import\s/m.test(codeOnly), '共享层那一份自己不 import 任何模块（共享层同层互引被门禁拦住）')
+    check(!/^\s*import\s/m.test(codeOnly), 'host-timer-ports.ts 自己不 import 任何模块（判句柄形状自包含）')
     check(!/\brequire\s*\(/.test(codeOnly) && !/\bctx\s*\.\s*get\s*\(/.test(codeOnly), '共享层那一份不碰宿主专属入口（require / ctx）')
   }
 

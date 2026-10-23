@@ -1,4 +1,4 @@
-const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
+const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // verify-deck-tools-matrix.ts —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
 // 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.ts，可独立运行。
 //
@@ -100,21 +100,21 @@ function remoteLane(id, scripted, module, sink) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   console.log('三后端矩阵门禁（#713 T9：同一个动作在 github / gitlab / markdown 上分别落到哪里）')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
   const gitlabBackend = (await imp('src/tracker/rooms/gitlab/index.ts')).gitlabBackend
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   // #1299 T8：双轨链路要用的三处真源——客户端容器三态、行首动作、对象类型标记。
   const cv = await imp('src/client/kernel/container-view.ts')
   const sd = await imp('src/client/kernel/store-derived.ts')
   // 行级动作全家已从 store-derived.ts 抽到 row-actions.ts，动作断言改从新片取。
   const ra = await imp('src/client/kernel/row-actions.ts')
   const marker = await imp('src/shared/issue-file/src/marker.ts')
-  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
+  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/refresh/registry/deck-tool-bridge.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上。这里给的是**真人选出口的夹具**（makeDecideStub，见
   //   tests/lib/deck-decide-stub.js）：它把夹具的内存账本当工作区文件读，所以下面每个车道

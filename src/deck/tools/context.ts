@@ -7,9 +7,9 @@
 // 拿不到的东西一律如实说：没有会话工作区、没有后端、后端不认这条路，都在返回值里写明。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
-import { withCallScope } from '../shell/call-budget.js'
-import * as budget from '../../shared/refresh/src/budget.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 import { knownWritePermissions } from '../../shared/tracker/backendWritePermissions.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'

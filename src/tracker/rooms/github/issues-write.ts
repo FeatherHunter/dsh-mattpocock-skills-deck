@@ -21,7 +21,7 @@ import type { MemoContext } from './roster.js';
 import { getIssue, parseRepo, repoId } from './issues.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。
-import { checkIdempotencyKey } from '../../../shared/refresh/src/idempotency.js'
+import { checkIdempotencyKey } from '../../../refresh/contract/idempotency-keys.js'
 import { withAnchor, lookupByAnchor } from './idempotency.js'
 // #104 `issue.write`：票写入的常驻结论线。轨迹形状与发射口在 ./write-log.js ——
 // 建票、改票、评论、改标签这几处要说的是同一件事，放一处免得各写各的。

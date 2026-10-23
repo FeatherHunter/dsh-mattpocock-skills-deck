@@ -24,9 +24,9 @@ async function main() {
   const registryMod = await imp('src/tracker/registry/core.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
   // #1159 起房间要求宿主注入出站控制面（ctx.outbound）；夹具自带生产那一份
-  // （src/host/platform/outbound-control.ts，只做转发），否则种子票第 0 张
+  // （src/refresh/rooms/host/outbound-control.ts，只做转发），否则种子票第 0 张
   // 就报 kind=env（出站控制面没有接上），后面的断言一条跑不起来。
-  const { createOutboundControl } = await imp('src/host/platform/outbound-control.ts')
+  const { createOutboundControl } = await imp('src/refresh/rooms/host/outbound-control.ts')
 
   const sink = []
   const gh = transports.makeScriptedGh(sink)

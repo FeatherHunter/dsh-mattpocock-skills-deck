@@ -33,7 +33,7 @@ declare const React: any;
         return timer.timeout(fn, ms)
       },
       // #1220：宿主那支 timer 服务本来就有 interval，但客户端这片包装从前只转发 timeout/setTimeout，
-      //   于是 src/client/kernel/probe-auto.js 那条 5 秒节拍判「没有 interval 出口」直接不排，
+      //   于是 src/refresh/rooms/client/refresh-timer.js 那条 5 秒节拍判「没有 interval 出口」直接不排，
       //   #891 的「初始化完成后自动重算」因此从没跑过（真机 probe.loop 全是 reason=no-timer）。
       //   与 timeout 同一条降级链：宿主有 interval 就用宿主的，没有就退回页面自己的 setInterval。
       interval: function (fn: any, ms: any) {
@@ -45,7 +45,7 @@ declare const React: any;
       // 撤销一支计时器句柄。宿主那支服务（cordis 的 timer）交回的是**一支可调用的撤销器函数**，
       //   对它调全局 clearTimeout 不报错、也撤不掉（#1115 实测）；装了 dispose 的对象与页面自己的
       //   数字句柄又各是另一档，所以按形状分三档，顺序不能反：先认显式 dispose，再才是调用句柄本身。
-      //   这一套判断与 src/shared/host-timer/src/host-timers.ts 的 cancelHostTimer 是同一份约定 ——
+      //   这一套判断与 src/refresh/contract/host-timer-ports.ts 的 cancelHostTimer 是同一份约定 ——
       //   客户端这片是拼进 src/client/index.ts 的叶子（构建剥行首 export 直接拼文本），不能用 import
       //   引那份共享源码，所以这里照抄一份；改一处要同时改另一处，两边都有门禁钉着。
       clearTimeout: function (id: any) {

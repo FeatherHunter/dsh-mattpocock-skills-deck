@@ -1,9 +1,9 @@
 // tests/verify-ui-description-single-source.ts —— 门禁：发给界面的后端描述只留一条出处（#1139 立）
 //
 // 门禁归属: src/tracker/ui-description.ts
-// 门禁归属: src/host/sessionSnapshot.ts
-// 门禁归属: src/host/sessionRefresh.ts
-// 门禁归属: src/host/snapshotBuild.ts
+// 门禁归属: src/refresh/rooms/host/session-snapshot-cache.ts
+// 门禁归属: src/refresh/rooms/host/session-refresh-schedule.ts
+// 门禁归属: src/refresh/rooms/host/snapshot-build.ts
 // 门禁归属: src/host/workspaceCwd.ts
 // 门禁归属: src/tracker/rooms/gitlab/index.ts
 //
@@ -72,21 +72,22 @@ function sourceFiles(dirRel: string): string[] {
   return out.sort()
 }
 
-// ---- 一、宿主四个通道文件只剩同一处投影调用，整棵 src/host 里没有第二个字段名 ----
+// ---- 一、宿主四个通道文件只剩同一处投影调用，宿主通道面里没有第二个字段名 ----
 /**
  * 四个通道：会话快照、会话刷新、快照构建、工作区登记回包。calls 是这一处应当有的调用次数——
  * 逐处钉死而不是「至少一处」：某个通道被改回手抄、或整个调用被删掉，两者的差别正在次数上。
  */
 const CHANNELS = [
-  { file: 'src/host/sessionSnapshot.ts', calls: 5 },
-  { file: 'src/host/sessionRefresh.ts', calls: 4 },
-  { file: 'src/host/snapshotBuild.ts', calls: 1 },
+  { file: 'src/refresh/rooms/host/session-snapshot-cache.ts', calls: 5 },
+  { file: 'src/refresh/rooms/host/session-refresh-schedule.ts', calls: 4 },
+  { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 1 },
   { file: 'src/host/workspaceCwd.ts', calls: 1 },
 ]
 
-const hostFiles = sourceFiles('src/host')
-check(hostFiles.length >= CHANNELS.length, `扫描 src/host 只找到 ${hostFiles.length} 个源码文件（少于四个通道文件），判据跑漏了`)
-for (const ch of CHANNELS) check(hostFiles.includes(ch.file), `${ch.file} 不在 src/host 的扫描结果里，这条判据没跑到它`)
+// #1427 起三份通道搬进宿主房：扫描面跟着扩到 src/refresh/rooms/host，旧根不动（两边都没有第二个字段名才绿）。
+const hostFiles = sourceFiles('src/host').concat(sourceFiles('src/refresh/rooms/host'))
+check(hostFiles.length >= CHANNELS.length, `扫描宿主通道面只找到 ${hostFiles.length} 个源码文件（少于四个通道文件），判据跑漏了`)
+for (const ch of CHANNELS) check(hostFiles.includes(ch.file), `${ch.file} 不在宿主通道面的扫描结果里，这条判据没跑到它`)
 
 for (const ch of CHANNELS) {
   const text = read(ch.file)
@@ -185,5 +186,5 @@ if (failed) {
   process.exit(1)
 }
 console.log(
-  `  全部通过 — ${assertions} 条判据：宿主四个通道都走同一处投影、src/host 里 ${hostFiles.length} 个源码文件里没有第二个 openRepository 字段名（实测 ${hostRepoHits} 处）、GitLab 房命名空间上没有那个没人读的文件级导出、字段表与投影逐项对得上、声明了假值也不丢键`,
+  `  全部通过 — ${assertions} 条判据：宿主四个通道都走同一处投影、宿主通道面 ${hostFiles.length} 个源码文件里没有第二个 openRepository 字段名（实测 ${hostRepoHits} 处）、GitLab 房命名空间上没有那个没人读的文件级导出、字段表与投影逐项对得上、声明了假值也不丢键`,
 )

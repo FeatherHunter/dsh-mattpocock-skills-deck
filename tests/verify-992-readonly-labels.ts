@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
+const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // tests/verify-992-readonly-labels.ts —— #992 只读仓库标签能力降级专属门禁（不联网）
 //
 // 测什么（定版“最终方案”第 1–6 项 + Q6/Q7；第 7 项 `gh:labels` 清理属 #1001，不在这里）：
@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   console.log('#992 只读仓库标签能力降级专属门禁（不联网）')
   const { ERROR_KIND } = await imp('src/tracker/contract/vocabulary.ts')
   // 选后端的判定出口（#1003 单出口）。下面 E）与 G）两段都是经工具壳调后端的，生产装配总是把它递给工具
-  //   （见 src/deck/registration/host-assemble.ts 的 `decideBackend: decideBackendFn`），壳拿不到它时
+  //   （见 src/refresh/registry/deck-tool-bridge.ts 的 `decideBackend: decideBackendFn`），壳拿不到它时
   //   会一律回「判定出口这次没装上」，两段都跑不到真实路径。夹具照生产的接法给上判定出口桩
   //   （makeDecideStub），桩直接调生产那一个判定出口。
   //   #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件。两段夹具里原来写的是
@@ -161,11 +161,11 @@ async function main(): Promise<void> {
 
   // ── E) 工具层按结果说话 ──
   {
-    const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.ts')
-    const gateMod = await imp('src/host/refresh/gate.ts')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
+    const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+    const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
     const registryMod = await imp('src/tracker/registry/core.ts')
-    const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
     const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
@@ -259,11 +259,11 @@ async function main(): Promise<void> {
     check(String(gh.fixes['gh:repoAccess'].hint.zh).includes('fork'), 'G5 检查页 gh:repoAccess 详情同样指路 fork')
     check(!/[\u4e00-\u9fff]/.test(String(gh.fixes['gh:repoAccess'].hint.en)), 'G6 检查页英文详情无中文')
     // deck_context：GitHub 只读 → 能力位 + 提示；可写 → 无提示；无方法 → 未知不抛
-    const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.ts')
-    const gateMod = await imp('src/host/refresh/gate.ts')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
+    const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+    const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
     const registryMod = await imp('src/tracker/registry/core.ts')
-    const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
     const ctxMod = await imp('src/deck/tools/context.ts')
     async function runCtx(stubId, trackerImpl) {
       let clock = 1700000000000

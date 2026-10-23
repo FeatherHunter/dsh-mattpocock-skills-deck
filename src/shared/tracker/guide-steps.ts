@@ -1,6 +1,6 @@
 // src/shared/tracker/guide-steps.ts —— 首开引导链的顺序真源（#668 落地，规格见 #662「定版一」）。
 // 以后谁改它：改首开引导链有哪些步骤、步骤之间谁先谁后的人。预估约 130 行，超 350 打回。
-// 它是「一份顺序、三处读它」里的那一份：宿主按它给链快照排序（src/host/detectChain.js），
+// 它是「一份顺序、三处读它」里的那一份：宿主按它给链快照排序（src/refresh/rooms/host/check-chain-evaluation.js），
 // 状态栏横幅与注入决策（#663 / #664）从它读「下一步该给什么」。这三处都不许自己再抄一份顺序。
 // 接线：零依赖——本文件不许 import 任何东西（它要被 scripts/build.mts 的 SHARED_SPLICE
 //   拼进客户端闭包，客户端半边没有运行时 import）；共享层文件之间也不许互相 import。
@@ -269,7 +269,7 @@ export function guideInjectPromptOf(stepId: string | null | undefined): string {
 
 /**
  * 把链快照的步骤按清单排好：清单上的步骤按清单顺序排在前，清单没覆盖的检查项按原有的先后接在后面。
- * 宿主组装 fullSnapshot 时用它（见 src/host/detectChain.js）；界面只照快照渲染，不自己排序。
+ * 宿主组装 fullSnapshot 时用它（见 src/refresh/rooms/host/check-chain-evaluation.js）；界面只照快照渲染，不自己排序。
  * ready 为 'gate' 的步骤不在链快照里（它没有对应检查项），参与排序时自动跳过。
  * @param {ReadonlyArray<Object>} guideSteps 某后端的清单（guideStepsFor 的结果）
  * @param {Array<Object>} chainSteps 链快照里的步骤

@@ -160,7 +160,7 @@ console.log('== ⑥ 单 effort / 扁平布局行为不变 ==')
 
 console.log('== ⑦ 宿主电话接线：三个按票寻址的电话都把 effortId 放进 ref ==')
 {
-  const ct = fs.readFileSync(resolve(ROOT, 'src/host/commentThreads.ts'), 'utf8')
+  const ct = fs.readFileSync(resolve(ROOT, 'src/refresh/rooms/host/comment-thread-fetch.ts'), 'utf8')
   const hits = ct.split('repoRef.effortId = String(args.effortId)').length - 1
   check(hits === 3, `wf.issueDetail / wf.issueComments / wf.commentIssue 三处都透传 effortId（实际 ${hits} 处）`)
   const read = fs.readFileSync(resolve(ROOT, 'src/tracker/rooms/markdown/issues-read.ts'), 'utf8')

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T08:45:09.563Z",
+  "generatedAt": "2026-10-23T09:19:26.222Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 332,
   "gateCount": 332,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 13,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 552,
+  "graphFileCount": 553,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -70,6 +70,9 @@
         "package/lib/platform",
         "package/lib/platform/index.js",
         "package/package.json",
+        "package/refresh",
+        "package/refresh/contract/refresh-ports.js",
+        "package/refresh/kernel/host-budget.js",
         "package/shared",
         "package/tracker",
         "package/tracker/index.js",
@@ -80,8 +83,8 @@
         "src",
         "src/deck",
         "src/host",
+        "src/refresh",
         "src/shared",
-        "src/shared/refresh/src/budget.ts",
         "src/shared/version-control/src/parse-log.ts",
         "src/tracker"
       ],
@@ -91,6 +94,9 @@
         "package/deck/registration",
         "package/lib",
         "package/lib/platform",
+        "package/refresh",
+        "package/refresh/contract",
+        "package/refresh/kernel",
         "package/shared",
         "package/tracker",
         "scripts/generated",
@@ -98,8 +104,8 @@
         "src",
         "src/deck",
         "src/host",
+        "src/refresh",
         "src/shared",
-        "src/shared/refresh/src",
         "src/shared/version-control/src",
         "src/tracker"
       ],
@@ -107,7 +113,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 12 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 15 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-leaves.ts",
@@ -245,15 +251,15 @@
       "step": "node tests/verify-chain-env-e2e.ts",
       "file": "tests/verify-chain-env-e2e.ts",
       "guards": [
-        "src/client/kernel/probe-chain.ts",
         "src/host/index.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
         "src/seam/rpc.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/host",
+        "src/refresh/rooms/client",
         "src/seam",
         "tests/lib"
       ],
@@ -302,12 +308,14 @@
       "guards": [
         "src/client",
         "src/host",
+        "src/refresh",
         "src/shared",
         "tests"
       ],
       "dirs": [
         "src/client",
         "src/host",
+        "src/refresh",
         "src/shared",
         "tests"
       ],
@@ -315,30 +323,32 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-deck-event-gate.ts",
       "file": "tests/verify-deck-event-gate.ts",
       "guards": [
         "package/lib",
+        "package/refresh",
         "package/scripts",
-        "src/host/refresh/writeEvents.ts",
         "src/host/workspaceKey.ts",
+        "src/refresh/rooms/host/write-event-subscription.ts",
         "tests/fixtures/deck-event-gate"
       ],
       "dirs": [
         "package/lib",
+        "package/refresh",
         "package/scripts",
         "src/host",
-        "src/host/refresh",
+        "src/refresh/rooms/host",
         "tests/fixtures/deck-event-gate"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-deck-exec-phone.ts",
@@ -368,9 +378,9 @@
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/map-plan-create.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/deck-decide-stub.ts",
         "tests/lib/gate-result.ts",
@@ -379,8 +389,8 @@
       "dirs": [
         "src/deck/registration",
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -396,16 +406,16 @@
       "guards": [
         "src/deck/shell/write-mutex.ts",
         "src/deck/tools/issue-patch.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -418,15 +428,15 @@
       "step": "node tests/verify-deck-quota-sync.ts",
       "file": "tests/verify-deck-quota-sync.ts",
       "guards": [
-        "src/deck/registration/quota-sync.ts",
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/table-cell.ts",
         "src/deck/shell/workspace-anchor.ts",
+        "src/refresh/registry/quota-sync-bridge.ts",
         "src/tracker/detection/backendDecision.ts"
       ],
       "dirs": [
-        "src/deck/registration",
         "src/deck/shell",
+        "src/refresh/registry",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -477,12 +487,12 @@
         "src/client/kernel/modal-fields.ts",
         "src/client/kernel/slotRenderer-modal-view.ts",
         "src/client/kernel/slotRenderer-queue.ts",
-        "src/client/kernel/slotRenderer-repo-sync.ts",
         "src/client/kernel/slots.ts",
         "src/client/kernel/styles.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/views/ChecksTab.ts",
         "src/client/views/shared/ChainRenderer.ts",
+        "src/refresh/rooms/client/repo-sync-renderer.ts",
         "src/shared/tracker/chain-types.ts",
         "src/shared/tracker/chain-validate.ts",
         "src/shared/ui/slots.ts",
@@ -496,6 +506,7 @@
         "src/client/statusbar",
         "src/client/views",
         "src/client/views/shared",
+        "src/refresh/rooms/client",
         "src/shared/tracker",
         "src/shared/ui",
         "src/tracker",
@@ -515,15 +526,15 @@
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/issue-list.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -575,12 +586,12 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/platform/outbound-control.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/issue-file/src/marker.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
@@ -592,10 +603,9 @@
         "scripts/lib",
         "src/client/kernel",
         "src/deck/tools",
-        "src/host/platform",
-        "src/host/refresh",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/issue-file/src",
-        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
@@ -650,11 +660,11 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/chain.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/refresh-chain.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -663,8 +673,8 @@
         "src/deck/registration",
         "src/deck/shell",
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -680,6 +690,7 @@
       "file": "tests/verify-dependency-rules.ts",
       "guards": [
         "scripts/gate-map.mts",
+        "src/client",
         "src/deck",
         "src/deck/registration/host-assemble.ts",
         "src/deck/rules/anchor.ts",
@@ -687,11 +698,11 @@
         "src/deck/tools/issue-create.ts",
         "src/host",
         "src/host/index.ts",
-        "src/host/outbound/admission.ts",
+        "src/refresh",
+        "src/refresh/kernel/step-pricing.ts",
         "src/seam",
         "src/seam/gate.ts",
         "src/shared",
-        "src/shared/refresh/src/idempotency.ts",
         "src/tracker",
         "src/tracker/contract/operations.ts",
         "src/tracker/contract/vocabulary.ts",
@@ -704,16 +715,17 @@
       ],
       "dirs": [
         "scripts",
+        "src/client",
         "src/deck",
         "src/deck/registration",
         "src/deck/rules",
         "src/deck/shell",
         "src/deck/tools",
         "src/host",
-        "src/host/outbound",
+        "src/refresh",
+        "src/refresh/kernel",
         "src/seam",
         "src/shared",
-        "src/shared/refresh/src",
         "src/tracker",
         "src/tracker/contract",
         "src/tracker/registry",
@@ -725,7 +737,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 21 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 22 条"
     },
     {
       "step": "node tests/verify-gate-map.ts",
@@ -744,7 +756,7 @@
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/host",
         "src/host/mapBody.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
         "tests/gate-map.json",
         "tests/lib/gate-result.ts",
         "tests/verify-progress.ts"
@@ -760,7 +772,7 @@
         "src/client/views",
         "src/client/views/versionControl",
         "src/host",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "tests",
         "tests/lib"
       ],
@@ -876,11 +888,12 @@
       "step": "node tests/verify-1003-no-cwd-masquerade.ts",
       "file": "tests/verify-1003-no-cwd-masquerade.ts",
       "guards": [
-        "src/host/gitCredentialExec.ts",
-        "src/host/index.ts"
+        "src/host/index.ts",
+        "src/refresh/rooms/host/gh-execution.ts"
       ],
       "dirs": [
-        "src/host"
+        "src/host",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -897,11 +910,11 @@
         "docs/agents/workspace.yaml",
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/workspace-anchor.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
         "src/host/workspaceLabelColors.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/workspaceStore.ts"
@@ -910,8 +923,8 @@
         "docs/agents",
         "src/deck/shell",
         "src/host",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -928,18 +941,18 @@
         "docs/agents/issue-tracker.md",
         "docs/agents/workspace.yaml",
         "src/deck/shell/call-shell.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts"
       ],
       "dirs": [
         "docs/agents",
         "src/deck/shell",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/detection",
         "src/tracker/registry"
       ],
@@ -992,7 +1005,7 @@
       "step": "node tests/verify-1053-issue-write.ts",
       "file": "tests/verify-1053-issue-write.ts",
       "guards": [
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/comments.ts",
         "src/tracker/rooms/github/init-project.ts",
         "src/tracker/rooms/github/issues-write.ts",
@@ -1000,7 +1013,7 @@
         "src/tracker/rooms/github/labels.ts"
       ],
       "dirs": [
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
@@ -1013,12 +1026,12 @@
       "step": "node tests/verify-1054-edge-graph.ts",
       "file": "tests/verify-1054-edge-graph.ts",
       "guards": [
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/graph.ts",
         "src/tracker/rooms/github/parent-repair.ts"
       ],
       "dirs": [
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
@@ -1089,20 +1102,20 @@
       "step": "node tests/verify-1082-work-route-table.ts",
       "file": "tests/verify-1082-work-route-table.ts",
       "guards": [
-        "src/client/kernel/probe-snapshot.ts",
         "src/client/panel/Dock.ts",
         "src/client/views/shared/workRouteTable.ts",
-        "src/host/refresh/workRouteReadoutForHost.ts",
-        "src/host/sessionRefresh.ts",
-        "src/host/sessionSnapshot.ts",
-        "src/host/snapshotEnvelope.ts"
+        "src/host/snapshotEnvelope.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/work-route-readout.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/client/panel",
         "src/client/views/shared",
         "src/host",
-        "src/host/refresh"
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1119,12 +1132,12 @@
         "src/deck/shell/work-path-privacy.ts",
         "src/deck/shell/work-path-record.ts",
         "src/deck/shell/work-path-store.ts",
-        "src/shared/refresh/src/chain-prune.ts",
-        "src/shared/refresh/src/chain.ts"
+        "src/refresh/kernel/chain-pruning.ts",
+        "src/refresh/kernel/refresh-chain.ts"
       ],
       "dirs": [
         "src/deck/shell",
-        "src/shared/refresh/src"
+        "src/refresh/kernel"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1141,10 +1154,10 @@
         "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/body-parse.ts",
         "src/tracker/deck-derive.ts",
         "src/tracker/registry/core.ts",
@@ -1153,8 +1166,8 @@
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
@@ -1173,22 +1186,22 @@
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/issue-patch.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/issue-file/src/original-words-tool.ts",
         "src/shared/issue-file/src/original-words.ts",
         "src/shared/issue-file/src/progress.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/issue-file/src",
-        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -1208,20 +1221,20 @@
         "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/issue-file/src/original-words.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/issue-file/src",
-        "src/shared/refresh/src",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -1238,12 +1251,12 @@
       "guards": [
         "src/deck/shell/call-shell.ts",
         "src/deck/tools",
-        "src/shared/refresh/src/tool-cost.ts"
+        "src/refresh/kernel/tool-call-budget.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
-        "src/shared/refresh/src"
+        "src/refresh/kernel"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1257,13 +1270,13 @@
       "guards": [
         "scripts/lib/discover-gates.ts",
         "src/host/platformChannel.ts",
-        "src/host/refresh/wiring.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "scripts/lib",
         "src/host",
-        "src/host/refresh",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -1280,12 +1293,13 @@
         "scripts/lib/discover-gates.ts",
         "src/client/hostShim.ts",
         "src/client/kernel/settings-view-write.ts",
-        "src/host/commentThreads.ts",
         "src/host/platformChannel.ts",
-        "src/host/refresh/wiring.ts",
-        "src/host/snapshotBuild.ts",
         "src/host/workspaceCwd.ts",
-        "src/shared/host-timer/src/host-timers.ts",
+        "src/refresh/contract/host-timer-ports.ts",
+        "src/refresh/registry/deck-tool-bridge.ts",
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/snapshot-build.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -1294,15 +1308,16 @@
         "src/client",
         "src/client/kernel",
         "src/host",
-        "src/host/refresh",
-        "src/shared/host-timer/src",
+        "src/refresh/contract",
+        "src/refresh/registry",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-1125-gate-coverage.ts",
@@ -1423,19 +1438,19 @@
       "file": "tests/verify-1150-plan-store-durable.ts",
       "guards": [
         "src/deck/tools/map-plan-create.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/host/refresh/wiring.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -1583,19 +1598,18 @@
       "step": "node tests/verify-1195-budget-start.ts",
       "file": "tests/verify-1195-budget-start.ts",
       "guards": [
-        "src/deck/shell/call-budget.ts",
         "src/deck/tools",
         "src/deck/tools/issue-get.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
-        "src/deck/shell",
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -1629,15 +1643,15 @@
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-patch.ts",
         "src/deck/tools/issue-report.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -1723,15 +1737,15 @@
       "guards": [
         "src/deck/shell/plan-cursor.ts",
         "src/deck/tools/map-plan-create.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -1748,11 +1762,11 @@
         "src/deck/shell/work-path-bindings.ts",
         "src/deck/shell/work-path-readout.ts",
         "src/deck/shell/work-path-record.ts",
-        "src/shared/refresh/src/chain.ts"
+        "src/refresh/kernel/refresh-chain.ts"
       ],
       "dirs": [
         "src/deck/shell",
-        "src/shared/refresh/src"
+        "src/refresh/kernel"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1893,15 +1907,15 @@
       "guards": [
         "src/client/kernel/store-derived.ts",
         "src/client/statusbar/checksums.ts",
-        "src/host/sessionSnapshot.ts",
         "src/host/tracker/snapshot.ts",
-        "src/host/tracker/snapshotAssemble.ts"
+        "src/host/tracker/snapshotAssemble.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/host",
-        "src/host/tracker"
+        "src/host/tracker",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2018,13 +2032,12 @@
       "step": "node tests/verify-1304-deps-native.ts",
       "file": "tests/verify-1304-deps-native.ts",
       "guards": [
-        "src/deck/shell/call-budget.ts",
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
         "src/tracker/rooms/github/graph.ts"
       ],
       "dirs": [
-        "src/deck/shell",
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
@@ -2037,16 +2050,18 @@
       "step": "node tests/verify-1305-client-session.ts",
       "file": "tests/verify-1305-client-session.ts",
       "guards": [
-        "src/client"
+        "src/client",
+        "src/refresh/rooms/client"
       ],
       "dirs": [
-        "src/client"
+        "src/client",
+        "src/refresh/rooms/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
       "step": "node tests/verify-1305-session-permit.ts",
@@ -2107,20 +2122,21 @@
       "file": "tests/verify-1355-cross-session-table.ts",
       "guards": [
         "src/client/kernel/api-new-session.ts",
-        "src/client/kernel/probe-auto.ts",
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
-        "src/client/kernel/probe-stale.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/kernel/work-route-own.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/statusbar/StatusBar.ts",
-        "src/client/views/shared/workRouteTable.ts"
+        "src/client/views/shared/workRouteTable.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/staleness-indicator.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/client/views/shared"
+        "src/client/views/shared",
+        "src/refresh/rooms/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2133,17 +2149,17 @@
       "file": "tests/verify-1363-first-run-recovery.ts",
       "guards": [
         "src/client/hostShim.ts",
-        "src/client/kernel/attention-heartbeat.ts",
-        "src/client/kernel/probe-auto.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/statusbar/bannerChain.ts",
-        "src/host/refresh/chainBackoff.ts"
+        "src/refresh/rooms/client/client-attention-heartbeat.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/host/chain-backoff.ts"
       ],
       "dirs": [
         "src/client",
-        "src/client/kernel",
         "src/client/statusbar",
-        "src/host/refresh"
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2155,16 +2171,17 @@
       "step": "node tests/verify-1373-stale-table-graft.ts",
       "file": "tests/verify-1373-stale-table-graft.ts",
       "guards": [
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
         "src/client/kernel/work-route-own.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
-        "src/client/views/shared/workRouteTable.ts"
+        "src/client/views/shared/workRouteTable.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/client/views/shared"
+        "src/client/views/shared",
+        "src/refresh/rooms/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2193,11 +2210,11 @@
       "step": "node tests/verify-1392-disposed-timer.ts",
       "file": "tests/verify-1392-disposed-timer.ts",
       "guards": [
-        "src/host/git-process.ts",
+        "src/refresh/rooms/host/git-execution.ts",
         "src/shared/command-cleanup/src/command-cleanup.ts"
       ],
       "dirs": [
-        "src/host",
+        "src/refresh/rooms/host",
         "src/shared/command-cleanup/src"
       ],
       "unattributed": false,
@@ -2373,14 +2390,14 @@
       "file": "tests/verify-1431-snapshot-refresh-parity.ts",
       "guards": [
         "src/client/kernel/store-derived.ts",
-        "src/host/sessionRefresh.ts",
-        "src/host/sessionSnapshot.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
         "src/tracker/kernel/identity-keys.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/host",
+        "src/refresh/rooms/host",
         "src/tracker/kernel",
         "tests/lib"
       ],
@@ -2394,17 +2411,18 @@
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
-        "src/host/detectChain.ts",
-        "src/host/git-process.ts",
         "src/host/index.ts",
         "src/host/publishFlow.ts",
-        "src/host/sessionSnapshot.ts",
         "src/host/workspaceCwd.ts",
         "src/host/workspaceKey.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
         "src/tracker/detection/detectionService.ts"
       ],
       "dirs": [
         "src/host",
+        "src/refresh/rooms/host",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -2489,10 +2507,10 @@
       "step": "node tests/verify-524-pr-detail.ts",
       "file": "tests/verify-524-pr-detail.ts",
       "guards": [
-        "src/host/issueDetail.ts"
+        "src/refresh/rooms/host/issue-detail-fetch.ts"
       ],
       "dirs": [
-        "src/host"
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2600,7 +2618,7 @@
         "src/client/views/IssueDetail.ts",
         "src/client/views/PrTab.ts",
         "src/client/views/shared/stateKind.ts",
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/issues.ts",
         "src/tracker/rooms/github/normalize.ts",
         "tests/lib/source-text.ts"
@@ -2609,7 +2627,7 @@
         "package/lib",
         "src/client/views",
         "src/client/views/shared",
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github",
         "tests/lib"
       ],
@@ -2690,17 +2708,17 @@
       "file": "tests/verify-653-subworkspace.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/panel/DockSync.ts",
         "src/client/views/SubworkspaceMark.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
-        "src/client/kernel",
         "src/client/panel",
         "src/client/views",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2757,11 +2775,11 @@
         "docs/agents/issue-tracker.md",
         "scripts/lib/discover-gates.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/deck/shell/workspace-anchor.ts",
         "src/host/remotePredicates.ts",
         "src/host/workspaceCwd.ts",
         "src/host/workspaceKey.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/explicitDetector.ts",
         "src/tracker/registry/core.ts",
@@ -2779,6 +2797,7 @@
         "src/client/kernel",
         "src/deck/shell",
         "src/host",
+        "src/refresh/rooms/client",
         "src/tracker/detection",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
@@ -2922,10 +2941,10 @@
       "step": "node tests/verify-669-chain-after-pick.ts",
       "file": "tests/verify-669-chain-after-pick.ts",
       "guards": [
-        "src/client/kernel/probe-chain.ts",
         "src/client/kernel/store-prefs.ts",
         "src/client/statusbar/StatusBackend.ts",
         "src/client/views/ChecksTab.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -2933,6 +2952,7 @@
         "src/client/kernel",
         "src/client/statusbar",
         "src/client/views",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2949,9 +2969,9 @@
         "docs/agents/issue-tracker.md",
         "src/client/kernel/prompts.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/kernel/store-switch.ts",
         "src/client/statusbar/StatusBackend.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/tracker/guide-steps.ts",
         "src/tracker/detection/detectionService.ts",
@@ -2964,6 +2984,7 @@
         "docs/agents",
         "src/client/kernel",
         "src/client/statusbar",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "src/shared/tracker",
         "src/tracker/detection",
@@ -3004,10 +3025,10 @@
       "file": "tests/verify-669-switch-visible.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
-        "src/client/kernel/probe-stale.ts",
         "src/client/kernel/store-prefs.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/staleness-indicator.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts",
@@ -3016,6 +3037,7 @@
       "dirs": [
         "package/lib",
         "src/client/kernel",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -3124,8 +3146,8 @@
         "scripts/lib/transpile-unit.mts",
         "src",
         "src/host/choiceStore.ts",
-        "src/host/sessionSnapshot.ts",
         "src/host/workspaceCwd.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/selection-precedence.ts",
@@ -3137,6 +3159,7 @@
         "scripts/lib",
         "src",
         "src/host",
+        "src/refresh/rooms/host",
         "src/tracker/detection",
         "src/tracker/registry",
         "tests/lib"
@@ -3262,15 +3285,15 @@
       "guards": [
         "src/host/mapBody.ts",
         "src/host/mapTickets.ts",
-        "src/host/platform/outbound-control.ts",
         "src/host/ticketGrouping.ts",
         "src/host/tracker/snapshot.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/sub-issues.ts"
       ],
       "dirs": [
         "src/host",
-        "src/host/platform",
         "src/host/tracker",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
@@ -3321,12 +3344,13 @@
       "step": "node tests/verify-696-shared-cache.ts",
       "file": "tests/verify-696-shared-cache.ts",
       "guards": [
-        "src/host/detectChain.ts",
-        "src/host/sessionSnapshot.ts",
-        "src/host/workspaceKey.ts"
+        "src/host/workspaceKey.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
       ],
       "dirs": [
-        "src/host"
+        "src/host",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3363,21 +3387,20 @@
       "step": "node tests/verify-709-no-self-continuing-timers.ts",
       "file": "tests/verify-709-no-self-continuing-timers.ts",
       "guards": [
-        "src/host/detectChain.ts",
-        "src/host/git-process.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/backoff.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/failure-backoff.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
-        "src/host",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "src/tracker/detection",
         "src/tracker/rooms/github",
@@ -3394,23 +3417,22 @@
       "file": "tests/verify-723-gate-wiring.ts",
       "guards": [
         "src/deck/tools/tool-order.ts",
-        "src/host/refresh/attention.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/host/refresh/patch.ts",
-        "src/host/refresh/wiring.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/delta.ts",
-        "src/shared/tracker/indexWindow.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/index-window-rules.ts",
+        "src/refresh/kernel/snapshot-diff.ts",
+        "src/refresh/rooms/host/host-attention.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/row-patch.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
-        "src/shared/tracker",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -3425,16 +3447,16 @@
       "step": "node tests/verify-723-single-refresh-instance.ts",
       "file": "tests/verify-723-single-refresh-instance.ts",
       "guards": [
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/host/refresh/wiring.ts",
-        "src/host/refresh/workRouteReadoutForHost.ts",
-        "src/host/sessionSnapshot.ts",
-        "src/host/snapshotEnvelope.ts"
+        "src/host/snapshotEnvelope.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/work-route-readout.ts"
       ],
       "dirs": [
         "src/host",
-        "src/host/refresh"
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3447,15 +3469,16 @@
       "file": "tests/verify-729-force-dedup.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "src/host/sessionRefresh.ts",
-        "src/host/sessionSnapshot.ts",
         "src/host/snapshotEnvelope.ts",
         "src/host/snapshotInflight.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
         "tests/verify-696-shared-cache.ts"
       ],
       "dirs": [
         "scripts/lib",
         "src/host",
+        "src/refresh/rooms/host",
         "tests"
       ],
       "unattributed": false,
@@ -3547,18 +3570,18 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -3595,20 +3618,19 @@
         "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
-        "src/host/platform/outbound-control.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/platform",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests/lib"
@@ -3671,20 +3693,19 @@
       "file": "tests/verify-829-parent-reread.ts",
       "guards": [
         "src/deck/tools/map-link.ts",
-        "src/host/platform/outbound-control.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/platform",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests/lib"
@@ -3699,11 +3720,12 @@
       "step": "node tests/verify-839-credential-exec.ts",
       "file": "tests/verify-839-credential-exec.ts",
       "guards": [
-        "src/host/gitCredentialExec.ts",
-        "src/host/versionControl.ts"
+        "src/host/versionControl.ts",
+        "src/refresh/rooms/host/gh-execution.ts"
       ],
       "dirs": [
-        "src/host"
+        "src/host",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3782,11 +3804,12 @@
       "step": "node tests/verify-847-stall-watch.ts",
       "file": "tests/verify-847-stall-watch.ts",
       "guards": [
-        "src/host/gitCredentialExec.ts",
-        "src/host/versionControl.ts"
+        "src/host/versionControl.ts",
+        "src/refresh/rooms/host/gh-execution.ts"
       ],
       "dirs": [
-        "src/host"
+        "src/host",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3829,12 +3852,12 @@
       "step": "node tests/verify-891-setup-refresh.ts",
       "file": "tests/verify-891-setup-refresh.ts",
       "guards": [
-        "src/client/kernel/probe-chain.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -3848,13 +3871,13 @@
       "file": "tests/verify-895-bulk-deadline.ts",
       "guards": [
         "src/deck/registration/register-options.ts",
-        "src/deck/shell/call-budget.ts",
         "src/deck/shell/plan-cursor.ts",
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/deck-decide-stub.ts",
         "tests/lib/time-compress.ts"
@@ -3863,7 +3886,8 @@
         "src/deck/registration",
         "src/deck/shell",
         "src/deck/tools",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -3878,14 +3902,14 @@
       "file": "tests/verify-895-github-memo.ts",
       "guards": [
         "src/deck/shell/call-memo.ts",
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.ts"
       ],
       "dirs": [
         "src/deck/shell",
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests"
@@ -3903,15 +3927,15 @@
         "src/deck/shell/plan-cursor.ts",
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
         "tests/lib/deck-decide-stub.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/deck/shell",
         "src/deck/tools",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "tests/lib"
       ],
       "unattributed": false,
@@ -4020,16 +4044,16 @@
       "step": "node tests/verify-927-gate-injection.ts",
       "file": "tests/verify-927-gate-injection.ts",
       "guards": [
-        "src/deck/registration/quota-sync.ts",
-        "src/host/git-process.ts",
         "src/host/platformChannel.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts"
+        "src/refresh/registry/quota-sync-bridge.ts",
+        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts"
       ],
       "dirs": [
-        "src/deck/registration",
         "src/host",
-        "src/host/refresh"
+        "src/refresh/registry",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4058,9 +4082,9 @@
       "file": "tests/verify-929-batch-cycle.ts",
       "guards": [
         "src/deck/tools/map-link.ts",
-        "src/host/platform/outbound-control.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.ts",
@@ -4068,8 +4092,8 @@
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/platform",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests",
@@ -4087,11 +4111,11 @@
       "guards": [
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/session-workdir.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
         "src/host/tracker/predicateCore.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -4101,9 +4125,9 @@
       ],
       "dirs": [
         "src/deck/shell",
-        "src/host/refresh",
         "src/host/tracker",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -4123,18 +4147,18 @@
         "docs/agents/workspace.yaml",
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/workspace-anchor.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/explicitDetector.ts"
       ],
       "dirs": [
         "docs/agents",
         "src/deck/shell",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -4196,19 +4220,19 @@
         "docs/agents/workspace.yaml",
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/workspace-anchor.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
         "src/host/workspaceCwd.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/detection/backendDecision.ts"
       ],
       "dirs": [
         "docs/agents",
         "src/deck/shell",
         "src/host",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/detection"
       ],
       "unattributed": false,
@@ -4239,17 +4263,17 @@
       "file": "tests/verify-963-log-order.ts",
       "guards": [
         "src/host/bootstrap.ts",
-        "src/host/detectChain.ts",
-        "src/host/git-process.ts",
-        "src/host/outbound/admission.ts",
         "src/host/platformChannel.ts",
         "src/host/skillProbe.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/host",
-        "src/host/outbound",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -4285,9 +4309,9 @@
       "step": "node tests/verify-969-tiered-timeout.ts",
       "file": "tests/verify-969-tiered-timeout.ts",
       "guards": [
-        "src/host/git-process.ts",
-        "src/host/outbound/admission.ts",
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/outbound-tiers.ts",
@@ -4295,9 +4319,7 @@
         "src/tracker/rooms/github/errors.ts"
       ],
       "dirs": [
-        "src/host",
-        "src/host/outbound",
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "src/tracker/contract",
         "src/tracker/kernel",
@@ -4314,13 +4336,13 @@
       "file": "tests/verify-970-whole-document.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "src/shared/refresh/src/idempotency.ts",
+        "src/refresh/contract/idempotency-keys.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/verify-970-whole-document.ts"
       ],
       "dirs": [
         "scripts/lib",
-        "src/shared/refresh/src",
+        "src/refresh/contract",
         "src/tracker/rooms/markdown",
         "tests"
       ],
@@ -4338,10 +4360,10 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/issues-create.ts",
@@ -4351,8 +4373,8 @@
       ],
       "dirs": [
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -4404,11 +4426,11 @@
         "docs/README.en.md",
         "src/deck/tools/context.ts",
         "src/deck/tools/issue-create.ts",
-        "src/host/platform/outbound-control.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/preflight.ts",
         "src/tracker/registry/core.ts",
@@ -4422,9 +4444,8 @@
       "dirs": [
         "docs",
         "src/deck/tools",
-        "src/host/platform",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/contract",
         "src/tracker/kernel",
         "src/tracker/registry",
@@ -4503,16 +4524,16 @@
       "step": "node tests/verify-998-half-open.ts",
       "file": "tests/verify-998-half-open.ts",
       "guards": [
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/failure-window.ts",
-        "src/shared/refresh/src/policy.ts",
+        "src/refresh/kernel/admission-policy.ts",
+        "src/refresh/kernel/failure-window.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
@@ -4525,14 +4546,14 @@
       "step": "node tests/verify-attention-model.ts",
       "file": "tests/verify-attention-model.ts",
       "guards": [
-        "src/host/refresh/attention.ts",
-        "src/shared/refresh/src/attention.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/attention-model.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/host-attention.ts",
         "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
@@ -4570,10 +4591,10 @@
       "step": "node tests/verify-backend-quota-model.ts",
       "file": "tests/verify-backend-quota-model.ts",
       "guards": [
-        "src/shared/refresh/src/backend-quota.ts"
+        "src/refresh/kernel/backend-quota-model.ts"
       ],
       "dirs": [
-        "src/shared/refresh/src"
+        "src/refresh/kernel"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4585,13 +4606,13 @@
       "step": "node tests/verify-budget-page-upper-bound.ts",
       "file": "tests/verify-budget-page-upper-bound.ts",
       "guards": [
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/page-budget.ts"
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/page-allowance.ts",
+        "src/refresh/rooms/host/quota-ledger.ts"
       ],
       "dirs": [
-        "src/host/refresh",
-        "src/shared/refresh/src"
+        "src/refresh/kernel",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4603,12 +4624,12 @@
       "step": "node tests/verify-budget-worstcase.ts",
       "file": "tests/verify-budget-worstcase.ts",
       "guards": [
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/page-budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/page-allowance.ts",
         "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
@@ -4626,9 +4647,9 @@
         "src/client/kernel/icons.ts",
         "src/client/kernel/prompts.ts",
         "src/client/kernel/router.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/views/shared/Tabs.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -4636,6 +4657,7 @@
         "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -4957,19 +4979,18 @@
       "step": "node tests/verify-delta-patch.ts",
       "file": "tests/verify-delta-patch.ts",
       "guards": [
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/host/refresh/patch.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/delta.ts",
-        "src/shared/time-config/src/values.ts",
-        "src/shared/tracker/indexWindow.ts"
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/index-window-rules.ts",
+        "src/refresh/kernel/snapshot-diff.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/host/refresh",
-        "src/shared/refresh/src",
-        "src/shared/time-config/src",
-        "src/shared/tracker"
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/shared/time-config/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4981,23 +5002,20 @@
       "step": "node tests/verify-delta-wiring.ts",
       "file": "tests/verify-delta-wiring.ts",
       "guards": [
-        "src/client/kernel/probe-auto.ts",
-        "src/host/commentThreads.ts",
-        "src/host/issueList.ts",
-        "src/host/platform/issueIndexWindow.ts",
-        "src/host/refresh/wiring.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/delta.ts",
-        "src/shared/tracker/indexWindow.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/index-window-rules.ts",
+        "src/refresh/kernel/snapshot-diff.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/host/issue-index-scan.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
-        "src/host",
-        "src/host/platform",
-        "src/host/refresh",
-        "src/shared/refresh/src",
-        "src/shared/tracker",
+        "src/refresh/kernel",
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5171,13 +5189,13 @@
       "step": "node tests/verify-error-raw-samples.ts",
       "file": "tests/verify-error-raw-samples.ts",
       "guards": [
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/counts.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/issues.ts"
       ],
       "dirs": [
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
@@ -5226,7 +5244,7 @@
         "src/client/kernel/api-preset-guard.ts",
         "src/client/kernel/container-view.ts",
         "src/client/kernel/issue-pages.ts",
-        "src/client/kernel/slotRenderer-repo-sync.ts",
+        "src/refresh/rooms/client/repo-sync-renderer.ts",
         "src/tracker",
         "src/tracker/contract/results.ts",
         "src/tracker/contract/vocabulary.ts",
@@ -5240,6 +5258,7 @@
       "dirs": [
         "src/client",
         "src/client/kernel",
+        "src/refresh/rooms/client",
         "src/tracker",
         "src/tracker/contract",
         "src/tracker/kernel",
@@ -5255,12 +5274,12 @@
       "step": "node tests/verify-event-budget.ts",
       "file": "tests/verify-event-budget.ts",
       "guards": [
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/page-budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/page-allowance.ts",
         "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
@@ -5295,14 +5314,14 @@
       "step": "node tests/verify-gate-accounting.ts",
       "file": "tests/verify-gate-accounting.ts",
       "guards": [
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
@@ -5358,12 +5377,13 @@
       "file": "tests/verify-gh-gateway.ts",
       "guards": [
         "src",
-        "src/host/git-process.ts",
         "src/host/platform/index.ts",
         "src/host/platformChannel.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
         "src/host/versionControl.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
+        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/gitlab/index.ts",
@@ -5376,7 +5396,7 @@
         "src",
         "src/host",
         "src/host/platform",
-        "src/host/refresh",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
         "tests/fixtures/gh-gateway"
@@ -5385,13 +5405,13 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-github-gh-via.ts",
       "file": "tests/verify-github-gh-via.ts",
       "guards": [
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/counts.ts",
         "src/tracker/rooms/github/deps-read.ts",
@@ -5405,7 +5425,7 @@
         "tests/verify-github-gh-via.ts"
       ],
       "dirs": [
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github",
         "tests"
       ],
@@ -5420,8 +5440,8 @@
       "file": "tests/verify-github-label-colors.ts",
       "guards": [
         "docs/agents/workspace.yaml",
-        "src/host/platform/outbound-control.ts",
         "src/host/workspaceCwd.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/registry/core.ts",
@@ -5432,7 +5452,7 @@
       "dirs": [
         "docs/agents",
         "src/host",
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/detection",
         "src/tracker/registry",
         "src/tracker/rooms/github",
@@ -5448,11 +5468,11 @@
       "step": "node tests/verify-github-rest-fallback.ts",
       "file": "tests/verify-github-rest-fallback.ts",
       "guards": [
-        "src/host/platform/outbound-control.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/issues.ts"
       ],
       "dirs": [
-        "src/host/platform",
+        "src/refresh/rooms/host",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
@@ -5465,12 +5485,12 @@
       "step": "node tests/verify-gitlab-single-write.ts",
       "file": "tests/verify-gitlab-single-write.ts",
       "guards": [
-        "src/shared/refresh/src/idempotency.ts",
+        "src/refresh/contract/idempotency-keys.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/gitlab/index.ts"
       ],
       "dirs": [
-        "src/shared/refresh/src",
+        "src/refresh/contract",
         "src/tracker/registry",
         "src/tracker/rooms/gitlab"
       ],
@@ -5495,10 +5515,10 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/tool-cost.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -5509,8 +5529,8 @@
         "scripts",
         "src/deck/shell",
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/markdown",
@@ -5598,10 +5618,10 @@
       "step": "node tests/verify-index-window.ts",
       "file": "tests/verify-index-window.ts",
       "guards": [
-        "src/shared/tracker/indexWindow.ts"
+        "src/refresh/kernel/index-window-rules.ts"
       ],
       "dirs": [
-        "src/shared/tracker"
+        "src/refresh/kernel"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -5897,8 +5917,8 @@
         "scripts/lib/build-cache.mts",
         "src/client/index.ts",
         "src/client/kernel/log.ts",
-        "src/client/kernel/probe-snapshot.ts",
         "src/client/panelAssembly.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -5909,6 +5929,7 @@
         "scripts/lib",
         "src/client",
         "src/client/kernel",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -5926,6 +5947,7 @@
         "src/client",
         "src/deck",
         "src/host",
+        "src/refresh",
         "src/tracker"
       ],
       "dirs": [
@@ -5933,28 +5955,30 @@
         "src/client",
         "src/deck",
         "src/host",
+        "src/refresh",
         "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
     },
     {
       "step": "node tests/verify-log-exec-606.ts",
       "file": "tests/verify-log-exec-606.ts",
       "guards": [
         "src/client/kernel/router.ts",
-        "src/host/git-process.ts",
         "src/host/logStore.ts",
         "src/host/platformChannel.ts",
+        "src/refresh/rooms/host/git-execution.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/host",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5970,19 +5994,21 @@
         "src/client",
         "src/deck",
         "src/host",
+        "src/refresh",
         "src/tracker"
       ],
       "dirs": [
         "src/client",
         "src/deck",
         "src/host",
+        "src/refresh",
         "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
       "step": "node tests/verify-log-selfmon.ts",
@@ -6281,8 +6307,8 @@
       "step": "node tests/verify-multi-effort.ts",
       "file": "tests/verify-multi-effort.ts",
       "guards": [
-        "src/host/commentThreads.ts",
         "src/host/tracker/snapshot.ts",
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/tracker/kernel/identity-keys.ts",
         "src/tracker/rooms/markdown/comments.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -6290,8 +6316,8 @@
         "src/tracker/rooms/markdown/issues.ts"
       ],
       "dirs": [
-        "src/host",
         "src/host/tracker",
+        "src/refresh/rooms/host",
         "src/tracker/kernel",
         "src/tracker/rooms/markdown"
       ],
@@ -6361,11 +6387,11 @@
       "step": "node tests/verify-naming-title-fact.ts",
       "file": "tests/verify-naming-title-fact.ts",
       "guards": [
-        "src/host/refresh/wiring.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
-        "src/host/refresh",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6477,11 +6503,11 @@
       "step": "node tests/verify-panel-workspace-isolation.ts",
       "file": "tests/verify-panel-workspace-isolation.ts",
       "guards": [
-        "src/client/kernel/probe-auto.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6501,10 +6527,10 @@
         "scripts/build.mts",
         "scripts/lib/build-cache.mts",
         "src/host/index.ts",
-        "src/host/issueDetail.ts",
-        "src/host/issueList.ts",
         "src/host/mapBody.ts",
         "src/host/ticketGrouping.ts",
+        "src/refresh/rooms/host/issue-detail-fetch.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/tracker/body-parse.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -6515,6 +6541,7 @@
         "scripts",
         "scripts/lib",
         "src/host",
+        "src/refresh/rooms/host",
         "src/tracker",
         "tests/lib"
       ],
@@ -6555,12 +6582,12 @@
       "step": "node tests/verify-policy.ts",
       "file": "tests/verify-policy.ts",
       "guards": [
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/policy.ts",
+        "src/refresh/kernel/admission-policy.ts",
+        "src/refresh/kernel/host-budget.ts",
         "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
@@ -6627,6 +6654,7 @@
         "src/client/views/DetailActionBar.ts",
         "src/client/views/ListTabRow.ts",
         "src/host",
+        "src/refresh/rooms/host",
         "src/tracker/rooms",
         "src/tracker/rooms/github/index.ts",
         "tests/lib/eval-probe.ts",
@@ -6646,6 +6674,7 @@
         "src/client/kernel",
         "src/client/views",
         "src/host",
+        "src/refresh/rooms/host",
         "src/tracker/rooms",
         "src/tracker/rooms/github",
         "tests",
@@ -6655,7 +6684,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-refresh-adr.ts",
@@ -6664,8 +6693,8 @@
         "docs/adr/20260913-builtin-ts-shape.md",
         "docs/adr/20260924-refresh-budget-architecture.md",
         "scripts/lib/effective-lines.mts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/chain.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/refresh-chain.ts",
         "tests/file-granularity-baseline.json",
         "tests/verify-attention-model.ts",
         "tests/verify-event-budget.ts",
@@ -6676,7 +6705,7 @@
       "dirs": [
         "docs/adr",
         "scripts/lib",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "tests"
       ],
       "unattributed": false,
@@ -6689,19 +6718,18 @@
       "step": "node tests/verify-refresh-workspace-key.ts",
       "file": "tests/verify-refresh-workspace-key.ts",
       "guards": [
-        "src/host/detectChain.ts",
-        "src/host/refresh/gate.ts",
-        "src/host/refresh/ledger.ts",
-        "src/host/refresh/wiring.ts",
-        "src/shared/refresh-workspace-key.ts",
+        "src/refresh/contract/workspace-keys.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
-        "src/host",
-        "src/host/refresh",
-        "src/shared",
+        "src/refresh/contract",
+        "src/refresh/rooms/host",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -6761,12 +6789,13 @@
       "step": "node tests/verify-reply-envelope-parity.ts",
       "file": "tests/verify-reply-envelope-parity.ts",
       "guards": [
-        "src/host/sessionRefresh.ts",
-        "src/host/sessionSnapshot.ts",
-        "src/host/snapshotEnvelope.ts"
+        "src/host/snapshotEnvelope.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
       ],
       "dirs": [
-        "src/host"
+        "src/host",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -7087,10 +7116,10 @@
       "step": "node tests/verify-snapshot-cache-first.ts",
       "file": "tests/verify-snapshot-cache-first.ts",
       "guards": [
-        "src/host/sessionSnapshot.ts"
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
       ],
       "dirs": [
-        "src/host"
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -7132,12 +7161,12 @@
       "step": "node tests/verify-subdir-first-frame.ts",
       "file": "tests/verify-subdir-first-frame.ts",
       "guards": [
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
-        "src/client/kernel/probe-stale.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/statusbar/bannerChain.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/staleness-indicator.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
@@ -7147,6 +7176,7 @@
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "src/shared/tracker",
         "tests/lib"
@@ -7166,16 +7196,16 @@
         "src/deck/registration/suggest-steps-register.ts",
         "src/deck/rules/tool-order.ts",
         "src/deck/tools/suggest-next-steps.ts",
-        "src/host/refresh/wiring.ts",
-        "src/shared/refresh-workspace-key.ts",
+        "src/refresh/contract/workspace-keys.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
         "src/deck/registration",
         "src/deck/rules",
         "src/deck/tools",
-        "src/host/refresh",
-        "src/shared",
+        "src/refresh/contract",
+        "src/refresh/rooms/host",
         "tests/lib"
       ],
       "unattributed": false,
@@ -7189,11 +7219,11 @@
       "file": "tests/verify-t1-getrepokey.ts",
       "guards": [
         "package/lib/index.js",
-        "src/host/platform/outbound-control.ts"
+        "src/refresh/rooms/host/outbound-control.ts"
       ],
       "dirs": [
         "package/lib",
-        "src/host/platform"
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -7325,15 +7355,16 @@
       "step": "node tests/verify-ui-description-single-source.ts",
       "file": "tests/verify-ui-description-single-source.ts",
       "guards": [
-        "src/host/sessionRefresh.ts",
-        "src/host/sessionSnapshot.ts",
-        "src/host/snapshotBuild.ts",
         "src/host/workspaceCwd.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/snapshot-build.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/ui-description.ts"
       ],
       "dirs": [
         "src/host",
+        "src/refresh/rooms/host",
         "src/tracker",
         "src/tracker/rooms/gitlab"
       ],
@@ -7556,7 +7587,7 @@
         "scripts/lib/transpile-unit.mts",
         "src/client/views/shared/truthLines.ts",
         "src/host/snapshotEnvelope.ts",
-        "src/shared/refresh/src/budget.ts",
+        "src/refresh/kernel/host-budget.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -7565,7 +7596,7 @@
         "scripts/lib",
         "src/client/views/shared",
         "src/host",
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -7640,12 +7671,12 @@
       "step": "node tests/verify-write-detect.ts",
       "file": "tests/verify-write-detect.ts",
       "guards": [
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/write-detect.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/write-event-detection.ts",
         "src/shared/time-config/src/values.ts"
       ],
       "dirs": [
-        "src/shared/refresh/src",
+        "src/refresh/kernel",
         "src/shared/time-config/src"
       ],
       "unattributed": false,
@@ -7967,6 +7998,16 @@
     "package/lib/platform": [
       "node tests/verify-build-artifacts.ts"
     ],
+    "package/refresh": [
+      "node tests/verify-build-artifacts.ts",
+      "node tests/verify-deck-event-gate.ts"
+    ],
+    "package/refresh/contract": [
+      "node tests/verify-build-artifacts.ts"
+    ],
+    "package/refresh/kernel": [
+      "node tests/verify-build-artifacts.ts"
+    ],
     "package/scripts": [
       "node tests/verify-deck-event-gate.ts",
       "node tests/verify-prompts.ts"
@@ -8109,6 +8150,7 @@
     "src/client": [
       "node tests/verify-leaves.ts",
       "node tests/verify-contract-vocabulary.ts",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1297-entry.ts",
@@ -8144,10 +8186,8 @@
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
-      "node tests/verify-chain-env-e2e.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -8160,13 +8200,11 @@
       "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1355-cross-session-table.ts",
-      "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-646-native-tab.ts",
-      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -8185,14 +8223,12 @@
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-786-focus-end.ts",
-      "node tests/verify-891-setup-refresh.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-container-colors.ts",
       "node tests/verify-ctx.ts",
-      "node tests/verify-delta-wiring.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-inject-trailing-newline.ts",
@@ -8210,7 +8246,6 @@
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
-      "node tests/verify-panel-workspace-isolation.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
@@ -8380,7 +8415,6 @@
     "src/deck/registration": [
       "node tests/verify-deck-exec-phone.ts",
       "node tests/verify-deck-no-hang.ts",
-      "node tests/verify-deck-quota-sync.ts",
       "node tests/verify-deck-render-detail.ts",
       "node tests/verify-deck-tools-agent-register.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
@@ -8388,7 +8422,6 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-895-bulk-deadline.ts",
-      "node tests/verify-927-gate-injection.ts",
       "node tests/verify-suggest-next-steps.ts"
     ],
     "src/deck/rules": [
@@ -8412,12 +8445,10 @@
       "node tests/verify-1083-work-path-persist.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-1157-in-flight-lease.ts",
-      "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1261-work-route-receipt.ts",
       "node tests/verify-1298-spec-close.ts",
-      "node tests/verify-1304-deps-native.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-895-github-memo.ts",
@@ -8478,14 +8509,10 @@
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
-      "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1305-session-permit.ts",
-      "node tests/verify-1392-disposed-timer.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
-      "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
-      "node tests/verify-524-pr-detail.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-666-subws-mark-root.ts",
@@ -8494,7 +8521,6 @@
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-696-shared-cache.ts",
-      "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-single-refresh-instance.ts",
       "node tests/verify-729-force-dedup.ts",
       "node tests/verify-730-cwd-consistent.ts",
@@ -8510,13 +8536,11 @@
       "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-963-log-order.ts",
       "node tests/verify-968-skill-ondemand.ts",
-      "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-bundled-discovery.ts",
       "node tests/verify-config-store-comments.ts",
       "node tests/verify-config-store-core.ts",
       "node tests/verify-config-store-migration.ts",
       "node tests/verify-config-store-package.ts",
-      "node tests/verify-delta-wiring.ts",
       "node tests/verify-detail-levels.ts",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-detection-log-reach.ts",
@@ -8532,52 +8556,26 @@
       "node tests/verify-log-store.ts",
       "node tests/verify-log-switch-single-source.ts",
       "node tests/verify-markdown-label-colors.ts",
-      "node tests/verify-multi-effort.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-prompts.ts",
-      "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-phones.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
-      "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-version-control-host.ts",
       "node tests/verify-visible-truth.ts"
     ],
-    "src/host/outbound": [
-      "node tests/verify-dependency-rules.ts",
-      "node tests/verify-963-log-order.ts",
-      "node tests/verify-969-tiered-timeout.ts"
-    ],
     "src/host/platform": [
-      "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-1053-issue-write.ts",
-      "node tests/verify-1054-edge-graph.ts",
-      "node tests/verify-1304-deps-native.ts",
       "node tests/verify-497-slash.ts",
-      "node tests/verify-599-merged-pr.ts",
-      "node tests/verify-691-map-subissues.ts",
-      "node tests/verify-790-parent-edge.ts",
-      "node tests/verify-829-parent-reread.ts",
-      "node tests/verify-895-github-memo.ts",
-      "node tests/verify-929-batch-cycle.ts",
-      "node tests/verify-969-tiered-timeout.ts",
-      "node tests/verify-992-readonly-labels.ts",
-      "node tests/verify-delta-wiring.ts",
-      "node tests/verify-error-raw-samples.ts",
       "node tests/verify-gh-gateway.ts",
-      "node tests/verify-github-gh-via.ts",
-      "node tests/verify-github-label-colors.ts",
-      "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-naming-guardian.ts",
-      "node tests/verify-platform-contract.ts",
-      "node tests/verify-t1-getrepokey.ts"
+      "node tests/verify-platform-contract.ts"
     ],
     "src/host/platform/darwin": [
       "node tests/verify-497-slash.ts",
@@ -8590,49 +8588,6 @@
     "src/host/platform/win32": [
       "node tests/verify-497-slash.ts",
       "node tests/verify-platform-contract.ts"
-    ],
-    "src/host/refresh": [
-      "node tests/verify-deck-event-gate.ts",
-      "node tests/verify-deck-no-hang.ts",
-      "node tests/verify-deck-parallel.ts",
-      "node tests/verify-deck-thin-reads.ts",
-      "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-deck-tools.ts",
-      "node tests/verify-1003-single-outlet.ts",
-      "node tests/verify-1003-unified-decision.ts",
-      "node tests/verify-1082-work-route-table.ts",
-      "node tests/verify-1090-progress-roundtrip.ts",
-      "node tests/verify-1091-original-words.ts",
-      "node tests/verify-1092-original-words-roundtrip.ts",
-      "node tests/verify-1109-matches-timeout.ts",
-      "node tests/verify-1115-timer-handle.ts",
-      "node tests/verify-1150-plan-store-durable.ts",
-      "node tests/verify-1195-budget-start.ts",
-      "node tests/verify-1195-timeout-split.ts",
-      "node tests/verify-1363-first-run-recovery.ts",
-      "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-723-gate-wiring.ts",
-      "node tests/verify-723-single-refresh-instance.ts",
-      "node tests/verify-784-effortId.ts",
-      "node tests/verify-790-parent-edge.ts",
-      "node tests/verify-829-parent-reread.ts",
-      "node tests/verify-927-gate-injection.ts",
-      "node tests/verify-934-935-invariants.ts",
-      "node tests/verify-947-workspace-file.ts",
-      "node tests/verify-957-workspace-writer.ts",
-      "node tests/verify-971-markdown-parent.ts",
-      "node tests/verify-992-readonly-labels.ts",
-      "node tests/verify-998-half-open.ts",
-      "node tests/verify-attention-model.ts",
-      "node tests/verify-budget-page-upper-bound.ts",
-      "node tests/verify-delta-patch.ts",
-      "node tests/verify-delta-wiring.ts",
-      "node tests/verify-gate-accounting.ts",
-      "node tests/verify-gh-gateway.ts",
-      "node tests/verify-golden-receipts.ts",
-      "node tests/verify-naming-title-fact.ts",
-      "node tests/verify-refresh-workspace-key.ts",
-      "node tests/verify-suggest-next-steps.ts"
     ],
     "src/host/tracker": [
       "node tests/verify-1277-md-spec-container.ts",
@@ -8647,56 +8602,21 @@
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts"
     ],
-    "src/seam": [
-      "node tests/verify-chain-env-e2e.ts",
-      "node tests/verify-dependency-rules.ts"
-    ],
-    "src/shared": [
+    "src/refresh": [
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-1281-entries.ts",
-      "node tests/verify-1412-ask-matt-next-steps.ts",
-      "node tests/verify-730-cwd-consistent.ts",
-      "node tests/verify-948-feedback-map.ts",
-      "node tests/verify-952-short-text.ts",
-      "node tests/verify-955-alignment.ts",
-      "node tests/verify-968-skill-ondemand.ts",
-      "node tests/verify-bundled-skills.ts",
-      "node tests/verify-naming-e2e.ts",
-      "node tests/verify-naming-guardian.ts",
+      "node tests/verify-log-count.ts",
+      "node tests/verify-log-fields.ts"
+    ],
+    "src/refresh/contract": [
+      "node tests/verify-1115-timer-handle.ts",
+      "node tests/verify-970-whole-document.ts",
+      "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-refresh-workspace-key.ts",
-      "node tests/verify-session-title.ts",
-      "node tests/verify-suggest-next-steps.ts",
-      "node tests/verify-locale-completeness.ts"
+      "node tests/verify-suggest-next-steps.ts"
     ],
-    "src/shared/command-cleanup": [],
-    "src/shared/command-cleanup/src": [
-      "node tests/verify-1392-disposed-timer.ts"
-    ],
-    "src/shared/doc-layout": [],
-    "src/shared/doc-layout/src": [
-      "node tests/verify-683-choice-store.ts"
-    ],
-    "src/shared/host-timer": [],
-    "src/shared/host-timer/src": [
-      "node tests/verify-1115-timer-handle.ts"
-    ],
-    "src/shared/issue-file": [],
-    "src/shared/issue-file/src": [
-      "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-1091-original-words.ts",
-      "node tests/verify-1092-original-words-roundtrip.ts",
-      "node tests/verify-1277-md-spec-container.ts"
-    ],
-    "src/shared/label-color": [],
-    "src/shared/label-color/src": [
-      "node tests/verify-label-color-core.ts",
-      "node tests/verify-markdown-label-colors.ts"
-    ],
-    "src/shared/refresh": [],
-    "src/shared/refresh/src": [
-      "node tests/verify-build-artifacts.ts",
+    "src/refresh/kernel": [
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.ts",
@@ -8727,7 +8647,6 @@
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.ts",
-      "node tests/verify-970-whole-document.ts",
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-998-half-open.ts",
@@ -8739,12 +8658,156 @@
       "node tests/verify-delta-wiring.ts",
       "node tests/verify-event-budget.ts",
       "node tests/verify-gate-accounting.ts",
-      "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-golden-receipts.ts",
+      "node tests/verify-index-window.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts"
+    ],
+    "src/refresh/registry": [
+      "node tests/verify-deck-quota-sync.ts",
+      "node tests/verify-1115-timer-handle.ts",
+      "node tests/verify-927-gate-injection.ts"
+    ],
+    "src/refresh/rooms": [],
+    "src/refresh/rooms/client": [
+      "node tests/verify-chain-env-e2e.ts",
+      "node tests/verify-deck-slots.ts",
+      "node tests/verify-1082-work-route-table.ts",
+      "node tests/verify-1305-client-session.ts",
+      "node tests/verify-1355-cross-session-table.ts",
+      "node tests/verify-1363-first-run-recovery.ts",
+      "node tests/verify-1373-stale-table-graft.ts",
+      "node tests/verify-653-subworkspace.ts",
+      "node tests/verify-656-subworkspace-acceptance.ts",
+      "node tests/verify-669-chain-after-pick.ts",
+      "node tests/verify-669-choice-precedence.ts",
+      "node tests/verify-669-switch-visible.ts",
+      "node tests/verify-891-setup-refresh.ts",
+      "node tests/verify-bug-entry.ts",
+      "node tests/verify-delta-wiring.ts",
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-log-client.ts",
+      "node tests/verify-panel-workspace-isolation.ts",
+      "node tests/verify-subdir-first-frame.ts"
+    ],
+    "src/refresh/rooms/host": [
+      "node tests/verify-deck-event-gate.ts",
+      "node tests/verify-deck-no-hang.ts",
+      "node tests/verify-deck-parallel.ts",
+      "node tests/verify-deck-thin-reads.ts",
+      "node tests/verify-deck-tools-matrix.ts",
+      "node tests/verify-deck-tools.ts",
+      "node tests/verify-1003-no-cwd-masquerade.ts",
+      "node tests/verify-1003-single-outlet.ts",
+      "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1053-issue-write.ts",
+      "node tests/verify-1054-edge-graph.ts",
+      "node tests/verify-1082-work-route-table.ts",
+      "node tests/verify-1090-progress-roundtrip.ts",
+      "node tests/verify-1091-original-words.ts",
+      "node tests/verify-1092-original-words-roundtrip.ts",
+      "node tests/verify-1109-matches-timeout.ts",
+      "node tests/verify-1115-timer-handle.ts",
+      "node tests/verify-1150-plan-store-durable.ts",
+      "node tests/verify-1195-budget-start.ts",
+      "node tests/verify-1195-timeout-split.ts",
+      "node tests/verify-1291-closed-map-open-children.ts",
+      "node tests/verify-1304-deps-native.ts",
+      "node tests/verify-1363-first-run-recovery.ts",
+      "node tests/verify-1392-disposed-timer.ts",
+      "node tests/verify-1431-snapshot-refresh-parity.ts",
+      "node tests/verify-3-workspace-switch.ts",
+      "node tests/verify-524-pr-detail.ts",
+      "node tests/verify-599-merged-pr.ts",
+      "node tests/verify-683-host-wiring.ts",
+      "node tests/verify-691-map-subissues.ts",
+      "node tests/verify-696-shared-cache.ts",
+      "node tests/verify-709-no-self-continuing-timers.ts",
+      "node tests/verify-723-gate-wiring.ts",
+      "node tests/verify-723-single-refresh-instance.ts",
+      "node tests/verify-729-force-dedup.ts",
+      "node tests/verify-784-effortId.ts",
+      "node tests/verify-790-parent-edge.ts",
+      "node tests/verify-829-parent-reread.ts",
+      "node tests/verify-839-credential-exec.ts",
+      "node tests/verify-847-stall-watch.ts",
+      "node tests/verify-895-bulk-deadline.ts",
+      "node tests/verify-895-github-memo.ts",
+      "node tests/verify-927-gate-injection.ts",
+      "node tests/verify-929-batch-cycle.ts",
+      "node tests/verify-934-935-invariants.ts",
+      "node tests/verify-947-workspace-file.ts",
+      "node tests/verify-957-workspace-writer.ts",
+      "node tests/verify-963-log-order.ts",
+      "node tests/verify-969-tiered-timeout.ts",
+      "node tests/verify-971-markdown-parent.ts",
+      "node tests/verify-992-readonly-labels.ts",
+      "node tests/verify-998-half-open.ts",
+      "node tests/verify-attention-model.ts",
+      "node tests/verify-budget-page-upper-bound.ts",
+      "node tests/verify-delta-patch.ts",
+      "node tests/verify-delta-wiring.ts",
+      "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-gate-accounting.ts",
+      "node tests/verify-gh-gateway.ts",
+      "node tests/verify-github-gh-via.ts",
+      "node tests/verify-github-label-colors.ts",
+      "node tests/verify-github-rest-fallback.ts",
+      "node tests/verify-golden-receipts.ts",
+      "node tests/verify-log-exec-606.ts",
+      "node tests/verify-multi-effort.ts",
+      "node tests/verify-naming-title-fact.ts",
+      "node tests/verify-parse-leaf.ts",
+      "node tests/verify-prompts.ts",
+      "node tests/verify-refresh-workspace-key.ts",
+      "node tests/verify-reply-envelope-parity.ts",
+      "node tests/verify-snapshot-cache-first.ts",
+      "node tests/verify-suggest-next-steps.ts",
+      "node tests/verify-t1-getrepokey.ts",
+      "node tests/verify-ui-description-single-source.ts"
+    ],
+    "src/seam": [
+      "node tests/verify-chain-env-e2e.ts",
+      "node tests/verify-dependency-rules.ts"
+    ],
+    "src/shared": [
+      "node tests/verify-build-artifacts.ts",
+      "node tests/verify-contract-vocabulary.ts",
+      "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1281-entries.ts",
+      "node tests/verify-1412-ask-matt-next-steps.ts",
+      "node tests/verify-730-cwd-consistent.ts",
+      "node tests/verify-948-feedback-map.ts",
+      "node tests/verify-952-short-text.ts",
+      "node tests/verify-955-alignment.ts",
+      "node tests/verify-968-skill-ondemand.ts",
+      "node tests/verify-bundled-skills.ts",
+      "node tests/verify-naming-e2e.ts",
+      "node tests/verify-naming-guardian.ts",
+      "node tests/verify-session-title.ts",
+      "node tests/verify-locale-completeness.ts"
+    ],
+    "src/shared/command-cleanup": [],
+    "src/shared/command-cleanup/src": [
+      "node tests/verify-1392-disposed-timer.ts"
+    ],
+    "src/shared/doc-layout": [],
+    "src/shared/doc-layout/src": [
+      "node tests/verify-683-choice-store.ts"
+    ],
+    "src/shared/issue-file": [],
+    "src/shared/issue-file/src": [
+      "node tests/verify-deck-tools-matrix.ts",
+      "node tests/verify-1091-original-words.ts",
+      "node tests/verify-1092-original-words-roundtrip.ts",
+      "node tests/verify-1277-md-spec-container.ts"
+    ],
+    "src/shared/label-color": [],
+    "src/shared/label-color/src": [
+      "node tests/verify-label-color-core.ts",
+      "node tests/verify-markdown-label-colors.ts"
     ],
     "src/shared/time-config": [],
     "src/shared/time-config/src": [
@@ -8804,14 +8867,10 @@
       "node tests/verify-668-guide-steps-single-source.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-698-switch-asks-layout.ts",
-      "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-968-skill-ondemand.ts",
-      "node tests/verify-delta-patch.ts",
-      "node tests/verify-delta-wiring.ts",
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
-      "node tests/verify-index-window.ts",
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-subdir-first-frame.ts"
     ],
@@ -9252,12 +9311,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 568,
-    "dirCount": 71,
-    "coveredFileCount": 568,
+    "fileCount": 573,
+    "dirCount": 78,
+    "coveredFileCount": 573,
     "ungatedFileCount": 0,
-    "ungatedDirCount": 0,
-    "dedicatedDirCount": 52,
+    "ungatedDirCount": 6,
+    "dedicatedDirCount": 54,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -9270,7 +9329,6 @@
       "src/client/kernel/api-new-session.ts",
       "src/client/kernel/api-preset-guard.ts",
       "src/client/kernel/api-workspace.ts",
-      "src/client/kernel/attention-heartbeat.ts",
       "src/client/kernel/builtin-backends.ts",
       "src/client/kernel/config.ts",
       "src/client/kernel/container-view.ts",
@@ -9286,12 +9344,6 @@
       "src/client/kernel/log.ts",
       "src/client/kernel/modal-fields.ts",
       "src/client/kernel/portal.ts",
-      "src/client/kernel/probe-auto.ts",
-      "src/client/kernel/probe-chain.ts",
-      "src/client/kernel/probe-select.ts",
-      "src/client/kernel/probe-snapshot-helpers.ts",
-      "src/client/kernel/probe-snapshot.ts",
-      "src/client/kernel/probe-stale.ts",
       "src/client/kernel/prompt-data.ts",
       "src/client/kernel/prompts-backend.ts",
       "src/client/kernel/prompts-setup.ts",
@@ -9306,11 +9358,9 @@
       "src/client/kernel/settings-view.ts",
       "src/client/kernel/slotRenderer-modal-view.ts",
       "src/client/kernel/slotRenderer-queue.ts",
-      "src/client/kernel/slotRenderer-repo-sync.ts",
       "src/client/kernel/slots.ts",
       "src/client/kernel/store-derived.ts",
       "src/client/kernel/store-prefs.ts",
-      "src/client/kernel/store-snapshot.ts",
       "src/client/kernel/store-switch.ts",
       "src/client/kernel/styles.ts",
       "src/client/kernel/tabsfold.ts",
@@ -9464,7 +9514,6 @@
       "src/deck/registration/agent-row.ts",
       "src/deck/registration/host-assemble.ts",
       "src/deck/registration/host-delegate.ts",
-      "src/deck/registration/quota-sync.ts",
       "src/deck/registration/register-options.ts",
       "src/deck/registration/sandbox-guard.ts",
       "src/deck/registration/suggest-steps-register.ts",
@@ -9480,7 +9529,6 @@
       "src/deck/rules/workspace-file.ts",
       "src/deck/shell/backend-transport.ts",
       "src/deck/shell/body-write.ts",
-      "src/deck/shell/call-budget.ts",
       "src/deck/shell/call-memo.ts",
       "src/deck/shell/call-shell-types.ts",
       "src/deck/shell/call-shell.ts",
@@ -9518,17 +9566,11 @@
       "src/deck/tsconfig.json",
       "src/host/bootstrap.ts",
       "src/host/choiceStore.ts",
-      "src/host/commentThreads.ts",
       "src/host/configStore.ts",
-      "src/host/detectChain.ts",
       "src/host/dispatchMeta.ts",
       "src/host/fsAbsence.ts",
-      "src/host/git-process.ts",
-      "src/host/gitCredentialExec.ts",
       "src/host/handoffClaim.ts",
       "src/host/index.ts",
-      "src/host/issueDetail.ts",
-      "src/host/issueList.ts",
       "src/host/issuePage.ts",
       "src/host/logFromPackage.ts",
       "src/host/logPhones.ts",
@@ -9536,44 +9578,24 @@
       "src/host/mapBody.ts",
       "src/host/mapTickets.ts",
       "src/host/namingGuardian.ts",
-      "src/host/outbound/admission.ts",
       "src/host/pickerShell.ts",
       "src/host/platform/README.md",
       "src/host/platform/darwin/index.ts",
       "src/host/platform/index.ts",
-      "src/host/platform/issueIndexWindow.ts",
       "src/host/platform/linux/index.ts",
       "src/host/platform/namingSummary.ts",
       "src/host/platform/namingSummaryText.ts",
-      "src/host/platform/outbound-control.ts",
-      "src/host/platform/refreshAssembly.ts",
       "src/host/platform/win32/index.ts",
       "src/host/platformChannel.ts",
       "src/host/publishFlow.ts",
-      "src/host/refresh/attention.ts",
-      "src/host/refresh/chain-ride.ts",
-      "src/host/refresh/chainBackoff.ts",
-      "src/host/refresh/fetchThinRows.ts",
-      "src/host/refresh/gate.ts",
-      "src/host/refresh/ledger.ts",
-      "src/host/refresh/patch.ts",
-      "src/host/refresh/recordRepoPages.ts",
-      "src/host/refresh/refreshSource.ts",
-      "src/host/refresh/refusal-text.ts",
-      "src/host/refresh/wiring.ts",
-      "src/host/refresh/workRouteReadoutForHost.ts",
-      "src/host/refresh/writeEvents.ts",
       "src/host/remotePredicates.ts",
       "src/host/rpcChannel.ts",
       "src/host/runningMarkers.ts",
       "src/host/sessionLifecycle.ts",
-      "src/host/sessionRefresh.ts",
-      "src/host/sessionSnapshot.ts",
       "src/host/settingsPhones.ts",
       "src/host/skillDoc.ts",
       "src/host/skillProbe.ts",
       "src/host/skillProbeCache.ts",
-      "src/host/snapshotBuild.ts",
       "src/host/snapshotEnvelope.ts",
       "src/host/snapshotInflight.ts",
       "src/host/stallWatch.ts",
@@ -9596,6 +9618,72 @@
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.ts",
       "src/host/workspaceLabelColors.ts",
+      "src/refresh/README.md",
+      "src/refresh/contract/.gitkeep",
+      "src/refresh/contract/host-timer-ports.ts",
+      "src/refresh/contract/idempotency-keys.ts",
+      "src/refresh/contract/refresh-ports.ts",
+      "src/refresh/contract/trigger-classification.ts",
+      "src/refresh/contract/tuning-parameters.ts",
+      "src/refresh/contract/workspace-keys.ts",
+      "src/refresh/kernel/.gitkeep",
+      "src/refresh/kernel/admission-policy.ts",
+      "src/refresh/kernel/attention-model.ts",
+      "src/refresh/kernel/backend-quota-model.ts",
+      "src/refresh/kernel/chain-pruning.ts",
+      "src/refresh/kernel/create-write-policy.ts",
+      "src/refresh/kernel/failure-backoff.ts",
+      "src/refresh/kernel/failure-window.ts",
+      "src/refresh/kernel/host-budget.ts",
+      "src/refresh/kernel/index-window-rules.ts",
+      "src/refresh/kernel/page-allowance.ts",
+      "src/refresh/kernel/refresh-chain.ts",
+      "src/refresh/kernel/snapshot-diff.ts",
+      "src/refresh/kernel/step-pricing.ts",
+      "src/refresh/kernel/tool-call-budget.ts",
+      "src/refresh/kernel/write-event-detection.ts",
+      "src/refresh/registry/.gitkeep",
+      "src/refresh/registry/deck-tool-bridge.ts",
+      "src/refresh/registry/quota-sync-bridge.ts",
+      "src/refresh/rooms/client/.gitkeep",
+      "src/refresh/rooms/client/client-attention-heartbeat.ts",
+      "src/refresh/rooms/client/probe-chain-subscription.ts",
+      "src/refresh/rooms/client/probe-scope-selection.ts",
+      "src/refresh/rooms/client/refresh-timer.ts",
+      "src/refresh/rooms/client/repo-sync-renderer.ts",
+      "src/refresh/rooms/client/snapshot-cache-store.ts",
+      "src/refresh/rooms/client/snapshot-sync-helpers.ts",
+      "src/refresh/rooms/client/snapshot-sync.ts",
+      "src/refresh/rooms/client/staleness-indicator.ts",
+      "src/refresh/rooms/host/.gitkeep",
+      "src/refresh/rooms/host/chain-backoff.ts",
+      "src/refresh/rooms/host/chain-coalescing.ts",
+      "src/refresh/rooms/host/check-chain-evaluation.ts",
+      "src/refresh/rooms/host/comment-thread-fetch.ts",
+      "src/refresh/rooms/host/gh-execution.ts",
+      "src/refresh/rooms/host/git-execution.ts",
+      "src/refresh/rooms/host/host-attention.ts",
+      "src/refresh/rooms/host/issue-detail-fetch.ts",
+      "src/refresh/rooms/host/issue-index-scan.ts",
+      "src/refresh/rooms/host/issue-list-fetch.ts",
+      "src/refresh/rooms/host/outbound-admission.ts",
+      "src/refresh/rooms/host/outbound-control.ts",
+      "src/refresh/rooms/host/probe-handler.ts",
+      "src/refresh/rooms/host/quota-ledger.ts",
+      "src/refresh/rooms/host/refresh-assembly.ts",
+      "src/refresh/rooms/host/refresh-gate.ts",
+      "src/refresh/rooms/host/refresh-runtime.ts",
+      "src/refresh/rooms/host/refusal-messages.ts",
+      "src/refresh/rooms/host/repo-page-accounting.ts",
+      "src/refresh/rooms/host/row-patch.ts",
+      "src/refresh/rooms/host/session-refresh-schedule.ts",
+      "src/refresh/rooms/host/session-snapshot-cache.ts",
+      "src/refresh/rooms/host/snapshot-build.ts",
+      "src/refresh/rooms/host/thin-row-fetch.ts",
+      "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
+      "src/refresh/rooms/host/work-route-readout.ts",
+      "src/refresh/rooms/host/write-event-subscription.ts",
+      "src/refresh/tsconfig.json",
       "src/seam/editor.ts",
       "src/seam/gate.ts",
       "src/seam/index.ts",
@@ -9618,9 +9706,6 @@
       "src/shared/doc-layout/src/layouts.ts",
       "src/shared/doc-layout/tsconfig.json",
       "src/shared/feedback-map.ts",
-      "src/shared/host-timer/README.md",
-      "src/shared/host-timer/src/host-timers.ts",
-      "src/shared/host-timer/tsconfig.json",
       "src/shared/issue-file/README.md",
       "src/shared/issue-file/src/marker.ts",
       "src/shared/issue-file/src/original-words-tool.ts",
@@ -9638,26 +9723,6 @@
       "src/shared/naming-attribution.ts",
       "src/shared/naming-titles.ts",
       "src/shared/naming-tracking.ts",
-      "src/shared/refresh-workspace-key.ts",
-      "src/shared/refresh/README.md",
-      "src/shared/refresh/src/attention.ts",
-      "src/shared/refresh/src/backend-quota.ts",
-      "src/shared/refresh/src/backoff.ts",
-      "src/shared/refresh/src/budget.ts",
-      "src/shared/refresh/src/chain-prune.ts",
-      "src/shared/refresh/src/chain.ts",
-      "src/shared/refresh/src/create-write.ts",
-      "src/shared/refresh/src/delta.ts",
-      "src/shared/refresh/src/failure-window.ts",
-      "src/shared/refresh/src/idempotency.ts",
-      "src/shared/refresh/src/page-budget.ts",
-      "src/shared/refresh/src/policy.ts",
-      "src/shared/refresh/src/ports.ts",
-      "src/shared/refresh/src/step-cost.ts",
-      "src/shared/refresh/src/tool-cost.ts",
-      "src/shared/refresh/src/tuning.ts",
-      "src/shared/refresh/src/write-detect.ts",
-      "src/shared/refresh/tsconfig.json",
       "src/shared/session-cwd.ts",
       "src/shared/skill-probe-channels.ts",
       "src/shared/time-config/README.md",
@@ -9671,7 +9736,6 @@
       "src/shared/tracker/check-catalog-dirs.ts",
       "src/shared/tracker/check-catalog-views.ts",
       "src/shared/tracker/guide-steps.ts",
-      "src/shared/tracker/indexWindow.ts",
       "src/shared/tracker/list-dedupe.ts",
       "src/shared/tracker/shape.ts",
       "src/shared/tracker/sync.ts",
@@ -9862,13 +9926,18 @@
       "src/deck/shell",
       "src/deck/tools",
       "src/host",
-      "src/host/outbound",
       "src/host/platform",
       "src/host/platform/darwin",
       "src/host/platform/linux",
       "src/host/platform/win32",
-      "src/host/refresh",
       "src/host/tracker",
+      "src/refresh",
+      "src/refresh/contract",
+      "src/refresh/kernel",
+      "src/refresh/registry",
+      "src/refresh/rooms",
+      "src/refresh/rooms/client",
+      "src/refresh/rooms/host",
       "src/seam",
       "src/shared",
       "src/shared/command-cleanup",
@@ -9877,14 +9946,10 @@
       "src/shared/config-store/src",
       "src/shared/doc-layout",
       "src/shared/doc-layout/src",
-      "src/shared/host-timer",
-      "src/shared/host-timer/src",
       "src/shared/issue-file",
       "src/shared/issue-file/src",
       "src/shared/label-color",
       "src/shared/label-color/src",
-      "src/shared/refresh",
-      "src/shared/refresh/src",
       "src/shared/time-config",
       "src/shared/time-config/src",
       "src/shared/tracker",
@@ -9925,21 +9990,23 @@
       "src/deck/shell",
       "src/deck/tools",
       "src/host",
-      "src/host/outbound",
       "src/host/platform",
       "src/host/platform/darwin",
       "src/host/platform/linux",
       "src/host/platform/win32",
-      "src/host/refresh",
       "src/host/tracker",
+      "src/refresh",
+      "src/refresh/contract",
+      "src/refresh/kernel",
+      "src/refresh/registry",
+      "src/refresh/rooms/client",
+      "src/refresh/rooms/host",
       "src/seam",
       "src/shared",
       "src/shared/command-cleanup/src",
       "src/shared/doc-layout/src",
-      "src/shared/host-timer/src",
       "src/shared/issue-file/src",
       "src/shared/label-color/src",
-      "src/shared/refresh/src",
       "src/shared/time-config/src",
       "src/shared/tracker",
       "src/shared/ui",
@@ -9997,6 +10064,10 @@
         "fileCount": 2
       },
       {
+        "path": "src/refresh/rooms",
+        "fileCount": 38
+      },
+      {
         "path": "src/shared/command-cleanup",
         "fileCount": 3
       },
@@ -10013,10 +10084,6 @@
         "fileCount": 3
       },
       {
-        "path": "src/shared/host-timer",
-        "fileCount": 3
-      },
-      {
         "path": "src/shared/issue-file",
         "fileCount": 7
       },
@@ -10025,15 +10092,36 @@
         "fileCount": 5
       },
       {
-        "path": "src/shared/refresh",
-        "fileCount": 19
-      },
-      {
         "path": "src/shared/time-config",
         "fileCount": 4
       }
     ],
     "ungated": [],
-    "ungatedDirs": []
+    "ungatedDirs": [
+      {
+        "path": "src/host/outbound",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/host/refresh",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/shared/host-timer",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/shared/host-timer/src",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/shared/refresh",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/shared/refresh/src",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      }
+    ]
   }
 }

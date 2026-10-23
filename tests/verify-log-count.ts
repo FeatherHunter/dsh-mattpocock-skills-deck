@@ -138,6 +138,8 @@ function collectQuotedNames() {
   // #1095：埋点跟着搬家走了（src/deck、src/tracker 新树），扫描根一起跟上；旧根不动。
   walk(path.join(ROOT, 'src', 'deck'))
   walk(path.join(ROOT, 'src', 'tracker'))
+  // #1426：刷新埋点跟着宿主房搬进 src/refresh/rooms/host/，扫描根一起跟上；旧根不动。
+  walk(path.join(ROOT, 'src', 'refresh'))
   return found
 }
 const quoted = collectQuotedNames()

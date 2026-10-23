@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 /**
  * 回归门禁：GitHub 房的「已合并」拉取请求 #599。
  *

@@ -18,7 +18,7 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
 import type { EdgeEvidence } from '../shell/edge-landing.js'
-import { withCallScope } from '../shell/call-budget.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 // #1403：位置值到契约类型 / 类型标签 / 正文标记 / 父票规则的唯一答案在这张表里（src/deck/rules/object-kind.ts）。
 import { resolveCreateKind } from '../rules/object-kind.js'
@@ -34,8 +34,8 @@ import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-wo
 import { originalWordsFromArg } from '../../shared/issue-file/src/original-words-tool.js'
 import { bodyWriteFields, bodyWriteReadbackProblem, planBodyWrite } from '../shell/body-write.js'
 import type { BodyWritePlan } from '../shell/body-write.js'
-import * as budget from '../../shared/refresh/src/budget.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // 工具定义（唯一事实）搬去了同目录的 issue-create-parts.ts：只为把本文件压回 350 行有效行以内，

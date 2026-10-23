@@ -129,7 +129,7 @@ async function main() {
   check(!run.log.events.some((e) => e.event === 'git.exec'), '① 被停掉的那条不落 git.exec（没有真实退出码可记）')
 
   // ①b 同一档失败在 #839 那一层也是同一个 kind（形状要求：与 #839 的 stalled 同形）
-  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.js')).href)
+  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'gh-execution.js')).href)
   const safe = credMod.createCredentialSafeGit({ runGit: run.runGit, getPlatform: async () => ({ resolveExecutable: async () => 'git' }), getEnv: () => null, DEFAULT_CWD: lab })
   const rStalled = await safe.runOnce({ cwd: lab, clearHelpers: true, args: ['ls-remote', bh.url], timeoutMs: 20000, stallMs: 2000 })
   check(rStalled.ok === false && rStalled.kind === 'stalled' && typeof rStalled.hint === 'string' && rStalled.hint.length > 0, '①b 看门狗判的停顿在 #839 那一层翻成同一档失败（kind=stalled + 能照做的指引）')

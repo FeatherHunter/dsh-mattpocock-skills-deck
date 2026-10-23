@@ -78,8 +78,8 @@ function execOf(cwd?: string) { return { agent: { session: { cwd: cwd || 'C:/fak
 async function main() {
   console.log('#1245 回归门禁：自动标识稳定加孤儿修复')
   const storeMod: any = await imp('src/deck/shell/plan-cursor.ts')
-  const budget: any = await imp('src/shared/refresh/budget.js')
-  const toolCost: any = await imp('src/shared/refresh/tool-cost.js')
+  const budget: any = await imp('src/refresh/kernel/host-budget.js')
+  const toolCost: any = await imp('src/refresh/kernel/tool-call-budget.js')
   const planMod: any = await imp('src/deck/tools/map-plan-create.ts')
   const values: any = await imp('src/shared/time-config/values.js')
   check(typeof planMod.createDeckMapPlanCreate === 'function', '建图工厂存在')

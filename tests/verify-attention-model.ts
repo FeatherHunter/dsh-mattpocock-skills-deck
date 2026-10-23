@@ -10,8 +10,8 @@
 //   四、**90 秒无信号全部收摊**：一个定时器都不剩，而且再上报能重新起来。
 //   五、**判定是纯的**：同一份输入连收一百次，结论完全一样（否则「30 秒后归零」就成了一句空话）。
 //
-// 被测对象是宿主薄壳（src/host/refresh/attention.js）—— 判定全部在它调用的那份纯函数产物
-// （src/shared/refresh/attention.js，源码 src/shared/refresh/src/attention.ts）里。两处都真跑，不读文本。
+// 被测对象是宿主薄壳（src/refresh/rooms/host/host-attention.js）—— 判定全部在它调用的那份纯函数产物
+// （.build/refresh/kernel/attention-model.js，源码 src/refresh/kernel/attention-model.ts）里。两处都真跑，不读文本。
 // 反证口径：这个脚本自己可以被指向一份「故意做坏」的纯函数副本（环境变量 DSH_ATTENTION_VARIANT），
 // 那种情况下必须出现 FAIL。见下面 loadPure()。
 const fs = require('fs')
@@ -40,7 +40,7 @@ const ROOT_C = 'd:\\repo-c'
 async function loadPure() {
   const variant = process.env.DSH_ATTENTION_VARIANT
   if (variant) return import(pathToFileURL(path.resolve(variant)).href)
-  return import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'attention.js')).href)
+  return import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'attention-model.js')).href)
 }
 
 /**
@@ -107,8 +107,8 @@ async function main() {
   console.log('视野模型门禁（#707：后台零定时器、活跃上限 2、同一工作区根只探一次、90 秒全部收摊）')
 
   const pure = await loadPure()
-  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
-  const attentionMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'attention.js')).href)
+  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
+  const attentionMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'host-attention.js')).href)
 
   const LIMITS = {
     maxActive: budget.MAX_ACTIVE_WORKSPACES,
@@ -352,8 +352,8 @@ async function main() {
   if (failed) {
     console.log('')
     console.log('票面验收四条：后台零定时器、活跃上限 2、同一工作区根只产生一次探测、90 秒无信号全部收摊。')
-    console.log('判定真源：src/shared/refresh/src/attention.ts（产物 src/shared/refresh/attention.js）；')
-    console.log('薄壳：src/host/refresh/attention.js（宿主电话 wf.focus）。')
+    console.log('判定真源：src/refresh/kernel/attention-model.ts（产物 .build/refresh/kernel/attention-model.js）；')
+    console.log('薄壳：src/refresh/rooms/host/host-attention.js（宿主电话 wf.focus）。')
   }
   process.exit(failed ? 1 : 0)
 }

@@ -4,7 +4,7 @@
 // .js 文本、扫 setInterval 与自名递归排期、钉住旧名字不许回来。那种断言的对象是手写源码的文本，
 // 等价重构（改写法、搬文件、改注释）就会变红，2026-10 按维护者口径整段撤掉。留下来的两段断言的
 // 都是**跑起来的结果**：
-//   ① 把 src/shared/refresh 的退避纯函数真跑一遍（档位、推进、缓存寿命、预检寿命）；
+//   ① 把 src/refresh/kernel/failure-backoff.ts 的退避纯函数真跑一遍（档位、推进、缓存寿命、预检寿命）；
 //   ② 拼一个最小宿主接一次真的 wf.chain 求值，数这一轮对外问了几条 REST。
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -43,8 +43,8 @@ console.log('\n— 退避算术本身：把纯函数真跑一遍 —')
 {
   // 这一段是功能断言，不是查字符串：把退避做坏（例如让它永远停在第 0 档、或者忽略「有进展回快档」），
   // 下面这几条会立刻红。门禁只查「函数在不在」是挡不住这种改法的。
-  const bo = await import('../src/shared/refresh/backoff.js')
-  const budget = await import('../src/shared/refresh/budget.js')
+  const bo = await import('../src/refresh/kernel/failure-backoff.js')
+  const budget = await import('../src/refresh/kernel/host-budget.js')
   const limits = {
     backoffMs: CHAIN_BACKOFF_MS,
     allGreenTtlMs: CHAIN_ALL_GREEN_TTL_MS,
@@ -193,12 +193,12 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
   }
   const countOf = (spawns: RecordedSpawn[], cmd0: string, cmd1: string) => spawns.filter((s) => s.rest && String(s.argv[1]) === cmd0 && String(s.argv[2]) === cmd1).length
 
-  const repoKeysMod = await imp(join(ROOTDIR, 'src/host/git-process.ts'))
+  const repoKeysMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/git-execution.ts'))
   const detMod = await imp(join(ROOTDIR, 'src/tracker/detection/detectionService.ts'))
   const githubMod = await imp(join(ROOTDIR, 'src/tracker/rooms/github/index.ts'))
-  const detectChainMod = await imp(join(ROOTDIR, 'src/host/detectChain.ts'))
-  const gateMod = await imp(join(ROOTDIR, 'src/host/refresh/gate.ts'))
-  const ledgerMod = await imp(join(ROOTDIR, 'src/host/refresh/ledger.ts'))
+  const detectChainMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/check-chain-evaluation.ts'))
+  const gateMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/refresh-gate.ts'))
+  const ledgerMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/quota-ledger.ts'))
 
   // 第 1 次评估：挂载时那一种调用（force=true，客户端不带 trigger）
   const host1 = makeHost()

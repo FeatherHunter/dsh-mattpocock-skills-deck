@@ -137,7 +137,7 @@ function makeLab() {
 async function makeRunner(lab, opts) {
   const o = opts || {}
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
-  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts')).href)
+  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'gh-execution.ts')).href)
   const log = { spawns: [], terminations: 0, events: [], outbound: 0 }
   const vc = hostMod.createVersionControl({
     subprocess: makeRealSubprocess(log),
@@ -183,8 +183,8 @@ async function main() {
 
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.ts')).href)
   // （2026-10-18 #1247：gitCredentialExec 真源已转成 TypeScript，路径跟到 .ts；本仓 Node 下限原生剥类型，直读语义一致。）
-  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts')).href)
-  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'gitCredentialExec.ts'), 'utf8')
+  const credMod = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'gh-execution.ts')).href)
+  const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'gh-execution.ts'), 'utf8')
   const hostCode = hostSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
   // ---- A) 静态契约：这一族命令的安全开关一个都不许少 ----
@@ -206,7 +206,16 @@ async function main() {
   check(env0.GIT_HTTP_LOW_SPEED_LIMIT === '1000' && Number(env0.GIT_HTTP_LOW_SPEED_TIME) > 0, 'http 低速放弃阈值已设（停顿判据之一）')
   check(credMod.OPERATION_BUDGETS.fetch > 0 && credMod.OPERATION_BUDGETS.push >= credMod.OPERATION_BUDGETS['ls-remote'] && credMod.CALL_BUDGET_MS >= credMod.OPERATION_BUDGETS.pull, '每操作预算与调用级总预算都在，且写操作给得比只读宽')
   check(inst.safe.budgetFor(['ls-remote', 'x']) === credMod.OPERATION_BUDGETS['ls-remote'] && inst.safe.budgetFor(['status']) === credMod.OPERATION_BUDGETS.default, '按子命令取预算，认不出的落 default')
-  check(hostCode.indexOf('child_process') < 0 && !/\bspawn\s*\(/.test(hostCode), '本模块自己不起进程（去注释后既没有 child_process 也没有 spawn）')
+  // #1429 C 起本文件住两件：凭据安全包装（createCredentialSafeGit，自己不起进程，沿注入的 runGit 走共享出口）
+  // 与 gh 执行层（createGhExecution，起 gh 进程是它的本职：resolveGh 探测一次、runGh 执行一次）。
+  // 所以「不起进程」只钉包装那一段；执行层那两处 spawn 是合并进来的原实现（git-execution.ts 旧址），不是新增的直调。
+  const credStart = hostCode.indexOf('function createCredentialSafeGit')
+  const execStart = hostCode.indexOf('function createGhExecution')
+  check(credStart >= 0 && execStart > credStart, '本文件是包装在前、执行层在后的两件结构')
+  const credSrc = hostCode.slice(credStart, execStart)
+  check(credSrc.indexOf('child_process') < 0 && !/\bspawn\s*\(/.test(credSrc), '凭据安全包装自己不起进程（去注释后既没有 child_process 也没有 spawn）')
+  check(hostCode.indexOf('child_process') < 0, '执行层也不直引 child_process（经注入的 subprocess 起进程，可被门禁替换）')
+  check((hostCode.slice(execStart).match(/\bspawn\s*\(/g) || []).length === 2, '执行层起进程只在两处（resolveGh 探测与 runGh 执行各一次）')
   check(!/config['"],\s*['"](--set|--unset|--global|--system)/.test(hostCode), '本模块不改用户 git 配置（只读取 config --get）')
   check(!/credential\s+fill|credential\s+approve/.test(hostCode), '本模块不落任何凭据（不调 credential fill/approve）')
 

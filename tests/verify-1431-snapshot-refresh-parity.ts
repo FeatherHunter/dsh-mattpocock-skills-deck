@@ -2,7 +2,7 @@
 // 现场：本地 Markdown 房，规格 #01 下挂 02/03/04/05（键补零 '02'），03 被 02 阻塞、04 被 02 阻塞、05 被 03/04 阻塞。
 // 断言（与 tests/verify-544-standalone-blocked.ts 同一装载方式，跑的是真函数）：
 //  1. 宿主归一成数字的阻塞边（blockedBy [2]）在列表派生里仍能命中补零键的票（mapBlockOf 3 项、compute blocked 3 张）。
-//  2. 首屏快照那条路（sessionSnapshot.ts 的 composer 分支）给每张地图算分组计数（m.stats），与刷新那条路同口径。
+//  2. 首屏快照那条路（src/refresh/rooms/host/session-snapshot-cache.ts 的 composer 分支）给每张地图算分组计数（m.stats），与刷新那条路同口径。
 //  3. 两条路的阻塞边归一同形（都压成数字），首屏与刷新不再各说各话。
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-1431-snapshot-refresh-parity.ts
 const assert = require('assert')
@@ -52,8 +52,8 @@ async function main(): Promise<void> {
   ok('compute：blocked 3 张、frontier 1 张')
 
   // —— 静态：首屏快照的 composer 分支也要算分组计数（与刷新同口径），两条路阻塞边同形 ——
-  const snapSrc: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'host', 'sessionSnapshot.ts'), 'utf8')
-  const refSrc: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'host', 'sessionRefresh.ts'), 'utf8')
+  const snapSrc: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'refresh', 'rooms', 'host', 'session-snapshot-cache.ts'), 'utf8')
+  const refSrc: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'refresh', 'rooms', 'host', 'session-refresh-schedule.ts'), 'utf8')
   const snapComposer: string = snapSrc.slice(snapSrc.indexOf('if (useComposer)'), snapSrc.indexOf('// 统一契约'))
   assert.ok(/m\.stats\s*=/.test(snapComposer), '首屏 composer 分支给地图算 m.stats（首屏即有 0/4，不必等刷新）')
   ok('sessionSnapshot composer 分支算 m.stats')

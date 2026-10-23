@@ -25,8 +25,8 @@
 // 这份文件零 Node 导入：读写、改名、日志出口全部由调用方注入（生产是真文件系统与宿主日志，
 // 门禁用临时目录与固定时钟），路径用斜杠拼接 —— Node 在 Windows 上也认斜杠。
 
-import { chainRootHash, chainSessionShardId } from '../../shared/refresh/src/chain.js';
-import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES } from '../../shared/refresh/src/chain-prune.js';
+import { chainRootHash, chainSessionShardId } from '../../refresh/kernel/refresh-chain.js';
+import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES } from '../../refresh/kernel/chain-pruning.js';
 import { applyNote, applyRelease, emptyLedger, ledgerToText, loadLedgerFromText, pruneLedger } from './work-path-ledger.js';
 import type { RootLedger, WorkPathLedger, WorkPathNoteInput, WorkPathNoteResult, WorkPathReleaseInput, WorkPathReleaseResult } from './work-path-ledger.js';
 import { privacyViolations } from './work-path-privacy.js';

@@ -46,19 +46,19 @@ const MODULES = [
   { name: 'storePrefs', file: 'store-prefs', exports: ['DEFAULT_PANEL_H', 'listPrefs', 'saveListPrefs', 'labelClicks', 'saveLabelClicks', 'NOREPO_DISMISS_PREFIX', 'cwdHash', 'noRepoDismissKey', 'isNoRepoDismissed', 'setNoRepoDismissed', 'cwdBasename', 'isNoRepoNameValid', 'ensureNoRepoCard', 'setActiveMap', 'clearActiveMap', 'setActiveIssue', 'clearActiveDetail', 'ISSUE_CACHE_TTL', 'selectionByCwd', 'repositoryByCwd', 'SELECTION_BY_CWD_KEY', 'BANNER_FOLD_KEY', 'bannerFoldByCwd', 'isBannerFolded', 'setBannerFolded', 'getCachedSelection', 'setCachedSelection', 'userHintOf', 'keepUserPick', 'userPickSelection', 'adoptBoundRev', 'workspaceFileNoteOf', 'workspaceFileNoteEl', 'getCachedRepository', 'setCachedRepository', 'SETUP_LAYOUT_BY_CWD_KEY', 'setupLayoutByCwd', 'getCachedSetupLayout', 'setCachedSetupLayout', 'migrateCachedChoiceToKey'] },
   // #669 第 6 件（ADR 20260921）：clearBackendBinding 随「清除后端选择」那颗按钮一起退役（全仓已无调用点）。
   { name: 'storeSwitch', file: 'store-switch', exports: ['labelOf', 'presentationById', 'setPresentationMap', 'backendColorOf', 'backendBgOf', 'backendBorderOf', 'repoShortName', 'DEFAULT_SWITCH_PROMPT_ZH', 'openSwitchConfirm', 'closeSwitchConfirm', 'loadSwitchCri', 'confirmSwitchConfirm'] },
-  { name: 'storeSnapshot', file: 'store-snapshot', exports: ['makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'SNAP_CWD_LRU_MAX', 'snapshotByCwd', 'touchLRUClient', 'getCachedSnapshot', 'getCachedEntry', 'setCachedSnapshot', 'getSnapshotVersion', 'lastProbeAtByCwd', 'getProbeAt', 'touchProbeAt', 'SNAP_DISK_CAP', 'diskPutSnapshot', 'diskGetSnapshot', 'CHAIN_CWD_LRU_MAX', 'chainByCwd', 'getChainCacheKey', 'getCachedChain', 'setCachedChain', 'hydrateFromCache', 'mergeSelection', 'applySnapshotSelection', 'getCwdSync', 'NOTICE_COLOR', 'noticeIcon', 'flash'] },
+  { name: 'storeSnapshot', file: 'snapshot-cache-store', exports: ['makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'SNAP_CWD_LRU_MAX', 'snapshotByCwd', 'touchLRUClient', 'getCachedSnapshot', 'getCachedEntry', 'setCachedSnapshot', 'getSnapshotVersion', 'lastProbeAtByCwd', 'getProbeAt', 'touchProbeAt', 'SNAP_DISK_CAP', 'diskPutSnapshot', 'diskGetSnapshot', 'CHAIN_CWD_LRU_MAX', 'chainByCwd', 'getChainCacheKey', 'getCachedChain', 'setCachedChain', 'hydrateFromCache', 'mergeSelection', 'applySnapshotSelection', 'getCwdSync', 'NOTICE_COLOR', 'noticeIcon', 'flash'] },
   { name: 'storeDerived', file: 'store-derived', exports: ['compute', 'frontierAll', 'openIssuesOf', 'isOccupied', 'occCount', 'frontierCount', 'applyStandaloneBlocks', 'hasLabelOf', 'isTriageLike', 'bugCount', 'triageCount', 'buildColorOf', 'isLightHex', 'timeStampStr'] },
   { name: 'rowActions', file: 'row-actions', exports: ['rowActionKind', 'actionColorOf', 'rowActionText', 'mkRowAction'] },
   // #709（T5）：8 秒自轮询那对排期/取消函数已退役，换成事件驱动入口（四类事件共用一个出口）。
-  { name: 'probeChain', file: 'probe-chain', exports: ['chainEventRefresh', 'CHAIN_EVENT_REASONS', 'loadChain', 'chainSteps', 'chainStep', 'chainStepStatus', 'chainStepOk', 'chainStepBad', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'openBlockers', 'blockerNames', 'detectCwd'] },
-  { name: 'probeStale', file: 'probe-stale', exports: ['_snapSeqN', '_snapLatestByWs', '_snapPendKey', '_snapMarkRequest', '_snapRespStale', '_snapReuseInFlight'] },
-  { name: 'probeSnapshot', file: 'probe-snapshot', exports: ['pendingSnapshotByCwd', 'nowStr', 'timeOf', 'timeOfMs', 'broadcastCfg', 'cacheFirstThenAttend', 'loadSnapshot'] },
+  { name: 'probeChain', file: 'probe-chain-subscription', exports: ['chainEventRefresh', 'CHAIN_EVENT_REASONS', 'loadChain', 'chainSteps', 'chainStep', 'chainStepStatus', 'chainStepOk', 'chainStepBad', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'openBlockers', 'blockerNames', 'detectCwd'] },
+  { name: 'probeStale', file: 'staleness-indicator', exports: ['_snapSeqN', '_snapLatestByWs', '_snapPendKey', '_snapMarkRequest', '_snapRespStale', '_snapReuseInFlight'] },
+  { name: 'probeSnapshot', file: 'snapshot-sync', exports: ['pendingSnapshotByCwd', 'nowStr', 'timeOf', 'timeOfMs', 'broadcastCfg', 'cacheFirstThenAttend', 'loadSnapshot'] },
   // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），把颜色小函数、数据层增量差异、
   //   高亮清除搬成单独一片；那三样东西的导出名与行为一字未改。
-  { name: 'probeSnapshotHelpers', file: 'probe-snapshot-helpers', exports: ['hexA', 'darken', 'diffSnapshots', '_flashClearPending', 'scheduleFlashClear'] },
-  { name: 'probeAuto', file: 'probe-auto', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'startActiveProbeLoop', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
+  { name: 'probeSnapshotHelpers', file: 'snapshot-sync-helpers', exports: ['hexA', 'darken', 'diffSnapshots', '_flashClearPending', 'scheduleFlashClear'] },
+  { name: 'probeAuto', file: 'refresh-timer', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'startActiveProbeLoop', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
   // #707：视野模型的客户端半边（窗口标识、焦点与可见性监听、20 秒本地心跳、处境判定）。
-  { name: 'attentionHeartbeat', file: 'attention-heartbeat', exports: ['attentionWindowId', 'attentionVisible', 'attentionNoteHuman', 'attentionStoreOf', 'attentionRootOf', 'attentionKeyOf', '_attentionPlan', 'adoptAttentionPlan', 'attentionStandingOf', 'ATTENTION_SILENT_MS', 'attentionSuspended', 'attentionBeat', 'startAttentionHeartbeat', 'startAttentionSignals', 'stopAttentionSignals'] },
+  { name: 'attentionHeartbeat', file: 'client-attention-heartbeat', exports: ['attentionWindowId', 'attentionVisible', 'attentionNoteHuman', 'attentionStoreOf', 'attentionRootOf', 'attentionKeyOf', '_attentionPlan', 'adoptAttentionPlan', 'attentionStandingOf', 'ATTENTION_SILENT_MS', 'attentionSuspended', 'attentionBeat', 'startAttentionHeartbeat', 'startAttentionSignals', 'stopAttentionSignals'] },
   { name: 'router', exports: ['openInNativeRight', 'openPanel', 'togglePanel', 'afterPanelOpened', 'repoStr', 'startText', 'newWayfinderText', 'newSpecText', 'newBugWayfinderText'] },
   // #709（T5）：5 秒自轮询常量与启动函数已退役，换成事件驱动入口；namingGuardianKick 仍是那一次拉取的本体。
   { name: 'apiNaming', file: 'api-naming', exports: ['injectFixate', 'handoffPrompt', 'extractHandoffFile', 'absHandoffPath', 'handoffReadText', 'getRowPreset', 'isHealthyPreset', 'isReusableBlank', 'buildCreateOpts', 'createPTCSession', 'namingCurrentTitleOf', 'namingHintOf', 'executeNamingOrder', 'reconcileNamingFailure', 'applyNamingFailurePanel', 'namingGuardianKick', 'namingGuardianEvent', 'startNamingGuardianEvents'] },
@@ -78,12 +78,16 @@ const MODULES = [
   { name: 'uiFeedback', file: 'ui-feedback', exports: ['UI_PRESS_CLASS', 'UI_PRESS_ATTR', 'UI_LOG_ATTR', 'installUiFeedback'] },
   { name: 'slots', exports: ['SLOTS_KERNEL_VERSION', 'SLOT_DEFS_KERNEL', 'MODAL_SEAT_ID', 'orderOf', 'isScopeValid', 'canDeclareIn', 'shouldShowInModal', 'isModalAction', 'getWizardAction', 'getFormAction', 'getModalAction', 'getWizardSteps'] },
   { name: 'slotRendererQueue', file: 'slotRenderer-queue', exports: ['SLOT_RENDERER_VERSION', 'ensureFormModal', 'openFormModal', 'closeFormModal', 'createModalRenderForm', 'canOpenModalForStep', 'canOpenWizardForStep'] },
-  { name: 'slotRendererRepoSync', file: 'slotRenderer-repo-sync', exports: ['startRepoSync', 'finishRepoSync', 'retryRepoSync'] },
+  { name: 'slotRendererRepoSync', file: 'repo-sync-renderer', exports: ['startRepoSync', 'finishRepoSync', 'retryRepoSync'] },
   { name: 'slotRendererModalView', file: 'slotRenderer-modal-view', exports: ['FormModalSeat'] },
 ]
 const kernelFileOf = (m) => {
   // #1251：转写后真源是同名 .ts（.js 孪生已删，pixel-ts 按需重建）：优先查 .ts；
   //   尚未转写的条目仍查 .js。产物由哪份真源拼出来，新鲜度就跟哪一份。
+  // #1428：九个客户端房文件搬进 src/refresh/rooms/client/：新家优先，旧家回落（搬空后回落永不命中）。
+  const fresh = 'src/refresh/rooms/client/' + (m.file || m.name)
+  if (fs.existsSync(fresh + '.ts')) return fresh + '.ts'
+  if (fs.existsSync(fresh + '.js')) return fresh + '.js'
   const base = 'src/client/kernel/' + (m.file || m.name)
   return fs.existsSync(base + '.ts') ? base + '.ts' : base + '.js'
 }

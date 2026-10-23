@@ -1,6 +1,6 @@
 // tests/verify-index-window.ts
 //
-// 门禁：增量索引的时间窗与水印（src/shared/tracker/indexWindow.js）
+// 门禁：增量索引的时间窗与水印（src/refresh/kernel/index-window-rules.js）
 //
 // 为什么必须有这条门禁：
 //   把「每次全量扫」改成「只问变化」能省掉大部分等待，但会引入两类**静默错误**——
@@ -10,7 +10,7 @@
 //      后果是面板长期显示旧数据且没有任何报错。
 //   这两类都不会自己冒出来，必须由本门禁钉死。
 
-import { scanWindow, mergeDelta, indexDiffers, nextWatermark, indexFromSnapshot, seedFromSnapshot, MAX_WINDOW_MS, SKEW_MS } from '../src/shared/tracker/indexWindow.js'
+import { scanWindow, mergeDelta, indexDiffers, nextWatermark, indexFromSnapshot, seedFromSnapshot, MAX_WINDOW_MS, SKEW_MS } from '../src/refresh/kernel/index-window-rules.js'
 
 let failed = 0
 let total = 0

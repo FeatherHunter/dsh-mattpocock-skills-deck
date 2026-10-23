@@ -50,7 +50,7 @@
 // 这是本文件唯一一处运行时值导入：chain.ts 是共享纯逻辑（不碰 DOM、不碰 Node 内置模块），
 // 与依赖规则门禁里登记的跨层方向一致，不新增豁免。
 
-import { chainTicketKey } from '../../shared/refresh/src/chain.js';
+import { chainTicketKey } from '../../refresh/kernel/refresh-chain.js';
 import { workPathDetailOf } from './work-path-readout.js';
 import type { DeckShellDeps, ShellSession, UnknownRecord } from './call-shell-types.js';
 

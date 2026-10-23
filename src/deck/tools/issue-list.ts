@@ -9,8 +9,8 @@
 // 的 LIST_QUERY 注释），三后端行为一致，不逐后端写分支。顺序沿用后端原序，不重排。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
-import { withCallScope } from '../shell/call-budget.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。

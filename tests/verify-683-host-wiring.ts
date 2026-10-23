@@ -183,7 +183,7 @@ console.log('== C R2c：缓存里的选择随那份记忆变旧就必须重算 =
 console.log('')
 console.log('== D R4：快照的短路路与 304 都要带权威 {selection, rev} ==')
 {
-  const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.ts'))
+  const { createSessionSnapshot } = await import(url('src/refresh/rooms/host/session-snapshot-cache.ts'))
   const cached = { ok: true, generatedMs: 1, maps: [{ number: 1, tickets: [] }], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
   const makeHost = function (sel: any) {
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }
@@ -285,7 +285,7 @@ console.log('== G R6：wf.setupLayout 写进 H、读得出来；卡片确认与�
 // ── F 反证 ───────────────────────────────────────────────────────────────────────
 console.log('')
 console.log('== F 反证：把实现做坏，上面该红的必须当场红 ==')
-const snapSrc = read('src/host/sessionSnapshot.ts')
+const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
 {
   // F1 上报优先级加回来（老路径复活）→ A 组第一条变红
   //   #1169：裁决顺序已经抽到 src/tracker/detection/selection-precedence.ts，这里不再把整份探测服务
@@ -343,8 +343,8 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
         mirrorOne(cand.find(function (c) { return fs.existsSync(path.join(ROOT, 'src', c)) }) || joined)
       }
     }
-    mirrorOne('host/sessionSnapshot.ts')
-    const broken2 = path.join(mirror, 'host', 'sessionSnapshot.mjs')
+    mirrorOne('refresh/rooms/host/session-snapshot-cache.ts')
+    const broken2 = path.join(mirror, 'refresh', 'rooms', 'host', 'session-snapshot-cache.mjs')
     // 快照源文件是 .ts（#1155 起带类型标注）：写进 .mjs 之前先按仓库自己的转译口径剥掉类型，否则这一份
     //   改坏了的源码会在解析阶段就 SyntaxError，反证根本跑不到比较那一步。转译参数只写在
     //   scripts/lib/transpile-unit.mts 那一份，这里取现成的，与生产侧同一套口径。

@@ -177,7 +177,7 @@ export const FB_FAIL_RED_PATHS: FbFailRedPath[] = [
   { path: '发评论失败提示', file: 'src/client/views/IssueDetailComments.js', colors: ['#f87171'], note: '限流那一档走琥珀 #f59e0b，与「网络失败」分开说' },
   { path: '标签配色弹窗', file: 'src/client/views/labels/LabelColorDialog.js', colors: ['#f87171'], note: '标题、消息、提示、横幅四处同色' },
   { path: '清空日志失败重试键', file: 'src/client/statusbar/LogDangerConfirm.js', colors: ['#fca5a5'], note: '横幅上的重试键文字用亮红，与横幅本体的 #f87171 同族' },
-  { path: '浮层小提示失败', file: 'src/client/kernel/store-snapshot.js', colors: ['#fbbf24'], note: '浮层提示只有 ok/warn/info 三档，失败走 warn 琥珀（NOTICE_COLOR.warn），不自造红' },
+  { path: '浮层小提示失败', file: 'src/refresh/rooms/client/snapshot-cache-store.js', colors: ['#fbbf24'], note: '浮层提示只有 ok/warn/info 三档，失败走 warn 琥珀（NOTICE_COLOR.warn），不自造红' },
   { path: '原型占位红（不在反馈路径）', file: 'src/client/views/SubworkspaceMark.js', colors: ['#f85149'], note: '子工作区角标的既有红，保留原样；反馈路径一处都不用，也不许把它提成全局值' },
 ]
 

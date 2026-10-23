@@ -111,8 +111,8 @@ async function main() {
   const hasTok = function (arr: string[], tok: string) { return arr.some(function (l) { return l.indexOf(tok) >= 0 }) }
 
   const idx = linesOf(path.join('src', 'host', 'index.ts'))
-  // H1 #445：getRepoRoot/getRepoKey/canonicalKey 已原样搬到 src/host/git-process.ts，守卫跟随代码位置（意图不变：在场即查）。
-  const rkf = linesOf(path.join('src', 'host', 'git-process.ts'))
+  // H1 #445：getRepoRoot/getRepoKey/canonicalKey 已原样搬到 src/refresh/rooms/host/git-execution.ts，守卫跟随代码位置（意图不变：在场即查）。
+  const rkf = linesOf(path.join('src', 'refresh', 'rooms', 'host', 'git-execution.ts'))
   const idxAt = function (tok: string) { for (let i = 0; i < idx.length; i++) { if (idx[i].indexOf(tok) >= 0) return i } return -1 }
   const rkfAt = function (tok: string) { for (let i = 0; i < rkf.length; i++) { if (rkf[i].indexOf(tok) >= 0) return i } return -1 }
   const guardSite = function (name: string, anchor: string, before: number, after: number) {
@@ -127,11 +127,11 @@ async function main() {
   const g2 = idxAt('async function getRepoKey(')
   const g2r = rkfAt('async function getRepoKey(')
   ;((g2 >= 0 && hasTok(idx.slice(g2, g2 + 5), 'canonical')) || (g2r >= 0 && hasTok(rkf.slice(g2r, g2r + 5), 'canonical'))) ? ok('getRepoKey 首行规整') : bad('getRepoKey 首行未见规整钥匙')
-  // H3 #447：wf.chain/wf.detect 处理器体已搬到 src/host/detectChain.ts，守卫跟随代码位置。
-  // H4 #448：wf.snapshot 处理器体已搬到 src/host/sessionSnapshot.ts，守卫跟随代码位置（H3 同例）。
+  // H3 #447：wf.chain/wf.detect 处理器体已搬到 src/refresh/rooms/host/check-chain-evaluation.ts，守卫跟随代码位置。
+  // H4 #448：wf.snapshot 处理器体已搬到 src/refresh/rooms/host/session-snapshot-cache.ts，守卫跟随代码位置（H3 同例）。
   // H5 #449：wf.bind 处理器体已搬到 src/host/workspaceCwd.ts，守卫跟随代码位置（H3 同例）。
-  const dcf = linesOf(path.join('src', 'host', 'detectChain.ts'))
-  const ssf = linesOf(path.join('src', 'host', 'sessionSnapshot.ts'))
+  const dcf = linesOf(path.join('src', 'refresh', 'rooms', 'host', 'check-chain-evaluation.ts'))
+  const ssf = linesOf(path.join('src', 'refresh', 'rooms', 'host', 'session-snapshot-cache.ts'))
   const wcf = linesOf(path.join('src', 'host', 'workspaceCwd.ts'))
   const guardSiteMovedIn = function (name: string, anchor: string, before: number, after: number, fileLines: string[], movedFn: string, mBefore: number, mAfter: number) {
     const at = idxAt(anchor);

@@ -5,7 +5,7 @@
  * 它原来住在契约目录（`src/tracker/contract/fixContract.ts`）。契约目录只许放类型与
  * 契约自己的数据（门禁 `tests/verify-contract-types.ts` 守着这条），而这份文件整份都是
  * **行为**，所以按地图02开发票（#1026）的裁决搬到这里：不在契约目录、两个后端都能引用。
- * 调用方（`src/host/detectChain.ts`）的引用已同步改到这里。
+ * 调用方（`src/refresh/rooms/host/check-chain-evaluation.ts`）的引用已同步改到这里。
  *
  * ── 搬家纪律 ────────────────────────────────────────────────────────────────
  * 函数体与搬家前逐字一致（点号取值、`catch (e)` 都没动：三扇门禁按字面断言这里的写法，

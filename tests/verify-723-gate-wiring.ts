@@ -49,14 +49,14 @@ function row(n: number, state: string, updatedAt: string) {
 
 async function main() {
   console.log('#723（T19）门禁：闸的裁决 (放行/推迟/拒绝) 与写事件过门取数，都在真业务路径上走通')
-  const delta = await imp('src/shared/refresh/delta.js')
-  const win = await imp('src/shared/tracker/indexWindow.js')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
-  const patchMod = await imp('src/host/refresh/patch.js')
-  const wiringMod = await imp('src/host/refresh/wiring.ts')
-  const attentionMod = await imp('src/host/refresh/attention.js')
+  const delta = await imp('src/refresh/kernel/snapshot-diff.js')
+  const win = await imp('src/refresh/kernel/index-window-rules.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
+  const patchMod = await imp('src/refresh/rooms/host/row-patch.js')
+  const wiringMod = await imp('src/refresh/rooms/host/refresh-runtime.ts')
+  const attentionMod = await imp('src/refresh/rooms/host/host-attention.js')
   // 工具名字数对照**装配顺序常量本身**（src/deck/tools/tool-order.ts 的 DECK_TOOL_ORDER），
   // 不写死「七条」那种字面：工具从七个长到九个时，写死的断言会平白变红一次，
   // 而那条红与产品行为毫无关系（2026-10-02 就是这么查出来的）。

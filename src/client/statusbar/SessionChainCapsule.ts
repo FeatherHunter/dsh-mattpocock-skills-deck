@@ -2,7 +2,7 @@
  * statusbar/SessionChainCapsule.ts — 状态栏胶囊里「这个会话在办哪张票」那一段
  *
  * 只做一件事：把宿主已经写下的跨会话在办表里，属于当前会话的那几行，挑最新一条画进胶囊。
- * 数据只有一个来源：面板快照的 workRouteTable 字段（宿主 refresh/workRouteReadoutForHost.ts 的产物，
+ * 数据只有一个来源：面板快照的 workRouteTable 字段（宿主 refresh/rooms/host/work-route-readout.ts 的产物，
  * 与工具回执 data.workRoute 同一份读数）；旧链的 workRoute 字段与 sessionChainView.js 已随 #1271 退役。
  * 本文件不自己推断谁在办票、不读会话事件、不解析命令行、不读落盘文件。
  *

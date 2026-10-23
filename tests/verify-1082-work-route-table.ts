@@ -16,13 +16,13 @@
 // 手法：主缝用真的工作路线存储（临时家目录 + 固定时钟），从工具壳写票收口处（recordWorkRoute）
 // 一路跑到面板快照挂载口；次缝把真源码按构建同一套做法装进假 React 渲染，看真实版面文字。
 //
-// 门禁归属: src/host/refresh/workRouteReadoutForHost.ts
+// 门禁归属: src/refresh/rooms/host/work-route-readout.ts
 // 门禁归属: src/host/snapshotEnvelope.ts
-// 门禁归属: src/host/sessionSnapshot.ts
-// 门禁归属: src/host/sessionRefresh.ts
+// 门禁归属: src/refresh/rooms/host/session-snapshot-cache.ts
+// 门禁归属: src/refresh/rooms/host/session-refresh-schedule.ts
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 // 门禁归属: src/client/panel/Dock.ts
-// 门禁归属: src/client/kernel/probe-snapshot.ts
+// 门禁归属: src/refresh/rooms/client/snapshot-sync.ts
 //
 // 用法（在插件根目录，先 node scripts/build.mts）：
 //   node --import ./scripts/ts-hook.mts tests/verify-1082-work-route-table.ts
@@ -120,12 +120,12 @@ async function main() {
   console.log('#1082 跨会话在办表：宿主读数与工具回执同源，界面逐条画出来')
   const bindingsMod = await imp('src/deck/shell/work-path-bindings.ts') as any
   const recordMod = await imp('src/deck/shell/work-path-record.js') as any
-  const keyMod = await imp('src/shared/refresh-workspace-key.js') as any
-  const chainMod = await imp('src/shared/refresh/chain.js') as any
-  const tableMod = await imp('src/host/refresh/workRouteReadoutForHost.ts') as any
+  const keyMod = await imp('src/refresh/contract/workspace-keys.js') as any
+  const chainMod = await imp('src/refresh/kernel/refresh-chain.js') as any
+  const tableMod = await imp('src/refresh/rooms/host/work-route-readout.ts') as any
   const envMod = await imp('src/host/snapshotEnvelope.ts') as any
-  const snapMod = await imp('src/host/sessionSnapshot.ts') as any
-  const refMod = await imp('src/host/sessionRefresh.ts') as any
+  const snapMod = await imp('src/refresh/rooms/host/session-snapshot-cache.ts') as any
+  const refMod = await imp('src/refresh/rooms/host/session-refresh-schedule.ts') as any
 
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1082-'))
   let clock = T0

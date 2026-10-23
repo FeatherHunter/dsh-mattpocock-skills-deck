@@ -9,7 +9,7 @@
  * 3. 目标对象拆盒只产字符串：优先取可显示路径，没有就回退，类型另由门禁断言，本文件不抛类型错。
  */
 
-// 运行时的 process 声明（与 src/host/git-process.ts:30 同形）：本文件只在「平台没报操作系统名与当前目录」时读它，且都按「可能不存在」写（见导出电话里的两处 typeof 守卫）。
+// 运行时的 process 声明（与 src/refresh/rooms/host/git-execution.ts:30 同形）：本文件只在「平台没报操作系统名与当前目录」时读它，且都按「可能不存在」写（见导出电话里的两处 typeof 守卫）。
 declare const process: { platform?: string; cwd?: () => string } | undefined
 
 // ---------------------------------------------------------------------------

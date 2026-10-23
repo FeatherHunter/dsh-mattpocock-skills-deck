@@ -70,7 +70,7 @@ node tests/verify-golden-receipts.ts --update   # 重建基准（只在有意改
 
 ## 分拣指南（红了先看这里）
 
-- `cost.actual.remaining` 是具名常量（`src/shared/refresh/budget.js` 的
+- `cost.actual.remaining` 是具名常量（`src/refresh/kernel/host-budget.ts` 的
   `PLUGIN_HOURLY_CAP`），变了先看是不是调过配额。
 - `<TIME>` / `<ROOT>` / `<WSKEY>` 不可能出现在差异里（已归一），
   若出现说明归一化漏了新形状，按上一节第 3 条处理。

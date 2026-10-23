@@ -42,7 +42,7 @@
 //   S1 config/prompts/ 下的五份模板 YAML（解析真源；字段不对或 YAML 坏掉直接判红，不静默少扫）
 //   S2 client.js / package/lib/client.js（从产物里解析出提示词数据 + id 集合与逐字段等于 S1）
 //   S3 src/tracker/rooms/{github,gitlab,markdown}/index.{ts,js} 的 prompts 块（逐字符词法扫描，含拼接续段）
-//   S4 src/host/**/*.js 的 *_PROMPT 常量
+//   S4 src/host/** 与 src/refresh/rooms/host/** 的 *_PROMPT 常量（#1427 起后者加入）
 //   S5 S1 里含 {占位符} 的条目：占位符先求值（真实值 / 空串 / 哨兵三种展开）再判，另加「值形态」与「拆占位符拼装」两道
 //
 // #595 补的三面（以前完全不扫，塞进去就全绿）：
@@ -106,7 +106,7 @@ const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 4 }
 //   修法提示与原文另走界面那两条路，不放这里，所以只加两条短句。
 const EXPECT_BACKEND_LITERALS = { github: 50, gitlab: 12, markdown: 7 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，此后很长一段时间 src/host 全树一个
-//   *_PROMPT 常量都没有（本行原为 0）。#839 起有一个真的了：src/host/gitCredentialExec.js 的
+//   *_PROMPT 常量都没有（本行原为 0）。#839 起有一个真的了：src/refresh/rooms/host/gh-execution.js 的
 //   GIT_TERMINAL_PROMPT: '0'（非交互环境那一条固定前缀）。门禁口径是「≥ 这个数」，合法新增不判红，
 //   但少到比这个数还少就是有人把那条常量删了 —— 这里按实数改成 1。
 const EXPECT_HOST_PROMPT_CONSTS = 1 // src/host 全树 *_PROMPT 常量数
@@ -1145,7 +1145,7 @@ const checkNoLiteralBackslashN = function () {
     }
     if (fragCount === 0) fail('#1293 ' + rel + ' 的片段表里一条 zh/en 都没取到 —— 一条都取不到不许当通过')
   })
-  // ③ src/host/** 的 *_PROMPT 常量（与 S4 同一套取源，避免两处各写一份正则）
+  // ③ 宿主提示词常量（src/host 与 src/refresh/rooms/host，与 S4 同一套取源，避免两处各写一份正则）
   collectHost(EXEMPT).consts.forEach(function (c) { checkText(c.file, c.name, c.text) })
   // ④ src/tracker/rooms/** 里含换行的 zh/en 字面量（与退休门禁同口径：只判本来就要换行的那几条）
   let roomTexts = 0
@@ -1370,7 +1370,7 @@ const walkJs = function (dir, acc) {
 }
 // 与引号无关的 S4 扫描：先按标识符找出所有 *_PROMPT 名字（const/let/var 声明、对象属性、赋值三种都认），
 // 再在「声明点之后的一小段」里取出全部字符串字面量（单引号 / 双引号 / 反引号 / 拼接都收），逐个判定。
-// 断言口径：src/host 里出现的每个 *_PROMPT 标识符都必须有声明点，声明点数必须等于硬编码常量数，
+// 断言口径：扫描面（src/host 与 src/refresh/rooms/host）里出现的每个 *_PROMPT 标识符都必须有声明点，声明点数必须等于硬编码常量数，
 // 每条声明至少要有一个字符串字面量（一个都没有说明文本藏在变量或计算里，扫不到，判红）。
 const HOST_PROMPT_ID_RE = /[A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*/g
 const HOST_PROMPT_DECL_RE = /(?:^|[^A-Za-z0-9_$])([A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*)\s*(?:=|:)\s*/g
@@ -1415,7 +1415,8 @@ const collectHost = function (exemptList) {
   const consts = []
   const decls = []
   const names = {}
-  walkJs(path.join(ROOT, 'src/host'), []).forEach(function (file) {
+  // #1427 起宿主提示词常量跟着取数链搬进 src/refresh/rooms/host/：两棵一起扫，旧根不动。
+  walkJs(path.join(ROOT, 'src/host'), []).concat(walkJs(path.join(ROOT, 'src/refresh/rooms/host'), [])).forEach(function (file) {
     const rel = path.relative(ROOT, file)
     // #845：先剥注释再扫（等长空格、偏移不变）—— 注释里提到的 *_PROMPT 名字不算声明点。
     const src = stripCommentsKeepOffsets(fs.readFileSync(file, 'utf8'))
@@ -2299,7 +2300,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'e2dd0a742c41abb2e7492c9c48d0e377037302e3694ecd570e941f631c6de675',
+  'tests/verify-prompts.ts': '530600fbd34fd2e2ace8adf7bb4af2ea9bbe051824a0af4e4ecc9b7e2fe09d23',
 }
 // ---- LOCK-END ----
 

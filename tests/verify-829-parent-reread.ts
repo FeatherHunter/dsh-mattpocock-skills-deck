@@ -1,4 +1,4 @@
-const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
+const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // tests/verify-829-parent-reread.ts —— #829 补 #790 未盖住的两处（不联网）
 // 2026-10-17 从 .js 转成 TypeScript：只改文件名与这行注释，判据与断言一条没动。
 // 测什么（第一性原理：报单人重试三次，第二次可能撞“重复”；读回失败不能只说 parent 为空）：
@@ -78,11 +78,11 @@ async function main() {
 
   // G3/G4) 工具层：写成功但读票失败 → 证据带读失败原话；正常仍 ok
   {
-    const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.ts')
-    const gateMod = await imp('src/host/refresh/gate.ts')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
+    const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+    const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
     const registryMod = await imp('src/tracker/registry/core.ts')
-    const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
     const gate = gateMod.createGate({ ledger: ledger, now: () => clock })

@@ -103,16 +103,18 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
 //       同目录有同名 TypeScript 的 JavaScript 是并排的转译产物（今天只有追踪器契约目录那一份拼接输入），
 //       它是产物不是来源，不进这一节的比对（它的计数归下一节 4b 管）。
 //     · 说明文档（.md）构建不进包，这里直接忽略（构建只收 .js 与 .ts，见 scripts/build.mts 的复制与投放两步）。
-//     · 包侧只收 JavaScript；宿主树那份工厂壳 package/lib/client.js 由拼闭包那一步单独生成，不在这三对镜像里。
+//     · 包侧只收 JavaScript；宿主树那份工厂壳 package/lib/client.js 由拼闭包那一步单独生成，不在这四对镜像里。
 //   内容分两种比：手写 JavaScript 逐字节一致；TypeScript 按构建同一份转译参数重算一遍再比
 //   （转译参数与文件头都取自构建唯一的 scripts/lib/transpile-unit.mts，行零依赖门禁同手法，不在这里抄第二遍；
 //    引用改写那几行是构建里“追踪器与工具树指回宿主树时换前缀”的原文拷贝，详见下面的说明）。
-console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
+console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
 {
   const MOVED_PAIRS = [
     { src: 'src/host', pkg: 'package/lib', excludePkg: ['client.js'] },
     { src: 'src/deck', pkg: 'package/deck', excludePkg: [] },
     { src: 'src/tracker', pkg: 'package/tracker', excludePkg: [] },
+    // #1425 起刷新新家也按镜像进包（package/refresh 对 src/refresh，见 scripts/build.mts 的 MOVED_TREE_MAP）。
+    { src: 'src/refresh', pkg: 'package/refresh', excludePkg: [] },
   ]
   // 下面三段引用改写是 scripts/build.mts 里同名函数的原文拷贝（只读比对用，不写盘）。
   // 为什么拷贝而不是引用构建：构建脚本一被引用就跑整趟构建（它不是纯模块），而判据必须与构建同口径；
@@ -233,9 +235,11 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   const hasPlatform = fs.existsSync(path.resolve('package/lib/platform')) && fs.existsSync(path.resolve('package/lib/platform/index.js'))
   const hasTracker = fs.existsSync(path.resolve('package/tracker')) && fs.existsSync(path.resolve('package/tracker/index.js'))
   const hasDeck = fs.existsSync(path.resolve('package/deck/registration/agent-row.js'))
+  const hasRefresh = fs.existsSync(path.resolve('package/refresh/contract/refresh-ports.js')) && fs.existsSync(path.resolve('package/refresh/kernel/host-budget.js'))
   check(hasPlatform, 'package/lib 含 platform/ 目录及入口')
   check(hasTracker, 'package/tracker 含追踪器目录及入口（#1018 起追踪器住包内顶层，不在 package/lib 下）')
   check(hasDeck, 'package/deck 含工具目录及行模块入口（发布清单 ./tools 指到它）')
+  check(hasRefresh, 'package/refresh 含契约与内核入口（#1425 起刷新新家进包）')
 }
 // 4b) 四类落点之外没有产物（#1017 换守门对象）
 //   换掉的是什么：这一段原先守「package/shared 与 src/shared 逐字节一致 + 双向差集 0」。
@@ -245,8 +249,8 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //   （scripts/lib/transpile-domains.mts 调 checkDomainConsistency）。留下逐字节比对的代价是
 //   每次产物换落点都要跟着改，而它守不到「产物有没有跑到不该去的地方」——那才是出库后的真风险。
 //   Q9 定的新守门对象是「四类之外没有产物」，四类逐类点名（#1018 起第一类由两棵扩成四棵）：
-//     ① 发布包内四棵产物树：package/lib/**（宿主）、package/shared/**（共享域产物）、
-//        package/deck/**（工具）、package/tracker/**（追踪器）；
+//     ① 发布包内五棵产物树：package/lib/**（宿主）、package/shared/**（共享域产物）、
+//        package/deck/**（工具）、package/tracker/**（追踪器）、package/refresh/**（刷新新家，#1425 起）；
 //        其中工具与追踪器两棵是 #1018 按源码位置镜像新增的（package/deck 对 src/deck、
 //        package/tracker 对 src/tracker，TypeScript 转成 JavaScript 再进包）。
 //     ② 仓库根两份开发态产物：client.js、host.js
@@ -277,7 +281,7 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   // .build/ 是第五类落点（2026-10-19 起共享层产物住 .build/shared/）。它按点开头目录的约定
   // 不进 B 段遍历，写进 inCategory 是为了让「它到底算不算合法落点」在代码里有明确答案，
   // 而不是靠遍历时那条 continue 顺带兜住。
-  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'scripts/generated/', '.build/']
+  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'package/refresh/', 'scripts/generated/', '.build/']
   const CATEGORY_FILES = ['client.js', 'host.js']
   const SUBPKG_DIST_RE = /^packages\/[^/]+\/dist\//
   const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js']
@@ -351,7 +355,7 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   const tracked = execSync('git ls-files --cached', { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean)
   const trackedProducts = tracked.filter((rel) => {
     if (IN_GIT_PRODUCT_EXCEPTIONS.includes(rel)) return false
-    if (CATEGORY_FILES.includes(rel) || rel.startsWith('package/lib/') || rel.startsWith('package/shared/') || rel.startsWith('package/deck/') || rel.startsWith('package/tracker/') || SUBPKG_DIST_RE.test(rel)) return true
+    if (CATEGORY_FILES.includes(rel) || rel.startsWith('package/lib/') || rel.startsWith('package/shared/') || rel.startsWith('package/deck/') || rel.startsWith('package/tracker/') || rel.startsWith('package/refresh/') || SUBPKG_DIST_RE.test(rel)) return true
     if (rel.startsWith('src/') && /\.(js|mjs|cjs)$/.test(rel) && fs.existsSync(twinOf(path.resolve(rel)))) return true
     return false
   })
@@ -385,11 +389,11 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   }
   walkAll(process.cwd(), '')
   if (outside.length) console.log('    四类之外、又不在源码树里的产物:\n    ' + outside.join('\n    '))
-  check(outside.length === 0, '四类落点之外没有产物（四类：package/lib、package/shared、package/deck、package/tracker、根 client.js/host.js、scripts/generated、packages/*/dist；另加第五类 .build/shared，它按点开头目录的约定整目录跳过）')
+  check(outside.length === 0, '五类落点之外没有产物（五类：package/lib、package/shared、package/deck、package/tracker、package/refresh（#1425 起）、根 client.js/host.js、scripts/generated、packages/*/dist；另加 .build/，它按点开头目录的约定整目录跳过）')
   const transitionalWithoutKnown = transitional.filter((rel) => KNOWN_PRODUCTS_OUT_OF_SCOPE.indexOf(rel) < 0)
   const knownPresent = transitional.length - transitionalWithoutKnown.length
   check(transitionalWithoutKnown.length <= TRANSITIONAL_PRODUCTS_MAX,
-    `源码树里没有产物（去掉已知产物 ${KNOWN_PRODUCTS_OUT_OF_SCOPE.join('、') || '（名单已清空）'} ${knownPresent} 件后现 ${transitionalWithoutKnown.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；产物该住 .build/shared/、package/* 或根 client.js/host.js）`)
+    `源码树里没有产物（去掉已知产物 ${KNOWN_PRODUCTS_OUT_OF_SCOPE.join('、') || '（名单已清空）'} ${knownPresent} 件后现 ${transitionalWithoutKnown.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；产物该住 .build/（shared/ 与 refresh/）、package/* 或根 client.js/host.js）`)
   if (transitional.length) {
     const byDir = {}
     for (const rel of transitional) { const k = rel.slice(0, rel.lastIndexOf('/')); byDir[k] = (byDir[k] || 0) + 1 }
@@ -405,9 +409,10 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //   断言对象是产物文本里的写法，构建换个输出形状就变红，按维护者「清掉读文件文本钉形状的门禁」的要求整条去掉。
 // 4f) 动态导入可解析（#545：电话注册了但模块文件缺了，调用才失败；
 // 打包产物里每个相对导入在 package/ 内必须有对应文件，缺一个就红；
-// #1018 起包内有四棵产物树，审计范围跟着扩到 deck 与 tracker，否则新树漏文件看不见）
+// #1018 起包内有四棵产物树，审计范围跟着扩到 deck 与 tracker，否则新树漏文件看不见；
+// #1425 起第五棵 package/refresh 进包，审计范围跟着扩到它）
 {
-  const roots = [path.resolve('package/lib'), path.resolve('package/shared'), path.resolve('package/deck'), path.resolve('package/tracker')]
+  const roots = [path.resolve('package/lib'), path.resolve('package/shared'), path.resolve('package/deck'), path.resolve('package/tracker'), path.resolve('package/refresh')]
   const files = []
   const walk = (d) => {
     if (!fs.existsSync(d)) return
@@ -479,8 +484,10 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 //   靠它们认出「有门禁按文件名推导读模块标识」，从而不把这一族常量误判成死词汇。
 //   2026-10-13 之前这件事由四条 <域>-freshness 门禁各做一半（只查各自域里的接口空壳）；
 //   那四条门禁连同四个核的旧构建脚本已按 #1023 退场，这条判据收成一处、覆盖面扩到每个域的每份产物。
-//   2026-10-19 起产物搬进 .build/shared/，这一节跟着改扫那里；判据本身没变（仍然只认构建写下的
-//   AUTO-GENERATED 头，仍然要求 <文件名大写>_SOURCE 的值指向 src/shared/<域>/src/ 下）。
+//   2026-10-19 起产物搬进 .build/shared/，这一节跟着改扫那里；#1425 起刷新机制的产物住
+//   .build/refresh/（与源码树 src/refresh/ 镜像），这一节跟着加扫那里。判据本身没变（仍然只认
+//   构建写下的 AUTO-GENERATED 头，仍然要求 <文件名大写>_SOURCE 的值指向自己那一边的源码位：
+//   .build/shared/<域>/ 下的指 src/shared/<域>/src/，.build/refresh/ 下的指 src/refresh/ 下同一相对目录）。
 console.log('\n模块标识出处判据：每份域产物的 <文件名大写>_SOURCE 都指向真源码')
 const SOURCE_MARKER_SUFFIX = '_SOURCE'
 const srcShared = path.resolve('src/shared')
@@ -506,6 +513,11 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
   if (fs.existsSync(productsShared)) {
     for (const d of domains) walkJs(path.join(productsShared, d), files)
   }
+  // #1425 起刷新机制的产物住 .build/refresh/（<层>/<名>.js，与源码树 src/refresh/ 镜像）：
+  // 这一段与上面同形，递归扫整棵；房间与登记的住户（#1426-#1428）搬进来自动被扫到，不用再改这里。
+  const productsRefresh = path.resolve('.build/refresh')
+  check(fs.existsSync(productsRefresh), '.build/refresh 存在（刷新产物是构建写出来的，先跑一次 node scripts/build.mts）')
+  if (fs.existsSync(productsRefresh)) walkJs(productsRefresh, files)
 
   // derivedNames：扫出来的模块标识名字；hitDomains：这些名字该指回哪几个源目录。
   // 两个都留证，是因为「按文件名推导」这件事的判据就是「名字对不对得上、指回来的目录对不对」。
@@ -521,12 +533,15 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
     const hit = new RegExp("^export const " + markerName + " = (['\"])(.+?)\\1;?\\s*$", 'm').exec(txt)
     if (!hit) continue // 不是每份产物都有模块标识（只有手写源码里声明了的才有），没声明的不算错
     derivedNames.push(markerName)
-    // 域目录里的产物该指回同一域的源码目录，也就是下面这一份两截拼起来的字符串：
-    // 前半截 'src/shared/' + 域目录名 + '/src/' 是源码在仓库里的位置规律，写在这里同时也是
+    // 产物该指回自己的源码位：.build/shared/<域>/ 下的指回同一域的源码目录（下面这一份两截拼起来的
+    // 字符串：前半截 'src/shared/' + 域目录名 + '/src/' 是源码在仓库里的位置规律）；.build/refresh/ 下的
+    // 指回 src/refresh/ 下同一相对目录（房间与登记的深层也同形，不用再加分支）。写在这里同时也是
     // tests/verify-contract-vocabulary.js 认出「按文件名推导读模块标识」在做哪些目录上的依据
     // （那条门禁按目录放行这一族常量，见那个文件里 dynamicSourceReaderText 的说明）。
-    const domain = path.basename(path.dirname(file))
-    const expectedDir = 'src/shared' + '/' + domain + '/src/'
+    const relShared = path.relative(productsShared, file)
+    const expectedDir = !relShared.startsWith('..')
+      ? 'src/shared' + '/' + relShared.split(path.sep)[0] + '/src/'
+      : 'src/refresh/' + path.dirname(path.relative(productsRefresh, file)).split(path.sep).join('/') + '/'
     if (hitDomains.indexOf(expectedDir) < 0) hitDomains.push(expectedDir)
     if (!hit[2].startsWith(expectedDir)) {
       mismatches.push(`${path.relative(process.cwd(), file).replace(/\\/g, '/')} 的 ${markerName} 指向「${hit[2]}」，不是它自己域的源码（应以 ${expectedDir} 开头）`)
@@ -637,7 +652,7 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
   }
 }
 
-// 4e) files 白名单：package/package.json files 含四棵产物树（#1018 起 deck 与 tracker 也进包）
+// 4e) files 白名单：package/package.json files 含五棵产物树（#1018 起 deck 与 tracker 也进包，#1425 起 refresh 进包）
 {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.resolve('package/package.json'), 'utf8'))
@@ -646,6 +661,7 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
     check(files.includes('lib'), 'package/package.json files 含 lib')
     check(files.includes('deck'), 'package/package.json files 含 deck（#1018 起工具树进包）')
     check(files.includes('tracker'), 'package/package.json files 含 tracker（#1018 起追踪器树进包）')
+    check(files.includes('refresh'), 'package/package.json files 含 refresh（#1425 起刷新新家进包）')
   } catch (e) {
     check(false, 'package/package.json files 读取失败: ' + e.message)
   }

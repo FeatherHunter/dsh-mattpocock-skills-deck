@@ -5,8 +5,8 @@
 // 门禁归属: src/deck/shell/work-path-privacy.ts
 // 门禁归属: src/deck/shell/work-path-bindings.ts
 // 门禁归属: src/deck/shell/work-path-record.ts
-// 门禁归属: src/shared/refresh/src/chain.ts
-// 门禁归属: src/shared/refresh/src/chain-prune.ts
+// 门禁归属: src/refresh/kernel/refresh-chain.ts
+// 门禁归属: src/refresh/kernel/chain-pruning.ts
 //（原先另有一行「门禁归属: src/host/refresh/workRoute.ts」：旧链的 chainPrune 曾住在那里，#1271 整份删掉；
 //  30 天与 2MB 两条留存线由本门禁第二、三节直接在新账上守，不再经旧链反证。）
 //
@@ -63,8 +63,8 @@ async function main() {
   const storeMod = await imp('src/deck/shell/work-path-store.ts') as any
   const privacyMod = await imp('src/deck/shell/work-path-privacy.ts') as any
   const recordMod = await imp('src/deck/shell/work-path-record.js') as any
-  const chainMod = await imp('src/shared/refresh/chain.js') as any
-  const pruneMod = await imp('src/shared/refresh/chain-prune.js') as any
+  const chainMod = await imp('src/refresh/kernel/refresh-chain.js') as any
+  const pruneMod = await imp('src/refresh/kernel/chain-pruning.js') as any
   const homes: string[] = []
   const mk = (tag: string) => { const h = tmpHome(tag); homes.push(h); return h }
   const fileOf = (home: string, rootKey: string) => home + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rootKey) + '.json'

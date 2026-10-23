@@ -1,6 +1,6 @@
-# ADR：刷新机制的六条不变量与它的形态（纯逻辑进 src/shared/refresh/ · 常量单一真源 · 三个后端各一套额度模型）
+# ADR：刷新机制的六条不变量与它的形态（纯逻辑进 src/refresh/kernel/ · 契约进 src/refresh/contract/ · 常量单一真源 · 三个后端各一套额度模型）
 
-> 日期：2026-09-24 定版（承接地图 #704 与定稿 `docs/architecture/refresh-budget-architecture.html`；六条不变量的正文见该文档第一章，本文件把它们写成人能对照、机器能判的判据）
+> 日期：2026-09-24 定版（承接地图 #704 与定稿 `docs/architecture/refresh-budget-architecture.html`；六条不变量的正文见该文档第一章，本文件把它们写成人能对照、机器能判的判据；2026-10-23 v2（#1430 收口：§2–§6 只同步落点、§3 重写并增补目录与命名，六条不变量的判据语义一个字不动，见 §8 当天那条））
 > 地位：本文件是「刷新机制这一套东西该长什么样」的唯一依据——六条不变量、纯逻辑与 I/O 的分界线、额度常量的落点、三个后端各按什么口径记账、最坏用量按哪条线算。凡与本文冲突的旧写法以本文为准；未来任何讨论若改动本决策，以未来版本为准（CONTEXT.md 同款两条规则）。
 > 关联：#704（地图）· #705–#720（十二张落地子票）· #719（本文件的收口票）· `docs/adr/20260913-builtin-ts-shape.md`（形态依据：插件内置 TypeScript 的通用形状）· `CONTEXT.md` 的「刷新机制与 AI 工具链词条」（I1–I6 的术语定义）
 > 关于文件名里的日期：设计文档第七章的落地清单里，这份 ADR 写作 `docs/adr/20260922-refresh-budget-architecture.md` —— 那是设计稿写下那句话时的日期；本文件按**真实定稿日** 2026-09-24 命名。两个日期都不是笔误，以后引用以本文件这个名字为准。
@@ -23,7 +23,7 @@
 
 ### I1 唯一出口：对 GitHub 的每一次调用都必须经过闸
 
-- **判据**：`src/host/` 下任何一处执行 `gh` 的代码，都必须在闸（`src/host/refresh/gate.js`）之后；闸之外的调用点数为 0。
+- **判据**：`src/host/` 下任何一处执行 `gh` 的代码，都必须在闸（`src/refresh/rooms/host/refresh-gate.ts`，原 `src/host/refresh/gate.js`）之后；闸之外的调用点数为 0。
 - **怎么判**：`tests/verify-gh-gateway.ts` 静态扫全部调用点，外加运行期「漏网调用数 == 0」的断言。新写的调用点绕过闸 → 红。
 - **为什么要机器判**：这条不是纪律，是物理落点。靠人记的结论是「昨天还记得，今天加了个便捷函数就忘了」。
 
@@ -36,7 +36,7 @@
 ### I3 首屏只付行数据的钱：正文、评论、评审、地图子票全部只在人点开时取
 
 - **判据**：一次列表能不能只按「一页行数据」的单价记账；正文与评论不许进首屏那条查询。
-- **怎么判**：`tests/verify-gate-accounting.ts` 按 `budget.js` 的每页单价核对每一笔的账；`tests/verify-budget-worstcase.js` 与 `tests/verify-event-budget.ts` 用同一组单价算最坏。
+- **怎么判**：`tests/verify-gate-accounting.ts` 按每页单价（旧产物名 `budget.js`，现 `src/refresh/kernel/host-budget.ts`）核对每一笔的账；`tests/verify-budget-worstcase.ts` 与 `tests/verify-event-budget.ts` 用同一组单价算最坏。
 - **落地现状（必须知道，2026-09-24）**：这一条只落地了「按页单价分层算账」那一半（薄片段的单价 2 点／100 行已经是真源）。**「整池重建改走薄片段、把正文与评论从列表里去掉」这一半没有落地**，原因见 §7。
 
 ### I4 用量与工作区数量无关：开 3 个和开 30 个，花费同阶
@@ -47,7 +47,7 @@
 ### I5 失败必可见、必退避：取数失败不许悄悄吞掉
 
 - **判据**：失败要在界面上说出来；重试要拉开间隔；连续失败要熔断；失败不许放大成请求风暴。
-- **怎么判**：`shared/refresh/backoff.ts` 的退避序列与熔断判定（`tests/verify-*.js` 里针对它的一组断言）；`tests/verify-visible-truth.js` 断言界面上「取数时刻／刷新失败／降级中」三处文案都有真实读取点。
+- **怎么判**：`src/refresh/kernel/failure-backoff.ts`（原 `shared/refresh/backoff.ts`）的退避序列与熔断判定（`tests/verify-998-half-open.ts` 里针对它的一组断言）；`tests/verify-visible-truth.ts` 断言界面上「取数时刻／刷新失败／降级中」三处文案都有真实读取点。
 
 ### I6 花费可归因、可对账：每一笔花费都记在账上
 
@@ -57,7 +57,7 @@
 
 ### 关于余量：按上界算，读那一份额度最多用到八成七（2026-09-24 起生效）
 
-最坏用量改成按页数上界算之后（见 §6），读那一部分用得比原来多：按现在这组常量算出来，`tests/verify-budget-worstcase.js` 报 **1008 / 1225 ≈ 82%**、`tests/verify-event-budget.ts` 报 **1068 / 1225 ≈ 87%**，整桶报 1152 / 1750 ≈ 66%。两条门禁都还绿，但**余量只剩两成不到**。
+最坏用量改成按页数上界算之后（见 §6），读那一部分用得比原来多：按现在这组常量算出来，`tests/verify-budget-worstcase.ts` 报 **1008 / 1225 ≈ 82%**、`tests/verify-event-budget.ts` 报 **1068 / 1225 ≈ 87%**，整桶报 1152 / 1750 ≈ 66%。两条门禁都还绿，但**余量只剩两成不到**。
 
 这件事不是错误，是**如实**：上界口径本来就更保守（一次重建按 10 页算，而本仓典型只要 5 页）。写在这里是为了让它是一个说出口的数，而不是一个没人注意到的余量。**做法上的约定**：T14 真机实测拿到本仓真实页数之后，用真值再复核一次这道余量；**如果真值把余量压到一成以下，那时再谈要不要调上界或调旋钮**（探测间隔、对账间隔、页数上界都是旋钮，改一处门禁就跟着重算）。
 
@@ -65,30 +65,31 @@
 
 ## 3. 纯逻辑放哪、取数与落盘放哪
 
-- **纯逻辑住 `src/shared/refresh/src/*.ts`，转译成 `src/shared/refresh/*.js`**（产物带 `AUTO-GENERATED` 头、提交进仓库），由 `node src/shared/refresh/build.mjs` 生成，`tsc --noEmit` 与新鲜度门禁一起管着。形态依据是 `docs/adr/20260913-builtin-ts-shape.md`（它定的是「插件内置 TypeScript」的通用形状：不发 npm 包、源码不进 `src/`、逐文件转译、产物提交）。
-- **I/O 留 JS**：取数与落盘住在 `src/host/**`（三个后端房间、闸、账本、视野模型、行级增量）。判定一句「这段代码该放哪」的标准只有一条——**碰不碰磁盘、网络、时间、进程**：碰就留 JS，不碰就进 TS。
-- **产物之间零相对引用是硬约束**（`tests/verify-refresh-freshness.js` 的「产物零相对引用」与 `tests/verify-dependency-rules.ts` 一起守）。所以纯函数不许 `import` 另一个产物；要用的数字与形状一律**由宿主侧取好、当参数传进来**。
-- **`src/shared/refresh/` 下的 `.ts` 源文件不受「单文件 350 行」这条数字约束**（2026-09-24 统筹者定）。
-  - 为什么：350 行要的是「文件别长到读不动」，不是「拆成多份就好」。原来那条门禁（`tests/verify-file-granularity.ts`）只扫 `src/**/*.js`，`src/shared/refresh/` 根本不在它的范围内；**#1017 换轨之后它读 `.ts` 真源了**（按有效行判，注释与空行不计），这批 `.ts` 里只有 `chain.ts` 一个超线，它按零增长基线冻结在 `tests/file-granularity-baseline.json`（只许减不许增），**不强制拆**。核心里几个文件（`chain.ts`、`attention.ts`、`budget.ts`）都是为了「一件事写在一处」才长到几百行的。
+- **纯逻辑住 `src/refresh/kernel/*.ts`，契约住 `src/refresh/contract/*.ts`**（#1425 起从 `src/shared/refresh/src/*.ts` 搬来，改名对照见 §8 与规格 #1419 的目标地图），转译产物在 `.build/refresh/`（与源码树镜像）、发布包镜像在 `package/refresh/`，由根构建脚本 `scripts/build.mts` 的 refresh-ts 段生成，`tsc --noEmit` 与结构性门禁一起管着。形态依据仍是 `docs/adr/20260913-builtin-ts-shape.md`（它定的是「插件内置 TypeScript」的通用形状：不发 npm 包、逐文件转译；产物不再进版本库，改由构建现场生成，见 §8 的 #1023 补记）。
+- **目录与命名（#1430 起，规格 #1419「目标结构与分层」）**：`contract/` 只放对外契约（类型、端口、参数形状），`kernel/` 只放纯判定（预算、策略、注意力、退避、差异、补丁判定），`rooms/host/` 与 `rooms/client/` 放两房落地（运行时、闸、账本、取数、节拍、订阅、缓存），`registry/` 只放装配登记（唯一的组装点）。命名规则：文件名说清「拥有什么、替谁做决定」（宿主预算叫 `host-budget`、页面单价叫 `page-allowance`）；房与房之间不互相引用，房只认契约；外面只许深引契约与内核，不许深引房与登记的实现文件——机器判据是 `tests/verify-dependency-rules.ts` 的刷新分层四条（无豁免）。
+- **I/O 留房与登记**：取数、落盘、挂载住在 `rooms/` 与 `registry/`（三个后端取数、闸、账本、视野模型、行级增量、装配桥）。判定一句「这段代码该放哪」的标准只有一条——**碰不碰磁盘、网络、时间、进程**：碰就进房与登记，不碰就进内核与契约。唯一例外是 `kernel/step-pricing.ts` 对 `async_hooks` 的引用：在异步链路里透传本步计数，不碰文件不联网（分层规则 `refresh-kernel-no-io` 的 to 侧例外，见该规则注释）。
+- **产物之间零相对引用是硬约束**（`tests/verify-build-artifacts.ts` 里的结构性判据与 `tests/verify-dependency-rules.ts` 一起守）。所以纯函数不许 `import` 另一个产物；要用的数字与形状一律**由宿主侧取好、当参数传进来**。
+- **`src/refresh/kernel/` 下的 `.ts` 源文件不受「单文件 350 行」这条数字约束**（2026-09-24 统筹者定）。
+  - 为什么：350 行要的是「文件别长到读不动」，不是「拆成多份就好」。原来那条门禁（`tests/verify-file-granularity.ts`）只扫 `src/**/*.js`，`src/shared/refresh/` 根本不在它的范围内；**#1017 换轨之后它读 `.ts` 真源了**（按有效行判，注释与空行不计），搬家前这批 `.ts` 里只有 `chain.ts` 一个超线，按零增长基线冻结（只许减不许增）、**不强制拆**；搬家与 #1429 的拆分之后，`refresh-chain.ts`（原 `chain.ts`）的有效行已回到 350 以内，基线里不再有它——门禁里「冻结或达标」那一档照常绿。核心里几个文件（`refresh-chain.ts`、`attention-model.ts`、`host-budget.ts`）都是为了「一件事写在一处」才长到几百行的。
   - **不能靠拆 `.ts` 来满足 350 行**：产物之间零相对引用是硬约束，拆出去的那一半要读另一半的东西时，唯一的合法做法就是把那段逻辑再抄一遍——那是往核心里种重复代码，比行数超标坏得多。
   - 它们受的是另一套纪律，一共三条：**单一职责**（一个文件一件事，文件名说清是哪件事）、**纯逻辑**（不碰磁盘、网络、时间、进程）、**可单测**（能只喂参数、只读返回值地测）。
   - 真到了「一个文件里明显是两件事」的时候，拆法只有一条：**按职责边界拆，拆完两边互不 import（各自只靠参数拿数据）**；这跟 350 行那条数字没有关系。
 
-- **产物里不再手写「来源标注」常量**（2026-09-24，#719 落定）。转译产物的第一行本来就有一行机器生成的包头 `// AUTO-GENERATED by node src/shared/refresh/build.mjs … Source: src/shared/refresh/src/<同名>.ts`，它按**真实文件名**生成，改不了也漂移不了；再手写一个 `export const X_SOURCE = 'src/shared/refresh/src/x.ts'` 就是同一个事实的第二份副本，而且今天没有任何代码读它——它唯一的作用是让人以为有人在校对。所以核心里那六个（`attention` / `backoff` / `chain` / `create-write` / `delta` / `idempotency`）一并删掉。
-  - **例外一：空壳产物**。`src/shared/refresh/src/ports.ts` 的产物只剩一行模块标识（类型被编译期擦掉之后它没有别的运行时代码），那一行 `PORTS_SOURCE` 就是它唯一的可追溯内容，留着（新鲜度门禁也在断言它）。
-  - **例外二：读者在测试里**。`policy.ts` 与 `write-detect.ts` 的标注各有一条门禁在断言（`tests/verify-policy.js`、`tests/verify-write-detect.js`），有人读就留着。
-  - 守着这条的机器判据是 `tests/verify-contract-vocabulary.js`：整棵 `src/shared` 的字符串型常量，值必须在生产代码里出现、或名字必须被人读过，两条都不满足判红。
+- **产物里不再手写「来源标注」常量**（2026-09-24，#719 落定）。转译产物的第一行本来就有一行机器生成的包头 `// AUTO-GENERATED … Source: src/refresh/<相对路径>.ts`（搬家前是 `// AUTO-GENERATED by node src/shared/refresh/build.mjs … Source: src/shared/refresh/src/<同名>.ts`），它按**真实文件名**生成，改不了也漂移不了；再手写一个 `export const X_SOURCE = 'src/shared/refresh/src/x.ts'` 就是同一个事实的第二份副本，而且今天没有任何代码读它——它唯一的作用是让人以为有人在校对。所以核心里那六个（`attention` / `backoff` / `chain` / `create-write` / `delta` / `idempotency`）一并删掉。
+  - **例外一：空壳产物**。`src/refresh/contract/refresh-ports.ts`（原 `src/shared/refresh/src/ports.ts`）的产物只剩一行模块标识（类型被编译期擦掉之后它没有别的运行时代码），那一行 `PORTS_SOURCE` 就是它唯一的可追溯内容，留着（新鲜度门禁也在断言它）。
+  - **例外二：读者在测试里**。`admission-policy.ts`（原 `policy.ts`）与 `write-event-detection.ts`（原 `write-detect.ts`）的标注各有一条门禁在断言（`tests/verify-policy.ts`、`tests/verify-write-detect.ts`），有人读就留着。
+  - 守着这条的机器判据是 `tests/verify-contract-vocabulary.ts`：整棵 `src/shared` 与 `src/refresh` 的字符串型常量，值必须在生产代码里出现、或名字必须被人读过，两条都不满足判红。
 
 ## 4. 额度常量的落点
 
-- **只有一处物理真源**：`src/shared/refresh/src/budget.ts`。节拍（探测 5 秒、对账 10 分钟、预检寿命 10 分钟、链退避序列）、额度比例（35% / 1,750 / 读 70% / 写保底 30%）、每页单价、不变量要用的阈值，全在这里；算式也在这一份里，别处不许再写一遍字面量。
-- **宿主侧怎么用**：从产物 `src/shared/refresh/budget.js` 把常量取出来，折成一个参数对象再喂给纯函数。做法与既有三处完全一致——`policy.ts`（给「请求类别 + 档位 + 已用额度 + 工作区状态」返回放行／降级／推迟）、`backoff.ts`（给退避序列与各种寿命）、`tool-cost.ts`（给 AI 工具那一档的硬顶）。**纯函数自己一个数字都不写**。
+- **只有一处物理真源**：`src/refresh/kernel/host-budget.ts`（#1425 起从 `src/shared/refresh/src/budget.ts` 搬来，改名对照见 §8 当天那条）。节拍（探测 5 秒、对账 10 分钟、预检寿命 10 分钟、链退避序列）、额度比例（35% / 1,750 / 读 70% / 写保底 30%）、每页单价、不变量要用的阈值，全在这里；算式也在这一份里，别处不许再写一遍字面量。
+- **宿主侧怎么用**：从产物 `.build/refresh/kernel/host-budget.js` 把常量取出来，折成一个参数对象再喂给纯函数。做法与既有三处完全一致——`admission-policy.ts`（原 `policy.ts`，给「请求类别 + 档位 + 已用额度 + 工作区状态」返回放行／降级／推迟）、`failure-backoff.ts`（原 `backoff.ts`，给退避序列与各种寿命）、`tool-call-budget.ts`（原 `tool-cost.ts`，给 AI 工具那一档的硬顶）。**纯函数自己一个数字都不写**。
 - **为什么不做成「纯函数自己 import 常量」**：产物之间零相对引用是硬约束（§3），一 import 就红。真正的收益比「少写一行参数」大得多——纯函数因此可以只喂参数地单测，不必先把真额度搭起来。
 - **服务端此刻还剩多少不许写死**：额度上限与剩余只能现场读（GitHub 走那个不扣配额的 `gh api rate_limit`），由账本每分钟读一次。
 
 ## 5. 三个后端各按什么口径记账
 
-三个后端不是同一套额度形状。把它们写在一处（`src/shared/refresh/src/backend-quota.ts` → `src/shared/refresh/backend-quota.js`），闸与账本按后端取，比在三处各写一段「如果是 GitHub 就……」可靠。
+三个后端不是同一套额度形状。把它收在一处（`src/refresh/kernel/backend-quota-model.ts`，原 `src/shared/refresh/src/backend-quota.ts`，产物在 `.build/refresh/kernel/`），闸与账本按后端取，比在三处各写一段「如果是 GitHub 就……」可靠。
 
 | 后端 | 口径 | 有几个桶 | 点数制 | 出站计费 |
 |---|---|---|---|---|
@@ -104,11 +105,11 @@
 ## 6. 最坏用量按哪条线算
 
 - **实测页数与页数上界分开记、分开用**：
-  - **估**（账本按每个仓库自己的实测页数估）：小仓库不必替大仓库付那份钱。账本记每个仓库最近一次翻了几页、**历史上最多见过几页**、累计重建过几次（`src/host/refresh/ledger.js` 的 `notePages` / `pagesFor` / `estimateRebuild`）。
+  - **估**（账本按每个仓库自己的实测页数估）：小仓库不必替大仓库付那份钱。账本记每个仓库最近一次翻了几页、**历史上最多见过几页**、累计重建过几次（`src/refresh/rooms/host/quota-ledger.ts`，原 `src/host/refresh/ledger.js`，的 `notePages` / `pagesFor` / `estimateRebuild`）。
   - **最坏**（门禁与账本的最坏列）：一律取「实测与上界里大的那个」。上界是 `budget.MAX_PAGES = 10`。实测突破上界时按实测算，并如实报出「突破了」——不许把已经发生过的事忘掉。
   - **`MAX_PAGES = 10` 的身份是「上界假设」，不是实测结论**（2026-09-24 统筹者裁定）：它没有本仓实测依据（设计文档另有一处「本仓 6 页」的记录，10 是留了余量的数）。它就该比现实宽——最坏用量算的正是「比现实更坏的那条线」。**本仓真实页数以 T14 的真机实测为准**；实测值落进 `ledger.notePages` 之后，如果真实值超过了 10，`worstPagesFor` 会自动改用实测值（取大者），门禁也会跟着变，不需要改这个常量。需要实测的是本仓真实值，不是这个上界本身，所以不另开票。
-- 算式只此一处：`src/shared/refresh/src/page-budget.ts` 的 `rebuildCost` / `worstCaseRebuildCost` / `pageCountReport`。宿主侧取好每页单价传进去。
-- **典型值与最坏值是两个数，不许混用**：`budget.REBUILD_COST_POINTS`（13 点）是按典型页数（5 页）算的，只用来说明单价；最坏一律按上界算（今天 23 点、12 条请求）。门禁 `tests/verify-budget-worstcase.js`、`tests/verify-event-budget.ts`、`tests/verify-budget-page-upper-bound.js` 一起守这条。
+- 算式只此一处：`src/refresh/kernel/page-allowance.ts`（原 `page-budget.ts`）的 `rebuildCost` / `worstCaseRebuildCost` / `pageCountReport`。宿主侧取好每页单价传进去。
+- **典型值与最坏值是两个数，不许混用**：`budget.REBUILD_COST_POINTS`（13 点）是按典型页数（5 页）算的，只用来说明单价；最坏一律按上界算（今天 23 点、12 条请求）。门禁 `tests/verify-budget-worstcase.ts`、`tests/verify-event-budget.ts`、`tests/verify-budget-page-upper-bound.ts` 一起守这条。
 
 ## 7. 后果与现在的缺口
 
@@ -127,3 +128,8 @@
   - 「产物零相对引用」这条判据今天由 `tests/verify-dependency-rules.ts` 接着守（#1017 于 2026-10-13 把判据从读文本换成读依赖图，同一层内禁互引这一条没变），判的对象从产物换成了源码：产物是同名源码一对一转译出来的，源码里一条相对引用必然原样出现在产物里，所以守着源码等于守着产物（该门禁按存量基线只许减不许增）。原先与它一起守的那条新鲜度门禁不在了，接替它的是 `tests/verify-build-artifacts.js` 里的结构性判据：域目录里每一份产物都必须能追溯到同名源码，反过来每份源码都必须有产物。产物也不再进版本库，改由构建现场生成。
 
   这一条的权威依据是 #1023 的定案评论与规格单 #1099；本 ADR 与它们冲突时以它们为准。
+- 2026-10-23 v2 定版（#1430 收口，只同步落点、不改任何一条不变量的判据语义）。§2 六个「怎么判」只换落点：闸 `src/host/refresh/gate.js` → `src/refresh/rooms/host/refresh-gate.ts`；预算单价的旧产物名 `budget.js` 在 I3 留原文备查、现指 `src/refresh/kernel/host-budget.ts`；退避 `shared/refresh/backoff.ts` → `src/refresh/kernel/failure-backoff.ts`，断言落在 `tests/verify-998-half-open.ts`；凡提到测试文件名的 `.js` 一律同步成 `.ts`（树上已无手写 `.js`）。§3 重写：纯逻辑与契约的新家、产物与发布包镜像、构建脚本落点，并增补「目录与命名」一款（文件名说清拥有什么替谁做决定、房只认契约、外面不深引房与登记，机器判据是分层四条）。§4–§6 的路径已由 #1425 在正文同步，本次只补原名备查（`policy.ts` / `backoff.ts` / `tool-cost.ts` / `page-budget.ts` 的旧名在正文各留一处，`tests/verify-refresh-adr.ts` 认这些字串）。§7 的缺口（I3 另一半没有落地）原样保留。
+- 2026-10-23 补记（只记现状、不改上面任何一条不变量）。#1425 把上面几节那批纯逻辑与契约搬进 `src/refresh/`（内核 `kernel/` 14 份、契约 `contract/` 6 份，改名对照见规格 #1419 的目标地图）：
+  - §4 那句「只有一处物理真源」今天指 `src/refresh/kernel/host-budget.ts`（正文已同步）；§5 的 `backend-quota.ts` 今天是 `src/refresh/kernel/backend-quota-model.ts`，§6 的 `page-budget.ts` 今天是 `src/refresh/kernel/page-allowance.ts`，`policy.ts` / `backoff.ts` / `tool-cost.ts` 今天是同一目录下的 `admission-policy.ts` / `failure-backoff.ts` / `tool-call-budget.ts`。
+  - 产物不住源码树了：转译产物在 `.build/refresh/`（与 `src/refresh/` 镜像，`scripts/build.mts` 的 refresh-ts 段写），发布包镜像在 `package/refresh/`；上面正文里「转译成 `src/shared/refresh/*.js`」「提交进仓库」是搬家前的形态，读的时候以这一条为准。
+  - 这一条的权威依据是 #1425 的提交与规格单 #1419；本 ADR 与它们冲突时以它们为准。

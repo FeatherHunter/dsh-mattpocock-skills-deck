@@ -1,6 +1,6 @@
 // src/host/snapshotEnvelope.ts —— 快照信封的组装与落盘（#723 T19 从 sessionSnapshot.ts 原样搬出，纯结构、行为零变化）
 //
-// 为什么单开这一个文件：会话快照电话（src/host/sessionSnapshot.ts）的五条分支（内存缓存短路、磁盘回放、
+// 为什么单开这一个文件：会话快照电话（src/refresh/rooms/host/session-snapshot-cache.ts）的五条分支（内存缓存短路、磁盘回放、
 // 304、重建、失败）都要拼同一个形状的信封，而那个文件贴着 350 行上限（tests/verify-file-granularity.ts
 // 的零增长基线）—— #723 要往快照回包上挂「每个会话在处理哪些票」的读数时，那个文件已经 349 行。
 // 所以先把这两件与电话体无关的纯组装搬出来：谁要改「快照里都有哪些字段」，改这一处就够（#653 的老规矩）。
@@ -94,7 +94,7 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
   // #1295：再多记一个 specs —— 这一轮快照里认出几张「实施地图」（规格容器）。maps 是容器总数，
   //   maps 减 specs 就是「探索地图」的张数；面板的双轨分流一旦看起来不对，先拿这两个数对账：
   //   是这一轮就没认出来（specs=0），还是认出来了却没被列表画成蓝轨（渲染侧问题）。
-  //   注意老直连快照路（src/host/snapshotBuild.ts）只认 wayfinder:map 标签、不产规格容器，
+  //   注意老直连快照路（src/refresh/rooms/host/snapshot-build.ts）只认 wayfinder:map 标签、不产规格容器，
   //   那条路上 specs 恒 0 属正常，别据此判「一张规格都没认出来」。
   // 类型说明（#1155）：落盘那一步是接线处给的回调，它的返回形状在这一层表达不出来，
   // 所以按调用方传进来的类型原样还回去（运行时不碰，只是把类型跟过去）。

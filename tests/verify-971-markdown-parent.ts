@@ -38,12 +38,12 @@ function makePlat() {
 
 async function main() {
   console.log('#971 防回归：本地后端父边与快照（读注释、改父同目录成功、快照计数）')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
 
   // —— 扁平工作区：建图前 0 张地图（有目录但没有 map.md），与工单里的现场一致 ——
   const rootA = fs.mkdtempSync(path.join(os.tmpdir(), '971-flat-'))

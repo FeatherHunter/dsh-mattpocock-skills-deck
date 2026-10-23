@@ -2,7 +2,7 @@
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1150-plan-store-durable.ts
 //
 // 这一条盯三件事：
-//   ① 真宿主装配（src/host/refresh/wiring.js 的 createRefreshWiring）真的把落盘的存储器注入了批量建图工具。
+//   ① 真宿主装配（src/refresh/rooms/host/refresh-runtime.js 的 createRefreshWiring）真的把落盘的存储器注入了批量建图工具。
 //      夹具用的是**生产形状**的文件服务：读写在 resolve() 的产物（带 targetKey 的目标对象）上做，
 //      拿裸路径串去读写会被当场拒绝——DSH 的 fs 契约就是这个形状（见 README「文件服务」那一节）。
 //      为什么非要用这个形状：#1150 之前的老夹具收裸路径串，于是「工具以为自己在落盘、其实一个字节都没写出去」
@@ -103,7 +103,7 @@ function strictWorkspace(opts) {
 async function assemble(ws, logs) {
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const { createRefreshWiring } = await imp('src/host/refresh/wiring.js')
+  const { createRefreshWiring } = await imp('src/refresh/rooms/host/refresh-runtime.js')
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
   const wiring = createRefreshWiring({
@@ -128,12 +128,12 @@ async function assemble(ws, logs) {
  * 等价于进程重启（进程内存里什么都没有，上一段留下的东西只能从盘上读回来）。
  */
 async function toolLevel(ws) {
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const { createDeckMapPlanCreate } = await imp('src/deck/tools/map-plan-create.ts')
   const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
   // 判定出口（#1003 单出口）：装配方总是递给工具，这里照生产接法给上；夹具走内存账本说「这个工作区选过了」。

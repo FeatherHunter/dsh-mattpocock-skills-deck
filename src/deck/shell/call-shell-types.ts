@@ -28,7 +28,7 @@ export interface ShellSession {
   sessionId?: unknown;
 }
 
-/** 额度常量表：字段名与 refresh-core/src/budget.ts 的导出同名。 */
+/** 额度常量表：字段名与 src/refresh/kernel/host-budget.ts 的导出同名。 */
 export interface DeckLimits {
   maxPointsPerCall: number;
   maxRequestsPerCall: number;
@@ -123,7 +123,7 @@ export interface GateSendResult {
   [key: string]: unknown;
 }
 
-/** 宿主闸（src/host/refresh/gate.js 的产物）：先判硬顶，再记账。 */
+/** 宿主闸（src/refresh/rooms/host/refresh-gate.js 的产物）：先判硬顶，再记账。 */
 export interface GateLike {
   admitAiTool(usage: UnknownRecord, meta: UnknownRecord): AdmitResult;
   send(meta: UnknownRecord, fn: () => Promise<unknown>): Promise<GateSendResult>;
@@ -273,7 +273,7 @@ export interface CallCtx {
   gate: GateLike;
   now: () => number;
   /**
-   * 等待口也放进这格：工具侧算单次预算钳制时（call-budget.ts 的 sleepFn）先看自己那层 opts，
+   * 等待口也放进这格：工具侧算单次预算钳制时（tool-call-budget-enforcement.ts 的 sleepFn）先看自己那层 opts，
    * 再看这里。壳不把它放进来，注入的假时钟就够不到钳制那一处，只能真等。
    */
   sleep: (ms: number, signal?: WaitSignal | null) => Promise<unknown>;

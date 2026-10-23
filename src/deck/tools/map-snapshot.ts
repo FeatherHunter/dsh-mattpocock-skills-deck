@@ -10,8 +10,8 @@ import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { childrenOf } from '../shell/edge-landing.js'
 import { deriveDeck, parseProgress } from '../../tracker/deck-derive.js'
 import { parseMapBody, parseOriginalWords, parseProgressDetail } from '../../tracker/body-parse.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
-import { withCallScope } from '../shell/call-budget.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 

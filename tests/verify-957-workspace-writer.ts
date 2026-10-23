@@ -104,10 +104,10 @@ async function main() {
   // —— S：工具壳多命中诚实拒绝（不依赖任何保护写口） ——
   {
     const shellMod = await imp('src/deck/shell/call-shell.ts')
-    const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.ts')
-    const gateMod = await imp('src/host/refresh/gate.ts')
-    const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
+    const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+    const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
+    const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
     const decMod957 = await imp('src/tracker/detection/backendDecision.ts')
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger: ledger, logCtx: null, now: () => 1700000000000 })

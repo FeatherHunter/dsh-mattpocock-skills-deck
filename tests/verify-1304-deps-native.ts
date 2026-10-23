@@ -1,4 +1,4 @@
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 // tests/verify-1304-deps-native.ts —— #1304 反向阻塞边专属门禁（不联网，桩照真机回包形状）
 //
 // 这张票要修的四件事，一条门禁一条：
@@ -251,7 +251,7 @@ async function main() {
   // 房间层把「不全」交给调用方（issues.ts 的 truncated / fallback）；壳层若只认 truncated，
   // REST 回包没有这格时就会把名册标成 complete，成环检查会拿一份子集判「没有环」。
   {
-    const shellMod = await imp('src/deck/shell/call-budget.ts')
+    const shellMod = await imp('src/refresh/rooms/host/tool-call-budget-enforcement.ts')
     const fakeBackend = (out: any) => ({ list: async () => out })
     const issueRow = (n: number) => ({ key: String(n), title: '票' + n, state: 'open', type: 'issue', labels: [], assignees: [], blockedBy: [] })
     const normal = shellMod.withCallScope({ tracker: fakeBackend({ ok: true, data: [issueRow(1)] }) })

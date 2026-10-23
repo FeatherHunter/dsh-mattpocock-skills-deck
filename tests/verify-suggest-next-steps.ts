@@ -215,7 +215,7 @@ async function main() {
   // 九颗追踪器工具由宿主代执行，代执行那层会先造一个带 cwd 的 exec；本工具在行里本地执行，
   // exec 是平台原生形状——桌面真机上会话顶层没有目录，目录住在 exec.agent.session.header 里。
   // 这里按真机形状复现：只有 header.cwd 时必须成功，且回执与日志都能对上目录与会话号。
-  const keyMod = await imp('src/shared/refresh-workspace-key.ts')
+  const keyMod = await imp('src/refresh/contract/workspace-keys.ts')
   const hdrLog = makeLog()
   const hdrRunner = tool.createSuggestNextSteps({ log: hdrLog.log, now: fakeClock(0) })
   const hdrEnv = await hdrRunner.run(EXEC_HEADER_CWD, { items: two })
@@ -350,7 +350,7 @@ async function main() {
   // ── 8c. 宿主接线源码守卫：登记 Promise 必须挂 .catch ──
   // 同步 try/catch 抓不到 async 函数返回的 rejected Promise，所以接线处必须另有 .catch。
   // 这条守卫看的是接线源码本身：只改回同步 try/catch 时，门禁立刻红。
-  const wiringSource = fs.readFileSync(path.join(ROOT, 'src/host/refresh/wiring.ts'), 'utf8')
+  const wiringSource = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/refresh-runtime.ts'), 'utf8')
   const wiringCallAt = wiringSource.indexOf('hookSuggestNextSteps(')
   const wiringTail = wiringCallAt >= 0 ? wiringSource.slice(wiringCallAt, wiringCallAt + 240) : ''
   check(wiringCallAt >= 0, '宿主接线里仍在调用建议工具登记钩子')

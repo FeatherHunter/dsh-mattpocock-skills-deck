@@ -64,10 +64,10 @@ const fakeTracker = (): any => ({ listLabels: async () => ({ ok: true, data: [] 
 async function main() {
   console.log('#1003 单出口门禁：四路同答案');
   const shellMod = await imp('src/deck/shell/call-shell.ts');
-  const budget = await imp('src/shared/refresh/budget.js');
-  const ledgerMod = await imp('src/host/refresh/ledger.ts');
-  const gateMod = await imp('src/host/refresh/gate.ts');
-  const toolCost = await imp('src/shared/refresh/tool-cost.js');
+  const budget = await imp('src/refresh/kernel/host-budget.js');
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts');
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts');
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js');
   const decMod = await imp('src/tracker/detection/backendDecision.ts');
   const anchorMod = await imp('src/deck/shell/workspace-anchor.ts');
   const detMod = await imp('src/tracker/detection/detectionService.ts');
@@ -84,7 +84,7 @@ async function main() {
     // 测的就是出口这条路（生产由装配层递进来，这里直递同一函数；过闸钩子壳内自建）
     decideBackend: decMod.decideBackend,
   }, extra || {}));
-  // 工具壳自己不带文件通道：生产由装配层把这两件事递进壳（见 src/host/refresh/wiring.js 给 deck 工具壳
+  // 工具壳自己不带文件通道：生产由装配层把这两件事递进壳（见 src/refresh/rooms/host/refresh-runtime.js 给 deck 工具壳
   //   递的 readWorkspaceFileText/parseWorkspaceFile），壳再转手递给判定出口。夹具照生产的接法给上，
   //   壳才读得到工作区文件里人的选择 —— 这一步是 #1138 之后唯一能表达「这个工作区选过了」的通道。
   const wfDepsOf = (fss: any): any => ({

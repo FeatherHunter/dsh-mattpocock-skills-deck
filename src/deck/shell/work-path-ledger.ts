@@ -13,10 +13,10 @@
 //   - 先说时间：超过 30 天的条目在下一次写入时清掉；
 //   - 再说体积：清完仍超过 2MB 就按时间从旧到新裁，最新的一定还在。
 // 体积按序列化后的 UTF-8 字节数算，不按条数估：中文标题一个字符占三字节，按字符算会低估。
-// 数字与二分算法不写在这里：它们与工作路线链共用 src/shared/refresh/src/chain-prune.ts，
+// 数字与二分算法不写在这里：它们与工作路线链共用 src/refresh/kernel/chain-pruning.ts，
 // 那边是 30 天/2MB 的唯一住处。本文件只负责「这种存档形状怎么序列化」。
 //
-// 术语边界：本文件说的「账」指工作路线存档（work-path），不是 src/host/refresh/ledger.ts 的配额账本；
+// 术语边界：本文件说的「账」指工作路线存档（work-path），不是 src/refresh/rooms/host/quota-ledger.ts 的配额账本；
 // 两者不同的东西，只是都用「账」这个日常词。
 //
 // #1086 补一支释放（applyRelease）：只从本会话那一页删掉一条工作条目，别的会话一概不碰；
@@ -25,7 +25,7 @@
 // 干过实事，这样的票不能从工作路线里释放；只有一直只上报、没动过票的条目才能删。旧账没有这一格，
 // 读不清以前做过什么，一律按「干过实事」保守处理，宁可不删也不误删处理过的路径。
 
-import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES, utf8Bytes, newestPrefixThatFits } from '../../shared/refresh/src/chain-prune.js';
+import { CHAIN_KEEP_MS, CHAIN_MAX_BYTES, utf8Bytes, newestPrefixThatFits } from '../../refresh/kernel/chain-pruning.js';
 
 /** 读出口只读的账页形状（深拷贝，调用方随便改都不会污染内存真源）。 */
 export interface WorkPathLedger {

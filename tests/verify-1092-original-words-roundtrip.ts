@@ -42,12 +42,12 @@ function makePlat() {
 
 async function main() {
   console.log('#1092 防回归：维护者原话读得回来，一个字不改')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const words = await imp('src/shared/issue-file/src/original-words.js')
 
   // —— 一条刁钻的原话：多行、中间空行、行首行尾空格（行尾两个空格是有意的）、以 > 开头的一行、

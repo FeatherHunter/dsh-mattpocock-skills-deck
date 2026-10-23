@@ -81,8 +81,8 @@ const execFor = (cwd) => ({ agent: { session: { id: 's-p', cwd: cwd || 'D:/demo'
 
 async function main() {
   console.log('deck 并发隔离门禁（同票不丢、异票并行、锁超时诚实）')
-  const gateMod = await imp('src/host/refresh/gate.ts')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const keyLock = await imp('src/deck/shell/write-mutex.ts')
   const patchMod = await imp('src/deck/tools/issue-patch.ts')
 
@@ -90,7 +90,7 @@ async function main() {
   {
     const state = { labels: { 7: [] } }
     const g = stubGateLedger(gateMod, ledgerMod)
-    const tool = patchMod.createDeckIssuePatch(baseDeps({ gate: g.gate, registry: stubRegistry(labelBackend(state, 120)), budget: await imp('src/shared/refresh/budget.js') }))
+    const tool = patchMod.createDeckIssuePatch(baseDeps({ gate: g.gate, registry: stubRegistry(labelBackend(state, 120)), budget: await imp('src/refresh/kernel/host-budget.js') }))
     const repo = { backend: 'stub', refId: 'o/n' }
     void repo
     const p1 = tool.run(execFor(), { key: '7', addLabels: ['alpha'] })
@@ -107,7 +107,7 @@ async function main() {
   {
     const state = { labels: { 11: [], 12: [] } }
     const g = stubGateLedger(gateMod, ledgerMod)
-    const tool = patchMod.createDeckIssuePatch(baseDeps({ gate: g.gate, registry: stubRegistry(labelBackend(state, 60)), budget: await imp('src/shared/refresh/budget.js') }))
+    const tool = patchMod.createDeckIssuePatch(baseDeps({ gate: g.gate, registry: stubRegistry(labelBackend(state, 60)), budget: await imp('src/refresh/kernel/host-budget.js') }))
     const [r1, r2] = await Promise.all([
       tool.run(execFor(), { key: '11', addLabels: ['x'] }),
       tool.run(execFor(), { key: '12', addLabels: ['y'] }),
@@ -120,7 +120,7 @@ async function main() {
   {
     const state = { labels: { 21: [] } }
     const g = stubGateLedger(gateMod, ledgerMod)
-    const budget = await imp('src/shared/refresh/budget.js')
+    const budget = await imp('src/refresh/kernel/host-budget.js')
     const tool = patchMod.createDeckIssuePatch(baseDeps({ gate: g.gate, registry: stubRegistry(labelBackend(state, 800)), budget: budget, keyLockTimeoutMs: 100 }))
     const p1 = tool.run(execFor(), { key: '21', addLabels: ['slow'] })
     await sleep(60)

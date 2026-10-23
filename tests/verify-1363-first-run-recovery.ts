@@ -22,9 +22,9 @@
 // 门禁归属: src/client/hostShim.ts
 // 门禁归属: src/client/statusbar/StatusBar.ts
 // 门禁归属: src/client/statusbar/bannerChain.ts
-// 门禁归属: src/client/kernel/probe-auto.ts
-// 门禁归属: src/client/kernel/attention-heartbeat.ts
-// 门禁归属: src/host/refresh/chainBackoff.ts
+// 门禁归属: src/refresh/rooms/client/refresh-timer.ts
+// 门禁归属: src/refresh/rooms/client/client-attention-heartbeat.ts
+// 门禁归属: src/refresh/rooms/host/chain-backoff.ts
 //
 // 用法（在插件根目录；不需要先构建，本门禁跑的是真源码）：
 //   node --import ./scripts/ts-hook.mts tests/verify-1363-first-run-recovery.ts
@@ -85,9 +85,9 @@ const partA = function (): void {
   modB.timer.clearTimeout(hB)
 
   // A3. 撤销改成「先走 timer.clearTimeout」的那两处（宿主句柄是可调用撤销器，全局 clearInterval 对它空操作）。
-  const beatSrc = sourceText('src/client/kernel/attention-heartbeat.js')
+  const beatSrc = sourceText('src/refresh/rooms/client/client-attention-heartbeat.js')
   check(/timer\.clearTimeout\(/.test(beatSrc), 'attention-heartbeat 撤销心跳走 timer.clearTimeout（全局 clearInterval 撤不掉宿主句柄）')
-  const probeSrc = sourceText('src/client/kernel/probe-auto.js')
+  const probeSrc = sourceText('src/refresh/rooms/client/refresh-timer.js')
   check(/timer\.clearTimeout\(shared\._activeTimer\)/.test(probeSrc), 'probe-auto 重排节拍前先走 timer.clearTimeout 撤旧句柄')
 }
 
@@ -97,7 +97,7 @@ const partA = function (): void {
 const partB = async function (): Promise<void> {
   console.log('#1363 B. setup-pending 等满封顶就无条件重算，别的后台触发名与手人重查口径不变')
   check(CHAIN_SETUP_PENDING_CAP_MS === 15000, '封顶值来自中央配置 config/timeouts.yaml 的 chainSetupPendingCapMs（实得 ' + CHAIN_SETUP_PENDING_CAP_MS + '）')
-  const mod = await import('../src/host/refresh/chainBackoff.js')
+  const mod = await import('../src/refresh/rooms/host/chain-backoff.js')
   const cb = mod.createChainBackoff({ logCtx: { fire: function (): void {}, isEnabled: function (): boolean { return false } } })
   const t0 = 1700000000000
   const snap = { steps: [{ id: 'a', status: 'done' }, { id: 'b', status: 'pending' }] }
@@ -173,7 +173,7 @@ const partC = async function (): Promise<void> {
       timer: timer,
       document: undefined, window: undefined,
     }
-    const mod = loadSpliced('src/client/kernel/probe-auto.js', ['startActiveProbeLoop'], scope)
+    const mod = loadSpliced('src/refresh/rooms/client/refresh-timer.js', ['startActiveProbeLoop'], scope)
     return { mod: mod, scope: scope, logs: logs, intervals: intervals, revokeCalls: revokeCalls, firedSteps: firedSteps, triggers: triggers, timer: timer }
   }
 

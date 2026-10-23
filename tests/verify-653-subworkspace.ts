@@ -38,7 +38,7 @@ console.log('=== #653 子目录工作区场景门禁 ===')
 // 把 store-snapshot.js 里「工作区键」那一小段原样取出来当纯函数跑：keyOf 用真件（shared 单源），
 // snapshotByCwd 用空 Map。这样测的是内核里真正在用的那几行，不是一个另写的仿制品。
 console.log('\nA) 工作区键解析（子目录 → 工作区根）')
-const keysSrc = spliceableJs('src/client/kernel/store-snapshot.js')
+const keysSrc = spliceableJs('src/refresh/rooms/client/snapshot-cache-store.js')
 const wsKeyBlock = noExport(
   keysSrc.slice(
     keysSrc.indexOf('const workspaceRootByCwd'),
@@ -92,7 +92,7 @@ console.log('\nB) 缓存只有一把键（不再双写「仓库根」与「所�
 // 【已删除】原先这里读 probe-snapshot.js 与 probe-select.js 的源码文本，用正则断言「旧的双写没了」
 // 与「落缓存只调一次 setCachedSnapshot(st.cwd, snap)」。那是钉源码文本的门禁，等价改写法一变就红；
 // 下面接着把真源里那两段切出来跑，用运行结果证明「写入与读取只有一把键」。
-const storeSrc = spliceableJs('src/client/kernel/store-snapshot.js')
+const storeSrc = spliceableJs('src/refresh/rooms/client/snapshot-cache-store.js')
 const storeBlock = noExport(
   storeSrc.slice(storeSrc.indexOf('const getCachedSnapshot'), storeSrc.indexOf('const lastProbeAtByCwd'))
 )

@@ -6,8 +6,8 @@
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { EDGE_LANDING, relationsOf } from '../shell/edge-landing.js'
-import { withCallScope } from '../shell/call-budget.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // #1090：进度区的结构化读回（{percent,note,updatedAt,entries}）与写侧共用同一份解析。

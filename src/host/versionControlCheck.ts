@@ -35,7 +35,7 @@ import { messageProblem, writeHintFor } from '../shared/version-control/src/writ
 //     一次预检里所有只读步骤合起来不许超过它；
 //   · LSFILES_TIMEOUT_MS 与 REMOTE_TIMEOUT_MS 是「单条只读命令」各自的超时（交给 readOut 的 timeoutMs），
 //     管某一条命令最多跑多久——单条超时相加可以比总预算大，但总预算用完就先停。
-// 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
+// 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
 import { VC_CHECK_CALL_BUDGET_MS as CHECK_CALL_BUDGET_MS, VC_LSFILES_TIMEOUT_MS as LSFILES_TIMEOUT_MS, VC_REMOTE_TIMEOUT_MS as REMOTE_TIMEOUT_MS, TICKET_TTL_MS } from '../shared/time-config/src/values.js'
 
 /** 预算（附录第 5 节）：预检调用 60 秒；两条只读命令各自的单次预算。 */

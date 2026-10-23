@@ -203,7 +203,7 @@ console.log('── A. fail(...) 一律三个参数（kind, message, raw）')
       // 这个文件今天写的是 `const fail: any = m && m.fail`（从注入的模块上取一份别名，不是自己定义 fail），
       // A 段的「自造 fail」正则因此不再命中它；条目留着是为了记住 Lead 2026-10-14 的定夺，
       // 哪天真在它里面重新定义 fail，仍然按白名单放行、不判红。
-      file: 'src/client/kernel/slotRenderer-repo-sync.ts',
+      file: 'src/refresh/rooms/client/repo-sync-renderer.ts',
       why: '界面自己那张失败卡（half-created）的局部 fail，交出去的不是 TrackerError、也不是后端通道的失败值，'
         + '没有后端原文可带；Lead 2026-10-14 定夺：报出来但不判红，本票不动它',
     },
@@ -355,7 +355,7 @@ console.log('── B. 档位字面量只许出现在真源文件里')
     },
     {
       // #1251：slotRenderer-repo-sync 转成 .ts 后，half-created 这个界面词写在真源里，白名单跟到 .ts。
-      file: 'src/client/kernel/slotRenderer-repo-sync.ts',
+      file: 'src/refresh/rooms/client/repo-sync-renderer.ts',
       values: ['half-created'],
       why: '界面自己那张失败卡的词，不是 TrackerError；它既不是八档也不是后端档位，只放行这一个词',
     },

@@ -2,7 +2,7 @@
  * views/shared/workRouteTable.ts — 面板里的「跨会话在办表」（#1082）。
  *
  * 它回答的是：这个工作区里，每个会话各自在处理哪些票。数据只有一份来源 —— 宿主挂在面板快照上的
- * workRouteTable 字段（宿主那一侧在 src/host/refresh/workRouteReadoutForHost.ts 里读工作路线存档，
+ * workRouteTable 字段（宿主那一侧在 src/refresh/rooms/host/work-route-readout.ts 里读工作路线存档，
  * 与工具回执 data.workRoute 同一个读出口）。界面这一侧不读盘、不读会话事件、不自己拼记录，
  * 只把快照里那一个字段画成表。
  *

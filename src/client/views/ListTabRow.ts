@@ -336,7 +336,7 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
             (multiEffort && effortOf(x)) ? h(Tip, { content: effortOf(x) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(x), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(x))) : null,
             h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
             // #715：写入窗口期给这一行加一枚极轻的「更新中」标记 —— 不改状态、不改布局：
-            //   只是编号下面多一小片虚边框的字，窗口一过（budget.ts 的 PATCH_MERGE_WINDOW_MS）自己就不画了。
+            //   只是编号下面多一小片虚边框的字，窗口一过（host-budget.ts 的 PATCH_MERGE_WINDOW_MS）自己就不画了。
             //   事实来源：写入成功那一处记下的时刻（kernel/api-io.js 的 markRowWrite → st.writeAt）。
             truthWriteWindowOpen(st.writeAt && (st.writeAt[String(x.number)] || st.writeAt[idOf(x)]), Date.now()) ? h('span', { className: 'dsws-chip dsws-writing', style: { fontSize: 9, lineHeight: 1.5, padding: '0 4px', flex: 'none', opacity: 0.75, background: 'rgba(88,166,255,.10)', color: '#58a6ff', border: '1px dashed rgba(88,166,255,.45)' } }, tr('truth.writing')) : null,
           ]),

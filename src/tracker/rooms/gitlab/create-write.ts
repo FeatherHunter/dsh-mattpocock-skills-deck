@@ -11,8 +11,8 @@
  * 修法是把两条路收敛成**一条**：POST 到集合端点，参数逐项 -f。再也没有「先试 A、失败再试 B」。
  *
  * 唯一允许再发一次的档只有一种：**这一次请求确定一个字节都没发出去**（这台机器上 glab 根本没跑起来，
- * 例如命令找不到、起进程就失败）。判据不在这个文件里，在纯函数 refresh-core/src/create-write.ts
- * （产物 src/shared/refresh/create-write.js）：那是三个后端将来共用的一处判据，能被穷举测一遍。
+ * 例如命令找不到、起进程就失败）。判据不在这个文件里，在纯函数 src/refresh/kernel/create-write-policy.ts
+ * （产物 .build/refresh/kernel/create-write-policy.js）：那是三个后端将来共用的一处判据，能被穷举测一遍。
  * 超时、EOF、5xx、回包形状不对一律属于「有可能已经写出去」，绝不再发第二次写 —— 只如实失败，
  * 并在那句话里带上幂等键，让调用方带同一个键重试（重试会先按票面上的锚回查，找到就复用那张票）。
  *
@@ -25,11 +25,11 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import { projectPath } from './queries.js'
-import { classifyCreateWriteAttempt, decideCreateWriteRetry } from '../../../shared/refresh/src/create-write.js'
+import { classifyCreateWriteAttempt, decideCreateWriteRetry } from '../../../refresh/kernel/create-write-policy.js'
 import type {
   CreateWriteJudgement,
   CreateWriteVerdict,
-} from '../../../shared/refresh/src/create-write.js'
+} from '../../../refresh/kernel/create-write-policy.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 

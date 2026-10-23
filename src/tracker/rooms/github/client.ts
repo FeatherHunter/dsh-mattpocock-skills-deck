@@ -108,7 +108,7 @@ function roomInfoEnabled(ctx: OpContext): boolean {
 }
 
 /**
- * 这一层起 gh 命令时用的默认超时（毫秒）。#723（T19）把它交出去：`src/host/detectChain.js` 里
+ * 这一层起 gh 命令时用的默认超时（毫秒）。#723（T19）把它交出去：`src/refresh/rooms/host/check-chain-evaluation.js` 里
  * 那条链要按「命令 + 工作目录 + 超时」认「是不是同一件事」，从前它在自己文件里又写了一遍
  * 30000 —— 两处各写一份，改一处就会静默对不上（实测踩过：一边带 30000、一边不带，白问两遍）。
  * 现在那个文件从宿主接线接这一个数（`src/host/registerPhones.js` 转发），全仓只有这一处字面量。
@@ -165,7 +165,7 @@ function getOutbound(ctx: OpContext): OutboundControl | null {
 
 /**
  * #723（T19）：这一笔真实出站报给闸（I1）。闸由接线处注入（`ctx.gate`，production 里是
- * `src/host/refresh/gate.js` 的产物），本房不 import 它（跨房间/同层引用都不许）。
+ * `src/refresh/rooms/host/refresh-gate.js` 的产物），本房不 import 它（跨房间/同层引用都不许）。
  * 房内不报的后果是账对不上（漏网计数会露出来），所以没接上时这里什么都不做 —— 不允许
  * 「没接上就自己发出去还不说」。
  */
@@ -302,7 +302,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       try {
         roomLogEvent(ctx, 'warn', 'gh.exec', { argv0: 'gh', via: String(opts.via || ''), opId: String((ctx && ctx.opId) || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: 0, kind: ERROR_KIND.ENV, exitCode: -1, cmd: String(cmdLabel || '') })
       } catch {}
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。宿主接线要给两处：装配点造房时的上下文（生产里是 src/host/platformChannel.ts 的 backendCtxForRooms 与 src/host/refresh/wiring.js 的 backendObj），以及当次操作的上下文（ctx.outbound，门禁夹具走这一条）。', code: -1, raw: '' } }
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。宿主接线要给两处：装配点造房时的上下文（生产里是 src/host/platformChannel.ts 的 backendCtxForRooms 与 src/refresh/rooms/host/refresh-runtime.js 的 backendObj），以及当次操作的上下文（ctx.outbound，门禁夹具走这一条）。', code: -1, raw: '' } }
     }
     // #969：默认超时按读写探活分档（调用方显式 timeout 优先）；#965 读写分桶拿名额。
     const bucket = isWriteGhArgs(args) ? 'write' : 'read'

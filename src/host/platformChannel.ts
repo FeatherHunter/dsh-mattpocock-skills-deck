@@ -5,14 +5,14 @@
 // #968 技能按需多一个显式注入 getChainSkillNames（链条目录里要的三项技能名，查链时只问这三项）。
 // #1161：内置房间清单从前写在本文件里（三段 try 各 import 一间房），现在只认装配点
 //   src/tracker/registry/builtins.ts —— 宿主侧不再认识任何具体房间（规则 rooms-imported-only-by-assembly）。
-import type { HostTimerService } from '../shared/host-timer/src/host-timers.js'
+import type { HostTimerService } from '../refresh/contract/host-timer-ports.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tiers.js'
-import { getGhLane } from './outbound/admission.js'
+import { getGhLane } from '../refresh/rooms/host/outbound-admission.js'
 // #1159：给房间的那份后端上下文要挂上出站控制面（实现见 outbound-control.ts，只做转发）。
-import { createOutboundControl } from './platform/outbound-control.js'
+import { createOutboundControl } from '../refresh/rooms/host/outbound-control.js'
 // #1115：宿主计时器服务交回的是可调用的撤销器（不是数字句柄、也没有 dispose 方法），
 //   撤销的三档判据收在共享层一处；本文件两处 timers 口都只用它，不再各写一遍。
-import { hostTimers } from '../shared/host-timer/src/host-timers.js'
+import { hostTimers } from '../refresh/contract/host-timer-ports.js'
 // 时间参数住中央 YAML：PROC_GRACE_MS 是单次等待上限，住 config/timeouts.yaml；STATUS_CACHE_MS 是有效期，住 config/ttl.yaml。调时间改对应的那一份。
 import { STATUS_CACHE_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
 
@@ -115,7 +115,7 @@ interface Deps {
   getGate?(): unknown
 }
 
-// 运行时的 process 声明（与 src/host/git-process.ts:28 同形）：本文件只在「平台适配器造不出来」的
+// 运行时的 process 声明（与 src/refresh/rooms/host/git-execution.ts:28 同形）：本文件只在「平台适配器造不出来」的
 // 最后一道兜底里读它，且都按「可能不存在」写（见 nodeOs 兜底与 envSrc）。
 declare const process: { env?: Record<string, string | undefined>; platform?: string } | undefined
 
@@ -160,7 +160,7 @@ export function createPlatformChannel(deps: Deps) {
   function backendLogEnabled(level: string): boolean { try { return backendLogCtx ? backendLogCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } }
   // #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）是进程级能力，随这份后端上下文注入一次。
   // 房间只认契约形状（src/tracker/contract/outbound.ts），不再从宿主 import；这一处与
-  // src/host/refresh/wiring.js 的 backendObj 是两处注入点，缺一处那条路上的房间会按环境失败。
+  // src/refresh/rooms/host/refresh-runtime.js 的 backendObj 是两处注入点，缺一处那条路上的房间会按环境失败。
   const backendCtxForRooms = { logEvent: backendLogEvent, isEnabled: backendLogEnabled, outbound: createOutboundControl() }
   // #606 房外埋点 helper：工作区只记短指纹，不记原始路径。
   function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch { return '00000000' } }

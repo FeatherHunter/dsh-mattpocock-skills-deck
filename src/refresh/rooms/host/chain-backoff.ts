@@ -1,0 +1,209 @@
+// src/refresh/rooms/host/chain-backoff.ts —— 检查链「下一次什么时候再算」的宿主薄壳（#709 · T5 第四批）
+//
+// 分工：算这一步的规则全是纯函数，住在 src/refresh/kernel/failure-backoff.ts（产物 .build/refresh/kernel/failure-backoff.js）；
+// 数字的唯一真源是 src/refresh/kernel/host-budget.ts。本文件自己一个数字都不写，只做四件事：
+//   ① 把 budget.js 里的那四个数字取出来装成 BackoffLimits；
+//   ② 把每个工作区（严格说是每条链的缓存键）的退避态记在内存里；
+//   ③ 把「这一刻该不该重算」的结论连同原因代号交回调用方；
+//   ④ 顺手保管「这个键上最近那一份快照与那一次那份完整回包」——被退避挡下的那一次就把完整回包原样回，
+//      界面不会因此白屏（#724：从前回的是光一份快照，客户端认不出来，于是每次没带 force 的取数都失败）。
+//
+// 本文件不排任何定时器，一条都没有。退避给出的 waitMs 只是「按规则还差多久」，不是「请挂一个
+// 等这么久的循环」：下一次求值只可能由四种事件带起来（切进工作区、点「重新检查」、做完可能改变它的
+// 动作、写入成功之后）。人亲手点的那一次（trigger 为 'user-recheck'）永不降档，无论退到第几档都照做。
+//
+// 为什么单独一个文件而不是塞进 detectChain.js：那个文件已经 286 行，仓库单文件上限是 350 行
+//（tests/verify-file-granularity.ts），再塞六十行就顶格了。
+//
+// （2026-10-18 #1247 从 chainBackoff.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
+// 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；退避规则全在纯函数那一侧，
+// 本文件只记档位与快照，所以数字只从 budget 与中央 time-config 取，不在本文件写死。）
+
+// ---------------------------------------------------------------------------
+// 类型（#1247 转写：只写类型不写实现）。
+//
+// 为什么这样标：每个缓存键上的那一格是内存缓存（丢了最多多查一次，不落盘），
+// 形状由本文件拥有，下面 verdict 与 note 两处读写的是同一张脸。
+// 纯函数与数字是运行时动态取的（源码树不在的发布包里取不到就按「照旧求值」降级），
+// 所以那两个按 any 收，取不到的那条分支一字不动 —— 类型不把「一定取得到」假装成前提。
+// ---------------------------------------------------------------------------
+
+/** 每个链缓存键上记的那一格：档位、上次求值时刻、全绿与否、快照与完整回包。 */
+interface ChainBackoffEntry {
+  step: number
+  evaluatedAtMs: number
+  allGreen: boolean
+  snapshot: any
+  doneCount: number
+  result: any
+}
+
+/** 建退避件的依赖：只有日志出口是可选的，缺了就一条都不记。 */
+interface ChainBackoffDeps {
+  logCtx?: any
+}
+
+/** verdict 回包的形状：要不要算、原因代号、还差多久、被挡下时直接回的那一份。 */
+interface ChainVerdict {
+  needed: boolean
+  reason: string
+  waitMs: number
+  cached: any
+}
+
+export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
+  const { logCtx } = (deps || {}) as ChainBackoffDeps
+
+  /** 每个链缓存键：{ step, evaluatedAtMs, allGreen, snapshot, doneCount, result }。丢了最多多查一次，不落盘。 */
+  const _stateByKey = new Map<string, ChainBackoffEntry>()
+  let _backoff: any = null
+  let _limits: any = null
+  let _initP: Promise<any> | null = null
+
+  /** 取纯函数与数字（各一次，之后复用）。源码树不在的发布包里取不到，那种情况返回 null 并由调用方照旧求值。 */
+  function ready(): Promise<any> {
+    if (_backoff && _limits) return Promise.resolve({ backoff: _backoff, limits: _limits })
+    if (!_initP) {
+      _initP = (async function (): Promise<any> {
+        try {
+          const ms: any[] = await Promise.all([import('../../kernel/failure-backoff.js'), import('../../kernel/host-budget.js'), import('../../../shared/time-config/src/values.js')])
+          const budget: any = ms[1] || {}
+          const central: any = ms[2] || {}
+          if (!Array.isArray(central.CHAIN_BACKOFF_MS) || central.CHAIN_BACKOFF_MS.length < 2) return null
+          _backoff = ms[0]
+          _limits = {
+            backoffMs: central.CHAIN_BACKOFF_MS,
+            allGreenTtlMs: central.CHAIN_ALL_GREEN_TTL_MS,
+            preflightTtlMs: central.PREFLIGHT_TTL_MS,
+            preflightRetryAfterFailure: budget.PREFLIGHT_RETRY_AFTER_FAILURE,
+            // #1363 场景二：初始化等待那一路的等待封顶（取值见 config/timeouts.yaml）。0 表示这一档不可用，按旧口径走。
+            setupPendingCapMs: Math.max(0, Math.floor(Number(central.CHAIN_SETUP_PENDING_CAP_MS) || 0)),
+          }
+          return { backoff: _backoff, limits: _limits }
+        } catch (e: any) { return null }
+      })()
+    }
+    return _initP
+  }
+
+  function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
+
+  /** 这一份快照是不是全绿（链上每一步都 done）。没有步骤时按「还没全绿」算：诚实未知，不算通过。 */
+  function isAllGreen(snapshot: any): boolean {
+    try {
+      const steps: any[] = (snapshot && Array.isArray(snapshot.steps)) ? snapshot.steps : []
+      if (!steps.length) return false
+      return steps.every(function (s: any): boolean { return s && s.status === 'done' })
+    } catch (e: any) { return false }
+  }
+
+  /** 这份快照上已经有几步 done。用来判「这一轮有没有进展」——多出一步才算，重跑一次拿到一样的结果不算。 */
+  function doneCountOf(snapshot: any): number {
+    try {
+      const steps: any[] = (snapshot && Array.isArray(snapshot.steps)) ? snapshot.steps : []
+      return steps.filter(function (s: any): boolean { return s && s.status === 'done' }).length
+    } catch (e: any) { return 0 }
+  }
+
+  /**
+   * 这一刻该不该重算这条链。trigger 为 'user-recheck' 时无条件 needed（人亲手点的动作永不降档）；
+   * 其余情况交给纯函数按退避判。取不到纯函数（发布包里没有源码树）时一律 needed ——
+   * 宁可照旧多算一次，也不要因为读不到规则而让检查页僵在那里。
+   *
+   * 返回 { needed, reason, waitMs, cached }：cached 是「被退避挡下时可以直接回给界面的那一份」。
+   *
+   * #724 修正（真机 107 次全败的真身）：这里从前回的是光一份快照（{steps, currentIndex, …}），
+   * 而调用方（src/refresh/rooms/host/check-chain-evaluation.js）在退避挡下时把它原样当了回包交回去。客户端认的回包形状是
+   * `res.ok && (res.fullSnapshot || res.snapshot)`（src/refresh/rooms/client/probe-chain-subscription.js），一份光快照没有 ok
+   * 那一栏 → 客户端判成「回话里没有内容」，于是每次没带 force 的取数都失败（界面那一格于是永远是 --，
+   * 而宿主这边其实早就有读数）。所以现在记的是上一次那份完整回包，退避挡下就原样回它；
+   * 拿不到完整回包时才退回光快照（诚实降级，不编一个 ok:true）。
+   */
+  async function verdict(key: string, nowMs: number, opts?: any): Promise<ChainVerdict> {
+    const st: ChainBackoffEntry | null = _stateByKey.get(key) || null
+    const snap: any = st ? st.snapshot : null
+    const lastReply: any = st ? (st.result || st.snapshot) : null
+    const trigger = String((opts && opts.trigger) || '')
+    const r: any = await ready()
+    if (!r) return { needed: true, reason: 'backoff-unavailable', waitMs: 0, cached: lastReply }
+    if (trigger === 'user-recheck') {
+      try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.backoff', { keyHash: hash8(key), decision: 'user-recheck-bypass' }) } catch (eL: any) {}
+      return { needed: true, reason: 'user-recheck-bypass', waitMs: 0, cached: lastReply }
+    }
+    // #1363 场景二：初始化产物是会话里写文件，检查链没有对应事件，只能靠正在看时的 5 秒节拍反复求值；
+    // 连续没进展时退避会一路升到 5 分钟档，黄条要等很久才消失。'setup-pending' 那一路加等待封顶：
+    // 距离上一次求值已经超过封顶就无条件真算一次。只影响这一路，人手重查与其它后台事件的退避口径不变。
+    if (trigger === 'setup-pending' && st) {
+      const capMs: number = Math.max(0, Math.floor(Number(r.limits.setupPendingCapMs) || 0))
+      const waitedMs: number = nowMs - Number(st.evaluatedAtMs || 0)
+      if (capMs > 0 && waitedMs >= capMs) {
+        try { if (logCtx) logCtx.fire('info', 'chain.backoff', { keyHash: hash8(key), decision: 'recompute', reason: 'setup-pending-cap', waitMs: 0, step: st.step, trigger: 'setup-pending' }) } catch (eL: any) {}
+        return { needed: true, reason: 'setup-pending-cap', waitMs: 0, cached: lastReply }
+      }
+    }
+    const v: any = r.backoff.chainRefreshVerdict(st ? { step: st.step, evaluatedAtMs: st.evaluatedAtMs, allGreen: st.allGreen } : null, nowMs, r.limits)
+    // 手里一份快照都没有的时候必须算：否则界面第一次进来就没东西可画（退避不该把首屏也拦住）。
+    // 有快照、却没有完整回包（旧版本写下的状态）时也照样真算一次 —— 免得把一份客户端认不出的回包递出去。
+    // 类型注记：snap 为真时 st 必非空（snap 就是 st.snapshot），这里用非空断言只为过编译，运行时与原来同一行短路求值。
+    if (!v.needed && (!snap || !st!.result)) return { needed: true, reason: snap ? 'no-full-reply-yet' : 'no-snapshot-yet', waitMs: 0, cached: null }
+    try {
+      // 常驻一条：这是「后台零定时器」之后唯一还能回答「为什么这次没查」的地方，查问题时全靠它。
+      if (logCtx) logCtx.fire('info', 'chain.backoff', { keyHash: hash8(key), decision: v.needed ? 'recompute' : 'defer', reason: String(v.reason || ''), waitMs: Math.max(0, Math.floor(Number(v.waitMs) || 0)), step: st ? st.step : 0, trigger: trigger || 'event' })
+    } catch (eL: any) {}
+    return { needed: !!v.needed, reason: String(v.reason || ''), waitMs: Math.max(0, Math.floor(Number(v.waitMs) || 0)), cached: lastReply }
+  }
+
+  /**
+   * 记一次求值结果：把这一份快照与这一份完整回包留下、按「有没有进展」推进或回退档位。
+   * progressed 由这里自己判——链上多出一步 done 才算进展，重跑一次拿到一样的结果不算。
+   * `result` 是可选的那一份完整回包（detectChain 交出来的、客户端认的那形状）；给了就在退避挡下时原样回它。
+   */
+  async function note(key: string, snapshot: any, nowMs: number, result?: any): Promise<any> {
+    const st: ChainBackoffEntry | null = _stateByKey.get(key) || null
+    const prevDone = st ? Number(st.doneCount) || 0 : 0
+    const done = doneCountOf(snapshot)
+    const allGreen = isAllGreen(snapshot)
+    const progressed = done > prevDone
+    const r: any = await ready()
+    const step: number = r ? r.backoff.advanceChainStep(st ? st.step : 0, progressed, r.limits) : 0
+    _stateByKey.set(key, { step: step, evaluatedAtMs: Number(nowMs) || Date.now(), allGreen: allGreen, snapshot: snapshot, doneCount: done, result: (result && typeof result === 'object') ? result : null })
+    // 缓存变更记一行（#709 新增内存缓存：命中 / 未命中 / 过期 / 写回四件事都要看得见）。
+    try {
+      if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.write', { keyHash: hash8(key), allGreen: allGreen, doneCount: done, step: step, progressed: progressed })
+    } catch (eL: any) {}
+    return { step: step, allGreen: allGreen, progressed: progressed }
+  }
+
+  /**
+   * 「写入成功之后」这一类事件到了：把所有链的退避拉回第一档。
+   *
+   * 为什么一次写入要影响所有链：写入是「可能改变检查链」的动作（首次建号、仓库刚有内容、
+   * 刚发出去一条评论），而宿主拦截到写入时手上只有一个工作目录，不是「这条链的缓存键」
+   *（键里还含后端 id 与语言）。宁可把所有链都拉回快档（最坏也只是下一次事件立刻真算一次），
+   * 也不要因为分不清是哪条链而把真进展挡在 5 分钟那一档外面。
+   */
+  function noteWriteActivity(): void {
+    _stateByKey.forEach(function (st: ChainBackoffEntry): void { if (st) st.step = 0 })
+    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.backoff', { keyHash: '', decision: 'write-reset', reason: 'write-done', waitMs: 0, step: 0, trigger: 'write-done' }) } catch (eL: any) {}
+  }
+
+  /** 这个键上最近那一份快照（没有就是 null）。被退避挡下时用它直接回。 */
+  function cached(key: string): any {
+    const st: ChainBackoffEntry | null = _stateByKey.get(key) || null
+    return st ? st.snapshot : null
+  }
+
+  /** 全绿缓存的寿命（毫秒）——调用方要用它回答「这份全绿结论还能用多久」。取不到时给 0，表示不缓存。 */
+  async function allGreenTtlMs(): Promise<number> {
+    const r: any = await ready()
+    return r ? Number(r.limits.allGreenTtlMs) || 0 : 0
+  }
+
+  /** 现在退到第几档（只给门禁与调试看，业务路径不用它做判断）。 */
+  function stepOf(key: string): number {
+    const st: ChainBackoffEntry | null = _stateByKey.get(key) || null
+    return st ? st.step : 0
+  }
+
+  return { verdict, note, noteWriteActivity, cached, allGreenTtlMs, stepOf, isAllGreen, doneCountOf }
+}

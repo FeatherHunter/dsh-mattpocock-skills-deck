@@ -1,4 +1,4 @@
-import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 // tests/verify-github-gh-via.ts —— #1052 专属门禁：GitHub 房读路径每一次起 gh 进程都带上「这一次是谁发的、走到哪一支」的短标签
 //
 // 门禁归属: src/tracker/rooms/github/

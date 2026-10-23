@@ -13,7 +13,7 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { statusOfItems } from '../shell/edge-landing.js'
 import { specCloseGuard } from '../shell/spec-close-guard.js'
-import { withCallScope } from '../shell/call-budget.js'
+import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { withKeyLock } from '../shell/write-mutex.js'
 import { ensureBody } from '../shell/minimal-spec.js'
 // #1195：执行层失败（抛错 / 中止 / 超时 / 预算耗尽）的收口从两个写工具里抽出来共用，判据一字未改。
@@ -29,7 +29,7 @@ import { originalWordsFromArg } from '../../shared/issue-file/src/original-words
 import { planBodyWrite } from '../shell/body-write.js'
 import type { BodyWritePlan } from '../shell/body-write.js'
 import { textWriteVerify } from '../shell/text-write-verify.js'
-import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/src/tool-cost.js'
+import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 

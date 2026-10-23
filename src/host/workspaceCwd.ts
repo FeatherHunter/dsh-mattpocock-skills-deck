@@ -4,7 +4,7 @@
 import { resolveSessionCwd } from '../shared/session-cwd.js'
 // #1115：opCtxFor 那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
 // 类型与实现在同一行 import：有效行门禁的上限（350）压在这份文件上，合并写法是为了守住它。
-import { hostTimers, type HostTimerService } from '../shared/host-timer/src/host-timers.js'
+import { hostTimers, type HostTimerService } from '../refresh/contract/host-timer-ports.js'
 import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL, WORKSPACE_FILE_LEGACY_REL, isWorkspaceLayout } from '../deck/shell/workspace-anchor.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'

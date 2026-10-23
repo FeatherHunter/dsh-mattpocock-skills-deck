@@ -30,7 +30,7 @@ declare const COMMENTS_MORE_LOADING_MIN_MS: number;
 export const renderIssueDetailComments = function (h: any, st: any, issueNumber: any, detail: any, mode: any, commentsNodes: any, canComment: any, issueEffort: any): any {
       // 评论一页取多少条：只在这里写一次。切片、判「还有更多」、算「已显示多少」、以及
       //   「加载下 {count}」里的数字（config/copy/flow.yaml 的 detail.commentsMore）都用它。
-      // 注意宿主取数那一半（src/host/commentThreads.ts 的 per_page=50 与按 50 算的页码）是另一份页大小，
+      // 注意宿主取数那一半（src/refresh/rooms/host/comment-thread-fetch.ts 的 per_page=50 与按 50 算的页码）是另一份页大小，
       //   客户端显示拿不到它，两半之间没有编译器能校验的连线；改这里要同时确认宿主页大小，否则文案与实际条数会对不上。
       //   声明必须在函数体内：tests/verify-693-detail-fallback-honesty.ts 只把本函数的源码抠出来单独求值。
       const COMMENTS_PAGE_SIZE = 50

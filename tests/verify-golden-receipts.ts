@@ -46,7 +46,7 @@
 //   夹具红则一定是有东西变了（表示抖动或真漂移，按分拣指南看）。
 //
 // 分拣指南（红了先看这里）：cost.actual.remaining 是具名常量
-//  （src/shared/refresh/budget.js 的 PLUGIN_HOURLY_CAP），变了先看是不是调过配额；
+//  （src/refresh/kernel/host-budget.ts 的 PLUGIN_HOURLY_CAP），变了先看是不是调过配额；
 //   <TIME> 与 <ROOT> 与 <WSKEY> 不可能出现在差异里（已归一），若出现说明归一化漏了形状；
 //   其余差异逐个看：键少了/多了是真漂移，值变了是真漂移（键已排序，不会再有纯顺序差异）。
 //
@@ -170,12 +170,12 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   // 必须是第一件事——它之前的产品导入不受钩子管（本文件之前只有 node: 内建导入，不受影响）。
   await import('../scripts/ts-hook.mts')
 
-  const budget = await loadModule('../src/shared/refresh/budget.js') as Record<string, (...a: never[]) => unknown>
-  const ledgerMod = await loadModule('../src/host/refresh/ledger.ts') as Record<string, (...a: never[]) => unknown>
-  const gateMod = await loadModule('../src/host/refresh/gate.ts') as Record<string, (...a: never[]) => unknown>
+  const budget = await loadModule('../src/refresh/kernel/host-budget.js') as Record<string, (...a: never[]) => unknown>
+  const ledgerMod = await loadModule('../src/refresh/rooms/host/quota-ledger.ts') as Record<string, (...a: never[]) => unknown>
+  const gateMod = await loadModule('../src/refresh/rooms/host/refresh-gate.ts') as Record<string, (...a: never[]) => unknown>
   const registryMod = await loadModule('../src/tracker/registry/core.ts') as Record<string, (...a: never[]) => unknown>
   const markdownModule = ((await loadModule('../src/tracker/rooms/markdown/index.ts')) as { markdownModule: unknown }).markdownModule
-  const toolCost = await loadModule('../src/shared/refresh/tool-cost.js') as Record<string, (...a: never[]) => unknown>
+  const toolCost = await loadModule('../src/refresh/kernel/tool-call-budget.js') as Record<string, (...a: never[]) => unknown>
 
   const TOOL_FILES: Record<string, [string, string]> = {
     deck_context: ['../src/deck/tools/context.ts', 'createDeckContext'],

@@ -186,7 +186,7 @@
     // raw（后端原文，原样交出去让人自己判断；客户端自己发现的前置错误没有原文，给空串）。
     const dswsErrorKinds = ['env', 'auth', 'rate-limit', 'conflict', 'unsupported', 'not-found', 'network', 'parse']
     // 宿主老写法 → 八档。只登记 src/host 里确实还会送过来的那几个字面量
-    // （src/host/issueDetail.js 与 src/host/commentThreads.js）：'404' 与 'notFound' → not-found，
+    // （src/refresh/rooms/host/issue-detail-fetch.js 与 src/refresh/rooms/host/comment-thread-fetch.js）：'404' 与 'notFound' → not-found，
     // 'rateLimit' → rate-limit；'env' / 'parse' / 'network' / 'unsupported' 与八档同名，直接透传、不必登记。
     // 'graphql' 是宿主那一层「GraphQL 回包里带着 errors、拿不到数据」的记号：宿主发出它之前，已经先把
     // 限流（isRateLimitError 分支）与找不到（not found 分支）两路分走了，剩下的就是「回包不是我们能用的
@@ -375,7 +375,7 @@
         try { if (res && res.ok === true) log('info', 'host.call', { method: 'wf.commentIssue', latencyMs: Date.now() - ciT0, ok: true, kind: 'comment' }); else log('warn', 'host.call.fail', { method: 'wf.commentIssue', kind: 'comment', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'comment-not-ok')), 120, 'error')) }) } catch (eL) {}
         if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty'), raw: '' } }
         // #715：评论真写进远端之后，记下「这一行刚写过」的时刻 —— 列表那一行据此在合并窗口内显示
-        //   「更新中」，窗口一过自动消失（窗口长度取自 budget.ts，标记本身不改状态也不改布局）。
+        //   「更新中」，窗口一过自动消失（窗口长度取自 host-budget.ts，标记本身不改状态也不改布局）。
         if (res.ok === true) { try { if (typeof markRowWrite === 'function') markRowWrite(st, num, ciEffort) } catch (eW) {}; return { ok: true, comment: res.data != null ? res.data : (res.comment || null) } }
         // #1111：跟踪器侧已经统一成八档（rate-limit / not-found 带连字符），直接透传就够；
         // dswsNormalizeError 是给宿主尚未迁移的通道留的兼容层（老写法 'rateLimit' / 'notFound' / '404'），

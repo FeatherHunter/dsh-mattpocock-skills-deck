@@ -14,9 +14,9 @@
 //   2. 判据只认写后读回的结构字段：票上的 parentKey 已经等于本地图票就不动它（不重复写同一条边）。
 //   3. 额度检查的位置不能挪：①b 不自己查额度（列表本身由后端门面按预算放行或拒绝），
 //      ② 在发每一条之前查一次，剩余额度不够就一条都不写，等下一次带同一个 planId 再来。
-import { matchAnchor, isAnchorHit } from '../../shared/refresh/src/idempotency.js'
+import { matchAnchor, isAnchorHit } from '../../refresh/contract/idempotency-keys.js'
 import { applyParentEdge } from '../shell/edge-landing.js'
-import type { DeckTrackerLike } from '../shell/call-budget.js'
+import type { DeckTrackerLike } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 
 /**
  * 游标里这一段用到的几格。形状与 map-plan-create.ts 的 PlanState 逐格一致，两边靠结构兼容对接；

@@ -11,7 +11,7 @@
  * 一行实现都没有 —— 与契约层「纯类型与数据、没有运行时实现」的定义一致。
  *
  * ── 谁实现、谁读 ─────────────────────────────────────────────────────────────
- * 实现：`src/host/outbound/outbound-control.ts`（薄转发给 admission 与 chain-ride，行为一字不差）。
+ * 实现：`src/refresh/rooms/host/outbound-control.ts`（薄转发给 admission 与 chain-coalescing，行为一字不差）。
  * 注入：宿主把实现挂进 `BackendContext.outbound`（进程级能力，随进程注入一次），房间从
  * `ctx.outbound` 读 —— 与房间里已有的 `ctx.gate`（闸由接线处注入、本房不 import 它）同一条路。
  * 读的人：`src/tracker/rooms/github/client.ts`（起 gh 命令前拿名额、认取消、写完记账）。
@@ -33,7 +33,7 @@ export type OutboundBucket = 'read' | 'write' | 'probe'
  * 出站控制面（宿主实现，房间只读形状）。
  *
  * `acquire` 回的是一个**放行函数**而不是句柄对象：这是仓里名额闸本来的用法
- * （见 `src/host/outbound/admission.ts` 的「用法」注释），照搬过来不另造形状。
+ * （见 `src/refresh/rooms/host/outbound-admission.ts` 的「用法」注释），照搬过来不另造形状。
  * 调用方必须把它放进 `finally` 里放回，漏放会永久占掉一个名额。
  */
 export interface OutboundControl {

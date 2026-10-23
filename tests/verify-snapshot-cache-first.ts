@@ -16,7 +16,7 @@
 //
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-snapshot-cache-first.ts
 
-import { createSessionSnapshot } from '../src/host/sessionSnapshot.ts'
+import { createSessionSnapshot } from '../src/refresh/rooms/host/session-snapshot-cache.ts'
 
 let failed = 0
 let total = 0

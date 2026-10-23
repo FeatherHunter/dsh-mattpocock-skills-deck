@@ -75,9 +75,9 @@ async function main() {
   console.log('\n== 三、一套实例：写事件过门取数 ==')
   const store = { dir: fs.mkdtempSync(path.join(os.tmpdir(), 't19b-single-')), logCtx: null, decides: [] }
   store.logCtx = { isEnabled: () => true, fire: (l, e, f) => { if (e === 'refresh.decide') store.decides.push(typeof f === 'function' ? f() : f) } }
-  const wiringMod = await import(url('src/host/refresh/wiring.ts'))
-  LedgerMod = await import(url('src/host/refresh/ledger.ts'))
-  GateMod = await import(url('src/host/refresh/gate.ts'))
+  const wiringMod = await import(url('src/refresh/rooms/host/refresh-runtime.ts'))
+  LedgerMod = await import(url('src/refresh/rooms/host/quota-ledger.ts'))
+  GateMod = await import(url('src/refresh/rooms/host/refresh-gate.ts'))
   const load = wiringMod.makeRefreshLoader(makeDeps(store))
   const w = await load()
   check(typeof w.focus === 'function' && typeof w.workRouteTableReadout === 'function' && typeof w.deltaRefresh === 'function' && w.gate && w.writeEvents,
@@ -136,7 +136,7 @@ async function main() {
 
   // ── 五、宿主侧字段名：必须与新表读出模块导出的常量同一份（#1271） ──
   console.log('\n== 五、宿主侧字段名 ==')
-  const readoutMod = await import(url('src/host/refresh/workRouteReadoutForHost.js'))
+  const readoutMod = await import(url('src/refresh/rooms/host/work-route-readout.js'))
   const FIELD = readoutMod.WORK_ROUTE_TABLE_FIELD
   check((w as any).workRouteTableField === FIELD,
     '装配点带出来的字段名等于那个常量（workRouteTableField=' + JSON.stringify((w as any).workRouteTableField) + '）',
@@ -146,7 +146,7 @@ async function main() {
     '旧字段名还在 = #1271 退役没做干净')
 
   // 行为：真 sessionSnapshot 的回包上，按那个常量取得出新表（拿一份真读数注入）
-  const snapMod = await import(url('src/host/sessionSnapshot.ts'))
+  const snapMod = await import(url('src/refresh/rooms/host/session-snapshot-cache.ts'))
   const one = { ok: true as const, reason: 'ok' as const, at: 1700000000000, rows: [{ ticketKey: 'acme/demo#701', sessionLabel: 'sess-2', currentSession: true, action: 'comment', actionAt: new Date(1700000000000).toISOString() }] }
   const table = new Map()
   const envMod = await import(url('src/host/snapshotEnvelope.ts'))

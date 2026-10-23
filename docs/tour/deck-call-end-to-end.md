@@ -23,7 +23,7 @@
   │ ① 工具从哪来：装机补丁装上宿主与「工具行」；宿主先装好那张表，工具行把九个工具注册进工具服务
   ▼
 工具服务（DSH 的 tools 服务）   package/cordis.patch.yml:8-14
-                                → 宿主装表 src/host/refresh/wiring.ts:338-447
+                                → 宿主装表 src/refresh/registry/deck-tool-bridge.ts:93-104
                                 → 工具行注册 src/deck/registration/agent-row.ts:393-416
   │ ② AI 发起调用 → 工具服务调 execute(args, exec)
   ▼
@@ -67,20 +67,20 @@ makeDelegatedExecute              src/deck/registration/agent-row.ts:313-391
 **2. 宿主把那张表装出来**：
 
 ```
-src/host/refresh/wiring.ts:338-447（deckToolsForHost）
-  → src/deck/registration/host-assemble.ts:94-130（createDeckToolsForHost）
+src/refresh/registry/deck-tool-bridge.ts:93-104（createDeckToolBridge、deckToolsForHost，内调 :47 的 createDeckToolsForHost）
+  → src/deck/registration/host-assemble.ts（九个工厂的读入点与竞速 helper，装表机已搬进桥里）
   → src/deck/rules/tool-table.ts:59-77（createDeckTools）
 ```
 
 表里每个工具是 `{ definition, run }`，键是工具名；哪个工厂装不起来就少哪个，缺的如实列在 `missing` 里，**不补假桩**（`src/deck/rules/tool-table.ts:74-76`）。九个名字与顺序钉在 `src/deck/rules/tool-order.ts:12-14`（`DECK_TOOL_ORDER`）：`deck_context` / `deck_issue_get` / `deck_map_snapshot` / `deck_issue_list` / `deck_issue_create` / `deck_map_plan_create` / `deck_map_link` / `deck_issue_patch` / `deck_issue_report`。
 
-装好之后放进**同进程共享格**（给工具行直接取用，不经任何调用面）：`src/host/refresh/wiring.ts:444` → `src/deck/shell/table-cell.ts` 的 `publishDeckTable`。这一格的生命周期与原因写在 `src/deck/shell/table-cell.ts:1-7`：行与宿主同进程时格里有货，跨进程时永远是空的。
+装好之后放进**同进程共享格**（给工具行直接取用，不经任何调用面）：`src/refresh/registry/deck-tool-bridge.ts:222` → `src/deck/shell/table-cell.ts` 的 `publishDeckTable`。这一格的生命周期与原因写在 `src/deck/shell/table-cell.ts:1-7`：行与宿主同进程时格里有货，跨进程时永远是空的。
 
 **3. 工具行把九个工具注册给工具服务**（`src/deck/registration/agent-row.ts`）：它声明自己要用工具服务（`name` 与 `inject: ['tools']` 在 `:52-53`），`apply` 里逐条 `ctx.tools.register`（`:398-404`；服务不在就直接抛、行起不来，`:393-397`），每个工具经 `toRawRegistration`（`:173-186`）交出 `{ name, description, parameters, timeoutMs, output, execute }`，其中 `execute = makeDelegatedExecute(工具名, ctx)`（`:313-391`），`timeoutMs` 用 `AGENT_TOOL_TIMEOUT_MS`（值 300000，定义在 `src/deck/registration/register-options.ts:39`）。它同时注册一个自查用的探针工具 `deck_probe`（`:409-416`，定义在 `src/deck/registration/register-options.ts:267-271`）——这一条**不走** `makeDelegatedExecute`，`execute` 直接回一串 JSON（`:415`）。
 
-**4. 宿主插件那侧还留着一条兼容钩子**（`src/host/refresh/wiring.ts:337`）：`hookDeckAgentTools(…)` 调向 `src/deck/registration/register-options.ts:430-477`，等两样东西都就绪、各等最多五轮每轮两秒——先要那张表（`table(retries)`，:451-452），再要工具服务（`attempt(left)`，:454-474），就绪后由 `registerDeckAgentTools`（:336-398）逐条注册，每个工具包一层 `makeExecute`（:302-324），注册时同样带 `timeoutMs`（:367）。
+**4. 宿主插件那侧还留着一条兼容钩子**（`src/refresh/rooms/host/refresh-runtime.ts:306`）：`hookDeckAgentTools(…)` 调向 `src/deck/registration/register-options.ts:430-477`，等两样东西都就绪、各等最多五轮每轮两秒——先要那张表（`table(retries)`，:451-452），再要工具服务（`attempt(left)`，:454-474），就绪后由 `registerDeckAgentTools`（:336-398）逐条注册，每个工具包一层 `makeExecute`（:302-324），注册时同样带 `timeoutMs`（:367）。
 
-两条注册路都按注册表认的形状交纯数据对象（`loadDefineTool` 固定传 `null`；原因写在 `wiring.ts:334-335`：从前动态 import 自带副本，挂载后所有调用都报 `prepare undefined`）。为什么留着第二条：`src/deck/registration/agent-row.ts:5` 写着「与宿主插件那一行互不干扰。宿主插件里的兼容钩子留着（别的产品可能是同一容器）」，装配补丁里也留了同一句（`package/cordis.patch.yml:5`）。门禁钉着「装配补丁必须含工具行」，理由写在测试里：**agent 层能装上**（`tests/verify-deck-tools-row-zero-dep.js:44`；同一个文件 :61 也断言行模块交出九个）。
+两条注册路都按注册表认的形状交纯数据对象（`loadDefineTool` 固定传 `null`，见 `src/refresh/rooms/host/refresh-runtime.ts:306`；当年“动态 import 自带副本、挂载后报 `prepare undefined`”那句原因注释在 #1429 桥拆分时没有搬过来，行为本身没变）。为什么留着第二条：`src/deck/registration/agent-row.ts:5` 写着「与宿主插件那一行互不干扰。宿主插件里的兼容钩子留着（别的产品可能是同一容器）」，装配补丁里也留了同一句（`package/cordis.patch.yml:5`）。门禁钉着「装配补丁必须含工具行」，理由写在测试里：**agent 层能装上**（`tests/verify-deck-tools-row-zero-dep.ts:44`；同一个文件 :61 也断言行模块交出九个）。
 
 **这一层失败长什么样**
 
@@ -227,7 +227,7 @@ pickBackend(exec, s)
 gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool-batch', bucket: 'graphql' })
 ```
 
-估算是调用前算好的（`src/deck/shell/call-shell.ts:199-207` 的 `estimateFor` → `src/shared/refresh/tool-cost.js:1-100`（真源 `src/shared/refresh/src/tool-cost.ts`））。硬顶的五个数在 `src/shared/refresh/budget.js:27-31`：
+估算是调用前算好的（`src/deck/shell/call-shell.ts:206` 的 `estimateFor` → `src/refresh/kernel/tool-call-budget.ts`（真源，原 `src/shared/refresh/src/tool-cost.ts`））。硬顶的五个数在 `src/refresh/kernel/host-budget.ts:134-146`：
 
 | 常量 | 值 |
 | --- | --- |
@@ -237,20 +237,20 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 | `AI_TOOL_MAX_REQUESTS_PER_HOUR` | 1500 |
 | `AI_TOOL_MAX_CHILD_TICKETS_PER_CALL` | 60 |
 
-顶住了就回 `reason: 'ai-tool-refused'`，文案是**闸自己那句原话**——出处是 `src/host/refresh/refusal-text.ts:32` 的 `refusalTextRef(a, q, hour, plan, limits)`，由闸挂进准入结论（`src/host/refresh/gate.ts:438`）。它分两种头（`:11` 超过插件自己给工具设的硬顶 / `:12` 额度被别人用掉），后面拼上预计花费、本小时已用、这一桶还剩多少、建议分几次；`src/deck/shell/call-shell.ts:226-232` 那一段只是闸没给文案时的兜底（`:228`），工具不自己编一个数。
+顶住了就回 `reason: 'ai-tool-refused'`，文案是**闸自己那句原话**——出处是 `src/refresh/rooms/host/refusal-messages.ts:32` 的 `refusalTextRef(a, q, hour, plan, limits)`，由闸挂进准入结论（`src/refresh/rooms/host/refresh-gate.ts:471`）。它分两种头（`:11` 超过插件自己给工具设的硬顶 / `:12` 额度被别人用掉），后面拼上预计花费、本小时已用、这一桶还剩多少、建议分几次；`src/deck/shell/call-shell.ts:232-235` 那一段只是闸没给文案时的兜底（`:235`），工具不自己编一个数。
 
-**② 过闸记账（`gate.send`，:393-401）**
+**② 过闸记账（`gate.send`，`call-shell.ts:400-408`）**
 
-闸的实现是 `src/host/refresh/gate.ts`（`admitAiTool` :427、`send` :356、四张对照表 :31）。
+闸的实现是 `src/refresh/rooms/host/refresh-gate.ts`（`admitAiTool` :460、`send` :389、四张对照表 :37）。
 
-**③ 干活（:392-400）**
+**③ 干活（`call-shell.ts:402-408`）**
 
-工具自己那段 `work(ctx)` 在这里跑。`ctx` 里带着（:380-390）：会话、选出的后端与仓库、闸、注册表选出的 `tracker`、以及 `opCtx`（`platform` / `fs` / `exec` 那一套，加上 `cwd`、`caller: 'deck-tool'`、沙箱策略、会话号）。
-`work` 回来的 `claimed`（这一笔实际花了多少请求/点数）原样记进账（:397-399）。
+工具自己那段 `work(ctx)` 在这里跑。`ctx` 里带着（`call-shell.ts:388-398`）：会话、选出的后端与仓库、闸、注册表选出的 `tracker`、以及 `opCtx`（`platform` / `fs` / `exec` 那一套，加上 `cwd`、`caller: 'deck-tool'`、沙箱策略、会话号）。
+`work` 回来的 `claimed`（这一笔实际花了多少请求/点数）原样记进账（`call-shell.ts:406-407`）。
 
-**④ 收口（`mergeOutcome`，:438-458）**
+**④ 收口（`mergeOutcome`，`call-shell.ts:451-471`）**
 
-把工具那份结果并进统一信封（状态、逐项、注记、写后读回值），并且**写过的票要让宿主那侧的快照缓存作废**（:450-455，调接线给的 `d.invalidate`，位置在 `src/host/refresh/wiring.ts:427`）。
+把工具那份结果并进统一信封（状态、逐项、注记、写后读回值），并且**写过的票要让宿主那侧的快照缓存作废**（`call-shell.ts:461-467`，调接线给的 `d.invalidate`，实现在 `src/refresh/registry/deck-tool-bridge.ts:199`）。
 
 ### 单次钳制与中止（`withCallScope`）
 
@@ -421,7 +421,7 @@ writeTextFile(ctx, fullPath, content, sandboxPolicy)
 
 **谁调它**：只有宿主的两条电话，各自在两个分支里现建现用——`src/host/sessionSnapshot.ts:161-166` 与 `:307-310`、`src/host/sessionRefresh.ts:123-126` 与 `:283-286`；产物是 `createSnapshotComposer`（`src/host/tracker/snapshot.js:184`）。**九个 deck 工具都不在这条路上**（全仓 `createSnapshotComposer` 的调用点只有上面这四处，都在宿主侧）。
 
-**写完之后怎么让它作废**：工具在返回值里带 `touched`（写过的票号），`src/deck/shell/call-shell.ts:451-456` 拿着它调接线的 `invalidate`，实现是 `src/host/refresh/wiring.ts:427`——按**工作区目录**把那一份缓存置空。这里踩过一次坑：只给 repo 与票号、不给工作区，宿主那侧的缓存按 cwd 分桶，就认不出该作废哪一份，那一步会**静默什么也没做**（原委写在 `src/deck/shell/call-shell.ts:452-454`）。
+**写完之后怎么让它作废**：工具在返回值里带 `touched`（写过的票号），`src/deck/shell/call-shell.ts:461-467` 拿着它调接线的 `invalidate`，实现是 `src/refresh/registry/deck-tool-bridge.ts:199`——按**工作区目录**把那一份缓存置空。这里踩过一次坑：只给 repo 与票号、不给工作区，宿主那侧的缓存按 cwd 分桶，就认不出该作废哪一份，那一步会**静默什么也没做**（原委写在 `src/deck/shell/call-shell.ts:464-466`，门禁断言当场抓住）。
 
 **快照这条路的失败长什么样**：读不到就是读不到——`composeSnapshot` 失败时回 `{ok:false, error}`，调它的那条电话把它变成错误。
 
@@ -715,7 +715,7 @@ run                  src/deck/tools/issue-report.ts:121-207
 - 第三座房间 GitLab 只写了门面与最底层（`gitlab/index.ts:245-357` 的操作映射、`src/tracker/rooms/gitlab/client.ts:108` 的 `execGlab('glab', args, …)`），没有逐工具走一遍。它不在 #1094 点名的三座底层里（gh 进程、Markdown 文件、快照）。
 - 宿主电话 `wf.deckExec` 只写到它自己的六种回法为止；行模块拿到结果之后怎么渲染给 AI，没展开。
 - 快照与面板之间的那条读路（`src/host/sessionSnapshot.ts` / `src/host/sessionRefresh.ts` / `src/host/mapTickets.js`）只指了入口，没逐层展开。
-- 源码里还留着几处过时的名字与注释（`src/deck/registration/agent-row.ts:34` 的常量叫 `SEVEN` 其实是九项；`src/deck/registration/register-options.ts:8`、`src/host/refresh/wiring.ts:308`、`src/deck/registration/host-delegate.ts:59`、`package/cordis.patch.yml:2` 还写着「七个」；`src/tracker/rooms/github/errors.ts:6-7` 的注释里 network 与 not-found 的先后跟代码相反）。这份文档按**代码实际行为**写，不按那些注释写；要不要改注释是另一件事。
+- 源码里个别名字与注释跟现状有出入（早年“七个工具”时期的叫法在搬家后多已消失，旧举例不再逐条列举）。这份文档按**代码实际行为**写，不按那些注释写；要不要改注释是另一件事。
 - 两条注册路同时装上时，同一个工具名注册两次会怎样（谁生效、会不会报错）：`src/deck/registration/agent-row.ts:402` 与 `src/deck/registration/register-options.ts:387` 都调 `tools.register`，仓库里没有说明，这一版**没有结论**，别当成已查明。
 
 **接手方式**

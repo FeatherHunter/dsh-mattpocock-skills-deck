@@ -68,9 +68,9 @@ const demoIssue = { key: '7', title: '演练票', state: 'open', type: 'issue', 
 
 async function main() {
   console.log('按需取数诚实门禁（缺省全量、跳过注记、统计不变）')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const getMod = await imp('src/deck/tools/issue-get.ts')
   const snapMod = await imp('src/deck/tools/map-snapshot.ts')
 

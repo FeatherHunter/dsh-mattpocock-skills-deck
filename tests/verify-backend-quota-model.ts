@@ -7,7 +7,7 @@
 //   ③ 本地 Markdown 后端不出站，因此没有额度也没有花费。
 // 另外守一条纪律：这份模型里**不许出现任何额度数值**。服务端此刻还剩多少只能现场读
 //（GitHub 走那个不扣配额的 `gh api rate_limit`），写死一个数就会骗人；额度常量的唯一物理真源
-// 仍然是 src/shared/refresh/src/budget.ts。
+// 仍然是 src/refresh/kernel/host-budget.ts。
 //
 // 断言的是**行为**：同一笔花费喂给三个后端，返回值必须按各自的口径不同——不是只比对一张常量表。
 // 反证（每次运行都跑）：把一笔点数花费喂给 GitLab，它必须记 0 点并明说「这个后端不按点数计费」；
@@ -23,7 +23,7 @@ const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok 
 
 async function main() {
   console.log('后端额度模型门禁（#719 T15：三个后端的桶形状不同，按后端算价）')
-  const q = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'backend-quota.js')).href)
+  const q = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'backend-quota-model.js')).href)
 
   // ① GitHub：两桶、彼此独立、两个口径都记账。
   const gh = q.backendBudgetModel('github')
@@ -67,7 +67,7 @@ async function main() {
 
   // ⑥ 这份模型里一个额度数值都没有（额度只能来自服务端现场读数，常量真源只有 budget.ts）。
   // 2026-10-19 第三阶段起共享层产物搬出源码树，转译产物改读仓库根的 .build/shared/ 下那一份。
-  const text = fs.readFileSync(path.join(ROOT, '.build', 'shared', 'refresh', 'backend-quota.js'), 'utf8')
+  const text = fs.readFileSync(path.join(ROOT, '.build', 'refresh', 'kernel', 'backend-quota-model.js'), 'utf8')
   check(!/\b5000\b/.test(text) && !/\b1750\b/.test(text) && !/\b1225\b/.test(text),
     '模型产物里没有写死任何额度数值（5000 / 1750 / 1225 都不出现）')
   const numericFields = []

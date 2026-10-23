@@ -5,7 +5,7 @@
 //   ② 工作区文件命中（用户选过谁）时一次计时器都不起（快路径不问后端，也就不等兜底）；
 //       #1138 起这条快路径住在统一判定出口的第一层（读 docs/agents/workspace.yaml），不在注册表里。
 //   ③ 等待超时之后仍然是「还没答完」（pending=true），不是「没有后端」（不是 other、不是干净回落）；
-//   ④ 经 deck 工具进来的那条路（宿主接线 src/host/refresh/wiring.js 造的后端上下文）也要走注入的
+//   ④ 经 deck 工具进来的那条路（宿主接线 src/refresh/rooms/host/refresh-runtime.js 造的后端上下文）也要走注入的
 //      等待口，而不是全局时钟——否则它一挂住，门禁就只能真等 30 秒，看不住。
 //
 // ① 怎么盯：不看源码文本、不读常量，而是给注册表一个假计时器，看它**真的申请了多少毫秒**。
@@ -144,7 +144,7 @@ async function main() {
   console.log('#1109 选后端的兜底等待：生产路径真的是 30000ms、快路径不起计时器、超时仍算「还没答完」')
 
   const { createPlatformChannel } = await imp('src/host/platformChannel.js')
-  const { createRefreshWiring } = await imp('src/host/refresh/wiring.js')
+  const { createRefreshWiring } = await imp('src/refresh/rooms/host/refresh-runtime.js')
 
   const wsA = makeWorkspace('a')
   const fsSvc = makeFs()

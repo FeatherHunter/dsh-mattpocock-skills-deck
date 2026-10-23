@@ -87,9 +87,9 @@ function execFor(cwd) {
 
 async function main() {
   console.log('1195 超时分家门禁（上报 / 建票 / 上下文 / 改票：超时与抛错各走各的码）')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   // 注意各操作的形参个数（壳按 backend.ts 的原形调，ctx 永远是最后一个）：
   // preflight(handle, ctx) / list(repo, filter, ctx) / get(repo, key, f, ctx) ——
   // list 曾经错写成两个参，ctx 拿到的其实是 filter，桩永远等不到中止（查 #1195 过程记录）。

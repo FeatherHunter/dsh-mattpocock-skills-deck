@@ -14,7 +14,7 @@
  * 两张卡横排（探索地图在左、实施地图在右）；面板页签行在面板顶部，浮层从按钮正下方弹出、
  * 两张卡竖排。左右都先与触发器左沿对齐，右边放不下时才把右沿顶到屏幕右侧。
  *
- * 状态住全局 store（src/client/kernel/store-snapshot.ts 的 entryOpen / entryFrom / entryPos）：
+ * 状态住全局 store（src/refresh/rooms/client/snapshot-cache-store.ts 的 entryOpen / entryFrom / entryPos）：
  * 两处宿主都挂在面板与状态栏这两个可能先卸载的树里，浮层必须挂到 document.body（portalTop），
  * 由本组件自己读状态决定画不画，宿主只管「点触发器时把浮层打开」这一件事。
  *

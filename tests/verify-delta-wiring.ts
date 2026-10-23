@@ -34,12 +34,12 @@ function main() {
 
 async function run() {
   console.log('增量接线门禁（#723 T19c · 第 E 件：客户端吃增量结果、水印收口成一条）')
-  const delta = await imp('src/shared/refresh/delta.js')
-  const win = await imp('src/shared/tracker/indexWindow.js')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const issueListMod = await imp('src/host/issueList.js')
-  const commentMod = await imp('src/host/commentThreads.js')
-  const wiringMod = await imp('src/host/refresh/wiring.js')
+  const delta = await imp('src/refresh/kernel/snapshot-diff.js')
+  const win = await imp('src/refresh/kernel/index-window-rules.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const issueListMod = await imp('src/refresh/rooms/host/issue-list-fetch.js')
+  const probeMod = await imp('src/refresh/rooms/host/probe-handler.js')
+  const wiringMod = await imp('src/refresh/rooms/host/refresh-runtime.js')
 
   // ---- 假世界：一份内存快照 + 一个记账的传输层 + 一份可摆布的窗口索引 ----
   const row = (n, state, updatedAt) => ({ number: n, key: String(n), title: '票 ' + n, state: state, updatedAt: updatedAt, labels: [], assignees: [], createdAt: '2026-09-01T00:00:00Z' })
@@ -132,14 +132,14 @@ async function run() {
   const rawSend = wiring.gate.send
   wiring.gate.send = function (req, perform) { seenKeys.push(String((req && req.workspaceKey) || '')); return rawSend.apply(wiring.gate, arguments) }
 
-  const comments = commentMod.createCommentThreads({
+  // #1429 D4：探针电话改由 probe-handler.ts 直接组装（只收 16 个探针依赖，多余的不再传）。
+  const comments = probeMod.createProbeHandler({
     canonicalKey: async (p) => String(p),
     selectEarly: async () => null,          // 探测走 GitHub 那一条（窗口索引 + 行级增量）
     isComposerSelection: () => false,
     getTrackerRegistry: async () => null,
     getPlatform: async () => ({ path: path.posix }),
     ctx: { get: () => undefined },
-    DEFAULT_CWD: CWD,
     errText: (e) => String((e && e.message) || e),
     fetchIssueIndexWindowed: (cwd) => issueList.fetchIssueIndexWindowed(cwd),
     commitIssueIndex: (cwd, wm) => issueList.commitIssueIndex(cwd, wm),
@@ -150,7 +150,6 @@ async function run() {
     setCache: (v) => { if (v && v.snapshot) cacheBox.snapshot = v.snapshot },
     lastIssueIndexByRepo: {},
     lastProbeAtByRepo: {},
-    logCtx: logCtx,
   })
 
   // ---- ① 探测说变了：只发薄查询，并把补好的那一份交回客户端 ----
@@ -211,7 +210,7 @@ async function run() {
   // ---- ④ 客户端那一侧：吃增量、不再无条件整池 ----
   const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
   // 读 .ts 真源（sourcePath 在同名 .js/.ts 并存时优先 .ts）：判据里的单引号与分支顺序都是源码形态。
-  const clientSrc = fs.readFileSync(path.join(ROOT, sourcePath('src/client/kernel/probe-auto.js')), 'utf8')
+  const clientSrc = fs.readFileSync(path.join(ROOT, sourcePath('src/refresh/rooms/client/refresh-timer.js')), 'utf8')
   check(/res\.mode === 'deferred'/.test(clientSrc) && /res\.mode === 'stale-dropped'/.test(clientSrc), "④客户端认得出宿主那句「这一次没并进去」（deferred / stale-dropped），那一拍一个请求都不发")
   // #1355 起 applySnap 多带一个参数（这份表是不是本会话自己请求回来的）；判据只认「增量那一支确实把它交出去了」，
   //   不钉参数个数以外的写法。
@@ -223,11 +222,11 @@ async function run() {
   check((clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length === 1, '④整池那一条只剩一处（宿主说该整池时才走），实得 ' + (clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length + ' 处')
 
   // ---- 反证夹具：把「探测一回来就推水印」放回去，判据必须逮住 ----
-  // 收口后的代码分住两处：调用方 issueList.ts + 规则与状态 src/host/platform/issueIndexWindow.js，两份一起扫。
+  // 收口后的代码分住两处：调用方 issueList.ts + 规则与状态 src/refresh/rooms/host/issue-index-scan.js，两份一起扫。
   // （2026-10-18 #1247：调用方真源转成 TypeScript，路径跟到 .ts；判据扫的是运行时语句，转写零变化，模式串不动。）
   const listCode = stripComments(
-    fs.readFileSync(path.join(ROOT, 'src', 'host', 'issueList.ts'), 'utf8') +
-    fs.readFileSync(path.join(ROOT, 'src', 'host', 'platform', 'issueIndexWindow.ts'), 'utf8'))
+    fs.readFileSync(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'issue-list-fetch.ts'), 'utf8') +
+    fs.readFileSync(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'issue-index-scan.ts'), 'utf8'))
   check(!/lastIndexWatermarkByRepo\[rk\]\s*=\s*win\.nextWatermark\(/.test(listCode), '✗ probe：整池那条路里「探测一回来就推水印」那一行已经不在了（收口成一条的证据）')
   check(!/if \(true\)\s*\{\s*lastIndexBaselineByRepo\[rk\]/.test(listCode), '✗ probe：也没有「无条件把基线/水印记下来」这种写法（谁推都得先问一句并进列表了没有）')
   check(/lastIndexWatermarkByRepo\[rk\]\s*=\s*win\.nextWatermark\(/.test(stripComments("  lastIndexWatermarkByRepo[rk] = win.nextWatermark(startedMs) // 探到就推")), '✗ probe：同一套判据认得出「探测一回来就推水印」这种写法（夹具不空转）')

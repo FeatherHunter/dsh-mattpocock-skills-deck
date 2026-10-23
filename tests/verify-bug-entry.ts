@@ -42,7 +42,7 @@ const DEFAULT_SOURCES = [
   //   config/copy/panel.yaml，源码里不再有；下面第 2 组改从共享读取核 readCopyConfig 按语言逐门查（判据更严）。
   'src/client/statusbar/StatusBar.js',   // BUG 悬停菜单弹层与开新会话接线（其一）
   'src/client/views/shared/Tabs.js',     // 面板「+ 新增BUG单」按钮接线（其二）
-  'src/client/kernel/store-snapshot.js', // bugMenuHover 默认状态
+  'src/refresh/rooms/client/snapshot-cache-store.js', // bugMenuHover 默认状态
   'src/client/kernel/icons.js',          // Ic bug 图标
 ]
 const targets = files.length ? [files] : [DEFAULT_SOURCES]

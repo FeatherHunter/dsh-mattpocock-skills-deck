@@ -1,4 +1,4 @@
-// verify-contract-vocabulary.ts —— 门禁：契约层里不许有「死了的常量」（#719 T15 收口 · 2026-09-24 按统筹者裁定放大到整棵 src/shared）
+// verify-contract-vocabulary.ts —— 门禁：契约层里不许有「死了的常量」（#719 T15 收口 · 2026-09-24 按统筹者裁定放大到整棵 src/shared；#1425 起刷新机制那 20 份真源搬进 src/refresh/，扫描面跟着扩到 src/refresh，词汇表还是同一份、只是换了住处）
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-contract-vocabulary.ts，可独立运行。
 //
 // 为什么要有这一条（票面第 3 条的原话）：契约层与共享层是「两个半场共用的词汇表」，它多一个常量，
@@ -22,7 +22,9 @@
 // 只按②判则抓不到 #719 要清的那四个事件源常量——它们**确实**被自己人读过（needProbeSource 读的），
 // 读者在共享层内部，生产代码一次都没碰过。两条都不满足，才是「谁都碰不到」那种死词汇。
 //
-// 扫哪棵树：整棵 `src/shared`（2026-09-24 统筹者裁定；此前只扫 src/shared/tracker/）。
+// 扫哪棵树：`src/shared` 整棵加 `src/refresh` 整棵（2026-09-24 统筹者裁定前者；此前只扫 src/shared/tracker/。
+// #1425 起刷新那 20 份真源搬进 src/refresh/，词汇表还是同一份，扫描面跟着搬；住户（#1426-#1428）
+// 进来自动被扫到，不用再改这里）。
 // 门禁自己这个文件不参与扫描：它必然要写出那些待查的名字（例如下面那条 #719 的硬断言），
 // 把它算成读者就是自证。
 //
@@ -42,12 +44,12 @@ let failed = false
 let total = 0
 const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-/** 值扫这三棵树里的前两棵：生产代码。 */
-const VALUE_DIRS = ['src/host', 'src/client']
-/** 名字扫这三棵：生产代码 + 测试与门禁。 */
-const NAME_DIRS = ['src/host', 'src/client', 'tests']
-/** 契约层就是整棵 src/shared（共享词汇表）。 */
-const CONTRACT_DIRS = ['src/shared']
+/** 值扫生产代码三棵树（#1426 起加 src/refresh：宿主房代码搬进新家，产出的值住在那里）。 */
+const VALUE_DIRS = ['src/host', 'src/client', 'src/refresh']
+/** 名字扫这四棵：生产代码 + 测试与门禁。 */
+const NAME_DIRS = ['src/host', 'src/client', 'src/refresh', 'tests']
+/** 契约层就是整棵 src/shared（共享词汇表）加整棵 src/refresh（刷新机制的新家，#1425 起）。 */
+const CONTRACT_DIRS = ['src/shared', 'src/refresh']
 /** 本门禁自己的文件：扫描时要跳过（它必然写出待查的名字，算成读者就是自证）。 */
 const SELF = path.relative(ROOT, __filename).replace(/\\/g, '/')
 
@@ -172,7 +174,7 @@ function stringConstantsOf(modExport, modName) {
  * 这一族要看两件事：
  *   - 有推导在场（dynamicText 非空，见 main 里那条断言）；
  *   - 这个常量属于被推导的那一族：名字是 `<文件名大写>_SOURCE`，值是 `src/shared/<域>/src/x.ts`
- *     这样的仓库相对源码路径。两条一起才是「产物里的模块标识」这件事本身。
+ *     或 `src/refresh/<层>/x.ts` 这样的仓库相对源码路径。两条一起才是「产物里的模块标识」这件事本身。
  * 推导出来的**成品名字**（PORTS_SOURCE 这类）是跑的时候拼出来的，静态文本里没有，所以这里没法
  * 按名字对；至于推导出来的每个名字是不是真有对应产物、值是不是指向真源码，由做推导的那道门禁
  * 自己逐份断言（tests/verify-build-artifacts.js 的模块标识出处判据）。这里只负责不当死词汇判红。
@@ -184,7 +186,7 @@ function dead(constants, valueText, nameText, dynamicText = '') {
     if ((c.tokens || []).some(tokenSeen)) return false
     // 动态读取面（#845）：模块标识那一族被门禁按文件名推导读，见上面那段说明。
     const key = String(c.name).split('.').pop()
-    if (dynamicText !== '' && /^[A-Z0-9_]+_SOURCE$/.test(key) && /^src\/shared\/[^/]+\/src\/[^/]+\.ts$/.test(c.value)) return false
+    if (dynamicText !== '' && /^[A-Z0-9_]+_SOURCE$/.test(key) && /^src\/shared\/[^/]+\/src\/[^/]+\.ts$|^src\/refresh\/.+\.ts$/.test(c.value)) return false
     return true
   })
 }
@@ -193,7 +195,7 @@ async function main() {
   console.log('共享层词汇门禁（#719 T15：整棵 src/shared 的字符串型常量都要有出处，死了的判红）')
   const valueText = textOf(VALUE_DIRS)
   const nameText = textOf(NAME_DIRS)
-  check(valueText.length > 0, '生产代码扫到了内容（src/host 与 src/client 两棵树，' + valueText.length + ' 个字符）')
+  check(valueText.length > 0, '生产代码扫到了内容（src/host、src/client、src/refresh 三棵树，' + valueText.length + ' 个字符）')
   check(nameText.length > valueText.length, '名字那一份比值那一份大（多扫了 tests 那棵树，' + nameText.length + ' 个字符）')
   // 自证防护：本门禁自己的文件必须真的没被扫进去（它里面写着待查的名字，算成读者就是自证）。
   check(nameText.indexOf('死了的字符串型常量') < 0, '本门禁自己的文件没有被算进读者那一段文本（排除生效）')
@@ -240,9 +242,10 @@ async function main() {
   // #719 删掉的六个来源标注不许回来（它们的产物第一行已经有机器生成的 AUTO-GENERATED 包头）。
   // 这一次查的是构建产物，所以仍然只看 .js：源码 .ts 里那六行以注释形式留着（「这里原来有一行
   // export const …」），把 .ts 也算进来会拿注释去判「标注回来了」，当场假红。
-  // 产物落点从 src/shared/refresh/ 搬到 .build/shared/refresh/，扫描根跟着搬。
+  // 产物落点：2026-10-19 起从 src/shared/refresh/ 搬到 .build/shared/refresh/，扫描根跟着搬过一次；
+  // #1425 起真源搬进 src/refresh/，产物跟着住 .build/refresh/，扫描根再跟着搬一次。
   const goneSources = ['ATTENTION_SOURCE', 'BACKOFF_SOURCE', 'CHAIN_SOURCE', 'CREATE_WRITE_SOURCE', 'DELTA_SOURCE', 'IDEMPOTENCY_SOURCE']
-  const refreshJs = walk(path.join(ROOT, '.build', 'shared', 'refresh'), []).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
+  const refreshJs = walk(path.join(ROOT, '.build', 'refresh'), []).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
   const back = goneSources.filter((n) => new RegExp('export const ' + n + '\\b').test(refreshJs))
   check(back.length === 0, '六个没有读者的来源标注已从产物里删掉（' + goneSources.length + ' 个里找回了 ' + back.length + ' 个' + (back.length ? '：' + back.join('、') : '') + '）')
 

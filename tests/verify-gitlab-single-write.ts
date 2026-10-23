@@ -22,7 +22,7 @@
 
 import { createRegistry } from '../src/tracker/registry/core.ts'
 import { gitlabBackend } from '../src/tracker/rooms/gitlab/index.ts'
-import { anchorLineFor } from '../src/shared/refresh/idempotency.js'
+import { anchorLineFor } from '../src/refresh/contract/idempotency-keys.js'
 
 const GL_REPO = { backend: 'gitlab', refId: 'acme/demo', name: 'demo', url: '' }
 const KNOWN_KINDS = ['env', 'not-found', 'network', 'parse', 'auth', 'ratelimit', 'unsupported', 'conflict']

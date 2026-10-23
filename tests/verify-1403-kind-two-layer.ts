@@ -53,12 +53,12 @@ function makeWorkspace() {
 
 async function main() {
   console.log('#1403 两层词表：六个位置值建票、落盘、读回与拒绝例')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
 
   const ws = makeWorkspace()
   const clock = 1700000000000

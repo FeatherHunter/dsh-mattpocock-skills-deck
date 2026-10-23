@@ -583,8 +583,10 @@ function checkSelectionShape(out, label) {
   // 2026-10-20 第四阶段：源码里的说明符也跟着指向真源（../shared/<域>/src/<名>.js，tsc 靠扩展名替换解析到 .ts），
   //   所以「别人怎么写」与「人该去改哪份文件」现在是同一条路径；两个常量都保留：一个给归属表与选择用，
   //   一个给反向依赖扫描用，将来构建若再改说明符几何只改后者。
-  const target = 'src/shared/refresh/src/budget.ts'
-  const specTarget = 'src/shared/refresh/src/budget.js'
+  //   #1425 起这份底层模块搬进 src/refresh/（改名前叫 src/shared/refresh/src/budget.ts），
+  //   两个常量跟着换地址，场景逻辑不变。
+  const target = 'src/refresh/kernel/host-budget.ts'
+  const specTarget = 'src/refresh/kernel/host-budget.js'
   check(fs.existsSync(path.join(ROOT, target)), '底层共享模块 ' + target + ' 还在（场景三要用它）')
   // 这里自己扫一遍 src/，算出谁 import 了这个文件——不调被测的建图代码，免得自证自话。
   const importers = whoImports(specTarget)

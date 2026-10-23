@@ -42,12 +42,12 @@ function makeWS() {
 
 async function main(): Promise<void> {
   console.log('#784 八工具验收（八个带 effortId 的工具，deck_context 不带 effortId 不在内）')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.ts')
-  const gateMod = await imp('src/host/refresh/gate.ts')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const ws = makeWS()
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
   chooseWorkspace(ws.rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id) { return t.get(String(id)) || null }, save(id, s) { t.set(String(id), s) } } })()
-  // decideBackend：生产装配总是给（见 src/deck/registration/host-assemble.ts 的 decideBackend: decideBackendFn），
+  // decideBackend：生产装配总是给（见 src/refresh/registry/deck-tool-bridge.ts 的 decideBackend: decideBackendFn），
   //   壳拿不到它时一律回「判定出口这次没装上」。夹具照生产的接法给上判定出口桩，桩直接调生产判定出口
   //   读上面那份工作区文件（写用途只认文件里的记录，这正是 #1003 契约期望行为第 4 条）。
   const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: ws.ctx, handleFor: () => handle, log: { fire: () => {} }, now: () => clock, planStore, decideBackend: makeDecideStub(registry) }

@@ -15,7 +15,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-/** 从 budget.js 取一套裁决要用的数字（一处取值，两处使用：本门禁与 src/host/refresh/gate.ts 同一形状）。 */
+/** 从 budget.js 取一套裁决要用的数字（一处取值，两处使用：本门禁与 src/refresh/rooms/host/refresh-gate.ts 同一形状）。 */
 function limitsFromBudget(budget) {
   return {
     probeIntervalMs: PROBE_INTERVAL_MS,
@@ -163,11 +163,11 @@ function failuresOf(api) {
 async function main() {
   console.log('闸裁决门禁（#706 T2：四条底线 + 三档降级顺序 + 断言装置自检）')
 
-  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
-  const policy = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'policy.js')).href)
+  const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.js')).href)
+  const policy = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'admission-policy.js')).href)
   const limits = limitsFromBudget(budget)
 
-  check(policy.POLICY_SOURCE === 'src/shared/refresh/src/policy.ts', '产物带模块标识 POLICY_SOURCE（来自 src/shared/refresh/src/policy.ts）')
+  check(policy.POLICY_SOURCE === 'src/refresh/kernel/admission-policy.ts', '产物带模块标识 POLICY_SOURCE（来自 src/refresh/kernel/admission-policy.ts）')
   check(Array.isArray(policy.REQUEST_KINDS) && policy.REQUEST_KINDS.length >= 8, '请求种类表在（' + policy.REQUEST_KINDS.length + ' 种）')
   check(typeof policy.decide === 'function' && typeof policy.aiToolAdmission === 'function' && typeof policy.degradePlanFor === 'function',
     '三个裁决函数都在（decide / aiToolAdmission / degradePlanFor）')

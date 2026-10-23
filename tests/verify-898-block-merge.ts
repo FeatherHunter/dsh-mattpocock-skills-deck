@@ -120,8 +120,8 @@ function blockedOf(rowData) { return ((rowData && rowData.blockedBy) || []).map(
 
 async function main() {
   console.log('#898 回归门禁：一票多阻塞边合并写（不联网）')
-  const budget = await imp('src/shared/refresh/budget.js')
-  const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const budget = await imp('src/refresh/kernel/host-budget.js')
+  const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const storeMod = await imp('src/deck/shell/plan-cursor.ts')
   const planMod = await imp('src/deck/tools/map-plan-create.ts')
   const linkMod = await imp('src/deck/tools/map-link.ts')

@@ -42,7 +42,7 @@ function check (ok: unknown, msg: string): void { if (ok) { console.log('  PASS 
 // 求值仍然走 spliceableJs（.ts 转译去类型；原样读会带着类型标注，求值当场语法错）。
 const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
 // #1251：probe-chain.js 手写真源已删，真源是同名 .ts —— 求值走 spliceableJs 取转译后的纯 JS。
-const chainSrc = spliceableJs('src/client/kernel/probe-chain.js')
+const chainSrc = spliceableJs('src/refresh/rooms/client/probe-chain-subscription.js')
 
 // 沙箱里那几个会话对象的形状：真身在求值时往 selection / chainSnapshot 里写，测试侧按同一形状读。
 interface ChainState {
@@ -92,7 +92,7 @@ console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完�
 console.log('')
 console.log('')
 // 【已删除】原先这里是 B 组「源码层」：读 src/client/statusbar/StatusBackend.js 与
-//   src/client/kernel/probe-chain.js 的源码文本，用 indexOf / 正则断言里面有哪几段字符串、
+//   src/refresh/rooms/client/probe-chain-subscription.js 的源码文本，用 indexOf / 正则断言里面有哪几段字符串、
 //   谁出现在谁前面、某个名字出现了几次、某个旧名字不许再出现（连注释里那句「注入决策」也在量）。
 //   落点是手写源码的写法与先后，等价重构（换写法、搬位置、改注释）就会红，所以整段拆掉。
 //   同一件事改由 C 组守：那一段把 probe-chain.js 的真身取出来、喂假 host，按六种竞态现场逐条量

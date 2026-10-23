@@ -18,7 +18,7 @@ let failed = false
 let total = 0
 const check = (ok, msg, detail='') => { total++; if (ok) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg + (detail ? ' \u2014 ' + detail : '')); } }
 console.log('== #891 setup \u9EC4\u6761\u81EA\u52A8\u91CD\u7B97 ==')
-const chainSrc = spliceableJs('src/client/kernel/probe-chain.js')
+const chainSrc = spliceableJs('src/refresh/rooms/client/probe-chain-subscription.js')
 // 2. \u7EAF\u51FD\u6570\u884C\u4E3A\uFF1A\u62BD\u51FA\u6A21\u5757\u4E2D\u7684 setupPendingOf \u5355\u72EC\u6C42\u503C
 let setupPendingOf = null
 try {

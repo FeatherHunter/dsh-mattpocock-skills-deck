@@ -81,7 +81,7 @@ function loadModule(relPath, deps) {
 }
 
 // ---------- 加载真代码：新鲜度常量（budget.ts 的产物）与界面那一半的判据 ----------
-const budget = loadModule('src/shared/refresh/budget.js', {})
+const budget = loadModule('src/refresh/kernel/host-budget.js', {})
 const truth = loadModule('src/client/views/shared/truthLines.js', {
   freshnessLevel: budget.freshnessLevel,
   lagPromiseFor: budget.lagPromiseFor,

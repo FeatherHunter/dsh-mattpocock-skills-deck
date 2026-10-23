@@ -40,7 +40,7 @@ check(predOk, '谓词行为：MISSING 隐 / EMPTY([]) 显 / EMPTY(nodes) 显 / �
 // ============ 集成差异冒烟：从产物提取 diffSnapshots 真源求值 ============
 // 右界按「花括号配平扫到函数体闭合」算，不再拿后面的注释当尾巴：
 //   旧写法是 pcli.indexOf('// R5', dStart)，靠那段 `// R5：高亮定时清除` 注释紧跟在函数后面。今天
-//   diffSnapshots 的真源搬到了 src/client/kernel/probe-snapshot-helpers.ts，#1251 之后它经 esbuild
+//   diffSnapshots 的真源搬到了 src/refresh/rooms/client/snapshot-sync-helpers.ts，#1251 之后它经 esbuild
 //   拼进产物，函数前的手写注释被剥掉，而产物里唯一一处 `// R5`（由仍按原文拼接的手写 .js 带来）
 //   落在 130 万字符之外 —— 切出来的是「从函数头到另一个模块中间」的大半份文件，compileFn 求值直接抛
 //   Unexpected end of input，于是四条行为断言全部报红。按花括号配平切，切出来的就是这一个函数；

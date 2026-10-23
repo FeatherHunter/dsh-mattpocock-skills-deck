@@ -56,7 +56,7 @@ export const containerKindOf = function (x: any): string | null {
 
 /** 容器三态：没有子票 empty，还有未关子票 open，子票全关 done。
   * 判据用容器自带的 stats（与地图同形状：{ total, closed }），宿主负责算好。
-  * 注意：只有 GitHub 那条通路会在宿主侧补 stats（src/host/sessionSnapshot.ts），
+  * 注意：只有 GitHub 那条通路会在宿主侧补 stats（src/refresh/rooms/host/session-snapshot-cache.ts），
   * 别的后端里 stats 可能整个不存在——那时一律按 empty 走，跟地图今天的处境一样。 */
 export const containerStateOf = function (container: any): string {
   const stats: any = container && container.stats;
