@@ -136,7 +136,7 @@ export function pageActionHandlersOf(st: any, rows: MapTicketRow[]): TicketCardH
      * 整卡点按：进这张票的详情页。
      *
      * 分流交给 enterSubDetail（views/subIssueRouting.ts）：这张票自己是地图或规格时压地图详情，
-     * 其余压票详情。它看的是行上的标签与 type，不是卡面（卡面只有八种动作、认不出容器），
+     * 其余压票详情。它看的是行上的标签与 type，不是卡面（卡面只有九种样张、认不出容器），
      * 所以必须拿原始行去问，不能拿 facts 猜。
      */
     onCard: function (facts: TicketCardFacts): void {

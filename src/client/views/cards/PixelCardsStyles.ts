@@ -32,6 +32,12 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   // 点亮的卡片另有一条更重的悬停规则（层级更高），压下去时要压过它，否则按了看不出变化。
   '.cd-card.lit.dsws-pressing,.cd-card.dim.lit.dsws-pressing{transform:translate(2px,2px)}',
   'body[data-ds-dark-theme] .cd-card:focus-visible{outline:2px dashed var(--cd-gold);outline-offset:4px}',
+  // #1401 浅色主题的键盘焦点环：上面那两条只认深色标记，浅色主题下浏览器默认环落在 4px 深描边
+  // 与硬投影外面，几乎看不见。这里补同一套像素风虚线，只在没有 data-ds-dark-theme 时生效，深色原值一条不动。
+  // 颜色取宿主焦点环令牌（--dsw-focus-ring-color，缺省回落主题主色），与全仓其它浅色焦点环同一口径：
+  // 卡片皮肤只决定环的形状（2px 像素虚线、画在卡片外面），换肤时颜色跟着宿主走，不再自己挑一个墨色。
+  'body:not([data-ds-dark-theme]) .cd-card:focus-visible{outline:2px dashed var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:4px}',
+  'body:not([data-ds-dark-theme]) .cd-abtn:focus-visible{outline:2px dashed var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
   '.cd-card.lit,.cd-card.dim.lit{box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),0 0 0 6px var(--cd-gold),6px 6px 0 var(--cd-shadow)}',
   '.cd-card.lit:hover,.cd-card.dim.lit:hover{transform:translate(-2px,-2px);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),0 0 0 2px var(--cd-frame),0 0 0 6px var(--cd-gold),7px 8px 0 var(--cd-shadow)}',
   '.cd-pin{position:absolute;left:50%;top:-10px;margin-left:-8px;width:16px;height:16px;background:#c0392b;border:2px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.5),inset -2px -2px 0 var(--cd-shadow)}',
@@ -69,7 +75,11 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   'body[data-ds-dark-theme] .cd-abtn:focus-visible{outline:2px dashed var(--cd-act,var(--cd-gold));outline-offset:2px}',
   '.cd-abtn.dsws-pressing{transform:translate(2px,2px);box-shadow:0 0 0 var(--cd-shadow)}',
   '.cd-abtn svg{flex:none;display:block}',
-  '.cd-bseal{position:absolute;left:-10px;top:64px;right:-10px;background:#a3231a;color:#fff;text-align:center;font-size:12px;letter-spacing:2px;padding:2px 0;border-top:3px solid var(--cd-frame);border-bottom:3px solid var(--cd-frame);transform:rotate(-6deg);box-shadow:3px 3px 0 var(--cd-shadow);pointer-events:none}',
+  '.cd-bseal{position:absolute;left:-10px;top:64px;right:-10px;background:#a3231a;color:#fff;text-align:center;font-size:12px;letter-spacing:2px;padding:3px 6px 2px;border-top:3px solid var(--cd-frame);border-bottom:3px solid var(--cd-frame);transform:rotate(-6deg);box-shadow:3px 3px 0 var(--cd-shadow);pointer-events:none}',
+  '.cd-bseal-l1{display:block;line-height:1.35}',
+  // 第二行是挡路票标题（#1401）：封条宽度是卡片宽 + 两侧各 10px，标题再长也单行省略；
+  // 完整标题放在封条的 title 属性里，鼠标停住可看全。不换行是因为斜贴纸条一旦变高会压住标题。
+  '.cd-bseal-t{display:block;margin-top:1px;font-size:10px;letter-spacing:0;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}',
   // 可跳转的卡上封条自己接点按（点亮挡路关系），其余卡上封条仍是纯装饰、不吃点击。
   '.cd-bseal.act{pointer-events:auto;cursor:pointer}',
   '.cd-dimveil{position:absolute;inset:-12px;background:rgba(58,36,19,.42);color:#fff9ec;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:2px;pointer-events:none;z-index:5}',

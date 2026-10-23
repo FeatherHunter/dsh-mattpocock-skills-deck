@@ -25,7 +25,7 @@
  *
  * 断的六件事：
  *   1. 三张卡都能挂起来，关键结构（编号 / 标题 / 按钮区 / 标签区 / 脚注 / 点阵 / 统计条）真的出现。
- *   2. 按钮行按动作出按钮：八种动作取值下的按钮条数、主按钮的话术与配色、图标、点了回调谁。
+ *   2. 按钮行按动作出按钮：九种动作取值下的按钮条数、主按钮的话术与配色、图标、点了回调谁。
  *   3. 标题截断：两行 / 三行在计算样式上真的生效（display / -webkit-line-clamp / overflow / min-height）。
  *   4. 小件的行为：编号徽章（实心与描边）、点阵与统计条、标签 chips（按真标签色 + 字色对比）、
  *      被阻塞与挡路两种形态（含「点亮时红条才出现」与「点亮挡路卡那张卡」）。
@@ -180,9 +180,15 @@ function cardLightProblems (cardsCss: string, pixelCss: string): string[] {
   for (const pair of CARD_LIGHT_DARK_TOKENS) {
     if (rootText.indexOf(pair[0] + ':' + pair[1]) < 0) out.push('深色令牌 ' + pair[0] + ' 不再是 ' + pair[1])
   }
-  // 2) 浅色覆盖有且只有一组，且只挂在宿主的深色标记上（面板里不许自造开关）。
-  const marks = cardsCss.match(/body:not\(\[data-ds-dark-theme\]\)/g) || []
-  if (marks.length !== 1) out.push('浅色覆盖只该有一组（实得 ' + marks.length + ' 组）')
+  // 2) 浅色令牌覆盖有且只有一组，且只挂在宿主的深色标记上（面板里不许自造开关）。
+  //    浅色下允许另有行为规则（#1401 起是键盘焦点环），但必须逐个列出来；多一条就意味着
+  //    「浅色另起一套结构」，而浅色只该换令牌。
+  const lightBlocks = cardsCss.match(/body:not\(\[data-ds-dark-theme\]\)[^{]*\{/g) || []
+  const tokenBlocks = lightBlocks.filter((one) => /\.cd-card\s*\{$/.test(one))
+  const allowedExtra = /^body:not\(\[data-ds-dark-theme\]\) \.(?:cd-card|cd-abtn):focus-visible\{$/
+  const unexpected = lightBlocks.filter((one) => !/\.cd-card\s*\{$/.test(one) && !allowedExtra.test(one))
+  if (tokenBlocks.length !== 1) out.push('浅色令牌覆盖只该有一组（实得 ' + tokenBlocks.length + ' 组）')
+  if (unexpected.length > 0) out.push('浅色下多出了令牌覆盖以外的规则：' + unexpected.join('、'))
   const light = cardsCss.match(CARD_LIGHT_RE)
   const lightDecl = light ? light[1] : ''
   if (!light) {
@@ -374,6 +380,13 @@ setupDom(M.PIXEL_CARDS_STYLE_TEXT.join('\n'))
 // 2 起：真渲染断言（jsdom + 真 React），全部走 async，所以收在一个 main 里
 // ===========================================================================
 async function main (): Promise<void> {
+  // 卡片拿到的颜色表 = 标签色 + 实施身份色。实施身份色来自中央色表（CONTAINER_ACCENT），
+  // 页面层就是这么把 CONTAINER_ACCENT.spec 放进 colorOf 交给卡片的（见 MapDetailV2Page.ts）；
+  // 卡片层不写第二份身份色，所以这里也按页面那张表取色，而不是从卡片主题表里找 implement。
+  const CONTAINER_ACCENT = (await import('../src/client/kernel/container-view.js')).CONTAINER_ACCENT
+  const PAGE_COLOR_OF = Object.assign({}, LABEL_COLORS, {
+    implement: String(CONTAINER_ACCENT.spec).replace(/^#/, '').toLowerCase(),
+  })
   // =========================================================================
   // 2. 三张卡能挂起来，关键结构真的出现
   // =========================================================================
@@ -472,13 +485,17 @@ async function main (): Promise<void> {
   section('3. 按钮行按动作出按钮：条数恒定，话术 / 配色 / 图标 / 回调跟着动作走')
   {
     const actions = Object.keys(M.CARD_ACTION_STYLE)
-    check(actions.length === 8, '动作表里 8 种动作都在（实得 ' + actions.length + ' 种：' + actions.join('、') + '）')
+    check(actions.length === 9, '动作表里 9 种动作都在（实得 ' + actions.length + ' 种：' + actions.join('、') + '）')
     const iconMarkup = {}
     for (const action of actions) {
       const style = M.CARD_ACTION_STYLE[action]
-      const hex = LABEL_COLORS[style.colorKey]
+      // 大多数动作的 colorKey 指向 GitHub 标签表；implement 不在标签表里，它的底色是实施地图的
+      // 身份色（CONTAINER_ACCENT.spec），由页面层放进 colorOf 交给卡片。两条路都查不到才算错。
+      const hex = LABEL_COLORS[style.colorKey] || PAGE_COLOR_OF[style.colorKey]
+      check(!!hex, action + ' 动作的 colorKey=' + style.colorKey + ' 在真标签表或页面给的实施色表里查得到')
+      if (!hex) continue
       const expectedColor = 'rgb(' + [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map((x) => parseInt(x, 16)).join(', ') + ')'
-      const h = await mountCard(M.PixelIssueCard, { action, noText: '#1', title: 't', colorOf: LABEL_COLORS })
+      const h = await mountCard(M.PixelIssueCard, { action, noText: '#1', title: 't', colorOf: PAGE_COLOR_OF })
       const btns = h.qa('.cd-actions .cd-abtn')
       check(btns.length === 4, action + ' 动作下按钮还是 4 颗（实得 ' + btns.length + ' 颗）')
       const expectedLabel = L.zh['card.act.' + action]
@@ -502,7 +519,7 @@ async function main (): Promise<void> {
       await h.unmount()
     }
     const distinctIcons = new Set(Object.keys(iconMarkup).map((k) => iconMarkup[k])).size
-    check(distinctIcons === 5, '8 种动作画出的主按钮图标有 5 种不同图形（chat/hammer/play/search/proto，实得 ' + distinctIcons + ' 种）')
+    check(distinctIcons === 5, '9 种动作画出的主按钮图标有 5 种不同图形（chat/hammer/play/search/proto，实得 ' + distinctIcons + ' 种）')
   }
 
   // ---- 3.1 四种按钮各自的回调与不冒泡 ----
@@ -666,14 +683,24 @@ async function main (): Promise<void> {
         cardId: 'card-a', noText: '#1', title: '被挡住的那张',
         blockedBy: { no: '12', title: '上游票', cardId: 'card-b' }, blocksChip: { no: '3', title: '下游票' },
       }),
+      React.createElement(M.PixelIssueCard, { cardId: 'card-c', noText: '#2', title: '只知道被哪张挡', blockedBy: { no: '13' } }),
       React.createElement('div', { id: 'card-b', className: 'cd-card' }, '挡路的那张')))
     const seal = h.q('.cd-bseal')
-    const veil = h.q('.cd-dimveil')
+    const sealNo = seal ? seal.querySelector('.cd-bseal-l1') : null
+    const sealTitle = seal ? seal.querySelector('.cd-bseal-t') : null
+    const veils = h.qa('.cd-dimveil')
+    const veil = veils[0] || null
+    const veilNoTitle = veils[1] || null
     const chip = h.q('.cd-bchip')
-    check(!!seal && seal.textContent === tr('card.blockedSeal', { n: '#12' }),
-      '被阻塞的卡挂出斜封条，写着「被 #12 阻塞」（实得 ' + show(seal && seal.textContent) + '）')
+    check(!!seal && !!sealNo && sealNo.textContent === tr('card.blockedSeal', { n: '#12' }),
+      '被阻塞的卡挂出斜封条，第一行写着「被 #12 阻塞」（实得 ' + show(sealNo && sealNo.textContent) + '）')
+    check(!!seal && !!sealTitle && sealTitle.textContent === '上游票' && seal.getAttribute('title') === tr('card.blockedSeal', { n: '#12' }) + ' 上游票',
+      '封条第二行画出挡路票标题，完整标题也进 title 属性方便悬停看全（实得 ' + show(sealTitle && sealTitle.textContent) + ' / ' + show(seal && seal.getAttribute('title')) + '）')
     check(h.cs(veil).display === 'flex', '被阻塞的卡盖着暗层（display 实得 ' + show(h.cs(veil).display) + '）')
-    check(!!veil && veil.textContent === tr('card.blockedDim'), '暗层上是「点我看阻塞在哪里」的真词条（实得 ' + show(veil && veil.textContent) + '）')
+    check(!!veil && veil.className.indexOf('quiet') >= 0 && veil.textContent === '',
+      '封条画出挡路票标题时，暗层只压暗、不写居中提示字（两行封条会正好压住它；实得类名 ' + show(veil && veil.className) + '、文本 ' + show(veil && veil.textContent) + '）')
+    check(!!veilNoTitle && veilNoTitle.textContent === tr('card.blockedDim'),
+      '只有挡路编号、没有标题的旧数据，居中提示字照旧给出来（实得 ' + show(veilNoTitle && veilNoTitle.textContent) + '）')
     const chipB = chip ? chip.querySelector('b') : null
     const chipI = chip ? chip.querySelector('i') : null
     check(!!chipB && !!chipI && chipB.textContent === tr('card.blockerIs') && chipI.textContent === '#3 下游票',
@@ -803,6 +830,17 @@ async function main (): Promise<void> {
       }
     }
     check(low.length === 0, '浅色纸面上的字与图形都过线：正文 4.5:1、图形与角标 3:1 起（' + shown.join('、') + '）' + (low.length ? ' —— 不达标：' + low.join('；') : ''))
+
+    // #1401：浅色主题的键盘焦点环。深色那两条只认 data-ds-dark-theme，浅色下原来落回宿主默认环，
+    // 被挡卡整卡可点时键盘聚焦看不出是哪张卡。这里要求补出同一套像素风虚线，但颜色必须取宿主
+    // 焦点环令牌（--dsw-focus-ring-color，缺省回落主题主色）：卡片皮肤只决定形状，颜色跟着宿主换肤走。
+    const hostRing = 'var\\(--dsw-focus-ring-color,var\\(--dsw-alias-state-business-primary,#58a6ff\\)\\)'
+    const lightCardRing = new RegExp('body:not\\(\\[data-ds-dark-theme\\]\\) \\.cd-card:focus-visible\\{outline:2px dashed ' + hostRing + ';outline-offset:4px\\}')
+    const lightBtnRing = new RegExp('body:not\\(\\[data-ds-dark-theme\\]\\) \\.cd-abtn:focus-visible\\{outline:2px dashed ' + hostRing + ';outline-offset:2px\\}')
+    check(lightCardRing.test(cardsSrc) && lightBtnRing.test(cardsSrc),
+      '浅色主题下卡片与按钮都有可见的键盘焦点环，环色取宿主焦点令牌 --dsw-focus-ring-color（#1401）')
+    check(cardsSrc.indexOf('body:not([data-ds-dark-theme]) .cd-card:focus-visible{outline:2px dashed var(--cd-frame)') < 0,
+      '浅色焦点环不再用卡片自己的墨色（那样换肤时颜色不跟宿主走）')
   }
 
   // =========================================================================

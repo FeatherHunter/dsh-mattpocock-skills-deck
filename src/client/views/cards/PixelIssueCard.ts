@@ -1,4 +1,4 @@
-/** views/cards/PixelIssueCard.ts - issue card organism (S6, 8 actions). */
+/** views/cards/PixelIssueCard.ts - issue card organism (S6, 9 actions). */
 import type { IssueCardProps } from './cardProps';
 declare const PixelCardPin: (props?: any) => any;
 declare const PixelCardNo: (props?: any) => any;
@@ -9,7 +9,7 @@ declare const PixelCardFoot: (props?: any) => any;
 declare const PixelCornerMark: (props?: any) => any;
 declare const PixelClosedSeal: () => any;
 declare const PixelBlockedSeal: (props?: any) => any;
-declare const PixelDimVeil: () => any;
+declare const PixelDimVeil: (props?: any) => any;
 declare const PixelBlockerChip: (props?: any) => any;
 declare const PixelCardBtns: (props?: any) => any;
 declare const CARD_ACTION_STYLE: Record<string, { colorKey: string; icon: string; hollow: boolean }>;
@@ -58,7 +58,8 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   kids.push(h('div', { key: 'hd', className: 'cd-hd' }, [headNo, p.closed ? h(PixelClosedSeal, { key: 'c' }) : null]));
   // 可跳转的卡上，整卡点击已经用于「进详情」，点亮挡路关系挪到红封条上（封条上写着被谁挡住，
   // 点它看挡路的那张；点卡片其余地方一律进详情）。不能跳转的卡保持旧行为：点整张卡点亮。
-  if (blocked && p.blockedBy) kids.push(h(PixelBlockedSeal, { key: 'bs', no: p.blockedBy.no, onActivate: canOpen ? function (): void { flip(!lit); } : null }));
+  // 封条要画出挡路票的编号与标题（#1401）：只给编号时，人还得点开详情才知道是谁挡着。
+  if (blocked && p.blockedBy) kids.push(h(PixelBlockedSeal, { key: 'bs', no: p.blockedBy.no, title: p.blockedBy.title || '', onActivate: canOpen ? function (): void { flip(!lit); } : null }));
   const suffix = p.claimedBy ? h("span", { className: "cd-take" }, tr("card.claimedBy", { n: p.claimedBy })) : null;
   kids.push(h(PixelCardTitle, { key: 'tt', text: p.title, suffix }));
   kids.push(h(PixelCardTags, { key: 'tg', tags: p.tags || [] }));
@@ -67,7 +68,9 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   kids.push(h(PixelCardBtns, { key: 'ab', logKey: logKey, mainLabel: tr('card.act.' + (p.action || 'execute')), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
   if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blocksChip.no, title: p.blocksChip.title }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: p.footActionText || '' }));
-  if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
+  // 封条画出挡路票标题时（#1401），居中提示字会被两行封条压住；这时暗层只压暗、不写字。
+  // 只挡住了编号的旧数据没有第二行，提示字仍有地方放，照旧给人「点红条看阻塞在哪里」的指引。
+  if (blocked) kids.push(h(PixelDimVeil, { key: 'veil', quiet: !!(p.blockedBy && p.blockedBy.title) }));
   const attrs: any = { className: cls, style: { "--cd-act": "#" + mainColor } };
   if (blocked || canOpen) attrs.style.cursor = 'pointer';
   if (p.cardId) attrs.id = p.cardId;

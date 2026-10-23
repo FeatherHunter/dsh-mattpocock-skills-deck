@@ -18,7 +18,7 @@
  *   防止有人把入口改回老页而没有任何门禁出声。
  *
  * 断的十四件事：
- *   1. 动作与状态词表：生产侧九种动作全有映射（implement 明确按执行画），四种状态各用哪个词条键。
+ *   1. 动作与状态词表：生产侧九种动作全有映射（implement 有自己的「实施」样张，不再借执行画），四种状态各用哪个词条键。
  *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
  *      页脚词条键、角标，以及三条不变量（结案卡不表现阻塞关系、只有被挡卡才有 blockedBy、
@@ -42,6 +42,8 @@
  *      卡片标题用纸面墨色（深色主题下卡片仍是浅纸，标题继承浅色字会看不清）。
  *   12b. 整卡点按进详情：适配层把 onCard 一并交给卡片，接线层用 enterSubDetail 按标签分流到票详情
  *      或子地图详情，卡片组件只有收到 onCard 才把整张卡做成可点（否则保持「点一下点亮挡路关系」）。
+ *   12c. 卡片层四处缺口（#1401）：实施有自己的样张与词条；被挡封条第二行画挡路票标题；浅色主题
+ *      也有键盘焦点环；摘要没有真实来源就明确不画（断言 props 里没有 note，不拿假话占位）。
  *   13. 档案区高度稳定：计数 / 完成度固定成一块，子票那句挂在进度条同一行、不再单独占一行
  *      （不额外写「正在取子票」，也不空出一行），取数中计数写占位、那句的数字也写占位；
  *      「正在取数」只用进度条轨道上的流动斜纹表达；没有子票时整块隐藏但留位置。
@@ -138,7 +140,7 @@ section('1. 动作映射与状态词条键：九个生产动作全有去处，�
 {
   const expectActions = {
     diagnose: 'diagnose', takeover: 'claim', supplement: 'supplement', fix: 'fix',
-    discuss: 'grill', research: 'research', prototype: 'proto', execute: 'execute', implement: 'execute',
+    discuss: 'grill', research: 'research', prototype: 'proto', execute: 'execute', implement: 'implement',
   }
   const gotKeys = Object.keys(facts.CARD_ACTION_BY_SOURCE).sort().join(',')
   const wantKeys = Object.keys(expectActions).sort().join(',')
@@ -146,8 +148,8 @@ section('1. 动作映射与状态词条键：九个生产动作全有去处，�
 
   const wrong = Object.keys(expectActions).filter((k) => facts.CARD_ACTION_BY_SOURCE[k] !== expectActions[k])
   check(wrong.length === 0, '九个动作各自映到确定的样张键（错的：' + (wrong.length ? wrong.map((k) => k + '→' + facts.CARD_ACTION_BY_SOURCE[k]).join('、') : '无') + '）')
-  check(facts.CARD_ACTION_BY_SOURCE.implement === 'execute',
-    'implement（实施，只属于规格地图）今天明确按「执行」画，而不是悄悄掉进兜底（实得 ' + show(facts.CARD_ACTION_BY_SOURCE.implement) + '）')
+  check(facts.CARD_ACTION_BY_SOURCE.implement === 'implement',
+    'implement（实施）有自己的样张，卡面按钮字与注入的 /implement 同源，不再借「执行」的画法（实得 ' + show(facts.CARD_ACTION_BY_SOURCE.implement) + '）')
   check(facts.cardActionOf('不存在的动作') === 'execute' && facts.cardActionOf(undefined) === 'execute',
     '认不出的动作与 undefined 都退回 execute（实得 ' + show(facts.cardActionOf('不存在的动作')) + ' / ' + show(facts.cardActionOf(undefined)) + '）')
 
@@ -278,7 +280,7 @@ section('3. 卡片刻画：编号 / 标题 / 小签 / BUG / 认领 / 更新日 /
 
   const plain = factOf(1401)
   check(show(plain.tags) === show([]), '普通票（issue）不给类型小签（实得 ' + show(plain.tags) + '）')
-  check(plain.action === 'execute', 'implement 动作按执行样张画（实得 ' + show(plain.action) + '）')
+  check(plain.action === 'implement', 'implement 动作画实施样张（实得 ' + show(plain.action) + '）')
 
   check(facts.updatedTextOf({ updatedAt: 'not-a-date' }) === '' && facts.updatedTextOf({}) === '',
     '更新日认不出时是空串，不拿乱码当日期（实得 ' + show(facts.updatedTextOf({ updatedAt: 'not-a-date' })) + ' / ' + show(facts.updatedTextOf({})) + '）')
@@ -926,6 +928,24 @@ section('§12 入口接线')
   const chromeText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/PixelBlockedChrome.ts'), 'utf8')
   check(chromeText.indexOf('onActivate') >= 0 && cardsStyleText.indexOf('.cd-bseal.act{pointer-events:auto') >= 0,
     '可跳转的被挡卡把「点亮挡路关系」挪到红封条上（封条自己接点按，不误开详情）')
+
+  // ---- 卡片层四处缺口（#1401）----
+  check(cardText.indexOf('p.blockedBy.title') >= 0 && chromeText.indexOf('cd-bseal-t') >= 0 &&
+    cardsStyleText.indexOf('.cd-bseal-t{') >= 0,
+    '被挡卡把挡路票标题交给封条，封条画成「编号一行 + 标题一行」（#1401）')
+  check(cardText.indexOf('quiet: !!(p.blockedBy && p.blockedBy.title)') >= 0 &&
+    chromeText.indexOf("'cd-dimveil' + (quiet ? ' quiet' : '')") >= 0 &&
+    chromeText.indexOf('card.blockedDim') >= 0,
+    '有挡路标题时暗层只压暗、不写居中提示字（两行封条会压住它）；只有编号的旧数据照旧给提示（#1401）')
+  check(cardsStyleText.indexOf('body:not([data-ds-dark-theme]) .cd-card:focus-visible{outline:2px dashed var(--dsw-focus-ring-color') >= 0 &&
+    cardsStyleText.indexOf('body:not([data-ds-dark-theme]) .cd-abtn:focus-visible{outline:2px dashed var(--dsw-focus-ring-color') >= 0 &&
+    cardsStyleText.indexOf('body[data-ds-dark-theme] .cd-card:focus-visible') >= 0,
+    '浅色主题下卡片与按钮都有键盘焦点环、颜色取宿主焦点令牌；深色那两条金虚线原值还在（#1401）')
+  const themeText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/PixelCardTheme.ts'), 'utf8')
+  check(themeText.indexOf("implement: { colorKey: 'implement'") >= 0 && themeText.indexOf('1d4ed8') < 0,
+    '卡片主题表里有实施样张（锤子 + 实心），但不再写实施地图身份色的第二份字面量（#1401）')
+  check(pageSourceText.indexOf('CONTAINER_ACCENT.spec') >= 0 && pageSourceText.indexOf('implement: CONTAINER_ACCENT.spec') >= 0,
+    '实施动作的底色由页面从中央色表取一次（CONTAINER_ACCENT.spec），放进 colorOf 交给卡片（#1401）')
 }
 
 

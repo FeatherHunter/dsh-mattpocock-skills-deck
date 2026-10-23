@@ -70,8 +70,8 @@ export interface MapRowLike {
 /** 生产侧的行级动作名（与 src/client/kernel/row-actions.ts 的 rowActionKind 同集，九种）。 */
 export type SourceActionKind = 'diagnose' | 'takeover' | 'supplement' | 'fix' | 'discuss' | 'research' | 'prototype' | 'execute' | 'implement'
 
-/** 卡片样张的八种动作键（与 views/cards/PixelCardTheme.ts 的 CARD_ACTION_STYLE 同集）。 */
-export type CardActionKey = 'diagnose' | 'fix' | 'execute' | 'claim' | 'supplement' | 'research' | 'grill' | 'proto'
+/** 卡片样张的九种动作键（与 views/cards/PixelCardTheme.ts 的 CARD_ACTION_STYLE 同集）。 */
+export type CardActionKey = 'diagnose' | 'fix' | 'execute' | 'claim' | 'supplement' | 'research' | 'grill' | 'proto' | 'implement'
 
 /** 卡片在页面里的四种状态：与宿主 groupTickets 的四个桶一一对应，不另立口径。 */
 export type TicketCardStatus = 'ready' | 'doing' | 'blocked' | 'closed'
@@ -99,7 +99,7 @@ export interface TicketCardFacts {
   noText: string
   title: string
   status: TicketCardStatus
-  /** 卡片八种动作键：由生产侧九种动作映射而来，页面不自己映射。 */
+  /** 卡片九种动作键：由生产侧九种动作映射而来，页面不自己映射。 */
   action: CardActionKey
   /** 类型小签（最多一枚）；普通票（issue）没有类型小签。 */
   tags: Array<{ text: string; color?: string }>
@@ -123,8 +123,7 @@ export interface TicketCardFacts {
   /**
    * 被挡时指向挡它的那张；只有 status==='blocked' 时才非空（与「在办优先」一致）。
    * 取的是主阻塞者（页面上仍开着、编号最小），与 blocks 那一侧用同一判定，两侧说法不会矛盾。
-   * 注意：现有的 PixelBlockedSeal 只读 no，title 还画不出来——接页面时要扩展那个组件，
-   * 或者先只显示编号；这条字段已经备好，不是缺数据。
+   * #1401 起 PixelBlockedSeal 会把这个 title 画在封条第二行（过长单行省略），不再只显示编号。
    */
   blockedBy: CardTicketRef | null
   /**

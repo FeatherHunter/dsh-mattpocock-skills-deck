@@ -346,20 +346,30 @@ function audit(read: (p: string) => string): AuditResult[] {
   //   :where(body[data-ds-dark-theme]) —— 技能皮肤用的，:where 不参与权重计算，选择器总权重与改动前一模一样，
   //     深色下「谁盖谁」不变（若写成前缀写法，像素按钮与技能行的金圈会反过来盖住宿主蓝环，probe 实测过）。
   const isDarkGuarded = (sel: string): boolean => sel.indexOf('body[data-ds-dark-theme] ') === 0 || sel.indexOf(':where(body[data-ds-dark-theme]) ') === 0
-  const focusSels: { file: string; sel: string }[] = []
+  // #1401 追加：卡片在浅色主题下也要有自己的焦点环（被挡卡整卡可点，键盘聚焦时要看得见），
+  //   所以 F30 从「只许深色规则」放宽成「只许两种守卫之一」：深色守卫（金虚线）或浅色守卫。
+  //   放宽有代价，必须同时钉住浅色规则的颜色来源：它只能取宿主焦点环令牌 --dsw-focus-ring-color，
+  //   不许卡片皮肤自己挑颜色——否则「浅色跟随宿主焦点环」（#1379）又会从这条新规则漏回来。
+  const isLightGuarded = (sel: string): boolean => sel.indexOf('body:not([data-ds-dark-theme]) ') === 0
+  const focusRules: { file: string; sel: string; body: string }[] = []
   for (const skinFile of FOCUS_SKIN_FILES) {
     const skinCss = cssTextOfSource(read(skinFile))
     for (const r of (skinCss.match(/[^{}]+\{[^{}]*\}/g) || [])) {
+      const body = r.slice(r.indexOf('{') + 1, r.lastIndexOf('}'))
       for (const part of r.slice(0, r.indexOf('{')).split(',')) {
         const t = part.trim()
-        if (t && (t.indexOf(':focus-visible') >= 0 || t.indexOf(':focus-within') >= 0)) focusSels.push({ file: skinFile, sel: t })
+        if (t && (t.indexOf(':focus-visible') >= 0 || t.indexOf(':focus-within') >= 0)) focusRules.push({ file: skinFile, sel: t, body: body })
       }
     }
   }
-  const focusBare = focusSels.filter((one) => !isDarkGuarded(one.sel))
-  check(focusSels.length >= 5 && focusBare.length === 0,
-    'F30 两份像素皮肤（卡片、技能列表与详情）的焦点规则只在深色下存在（' + focusSels.length + ' 条含 :focus-visible / :focus-within 的选择器，全部带深色守卫 body[data-ds-dark-theme] 或 :where(body[data-ds-dark-theme])；浅色不命中，落到全局宿主焦点环）' +
-    (focusBare.length ? '；未加前缀：' + focusBare.map((one) => one.file + ' 的 ' + one.sel).join(' | ') : ''))
+  const focusBare = focusRules.filter((one) => !isDarkGuarded(one.sel) && !isLightGuarded(one.sel))
+  const lightFocusRules = focusRules.filter((one) => isLightGuarded(one.sel))
+  const lightFocusBadColor = lightFocusRules.filter((one) => one.body.indexOf('var(--dsw-focus-ring-color') < 0)
+  check(focusRules.length >= 5 && focusBare.length === 0 && lightFocusRules.length >= 2 && lightFocusBadColor.length === 0,
+    'F30 两份像素皮肤的焦点规则都有主题守卫（' + focusRules.length + ' 条含 :focus-visible / :focus-within 的选择器：深色的带 body[data-ds-dark-theme] 或 :where(body[data-ds-dark-theme])，' +
+    '浅色的 ' + lightFocusRules.length + ' 条带 body:not([data-ds-dark-theme])，没有裸选择器；浅色那几条的颜色一律取宿主焦点令牌 --dsw-focus-ring-color，皮肤只决定环的形状）' +
+    (focusBare.length ? '；未加前缀：' + focusBare.map((one) => one.file + ' 的 ' + one.sel).join(' | ') : '') +
+    (lightFocusBadColor.length ? '；浅色规则没取宿主焦点令牌：' + lightFocusBadColor.map((one) => one.file + ' 的 ' + one.sel).join(' | ') : ''))
 
   const LIGHT_START = '// #1379 浅色个例修复层（开始）'
   const LIGHT_END = '// #1379 浅色个例修复层（结束）'

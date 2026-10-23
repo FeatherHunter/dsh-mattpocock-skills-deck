@@ -28,6 +28,8 @@ declare function rowActionKind(...args: any[]): any
 declare function containerKindOf(...args: any[]): any
 declare function containerStateOf(...args: any[]): any
 declare function containerTriState(...args: any[]): any
+// 两种容器的身份色中央色表（kernel/container-view.ts）。页面只借它给实施样张上色，见下面 colorOf。
+declare const CONTAINER_ACCENT: any
 declare function popNav(...args: any[]): any
 declare function pushNav(...args: any[]): any
 declare function MapDetailTop(props?: any): any
@@ -80,7 +82,10 @@ export function MapDetailV2Page(props: any): any {
   if (!m) return h('div', { className: 'm2v2-page' })
 
   const mId = idOf(m)
-  const colorOf = buildColorOf(st)
+  // 卡片认「颜色键 → 十六进制」这一张表：标签动作的色从仓库标签取（buildColorOf），
+  // 实施动作没有对应的 GitHub 标签，色是实施地图的身份色（CONTAINER_ACCENT.spec）——
+  // 卡片层不写第二份身份色，所以在这里补上这一项再交给卡片。
+  const colorOf = Object.assign({}, buildColorOf(st), { implement: CONTAINER_ACCENT.spec })
   const cardIdPrefix = cardIdPrefixOf(mId)
 
   // 整页只算一次：档案 + 一条连续流 + 每张卡的 props。计算与画法分开，门禁可以直接对着它断言。
@@ -89,7 +94,7 @@ export function MapDetailV2Page(props: any): any {
     bucket: bucket,
     cardIdPrefix: cardIdPrefix,
     colorOf: colorOf,
-    // 主按钮的动作由内核按原始行判定（九种动作名），卡片层再映射成八种样张（model/tickets/ticketCardFacts.ts）。
+    // 主按钮的动作由内核按原始行判定（九种动作名），卡片层再映射成九种样张（model/tickets/ticketCardFacts.ts）。
     actionOf: function (row: any) { return rowActionKind(row) },
     textOf: tr,
     // 四个按钮具体干什么要问宿主，交给 wiring；行由模型交回来，保证回调认的行就是画出来的那批行。

@@ -19,6 +19,7 @@ zh:
   card.act.research: 研究
   card.act.grill: 讨论
   card.act.proto: 原型
+  card.act.implement: 实施
   card.bug: BUG
   card.doing: 在办
   card.pickReady: 可接
@@ -75,6 +76,7 @@ en:
   card.act.research: Research
   card.act.grill: Discuss
   card.act.proto: Prototype
+  card.act.implement: Implement
   card.bug: BUG
   card.doing: In progress
   card.pickReady: Ready

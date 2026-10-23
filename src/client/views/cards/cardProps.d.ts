@@ -6,11 +6,17 @@
 export type CardActionKind = string;
 export interface CardTagItem { text?: string; color?: string; }
 export interface BlockedInfo {
-  no?: string; title?: string; cardId?: string | null;
+  /** 挡路票编号；封条第一行画它。 */
+  no?: string;
+  /** 挡路票标题；封条第二行画它（#1401），过长时由样式单行省略。 */
+  title?: string;
+  cardId?: string | null;
   /** 红封条被点按（只有可跳转的卡会传：整卡点击已用于进详情，点亮挡路关系落在封条上）。 */
   onActivate?: (() => void) | null;
 }
 export interface BlocksChipInfo { no?: string; title?: string; }
+/** 整卡暗层的 props：有挡路票标题时封条占两行，暗层只压暗、不再写居中的点击提示（#1401）。 */
+export interface DimVeilProps { quiet?: boolean; }
 export interface CardActionStyle { colorKey?: string; icon?: string; hollow?: boolean; }
 export interface IssueCardProps {
   action?: CardActionKind;

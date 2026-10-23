@@ -1,8 +1,13 @@
-/** views/cards/PixelCardTheme.ts - card theme truth (S1/S6/S7). Pure functions, no Chinese. */
+/** views/cards/PixelCardTheme.ts - card theme truth (S1/S6/S7). 纯函数；按钮与状态的中文文案一律走
+ *  config/copy/cards.yaml（经 tr() 读），这个文件里只写颜色与图标这类结构值。 */
 export const CARD_ACTION_COLORS: Record<string, string> = {
   diagnose: 'fbca04', fix: 'd73a4a', execute: '10b981', claim: 'b60205',
   supplement: '5319e7', research: '0ea5e9', grill: '9d7cd8', proto: 'f59e0b',
   map: '8b5cf6', block: 'a3231a',
+  // 实施（implement）这一档没有自己的固定色：它在实施地图的子票上出现，底色就是实施地图的身份色
+  // （kernel/container-view.ts 的 CONTAINER_ACCENT.spec）。那个色值全仓只许在中央色表写一次，
+  // 所以卡片层不抄第二份，也不在注释里写它的字面量；页面层把身份色放进 colorOf 表交给卡片
+  // （MapDetailV2Page.ts 里 buildColorOf(st) 之后补 implement 这一项）。
 };
 export interface CardActionStyle { colorKey: string; icon: string; hollow: boolean; }
 export const CARD_ACTION_STYLE: Record<string, CardActionStyle> = {
@@ -14,6 +19,9 @@ export const CARD_ACTION_STYLE: Record<string, CardActionStyle> = {
   research: { colorKey: 'wayfinder:research', icon: 'search', hollow: true },
   grill: { colorKey: 'wayfinder:grilling', icon: 'chat', hollow: true },
   proto: { colorKey: 'wayfinder:prototype', icon: 'proto', hollow: true },
+  // #1401：实施以前没有自己的样张，卡面按执行画；现在补上。图标沿用 hammer（实施与修复都是
+  //「把改法落下去」），颜色与实心形态靠 implement 这一档区分，不再借 execute 的绿。
+  implement: { colorKey: 'implement', icon: 'hammer', hollow: false },
 };
 export const cardColorOf = function (c: string, m?: Record<string, string> | null): string {
   const tab = m || {};

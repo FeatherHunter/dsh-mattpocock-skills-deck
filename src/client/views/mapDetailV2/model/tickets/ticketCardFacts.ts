@@ -2,7 +2,7 @@
  * views/mapDetailV2/model/tickets/ticketCardFacts.ts —— 一条子票行 → 一张 ISSUE 卡片要画的东西。
  *
  * 为什么要有这一份：卡片组件（views/cards/PixelIssueCard.ts）只认 props，不认识票的数据形状。
- * 从「宿主给的行」到「卡片要的 props」之间有几处判断——四种状态、九种动作收成八种样张、
+ * 从「宿主给的行」到「卡片要的 props」之间有几处判断——四种状态、九种动作各对应一种样张、
  * 类型小签取哪张标签、阻塞关系指向哪张卡、卡片元素 id 怎么起名。这些判断只能有一处：
  * 页面与门禁都调这里，页面不再自己判一遍。判错了改一处，全页跟着变。
  *
@@ -24,15 +24,14 @@ import type {
 } from '../contracts/mapDetailTypes'
 
 /**
- * 生产侧九种行级动作 → 卡片八种样张键。
+ * 生产侧九种行级动作 → 卡片九种样张键。
  *
  * 为什么要一张表：生产侧按「下一步该做什么」分类（kernel/row-actions.ts 的 rowActionKind），
  * 卡片样张按「画哪一组按钮」分类（views/cards/PixelCardTheme.ts 的 CARD_ACTION_STYLE），
- * 两边不是一一对应——接手/讨论/原型在卡片上叫 claim/grill/proto，只是叫法不同。
+ * 两边叫法不完全一样——接手/讨论/原型在卡片上叫 claim/grill/proto，只是名字不同。
  *
- * implement（实施）没有样张：它只出现在规格（实施地图）的子票上，而 V2 这一版只做探索地图。
- * 真遇到就按「执行」画——卡片组件对未知动作本来就有 execute 兜底，这里写明映射是为了
- * 接入规格地图那天一眼看到「这一档还没画」，而不是让它在兜底里悄悄混过去。
+ * implement（实施）过去没有样张，只按「执行」画；#1401 给卡片补上了实施样张（锤子图标 +
+ * 实施地图的蓝），这里一并改成直映射，卡面按钮字「实施」与页面真正注入的 /implement 同源。
  */
 export const CARD_ACTION_BY_SOURCE: Record<SourceActionKind, CardActionKey> = {
   diagnose: 'diagnose',
@@ -43,7 +42,7 @@ export const CARD_ACTION_BY_SOURCE: Record<SourceActionKind, CardActionKey> = {
   research: 'research',
   prototype: 'proto',
   execute: 'execute',
-  implement: 'execute',
+  implement: 'implement',
 }
 
 /**
