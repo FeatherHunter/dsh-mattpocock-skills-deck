@@ -28,7 +28,9 @@ declare const DOC_LAYOUT_VALUES: readonly ('single' | 'multi')[]
 export const DEFAULT_PANEL_H: number = (function (): number {
   try { return Math.max(240, Math.round((window.innerHeight || 800) * 0.5)) } catch (e) { return 400 }
 })()
-// #374：主列表偏好（排序/状态过滤）持久化（localStorage 不可用时降级默认值）
+// #374：主列表偏好（排序/状态过滤）持久化（localStorage 不可用时降级默认值）。
+//   默认排序档是「编号升序」：第一次打开面板的人直接看到按编号从小到大排好的列表，不用先点一次排序就能理解顺序。
+//   这是规格 #1354 有意保留的现状，不是漏写（#1357 决定不改成「最近更新在前」）；以后想改默认值需要另行讨论，不能顺手改这里。
 export const LIST_PREFS_KEY: string = 'dsws.listPrefs'
 export const listPrefs: any = (function (): any {
   const d: any = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
