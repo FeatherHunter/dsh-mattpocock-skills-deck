@@ -294,6 +294,101 @@ async function main() {
     check(multiOpen && multiOpen.ok === false && multiOpen.reason === 'no-backend', 'deck 工具多命中时失败结果可辨（no-backend，文案说同时被认出）')
   }
 
+  // —— 七、补齐验收点名的四处：真实注册表、github 桶在场时的对照、未知读数的回执、AI 工具硬顶 ——
+  {
+    // (1) 验收 A1 要的是真实注册表，不是手写桩：select 认领、get 取模块、modules 声明口径，一样不少。
+    const core = await imp('src/tracker/registry/core.ts')
+    const realCtx = makeCtx(glab.exec, glabPresent)
+    realCtx.fs = {
+      resolve: async function (rel) { return rel },
+      readText: async function (target) {
+        return target === '.git/config' ? '[remote "origin"]\n\turl = git@gitlab.com:group/proj.git\n' : null
+      },
+    }
+    const realReg = core.createRegistry(realCtx, { matchesTimeout: 200 })
+    realReg.register(factory.gitlabBackend)
+    const selected = await realReg.select({ cwd: '/ws-test-1447', refId: REF.refId }, realCtx)
+    check(selected && selected.backendId === 'gitlab', '真实注册表按 .git/config 认出 GitLab（实得 ' + JSON.stringify(selected && selected.backendId) + '）')
+    check(realReg.get('gitlab') && typeof realReg.get('gitlab').readBudget === 'function', '真实注册表 get 到实现 readBudget 的 GitLab 模块')
+    check(JSON.stringify(realReg.modules()[0].budget) === JSON.stringify(REQUESTS), '真实注册表 modules 声明的口径正是只计请求（实得 ' + JSON.stringify(realReg.modules()[0].budget) + '）')
+    const realLedger = ledgerMod.createLedger()
+    realLedger.ensureBackend('gitlab', REQUESTS)
+    const realH = makeHarness(realLedger, accounting, admission, glab)
+    // openTracker 缺省的选后端只带 cwd，生产上 deck 这条路一直用 resolveSelection 把判定出口的结论交进来
+    //（src/deck/tools/tracker-session.ts:175-179 就是这么接的），这里照同一条路走：选择仍由真实注册表回答。
+    const realOpened = await opener.openTracker({ cwd: '/ws-test-1447' }, {
+      registry: realReg,
+      resolveSelection: async function (handle, ctx) { return realReg.select(handle, realCtx) },
+      getCachedReading: realH.getCachedReading, admit: realH.admit, account: realH.account, canWrite: true })
+    check(realOpened.ok === true, '真实注册表 + 真实 GitLab 房间能开出会话（实得 ' + JSON.stringify(realOpened.ok ? 'ok' : realOpened) + '）')
+    const realRead = realOpened.ok ? await realOpened.session.readBudget() : null
+    check(realRead && realRead.ok === true && realRead.data && realRead.data.known === true && realRead.data.kind === 'requests-only', '真实会话的 readBudget 回已知的只计请求读数')
+    check(realRead && realRead.data && realRead.data.buckets === undefined && !('points' in realRead.data), '真实会话的读数里没有两桶、也没有点数格')
+
+    // (2) 验收 A3 要的对照：github 的两桶也在同一本账里，GitLab 花请求不能动它们一分一毫。
+    const paired = ledgerMod.createLedger()
+    paired.ensureBackend('gitlab', REQUESTS)
+    paired.ensureBackend('github', { kind: 'two-buckets' })
+    paired.syncServer('gitlab', { requests: { limit: 600, remaining: 600 } })
+    paired.syncServer('github', { graphql: { limit: 5000, remaining: 5000 }, rest: { limit: 5000, remaining: 5000 } })
+    const pairedGlab = makeGlabExec('ok')
+    const pairedRoom = factory.createGitlabBackend(makeCtx(pairedGlab.exec, glabPresent))
+    const pairedH = makeHarness(paired, accounting, admission, pairedGlab)
+    const pairedOpened = await opener.openTracker({ cwd: '/ws-test-1447' }, {
+      registry: makeRegistry(pairedRoom), getCachedReading: pairedH.getCachedReading, admit: pairedH.admit, account: pairedH.account, canWrite: true })
+    check(pairedOpened.ok === true, '同一本账里装着 github 两桶时，GitLab 会话照常开')
+    const githubBefore = JSON.stringify({ rest: paired.view('github', 'rest'), graphql: paired.view('github', 'graphql') })
+    const pairedCallsBefore = pairedGlab.box.calls
+    const pairedList = pairedOpened.ok ? await pairedOpened.session.list(REF) : null
+    const pairedComment = pairedOpened.ok ? await pairedOpened.session.comment(REF, '5', 'github 两桶在场时，GitLab 也只记请求。') : null
+    check(pairedList && pairedList.ok === true && pairedComment && pairedComment.ok === true, '两条 GitLab 操作都在 github 两桶在场时做成')
+    check(paired.view('gitlab', 'requests').used === pairedGlab.box.calls - pairedCallsBefore, 'GitLab 的请求桶刚好记下这次真发出去的几条命令（实得 ' + paired.view('gitlab', 'requests').used + '）')
+    check(JSON.stringify({ rest: paired.view('github', 'rest'), graphql: paired.view('github', 'graphql') }) === githubBefore, 'github 的 rest/graphql 两桶一分没动（读数与已用量都与调用前相同）')
+    check(paired.snapshot().total.points === 0, '整本账的点数仍是 0（GitLab 不产生点数账，github 的桶也没被写进点数）')
+
+    // (3) 验收 A5 的未知读数分支：回执只留四格事实与一句 note，不许出现水位与档位。
+    const toolMod = await imp('src/deck/tools/tracker-session.ts')
+    const bridgeMod = await imp('src/refresh/registry/deck-tool-bridge.ts')
+    const unknownLedger = ledgerMod.createLedger()
+    unknownLedger.ensureBackend('gitlab', REQUESTS)
+    const ports = bridgeMod.buildTrackerPorts({ ledger: unknownLedger })
+    const deckSession = { cwd: '/ws-test-1447', workspaceKey: 'ws-key-1447' }
+    const unknownEstimate = { requests: 1, points: 0, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '这次 deck_context 预计花 1 条请求、0 点，在硬顶之内。' }
+    const unknownDeps = {
+      registry: makeRegistry(pairedRoom),
+      decideBackend: async function () { return { backendId: 'gitlab', source: 'explicit', canWrite: true, ref: REF } },
+      getCachedReading: function () { return ports.getCachedReading('gitlab') },
+      admit: ports.admit,
+      account: ports.account,
+      gate: { admitAiTool: async function () { return { admitted: true, text: '' } } },
+      backendCtx: function () { return makeCtx(glab.exec, glabPresent) },
+    }
+    const unknownOpen = await toolMod.openDeckSession({ deps: unknownDeps, exec: {}, session: deckSession, estimate: unknownEstimate, tool: 'deck_context', kind: 'read' })
+    check(unknownOpen && unknownOpen.ok === true, '读数未知时 deck 工具照常开出 GitLab 会话')
+    const unknownReceipt = unknownOpen && unknownOpen.ok ? await toolMod.callDeckSession({ tool: 'deck_context', deps: unknownDeps, opened: unknownOpen, session: deckSession, repo: REF, estimate: unknownEstimate }, async function () {
+      return { value: { ok: true, status: 'ok', data: {}, notes: [] }, claimed: { requests: 1, points: 0 } }
+    }) : null
+    const unknownActual = unknownReceipt && unknownReceipt.cost && unknownReceipt.cost.actual
+    check(unknownActual && unknownActual.backendId === 'gitlab' && unknownActual.budgetKind === 'requests-only', '读数未知时回执仍说清这是 GitLab 的只计请求口径')
+    check(unknownActual && unknownActual.readKnown === false && unknownActual.offNetwork === false, '读数未知时 readKnown=false、offNetwork=false')
+    check(unknownActual && unknownActual.remaining === undefined && unknownActual.tier === undefined, '读数未知时 remaining 与 tier 都不出现（实得 ' + JSON.stringify({ remaining: unknownActual && unknownActual.remaining, tier: unknownActual && unknownActual.tier }) + '）')
+    check(unknownReceipt && unknownReceipt.cost && String(unknownReceipt.cost.note || '').indexOf('额度读数还没同步上来') >= 0, '读数未知时由 cost.note 说明「还没同步上来」（实得 ' + JSON.stringify(unknownReceipt && unknownReceipt.cost && unknownReceipt.cost.note) + '）')
+    check(JSON.stringify(unknownActual).indexOf('buckets') < 0 && JSON.stringify(unknownActual).indexOf('graphql') < 0, '读数未知时回执里也没有两桶字段')
+
+    // (4) 验收 A4 里 deck 这一层的硬顶：探针放行，正式那一笔被拒，原因码是 ai-tool-refused。
+    const overDeps = Object.assign({}, unknownDeps, {
+      gate: { admitAiTool: async function (call) {
+        return Number(call && call.requests) <= 1
+          ? { admitted: true, text: '' }
+          : { admitted: false, reason: 'ai-tool-over-call-cap', text: '这次调用超过了插件给 AI 工具设的硬顶，我没有动手。' }
+      } },
+    })
+    const overEstimate = Object.assign({}, unknownEstimate, { requests: 2, points: 2 })
+    const overOpen = await toolMod.openDeckSession({ deps: overDeps, exec: {}, session: deckSession, estimate: overEstimate, tool: 'deck_comment', kind: 'write' })
+    check(overOpen && overOpen.ok === false && overOpen.reason === 'ai-tool-refused', '超出单次硬顶时 deck 工具回 ai-tool-refused（实得 ' + JSON.stringify(overOpen && overOpen.reason) + '）')
+    check(overOpen && overOpen.ok === false && String(overOpen.text).indexOf('硬顶') >= 0, '硬顶拒绝的人话点明「硬顶」')
+  }
+
   console.log(failed ? '\n存在失败 — verify-1447-gitlab-e2e 未通过' : '\n全部通过 — GitLab 端到端（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
