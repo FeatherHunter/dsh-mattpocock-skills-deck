@@ -1,8 +1,8 @@
 newBugWayfinder:
-  version: 11
+  version: 12
   placeholders:
     - repo
-  use: "「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版 · v10 #1268 加调查节先查后问） · v11 #1269 加 /retro 提醒（会话任务全部完成时提醒用户执行一次，不替用户执行）"
+  use: "「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版 · v10 #1268 加调查节先查后问） · v12 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
   zh: |-
     /wayfinder
     请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。
@@ -26,11 +26,11 @@ newBugWayfinder:
 
     ## 自查
     - [ ] 逐项核对无遗漏；历史结论已写进正文；结束前写明真实状态
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     Please help me file a new BUG ticket (follow the wayfinder skill rules).
@@ -54,13 +54,13 @@ newBugWayfinder:
 
     ## Self-check
     - [ ] Check every box with no gaps; history written into the body; true state written before finishing
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 newSpec:
-  version: 1
+  version: 2
   placeholders:
     - repo
   use: 「实施地图」卡（入口浮层里那张蓝卡，#1297 起改名）· 新会话预填 /grill-with-docs；收尾提醒用户手动执行 /to-spec 与 /to-tickets（#1281）
@@ -78,11 +78,11 @@ newSpec:
     ## 讨论收尾（下面这些动作由用户手动执行，不要替用户做）
     - [ ] 讨论结束、结论对齐后，提醒用户手动执行一次 /to-spec，把结论生成规格 issue。
     - [ ] 在规格 issue 生成后，再提醒用户手动执行一次 /to-tickets，把规格 issue 拆成实施 issue。
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /grill-with-docs
     Help me discuss a requirement (strictly follow the grill-with-docs skill rules).
@@ -97,13 +97,13 @@ newSpec:
     ## Discussion wrap-up (the user runs the actions below manually; do not run them on their behalf)
     - [ ] Once the discussion is settled and the conclusion is aligned, remind the user to manually run /to-spec once to turn the conclusion into a spec issue.
     - [ ] After the spec issue is created, remind the user to manually run /to-tickets once to split the spec issue into implementation issues.
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 newWayfinder:
-  version: 20
+  version: 21
   placeholders:
     - repo
   use: 「探索地图」卡（入口浮层里那张紫卡，#1297 起唯一入口开出的两张卡之一）· 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）
@@ -119,11 +119,11 @@ newWayfinder:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
-    - [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro：用这次会话的实际过程，复盘当前工作区还能在哪些地方进一步优化环境。是否执行由用户决定，不要替用户执行。
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
   en: |-
     /wayfinder
     Please handle a requirement (strictly follow the wayfinder skill rules).
@@ -136,11 +136,11 @@ newWayfinder:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
-    - [ ] Once every task of this session is finished, proactively remind the user to run /retro once: use this session’s actual course to review where the current workspace’s environment can be further improved. Whether to run it is the user’s decision — never run it on their behalf.
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 
 # ============================================================
 # 这一段是「片段」：不是一条完整模板，而是模板里替换进去的一段话。

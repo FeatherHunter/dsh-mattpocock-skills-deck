@@ -308,7 +308,7 @@ async function main() {
   try { noLog({ ok: true, ms: 1 }); noLog({ ok: false, reason: 'x' }) } catch (e) { reportCrashed = true }
   check(!reportCrashed, '日志口不在，报告静默跳过')
 
-  // ── 7. 行模块：agent 层那一行交出九个加探针 ──
+  // ── 7. 行模块：agent 层那一行交出九个加探针和建议 ──
   const rowSvc = stubToolsSvc()
   let rowCrashed = null
   try { row.apply({ tools: rowSvc, connection: {} }) } catch (e) { rowCrashed = e }
@@ -316,6 +316,7 @@ async function main() {
   const rowNames = rowSvc.registered.map((t) => t.name)
   check(SEVEN_NAMES.every((n) => rowNames.indexOf(n) >= 0), '行模块交出九个 deck 工具')
   check(rowNames.indexOf('deck_probe') >= 0, '行模块交出探针')
+  check(rowNames.indexOf('suggest_next_steps') >= 0, '行模块交出建议工具（单独登记，不进九工具）')
   const probe = rowSvc.registered.filter((t) => t.name === 'deck_probe')[0]
   const inventory = JSON.parse(await probe.execute({}, { tools: { a: 1 }, connection: {}, agent: { session: { cwd: '/ws' } } }))
   check(inventory && inventory.tools === true && inventory.connection === true && inventory.subprocess === false,
@@ -324,15 +325,15 @@ async function main() {
   const pendOut = await pending.execute({}, { agent: { session: { cwd: '/ws' } } })
   check(pendOut && pendOut.status === 'unsupported' && String(pendOut.text).indexOf('面板') >= 0,
     '通道未通时执行诚实说明并指去面板（不谎报成功）')
-  // 注册表第二个就拒绝：剩下的照样交，坏一个不连累其余八个加探针。
+  // 注册表第二个就拒绝：剩下的照样交，坏一个不连累其余八个加探针和建议。
   const flakySvc = stubToolsSvc()
   let flakyCalls = 0
   const flakyOrig = flakySvc.register
   flakySvc.register = function (tool) { flakyCalls += 1; if (flakyCalls === 2) throw new Error('注册表拒收这一个'); return flakyOrig(tool) }
   let flakyCrashed = null
   try { row.apply({ tools: flakySvc, connection: {} }) } catch (e) { flakyCrashed = e }
-  check(!flakyCrashed && flakySvc.registered.length === 9,
-    '坏一个工具的注册，剩下八个加探针照样交（行不整体掀翻）')
+  check(!flakyCrashed && flakySvc.registered.length === 10,
+    '坏一个工具的注册，剩下八个加探针和建议照样交（行不整体掀翻）')
   // 工具服务不在：行起不来就明说，不静默。
   let noSvcCrashed = null
   try { row.apply({}) } catch (e) { noSvcCrashed = e }

@@ -1502,14 +1502,16 @@ const contractChecksInner = function (reg, src) {
 
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   // #1269：12 条会话收尾类提示词各加一条 /retro 提醒，版本底线跟着抬高（名单与断言见下面 fixate 之后的 #1269 块）
+  // #1407：20 个注入模板各加一行 suggest_next_steps 提醒、删掉 /retro 提醒行，版本底线整体抬高；
+  //   原来没有旧底线的 newSpec / healthCheck / specComplete / specExecute / specSplit 五条也一并登记进来。
   const V_MIN = {
     // #1281：map 子票统一入口（讨论/研究/原型/执行）与完成、修复、接手三条模板重写，版本底线同步抬高；
     //   写规格入口与规格三态、实施票是新增条目，不设旧底线。
     // #1274 收口后：完成提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有），complete 的版本底线 12 → 13。
     // #1212 恢复：诊断 v14→v16、接手 v6→v7，补回 #1281 删掉的调查节、诊断边界与收尾两条，版本底线同步抬高。
-    mapExecute: 16, complete: 13, fixate: 8, 'tpl.diagnose': 16, 'tpl.fix': 14, 'tpl.discuss': 16,
-    'tpl.research': 10, 'tpl.prototype': 10, 'tpl.takeover': 7, 'tpl.supplement': 4, 'tpl.execute': 16, mapInspect: 6, newWayfinder: 19,
-    newBugWayfinder: 11,
+    mapExecute: 18, complete: 14, fixate: 9, 'tpl.diagnose': 17, 'tpl.fix': 15, 'tpl.discuss': 17,
+    'tpl.research': 11, 'tpl.prototype': 11, 'tpl.takeover': 8, 'tpl.supplement': 5, 'tpl.execute': 17, mapInspect: 10, newWayfinder: 21,
+    newBugWayfinder: 12, newSpec: 2, healthCheck: 3, specComplete: 4, specExecute: 3, specSplit: 3,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -1698,25 +1700,24 @@ const contractChecksInner = function (reg, src) {
     if (fx.en.indexOf('## Consolidate') < 0 || fx.en.indexOf('## Suspected omissions') < 0 || fx.en.indexOf('## Review') < 0 || fx.en.indexOf('## Persist') < 0) fail('fixate en 缺清单段标题（Consolidate/Suspected omissions/Review/Persist）')
     if (fx.en.indexOf('alignment & consolidation') < 0) fail('fixate en 缺新命名（alignment & consolidation）')
   } else fail('缺条目 fixate')
-  // #1269：12 条会话收尾类提示词（票级 7 / map 级 2 / 新建 2 / 沉淀 1）各加一条 /retro 提醒。
-  //   判据只认「同一条原文在场」：中英各一句，12 条全有、其余条目一条都没有；
-  //   名单改动必须同时改验收，不然「悄悄删掉一句」或「悄悄多给一条」都能溜过去。
-  const RETRO_REMIND_IDS = [
+  // #1407：/retro 提醒行整行删除 —— 它和 /ask-matt 的「推荐下一步」重复了。
+  //   判据从「名单里 17 条必须在场」翻成「一条都不许在场」：17 条名单照旧逐条判缺席（不许只删一半），
+  //   再加一次全量兜底（其余模板也不许带）。名单仍是 #1269 / #1281 立的那 17 条；
+  //   名单改动必须同时改验收，不然「悄悄删掉一半」也能溜过去。
+  const RETRO_REMOVED_IDS = [
     'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'tpl.takeover', 'tpl.supplement', 'tpl.implement',
     'mapExecute', 'complete', 'newWayfinder', 'newBugWayfinder', 'fixate',
-    // #1281：写规格入口与规格三态、实施票四条新模板都带同一句 /retro 提醒（会话收尾类）。
     'newSpec', 'specSplit', 'specExecute', 'specComplete',
   ]
-  if (RETRO_REMIND_IDS.length !== 17) fail('#1269 /retro 提醒名单条数 ' + RETRO_REMIND_IDS.length + '（定稿 17；#1281 新增五条）')
-  RETRO_REMIND_IDS.forEach(function (id) {
+  if (RETRO_REMOVED_IDS.length !== 17) fail('#1407 /retro 提醒行删除名单条数 ' + RETRO_REMOVED_IDS.length + '（定稿 17）')
+  RETRO_REMOVED_IDS.forEach(function (id) {
     const e = reg[id] || {}
-    if (String(e.zh || '').indexOf('- [ ] 当前会话的任务全部完成时，主动提醒用户执行一次 /retro') < 0) fail('#1269 模板 ' + id + '.zh 缺 /retro 提醒句（会话任务全部完成时提醒用户执行一次，不替用户执行）')
-    if (String(e.en || '').indexOf('- [ ] Once every task of this session is finished, proactively remind the user to run /retro once') < 0) fail('#1269 模板 ' + id + '.en 缺 /retro 提醒句')
+    if (String(e.zh || '').indexOf('/retro') >= 0) fail('#1407 模板 ' + id + '.zh 还留着 /retro 提醒行（#1407 起整行删除，和 /ask-matt 的推荐下一步重复）')
+    if (String(e.en || '').indexOf('/retro') >= 0) fail('#1407 模板 ' + id + '.en 还留着 /retro 提醒行（#1407 起整行删除）')
   })
   Object.keys(reg).forEach(function (id) {
-    if (RETRO_REMIND_IDS.indexOf(id) >= 0) return
     const t = String(reg[id].zh || '') + String(reg[id].en || '')
-    if (t.indexOf('主动提醒用户执行一次 /retro') >= 0 || t.indexOf('proactively remind the user to run /retro once') >= 0) fail('#1269 模板 ' + id + ' 不在名单里却带 /retro 提醒句（名单见 fixate 之后那段注释；要加请先改名单与验收）')
+    if (t.indexOf('/retro') >= 0) fail('#1407 模板 ' + id + ' 的正文里出现 /retro（这条提醒已整行删除；要重新加回请先改名单与本门禁的验收）')
   })
   // installSkills（#74 + #fix-banner 修正）
   //   #573 修正（原 SKILL_NAMES_10 清单已过时）：技能名真源是 src/shared/matt-skills.js（25 项），
@@ -2292,10 +2293,13 @@ const selfDigest = function () {
 //   YAML 那份在全部用户可见路径上被它遮住），EXPECT_REGISTRY_ENTRIES 28 → 27，受保护清单随之少一条，
 //   豁免表撤掉 registry#ghAuthLogin 这条 scope，MUST_JUDGE 与 TOOL_SECTION_ABSENT_IDS 各少一条。
 //   豁免登记表与门禁自身的摘要一并重算（payload 夹具没动）。
+// #1407：20 个注入模板各加一行 suggest_next_steps 提醒、删掉 17 处 /retro 提醒行 ——
+//   版本底线整体抬高；原来「17 条名单逐条判在场」的 #1269 块改成「17 条逐条判缺席 + 全量兜底」；
+//   本文件内容变了，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '0b7fc11bac3a59b494e22dd0881ad57c789fb16e7aa5fd027d1c080a4e633b72',
+  'tests/verify-prompts.ts': 'e2dd0a742c41abb2e7492c9c48d0e377037302e3694ecd570e941f631c6de675',
 }
 // ---- LOCK-END ----
 

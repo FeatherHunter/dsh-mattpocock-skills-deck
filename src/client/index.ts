@@ -62,6 +62,8 @@ declare const installUiFeedback: any;
 declare const PIXEL_CARDS_STYLE_TEXT: any;
 // #1398 V2 地图详情页的页面外壳样式（卡片皮肤仍是 PIXEL_CARDS_STYLE_TEXT 那一片）。
 declare const MAP_DETAIL_V2_STYLE_TEXT: any;
+// #1411 下一步建议气泡的样式文本（另起样式叶子，见 suggestStyles.ts 头）。
+declare const SUGGEST_STYLE_TEXT: any;
 declare const L: any;
 declare const LANG_CONFIG: any;
 declare const localeAdopt: any;
@@ -105,6 +107,11 @@ export default {
     styles.insert(PIXEL_STYLE_TEXT)
     // ==== leaf:feedbackStyles (spliced by build) ====
     styles.insert(FEEDBACK_STYLE_TEXT) // 948 反馈样式叶子（与像素皮肤同款做法，见叶子头）
+    // #1411：下一步建议气泡的外观旋钮（含层级常量）必须排在样式叶子之前 —— 样式文本在模块求值时
+    // 就读它拼数字（const 有暂时性死区）；注入仍走同一个 styles.insert 接缝，不是第二个 style 元素。
+    // ==== leaf:suggestAppearance (spliced by build) ====
+    // ==== leaf:suggestStyles (spliced by build) ====
+    styles.insert(SUGGEST_STYLE_TEXT)
 
     // ============================================================
     // 0.5 locale（T3 #366 · dsws 命名空间；跟随 harness 语言；GitHub 数据不翻译）
@@ -316,6 +323,14 @@ export default {
 
     // #725：状态栏胶囊那条横条的逐字折叠阶梯（纯函数）与它的阶梯机（读写 DOM），都排在 statusBar 之前
     //   —— 状态栏那边只留接线：把胶囊元素与两张跨调用带着走的表交给机器。
+    // #1409：界面借会话事件流取数通路（纯函数在前、订阅层在后，状态栏那边只挂一行组件）。
+    // ==== leaf:suggestFacts (spliced by build) ====
+    // #1411：小泡动效的时间线（纯函数）与 DOM 执行者。时间线在前、执行者在后，气泡薄壳最后用它们。
+    // ==== leaf:suggestTimeline (spliced by build) ====
+    // ==== leaf:suggestEngine (spliced by build) ====
+    // #1411：建议气泡的渲染与交互薄壳。排在订阅层之前 —— 订阅层拿到建议后直接渲染它。
+    // ==== leaf:suggestBubble (spliced by build) ====
+    // ==== leaf:suggestStream (spliced by build) ====
     // ==== leaf:capFold (spliced by build) ==== // ==== leaf:capFoldMachine (spliced by build) ====
     // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:logDangerConfirm (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
     // ==== leaf:sessionChainCapsule (spliced by build) ====

@@ -28,6 +28,7 @@ import { definition as deckMapLinkDef } from '../tools/map-link.js'
 import { definition as deckIssuePatchDef } from '../tools/issue-patch.js'
 import { definition as deckIssueReportDef } from '../tools/issue-report.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from './register-options.js'
+import { registerSuggestNextSteps } from './suggest-steps-register.js'
 import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath } from '../shell/table-cell.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { BRIDGE_DRY_TABLE_WAIT_MS, DELEGATED_CELL_WAIT_MS } from '../../shared/time-config/src/values.js'
@@ -414,4 +415,6 @@ export function apply(ctx: unknown): void {
     output: probeOutput as unknown as UnknownRecord,
     execute: async function (args: unknown, exec: unknown): Promise<unknown> { return JSON.stringify(await probeDetails(ctx, exec)) },
   } as UnknownRecord)
+  // #1406：建议工具不进九工具装配顺序表，单独注册一次（与探针同一种先例）；登记不上不影响对话。
+  try { registerSuggestNextSteps(toolsSvc) } catch (eSuggest) {}
 }

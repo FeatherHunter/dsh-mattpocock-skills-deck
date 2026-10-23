@@ -49,7 +49,7 @@ function enOf(id) {
 }
 
 const newSpecEntry = templateOf('newSpec')
-check(!!newSpecEntry && newSpecEntry.version === 1, 'newSpec 条目存在且 v1')
+check(!!newSpecEntry && newSpecEntry.version === 2, 'newSpec 条目存在且 v2')
 check(zhOf('newSpec').indexOf('/grill-with-docs\n请帮我讨论一个需求') === 0, 'newSpec 首行是 /grill-with-docs 且收尾提醒 to-spec（正文在注册表）')
 check(zhOf('tpl.implement').indexOf('/implement\n{url}\n\n按 /implement 技能实施这张票。') === 0, 'tpl.implement 首行 /implement、次行 {url}')
 check(zhOf('specSplit').indexOf('/to-tickets\n{url}') === 0, 'specSplit 首行 /to-tickets')
