@@ -217,8 +217,10 @@ export const ChecksTab = ({ st }: any) => {
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),
       (function () {
         const selTop = st.selection || (st.snapshot && st.snapshot.selection) || null
-        if (selTop && selTop.backendId) return h(Tip, { content: tr('banner.setupPickHint') }, h('span', { style: { fontSize: 10, lineHeight: '16px', padding: '1px 8px', borderRadius: 99, border: '1px solid rgba(139,140,255,.45)', color: '#9a9aff' } }, String(selTop.backendId)))
-        if (selTop && selTop.pending) return h('span', { style: { fontSize: 10, color: '#8b8b95' } }, tr('env.detecting'))
+        // #1388：类名给浅色层挂钩，浅色下字与边框换宿主链接深蓝（深色走内联色不变）。
+        if (selTop && selTop.backendId) return h(Tip, { content: tr('banner.setupPickHint') }, h('span', { className: 'dsws-env-badge', style: { fontSize: 10, lineHeight: '16px', padding: '1px 8px', borderRadius: 99, border: '1px solid rgba(139,140,255,.45)', color: '#9a9aff' } }, String(selTop.backendId)))
+        // #1388：类名给浅色层挂钩，浅色下换宿主次要文字（深色走内联色不变）。
+        if (selTop && selTop.pending) return h('span', { className: 'dsws-env-detecting', style: { fontSize: 10, color: '#8b8b95' } }, tr('env.detecting'))
         return null
       })(),
       h('span', { style: { flex: 1 } }),

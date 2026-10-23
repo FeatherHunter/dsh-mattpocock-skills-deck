@@ -253,6 +253,32 @@ export const FEEDBACK_STYLE_TEXT: string = [
       // 环境检查页签「进行中」那条的状态圆点（.dsws-ccard[data-state="current"] .dsws-ccard-dot）：原底色是写死的警告橙，白底 2.15:1，图形要 3:1 不够；改成宿主警告标签色掺 35% 主字色后 5.43:1，圆点里的白字仍读得清。
       'body:not([data-ds-dark-theme]) .dsws-ccard[data-state="current"] .dsws-ccard-dot{background:var(--dsws-light-deep-warn)!important}',
 
-      // #1379 浅色个例修复层（结束）
+      // #1388：宿主说明文字（caption）在浅色下只有 2.13:1。插件不写死颜色，
+  //   把 caption 令牌本身换成宿主更深一档的次要文字（浅色约 5.8:1）；深色不受这条影响。
+  'body:not([data-ds-dark-theme]){--dsw-alias-label-caption:var(--dsw-alias-label-secondary)!important}',
+  // #1388：环境检查页顶的后端徽标（ChecksTab.ts 的 .dsws-env-badge）：原色 #9a9aff 白底 2.49:1；
+  //   徽标是后端身份，改用宿主链接深蓝（约 5.0:1），边框同色，换肤时跟着宿主走。
+  'body:not([data-ds-dark-theme]) .dsws-env-badge{color:var(--dsws-light-deep-link)!important;border-color:var(--dsws-light-deep-link)!important}',
+  // #1388：环境检查页的检测中提示（ChecksTab.ts 的 .dsws-env-detecting）：原色 #8b8b95 白底 3.37:1；
+  //   改用宿主次要文字（浅色约 5.8:1）。
+  'body:not([data-ds-dark-theme]) .dsws-env-detecting{color:var(--dsw-alias-label-secondary)!important}',
+  // #1388：表单字段预览行（modal-fields.ts 的 .dsws-modal-preview）：原色 #58a6ff 白底约 2.5:1；
+  //   预览是算出来的目标名，归链接语义，改用宿主链接深蓝（约 5.0:1）。
+  'body:not([data-ds-dark-theme]) .dsws-modal-preview{color:var(--dsws-light-deep-link)!important}',
+  // #1388：横幅坏态（kernel/styles.ts 的 .dsws-banner.bad）：原字色 #f87171 压浅红底 2.46:1；
+  //   改用宿主错误深红（约 6.3:1），底与边框不动，错误语义不变。
+  'body:not([data-ds-dark-theme]) .dsws-banner.bad{color:var(--dsws-light-deep-err)!important}',
+  // #1388：版本控制页的弱说明字（vcStyles.ts 的 --vc-faint）：浅色值 #948875 压纸面 3.09:1；
+  //   直接把令牌换成宿主次要文字（浅色约 5.8:1），占位符、说明、栏目标题三处一起好；深色令牌不动。
+  'body:not([data-ds-dark-theme]) [data-vc-root]{--vc-faint:var(--dsw-alias-label-secondary)!important}',
+  // #1388：票卡片彩色标签里白字深字都到不了 4.5 的底（动作紫 #8b5cf6 一带，组件按 data-cd-boost 标出来）：
+  //   字换宿主浅字（接近纯白），底上加一层 18% 深墨罩纱（约到 5.4:1）；
+  //   像素描边照原样保留，只是把写死的白黑换成令牌，换肤时不断。
+  'body:not([data-ds-dark-theme]) .cd-chip[data-cd-boost="1"]{color:var(--dsw-alias-label-primary-foreground)!important;box-shadow:inset 2px 2px 0 color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 35%, transparent),inset -2px -2px 0 color-mix(in srgb, var(--cd-ink) 28%, transparent),2px 2px 0 var(--cd-shadow),inset 0 0 0 999px color-mix(in srgb, var(--cd-ink) 18%, transparent)!important}',
+  // #1388：票卡片彩色动作按钮同上（PixelCardBtns.ts 同一标记）：字换浅字，底加 18% 深墨罩纱；常态阴影保留。
+  'body:not([data-ds-dark-theme]) .cd-abtn[data-cd-boost="1"]{color:var(--dsw-alias-label-primary-foreground)!important;box-shadow:2px 2px 0 var(--cd-shadow),inset 0 0 0 999px color-mix(in srgb, var(--cd-ink) 18%, transparent)!important}',
+  // #1388：票卡片票号徽标同上（PixelCardNo.ts 实心款同一标记）：字换浅字，底加 18% 深墨罩纱；常态阴影保留。
+  'body:not([data-ds-dark-theme]) .cd-nonum[data-cd-boost="1"]{color:var(--dsw-alias-label-primary-foreground)!important;box-shadow:2px 2px 0 var(--cd-shadow),inset 0 0 0 999px color-mix(in srgb, var(--cd-ink) 18%, transparent)!important}',
+  // #1379 浅色个例修复层（结束）
       '@media (prefers-reduced-motion: reduce){.dsws-ink{transition:none!important}.dsws-ink.dsws-ink-squash{animation:none!important}.dsws-hov,.dsws-hov.dsws-pressing{transition:none!important;transform:none}[data-press].dsws-pressing{transform:none!important}}',
     ].join('')

@@ -134,6 +134,10 @@ const AUDIT_FILES: string[] = Array.from(new Set(COUNTED_FILES.concat([
   'src/client/views/shared/liquidInk.ts',
   'src/client/views/feedback/feedback-styles.ts',
   'src/client/views/cards/PixelCardsStyles.ts',
+  // F30 数的两份像素皮肤都要在 base 里：针对技能皮肤去守卫的那条反例改的就是这份文件，
+  // 它不在 base 里时反例等于删掉整份文件，只能靠「条数少于 5」兜底；卡片侧深色焦点规则拆成两条后
+  // 卡片一家就有 5 条，兜底失效、反例白喂。进来之后反例才是真去守卫，F30 靠裸选择器报红。
+  'src/client/views/skillDetail/PixelStyles.ts',
   'src/client/kernel/entry-choice.ts',
 ])))
 
@@ -431,7 +435,7 @@ function audit(read: (p: string) => string): AuditResult[] {
     'F31 浅色个例修复层只改颜色类属性（color/background/border-color/fill/stroke/box-shadow），不改尺寸、间距、布局' +
     (lightBadProps.length ? '；越界属性：' + Array.from(new Set(lightBadProps)).join('、') : ''))
 
-  // ============ F32：五处浅色个例必须「组件挂标记、样式认标记」两头对齐（#1379 收口） ============
+  // ============ F32：十四处浅色个例必须「组件挂标记、样式认标记」两头对齐（#1379 收口，#1388 加八处） ============
   // 为什么加这一条：浅色覆盖层全靠选择器命中组件里的类名或 data 属性。选择器写错一个字符，CSS 照样合法、
   //   整份样式也不会报错，只是浅色下那几个字又回到看不清；反过来，组件里的标记被删掉，规则还在、却再也命不中，
   //   门禁同样绿着。这种「规则在、标记没挂」或「标记在、规则漏了」的漂移，只能由一条同时读组件源码与样式层的
@@ -496,6 +500,54 @@ function audit(read: (p: string) => string): AuditResult[] {
         'body:not([data-ds-dark-theme]) .dsws-tip>div>div:nth-child(2){',
       ],
     },
+    {
+      what: '环境检查页顶的后端徽标',
+      file: 'src/client/views/ChecksTab.ts',
+      marks: ["className: 'dsws-env-badge'"],
+      sels: ['body:not([data-ds-dark-theme]) .dsws-env-badge{'],
+    },
+    {
+      what: '环境检查页的检测中提示',
+      file: 'src/client/views/ChecksTab.ts',
+      marks: ["className: 'dsws-env-detecting'"],
+      sels: ['body:not([data-ds-dark-theme]) .dsws-env-detecting{'],
+    },
+    {
+      what: '表单字段预览行',
+      file: 'src/client/kernel/modal-fields.ts',
+      marks: ["className: 'dsws-modal-preview'"],
+      sels: ['body:not([data-ds-dark-theme]) .dsws-modal-preview{'],
+    },
+    {
+      what: '横幅坏态的字色',
+      file: 'src/client/kernel/styles.ts',
+      marks: ["'.dsws-banner.bad{"],
+      sels: ['body:not([data-ds-dark-theme]) .dsws-banner.bad{'],
+    },
+    {
+      what: '版本控制页的弱说明字（令牌 --vc-faint）',
+      file: 'src/client/views/versionControl/vcStyles.ts',
+      marks: ['--vc-faint:'],
+      sels: ['body:not([data-ds-dark-theme]) [data-vc-root]{'],
+    },
+    {
+      what: '票卡片彩色标签的罩纱（白字深字都到不了 4.5 的底）',
+      file: 'src/client/views/cards/PixelCardTags.ts',
+      marks: ['data-cd-boost'],
+      sels: ['body:not([data-ds-dark-theme]) .cd-chip[data-cd-boost="1"]{'],
+    },
+    {
+      what: '票卡片彩色动作按钮的罩纱',
+      file: 'src/client/views/cards/PixelCardBtns.ts',
+      marks: ['data-cd-boost'],
+      sels: ['body:not([data-ds-dark-theme]) .cd-abtn[data-cd-boost="1"]{'],
+    },
+    {
+      what: '票卡片票号徽标实心款的罩纱',
+      file: 'src/client/views/cards/PixelCardNo.ts',
+      marks: ['data-cd-boost'],
+      sels: ['body:not([data-ds-dark-theme]) .cd-nonum[data-cd-boost="1"]{'],
+    },
   ]
   const lightCaseReds: string[] = []
   for (const c of LIGHT_CASES) {
@@ -509,8 +561,8 @@ function audit(read: (p: string) => string): AuditResult[] {
     }
     for (const sel of c.sels) { if (lightCss.indexOf(sel) < 0) lightCaseReds.push(c.what + '：浅色层里没有这条规则 ' + sel) }
   }
-  check(LIGHT_CASES.length === 6 && lightCaseReds.length === 0,
-    'F32 六处浅色个例两头对齐：组件里挂着稳定标记（类名或 data-state），浅色层里有一条带 body:not([data-ds-dark-theme]) 前缀、专认这个标记的规则（' + LIGHT_CASES.length + ' 处；只改一头就红）' +
+  check(LIGHT_CASES.length === 14 && lightCaseReds.length === 0,
+    'F32 十四处浅色个例两头对齐：组件里挂着稳定标记（类名或 data-state），浅色层里有一条带 body:not([data-ds-dark-theme]) 前缀、专认这个标记的规则（' + LIGHT_CASES.length + ' 处；只改一头就红）' +
     (lightCaseReds.length ? '；对不上：' + lightCaseReds.join('；') : ''))
   for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')

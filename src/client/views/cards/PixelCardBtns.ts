@@ -1,6 +1,7 @@
 /** views/cards/PixelCardBtns.ts - four-button action row with icons. */
 import type { CardBtnsProps, CardIconProps } from './cardBits';
 declare const cardInkOn: (hex: string) => string;
+declare const cardBoostOn: (hex: string) => boolean;
 const ICB: Record<string, string> = {
   chat: "<path d=\"M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
   play: "<path d=\"M8 5.5l11 6.5-11 6.5z\" fill=\"currentColor\" stroke=\"none\"/>",
@@ -27,14 +28,17 @@ export const PixelCardBtns = function (props?: CardBtnsProps): any {
   // 定位串的固定部分写成字面量、变化的部分（哪张卡）接在后面——门禁是按字面量查字符集与唯一性的。
   const logKey = String(((props as any) || {}).logKey || '');
   const ink = cardInkOn(bg);
+  // #1388：罩纱标记只管「要不要」，颜色照旧由 cardInkOn 定；样式层的浅色规则认这个标记加罩纱。
+  const boost = (typeof cardBoostOn === 'function') ? cardBoostOn(bg) : false;
+  const boostMark = boost ? '1' : undefined;
   const stop = function (e: any): void { if (e && e.stopPropagation) e.stopPropagation(); };
   const st = { background: bg, color: ink };
   return h('div', { className: 'cd-actions' }, [
     // 四颗按钮是像素风控件：只接 data-press 与 data-log，不加 dsws-hov（像素按钮自己有那套外观，
     // 悬停提亮与下沉位移由像素样式负责，叠两套会让按下时的位移对不上图标格）。
     // 复制与打开是纯图标按钮，按压形状记 icon；有文字的主按钮与新会话按钮记 button。
-    h('button', { key: 'm', className: 'cd-abtn label', style: st, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.main', onClick: function (e: any): void { stop(e); if (p.onMain) p.onMain(); } }, [h(PixelCardIcon, { key: 'i', n: p.icon }), h('span', { key: 't', className: 'cd-lbl' }, p.mainLabel)]),
-    h('button', { key: 'n', className: 'cd-abtn label', style: st, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.new', onClick: function (e: any): void { stop(e); if (p.onNew) p.onNew(); } }, [h(PixelCardIcon, { key: 'i', n: 'ext' }), h('span', { key: 't', className: 'cd-lbl' }, tr('card.newSession'))]),
+    h('button', { key: 'm', className: 'cd-abtn label', style: st, 'data-cd-boost': boostMark, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.main', onClick: function (e: any): void { stop(e); if (p.onMain) p.onMain(); } }, [h(PixelCardIcon, { key: 'i', n: p.icon }), h('span', { key: 't', className: 'cd-lbl' }, p.mainLabel)]),
+    h('button', { key: 'n', className: 'cd-abtn label', style: st, 'data-cd-boost': boostMark, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.new', onClick: function (e: any): void { stop(e); if (p.onNew) p.onNew(); } }, [h(PixelCardIcon, { key: 'i', n: 'ext' }), h('span', { key: 't', className: 'cd-lbl' }, tr('card.newSession'))]),
     h('button', { key: 'c', className: 'cd-abtn paper icon', title: tr('card.copyLink'), 'data-press': 'icon', 'data-log': 'card.btn.' + logKey + '.copy', onClick: function (e: any): void { stop(e); if (p.onCopy) p.onCopy(); } }, h(PixelCardIcon, { n: 'clip' })),
     h('button', { key: 'o', className: 'cd-abtn paper icon', title: tr('card.openLink'), 'data-press': 'icon', 'data-log': 'card.btn.' + logKey + '.open', onClick: function (e: any): void { stop(e); if (p.onOpen) p.onOpen(); } }, h(PixelCardIcon, { n: 'link' })),
   ]);

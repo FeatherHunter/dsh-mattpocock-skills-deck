@@ -40,3 +40,17 @@ export const cardInkOn = function (hex: string): string {
   const l = cardLum(hex);
   return ((l + 0.05) / 0.05) >= (1.05 / (l + 0.05)) ? '#1c1004' : '#fff9ec';
 };
+/** #1388：浅色罩纱标记。白字与深字都到不了 4.5 的彩色底（动作紫 #8b5cf6 一带、
+ * 压线的 ready 绿 #0e8a16），浅色下由样式层加一层深墨罩纱补对比。
+ * 这里只算「要不要罩纱」，不改颜色本身：深色主题与门禁渲染都走老样子，一字不变。
+ * 白字按纯白算（罩纱配的是宿主浅字，接近纯白），4.6 留一点余量，
+ * 免得 4.50 这种压线值在真机上差之毫厘。 */
+export const cardBoostOn = function (hex: string): boolean {
+  try {
+    if (typeof cardLum !== 'function') return false;
+    const lb = cardLum(hex);
+    const wOk = 1.05 / (lb + 0.05) >= 4.6;
+    const dOk = (lb + 0.05) / (cardLum('1c1004') + 0.05) >= 4.5;
+    return !wOk && !dOk;
+  } catch (e) { return false; }
+};
