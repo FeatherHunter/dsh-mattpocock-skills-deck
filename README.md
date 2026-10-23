@@ -13,20 +13,12 @@
 
 [![版本](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck?label=%E7%89%88%E6%9C%AC)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载量](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.npmjs.org%2Fdownloads%2Fpoint%2Flast-month%2Fdsh-mattpocock-skills-deck&query=%24.downloads&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&suffix=%2F%E6%9C%88&color=brightgreen)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载总量](https://img.shields.io/npm/dt/dsh-mattpocock-skills-deck?label=%E4%B8%8B%E8%BD%BD%E6%80%BB%E9%87%8F&color=red)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![最近更新](https://img.shields.io/github/last-commit/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%9C%80%E8%BF%91%E6%9B%B4%E6%96%B0&color=FE7D37)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/commits/main) [![月提交](https://img.shields.io/github/commit-activity/m/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%8F%90%E4%BA%A4%E6%95%B0&color=DFAB01)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/graphs/commit-activity) [![技能包](https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E5%8C%85-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills) [![欢迎提交PR🌹](https://img.shields.io/badge/%E6%AC%A2%E8%BF%8E%E6%8F%90%E4%BA%A4PR%F0%9F%8C%B9-red.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)
 
-<span style="color:red">🔥 欢迎提交PR，不要求完美无瑕，有缺陷也会在合入后进行优化而不是拒绝，星星之火🔥可以燎原！ 🔥</span><br>
+<span style="color:red">欢迎提交PR，不要求完美无瑕，有缺陷也会在合入后进行优化而不是拒绝，星星之火🔥可以燎原！</span><br>
 唯一要求：使用技能 /pr 填写PR信息。
 
 </div>
 
 <h2 align="center"><sub>INSTALL</sub><br>安装</h2>
-
-<div align="center">
-
-前置要求：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
-
-任务板绑定的仓库需要写权限：新建标签要 push 权限，给票打标签要 triage 及以上权限；只有读权限时能建票、能读票，但补标签、标签流转与 wayfinder 标签都不可用。
-
-</div>
 
 ```bash
 # ① 安装 DSH CLI（已装跳过）
@@ -44,14 +36,6 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --regis
 ```
 
 <div align="center">
-
-装完**重启一次对应的 DSH 入口**即生效：桌面应用完全退出并重开 DSH Desktop；web 服务重启 `dsh web` 后刷新页面。零配置。
-
-**右侧面板性能极致优化：点击到内容可见，真机实测从 5075 毫秒降到 193 毫秒，性能提升约 96.2%（约 26 倍）。**
-
-面板就开在 DSH 自己的右侧边栏里：左边列表、右边详情，并排看。不需要再装别的插件。
-
-**👇 装完重启即生效，初始化六步见下节「初始化流程」，功能逐项见任务板起的各节。**
 
 </div>
 
@@ -86,36 +70,13 @@ dsh plugin --profile web update dsh-mattpocock-skills-deck   # 升级
 dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 ```
 
-<h2 align="center"><sub>INIT FLOW</sub><br>初始化流程</h2>
-
-<div align="center">
-
-新工作区六步走完即开工：建工作区、开会话、选后端、确认注入、等 AI 执行、过环境检查。下面是深色中文界面的实拍。
-
-<table>
-  <tr>
-    <td valign="top"><img src="assets/init/中文-深色-1-创建新工作区.png" width="280" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"><br>第 1 步：创建新工作区</td>
-    <td valign="top"><img src="assets/init/中文-深色-2-新建会话-选择后端.png" width="400" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"><br>第 2 步：新建会话并选择后端</td>
-  </tr>
-  <tr>
-    <td valign="top"><img src="assets/init/中文-深色-3-选择后端为github.png" width="400" alt="第3步：选择后端为 GitHub" style="border:1px solid #30363d;border-radius:6px"><br>第 3 步：选择后端为 GitHub</td>
-    <td valign="top"><img src="assets/init/中文-深色-4-点击确认后-注入prompt.png" width="400" alt="第4步：点击确认后注入提示词" style="border:1px solid #30363d;border-radius:6px"><br>第 4 步：点击确认后注入提示词</td>
-  </tr>
-  <tr>
-    <td valign="top"><img src="assets/init/中文-深色-5-等待AI执行.png" width="400" alt="第5步：等待 AI 执行初始化" style="border:1px solid #30363d;border-radius:6px"><br>第 5 步：等待 AI 执行初始化</td>
-    <td valign="top"><img src="assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="400" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"><br>第 6 步：环境检测不通过时照提示补齐</td>
-  </tr>
-</table>
-
-</div>
-
-<h2 align="center"><sub>BOARD</sub><br>任务板列表</h2>
+<h2 align="center"><sub>BOARD</sub><br>任务板</h2>
 
 <div align="center">
 
 仓库里的任务不再是流水账：面板把它们按可接、阻塞、已关闭归位，进度走到哪一格一眼看清。每行任务的按钮就是动作入口：点一下，写好的指令填进输入框，确认后再发送。地图类型的行永远置顶，已关闭的收成一行。
 
-**👇 单仓多票和多区并发，两张对照看。**
+**👇 先看单仓多票与并发规模，再看地图卡片墙与单票详情。**
 
 <table>
   <tr>
@@ -123,33 +84,6 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
     <td valign="top"><img src="assets/readme/中文-深色-工作区-多ISSUE并发.png" width="400" alt="多工作区多会话并发" style="border:1px solid #30363d;border-radius:6px"><br>多区并发：多工作区多会话同时推进</td>
   </tr>
 </table>
-
-</div>
-
-<h2 align="center"><sub>STATUSBAR</sub><br>底部任务栏</h2>
-
-<div align="center">
-
-每条会话输入框下面都有一条胶囊状态栏：可接数量、待修（BUG）数量、诊断、沉淀、交接、环境进度都在上面。点可接、环境等主要分段，即跳到对应面板页，看完即回，不打断手头会话。
-
-**👇 离手最近的操作条和它弹出的工作路线，两张对照看。**
-
-<table>
-  <tr>
-    <td valign="top"><img src="assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="400" alt="底部任务栏输入框区域" style="border:1px solid #30363d;border-radius:6px"><br>输入框区域：可接、故障、诊断、沉淀、交接、环境都在一条上</td>
-    <td valign="top"><img src="assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="400" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"><br>工作路线：本会话多条加另有几十个会话在办一目了然</td>
-  </tr>
-</table>
-
-</div>
-
-<h2 align="center"><sub>DETAIL</sub><br>ISSUE 详情与评论</h2>
-
-<div align="center">
-
-点开任意一条任务，描述、标签、认领人与评论都在面板里排好版，不用跳终端。在底部输入框直接回话，一般只按标签显示其中一个（诊断、修复、讨论、执行），需要另起再点新会话。
-
-**👇 从地图卡片墙到单票详情，两张对照看。**
 
 <table>
   <tr>
@@ -160,13 +94,30 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 </div>
 
-<h2 align="center"><sub>NEW SESSION</sub><br>新会话</h2>
+<h2 align="center"><sub>STATUSBAR</sub><br>对话框胶囊栏</h2>
 
 <div align="center">
 
-任何活都能另起干净会话干：详情页顶部点新会话，新会话标题自动起好，承接指令已预填，人只管检查后发送。当前会话不受扰，脏活累活都在新会话里。
+每条会话输入框下面都有一条胶囊状态栏：可接数量、待修（BUG）数量、诊断、沉淀、交接、环境进度都在上面。点可接、环境等主要分段，即跳到对应面板页，看完即回，不打断手头会话。
 
-**👇 两个入口进同一件事，两张对照看。**
+**👇 离手最近的操作条和它弹出的工作路线，两张对照看。**
+
+<table>
+  <tr>
+    <td valign="top"><img src="assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="400" alt="对话框胶囊栏输入框区域" style="border:1px solid #30363d;border-radius:6px"><br>输入框区域：可接、故障、诊断、沉淀、交接、环境都在一条上</td>
+    <td valign="top"><img src="assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="400" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"><br>工作路线：本会话多条加另有几十个会话在办一目了然</td>
+  </tr>
+</table>
+
+</div>
+
+<h2 align="center"><sub>DEMAND</sub><br>新增需求</h2>
+
+<div align="center">
+
+任何需求都有干净的入口：右侧面板一点或胶囊上一点，需求类型选好，承接指令已预填，人只管检查后发送。
+
+**👇 两个入口进同一需求，两张对照看。**
 
 <table>
   <tr>
@@ -177,7 +128,7 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 </div>
 
-<h2 align="center"><sub>SKILLS</sub><br>技能快捷入口</h2>
+<h2 align="center"><sub>SKILLS</sub><br>技能面板</h2>
 
 <div align="center">
 
@@ -194,7 +145,7 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 </div>
 
-<h2 align="center"><sub>BACKENDS</sub><br>多后端切换</h2>
+<h2 align="center"><sub>BACKENDS · ENV</sub><br>多后端切换与环境检查</h2>
 
 <div align="center">
 
@@ -215,18 +166,15 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-改了什么、并行几棵树、提交到哪，三张图一次讲清。
+改了什么、提交到哪、并行几棵树，一行三列一次讲清。
 
 <table>
   <tr>
-    <td valign="top"><img src="assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="400" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"><br>改动：本次改了什么</td>
-    <td valign="top"><img src="assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="400" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"><br>工作树：并行几棵树</td>
+    <td valign="top"><img src="assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="260" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"><br>改动：本次改了什么</td>
+    <td valign="top"><img src="assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="260" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px"><br>提交历史：提交到哪</td>
+    <td valign="top"><img src="assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="260" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"><br>工作树：并行几棵树</td>
   </tr>
 </table>
-
-<img src="assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="640" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px">
-
-提交历史细节多，单列大图才看得清。
 
 </div>
 
@@ -240,6 +188,29 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
   <tr>
     <td valign="top"><img src="assets/readme/中文-深色-设置面板-主页.png" width="400" alt="设置面板主页" style="border:1px solid #30363d;border-radius:6px"><br>设置主页：总览入口都在这里</td>
     <td valign="top"><img src="assets/readme/中文-深色-右侧面板-调色板-设置label颜色.png" width="400" alt="调色板设置标签颜色" style="border:1px solid #30363d;border-radius:6px"><br>调色板：标签颜色随心换</td>
+  </tr>
+</table>
+
+</div>
+
+<h2 align="center"><sub>INIT FLOW</sub><br>初始化流程</h2>
+
+<div align="center">
+
+新工作区六步走完即开工：建工作区、开会话、选后端、确认注入、等 AI 执行、过环境检查。下面是深色中文界面的实拍。
+
+<table>
+  <tr>
+    <td valign="top"><img src="assets/init/中文-深色-1-创建新工作区.png" width="280" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"><br>第 1 步：创建新工作区</td>
+    <td valign="top"><img src="assets/init/中文-深色-2-新建会话-选择后端.png" width="400" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"><br>第 2 步：新建会话并选择后端</td>
+  </tr>
+  <tr>
+    <td valign="top"><img src="assets/init/中文-深色-3-选择后端为github.png" width="400" alt="第3步：选择后端为 GitHub" style="border:1px solid #30363d;border-radius:6px"><br>第 3 步：选择后端为 GitHub</td>
+    <td valign="top"><img src="assets/init/中文-深色-4-点击确认后-注入prompt.png" width="400" alt="第4步：点击确认后注入提示词" style="border:1px solid #30363d;border-radius:6px"><br>第 4 步：点击确认后注入提示词</td>
+  </tr>
+  <tr>
+    <td valign="top"><img src="assets/init/中文-深色-5-等待AI执行.png" width="400" alt="第5步：等待 AI 执行初始化" style="border:1px solid #30363d;border-radius:6px"><br>第 5 步：等待 AI 执行初始化</td>
+    <td valign="top"><img src="assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="400" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"><br>第 6 步：环境检测不通过时照提示补齐</td>
   </tr>
 </table>
 
