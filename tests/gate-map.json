@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T03:15:14.020Z",
+  "generatedAt": "2026-10-23T08:45:09.563Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 330,
-  "gateCount": 330,
-  "attributedGates": 290,
+  "chainLength": 332,
+  "gateCount": 332,
+  "attributedGates": 292,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 22,
-  "completionRecordedGates": 12,
+  "completionRecordedGates": 13,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 552,
@@ -2367,6 +2367,28 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1431-snapshot-refresh-parity.ts",
+      "file": "tests/verify-1431-snapshot-refresh-parity.ts",
+      "guards": [
+        "src/client/kernel/store-derived.ts",
+        "src/host/sessionRefresh.ts",
+        "src/host/sessionSnapshot.ts",
+        "src/tracker/kernel/identity-keys.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/host",
+        "src/tracker/kernel",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -6066,6 +6088,29 @@
       "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
+      "step": "node tests/verify-log-switch-single-source.ts",
+      "file": "tests/verify-log-switch-single-source.ts",
+      "guards": [
+        "src",
+        "src/host/configStore.ts",
+        "src/host/index.ts",
+        "src/host/logFromPackage.ts",
+        "src/host/logStore.ts",
+        "src/host/settingsPhones.ts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "src",
+        "src/host",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 37,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+    },
+    {
       "step": "node tests/verify-map-detail-v2.ts",
       "file": "tests/verify-map-detail-v2.ts",
       "guards": [
@@ -8057,6 +8102,7 @@
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-gh-gateway.ts",
+      "node tests/verify-log-switch-single-source.ts",
       "node tests/verify-strict-module-syntax.ts",
       "node tests/verify-1327-freshness-content.ts"
     ],
@@ -8116,6 +8162,7 @@
       "node tests/verify-1355-cross-session-table.ts",
       "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-1373-stale-table-graft.ts",
+      "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-646-native-tab.ts",
@@ -8435,6 +8482,7 @@
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1392-disposed-timer.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
+      "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-524-pr-detail.ts",
@@ -8482,6 +8530,7 @@
       "node tests/verify-log-fields.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-store.ts",
+      "node tests/verify-log-switch-single-source.ts",
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-multi-effort.ts",
       "node tests/verify-parse-leaf.ts",
@@ -8844,6 +8893,7 @@
       "node tests/verify-1286-detail.ts",
       "node tests/verify-1286-list.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
+      "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -9069,6 +9119,7 @@
       "node tests/verify-1409-suggest-stream.ts",
       "node tests/verify-1411-suggest-appearance.ts",
       "node tests/verify-1411-suggest-bubble.ts",
+      "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -9147,6 +9198,7 @@
       "node tests/verify-log-statusbar.ts",
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-log-switch-597.ts",
+      "node tests/verify-log-switch-single-source.ts",
       "node tests/verify-map-drill.ts",
       "node tests/verify-markdown.ts",
       "node tests/verify-multi-effort-panel.ts",

@@ -157,8 +157,14 @@ export function createSessionRefresh(deps: RefreshDeps) {
             }
             if (t.key != null) t.key = String(t.key)
             if (Array.isArray(t.blockedBy)) {
+              // #1431 与首屏路同形：阻塞边压成数字（纯数字串同样折，非数字原样保留）。
               t.blockedBy = t.blockedBy.map(function(ref){
                 if (typeof ref === 'number') return ref
+                if (typeof ref === 'string') {
+                  const s = ref.trim()
+                  if (/^0*\d+$/.test(s)) { const nn = parseInt(s, 10); if (!isNaN(nn)) return nn }
+                  return ref
+                }
                 if (ref && typeof ref === 'object' && ref.key != null) {
                   const nk = String(ref.key)
                   const nn = parseInt(nk, 10)

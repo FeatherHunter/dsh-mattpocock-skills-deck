@@ -174,6 +174,17 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
               if (!isNaN(n)) m.number = n
             }
             if (m.key != null) m.key = String(m.key)
+            // #1431 首屏也要算分组计数（与刷新路同口径）：没这段，首屏地图行就没有 0/4，必须多点一次刷新才出来。
+            try {
+              const tickets = m.tickets || []
+              const lvInfo: Levels = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+              tickets.forEach(function(t){
+                if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
+                else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
+              })
+              const stats = (typeof groupTickets === 'function') ? groupTickets(tickets) : { total: tickets.length, open: tickets.filter(function(x){return x.state!=='CLOSED'}).length, closed: tickets.filter(function(x){return x.state==='CLOSED'}).length, frontier:0, claimed:0, blocked:0, levels:[], levelOf:{} }
+              m.stats = stats
+            } catch {}
             allForList.push(m)
           })
           flatTickets.forEach(function(t){
@@ -183,12 +194,22 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
             }
             if (t.key != null) t.key = String(t.key)
             if (Array.isArray(t.blockedBy)) {
-              // effort 维度：阻塞引用保留原键字符串（'01' 不许转成数字 1），
-              // 面板按“工作单元 + 键”查找，数字与字符键对不上会永远查不到；
-              // GitHub 数字键本来就是字符串形态，直传同样命中。
+              // #1431 阻塞边压成数字（与刷新路同形）：服务端分组按数字索引（byNum）、详情行按数字严格相等，
+              // 都只认数字；纯数字串（本地补零键 '02'、前后带空格）折成数字，非数字原样保留。
+              // 列表按身份查的那边已做规范键兼容（store-derived.ts 的 normIdentityKey），两边都通。
               t.blockedBy = t.blockedBy.map(function(ref: BlockedRef){
-                if (typeof ref === 'number' || typeof ref === 'string') return ref
-                if (ref && typeof ref === 'object' && ref.key != null) return String(ref.key)
+                if (typeof ref === 'number') return ref
+                if (typeof ref === 'string') {
+                  const s = ref.trim()
+                  if (/^0*\d+$/.test(s)) { const nn = parseInt(s, 10); if (!isNaN(nn)) return nn }
+                  return ref
+                }
+                if (ref && typeof ref === 'object' && ref.key != null) {
+                  const nk = String(ref.key)
+                  const nn = parseInt(nk, 10)
+                  if (!isNaN(nn)) return nn
+                  return nk
+                }
                 return ref
               })
             }

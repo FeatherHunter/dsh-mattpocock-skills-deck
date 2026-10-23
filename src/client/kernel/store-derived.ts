@@ -64,6 +64,19 @@ export const effortNamesOf = function (st: any): any {
     return Object.keys(set).sort()
   } catch (e) { return [] }
 }
+/** 编号规范键（与 mapDetailV2/ticketCardFacts.ts 的 numberKeyOf 同口径）：
+ * 本地后端票号补零（行 key 写成 '02'），宿主侧阻塞边归一成数字（2）——两边各说各的，
+ * 按原样拼身份永远对不上（'02' 对 '2'），整张地图的阻塞会被静默判成可接（#1431）。
+ * 纯数字才折（'02'→'2'，2→'2'，' 2 '→'2'），非数字原样保留；GitHub 纯数字编号不受影响（'123'→'123'）。
+ * 表的键仍用原样身份（调用方按 idOf 查表，契约不动），索引里多记一笔规范键，查的时候两边都试。 */
+const normIdentityKey = function (k: any): string {
+  try {
+    const s: string = String((k === undefined || k === null) ? '' : (k as any)).trim()
+    if (!s) return ''
+    const m: RegExpMatchArray | null = /^0*(\d+)$/.exec(s)
+    return m ? String(Number(m[1])) : s
+  } catch (e) { return '' }
+}
 /** 地图子票的阻断表（open 阻塞者才算阻塞）：按票身份 (effort, 编号) 键入，并记下所属地图的 effort 供跳转用。 */
 export const mapBlockOf = function (snapshot: any): any {
   const blockOf: any = {}
@@ -72,10 +85,23 @@ export const mapBlockOf = function (snapshot: any): any {
     maps.forEach(function (m: any): void {
       const tickets: any[] = (m && Array.isArray(m.tickets)) ? m.tickets : []
       const byId: any = {}
-      tickets.forEach(function (t: any): void { byId[idOf(t)] = t })
+      tickets.forEach(function (t: any): void {
+        // #1431 双键索引：原样身份之外再记一笔规范键——宿主把阻塞边压成数字（2）后，
+        // '2' 也能命中补零键的票（'02'）。表的键仍用原样身份（调用方按 idOf 查表，契约不动）。
+        byId[idOf(t)] = t
+        try {
+          const nk: string = idOfParts(effortOf(t), normIdentityKey((t || {}).key))
+          if (nk && nk !== idOf(t)) byId[nk] = t
+        } catch (e) { /* 键异常不挡整表 */ }
+      })
       tickets.forEach(function (t: any): void {
         if (!t || !Array.isArray(t.blockedBy) || !t.blockedBy.length) return
-        const openBlockers: any[] = t.blockedBy.filter(function (b: any): any { const bt: any = byId[idOfParts(effortOf(t), refKeyOf(b))]; return bt && bt.state === 'OPEN' })
+        // #1431 两边都试：原样身份先行（GitHub 数字编号本来就是通的），不中再试规范键（本地补零键）。
+        const openBlockers: any[] = t.blockedBy.filter(function (b: any): any {
+          const raw: any = byId[idOfParts(effortOf(t), refKeyOf(b))]
+          const bt: any = (raw !== undefined && raw !== null) ? raw : byId[idOfParts(effortOf(t), normIdentityKey(refKeyOf(b)))]
+          return bt && bt.state === 'OPEN'
+        })
         if (openBlockers.length) blockOf[idOf(t)] = { map: m.number, mapEffort: effortOf(m), mapTitle: m.title, by: openBlockers }
       })
     })
@@ -96,8 +122,9 @@ export const compute = (st: any): any => {
   const maps: any[] = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
   return maps.map(function (m: any): any {
     // effort 维度：地图内的票按身份 (effort, 编号) 索引；阻塞引用只在同一 effort 内解析
-    const byId: any = {}; m.tickets.forEach(function (t: any): void { byId[idOf(t)] = t })
-    const openBlocker = (b: any): any => { const t: any = byId[idOfParts(effortOf(m), refKeyOf(b))]; return t !== undefined && t.state === 'OPEN' }
+    // #1431 双键索引（同 mapBlockOf）：原样身份之外再记一笔规范键，数字边也能命中补零键的票。
+    const byId: any = {}; m.tickets.forEach(function (t: any): void { byId[idOf(t)] = t; try { const nk: string = idOfParts(effortOf(t), normIdentityKey((t || {}).key)); if (nk && nk !== idOf(t)) byId[nk] = t } catch (e) { /* 键异常不挡整表 */ } })
+    const openBlocker = (b: any): any => { const raw: any = byId[idOfParts(effortOf(m), refKeyOf(b))]; const t: any = (raw !== undefined && raw !== null) ? raw : byId[idOfParts(effortOf(m), normIdentityKey(refKeyOf(b)))]; return t !== undefined && t.state === 'OPEN' }
     const open: any[] = []
     const closed: any[] = []
     const frontier: any[] = []
@@ -138,10 +165,11 @@ export const openIssuesOf = (st: any): any => ticketRowsOf((st.snapshot && Array
 //   standaloneStateMapOf 把快照里全部票（issues + 各地图子票）的状态按数字与 key 双键收成大写表。
 const standaloneKeyOfRef = function (b: any): string {
   if (b === undefined || b === null) return ''
-  if (typeof b === 'number' || typeof b === 'string') return String(b)
+  // #1431 引用键同样过规范键：宿主压成数字的阻塞边（2）与补零键（'02'）归到同一键上。
+  if (typeof b === 'number' || typeof b === 'string') return normIdentityKey(b)
   if (typeof b === 'object') {
-    if (b.key !== undefined && b.key !== null && b.key !== '') return String(b.key)
-    if (b.number !== undefined && b.number !== null) return String(b.number)
+    if (b.key !== undefined && b.key !== null && b.key !== '') return normIdentityKey(b.key)
+    if (b.number !== undefined && b.number !== null) return normIdentityKey(b.number)
   }
   return ''
 }
@@ -152,8 +180,19 @@ const standaloneStateMapOf = function (st: any): any {
   const issues: any[] = Array.isArray(snap.issues) ? snap.issues : []
   const maps: any[] = Array.isArray(snap.maps) ? snap.maps : []
   // effort 维度：状态表按身份 (effort, 编号) 键入；同一 effort 内才允许互相解析
-  issues.forEach(function (it: any): void { if (!it) return; put(idOf(it), it.state); if (it.key !== undefined && it.key !== null) put(idOfParts(effortOf(it), it.key), it.state) })
-  maps.forEach(function (m: any): void { (m.tickets || []).forEach(function (t: any): void { if (!t) return; put(idOf(t), t.state); if (t.key !== undefined && t.key !== null) put(idOfParts(effortOf(t), t.key), t.state) }) })
+  // #1431 双键收录：原样身份之外再记一笔规范键，数字边也能命中补零键的票（裸键查表同理）。
+  const putBoth = function (eff: any, key: any, s: any): void {
+    put(idOfParts(eff, key), s)
+    try {
+      const nk: string = normIdentityKey(key)
+      if (nk && nk !== String(key)) put(idOfParts(eff, nk), s)
+      const bare: string = String(key)
+      if (bare) { if (!(bare in stateOf)) stateOf[bare] = String(s || '').toUpperCase() }
+      if (nk && nk !== bare) { if (!(nk in stateOf)) stateOf[nk] = String(s || '').toUpperCase() }
+    } catch (e) { /* 键异常不挡整表 */ }
+  }
+  issues.forEach(function (it: any): void { if (!it) return; put(idOf(it), it.state); if (it.key !== undefined && it.key !== null) putBoth(effortOf(it), it.key, it.state) })
+  maps.forEach(function (m: any): void { (m.tickets || []).forEach(function (t: any): void { if (!t) return; put(idOf(t), t.state); if (t.key !== undefined && t.key !== null) putBoth(effortOf(t), t.key, t.state) }) })
   return stateOf
 }
 // #544 独立票阻塞边判定：一条阻塞边算数，当且仅当按 live 状态表查到阻塞者为 open；
@@ -178,12 +217,13 @@ export const isOccupied = function (st: any, x: any): boolean {
     const m: any = maps[mi]
     if (!m.tickets || !m.tickets.length) continue
     const byId: any = {}
-    m.tickets.forEach(function (t: any): void { byId[idOf(t)] = t })
+    // #1431 双键索引（同 mapBlockOf）：数字边也能命中补零键的票。
+    m.tickets.forEach(function (t: any): void { byId[idOf(t)] = t; try { const nk: string = idOfParts(effortOf(t), normIdentityKey((t || {}).key)); if (nk && nk !== idOf(t)) byId[nk] = t } catch (e) { /* 键异常不挡整表 */ } })
     const t: any = byId[idOf(x)]
     if (t) {
       inMap = true
       if (t.blockedBy && t.blockedBy.length) {
-        const openBlockers: any[] = t.blockedBy.filter(function (b: any): any { const bt: any = byId[idOfParts(effortOf(t), refKeyOf(b))]; return bt && bt.state === 'OPEN' })
+        const openBlockers: any[] = t.blockedBy.filter(function (b: any): any { const raw: any = byId[idOfParts(effortOf(t), refKeyOf(b))]; const bt: any = (raw !== undefined && raw !== null) ? raw : byId[idOfParts(effortOf(t), normIdentityKey(refKeyOf(b)))]; return bt && bt.state === 'OPEN' })
         if (openBlockers.length) return true
       }
     }
