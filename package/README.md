@@ -37,60 +37,23 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.9 --registry 
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.9 --registry https://registry.npmjs.org
 ```
 
-<div align="center">
-
-</div>
-
-<details>
-<summary>进阶安装：免全局、更新不生效、交给 AI</summary>
-
-下面命令以 web profile 为例——**DSH Desktop 桌面应用用户请把所有 `--profile web` 换成 `--profile desktop`**。
-
-```bash
-# 免全局安装（想更稳，像上面一样锁版本）
-npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
-
-# 更新被静默忽略时，显式指定官方源
-dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
-```
-
-复制下面这段发给你的 AI，它会确认 profile、检查环境并按需安装：
-
-```text
-请帮我安装 DeepSeek Harness 插件 dsh-mattpocock-skills-deck（MattSkillsDeck）。
-先读仓库 README：https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
-先确认我实际使用的 DSH 入口对应哪个 profile（DSH Desktop 桌面应用 → desktop；自启 web 服务 → web），把插件装进正确的 profile；
-然后自行检查环境并按需安装（已装的跳过），完成后简要汇报结果。
-```
-
-</details>
-
-升级 · 卸载（desktop profile 用户把 `--profile web` 换成 `--profile desktop`）：
-
-```bash
-dsh plugin --profile web update dsh-mattpocock-skills-deck   # 升级
-dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
-```
-
 <h2 align="center"><sub>BOARD</sub><br>任务板</h2>
 
 <div align="center">
 
-仓库里的任务不再是流水账：面板把它们按可接、阻塞、已关闭归位，进度走到哪一格一眼看清。每行任务的按钮就是动作入口：点一下，写好的指令填进输入框，确认后再发送。地图类型的行永远置顶，已关闭的收成一行。
-
-**👇 先看单仓多票与并发规模，再看地图卡片墙与单票详情。**
+把一整仓库的活装进一块随时能扫一眼的面板：地图、规格、票自动归位，每行都标着此刻该做的那一个动作，点一下指令就填进输入框，确认即发。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-列表.png" width="400" alt="任务板列表：可接阻塞已关闭归位" style="border:1px solid #30363d;border-radius:6px"><br>单仓多票：可接、阻塞、已关闭归位</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-工作区-多ISSUE并发.png" width="400" alt="多工作区多会话并发" style="border:1px solid #30363d;border-radius:6px"><br>多区并发：多工作区多会话同时推进</td>
+    <td valign="top">👇 单仓多票：可接、阻塞、已关闭自动归位，地图永远置顶<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-列表.png" width="400" alt="任务板列表：可接阻塞已关闭归位" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 多区并发：多个工作区、几十个会话同时跑，谁卡在哪一眼看清<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-工作区-多ISSUE并发.png" width="400" alt="多工作区多会话并发" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-Map详情.png" width="400" alt="地图详情卡片墙可接与已结案" style="border:1px solid #30363d;border-radius:6px"><br>地图详情：可接与已结案卡片摆满一墙</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-ISSUE详情.png" width="400" alt="单票详情描述验收进度评论" style="border:1px solid #30363d;border-radius:6px"><br>单票详情：描述、验收、进度、评论排好版</td>
+    <td valign="top">👇 地图详情：可接与已结案分色铺满卡片墙，进度环直接给到第几格<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-Map详情.png" width="400" alt="地图详情卡片墙可接与已结案" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 单票详情：描述、验收、进度、评论全在面板里，回话不必跳终端<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-列表-ISSUE详情.png" width="400" alt="单票详情描述验收进度评论" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -100,14 +63,12 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-每条会话输入框下面都有一条胶囊状态栏：可接数量、待修（BUG）数量、诊断、沉淀、交接、环境进度都在上面。点可接、环境等主要分段，即跳到对应面板页，看完即回，不打断手头会话。
-
-**👇 离手最近的操作条和它弹出的工作路线，两张对照看。**
+离手最近的一条状态栏：可接、故障、诊断、沉淀、交接、环境一次报清，点一下直达对应面板；正在推进的会话路线也挂在上面，切换会话不用回翻聊天记录。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="400" alt="对话框胶囊栏输入框区域" style="border:1px solid #30363d;border-radius:6px"><br>输入框区域：可接、故障、诊断、沉淀、交接、环境都在一条上</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="400" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"><br>工作路线：本会话多条加另有几十个会话在办一目了然</td>
+    <td valign="top">👇 一条胶囊装下可接、故障、诊断、沉淀、交接与环境进度<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-输入框区域.png" width="400" alt="对话框胶囊栏输入框区域" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 工作路线摊开：本会话在办什么、还有几十个会话在跑，一眼在列<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-WorkRoute.png" width="400" alt="工作路线浮层多会话处理中" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -117,14 +78,12 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-任何需求都有干净的入口：右侧面板一点或胶囊上一点，需求类型选好，承接指令已预填，人只管检查后发送。
-
-**👇 两个入口进同一需求，两张对照看。**
+想到什么，随手就是一张票：一键起需求，类型选好，带上下文的指令已经写好，确认即发，不再手打模板。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-新增需求-选择弹窗.png" width="400" alt="右侧面板新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"><br>右侧面板入口：新建需求弹窗选类型</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-新增需求-选择弹窗.png" width="400" alt="胶囊状态栏新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"><br>胶囊入口：状态栏上同样一点即建</td>
+    <td valign="top">👇 右侧面板一点，弹窗里挑需求类型<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-新增需求-选择弹窗.png" width="400" alt="右侧面板新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 胶囊上同样一点即建，手不离输入框<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-胶囊状态栏-新增需求-选择弹窗.png" width="400" alt="胶囊状态栏新建需求选择弹窗" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -134,14 +93,12 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-随包 27 个技能（快照 v1.3.1）装好即用：面板技能页顶部给通用推荐（默认 /ask-matt），列表一行讲清一个技能的中文用途，点加载就把斜杠指令填进输入框。完整名单与教程见 Matt 官方 [aihero.dev/skills](https://www.aihero.dev/skills)，本插件只讲入口与推荐。
-
-**👇 列表一行讲清用途、详情点开看完整说明。**
+随包 27 个技能（快照 v1.3.1）装好即用，却不用背命令：技能页把每个技能压成一行中文说明，顶部直接给当下最该用的推荐，点「加载」斜杠指令自动填进输入框。完整名单与教程见 Matt 官方 [aihero.dev/skills](https://www.aihero.dev/skills)。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-列表.png" width="400" alt="技能页面列表一行讲清用途" style="border:1px solid #30363d;border-radius:6px"><br>技能列表：一行讲清一个技能的中文用途</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-详情.png" width="400" alt="技能页面详情完整说明" style="border:1px solid #30363d;border-radius:6px"><br>技能详情：点开看完整说明再加载</td>
+    <td valign="top">👇 一行一个技能，中文讲清什么时候该用它<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-列表.png" width="400" alt="技能页面列表一行讲清用途" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 点开详情看完整说明，确认无误再加载<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-技能页面-详情.png" width="400" alt="技能页面详情完整说明" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -151,14 +108,12 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-同一个面板可换跑道：设置页后端选择器列出 GitHub、本地 Markdown、GitLab 与 Other（无后端）逃生舱。切换只换数据源：切换后原数据不可见，原后端数据保留，切回来又可见。新人第一次大多只用一条跑道，知道能换即可。
-
-**👇 换跑道不断数据、跑之前先看环境，两张对照看。**
+面板不绑死一种存法：GitHub、本地 Markdown、GitLab 与无后端都能接，换跑道只换数据源，原数据留在原地、切回即见。开工前环境自检把缺的项一次列清，照提示补齐就能干。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-切换后端.png" width="400" alt="设置页后端选择器" style="border:1px solid #30363d;border-radius:6px"><br>切换后端：同面板换跑道、原数据保留切回可见</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-环境检查-列表.png" width="400" alt="环境检查列表" style="border:1px solid #30363d;border-radius:6px"><br>环境检查：不通过的项照提示补齐再开工</td>
+    <td valign="top">👇 一条跑道随时换，切回来数据还在<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-切换后端.png" width="400" alt="设置页后端选择器" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 环境自检逐项过，不通过的照提示补<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-环境检查-列表.png" width="400" alt="环境检查列表" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -168,13 +123,13 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-改了什么、提交到哪、并行几棵树，一行三列一次讲清。
+日常提交的三个视角收进面板：改了哪些文件、提交历史长什么样、几棵树在并行，不必再切终端敲 git 命令。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="260" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"><br>改动：本次改了什么</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="260" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px"><br>提交历史：提交到哪</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="260" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"><br>工作树：并行几棵树</td>
+    <td valign="top">👇 改动：这次改了哪些文件、各加删多少<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-改动.png" width="260" alt="版本管理改动" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 提交历史：落到哪次提交、提交信息是什么<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-提交历史.png" width="260" alt="版本管理提交历史" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 工作树：几棵树在并行、各自停在哪一步<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-版本管理-worktree.png" width="260" alt="版本管理工作树" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -184,12 +139,12 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-设置页一次讲清。
+面板长什么样由你定：设置页集中所有入口，调色板给每类标签配一套颜色，深浅主题下都一眼可辨。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-设置面板-主页.png" width="400" alt="设置面板主页" style="border:1px solid #30363d;border-radius:6px"><br>设置主页：总览入口都在这里</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-调色板-设置label颜色.png" width="400" alt="调色板设置标签颜色" style="border:1px solid #30363d;border-radius:6px"><br>调色板：标签颜色随心换</td>
+    <td valign="top">👇 设置主页：所有入口一处收齐<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-设置面板-主页.png" width="400" alt="设置面板主页" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 调色板：每类标签一种颜色，扫一眼就知道是什么票<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/readme/中文-深色-右侧面板-调色板-设置label颜色.png" width="400" alt="调色板设置标签颜色" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
@@ -199,52 +154,24 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-新工作区六步走完即开工：建工作区、开会话、选后端、确认注入、等 AI 执行、过环境检查。下面是深色中文界面的实拍。
+从空工作区到能开工，六步走完，不用查文档：选后端、确认注入、等 AI 执行，最后环境自检兜底。
 
 <table>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-1-创建新工作区.png" width="280" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"><br>第 1 步：创建新工作区</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-2-新建会话-选择后端.png" width="400" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"><br>第 2 步：新建会话并选择后端</td>
+    <td valign="top">👇 第 1 步：创建新工作区<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-1-创建新工作区.png" width="280" alt="第1步：创建新工作区" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 第 2 步：新建会话并选择后端<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-2-新建会话-选择后端.png" width="400" alt="第2步：新建会话并选择后端" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-3-选择后端为github.png" width="400" alt="第3步：选择后端为 GitHub" style="border:1px solid #30363d;border-radius:6px"><br>第 3 步：选择后端为 GitHub</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-4-点击确认后-注入prompt.png" width="400" alt="第4步：点击确认后注入提示词" style="border:1px solid #30363d;border-radius:6px"><br>第 4 步：点击确认后注入提示词</td>
+    <td valign="top">👇 第 3 步：选择后端为 GitHub<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-3-选择后端为github.png" width="400" alt="第3步：选择后端为 GitHub" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 第 4 步：点击确认后注入提示词<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-4-点击确认后-注入prompt.png" width="400" alt="第4步：点击确认后注入提示词" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
   <tr>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-5-等待AI执行.png" width="400" alt="第5步：等待 AI 执行初始化" style="border:1px solid #30363d;border-radius:6px"><br>第 5 步：等待 AI 执行初始化</td>
-    <td valign="top"><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="400" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"><br>第 6 步：环境检测不通过时照提示补齐</td>
+    <td valign="top">👇 第 5 步：等待 AI 执行初始化<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-5-等待AI执行.png" width="400" alt="第5步：等待 AI 执行初始化" style="border:1px solid #30363d;border-radius:6px"></td>
+    <td valign="top">👇 第 6 步：环境检测不通过时照提示补齐<br><img src="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/raw/main/assets/init/中文-深色-6-环境检测页面-提示用户2项失败.png" width="400" alt="第6步：环境检测提示用户两项失败" style="border:1px solid #30363d;border-radius:6px"></td>
   </tr>
 </table>
 
 </div>
-
-<h2 align="center"><sub>FAQ</sub><br>常见问题</h2>
-
-<details open>
-<summary>更新之后还是旧版本？</summary>
-
-这是 DSH 桌面端的 pnpm 供应链策略（`minimumReleaseAge`）导致的：刚发布的版本，几个小时内 `dsh plugin update` 和插件市场的「更新」按钮都会静默跳过。更新后请完全退出 DSH 再重开，按 Ctrl+F5 刷新页面；还没更新的话，显式指定官方源装一次：
-
-```bash
-dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
-```
-
-**👇 认准成功回显里的最新版本号即装好；更新后仍显示旧版就完全退出 DSH 重开，并 Ctrl+F5 刷新。**
-
-</details>
-
-<details>
-<summary>更新报错找不到新版本（No matching version），地址是镜像源？</summary>
-
-这是镜像源还没有同步到新版本：报错地址写着镜像源（例如 `registry.npmmirror.com`），而新版本已经在官方源上发布，包本身没有漏发。等镜像源同步完成就能正常更新；着急用的话，显式指定官方源装一次（下面这条命令不要去掉末尾的源参数，去掉就会走回镜像源）：
-
-```bash
-dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
-```
-
-桌面应用用户把 `--profile web` 换成 `--profile desktop`。
-
-</details>
 
 <h2 align="center"><sub>JOIN</sub><br>欢迎您加入我们</h2>
 
