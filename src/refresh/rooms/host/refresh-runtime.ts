@@ -35,7 +35,10 @@ import { DECK_ENSURE_TIMEOUT_MS } from '../../../shared/time-config/src/values.j
 import { createNamingSummary, readFirstUserText } from '../../../host/platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
-import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
+import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
+import { openTracker } from '../../../tracker/session/open-tracker.js'
+import { createOutboundControl } from './outbound-control.js'
+import { hostTimers } from '../../contract/host-timer-ports.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/refresh/rooms/host/refresh-assembly.js 一处。
 import { createPatchForHost } from './refresh-assembly.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
@@ -119,16 +122,64 @@ export function createRefreshWiring(deps: any): any {
   const ledger: any = d.ledger || createLedger({ logCtx: logCtx })
   const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx })
 
-  // #758 剩余额度读数接线：动手前先保一次读数（差就免费读，不差不打）；闸、账本、起 gh 三件都在本文件手里，包成函数递给工具依赖，失败只影响这一次调用。
+  // #758 剩余额度读数接线：动手前先保一次读数（差就经会话读一次，不差不打）；失败只影响这一次调用。
+  // #1443 改道：不再经闸打免费的 gh 直调，读数走 Tracker 会话的 readBudget（房间自己读 gh，读预算本身不花额度）。
   let deckQuotaSync: any = null
+  // 会话读数要的那份后端上下文：平台、文件、计时器、起进程、日志、出站控制面各一件，
+  // 与桥段装配的那一份同源（生产里同一套宿主出口），只在这里为同步现拼一份（同步不经过工具装配）。
+  let syncBackendObj: any = null
+  function syncBackendCtxOf(): any {
+    if (!syncBackendObj) {
+      let platform: any = null
+      try { platform = (typeof d.getPlatform === 'function') ? d.getPlatform() : null } catch (eP: any) { platform = null }
+      syncBackendObj = {
+        platform: platform,
+        fs: (function (): any { try { return (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('fs') : undefined } catch (e: any) { return undefined } })(),
+        timers: (function (): any {
+          try {
+            const timerSvc: any = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
+            if (!timerSvc || typeof timerSvc.timeout !== 'function') return undefined
+            return hostTimers(timerSvc)
+          } catch (e: any) { return undefined }
+        })(),
+        exec: function (): any {
+          if (typeof d.detectionExec === 'function') { try { return d.detectionExec.apply(null, arguments) } catch (e: any) { return Promise.reject(e) } }
+          return Promise.resolve({ ok: false, kind: 'env', error: '这个宿主实例没有把起进程的出口（detectionExec）传进来，额度同步读不了数' })
+        },
+        logEvent: function (level: any, event: any, fields: any): void { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e: any) {} },
+        isEnabled: function (level: any): any { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e: any) { return level === 'error' || level === 'warn' } },
+        outbound: createOutboundControl(),
+      }
+    }
+    return syncBackendObj
+  }
+  // 经 Tracker 会话读一次预算：只调 readBudget（管线里它直达房间，不裁决不记账）。
+  // 读不到（没注册表、会话打不开、读数未知）都回失败形状，不抛 —— 桥按失败退避，工具照旧走原流程。
+  async function readSessionBudget(cwd: unknown): Promise<any> {
+    try {
+      let registry: any = null
+      try { registry = (typeof d.getTrackerRegistry === 'function') ? await d.getTrackerRegistry() : null } catch (eR: any) { registry = null }
+      if (!registry || typeof registry.select !== 'function' || typeof registry.get !== 'function') return { ok: false, error: { kind: 'env', message: 'no-registry' } }
+      const opened: any = await openTracker({ cwd: String(cwd || '') }, {
+        registry: registry,
+        getCachedReading: async function (): Promise<any> { return { known: false, reason: 'not-measured' } },
+        admit: async function (): Promise<any> { return { allowed: true, reason: 'quota-sync' } },
+        account: async function (): Promise<void> {},
+        canWrite: false,
+        canWriteReason: '额度同步只读预算，不做写操作',
+      })
+      if (!opened || opened.ok !== true) return { ok: false, error: { kind: 'env', message: String((opened && opened.detail) || (opened && opened.reason) || 'open-failed') } }
+      const opCtx = Object.assign({}, syncBackendCtxOf(), { cwd: String(cwd || ''), signal: undefined })
+      return await opened.session.readBudget(opCtx)
+    } catch (eS: any) { return { ok: false, error: { kind: 'env', message: String((eS && eS.message) || eS) } } }
+  }
   function quotaSyncOf(): any {
     if (!deckQuotaSync) {
       try {
         deckQuotaSync = createDeckQuotaSync({
-          send: function (req: any, perform: any): any { return gate.send(req, perform) },
           syncDue: function (): any { try { return ledger.syncDue() } catch (eS: any) { return false } },
-          syncServer: function (readings: any): any { try { return ledger.syncServer(readings) } catch (eW: any) { return null } }, noteRateLimited: function (bucket: any, seconds: any, workspaceKey: any): any { try { return gate.noteRetryAfter({ bucket: bucket, seconds: seconds, workspaceKey: workspaceKey }) } catch (e: any) { return null } }, // #927 ①：读数里剩 0 时按服务端的重置时刻降档
-          runGh: function (a: any, c: any): any { if (typeof d.runGh === 'function') return d.runGh(a, c); return Promise.resolve({ ok: false, error: 'no-runGh' }) },
+          syncServer: function (readings: any): any { try { return ledger.syncServer(readings) } catch (eW: any) { return null } },
+          readBudget: function (cwd: any): any { return readSessionBudget(cwd) },
           logCtx: logCtx,
         })
       } catch (eC: any) { deckQuotaSync = null }

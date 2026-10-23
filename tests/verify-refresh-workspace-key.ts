@@ -233,15 +233,20 @@ async function main() {
   check(chainSends.length === 1 && chainSends[0].key === K, '链那一笔记账带的钥匙 = 活跃集合那把（实得 ' + (chainSends[0] && chainSends[0].key) + '，应为 ' + K + '）')
   check(chainSends.length === 1 && chainSends[0].sent === true && chainSends[0].verdict === 'allow', '链那一笔在同一格上被放行（' + (chainSends[0] && (chainSends[0].verdict + '/' + chainSends[0].reason)) + '）')
 
-  // ③ 九个 deck_* 工具里的一次调用过闸（同一个闸、同一把钥匙）
+  // ③ 九个 deck_* 工具里的一次调用带的也是同一把钥匙（#1442 起离网后端不再过闸）
+  //    #1442 把「选后端、过闸」从九个工具搬进了 Tracker 会话：markdown 是离网后端、没有额度可言，
+  //    连额度探针都跳过，所以「工具调用过闸 1 笔」这条旧判据在新架构下结构性为 0（不是漏记）。
+  //    这里改成钉工具回执里那份工作区键：它正是工具开会话、读账本、将来走管线准入时用的那一把；
+  //    工具若自己另算一套（比如拿目录原文），这条会立刻红。
   const table = await host.wiring.deckToolsForHost()
   check(!!(table && table.tools && table.tools.deck_context), '九个工具在宿主装配形状下装起来了（reason=' + JSON.stringify(table && table.reason) + '）')
   const exec = { agent: { session: { id: 's-724', cwd: s.canon } } }
   const ctxOut = await table.tools.deck_context.run(exec, {})
   check(!!(ctxOut && ctxOut.status === 'ok'), 'deck_context 真跑通一次（status=' + (ctxOut && ctxOut.status) + '）')
   const toolSends = host.seen.filter((x) => x.source === 'tool.call')
-  check(toolSends.length >= 1, '这次工具调用过了闸（实得 ' + toolSends.length + ' 笔）')
-  check(toolSends.length >= 1 && toolSends.every((x) => x.key === K), '工具调用带的钥匙也是同一把（' + JSON.stringify(toolSends.map((x) => x.key)) + '，应为 ' + K + '）')
+  check(toolSends.length === 0, '离网后端的工具调用不再经过闸的发送口（实得 ' + toolSends.length + ' 笔；#1442 起准入搬进 Tracker 管线）')
+  const toolKey = (ctxOut && ctxOut.workspace && ctxOut.workspace.key) || ''
+  check(toolKey === K, '工具回执里的工作区键也是同一把（' + JSON.stringify(toolKey) + '，应为 ' + K + '）')
 
   // 全部过闸的钥匙只有这一把 —— 「同一个工作区根在闸里只许有一格」
   const keys = Array.from(new Set(host.seen.map((x) => x.key)))

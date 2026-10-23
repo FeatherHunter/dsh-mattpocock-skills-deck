@@ -5,10 +5,10 @@
   },
   "cost": {
     "actual": {
-      "points": 0,
-      "remaining": 1750,
-      "requests": 0,
-      "tier": "green"
+      "points": 5,
+      "remaining": -1,
+      "requests": 2,
+      "tier": "off-network"
     },
     "estimated": {
       "perShard": 1,
@@ -51,7 +51,9 @@
     "truncated": false
   },
   "items": [],
-  "notes": [],
+  "notes": [
+    "本后端不需要额度（离网口径）：这次记 0 条、0 点，剩余额度与档位不适用。"
+  ],
   "ok": true,
   "readBack": null,
   "reason": "",

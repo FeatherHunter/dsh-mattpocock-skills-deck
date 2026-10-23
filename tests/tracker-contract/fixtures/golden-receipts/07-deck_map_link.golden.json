@@ -5,10 +5,10 @@
   },
   "cost": {
     "actual": {
-      "points": 0,
-      "remaining": 1750,
-      "requests": 0,
-      "tier": "green"
+      "points": 6,
+      "remaining": -1,
+      "requests": 3,
+      "tier": "off-network"
     },
     "estimated": {
       "perShard": 1,
@@ -67,7 +67,8 @@
     }
   ],
   "notes": [
-    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard",
+    "本后端不需要额度（离网口径）：这次记 0 条、0 点，剩余额度与档位不适用。"
   ],
   "ok": true,
   "readBack": null,

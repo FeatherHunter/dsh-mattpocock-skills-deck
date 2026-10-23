@@ -42,9 +42,18 @@ export interface DeckSessionRequest {
   /** 读写类别（只决定整单前置检查用哪条代表操作，不透进管线）。 */
   kind: string;
 }
-/** 打开成功：沿用壳的 pick 形状（repoOf 照用不改），外加会话与透传件。 */
+/**
+ * 打开成功：沿用壳的 pick 形状（repoOf 照用不改），外加会话与透传件。
+ *
+ * requests 与 points 照旧填「这次选后端探测花掉的量」：壳的 repoOf 与回执都按 pick 形状读这两格，
+ * 少了它们类型就对不上（1442 的接线层与 1443 删掉旧壳之后在类型检查上撞过一次）。
+ */
 export interface DeckOpenedSession {
   ok: true; backendId: string; source: string; ref: UnknownRecord | null; pending: boolean;
+  /** 这次开会话的估算请求条数（来自调用前估算，不做第二份计数）。 */
+  requests: number;
+  /** 这次开会话的估算点数（同上）。 */
+  points: number;
   /** Tracker 会话（24 条异步操作走管线，定位口直通房间）。 */
   session: TrackerSession;
   /** 调用上下文要的裁决结论（双桶是闸的原话，离网是直通标记，work 闭包照旧从 c.admit 取）。 */
@@ -198,14 +207,14 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
       }
     } catch { /* 补不上就用判定出口给的（可能为空），下游照旧诚实失败。 */ }
   }
-  return { ok: true, backendId: backendId, source: source, ref: ref, pending: !!selection.pending, session: opened.session, admit: admit };
+  return { ok: true, backendId: backendId, source: source, ref: ref, pending: !!selection.pending, requests: num(est.requests), points: num(est.points), session: opened.session, admit: admit };
 }
 
 /** 管线执行层失败（房间抛错被管线收成 env）与旧口径的对照：旧壳认 backend-threw 才抛，这里改写一格再交出去。 */
 const ADAPT_OPS = ['get', 'list', 'getDependencies', 'create', 'setParent', 'setBlockedBy', 'preflight', 'getRepoPermissions', 'close', 'reopen', 'comment', 'update', 'setLabels', 'setAssignees'];
 /** 把会话包成预算壳认得的后端门面：方法名与 withCallScope 要的那十四条对齐，env 改写成 backend-threw。 */
 function adaptSession(session: TrackerSession): UnknownRecord {
-  const room = (session || {}) as UnknownRecord;
+  const room = (session || {}) as unknown as UnknownRecord;
   const out: UnknownRecord = {};
   for (const name of ADAPT_OPS) {
     out[name] = async function (...args: unknown[]): Promise<unknown> {
@@ -222,6 +231,8 @@ function adaptSession(session: TrackerSession): UnknownRecord {
 
 /** 调一次会话要齐的东西（openDeckSession 的成功那一支原样递进来，工具再加自己的 repo 与沙箱）。 */
 export interface DeckCallRequest {
+  /** 工具名（只写进回执那一格，不参与定价）。 */
+  tool: string;
   /** 工具的依赖袋（写后失效缓存从这里取，缺席就跳过，不拦事）。 */
   deps: unknown;
   /** openDeckSession 的成功那一支（会话、后端编号、裁决结论都在里面）。 */
@@ -234,6 +245,8 @@ export interface DeckCallRequest {
   estimate: unknown;
   /** 沙箱快照（对象才取策略格，其余一律按没有处理，与原来同形）。 */
   sandbox?: unknown;
+  /** 取消信号（工具从执行上下文取到的那个；管线目前不用它，留着不改调用方形状）。 */
+  signal?: unknown;
 }
 /** 统一的返回信封底（与壳里 envelope 同形：先摆五格，再并业务格）。 */
 function envelope(tool: string, status: string, extra?: UnknownRecord): UnknownRecord {
@@ -241,7 +254,7 @@ function envelope(tool: string, status: string, extra?: UnknownRecord): UnknownR
 }
 /** 剩余额度那一格：离网没有额度可言（哨兵 -1 加直说），没同步的按未知处理（未知不拦事）。 */
 async function quotaPart(d: UnknownRecord, session: TrackerSession): Promise<{ actual: UnknownRecord; note: string | null }> {
-  const model = (session.budget || {}) as UnknownRecord;
+  const model = (session.budget || {}) as unknown as UnknownRecord;
   if (str(model.kind) === 'off-network') {
     return {
       actual: { remaining: -1, tier: 'off-network' },
@@ -289,9 +302,13 @@ export async function callDeckSession(req: DeckCallRequest, work: (ctx: unknown)
     admit: opened.admit,
   };
   let value: unknown = null;
+  // work 闭包交回 { value, claimed }：里面是工具自己的业务结果，外面那层是这次的实际用量。
+  // 这两格要分开取——以前只留了 value，回执的实际用量就只能再从 value 上找，永远找不到（恒 0/0）。
+  let rawClaimed: unknown = null;
   try {
     const out = (await work(ctx)) as UnknownRecord | null;
     value = (out && typeof out === 'object' && 'value' in out) ? (out as UnknownRecord).value : out;
+    rawClaimed = (out && typeof out === 'object' && 'claimed' in out) ? (out as UnknownRecord).claimed : null;
   } catch (e) {
     const eh = hash8(String(((e || {}) as UnknownRecord).message || e));
     return envelope(tool, DECK_STATUS.UNSUPPORTED, {
@@ -314,12 +331,12 @@ export async function callDeckSession(req: DeckCallRequest, work: (ctx: unknown)
       }, tool, { cwd: str(s.cwd), workspaceKey: str(s.workspaceKey), sessionId: s.sessionId }, backendId, value);
     } catch { /* 记不上只少在办表，不翻结果。 */ }
   }
-  const claimed = (vRec && (vRec.claimed || {}) as UnknownRecord) || {};
+  const claimed = (rawClaimed && typeof rawClaimed === 'object') ? rawClaimed as UnknownRecord : {};
   const quota = await quotaPart(d, opened.session);
   const out = envelope(tool, DECK_STATUS.OK, {
     workspace: { root: str(s.cwd), key: str(s.workspaceKey) },
     backend: { id: backendId, source: opened.source },
-    repo: { backend: str((req.repo || {}).backend), refId: str((req.repo || {}).refId), name: str((req.repo || {}).name), url: str((req.repo || {}).url) },
+    repo: { backend: str((req.repo as UnknownRecord || {}).backend), refId: str((req.repo as UnknownRecord || {}).refId), name: str((req.repo as UnknownRecord || {}).name), url: str((req.repo as UnknownRecord || {}).url) },
     cost: {
       estimated: { points: num(est.points), requests: num(est.requests), withinCallCap: est.withinCallCap, shards: est.shards, perShard: est.perShard, text: str(est.text) },
       actual: { requests: num((claimed as UnknownRecord).requests), points: num((claimed as UnknownRecord).points), remaining: (quota.actual as UnknownRecord).remaining, tier: str((quota.actual as UnknownRecord).tier) },

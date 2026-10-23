@@ -41,8 +41,12 @@ export interface HostToolDeps { gate?: unknown; registry?: unknown; budget?: unk
  * 读数以账本即时视图为准：两桶都没同步过就报未知（未知不拦事，见参考裁决）；
  * 裁决与参考裁决同口径（硬顶先行、未知与离网放行、已知耗尽推迟）；记账按口径分桶，
  * 离网恒记零花——各操作真实用量 1443 才进账本，本票只保证账上不记假数。
+ *
+ * 为什么导出：门禁 tests/verify-deck-tools-matrix.ts 要判断「每一条远端命令发出去的时候，
+ * 是不是正处在一次经裁决放行、还没记账的操作里」。它需要的就是装配层这一份裁决与记账
+ * （而不是在门禁里另抄一份口径），所以这里把这一份原样交出去；宿主装配仍只用本文件里这一个实例。
  */
-function buildTrackerPorts(base: UnknownRecord): { getCachedReading: () => unknown; admit: (input: unknown) => Promise<unknown>; account: (input: unknown) => Promise<void> } {
+export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: () => unknown; admit: (input: unknown) => Promise<unknown>; account: (input: unknown) => Promise<void> } {
   // 账本视图里总额度叫 allowance（不是 limit）：这里按 allowance 取，裁决的写保底才算得对。
   const ledger = (base.ledger || null) as { view?: (bucket: string) => { remaining: number; allowance: number; reserve: number; synced: boolean } } | null;
   const getCachedReading = function (): unknown {
@@ -136,11 +140,12 @@ export function createDeckToolsForHost(toolDeps: unknown): unknown {
   // 调用方已经配好的不动（门禁直调工厂时自带桩，本层不覆盖）；1443 才接真正的分桶读数缓存，
   // 本票的读缓存先从账本即时读（同步过就有数，没同步过就诚实报未知，未知不拦事）。
   const ports = buildTrackerPorts(base);
-  const toolDeps = Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn });
-  if (typeof toolDeps.getCachedReading !== 'function') toolDeps.getCachedReading = ports.getCachedReading;
-  if (typeof toolDeps.admit !== 'function') toolDeps.admit = ports.admit;
-  if (typeof toolDeps.account !== 'function') toolDeps.account = ports.account;
-  return createTools(DECK_TOOL_FACTORIES, { toolDeps: toolDeps })
+  // 装配后的依赖包换一个名字：与入参同名叫 toolDeps 时是重复声明（TS2300，宿主与刷新两份配置各报一次）。
+  const mergedDeps = Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn });
+  if (typeof mergedDeps.getCachedReading !== 'function') mergedDeps.getCachedReading = ports.getCachedReading;
+  if (typeof mergedDeps.admit !== 'function') mergedDeps.admit = ports.admit;
+  if (typeof mergedDeps.account !== 'function') mergedDeps.account = ports.account;
+  return createTools(DECK_TOOL_FACTORIES, { toolDeps: mergedDeps })
 }
 
 

@@ -59,6 +59,10 @@ function stubRegistry(tracker) {
   return {
     select: async () => ({ backendId: 'stub', source: 'explicit', ref: refOf, pending: false }),
     get: () => tracker,
+    // #1439（#1442）起打开 Tracker 会话时要按后端编号取预算声明，预算声明是必填项：这里的桩后端照
+    // 「离网」口径声明（不发请求、不计条数与点数），少了 modules 这一格 openTracker 会回 pending，
+    // 工具就一路回 backend-threw（看上去像后端抛错，其实根本没走到 work 闭包）。
+    modules: () => [{ id: 'stub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false } }],
     has: () => true,
     describe: () => refOf,
   }

@@ -86,22 +86,28 @@ async function main() {
   // —— W3：工具顺序（文件 > 自动识别；口子缺席照旧走自动识别） ——
   //   #1138 起「人亲手选过」只有一种凭据：工作区文件里的那条记录（见 src/host/workspaceCwd.js 的 wf.bind）。
   //   原先排在最前面的「注册表里的进程内绑定」已经整段删除，所以这里不再有「内存胜一切」那一条。
-  const shellMod = await imp('src/deck/shell/call-shell.ts')
+  const sessionModW = await imp('src/deck/tools/tracker-session.ts')
+  const ESTW = { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' }
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')
   const decMod947 = await imp('src/tracker/detection/backendDecision.ts')
   const sOf = (cwd: string): any => ({ cwd: cwd, workspaceKey: 'k947', sessionId: 's947', source: 't', text: '' })
-  const shellOf = (reg: any, extra?: any): any => shellMod.createDeckShell(Object.assign({ gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod947.decideBackend }, extra || {}))
+  // #1443 起选后端走 openDeckSession（旧壳的 pickBackend 已删），依赖袋与从前同一份。
+  const depsOfW = (reg: any, extra?: any): any => Object.assign({ gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod947.decideBackend }, extra || {})
+  const openedOfW = (reg: any, execArg: any, s: any, extra?: any): Promise<any> => sessionModW.openDeckSession({ deps: depsOfW(reg, extra), exec: execArg, session: s, estimate: ESTW, tool: 't', kind: 'op' })
   const regOf = (matchedId: string | null): any => ({
     has: (id: string) => id === 'github' || id === 'markdown',
     describe: (h: any, id: string) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
     select: async () => ({ backendId: matchedId, source: 'matches', ref: null }),
+    // #1443 起打开会话要读这两格（openTracker 按预算声明建会话，选中的后端从 get 取房间）。
+    get: () => ({}),
+    modules: () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }, { id: 'markdown', budget: { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false } }],
   })
   {
     const exec = { agent: { session: { id: 's', cwd: 'D:\\ws' } } }
-    const p2 = await shellOf(regOf('github'), { readChoice: async () => ({ backendId: 'markdown', rev: 3 }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
+    const p2 = await openedOfW(regOf('github'), exec, sOf('D:\\ws'), { readChoice: async () => ({ backendId: 'markdown', rev: 3 }), parseWorkspaceFile })
     // 这条原本断言「本机记忆这一层胜文件与自动识别」。按 2026-10-12 维护者拍板的 #1003 契约，
     //   本机记忆已退出判定（出处见 src/tracker/detection/backendDecision.ts 那段中文说明：记忆只用来
     //   把工作区配置文件生成出来一次，此后不再拿它回答判定），所以这里给了 readChoice 也不再作数：
@@ -109,14 +115,14 @@ async function main() {
     //   自动识别来的结论照样放行。这条是可判别的：记忆层一旦回来，这里就会变回 ok + markdown，断言当场红。
     check(p2.ok === true && p2.backendId === 'github',
       'W3 本机记忆已退出判定（给了 readChoice 也不作数，结论落到自动识别的 github）——自动识别来的结论照旧放行', JSON.stringify(p2).slice(0, 200))
-    const p3 = await shellOf(regOf('github'), { readChoice: async () => null, readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
+    const p3 = await openedOfW(regOf('github'), exec, sOf('D:\\ws'), { readChoice: async () => null, readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 9, source: 'user' }), parseWorkspaceFile })
     check(p3.ok && p3.backendId === 'markdown', 'W3 文件胜自动识别', JSON.stringify(p3).slice(0, 200))
-    const p4 = await shellOf(regOf('github'), { readChoice: async () => ({ backendId: 'nope', rev: 1 }), readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'alsono', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
+    const p4 = await openedOfW(regOf('github'), exec, sOf('D:\\ws'), { readChoice: async () => ({ backendId: 'nope', rev: 1 }), readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'alsono', pickedAt: 9, source: 'user' }), parseWorkspaceFile })
     // 这条原本断言「回 ok，后端是自动识别来的 github」。文件层里那个没注册的 id（alsono）被跳过，
     //   结论确实落到自动识别上（注册表里只有 github 认得这个工作区）；2026-10-16 起自动识别来的结论照样放行。
     check(p4.ok === true && p4.backendId === 'github',
       'W3 未知 id 的层跳过（结论落到自动识别的 github）——自动识别来的结论照旧放行', JSON.stringify(p4).slice(0, 200))
-    const p5 = await shellOf(regOf('github')).pickBackend(exec, sOf('D:\\ws'))
+    const p5 = await openedOfW(regOf('github'), exec, sOf('D:\\ws'))
     // 同一条口径：文件口子缺席时，自动识别照样被问到并答了 github，工具壳照样放行；
     //   对照见上面 p3：同一个夹具补上一份写着 markdown 的工作区文件之后，结论换成文件的 markdown。
     check(p5.ok === true && p5.backendId === 'github',

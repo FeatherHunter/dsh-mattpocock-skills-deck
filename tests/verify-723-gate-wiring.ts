@@ -201,9 +201,11 @@ async function main() {
     check(!!out4 && out4.verdictOfGate === 'defer', '④ 负控的回包也如实带结论（verdictOfGate=' + (out4 && out4.verdictOfGate) + '）')
   }
 
-  // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的九个工具）的一次调用被闸真拒绝 ──
-  // 与 ③ 段的区别：③ 是拿闸自己的 admitAiTool 直调（证明裁决函数会拒），这一段是把额度压到只剩一点点，
+  // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的九个工具）的一次调用被闸真拒绝；外加离网对照 ──
+  // 与 ③ 段的区别：③ 是拿闸自己的 admitAiTool 直调（证明裁决函数会拒），这一段是让这一笔自己要得太多，
   // 然后走 wiring.deckToolsForHost() 装出来的表、调真工具，看它是不是照契约回拒绝态。
+  // ⑤c 是 #1439（#1442）的验收：本地 Markdown 是离网后端，没有额度可言，额度压到 0 也照样放行 ——
+  // 旧口径「离网后端到保底线也要被拒」与规格冲突，已按规格改成「照样做成、不出现 gate-defer、账上不多记」。
   {
     const registryMod = await imp('src/tracker/registry/core.ts')
     const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
@@ -290,19 +292,22 @@ async function main() {
     check(r3 && r3.ok === true, '⑤ 对照：额度够时同一入口同一工具真的做成（status=' + (r3 && r3.status) + '）',
       '这一条也失败就说明 ⑤a 的拒绝不是额度造成的：' + JSON.stringify({ status: r3 && r3.status, reason: r3 && r3.reason, text: String((r3 && r3.text) || '').slice(0, 160) }))
 
-    // ⑤c 真被拒绝（第二种原因）：额度已经到保底线 → 这一笔连选后端都过不去，工具照契约回拒绝态（不是抛异常）。
-    //    如实报两个可能的结果：闸把「选后端」这一步判成 defer 时 reason 是 gate-defer（推迟），
-    //    判成 ai-tool 那一档拒绝时 reason 是 ai-tool-refused —— 两种都是「没做成、如实说」，都不许抛异常。
+    // ⑤c 离网对照（#1439 验收）：额度已经到保底线，但本地 Markdown 是离网后端、没有额度可言 ——
+    //    闸的额度探针直接跳过，这一笔照旧做成，回执如实说「本后端不需要额度」，账上不多记。
+    //    这不是「没做成」：旧口径「连选后端都过不去」正是 #1435 报的那条 bug，规格要求它消失。
     const H1 = await buildHost(0)
     const b1 = H1.gate.stats()
     let threw1 = null
     let r1 = null
     try { r1 = await H1.table.tools.deck_issue_create.run(EXEC, { title: '额度已到保底线的这一笔', kind: 'issue' }) } catch (e) { threw1 = e }
-    check(threw1 === null, '⑤ 额度到保底线：工具没有把异常抛给 AI（照契约回三态；threw=' + (threw1 && threw1.message) + '）')
-    check(!!r1 && r1.ok === false && r1.status === 'unsupported', '⑤ 额度到保底线：回 ok:false / unsupported（实得 ' + (r1 && r1.status) + '）')
-    check(!!r1 && (r1.reason === 'ai-tool-refused' || r1.reason === 'gate-defer'), '⑤ 额度到保底线：给出的原因代号是那两个之一（实得 ' + (r1 && r1.reason) + '）')
-    check(H1.gate.stats().accounted.requests === b1.accounted.requests, '⑤ 额度到保底线：一笔都没发出去（' + b1.accounted.requests + ' → ' + H1.gate.stats().accounted.requests + '；没被静默放行）')
-    console.log('    拒绝原文（额度到保底线）：' + String(r1 && r1.text).slice(0, 220))
+    check(threw1 === null, '⑤ 离网后端：工具没有把异常抛给 AI（照契约回三态；threw=' + (threw1 && threw1.message) + '）')
+    check(!!r1 && r1.ok === true && r1.status === 'ok', '⑤ 离网后端在额度见底时照样做成（实得 ' + (r1 && r1.status) + ' / ' + (r1 && r1.reason) + '）')
+    check(!!r1 && r1.cost && r1.cost.actual && r1.cost.actual.remaining === -1 && r1.cost.actual.tier === 'off-network', '⑤ 回执照实说额度不适用（remaining=' + (r1 && r1.cost && r1.cost.actual && r1.cost.actual.remaining) + ' / tier=' + (r1 && r1.cost && r1.cost.actual && r1.cost.actual.tier) + '）')
+    check(!!r1 && Array.isArray(r1.notes) && r1.notes.join('').indexOf('本后端不需要额度') >= 0, '⑤ 回执里写出「本后端不需要额度」那一句（实得 ' + JSON.stringify(r1 && r1.notes) + '）')
+    // 不做成「闸被绕过了」：闸的裁决本身没坏，只是离网后端这一趟根本不问它。
+    const probe = H1.gate.admitAiTool({ points: 0, requests: 1, childTickets: 0 }, { workspaceKey: wsPosix, kind: 'tool-batch', bucket: 'rest' })
+    check(probe && probe.admitted === false && probe.reason === 'ai-tool-below-remaining', '⑤ 对照：同一格额度见底时闸照样会拒（裁决没坏；实得 ' + JSON.stringify({ admitted: probe && probe.admitted, reason: probe && probe.reason }) + '）')
+    check(H1.gate.stats().accounted.requests === b1.accounted.requests && H1.gate.stats().deferred === b1.deferred, '⑤ 账上不多记、也没进推迟队列（accounted ' + b1.accounted.requests + ' → ' + H1.gate.stats().accounted.requests + '；deferred ' + b1.deferred + ' → ' + H1.gate.stats().deferred + '）')
     try { fs.rmSync(wsRoot, { recursive: true, force: true }) } catch (e) {}
   }
 

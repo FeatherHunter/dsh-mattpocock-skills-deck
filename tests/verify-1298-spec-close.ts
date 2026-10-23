@@ -278,9 +278,10 @@ async function main() {
   {
     const patchText = fs.readFileSync(path.join(ROOT, 'src', 'deck', 'tools', 'issue-patch.ts'), 'utf8')
     const reopenAt = patchText.indexOf('if (a.close === false)')
-    const pickAt = patchText.indexOf('const pick = await shell.pickBackend(exec, s)')
+    // #1443 起选后端走 openDeckSession：钉调用处（import 行里也有同名，不算数）。
+    const pickAt = patchText.indexOf('openDeckSession({')
     check(reopenAt >= 0, '⑧ issue-patch 里有「close:false 直接拒绝」的那一支')
-    check(pickAt > reopenAt, '⑧ 拒绝重开发生在选后端之前（连后端都不连、一个字都不动）')
+    check(pickAt > reopenAt, '⑧ 拒绝重开发生在打开会话之前（连后端都不连、一个字都不动）')
     check(patchText.indexOf('重开不在这个 AI 工具面上') >= 0, '⑧ 拒绝文案说清「重开不在 AI 工具面上」')
     // 关规格三道闸的规则码都在 spec-close-guard 这一份实现里（动态那一半已经在上面跑过）。
     const guardText = fs.readFileSync(path.join(ROOT, 'src', 'deck', 'shell', 'spec-close-guard.ts'), 'utf8')

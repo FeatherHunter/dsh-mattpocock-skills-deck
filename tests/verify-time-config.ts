@@ -398,7 +398,6 @@ const EXEMPTS: ExemptRow[] = [
   // —— 2026-10-16 对抗式自查：时间味判据加宽之后第一次被认出来的名字，逐个定性 ——
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'interval', reason: '函数参数名，值由调用方给（planAttention 的入参），本文件不决定时长' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'linger', reason: '同上，函数参数名，不是可调常量' },
-  { file: 'src/deck/shell/call-shell.ts', name: 'sleep', reason: '等待函数的名字（sleep(ms)），不是数值；调用点给的毫秒数由各自的时间常量决定' },
   { file: 'src/deck/shell/session-workdir.ts', name: 'sleep', reason: '同上，等待函数名' },
   { file: 'src/deck/shell/table-cell.ts', name: 'sleep', reason: '同上，等待函数名' },
   { file: 'src/deck/shell/write-mutex.ts', name: 'sleep', reason: '同上，等待函数名' },

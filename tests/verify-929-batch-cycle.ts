@@ -74,6 +74,10 @@ function makeEnv(opts) {
     // 这份桩注册表没有 has，判定出口要靠它判「认不认得这个名字」，缺了就按「认得」算 —— 桩已替它补上，
     // 见 tests/lib/deck-decide-stub.js 文件头。select 是「没有工作区文件时」的兜底那一层，照旧留着。
     const registryStub = { select: async () => ({ backendId: 'github', source: 'test', ref: { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' } }), get: () => tracker }
+    // #1439（#1442）起打开 Tracker 会话时要按后端编号取预算声明，预算声明是必填项：这份桩自称 github，
+    // 就照真 github 房的口径声明（按条数计、按点数计、两桶互不占用）。少了 modules 这一格，openTracker
+    // 会回「后端还没就绪」，工具就一路回 backend-threw —— 看上去像后端抛错，其实根本没走到建边的 work 闭包。
+    registryStub.modules = () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }]
     return {
       gate: { admitAiTool: () => ({ admitted: true }), send: async (req, fn) => { await fn(); return { sent: true, requests: 1, points: 0, remaining: 100, tier: 'ai' } } },
       registry: registryStub,

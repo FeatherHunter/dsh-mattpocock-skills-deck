@@ -103,23 +103,41 @@ function mkGate() {
   check(gate.stats().mismatch === lieBefore + 1, '⑥ 报假数（发 3 条报 1 条）仍然当场对出来')
 }
 
-// ── ⑦ 活件：读数里剩 0 时，真的按服务端给的重置时刻降了档（#927 ①） ──
+// ── ⑦ 活件：读数改走会话的 readBudget，剩 0 的那一桶落账后由裁决降档（#1443 改道） ──
+// #1443 把这一截的读法从「经闸打一次免费的 gh、撞 0 就 noteRateLimited 等重置」改成了
+// 「经 Tracker 会话调 readBudget，房间自己读 gh，读数落账后由裁决按分桶剩余算」。所以旧的
+// send / runGh / noteRateLimited 三个口已经不存在（再传也只是被忽略，读数恒回 missing-dep）；
+// 这里按新口给 readBudget，并用真账本 + 真闸验证「见底的那一桶真的被降档、另一桶照旧放行」。
 {
   const mod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/registry/quota-sync-bridge.ts')).href)
-  const notes = []
-  const resetSec = Math.floor((Date.now() + 600000) / 1000)
-  const body = JSON.stringify({ resources: { core: { limit: 5000, remaining: 0, reset: resetSec }, graphql: { limit: 5000, remaining: 5000, reset: resetSec } } })
+  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/quota-ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/refresh-gate.ts')).href)
+  const CLOCK = 1700000000000
+  const ledger = ledgerMod.createLedger({ now: () => CLOCK })
+  const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
+  gate.setWorkspace('/ws', { active: true })
+  const readCalls = []
   const sync = mod.createDeckQuotaSync({
-    send: async (req, perform) => ({ sent: true, result: await perform() }),
+    // 房间回两桶读数：rest 已经见底（0/5000），graphql 还满着（5000/5000）。
+    readBudget: async (cwd) => {
+      readCalls.push(cwd)
+      return { ok: true, data: { known: true, kind: 'two-buckets', buckets: { rest: { limit: 5000, remaining: 0 }, graphql: { limit: 5000, remaining: 5000 } } } }
+    },
     syncDue: () => true,
-    syncServer: () => ({ applied: ['rest', 'graphql'] }),
-    noteRateLimited: (bucket, seconds, key) => { notes.push({ bucket: bucket, seconds: seconds, key: key }); return { bucket: bucket } },
-    runGh: async () => ({ ok: true, text: body }),
+    syncServer: (readings) => ledger.syncServer(readings),
     logCtx: null,
   })
   const r = await sync.ensureReading('/ws', 'ws-panel')
-  check(r.ok === true, '⑦ 读数这条路照旧成功（实得 ' + JSON.stringify(r) + '）')
-  check(notes.length === 1 && notes[0].bucket === 'rest' && notes[0].seconds > 0 && notes[0].seconds <= 600, '⑦ 只剩 0 的那一桶被降档，秒数取自服务端给的重置时刻（实得 ' + JSON.stringify(notes) + '）')
+  check(r.ok === true && r.fresh === true, '⑦ 读数这条路照旧成功（实得 ' + JSON.stringify(r) + '）')
+  check(readCalls.length === 1 && readCalls[0] === '/ws', '⑦ 读一次预算、按这次调用的工作区目录读（实得 ' + JSON.stringify(readCalls) + '）')
+  const restRemaining = ledger.view('rest').remaining
+  const graphqlRemaining = ledger.view('graphql').remaining
+  check(restRemaining === 0 && graphqlRemaining > 0, '⑦ 读数按桶落账：见底的那一桶记 0、另一桶照旧有数（实得 rest=' + restRemaining + ' / graphql=' + graphqlRemaining + '）')
+  // 降档由裁决算：rest 见底（红档）→ AI 工具的写被推迟；graphql 还满着 → 同一笔照旧放行。
+  const restVerdict = gate.decideFor({ source: 'tool.call', kind: 'write', bucket: 'rest', workspaceKey: '/ws' })
+  const gqlVerdict = gate.decideFor({ source: 'tool.call', kind: 'tool-batch', bucket: 'graphql', workspaceKey: '/ws' })
+  check(restVerdict.verdict === 'defer' && restVerdict.reason === 'ai-tool-below-remaining', '⑦ 只剩 0 的那一桶被降档：AI 工具那一笔被推迟（实得 ' + restVerdict.verdict + '/' + restVerdict.reason + '）')
+  check(gqlVerdict.verdict === 'allow' && gqlVerdict.reason === 'ai-tool-within-caps', '⑦ 另一桶还满着：同一档照旧放行，不被别桶连坐（实得 ' + gqlVerdict.verdict + '/' + gqlVerdict.reason + '）')
 }
 
 // ── ⑧ 活件：面板那一路真走一遍（真 platformChannel + 真闸）：账与真发数一致、绕闸为 0 ──

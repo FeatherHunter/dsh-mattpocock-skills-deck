@@ -37,6 +37,8 @@ function stubRegistry(pickRefId, tracker) {
     select: async () => ({ backendId: 'stub', source: 'explicit', ref: { backend: 'stub', refId: pickRefId, name: pickRefId, url: '' }, pending: false }),
     get: () => tracker,
     has: () => true,
+    // #1439：开会话要按后端编号取预算声明（预算必填），旧桩只给了选与取，这里补上离网口径。
+    modules: () => [{ id: 'stub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false } }],
     describe: () => ({ backend: 'stub', refId: pickRefId, name: pickRefId, url: '' }),
   }
 }

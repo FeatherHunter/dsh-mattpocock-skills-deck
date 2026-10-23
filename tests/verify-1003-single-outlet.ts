@@ -58,12 +58,17 @@ const regOf = (selectFn: any): any => ({
   has: (id: string) => id === 'github' || id === 'markdown',
   describe: (h: any, id: string) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
   select: selectFn,
+  // #1443 起打开会话要读这两格（openTracker 按预算声明建会话，选中的后端从 get 取房间）：
+  // 桩只为判定与选择而造，房间本身不会被调到，给空对象与两份预算声明即可。
+  get: () => ({}),
+  modules: () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }, { id: 'markdown', budget: { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false } }],
 });
 const fakeTracker = (): any => ({ listLabels: async () => ({ ok: true, data: [] }), setLabelColors: async () => ({ ok: true, data: { applied: [], failed: [] } }) });
 
 async function main() {
   console.log('#1003 单出口门禁：四路同答案');
-  const shellMod = await imp('src/deck/shell/call-shell.ts');
+  const sessionMod = await imp('src/deck/tools/tracker-session.ts');
+  const EST1003 = { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' };
   const budget = await imp('src/refresh/kernel/host-budget.js');
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts');
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts');
@@ -78,12 +83,15 @@ async function main() {
   try { decideBackend.selectionFromOutlet = decMod.selectionFromOutlet } catch { /* 只读属性时跳过 */ }
 
   const sOf = (cwd: string): any => ({ cwd, workspaceKey: 'k1003s', sessionId: 's1003s', source: 't', text: '' });
-  const shellOf = (reg: any, extra?: any): any => shellMod.createDeckShell(Object.assign({
+  // #1443 起选后端走 openDeckSession（旧壳的 pickBackend 已删）：依赖袋与从前同一份（判定出口直递同一函数），
+  // 只是调用入口换成了会话。
+  const depsOf = (reg: any, extra?: any): any => Object.assign({
     gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {},
-    // 测的就是出口这条路（生产由装配层递进来，这里直递同一函数；过闸钩子壳内自建）
+    // 测的就是出口这条路（生产由装配层递进来，这里直递同一函数）
     decideBackend: decMod.decideBackend,
-  }, extra || {}));
+  }, extra || {});
+  const openedOf = (reg: any, execArg: any, s: any, extra?: any): Promise<any> => sessionMod.openDeckSession({ deps: depsOf(reg, extra), exec: execArg, session: s, estimate: EST1003, tool: 't', kind: 'op' });
   // 工具壳自己不带文件通道：生产由装配层把这两件事递进壳（见 src/refresh/rooms/host/refresh-runtime.js 给 deck 工具壳
   //   递的 readWorkspaceFileText/parseWorkspaceFile），壳再转手递给判定出口。夹具照生产的接法给上，
   //   壳才读得到工作区文件里人的选择 —— 这一步是 #1138 之后唯一能表达「这个工作区选过了」的通道。
@@ -130,8 +138,7 @@ async function main() {
     const u = await decideBackend(dir, { registry: noAuto, platform: { fs: fss }, fs: fss, caller: 'test-s1' });
     check(u.backendId === 'github', 'S1 统一判定读到声明文件（github）', JSON.stringify(u));
     check(u.canWrite !== true, 'S1 声明文件来的结论不算「人选的」：出口标了不可写', JSON.stringify({ canWrite: u.canWrite, reason: u.reason }));
-    const shell1 = shellOf(noAuto, { readDeclarationId: async () => 'github' });
-    const p = await shell1.pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
+    const p = await openedOf(noAuto, { agent: { session: { id: 's', cwd: dir } } }, sOf(dir), { readDeclarationId: async () => 'github' });
     check(p.ok === true && p.backendId === 'github', 'S1 工具壳放行：只有声明文件也照用声明里的 github（2026-10-16 起不再要求人亲手选过）', JSON.stringify({ ok: p.ok, backendId: p.backendId }));
     const l = await lcOf(Object.assign({}, noAuto, { get: () => fakeTracker() }), fss).handleListLabels({ cwd: dir });
     check(l.ok === true && l.backendId === 'github', 'S1 读用途（列标签）不受影响，照旧读到声明文件', JSON.stringify(l).slice(0, 160));
@@ -146,7 +153,7 @@ async function main() {
     //   以前这里是在桩注册表上加一句 bound: () => 'github' 假装「本进程里有绑定」，那个口子已经整段删掉了。
     fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'),
       'version: 2\nbackendId: github\npickedAt: 1\nsource: user\n');
-    const p2 = await shellOf(noAuto, Object.assign({ readDeclarationId: async () => 'github' }, wfDepsOf(fss))).pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
+    const p2 = await openedOf(noAuto, { agent: { session: { id: 's', cwd: dir } } }, sOf(dir), Object.assign({ readDeclarationId: async () => 'github' }, wfDepsOf(fss)));
     check(p2.ok === true && p2.backendId === 'github', 'S1 对照：工作区文件里有人的选择后工具壳放行', JSON.stringify({ ok: p2.ok, backendId: p2.backendId }));
     const w2 = await lcOf(Object.assign({}, noAuto, { get: () => fakeTracker() }), fss).handleSetLabelColors({ cwd: dir, changes: [{ name: 'bug', color: '0b7285' }] });
     check(w2.ok === true && Array.isArray(w2.applied), 'S1 对照：工作区文件里有人的选择后改色写放行（夹具的桩返回空清单，这里只看它被放行且确实交给了后端）', JSON.stringify(w2).slice(0, 160));
@@ -176,7 +183,7 @@ async function main() {
     const reg = regOf(async () => { matched = true; return { backendId: 'github', source: 'matches' }; });
     const u = await decideBackend('', { registry: reg, caller: 'test-s3' });
     check(u.backendId === null && u.source === 'unknown', 'S3 统一判定空目录按未知回', JSON.stringify(u));
-    const p = await shellOf(reg).pickBackend({ agent: { session: { id: 's', cwd: '' } } }, sOf(''));
+    const p = await openedOf(reg, { agent: { session: { id: 's', cwd: '' } } }, sOf(''));
     check(p.ok === false && /还没就绪/.test(p.text || ''), 'S3 工具壳说还没就绪', (p.text || '').slice(0, 100));
     const l = await lcOf(Object.assign({}, reg, { get: () => fakeTracker() }), makeFs()).handleListLabels({ cwd: '' });
     check(l.ok === false, 'S3 改色电话空目录不成功', JSON.stringify(l).slice(0, 160));
@@ -186,7 +193,7 @@ async function main() {
   // —— S4：多命中诚实拒绝 ——
   {
     const reg = regOf(async () => ({ backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'] }));
-    const p = await shellOf(reg).pickBackend({ agent: { session: { id: 's', cwd: 'D:\\ws' } } }, sOf('D:\\ws'));
+    const p = await openedOf(reg, { agent: { session: { id: 's', cwd: 'D:\\ws' } } }, sOf('D:\\ws'));
     check(p.ok === false && /同时被 2 个后端认出/.test(p.text || ''), 'S4 工具壳多命中拒绝', (p.text || '').slice(0, 100));
     const u = await decideBackend('D:\\ws', {
       registry: reg, caller: 'test-s4',

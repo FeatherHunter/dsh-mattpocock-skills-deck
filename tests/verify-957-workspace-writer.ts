@@ -103,7 +103,9 @@ async function main() {
 
   // —— S：工具壳多命中诚实拒绝（不依赖任何保护写口） ——
   {
-    const shellMod = await imp('src/deck/shell/call-shell.ts')
+    const sessionModX = await imp('src/deck/tools/tracker-session.ts')
+    const ESTX = { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' }
+    const openedOfX = (dep: any, execArg: any, s: any): Promise<any> => sessionModX.openDeckSession({ deps: dep, exec: execArg, session: s, estimate: ESTX, tool: 't', kind: 'op' })
     const budget = await imp('src/refresh/kernel/host-budget.js')
     const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
     const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
@@ -113,14 +115,14 @@ async function main() {
     const gate = gateMod.createGate({ ledger: ledger, logCtx: null, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
     const sOf = (cwd) => ({ cwd: cwd, workspaceKey: 'k957', sessionId: 's957', source: 't', text: '' })
-    const mkShell = (reg, extra) => shellMod.createDeckShell(Object.assign({ gate: gate, registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod957.decideBackend }, extra || {}))
-    const doubleReg = { bound: () => undefined, has: (id) => id === 'github' || id === 'markdown', describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }), select: async () => ({ backendId: 'github', source: 'matches', ref: null, multiHit: ['github', 'markdown'] }) }
+    const mkDeps = (reg, extra) => Object.assign({ gate: gate, registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod957.decideBackend }, extra || {})
+    const doubleReg = { bound: () => undefined, has: (id) => id === 'github' || id === 'markdown', describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }), select: async () => ({ backendId: 'github', source: 'matches', ref: null, multiHit: ['github', 'markdown'] }), get: () => ({}), modules: () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }, { id: 'markdown', budget: { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false } }] }
     const exec = { agent: { session: { id: 's', cwd: 'D:\\ws' } } }
-    const pNoProt = await mkShell(doubleReg).pickBackend(exec, sOf('D:\\ws'))
+    const pNoProt = await openedOfX(mkDeps(doubleReg), exec, sOf('D:\\ws'))
     check(pNoProt.ok === false, 'S1 多命中无保护写口可接：照旧诚实报错', JSON.stringify(pNoProt).slice(0, 160))
     // #1147 决策 10b：装配层不再提供 protectDoubleHit，壳也不读它。即使有人误传这一格，
     //   也必须当作未知键忽略，多命中照旧诚实拒绝（不能复活任何自动写）。
-    const pProt = await mkShell(doubleReg, { protectDoubleHit: async () => ({ backendId: 'github', source: 'auto', ref: null, pending: false }) }).pickBackend(exec, sOf('D:\\ws'))
+    const pProt = await openedOfX(mkDeps(doubleReg, { protectDoubleHit: async () => ({ backendId: 'github', source: 'auto', ref: null, pending: false }) }), exec, sOf('D:\\ws'))
     check(pProt.ok === false, 'S2 误传的保护写口被忽略，多命中照旧诚实报错', JSON.stringify(pProt).slice(0, 160))
   }
 

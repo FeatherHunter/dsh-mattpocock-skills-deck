@@ -23,6 +23,7 @@ import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from 
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
 import { readRepoPermissions } from './repo-permissions.js'
+import { readGithubBudget } from './budget.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { setParent, getDependencies, setBlockedBy } from './graph.js'
 import { initProject } from './init-project.js'
@@ -173,6 +174,7 @@ export function createGithubBackend(ctx: OpContext) {
     //   2026-10-14 起它是契约操作（`Tracker.getRepoPermissions`）：deck_context 的能力位与失败归因
     //   两边都要用它，所以它不再是「GitHub 独有的旁路」。
     //   问不出来（网络、仓库不存在）如实回 ok:false，调用方按「未知」处理，不捏造。
+    readBudget: (opCtx) => readGithubBudget(opCtx || ctx),
     getRepoPermissions: async (repo, opCtx) => {
       const c = ghClient(opCtx || ctx)
       const refId = repo && typeof repo.refId === 'string' ? repo.refId.trim() : ''

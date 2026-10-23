@@ -5,10 +5,10 @@
   },
   "cost": {
     "actual": {
-      "points": 0,
-      "remaining": 1750,
-      "requests": 0,
-      "tier": "green"
+      "points": 3,
+      "remaining": -1,
+      "requests": 1,
+      "tier": "off-network"
     },
     "estimated": {
       "perShard": 1,
@@ -56,7 +56,8 @@
   },
   "items": [],
   "notes": [
-    "反向阻塞边这次没取（blocking=false，跳过一次反向边查询）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。"
+    "反向阻塞边这次没取（blocking=false，跳过一次反向边查询）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。",
+    "本后端不需要额度（离网口径）：这次记 0 条、0 点，剩余额度与档位不适用。"
   ],
   "ok": true,
   "readBack": null,
