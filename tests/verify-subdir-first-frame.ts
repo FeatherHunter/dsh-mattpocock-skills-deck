@@ -15,8 +15,9 @@
  *      先教会了客户端那个根 —— 比出来必然不等。超时之后又没有任何重试，那份结果于是永久作废。
  *
  * 本门禁喂的是**真** loadSnapshot：那几片内核按 scripts/build.mts 拼进同一个闭包的顺序（shared/workspaceKey.js
- *   → kernel/store-prefs.js → kernel/store-snapshot.js → kernel/probe-stale.js → kernel/probe-snapshot.js
- *   → kernel/probe-select.js）去掉行首 export 后求值，拼法照 .tmp/repro-665-subdir-first-frame.js。
+ *   → kernel/store-prefs.js → rooms/client/snapshot-cache-store.js → rooms/client/staleness-indicator.js
+ *   → rooms/client/snapshot-sync.js → rooms/client/probe-scope-selection.js）去掉行首 export 后求值，
+ *   拼法照 .tmp/repro-665-subdir-first-frame.js（#1428 起后四片住客户端房）。
  *   假宿主按真机的样子回话：wf.cwd 失败（真机 errorHash 记的就是「会话无 cwd 信息」）、那份完整快照 1.4 秒后
  *   才到（客户端那条死线在本门禁里缩成 0.9 秒 —— 门禁量的是「超时之后那份回包还能不能落地」，不是「等多久
  *   算超时」；快慢只影响等待时长）、而那条专用电话 wf.selection 二十毫秒就有答案。
@@ -68,10 +69,10 @@ const CWD_FAIL_MS = 5         // wf.cwd 真机上一直失败，只是失败得�
 const FILES = [
   '.build/shared/workspaceKey.js',
   'src/client/kernel/store-prefs.js',
-  'src/client/kernel/store-snapshot.js',
-  'src/client/kernel/probe-stale.js',
-  'src/client/kernel/probe-snapshot.js',
-  'src/client/kernel/probe-select.js',
+  'src/refresh/rooms/client/snapshot-cache-store.js',
+  'src/refresh/rooms/client/staleness-indicator.js',
+  'src/refresh/rooms/client/snapshot-sync.js',
+  'src/refresh/rooms/client/probe-scope-selection.js',
 ]
 
 // 把这几片按构建顺序拼成同一个闭包。客户端那几片的真源都已转成 .ts，取源走共用入口的 spliceableJs：
@@ -81,7 +82,7 @@ const FILES = [
 // 拼闭包要的是转译后的 JavaScript，所以直接读那里。
 function moduleText(patch) {
   const body = FILES.map((f) => {
-    const src = (patch && patch.file === f) ? patch.text : (f.indexOf('src/client/') === 0 ? spliceableJs(f) : read(f))
+    const src = (patch && patch.file === f) ? patch.text : ((f.indexOf('src/client/') === 0 || f.indexOf('src/refresh/rooms/client/') === 0) ? spliceableJs(f) : read(f)) // #1428 起客户端房四片走同一条取源（.js 名义、真源 .ts，由 spliceableJs 按构建口径解析）
     return noExport(stripTimeConfigImport(src))
   }).join('\n')
   // 门禁把源里那条中央耐心缩短成 0.9 秒，好把「死线先到、回包后到」那个次序造出来。
@@ -93,7 +94,7 @@ function moduleText(patch) {
   //   这条锚只看「真源原文里那行中央引用还在不在」：spliceableJs 转译时会按构建口径把它剥掉，
   //   所以这里必须用 sourceText 读原文，换成转译结果会让前提自检误报。
   const TC_ANCHOR_RE = /^\s*import\s*\{[^}]*SNAP_WAIT_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/m
-  if (!TC_ANCHOR_RE.test(sourceText('src/client/kernel/probe-snapshot.js'))) throw new Error('源里找不到快照等待的中央引用（SNAP_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
+  if (!TC_ANCHOR_RE.test(sourceText('src/refresh/rooms/client/snapshot-sync.js'))) throw new Error('源里找不到快照等待的中央引用（SNAP_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
   return 'const SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS + '\n' + body
 }
 
@@ -233,7 +234,7 @@ async function main() {
 
   console.log('=== #727 子目录会话第一帧门禁（I1 便宜且专用 / I2 未知≠否 / I3 迟到能落地）===')
 
-  const probeSnapshotSrc = spliceableJs('src/client/kernel/probe-snapshot.js')
+  const probeSnapshotSrc = spliceableJs('src/refresh/rooms/client/snapshot-sync.js')
   ok(NEW_GUARD_RE.test(probeSnapshotSrc), '（前提）真源里那条守卫就是换过尺子的样子（按请求时那条目录比）')
   const noAskSrc = ASK_LINE_RE.test(probeSnapshotSrc)
     ? cut(probeSnapshotSrc, ASK_LINE_RE, '「进工作区补问一次」那一步（第 1 条修法）') : probeSnapshotSrc
@@ -241,7 +242,7 @@ async function main() {
     ? cut(noAskSrc, LATE_LINE_RE, '「迟到回包的落地」那一行（第 2 条修法）') : noAskSrc
   const oldGuardSrc = noAskSrc.replace(NEW_GUARD_RE, 'if (_curNorm !== _reqNorm) {')
   ok(oldGuardSrc !== noAskSrc, '（前提）能把那条守卫改回改动前的写法（第 3 条修法的反证）')
-  const withSnapPatch = (text) => ({ file: 'src/client/kernel/probe-snapshot.js', text: text })
+  const withSnapPatch = (text) => ({ file: 'src/refresh/rooms/client/snapshot-sync.js', text: text })
 
   // ── 主现场：一次完整的「进工作区」 ──────────────────────────────────────────
   const f = { env: makeEnv({ seedLocal: rootKeyedSeed() }) }

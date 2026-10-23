@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/probe-stale.ts —— 面板快照那一路的「这一次还算不算数」判断（#669 第 5 件）
+ * src/refresh/rooms/client/staleness-indicator.ts —— 面板快照那一路的「这一次还算不算数」判断（#669 第 5 件）
  *
  * 契约：模块真源；构建时剥行首 export，把声明体文本拼回
  * src/client/index.ts 里那条 probeStale 拼接标记处，源码树里只有这一份真源。

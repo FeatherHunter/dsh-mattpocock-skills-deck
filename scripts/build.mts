@@ -484,7 +484,7 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.ts' },
+  { name: 'storeSnapshot', file: 'src/refresh/rooms/client/snapshot-cache-store.ts' },
   // #1355：每个会话自己的工作路线读数（剥表、补拉、三处接线共用的请求决策）从 storeSnapshot 拆到这里——
   //   那片从 #707 起贴着 350 行上限，本票再加三件判断就会超。标记排在 storeSnapshot 之后：
   //   本片只调用标在它前面的 snapNeedsOwnWorkRoute，且只在运行时调用，拼接次序按这条依赖关系排。
@@ -531,38 +531,38 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   { name: 'slotRendererQueue', file: 'src/client/kernel/slotRenderer-queue.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'slotRendererRepoSync', file: 'src/client/kernel/slotRenderer-repo-sync.ts' },
+  { name: 'slotRendererRepoSync', file: 'src/refresh/rooms/client/repo-sync-renderer.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'slotRendererModalView', file: 'src/client/kernel/slotRenderer-modal-view.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'probeChain', file: 'src/client/kernel/probe-chain.ts' },
+  { name: 'probeChain', file: 'src/refresh/rooms/client/probe-chain-subscription.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'probeStale', file: 'src/client/kernel/probe-stale.ts' },
+  { name: 'probeStale', file: 'src/refresh/rooms/client/staleness-indicator.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'probeSnapshot', file: 'src/client/kernel/probe-snapshot.ts' },
+  { name: 'probeSnapshot', file: 'src/refresh/rooms/client/snapshot-sync.ts' },
   // #727：「这个工作区用哪个后端」这条事实的两条专用轨迹（进工作区补问一次 wf.selection；
   //   那次快照超时之后、回包迟到时怎么落地那一小块）。理由与上一行的 #707 同一条：
   //   probe-snapshot.js 一直贴着 350 行上限，塞不进去。
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'probeSelect', file: 'src/client/kernel/probe-select.ts' },
+  { name: 'probeSelect', file: 'src/refresh/rooms/client/probe-scope-selection.ts' },
   // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），已无下脚的地方，故把颜色小函数、
   //   数据层增量差异、高亮清除这三样与「下载快照」无关的东西搬成单独一片。
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'probeSnapshotHelpers', file: 'src/client/kernel/probe-snapshot-helpers.ts' },
+  { name: 'probeSnapshotHelpers', file: 'src/refresh/rooms/client/snapshot-sync-helpers.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'probeAuto', file: 'src/client/kernel/probe-auto.ts' },
+  { name: 'probeAuto', file: 'src/refresh/rooms/client/refresh-timer.ts' },
   // #707：视野模型的客户端半边 —— 窗口标识（sessionStorage，不能放 localStorage）、焦点与可见性监听、
   //   面板可见时每 20 秒一次的本地心跳（零配额、不出网）、以及「只服务活跃工作区」那条探测节拍。
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
-  { name: 'attentionHeartbeat', file: 'src/client/kernel/attention-heartbeat.ts' },
+  { name: 'attentionHeartbeat', file: 'src/refresh/rooms/client/client-attention-heartbeat.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'router', file: 'src/client/kernel/router.ts' },

@@ -39,7 +39,8 @@ function callsOf(files: { file: string, src: string }[], phone: string) {
 
 async function main() {
   console.log('#1305 客户端写工作区文件的电话要带会话号')
-  const files = walk(path.join(ROOT, 'src', 'client'), []).map((p: string) => ({ file: rel(p), src: fs.readFileSync(p, 'utf8') }))
+  // #1428 起九个客户端房文件住 src/refresh/rooms/client/：两棵一起扫，旧根不动（文件集合不变，只是换了住处，各条计数不受影响）。
+  const files = walk(path.join(ROOT, 'src', 'client'), []).concat(walk(path.join(ROOT, 'src', 'refresh', 'rooms', 'client'), [])).map((p: string) => ({ file: rel(p), src: fs.readFileSync(p, 'utf8') }))
 
   // 1. wf.bind：切换后端四条执行点（Dock / 状态栏 / 切后端内核 / 面板门控叶），一条都不许漏会话号。
   const binds = callsOf(files, 'wf.bind')
@@ -59,7 +60,7 @@ async function main() {
   check(literalSels.length === 1 && literalSels[0].file.endsWith('/views/SettingsWorkspaces.ts'), '字面量 wf.selection 只剩设置页总览一处（补问那条走了变量，见下一条）', literalSels.map((s) => s.file).join(', '))
   const selOverview = literalSels[0]
   check(!!selOverview && !/sessionId/.test(selOverview.snippet), '设置页工作区总览仍然是只读循环、不带会话号（唯一例外，改动它前先想清楚：它不写文件）')
-  const probeFile = files.filter((f) => f.file.endsWith('/kernel/probe-select.ts'))[0]
+  const probeFile = files.filter((f) => f.file.endsWith('/rooms/client/probe-scope-selection.ts'))[0]
   const probeAt = probeFile ? probeFile.src.indexOf('host.call(method') : -1
   const probeSnippet = (probeFile && probeAt >= 0) ? probeFile.src.slice(probeAt, probeAt + 200) : ''
   check(!!probeFile && probeFile.src.indexOf("'wf.selection'") >= 0 && probeAt >= 0 && /sessionId/.test(probeSnippet), '进工作区补问 wf.selection（会顺带迁移旧选择）带上了 sessionId', probeSnippet.slice(0, 160))

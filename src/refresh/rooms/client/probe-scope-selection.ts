@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/probe-select.ts —— 后端选定的两条专用轨迹（#727 从 probe-snapshot.ts 拆出）
+ * src/refresh/rooms/client/probe-scope-selection.ts —— 后端选定的两条专用轨迹（#727 从 probe-snapshot.ts 拆出）
  *
  * 为什么拆出来：probe-snapshot.ts 一直贴着「单文件 ≤350 行」那条上限，
  * 加上这两段就过线了；#707 也是为同一个原因从它身上拆出过颜色与差异那三样。

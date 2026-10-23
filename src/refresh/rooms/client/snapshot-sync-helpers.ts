@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/probe-snapshot-helpers.ts — 内核模块（#707 由 probe-snapshot.ts 按行数门禁拆出）
+ * src/refresh/rooms/client/snapshot-sync-helpers.ts — 内核模块（#707 由 probe-snapshot.ts 按行数门禁拆出）
  *
  * 为什么拆：probe-snapshot.ts 拆到这里之前已经 349 行，而上限是 350 行，
  * #707 与后继改动还要改那个文件，已经没有下脚的地方。

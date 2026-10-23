@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/attention-heartbeat.ts — 内核模块（#707 第二阶段：视野模型 + 心跳 + 客户端节拍）
+ * src/refresh/rooms/client/client-attention-heartbeat.ts — 内核模块（#707 第二阶段：视野模型 + 心跳 + 客户端节拍）
  *
  * 这个文件回答一个问题：「我在看哪个工作区」这件事，界面怎么可靠地说给宿主听。
  * 它只做四件事，一件都不多做（节拍、重试、配额判断都不在界面这一层，界面没有能力犯错）：
@@ -18,7 +18,7 @@
  * 中央时间参数走顶部单行真引用（构建剥离后由闭包另一片提供，单行是硬要求），
  * 其余跨闭包名字一律 declare，不要加 export default。
  */
-    import { ATTENTION_EXPIRY_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/values.js'
+    import { ATTENTION_EXPIRY_MS, ATTENTION_HEARTBEAT_MS } from '../../../shared/time-config/values.js'
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）。
 declare const host: any;
 declare const stores: any;

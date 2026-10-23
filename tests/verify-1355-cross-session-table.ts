@@ -23,12 +23,12 @@
 //   E. 同工作区扇出与探测补丁：宿主回包或手动刷新拿到的表只归请求它的那个会话，扇出给同组其他会话的快照
 //      先剥表，再给每个接手方补一次带自己会话号的请求（真机现场就是 B 看到 A 的行）。
 //
-// 门禁归属: src/client/kernel/store-snapshot.ts
+// 门禁归属: src/refresh/rooms/client/snapshot-cache-store.ts
 // 门禁归属: src/client/kernel/work-route-own.ts
-// 门禁归属: src/client/kernel/probe-snapshot.ts
-// 门禁归属: src/client/kernel/probe-stale.ts
-// 门禁归属: src/client/kernel/probe-select.ts
-// 门禁归属: src/client/kernel/probe-auto.ts
+// 门禁归属: src/refresh/rooms/client/snapshot-sync.ts
+// 门禁归属: src/refresh/rooms/client/staleness-indicator.ts
+// 门禁归属: src/refresh/rooms/client/probe-scope-selection.ts
+// 门禁归属: src/refresh/rooms/client/refresh-timer.ts
 // 门禁归属: src/client/kernel/api-new-session.ts
 // 门禁归属: src/client/statusbar/StatusBar.ts
 // 门禁归属: src/client/statusbar/SessionChainCapsule.ts
@@ -101,7 +101,7 @@ const partA = async function (): Promise<any> {
     },
   }
 
-  const store: any = loadSpliced('src/client/kernel/store-snapshot.js', [
+  const store: any = loadSpliced('src/refresh/rooms/client/snapshot-cache-store.js', [
     'makeStore', 'setCachedSnapshot', 'getCachedSnapshot', 'getCachedEntry',
     'hydrateFromCache', 'snapNeedsOwnWorkRoute', 'snapshotByCwd', 'wsKeyOf', 'emit',
   ], {
@@ -254,13 +254,13 @@ const loadUiLeaves = function (): any {
 const partB = async function (store: any, ui: any): Promise<void> {
   console.log('#1355 B. 缺自己的表时补发一次带当前会话号的强制请求')
 
-  const staleSrc = spliceableJs('src/client/kernel/probe-stale.js')
+  const staleSrc = spliceableJs('src/refresh/rooms/client/staleness-indicator.js')
   // probe-snapshot 顶部那行中央时间引用在拼好的闭包里非法，求值前整行剥掉；值由 scope 的 SNAP_WAIT_MS 提供。
   const stripTimeConfigImport = function (s: string): string {
     return s.split('\n').filter(function (l) { return !/^\s*import\s.*time-config\/values\.js/.test(l) }).join('\n')
   }
-  const snapSrc = staleSrc + '\n' + stripTimeConfigImport(spliceableJs('src/client/kernel/probe-snapshot.js'))
-    + '\n' + spliceableJs('src/client/kernel/probe-select.js')
+  const snapSrc = staleSrc + '\n' + stripTimeConfigImport(spliceableJs('src/refresh/rooms/client/snapshot-sync.js'))
+    + '\n' + spliceableJs('src/refresh/rooms/client/probe-scope-selection.js')
 
   // #1355：剥表、补拉、三处接线共用决策这三件的真源在 kernel/work-route-own.ts；
   //   下面 B4 的生产路径与 E 的扇出都直接跑它（不再读界面源码文本、也不手写一遍判断）。
@@ -674,7 +674,7 @@ const partE = async function (store: any): Promise<void> {
       flash: noop,
       tr: function (k: any): string { return String(k) },
     }
-    const mod = loadSpliced('src/client/kernel/probe-auto.js', ['probeNow', 'refreshAll'], scope)
+    const mod = loadSpliced('src/refresh/rooms/client/refresh-timer.js', ['probeNow', 'refreshAll'], scope)
     return { mod: mod, loadCalls: loadCalls, emits: emits, hostCalls: hostCalls }
   }
 

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T08:06:04.349Z",
+  "generatedAt": "2026-10-23T08:18:22.090Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 330,
   "gateCount": 330,
@@ -251,15 +251,15 @@
       "step": "node tests/verify-chain-env-e2e.ts",
       "file": "tests/verify-chain-env-e2e.ts",
       "guards": [
-        "src/client/kernel/probe-chain.ts",
         "src/host/index.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
         "src/seam/rpc.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/host",
+        "src/refresh/rooms/client",
         "src/seam",
         "tests/lib"
       ],
@@ -487,12 +487,12 @@
         "src/client/kernel/modal-fields.ts",
         "src/client/kernel/slotRenderer-modal-view.ts",
         "src/client/kernel/slotRenderer-queue.ts",
-        "src/client/kernel/slotRenderer-repo-sync.ts",
         "src/client/kernel/slots.ts",
         "src/client/kernel/styles.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/views/ChecksTab.ts",
         "src/client/views/shared/ChainRenderer.ts",
+        "src/refresh/rooms/client/repo-sync-renderer.ts",
         "src/shared/tracker/chain-types.ts",
         "src/shared/tracker/chain-validate.ts",
         "src/shared/ui/slots.ts",
@@ -506,6 +506,7 @@
         "src/client/statusbar",
         "src/client/views",
         "src/client/views/shared",
+        "src/refresh/rooms/client",
         "src/shared/tracker",
         "src/shared/ui",
         "src/tracker",
@@ -1102,19 +1103,19 @@
       "step": "node tests/verify-1082-work-route-table.ts",
       "file": "tests/verify-1082-work-route-table.ts",
       "guards": [
-        "src/client/kernel/probe-snapshot.ts",
         "src/client/panel/Dock.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/host/snapshotEnvelope.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
         "src/refresh/rooms/host/session-refresh-schedule.ts",
         "src/refresh/rooms/host/session-snapshot-cache.ts",
         "src/refresh/rooms/host/work-route-readout.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/client/panel",
         "src/client/views/shared",
         "src/host",
+        "src/refresh/rooms/client",
         "src/refresh/rooms/host"
       ],
       "unattributed": false,
@@ -2048,16 +2049,18 @@
       "step": "node tests/verify-1305-client-session.ts",
       "file": "tests/verify-1305-client-session.ts",
       "guards": [
-        "src/client"
+        "src/client",
+        "src/refresh/rooms/client"
       ],
       "dirs": [
-        "src/client"
+        "src/client",
+        "src/refresh/rooms/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
       "step": "node tests/verify-1305-session-permit.ts",
@@ -2118,20 +2121,21 @@
       "file": "tests/verify-1355-cross-session-table.ts",
       "guards": [
         "src/client/kernel/api-new-session.ts",
-        "src/client/kernel/probe-auto.ts",
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
-        "src/client/kernel/probe-stale.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/kernel/work-route-own.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/statusbar/StatusBar.ts",
-        "src/client/views/shared/workRouteTable.ts"
+        "src/client/views/shared/workRouteTable.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/staleness-indicator.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/client/views/shared"
+        "src/client/views/shared",
+        "src/refresh/rooms/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2144,16 +2148,16 @@
       "file": "tests/verify-1363-first-run-recovery.ts",
       "guards": [
         "src/client/hostShim.ts",
-        "src/client/kernel/attention-heartbeat.ts",
-        "src/client/kernel/probe-auto.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/statusbar/bannerChain.ts",
+        "src/refresh/rooms/client/client-attention-heartbeat.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
         "src/refresh/rooms/host/chain-backoff.ts"
       ],
       "dirs": [
         "src/client",
-        "src/client/kernel",
         "src/client/statusbar",
+        "src/refresh/rooms/client",
         "src/refresh/rooms/host"
       ],
       "unattributed": false,
@@ -2166,16 +2170,17 @@
       "step": "node tests/verify-1373-stale-table-graft.ts",
       "file": "tests/verify-1373-stale-table-graft.ts",
       "guards": [
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
         "src/client/kernel/work-route-own.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
-        "src/client/views/shared/workRouteTable.ts"
+        "src/client/views/shared/workRouteTable.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
-        "src/client/views/shared"
+        "src/client/views/shared",
+        "src/refresh/rooms/client"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2680,17 +2685,17 @@
       "file": "tests/verify-653-subworkspace.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/panel/DockSync.ts",
         "src/client/views/SubworkspaceMark.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
-        "src/client/kernel",
         "src/client/panel",
         "src/client/views",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2747,11 +2752,11 @@
         "docs/agents/issue-tracker.md",
         "scripts/lib/discover-gates.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/deck/shell/workspace-anchor.ts",
         "src/host/remotePredicates.ts",
         "src/host/workspaceCwd.ts",
         "src/host/workspaceKey.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/explicitDetector.ts",
         "src/tracker/registry/core.ts",
@@ -2769,6 +2774,7 @@
         "src/client/kernel",
         "src/deck/shell",
         "src/host",
+        "src/refresh/rooms/client",
         "src/tracker/detection",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
@@ -2912,10 +2918,10 @@
       "step": "node tests/verify-669-chain-after-pick.ts",
       "file": "tests/verify-669-chain-after-pick.ts",
       "guards": [
-        "src/client/kernel/probe-chain.ts",
         "src/client/kernel/store-prefs.ts",
         "src/client/statusbar/StatusBackend.ts",
         "src/client/views/ChecksTab.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -2923,6 +2929,7 @@
         "src/client/kernel",
         "src/client/statusbar",
         "src/client/views",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2939,9 +2946,9 @@
         "docs/agents/issue-tracker.md",
         "src/client/kernel/prompts.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/kernel/store-switch.ts",
         "src/client/statusbar/StatusBackend.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/tracker/guide-steps.ts",
         "src/tracker/detection/detectionService.ts",
@@ -2954,6 +2961,7 @@
         "docs/agents",
         "src/client/kernel",
         "src/client/statusbar",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "src/shared/tracker",
         "src/tracker/detection",
@@ -2994,10 +3002,10 @@
       "file": "tests/verify-669-switch-visible.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
-        "src/client/kernel/probe-stale.ts",
         "src/client/kernel/store-prefs.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/staleness-indicator.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts",
@@ -3006,6 +3014,7 @@
       "dirs": [
         "package/lib",
         "src/client/kernel",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -3820,12 +3829,12 @@
       "step": "node tests/verify-891-setup-refresh.ts",
       "file": "tests/verify-891-setup-refresh.ts",
       "guards": [
-        "src/client/kernel/probe-chain.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -4615,9 +4624,9 @@
         "src/client/kernel/icons.ts",
         "src/client/kernel/prompts.ts",
         "src/client/kernel/router.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/views/shared/Tabs.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -4625,6 +4634,7 @@
         "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -4969,10 +4979,10 @@
       "step": "node tests/verify-delta-wiring.ts",
       "file": "tests/verify-delta-wiring.ts",
       "guards": [
-        "src/client/kernel/probe-auto.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/index-window-rules.ts",
         "src/refresh/kernel/snapshot-diff.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
         "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/issue-index-scan.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
@@ -4980,8 +4990,8 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
         "src/refresh/kernel",
+        "src/refresh/rooms/client",
         "src/refresh/rooms/host",
         "tests/lib"
       ],
@@ -5211,7 +5221,7 @@
         "src/client/kernel/api-preset-guard.ts",
         "src/client/kernel/container-view.ts",
         "src/client/kernel/issue-pages.ts",
-        "src/client/kernel/slotRenderer-repo-sync.ts",
+        "src/refresh/rooms/client/repo-sync-renderer.ts",
         "src/tracker",
         "src/tracker/contract/results.ts",
         "src/tracker/contract/vocabulary.ts",
@@ -5225,6 +5235,7 @@
       "dirs": [
         "src/client",
         "src/client/kernel",
+        "src/refresh/rooms/client",
         "src/tracker",
         "src/tracker/contract",
         "src/tracker/kernel",
@@ -5882,8 +5893,8 @@
         "scripts/lib/build-cache.mts",
         "src/client/index.ts",
         "src/client/kernel/log.ts",
-        "src/client/kernel/probe-snapshot.ts",
         "src/client/panelAssembly.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -5894,6 +5905,7 @@
         "scripts/lib",
         "src/client",
         "src/client/kernel",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -6444,11 +6456,11 @@
       "step": "node tests/verify-panel-workspace-isolation.ts",
       "file": "tests/verify-panel-workspace-isolation.ts",
       "guards": [
-        "src/client/kernel/probe-auto.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
+        "src/refresh/rooms/client",
         "tests/lib"
       ],
       "unattributed": false,
@@ -7102,12 +7114,12 @@
       "step": "node tests/verify-subdir-first-frame.ts",
       "file": "tests/verify-subdir-first-frame.ts",
       "guards": [
-        "src/client/kernel/probe-select.ts",
-        "src/client/kernel/probe-snapshot.ts",
-        "src/client/kernel/probe-stale.ts",
         "src/client/kernel/store-prefs.ts",
-        "src/client/kernel/store-snapshot.ts",
         "src/client/statusbar/bannerChain.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/staleness-indicator.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/tracker/guide-steps.ts",
         "tests/lib/eval-probe.ts",
@@ -7117,6 +7129,7 @@
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
+        "src/refresh/rooms/client",
         "src/shared/time-config/src",
         "src/shared/tracker",
         "tests/lib"
@@ -8125,10 +8138,8 @@
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
-      "node tests/verify-chain-env-e2e.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -8141,12 +8152,10 @@
       "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1355-cross-session-table.ts",
-      "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-646-native-tab.ts",
-      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -8165,14 +8174,12 @@
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-786-focus-end.ts",
-      "node tests/verify-891-setup-refresh.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-container-colors.ts",
       "node tests/verify-ctx.ts",
-      "node tests/verify-delta-wiring.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-inject-trailing-newline.ts",
@@ -8190,7 +8197,6 @@
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
-      "node tests/verify-panel-workspace-isolation.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
@@ -8614,6 +8620,27 @@
       "node tests/verify-927-gate-injection.ts"
     ],
     "src/refresh/rooms": [],
+    "src/refresh/rooms/client": [
+      "node tests/verify-chain-env-e2e.ts",
+      "node tests/verify-deck-slots.ts",
+      "node tests/verify-1082-work-route-table.ts",
+      "node tests/verify-1305-client-session.ts",
+      "node tests/verify-1355-cross-session-table.ts",
+      "node tests/verify-1363-first-run-recovery.ts",
+      "node tests/verify-1373-stale-table-graft.ts",
+      "node tests/verify-653-subworkspace.ts",
+      "node tests/verify-656-subworkspace-acceptance.ts",
+      "node tests/verify-669-chain-after-pick.ts",
+      "node tests/verify-669-choice-precedence.ts",
+      "node tests/verify-669-switch-visible.ts",
+      "node tests/verify-891-setup-refresh.ts",
+      "node tests/verify-bug-entry.ts",
+      "node tests/verify-delta-wiring.ts",
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-log-client.ts",
+      "node tests/verify-panel-workspace-isolation.ts",
+      "node tests/verify-subdir-first-frame.ts"
+    ],
     "src/refresh/rooms/host": [
       "node tests/verify-deck-event-gate.ts",
       "node tests/verify-deck-no-hang.ts",
@@ -9234,7 +9261,7 @@
     "coveredFileCount": 572,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
-    "dedicatedDirCount": 53,
+    "dedicatedDirCount": 54,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -9247,7 +9274,6 @@
       "src/client/kernel/api-new-session.ts",
       "src/client/kernel/api-preset-guard.ts",
       "src/client/kernel/api-workspace.ts",
-      "src/client/kernel/attention-heartbeat.ts",
       "src/client/kernel/builtin-backends.ts",
       "src/client/kernel/config.ts",
       "src/client/kernel/container-view.ts",
@@ -9263,12 +9289,6 @@
       "src/client/kernel/log.ts",
       "src/client/kernel/modal-fields.ts",
       "src/client/kernel/portal.ts",
-      "src/client/kernel/probe-auto.ts",
-      "src/client/kernel/probe-chain.ts",
-      "src/client/kernel/probe-select.ts",
-      "src/client/kernel/probe-snapshot-helpers.ts",
-      "src/client/kernel/probe-snapshot.ts",
-      "src/client/kernel/probe-stale.ts",
       "src/client/kernel/prompt-data.ts",
       "src/client/kernel/prompts-backend.ts",
       "src/client/kernel/prompts-setup.ts",
@@ -9283,11 +9303,9 @@
       "src/client/kernel/settings-view.ts",
       "src/client/kernel/slotRenderer-modal-view.ts",
       "src/client/kernel/slotRenderer-queue.ts",
-      "src/client/kernel/slotRenderer-repo-sync.ts",
       "src/client/kernel/slots.ts",
       "src/client/kernel/store-derived.ts",
       "src/client/kernel/store-prefs.ts",
-      "src/client/kernel/store-snapshot.ts",
       "src/client/kernel/store-switch.ts",
       "src/client/kernel/styles.ts",
       "src/client/kernel/tabsfold.ts",
@@ -9573,6 +9591,15 @@
       "src/refresh/registry/deck-tool-bridge.ts",
       "src/refresh/registry/quota-sync-bridge.ts",
       "src/refresh/rooms/client/.gitkeep",
+      "src/refresh/rooms/client/client-attention-heartbeat.ts",
+      "src/refresh/rooms/client/probe-chain-subscription.ts",
+      "src/refresh/rooms/client/probe-scope-selection.ts",
+      "src/refresh/rooms/client/refresh-timer.ts",
+      "src/refresh/rooms/client/repo-sync-renderer.ts",
+      "src/refresh/rooms/client/snapshot-cache-store.ts",
+      "src/refresh/rooms/client/snapshot-sync-helpers.ts",
+      "src/refresh/rooms/client/snapshot-sync.ts",
+      "src/refresh/rooms/client/staleness-indicator.ts",
       "src/refresh/rooms/host/.gitkeep",
       "src/refresh/rooms/host/chain-backoff.ts",
       "src/refresh/rooms/host/chain-coalescing.ts",
@@ -9916,6 +9943,7 @@
       "src/refresh/contract",
       "src/refresh/kernel",
       "src/refresh/registry",
+      "src/refresh/rooms/client",
       "src/refresh/rooms/host",
       "src/seam",
       "src/shared",
@@ -9981,11 +10009,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 28
-      },
-      {
-        "path": "src/refresh/rooms/client",
-        "fileCount": 1
+        "fileCount": 37
       },
       {
         "path": "src/shared/command-cleanup",

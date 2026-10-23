@@ -33,7 +33,7 @@ declare const React: any;
         return timer.timeout(fn, ms)
       },
       // #1220：宿主那支 timer 服务本来就有 interval，但客户端这片包装从前只转发 timeout/setTimeout，
-      //   于是 src/client/kernel/probe-auto.js 那条 5 秒节拍判「没有 interval 出口」直接不排，
+      //   于是 src/refresh/rooms/client/refresh-timer.js 那条 5 秒节拍判「没有 interval 出口」直接不排，
       //   #891 的「初始化完成后自动重算」因此从没跑过（真机 probe.loop 全是 reason=no-timer）。
       //   与 timeout 同一条降级链：宿主有 interval 就用宿主的，没有就退回页面自己的 setInterval。
       interval: function (fn: any, ms: any) {

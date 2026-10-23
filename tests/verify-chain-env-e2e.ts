@@ -11,7 +11,7 @@
 //   · 真接线 `src/refresh/rooms/host/refresh-runtime.js`（它供的是闸与界面读数）；
 //   · 真注册表 `src/tracker/registry/core.ts`（经 `src/host/platformChannel.js` 装起来，不另造一个）；
 //   · 真检查链 `src/refresh/rooms/host/check-chain-evaluation.ts` 与真退避 `src/refresh/rooms/host/chain-backoff.js`（**不给替身**）；
-//   · 真客户端 `src/client/kernel/probe-chain.js` 的 `loadChain`（按 tests/verify-669-chain-after-pick.js
+//   · 真客户端 `src/refresh/rooms/client/probe-chain-subscription.js` 的 `loadChain`（按 tests/verify-669-chain-after-pick.js
 //     同一套沙箱取真身）与真通道解包 `src/seam/rpc.ts` 的 `createPkgHost`。
 // 换掉的只有「外面那个世界」：起进程（`subprocess` 服务）与 gh / git 的答复、以及时基。界面那一层不碰。
 //
@@ -25,7 +25,7 @@
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
-// 取源入口（tests/lib/source-text.ts）：src/client/kernel/probe-chain.js 是 pixel-ts 写下的同名产物（这一阶段要删），
+// 取源入口（tests/lib/source-text.ts）：src/refresh/rooms/client/probe-chain-subscription.js 是 pixel-ts 写下的同名产物（这一阶段要删），
 //   真源是 probe-chain.ts；下面要把这份文件当子沙箱的代码体真跑，所以走 spliceableJs —— 它转译成 JavaScript
 //   并剥掉行首 export，跑的是真源里那段逻辑，而不是构建产物。
 const { spliceableJs } = require('./lib/source-text.ts')
@@ -110,7 +110,7 @@ function makeDispatch (route) {
   }
 }
 
-/** 这一份回话客户端认不认（口径逐字取自 src/client/kernel/probe-chain.js 第 132 行）。 */
+/** 这一份回话客户端认不认（口径逐字取自 src/refresh/rooms/client/probe-chain-subscription.js 第 132 行）。 */
 const clientAccepts = (v) => !!(v && v.ok === true && (v.fullSnapshot || v.snapshot))
 /** 宿主的兜底 catch 交出来的那一份（回话里明说失败）。 */
 const isFailureEnvelope = (v) => !!(v && v.ok === false)
@@ -154,7 +154,7 @@ async function main () {
   check(clientAccepts(third.value), '第三笔（人点「重新检查」，带 trigger=user-recheck）回话里也有链快照')
 
   // ── 二、环境那几步有结论（用真客户端的读数口径算，不另写一份）──────────────────────────
-  const probeMod = await imp('src/client/kernel/probe-chain.js')
+  const probeMod = await imp('src/refresh/rooms/client/probe-chain-subscription.js')
   const stOf = (v) => ({ cwd: CWD, chainSnapshot: (v && (v.fullSnapshot || v.snapshot)) || null })
   const snapSt = stOf(third.value)
   const nonPending = probeMod.envTotal(snapSt)
@@ -177,7 +177,7 @@ async function main () {
     const env = await res.json()
     return env && env.result
   } } } : undefined) }))
-  const chainSrc = spliceableJs('src/client/kernel/probe-chain.js')
+  const chainSrc = spliceableJs('src/refresh/rooms/client/probe-chain-subscription.js')
   const cache = new Map()
   const keyOf = (cwd, bid, lang) => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
   const sandbox = {

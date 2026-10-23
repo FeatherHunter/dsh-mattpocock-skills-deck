@@ -44,10 +44,10 @@ console.log('-- 1) 规划产出文件存在 --')
 const sharedProduct = (rel: string): string => file('.build/shared/' + rel)
 check(existsSync('.build/shared/ui/slots.js'), '.build/shared/ui/slots.js 存在')
 check(clientExists('src/client/kernel/slots.js'), 'src/client/kernel/slots.js 存在（真源）')
-check(clientExists('src/client/kernel/slotRenderer-queue.js') && clientExists('src/client/kernel/slotRenderer-repo-sync.js') && clientExists('src/client/kernel/slotRenderer-modal-view.js'), '三弹窗文件存在（原 slotRenderer.js 已拆为三文件）')
+check(clientExists('src/client/kernel/slotRenderer-queue.js') && clientExists('src/refresh/rooms/client/repo-sync-renderer.js') && clientExists('src/client/kernel/slotRenderer-modal-view.js'), '三弹窗文件存在（原 slotRenderer.js 已拆为三文件）')
 check(!existsSync('.build/shared/ui/slots.js') || file('.build/shared/ui/slots.js').includes('SLOTS_VERSION'), 'shared/ui/slots.js 含版本')
 check(!clientExists('src/client/kernel/slots.js') || sourceText('src/client/kernel/slots.js').includes('SLOTS_KERNEL_VERSION'), 'kernel/slots.js 含版本')
-check(['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map((p) => sourceText(p)).join('\n').includes('SLOT_RENDERER_VERSION'), '三弹窗文件拼合含版本')
+check(['src/client/kernel/slotRenderer-queue.js', 'src/refresh/rooms/client/repo-sync-renderer.js', 'src/client/kernel/slotRenderer-modal-view.js'].map((p) => sourceText(p)).join('\n').includes('SLOT_RENDERER_VERSION'), '三弹窗文件拼合含版本')
 
 console.log('')
 console.log('-- 2) 五端口声明（ADR 5.1） --')
@@ -211,7 +211,7 @@ console.log('-- 7) slotRenderer 外观与交互（遮罩 + 居中盒 + 校验 + 
 try{
   // 原单文件已拆三，读拼合断言；#698 又把表单字段那一串渲染拆去 kernel/modal-fields.js，一并读进来
   // #1251：拼合走 sourceText 取四份 .ts 原文（注释与单引号都在；走产物会丢注释、变引号）。
-  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map((p) => sourceText(p)).join('\n')
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/refresh/rooms/client/repo-sync-renderer.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map((p) => sourceText(p)).join('\n')
   check(sr.includes('FormModalSeat'), 'slotRenderer 含 FormModalSeat')
   check(sr.includes('ensureFormModal') && sr.includes('openFormModal') && sr.includes('closeFormModal'), 'slotRenderer 含 ensure/open/close 三件套')
   check(sr.includes('dsws-modal') && sr.includes('dsws-modalbox'), 'slotRenderer 复用 .dsws-modal/.dsws-modalbox')
@@ -245,7 +245,7 @@ console.log('-- 9) 向导多步分页与步进导航（#319） --')
 try{
   // 原单文件已拆三，读拼合断言；#698 又把表单字段那一串渲染拆去 kernel/modal-fields.js，一并读进来
   // #1251：拼合走 sourceText 取四份 .ts 原文（注释与单引号都在；走产物会丢注释、变引号）。
-  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map((p) => sourceText(p)).join('\n')
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/refresh/rooms/client/repo-sync-renderer.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map((p) => sourceText(p)).join('\n')
   const shared = sharedProduct('ui/slots.js')
   const chain = sharedProduct('tracker/chain-types.js') + '\n' + sharedProduct('tracker/chain-validate.js') + '\n' + sharedProduct('tracker/chain-evaluate.js')
   // 单弹窗内分页 + 步进条数字圆点 + 标题

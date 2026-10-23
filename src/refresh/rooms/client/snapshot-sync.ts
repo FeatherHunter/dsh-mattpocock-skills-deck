@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/probe-snapshot.ts — 内核模块（#456 由 probe.js 拆出之颜色时间小函数、配置广播与快照加载）
+ * src/refresh/rooms/client/snapshot-sync.ts — 内核模块（#456 由 probe.js 拆出之颜色时间小函数、配置广播与快照加载）
  *
  * 为什么这份是真源：构建侧去掉行首 export 后拼回 src/client/index.ts 的拼接标记处，
  * 与 ctx.ts/seam 同模式，源码树里只有这一份真源。源码树里只有这一份真源，改这里就够。
@@ -9,12 +9,12 @@
  * 调时间改中央 YAML，不要在这里改数字。本文件顶部有一行从中央时间参数单行真引用
  * （构建拼进闭包时由 stripTimeConfigRefs 整行删掉，名字由闭包里另一片提供；单行是硬要求，
  * 写成跨行构建会拒收）。除这一行之外，其余跨闭包名字一律只声明（declare），不做运行时引入。
- * 超时只结束这次等待，不判结果作废，迟到落地见 kernel/probe-select.ts。
+ * 超时只结束这次等待，不判结果作废，迟到落地见 refresh/rooms/client/probe-scope-selection.ts。
  *
  * 反例：不要在这里加运行时 import；不要把未知当成否去推进状态机；
  * 不要在迟到与正常两路各写一份安装逻辑，分岔迟早长岔。
  */
-    import { SNAP_WAIT_MS } from '../../shared/time-config/values.js'
+    import { SNAP_WAIT_MS } from '../../../shared/time-config/values.js'
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）。
 declare const wsKeyOf: any;
 declare const isEnabled: any;
@@ -48,19 +48,19 @@ declare const tr: any;
 declare const flash: any;
 declare const host: any;
 declare const window: any;
-export const pendingSnapshotByCwd: Map<string, any> = new Map(); // Map<工作区键+后端,{promise,controller,backendId,seq}> dedup 30s（#653：按工作区根去重；#669 第 5 件：键里再带后端 —— 换过后端就不是同一次请求，见 kernel/probe-stale.js）
+export const pendingSnapshotByCwd: Map<string, any> = new Map(); // Map<工作区键+后端,{promise,controller,backendId,seq}> dedup 30s（#653：按工作区根去重；#669 第 5 件：键里再带后端 —— 换过后端就不是同一次请求，见 refresh/rooms/client/staleness-indicator.js）
 // #727：这一次快照请求的落地状态。带上它是为了给「迟到的成功回包」划一条界线 ——
 //   正常那一路已经跑过之后，迟到的这一份一个字节都不许重复装（同一个工作区两边同时就绪是会碰上的）。
-//   判据与落地在 kernel/probe-select.js，读写都在本文件这一行与那里的迟到处理器之间。
+//   判据与落地在 refresh/rooms/client/probe-scope-selection.js，读写都在本文件这一行与那里的迟到处理器之间。
 /**
  * 快照请求的落地标记：正常路与迟到路共用的互斥记号，迟到处理器靠它判断是否已装过。
- * 跨请求不共享，判据细节见 kernel/probe-select.js，改动先看那两处处理器。
+ * 跨请求不共享，判据细节见 refresh/rooms/client/probe-scope-selection.js，改动先看那两处处理器。
  */
 export const _snapInstallState: { handedOff: boolean } = { handedOff: false };
 // #1009 收口（2026-10-10）：只留一条「界面耐心」30 秒，不再按「手上有没有画面」分两档。
 //   为什么删掉冷启动那一档：分档判据选错了信号 —— 「有没有画面」不等于「这次要等多久」；
 //   2026-09-24 那个现场是「磁盘快照已有画面、重建要几分钟」，按该判据仍是热档，照样早放手。
-//   删档只丢「等待体感」，不丢能力：迟到的结果仍会落地（判据与落地在 kernel/probe-select.js）。
+//   删档只丢「等待体感」，不丢能力：迟到的结果仍会落地（判据与落地在 refresh/rooms/client/probe-scope-selection.js）。
 //   超时原文回到固定串，散列 246ae7f1 与文档的对应关系继续成立。
 // 这个等待上限住中央：config/ttl.yaml 的 snapWaitMs，值由 tests/verify-time-config.ts 看守（本文件顶部 import 真引用）。
 // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
@@ -71,9 +71,9 @@ const dswsDiskSnapHitN: { n: number } = { n: 0 }; // #498 磁盘快照命中采�
 const dswsLogTrunc = function (s: any, n: number, field: any): string { try { const t: string = String(s || ''); if (t.length <= n) return t; try { const k: string = String(field || 'text') + ':T' + n; dswsScrubHits[k] = (dswsScrubHits[k] || 0) + 1; dswsScrubN.n += 1; if (dswsScrubN.n % 50 === 0 && isEnabled('debug')) log('debug', 'privacy.scrub', { field: String(field || 'text'), rule: 'T' + n, hit: true }); } catch (e) {} return t.slice(0, n); } catch (e) { return ''; } };
 const dswsDedupWin: { n: number } = { n: 0 };
 // #707 拆出：颜色小函数（hexA / darken）、数据层增量差异 diffSnapshots、高亮清除 scheduleFlashClear
-//   都搬去了 kernel/probe-snapshot-helpers.js（本文件当时已 349 行、门禁上限 350，没有下脚的地方）。
+//   都搬去了 refresh/rooms/client/snapshot-sync-helpers.js（本文件当时已 349 行、门禁上限 350，没有下脚的地方）。
 //   三样东西的行为一行没改，拼接顺序保证同一个闭包里前后可见；拼接标记在 src/client/index.ts 里。
-// #727：这一趟取数里有三处与「子目录会话的第一帧」直接相关，判据与理由都在 kernel/probe-select.js
+// #727：这一趟取数里有三处与「子目录会话的第一帧」直接相关，判据与理由都在 refresh/rooms/client/probe-scope-selection.js
 //   （本文件贴着上限，所以那一段的文字放在那边）：
 //     ① 进工作区时补问一次 wf.selection（askSelectionOnce，本文件末尾那行接线）；
 //     ② 超时之后那份回包迟到时的落地口（_installLateSnapshot，本文件里那行 _rawP.then 接线）；
@@ -162,7 +162,7 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
       return Promise.resolve();
     }
     // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
-    // #669 第 5 件：在途复用（含「换过后端就不复用」「force 不复用非 force」两条判据）都判在 kernel/probe-stale.js。
+    // #669 第 5 件：在途复用（含「换过后端就不复用」「force 不复用非 force」两条判据）都判在 refresh/rooms/client/staleness-indicator.js。
     const _reuse: any = _snapReuseInFlight(st, force);
     if (_reuse) return _reuse;
     // fix H1: remove global snapLoading guard — rely on per-cwd pendingSnapshotByCwd dedup (gate flake, #diagnosing-bugs)
@@ -218,14 +218,14 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
     const _waitMs: number = SNAP_WAIT_MS;
     const _timeoutP: any = new Promise((_: any, rej: any) => { _timer = setTimeout(() => { try { _ctrl.abort(); } catch {} ; rej(new Error('client loadSnapshot timeout 30s')); }, _waitMs); });
     const p: any = Promise.race([_rawP, _timeoutP]).finally(function (): void { try { clearTimeout(_timer); } catch {} ; });
-    // #669 第 5 件：登记这一次请求（序号 + 这次问的后端 + 在途键），发出去就记（判据见 kernel/probe-stale.js）。
+    // #669 第 5 件：登记这一次请求（序号 + 这次问的后端 + 在途键），发出去就记（判据见 refresh/rooms/client/staleness-indicator.js）。
     const _mine: any = _snapMarkRequest(st);
     try { pendingSnapshotByCwd.set(_mine.pendKey, { promise: p, controller: _ctrl, force: !!force, backendId: _mine.reqBackend, seq: _mine.seq, sessionId: st.sessionId || '' }); p.finally(function (): void { try { const cur: any = pendingSnapshotByCwd.get(_mine.pendKey); if (cur && cur.promise === p) pendingSnapshotByCwd.delete(_mine.pendKey); } catch {} }); } catch (e) {}
     const _reqNorm: any = _normKeyP; // capture request cwd for H2 stale discard
     // #1009：死线只结束「这一次等待」，不判「这份结果作废」—— 已经发出去的请求，回来时只要还是这把键上
     //   最新的一次、后端没换过、工作区没真的换走，就把**整份**装上（#727 那版只补 selection 与仓库引用
     //   那一小块；真机上更常见的后果是宿主辛苦拿回来的那份被丢掉、下一次还得整趟重跑）。判据与落地都在
-    //   kernel/probe-select.js（本文件只留这一行接线）。
+    //   refresh/rooms/client/probe-scope-selection.js（本文件只留这一行接线）。
     _rawP.then(function (lateSnap: any): void { try { _installLateSnapshot(st, lateSnap, _reqNorm, _mine); } catch (eLate) {} }, function (): void { try { if (typeof _snapRespStale !== 'function' || !_snapRespStale(_reqNorm, _mine.seq, _mine.reqBackend, st)) { st.snapPending = false; emit(st); } } catch (eLateFail) {} });
     // #653：宿主这次回话里带的工作区根，先记进工作区键表——本会话与同工作区的其它会话随后都按它分桶。
     //   不管 ok 与否都记：它是宿主算出来的事实，与这份快照能不能装没有关系。
@@ -237,7 +237,7 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
       // #327 特性 A：对该工作区完成了一次检查（成功/304/串台落地均算——请求已真实发出并返回）→ 时间走针
       try { if (snap && (snap.ok === true || snap.notModified === true || snap.status === 304)) touchProbeAt(_normKeyP); } catch (ePA) {}
       // fix H2 stale discard — if 工作区根 switched during flight, drop stale fallback (gate flake guard)
-      // #727：这把尺子换成「请求发出时」那条目录（判据见下面这段末尾与 kernel/probe-select.js 的 _snapRequestKeyWas）。
+      // #727：这把尺子换成「请求发出时」那条目录（判据见下面这段末尾与 refresh/rooms/client/probe-scope-selection.js 的 _snapRequestKeyWas）。
       const _curNorm: any = wsKeyOf(st.cwd || '');
       if (_curNorm !== _reqNorm && !_snapRequestKeyWas(_reqNorm, st)) {
         // #232 R4 · 在途结果必须落地：请求发出时该工作区正被观看，响应到达即写内存 LRU 缓存，
@@ -273,7 +273,7 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
         return;
       }
       if (snap && snap.ok === true && Array.isArray(snap.maps)) {
-        // #1009：装快照那一整段搬去 kernel/probe-select.js 的 _snapInstallBody —— 正常那一路与迟到那一路
+        // #1009：装快照那一整段搬去 refresh/rooms/client/probe-scope-selection.js 的 _snapInstallBody —— 正常那一路与迟到那一路
         //   共用同一处，免得两处各写一遍、判据（缓存优先落表、补标签颜色、回填布局）迟早长岔。
         _snapInstallBody(st, snap);
       } else {
@@ -291,7 +291,7 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
       st.snapLoading = false;
       // #1009 收口：放弃等待时立一面诚实旗子 —— 30 秒到点界面会说失败，可活还在跑；
       //   有这面旗子，提示语改说「仍在等，拿到后自动更新」，不再把「没等到」说成「失败了」。
-      //   迟到落地或真失败时清掉（落地那两处在 kernel/probe-select.js，迟到失败在上面那行 late 口）。
+      //   迟到落地或真失败时清掉（落地那两处在 refresh/rooms/client/probe-scope-selection.js，迟到失败在上面那行 late 口）。
       // 优化：过期请求（已有更新一次在后）不碰旗子，免得老超时盖掉新数据的状态。
       try {
         const _msg: string = String((e && e.message) || e);
@@ -342,7 +342,7 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
   // #727（I1）：进工作区时若还不知道这个工作区用哪个后端，补问一次宿主那条专用电话（wf.selection）。
   //   为什么放在这里：这一刻 cwd 已经是最终值（上面两条补齐 cwd 的路都走完了），而「等那份完整快照」
   //   在大工作区上要几分钟 —— 一条几十字节的事实不该搭那趟车。幂等、限次、失败不弹提示，判据全在
-  //   kernel/probe-select.js 的 askSelectionOnce 里（本文件只留这一行接线）。
+  //   refresh/rooms/client/probe-scope-selection.js 的 askSelectionOnce 里（本文件只留这一行接线）。
   try { if (typeof askSelectionOnce === 'function') askSelectionOnce(st); } catch (eSelAsk) {}
   return doLoad();
 };

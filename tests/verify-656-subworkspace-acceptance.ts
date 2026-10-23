@@ -305,7 +305,7 @@ async function main() {
   const keyOfSrc = noExport(read('.build/shared/workspaceKey.js'))
   // 切出来的这段源码不需要外部变量：改走共用入口 compileFn，参数表传空数组。
   const keyOfFn = compileFn([], keyOfSrc + '\nreturn keyOf')()
-  const snapSrc = spliceableJs('src/client/kernel/store-snapshot.js')
+  const snapSrc = spliceableJs('src/refresh/rooms/client/snapshot-cache-store.js')
   const wsKeyBlock = noExport(snapSrc.slice(snapSrc.indexOf('const workspaceRootByCwd'), snapSrc.indexOf('const shared = makeStore()')))
   const storeBlock = noExport(snapSrc.slice(snapSrc.indexOf('const getCachedSnapshot'), snapSrc.indexOf('const lastProbeAtByCwd')))
   const probeBlock = noExport(snapSrc.slice(snapSrc.indexOf('const lastProbeAtByCwd'), snapSrc.indexOf('const SNAP_DISK_CAP')))

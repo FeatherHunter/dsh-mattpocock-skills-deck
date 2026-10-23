@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/store-snapshot.ts — 会话存储核、快照与链缓存、水合与提醒（#455 由 store.js 拆出）。
+ * src/refresh/rooms/client/snapshot-cache-store.ts — 会话存储核、快照与链缓存、水合与提醒（#455 由 store.js 拆出）。
  *
  * 为什么快照要和偏好分家：快照是“宿主刚才给了什么”，偏好是“人刚才点了什么”，前者随请求更新、
  * 后者随点击更新，更新节奏不同；混在一起时，一次快照回包会顺手把人刚点的东西盖掉。
@@ -35,7 +35,8 @@ export const makeStore = (): any => ({
   // #255 评论输入区（受控）：草稿/提交态/分流错误/服务端确认闪烁
   cmtDraft: '', cmtSending: false, cmtError: null, cmtConfirm: null,
   notice: null, injector: null, tick: 0,
-  pos: null, size: { w: 460, h: DEFAULT_PANEL_H },
+  // #1428：typeof 守卫理由同 refresh-timer.ts（闭包里值不变，闭包外不抛）。
+  pos: null, size: { w: 460, h: (typeof DEFAULT_PANEL_H !== 'undefined' ? DEFAULT_PANEL_H : 0) }, 
   // 外观定死（用户拍板：图标/动作词不可配置）
   ui: { icon: 'compass', word: '沉淀' },
   snapshot: null,
@@ -49,7 +50,7 @@ export const makeStore = (): any => ({
   sessionWorkspaceRoot: '',
   // 状态过滤 + 排序：默认档是「编号升序」，来自内核 listPrefs 的初始偏好（见 store-prefs）；
   //   面板每次换档写回同一处，下次启动沿用。
-  stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
+  stateFilter: ((typeof listPrefs !== 'undefined' ? listPrefs : {}) as any).stateFilter, sortKey: ((typeof listPrefs !== 'undefined' ? listPrefs : {}) as any).sortKey, sortDir: ((typeof listPrefs !== 'undefined' ? listPrefs : {}) as any).sortDir,
   chainSnapshot: null, chainLoadedAt: '', backendChain: null, fullChain: null,
   snapMode: 'loading', snapError: null, snapLoading: false,
   // #727：后端那条事实的读取状态。selPending =「这个工作区用哪个后端」还说不准、而且有真的在途原因（面板取数在飞，或那条专用电话在飞）；_selAskedKey = 已经为哪个工作区补问过那条电话（见 probe-select.js）。

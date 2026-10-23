@@ -16,8 +16,8 @@
 //   C. 迟到 304 现场：超时后回来的 304 同样把新表挂上，只补 selection 的老路不再丢表。
 //
 // 门禁归属: src/client/kernel/work-route-own.ts
-// 门禁归属: src/client/kernel/probe-snapshot.ts
-// 门禁归属: src/client/kernel/probe-select.ts
+// 门禁归属: src/refresh/rooms/client/snapshot-sync.ts
+// 门禁归属: src/refresh/rooms/client/probe-scope-selection.ts
 // 门禁归属: src/client/statusbar/SessionChainCapsule.ts
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 //
@@ -170,9 +170,9 @@ const stripTimeConfigImport = function (s: string): string {
 }
 const makeSnapMod = function (adoptFn: any, hostCall: any): any {
   const calls: any[] = []
-  const snapSrc = spliceableJs('src/client/kernel/probe-stale.js')
-    + '\n' + stripTimeConfigImport(spliceableJs('src/client/kernel/probe-snapshot.js'))
-    + '\n' + spliceableJs('src/client/kernel/probe-select.js')
+  const snapSrc = spliceableJs('src/refresh/rooms/client/staleness-indicator.js')
+    + '\n' + stripTimeConfigImport(spliceableJs('src/refresh/rooms/client/snapshot-sync.js'))
+    + '\n' + spliceableJs('src/refresh/rooms/client/probe-scope-selection.js')
   const scope: Record<string, any> = {
     SNAP_WAIT_MS: SNAP_WAIT_MS,
     host: { call: function (method: any, params: any): any { calls.push({ method: method, params: params }); return hostCall(method, params) } },
@@ -281,7 +281,7 @@ const partC = async function (own: any): Promise<void> {
     touchProbeAt: function (): void {},
     startAutoProbe: function (): void {},
   }
-  const late: any = loadSpliced('src/client/kernel/probe-select.js', ['_installLateSnapshot'], scope)
+  const late: any = loadSpliced('src/refresh/rooms/client/probe-scope-selection.js', ['_installLateSnapshot'], scope)
   const fresh: any = ownTableAt(T1)
   const st: any = baseSt()
   const mine: any = { gaveUp: true, done: false, seq: 7, reqBackend: 'github' }

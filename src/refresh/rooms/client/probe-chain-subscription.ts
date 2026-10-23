@@ -1,5 +1,5 @@
 /**
- * src/client/kernel/probe-chain.ts — 内核模块（#456 由 probe.js 拆出之链自动刷新、链加载与链派生）
+ * src/refresh/rooms/client/probe-chain-subscription.ts — 内核模块（#456 由 probe.js 拆出之链自动刷新、链加载与链派生）
  *
  * 为什么保留这份拼接契约：scripts/build.mts 会去掉每行行首的 export 关键字，
  * 再把声明体文本拼回 src/client/index.ts 的拼接标记处（apply 闭包内原位），
@@ -108,8 +108,8 @@ export const setupPendingOf = function (st: any): boolean {
 /**
  * 事件触发入口：客户端那几路事件都走这里重取一次链，并把「为什么重取」带给宿主 ——
  *   ① 切进工作区（views/ChecksTab.js 打开检查页那一次，传 force=false，见下一段）；
- *   ② 人亲手点「重新检查」（views/ChecksTab.js 上的按钮、kernel/probe-auto.js 的 refreshAll）；
- *   ③ 做完可能改变它的动作（kernel/store-switch.js 绑定后端、kernel/slotRenderer-repo-sync.js 配置派生）。
+ *   ② 人亲手点「重新检查」（views/ChecksTab.js 上的按钮、refresh/rooms/client/refresh-timer.js 的 refreshAll）；
+ *   ③ 做完可能改变它的动作（kernel/store-switch.js 绑定后端、refresh/rooms/client/repo-sync-renderer.js 配置派生）。
  * 返回值与 loadChain 一样是这一次求值的 promise（被退避挡下时宿主直接回上一份快照，界面照常铺满，不会白屏）。
  *
  * 第三个参数是「要不要绕过缓存」：缺省绕过（true）—— ②③ 那几路是人或动作叫起来的，本来就该真问一次；

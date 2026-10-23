@@ -9,7 +9,7 @@
  */
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
 // inject 的真源在 kernel/api-io.ts，fixateText/renderTemplate 的真源在 config.ts，
-// storeOf 的真源在 kernel/store-snapshot.ts，ctx 是客户端上下文，keyOf 的真源在共享工作区键那一片，
+// storeOf 的真源在 refresh/rooms/client/snapshot-cache-store.ts，ctx 是客户端上下文，keyOf 的真源在共享工作区键那一片，
 // DIVERGENCE/classifyDivergence 的真源在共享命名那三份（构建经 shared:namingTitles 等 3 个 splice 注入），
 // composeDraftTitle/newSessionTitle/newSessionTitleNew/parseNumberedTitle/isNewPlaceholderTitle 的真源在
 //   prompts.ts 与命名那一片，NAMING_STAGES 的真源在宿主跟踪态；isEnabled 判调试开关；

@@ -1,5 +1,5 @@
 // verify-panel-workspace-isolation.ts — #45 多工作区隔离回归
-// 量什么：客户端探查链路（src/client/kernel/probe-auto.js）在多工作区下不许串台 ——
+// 量什么：客户端探查链路（src/refresh/rooms/client/refresh-timer.js）在多工作区下不许串台 ——
 //   按工作区键分组、组内共用一次重建、组间零污染；兜底路径按 sessionId→cwd 精确映射，不许把首个 cwd 错绑给所有空 store。
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-panel-workspace-isolation.ts
 //
@@ -26,7 +26,7 @@ type IsolationRule = { name: string; bad: (src: string) => boolean }
 /** 变异：把源码里 from 换成 to，对应判据必须因此报红。 */
 type RuleMutation = { rule: string; from: string; to: string }
 
-const SRC_REL = sourcePath('src/client/kernel/probe-auto.js')
+const SRC_REL = sourcePath('src/refresh/rooms/client/refresh-timer.js')
 const ROOT = path.join(__dirname, '..')
 
 // 剥掉整行注释（源码里诸如「从前这一行下面一律 loadSnapshot(primary, true, true)」这类说明，

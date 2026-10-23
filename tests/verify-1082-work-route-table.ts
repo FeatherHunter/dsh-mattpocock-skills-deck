@@ -22,7 +22,7 @@
 // 门禁归属: src/refresh/rooms/host/session-refresh-schedule.ts
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 // 门禁归属: src/client/panel/Dock.ts
-// 门禁归属: src/client/kernel/probe-snapshot.ts
+// 门禁归属: src/refresh/rooms/client/snapshot-sync.ts
 //
 // 用法（在插件根目录，先 node scripts/build.mts）：
 //   node --import ./scripts/ts-hook.mts tests/verify-1082-work-route-table.ts

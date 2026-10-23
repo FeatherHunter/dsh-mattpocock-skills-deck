@@ -31,7 +31,7 @@ console.log('client 日志底座门禁（#490：开关持久化、对账 winner 
 
 const LOG_REL = 'src/client/kernel/log.js'
 const LOG_SRC = path.join(ROOT, sourcePath(LOG_REL))
-const PROBE_SRC = path.join(ROOT, sourcePath('src/client/kernel/probe-snapshot.js'))
+const PROBE_SRC = path.join(ROOT, sourcePath('src/refresh/rooms/client/snapshot-sync.js'))
 // 运行夹具用转译后的同一份真源：类型标注会被剥掉，模块级 import 也被切成可拼接的文本。
 const evalSrc = spliceableJs(LOG_REL)
 
@@ -222,7 +222,7 @@ async function main() {
     // 不可用时回落按修改时间判断，原因用 INFO 行打出来；这里只查开发产物，覆盖面与原先一样。
     const judged = judgeProducts({
       products: ['client.js'],
-      sources: ['src/client/kernel/log.ts', 'src/client/kernel/probe-snapshot.ts', 'src/client/panelAssembly.ts', 'src/client/index.ts', 'scripts/build.mts'],
+      sources: ['src/client/kernel/log.ts', 'src/refresh/rooms/client/snapshot-sync.ts', 'src/client/panelAssembly.ts', 'src/client/index.ts', 'scripts/build.mts'],
     })
     judged.notices.forEach((n) => console.log('  INFO ' + n))
     const judgedDev = judged.products[0]

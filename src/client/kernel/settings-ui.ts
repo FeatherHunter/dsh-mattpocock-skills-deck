@@ -31,7 +31,7 @@
  */
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
 // listPrefs 与 saveListPrefsLegacy 的真源在 kernel/store-prefs.ts，shared/stores 的真源在
-//   kernel/store-snapshot.ts，viewFlagState 与 viewFlagSubscribe 的真源在 kernel/settings-view-state.ts，
+//   refresh/rooms/client/snapshot-cache-store.ts，viewFlagState 与 viewFlagSubscribe 的真源在 kernel/settings-view-state.ts，
 //   settingsViewLoad 与 viewFlagEmitAll 的真源在 kernel/settings-view.ts，viewFlagScheduleWrite 的真源在
 //   kernel/settings-view-write.ts；本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：
 //   在这里凭记忆写窄，只会把那边正常的改动变成这里的假报错（与 kernel/link.ts 同例）。

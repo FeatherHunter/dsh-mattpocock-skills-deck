@@ -51,7 +51,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 const prefsSrc = spliceableJs('src/client/kernel/store-prefs.js')
 // #1251：这三个函数在真源里是多行（转写还展开了单行块），旧正则在产物上对不上
 //   （esbuild 去空格、去多余括号、双引号）；改走 spliceableJs（与构建同一口径），锚行首收尾。
-const snapSrc = spliceableJs('src/client/kernel/store-snapshot.js')
+const snapSrc = spliceableJs('src/refresh/rooms/client/snapshot-cache-store.js')
 const switchSrc = spliceableJs('src/client/kernel/store-switch.js')
 // 【已删除】原先这里还读两份源码文本 —— src/client/views/shared/SwitchConfirmModal.js 与
 //   src/client/kernel/locale-word.js，两份都只服务于上面整段删掉的 D 静态层，一并去掉。

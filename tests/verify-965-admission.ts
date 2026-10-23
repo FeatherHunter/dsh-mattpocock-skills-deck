@@ -134,7 +134,7 @@ async function main() {
 
 function pathToFileURL() {
   const { pathToFileURL: f } = require('url')
-  return f(path.join(ROOT, 'src', 'host', 'outbound', 'admission.ts'))
+  return f(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'outbound-admission.ts'))
 }
 
 function finish() {

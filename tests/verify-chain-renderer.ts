@@ -128,7 +128,7 @@ const ctForForm = file('src/client/views/ChecksTab.js')
 //   这一条改指状态栏，并反过来钉住检查页不再挂。
 check(file('src/client/statusbar/StatusBar.js').includes('FormModalSeat'), 'StatusBar 接入 FormModalSeat（form 走弹窗）')
 check(!ctForForm.includes('FormModalSeat'), 'ChecksTab 不再挂 FormModalSeat（防两处同挂）')
-const srForForm = ['src/client/kernel/slotRenderer-queue.js','src/client/kernel/slotRenderer-repo-sync.js','src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 顺带 454 遗留：slotRenderer.js 已拆为三文件，读三文件拼起来的内容断言
+const srForForm = ['src/client/kernel/slotRenderer-queue.js','src/refresh/rooms/client/repo-sync-renderer.js','src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 顺带 454 遗留：slotRenderer.js 已拆为三文件，读三文件拼起来的内容断言
 check(srForForm.includes('FormModalSeat') && srForForm.includes('dsws-modal'), 'slotRenderer 含 FormModalSeat 弹窗（含 .dsws-modal）')
 
 console.log('')
@@ -165,7 +165,7 @@ check(!listTab.includes('h(NoRepoCard'), 'ListTab 已移除全屏红卡挂载（
 
 console.log('')
 console.log('-- 7) 重求值联动 --')
-const probe = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map(file).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
+const probe = ['src/refresh/rooms/client/probe-chain-subscription.js','src/refresh/rooms/client/snapshot-sync.js','src/refresh/rooms/client/refresh-timer.js'].map(file).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
 check(probe.includes('loadChain'), 'probe 含 loadChain')
 check(probe.includes('wf.chain'), 'probe 调用 wf.chain')
 check(probe.includes('loadChain(st, true') , 'refreshAll 联动 loadChain')

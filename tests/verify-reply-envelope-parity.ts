@@ -4,7 +4,7 @@
 // 查到根因是**两条回包路径各拼一份信封**：
 //   · wf.snapshot（src/refresh/rooms/host/session-snapshot-cache.ts）在回包外面挂上了「每个会话在处理哪些票」的读数；
 //   · wf.refresh （src/refresh/rooms/host/session-refresh-schedule.ts）自己手写了四份信封字面量，从来没挂过这个字段。
-// 而界面（src/client/kernel/probe-snapshot.js）是 `force ? wf.refresh : wf.snapshot`，
+// 而界面（src/refresh/rooms/client/snapshot-sync.js）是 `force ? wf.refresh : wf.snapshot`，
 // 回来一律 `st.snapshot = snap` —— 于是任何一次强制刷新都把「不带字段」的那份装进面板，
 // 界面上那一块就只能判「读不到」。两条路的字段集合当时确实不等（快照 22 项 / 刷新 19 项）。
 //

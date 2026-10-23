@@ -8,8 +8,12 @@
  */
 // 打开入口见 slotRenderer-queue.ts，弹窗本体见 slotRenderer-modal-view.ts；三文件经构建拼回同一闭包，互相调用不走 import。
 declare function moduleMetaOf(...args: any[]): any;
-// #1294：pickLangText / uiText 的签名只在 ts-pixel-ambient.d.ts 立一份，这里不重复声明
+// #1294：pickLangText 的签名只在 ts-pixel-ambient.d.ts 立一份，这里不重复声明
 //   （模块级 declare 会遮蔽 ambient 的精确签名，等于签名有两个真源）。
+// #1428：uiText 例外——本文件搬出 client 树后，ts-pixel-ambient.d.ts 不再被本文件的配置圈住，
+//   这里按其它闭包全局量（tr / host / timer 那几行）的同一写法复述一行精确签名；运行时无影响（ambient 编译即擦除）。
+declare function uiText(key: string): string;
+declare function pickLangText(dict: unknown, chain?: ReadonlyArray<string>): string;
 declare function tr(...args: any[]): any;
 declare function chainStep(...args: any[]): any;
 declare function emit(...args: any[]): any;
