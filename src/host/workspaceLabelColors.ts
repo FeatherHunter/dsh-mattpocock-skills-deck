@@ -8,8 +8,13 @@
  * 为什么单独成一个文件：src/host/workspaceCwd.js 已经贴着文件粒度门禁的 350 行上限（正好 350 行），
  * 工作区配置文件落盘（#957 首绑人选与保护自动两写）要长进绑定那一侧就放不下了。照仓库惯例（#500 把电话体搬到
  * logPhones.js、#548 把读取器拆到 updateReader.js、#821 把差异电话搬到 versionControlFiles.js）把两条电话体搬成
- * 一个自包含叶子，父文件只留一行动态加载器。归一（normCwd）、上下文组装（opCtxFor）、会话政策（resolveSandboxPolicy）
+ * 一个自包含叶子，父文件只留一行动态加载器。归一（normCwd）、开会话（openSession）、会话政策（resolveSandboxPolicy）
  * 全由父文件显式传入，所以整个仓库仍然只有一条归一与一条政策算法；本文件不引用父文件（单向引用）。
+ *
+ * #1445 起两条电话改走 Tracker 会话：宿主不再自己调注册表 select/describe，也不再自己拼 OpContext，
+ * 而是用父文件传进来的 openSession 开一次会话（列标签开只读会话、改色开写会话），把仓库引用与调用上下文
+ * 都交给会话回包。为什么必须这样改：写路径上的预算裁决、写权限结论与调用记账都在会话里做，绕过会话直调
+ * 房间等于把这三件事一起绕过去；改色恰恰是必须问过写权限的那一类操作。
  *
  * 两条电话的第一步都要把工作区路径归一、第二步都要按工作区问出当前后端。归一与选择由父文件传进来，就地转交
  * 选中的后端即可，不必让别的文件再走一遍这两步（同层互引门禁也不许新开的文件之间互相引用）。
@@ -29,7 +34,12 @@ export interface WorkspaceLabelColorsDeps {
   normCwd: any
   getTrackerRegistry: any
   getPlatform: any
-  opCtxFor: any
+  /**
+   * 开会话的出口（#1445）：形如 openSession(cwd, opts) => { ok, backendId, repoRef, call }。
+   * 为什么可选：装配点可以暂时没接上（真实宿主由 Lead 在 src/host/index.ts 接线），
+   * 缺席时两条电话按「插件这边的环境问题」如实失败，绝不退回直调房间——那样会把写权限与记账一起绕过去。
+   */
+  openSession?: any
   resolveSandboxPolicy: any
   getDecisionFn: any
   getDetectionService: any
@@ -37,7 +47,7 @@ export interface WorkspaceLabelColorsDeps {
 
 /** 造两条标签配色电话的处理体。依赖全部由父文件 createWorkspaceCwd 显式传入，本文件不自取任何环境。 */
 export function createWorkspaceLabelColors(deps: any): { handleListLabels: (args: any) => Promise<any>; handleSetLabelColors: (args: any) => Promise<any> } {
-  const { normCwd, getTrackerRegistry, getPlatform, opCtxFor, resolveSandboxPolicy, getDecisionFn, getDetectionService }: any = deps
+  const { normCwd, getTrackerRegistry, getPlatform, openSession, resolveSandboxPolicy, getDecisionFn, getDetectionService }: any = deps
   // ============ 标签配色两条电话（#627 契约票）============
   // 「列出标签与颜色」与「批量改色」两个契约操作，界面经下面两条电话调到。
   // 为什么曾住在绑定文件、现搬成叶子：两条电话的第一步都要把工作区路径归一、第二步都要按工作区问出当前后端。归一（normCwd）与上下文（opCtxFor、政策）由父文件显式传进来，就地转交选中的后端即可，
@@ -205,6 +215,70 @@ export function createWorkspaceLabelColors(deps: any): { handleListLabels: (args
     if (res && res.error && typeof res.error === 'object') return { ok: false, error: res.error }
     return pluginTrouble(opCn, '后端既未表示成功，也未说明失败原因')
   }
+  /**
+   * 开一次会话，并核验写用途拿到的写权限（#1445）。
+   * 参数与约定为什么这么定：
+   * 1. picked 来自 pickBackend：backendId 与它的仓库引用已经核验过，交给 resolveSelection 让会话用同一个后端，
+   *    不重新仲裁一次——否则「核验过的后端」和「会话挑的后端」可能是两个，颜色就改到另一个仓库上去了。
+   * 2. write=true 时 resolveSelection 里写 canWrite:true：这不是宿主自己放开写权限，而是转述 pickBackend 刚刚
+   *    问出来的结论（写用途只有在 canWrite0 为真时才走到这里）；读用途不带 canWrite，会话按只读口径走。
+   * 3. 会话回包说 canWrite 不是真时，写用途按「没就绪」如实失败（env 档），绝不把写权限默认放开：
+   *    调用方拿到的必须是「这次一个字节没动」，而不是一次悄悄降级成只读的假成功。
+   * 4. 没装上 openSession 或开会话抛错时同样如实失败，并且不退回直调房间——绕过会话会把写权限与记账一起绕过去。
+   */
+  async function openForPicked(picked: any, cwd: any, signal: any, sb: any, write: boolean): Promise<any> {
+    const opCn: string = write ? '修改标签颜色' : '列出标签'
+    if (typeof openSession !== 'function') {
+      return pluginTrouble(opCn, '宿主的「开会话」出口这次没有装上（内部叫 openSession），所以这一步没有发出，仓库里的东西一个字节也没动')
+    }
+    let opened: any = null
+    try {
+      opened = await openSession(cwd, {
+        write: write,
+        resolveSelection: function () {
+          const sel: any = { backendId: picked.backendId, ref: picked.repoRef || null }
+          if (write) { sel.canWrite = true; sel.reason = '这个工作区已在面板上选定后端，配色写入按写用途交给会话' }
+          return sel
+        }
+      })
+    } catch (e) {
+      return pluginTrouble(opCn, '插件在打开' + (write ? '写' : '只读') + '会话这一步出错，所以这一步没有发出，仓库里的东西一个字节也没动', msgOf(e))
+    }
+    if (!opened || opened.ok !== true || typeof opened.call !== 'function') {
+      const reason: any = (opened && opened.reason) || '未说明原因'
+      return pluginTrouble(opCn, '插件没能打开' + (write ? '写' : '只读') + '会话（内部叫 openSession，原因：' + reason + '），所以' + (write ? '没有改动仓库里的任何东西' : '没能读到标签'))
+    }
+    if (write && opened.canWrite !== true) {
+      return pluginTrouble(opCn, '这次没有拿到写权限（内部叫 canWrite），所以没有改动仓库里的任何东西。请先在面板上选定这个工作区使用的后端，然后重试')
+    }
+    return { ok: true, opened: opened }
+  }
+  /**
+   * 把会话给的上下文补成房间期望的 OpContext（#1445）。
+   * 旧路是宿主自己拼上下文，几格都不能因为改走会话就少了：
+   *  - sandboxPolicy / sessionId：markdown 后端写配色文件要看政策（研究 #614/#624），
+   *    #1305 门禁也断言会话调用必须带本次会话号；会话公共上下文有意不带这两格，所以在这里补；
+   *  - platform / refId / signal / caller：与旧 opCtxFor 一致，房间与日志按这几格辨认这次调用；
+   *  - exec 再包一层：旧路用第 4 个参数给每条外部命令标 'label-colors'（via），会话的公共上下文没有这个标记，
+   *    不补就会丢掉「标签配色发起的命令」这条来路。包之前先把原函数存进变量，避免闭包读到自己造成递归。
+   */
+  function ctxForCall(ctx: any, cwd: any, platform: any, repoRef: any, signal: any, sb: any, caller: string): any {
+    const base: any = Object.assign({}, ctx || {})
+    const rawExec: any = base.exec
+    const out: any = Object.assign(base, {
+      cwd: cwd,
+      caller: caller,
+      platform: platform,
+      signal: signal,
+      refId: (repoRef && repoRef.refId) || '',
+      sandboxPolicy: (sb && sb.policy),
+      sessionId: (sb && sb.sessionId) || ''
+    })
+    if (typeof rawExec === 'function') {
+      out.exec = function (cmd: any, cmdArgs: any, opts: any) { return rawExec(cmd, cmdArgs, opts, 'label-colors') }
+    }
+    return out
+  }
   // 列出这个后端能改色的全部标签及其颜色（契约操作 listLabels）。拿不到就说做不到，
   //   不在这里替后端兜底造数据（能力 = 运行时调用结果）。
   //   形状把关：后端回的 data 必须是一份清单（数组），否则算插件这边的错，不把坏形状漏给客户端。
@@ -218,8 +292,11 @@ export function createWorkspaceLabelColors(deps: any): { handleListLabels: (args
     try { picked = await pickBackend(cwd, 'wf.listLabels', signal, args && args.backendId) } catch (e) { return pluginTrouble('修改标签颜色', '插件没能确定这个工作区使用哪个后端这一步出错（内部叫 pickBackend），所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!picked.ok) return picked
     const sb: any = resolveSandboxPolicy(args, cwd)
+    const opened: any = await openForPicked(picked, cwd, signal, sb, false)
+    if (!opened.ok) return opened
+    const inner: any = opened.opened
     let res: any = null
-    try { res = await picked.tracker.listLabels(picked.repoRef, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.listLabels', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('修改标签颜色', '插件没有拿回结果，因此无法确认这次读取有没有成功（也就不知道仓库里的标签现在是什么样）：请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
+    try { res = await inner.call(function (session: any, ctx: any) { return session.listLabels(inner.repoRef, ctxForCall(ctx, cwd, picked.platform, inner.repoRef, signal, sb, 'wf.listLabels')) }) } catch (e) { return pluginTrouble('修改标签颜色', '插件没有拿回结果，因此无法确认这次读取有没有成功（也就不知道仓库里的标签现在是什么样）：请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!res || res.ok !== true) return backendFailure(res, '列出标签')
     if (!Array.isArray(res.data)) return pluginTrouble('列出标签', '后端返回的标签清单不符合约定格式（应为数组）', typeof res.data)
     return { ok: true, backendId: picked.backendId, labels: res.data }
@@ -239,8 +316,11 @@ export function createWorkspaceLabelColors(deps: any): { handleListLabels: (args
     try { picked = await pickBackend(cwd, 'wf.setLabelColors', signal, args && args.backendId, true) } catch (e) { return pluginTrouble('修改标签颜色', '插件没能确定这个工作区使用哪个后端这一步出错（内部叫 pickBackend），所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!picked.ok) return picked
     const sb: any = resolveSandboxPolicy(args, cwd)
+    const opened: any = await openForPicked(picked, cwd, signal, sb, true)
+    if (!opened.ok) return opened
+    const inner: any = opened.opened
     let res: any = null
-    try { res = await picked.tracker.setLabelColors(picked.repoRef, changes, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.setLabelColors', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('修改标签颜色', '插件没有拿回改动结果，所以仓库里的颜色有没有被改动、哪些被改动，现在都无从确认。请先看一眼标签现在的颜色（去仓库或面板里看一眼都行），再重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
+    try { res = await inner.call(function (session: any, ctx: any) { return session.setLabelColors(inner.repoRef, changes, ctxForCall(ctx, cwd, picked.platform, inner.repoRef, signal, sb, 'wf.setLabelColors')) }) } catch (e) { return pluginTrouble('修改标签颜色', '插件没有拿回改动结果，所以仓库里的颜色有没有被改动、哪些被改动，现在都无从确认。请先看一眼标签现在的颜色（去仓库或面板里看一眼都行），再重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!res || res.ok !== true) return backendFailure(res, '修改标签颜色')
     const data: any = res.data
     if (!data || typeof data !== 'object' || !Array.isArray(data.applied) || !Array.isArray(data.failed)) return pluginTrouble('修改标签颜色', '后端没有说清哪些标签的颜色改成功了、哪些没改成功（内部把这两份清单叫 applied 与 failed）。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者')

@@ -110,7 +110,15 @@ async function main() {
     normCwd: async (r: any) => r,
     getTrackerRegistry: async () => reg,
     getPlatform: async () => ({ fs: fss, path: path }),
-    opCtxFor: () => ({}),
+    // #1445：两条电话改走会话（src/host/workspaceLabelColors.ts）。夹具按生产回包形状给一份最小开会话：
+    //   用判定结论里的后端去取这一份桩房间当会话，上下文给空对象（桩房间不看它），写会话照实回 canWrite=true。
+    openSession: async (cwd2: string, o: any) => {
+      const sel = (o && typeof o.resolveSelection === 'function') ? o.resolveSelection({ cwd: cwd2 }, {}) : null
+      const backendId = (sel && sel.backendId) || 'github'
+      const got = reg.get(backendId)
+      const tracker = (got && typeof got.listLabels === 'function') ? got : fakeTracker()
+      return { ok: true, backendId: backendId, repoRef: (sel && sel.ref) || { backend: backendId, refId: 'o/n', name: backendId, url: '' }, budget: {}, canWrite: !!(o && o.write), call: (fn: any) => fn(tracker, {}) }
+    },
     resolveSandboxPolicy: () => ({ policy: undefined, sessionId: '' }),
     // 测的就是出口这条路（生产由平台经工作区入口递进来，这里直递同一函数）
     getDecisionFn: async () => ({ decideBackend: decMod.decideBackend }),

@@ -14,11 +14,12 @@
 //   ② 推迟：额度压到 0 时闸判 defer，patch.run 如实回 mode=deferred，一条请求都不发、也不抛异常；
 //   ③ 拒绝：AI 工具那一档超顶时闸拒绝并给出文案；
 //   ④ 写事件那条真路径（生产装配件 createRefreshWiring）：
-//      · 过闸带的钥匙与「标活跃」用的钥匙必须是同一把（两把对不上时后台档恒判「不在活跃集合里」，
-//        这条路在生产里会一次都发不出去 —— 这是 #723 栽过一次的坑）；
-//      · 写事件订阅只判门取数、不再喂工作路线（#1262 删掉了旧推断路）：
-//        走完这一笔之后链照实空着，记账入口只剩工具壳成功收口处那一步；
-//      · 没上报过的工作区同一笔必须被推迟（负控）。
+//      · 写事件触发的取数不再过闸（#1445）：回包如实说 in-pipeline，闸一条裁决都没被问过，
+//        花费两格（requests/points）如实记 0 —— 读路径不记账是 #1444 的裁决，真实用量归 #1446；
+//      · 交给管线的钥匙与白名单用的是同一把短散列（两把不同 = 同一个工作区被当成两个，
+//        10 秒合并窗口永远不生效 —— 这是 #723 栽过一次的坑，换了位置照样守）；
+//      · 写事件订阅不再喂工作路线（#1262 删掉了旧推断路）：走完这一笔之后链照实空着；
+//      · 没上报过的工作区同一笔必须连门都过不了（负控）。
 const path = require('path')
 const os = require('os')
 const fs = require('fs')
@@ -162,46 +163,56 @@ async function main() {
     }
     const writeOnce = (w: { writeEvents: { handle: (...args: unknown[]) => unknown } }, sid: string, ws: string) => w.writeEvents.handle({ id: sid, header: { cwd: ws } }, 'tools/result', 'pwsh', JSON.stringify({ command: CMD }), true)
 
-    // ④a 放行 + 写事件不再喂链（链照实空着）
+    // ④a 写事件不再经闸：这一笔直接交给管线，闸一次裁决都没被问过（#1445）
     const A1 = build('github')
     await A1.focus({ windowId: 'win-1', workspaceRoot: WS1, kind: 'focus', visible: true })
     const key = A1.w.hash8(WS1)
     check(A1.gate.workspaceView(key).active === true, '④ 上报之后闸把这一格标成活跃（key=' + key + '）')
     const before1 = A1.gate.stats()
+    const decides1 = A1.decides.length
     const out1 = await writeOnce(A1.w, 'sess-a1', WS1)
     const after1 = A1.gate.stats()
-    const v1 = A1.decides.length ? A1.decides[A1.decides.length - 1].verdict : ''
-    check(v1 === 'allow', '④ 放行真的发生了（verdict=' + v1 + ' / ' + (A1.decides.length ? A1.decides[A1.decides.length - 1].reason : '') + '）',
-      '恒 defer = 这条生产路径一次都发不出去')
-    check(after1.sent - before1.sent === 1, '④ 闸的 sent 真的 +1（' + before1.sent + ' → ' + after1.sent + '）')
-    check(A1.w.writeEvents.lastGateKey() === key, '④ 过闸带的钥匙与「标活跃」用的钥匙是同一把（标活跃=' + key + '、过闸=' + A1.w.writeEvents.lastGateKey() + '）',
-      '两把钥匙不同 = 后台档恒判「不在活跃集合里」而静默推迟每一笔（#723 栽过的坑）')
+    check(!!out1 && out1.verdictOfGate === 'in-pipeline', '④ 写事件这一趟如实报告「已交给管线」（verdictOfGate=' + (out1 && out1.verdictOfGate) + '）',
+      '从前这里是 allow/defer —— #1445 起不再有闸裁决')
+    check(A1.decides.length === decides1 && after1.sent === before1.sent, '④ 闸一次裁决都没被问过（refresh.decide ' + decides1 + ' → ' + A1.decides.length + ' 条、闸的 sent ' + before1.sent + ' → ' + after1.sent + '）',
+      '还有裁决记录 = 写事件那条路还在过闸')
+    const s1 = A1.w.writeEvents.stats()
+    check(s1.sent === 1 && s1.event.requests === 0 && s1.event.points === 0, '④ 订阅自己数「交给管线 1 趟」，花费两格如实记 0（sent=' + s1.sent + '、requests=' + s1.event.requests + '、points=' + s1.event.points + '）',
+      '读路径不记账（#1444 裁决），真实用量归 #1446')
+    check(typeof A1.w.writeEvents.lastGateKey !== 'function', '④ 旧读数口 lastGateKey 已摘除（不过闸了，没有「最后一次过闸的钥匙」可答）',
+      '旧读数口还在 = #1445 的退役没做干净')
     // #1271：旧链读数口已摘除；写事件订阅只判门取数，结构上就没有往工作路线写的口
     // （本目录零存储引用，落盘只发生在工具壳成功收口那一步，由 verify-1261 / verify-deck-tools 守）。
     check(typeof A1.w.chainReadoutOf !== 'function',
       '④ 旧链读数口已摘除（chainReadoutOf 不再由装配点交回）',
       '旧读数口还在 = #1271 的退役没做干净')
 
-    // ④b 负控：不在活跃集合（没上报过）的那一笔必须被推迟
+    // ④b 负控：没上报过（不在白名单）的工作区，事件连门都过不了 —— 回 null、seen 不增、一趟都不取。
+    // 这一段守的是门前那道工作区归属判定：它比闸更早，不该因为「不过闸了」就把门一起撤掉。
     const A2 = build('github')
-    await A2.w.writeEvents.allowRoot(WS2)
-    const before2 = A2.gate.stats()
+    const before2 = A2.w.writeEvents.stats()
     const out2 = await writeOnce(A2.w, 'sess-a2', WS2)
-    const after2 = A2.gate.stats()
-    const v2 = A2.decides.length ? A2.decides[A2.decides.length - 1].verdict : ''
-    check(v2 === 'defer' && after2.sent === before2.sent, '④ 负控：不在活跃集合的那一笔被推迟（verdict=' + v2 + '、sent ' + before2.sent + ' → ' + after2.sent + '）')
-    check(!!out2 && out2.verdictOfGate === 'defer', '④ 回包如实带回闸的结论（verdictOfGate=' + (out2 && out2.verdictOfGate) + '）')
+    const after2 = A2.w.writeEvents.stats()
+    check(out2 === null && after2.seen === before2.seen && after2.sent === 0, '④ 负控：不在白名单的工作区同一笔被门挡下（回包=' + JSON.stringify(out2) + '、seen ' + before2.seen + ' → ' + after2.seen + '、sent=' + after2.sent + '）',
+      '门被撤掉 = 别的会话的写也会拉起取数')
 
-    // ④d 负控：两处钥匙不同源时必然被推迟（把活跃集合标在另一把钥匙上，证明③那一条不是白测）
-    const A4 = build('github')
-    await A4.focus({ windowId: 'win-4', workspaceRoot: WS1, kind: 'focus', visible: true })
-    A4.gate.setWorkspace(A4.w.hash8(A4.w.hash8(WS1)), { active: true })   // 两层散列那一把（#723 修掉的那把错钥匙）
-    A4.gate.setWorkspace(A4.w.hash8(WS1), { active: false })
-    const before4 = A4.gate.stats()
-    const out4 = await writeOnce(A4.w, 'sess-a4', WS1)
-    const v4 = A4.decides.length ? A4.decides[A4.decides.length - 1].verdict : ''
-    check(v4 === 'defer' && A4.gate.stats().sent === before4.sent, '④ 负控：活跃集合标在另一把钥匙上时同一笔就被推迟（verdict=' + v4 + '）—— 证明「两处钥匙同源」不是白测')
-    check(!!out4 && out4.verdictOfGate === 'defer', '④ 负控的回包也如实带结论（verdictOfGate=' + (out4 && out4.verdictOfGate) + '）')
+    // ④c 交给管线的钥匙与白名单同源：直接起一份订阅、给一个记录取数的假函数，
+    // 看它递出去的 meta.workspaceKey 是不是 allowRoot 交回的那把。生产装配件那一格的取数今天是空实现
+    // （refresh-runtime.ts:201 只回零花费），没法在那里看见这个值，所以这一段单独起一份订阅。
+    const writeEventsMod = await imp('src/refresh/rooms/host/write-event-subscription.ts')
+    const fetchedC: any[] = []
+    const weC = writeEventsMod.createWriteEvents({
+      fetch: async (step: any, meta: any) => { fetchedC.push({ step: step, meta: meta }); return { requests: 0, points: 0 } },
+      canonicalKey: async (x: any) => String(x),
+    })
+    const allowKey = await weC.allowRoot(WS1)
+    const outC = await weC.handle({ id: 'sess-c', header: { cwd: WS1 } }, 'tools/result', 'pwsh', JSON.stringify({ command: CMD }), true)
+    check(allowKey === A1.w.hash8(WS1) && fetchedC.length === 1 && fetchedC[0].meta.workspaceKey === allowKey,
+      '④ 交给管线的钥匙与白名单是同一把（白名单=' + allowKey + '、递出=' + (fetchedC[0] && fetchedC[0].meta.workspaceKey) + '）',
+      '两把钥匙不同 = 同一个工作区被当成两个，合并窗口永远不生效（#723 栽过的坑）')
+    check(fetchedC.length === 1 && fetchedC[0].step.action === 'patch-now' && fetchedC[0].meta.source === 'event.write' && fetchedC[0].meta.kind === 'patch' && !!outC && outC.verdictOfGate === 'in-pipeline',
+      '④ 交给管线的那一步形状稳定（step.action=' + (fetchedC[0] && fetchedC[0].step.action) + '、meta.source=' + (fetchedC[0] && fetchedC[0].meta.source) + '、meta.kind=' + (fetchedC[0] && fetchedC[0].meta.kind) + '）',
+      '形状变了 = 换成真取数时那一侧要跟着分岔')
   }
 
   // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的九个工具）的一次调用被闸真拒绝；外加离网对照 ──

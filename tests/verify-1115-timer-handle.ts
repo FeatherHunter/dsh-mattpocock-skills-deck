@@ -318,8 +318,10 @@ async function main() {
   // ── ⑧ 六个调用点都走共享层那一份（静态钉住；谁把内联写法搬回来，这里当场红）──
   const SITES = [
     { file: 'src/host/platformChannel.ts', calls: 2 },
-    { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', calls: 1 },
-    { file: 'src/host/workspaceCwd.ts', calls: 1 },
+    // #1445：评论写入改走写会话后，这个文件不再自己排队等计时器（旧的自拼 opCtx 那段随迁移删除）。
+    { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', calls: 0 },
+    // #1445：标签颜色写改走会话后，本文件不再自己拼上下文、也不再碰计时器口。
+    { file: 'src/host/workspaceCwd.ts', calls: 0 },
     // #1444：viewer 预取那一段随读路径搬进会话后整段删了，这里只剩选后端那一处计时器口。
     { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 1 },
     { file: 'src/refresh/registry/deck-tool-bridge.ts', calls: 1 },
@@ -333,7 +335,8 @@ async function main() {
     // src/host/ 下的用 `../refresh/contract/` 上一层，src/refresh/rooms/host/ 下的（#1426 起是宿主房）用 `../../contract/` 上两层，
     // src/refresh/registry/ 下的（#1429 B12 起桥段住这里）用 `../contract/` 上一层；
     // tsc 靠扩展名替换解析到同名 .ts，包内镜像与 .build 产物由构建写）；判据是「引用的是新家那一份」。
-    check(/from '(?:\.\.\/)+(?:refresh\/)?contract\/host-timer-ports\.js'/.test(text), site.file + '：静态引用了新家那一份（相对路径按目录深度）')
+    // calls===0 的站点已经不再碰计时器口，自然也不需要引用那一份（#1445 评论写入迁移后的正常状态）。
+    check(site.calls === 0 || /from '(?:\.\.\/)+(?:refresh\/)?contract\/host-timer-ports\.js'/.test(text), site.file + '：静态引用了新家那一份（相对路径按目录深度）')
   }
   {
     const src = fs.readFileSync(path.join(ROOT, 'src/refresh/contract/host-timer-ports.ts'), 'utf8')

@@ -1,8 +1,8 @@
-// src/refresh/rooms/host/write-event-subscription.ts —— 写事件订阅（#710 T6 · 第二批）
+// src/refresh/rooms/host/write-event-subscription.ts —— 写事件订阅（#710 T6 · 第二批；#1445 起不再经闸）
 //
 // 这个文件干一件事：把「会话里有人写东西」变成「面板立刻知道」。它自己一行判定规则都没有——
 // 判定全在 src/refresh/kernel/write-event-detection.ts 那份纯函数里（产物 .build/refresh/kernel/write-event-detection.js），
-// 这里只做四件外面才做得了的事：订事件、过工作区那道门、按 10 秒合并窗口收口、把取数交给闸。
+// 这里只做四件外面才做得了的事：订事件、过工作区那道门、按 10 秒合并窗口收口、把那一趟取数交给管线。
 //
 // 依据（票面 #710 与 docs/architecture/refresh-budget-architecture.html 第十一章、第十二章、第十五章）：
 //   1. **两道订阅**。首选运行时事件 `ctx.on('tools/result', …)`：一次给全工具名、已解析的参数、是否出错与
@@ -19,17 +19,25 @@
 //      本文件只决定取不取数，不再经手任何记录。
 //   3. **参数只做瞬时匹配**：命令原文进不了日志、落不了盘、回不了界面。返回值与日志字段里只有档位、原因代号、
 //      工作区短散列与「认没认出票号」这个布尔。
-//   4. **写事件触发的取数一律过闸**，并受同一工作区 10 秒合并窗口约束（合并窗口的值来自 budget.js）；
-//      闸那一侧按调用点 `event.write` 记账，事件触发那一档的条数与点数在本文件里单列（stats().event）。
+//   4. **写事件触发的取数直接交给管线，不再过闸**（#1445）。为什么不经过闸：闸管的是「这一次出站该不该放行、
+//      要花掉多少额度」，而写事件触发的这一趟取数只是一趟读——开会话、进管线、由房间自己去读（#1444 的裁决：
+//      读路径在管线里放行，不经闸裁决、也不在闸上记账）。写事件这一档与读路径是同一口径，再留一道闸就等于
+//      同一个问题问两遍；更糟的是问出来的「推迟」在别处没有第二次机会，只会平白压住一次本该发生的取数。
+//      代价说清楚：这一档从此不产生闸的裁决，stats().event 的条数与点数恒记 0（读路径不记账，#1444 裁决）；
+//      真实用量的统计归 #1446，不在本文件另记一本小账（两本账对不上比没有账更难查）。
+//      同一工作区 10 秒合并窗口照旧（窗口的值来自 budget.js）。
 //
-// 接线（宿主侧一处，本票没做）：`createWriteEvents({ gate, fetch, canonicalKey, logCtx })` 拿到实例之后 ——
+// 接线（宿主侧一处）：`createWriteEvents({ fetch, canonicalKey, logCtx })` 拿到实例之后 ——
 //   `w.attach(ctx)` 订两条事件；`w.allowRoot(<当前在看的工作区根>)` 把要服务的工作区加进白名单
 //   （活跃集合变化时调，来源是视野模型 src/refresh/rooms/host/host-attention.js）；`w.forgetRoot(<切走的工作区根>)` 收摊。
-//   本票没有动 src/host/index.js（全库共用的大文件，别的票同时在改），这一处接线请统筹者统一做。
+//   接线点是 src/refresh/rooms/host/refresh-runtime.ts 的 createRefreshWiring（#1445：旧闸那一格已从接线里删掉；
+//   取数那一格接的是管线里的那一趟读，由接线处负责，不在本文件里现造）。
 //
 // （2026-10-18 #1247 从 writeEvents.js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
-// 本文件只做订阅、过门、合并窗口与过闸，白名单的钥匙与活跃集合用同一把短散列，绝不另写归一。）
+// 本文件只做订阅、过门、合并窗口与把取数交给管线，白名单的钥匙与交给管线的钥匙用同一把短散列，绝不另写归一。
+// 2026-10-24 #1445：去掉过闸那一层，写事件触发的那一趟取数改成直接 await 接线处给的取数函数；
+// 同时删掉 lastGateKey 这个只为闸存在的读数口，stats 里的 noGate 改名 noFetch）。
 import { detectWrite, actionFor } from '../../kernel/write-event-detection.js'
 import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
 
@@ -43,9 +51,8 @@ import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../../shared/time-c
 // 类型把表记成 string 到 string，不给原文留位置。
 // ---------------------------------------------------------------------------
 
-/** 建订阅的依赖：闸与归一出口由接线处显式传入，本文件不 import 同层文件。 */
+/** 建订阅的依赖：取数函数与归一出口由接线处显式传入，本文件不 import 同层文件。 */
 interface WriteEventsDeps {
-  gate?: any
   canonicalKey?: (cwd: string) => string | Promise<string>
   fetch?: (step: any, meta: any) => any
   logCtx?: any
@@ -58,7 +65,9 @@ interface WriteEventsDeps {
   onFirstUser?: (sid: string) => void
 }
 
-/** 闸的调用点名字（事件触发那一档）。闸按它分类记账；本文件不改闸与账本一个字。 */
+/** 这一趟取数的来源标记（「事件触发」那一档），放在 meta.source 里交给管线。
+ *  取值保持 'event.write' 不动：#1445 只是不再拿它去问闸，日志与下游按这个值认来源的口径没变
+ *  ——改值会让新旧日志对不上，而它对读者表达的意思（一次写事件拉起的取数）仍然准确。 */
 export const WRITE_EVENT_SOURCE = 'event.write'
 
 /** 会话事件里我们真看的形态（结果形态；`tool/call` 与 `*-start` 不进这张表）。 */
@@ -78,20 +87,22 @@ function shortHash(s: unknown): string {
 
 /**
  * 建一份写事件订阅。deps：
- *   gate      —— 闸（要 send）。没给就只判定、不取数（诚实降级，绝不绕过闸自己发请求）。
  *   canonicalKey —— **必给**：宿主那支把会话目录洗成工作区键的既有出口，生产里传
  *                   `src/host/index.js` 的 canonicalKey（它内部走 src/host/workspaceKey.js 的
  *                   canonicalWorkspaceKey，归一化与「上溯到工作区根」都在那里，本文件不另写一套）。
  *                   这里不直接 import 那个文件：同层互引门禁（tests/verify-dependency-rules.ts）
  *                   要求宿主层的文件之间不互相引用，依赖一律由接线处显式传入（本目录既有做法）。
- *   fetch     —— 真去取数的函数（由宿主接线传进来，T3/T4 那一层）。签名 fetch(step, meta)。
+ *   fetch     —— 真去取数的函数（由宿主接线传进来，跟管线里读路径同一趟读）。签名 fetch(step, meta)：
+ *                step 是这一趟要做什么（{ action, ticket }），meta 是这一趟从哪来、算哪个工作区
+ *                （{ source, kind, workspaceKey, cycle }）。没给就只判定、不取数（诚实降级：
+ *                判定与合并窗口照跑，回包里明说这一趟没取数）。
  *   logCtx / now / hash8 / mergeWindowMs / probeIntervalMs —— 可选，与仓库其它模块同款。
  */
 export function createWriteEvents(deps?: WriteEventsDeps | null): any {
   const opts: any = deps || {}
   const now: () => number = typeof opts.now === 'function' ? opts.now : Date.now
   const logCtx: any = opts.logCtx || null
-  const gate: any = opts.gate || null
+  // 取数交给接线处给的函数（#1445 起不再过闸，见文件头第 4 条）；没给就只判定、不取数。
   const doFetch: ((step: any, meta: any) => any) | null = typeof opts.fetch === 'function' ? opts.fetch : null
   const hash8: (s: string) => string = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
   const isNamingTracked: ((sid: string) => any) | null = typeof opts.isNamingTracked === 'function' ? opts.isNamingTracked : null
@@ -106,14 +117,14 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
   const sessionRoots = new Map<string, string>()   // 会话 id → 工作区根散列（**只有归我们的会话**才进这张表）
   const lastFireAt = new Map<string, number>()     // 工作区根散列 → 上一次事件触发取数的时刻（10 秒合并窗口）
   const firedLogAt = new Map<string, number>()     // 工作区根散列 → 上一次记日志的时刻（节流，1 秒一条）
-  const stats = { seen: 0, fired: 0, coalesced: 0, deferred: 0, sent: 0, noGate: 0, noKeyFn: 0, event: { requests: 0, points: 0 } }
-  // 最近一次过闸带的那把工作区钥匙（只在内存里，是个短散列）。门禁与现场排查据它核对
-  // 「过闸用的钥匙」与「标活跃用的钥匙」是不是同一把 —— #723（T19）就是在这里栽过一次
-  // （同一份逻辑把已经是散列的值又散列了一遍，两把钥匙对不上，于是这条路径恒被推迟）。
-  let lastGateKey = ''
+  // 计数：seen 过了门的事件条数、fired 走到取数判定那一趟的条数、coalesced 被 10 秒窗口并掉的趟数、
+  // sent 真交给了管线的趟数、noFetch 接线没给取数函数的趟数、noKeyFn 没给归一出口的条数。
+  // event.requests 与 event.points 两格留着但**恒记 0**：读路径不记账（#1444 裁决），真实用量归 #1446。
+  // 从前这两格是照闸的回包累加的，现在没有闸，也就没有第二个数字可以抄 —— 与其编一个，不如如实记 0。
+  const stats = { seen: 0, fired: 0, coalesced: 0, sent: 0, noFetch: 0, noKeyFn: 0, event: { requests: 0, points: 0 } }
 
-  // 每一趟「判定 → 合并/发出 → 过闸」的号码：只在本进程内递增，日志里靠它把同一趟的几行串起来
-  // （write.event 的那行给出 tier/reason/action/result，write.sent 那行给出闸的结论与花费）。
+  // 每一趟「判定 → 合并/发出 → 交给管线」的号码：只在本进程内递增，日志里靠它把同一趟的几行串起来
+  // （write.event 的那行给出 tier/reason/action/result，write.sent 那行给出这一趟交出去了没有、在路上多久）。
   let cycleSeq = 0
   function nextCycle(): string { cycleSeq = (cycleSeq + 1) % 100000000; return 'c' + ('0000000' + cycleSeq).slice(-7) }
 
@@ -216,7 +227,12 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     return data.isError === false
   }
 
-  /** 真的去做那一次取数（过了合并窗口才走到这里）。 */
+  /** 真的去做那一次取数（过了合并窗口才走到这里）。
+   *
+   * #1445 起这一趟不再过闸：写事件触发的取数只是一趟读，按 #1444 的裁决由管线直接放行
+   * （开会话、进管线、房间自己去读）。这里只决定「什么时候取」——同一工作区 10 秒合并窗口——
+   * 以及把这一步交给接线处给的取数函数，不再替管线做任何放行判定，也不再借闸的回包记账。
+   */
   async function fire(shape: any, verdict: any, plan: any, rootHash: string, cycle: string, tool: string): Promise<any> {
     stats.fired += 1
     const last: number | undefined = lastFireAt.get(rootHash)
@@ -229,29 +245,32 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     }
     lastFireAt.set(rootHash, now())
     logEvent(shape, rootHash, verdict, plan, cycle, tool, waitedMs, 'fired')
-    if (!gate || typeof gate.send !== 'function') {
-      stats.noGate += 1
-      return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, gated: false }
+    // 守卫照旧是「这一趟有没有真取数的办法」：从前看闸在不在，现在看取数函数在不在。
+    // 没给就只判定、不取数 —— 诚实降级，绝不在本文件里另找一条路把请求发出去。
+    if (!doFetch) {
+      stats.noFetch += 1
+      return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, fetched: false }
     }
     const kind = (plan.action === 'patch-now') ? 'patch' : 'probe'
-    const sentAt: number = now()
-    // 过闸：调用点名字写 `event.write`（事件触发那一档），**并且带上这个工作区的钥匙**（rootHash）。
+    const startedAt: number = now()
+    // 交给管线的那一步：step 说「做什么」，meta 说「这一趟从哪来、算哪个工作区」。
+    // step 的形状与从前过闸时闸递进来的那一步一致（action 加 ticket），管线换成真取数时不用分岔。
     //
-    // #723（T19）修掉的一处真错：从前这里没带 workspaceKey，闸就落到它的「认不出这个工作区」兜底上
-    // （workspaceKey || 'unknown' 那一格），而那一格永远不会被 setWorkspace 标成活跃 —— 后台档的
-    // background-inactive 于是**恒**把这里的每一笔判成推迟：接线看起来接上了，实际一次都发不出去。
-    // rootHash 就是「归我们的那个工作区根」的钥匙（上面 isOurs 那道门用的也是它）；接线那一侧
-    // （refresh-runtime.js 的 syncAttention）拿同一把钥匙标活跃，所以这一笔才放行得出来。
-    lastGateKey = rootHash
-    const out: any = await gate.send(
-      { source: WRITE_EVENT_SOURCE, kind: kind, workspaceKey: rootHash, plan: [{ action: plan.action, ticket: plan.ticket }], cycle: cycle },
-      async function (step: any, meta: any): Promise<any> { return doFetch ? await doFetch(step, meta) : { requests: 0, points: 0 } }
-    )
-    if (out && out.sent) { stats.sent += 1; stats.event.requests += num(out.requests, 0); stats.event.points += num(out.points, 0) }
-    else if (out) stats.deferred += 1
-    // 这一趟的终点：发出去了还是被闸推迟、花了几条几点、在路上多久 —— 与上面那行 write.event 用 cycle 对上。
-    fireSent(rootHash, cycle, kind, out, Math.max(0, now() - sentAt))
-    return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, verdictOfGate: (out && out.verdict) || '' }
+    // meta.workspaceKey 必须是 rootHash —— 就是 isOurs 那道门与白名单用的同一把短散列。
+    // #723（T19）在这里栽过一次的教训换个位置照样成立：同一份逻辑把已经是散列的值又散列了一遍，
+    // 于是同一个工作区有了两把钥匙，合并窗口按钥匙分开计数、管线也认不出这是哪个工作区。
+    // 现在这一个是 sessionRoots 里存的原值，不做第二次散列。
+    const step = { action: plan.action, ticket: plan.ticket }
+    const meta = { source: WRITE_EVENT_SOURCE, kind: kind, workspaceKey: rootHash, plan: [{ action: plan.action, ticket: plan.ticket }], cycle: cycle }
+    await doFetch(step, meta)
+    // 走到这里就说明这一趟真交给管线了（不是被合并掉、也不是没有取数函数）。
+    // stats.sent 从此数的是「真交给管线几趟」，不再是「闸放行了几趟」。
+    stats.sent += 1
+    // 这一趟的终点：交出去了、在路上多久 —— 与上面那行 write.event 用 cycle 对上。
+    fireSent(rootHash, cycle, kind, Math.max(0, now() - startedAt))
+    // verdictOfGate 这个名字是历史名（从前装闸的结论）；现在闸不参与，值恒为 in-pipeline，
+    // 意思是「已交给管线，不再有闸裁决」。调用方只该拿它判断「这一趟是不是真交出去了」。
+    return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, verdictOfGate: 'in-pipeline' }
   }
 
   // 按需级 P1：外层先判调试开关，关着连字段对象都不组装（每一次成功的工具调用都会过这里，属高频路径）。
@@ -268,12 +287,15 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     } catch (eL: any) {}
   }
 
-  // 一趟取数的终点（按需级 P1）：闸的结论、真发了几条几点、这一步在路上多久。与 write.event 用 cycle 对上。
-  // 为什么不并进 write.event：那一行在过闸之前就写了（要说明判定与是否被合并），这一行要等闸回来才知道结论。
-  function fireSent(rootHash: string, cycle: string, kind: string, out: any, latencyMs: number): void {
+  // 一趟取数的终点（按需级 P1）：这一趟交出去了没有、在路上多久。与 write.event 用 cycle 对上。
+  // 为什么不并进 write.event：那一行在取数之前就写了（要说明判定与是否被合并），这一行要等取数回来才知道结果。
+  // 字段照旧九个（附录 #118 登记的就是这几个键），只是含义换成「交给管线那一趟」：sent 恒 true（走到这里就是
+  // 真交出去了）、verdict 恒 'in-pipeline'（不再有闸裁决）、reason 恒空串、requests 与 points 恒 0（读路径不记账，
+  // #1444 裁决；真实用量归 #1446）。三个恒定格子留着不删，是为了读旧日志的人不必去猜键换没换过意思。
+  function fireSent(rootHash: string, cycle: string, kind: string, latencyMs: number): void {
     try {
       if (!logCtx || !logCtx.isEnabled('debug')) return
-      if (logCtx.isEnabled('debug')) logCtx.fire('debug', 'write.sent', { keyHash: rootHash, cycle: cycle, kind: kind, sent: !!(out && out.sent), verdict: String((out && out.verdict) || ''), reason: String((out && out.reason) || ''), requests: num(out && out.requests, 0), points: num(out && out.points, 0), latencyMs: latencyMs })
+      if (logCtx.isEnabled('debug')) logCtx.fire('debug', 'write.sent', { keyHash: rootHash, cycle: cycle, kind: kind, sent: true, verdict: 'in-pipeline', reason: '', requests: 0, points: 0, latencyMs: latencyMs })
     } catch (eL: any) {}
   }
 
@@ -287,10 +309,9 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     stats.seen += 1
     // #723（T19）修掉的一处真错：这一行原来多套了一层散列（hash8(hash8(root))），而 sessionRoots 里存的
     // **已经是散列**（见 isOurs 里的 sessionRoots.set(id, rootHash)，以及它拿同一个值去 allowedRoots.has）。
-    // 于是同一条工作区根有了两把钥匙：「标活跃」那一侧（refresh-runtime.js 的 syncAttention → gate.setWorkspace）
-    // 用 hash8(root)，「过闸」这一侧（下面 fire 里的 workspaceKey: rootHash）拿到的是 hash8(hash8(root))。
-    // 两把钥匙对不上，闸那一格就永远是 active=false，后台档的 background-inactive 把这条路上**每一笔**
-    // 都判成推迟 —— 接线看起来接上了，生产里一次都发不出去。现在与 isOurs 用的是同一个值。
+    // 于是同一条工作区根有了两把钥匙：白名单那一侧用 hash8(root)，这里拿到的是 hash8(hash8(root)) ——
+    // 合并窗口按工作区分开计数，同一个工作区被当成两个，10 秒窗口就永远不生效。
+    // 现在与 isOurs 用的是同一个值；#1445 起这个值还作为 meta.workspaceKey 交给管线，两处必须是同一把。
     const keyHash = String(sessionRoots.get(sessionIdOf(session)) || '')
     if (plan.action === 'wait-tick') return { tier: verdict.tier, reason: verdict.reason, action: plan.action }
     // 只有真的要取数的那两档才开一趟 cycle；工具名只留前 40 个字符（它不是凭证，但也没有无限长的道理）。
@@ -351,9 +372,9 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     handle: handle,
     onToolResult: onToolResult,
     onSessionEvent: onSessionEvent,
-    stats: function (): any { return { seen: stats.seen, fired: stats.fired, coalesced: stats.coalesced, deferred: stats.deferred, sent: stats.sent, noGate: stats.noGate, noKeyFn: stats.noKeyFn, event: { requests: stats.event.requests, points: stats.event.points } } },
-    /** 最近一次过闸带的工作区钥匙（短散列）。同一把钥匙也被接线那一侧用来标活跃，两处必须相等。 */
-    lastGateKey: function (): string { return lastGateKey },
+    stats: function (): any { return { seen: stats.seen, fired: stats.fired, coalesced: stats.coalesced, sent: stats.sent, noFetch: stats.noFetch, noKeyFn: stats.noKeyFn, event: { requests: stats.event.requests, points: stats.event.points } } },
+    // 旧读数口 lastGateKey 已删（#1445）：它只回答「最后一次过闸带的是哪把钥匙」，如今不过闸，就没有东西可回答。
+    // 要核对「交给管线的钥匙」是不是白名单那一把，看 fetch 收到的 meta.workspaceKey（tests/verify-723-gate-wiring 守着）。
     /** 只给门禁看的一份内部表：几个数字而已，没有会话 id、没有路径、没有命令。 */
     debugState: function (): any { return { allowedRoots: allowedRoots.size, knownSessions: sessionRoots.size, windows: lastFireAt.size } },
   }

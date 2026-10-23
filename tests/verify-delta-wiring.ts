@@ -140,6 +140,8 @@ async function run() {
     writeDiskCache: async (repo, snap) => { disk.snap = snap },
     runGh: runGh,
     getRepoKey: async () => ({ owner: 'o', name: 'r' }),
+    // #1445：接线里「有没有传输」的判据从 runGh 换成开会话的装配口，薄行取数也走这一份。
+    openSession: stubOpenSession,
     // 记下补行那条路自己问索引时用的窗口起点：defer 那一拍不走到这里，切回来之后起点应当
     // 落在「上一次真的并进去」的水印上（这是「水印只在并入后才动」的行为证据）。
     fetchIssueIndex: (cwd, sinceIso) => { probeSince.push(String(sinceIso || '')); return issueList.fetchIssueIndex(cwd, sinceIso) },

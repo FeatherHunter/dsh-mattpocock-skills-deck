@@ -182,6 +182,7 @@ async function main(): Promise<void> {
       select: async () => ({ backendId: 'markdown' }),
       get: () => tracker,
       describe: () => ({ backend: 'markdown', refId: '', name: '', url: '' }),
+      modules: () => [{ id: 'markdown', budget: {} }],
     }
     const ws = mod.createWorkspaceCwd({
       ctx: {
@@ -211,6 +212,14 @@ async function main(): Promise<void> {
       logCtx: null,
       timer: { timeout: (fn) => setTimeout(fn, 0) },
       detectionExec: async () => ({ ok: false }),
+      // #1445：两条电话改走会话。这一组要验的仍然是「政策缺席时后端拿到的就是 Undefined」，
+      //   所以夹具按生产回包形状给一份最小开会话：拿判定结论里的后端，把注册表那份桩房间当会话递出去；
+      //   政策由 workspaceCwd 补进 call 的上下文（没有归属会话时它就是 undefined）。
+      openSession: async (cwd2: any, o: any) => {
+        const sel = (o && typeof o.resolveSelection === 'function') ? o.resolveSelection({ cwd: cwd2 }, {}) : null
+        const backendId = (sel && sel.backendId) || 'markdown'
+        return { ok: true, backendId: backendId, repoRef: { backend: backendId, refId: '', name: '', url: '' }, budget: {}, canWrite: !!(o && o.write), call: (fn: any) => fn(tracker, {}) }
+      },
     })
     const res = await ws.handleListLabels({ cwd: 'D:\\ilife', sessionId: 'ghost-sid' })
     ok(resolveCalls.length === 0, '无归属会话时一次也不调政策服务（不拿默认档）')

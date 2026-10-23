@@ -7,11 +7,11 @@
  * 三条不能改的约定（改之前先看原来文件头那三行与调用点 index.js）：
  * 1. 由 index.js 动态引用加载，normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件只引用原来那两个模块，不新增引用。
  * 2. #1444 起详情与评论的读路径经宿主注入的只读会话（deps.openSession）调房间 get，不再由调用方直调 gh；
+ *    #1445 起评论写入同样只经写会话（deps.openSession 带 write:true）调房间 comment：选后端、问写权限、
+ *    记账与解析仓库引用都归会话，本文件不再自己拼 opCtx、不再查注册表、也不再直调房间。
  *    会话开不成或能力失败时保留 {ok:false,error} 的失败形状，让上层照旧降级用缓存，不许抛、不许假装成功。
  * 3. 探针水印的约定搬到 probe-handler.ts（原来第 3 条，字句未动）：本文件不再经手水印。
  */
-// #1115：opCtx 上那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
-import { hostTimers } from '../../contract/host-timer-ports.js'
 
 // 评论分页的两个数字（#1444）：首屏与每次「加载更多」各取 50 条，一次最多加载到 200 条。
 // 这是契约 GetOpts.comments 的默认值与上限（三个后端房间同数），房间侧也会按 200 截断；
@@ -59,7 +59,9 @@ interface CommentThreadsDeps {
  * 什么约定不能改：返回对象的五个字段名是调用点按名取的，改名调用点就拿不到。
  */
 export function createCommentThreads(deps: CommentThreadsDeps): any {
-  const { normCwd, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, getRepoKey, execProc, setCache } = deps as any
+  // 只取本文还有读者的几格：写路径改走会话之后，getPlatform / ctx / timer / getRepoKey / DEFAULT_CWD / runGh
+  // 在这里已经没有调用点；字段仍留在接口上，是因为宿主接线 src/host/index.ts 是禁改文件、照样按这些名字注入。
+  const { normCwd, getTrackerRegistry, errText, execProc, setCache } = deps as any
   // #1444：读路径只认只读会话（deps.openSession）。会话由宿主按目录选好后端，本文件不再自己分发、
   // 也不再直调 gh；开不成时如实失败，让上层照旧降级用缓存。
   async function openReadSession(cwd: any): Promise<any> {
@@ -78,12 +80,45 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     if (r && r.ok === false) return r
     return { ok: false, error: { kind: 'network', message: '只读会话没有交回单票数据' } }
   }
-  // 仓库引用：优先让注册表按目录与后端解析（与写路径同一份 describe），解析不出时退回旧兜底形状。
+  // 仓库引用（只给读路径用）：让注册表按目录与后端解析（describe 是房间的同步定位口，不花额度也不进管线），
+  // 解析不出时退回旧兜底形状。写路径不再走这里 —— 身份由写会话回包直接给。
   async function repoRefFor(cwd: any, backendId: any): Promise<any> {
     let repoRef: any = null
     try { repoRef = (await getTrackerRegistry()).describe({ cwd: cwd }, backendId) } catch (eDesc: any) {}
     if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
     return repoRef
+  }
+  // #1445：写路径只认写会话（deps.openSession 带 write:true）。选后端、问写权限（写入一律过裁决）、
+  // 记账与解析仓库引用全由会话负责；本文件不再自己拼 opCtx、不再调注册表 select/describe，也不直调房间。
+  // 为什么不能自己拼：写操作的额度与「这个工作区让不让写」只有会话那一层算得出来，自己拼等于绕过硬顶。
+  async function openWriteSession(cwd: any, exec: any): Promise<any> {
+    if (typeof deps.openSession !== 'function') return { ok: false, reason: 'not-wired', detail: '宿主没有注入写会话装配口' }
+    // 执行口随会话一起交进去：会话默认那份是探测档（读），评论写入要按写档 'comment-write' 等得起一次真实往返。
+    // canWrite:true —— 迁移前这条写路径不看判定出口的写权限（人在面板上点了评论，意图本身就是授权），
+    // 仓库不可写时由房间把失败如实报回（auth/permission 档照旧）。收紧成「必须显式选过后端」会让老仓库今天能评论、迁移后不能。
+    return await deps.openSession(cwd, { write: true, exec: exec, canWrite: true })
+  }
+  /**
+   * 评论写入要用的执行口：房间按 DSH 契约调 exec(cmd, args, {cwd, timeout})，这里转成宿主那份 execProc。
+   *
+   * 什么约定不能改：返回形状与迁移前一字不差（房间既读 stdout 也读 text，且只认整数退出码）；
+   * 失败照旧抛出 —— 房间的错误表要拿到 gh 原文才判得出档位，把它悄悄收成退出码 0 会把失败记成写入成功。
+   */
+  function makeCommentWriteExec(cwd: any): any {
+    return async function (cmd: any, cargs: any, opts: any): Promise<any> {
+      const argv: any = [String(cmd)].concat(cargs || [])
+      const c: any = (opts && opts.cwd) || cwd
+      const r: any = await execProc(argv, c, 'comment-write')
+      if (!r.ok) throw new Error(r.error || String(r.code || 'exec failed'))
+      return { stdout: r.text, text: r.text, ok: true, code: (Number.isInteger(r.code) ? r.code : 0) }
+    }
+  }
+  // 写会话开不成时的失败形状：与读路径同一个形状（{ok:false,error}）。kind 归 env ——
+  // 没认出工作区、没有后端认领、认领未决、多家同时认领，都是环境还没就绪，不是这张票不存在。
+  function writeSessionFailure(opened: any): any {
+    const reason: string = opened && opened.reason ? String(opened.reason) : 'unknown'
+    const detail: string = opened && opened.detail ? '：' + String(opened.detail) : ''
+    return { ok: false, error: { kind: 'env', message: '这个工作区的写会话没开成（' + reason + '）' + detail + '，等会话可用后再试。' } }
   }
   async function handleIssueDetail(args: any): Promise<any> {
     const n: any = args && args.number
@@ -183,28 +218,20 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     if (!n || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     if (typeof body !== 'string' || !body.trim()) return { ok: false, error: { kind: 'parse', message: '评论内容为空' } }
     try {
-      const reg: any = await getTrackerRegistry()
-      if (!reg) return { ok: false, error: { kind: 'env', message: 'registry unavailable' } }
-      const handle: any = { cwd: cwd }
-      const opCtx: any = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'comment-threads', timers: hostTimers(timer), exec: async function(cmd: any, cargs: any, opts: any): Promise<any>{ const argv: any=[String(cmd)].concat(cargs||[]); const c: any=(opts&&opts.cwd)||cwd; const r: any=await execProc(argv, c, 'comment-write'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
-      let sel: any = null
-      try { sel = await reg.select(handle, opCtx) } catch (eSel: any) {}
-      if (!sel || !sel.backendId) return { ok: false, error: { kind: 'unsupported', message: '未选择可用 tracker 后端，无法评论' } }
-      let repoRef: any = null
-      try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch (eDesc: any) {}
-      if (repoRef && !repoRef.refId && sel.backendId === 'github') {
-        // refId 补全（host 编排职责，与 buildSnapshot 同语义：git remote → .git/config → gh repo view 三级解析）
-        try {
-          const rk: any = await getRepoKey(cwd)
-          if (rk && rk.owner && rk.name) { repoRef.refId = rk.owner + '/' + rk.name; repoRef.name = repoRef.refId; repoRef.url = 'https://github.com/' + repoRef.refId }
-        } catch (eRk: any) {}
-      }
+      // #1445：写入只经写会话。上一版在这里自己选后端、拼 opCtx、补 refId、直调房间 comment，
+      // 绕开了写权限裁决与写额度；现在这些一律交给会话，本文件只负责把参数交准、把失败说清楚。
+      const opened: any = await openWriteSession(cwd, makeCommentWriteExec(cwd))
+      if (!opened || opened.ok !== true) return writeSessionFailure(opened)
+      // 仓库引用直接用会话回包（它已按「判定出口 → 房间 describe → git 三级解析」补齐）。
+      // 复制一份再挂 effortId：会话回包里的 ref 与判定结论是同一个对象，就地改会把范围带到别的调用上。
+      const repoRef: any = opened.repoRef ? Object.assign({}, opened.repoRef) : null
       if (!repoRef || !repoRef.refId) return { ok: false, error: { kind: 'not-found', message: '无法解析目标仓库（refId missing）' } }
       // effort 维度：effort 是寻址范围；客户端从行数据带上来，放进 ref（不带 = 全仓库）
       if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
-      const tracker: any = reg.get(sel.backendId)
-      if (!tracker || typeof tracker.comment !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + sel.backendId + "' 未实现 comment" } }
-      const r: any = await tracker.comment(repoRef, String(Number(n)), String(body), opCtx)
+      const r: any = await opened.call(function (session: any, opCtx: any) {
+        if (!session || typeof session.comment !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 comment" } }
+        return session.comment(repoRef, String(Number(n)), String(body), opCtx)
+      })
       if (r && r.ok) {
         // 写操作成功 → 失效面板快照缓存（#213 同语义；右侧列表增量由 client 静默重取快照经差异产出）
         try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}

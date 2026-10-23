@@ -50,7 +50,7 @@ function makeSession(opts) {
   return { session: session, stats: stats, handles: handles }
 }
 
-/** 开会话成功那一份形状：call(fn) 把假会话与一次 opCtx 交给能力函数（与 read-session.ts 的回包同形）。 */
+/** 开会话成功那一份形状：call(fn) 把假会话与一次 opCtx 交给能力函数（与 session-opener.ts 的回包同形）。 */
 function openReplyOf(session) {
   return async function () {
     return { ok: true, backendId: 'github', budget: {}, call: function (fn) { return fn(session, { cwd: 'D:/demo', caller: 'refresh' }) } }

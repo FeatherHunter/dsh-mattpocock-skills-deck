@@ -31,6 +31,29 @@ async function killInstance(): Promise<void> {
 // #266：gh api 索引快照由 stub 返回（测试可控；新号出现模拟「面板关闭期间会话内建号」）
 const GH_BASE = '{"number":1,"title":"既有一","state":"OPEN","updatedAt":"u1"}\n{"number":2,"title":"既有二","state":"CLOSED","updatedAt":"u2"}\n'
 let ghIndexText = GH_BASE
+// #1445：命名守护的索引取数已迁到 Tracker 只读会话（会话要求后端注册表能说出这个工作区是谁）。
+// 真实探测在临时目录里认不出后端（只写 .git/config 不足以让它选中 github），所以这里像发布冒烟那样
+// 直接注入一份假注册表：它认 acme/demo 这一个仓库，listPage 把 ghIndexText 解析成索引条目交回。
+function makeFakeRegistry() {
+  const ref = { backend: 'github', refId: 'acme/demo', name: 'acme/demo', url: 'https://github.com/acme/demo' }
+  const room = {
+    describe: () => ref,
+    async listPage(_ref, _filter, opts) {
+      // 一次给全量（测试数据只有一页）：nextCursor 恒为 null，翻页循环第一次就收口。
+      const items = String(ghIndexText || '').split('\n').filter(function (line) { return line.trim() !== '' }).map(function (line) {
+        const o = JSON.parse(line)
+        return { key: String(o.number), title: o.title, state: o.state, updatedAt: o.updatedAt, isPullRequest: !!o.pull_request }
+      })
+      return { ok: true, data: { items: items, nextCursor: null, total: items.length } }
+    },
+  }
+  return {
+    select: async () => ({ backendId: 'github', source: 'explicit', canWrite: true, reason: '测试注入：显式选过 GitHub', ref: ref }),
+    describe: () => ref,
+    get: (id) => (String(id) === 'github' ? room : null),
+    modules: () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }],
+  }
+}
 // #596：宿主经 connection.fetch.register 注册一条精确路由 /api/dsws，端点名与入参装在请求体里。
 // 调用一律走这条路由，与真机同路（不再直接抓 handler 函数，那样会绕过整个协议层）。
 let route = null
@@ -60,7 +83,7 @@ function makeCtx(gen: number) {
   const subprocess = { async resolveExecutable() { return 'gh' }, spawn() { return { stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {}, done: Promise.resolve({ exitCode: 0 }), collected: { stdout: { readFrom: () => ({ text: ghIndexText }) }, stderr: { readFrom: () => ({ text: '' }) } } } } }
   // host 的真实 timer 服务双签名：timeout(fn, ms) 节流 / timeout(ms) → Promise（runGh 超时竞速用）
   const timer = { timeout: (a, b) => (typeof a === 'function' ? (function () { const h = setTimeout(function () { pendingTimers.delete(h); a() }, b); pendingTimers.add(h); return h })() : new Promise(function (res) { setTimeout(res, a) })) }
-  const services = { subprocess, timer, fs: fsSvc, platform: platformSvc, connection: { fetch: { register: (r) => { route = r; routeGen = gen; return () => {} } } } }
+  const services = { subprocess, timer, fs: fsSvc, platform: platformSvc, trackerRegistry: makeFakeRegistry(), connection: { fetch: { register: (r) => { route = r; routeGen = gen; return () => {} } } } }
   return { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 }
 

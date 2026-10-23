@@ -7,7 +7,7 @@
  * 所以本门禁盯的是退役后的事实：装配点上只有一套实例、只有新表挂载口、旧字段名不再出现。
  *
  * 留下的断言都是跑起来的结果：
- *   三、一套实例下五条路互相看得见（真装配、真过闸、真取数）；
+ *   三、一套实例下五条路互相看得见（真装配、真取数；写事件自 #1445 起不过闸）；
  *   四、负控：两套实例时，没标活跃的那一套在门前就把事件拒了；
  *   五、宿主侧字段名等于新表读出模块导出的那个常量（拿真装配交回来的对象与真快照回包量）。
  *   原先的「一、全仓只有一处装配点」「二、五条路都从同一个句柄取」两段读的是
@@ -94,21 +94,27 @@ async function main() {
   check(w.gate.workspaceView(key).active === true, '同一套实例的闸把这一格标成活跃（key=' + key + '）', '闸与视野模型不是同一套')
 
   // ② 喂一笔真写事件（订阅在同一套实例上）
+  // #1445 起这一趟不再过闸：回包说的是「已交给管线」，闸既没有裁决、也没有被记账。
   const before = w.gate.stats()
+  const decidesBefore = store.decides.length
   const handled = await w.writeEvents.handle({ id: 'sess-1', header: { cwd: WS } }, 'tools/result', 'pwsh', WRITE_CMD, true)
   const after = w.gate.stats()
-  check(w.writeEvents.stats().seen === 1, '写事件订阅收下了这一笔（stats().seen=1）', '门前被拒 = 白名单与视野模型不是同一套')
-  check(!!handled && handled.verdictOfGate === 'allow' && after.sent === before.sent + 1,
-    '写事件过闸**真的被放行**（裁决=' + (handled && handled.verdictOfGate) + '、闸的 sent ' + before.sent + ' → ' + after.sent + '）',
-    '恒 defer = 活跃集合标记到了另一套上')
-  check(store.decides.some((d) => d.verdict === 'allow' && d.reason === 'background-fits'),
-    '裁决那一步真的走过（refresh.decide：' + JSON.stringify(store.decides.slice(-1)) + '）')
+  const weStats = w.writeEvents.stats()
+  check(weStats.seen === 1, '写事件订阅收下了这一笔（stats().seen=1）', '门前被拒 = 白名单与视野模型不是同一套')
+  check(!!handled && handled.verdictOfGate === 'in-pipeline' && weStats.sent === 1,
+    '写事件这一趟**真的交给了管线**（回包=' + (handled && handled.verdictOfGate) + '、订阅自己数的 sent=' + weStats.sent + '）',
+    '恒 defer = 活跃集合标记到了另一套上；恒 in-pipeline 但 sent=0 = 只在回包里说了句空话')
+  check(after.sent === before.sent && store.decides.length === decidesBefore,
+    '闸这一趟既没记账也没裁决（闸的 sent ' + before.sent + ' → ' + after.sent + '、refresh.decide ' + decidesBefore + ' → ' + store.decides.length + ' 条）',
+    '还有裁决记录 = 写事件那条路仍在过闸')
+  check(weStats.event.requests === 0 && weStats.event.points === 0,
+    '花费两格如实记 0（requests=' + weStats.event.requests + '、points=' + weStats.event.points + '）—— 读路径不记账（#1444 裁决），真实用量归 #1446')
 
-  // ③ 写事件只过闸取数（#1271）：旧 workRoute 表与旧链读数已整体删除，写事件没有任何旧表的写入口；
-  //    跨会话在办数据只走新的 workRouteTable（与回执 data.workRoute 同源）。这里钉住退役后的事实，
-  //    防止有人把旧的写事件推断路又接回来。
+  // ③ 写事件只判门取数（#1271 删旧推断路；#1445 起连闸也不过）：旧 workRoute 表与旧链读数已整体删除，
+  //    写事件没有任何旧表的写入口；跨会话在办数据只走新的 workRouteTable（与回执 data.workRoute 同源）。
+  //    这里钉住退役后的事实，防止有人把旧的写事件推断路又接回来。
   check(w.writeEvents.stats().seen === 1,
-    '写事件只过闸取数（本节第 ② 步已有一笔放行），没有旧表可写 = 无双写')
+    '写事件只判门取数（本节第 ② 步已有一笔交给管线），没有旧表可写 = 无双写')
 
   // ④ 行级增量那条路问的是同一个闸、同一把钥匙
   const vPatch = w.gate.decideFor({ source: 'patch.apply', kind: 'patch', workspaceKey: key })
@@ -130,7 +136,7 @@ async function main() {
   //   保留的是负控真正要证的东西：
   //   门与白名单每套实例各一份，没 focus 过的那一套会在门前把事件拒掉（生产里等于写事件没订上）。
   const outB = await wB.writeEvents.handle({ id: 'sess-b', header: { cwd: WS } }, 'tools/result', 'pwsh', WRITE_CMD, true)
-  check(wB.writeEvents.stats().seen === 1 && !!outB && outB.verdictOfGate === 'allow', '负控：喂给标了活跃的那一套（wB）时它照常收下并放行（实得 ' + JSON.stringify(outB && outB.verdictOfGate) + '）')
+  check(wB.writeEvents.stats().seen === 1 && !!outB && outB.verdictOfGate === 'in-pipeline', '负控：喂给标了活跃的那一套（wB）时它照常收下并交给管线（实得 ' + JSON.stringify(outB && outB.verdictOfGate) + '）')
   const outA = await wA.writeEvents.handle({ id: 'sess-a', header: { cwd: WS } }, 'tools/result', 'pwsh', WRITE_CMD, true)
   check(wA.writeEvents.stats().seen === 0 && outA === null, '负控：没标活跃的那一套门前就把这一笔拒了（seen=0）—— 生产里写事件等于没订上')
 

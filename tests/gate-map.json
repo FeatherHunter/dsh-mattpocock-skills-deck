@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-23T18:49:25.514Z",
+  "generatedAt": "2026-10-23T20:07:55.455Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 342,
   "gateCount": 342,
-  "attributedGates": 302,
-  "unattributedGates": 40,
-  "buildOutputOnlyGates": 22,
+  "attributedGates": 303,
+  "unattributedGates": 39,
+  "buildOutputOnlyGates": 21,
   "completionRecordedGates": 13,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
@@ -2515,17 +2515,22 @@
       "step": "node tests/verify-1443-static-gate.ts",
       "file": "tests/verify-1443-static-gate.ts",
       "guards": [
+        "src",
         "src/deck",
         "src/deck/shell/call-shell.ts",
         "src/deck/tools/tracker-session.ts",
+        "src/host",
         "src/refresh",
         "src/refresh/registry/quota-sync-bridge.ts",
-        "src/refresh/rooms/host"
+        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts"
       ],
       "dirs": [
+        "src",
         "src/deck",
         "src/deck/shell",
         "src/deck/tools",
+        "src/host",
         "src/refresh",
         "src/refresh/registry",
         "src/refresh/rooms/host"
@@ -2534,7 +2539,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1444-chain.ts",
@@ -3627,6 +3632,7 @@
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/refresh/rooms/host/refresh-runtime.ts",
         "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/write-event-subscription.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -3643,7 +3649,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-723-single-refresh-instance.ts",
@@ -7439,16 +7445,18 @@
       "step": "node tests/verify-t1-initpublish.ts",
       "file": "tests/verify-t1-initpublish.ts",
       "guards": [
-        "package/lib/index.js"
+        "package/lib/index.js",
+        "src/tracker/rooms/github/init-project.ts"
       ],
       "dirs": [
-        "package/lib"
+        "package/lib",
+        "src/tracker/rooms/github"
       ],
-      "unattributed": true,
-      "buildOutputOnly": true,
+      "unattributed": false,
+      "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-t3-locale.ts",
@@ -8382,6 +8390,7 @@
     "src": [
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-gate-map.ts",
+      "node tests/verify-1443-static-gate.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-file-granularity.ts",
@@ -8767,6 +8776,7 @@
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-1436-own-work-route.ts",
+      "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1444-snapshot.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
@@ -9310,6 +9320,7 @@
       "node tests/verify-labels-sync.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
+      "node tests/verify-t1-initpublish.ts",
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts"
     ],
@@ -9955,13 +9966,13 @@
       "src/refresh/rooms/host/outbound-control.ts",
       "src/refresh/rooms/host/probe-handler.ts",
       "src/refresh/rooms/host/quota-ledger.ts",
-      "src/refresh/rooms/host/read-session.ts",
       "src/refresh/rooms/host/refresh-assembly.ts",
       "src/refresh/rooms/host/refresh-gate.ts",
       "src/refresh/rooms/host/refresh-runtime.ts",
       "src/refresh/rooms/host/refusal-messages.ts",
       "src/refresh/rooms/host/repo-page-accounting.ts",
       "src/refresh/rooms/host/row-patch.ts",
+      "src/refresh/rooms/host/session-opener.ts",
       "src/refresh/rooms/host/session-refresh-schedule.ts",
       "src/refresh/rooms/host/session-snapshot-cache.ts",
       "src/refresh/rooms/host/snapshot-build.ts",

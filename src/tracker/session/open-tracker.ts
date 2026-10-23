@@ -10,6 +10,7 @@ import type { BackendId } from '../contract/identity.js'
 import type { OpContext, RepoHandle } from '../contract/contexts.js'
 import type { Tracker } from '../contract/operations.js'
 import type { Selection } from '../contract/results.js'
+import type { RepositoryRef } from '../contract/entities.js'
 import type { BackendModule } from '../contract/backend-module.js'
 import type { AccountPort, AdmitPort, BackendBudgetModel, BudgetReading } from '../contract/budget-model.js'
 import { runPipelineOp } from './pipeline.js'
@@ -31,7 +32,15 @@ export type OpenTrackerReason = 'no-backend' | 'multi-match' | 'pending' | 'work
 
 /** 开会话的结果：开成就交会话，开不成就交结局（两种都长一个样，调用方不用 try 接）。 */
 export type OpenTrackerResult =
-  | { ok: true; session: TrackerSession }
+  | {
+      ok: true
+      session: TrackerSession
+      /**
+       * 选中的仓库身份（判定出口带的那一份；没带就是 null）。
+       * 写操作要一个 RepositoryRef，随会话一起交出去，调用方不必为它再问一次注册表。
+       */
+      repoRef: RepositoryRef | null
+    }
   | { ok: false; reason: OpenTrackerReason; detail?: string }
 
 /** 选后端的输入输出形状（默认实现就是注册表的 select，测多命中与未决时才换桩）。 */
@@ -56,6 +65,12 @@ export interface OpenTrackerOptions {
   account: AccountPort
   /** 写权限就绪没有（缺省按没就绪：没人说能写，就当不能写，硬顶默认收紧）。 */
   canWrite?: boolean
+  /**
+   * 写权限这一格改由判定出口回答（缺省 false：老调用方显式给的 canWrite 说了算）。
+   * 为什么需要这一格：判定出口（backendDecision）的结论里带着 canWrite 与 reason，
+   * 而入口的职责是「一次选后端」，选了后端又让调用方另选一次就多问一遍、还可能问到两个答案。
+   */
+  canWriteFromSelection?: boolean
   /** 写权限这一格的来历（没给就明说没给，不编一个）。 */
   canWriteReason?: string
   /** 选后端的实现（缺省走注册表；这一支只读本地认领，不出站、不花额度）。 */
@@ -103,24 +118,32 @@ export async function openTracker(handle: RepoHandle, options: OpenTrackerOption
       // 预算必填：注册表那道校验应当已经拦过，到这里说明装配时绕过了校验，会话拒绝建在没口径的后端上。
       return { ok: false, reason: 'pending', detail: '后端 ' + selection.backendId + ' 没有预算声明，会话拒绝建在没口径的后端上' }
     }
+    // 写权限的两种来源：调用方显式给的结论优先；调用方说「按判定出口回答」时才读出口那一路。
+    // 出口的结论对象在契约类型上只写到 Selection，canWrite 与 reason 是判定出口多带的两格，
+    // 这里按可选读取：取不到就是「没就绪」，与开头的缺省口径一致，不编一个能写。
+    const selRecord = (selection || {}) as unknown as Record<string, unknown>
+    const fromSelection = options.canWriteFromSelection === true
+    const canWrite = options.canWrite === true || (fromSelection && selRecord.canWrite === true)
+    const canWriteReason = typeof options.canWriteReason === 'string' && options.canWriteReason
+      ? options.canWriteReason
+      : (fromSelection
+        ? (typeof selRecord.reason === 'string' && selRecord.reason ? String(selRecord.reason) : '判定出口没给写权限：要先让人在工作区里选一次后端（needs-generate）')
+        : '调用方没给写权限结论，默认按没就绪（硬顶收紧）')
     const deps = {
       tracker,
       budget: mod.budget,
-      canWrite: options.canWrite === true,
+      canWrite: canWrite,
       getCachedReading: options.getCachedReading,
       admit: options.admit,
       account: options.account,
       onEvent: options.onEvent,
     }
-    const canWriteReason = typeof options.canWriteReason === 'string' && options.canWriteReason
-      ? options.canWriteReason
-      : '调用方没给写权限结论，默认按没就绪（硬顶收紧）'
     const session = {
       id: selection.backendId,
       backendId: selection.backendId,
       budget: mod.budget,
-      canWrite: options.canWrite === true,
-      canWriteReason,
+      canWrite: canWrite,
+      canWriteReason: canWriteReason,
     } as unknown as Record<string, unknown>
     for (const name of CAPABILITIES) {
       if (name === 'describe' || name === 'issueAddress') {
@@ -132,7 +155,10 @@ export async function openTracker(handle: RepoHandle, options: OpenTrackerOption
         session[name] = (...args: unknown[]): Promise<unknown> => runPipelineOp(deps, name, args)
       }
     }
-    return { ok: true, session: session as unknown as TrackerSession }
+    // 仓库身份随会话一起交出去：写操作要一个 RepositoryRef，调用方不该为它再问一次注册表。
+    // 判定出口没带身份时留 null（自检旧调用方还在用 describe 补），不在这里造假的仓库。
+    const repoRef = ((selRecord.ref || null) as unknown) as RepositoryRef | null
+    return { ok: true, session: session as unknown as TrackerSession, repoRef: repoRef }
   } catch (err) {
     // 入口的承诺：这一支之上没有 try 能接，所以这里不能再抛——炸了就是未决，理由写清。
     return { ok: false, reason: 'pending', detail: '开会话中途炸了（' + String((err as Error)?.message || err) + '），按未决处理' }

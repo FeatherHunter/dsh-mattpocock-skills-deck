@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * #1444 评论线程门禁：单票详情与评论首屏走只读会话，加载更多按 first 翻页，房间 get 认 GetOpts.comments.first。
+ * #1445 起写评论也改走会话（openSession 带 write:true → session.comment），那一条路的参数、失败档与执行口一并钉在这里。
  *
  * 为什么单独立一扇：评论读路径从「调用方直调 gh」迁到「经 Tracker 只读会话调 get」之后，
  * 行为约定变了三处（首屏经会话、加载更多抬高 first、超过 200 截断），这三处没有任何既有门禁覆盖；
- * 写评论那条路必须原样不动，也在这里钉住，防止读路径改造顺手把写侧牵连进去。
+ * 写评论从「自己拼 opCtx + 注册表 select/describe + 房间 comment」迁到写会话之后，失败档与执行口也换了来源，同样没有既有门禁覆盖。
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1444-comments.ts
  */
@@ -58,6 +59,15 @@ let openMode = 'ok' // ok / open-fail / get-fail
 let openCalls = 0
 const sessionCalls = []
 const writeCalls = []
+// 写会话（#1445）要看的三件事：开的是不是写会话、交回的仓库引用用没用上、执行口按哪一档调宿主。
+let writeOpenCalls = 0
+let lastWriteOpts = null
+const SESSION_REF = { backend: 'github', refId: 'o/r', name: 'o/r', url: 'https://github.com/o/r' }
+let writeRefMissing = false // 模拟「会话开了，但没解析出仓库身份」
+let writeNoComment = false // 模拟「这个后端没有 comment 这一条能力」
+let commentMode = 'ok' // ok / auth
+let execMode = 'guard' // guard（读路径不许碰 exec）/ ok / fail
+const execCalls = []
 
 const tracker = {
   // 旧读路径是 reg.get(backendId).get(...)；这里故意抛错，证明读路径已经不再经过它。
@@ -75,21 +85,32 @@ const registry = {
   select: async function () { return { backendId: 'github' } },
 }
 
-async function openSession (cwd) {
+// 假会话：读会话只有 get；写会话（opts.write === true）多一条 comment，并交回仓库引用。
+// 这样一旦写路径又回头去读会话、或者在某处自己拼 opCtx，下面的断言会当场抓到。
+async function openSession (cwd, opts) {
   openCalls++
+  const write = !!(opts && opts.write === true)
+  if (write) { writeOpenCalls++; lastWriteOpts = opts }
   if (openMode === 'open-fail') return { ok: false, reason: 'workspace-not-ready', detail: '还没认出工作区' }
   return {
     ok: true,
     backendId: 'github',
     budget: {},
+    canWrite: write,
+    repoRef: writeRefMissing ? null : Object.assign({}, SESSION_REF),
     call: async function (fn) {
       const session = {
         backendId: 'github',
-        canWrite: false,
-        get: async function (repoRef, key, opts, opCtx) {
-          sessionCalls.push({ repoRef, key, opts, opCtx })
+        canWrite: write,
+        comment: (write && !writeNoComment) ? async function (repoRef, key, body, opCtx) {
+          writeCalls.push({ repoRef, key, body, opCtx })
+          if (commentMode === 'auth') return { ok: false, error: { kind: 'auth', message: '需要登录' } }
+          return { ok: true, data: { key: key, url: 'https://github.com/o/r/issues/5#issuecomment-1' } }
+        } : null,
+        get: async function (repoRef, key, getOpts, opCtx) {
+          sessionCalls.push({ repoRef, key, opts: getOpts, opCtx })
           if (openMode === 'get-fail') return { ok: false, error: { kind: 'rateLimit', message: '配额用完了' } }
-          return { ok: true, data: issueFor(opts) }
+          return { ok: true, data: issueFor(getOpts) }
         },
       }
       return fn(session, { cwd, caller: 'refresh' })
@@ -112,7 +133,13 @@ const deps = {
   isRateLimitError: function () { return false },
   getRepoKey: async function () { return { owner: 'o', name: 'r' } },
   runGh: async function () { throw new Error('读路径不应直调 gh') },
-  execProc: async function () { throw new Error('读路径不应直调 exec') },
+  // 默认档 'guard'：读路径一次都不许碰执行口，碰了就在这里炸出来。
+  execProc: async function (argv, cwd, tier) {
+    if (execMode === 'guard') throw new Error('读路径不应直调 exec')
+    execCalls.push({ argv: argv.slice(), cwd: cwd, tier: tier })
+    if (execMode === 'fail') return { ok: false, error: 'gh 退出码 4', code: 4 }
+    return { ok: true, text: 'OUT', code: 0 }
+  },
   fetchIssueDetail: async function () { throw new Error('读路径不应回退旧详情路') },
   fetchIssueIndex: async function () { throw new Error('读路径不应回退旧索引路') },
   issueIndexFromSnapshot: function () { return { ok: false } },
@@ -174,14 +201,63 @@ const openFailComments = await handlers.handleIssueComments({ number: 5, cwd: CW
 check(openFailComments && openFailComments.ok === false && openFailComments.error && openFailComments.error.kind === 'env', '会话开不成：评论回 {ok:false,error.kind=env}')
 check(sessionCalls.length === 0, '会话开不成：不再退回直调 gh（会话 get 零调用）')
 
-// ⑤ 写评论原样：走注册表 select → tracker.comment，不打开只读会话。
+// ⑤ 写评论（#1445）：只经写会话 —— openSession(cwd,{write:true}) → session.comment，票据与正文原样交房，
+// 仓库引用用会话回包，执行口按 'comment-write' 档；失败档沿用本文件既有形状（env / not-found / unsupported / network）。
 openMode = 'ok'
+writeOpenCalls = 0
+lastWriteOpts = null
+writeCalls.length = 0
 const openCallsBeforeWrite = openCalls
 const written = await handlers.handleCommentIssue({ number: 5, body: '你好', cwd: CWD, effortId: 1001 })
 check(written && written.ok === true, '写评论：成功回包原样透传')
-check(writeCalls.length === 1 && writeCalls[0].key === '5' && writeCalls[0].body === '你好', '写评论：参数原样交给 tracker.comment')
+check(writeOpenCalls === 1 && openCalls === openCallsBeforeWrite + 1, '写评论：每次写入开一次写会话')
+check(lastWriteOpts && lastWriteOpts.write === true && typeof lastWriteOpts.exec === 'function', '写评论：开会话时带 write:true 与写入用的执行口')
+check(writeCalls.length === 1 && writeCalls[0].key === '5' && writeCalls[0].body === '你好', '写评论：票号与正文原样交给房间 comment（票号不补零）')
+check(writeCalls[0] && writeCalls[0].repoRef && writeCalls[0].repoRef.refId === 'o/r', '写评论：仓库引用用会话回包（不再自己 describe）')
 check(writeCalls[0] && writeCalls[0].repoRef && writeCalls[0].repoRef.effortId === '1001', '写评论：effortId 照旧放进仓库引用')
-check(openCalls === openCallsBeforeWrite, '写评论：没有打开只读会话（openSession 零调用）')
+check(writeCalls[0] && writeCalls[0].repoRef !== SESSION_REF, '写评论：交出去的是副本（不就地改会话/判定那份引用）')
+check(writeCalls[0] && writeCalls[0].opCtx && writeCalls[0].opCtx.cwd === CWD, '写评论：操作上下文取会话给的那份（cwd 已归一）')
+
+// 执行口：房间调 exec(cmd,args,{cwd}) → 宿主 execProc(['cmd',...args], cwd, 'comment-write')，
+// 回包按 DSH 契约带 stdout/code；失败照旧抛出（房间的错误表要拿到 gh 原文才判得出档位）。
+execMode = 'ok'
+const execOut = await lastWriteOpts.exec('gh', ['api', 'graphql'], { cwd: CWD })
+check(execOut && execOut.ok === true && execOut.stdout === 'OUT' && execOut.code === 0, '写评论执行口：成功时回 {stdout, code} 形状')
+check(execCalls.length === 1 && execCalls[0].argv[0] === 'gh' && execCalls[0].argv[1] === 'api' && execCalls[0].tier === 'comment-write', "写评论执行口：按 'comment-write' 档调宿主 execProc")
+execMode = 'fail'
+let execThrew = ''
+try { await lastWriteOpts.exec('gh', ['api', 'graphql'], { cwd: CWD }) } catch (eExec) { execThrew = String(eExec && eExec.message) }
+check(execThrew === 'gh 退出码 4', '写评论执行口：失败时抛出原文（不悄悄收成退出码 0）')
+execMode = 'guard'
+
+// 失败档：写会话开不成 → env（与读路径同档、同形状）；会话开了但没仓库 → not-found；没 comment → unsupported。
+openMode = 'open-fail'
+writeCalls.length = 0
+const writeOpenFail = await handlers.handleCommentIssue({ number: 5, body: '你好', cwd: CWD })
+check(writeOpenFail && writeOpenFail.ok === false && writeOpenFail.error && writeOpenFail.error.kind === 'env', '写会话开不成：回 {ok:false,error.kind=env}')
+check(String(writeOpenFail && writeOpenFail.error && writeOpenFail.error.message).indexOf('写会话没开成') >= 0, '写会话开不成：消息说清是写会话没开成（不是票不存在）')
+check(writeCalls.length === 0, '写会话开不成：房间 comment 一次都没调')
+openMode = 'ok'
+writeRefMissing = true
+const writeNoRef = await handlers.handleCommentIssue({ number: 5, body: '你好', cwd: CWD })
+check(writeNoRef && writeNoRef.ok === false && writeNoRef.error && writeNoRef.error.kind === 'not-found', '写会话没给出仓库：回 {kind=not-found}（沿用原档位）')
+writeRefMissing = false
+writeNoComment = true
+const writeUnsupported = await handlers.handleCommentIssue({ number: 5, body: '你好', cwd: CWD })
+check(writeUnsupported && writeUnsupported.ok === false && writeUnsupported.error && writeUnsupported.error.kind === 'unsupported', '后端没有 comment：回 {kind=unsupported}')
+writeNoComment = false
+commentMode = 'auth'
+const writeAuth = await handlers.handleCommentIssue({ number: 5, body: '你好', cwd: CWD })
+check(writeAuth && writeAuth.ok === false && writeAuth.error && writeAuth.error.kind === 'auth', '房间回 auth：原样透传，不包成 network')
+commentMode = 'ok'
+
+// 参数档位不变：缺票号 / 正文空白先在本地拒掉，连会话都不开（少一次选后端）。
+writeOpenCalls = 0
+const writeNoNumber = await handlers.handleCommentIssue({ body: '你好', cwd: CWD })
+const writeEmptyBody = await handlers.handleCommentIssue({ number: 5, body: '   ', cwd: CWD })
+check(writeNoNumber && writeNoNumber.error && writeNoNumber.error.kind === 'parse', '写评论：缺 number → parse')
+check(writeEmptyBody && writeEmptyBody.error && writeEmptyBody.error.kind === 'parse', '写评论：正文空白 → parse')
+check(writeOpenCalls === 0, '写评论：参数不合格时不开会话')
 
 // ---------------------------------------------------------------------------
 // 二、房间侧：get 认 GetOpts.comments.first 并按游标翻页（上限 200，一页最多 100）

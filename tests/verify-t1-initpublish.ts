@@ -185,6 +185,13 @@ async function loadPlugin(services) {
   const connection = {
     fetch: { register: (r) => { if (r && r.path === '/api/dsws') route = r; return () => {} } },
   }
+  // 假注册表：选后端固定为 GitHub（理由见 makeFakeRegistry），房间实现仍用真的那一份。
+  let fakeRegistry = null
+  if (!services.trackerRegistry) {
+    const initMod = await import('../src/tracker/rooms/github/init-project.js')
+    fakeRegistry = makeFakeRegistry(initMod.initProject, services.subprocess)
+    services = Object.assign({}, services, { trackerRegistry: fakeRegistry })
+  }
   const ctx = {
     get: n => (n === 'connection' ? connection : services[n]),
     effect: fn => { const d = fn(); return typeof d === 'function' ? d : () => {} },
@@ -206,6 +213,34 @@ async function loadPlugin(services) {
     const env = (await res.json()).result
     if (env && typeof env.value === 'object' && env.value !== null && 'ok' in env.value) return env.value
     return env
+  }
+}
+
+// #1445：发布改经写会话调 initProject。临时目录既没有远端、也没写声明，自动识别认不出后端
+// （会话开不成 → env），所以这里注入一份假注册表把「工作区文件里人显式选过 GitHub」固定下来
+// —— 与 tests/smoke-comment-passthrough.test.ts 同一手法。选后端的结论由假注册表回答，
+// initProject 仍调真的房间实现（真 git + mock gh），发布链本身一步都没被替身掉。
+function makeFakeRegistry(initProject, subprocess) {
+  const budget = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true }
+  // 这趟会话上下文的 platform 在测试宿主里是空的（生产里由 refresh 接线注入），房间
+  // 认 gh/git 全靠 ctx.platform.resolveExecutable；把 mock 的那一份桥进去，房间才照旧
+  // 按 mock 找得到 gh（no-gh 场景靠它按预期报找不到）。
+  const platform = {
+    resolveExecutable: function (name) { return subprocess.resolveExecutable(name) },
+  }
+  const github = {
+    id: 'github',
+    describe: function () { return { backend: 'github', refId: '', name: '', url: '' } },
+    initProject: function (handle, input, ctx) {
+      const merged = Object.assign({}, ctx || {}, { platform: Object.assign({}, (ctx && ctx.platform) || {}, platform) })
+      return initProject(handle, input, merged)
+    },
+  }
+  return {
+    select: async function () { return { backendId: 'github', source: 'explicit', canWrite: true, reason: '测试注入：工作区文件里人显式选过 GitHub' } },
+    describe: function () { return github.describe() },
+    get: function (id) { return id === 'github' ? github : undefined },
+    modules: function () { return [{ id: 'github', budget: budget }] },
   }
 }
 

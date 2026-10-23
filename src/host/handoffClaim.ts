@@ -17,17 +17,13 @@
 // 不支持的后端带 kind 错误），运行时形状一字不变。
 // ---------------------------------------------------------------------------
 
-/** 组装函数收到的依赖：文件服务、目录归一、探测与注册表、执行与日志口，全由调用点显式传入。 */
+/** 组装函数收到的依赖：文件服务、目录归一、开会话的口、快照失效与日志口，全由调用点显式传入。 */
 interface HandoffClaimDeps {
   fs: any
   DEFAULT_CWD: any
   normCwd: any
-  getDetectionService: any
-  getTrackerRegistry: any
-  getPlatform: any
-  ctx: any
-  getRepoKey: any
-  runGh: any
+  /** #1445 起认领走写会话：由宿主注入开会话的函数。缺省时认领如实回环境失败，不抛、也不退回直调 gh。 */
+  openSession?: any
   setCache: any
   logCtx: any
 }
@@ -45,7 +41,7 @@ interface HandoffEntry {
  * 什么约定不能改：返回对象的三个字段名是调用点按名取的，改名调用点就拿不到。
  */
 export function createHandoffClaim(deps: HandoffClaimDeps): any {
-  const { fs, DEFAULT_CWD, normCwd, getDetectionService, getTrackerRegistry, getPlatform, ctx, getRepoKey, runGh, setCache, logCtx } = deps as any
+  const { fs, DEFAULT_CWD, normCwd, openSession, setCache, logCtx } = deps as any
   // ============ 交接文档（issue #12 BUG4 · 双重防御 · 副路径）============
   // DSH 沙箱里 fs.stat 返回的 info.mtime 形态不可控（Date / ISO 串 / 秒级 Unix / 本地化串 / null / NaN）；
   // 原 `typeof number ? mt : Date.parse(String(mt))` 在 Date 对象或不可 parse 形态都得 NaN；
@@ -142,7 +138,9 @@ export function createHandoffClaim(deps: HandoffClaimDeps): any {
   }
 
   // ============ 认领（开始此 Issue 流程 · T5 #347）============
-  // 用户在 UI 点击「确认开始」且勾选认领后调用：gh issue edit <n> --add-assignee @me。
+  // 用户在 UI 点击「确认开始」且勾选认领后调用：把这张票指派给自己。
+  // #1445 起整步走写会话 —— 认领是一次写（改指派人），后端选择、预算闸与操作上下文都归会话，
+  //   本文件不再自己探测后端、不再区分 GitHub 与别的后端、也不再直调 gh（旧的 GitHub 支正是这一票要拆掉的重影）。
   // 写操作前 UI 已二次确认（用户点击即同意），不走 approval 服务（RESEARCH-NOTES §3 结论）。
   async function handleClaim(args: any): Promise<any> {
     const n: any = args && args.number
@@ -151,66 +149,74 @@ export function createHandoffClaim(deps: HandoffClaimDeps): any {
     if (!_rawClaimCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
     const cwd: any = await normCwd(_rawClaimCwd)
     if (!n) return { ok: false, error: '缺少参数 number（ticket 号）' }
-    // 第一性原理分发
-    let _sel: any = null
+    // 写会话没接上时如实回环境失败（调用点按 kind:'env' 提示），不抛、也不退回直调 gh 的老路。
+    if (typeof openSession !== 'function') {
+      return { ok: false, error: { kind: 'env', error: '写会话没接上（宿主没有注入 openSession），这次认领没有发出。' } }
+    }
+    let opened: any = null
+    try { opened = await openSession(cwd, { write: true }) } catch (eOpen: any) { opened = null }
+    if (!opened || !opened.ok) {
+      const why: string = (opened && opened.reason) ? String(opened.reason) : 'unknown'
+      return { ok: false, error: { kind: 'env', error: '写会话没开起来（' + why + '），这次认领没有发出。' } }
+    }
+    // 仓库身份以会话交过来的为准。GitHub 房必须给出 owner/repo：认领要落到具体那张票上，认不出仓库就不发写。
+    const repoRef: any = opened.repoRef
+    if (!repoRef || typeof repoRef !== 'object' || !repoRef.backend) {
+      return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（写会话没有给出仓库身份）' } }
+    }
+    if (repoRef.backend === 'github' && String(repoRef.refId || '').indexOf('/') < 0) {
+      return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（写会话没有给出仓库身份）' } }
+    }
+    // 票号按后端取：GitHub 的票号就是纯数字（旧实现两位补零只服务于本地 Markdown 房的文件名约定，
+    //   对 GitHub 传 '07' 会查不到票）；其它后端沿用两位补零，不要因为这次统一口径把它们改坏。
+    const key: string = repoRef.backend === 'github' ? String(n) : String(n).padStart(2, '0')
+    // 面板展示用的名字默认 'me'（旧口径）；真正发给房间的认领目标另算一份：
+    //   gh 认 @me 这个写法，直接传 'me' 会被当成一个不存在的登录名；别的后端沿用 'me'。
+    let assignedTo: string = 'me'
+    let claimAs: string = repoRef.backend === 'github' ? '@me' : 'me'
+    let r: any = null
     try {
-      const svc: any = await getDetectionService()
-      if (svc && typeof svc.detect === 'function') {
-        const det: any = await svc.detect({ cwd }, { skipSkillProbes: true }) // 上报已退役不传：刚选的经写入口直达文件
-        if (det && det.selection) _sel = det.selection
-      }
-    } catch {}
-    if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
-      try {
-        const regTmp: any = await getTrackerRegistry()
-        const tmpHandle: any = { cwd }
-        const tmpCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'handoff-claim' }
-        const sel2: any = await regTmp.select(tmpHandle, tmpCtx)
-        if (sel2) _sel = sel2
-      } catch {}
-    }
-    const useTracker: any = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
-    if (useTracker) {
-      const reg: any = await getTrackerRegistry()
-      const backendId: any = _sel.backendId
-      const tracker: any = reg.get(backendId)
-      if (!tracker || typeof tracker.setAssignees !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 setAssignees" } }
-      let repoRef: any = null
-      try { repoRef = reg.describe({ cwd }, backendId) } catch {}
-      if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-      const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
-      const key: string = String(n).padStart(2, '0')
-      // 尝试取当前用户
-      let assignee: string = 'me'
-      try {
-        if (tracker.getCurrentUser) {
-          const ur: any = await tracker.getCurrentUser(repoRef, opCtx)
-          if (ur && ur.ok && ur.data && ur.data.login) assignee = String(ur.data.login)
-        }
-      } catch {}
-      // 若仍为 me，尝试 gh
-      if (assignee === 'me') {
+      r = await opened.call(async function (session: any, c: any) {
+        // ① 先问会话「我是谁」；拿不到就按上面那份兜底（与旧实现同档，认领本身不因为拿不到名字而失败）。
         try {
-          const u: any = await runGh(['api', 'user', '-q', '.login'], cwd)
-          if (u.ok && u.text.trim()) assignee = u.text.trim()
-        } catch {}
-      }
-      const r: any = await tracker.setAssignees(repoRef, key, [assignee], {}, opCtx)
-      if (!r || !r.ok) return r
-      setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) // #696 只清自己根
-      return { ok: true, number: n, assignedTo: assignee, url: '' }
+          const ur: any = await session.getCurrentUser(repoRef, c)
+          if (ur && ur.ok && ur.data && ur.data.login) { assignedTo = String(ur.data.login); claimAs = assignedTo }
+        } catch (e1: any) { /* 取名字失败不改认领 */ }
+        // ② 先读现有指派人再并集：房间的 setAssignees 是「最终集合 = 传入数组」的整批覆盖语义
+        //   （src/tracker/rooms/github/issues-write.ts:395 会把不在名单里的人逐条 --remove-assignee），
+        //   照旧实现只传 [自己] 会把别人从票上撤掉；读失败就只传自己，等价于旧的「只加不减」。
+        const next: string[] = [claimAs]
+        try {
+          const cur: any = await session.get(repoRef, key, {}, c)
+          if (cur && cur.ok && cur.data && Array.isArray(cur.data.assignees)) {
+            const seen: any = {}
+            seen[String(claimAs).toLowerCase()] = true
+            for (let i: number = 0; i < cur.data.assignees.length; i++) {
+              const a: any = cur.data.assignees[i]
+              const l: string = (a && a.login) ? String(a.login) : ''
+              if (!l || seen[l.toLowerCase()]) continue
+              seen[l.toLowerCase()] = true
+              next.push(l)
+            }
+          }
+        } catch (e2: any) { /* 读失败时只传自己，保持旧的并集下限 */ }
+        return await session.setAssignees(repoRef, key, next, {}, c)
+      })
+    } catch (e: any) {
+      const msg: string = String((e && e.message) || e).slice(0, 200)
+      return { ok: false, error: { kind: 'unknown', error: '写会话调用失败：' + msg } }
     }
-    const repo: any = await getRepoKey(cwd)
-    if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
-    const r: any = await runGh(['issue', 'edit', String(n), '--add-assignee', '@me'], cwd)
-    if (!r.ok) return { ok: false, error: r }
-    // 认领成功 → 取当前用户 login 供面板展示；只清自己根，让下次快照拉到新 assignee（#696）
-    let assignedTo: string = ''
-    const u: any = await runGh(['api', 'user', '-q', '.login'], cwd)
-    if (u.ok) assignedTo = u.text.trim()
+    if (!r || !r.ok) {
+      const errObj: any = (r && r.error) ? r.error : { kind: 'unknown', error: '认领失败（写会话没有给出原因）' }
+      return { ok: false, error: errObj }
+    }
+    // 认领成功 → 只清自己根（#696），让面板下次快照拉到新的指派人。
     setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
-    return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
+    // 链接只在 GitHub 上给（旧口径）；别的后端沿用空串。
+    const url: string = repoRef.backend === 'github' ? ('https://github.com/' + String(repoRef.refId) + '/issues/' + String(n)) : ''
+    return { ok: true, number: n, assignedTo: assignedTo, url: url }
   }
+
   function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
   // 尾参 err 标成可选：原 .js 里成功路径只传四个实参（见 loggedPhone 成功分支），少传在运行时就是 undefined，函数体开头用 `err !== undefined && err !== null` 守住；标成必选 tsc 会报 2554，改成 `?` 不产生任何运行时代码。
   function phoneLog(method: any, kind: any, t0: any, res: any, err?: any): void { try {

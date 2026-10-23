@@ -18,7 +18,7 @@
 //   3. 两个谓词的分派与话术（中英双语）和 check-chain-evaluation.ts 的注册处是同一套字面量，
 //      改文案或改档位要同步 tests/verify-chain-env-e2e.ts 的期望。
 
-// ── 只读会话的能力面（#1415 起宿主侧有真实现，见 read-session.ts；这里只写调用方依赖的形状）──
+// ── 会话的能力面（#1415 起宿主侧有真实现，见 session-opener.ts；这里只写调用方依赖的形状）──
 // 规格第 9 节：除 readBudget 外不新增能力、不改参数。所以这里只声明真用到的两条读能力；
 // 多一个字段就是扩契约，宁可另立一票。
 type ChainReadError = { kind?: string; message?: string; raw?: string }
@@ -31,7 +31,7 @@ type ChainReadSession = {
   preflight(handle: ChainRepoHandle, ctx: unknown): Promise<{ ok: boolean; error?: ChainReadError | null }>
   getCurrentUser(repo: ChainRepoRef, ctx: unknown): Promise<{ ok: boolean; data?: { login?: string } | null; error?: ChainReadError | null }>
 }
-/** 开会话成功那一份：call(fn) 把会话与这一次的 opCtx 交给能力函数（形状见 read-session.ts）。 */
+/** 开会话成功那一份：call(fn) 把会话与这一次的 opCtx 交给能力函数（形状见 session-opener.ts）。 */
 type OpenedChainSession = { ok: true; backendId?: string; call<T>(fn: (session: ChainReadSession, ctx: unknown) => Promise<T>): Promise<T> }
 /** 开会话的两种回包：成功可调能力，失败带原因（本文件不重试、不抛，只降级）。 */
 export type OpenSessionReply = OpenedChainSession | { ok: false; reason?: string; detail?: string }
