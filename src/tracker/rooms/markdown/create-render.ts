@@ -76,6 +76,10 @@ export function originalKindOf(input: CreateInput): OriginalKind | null {
   // 契约里的自定义 type 写成这四个值的老写法仍交回旧路径（#1486 起就如此）：普通票的 type 字段
   // 可以随手写 'task'，与地图子票的类型词同名，没有专用通道时不能据此改渲染形状。
   if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return null
+  // 调用方明说了这是普通票（契约 kind/type = issue）时，顺带带的 wayfinder 标签只是一枚标签：
+  // #1413 的夹具就有一条「普通票 + wayfinder:research」的输入，它要按普通票写、不能有 Type 行；
+  // 地图子票由 deck 工具单独传 typeLine 认出来，不靠标签猜。
+  if (explicit === 'issue' || explicit === 'plain-issue') return 'issue'
   // 调用点只给了一枚 wayfinder:<类型> 标签、没给 typeLine 时也认成地图子票：
   // 那枚标签是原文给子票定的类型标记，别的对象不会带它。
   if (labelsOf(v).some((label) => /^wayfinder:(research|prototype|grilling|task)$/.test(label))) return 'map-ticket'
