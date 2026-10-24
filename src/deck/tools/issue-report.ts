@@ -10,11 +10,12 @@
 // 工作路线由工具壳在成功收口处统一记（#1261 起步、#1262 铺满五个写工具：动作 report、
 // 来源 reported；去重键是 (会话, 票)，同一会话同一票后来居上）。本工具自己不再记。
 // 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记路线。
-// 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
+// 本地后端多工作单元时用 effort 或 feature 指到那一个目录（探索地图用 effort、规格体系用 feature）；远端后端忽略它。
 // #1086 加一支释放：参数 release=true 时，票照样先读回来证明它存在，然后尝试把本会话对这张票的
 // 一条误报工作条目删掉（不记任何动作，票本身的状态与认领人一个字不动）。#1349 起只撤销误报：
 // 建过、改过、关过、建过计划或挂过边的票不能释放；不再带这个参数就是老行为。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
@@ -78,14 +79,14 @@ export interface DeckIssueReportDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_report',
-  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。要撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放，票不动）。有没有记上、记在哪里，看返回里的结果。',
+  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次。职责划分：deck_issue_patch 改内容，deck_issue_report 上报处理关系；用前者关闭不等于已上报。key 填要上报的 ISSUE 编号；本地后端才需要填 effort 或 feature（地图用 effort、规格用 feature，均为 `.scratch/` 下目录名），远端忽略。撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放）。',
   parameters: {
     type: 'object',
     properties: {
       key: { type: 'string', description: '你要上报的那个 ISSUE 的编号' },
       note: { type: 'string', description: '可选带一句备注（只回显，不进链）' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_LOCATE,
       release: { type: 'boolean', description: '可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报' },
     },
     required: ['key'],
@@ -98,12 +99,6 @@ function normKey(raw: unknown): string {
   const t = String(raw === undefined || raw === null ? '' : raw).trim().replace(/^#/, '')
   if (!/^\d{1,10}$/.test(t)) return ''
   return t.replace(/^0+(?=\d)/, '')
-}
-
-/** 工作单元的目录名归一：没给就当空串（空串表示根目录，不是「根目录」这三个字）。 */
-function normEffort(raw: unknown): string {
-  if (raw === undefined || raw === null) return ''
-  return String(raw).trim()
 }
 
 /**
@@ -119,7 +114,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
 
   /**
    * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
-   * 参数先当「未知」再逐项收口（key / effortId / note 下面各收一次），回执形状由壳统一渲染。
+   * 参数先当「未知」再逐项收口（key / effort / feature / note 下面各收一次），回执形状由壳统一渲染。
    */
   async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
     // 预算起算点：入口前耗时（会话归一、选后端、探沙箱）也要算进预算（#1195）。
@@ -135,7 +130,6 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
     if (!s.ok) return shell.unsupported('deck_issue_report', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, '要上报哪一张票：把票号写在 key 里（例如 775）。', { cost: { estimated: est } })
-    const effortId = normEffort(a.effortId)
     const note = typeof a.note === 'string' ? a.note.trim().slice(0, 200) : ''
     // #1086 释放标记：只认显式 true（传字符串 'true'、1 之类一律当没带，照旧正常上报）。
     const release = a.release === true
@@ -143,7 +137,9 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_report', kind: 'write' })
     if (!pick.ok) return shell.unsupported('deck_issue_report', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
-    if (effortId) repo.effortId = effortId
+    const scope = applyMdScope(repo, a)
+    if (!scope.ok) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
+    const effortId = scope.effortId
     // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。
     let sandbox: unknown = null
     try {
@@ -160,7 +156,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       const t = sc.tracker!
       const opCtx = sc.opCtx
       const notes = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (note) notes.push('备注只回显，不记进工作路线（路线上每条只留票键、时间与动作类别）。')
       const got = typeof t.get === 'function' ? await t.get(repo, key, { comments: { first: 0 } }, opCtx) : null
       const gotTimeout = timeoutMessage(got as TransportResult)

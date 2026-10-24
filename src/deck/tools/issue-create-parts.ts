@@ -10,6 +10,8 @@
 //      模型会按旧的那一份填参数，而门禁只看功能不看文案。
 //   2. 描述文案是提示词成本：改字等于改模型看到的东西，不属于「拆文件」的范围。
 //   3. 工具名 deck_issue_create 由这里出，改名要同时改装配层、门禁与文档，不在本文件自留地里做。
+import { MD_SCOPE_CREATE } from './md-scope.js'
+
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_create',
@@ -37,7 +39,7 @@ export const definition = {
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_CREATE,
     },
     required: ['title', 'kind'],
     additionalProperties: false,

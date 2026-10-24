@@ -10,6 +10,7 @@
 // 必须带一条收口核对评论（逐张核对结论）；规格下面连实施票都没有时不算核对通过。
 // 没有「看到子票都关了顺手关」的旁路：唯一的触发条件就是收口核对通过，而这条评论本身就是核对通过的证据。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { statusOfItems } from '../shell/edge-landing.js'
@@ -82,7 +83,7 @@ export const definition = {
       },
       close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_LOCATE,
     },
     required: ['key'],
     additionalProperties: false,
@@ -107,7 +108,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
 
   /**
    * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
-   * 参数先当「未知」再逐项收口（key / effortId 与下面那几件要改的事各收一次），回执形状由壳统一渲染。
+   * 参数先当「未知」再逐项收口（key / effort / feature 与下面那几件要改的事各收一次），回执形状由壳统一渲染。
    * exec 上只声明本文件真正会读的那个字段（取消信号），其余字段一律不碰、照旧整只交给壳，
    * 所以下面取 signal 的地方不必写一串断言。
    */
@@ -131,8 +132,8 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_patch', kind: 'write' })
     if (!pick.ok) return shell.unsupported('deck_issue_patch', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
-    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
-    if (effortId) repo.effortId = effortId
+    const scope = applyMdScope(repo, a)
+    if (!scope.ok) return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
 
     const addLabels = names(a.addLabels)
     const removeLabels = names(a.removeLabels)
@@ -178,7 +179,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       const opCtx = sc.opCtx
       const items = []
       const notes = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       const touched = [key]
       // 锁内超时的传话格：锁回调里不能直接回整笔回执（那只会结束锁回调），超时原话先记在这里，
       // 锁出来以后统一回 timeoutReply；每次进锁前清零。

@@ -5,6 +5,7 @@
 // 判不出来就说「说不好」，绝不默认写成「原生层级」（判据与反证方向见 edge-landing.ts 的 classifyEdgeLanding）。
 // 校验用计数：改完按父票列一遍子票 / 再读一次依赖，把「要几条、实际几条」对一次，对不上就说 partial。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { classifyEdgeLanding, edgeEvidence, statusOfItems, applyParentEdge, applyBlockEdges, precheckBlockBatch } from '../shell/edge-landing.js'
@@ -67,7 +68,7 @@ export const definition = {
         },
       },
       workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_LOCATE,
     },
     additionalProperties: false,
   },
@@ -116,7 +117,7 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
 
   /**
    * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
-   * 参数先当「未知」再逐项收口（key / edges / effortId 下面各收一次），回执形状由壳统一渲染。
+   * 参数先当「未知」再逐项收口（key / edges / effort / feature 下面各收一次），回执形状由壳统一渲染。
    * exec 上只声明本文件真正会读的那个字段（取消信号），其余字段一律不碰、照旧整只交给壳，
    * 所以下面取 signal 的地方不必写一串断言。
    */
@@ -134,8 +135,8 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_map_link', kind: 'write' })
     if (!pick.ok) return shell.unsupported('deck_map_link', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
-    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
-    if (effortId) repo.effortId = effortId
+    const scope = applyMdScope(repo, a)
+    if (!scope.ok) return shell.unsupported('deck_map_link', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
 
     // exec 上那个取消信号。契约层还没给 exec 标形状（见 #1040），三处 exec.signal 各按纯类型断言收口：
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
@@ -148,7 +149,7 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
       // 逐条明细与给 AI 看的注记：装的都是运行时真值（每一行的形状由下面各处现拼，这里不细究）。
       const items: Array<Record<string, unknown>> = []
       const notes: string[] = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       const touched: string[] = []
       let done = 0
       // #898：设置阻塞边是整批替换语义，同一个票号在一次调用里出现多次时，

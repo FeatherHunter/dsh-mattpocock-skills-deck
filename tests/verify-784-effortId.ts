@@ -1,7 +1,7 @@
-// verify-784-effortId.ts —— #784 回归：八个带 effortId 的 deck 工具逐项核对
+// verify-784-effortId.ts —— #784 回归（#1480 T2 改写）：八个 deck 工具的 effort / feature 参数逐项核对
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-784-effortId.ts，可独立运行。
 // 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，说明符原样（budget.js / tool-cost.js
-// 是构建产物，旁边没有同名 .ts，钩子不会改指）；只加类型标注，判据一字不动。
+// 是构建产物，旁边没有同名 .ts，钩子不会改指）；只加类型标注，判据按 #1480 T2 的口径更新。
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -16,7 +16,7 @@ let total = 0
 const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 function makeWS() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-784-7-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-784-8-'))
   for (const eff of ['alpha', 'beta']) {
     const dir = path.join(root, '.scratch', eff)
     fs.mkdirSync(path.join(dir, 'issues'), { recursive: true })
@@ -41,7 +41,7 @@ function makeWS() {
 }
 
 async function main(): Promise<void> {
-  console.log('#784 八工具验收（八个带 effortId 的工具，deck_context 不带 effortId 不在内）')
+  console.log('#784 八工具验收（#1480 T2：effort / feature 两个本地后端参数；deck_context 不带）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
@@ -55,99 +55,111 @@ async function main(): Promise<void> {
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
   const handle = { cwd: ws.rootPosix, refId: '.scratch' }
-  // #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件，文件里写着选了谁。
-  // 这里原来写的是 registry.bind(handle, 'markdown')，注册表的绑定口子已整段删掉（见
-  // src/tracker/registry/core.ts 文件头），夹具跟着改用工作区文件表达同一件事。
   chooseWorkspace(ws.rootPosix, 'markdown')
   // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
   ledger.ensureBackend('github', { kind: 'two-buckets' })
   ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id) { return t.get(String(id)) || null }, save(id, s) { t.set(String(id), s) } } })()
-  // decideBackend：生产装配总是给（见 src/refresh/registry/deck-tool-bridge.ts 的 decideBackend: decideBackendFn），
-  //   壳拿不到它时一律回「判定出口这次没装上」。夹具照生产的接法给上判定出口桩，桩直接调生产判定出口
-  //   读上面那份工作区文件（写用途只认文件里的记录，这正是 #1003 契约期望行为第 4 条）。
   const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: ws.ctx, handleFor: () => handle, log: { fire: () => {} }, now: () => clock, planStore, decideBackend: makeDecideStub(registry) }
-  const exec = { agent: { session: { id: 's-784-7', cwd: ws.rootPosix } } }
+  const exec = { agent: { session: { id: 's-784-8', cwd: ws.rootPosix } } }
 
+  // ① 参数表：八个工具都有 effort 与 feature，都是可选字符串；deck_context 一个都不带。
   const files = [
-    ['src/deck/tools/issue-get.ts', 'createDeckIssueGet', 'deck_issue_get'],
-    ['src/deck/tools/map-snapshot.ts', 'createDeckMapSnapshot', 'deck_map_snapshot'],
-    ['src/deck/tools/issue-list.ts', 'createDeckIssueList', 'deck_issue_list'],
-    ['src/deck/tools/issue-create.ts', 'createDeckIssueCreate', 'deck_issue_create'],
-    ['src/deck/tools/map-plan-create.ts', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
-    ['src/deck/tools/map-link.ts', 'createDeckMapLink', 'deck_map_link'],
-    ['src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', 'deck_issue_patch'],
+    ['src/deck/tools/issue-get.ts', 'createDeckIssueGet', 'deck_issue_get', 'locate'],
+    ['src/deck/tools/map-snapshot.ts', 'createDeckMapSnapshot', 'deck_map_snapshot', 'locate'],
+    ['src/deck/tools/issue-list.ts', 'createDeckIssueList', 'deck_issue_list', 'locate'],
+    ['src/deck/tools/issue-create.ts', 'createDeckIssueCreate', 'deck_issue_create', 'create'],
+    ['src/deck/tools/map-plan-create.ts', 'createDeckMapPlanCreate', 'deck_map_plan_create', 'create'],
+    ['src/deck/tools/map-link.ts', 'createDeckMapLink', 'deck_map_link', 'locate'],
+    ['src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', 'deck_issue_patch', 'locate'],
   ]
   const tools = {}
-  let firstDesc = ''
-  for (const [f, fac, name] of files) {
+  const descs = { locate: { effort: '', feature: '' }, create: { effort: '', feature: '' } }
+  for (const [f, fac, name, mode] of files) {
     const mod = await imp(f)
     tools[name] = mod[fac](deps)
-    const p = tools[name].definition.parameters.properties.effortId
-    check(!!p, name + ' 参数表有 effortId')
-    check(p && p.type === 'string', name + ' effortId 是可选字符串（不在 required 里：' + JSON.stringify(tools[name].definition.parameters.required) + '）')
-    check(!(tools[name].definition.parameters.required || []).includes('effortId'), name + ' effortId 不在必填里')
-    if (!firstDesc) firstDesc = p.description
-    check(p.description === firstDesc, name + ' 参数说明与第一份逐字一致')
+    const props = tools[name].definition.parameters.properties
+    const required = tools[name].definition.parameters.required || []
+    check(!!props.effort && props.effort.type === 'string', name + ' 参数表有 effort（可选字符串）')
+    check(!!props.feature && props.feature.type === 'string', name + ' 参数表有 feature（可选字符串）')
+    check(!required.includes('effort') && !required.includes('feature'), name + ' effort 与 feature 都不在必填里')
+    if (!descs[mode].effort) descs[mode].effort = props.effort.description
+    if (!descs[mode].feature) descs[mode].feature = props.feature.description
+    check(props.effort.description === descs[mode].effort, name + ' effort 说明与本类第一份逐字一致')
+    check(props.feature.description === descs[mode].feature, name + ' feature 说明与本类第一份逐字一致')
   }
-  // 与 report 逐字一致
+  // 报告工具直接导出 definition（不经工厂），单独核一遍，它与读类同一套说明。
   const repMod = await imp('src/deck/tools/issue-report.ts')
-  const repDesc = repMod.definition.parameters.properties.effortId.description
-  check(firstDesc === repDesc, '八个带 effortId 的工具的参数说明逐字一致（' + firstDesc + '）')
+  const repProps = repMod.definition.parameters.properties
+  check(!!repProps.effort && !!repProps.feature, 'deck_issue_report 参数表有 effort 与 feature')
+  check(repProps.effort.description === descs.locate.effort && repProps.feature.description === descs.locate.feature, 'deck_issue_report 的说明与读类工具逐字一致')
+  // 两类说明必须各说各的场景，不能混成一句。
+  check(descs.locate.effort !== descs.create.effort, '读类与建类的 effort 说明不是同一句（读=全仓库找，建=按父票或标题决定目录）')
+  check(descs.locate.effort.includes('<effort>') && descs.locate.feature.includes('<feature-slug>'), '说明里点名原文占位符 <effort> / <feature-slug>')
+  // 上下文工具不该长这两个参数。
+  const ctxMod = await imp('src/deck/tools/context.ts')
+  const ctxProps = ctxMod.createDeckContext(deps).definition.parameters.properties
+  check(!ctxProps.effort && !ctxProps.feature, 'deck_context 不带 effort / feature')
 
+  // ② 行为：两个参数都落到同一个 repo.effortId，按目录定位。
   // 读票
-  const gA = await tools.deck_issue_get.run(exec, { key: '01', effortId: 'alpha' })
-  const gB = await tools.deck_issue_get.run(exec, { key: '01', effortId: 'beta' })
-  check(gA.status === 'ok' && String(gA.data.ticket.title).includes('Alpha'), '读票 alpha 落在 alpha')
-  check(gB.status === 'ok' && String(gB.data.ticket.title).includes('Beta'), '读票 beta 落在 beta')
-  // 不带与今天一致：读回落第一份
+  const gA = await tools.deck_issue_get.run(exec, { key: '01', feature: 'alpha' })
+  const gB = await tools.deck_issue_get.run(exec, { key: '01', effort: 'beta' })
+  check(gA.status === 'ok' && String(gA.data.ticket.title).includes('Alpha'), 'feature=alpha 读票落在 alpha')
+  check(gB.status === 'ok' && String(gB.data.ticket.title).includes('Beta'), 'effort=beta 读票落在 beta')
   const g0 = await tools.deck_issue_get.run(exec, { key: '01' })
   check(g0.status === 'ok' && String(g0.data.ticket.title).includes('Alpha'), '读票不带时回落第一份（与今天一致）')
+  // 互斥与非法目录名：都在落盘前拒绝。
+  const both = await tools.deck_issue_get.run(exec, { key: '01', feature: 'alpha', effort: 'alpha' })
+  check(both.ok === false && String(both.text || both.message || '').includes('只能填一个'), '两个参数同时给 → bad-args（只填一个）')
+  const bad = await tools.deck_issue_get.run(exec, { key: '01', feature: '../escape' })
+  check(bad.ok === false && String(bad.text || bad.message || '').includes('目录名'), '非法目录名 → bad-args（拒绝 ..）')
 
   // 地图快照
-  const sA = await tools.deck_map_snapshot.run(exec, { key: '00', effortId: 'alpha' })
-  const sB = await tools.deck_map_snapshot.run(exec, { key: '00', effortId: 'beta' })
-  check(sA.status === 'ok' && sA.data.children.length === 1 && String(sA.data.children[0].title).includes('Alpha'), '快照 alpha 只有 Alpha 的子票')
-  check(sB.status === 'ok' && sB.data.children.length === 1 && String(sB.data.children[0].title).includes('Beta'), '快照 beta 只有 Beta 的子票')
+  const sA = await tools.deck_map_snapshot.run(exec, { key: '00', effort: 'alpha' })
+  const sB = await tools.deck_map_snapshot.run(exec, { key: '00', feature: 'beta' })
+  check(sA.status === 'ok' && sA.data.children.length === 1 && String(sA.data.children[0].title).includes('Alpha'), '快照 effort=alpha 只有 Alpha 的子票')
+  check(sB.status === 'ok' && sB.data.children.length === 1 && String(sB.data.children[0].title).includes('Beta'), '快照 feature=beta 只有 Beta 的子票')
 
   // 列表：带 alpha 只回 alpha 的行
-  const lA = await tools.deck_issue_list.run(exec, { state: 'all', effortId: 'alpha' })
-  check(lA.status === 'ok' && lA.data.issues.length >= 2 && lA.data.issues.every((t) => t.effortId === 'alpha'), '列表带 alpha 只回 alpha 的行（' + lA.data.returned + ' 行）')
+  const lA = await tools.deck_issue_list.run(exec, { state: 'all', feature: 'alpha' })
+  check(lA.status === 'ok' && lA.data.issues.length >= 2 && lA.data.issues.every((t) => t.effortId === 'alpha'), '列表 feature=alpha 只回 alpha 的行（' + lA.data.returned + ' 行）')
   const l0 = await tools.deck_issue_list.run(exec, { state: 'all' })
   check(l0.status === 'ok' && l0.data.total >= 4, '列表不带时两份一起（' + l0.data.total + ' 行，与今天一致）')
 
-  // 建票：带 beta 建到 beta
-  const cB = await tools.deck_issue_create.run(exec, { title: 'Beta 新票', kind: 'issue', effortId: 'beta' })
-  check(cB.status === 'ok' && cB.data.ticket.effortId === 'beta', '建票带 beta 落在 beta（key=' + (cB.data.ticket && cB.data.ticket.key) + '）')
-  // 建票不带：在多 effort 下必须 conflict（与今天逐字一致，不许改成猜）
+  // 建票：带 beta 建到 beta；不带时今天仍照旧冲突（多 effort 下不猜目录，留给 #1480 T3 改成按标题定目录）。
+  const cB = await tools.deck_issue_create.run(exec, { title: 'Beta 新票', kind: 'issue', feature: 'beta' })
+  check(cB.status === 'ok' && cB.data.ticket.effortId === 'beta', '建票 feature=beta 落在 beta（key=' + (cB.data.ticket && cB.data.ticket.key) + '）')
+  const cBoth = await tools.deck_issue_create.run(exec, { title: '两参数新票', kind: 'issue', feature: 'beta', effort: 'beta' })
+  check(cBoth.ok === false && String(cBoth.text || cBoth.message || '').includes('只能填一个'), '建票两个参数同时给 → bad-args，不落盘')
   const c0 = await tools.deck_issue_create.run(exec, { title: '不带 scope 的新票', kind: 'issue' })
   check(c0.ok === false, '建票不带时照旧失败（conflict，与今天一致）：' + String(c0.text).slice(0, 80))
 
   // 改票：带 beta 改 beta 的 01
-  const pB = await tools.deck_issue_patch.run(exec, { key: '01', effortId: 'beta', comment: '784 七项验收' })
-  check(pB.status === 'ok' && (pB.items || []).some((i) => i.step === 'comment' && i.status === 'ok'), '改票带 beta 落在 beta')
+  const pB = await tools.deck_issue_patch.run(exec, { key: '01', effort: 'beta', comment: '784 T2 验收' })
+  check(pB.status === 'ok' && (pB.items || []).some((i) => i.step === 'comment' && i.status === 'ok'), '改票 effort=beta 落在 beta')
 
   // 补边：在 beta 内给新建的那张票加阻塞边（同 effort 内）
   const newKey = String(cB.data.ticket.key)
-  const linkB = await tools.deck_map_link.run(exec, { key: newKey, effortId: 'beta', blockedBy: ['01'] })
-  check(linkB.status === 'ok', '补边带 beta 落在 beta（' + linkB.status + '）')
+  const linkB = await tools.deck_map_link.run(exec, { key: newKey, feature: 'beta', blockedBy: ['01'] })
+  check(linkB.status === 'ok', '补边 feature=beta 落在 beta（' + linkB.status + '）')
 
   // 批量建图：带 alpha 建到 alpha
-  const plan = await tools.deck_map_plan_create.run(exec, { title: 'Alpha 批量图', effortId: 'alpha', planId: 'plan-784-7-a', children: [{ key: 'b1', title: '批量子票一', kind: 'issue' }] })
-  check(plan.status === 'ok' && plan.data.mapKey, '批量建图带 alpha 建成（map=' + (plan.data && plan.data.mapKey) + '）')
-  const snapAfter = await tools.deck_map_snapshot.run(exec, { key: plan.data.mapKey, effortId: 'alpha' })
+  const plan = await tools.deck_map_plan_create.run(exec, { title: 'Alpha 批量图', effort: 'alpha', planId: 'plan-784-8-a', children: [{ key: 'b1', title: '批量子票一', kind: 'issue' }] })
+  check(plan.status === 'ok' && plan.data.mapKey, '批量建图 effort=alpha 建成（map=' + (plan.data && plan.data.mapKey) + '）')
+  const snapAfter = await tools.deck_map_snapshot.run(exec, { key: plan.data.mapKey, effort: 'alpha' })
   check(snapAfter.status === 'ok', '批量建的图能在 alpha 里读回来')
 
-  // 远端忽略：用探针远端验证带不带 effortId 行为一致（后端忽略它）
-  // 探针远端只用来验 effortId 被远端忽略，不不断言额度，所以按离网口径声明（注册表只验形状，不按口径限流）。
+  // 远端忽略：用探针远端验证带不带 effort / feature 行为一致（后端忽略它）
   const probe = { id: 'probe-remote', label: '探针远端', matches: async () => false, budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ id: 'probe-remote', async create(repo, input) { return { ok: true, data: { key: 'P1', title: input.title, state: 'open', body: '', labels: [], assignees: [], effortId: '' } } }, async get(repo, key) { return { ok: true, data: { key: String(key), title: 'P1', state: 'open', body: '', labels: [], assignees: [], parentKey: null, effortId: '' } } }, async list(repo) { return { ok: true, data: [] } } }) }
   const dp = registry.register(probe)
-  chooseWorkspace(ws.rootPosix, 'probe-remote')   // 把工作区文件改写成选了探针远端（等同旧写法 registry.bind(handle, 'probe-remote')）
+  chooseWorkspace(ws.rootPosix, 'probe-remote')
   const r1 = await tools.deck_issue_get.run(exec, { key: 'P1' })
-  const r2 = await tools.deck_issue_get.run(exec, { key: 'P1', effortId: 'alpha' })
-  check(r1.status === 'ok' && r2.status === 'ok' && r1.text === r2.text, '远端后端带不带 effortId 行为一致（忽略它）')
+  const r2 = await tools.deck_issue_get.run(exec, { key: 'P1', feature: 'alpha' })
+  const r3 = await tools.deck_issue_get.run(exec, { key: 'P1', effort: 'beta' })
+  check(r1.status === 'ok' && r2.status === 'ok' && r3.status === 'ok' && r1.text === r2.text && r1.text === r3.text, '远端后端带不带 effort / feature 行为一致（忽略它）')
   dp.dispose()
-  chooseWorkspace(ws.rootPosix, 'markdown')   // 改回本地 Markdown（旧写法 registry.bind(handle, 'markdown')）
+  chooseWorkspace(ws.rootPosix, 'markdown')
 
   ws.cleanup()
   try { dispose.dispose() } catch (e) {}
