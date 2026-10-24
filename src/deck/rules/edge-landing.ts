@@ -156,6 +156,32 @@ export function bodyRefersTo(body: unknown, key: unknown): boolean {
 }
 
 /**
+ * 原文布局的阻塞行有没有指向某张票：本地 Markdown 按原文（issue-tracker-local.md:27）把阻塞关系
+ * 写成 `Blocked by: NN, NN` 一行，编号不带 #；实施票模板的可见行是加粗的 `**Blocked by:** NN`。
+ *
+ * 为什么只在这一行里认裸编号：正文别处的数字仍不许算引用 —— 幂等锚里全是数字，松判会把每条边
+ * 都误判成「落在正文行」（与 bodyRefersTo 开头那条教训同源）。两处判据合起来才是「正文里写着这条依赖」。
+ */
+export function blockedByLineRefersTo(body: unknown, key: unknown): boolean {
+  const text = str(body)
+  const k = str(key).trim().replace(/^#/, '')
+  if (!text || !/^\d+$/.test(k)) return false
+  // 票号可能带前导零（文件里的 NN 与契约里的 N 是同一张票），比较时一律按数值。
+  const want = String(Number(k))
+  const re = /^[ \t]*(?:\*\*)?Blocked[ \t]+by[ \t]*[:：][ \t]*(?:\*\*)?[ \t]*([^\r\n]*)$/gim
+  let m = re.exec(text)
+  while (m !== null) {
+    const parts = String(m[1] || '').split(/[,，、]+/)
+    for (const part of parts) {
+      const num = /^[ \t]*#?(\d+)[ \t]*$/.exec(part)
+      if (num && String(Number(num[1])) === want) return true
+    }
+    m = re.exec(text)
+  }
+  return false
+}
+
+/**
  * 写完之后读回一次，判这一条边落在哪一列。判据只有两样：契约返回的结构字段、票的正文。
  *
  * 阻塞边能判得更细，靠的是一条真实的证据：**这条依赖在不在票的正文里**。
@@ -194,7 +220,9 @@ export function classifyEdgeLanding(op: string, target: unknown, after: unknown,
   } catch (e) {
     body = ''
   }
-  const bodyHas = bodyRefersTo(body, want)
+  // #1489：原文布局把阻塞关系写成 `Blocked by: NN` 一行（编号不带 #），这一行也是正文里的证据；
+  // 父子边仍只认带标记的引用（`#NN`、`issues/NN`），它的正文写法本来就带标记。
+  const bodyHas = op === 'block' ? (bodyRefersTo(body, want) || blockedByLineRefersTo(body, want)) : bodyRefersTo(body, want)
   if (op === 'block') {
     const inField = rel.blockedBy.indexOf(want) >= 0
     if (inField && !bodyHas) return { kind: 'native', ok: true, text: owner

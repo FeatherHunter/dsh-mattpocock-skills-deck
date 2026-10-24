@@ -30,7 +30,7 @@ export {
 
 // —— 边的落点判定 ——
 export type { EdgeEvidence, EdgeVerdict, Relations } from './edge-landing.js'
-export { EDGE_LANDING, bodyRefersTo, classifyEdgeLanding, edgeVerdict, landingOf, relationsOf } from './edge-landing.js'
+export { EDGE_LANDING, blockedByLineRefersTo, bodyRefersTo, classifyEdgeLanding, edgeVerdict, landingOf, relationsOf } from './edge-landing.js'
 
 // —— 依赖图上的算法 ——
 export type { BlockBatchInput, BlockBatchVerdict } from './dependency-graph.js'

@@ -122,6 +122,14 @@ async function edgeLanding() {
   check(native.kind === 'native', '阻塞边：字段里有、正文里没有 → 原生依赖边')
   const bodyLine = e.classifyEdgeLanding('block', '3', { issue: { body: 'Blocked by: #3', parentKey: '' }, dependencies: { blockedBy: [{ key: '3' }] } })
   check(bodyLine.kind === 'body-line', '阻塞边：字段里与正文里都有 → 正文行')
+  // #1489：原文布局（issue-tracker-local.md:27）的阻塞行是 `Blocked by: NN, NN`，不带 #。
+  // 这一行同样是「正文里写着这条依赖」；不认它，本地 Markdown 的阻塞边会被误报成原生依赖边。
+  check(e.blockedByLineRefersTo('Blocked by: 3', '3'), '原文布局的阻塞行写裸编号也算正文里的引用')
+  check(e.blockedByLineRefersTo('Blocked by: 03, 4', '3'), '阻塞行里逗号分隔的多张票逐个认')
+  check(e.blockedByLineRefersTo('**Blocked by:** 03', '3'), '实施票模板的加粗阻塞行也认')
+  check(!e.blockedByLineRefersTo('Blocked by: 13', '3') && !e.blockedByLineRefersTo('正文里写着 3', '3'), '阻塞行里的 13 不算 3、没有这一行时也不算')
+  const originalLine = e.classifyEdgeLanding('block', '3', { issue: { body: 'Blocked by: 3\n', parentKey: '' }, dependencies: { blockedBy: [{ key: '3' }] } })
+  check(originalLine.kind === 'body-line', '原文布局：阻塞行写裸编号、字段里也有 → 正文行')
   const missing = e.classifyEdgeLanding('block', '3', { issue: { body: 'x' }, dependencies: { blockedBy: [] } })
   check(missing.kind === 'missing', '阻塞边：读回来了、两处都没有 → 「不在票上」（不再混成「没读回来」）')
   check(e.landingOf('block', { kind: 'missing' }) === e.EDGE_LANDING.READ_BACK_MISSING, '「读回来了、没有」这一档有自己的话，不说成「没读回来」')
