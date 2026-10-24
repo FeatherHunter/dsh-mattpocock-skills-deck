@@ -18,19 +18,20 @@ export const SUGGEST_STYLE_TEXT: string = [
   '.dsws-sugg-layer{display:flex;flex-direction:column;align-items:center;gap:' + SUGGEST_APPEARANCE.groupGapPx + 'px}',
   // 选项行：居中横排，窄栏自动换行；每颗按钮自己收宽度，不把整行撑出视口。
   '.dsws-sugg-row{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:' + SUGGEST_APPEARANCE.pillGapPx + 'px;max-width:100%;pointer-events:none}',
-  // 选项药丸：C 版玻璃质感（渐变底、内高光、细描边、文字投影）；超长提示词单行省略。
-  // 里面按横排两段摆：简介不压缩、提示词吃掉剩下的宽度并单行省略（#1451），所以这里用 inline-flex。
-  '.dsws-sugg-pill{position:relative;pointer-events:auto;box-sizing:border-box;display:inline-flex;align-items:center;gap:' + SUGGEST_APPEARANCE.pillIntroGapPx + 'px;max-width:' + SUGGEST_APPEARANCE.pillMaxWidthPx + 'px;font:inherit;font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:' + SUGGEST_APPEARANCE.pillLineHeight + ';padding:' + SUGGEST_APPEARANCE.pillPadY + 'px ' + SUGGEST_APPEARANCE.pillPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.pillRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.pillBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';text-shadow:' + SUGGEST_APPEARANCE.pillTextShadow + ';cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .14s ease,border-color .14s ease,box-shadow .14s ease}',
+  // 选项药丸：C 版玻璃质感（渐变底、内高光、细描边、文字投影）；框里只印简介（#1451 后续），
+  // 完整提示词点选时才填进输入框。单行省略留着兜底（旧事件没有简介时退回显示提示词）。
+  '.dsws-sugg-pill{position:relative;pointer-events:auto;box-sizing:border-box;max-width:' + SUGGEST_APPEARANCE.pillMaxWidthPx + 'px;font:inherit;font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:' + SUGGEST_APPEARANCE.pillLineHeight + ';padding:' + SUGGEST_APPEARANCE.pillPadY + 'px ' + SUGGEST_APPEARANCE.pillPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.pillRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.pillBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';text-shadow:' + SUGGEST_APPEARANCE.pillTextShadow + ';cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .14s ease,border-color .14s ease,box-shadow .14s ease}',
   // 左上角那团柔光：C 版药丸的「玻璃反光」，不参与布局、不吃事件。
   '.dsws-sugg-pill::before{content:"";position:absolute;left:4%;top:0;width:56%;height:50%;border-radius:50%;pointer-events:none;background:radial-gradient(ellipse 62% 58% at 34% 28%,rgba(255,255,255,.20),transparent 72%)}',
   '.dsws-sugg-pill:hover{border-color:' + SUGGEST_APPEARANCE.pillHoverBorder + ';box-shadow:' + SUGGEST_APPEARANCE.pillHoverShadow + '}',
   '.dsws-sugg-pill:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
-  // 简介这段：说清这一步做什么，加粗、不参与压缩，宽度不够时先截提示词。
-  '.dsws-sugg-intro{flex:none;font-weight:600;letter-spacing:.01em}',
-  // 提示词这段：吃掉简介剩下的宽度，超长单行省略；min-width:0 是 flex 子项能缩的必要条件。
-  '.dsws-sugg-cmd{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.86}',
-  // 斜杠命令与普通提示词字面区分（原型 C 版同一处做法）。
-  '.dsws-sugg-pill.cmd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}',
+  // 简介这段：说清这一步做什么，加粗；它是框里唯一的文字。
+  '.dsws-sugg-intro{font-weight:600;letter-spacing:.01em}',
+  // 选项框的定位壳：给悬停浮层当锚点（浮层按「框顶边正上方」摆，不跟鼠标走）。
+  '.dsws-sugg-pill-wrap{position:relative;display:inline-flex;pointer-events:auto}',
+  // 悬停浮层：平时透明，悬停或聚焦时在框正上方浮现；内容是推荐理由；不吃鼠标事件所以不闪烁。
+  '.dsws-sugg-pop{position:absolute;bottom:calc(100% + ' + SUGGEST_APPEARANCE.popGapPx + 'px);left:50%;transform:translateX(-50%) translateY(3px);width:max-content;max-width:' + SUGGEST_APPEARANCE.popMaxWidthPx + 'px;padding:' + SUGGEST_APPEARANCE.popPadY + 'px ' + SUGGEST_APPEARANCE.popPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.popRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.pillBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:1.5;text-align:left;white-space:normal;opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;z-index:3}',
+  '.dsws-sugg-pill-wrap.dsws-sugg-show-pop .dsws-sugg-pop{opacity:1;transform:translateX(-50%) translateY(0)}',
   // 关闭按钮行：整行居中；按钮平时半透明，悬停或聚焦才实。
   '.dsws-sugg-xrow{position:relative;z-index:2;display:flex;justify-content:center;margin-top:' + SUGGEST_APPEARANCE.closeRowMarginTopPx + 'px;pointer-events:none}',
   '.dsws-sugg-close{pointer-events:auto;font:inherit;font-size:' + SUGGEST_APPEARANCE.closeFontPx + 'px;line-height:1.5;padding:' + SUGGEST_APPEARANCE.closePadY + 'px ' + SUGGEST_APPEARANCE.closePadX + 'px;border-radius:' + SUGGEST_APPEARANCE.pillRadiusPx + 'px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#9aa4b2);cursor:pointer;opacity:' + SUGGEST_APPEARANCE.closeIdleOpacity + ';transition:opacity .12s ease,background .12s ease}',
@@ -47,7 +48,8 @@ export const SUGGEST_STYLE_TEXT: string = [
   // 亮色主题：玻璃质感换成浅底半透明，去掉深色文字投影（深色主题保持 C 版原样）。
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill{background:' + SUGGEST_APPEARANCE.lightPillBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + ';text-shadow:none}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill:hover{border-color:' + SUGGEST_APPEARANCE.lightPillHoverBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillHoverShadow + '}',
+  'body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + SUGGEST_APPEARANCE.lightPillBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + '}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-bub{background:' + SUGGEST_APPEARANCE.lightBubbleBg + ';border-color:' + SUGGEST_APPEARANCE.lightBubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightBubbleGlow + '}',
   // 系统要求减少动效：去掉过渡与淡出动画（小泡由引擎直接跳过）。
-  '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close{transition:none}.dsws-sugg-layer.dsws-sugg-fading{animation-duration:1ms}}',
+  '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close,.dsws-sugg-pop{transition:none}.dsws-sugg-layer.dsws-sugg-fading{animation-duration:1ms}}',
 ].join('\n')

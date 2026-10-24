@@ -31,8 +31,13 @@ export const SUGGEST_APPEARANCE = {
   pillPadX: 12,
   pillGapPx: 6,
   pillMaxWidthPx: 360,
-  /** 一颗选项里「简介」与「提示词」之间的间距（#1451 加了简介这一格）。 */
-  pillIntroGapPx: 6,
+  /** 悬停浮层：底边离选项框顶边的距离、最大宽度、圆角与内边距（#1451 后续：选项框上只留
+   *  简介，理由收进框正上方的浮层，不跟鼠标走）。 */
+  popGapPx: 6,
+  popMaxWidthPx: 280,
+  popRadiusPx: 8,
+  popPadY: 6,
+  popPadX: 10,
   /** 选项行与关闭按钮行之间的间距。 */
   groupGapPx: 7,
   closeRowMarginTopPx: 10,
