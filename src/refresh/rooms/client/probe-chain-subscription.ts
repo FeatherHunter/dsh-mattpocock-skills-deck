@@ -61,10 +61,22 @@ const _chainKeyOfState = function (state: any): string {
   const ws: string = (typeof wsKeyOf === 'function' ? wsKeyOf(state && state.cwd) : String((state && state.cwd) || ''));
   return (typeof getChainCacheKey === 'function' ? getChainCacheKey(ws, bid, lg) : String(ws || '') + '|' + String(bid) + '|' + String(lg || ''));
 };
+// #1492：在途表与序号表按「链共享键 + 会话号」记。链共享键只到工作区、后端、语言（#324/#653 的设计：
+//   快照本身要跨会话共享），但「一次请求在不在飞」「这个键上最新的是哪一次」是会话自己的事：
+//   两个会话同打一个工作区时共用一把键，后发的会顶掉先发的（先发的回包被误判过期），
+//   一个会话也会搭上另一个会话那趟在途请求（拿到别人的回包写进自己的状态）。
+//   没有会话号时保持原键：拿不到会话上下文的调用方读的就是共享快照（#669「打开检查页不联网」）。
+const _chainScopedKeyOf = function (state: any, baseKey: string): string {
+  const sid: string = String((state && state.sessionId) || '');
+  return sid ? baseKey + '|sid:' + sid : baseKey;
+};
 // 这一次回包还算不算数（两问都过才算，见上面那段）。判不出来时一律当「不算数」——宁可少写一次，
 //   也不让一份判不出来源的回包去盖会话状态；下一次探测（挂载时那次、或 8 秒那一拍）会照常补上。
 const _chainRespStale = function (key: string, seq: number, state: any): boolean {
-  try { if (_chainLatestByKey.get(key) !== seq) return true; } catch (eS) { return true; }
+  // #1492：序号按会话分键查（同一个键上两个会话各记各的，互不顶掉）；拿不到会话号时就是原键。
+  let seqKey: string = key;
+  try { seqKey = _chainScopedKeyOf(state, key); } catch (eSk) { return true; }
+  try { if (_chainLatestByKey.get(seqKey) !== seq) return true; } catch (eS) { return true; }
   try { return _chainKeyOfState(state) !== key; } catch (eK) { return true; }
 };
 // #653：链的在途去重与链快照缓存一律按工作区键（wsKeyOf）——同一个仓库里，根会话与子目录会话
@@ -136,14 +148,16 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
   const _backendIdForChain: string = (st.selection && st.selection.backendId) || '';
   const _langForChain: string = (typeof promptLang === 'function' ? promptLang() : 'zh');
   const norm: string = _chainKeyOfState(st);
+  // #1492：在途与序号两张表用「共享键 + 本会话号」；缓存仍用共享键（快照要跨会话复用）。
+  const _scopedKey: string = _chainScopedKeyOf(st, norm);
   // #1483：跨会话补问的第二次请求要绕过本地缓存（否则又直接命中同一份），但不 force 宿主
   //   ——宿主自己按退避裁定，命中缓存时会按本会话重算依赖沙箱许可的那几行。
   const _skipLocalCache: boolean = !!(opts && opts.skipLocalCache);
   if (!force) {
     // #1483：跨会话补问必须自己发一次。在途表里挂的可能是别的会话那一趟，搭车只会拿到别人的回包、
     //   写进别人的会话状态，本会话这一行永远纠正不过来，而补问守卫已经置位（审阅 c2）。
-    const inflight: any = _skipLocalCache ? null : _chainInflightByCwd.get(norm);
-    if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(norm) }); } catch (eL) {}; return inflight; }
+    const inflight: any = _skipLocalCache ? null : _chainInflightByCwd.get(_scopedKey);
+    if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(_scopedKey) }); } catch (eL) {}; return inflight; }
     // 链共享缓存命中即秒显（#324 新会话首见即秒显；#653 起按工作区键，子目录会话秒显根会话的链）
     // #1483：缓存条目记着「这份是哪个会话求出来的」。同一个会话照旧秒显、不再联网；
     //   不同会话（含旧版本没记会话号的条目）先把旧快照显示出来，再在后台补问一次宿主——
@@ -216,7 +230,7 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
   // 在途登记：这一次请求的序号记在这把键上（#669 第 4 件）。发出去就记，
   //   回包时凭它跟「这个键上最新那次的序号」比一次，比不过就是要丢的那一次（见下面那段竞态说明）。
   const _mySeq: number = (_chainSeqN += 1);
-  try { _chainLatestByKey.set(norm, _mySeq); } catch (eSeq) {}
+  try { _chainLatestByKey.set(_scopedKey, _mySeq); } catch (eSeq) {}
   const p: any = host.call('wf.chain', args).then(function (res: any): any {
     try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - chainT0, ok: true, kind: 'chain' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }); } catch (eL) {}
     // 竞态守卫（#669 第 4 件，2026-09-21 重写）：这一次回来的读数还算不算数，按两问判 ——
@@ -242,6 +256,10 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
     }
     if (res && res.ok && (res.fullSnapshot || res.snapshot)) {
       const snap: any = res.fullSnapshot || res.snapshot;
+      // #1492：宿主补算失败时回包带 sessionPatchFailed——里面可能还有别的会话量出的行。
+      //   会话状态照常铺（总比没有强），但不写共享缓存：否则会把别人的判定记成本会话产出，
+      //   别的会话读到后当成自己算的，错误一直传下去。守卫也放开，让下一次挂载再问一次。
+      const _patchFailed: boolean = !!(res && res.sessionPatchFailed === true);
       st.chainSnapshot = snap;
       st.chain = res.chain;
       st.fullChain = res.fullChain || null;
@@ -251,7 +269,7 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
       st.chainLangLoaded = _langForChain; // #529：记下本次快照语言，语言切换时凭它判定重取
       // 落共享缓存，供同工作区其他会话秒显
       // #1483：落缓存时记下产出会话号，供别的会话读到后判断要不要按自己的许可补问。
-      try { if (typeof setCachedChain === 'function') setCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain, snap, String(st.sessionId || '')); } catch (eSet) {}
+      if (_patchFailed) { try { st.chainRevalidatedKey = ''; } catch (eClr) {} } else { try { if (typeof setCachedChain === 'function') setCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain, snap, String(st.sessionId || '')); } catch (eSet) {} }
       emit(st);
       // #709（T5）：这里从前会「只要链没全绿就安排 8 秒后再 force 一次」。现在不排任何定时器：
       // 下一次重算由那几路事件带起来，该不该真算由宿主按退避裁定。
@@ -267,12 +285,12 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
     // 等下一路事件到来时自然再试一次。
     return null;
   }).finally(function (): void {
-    try { _chainInflightByCwd.delete(norm); } catch (e) {}
+    try { _chainInflightByCwd.delete(_scopedKey); } catch (e) {}
     // 收尾：这一次跑完，如果它还是这个键上最新的一次，就把登记摘掉（这张表不留常驻条目；
     //   比它早发的那几次如果这时才回来，比不到自己的序号，照样判成过期）。
-    try { if (_chainLatestByKey.get(norm) === _mySeq) _chainLatestByKey.delete(norm); } catch (eK) {}
+    try { if (_chainLatestByKey.get(_scopedKey) === _mySeq) _chainLatestByKey.delete(_scopedKey); } catch (eK) {}
   });
-  if (!force) _chainInflightByCwd.set(norm, p);
+  if (!force) _chainInflightByCwd.set(_scopedKey, p);
   return p;
 };
 // 单源工作区键（#301 / #324）：全库仅一份 keyOf（shared:workspaceKey），此处已无重复定义
