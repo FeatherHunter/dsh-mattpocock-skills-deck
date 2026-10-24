@@ -3,8 +3,9 @@
 // 这颗工具的参数里就直接带着给界面用的建议清单：界面从这次工具调用的参数本身读走建议、
 // 渲染成气泡，工具这边只做校验、钳制、截断与回执，不写票、不落任何状态。
 //
-// 每条建议由三格组成：选项框上只显示的一句简介（十个字以内，一眼说清这一步做什么）、一句可以
-// 直接执行的提示词（点选后才填进输入框，平时不显示）、一句理由（收进框正上方的悬停浮层）。
+// 每条建议由三格必填加一格选填组成：选项框上只显示的一句简介（十个字以内，一眼说清这一步
+// 做什么）、一句可以直接执行的提示词（点选后才填进输入框，平时不显示）、一句理由（收进框正
+// 上方的悬停浮层），外加一个可选的推荐优先级（0 到 10 的数字，分高靠左，没打分的排最后）。
 // 为什么单要一个简介：界面上的胶囊一行排不下整句提示词，三条竖着堆成一列也读不过来（#1451）。
 //
 // 为什么单独一份、不进九个 deck_* 工具的装配顺序表：那九颗是追踪器工具，参数表、回执表、
@@ -30,10 +31,13 @@ type UnknownRecord = Record<string, unknown>
 
 /** 工具名：对外精确名字，不带 deck_ 前缀；界面按它认出「这次调用是建议工具」。 */
 export const SUGGEST_TOOL_NAME = 'suggest_next_steps'
-/** 建议条数的合法区间：少于下限整次拒绝，多于上限从尾部截断。界面侧按同一组数再校验一次。 */
+/** 建议条数的合法区间：少于下限整次拒绝，多于上限按优先级留前几条（没打分的先被截掉）。界面侧按同一组数再校验一次。 */
 export const MIN_ITEMS = 2
 export const MAX_ITEMS = 4
 /** 单项文本上限：简介、提示词、理由各一个。按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。 */
+/** 推荐优先级的合法区间：0 到 10，分越高越靠左；拿不准就别给，没给的排最后。 */
+export const PRIORITY_MIN = 0
+export const PRIORITY_MAX = 10
 export const INTRO_MAX_CHARS = 10
 export const PROMPT_MAX_CHARS = 500
 export const REASON_MAX_CHARS = 200
@@ -54,6 +58,7 @@ export const definition = {
             intro: { type: 'string', description: '简介：一句话说清这一步做什么，不超过 10 个字；选项框上只显示这一句，完整提示词点选后才填进输入框。' },
             prompt: { type: 'string', description: '可以直接执行的下一步提示词，例如 /to-tickets。' },
             reason: { type: 'string', description: '一句话说明为什么建议这一步。' },
+            priority: { type: 'number', description: '推荐优先级：0 到 10 的数字，分越高越建议先做，界面按分从高到低往左排；拿不准就别给，没给的统一排在最后。' },
           },
           required: ['intro', 'prompt', 'reason'],
           additionalProperties: false,
@@ -65,11 +70,13 @@ export const definition = {
   },
 }
 
-/** 一条建议：十字以内的简介、提示词、一句话理由（三者都已截断到上限之内）。 */
+/** 一条建议：十字以内的简介、提示词、一句话理由（三者都已截断到上限之内），外加可选的推荐
+ *  优先级（有效数字钳到 0~10 并留一位小数；没打分的是 null，界面统一排在最后）。 */
 export interface SuggestItem {
   intro: string
   prompt: string
   reason: string
+  priority: number | null
 }
 /** 这一次调用收了几条、实际留下几条、有几条被截断（日志与回执共用同一组数）。 */
 export interface SuggestCounts {
@@ -113,11 +120,24 @@ function asString(value: unknown): string {
 }
 
 /**
+ * 优先级归一化：有效数字钳到 0~10 并留一位小数（9.5 这类）；不是数字、NaN、无穷大
+ * 一律当没打分（null）。为什么 null 而不是 0：0 是「最后再做」，没打分是「不知道」，
+ * 用户拍板没打分的统一排在最后，而不是和 0 分混在一起。
+ */
+function normalizePriority(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  const clamped = Math.min(PRIORITY_MAX, Math.max(PRIORITY_MIN, value))
+  return Math.round(clamped * 10) / 10
+}
+
+/**
  * 校验并整理参数：只认 { items: [{ intro, prompt, reason }, ...] }。
  *
  * 规矩（本票冻结，界面票照它写）：
  * - items 不是数组、少于两条、任意一条缺 intro 或 prompt 或 reason（trim 后为空）——整次拒绝，不补编建议；
- * - 多于四条——从尾部截到前四条，保留模型给的顺序；
+ * - priority 可选：有效数字收下（钳到 0~10、留一位小数），没给或不是数字就当没打分，不拒绝；
+ * - 排序：打了分的按分从高到低往左排并列保持模型给的相对顺序；没打分的统一放末尾、彼此保持原顺序；
+ * - 多于四条——排好序之后留前四条，所以截掉的永远是分最低或没打分的；
  * - 单项超长——截断并补省略号，不报错。
  * 返回值里 accepted 是唯一稳定的「成功/拒绝」标记，调用方不要靠 items.length 判断。
  */
@@ -138,13 +158,12 @@ export function resolveSuggestItems(args: unknown): SuggestResolution {
       '这次的建议只有 ' + received + ' 条，少于 ' + MIN_ITEMS + ' 条，我没记下任何建议：请给 2~4 条再调一次。',
       ['too-few:' + received], received)
   }
-  const kept = received > MAX_ITEMS ? raw.slice(0, MAX_ITEMS) : raw
   const notes: string[] = []
   if (received > MAX_ITEMS) notes.push('trimmed:' + received + '→' + MAX_ITEMS)
-  const items: SuggestItem[] = []
+  const valid: SuggestItem[] = []
   let clipped = 0
-  for (let i = 0; i < kept.length; i++) {
-    const entry = kept[i]
+  for (let i = 0; i < raw.length; i++) {
+    const entry = raw[i]
     const rec = (entry && typeof entry === 'object' && !Array.isArray(entry)) ? entry as UnknownRecord : null
     const intro = asString(rec ? rec.intro : '').trim()
     const prompt = asString(rec ? rec.prompt : '').trim()
@@ -158,11 +177,20 @@ export function resolveSuggestItems(args: unknown): SuggestResolution {
     const promptPart = clipText(prompt, PROMPT_MAX_CHARS)
     const reasonPart = clipText(reason, REASON_MAX_CHARS)
     if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1
-    items.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text })
+    valid.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text, priority: normalizePriority(rec ? rec.priority : undefined) })
   }
+  // 排序（Array.prototype.sort 稳定，并列保持模型给的相对顺序）：打了分的按分从高到低往左排；
+  // 没打分的统一放末尾、彼此保持原顺序。排好再截到上限，截掉的永远是分最低或没打分的。
+  valid.sort(function (a, b) {
+    if (a.priority === null && b.priority === null) return 0
+    if (a.priority === null) return 1
+    if (b.priority === null) return -1
+    return (b.priority as number) - (a.priority as number)
+  })
+  const items = valid.length > MAX_ITEMS ? valid.slice(0, MAX_ITEMS) : valid
   if (clipped > 0) notes.push('clipped:' + clipped)
   const text = received > MAX_ITEMS
-    ? '已记下前 ' + MAX_ITEMS + ' 条下一步建议（收到 ' + received + ' 条，从头保留前 ' + MAX_ITEMS + ' 条）。'
+    ? '已记下前 ' + MAX_ITEMS + ' 条下一步建议（收到 ' + received + ' 条，按优先级从高到低留前 ' + MAX_ITEMS + ' 条，没打分的排在最后）。'
     : '已记下 ' + items.length + ' 条下一步建议。'
   return { accepted: true, reason: '', text: text, items: items, counts: { received: received, returned: items.length, clipped: clipped }, notes: notes }
 }

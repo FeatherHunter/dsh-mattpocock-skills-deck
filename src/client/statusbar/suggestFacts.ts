@@ -22,6 +22,8 @@ export const SUGGEST_MAX_ITEMS = 4
 export const SUGGEST_INTRO_MAX_CHARS = 10
 export const SUGGEST_PROMPT_MAX_CHARS = 500
 export const SUGGEST_REASON_MAX_CHARS = 200
+export const SUGGEST_PRIORITY_MIN = 0
+export const SUGGEST_PRIORITY_MAX = 10
 
 /**
  * 日志里用的短散列：8 位十六进制（djb2 变体，与内核 hash8 同一套思路。
@@ -48,7 +50,7 @@ export const suggestClipText = function (text: any, max: any) {
 }
 
 /**
- * 把工具参数解析成建议清单。只认 { items: [{ intro, prompt, reason }, ...] }。
+ * 把工具参数解析成建议清单。只认 { items: [{ intro, prompt, reason, priority? }, ...] }。
  *
  * 参数有两种形态，都要收：原生预设的 tool/call 给的是模型原始 JSON 文本（字符串，要 JSON.parse）；
  * PTC 预设的 tool/ptc-dispatch-start 给的已经是解析好的对象（平台转交前解析过一遍）。两路后端
@@ -76,25 +78,44 @@ export const suggestItemsOf = function (argumentsValue: any) {
   const items: any[] = []
   let clipped = 0
   let dropped = 0
-  for (let i = 0; i < raw.length && items.length < SUGGEST_MAX_ITEMS; i++) {
+  for (let i = 0; i < raw.length; i++) {
     const entry = raw[i]
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) { dropped += 1; continue }
     const promptText = typeof entry.prompt === 'string' ? entry.prompt.trim() : ''
     if (!promptText) { dropped += 1; continue }
-    // 简介与理由都允许缺失：简介缺失时界面只显示提示词（旧事件里没有这一格），
-    // 类型不是字符串也按空串收，不因此丢掉整条提示词。
+    // 简介、理由与优先级都允许缺失：简介缺失时界面只显示提示词（旧事件里没有这一格），
+    // 类型不是字符串也按空串收，不因此丢掉整条提示词；优先级没打分就记 null，排序时统一放末尾。
     const introText = typeof entry.intro === 'string' ? entry.intro.trim() : ''
     const reasonText = typeof entry.reason === 'string' ? entry.reason.trim() : ''
     const introPart = suggestClipText(introText, SUGGEST_INTRO_MAX_CHARS)
     const promptPart = suggestClipText(promptText, SUGGEST_PROMPT_MAX_CHARS)
     const reasonPart = suggestClipText(reasonText, SUGGEST_REASON_MAX_CHARS)
     if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1
-    items.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text })
+    items.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text, priority: suggestPriorityOf(entry.priority) })
   }
-  if (items.length < SUGGEST_MIN_ITEMS) {
+  // 排序（与工具侧同口径）：打了分的按分从高到低，没打分的放末尾、彼此保持原有相对顺序；
+  // 排好再截到上限，所以多于上限时留下的是分最高的几条，而不是先到的几条。
+  items.sort(function (a: any, b: any) {
+    if (a.priority === null && b.priority === null) return 0
+    if (a.priority === null) return 1
+    if (b.priority === null) return -1
+    return b.priority - a.priority
+  })
+  const kept = items.length > SUGGEST_MAX_ITEMS ? items.slice(0, SUGGEST_MAX_ITEMS) : items
+  if (kept.length < SUGGEST_MIN_ITEMS) {
     return { ok: false, reason: 'too-few', items: [] as any[], clipped: clipped, dropped: dropped }
   }
-  return { ok: true, reason: '', items: items, clipped: clipped, dropped: dropped }
+  return { ok: true, reason: '', items: kept, clipped: clipped, dropped: dropped }
+}
+
+/**
+ * 优先级归一化（与工具侧 normalizePriority 同口径）：有效数字钳到 0~10 并留一位小数；
+ * 没给、不是数字、NaN 都当没打分（null），排最后。界面这层只做展示排序，不拒绝任何条目。
+ */
+const suggestPriorityOf = function (value: any) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  const clamped = Math.min(SUGGEST_PRIORITY_MAX, Math.max(SUGGEST_PRIORITY_MIN, value))
+  return Math.round(clamped * 10) / 10
 }
 
 /**

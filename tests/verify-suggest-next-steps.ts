@@ -6,7 +6,8 @@
 // 工具之外单独登记，九工具的参数表、回执表、点数表、装配顺序一个字都不能动。两件事都很容易在后续
 // 改动里被顺手破坏，
 // 所以这里逐条钉住：
-//   ① 参数：2~4 条合法；多于 4 条从尾部截到前 4 条并保留顺序；少于 2 条或条目缺字段整次拒绝（不补编建议）；
+//   ① 参数：2~4 条合法；可选的推荐优先级（0~10）决定先后，分高靠左、没打分的排最后，多于 4 条
+//     时按分留前 4 条；少于 2 条或条目缺必填字段整次拒绝（不补编建议）；
 //   ② 超长文本按 Unicode 码点截断并补省略号，不报错；
 //   ③ 回执沿用九工具那套统一回执壳（工具名、会话、耗时、结论）与既有日志事件、字段白名单；
 //   ④ 工具在 agent 工具列表里、不在 DECK_TOOL_ORDER；九工具的装配顺序与文件清单仍是冻结的九条；
@@ -85,7 +86,11 @@ async function main() {
   check(String(introSpec.description || '').indexOf('只显示') >= 0, 'intro 说明写清选项框只显示简介（提示词点选才填）')
   check(promptSpec && promptSpec.type === 'string' && String(promptSpec.description || '').indexOf('/to-tickets') >= 0, 'prompt 是可执行提示词（说明里带例子）')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
+  const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason', '每条必须同时给 intro、prompt 与 reason')
+  check(!!prioritySpec && prioritySpec.type === 'number', 'priority 是可选的数字（推荐优先级）')
+  check(!!prioritySpec && String(prioritySpec.description || '').indexOf('0 到 10') >= 0, 'priority 说明写清 0 到 10、分高靠左')
+  check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.indexOf('priority') < 0, 'priority 不强制（拿不准可以不打分）')
   check(itemsSpec.items.additionalProperties === false, '每条不收未知字段')
   // 注册表只接受受支持的 JSON Schema 子集（没有 minItems / maxItems），2~4 的约束由代码钳制，
   // 所以这里反过来钉住：参数模式里不许出现这两个关键字，否则真机注册会被拒。
@@ -93,6 +98,7 @@ async function main() {
     '参数模式不带 minItems / maxItems（注册表子集不支持，约束由代码钳制）')
   check(tool.MIN_ITEMS === 2 && tool.MAX_ITEMS === 4, '上下限常量是 2 与 4')
   check(tool.INTRO_MAX_CHARS === 10 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 200, '单项文本上限是 10、500 与 200 个码点')
+  check(tool.PRIORITY_MIN === 0 && tool.PRIORITY_MAX === 10, '推荐优先级的合法区间是 0 到 10')
 
   // ── 2. 参数校验与钳制：纯函数结论（不经过回执壳，先把规矩钉死） ──
   const resolve = tool.resolveSuggestItems
@@ -129,6 +135,33 @@ async function main() {
   check(r5.counts.received === 5 && r5.counts.returned === 4 && r5.notes.indexOf('trimmed:5→4') >= 0, '截断的条数如实记下')
   const r9 = resolve({ items: Array.from({ length: 9 }, (_, i) => ({ intro: '第' + i + '步', prompt: '提示' + i, reason: '理由' + i })) })
   check(r9.accepted === true && r9.items.length === 4 && r9.items[0].prompt === '提示0', '九条也只留前四条')
+  // #1451 后续：可选的推荐优先级决定先后。没给优先级的条目保持模型给的顺序，统一排在打了分的后面。
+  const rScore = resolve({ items: [
+    { intro: '低', prompt: '/low', reason: 'r1', priority: 3 },
+    { intro: '高', prompt: '/high', reason: 'r2', priority: 9.5 },
+    { intro: '无', prompt: '/none', reason: 'r3' },
+  ] })
+  check(rScore.accepted === true && rScore.items.map(function (it: any) { return it.prompt }).join(',') === '/high,/low,/none',
+    '按优先级从高到低排，没打分的排最后')
+  check(rScore.items[2].priority === null && rScore.items[0].priority === 9.5, '优先级原样带回执（9.5 不被抹成整数），没打分记 null')
+  const rScoreClamp = resolve({ items: [
+    { intro: '超', prompt: '/over', reason: 'r1', priority: 42 },
+    { intro: '负', prompt: '/under', reason: 'r2', priority: -3 },
+    { intro: '串', prompt: '/text', reason: 'r3', priority: '高' },
+  ] })
+  check(rScoreClamp.accepted === true, '优先级超范围或不是数字都不拒绝整次建议')
+  check(rScoreClamp.items.map(function (it: any) { return it.prompt }).join(',') === '/over,/under,/text',
+    '42 钳到 10、-3 钳到 0，不是数字按没打分排最后')
+  const rScoreTrim = resolve({ items: [
+    { intro: '一', prompt: '/a', reason: 'r', priority: 1 },
+    { intro: '二', prompt: '/b', reason: 'r', priority: 9 },
+    { intro: '三', prompt: '/c', reason: 'r', priority: 5 },
+    { intro: '四', prompt: '/d', reason: 'r' },
+    { intro: '五', prompt: '/e', reason: 'r', priority: 8 },
+  ] })
+  check(rScoreTrim.accepted === true && rScoreTrim.items.map(function (it: any) { return it.prompt }).join(',') === '/b,/e,/c,/a',
+    '多于四条时按分从高到低留前四条，截掉的是没打分的那条')
+  check(rScoreTrim.notes.indexOf('trimmed:5→4') >= 0, '按分截断也如实记下条数')
   const longPrompt = '长'.repeat(600)
   const longReason = '理由'.repeat(200)
   const longIntro = '简'.repeat(30)

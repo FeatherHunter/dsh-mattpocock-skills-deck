@@ -86,15 +86,15 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1407-next-steps-reminders': 87,
   // 2026-10-24 #1451：下一步建议加了十字简介这一格（工具侧新增 intro、界面侧新增 SUGGEST_INTRO_MAX_CHARS、
   // 选项按条数均分宽度），相关五扇门禁各自加了断言；下面五个数字都是单跑实测得出的。
-  'verify-suggest-next-steps': 132,
-  'verify-1412-ask-matt-next-steps': 50,
+  'verify-suggest-next-steps': 142,
+  'verify-1412-ask-matt-next-steps': 55,
   // 2026-10-23 #1409：界面借会话事件流取数通路（两叶子 + 源码守卫）；113 条是单跑实测得出的。
   // 2026-10-23 #1441 修红灯：这扇加了断言，单跑实测是 140 条，按加了断言就改期望的口径把期望改准（门禁本身全绿）。
-  'verify-1409-suggest-stream': 143,
-  'verify-1411-suggest-bubble': 88,
+  'verify-1409-suggest-stream': 153,
+  'verify-1411-suggest-bubble': 98,
   // 2026-10-23 #1411 第二次提交：小泡动效与外观（纯函数时间线 + 假 DOM 驱动执行器 + 旋钮钉值）；
   // 104 条是单跑实测得出的。
-  'verify-1411-suggest-appearance': 142,
+  'verify-1411-suggest-appearance': 149,
   // 2026-10-24 #1456：账号认领写路径新开闸（假会话钉住只经写会话认领、并集不撤别人等）；27 条是单跑实测得出的。
   'verify-1456-handoff-claim-write': 27,
 }
