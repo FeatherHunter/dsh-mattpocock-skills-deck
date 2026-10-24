@@ -181,6 +181,9 @@ async function main() {
     must(pfCtx.cwd === 'D:/demo', 'preflight 的 cwd 仍按本次求值目录给', JSON.stringify(pfCtx.cwd))
     const cuCtx = fx.ctxs.getCurrentUser[0] || {}
     must(!!(cuCtx.platform && cuCtx.platform.marker === 'session-ctx-platform'), '取登录名也带会话 ctx 的 platform（不能只给 {cwd}）', JSON.stringify(cuCtx))
+    // 静态防退化：上面的模拟是照着会话口 call 的契约写的；契约若被改成只交 session，本小节的断言会假绿。
+    const openerSrc = require('fs').readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/session-opener.ts'), 'utf8')
+    must(openerSrc.indexOf('fn(session, ctx)') >= 0, '会话口的 call 仍把 ctx 交给能力函数（③b 的模拟照这个契约写）', '')
   }
 
   title('④ 求值那笔记账：经 noteChainEval，仍是一笔零花费')
