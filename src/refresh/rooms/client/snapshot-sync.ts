@@ -42,7 +42,6 @@ declare const askSelectionOnce: any;
 declare const adoptWorkRouteTableIfNewer: any;
 declare const touchProbeAt: any;
 declare const mergeSelection: any;
-declare const setCachedSetupLayout: any;
 declare const getCwdSync: any;
 declare const tr: any;
 declare const flash: any;
@@ -267,7 +266,9 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
         try { if (typeof adoptWorkRouteTableIfNewer === 'function') adoptWorkRouteTableIfNewer(st, snap) } catch (eWr304) {}
         // #683（F1 · ADR 的 R4）：304 也要合并权威选择 —— 「只换了后端、快照内容一个字没变」正是这条路的现场：版本号没变所以这里什么都不做，于是面板头与状态栏继续显示旧后端，而同屏的链与横幅（走 wf.detect）已经按新值答了。宿主这一版回包里带着 {selection, rev}，这里合并它。
         try { if (snap.selection && typeof mergeSelection === 'function') { if (mergeSelection(st, snap.selection)) emit(st); } } catch (eSel) {}
-        try { if (snap.setupLayout && typeof setCachedSetupLayout === 'function') setCachedSetupLayout(st.cwd, snap.setupLayout); } catch (eSL) {} // #683（F1 · R6）：304 也回填记住的布局（版本号没变不代表布局没变）
+        // #683（F1 · R6）/#1449：304 也把布局合并进会话手上那份快照（版本号没变不代表布局没变）。
+        //   宿主现在无条件带 setupLayout（含 null），这里照收；快照是共享缓存，合并时浅拷贝，不原地改。
+        try { if (snap.setupLayout !== undefined) { st.snapshot = Object.assign({}, st.snapshot || {}, { setupLayout: snap.setupLayout }); } } catch (eSL) {}
         // still touch LRU ts via setCachedSnapshot? keep old
         emit(st); // minimal tick for probe freshness but no data change
         return;

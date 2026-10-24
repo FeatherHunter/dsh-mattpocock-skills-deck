@@ -254,33 +254,42 @@ console.log('== E R7c：写失败如实回 ==')
   check(e3.ok === true && e3.persisted === false && e3.rev === 0, '没有可用的记忆库时也照旧生效、如实回 persisted:false —— 实得 ' + JSON.stringify({ ok: e3.ok, persisted: e3.persisted }))
 }
 
-// ── G R6：布局答案那条电话（写进 H、读出来）────────────────────────────────────────────────
+// ── G 布局答案那条电话（#1449：只写/只读工作区文件，不再写 H）──────────────────────────────
 console.log('')
-console.log('== G R6：wf.setupLayout 写进 H、读得出来；卡片确认与快照都接上了 ==')
+console.log('== G wf.setupLayout 只写/只读工作区文件 ==')
 {
   const { createWorkspaceCwd } = await import(url('src/host/workspaceCwd.js'))
-  const home = makeDir('dsh-683-layout-')
-  const store = createChoiceStore({ homeDir: home, isKnownBackend: () => true })
   const ws = makeWorkspace(null)
-  const api = createWorkspaceCwd({
+  const wsFile = path.join(ws, 'docs', 'agents', 'workspace.yaml')
+  fs.mkdirSync(path.dirname(wsFile), { recursive: true })
+  fs.writeFileSync(wsFile, 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\n', 'utf8')
+  const fsSvc = {
+    async resolve(p: unknown, o: any) { const cwd = (o && o.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return cwd ? String(cwd).replace(/\\/g, '/') + '/' + rel : rel },
+    async readText(t: string) { return fs.readFileSync(t, 'utf8') },
+    async writeText(t: string, c: unknown) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, String(c), 'utf8') },
+    async mkdir(d: string) { fs.mkdirSync(d, { recursive: true }) },
+  }
+  const mkApi = (fsOf: any) => createWorkspaceCwd({
     ctx: { get: () => undefined }, DEFAULT_CWD: 'D:\\ws',
-    getPlatform: async () => ({ fs: {}, path: path, getHome: async () => '' }),
+    getPlatform: async () => ({ fs: fsOf, path: path, getHome: async () => '' }),
     getTrackerRegistry: async () => ({ has: () => true, bind: () => {}, get: () => null, describe: () => null }),
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
-    getChoiceStore: async () => store,
+    getChoiceStore: async () => null,
     canonicalKey: async (c: any) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
   })
+  const api = mkApi(fsSvc)
   const g1 = await api.handleSetupLayout({ cwd: ws, layout: 'multi' })
-  check(g1.ok === false && g1.workspaceFile === 'no-channel' && /本机/.test(String(g1.error)), '文件通道不可用时卡片确认如实回失败：布局只记在本机，回包点明没写进工作区文件 —— 实得 ' + JSON.stringify(g1))
-  const got = await store.getLayout(ws)
-  check(got.found === true && got.layout === 'multi', 'H 里确实落下了这条（与后端记录同一种形状）')
+  check(g1.ok === true && g1.workspaceFile === 'written' && g1.layout === 'multi', '文件通道可用时卡片确认写进工作区文件 —— 实得 ' + JSON.stringify(g1))
+  check(/layout: multi/.test(fs.readFileSync(wsFile, 'utf8')), '文件里确实出现 layout: multi')
   const g2 = await api.handleSetupLayout({ cwd: ws })
-  check(g2.ok === true && g2.layout === 'multi' && typeof g2.pickedAt === 'number', '没给 layout 就是读：新壳第一次打开靠这一问知道上次选了哪个 —— 实得 ' + JSON.stringify(g2))
-  const g3 = await api.handleSetupLayout({ cwd: ws, layout: '不认识' })
-  check(g3.ok === false, '不认识的取值不写进去（如实回不成）—— 实得 ' + JSON.stringify(g3))
-  const g4 = await api.handleSetupLayout({ cwd: makeWorkspace(null) })
-  check(g4.ok === true && g4.layout === null, '没记过的 workspace 读回来是 null（不当成有）')
-  // 接线都在场：卡片确认打电话、电话注册了、快照带着这个字段、客户端回填了它。
+  check(g2.ok === true && g2.layout === 'multi' && g2.pickedAt === 0, '没给 layout 就是读：从工作区文件读回 multi —— 实得 ' + JSON.stringify(g2))
+  fs.writeFileSync(wsFile, 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\n', 'utf8')
+  const g3 = await api.handleSetupLayout({ cwd: ws })
+  check(g3.ok === true && g3.layout === null, '文件里没有布局时读回来是 null（还没答过，不是本机记忆里的旧值）—— 实得 ' + JSON.stringify(g3))
+  const g4 = await api.handleSetupLayout({ cwd: ws, layout: '不认识' })
+  check(g4.ok === false && g4.error === 'not-stored', '不认识的取值不写进去（如实回 not-stored）—— 实得 ' + JSON.stringify(g4))
+  const g5 = await mkApi({}).handleSetupLayout({ cwd: ws, layout: 'multi' })
+  check(g5.ok === false && g5.workspaceFile === 'no-channel' && /没有生效/.test(String(g5.error)), '文件通道不可用时如实回失败：这次选择没有生效（不再留本机备份）—— 实得 ' + JSON.stringify(g5))
 }
 
 // ── F 反证 ───────────────────────────────────────────────────────────────────────
