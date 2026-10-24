@@ -11,8 +11,8 @@
 //      后端还没建桶时，第一次记账会按这次的口径补建桶，不许静默丢账。
 //   ③ 行为：deck 工具那条路真记 'ai-tool' 档，刷新后台那条路真记 'plugin' 档，两档各记各的。
 //
-// 本门禁不登记 tests/gate-map.json（票面要求）；它只做静态扫描与纯函数 / 会话装配层的行为断言，
-// 不连远端、不起进程。
+// 本门禁按 tests/ 目录的自动扫描规则登记进 tests/gate-map.json（verify-* 都会被收进归属表）；
+// 它只做静态扫描与纯函数 / 会话装配层的行为断言，不连远端、不起进程。
 const path = require('path')
 const fs = require('node:fs')
 const { pathToFileURL } = require('url')

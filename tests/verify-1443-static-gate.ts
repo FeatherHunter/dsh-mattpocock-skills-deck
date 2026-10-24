@@ -25,6 +25,15 @@ const A2_UNMIGRATED = []
 // 三条缺一条就判红 —— 例外必须能被人追溯，不能只靠一张名字表放过去。今天一条都没有：仓库定位的
 // gh repo view 已经搬进会话能力（见 src/tracker/rooms/github/repo.ts 与 src/refresh/rooms/host/session-opener.ts）。
 const TRANSPORT_EXCEPTIONS: Array<{ file: string; reason: string; doc: string }> = []
+// 例外表的形状判据单独成函数：空表时主循环不会进来，下面的自证要拿它演假条目（见 C 段）。
+function exceptionShapeProblem(x: { file?: string; reason?: string; doc?: string }): string | null {
+  if (!x.file) return '缺文件'
+  if (!fs.existsSync(path.join(ROOT, x.file))) return '文件不存在：' + x.file
+  if (!x.reason || x.reason.length < 10) return '理由不到一句：' + x.file
+  if (!x.doc) return '缺出处文档：' + x.file
+  if (!fs.existsSync(path.join(ROOT, x.doc))) return '出处文档不存在：' + x.doc
+  return null
+}
 // 只算真正的调用点：名字后面紧跟 `(` 或 `?.(`，且前面不是 `function` 的声明写法。
 // 这样 await / 赋值 / return / 箭头 之后的调用都认，`deps.runGh(` 这类成员调用也认；
 // 声明（`function runGh(`）、对象字面量的键（`runGh: any`）与 `.apply` 转发不算调用。
@@ -95,11 +104,18 @@ async function main() {
   // 例外表本身的门槛：文件在、理由够一句话、出处文档能打开；缺一项就红（不是靠名单放行）。
   let exceptionShapeOk = true
   for (const x of TRANSPORT_EXCEPTIONS) {
-    if (!x.file || !fs.existsSync(path.join(ROOT, x.file))) exceptionShapeOk = false
-    if (!x.reason || x.reason.length < 10) exceptionShapeOk = false
-    if (!x.doc || !fs.existsSync(path.join(ROOT, x.doc))) exceptionShapeOk = false
+    const problem = exceptionShapeProblem(x)
+    if (problem) {
+      exceptionShapeOk = false
+      console.log('  FAIL 例外表：' + problem)
+    }
   }
   check(exceptionShapeOk, '例外表每一项都写了文件、理由（至少一句）与存得上的出处文档（' + TRANSPORT_EXCEPTIONS.length + ' 条）')
+  // 判据自证：例外表今天是空的，上面那条循环一次都不会进，所以同一份判据要拿假条目演一遍——
+  // 缺文件/理由不到一句/缺出处必须判红，三项齐全必须判绿。判据将来被改坏时，这条会先红。
+  const badException = exceptionShapeProblem({ file: 'src/does-not-exist.ts', reason: '短', doc: 'docs/does-not-exist.md' })
+  const goodException = exceptionShapeProblem({ file: 'src/host/index.ts', reason: '这是一条给以后的人看的理由样例，长度必须超过十个字', doc: 'docs/agents/verification.md' })
+  check(badException !== null && goodException === null, '例外表判据自证：缺项的假条目判红、三项齐全的样例判绿')
   check(A2_UNMIGRATED.length === 0, 'A2 未迁路径清单已清零（归位之后不该再有名字）')
 
   // #1453：宿主这一层只读本地证据（git remote、.git/config），gh 那一级已经删掉。

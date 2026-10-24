@@ -109,7 +109,7 @@ export function makeRefreshLoader(deps: any): () => Promise<any> {
  *   ctx            宿主上下文（写事件订阅要 ctx.on）
  *   logCtx         宿主日志出口（{ fire, isEnabled }）
  *   canonicalKey   会话目录 → 工作区键的既有出口（src/host/repoKeys.js 的 canonicalKey）
- *   runGh / execProc / getRepoKey / getCacheDir / readDiskCache / writeDiskCache / getTrackerRegistry / getPlatform
+ *   execProc / getRepoKey / getCacheDir / readDiskCache / writeDiskCache / getTrackerRegistry / getPlatform
  *                  宿主既有出口，交给各件跑腿用
  *   trackerRegistry 可选：后端注册表（九个 deck 工具的壳要用它选后端）
  *   gate / ledger  可选：已经造好的闸与账本（门禁与单测里注入用）；不给就现场造
@@ -444,7 +444,7 @@ export function createRefreshWiring(deps: any): any {
    * 跑一次行级增量，回 patch.run 的原话（见 src/refresh/rooms/host/row-patch.js 文件头那一张表）。
    * 只在两条依赖齐了才跑（开只读会话的装配口与探测索引的出口）——缺任何一个都如实回 failed，
    * 让调用方照旧走整池那条老路，绝不假装补过。#1445：判据从「跑 gh 的出口」换成「开会话的装配口」，
-   * 取数已经由会话承担，runGh 一格的去留与刷新写路径无关。
+   * 取数已经由会话承担，宿主也不再向这里注入 runGh 这一格。
    */
   async function deltaRefresh(cwd: any, opts: any): Promise<any> {
     if (typeof d.openSession !== 'function' || typeof d.fetchIssueIndex !== 'function') return { mode: 'failed', reason: 'no-transport' }
