@@ -35,9 +35,10 @@ const EXEC = { agent: { session: { cwd: '/ws/proj', id: 'sess-7' } } }
 // 真机形状的 exec：会话顶层没有目录，目录住在 header 里（#1406 真机缺口回归用）。
 const EXEC_HEADER_CWD = { agent: { session: { header: { cwd: '/ws/hdr', id: 'sess-hdr' } } } }
 const EXEC_HEADER_WORKSPACE = { agent: { session: { header: { workspaceRoot: '/ws/hdr-root', id: 'sess-hdr2' } } } }
-// #1406 冻结的一句话介绍。#1464 后续按维护者要求补了「技能优先、prompt 开头写 /xxxx」这半句：
-// 这颗工具本来就是从技能角度推荐下一步，传入参数的人得在工具列表里就看到这条口径。
-const SPEC_DESCRIPTION = '在回复末尾推荐 2~4 条下一步提示词，界面会显示成气泡；优先从技能角度推荐，每条提示词开头写这一步对应的 /xxxx 技能；只在有明确下一步时调用。'
+// #1406 冻结的一句话介绍。#1464 后续按维护者要求补了「技能优先、prompt 开头写 /xxxx」这半句；
+// #1412 反向（维护者 2026-10-24）又把「什么时候调用、怎么挑、理由怎么写」这节规则从 /ask-matt 正文
+// 搬进了工具说明，所以这一句现在同时写着调用时机与技能口径。
+const SPEC_DESCRIPTION = '在回复末尾推荐 2~4 条下一步提示词，界面会显示成可点的气泡，点一下填进输入框、不会替你发送；只在有明确下一步时调用，活没干完、在等用户回答或只是礼貌收尾时都不调用；每条 prompt 开头尽量写这一步对应的 /xxxx 技能指令，优先从技能角度推荐。'
 
 function makeLog() {
   const fired = []
@@ -75,6 +76,8 @@ async function main() {
   check(def && def.name === 'suggest_next_steps', '工具名精确为 suggest_next_steps（不带 deck_ 前缀）')
   check(def.description === SPEC_DESCRIPTION, '一句话介绍与规格原句一致')
   check(def.description.indexOf('技能') >= 0 && def.description.indexOf('/xxxx') >= 0, '一句话介绍里写着技能优先（prompt 开头写 /xxxx）')
+  check(def.description.indexOf('明确下一步') >= 0 && def.description.indexOf('不调用') >= 0, '一句话介绍写清调用时机：有明确下一步才调用，其余场景不调用')
+  check(def.description.indexOf('不会替你发送') >= 0, '一句话介绍写清点选只是填入输入框，不会替人发送')
   check(def.parameters && def.parameters.type === 'object', '参数顶层是对象模式')
   check(Array.isArray(def.parameters.required) && def.parameters.required.indexOf('items') >= 0, 'items 是必填参数')
   check(def.parameters.additionalProperties === false, '参数顶层不收未知字段')
@@ -82,6 +85,7 @@ async function main() {
   check(itemsSpec && itemsSpec.type === 'array', 'items 是数组')
   check(String(itemsSpec.description || '').indexOf('2~4') >= 0, 'items 的说明写明 2~4 条')
   check(String(itemsSpec.description || '').indexOf('技能') >= 0, 'items 的说明提醒传入者：这条工具优先从技能角度推荐')
+  check(String(itemsSpec.description || '').indexOf('从前往后') >= 0, 'items 的说明写清按「现在最该先做」从前往后排')
   check(itemsSpec.items && itemsSpec.items.type === 'object', 'items 的每一项是对象')
   const introSpec = itemsSpec.items.properties && itemsSpec.items.properties.intro
   const promptSpec = itemsSpec.items.properties && itemsSpec.items.properties.prompt
@@ -91,11 +95,16 @@ async function main() {
   check(promptSpec && promptSpec.type === 'string' && String(promptSpec.description || '').indexOf('/to-tickets') >= 0, 'prompt 是可执行提示词（说明里带例子）')
   check(String(promptSpec.description || '').indexOf('/xxxx') >= 0 && String(promptSpec.description || '').indexOf('开头') >= 0,
     'prompt 说明提醒开头写对应的 /xxxx 技能指令（技能优先）')
+  check(String(promptSpec.description || '').indexOf('具体对象') >= 0 && String(promptSpec.description || '').indexOf('不要写') >= 0,
+    'prompt 说明要求写具体对象、不要空泛推进')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
+  check(String(reasonSpec.description || '').indexOf('卡在哪') >= 0, 'reason 说明写清理由怎么说（卡在哪、能解锁什么、不做会怎样）')
   const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason', '每条必须同时给 intro、prompt 与 reason')
   check(!!prioritySpec && prioritySpec.type === 'number', 'priority 是可选的数字（推荐优先级）')
   check(!!prioritySpec && String(prioritySpec.description || '').indexOf('0 到 10') >= 0, 'priority 说明写清 0 到 10、分高靠左')
+  check(String(prioritySpec.description || '').indexOf('9 到 10') >= 0 && String(prioritySpec.description || '').indexOf('6 到 8') >= 0,
+    'priority 说明给出打分口径：卡住的 9~10、顺手的 6~8')
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.indexOf('priority') < 0, 'priority 不强制（拿不准可以不打分）')
   check(itemsSpec.items.additionalProperties === false, '每条不收未知字段')
   // 注册表只接受受支持的 JSON Schema 子集（没有 minItems / maxItems），2~4 的约束由代码钳制，

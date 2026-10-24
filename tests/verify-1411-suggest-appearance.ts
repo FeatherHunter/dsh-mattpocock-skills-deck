@@ -101,6 +101,8 @@ async function main() {
     check(typeof A.pillBg === 'string' && A.pillBg.indexOf('linear-gradient') === 0, '旋钮：药丸底是渐变（C 版玻璃质感）')
     check(typeof A.bubbleBg === 'string' && A.bubbleBg.indexOf('radial-gradient') === 0, '旋钮：小泡底是径向高光')
     check(typeof A.lightPillBg === 'string' && A.lightPillBorder !== A.pillBorder, '旋钮：亮色主题另给一组颜色')
+    check(typeof A.popBg === 'string' && A.popBg.indexOf('linear-gradient') === 0 && A.popBg !== A.pillBg, '旋钮：浮层底色另给一档，不能与选项框完全同色')
+    check(typeof A.lightPopBg === 'string' && A.lightPopBg !== A.lightPillBg, '旋钮：浅色主题的浮层底色也比选项框淡一档')
     check(Object.keys(A).length >= 60, '旋钮：外观参数集中在一个对象里（至少 60 项）')
     const appearanceSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestAppearance.ts'), 'utf8')
     const zDefs = appearanceSrc.split('SUGGEST_Z').length - 1

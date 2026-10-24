@@ -1510,9 +1510,9 @@ const contractChecksInner = function (reg, src) {
     //   写规格入口与规格三态、实施票是新增条目，不设旧底线。
     // #1274 收口后：完成提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有），complete 的版本底线 12 → 13。
     // #1212 恢复：诊断 v14→v16、接手 v6→v7，补回 #1281 删掉的调查节、诊断边界与收尾两条，版本底线同步抬高。
-    mapExecute: 18, complete: 14, fixate: 9, 'tpl.diagnose': 17, 'tpl.fix': 15, 'tpl.discuss': 17,
-    'tpl.research': 11, 'tpl.prototype': 11, 'tpl.takeover': 8, 'tpl.supplement': 5, 'tpl.execute': 17, mapInspect: 10, newWayfinder: 21,
-    newBugWayfinder: 12, newSpec: 2, healthCheck: 3, specComplete: 4, specExecute: 3, specSplit: 3,
+    mapExecute: 20, complete: 16, fixate: 11, 'tpl.diagnose': 19, 'tpl.fix': 17, 'tpl.discuss': 19,
+    'tpl.research': 13, 'tpl.prototype': 13, 'tpl.takeover': 10, 'tpl.supplement': 7, 'tpl.execute': 19, mapInspect: 12, newWayfinder: 23,
+    newBugWayfinder: 14, newSpec: 4, healthCheck: 5, specComplete: 6, specExecute: 5, specSplit: 5,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -2300,7 +2300,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '530600fbd34fd2e2ace8adf7bb4af2ea9bbe051824a0af4e4ecc9b7e2fe09d23',
+  'tests/verify-prompts.ts': 'ccaf2eab643bd239ea49ecbcd27ad310eff8a14081d647e3e4ba643e11d79864',
 }
 // ---- LOCK-END ----
 

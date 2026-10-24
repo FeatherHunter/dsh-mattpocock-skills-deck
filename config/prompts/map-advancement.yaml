@@ -1,5 +1,5 @@
 complete:
-  version: 15
+  version: 16
   placeholders:
     - url
     - closed
@@ -60,9 +60,9 @@ complete:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 fixate:
-  version: 10
+  version: 11
   placeholders: []
   use: "沉淀 · 思维对齐 · 成果沉淀 · v9 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
   zh: |-
@@ -118,9 +118,9 @@ fixate:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 healthCheck:
-  version: 4
+  version: 5
   placeholders:
     - subject
   use: 「体检」按钮 · 所有后端共用的总纲（游离票归位：先出建议清单、人点头才动手）；后端自己的科目由后端声明、经 {subject} 填空
@@ -207,9 +207,9 @@ healthCheck:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 mapExecute:
-  version: 19
+  version: 20
   placeholders: []
   use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）
   zh: |-
@@ -229,9 +229,9 @@ mapExecute:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 mapInspect:
-  version: 11
+  version: 12
   placeholders:
     - n
     - title
@@ -291,9 +291,9 @@ mapInspect:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 specComplete:
-  version: 5
+  version: 6
   placeholders:
     - url
     - closed
@@ -376,9 +376,9 @@ specComplete:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 specExecute:
-  version: 4
+  version: 5
   placeholders:
     - url
   use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）
@@ -423,9 +423,9 @@ specExecute:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 specSplit:
-  version: 4
+  version: 5
   placeholders:
     - url
   use: 规格容器 · 空态「拆票」按钮（首行 /to-tickets）（#1281）
@@ -468,4 +468,4 @@ specSplit:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.

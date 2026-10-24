@@ -294,6 +294,21 @@ async function main() {
       '✗ 负向：拒写文案说清 type 只认那两个值：' + String((badType && badType.text) || ''))
     check(ws.ticketFiles().length === badBefore,
       '✗ 负向：整批拒写之后盘上没多任何票（零副作用，实得新增 ' + (ws.ticketFiles().length - badBefore) + '）')
+    // #1421 审查补：一条合法边与一条不认识的 type 混在同一批里时，整批都不写 ——
+    // 不是「跳过坏的那条、把好的那条写下去」。
+    const mixBefore = ws.ticketFiles().length
+    const mixed = await callTool('deck_map_plan_create', {
+      planId: 'plan-713-mixedtype', title: '合法边与写错的 type 混在一批',
+      children: [
+        { key: 'm1', title: '合法子票', kind: 'map-ticket', label: 'wayfinder:task' },
+        { key: 'm2', title: '另一张子票', kind: 'map-ticket', label: 'wayfinder:task' },
+      ],
+      edges: [{ from: 'm2', to: 'm1', type: 'blocked-by' }, { from: 'm1', to: 'm2', type: 'blocks' }],
+    })
+    check(mixed && mixed.ok === false && mixed.status === 'unsupported' && mixed.reason === 'bad-args',
+      '✗ 负向：合法边与非法 type 混在一批 → 整批拒绝（实得 ' + (mixed && mixed.status) + ' / ' + (mixed && mixed.reason) + '）')
+    check(ws.ticketFiles().length === mixBefore,
+      '✗ 负向：混批被拒之后一张票也没建（零副作用，实得新增 ' + (ws.ticketFiles().length - mixBefore) + '）')
   }
 
   // ── ⑥ deck_map_link：补边（正例 = 阻塞边；正例 = 同目录父子；负向 = 不存在的父） ──

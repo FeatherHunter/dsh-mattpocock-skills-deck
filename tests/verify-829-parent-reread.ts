@@ -131,6 +131,29 @@ async function main() {
     disp.dispose()
   }
 
+  // G5) #1421 审查补：契约没有提供读票方法时根本没读回，不许报成「读回来了、parentKey 是空」
+  // （那是 #790 明令禁止的假证据）；写失败那条回执也要点名写什么、方向朝哪。
+  {
+    const shell = await imp('src/deck/shell/edge-landing.ts')
+    const noGet = {
+      async setParent() { return { ok: true } },
+      async setBlockedBy() { return { ok: true } },
+    }
+    const pr = await shell.applyParentEdge(noGet, {}, {}, '04', '07')
+    const pev = String((pr.item && pr.item.evidence) || '')
+    check(pr.applied === false && pr.item.status === 'failed', 'G5 没有读票方法 → 这条边判为没确认（实得 applied=' + pr.applied + '）')
+    check(pev.indexOf('判不了') >= 0 && pev.indexOf('读到的是') < 0, 'G5 证据只说判不了、不谎称读回来了（实得：' + pev.slice(0, 160) + '）')
+    check(String(pr.item.landing || '').indexOf('说不好') >= 0, 'G5 落点写成「说不好」（实得：' + String(pr.item.landing) + '）')
+    const badWrite = {
+      async setParent() { return { ok: true } },
+      async setBlockedBy() { return { ok: false, error: { message: 'boom' } } },
+    }
+    const br = await shell.applyBlockEdges(badWrite, {}, {}, '04', ['07'], ['07'])
+    const bi = (br.items || [])[0] || {}
+    check(bi.status === 'failed' && String(bi.evidence || '').indexOf('要把 #07 加进票 #04 的 blockedBy') >= 0,
+      'G5b 写失败回执说清要写什么、方向朝哪（实得：' + String(bi.evidence).slice(0, 160) + '）')
+  }
+
   console.log('\n' + (failed ? '存在失败' : '全部通过 — #829（' + total + ' 条）'))
   process.exit(failed ? 1 : 0)
 }

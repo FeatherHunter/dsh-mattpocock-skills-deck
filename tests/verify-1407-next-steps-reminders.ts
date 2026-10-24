@@ -28,7 +28,7 @@ const GATE = 'verify-1407-next-steps-reminders'
 
 // 提醒行的两份原文：字面照 #1407 验收标准写，中英各一行；下面所有判据都从这里取，别在别处再抄一遍。
 const REMINDER_ZH = '- [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。'
-const REMINDER_EN = '- [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.'
+const REMINDER_EN = '- [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.'
 const TOOLS_ZH = '## 工具'
 const TOOLS_EN = '## Tools'
 
@@ -37,26 +37,26 @@ const TOOLS_EN = '## Tools'
 // 族写错会当场对不上，这也顺带守住「三份 YAML 各改各的、别人不背锅」。
 const TARGETS = {
   'ticket-action-templates': {
-    'tpl.diagnose': 18,
-    'tpl.discuss': 18,
-    'tpl.execute': 18,
-    'tpl.fix': 16,
-    'tpl.implement': 3,
-    'tpl.prototype': 12,
-    'tpl.research': 12,
-    'tpl.supplement': 6,
-    'tpl.takeover': 9,
+    'tpl.diagnose': 19,
+    'tpl.discuss': 19,
+    'tpl.execute': 19,
+    'tpl.fix': 17,
+    'tpl.implement': 4,
+    'tpl.prototype': 13,
+    'tpl.research': 13,
+    'tpl.supplement': 7,
+    'tpl.takeover': 10,
   },
-  'ticket-creation': { newBugWayfinder: 13, newSpec: 3, newWayfinder: 22 },
+  'ticket-creation': { newBugWayfinder: 14, newSpec: 4, newWayfinder: 23 },
   'map-advancement': {
-    complete: 15,
-    fixate: 10,
-    healthCheck: 4,
-    mapExecute: 19,
-    mapInspect: 11,
-    specComplete: 5,
-    specExecute: 4,
-    specSplit: 4,
+    complete: 16,
+    fixate: 11,
+    healthCheck: 5,
+    mapExecute: 20,
+    mapInspect: 12,
+    specComplete: 6,
+    specExecute: 5,
+    specSplit: 5,
   },
 }
 

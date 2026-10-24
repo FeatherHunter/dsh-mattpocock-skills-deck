@@ -29,12 +29,6 @@ export interface BootstrapPhones {
   getChainSkillNames: () => Promise<string[]>
 }
 
-/** /ask-matt 正文末尾要追加的规则节：skillName 管「拼给谁」，section 是要拼上去的原文。 */
-interface AskMattExtra {
-  skillName: string
-  section: string
-}
-
 /**
  * 组装启动技底与技能名单（依赖全显式传入，只有 ctx）。
  *
@@ -210,14 +204,9 @@ export function createBootstrap(deps: BootstrapDeps): BootstrapPhones {
                   // @ts-expect-error —— 见上，node:path 同理。
                   const dir: string = loc && loc.directory ? loc.directory : (await import('node:path')).dirname(p)
                   if (opts && opts.signal && opts.signal.aborted) throw opts.signal.reason
-                  // #1412：模型执行 /ask-matt 时读到的正文在这里定稿。上游原文照旧，只在归属技能是
-                  // ask-matt 时把插件追加的「推荐下一步」规则节拼到末尾。每次都从盘上原文重新拼，
-                  // 不在解析结果上累加，所以同一个技能反复读也不会把规则节叠两遍。
-                  let content: string = parsed.content
-                  const askMatt: AskMattExtra | null = await loadAskMattExtra()
-                  if (askMatt && parsed.name === askMatt.skillName) {
-                    content = (content ? String(content).replace(/\s+$/, '') + '\n\n' : '') + askMatt.section
-                  }
+                  // 模型读到的正文就是盘上原文：这里不做任何追加或改写（#1412 的规则节机制已经
+                  // 按维护者 2026-10-24 的决定撤掉，规则改放 suggest_next_steps 的工具说明）。
+                  const content: string = parsed.content
                   return {
                     name: parsed.name,
                     description: parsed.description,
@@ -275,22 +264,6 @@ export function createBootstrap(deps: BootstrapDeps): BootstrapPhones {
         CHAIN_SKILL_NAMES = ['wayfinder', 'setup-matt-pocock-skills', 'ask-matt']
       }
       return CHAIN_SKILL_NAMES as string[]
-    }
-    // #1412 /ask-matt 的「推荐下一步」规则节：真源是 shared/ask-matt-next-steps.ts，上游
-    // package/bundled-skills/ask-matt/SKILL.md 一个字不动；只在 provider.get() 返回正文时拼到末尾。
-    // 读不到规则文件时回退成空：规则缺失不该让 /ask-matt 整体读不出来，技能正文照常返回。
-    let ASK_MATT_EXTRA: AskMattExtra | null = null
-    async function loadAskMattExtra(): Promise<AskMattExtra | null> {
-      if (ASK_MATT_EXTRA !== null) return ASK_MATT_EXTRA
-      try {
-        const m: any = await import('../shared/ask-matt-next-steps.js')
-        const skillName: string = String((m && m.ASK_MATT_SKILL_NAME) || '')
-        const section: string = String((m && m.ASK_MATT_NEXT_STEPS_SECTION) || '').trim()
-        if (skillName && section) ASK_MATT_EXTRA = { skillName: skillName, section: section }
-      } catch (e: unknown) {
-        // 不做内联兜底：这里没有第二份可信的规则原文，宁可这次不追加，也不能自己编一份。
-      }
-      return ASK_MATT_EXTRA
     }
   return { getMattSkillProbeNames, getChainSkillNames }
 }

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T10:53:26.355Z",
+  "generatedAt": "2026-10-24T12:05:26.877Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 357,
   "gateCount": 357,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 570,
+  "graphFileCount": 569,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2313,7 +2313,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 149,
+      "expectedAssertions": 151,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -2339,7 +2339,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 102,
+      "expectedAssertions": 104,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -2350,22 +2350,20 @@
         "config/prompts/ticket-action-templates.yaml",
         "config/prompts/ticket-creation.yaml",
         "package/bundled-skills/ask-matt/SKILL.md",
-        "src/deck/tools/suggest-next-steps.ts",
         "src/host/bootstrap.ts",
-        "src/shared/ask-matt-next-steps.ts"
+        "tests/bundled-skills-upstream-hashes.json"
       ],
       "dirs": [
         "config/prompts",
         "package/bundled-skills/ask-matt",
-        "src/deck/tools",
         "src/host",
-        "src/shared"
+        "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 57,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+      "expectedAssertions": 31,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-1413-map-plan-two-layer.ts",
@@ -4240,6 +4238,7 @@
       "step": "node tests/verify-829-parent-reread.ts",
       "file": "tests/verify-829-parent-reread.ts",
       "guards": [
+        "src/deck/shell/edge-landing.ts",
         "src/deck/tools/map-link.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/tool-call-budget.ts",
@@ -4251,6 +4250,7 @@
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
+        "src/deck/shell",
         "src/deck/tools",
         "src/refresh/kernel",
         "src/refresh/rooms/host",
@@ -4262,7 +4262,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-839-credential-exec.ts",
@@ -7775,7 +7775,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 145,
+      "expectedAssertions": 151,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
@@ -9075,6 +9075,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
+      "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-898-block-merge.ts",
@@ -9107,7 +9108,6 @@
       "node tests/verify-1385-howto.ts",
       "node tests/verify-1403-kind-two-layer.ts",
       "node tests/verify-1409-suggest-stream.ts",
-      "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-1413-map-plan-two-layer.ts",
       "node tests/verify-1439-panel-accounting.ts",
       "node tests/verify-1442-tracker-tools.ts",
@@ -9463,7 +9463,6 @@
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1281-entries.ts",
-      "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-948-feedback-map.ts",
       "node tests/verify-952-short-text.ts",
@@ -9818,6 +9817,7 @@
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1411-suggest-appearance.ts",
       "node tests/verify-1411-suggest-bubble.ts",
+      "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -10031,9 +10031,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 590,
+    "fileCount": 589,
     "dirCount": 73,
-    "coveredFileCount": 590,
+    "coveredFileCount": 589,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 55,
@@ -10418,7 +10418,6 @@
       "src/seam/style.ts",
       "src/seam/timer.ts",
       "src/seam/tsconfig.json",
-      "src/shared/ask-matt-next-steps.ts",
       "src/shared/command-cleanup/README.md",
       "src/shared/command-cleanup/src/command-cleanup.ts",
       "src/shared/command-cleanup/tsconfig.json",
