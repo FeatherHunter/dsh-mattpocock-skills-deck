@@ -14,7 +14,7 @@
 // 需要 `gh repo view` 的那一级属于出站，已经从这里删掉；它改由会话的 getRepoKey 能力在开会话之后
 // 走 Tracker 操作管线（先裁决、再按后端口径记账），见 src/refresh/rooms/host/session-opener.ts。
 // 所以「选哪个后端」这一层永远不会起 gh，也不会花额度。
-import { timeoutForGhArgs, isWriteGhArgs, ghArgsOf, ghOutboundEntryOf, noteGhGraphqlCorrection } from '../../../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghArgsOf, ghOutboundEntryOf, noteGhGraphqlCorrection, type OutboundGateLike } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
 import { createGhExecution } from './gh-execution.js'
 // #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
@@ -89,11 +89,8 @@ interface SubprocessLike { spawn(req: SpawnRequest): SpawnHandle }
 /** 定时器（宿主注入）：只要一个「等 ms 毫秒再回调」的口子，形状便于与子进程 done 一起 race。 */
 interface TimerLike { timeout(ms: number): { then<T>(cb: () => T): Promise<T> } }
 
-/** 闸（不变量 I1）：每一笔真实出站在起进程之前报一次；没有闸就什么都不报（门禁会判红，不许静默）。 */
-interface OutboundGateLike {
-  noteOutbound(entry: { requests: number; points: number }): unknown
-  noteOutboundCorrection?(entry: { requests: number; points: number }): unknown
-}
+/** 闸（不变量 I1）：每一笔真实出站在起进程之前报一次；没有闸就什么都不报（门禁会判红，不许静默）。
+ *  形状从判档模块导入一份（#1482 复审）：这里再抄一份同名接口，改一处漏一处时编译器看不出来。 */
 
 /** 宿主日志出口：先问开关再组装字段（字段可以是函数，关着就不求值）。 */
 interface LogCtx {
@@ -166,7 +163,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
     try {
       const g = gateOf()
       if (!g) return null
-      // #1482：报闸传进来的是整条 argv（第一段是程序名，可能是带目录的 gh.exe），先剥掉程序名再判 GraphQL；
+      // #1482：报闸传进来的 argv 有两种形状（整条带程序名 / 上一层已剥好），剥法交给 ghArgsOf；
       // 口径与 gh 客户端共用 ghOutboundEntryOf（GraphQL 记 0 条 REST 请求、1 点，其余 1 条 0 点）。
       g.noteOutbound(ghOutboundEntryOf(ghArgsOf(argv)))
       return g

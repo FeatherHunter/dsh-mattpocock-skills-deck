@@ -202,7 +202,7 @@ function callSites(rel: string): { line: number; tag: string | null }[] {
 console.log('== 一、管子通着：opts.via 一路到 gh.exec ==')
 const client = readSelf(CLIENT)
 check(/via\?:\s*string/.test(client), 'client.ts 的 GhExecOpts 里有 via 这一格')
-check(/emitGhExec\([^)]*via\?:\s*string/.test(client), 'emitGhExec 收得下 via 这个参数')
+check(/emitGhExec\([^)]*via\??:\s*string/.test(client), 'emitGhExec 收得下 via 这个参数')
 check(/roomLogEvent\(ctx,\s*'info',\s*'gh\.exec',\s*\{[^}]*via:\s*String\(via \|\| ''\)/s.test(client), "gh.exec 那一行里写进了 via 字段（没给标签的调用点落空串）")
 const emitCalls = /\bemitGhExec\s*\(/g
 let em: RegExpExecArray | null

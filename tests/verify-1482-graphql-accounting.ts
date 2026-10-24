@@ -122,6 +122,10 @@ function partA(): void {
     'A、整条 argv 去掉程序名后就是子命令参数')
   check(JSON.stringify(ghArgsOf(['C:\\bin\\gh.exe', 'issue', 'list'])) === JSON.stringify(['issue', 'list']),
     'A、带目录的 gh.exe 也只去掉第一段')
+  check(JSON.stringify(ghArgsOf(['api', 'graphql', '-f', 'query=query{}'])) === JSON.stringify(['api', 'graphql', '-f', 'query=query{}']),
+    'A、已经剥过程序名的参数原样返回（#1482 复审：再剥一次会把 api 吃掉，GraphQL 又记成 REST）')
+  check(JSON.stringify(ghArgsOf(['glab', 'api', 'projects'])) === JSON.stringify(['glab', 'api', 'projects']),
+    'A、不是 gh 的命令不去第一段（GitLab 的 argv 不能被误剥）')
   check(Array.isArray(ghArgsOf([])) && ghArgsOf([]).length === 0, 'A、空 argv 回空数组')
   check(ghOutboundEntryOf(['api', 'graphql']).requests === 0 && ghOutboundEntryOf(['api', 'graphql']).points === 1,
     'A、起进程前 GraphQL 记 0 条 REST 请求、1 点')
@@ -302,12 +306,17 @@ function partF(): void {
     'F、剥程序名、起进程前报什么、事后补多少、日志点数来源四份口径各只一层')
   check(outboundTiers.indexOf("parts[0] === 'graphql'") < 0,
     'F、不再留「第一段就是 graphql」这条没人调用的支路')
+  check(outboundTiers.indexOf('const GRAPHQL_ESTIMATE_POINTS = 1') >= 0,
+    'F、GraphQL 估算点数只有一处定义')
 
   const client = srcOf('src/tracker/rooms/github/client.ts')
   check(client.indexOf('ghOutboundEntryOf(args)') >= 0 && client.indexOf('graphqlCorrectionOf(args, stdout)') >= 0,
     'F、gh 客户端报闸与补差都用共享口径，不再自己算一条请求/一点')
-  check(client.indexOf('ghPointNoteOf(args, stdout)') >= 0 && client.indexOf('points: pointNote ? pointNote.points : 0') >= 0,
+  check(client.indexOf('ghPointNoteOf(args, stdout)') >= 0 && client.indexOf('points: pointNote.points') >= 0,
     'F、gh 客户端把真实点数与来源写进 gh.exec 日志（#1482 补的日志点）')
+  check(client.indexOf("const NOT_ACCOUNTED = { points: 0, pointSource: '' }") >= 0 &&
+    client.indexOf("phase === 'queue' ? NOT_ACCOUNTED : ghPointNoteOf(args)") >= 0,
+    'F、报闸之前的 gh.exec 行写 0 点与空来源（排队取消、执行器没接上时不假装已记账）')
   check(client.indexOf("indexOf('graphql')") < 0 && client.indexOf('String(args && args[0]') < 0,
     'F、gh 客户端里旧的「只看第一段」写法已删')
 

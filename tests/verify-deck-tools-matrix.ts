@@ -179,7 +179,7 @@ async function main() {
   let pipelineGitlab = 0
   let pipelineGithubGraphql = 0
   // #1482：这一条命令算不算 GraphQL，由本门禁按夹具里真出现的命令形状写死判断，不调用生产函数 ——
-  // 生产判据哪天退化了，期望若跟着一起变，门禁就会把红判成绿（ADR 20261021 §2.5.2）。
+  // 生产判据哪天退化了，期望若跟着一起变，门禁就会把红判成绿（ADR 20261021 §2.5 第 2 条：门禁要能红能绿）。
   // 夹具里的 GraphQL 命令只有一种形状：gh api graphql ...。
   const isGraphqlLiteral = (args) => Array.isArray(args) && args[0] === 'api' && String(args[1] || '').indexOf('graphql') === 0
   const noteRemoteOutbound = (cmd, args) => {
