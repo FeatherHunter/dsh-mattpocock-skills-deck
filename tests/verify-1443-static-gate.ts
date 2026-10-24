@@ -25,8 +25,23 @@ const A2_UNMIGRATED = []
 // 三条缺一条就判红 —— 例外必须能被人追溯，不能只靠一张名字表放过去。今天一条都没有：仓库定位的
 // gh repo view 已经搬进会话能力（见 src/tracker/rooms/github/repo.ts 与 src/refresh/rooms/host/session-opener.ts）。
 const TRANSPORT_EXCEPTIONS: Array<{ file: string; reason: string; doc: string }> = []
-// 只算真正的调用点（await/赋值/返回 之后紧跟 runGh(），不算接口声明、传参与注释里的名字。
-const RUNGH_CALL = /(?:await\s+|=\s*|return\s+|=>\s*)runGh\(/g
+// 只算真正的调用点：名字后面紧跟 `(` 或 `?.(`，且前面不是 `function` 的声明写法。
+// 这样 await / 赋值 / return / 箭头 之后的调用都认，`deps.runGh(` 这类成员调用也认；
+// 声明（`function runGh(`）、对象字面量的键（`runGh: any`）与 `.apply` 转发不算调用。
+// #1456 第 2 条：从前只认 await/赋值/return/箭头 后面那四种写法，`deps.runGh(` 这种裸调用漏了。
+const RUNGH_CALL = /runGh\s*(?:\?\.)?\s*\(/g
+function countRunGhCalls(code) {
+  let n = 0
+  RUNGH_CALL.lastIndex = 0
+  let m
+  while ((m = RUNGH_CALL.exec(code)) !== null) {
+    // 往前看一小段：紧挨着 function 的就是声明，不算调用。
+    const before = code.slice(Math.max(0, m.index - 40), m.index)
+    if (/\bfunction\s*$/.test(before)) continue
+    n += 1
+  }
+  return n
+}
 // 注册表选择的唯一合法调用点（新路自动识别，旧壳已删）：
 const SELECT_SANCTIONED = ['src/deck/tools/tracker-session.ts']
 
@@ -46,7 +61,7 @@ function listTs(dir) {
 function relOf(abs) { return path.relative(ROOT, abs).replace(/\\/g, '/') }
 function runGhCallsOf(rel) {
   const code = stripComments(fs.readFileSync(path.join(ROOT, rel), 'utf8'))
-  return (code.match(RUNGH_CALL) || []).length
+  return countRunGhCalls(code)
 }
 
 async function main() {
@@ -123,6 +138,33 @@ async function main() {
   const scanned = listTs(path.join(ROOT, 'src/deck')).concat(listTs(path.join(ROOT, 'src/refresh'))).concat(listTs(path.join(ROOT, 'src/host')))
   const deep = scanned.filter(function (f) { return stripComments(fs.readFileSync(f, 'utf8')).split('\n').filter(function (l) { return /from\s+['"][^'"]*tracker\/rooms/.test(l) }).length > 0 }).map(relOf)
   check(deep.length === 0, 'deck / 刷新机制 / 宿主没有值引用房间实现（只许装配点引）' + (deep.length ? '（违规：' + deep.join('、') + '）' : ''))
+  // —— F. 正则自检：把认识的调用写法与「不是调用」的写法钉住（#1456 第 2 条） ——
+  // 为什么样例要进这条门禁：这条正则漏过一次（只认 await/赋值/return/箭头 后面的 runGh(，
+  // 认不出 deps.runGh( 这类裸调用）。样例就是「下次改正则时先看这里红不红」的那份清单。
+  const CALL_SAMPLES = [
+    ['await runGh(a)', 1, 'await 之后'],
+    ['const r = runGh(a)', 1, '赋值之后'],
+    ['return runGh(a)', 1, 'return 之后'],
+    ['f = () => runGh(a)', 1, '箭头函数体'],
+    ['deps.runGh(a)', 1, '成员调用（裸调用，从前漏掉的写法）'],
+    ['if (runGh(a)) {}', 1, '语句里的裸调用'],
+    ['await deps.runGh?.(a)', 1, '可选链调用'],
+  ]
+  const NOT_CALL_SAMPLES = [
+    ['function runGh(a) { return a }', '函数声明'],
+    ['function  runGh (a) { return a }', '函数声明（多空格）'],
+    ['h.runGh.apply(null, a)', '.apply 转发'],
+    ['const d = { runGh: any }', '对象字面量的键'],
+    ['const name = "runGh"', '字符串里的名字'],
+  ]
+  for (const s of CALL_SAMPLES) {
+    const got = countRunGhCalls(stripComments(s[0]))
+    check(got === s[1], '自检：' + s[2] + '算调用（应得 ' + s[1] + '）→ 实得 ' + got)
+  }
+  for (const s of NOT_CALL_SAMPLES) {
+    const got = countRunGhCalls(stripComments(s[0]))
+    check(got === 0, '自检：' + s[1] + '不算调用（应得 0）→ 实得 ' + got)
+  }
   console.log(failed ? ('\n' + total + ' 条断言，失败') : ('\n' + total + ' 条断言，全部通过')); process.exit(failed ? 1 : 0)
 }
 

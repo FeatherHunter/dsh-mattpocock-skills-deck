@@ -7,7 +7,12 @@
 // 断言，拿代码当场核一遍（例如「350 行门禁只扫 src/**/*.js」这句话，就去读那条门禁本身扫的是哪棵树）。
 // 第 ② 类是这套门禁里唯一有价值的部分：只查文件里有没有某些字串，是把文档抄一遍，不是守它。
 //
-// 反证（每次运行都跑）：把一份「缺了 I4 的假 ADR 文本」喂同一个判据，必须判红。
+// #1456 起这里守的不止一份：ADR_LIST 是清单（刷新额度架构，以及接替它的「后端操作单入口」）。
+// 每份 ADR 除了「文件在盘上」，还要过它自己那一段判据；加第三份 ADR 时，路径加进 ADR_LIST，
+// 再照 ⑧ 那段写一段「文档说的数与名录、代码当场对」的判据。
+//
+// 反证（每次运行都跑）：把一份「缺了 I4 的假 ADR 文本」喂同一个判据，必须判红；
+// 接替的那份 ADR 也有一条反证（把能力总数改错一位，判据必须抓到）。
 const fs = require('fs')
 const path = require('path')
 
@@ -18,6 +23,11 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 const ADR_REL = 'docs/adr/20260924-refresh-budget-architecture.md'
 const TS_ADR_REL = 'docs/adr/20260913-builtin-ts-shape.md'
+// 接替刷新额度架构的那份 ADR：后端操作统一走 Tracker 会话（规格 #1439 的实施决定）。
+const TRACKER_ADR_REL = 'docs/adr/20261023-tracker-single-entry.md'
+// 本门禁守的 ADR 清单（#1456：从前只认 ADR_REL 一份写死的路径，新 ADR 只能另开一条门禁才进得来）。
+const ADR_LIST = [ADR_REL, TRACKER_ADR_REL]
+const { OPERATIONS, LOCATORS } = require('../src/tracker/contract/operations-catalog.ts')
 
 /** 六条不变量各自在 ADR 里必须出现的那一句判据标题。 */
 const INVARIANTS = [
@@ -42,8 +52,44 @@ function missingIn(text) {
   return missing
 }
 
+/** 开会话失败时那四种可区分的结局（与 src/tracker/session/open-tracker.ts 的类型字面量同字）。 */
+const TRACKER_REASONS = ['no-backend', 'multi-match', 'pending', 'workspace-not-ready']
+/** 账本按「后端/桶」分键，三种内置后端各给一个键（Markdown 无桶，不在这张表里）。 */
+const TRACKER_BUCKET_KEYS = ['github/rest', 'github/graphql', 'gitlab/requests']
+
+/**
+ * 接替的那份 ADR 的判据：它写的能力条数、操作条数、四种结局与三个账本键，都要与名录逐字对得上。
+ * 抽成函数是为了让反证能拿假文本喂它（与 missingIn 同一个理由）。
+ * 返回没对上的那些项（空数组 = 全对上）。
+ */
+function trackerAdrProblems(text) {
+  const problems = []
+  const capabilityCount = OPERATIONS.length + LOCATORS.length
+  if (text.indexOf(capabilityCount + ' 条能力') < 0) problems.push('没写「' + capabilityCount + ' 条能力」')
+  if (text.indexOf(OPERATIONS.length + ' 条操作') < 0) problems.push('没写「' + OPERATIONS.length + ' 条操作」')
+  if (OPERATIONS[OPERATIONS.length - 1] !== 'readBudget') {
+    problems.push('操作名录末尾不是 readBudget（名录变了，ADR 的说法要跟着改）')
+  } else if (text.indexOf('readBudget') < 0) {
+    problems.push('没点出 readBudget 这一条')
+  } else if (text.indexOf('第 ' + OPERATIONS.length + ' 条') < 0) {
+    problems.push('没写 readBudget 是第 ' + OPERATIONS.length + ' 条操作')
+  }
+  for (const reason of TRACKER_REASONS) {
+    if (text.indexOf(reason) < 0) problems.push('没写开会话的结局 ' + reason)
+  }
+  for (const key of TRACKER_BUCKET_KEYS) {
+    if (text.indexOf(key) < 0) problems.push('没写账本键 ' + key)
+  }
+  return problems
+}
+
 async function main() {
   console.log('刷新架构 ADR 门禁（#719 T15：ADR 在、六条不变量逐条在、文档里关于形态的断言与代码对得上）')
+
+  // ⓪ 清单上的 ADR 都在盘上（#1456：结构从「写死一份路径」改成「一份清单」，新 ADR 进得来）。
+  const missingAdr = ADR_LIST.filter((rel) => !fs.existsSync(path.join(ROOT, rel)))
+  check(missingAdr.length === 0, 'ADR 清单上的文件都在盘上（' + ADR_LIST.length + ' 份）'
+    + (missingAdr.length ? '（缺：' + missingAdr.join('、') + '）' : ''))
 
   const adrPath = path.join(ROOT, ADR_REL)
   check(fs.existsSync(adrPath), 'ADR 文件在场：' + ADR_REL)
@@ -135,6 +181,33 @@ async function main() {
   // ⑦ ADR 必须如实记下今天的缺口（I3 只落地了一半），不许把没做的写成做完。
   check(text.indexOf('现在的缺口') >= 0 && text.indexOf('没有落地') >= 0,
     'ADR 如实记下了今天的缺口（I3 的「整池重建改走薄片段」那一半没有落地）')
+
+  // ⑧ 接替它的那份 ADR（20261023 后端操作单入口）也在清单里，且文档说的数与名录、代码当场对（#1456 第 6 条）。
+  const trackerAdrPath = path.join(ROOT, TRACKER_ADR_REL)
+  check(fs.existsSync(trackerAdrPath), '接替的 ADR 在盘上：' + TRACKER_ADR_REL)
+  const trackerText = fs.existsSync(trackerAdrPath) ? fs.readFileSync(trackerAdrPath, 'utf8') : ''
+  const trackerProblems = trackerAdrProblems(trackerText)
+  check(trackerProblems.length === 0,
+    '接替的 ADR 与能力名录对得上（' + (OPERATIONS.length + LOCATORS.length) + ' 条能力、' + OPERATIONS.length
+    + ' 条操作、四种结局、三个账本键）' + (trackerProblems.length ? '（缺：' + trackerProblems.join('；') + '）' : ''))
+  // 文档里的四种结局不能是编的：开会话的出口在代码里只有这四个理由。
+  const openerText = fs.readFileSync(path.join(ROOT, 'src/tracker/session/open-tracker.ts'), 'utf8')
+  const missingReasons = TRACKER_REASONS.filter((r) => openerText.indexOf("'" + r + "'") < 0)
+  check(missingReasons.length === 0, 'ADR 写的四种结局在 open-tracker.ts 里都有同名字面量'
+    + (missingReasons.length ? '（缺：' + missingReasons.join('、') + '）' : ''))
+  // 三个账本键也不是抄的：拿账本的桶键函数现算一遍，与 ADR 写的逐字相等。
+  const ledger = require('../src/refresh/rooms/host/quota-ledger.ts')
+  check(ledger.bucketKey('github', 'rest') === 'github/rest'
+    && ledger.bucketKey('github', 'graphql') === 'github/graphql'
+    && ledger.bucketKey('gitlab', 'requests') === 'gitlab/requests',
+    'ADR 写的三个账本键与账本的 bucketKey 现算结果一致')
+  // 反证：把「26 条能力」改成「25 条能力」，同一个判据必须抓到。
+  const capabilityCount = OPERATIONS.length + LOCATORS.length
+  // 文本里「26 条能力」不止一处（决定段与迁移段各一处），要全部改错，不能只改第一处。
+  const fakeTracker = trackerText.split(capabilityCount + ' 条能力').join((capabilityCount - 1) + ' 条能力')
+  const fakeTrackerProblems = trackerAdrProblems(fakeTracker)
+  check(fakeTrackerProblems.length > 0, '反证：把能力总数改错一位之后，同一个判据必须抓到它（抓到 '
+    + fakeTrackerProblems.length + ' 条：' + fakeTrackerProblems.join('；') + '）')
 
   // 反证：一份缺了 I4 的假 ADR 文本喂同一个判据，必须判红。
   const fake = text.replace(INVARIANTS[3].needle, '（这一条被拿掉了）')

@@ -65,11 +65,22 @@ export async function runPipelineOp(deps: PipelineDeps, op: string, args: unknow
   }
   if (op === 'readBudget') {
     // 读预算直达房间：它回来的就是读数，不裁决、不记账（看额度这件事本身不花额度）。
+    // 但有一档要翻译：后端模块没实现 readBudget 时，注册表补的桩回的是「不支持」失败信封；
+    // 那说的其实是「这个后端没有这项能力」这件读数事实，要翻成契约里的第四种读数
+    // （known:false + reason:'unsupported'），不能把失败信封原样交给调用方——
+    // 否则契约里这一档永远没有生产者（票 #1456 第 1 条）。装配错（实例连桩都没有）在上面的
+    // 成员检查里已经回失败，不走这里。
+    let result: unknown
     try {
-      return await (room as (...a: unknown[]) => Promise<unknown>)(...args)
+      result = await (room as (...a: unknown[]) => Promise<unknown>)(...args)
     } catch (err) {
       return pipelineFail(ERROR_KIND.NETWORK, '读预算失败（' + String((err as Error)?.message || err) + '）', '')
     }
+    const failure = result as { ok?: boolean; error?: { kind?: string } } | null
+    if (failure && failure.ok === false && failure.error && failure.error.kind === ERROR_KIND.UNSUPPORTED) {
+      return { ok: true, data: { known: false, reason: 'unsupported' } }
+    }
+    return result
   }
   let reading: BudgetReading
   try {
