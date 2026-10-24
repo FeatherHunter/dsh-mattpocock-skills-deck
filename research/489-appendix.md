@@ -348,7 +348,7 @@ exec.run 的 via 取值表（枚举写死在这里）：snapshot 面板快照组
 | 12 | panelSync.eval | 调试 | repoKeyHash、baseline 基线、dirty 是否脏、failures 失败数 | 散列仓库键 | — | 按事件，有变化才记 | index.js:451 求值、494 单个求值 |
 | 15 | registry.stub | 调试 | op 操作名、backendId 后端标识 | — | — | 按事件 | registry.js:41 不支持桩 |
 | 17 | workspaceStore.hit | 调试 | keyHash 键散列、fresh 是否新鲜、ttlMs 存活毫秒 | H_CWD | — | 采样 | workspaceStore.js:38 是否新鲜、48 存活 30 秒 |
-| 18 | chain.cache.hit | 调试 | keyHash 链共享键的短散列、lang 语言、deferred 这一份是「被退避挡下、直接回的上一份快照」（布尔）、reason 被挡下的原因代号（枚举，取值来自 refresh-core/src/backoff.ts）、waitMs 还差多少毫秒才该真算（2026-09-25 订正：这个事件的落点已经变成退避挡下那一处，实现记这五个键；从前的 ageMs 早已不再发射，按「允许字段就是能记的全部字段」的口径去掉） | H_CWD 同一套短散列（不记路径原文） | — | 外层判断（同一行先判调试开关，关闭时不组装字段对象） | src/host/detectChain.js 的 handleChain（退避说这一次不必真算，这一行就是那次「拿上一份快照回界面」的记录） |
+| 18 | chain.cache.hit | 调试 | keyHash 链共享键的短散列、lang 语言、deferred 这一份是「被退避挡下、直接回的上一份快照」（布尔）、reason 被挡下的原因代号（枚举，取值来自 refresh-core/src/backoff.ts）、waitMs 还差多少毫秒才该真算、patched 这次命中里按当前会话重算了几项（2026-09-25 订正：这个事件的落点已经变成退避挡下那一处，实现记这五个键；从前的 ageMs 早已不再发射，按「允许字段就是能记的全部字段」的口径去掉。2026-10-25 #1483 起多记 patched：缓存按工作区共享，命中时依赖会话沙箱许可的那几行要按当前会话重算，这一格说清重算了几项） | H_CWD 同一套短散列（不记路径原文） | — | 外层判断（同一行先判调试开关，关闭时不组装字段对象） | src/host/detectChain.js 的 handleChain（退避说这一次不必真算，这一行就是那次「拿上一份快照回界面」的记录） |
 | 19 | chain.predicate | 调试 | id 谓词标识枚举、status 通过或失败或待定、latencyMs | 详情不记 | R_TOKEN_BEARER | 节流（15 秒超时只记状态变化） | index.js:1721-1745 谓词注册 15000 毫秒 |
 | 23 | workspaceKey.canonical | 调试 | rawHash 原始散列、normalizedHash 归一后散列、fallback 是否走兜底 | 双散列，不记原文 | R_WIN_ABS、R_HOME_PATH | 按事件 | workspaceKey.js:28、index.js:536 统一钥匙 |
 | 24 | platform.resolve | 调试 | name 找哪个程序、ok 是否找到、latencyMs | — | — | 按事件 | platform/index.js:30 工厂、index.js:176 找程序 |

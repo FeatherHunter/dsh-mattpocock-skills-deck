@@ -29,6 +29,8 @@ declare const dswsLogHash: any;
 declare const dswsLogTrunc: any;
 declare const host: any;
 declare const getCachedChain: any;
+// #1483：读整条缓存记录（要它的产出会话号）；老沙箱里可能没有这个入口，调用点按 typeof 兜底。
+declare const getCachedChainEntry: any;
 declare const setCachedChain: any;
 declare const userHintOf: any;
 declare const nowStr: any;
@@ -125,30 +127,52 @@ export const chainEventRefresh = function (st: any, why: any, force: any): any {
   if (!st || !st.cwd) return Promise.resolve(null);
   return loadChain(st, bypassCache, reason);
 };
-export const loadChain = function (st: any, force: any, trigger: any): any {
+export const loadChain = function (st: any, force: any, trigger: any, opts?: any): any {
   if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null);
   // 链共享键 = 工作区键 + 后端 id + 语言（#324 按工作区单次求值按后端隔离；#529 加语言：host 明细按语言产出，中英快照分开缓存，切换语言即时重取）
   const _backendIdForChain: string = (st.selection && st.selection.backendId) || '';
   const _langForChain: string = (typeof promptLang === 'function' ? promptLang() : 'zh');
   const norm: string = _chainKeyOfState(st);
+  // #1483：跨会话补问的第二次请求要绕过本地缓存（否则又直接命中同一份），但不 force 宿主
+  //   ——宿主自己按退避裁定，命中缓存时会按本会话重算依赖沙箱许可的那几行。
+  const _skipLocalCache: boolean = !!(opts && opts.skipLocalCache);
   if (!force) {
     const inflight: any = _chainInflightByCwd.get(norm);
     if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(norm) }); } catch (eL) {}; return inflight; }
     // 链共享缓存命中即秒显（#324 新会话首见即秒显；#653 起按工作区键，子目录会话秒显根会话的链）
-    try {
-      const cached: any = (typeof getCachedChain === 'function' ? getCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain) : null);
-      if (cached) {
-        st.chainSnapshot = cached;
-        st.chain = cached.chain || cached;
-        st.fullChain = cached.fullChain || null;
-        st.backendChain = cached.backendChain || null;
-        st.chainLoadedAt = (typeof nowStr === 'function' ? nowStr() : '');
-        st.chainLangLoaded = _langForChain; // #529：缓存命中即该语言快照，记下供语言切换判定
-        // 已秒显则不发请求，直接返回
-        // 但仍需让调用方感知已就绪，返回已解析的 promise
-        return Promise.resolve(cached);
-      }
-    } catch (eCache) {}
+    // #1483：缓存条目记着「这份是哪个会话求出来的」。同一个会话照旧秒显、不再联网；
+    //   不同会话（含旧版本没记会话号的条目）先把旧快照显示出来，再在后台补问一次宿主——
+    //   宿主命中缓存时会按本会话重算 md:scratchWritable 这类依赖沙箱许可的行，回来后替换本地这一份。
+    //   同一会话同一把键只补问一次（chainRevalidatedKey），面板轮询不会反复触发。
+    // 反例：跨会话命中直接回旧快照不补问——只读会话会一直看到别的会话量出的「可写」。
+    if (!_skipLocalCache) {
+      try {
+        const entry: any = (typeof getCachedChainEntry === 'function' ? getCachedChainEntry(wsKeyOf(st.cwd), _backendIdForChain, _langForChain) : null);
+        const cached: any = entry ? entry.snapshot : (typeof getCachedChain === 'function' ? getCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain) : null);
+        if (cached) {
+          st.chainSnapshot = cached;
+          st.chain = cached.chain || cached;
+          st.fullChain = cached.fullChain || null;
+          st.backendChain = cached.backendChain || null;
+          st.chainLoadedAt = (typeof nowStr === 'function' ? nowStr() : '');
+          st.chainLangLoaded = _langForChain; // #529：缓存命中即该语言快照，记下供语言切换判定
+          // 已秒显；不同会话还要补问一次（排到当前任务之后，不挡这次的秒显）
+          try {
+            const producedBy: string = String((entry && entry.sessionId) || '');
+            const mySession: string = String(st.sessionId || '');
+            const revalidateKey: string = norm + '@' + mySession;
+            if (producedBy !== mySession && st.chainRevalidatedKey !== revalidateKey) {
+              st.chainRevalidatedKey = revalidateKey;
+              const stAtAsk: any = st;
+              Promise.resolve().then(function (): any {
+                return loadChain(stAtAsk, false, 'cross-session-revalidate', { skipLocalCache: true });
+              }).catch(function (): void {});
+            }
+          } catch (eRv) {}
+          return Promise.resolve(cached);
+        }
+      } catch (eCache) {}
+    }
   }
   // 2026-08-28 修复（后端物理隔离）：链的后端段必须与 UI 当前绑定的后端一致——
   //   此前只传 cwd，host 回退到 detect 自产的 selection（默认 github），导致 markdown 工作区出现 GitHub 检查行。
@@ -210,7 +234,8 @@ export const loadChain = function (st: any, force: any, trigger: any): any {
       st.chainLoadedAt = nowStr();
       st.chainLangLoaded = _langForChain; // #529：记下本次快照语言，语言切换时凭它判定重取
       // 落共享缓存，供同工作区其他会话秒显
-      try { if (typeof setCachedChain === 'function') setCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain, snap); } catch (eSet) {}
+      // #1483：落缓存时记下产出会话号，供别的会话读到后判断要不要按自己的许可补问。
+      try { if (typeof setCachedChain === 'function') setCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain, snap, String(st.sessionId || '')); } catch (eSet) {}
       emit(st);
       // #709（T5）：这里从前会「只要链没全绿就安排 8 秒后再 force 一次」。现在不排任何定时器：
       // 下一次重算由四种事件带起来，该不该真算由宿主按退避裁定。
