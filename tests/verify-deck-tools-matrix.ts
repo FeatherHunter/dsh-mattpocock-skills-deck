@@ -1,4 +1,6 @@
 const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
+// #1482：传输层报账要按「这一条命令是不是 GraphQL」分开报（GraphQL 不占 REST 请求条数）。
+const { isGraphqlGhArgs } = require('../src/tracker/kernel/outbound-tiers.js')
 // verify-deck-tools-matrix.ts —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
 // 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.ts，可独立运行。
 //
@@ -162,25 +164,35 @@ async function main() {
   }
   // 每条远端命令归一次档：A 管线窗口里（工具自身的流量）、B 旧发送口里（本段自己用 gate.send 包住的锚用例）、
   // C 两边都不在 —— C 就是「绕开了一切准入」的那一类，必须一条都没有。
+  // #1482 起传输层按真实出站口径报：GraphQL 只算点数、不占 REST 请求条数。下面 REST 与点数分开数，
+  // ③ 段既按「每条命令都归了档」查归因，也按两种口径分别与账本对账。
   let outboundInPipeline = 0
   let outboundInOldSend = 0
   let oldSendDepth = 0
+  let outboundRest = 0        // 全部命令里按真实口径算的 REST 请求条数
+  let outboundPoints = 0      // 全部命令里按真实口径算的 GraphQL 点数
+  let oldSendRest = 0
+  let oldSendPoints = 0
+  let outsideRest = 0
+  let outsidePoints = 0
   const outboundOutside = []
   // 管线窗口里按后端分开数：③ 段要拿它们与账本逐个桶对账（github 两桶、gitlab 只有 requests）。
   let pipelineGithub = 0
   let pipelineGitlab = 0
   let pipelineGithubGraphql = 0
   const noteRemoteOutbound = (cmd, args) => {
+    const isGql = cmd === 'gh' && isGraphqlGhArgs(args)
+    const rest = isGql ? 0 : 1
+    const points = isGql ? 1 : 0
     if (pipelineWindows > 0) {
       outboundInPipeline += 1
-      if (cmd === 'gh') {
-        pipelineGithub += 1
-        if (String((args && args[0]) || '').indexOf('graphql') >= 0) pipelineGithubGraphql += 1
-      }
+      if (cmd === 'gh') { pipelineGithub += 1; if (isGql) pipelineGithubGraphql += 1 }
       if (cmd === 'glab') pipelineGitlab += 1
-    } else if (oldSendDepth > 0) outboundInOldSend += 1
-    else outboundOutside.push(cmd + ' ' + String((args && args[0]) || ''))
-    gate.noteOutbound({ requests: 1, points: 0 })
+    } else if (oldSendDepth > 0) { outboundInOldSend += 1; oldSendRest += rest; oldSendPoints += points }
+    else { outboundOutside.push(cmd + ' ' + String((args && args[0]) || '')); outsideRest += rest; outsidePoints += points }
+    outboundRest += rest
+    outboundPoints += points
+    gate.noteOutbound({ requests: rest, points: points })
   }
 
   const ghSink = []
@@ -589,8 +601,12 @@ async function main() {
   {
     const stats = gate.stats()
     const esc = gate.escaped()
-    check(stats.transport.requests > 0 && stats.transport.requests === outboundInPipeline + outboundInOldSend + outboundOutside.length,
-      '每条远端命令都归了档（传输层真发 ' + stats.transport.requests + ' 条 = 管线窗口里 ' + outboundInPipeline + ' + 旧发送口 ' + outboundInOldSend + ' + 两者之外 ' + outboundOutside.length + '）')
+    // 管线窗口里真发的 REST 条数：GraphQL 已按 #1482 的口径从条数里剔除。
+    const pipelineRest = outboundInPipeline - pipelineGithubGraphql
+    check(stats.transport.requests > 0 && stats.transport.requests === outboundRest,
+      '传输层按真实口径报 REST 请求条数（' + stats.transport.requests + ' 条 = 管线 ' + pipelineRest + ' + 旧发送口 ' + oldSendRest + ' + 两者之外 ' + outsideRest + '）：GraphQL 不算 REST 请求')
+    check(stats.transport.points === outboundPoints,
+      '传输层按真实口径报 GraphQL 点数（' + stats.transport.points + ' 点 = 管线 ' + pipelineGithubGraphql + ' + 旧发送口 ' + oldSendPoints + ' + 两者之外 ' + outsidePoints + '）：先报闸按 1 点估，夹具回包没带 cost，所以不补差')
     check(outboundOutside.length === 0,
       '两个远端车道发出去的每一条命令，都落在某次经管线放行、还没记账的操作里（' + outboundInPipeline + ' 条），或测试自己用旧发送口包住的锚用例里（' + outboundInOldSend + ' 条）；两者之外偷发的 0 条'
         + (outboundOutside.length ? '（偷发样例：' + outboundOutside.slice(0, 3).join(' ｜ ') + '）' : ''))
@@ -599,20 +615,22 @@ async function main() {
       '管线给每一次操作都裁决并记账：' + admitCalls + ' 次裁决，拒绝 ' + pipelineRefusals.length + ' 次，收尾时残留窗口 ' + pipelineWindows + ' 个（记账是不是真进了账本，下面按金额查）')
     check(admitCalls === admitsWithKnownReading,
       '裁决看到的是账本里的真读数（' + admitsWithKnownReading + '/' + admitCalls + ' 次 known:true），不是「还没量出来」那一份')
-    check(stats.accounted.requests > 0 && stats.accounted.requests === outboundInOldSend,
-      '闸账上那 ' + stats.accounted.requests + ' 条全部来自旧发送口包住的锚用例（' + outboundInOldSend + ' 条）：工具流量不再经过那个口，所以闸记的少于真发是设计，不是漏记')
-    check(esc.requests === stats.transport.requests - stats.accounted.requests && esc.requests === outboundInPipeline,
-      '逃逸读数 = 真发 − 账上（' + esc.requests + ' = ' + stats.transport.requests + ' − ' + stats.accounted.requests + '），正好等于走管线的工具流量（' + outboundInPipeline + ' 条）：逐条可对数，不是一笔糊涂账')
+    check(stats.accounted.requests > 0 && stats.accounted.requests === oldSendRest && stats.accounted.points === oldSendPoints,
+      '闸账上那 ' + stats.accounted.requests + ' 条 REST 请求 / ' + stats.accounted.points + ' 点全部来自旧发送口包住的锚用例（' + oldSendRest + ' 条 / ' + oldSendPoints + ' 点）：工具流量不再经过那个口，所以闸记的少于真发是设计，不是漏记')
+    check(esc.requests === stats.transport.requests - stats.accounted.requests && esc.requests === pipelineRest,
+      '逃逸读数 = 真发 − 账上（' + esc.requests + ' = ' + stats.transport.requests + ' − ' + stats.accounted.requests + '），正好等于走管线的工具流量（' + pipelineRest + ' 条 REST）：逐条可对数，不是一笔糊涂账')
+    check(esc.points === stats.transport.points - stats.accounted.points && esc.points === pipelineGithubGraphql,
+      '逃逸点数同样对得上（' + esc.points + ' 点 = 走管线的 GraphQL ' + pipelineGithubGraphql + ' 条）：两桶口径下点数不多不少')
     check(gate.stats().byCategory['ai-tool'] > 0, '旧发送口那几笔仍然记在「AI 工具」那一档（' + gate.stats().byCategory['ai-tool'] + ' 笔）')
 
-    // 账本对账（#1454）：真实用量只有操作管线的 account 一条写入口，金额与桶都从账本里读。
+    // 账本对账（#1454 + #1482）：真实用量只有操作管线的 account 一条写入口；GraphQL 只进点数桶，不再被记成 REST。
     const snap = ledger.snapshot()
-    check(snap.total.requests === outboundInPipeline,
-      '账本总量 == 管线里真发出去的 gh/glab 命令数（账本 ' + snap.total.requests + ' 条，管线窗口 ' + outboundInPipeline + ' 条）：每一条都记了、没有一条记两遍')
+    check(snap.total.requests === pipelineRest,
+      '账本总量 == 管线里真发出去的 REST 请求条数（账本 ' + snap.total.requests + ' 条，管线窗口 ' + pipelineRest + ' 条）：每一条都记了、没有一条记两遍；GraphQL 不再被记成 REST')
     check(snap.total.points === pipelineGithubGraphql,
       '账本总点数 == 管线里真发出去的 GitHub GraphQL 命令数（账本 ' + snap.total.points + ' 点，命令行 ' + pipelineGithubGraphql + ' 条）：两桶口径没把点数算进别的桶')
-    check(ledger.hourOf('ai-tool', 'github').requests === pipelineGithub && ledger.hourOf('ai-tool', 'github').points === pipelineGithubGraphql,
-      'GitHub 记在 ai-tool 档：' + ledger.hourOf('ai-tool', 'github').requests + ' 条请求 / ' + ledger.hourOf('ai-tool', 'github').points + ' 点（真发 ' + pipelineGithub + ' 条，其中 GraphQL ' + pipelineGithubGraphql + ' 条）')
+    check(ledger.hourOf('ai-tool', 'github').requests === pipelineGithub - pipelineGithubGraphql && ledger.hourOf('ai-tool', 'github').points === pipelineGithubGraphql,
+      'GitHub 记在 ai-tool 档：' + ledger.hourOf('ai-tool', 'github').requests + ' 条 REST 请求 / ' + ledger.hourOf('ai-tool', 'github').points + ' 点（真发 ' + pipelineGithub + ' 条，其中 GraphQL ' + pipelineGithubGraphql + ' 条）')
     check(ledger.hourOf('ai-tool', 'gitlab').requests === pipelineGitlab && ledger.hourOf('ai-tool', 'gitlab').points === 0,
       'GitLab 记在 ai-tool 档的 requests 桶：' + ledger.hourOf('ai-tool', 'gitlab').requests + ' 条请求 / ' + ledger.hourOf('ai-tool', 'gitlab').points + ' 点（真发 ' + pipelineGitlab + ' 条，只计请求的后端不记点）')
     check(ledger.snapshot().byAccount['plugin'].hour.requests === 0,

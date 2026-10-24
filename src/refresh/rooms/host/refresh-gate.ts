@@ -34,7 +34,8 @@ import * as budget from '../../kernel/host-budget.js'
 // 契约层 src/tracker/contract/budget-model.ts）。闸自己不猜口径：生产装配从注册表取到声明后经
 // deps.budgetModelOf 注入进来；没注入时一律按「未知」算（只记请求数，绝不凭空当成两桶）。
 import * as failureWindow from '../../kernel/failure-window.js'
-import { measureStep, noteStepOutbound } from '../../kernel/step-pricing.js'
+import { measureStep } from '../../kernel/step-pricing.js'
+import { addOutbound, addOutboundCorrection } from '../../kernel/transport-ledger.js'
 import { refusalTextRef } from './refusal-messages.js'
 
 // ---------------------------------------------------------------------------
@@ -83,7 +84,7 @@ interface DeferredEntry { req: NormalizedReq; category: string; kind: string; bu
 /** 条数与点数这一对（记账单位是真实出站 HTTP 请求数，这两个数在闸里到处对账）。 */
 interface Counters { requests: number; points: number }
 
-/** 传输层报上来的一笔花费：条数与点数缺了或不是数都按 0 算（条数缺了就当 1 条，见 noteOutbound）。 */
+/** 传输层报上来的一笔花费：条数缺了或不是数时按 1 条兜底，显式给 0 就是 0（#1482：GraphQL 不占 REST 请求）；点数缺了按 0。 */
 interface OutboundReport { requests?: unknown; points?: unknown }
 
 /** 裁决的结论（形状来自 admission-policy.js 的 decide）：放行、降档还是推迟，外加一句原因。 */
@@ -478,13 +479,10 @@ export function createGate(deps?: GateDeps) {
   }
 
   /** 传输层每真发一条就报一次（生产里挂在起 gh 进程那一层）。绕开闸发的那几条就靠它露出来。 */
-  function noteOutbound(entry?: OutboundReport) {
-    const e = entry || {}
-    stats.transport.requests += num(e.requests) || 1
-    stats.transport.points += num(e.points)
-    try { noteStepOutbound(e) } catch (e2) {}
-    return { requests: stats.transport.requests, points: stats.transport.points }
-  }
+  function noteOutbound(entry?: OutboundReport) { return addOutbound(stats.transport, entry, 1) }
+
+  /** 事后补报 GraphQL 的真实点数差额（#1482）：口径见 transport-ledger.ts 的 addOutboundCorrection。 */
+  function noteOutboundCorrection(entry?: OutboundReport) { return addOutboundCorrection(stats.transport, entry) }
 
   /** 撞上限流（含二级限流的 Retry-After）：桶降档 + 工作区标记 + 计数。 */
   function noteRetryAfter(signal?: RetryAfterSignal) {
@@ -553,6 +551,7 @@ export function createGate(deps?: GateDeps) {
     planOf: planOf,
     admitAiTool: admitAiTool,
     noteOutbound: noteOutbound,
+    noteOutboundCorrection: noteOutboundCorrection,
     noteRetryAfter: noteRetryAfter,
     drain: drain,
     escaped: escaped,

@@ -47,7 +47,8 @@ export function noteStepOutbound(entry?: unknown): StepCounters {
   const e = (entry || {}) as StepOutboundEntry
   const store = als.getStore()
   const c = store && store.collector
-  const r = num(e.requests) || 1
+  // #1482：缺省或非法才按 1 条兜底，显式给 0 就是 0 —— GraphQL 不占 REST 请求条数，报 0 条不能再被抬成 1 条。
+  const r = (typeof e.requests === 'number' && isFinite(e.requests)) ? e.requests : 1
   const p = num(e.points)
   if (c) { c.requests += r; c.points += p }
   return { requests: r, points: p }
