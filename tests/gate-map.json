@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T09:23:42.156Z",
+  "generatedAt": "2026-10-24T10:31:10.496Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 356,
   "gateCount": 356,
-  "attributedGates": 317,
-  "unattributedGates": 39,
+  "attributedGates": 316,
+  "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 14,
   "smokeLength": 5,
@@ -2085,20 +2085,17 @@
       "file": "tests/verify-1323-build-lock.ts",
       "guards": [
         "scripts/build.mts",
-        "scripts/lib/build-lock.mts",
-        "scripts/ts-hook.mts",
-        "src/shared/time-config/src/values.ts"
+        "scripts/lib/build-lock.mts"
       ],
       "dirs": [
         "scripts",
-        "scripts/lib",
-        "src/shared/time-config/src"
+        "scripts/lib"
       ],
-      "unattributed": false,
+      "unattributed": true,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
+      "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-1325-build-cache-nowrite.ts",
@@ -9473,7 +9470,6 @@
     "src/shared/time-config/src": [
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-1245-plan-resume.ts",
-      "node tests/verify-1323-build-lock.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
