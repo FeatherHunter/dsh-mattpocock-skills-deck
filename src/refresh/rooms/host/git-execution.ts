@@ -14,7 +14,7 @@
 // 需要 `gh repo view` 的那一级属于出站，已经从这里删掉；它改由会话的 getRepoKey 能力在开会话之后
 // 走 Tracker 操作管线（先裁决、再按后端口径记账），见 src/refresh/rooms/host/session-opener.ts。
 // 所以「选哪个后端」这一层永远不会起 gh，也不会花额度。
-import { timeoutForGhArgs, isWriteGhArgs, isGraphqlGhArgs } from '../../../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghArgsOf, ghOutboundEntryOf, noteGhGraphqlCorrection } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
 import { createGhExecution } from './gh-execution.js'
 // #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
@@ -90,7 +90,10 @@ interface SubprocessLike { spawn(req: SpawnRequest): SpawnHandle }
 interface TimerLike { timeout(ms: number): { then<T>(cb: () => T): Promise<T> } }
 
 /** 闸（不变量 I1）：每一笔真实出站在起进程之前报一次；没有闸就什么都不报（门禁会判红，不许静默）。 */
-interface OutboundGateLike { noteOutbound(entry: { requests: number; points: number }): unknown }
+interface OutboundGateLike {
+  noteOutbound(entry: { requests: number; points: number }): unknown
+  noteOutboundCorrection?(entry: { requests: number; points: number }): unknown
+}
 
 /** 宿主日志出口：先问开关再组装字段（字段可以是函数，关着就不求值）。 */
 interface LogCtx {
@@ -162,17 +165,12 @@ export function createRepoKeys(deps: RepoKeysDeps) {
   function reportOutbound(argv?: string[]) {
     try {
       const g = gateOf()
-      if (!g) return
-      // #1482：报闸传进来的是整条 argv（第一段是程序名，可能是带目录的 gh.exe），先剥掉程序名再判 GraphQL。
-      // 这一路（旧面板写路径）不做事后按 rateLimit.cost 补差，点数按 1 估：它与真实点数可能差几倍，
-      // 但 #1453 起 gh 出站随会话走 Tracker 房间，这条路今天已不是主路，不为此再加一个补差口。
-      const head = Array.isArray(argv) && argv.length > 0 ? progName(argv[0]) : ''
-      const args = /^gh(\.exe)?$/i.test(head) ? argv!.slice(1) : (argv || [])
-      // GraphQL 那一桶按点数计（一条 gh api graphql 命令算一点），REST 那一桶按请求条数计，两桶互不折算；
-      // GraphQL 不占 REST 请求条数（#1482）。
-      const isGraphql = isGraphqlGhArgs(args)
-      g.noteOutbound({ requests: isGraphql ? 0 : 1, points: isGraphql ? 1 : 0 })
-    } catch (e) { /* 报账失败不许影响已经起来的这一条命令 */ }
+      if (!g) return null
+      // #1482：报闸传进来的是整条 argv（第一段是程序名，可能是带目录的 gh.exe），先剥掉程序名再判 GraphQL；
+      // 口径与 gh 客户端共用 ghOutboundEntryOf（GraphQL 记 0 条 REST 请求、1 点，其余 1 条 0 点）。
+      g.noteOutbound(ghOutboundEntryOf(ghArgsOf(argv)))
+      return g
+    } catch (e) { return null /* 报账失败不许影响已经起来的这一条命令 */ }
   }
 
     // 通用进程执行（#344 前置检查用：git / cmd 等，不经 shell，错误不归一化）
@@ -198,7 +196,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       // #723（T19）：这一笔真实出站先报给闸（I1）。这条路的调用方是 git / glab / gh 三条，
       // 其中 gh 与 glab 是真实出站；git 只读远端地址、不起 HTTP 请求，但它是同一个进程出口，
       // 一起报能保证「起过几条命令」与账上的条数一一对应（宁可多记一笔，也不要漏一笔）。
-      reportOutbound(argv)
+      const xpGate = reportOutbound(argv)
       let handle
       try {
         handle = subprocess.spawn({
@@ -238,6 +236,8 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
       xpReleaseSlot()
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
+      // #1482：GraphQL 的真实点数只有拿到回包才知道；成功之后按回包 rateLimit.cost 补差（失败不补）。
+      noteGhGraphqlCorrection(xpGate, ghArgsOf(argv), 0, out.text || '')
       // #857：成功必须带整数退出码 0。调用方经 ctx.exec 转给 GitHub 命令执行器时，那边按“拿不到整数退出码就判失败”处理；缺了这个 0，评论写成功了面板也会报失败。
       return { ok: true, text: out.text || '', code: 0 }
     }

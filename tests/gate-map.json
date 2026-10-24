@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T17:07:38.933Z",
+  "generatedAt": "2026-10-24T17:11:22.854Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 363,
   "gateCount": 363,
@@ -604,7 +604,6 @@
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/issue-file/src/marker.ts",
-        "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
@@ -620,7 +619,6 @@
         "src/refresh/registry",
         "src/refresh/rooms/host",
         "src/shared/issue-file/src",
-        "src/tracker/kernel",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
@@ -632,7 +630,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 20 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 20 条"
     },
     {
       "step": "node tests/verify-deck-tools-row-zero-dep.ts",
@@ -9788,7 +9786,6 @@
       "node tests/verify-issue297.ts"
     ],
     "src/tracker/kernel": [
-      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-no-mixed-session.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1182-log-emit-single-source.ts",

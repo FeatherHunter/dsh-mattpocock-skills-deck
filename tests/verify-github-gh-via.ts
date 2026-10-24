@@ -302,9 +302,10 @@ for (const r of runs) {
   const f = ghEvents[0].fields
   check(f.via === r.tag, '真跑一笔：gh.exec 的 via 就是 ' + r.tag + '（实得 ' + JSON.stringify(f.via) + '）')
   // 2026-10-21（#1007 复核）：gh.exec 增补 cmd（这一条命令的短标签），八格变九格；
+  // 2026-10-25（#1482）：再增补 points（这一笔记进账本的点数）与 pointSource（这个点数是哪来的），九格变十一格；
   // 仍然逐格比对，多记少记都算红——多出来的键一样是原文泄漏的口子。
-  check(JSON.stringify(Object.keys(f).sort()) === JSON.stringify(['argv0', 'cmd', 'cwdHash', 'exitCode', 'kind', 'latencyMs', 'opId', 'via', 'waitedMs']),
-    '真跑一笔：gh.exec 的字段恰好是登记的九格（实得 ' + Object.keys(f).sort().join('、') + '）')
+  check(JSON.stringify(Object.keys(f).sort()) === JSON.stringify(['argv0', 'cmd', 'cwdHash', 'exitCode', 'kind', 'latencyMs', 'opId', 'pointSource', 'points', 'via', 'waitedMs']),
+    '真跑一笔：gh.exec 的字段恰好是登记的十一格（实得 ' + Object.keys(f).sort().join('、') + '）')
   check(f.exitCode === 0 && f.kind === 'ok', '真跑一笔：成功这一笔记的是退出码 0 与 kind=ok')
   // #1052 续：编号取自上下文（调用点给不了它），落进 gh.exec 之后才能与宿主那层 host.call 对上。
   check(f.opId === 'testop-7', '真跑一笔：gh.exec 记下了上下文里的操作编号（实得 ' + JSON.stringify(f.opId) + '）')

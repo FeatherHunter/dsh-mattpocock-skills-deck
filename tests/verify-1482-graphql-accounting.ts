@@ -9,7 +9,8 @@
 // 点数按固定 1 记（真实回包 rateLimit.cost 实测单页 4、一次列表 5）。
 //
 // 本门禁量六组事：
-//   A. 判档与取点：命令行形状认得 GraphQL（三种写法），回包点数取得出、取不到按 0。
+//   A. 判档与取点：命令行形状认得 GraphQL（真实形状 api→graphql），回包点数取得出、取不到按 0；
+//      报闸/补差/日志三份口径（ghOutboundEntryOf、graphqlCorrectionOf、ghPointNoteOf）各只一层。
 //   B. 客户端：GraphQL 报给闸的是 0 条 REST + 1 点（先报闸），成功后按真实 cost 补差；REST 仍报 1 条；
 //      一次操作的异步信封里最终是 {requests:0, points:cost}。
 //   C. 记账口：这样的信封进双桶账本后，rest 桶一条不多、graphql 桶按真实点数记。
@@ -33,7 +34,7 @@
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { isGraphqlGhArgs, graphqlCostOf } from '../src/tracker/kernel/outbound-tiers.js'
+import { isGraphqlGhArgs, graphqlCostOf, ghArgsOf, ghOutboundEntryOf, graphqlCorrectionOf, ghPointNoteOf } from '../src/tracker/kernel/outbound-tiers.js'
 import { ghClient } from '../src/tracker/rooms/github/client.js'
 import { attachOpUsage } from '../src/tracker/rooms/github/op-usage.js'
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.js'
@@ -104,8 +105,8 @@ function partA(): void {
   console.log('== A、命令行形状与回包点数 ==')
   check(isGraphqlGhArgs(['api', 'graphql', '-f', 'query=query{}']) === true,
     'A、真 argv 形状（api → graphql）判成 GraphQL')
-  check(isGraphqlGhArgs(['graphql', '-f', 'query=query{}']) === true,
-    'A、直接写 graphql 的旧形状也判成 GraphQL')
+  check(isGraphqlGhArgs(['graphql', '-f', 'query=query{}']) === false,
+    'A、不再认「第一段就是 graphql」的旧形状（gh 没有这个子命令，没人这样调）')
   check(isGraphqlGhArgs(['api', 'repos/o/n/issues?page=1']) === false,
     'A、REST 路径（api → repos/...）不判成 GraphQL')
   check(isGraphqlGhArgs(['issue', 'list', '--repo', 'o/n']) === false,
@@ -117,6 +118,25 @@ function partA(): void {
   check(graphqlCostOf('not json') === 0, 'A、回包不是 JSON 时按 0')
   check(graphqlCostOf(JSON.stringify({ rateLimit: { cost: 2.9 } })) === 2, 'A、点数不是整数时向下取整')
   check(graphqlCostOf(JSON.stringify({ rateLimit: { cost: -1 } })) === 0, 'A、负数点数按 0，不写进账本')
+  check(JSON.stringify(ghArgsOf(['gh', 'api', 'graphql', '-f', 'query=query{}'])) === JSON.stringify(['api', 'graphql', '-f', 'query=query{}']),
+    'A、整条 argv 去掉程序名后就是子命令参数')
+  check(JSON.stringify(ghArgsOf(['C:\\bin\\gh.exe', 'issue', 'list'])) === JSON.stringify(['issue', 'list']),
+    'A、带目录的 gh.exe 也只去掉第一段')
+  check(Array.isArray(ghArgsOf([])) && ghArgsOf([]).length === 0, 'A、空 argv 回空数组')
+  check(ghOutboundEntryOf(['api', 'graphql']).requests === 0 && ghOutboundEntryOf(['api', 'graphql']).points === 1,
+    'A、起进程前 GraphQL 记 0 条 REST 请求、1 点')
+  check(ghOutboundEntryOf(['api', 'repos/o/n']).requests === 1 && ghOutboundEntryOf(['api', 'repos/o/n']).points === 0,
+    'A、起进程前 REST 记 1 条请求、0 点')
+  const fix5 = graphqlCorrectionOf(['api', 'graphql'], gqlOut(5))
+  check(!!fix5 && fix5.requests === 0 && fix5.points === 4, 'A、cost=5 时补差点数 4、请求仍 0')
+  check(graphqlCorrectionOf(['api', 'graphql'], gqlOut(1)) === null, 'A、cost=1 时没有差额，不补')
+  check(graphqlCorrectionOf(['api', 'repos/o/n'], gqlOut(5)) === null, 'A、REST 命令不补点数')
+  const note5 = ghPointNoteOf(['api', 'graphql'], gqlOut(5))
+  check(note5.points === 5 && note5.pointSource === 'server', 'A、日志点数：回包给了 cost 就记真实点数与 server')
+  const noteEst = ghPointNoteOf(['api', 'graphql'])
+  check(noteEst.points === 1 && noteEst.pointSource === 'estimate', 'A、日志点数：没拿到回包时按 1 点估并标 estimate')
+  const noteRest = ghPointNoteOf(['api', 'repos/o/n'], '[]')
+  check(noteRest.points === 0 && noteRest.pointSource === '', 'A、日志点数：REST 记 0 点、来源空串')
 }
 
 // ---------------- B. 客户端：报闸、补差、操作信封 ----------------
@@ -277,10 +297,17 @@ function partF(): void {
   const outboundTiers = srcOf('src/tracker/kernel/outbound-tiers.ts')
   check(outboundTiers.indexOf('export function isGraphqlGhArgs') >= 0 && outboundTiers.indexOf('export function graphqlCostOf') >= 0,
     'F、共享层导出判档与取点两个函数（判档只有一处定义）')
+  check(outboundTiers.indexOf('export function ghArgsOf(') >= 0 && outboundTiers.indexOf('export function ghOutboundEntryOf(') >= 0 &&
+    outboundTiers.indexOf('export function graphqlCorrectionOf(') >= 0 && outboundTiers.indexOf('export function ghPointNoteOf(') >= 0,
+    'F、剥程序名、起进程前报什么、事后补多少、日志点数来源四份口径各只一层')
+  check(outboundTiers.indexOf("parts[0] === 'graphql'") < 0,
+    'F、不再留「第一段就是 graphql」这条没人调用的支路')
 
   const client = srcOf('src/tracker/rooms/github/client.ts')
-  check(client.indexOf('isGraphqlGhArgs(args)') >= 0 && client.indexOf('reportOutboundCorrection(ctx, args, stdout, usage)') >= 0,
-    'F、gh 客户端用共享判档，并在成功后补差')
+  check(client.indexOf('ghOutboundEntryOf(args)') >= 0 && client.indexOf('graphqlCorrectionOf(args, stdout)') >= 0,
+    'F、gh 客户端报闸与补差都用共享口径，不再自己算一条请求/一点')
+  check(client.indexOf('ghPointNoteOf(args, stdout)') >= 0 && client.indexOf('points: pointNote ? pointNote.points : 0') >= 0,
+    'F、gh 客户端把真实点数与来源写进 gh.exec 日志（#1482 补的日志点）')
   check(client.indexOf("indexOf('graphql')") < 0 && client.indexOf('String(args && args[0]') < 0,
     'F、gh 客户端里旧的「只看第一段」写法已删')
 
@@ -299,17 +326,13 @@ function partF(): void {
 
   const platform = srcOf('src/host/platformChannel.ts')
   check(platform.indexOf('reportGhOutbound(gateOf(), args)') >= 0 && platform.indexOf('noteGhGraphqlCorrection(deGate, args') >= 0,
-    'F、平台通道（面板写路径）报闸与事后补差都走新模块，不再自己判 GraphQL')
-
-  check(outboundTiers.indexOf('export function reportGhOutbound(') >= 0 && outboundTiers.indexOf('requests: isGraphql ? 0 : 1') >= 0,
-    'F、平台通道的报账口也用共享判档报 0 条 REST 请求')
-  check(outboundTiers.indexOf('export function noteGhGraphqlCorrection(') >= 0 && outboundTiers.indexOf('noteOutboundCorrection(') >= 0,
-    'F、平台通道的报账口在成功后补点数差额')
+    'F、平台通道（面板写路径）报闸与事后补差都走共享模块，不再自己判 GraphQL')
 
   const gitExec = srcOf('src/refresh/rooms/host/git-execution.ts')
-  check(gitExec.indexOf('isGraphqlGhArgs(args)') >= 0 && gitExec.indexOf('argv!.slice(1)') >= 0,
-    'F、旧面板写路径先去掉程序名再判档')
-  check(gitExec.indexOf("String(args && args[0]) === 'api'") < 0, 'F、旧面板里只看第一段是不是 api 的写法已删')
+  check(gitExec.indexOf('ghOutboundEntryOf(ghArgsOf(argv))') >= 0 && gitExec.indexOf('noteGhGraphqlCorrection(xpGate, ghArgsOf(argv), 0, out.text') >= 0,
+    'F、旧面板写路径同样按共享口径报闸，并在成功后补差（同一条命令两条出口点数一致）')
+  check(gitExec.indexOf("String(args && args[0]) === 'api'") < 0 && gitExec.indexOf('isGraphqlGhArgs(') < 0,
+    'F、旧面板里自己判 GraphQL 的写法已删')
 }
 
 async function main(): Promise<void> {

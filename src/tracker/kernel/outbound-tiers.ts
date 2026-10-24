@@ -153,12 +153,11 @@ export function normalizeGhStringFields(args: string[]): string[] {
  *
  * 为什么要单开一处判：`gh api graphql` 的真实 argv 是 ['api','graphql',...]，第一段是 api；
  * 从前几个出口都拿第一段去 indexOf('graphql')，永远判不中，GraphQL 于是被当成 REST 记了一条请求
- * （#1482 的账本虚增就是这么来的）。认第一段是 graphql 的旧写法一并留着，兼容别的调用形态。
+ * （#1482 的账本虚增就是这么来的）。
  */
 export function isGraphqlGhArgs(args: unknown): boolean {
   const parts = partsOf(args)
   if (parts.length === 0) return false
-  if (parts[0] === 'graphql') return true
   return parts[0] === 'api' && String(parts[1] || '').indexOf('graphql') === 0
 }
 
@@ -182,19 +181,62 @@ export interface OutboundGateLike {
   noteOutboundCorrection?(fields: { requests: number; points: number }): void
 }
 
-/** 起进程前先报一笔（I1）：GraphQL 算 0 条 REST 请求、先按 1 点估；其它命令照旧一条请求。 */
+/**
+ * 整条 argv 里去掉第一段程序名，只留 gh 的子命令与参数（#1482）。
+ *
+ * 调用方拿到的往往是 ['gh','api','graphql',...]，也可能是带目录的 gh.exe 路径；
+ * 判 GraphQL 与报账要的却是 ['api','graphql',...]。这里只做「去掉第一段」这一件事，
+ * 把两个出口的剥法收到一处 —— 从前两处各写一遍，容易一处没剥干净就判不中。
+ */
+export function ghArgsOf(argv: unknown): string[] {
+  const parts = partsOf(argv)
+  return parts.length > 0 ? parts.slice(1) : []
+}
+
+/**
+ * 一条 gh 命令起进程之前该记的条数与点数：GraphQL 记 0 条 REST 请求、先按 1 点估；
+ * 其它命令记 1 条请求、0 点。四个出口都从这里拿，别各写一遍（ADR 20261021 §2.1）。
+ */
+export function ghOutboundEntryOf(args: unknown): { requests: number; points: number } {
+  const isGraphql = isGraphqlGhArgs(args)
+  return { requests: isGraphql ? 0 : 1, points: isGraphql ? 1 : 0 }
+}
+
+/**
+ * GraphQL 成功之后要补的点数差额（#1482）：回包 rateLimit.cost 比先前估的 1 点多的那部分。
+ * 不是 GraphQL、读不到 cost、或 cost 不超过 1 就回 null（不补，也不替账面改数）。
+ */
+export function graphqlCorrectionOf(args: unknown, stdout: unknown): { requests: number; points: number } | null {
+  if (!isGraphqlGhArgs(args)) return null
+  const cost = graphqlCostOf(stdout)
+  return cost > 1 ? { requests: 0, points: cost - 1 } : null
+}
+
+/**
+ * 日志里那一格「这一笔记进账多少点、点数是哪来的」（#1482）。
+ *
+ * 为什么要有它：账本记错时，人要能从日志看出这一笔是回包给了真实 cost，还是按 1 点估的；
+ * 从前只记条数不记点数，虚增了也查不出。points：非 GraphQL 记 0，GraphQL 拿到 cost 就记真实点数、
+ * 拿不到按 1 点估。pointSource：server（回包给了 cost）/ estimate（按 1 点估）/ 空串（不是 GraphQL）。
+ */
+export function ghPointNoteOf(args: unknown, stdout?: unknown): { points: number; pointSource: string } {
+  if (!isGraphqlGhArgs(args)) return { points: 0, pointSource: '' }
+  const cost = graphqlCostOf(stdout)
+  return cost > 0 ? { points: cost, pointSource: 'server' } : { points: 1, pointSource: 'estimate' }
+}
+
+/** 起进程前先报一笔（I1）：口径见 ghOutboundEntryOf。 */
 export function reportGhOutbound(gate: OutboundGateLike | null, args: string[] | null | undefined): OutboundGateLike | null {
   if (!gate) return null
-  const isGraphql = isGraphqlGhArgs(args)
-  gate.noteOutbound({ requests: isGraphql ? 0 : 1, points: isGraphql ? 1 : 0 })
+  gate.noteOutbound(ghOutboundEntryOf(args))
   return gate
 }
 
-/** 成功之后按回包里的 rateLimit.cost 补足点数差额；拿不到 cost、不要钱或失败时不补。 */
+/** 成功之后补点数差额：口径见 graphqlCorrectionOf；失败或拿不到 cost 时不补。 */
 export function noteGhGraphqlCorrection(gate: OutboundGateLike | null, args: string[] | null | undefined, exitCode: unknown, stdout: unknown): void {
-  if (!gate || exitCode !== 0 || !isGraphqlGhArgs(args)) return
+  if (!gate || exitCode !== 0) return
   try {
-    const cost = graphqlCostOf(stdout)
-    if (cost > 1 && typeof gate.noteOutboundCorrection === 'function') gate.noteOutboundCorrection({ requests: 0, points: cost - 1 })
+    const corr = graphqlCorrectionOf(args, stdout)
+    if (corr && typeof gate.noteOutboundCorrection === 'function') gate.noteOutboundCorrection(corr)
   } catch (e) {}
 }
