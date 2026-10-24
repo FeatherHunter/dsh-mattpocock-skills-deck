@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   check(!!(childAgain && childAgain.ok && childAgain.data.key === '01'), '① 同一幂等键重复建子票仍回 01')
   check(listFiles(path.join(tmp, '.scratch', 'effort-a', 'issues')).length === 1, '① 重复建子票没有多落一份')
 
-  // 第二张子票带 Blocked by: 裸编号（不加粗）。
+  // 第二张子票带 Blocked by: 裸编号（不加粗），并且建票时就指派了人（原文：认领 = Status: claimed）。
   const child2 = await create(ctx, effortRepo, {
     title: '要不要自研？',
     body: '如果现成方案够用就不自研。',
@@ -203,6 +203,7 @@ async function main(): Promise<void> {
     labels: ['wayfinder:grilling'],
     parentKey: '00',
     blockedBy: ['01'],
+    assignees: ['alice'],
     idempotencyKey: 'child-1487-b',
   })
   const child2Path = path.join(tmp, '.scratch', 'effort-a', 'issues', '02-' + slugify('要不要自研？') + '.md')
@@ -210,6 +211,9 @@ async function main(): Promise<void> {
   const child2Text = readText(child2Path)
   check(/^Blocked by: 01$/m.test(child2Text), '② 子票阻塞行按原文写法 Blocked by: 01（不加粗）')
   check(!/\*\*Blocked by:\*\*/.test(child2Text), '② 子票不写加粗的 **Blocked by:** 行')
+  // 认领：建票时就指派了人，子票正文要有可见的 Status: claimed（原文的认领写法），派给谁放文件头注释。
+  check(/^Status: claimed$/m.test(child2Text), '② 建票时指派了人，子票有可见 Status: claimed：' + JSON.stringify(child2Text.split('\n').filter((l) => /^Status:|^Type:|^Blocked by:/.test(l))))
+  check(headerComments(child2Text).indexOf('<!-- DSH-ASSIGNEES: alice -->') >= 0, '② 指派人写进文件头注释 DSH-ASSIGNEES：' + JSON.stringify(headerComments(child2Text)))
 
   // ══ 第三段：子票完成 → map.md 的 Decisions so far 追加一条指针 ══
   const closed = await closeIssue(ctx as never, effortRepo as never, '01', { reason: '现成方案够用，走查完成' } as never)
