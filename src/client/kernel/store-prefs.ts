@@ -23,8 +23,6 @@ declare function saveUiPrefs(...args: any[]): any;
 declare function viewFlagOf(...args: any[]): any;
 declare function setViewFlag(...args: any[]): any;
 declare function h(...args: any[]): any;
-// #1342：布局取值名单由构建从共享真源（src/shared/doc-layout）拼进闭包，本文件只声明、判断读它。
-declare const DOC_LAYOUT_VALUES: readonly ('single' | 'multi')[]
 export const DEFAULT_PANEL_H: number = (function (): number {
   try { return Math.max(240, Math.round((window.innerHeight || 800) * 0.5)) } catch (e) { return 400 }
 })()
@@ -187,40 +185,6 @@ export const ISSUE_CACHE_TTL: number = ((typeof SYNC === 'object' && SYNC && SYN
 export const selectionByCwd: any = {}
 export const repositoryByCwd: any = {}
 export const SELECTION_BY_CWD_KEY: string = 'dsws.selectionByCwd'
-// #683（F1 · ADR 20260921 的 R7b）：写这张镜像表要「读回磁盘上那张 → 只换本工作区那一条 → 写回」。
-//   从前这里是把进程内存里那份**整表**序列化写回：同一个访问地址开两个窗口时，后写的那扇窗会把
-//   另一扇窗刚写进去的键整条顶掉（一个窗口里选完后端，另一个窗口一刷新就看不见了）。
-//   写失败也不再一口吞掉：与同文件 saveListPrefs 同例记一条 storage.fail（ADR 的 R7c）。
-//   （saveLabelClicks 从前也是这一档的例子；#1012 起标签点击次数不落盘，它已是空动作，不再记日志。）
-//   本文件另有一张横幅折叠表（bannerFoldByCwd）还是老写法 —— 那条路今天没有跨窗口场景，本次不动它。
-const writeTableEntry = function (storeKey: any, entryKey: any, value: any): void {
-  try {
-    let table: any = null
-    try { const raw: any = localStorage.getItem(storeKey); table = raw ? JSON.parse(raw) : null } catch (eR) { table = null }
-    if (!table || typeof table !== 'object' || Array.isArray(table)) table = {}
-    table[entryKey] = value
-    localStorage.setItem(storeKey, JSON.stringify(table))
-  } catch (e) { try { log('warn', 'storage.fail', { key: storeKey, op: 'write' }) } catch (eL) {} }
-}
-// 别的工作区、别的窗口改了这张表时，把磁盘上那份合并回内存。磁盘那张是各窗口写进去的并集，
-//   同名的那一条以磁盘为准 —— 我们自己刚写的那一次也在里面，不会被顶掉。
-const mergeTableFromStorage = function (storeKey: any, inMemory: any): void {
-  try {
-    const raw: any = localStorage.getItem(storeKey)
-    if (!raw) return
-    const m: any = JSON.parse(raw)
-    if (!m || typeof m !== 'object' || Array.isArray(m)) return
-    for (const k of Object.keys(m)) inMemory[k] = m[k]
-  } catch (e) { /* 磁盘上那份读不出来时就按内存里这份继续用 */ }
-}
-// storage 事件只处理布局表：选择镜像表已退役，不再读回磁盘（读了也没人看）。
-const onStorageMerge = function (ev: any): void {
-  try {
-    const k: any = ev && ev.key
-    if (k === SETUP_LAYOUT_BY_CWD_KEY) mergeTableFromStorage(SETUP_LAYOUT_BY_CWD_KEY, setupLayoutByCwd)
-  } catch (e) {}
-}
-try { if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('storage', onStorageMerge) } catch (e) {}
 // #422 · 提示横幅按工作区收起记忆（默认全部展开；各类提示横幅都可收，由调用方横幅决定是否给收起入口）。
 //   存法沿用选择集同例：归一键 → 1（收起），缺席即展开；localStorage 不可用时降级为仅内存。
 export const BANNER_FOLD_KEY: string = 'dsws.bannerFold'
@@ -314,54 +278,5 @@ export const workspaceFileNoteEl = function (s: any): any {
 export const keepUserPick = function (cur: any, incoming: any): any { return incoming }
 export const getCachedRepository = function (cwd: any): any { try { const k: any = wsKeyOf(cwd); return (cwd && k) ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }
 export const setCachedRepository = function (cwd: any, repo: any): void { try { const k: any = wsKeyOf(cwd); if (cwd && k) repositoryByCwd[k] = repo } catch(e){ if (cwd) repositoryByCwd[cwd] = repo } }
-// 初始化那张小卡上答的「域文档布局」按工作区记住（维护者 2026-09-21 拍板：A + 记住）。
-//   此前它只活在本次会话的内存里 —— 同一个工作区新开一个会话又得答一遍，换个会话还可能答成另一个样，
-//   而 AI 是照各自收到的那一句去写 docs/agents/domain.md 的。现在按工作区存一份，下次打开直接沿用；
-//   想改随时在黄条那颗按钮弹出的那张卡上改（那条路每次都问，见 prompts.js 的 injectSetupDecision）。
-//   存法沿用选择集同例：归一键 → 'single' | 'multi'；localStorage 不可用时降级为仅内存。
-//   取值由拼进闭包的 DOC_LAYOUT_VALUES 把关（与 StatusBackend 的 SETUP_LAYOUT_VALUES 同一份真源；那边管卡片怎么画，这边管记不记得住）。
-export const SETUP_LAYOUT_BY_CWD_KEY: string = 'dsws.setupLayoutByCwd'
-export const setupLayoutByCwd: any = {}
-;(function (): void {
-  try {
-    const raw: any = localStorage.getItem(SETUP_LAYOUT_BY_CWD_KEY)
-    if (raw) { const m: any = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk: any = (typeof keyOf === 'function' ? keyOf(k) : k); if (!(nk in setupLayoutByCwd)) setupLayoutByCwd[nk] = m[k] } } }
-  } catch (e) { /* 存储不可用降级为仅内存 */ }
-})()
-export const getCachedSetupLayout = function (cwd: any): any {
-  try {
-    const k: any = wsKeyOf(cwd)
-    const raw: any = (cwd && k) ? setupLayoutByCwd[k] : (cwd ? setupLayoutByCwd[cwd] : null)
-    // #683（F1 · ADR 的 R6）：这张表里一条现在存 {layout, pickedAt}（与后端那张同一种形状），
-    //   读出来永远只给取值（老版本存的裸字符串照旧认，外面看不出形状变了）。
-    const v: string = String((raw && typeof raw === 'object' ? raw.layout : raw) || '').toLowerCase()
-    return ((DOC_LAYOUT_VALUES as readonly string[]).indexOf(v) >= 0) ? v : null
-  } catch (e) { return null }
-}
-export const setCachedSetupLayout = function (cwd: any, v: any): void {
-  try {
-    // 卡上点的那一下传裸字符串（记下现在这一刻）；宿主回填传 {layout, pickedAt}（留着宿主那一刻）——
-    //   两个壳各答一个样时按时刻仲裁：新的覆盖旧的（ R6：没有这个依据，落后的那扇窗永远停在老答案上）。
-    let s: string = '', at: number = 0
-    if (v && typeof v === 'object') { s = String(v.layout == null ? '' : v.layout).toLowerCase(); at = Number(v.pickedAt) || 0 }
-    else { s = String(v == null ? '' : v).toLowerCase(); at = Date.now() }
-    if ((DOC_LAYOUT_VALUES as readonly string[]).indexOf(s) < 0) return
-    const k: any = wsKeyOf(cwd)
-    if (cwd && k) {
-      const cur: any = setupLayoutByCwd[k]
-      const curAt: number = (cur && typeof cur === 'object') ? (Number(cur.pickedAt) || 0) : 0
-      // 刚在卡上点的那一下（at=0 不可能：卡上走的一定是裸字符串那条，时刻就是现在）；宿主回填的老值不许
-      //   顶掉本地更新的那条。老版本存的裸字符串一律当 0（宿主回填、或本次点确认都会把它换成带时刻的形状）。
-      if (!(at > 0 && curAt > 0) || at >= curAt) { const rec: any = { layout: s, pickedAt: at }; setupLayoutByCwd[k] = rec; writeTableEntry(SETUP_LAYOUT_BY_CWD_KEY, k, rec) }
-    }
-  } catch (e) { /* 忽略 */ }
-}
-// #1003 退役：选择那条不再搬（无镜像可搬）；布局那条保留（随 #1012 搬）。
-export const migrateCachedChoiceToKey = function (fromKey: any, toKey: any): boolean {
-  try {
-    if (!fromKey || !toKey || fromKey === toKey) return false
-    let moved: boolean = false
-    try { if (!(toKey in setupLayoutByCwd)) { const l: any = setupLayoutByCwd[fromKey]; if (l) { setupLayoutByCwd[toKey] = l; writeTableEntry(SETUP_LAYOUT_BY_CWD_KEY, toKey, l); moved = true } } } catch (e2) {}
-    return moved
-  } catch (e) { return false }
-}
+// #1449：初始化小卡上答的「域文档布局」不再按工作区存在浏览器里 —— 唯一真源是工作区文件
+//   （docs/agents/workspace.yaml），宿主写进去、快照读回来；这里不再有布局的读写函数。

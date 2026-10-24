@@ -5,7 +5,8 @@
  * 这份门禁量的是 ADR `docs/adr/20260921-persist-user-choice-host-side.md` 第 8 节里
  * 属于「宿主侧那个状态文件」自己的那几条：R2（修订号由宿主发号）、R5b（只认注册表认得的后端）、
  * R5c（文件坏与单条坏分开处理）、R7/R8（原子落盘、上限淘汰）、R9（并发串行）、
- * R6 的存储形状（布局与后端记录同一种形状）、R7 的「只存散列、不落明文路径」。
+ * R7 的「只存散列、不落明文路径」。
+ * #1449 起布局不再由这个状态文件存：老 layouts 栏只为原样带过（读时校验、写回保留），不再有读写口。
  *
  * 分两组：
  *   A 行为层：真跑 src/host/choiceStore.ts —— 真 node:fs 写进一个临时主目录（不碰真主目录）。
@@ -50,7 +51,7 @@ if (!fs.existsSync(path.join(ROOT, MODULE_REL))) {
 }
 const src = fs.readFileSync(path.join(ROOT, MODULE_REL), 'utf8')
 const mod = await import(url(MODULE_REL))
-const { createChoiceStore, choicesFilePath, hashWorkspaceKey, LAYOUT_VALUES, DEFAULT_MAX_WORKSPACES } = mod
+const { createChoiceStore, choicesFilePath, hashWorkspaceKey, DEFAULT_MAX_WORKSPACES } = mod
 
 console.log('选择状态文件门禁（#683 F1：原子落盘、只存散列、上限淘汰、并发串行、坏文件不采纳也不写）')
 
@@ -159,7 +160,8 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
   check(mixRead.ok === true && mixRead.dropped === 4, '坏条目单独丢掉、好的那些照常留下（丢掉 4 条：后端那栏的 rev 不是整数、键不是散列、时间不是有限数，布局那栏的值不认）—— 实得 dropped=' + mixRead.dropped)
   const kept = await stMix.getWorkspace(KEY)
   check(kept.found === true && kept.rev === 3, '好的那条照常命中 —— 实得 ' + JSON.stringify(kept))
-  check((await stMix.getLayout(KEY)).layout === 'multi', '布局那一栏同样的校验与命中（值只认 single/multi）')
+  check(typeof stMix.getLayout === 'undefined' && typeof stMix.rememberLayout === 'undefined', '本机记忆不再提供布局读写口（#1449）')
+  check(mixRead.data.layouts[hashWorkspaceKey(KEY)] && mixRead.data.layouts[hashWorkspaceKey(KEY)].layout === 'multi', '老布局栏里认得的取值原样带过（只校验、不删）')
 
   // R5b：注册表不认的后端与 null 不许进文件
   const guardHome = makeHome()
@@ -207,17 +209,20 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
   check(both[0].rev === 1 && both[1].rev === 2, '两个并发写入被排成一队：第一次 rev=1、第二次 rev=2（不丢更新）—— 实得 ' + JSON.stringify(both.map((r) => r.rev)))
   check((await stR.getWorkspace(KEY)).rev === 2, '落盘之后文件里就是最后那一次的 rev —— 实得 ' + JSON.stringify(await stR.getWorkspace(KEY)))
 
-  // R6：布局与后端记录同一种形状（带 pickedAt），取值只认 single/multi
-  const layoutHome = makeHome()
-  const stL = makeStore(layoutHome)
-  const lw = await stL.rememberLayout(KEY, 'single')
-  check(lw.ok === true && typeof lw.pickedAt === 'number', '布局写下去时也带 pickedAt（两个壳各答一个样时才有仲裁依据）—— 实得 ' + JSON.stringify(lw))
-  const lg = await stL.getLayout(KEY)
-  check(lg.ok === true && lg.found === true && lg.layout === 'single', '布局读得回来 —— 实得 ' + JSON.stringify(lg))
-  check(JSON.stringify(LAYOUT_VALUES) === JSON.stringify(['single', 'multi']), '布局取值只有 single 与 multi 两种')
-  check(JSON.stringify(LAYOUT_VALUES) === JSON.stringify(DOC_LAYOUT_VALUES), '布局取值与唯一真源 src/shared/doc-layout/src/layouts.ts 逐字一致（#1342）')
-  check((await stL.rememberLayout(KEY, '不认识')).ok === false, '不认识的布局取值不许写进去')
-  check(JSON.parse(fs.readFileSync(choicesFilePath(layoutHome), 'utf8')).layouts[hashWorkspaceKey(KEY)].layout === 'single', '布局那一栏存的就是 {layout, pickedAt} 这个形状')
+  // R6 退役（#1449）：布局不再由本状态文件存 —— 老 layouts 栏原样带过，读写口已删
+  {
+    const legacyHome = makeHome()
+    const legacyFile = choicesFilePath(legacyHome)
+    fs.mkdirSync(path.dirname(legacyFile), { recursive: true })
+    const legacyKey = hashWorkspaceKey(KEY)
+    fs.writeFileSync(legacyFile, JSON.stringify({ version: 1, workspaces: {}, layouts: { [legacyKey]: { layout: 'multi', pickedAt: 1758500000000 } } }), 'utf8')
+    const stLegacy = makeStore(legacyHome)
+    check(typeof stLegacy.getLayout === 'undefined' && typeof stLegacy.rememberLayout === 'undefined', '本机记忆不再提供布局读写口（#1449）')
+    check((await stLegacy.read()).data.layouts[legacyKey].layout === 'multi', '老 layouts 栏原样带过（不删、不再当答案读）')
+    await stLegacy.rememberWorkspace(KEY, 'github')
+    check(JSON.parse(fs.readFileSync(legacyFile, 'utf8')).layouts[legacyKey].layout === 'multi', '写后端记录时老 layouts 栏原样保留')
+    check(DOC_LAYOUT_VALUES.indexOf('multi') >= 0 && DOC_LAYOUT_VALUES.indexOf('single') >= 0, '布局取值的唯一真源仍认 single/multi（老数据清洗用，改坏这里会红）')
+  }
 
   // 拿不到用户主目录时：不抛错，读当没有、写如实回失败
   const stNoHome = createChoiceStore({ getHome: async () => null, isKnownBackend: () => true })
@@ -360,7 +365,7 @@ const ATOMIC_WRITE_RE = /await\s+fsPort\.writeFile\(\s*tmp\s*,\s*body\s*,\s*\{[^
 // B5 去掉 R8 的淘汰 → 条数无上限
 {
   const b = await loadBroken('no-evict',
-    '    dropped += boundCount(data.workspaces, maxWorkspaces, protectKey)\n    dropped += boundCount(data.layouts, maxLayouts, null)\n    dropped += boundBytes(data, protectKey)',
+    '    dropped += boundCount(data.workspaces, maxWorkspaces, protectKey)\n    dropped += boundBytes(data, protectKey)',
     '    /* 反证 B5：淘汰整段摘掉 */')
   check(!b.bad, '反证 B5 的改法能在真源里落地（淘汰整段摘掉）' + (b.bad ? ' —— ' + b.bad : ''))
   if (b.mod) {

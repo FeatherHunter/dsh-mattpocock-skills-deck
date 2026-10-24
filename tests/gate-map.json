@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T14:09:24.541Z",
+  "generatedAt": "2026-10-24T14:13:22.572Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 358,
   "gateCount": 358,
@@ -2436,19 +2436,17 @@
       "guards": [
         "docs/agents",
         "docs/agents/workspace.yaml",
-        "src/host/choiceStore.ts",
         "src/refresh/rooms/host/session-snapshot-cache.ts"
       ],
       "dirs": [
         "docs/agents",
-        "src/host",
         "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1436-own-work-route.ts",
@@ -2848,6 +2846,39 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 11 条"
+    },
+    {
+      "step": "node tests/verify-1449-layout-single-source.ts",
+      "file": "tests/verify-1449-layout-single-source.ts",
+      "guards": [
+        "docs/agents",
+        "docs/agents/workspace.yaml",
+        "package/lib/client.js",
+        "src",
+        "src/client/kernel/prompts.ts",
+        "src/client/kernel/store-prefs.ts",
+        "src/client/statusbar/StatusBackend.ts",
+        "src/host/choiceStore.ts",
+        "src/host/workspaceCwd.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "package/lib",
+        "src",
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/host",
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-1451-suggest-session-keep.ts",
@@ -3715,6 +3746,7 @@
       "guards": [
         "docs/agents",
         "docs/agents/issue-tracker.md",
+        "docs/agents/workspace.yaml",
         "scripts/lib/transpile-unit.mts",
         "src",
         "src/host/choiceStore.ts",
@@ -3740,27 +3772,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 7 条"
-    },
-    {
-      "step": "node tests/verify-683-mirror-write.ts",
-      "file": "tests/verify-683-mirror-write.ts",
-      "guards": [
-        "src/client/kernel/store-prefs.ts",
-        "src/shared/time-config/src/values.ts",
-        "tests/lib/eval-probe.ts",
-        "tests/lib/source-text.ts"
-      ],
-      "dirs": [
-        "src/client/kernel",
-        "src/shared/time-config/src",
-        "tests/lib"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-685-healthcheck-button.ts",
@@ -8503,6 +8515,7 @@
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1433-snapshot-layout-file.ts",
       "node tests/verify-1443-static-gate.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -8575,6 +8588,7 @@
       "node tests/verify-deck-event-gate.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-gate-map.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-530-pr-tab.ts",
       "node tests/verify-587-update-live.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -8781,6 +8795,7 @@
       "node tests/verify-gate-map.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
@@ -8847,6 +8862,7 @@
       "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-646-native-tab.ts",
@@ -8861,7 +8877,6 @@
       "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-683-choice-rev.ts",
-      "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-689-counts-ui.ts",
@@ -8932,6 +8947,7 @@
       "node tests/verify-1411-suggest-bubble.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1438-banner-recheck-button.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1451-suggest-session-keep.ts",
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-655-setup-layout.ts",
@@ -9176,12 +9192,12 @@
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-1418-probe-cost-and-failure.ts",
-      "node tests/verify-1433-snapshot-layout-file.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1439-panel-accounting.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1444-snapshot.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1456-handoff-claim-write.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
@@ -9373,6 +9389,7 @@
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1418-probe-cost-and-failure.ts",
       "node tests/verify-1436-own-work-route.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1463-env-counts-pending.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -9428,6 +9445,7 @@
       "node tests/verify-1446-receipts.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-1465-detail-refid.ts",
@@ -9534,7 +9552,6 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-683-choice-rev.ts",
-      "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-698-switch-asks-layout.ts",
@@ -9955,7 +9972,6 @@
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
-      "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-690-closed-pages.ts",

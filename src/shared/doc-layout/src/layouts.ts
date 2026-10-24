@@ -7,7 +7,7 @@
  * 这两句话的界面文案在词表里（注入文案与卡片选项），这里只放取值本身。
  *
  * 为什么单独立域：同一份名单原来在三个地方各写了一遍 ——
- *   宿主侧选择记忆（src/host/choiceStore.ts 的 LAYOUT_VALUES，写文件前校验取值）、
+ *   宿主侧选择记忆（src/host/choiceStore.ts：文件里遗留的布局记录仍按这份名单校验）、
  *   工作区配置文件核（src/shared/config-store/src/workspace.ts 的 LAYOUTS，读配置时校验取值）、
  *   界面侧状态栏与初始化卡（src/client/statusbar/StatusBackend.ts 的 SETUP_LAYOUT_VALUES）。
  * 三处任意一处改了、另外两处没跟上，磁盘上就会写出第三种取值、或者界面拒收一个合法值，

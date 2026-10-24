@@ -21,7 +21,7 @@
  *   本文件不引用 StatusMenus.js（同闭包拼回，调用方向见 StatusBar.js 转调两处）。
  *
  * 类型怎么标的（#1209 转 TypeScript 时补，讲清边界在哪，后人别把这几条当随手写的）
- *   本文件是「拼进闭包的一段」，不是一个能被 import 的模块：它调用的 getCachedSetupLayout、emit、tr、
+ *   本文件是「拼进闭包的一段」，不是一个能被 import 的模块：它调用的 emit、tr、
  *   host 这些名字都由闭包提供，本文件不定义它们。所以下面用一层 declare 把「外面有什么、长什么样」
  *   写下来 —— 这是仓库既定的做法（同目录先例见 kernel/link.ts 与 kernel/settings-debug.ts 开头）。
  *   declare 只活在类型检查里，esbuild 转译时会整条删掉，拼进闭包的产物与转换前逐字一致。
@@ -30,9 +30,9 @@
  *   一份**只用得到本文件真正读过的那几个字段**的结构描述，其余一概不声称。
  */
 // #655：域文档布局的两个取值（与 locale 里两句注入文案、卡片上两个选项一一对应）。
-//   2026-09-21 维护者拍板改成「A + 记住」：这份答案按工作区记住（写进本地缓存，见 store-prefs.js 的
-//   getCachedSetupLayout / setCachedSetupLayout），同一个工作区下次打开直接沿用；想改随时在黄条那颗
-//   「初始化」按钮弹出的那张卡上改 —— 那条入口每次都问（卡上预选着上次那一项），确认后才注入。
+//   2026-09-21 维护者拍板改成「A + 记住」：这份答案随工作区文件跨会话沿用（#1449 起唯一真源是工作区文件，
+//   宿主写进去、快照读回来；浏览器按工作区存的那份表已经删了）；想改随时在黄条那颗「初始化」按钮弹出的
+//   那张卡上改 —— 那条入口每次都问（卡上预选着上次那一项），确认后才注入。
 //
 //   2026-10-21（#1342）取值名单收到唯一真源 src/shared/doc-layout/src/layouts.ts，本文件不再自己写一份字面量：
 //   构建把它拼进界面闭包（见 scripts/build.mts 的 shared:docLayout 与 src/client/index.ts 的 marker），
@@ -47,12 +47,13 @@ export const SETUP_LAYOUT_VALUES: readonly SetupLayoutValue[] = DOC_LAYOUT_VALUE
 export const SETUP_LAYOUT_FALLBACK: SetupLayoutValue = 'single'
 export const readStatusSetupLayout = function(s: StatusPickState | null | undefined): SetupLayoutValue | string | null {
   try{ const v=String((s&&s.setupLayout)||'').toLowerCase(); if(SETUP_LAYOUT_VALUES.indexOf(v as SetupLayoutValue)>=0) return v }catch(e){}
-  try{ if(typeof getCachedSetupLayout==='function'){ const c=getCachedSetupLayout(s&&s.cwd); if(c) return c } }catch(e){}
+  // #1449：会话里没答过就读快照从工作区文件读回来的那一份（不再是浏览器按工作区存的表）。
+  try{ const raw:any=s&&(s as any).snapshot&&(s as any).snapshot.setupLayout; const v=String(raw&&typeof raw==='object'?raw.layout:raw||'').toLowerCase(); if(SETUP_LAYOUT_VALUES.indexOf(v as SetupLayoutValue)>=0) return v }catch(e){}
   return null
 }
 // 卡片上这一组单选默认选中哪一项：**卡片开着时以用户在卡上刚点的那一下为准**（否则点了另一个选项会立刻被按回去 ——
-//   2026-09-25 真机上报的「另一个选项点不动」就是这个顺序错），卡片没开时按「会话里答过的 > 这个工作区记住的 >
-//   卡上上次碰过的」给值，都没有再回到第一项「根目录一份 GLOSSARY.md」。
+//   2026-09-25 真机上报的「另一个选项点不动」就是这个顺序错），卡片没开时按「会话里答过的 > 快照从工作区文件
+//   读回来的 > 卡上上次碰过的」给值，都没有再回到第一项「根目录一份 GLOSSARY.md」。
 export const layoutSelectionOf = function(s: StatusPickState | null | undefined): SetupLayoutValue | string {
   const inCard=function(): SetupLayoutValue | null { try{ const v=String((s&&s.setupPickLayout)||'').toLowerCase(); return SETUP_LAYOUT_VALUES.indexOf(v as SetupLayoutValue)>=0?(v as SetupLayoutValue):null }catch(e){ return null } }
   try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}
@@ -60,12 +61,12 @@ export const layoutSelectionOf = function(s: StatusPickState | null | undefined)
   const rest=inCard(); if(rest) return rest
   return SETUP_LAYOUT_FALLBACK
 }
-// 把布局记进会话状态**并按工作区记住**：注入决策函数就是从这里读「这个仓库的布局选没选过」的，所以只在这里写。
+// 把布局记进会话状态：注入决策函数就是从这里读「这个仓库的布局选没选过」的，所以只在这里写。
+//   #1449 起浏览器按工作区存的那份表已经删了：答案由宿主写进工作区文件，随快照回包再回到会话里。
 export const applyStatusSetupLayout = function(s: StatusPickState, v: unknown): void {
   const t=String(v==null?'':v).toLowerCase()
   if(SETUP_LAYOUT_VALUES.indexOf(t as SetupLayoutValue)<0) return
   try{ s.setupLayout=t }catch(e){}
-  try{ if(typeof setCachedSetupLayout==='function') setCachedSetupLayout(s&&s.cwd, t) }catch(e2){}
 }
 // 卡片与门控弹窗共用的一组单选（域文档布局）：返回一组 label，供 StatusBar.js 的两处渲染直接放进去。
 export const layoutRadios = function(s: StatusPickState, h: HFactory): unknown {
@@ -84,8 +85,8 @@ export const layoutRadios = function(s: StatusPickState, h: HFactory): unknown {
 }
 export const closeStatusSetupPick = function(s: StatusPickState): void {s.setupLayoutCardOpen=false;emit(s)}
 // #698：开卡那一刻把「现在这个答案是哪个」记一份草稿，给取消那条路回退用。
-//   为什么要有它：卡上那两个单选一点下去就经 applyStatusSetupLayout 把答案写进会话与那份按工作区记住的表
-//   （那是「点一下就生效」的老设计，黄条那条路一直如此）。所以「取消」不能只是把界面关掉 —— 那样用户点过的
+//   为什么要有它：卡上那两个单选一点下去就经 applyStatusSetupLayout 把答案写进会话（那是「点一下就生效」的
+//   老设计，黄条那条路一直如此）。所以「取消」不能只是把界面关掉 —— 那样用户点过的
 //   那一下已经生效了，与卡上「取消」两个字说的不是一回事（本票对抗式自查时从这条断言里量出来的）。
 export const snapshotSetupLayoutForCard = function(s: StatusPickState): void {
   try{ s.setupLayoutDraftBefore = readStatusSetupLayout(s) }catch(e){}
@@ -244,8 +245,6 @@ export const confirmStatusGate = function(s: StatusPickState): void { const id=s
 // （见 scripts/build.mts 的 shared:docLayout）。客户端这一侧的字面量只写这一处：下面的 SetupLayoutValue 从它推出，
 // kernel/prompts.ts 也从这里 type-only import，不再各写一份联合。
 declare const DOC_LAYOUT_VALUES: readonly ('single' | 'multi')[]
-declare function getCachedSetupLayout(cwd: unknown): SetupLayoutValue | string | null | undefined
-declare function setCachedSetupLayout(cwd: unknown, layout: unknown): void
 declare function emit(s: unknown): void
 declare function tr(key: string, params?: Record<string, unknown>): string
 declare function h(tag: string, props?: Record<string, unknown> | null, children?: unknown): unknown
@@ -309,7 +308,7 @@ type StatusPickState = {
   chainSnapshot?: { steps?: ChainStep[] } | null
   backendModules?: BackendModule[]
   repository?: unknown
-  snapshot?: { repository?: unknown } | null
+  snapshot?: { repository?: unknown; setupLayout?: unknown } | null
   gateModalOpen?: boolean
   gateModalSource?: string | null
   gateSelected?: string | null

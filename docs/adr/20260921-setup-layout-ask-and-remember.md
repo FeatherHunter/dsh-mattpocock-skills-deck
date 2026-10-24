@@ -1,7 +1,7 @@
 # ADR 20260921 · 布局那一问：黄条那颗按钮每次都问，答案按工作区记住
 
-> 状态：已定稿（维护者 2026-09-21 在对话里拍板「A + 按工作区记住」）
-> 相关：#655（域文档布局那一问与小卡首次落地）、#664（切换不再重发初始化全文）、#672（同一批的切换后端改动）
+> 状态：已定稿（维护者 2026-09-21 在对话里拍板「A + 按工作区记住」）。**2026-10-24 按 #1449 改了口径**：答案不再存浏览器本地缓存，改存工作区里的 `docs/agents/workspace.yaml`（`layout` 一栏），由宿主随快照回包交给界面；浏览器本地表与宿主 `choices.json` 的 `layouts` 两处副本都退役了。
+> 相关：#655（域文档布局那一问与小卡首次落地）、#664（切换不再重发初始化全文）、#672（同一批的切换后端改动）、#1433（同一故障主票：布局答案曾有三处家）、#1449（收口票：工作区文件成为唯一真源）
 > 这份记录改的是 #655 定下的一条行为，所以把「原来为什么那样定」和「现在为什么改」都写下来。
 
 ---
@@ -19,7 +19,7 @@
 ## 3. 裁决（本次定稿）
 
 1. **黄条那颗「初始化」按钮每次点击都先弹那张卡**（`injectSetupDecision` 的新选项 `askLayout: true`）：布局答过也照旧问一遍，卡上**预选着上次那一项**，点「确认并继续」之后才注入全文。看得见、随时能改、点一次问一次 —— 行为可预期。
-2. **这个答案按工作区记住**（`dsws.setupLayoutByCwd`，存法与选择集同例：归一键 → `single` | `multi`）。同一个工作区下次打开面板直接沿用，不再因为「换了个会话」就重新问、也不会两个会话答成两个样。
+2. **这个答案按工作区记住**（2026-10-24 #1449 起存进工作区里的 `docs/agents/workspace.yaml` 的 `layout` 一栏，只认 `single` | `multi`；浏览器本地表 `dsws.setupLayoutByCwd` 与宿主 `choices.json` 的 `layouts` 都不再写、不再读）。同一个工作区下次打开面板直接沿用，不再因为「换了个会话」就重新问、也不会两个会话答成两个样。
 3. ~~**别的入口不跟着变**：检查页红牌那颗「执行初始化」按钮、面板切换后端之后那条注入路，都不传 `askLayout` —— 它们是「要一段文字」的动作，不是「问布局」的地方；答过（或记住过）就直接注入，不再多点一次。~~
    > **2026-09-22 按 #698 改口径**：**切换后端那条路也传 `askLayout: true` 了**（维护者拍板：与黄条同一套风格，每次都问）。理由与当初这里写的不同：切换这条路上工作区**总是初始化过的**，而黄条在初始化之后就再也不出现 —— 界面上再没有第二个地方能改这个答案，不留这一问，答案就永远改不动。检查页红牌那颗「执行初始化」按钮仍然不传它（它确实是「要一段文字」，不是「问布局」的地方）。
 4. **卡上「取消」什么都不改**：记住的那一份仍在，下次点黄条仍会问。
@@ -28,8 +28,8 @@
 ## 4. 代价与已知限制（如实写）
 
 - 黄条那颗按钮**每次多一次确认**。这是本次裁决明码标价的代价：换来的是答案永远看得见、随时能改。
-- 答案存在**这台机器的浏览器本地缓存**里，不是仓库里的事实：换机器、换浏览器、清了缓存都会重新问一遍。仓库里那份真相仍是 `docs/agents/domain.md`（由 AI 按注入的那句话写）。
-- 用户在仓库里手改 `docs/agents/domain.md` 的布局结论，**不会**改变插件记住的答案 —— 插件只认卡上那次选择。真要让面板与文件一致，在卡上改一次即可。
+- 答案存在**工作区里的 `docs/agents/workspace.yaml`** 上，跟着仓库走：换机器、换浏览器只要仓库在，答案就还在。代价是工作区文件写不进去时那一次选择只在当前会话有效，界面会如实提示没有写入权限（#1449 拍板不留本机备份）；新窗口在快照回来之前按「没有答过」处理，也会先问一次（维护者接受这个时序代价）。
+- 用户在仓库里手改 `docs/agents/domain.md` 的布局结论，**不会**改变插件记住的答案 —— 插件只认卡上那次选择（写进 `workspace.yaml` 的 `layout`）。反过来，手改 `workspace.yaml` 的 `layout` 会让下一次快照读到新值：`#1449` 起那份文件就是唯一真源。
 - 卡片上不加「上次选过」这类说明文字：预选中的那一项本身就是那条线索，多一句反而更长。
 
 ## 4.1 落地当天就踩到的坑（真机上报，已修）：记住的那份把卡上的选择按了回去
@@ -46,11 +46,11 @@
 
 1. **漏斗**（`src/client/kernel/prompts.js`）：
    - `injectSetupDecision` 的开卡条件从「没答过才开」变成「没答过**或** `opts.askLayout === true` 都开」；
-   - `readSetupLayout` 在会话里没答过时，回退读这个工作区记住的那一份；两份都过取值校验，不认识的取值一律当没答过。
-2. **状态栏**（`src/client/statusbar/StatusBackend.js`）：`onStatusSetupInit` 传 `{ allowCard: true, askLayout: true }`；`applyStatusSetupLayout` 除写会话状态外，同时写进按工作区的那份缓存；`readStatusSetupLayout` 会话状态优先、其次读缓存（卡片预选走它）。
-3. **存储**（`src/client/kernel/store-prefs.js`）：`SETUP_LAYOUT_BY_CWD_KEY` / `setupLayoutByCwd` / `getCachedSetupLayout` / `setCachedSetupLayout`，取值只认 `single` | `multi`。
+   - `readSetupLayout` 先读本次会话的选择，再读快照回包里的工作区答案（快照由宿主读工作区文件）；两份都过取值校验，不认识的取值一律当没答过。
+2. **状态栏**（`src/client/statusbar/StatusBackend.js`）：`onStatusSetupInit` 传 `{ allowCard: true, askLayout: true }`；`applyStatusSetupLayout` 只写会话状态（#1449 起不再写浏览器表）；`readStatusSetupLayout` 先会话状态、再快照回包里的工作区答案（卡片预选走它）。
+3. **存储**（2026-10-24 #1449 起）：宿主把答案写进工作区里的 `docs/agents/workspace.yaml` 的 `layout` 一栏；浏览器 `store-prefs.js` 里那组导出（`SETUP_LAYOUT_BY_CWD_KEY` / `setupLayoutByCwd` / `getCachedSetupLayout` / `setCachedSetupLayout` / `migrateCachedChoiceToKey`）已整组删除，旧 `choices.json` 的 `layouts` 只为原样带过保留。
 4. **门禁**：
-   - `tests/verify-655-setup-layout.js`：新增两组 —— 「黄条那颗按钮：布局已答也先弹卡、弹卡时不注入」「按工作区记住：新会话直接沿用、会话里答过的优先、没记住过照旧问、记住的值不认识时当没答过」；
-   - `tests/verify-665-fresh-workspace-chain.js`：黄条那条路按新流程量两步（点一下 → 先弹卡归到 `action`、不注入；卡上确认 → 注入全文且结论就是选的那一项），并量「同一个工作区的新会话直接沿用记住的那一份」；
+   - `tests/verify-655-setup-layout.js`：新增两组 —— 「黄条那颗按钮：布局已答也先弹卡、弹卡时不注入」「布局来源：快照回包里的那份直接沿用、会话里答过的优先、都没有照旧问、不认识的取值当没答过」；
+   - `tests/verify-665-fresh-workspace-chain.js`：黄条那条路按新流程量两步（点一下 → 先弹卡归到 `action`、不注入；卡上确认 → 注入全文且结论就是选的那一项），并量「同一个工作区的新会话直接沿用快照回包里的那一份」；
    - `tests/verify-496b-inject-guard.js`、`tests/verify-663-banner-chain.js`：钉住黄条那条接线带上了 `askLayout: true`（别的入口不许带）；
-   - `tests/verify-kernel.js`：`store-prefs.js` 的四张新导出进冻结清单。
+   - `tests/verify-1449-layout-single-source.js`（#1449 新增）：钉住「写只写工作区文件、快照只读文件、读取只看会话与快照、浏览器表与旧读写口全仓零命中」；`tests/verify-1003-layout-in-file.js`、`tests/verify-1433-snapshot-layout-file.js` 同步改成本口径；`tests/verify-683-mirror-write.js` 随浏览器表退役删除；`tests/verify-kernel.js` 的冻结清单删掉那四张旧导出。
