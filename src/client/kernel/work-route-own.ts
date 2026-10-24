@@ -152,8 +152,9 @@ export const loadOwnWorkRoute = function (st: any, opts: any): void {
 
 // #1373 · 304 回包捎来的新表能不能挂上去，只这一处说了算。正常那一路（probe-snapshot 的 304 分支）
 //   与迟到那一路（probe-select 迟到的非正文分支）都调它：两处各写一遍的话，「什么算更新」迟早长岔。
-//   规则：本地没表照旧收（#1355 的老行为）；本地有表时，只收 ok:true 的那一份，且本地坏了、
-//   或来者 readout.at 更新才换 —— 同旧、更旧、坏读数一律不换，不拿坏的顶掉好的。
+//   规则：只收 ok:true 的那一份 —— 本地没表时也不能见啥收啥（#1440：宿主拿不到工作区根时会挂一张
+//   {ok:false} 的坏读数，收下它就等于把「还没读到」换成「读不出来」，面板从此画坏表、而且不会自愈）；
+//   本地有表时，本地坏了、或来者 readout.at 更新才换 —— 同旧、更旧、坏读数一律不换，不拿坏的顶掉好的。
 //   为什么看 readout.at：宿主每次回包都是按请求那一刻现读账本现算的，at 就是那次读账本的时间，
 //   来者比本地新，当且仅当它读到的账本比本地晚。换表不原地改旧快照（旧对象可能还被别处拿着）。
 export const adoptWorkRouteTableIfNewer = function (st: any, snap: any): boolean {
@@ -163,6 +164,9 @@ export const adoptWorkRouteTableIfNewer = function (st: any, snap: any): boolean
     const incoming: any = snap.workRouteTable
     const local: any = st.snapshot.workRouteTable
     if (local === undefined || local === null) {
+      // 本地缺表：只收好读数。坏读数不挂上去 —— 缺表是「还没读到」，坏读数一旦挂上就变成
+      // 「读不出来」，面板会画坏表，而且要等下一次带 at 的读数来了才能翻回来。
+      if (!incoming || typeof incoming !== 'object' || incoming.ok !== true) return false
       st.snapshot = Object.assign({}, st.snapshot, { workRouteTable: incoming })
       return true
     }

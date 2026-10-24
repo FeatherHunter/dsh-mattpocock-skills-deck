@@ -9,7 +9,9 @@
 //   ② 会话 preflight 的每一种失败档位都落在正确的谓词状态上 —— 尤其是「登录失败」不许显示成「仓库不可达」；
 //   ③ viewer/登录名走 getCurrentUser（不是另起一条 gh 命令）；
 //   ④ 求值那笔记账仍是一笔零花费（经 noteChainEval，sent 加一、账上条数不动）；
-//   ⑤ 退避与在途合并的判据没动（挡下的直接回缓存、同钥匙并发只求值一次）。
+//   ⑤ 退避与在途合并的判据没动（挡下的直接回缓存、同钥匙并发只求值一次）；
+//   ⑥ 会话交来的操作上下文（platform/起进程口/日志口）必须原样传进房间 —— 只给 {cwd} 时房间第一关
+//      就会回「找不到 gh」，链上登录态两项永远 pending（#1468 回归）。
 const nodePath = require('path')
 const { pathToFileURL } = require('url')
 
@@ -35,25 +37,32 @@ function makeSession(opts) {
   const o = opts || {}
   const stats = { preflight: 0, getCurrentUser: 0 }
   const handles = []
+  // 记录房间实际收到的第二格（操作上下文）：用来断言会话 ctx 没有被换成 {cwd}（#1468）。
+  const ctxs = { preflight: [], getCurrentUser: [] }
   const session = {
     async preflight(handle, ctx) {
       stats.preflight += 1
       handles.push(handle)
+      ctxs.preflight.push(ctx)
       if (o.preflightThrows) throw new Error('会话能力抛了')
       return o.preflight || { ok: true }
     },
     async getCurrentUser(repo, ctx) {
       stats.getCurrentUser += 1
+      ctxs.getCurrentUser.push(ctx)
       return o.user || { ok: true, data: { login: 'octocat' } }
     },
   }
-  return { session: session, stats: stats, handles: handles }
+  return { session: session, stats: stats, handles: handles, ctxs: ctxs }
 }
+
+/** 会话交给能力函数的那一份操作上下文（生产里由 session-opener 的 call 拼好）：带可辨认的标记。 */
+const SESSION_CTX = { cwd: 'C:/stale', caller: 'refresh', platform: { marker: 'session-ctx-platform' }, exec: Object.assign(function sessionCtxExec() {}, { marker: 'session-ctx-exec' }) }
 
 /** 开会话成功那一份形状：call(fn) 把假会话与一次 opCtx 交给能力函数（与 session-opener.ts 的回包同形）。 */
 function openReplyOf(session) {
   return async function () {
-    return { ok: true, backendId: 'github', budget: {}, call: function (fn) { return fn(session, { cwd: 'D:/demo', caller: 'refresh' }) } }
+    return { ok: true, backendId: 'github', budget: {}, call: function (fn) { return fn(session, SESSION_CTX) } }
   }
 }
 
@@ -159,6 +168,22 @@ async function main() {
     const c3 = await makeChain({ openSession: openReplyOf(fxThrow.session) })
     const out3 = await c3.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'zh', force: true })
     must(!!out3 && out3.ok === true && resolvedOf(out3, 'gh:authed').status === 'pending', '会话能力自己抛异常时也只降级成 pending', JSON.stringify(resolvedOf(out3, 'gh:authed')))
+  }
+
+  title('③b 会话的操作上下文原样传进房间（#1468：只给 {cwd} 时房间连 gh 都找不到）')
+  {
+    const fx = makeSession({})
+    const c = await makeChain({ openSession: openReplyOf(fx.session) })
+    await c.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'zh', force: true })
+    const pfCtx = fx.ctxs.preflight[0] || {}
+    must(!!(pfCtx.platform && pfCtx.platform.marker === 'session-ctx-platform'), 'preflight 收到会话 ctx 里的 platform（缺了房间第一关就判「找不到 gh」）', JSON.stringify(pfCtx))
+    must(!!(pfCtx.exec && pfCtx.exec.marker === 'session-ctx-exec'), 'preflight 收到会话 ctx 里的起进程口（房间要它才发得出 gh）', String(typeof pfCtx.exec))
+    must(pfCtx.cwd === 'D:/demo', 'preflight 的 cwd 仍按本次求值目录给', JSON.stringify(pfCtx.cwd))
+    const cuCtx = fx.ctxs.getCurrentUser[0] || {}
+    must(!!(cuCtx.platform && cuCtx.platform.marker === 'session-ctx-platform'), '取登录名也带会话 ctx 的 platform（不能只给 {cwd}）', JSON.stringify(cuCtx))
+    // 静态防退化：上面的模拟是照着会话口 call 的契约写的；契约若被改成只交 session，本小节的断言会假绿。
+    const openerSrc = require('fs').readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/session-opener.ts'), 'utf8')
+    must(openerSrc.indexOf('fn(session, ctx)') >= 0, '会话口的 call 仍把 ctx 交给能力函数（③b 的模拟照这个契约写）', '')
   }
 
   title('④ 求值那笔记账：经 noteChainEval，仍是一笔零花费')

@@ -147,22 +147,28 @@ export async function applyParentEdge(
   const want = String(to)
   const written = await t.setParent(repo, from, want, {}, opCtx)
   if (!written || written.ok !== true) {
-    const ev = unsupportedEvidence(failureText(written))
+    // #1421：失败回执也要说清方向 —— 只留「后端原话」的话，读回执的人得回头翻参数才知道要写的是什么。
+    const ev: EdgeEvidence = { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + want + ' 写成票 #' + from + ' 的父票（后端原话：' + failureText(written) + '）' }
     return { item: Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('parent', want, ev)), applied: false }
   }
+  // 契约没提供可选的读票方法时，这一步根本没读回 —— 不是「读回来了、里面没有这条边」。
+  // 照 #790 的规矩只能说「判不了」，绝不许把没读到的状态说成读回来的 parentKey 是空。
+  const canRead = !!(t && typeof t.get === 'function')
+  // 这里再写一次 typeof 检查，是为了让类型收窄在 await 那一行生效（canRead 这个布尔带不动收窄）。
   const back = (t && typeof t.get === 'function') ? await t.get(repo, from, {}, opCtx) : null
   const afterIssue = (back && back.ok === true) ? back.data : null
-  const backError = (back && back.ok !== true) ? failureText(back) : ''
+  const readFailed = !canRead || !(back && back.ok === true)
+  const backError = readFailed ? (canRead ? failureText(back) : '契约没有提供可选的读票方法') : ''
   const issueRow = (afterIssue && typeof afterIssue === 'object') ? afterIssue as { parentKey?: unknown } : {}
-  let ev: EdgeEvidence = classifyEdgeLandingRules('parent', want, { issue: afterIssue, dependencies: null })
+  let ev: EdgeEvidence = classifyEdgeLandingRules('parent', want, { issue: afterIssue, dependencies: null }, from)
   const landedKey = (issueRow.parentKey !== undefined && issueRow.parentKey !== null) ? String(issueRow.parentKey) : ''
   // #790 的教训：判「落上了」只看写后读回的结构字段（纯侧的 edgeVerdict），
   // 不许再拿「正文里出现过票号」或写动作自己的返回当证据 —— 那两条会把没挂上的边报成挂上。
   const landedOk = edgeVerdictRules('parent', want, afterIssue === null ? null : { issue: afterIssue, dependencies: null }) === 'landed'
   if (!landedOk) {
-    ev = backError
-      ? { kind: 'unknown', ok: false, text: '写后读回失败：读票没成功（后端原话：' + backError + '）；写操作已回成功，边可能已建成但没确认。票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want }
-      : { kind: 'missing', ok: false, text: '写后读回：票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want + '。' + String(ev.text || '') }
+    ev = readFailed
+      ? { kind: 'unknown', ok: false, text: '写动作回了成功，但' + (canRead ? '读票没成功' : '契约没有提供可选的读票方法') + '：写后没读回票 #' + from + '，判不了「票 #' + from + ' 的父票是 #' + want + '」有没有写成；这条边可能已建成但没确认' + (canRead ? '（后端原话：' + backError + '）' : '') }
+      : { kind: 'missing', ok: false, text: '写后读回：票 #' + from + ' 的父票读到的是 ' + (landedKey || '空') + '，要的是 #' + want + '。' }
   }
   return { item: Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)), applied: landedOk }
 }
@@ -189,10 +195,12 @@ export async function applyBlockEdges(
   const list = (Array.isArray(occurrences) ? occurrences : []).map(String)
   const written = await t.setBlockedBy(repo, from, want, {}, opCtx)
   if (!written || written.ok !== true) {
-    const ev = unsupportedEvidence(failureText(written))
+    // #1421：写失败时点名「要把哪张票加进哪张票的 blockedBy」，别让读回执的人自己反推方向。
+    const why = failureText(written)
+    const failed: EdgeEvidence = { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + want.join('、') + ' 加进票 #' + from + ' 的 blockedBy（也就是票 #' + from + ' 被这些票阻塞）（后端原话：' + why + '）' }
     return {
-      items: list.map((to) => Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev))),
-      applied: [], landed: [], after: { issue: null, dependencies: null }, failed: ev, readOk: false,
+      items: list.map((to) => Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + to + ' 加进票 #' + from + ' 的 blockedBy（也就是票 #' + from + ' 被 #' + to + ' 阻塞）（后端原话：' + why + '）' }))),
+      applied: [], landed: [], after: { issue: null, dependencies: null }, failed: failed, readOk: false,
     }
   }
   const back = (t && typeof t.get === 'function') ? await t.get(repo, from, {}, opCtx) : null
@@ -207,11 +215,12 @@ export async function applyBlockEdges(
   const readError = readOk ? '' : failureText((back && back.ok !== true) ? back : dep)
   const items = list.map((to) => {
     if (!readOk) {
-      const ev = unsupportedEvidence('写后没读回来，判不了这条依赖落上了没有（' + (readError || '读回没成功') + '）；写操作已回成功，这条边可能已建成但没确认')
+      // #1421：读失败这句是我们自己的判断，不该挂「后端原话：」前缀；后端原话单独放进括号里。
+      const ev: EdgeEvidence = { kind: 'unknown', ok: false, text: '写动作回了成功，但读票没成功：写后没读回票 #' + from + '，判不了 #' + from + ' 的 blockedBy 里有没有 #' + to + '；这条边可能已建成但没确认（后端原话：' + (readError || '读回没成功') + '）' }
       return Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev))
     }
     const hit = edgeVerdictRules('block', to, after) === 'landed'
-    const ev: EdgeEvidence = hit ? classifyEdgeLandingRules('block', to, after) : { kind: 'missing', ok: false, text: '写后读回：这条依赖不在票上（要 ' + to + '，读回来 ' + (landed.join('、') || '空') + '）' }
+    const ev: EdgeEvidence = hit ? classifyEdgeLandingRules('block', to, after, from) : { kind: 'missing', ok: false, text: '写后读回：票 #' + from + ' 的 blockedBy 里没有 #' + to + '（读回来的是 ' + (landed.join('、') || '空') + '）' }
     return Object.assign({ key: from, role: 'edge', status: hit ? 'ok' : 'failed' }, edgeEvidence('block', to, ev))
   })
   return { items: items, applied: list.filter((to) => landed.indexOf(to) >= 0), landed: landed, after: after, failed: null, readOk: readOk }

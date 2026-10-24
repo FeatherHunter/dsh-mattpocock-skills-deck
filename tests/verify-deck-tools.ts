@@ -271,11 +271,44 @@ async function main() {
     check(r.data && r.data.mapKey && r.data.builtKeys.length === 3, 'deck_map_plan_create 建成地图 + 3 张子票（' + JSON.stringify((r.data || {}).builtKeys) + '）')
     const edgeItems = (r.items || []).filter((i) => i.role === 'edge')
     check(edgeItems.length === 1 && edgeItems[0].landing && edgeItems[0].evidence, 'deck_map_plan_create 每条边都标出落点与证据：' + JSON.stringify(edgeItems[0]))
+    check(typeof edgeItems[0].evidence === 'string'
+      && edgeItems[0].evidence.indexOf('的 blockedBy 里有') > 0
+      && edgeItems[0].evidence.indexOf('被') > 0 && edgeItems[0].evidence.indexOf('阻塞') > 0,
+      'deck_map_plan_create 回执点名方向（谁被谁阻塞）：' + String(edgeItems[0].evidence))
     check(r.data.durable === true, 'deck_map_plan_create 的中间态是落盘的（注入的 planStore 说它 durable）')
     // 续跑：同一个 planId 再来一次 → 一张票都不重复建
     const again = await callTool('deck_map_plan_create', planArgs)
     check(again.data && again.data.skippedKeys.length === 3 && again.data.builtKeys.length === 3, 'deck_map_plan_create 续跑：同一个 planId 再来一次只跳过、不重复建（skipped=' + JSON.stringify((again.data || {}).skippedKeys) + '）')
     check(ws.ticketFiles().length === filesBefore + 4, '盘上的票文件数对得上（地图 1 + 子票 3 = 4 张新票，实得新增 ' + (ws.ticketFiles().length - filesBefore) + '）')
+
+    // #1421：edges 里出现不认识的 type 时整批拒写，且一条边、一张票都不落（零副作用）。
+    const badBefore = ws.ticketFiles().length
+    const badType = await callTool('deck_map_plan_create', {
+      planId: 'plan-713-badtype', title: 'type 写错的地图',
+      children: [{ key: 'c1', title: '子票一', kind: 'map-ticket', label: 'wayfinder:task' }],
+      edges: [{ from: 'c1', to: '@map', type: 'blocks' }],
+    })
+    check(badType && badType.ok === false && badType.status === 'unsupported' && badType.reason === 'bad-args',
+      '✗ 负向：edges 的 type 写成不认识的值 → ok:false / unsupported / bad-args（实得 ' + (badType && badType.status) + ' / ' + (badType && badType.reason) + '）')
+    check(String((badType && badType.text) || '').indexOf('只认 blocked-by 与 parent') > 0,
+      '✗ 负向：拒写文案说清 type 只认那两个值：' + String((badType && badType.text) || ''))
+    check(ws.ticketFiles().length === badBefore,
+      '✗ 负向：整批拒写之后盘上没多任何票（零副作用，实得新增 ' + (ws.ticketFiles().length - badBefore) + '）')
+    // #1421 审查补：一条合法边与一条不认识的 type 混在同一批里时，整批都不写 ——
+    // 不是「跳过坏的那条、把好的那条写下去」。
+    const mixBefore = ws.ticketFiles().length
+    const mixed = await callTool('deck_map_plan_create', {
+      planId: 'plan-713-mixedtype', title: '合法边与写错的 type 混在一批',
+      children: [
+        { key: 'm1', title: '合法子票', kind: 'map-ticket', label: 'wayfinder:task' },
+        { key: 'm2', title: '另一张子票', kind: 'map-ticket', label: 'wayfinder:task' },
+      ],
+      edges: [{ from: 'm2', to: 'm1', type: 'blocked-by' }, { from: 'm1', to: 'm2', type: 'blocks' }],
+    })
+    check(mixed && mixed.ok === false && mixed.status === 'unsupported' && mixed.reason === 'bad-args',
+      '✗ 负向：合法边与非法 type 混在一批 → 整批拒绝（实得 ' + (mixed && mixed.status) + ' / ' + (mixed && mixed.reason) + '）')
+    check(ws.ticketFiles().length === mixBefore,
+      '✗ 负向：混批被拒之后一张票也没建（零副作用，实得新增 ' + (ws.ticketFiles().length - mixBefore) + '）')
   }
 
   // ── ⑥ deck_map_link：补边（正例 = 阻塞边；正例 = 同目录父子；负向 = 不存在的父） ──
@@ -288,12 +321,18 @@ async function main() {
     check(envelopeOk(ok) && ok.status === 'ok', 'deck_map_link 正例：补一条阻塞边（实得 ' + (ok && ok.status) + '）')
     const edge = (ok.items || [])[0]
     check(edge && edge.landing && edge.evidence, 'deck_map_link 标出这条边落在哪一列：' + JSON.stringify(edge))
+    check(edge && typeof edge.evidence === 'string'
+      && edge.evidence.indexOf('票 #' + c3 + ' 的 blockedBy 里有 #' + c1) > 0
+      && edge.evidence.indexOf('被 #' + c1 + ' 阻塞') > 0,
+      'deck_map_link 回执点名方向（票 #' + c3 + ' 被 #' + c1 + ' 阻塞）：' + String(edge && edge.evidence))
     const text = ws.readTicket(ws.ticketFiles().find((f) => f.indexOf('/') < 0 && f !== '00-untitled.md') || '')
     check(typeof text === 'string', '补边之后票文件还在（不会被写坏）')
     // #971 起同目录改父能做成（文件顶注释即归属）：同值补一次边直接成功，返回落点与证据。
     const same = await callTool('deck_map_link', { key: c3, parentKey: planMapKey713 })
     check(envelopeOk(same) && same.status === 'ok', 'deck_map_link 正例：同目录同值补父边直接成功（实得 ' + (same && same.status) + '）')
     check((same.items || []).some((i) => i.landing && i.evidence), '同值父边逐项写了落点与证据：' + JSON.stringify((same.items || [])[0]))
+    check((same.items || []).some((i) => typeof i.evidence === 'string' && i.evidence.indexOf('票 #' + c3 + ' 的父票是 #' + planMapKey713) > 0),
+      '同值父边回执点名方向（谁的父票是谁）：' + JSON.stringify((same.items || [])[0]))
     // 负向：父票根本不存在 → 这一步失败，工具必须回 unsupported 而不是抛
     const partial = await callTool('deck_map_link', { key: c3, parentKey: '99' })
     check(envelopeOk(partial) && partial.ok === false && partial.status === 'unsupported', '✗ 负向：父票不存在 → ok:false / unsupported（实得 ' + (partial && partial.status) + '）')

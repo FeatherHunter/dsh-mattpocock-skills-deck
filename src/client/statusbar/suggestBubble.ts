@@ -114,7 +114,8 @@ export const suggestAnchorOf = function (probeEl: any) {
   } catch (eAnchor) { return fallback }
 }
 
-/** 浮层内容：打了分的先放一颗分数泡（例如 9.5），下面是理由正文；没打分的只有理由。
+/** 浮层内容：打了分的在理由第一行开头先放一颗分数泡（例如 9.5），理由正文紧跟其后排在同一行，
+ *  折行后的文字从分数泡下方接着排；没打分的只有理由。
  *  印数字不画进度条：模型给的是「谁更该先做」的相对判断，画条会让人以为它是可校准的刻度。 */
 export const popBodyOf = function (item: any, index: number) {
   const reason = (item && typeof item.reason === 'string') ? item.reason : ''
@@ -266,8 +267,8 @@ export const SuggestBubble = function (props: any) {
     // 读屏念「简介 提示词」；没有简介的旧事件只念提示词。
     const spoken = intro ? intro + ' ' + prompt : prompt
     // 选项框上只印简介（#1451 后续拍板）：提示词不进按钮，点选时才原样填进输入框；
-    // 没有简介的旧事件退回只印提示词。理由收进框正上方的浮层，打了分的在理由上方再加一颗
-    // 分数泡（例如 9.5），让人一眼看出这条有多优先；进出由外层负责显隐。
+    // 没有简介的旧事件退回只印提示词。理由收进框正上方的浮层，打了分的在理由第一行开头
+    // 加一颗分数泡（例如 9.5），让人一眼看出这条有多优先；进出由外层负责显隐。
     const label = intro
       ? React.createElement('span', { key: 'suggest-intro-' + index, className: 'dsws-sugg-intro' }, intro)
       : prompt

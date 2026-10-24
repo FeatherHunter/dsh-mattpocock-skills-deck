@@ -284,7 +284,9 @@ async function main() {
     const scoreSpans = function () { return Array.prototype.slice.call(mScore.holder.querySelectorAll('.dsws-sugg-score')) }
     check(scoreSpans().length === 2, '分数泡：只有打了分的两条印分数泡（没打分的那条不印）')
     check(scoreSpans()[0].textContent === '9.5' && scoreSpans()[1].textContent === '3', '分数泡：印出模型给的原始分数（9.5 与 3）')
-    check(pops()[0].querySelector('.dsws-sugg-reason') !== null && pops()[0].querySelector('.dsws-sugg-reason').textContent === '卡在后面', '分数泡：理由仍在同一浮层里（分数在上、理由在下）')
+    check(pops()[0].querySelector('.dsws-sugg-reason') !== null && pops()[0].querySelector('.dsws-sugg-reason').textContent === '卡在后面', '分数泡：理由仍在同一浮层里，评分排在理由前面（贴在第一行开头）')
+    const firstPopKids = Array.prototype.slice.call(pops()[0].children)
+    check(firstPopKids.length === 2 && String(firstPopKids[0].className).indexOf('dsws-sugg-score') >= 0 && String(firstPopKids[1].className).indexOf('dsws-sugg-reason') >= 0, '分数泡：浮层里先分数泡、后理由正文（这个顺序让评分贴在第一行开头）')
     check(pops()[2].querySelector('.dsws-sugg-score') === null && pops()[2].textContent === '看情况', '分数泡：没打分的浮层只有理由')
     const mZero = await mount({
       initial: [
@@ -426,6 +428,12 @@ async function main() {
     check(css.indexOf('.dsws-sugg-cmd') < 0, '样式：提示词不再进按钮，旧的两段样式已删')
     check(css.indexOf('bottom:calc(100% + ' + appearanceMod.SUGGEST_APPEARANCE.popGapPx + 'px)') >= 0, '样式：浮层固定在框顶边正上方（间距来自外观旋钮，不跟鼠标）')
     check(css.indexOf('max-width:' + appearanceMod.SUGGEST_APPEARANCE.popMaxWidthPx + 'px') >= 0, '样式：浮层最大宽度来自外观旋钮')
+    const popRule = (css.match(/\.dsws-sugg-pop\{[^}]*\}/) || [''])[0]
+    check(popRule.indexOf('display:block') >= 0 && popRule.indexOf('display:flex') < 0, '样式：浮层按普通文字流排版（不用竖排 flex），评分才能和理由排在同一行')
+    check(css.indexOf('margin-right:' + appearanceMod.SUGGEST_APPEARANCE.scoreGapPx + 'px') >= 0, '样式：分数泡与理由之间留空，间距来自外观旋钮')
+    check(css.indexOf('.dsws-sugg-reason{display:inline}') >= 0, '样式：理由正文跟分数泡排同一行，不再独占一段')
+    check(popRule.indexOf('background:' + appearanceMod.SUGGEST_APPEARANCE.popBg) >= 0, '样式：浮层底色取自浮层专用旋钮（比选项框淡一档）')
+    check(css.indexOf('body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + appearanceMod.SUGGEST_APPEARANCE.lightPopBg) >= 0, '样式：浅色主题下浮层也另给一档更淡的底色')
     check(css.indexOf('prefers-reduced-motion') >= 0, '样式：尊重系统减少动效偏好')
   }
 

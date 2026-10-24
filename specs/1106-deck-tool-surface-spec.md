@@ -27,7 +27,7 @@
 | `deck_map_snapshot` | `key` | `frontierOnly`（布尔，只回可接的子票；缺省回全部）· `detail`（枚举 `full` / `thin`，缺省 `full`；`thin` 只回薄行，统计与进度表照算）· `effortId` |
 | `deck_issue_list` | 无 | `state`（枚举 `open` / `closed` / `all`，缺省 `open`）· `type`（枚举 `issue` / `map` / `all`，缺省 `all`）· `labels`（字符串数组，必须同时带上，AND）· `assignee` · `query`（标题与正文的子串）· `limit`（数字，缺省 50，钳在 1–200）· `effortId` |
 | `deck_issue_create` | `title`、`kind` | `body`（缺省按种类补最小骨架）· `kind`（必填，枚举 `map` / `map-ticket` / `spec` / `spec-ticket` / `bug` / `issue`；map 与 spec 是顶层容器，其余位置各有父票规则）· `label`（枚举 `wayfinder:research` / `wayfinder:prototype` / `wayfinder:grilling` / `wayfinder:task`；只在 kind=map-ticket 时必填，其他 kind 传了直接拒绝）· `parentKey` · `labels`（除 issue 外不许再放类型标签）· `assignees` · `idempotencyKey` · `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` |
-| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`；`from` 写 `@map` 指地图自己）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId`；`children` 每项必填 `key`、`title`、`kind`（枚举 `map-ticket` / `bug` / `issue`），可选 `body`、`label`（kind=map-ticket 时必填，四选一）、`labels`、`assignees` |
+| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`，省略按 `blocked-by`。**`from` 是这条边写进哪张票（写的是它的字段），`to` 是这条边指向的另一张票**：阻塞边是 `from` 的 Blocked by 里加上 `to`（即 `from` 被 `to` 阻塞），父子边是 `from` 的父票为 `to`；`@map` 指本次计划建的地图票，`from` 与 `to` 都可以写，父子边的常规写法是 `to` 写 `@map`；`type` 写成不认识的值整批拒写、回 `bad-args`、一张票都不动（#1421））· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId`；`children` 每项必填 `key`、`title`、`kind`（枚举 `map-ticket` / `bug` / `issue`），可选 `body`、`label`（kind=map-ticket 时必填，四选一）、`labels`、`assignees` |
 | `deck_map_link` | 无 | `key` 与 `edges` 二选一，两个都不给回 `bad-args`。`key`：要改的那张子票 · `parentKey`：要挂到的父票 · `blockedBy`：这张票被哪些票阻塞（**整批替换**，给空数组就是清空）· `edges`（一次改多张票，每项必填 `key`，其余同左）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` |
 | `deck_issue_patch` | `key` | `comment` · `addLabels` · `removeLabels` · `assignees`（整批替换，给空数组就是取掉认领）· `title` · `body` · `progress`（只改「## 进度」那一段）· `close`（布尔，`true` 关闭、`false` 重新打开）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` |
 | `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effortId` · `release`（布尔，传 `true` 尝试撤销本会话对这个 ISSUE 的一条误报工作条目：只在从没实际处理过这张票时删得掉，建过、改过、关过、建过计划或挂过边的票不能释放、路径保留；票本身的状态与认领人不动） |
@@ -35,7 +35,7 @@
 三条口径写在表外，但同样冻着：
 
 - **多传即拒**：每个对象节点（根节点、`children` 的每一项、`edges` 的每一项）都显式写了 `additionalProperties: false`。挡下多传的键是宿主在调用入口按定义做的事；工具自己收到不认识的键时不报错，当没有。
-- **枚举不认识时按缺省走**：枚举取值由定义声明、由宿主在入口挡；工具内部收到不认识的值不报 `bad-args`，按缺省那一档处理（例如 `state` 给个不认识的字符串，当 `open` 用）。
+- **枚举不认识时按缺省走**：枚举取值由定义声明、由宿主在入口挡；工具内部收到不认识的值不报 `bad-args`，按缺省那一档处理（例如 `state` 给个不认识的字符串，当 `open` 用）。例外是 `deck_map_plan_create` 的 `edges[].type`（#1421）：这个值决定一条边写成阻塞还是父子，静默按缺省走会把关系写歪，所以工具内部遇到不认识的值整批拒写、回 `bad-args`、盘上一张票都不动。
 - **`effortId` 一律可选**：只有本地（Markdown）后端需要它，填票所在的目录名；根目录不填，远端后端忽略。
 
 **上报的 `progress` 已退役（#1352）**：`deck_issue_report` 的定义里不再有它；老调用带着这个键时，工具在选后端之前就以 `bad-args` 拒绝，并在回执里指路 `deck_issue_patch` 的 `progress`（写票面「## 进度」区）。拒绝不花点数、不写盘。`workRouteDetail` 的 `full` 档同步退役：它原先唯一的增量就是工作条目里的进度自评；老调用传 `full` 时按 `standard` 处理。
@@ -176,4 +176,4 @@
 - 游标改存 YAML、换目录另立票；快照效果改动（写进度、原话区、回读）归正文进度与用户原话那张地图。
 - 后端房间内部、面板渲染、四个已有计算核、提示词文案，都不在这里。
 - 不引入新依赖（含运行时校验库）。
-- 十二个参数没有各自的说明（`deck_map_plan_create` 的 `labels`，以及它 `children` 与 `edges` 条目里的字段；`deck_map_link` 的 `edges` 条目里的字段）。这是本来就有的粗糙处：本次只把它冻住，不动文案——补说明等于改模型看到的东西，该另立一张票。数组本身是有说明的（例如 `children` 写着「要建的子票清单」）。
+- `deck_map_plan_create` 的 `edges` 条目里，`from` / `to` / `type` 三个字段的说明已由 #1421 补上（写清方向）。其余没有各自说明的参数保持原样：同一工具的 `labels`、它 `children` 条目里的字段，以及 `deck_map_link` 的 `edges` 条目里的字段。这是本来就有的粗糙处：补说明等于改模型看到的东西，该另立一张票。数组本身是有说明的（例如 `children` 写着「要建的子票清单」）。

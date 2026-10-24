@@ -1,10 +1,11 @@
 /**
  * views/shared/workRouteTable.ts — 面板里的「跨会话在办表」（#1082）。
  *
- * 它回答的是：这个工作区里，每个会话各自在处理哪些票。数据只有一份来源 —— 宿主挂在面板快照上的
- * workRouteTable 字段（宿主那一侧在 src/refresh/rooms/host/work-route-readout.ts 里读工作路线存档，
- * 与工具回执 data.workRoute 同一个读出口）。界面这一侧不读盘、不读会话事件、不自己拼记录，
- * 只把快照里那一个字段画成表。
+ * 它回答的是：这个工作区里，每个会话各自在处理哪些票。数据只有一份来源 —— 宿主读工作路线存档
+ * （src/refresh/rooms/host/work-route-readout.ts，与工具回执 data.workRoute 同一个读出口）。界面这一侧
+ * 不读盘、不读会话事件、不自己拼记录，只把宿主给的那一份画成表。#1440 起面板先用本机只读电话的即时读数
+ * （几分钟前那条老链路是等面板快照重建、由宿主挂在快照上），没读到才退回去看快照里挂的那张；
+ * 两处共用一个选路函数（见文件末尾的 ownRoutePickOf），不各写一遍。
  *
  * 四种状态，与旧的工作路线展示面同一条纪律 ——「还没有」与「读坏了」必须分开说：
  *   · idle       还没拿到快照，或宿主这次没挂这个字段：整块不画（不冒充「没有人」）。
@@ -280,7 +281,9 @@ export const WorkRouteRow = ({ r, nowMs }: any) => {
 export const WorkRouteTable = ({ st }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
-  const view = workRouteTableOf(st)
+  // #1440：与胶囊同一条选路 —— 本机只读读数优先，快照里挂的那张兜底（304 回包可能挂一张坏表）。
+  const pick = (typeof ownRoutePickOf === 'function') ? ownRoutePickOf(st) : null
+  const view = (pick && pick.view) || workRouteTableOf(st)
   if (view.state === 'idle') return null
   const nowMs = Date.now()
   const titleChildren: any[] = [h('span', { key: 't', style: { fontWeight: 700 } }, tr('workRouteTable.title'))]
@@ -387,9 +390,15 @@ export const WorkRouteTrigger = ({ st }: any) => {
   }, [Ic({ n: 'workroute', size: 13 })])
   // 宿主这次没挂 workRouteTable 字段时（idle），浮层里不画空盒子，写一句「还没拿到」——
   // 与表本身同一条纪律：不拿「没数据」冒充「没人干活」。
-  const view = workRouteTableOf(st)
+  // #1440：浮层里也走与胶囊同一条选路；一次都没读到时分开说「正在读」与「还没有」：
+  //   两者都不画表，但前者是等一下就好、后者要有人补链路，混成一句会让人以为没救了。
+  const popPick = (typeof ownRoutePickOf === 'function') ? ownRoutePickOf(st) : null
+  const view = (popPick && popPick.view) || workRouteTableOf(st)
+  const reading = !!(popPick && popPick.fallback && popPick.fallback.state === 'loading')
   const body = view.state === 'idle'
-    ? h('div', { 'data-work-route-idle': 1, style: { color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 11, padding: '4px 2px' } }, tr('workRouteTable.idle'))
+    ? (reading
+        ? h('div', { 'data-work-route-loading': 1, style: { color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 11, padding: '4px 2px' } }, tr('chainView.ownRouteLoading'))
+        : h('div', { 'data-work-route-idle': 1, style: { color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 11, padding: '4px 2px' } }, tr('workRouteTable.idle')))
     : h(WorkRouteTable, { st: st })
   const pop = (ui.open && ui.pos) ? portalTop(h('div', {
     ref: popRef,
@@ -422,19 +431,26 @@ export const capsuleOwnRouteFallbackOf = function (slot: any): any {
 }
 
 /**
- * #1436 · 胶囊先读哪一份：首帧那条只读电话的读数（本机 work-path 存档，几十毫秒）优先，读到就先用它；
+ * #1436 · 界面先读哪一份：首帧那条只读电话的读数（本机 work-path 存档，几十毫秒）优先，读到就先用它；
  *   还没到、读坏了、或宿主版本太旧没有这条电话（off），才退回去看快照里挂的那张（老链路）。
  *   读的过程中如果上一格已经读到过表，就继续显示那一份（旧数据先顶着，不让界面回退成空白）。
  *   返回 { view, fallback }：view 是能照旧画的那份表；fallback 只在「一次都还没读到」时为读取中那一档。
  *   放在这里而不是胶囊文件里：胶囊贴着 350 行上限，而且这件事与这张表的读数形状本就是一件事。
+ *
+ * #1440：这条选路不只胶囊用 —— 面板头部那颗图标点开的浮层、胶囊展开列表也走它。快照里挂的那张表
+ *   在 304 回包里可能读不出工作区根（一张坏表），只读电话不经过快照，面板不该被那份坏表挡住；
+ *   「先读哪一份」这件事也只该有一处写法，两处各写一遍迟早长岔。
  */
-export const capsuleOwnRoutePick = function (st: any): any {
+export const ownRoutePickOf = function (st: any): any {
   const slot = (typeof ownWorkRouteSlotOf === 'function') ? ownWorkRouteSlotOf(st) : null
   const slotView = (slot && typeof workRouteTableViewOf === 'function') ? workRouteTableViewOf(slot.raw) : null
   const usable = (slotView && (slotView.state === 'ok' || slotView.state === 'empty')) ? slotView : null
   const snapView = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
   return { view: usable || snapView, fallback: usable ? null : capsuleOwnRouteFallbackOf(slot) }
 }
+
+/** 旧名保留：胶囊文件按这个名字声明（源码树里跨文件只许 ambient declare），改名要连带改那一处。 */
+export const capsuleOwnRoutePick = ownRoutePickOf
 
 /** #1436 · 读取中那一档在胶囊里的样子：一枚转圈（告诉人「正在读」，而不是「没有记录」）。 */
 export const capsuleOwnRouteFallbackNode = function (h: any, tr: any, view: any, Ic: any): any {

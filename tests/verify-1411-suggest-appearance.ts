@@ -101,6 +101,8 @@ async function main() {
     check(typeof A.pillBg === 'string' && A.pillBg.indexOf('linear-gradient') === 0, '旋钮：药丸底是渐变（C 版玻璃质感）')
     check(typeof A.bubbleBg === 'string' && A.bubbleBg.indexOf('radial-gradient') === 0, '旋钮：小泡底是径向高光')
     check(typeof A.lightPillBg === 'string' && A.lightPillBorder !== A.pillBorder, '旋钮：亮色主题另给一组颜色')
+    check(typeof A.popBg === 'string' && A.popBg.indexOf('linear-gradient') === 0 && A.popBg !== A.pillBg, '旋钮：浮层底色另给一档，不能与选项框完全同色')
+    check(typeof A.lightPopBg === 'string' && A.lightPopBg !== A.lightPillBg, '旋钮：浅色主题的浮层底色也比选项框淡一档')
     check(Object.keys(A).length >= 60, '旋钮：外观参数集中在一个对象里（至少 60 项）')
     const appearanceSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestAppearance.ts'), 'utf8')
     const zDefs = appearanceSrc.split('SUGGEST_Z').length - 1
@@ -434,7 +436,7 @@ async function main() {
     check(stylesSrc.indexOf('will-change') >= 0, '守卫：小泡标了 will-change（动效性能）')
     check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillBlurPx') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popBlurPx') >= 0, '守卫：磨砂模糊半径取自外观旋钮')
     check(cssText.indexOf('backdrop-filter:blur(') >= 0 && cssText.indexOf('-webkit-backdrop-filter:blur(') >= 0, '守卫：产出的 CSS 里真有磨砂（含 -webkit- 前缀）')
-    check(stylesSrc.indexOf('.dsws-sugg-score') >= 0 && stylesSrc.indexOf('.dsws-sugg-reason') >= 0, '守卫：浮层里分数泡与理由正文各有样式')
+    check(stylesSrc.indexOf('.dsws-sugg-score') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.scoreGapPx') >= 0 && stylesSrc.indexOf('.dsws-sugg-reason{display:inline}') >= 0, '守卫：浮层里评分贴第一行开头、理由紧跟其后（间距与同一行都有样式兜底）')
     check(bubbleSrc.indexOf('suggestInputOf') >= 0 && bubbleSrc.indexOf('ResizeObserver') >= 0, '守卫：锚点先找输入框，输入框高度变化时重新量')
     check(bubbleSrc.indexOf('popBodyOf') >= 0, '守卫：浮层内容由单独的函数拼（分数泡 + 理由）')
     check(timelineSrc.indexOf('document.') < 0 && timelineSrc.indexOf('window.') < 0, '守卫：时间线是纯函数（不碰 DOM）')

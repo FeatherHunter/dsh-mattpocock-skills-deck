@@ -195,7 +195,7 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
             if (pre.refused.has(key)) {
               // 整批预检说这一组边会让图成环：这条边不写，逐条如实报失败（别让 AI 当成建好了）。
               for (const target of asList(job.blockedBy)) {
-                out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', target, { kind: 'unknown', ok: false, text: pre.refused.get(key) })))
+                out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', target, { kind: 'unknown', ok: false, text: '写前成环预检拒了这一组边，这条没写：要把 #' + target + ' 加进票 #' + key + ' 的 blockedBy（也就是票 #' + key + ' 被 #' + target + ' 阻塞）。预检原话：' + String(pre.refused.get(key) || '（没给出原因）') })))
               }
               continue
             }
@@ -206,9 +206,9 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
                 // readOk 分开看：读失败时只能说「没读回来，判不了」，绝不许说成「这条依赖没出现在票上」（#790）。
                 const hit = out.readback.readOk && !out.readback.failed && out.readback.landed.indexOf(target) >= 0
                 const e2 = out.readback.failed ? out.readback.failed
-                  : !out.readback.readOk ? { kind: 'unknown', ok: false, text: '写后没读回来，判不了这条依赖落上了没有：这一组边已按合并后的完整集合写过一次，读回没成功，别把这条当成已建成、也别当成没建成（同组第一条明细里有后端原话）。' }
-                  : hit ? classifyEdgeLanding('block', target, out.readback.after)
-                  : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + target + '，读回来 ' + (out.readback.landed.join('、') || '空') + '）' }
+                  : !out.readback.readOk ? { kind: 'unknown', ok: false, text: '写动作回了成功，但写后没读回票 ' + key + '，判不了 ' + key + ' 的 blockedBy 里有没有 ' + target + '：这一组边已按合并后的完整集合写过一次，读回没成功，别把这条当成已建成、也别当成没建成（同组第一条明细里有后端原话）。' }
+                  : hit ? classifyEdgeLanding('block', target, out.readback.after, key)
+                  : { kind: 'unknown', ok: false, text: '写后读回：票 ' + key + ' 的 blockedBy 里没有 ' + target + '（读回来的是 ' + (out.readback.landed.join('、') || '空') + '）' }
                 out.items.push(Object.assign({ key: key, status: hit ? 'ok' : 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', target, e2)))
                 if (e2.ok) { out.done += 1; out.touched.push(key) }
               }
@@ -233,7 +233,7 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
           }, { timeoutMs: lockTimeoutMs })
           if (held && held.ok === false && held.timedOut) {
             // 锁没等到：这组一条没动，逐条诚实记（形状与预检拒绝同形，调用方照既有路续跑）。
-            const lockText = '这张票正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。'
+            const lockText = '票 ' + key + ' 正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。'
             for (const job of jobsByKey.get(key)) {
               if (job.parentKey !== undefined && job.parentKey !== null) {
                 out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('parent', String(job.parentKey), { kind: 'unknown', ok: false, text: lockText })))
