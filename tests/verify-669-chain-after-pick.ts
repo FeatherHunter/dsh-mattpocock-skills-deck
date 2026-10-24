@@ -348,12 +348,17 @@ console.log('== D 反证：把守卫做坏，C 里对应的那几条必须当场
     {
       label: '只留第二问（这个会话还要不要这条链）',
       // #1251：同上，改掐语句级锚点（意图不变：第二问恒不触发）。
-      patches: [['if (_chainLatestByKey.get(key) !== seq) return true;', 'if (false) { }']],
+      // #1492：序号表改成按「共享键 + 会话号」查，锚点里的键名跟着改成 seqKey（查的那一问没变）。
+      patches: [['if (_chainLatestByKey.get(seqKey) !== seq) return true;', 'if (false) { }']],
       must: ['现场 5 同键先后'],
     },
     {
       label: '把按键隔离改成全局一份',
-      patches: [['_chainLatestByKey.set(norm, _mySeq)', '_chainLatestByKey.set("全局", _mySeq)'], ['_chainLatestByKey.get(norm)', '_chainLatestByKey.get("全局")']],
+      // #1492：序号表的分键由 _chainScopedKeyOf 一处算出（写入与回包检查各算一次）。
+      //   这一版把那个函数改成恒返回同一个键，意图不变：按键隔离没了、所有工作区共用一份序号。
+      //   （不要改成只替换 get/set 的键名——那会让检查读的键和写入的键对不上，
+      //   变成「所有回包都判过期」，量到的是反证 1 的失败，不是按键串门。）
+      patches: [['return sid ? baseKey + "|sid:" + sid : baseKey;', 'return "全局";']],
       must: ['现场 4 跨工作区'],
     },
   ]
