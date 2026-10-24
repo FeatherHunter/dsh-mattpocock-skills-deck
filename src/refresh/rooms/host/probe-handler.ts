@@ -32,8 +32,8 @@ export interface ProbeHandlerDeps {
   lastIssueIndexByRepo: any
   lastProbeAtByRepo: any
   deltaRefresh: any
-  // #1472：写事件刚补好的快照（取走即删）。可选：老调用方不传就照旧走窗口探测。
-  takeWritePatch?: any
+  // #1472：写事件刚补好的快照（取走即删）。宿主入口与门禁调用方都必传；内部自己兜住异常与过期（回 null）。
+  takeWritePatch: any
   errText: any
 }
 
@@ -57,7 +57,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
     // takeWritePatch 自己已兜住补丁侧的异常与过期（回 null 并记日志）；这里包一层是因为宿主注入的
     // 那个函数还套着「异步取接线」的一层，那一层本身可能失败 —— 失败就按没有补丁处理，照旧走窗口探测。
     let _wp: any = null
-    try { _wp = (typeof takeWritePatch === 'function') ? await takeWritePatch(cwd) : null } catch (eWP: any) { _wp = null }
+    try { _wp = await takeWritePatch(cwd) } catch (eWP: any) { _wp = null }
     if (_wp && _wp.snapshot) {
       return {
         ok: true, changed: true, mode: 'patch', rows: _wp.rows || [], version: _wp.version,

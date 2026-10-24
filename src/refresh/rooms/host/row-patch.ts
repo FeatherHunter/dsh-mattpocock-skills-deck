@@ -105,8 +105,10 @@ export function createPatch(deps?: PatchDeps | null): any {
       if (!logCtx || !logCtx.isEnabled('debug')) return
       const e: any = extra || {}
       const fields: any = { keyHash: e.keyHash || '', mode: mode, reason: reason, changed: e.changed || 0, queries: e.queries || 0, watermark: e.watermark || 'held', pending: e.pending || 0 }
-      // err 只跟在失败行后面：写清上游给的原话（截断 120 字符），成功行一个字节都不多记。
-      if (e.err) fields.err = String(e.err).slice(0, 120)
+      // err 只跟在失败行后面：写清上游给的原话（成功行一个字节都不多记）。
+      // 335 契约 §2.4 的红线是「日志里不许出现工作区原始路径」，而上游错误原文经常带绝对路径：
+      // 先把 Windows 盘符路径、UNC 路径与 POSIX 绝对路径整段换成 <path>，再截断 120 字符。
+      if (e.err) fields.err = String(e.err).replace(/(?:[A-Za-z]:[\\/]|\\\\|\/(?:[^\s"'\u3001\uff0c\u3002\uff1b\uff09\u0029])+\/)[^\s"'\u3001\uff0c\u3002\uff1b\uff09\u0029]*/g, '<path>').slice(0, 120)
       logCtx.fire('debug', 'refresh.patch', fields)
     } catch (eL: any) { /* 日志不许把主流程带崩 */ }
   }

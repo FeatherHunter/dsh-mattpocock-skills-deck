@@ -100,10 +100,9 @@ export function createWriteEventFetch(deps: WriteEventFetchDeps): any {
         mode: 'patch', rows: res.rows || [], version: res.version, snapshot: res.snapshot,
         queries: Number(res.queries) || 0, partial: res.partial === true, at: now(), keyHash: keyHash,
       }
-    } else {
-      // 没补成也要留下为什么（rebuild / failed / stale-dropped / 空结果）：静默回 0 就是「假装补过」。
-      log('failed', String((res && res.reason) || 'write-patch-empty'), { keyHash: keyHash })
     }
+    // 没补成不在这里补记：patch 那一侧每个分支（rebuild / deferred / nothing / failed / 过期）已按真实原因
+    // 记过一行 refresh.patch，这里再记一条会把「正常推迟」标成出错、同一动作落两行（文件头契约）。
   }
 
   /**
@@ -142,7 +141,7 @@ export function createWriteEventFetch(deps: WriteEventFetchDeps): any {
     const p: any = key ? pendingByCwd[key] : null
     if (!p) return null
     delete pendingByCwd[key]
-    if (!(now() - Number(p.at || 0) <= PATCH_TTL_MS)) { log('stale-dropped', 'write-patch-expired', { keyHash: p.keyHash || '' }); return null }
+    if (!(now() - Number(p.at || 0) <= PATCH_TTL_MS)) { log('stale-drop', 'write-patch-expired', { keyHash: p.keyHash || '' }); return null }
     return { mode: 'patch', rows: p.rows, version: p.version, snapshot: p.snapshot, queries: p.queries, partial: p.partial, at: p.at }
   }
 
