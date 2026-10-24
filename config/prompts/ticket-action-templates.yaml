@@ -1,5 +1,5 @@
 tpl.diagnose:
-  version: 17
+  version: 19
   placeholders:
     - url
   use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）
@@ -25,7 +25,7 @@ tpl.diagnose:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /triage
     {url}
@@ -48,9 +48,9 @@ tpl.diagnose:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 tpl.discuss:
-  version: 17
+  version: 19
   placeholders:
     - url
   use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）
@@ -71,7 +71,7 @@ tpl.discuss:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /wayfinder
     {url}
@@ -89,9 +89,9 @@ tpl.discuss:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 tpl.execute:
-  version: 17
+  version: 19
   placeholders:
     - url
   use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -112,7 +112,7 @@ tpl.execute:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /wayfinder
     {url}
@@ -130,9 +130,9 @@ tpl.execute:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 tpl.fix:
-  version: 15
+  version: 17
   placeholders:
     - url
   use: 动作按钮「修复」（bug 票）· 首行 /implement；补 /diagnosing-bugs 落点（#1281）
@@ -154,7 +154,7 @@ tpl.fix:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /implement
     {url}
@@ -173,7 +173,7 @@ tpl.fix:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 tpl.handoff1:
   version: 5
   placeholders:
@@ -215,7 +215,7 @@ tpl.handoff2:
     ## Continue
     - [ ] From first principles, continue with the unfinished work
 tpl.implement:
-  version: 2
+  version: 4
   placeholders:
     - url
   use: 动作按钮「实施」（ready-for-agent 实施票）· 首行 /implement（#1281）
@@ -237,7 +237,7 @@ tpl.implement:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /implement
     {url}
@@ -256,9 +256,9 @@ tpl.implement:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 tpl.prototype:
-  version: 11
+  version: 13
   placeholders:
     - url
   use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -279,7 +279,7 @@ tpl.prototype:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /wayfinder
     {url}
@@ -297,9 +297,9 @@ tpl.prototype:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 tpl.research:
-  version: 11
+  version: 13
   placeholders:
     - url
   use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -320,7 +320,7 @@ tpl.research:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /wayfinder
     {url}
@@ -338,9 +338,9 @@ tpl.research:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 tpl.supplement:
-  version: 5
+  version: 7
   placeholders:
     - url
   use: "动作按钮「补充」（needs-info 票）· 清单式 · v5 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
@@ -353,7 +353,7 @@ tpl.supplement:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
 
     ## 读全
     - [ ] 读全该 issue（正文、评论、标签、认领、阻塞关系）
@@ -387,7 +387,7 @@ tpl.supplement:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report handled and in-progress issue numbers promptly with the deck_issue_report tool
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
 
     ## Read the whole issue
     - [ ] Read the whole issue (body, comments, labels, claim, blocking relationships)
@@ -413,7 +413,7 @@ tpl.supplement:
     - [ ] Do not implement, modify code, or close the issue while waiting
     - [ ] After the user replies (next session): first check which questions the reply covers, then move the label back to needs-triage for re-triage — do not linger on needs-info
 tpl.takeover:
-  version: 8
+  version: 10
   placeholders:
     - url
   use: 动作按钮「接手」（ready-for-human 票）· 恢复调查节；补 /wizard 落点（#1212、#1281）
@@ -444,7 +444,7 @@ tpl.takeover:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /wayfinder
     {url}
@@ -472,4 +472,4 @@ tpl.takeover:
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.

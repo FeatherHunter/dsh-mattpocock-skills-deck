@@ -93,7 +93,7 @@ export const timeOf = (snap: any): string => {
     return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   } catch (e) { return ''; }
 };
-// #327 特性 A：同格式的毫秒重载（状态栏「上次探测时间」用——数据不变也走针）
+// #327 特性 A 的毫秒重载（保留给需要按毫秒格式化时刻的调用方；状态栏从 2026-10-24 起改画快照取数时刻）
 export const timeOfMs = (ms: any): string => {
   if (!ms) return '';
   try { const d: Date = new Date(ms); return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); } catch (e) { return ''; }

@@ -197,7 +197,7 @@ export const StatusBar = (props: any) => {
   //   SessionChainCapsule.ts 的 logStatusFallback 按退化形状变化记一行；这里只负责在状态变化时把状态交给它。
   React.useEffect(function () { logStatusFallback(s, sid) }, [s.snapshot, s.cwd, s.snapMode, s.ownWorkRoute, sid])
   const csx = checksumsOf(s)
-  const { fr, bugN, triageN, n, timeStr } = csx
+  const { fr, bugN, triageN, n, timeStr, freshColor, tipOf } = csx
   // 2026-08-28 优化3：胶囊状态栏任何情况下都不隐藏（#187「未选后端隐藏整条」门控退休，仅留导航引导）。
   // _isOtherSBGate 仍用于 go()：未选后端（backendId=null 且非 pending）时点击面板分段 → 设置页引导。
   // Guard: interval transient with empty cwd should not hide capsule (prevent forced empty)
@@ -447,10 +447,10 @@ export const StatusBar = (props: any) => {
       ])),
     ]),
     h(Tip, { content: tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) }) }, seg(n < 0 ? 'alert' : (n === envTotal(s) ? 'check' : 'dot'), [h('span', { 'data-fold-priority': 4 }, tr('nav.env')), h('span', { className: 'dsws-num', 'data-fold-priority': 5 }, envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, 14, 'status.seg.env')),
-    h(Tip, { content: tr('nav.refreshTitle') }, h('span', { className: 'dsws-timebtn dsws-hov', onClick: function (e: any) { e.stopPropagation(); refreshAll(s) }, 'aria-label': tr('nav.refreshTitle'),
+    h(Tip, { content: tipOf }, h('span', { className: 'dsws-timebtn dsws-hov', onClick: function (e: any) { e.stopPropagation(); refreshAll(s) }, 'aria-label': tr('nav.refreshTitle'),
       // 接线（#1335 界面反馈）：刷新那颗带图标带文字，属于文字类控件；日志标识 status.refresh。
       'data-press': 'button',
-      'data-log': 'status.refresh' }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 2 }, tr('nav.refresh')), h('span', { key: 'dd', 'data-fold-priority': 3 }, splitTimeStr(' ' + timeStr).date), h('span', { key: 'tt', 'data-fold-priority': 6 }, splitTimeStr(' ' + timeStr).time)])),
+      'data-log': 'status.refresh' }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 2 }, tr('nav.refresh')), h('span', { key: 'dd', 'data-fold-priority': 3, style: { color: freshColor } }, splitTimeStr(' ' + timeStr).date), h('span', { key: 'tt', 'data-fold-priority': 6, style: { color: freshColor } }, splitTimeStr(' ' + timeStr).time)])),
     h(SkillFloatList, { s: s }),
     logDotOn ? h(StatusLogDot, { s: s }) : null,
     capsuleToggle,

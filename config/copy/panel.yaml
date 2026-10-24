@@ -30,6 +30,7 @@ zh:
   nav.refresh: 更新
   nav.refreshing: 更新中…
   nav.refreshTitle: 重新检查 + 刷新快照
+  nav.refreshTip: 点一下重新检查有没有新变化
   nav.fixateTitle: 保存进度快照，注入零丢失 prompt
   nav.handoff: 交接
   nav.handoffReady: 交接给新会话
@@ -328,6 +329,7 @@ en:
   nav.refresh: Refresh
   nav.refreshing: Updating…
   nav.refreshTitle: Re-check + refresh snapshot
+  nav.refreshTip: Click to re-check for changes
   nav.fixateTitle: Save a snapshot, inject the zero-loss prompt
   nav.handoff: Handoff
   nav.handoffReady: Handoff · new session

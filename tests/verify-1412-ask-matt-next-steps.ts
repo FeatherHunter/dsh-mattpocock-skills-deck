@@ -14,7 +14,7 @@
 //   ② provider.get(ask-matt) 的正文 === 盘上原文正文（逐字节相等），反复读结果一致；
 //   ③ 其它技能同样原样返回；候选名对不上、调用已中止时照旧返回 undefined；
 //   ④ 源码里没有追加逻辑，规则文件与它在 package/.build 的产物都不存在；
-//   ⑤ 20 条注入模板的提醒行还在（本轮没动 config/prompts，只确认没有顺手删掉）；
+//   ⑤ 20 条注入模板的中文提醒行还在（新口径，只确认没有顺手删掉）；
 //   ⑥ 负向自检：正文尾部多一个字、脚本里又出现旧引用时，判据必须红。
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-1412-ask-matt-next-steps.ts
 const path = require('path')
@@ -33,9 +33,9 @@ const HASH_MANIFEST = 'tests/bundled-skills-upstream-hashes.json'
 const OLD_HEADING = '## 推荐下一步（本插件追加，不属于上游原文）'
 const TOOL_NAME = 'suggest_next_steps'
 
-// 提醒行（#1407）：模板原文说「按 /ask-matt 的规则」，本轮不动模板，只确认 20 条提醒行还在，
-// 防止撤机制时顺手把模板里的提醒也删了（维护者 2026-10-24 明确说这 20 行不许动）。
-const REMINDER_ZH = '- [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。'
+// 提醒行（#1407）：模板中英文提醒行已换成「回复前最后一步」新口径，只确认 20 条中文提醒行还在，
+// 防止撤机制时顺手把模板里的提醒也删了。
+const REMINDER_ZH = '- [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。'
 const REMINDER_FILES = ['config/prompts/ticket-action-templates.yaml', 'config/prompts/ticket-creation.yaml', 'config/prompts/map-advancement.yaml']
 const REMINDER_TOTAL = 20
 
@@ -162,7 +162,7 @@ async function main() {
   check(appendCodeProblems(pkgBootstrapText).length === 0, '安装态 bootstrap 也不引用追加逻辑')
   check(!fs.existsSync(path.join(ROOT, '.build/shared/ask-matt-next-steps.js')), '开发态产物 .build/shared/ask-matt-next-steps.js 不存在')
 
-  console.log('\n-- 5) 20 个注入模板的提醒行还在（本轮没动 config/prompts） --')
+  console.log('\n-- 5) 20 个注入模板的提醒行还在（新口径） --')
   let reminderCount = 0
   for (const rel of REMINDER_FILES) {
     const yamlPath = path.join(ROOT, rel)
