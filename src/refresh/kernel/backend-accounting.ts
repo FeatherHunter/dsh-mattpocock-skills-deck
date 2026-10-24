@@ -16,7 +16,7 @@
  *  - 未知模型：只记请求数，落在 requests 桶（「还不知道按什么口径花，但发出去的请求是实数」）。
  *  - 离网：一笔都不记（本来就没有额度这回事，账上留零）。
  */
-import type { AccountInput } from '../../tracker/contract/budget-model.js'
+import type { AccountInput, AccountPort } from '../../tracker/contract/budget-model.js'
 import type { OpUsage } from '../../tracker/contract/results.js'
 
 /** 记账落在账本的哪个桶上（与 src/refresh/rooms/host/quota-ledger.ts 的桶名同义，账本那一份是唯一真源）。 */
@@ -81,4 +81,59 @@ export function spendsOfAccount(input: AccountInput): AccountSpend[] {
   // 未知模型（kind === 'unknown'，或者两种桶互不相通的声明缺席）：只记请求数，落在 requests 桶。
   // 「不知道按什么口径花」不等于「没花」，请求数是实数，记下来比记零更接近真相。
   return requests > 0 ? [{ bucket: 'requests', requests: requests, points: 0 }] : []
+}
+
+/**
+ * 账本接口里记账口用到的那两条。这里只声明形状、不 import 账本模块：本文件是纯换算层，
+ * 账本（src/refresh/rooms/host/quota-ledger.ts）由装配方递进来；两处不互相依赖。
+ */
+interface AccountLedger {
+  spend(entry: { account: string; backendId: string; bucket: string; kind?: string; requests?: number; points?: number }): unknown
+  bucketsOf?(backendId: string): string[]
+  ensureBackend?(backendId: string, budget: unknown): unknown
+}
+
+/** 造一个记账口要的两格：账本，以及这次调用记在账本的哪一档（插件后台 / 人的动作 / AI 工具）。 */
+export interface AccountPortDeps {
+  ledger: unknown
+  account: string
+}
+
+/**
+ * 造「操作管线的记账口」（#1454）：全仓库只有这里调 `ledger.spend`，也就是「账本只有一条写入口」。
+ *
+ * 为什么收在一处：deck 工具那条路（src/refresh/registry/deck-tool-bridge.ts）与刷新后台那条路
+ * （src/refresh/rooms/host/session-opener.ts）的 caller 不同、记的档不同（ai-tool / plugin），
+ * 但「房间报了多少、按口径落到哪几个桶」必须只有一份换算与一次写入。从前两条路各写一份：
+ * 桥里那份是空函数，deck 工具的真实用量从来没进账本；闸（refresh-gate.ts）又自己写一本，
+ * 同一笔花费可能记两处或一处都不记。现在写入只剩这个函数，两条路只是传入的档位不同。
+ *
+ * 三条边界（与 spendsOfAccount 同一口径）：
+ *  - 没有后端编号：账本上的格按后端分，没有编号就宁可少记，也不编一格出来；
+ *  - 没有用量（失败信封 / 读操作没自报数）：spendsOfAccount 回空数组，直接不记；
+ *  - 离网：本来没有额度，一笔都不记。
+ *
+ * 首次记账时桶可能还没建出来（例如 deck 工具读路径的 ensureReading 因为同步未到期而没建桶）。
+ * 所以写之前看一眼这个后端有没有桶，没有就按这次的口径声明建一次；ensureBackend 对同一个
+ * 后端与同一口径是幂等的，已经建过不会清读数，也不会重建桶。
+ */
+export function createAccountPort(deps: AccountPortDeps): AccountPort {
+  const ledger = (deps.ledger || null) as AccountLedger | null
+  const account = String(deps.account || '')
+  return async function accountPort(input: AccountInput): Promise<void> {
+    if (!ledger || typeof ledger.spend !== 'function') return
+    const backendId = input && typeof input.backendId === 'string' ? input.backendId : ''
+    if (!backendId) return
+    const spends = spendsOfAccount(input)
+    if (spends.length === 0) return
+    // 桶缺席时先补建：只在「这个后端一个桶都没有」时建，已有的桶不碰（ensureBackend 同口径幂等，
+    // 但这里多看一眼就不必让每次记账都走一遍建桶逻辑，也避免口径声明缺格时误重建）。
+    if (input.budget && typeof ledger.ensureBackend === 'function' && typeof ledger.bucketsOf === 'function') {
+      const known = ledger.bucketsOf(backendId)
+      if (!known || known.length === 0) ledger.ensureBackend(backendId, input.budget)
+    }
+    for (const spend of spends) {
+      ledger.spend({ account: account, backendId: backendId, bucket: spend.bucket, kind: input.op, requests: spend.requests, points: spend.points })
+    }
+  }
 }

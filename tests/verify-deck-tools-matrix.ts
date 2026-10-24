@@ -136,14 +136,14 @@ async function main() {
 
   // #1442：工具不再自己过闸 —— 每次操作的准入搬进了 Tracker 会话管线（读缓存 → 裁决 → 转发 → 记账）。
   // 这一段把装配层配的那三件（src/refresh/registry/deck-tool-bridge.ts 的 buildTrackerPorts）
-  // 原样接过来，只在外面裹一层计数：门禁不另抄一份裁决口径，也能看清「哪一次操作被放行、什么时候记的账」。
+  // 原样接过来：裁决与记账都用装配层那一份，门禁不另抄口径。#1454 起记账口是真记账，
+  // 不再用「调了 account 就算记了账」的自包计数器掩盖「账本里其实一分没有」；账本金额与桶在 ③ 段直接断言。
   const bridgeMod = await imp('src/refresh/registry/deck-tool-bridge.ts')
   // 注册表在下面才建出来（模块要一条条 register）：先留一格，注册完再按「账本 + 注册表」重建，
   // 这样读数口才认得出每个后端的预算口径（离网后端回「已知且不需要额度」，而不是「还没量出来」）。
   let trackerPorts = bridgeMod.buildTrackerPorts({ ledger: ledger })
-  let pipelineWindows = 0        // 已放行、还没记账的操作窗口数（管线一次操作一个）
+  let pipelineWindows = 0        // 已放行、还没记账的操作窗口数（管线一次操作一个；只用于把出站归到管线）
   let admitCalls = 0
-  let accountCalls = 0
   let admitsWithKnownReading = 0
   const pipelineRefusals = []
   const admitPort = async (input) => {
@@ -154,8 +154,9 @@ async function main() {
     else pipelineRefusals.push(decision)
     return decision
   }
+  // 记账口原样转发给装配层的真实现；这里只负责把管线窗口关上，不数「调用次数」——
+  // 调用次数证明不了钱进了账本，账本金额由 ③ 段直接断言。
   const accountPort = async (input) => {
-    accountCalls += 1
     pipelineWindows = Math.max(0, pipelineWindows - 1)
     await trackerPorts.account(input)
   }
@@ -165,9 +166,19 @@ async function main() {
   let outboundInOldSend = 0
   let oldSendDepth = 0
   const outboundOutside = []
+  // 管线窗口里按后端分开数：③ 段要拿它们与账本逐个桶对账（github 两桶、gitlab 只有 requests）。
+  let pipelineGithub = 0
+  let pipelineGitlab = 0
+  let pipelineGithubGraphql = 0
   const noteRemoteOutbound = (cmd, args) => {
-    if (pipelineWindows > 0) outboundInPipeline += 1
-    else if (oldSendDepth > 0) outboundInOldSend += 1
+    if (pipelineWindows > 0) {
+      outboundInPipeline += 1
+      if (cmd === 'gh') {
+        pipelineGithub += 1
+        if (String((args && args[0]) || '').indexOf('graphql') >= 0) pipelineGithubGraphql += 1
+      }
+      if (cmd === 'glab') pipelineGitlab += 1
+    } else if (oldSendDepth > 0) outboundInOldSend += 1
     else outboundOutside.push(cmd + ' ' + String((args && args[0]) || ''))
     gate.noteOutbound({ requests: 1, points: 0 })
   }
@@ -570,10 +581,11 @@ async function main() {
   // #1442 起口径变了：工具**不再**自己过闸（旧壳里那一段 gate.send 已从工具调用路径上退休），
   // 每次操作的准入搬进了 Tracker 会话管线（pipeline.admit → 房间 → pipeline.account）。
   // 因此旧判据「闸记的 == 传输层真发的、绕开条数 0」对工具流量结构性不成立：闸的 accounted 只在
-  // 旧发送口里记，工具流量一律落在 escaped 里；把 escaped 口径改成覆盖管线准入，是 #1439 后续票
-  // （T4/T5/T6「账本只由操作管线一处记」「账本换轨后端+桶」）的事，不在本票范围，也不在这里硬造。
-  // 不删弱，改钉新架构下等价的那条：**每一条远端命令发出去的时候，都正处在一次经管线放行、
-  // 还没记账的操作里**；只有测试自己故意用旧发送口包住的锚用例单列一类；两类之外一条都没有。
+  // 旧发送口里记，工具流量一律落在 escaped 里。#1454 已落实「账本只由操作管线的 account 一处记」，
+  // 所以这里除了归因，还要直接查账本：真发出去的每一条 gh/glab 命令，都按后端口径落到了该落的桶，
+  // 金额一分不多一分不少；旧发送口包住的锚用例是直接调后端模块、不经管线，账本上一分都不该有。
+  // 口径仍是「**每一条远端命令发出去的时候，都正处在一次经管线放行、还没记账的操作里**」；
+  // 只有测试自己故意用旧发送口包住的锚用例单列一类；两类之外一条都没有。
   {
     const stats = gate.stats()
     const esc = gate.escaped()
@@ -583,8 +595,8 @@ async function main() {
       '两个远端车道发出去的每一条命令，都落在某次经管线放行、还没记账的操作里（' + outboundInPipeline + ' 条），或测试自己用旧发送口包住的锚用例里（' + outboundInOldSend + ' 条）；两者之外偷发的 0 条'
         + (outboundOutside.length ? '（偷发样例：' + outboundOutside.slice(0, 3).join(' ｜ ') + '）' : ''))
     check(outboundInPipeline > 0, '工具自身的流量真的从会话管线走（' + outboundInPipeline + ' 条），所以上面那条不是空过')
-    check(admitCalls > 0 && accountCalls === admitCalls && pipelineRefusals.length === 0 && pipelineWindows === 0,
-      '管线给每一次操作都裁决并记账（' + admitCalls + ' 次裁决 / ' + accountCalls + ' 次记账，拒绝 ' + pipelineRefusals.length + ' 次，收尾时残留窗口 ' + pipelineWindows + ' 个）')
+    check(admitCalls > 0 && pipelineRefusals.length === 0 && pipelineWindows === 0,
+      '管线给每一次操作都裁决并记账：' + admitCalls + ' 次裁决，拒绝 ' + pipelineRefusals.length + ' 次，收尾时残留窗口 ' + pipelineWindows + ' 个（记账是不是真进了账本，下面按金额查）')
     check(admitCalls === admitsWithKnownReading,
       '裁决看到的是账本里的真读数（' + admitsWithKnownReading + '/' + admitCalls + ' 次 known:true），不是「还没量出来」那一份')
     check(stats.accounted.requests > 0 && stats.accounted.requests === outboundInOldSend,
@@ -592,6 +604,22 @@ async function main() {
     check(esc.requests === stats.transport.requests - stats.accounted.requests && esc.requests === outboundInPipeline,
       '逃逸读数 = 真发 − 账上（' + esc.requests + ' = ' + stats.transport.requests + ' − ' + stats.accounted.requests + '），正好等于走管线的工具流量（' + outboundInPipeline + ' 条）：逐条可对数，不是一笔糊涂账')
     check(gate.stats().byCategory['ai-tool'] > 0, '旧发送口那几笔仍然记在「AI 工具」那一档（' + gate.stats().byCategory['ai-tool'] + ' 笔）')
+
+    // 账本对账（#1454）：真实用量只有操作管线的 account 一条写入口，金额与桶都从账本里读。
+    const snap = ledger.snapshot()
+    check(snap.total.requests === outboundInPipeline,
+      '账本总量 == 管线里真发出去的 gh/glab 命令数（账本 ' + snap.total.requests + ' 条，管线窗口 ' + outboundInPipeline + ' 条）：每一条都记了、没有一条记两遍')
+    check(snap.total.points === pipelineGithubGraphql,
+      '账本总点数 == 管线里真发出去的 GitHub GraphQL 命令数（账本 ' + snap.total.points + ' 点，命令行 ' + pipelineGithubGraphql + ' 条）：两桶口径没把点数算进别的桶')
+    check(ledger.hourOf('ai-tool', 'github').requests === pipelineGithub && ledger.hourOf('ai-tool', 'github').points === pipelineGithubGraphql,
+      'GitHub 记在 ai-tool 档：' + ledger.hourOf('ai-tool', 'github').requests + ' 条请求 / ' + ledger.hourOf('ai-tool', 'github').points + ' 点（真发 ' + pipelineGithub + ' 条，其中 GraphQL ' + pipelineGithubGraphql + ' 条）')
+    check(ledger.hourOf('ai-tool', 'gitlab').requests === pipelineGitlab && ledger.hourOf('ai-tool', 'gitlab').points === 0,
+      'GitLab 记在 ai-tool 档的 requests 桶：' + ledger.hourOf('ai-tool', 'gitlab').requests + ' 条请求 / ' + ledger.hourOf('ai-tool', 'gitlab').points + ' 点（真发 ' + pipelineGitlab + ' 条，只计请求的后端不记点）')
+    check(ledger.snapshot().byAccount['plugin'].hour.requests === 0,
+      '没有一笔用量被记到 plugin 档（deck 工具这条路只记 ai-tool；实得 ' + ledger.snapshot().byAccount['plugin'].hour.requests + ' 条）')
+    const bucketKeys = Object.keys(snap.buckets).sort().join(',')
+    check(bucketKeys === 'github/graphql,github/rest,gitlab/requests',
+      '账本的桶与后端口径一致：GitHub 两个桶、GitLab 只有 requests（实得 ' + bucketKeys + '）')
   }
 
   // ── 对照表：打印 + 落文件 ──
