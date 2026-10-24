@@ -67,6 +67,19 @@ export let lastFocusProbe: number = 0;
 // v1.5 T10 R9（Q4 拍板 · DESIGN.md 12.2）：关键动作后延迟探测 —— 完成/执行/交接后面板尽快反映 GitHub 变化；
 //   防抖（一次只排一个）+ 探测本身 1 次轻量 REST，配额安全
 export let _actionProbePending: boolean = false;
+// #1418：同一个工作区里的会话（shared 加上 cwd 归一后同键的 store）收成一串 ——
+//   探测回包要扇出的地方不止「确有变化」这一处：探测失败时也要让整组看见失败，
+//   所以这串名单提到外面来，两处共用同一套分组判据（各写一份迟早长岔）。
+const groupOf = function (cwd: any): any[] {
+  const group: any[] = [];
+  const normWanted: any = wsKeyOf(cwd);
+  if (shared.cwd && wsKeyOf(shared.cwd) === normWanted) group.push(shared);
+  Object.keys(stores).forEach(function (k: string): void {
+    const st: any = stores[k];
+    if (st.cwd && wsKeyOf(st.cwd) === normWanted) group.push(st);
+  });
+  return group;
+};
 export const probeNow = function (fromFocus: any): void {
   if (typeof host === 'undefined' || typeof host.call !== 'function') return;
   if (fromFocus) {
@@ -84,11 +97,54 @@ export const probeNow = function (fromFocus: any): void {
   //   兜底路径按 sessionId→cwd 精确映射赋值，避免把任意首个 cwd 错绑到所有空 store。
   const refreshGroup = function (cwd: any): any {
     const probeT0: number = Date.now();
+    // #1418：把「这一拍探测失败」写进本组每个会话，界面据此显示失败提示（理由见调用处注释）。
+    //   失败原因按取数失败那条路的老规矩截到 160 字，避免把整段 stderr 塞进面板；
+    //   这里只做展示，不发任何请求，也不改水印 —— 下一拍照常再探。
+    const noteProbeTrouble = function (why: any): void {
+      let text: string = '';
+      try { text = String(why || ''); } catch (eWhy) { text = ''; }
+      if (!text) text = 'probe-not-ok';
+      try { text = String((typeof dswsLogTrunc === 'function') ? dswsLogTrunc(text, 160, 'error') : text.slice(0, 160)); } catch (eTrunc) { text = text.slice(0, 160); }
+      const group: any[] = groupOf(cwd);
+      group.forEach(function (st: any): void {
+        const changed: boolean = (st.snapMode !== 'err') || (st.snapError !== text);
+        st.snapMode = 'err';
+        st.snapError = text;
+        st.snapFail = { kind: 'probe-failed', at: Date.now() };
+        st.snapLoading = false;
+        if (changed) { try { emit(st); } catch (eEmit) {} }
+      });
+    };
+    // #1418：探测恢复的那一拍要撤掉上面那条失败标记 —— 失败一次之后留在 err 里，
+    //   界面会一直说「刷新失败，正在重试」，哪怕后面每一拍都探成了（只是没有变化时走不到装快照那条路）。
+    //   只撤离探测自己留下的标记（snapFail.kind === 'probe-failed'）：快照加载或手动刷新的失败不是这一拍造成的，
+    //   不能因为探测成功就被抹掉。有旧快照就回 real，没有就回 loading（等真正取到快照再显示内容）。
+    const noteProbeHealthy = function (): void {
+      const group: any[] = groupOf(cwd);
+      group.forEach(function (st: any): void {
+        if (!st.snapFail || st.snapFail.kind !== 'probe-failed') return;
+        st.snapFail = null;
+        st.snapError = null;
+        st.snapMode = st.snapshot ? 'real' : 'loading';
+        try { emit(st); } catch (eEmit) {}
+      });
+    };
     return host.call('wf.probe', { cwd: cwd }).then(function (res: any): any {
-      try { if (res && res.ok) log('info', 'host.call', { method: 'wf.probe', latencyMs: Date.now() - probeT0, ok: true, kind: 'probe' }); else log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'probe-not-ok'), 120, 'error')) }); } catch (eL) {}
+      try { if (res && res.ok) log('info', 'host.call', { method: 'wf.probe', latencyMs: Date.now() - probeT0, ok: true, kind: 'probe' }); else log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'probe-not-ok'), 120, 'error')), errorKind: String((res && res.errorKind) || '') }); } catch (eL) {}
       // #327 特性 A：探测完成即走针（无论是否检出变化）
       try { if (res && res.ok) touchProbeAt(cwd); } catch (ePA) {}
-      if (!(res && res.ok && res.changed)) return;
+      // #1418：这一拍没探成时，必须让本组会话在界面上看见「刷新失败了」，而不是停在旧数据或加载态里。
+      //   从前这里只有上面那行日志，然后直接 return —— 探测每一拍都失败（例如请求量超过后端单页上限、
+      //   整页被拒）时，面板看起来和「没有变化」一模一样，用户只会觉得刷新坏了、却看不到任何原因。
+      //   标记沿用取数失败那一套字段（snapMode='err' + snapError + snapFail），界面据此显示「刷新失败，正在重试」。
+      //   之后某一拍成功，noteProbeHealthy 会把这条标记撤掉（装快照那条路另有 applySnap 负责）。
+      //   只在状态真的变了才 emit：失败会每拍重复出现，不能每 5 秒重渲染一次面板。
+      if (!(res && res.ok)) {
+        try { noteProbeTrouble((res && res.error) || 'probe-not-ok'); } catch (eTrouble) {}
+        return;
+      }
+      try { noteProbeHealthy(); } catch (eHealthy) {}
+      if (!res.changed) return;
       // #723（T19c）第 E 件：宿主在探测那一步已经把变的那几条用薄查询补进列表了
       //   （res.mode === 'patch'，回包里带的 snapshot 就是补好的那一份），这里直接吃它，
       //   不再发整池大查询 —— 从前这一行下面一律 loadSnapshot(primary, true, true)，
@@ -96,15 +152,9 @@ export const probeNow = function (fromFocus: any): void {
       //   宿主明确说「没并进去」时（被推迟 / 被丢弃 / 失败）这一拍什么都不做：水印一个字节都没动，
       //   下一拍仍然会发现同一条变化；这时候去整池反而会把「谁欠着一次」这件事抹掉。
       if (res.mode === 'deferred' || res.mode === 'failed' || res.mode === 'stale-dropped') return;
-      const group: any[] = [];
       // #653：分组按工作区键（wsKeyOf）——同一个仓库里，根会话与子目录会话算同一组，
-      //   一次全量重建的结果扇出给组内所有会话，不再各拉各的。
-      const normWanted: any = wsKeyOf(cwd);
-      if (shared.cwd && wsKeyOf(shared.cwd) === normWanted) group.push(shared);
-      Object.keys(stores).forEach(function (k: string): void {
-        const st: any = stores[k];
-        if (st.cwd && wsKeyOf(st.cwd) === normWanted) group.push(st);
-      });
+      //   一次全量重建的结果扇出给组内所有会话，不再各拉各的。判据在 groupOf（失败提示那条路也用它）。
+      const group: any[] = groupOf(cwd);
       if (!group.length) {
         // #232 R3 · 应用时刻该 cwd 已无任何 store 持有（用户已切走）：不再为无人观看的工作区
         // 发起 wf.refresh 全量重建（旧兜底 = 一次大查询，违反「非当前工作区不刷新」）。
@@ -149,7 +199,11 @@ export const probeNow = function (fromFocus: any): void {
       return loadSnapshot(primary, true, true).then(function (): void {
         applySnap(primary.snapshot, true);
       }).catch(function (): void { /* 忽略 */ });
-    }).catch(function (e: any): void { try { log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); } catch (eL) {} });
+    }).catch(function (e: any): void {
+      try { log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')), errorKind: 'exception' }); } catch (eL) {}
+      // #1418：调用本身失败（宿主没回话/超时）同样是「这一拍没探成」，与 ok:false 一样要让界面看见。
+      try { noteProbeTrouble((e && e.message) || e); } catch (eTrouble) {}
+    });
   };
   // 按工作区键去重（#324 · 同工作区只探一次；#653：键走 wsKeyOf，同一工作区根下的多个子目录会话收成一次）
   const cwdsByNorm: Map<string, any> = new Map();

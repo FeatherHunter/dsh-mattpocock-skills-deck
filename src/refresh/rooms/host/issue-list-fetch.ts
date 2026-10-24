@@ -6,7 +6,7 @@
  *
  * #1444（规格 1439 的 A2 第一批）把三条读路径从「调用方直调 gh」改成「经 Tracker 只读会话调能力」：
  *   列表 → session.list；地图票 → session.list（带 wayfinder:map 与 open 两个筛）；
- *   索引 → session.listPage 翻到底（ListFilter 没有 since，不能把窗口交给房间）。
+ *   索引 → session.listPage 翻页（#1418 起带 since 窗口，让房间只取的窗口内的票；没窗口才翻到底）。
  * 因此删掉了原来的三级 gh 兜底（gh api --paginate → 手动逐页 → gh issue list）与地图详情的
  * REST 通道：GraphQL→REST 的降级已收进 GitHub 房间，宿主再留一条就是第二真源。
  *
@@ -25,8 +25,13 @@ import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 
 interface RepoKey { owner: string; name: string }
 
-/** 索引翻页的硬上限：200 条一页、最多 100 页（两万条）。超过就如实失败，不静默截断。 */
-const INDEX_PAGE_LIMIT = 200
+/**
+ * 索引翻页的硬上限：100 条一页、最多 100 页（一万条）。超过就如实失败，不静默截断。
+ * 为什么是 100：GitHub 的 issues 连接自己只肯给 100 条一页，要 200 会被整页拒绝
+ * （#1418：2026-10-24 实测 EXCESSIVE_PAGINATION，探测自那天 16:15 起全部失败）。
+ * 这个数跟随契约的分页表 src/tracker/contract/pagination.ts 的 github.listPageSize。
+ */
+const INDEX_PAGE_LIMIT = 100
 const INDEX_MAX_PAGES = 100
 
 /** 失败信封：旧路这里装的是 gh 回包，形状取 kind + error 两格；上层只读 ok 与 error。 */
@@ -139,10 +144,11 @@ export function createIssueList(deps: any): any {
     })
   }
 
-  // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
-  // 为什么改成 listPage 翻到底：ListFilter 没有 since，会话的 list 又在 500 条处截断；
-  // 只翻一页会把老票当成「被删除」，所以这里按 PageResult.nextCursor 翻到没有下一页为止，
-  // 拿齐全量后再按 updatedAt 与窗口起点比对 —— 窗口状态机与水印提交时机一行不动（在 issue-index-scan.ts）。
+  // #2 deletion fix：轻量索引用于发现删除、关闭和重开。
+  // 为什么改成 listPage：会话的 list 在 500 条处截断，只翻一页会把老票当成「被删除」；
+  // 有窗口起点时把 since 交给服务端（GraphQL filterBy.since）只取窗口内的票，没有窗口才翻到底。
+  // 两者都按 PageResult.nextCursor 翻到没有下一页为止，拿齐后再按 updatedAt 与窗口起点比对 ——
+  // 窗口状态机与水印提交时机一行不动（在 issue-index-scan.ts）。
   async function fetchIssueIndex(cwd: any, sinceIso: any): Promise<any> {
     return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
       if (typeof session.listPage !== 'function') return fail('unsupported', '该后端的会话不支持 listPage，索引无法翻页取全量')
@@ -156,8 +162,11 @@ export function createIssueList(deps: any): any {
         if (pages > INDEX_MAX_PAGES) return fail('truncated', '索引翻页超过 ' + INDEX_MAX_PAGES + ' 页，拒绝用不完整的索引推进水印')
         const opts: any = { limit: INDEX_PAGE_LIMIT }
         if (cursor) opts.cursor = cursor
+        // 窗口交给服务端（GraphQL filterBy.since）：只取更新过的票，稳态一次探测只翻一两页而不是整仓。
+        // 非法的窗口串不往房间塞，让房间回「不设窗口」——多翻几页是浪费，整页报错是故障。
+        const filter: any = useSince ? { since: String(sinceIso) } : {}
         let page: any = null
-        try { page = await session.listPage(ref, {}, opts, ctx) } catch (e: any) { return fail('network', (e && e.message) || e) }
+        try { page = await session.listPage(ref, filter, opts, ctx) } catch (e: any) { return fail('network', (e && e.message) || e) }
         if (!page || page.ok !== true) {
           const err = (page && page.error) || {}
           return fail(String(err.kind || 'network'), err.message || '索引读取失败')

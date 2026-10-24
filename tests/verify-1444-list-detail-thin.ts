@@ -7,6 +7,7 @@
 //   ② 回包形状与迁移前一致（列表行、地图行、详情 GraphQL 形状、薄行行），上层三处消费方不用改；
 //   ③ 失败时回 { ok:false }（开会话失败、能力失败、缺 listPage 都如实报），不抛、不假装成功；
 //   ④ 索引翻页按 PageResult.nextCursor 取全量，窗口起点生效；水印仍然只在显式 commit 时前进。
+//      单页条数跟随契约（#1418：GitHub 的 issues 连接自己只肯给 100 条一页，问多了整页被拒）。
 //
 // 假世界照 tests/verify-1442-tracker-tools.ts 的装配法：直接给工厂一个 openSession 桩，
 // 桩里交一份假会话；不经过注册表（那一段由 verify-1442 自己盯），这样每条路只测自己的接线。
@@ -76,6 +77,7 @@ async function main() {
   const detailMod = await imp('src/refresh/rooms/host/issue-detail-fetch.js')
   const thinMod = await imp('src/refresh/rooms/host/thin-row-fetch.js')
   const win = await imp('src/refresh/kernel/index-window-rules.js')
+  const contract = await imp('src/tracker/contract/pagination.js')
 
   // ---- ① 列表与地图：会话 list，形状照旧，一次 gh 都不发 ----
   {
@@ -132,7 +134,8 @@ async function main() {
     const idx = await list.fetchIssueIndex(CWD, new Date(Date.now() - 3600000).toISOString())
     check(idx && idx.ok === true && idx.count === 2, '索引只收窗口内的票（旧日期那张被过滤，count=' + (idx && idx.count) + '）')
     check(idx.index['1'] === 'OPEN|' + nowIso && idx.index['3'] === 'CLOSED|' + nowIso, '索引值仍是 状态|更新时间')
-    check(s.calls.listPage.length === 2 && s.calls.listPage[0].opts.limit === 200 && s.calls.listPage[1].opts.cursor === 'c1', '按 PageResult.nextCursor 翻到底（两页、游标透传）')
+    const wantLimit = contract.PAGINATION.github.listPageSize
+    check(s.calls.listPage.length === 2 && s.calls.listPage[0].opts.limit === wantLimit && s.calls.listPage[1].opts.cursor === 'c1', '按 PageResult.nextCursor 翻到底（两页、游标透传，单页条数跟随契约 ' + wantLimit + ' 条）')
     check(s.calls.listPage[0].ctx && s.calls.listPage[0].ctx.caller === 'refresh', '索引调用也带 caller=refresh')
 
     const unsupported = { list: async () => ({ ok: true, data: [] }), get: async () => ({ ok: false }) }

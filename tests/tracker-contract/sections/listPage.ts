@@ -487,8 +487,11 @@ export async function run(): Promise<PageAssertResult[]> {
     await assert('游标原样回传给后端（after=CUR2）', /after=CUR2/.test(lastArgs), lastArgs.slice(0, 200))
     await assert('后端说没有下一页时，nextCursor 给 null', rCursor.ok && rCursor.data.nextCursor === null, JSON.stringify(rCursor.data && rCursor.data.nextCursor))
 
+    // #1418：契约的上限 200 是「界面一次最多要多少行」；GitHub 的 issues / pullRequests 两条连接
+    //   自己只肯给 100 条一页，问多了整页拒绝（EXCESSIVE_PAGINATION）—— 所以发给远端的 first 按连接上限收。
+    //   这与 GitLab 房「999 → per_page 100」是同一个处置：契约上限归契约，远端硬上限归房间。
     await gh.listPage(ref('github'), { state: 'closed' }, { cursor: '', limit: 999 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
-    await assert('limit 超上限按上限处理（999 → 200，不报错）', /first=200/.test(lastArgs), lastArgs.slice(0, 160))
+    await assert('limit 超上限按连线上限处理（999 → 100，不报错）', /first=100/.test(lastArgs), lastArgs.slice(0, 160))
     await gh.listPage(ref('github'), { state: 'closed' }, { cursor: '', limit: 0 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
     await assert('limit 不合法按缺省 50 处理', /first=50/.test(lastArgs), lastArgs.slice(0, 160))
 
@@ -498,7 +501,9 @@ export async function run(): Promise<PageAssertResult[]> {
     //   filterBy 的那一版查询、且一个 labels[] 都没传 —— 空数组进了查询才是真的走样。
     const emptyLabels = await gh.listPage(ref('github'), { state: 'closed', labels: [] }, { cursor: '', limit: 50 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
     await assert('labels 空数组与省略同结果（总数与不筛时一样，都是 649）', emptyLabels.ok && emptyLabels.data.total === 649, JSON.stringify(emptyLabels.data && emptyLabels.data.total))
-    await assert('labels 空数组不进远端查询（走不带 filterBy 的那一版，一个 labels[] 都不传）', !/labels\[\]=/.test(lastArgs || '') && !/filterBy/.test(lastArgs || ''), String(lastArgs).slice(0, 220))
+    // #1418：不带标签的那条查询现在自己也带 filterBy（since 增量窗口用它），所以判据改成
+    //   「没有 labels[]= 参数、也没走带 labels:$labels 的那一版」，而不是「不含 filterBy 三个字」。
+    await assert('labels 空数组不进远端查询（走不带 labels:$labels 的那一版，一个 labels[] 都不传）', !/labels\[\]=/.test(lastArgs || '') && !/labels:\$labels/.test(lastArgs || ''), String(lastArgs).slice(0, 220))
 
     const stale = await gh.listPage(ref('github'), { state: 'closed' }, { cursor: 'OLD', limit: 50 }, probeCtx({ data: null, errors: [{ type: 'INVALID_CURSOR', message: 'The `after` cursor is invalid.' }] }))
     await assert('真实 github 后端：游标失效 → 整体失败且点名「游标已失效」', pageFailureCheck(stale, true).length === 0, pageFailureCheck(stale, true).join('；') || JSON.stringify(stale))
