@@ -42,6 +42,7 @@ zh:
   truth.budgetRequests: 请求额度剩 {remaining}/{limit}
   truth.budgetOffNetwork: 本后端不出站，不需要额度
   truth.budgetUnknown: 额度读数还没同步上来
+  truth.budgetUnknownModel: 额度未知：这个后端没有可用的预算模型
   list.restFallbackNonQuota: 这次取数走了 REST 通道（数据可能略旧）
   list.restFallbackStaleNonQuota: 上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧
   chainView.title: 每个会话在处理哪些票
@@ -120,6 +121,7 @@ en:
   truth.budgetRequests: "Request quota {remaining}/{limit} left"
   truth.budgetOffNetwork: This backend makes no outbound calls; no quota needed
   truth.budgetUnknown: Quota reading has not synced yet
+  truth.budgetUnknownModel: "Quota unknown: this backend has no usable budget model"
   list.restFallbackNonQuota: This fetch went through the REST channel (data may be slightly stale)
   list.restFallbackStaleNonQuota: Last fetch went through the REST channel ({n} min ago) — data may be slightly stale
   chainView.title: Which tickets each session is working on
