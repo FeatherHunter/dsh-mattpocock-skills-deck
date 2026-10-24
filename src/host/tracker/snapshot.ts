@@ -65,8 +65,10 @@ interface SnapshotComposerRegistry {
 // budgetState，接线归 Lead）。这一层只做搬运与形状校验：拿到就写进 refresh.backend，拿不到就不写这一格。
 // 为什么不写一个空壳：界面看到「没有 backend」会说「读数还没同步上来」；若塞 remaining: 0，
 // 界面就会报假耗尽 —— 不知道和耗尽必须分得开。
+// 但「模型未知」（后端声明 unknown，或声明了本版不认识的口径）不是「没有读数」：#1455 起它是合法的
+// 一档，必须原样送到界面 —— 旧的白名单少了这个词，未知模型会被整格丢掉，面板静默得像「没有额度这回事」。
 // 字段只增不改：四个旧格子的语义、取值与次序一字不动，老客户端读不到 backend 也不会受影响。
-export type RefreshBudgetKind = 'two-buckets' | 'requests' | 'none'
+export type RefreshBudgetKind = 'two-buckets' | 'requests' | 'none' | 'unknown'
 export type RefreshBudgetReason = 'not-measured' | 'unavailable' | 'unsupported'
 export interface RefreshBudgetBucket {
   remaining: number
@@ -96,7 +98,9 @@ interface SnapshotComposerOpts {
 
 // 读数里的数字只认「非负整数」：额度是条数，出现小数、负数或 NaN 说明上游给的东西不是读数，
 // 当成拿不到比当成 0 安全（界面只会说「还没同步上来」，不会报假耗尽）。
-const BUDGET_KINDS: string[] = ['two-buckets', 'requests', 'none']
+// 'unknown' 在这一份白名单里是「模型这一层就不知道」，与「读数这次没拿到」是两件事（#1455）：
+// 前者要送到界面说「未知」，后者不写 backend 让界面说「还没同步」。
+const BUDGET_KINDS: string[] = ['two-buckets', 'requests', 'none', 'unknown']
 function isBudgetCount(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 && Math.floor(v) === v
 }
