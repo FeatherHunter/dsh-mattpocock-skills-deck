@@ -118,6 +118,9 @@ export const SUGGEST_APPEARANCE = {
   pillHoverShadow: '0 1px 14px rgba(150,190,255,.14)',
   pillShadow: 'inset 0 1px 0 rgba(255,255,255,.24),0 1px 10px rgba(140,180,255,.06)',
   pillTextShadow: '0 1px 1px rgba(0,0,0,.3)',
+  /** #1451 后续：悬停浮层的底色要比选项框再淡一档（更白、更透）。
+   *  浮层与选项框只隔几个像素，两层玻璃若用同一个底色会糊成一整块，看不出哪层是提示。 */
+  popBg: 'linear-gradient(180deg,rgba(216,234,254,.56),rgba(211,230,251,.50) 46%,rgba(201,221,246,.46))',
   bubbleBg: 'radial-gradient(circle at 34% 28%,rgba(255,255,255,.55),rgba(186,210,242,.22) 52%,rgba(150,180,220,.07) 78%)',
   bubbleBorder: 'rgba(200,220,250,.35)',
   bubbleGlow: '0 0 6px rgba(150,190,255,.25)',
@@ -126,6 +129,8 @@ export const SUGGEST_APPEARANCE = {
   lightPillHoverBorder: 'rgba(96,130,180,.5)',
   lightPillHoverShadow: '0 1px 14px rgba(90,130,190,.18)',
   lightPillShadow: 'inset 0 1px 0 rgba(255,255,255,.8),0 1px 8px rgba(90,120,160,.12)',
+  /** #1451 后续：浅色主题下浮层也要比选项框淡一档（更白、更浅），不能直接复用 lightPillBg。 */
+  lightPopBg: 'linear-gradient(180deg,rgba(255,255,255,.97),rgba(254,255,255,.95) 46%,rgba(252,254,255,.93))',
   lightBubbleBg: 'radial-gradient(circle at 34% 28%,rgba(160,190,230,.5),rgba(180,205,240,.25) 52%,rgba(200,220,245,.1) 78%)',
   lightBubbleBorder: 'rgba(120,150,190,.25)',
   lightBubbleGlow: '0 0 6px rgba(120,160,220,.18)',

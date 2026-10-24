@@ -432,6 +432,8 @@ async function main() {
     check(popRule.indexOf('display:block') >= 0 && popRule.indexOf('display:flex') < 0, '样式：浮层按普通文字流排版（不用竖排 flex），评分才能和理由排在同一行')
     check(css.indexOf('margin-right:' + appearanceMod.SUGGEST_APPEARANCE.scoreGapPx + 'px') >= 0, '样式：分数泡与理由之间留空，间距来自外观旋钮')
     check(css.indexOf('.dsws-sugg-reason{display:inline}') >= 0, '样式：理由正文跟分数泡排同一行，不再独占一段')
+    check(popRule.indexOf('background:' + appearanceMod.SUGGEST_APPEARANCE.popBg) >= 0, '样式：浮层底色取自浮层专用旋钮（比选项框淡一档）')
+    check(css.indexOf('body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + appearanceMod.SUGGEST_APPEARANCE.lightPopBg) >= 0, '样式：浅色主题下浮层也另给一档更淡的底色')
     check(css.indexOf('prefers-reduced-motion') >= 0, '样式：尊重系统减少动效偏好')
   }
 
