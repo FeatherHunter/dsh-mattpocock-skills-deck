@@ -160,12 +160,14 @@ function writeBuildCache(): void {
   }
 }
 
-/** 大阶段边界的锁检查：pulse 返回假说明锁已被别的进程接管，这次构建必须立刻停下。
- * 停下来的两条纪律（#1393 Q2 拍板）：大声报错、不再写产物与缓存（抛错会跳过后面的真构建与 writeBuildCache）。
+/** 大阶段边界的锁检查：pulse 返回假说明这次构建已经不是唯一的写者，必须立刻停下。
+ * 两条纪律：大声报错，说清为什么停（原因由 pulse 记在 lastPulseFailure 里，锁被接管时带接管者 pid/主机/心跳）；
+ * 不再写产物与缓存（抛错会跳过后面的真打包与 writeBuildCache，缓存不会被这次构建写脏）。
  * pulse 里面读锁已经自带一次复读（读坏先等 50 毫秒再读一次，排除读写撞上的误判），这里不再另睡一次。 */
 function guardBuildLock(lock: BuildLock, stage: string): void {
   if (pulseBuildLock(lock)) return
-  throw new Error('[build] 构建锁：' + stage + '时发现锁已被别的进程接管（锁文件没了或换了主人），这次构建立刻停止，不再写产物与缓存；等那个构建结束再重跑一次')
+  throw new Error('[build] 构建锁：' + stage + '时发现' + (lock.lastPulseFailure || '锁已经不是我的了')
+    + '；这次构建立刻停止，不再写产物与缓存，等那个构建结束再重跑一次')
 }
 
 // ---------- 工具 ----------
@@ -1730,7 +1732,7 @@ gateBuildArtifacts()
 ensureBundledSkills()
 syncReadme(version, repoUrl)
 // 大阶段边界：同步检查一次锁（同步段里事件循环不转，定时器指不上，只有边界上的同步写能证明进程还活着）。
-// 下面几个 guardBuildLock 都是同一个意思（锁被接管就当场停），不再逐个解释，stage 只写清停在哪一段。
+// 下面几个 guardBuildLock 都是同一个意思（锁不是自己的就当场停），不再逐个解释，stage 只写清停在哪一段。
 guardBuildLock(buildLock, '构建开始')
 
 // 内置 TypeScript 域的逐文件转译：src/shared 下每个带 tsconfig.json 的目录算一个域，
@@ -2113,6 +2115,10 @@ try {
   throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.13.0，再重跑本构建）：' + ((e as Error) && (e as Error).message || e))
 }
 
+// 打包是最后一段长活（拼客户端与宿主两半产物），开始前再确认一次锁：这段里被接管的话，
+// 写下去的产物就是「这一代」与「别人那一代」混着来的，比干脆不构建更糟。
+guardBuildLock(buildLock, '开始打包')
+
 const out: { clientDev?: string; clientPkg?: string; hostDev?: string; hostPkg?: string } = {}
 if (!pkgOnly) out.clientDev = (await buildClient({ version, repoUrl })).devCode
 if (!devOnly) out.clientPkg = (await buildClient({ version, repoUrl })).pkgCode
@@ -2141,6 +2147,9 @@ if (args.includes('--sync') || args.includes('--no-sync') || process.env.DSW_SYN
 console.log('[build] 构建只写仓库内产物，不碰本机已装配置')
 
 // 走到这里说明这一遍是真构建、而且成功了：记下输入指纹与产物哈希，供下一次比对（下一次若一致就跳过构建）。
+// 写缓存前最后确认一次锁：缓存是下一个人能不能命中的唯一凭据，锁不是自己的就绝不写，
+// 否则别人会拿着这一代缓存放心跳过构建。
+guardBuildLock(buildLock, '写构建缓存')
 writeBuildCache()
 // 真构建写完了，放锁：等锁的人拿到锁后会先复核缓存（一般直接命中退出，不用再建一遍）。
 releaseBuildLock(buildLock)

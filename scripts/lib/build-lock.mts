@@ -73,6 +73,9 @@ export interface BuildLock {
   acquiredAt: number
   /** 这把锁是不是接管来的：等锁时把陈旧锁改名接管、或带人工闸接管旧锁，释放日志里如实说。 */
   tookOver: boolean
+  /** 上一次 pulse 为什么返回假（诊断用）：调用方要停构建，报错里直接把这句写出来，
+   *  好分清「锁被接管 / 锁文件没了」与「心跳写不进锁文件」两种原因，不把三者混成一句话。 */
+  lastPulseFailure?: string
   /** 加载时读到的三档时间：日志里报「等了多久、最多等多久」用同一份，不各说各的。 */
   times: BuildLockTimes
 }
@@ -312,7 +315,7 @@ export function acquireBuildLock(opts: AcquireBuildLockOptions): BuildLock {
     if (Date.now() >= deadline) {
       const waitedMin: number = Math.round((Date.now() - start) / 60000)
       const holder: string = seen.info !== null
-        ? 'pid ' + seen.info.pid + '（主机 ' + seen.info.host + '，拿锁时间 ' + new Date(seen.info.startedAt).toISOString() + '）'
+        ? formatHolder(seen.info.pid, seen.info.host) + '，拿锁时间 ' + formatTimeOrUnknown(seen.info.startedAt)
         : '未知进程'
       throw new Error('[build] 构建锁：从 ' + new Date(start).toISOString() + ' 开始等、已等约 ' + waitedMin + ' 分钟还是没拿到锁'
         + '（持锁 ' + holder + '，锁文件 ' + lockPath + '）：这次不等了，直接报错退出；'
@@ -339,19 +342,32 @@ function takeoverLock(lockPath: string): boolean {
   return true
 }
 
+/** 把持锁进程说成前半句人话（pid 与主机）：日志与报错共用一份格式，不再各拼各的。 */
+function formatHolder(pid: number, host: string): string {
+  return 'pid ' + pid + '（主机 ' + host + '）'
+}
+
+/** 把时间戳写成 ISO 字符串；字段缺失或坏掉就写「时间未知」——报错时不能因为格式化本身抛错，反而盖掉要报的那句话。 */
+function formatTimeOrUnknown(at: unknown): string {
+  const n: number = typeof at === 'number' ? at : Number.NaN
+  const d: Date = new Date(n)
+  return Number.isFinite(n) && !Number.isNaN(d.getTime()) ? d.toISOString() : '时间未知'
+}
+
 /** 把读到的锁说成一句人话（日志与报错里用）。 */
 function describeLock(seen: { info: BuildLockInfo | null; corrupt: boolean }): string {
   if (seen.info !== null) {
     const ageS: number = Math.max(0, Math.round((Date.now() - seen.info.heartbeatAt) / 1000))
-    return 'pid ' + seen.info.pid + '（主机 ' + seen.info.host + '），心跳 ' + ageS + ' 秒前'
+    return formatHolder(seen.info.pid, seen.info.host) + '，心跳 ' + ageS + ' 秒前'
   }
   return '锁文件内容已损坏（读不出持锁进程）'
 }
 
 /**
  * 同步刷新一次心跳：构建主流程每个大阶段的边界调一次（同步段里事件循环不转，定时器指不上）。
- * 发现锁已经不是我的（文件没了、或 token 对不上——说明我被当成死锁接管了），就停掉心跳、
- * 把句柄标成已释放，返回假；调用方（构建）此时应当停下来，不再继续写产物。
+ * 返回假有三种原因，都写进 lastPulseFailure，调用方停构建时原样报出来，不把三者混成一句话：
+ *   锁文件没了、被别的进程接管（说清接管者 pid/主机/心跳）、心跳写不进锁文件（带写失败的原因）。
+ * 前两种还要停掉心跳、把句柄标成已释放：锁已经不是我的，再续心跳只会去碰别人的文件。
  */
 export function pulseBuildLock(lock: BuildLock): boolean {
   if (lock.released) return false
@@ -359,15 +375,29 @@ export function pulseBuildLock(lock: BuildLock): boolean {
   if (seen.info === null || seen.info.token !== lock.token) {
     stopHeartbeat(lock)
     lock.released = true
-    console.warn('[build] 构建锁：锁已经不是我的了（文件没了或被别人接管），停掉心跳，不再继续写产物')
+    reportPulseFailure(lock, seen.info === null
+      ? '锁文件已经没了（可能被持锁进程释放了，也可能被别人接管走了），这次构建已经不是唯一的写者'
+      : '锁已经被别的进程接管了（现在是 ' + describeLock(seen) + '），这次构建已经不是唯一的写者')
     return false
   }
   try {
     writeLockFile(lock.lockPath, { ...seen.info, heartbeatAt: Date.now() })
-  } catch {
+  } catch (e: unknown) {
+    const msg: string = ((e as Error) && (e as Error).message) || String(e)
+    reportPulseFailure(lock, '心跳写不进锁文件（' + msg + '），这把锁维持不下去，别人很快会把它当死锁接管')
     return false
   }
+  lock.lastPulseFailure = ''
   return true
+}
+
+/** 记下这次为什么失败，并对「新出现的原因」发一次警告：
+ *  心跳定时器每 15 秒会再调到这里，不判重会把同一行错误刷满整份日志；
+ *  调用方（构建）停构建时从 lock.lastPulseFailure 取这句话写进报错，日志与报错说的是同一句。 */
+function reportPulseFailure(lock: BuildLock, failure: string): void {
+  const isNew: boolean = lock.lastPulseFailure !== failure
+  lock.lastPulseFailure = failure
+  if (isNew) console.warn('[build] 构建锁：' + failure)
 }
 
 /**
@@ -378,16 +408,16 @@ export function releaseBuildLock(lock: BuildLock): void {
   stopHeartbeat(lock)
   if (lock.released) return
   lock.released = true
-  const heldS: number = Math.max(0, Math.round((Date.now() - lock.acquiredAt) / 1000))
-  const who: string = 'pid ' + process.pid + '（主机 ' + hostname() + '）'
-  const taken: string = lock.tookOver ? '，这把锁是接管来的' : ''
+  const heldSeconds: number = Math.max(0, Math.round((Date.now() - lock.acquiredAt) / 1000))
+  const whoReleased: string = formatHolder(process.pid, hostname())
+  const takeoverNote: string = lock.tookOver ? '，这把锁是接管来的' : ''
   try {
     const seen: { info: BuildLockInfo | null; corrupt: boolean } = readLockInfo(lock.lockPath)
     if (seen.info !== null && seen.info.token === lock.token) {
       rmSync(lock.lockPath, { force: true })
-      console.log('[build] 构建锁：' + who + '释放了锁（持有约 ' + heldS + ' 秒' + taken + '）')
+      console.log('[build] 构建锁：' + whoReleased + '释放了锁（持有约 ' + heldSeconds + ' 秒' + takeoverNote + '）')
     } else {
-      console.log('[build] 构建锁：' + who + '释放时锁已是别人的（被接管走或文件没了），不动别人的文件（持有约 ' + heldS + ' 秒' + taken + '）')
+      console.log('[build] 构建锁：' + whoReleased + '释放时锁已是别人的（被接管走或文件没了），不动别人的文件（持有约 ' + heldSeconds + ' 秒' + takeoverNote + '）')
     }
   } catch {
     // 释放时删不掉（权限、文件系统）：进程退出了锁就没人续心跳，等锁的人按陈旧接管，不在这里报错。

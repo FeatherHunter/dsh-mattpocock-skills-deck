@@ -57,7 +57,7 @@ function makeSession(opts) {
 }
 
 /** 会话交给能力函数的那一份操作上下文（生产里由 session-opener 的 call 拼好）：带可辨认的标记。 */
-const SESSION_CTX = { cwd: 'D:/demo', caller: 'refresh', platform: { marker: 'session-ctx-platform' }, exec: Object.assign(function sessionCtxExec() {}, { marker: 'session-ctx-exec' }) }
+const SESSION_CTX = { cwd: 'C:/stale', caller: 'refresh', platform: { marker: 'session-ctx-platform' }, exec: Object.assign(function sessionCtxExec() {}, { marker: 'session-ctx-exec' }) }
 
 /** 开会话成功那一份形状：call(fn) 把假会话与一次 opCtx 交给能力函数（与 session-opener.ts 的回包同形）。 */
 function openReplyOf(session) {
