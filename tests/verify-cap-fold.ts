@@ -385,6 +385,10 @@ const reply = (method) => {
   if (method === 'snapshot' || method === 'refresh') return SNAP
   if (method === 'chain') return { ok: true, snapshot: { steps: [] }, chain: [], fullChain: null, resolved: [] }
   if (method === 'registry') return { ok: true, modules: [{ id: 'github', label: 'GitHub' }, { id: 'markdown', label: 'Markdown' }] }
+  // #1436 起胶囊首帧会问 wf.workRoute（线上名去前缀）；夹具若不答，胶囊先画「读取中」转圈、约 3.7 秒后才撤，
+  // 而下面的宽度扫描每档只歇几帧，正好跨过转圈消失那一刻，量到的档位会突然多一档又回落（C1/C2 假红）。
+  // 当场给一份空表，让它立刻走 empty 分支、不画转圈。
+  if (method === 'workRoute') return { ok: true, workRouteTable: { ok: true, readout: { entries: [], at: '1970-01-01T00:00:00.000Z' } } }
   return { ok: true }
 }
 const services = {
@@ -441,6 +445,8 @@ window.__MOUNT__ = async function (w) {
     window.__RDOM__.createRoot(host).render(React.createElement(capsuleComp.c, props))
   } catch (e) { thrown = String((e && e.message) || e) }
   const arrived = await window.__WAIT__(() => !!host.querySelector('.dsws-capsule'), 8000)
+  // 首帧的「读取中」转圈撤掉前胶囊会少约 18px，等它撤干净再开始量宽度，否则扫描跨过这一瞬间会看到假回退。
+  await window.__WAIT__(() => !document.querySelector('.dsws-capsule-chain-loading'), 8000)
   await window.__SETTLE__()
   return { ok: !!host.querySelector('.dsws-capsule'), arrived: arrived, thrown: thrown }
 }
