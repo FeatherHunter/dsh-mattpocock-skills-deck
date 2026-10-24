@@ -155,7 +155,8 @@ export interface DetectResult {
  * - 'patch-now'：只补票号指的那一行；
  * - 'probe-now'：立刻发一次变化探测（票号未知时也走这一档）；
  * - 'wait-tick'：什么都不额外做，等兜底探测节拍。
- * `waitMs` 是「同一工作区里合并窗口还剩多久」：事件触发的取数与写入触发的取数共用一个窗口。
+ * `waitMs` 是这一档要等的窗口：点名补行（patch-now）不需要等，给 0；扫描类（probe-now）给合并窗口。
+ * 合并窗口只拦扫描类 —— 一次只取一行的点名补行没有省的必要，#1472 起不再被它吃掉。
  */
 export interface EventAction {
   action: 'patch-now' | 'probe-now' | 'wait-tick'
@@ -166,7 +167,7 @@ export interface EventAction {
 
 /** 判定要用到的两个数字，由调用方从 host-budget.ts 取好注入（本文件与 write-event-detection.ts 都不写数字）。 */
 export interface WriteDetectLimits {
-  /** 同一工作区里写事件触发的取数合并窗口（host-budget.ts 的 PATCH_MERGE_WINDOW_MS）。 */
+  /** 同一工作区里扫描类取数（probe-now）的合并窗口（host-budget.ts 的 PATCH_MERGE_WINDOW_MS）；点名补行不受它限制。 */
   mergeWindowMs: number
   /** 认不出写没写时退回的兜底探测节拍（host-budget.ts 的 PROBE_INTERVAL_MS）。 */
   probeIntervalMs: number

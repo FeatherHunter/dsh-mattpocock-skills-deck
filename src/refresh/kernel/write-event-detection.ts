@@ -340,12 +340,15 @@ function ticketFromArgs(args: unknown): string | null {
  * PROBE_INTERVAL_MS），本文件一个额度数字都不写——与 admission-policy.ts 同一条纪律。
  * 「确定写但票号未知」要降成「立刻探测」：补行得指名道姓改哪一行，说不出票号就没法只补那一行，
  * 这时先探一次、再看哪几条变了（探一次仍比整池重建便宜得多）。
+ *
+ * waitMs 按两档的成本分开给（#1472）：点名补行只取一行薄数据，不需要等窗口，给 0；
+ * 扫描类要问一次「仓库最近变了什么」，同一工作区 10 秒内只该发一次，给合并窗口。
  */
 export function actionFor(result: DetectResult, limits: WriteDetectLimits): EventAction {
   const mergeWindowMs = (limits && isFinite(limits.mergeWindowMs)) ? limits.mergeWindowMs : 0
   const probeIntervalMs = (limits && isFinite(limits.probeIntervalMs)) ? limits.probeIntervalMs : 0
   const tier = (result && result.tier) ? result.tier : 'default-tick'
-  if (tier === 'write-confirmed' && result.ticket) return { action: 'patch-now', ticket: result.ticket, waitMs: mergeWindowMs, mergeWindowMs: mergeWindowMs }
+  if (tier === 'write-confirmed' && result.ticket) return { action: 'patch-now', ticket: result.ticket, waitMs: 0, mergeWindowMs: mergeWindowMs }
   if (tier === 'write-confirmed' || tier === 'probe-now') return { action: 'probe-now', ticket: null, waitMs: mergeWindowMs, mergeWindowMs: mergeWindowMs }
   return { action: 'wait-tick', ticket: null, waitMs: probeIntervalMs, mergeWindowMs: mergeWindowMs }
 }

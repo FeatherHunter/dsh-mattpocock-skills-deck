@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T14:29:22.064Z",
+  "generatedAt": "2026-10-24T15:03:30.798Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 358,
-  "gateCount": 358,
-  "attributedGates": 318,
+  "chainLength": 359,
+  "gateCount": 359,
+  "attributedGates": 319,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 569,
+  "graphFileCount": 571,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3009,6 +3009,25 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
+    },
+    {
+      "step": "node tests/verify-1472-write-event-fetch.ts",
+      "file": "tests/verify-1472-write-event-fetch.ts",
+      "guards": [
+        "src/refresh/rooms/host/patch-wiring.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/write-event-fetch.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -9449,6 +9468,7 @@
       "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-1465-detail-refid.ts",
+      "node tests/verify-1472-write-event-fetch.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -10079,9 +10099,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 589,
+    "fileCount": 591,
     "dirCount": 73,
-    "coveredFileCount": 589,
+    "coveredFileCount": 591,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 55,
@@ -10441,6 +10461,7 @@
       "src/refresh/rooms/host/issue-list-fetch.ts",
       "src/refresh/rooms/host/outbound-admission.ts",
       "src/refresh/rooms/host/outbound-control.ts",
+      "src/refresh/rooms/host/patch-wiring.ts",
       "src/refresh/rooms/host/probe-handler.ts",
       "src/refresh/rooms/host/quota-ledger.ts",
       "src/refresh/rooms/host/refresh-assembly.ts",
@@ -10456,6 +10477,7 @@
       "src/refresh/rooms/host/thin-row-fetch.ts",
       "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
       "src/refresh/rooms/host/work-route-readout.ts",
+      "src/refresh/rooms/host/write-event-fetch.ts",
       "src/refresh/rooms/host/write-event-subscription.ts",
       "src/refresh/tsconfig.json",
       "src/seam/editor.ts",
@@ -10851,7 +10873,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 41
+        "fileCount": 43
       },
       {
         "path": "src/shared/command-cleanup",

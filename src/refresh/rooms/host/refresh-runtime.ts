@@ -42,8 +42,10 @@ import { createBudgetState } from './budget-state.js' // #1446：面板要的额
 import { createSessionOpener } from './session-opener.js' // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（六个取数文件与写路径共用这一份）
 import { createOutboundControl } from './outbound-control.js'
 import { hostTimers } from '../../contract/host-timer-ports.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
-// #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/refresh/rooms/host/refresh-assembly.js 一处。
-import { createPatchForHost } from './refresh-assembly.js'
+// #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）的装配从这里再往外搬了一格：
+// #1472 起住 ./patch-wiring.js（本文件贴着 350 有效行上限，新增接线不能再往这里堆），写事件取数那一格住 ./write-event-fetch.js。
+import { createPatchWiring } from './patch-wiring.js'
+import { createWriteEventFetch } from './write-event-fetch.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、九个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../contract/workspace-keys.js'
@@ -269,11 +271,15 @@ export function createRefreshWiring(deps: any): any {
     } catch (eE: any) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
   }
 
-  // 写事件触发的那一次取数（b）：#1445 起写事件不再过闸，这一格就是取数本身（管线里读路径那一趟由 T18 那批接真取数；
-  // 在接上之前这里如实回 0 条、0 点——与旧路「闸放行之后仍是个空实现」等价，不假装取过）。
-  async function fetchForWriteEvent(step: any, meta: any): Promise<any> {
-    return { requests: 0, points: 0 }
+  // 写事件触发的那一次取数（b）：#1445 起写事件不再过闸，这一格就是取数本身。
+  // #1472 起不再是空实现：真的去补「刚才写的那一张票」，并把新快照暂存给下一次 wf.probe（见 ./write-event-fetch.js）。
+  // 回值按 #1444 裁决恒为 0 条、0 点——那是一行「这一笔花了多少」的记账位，真实用量归 #1446，不在这里编数字。
+  let writeFetch: any = null
+  function writeFetchOf(): any {
+    if (!writeFetch) writeFetch = createWriteEventFetch({ patchOf: patchOf, hash8: hash8, canonicalKey: d.canonicalKey })
+    return writeFetch
   }
+  async function fetchForWriteEvent(step: any, meta: any): Promise<any> { return writeFetchOf().fetch(step, meta) }
 
   // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.ts 文件头）；只负责取数，不再喂工作路线（#1262 起写入口只在工具壳）。
   // #746：命名摘要编排单例（ctx 与 getNaming 由宿主入口经 deps 给；任一缺失则钩子静默降级）。
@@ -368,12 +374,12 @@ export function createRefreshWiring(deps: any): any {
       roots = (st && Array.isArray(st.active)) ? st.active.map(function (x: any): any { return String(x.root || '') }).filter(Boolean) : []
     } catch (e: any) { roots = [] }
     for (const root of roots) {
-      if (allowed.indexOf(root) < 0) { try { await writeEvents.allowRoot(root) } catch (eA: any) {} }
+      if (allowed.indexOf(root) < 0) { try { await writeEvents.allowRoot(root) } catch (eA: any) {}; try { await writeFetchOf().remember(root) } catch (eRm: any) {} }
       try { gate.setWorkspace(workspaceKeyOf(root), { active: true }) } catch (eG: any) {}
     }
     for (const root of allowed) {
       if (roots.indexOf(root) < 0) {
-        try { writeEvents.forgetRoot(root) } catch (eF: any) {}
+        try { writeEvents.forgetRoot(root) } catch (eF: any) {}; try { await writeFetchOf().forget(root) } catch (eRf: any) {}
         try { gate.setWorkspace(workspaceKeyOf(root), { active: false }) } catch (eG2: any) {}
       }
     }
@@ -439,29 +445,18 @@ export function createRefreshWiring(deps: any): any {
   // 以前探测到变化之后没人去跑 src/refresh/rooms/host/row-patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
   //「探测说变了」之后调用。依赖由宿主入口显式传入：readSnapshot / writeSnapshot 读写的正是宿主那份快照缓存与
   // 磁盘缓存（与客户端看到的列表同一份）；send / decide 是闸的两半，读路径的账与裁决一个字都另不算。
-  let patchRunner: any = null
-  function patchOf(): any {
-    if (!patchRunner) {
-      patchRunner = createPatchForHost({
-        readSnapshot: function (cwd: any): any { try { const e: any = (typeof d.getCache === 'function') ? d.getCache(cwd) : null; return (e && e.snapshot) ? e.snapshot : null } catch (eR: any) { return null } },
-        writeSnapshot: async function (cwd: any, snap: any): Promise<void> {
-          try { if (typeof d.setCache === 'function') d.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }) } catch (eW: any) {}
-          try { const repo: any = await d.getRepoKey(cwd); if (repo && typeof d.writeDiskCache === 'function') await d.writeDiskCache(repo, snap) } catch (eD: any) {}
-        },
-        indexOfSnapshot: function (snap: any): any { return (typeof d.issueIndexFromSnapshot === 'function') ? d.issueIndexFromSnapshot(snap) : {} },
-        probeIndex: function (cwd: any, sinceIso: any): any { return (typeof d.fetchIssueIndex === 'function') ? d.fetchIssueIndex(cwd, sinceIso) : Promise.resolve({ ok: false }) },
-        getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
-        // #1446：闸按后端分桶算账，裁决也告诉它这是哪个后端（还没读过就缺席，闸按未知后端处理）。
-        decide: function (req: any): any { return gate.decideFor(currentBackendId && req && typeof req === 'object' ? Object.assign({}, req, { backendId: currentBackendId }) : req) },
-        openSession: openSession, // #1444：薄行取数改走只读会话（取数文件不再经 send/runGh）
-        // 与活跃集合、写事件白名单同一把短散列（见 syncAttention）：不一致就会让探测这条路每一笔都被判「推迟」。
-        workspaceKeyOf: workspaceKeyOf,
-        now: Date.now,
-        logCtx: logCtx,
-      })
-    }
-    return patchRunner
-  }
+  // #1472：这段装配原样搬到 ./patch-wiring.js —— 本文件贴着 350 有效行上限，新增接线不能再往这里堆。
+  // 行为一个字不变：惰性装配、闸的后端编号在调用那一刻读、两处写回各自包 try，三条约定都写在那个文件头上。
+  // 留一个薄壳 patchOf 给 deltaRefresh / deltaEnter / 写事件取数三处共用，保证全仓仍然只有一份补行件。
+  const patchWiring: any = createPatchWiring({
+    d: d,
+    gate: gate,
+    backendIdOf: function (): any { return currentBackendId },
+    openSession: openSession,
+    workspaceKeyOf: workspaceKeyOf,
+    logCtx: logCtx,
+  })
+  function patchOf(): any { return patchWiring.patchOf() }
 
   // #1446 验收第 4 条：面板要的额度状态（模型在注册表、水位在账本，换算搬到 budget-state.ts，免得本文件顶破 350 行）。
   const budgetState = createBudgetState({ getTrackerRegistry: d.getTrackerRegistry, ledger: ledger })
@@ -473,7 +468,10 @@ export function createRefreshWiring(deps: any): any {
    * 取数已经由会话承担，宿主也不再向这里注入 runGh 这一格。
    */
   async function deltaRefresh(cwd: any, opts: any): Promise<any> {
-    if (typeof d.openSession !== 'function' || typeof d.fetchIssueIndex !== 'function') return { mode: 'failed', reason: 'no-transport' }
+    // #1472：守卫不再看 d.openSession —— 生产入口从来不传这一格（开会话那一侧就是本文件内部装配的 openSession，
+    // 见 :200 那个 createSessionOpener）。还留着它，生产形状下 deltaRefresh 会恒回 no-transport，
+    // 行级增量永远跑不起来。窗口索引出口仍要：没有它这一条路发不出探测，如实回 failed 让调用方走整池。
+    if (typeof d.fetchIssueIndex !== 'function') return { mode: 'failed', reason: 'no-transport' }
     try { return await patchOf().run(cwd, opts || {}) } catch (e: any) { return { mode: 'failed', reason: 'patch-threw' } }
   }
 
@@ -506,6 +504,10 @@ export function createRefreshWiring(deps: any): any {
     openSession: openSession, // #1444/#1445：六个取数文件经它拿只读会话，写路径（评论、发布、交接、改色）另带 write:true 开会话
     deltaRefresh: deltaRefresh,
     deltaEnter: deltaEnter,
+    // #1472：探针进来先问这一句 —— 写事件刚补好的快照直接交出去，没有就回 null 让探针照旧走窗口探测。
+    // 放在这层返回对象上，宿主入口与单测拿的是同一个函数；取走即删的语义在 ./write-event-fetch.js 里。
+    // takeWritePatch 自己已经兜住所有异常并记好日志（见 ./write-event-fetch.js），这里不再包一层静默吞错。
+    takeWritePatch: function (cwd: any): any { return writeFetchOf().takeWritePatch(cwd) },
     syncAttention: syncAttention,
     noteWorkspaceActive: noteWorkspaceActive,
     firstTextOf: function (sid: any): Promise<any> { try { return readFirstUserText(d.ctx, sid) } catch (e: any) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
