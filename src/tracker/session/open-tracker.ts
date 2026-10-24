@@ -75,6 +75,12 @@ export interface OpenTrackerOptions {
   canWriteReason?: string
   /** 选后端的实现（缺省走注册表；这一支只读本地认领，不出站、不花额度）。 */
   resolveSelection?: SelectionResolver
+  /**
+   * 选后端的匹配上下文（缺省只给 cwd）。房间认领工作区时要读 .git/config、拼本地的目录与文件路径，
+   * 只有 cwd 时它们会判「不认识这个工作区」；需要平台、文件、起进程几件的调用方从这里递进来，
+   * 选后端这件事仍然只经 openTracker（宿主与刷新机制不自己调注册表选择）。
+   */
+  matchContext?: Partial<OpContext>
   /** 诊断钩子（管线分支原因的出口；没有就静默）。 */
   onEvent?: (event: string, fields: Record<string, unknown>) => void
 }
@@ -89,7 +95,7 @@ export async function openTracker(handle: RepoHandle, options: OpenTrackerOption
       // 工作区还没就绪：连目录都不知道，选后端无从选起，直接回结局，不碰注册表。
       return { ok: false, reason: 'workspace-not-ready', detail: '调用方没给工作区目录，选后端无从选起' }
     }
-    const ctx = { cwd: handle.cwd } as OpContext
+    const ctx = Object.assign({}, options.matchContext || {}, { cwd: handle.cwd }) as OpContext
     const resolve = options.resolveSelection
       ? options.resolveSelection
       : (h: RepoHandle, c: OpContext): Promise<Selection> => options.registry.select(h, c)

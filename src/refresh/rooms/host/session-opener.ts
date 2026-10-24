@@ -153,6 +153,12 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
     if (!registry || typeof registry.select !== 'function' || typeof registry.get !== 'function' || typeof registry.modules !== 'function') {
       return openFail('no-registry', '后端注册表还没就绪：这一趟拿不到会话（不直连 gh，等降级）')
     }
+    // 选后端的匹配上下文要带上后端上下文：openTracker 自带的那一份只给 cwd，后端 matches 读不到 .git/config、
+    // 也拼不出 .scratch/map.md 的路径，GitHub 与 Markdown 两家都会判「不认识这个工作区」，会话永远开不起来
+    // （#1445 把命名守护与面板取数改走会话之后暴露的缺口，#266 建号冒烟抓到的就是它）。
+    // 选后端仍然只经 openTracker（宿主与刷新机制不许自己调注册表选择）；调用方显式给了选择就尊重它的那份。
+    let matchCtx: Partial<OpContext> = {}
+    try { matchCtx = (deps.backendCtx() || {}) as Partial<OpContext> } catch (eB: any) { matchCtx = {} }
     const write: boolean = !!(opts && opts.write === true)
     try {
       const opened: any = await openTracker({ cwd: cwdStr }, {
@@ -165,7 +171,9 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         ...(write
           ? { canWriteFromSelection: true, canWriteReason: '写会话的写权限由判定出口回答（取不到就是没就绪，不默认放开）' }
           : { canWriteReason: '读会话只读：读路径今天从不因额度推迟，所以裁决一律放行' }),
-        ...(opts && opts.resolveSelection ? { resolveSelection: opts.resolveSelection } : {}),
+        // 调用方显式给了选择就尊重它那份（快照复用判定结论、面板按已核验的后端取数），
+        // 没给才把后端上下文当匹配条件交给缺省选择器。
+        ...((opts && typeof opts.resolveSelection === 'function') ? { resolveSelection: opts.resolveSelection } : { matchContext: matchCtx }),
       })
       if (!opened || opened.ok !== true) {
         return openFail(String((opened && opened.reason) || 'open-failed'), String((opened && opened.detail) || ''))

@@ -153,12 +153,22 @@ export function createRefreshWiring(deps: any): any {
   // 会话读数要的那份后端上下文：平台、文件、计时器、起进程、日志、出站控制面各一件，
   // 与桥段装配的那一份同源（生产里同一套宿主出口），只在这里为同步现拼一份（同步不经过工具装配）。
   let syncBackendObj: any = null
+  // 宿主传进来的 getPlatform 是异步的（要等平台那层加载完），而开会话的上下文是同步拼出来的：
+  // 直接把 Promise 塞进 platform 会让房间拿不到 platform.resolveExecutable / platform.fs，仓库定位的三层探测全废，
+  // 开会话就补不出仓库身份（#266 建号冒烟抓到的缺口，2026-10-24）。这里把它先落成对象：开会话的入口等就绪，
+  // 其余同步读在就绪前仍是 null，与「平台还没加载」是同一个状态。
+  let syncPlatform: any = null
+  let syncPlatformReady: any = null
+  function ensureSyncPlatform(): Promise<any> {
+    if (syncPlatformReady) return syncPlatformReady
+    syncPlatformReady = Promise.resolve().then(function (): any {
+      try { return Promise.resolve((typeof d.getPlatform === 'function') ? d.getPlatform() : null).then(function (v: any) { syncPlatform = v || null; return syncPlatform }) } catch (eP: any) { syncPlatform = null; return null }
+    })
+    return syncPlatformReady
+  }
   function syncBackendCtxOf(): any {
     if (!syncBackendObj) {
-      let platform: any = null
-      try { platform = (typeof d.getPlatform === 'function') ? d.getPlatform() : null } catch (eP: any) { platform = null }
       syncBackendObj = {
-        platform: platform,
         fs: (function (): any { try { return (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('fs') : undefined } catch (e: any) { return undefined } })(),
         timers: (function (): any {
           try {
@@ -176,7 +186,8 @@ export function createRefreshWiring(deps: any): any {
         outbound: createOutboundControl(),
       }
     }
-    return syncBackendObj
+    // platform 每次现取：第一份装配可能发生在平台加载完之前，把 null 缓存下来就再也补不上了。
+    return Object.assign({}, syncBackendObj, { platform: syncPlatform })
   }
   // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（读、写共用这一份）。
   // 为什么在接线里造而不是让取数文件自己造：闸、账本、后端上下文与注册表都在本文件手里，
@@ -196,6 +207,8 @@ export function createRefreshWiring(deps: any): any {
     },
   })
   const openSession = async function (cwd: any, opts?: any): Promise<any> {
+    // 会话上下文里的 platform 必须是对象而不是 Promise（见 syncBackendCtxOf 上面那段）：先在异步入口等它就绪。
+    await ensureSyncPlatform()
     const opened: any = await openSessionRaw(cwd, opts)
     if (opened && opened.ok === true && typeof opened.backendId === 'string' && opened.backendId) currentBackendId = opened.backendId
     return opened

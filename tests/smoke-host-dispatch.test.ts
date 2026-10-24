@@ -23,13 +23,33 @@ let route = null
 // #266 建号感知冒烟：gh api 索引快照由 stub 返回（测试可控 JSON Lines；按调用序切换新旧快照）
 const GH_BASE = '{"number":1,"title":"既有一","state":"OPEN","updatedAt":"u1"}\n{"number":2,"title":"既有二","state":"CLOSED","updatedAt":"u2"}\n'
 let ghIndexText = GH_BASE
+// #1445 之后命名索引改走只读会话（openSession → 注册表 matches → 房间 listPage），这条冒烟要如实给两件东西：
+//   ① 工作区认得的仓库身份（房间 matches 读 .git/config，Tier1 的 git remote 也走同一个起进程口）；
+//   ② gh api graphql 的索引回包（listPage 只认 GraphQL 的 nodes/totalCount/pageInfo，不认 JSON Lines）。
+// 旧夹具对任何命令都回同一份 JSON Lines，会话选不出后端、索引也解析不了，两条建号断言因此红。
+const GIT_CONFIG = '[remote "origin"]\n\turl = https://github.com/acme/demo.git\n'
+// 读不到的文件要像真沙箱一样抛 ENOENT，不能回空串：Markdown 房间判断「工作区里有没有它那份文件」时，
+// 文件系统三件（lstat/stat/access）都没有的情况下会退到「直接读一次，读得动就算存在」。回空串会让整个工作区
+// 看起来「哪里都有 Markdown 后端要的文件」，于是 github 与 markdown 两家同时命中，会话因 multi-match 打不开。
+function enoent(p) { const e = new Error("ENOENT: no such file or directory, open '" + p + "'"); e.code = 'ENOENT'; return e }
+// 把「一行一张票」的快照翻成 listPage 认的回包；nodes 就是当前快照里的全部票（不翻页）。
+function ghIndexGraphql(text) {
+  const nodes = String(text || '').split('\n').filter(function (l) { return l.trim() !== '' }).map(function (l) {
+    try { const j = JSON.parse(l); return { number: j.number, title: j.title, state: j.state, updatedAt: j.updatedAt } } catch (e) { return null }
+  }).filter(Boolean)
+  return JSON.stringify({ data: { repository: { issues: { nodes: nodes, totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null } } } } })
+}
 const subprocess = {
-  async resolveExecutable() { return 'gh' },
-  spawn() {
+  // 按名字如实回：房间定位仓库要 git、gh 的会话要 gh；一律回 gh 会让 git 探测起成 gh 并读到错的回包。
+  async resolveExecutable(name) { return String(name) },
+  spawn(opts) {
+    const argv = (opts && Array.isArray(opts.argv)) ? opts.argv.map(String) : []
+    const isGraphql = argv.some(function (a) { return a.indexOf('graphql') >= 0 })
+    const out = isGraphql ? ghIndexGraphql(ghIndexText) : (argv[0] === 'git' ? 'https://github.com/acme/demo.git' : ghIndexText)
     return {
       stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {},
       done: Promise.resolve({ exitCode: 0 }),
-      collected: { stdout: { readFrom: () => ({ text: ghIndexText }) }, stderr: { readFrom: () => ({ text: '' }) } },
+      collected: { stdout: { readFrom: () => ({ text: out }) }, stderr: { readFrom: () => ({ text: '' }) } },
     }
   },
 }
@@ -42,7 +62,8 @@ const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
 const platformSvc = { getHome: async () => '', path: { join: (...a) => a.join('/') }, // #1138 之后：绑定工作区要真的把选择写进工作区文件，所以文件通道得是完整形状
 // （`src/host/workspaceCwd.js` 要求 resolve / readText / writeText 三件齐全，缺一件就如实回 no-channel）。
 // 这里给的是内存桩：读回空串（本来就没有那份文件）、写入什么都不做，够这条冒烟演完「绑定→读标签→改配色」。
-fs: { mkdir: async () => {}, resolve: async (k) => String(k), readText: async () => '', writeText: async () => {} }, resolveExecutable: async () => 'gh', env: { get: () => undefined } }
+// 除 .git/config 回一份带 origin 的配置（#1445 之后开会话要读它认仓库）外，其余读回空串、写入什么都不做。
+fs: { mkdir: async () => {}, resolve: async (k, o) => (/^(?:[A-Za-z]:[\\/]|\/)/.test(String(k)) ? String(k) : pathMod.join((o && o.cwd) ? String(o.cwd) : '', String(k))), readText: async (f) => (/[\\/]\.git[\\/]config$/.test(String(f)) ? GIT_CONFIG : (() => { throw enoent(String(f)) })()), writeText: async () => {} }, resolveExecutable: async (name) => String(name), env: { get: () => undefined } }
 const services = {
   subprocess, timer, fs: fsSvc, platform: platformSvc,
   connection: { fetch: { register: (r) => { route = r; return () => {} } } },
