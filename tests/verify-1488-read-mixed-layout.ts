@@ -234,6 +234,64 @@ async function main() {
     check(degradations(ctx).length <= 8, '④ 退化日志没有按文件数刷屏（本段累计 ' + degradations(ctx).length + ' 条）')
   }
 
+  console.log('== ⑤ 环境预检、计数、分页在混合布局下都正常 ==')
+  {
+    const root = fs.mkdtempSync(path.join(tmpRoot, 'read-paths-'))
+    // 混合布局：一个探索地图单元（2 票）、一个规格单元（3 票）、一个旧版工作区根 issues/（1 票）。
+    fs.mkdirSync(path.join(root, '.scratch', 'map-unit', 'issues'), { recursive: true })
+    fs.writeFileSync(path.join(root, '.scratch', 'map-unit', 'map.md'), '# 地图单元\n\nStatus: ready-for-agent\n', 'utf8')
+    writeTicket(path.join(root, '.scratch', 'map-unit', 'issues'), '01-map-a.md', '地图下的第一张票', 'ready-for-agent')
+    writeTicket(path.join(root, '.scratch', 'map-unit', 'issues'), '02-map-b.md', '地图下的第二张票', 'resolved')
+    writeSpec(path.join(root, '.scratch', 'spec-unit'), '规格单元')
+    writeTicket(path.join(root, '.scratch', 'spec-unit', 'issues'), '01-spec-a.md', '规格下的第一张票', 'ready-for-agent')
+    writeTicket(path.join(root, '.scratch', 'spec-unit', 'issues'), '02-spec-b.md', '规格下的第二张票', 'resolved')
+    writeTicket(path.join(root, '.scratch', 'spec-unit', 'issues'), '03-spec-c.md', '规格下的第三张票', 'ready-for-agent')
+    writeTicket(path.join(root, 'issues'), '01-legacy.md', '旧版根目录的票', 'ready-for-agent')
+    const ctx = makeCtx(root)
+    const be = createMarkdownBackend(ctx as never)
+
+    const pre = await be.preflight({ cwd: root, refId: '' } as never, ctx as never)
+    check(pre.ok === true, '⑤ 混合布局下环境预检通过（' + JSON.stringify(pre.ok ? pre.data : pre.error) + '）')
+
+    const listed = await be.list(REPO as never, {} as never, ctx as never)
+    check(listed.ok === true, '⑤ 混合布局下列表成功')
+    const rows = listed.ok ? (listed.data as Array<Record<string, unknown>>) : []
+    const containers = rows.filter(function (r) { return r.type === 'map' || r.type === 'spec' })
+    const tickets = rows.filter(function (r) { return r.type !== 'map' && r.type !== 'spec' })
+    check(containers.length === 2, '⑤ 两个容器行：地图与规格各一行（' + containers.length + '）')
+    check(tickets.length === 6, '⑤ 三处目录共 6 张票（2+3+1，' + tickets.length + '）')
+    // 旧版工作区根 issues/ 没有目录名，effortId 是空串：它保留编号身份、仍算一张票。
+    const identities = tickets.map(function (r) { return String(r.effortId) + '/' + String(r.key) }).sort()
+    check(identities.join(',') === '/01,map-unit/01,map-unit/02,spec-unit/01,spec-unit/02,spec-unit/03', '⑤ 票按各自工作单元标注，旧根目录票的 effortId 为空（' + JSON.stringify(identities) + '）')
+
+    const counts = await be.counts(REPO as never, {} as never, ctx as never)
+    check(counts.ok === true && counts.data.total === 6, '⑤ 计数只数票、不把 map/spec 容器算进去（' + (counts.ok ? counts.data.total : '失败') + '）')
+    check(counts.ok === true && counts.data.open === 4 && counts.data.closed === 2, '⑤ 计数按状态分开：4 张未关闭 + 2 张已关闭（' + (counts.ok ? JSON.stringify(counts.data) : '失败') + '）')
+    const scopedCounts = await be.counts(REPO as never, { effortId: 'spec-unit' } as never, ctx as never)
+    check(scopedCounts.ok === true && scopedCounts.data.total === 3, '⑤ 计数能按工作单元收窄（规格单元 3 张，' + (scopedCounts.ok ? scopedCounts.data.total : '失败') + '）')
+
+    const page1 = await be.listPage(REPO as never, {} as never, { limit: 2 } as never, ctx as never)
+    check(page1.ok === true, '⑤ 混合布局下分页成功')
+    check(page1.ok === true && page1.data.total === 6, '⑤ 分页的 total 是票数、不含容器（' + (page1.ok ? page1.data.total : '失败') + '）')
+    const page1Items = page1.ok ? (page1.data.items as Array<Record<string, unknown>>) : []
+    check(page1Items.length === 2, '⑤ 第一页按 limit 取 2 张票（' + page1Items.length + '）')
+    check(page1Items.every(function (r) { return r.type !== 'map' && r.type !== 'spec' }), '⑤ 分页的 items 里没有 map/spec 容器行')
+    check(page1.ok === true && page1.data.nextCursor === '2', '⑤ 第一页给出下一页游标（' + (page1.ok ? String(page1.data.nextCursor) : '失败') + '）')
+
+    const page2 = await be.listPage(REPO as never, {} as never, { limit: 2, cursor: '2' } as never, ctx as never)
+    const page2Items = page2.ok ? (page2.data.items as Array<Record<string, unknown>>) : []
+    check(page2.ok === true && page2Items.length === 2 && page2.data.nextCursor === '4', '⑤ 第二页接着取 2 张、游标前进到 4（' + (page2.ok ? String(page2.data.nextCursor) : '失败') + '）')
+    const page3 = await be.listPage(REPO as never, {} as never, { limit: 2, cursor: '4' } as never, ctx as never)
+    const page3Items = page3.ok ? (page3.data.items as Array<Record<string, unknown>>) : []
+    check(page3.ok === true && page3Items.length === 2 && page3.data.nextCursor === null, '⑤ 最后一页取完 2 张、游标收尾为 null（' + (page3.ok ? String(page3.data.nextCursor) : '失败') + '）')
+    const seen = page1Items.concat(page2Items, page3Items).map(function (r) { return String(r.effortId) + '/' + String(r.key) })
+    check(new Set(seen).size === 6, '⑤ 三页合起来把 6 张票各取到一次、没有漏取或重复（' + JSON.stringify(seen) + '）')
+
+    // 窄到一个工作单元时，分页也只在该单元内翻。
+    const scopedPage = await be.listPage(REPO as never, { effortId: 'spec-unit' } as never, { limit: 10 } as never, ctx as never)
+    check(scopedPage.ok === true && scopedPage.data.total === 3 && (scopedPage.data.items as unknown[]).length === 3, '⑤ 分页能按工作单元收窄（规格单元 3 张全取到）')
+  }
+
   fs.rmSync(tmpRoot, { recursive: true, force: true })
   console.log(failed ? '\nFAILED' : '\nALL PASS')
   process.exitCode = failed ? 1 : 0
