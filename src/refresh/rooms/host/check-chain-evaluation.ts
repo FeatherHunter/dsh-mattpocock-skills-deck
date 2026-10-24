@@ -184,6 +184,15 @@ export function createDetectChain(deps: DetectChainDeps) {
       //   否则别的会话的判定会被写进共享缓存、越传越远。
       failed = true
       try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch', errorHash: hash8('patch:' + String((ePatch && (ePatch as any).message) || ePatch)) }) } catch (eLog) {}
+      // #1492 复核：整趟补算做不下去时，不能把别的会话的判定原样交出去。用量不出来也拼得出来的那份替代：
+      //   会话相关行落 pending（「未确认」），其余行照旧。这一步只读缓存里已有的链，不需要平台，所以
+      //   刚才取平台失败也不影响；失败标记照旧打（客户端不写共享缓存，下次挂载会再问一次）。
+      try {
+        const unknownMod = await import('./chain-session-patch.js')
+        const unknownOne = await unknownMod.markSessionScopedUnconfirmed(out, { platform: null, cwd: chainCwd, lang: chainLang, sessionId: chainArgs && chainArgs.sessionId })
+        out = unknownOne.reply
+        patched = unknownOne.patchedCount
+      } catch (eUnknown) {}
     }
     return { reply: out, patched: patched, failed: failed }
   }
@@ -229,7 +238,9 @@ export function createDetectChain(deps: DetectChainDeps) {
         //   所以与缓存条目共用 nested 对象是安全的（真正会拼新 nested 对象的是 patchCachedReplyForSession）。
         // 字段名与客户端那一侧的读法是同一份口头契约（客户端是拼接片段，不能 import 共享常量）：
         //   两边各由一扇门禁钉住——宿主 tests/verify-1483-chain-session-cache.ts 的 H，客户端 test 的 L。
-        reply = fixed.failed ? Object.assign({}, reply, { sessionPatchFailed: true }) : fixed.reply
+        // #1492 复核：失败分支也要用 fixed.reply——它可能已经过「会话相关行落未确认」的退路；
+        //   写成 Object.assign({}, reply, ...) 会把那份退路丢掉，等于没做。
+        reply = fixed.failed ? Object.assign({}, fixed.reply, { sessionPatchFailed: true }) : fixed.reply
       }
       const hit: any = out.hit
       // chain.cache.hit 挪到补算之后落：字段里的 patched 才是这一趟实际按本会话重算了几项。
