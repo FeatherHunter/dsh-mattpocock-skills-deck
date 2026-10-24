@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T04:41:55.035Z",
+  "generatedAt": "2026-10-24T05:49:37.366Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 349,
-  "gateCount": 349,
-  "attributedGates": 310,
+  "chainLength": 352,
+  "gateCount": 352,
+  "attributedGates": 313,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 13,
+  "completionRecordedGates": 14,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 570,
@@ -2487,6 +2487,7 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
+        "src/deck/tools/tracker-session.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/tool-call-budget.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
@@ -2508,7 +2509,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 17 条"
+      "reason": "归属来自：源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-1443-github-readbudget.ts",
@@ -2543,7 +2544,9 @@
         "src/refresh",
         "src/refresh/registry/quota-sync-bridge.ts",
         "src/refresh/rooms/host/git-execution.ts",
-        "src/refresh/rooms/host/refresh-runtime.ts"
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/session-opener.ts",
+        "src/tracker/rooms/github/repo.ts"
       ],
       "dirs": [
         "src",
@@ -2553,13 +2556,14 @@
         "src/host",
         "src/refresh",
         "src/refresh/registry",
-        "src/refresh/rooms/host"
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1444-chain.ts",
@@ -2682,6 +2686,7 @@
         "src/host/snapshotEnvelope.ts",
         "src/host/tracker/snapshot.ts",
         "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/budget-state.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -2693,6 +2698,7 @@
         "src/host",
         "src/host/tracker",
         "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "tests/lib"
       ],
@@ -2700,7 +2706,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1446-receipts.ts",
@@ -2780,6 +2786,63 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 11 条"
+    },
+    {
+      "step": "node tests/verify-1453-repo-locate-via-session.ts",
+      "file": "tests/verify-1453-repo-locate-via-session.ts",
+      "guards": [
+        "src/refresh/rooms/host/session-opener.ts",
+        "src/tracker/rooms/github/repo.ts",
+        "src/tracker/session/open-tracker.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github",
+        "src/tracker/session"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 3 条"
+    },
+    {
+      "step": "node tests/verify-1454-ledger-single-entry.ts",
+      "file": "tests/verify-1454-ledger-single-entry.ts",
+      "guards": [
+        "src",
+        "src/refresh/kernel/backend-accounting.ts",
+        "src/refresh/registry/deck-tool-bridge.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/session-opener.ts"
+      ],
+      "dirs": [
+        "src",
+        "src/refresh/kernel",
+        "src/refresh/registry",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1456-handoff-claim-write.ts",
+      "file": "tests/verify-1456-handoff-claim-write.ts",
+      "guards": [
+        "src/host/handoffClaim.ts"
+      ],
+      "dirs": [
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 27,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -7075,10 +7138,14 @@
       "guards": [
         "docs/adr/20260913-builtin-ts-shape.md",
         "docs/adr/20260924-refresh-budget-architecture.md",
+        "docs/adr/20261023-tracker-single-entry.md",
         "scripts/lib/effective-lines.mts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/refresh-chain.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
         "src/tracker/contract/budget-model.ts",
+        "src/tracker/contract/operations-catalog.ts",
+        "src/tracker/session/open-tracker.ts",
         "tests/file-granularity-baseline.json",
         "tests/verify-attention-model.ts",
         "tests/verify-event-budget.ts",
@@ -7090,14 +7157,16 @@
         "docs/adr",
         "scripts/lib",
         "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/contract",
+        "src/tracker/session",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-refresh-workspace-key.ts",
@@ -7727,6 +7796,8 @@
       "step": "node tests/verify-tracker-session.ts",
       "file": "tests/verify-tracker-session.ts",
       "guards": [
+        "src/refresh/kernel/backend-accounting.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
         "src/tracker/contract/backend-module.ts",
         "src/tracker/contract/contexts.ts",
         "src/tracker/contract/operations-catalog.ts",
@@ -7742,6 +7813,8 @@
         "src/tracker/session/open-tracker.ts"
       ],
       "dirs": [
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker/contract",
         "src/tracker/registry",
         "src/tracker/rooms/github",
@@ -7753,7 +7826,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 10 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 12 条"
     },
     {
       "step": "node tests/verify-typecheck.mts",
@@ -8570,6 +8643,7 @@
       "node tests/verify-gate-map.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-file-granularity.ts",
@@ -8964,6 +9038,7 @@
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1444-snapshot.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1456-handoff-claim-write.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -9099,6 +9174,7 @@
       "node tests/verify-1446-receipts.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -9125,6 +9201,7 @@
       "node tests/verify-index-window.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
+      "node tests/verify-tracker-session.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts"
     ],
@@ -9135,6 +9212,7 @@
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-927-gate-injection.ts"
     ],
     "src/refresh/rooms": [],
@@ -9194,9 +9272,12 @@
       "node tests/verify-1444-list-detail-thin.ts",
       "node tests/verify-1444-snapshot.ts",
       "node tests/verify-1446-backend-ledger.ts",
+      "node tests/verify-1446-panel.ts",
       "node tests/verify-1446-receipts.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1453-repo-locate-via-session.ts",
+      "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -9241,11 +9322,13 @@
       "node tests/verify-naming-title-fact.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-prompts.ts",
+      "node tests/verify-refresh-adr.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.ts",
       "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-t1-getrepokey.ts",
+      "node tests/verify-tracker-session.ts",
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/seam": [
@@ -9499,7 +9582,9 @@
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1304-deps-native.ts",
       "node tests/verify-1443-github-readbudget.ts",
+      "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1444-comments.ts",
+      "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -9595,6 +9680,8 @@
       "node tests/verify-1443-github-readbudget.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1453-repo-locate-via-session.ts",
+      "node tests/verify-refresh-adr.ts",
       "node tests/verify-tracker-session.ts"
     ],
     "tests": [
