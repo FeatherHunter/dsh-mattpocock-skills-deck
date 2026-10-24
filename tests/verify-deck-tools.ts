@@ -61,8 +61,8 @@ function makeWorkspace() {
     rootPosix: rootPosix,
     issuesDir: path.join(dir, 'issues'),
     ctx: { platform: plat, fs: plat.fs, cwd: rootPosix, get(name) { return name === 'fs' ? plat.fs : undefined } },
-    ticketFiles() { try { return fs.readdirSync(path.join(dir, 'issues')).filter((f) => f.endsWith('.md')) } catch (e) { return [] } },
-    readTicket(name) { return fs.readFileSync(path.join(dir, 'issues', name), 'utf8') },
+    ticketFiles(effortId) { try { return fs.readdirSync(effortId ? path.join(root, '.scratch', effortId, 'issues') : path.join(dir, 'issues')).filter((f) => f.endsWith('.md')) } catch (e) { return [] } },
+    readTicket(name, effortId) { return fs.readFileSync(effortId ? path.join(root, '.scratch', effortId, 'issues', name) : path.join(dir, 'issues', name), 'utf8') },
     readSpec() { try { return fs.readFileSync(path.join(dir, 'spec.md'), 'utf8') } catch (e) { return '' } },
     cleanup() { try { fs.rmSync(root, { recursive: true, force: true }) } catch (e) {} },
   }
@@ -255,8 +255,11 @@ async function main() {
 
   // ── ⑤ deck_map_plan_create：一整张地图的骨架（含分片与中间态） ──
   {
+    // 原文布局下一个目录只能有一份 map.md（issue-tracker-local.md:25-28）：这个工作区开头已经手写了一份
+    // .scratch/demo/map.md 给快照段用，所以建图夹具单独点名一个 effort 目录，测试意图仍是「建图 → 快照 →
+    // 读回」，不是「同目录重复地图会被怎么处理」这一档。
     const planArgs = {
-      planId: 'plan-713-a', title: '演示地图甲',
+      planId: 'plan-713-a', title: '演示地图甲', effort: 'plan-demo',
       // #1403 T3 起计划子票的 kind 必填，且地图工单要带 label；这里按目标口径写，
       // 当前分支的工具只把子票当普通工单建，字段先被忽略，合并 T3 后由 T3 的校验接手。
       children: [
@@ -266,7 +269,14 @@ async function main() {
       ],
       edges: [{ from: 'a2', to: 'a1', type: 'blocked-by' }],
     }
-    const filesBefore = ws.ticketFiles().length
+    // 原文布局里子票编号接着同一个目录 issues/ 里已有的编号往下排。先放两张占位票把编号推到 03 起，
+    // 与这个夹具原本「子票 3/4/5」的票号一致：这样计划建的票与 demo 工作区的票号不重合，
+    // 后面「在办表里 6 张票、6 个票号」的断言仍按原意成立（占位票不走工具，不记在办表）。
+    const planIssues = path.join(ws.root, '.scratch', 'plan-demo', 'issues')
+    fs.mkdirSync(planIssues, { recursive: true })
+    fs.writeFileSync(path.join(planIssues, '01-placeholder-a.md'), '# 01: placeholder-a\n', 'utf8')
+    fs.writeFileSync(path.join(planIssues, '02-placeholder-b.md'), '# 02: placeholder-b\n', 'utf8')
+    const filesBefore = ws.ticketFiles('plan-demo').length
     const r = await callTool('deck_map_plan_create', planArgs)
     planMapKey713 = String((r.data && r.data.mapKey) || '')
     check(envelopeOk(r), 'deck_map_plan_create 正例：回三态之一（实得 ' + (r && r.status) + '）')
@@ -281,10 +291,13 @@ async function main() {
     // 续跑：同一个 planId 再来一次 → 一张票都不重复建
     const again = await callTool('deck_map_plan_create', planArgs)
     check(again.data && again.data.skippedKeys.length === 3 && again.data.builtKeys.length === 3, 'deck_map_plan_create 续跑：同一个 planId 再来一次只跳过、不重复建（skipped=' + JSON.stringify((again.data || {}).skippedKeys) + '）')
-    check(ws.ticketFiles().length === filesBefore + 4, '盘上的票文件数对得上（地图 1 + 子票 3 = 4 张新票，实得新增 ' + (ws.ticketFiles().length - filesBefore) + '）')
+    // 原文布局里地图是 <effort>/map.md（不进 issues/），所以 issues 下新增的只有 3 张子票；地图本身另查在不在。
+    check(ws.ticketFiles('plan-demo').length === filesBefore + 3
+      && fs.existsSync(path.join(ws.root, '.scratch', 'plan-demo', 'map.md')),
+      '盘上的票文件数对得上（地图落在 plan-demo/map.md、不进 issues；子票 3 张 = issues 下新增 3 个文件，实得新增 ' + (ws.ticketFiles('plan-demo').length - filesBefore) + '）')
 
     // #1421：edges 里出现不认识的 type 时整批拒写，且一条边、一张票都不落（零副作用）。
-    const badBefore = ws.ticketFiles().length
+    const badBefore = ws.ticketFiles('plan-demo').length
     const badType = await callTool('deck_map_plan_create', {
       planId: 'plan-713-badtype', title: 'type 写错的地图',
       children: [{ key: 'c1', title: '子票一', kind: 'map-ticket', label: 'wayfinder:task' }],
@@ -294,11 +307,11 @@ async function main() {
       '✗ 负向：edges 的 type 写成不认识的值 → ok:false / unsupported / bad-args（实得 ' + (badType && badType.status) + ' / ' + (badType && badType.reason) + '）')
     check(String((badType && badType.text) || '').indexOf('只认 blocked-by 与 parent') > 0,
       '✗ 负向：拒写文案说清 type 只认那两个值：' + String((badType && badType.text) || ''))
-    check(ws.ticketFiles().length === badBefore,
-      '✗ 负向：整批拒写之后盘上没多任何票（零副作用，实得新增 ' + (ws.ticketFiles().length - badBefore) + '）')
+    check(ws.ticketFiles('plan-demo').length === badBefore,
+      '✗ 负向：整批拒写之后盘上没多任何票（零副作用，实得新增 ' + (ws.ticketFiles('plan-demo').length - badBefore) + '）')
     // #1421 审查补：一条合法边与一条不认识的 type 混在同一批里时，整批都不写 ——
     // 不是「跳过坏的那条、把好的那条写下去」。
-    const mixBefore = ws.ticketFiles().length
+    const mixBefore = ws.ticketFiles('plan-demo').length
     const mixed = await callTool('deck_map_plan_create', {
       planId: 'plan-713-mixedtype', title: '合法边与写错的 type 混在一批',
       children: [
@@ -309,17 +322,20 @@ async function main() {
     })
     check(mixed && mixed.ok === false && mixed.status === 'unsupported' && mixed.reason === 'bad-args',
       '✗ 负向：合法边与非法 type 混在一批 → 整批拒绝（实得 ' + (mixed && mixed.status) + ' / ' + (mixed && mixed.reason) + '）')
-    check(ws.ticketFiles().length === mixBefore,
-      '✗ 负向：混批被拒之后一张票也没建（零副作用，实得新增 ' + (ws.ticketFiles().length - mixBefore) + '）')
+    check(ws.ticketFiles('plan-demo').length === mixBefore,
+      '✗ 负向：混批被拒之后一张票也没建（零副作用，实得新增 ' + (ws.ticketFiles('plan-demo').length - mixBefore) + '）')
   }
 
   // ── ⑥ deck_map_link：补边（正例 = 阻塞边；正例 = 同目录父子；负向 = 不存在的父） ──
   {
     // #971 起计划的子票挂在计划地图下，不再挂在 00 下：按计划地图取子票，00 只剩最初那一张演示票。
-    const kids = (await callTool('deck_map_snapshot', { key: planMapKey713 })).data.children
-    const c1 = String(kids.find((k) => k.title === '子票一').key)
-    const c3 = String(kids.find((k) => k.title === '子票三').key)
-    const ok = await callTool('deck_map_link', { key: c3, blockedBy: [c1] })
+    // 计划落在 plan-demo 那个 effort 目录里，读回与补边都要点名同一个目录。
+    const kids = (await callTool('deck_map_snapshot', { key: planMapKey713, effort: 'plan-demo' })).data.children
+    // 原文布局的子票标题带编号（"01: 子票一"，heading 逐字是 "# <NN>: <问题>"），按后缀认标题。
+    const pickKid = (t) => kids.find((k) => k.title === t || String(k.title).endsWith(': ' + t))
+    const c1 = String(pickKid('子票一').key)
+    const c3 = String(pickKid('子票三').key)
+    const ok = await callTool('deck_map_link', { key: c3, blockedBy: [c1], effort: 'plan-demo' })
     check(envelopeOk(ok) && ok.status === 'ok', 'deck_map_link 正例：补一条阻塞边（实得 ' + (ok && ok.status) + '）')
     const edge = (ok.items || [])[0]
     check(edge && edge.landing && edge.evidence, 'deck_map_link 标出这条边落在哪一列：' + JSON.stringify(edge))
@@ -327,18 +343,22 @@ async function main() {
       && edge.evidence.indexOf('票 #' + c3 + ' 的 blockedBy 里有 #' + c1) > 0
       && edge.evidence.indexOf('被 #' + c1 + ' 阻塞') > 0,
       'deck_map_link 回执点名方向（票 #' + c3 + ' 被 #' + c1 + ' 阻塞）：' + String(edge && edge.evidence))
-    const text = ws.readTicket(ws.ticketFiles().find((f) => f.indexOf('/') < 0 && f !== '00-untitled.md') || '')
+    const planFiles = ws.ticketFiles('plan-demo')
+    const text = planFiles.length ? ws.readTicket(planFiles[0], 'plan-demo') : ''
     check(typeof text === 'string', '补边之后票文件还在（不会被写坏）')
     // #971 起同目录改父能做成（文件顶注释即归属）：同值补一次边直接成功，返回落点与证据。
-    const same = await callTool('deck_map_link', { key: c3, parentKey: planMapKey713 })
+    const same = await callTool('deck_map_link', { key: c3, parentKey: planMapKey713, effort: 'plan-demo' })
     check(envelopeOk(same) && same.status === 'ok', 'deck_map_link 正例：同目录同值补父边直接成功（实得 ' + (same && same.status) + '）')
     check((same.items || []).some((i) => i.landing && i.evidence), '同值父边逐项写了落点与证据：' + JSON.stringify((same.items || [])[0]))
     check((same.items || []).some((i) => typeof i.evidence === 'string' && i.evidence.indexOf('票 #' + c3 + ' 的父票是 #' + planMapKey713) > 0),
       '同值父边回执点名方向（谁的父票是谁）：' + JSON.stringify((same.items || [])[0]))
     // 负向：父票根本不存在 → 这一步失败，工具必须回 unsupported 而不是抛
-    const partial = await callTool('deck_map_link', { key: c3, parentKey: '99' })
+    const partial = await callTool('deck_map_link', { key: c3, parentKey: '99', effort: 'plan-demo' })
     check(envelopeOk(partial) && partial.ok === false && partial.status === 'unsupported', '✗ 负向：父票不存在 → ok:false / unsupported（实得 ' + (partial && partial.status) + '）')
     check((partial.items || []).some((i) => i.landing && i.landing.indexOf('做不到') >= 0) || (partial.items || []).some((i) => String(i.reason || i.evidence || '').indexOf('not-found') >= 0), '做不到的那一条逐项写在 items 里：' + JSON.stringify((partial.items || [])[0]))
+    // 计划夹具到此用完（后面几段验的是 demo 工作区的改票/认领/上报）：把它建的票清掉，
+    // 免得计划目录里的 01/02/03 与 demo 目录的同号票撞车，让后面按裸票号读写的调用变歧义。
+    fs.rmSync(path.join(ws.root, '.scratch', 'plan-demo'), { recursive: true, force: true })
   }
 
   // ── ⑦ deck_issue_patch：改一张票（评论 + 标签 + 关闭 + 认领） ──

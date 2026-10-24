@@ -96,7 +96,9 @@ export async function readbackMapPlan(args: MapPlanReadbackArgs): Promise<MapPla
   // #1487 起本地后端写的是随包原文布局，文件头注释换成 DSH-FORMAT / DSH-PARENT / DSH-CREATED
   // 三条隐藏注释；只认老写法（parentKey / created 裸名字）会让原文布局的子票永远跳过 Type 行核对，
   // 回执里那句「核对通过」就成了没核过的假话。老写法保留：旧布局的票仍要能读回核对。
-  const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:parentKey|created|DSH-FORMAT|DSH-PARENT|DSH-CREATED|DSH-IDEMPOTENCY-KEY)\s*:/m.test(text)
+  // 注意不能把 DSH-IDEMPOTENCY-KEY 算进判据：远端后端也把这个幂等锚注释写进正文，算进来会把远端票
+  // 误判成「整份原文文件」，去核它根本没有的 Type 行，回执就变成误报失败（#1487 提交时踩过这一脚）。
+  const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:parentKey|created|DSH-FORMAT|DSH-PARENT|DSH-CREATED)\s*:/m.test(text)
   let checkedTypeLine = false
   for (const ch of children) {
     const planKey = String(ch.key)

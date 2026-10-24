@@ -291,14 +291,17 @@ async function main() {
     const evCreate = laneEvidence(lane)
     // ② 建整张地图骨架
     // #1403 T3 起计划子票的 kind 必填，地图工单还要带 label；按目标口径写，等 T3 合入后由它校验。
-    const plan = await run('deck_map_plan_create', {
+    // 原文布局下一个目录只能有一份 map.md（issue-tracker-local.md:25-28）：markdown 车道的 .scratch/demo
+    // 开头已经手写了一份 map.md 给快照段用，所以计划单独点名一个 effort 目录；远端车道忽略这个参数。
+    const planScope = lane.id === 'markdown' ? { effort: 'plan-lane' } : {}
+    const plan = await run('deck_map_plan_create', Object.assign({
       planId: 'mx-' + lane.id, title: '矩阵地图 ' + lane.id,
       children: [
         { key: 'c1', title: '子票一', kind: 'map-ticket', label: 'wayfinder:task' },
         { key: 'c2', title: '子票二', kind: 'map-ticket', label: 'wayfinder:task' },
       ],
       edges: [{ from: 'c2', to: 'c1', type: 'blocked-by' }],
-    })
+    }, planScope))
     rows.plan = plan
     const evPlan = laneEvidence(lane)
     const mapKey = String((plan.data && plan.data.mapKey) || '00')
@@ -308,14 +311,14 @@ async function main() {
     const child1 = String(keys[0] || '')
     const child2 = String(keys[1] || '')
     // ③ 补边（父子 + 阻塞，一次调用两种边）
-    rows.link = await run('deck_map_link', { key: child2, parentKey: mapKey, blockedBy: [child1] })
+    rows.link = await run('deck_map_link', Object.assign({ key: child2, parentKey: mapKey, blockedBy: [child1] }, planScope))
     const evLink = laneEvidence(lane)
     // ④ 改票
-    rows.patch = await run('deck_issue_patch', { key: child1, comment: '矩阵改票：一条评论', addLabels: ['wayfinder:research'], close: true })
+    rows.patch = await run('deck_issue_patch', Object.assign({ key: child1, comment: '矩阵改票：一条评论', addLabels: ['wayfinder:research'], close: true }, planScope))
     const evPatch = laneEvidence(lane)
     // ⑤ 读回
-    rows.read = await run('deck_issue_get', { key: child2 })
-    rows.snapshot = await run('deck_map_snapshot', { key: mapKey })
+    rows.read = await run('deck_issue_get', Object.assign({ key: child2 }, planScope))
+    rows.snapshot = await run('deck_map_snapshot', Object.assign({ key: mapKey }, planScope))
 
     // 失败时把「为什么」一并带出来（#726 收口时的教训：门禁红得让人能一眼看出是哪一步、哪一句），
     // 否则只剩一个 unsupported，谁也猜不出是闸推迟、后端抛错还是没选中后端。
@@ -431,7 +434,9 @@ async function main() {
       }
       try {
         // A：建探索地图（父子边 + 阻塞边）
-        const plan = await run('deck_map_plan_create', {
+        // 与上面表格里的计划再分开一个 effort 目录：同一个目录只能有一份 map.md，两张地图不能挤在一起。
+        const planScope = lane.id === 'markdown' ? { effort: 'plan-lane-dual' } : {}
+        const plan = await run('deck_map_plan_create', Object.assign({
           planId: 'dual-' + lane.id,
           title: '双轨链路地图 ' + lane.id,
           children: [
@@ -439,8 +444,9 @@ async function main() {
             { key: 'r2', title: '调研二', kind: 'map-ticket', label: 'wayfinder:research' },
           ],
           edges: [{ from: 'r2', to: 'r1', type: 'blocked-by' }],
-        })
+        }, planScope))
         const mapKey = String((plan && plan.data && plan.data.mapKey) || '')
+
         const planChildren = ((plan && plan.items) || []).filter((i) => i.role === 'child' && i.status === 'ok')
         const aBlock = edgeOf(plan, 'block')
         check(plan && plan.ok === true && mapKey !== '' && planChildren.length === 2,
@@ -449,7 +455,7 @@ async function main() {
         // 所以它的证据不在 items 的 edge 行里，而在每张子票写后读回的 parentKey 上。
         const aChildKeys = planChildren.map((i) => String(i.key))
         const aChildGets = []
-        for (const aChildKey of aChildKeys) aChildGets.push(await run('deck_issue_get', { key: aChildKey }))
+        for (const aChildKey of aChildKeys) aChildGets.push(await run('deck_issue_get', Object.assign({ key: aChildKey }, planScope)))
         const aParentOk = aChildKeys.length === 2 && aChildGets.length === 2 && aChildGets.every((g) => !!g && g.ok === true && relOf(g) === mapKey)
         check(aParentOk,
           '[' + lane.id + '] 双轨 A 父子边留落点与证据（写后读回契约父子列）：' + aChildKeys.map((k, idx) => '票 ' + k + ' 父=' + (aChildGets[idx] ? relOf(aChildGets[idx]) : '（没读回）')).join('；'))
