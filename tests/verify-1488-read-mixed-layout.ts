@@ -22,7 +22,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { createMarkdownBackend } from '../src/tracker/rooms/markdown/index.ts'
+import { createMarkdownBackend, matches } from '../src/tracker/rooms/markdown/index.ts'
 
 type LogLine = { level: string; event: string; fields: Record<string, unknown> }
 type Ctx = {
@@ -93,11 +93,19 @@ async function main() {
   console.log('== ① 只含 spec.md 的目录要被认出来：预检通过、规格与实施票都列出来 ==')
   {
     const root = fs.mkdtempSync(path.join(tmpRoot, 'spec-only-'))
+    // 真实工作区在 setup 时就会写下这份声明（原文的 docs/agents/issue-tracker.md）。识别这一趟
+    // 不许扫 .scratch（#1129：成本不随条目数增长），所以「只含 spec.md 的工作区」靠声明认领；
+    // 认领之后由预检与列表负责发现 .scratch 下的规格单元，这一节逐条钉住这条链。
+    fs.mkdirSync(path.join(root, 'docs', 'agents'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'docs', 'agents', 'issue-tracker.md'), '# Issue tracker: Local Markdown\n\nIssues and specs for this repo live as markdown files in `.scratch/`.\n', 'utf8')
     writeSpec(path.join(root, '.scratch', 'buy-coffee'), '买咖啡积分')
     writeTicket(path.join(root, '.scratch', 'buy-coffee', 'issues'), '01-add-cart.md', '加购物车到积分')
     writeTicket(path.join(root, '.scratch', 'buy-coffee', 'issues'), '02-checkout.md', '结账时抵扣积分')
     const ctx = makeCtx(root)
     const be = createMarkdownBackend(ctx as never)
+
+    const claimed = await matches({ cwd: root, refId: '' } as never, ctx as never)
+    check(claimed === true, '① 声明了 Local Markdown 的工作区能被认领（识别这一趟不扫 .scratch，见 #1129）')
 
     const pre = await be.preflight({ cwd: root, refId: '' } as never, ctx as never)
     check(pre.ok === true, '① 只含 spec.md 的工作单元：预检通过（现状只认 map.md，会判 not-found）')

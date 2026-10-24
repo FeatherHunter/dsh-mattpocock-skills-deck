@@ -120,21 +120,6 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
     // 反例：不要把「扫 `.scratch` 找 map.md」加回来，包括「只看子目录」「只看唯一那个子目录」这类变体——
     // 它们同样是猜。要认下一个工作区，就让它把话说明白：`.scratch/map.md` 在，或者声明文件指向 markdown。
     for(const p of candidatePaths){if(await exists(ctx,p))return true}
-    // #1488：只含 spec.md 或 issues/ 的工作单元目录（规格原文的落盘形态）也要认出来。
-    // 这里与 #1129「不扫 .scratch 找 map.md」不冲突：不猜的是 map.md 的位置（wayfinder 地图可能出现在
-    // 无关工作区的调试目录里）；spec.md 与 issues/ 是规格原文写死的两个名字，一个 .scratch/<目录>/spec.md
-    // 或 <目录>/issues/ 只可能来自这套布局。仍然不看子目录里的 map.md，原判决对 map.md 继续有效。
-    try{
-      const listed=await listDir(ctx,root)
-      if(listed.ok){
-        for(const name of listed.names){
-          if(!name||String(name).startsWith('.'))continue
-          const dir=plat.join(root,String(name))
-          if(await exists(ctx,plat.join(dir,'spec.md')))return true
-          if(await exists(ctx,plat.join(dir,'issues')))return true
-        }
-      }
-    }catch{}
     // bug 修复：setup 已选 Local Markdown 但尚未落 map.md 时，仍应算 Markdown 身份（底层 Markdown 格式以 docs/agents/issue-tracker.md 声明为准，非仅 map.md 数据）
     try{
       const itPath=plat.join(cwd,'docs/agents/issue-tracker.md')
