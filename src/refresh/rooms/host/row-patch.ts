@@ -101,7 +101,14 @@ export function createPatch(deps?: PatchDeps | null): any {
 
   function fire(mode: string, reason: string, extra?: any): void {
     // 按需级：外层先判调试开关，关着连字段对象都不组装（仓库日志纪律第 2 条，判断与发射同一行）。
-    try { if (!logCtx || !logCtx.isEnabled('debug')) return; const e: any = extra || {}; logCtx.fire('debug', 'refresh.patch', { keyHash: e.keyHash || '', mode: mode, reason: reason, changed: e.changed || 0, queries: e.queries || 0, watermark: e.watermark || 'held', pending: e.pending || 0 }) } catch (eL: any) { /* 日志不许把主流程带崩 */ }
+    try {
+      if (!logCtx || !logCtx.isEnabled('debug')) return
+      const e: any = extra || {}
+      const fields: any = { keyHash: e.keyHash || '', mode: mode, reason: reason, changed: e.changed || 0, queries: e.queries || 0, watermark: e.watermark || 'held', pending: e.pending || 0 }
+      // err 只跟在失败行后面：写清上游给的原话（截断 120 字符），成功行一个字节都不多记。
+      if (e.err) fields.err = String(e.err).slice(0, 120)
+      logCtx.fire('debug', 'refresh.patch', fields)
+    } catch (eL: any) { /* 日志不许把主流程带崩 */ }
   }
 
   /** 快照里那份增量状态的形状。老快照没有这个字段 —— 那正是「旧结构」的判据。 */
@@ -303,8 +310,158 @@ export function createPatch(deps?: PatchDeps | null): any {
     }
   }
 
+  /**
+   * 补行件与「补最近变过的那几条」共用的前四步：有没有可比对的列表、结构对不对、仓库坐标拿不拿得到。
+   * 回 { snap, st, repo } 表示可以往下补；回 { mode, reason } 表示这一趟到此为止（照旧整池或如实失败）。
+   * 抽出来是因为两条补行路的前半段一字不差，各写一份迟早会漂移（一条补了日志、另一条忘了）。
+   */
+  async function preflight(cwd: any, keyHash: string): Promise<any> {
+    const snap: any = await readSnap(cwd)
+    if (!snap || !Array.isArray(snap.issues)) { stats.rebuildNeeded += 1; fire('rebuild', 'no-baseline', { keyHash: keyHash }); return { mode: 'rebuild', reason: 'no-baseline' } }
+    const st: DeltaState = stateOf(snap)
+    const sv: any = delta.checkStructure(structureStamp(st))
+    if (sv.action === 'rebuild') { stats.rebuildNeeded += 1; fire('rebuild', sv.reason, { keyHash: keyHash, pending: st.pending.length }); return { mode: 'rebuild', reason: sv.reason, pending: st.pending.length } }
+    const repo: any = await Promise.resolve(d.getRepoKey(cwd))
+    if (!repo || !repo.owner || !repo.name) { stats.failed += 1; fire('failed', 'no-repo', { keyHash: keyHash }); return { mode: 'failed', reason: 'no-repo', pending: st.pending.length } }
+    return { snap: snap, st: st, repo: repo }
+  }
+
+  /**
+   * 写事件之后补那一张票（#1472）：只取这一条薄行、并进列表、交回新快照。
+   *
+   * 与 run() 的区别：不探测窗口、不算差分、不动水印 —— 写事件已经知道改的是哪一张票，
+   * 再问一遍「最近变过什么」既慢，又会把一次写落回成整份重建。补的是哪一张由调用方点名。
+   *
+   * 新建的票必须真的出现在列表里：delta.mergeRows 的约定是「位置不动、绝不新增行」，
+   * 列表里还没有的键会单独放进 missing 交回来；这里把 missing 对应的那几行按取回来的顺序追加到最后，
+   * 再补一次版本号。为什么并进列表而不是等整池：验收第 3 条就是「新建票不重启 DSH 也能看见」。
+   *
+   * 地图下面那一份（maps[].tickets）只并已有行：新行没有父信息，这里编一个父只会编错，
+   * 等下一次整池统一挂上去。派生值只处置 deck.partial（counts 是整仓口径，红线不变）。
+   *
+   * 回哪一档都能被调用方当成一句话安排下一步：
+   *   { mode:'patch', rows, snapshot, version, queries, partial }  已经并进快照并落盘（rows 是变了的键）
+   *   { mode:'rebuild', reason }      没有可比对的列表或旧结构：照旧整池
+   *   { mode:'failed'|'deferred', reason, pending, keys }  没并进去，变化进待办
+   *   { mode:'stale-dropped', reason } 这份结果已经过期（更新的结果先落地了）
+   */
+  async function patchTickets(cwd: any, keys: any): Promise<any> {
+    const list: string[] = (Array.isArray(keys) ? keys : []).map(function (k: any): string { return String(k) }).filter(Boolean)
+    const keyHash = hash8(wsKeyOf(cwd))
+    // 一张都没点名也算跑过一趟：记一行，免得现场只看到「什么都没发生」却查不出为什么。
+    if (!list.length) { fire('nothing', 'no-keys', { keyHash: keyHash }); return { mode: 'nothing', reason: 'no-keys' } }
+    const pre: any = await preflight(cwd, keyHash)
+    if (pre.mode) { const out: any = { mode: pre.mode, reason: pre.reason }; if (typeof pre.pending === 'number') out.pending = pre.pending; return out }
+    const snap: any = pre.snap
+    const st: DeltaState = pre.st
+    const repo: any = pre.repo
+    const startedGeneration = st.generation
+    // 只取这几条薄的（取数三件套在 ./thin-row-fetch.ts，依赖仍由这里注入）。
+    const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats }, cwd, repo, list)
+    if (!got.ok) {
+      const pending = await rememberPending(cwd, snap, got.keys || list, got.reason)
+      if (got.outcome === 'deferred') stats.deferred += 1; else stats.failed += 1
+      fire(got.outcome === 'deferred' ? 'deferred' : 'failed', got.reason, { keyHash: keyHash, changed: list.length, watermark: 'held', pending: pending })
+      return { mode: got.outcome === 'deferred' ? 'deferred' : 'failed', reason: got.reason, pending: pending, keys: got.keys }
+    }
+    // 世代号：这一份还算不算数。不算就整份丢掉，一个字段都不写。
+    const g: any = delta.admitResult(stateOf(await readSnap(cwd)).generation, startedGeneration)
+    if (!g.accept) { stats.staleDropped += 1; fire('patch', g.reason, { keyHash: keyHash, changed: list.length, watermark: 'held' }); return { mode: 'stale-dropped', reason: g.reason } }
+    const merged: any = delta.mergeRows(snap.issues, got.rows, String(snap.version || ''))
+    // 新建票：mergeRows 交回来的 missing 就是「列表里还没有的键」，对应那几行追加到最后（顺序按取回来的顺序）。
+    const missing: Record<string, boolean> = {}
+    ;(merged.missing || []).forEach(function (k: any): void { missing[String(k)] = true })
+    const added: any[] = []
+    got.rows.forEach(function (r: any): void { const k: any = delta.rowKey(r); if (k && missing[String(k)]) added.push(r) })
+    let issues: any[] = merged.rows
+    let version: any = merged.version
+    if (added.length) {
+      issues = (merged.rows || []).concat(added)
+      version = delta.nextVersion(version, added.map(function (r: any): string { return String(delta.rowKey(r)) + '=' + String(r.state || '') }))
+    }
+    const byKey: Record<string, any> = {}
+    got.rows.forEach(function (r: any): void { const k: any = delta.rowKey(r); if (k) byKey[k] = r })
+    const maps: any[] = (Array.isArray(snap.maps) ? snap.maps : []).map(function (m: any): any {
+      if (!m || !Array.isArray(m.tickets)) return m
+      const mr: any = delta.mergeRows(m.tickets, got.rows, version)
+      if (mr.replaced.length) version = delta.nextVersion(version, mr.replaced.map(function (k: any): string { return k + '=' + String((byKey[k] && byKey[k].state) || '') }))
+      return Object.assign({}, m, { tickets: mr.rows })
+    })
+    const derived: any = delta.derivedAfter('patch')
+    const deck: any = Object.assign({}, (snap.deck && typeof snap.deck === 'object') ? snap.deck : {})
+    if (derived.markPartial) deck.partial = true
+    const changedKeys: any[] = (merged.replaced || []).concat(added.map(function (r: any): any { return delta.rowKey(r) }))
+    const nextState: DeltaState = {
+      // 水印一个字节都不动：写事件这一条不是窗口探测，动水印会让下一次探测错过窗口。
+      watermarkMs: st.watermarkMs, generation: g.generation, pendingAt: st.pendingAt, pendingReason: st.pendingReason,
+      pending: st.pending.filter(function (k: string): boolean { return changedKeys.indexOf(k) < 0 }),
+    }
+    const next = withState(Object.assign({}, snap, {
+      issues: issues, maps: maps, version: version,
+      generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
+    }), nextState)
+    await writeSnap(cwd, next)
+    stats.patched += 1
+    fire('patch', 'write-patch', { keyHash: keyHash, changed: changedKeys.length, queries: got.queries, watermark: 'held', pending: nextState.pending.length })
+    return { mode: 'patch', reason: 'write-patch', rows: changedKeys, version: version, snapshot: next, queries: got.queries, partial: deck.partial === true, generation: g.generation, watermarkMs: nextState.watermarkMs }
+  }
+
+  /**
+   * 新建票之后补一次（#1472，验收第 2 条）：写事件里点不出票号，只能先问窗口索引，再只补变的那几条。
+   *
+   * 为什么不复用 run()：run() 见到「票号有增减」一律回 rebuild —— 新建一张票必然落进那一支，
+   * 于是写事件这一格又变成整份重建、又要等二十几秒。这里只把「新增」当作可补的几条：
+   *   · 只差新增（没有删除）→ 补新增的那几条，把它们追加到列表尾（patchTickets 已经会追加）；
+   *   · 只差改了几行 → 照常补那几行；
+   *   · 有删除、或者别的重建理由 → 如实回 rebuild，交给既有整池路径。
+   * 窗口探测这一笔也过闸（与 run 同一句 decide）：被推迟就连探测请求都不发。
+   * 水印照 run 的规矩推进：只有真的并进列表才动；什么都不用补时按 not-need 推进。
+   */
+  async function patchChanged(cwd: any): Promise<any> {
+    stats.runs += 1
+    const keyHash = hash8(wsKeyOf(cwd))
+    const pre: any = await preflight(cwd, keyHash)
+    if (pre.mode) { const out: any = { mode: pre.mode, reason: pre.reason }; if (typeof pre.pending === 'number') out.pending = pre.pending; return out }
+    const snap: any = pre.snap
+    const st: DeltaState = pre.st
+    let watermarkMs = st.watermarkMs
+    if (!watermarkMs) {
+      const seed: any = d.windowRules.seedFromSnapshot(snap, now())
+      if (!seed || !seed.watermarkMs) { stats.rebuildNeeded += 1; fire('rebuild', 'no-watermark', { keyHash: keyHash }); return { mode: 'rebuild', reason: 'no-watermark' } }
+      watermarkMs = seed.watermarkMs
+    }
+    const scanStartedMs = now()
+    if (typeof d.decide === 'function') {
+      const v: any = await Promise.resolve(d.decide({ source: 'probe.tick', kind: 'probe', workspaceKey: wsKeyOf(cwd) }))
+      if (v && v.verdict === 'defer') { stats.deferred += 1; fire('deferred', v.reason, { keyHash: keyHash, watermark: 'held', pending: st.pending.length }); return { mode: 'deferred', reason: v.reason, pending: st.pending.length } }
+    }
+    const win: any = d.windowRules.scanWindow(watermarkMs, scanStartedMs)
+    const remote: any = await Promise.resolve(d.probeIndex(cwd, win.sinceIso))
+    if (!remote || remote.ok !== true || !remote.index) { stats.failed += 1; fire('failed', 'probe-failed', { keyHash: keyHash }); return { mode: 'failed', reason: 'probe-failed', pending: st.pending.length } }
+    const plan: any = delta.planDelta(d.indexOfSnapshot(snap), remote.index, { full: win.full === true })
+    if (plan.mode === 'nothing') {
+      const wv: any = delta.watermarkAfter({ previousMs: st.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'not-need' })
+      await writeSnap(cwd, withState(snap, Object.assign({}, st, { watermarkMs: wv.watermarkMs })))
+      stats.noChange += 1
+      fire('nothing', wv.reason, { keyHash: keyHash, watermark: wv.advanced ? 'advanced' : 'held', pending: st.pending.length })
+      return { mode: 'nothing', reason: wv.reason, watermarkMs: wv.watermarkMs }
+    }
+    // 要补的条数（改的 + 新增的）超过一次补行的上限时，一条一请求不划算，交回整池。
+    if (plan.changed.length + plan.added.length > maxRows) { stats.rebuildNeeded += 1; fire('rebuild', 'too-many-rows', { keyHash: keyHash, changed: plan.changed.length + plan.added.length, pending: st.pending.length }); return { mode: 'rebuild', reason: 'too-many-rows', changed: plan.changed.length + plan.added.length } }
+    // 只差新增（没有删除）时，「整池」不是唯一出路：点名补新增的那几条即可。
+    if (plan.mode === 'rebuild' && plan.reason === 'ticket-set-changed' && plan.added.length > 0 && plan.removed.length === 0) {
+      return await patchTickets(cwd, plan.changed.concat(plan.added))
+    }
+    if (plan.mode === 'rebuild') { stats.rebuildNeeded += 1; fire('rebuild', plan.reason, { keyHash: keyHash, changed: plan.changed.length, pending: st.pending.length }); return { mode: 'rebuild', reason: plan.reason, added: plan.added.length, removed: plan.removed.length } }
+    return await patchTickets(cwd, plan.changed)
+  }
+
   return {
     run: run,
+    patchChanged: patchChanged,
+    patchTickets: patchTickets,
+    // 写事件取数那一格只借这里发日志：refresh.patch 的字段口径全仓只有 fire 这一处。
+    log: fire,
     enterWorkspace: enterWorkspace,
     admitSnapshot: admitSnapshot,
     pendingCount: pendingCount,
