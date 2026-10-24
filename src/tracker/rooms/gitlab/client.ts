@@ -6,6 +6,12 @@
  */
 
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
+import type { OpResult } from '../../contract/results.js'
+// 本域 tsconfig 有意不加载任何类型包（types 为空），node:async_hooks 的类型声明随 @types/node
+// 一起被挡在门外；运行时一定是 Node，这个模块必然存在。与 src/refresh/kernel/step-pricing.ts
+// 同一写法：只忽略导入这一行的类型错误，不影响 esbuild 的运行时转译。
+// @ts-expect-error 本域类型配置没有加载 @types/node
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 // 上下文只取平台与执行器两样且都允许缺失，是因为调用方可能拿半份上下文进来，缺了就按 127 如实回而不是抛。
 type GlabCtx = Partial<OpContext> & Partial<BackendContext>
@@ -37,6 +43,58 @@ export interface GlabClient {
   api(path: string, opts?: GlabApiOpts, runOpts?: GlabRunOpts): Promise<GlabRunResult>
 }
 
+/** 一次操作自己的计数器：真正发出去的请求条数与点数。 */
+interface GlabUsageBox { requests: number; points: number }
+
+/** AsyncLocalStorage 的最小视图（本域没有 Node 类型，按用到的两格声明，避免 any 扩散）。 */
+interface GlabUsageStore {
+  // 同步版 run：包装器要在「调用函数的那一瞬」进作用域，不能等拿到承诺再进。
+  run<T>(box: GlabUsageBox, fn: () => T): T
+  getStore(): GlabUsageBox | undefined
+}
+
+const glabUsageStore = new AsyncLocalStorage() as GlabUsageStore
+
+/**
+ * 一次 glab 真正起进程时调一次（run 里解析出可执行文件之后、exec 之前）。
+ * 请求额度按「一次 glab 调用一条请求」算，点数恒 0：GitLab 的限额不分请求与点数两桶。
+ */
+function noteGlabUsage(): void {
+  const box = glabUsageStore.getStore()
+  if (!box) return
+  box.requests += 1
+}
+
+/**
+ * 把房间操作表整体包一层：函数成员在成功信封上补 usage。
+ * 只补成功信封，理由与 GitHub 房那份相同：失败信封没有 data，用量跟着失败一起丢掉，
+ * 失败那一笔花没花由记账侧按口径定。同步成员（describe / issueAddress）原样交回。
+ */
+export function attachGlabOpUsage<T extends object>(table: T): T {
+  const out: Record<string, unknown> = {}
+  for (const key of Object.keys(table)) {
+    const value = (table as Record<string, unknown>)[key]
+    if (typeof value !== 'function') { out[key] = value; continue }
+    out[key] = function (this: unknown, ...args: unknown[]): unknown {
+      // 必须在计数器的作用域里「调用」函数，不能先调用再包：操作可能是返回承诺的普通函数，
+      // 其中真正发命令的那一段又可能在第一个 await 之前就开始跑；先调用再进作用域会漏掉它。
+      const box: GlabUsageBox = { requests: 0, points: 0 }
+      const result = glabUsageStore.run(box, function () { return (value as (...a: unknown[]) => unknown).apply(table, args) })
+      // 同步成员（describe / issueAddress）原样交回，不把同步函数改成异步。
+      if (!result || typeof (result as Promise<unknown>).then !== 'function') return result
+      return (result as Promise<unknown>).then(function (envelope) {
+        const reply = envelope as OpResult<unknown> | null
+        if (reply && reply.ok === true) {
+          // 零也照附：零是「量过了，这一笔没有出站」，与「没量」不是一回事。
+          return Object.assign({}, reply, { usage: { requests: box.requests, points: box.points } })
+        }
+        return reply
+      })
+    }
+  }
+  return out as T
+}
+
 // 构造一次调用的客户端：先拿平台与执行器，缺哪个就让这次 run 按 127 回，免得空指针抛到调用方。
 export function glabClient(opCtx: GlabCtx): GlabClient {
   const platform = opCtx && opCtx.platform
@@ -56,6 +114,8 @@ export function glabClient(opCtx: GlabCtx): GlabClient {
     const signal = opts.signal || opCtx?.signal || undefined
     const timeout = opts.timeout
     try {
+      // 真正起进程了才记一条请求：没装 glab（127）或平台缺执行器时什么都没发出去，不记假账。
+      noteGlabUsage()
       const res = await exec('glab', args, { cwd, signal, timeout })
       const bag = res as unknown as Record<string, unknown>
       // exec 约定返回 {stdout,stderr,code}

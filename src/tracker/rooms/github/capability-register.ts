@@ -22,12 +22,12 @@
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
 /**
- * GitHub 后端：24 条能力真提供，1 条明确不支持，1 条未来会开发（读预算，承接 #1439）。
+ * GitHub 后端：26 条能力里 25 条真提供，1 条按设计明确不支持（配色文件）。
  *
  * 顺序照契约名录（23 条操作在前、3 条定位口在后），读的人可以两边对着看。
  */
 export const GITHUB_CAPABILITY_REGISTER = {
-  // —— 操作 23 条：21 条真实现 ——
+  // —— 操作 23 条：22 条真实现（含读预算），1 条按设计不支持 ——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },
@@ -52,9 +52,8 @@ export const GITHUB_CAPABILITY_REGISTER = {
   // 唯一一条形态不合的：配色文件的读者在本地 Markdown 那边（颜色真源是工作区文件）；
   // GitHub 的颜色真源是仓库标签，放一份手改不算数的文件只会误导人。理由见 md 表的依据列。
   ensureLabelColorsFile: { tier: 'unsupported-by-design', stubBy: 'registry' },
-  // 规格 1439 的读预算：形态成立（读缓存剩余额度），但房间实现随会话迁移后续票落地，
-  // 今天先记未来会开发。承接规格 1439，实现之前调用方拿到的是注册表补的「不支持」桩。
-  readBudget: { tier: 'planned', ticket: '#1439' },
+  // 规格 1439 的读预算：#1443 起房间自己读 gh（budget.ts），不再是未来会开发。
+  readBudget: { tier: 'provided' },
 
   // —— 定位口 3 条：全部提供 ——
   getRepoKey: { tier: 'provided' },

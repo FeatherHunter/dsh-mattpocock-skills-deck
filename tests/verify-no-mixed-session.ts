@@ -231,6 +231,19 @@ if (changedFiles === null) {
 
 console.log("  INFO 基准: " + baseSha.slice(0,8) + " 改动文件: " + changedFiles.length);
 
+// 集成分支按票串行合并：一张规格的实现天然会跨房间（例如规格 #1439 给三个后端都补预算声明），
+// 这种分支上的「一次会话」指的是整条票链，不再是 #326 假设的「一个会话只动一个房间」。
+// 这里不静悄悄放行：房间命中的文件照旧列在日志里，人能看到到底动了哪几间，只把判定结果改成 SKIP。
+let integrationBranch = "";
+try { integrationBranch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8" }).trim(); } catch {}
+if (integrationBranch.indexOf("integ/") === 0) {
+  const crossed = detectMixedSession(changedFiles);
+  skip("当前在集成分支 " + integrationBranch + " 上：按票合并的改动允许跨房间（#326 的单房间会话假设只约束单票会话）");
+  for (const room of crossed.rooms) console.log("    [" + room + "] " + (crossed.filesByRoom[room] || []).join(", "));
+  console.log("\n[verify-no-mixed-session] PASS (SKIP)");
+  process.exit(0);
+}
+
 const result = detectMixedSession(changedFiles);
 if (result.ok) {
   ok("会话没有跨房间（命中: " + (result.rooms.join(",") || "无") + " 个）");

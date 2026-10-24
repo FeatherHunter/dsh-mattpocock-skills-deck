@@ -13,7 +13,8 @@ const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-co
 // 并逐条断言：
 //   ① 每个格子都回三态之一，从不抛异常；
 //   ② 每条边都带落点与非空证据（做不到的照后端原话写）；
-//   ③ 每次后端调用都过闸：闸记的 == 传输层真发的，绕开闸的条数为 0；
+//   ③ 每一次远端调用都有人放行：#1442 起准入搬进 Tracker 会话管线，每条命令都必须落在
+//      「经管线放行、还没记账」的操作窗口里（测试自己用旧发送口包住的锚用例单列一类），两者之外偷发为 0；
 //   ④ 带上锚：同一个锚两次只多一张票；不带锚两次仍建两张（既有行为不许被改坏）。
 //
 // 三个后端都是**真后端模块**：GitHub / GitLab 用脚本化的 gh / glab（按真实命令形状回 JSON，每条命令都是一条
@@ -124,7 +125,52 @@ async function main() {
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
   const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 起账本按后端分桶：先建出 github 这只后端，读数再按后端 id 落账。
+  // 这里只建一只 —— 读缓存口不带后端时靠「账本里只有一只后端」认出它，与本段只关心
+  // 「裁决看到真读数」这一点相符；多只后端时歧义归装配层（见 quotaPart 的 backendId 来源）。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // 只计请求的后端（GitLab）只有 requests 一格：它也要有真读数，否则裁决看到的是「还没量出来」。
+  ledger.ensureBackend('gitlab', { kind: 'requests-only' })
+  ledger.syncServer('gitlab', { requests: { limit: 2000, remaining: 2000, reset: clock + 3600000 } }, clock)
+
+  // #1442：工具不再自己过闸 —— 每次操作的准入搬进了 Tracker 会话管线（读缓存 → 裁决 → 转发 → 记账）。
+  // 这一段把装配层配的那三件（src/refresh/registry/deck-tool-bridge.ts 的 buildTrackerPorts）
+  // 原样接过来，只在外面裹一层计数：门禁不另抄一份裁决口径，也能看清「哪一次操作被放行、什么时候记的账」。
+  const bridgeMod = await imp('src/refresh/registry/deck-tool-bridge.ts')
+  // 注册表在下面才建出来（模块要一条条 register）：先留一格，注册完再按「账本 + 注册表」重建，
+  // 这样读数口才认得出每个后端的预算口径（离网后端回「已知且不需要额度」，而不是「还没量出来」）。
+  let trackerPorts = bridgeMod.buildTrackerPorts({ ledger: ledger })
+  let pipelineWindows = 0        // 已放行、还没记账的操作窗口数（管线一次操作一个）
+  let admitCalls = 0
+  let accountCalls = 0
+  let admitsWithKnownReading = 0
+  const pipelineRefusals = []
+  const admitPort = async (input) => {
+    admitCalls += 1
+    if (input && input.reading && input.reading.known === true) admitsWithKnownReading += 1
+    const decision = await trackerPorts.admit(input)
+    if (decision && decision.allowed === true) pipelineWindows += 1
+    else pipelineRefusals.push(decision)
+    return decision
+  }
+  const accountPort = async (input) => {
+    accountCalls += 1
+    pipelineWindows = Math.max(0, pipelineWindows - 1)
+    await trackerPorts.account(input)
+  }
+  // 每条远端命令归一次档：A 管线窗口里（工具自身的流量）、B 旧发送口里（本段自己用 gate.send 包住的锚用例）、
+  // C 两边都不在 —— C 就是「绕开了一切准入」的那一类，必须一条都没有。
+  let outboundInPipeline = 0
+  let outboundInOldSend = 0
+  let oldSendDepth = 0
+  const outboundOutside = []
+  const noteRemoteOutbound = (cmd, args) => {
+    if (pipelineWindows > 0) outboundInPipeline += 1
+    else if (oldSendDepth > 0) outboundInOldSend += 1
+    else outboundOutside.push(cmd + ' ' + String((args && args[0]) || ''))
+    gate.noteOutbound({ requests: 1, points: 0 })
+  }
 
   const ghSink = []
   const glSink = []
@@ -136,14 +182,14 @@ async function main() {
     cwd: '/ws/github',
     outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'gh' ? '/usr/local/bin/gh' : null), path: path.posix, env: { get: () => undefined } },
-    exec: async (cmd, args) => { if (cmd === 'gh') gate.noteOutbound({ requests: 1, points: 0 }); return gh.exec(cmd, args) },
+    exec: async (cmd, args) => { if (cmd === 'gh') noteRemoteOutbound(cmd, args); return gh.exec(cmd, args) },
     isEnabled: () => false, logEvent: () => {},
   }
   const glCtx = {
     cwd: '/ws/gitlab',
     outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'glab' ? '/usr/local/bin/glab' : null), path: path.posix, env: { get: () => undefined } },
-    exec: async (cmd, args) => { if (cmd === 'glab') gate.noteOutbound({ requests: 1, points: 0 }); return gl.run(args) },
+    exec: async (cmd, args) => { if (cmd === 'glab') noteRemoteOutbound(cmd, args); return gl.run(args) },
     isEnabled: () => false, logEvent: () => {},
   }
 
@@ -161,6 +207,7 @@ async function main() {
     // 这个车道的「用户亲手选过谁」写进夹具账本（等价于往工作区文件里写一行）。
     chooseWorkspace(lane.handle.cwd, lane.id)
   }
+  trackerPorts = bridgeMod.buildTrackerPorts({ ledger: ledger, registry: registry })
   const byCwd = new Map(lanes.map((l) => [l.handle.cwd, l]))
   const laneOf = (id) => lanes.find((l) => l.id === id)
 
@@ -171,6 +218,10 @@ async function main() {
     handleFor: (s) => (byCwd.get(s.cwd) || {}).handle,
     // 三个车道的现场（platform / fs / exec）不同：壳每次调用时现取当前车道的那一份。
     backendCtx: () => (currentLane ? currentLane.backendCtx : {}),
+    // #1442：会话管线要的三件由装配层给（外面裹了计数，见上面那段注释；不在这里另写裁决口径）。
+    getCachedReading: trackerPorts.getCachedReading,
+    admit: admitPort,
+    account: accountPort,
     now: () => clock,
     log: { fire: () => {} },
     decideBackend: makeDecideStub(registry),
@@ -263,7 +314,13 @@ async function main() {
     const repo = lane.repo
     const opCtx = lane.backendCtx
     const before = laneCount(lane)
-    const viaGate = (fn) => gate.send({ source: 'tool.call', kind: 'tool-batch', bucket: 'graphql', workspaceKey: 'ws-' + lane.id, plan: [{}] }, async () => { await fn(); return { requests: 0, points: 0 } })
+    const viaGate = (fn) => gate.send({ source: 'tool.call', kind: 'tool-batch', bucket: 'graphql', workspaceKey: 'ws-' + lane.id, plan: [{}] }, async () => {
+      // 这四次是直接调后端模块的锚用例（不经工具、也就不经会话管线），所以照旧用旧发送口包住，
+      // 让闸的账上仍然记到它们 —— 归为上面的 B 档，不算「绕开准入」。
+      oldSendDepth += 1
+      try { await fn() } finally { oldSendDepth -= 1 }
+      return { requests: 0, points: 0 }
+    })
     let a1 = null
     let a2 = null
     let b1 = null
@@ -508,13 +565,33 @@ async function main() {
     } catch (e) { check(false, '双轨链路证据写盘失败：' + String((e && e.message) || e)) }
   }
 
-  // ── ③ 每次后端调用都过闸 ──
+  // ── ③ 每一次远端调用都有人放行 ──
+  //
+  // #1442 起口径变了：工具**不再**自己过闸（旧壳里那一段 gate.send 已从工具调用路径上退休），
+  // 每次操作的准入搬进了 Tracker 会话管线（pipeline.admit → 房间 → pipeline.account）。
+  // 因此旧判据「闸记的 == 传输层真发的、绕开条数 0」对工具流量结构性不成立：闸的 accounted 只在
+  // 旧发送口里记，工具流量一律落在 escaped 里；把 escaped 口径改成覆盖管线准入，是 #1439 后续票
+  // （T4/T5/T6「账本只由操作管线一处记」「账本换轨后端+桶」）的事，不在本票范围，也不在这里硬造。
+  // 不删弱，改钉新架构下等价的那条：**每一条远端命令发出去的时候，都正处在一次经管线放行、
+  // 还没记账的操作里**；只有测试自己故意用旧发送口包住的锚用例单列一类；两类之外一条都没有。
   {
-    const esc = gate.escaped()
     const stats = gate.stats()
-    check(esc.requests === 0 && esc.points === 0, '两个远端车道发出去的命令全部过了闸（闸记 ' + stats.accounted.requests + ' 条 == 传输层真发 ' + stats.transport.requests + ' 条，绕开闸 ' + esc.requests + ' 条）')
-    check(stats.accounted.requests > 0, '远端车道上真的发出了请求（' + stats.accounted.requests + ' 条），所以上面那条不是空过')
-    check(gate.stats().byCategory['ai-tool'] > 0, '这些调用都记在「AI 工具」那一档（' + gate.stats().byCategory['ai-tool'] + ' 笔）')
+    const esc = gate.escaped()
+    check(stats.transport.requests > 0 && stats.transport.requests === outboundInPipeline + outboundInOldSend + outboundOutside.length,
+      '每条远端命令都归了档（传输层真发 ' + stats.transport.requests + ' 条 = 管线窗口里 ' + outboundInPipeline + ' + 旧发送口 ' + outboundInOldSend + ' + 两者之外 ' + outboundOutside.length + '）')
+    check(outboundOutside.length === 0,
+      '两个远端车道发出去的每一条命令，都落在某次经管线放行、还没记账的操作里（' + outboundInPipeline + ' 条），或测试自己用旧发送口包住的锚用例里（' + outboundInOldSend + ' 条）；两者之外偷发的 0 条'
+        + (outboundOutside.length ? '（偷发样例：' + outboundOutside.slice(0, 3).join(' ｜ ') + '）' : ''))
+    check(outboundInPipeline > 0, '工具自身的流量真的从会话管线走（' + outboundInPipeline + ' 条），所以上面那条不是空过')
+    check(admitCalls > 0 && accountCalls === admitCalls && pipelineRefusals.length === 0 && pipelineWindows === 0,
+      '管线给每一次操作都裁决并记账（' + admitCalls + ' 次裁决 / ' + accountCalls + ' 次记账，拒绝 ' + pipelineRefusals.length + ' 次，收尾时残留窗口 ' + pipelineWindows + ' 个）')
+    check(admitCalls === admitsWithKnownReading,
+      '裁决看到的是账本里的真读数（' + admitsWithKnownReading + '/' + admitCalls + ' 次 known:true），不是「还没量出来」那一份')
+    check(stats.accounted.requests > 0 && stats.accounted.requests === outboundInOldSend,
+      '闸账上那 ' + stats.accounted.requests + ' 条全部来自旧发送口包住的锚用例（' + outboundInOldSend + ' 条）：工具流量不再经过那个口，所以闸记的少于真发是设计，不是漏记')
+    check(esc.requests === stats.transport.requests - stats.accounted.requests && esc.requests === outboundInPipeline,
+      '逃逸读数 = 真发 − 账上（' + esc.requests + ' = ' + stats.transport.requests + ' − ' + stats.accounted.requests + '），正好等于走管线的工具流量（' + outboundInPipeline + ' 条）：逐条可对数，不是一笔糊涂账')
+    check(gate.stats().byCategory['ai-tool'] > 0, '旧发送口那几笔仍然记在「AI 工具」那一档（' + gate.stats().byCategory['ai-tool'] + ' 笔）')
   }
 
   // ── 对照表：打印 + 落文件 ──

@@ -1,26 +1,30 @@
-// src/refresh/rooms/host/issue-detail-fetch.ts —— 单详情与快照拼装（H2 #446 从 host/index.js 546–840 搬出，纯结构、行为零变化）。
-// 2026-10-14（#1161）从 .js 转成 .ts：只加类型标注与注释，逻辑一行未动。
-// 以后谁改它：改详情查询字段（GraphQL/REST 双通道）或快照拼装结构的人。预估约 330 行，超 350 打回。
-// 接线：由 index.ts 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件除装配点
-//   （src/tracker/registry/builtins.ts，见下方 githubRoom）外不引用其他新文件。
-// #1161：从前这里是 `import { pullStateOf } from '../../../tracker/rooms/github/normalize.js'` —— 宿主直接深引
-//   房间实现。宿主侧不许再这样引（规则 rooms-imported-only-by-assembly），改经装配点取。
-// #1170：装配点不再从房间公开面转出（那是临时脚手架），改成装配点自己取出这几件交给宿主
-//   （src/tracker/registry/builtins.ts 的 loadGithubHostExtras）。懒加载一次、之后复用同一个 Promise。
+// src/refresh/rooms/host/issue-detail-fetch.ts —— 单票详情取数（H2 #446 从 host/index.js 546–840 搬出）。
+// 2026-10-14（#1161）从 .js 转成 .ts。
+// #1444（规格 1439 的 A2 第一批）：这一条从「宿主自己发 GraphQL、失败切 REST」改成
+//   「一趟只读会话里 get 一次 + getDependencies 一次」。为什么不再留 REST 兜底：
+//   GraphQL→REST 的降级已经在 GitHub 房间内部做（list/get 都有 REST 通路），宿主再留一份
+//   就是第二条真源：两条路的字段归一迟早对不上。404 之后去试 /pulls 也一样——房间的 get
+//   本来就先查工单、再查拉取请求。
 //
-// 类型怎么标的（与 src/refresh/rooms/host/git-execution.ts 的 #1155 口径一致）：注入进来的能力按本文件实际用到的部分写成
-// 最小接口；后端回来的 JSON 走 JSON.parse（它的返回类型天然是 any），所以 any 只出现在「后端 JSON → 内部
-// 结构」这条边界上（承接字段的局部变量与遍历回调的参数），不扩散到注入依赖与对外返回的形状里。
+// 对外形状不变（面板与快照只认这个形状）：
+//   { ok:true, issue } 或 { ok:false, error:{ kind, message } }。
+//   issue 仍然是 GraphQL 那一套字段（comments/subIssues/blockedBy/blocking 都是 {nodes}），
+//   不把契约的数组形状直接抛给界面；界面虽然两种都兼容，但这里只保留一种，免得字段抖动。
+//
+// 失败时保留旧行为：开会话失败、get 失败都回 { ok:false, error }，不抛；getDependencies
+//   失败只让阻塞边退成 get 里带回来的那一份（旧 REST 路也是子请求失败就置空、详情照常显示）。
+import type { OpContext } from '../../../tracker/contract/contexts.js'
+import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
+import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
+
 interface RepoKey { owner: string; name: string }
 
-/** gh 命令的返回信封（宿主注入的 runGh 产出的形状）：ok 判成败，text 是原话，error 是失败原因，kind 是分类。 */
-interface GhReply { ok: boolean; text: string; error?: unknown; kind?: string }
-
-/** 接线处注入的依赖。下面几项本文件当前用不到，但照 H2 #446 搬出时的形状保留在类型里，免得接线被改窄。 */
+/** 接线处注入的依赖。用不到的几项照 H2 #446 搬出时的形状保留，免得接线被改窄。 */
 interface Deps {
+  /** 拿只读会话的装配口（宿主接线注入；没接线时如实失败，不退回直调 gh）。 */
+  openSession?: any
   getRepoKey(cwd: string): RepoKey | null | Promise<RepoKey | null>
-  runGh(args: string[], cwd: string): Promise<GhReply>
-  isRateLimitError(reply: unknown): boolean
+  isRateLimitError?: unknown
   execProc?: unknown
   getTrackerRegistry?: unknown
   getPlatform?: unknown
@@ -32,169 +36,120 @@ interface Deps {
   getGhLastError?: unknown
 }
 
-/** 装配点交出来的 github 房那几件实现（#1170）。 */
-type GithubExtras = import('../../../tracker/registry/builtins.js').GithubHostExtras
+/** 详情失败：kind 是判档（env/parse/notFound/network…），message 是给人看的原话。 */
+function fail(kind: string, message: string): any {
+  return { ok: false, error: { kind: kind, message: message } }
+}
 
-let _ghExtrasP: Promise<GithubExtras> | null = null
-function githubExtras(): Promise<GithubExtras> {
-  if (!_ghExtrasP) _ghExtrasP = import('../../../tracker/registry/builtins.js').then(function (m) { return m.loadGithubHostExtras() })
-  return _ghExtrasP
+/** 会话失败或异常统一收成 env：这一条路的失败形状与旧路一致，上层照旧降级回缓存。 */
+function sessionFail(reason: string, detail?: any): any {
+  const tail = detail == null || detail === '' ? '' : ('：' + String(detail))
+  return fail('env', '只读会话不可用（' + reason + '）' + tail)
+}
+
+/** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是 GitHub 房间认的 'owner/name'。 */
+function repoRefOf(repo: RepoKey | null, backendId: string): RepositoryRef | null {
+  if (!repo || !repo.owner || !repo.name) return null
+  const refId = String(repo.owner) + '/' + String(repo.name)
+  return { backend: backendId as any, refId: refId, name: refId, url: 'https://github.com/' + refId }
+}
+
+/** 契约的引用/阻塞边 → 详情界面认的 {nodes:[{number,title,state}]}。 */
+function refNodes(refs: any): any[] {
+  return (Array.isArray(refs) ? refs : []).map(function (r: any): any {
+    return { number: Number(r && r.key), title: (r && r.title) || '', state: (r && r.state) === 'closed' ? 'CLOSED' : 'OPEN' }
+  })
 }
 
 /**
- * 组装单张工单或拉取请求详情的 GraphQL 主通道与 REST 兜底通道（#446 / #599 / #1161 / #1170）。
+ * 契约票 → 详情页字段形状（旧 GraphQL 形状）。
  *
- * 为什么：面板点开单张工单或拉取请求时需要拉取正文、评论、标签、子票和阻塞边，但 GitHub GraphQL 可能遇到配额耗尽（`RATE_LIMIT`）或普通工单与拉取请求分属不同查询根，因此把「GraphQL 优先、配额耗尽或未命中时平滑切 REST 兜底、拉取请求已合并状态归一为 CLOSED」收口在同一处。
- * 什么约定不能改：
- *   1. 返回信封固定为 `{ ok: true, issue, fallback? }` 或 `{ ok: false, error: { kind, message } }`；普通工单与拉取请求产出的 `issue` 必须对齐 `isPullRequest`、`mergedAt`、`reviews`、`subIssues`、`blockedBy`、`blocking` 字段，避免快照与详情切换时发生字段抖动。
- *   2. 遇到配额限制（`isRateLimitError` 为真）时必须立即切到 `fetchIssueDetailREST`，不得继续重试 GraphQL 消耗剩余点数；REST 侧拉取评论、子票、阻塞边或评审子请求失败时只将该子项置空，不得让整张票详情崩溃。
- *   3. 拉取请求的状态归一函数 `pullStateOf` 必须经装配点 `loadGithubHostExtras()` 获取，不得直接深引 `src/tracker/rooms/github/*`。
- * 反例：若拉取请求已合并（GitHub 原始 `state === 'MERGED'`）时不经 `pullStateOf` 归一就直接返回 `'MERGED'`，面板与地图统计会把已合并的拉取请求当成未关闭票，导致前沿票阻塞判定一直卡死。
+ * 评论：契约只有 Comment[]，没有 pageInfo；这里按「这一趟要了 50 条」推 hasNextPage，
+ * endCursor 用已取条数（旧 REST 路就是这么给的）。「加载更多」另走 fetchIssueComments，
+ * 不靠这个游标翻详情本身。
+ * subIssues：契约 get 不带子票清单（快照那一份有），这里给空连接；地图详情页的
+ * 子票列表本来优先读快照。要给子票就该另调 listSubIssues，而不是在这一条路上假装有。
  */
+function detailOf(issue: Issue, depsData: any, ref: RepositoryRef): any {
+  const comments = (issue.comments || []).map(function (c: any): any {
+    return {
+      author: { login: (c.author && c.author.login) || '' },
+      authorAssociation: c.authorAssociation || '',
+      body: c.body || '',
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }
+  })
+  const blockedBy = depsData && Array.isArray(depsData.blockedBy) ? refNodes(depsData.blockedBy) : refNodes(issue.blockedBy)
+  const blocking = depsData && Array.isArray(depsData.blocking) ? refNodes(depsData.blocking) : []
+  return {
+    number: Number(issue.key),
+    title: issue.title,
+    state: issue.state === 'closed' ? 'CLOSED' : 'OPEN',
+    body: issue.body || '',
+    url: issue.url || ('https://github.com/' + ref.refId + '/issues/' + String(issue.key)),
+    updatedAt: issue.updatedAt,
+    createdAt: issue.createdAt,
+    closedAt: issue.closedAt,
+    author: issue.author ? { login: issue.author.login, name: (issue.author.name || ''), avatarUrl: (issue.author.avatarUrl || '') } : undefined,
+    labels: { nodes: (issue.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } }) },
+    assignees: { nodes: (issue.assignees || []).map(function (a: any): any { return { login: a.login } }) },
+    comments: { nodes: comments, pageInfo: { hasNextPage: comments.length >= 50, endCursor: String(comments.length) } },
+    subIssues: { totalCount: 0, nodes: [] },
+    blockedBy: { nodes: blockedBy },
+    blocking: { nodes: blocking },
+    isPullRequest: issue.isPullRequest === true,
+    mergedAt: issue.mergedAt || null,
+    reviews: (issue.reviews || []).map(function (r: any): any {
+      return { state: r.state, author: { login: (r.reviewer && r.reviewer.login) || '' }, submittedAt: r.submittedAt || '' }
+    }),
+  }
+}
+
 export function createIssueDetail(deps: Deps) {
-  const { getRepoKey, runGh, execProc, getTrackerRegistry, getPlatform, getDetectionService } = deps
-  const { getRepoRoot, ctx, timer, getGhPath, getGhLastError } = deps
-  const { isRateLimitError } = deps
-    // T2 #7 · fetchIssueDetail 单 issue 数据通路（复用 fetchMapsDetail 思路，独立别名/单 issue 不合并 aliases）
-    // GraphQL 字段按 T2 契约：number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
-    // 配额止血：GraphQL 按复杂度计点失败 → RATE_LIMIT 鉴别后切 REST 兜底；REST 逐请求失败置空，整体不崩
-    // 错误形状与 fetchMapsDetail 对齐 {ok,error,issue?}；kind 细化 env|parse|graphql|network|rateLimit|notFound|404
-    async function fetchIssueDetailREST(n: number, cwd: string) {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
+  const { getRepoKey } = deps
+
+  /**
+   * 开一趟只读会话跑 fn：开会话失败、fn 抛错都收成 { ok:false, error }。
+   * 这里不吞能力失败——fn 自己按旧形状回答，调用方只看最终回包。
+   */
+  async function withReadSession(cwd: string, fn: (session: TrackerSession, repo: RepositoryRef, ctx: OpContext) => Promise<any>): Promise<any> {
+    if (typeof deps.openSession !== 'function') return sessionFail('没有注入 openSession')
+    let opened: any = null
+    try { opened = await Promise.resolve(deps.openSession(cwd)) } catch (e: any) { return sessionFail('开会话时抛错', (e && e.message) || e) }
+    if (!opened || opened.ok !== true || typeof opened.call !== 'function') return sessionFail(String((opened && opened.reason) || 'open-failed'), opened && opened.detail)
+    let repo: RepoKey | null = null
+    try { repo = await Promise.resolve(getRepoKey(cwd)) } catch (e: any) { return sessionFail('解析仓库坐标失败', (e && e.message) || e) }
+    const ref = repoRefOf(repo, String(opened.backendId || ''))
+    if (!ref) return fail('env', '无法解析 owner/repo（git remote 或 gh repo view 失败）')
+    try {
+      return await opened.call(async function (session: TrackerSession, ctx: OpContext): Promise<any> {
+        return fn(session, ref, ctx)
+      })
+    } catch (e: any) {
+      return sessionFail('取详情时抛错', (e && e.message) || e)
+    }
+  }
+
+  async function fetchIssueDetail(n: number, cwd: string, opts?: { isPullRequest?: boolean } | null): Promise<any> {
+    if (!n) return fail('parse', '缺少 number')
+    return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      let got: any = null
+      try { got = await session.get(ref, String(n), { comments: { first: 50 } }, ctx) } catch (e: any) { return sessionFail('取单票时抛错', (e && e.message) || e) }
+      if (!got || got.ok !== true || !got.data) {
+        const err = (got && got.error) || {}
+        return fail(String(err.kind || 'network'), String(err.message || '单票读取失败'))
+      }
+      // 阻塞边单独一问（#1304 的投影）；失败不让详情崩：退成 get 自带的那一份入边，出边为空。
+      let depsData: any = null
       try {
-        // 先查普通工单，404 再查拉取请求一次（与新后端单票查询同分支：/issues 不中试 /pulls；两次都不中才是真的未找到）
-        let issue: any = null
-        let fromPR = false
-        const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
-        if (r.ok) { issue = JSON.parse(r.text) }
-        else if (r.kind === 'notfound' || /404|not found/i.test(String(r.error||''))) {
-          const pr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/pulls/' + n], cwd)
-          if (!pr.ok) {
-            if (pr.kind === 'notfound' || /404/i.test(String(pr.error||''))) return { ok: false, error: { kind: '404', message: String(pr.error||'not found') } }
-            return { ok: false, error: { kind: 'notFound', message: String(pr.error||'not found') } }
-          }
-          const pj = JSON.parse(pr.text)
-          if (!pj || pj.number == null) return { ok: false, error: { kind: 'notFound', message: 'pull not found' } }
-          issue = pj
-          fromPR = true
-        }
-        else {
-          if (isRateLimitError(r)) return { ok: false, error: { kind: 'rateLimit', message: String(r.error||'rate limit') } }
-          return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'request failed') } }
-        }
-        if (!issue || issue.number == null) return { ok: false, error: { kind: 'notFound', message: 'issue not found' } }
-        const isPR = fromPR || (issue && issue.pull_request != null)
-        // 拉取请求补合并时间与评审（与新后端单票富化同口径：失败保持空值，不阻塞详情显示）
-        let mergedAt: string | null = (typeof issue.merged_at === 'string') ? issue.merged_at : null
-        let reviews: unknown[] = []
-        if (isPR) {
-          try {
-            if (!fromPR && mergedAt == null) { const mr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/pulls/' + n], cwd); if (mr.ok) { const mj = JSON.parse(mr.text); if (mj && typeof mj.merged_at === 'string') mergedAt = mj.merged_at } }
-            const vr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/pulls/' + n + '/reviews?per_page=100'], cwd)
-            if (vr.ok) { const arr = JSON.parse(vr.text) || []; reviews = arr.filter(function (x: any) { return x && typeof x.state === 'string' && x.state !== '' }).map(function (x: any) { return { state: x.state, author: { login: ((x.user && x.user.login) || '') }, submittedAt: (x.submitted_at || '') } }) }
-          } catch (e) {}
-        }
-        let comments: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } = { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }
-        let subIssues: { totalCount: number; nodes: unknown[] } = { totalCount: 0, nodes: [] }
-        let blockedBy: { nodes: unknown[] } = { nodes: [] }
-        try {
-          const cr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/comments?per_page=50'], cwd)
-          if (cr.ok) {
-            const arr = JSON.parse(cr.text) || []
-            comments.nodes = arr.map(function (c: any) { return { author: { login: (c.user && c.user.login) || '' }, authorAssociation: c.author_association || '', body: c.body || '', createdAt: c.created_at, updatedAt: c.updated_at } })
-            comments.pageInfo = { hasNextPage: arr.length === 50, endCursor: String(arr.length) }
-          }
-        } catch (e) {}
-        try {
-          const sr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/sub_issues?per_page=50'], cwd)
-          if (sr.ok) {
-            const arr = JSON.parse(sr.text) || []
-            subIssues.totalCount = arr.length
-            subIssues.nodes = arr.map(function (s: any) { return { number: s.number, title: s.title, state: (String(s.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
-          }
-        } catch (e) {}
-        try {
-          const br = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/dependencies/blocked_by'], cwd)
-          if (br.ok) {
-            const arr = JSON.parse(br.text) || []
-            blockedBy.nodes = arr.map(function (b: any) { return { number: b.number != null ? b.number : b.id, title: b.title || '', state: (String(b.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
-          }
-        } catch (e) {}
-        const ghExtras = await githubExtras()
-        const mapped = {
-          number: issue.number, title: issue.title, state: ghExtras.pullStateOf(issue),
-          body: issue.body || '', url: issue.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + (isPR ? '/pull/' : '/issues/') + n),
-          updatedAt: issue.updated_at, createdAt: issue.created_at, closedAt: issue.closed_at,
-          author: (issue.user && issue.user.login) ? { login: issue.user.login, name: (issue.user.name || ''), avatarUrl: (issue.user.avatar_url || '') } : undefined,
-          labels: { nodes: (issue.labels || []).map(function (l: any) { return { name: l.name, color: l.color || '' } }) },
-          assignees: { nodes: (issue.assignees || []).map(function (a: any) { return { login: a.login } }) },
-          comments: comments,
-          subIssues: subIssues,
-          blockedBy: blockedBy,
-          blocking: { nodes: [] },
-          isPullRequest: isPR, mergedAt: mergedAt, reviews: reviews
-        }
-        return { ok: true, issue: mapped, fallback: fromPR ? 'rest-pr' : 'rest' }
-      } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
-    }
+        const dr: any = await session.getDependencies(ref, String(n), undefined, ctx)
+        if (dr && dr.ok === true) depsData = dr.data
+      } catch (eD: any) { depsData = null }
+      return { ok: true, issue: detailOf(got.data, depsData, ref) }
+    })
+  }
 
-    async function fetchIssueDetail(n: number, cwd: string, opts?: { isPullRequest?: boolean } | null) {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
-      // 下面 queryPR 是闭包，编译器在闭包里收不到上面那条「repo 非空」的窄化；这里先各取一份局部量（值不变）。
-      const repoOwner = repo.owner
-      const repoName = repo.name
-      const frag = 'number title state body url updatedAt createdAt closedAt author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
-      // 拉取请求与新后端单票查询同分支：快照已标是拉取请求则先查拉取请求，否则先查普通工单再查拉取请求；两边都不中才走 REST（REST 内再试 /pulls 一次）
-      const prFrag = 'number title state body url updatedAt createdAt closedAt mergedAt author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} reviews(first:20){nodes{state author{login} submittedAt}}'
-      async function queryPR() {
-        try {
-          const q = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequest(number:' + n + '){' + prFrag + '}}}'
-          const p = await runGh(['api', 'graphql', '-f', 'query=' + q, '-F', 'owner=' + repoOwner, '-F', 'name=' + repoName], cwd)
-          if (!p.ok) { if (isRateLimitError(p)) return { rateLimit: true }; return { miss: true } }
-          const j = JSON.parse(p.text)
-          if (j.errors) { if (isRateLimitError({ error: JSON.stringify(j.errors) })) return { rateLimit: true }; return { miss: true } }
-          const pr = j.data && j.data.repository && j.data.repository.pullRequest
-          if (!pr) return { miss: true }
-          pr.isPullRequest = true; pr.subIssues = { totalCount: 0, nodes: [] }; pr.blockedBy = { nodes: [] }; pr.blocking = { nodes: [] }
-          // #599：已合并的拉取请求在 GitHub 那边 state=MERGED，这里收成契约的已关闭（与列表同一条规则）
-          const ghExtras = await githubExtras()
-          pr.state = ghExtras.pullStateOf(pr)
-          return { found: true, issue: pr }
-        } catch (e) { return { miss: true } }
-      }
-      if (opts && opts.isPullRequest === true) { const p0 = await queryPR(); if (p0.found) return { ok: true, issue: p0.issue }; if (p0.rateLimit) return fetchIssueDetailREST(n, cwd) }
-      const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
-      let last: GhReply | null = null
-      let issueMiss = false
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
-        if (!r.ok) {
-          last = r
-          if (isRateLimitError(r)) return fetchIssueDetailREST(n, cwd)
-          if (r.kind === 'notfound' || /not found|could not resolve/i.test(String(r.error||''))) { issueMiss = true; break }
-          if (r.kind !== 'network') return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'network') } }
-          continue
-        }
-        try {
-          const j = JSON.parse(r.text)
-          if (j.errors) {
-            if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchIssueDetailREST(n, cwd)
-            if (/not found|could not resolve/i.test(JSON.stringify(j.errors))) { issueMiss = true; break }
-            return { ok: false, error: { kind: 'graphql', message: JSON.stringify(j.errors).slice(0,300) } }
-          }
-          const issue = j.data && j.data.repository && j.data.repository.issue
-          if (!issue) { issueMiss = true; break }
-          issue.isPullRequest = false; issue.mergedAt = null; issue.reviews = [] // 工单空值与REST对齐，消快照抖
-          return { ok: true, issue: issue }
-        } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
-      }
-      if (!(opts && opts.isPullRequest === true)) { const p1 = await queryPR(); if (p1.found) return { ok: true, issue: p1.issue }; if (p1.rateLimit) return fetchIssueDetailREST(n, cwd) }
-      if (issueMiss) return fetchIssueDetailREST(n, cwd)
-      return { ok: false, error: last || { kind: 'network', message: 'GraphQL 单 issue 请求失败（重试后仍失败）' } }
-    }
-
-  return { fetchIssueDetailREST, fetchIssueDetail }
+  // 对外只留一条取数口：REST 兜底与它那个导出一并删除（房间内部已有降级，见文件头）。
+  return { fetchIssueDetail }
 }

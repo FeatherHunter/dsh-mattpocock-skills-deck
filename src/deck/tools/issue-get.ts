@@ -5,6 +5,7 @@
 // deps.readThrough 注进来时先用它，没注入就现读；两条路的返回值形状一样，调用方看不出区别。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
+import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { EDGE_LANDING, relationsOf } from '../shell/edge-landing.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
@@ -164,7 +165,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
     if (!s.ok) return shell.unsupported('deck_issue_get', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_issue_get', REFUSAL_REASONS.BAD_ARGS, '要读哪一张票：把票号写在 key 里（例如 713）。', { cost: { estimated: est } })
 
-    const pick = await shell.pickBackend(exec, s)
+    const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_get', kind: 'read' })
     if (!pick.ok) return shell.unsupported('deck_issue_get', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
@@ -181,7 +182,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
+    return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_issue_get', sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳：两次远端各有 30 秒单次钳制、可中止，超时只坏自己那一项；
       // 名册随上下文走，后端内部的定向重读能用上。成功路径的形状一字不动。
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })

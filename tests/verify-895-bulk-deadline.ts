@@ -167,7 +167,14 @@ async function main() {
     // select 这一格是兜底识别（工作区文件缺席时才会问它）；#1138 起「这个工作区选过了」只剩
     // 工作区文件一份记录（注册表上的 bound 已整段删掉），所以下面用 chooseWorkspace 给本夹具
     // 那个固定工作区（execOf 的缺省 cwd）记一笔：判定出口第一层读到它才放行写用途。
-    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker }
+    // #1439（#1442）起打开 Tracker 会话时要按后端编号取预算声明，预算声明是必填项：这里的桩后端照
+    // 「离网」口径声明（不发请求、不计条数与点数），少了 modules 这一格 openTracker 会回 pending，
+    // 工具就一路回 backend-threw（看上去像后端抛错，其实根本没走到 work 闭包）。
+    const registry = {
+      select: async () => ({ backendId: 'stub', source: 'test' }),
+      get: () => tracker,
+      modules: () => [{ id: 'stub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false } }],
+    }
     chooseWorkspace('C:/fake-ws', 'stub')
     return Object.assign({
       gate: stubGate(), registry: registry, budget: budget,

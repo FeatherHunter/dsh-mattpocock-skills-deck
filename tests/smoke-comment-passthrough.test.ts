@@ -1,6 +1,10 @@
 // smoke-comment-passthrough.test.ts — #255 宿主透传冒烟（wf.commentIssue）
 // 注入假 trackerRegistry（getTrackerRegistry 优先消费 ctx.get('trackerRegistry')），
-// 断言：select→describe→tracker.comment 全链路转发、参数无损、错误 kind 直透（G5 无能力表）。
+// 断言：写会话 → 裁决 → tracker.comment 全链路转发、参数无损、错误 kind 直透（G5 无能力表）。
+// #1445 起评论写入不再由宿主自己 select/describe/直调房间，而是开一个写会话交给管线：
+//   · 假注册表要带上 modules() 与每个后端的预算声明（openTracker 要按后端取花钱口径，缺了就回 pending）；
+//   · 假 selection 带 canWrite:true（写操作的写权限由判定出口回答，这里模拟「用户在工作区里选过」）；
+//   · 选后端失败那条从 unsupported 变成 env —— 会话开不成属于环境没就绪，不是「这台后端不支持评论」。
 // 用法: node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts
 import { readFileSync } from 'node:fs'
 import * as esbuild from 'esbuild'
@@ -16,19 +20,29 @@ try {
   check(false, 'ESM 语法编译: ' + e.message)
 }
 
-// ---- 假 registry：github 后端带 comment 捕获器；bad2 后端无 comment 方法（unsupported 桩语义）----
+// ---- 假 registry：github 后端带 comment 捕获器；gitlab-x 后端无 comment 方法（unsupported 桩语义）----
 // calls 收 tracker.comment 实收参数，用来事后核对「原样透传」；字段类型按断言实际用到的形状标。
 const calls: Array<{ repoRef: { refId: string }; key: unknown; body: string }> = []
-const ghTracker: { id: string; comment: (...args: unknown[]) => Promise<unknown> } = {
+// 两条同步定位口（describe）房间实例必须有：写会话靠它把仓库身份补齐，缺了就回「refId missing」。
+const ghTracker: { id: string; describe: (...args: unknown[]) => unknown; comment: (...args: unknown[]) => Promise<unknown> } = {
   id: 'github',
+  describe: () => ({ backend: 'github', refId: 'FeatherHunter/dsh-mattpocock-skills-deck', name: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck' }),
   comment: async (repoRef, key, body, opCtx) => { calls.push({ repoRef: repoRef as { refId: string }, key, body: body as string }); return { ok: true, data: { id: '42', author: { login: 'tester' }, body } } },
 }
-const badTracker = { id: 'gitlab-x' }
-let commentResult: unknown = null // 可注入失败场景
+const badTracker = { id: 'gitlab-x', describe: () => ({ backend: 'gitlab-x', refId: 'grp/proj', name: 'proj', url: '' }) }
+// 预算声明（#1441 起后端必填）：github 双桶；没有 comment 的 gitlab-x 用离网口径（这台后端不花额度）。
+const githubBudget = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true }
+const offNetworkBudget = { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }
 const fakeRegistry = {
-  select: async () => ({ backendId: 'github', source: 'explicit' }),
+  // canWrite:true = 用户在这个工作区里显式选过后端；写会话要拿它过写权限硬顶。
+  select: async () => ({ backendId: 'github', source: 'explicit', canWrite: true, reason: '工作区文件里人显式选过' }),
   describe: (_handle, backendId) => ({ backend: backendId, refId: 'FeatherHunter/dsh-mattpocock-skills-deck', name: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck' }),
   get: (id) => id === 'github' ? ghTracker : badTracker,
+  // 会话要按后端编号取预算声明：缺 modules 或某一格没预算，openTracker 会回 pending（不再走向下转发）。
+  modules: () => [
+    { id: 'github', budget: githubBudget },
+    { id: 'gitlab-x', budget: offNetworkBudget },
+  ],
 }
 
 let registered = null
@@ -81,7 +95,7 @@ if (await waitRoute()) {
   check(!!route && route.path === '/api/dsws', '通道注册在 /api/dsws（客户端请求路径与宿主注册路径同源）')
   // 1) 校验：缺 body → parse
   // 每次调用都带 cwd：#1003 空目录闸之后，宿主电话要求调用方给出工作区目录
-  //（`src/refresh/rooms/host/comment-thread-fetch.js:173-176`：没给就按「工作区还没就绪」直接拒绝，连参数校验都走不到），
+  //（`src/refresh/rooms/host/comment-thread-fetch.js`：没给就按「工作区还没就绪」直接拒绝，连参数校验都走不到），
   // 而这条冒烟测的是参数校验与透传，不是空目录那一支，所以按「工作区已就绪」发。
   const bad = unwrap(await callHandler('commentIssue', { number: 255, cwd: 'D:/work/repo' }))
   check(!!bad && bad.ok === false && bad.error && bad.error.kind === 'parse', '缺 body → {ok:false,kind:parse}')
@@ -90,12 +104,12 @@ if (await waitRoute()) {
   const badN = unwrap(await callHandler('commentIssue', { body: 'hi', cwd: 'D:/work/repo' }))
   check(!!badN && badN.ok === false && badN.error && badN.error.kind === 'parse', '缺 number → {ok:false,kind:parse}')
 
-  // 3) happy path：select→describe→tracker.comment 参数无损
+  // 3) happy path：写会话 → 管线 → tracker.comment 参数无损
   const good = unwrap(await callHandler('commentIssue', { number: 255, body: 'hello #255', cwd: 'D:/work/repo' }))
   check(!!good && good.ok === true, '透传成功 ok=true')
   check(calls.length >= 1 && String(calls[0].key) === '255', 'tracker.comment 收到 key=255')
   check(calls.length >= 1 && calls[0].body === 'hello #255', 'body 原文透传')
-  check(calls.length >= 1 && !!calls[0].repoRef && calls[0].repoRef.refId === 'FeatherHunter/dsh-mattpocock-skills-deck', 'repoRef.refId 来自 registry.describe')
+  check(calls.length >= 1 && !!calls[0].repoRef && calls[0].repoRef.refId === 'FeatherHunter/dsh-mattpocock-skills-deck', 'repoRef.refId 由写会话按注册表 describe 补齐')
 
   // 4) 错误直透：comment 返回 auth → 端点原样返回（UI 分流数据源）
   ghTracker.comment = async () => ({ ok: false, error: { kind: 'auth', message: 'not logged in' } })
@@ -103,14 +117,15 @@ if (await waitRoute()) {
   check(!!authed && authed.ok === false && authed.error && authed.error.kind === 'auth', 'TrackerError{kind:auth} 直透')
 
   // 5) 未实现 comment 的后端 → unsupported（诚实失败，非假装成功）
-  fakeRegistry.select = async () => ({ backendId: 'gitlab-x', source: 'explicit' })
+  fakeRegistry.select = async () => ({ backendId: 'gitlab-x', source: 'explicit', canWrite: true, reason: '工作区文件里人显式选过' })
   const unsup = unwrap(await callHandler('commentIssue', { number: 255, body: 'y', cwd: 'D:/work/repo' }))
   check(!!unsup && unsup.ok === false && unsup.error && unsup.error.kind === 'unsupported', '后端无 comment 方法 → kind:unsupported')
 
-  // 6) select 失败 / 无后端 → unsupported
+  // 6) 选不出后端 → 写会话开不成 → env（环境没就绪，不是后端不支持）
   fakeRegistry.select = async () => null
   const nosel = unwrap(await callHandler('commentIssue', { number: 255, body: 'z', cwd: 'D:/work/repo' }))
-  check(!!nosel && nosel.ok === false && nosel.error && nosel.error.kind === 'unsupported', 'selection 为空 → kind:unsupported')
+  check(!!nosel && nosel.ok === false && nosel.error && nosel.error.kind === 'env', 'selection 为空 → kind:env（写会话没开成）')
+  check(!!nosel && !!nosel.error && /写会话没开成/.test(String(nosel.error.message || '')), '那一句文案说清是写会话没开成')
 } else {
   check(false, 'dispatch fn 未注册')
 }

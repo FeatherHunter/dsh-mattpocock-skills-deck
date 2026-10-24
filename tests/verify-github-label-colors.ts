@@ -419,6 +419,34 @@ const SEED = [
   check(r404.ok === true && reasonOf(r404, '没有这个标签').kind === 'not-found', '真的 404（HTTP 404 Not Found）仍然落找不到档（别改坏了，实得 ' + JSON.stringify(r404.ok === true ? reasonOf(r404, '没有这个标签').kind : r404) + '）')
 }
 
+// #1445：标签配色两条电话改成经「会话」走（src/host/workspaceLabelColors.ts）。这两段是穿宿主的端到端夹具，
+// 真正的装配点在 src/refresh/rooms/host/session-opener.ts（不归本票改），所以这里照生产回包形状给一份最小的开会话：
+// 选后端（收 resolveSelection 的结论）→ 取该后端的模块当会话 → 递一个与旧 opCtxFor 同形的上下文 → 回调。
+// 仓库标识仍然留空、交给后端自己按老路解析（三层兜底），外部命令仍然走宿主那一个 detectionExec，所以 via 断言照旧成立。
+function fakeSessionOpener(deps) {
+  return async function (cwd, opts) {
+    const reg = await deps.getTrackerRegistry()
+    const sel = (opts && typeof opts.resolveSelection === 'function') ? opts.resolveSelection({ cwd: cwd }, {}) : null
+    const backendId = (sel && sel.backendId) || null
+    if (!backendId) return { ok: false, reason: 'no-backend' }
+    const tracker = reg.get(backendId)
+    if (!tracker) return { ok: false, reason: 'no-tracker' }
+    let ref = (sel && sel.ref) || null
+    if (!ref) { try { ref = reg.describe({ cwd: cwd }, backendId) } catch (e) { ref = { backend: backendId, refId: '', name: '', url: '' } } }
+    const platform = await deps.getPlatform()
+    const baseCtx = {
+      cwd: cwd, refId: (ref && ref.refId) || '', signal: undefined, platform: platform,
+      fs: (platform && platform.fs) || null, caller: 'refresh',
+      exec: function (cmd, args, o, via) { return deps.detectionExec(cmd, args, o, via) },
+      logEvent: function () {}, isEnabled: function () { return false },
+    }
+    let budget = null
+    try { const ms = reg.modules(); for (let i = 0; i < ms.length; i++) { if (ms[i] && ms[i].id === backendId) budget = ms[i].budget } } catch (eM) {}
+    const session = Object.assign({}, tracker, { backendId: backendId, budget: budget, canWrite: !!(opts && opts.write) })
+    return { ok: true, backendId: backendId, repoRef: ref, budget: budget, canWrite: session.canWrite, call: function (fn) { return fn(session, baseCtx) } }
+  }
+}
+
 // ── 八、穿过宿主（#620 整改 D1）：真实电话链路上仓库标识是空的，照样要能认出仓库并真的发命令 ──
 // 这一段是这一票最要紧的一条：前面几段都直接调后端模块、自己把 refId 填好，所以照不出
 // 「宿主交给后端的仓库标识恒为空」这件事（真实工作区里就是这个样子：注册表只认显式 refId）。
@@ -478,7 +506,7 @@ const SEED = [
   const d = reg.register(githubModule)
   // 用户选过 github，但**谁也不给 owner/name** —— 和真实工作区里「用户选定后端」那一步完全一样。
   //   #1138 起这一步的落点是工作区文件（上面 wsFs 里那一份），注册表的进程内绑定口子已整段删除。
-  const host = createWorkspaceCwd(ctxHost)
+  const host = createWorkspaceCwd(Object.assign({}, ctxHost, { openSession: fakeSessionOpener(ctxHost) }))
 
   const rl = await host.handleListLabels({ cwd: HOST_CWD })
   check(rl.ok === true && Array.isArray(rl.labels) && labelListCheck(rl.labels).length === 0, '穿过宿主：列标签能拿到仓库并回一份合规清单（实得 ' + JSON.stringify(rl).slice(0, 200) + '）')
@@ -499,10 +527,11 @@ const SEED = [
   const d2 = reg2.register(githubModule)
   // 这个工作区「用户选过 github」那条记录由上面 wsFs 里的内存工作区文件提供
   //   （#1138 起人选的唯一载体；原来这里是一句 reg2.bind({cwd:'/ws/no-repo'},'github')，注册表那个口子已删）。
-  const host2 = createWorkspaceCwd(withDetSvcGh(Object.assign({}, ctxHost, {
+  const host2Deps = withDetSvcGh(Object.assign({}, ctxHost, {
     getTrackerRegistry: async () => reg2,
     detectionExec: async (cmd, args) => (cmd === 'git' ? noRemoteGh.ctx.exec(cmd, args) : { code: 1, stdout: '', stderr: 'HTTP 404: Not Found (https://api.github.com/repos/acme/demo)' }),
-  })))
+  }))
+  const host2 = createWorkspaceCwd(Object.assign({}, host2Deps, { openSession: fakeSessionOpener(host2Deps) }))
   const rNoRepo = await host2.handleListLabels({ cwd: '/ws/no-repo' })
   check(rNoRepo.ok === false && rNoRepo.error.kind === 'not-found' && String(rNoRepo.error.message).includes('未能确定这个工作区属于哪个 GitHub 仓库'), '认不出仓库时如实失败，并说清先配远端或先选定仓库（实得 ' + JSON.stringify(rNoRepo) + '）')
   d.dispose()
@@ -572,7 +601,7 @@ const SEED = [
   // 这个桩只用来占注册序、证明按面板选择走，不会被真正调用，所以按离网口径声明（注册表只验形状，不按口径限流）。
   const dOther = regBoth.register({ id: 'other-local', label: 'other', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => true })
   const dGh = regBoth.register(githubModule)
-  const host = createWorkspaceCwd(ctxHost)
+  const host = createWorkspaceCwd(Object.assign({}, ctxHost, { openSession: fakeSessionOpener(ctxHost) }))
 
   const rlAlone = await host.handleListLabels({ cwd: HOST_CWD })
   check(rlAlone.ok === false && rlAlone.error.kind === 'conflict' && String(rlAlone.error.message).includes('同时对应'),

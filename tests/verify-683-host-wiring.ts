@@ -312,7 +312,9 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
     check(rTrue.selection && rTrue.selection.backendId === 'github', '（对照）真源里带上报时仍是锚文件的 github —— 实得「' + (rTrue.selection && rTrue.selection.backendId) + '」')
   }
   // F2 短路路不再带上权威选择 —— 跑改坏的那一份，同一份现场就会把旧后端发出去
-  const from2 = 'if (sameBackend && prevRev === nowRev && (sameLayout || !_layEarly)) return s'
+  // 合并 #1433 之后这一行只判 sameLayout（布局以这一轮为准：本轮没有布局就把缓存里那份旧答案抹掉，
+  // 不再像 #683 早期那样用 !_layEarly 把旧答案留下）。反证的落点跟着真源走，形状不变。
+  const from2 = 'if (sameBackend && prevRev === nowRev && sameLayout) return s'
   check(snapSrc.includes(from2), '反证 F2 的改法能在真源里落地（短路路永远返回缓存里那份、不带新选择）')
   if (snapSrc.includes(from2)) {
     // 这一组跑的是把源文件**复制到临时目录**再改坏的一份。复制过去的那一份，它 import 的兄弟文件
@@ -332,7 +334,10 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
       fs.mkdirSync(path.dirname(toPath), { recursive: true })
       fs.copyFileSync(fromPath, toPath)
       const text = fs.readFileSync(fromPath, 'utf8')
-      const re = /^[ \t]*import\s+(?!type\b)[^\n]*from[ \t]*['"](\.\.?\/[^'"]+)['"]/gm
+      // import 子句可能跨多行（import { 换行 若干项 换行 } from '...'）：从 import 起吃到 from，
+      // 但不越过下一条 import，免得把无关的说明符串进来。#1433 之后快照文件多引了 workspace-anchor，
+      // 它的 import 就是多行写法。
+      const re = /^[ \t]*import\s+(?!type\b)(?:(?!^[ \t]*import\s)[\s\S])*?from[ \t]*['"](\.\.?\/[^'"]+)['"]/gm
       let im
       while ((im = re.exec(text)) !== null) {
         // 说明符写的是 .js，磁盘上住的常常是同名 .ts（ts-hook 的规则），两样都试一遍再镜像。

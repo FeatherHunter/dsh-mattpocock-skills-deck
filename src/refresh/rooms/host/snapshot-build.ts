@@ -1,18 +1,19 @@
-// src/refresh/rooms/host/snapshot-build.ts —— 面板快照组装与地图详情拉取（从 issueDetail.ts 拆出，#599）。
+// src/refresh/rooms/host/snapshot-build.ts —— 面板快照组装（从 issueDetail.ts 拆出，#599）。
 //
 // 为什么拆：issueDetail.js 当时 349 行，紧贴「src 文件 ≤350 行」的门禁（tests/verify-file-granularity.ts），
-// 而本票要在那张文件里给「已合并」补状态归一，加不进去。按仓库既有做法（拆分管线的先例见
-// tests/same-layer-baseline.json：入口 src/host/index.js 引用同层模块共 25 条）把两件事分开：
-//   本文件 = 「按工作区组装整份快照」：拉地图详情与子票、拼 maps/issues/labels、报选择与仓库身份；
-//   issueDetail.ts = 「单张票的详情读取」：GraphQL 与 REST 两路，含已合并的状态归一。
-// 两半的改动理由不同：前者随卡片字段与选择/仓库身份变，后者随单票字段与降级路变。
+// 而那张文件要装单票详情、这张文件要装整份快照，两者随不同字段变，混在一起谁也长不动。
+//
+// #1444（规格 1439 的 A2 第一批）：快照的读路径从「本文件直调 gh」改成「经 Tracker 只读会话调能力」——
+//   整仓票走 list、每张地图的子票走 listSubIssues（items 自带 blockedBy）、标签走 listLabels、
+//   本人走 getCurrentUser。原来那条 GraphQL aliases 多图查询与它的 REST 降级路整段删掉：
+//   开会话失败或整仓列表失败时，本文件回 { ok:false, error } 旧包形状，让上层照旧降级回缓存；
+//   单张地图取不到子票只降级那一张，标签与本人取不到退回 [] 与 null —— 三条都与迁移前同口径。
+//   读操作在会话里不花额度（裁决 reason read-path），所以本文件不记任何账。
 //
 // 接线：同层互引门禁（tests/verify-dependency-rules.ts）不许两个「干活的」文件互相引用 ——
-// 组合点放在宿主入口 src/host/index.ts：地图详情拉取与 buildSnapshot 都产自本文件，
-// issueDetail.ts 要的那份也由入口转交。
+// 组合点放在宿主入口 src/host/index.ts：buildSnapshot 产自本文件，单票详情那一份由入口转交。
 //
-// #1115：本文件两处 opCtx（viewer 预取与 select 三级联）的计时器口改用共享层那一份实现；
-//   原先各写一遍的全局 clearTimeout 在真句柄上是空操作，撤销不掉那笔等待（详见该文件头注释）。
+// #1115：选后端那一段的计时器口改用共享层那一份实现（原先各写一遍的全局 clearTimeout 在真句柄上是空操作）。
 import type { HostTimerService } from '../../contract/host-timer-ports.js'
 import { hostTimers } from '../../contract/host-timer-ports.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
@@ -21,32 +22,37 @@ import { projectUiDescription } from '../../../tracker/ui-description.js'
 // 而不是另抄一份形状——抄一份的话，契约加字段时这里不会跟着变，投影就会静默少键。
 import type { BackendModule } from '../../../tracker/contract/backend-module.js'
 
-// ── 依赖与回包形状（票 #1155 补类型标注）─────────────────────────────────────────
-// 为什么在这里逐条写：本文件的依赖对象是 src/host/index.ts 里现拼出来的那份接线（转制后旧注记里“编译器看不见”已过时，
-// 编译器看不见），所以这一组类型就是「本文件按什么形状读它们」的书面约定。只列本文件真正读到的格子：
+// ── 依赖与回包形状（票 #1155 补类型标注，#1444 收窄）───────────────────────────
+// 为什么在这里逐条写：本文件的依赖对象是 src/host/index.ts 里现拼出来的那份接线，
+// 编译器看不见，所以这一组类型就是「本文件按什么形状读它们」的书面约定。只列本文件真正读到的格子：
 // 接线对不上时，报错点应当落在这一组类型上，而不是等到运行时才发现某一格是空的。
-// 标注只是给编译器看的，运行期形状一个字都没改——产物逐字节比对是这条约定的验收办法。
+// #1444 起本文件只读下面列出的这些格子；旧路的 runGh / fetchIssues / fetchMapsDetailREST / isRateLimitError
+// 已随迁移一起从接线与依赖声明里删掉（本票收口）。
 
-/** 出站命令回包（runGh 那一支）：成功那支一定带 text，失败那支带 kind/error；code 只有部分路给。 */
-type GhReply =
-  | { ok: true; text: string; code?: number }
-  | { ok: false; kind?: string; error?: string; text?: string; code?: number }
-
-/** 出站命令回包（execProc 那一支）：语义与 runGh 同一套，区别是成功那支也带 code（宿主按退出码给）。 */
+/** 出站命令回包（execProc 那一支）：成功那支带 text 与 code，失败那支带 error；选后端时后端读仓库要用它。 */
 type ExecReplyResult =
   | { ok: true; text: string; code: number }
   | { ok: false; error?: string; code?: number; text?: string }
 
-/** 列表路的票（REST 那一路）：labels 是数组；除票号外都按未知值收，谁读谁判。 */
-type ListIssue = {
-  number: number
+/** 列表行：整仓票经会话 list 取到后，按迁移前 gh 输出那一套形状摊平（大写状态、assignees 是 login 数组）。 */
+type ListRow = {
+  number: number | string
+  title?: unknown
   state?: string
-  labels?: Array<{ name?: string }> | null
-  /** 能力计数按字段名逐格查（见 buildSnapshot 里的 capCount），所以这里留一条索引签名。 */
+  assignees?: unknown[]
+  labels?: Array<{ name?: unknown; color: string }>
+  author?: { login: unknown; name: string; avatarUrl: string }
+  updatedAt?: unknown
+  createdAt?: unknown
+  /** 能力计数按字段名逐格查（见 capCount），所以这里留一条索引签名。 */
   [extra: string]: unknown
 }
 
-/** 详情路的票（GraphQL 那一路）：labels 是 {nodes}；子票也来自这一路，形状同源。 */
+/**
+ * 子票的 GraphQL 形状（mapTicket 认识的输入）：labels/assignees 是 {nodes}，
+ * blockedBy/blocking 也是 {nodes}。会话交回来的是契约 Issue（数组字段 + key），
+ * 由 subRaw 逐格翻译成这一份——mapTicket 与下文分层/分组一行都没改。
+ */
 type DetailIssue = {
   number: number
   title?: unknown
@@ -54,7 +60,9 @@ type DetailIssue = {
   url?: unknown
   body?: unknown
   labels?: { nodes?: Array<{ name?: string }> } | null
-  subIssues?: { nodes?: DetailIssue[] } | null
+  assignees?: { nodes?: Array<{ login?: unknown }> } | null
+  blockedBy?: { nodes?: Array<{ number?: number | string }> } | null
+  blocking?: { nodes?: Array<number | string> } | null
 }
 
 /** 面板票（mapTicket 的产物）：分层与分组只读其中几格；level 是本文件组装快照时现挂上去的，不是后端字段。 */
@@ -73,41 +81,24 @@ type TicketLevels = { byNumber: Record<string, number>; levels: unknown[] }
 /** 地图正文解析出来的五段：本文件一格都不读，原样装进快照交给界面。 */
 type MapBodySections = { destination: unknown; notes: unknown; decisions: unknown; fog: unknown; outOfScope: unknown }
 
-/**
- * 地图详情回包（GraphQL 一次查全部与 REST 降级路同一形状）：issues 按 aliases 拼出来的 mN 键放票。
- * 写成「成功/失败」两支的联合，理由与 fetchIssues 那格相同：读它的地方是 `detailOk ? d.issues[…] : null`
- * 与 `!detailOk ? d.error : …` 两种，只有联合能让 `d.ok` 为真那一支认定 issues 存在。
- * fallback／fallbackAt（REST 降级标记与降级时刻）两支都留着：成功那支正是降级路写进去的。
- */
-type MapsDetail =
-  | { ok: true; issues: Record<string, DetailIssue | null>; fallback?: string | null; fallbackAt?: number | null }
-  | { ok: false; error?: unknown; fallback?: string | null; fallbackAt?: number | null }
-
-/** 选择结论：本文件只读 backendId 与 source 两格（显式空是权威结论，见 buildSnapshot 里的注释）。 */
+/** 选择结论：本文件只读 backendId 与 source 两格（显式空是权威结论，见 pickBackend 里的注释）。 */
 type Selection = { backendId?: string | null; source?: string }
 
 /** 仓库身份（describe 的产物）：四格都可缺——兜底形态下只剩 backend 与 refId。 */
 type RepositoryRef = { backend?: string; refId?: string; name?: string; url?: string }
 
-/** 后端实例（注册表 get 的产物）：本文件只用 getCurrentUser 一格，取不到就当没有。 */
-type TrackerView = {
-  getCurrentUser?(repo: unknown, ctx: unknown): Promise<{ ok?: boolean; data?: { login?: unknown } } | null>
-}
-
 /**
  * 注册表里的后端模块（本文件只读 id 与 links 两格）。links 在这里写成「必有」：读它的那句守卫
- * 长在 `modsHere[mi]` 这种下标访问上，而下标 mi 是 var（值可变），编译器不把上一次下标访问的判空
- * 结果带到下一次，于是 `.links.repoUrlTemplate` 会被判成可能为空。运行期某个模块真没声明 links，
- * 那句 `&&` 也照旧短路掉，行为一个字不变——这里是把「模块都带意愿位」这条约定写进类型，
- * 而不是为了迁就编译器去改运行表达式。
+ * 长在 mods[i] 这种下标访问上，而下标是 var（值可变），编译器不把上一次下标访问的判空结果
+ * 带到下一次，于是 links.repoUrlTemplate 会被判成可能为空。运行期某个模块真没声明 links，
+ * 那句 && 也照旧短路掉，行为一个字不变——这里是把「模块都带意愿位」这条约定写进类型。
  */
 type SnapshotBackendModule = BackendModule & { links: NonNullable<BackendModule['links']> }
 
-/** 注册表：本文件读的四格——select 定后端、describe 出仓库身份、get 取后端实例、modules 出界面描述。 */
+/** 注册表：本文件读的三格——select 定后端、describe 出仓库身份、modules 出界面描述。 */
 type RegistrySlice = {
   select(handle: unknown, ctx: unknown): Promise<Selection | null>
   describe(handle: unknown, backendId: string): RepositoryRef | null
-  get(backendId: string): TrackerView | null | undefined
   modules(): SnapshotBackendModule[]
 }
 
@@ -134,27 +125,18 @@ type DetectionService = {
 
 /** 组装快照要的依赖：接线对象在 src/host/index.ts 里现拼，这里只列本文件用到的那些。 */
 type SnapshotDeps = {
+  /** #1444：拿只读会话的装配口（宿主接线注入；缺省时本文件如实回失败，不再退回直调 gh 的旧路）。 */
+  openSession?: any
   getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>
-  runGh(args: string[], cwd?: string, via?: string): Promise<GhReply>
   execProc(argv: string[], cwd: string, via: string): Promise<ExecReplyResult>
-  /**
-   * 全量票列表。成功那支一定有 issues、失败那支没有：调用处两种写法都在 `fi.ok` 为真的分支里读它
-   * （`fi.ok ? fi.issues : []` 与 `fi.ok ? fi.issues.filter(…) : []`），所以这里的回包必须写成
-   * 「成功/失败」两支的联合，编译器才会在 `fi.ok` 为真时认定 issues 存在；写成 `issues?:` 一个可选字段，
-   * 后一种写法会被判成「可能为 undefined」。
-   */
-  fetchIssues(cwd: string): Promise<{ ok: true; issues: ListIssue[] } | { ok: false; error?: unknown }>
-  fetchMapsDetailREST(numbers: number[], cwd: string): Promise<MapsDetail>
   mapTicket(raw: DetailIssue): PanelTicket
   parseMapBody(body: unknown): MapBodySections
   computeLevels(tickets: readonly PanelTicket[]): TicketLevels
   /** 分组统计整包透传给界面，本文件不读其中任何一格（渲染侧按 stats 渲染漏斗）。 */
   groupTickets(tickets: readonly PanelTicket[]): unknown
-  isRateLimitError(reply: unknown): boolean
   /**
    * 取注册表。写「一定给出注册表」而不是「可能为 null」：这条路取不到时是抛（见 host/platformChannel.js
-   * 里那份按注入→自建两步走、失败即 reject 的实现），调用处也用整段 try 兜着；
-   * 正文里那两处 `reg &&` 是原有防御写法，跟这里的标注不冲突，保留不动。
+   * 里那份按注入→自建两步走、失败即 reject 的实现），调用处也用整段 try 兜着。
    */
   getTrackerRegistry(): Promise<RegistrySlice>
   getPlatform(): Promise<unknown>
@@ -168,234 +150,306 @@ type SnapshotDeps = {
 }
 
 /**
- * 组装面板整份快照与多张地图详情拉取器（#599 / #1074 / #1155）。
+ * 组装面板整份快照（#599 / #1074 / #1155 / #1444）。
  *
- * 为什么：面板首页与状态栏需要一次性拿到当前工作区的后端选择、全部关卡地图、子票拓扑层级与普通工单列表；将「多地图别名合并拉取（`fetchMapsDetail`）」与「统一后端快照拼装（`buildSnapshot`）」集中在这里，供会话快照缓存层（`sessionSnapshot.ts`）按需调用。
+ * 为什么：面板首页与状态栏需要一次性拿到当前工作区的后端选择、全部关卡地图、子票拓扑层级与普通工单列表；
+ * 读路径已统一到 Tracker 只读会话（#1439 规格），本文件负责把会话能力的结果拼成迁移前那一份快照。
  * 什么约定不能改：
- *   1. 已选定后端时优先走后端注册表的 `tracker.snapshot()` 新路径，未选定或尚未命中时返回空集合信封 `{ ok: true, maps: [], issues: [], labels: [], selection }`，保证面板在未绑定工作区时也能正常渲染引导页。
- *   2. 每张地图的子票统计（`groupTickets`）与拓扑层级（`computeLevels`）必须由宿主算好塞进快照，面板只读宿主拼好的快照，不得在客户端重算或直连后端房间。
- *   3. `deps.getDetectionService` 可能在测试夹具中缺席，调用前必须保留 `typeof deps.getDetectionService === 'function'` 守卫。
- * 反例：若在 `deps.getDetectionService` 未传入的轻量测试夹具里无条件调用 `await deps.getDetectionService()`，会直接抛出 `TypeError: deps.getDetectionService is not a function`，打崩快照兜底分支。
+ *   1. 已选定后端时优先沿用调用方传进来的选择结论（resolveSelection），未选定或显式空时返回空集合信封
+ *      { ok: true, maps: [], issues: [], labels: [], selection }，保证面板在未绑定工作区时也能渲染引导页。
+ *   2. 每张地图的子票统计（groupTickets）与拓扑层级（computeLevels）必须由宿主算好塞进快照，
+ *      面板只读宿主拼好的快照，不得在客户端重算或直连后端房间。
+ *   3. deps.getDetectionService 可能在测试夹具中缺席，调用前必须保留 typeof 守卫。
+ *   4. 失败一律回 { ok:false, error } 旧包或降级后的空集合，绝不抛、绝不假装成功——上层据此降级回缓存。
+ * 反例：若在这里把 TrackerError 原样 throw 出去，快照缓存层接不住，界面会白屏而不是显示旧缓存。
  */
 export function createSnapshotBuilder(deps: SnapshotDeps) {
-  const { getRepoKey, runGh, fetchIssues, getTrackerRegistry, getPlatform, execProc } = deps
-  const { fetchMapsDetailREST, mapTicket, parseMapBody, computeLevels, groupTickets, isRateLimitError } = deps
-  const { getRepoRoot, ctx, timer, getGhPath, getGhLastError } = deps
-    // 返回值按「成功那支 issues 存在、失败那支带 error」的联合标注（MapsDetail 的几格都可缺）：
-    // 不标的话，编译器会把几个 return 拼成一个松散联合，下面 `d.error`／`d.issues` 的读法就各报各的。
-    async function fetchMapsDetail(numbers: number[], cwd: string): Promise<MapsDetail> {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
-      if (!numbers || !numbers.length) return { ok: true, issues: {} }
-      // 构造 aliases 查询：query($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
-      const frag = 'number title state body url author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
-      const sel = numbers.map(function (n, i) { return 'm' + i + ':issue(number:' + n + '){' + frag + '}' }).join(' ')
-      const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
-      let last = null
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
-        if (!r.ok) {
-          last = r
-          // v1.5 B5：GraphQL 配额耗尽（RATE_LIMIT）→ 自动降级 REST 通道（不重试 2 次白烧，直接降级）
-          if (isRateLimitError(r)) return fetchMapsDetailREST(numbers, cwd)
-          if (r.kind !== 'network') return { ok: false, error: r }
-          continue
-        }
-        try {
-          const j = JSON.parse(r.text)
-          if (j.errors) {
-            // v1.5 B5：GraphQL 返回 errors（含 RATE_LIMIT）→ REST 降级
-            if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchMapsDetailREST(numbers, cwd)
-            return { ok: false, error: { kind: 'graphql', error: JSON.stringify(j.errors).slice(0, 300) } }
-          }
-          return { ok: true, issues: j.data.repository }
-        } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
-      }
-      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases 请求失败（重试后仍失败）' } }
+  const { getRepoKey, mapTicket, parseMapBody, computeLevels, groupTickets } = deps
+  const { getTrackerRegistry, getPlatform, execProc, getRepoRoot, getGhPath, getGhLastError, openSession, ctx, timer } = deps
+
+  // 票号：契约里的 key 是字符串，面板一路用数字（层级、blockedBy、地图子票查询都按数字比）。
+  function numOf(key: unknown): number | string {
+    const n = Number(key)
+    return Number.isFinite(n) ? n : String(key == null ? '' : key)
+  }
+  // 状态：契约里是小写 open/closed，旧快照一直是大写 OPEN/CLOSED（面板与分组按大写判）。
+  function upper(state: unknown): string {
+    return String(state).toLowerCase() === 'closed' ? 'CLOSED' : 'OPEN'
+  }
+  function errText(e: unknown): string {
+    try { return String((e && (e as any).message) || e || '') } catch (e2) { return '' }
+  }
+  // 失败一律归一到旧包：界面只认 {kind,error}，TrackerError 的 message/raw 不往外冒。
+  function oldError(err: unknown, kind: string): { kind: string; error: string } {
+    const e: any = (err && typeof err === 'object') ? err : null
+    const m = e ? (e.message || e.error) : err
+    return { kind: String((e && e.kind) || kind), error: String(m == null ? kind : m) }
+  }
+
+  /** 列表行：把契约 Issue 摊成旧 gh 输出的那一套（assignees 只留 login，labels 带颜色，author 带名字）。 */
+  function listRow(it: any): ListRow {
+    return {
+      number: numOf(it && it.key),
+      title: it && it.title,
+      state: upper(it && it.state),
+      assignees: ((it && it.assignees) || []).map(function (a: any) { return a && a.login }),
+      labels: ((it && it.labels) || []).map(function (l: any) { return { name: l && l.name, color: (l && l.color) || '' } }),
+      author: (it && it.author && it.author.login) ? { login: it.author.login, name: it.author.name || '', avatarUrl: it.author.avatarUrl || '' } : undefined,
+      updatedAt: it && it.updatedAt,
+      createdAt: it && it.createdAt,
     }
+  }
 
-
-    async function buildSnapshot(cwd: string, hintBackendId: unknown) {
-      let viewerLogin = null // 由 Tracker.getCurrentUser 填充（后端接口返回当前用户，UI 仅对比，不直调 gh）
-      let viewer = null
-      const repo = await getRepoKey(cwd)
-      // v1.3.3 提速：map 列表直接从全量 issues 过滤（fetchMaps 单独调用省去 —— 原 11 次 → 9 次 gh 调用）
-      const fi = await fetchIssues(cwd)
-      const issues = fi.ok ? fi.issues : []
-      const mapsMeta = fi.ok ? fi.issues.filter(function (x) {
-        return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
-      }) : []
-      // #375：全量 label 列表（含空 label；获取失败容错置空，不阻塞快照构建，client 降级）
-      // name 收成未知值：它直接来自 gh 的 JSON，颜色那一格有兜底、名字没有。
-      let labels: Array<{ name: unknown; color: string }> = []
-      const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
-      if (fl.ok) {
-        try {
-          const ls = JSON.parse(fl.text)
-          if (Array.isArray(ls)) labels = ls.map(function (l) { return { name: l.name, color: l.color || '' } })
-        } catch (e) { labels = [] }
-      }
-      // v1.3.3 提速：GraphQL aliases 一次查全部 map 详情（原每 map 一次 GraphQL，8 次串行 ~19s → 1 次 ~4s）
-      const d = await fetchMapsDetail(mapsMeta.map(function (m) { return m.number }), cwd)
-      const detailOk = d.ok
-      const maps = []
-      for (let i = 0; i < mapsMeta.length; i++) {
-        const m = mapsMeta[i]
-        const issue = detailOk ? (d.issues['m' + i] || null) : null
-        if (!detailOk || !issue) {
-          maps.push({ number: m.number, title: m.title, state: 'OPEN', error: detailOk ? undefined : d.error, tickets: [], stats: { total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0 } })
-          continue
-        }
-        const subs = (issue.subIssues && issue.subIssues.nodes) || []
-        const tickets = subs.map(mapTicket)
-        const bp = parseMapBody(issue.body)
-        // v1.4（T1 #442）：每张票挂 level（DAG 最长路径深度），client 渲染漏斗分层直接取
-        const lvInfo = computeLevels(tickets)
-        tickets.forEach(function (t) { t.level = lvInfo.byNumber[t.number] })
-        const stats = groupTickets(tickets)
-        const labels2 = ((issue.labels && issue.labels.nodes) || []).map(function (x) { return x.name })
-        maps.push({
-          number: issue.number, title: issue.title, state: issue.state, url: issue.url, labels: labels2,
-          destination: bp.destination, notes: bp.notes,
-          decisions: bp.decisions, fog: bp.fog, outOfScope: bp.outOfScope,
-          tickets: tickets, stats: stats,
-        })
-      }
-      // v1.5 R2 + R2-fix-6（#2 MVP E2E 实证 2026-08-18）：probe since 基线**不得**在 buildSnapshot 里初始化/推进。
-      //   原实现「buildSnapshot 末尾 lastProbeAtByRepo[rk]=now」有个致命竞态：面板任一 snapshot build（cache-miss/
-      //    refresh）若发生在某次编辑**之后**，会把基线推到编辑时刻**之后** → 下次 probe since=基线 查不到该编辑
-      //   （count=0 → changed=false），且基线只在 changed=true 时才滑动 → 编辑被**永久吞掉**，UI 永不刷新。
-      //   正确语义：基线只能由 probe 自己推进（检测到 change 时置为「本次探测时刻」）；build 完成 ≠ client 已渲染该
-      //   快照，无权动基线。首次 probe（since=undefined）自然走全量返回 → 视为 changed → 建立基线（符合原注释意图）。
-      // B 方案：viewerLogin 经 Tracker.getCurrentUser（后端接口）获取，UI 仅做 login 对比，不直调 gh，不硬编码 backendId
-      // #155：Selection/RepositoryRef 增量（registry.select/describe → wf.snapshot {repository, selection}）
-      let selection = null
-      let repository = null
-      try {
-        const reg = await getTrackerRegistry()
-        // 预取 viewer（供 UI “本人不显”对比），失败则保持 null（全显）
-        try {
-          const tmpReg = reg
-          const tmpHandle: HostHandle = { cwd: cwd }
-          const tmpCtx: RegistryOpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-viewer', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'viewer-lookup'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
-          const selForViewer = await tmpReg.select(tmpHandle, tmpCtx)
-          const vid = selForViewer && selForViewer.backendId
-          if (vid) {
-            const tr = tmpReg.get(vid)
-            if (tr && typeof tr.getCurrentUser === 'function') {
-              const vr = await tr.getCurrentUser({ backend: vid, refId: (tmpHandle.refId||''), name: '', url: '' }, tmpCtx)
-              if (vr && vr.ok && vr.data && vr.data.login) { viewerLogin = String(vr.data.login).trim(); viewer = vr.data }
-            }
-          }
-        } catch (e) {}
-        if (reg && typeof reg.select === 'function') {
-          const handle = { cwd: cwd }
-          const ctxSel: RegistryOpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'snapshot-select'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
-          // 能力诊断计数（G5 仅诊断，不驱动隐藏）——按 host 视角 fill 统计
-          const capCount = (function(iss: ListIssue[]){
-            let present=0, emptyCnt=0, missing=0
-            // 简易：以 labels 为例，其余字段按 shape 能力字段集计数
-            const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
-            iss.forEach(function(it){
-              fields.forEach(function(f){
-                if (it[f] === undefined) missing++
-                else if (Array.isArray(it[f]) && it[f].length===0) emptyCnt++
-                else if (it[f]===null || it[f]==='') emptyCnt++
-                else present++
-              })
-            })
-            return {present, empty: emptyCnt, missing}
-          })(issues)
-          // select 三级联（2026-08-28 真源统一）：快照 selection 与 wf.chain/wf.detect 同构——
-          //   经 detectionService 判定（explicit 主锚 → matches → fallback），主锚是权威。
-          //   此前快照裸 registry.select 不读主锚：「GitHub 版锚 + 非 git 目录」在快照侧判 fallback null，
-          //   客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github（链按锚判定）互相矛盾（用户观察）。
-          const selMod = await (typeof deps.getDetectionService === 'function' ? deps.getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true }) }).catch(function(){ return null }) : null) // 接线从没注入过这一口（index.ts 不传），原来同步抛、外层 355 行接住走 selection=null；守卫后同样走 null，行为不变
-          let sel = selMod && selMod.selection
-          // #297 失效维度：显式空（source explicit + null）是权威“无后端”（空目录 stale），不退回裸 select，否则旧绑定会复活
-          if (!sel || (sel.backendId == null && (!sel.source || sel.source !== 'explicit'))) {
-            // detect 无结论（fallback null / 服务不可用）：退回裸 select（bind 记忆 → matches）兼容旧行为
-            try { sel = await reg.select(handle, ctxSel) } catch (eSel) { sel = null }
-          }
-          selection = sel
-          if (sel && sel.backendId) {
-            try { repository = reg.describe(handle, sel.backendId) } catch {}
-            // 2026-08-28 加固（Dock「后端名 · 目录名」兜底根因）：describe 以 handle.refId 为准，handle 无 refId 时退化为
-            //   「目录名 + 无 url」——正常 GitHub 仓库也会因临时 fs/git 读取差异落入该弱结果，UI 头部只剩兜底形态。
-            //   refId/name 是身份真相（url 才受 links.repoUrlTemplate 意愿位约束）：getRepoKey 可解析即无条件补全 owner/name。
-            if ((!repository || !repository.refId) && repo && repo.owner) {
-              try { repository = reg.describe({ cwd: cwd, refId: repo.owner + '/' + repo.name }, sel.backendId) } catch (eDesc2) {}
-            }
-            if ((!repository || !repository.refId) && repo && repo.owner) {
-              try { repository = { backend: sel.backendId, refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' } } catch (eD2) {}
-            }
-            // 2026-08-28 契约修正（用户复核）：仓库名一律由后端 describe 经契约层产出，UI 层零派生——
-            //   markdown 本地形态（目录即仓库）同样经 describe 给出 name=目录名；describe 异常/弱结果时
-            //   host 侧按目录名兜底（数据产生在半，UI 直显），绝不把「前端拼装」当作仓库身份来源。
-            if (!repository) {
-              try { repository = reg.describe({ cwd: cwd, refId: cwd }, sel.backendId) } catch (eNa) {}
-            }
-            if (!repository) {
-              try {
-                const nm = String(cwd || '').split(/[\\/]/).filter(Boolean).pop() || sel.backendId
-                repository = { backend: sel.backendId, refId: String(cwd || ''), name: nm, url: '' }
-              } catch (eNb) {}
-            }
-            // #231：后端特判删除 —— 是否补链由该后端 links.repoUrlTemplate 意愿位声明；补全走其自身 describe（单源产出 refId/name/url）
-            if (repository && !repository.url && sel.backendId && repo && repo.owner) {
-              var wantsUrlSeed = false
-              try {
-                var modsHere = (reg && typeof reg.modules === 'function') ? reg.modules() : []
-                for (var mi = 0; mi < modsHere.length; mi++) {
-                  if (modsHere[mi] && modsHere[mi].id === sel.backendId && modsHere[mi].links && modsHere[mi].links.repoUrlTemplate) { wantsUrlSeed = true; break }
-                }
-              } catch (eSeed) {}
-              if (wantsUrlSeed) { try { repository = reg.describe({ cwd: cwd, refId: repo.owner + '/' + repo.name }, sel.backendId) } catch (eDesc) {} }
-            }
-          } else {
-            // fallback（无选择）时诚实占位：不带任何品牌 url，UI 按「无链接」渲染
-            if (repo) repository = { backend: '', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' }
-            else repository = null
-          }
-          // 能力计数挂到 snapshot 供 ChecksTab 诊断卡。
-          // `var` 声明在 if 里、取值在 if 外的 return 里（var 提升到函数作用域），选不出后端时这一格本就没算过——
-          // 下面取值处那句 `typeof _capDiag !== 'undefined'` 就是为这个写的。类型照实标成「可能是 undefined」，
-          // 让编译器认下这句守卫；这不是新缺陷，是原来就按「可能缺席」写好的语义。
-          var _capDiag: typeof capCount | undefined = capCount
-        }
-      } catch (e) { /* 保持 null，不阻塞快照 */ }
-      // #191: backendModules 透传（presentation 色板）—— 修复 ReferenceError: backendModules is not defined (#195 遗漏)
-      let backendModules = null
-      try {
-        const regM = await getTrackerRegistry()
-        if (regM && typeof regM.modules === 'function') {
-          // 2026-08-28 修复：快照 backendModules 必须与 wf.registry 上报同构（含 setupPrompt 键表）——
-          //   缺 setupPrompt 时 setupRunParamsFrom 匹配不到该后端 → 注入的 setup 提示词落回默认键组（GitHub 版），
-          //   表现为「选了 gitlab/markdown，点初始化按钮注入的却还是默认 GitHub」（用户观察）。
-          backendModules = regM.modules().map(projectUiDescription)
-        }
-      } catch (e2) {}
-      return {
-        ok: true,
-        repo: repo,
-        repoRoot: await getRepoRoot(cwd),  // v1.5 T9：git 根路径（供仓库身份组件与 setup 检查）
-        updatedAt: new Date().toISOString(),
-        generatedMs: Date.now(),
-        env: { ghPath: getGhPath(), ghError: getGhLastError() },
-        maps: maps,
-        issues: issues,
-        labels: labels,
-        fallback: d.fallback || null,  // v1.5 B5：'rest' = GraphQL 配额耗尽已降级 REST（client 可提示）
-        fallbackAt: d.fallbackAt || null,  // 2026-09-24：这次降级发生的时刻（界面据此说“多久以前”，不再冒充现在）
-        repository: repository,
-        backendModules: backendModules,
-        selection: selection,
-        capabilities: (typeof _capDiag !== 'undefined' ? _capDiag : null),
-        viewer: viewer, // 后端接口返回当前用户（Actor），UI 据此做“本人不显”对比
-        viewerLogin: viewerLogin, // 兼容旧 UI（string），与 viewer.login 同步
-      }
+  /** 会话子票 → mapTicket 认识的 GraphQL 形状（key→number、数组字段→{nodes}）；语义逐格对齐旧查询。 */
+  function subRaw(it: any, blocks: Record<string, Array<number | string>>): any {
+    const self = numOf(it && it.key)
+    return {
+      number: self,
+      title: it && it.title,
+      state: upper(it && it.state),
+      body: it && it.body,
+      url: it && it.url,
+      labels: { nodes: ((it && it.labels) || []).map(function (l: any) { return { name: l && l.name } }) },
+      assignees: { nodes: ((it && it.assignees) || []).map(function (a: any) { return { login: a && a.login } }) },
+      blockedBy: { nodes: ((it && it.blockedBy) || []).map(function (b: any) { return { number: numOf(b && b.key) } }) },
+      blocking: { nodes: (blocks[String(self)] || []).map(function (b) { return { number: b } }) },
+      author: (it && it.author) ? { login: it.author.login, name: it.author.name || '', avatarUrl: it.author.avatarUrl || '' } : undefined,
     }
+  }
+  // 谁挡着谁：子票 A 的 blockedBy 里有 B，就是 B 挡着 A；反过来把 A 记到 B 的 blocks 上。
+  // 迁移前这份 blocks 来自 GraphQL 片段的 blocking 字段，而那段查询从没请求过 blocking，
+  // 所以面板上「我挡着谁」一直是空的；现在从同一批 items 的 blockedBy 反推，不额外发请求。
+  function blocksOf(items: any[]): Record<string, Array<number | string>> {
+    const out: Record<string, Array<number | string>> = {}
+    ;(items || []).forEach(function (it: any) {
+      const self = numOf(it && it.key)
+      ;((it && it.blockedBy) || []).forEach(function (b: any) {
+        const k = String(numOf(b && b.key))
+        out[k] = out[k] || []
+        out[k].push(self)
+      })
+    })
+    return out
+  }
 
+  /** 开会话失败与插件没接线都归一到旧包；上层据此降级回缓存，不抛。 */
+  async function openRead(cwd: string, resolveSelection?: any): Promise<any> {
+    if (typeof openSession !== 'function') return { ok: false, error: { kind: 'env', error: 'open-session:not-wired（刷新接线没给出只读会话口）' } }
+    try {
+      const opened = await openSession(cwd, resolveSelection ? { resolveSelection: resolveSelection } : undefined)
+      if (!opened || opened.ok !== true) return { ok: false, error: { kind: 'env', error: 'open-session:' + String((opened && opened.reason) || 'open-failed') } }
+      return { ok: true, opened: opened }
+    } catch (e) {
+      return { ok: false, error: { kind: 'env', error: 'open-session:threw ' + errText(e) } }
+    }
+  }
+  /** 会话里的整段读取：call 里抛的也一起兜住，回旧包而不是把 TrackerError 漏给上层。 */
+  async function runRead(opened: any, fn: (session: any, opCtx: any) => Promise<any>): Promise<any> {
+    try { return { ok: true, data: await opened.call(fn) } } catch (e) { return { ok: false, error: { kind: 'network', error: 'session-call:' + errText(e) } } }
+  }
+  /** 调一条会话能力：失败分支与抛异常都归一成 {ok:false,error}，成功只交出 data。 */
+  async function readOne(session: any, opCtx: any, name: string, args: any[]): Promise<any> {
+    try {
+      const reply = await session[name].apply(session, args.concat([opCtx]))
+      if (!reply || reply.ok !== true) return { ok: false, error: oldError(reply && reply.error, 'network') }
+      return { ok: true, data: reply.data }
+    } catch (e) {
+      return { ok: false, error: oldError({ message: errText(e) }, 'network') }
+    }
+  }
 
-  return { fetchMapsDetail, buildSnapshot }
+  /** 选后端那一小段 opCtx：caller 与 exec 的 via 都沿用旧值，后端口径不变。 */
+  async function selectionCtx(cwd: string): Promise<RegistryOpCtx> {
+    return {
+      cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: hostTimers(timer),
+      exec: async function (cmd, args, opts) {
+        const argv = [String(cmd)].concat(args || [])
+        const r = await execProc(argv, (opts && opts.cwd) || cwd, 'snapshot-select')
+        if (!r.ok) throw new Error(r.error || String(r.code || 'exec failed'))
+        return { stdout: r.text, text: r.text, ok: true, code: (Number.isInteger(r.code) ? r.code : 0) }
+      },
+    }
+  }
+
+  /**
+   * 仓库身份一律由后端 describe 产出（UI 零派生）：describe 弱结果/失败时按 owner/name、目录名逐级兜底，
+   * 最后才用字面量占位。逐级顺序与迁移前一字不差（#155 与 2026-08-28 那条契约修正）。
+   */
+  function describeRepo(reg: RegistrySlice, handle: HostHandle, backendId: string, repo: any, cwd: string): RepositoryRef | null {
+    let out: RepositoryRef | null = null
+    try { out = reg.describe(handle, backendId) } catch (e) {}
+    const ownerName = (repo && repo.owner) ? repo.owner + '/' + repo.name : ''
+    if ((!out || !out.refId) && ownerName) { try { out = reg.describe({ cwd: cwd, refId: ownerName }, backendId) } catch (e) {} }
+    if ((!out || !out.refId) && ownerName) { try { out = { backend: backendId, refId: ownerName, name: ownerName, url: '' } } catch (e) {} }
+    if (!out) { try { out = reg.describe({ cwd: cwd, refId: cwd }, backendId) } catch (e) {} }
+    if (!out) {
+      try {
+        const nm = String(cwd || '').split(/[\\/]/).filter(Boolean).pop() || backendId
+        out = { backend: backendId, refId: String(cwd || ''), name: nm, url: '' }
+      } catch (e) {}
+    }
+    // #231：是否补链由该后端 links.repoUrlTemplate 意愿位声明；补全仍走它自己的 describe（单源产出 refId/name/url）。
+    if (out && !out.url && ownerName) {
+      let wants = false
+      try {
+        const mods = reg.modules()
+        for (let i = 0; i < mods.length; i++) if (mods[i] && mods[i].id === backendId && mods[i].links && mods[i].links.repoUrlTemplate) { wants = true; break }
+      } catch (e) {}
+      if (wants) { try { out = reg.describe({ cwd: cwd, refId: ownerName }, backendId) } catch (e) {} }
+    }
+    return out
+  }
+
+  /**
+   * 选择三级联（2026-08-28 真源统一）：快照 selection 与 wf.chain/wf.detect 同构——
+   * 经 detectionService 判定（explicit 主锚 → matches → fallback），主锚是权威。
+   * 此前快照裸 registry.select 不读主锚：「GitHub 版锚 + 非 git 目录」在快照侧判 fallback null，
+   * 客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github 互相矛盾（用户观察）。
+   */
+  async function pickBackend(cwd: string, repo: any): Promise<{ selection: Selection | null; repository: RepositoryRef | null }> {
+    let selection: Selection | null = null
+    let repository: RepositoryRef | null = null
+    try {
+      const reg = await getTrackerRegistry()
+      if (reg && typeof reg.select === 'function') {
+        const handle: HostHandle = { cwd: cwd }
+        const opCtx = await selectionCtx(cwd)
+        let sel: Selection | null = null
+        if (typeof deps.getDetectionService === 'function') {
+          try {
+            const out = await (await deps.getDetectionService()).detect({ cwd: cwd }, { skipSkillProbes: true })
+            sel = (out && out.selection) || null
+          } catch (eDet) { sel = null }
+        }
+        // #297 失效维度：显式空（source explicit + null）是权威「无后端」（空目录 stale），
+        // 不退回裸 select，否则旧绑定会复活。
+        if (!sel || (sel.backendId == null && (!sel.source || sel.source !== 'explicit'))) {
+          try { sel = await reg.select(handle, opCtx) } catch (eSel) { sel = null }
+        }
+        selection = sel
+        if (sel && sel.backendId) repository = describeRepo(reg, handle, sel.backendId, repo, cwd)
+        else if (repo && repo.owner) repository = { backend: '', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' }
+      }
+    } catch (e) { /* 保持 null，不阻塞快照 */ }
+    return { selection: selection, repository: repository }
+  }
+
+  /** backendModules 透传（presentation 色板）：必须与 wf.registry 同构（含 setupPrompt 键表），取不到给 null。 */
+  async function backendModulesOf(): Promise<any[] | null> {
+    try {
+      const reg = await getTrackerRegistry()
+      if (reg && typeof reg.modules === 'function') return reg.modules().map(projectUiDescription)
+    } catch (e) {}
+    return null
+  }
+
+  /** 能力诊断计数（G5 仅诊断，不驱动隐藏）：按字段名逐格数「有值/空/缺」，口径迁移前一字未改。 */
+  function capCount(rows: ListRow[]): { present: number; empty: number; missing: number } {
+    const fields = ['author', 'assignees', 'labels', 'milestone', 'customFields', 'reason', 'blockedBy', 'comments', 'closedAt']
+    let present = 0, empty = 0, missing = 0
+    rows.forEach(function (it: any) {
+      fields.forEach(function (f) {
+        if (it[f] === undefined) missing++
+        else if (Array.isArray(it[f]) && it[f].length === 0) empty++
+        else if (it[f] === null || it[f] === '') empty++
+        else present++
+      })
+    })
+    return { present: present, empty: empty, missing: missing }
+  }
+
+  /**
+   * 逐张地图取子票并组装：单张失败只降级这一张，票数与层级照写。
+   * 入参是契约 Issue（不是摊平后的列表行）：地图正文、url、标签名字只在原始票上，摊平行照旧不带宽字段。
+   */
+  async function mapsOf(issues: any[], repoRef: any, session: any, opCtx: any): Promise<any[]> {
+    const maps: any[] = []
+    const metas = issues.filter(function (it: any) {
+      return String(it && it.state).toLowerCase() === 'open' && ((it && it.labels) || []).some(function (l: any) { return l && l.name === 'wayfinder:map' })
+    })
+    for (let i = 0; i < metas.length; i++) {
+      const m: any = metas[i]
+      const num = numOf(m.key)
+      const got = await readOne(session, opCtx, 'listSubIssues', [repoRef, String(num), undefined])
+      if (!got.ok) {
+        // 迁移前 GraphQL 单个别名拿不到详情时就是这一格降级形状（tickets 空、stats 全零），照旧。
+        maps.push({ number: num, title: m.title, state: 'OPEN', error: got.error, tickets: [], stats: { total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0 } })
+        continue
+      }
+      const items = (got.data && got.data.items) || []
+      const blocks = blocksOf(items)
+      const tickets = items.map(function (it: any) { return mapTicket(subRaw(it, blocks)) })
+      const bp = parseMapBody(m.body)
+      // v1.4（T1 #442）：每张票挂 level（DAG 最长路径深度），client 渲染漏斗分层直接取。
+      const lv = computeLevels(tickets)
+      tickets.forEach(function (t: any) { t.level = lv.byNumber[t.number] })
+      maps.push({
+        number: num, title: m.title, state: upper(m.state), url: m.url,
+        labels: (m.labels || []).map(function (l: any) { return l.name }),
+        destination: bp.destination, notes: bp.notes, decisions: bp.decisions, fog: bp.fog, outOfScope: bp.outOfScope,
+        tickets: tickets, stats: groupTickets(tickets),
+      })
+    }
+    return maps
+  }
+
+  /** 仓库根：取不到时退回工作区目录（迁移前这里会抛，但快照不该因为一个展示字段整份失败）。 */
+  async function repoRootOf(cwd: string): Promise<string> {
+    try { return await getRepoRoot(cwd) } catch (e) { return String(cwd || '') }
+  }
+
+  async function buildSnapshot(cwd: string, hintBackendId: unknown) {
+    const repo = await getRepoKey(cwd).catch(function () { return null })
+    const picked = await pickBackend(cwd, repo)
+    const selection = picked.selection
+    const repository = picked.repository
+    const backendModules = await backendModulesOf()
+    const repoRoot = await repoRootOf(cwd)
+    const envelope: any = {
+      ok: true, repo: repo, repoRoot: repoRoot, generatedMs: Date.now(),
+      env: { ghPath: getGhPath(), ghError: getGhLastError() },
+      maps: [], issues: [], labels: [], fallback: null, fallbackAt: null,
+      repository: repository, backendModules: backendModules, selection: selection,
+      capabilities: null, viewer: null, viewerLogin: null,
+    }
+    // 显式空选择／没选后端：面板要靠这份空信封渲染引导页（文档约定，迁移前同口径）。
+    if (!selection || !selection.backendId) return Object.assign(envelope, { updatedAt: new Date().toISOString() })
+
+    // 已有选择结论才传 resolveSelection：让会话沿用同一份裁决，不二次探测。
+    const opened = await openRead(cwd, function () { return Promise.resolve(selection) })
+    if (!opened.ok) return { ok: false, error: opened.error }
+    const reads = await runRead(opened.opened, async function (session: any, opCtx: any) {
+      // list 的第二个参数是筛选：不筛就是 undefined，别把 opCtx 顶到那个位置上。
+      const list = await readOne(session, opCtx, 'list', [repository, undefined])
+      if (!list.ok) return list
+      // 拉取请求不是票：迁移前 fetchIssues 的 select(.pull_request == null) 同口径，剔掉后再按更新时间倒序。
+      // 排序先做在契约票上，列表行与地图都照这个顺序走（迁移前 mapsMeta 也是从排好序的那份列表里筛的）。
+      const issues = (list.data || []).filter(function (it: any) { return !it || it.isPullRequest !== true })
+      issues.sort(function (a: any, b: any) { return String(b && b.updatedAt).localeCompare(String(a && a.updatedAt)) })
+      const rows = issues.map(listRow)
+      // 标签与本人都是次信息：取不到就退回 [] 与 null，不拖垮整份快照（迁移前 gh label list 失败同口径）。
+      const labelsGot = await readOne(session, opCtx, 'listLabels', [repository])
+      const labels = (labelsGot.ok && Array.isArray(labelsGot.data))
+        ? labelsGot.data.map(function (l: any) { return { name: l.name, color: l.color || '' } })
+        : []
+      let viewer = null, viewerLogin = null
+      const userGot = await readOne(session, opCtx, 'getCurrentUser', [repository])
+      if (userGot.ok && userGot.data && userGot.data.login) {
+        viewer = userGot.data
+        viewerLogin = String(userGot.data.login).trim()
+      }
+      const maps = await mapsOf(issues, repository, session, opCtx)
+      return { ok: true, rows: rows, labels: labels, maps: maps, viewer: viewer, viewerLogin: viewerLogin }
+    })
+    if (!reads.ok) return { ok: false, error: reads.error }
+    const got = reads.data
+    if (!got || got.ok !== true) return { ok: false, error: got ? got.error : oldError(null, 'network') }
+    return Object.assign(envelope, {
+      updatedAt: new Date().toISOString(),
+      maps: got.maps, issues: got.rows, labels: got.labels,
+      capabilities: capCount(got.rows), viewer: got.viewer, viewerLogin: got.viewerLogin,
+    })
+  }
+
+  return { buildSnapshot }
 }

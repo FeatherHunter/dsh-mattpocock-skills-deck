@@ -7,6 +7,7 @@
 // 拿不到的东西一律如实说：没有会话工作区、没有后端、后端不认这条路，都在返回值里写明。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
+import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import * as budget from '../../refresh/kernel/host-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
@@ -114,7 +115,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
     if (!s.ok) return shell.unsupported('deck_context', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
 
-    const pick = await shell.pickBackend(exec, s)
+    const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_context', kind: 'read' })
     if (!pick.ok) {
       // 没有后端也不是一次失败：工作区解析结果照样回给 AI（它要靠这个知道该在面板上选什么）。
       return shell.unsupported('deck_context', pick.reason, pick.text, {
@@ -134,7 +135,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
+    return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_context', sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳 + 两路并行：预检与清单互相独立，之前串行要等两份慢调用，
       // 并行后只等较慢的那一份。回包的字段与 notes 顺序与之前一致。
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })

@@ -312,7 +312,8 @@ module.exports = {
         + '#1426 装配例外：宿主入口（src/host/index.ts）是房间的永久装配点，豁免一直留；'
         + '#1427 常驻使用边：platformChannel 与 versionControl 引用出站准入/控制面与 gh 执行（D3/C11/C9 搬家前的宿主同层边，调用方永不搬家）；十一份 deck 工具壳引用宿主房的工具调用预算执行（F1 搬家前的 deck 同层边，壳只认这一处房间实现）。'
         + '#1427 删过渡四处（detectChain、git-process、refreshAssembly、outbound-control 已搬进房、边变房内边）。'
-        + '这个名单只许缩不许长。',
+        + '这个名单只许缩不许长。'
+        + '#1443 到期说明：这是 A2 未迁路径的显式允许，1444/1445 把刷新后台读写链归位后，未迁路径清零，名单同步缩到空。',
       from: { path: '^src/', pathNot: ['^src/refresh/', '^src/host/index\\.ts$', '^src/host/platformChannel\\.ts$', '^src/host/versionControl\\.ts$', '^src/deck/tools/'] },
       to: { path: '^src/refresh/rooms/|^src/refresh/registry/' },
     },

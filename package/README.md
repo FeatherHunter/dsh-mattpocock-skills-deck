@@ -22,14 +22,6 @@
 
 <h2 align="center"><sub>INSTALL</sub><br>安装</h2>
 
-<div align="center">
-
-前置要求：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
-
-任务板绑定的仓库需要写权限：新建标签要 push 权限，给票打标签要 triage 及以上权限；只有读权限时能建票、能读票，但补打标签、标签流转与 wayfinder 标签都不可用。
-
-</div>
-
 ```bash
 # ① 安装 DSH CLI（已装跳过）
 npm install -g @deepseek-ai/dsh
@@ -44,6 +36,8 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.11 --registry
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.11 --registry https://registry.npmjs.org
 ```
+
+> **用 GitHub 后端前的权限前提**：插件替你改 ISSUE，用的是本机 `gh` 已登录账号的权限——建标签、改票需要仓库的 `push` 权限；改指派、流转标签需要 `triage` 权限。账号在该仓库只有 `只读` 权限时，插件会把仓库如实标成只读：改票、打标签与标签流转不可用，浏览与刷新照常。
 
 <h2 align="center"><sub>BOARD</sub><br>任务板</h2>
 
@@ -247,9 +241,9 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=20261023" />
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261023" />
-    <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261023" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=202610232036" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202610232036" />
+    <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202610232036" />
   </picture>
 </a>
 

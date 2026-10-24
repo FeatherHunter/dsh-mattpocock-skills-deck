@@ -117,7 +117,9 @@ async function assemble(ws, logs) {
     setCache: () => {},
   })
   const clock = Date.now()
-  wiring.ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  wiring.ledger.ensureBackend('github', { kind: 'two-buckets' })
+  wiring.ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const table = await wiring.deckToolsForHost()
   return { wiring: wiring, table: table, dispose: dispose }
 }
@@ -140,7 +142,9 @@ async function toolLevel(ws) {
   chooseWorkspace(ws.rootPosix, 'markdown')
   const clock = Date.now()
   const ledger = ledgerMod.createLedger({ now: () => clock })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
   const deps = {

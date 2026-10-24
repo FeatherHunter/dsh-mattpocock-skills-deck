@@ -4,9 +4,11 @@
 // 这一段盯四件事，都是票面点名要的：
 //   ① 九个工具各一条正例：调用能不能真的把事情做完（在真实本地 Markdown 后端上跑，票就是盘上的文件）。
 //   ② 两条负向：`unsupported`（后端说做不到 / 会话取不到工作区）与 `partial`（一批里有的成、有的没成）。
-//   ③ **每次后端调用都过闸**：这一段用的是真闸真账本（#706 T2 的 gate.js + ledger.js），
-//      传输层每真发一条就报一次;所以「闸记下来的」与「传输层真发的」必须相等（escaped 必须为 0），
-//      而「AI 工具那一档」的账必须有数 —— 谁绕开闸发请求，这个数就不是 0。
+//   ③ **离网后端不再过闸**（#1442 起）：工具只调 Tracker 会话，离网口径跳过剩余额度探针，
+//      所以真闸的「AI 工具」那一档是 0、escaped 是 0 —— 这个零不是漏记，是离网本来就没有额度可记。
+//      真闸与真账本的实例仍在（GitHub 路的回归保护走它们），只是离网调用不再经手。
+//      判定出口的常驻结论线 detection.detect 仍在，调用改走会话后工具层不再发 host.call。
+//      传过闸的旧断言见 git 历史，本文件现在只钉新口径；跨口径的对照由 tests/verify-1442-tracker-tools.ts 负责。
 //   ④ 一条负向：让后端实现抛错 → 工具必须回 ok:false / partial，而不是把异常抛给 AI。
 //
 // 另外两条静态扫描（票面「加固补充」要求）：src/deck/tools/**、src/deck/shell/** 与 src/deck/registration/** 里
@@ -146,9 +148,8 @@ async function main() {
 
   const callTool = async (name, args) => {
     const r = await tools[name].run(exec, args || {})
-    // 选后端成功的那几次调用，每笔至少要过两次闸（选后端一次 + 真正读写一次）。
-    // 这条计数是「选后端那一步有没有过闸」的唯一证据：绑定过的注册表在 select 时不发任何请求，
-    // 只查「绕开闸的请求数为 0」是看不出一位绕开闸的 select 的（见交付报告里的反证 A）。
+    // 成功选出后端的那几次调用在这里计数，供下面那段「离网调用不再过真闸」核对（调用次数大于 0 而闸计数为 0）。
+    // #1442 起选后端走判定出口（读工作区文件），不再调注册表的选择接口；选择接口零调用由 tests/verify-1442-tracker-tools.ts 钉住。
     if (r && r.backend && r.backend.id) selectCount.count += 1
     return r
   }
@@ -442,8 +443,9 @@ async function main() {
     const stats = gate.stats()
     const esc = gate.escaped()
     check(esc.requests === 0 && esc.points === 0, '绕开闸的请求数为 0（闸记的 ' + JSON.stringify(stats.accounted) + ' == 传输层真发的 ' + JSON.stringify(stats.transport) + '）')
-    check(stats.byCategory['ai-tool'] >= 10, '这些调用都记在「AI 工具」那一档（' + stats.byCategory['ai-tool'] + ' 笔）')
-    check(selectCount.count > 0 && stats.byCategory['ai-tool'] >= selectCount.count * 2, '每笔工具调用至少过两次闸（选后端一次 + 真正读写一次）：' + stats.byCategory['ai-tool'] + ' 笔闸 ≥ ' + selectCount.count + ' 次调用 × 2')
+    // #1442 起离网调用不再过真闸：准入搬进 Tracker 管线（本夹具的裁决是测试本地那一份），真闸的「AI 工具」那一档保持 0 不是漏记。
+    check(stats.byCategory['ai-tool'] === 0, '离网调用不再过真闸：「AI 工具」那一档是 0（实得 ' + stats.byCategory['ai-tool'] + ' 笔）')
+    check(selectCount.count > 0 && stats.byCategory['ai-tool'] === 0, '选后端也不再过真闸：' + selectCount.count + ' 次成功调用、真闸 0 笔（判定走判定出口，额度走管线裁决）')
     check(Object.keys(stats.byCategory).every((c) => c === 'ai-tool' || stats.byCategory[c] === 0), '没有一笔走到别的档去（' + JSON.stringify(stats.byCategory) + '）')
     // 工具层自己只许发 host.call / host.call.fail 这两个既有事件名。
     // detection.detect 是统一判定出口的常驻结论线：2026-10-14（#1048 收口补做）给 deck 工具这条直调点
@@ -451,15 +453,16 @@ async function main() {
     // 但另外单独钉一次「它确实出现了」，免得哪天日志出口被摘掉却没人发现。
     const ownRows = logs.filter((l) => l.event === 'host.call' || l.event === 'host.call.fail')
     const decisionRows = logs.filter((l) => l.event === 'detection.detect')
-    check(ownRows.length > 0 && logs.every((l) => l.event === 'host.call' || l.event === 'host.call.fail' || l.event === 'detection.detect'),
-      '工具层没新造事件名：自有行只有 host.call / host.call.fail（' + ownRows.length + ' 行），另有判定出口的常驻结论线 detection.detect（' + decisionRows.length + ' 行）')
+    // #1442 起调用改走 Tracker 会话，工具壳不再发 host.call；日志只剩判定出口的常驻结论线，事件名仍不许新增。
+    check(ownRows.length === 0 && logs.every((l) => l.event === 'detection.detect'),
+      '工具层没新造事件名：自有行是 0（会话接管了调用，host.call 不再出现），其余全是判定出口的常驻结论线 detection.detect（' + decisionRows.length + ' 行）')
     check(decisionRows.length > 0, 'deck 工具这条直调点也把判定结论写进日志了（每趟判定一条，' + decisionRows.length + ' 条）')
     check(invalidated.length > 0, '写之后失效了缓存（' + invalidated.length + ' 次）')
 
-    // 上面那一段跑的是本地 Markdown 后端：它一个出站请求都不发，所以「账为 0」是对的。
-    // 要证明「真的过了闸、真的记了账」，得用一个会真发出站请求的后端 —— 探针远端：
-    // 它的每个操作都照生产里传输层的做法「每真发一条就报给闸一次」。
-    // 探针远端只为证明请求真的过了闸：记账走显式上报，与预算口径无关，所以按离网口径声明（注册表只验形状，不按口径限流）。
+    // 上面那一段跑的是本地 Markdown 后端：离网口径下一个出站请求都不发，所以「账为 0」是对的（#1442 起连闸也不过了）。
+    // 探针远端仍按离网口径声明（注册表只验形状，不按口径限流），但它的每个操作照生产里传输层的做法「每真发一条就报给闸一次」。
+    // #1442 的管线记账是空实现（各操作真实用量 1443 才进账本），所以这几条上报在真闸这里记为绕开（escaped），而不是记入「AI 工具」那一档。
+    // 这一段只钉住「记账空实现 + 逃逸探测器仍灵」，不把这几条逃逸当成事故（事故与否等 1443 接线后再判）。
     const probe = {
       id: 'probe-remote', label: '探针远端（会真发出站请求）', matches: async () => false,
       budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
@@ -471,13 +474,13 @@ async function main() {
     }
     const dp = registry.register(probe)
     chooseWorkspace(ws.rootPosix, 'probe-remote')   // 把工作区文件改写成选了探针远端（等同旧写法 registry.bind(handle, 'probe-remote')）
-    const before = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted }
+    const before = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted, escaped: gate.escaped().requests }
     const r = await tools.deck_issue_create.run(exec, { title: '远端那一张', kind: 'issue' })
-    const after = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted }
+    const after = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted, escaped: gate.escaped().requests }
     check(envelopeOk(r) && r.ok === true, '探针远端上建票成功（实得 ' + (r && r.status) + '）')
-    check(after.accounted.requests - before.accounted.requests === 2, '闸记下 2 条真实出站请求（实得 ' + (after.accounted.requests - before.accounted.requests) + '）')
-    check(after.hour.requests - before.hour.requests === 2 && after.hour.points - before.hour.points === 4, '账本「AI 工具」那一档记下同样多（' + (after.hour.requests - before.hour.requests) + ' 条、' + (after.hour.points - before.hour.points) + ' 点）')
-    check(gate.escaped().requests === 0, '绕开闸的请求数仍然是 0')
+    check(after.accounted.requests - before.accounted.requests === 0, '离网探针不经真闸记账：闸记下 0 条（实得 ' + (after.accounted.requests - before.accounted.requests) + '，管线记账 1443 才接）')
+    check(after.hour.requests - before.hour.requests === 0 && after.hour.points - before.hour.points === 0, '账本「AI 工具」那一档仍是 0（实得 ' + (after.hour.requests - before.hour.requests) + ' 条、' + (after.hour.points - before.hour.points) + ' 点）')
+    check(after.escaped - before.escaped === 2, '探针的上报走了逃逸口（+2），逃逸探测器仍灵')
     dp.dispose()
     chooseWorkspace(ws.rootPosix, 'markdown')
 
@@ -560,32 +563,34 @@ async function main() {
     check(over.withinCallCap === false && over.overCallCap !== '', '超顶的那一笔被判出来（' + over.overCallCap + '：' + over.text + '）')
   }
 
-  // ── ⑬ 判定出口缺席：壳要回一个规规矩矩的拒绝，不能把 (原因码, 文案, 附带) 错当成 (工具名, 原因码, 文案) 递出去 ──
+  // ── ⑬ 判定出口缺席：打开会话要回一个规规矩矩的拒绝，不能把 (原因码, 文案) 错当成 (工具名, 原因码, 文案) 递出去 ──
   //    这一支以前没有门禁覆盖（十几条夹具都照生产接上了判定出口），#1040 转 TypeScript 时类型检查才把它抓出来。
+  //    #1443 起这一步搬进了 openDeckSession（旧壳的 pickBackend 已删），同一条照旧钉在这里。
   {
-    const bare = shellMod.createDeckShell(Object.assign({}, deps, { decideBackend: undefined }))
-    const pick = await bare.pickBackend(exec, { cwd: ws.rootPosix, workspaceKey: 'ws-bare', sessionId: 's-713' })
-    check(pick && pick.ok === false && pick.reason === 'backend-threw', '判定出口缺席时回原因码 backend-threw（实得 ' + JSON.stringify(pick && pick.reason) + '）')
-    check(typeof (pick && pick.text) === 'string' && String(pick.text).indexOf('判定出口这次没装上') === 0, '拒绝文案是一句话，不是对象（实得 ' + JSON.stringify(pick && pick.text) + '）')
-    check(typeof (pick && pick.errorHash) === 'string' && pick.errorHash.length === 8, '拒绝带八位散列（实得 ' + JSON.stringify(pick && pick.errorHash) + '）')
-    check(pick && !('status' in pick) && !('tool' in pick), '拒绝不是信封：没有 status / tool 那两格')
+    const sessionMod = await imp('src/deck/tools/tracker-session.ts')
+    const opened = await sessionMod.openDeckSession({ deps: Object.assign({}, deps, { decideBackend: undefined }), exec: exec, session: { cwd: ws.rootPosix, workspaceKey: 'ws-bare', sessionId: 's-713' }, estimate: { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' }, tool: 'deck_context', kind: 'op' })
+    check(opened && opened.ok === false && opened.reason === 'backend-threw', '判定出口缺席时回原因码 backend-threw（实得 ' + JSON.stringify(opened && opened.reason) + '）')
+    check(typeof (opened && opened.text) === 'string' && String(opened.text).indexOf('判定出口这次没装上') === 0, '拒绝文案是一句话，不是对象（实得 ' + JSON.stringify(opened && opened.text) + '）')
+    check(opened && !('status' in opened) && !('tool' in opened), '拒绝不是信封：没有 status / tool 那两格')
   }
 
-  // ── ⑭ 注进壳的等待口要跟着上下文递到工具侧那段活儿手里：单次预算的钳制（call-budget 的 sleepFn）读的就是 ctx.sleep ──
+  // ── ⑭ 注进依赖的等待口用于仓库标识补全的竞速：getRepoKey 一直不回时，打开会话用注入的等待口兜底，不把进程吊死 ──
+  //    旧路把等待口一路递到工具侧上下文（ctx.sleep）；#1443 起调用上下文不再带等待口，等待口只活在打开会话那一步的
+  //    补全竞速里（缺席时用真定时器，测试注入假的）。这一条钉住：注入的口子确实被用，且毫秒数是依赖里配的那一格。
   {
-    const injected = () => Promise.resolve(null)
-    const withWait = shellMod.createDeckShell(Object.assign({}, deps, { sleep: injected }))
-    let sawCtx = null
-    const env = await withWait.call({
-      tool: 'deck_context', kind: 'op',
-      session: { cwd: ws.rootPosix, workspaceKey: 'ws-bare', sessionId: 's-713' },
-      pick: { backendId: 'markdown', ref: { backend: 'markdown', refId: '.scratch/demo' }, source: 'explicit', canWrite: true },
-      repo: { backend: 'markdown', refId: '.scratch/demo' },
-      estimate: { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' },
-      sandbox: null,
-    }, async (ctx) => { sawCtx = ctx; return { value: { ok: true } } })
-    check(envelopeOk(env) && env.ok === true, '注入等待口的那一趟照样正常收尾（实得 ' + (env && env.status) + '）')
-    check(sawCtx && sawCtx.sleep === injected, '注进壳的等待口跟着上下文递到了工具侧（单次钳制读的就是它）')
+    const sessionMod2 = await imp('src/deck/tools/tracker-session.ts')
+    const injectedCalls = []
+    const injected = (ms) => { injectedCalls.push(ms); return Promise.resolve(null) }
+    const slowReg = {
+      has: () => true,
+      describe: () => ({ backend: 'github', refId: '', name: 'ws', url: '' }),
+      get: () => ({ getRepoKey: () => new Promise(() => {}) }),
+      modules: () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }],
+    }
+    const slowDeps = Object.assign({}, deps, { registry: slowReg, sleep: injected, resolveTimeoutMs: 50, decideBackend: async () => ({ backendId: 'github', source: 'matches', ref: null, canWrite: true }) })
+    const opened2 = await sessionMod2.openDeckSession({ deps: slowDeps, exec: exec, session: { cwd: ws.rootPosix, workspaceKey: 'ws-slow', sessionId: 's-713' }, estimate: { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' }, tool: 'deck_context', kind: 'op' })
+    check(opened2 && opened2.ok === true, '补全 hang 住时打开会话照样成功（等待口兜底，实得 ' + JSON.stringify(opened2 && opened2.reason) + '）')
+    check(injectedCalls.length === 1 && injectedCalls[0] === 50, '注入的等待口被用了一次，毫秒数是依赖里配的 50（实得 ' + JSON.stringify(injectedCalls) + '）')
   }
 
   ws.cleanup()

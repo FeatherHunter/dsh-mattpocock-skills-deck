@@ -16,12 +16,20 @@ export interface PipelineDeps {
   budget: BackendBudgetModel
   /** 写权限就绪没有（硬顶的输入，管线只透传，分流由裁决做）。 */
   canWrite: boolean
-  /** 读缓存里的那份读数（管线只读一次就递给裁决，免得前后读到两份）。 */
-  getCachedReading: () => BudgetReading | Promise<BudgetReading>
+  /**
+   * 读缓存里的那份读数（管线只读一次就递给裁决，免得前后读到两份）。
+   * #1446：带后端编号——账本按「后端/桶」分格，不带就分不清该读 github 还是 gitlab 的桶。
+   */
+  getCachedReading: (backendId?: string) => BudgetReading | Promise<BudgetReading>
   /** 裁决口（放行还是推迟，它说了算）。 */
   admit: AdmitPort
   /** 记账口（只记账，不改变结果）。 */
   account: AccountPort
+  /**
+   * 这次会话属于哪个后端（账本的键的一半，记账口要它才分得清 github/rest 与 gitlab/requests）。
+   * 由入口在装配时从选中的后端编号填入（#1446 加）。
+   */
+  backendId?: string
   /** 诊断钩子（管线自己的分支原因走这里；没有就静默，绝不因此改变结果）。 */
   onEvent?: (event: string, fields: Record<string, unknown>) => void
 }
@@ -65,7 +73,7 @@ export async function runPipelineOp(deps: PipelineDeps, op: string, args: unknow
   }
   let reading: BudgetReading
   try {
-    reading = await deps.getCachedReading()
+    reading = await deps.getCachedReading(deps.backendId)
   } catch (err) {
     // 缓存读炸了等于「没量出来」：按未知那一支往下走（未知≠耗尽，见裁决口的约定），
     // 炸的这一下记一行诊断，不拦调用。
@@ -97,7 +105,8 @@ export async function runPipelineOp(deps: PipelineDeps, op: string, args: unknow
     return pipelineFail(ERROR_KIND.ENV, op + ' 执行失败（房间抛错，已收成失败回值）', String((err as Error)?.message || err))
   }
   try {
-    await deps.account({ op, budget: deps.budget, result })
+    // #1446：把后端编号一起递给记账口 —— 账本按「后端 + 桶」记，没有后端编号就分不清这笔该落哪一格。
+    await deps.account({ op, budget: deps.budget, result, backendId: deps.backendId })
   } catch (err) {
     // 记账是旁证：记不上只记一行诊断，结果照旧（账可以稍后对，结果不能翻）。
     tell('pipeline.account-failed', { op, reason: String((err as Error)?.message || err) })

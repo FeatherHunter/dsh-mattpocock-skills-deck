@@ -37,7 +37,7 @@ src/refresh/
 | A4 | src/shared/refresh/src/step-cost.ts | src/refresh/kernel/step-pricing.ts | 它拥有链上每一步的价格，替事件预算测算做决定 |
 | A5 | src/shared/refresh/src/policy.ts | src/refresh/kernel/admission-policy.ts | 它拥有准入策略的判定表，替“放行还是拒绝”做决定 |
 | A6 | src/shared/refresh/src/attention.ts | src/refresh/kernel/attention-model.ts | 它拥有注意力模型的纯判定（谁在看、算哪一档），替节拍档位做决定；加模型后缀，与两房落地 □分 |
-| A7 | src/shared/refresh/src/backend-quota.ts | src/refresh/kernel/backend-quota-model.ts | 它拥有三个后端各一套额度模型的纯算式，替“各后端剩多少”做决定 |
+| A7 | src/shared/refresh/src/backend-quota.ts | src/tracker/contract/budget-model.ts（口径形状）+ `src/tracker/rooms/*/index.ts`（各后端自己的声明） | 它拥有“每个后端花额度的口径”这一形状与声明，替“算不算这份账”做决定。2026-10-23 规格 #1439 起口径由后端自己在注册时声明，旧的静态表 `src/refresh/kernel/backend-quota-model.ts` 已退役（#1448） |
 | A8 | src/shared/refresh/src/backoff.ts | src/refresh/kernel/failure-backoff.ts | 它拥有失败退避序列与熔断判定，替“失败后等多久”做决定；加失败域前缀，与链退避区分 |
 | A9 | src/shared/refresh/src/chain.ts | src/refresh/kernel/refresh-chain.ts | 它拥有“一次刷新只有一条链”的推进规则，替链状态机做决定 |
 | A10 | src/shared/refresh/src/chain-prune.ts | src/refresh/kernel/chain-pruning.ts | 它拥有链剪枝规则，替“哪些链节点可以丢”做决定 |

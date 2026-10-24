@@ -1,10 +1,11 @@
 /**
- * src/host/namingGuardian.ts —— 命名守护宿主半（来源：src/host/namingGuardian.js，issue #1247 转写，本次只加类型标注与注释，逻辑一行未动）。
+ * src/host/namingGuardian.ts —— 命名守护宿主半（来源：src/host/namingGuardian.js，issue #1247 转写，只加类型标注与注释）。
+ * #1445 动过的唯一一处运行路径：索引取数（namingFetchIndex）从直调 gh api 改走只读会话的 listPage，原因见那一处的注释。
  *
  * 为什么要有它（一句话）：跟踪态持有、落盘台账与事件驱动的索引结算；判定真源见 shared 命名三文件。
  *
  * 三条不能改的约定（改之前先看原 namingGuardian.js 头注释与调用点 index.ts）：
- * 1. 行为零变化：逻辑逐行对应，只加类型标注与中文注释，不改任何运行时语义；相对导入保留 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
+ * 1. 行为零变化（#1445 那次取数改造除外，已在上方点明）：其余逻辑逐行对应；相对导入保留 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
  * 2. 只写可剥离 TypeScript：不新增运行时语法（禁用 enum 与构造函数参数属性），类型一律 import type 或内联标注，转译后与原 .js 逐行同义。
  * 3. 不新增任何 import 边：只给已有引用加类型，不引入新模块依赖；Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接，不装 @types/node。
  */
@@ -34,12 +35,17 @@ type WfArgs = any;
 //     config/intervals.yaml 的 namingSweepSoonMs 键）：短窗内多次事件合成一次索引扫描，防堆积。
 // 值由 tests/verify-time-config.ts 看守一致。
 import { NAMING_FALLBACK_INTERVAL_MS as NAMING_FALLBACK_MS, NAMING_PERSIST_DEBOUNCE_MS, NAMING_SWEEP_SOON_MS } from '../shared/time-config/src/values.js'
+
+// 索引翻页的页数上限（#1445）：listPage 每页最多 200 条，50 页就是一万条，正常仓库远到不了。
+// 为什么要有上限：游标万一坏掉会一直翻下去，把一次事件结算变成一个死循环；翻满就整轮放弃，
+// 由调用方按「这一轮没读到」跳过 —— 基线不推进，下一轮再试，不会把不完整的索引当成全量。
+const NAMING_INDEX_MAX_PAGES = 50
 // 自由变量 getTitle 的存在性声明（原 .js 里它是未声明的自由引用，运行时靠 typeof 守卫：
 // 有这个名字的函数才调，没有就跳过，try 包着兜底；declare 不产生运行时代码，行为与原来逐行一致）。
 // 为什么不断言它一定存在：调用方从未传入它，它今天就是缺席的，类型必须照实写成「可能有」。
 declare const getTitle: any;
 export function createNamingGuardian(deps?: any): any {
-  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, getTitleFact } = deps
+  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, openSession, logCtx, getFirstText, getTitleFact } = deps
   let _namingCore: any = null
   let _namingCoreInit: any = null
   async function getNamingCore() {
@@ -66,11 +72,9 @@ export function createNamingGuardian(deps?: any): any {
       if (fs !== undefined && typeof fs.readText === 'function' && typeof fs.resolve === 'function') {
         const dir = await getCacheDir()
         if (dir) {
-          const platform2 = await getPlatform()
-          const t = await platform2.fs.resolve(platform2.path.join(dir, NAMING_STATE_FILE))
+          const platform2 = await getPlatform(); const t = await platform2.fs.resolve(platform2.path.join(dir, NAMING_STATE_FILE))
           const txt = await fs.readText(t)
-          if (txt) {
-            const j = JSON.parse(txt)
+          if (txt) { const j = JSON.parse(txt)
                         if (j && j.version === 1 && j.sessions && typeof j.sessions === 'object') { _namingState = j; if (!_namingState.sessions) _namingState.sessions = {}; if (!_namingState.indexes || typeof _namingState.indexes !== 'object') _namingState.indexes = {} }
           }
         }
@@ -83,8 +87,7 @@ export function createNamingGuardian(deps?: any): any {
     try {
       if (fs === undefined || typeof fs.writeText !== 'function' || typeof fs.resolve !== 'function') return
       const dir = await getCacheDir(); if (!dir) return
-      const platform2 = await getPlatform()
-      const t = await platform2.fs.resolve(platform2.path.join(dir, NAMING_STATE_FILE))
+      const platform2 = await getPlatform(); const t = await platform2.fs.resolve(platform2.path.join(dir, NAMING_STATE_FILE))
       await fs.writeText(t, JSON.stringify(_namingState || namingDefaultState()))
     } catch (ePersist) { /* 写失败不影响主流程，下轮 tick 重试 */ }
   }
@@ -122,28 +125,40 @@ export function createNamingGuardian(deps?: any): any {
   }
   async function namingResolveRepoKey(cwd?: any) {
     try {
-      const repo = await getRepoKey(cwd || DEFAULT_CWD)
-      if (repo && repo.owner && repo.name) return repo.owner + '/' + repo.name
+      const repo = await getRepoKey(cwd || DEFAULT_CWD); if (repo && repo.owner && repo.name) return repo.owner + '/' + repo.name
     } catch (e) {}
     return null
   }
-  /** 索引快照：gh api 全量（open+closed，剔 PR），结构 { 'n': { title, state, updatedAt } }。 */
+  /**
+   * 索引快照：全量（open+closed，剔 PR），结构 { 'n': { title, state, updatedAt } }。
+   * #1445：取数从直调 gh api --paginate 改走只读会话的 listPage，按 nextCursor 翻到底。
+   * 为什么必须翻到底：这份索引是「新编号 vs 上一轮索引」的差值基线（见 namingSweepNow），
+   * 少拿一页就会把老票当成新冒出来的编号，错误地归属给正在等待的会话。翻不动就整轮回失败，
+   * 调用方照既有约定跳过这一轮、不推进基线，而不是拿半份索引去结算。
+   */
   async function namingFetchIndex(repoKey?: any, cwd?: any) {
     try {
-      const url = 'repos/' + repoKey + '/issues?state=all&per_page=100'
-      const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, updatedAt: .updated_at}'], cwd)
-      if (!r.ok) return { ok: false, error: r }
+      // 没装配「开会话」这一口就如实失败：旧路的 runGh 已经是宿主直连后端，绕回去等于绕过会话的预算与记账。
+      if (typeof openSession !== 'function') return { ok: false, error: 'no-open-session' }
+      const opened: any = await openSession(cwd || DEFAULT_CWD)
+      // 仓库引用必须由会话回包给出（refId 就是「这一趟读的是哪个仓库」）；拿不到就这一轮不结。
+      if (!opened || opened.ok !== true || typeof opened.call !== 'function' || !opened.repoRef || !opened.repoRef.refId) return { ok: false, error: String((opened && (opened.reason || opened.detail)) || 'open-failed') }
+      // 防串仓：调用方按工作区算出的仓库键，与会话拿到的仓库必须同一家；不一致就这一轮不结。
+      if (repoKey && String(repoKey).toLowerCase() !== String(opened.repoRef.refId).toLowerCase()) return { ok: false, error: 'repo-mismatch' }
       const index: any = {}
-      const lines = String(r.text || '').split(/\r?\n/).filter(Boolean)
-      for (let i = 0; i < lines.length; i++) {
-        try {
-          const item = JSON.parse(lines[i])
-          if (item && item.number !== undefined && item.number !== null) {
-            index[String(item.number)] = { title: String(item.title || ''), state: String(item.state || '').toUpperCase(), updatedAt: String(item.updatedAt || '') }
-          }
-        } catch (eLine) {}
+      for (let page = 0, cursor: any = null; page < NAMING_INDEX_MAX_PAGES; page++) {
+        const res: any = await opened.call(function (session: any, ctx: any) { return session.listPage(opened.repoRef, {}, cursor ? { limit: 200, cursor: cursor } : { limit: 200 }, ctx) })
+        if (!res || res.ok !== true) return { ok: false, error: (res && res.error) || 'list-page-failed' }
+        // PR 与 issue 共用一个编号空间：必须剔掉 PR，旧 jq 的 select(.pull_request == null) 就是这个意思。
+        for (let i = 0, items: any[] = Array.isArray(res.data && res.data.items) ? res.data.items : []; i < items.length; i++) {
+          const it: any = items[i]
+          if (!it || it.isPullRequest === true || it.key === undefined || it.key === null) continue
+          index[String(it.key)] = { title: String(it.title || ''), state: String(it.state || '').toUpperCase(), updatedAt: String(it.updatedAt || '') }
+        }
+        cursor = (res.data && res.data.nextCursor) || null
+        if (!cursor) return { ok: true, index: index }
       }
-      return { ok: true, index: index }
+      return { ok: false, error: 'too-many-pages' }
     } catch (e) { return { ok: false, error: String((e && (e as any).message) || e) } }
   }
   // 无关新编号不硬配（#315：只有明确无关才丢弃，其余保留）。
@@ -164,7 +179,8 @@ export function createNamingGuardian(deps?: any): any {
         const s = st.sessions[sid]
         if (!s || !s.repoKey) continue
         if (!core.isNumberAwaitStage(s)) continue
-        if (!byRepo[s.repoKey]) byRepo[s.repoKey] = { sessions: [], cwd: s.cwd || DEFAULT_CWD }
+        // 同仓会话可能有的带工作区、有的不带（面板关闭期间只登记仓库键）；分组挑一个真工作区，挑不到仍按「读不到就跳过」处理。
+        if (!byRepo[s.repoKey]) byRepo[s.repoKey] = { sessions: [], cwd: s.cwd || DEFAULT_CWD }; else if (!byRepo[s.repoKey].cwd && s.cwd) byRepo[s.repoKey].cwd = s.cwd
         byRepo[s.repoKey].sessions.push(s)
       }
       // #709：兜底跳每跳最多只扫 1 个仓库，游标轮转；事件跳照旧扫全部。

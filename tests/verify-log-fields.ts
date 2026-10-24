@@ -7,6 +7,8 @@
 //   常驻 #26 host.call 增补 reason（deck.quotaSync 同步失败、或 #1355 缺本会话工作路线表补拉时带原因码）、
 //   按需 #76 refresh.decide 与 #77 refresh.skipped 在失败窗口里增补五个归因键（连续几次、窗口起点、最近一次类别与种类）。
 //   事件总数仍 119，字段键数增加；字段含义见下面各行的中文注释与附录 1.4/1.5 对照表。
+// 2026-10-24（#1444 收口，1445 起写会话也共用）：新增按需 #130 read.session（刷新后台开会话开不成的结局名一行；
+//   成功不记，避免每趟刷新刷噪音）。字段说明见下面 read.session 一行与附录 1.5。
 // 2026-10-21（#1101 排查）再给 #5 gh.exec 与 #6 gh.timeout 补归因格，并新增常驻 #125 gh.lane.wait
 //   （排队等到三秒以上、按桶五分钟节流）；事件总数 119 → 120。字段说明见下面 gh.timeout 与 gh.lane.wait 两段注释。
 //   为什么要补：#1007 要能分开查登录态与改票、#1006 要查配额同步为什么失败、#1008/#1218 要查退避窗口里那几次失败是谁攒的。
@@ -305,7 +307,8 @@ const ALLOWED = {
   // 2026-09-23 #706（T2 第二批）新增三条按需事件（附录 1.5 节 #75～#77）：闸与账本自己产生的三条轨迹 ——
   //   一笔花费（哪一档、哪个桶、几条真实出站请求、几点、记完还剩多少）、一次裁决（类别、种类、结论、原因代号、档位）、
   //   一次跳过（工作区键散列、种类、原因、推迟队列里现在几条）。都只记枚举、散列与数字，不记路径原文与命令原文。
-  'quota.spend': ['account', 'bucket', 'requests', 'points', 'remaining'],
+  // #1446 起账本按「后端/桶」分格，记账日志必须能说清记到哪个后端头上（schema 增字段：含义稳定、旧字段不改含义）。
+  'quota.spend': ['account', 'backendId', 'bucket', 'requests', 'points', 'remaining'],
   // 2026-10-21（#1008/#1218 复核）按需 #76 refresh.decide 与 #77 refresh.skipped 在「这个工作区还处在
   //   连续失败窗口里」时增补五个归因键，窗口外一个都不带（正常时段的这两行与从前一字不差）：
   //   failuresSinceSuccess 连续失败几次、backoffWindowStartedAt 这串从什么时候开始、lastFailureCategory 最近一次
@@ -339,7 +342,8 @@ const ALLOWED = {
   //   一次成功的工具调用被判成哪一档、凭什么判的、接下来要做什么、票号认没认出来、从哪条订阅路来的。
   //   只记一个散列、三个枚举与一个布尔：**命令原文一个字都不记**（参数只做瞬时匹配），也不记票号本身。
   'write.event': ['keyHash', 'shape', 'tool', 'tier', 'reason', 'action', 'hasTicket', 'cycle', 'result', 'waitedMs'],
-  // 2026-10-20 刷新排查新增（附录 1.5 节 #118）：一次取数真正走到闸那一步的结论与花费 —— 与上面那行 write.event 用 cycle 串起来；
+  // 2026-10-20 刷新排查新增（附录 1.5 节 #118）：一次取数的结论与花费 —— 与上面那行 write.event 用 cycle 串起来；
+//   2026-10-24 #1445 起写事件不再过闸：sent 表示「已交给管线」、verdict 恒 in-pipeline、requests/points 恒 0（读路径不记账，真实用量归 #1446）；
   //   上面那行只能说明「判成了什么、有没有被合并窗口吃掉」，走到闸之后的结论（发出/降档/推迟、花几点了）等闸回来才知道。
   'write.sent': ['keyHash', 'cycle', 'kind', 'sent', 'verdict', 'reason', 'requests', 'points', 'latencyMs'],
   // 2026-10-21 本次界面反馈需求新增（附录 1.5 节 #119）：用户点了页面上的哪一颗按钮 —— target 是同屏唯一的稳定英文枚举，
@@ -447,6 +451,12 @@ const ALLOWED = {
   'suggest.bind': ['outcome', 'sidHash', 'reason'],
   'suggest.call': ['outcome', 'sidHash', 'callIdHash', 'turn', 'items', 'clipped', 'reason'],
   'suggest.ready': ['outcome', 'sidHash', 'callIdHash', 'turn', 'items'],
+  // 2026-10-24（#1444 收口）：刷新后台那条只读会话开会话失败时的一行调试线。只记两格：
+  //   ok 恒为 false（成功开会话不记，避免每趟刷新刷一行噪音）、reason 没开成的结局名
+  //   （workspace-not-ready 调用方没给目录 / no-registry 注册表没就绪 / open-failed 选后端失败 /
+  //   no-backend、multi-match、pending 选后端的三种结局 / open-threw 开会话时抛了）。
+  //   为什么要有：刷新读不到数据时，光看界面降级分不清是没后端可选、后端认不出、还是注册表没起来。
+  'read.session': ['ok', 'reason'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 九键（六键照旧，cmd 为 2026-10-21 #1007 复核增补；`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 七键（layer 为同日 #1007/#1224 复核增补，via / cmd / waitedMs / phase 为 2026-10-21 #1101 排查增补）、gh.resolve.fail 两键，

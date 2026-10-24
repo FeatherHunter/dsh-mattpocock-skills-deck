@@ -13,6 +13,8 @@
 //   五、推迟发生时说「有更新，已推后」；
 //   六、写入窗口判据（窗口内算「更新中」、窗口外不算）与那批词条中英两面都在；
 //   七、降级标记（fallback: 'rest'）到得了界面：把快照回包组装函数真跑一遍，上游真降级时回包带 'rest'、没降级时是 null。
+//   八、面板的额度读数（#1446）：只读宿主写下的 refresh.backend.budgetKind，两桶 / 只计请求 / 离网 / 未知四种后端各说各的话；
+//      读数未知时只许说「还没同步上来」，不许出现数字 0，也不许上红档（不知道不等于紧张）。
 //
 // 跑法：node tests/verify-visible-truth.ts
 // 判据不是「字符串出现过」，而是把界面那一半的**真代码**加载起来喂两组输入、看它吐出什么话
@@ -85,6 +87,8 @@ const budget = loadModule('src/refresh/kernel/host-budget.js', {})
 const truth = loadModule('src/client/views/shared/truthLines.js', {
   freshnessLevel: budget.freshnessLevel,
   lagPromiseFor: budget.lagPromiseFor,
+  // 额度读数的黄/红档位沿用宿主那一份 tierFor，门禁里把它当邻居传进去（与拼接闭包里的处境一致）。
+  tierFor: budget.tierFor,
   PROBE_INTERVAL_MS: PROBE_INTERVAL_MS,
   PATCH_MERGE_WINDOW_MS: PATCH_MERGE_WINDOW_MS,
   idOfParts: function (effort, key) { return String(effort || '') + '\0' + String(key == null ? '' : key) },
@@ -242,7 +246,54 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (!snapFromNone || snapFromNone.fallback !== null) fail('wf.snapshot 的回包把没降级的也写成了降级（这条上界要如实）：上游没带降级事实时，回包上的 fallback 实得 ' + JSON.stringify(snapFromNone && snapFromNone.fallback))
 })()
 
-// ---------- 输出 ----------
+// ---------- 八、面板的额度读数（#1446）----------
+// 面板不推算后端类型，只读宿主写下的 refresh.backend；这一节量的是「四种后端各说各的话、未知时不吓人」。
+;(function checkBudgetNotices() {
+  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown'].forEach(function (k) {
+    if (!zh[k]) fail('zh 缺词条 ' + k)
+    if (!en[k]) fail('en 缺词条 ' + k)
+  })
+  // 两套入口分开：budgetNoticeLines 收的是 refresh 那一格本身，truthNoticeLines 收的是整个界面状态（snapshot.refresh 在里面）。
+  const refreshWith = function (backend) {
+    return { tier: null, deferred: false, paused: false, notRefreshing: false, backend: backend }
+  }
+  const withBackend = function (backend) { return stWith(refreshWith(backend)) }
+  const keysOf = function (lines) { return lines.map(function (l) { return l.key }) }
+  // 两桶后端：GraphQL 剩 4200/5000，REST 剩 60/60，两句都要带上真读数
+  const twoBuckets = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 60, limit: 60 } },
+  }))
+  if (keysOf(twoBuckets).join(',') !== 'truth.budgetGraphql,truth.budgetRest') fail('两桶后端应当先念 GraphQL 再念 REST，实得：' + JSON.stringify(keysOf(twoBuckets)))
+  const gqlText = twoBuckets[0] ? textOf(twoBuckets[0]) : ''
+  if (gqlText.indexOf('4200') < 0 || gqlText.indexOf('5000') < 0) fail('GraphQL 那一行没带上剩余量与总额：' + JSON.stringify(gqlText))
+  if (twoBuckets[0] && twoBuckets[0].tone !== 'fresh') fail('额度还宽裕时不该是黄/红档：' + JSON.stringify(twoBuckets[0]))
+  // 只计请求的后端：一句「请求额度剩 N/M」
+  const requests = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-rest', budgetKind: 'requests', readKnown: true, offNetwork: false,
+    requests: { remaining: 3000, limit: 5000 },
+  }))
+  if (keysOf(requests).join(',') !== 'truth.budgetRequests') fail('只计请求的后端应当只说请求额度，实得：' + JSON.stringify(keysOf(requests)))
+  // 离网后端：一句「本后端不出站，不需要额度」，不说「还没同步」
+  const offNetwork = truth.budgetNoticeLines(refreshWith({ id: 'local', budgetKind: 'none', readKnown: false, offNetwork: true }))
+  if (keysOf(offNetwork).join(',') !== 'truth.budgetOffNetwork') fail('离网后端应当说「不需要额度」，实得：' + JSON.stringify(keysOf(offNetwork)))
+  if (textOf(offNetwork[0] || {}).indexOf('不需要额度') < 0) fail('离网那句文案应当是「不需要额度」：' + JSON.stringify(textOf(offNetwork[0] || {})))
+  // 读数未知：只许说「还没同步上来」，整行不许出现数字，也不许上红/黄档
+  const unknown = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: false, offNetwork: false,
+    buckets: { graphql: { remaining: 0, limit: 5000 }, rest: { remaining: 0, limit: 60 } },
+  }))
+  if (keysOf(unknown).join(',') !== 'truth.budgetUnknown') fail('读数未知时应当只说「还没同步上来」，实得：' + JSON.stringify(keysOf(unknown)))
+  const unknownText = textOf(unknown[0] || {})
+  if (/\d/.test(unknownText)) fail('读数未知时整行不许出现数字（尤其不许把 0 念出来）：' + JSON.stringify(unknownText))
+  if (unknown[0] && (unknown[0].tone === 'red' || unknown[0].tone === 'yellow')) fail('读数未知时不许上红/黄档：' + JSON.stringify(unknown[0]))
+  // 面板那一行真的把额度句并进去了
+  const panel = truth.truthNoticeLines(withBackend({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 60, limit: 60 } },
+  }), T1204)
+  if (!panel.some(function (l) { return l.key === 'truth.budgetGraphql' })) fail('面板那一行没有并入额度句，实得：' + JSON.stringify(keysOf(panel)))
+})()
 console.log('#715 诚实显示门禁（新鲜度 / 失败 / 降级）')
 if (failed) {
   problems.forEach(function (p) { console.log('  FAIL ' + p) })
@@ -256,4 +307,5 @@ console.log('  PASS T3 两句有读取点（自动刷新已暂停 / 未在刷新
 console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round(PROBE_INTERVAL_YELLOW_MS / 60000) + ' 分钟）')
 console.log('  PASS 推迟说「有更新，已推后」；写入窗口内/外判得对，那批词条中英两面都在')
 console.log('  PASS 降级标记到得了界面：上游真降级时回包带 \'rest\'、没降级时是 null')
+console.log('  PASS 面板额度读数按后端声明说话（两桶 / 仅请求 / 离网 / 未知），未知时不出现 0 与红档')
 console.log('\n全部通过')

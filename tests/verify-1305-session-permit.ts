@@ -52,6 +52,15 @@ async function main() {
     const policyCalls: any[] = []
     const placed: any[] = []
     const memoryRec = memory || null
+    // #1445：标签配色文件那一步改成经「写会话」走（src/host/workspaceCwd.ts 的 placeLabelColorsFile）。
+    // 夹具按生产回包形状给一份最小开会话：收 resolveSelection 的结论 → 取注册表里那个后端当会话 →
+    // 递一个与旧 opCtxFor 同形的上下文 → 回调；写权限照写会话如实回 true，仓库引用沿用 describe 的空 refId。
+    const regStub: any = {
+      has: (id: string) => id === 'github' || id === 'markdown',
+      get: (id: string) => id === 'github' ? { ensureLabelColorsFile: async (_ref: unknown, octx: any) => { placed.push({ hasPolicy: !!(octx && octx.sandboxPolicy), sessionId: octx && octx.sessionId }); return { ok: true, placed: false, reason: 'test' } } } : null,
+      describe: (_h: unknown, id: string) => ({ backend: id, refId: '', name: id, url: '' }),
+      modules: () => [{ id: 'github', budget: {} }, { id: 'markdown', budget: {} }],
+    }
     const api = createWorkspaceCwd({
       ctx: {
         get: (key: string) => key === 'sessions'
@@ -60,11 +69,17 @@ async function main() {
       },
       DEFAULT_CWD: dir,
       getPlatform: async () => makePlatform(seen),
-      getTrackerRegistry: async () => ({
-        has: (id: string) => id === 'github' || id === 'markdown',
-        get: (id: string) => id === 'github' ? { ensureLabelColorsFile: async (_ref: unknown, octx: any) => { placed.push({ hasPolicy: !!(octx && octx.sandboxPolicy), sessionId: octx && octx.sessionId }); return { ok: true, placed: false, reason: 'test' } } } : null,
-        describe: (_h: unknown, id: string) => ({ backend: id, refId: '', name: id, url: '' }),
-      }),
+      getTrackerRegistry: async () => regStub,
+      openSession: async (cwd2: string, opts: any) => {
+        const sel = (opts && typeof opts.resolveSelection === 'function') ? opts.resolveSelection({ cwd: cwd2 }, {}) : null
+        const backendId = (sel && sel.backendId) || 'github'
+        const tracker = regStub.get(backendId)
+        if (!tracker) return { ok: false, reason: 'no-tracker' }
+        const ref = (sel && sel.ref) || regStub.describe({ cwd: cwd2 }, backendId)
+        const baseCtx = { cwd: cwd2, refId: (ref && ref.refId) || '', signal: undefined, platform: await makePlatform(seen), fs: null, caller: 'refresh', exec: async () => ({}), logEvent: () => {}, isEnabled: () => false }
+        const canWrite = !!(opts && opts.write)
+        return { ok: true, backendId: backendId, repoRef: ref, budget: {}, canWrite: canWrite, call: (fn: any) => fn(Object.assign({}, tracker, { backendId: backendId, budget: {}, canWrite: canWrite }), baseCtx) }
+      },
       getWorkspaceStore: async () => ({ invalidate: () => {} }),
       getChoiceStore: async () => ({ rememberWorkspace: async () => ({ ok: true, rev: 1 }), rememberLayout: async () => ({ ok: true, pickedAt: 5 }), getWorkspace: async () => memoryRec, getLayout: async () => ({ found: false }) }),
       getDecisionFn: async () => null,

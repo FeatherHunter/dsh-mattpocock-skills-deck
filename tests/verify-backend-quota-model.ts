@@ -1,17 +1,14 @@
-// verify-backend-quota-model.ts —— 门禁：每个后端的额度桶形状与「按后端算价」（#719 T15 收口）
+// verify-backend-quota-model.ts —— 门禁：口径声明的唯一真源，旧静态模型表已退役（#719 T15 起，2026-10-23 #1448 改写）
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-backend-quota-model.ts，可独立运行。
 //
-// 守着三件事（定稿第九章最后一条与第十四章「它其余的处置」）：
-//   ① GitHub 有两个互相独立的桶（REST 数请求条数、GraphQL 数点数），两桶互不折算；
-//   ② GitLab 只有请求条数这一种口径，**没有点数制**——不许给它编一个看起来像真的点数；
-//   ③ 本地 Markdown 后端不出站，因此没有额度也没有花费。
-// 另外守一条纪律：这份模型里**不许出现任何额度数值**。服务端此刻还剩多少只能现场读
-//（GitHub 走那个不扣配额的 `gh api rate_limit`），写死一个数就会骗人；额度常量的唯一物理真源
-// 仍然是 src/refresh/kernel/host-budget.ts。
-//
-// 断言的是**行为**：同一笔花费喂给三个后端，返回值必须按各自的口径不同——不是只比对一张常量表。
-// 反证（每次运行都跑）：把一笔点数花费喂给 GitLab，它必须记 0 点并明说「这个后端不按点数计费」；
-// 把同一笔喂给 GitHub，点数必须原样传出去（说明上面那条不是因为「反正都记 0」而通过）。
+// 为什么改写：规格 #1439 把「每个后端花额度的口径」从 src/refresh/kernel/backend-quota-model.ts 那张静态表
+// 搬回各后端模块自己的 budget 声明（形状定在契约层 src/tracker/contract/budget-model.ts）。旧表留着就是第二份
+// 真源：一份写死 github / gitlab / markdown，一份在房间模块里，两份一漂移，闸与账本就会各按各的算。
+// 这份门禁守四件事：
+//   ① 旧文件与其转译产物真的不在了（退役不是「不再引用」而是「删掉」）；
+//   ② 口径只有四个取值，契约里没有写死任何额度数值；
+//   ③ 三个内置后端的声明与契约对齐（GitHub 两桶、GitLab 只计请求、Markdown 离网）；
+//   ④ 账本按口径建桶、记账按口径换算——同一笔花费喂给三种口径，结论必须不同。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -22,71 +19,72 @@ let total = 0
 const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 async function main() {
-  console.log('后端额度模型门禁（#719 T15：三个后端的桶形状不同，按后端算价）')
-  const q = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'backend-quota-model.js')).href)
+  console.log('后端口径声明门禁（#1439 / #1448：真源在契约与房间模块，旧静态表已退役）')
 
-  // ① GitHub：两桶、彼此独立、两个口径都记账。
-  const gh = q.backendBudgetModel('github')
-  const ghSpend = q.priceSpend('github', { requests: 7, points: 13 })
-  check(gh.kind === 'two-buckets' && gh.countsRequests && gh.countsPoints && gh.independentBuckets,
-    'GitHub 是两个互相独立的桶（kind=' + gh.kind + '、数请求=' + gh.countsRequests + '、数点数=' + gh.countsPoints + '、两桶独立=' + gh.independentBuckets + '）')
-  check(ghSpend.requests === 7 && ghSpend.points === 13 && ghSpend.pointsCounted === true && q.usesIndependentBuckets('github') === true,
-    'GitHub 的一笔花费两个口径都记：' + ghSpend.requests + ' 条请求、' + ghSpend.points + ' 点；两桶独立判定=' + q.usesIndependentBuckets('github'))
+  // ① 旧静态表退役：源码与产物都不许还在。产物由构建生成，删源后重建就不再出现；这里同时查两处。
+  const oldSource = path.join(ROOT, 'src', 'refresh', 'kernel', 'backend-quota-model.ts')
+  const oldBuilt = path.join(ROOT, '.build', 'refresh', 'kernel', 'backend-quota-model.js')
+  check(!fs.existsSync(oldSource), '旧静态模型表源码已删除：src/refresh/kernel/backend-quota-model.ts')
+  check(!fs.existsSync(oldBuilt), '旧静态模型表的转译产物也不在了：.build/refresh/kernel/backend-quota-model.js')
 
-  // ② GitLab：只有请求数这一种口径；点数记 0 并明说不按点数计费（不许编一个点数制）。
-  const gl = q.backendBudgetModel('gitlab')
-  const glSpend = q.priceSpend('gitlab', { requests: 5, points: 999 })
-  check(gl.kind === 'requests-only' && gl.countsRequests === true && gl.countsPoints === false && gl.independentBuckets === false,
-    'GitLab 只有请求数这一种口径（kind=' + gl.kind + '、数请求=' + gl.countsRequests + '、数点数=' + gl.countsPoints + '、两桶独立=' + gl.independentBuckets + '）')
-  check(glSpend.requests === 5 && glSpend.points === 0 && glSpend.pointsCounted === false,
-    '同一笔（5 条请求、999 点）喂给 GitLab：只记 ' + glSpend.requests + ' 条请求，点数记 ' + glSpend.points + ' 点（点数算不算数=' + glSpend.pointsCounted + '）')
-  check(gl.summary.indexOf('待实测') >= 0,
-    'GitLab 的额度数值如实写成「待实测」，没有编一个数（原话：' + gl.summary + '）')
+  // ② 契约层的口径：四个取值，一个不多一个不少；契约里不许写死额度数值。
+  const contract = await import(pathToFileURL(path.join(ROOT, 'src', 'tracker', 'contract', 'budget-model.ts')).href)
+  const kinds = contract.BUDGET_KINDS || []
+  check(Array.isArray(kinds) && kinds.length === 4 &&
+    ['two-buckets', 'requests-only', 'off-network', 'unknown'].every((k) => kinds.indexOf(k) >= 0),
+    '契约里口径恰好四个取值：' + kinds.join(' / '))
+  const contractText = fs.readFileSync(path.join(ROOT, 'src', 'tracker', 'contract', 'budget-model.ts'), 'utf8')
+  check(!/\b5000\b/.test(contractText) && !/\b1750\b/.test(contractText) && !/\b1225\b/.test(contractText),
+    '契约文件里没有写死任何额度数值（5000 / 1750 / 1225 都不出现）：额度只能来自现场读数')
 
-  // ③ 本地 Markdown：不出站，两样都记 0。
-  const md = q.backendBudgetModel('markdown')
-  const mdSpend = q.priceSpend('markdown', { requests: 4, points: 6 })
-  check(md.kind === 'off-network' && md.countsRequests === false && md.countsPoints === false &&
-    mdSpend.requests === 0 && mdSpend.points === 0,
-    '本地 Markdown 不出站：' + mdSpend.requests + ' 条请求、' + mdSpend.points + ' 点，kind=' + md.kind)
+  // ③ 三个内置后端各自声明一份口径，且与契约的四格齐全（kind / countsRequests / countsPoints / independentBuckets）。
+  const builtins = await import(pathToFileURL(path.join(ROOT, 'src', 'tracker', 'registry', 'builtins.ts')).href)
+  const mods = await builtins.loadBuiltinBackendModules()
+  const budgetOf = (id: string): any => {
+    for (const m of mods) if (m && m.id === id) return m.budget
+    return null
+  }
+  const wellFormed = (b: any): boolean => !!b && kinds.indexOf(b.kind) >= 0 &&
+    typeof b.countsRequests === 'boolean' && typeof b.countsPoints === 'boolean' && typeof b.independentBuckets === 'boolean'
+  const gh = budgetOf('github'); const gl = budgetOf('gitlab'); const md = budgetOf('markdown')
+  check(wellFormed(gh) && gh.kind === 'two-buckets' && gh.countsRequests && gh.countsPoints && gh.independentBuckets,
+    'GitHub 声明两个互相独立的桶（数请求、数点数，两桶独立）：' + JSON.stringify(gh))
+  check(wellFormed(gl) && gl.kind === 'requests-only' && gl.countsRequests && !gl.countsPoints && !gl.independentBuckets,
+    'GitLab 声明只计请求数、不数点数、没有第二桶：' + JSON.stringify(gl))
+  check(wellFormed(md) && md.kind === 'off-network' && !md.countsRequests && !md.countsPoints,
+    '本地 Markdown 声明离网、不记请求数也不记点数：' + JSON.stringify(md))
+  check(mods.every((m: any) => wellFormed(m.budget)),
+    '内置后端每一个都在模块上交了完整的口径声明（缺了注册表会当场拒绝）')
 
-  // ④ 认不出来的后端：按更省的一侧记（只记请求数、点数不记），不猜成 GitHub 那张形状。
-  const other = q.backendBudgetModel('bitbucket')
-  const otherSpend = q.priceSpend('bitbucket', { requests: 3, points: 8 })
-  check(other.kind === 'unknown' && otherSpend.requests === 3 && otherSpend.points === 0 && otherSpend.pointsCounted === false,
-    '认不出来的后端按更省的一侧记（kind=' + other.kind + '、记 ' + otherSpend.requests + ' 条请求、' + otherSpend.points + ' 点），不猜成两桶')
-  check(other.kind !== 'two-buckets' && q.usesIndependentBuckets('bitbucket') === false,
-    '认不出来的后端不会被当成两桶（否则会凭空算出一份额度让闸以为自己有钱）')
+  // ④ 账本按口径建桶：两桶建 rest 与 graphql，只计请求建 requests，离网不建，未知只建 requests。
+  const ledger = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'quota-ledger.ts')).href)
+  const bucketsOf = (b: any): string => (ledger.bucketsForKind(b.kind) || []).join(',')
+  check(bucketsOf(gh) === 'rest,graphql', '两桶后端在账本里建 rest 与 graphql 两个桶（实得 ' + bucketsOf(gh) + '）')
+  check(bucketsOf(gl) === 'requests', '只计请求的后端只建 requests 一个桶（实得 ' + bucketsOf(gl) + '）')
+  check(bucketsOf(md) === '', '离网后端一个桶都不建（实得「' + bucketsOf(md) + '」）')
+  const unknownModel = { kind: 'unknown', countsRequests: true, countsPoints: false, independentBuckets: false }
+  check(bucketsOf(unknownModel) === 'requests', '未知口径只建 requests 桶（只记发出去的请求数，实得 ' + bucketsOf(unknownModel) + '）')
 
-  // ⑤ 同一笔花费喂三个后端，结论必须不一样（这才叫「按后端算价」）。
-  const spend = { requests: 5, points: 9 }
-  const all = ['github', 'gitlab', 'markdown'].map((b) => q.priceSpend(b, spend))
-  const sigs = all.map((s) => s.kind + '|' + s.requests + '|' + s.points)
-  check(new Set(sigs).size === 3,
-    '同一笔（5 条请求、9 点）喂三个后端得到三种不同的记法：' + sigs.join(' ／ '))
+  // ⑤ 记账按口径换算：同一笔（5 条请求、9 点）喂给三种口径，结论必须不同。
+  const acct = await import(pathToFileURL(path.join(ROOT, 'src', 'refresh', 'kernel', 'backend-accounting.ts')).href)
+  const usage = { requests: 5, points: 9 }
+  const spendOf = (budget: any): string => {
+    const rows = acct.spendsOfAccount({ op: 'get', budget: budget, result: { ok: true, usage: usage }, backendId: 'x' }) || []
+    return rows.map((r: any) => r.bucket + ':' + r.requests + '/' + r.points).join(',') || '(none)'
+  }
+  const ghSpend = spendOf(gh); const glSpend = spendOf(gl); const mdSpend = spendOf(md)
+  check(ghSpend === 'rest:5/0,graphql:0/9', '两桶口径把同一笔拆进两个桶（实得 ' + ghSpend + '）')
+  check(glSpend === 'requests:5/0', '只计请求口径只记 5 条请求、点数不记（实得 ' + glSpend + '）')
+  check(mdSpend === '(none)', '离网口径一笔都不记（实得 ' + mdSpend + '）')
+  check(new Set([ghSpend, glSpend, mdSpend]).size === 3, '同一笔花费喂三种口径得到三种不同的记法：' + [ghSpend, glSpend, mdSpend].join(' ／ '))
+  const negRows = acct.spendsOfAccount({ op: 'get', budget: gh, result: { ok: true, usage: { requests: -3, points: -4 } }, backendId: 'x' }) || []
+  check(negRows.every((r: any) => r.requests >= 0 && r.points >= 0), '坏输入（负数用量）不会记成负账：' + JSON.stringify(negRows))
 
-  // ⑥ 这份模型里一个额度数值都没有（额度只能来自服务端现场读数，常量真源只有 budget.ts）。
-  // 2026-10-19 第三阶段起共享层产物搬出源码树，转译产物改读仓库根的 .build/shared/ 下那一份。
-  const text = fs.readFileSync(path.join(ROOT, '.build', 'refresh', 'kernel', 'backend-quota-model.js'), 'utf8')
-  check(!/\b5000\b/.test(text) && !/\b1750\b/.test(text) && !/\b1225\b/.test(text),
-    '模型产物里没有写死任何额度数值（5000 / 1750 / 1225 都不出现）')
-  const numericFields = []
-  for (const m of all) for (const k of Object.keys(m)) if (typeof m[k] === 'number' && k !== 'requests' && k !== 'points') numericFields.push(k)
-  check(numericFields.length === 0, '模型本身的字段里没有「额度数值」这种东西（数值字段只有记下来的 requests 与 points 两项）')
-
-  // ⑦ 坏输入不许算出负数：负的请求数当 0 记。
-  const neg = q.priceSpend('github', { requests: -3, points: -4 })
-  check(neg.requests === 0 && neg.points === 0, '负数的一笔按 0 记，不产生负账（实得 ' + neg.requests + ' 条、' + neg.points + ' 点）')
-
-  // 反证：GitLab 那条不许是因为「反正都记 0」才通过的 —— 同一笔喂 GitHub，点数必须原样传出去。
-  check(glSpend.points === 0 && ghSpend.points === 13,
-    '反证：同一笔点数花费，GitLab 记 0 点而 GitHub 原样记 ' + ghSpend.points + ' 点（说明 GitLab 那条判红不是因为两边都记 0）')
-
-  console.log(failed ? '\n存在失败 — verify-backend-quota-model 未通过' : '\n全部通过 — 后端额度模型门禁生效（' + total + ' 项断言）')
+  console.log(failed ? '\n存在失败 — verify-backend-quota-model 未通过' : '\n全部通过 — 口径声明真源与旧表退役门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
 
-main().catch((e) => {
+main().catch((e: any) => {
   console.error('门禁执行异常：' + ((e && e.stack) || e))
   process.exit(1)
 })

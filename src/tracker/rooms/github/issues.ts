@@ -24,12 +24,13 @@ import type { IssueListResult, OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { emitReadDegraded } from './read-log.js'
 import { ghClient } from './client.js'
+import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant } from './comment-paging.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
 import { rosterAdoptList, rosterUpsert } from './roster.js'
 import type { MemoContext } from './roster.js'
-import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY } from './queries.js'
+import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY, getIssueQuery } from './queries.js'
 import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
 import { pickFallbackReason } from './fallback-reason.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
@@ -336,7 +337,11 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `get: key must be numeric for github: ${k}`, String(k))
     const c = ghClient(ctx)
     const t0 = Date.now()
-    const query = GET_QUERY
+    // 这一趟要多少条评论（#1444 评论「加载更多」）：没带 comments.first 就沿用旧路（GET_QUERY，评论 first:50），
+    // 这样列表、详情与其他调用点的查询文本一行不变；带了就按调用方要的条数取，夹在 0..limitMax（200）。
+    // 上限来自契约（GetOpts.comments.first 的约定），不在房间里私自放宽。夹取与首页条数住在 comment-paging.ts。
+    const wantComments = commentsWantOf(opts)
+    const query = wantComments === null ? GET_QUERY : getIssueQuery(firstPageSizeOf(wantComments), false)
     const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`]
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'get.gql' })
     let issueFromGraphQL = null
@@ -424,12 +429,20 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
       return { ok: false, error: (!rr.ok ? rr.error : prr.error) }
     }
     const issue = issueFromGraphQL
-    // 若 opts.comments 带分页，追加抓取更多评论页（此处简化：若 hasNextPage 则额外 fetch 并合并）
-    let normalized = normalizeIssue(issue)
-    // 若 comments 仍有后续页且调用方要求分页，可在此按 opts.comments.first 截断/追加（契约允许宿主侧分页）
-    if (opts && opts.comments && typeof opts.comments.first === 'number' && normalized.comments && normalized.comments.length > opts.comments.first) {
-      normalized.comments = normalized.comments.slice(0, opts.comments.first)
+    // 评论「加载更多」：要的比一页多、远端还有下一页时，按 endCursor 接着翻，把各页的评论节点拼回
+    // 第一页的回包，最后只归一化一次（normalizeIssue 只认 comments.nodes，拼好再归一不会走形）。
+    // 只对工单这条路做：拉取请求那条连接一页最多 20 条，本轮不动它。
+    // 翻页失败时保留第一页已经取到的评论，并落一行 get:degraded —— 多取一页没取全，不该把整张票读失败。
+    // 翻页与拼接住在 comment-paging.ts（#1444 拆文件）：那边只管「给一页、要一页」，日志仍在这里落。
+    if (wantComments !== null) {
+      await appendCommentPages({
+        client: c, cwd: ctx && ctx.cwd, parsed: parsed, num: num, issue: issue, want: wantComments,
+        onLost: function () { emitReadDegraded(ctx, 'get', 'get:degraded', Date.now() - tGet) },
+      })
     }
+    let normalized = normalizeIssue(issue)
+    // 截到调用方要的条数：最后一页是整页取回的，可能比要的多，契约说 first 是多少就交多少。
+    trimCommentsToWant(normalized, wantComments)
     try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, normalized) } catch (eU) {}
     return { ok: true, data: normalized }
   } catch (e) {

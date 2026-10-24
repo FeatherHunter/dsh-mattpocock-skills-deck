@@ -64,7 +64,9 @@ function makeFs() {
 function makeGateLedger(gateMod: any, ledgerMod: any): any {
   const ledger = ledgerMod.createLedger({ now: () => 1700000000000 });
   const gate = gateMod.createGate({ ledger, logCtx: null, now: () => 1700000000000 });
-  ledger.syncServer(
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github',
     { rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } },
     1700000000000
   );
@@ -73,7 +75,8 @@ function makeGateLedger(gateMod: any, ledgerMod: any): any {
 
 async function main() {
   console.log('#1003 一期门禁：统一判定四条');
-  const shellMod = await imp('src/deck/shell/call-shell.ts');
+  const sessionModU = await imp('src/deck/tools/tracker-session.ts');
+  const EST1003U = { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' };
   const budget = await imp('src/refresh/kernel/host-budget.js');
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts');
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts');
@@ -86,23 +89,26 @@ async function main() {
     has: (id: string) => id === 'github' || id === 'markdown',
     describe: (h: any, id: string) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
     select: selectFn,
+    // #1443 起打开会话要读这两格（openTracker 按预算声明建会话，选中的后端从 get 取房间）：桩只为判定而造，给空对象与两份预算声明。
+    get: () => ({}),
+    modules: () => [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }, { id: 'markdown', budget: { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false } }],
   });
   const sOf = (cwd: string): any => ({ cwd, workspaceKey: 'k1003', sessionId: 's1003', source: 't', text: '' });
-  const shellOf = (reg: any, extra?: any): any =>
-    shellMod.createDeckShell(
-      Object.assign(
-        {
-          gate: makeGateLedger(gateMod, ledgerMod),
-          registry: reg,
-          budget,
-          estimate: toolCost.estimateToolCost,
-          costInputFrom: toolCost.toolCostInputFrom,
-          backendCtx: {},
-          decideBackend: decMod.decideBackend,
-        },
-        extra || {}
-      )
+  // #1443 起选后端走 openDeckSession（旧壳的 pickBackend 已删），依赖袋与从前同一份。
+  const depsOfU = (reg: any, extra?: any): any =>
+    Object.assign(
+      {
+        gate: makeGateLedger(gateMod, ledgerMod),
+        registry: reg,
+        budget,
+        estimate: toolCost.estimateToolCost,
+        costInputFrom: toolCost.toolCostInputFrom,
+        backendCtx: {},
+        decideBackend: decMod.decideBackend,
+      },
+      extra || {}
     );
+  const openedOfU = (reg: any, execArg: any, s: any, extra?: any): Promise<any> => sessionModU.openDeckSession({ deps: depsOfU(reg, extra), exec: execArg, session: s, estimate: EST1003U, tool: 't', kind: 'op' });
 
   // —— D1：只放声明文件的工作区，工具与统一判定同答案 ——
   {
@@ -118,9 +124,9 @@ async function main() {
       caller: 'test-d1',
     });
     check(unified.backendId === 'github' && unified.origin === 'declaration', 'D1 统一判定读到声明文件（github）', JSON.stringify(unified));
-    const p = await shellOf(regOf(async () => ({ backendId: null, source: 'fallback' })), {
+    const p = await openedOfU(regOf(async () => ({ backendId: null, source: 'fallback' })), { agent: { session: { id: 's', cwd: dir } } }, sOf(dir), {
       readDeclarationId: async () => 'github',
-    }).pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
+    });
     check(p.ok === true && p.backendId === 'github', 'D1 工具壳与统一判定同答案：只有声明文件也照用声明里的 github（2026-10-16 起不再要求人亲手选过）', JSON.stringify({ ok: p.ok, backendId: p.backendId }));
   }
 
@@ -157,7 +163,7 @@ async function main() {
     const r = await decideBackend('', { registry: reg, caller: 'test-d3' });
     check(r.backendId === null && r.source === 'unknown' && r.reason === 'workspace-not-ready', 'D3 空目录统一判定按未知返回', JSON.stringify(r));
     check(selected === false, 'D3 空目录没问自动识别（不起外部命令）');
-    const p = await shellOf(reg).pickBackend({ agent: { session: { id: 's', cwd: '' } } }, sOf(''));
+    const p = await openedOfU(reg, { agent: { session: { id: 's', cwd: '' } } }, sOf(''));
     check(p.ok === false && /还没就绪/.test(p.text || ''), 'D3 空目录工具壳说还没就绪（不说没有后端）', (p.text || '').slice(0, 120));
     const regCore = await imp('src/tracker/registry/core.ts');
     let matched = false;
@@ -171,7 +177,7 @@ async function main() {
   // —— D4：多命中诚实拒绝（不再自动写） ——
   {
     const reg = regOf(async () => ({ backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'] }));
-    const p = await shellOf(reg).pickBackend({ agent: { session: { id: 's', cwd: 'D:\\ws' } } }, sOf('D:\\ws'));
+    const p = await openedOfU(reg, { agent: { session: { id: 's', cwd: 'D:\\ws' } } }, sOf('D:\\ws'));
     check(p.ok === false && p.reason === 'no-backend' && /同时被 2 个后端认出/.test(p.text || ''), 'D4 多命中诚实拒绝并引导去面板选定', (p.text || '').slice(0, 120));
   }
 

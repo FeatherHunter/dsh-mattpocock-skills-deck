@@ -10,15 +10,16 @@
 //   所以「界面恒显示取到了、空的」这件事，此前没有任何门禁会在红灯里看见。本门禁补上这一段。
 //
 // 四段：
-//   ① 放行：patch.run 的探测与薄查询被放行、记账、漏网计数仍为 0；
+//   ① 放行：patch.run 的探测被放行；薄行走只读会话、不经闸 send、不花额度，漏网计数仍为 0；
 //   ② 推迟：额度压到 0 时闸判 defer，patch.run 如实回 mode=deferred，一条请求都不发、也不抛异常；
 //   ③ 拒绝：AI 工具那一档超顶时闸拒绝并给出文案；
 //   ④ 写事件那条真路径（生产装配件 createRefreshWiring）：
-//      · 过闸带的钥匙与「标活跃」用的钥匙必须是同一把（两把对不上时后台档恒判「不在活跃集合里」，
-//        这条路在生产里会一次都发不出去 —— 这是 #723 栽过一次的坑）；
-//      · 写事件订阅只判门取数、不再喂工作路线（#1262 删掉了旧推断路）：
-//        走完这一笔之后链照实空着，记账入口只剩工具壳成功收口处那一步；
-//      · 没上报过的工作区同一笔必须被推迟（负控）。
+//      · 写事件触发的取数不再过闸（#1445）：回包如实说 in-pipeline，闸一条裁决都没被问过，
+//        花费两格（requests/points）如实记 0 —— 读路径不记账是 #1444 的裁决，真实用量归 #1446；
+//      · 交给管线的钥匙与白名单用的是同一把短散列（两把不同 = 同一个工作区被当成两个，
+//        10 秒合并窗口永远不生效 —— 这是 #723 栽过一次的坑，换了位置照样守）；
+//      · 写事件订阅不再喂工作路线（#1262 删掉了旧推断路）：走完这一笔之后链照实空着；
+//      · 没上报过的工作区同一笔必须连门都过不了（负控）。
 const path = require('path')
 const os = require('os')
 const fs = require('fs')
@@ -73,25 +74,32 @@ async function main() {
     }
     const ledger = ledgerMod.createLedger({ now: () => CLOCK })
     const remaining = (typeof o.remaining === 'number') ? o.remaining : 5000
-    ledger.syncServer({ rest: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
-    const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
+    // #1446 起账本按后端分桶：先建出 github 这只后端，再按后端 id 落读数，闸才能读到「已知」的额度。
+    ledger.ensureBackend('github', { kind: 'two-buckets' })
+    ledger.syncServer('github', { rest: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
+    // 口径声明自 #1448 起由装配处注入（旧静态表已退役）；这份门禁要的是 GitHub 两桶口径。
+    const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, budgetModelOf: () => ({ kind: 'two-buckets' }) })
     gate.setWorkspace(WS, { active: true })
-    const calls = []
+    const gets: string[] = []
+    // 假会话：读路径只经它取数（#1444 起薄行不再直调 gh、也不再经闸 send）。
+    const session = {
+      get: async (ref: any, key: any) => {
+        gets.push(String(key))
+        return { ok: true, data: { key: String(key), effortId: 'e', type: 'issue', title: '票 ' + key, state: 'closed', body: '', url: 'https://github.com/o/r/issues/' + key, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-23T00:00:00Z', closedAt: null, parentKey: null, labels: [], assignees: [{ login: 'me' }], author: { login: 'me' }, blockedBy: [], isPullRequest: false, mergedAt: null, reviews: [] } }
+      },
+    }
     const patch = patchMod.createPatch({
       now: () => CLOCK, workspaceKeyOf: () => WS,
       readSnapshot: async () => store, writeSnapshot: async (cwd, snap) => { Object.assign(store, snap) },
       indexOfSnapshot: win.indexFromSnapshot, windowRules: win,
       getRepoKey: async () => ({ owner: 'o', name: 'r' }),
       probeIndex: async () => ({ ok: true, index: { '301': 'CLOSED|2026-09-23T00:00:00Z', '302': 'OPEN|2026-09-19T00:00:00Z', '303': 'OPEN|2026-09-18T00:00:00Z' } }),
-      runGh: async (args: string[]) => {
-        calls.push(args)
-        const n = Number(args[1].split('/').pop())
-        return { ok: true, text: JSON.stringify({ number: n, title: '票 ' + n, state: 'closed', labels: [], assignees: [], user: { login: 'me' }, updated_at: '2026-09-23T00:00:00Z', created_at: '2026-09-01T00:00:00Z' }) }
-      },
-      send: (req, perform) => gate.send(req, async () => { const out = await perform(); gate.noteOutbound({ requests: 1, points: 0 }); return out }),
-      decide: (req) => gate.decideFor(req),
+      openSession: async () => ({ ok: true, backendId: 'github', budget: {}, call: (fn: any) => fn(session, { cwd: CWD, caller: 'refresh' }) }),
+      // #1446 起裁决要带后端 id；生产里这一格由 refresh-runtime 交当前后端（Lead 改），
+      // 测试里的替身照最终形状补上，否则「额度压到 0」会被当成未知后端而放行。
+      decide: (req) => gate.decideFor(Object.assign({ backendId: 'github' }, req)),
     })
-    return { store, ledger, gate, patch, calls }
+    return { store, ledger, gate, patch, gets }
   }
 
   // ── ① 放行 ──
@@ -101,8 +109,9 @@ async function main() {
     const r = await w.patch.run(CWD)
     const after = w.gate.stats()
     check(r.mode === 'patch', '① 放行：patch.run 走通行级补行（mode=' + r.mode + ' / reason=' + r.reason + '）')
-    check(after.sent - before.sent === 1, '① 裁决：闸放行并计数（sent ' + before.sent + ' → ' + after.sent + '）')
-    check(after.accounted.requests - before.accounted.requests === 1, '① 记账：真发出去的 1 条记进了账（' + before.accounted.requests + ' → ' + after.accounted.requests + '）')
+    check(after.sent - before.sent === 0, '① 读路径不经闸 send：放行只由探测那一步问过裁决（sent ' + before.sent + ' → ' + after.sent + '）')
+    check(after.accounted.requests - before.accounted.requests === 0, '① 读路径不花额度：闸上一笔都没记（accounted ' + before.accounted.requests + ' → ' + after.accounted.requests + '）')
+    check(w.gets.length === 1 && w.gets[0] === '301', '① 取数：只问变的那一张票（会话 get ' + JSON.stringify(w.gets) + '）')
     check(w.gate.escaped().requests === 0, '① 漏网计数仍为 0（' + JSON.stringify(w.gate.escaped()) + '）')
   }
 
@@ -115,10 +124,10 @@ async function main() {
     try { r = await w.patch.run(CWD) } catch (e) { threw = e }
     check(threw === null, '② 推迟：patch.run 没有抛异常（照契约回三态）')
     check(r && r.mode === 'deferred', '② 推迟：patch.run 如实回 mode=deferred（实得 ' + (r && r.mode) + ' / ' + (r && r.reason) + '）')
-    const sent = await w.gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: WS }, async () => ({ requests: 1, points: 0 }))
+    const sent = await w.gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: WS, backendId: 'github' }, async () => ({ requests: 1, points: 0 }))
     check(sent && sent.sent === false && sent.verdict === 'defer', '② 裁决：同一条闸对同一批输入回 defer（' + JSON.stringify({ verdict: sent.verdict, reason: sent.reason }) + '）')
     check(w.gate.stats().deferred - before.deferred >= 1 && w.gate.stats().pending >= 1, '② 裁决：这一笔进了推迟队列（deferred=' + w.gate.stats().deferred + '、pending=' + w.gate.stats().pending + '）')
-    check(w.calls.length === 0, '② 推迟：一条请求都没发出去（' + w.calls.length + ' 条）——推迟不是「发了再失败」')
+    check(w.gets.length === 0, '② 推迟：一条薄查询都没发出去（' + w.gets.length + ' 条）——推迟不是「发了再失败」')
     check(w.gate.escaped().requests === 0, '② 漏网计数仍为 0')
   }
 
@@ -142,12 +151,13 @@ async function main() {
       // ④a 那条 sessions.length===1 就变成 2（自污染，与生产无关）。
       const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 't19e-gate-chain-'));
       const base = ledgerMod.createLedger({ now: () => CLOCK })
-      base.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
+      base.ensureBackend('github', { kind: 'two-buckets' })
+      base.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
       const entries = []
       const ledger = Object.assign({}, base, { spend: (e) => { entries.push(e); return base.spend(e) } })
       const decides = []
       const logCtx = { isEnabled: () => true, fire: (level, event, fields) => { if (event === 'refresh.decide') decides.push(typeof fields === 'function' ? fields() : fields) } }
-      const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, logCtx: logCtx })
+      const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, logCtx: logCtx, budgetModelOf: () => ({ kind: 'two-buckets' }) })
       const w = wiringMod.createRefreshWiring({
         ctx: { on: () => () => {} }, logCtx: logCtx, canonicalKey: async (x) => String(x),
         getCacheDir: async () => cacheDir, ledger: ledger, gate: gate,
@@ -159,51 +169,63 @@ async function main() {
     }
     const writeOnce = (w: { writeEvents: { handle: (...args: unknown[]) => unknown } }, sid: string, ws: string) => w.writeEvents.handle({ id: sid, header: { cwd: ws } }, 'tools/result', 'pwsh', JSON.stringify({ command: CMD }), true)
 
-    // ④a 放行 + 写事件不再喂链（链照实空着）
+    // ④a 写事件不再经闸：这一笔直接交给管线，闸一次裁决都没被问过（#1445）
     const A1 = build('github')
     await A1.focus({ windowId: 'win-1', workspaceRoot: WS1, kind: 'focus', visible: true })
     const key = A1.w.hash8(WS1)
     check(A1.gate.workspaceView(key).active === true, '④ 上报之后闸把这一格标成活跃（key=' + key + '）')
     const before1 = A1.gate.stats()
+    const decides1 = A1.decides.length
     const out1 = await writeOnce(A1.w, 'sess-a1', WS1)
     const after1 = A1.gate.stats()
-    const v1 = A1.decides.length ? A1.decides[A1.decides.length - 1].verdict : ''
-    check(v1 === 'allow', '④ 放行真的发生了（verdict=' + v1 + ' / ' + (A1.decides.length ? A1.decides[A1.decides.length - 1].reason : '') + '）',
-      '恒 defer = 这条生产路径一次都发不出去')
-    check(after1.sent - before1.sent === 1, '④ 闸的 sent 真的 +1（' + before1.sent + ' → ' + after1.sent + '）')
-    check(A1.w.writeEvents.lastGateKey() === key, '④ 过闸带的钥匙与「标活跃」用的钥匙是同一把（标活跃=' + key + '、过闸=' + A1.w.writeEvents.lastGateKey() + '）',
-      '两把钥匙不同 = 后台档恒判「不在活跃集合里」而静默推迟每一笔（#723 栽过的坑）')
+    check(!!out1 && out1.verdictOfGate === 'in-pipeline', '④ 写事件这一趟如实报告「已交给管线」（verdictOfGate=' + (out1 && out1.verdictOfGate) + '）',
+      '从前这里是 allow/defer —— #1445 起不再有闸裁决')
+    check(A1.decides.length === decides1 && after1.sent === before1.sent, '④ 闸一次裁决都没被问过（refresh.decide ' + decides1 + ' → ' + A1.decides.length + ' 条、闸的 sent ' + before1.sent + ' → ' + after1.sent + '）',
+      '还有裁决记录 = 写事件那条路还在过闸')
+    const s1 = A1.w.writeEvents.stats()
+    check(s1.sent === 1 && s1.event.requests === 0 && s1.event.points === 0, '④ 订阅自己数「交给管线 1 趟」，花费两格如实记 0（sent=' + s1.sent + '、requests=' + s1.event.requests + '、points=' + s1.event.points + '）',
+      '读路径不记账（#1444 裁决），真实用量归 #1446')
+    check(typeof A1.w.writeEvents.lastGateKey !== 'function', '④ 旧读数口 lastGateKey 已摘除（不过闸了，没有「最后一次过闸的钥匙」可答）',
+      '旧读数口还在 = #1445 的退役没做干净')
     // #1271：旧链读数口已摘除；写事件订阅只判门取数，结构上就没有往工作路线写的口
     // （本目录零存储引用，落盘只发生在工具壳成功收口那一步，由 verify-1261 / verify-deck-tools 守）。
     check(typeof A1.w.chainReadoutOf !== 'function',
       '④ 旧链读数口已摘除（chainReadoutOf 不再由装配点交回）',
       '旧读数口还在 = #1271 的退役没做干净')
 
-    // ④b 负控：不在活跃集合（没上报过）的那一笔必须被推迟
+    // ④b 负控：没上报过（不在白名单）的工作区，事件连门都过不了 —— 回 null、seen 不增、一趟都不取。
+    // 这一段守的是门前那道工作区归属判定：它比闸更早，不该因为「不过闸了」就把门一起撤掉。
     const A2 = build('github')
-    await A2.w.writeEvents.allowRoot(WS2)
-    const before2 = A2.gate.stats()
+    const before2 = A2.w.writeEvents.stats()
     const out2 = await writeOnce(A2.w, 'sess-a2', WS2)
-    const after2 = A2.gate.stats()
-    const v2 = A2.decides.length ? A2.decides[A2.decides.length - 1].verdict : ''
-    check(v2 === 'defer' && after2.sent === before2.sent, '④ 负控：不在活跃集合的那一笔被推迟（verdict=' + v2 + '、sent ' + before2.sent + ' → ' + after2.sent + '）')
-    check(!!out2 && out2.verdictOfGate === 'defer', '④ 回包如实带回闸的结论（verdictOfGate=' + (out2 && out2.verdictOfGate) + '）')
+    const after2 = A2.w.writeEvents.stats()
+    check(out2 === null && after2.seen === before2.seen && after2.sent === 0, '④ 负控：不在白名单的工作区同一笔被门挡下（回包=' + JSON.stringify(out2) + '、seen ' + before2.seen + ' → ' + after2.seen + '、sent=' + after2.sent + '）',
+      '门被撤掉 = 别的会话的写也会拉起取数')
 
-    // ④d 负控：两处钥匙不同源时必然被推迟（把活跃集合标在另一把钥匙上，证明③那一条不是白测）
-    const A4 = build('github')
-    await A4.focus({ windowId: 'win-4', workspaceRoot: WS1, kind: 'focus', visible: true })
-    A4.gate.setWorkspace(A4.w.hash8(A4.w.hash8(WS1)), { active: true })   // 两层散列那一把（#723 修掉的那把错钥匙）
-    A4.gate.setWorkspace(A4.w.hash8(WS1), { active: false })
-    const before4 = A4.gate.stats()
-    const out4 = await writeOnce(A4.w, 'sess-a4', WS1)
-    const v4 = A4.decides.length ? A4.decides[A4.decides.length - 1].verdict : ''
-    check(v4 === 'defer' && A4.gate.stats().sent === before4.sent, '④ 负控：活跃集合标在另一把钥匙上时同一笔就被推迟（verdict=' + v4 + '）—— 证明「两处钥匙同源」不是白测')
-    check(!!out4 && out4.verdictOfGate === 'defer', '④ 负控的回包也如实带结论（verdictOfGate=' + (out4 && out4.verdictOfGate) + '）')
+    // ④c 交给管线的钥匙与白名单同源：直接起一份订阅、给一个记录取数的假函数，
+    // 看它递出去的 meta.workspaceKey 是不是 allowRoot 交回的那把。生产装配件那一格的取数今天是空实现
+    // （refresh-runtime.ts:201 只回零花费），没法在那里看见这个值，所以这一段单独起一份订阅。
+    const writeEventsMod = await imp('src/refresh/rooms/host/write-event-subscription.ts')
+    const fetchedC: any[] = []
+    const weC = writeEventsMod.createWriteEvents({
+      fetch: async (step: any, meta: any) => { fetchedC.push({ step: step, meta: meta }); return { requests: 0, points: 0 } },
+      canonicalKey: async (x: any) => String(x),
+    })
+    const allowKey = await weC.allowRoot(WS1)
+    const outC = await weC.handle({ id: 'sess-c', header: { cwd: WS1 } }, 'tools/result', 'pwsh', JSON.stringify({ command: CMD }), true)
+    check(allowKey === A1.w.hash8(WS1) && fetchedC.length === 1 && fetchedC[0].meta.workspaceKey === allowKey,
+      '④ 交给管线的钥匙与白名单是同一把（白名单=' + allowKey + '、递出=' + (fetchedC[0] && fetchedC[0].meta.workspaceKey) + '）',
+      '两把钥匙不同 = 同一个工作区被当成两个，合并窗口永远不生效（#723 栽过的坑）')
+    check(fetchedC.length === 1 && fetchedC[0].step.action === 'patch-now' && fetchedC[0].meta.source === 'event.write' && fetchedC[0].meta.kind === 'patch' && !!outC && outC.verdictOfGate === 'in-pipeline',
+      '④ 交给管线的那一步形状稳定（step.action=' + (fetchedC[0] && fetchedC[0].step.action) + '、meta.source=' + (fetchedC[0] && fetchedC[0].meta.source) + '、meta.kind=' + (fetchedC[0] && fetchedC[0].meta.kind) + '）',
+      '形状变了 = 换成真取数时那一侧要跟着分岔')
   }
 
-  // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的九个工具）的一次调用被闸真拒绝 ──
-  // 与 ③ 段的区别：③ 是拿闸自己的 admitAiTool 直调（证明裁决函数会拒），这一段是把额度压到只剩一点点，
+  // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的九个工具）的一次调用被闸真拒绝；外加离网对照 ──
+  // 与 ③ 段的区别：③ 是拿闸自己的 admitAiTool 直调（证明裁决函数会拒），这一段是让这一笔自己要得太多，
   // 然后走 wiring.deckToolsForHost() 装出来的表、调真工具，看它是不是照契约回拒绝态。
+  // ⑤c 是 #1439（#1442）的验收：本地 Markdown 是离网后端，没有额度可言，额度压到 0 也照样放行 ——
+  // 旧口径「离网后端到保底线也要被拒」与规格冲突，已按规格改成「照样做成、不出现 gate-defer、账上不多记」。
   {
     const registryMod = await imp('src/tracker/registry/core.ts')
     const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
@@ -244,10 +266,12 @@ async function main() {
     /** 额度剩多少由 remaining 定；九个工具与闸都从这一个 wiring 上取（与生产同形）。 */
     async function buildHost(remaining: number) {
       const base = ledgerMod.createLedger({ now: () => CLOCK })
+      // #1446 起账本按后端分桶：先建 github 这只后端，再按后端 id 落读数。
+      base.ensureBackend('github', { kind: 'two-buckets' })
       // 读数先落账（与实际顺序一致：宿主每分钟同步一次剩余），闸再按这份账判档 —— 顺序反了的话
       // 闸看到的是「还没读过读数」那一份（档位红），什么都会推迟，那就测不到想测的东西。
-      base.syncServer({ rest: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 } }, CLOCK)
-      const gate = gateMod.createGate({ ledger: base, now: () => CLOCK })
+      base.syncServer('github', { rest: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: remaining, reset: CLOCK + 3600000 } }, CLOCK)
+      const gate = gateMod.createGate({ ledger: base, now: () => CLOCK, budgetModelOf: () => ({ kind: 'two-buckets' }) })
       const w = wiringMod.createRefreshWiring({
         ctx: { on: () => () => {}, get: (n) => (n === 'fs' ? plat.fs : undefined) },
         logCtx: { fire: () => {}, isEnabled: () => false },
@@ -290,19 +314,29 @@ async function main() {
     check(r3 && r3.ok === true, '⑤ 对照：额度够时同一入口同一工具真的做成（status=' + (r3 && r3.status) + '）',
       '这一条也失败就说明 ⑤a 的拒绝不是额度造成的：' + JSON.stringify({ status: r3 && r3.status, reason: r3 && r3.reason, text: String((r3 && r3.text) || '').slice(0, 160) }))
 
-    // ⑤c 真被拒绝（第二种原因）：额度已经到保底线 → 这一笔连选后端都过不去，工具照契约回拒绝态（不是抛异常）。
-    //    如实报两个可能的结果：闸把「选后端」这一步判成 defer 时 reason 是 gate-defer（推迟），
-    //    判成 ai-tool 那一档拒绝时 reason 是 ai-tool-refused —— 两种都是「没做成、如实说」，都不许抛异常。
+    // ⑤c 离网对照（#1439 验收）：额度已经到保底线，但本地 Markdown 是离网后端、没有额度可言 ——
+    //    闸的额度探针直接跳过，这一笔照旧做成，回执如实说「本后端不需要额度」，账上不多记。
+    //    这不是「没做成」：旧口径「连选后端都过不去」正是 #1435 报的那条 bug，规格要求它消失。
     const H1 = await buildHost(0)
     const b1 = H1.gate.stats()
     let threw1 = null
     let r1 = null
     try { r1 = await H1.table.tools.deck_issue_create.run(EXEC, { title: '额度已到保底线的这一笔', kind: 'issue' }) } catch (e) { threw1 = e }
-    check(threw1 === null, '⑤ 额度到保底线：工具没有把异常抛给 AI（照契约回三态；threw=' + (threw1 && threw1.message) + '）')
-    check(!!r1 && r1.ok === false && r1.status === 'unsupported', '⑤ 额度到保底线：回 ok:false / unsupported（实得 ' + (r1 && r1.status) + '）')
-    check(!!r1 && (r1.reason === 'ai-tool-refused' || r1.reason === 'gate-defer'), '⑤ 额度到保底线：给出的原因代号是那两个之一（实得 ' + (r1 && r1.reason) + '）')
-    check(H1.gate.stats().accounted.requests === b1.accounted.requests, '⑤ 额度到保底线：一笔都没发出去（' + b1.accounted.requests + ' → ' + H1.gate.stats().accounted.requests + '；没被静默放行）')
-    console.log('    拒绝原文（额度到保底线）：' + String(r1 && r1.text).slice(0, 220))
+    check(threw1 === null, '⑤ 离网后端：工具没有把异常抛给 AI（照契约回三态；threw=' + (threw1 && threw1.message) + '）')
+    check(!!r1 && r1.ok === true && r1.status === 'ok', '⑤ 离网后端在额度见底时照样做成（实得 ' + (r1 && r1.status) + ' / ' + (r1 && r1.reason) + '）')
+    // #1446 起不再用 -1/'off-network' 这类假值占位：四格事实如实说「离网、读数已知、没有额度这回事」，
+    // 剩余量与档位两格直接不出现，人话改由 cost.note 承担。
+    const a1 = r1 && r1.cost && r1.cost.actual
+    check(!!a1 && a1.backendId === 'markdown' && a1.budgetKind === 'off-network' && a1.readKnown === true && a1.offNetwork === true,
+      '⑤ 回执照实说额度不适用（backendId=' + (a1 && a1.backendId) + ' / kind=' + (a1 && a1.budgetKind) + ' / readKnown=' + (a1 && a1.readKnown) + ' / offNetwork=' + (a1 && a1.offNetwork) + '）')
+    check(!!a1 && a1.remaining === undefined && a1.tier === undefined,
+      '⑤ 离网回执不带剩余量与档位（remaining=' + (a1 && a1.remaining) + ' / tier=' + (a1 && a1.tier) + '）')
+    check(!!r1 && r1.cost && typeof r1.cost.note === 'string' && r1.cost.note.indexOf('本后端不需要额度') >= 0,
+      '⑤ 回执的 cost.note 写出「本后端不需要额度」那一句（实得 ' + JSON.stringify(r1 && r1.cost && r1.cost.note) + '）')
+    // 不做成「闸被绕过了」：闸的裁决本身没坏，只是离网后端这一趟根本不问它。
+    const probe = H1.gate.admitAiTool({ points: 0, requests: 1, childTickets: 0 }, { workspaceKey: wsPosix, kind: 'tool-batch', bucket: 'rest', backendId: 'github' })
+    check(probe && probe.admitted === false && probe.reason === 'ai-tool-below-remaining', '⑤ 对照：同一格额度见底时闸照样会拒（裁决没坏；实得 ' + JSON.stringify({ admitted: probe && probe.admitted, reason: probe && probe.reason }) + '）')
+    check(H1.gate.stats().accounted.requests === b1.accounted.requests && H1.gate.stats().deferred === b1.deferred, '⑤ 账上不多记、也没进推迟队列（accounted ' + b1.accounted.requests + ' → ' + H1.gate.stats().accounted.requests + '；deferred ' + b1.deferred + ' → ' + H1.gate.stats().deferred + '）')
     try { fs.rmSync(wsRoot, { recursive: true, force: true }) } catch (e) {}
   }
 

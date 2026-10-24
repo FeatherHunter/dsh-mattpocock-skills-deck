@@ -44,6 +44,9 @@ declare const lagPromiseFor: any;
 declare const PROBE_INTERVAL_MS: any;
 declare const PATCH_MERGE_WINDOW_MS: any;
 declare const idOfParts: any;
+// #1446：额度档位沿用 host-budget.ts 的 tierFor（0.6 / 0.85 两档只住那一处），这里同样只声明、不 import。
+// 为什么不在界面重写阈值：写第二份就会改一处漏一处，面板的「黄/红」与刷新闸的降档判断必须是同一把尺子。
+declare const tierFor: any;
 import { REST_FALLBACK_STALE_MS } from '../../../shared/time-config/values.js'
 export const truthFreshnessAt = function (st: any) {
   const snap = st && st.snapshot
@@ -86,6 +89,53 @@ export const truthFreshnessBox = function (st: any, nowMs: any) {
     time: line.params.time,
   }
 }
+// ── 额度读数那一句（#1446）──
+// 后端是哪一种额度形态，只看 refresh.backend.budgetKind（'two-buckets' / 'requests' / 'none'）：
+// 面板不按后端名字推算类型，将来同一门后端换一种计费方式，这里不用跟着改。
+// 三条硬规矩，改这个函数的人先看：
+//   1. **读数未知不许冒数字**：readKnown 不为真、或者该形态的数字缺了，只说「还没同步上来」，
+//      绝不写 0 —— 0 会被读成「已经耗尽」，把「不知道」说成「用光了」是最坏的一种假话。
+//   2. **只有真耗尽才说 failQuota**：请求额度剩 0，或两个桶都已知且都见底，才算耗尽（红档）；
+//      黄/红档位沿用 host-budget.ts 的 tierFor，这里不新造档位词、也不写阈值。
+//   3. **离网后端没有额度这回事**：说「本后端不出站，不需要额度」，不说「还没同步」。
+const BUDGET_TONE_BY_TIER: any = { green: 'fresh', yellow: 'yellow', red: 'red' }
+function budgetBucketOf(bucket: any): any {
+  if (!bucket || typeof bucket !== 'object') return null
+  if (typeof bucket.remaining !== 'number' || !isFinite(bucket.remaining) || bucket.remaining < 0) return null
+  if (typeof bucket.limit !== 'number' || !isFinite(bucket.limit) || bucket.limit < 0) return null
+  return bucket
+}
+// 档位按「已经用掉多少」求：剩得越少，used 越接近 1；tierFor 的 0.6 / 0.85 是全局唯一的那把尺子。
+function budgetToneOf(bucket: any): string {
+  if (!(bucket.limit > 0)) return 'fresh'
+  return BUDGET_TONE_BY_TIER[tierFor(1 - bucket.remaining / bucket.limit)] || 'fresh'
+}
+function budgetBucketLine(key: any, bucket: any): any {
+  return { key: key, params: { remaining: bucket.remaining, limit: bucket.limit }, tone: budgetToneOf(bucket), kind: 'budget' }
+}
+export const budgetNoticeLines = function (refresh: any): any[] {
+  const backend = refresh && refresh.backend
+  if (!backend || typeof backend !== 'object') return []
+  if (backend.offNetwork === true) return [{ key: 'truth.budgetOffNetwork', params: {}, tone: 'fresh', kind: 'budget' }]
+  const unknown = function (): any[] { return [{ key: 'truth.budgetUnknown', params: {}, tone: 'fresh', kind: 'budget' }] }
+  if (backend.readKnown !== true) return unknown()
+  if (backend.budgetKind === 'requests') {
+    const requests = budgetBucketOf(backend.requests)
+    if (!requests) return unknown()
+    if (requests.remaining === 0) return [{ key: 'truth.failQuota', params: {}, tone: 'red', kind: 'fail' }]
+    return [budgetBucketLine('truth.budgetRequests', requests)]
+  }
+  if (backend.budgetKind !== 'two-buckets') return []
+  const graphql = budgetBucketOf(backend.buckets && backend.buckets.graphql)
+  const rest = budgetBucketOf(backend.buckets && backend.buckets.rest)
+  if (!graphql && !rest) return unknown()
+  // 两个桶都已知且都见底才算真耗尽；只要还有一桶能出站，就还没到「等整点恢复」那一步。
+  if (graphql && rest && graphql.remaining === 0 && rest.remaining === 0) return [{ key: 'truth.failQuota', params: {}, tone: 'red', kind: 'fail' }]
+  const lines: any[] = []
+  if (graphql) lines.push(budgetBucketLine('truth.budgetGraphql', graphql))
+  if (rest) lines.push(budgetBucketLine('truth.budgetRest', rest))
+  return lines
+}
 export const truthNoticeLines = function (st: any, nowMs: any) {
   // 这里标 any[]：lines 只在下面那个 push 闭包里被读写，闭包里的演化类型推不出来，标出来才让
   // 「只加类型、不改代码」成立（push 的按键去重与逐条返回都一个字没动）。
@@ -124,6 +174,10 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
   // 四、有更新但被推后了；五、这个窗口没在刷新（同时活跃上限 2 个窗口，第 3 个在这里明说）。
   if (refresh && refresh.deferred === true) push({ key: 'truth.deferred', params: {}, tone: 'yellow', kind: 'deferred' })
   if (refresh && refresh.notRefreshing === true) push({ key: 'truth.notRefreshing', params: {}, tone: 'fresh', kind: 'notRefreshing' })
+  // 六、额度读数（#1446）：面板那一行只调 truthNoticeLines，所以额度这句要并进同一份列表里；
+  //   按键去重，与上面几句不会重复说同一件事。
+  const budgetLines = budgetNoticeLines(refresh)
+  for (let i = 0; i < budgetLines.length; i++) push(budgetLines[i])
   return lines
 }
 // 行上那个「更新中」标记的窗口：一次写入成功之后，这一行在合并窗口内还算「正在更新」。

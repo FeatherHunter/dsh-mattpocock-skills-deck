@@ -35,7 +35,12 @@ import { DECK_ENSURE_TIMEOUT_MS } from '../../../shared/time-config/src/values.j
 import { createNamingSummary, readFirstUserText } from '../../../host/platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
-import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
+import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
+import { ledgerReadingsOf } from '../../kernel/budget-readings.js' // #1446：读数 → 账本格的唯一换算处
+import { createBudgetState } from './budget-state.js' // #1446：面板要的额度状态（模型 + 水位 → 读数），单独一件免得本文件顶破行数上限
+import { createSessionOpener } from './session-opener.js' // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（六个取数文件与写路径共用这一份）
+import { createOutboundControl } from './outbound-control.js'
+import { hostTimers } from '../../contract/host-timer-ports.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）同理收在 src/refresh/rooms/host/refresh-assembly.js 一处。
 import { createPatchForHost } from './refresh-assembly.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
@@ -117,18 +122,112 @@ export function createRefreshWiring(deps: any): any {
   const logCtx: any = d.logCtx || null
 
   const ledger: any = d.ledger || createLedger({ logCtx: logCtx })
-  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx })
+  // 后端的花钱口径由各后端模块自己声明（规格 #1439）：闸不维护静态表，这里从注册表现取一份注入进去。
+  // 取不到（注册表还没就绪、或这个后端没登记）就按「未知」口径，闸据此只记请求数，不凭空判两桶。
+  function budgetModelOf(backendId: string): any {
+    try {
+      const reg: any = (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null
+      const mods: any[] = (reg && typeof reg.modules === 'function') ? reg.modules() : []
+      for (let i = 0; i < mods.length; i += 1) if (mods[i] && mods[i].id === backendId) return mods[i].budget || { kind: 'unknown' }
+    } catch (e) { /* 取不到声明不拦本次调用，按未知口径记账 */ }
+    return { kind: 'unknown' }
+  }
+  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModelOf })
 
-  // #758 剩余额度读数接线：动手前先保一次读数（差就免费读，不差不打）；闸、账本、起 gh 三件都在本文件手里，包成函数递给工具依赖，失败只影响这一次调用。
+  // #758 剩余额度读数接线：动手前先保一次读数（差就经会话读一次，不差不打）；失败只影响这一次调用。
+  // #1443 改道：不再经闸打免费的 gh 直调，读数走 Tracker 会话的 readBudget（房间自己读 gh，读预算本身不花额度）。
   let deckQuotaSync: any = null
+  // 会话读数要的那份后端上下文：平台、文件、计时器、起进程、日志、出站控制面各一件，
+  // 与桥段装配的那一份同源（生产里同一套宿主出口），只在这里为同步现拼一份（同步不经过工具装配）。
+  let syncBackendObj: any = null
+  function syncBackendCtxOf(): any {
+    if (!syncBackendObj) {
+      let platform: any = null
+      try { platform = (typeof d.getPlatform === 'function') ? d.getPlatform() : null } catch (eP: any) { platform = null }
+      syncBackendObj = {
+        platform: platform,
+        fs: (function (): any { try { return (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('fs') : undefined } catch (e: any) { return undefined } })(),
+        timers: (function (): any {
+          try {
+            const timerSvc: any = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
+            if (!timerSvc || typeof timerSvc.timeout !== 'function') return undefined
+            return hostTimers(timerSvc)
+          } catch (e: any) { return undefined }
+        })(),
+        exec: function (): any {
+          if (typeof d.detectionExec === 'function') { try { return d.detectionExec.apply(null, arguments) } catch (e: any) { return Promise.reject(e) } }
+          return Promise.resolve({ ok: false, kind: 'env', error: '这个宿主实例没有把起进程的出口（detectionExec）传进来，额度同步读不了数' })
+        },
+        logEvent: function (level: any, event: any, fields: any): void { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e: any) {} },
+        isEnabled: function (level: any): any { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e: any) { return level === 'error' || level === 'warn' } },
+        outbound: createOutboundControl(),
+      }
+    }
+    return syncBackendObj
+  }
+  // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（读、写共用这一份）。
+  // 为什么在接线里造而不是让取数文件自己造：闸、账本、后端上下文与注册表都在本文件手里，
+  // 各取数文件自己去接就会接出第二本账、第二套活跃集合（#723 抓过的那类「接上了却各走各的」）。
+  // 写会话多给两格：getRepoKey 补仓库身份（发布与写回都用得到），调用方还可另给 exec。
+  // #1446：账本按后端建模，开会话时把「这个后端按什么口径花钱」交给账本建桶（幂等）；
+  // 同时记下最近一次会话的后端编号，额度同步与面板回执按它分格（这两处拿不到 cwd 里的后端）。
+  let currentBackendId = ''
+  const openSessionRaw = createSessionOpener({
+    getTrackerRegistry: function (): any { return (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null },
+    ledger: ledger,
+    backendCtx: syncBackendCtxOf,
+    getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
+    logCtx: logCtx,
+    ensureBackend: function (backendId: any, budget: any): void {
+      try { if (ledger && typeof ledger.ensureBackend === 'function') ledger.ensureBackend(String(backendId), budget) } catch (eEn: any) {}
+    },
+  })
+  const openSession = async function (cwd: any, opts?: any): Promise<any> {
+    const opened: any = await openSessionRaw(cwd, opts)
+    if (opened && opened.ok === true && typeof opened.backendId === 'string' && opened.backendId) currentBackendId = opened.backendId
+    return opened
+  }
+  // 经 Tracker 会话读一次预算：只调 readBudget（管线里它直达房间，不裁决不记账）。
+  // 读不到（没注册表、会话打不开、读数未知）都回失败形状，不抛 —— 桥按失败退避，工具照旧走原流程。
+  // #1444 起读数也走同一个开会话口：上面那个 openSession 的裁决与记账对 readBudget 不生效
+  // （管线里 readBudget 直达房间），所以这一处的语义与 1443 时完全一样，只是不再各写一份装配。
+  async function readSessionBudget(cwd: unknown): Promise<any> {
+    try {
+      const opened: any = await openSession(cwd)
+      if (!opened || opened.ok !== true) return { ok: false, error: { kind: 'env', message: String((opened && opened.reason) || 'open-failed') + (opened && opened.detail ? ':' + String(opened.detail) : '') } }
+      // #1446：读数到手后立刻按它的口径建桶（readBudget 直达房间，这一趟本身不记账）。
+      try { if (ledger && typeof ledger.ensureBackend === 'function') ledger.ensureBackend(String(opened.backendId), opened.budget) } catch (eEn: any) {}
+      return await opened.call(function (session: any, opCtx: any): any { return session.readBudget(opCtx) })
+    } catch (eS: any) { return { ok: false, error: { kind: 'env', message: String((eS && eS.message) || eS) } } }
+  }
   function quotaSyncOf(): any {
     if (!deckQuotaSync) {
       try {
+        // #1446：账本按后端分格，同步只写当前后端自己的桶（规格第 8 节「额度同步只更新当前后端条目」）。
+        // 桥仍然按「一条读数」调这两个口，后端编号由本文件记着的那一个补上；没读过后端就不写（不编一格）。
         deckQuotaSync = createDeckQuotaSync({
-          send: function (req: any, perform: any): any { return gate.send(req, perform) },
-          syncDue: function (): any { try { return ledger.syncDue() } catch (eS: any) { return false } },
-          syncServer: function (readings: any): any { try { return ledger.syncServer(readings) } catch (eW: any) { return null } }, noteRateLimited: function (bucket: any, seconds: any, workspaceKey: any): any { try { return gate.noteRetryAfter({ bucket: bucket, seconds: seconds, workspaceKey: workspaceKey }) } catch (e: any) { return null } }, // #927 ①：读数里剩 0 时按服务端的重置时刻降档
-          runGh: function (a: any, c: any): any { if (typeof d.runGh === 'function') return d.runGh(a, c); return Promise.resolve({ ok: false, error: 'no-runGh' }) },
+          syncDue: function (): any { try { return currentBackendId ? ledger.syncDue(currentBackendId) : false } catch (eS: any) { return false } },
+          syncServer: function (readings: any): any {
+            try {
+              if (!currentBackendId) return null
+              // 桥递进来两种形状都认：裸读数（带 known）走统一换算；已经分好格的老形状直接用。
+              const cells: any = (readings && typeof readings === 'object' && 'known' in readings)
+                ? ledgerReadingsOf(readings)
+                : readings
+              if (!cells || typeof cells !== 'object') return null
+              const clean: any = {}
+              for (const name of ['rest', 'graphql', 'requests']) {
+                const c: any = cells[name]
+                if (!c || typeof c !== 'object') continue
+                const limit = Number(c.limit)
+                const remaining = Number(c.remaining)
+                if (isFinite(limit) && isFinite(remaining)) clean[name] = { limit: limit, remaining: remaining }
+              }
+              if (!Object.keys(clean).length) return null
+              return ledger.syncServer(currentBackendId, clean)
+            } catch (eW: any) { return null }
+          },
+          readBudget: function (cwd: any): any { return readSessionBudget(cwd) },
           logCtx: logCtx,
         })
       } catch (eC: any) { deckQuotaSync = null }
@@ -144,7 +243,8 @@ export function createRefreshWiring(deps: any): any {
     } catch (eE: any) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
   }
 
-  // 写事件触发的那一次取数（b）：闸放行之后真去做的那一步；真取行级增量（src/refresh/rooms/host/row-patch.js 的 run）由 T18 那批接。
+  // 写事件触发的那一次取数（b）：#1445 起写事件不再过闸，这一格就是取数本身（管线里读路径那一趟由 T18 那批接真取数；
+  // 在接上之前这里如实回 0 条、0 点——与旧路「闸放行之后仍是个空实现」等价，不假装取过）。
   async function fetchForWriteEvent(step: any, meta: any): Promise<any> {
     return { requests: 0, points: 0 }
   }
@@ -198,7 +298,7 @@ export function createRefreshWiring(deps: any): any {
     } catch (e: any) { return Promise.resolve(false) }
   }
   const writeEvents: any = d.writeEvents || createWriteEvents({
-    gate: gate, fetch: fetchForWriteEvent, canonicalKey: d.canonicalKey, logCtx: logCtx,
+    fetch: fetchForWriteEvent, canonicalKey: d.canonicalKey, logCtx: logCtx,
     onFirstAssistant: onFirstAssistant,
     onFirstUser: onFirstUser,
     isNamingTracked: isNamingTracked,
@@ -230,11 +330,10 @@ export function createRefreshWiring(deps: any): any {
    * 把「现在在看哪些工作区根」同步给写事件的白名单（b）与闸的活跃集合（c）——**同一份来源**（视野模型）。
    * 每次 wf.focus 上报之后调一次：新来的进白名单、切走的收摊，两个去处一起改。
    *
-   * #723（T19）最关键的一处：闸那边如果没接活跃集合，写事件触发的那一次取数会被**恒判推迟**
-   * （admission-policy.js 的 background-inactive：后台档不在活跃集合里就一次都不发）—— 接线看起来接上了、
-   * 实际一笔都发不出去。所以这两个去处必须由同一份「当前在看谁」同时喂，钥匙也必须是同一把：
-   * writeEvents 过闸时带的 workspaceKey 是它自己的短散列（rootHash，见 write-event-subscription.js 的 fire），
-   * 闸按那把钥匙认活跃集合，所以这里标活跃用的也是同一把（#724 起只有一处实现：workspaceKeyOf）。
+   * #723（T19）最关键的一处：两个去处（写事件白名单与闸的活跃集合）必须由同一份「当前在看谁」同时喂，
+   * 钥匙也必须是同一把——否则接线看起来接上了、实际一笔都发不出去。写事件那边 #1445 起不再过闸，
+   * 它交给管线的 meta.workspaceKey 仍是同一个短散列（rootHash，见 write-event-subscription.js 的 fire），
+   * 闸的活跃集合同样按这一把认（#724 起只有一处实现：workspaceKeyOf），两处不能各算一套。
    */
   async function syncAttention(): Promise<any> {
     let roots: any = []
@@ -326,9 +425,9 @@ export function createRefreshWiring(deps: any): any {
         indexOfSnapshot: function (snap: any): any { return (typeof d.issueIndexFromSnapshot === 'function') ? d.issueIndexFromSnapshot(snap) : {} },
         probeIndex: function (cwd: any, sinceIso: any): any { return (typeof d.fetchIssueIndex === 'function') ? d.fetchIssueIndex(cwd, sinceIso) : Promise.resolve({ ok: false }) },
         getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
-        runGh: function (args2: any, cwd: any): any { return (typeof d.runGh === 'function') ? d.runGh(args2, cwd) : Promise.resolve({ ok: false, error: 'no-runGh' }) },
-        send: function (req: any, perform: any): any { return gate.send(req, perform) },
-        decide: function (req: any): any { return gate.decideFor(req) },
+        // #1446：闸按后端分桶算账，裁决也告诉它这是哪个后端（还没读过就缺席，闸按未知后端处理）。
+        decide: function (req: any): any { return gate.decideFor(currentBackendId && req && typeof req === 'object' ? Object.assign({}, req, { backendId: currentBackendId }) : req) },
+        openSession: openSession, // #1444：薄行取数改走只读会话（取数文件不再经 send/runGh）
         // 与活跃集合、写事件白名单同一把短散列（见 syncAttention）：不一致就会让探测这条路每一笔都被判「推迟」。
         workspaceKeyOf: workspaceKeyOf,
         now: Date.now,
@@ -338,13 +437,17 @@ export function createRefreshWiring(deps: any): any {
     return patchRunner
   }
 
+  // #1446 验收第 4 条：面板要的额度状态（模型在注册表、水位在账本，换算搬到 budget-state.ts，免得本文件顶破 350 行）。
+  const budgetState = createBudgetState({ getTrackerRegistry: d.getTrackerRegistry, ledger: ledger })
+
   /**
    * 跑一次行级增量，回 patch.run 的原话（见 src/refresh/rooms/host/row-patch.js 文件头那一张表）。
-   * 只在两条依赖齐了才跑（跑 gh 的出口与探测索引的出口）——缺任何一个都如实回 failed，
-   * 让调用方照旧走整池那条老路，绝不假装补过。
+   * 只在两条依赖齐了才跑（开只读会话的装配口与探测索引的出口）——缺任何一个都如实回 failed，
+   * 让调用方照旧走整池那条老路，绝不假装补过。#1445：判据从「跑 gh 的出口」换成「开会话的装配口」，
+   * 取数已经由会话承担，runGh 一格的去留与刷新写路径无关。
    */
   async function deltaRefresh(cwd: any, opts: any): Promise<any> {
-    if (typeof d.runGh !== 'function' || typeof d.fetchIssueIndex !== 'function') return { mode: 'failed', reason: 'no-transport' }
+    if (typeof d.openSession !== 'function' || typeof d.fetchIssueIndex !== 'function') return { mode: 'failed', reason: 'no-transport' }
     try { return await patchOf().run(cwd, opts || {}) } catch (e: any) { return { mode: 'failed', reason: 'patch-threw' } }
   }
 
@@ -356,7 +459,17 @@ export function createRefreshWiring(deps: any): any {
 
   return {
     ledger: ledger,
-    gate: gate, send: function (req: any, perform: any): any { return gate.send(req, perform) }, // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）
+    gate: gate,
+    // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）。
+    // #1446：回执要按后端说额度，闸的入参补上当前后端编号（还没读过就缺席，闸按未知后端处理）。
+    send: function (req: any, perform: any): any {
+      const withBackend: any = (req && typeof req === 'object')
+        ? Object.assign({}, req, currentBackendId ? { backendId: currentBackendId } : {})
+        : req
+      return gate.send(withBackend, perform)
+    },
+    // #1446 验收第 4 条：面板按后端显示额度状态（客户端只读 budgetKind，不推算后端类型）。
+    budgetState: budgetState,
     writeEvents: writeEvents,
     attention: attention,
     hash8: hash8,
@@ -364,6 +477,7 @@ export function createRefreshWiring(deps: any): any {
     workRouteTableReadout: attachWorkRouteTable,
     workRouteTableField: WORK_ROUTE_TABLE_FIELD,
     deckToolsForHost: deckBridge.deckToolsForHost,
+    openSession: openSession, // #1444/#1445：六个取数文件经它拿只读会话，写路径（评论、发布、交接、改色）另带 write:true 开会话
     deltaRefresh: deltaRefresh,
     deltaEnter: deltaEnter,
     syncAttention: syncAttention,

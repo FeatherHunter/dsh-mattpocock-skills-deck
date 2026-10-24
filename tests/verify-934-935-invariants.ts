@@ -46,7 +46,9 @@ function makeFs() {
 async function main() {
   console.log('两条不变式回归门禁（934 钥匙单源与显式优先 / 935 许可透传）')
 
-  const shellMod = await imp('src/deck/shell/call-shell.ts')
+  const sessionModI = await imp('src/deck/tools/tracker-session.ts')
+  const ESTI = { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' }
+  const openedOfI = (dep: any, execArg: any, s: any): Promise<any> => sessionModI.openDeckSession({ deps: dep, exec: execArg, session: s, estimate: ESTI, tool: 't', kind: 'op' })
   const registryMod = await imp('src/tracker/registry/core.ts')
   const shapeMod = await imp('src/tracker/registry/shape.ts')
   const budget = await imp('src/refresh/kernel/host-budget.js')
@@ -106,12 +108,13 @@ async function main() {
     chooseWorkspace(sA.cwd, 'markdown')
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
-    ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
-    const shellA = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey, workspaceKeyOf })
-    const shellB = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey, workspaceKeyOf })
-    const pickA = await shellA.pickBackend(execA, sA)
+    // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+    ledger.ensureBackend('github', { kind: 'two-buckets' })
+    ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
+    const depsAB = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey, workspaceKeyOf }
+    const pickA = await openedOfI(depsAB, execA, sA)
     // 第二路用原始写法进，但上下文已归一，显式必须命中
-    const pickB = await shellB.pickBackend(execB, sB)
+    const pickB = await openedOfI(depsAB, execB, sB)
     check(pickA.ok && pickA.backendId === 'markdown' && pickA.source === 'explicit', 'I1 写法 A 命中显式 markdown', JSON.stringify(pickA).slice(0, 300))
     check(pickB.ok && pickB.backendId === 'markdown' && pickB.source === 'explicit', 'I1 写法 B 同样命中显式 markdown（显式优先硬要求）', JSON.stringify(pickB).slice(0, 300))
   }
@@ -125,10 +128,12 @@ async function main() {
     registry.register({ id: 'b2', label: 'B2', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({}), matches: async () => true })
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
-    ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
-    const shell = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey: async (x) => String(x), workspaceKeyOf })
+    // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+    ledger.ensureBackend('github', { kind: 'two-buckets' })
+    ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
+    const depsM = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey: async (x) => String(x), workspaceKeyOf }
     const s = { cwd: '/ws-multi', workspaceKey: 'deadbeef', sessionId: 's-m' }
-    const pick = await shell.pickBackend({}, s)
+    const pick = await openedOfI(depsM, {}, s)
     check(!pick.ok, 'I1b 多命中无显式即冲突（不回注册序第一个）', JSON.stringify(pick).slice(0, 300))
   }
 

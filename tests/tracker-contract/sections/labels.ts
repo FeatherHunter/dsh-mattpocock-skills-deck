@@ -811,6 +811,7 @@ export async function run() {
       const events = []
       const execVias = []
       const hostPlatform = { path: nodePath.posix, getHome: async () => '/home/u', fs: workspaceFs }
+      const detectionExec = async (cmd, args, opts, via) => { execVias.push(via); return { ok: true, stdout: '假身输出' } }
       const host = createWorkspaceCwd({
         ctx: { get: () => undefined },
         DEFAULT_CWD: HOST_CWD,
@@ -832,7 +833,21 @@ export async function run() {
         setCache: () => {},
         logCtx: { fire: (level, event, fields) => events.push({ level: level, event: event, fields: fields }), isEnabled: () => false },
         timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
-        detectionExec: async (cmd, args, opts, via) => { execVias.push(via); return { ok: true, stdout: '假身输出' } },
+        detectionExec: detectionExec,
+        // #1445：两条电话改走会话。夹具照生产回包形状给一份最小开会话：判定结论里的后端 → 注册表里那份假身当会话 →
+        //   上下文带 exec（via 那一格透传给宿主这同一个 detectionExec，所以「日志 kind 与执行器 via 同叫法」照旧可验）；
+        //   写会话照实回 canWrite=true，仓库引用沿用判定结论里的那一个。
+        openSession: async (cwd2, o) => {
+          const sel = (o && typeof o.resolveSelection === 'function') ? o.resolveSelection({ cwd: cwd2 }, {}) : null
+          const backendId = (sel && sel.backendId) || null
+          if (!backendId) return { ok: false, reason: 'no-backend' }
+          const tracker = reg.get(backendId)
+          if (!tracker) return { ok: false, reason: 'no-tracker' }
+          const ref = (sel && sel.ref) || { backend: backendId, refId: '', name: '', url: '' }
+          const baseCtx = { cwd: cwd2, refId: (ref && ref.refId) || '', signal: undefined, platform: hostPlatform, fs: workspaceFs, caller: 'refresh', exec: detectionExec, logEvent: () => {}, isEnabled: () => false }
+          const canWrite = !!(o && o.write)
+          return { ok: true, backendId: backendId, repoRef: ref, budget: {}, canWrite: canWrite, call: (fn) => fn(Object.assign({}, tracker, { backendId: backendId, budget: {}, canWrite: canWrite }), baseCtx) }
+        },
       })
       return { host: host, events: events, execVias: execVias }
     }
