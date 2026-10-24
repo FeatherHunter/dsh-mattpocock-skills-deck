@@ -1,5 +1,5 @@
 complete:
-  version: 14
+  version: 15
   placeholders:
     - url
     - closed
@@ -32,7 +32,7 @@ complete:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /wayfinder
     {url}
@@ -62,7 +62,7 @@ complete:
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
     - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 fixate:
-  version: 9
+  version: 10
   placeholders: []
   use: "沉淀 · 思维对齐 · 成果沉淀 · v9 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
   zh: |-
@@ -91,7 +91,7 @@ fixate:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     This phase wraps up here. Pause progress and run the "alignment & consolidation" pass, from first principles:
 
@@ -120,7 +120,7 @@ fixate:
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
     - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 healthCheck:
-  version: 3
+  version: 4
   placeholders:
     - subject
   use: 「体检」按钮 · 所有后端共用的总纲（游离票归位：先出建议清单、人点头才动手）；后端自己的科目由后端声明、经 {subject} 填空
@@ -165,7 +165,7 @@ healthCheck:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     ## Health check (put orphaned open tickets where they belong)
 
@@ -209,7 +209,7 @@ healthCheck:
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
     - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 mapExecute:
-  version: 18
+  version: 19
   placeholders: []
   use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）
   zh: |-
@@ -220,7 +220,7 @@ mapExecute:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     Please advance this map with the wayfinder skill.
 
@@ -231,7 +231,7 @@ mapExecute:
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
     - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 mapInspect:
-  version: 10
+  version: 11
   placeholders:
     - n
     - title
@@ -264,7 +264,7 @@ mapInspect:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     ## Target map
     - No: #{n}
@@ -293,7 +293,7 @@ mapInspect:
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
     - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 specComplete:
-  version: 4
+  version: 5
   placeholders:
     - url
     - closed
@@ -337,7 +337,7 @@ specComplete:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     All implementation issues under this spec issue ({url}) are closed ({closed}/{total}). Verify first, then decide whether it can be closed. Closing the spec promises future readers that this batch is already on the repository's long-lived branch, is reproducibly green on the commit you record, and has no unhandled leftovers — not merely that all sub-issues are closed.
 
@@ -378,7 +378,7 @@ specComplete:
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
     - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 specExecute:
-  version: 3
+  version: 4
   placeholders:
     - url
   use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）
@@ -402,7 +402,7 @@ specExecute:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /implement-spec
     {url}
@@ -425,7 +425,7 @@ specExecute:
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
     - [ ] Follow the /ask-matt rules and call suggest_next_steps at the right moment to recommend next steps.
 specSplit:
-  version: 3
+  version: 4
   placeholders:
     - url
   use: 规格容器 · 空态「拆票」按钮（首行 /to-tickets）（#1281）
@@ -448,7 +448,7 @@ specSplit:
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
     - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步。
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     /to-tickets
     {url}

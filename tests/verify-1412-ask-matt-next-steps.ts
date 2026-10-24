@@ -37,8 +37,8 @@ const HASH_MANIFEST = 'tests/bundled-skills-upstream-hashes.json'
 const HEADING = '## 推荐下一步（本插件追加，不属于上游原文）'
 const FOUR_LABELS = ['什么时候调用', '怎么挑 2~4 条', '理由怎么写', '什么时候不要调用']
 const TOOL_NAME = 'suggest_next_steps'
-// 提醒行（#1407）的核心句：模板说「按 /ask-matt 的规则」，规则节开头必须能接住这句话。
-const REMINDER_CORE = '按 /ask-matt 的规则，在恰当时机调用 suggest_next_steps 推荐下一步'
+// 提醒行（#1407）的核心句：模板说「回复前最后一步」，规则节开头必须能接住这句话。
+const REMINDER_CORE = '回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐'
 const REMINDER_ZH = '- [ ] ' + REMINDER_CORE + '。'
 const REMINDER_FILES = ['config/prompts/ticket-action-templates.yaml', 'config/prompts/ticket-creation.yaml', 'config/prompts/map-advancement.yaml']
 const REMINDER_TOTAL = 20
@@ -70,7 +70,7 @@ function sectionProblems(section) {
   if (text.indexOf(HEADING) !== 0) problems.push('标题不在开头')
   for (const label of FOUR_LABELS) { if (text.indexOf(label) < 0) problems.push('缺一段：' + label) }
   if (text.indexOf(TOOL_NAME) < 0) problems.push('没提工具名')
-  if (text.indexOf('恰当时机') < 0) problems.push('没写「恰当时机」')
+  if (text.indexOf('回复前最后一步') < 0) problems.push('没写「回复前最后一步」')
   if (text.indexOf('2~4') < 0) problems.push('没写 2~4 条')
   if (text.indexOf('intro 不超过 10 个字') < 0) problems.push('没写简介上限 10 个字')
   if (text.indexOf('500') < 0) problems.push('没写提示词上限 500')
@@ -132,7 +132,7 @@ async function main() {
   check(section.indexOf(HEADING) === 0, '规则节以标题开头')
   check(FOUR_LABELS.every((label) => section.indexOf(label) >= 0), '四段规则齐全：什么时候调用、怎么挑 2~4 条、理由怎么写、什么时候不要调用')
   check(section.indexOf(TOOL_NAME) >= 0, '规则节点名 suggest_next_steps')
-  check(section.indexOf('恰当时机') >= 0, '规则节写了「恰当时机」（与模板提醒行同一口径）')
+  check(section.indexOf('回复前最后一步') >= 0, '规则节写了「回复前最后一步」（与模板提醒行同一口径）')
   check(section.indexOf(REMINDER_CORE) >= 0, '规则节开头接住模板提醒行的核心句')
   check(section.indexOf('/retro') < 0, '规则节不再提已退役的 /retro')
   check(sectionProblems(section).length === 0, '规则节判据对真实规则全过（' + (sectionProblems(section).join('；') || '无问题') + '）')
