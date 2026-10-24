@@ -47,7 +47,11 @@ const ALLOWED = {
   //   （api:graphql / api:repos / issue:create / auth:status），第二段不是纯动词时只留第一段。
   //   为什么要有：从前只有 argv0='gh'，一次失败分不清是「查登录态失败」还是「改票失败」；命令参数与编号一律不进日志。
   //   落点：src/tracker/rooms/github/client.ts 与 src/refresh/rooms/host/git-execution.ts 的 gh.exec 调用点。
-  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd'],
+  // 2026-10-25（#1482）再增补两格：points 这一笔记进账本的点数（GraphQL 按回包 rateLimit.cost 记真实点数，
+  //   拿不到时按 1 点估；REST 记 0），pointSource 说这个点数是哪来的（server 回包给了真实 cost / estimate 按 1 点估 /
+  //   空串 不是 GraphQL）。为什么要有：账本曾经把 GraphQL 记成 REST、点数固定按 1，记歪了光看日志查不出；
+  //   有了这两格，一眼能看出这一笔用的是真实点数还是估算值。发射口同在 client.ts 的 emitGhExec 及其调用点。
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource'],
   // 2026-10-14（#1052 补做）常驻 #108 `read.degraded`：一条读操作「本来能成、这一趟没成，或者成得不完整」
   //   的结论线，一趟一行（命令成功了、可回包不是合法 JSON / 缺东西 / 游标失效 / 只拿到前几页 / 被上限截断
   //   这类路，从前一个字都不留）。七个键全是短枚举、数字与单页条数：op 哪条读操作、reason 为什么、latencyMs
@@ -463,7 +467,8 @@ const ALLOWED = {
   'read.session': ['ok', 'reason'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
-// gh.exec 九键（六键照旧，cmd 为 2026-10-21 #1007 复核增补；`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 七键（layer 为同日 #1007/#1224 复核增补，via / cmd / waitedMs / phase 为 2026-10-21 #1101 排查增补）、gh.resolve.fail 两键，
+// gh.exec 十一键（六键照旧，cmd 为 2026-10-21 #1007 复核增补；`via` 与 `opId` 是 #1052 增补的两格；
+// points 与 pointSource 为 2026-10-25 #1482 增补的两格）、gh.timeout 七键（layer 为同日 #1007/#1224 复核增补，via / cmd / waitedMs / phase 为 2026-10-21 #1101 排查增补）、gh.resolve.fail 两键，
 // graphql.fallback 与 issues.fallback 各自两键与三键；error.normalize 必有 rawKind 与 mappedKind 两键，
 // 另外三个码值键（httpCode 状态码、exitCode 退出码、errCode 错误码名）只在真有对应事实时带。
 // 注意本门禁的字段收集器只看得见「调用点上写死的对象字面量」，而 error.normalize 现在由
@@ -477,7 +482,8 @@ const ROOM_SHAPES = {
   //   断言在 tests/verify-github-gh-via.ts。
   // 2026-10-14（#1052 续）再增补一格 `opId`（含义见上面 ALLOWED 里同名的注释段）：
   //   宿主起这一趟操作时生成的编号，房间原样取 `ctx.opId`；不给编号的调用方记空串。
-  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd'],
+  // 2026-10-25（#1482）再增补两格 `points` 与 `pointSource`（含义见上面 ALLOWED 里 gh.exec 那一段注释）。
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource'],
   // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
   'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],

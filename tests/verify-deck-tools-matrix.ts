@@ -1,6 +1,4 @@
 const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
-// #1482：传输层报账要按「这一条命令是不是 GraphQL」分开报（GraphQL 不占 REST 请求条数）。
-const { isGraphqlGhArgs } = require('../src/tracker/kernel/outbound-tiers.js')
 // verify-deck-tools-matrix.ts —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
 // 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.ts，可独立运行。
 //
@@ -180,8 +178,12 @@ async function main() {
   let pipelineGithub = 0
   let pipelineGitlab = 0
   let pipelineGithubGraphql = 0
+  // #1482：这一条命令算不算 GraphQL，由本门禁按夹具里真出现的命令形状写死判断，不调用生产函数 ——
+  // 生产判据哪天退化了，期望若跟着一起变，门禁就会把红判成绿（ADR 20261021 §2.5.2）。
+  // 夹具里的 GraphQL 命令只有一种形状：gh api graphql ...。
+  const isGraphqlLiteral = (args) => Array.isArray(args) && args[0] === 'api' && String(args[1] || '').indexOf('graphql') === 0
   const noteRemoteOutbound = (cmd, args) => {
-    const isGql = cmd === 'gh' && isGraphqlGhArgs(args)
+    const isGql = cmd === 'gh' && isGraphqlLiteral(args)
     const rest = isGql ? 0 : 1
     const points = isGql ? 1 : 0
     if (pipelineWindows > 0) {

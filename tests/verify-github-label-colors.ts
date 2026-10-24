@@ -37,9 +37,10 @@ const REF = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
 // gh.exec 的字段白名单：#1052 给这一条常驻事件增补了一格 via（「这一次是谁发的、走到哪一支」，
 // 见 tests/verify-github-gh-via.ts）、又增补了一格 opId（宿主起这一趟操作时的编号，用来把宿主那层
 // host.call 与房间这层串起来），所以这里是八格；与 tests/verify-log-fields.ts 的白名单一致。
-// 2026-10-21（#1007 复核）：又增补了一格 cmd（这一条 gh 命令的短标签，如 label-colors:list），
-// 所以这里是九格；与 tests/verify-log-fields.ts 的白名单一致。
-const GH_EXEC_FIELDS = ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd']
+// 2026-10-21（#1007 复核）：又增补了一格 cmd（这一条 gh 命令的短标签，如 label-colors:list）。
+// 2026-10-25（#1482）：再增补 points（这一笔记进账本的点数）与 pointSource（这个点数是哪来的）。
+// 所以这里是十一格；与 tests/verify-log-fields.ts 的白名单一致。
+const GH_EXEC_FIELDS = ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource']
 
 /** 从参数数组里读 `--flag value` 这种写法（不拼字符串再正则，标签名里可能有空格与冒号）。 */
 function flagsOf(args) {
@@ -353,7 +354,7 @@ const SEED = [
   const execs = gh.events.filter((e) => e.event === 'gh.exec')
   check(execs.length === 2, '每次 gh 调用记一条常驻 gh.exec（实得 ' + execs.length + ' 条）')
   check(execs.every((e) => e.level === 'info'), 'gh.exec 是信息级（常驻名单里那一条）')
-  check(execs.every((e) => Object.keys(e.fields).every((k) => GH_EXEC_FIELDS.includes(k))), 'gh.exec 的字段只取白名单里那五个（实得 ' + JSON.stringify(execs.map((e) => Object.keys(e.fields))) + '）')
+  check(execs.every((e) => Object.keys(e.fields).every((k) => GH_EXEC_FIELDS.includes(k))), 'gh.exec 的字段只取白名单里登记的那些（实得 ' + JSON.stringify(execs.map((e) => Object.keys(e.fields))) + '）')
   check(execs.every((e) => !String(e.fields.cwdHash || '').includes('/')), '日志里工作区只记短指纹，不记路径原文')
 
   const dark = makeGh({ labels: SEED, info: false })
