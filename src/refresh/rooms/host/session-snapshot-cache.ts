@@ -169,9 +169,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // 本地（JSDoc）那份 composeSnapshot 把第四个参数写窄成了 { force?: boolean }，而这里确实还传了
           // ifNoneMatch；composer 只按本地类型标注，不碰它的实现。
           // #1446：额度读数口接上了才传这一格；没接就不传，composer 保持今天的形状（refresh 里没有 backend）。
-          const composerOpts: { snapshotTtl: number; budgetReadout?: (backendId: string) => any } = { snapshotTtl: SNAPSHOT_TTL_MS }
-          if (typeof budgetReadout === 'function') composerOpts.budgetReadout = budgetReadout
-          const composer: Composer = createSnapshotComposer(reg, composerOpts)
+          const composer: Composer = createSnapshotComposer(reg, typeof budgetReadout === 'function' ? { snapshotTtl: SNAPSHOT_TTL_MS, budgetReadout: budgetReadout } : { snapshotTtl: SNAPSHOT_TTL_MS })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
           if (!res.ok) { const _e1: Error & { fail?: unknown } = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
           // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
@@ -336,10 +334,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
-        // #1446：回退路径也把额度读数带上，否则面板在回退那一趟看不到后端额度状态（主路径见上方的 composerOpts）。
-        const composer2Opts2: { snapshotTtl: number; budgetReadout?: (b: string) => any } = { snapshotTtl: SNAPSHOT_TTL_MS }
-        if (typeof budgetReadout === 'function') composer2Opts2.budgetReadout = budgetReadout
-        const composer2: Composer = createComposer2(reg2, composer2Opts2)
+        // #1446：回退路径也把额度读数带上，否则面板在回退那一趟看不到后端额度状态（主路径见上方的 composer）。
+        const composer2: Composer = createComposer2(reg2, typeof budgetReadout === 'function' ? { snapshotTtl: SNAPSHOT_TTL_MS, budgetReadout: budgetReadout } : { snapshotTtl: SNAPSHOT_TTL_MS })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
                   const inner2 = upcaseSnapStates(res2.snapshot)
