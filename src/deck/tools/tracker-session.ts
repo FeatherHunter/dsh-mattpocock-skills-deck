@@ -187,18 +187,19 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
     if (reason === 'no-backend') return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' };
     return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选中的后端还没就绪（' + (detail || reason || '没说清原因') + '），我没往下做。' };
   }
-  // 仓库标识补全：与原来同一场竞速（后端定位口与等待上限拼速度），只是不再过闸（定位不花额度）。
+  // 仓库标识补全：与原来同一场竞速（会话定位口与等待上限拼速度）。#1453 起问会话自己的能力：
+  // 仓库定位是出站动作，要过裁决与记账；注册表的取实例口不再对 deck 工具公开。
   let ref: UnknownRecord | null = (selection.ref || null) as UnknownRecord | null;
   if (!ref || !ref.refId) {
     try {
-      const raw = (typeof registry.get === 'function') ? (registry.get(backendId) || null) as UnknownRecord | null : null;
-      const keyFn = (raw && raw.getRepoKey) as ((cwd: string, ctx: unknown) => Promise<unknown>) | undefined;
-      if (raw && typeof keyFn === 'function') {
+      const sessionAny = opened.session as unknown as UnknownRecord;
+      const keyFn = sessionAny.getRepoKey as ((cwd: string, ctx: unknown) => Promise<unknown>) | undefined;
+      if (typeof keyFn === 'function') {
         const cap = (typeof d.resolveTimeoutMs === 'number' && (d.resolveTimeoutMs as number) > 0) ? Math.floor(d.resolveTimeoutMs as number) : 8000;
         const sleepFn = (typeof d.sleep === 'function') ? d.sleep as (ms: number) => Promise<unknown> : function (ms: number): Promise<unknown> { return new Promise(function (resolve) { setTimeout(function () { resolve(null); }, ms); }); };
         const keyed = await withInFlightLease(function () {
           return Promise.race([
-            Promise.resolve(keyFn.call(raw, cwd, Object.assign({}, backendCtxNow(d), { cwd: cwd, caller: DECK_TOOL_KIND }))),
+            Promise.resolve(keyFn.call(sessionAny, cwd, Object.assign({}, backendCtxNow(d), { cwd: cwd, caller: DECK_TOOL_KIND }))),
             sleepFn(cap).then(function () { return null; }, function () { return null; }),
           ]);
         });

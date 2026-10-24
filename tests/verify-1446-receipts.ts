@@ -154,11 +154,12 @@ async function main() {
     // requests/points 记的是传输层真正报上来的条数（这一笔夹具没有报出站，所以是 0）；这里只钉旧字段还在、类型没变。
     check(!!sent && typeof sent.requests === 'number' && typeof sent.points === 'number', '闸成功：旧花费字段照留（实得 ' + JSON.stringify({ requests: sent && sent.requests, points: sent && sent.points }) + '）');
 
+    // #1454 起闸不写账本，quota.spend 只可能由操作管线的 account 发出，闸这一趟不该有。
     const spendEvent = events.filter((e) => e.event === 'quota.spend').pop();
-    check(!!spendEvent, '日志：记账记了既有 quota.spend 事件');
-    const sf = (spendEvent && spendEvent.fields) || {};
-    check(sf.account === 'ai-tool' && sf.backendId === 'github' && sf.bucket === 'graphql' && typeof sf.requests === 'number' && typeof sf.points === 'number' && typeof sf.remaining === 'number',
-      '日志 quota.spend：旧字段照旧、backendId 如实（实得 ' + JSON.stringify(sf) + '）');
+    check(!spendEvent, '#1454：闸发完之后不再记 quota.spend（记账只走操作管线，实得日志 ' + JSON.stringify(spendEvent || null) + '）');
+    const okTotal = okLedger.snapshot().total;
+    check(okTotal.requests === 0 && okTotal.points === 0,
+      '#1454：闸发完之后账本总量仍是零（闸没写账，实得 ' + JSON.stringify(okTotal) + '）');
   }
 
   // ── 七、未知后端（不带 backendId）：只记请求数，回执不带水位 ──

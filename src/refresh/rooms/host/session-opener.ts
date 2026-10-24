@@ -14,19 +14,20 @@
  *     与「花了多少要记下来」是两件事，前者是裁决，后者是量账；1439 之前读路径不记账才让账本越走越偏。
  *     开会话时顺手调一次 ensureBackend：账本按后端建模，桶要先建出来，写第一笔时才不会因为桶缺席当场炸。
  *  3. 仓库身份随会话一起交出去（openTracker 回包里的 repoRef）：写操作要一个 RepositoryRef，
- *     判定出口没带时在这里用 describe 补一次；GitHub 仍缺 refId 时按旧的评论写路径同一条三级解析
- *     退到 getRepoKey（git remote → .git/config → gh repo view）。调用方不再自己问注册表。
+ *     判定出口没带时在这里用 describe 补一次；GitHub 仍缺 refId 时问**会话自己的 getRepoKey 能力**，
+ *     由它先过裁决、再按后端口径记账（#1453，规格 1439 第 5 节：gh repo view 那一级是出站，
+ *     必须放在会话建立之后、走操作管线）。宿主那一份 getRepoKey 只读本地证据，这里不用它兜底。
  *
  * 与 1443 的额度同步读数（refresh-runtime 的 readSessionBudget）的关系：那一处只读一条 readBudget、
  * 不开整套读写路径。本文件的开会话也复用它——读数仍然直达房间，不裁决不记账。
  */
 import { openTracker } from '../../../tracker/session/open-tracker.js'
-import { spendsOfAccount } from '../../kernel/backend-accounting.js'
+import { createAccountPort } from '../../kernel/backend-accounting.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 import type { SelectionResolver } from '../../../tracker/session/open-tracker.js'
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { OpContext } from '../../../tracker/contract/contexts.js'
-import type { AdmitPort, AccountPort } from '../../../tracker/contract/budget-model.js'
+import type { AdmitPort } from '../../../tracker/contract/budget-model.js'
 import { buildTrackerPorts } from '../../registry/deck-tool-bridge.js'
 
 /** 起一个进程的出口（发布时用宿主那套 execProc，超时按写操作那一档算，不用探测档）。 */
@@ -40,8 +41,6 @@ export interface SessionOpenerDeps {
   ledger: unknown
   /** 后端上下文：这一次调用的平台、文件、计时器、起进程、日志、出站控制面。 */
   backendCtx: () => Record<string, unknown>
-  /** 仓库身份的最后一道解析（判定出口与 describe 都补不出 refId 时才问它；没有就如实交 null）。 */
-  getRepoKey?: (cwd: string) => Promise<{ owner?: string; name?: string } | null>
   /** 日志口（只用于开会话失败时的诊断，事件名 read.session）。 */
   logCtx?: { fire?: (level: unknown, event: unknown, fields: unknown) => void } | null
   /**
@@ -97,41 +96,27 @@ const readAdmit: AdmitPort = function (): { allowed: true; reason: string } {
   return { allowed: true, reason: 'read-path' }
 }
 
-/** 记账口缺席时的空实现：没有账本可写就什么也不记（门禁与单测里常见，生产由桥注入真实现）。 */
-const emptyAccount: AccountPort = function (): void {}
-
-/**
- * 记一笔（#1446）：真正的换算是纯函数（backend-accounting.ts），这里只负责把几笔交给账本。
- * 账本是装配方经实时器给的，本文件只知道「有个 spend 可调」，不解释后端口径。
- */
-function realAccount(deps: SessionOpenerDeps): AccountPort {
-  return function (input: any): void {
-    const ledger: any = deps.ledger
-    if (!ledger || typeof ledger.spend !== 'function') return
-    const spends = spendsOfAccount(input)
-    const backendId: string = input && typeof input.backendId === 'string' ? input.backendId : ''
-    if (!backendId) return // 没有后端编号就没有账本上的格，宁可少记也不编一格出来
-    for (const spend of spends) {
-      ledger.spend({ account: 'plugin', backendId: backendId, bucket: spend.bucket, kind: input.op, requests: spend.requests, points: spend.points })
-    }
-  }
-}
-
 /**
  * 造开会话的函数。返回的函数永远回值、不抛：注册表没就绪、目录为空、会话开不成，
  * 都收成带结局名的失败形状，调用方照旧走降级（回旧缓存或如实失败）。
  */
 export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opts?: OpenSessionOptions) => Promise<OpenSessionResult> {
   const ports = buildTrackerPorts({ ledger: deps.ledger })
-  // #1446：刷新这条路自己换算记账（换算是纯函数，见 kernel/backend-accounting.ts）；
-  // 桥里那份账号是 deck 工具那条路的，与本文件这份不共用（两条路的 caller 不同，账要分开记）。
-  const accountPort: AccountPort = realAccount(deps)
+  // #1454：刷新这条路径记 'plugin' 档；换算与写账都收在 createAccountPort 里，全仓只有那一处
+  // ledger.spend。桥里那份账号记 'ai-tool'，与本文件这份档位不同（两条路的 caller 不同，账要分开记）。
+  const accountPort = createAccountPort({ ledger: deps.ledger, account: 'plugin' })
   const logCtx = deps.logCtx || null
   function openFail(reason: string, detail?: string): SessionFailure {
     try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('debug', 'read.session', { ok: false, reason: reason }) } catch (eL: any) {}
     return { ok: false, reason: reason, detail: detail }
   }
-  /** 补出仓库身份：判定出口带的先用；缺 refId 时问 describe；GitHub 再退到 getRepoKey 的三级解析。 */
+  /**
+   * 补出仓库身份：判定出口带的先用；缺 refId 时问 describe；GitHub 仍缺就问会话的 getRepoKey。
+   * 为什么最后一步必须问会话而不是宿主（#1453）：仓库定位的 gh 那一级是出站，规格 1439 第 5 节
+   * 要求它放在会话建立之后、作为操作先过裁决再记账。会话的 getRepoKey 已经接在 Tracker 操作管线上
+   * （open-tracker 把除 describe/issueAddress 之外的能力都包进 runPipelineOp），直接调它就得到同一条路；
+   * 那一笔的用量由房间在回包上自报（OpUsage），账本才按后端的两桶口径记得到。
+   */
   async function resolveRepoRef(cwdStr: string, backendId: string, session: TrackerSession, fromSelection: RepositoryRef | null): Promise<RepositoryRef | null> {
     let ref: RepositoryRef | null = (fromSelection && fromSelection.refId) ? fromSelection : null
     if (!ref) {
@@ -140,20 +125,24 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         if (described) ref = Object.assign({}, described) as RepositoryRef
       } catch (eD: any) { ref = null }
     }
-    const needRefId: boolean = !ref || !(ref as any).refId
-    if (needRefId && backendId === 'github' && typeof deps.getRepoKey === 'function') {
-      // 与旧评论写路径同一条三级解析：GitHub 的判定出口不一定带 refId，缺它时后端无法定位仓库。
-      try {
-        const key: any = await deps.getRepoKey(cwdStr)
-        if (key && key.owner && key.name) {
-          const merged: any = Object.assign({}, ref || {})
-          merged.refId = key.owner + '/' + key.name
-          merged.name = merged.refId
-          merged.url = 'https://github.com/' + merged.refId
-          return merged as RepositoryRef
-        }
-      } catch (eK: any) {}
-    }
+    if (ref && (ref as any).refId) return ref
+    if (backendId !== 'github' || typeof (session as any).getRepoKey !== 'function') return ref
+    // GitHub 的判定出口不一定带 refId，缺它时后端无法定位仓库；这一问可能起 gh，所以先过裁决、再记账。
+    let base: Record<string, unknown> = {}
+    try { base = deps.backendCtx() || {} } catch (eB: any) { base = {} }
+    try {
+      // 第一格是仓库路径（契约 getRepoKey(cwd, ctx) 的 cwd 是字符串，房间的三级探测都拿它当工作目录）；
+      // 第二格是操作上下文：会话管线只负责裁决与记账，真正起 git/gh 时房间还是要 platform/exec/fs。
+      const located: any = await (session as any).getRepoKey(cwdStr, Object.assign({}, base, { cwd: cwdStr, caller: 'refresh' }))
+      // 房间回的是裸值（契约：{ owner, name } 或 null，用量挂在同一个对象上）；只有管线拒绝时才带 ok:false。
+      if (located && located.ok !== false && located.owner && located.name) {
+        const merged: any = Object.assign({}, ref || {})
+        merged.refId = String(located.owner) + '/' + String(located.name)
+        merged.name = merged.refId
+        merged.url = 'https://github.com/' + merged.refId
+        return merged as RepositoryRef
+      }
+    } catch (eK: any) {}
     return ref
   }
   return async function openSession(cwd: unknown, opts?: OpenSessionOptions): Promise<OpenSessionResult> {

@@ -48,7 +48,8 @@ function backendModelOf(deps: BudgetStateDeps, backendId: string): any {
 
 /**
  * 把注册表里的预算口径翻成面板词：two-buckets 原样、requests-only 翻 requests、off-network 翻 none。
- * 不认识的口径保持 unknown（消费方会按白名单丢掉这一格）——宁可面板不说话，也不把未知口径猜成三种之一。
+ * 不认识的口径归成 unknown，并作为合法一档原样交出去（#1455）：面板会明确显示「额度未知：这个后端没有
+ * 可用的预算模型」。这话比沉默诚实——「说不出模型」和「没有额度这回事」必须分得开，也不许猜成三种之一。
  */
 function panelKindOf(kind: string): string {
   if (kind === 'two-buckets') return 'two-buckets'

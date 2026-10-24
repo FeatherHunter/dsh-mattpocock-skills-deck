@@ -42,8 +42,6 @@ interface CommentThreadsDeps {
   errText: any
   isRateLimitError: any
   getRepoKey: any
-  /** #1444 起读路径不再直调 gh；字段留着是因为宿主接线 src/host/index.ts 是禁改文件，删注入会牵动它的调用点。 */
-  runGh: any
   execProc: any
   fetchIssueDetail: any
   fetchIssueIndex: any
@@ -59,8 +57,9 @@ interface CommentThreadsDeps {
  * 什么约定不能改：返回对象的五个字段名是调用点按名取的，改名调用点就拿不到。
  */
 export function createCommentThreads(deps: CommentThreadsDeps): any {
-  // 只取本文还有读者的几格：写路径改走会话之后，getPlatform / ctx / timer / getRepoKey / DEFAULT_CWD / runGh
-  // 在这里已经没有调用点；字段仍留在接口上，是因为宿主接线 src/host/index.ts 是禁改文件、照样按这些名字注入。
+  // 只取本文还有读者的几格：写路径改走会话之后，getPlatform / ctx / timer / getRepoKey / DEFAULT_CWD
+  // 在这里已经没有调用点；字段仍留在接口上，是因为宿主接线 src/host/index.ts 照样按这些名字注入。
+  // #1456 第 3 条：runGh 连注入带字段一起删了——它连读者都没有，留着只会让人以为读路径还直调 gh。
   const { normCwd, getTrackerRegistry, errText, execProc, setCache } = deps as any
   // #1444：读路径只认只读会话（deps.openSession）。会话由宿主按目录选好后端，本文件不再自己分发、
   // 也不再直调 gh；开不成时如实失败，让上层照旧降级用缓存。

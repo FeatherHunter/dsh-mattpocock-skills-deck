@@ -95,6 +95,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-23 #1411 第二次提交：小泡动效与外观（纯函数时间线 + 假 DOM 驱动执行器 + 旋钮钉值）；
   // 104 条是单跑实测得出的。
   'verify-1411-suggest-appearance': 142,
+  // 2026-10-24 #1456：账号认领写路径新开闸（假会话钉住只经写会话认领、并集不撤别人等）；27 条是单跑实测得出的。
+  'verify-1456-handoff-claim-write': 27,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

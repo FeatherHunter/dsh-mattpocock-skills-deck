@@ -37,6 +37,7 @@ import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/regist
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
 import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
 import { ledgerReadingsOf } from '../../kernel/budget-readings.js' // #1446：读数 → 账本格的唯一换算处
+import { createAccountPort, normalizeBudgetDeclaration } from '../../kernel/backend-accounting.js' // #1439：账本唯一写入口；面板/强制刷新经闸把真实用量交给它
 import { createBudgetState } from './budget-state.js' // #1446：面板要的额度状态（模型 + 水位 → 读数），单独一件免得本文件顶破行数上限
 import { createSessionOpener } from './session-opener.js' // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（六个取数文件与写路径共用这一份）
 import { createOutboundControl } from './outbound-control.js'
@@ -109,7 +110,7 @@ export function makeRefreshLoader(deps: any): () => Promise<any> {
  *   ctx            宿主上下文（写事件订阅要 ctx.on）
  *   logCtx         宿主日志出口（{ fire, isEnabled }）
  *   canonicalKey   会话目录 → 工作区键的既有出口（src/host/repoKeys.js 的 canonicalKey）
- *   runGh / execProc / getRepoKey / getCacheDir / readDiskCache / writeDiskCache / getTrackerRegistry / getPlatform
+ *   execProc / getRepoKey / getCacheDir / readDiskCache / writeDiskCache / getTrackerRegistry / getPlatform
  *                  宿主既有出口，交给各件跑腿用
  *   trackerRegistry 可选：后端注册表（九个 deck 工具的壳要用它选后端）
  *   gate / ledger  可选：已经造好的闸与账本（门禁与单测里注入用）；不给就现场造
@@ -132,7 +133,19 @@ export function createRefreshWiring(deps: any): any {
     } catch (e) { /* 取不到声明不拦本次调用，按未知口径记账 */ }
     return { kind: 'unknown' }
   }
-  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModelOf })
+  // #1439：面板与强制刷新这两条路不经过操作管线，它们的真实用量由闸经同一个记账口交出去 ——
+  // 闸自己不碰账本，唯一写入口仍是 createAccountPort。三个类别各一个口，分桶口径与管线共用一份实现；
+  // 闸只报「谁、哪个后端、几条请求、几个点」，口径在这里补齐（normalizeBudgetDeclaration 与分桶同一份文件）。
+  const accountPorts: any = {}
+  function accountFor(category: string): any {
+    const name = (category === 'user-action' || category === 'ai-tool') ? category : 'plugin'
+    if (!accountPorts[name]) accountPorts[name] = createAccountPort({ ledger: ledger, account: name })
+    const port = accountPorts[name]
+    return function (op: string, backendId: string, requests: number, points: number): any {
+      return port({ op: op, backendId: backendId, budget: normalizeBudgetDeclaration(budgetModelOf(backendId)), result: { ok: true, usage: { requests: requests, points: points } } })
+    }
+  }
+  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModelOf, accountFor: accountFor })
 
   // #758 剩余额度读数接线：动手前先保一次读数（差就经会话读一次，不差不打）；失败只影响这一次调用。
   // #1443 改道：不再经闸打免费的 gh 直调，读数走 Tracker 会话的 readBudget（房间自己读 gh，读预算本身不花额度）。
@@ -168,7 +181,8 @@ export function createRefreshWiring(deps: any): any {
   // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（读、写共用这一份）。
   // 为什么在接线里造而不是让取数文件自己造：闸、账本、后端上下文与注册表都在本文件手里，
   // 各取数文件自己去接就会接出第二本账、第二套活跃集合（#723 抓过的那类「接上了却各走各的」）。
-  // 写会话多给两格：getRepoKey 补仓库身份（发布与写回都用得到），调用方还可另给 exec。
+  // 仓库身份不在这里注入：缺 refId 时开会话那一侧会问会话自己的 getRepoKey 能力（#1453，
+  // 仓库定位的 gh 那一级是出站，要过裁决与记账）；调用方还可另给 exec（发布与写回时 git 要跑宿主那一套）。
   // #1446：账本按后端建模，开会话时把「这个后端按什么口径花钱」交给账本建桶（幂等）；
   // 同时记下最近一次会话的后端编号，额度同步与面板回执按它分格（这两处拿不到 cwd 里的后端）。
   let currentBackendId = ''
@@ -176,7 +190,6 @@ export function createRefreshWiring(deps: any): any {
     getTrackerRegistry: function (): any { return (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null },
     ledger: ledger,
     backendCtx: syncBackendCtxOf,
-    getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
     logCtx: logCtx,
     ensureBackend: function (backendId: any, budget: any): void {
       try { if (ledger && typeof ledger.ensureBackend === 'function') ledger.ensureBackend(String(backendId), budget) } catch (eEn: any) {}
@@ -444,7 +457,7 @@ export function createRefreshWiring(deps: any): any {
    * 跑一次行级增量，回 patch.run 的原话（见 src/refresh/rooms/host/row-patch.js 文件头那一张表）。
    * 只在两条依赖齐了才跑（开只读会话的装配口与探测索引的出口）——缺任何一个都如实回 failed，
    * 让调用方照旧走整池那条老路，绝不假装补过。#1445：判据从「跑 gh 的出口」换成「开会话的装配口」，
-   * 取数已经由会话承担，runGh 一格的去留与刷新写路径无关。
+   * 取数已经由会话承担，宿主也不再向这里注入 runGh 这一格。
    */
   async function deltaRefresh(cwd: any, opts: any): Promise<any> {
     if (typeof d.openSession !== 'function' || typeof d.fetchIssueIndex !== 'function') return { mode: 'failed', reason: 'no-transport' }

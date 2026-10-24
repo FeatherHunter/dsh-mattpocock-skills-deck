@@ -249,7 +249,7 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
 // ---------- 八、面板的额度读数（#1446）----------
 // 面板不推算后端类型，只读宿主写下的 refresh.backend；这一节量的是「四种后端各说各的话、未知时不吓人」。
 ;(function checkBudgetNotices() {
-  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown'].forEach(function (k) {
+  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown', 'truth.budgetUnknownModel'].forEach(function (k) {
     if (!zh[k]) fail('zh 缺词条 ' + k)
     if (!en[k]) fail('en 缺词条 ' + k)
   })
@@ -287,6 +287,14 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   const unknownText = textOf(unknown[0] || {})
   if (/\d/.test(unknownText)) fail('读数未知时整行不许出现数字（尤其不许把 0 念出来）：' + JSON.stringify(unknownText))
   if (unknown[0] && (unknown[0].tone === 'red' || unknown[0].tone === 'yellow')) fail('读数未知时不许上红/黄档：' + JSON.stringify(unknown[0]))
+  // 预算模型未知（#1455）：后端声明 unknown 时也要说「未知」，不静默、不念数字、不上红/黄档。
+  // 它与上面「读数未知」是两句不同的话：这里是「这个后端的额度怎么算说不清」，那里是「这次还没读到」。
+  const unknownModel = truth.budgetNoticeLines(refreshWith({ id: 'gh-graphql', budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported' }))
+  if (keysOf(unknownModel).join(',') !== 'truth.budgetUnknownModel') fail('预算模型未知时应当说「未知」，实得：' + JSON.stringify(keysOf(unknownModel)))
+  const unknownModelText = textOf(unknownModel[0] || {})
+  if (unknownModelText.indexOf('未知') < 0) fail('预算模型未知那句要自己说出「未知」：' + JSON.stringify(unknownModelText))
+  if (/\d/.test(unknownModelText)) fail('预算模型未知时整行不许出现数字（尤其不许把 0 念出来）：' + JSON.stringify(unknownModelText))
+  if (unknownModel[0] && (unknownModel[0].tone === 'red' || unknownModel[0].tone === 'yellow')) fail('预算模型未知时不许上红/黄档：' + JSON.stringify(unknownModel[0]))
   // 面板那一行真的把额度句并进去了
   const panel = truth.truthNoticeLines(withBackend({
     id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,

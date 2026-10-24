@@ -17,6 +17,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
+import { createBudgetState } from '../src/refresh/rooms/host/budget-state.js'
 import { createSnapshotEnvelope } from '../src/host/snapshotEnvelope.js'
 import { freshnessLevel, lagPromiseFor, tierFor } from '../src/refresh/kernel/host-budget.js'
 import { L_PAGES } from '../src/client/kernel/locale-data.ts'
@@ -144,9 +145,19 @@ console.log('#1446 面板额度读数（纯函数 / 快照编排器 / 信封透�
   check(malformed.length === 1 && malformed[0].key === 'truth.budgetUnknown', '读数形状不对（数字不是数字）时按未知处理，不硬拼一句话')
 
   check(truth.budgetNoticeLines({ backend: { budgetKind: 'none', readKnown: true, offNetwork: false } }).length === 0, 'budgetKind=none 且不出站也不离网：没有额度可念，就一个字都不说')
-  check(truth.budgetNoticeLines({ backend: { budgetKind: 'something-new', readKnown: true, offNetwork: false } }).length === 0, '没见过的 budgetKind 不猜格式（面板按后端声明读，不按名字推算）')
 
-  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown'].forEach(function (k: string): void {
+  // #1455：预算模型这一层未知（后端声明的是 unknown，或者声明了一个本版不认识的词）时也得说话。
+  // 旧行为是「白名单之外一律不说」，结果是面板静默 —— 静默会被读成「没有额度这回事」，与「未知」不是一件事。
+  const unknownModel = truth.budgetNoticeLines({ backend: { budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported' } })
+  check(unknownModel.length === 1 && keysOf(unknownModel) === 'truth.budgetUnknownModel', '预算模型未知时面板说「未知」，不是静默（实得 ' + keysOf(unknownModel) + '）')
+  check(unknownModel[0] && unknownModel[0].tone !== 'red' && unknownModel[0].tone !== 'yellow', '预算模型未知时不许上红/黄档：不知道不等于紧张')
+  check(unknownModel[0] && Object.keys(unknownModel[0].params).length === 0 && !/[0-9]/.test(JSON.stringify(unknownModel[0])), '预算模型未知时整行一个数字都没有（尤其不许出现 0）')
+  check(say('truth.budgetUnknownModel').indexOf('未知') >= 0, '未知模型那句词条自己把「未知」说出来：' + say('truth.budgetUnknownModel'))
+  check(say('truth.budgetUnknownModel') !== say('truth.budgetUnknown'), '未知模型与「读数还没同步」是两句不同的话（模型不知道 ≠ 这次没读到）')
+  const newKind = truth.budgetNoticeLines({ backend: { budgetKind: 'something-new', readKnown: true, offNetwork: false } })
+  check(newKind.length === 1 && keysOf(newKind) === 'truth.budgetUnknownModel', '没见过的 budgetKind 不猜格式、也不念数字，但如实说「未知」（实得 ' + keysOf(newKind) + '）')
+
+  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown', 'truth.budgetUnknownModel'].forEach(function (k: string): void {
     check(!!zh[k] && !!en[k], '词条中英两面都在：' + k + '（zh=' + JSON.stringify(zh[k]) + '）')
   })
 })()
@@ -211,6 +222,33 @@ await (async function checkComposer() {
 
   const noReason = await makeComposer({ budgetReadout: function (): any { return { budgetKind: 'two-buckets', readKnown: true, offNetwork: false, reason: 'whatever' } } }).composeSnapshot(REF.backend, REF, {}, { force: true })
   check(noReason.snapshot.refresh.backend.reason === undefined, '不认识的 reason 不硬塞（枚举之外的词不往下传）')
+
+  // #1455：预算模型这一层未知时也必须原样进快照。旧行为是白名单里没有 'unknown'，这一格被整个丢掉，
+  // 界面于是永远收不到「未知」这件事（面板静默，看起来像「这个后端没有额度」）。
+  const unknownModel = await makeComposer({ budgetReadout: function (): any { return { budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported' } } }).composeSnapshot(REF.backend, REF, {}, { force: true })
+  const umBackend = unknownModel.snapshot && unknownModel.snapshot.refresh && unknownModel.snapshot.refresh.backend
+  check(!!umBackend && umBackend.budgetKind === 'unknown' && umBackend.readKnown === false && umBackend.offNetwork === false, '预算模型未知时 refresh.backend 照写（budgetKind=unknown、readKnown=false、offNetwork=false）')
+  check(!!umBackend && umBackend.reason === 'unsupported', '未知模型的原因跟着快照下去（reason=unsupported），不留白让人猜')
+  check(!!umBackend && umBackend.buckets === undefined && umBackend.requests === undefined, '未知模型身上不补 0、不补空桶（不知道就是不知道）')
+  // 面板这一端真吃到宿主编出来的那一格：一句「未知」，没有数字、没有红档。
+  const panelState = { snapshot: { generatedMs: 1, refresh: unknownModel.snapshot.refresh }, snapMode: 'real', snapError: null }
+  const panelLines = truth.truthNoticeLines(panelState, 1)
+  check(panelLines.length === 1 && panelLines[0].key === 'truth.budgetUnknownModel' && panelLines[0].tone === 'fresh', '宿主写出未知模型后，面板那一行说的是「未知」（实得 ' + keysOf(panelLines) + '）')
+  check(!/[0-9]/.test(say(panelLines[0] && panelLines[0].key, panelLines[0] && panelLines[0].params)), '未知模型在面板上一个数字都不出现（不出现假 0）')
+  // 从生产者到面板的整条链（#1455）：注册表声明 unknown → budget-state 的面板读数 → 快照 → 界面那一行。
+  // 前面几条喂的是手搓对象，这一条让生产者自己的输出走完全程，防「每一段都像对的、接起来是断的」。
+  const unknownState = createBudgetState({
+    getTrackerRegistry: function (): any {
+      return { modules: function (): any[] { return [{ id: 'fake', budget: { kind: 'unknown', countsRequests: false, countsPoints: false, independentBuckets: false } }] } }
+    },
+    ledger: { view: function (): any { return null } },
+  })
+  const produced = unknownState('fake')
+  check(!!produced && produced.budgetKind === 'unknown' && produced.readKnown === false && produced.reason === 'unsupported', '生产者（budget-state）对 unknown 模型回「未知 + 原因 unsupported」')
+  const e2eSnap = await makeComposer({ budgetReadout: function (): any { return produced } }).composeSnapshot(REF.backend, REF, {}, { force: true })
+  const e2eLines = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: e2eSnap.snapshot.refresh }, snapMode: 'real', snapError: null }, 1)
+  check(e2eLines.length === 1 && e2eLines[0].key === 'truth.budgetUnknownModel', 'unknown 模型从注册表一路走到面板那一行「未知」（实得 ' + keysOf(e2eLines) + '）')
+  check(!!e2eSnap.snapshot.refresh.backend && e2eSnap.snapshot.refresh.backend.reason === 'unsupported', '回执（wf.snapshot 回包）里带着 unknown 模型的原因')
 })()
 
 // ---------- 三、快照信封：refresh 整块透传，backend 跟着走 ----------
@@ -226,6 +264,10 @@ await (async function checkComposer() {
   check(!!snapNoBackend.refresh && !('backend' in snapNoBackend.refresh), '老形状的 refresh 过信封之后仍然没有 backend（不凭空补一格）')
   const snapNone = env.buildSnap({ deck: null } as any)
   check(snapNone.refresh === null, '上游没给 refresh 时回包仍是 null（与今天一致）')
+  // #1455：未知模型这一档的回执（wf.snapshot 回包）同样带着 budgetKind 与原因 —— 界面和排障读的是同一份。
+  const unknownBackend = { id: 'fake', budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported' }
+  const snapUnknown = env.buildSnap({ deck: null, refresh: { tier: null, deferred: false, paused: false, notRefreshing: false, backend: unknownBackend } } as any)
+  check(!!snapUnknown.refresh && !!snapUnknown.refresh.backend && snapUnknown.refresh.backend.budgetKind === 'unknown' && snapUnknown.refresh.backend.reason === 'unsupported', '未知模型随 wf.snapshot 回包带出去（回执里读得到 budgetKind=unknown 与 reason=unsupported）')
 })()
 
 // ---------- 输出 ----------

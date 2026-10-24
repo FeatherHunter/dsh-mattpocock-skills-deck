@@ -4,6 +4,10 @@
 //
 // 断言文字（票面验收第三条 + 「加固补充」最后几条）：真跑一遍「账本 + 闸」，用假的传输层
 // （它每真发一条请求就报给闸，与生产里挂在起 gh 进程那一层同形），然后逐条查：
+//   ⓪ #1454 起闸不写账本：真实用量只由操作管线的 account 一处记；闸只把真发条数记进
+//      stats.accounted 对账，所以发完之后账本读数必须一分没动。
+//      #1439 起闸多了一格「把用量交给注入的记账口」（accountFor），面板与强制刷新靠它记账；
+//      这一扇不接那一格，验的是不接时的老行为，接上后真记账由 verify-1439-panel-accounting 验。
 //   ① 对账零差异：闸记下来的条数、点数，与传输层真发出去的完全相等；
 //   ② **GraphQL 点数桶单独一条断言**：那一桶按点数记、REST 桶按请求条数记，两桶互不折算；
 //   ③ 不排队、按步记账：一次 send 的多步、以及同时来的多次 send 都直接发，并发数可以大于 1；
@@ -62,7 +66,8 @@ async function main() {
   gate.setWorkspace('ws-1', { active: true })
   const r1 = await send({ source: 'probe.tick', kind: 'probe', workspaceKey: 'ws-1' }, () => step(1, 0))
   check(r1.sent === true && r1.requests === 1 && transport.requests === 1, '一笔探测：闸记 1 条、传输层真发 ' + transport.requests + ' 条')
-  check(ledger.hour('plugin', BACKEND + '/rest').requests === 1, '账本按「插件那一档 + REST 桶」记下 1 条（实得 ' + ledger.hour('plugin', BACKEND + '/rest').requests + '）')
+  check(ledger.snapshot().total.requests === 0 && ledger.snapshot().total.points === 0,
+    '闸不写账本（#1454）：探测发完之后账本总量仍是零（实得 ' + JSON.stringify(ledger.snapshot().total) + '）')
 
   // ③不排队：一次 send 三步，每步按 budget.js 的补行单价花（1 条请求、2 点）；再加两次并发 send
   //   （同一工作区），以及两个不同工作区的并发 send，并发数可以大于 1。
@@ -90,18 +95,19 @@ async function main() {
   //    7 条请求（见 verify 里那两条算式核对）。假传输层按同一组常量计价，不自己写死一套价。
   check(budget.REBUILD_COST_POINTS === budget.REBUILD_PAGE_COUNT * budget.PAGE_COST_POINTS + budget.REBUILD_PR_PAGE_COUNT * budget.PR_PAGE_COST_POINTS + budget.COUNT_COST_POINTS,
     '一次重建的点数是从每页单价推出来的：5 × ' + budget.PAGE_COST_POINTS + ' + 1 × ' + budget.PR_PAGE_COST_POINTS + ' + ' + budget.COUNT_COST_POINTS + ' = ' + budget.REBUILD_COST_POINTS + ' 点')
-  const beforeRebuild = { restUsed: ledger.view(BACKEND, 'rest').used, gqlUsed: ledger.view(BACKEND, 'graphql').used, gqlReq: ledger.hour('plugin', BACKEND + '/graphql').requests, accountedPoints: gate.stats().accounted.points }
+  const beforeRebuild = { restUsed: ledger.view(BACKEND, 'rest').used, gqlUsed: ledger.view(BACKEND, 'graphql').used, accountedPoints: gate.stats().accounted.points, ledgerTotal: ledger.snapshot().total }
   const rebuild = await send({ source: 'reconcile.tick', kind: 'rebuild', workspaceKey: 'ws-1' },
     () => step(budget.REBUILD_COST_REQUESTS, budget.REBUILD_COST_POINTS))
   const gqlPointsAdded = ledger.view(BACKEND, 'graphql').used - beforeRebuild.gqlUsed
-  const gqlRequestsAdded = ledger.hour('plugin', BACKEND + '/graphql').requests - beforeRebuild.gqlReq
   const accountedPointsAdded = gate.stats().accounted.points - beforeRebuild.accountedPoints
-  check(gqlPointsAdded === budget.REBUILD_COST_POINTS, 'GraphQL 桶按点数记：一次重建 = ' + budget.REBUILD_COST_POINTS + ' 点（这一次实得 ' + gqlPointsAdded + '）')
+  check(gqlPointsAdded === 0, 'GraphQL 桶的账没被闸改动：一次重建之后仍增 0 点（实得 ' + gqlPointsAdded + '）——写账只在操作管线那一条入口')
   check(ledger.view(BACKEND, 'rest').used === beforeRebuild.restUsed,
-    '同一笔重建一点都没算进 REST 桶（那一桶仍是 ' + ledger.view(BACKEND, 'rest').used + ' 条）—— 两桶互不折算')
-  check(gqlRequestsAdded === budget.REBUILD_COST_REQUESTS, 'GraphQL 桶另外也记着这笔花了几条真实请求（这一次实得 ' + gqlRequestsAdded + ' 条，供对账用）')
+    '同一笔重建一点都没算进 REST 桶（那一桶仍是 ' + ledger.view(BACKEND, 'rest').used + ' 条）—— 两桶互不折算，且闸不写账')
+  const ledgerTotalNow = ledger.snapshot().total
+  check(ledgerTotalNow.requests === beforeRebuild.ledgerTotal.requests && ledgerTotalNow.points === beforeRebuild.ledgerTotal.points,
+    '重建这一笔之后账本总量一分没动（' + JSON.stringify(beforeRebuild.ledgerTotal) + ' → ' + JSON.stringify(ledgerTotalNow) + '）')
   check(accountedPointsAdded === budget.REBUILD_COST_POINTS && rebuild.points === budget.REBUILD_COST_POINTS,
-    '闸的点数账这一次增了 ' + accountedPointsAdded + ' 点、这一笔自己报的也是 ' + rebuild.points + ' 点（传输层累计真发 ' + transport.points + ' 点）')
+    '闸的对账账（stats.accounted）这一次增了 ' + accountedPointsAdded + ' 点、这一笔自己报的也是 ' + rebuild.points + ' 点（传输层累计真发 ' + transport.points + ' 点）')
 
   // ④ 推迟 ≠ 失败：非活跃工作区的后台探测一条都不发。
   gate.setWorkspace('ws-idle', { active: false })
@@ -145,6 +151,9 @@ async function main() {
   check(gate.stats().mismatch === mismatchBefore + 1, '反证：调用方发 3 条报 1 条，被当场对出来（对不上次数 +1）')
   check(lie.requests === 3 && gate.stats().accounted.requests === accountedBefore + 3, '反证：账按真发出去的 3 条记，不按它报的 1 条（闸记 +' + (gate.stats().accounted.requests - accountedBefore) + '）')
   check(gate.stats().accounted.requests === transport.requests, '反证之后对账仍是零差异（闸 ' + gate.stats().accounted.requests + ' == 传输层 ' + transport.requests + '）')
+  const finalLedger = ledger.snapshot()
+  check(finalLedger.total.requests === 0 && finalLedger.total.points === 0,
+    '全部门禁断言跑完，账本总量仍是零：闸从头到尾没写账（实得 ' + JSON.stringify(finalLedger.total) + '）')
 
   console.log(failed ? '\n存在失败 — verify-gate-accounting 未通过' : '\n全部通过 — 闸记账门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

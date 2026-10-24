@@ -30,7 +30,8 @@ import * as budget from '../kernel/host-budget.js'
 import * as toolCost from '../kernel/tool-call-budget.js'
 import { decideByBudget } from '../kernel/budget-admission.js'
 import type { BudgetLimits } from '../kernel/budget-admission.js'
-import type { BackendBudgetModel, BudgetReading } from '../../tracker/contract/budget-model.js'
+import { createAccountPort } from '../kernel/backend-accounting.js'
+import type { AccountInput, BackendBudgetModel, BudgetReading } from '../../tracker/contract/budget-model.js'
 
 
 /** 未知形状的对象（接线递进来的依赖包先按这形接住，用到哪格验哪格，不猜）。 */
@@ -55,7 +56,8 @@ export interface HostToolDeps { gate?: unknown; registry?: unknown; budget?: unk
  * 给 requests 桶，双桶后端要求 rest 与 graphql 两个桶都同步过；认不出后端、或该桶还没同步过，
  * 一律报未知，不拿 0 冒充。裁决交给 budget-admission 里的纯函数：硬顶先行、离网与未知放行、
  * 只计请求看 requests 余量、双桶逐桶看写保底。本文件只负责把「哪个后端、哪个桶」交给账本，
- * 不自己写额度数字；记账按口径分桶，离网恒记零花。
+ * 不自己写额度数字；记账按口径分桶，离网恒记零花，写账统一走 kernel/backend-accounting.ts 的
+ * createAccountPort（#1454：全仓只有那一处调 ledger.spend）。
  *
  * 为什么导出：门禁 tests/verify-deck-tools-matrix.ts 要判断「每一条远端命令发出去的时候，
  * 是不是正处在一次经裁决放行、还没记账的操作里」。它需要的就是装配层这一份裁决与记账
@@ -159,7 +161,12 @@ export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: (bac
     }, limits);
     return decision;
   };
-  const account = async function (): Promise<void> { /* 各操作真实用量 1443 才进账本，本票只保证账上不记假数。 */ };
+  // #1454：deck 工具这条路的真实用量记 'ai-tool' 档。换算与写账都收在 createAccountPort 里，
+  // 与刷新后台（session-opener，记 'plugin' 档）共用同一个写入口，只是档位不同。
+  const accountPort = createAccountPort({ ledger: ledger, account: 'ai-tool' });
+  const account = async function (input: unknown): Promise<void> {
+    await accountPort(input as AccountInput);
+  };
   return { getCachedReading: getCachedReading, admit: admit, account: account };
 }
 
