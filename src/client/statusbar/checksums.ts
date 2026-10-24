@@ -55,8 +55,10 @@ export const checksumsOf = function (s: any) {
   const freshColor = freshBox ? freshnessToneColor(freshBox.tone) : ''
   const tipOf = function () {
     const b = (typeof truthFreshnessBox === 'function') ? truthFreshnessBox(s, Date.now()) : null
-    const ago = b ? tr(b.agoKey, b.agoParams) : ''
-    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [ago ? h('div', null, ago) : null, h('div', null, tr('nav.refreshTip'))])
+    // 第一行与右侧面板头部那条悬停提示用同一句词条（上次更新多久、取数时刻是几点），
+    // 让人一眼看出这个时刻是「数据取回来的时刻」，不是「刚才检查有没有新变化」的时刻。
+    const explained = b ? tr('truth.updatedTip', { ago: tr(b.agoKey, b.agoParams), time: b.time }) : ''
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [explained ? h('div', null, explained) : null, h('div', null, tr('nav.refreshTip'))])
   }
   return { fr: fr, bugN: bugN, triageN: triageN, n: n, timeStr: timeStr, freshColor: freshColor, tipOf: tipOf }
 }
