@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T23:19:46.585Z",
+  "generatedAt": "2026-10-24T23:45:33.194Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 371,
-  "gateCount": 371,
-  "attributedGates": 331,
+  "chainLength": 373,
+  "gateCount": 373,
+  "attributedGates": 333,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
@@ -3199,6 +3199,22 @@
       "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
+      "step": "node tests/verify-1489-edges.ts",
+      "file": "tests/verify-1489-edges.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条"
+    },
+    {
       "step": "node tests/verify-1489-original-fields.ts",
       "file": "tests/verify-1489-original-fields.ts",
       "guards": [
@@ -3212,6 +3228,29 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1489-progress.ts",
+      "file": "tests/verify-1489-progress.ts",
+      "guards": [
+        "src/deck/shell/body-write.ts",
+        "src/deck/shell/minimal-spec.ts",
+        "src/shared/issue-file/src/progress-tool.ts",
+        "src/shared/issue-file/src/progress.ts",
+        "src/tracker/rooms/markdown/comments.ts",
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/shared/issue-file/src",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 7 条"
     },
     {
       "step": "node tests/verify-1489-status-write.ts",
@@ -9362,6 +9401,7 @@
       "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1443-static-gate.ts",
+      "node tests/verify-1489-progress.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -9788,7 +9828,8 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1091-original-words.ts",
       "node tests/verify-1092-original-words-roundtrip.ts",
-      "node tests/verify-1277-md-spec-container.ts"
+      "node tests/verify-1277-md-spec-container.ts",
+      "node tests/verify-1489-progress.ts"
     ],
     "src/shared/label-color": [],
     "src/shared/label-color/src": [
@@ -10085,7 +10126,9 @@
       "node tests/verify-1487-map-plan.ts",
       "node tests/verify-1488-read-mixed-layout.ts",
       "node tests/verify-1489-claim-labels.ts",
+      "node tests/verify-1489-edges.ts",
       "node tests/verify-1489-original-fields.ts",
+      "node tests/verify-1489-progress.ts",
       "node tests/verify-1489-status-write.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",

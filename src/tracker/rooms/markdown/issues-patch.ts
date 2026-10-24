@@ -21,7 +21,7 @@ import { markerKindOnLine } from '../../../shared/issue-file/src/marker.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField, rewriteTicketText } from './issues-status.js'
 // #1489：原文布局的字段原语（隐藏注释、裸字段行、票种类判定），见 original-fields.ts。
-import { removeBareField, replaceBareField, ticketFormOf, upsertHiddenComment } from './original-fields.js'
+import { hiddenCommentOf, removeBareField, replaceBareField, replaceBoldField, ticketFormOf, upsertHiddenComment } from './original-fields.js'
 // #1174：写阻塞边之前的全图环检（契约明写「环检是写路径的一部分，不许省」）。
 // #922：票文件的读—改—写按文件排队，见 write-queue.js。
 import { checkExpectedUpdatedAt, cycleVerdictFor } from './write-guards.js'
@@ -110,7 +110,9 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
         while(insertAt<lines.length&&lines[insertAt].trim()==='')insertAt++
         // 正文区的范围是「标题之后」到「第一条字段行之前」。字段名要认全（含 Assignees 与 Close reason）：
         // 漏一个，那一条就会被划进正文区、被这次改写整行丢掉（#1174 复核 P1-1）。
-        let fieldIdx=lines.findIndex((l,i)=>i>=insertAt&&/^\s*(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)\s*[:\uFF1A]/i.test(l))
+        // #1489：原文布局的票把字段写成加粗的一行（名字前一对星号、冒号后一对星号），
+        // 这同样是字段行；不认它，正文区会一直划到文件尾，改正文时把 Comments 等区块整段吞掉。
+        let fieldIdx=lines.findIndex((l,i)=>i>=insertAt&&/^\s*(?:\*\*)?(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)(?:\*\*)?\s*[:\uFF1A]/i.test(l))
         if(fieldIdx<0)fieldIdx=lines.length
         const before=lines.slice(0,insertAt).join('\n')
         const after=lines.slice(fieldIdx).join('\n')
@@ -220,7 +222,6 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const arr=Array.isArray(blockers)?blockers:[]
-  const line=arr.length?'Blocked by: '+arr.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
   // 全图环检（#1174；契约 operations.ts 的 setBlockedBy 一段写着「环检是写路径的一部分，不许省」）。
   // 放在写者队列里面：判环要读整张图，读完到落盘之间不许有本进程的别的写插进来。
   // 成环时 fn 返回 undefined —— 这一份文件一个字都不改，由下面把那次判定的失败原样交出去。
@@ -244,7 +245,7 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
     // 差集为空：盘上本来挂的就是这几条边，这一趟一处都不用改（结论线记 noop、route 停在 none）。
     if(!added.length&&!removed.length)return undefined
     pending={ added: added.length, removed: removed.length }
-    return replaceOrInsertField(txt,'Blocked\\s+by',line)
+    return writeBlockedByLine(txt,arr,norm==='00')
   },opts,undefined,function(){
     if(!trail||!pending)return
     trail.route='file'
@@ -322,8 +323,29 @@ export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,ke
 function currentParentOf(txt: string,key: string,effortId: string): { known: boolean; key: string | null; explicit: boolean }{
   try{
     const cur0=parseMd(txt,{key:key,parentKey:'00',isMap:false,effortId:effortId}).parentKey
-    return{known:true,key:cur0===undefined||cur0===null?null:normParentKey(cur0),explicit:hasExplicitParentComment(txt)}
+    return{known:true,key:cur0===undefined||cur0===null?null:normParentKey(cur0),explicit:hasExplicitParentComment(txt)||hiddenCommentOf(txt,'DSH-PARENT').found}
   }catch{return{known:false,key:null,explicit:false}}
+}
+/** 父票这条边落在文件的哪里：原文布局写文件头隐藏注释 DSH-PARENT（#1489），
+ *  旧布局继续写旧的 parentKey 注释 —— 两种注释解析都认，但写的时候按文件自己的形状来，
+ *  免得一份文件里同时留着「parentKey: 00」与「DSH-PARENT: 02」两条互相矛盾的父票记录。 */
+function parentCommentOf(txt: string,want: string | null): string{
+  if(ticketFormOf(txt)==='legacy')return upsertParentComment(txt,want)
+  return upsertHiddenComment(txt,'DSH-PARENT',want)
+}
+/** 阻塞边落在文件里的两处（原文布局）：可见行按票种类写（实施票加粗行、地图子票裸行），
+ *  隐藏注释 DSH-BLOCKED-BY 与它成对更新。旧布局只写可见行，容器不写这类边。 */
+function writeBlockedByLine(txt: string,blockers: string[],container: boolean): string{
+  const keys=blockers.map(k=>String(k).padStart(2,'0'))
+  if(container||ticketFormOf(txt)==='legacy'){
+    const line=blockers.length?'Blocked by: '+blockers.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
+    return replaceOrInsertField(txt,'Blocked\\s+by',line)
+  }
+  const out=upsertHiddenComment(txt,'DSH-BLOCKED-BY',keys.length?keys.join(', '):null)
+  if(ticketFormOf(txt)==='impl-ticket'){
+    return replaceBoldField(out,'Blocked by',keys.length?keys.map(k=>'#'+k).join(', '):'None (can start immediately)')
+  }
+  return keys.length?replaceBareField(out,'Blocked by',keys.join(', ')):removeBareField(out,'Blocked by')
 }
 /** 挂父 / 改挂 / 解除父子共用的那一趟读—改—写，顺手把这一趟边上的事实记进事实桶（#1060）。
  *
@@ -352,7 +374,7 @@ async function writeParentLink(ctx: OpContext,repo: RepoWithPath | null,r: Param
     // 解析不出来那一趟也看不见边在哪，两种都不记 removed（#1060 口径，与 hasExplicitParentComment 的说明同一件事）。
     const removed=(want===null)?1:((cur.known&&cur.explicit&&cur.key!==null)?1:0)
     pending={ added: added, removed: removed }
-    return upsertParentComment(txt, want)
+    return parentCommentOf(txt, want)
   },opts,undefined,function(){
     if(!trail||!pending)return
     trail.route='file'

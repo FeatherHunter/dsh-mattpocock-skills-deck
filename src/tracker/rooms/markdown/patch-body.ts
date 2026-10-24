@@ -9,6 +9,9 @@
  */
 
 import { stripFencedCode } from './parse.js'
+// #1489：原文手写文件也没有 Comments/Answer 骨架（原文模板里只有标题、What to build、Blocked by、Status），
+// 整份改写时不能给它补插件骨架 —— 补上去等于每写一次正文就往原文里塞两块原文没有的区。
+import { ticketFormOf } from './original-fields.js'
 // #1277：票面对象类型标记的判据在共享包里；整份替换正文时盘上的标记要以盘上为准搬回来（ADR 2.5）。
 import { countMarkerLines, markerKindOnLine, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
 // #1091：维护者原话区整份替换时要保住（盘上有、递进来的新正文没有时按原位置搬回），
@@ -76,10 +79,12 @@ export function checkNoWorseForPatch(oldText: string, newText: string): string{
   // 数的是整行标记（共享包判据），正文里引用一句标记写法不算数。
   if(worse(countMarkerLines(o), countMarkerLines(n))) return '类型标记行变多了'
   if(countMarkerLines(o)>=1&&countMarkerLines(n)===0) return '类型标记丢了'
-  if(worse(countRe(of, /^\s*Status\s*[:\uFF1A]/gim), countRe(nf, /^\s*Status\s*[:\uFF1A]/gim))) return 'Status 行变多了'
-  if(worse(countRe(of, /^\s*Type\s*[:\uFF1A]/gim), countRe(nf, /^\s*Type\s*[:\uFF1A]/gim))) return 'Type 行变多了'
-  if(worse(countRe(of, /^\s*Blocked\s+by\s*[:\uFF1A]/gim), countRe(nf, /^\s*Blocked\s+by\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
-  if(worse(countRe(of, /^\s*Labels\s*[:\uFF1A]/gim), countRe(nf, /^\s*Labels\s*[:\uFF1A]/gim))) return 'Labels 行变多了'
+  // #1489：原文布局的字段行是加粗的（名字前一对星号、冒号后一对星号），计数必须与 parse.ts 同一把尺子；
+  // 只数裸写法的话，一张加粗字段被改丢也判不出「写坏了」。
+  if(worse(countRe(of, /^\s*(?:\*\*)?Status(?:\*\*)?\s*[:\uFF1A]/gim), countRe(nf, /^\s*(?:\*\*)?Status(?:\*\*)?\s*[:\uFF1A]/gim))) return 'Status 行变多了'
+  if(worse(countRe(of, /^\s*(?:\*\*)?Type(?:\*\*)?\s*[:\uFF1A]/gim), countRe(nf, /^\s*(?:\*\*)?Type(?:\*\*)?\s*[:\uFF1A]/gim))) return 'Type 行变多了'
+  if(worse(countRe(of, /^\s*(?:\*\*)?Blocked\s+by(?:\*\*)?\s*[:\uFF1A]/gim), countRe(nf, /^\s*(?:\*\*)?Blocked\s+by(?:\*\*)?\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
+  if(worse(countRe(of, /^\s*(?:\*\*)?Labels(?:\*\*)?\s*[:\uFF1A]/gim), countRe(nf, /^\s*(?:\*\*)?Labels(?:\*\*)?\s*[:\uFF1A]/gim))) return 'Labels 行变多了'
   if(worse(countRe(o, /^##\s*Comments\s*$/gim), countRe(n, /^##\s*Comments\s*$/gim))) return 'Comments 骨架变多了'
   if(worse(countRe(o, /^##\s*Answer\s*$/gim), countRe(n, /^##\s*Answer\s*$/gim))) return 'Answer 骨架变多了'
   if(countRe(o, /^##\s*Comments\s*$/gim)>=1&&countRe(n, /^##\s*Comments\s*$/gim)===0) return 'Comments 骨架丢了'
@@ -89,9 +94,9 @@ export function checkNoWorseForPatch(oldText: string, newText: string): string{
   if(worse(countRe(o, /^##\s*维护者原话\s*$/gim), countRe(n, /^##\s*维护者原话\s*$/gim))) return '维护者原话区变多了'
   if(countRe(o, /^##\s*维护者原话\s*$/gim)>=1&&countRe(n, /^##\s*维护者原话\s*$/gim)===0) return '维护者原话区丢了'
   // 认领人那一行（#1174 决策 12）：与 Status 同样按行数核对，翻倍才算坏。
-  if(worse(countRe(of, /^\s*Assignees\s*[:\uFF1A]/gim), countRe(nf, /^\s*Assignees\s*[:\uFF1A]/gim))) return 'Assignees 行变多了'
+  if(worse(countRe(of, /^\s*(?:\*\*)?Assignees(?:\*\*)?\s*[:\uFF1A]/gim), countRe(nf, /^\s*(?:\*\*)?Assignees(?:\*\*)?\s*[:\uFF1A]/gim))) return 'Assignees 行变多了'
   // 关票原因那一行（#1174 复核 P1-1）：同上。它是 close 之后才出现的一行，改正文时必须按字段保住。
-  if(worse(countRe(of, /^\s*Close\s+reason\s*[:\uFF1A]/gim), countRe(nf, /^\s*Close\s+reason\s*[:\uFF1A]/gim))) return 'Close reason 行变多了'
+  if(worse(countRe(of, /^\s*(?:\*\*)?Close\s+reason(?:\*\*)?\s*[:\uFF1A]/gim), countRe(nf, /^\s*(?:\*\*)?Close\s+reason(?:\*\*)?\s*[:\uFF1A]/gim))) return 'Close reason 行变多了'
   return ''
 }
 /** 整份正文合并：锚一律用盘上旧的，缺一级标题用盘上旧标题补回，缺字段行与骨架区从盘上旧文件搬回（字段插在骨架之前）。 */
@@ -151,7 +156,10 @@ export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown):
   const names=['Comments', 'Answer']
   // #1486：新布局的正文按原文模板写，模板里没有 Comments/Answer 骨架；别人按原文写的文件也没有。
   // 这里只对老格式文件补骨架 —— 新文件补上去，就等于每次改正文都往原文里多塞两块模板没有的区。
-  if(!newFormat)for(const name of names){
+  // #1489：判「新布局」不只看 DSH-FORMAT：原文手写文件（加粗字段行 / 地图子票的 ## Question）同样没有骨架，
+  // 它一旦被补上骨架，进度区就被挤到骨架之上，读回核对也会判「进度区以外的正文跟写前对不上」。
+  const originalLayout=newFormat||ticketFormOf(String(diskText||''))!=='legacy'
+  if(!originalLayout)for(const name of names){
     const hasRe=new RegExp('^##\\s*'+name+'\\s*$', 'm')
     if(!hasRe.test(incoming)){
       const diskSec=sectionOf(diskText, name)
@@ -215,7 +223,8 @@ function headOf(raw: string): { head: string; rest: string } {
  *  那是结构给的默认值，不是盘上真记着的一条边。结论线要报「这一趟撤下来几条边」，
  *  就不能把这条默认值算成撤了一条 —— 绝大多数「挂到某张票上」的票本来就没写过父注释（#1060 定下的口径）。 */
 export function hasExplicitParentComment(txt: string): boolean {
-  return /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->/im.test(headOf(String(txt || '')).head)
+  // #1489：原文布局的父边写 DSH-PARENT，与旧 parentKey 注释是同一件事的两种写法，都算「盘上明写着」。
+  return /^[ \t]*<!--[ \t]*(?:parentKey|DSH-PARENT)[ \t]*:[ \t]*.*?-->/im.test(headOf(String(txt || '')).head)
 }
 export function normParentKey(v: unknown): string | null {
   if (v === undefined || v === null) return null

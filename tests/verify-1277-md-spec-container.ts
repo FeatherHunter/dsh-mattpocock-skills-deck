@@ -191,7 +191,10 @@ async function main(): Promise<void> {
     if (orderFileName) {
       const orderLines = fs.readFileSync(path.join(issuesDir, orderFileName), 'utf8').split('\n')
       const h1At = orderLines.findIndex((l: string) => /^#\s+/.test(l))
-      const parentAt = orderLines.findIndex((l: string) => new RegExp('^<!-- parentKey: ' + orderParent + ' -->').test(l))
+      // #1489：这张票是插件按原文布局建出来的（文件头有 DSH-FORMAT），父票写在文件头注释
+      // `<!-- DSH-PARENT: NN -->` 里；旧布局的手写票才写 `<!-- parentKey: NN -->`。两种都算「父注释这一行」，
+      // 这里判的是它排在第一个一级标题之前，不判用哪种写法。
+      const parentAt = orderLines.findIndex((l: string) => new RegExp('^<!-- (?:parentKey|DSH-PARENT): ' + orderParent + ' -->').test(l))
       const anchorAt = orderLines.findIndex((l: string) => /^<!-- DSH-IDEMPOTENCY-KEY:/.test(l))
       check(parentAt >= 0 && parentAt < h1At && anchorAt >= 0 && anchorAt < h1At,
         '补父注释后父行与幂等锚都在第一个一级标题之前', orderLines.slice(0, 6))
