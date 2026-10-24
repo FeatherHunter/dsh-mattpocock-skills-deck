@@ -67,7 +67,7 @@ export const myBudget = {
 
 **⑤-b 额度读数 readBudget 的三态**
 
-`readBudget` 是操作名录里的第 23 条（整套能力名录的第 26 条）。它只回答事实，不裁决、不记账、不抛；三种结果都必须诚实：
+`readBudget` 是操作名录里的第 23 条（整套能力名录的第 26 条）。它只回答事实，不裁决、不记账、不抛；四种形状都必须诚实：
 
 ```ts
 // 读到了：已知的额度口径与剩余（GitHub 是两个互相独立的桶）
@@ -81,8 +81,9 @@ export const myBudget = {
 ```
 
 - 三个 reason 的分工：`not-measured` 是还没测到（例如命令不在本机）；`unavailable` 是测到了但这次取不到（鉴权失败、网络错误、解析失败）；`unsupported` 是这个后端根本没有这项能力。
+- `unsupported` 由会话管线补出来：后端模块没实现 `readBudget` 时，注册表在装配时给它补一个「不支持」桩（`src/tracker/registry/shape.ts`），房间回的是失败信封；会话管线认出这一档后翻成 `{ ok: true, data: { known: false, reason: 'unsupported' } }`。对读数来说这不算失败——看不到额度是一个事实，调用方照常往下走。只有装配错（会话实例上连桩都没有）才回失败信封。
 - 参考实现：GitHub 在 `src/tracker/rooms/github/budget.ts`（REST 与 GraphQL 两个桶）、GitLab 在 `src/tracker/rooms/gitlab/budget.ts`（读 `RateLimit-Limit`/`RateLimit-Remaining` 响应头）、Markdown 在 `src/tracker/rooms/markdown/budget.ts`（恒离网）。
-- 参考测试：`tests/verify-tracker-session.ts`（三态与不裁决不记账）、`tests/verify-1443-github-readbudget.ts`、`tests/verify-1446-gitlab-budget.ts`、`tests/verify-1447-gitlab-e2e.ts`。
+- 参考测试：`tests/verify-tracker-session.ts`（四种读数形状、后端没实现时回 `unsupported`，以及读预算不裁决不记账）、`tests/verify-1443-github-readbudget.ts`、`tests/verify-1446-gitlab-budget.ts`、`tests/verify-1447-gitlab-e2e.ts`。
 
 ### ② 真实采样固件 — `tests/tracker-contract/fixtures/<backendId>-real/`
 

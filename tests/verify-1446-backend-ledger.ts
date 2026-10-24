@@ -4,14 +4,19 @@
 // 这条门禁只验账本本体（src/refresh/rooms/host/quota-ledger.ts），不经过闸、不经过刷新运行时：
 // 换轨之后账本的每一条口径都在这里单独钉一遍，闸与装配那边改坏了也不会把这里带红。
 //
-// 钉住的是这些行为（票面验收逐条对应）：
+// 钉住的是这些行为（按正文的八节顺序；票面验收逐条对应）：
 //   ① 键是「后端/桶」：同一轮里 GitHub 的 rest 与 GitLab 的 requests 各记各的，互不污染；
-//   ② 空账如实说「还没量」：没读数时 remaining/tier 是 null，不拿 0 冒充；
-//   ③ ensureBackend 幂等，口径变了清旧桶重建（旧读数不许留在新桶里）；
-//   ④ 四种口径的记账范围：双桶按请求/点数分桶、只计请求只认条数、离网与未知不建桶且 spend 当场抛；
-//   ⑤ 读数不许跨后端落账（把 GitHub 的两桶读数交给 GitLab 必须抛）；
-//   ⑥ rollHour 清本小时用量与 free，但不动读数与「同步之后已花」；
-//   ⑦ quota-read 只进 free，不扣 used（读剩余额度服务端不收费）。
+//      空账如实说「还没量」——没读数时 remaining/tier 是 null，不拿 0 冒充；
+//   ② ensureBackend：按口径建桶（双桶两个、只计请求一个、离网不建），同一口径再调是幂等的；
+//      口径变了清旧桶重建，旧读数不许留在新账里；模型自报的后端与形参不一致时当场抛；
+//   ③ 读数不许跨后端落账（把 GitHub 的两桶读数交给 GitLab 必须抛）；
+//   ④ 额度换算：双桶按 35% 规则打折、写保底按份额算；requests 桶直接用读数 limit、不打折、写保底恒 0；
+//   ⑤ spend 按口径划范围：双桶的请求记 rest、点数记 graphql；只计请求只认条数；离网没有桶、当场抛；
+//      未知只有一个 requests 桶（能记条数，读数视图仍是「还没量」），按额度形状分的桶没有、当场抛；
+//      quota-read 只进 free，不扣 used（读剩余额度服务端不收费）；
+//   ⑥ 限流信号：撞上限流降红档，Retry-After 秒数过去自己回来；缺秒数或记到不存在的桶当场抛；
+//   ⑦ rollHour：清本小时用量与 free，但不动读数与「同步之后已花」；
+//   ⑧ 总览与 hour 的键：总览按档位分账、每一档按桶键给计数；hour 认桶键，也认后端名（不分桶）。
 //
 // 本门禁不硬编码额度数字：35% 与写保底都从 host-budget.js 取，账本里写死一个数时这里立刻能看出来。
 const path = require('path')
@@ -37,7 +42,7 @@ async function main() {
   let clock = 1700000000000
   const newLedger = () => ledgerMod.createLedger({ now: () => clock })
   // 口径声明自 #1439 起住在各后端模块（旧静态表已随 #1448 退役）；这里直接写三份声明，形状与契约一致。
-  // backendId 是「模型自报的后端」：装配方拿错口径时账本要靠它当场抛（⑥ 段那条反例要用）。
+  // backendId 是「模型自报的后端」：装配方拿错口径时账本要靠它当场抛（② 段那条反例要用）。
   const gh = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true, backendId: 'github' }
   const gl = { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false, backendId: 'gitlab' }
   const md = { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false, backendId: 'markdown' }

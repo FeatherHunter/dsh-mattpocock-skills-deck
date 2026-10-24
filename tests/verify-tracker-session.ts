@@ -261,13 +261,42 @@ async function main(): Promise<void> {
   const closedErr = (closed as { ok: boolean; error?: { reason?: string } }).error
   check((closed as { ok: boolean }).ok === false, '硬顶始终生效（读数充足也拦写操作）')
 
-  console.log('== 五、读预算直达：不裁决不记账 ==')
+  console.log('== 五、读预算直达：不裁决不记账，没实现的后端回「未知」 ==')
   roomCalls.length = 0; accountCalls.length = 0; admitCalls.length = 0
   currentReading = fullBuckets
   const readBack = await s1.session.readBudget({} as OpContext)
   check((readBack as { ok: boolean }).ok === true, '读预算本身永远放行（读数就是用来看的，不能自己先被拦）')
   check(admitCalls.length === 0, '读预算不走裁决（自己量自己，不设下一道闸）')
   check(accountCalls.length === 0, '读预算不记账（看额度这件事本身不花额度）')
+
+  // 后端模块没实现 readBudget：注册表在装配时补一个「不支持」桩，房间回的是失败信封。
+  // 会话要把这一档翻成读数的第四种（known:false + reason:'unsupported'），不能把失败信封
+  // 原样交给调用方——否则契约里写的这一档永远没有生产者（票 #1456 第 1 条）。
+  const stubModule = {
+    id: 'fake-no-budget',
+    label: 'Fake No Budget',
+    budget: fakeBudget,
+    create: () => ({
+      list: async () => ({ ok: true, data: { tag: 'room-list' } }),
+    }),
+    matches: () => true,
+  } satisfies BackendModule
+  const registryStub = createRegistry()
+  registryStub.register(stubModule)
+  admitCalls.length = 0; accountCalls.length = 0
+  const openedStub = await openTracker(HANDLE, {
+    registry: registryStub, getCachedReading: () => fullBuckets, admit: referenceAdmit, account: referenceAccount, canWrite: true,
+  })
+  if (!openedStub.ok) {
+    check(false, '没实现读预算的后端会话没打开')
+  } else {
+    const stubRead = await openedStub.session.readBudget({} as OpContext) as
+      { ok: boolean; data?: { known?: boolean; reason?: string } }
+    check(stubRead.ok === true, '后端没实现读预算时回成功读数，不把「没有这项能力」报成失败')
+    check(stubRead.ok === true && stubRead.data?.known === false && stubRead.data?.reason === 'unsupported',
+      '读数是 known:false + reason:unsupported（契约第四档有生产者）→ 实得 ' + JSON.stringify(stubRead))
+    check(admitCalls.length === 0 && accountCalls.length === 0, '这一档也不裁决不记账（与已知读数同一个待遇）')
+  }
 
   console.log('== 六、选后端只看本地：四种结局可区分且不抛 ==')
   const fakeSelection = (sel: Selection): OpenTrackerOptions['resolveSelection'] => async () => sel

@@ -82,6 +82,82 @@ function readMdTable(text: string): { name: string; label: string }[] {
   return rows
 }
 
+/** 定位口表格头用的是缩写（「3 条全部提供」），表身那一列写的是正式档位词；这一处只做这一条映射。 */
+const LOCATOR_LABELS: { [label: string]: string } = { 提供: '明确提供功能' }
+
+/** 从一份 md 里切出一节：标题行 `## <title>（…）` 到下一个 `## ` 或文件尾。找不到返回 null。 */
+function readMdSection(text: string, title: string): { heading: string; body: string } | null {
+  const lines = text.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim().startsWith('## ' + title + '（')) continue
+    let end = i + 1
+    while (end < lines.length && !lines[end].trim().startsWith('## ')) end++
+    return { heading: lines[i].trim(), body: lines.slice(i + 1, end).join('\n') }
+  }
+  return null
+}
+
+/**
+ * 校验一张能力表的**表头数字**与表身逐项一致：表头说 23 条、表身就得是这 23 行；表头说「22 条明确提供功能」，
+ * 表身这一档就得正好 22 行。表头是给人看的总账，最容易与表身脱节（改一条能力忘了改上面那个数），
+ * 所以它也要门禁，不能靠人记得。
+ *
+ * 标题形如：
+ *   `## 操作（23 条中：22 条明确提供功能、1 条明确不支持）` —— 分档，右侧按「、」分组成「N 条<标签>」；
+ *   `## 定位口（3 条全部提供）` —— 不分档，全体同一档。
+ * 返回没对上的那些项（空数组 = 全对上）。`aliases` 只给「全部提供」这类缩写用。
+ */
+function headingProblems(
+  text: string,
+  catalog: string[],
+  title: string,
+  aliases: { [label: string]: string } = {},
+): string[] {
+  const section = readMdSection(text, title)
+  if (!section) return ['找不到「## ' + title + '（…）」这一节']
+  const open = section.heading.indexOf('（')
+  const close = section.heading.lastIndexOf('）')
+  if (open < 0 || close < open) return ['表头没有括注总数：' + section.heading]
+  const inner = section.heading.slice(open + 1, close)
+  const problems: string[] = []
+  let declaredTotal = -1
+  let groups: { label: string; count: number }[] = []
+  const split = /^(\d+) 条中[：:](.+)$/.exec(inner)
+  const all = /^(\d+) 条全部(.+)$/.exec(inner)
+  if (split) {
+    declaredTotal = Number(split[1])
+    groups = split[2].split('、').map((part) => {
+      const m = /^(\d+) 条(.+)$/.exec(part.trim())
+      if (!m) problems.push('表头分档「' + part.trim() + '」读不出条数与标签')
+      return m ? { label: m[2].trim(), count: Number(m[1]) } : { label: part.trim(), count: -1 }
+    })
+  } else if (all) {
+    declaredTotal = Number(all[1])
+    groups = [{ label: all[2].trim(), count: Number(all[1]) }]
+  } else {
+    return ['表头读不懂（既不是「N 条中：…」也不是「N 条全部…」）：' + inner]
+  }
+  const rows = readMdTable(section.body)
+  if (declaredTotal !== catalog.length) {
+    problems.push('表头总数写 ' + declaredTotal + '，名录里是 ' + catalog.length + ' 条')
+  }
+  if (rows.length !== catalog.length) {
+    problems.push('表里实际 ' + rows.length + ' 行，名录里是 ' + catalog.length + ' 条')
+  }
+  const actual: { [label: string]: number } = {}
+  for (const row of rows) actual[row.label] = (actual[row.label] || 0) + 1
+  for (const group of groups) {
+    const label = aliases[group.label] || group.label
+    const got = actual[label] || 0
+    if (group.count !== got) problems.push('表头写「' + group.count + ' 条' + group.label + '」，表身是 ' + got + ' 行')
+  }
+  const declaredLabels = groups.map((g) => aliases[g.label] || g.label)
+  for (const label of Object.keys(actual)) {
+    if (!declaredLabels.includes(label)) problems.push('表身有「' + label + '」这一档，表头没列它的条数')
+  }
+  return problems
+}
+
 /** 递归收 src/ 下的 .ts 文件（登记数据自己不算「引用它」）。 */
 function listSrcTs(dir: string): string[] {
   const out: string[] = []
@@ -98,7 +174,8 @@ console.log('能力登记三处对齐门禁（数据 ↔ 给人读的表 ↔ 实
 
 for (const backend of BACKENDS) {
   const dataNames = Object.keys(backend.register)
-  const mdRows = readMdTable(fs.readFileSync(path.join(ROOT, backend.md), 'utf8'))
+  const mdText = fs.readFileSync(path.join(ROOT, backend.md), 'utf8')
+  const mdRows = readMdTable(mdText)
   const mdNames = mdRows.map((r) => r.name)
 
   // —— 一、登记数据本身：26 条齐全、与名录同集（类型层已经管住，这里是运行时的第二道）——
@@ -133,7 +210,17 @@ for (const backend of BACKENDS) {
       (mdOk ? '两处同集、逐行同档位' : '把两边改成同一件事再提交') + '）',
   )
 
-  // —— 三、`planned` 必须写清承接票号 ——
+  // —— 三、两张表的表头数字与表身一致（#1456：表头是总账，最容易与表身脱节）——
+  const opHeadingProblems = headingProblems(mdText, OPERATIONS, '操作')
+  const locHeadingProblems = headingProblems(mdText, LOCATORS, '定位口', LOCATOR_LABELS)
+  check(
+    opHeadingProblems.length === 0 && locHeadingProblems.length === 0,
+    backend.md + ' 两张表的表头数字与表身一致（操作 ' + OPERATIONS.length + ' 条、定位口 ' + LOCATORS.length + ' 条）' +
+      (opHeadingProblems.length ? '（操作表头：' + opHeadingProblems.join('；') + '）' : '') +
+      (locHeadingProblems.length ? '（定位口表头：' + locHeadingProblems.join('；') + '）' : ''),
+  )
+
+  // —— 四、`planned` 必须写清承接票号 ——
   const plannedNoTicket = dataNames.filter((n) => backend.register[n].tier === 'planned' && !String(backend.register[n].ticket || '').trim())
   const planned = dataNames.filter((n) => backend.register[n].tier === 'planned').length
   check(
@@ -142,7 +229,7 @@ for (const backend of BACKENDS) {
       (plannedNoTicket.length ? '（没写：' + plannedNoTicket.join('、') + '）' : ''),
   )
 
-  // —— 四、`partial` 必须写清差在哪（`gap`），并且说明这处缺口由谁承接 ——
+  // —— 五、`partial` 必须写清差在哪（`gap`），并且说明这处缺口由谁承接 ——
   // 为什么单独立一条：这一档的全部价值就是「把差在哪写下来」。写不出差在哪，说明这条压根还没审过，
   // 那它就该老老实实是 `provided` 或者 `unsupported-by-design`，不该占着这一档当挡箭牌。
   const partialNoGap = dataNames.filter((n) => backend.register[n].tier === 'partial' && !String(backend.register[n].gap || '').trim())
@@ -155,7 +242,7 @@ for (const backend of BACKENDS) {
       (partialNoTicket.length ? '（没写承接票：' + partialNoTicket.join('、') + '）' : ''),
   )
 
-  // —— 五、实现面：成员集合由登记推出来，不再手写一份 ——
+  // —— 六、实现面：成员集合由登记推出来，不再手写一份 ——
   const roomText = fs.readFileSync(path.join(ROOT, backend.room), 'utf8')
   check(
     /ProvidedCapability<typeof\s+\w+_CAPABILITY_REGISTER>/.test(roomText),
@@ -167,7 +254,24 @@ for (const backend of BACKENDS) {
   console.log('  ---- ' + backend.id + '：' + count('provided') + ' 提供 / ' + count('partial') + ' 做了但没做到位 / ' + count('unsupported-by-design') + ' 明确不支持 / ' + count('planned') + ' 未来会开发')
 }
 
-// —— 五、G5：登记数据只许被 `import type` 引用（运行时不读它）——
+// —— 反证：表头数字不是抄的。把真文档里的一处总数改错一位，同一个判据必须抓到（#1456）——
+const ghText = fs.readFileSync(path.join(ROOT, 'docs/tracker/capability-github.md'), 'utf8')
+const badOpText = ghText.split('22 条明确提供功能').join('21 条明确提供功能')
+const badOpHeading = headingProblems(badOpText, OPERATIONS, '操作')
+check(
+  ghText.indexOf('22 条明确提供功能') >= 0 && badOpHeading.length > 0,
+  '反证：把「22 条明确提供功能」改成 21 条之后，表头判据必须抓到它' +
+    (badOpHeading.length ? '（抓到：' + badOpHeading.join('；') + '）' : '（没抓到，判据失效）'),
+)
+const badLocText = ghText.split('3 条全部提供').join('4 条全部提供')
+const badLocHeading = headingProblems(badLocText, LOCATORS, '定位口', LOCATOR_LABELS)
+check(
+  ghText.indexOf('3 条全部提供') >= 0 && badLocHeading.length > 0,
+  '反证：把「3 条全部提供」改成 4 条之后，表头判据必须抓到它' +
+    (badLocHeading.length ? '（抓到：' + badLocHeading.join('；') + '）' : '（没抓到，判据失效）'),
+)
+
+// —— 七、G5：登记数据只许被 `import type` 引用（运行时不读它）——
 const valueImports: string[] = []
 for (const abs of listSrcTs(path.join(ROOT, 'src'))) {
   if (path.basename(abs) === 'capability-register.ts') continue
