@@ -35,7 +35,9 @@ const EXEC = { agent: { session: { cwd: '/ws/proj', id: 'sess-7' } } }
 // 真机形状的 exec：会话顶层没有目录，目录住在 header 里（#1406 真机缺口回归用）。
 const EXEC_HEADER_CWD = { agent: { session: { header: { cwd: '/ws/hdr', id: 'sess-hdr' } } } }
 const EXEC_HEADER_WORKSPACE = { agent: { session: { header: { workspaceRoot: '/ws/hdr-root', id: 'sess-hdr2' } } } }
-const SPEC_DESCRIPTION = '在回复末尾推荐 2~4 条下一步提示词，界面会显示成气泡；只在有明确下一步时调用。'
+// #1406 冻结的一句话介绍。#1464 后续按维护者要求补了「技能优先、prompt 开头写 /xxxx」这半句：
+// 这颗工具本来就是从技能角度推荐下一步，传入参数的人得在工具列表里就看到这条口径。
+const SPEC_DESCRIPTION = '在回复末尾推荐 2~4 条下一步提示词，界面会显示成气泡；优先从技能角度推荐，每条提示词开头写这一步对应的 /xxxx 技能；只在有明确下一步时调用。'
 
 function makeLog() {
   const fired = []
@@ -72,12 +74,14 @@ async function main() {
   // ── 1. 工具定义：名字、一句话介绍、参数形状（本票冻结，界面票照它读） ──
   check(def && def.name === 'suggest_next_steps', '工具名精确为 suggest_next_steps（不带 deck_ 前缀）')
   check(def.description === SPEC_DESCRIPTION, '一句话介绍与规格原句一致')
+  check(def.description.indexOf('技能') >= 0 && def.description.indexOf('/xxxx') >= 0, '一句话介绍里写着技能优先（prompt 开头写 /xxxx）')
   check(def.parameters && def.parameters.type === 'object', '参数顶层是对象模式')
   check(Array.isArray(def.parameters.required) && def.parameters.required.indexOf('items') >= 0, 'items 是必填参数')
   check(def.parameters.additionalProperties === false, '参数顶层不收未知字段')
   const itemsSpec = def.parameters.properties && def.parameters.properties.items
   check(itemsSpec && itemsSpec.type === 'array', 'items 是数组')
   check(String(itemsSpec.description || '').indexOf('2~4') >= 0, 'items 的说明写明 2~4 条')
+  check(String(itemsSpec.description || '').indexOf('技能') >= 0, 'items 的说明提醒传入者：这条工具优先从技能角度推荐')
   check(itemsSpec.items && itemsSpec.items.type === 'object', 'items 的每一项是对象')
   const introSpec = itemsSpec.items.properties && itemsSpec.items.properties.intro
   const promptSpec = itemsSpec.items.properties && itemsSpec.items.properties.prompt
@@ -85,6 +89,8 @@ async function main() {
   check(introSpec && introSpec.type === 'string' && String(introSpec.description || '').indexOf('10') >= 0, 'intro 是十字以内的简介（说明里带上限 10）')
   check(String(introSpec.description || '').indexOf('只显示') >= 0, 'intro 说明写清选项框只显示简介（提示词点选才填）')
   check(promptSpec && promptSpec.type === 'string' && String(promptSpec.description || '').indexOf('/to-tickets') >= 0, 'prompt 是可执行提示词（说明里带例子）')
+  check(String(promptSpec.description || '').indexOf('/xxxx') >= 0 && String(promptSpec.description || '').indexOf('开头') >= 0,
+    'prompt 说明提醒开头写对应的 /xxxx 技能指令（技能优先）')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
   const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason', '每条必须同时给 intro、prompt 与 reason')

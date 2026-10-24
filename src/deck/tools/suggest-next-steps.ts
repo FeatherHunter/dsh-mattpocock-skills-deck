@@ -45,18 +45,18 @@ export const REASON_MAX_CHARS = 200
 /** 工具定义：名字、一句话介绍、参数模式。参数形状是本票冻结的契约，界面票照它读。 */
 export const definition = {
   name: SUGGEST_TOOL_NAME,
-  description: '在回复末尾推荐 2~4 条下一步提示词，界面会显示成气泡；只在有明确下一步时调用。',
+  description: '在回复末尾推荐 2~4 条下一步提示词，界面会显示成气泡；优先从技能角度推荐，每条提示词开头写这一步对应的 /xxxx 技能；只在有明确下一步时调用。',
   parameters: {
     type: 'object',
     properties: {
       items: {
         type: 'array',
-        description: '要推荐的下一步提示词，2~4 项；多于 4 项时只保留前 4 项，少于 2 项会被拒绝。',
+        description: '要推荐的下一步提示词，2~4 项；这条工具优先从技能角度推荐，每条的 prompt 开头尽量写对应的技能指令（/xxxx）；多于 4 项时只保留前 4 项，少于 2 项会被拒绝。',
         items: {
           type: 'object',
           properties: {
             intro: { type: 'string', description: '简介：一句话说清这一步做什么，不超过 10 个字；选项框上只显示这一句，完整提示词点选后才填进输入框。' },
-            prompt: { type: 'string', description: '可以直接执行的下一步提示词，例如 /to-tickets。' },
+            prompt: { type: 'string', description: '可以直接执行的下一步提示词，开头尽量写这一步对应的技能指令（/xxxx，例如 /to-tickets）：这个工具优先从技能角度推荐，点选后直接进入那个技能的流程。' },
             reason: { type: 'string', description: '一句话说明为什么建议这一步。' },
             priority: { type: 'number', description: '推荐优先级：0 到 10 的数字，分越高越建议先做，界面按分从高到低往左排；拿不准就别给，没给的统一排在最后。' },
           },
