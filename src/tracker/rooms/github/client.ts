@@ -308,12 +308,17 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
   // 拿不到时按 1 点估；REST 记 0），pointSource 说这个点数是哪来的（server 回包给了真实 cost /
   // estimate 按 1 点估 / 空串 不是 GraphQL）。为什么要这两格：账本记错时，人得能从日志看出
   // 这一笔是真实点数还是估算 —— 从前只记条数不记点数，记歪了查不出来。
-  function emitGhExec(kind: string, exitCode: number, t0: number, cwd: string | undefined, waitedMs?: number, via?: string, cmd?: string, pointNote?: { points: number; pointSource: string }): void {
+  function emitGhExec(kind: string, exitCode: number, t0: number, cwd: string | undefined, waitedMs: number | undefined, via: string | undefined, cmd: string | undefined, pointNote: { points: number; pointSource: string }): void {
     try {
       if (!roomInfoEnabled(ctx)) return
-      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', via: String(via || ''), opId: String((ctx && ctx.opId) || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1, cmd: String(cmd || ''), points: pointNote ? pointNote.points : 0, pointSource: pointNote ? pointNote.pointSource : '' })
+      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', via: String(via || ''), opId: String((ctx && ctx.opId) || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1, cmd: String(cmd || ''), points: pointNote.points, pointSource: pointNote.pointSource })
     } catch {}
   }
+
+  // 还没进账本的 gh.exec 行用这一格（#1482 复审）：排队被取消、解析执行器失败、执行器没接上这几种
+  // 都发生在报闸之前，账上一条都没有；日志若照 GraphQL 估成「1 点 / estimate」，读日志的人会以为
+  // 已记过账，与账本对不上。只有过了报闸的失败与成功才写真实/估算点数。
+  const NOT_ACCOUNTED = { points: 0, pointSource: '' }
 
   // #6 gh.timeout（告警，常驻）：只记命令名、超时毫秒与「在哪一层到点」。
   // #1007 复核起多记 layer：room-tier = 房内自己掐表到点（本文件 :332 的 selfTimeoutOutcome），
@@ -402,7 +407,8 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     }
     /** 房内到点的统一回执：横幅按超时记，内容说清等了多久、是哪一档。 */
     function selfTimeoutOutcome(phase?: string): GhExecResult {
-      emitGhExec('network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args))
+      // 排队段到点时还没报闸（账上 0 条），命令已起来的到点才按估/真实点数落一行。
+      emitGhExec('network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, phase === 'queue' ? NOT_ACCOUNTED : ghPointNoteOf(args))
       emitGhTimeout(timeout, 'room-tier', opts.via, cmdLabel, slotWaitedMs, phase)
       // 房内到点时执行器还没有交回任何输出，这一处没有原文可交（空串是如实交代，不是漏填）。
       // 括号里那三档按当前档位值现算（毫秒换秒）、不手抄：手抄的数字会在有人调 YAML 之后悄悄变成错的。
@@ -420,20 +426,20 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     } catch (eAcquire) {
       if (selfTimedOut) { slotWaitedMs = Date.now() - t0; clearDeadline(); return selfTimeoutOutcome('queue') }
       clearDeadline()
-      emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args))
+      emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, NOT_ACCOUNTED)
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true, raw: rawText(eAcquire) } }
     }
     try {
     const resolved = await raceDeadline(resolveGh(cwd))
     if (isDeadlineHit(resolved)) return selfTimeoutOutcome('inflight')
     if (!resolved.ok) {
-      emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd, undefined, opts.via, cmdLabel, ghPointNoteOf(args))
+      emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd, undefined, opts.via, cmdLabel, NOT_ACCOUNTED)
       // 补上 code: -1，让「失败时 error 里一定有 code」这条形状对所有失败成立（命令根本没跑起来）
       return { ok: false, error: Object.assign({ code: -1 }, resolved.error) }
     }
 
     if (!exec) {
-      emitGhExec('env', -1, t0, cwd, undefined, opts.via, cmdLabel, ghPointNoteOf(args))
+      emitGhExec('env', -1, t0, cwd, undefined, opts.via, cmdLabel, NOT_ACCOUNTED)
       // 这一处是「执行器根本没接上」，没有跑过任何外部命令，没有原文可交。
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable', code: -1, raw: '' } }
     }

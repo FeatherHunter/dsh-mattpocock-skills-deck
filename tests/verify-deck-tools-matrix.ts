@@ -186,7 +186,7 @@ async function main() {
   let pipelineGitlab = 0
   let pipelineGithubGraphql = 0
   // #1482：这一条命令算不算 GraphQL，由本门禁按夹具里真出现的命令形状写死判断，不调用生产函数 ——
-  // 生产判据哪天退化了，期望若跟着一起变，门禁就会把红判成绿（ADR 20261021 §2.5.2）。
+  // 生产判据哪天退化了，期望若跟着一起变，门禁就会把红判成绿（ADR 20261021 §2.5 第 2 条：门禁要能红能绿）。
   // 夹具里的 GraphQL 命令只有一种形状：gh api graphql ...。
   const isGraphqlLiteral = (args) => Array.isArray(args) && args[0] === 'api' && String(args[1] || '').indexOf('graphql') === 0
   const noteRemoteOutbound = (cmd, args) => {
@@ -512,8 +512,16 @@ async function main() {
         const t2Rel = relOf(t2Get)
         check(createT1 && createT1.ok === true && createT2 && createT2.ok === true && t1Key !== '' && t2Key !== '' && !!edgeOf(createT1, 'parent') && edgeOf(createT1, 'parent').status === 'ok',
           '[' + lane.id + '] 双轨 C 建两张实施票：' + t1Key + '、' + t2Key + '；父边落点 ' + (edgeOf(createT1, 'parent') && edgeOf(createT1, 'parent').landing))
-        check(t1Rel === specKey && t2Rel === specKey && t1Rel !== mapKey,
-          '[' + lane.id + '] 双轨 C 实施票挂在规格票下（不是探索地图）：票 ' + t1Key + ' 父=' + t1Rel + '，票 ' + t2Key + ' 父=' + t2Rel)
+        // #1486+#1487 之后，原文布局里规格容器（.scratch/<feature>/spec.md）与探索地图（.scratch/<effort>/map.md）
+        // 分处不同目录、票号都从 00 起，所以 specKey 与 mapKey 常常都是 '00'：按裸票号比较必然相等，
+        // 旧写法「t1Rel !== mapKey」因此恒假，但它原本要证的「挂在规格下、不是挂在探索地图下」仍然要证。
+        // 改成把父票在规格目录（specScope）里读回来认类型：读到 type 必须是 spec；读不到 type 但能在
+        // specScope 里寻址成功，也说明父票落在规格目录里，不是地图目录。
+        const cParentGet = t1Rel ? await run('deck_issue_get', Object.assign({ key: t1Rel }, specScope)) : null
+        const cParentType = String(ticketOf(cParentGet).type || '')
+        const cParentInSpec = !!cParentGet && cParentGet.ok === true && (cParentType === '' || cParentType === 'spec')
+        check(t1Rel === specKey && t2Rel === specKey && cParentInSpec,
+          '[' + lane.id + '] 双轨 C 实施票挂在规格票下（不是探索地图）：票 ' + t1Key + ' 父=' + t1Rel + '，票 ' + t2Key + ' 父=' + t2Rel + '；父票在规格目录读回 type=' + (cParentType || '（未给类型）'))
         check(t1Labels.length === 1 && t1Labels[0] === 'ready-for-agent',
           '[' + lane.id + '] 双轨 C 实施票标签集合恰为 {ready-for-agent}：' + JSON.stringify(t1Labels))
         check(Number(t2Key) === Number(t1Key) + 1 && Number(t1Key) > 0,

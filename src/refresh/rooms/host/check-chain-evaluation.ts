@@ -160,6 +160,7 @@ export function createDetectChain(deps: DetectChainDeps) {
   async function patchReplyForSession(reply: unknown, chainCwd: string, chainLang: string, chainArgs: any) {
     let out: unknown = reply
     let patched = 0
+    let failed = false
     try {
       const anyReply: any = out
       const items = (anyReply && anyReply.backendChain && Array.isArray(anyReply.backendChain.chain)) ? anyReply.backendChain.chain : null
@@ -169,16 +170,31 @@ export function createDetectChain(deps: DetectChainDeps) {
       if (hasScoped) {
         const patchMod = await import('./chain-session-patch.js')
         const sbInfo = await resolveSessionPolicy(chainCwd, chainArgs && chainArgs.sessionId)
-        const patchedOne = await patchMod.patchCachedReplyForSession(out, { platform: await getPlatform(), cwd: chainCwd, lang: chainLang, backendId: (chainArgs && chainArgs.backendId) || null, sandboxPolicy: sbInfo.policy, sessionId: sbInfo.sessionId, onError: function (msg: string) { try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch-item', errorHash: hash8('patch-item:' + msg) }) } catch (eLog) {} } })
+        // #1492：重算也要有上限。正常求值的谓词有 15 秒超时兜底（predicateCore 的 withTimeout），
+        //   补算原来直接 await 写探测——工作区在网络盘上挂住时，缓存命中这条本该纯内存返回的路会被无限拖住。
+        //   超时按 pending 落行（诚实未知），不让整条链等一个量不出来的探针。
+        const patchedOne = await patchMod.patchCachedReplyForSession(out, { platform: await getPlatform(), cwd: chainCwd, lang: chainLang, backendId: (chainArgs && chainArgs.backendId) || null, sandboxPolicy: sbInfo.policy, sessionId: sbInfo.sessionId, timeoutMs: PREDICATE_TIMEOUT_MS, timeout: function (ms: number) { return timer.timeout(ms) }, onError: function (msg: string) { try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch-item', errorHash: hash8('patch-item:' + msg) }) } catch (eLog) {} } })
         out = patchedOne.reply
         patched = patchedOne.patchedCount
       }
     } catch (ePatch) {
       // 失败不抛给调用方（宁可先给旧视图），但要留一行：否则日志里只剩「这一趟明明命中了缓存、
       //   只读会话却还是看到可写」，查不出是没重算还是重算失败。
+      // #1492：failed 要交给外层——回包带上 sessionPatchFailed 后客户端不会把它记成本会话的产出，
+      //   否则别的会话的判定会被写进共享缓存、越传越远。
+      failed = true
       try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch', errorHash: hash8('patch:' + String((ePatch && (ePatch as any).message) || ePatch)) }) } catch (eLog) {}
+      // #1492 复核：整趟补算做不下去时，不能把别的会话的判定原样交出去。用量不出来也拼得出来的那份替代：
+      //   会话相关行落 pending（「未确认」），其余行照旧。这一步只读缓存里已有的链，不需要平台，所以
+      //   刚才取平台失败也不影响；失败标记照旧打（客户端不写共享缓存，下次挂载会再问一次）。
+      try {
+        const unknownMod = await import('./chain-session-patch.js')
+        const unknownOne = await unknownMod.markSessionScopedUnconfirmed(out, { platform: null, cwd: chainCwd, lang: chainLang, sessionId: chainArgs && chainArgs.sessionId })
+        out = unknownOne.reply
+        patched = unknownOne.patchedCount
+      } catch (eUnknown) {}
     }
-    return { reply: out, patched: patched }
+    return { reply: out, patched: patched, failed: failed }
   }
 
   // #709（T5）：退避与全绿缓存整段交给 kernel 的纯函数裁定（薄壳 src/refresh/rooms/host/chain-backoff.js，
@@ -202,11 +218,38 @@ export function createDetectChain(deps: DetectChainDeps) {
         try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.detect', kind: 'detect', errorHash: hash8(String((e && (e as CaughtError).message) || e)) }) } catch (eL) {}; return { ok: false, error: String((e && (e as CaughtError).message) || e) }
       }
   }
+  /** 一次链求值的结果：回包本身，以及「这份回包是不是按本会话现算的」（#1492）。 */
+  type ChainOutcome = { reply: unknown; forCurrentSession: boolean; hit?: { cacheKey: string; reason: unknown; waitMs: unknown } }
   /** 主机侧的链求值入口：通用链 + 当前后端的链，两段各自求值、最后拼成一份快照。 */
+  // #1492：这个入口只剩「规整入参 + 把别人的回包按本会话补齐」两件事，真求值在 evaluateChain 里。
+  //   为什么要分层：能拿到别人算好的回包的路不止一条（退避缓存、在途搭车，以后还可能有新的），
+  //   逐条路各补一次一定会漏；现在内层只回答「这份回包是不是按本会话现算的」，凡不是就统一在这里补。
+  //   补算失败时给回包副本打 sessionPatchFailed：客户端见到它就不写共享缓存（不能把别人的判定记成本会话产出）。
   async function handleChain(args: ChainArgs) {
       const _rawChainCwd = (args && args.cwd) || ''; if (!String(_rawChainCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawChainCwd) // #1003 空目录闸
-      const force = !!(args && args.force)
       const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
+      const out = await evaluateChain(args, cwd, chainLang)
+      let reply: any = out.reply
+      let patched = 0
+      if (!out.forCurrentSession) {
+        const fixed = await patchReplyForSession(reply, cwd, chainLang, args)
+        patched = fixed.patched
+        // 失败标记只做顶层复制：这条路上本函数不原地改任何嵌套字段，客户端也只读不写这些对象，
+        //   所以与缓存条目共用 nested 对象是安全的（真正会拼新 nested 对象的是 patchCachedReplyForSession）。
+        // 字段名与客户端那一侧的读法是同一份口头契约（客户端是拼接片段，不能 import 共享常量）：
+        //   两边各由一扇门禁钉住——宿主 tests/verify-1483-chain-session-cache.ts 的 H，客户端 test 的 L。
+        // #1492 复核：失败分支也要用 fixed.reply——它可能已经过「会话相关行落未确认」的退路；
+        //   写成 Object.assign({}, reply, ...) 会把那份退路丢掉，等于没做。
+        reply = fixed.failed ? Object.assign({}, fixed.reply, { sessionPatchFailed: true }) : fixed.reply
+      }
+      const hit: any = out.hit
+      // chain.cache.hit 挪到补算之后落：字段里的 patched 才是这一趟实际按本会话重算了几项。
+      if (hit) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(hit.cacheKey), lang: chainLang, deferred: true, reason: hit.reason, waitMs: hit.waitMs, patched: patched } }) } catch (eL) {} }
+      return reply
+  }
+  /** 一次链求值的真身（#1492 从 handleChain 拆出）：只负责算，不负责判断这份结果属于哪个会话。 */
+  async function evaluateChain(args: ChainArgs, cwd: string, chainLang: string): Promise<ChainOutcome> {
+      const force = !!(args && args.force)
       const trigger = String((args && args.trigger) || '')
       // #709（T5 补）这一次求值是什么身份（人亲手点的 / 插件自己的动作）。插件自己也会调这个入口
       //（挂载、快照回包、动作做完之后再补一次），那种调用不带 trigger。判据只有 trigger-classification.ts 一处：
@@ -228,19 +271,15 @@ export function createDetectChain(deps: DetectChainDeps) {
           // #1483：链快照的退避缓存按「工作区 + 后端 + 语言」共享，但 md:scratchWritable 这一类检查项的
           //   结果取决于当前会话的沙箱许可（只读会话量出来是 pending，可写会话是 done）。直接回缓存会让
           //   只读会话看到别的会话量出的「可写」。
-          //   这里按当前会话重算那几行，返回改好的副本；缓存本体一个字不动（别的会话还要照它秒显）。
-          //   重算失败静默降级回原回包：缓存命中本来就允许旧视图，不能因此把整条链打成失败。
-          //   重算那几行放在 patchReplyForSession 里，与下面「在途搭车」那条路共用同一处。
-          const patchedCache = await patchReplyForSession(v.cached, cwd, chainLang, args)
-          try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, deferred: true, reason: v.reason, waitMs: v.waitMs, patched: patchedCache.patched } }) } catch (eL) {}
-          return patchedCache.reply
+          // #1492：这里不再自己补算，只报告「这份回包不是按本会话算的」与命中信息，交给外层统一补一次。
+          return { reply: v.cached, forCurrentSession: false, hit: { cacheKey: cacheKey, reason: v.reason, waitMs: v.waitMs } }
         }
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
         // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份；先回来的写缓存，后到的拿同一份；强制不参与合并
         const chainDedupKey = cacheKey + '|' + (force ? '1' : '0')
         // #1483：搭车拿到的是「另一轮求值」的结果，那一轮用的是发起那一轮的会话许可。凡是有依赖会话许可的项，
         //   先按本会话补算再交给调用方；不然只读会话搭上可写会话的车，会先看到别人的「可写」。
-        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; const rideReply = await ongoingRide; return (await patchReplyForSession(rideReply, cwd, chainLang, args)).reply } }
+        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return { reply: await ongoingRide, forCurrentSession: false } } }
         const chainPending = (async function () {
         const platform = await getPlatform()
         // #1444：这次求值的环境预检探针（一次求值只开一次会话、只问一次 preflight；见 createChainEnvProbe）。
@@ -439,11 +478,11 @@ export function createDetectChain(deps: DetectChainDeps) {
         } catch (eL) {}
         return result
         })()
-        if (!force) { const rideEntry = chainInflight.park(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.leave(chainDedupKey, rideEntry) } }
-        return await chainPending
+        if (!force) { const rideEntry = chainInflight.park(chainDedupKey, chainPending); try { return { reply: await chainPending, forCurrentSession: true } } finally { chainInflight.leave(chainDedupKey, rideEntry) } }
+        return { reply: await chainPending, forCurrentSession: true }
       }catch(e){
         try { const m = String((e && (e as CaughtError).message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
-        return { ok: false, error: String((e && (e as CaughtError).message)||e) }
+        return { reply: { ok: false, error: String((e && (e as CaughtError).message)||e) }, forCurrentSession: true }
       }
   }
   return { handleDetect, handleChain, markChainWrite: function () { chainInflight.markWrite() }, rideStats: function () { return chainInflight.stats() } }
