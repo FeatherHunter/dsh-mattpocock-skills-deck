@@ -17,7 +17,8 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { CreateInput } from '../../contract/inputs.js'
-import { nowIso, viewOf, labelsOf, assigneesOf, renderSpec, renderTicket, renderMap, renderWayfinderChild } from './create-render.js'
+import { nowIso, viewOf, labelsOf, assigneesOf, renderSpec, renderTicket } from './create-render.js'
+import { renderMap, renderWayfinderChild } from './map-render.js'
 import type { CreateView, OriginalKind, LayoutFailure } from './create-render.js'
 
 /** 本地仓库引用：path 是本地后端的自有约定；mdScene 记调用方用的是 feature 还是 effort。 */

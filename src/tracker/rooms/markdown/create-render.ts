@@ -62,16 +62,20 @@ export function originalKindOf(input: CreateInput): OriginalKind | null {
   const explicit = String(v.kind || v.type || v.Type || '').trim().toLowerCase()
   const typeLine = String(v.typeLine || '').toLowerCase()
   const marker = markerKindOf(input)
-  // 地图工单在契约上仍是 issue，但原文用一行 `Type: research|prototype|grilling|task` 记类型。
-  // 见到这四个值（不管来自 typeLine 还是调用方放在 type 里的老写法）就落成地图子票；
-  // 别的 Type 值没有原文依据，继续交回旧路径（不猜）。
+  // 地图工单在原文里靠一行 `Type: research|prototype|grilling|task` 记类型，但它和普通票的契约自定
+  // 字段 type（G4 契约里普通票也能传 type: 'task'）在字符串上分不开，只能认专用通道 typeLine
+  // （deck 工具为地图子票单独传这个字段，其余位置传空串）。把 type 里的四值也当子票会误伤普通票：
+  // 一张 type 为 task 的 ordinary issue 会被渲染成地图子票形状（标题带编号、正文变 Question），
+  // verify-markdown-backend 的回环①就是这么抓到的。
   if (typeLine) return MAP_TICKET_TYPES.indexOf(typeLine) >= 0 ? 'map-ticket' : null
   if (explicit === 'spec' || marker === 'spec') return 'spec'
   if (explicit === 'spec-ticket' || explicit === 'ticket' || marker === 'ticket') return 'spec-ticket'
   if (explicit === 'bug') return 'bug'
   // 原文的探索地图是顶层容器：正好占一个目录里的 map.md（与规格同款，key 为 00）。
   if (explicit === 'map') return 'map'
-  if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return 'map-ticket'
+  // 契约里的自定义 type 写成这四个值的老写法仍交回旧路径（#1486 起就如此）：普通票的 type 字段
+  // 可以随手写 'task'，与地图子票的类型词同名，没有专用通道时不能据此改渲染形状。
+  if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return null
   // 调用点只给了一枚 wayfinder:<类型> 标签、没给 typeLine 时也认成地图子票：
   // 那枚标签是原文给子票定的类型标记，别的对象不会带它。
   if (labelsOf(v).some((label) => /^wayfinder:(research|prototype|grilling|task)$/.test(label))) return 'map-ticket'
@@ -82,7 +86,8 @@ export function originalKindOf(input: CreateInput): OriginalKind | null {
  * 原文模板里与建票有关的字段。模板文字只从 generated.ts 的 MD_FORMAT 取，
  * 代码里不再抄一份标题形状与字段行；模板改了这里自动跟着改。
  */
-interface ObjectShape {
+// 下面这些通用件同时被 map-render.ts 复用（同一渲染管线的内部件），导出只是给同目录的实现文件用。
+export interface ObjectShape {
   'title-shape': string
   sections?: readonly string[]
   fields?: readonly { label: string; 'line-shape': string }[]
@@ -96,7 +101,7 @@ interface ObjectShape {
 }
 
 /** 原文 Type 行的四个值：地图子票的类型词（issue-tracker-local「Type: 行记 research / prototype / grilling / task」）。 */
-const MAP_TICKET_TYPES = ['research', 'prototype', 'grilling', 'task']
+export const MAP_TICKET_TYPES = ['research', 'prototype', 'grilling', 'task']
 
 const OBJECT_KEY_OF_KIND: Record<OriginalKind, string> = {
   spec: 'spec',
@@ -108,7 +113,7 @@ const OBJECT_KEY_OF_KIND: Record<OriginalKind, string> = {
 }
 
 /** 普通票按原文的 `reuse` 指到实施票模板；其余对象直接取自己那一份。 */
-function objectShapeOf(kind: OriginalKind): ObjectShape {
+export function objectShapeOf(kind: OriginalKind): ObjectShape {
   const objects = MD_FORMAT.objects as unknown as Record<string, ObjectShape>
   const first = objects[OBJECT_KEY_OF_KIND[kind]]
   if (first && first.reuse && objects[first.reuse]) return objects[first.reuse]
@@ -116,13 +121,13 @@ function objectShapeOf(kind: OriginalKind): ObjectShape {
 }
 
 /** 把标题形状里的占位符按顺序换成实际值：`# <NN>: <票标题>` → `# 01: 标题`。 */
-function shapeTitle(shape: string, values: string[]): string {
+export function shapeTitle(shape: string, values: string[]): string {
   let at = 0
   return String(shape || '').replace(/<[^>]*>/g, () => (at < values.length ? values[at++] : ''))
 }
 
 /** 字段行只抄模板里的「标签 + 冒号」前缀，值由这次建票的内容填。 */
-function fieldLine(shape: string, value: string): string {
+export function fieldLine(shape: string, value: string): string {
   const text = String(shape || '')
   const at = text.indexOf('<')
   return (at >= 0 ? text.slice(0, at) : text) + value
@@ -174,7 +179,7 @@ export function assigneesOf(input: CreateView): string[] {
   return input.assignees.map((one: unknown) => loginOfAssignee(one)).filter(Boolean)
 }
 
-function blockedKeysOf(input: CreateView): string[] {
+export function blockedKeysOf(input: CreateView): string[] {
   const raw = input.blockedBy
   if (Array.isArray(raw)) {
     return raw
@@ -195,7 +200,7 @@ function blockedKeysOf(input: CreateView): string[] {
  *   实施票/子票/普通票 → DSH-PARENT、DSH-BLOCKED-BY；
  *   所有文件 → DSH-ASSIGNEES、DSH-LABELS（有值才写）。
  */
-function renderHeader(kind: OriginalKind, opts: {
+export function renderHeader(kind: OriginalKind, opts: {
   status: string
   parentKey: string
   assignees: string[]
@@ -243,7 +248,7 @@ function statusValue(body: string, label: string): string {
 }
 
 /** 去掉正文里所有插件注释与旧骨架，只留用户写下的内容。 */
-function cleanBody(rawBody: string): string {
+export function cleanBody(rawBody: string): string {
   let body = String(rawBody || '')
   // 整份票文件原样写回时，旧的标题与骨架都不是这次要抄的内容。
   body = body.replace(/^[ \t]*<!--[ \t]*DSH-[A-Z-]+[ \t]*:.*?-->[ \t]*\r?\n?/gim, '')
@@ -293,7 +298,7 @@ function ticketParts(body: string, hasExplicitWhat: boolean, labels: string[]): 
 }
 
 /** 标题去掉调用方可能已经带上的 `NN: ` 前缀，避免落成 `# 01: 01: 标题`。 */
-function cleanTitle(title: string): string {
+export function cleanTitle(title: string): string {
   return String(title || '').trim().replace(/^\d{1,3}:\s*/, '')
 }
 
@@ -367,123 +372,6 @@ export function renderTicket(kind: OriginalKind, input: CreateView, opts: {
     lines.push('')
     lines.push(parts.rest)
   }
-  return header + lines.join('\n') + '\n'
-}
-
-/** 正则转义：标题文字来自模板，可能含 `.` 等字符，直接拼进正则会误匹配。 */
-function escapeForRegExp(text: string): string {
-  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-/** 判断正文里有没有某个二级标题（只认整行，代码块里的示例写法不算）。 */
-function hasSectionHeading(body: string, title: string): boolean {
-  return new RegExp('^##[ \\t]*' + escapeForRegExp(title) + '[ \\t]*$', 'm').test(body)
-}
-
-/**
- * 地图正文五段逐字按原文：缺哪段就按模板顺序补一行标题。
- * 建图时如果整段话都没有段标题，那它只能是 Destination 的内容：先套上第一段再补齐其余段，
- * 这样正文不会掉在五段之外，读回来 parseMapBody 也能按段取到。
- */
-function ensureMapSections(body: string, titles: readonly string[]): string {
-  let out = String(body || '')
-  if (titles.length && !titles.some((title) => hasSectionHeading(out, title))) {
-    out = '## ' + titles[0] + '\n' + (out ? '\n' + out : '')
-  }
-  for (const title of titles) {
-    if (hasSectionHeading(out, title)) continue
-    out = (out ? out.replace(/\s+$/, '') + '\n\n' : '') + '## ' + title + '\n'
-  }
-  return out
-}
-
-/**
- * 把一张探索地图渲染成原文形状：`# <地图标题>` + 五段正文。
- * 地图是容器（与规格同款，编号 00），状态只写进文件头隐藏注释，正文里不出现 Status 行。
- */
-export function renderMap(input: CreateView, opts: {
-  createdAt: string
-  idempotencyKey: string
-  labels: string[]
-  assignees: string[]
-}): string {
-  const shape = objectShapeOf('map')
-  const title = cleanTitle(String(input.title || ''))
-  const body = ensureMapSections(cleanBody(input.body ? String(input.body) : ''), shape.sections || [])
-  const header = renderHeader('map', {
-    status: String(input.status || (shape.status && shape.status.default) || ''),
-    parentKey: '',
-    assignees: opts.assignees,
-    labels: opts.labels,
-    blocked: [],
-    idempotencyKey: opts.idempotencyKey,
-    createdAt: opts.createdAt,
-  })
-  return header + shapeTitle(shape['title-shape'], [title]) + '\n' + (body ? '\n' + body + '\n' : '\n')
-}
-
-/** 地图子票的类型词：调用方可能放在 typeLine、wayfinder 标签或老写法的 type 里，三处都收。 */
-function wayfinderTypeOf(input: CreateView): string {
-  const explicit = String(input.typeLine || '').trim().toLowerCase()
-  if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return explicit
-  for (const label of labelsOf(input)) {
-    const m = /^wayfinder:(research|prototype|grilling|task)$/.exec(label)
-    if (m) return m[1]
-  }
-  const raw = String(input.kind || input.type || input.Type || '').trim().toLowerCase()
-  return MAP_TICKET_TYPES.indexOf(raw) >= 0 ? raw : ''
-}
-
-/**
- * 把一张地图子票渲染成原文形状：`# NN: <问句标题>`，标题下三行裸字段（不加粗），正文只有一段问题。
- * 子票可见的 Status 行就是状态本身；文件头不再写 DSH-STATUS（与原文一致）。
- */
-export function renderWayfinderChild(input: CreateView, opts: {
-  number: string
-  createdAt: string
-  idempotencyKey: string
-  labels: string[]
-  assignees: string[]
-  parentKey: string
-}): string {
-  const shape = objectShapeOf('map-ticket')
-  const topLines = shape['top-lines'] || []
-  const title = cleanTitle(String(input.title || ''))
-  const blocked = blockedKeysOf(input)
-  const statusTemplate = topLines.find((line) => line.label === 'Status')
-  // 调用方给了状态就照写；只给了指派人也算已认领（原文 Status: claimed 就是「有人在做」）。
-  let status = String(input.status == null ? '' : input.status).trim()
-  if (!status && opts.assignees.length && statusTemplate && statusTemplate.values) {
-    status = String(statusTemplate.values[0] || '')
-  }
-  const values: Record<string, string> = {
-    Type: wayfinderTypeOf(input),
-    Status: status,
-    'Blocked by': blocked.join(', '),
-  }
-  const lines: string[] = [shapeTitle(shape['title-shape'], [opts.number, title])]
-  for (const topLine of topLines) {
-    const value = String(values[topLine.label] || '')
-    if (!value) continue
-    lines.push('')
-    // 值位只在 line-shape 里（Blocked by: <NN>, <NN>）；没有 line-shape 的写 `Type: 值`。
-    lines.push(topLine['line-shape'] ? fieldLine(topLine['line-shape'], value) : topLine.label + ': ' + value)
-  }
-  const heading = '## ' + String(shape['body-section'] || 'Question')
-  const rawBody = cleanBody(input.body ? String(input.body) : '')
-  const hasQuestion = rawBody.split('\n').some((line) => line.trim() === heading)
-  const body = hasQuestion ? rawBody : (rawBody ? heading + '\n\n' + rawBody : heading + '\n')
-  const header = renderHeader('map-ticket', {
-    status: '',
-    parentKey: opts.parentKey,
-    assignees: opts.assignees,
-    labels: opts.labels,
-    blocked,
-    idempotencyKey: opts.idempotencyKey,
-    createdAt: opts.createdAt,
-  })
-  lines.push('')
-  lines.push(body)
   return header + lines.join('\n') + '\n'
 }
 
