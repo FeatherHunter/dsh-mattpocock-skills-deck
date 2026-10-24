@@ -41,7 +41,8 @@
         "verify-star-history",
         "verify-thanks",
         "verify-locale-completeness",
-        "verify-locale-config"
+        "verify-locale-config",
+        "verify-md-format-config"
       ]
     }
   ],
