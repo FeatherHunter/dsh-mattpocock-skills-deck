@@ -150,7 +150,9 @@ export const loadSwitchCri = function (st: any): void {
   // #529：附带当前语言与绑定后端（与 loadChain 同口径；否则英文界面下明细恒为中文）
   const criT0: number = Date.now()
   const criLang: any = (typeof promptLang === 'function' ? promptLang() : 'zh')
-  const criArgs: any = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (typeof userHintOf === 'function' && userHintOf(st.selection)) ? { backendId: userHintOf(st.selection) } : {}, { lang: criLang })
+  // #1478：和 loadChain 同口径，把会话号一并带给宿主 —— 宿主按请求里的会话号解析沙箱许可；
+  // 同一个工作区里可能同时有多个会话，只传 cwd 会落到别的会话的许可上，CRI 判断跟着失真。
+  const criArgs: any = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, st.sessionId ? { sessionId: st.sessionId } : {}, (typeof userHintOf === 'function' && userHintOf(st.selection)) ? { backendId: userHintOf(st.selection) } : {}, { lang: criLang })
   host.call('wf.chain', criArgs).then(function (res: any): void {
     try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - criT0, ok: true, kind: 'chain-cri' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-cri', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
     if (!st.switchConfirm) return

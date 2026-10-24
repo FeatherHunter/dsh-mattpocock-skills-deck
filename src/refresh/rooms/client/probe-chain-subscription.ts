@@ -155,7 +155,7 @@ export const loadChain = function (st: any, force: any, trigger: any): any {
   // #529：附带当前语言（host 明细按语言双语产出，不传则恒为中文）
   // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图
   const _hintBid: any = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined;
-  const args: any = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, _hintBid ? { backendId: _hintBid } : {}, force ? { force: true } : {}, { lang: _langForChain }, trigger ? { trigger: String(trigger) } : {});
+  const args: any = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, st.sessionId ? { sessionId: st.sessionId } : {}, _hintBid ? { backendId: _hintBid } : {}, force ? { force: true } : {}, { lang: _langForChain }, trigger ? { trigger: String(trigger) } : {}); // 宿主按当前会话解析沙箱许可，同一工作区有多个会话时不能只传 cwd。
   const chainT0: number = Date.now();
   // #1363 诊断：链请求与回包各留一行常驻日志。回答「这一次是谁发起的、带没带人的动作、结果有没有落进会话、
   //   回来的是不是一份旧快照」——这次两幕故障的取证就卡在这三问上（从前只有 host.call 的耗时，没有这一步的口径）。
