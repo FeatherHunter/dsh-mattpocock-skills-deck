@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T11:28:06.442Z",
+  "generatedAt": "2026-10-24T11:39:16.244Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 357,
   "gateCount": 357,
@@ -4240,6 +4240,7 @@
       "step": "node tests/verify-829-parent-reread.ts",
       "file": "tests/verify-829-parent-reread.ts",
       "guards": [
+        "src/deck/shell/edge-landing.ts",
         "src/deck/tools/map-link.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/tool-call-budget.ts",
@@ -4251,6 +4252,7 @@
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
+        "src/deck/shell",
         "src/deck/tools",
         "src/refresh/kernel",
         "src/refresh/rooms/host",
@@ -4262,7 +4264,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-839-credential-exec.ts",
@@ -9075,6 +9077,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
+      "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-898-block-merge.ts",

@@ -151,9 +151,14 @@ export async function applyParentEdge(
     const ev: EdgeEvidence = { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + want + ' 写成票 #' + from + ' 的父票（后端原话：' + failureText(written) + '）' }
     return { item: Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('parent', want, ev)), applied: false }
   }
+  // 契约没提供可选的读票方法时，这一步根本没读回 —— 不是「读回来了、里面没有这条边」。
+  // 照 #790 的规矩只能说「判不了」，绝不许把没读到的状态说成读回来的 parentKey 是空。
+  const canRead = !!(t && typeof t.get === 'function')
+  // 这里再写一次 typeof 检查，是为了让类型收窄在 await 那一行生效（canRead 这个布尔带不动收窄）。
   const back = (t && typeof t.get === 'function') ? await t.get(repo, from, {}, opCtx) : null
   const afterIssue = (back && back.ok === true) ? back.data : null
-  const backError = (back && back.ok !== true) ? failureText(back) : ''
+  const readFailed = !canRead || !(back && back.ok === true)
+  const backError = readFailed ? (canRead ? failureText(back) : '契约没有提供可选的读票方法') : ''
   const issueRow = (afterIssue && typeof afterIssue === 'object') ? afterIssue as { parentKey?: unknown } : {}
   let ev: EdgeEvidence = classifyEdgeLandingRules('parent', want, { issue: afterIssue, dependencies: null }, from)
   const landedKey = (issueRow.parentKey !== undefined && issueRow.parentKey !== null) ? String(issueRow.parentKey) : ''
@@ -161,8 +166,8 @@ export async function applyParentEdge(
   // 不许再拿「正文里出现过票号」或写动作自己的返回当证据 —— 那两条会把没挂上的边报成挂上。
   const landedOk = edgeVerdictRules('parent', want, afterIssue === null ? null : { issue: afterIssue, dependencies: null }) === 'landed'
   if (!landedOk) {
-    ev = backError
-      ? { kind: 'unknown', ok: false, text: '写动作回了成功，但读票没成功：写后没读回票 #' + from + '，判不了「票 #' + from + ' 的父票是 #' + want + '」有没有写成；这条边可能已建成但没确认（后端原话：' + backError + '）' }
+    ev = readFailed
+      ? { kind: 'unknown', ok: false, text: '写动作回了成功，但' + (canRead ? '读票没成功' : '契约没有提供可选的读票方法') + '：写后没读回票 #' + from + '，判不了「票 #' + from + ' 的父票是 #' + want + '」有没有写成；这条边可能已建成但没确认' + (canRead ? '（后端原话：' + backError + '）' : '') }
       : { kind: 'missing', ok: false, text: '写后读回：票 #' + from + ' 的父票读到的是 ' + (landedKey || '空') + '，要的是 #' + want + '。' }
   }
   return { item: Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)), applied: landedOk }
