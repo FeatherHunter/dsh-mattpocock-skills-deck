@@ -88,25 +88,6 @@ export function bodyWriteFields(plan: BodyWritePlan): string[] {
   return fields
 }
 
-/** 新布局整份正文里的「正文最前」区被共享层放到标题前时，把它搬回字段行之后、正文之前（#1486）。
- *
- *  本地票传上来是整份文件：文件头注释 + 一级标题 + 字段行 + 正文。共享层定位原话区时只知道「正文」，
- *  没有 `## 目的` 就把原话区放在正文最前，于是整份文件里跑到标题前面去了 —— 读父注释、读字段都跟着坏。
- *  这里只搬「标题之前、又不是注释」的那一块，语义仍是「正文最前」。 */
-export function moveLeadingSectionBelowTitle(text: string): string {
-  const lines = String(text || '').split('\n')
-  const h1 = lines.findIndex((l) => /^#[ \t]+\S/.test(l))
-  if (h1 < 0) return text
-  const pre = lines.slice(0, h1)
-  const isComment = (l: string) => /^[ \t]*<!--.*-->[ \t]*$/.test(l)
-  const prose = pre.filter((l) => l.trim() !== '' && !isComment(l))
-  if (prose.length === 0) return text
-  let end = h1 + 1
-  while (end < lines.length) {
-    const l = lines[end]
-    if (l.trim() === '' || /^\*\*[^*]+:\*\*/.test(l) || /^(Status|Type|Blocked\s+by|Labels|Assignees|Close\s+reason)\s*[:：]/i.test(l)) { end++; continue }
-    break
-  }
-  const head = pre.filter(isComment)
-  return head.concat(lines.slice(h1, end), [''], prose, lines.slice(end)).join('\n')
-}
+/** #1486：整份正文里的「正文最前」区跑到了标题前时，搬回标题与字段行之后。
+ *  实现在 shared/issue-file，本地 Markdown 后端改整份正文时用的是同一份；这里只转给 issue-patch 用。 */
+export { moveLeadingSectionBelowTitle } from '../../shared/issue-file/src/body-layout.js'

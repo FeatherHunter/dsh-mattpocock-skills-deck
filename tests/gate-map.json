@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T20:25:06.606Z",
+  "generatedAt": "2026-10-24T20:30:24.389Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 365,
   "gateCount": 365,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 578,
+  "graphFileCount": 579,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -10235,9 +10235,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 599,
+    "fileCount": 600,
     "dirCount": 74,
-    "coveredFileCount": 599,
+    "coveredFileCount": 600,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -10642,6 +10642,7 @@
       "src/shared/doc-layout/tsconfig.json",
       "src/shared/feedback-map.ts",
       "src/shared/issue-file/README.md",
+      "src/shared/issue-file/src/body-layout.ts",
       "src/shared/issue-file/src/marker.ts",
       "src/shared/issue-file/src/original-words-tool.ts",
       "src/shared/issue-file/src/original-words.ts",
@@ -11039,7 +11040,7 @@
       },
       {
         "path": "src/shared/issue-file",
-        "fileCount": 7
+        "fileCount": 8
       },
       {
         "path": "src/shared/label-color",
