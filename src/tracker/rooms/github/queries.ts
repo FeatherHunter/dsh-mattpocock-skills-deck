@@ -160,9 +160,11 @@ export const PAGE_ISSUE_FRAGMENT = [
 //   totalCount 与 nodes 取自同一个连接，天然同时刻，供界面写「已加载 x / 共 N」。
 // 带标签筛的这一版单独一份查询：filterBy 只在真有标签要筛时才出现 —— 空数组是「不筛」还是「全都要有」
 //   在各版本上行为不一致，没有把握，所以不让它出现（与上面两条计数查询同一处置）。
-export const LIST_PAGE_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!){
+// since（#1418）：刷新后台的增量索引窗口，服务端只回「更新时间不早于它」的票。变量可空——
+// 不给（null）时与没有这一格之前完全一样；给了就少翻十几页，探测每拍的额度从「全仓」降到「窗口」。
+export const LIST_PAGE_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$since:DateTime){
   repository(owner:$owner,name:$name){
-    issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}){
+    issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}, filterBy:{since:$since}){
       totalCount
       nodes{ ${PAGE_ISSUE_FRAGMENT} }
       pageInfo{ hasNextPage endCursor }
@@ -171,9 +173,9 @@ export const LIST_PAGE_QUERY = `query($owner:String!,$name:String!,$first:Int!,$
 }`
 
 // 同上，多了「必须同时带上这些标签」这一层筛（GraphQL 的 filterBy.labels 是 AND 语义）。
-export const LIST_PAGE_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$labels:[String!]!){
+export const LIST_PAGE_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$labels:[String!]!,$since:DateTime){
   repository(owner:$owner,name:$name){
-    issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}, filterBy:{labels:$labels}){
+    issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}, filterBy:{labels:$labels, since:$since}){
       totalCount
       nodes{ ${PAGE_ISSUE_FRAGMENT} }
       pageInfo{ hasNextPage endCursor }

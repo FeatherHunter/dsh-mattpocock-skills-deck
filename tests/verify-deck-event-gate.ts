@@ -338,19 +338,35 @@ if (!argv.includes('--skip-runtime')) {
     const credited = own.stats().event
     check(credited.requests === 0 && credited.points === 0, '花费两格如实记 0（实得 ' + JSON.stringify(credited) + '）—— 读路径不记账是 #1444 的裁决，真实用量归 #1446')
 
-    // ---- 同一工作区 10 秒合并窗口 ----
+    // ---- 合并窗口只拦扫描类取数：点名补行每次写都取，扫描类仍按 10 秒合并（#1472） ----
     clock += 1000
     const second = await own.onToolResult(
       { agent: { session: { id: 's-mine-2', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue close 13' } },
       { isError: false, value: { exitCode: 0 } }
     )
-    check(!!second && second.coalesced === true && fetched.length === 1, '同一工作区 10 秒内第二次写：并进上一次（不再取数）')
-    clock += 10001
-    await own.onToolResult(
-      { agent: { session: { id: 's-mine-2', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue close 14' } },
+    check(!!second && !second.coalesced && fetched.length === 2 && fetched[1].action === 'patch-now',
+      '同一工作区 10 秒内第二次写，票号已知：照样补那一行（实得取数 ' + fetched.length + ' 次、第二趟 action=' + (fetched[1] && fetched[1].action) + '）',
+      '点名补行被窗口吃掉 = 连写十次只有第一笔会刷新（#1472 的原症状）')
+    // 票号认不出的写（新建票）降成扫描类：这一档仍按同一个工作区 10 秒合并，不重复问仓库。
+    clock += 1000
+    const scan1 = await own.onToolResult(
+      { agent: { session: { id: 's-mine-3', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue create --title x' } },
       { isError: false, value: { exitCode: 0 } }
     )
-    check(fetched.length === 2, '过了 10 秒合并窗口之后才允许再取一次（实得取数 ' + fetched.length + ' 次）')
+    check(!!scan1 && !scan1.coalesced && fetched.length === 3 && fetched[2].action === 'probe-now',
+      '票号认不出的写（新建票）：先扫一次（实得取数 ' + fetched.length + ' 次、第三趟 action=' + (fetched[2] && fetched[2].action) + '）')
+    clock += 1000
+    const scan2 = await own.onToolResult(
+      { agent: { session: { id: 's-mine-3', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue create --title y' } },
+      { isError: false, value: { exitCode: 0 } }
+    )
+    check(!!scan2 && scan2.coalesced === true && fetched.length === 3, '同一工作区 10 秒内第二次扫描类取数：并进上一次（不再取数）')
+    clock += 10001
+    await own.onToolResult(
+      { agent: { session: { id: 's-mine-3', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue create --title z' } },
+      { isError: false, value: { exitCode: 0 } }
+    )
+    check(fetched.length === 4, '过了 10 秒合并窗口之后才允许再扫一次（实得取数 ' + fetched.length + ' 次）')
 
     // ---- 只认成功 + 调用刚开始不做任何事 ----
     const before = fetched.length

@@ -50,11 +50,14 @@ const ALLOWED = {
   'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd'],
   // 2026-10-14（#1052 补做）常驻 #108 `read.degraded`：一条读操作「本来能成、这一趟没成，或者成得不完整」
   //   的结论线，一趟一行（命令成功了、可回包不是合法 JSON / 缺东西 / 游标失效 / 只拿到前几页 / 被上限截断
-  //   这类路，从前一个字都不留）。四个键全是短枚举与数字：op 哪条读操作、reason 为什么、latencyMs 这一趟
-  //   从入口到这里花了多久（毫秒）、opId 这一行属于宿主哪一趟操作（#1052 续补，含义见上面 gh.exec 那一段）；
-  //   票号、命令原文、上游报错原文一个字都不记。发射口在
+  //   这类路，从前一个字都不留）。七个键全是短枚举、数字与单页条数：op 哪条读操作、reason 为什么、latencyMs
+  //   这一趟从入口到这里花了多久（毫秒）、opId 这一行属于宿主哪一趟操作（#1052 续补，含义见上面 gh.exec 那一段），
+  //   以及 #1418 再补的三格：kind 这一趟的判档（network / unsupported / parse / not-found / env 等短枚举，没判出档记空串）、
+  //   limitBefore / limitAfter 因「一次要多了」换页大小时的前后单页条数（与页大小无关的分支一律记 0）。
+  //   为什么补这三格：探测每一拍都失败时，日志里只有 reason 说不清远端到底回了哪一档；换页大小那件事更要一对数字
+  //   才看得出「从 100 退到了 50」。票号、命令原文、上游报错原文依然一个字都不记。发射口在
   //   src/tracker/rooms/github/read-log.ts 的 emitReadDegraded。
-  'read.degraded': ['op', 'reason', 'latencyMs', 'opId'],
+  'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
   // 2026-10-14（#1052 补做）常驻 #109 `preflight.gate`：探测那三项门禁每过一项各落一行，第三项过了也落一行。
   //   为什么过了也记：三项门禁落三行长得一样的 gh.exec，没有这一行就读不出「探测走到底了」还是「第一关就没过」。
   //   四个键：gate 第几项（1 起 gh / 2 登录态 / 3 认得出仓库且连得上接口）、reason 为什么（过了一律写 ok）、
@@ -320,7 +323,8 @@ const ALLOWED = {
   // 2026-09-23 #708（T4 第三批）新增一条按需事件（附录 1.5 节 #82）：一次行级增量跑完之后的结论 ——
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
   //   真发出去几条薄查询、水印推没推、待办里现在几条。只记短散列、枚举与数字，不记路径与命令原文。
-  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending'],
+  // 2026-10-24 #1472：写事件触发的补取数也借这一行报账，失败那一行多带一个 err（上游原话截断 120 字符）。
+  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending', 'err'],
   // 2026-09-23 #707（T3 第二批）新增两条按需事件（附录 1.5 节 #78～#79）：视野模型自己产生的两条轨迹 ——
   //   一次上报（哪一种信号、窗口散列、工作区根散列、面板可不可见、这一笔算不算数）、
   //   一次收摊结论（活跃几个、保留几个定时器、停掉几个、有没有一个收尾节拍、整桌收没收、正在看的几个）。
@@ -475,7 +479,7 @@ const ROOM_SHAPES = {
   //   宿主起这一趟操作时生成的编号，房间原样取 `ctx.opId`；不给编号的调用方记空串。
   'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd'],
   // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
-  'read.degraded': ['op', 'reason', 'latencyMs', 'opId'],
+  'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
   'gh.timeout': ['argv0', 'timeoutMs', 'layer', 'via', 'cmd', 'waitedMs', 'phase'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],

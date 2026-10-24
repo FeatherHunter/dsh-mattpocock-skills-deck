@@ -124,11 +124,12 @@ async function main() {
   const limits = { mergeWindowMs: PATCH_MERGE_WINDOW_MS, probeIntervalMs: PROBE_INTERVAL_MS }
   const withTicket = mod.detectWrite({ shape: 'tools/result', tool: 'pwsh', command: 'gh issue close 12', succeeded: OK })
   const p1 = mod.actionFor(withTicket, limits)
-  check(p1.action === 'patch-now' && p1.ticket === '12' && p1.waitMs === PATCH_MERGE_WINDOW_MS,
-    '确定写且认得出票号 → 立刻补那一行，并带上合并窗口 ' + PATCH_MERGE_WINDOW_MS + ' 毫秒')
+  check(p1.action === 'patch-now' && p1.ticket === '12' && p1.waitMs === 0,
+    '确定写且认得出票号 → 立刻补那一行，不需要等合并窗口（waitMs=0）')
   const noTicket = mod.detectWrite({ shape: 'tools/result', tool: 'pwsh', command: 'gh issue create --title x', succeeded: OK })
   const p2 = mod.actionFor(noTicket, limits)
-  check(p2.action === 'probe-now' && p2.ticket === null, '确定写但票号认不出 → 降成立刻探测（补行得指名道姓）')
+  check(p2.action === 'probe-now' && p2.ticket === null && p2.waitMs === PATCH_MERGE_WINDOW_MS,
+    '确定写但票号认不出 → 降成立刻探测，扫描类按合并窗口 ' + PATCH_MERGE_WINDOW_MS + ' 毫秒（补行得指名道姓）')
   const suspect = mod.detectWrite({ shape: 'tools/result', tool: 'pwsh', command: 'git push', succeeded: OK })
   check(mod.actionFor(suspect, limits).action === 'probe-now', '可疑档 → 立刻探一次')
   const idle = mod.detectWrite({ shape: 'tools/result', tool: 'read', succeeded: OK })

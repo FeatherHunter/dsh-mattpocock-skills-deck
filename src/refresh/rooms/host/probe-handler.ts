@@ -32,12 +32,20 @@ export interface ProbeHandlerDeps {
   lastIssueIndexByRepo: any
   lastProbeAtByRepo: any
   deltaRefresh: any
+  // #1472：写事件刚补好的快照（取走即删）。宿主入口与门禁调用方都必传；内部自己兜住异常与过期（回 null）。
+  takeWritePatch: any
   errText: any
 }
 
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, errText } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText } = deps
+  // #1418：失败回包里带上判档（network / unsupported / env / exception…），客户端日志据此一眼看出「这一拍
+  //   为什么没探成」。只回短枚举、不回原文 —— 原文仍在 error 字段里给界面看，日志那边一个字都不记。
+  const kindOf = function (e: any): string {
+    if (!e || typeof e !== 'object') return ''
+    try { return String((e as any).kind || '') } catch (eK) { return '' }
+  }
   // v1.5 R2（#2 MVP）：probe 改用 `since` 时间戳探测全 issue 增量（地图 + 子票 + 其他），
   //   1 次 REST 调用覆盖全仓库变化。原实现 `labels=wayfinder:map` 仅匹配地图本身，
   //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（DESIGN.md §5.2）都是子票，
@@ -46,8 +54,24 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
   async function handleProbe(args: any): Promise<any> {
     // #1003 空目录闸：同上。
     const _rawProbeCwd: string = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
-    if (!_rawProbeCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    if (!_rawProbeCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。', errorKind: 'env' }
     const cwd: any = await canonicalKey(_rawProbeCwd)
+    // #1472：写事件刚补好的快照优先 —— deck_* 写工具成功之后行级增量已经补过那一行，
+    // 下一次探针直接把这份交出去，一次窗口探测都不用发（真机以前要等下一次整份重建才算数）。
+    // 只交一次（取走即删，语义在 src/refresh/rooms/host/write-event-fetch.ts）；没有就回 null，照旧往下走。
+    // 放在后端分发之前：补丁那一侧已经按后端取过数，这份结果与「这一次该问哪个后端」无关。
+    // takeWritePatch 自己已兜住补丁侧的异常与过期（回 null 并记日志）；这里包一层是因为宿主注入的
+    // 那个函数还套着「异步取接线」的一层，那一层本身可能失败 —— 失败就按没有补丁处理，照旧走窗口探测。
+    let _wp: any = null
+    try { _wp = await takeWritePatch(cwd) } catch (eWP: any) { _wp = null }
+    if (_wp && _wp.snapshot) {
+      return {
+        ok: true, changed: true, mode: 'patch', rows: _wp.rows || [], version: _wp.version,
+        queries: _wp.queries || 0, partial: _wp.partial === true, snapshot: _wp.snapshot,
+        // since 用补丁自己记下的时刻（客户端拿它当下一拍的水印），不是此刻：此刻会越过补丁覆盖的那段窗口。
+        since: (typeof _wp.at === 'number' && _wp.at > 0) ? new Date(_wp.at).toISOString() : '',
+      }
+    }
     // 第一性原理分发：经 index 从会话启停模块转供给共享判据（H4 同例），不各留一份拷贝。
     // markdown 等走轻量 list 探针，github 仍走 gh issue index
     const _selProbe: any = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
@@ -62,7 +86,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
           if (!repoRef) repoRef = { backend: _selProbe.backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || _selProbe.backendId, url: '' }
           const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
           const r: any = await tracker.list(repoRef, {}, opCtx)
-          if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败') }
+          if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败'), errorKind: kindOf(r && r.error) }
           const all: any[] = Array.isArray(r.data) ? r.data : []
           // 轻量索引：key -> state
           const idx: Record<string, string> = {}
@@ -78,7 +102,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
           if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
           return { ok: true, changed: changed, repo: { owner: _selProbe.backendId, name: String(cwd).split(/[\\/]/).pop()||'' }, count: all.length, since: lastProbeAtByRepo[rk1] }
         }
-      } catch (e: any) { return { ok: false, error: errText(e) } }
+      } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
     }
     try {
       // 增量索引（本轮新增）：改走 fetchIssueIndexWindowed —— 它只回答「自上次以来有没有变」，
@@ -90,7 +114,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       //   水印只在这一步真的并进列表之后才推进（commitIssueIndex），被推迟 / 被丢弃 / 失败时
       //   一个字节都不动 —— 否则那条变化会被挤出下一次的扫描窗口，此后再也发现不了。
       const remote: any = await fetchIssueIndexWindowed(cwd)
-      if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
+      if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败'), errorKind: kindOf(remote.error) }
       const repo: any = remote.repo
       const rk1: string = repo.owner + '/' + repo.name
       const changed: boolean = remote.changed === true
@@ -128,7 +152,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
       commit()
       return { ok: true, changed: true, mode: 'rebuild', reason: String((delta && delta.reason) || 'no-delta'), repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
-    } catch (e: any) { return { ok: false, error: errText(e) } }
+    } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
   }
   return { handleProbe }
 }

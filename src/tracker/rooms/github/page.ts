@@ -48,6 +48,27 @@ import { PAGINATION } from '../../contract/pagination.js'
 // 一页的默认张数与上限（契约「分页契约」定的：缺省 50、上限 200，要多了按上限给，不是报错）。
 const DEFAULT_LIMIT = PAGINATION.github.limitDefault
 const MAX_LIMIT = PAGINATION.github.limitMax
+// GitHub 两条连接（issues / pullRequests）自己只肯给 100 条一页。契约的 200 是「界面一次最多要多少行」
+// 的口径，不是远端一次能收的条数；这里把真正发给远端的 first 夹到连接上限，超了 GitHub 会整页拒绝
+// （#1418：2026-10-24 实测回 EXCESSIVE_PAGINATION，探测因此自 16:15 起全部失败）。
+const REMOTE_PAGE_LIMIT = PAGINATION.github.listPageSize
+// #1418：远端连接单页上限可能比 100 还低（不同 GitHub 部署/实例的连接级上限并不相同）。进程内记住
+// 「一次要多了」时远端自己说过肯给多少，下一拍一开始就按它发，不再拿同一个过大的 first 反复撞墙。0 = 还没学到。
+let learnedPageLimit = 0
+// 一次调用最多退几档：防止远端回一个飘忽的小数字把这一笔拖成无限重试（正常最多退两档）。
+const MAX_PAGE_DEGRADE_STEPS = 4
+
+/** #1418：远端回「一次要多了」时，从它自己的话里读出肯给的上限；读不出就把当前页大小对半退。
+ *  返回 0 = 这一档退不动（不是这类错误、或者再退也不会更小），调用方按原来的判档失败返回。 */
+function smallerPageLimit(msg: string, lim: number): number {
+  // 认的是 GitHub 的 EXCESSIVE_PAGINATION 原话：Requesting 200 records on the `issues` connection
+  //   exceeds the `first` limit of 100 records.
+  if (!/excessive[ _]?pagination|exceeds the [`'"]?first[`'"]? limit/i.test(msg)) return 0
+  const m = /limit of (\d+)/i.exec(msg)
+  const said = m ? Number(m[1]) : 0
+  const next = (isFinite(said) && said > 0 && said < lim) ? said : Math.floor(lim / 2)
+  return (next >= lim || next < 1) ? 0 : next
+}
 
 /** limit 归一：不合法（缺、非整数、非正、无穷大）按缺省 50；超过上限按上限 200。 */
 function limitOf(opts: PageOpts | null | undefined): number {
@@ -91,6 +112,20 @@ function labelsOf(filter: ListFilter | null | undefined): string[] {
   return out
 }
 
+/**
+ * filter.since 归一：合法 ISO 时刻原样回传（转成 UTC ISO 串再给远端），非法或缺失回空串（= 不设窗口）。
+ * 为什么用 Date.parse 校验：GraphQL 的 DateTime 收到半截日期会整页报错，与其把错误交给远端，不如在这里
+ * 就当「没给窗口」处理 —— 多翻几页是浪费，整页失败是故障。
+ */
+function sinceOf(filter: ListFilter | null | undefined): string {
+  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null
+  const raw = bag ? bag.since : null
+  if (typeof raw !== 'string' || !raw.trim()) return ''
+  const ms = Date.parse(raw)
+  if (!isFinite(ms)) return ''
+  return new Date(ms).toISOString()
+}
+
 /** totalCount 只接受非负整数：形状不对就等于没拿到，绝不用别的数凑一个出来（与 counts 同一条）。 */
 function countOf(v: unknown): number | null {
   return (typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v) ? v : null
@@ -107,8 +142,9 @@ function emitBadNodes(ctx: OpContext, dropped: number, total: number): void {
 /**
  * listPage(repo, filter, opts, ctx) -> OpResult<{items, nextCursor, total}>
  *
- * filter 只认 state（收窄到「未关闭」「已关闭」之一）与 labels（必须同时带上这些标签），其余字段忽略 ——
- * 与 counts 那条同一口径。requested 之外的多余字段不许影响结果：分页与计数说的必须是同一批票。
+ * filter 认 state（收窄到「未关闭」「已关闭」之一）、labels（必须同时带上这些标签）与 since
+ * （只要更新时间不早于这个时刻的票，刷新后台的增量索引窗口用），其余字段忽略 —— 与 counts 那条同一口径。
+ * requested 之外的多余字段不许影响结果：分页与计数说的必须是同一批票。
  * 失败语义与 counts 一致；游标失效单独认得出（回 not-found，消息里明说「游标已失效，请重新加载」），
  * 界面据此丢掉游标、重取第一页。
  *
@@ -127,37 +163,49 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
       emitReadDegraded(ctx, 'listPage', 'listPage:repo-ref', Date.now() - t0)
       return fail(ERROR_KIND.NOTFOUND, `listPage: repo.refId missing or malformed: ${repoId(repo)}`, repo)
     }
-    const lim = limitOf(opts)
+    // 这一页按契约要的条数与进程里学到的远端上限取小（#1418：学到的上限会在下面「一次要多了」时记下来）。
+    const baseLim = Math.min(limitOf(opts), REMOTE_PAGE_LIMIT)
+    let lim = learnedPageLimit > 0 ? Math.min(baseLim, learnedPageLimit) : baseLim
     const cursor = cursorOf(opts)
     const states = statesOf(filter)
     const labels = labelsOf(filter)
+    const since = sinceOf(filter)
     const c = ghClient(ctx)
-    const args = [
-      'api', 'graphql',
-      '-f', `query=${labels.length ? LIST_PAGE_QUERY_WITH_LABELS : LIST_PAGE_QUERY}`,
-      '-F', `owner=${parsed.owner}`,
-      '-F', `name=${parsed.name}`,
-      '-F', `first=${lim}`,
-      '-F', `after=${cursor}`,
-    ]
-    for (const s of states) args.push('-F', `states[]=${s}`)
-    for (const name of labels) args.push('-F', `labels[]=${name}`)
-    const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'listPage.gql' })
-    if (!r.ok) {
-      emitReadDegraded(ctx, 'listPage', 'listPage:transport', Date.now() - t0)
-      return { ok: false, error: r.error }
-    }
-    // 为什么把回包定成这个形状：只读到本函数实际用的三层（errors/data.repository.issues），更深的节点按 unknown 读；
-    // 定宽了以后加字段要改两处，定窄了读不到，当前三层正好够用。
-    let j: { errors?: unknown; data?: { repository?: { issues?: { nodes?: unknown[]; totalCount?: unknown; pageInfo?: unknown } | null } | null } | null }
-    try { j = JSON.parse(r.data.stdout || '') } catch (e) {
-      // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
-      const eb = e as { message?: unknown } | null;
-      // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
-      emitReadDegraded(ctx, 'listPage', 'listPage:json', Date.now() - t0)
-      return fail(ERROR_KIND.PARSE, `listPage: invalid json ${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
-    }
-    if (j.errors) {
+    // 为什么会有一个重试循环：远端连接的单页上限不一定等于我们认定的 100（不同的 GitHub 部署可能更低）。
+    //   从前这里把 first 定死发一次，撞上「一次要多了」就整页失败 —— 调用方（探测）每一拍都会用同一个数字
+    //   再撞一次，看上去就是「刷新坏了」。现在按远端自己说的上限换小 first 重发，并且记住这个上限，
+    //   下一拍一开始就用它；除「一次要多了」这一种错误外，其余分支的返回值与从前一字不差。
+    let r: any = null
+    let j: any = null
+    let degradeSteps = 0
+    for (;;) {
+      const args = [
+        'api', 'graphql',
+        '-f', `query=${labels.length ? LIST_PAGE_QUERY_WITH_LABELS : LIST_PAGE_QUERY}`,
+        '-F', `owner=${parsed.owner}`,
+        '-F', `name=${parsed.name}`,
+        '-F', `first=${lim}`,
+        '-F', `after=${cursor}`,
+      ]
+      for (const s of states) args.push('-F', `states[]=${s}`)
+      for (const name of labels) args.push('-F', `labels[]=${name}`)
+      // 只有真给了窗口才带这一格：不给时与从前一字不差（变量为 null，filterBy.since 等于没筛）。
+      if (since) args.push('-F', `since=${since}`)
+      r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'listPage.gql' })
+      if (!r.ok) {
+        emitReadDegraded(ctx, 'listPage', 'listPage:transport', Date.now() - t0)
+        return { ok: false, error: r.error }
+      }
+      // 为什么把回包定成这个形状：只读到本函数实际用的三层（errors/data.repository.issues），更深的节点按 unknown 读；
+      // 定宽了以后加字段要改两处，定窄了读不到，当前三层正好够用。
+      try { j = JSON.parse(r.data.stdout || '') } catch (e) {
+        // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
+        const eb = e as { message?: unknown } | null;
+        // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
+        emitReadDegraded(ctx, 'listPage', 'listPage:json', Date.now() - t0)
+        return fail(ERROR_KIND.PARSE, `listPage: invalid json ${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
+      }
+      if (!j.errors) break
       const msg = `listPage: ${JSON.stringify(j.errors).slice(0, 800)}`
       // 游标失效是单独一类，要认得出：界面据此丢游标重取第一页，而不是把这一页当成历史翻到了头。
       if (cursor && /cursor/i.test(msg)) {
@@ -165,10 +213,20 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
         emitReadDegraded(ctx, 'listPage', 'listPage:cursor', Date.now() - t0)
         return fail(ERROR_KIND.NOTFOUND, `listPage: 游标已失效，请重新加载（${msg.slice(0, 400)}）`, JSON.stringify(j.errors))
       }
+      // 一次要多了：远端明说上限是 N，就记住 N、换更小的 first 重发；退不动或退够次数才算真失败。
+      const nextLim = (degradeSteps < MAX_PAGE_DEGRADE_STEPS) ? smallerPageLimit(msg, lim) : 0
+      if (nextLim > 0) {
+        // 这一行是本轮「看得见」的一部分：日志里能直接读出「远端上限比我们想的小」以及换成了多少。
+        emitReadDegraded(ctx, 'listPage', 'listPage:page-size', Date.now() - t0, { kind: ERROR_KIND.UNSUPPORTED, limitBefore: lim, limitAfter: nextLim })
+        learnedPageLimit = nextLim
+        lim = nextLim
+        degradeSteps += 1
+        continue
+      }
       // 原文交的是 GitHub 回的那份 errors 负载本身（msg 只是给它加了个操作名前缀，不算原文）。
       // 判档与话术都走本房唯一的出口：档位由规则表判、message 按票面实现决定第 11 条挑。
       const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
-      emitReadDegraded(ctx, 'listPage', 'listPage:gql-err', Date.now() - t0)
+      emitReadDegraded(ctx, 'listPage', 'listPage:gql-err', Date.now() - t0, { kind: verdict.kind })
       return fail(verdict.kind, ghFailureMessage(verdict, msg), JSON.stringify(j.errors))
     }
     const repoData = j.data && j.data.repository

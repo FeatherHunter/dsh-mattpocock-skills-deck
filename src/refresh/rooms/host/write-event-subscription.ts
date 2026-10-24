@@ -2,7 +2,8 @@
 //
 // 这个文件干一件事：把「会话里有人写东西」变成「面板立刻知道」。它自己一行判定规则都没有——
 // 判定全在 src/refresh/kernel/write-event-detection.ts 那份纯函数里（产物 .build/refresh/kernel/write-event-detection.js），
-// 这里只做四件外面才做得了的事：订事件、过工作区那道门、按 10 秒合并窗口收口、把那一趟取数交给管线。
+// 这里只做四件外面才做得了的事：订事件、过工作区那道门、按取数类型收口（扫描类 10 秒合并、
+// 点名补行直接发）、把那一趟取数交给管线。
 //
 // 依据（票面 #710 与 docs/architecture/refresh-budget-architecture.html 第十一章、第十二章、第十五章）：
 //   1. **两道订阅**。首选运行时事件 `ctx.on('tools/result', …)`：一次给全工具名、已解析的参数、是否出错与
@@ -25,7 +26,9 @@
 //      同一个问题问两遍；更糟的是问出来的「推迟」在别处没有第二次机会，只会平白压住一次本该发生的取数。
 //      代价说清楚：这一档从此不产生闸的裁决，stats().event 的条数与点数恒记 0（读路径不记账，#1444 裁决）；
 //      真实用量的统计归 #1446，不在本文件另记一本小账（两本账对不上比没有账更难查）。
-//      同一工作区 10 秒合并窗口照旧（窗口的值来自 budget.js）。
+//      合并窗口按取数类型分开用：扫描类（probe-now，票号未知，要问一次仓库最近变了什么）
+//      同一工作区 10 秒内只发一次；点名补行（patch-now，票号已知，只取那一行）每次写都发。
+//      窗口的值来自 budget.js。
 //
 // 接线（宿主侧一处）：`createWriteEvents({ fetch, canonicalKey, logCtx })` 拿到实例之后 ——
 //   `w.attach(ctx)` 订两条事件；`w.allowRoot(<当前在看的工作区根>)` 把要服务的工作区加进白名单
@@ -115,7 +118,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
 
   const allowedRoots = new Set<string>()   // 我们服务的工作区根散列（白名单，按散列存）
   const sessionRoots = new Map<string, string>()   // 会话 id → 工作区根散列（**只有归我们的会话**才进这张表）
-  const lastFireAt = new Map<string, number>()     // 工作区根散列 → 上一次事件触发取数的时刻（10 秒合并窗口）
+  const lastProbeAt = new Map<string, number>()    // 工作区根散列 → 上一次扫描类取数（probe-now）的时刻；10 秒窗口只拦它
   const firedLogAt = new Map<string, number>()     // 工作区根散列 → 上一次记日志的时刻（节流，1 秒一条）
   // 计数：seen 过了门的事件条数、fired 走到取数判定那一趟的条数、coalesced 被 10 秒窗口并掉的趟数、
   // sent 真交给了管线的趟数、noFetch 接线没给取数函数的趟数、noKeyFn 没给归一出口的条数。
@@ -175,7 +178,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
   function forgetRoot(rootOrCwd: any): void {
     const h = hash8(String(rootOrCwd || ''))
     allowedRoots.delete(h)
-    lastFireAt.delete(h)
+    lastProbeAt.delete(h)
     firedLogAt.delete(h)
     // 白名单里已经没有这根了，缓存里的「会话 → 根」也要一并清掉：不清的话 debugState().knownSessions
     // 只增不减，同一会话以后换了工作区还会命中旧缓存、永远不算归我们。
@@ -227,15 +230,24 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     return data.isError === false
   }
 
-  /** 真的去做那一次取数（过了合并窗口才走到这里）。
+  /** 真的去做那一次取数（判定完、该发的才会走到这里）。
    *
    * #1445 起这一趟不再过闸：写事件触发的取数只是一趟读，按 #1444 的裁决由管线直接放行
-   * （开会话、进管线、房间自己去读）。这里只决定「什么时候取」——同一工作区 10 秒合并窗口——
-   * 以及把这一步交给接线处给的取数函数，不再替管线做任何放行判定，也不再借闸的回包记账。
+   * （开会话、进管线、房间自己去读）。这里只决定「什么时候取」以及把这一步交给接线处给的取数函数，
+   * 不再替管线做任何放行判定，也不再借闸的回包记账。
+   *
+   * 「什么时候取」按取数成本分两类（#1472）：
+   *   点名补行（patch-now）：票号已知，一次只取那一行薄数据 —— 每次写都取，不看窗口。
+   *   扫描类（probe-now）：票号未知，要问一次仓库最近变了什么 —— 同一工作区 10 秒内只发一次。
+   * 一刀切的代价：10 秒窗口把第二笔以后的写直接丢掉、不排队也不补发，连做十次写只有第一笔
+   * 真的会刷新，后面的只能干等兜底探针 —— 这正是 #1472 要修的症状。
    */
   async function fire(shape: any, verdict: any, plan: any, rootHash: string, cycle: string, tool: string): Promise<any> {
     stats.fired += 1
-    const last: number | undefined = lastFireAt.get(rootHash)
+    // 只有扫描类取数看窗口：点名补行自带票号，只取那一行，没有合并的必要（见函数头）。
+    const isScan: boolean = plan.action !== 'patch-now'
+    const last: number | undefined = isScan ? lastProbeAt.get(rootHash) : undefined
+    // -1 读作「这一档没有窗口」：点名补行恒为 -1，扫描类第一次取数也是 -1。
     const waitedMs: number = (last === undefined) ? -1 : Math.max(0, now() - last)
     // 合并窗口吃掉的那一档也要留一行：它回答「这次写为什么没有马上取数」。
     if (last !== undefined && waitedMs < limits.mergeWindowMs) {
@@ -243,7 +255,7 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
       logEvent(shape, rootHash, verdict, plan, cycle, tool, waitedMs, 'coalesced')
       return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, coalesced: true }
     }
-    lastFireAt.set(rootHash, now())
+    if (isScan) lastProbeAt.set(rootHash, now())
     logEvent(shape, rootHash, verdict, plan, cycle, tool, waitedMs, 'fired')
     // 守卫照旧是「这一趟有没有真取数的办法」：从前看闸在不在，现在看取数函数在不在。
     // 没给就只判定、不取数 —— 诚实降级，绝不在本文件里另找一条路把请求发出去。
@@ -376,6 +388,6 @@ export function createWriteEvents(deps?: WriteEventsDeps | null): any {
     // 旧读数口 lastGateKey 已删（#1445）：它只回答「最后一次过闸带的是哪把钥匙」，如今不过闸，就没有东西可回答。
     // 要核对「交给管线的钥匙」是不是白名单那一把，看 fetch 收到的 meta.workspaceKey（tests/verify-723-gate-wiring 守着）。
     /** 只给门禁看的一份内部表：几个数字而已，没有会话 id、没有路径、没有命令。 */
-    debugState: function (): any { return { allowedRoots: allowedRoots.size, knownSessions: sessionRoots.size, windows: lastFireAt.size } },
+    debugState: function (): any { return { allowedRoots: allowedRoots.size, knownSessions: sessionRoots.size, windows: lastProbeAt.size } },
   }
 }
