@@ -6,7 +6,7 @@ import type { Actor } from '../../contract/identity.js'
 import type { OpResult, PreflightResult, Counts, PageResult, Dependencies, RepoPermissions, SubIssueList, LabelColorsFilePlacement, LabelColorBatchResult } from '../../contract/results.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { mdPath } from './path.js'
-import { readTextFile, exists } from './read.js'
+import { readTextFile, listDir, exists } from './read.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { countIssues } from './counts.js'
 import { listIssuesPage } from './page.js'
@@ -99,11 +99,16 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
     let candidatePaths=[]
     if(handle.refId&&String(handle.refId).includes('.scratch')){
       const p=isAbsolute(String(handle.refId),plat)?String(handle.refId):plat.join(cwd,String(handle.refId))
+      // #1488：规格目录的落盘是 <目录>/spec.md 与 <目录>/issues/，调用方点名的目录也一样认这两种线索。
       candidatePaths.push(plat.join(p,'map.md'))
+      candidatePaths.push(plat.join(p,'spec.md'))
+      candidatePaths.push(plat.join(p,'issues'))
       candidatePaths.push(p)
     }
     const root=plat.join(cwd,'.scratch')
     candidatePaths.push(plat.join(root,'map.md'))
+    candidatePaths.push(plat.join(root,'spec.md'))
+    candidatePaths.push(plat.join(root,'issues'))
     // 这里原来还会列举 `.scratch` 下的每个条目、逐个拼一个 `<名字>/map.md` 去试（#1129 删掉）。
     // 为什么删：那是在猜 map.md 在哪，而不是读调用方说出来的事实。真机上 wayfinder 的地图写在
     // `.scratch/<effort>/map.md`，根级 `.scratch/map.md` 并不存在——本机四个 Local Markdown 工作区
@@ -115,6 +120,21 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
     // 反例：不要把「扫 `.scratch` 找 map.md」加回来，包括「只看子目录」「只看唯一那个子目录」这类变体——
     // 它们同样是猜。要认下一个工作区，就让它把话说明白：`.scratch/map.md` 在，或者声明文件指向 markdown。
     for(const p of candidatePaths){if(await exists(ctx,p))return true}
+    // #1488：只含 spec.md 或 issues/ 的工作单元目录（规格原文的落盘形态）也要认出来。
+    // 这里与 #1129「不扫 .scratch 找 map.md」不冲突：不猜的是 map.md 的位置（wayfinder 地图可能出现在
+    // 无关工作区的调试目录里）；spec.md 与 issues/ 是规格原文写死的两个名字，一个 .scratch/<目录>/spec.md
+    // 或 <目录>/issues/ 只可能来自这套布局。仍然不看子目录里的 map.md，原判决对 map.md 继续有效。
+    try{
+      const listed=await listDir(ctx,root)
+      if(listed.ok){
+        for(const name of listed.names){
+          if(!name||String(name).startsWith('.'))continue
+          const dir=plat.join(root,String(name))
+          if(await exists(ctx,plat.join(dir,'spec.md')))return true
+          if(await exists(ctx,plat.join(dir,'issues')))return true
+        }
+      }
+    }catch{}
     // bug 修复：setup 已选 Local Markdown 但尚未落 map.md 时，仍应算 Markdown 身份（底层 Markdown 格式以 docs/agents/issue-tracker.md 声明为准，非仅 map.md 数据）
     try{
       const itPath=plat.join(cwd,'docs/agents/issue-tracker.md')
@@ -228,10 +248,17 @@ export function createMarkdownBackend(ctx: OpContext) {
               // 同 matches 里那一处：`as string` 只收类型视野，运行时还是原值。
               const name=(typeof e==='string'?e:(e&&(e as Record<string, unknown>).name)||'') as string
               if(!name||name.startsWith('.'))continue
-              const cand=plat.join(root,name,'map.md')
-              if(await exists(c,cand)) return{ok:true}
+              const dir=plat.join(root,name)
+              // #1488：工作单元的容器有三种线索——探索地图 map.md、规格 spec.md、只有票的 issues/。
+              // 只认 map.md 时，只含 spec.md 的规格目录会被判成「没有地图」，预检恒 not-found（#1476）。
+              if(await exists(c,plat.join(dir,'map.md'))) return{ok:true}
+              if(await exists(c,plat.join(dir,'spec.md'))) return{ok:true}
+              if(await exists(c,plat.join(dir,'issues'))) return{ok:true}
             }
             if(await exists(c,plat.join(root,'map.md'))) return{ok:true}
+            // 根级扁平布局的另外两种形态（#1488）：规格或票目录直接放在 .scratch 下。
+            if(await exists(c,plat.join(root,'spec.md'))) return{ok:true}
+            if(await exists(c,plat.join(root,'issues'))) return{ok:true}
           }catch{}
         }
         // 带 backend 的 handle 被当成「已选定后端的引用」用（refId 即路径，见 matches）；
@@ -239,6 +266,14 @@ export function createMarkdownBackend(ctx: OpContext) {
         const repo=handle&&handle.backend?(handle as RepositoryRef):describe(handle,'markdown')
         const mapP=mdPath(repo,'map',undefined,c)
         if(await exists(c,mapP))return{ok:true}
+        // #1488：点名了 refId 的规格目录（只有 spec.md 或 issues/）也要通过预检。
+        const plat0=getPlat(c)
+        try{
+          const specP=mdPath(repo,'spec',undefined,c)
+          if(await exists(c,specP))return{ok:true}
+          const issueDir=plat0.join(plat0.dirname(mapP),'issues')
+          if(await exists(c,issueDir))return{ok:true}
+        }catch{}
         const plat2=getPlat(c)
         const cwd2=(handle&&handle.cwd)||(c&&c.cwd)||''
         if(cwd2){

@@ -87,7 +87,8 @@ export async function countIssues(ctx: OpContext, repo: RepoWithPath, filter: Li
     let open = 0
     let closed = 0
     for (const row of rows) {
-      if (!row || row.type === ISSUE_TYPE.MAP) continue // 地图容器行分开算，不计入票数
+      // 容器行分开算、不计入票数：#1488 起容器有两种形状——探索地图 map.md 与规格 spec.md。
+      if (!row || row.type === ISSUE_TYPE.MAP || row.type === ISSUE_TYPE.SPEC) continue
       if (!hasAllLabels(row, wanted)) continue
       if (row.state === STATE.CLOSED) closed++
       else open++

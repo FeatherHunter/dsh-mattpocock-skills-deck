@@ -12,7 +12,7 @@
 //    **写**返回 conflict 诚实失败，绝不猜（猜错文件是数据损坏，不是显示问题）。
 //  - 根级 `.scratch/map.md` 这种扁平历史布局算作 effortId = ''（空串）。
 import { parseMd, parentKeyFromFile } from './parse.js'
-import { readTextFile, listDirOrThrow, statFile, exists } from './read.js'
+import { readTextFile, listDir, listDirOrThrow, statFile, exists } from './read.js'
 import { issuesDir } from './path.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { failAs, rawJson } from './error-fail.js'
@@ -39,13 +39,23 @@ interface LocateOpts {
 interface FileHit {
   path: string
   effortId: string
+  /** 对外的完整身份串（正常票是两位编号，退化票是 `目录/编号-文件名`）；旧兜底路径给数字编号。 */
+  key: string
+  /** 命中的是旧版工作区根 issues/ 里的票（读取时留一条兼容日志）。 */
+  legacy: boolean
+  /** 这张票读回时该带的父容器：有 map.md / spec.md 的工作单元给 '00'，普通票目录给 null。 */
+  parentKey: string | null
+  /** 这条身份是退化身份（重复编号或文件名没有编号）。 */
+  degenerate: boolean
 }
 
 export function getPlat(ctx: OpContext): BackendPlatform['path'] {if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
+/** 这次调用看到的工作区根目录（宿主把工作区挂在 ctx.cwd 上）。 */
+export function getCwd(ctx: OpContext): string {
+  return ctx&&typeof ctx.cwd==='string'?ctx.cwd:(typeof process!=='undefined'&&typeof process.cwd==='function'?process.cwd():'.')
+}
 export async function getScratchRoot(ctx: OpContext): Promise<string> {
-  const plat=getPlat(ctx)
-  const cwd=ctx&&typeof ctx.cwd==='string'?ctx.cwd:(typeof process!=='undefined'&&typeof process.cwd==='function'?process.cwd():'.')
-  return plat.join(cwd,'.scratch')
+  return getPlat(ctx).join(getCwd(ctx),'.scratch')
 }
 /** 列出本仓库的全部 effort（顺序稳定：根级扁平布局优先，其余按目录名排序）。返回 [{effortId, dir}]。 */
 export async function listEfforts(ctx: OpContext): Promise<{ effortId: string; dir: string }[]> {
@@ -65,6 +75,154 @@ export async function listEfforts(ctx: OpContext): Promise<{ effortId: string; d
   }
   return out
 }
+
+/**
+ * 工作单元目录（#1488）：一个目录只要有 map.md、spec.md、issues/ 里任意一个线索，就是「一个工作单元」。
+ * 规格原文的三种形态分别对应：
+ *  - map.md  → 探索地图（wayfinder 的 effort）；
+ *  - spec.md → 规格（一个 feature 一个目录，规格就在目录根）；
+ *  - issues/ → 还没有容器的普通票目录（原文允许先写实施票、规格后补）。
+ * 这与 #1488 之前「只认 map.md」的发现口不同：只含 spec.md 或 issues/ 的目录以前被当成空工作区，
+ * 预检判 not-found（#1476 实测到的缺陷）。这里的判据只认原文写明的三个名字，不猜别的命名。
+ */
+export type WorkUnitKind = 'map' | 'spec' | 'plain'
+export interface WorkUnit {
+  effortId: string
+  dir: string
+  kind: WorkUnitKind
+  /** 旧版布局：工作区根 `<cwd>/issues/`（#1486 之前没给工作单元时票落到这里），只读兼容、不参与写入。 */
+  legacy?: boolean
+}
+
+/** 一个目录属于哪种工作单元；三个线索都没有时回空串（不算工作单元）。线索判断各自包 try：
+ *  问不出来（权限等）按「没有」处理，读的工作由后面的列目录去如实失败，不在发现这一步抛。 */
+export async function workUnitKindOf(ctx: OpContext, dir: string): Promise<WorkUnitKind | ''> {
+  const plat=getPlat(ctx)
+  try{ if(await exists(ctx, plat.join(dir,'map.md'))) return 'map' }catch{}
+  try{ if(await exists(ctx, plat.join(dir,'spec.md'))) return 'spec' }catch{}
+  try{ if(await exists(ctx, plat.join(dir,'issues'))) return 'plain' }catch{}
+  return ''
+}
+
+/**
+ * 列出全部工作单元（#1488 起读取端统一从这里发现）。顺序稳定：`.scratch` 根级扁平布局优先，
+ * 其余按目录名排序；最后补旧版工作区根 `issues/`。
+ *
+ * 与 listEfforts 的分工：listEfforts 仍是「会写地图的那些单元」的旧口径（写入端与建票取号还要它），
+ * 读取端一律用本函数，才能看见只含 spec.md 或 issues/ 的目录。两个口迟早并成一个，等写入端也搬完。
+ */
+export async function listWorkUnits(ctx: OpContext): Promise<WorkUnit[]> {
+  const plat=getPlat(ctx)
+  const root=await getScratchRoot(ctx)
+  const out: WorkUnit[]=[]
+  const rootKind=await workUnitKindOf(ctx, root)
+  if(rootKind) out.push({ effortId:'', dir:root, kind:rootKind })
+  // 列不出 `.scratch` 这一层时：目录不存在算空（全新工作区还没有它，这不是故障）；
+  // 目录在却读不出来，就抛错由调用方如实失败 —— 把「读不成」当「一个工作单元都没有」，
+  // 会让 counts 回 0、list 回空表，正是 #1174 要根治的那类谎话。
+  const entries=await listDirOrThrow(ctx, root)
+  const names=entries.filter(function(e: string){ return e && !e.startsWith('.') }).sort()
+  for(const e of names){
+    const dirPath=plat.join(root,e)
+    const kind=await workUnitKindOf(ctx, dirPath)
+    if(kind) out.push({ effortId:String(e), dir:dirPath, kind })
+  }
+  // 旧版布局（#1488 验收③）：#1486 之前没给工作单元时，建票直接落到工作区根 `<cwd>/issues/`。
+  // 这些票还在原地，必须照样读得到；标 legacy 只用来在读取时留一条兼容日志，不改变任何行的形状。
+  try{
+    const cwd=getCwd(ctx)
+    const legacyDir=plat.join(cwd,'issues')
+    if(await exists(ctx, legacyDir)) out.push({ effortId:'', dir:cwd, kind:'plain', legacy:true })
+  }catch{}
+  return out
+}
+
+/**
+ * 票目录里的一个文件，连同它「按目录内编号身份」算出来的寻址串（#1488）。
+ *  - 编号在目录里唯一：inner 就是两位编号（`01`），与旧读取行为完全一致；
+ *  - 编号重复（同一目录两个 01-*.md）：inner 退化为文件名去掉 .md（`01-买咖啡`），不替用户改号；
+ *  - 文件名没有编号：inner 就是文件名去掉 .md（`修复登录`）。
+ * degenerate=true 表示这是退化身份，上层拼显示串时要带上工作单元目录名（`目录/编号-文件名`）。
+ */
+export interface TicketFile {
+  file: string
+  path: string
+  /** 目录内寻址串（不含目录名）。 */
+  inner: string
+  degenerate: boolean
+}
+
+/** 目录里这两个名字是容器文件，不是票：map.md 是探索地图，spec.md 是规格（原文写法，大小写不敏感）。 */
+function isContainerFileName(file: string): boolean {
+  const n=file.toLowerCase()
+  return n==='map.md' || n==='spec.md'
+}
+
+/**
+ * 把一个票目录里的文件名列表算成每张票的目录内身份（#1488 验收④）。
+ * 规则由规格原文 reading.fallbacks 的 duplicate-number 与 enhancements.numbering-display-fallback 定：
+ * 同一目录编号重复时不自作主张改号、显示退化为「编号-文件名」；没有编号的把文件名当身份。
+ * 两条都只是显示与寻址的退化，不是错误，所以这里不抛错、也不改盘上的文件名。
+ */
+export function ticketEntriesOf(ctx: OpContext, idir: string, names: string[]): TicketFile[] {
+  const plat=getPlat(ctx)
+  const md=names.filter(function(f: string){
+    return !!f && !f.startsWith('.') && f.toLowerCase().endsWith('.md') && !isContainerFileName(f)
+  })
+  const counts: Record<string, number>={}
+  for(const f of md){
+    const m=/^(\d+)-/.exec(f)
+    if(!m) continue
+    const n=m[1].padStart(2,'0')
+    counts[n]=(counts[n]||0)+1
+  }
+  const used: Record<string, boolean>={}
+  const out: TicketFile[]=[]
+  for(const f of md.sort()){
+    const m=/^(\d+)-/.exec(f)
+    const n=m?m[1].padStart(2,'0'):''
+    let inner=''
+    let degenerate=false
+    if(n && counts[n]===1) inner=n
+    else { inner=f.replace(/\.md$/i,''); degenerate=true }
+    // 兜底：两条不同的退化身份不小心撞成同一串时（理论上文件名唯一不会发生），
+    // 加序号保证寻址唯一；规则固定为按文件名排序后的第 n 条缀 `-n`。
+    let unique=inner
+    let seq=1
+    while(used[unique]){ seq++; unique=inner+'-'+seq }
+    used[unique]=true
+    out.push({ file:f, path:plat.join(idir,f), inner:unique, degenerate })
+  }
+  return out
+}
+
+/** 列一个票目录并算出每张票的身份。三态与 read.ts 的 listDir 对齐：missing 表示目录不存在（算空），
+ *  其余列不出来要由调用方如实失败（与旧 collectTicketsIn 的严格口径一致）。 */
+export type TicketListing =
+  | { ok: true; files: TicketFile[] }
+  | { ok: false; missing: boolean; error?: unknown }
+export async function listTicketFiles(ctx: OpContext, idir: string): Promise<TicketListing> {
+  const listing=await listDir(ctx, idir)
+  if(listing.ok) return { ok:true, files:ticketEntriesOf(ctx,idir,listing.names) }
+  if(listing.missing) return { ok:false, missing:true }
+  return { ok:false, missing:false, error:listing.error }
+}
+
+/** 一张票对外的 key（#1488）：正常编号保持两位编号（旧行为不变）；退化身份带上工作单元目录名，
+ *  界面画出来就是维护者要的 `#目录/编号-文件名`，同一串也用于按 key 读取（内部寻址一起退化）。 */
+export function ticketKey(effortId: string, tf: TicketFile): string {
+  if(!tf.degenerate) return tf.inner
+  return effortId ? effortId+'/'+tf.inner : tf.inner
+}
+
+/** 把调用方给的 key 拆成「工作单元前缀 + 目录内身份」（#1488）。正常编号没有斜杠；
+ *  退化身份带 `目录/` 前缀，按 key 读取时从这串里找回工作单元范围。 */
+export function splitTicketKey(key: string | number): { effortFromKey: string; inner: string } {
+  const s=String(key)
+  const i=s.indexOf('/')
+  return i>=0 ? { effortFromKey:s.slice(0,i), inner:s.slice(i+1) } : { effortFromKey:'', inner:s }
+}
+
 /** 兼容旧调用：只要目录路径列表（顺序与 listEfforts 一致）。 */
 export async function listEffortDirs(ctx: OpContext): Promise<string[]> {
   return (await listEfforts(ctx)).map(function(e){ return e.dir })
@@ -85,32 +243,64 @@ function conflict(key: string, hits: FileHit[]): { ok: false; error: { kind: str
   // 这段原文正是人判断「该给哪个 effort 加范围」的依据，所以不许省。
   return failAs(ERROR_KIND.CONFLICT, 'issue '+key+' 在 '+hits.length+' 个 effort 里都存在，但没指定 effortId（拒绝猜目标文件）', rawJson(hits))
 }
-/** 按 (effort 范围, 编号) 找票文件。o.mode='write' 时多命中即 conflict；返回 {ok,path,effortId} 或 {ok:false,error}。 */
-export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null, key: string, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string } | { ok: false; error: { kind: string; message: string; raw: string } }> {
+/** 按 (工作单元范围, 编号) 找票文件（#1488 起编号身份由 issues-locate 的目录内身份规则决定）。
+ *  o.mode='write' 时多命中即 conflict；返回 {ok,path,effortId,key,legacy} 或 {ok:false,error}。
+ *  key 是对外的完整身份串：正常票就是两位编号；退化票是 `目录/编号-文件名`。 */
+export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null, key: string, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string; key: string; legacy: boolean; parentKey: string | null; degenerate: boolean } | { ok: false; error: { kind: string; message: string; raw: string } }> {
   const plat=getPlat(ctx)
-  const norm=String(key).padStart(2,'0')
-  const scope=scopeOf(repo, o)
-  const hits: FileHit[]=[]
-  const efforts=await listEfforts(ctx)
-  // #1486：规格目录（<feature>/spec.md，没有 map.md）也要能按编号读回实施票。
-  // listEfforts 只认地图文件，这里把调用方点名的目录直接补进来，不必等 #1487 把规格并进 effort。
-  if(scope!==undefined && !efforts.some(function(e){ return e.effortId===scope })){
-    const root=await getScratchRoot(ctx)
-    efforts.unshift({ effortId: scope, dir: plat.join(root, scope) })
-  }
-  for(const e of efforts){
-    if(scope!==undefined && e.effortId!==scope) continue
-    const idir=plat.join(e.dir,'issues')
-    // 票目录不存在算空（这个 effort 还没建过票），读不出来则抛错如实失败（同上）。
-    const files=await listDirOrThrow(ctx, idir)
-    for(const f of files){
-      if(!f || !f.endsWith('.md')) continue
-      const m=/^(\d+)-/.exec(f)
-      if(!m) continue
-      if(m[1].padStart(2,'0')!==norm) continue
-      hits.push({ path: plat.join(idir,f), effortId: e.effortId })
+  const parsed=splitTicketKey(key)
+  // 调用方给的编号：纯数字的照旧归一成两位（01 / 1 都认）；退化身份原样当目录内寻址串比对。
+  const norm=/^\d+$/.test(parsed.inner)?parsed.inner.padStart(2,'0'):parsed.inner
+  let scope=scopeOf(repo, o)
+  // 退化身份自带工作单元前缀（`买咖啡积分/01-手写`）：调用方没显式给范围时，从前缀里找回范围。
+  if(parsed.effortFromKey && scope===undefined) scope=parsed.effortFromKey
+  // 两档命中：exact 是身份串完全相等（正确寻址）；approx 是旧聊天链接 `#01` 落在重复编号目录里的
+  // 数字前缀命中 —— 读按目录顺序取第一个（保住旧链接），写多命中照旧 conflict。
+  const exact: FileHit[]=[]
+  const approx: FileHit[]=[]
+  const units=await listWorkUnits(ctx)
+  const seenEfforts: string[]=[]
+  for(const u of units){
+    seenEfforts.push(u.effortId+(u.legacy?'(legacy)':''))
+    if(scope!==undefined && u.effortId!==scope) continue
+    const idir=plat.join(u.dir,'issues')
+    // 票目录不存在算空（这个工作单元还没建过票），读不出来则抛错如实失败（同上）。
+    const listing=await listTicketFiles(ctx, idir)
+    if(!listing.ok){ if(listing.missing) continue; throw listing.error }
+    for(const tf of listing.files){
+      const displayKey=ticketKey(u.effortId, tf)
+      if(tf.inner===norm || displayKey===String(key)){
+        exact.push({ path:tf.path, effortId:u.effortId, key:displayKey, legacy:!!u.legacy, parentKey:(u.kind==='plain'||u.legacy)?null:'00', degenerate:tf.degenerate })
+        continue
+      }
+      // 旧 `#01` 链接：目录里编号重复或没有编号时，按数字前缀找旧编号（只读兜底）。
+      if(/^\d+$/.test(norm)){
+        const m=/^(\d+)-/.exec(tf.file)
+        if(m && m[1].padStart(2,'0')===norm) approx.push({ path:tf.path, effortId:u.effortId, key:displayKey, legacy:!!u.legacy, parentKey:(u.kind==='plain'||u.legacy)?null:'00', degenerate:tf.degenerate })
+      }
     }
   }
+  // #1486：规格目录（<feature>/spec.md，没有 map.md）也要能按编号读回实施票。
+  // listWorkUnits 已经覆盖所有带 issues/ 的目录，这里只补「调用方点名、但目录连 issues/ 都还没有」的形态。
+  if(!units.some(function(u){ return u.effortId===scope }) && scope!==undefined){
+    const root=await getScratchRoot(ctx)
+    const probeDir=plat.join(root, scope)
+    const probeKind=await workUnitKindOf(ctx, probeDir)
+    const probeParent=probeKind===''||probeKind==='plain'?null:'00'
+    const idir=plat.join(probeDir,'issues')
+    const listing=await listTicketFiles(ctx, idir)
+    if(listing.ok){
+      for(const tf of listing.files){
+        const displayKey=ticketKey(scope, tf)
+        if(tf.inner===norm || displayKey===String(key)) exact.push({ path:tf.path, effortId:scope, key:displayKey, legacy:false, parentKey:probeParent, degenerate:tf.degenerate })
+        else if(/^\d+$/.test(norm)){
+          const m=/^(\d+)-/.exec(tf.file)
+          if(m && m[1].padStart(2,'0')===norm) approx.push({ path:tf.path, effortId:scope, key:displayKey, legacy:false, parentKey:probeParent, degenerate:tf.degenerate })
+        }
+      }
+    }
+  }
+  const hits=exact.length?exact:approx
   // 兜底要试的那两个目录先声明在函数作用域里：失败时它们要进原文，人才能看出「都找过哪儿」。
   const cands: string[]=[]
   if(hits.length===0){
@@ -124,16 +314,17 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
         const m=/^(\d+)-/.exec(f)
         if(!m) continue
         if(m[1].padStart(2,'0')!==norm) continue
-        hits.push({ path: plat.join(idir,f), effortId: scope!==undefined?scope:'' })
+        hits.push({ path: plat.join(idir,f), effortId: scope!==undefined?scope:'', key:norm, legacy:false, parentKey:'00', degenerate:false })
       }
       if(hits.length) break
     }
   }
-  // 原文 = 这次找的范围、见过哪些 effort、两个兜底目录各是什么。
+  // 原文 = 这次找的范围、见过哪些工作单元、两个兜底目录各是什么。
   // 本地就能定论（这些地方都没有这个编号的文件），但「找过哪儿」是原文，缺了人只能重猜一遍。
-  if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'issue '+norm+' not-found', rawJson({ key:norm, effortId: scope===undefined?null:scope, efforts: efforts.map(function(e){return e.effortId}), fallbackDirs: cands }))
+  if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'issue '+norm+' not-found', rawJson({ key:norm, effortId: scope===undefined?null:scope, efforts: seenEfforts, fallbackDirs: cands }))
   if(hits.length>1 && o.mode==='write') return conflict(norm, hits)
-  return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
+  const hit=hits[0]
+  return { ok:true, path:hit.path, effortId:hit.effortId, key:hit.key, legacy:!!hit.legacy, parentKey:hit.parentKey, degenerate:!!hit.degenerate }
 }
 /** 按 effort 范围找地图文件（map.md）。未给范围且多命中时，读取第一个、写报 conflict。 */
 export async function resolveMapFile(ctx: OpContext, repo: RepoWithPath | null, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string } | { ok: false; error: { kind: string; message: string; raw: string } }> {
@@ -143,15 +334,15 @@ export async function resolveMapFile(ctx: OpContext, repo: RepoWithPath | null, 
   const efforts=await listEfforts(ctx)
   for(const e of efforts){
     if(scope!==undefined && e.effortId!==scope) continue
-    hits.push({ path: plat.join(e.dir,'map.md'), effortId: e.effortId })
+    hits.push({ path: plat.join(e.dir,'map.md'), effortId: e.effortId, key:'00', legacy:false, parentKey:null, degenerate:false })
   }
   if(hits.length===0){
     try{
       const mapP=plat.join(issuesDir(repo,ctx),'..','map.md')
-      if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'' })
+      if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'', key:'00', legacy:false, parentKey:null, degenerate:false })
     }catch{}
     if(!hits.length && repo && repo.path){
-      try{ const mapP=plat.join(repo.path,'map.md'); if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'' }) }catch{}
+      try{ const mapP=plat.join(repo.path,'map.md'); if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'', key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
     }
   }
   // 原文 = 这次找的范围与仓库里现有的 effort（本地就能定论：这个范围里没有地图文件）。
@@ -173,19 +364,19 @@ export async function resolveSpecFile(ctx: OpContext, repo: RepoWithPath | null,
   const hits: FileHit[]=[]
   if(scope!==undefined){
     const p=plat.join(scratch, scope, 'spec.md')
-    try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:scope }) }catch{}
+    try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:scope, key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
   } else {
     // 根级扁平布局（repo.path / refId 直接当仓库根）也要认。
-    try{ const p=plat.join(issuesDir(repo,ctx),'..','spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'' }) }catch{}
+    try{ const p=plat.join(issuesDir(repo,ctx),'..','spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'', key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
     if(!hits.length && repo && repo.path){
-      try{ const p=plat.join(repo.path,'spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'' }) }catch{}
+      try{ const p=plat.join(repo.path,'spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'', key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
     }
     if(!hits.length){
       const entries=await listDirOrThrow(ctx, scratch)
       const names=entries.filter(function(e: string){ return e && !e.startsWith('.') }).sort()
       for(const e of names){
         const p=plat.join(scratch,e,'spec.md')
-        try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:String(e) }) }catch{}
+        try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:String(e), key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
       }
     }
   }
@@ -227,7 +418,9 @@ export async function loadIssueFromFile(ctx: OpContext, repo: RepoWithPath | nul
   }
   const base=fullPath.split(/[\\/]/).pop()||''
   const km=/^(\d+)-/.exec(base)
-  const key=km?km[1].padStart(2,'0'):String(metaExtra.key||'00').padStart(2,'0')
+  // #1488：退化身份（重复编号的 `01-文件名`、没有编号的 `修复登录`）由调用方按目录内身份算好放进 metaExtra.key；
+  // 它可以出现在文件名开头是数字的票上，所以调用方给了就以它为准。没给才按旧规则从文件名推编号。
+  const key=metaExtra.key!==undefined?String(metaExtra.key):(km?km[1].padStart(2,'0'):'00')
   const parentKey=metaExtra.parentKey!==undefined?metaExtra.parentKey:null
   // #1486：老布局的票没有父注释时，调用方按 effort 补 parentKey='00'（地图子票的旧约定）。
   // 新布局（文件头有 DSH-FORMAT）必须只认文件里的 DSH-PARENT：同一目录里普通票不是规格的子票，

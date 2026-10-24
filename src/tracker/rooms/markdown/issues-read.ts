@@ -4,12 +4,13 @@
 // 本文件的职责是「按 effort 范围列出/读取」，每张票与每张地图都带上 effortId；
 // 父子关系只在同一 effort 内成立（子票 parentKey='00' 指的是**本 effort 的地图**）。
 import { parseMd } from './parse.js'
-import { readTextFile, listDir, statFile } from './read.js'
+import { readTextFile, listDir, statFile, exists } from './read.js'
 import { mdPath, issuesDir } from './path.js'
 import { failAs, failFromError, kindFromError, rawFromError, rawTextOf } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { idOfParts } from '../../kernel/identity-keys.js'
-import { getPlat, getScratchRoot, listEfforts, resolveIssueFile, resolveMapFile, resolveSpecFile, loadIssueFromFile, scopeOf } from './issues-locate.js'
+import { getPlat, getScratchRoot, listWorkUnits, listTicketFiles, ticketKey, workUnitKindOf, loadIssueFromFile, resolveIssueFile, resolveMapFile, resolveSpecFile, scopeOf } from './issues-locate.js'
+import type { WorkUnit } from './issues-locate.js'
 import { emitReadDegraded } from './read-log.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
@@ -82,10 +83,13 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     // 原文 = 抛上来的那个错误本身（`cause` 里才是文件服务真正吐出的那一句，取法统一在 error-fail.ts）。
     errors.push({ key: String(key), path: String(fullPath || ''), kind: got.kind, message: err && (err as Record<string, unknown>).message ? String((err as Record<string, unknown>).message) : String(err), raw: rawTextOf(rawFromError(err)) })
   }
-  /** `filter.keys` 给的是「这几个编号才要」：枚举阶段就跳过别的编号（列举的既有行为，照旧）。 */
-  const keyWanted = function (key: string): boolean {
+  /** `filter.keys` 给的是「这几个编号才要」：枚举阶段就跳过别的编号（列举的既有行为，照旧）。
+   *  #1488：退化身份（`目录/编号-文件名`）与旧编号链接（`01`）都要能筛到同一张票。 */
+  const keyWanted = function (tf: { file: string; inner: string }, key: string): boolean {
     if (!filter || !Array.isArray(filter.keys) || !filter.keys.length) return true
-    return filter.keys.includes(key)
+    if (filter.keys.includes(key) || filter.keys.includes(tf.inner)) return true
+    const m = /^(\d+)-/.exec(tf.file)
+    return !!(m && filter.keys.includes(m[1].padStart(2, '0')))
   }
   /** 地图容器行：列举要它，数票不要它。读不动时照旧静默（理由见上面的函数注释）。 */
   const pushMapRow = async function (mapPath: string, effortId: string, withTime: boolean): Promise<void> {
@@ -104,15 +108,23 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
       rows.push(parseMd(txt, Object.assign({ key: '00', parentKey: null, isMap: true, effortId, url: mapPath }, extra)))
     } catch { degraded('map-read-fail') }
   }
-  /** 一个票文件读成一行：读不动时按上面的开关决定「静默跳过」还是「记下错误」。 */
-  const pushTicketRow = async function (fullPath: string, key: string, effortId: string): Promise<void> {
-    try { rows.push(await loadIssueFromFile(ctx, repo, fullPath, { parentKey: '00', isMap: false, effortId })) }
+  /** 一个票文件读成一行：读不动时按上面的开关决定「静默跳过」还是「记下错误」。
+   *  key 是这张票对外的完整身份串（#1488：正常票是两位编号，退化票是 `目录/编号-文件名`）；
+   *  parentKey 只在这个工作单元真有容器（map.md / spec.md）时给 '00'，普通票目录按目录判父容器（null）。 */
+  const pushTicketRow = async function (fullPath: string, key: string, effortId: string, parentKey: string | null): Promise<void> {
+    try { rows.push(await loadIssueFromFile(ctx, repo, fullPath, { key, parentKey, isMap: false, effortId })) }
     catch (err) {
       // 开了收集的（counts / listPage）不在这里记：调用方会把整条操作判失败，那时再记一行，
       // 一次故障只留一条线，不会同一件事记两遍。
       if (!collectErrors) degraded('ticket-read-fail')
       noteReadError(key, fullPath, err)
     }
+  }
+  /** 规格容器行（#1488）：只含 spec.md 的目录也要在列表里有一行「00 号规格」。
+   *  读法与单票读取同一口径（loadIssueFromFile 把 spec.md 认成 kind=spec，并带文件时间）。 */
+  const pushSpecRow = async function (specPath: string, effortId: string): Promise<void> {
+    try { rows.push(await loadIssueFromFile(ctx, repo, specPath, { key: '00', parentKey: null, isMap: false, effortId })) }
+    catch { degraded('map-read-fail') }
   }
   /** 把某个 issues/ 目录下的票文件逐个读成行（文件名规则与列举一致：编号加短横开头的 .md 才算票）。
    *  列目录这一层分两种情形，都不许当「这里没有票」：
@@ -124,48 +136,53 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     const detail = err && (err as Record<string, unknown>).message ? String((err as Record<string, unknown>).message) : String(err)
     errors.push({ key: '', path: String(idir || ''), kind: got.kind, message: '这个工作单元的票目录读不出来：' + String(idir || '') + '（' + detail + '）', raw: rawTextOf(rawFromError(err)) })
   }
-  const collectTicketsIn = async function (idir: string, effortId: string, useKeyFilter: boolean): Promise<void> {
-    // 这里用严格的 `listDir`：宽松口把「读不出来」压成空数组，上面那两条承诺就都落空了
-    // （开了收集就把错误记下来、没开就当场抛）—— 而且是在「看起来正常」的样子下落空的。
-    let files: string[]
-    {
-      const listed = await listDir(ctx, idir)
-      if (listed.ok) files = listed.names
-      else if (listed.missing) files = []
-      else {
-        if (!collectErrors) throw listed.error
-        noteDirReadError(idir, listed.error)
-        return
-      }
+  const collectTicketsIn = async function (idir: string, effortId: string, parentKey: string | null, useKeyFilter: boolean): Promise<void> {
+    // 这里用严格三态（listTicketFiles 与 listDir 同口径）：宽松口把「读不出来」压成空数组，
+    // 上面那两条承诺就都落空了（开了收集就把错误记下来、没开就当场抛）—— 而且是在「看起来正常」的样子下落空的。
+    const listing = await listTicketFiles(ctx, idir)
+    if (!listing.ok) {
+      if (listing.missing) return
+      if (!collectErrors) throw listing.error
+      noteDirReadError(idir, listing.error)
+      return
     }
-    for (const f of files) {
-      const m = /^(\d+)-/.exec(f)
-      if (!m) continue
-      if (!f.endsWith('.md')) continue
-      const key = m[1].padStart(2, '0')
-      if (useKeyFilter && !keyWanted(key)) continue
-      await pushTicketRow(plat.join(idir, f), key, effortId)
+    for (const tf of listing.files) {
+      const key = ticketKey(effortId, tf)
+      // 退化身份只影响显示与寻址，不跳过任何票（#1488 验收④：不抛错、照常列出）。
+      // 同一趟只留一条线：哪个文件退化了，行上的 key 本身就是证据，日志只说「有这件事」。
+      if (tf.degenerate && op === 'list') degraded('dup-number')
+      if (useKeyFilter && !keyWanted(tf, key)) continue
+      await pushTicketRow(tf.path, key, effortId, parentKey)
     }
   }
 
-  // 一、按工作单元逐个列举；scope 给出时只看那一个工作单元
-  const efforts = await listEfforts(ctx)
-  // #1486：规格目录（只有 spec.md、没有 map.md）不在 listEfforts 里；调用方点了这个目录就直接补进来，
-  // 否则会掉进下面的夹具兜底，把 repo.refId 指向的另一个目录的票当成本次范围（跨目录串票）。
-  if (scope !== undefined && !efforts.some(function (e) { return e.effortId === scope })) {
+  // 一、按工作单元逐个列举；scope 给出时只看那一个工作单元。
+  // #1488：发现口从 listEfforts（只认 map.md）换成 listWorkUnits（认 map.md / spec.md / issues/ 三种线索），
+  // 只含 spec.md 或 issues/ 的目录才不会掉进夹具兜底、把别的目录的票串进来。
+  const units = await listWorkUnits(ctx)
+  if (scope !== undefined && !units.some(function (u) { return u.effortId === scope })) {
     const root = await getScratchRoot(ctx)
-    efforts.push({ effortId: scope, dir: plat.join(root, scope) })
+    const probeDir = plat.join(root, scope)
+    // 目录可能还没有（首次写入前的读取）：探测它的容器线索；连目录都没有就按普通票目录算空。
+    const kind = await workUnitKindOf(ctx, probeDir)
+    units.push({ effortId: scope, dir: probeDir, kind: kind === '' ? 'plain' : kind })
   }
-  for (const e of efforts) {
-    if (scope !== undefined && e.effortId !== scope) continue
-    await pushMapRow(plat.join(e.dir, 'map.md'), e.effortId, true)
-    await collectTicketsIn(plat.join(e.dir, 'issues'), e.effortId, true)
+  for (const u of units) {
+    if (scope !== undefined && u.effortId !== scope) continue
+    // 旧版工作区根 issues/（#1488 验收③）：兼容读取留一行日志。只在 list 这条路上记，
+    // 因为 log 取值表按操作名分档，compat/degenerate 这两件事先只登记 list 与 get 四档。
+    if (u.legacy && op === 'list') degraded('legacy-root')
+    if (u.kind === 'map') await pushMapRow(plat.join(u.dir, 'map.md'), u.effortId, true)
+    else if (u.kind === 'spec') await pushSpecRow(plat.join(u.dir, 'spec.md'), u.effortId)
+    // 有容器的工作单元里票是容器子票（parentKey='00'）；只有 issues/ 的普通票目录不给父容器。
+    const parentKey = u.kind === 'plain' || u.legacy ? null : '00'
+    await collectTicketsIn(plat.join(u.dir, 'issues'), u.effortId, parentKey, true)
   }
   // 二、夹具形态兜底（repo.refId 直接当仓库根、没有 .scratch）：仅在没点目录、且全局一个都没找到时走。
   // #1486：点了 feature/effort 就只认那个目录；再退回 refId 会把另一个目录的票当成本次范围（跨目录串票）。
   if (rows.length === 0 && scope === undefined) {
     await pushMapRow(mdPath(repo, 'map', undefined, ctx), scope || '', true)
-    await collectTicketsIn(issuesDir(repo, ctx), scope || '', true)
+    await collectTicketsIn(issuesDir(repo, ctx), scope || '', '00', true)
     // 第三种夹具形态：repo.path 直接当仓库根（地图与 issues/ 都在它下面）。
     // 这里的「地图读不动就连票也不列」是既有行为（整段共用一个 try），照旧不动。
     if (rows.length === 0 && repo && repo.path) {
@@ -173,7 +190,7 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
         const mapP = plat.join(repo.path, 'map.md')
         const txt = await readTextFile(ctx, mapP)
         rows.push(parseMd(txt, { key: '00', parentKey: null, isMap: true, effortId: scope || '', url: mapP }))
-        await collectTicketsIn(plat.join(repo.path, 'issues'), scope || '', false)
+        await collectTicketsIn(plat.join(repo.path, 'issues'), scope || '', null, false)
       } catch {}
     }
   }
@@ -356,7 +373,14 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
   }
   const r=await located(function(){ return resolveIssueFile(ctx,repo,norm,{effortId: scope, mode:'read'}) })
   if(r.ok){
-    try{const iss=await loadIssueFromFile(ctx,repo,r.path,{parentKey:'00',isMap:false,effortId:r.effortId});applyLabelColors(iss, colorMap);return{ok:true,data:sliceComments(iss,opts)}}catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这张票的文件时出错')}
+    // 读成功、但走的是兼容或退化路径（#1488 验收③④）：结果照常返回，只在日志里留一条排查线索。
+    if(r.legacy) emitReadDegraded(ctx,'get','get:legacy-root',Date.now()-t0)
+    if(r.degenerate) emitReadDegraded(ctx,'get','get:dup-number',Date.now()-t0)
+    try{
+      const iss=await loadIssueFromFile(ctx,repo,r.path,{key:r.key,parentKey:r.parentKey,isMap:false,effortId:r.effortId})
+      applyLabelColors(iss, colorMap)
+      return{ok:true,data:sliceComments(iss,opts)}
+    }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这张票的文件时出错')}
   }
   degraded(r.error&&r.error.kind);return{ok:false,error:r.error}
 }
