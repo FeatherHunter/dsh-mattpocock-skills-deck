@@ -2,7 +2,7 @@
 //
 // 契约（票面 #1411 验收①~⑤、⑦、⑨）：
 //   - 挂页面浮层：层由 kernel:portal 的 PortalOverlay 挂到 body，position:fixed，z-index 取 SUGGEST_Z
-//     （胶囊之上、仓库顶层浮层 2147483000 之下）；悬停理由用既有 Tip，层级用它的默认值；
+//     （胶囊之上、仓库顶层浮层 2147483000 之下）；悬停理由用框正上方浮层，位置固定、不跟鼠标；
 //   - 选项 2~4 颗，点一条走既有 inject（把文本填进输入框、不发送），点完/关闭整组消失；
 //   - 第二组覆盖第一组；真按钮可聚焦，回车/空格填入，Esc 关整组；理由对读屏可读（aria-label）；
 //   - 窄栏不溢出（层宽收在视口内、选项行可换行、单颗有上限）；数据不合法不崩、不渲染半成品；
@@ -80,15 +80,8 @@ async function main() {
   global.SUGGEST_Z = appearanceMod.SUGGEST_Z
   global.SUGGEST_APPEARANCE = appearanceMod.SUGGEST_APPEARANCE
   const injectCalls = []
-  const tipCalls = []
   const portalCalls = []
   global.inject = function (st, text) { injectCalls.push({ st: st, text: text }) }
-  global.Tip = function (props) {
-    const content = props && props.content
-    tipCalls.push(content)
-    const children = props && props.children
-    return React.createElement('span', { 'data-tip': (content === undefined || content === null) ? '' : String(content) }, children)
-  }
   global.PortalOverlay = function (props, children) {
     portalCalls.push(props)
     return React.createElement('div', props || {}, children)
@@ -170,7 +163,6 @@ async function main() {
   // ---------- 1. 基本形状：两颗选项、层属性、层级、锚点、读屏 ----------
   {
     injectCalls.length = 0
-    tipCalls.length = 0
     const m = await mount({
       initial: [
         { intro: '接着做', prompt: '/next', reason: '因为还有一张票没关' },
@@ -179,13 +171,11 @@ async function main() {
       capsuleRect: { left: 100, top: 700, width: 400, height: 36 },
     })
     check(m.pills().length === 2, '基本：显示 2 颗选项')
-    // #1451：一颗选项里是两段——简介（短标签）在前、提示词在后；两颗时每颗最大宽度均分整组（(720-6)/2=357）。
-    check(m.pills()[0].querySelector('.dsws-sugg-intro') !== null && m.pills()[0].querySelector('.dsws-sugg-intro').textContent === '接着做',
-      '基本：简介单独一段显示在提示词前面')
-    check(m.pills()[0].querySelector('.dsws-sugg-cmd') !== null && m.pills()[0].querySelector('.dsws-sugg-cmd').textContent === '/next',
-      '基本：提示词一段显示在简介后面')
+    // #1451 后续：选项框上只印简介，提示词不进按钮（点选时才填进输入框）；两颗时每颗最大宽度均分整组（(720-6)/2=357）。
+    check(m.pills()[0].textContent === '接着做', '基本：选项框上只显示简介')
+    check(m.pills()[0].querySelector('.dsws-sugg-cmd') === null && m.pills()[0].textContent.indexOf('/next') < 0, '基本：提示词不进按钮（点选时才填）')
     check(m.pills()[0].style.maxWidth === '357px' && m.pills()[1].style.maxWidth === '357px', '基本：两颗时每颗最大宽度均分整组（(720-6)/2=357）')
-    check(m.pills()[0].className.indexOf('cmd') >= 0, '基本：斜杠命令加 cmd 字形类')
+    check(m.pills()[0].parentNode !== null && m.pills()[0].parentNode.className.indexOf('dsws-sugg-pill-wrap') >= 0, '基本：有理由的选项包在定位壳里（浮层按框顶边摆）')
     const layer = m.layer()
     check(layer !== null, '基本：气泡层已渲染')
     check(layer.getAttribute('role') === 'group', '基本：层 role=group')
@@ -198,13 +188,19 @@ async function main() {
     check(layer.style.left === '300px', '基本：锚点横向 = 胶囊中心（100+400/2）')
     check(layer.style.bottom === '77px', '基本：锚点纵向 = 视口高 - 胶囊顶 + 9（768-700+9）')
     check(m.pills()[0].getAttribute('aria-label') === '接着做 /next；推荐理由：因为还有一张票没关', '基本：选项 aria-label 念「简介 提示词」并含推荐理由（读屏可读）')
-    check(tipCalls.indexOf('因为还有一张票没关') >= 0 && tipCalls.every(function (c) { return c === '因为还有一张票没关' }), '基本：有理由的选项挂既有 Tip，内容就是理由')
+    check(m.pills()[0].parentNode.querySelector('.dsws-sugg-pop') !== null && m.pills()[0].parentNode.querySelector('.dsws-sugg-pop').textContent === '因为还有一张票没关', '基本：理由收进框正上方的浮层，内容就是理由')
+    check(m.pills()[0].getAttribute('aria-describedby') === m.pills()[0].parentNode.querySelector('.dsws-sugg-pop').getAttribute('id'), '基本：按钮用 aria-describedby 指到自己的浮层')
     check(m.pills()[1].getAttribute('aria-label') === '收尾 继续收尾', '基本：没理由的选项 aria-label 念「简介 提示词」，不念理由')
+    check(m.pills()[1].parentNode.querySelector('.dsws-sugg-pop') === null, '基本：没理由的选项不挂浮层')
     check(m.sr() !== null && m.sr().getAttribute('role') === 'status' && m.sr().getAttribute('aria-live') === 'polite', '基本：读屏播报节点 role=status aria-live=polite')
     check(m.sr().textContent === '有 2 条下一步建议', '基本：读屏播报条数')
     check(m.closeBtn() !== null && m.closeBtn().getAttribute('type') === 'button', '基本：关闭是真按钮')
     check(m.closeBtn().getAttribute('aria-label') === '关闭（等于一条都不选）', '基本：关闭按钮 aria-label 说明含义')
     check(portalCalls.length >= 1, '基本：层经 PortalOverlay 挂载（与胶囊菜单同招）')
+    await m.fire(m.pills()[0], 'mouseover', new win.MouseEvent('mouseover', { bubbles: true, cancelable: true }))
+    check(m.pills()[0].parentNode.className.indexOf('dsws-sugg-show-pop') >= 0, '基本：鼠标进入选项框浮层显现（固定在框上方，不跟鼠标）')
+    await m.fire(m.pills()[0], 'mouseout', new win.MouseEvent('mouseout', { bubbles: true, cancelable: true }))
+    check(m.pills()[0].parentNode.className.indexOf('dsws-sugg-show-pop') < 0, '基本：鼠标离开选项框浮层收起')
     await m.unmount()
 
     // 三条、四条时也要排得进一行：宽度按条数均分，条数越多每颗越窄（#1451）。
@@ -314,11 +310,11 @@ async function main() {
     check(mBad.layer() === null && mBad.pills().length === 0, '防御：items 不是数组时安静不渲染')
     await mBad.unmount()
 
-    tipCalls.length = 0
     const mMix = await mount({ initial: [null, {}, { prompt: '' }, { prompt: '好的', reason: 123 }, { prompt: '第二条', reason: '有理由' }] })
     check(mMix.pills().length === 2, '防御：坏条目被过滤，只留 prompt 非空的')
     check(mMix.pills()[0].getAttribute('aria-label') === '好的', '防御：reason 不是字符串就不当理由')
-    check(tipCalls.indexOf('有理由') >= 0 && tipCalls.every(function (c) { return c === '有理由' }), '防御：只有字符串理由才挂 Tip')
+    check(mMix.pills()[0].parentNode.querySelector('.dsws-sugg-pop') === null, '防御：reason 不是字符串就不挂浮层')
+    check(mMix.pills()[1].textContent === '第二条' && mMix.pills()[1].parentNode.querySelector('.dsws-sugg-pop').textContent === '有理由', '防御：只有字符串理由才挂浮层，框里仍只显示简介')
     await mMix.unmount()
   }
 
@@ -355,8 +351,10 @@ async function main() {
     check(css.indexOf(':focus-visible') >= 0, '样式：键盘焦点可见')
     check(css.indexOf('.dsws-sugg-sr') >= 0, '样式：读屏节点视觉隐藏')
     check(css.indexOf('--dsw-alias-') >= 0, '样式：颜色走宿主主题 token（亮暗主题都不用另写）')
-    check(css.indexOf('.dsws-sugg-intro') >= 0 && css.indexOf('.dsws-sugg-cmd') >= 0, '样式：简介与提示词两段的样式存在（简介不压缩、提示词省略）')
-    check(css.indexOf('gap:' + appearanceMod.SUGGEST_APPEARANCE.pillIntroGapPx + 'px') >= 0, '样式：简介与提示词的间距来自外观旋钮')
+    check(css.indexOf('.dsws-sugg-intro') >= 0 && css.indexOf('.dsws-sugg-pill-wrap') >= 0 && css.indexOf('.dsws-sugg-pop') >= 0, '样式：简介、浮层定位壳、浮层的样式都在')
+    check(css.indexOf('.dsws-sugg-cmd') < 0, '样式：提示词不再进按钮，旧的两段样式已删')
+    check(css.indexOf('bottom:calc(100% + ' + appearanceMod.SUGGEST_APPEARANCE.popGapPx + 'px)') >= 0, '样式：浮层固定在框顶边正上方（间距来自外观旋钮，不跟鼠标）')
+    check(css.indexOf('max-width:' + appearanceMod.SUGGEST_APPEARANCE.popMaxWidthPx + 'px') >= 0, '样式：浮层最大宽度来自外观旋钮')
     check(css.indexOf('prefers-reduced-motion') >= 0, '样式：尊重系统减少动效偏好')
   }
 
@@ -378,7 +376,8 @@ async function main() {
     check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillFontPx') >= 0 && stylesSrc.indexOf('12.5') < 0, '守卫：样式尺寸来自外观旋钮，不写死数字')
     check(stylesSrc.indexOf('--dsw-alias-') >= 0, '守卫：样式颜色只用主题 token')
     check(bubbleSrc.indexOf('setInterval') < 0 && bubbleSrc.indexOf('setTimeout') < 0, '守卫：气泡薄壳不新增定时器')
-    check(bubbleSrc.indexOf('dsws-sugg-intro') >= 0 && bubbleSrc.indexOf('dsws-sugg-cmd') >= 0, '守卫：气泡薄壳把简介与提示词分成两段渲染')
+    check(bubbleSrc.indexOf('dsws-sugg-intro') >= 0 && bubbleSrc.indexOf('dsws-sugg-pop') >= 0 && bubbleSrc.indexOf('dsws-sugg-pill-wrap') >= 0, '守卫：气泡薄壳只印简介，理由进正上方浮层')
+    check(bubbleSrc.indexOf('dsws-sugg-cmd') < 0 && bubbleSrc.indexOf('Tip') < 0, '守卫：按钮里不再有提示词那段，也不再用跟鼠标走的悬停提示')
     check(bubbleCode.indexOf('sessions') < 0 && bubbleCode.indexOf('retain') < 0 && bubbleCode.indexOf('.binding') < 0, '守卫：气泡薄壳不碰会话服务（只读订阅在取数层）')
     check(streamSrc.indexOf('SuggestBubble') >= 0, '接线：取数层的挂载组件把建议交给气泡')
     check(indexSrc.indexOf('leaf:suggestAppearance') >= 0 && indexSrc.indexOf('leaf:suggestStyles') >= 0 && indexSrc.indexOf('leaf:suggestBubble') >= 0, '接线：三片叶子在入口登记了拼接标记')

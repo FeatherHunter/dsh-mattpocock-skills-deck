@@ -1,10 +1,10 @@
 // src/client/statusbar/suggestBubble.ts —— 「下一步建议」气泡的渲染与交互薄壳（#1411）
 //
 // 职责：把取数层（#1409 的 suggestStream）交来的 items = {intro, prompt, reason}[] 画成状态胶囊
-// 上方的一组气泡：每颗选项是一颗按钮，按钮上是「十字以内的简介 + 提示词」（#1451：原来只印整句
-// 提示词，几条一挤就竖着堆成三行，还读不过来），悬停看推荐理由（复用既有 Tip，层级沿用它的默认值），
-// 点一下把提示词交给既有的「填进输入框」口子（kernel 的 inject，自带补尾换行、注入提示与光标落末尾），
-// 随后关闭按钮立刻消失、每颗胶囊化作小泡向上飘走，飘完整组收起（#1451 用户拍板）；
+// 上方的一组气泡：每颗选项是一颗按钮，按钮上只印简介（#1451 后续：原来印「简介 + 提示词」两段，
+// 用户要求只留简介）；完整提示词不进按钮，点一下才把它交给既有的「填进输入框」口子（kernel 的
+// inject，自带补尾换行、注入提示与光标落末尾），随后关闭按钮立刻消失、每颗胶囊化作小泡向上飘走，
+// 飘完整组收起（#1451 用户拍板）；
 // 点关闭按钮同样整组消失（等于一条都不选），走的是更短的整组淡出。
 //
 // 一行排满：每颗按钮的最大宽度按当前条数均分整组宽度（见下面 pillCapPx），条数越多每颗越窄，
@@ -13,7 +13,7 @@
 // 为什么挂页面浮层而不是就地渲染：状态栏那一层有 overflow 裁剪，就地渲染会把气泡切掉。
 // 挂 body 的做法与胶囊弹菜单同一招（kernel:portal 的 PortalOverlay 直接调用，第二个参数是子节点），
 // 层级用 suggestAppearance 里的具名常量 SUGGEST_Z（胶囊之上、仓库顶层浮层 2147483000 之下）；
-// 悬停理由用既有 Tip，层级仍是它的默认值，所以永远在气泡之上。
+// 悬停理由用框正上方的浮层（.dsws-sugg-pop，样式叶子画、位置固定在框顶边、不跟鼠标走），读屏照旧从按钮的 aria-label 念。
 //
 // 硬约束（票面 #1411）：
 //   - 只读借用：界面绝不碰会话服务里那几个保活接口（#1409 已设守卫，本文件连 sessions 都不提）；
@@ -25,7 +25,6 @@
 //   模块真源是 ESM 导出，构建时剥掉行首 export 拼进 apply 闭包；运行时不许跨文件 import；
 //   不许 export default；只写可剥离的 TypeScript（不用 enum、不用构造函数参数属性）。
 declare const PortalOverlay: any;
-declare const Tip: any;
 declare function inject(...args: any[]): any;
 declare const SUGGEST_Z: any;
 declare const SUGGEST_APPEARANCE: any;
@@ -210,30 +209,46 @@ export const SuggestBubble = function (props: any) {
     const intro = (typeof item.intro === 'string') ? item.intro : ''
     const prompt = item.prompt
     const reason = item.reason
-    const isCommand = prompt.charAt(0) === '/'
     // 读屏念「简介 提示词」；没有简介的旧事件只念提示词。
     const spoken = intro ? intro + ' ' + prompt : prompt
-    // 有简介时按钮里是两段：简介不参与压缩、提示词超长单行省略；没有简介时沿用一段纯文本。
+    // 选项框上只印简介（#1451 后续拍板）：提示词不进按钮，点选时才原样填进输入框；
+    // 没有简介的旧事件退回只印提示词。理由收进框正上方的浮层，进出由外层负责显隐。
     const label = intro
-      ? [
-          React.createElement('span', { key: 'suggest-intro-' + index, className: 'dsws-sugg-intro' }, intro),
-          React.createElement('span', { key: 'suggest-cmd-' + index, className: 'dsws-sugg-cmd' }, prompt),
-        ]
+      ? React.createElement('span', { key: 'suggest-intro-' + index, className: 'dsws-sugg-intro' }, intro)
       : prompt
+    const popId = 'suggest-pop-' + groupKey + '-' + index
     const button = React.createElement('button', {
       key: 'suggest-pill-' + index,
       type: 'button',
-      className: 'dsws-sugg-pill' + (isCommand ? ' cmd' : ''),
+      className: 'dsws-sugg-pill',
       'data-press': 'button',
       'data-log': 'suggest.pill',
       style: { maxWidth: pillCapPx + 'px' },
       'aria-label': reason ? tr('suggest.ariaPill', { prompt: spoken, reason: reason }) : spoken,
+      'aria-describedby': reason ? popId : undefined,
       onClick: function (ev: any) { onPillClick(ev, prompt) },
       onKeyDown: function (ev: any) { onPillKey(ev, prompt) },
     }, label)
-    if (!reason) return button
-    // 悬停提示复用既有 Tip：内容就是推荐理由，层级用它的默认值（永远在气泡之上）。
-    return React.createElement(Tip, { content: reason, key: 'suggest-tip-' + index }, button)
+    // 没有理由也不裸奔：照样包进定位壳（只是里面不放浮层），有理由没理由 DOM 形状一致。
+    function showPop(ev: any) {
+      try { if (ev && ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.add('dsws-sugg-show-pop') } catch (eShow) {}
+    }
+    function hidePop(ev: any) {
+      try { if (ev && ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.remove('dsws-sugg-show-pop') } catch (eHide) {}
+    }
+    return React.createElement('span', {
+      key: 'suggest-wrap-' + index,
+      className: 'dsws-sugg-pill-wrap',
+      onMouseEnter: showPop,
+      onMouseLeave: hidePop,
+      onFocus: showPop,
+      onBlur: hidePop,
+    }, reason ? [button, React.createElement('div', {
+      key: 'suggest-pop-' + index,
+      id: popId,
+      className: 'dsws-sugg-pop',
+      role: 'tooltip',
+    }, reason)] : button)
   }
 
   if (!items.length) return null
