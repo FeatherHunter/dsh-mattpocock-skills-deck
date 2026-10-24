@@ -144,7 +144,10 @@ async function main(): Promise<void> {
   const linkB = await tools.deck_map_link.run(exec, { key: newKey, feature: 'beta', blockedBy: ['01'] })
   check(linkB.status === 'ok', '补边 feature=beta 落在 beta（' + linkB.status + '）')
 
-  // 批量建图：带 alpha 建到 alpha
+  // 批量建图：带 alpha 建到 alpha。
+  // #1487 起原文布局一个目录只允许一份 map.md（地图容器占 00）：上面快照断言用的那份手写 alpha/map.md
+  // 到这里已经用完，先清掉给计划新建的地图腾位，否则建图会被如实拒绝，测不到「带 effort=alpha 就落在 alpha」。
+  fs.rmSync(path.join(ws.root, '.scratch', 'alpha', 'map.md'))
   const plan = await tools.deck_map_plan_create.run(exec, { title: 'Alpha 批量图', effort: 'alpha', planId: 'plan-784-8-a', children: [{ key: 'b1', title: '批量子票一', kind: 'issue' }] })
   check(plan.status === 'ok' && plan.data.mapKey, '批量建图 effort=alpha 建成（map=' + (plan.data && plan.data.mapKey) + '）')
   const snapAfter = await tools.deck_map_snapshot.run(exec, { key: plan.data.mapKey, effort: 'alpha' })
