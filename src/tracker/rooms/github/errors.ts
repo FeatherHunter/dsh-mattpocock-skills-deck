@@ -125,6 +125,17 @@ export const GH_ERROR_RULES: readonly ErrorRule[] = [
     example: { text: 'HTTP 422: Validation Failed (Label.color is invalid)' },
     note: 'GitHub 用 422 + Validation Failed 拒绝不合法的入参值，归解析档',
   },
+  {
+    kind: ERROR_KIND.UNSUPPORTED,
+    layer: 'phrase',
+    // #1418 实测：issues / pullRequests 两条连接自己只肯给 100 条一页。要 200 时 GitHub 回这一句——
+    //   回文形如「Requesting 200 records on the `issues` connection exceeds the `first` limit of 100 records.」
+    // 这种拒绝重试无用（同样的参数再问一次还是同一句），归「不支持」档，界面按换条路提示，
+    // 不要让用户等一会儿再试。样本是 2026-10-24 真仓原话（脱敏：只有连接名与两个数字）。
+    pattern: /excessive[ _]?pagination|exceeds the [`'"]?first[`'"]? limit/i,
+    example: { text: 'Requesting 200 records on the `issues` connection exceeds the `first` limit of 100 records.' },
+    note: '#1418：GitHub 连接单页上限 100，问多了回这个错，重试无用，归不支持档',
+  },
 ]
 
 /**

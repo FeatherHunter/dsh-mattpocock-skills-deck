@@ -10,13 +10,15 @@
  *
  * 两个事件（都在 #489 附录里登记，字段白名单见 tests/verify-log-fields.ts）：
  *  - `read.degraded`（警告级，常驻）：一条读操作本来能成、这一趟没成，或者成得不完整。一趟一行。
- *    字段 `{op, reason, latencyMs}`；`op` 取 READ_DEGRADED_OPS 里的值，`reason` 取 READ_DEGRADED_REASONS 里的值。
+ *    字段 `{op, reason, latencyMs, kind, limitBefore, limitAfter}`；`op` 取 READ_DEGRADED_OPS 里的值，`reason` 取 READ_DEGRADED_REASONS 里的值。
+ *    `kind` 是判档结果（network / unsupported / ……，没判出档就为空串），`limitBefore`/`limitAfter` 是这一趟
+ *    因「一次要多了」换页大小时的前后单页条数（与页大小无关的分支一律记 0）。
  *    写成警告级的理由：warning 始终落盘，查「这张地图怎么空了」的人不会先打开调试开关。
  *  - `preflight.gate`（警告级，常驻）：探测那三项门禁每过一项各落一行，第三项过了也落一行。
  *    字段 `{gate, reason, latencyMs}`。为什么过了也记：不然「探测全过」在日志里只剩三行长得一样的 gh.exec，
  *    读的人看不出这三行就是探测那三关，也看不出「走到第三关、过了」。失败那一路不落这个，落上面的 read.degraded。
  *
- * 字段只有短枚举与毫秒数，三样东西一个字都不记：**票号、命令原文、上游报错原文**。
+ * 字段只有短枚举、毫秒数与单页条数，三样东西一个字都不记：**票号、命令原文、上游报错原文**。
  * 改 `reason` 的取值含义就当改事件，照 #489 附录的规矩另立一条，不要就地改意思。
  *
  * 记日志那层壳与耗时归一化搬去了 `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：三座房的
@@ -106,6 +108,7 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'listPage:total',
   'listPage:cursor',
   'listPage:no-cursor',
+  'listPage:page-size',
   'subIssues:repo-ref',
   'subIssues:gql-err',
   'subIssues:json',
@@ -151,11 +154,28 @@ type LoggerCtx = Pick<OpContext, 'isEnabled' | 'logEvent'>
  * @param op 哪条读操作，取 READ_DEGRADED_OPS 里的值
  * @param reason 为什么，取 READ_DEGRADED_REASONS 里的值
  * @param latencyMs 这一笔从入口到这里的耗时（毫秒）
+ * @param extra 可选：这一趟的判档（kind）与换了页大小时的前后条数（#1418）
  */
-export function emitReadDegraded(ctx: OpContext | null | undefined, op: string, reason: string, latencyMs: unknown): void {
+export function emitReadDegraded(ctx: OpContext | null | undefined, op: string, reason: string, latencyMs: unknown, extra?: { kind?: unknown; limitBefore?: unknown; limitAfter?: unknown }): void {
   guardEmit(ctx, (c) => {
-    c.logEvent('warn', 'read.degraded', { op: String(op || ''), reason: String(reason || ''), latencyMs: ms(latencyMs), opId: String(c.opId || '') })
+    // #1418：三格仍是短枚举与数字（不记任何原文）。不降级的分支也把键写出来（kind 空串、条数 0）——
+    //   日志门禁按对象字面量的键集合比对，缺键会红；读日志的人也不必猜「这行怎么少两格」。
+    c.logEvent('warn', 'read.degraded', {
+      op: String(op || ''),
+      reason: String(reason || ''),
+      latencyMs: ms(latencyMs),
+      opId: String(c.opId || ''),
+      kind: String((extra && extra.kind) || ''),
+      limitBefore: count0(extra && extra.limitBefore),
+      limitAfter: count0(extra && extra.limitAfter),
+    })
   })
+}
+
+/** 单页条数：拿不到或不成数就记 0（0 表示这一趟跟页大小无关）。 */
+function count0(v: unknown): number {
+  const n = Number(v)
+  return isFinite(n) && n > 0 ? Math.floor(n) : 0
 }
 
 /**
