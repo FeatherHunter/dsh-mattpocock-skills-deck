@@ -92,10 +92,18 @@ async function main() {
   const bubbleMod = await imp('src/client/statusbar/suggestBubble.ts')
 
   // ---------- 渲染夹具：真 jsdom + 真 React，只有跨叶子调用是桩 ----------
+  const extraInputs = []
   async function mount(options) {
     const opts = options || {}
     const host = document.createElement('div')
     document.body.appendChild(host)
+    // 输入框锚点用：真的往文档里塞 textarea（宿主输入框的最小仿形），量不到时自然退回胶囊。
+    if (opts.inputRect) {
+      const input = document.createElement('textarea')
+      input.getBoundingClientRect = function () { return opts.inputRect }
+      document.body.appendChild(input)
+      extraInputs.push(input)
+    }
     const capsule = document.createElement('div')
     capsule.className = 'dsws-capsule'
     if (opts.capsuleRect) {
@@ -153,6 +161,10 @@ async function main() {
       async unmount() {
         await act(async function () { root.unmount() })
         if (host.parentNode) host.parentNode.removeChild(host)
+        while (extraInputs.length) {
+          const input = extraInputs.pop()
+          if (input && input.parentNode) input.parentNode.removeChild(input)
+        }
       },
     }
   }
@@ -225,6 +237,65 @@ async function main() {
     check(m4.pills().length === 4 && m4.pills().every(function (p) { return p.style.maxWidth === '175px' }),
       '基本：四条时每颗最大宽度均分整组（(720-18)/4=175）')
     await m4.unmount()
+  }
+
+  // ---------- 1.5 输入框锚点：用户拍板把锚点改到输入框（折叠不折叠它都在，不再偏左） ----------
+  {
+    // 有输入框时按输入框定：横向对准输入框中心（200+800/2=600），纵向顶边 600 → 768-600+9=177。
+    const mIn = await mount({
+      initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
+      inputRect: { left: 200, top: 600, width: 800, height: 44 },
+      capsuleRect: { left: 100, top: 700, width: 400, height: 36 },
+    })
+    check(mIn.layer() !== null && mIn.layer().style.left === '600px', '输入框锚点：横向对准输入框中心，而不是状态胶囊中心')
+    check(mIn.layer().style.bottom === '177px', '输入框锚点：纵向贴在输入框顶边上方（768-600+9）')
+    await mIn.unmount()
+    // 一个输入框都找不到时仍退回状态胶囊（老宿主、没有 textarea 的界面）。
+    const mNoIn = await mount({
+      initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
+      capsuleRect: { left: 100, top: 700, width: 400, height: 36 },
+    })
+    check(mNoIn.layer().style.left === '300px', '输入框锚点：找不到输入框时退回胶囊中心（100+400/2）')
+    await mNoIn.unmount()
+    // 页面上有好几个输入域时挑最宽的那个（小的搜索框不该抢锚点）。
+    const narrow = document.createElement('textarea')
+    narrow.getBoundingClientRect = function () { return { left: 0, top: 500, width: 120, height: 30 } }
+    document.body.appendChild(narrow)
+    const mWidest = await mount({
+      initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
+      inputRect: { left: 300, top: 620, width: 640, height: 44 },
+    })
+    check(mWidest.layer().style.left === '620px', '输入框锚点：多个输入域时挑最宽的那个当锚点（300+640/2）')
+    await mWidest.unmount()
+    if (narrow.parentNode) narrow.parentNode.removeChild(narrow)
+  }
+
+  // ---------- 1.6 浮层里的分数泡：模型打了分就印出来，没打分就不印 ----------
+  {
+    const mScore = await mount({
+      initial: [
+        { intro: '先做', prompt: '/a', reason: '卡在后面', priority: 9.5 },
+        { intro: '后做', prompt: '/b', reason: '顺手做', priority: 3 },
+        { intro: '不打分', prompt: '/c', reason: '看情况' },
+      ],
+    })
+    const pops = function () { return Array.prototype.slice.call(mScore.holder.querySelectorAll('.dsws-sugg-pop')) }
+    check(pops().length === 3, '分数泡：三颗选项各有自己的浮层')
+    const scoreSpans = function () { return Array.prototype.slice.call(mScore.holder.querySelectorAll('.dsws-sugg-score')) }
+    check(scoreSpans().length === 2, '分数泡：只有打了分的两条印分数泡（没打分的那条不印）')
+    check(scoreSpans()[0].textContent === '9.5' && scoreSpans()[1].textContent === '3', '分数泡：印出模型给的原始分数（9.5 与 3）')
+    check(pops()[0].querySelector('.dsws-sugg-reason') !== null && pops()[0].querySelector('.dsws-sugg-reason').textContent === '卡在后面', '分数泡：理由仍在同一浮层里（分数在上、理由在下）')
+    check(pops()[2].querySelector('.dsws-sugg-score') === null && pops()[2].textContent === '看情况', '分数泡：没打分的浮层只有理由')
+    const mZero = await mount({
+      initial: [
+        { intro: '最后', prompt: '/a', reason: 'r', priority: 0 },
+        { intro: '其次', prompt: '/b', reason: 'r', priority: 6 },
+      ],
+    })
+    const zeroScore = mZero.holder.querySelector('.dsws-sugg-score')
+    check(zeroScore !== null && zeroScore.textContent === '0', '分数泡：0 分也印出来（0 是「最后再做」，不是没打分）')
+    await mZero.unmount()
+    await mScore.unmount()
   }
 
   // ---------- 2. 点一条：走既有 inject、不发送、整组消失 ----------

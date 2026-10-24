@@ -34,7 +34,8 @@ declare function createSuggestEngine(...args: any[]): any;
 const SUGGEST_VIEW_MAX_ITEMS = 4
 
 /**
- * 清洗 items：只留 prompt 是非空字符串的条目，条数截到上限；reason 不是字符串就当没有理由。
+ * 清洗 items：只留 prompt 是非空字符串的条目，条数截到上限；reason 不是字符串就当没有理由；
+ * priority 不是有效数字就当没打分（null），排序与浮层都不认它。
  * 为什么要再洗一遍：取数层保证的是「工具参数校验过」，但界面侧不假设数据一定合法（票面⑥）。
  */
 export const suggestViewItemsOf = function (items: any) {
@@ -48,36 +49,80 @@ export const suggestViewItemsOf = function (items: any) {
       if (typeof prompt !== 'string' || !prompt) continue
       const intro = (typeof item.intro === 'string') ? item.intro : ''
       const reason = (typeof item.reason === 'string') ? item.reason : ''
-      out.push({ intro: intro, prompt: prompt, reason: reason })
+      const priority = (typeof item.priority === 'number' && Number.isFinite(item.priority)) ? item.priority : null
+      out.push({ intro: intro, prompt: prompt, reason: reason, priority: priority })
     }
   } catch (eItems) {}
   return out
 }
 
+/** 找输入框：textarea 或 contenteditable 里量得到宽高、宽度最大的那个（界面上可能还有小的
+ *  搜索框与隐藏输入域，输入框是最宽的那个；量不到宽高的一律跳过，jsdom 里也就自然退回兜底）。 */
+export const suggestInputOf = function () {
+  try {
+    if (typeof document === 'undefined' || !document.querySelectorAll) return null
+    const nodes = document.querySelectorAll('textarea, [contenteditable="true"]')
+    let widest: any = null
+    let widestPx = 0
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i] as any
+      if (!el || typeof el.getBoundingClientRect !== 'function') continue
+      if (el.disabled) continue
+      if (typeof el.getAttribute === 'function' && el.getAttribute('aria-hidden') === 'true') continue
+      const rect = el.getBoundingClientRect()
+      const width = Number(rect && rect.width) || 0
+      const height = Number(rect && rect.height) || 0
+      if (!width || !height) continue
+      if (width > widestPx) { widestPx = width; widest = el }
+    }
+    return widest
+  } catch (eInput) { return null }
+}
+
+/** 把一个元素的屏幕矩形换成整组落点：横向取中心，纵向取「顶边到视口底边」再加间距。
+ *  量不到宽高（隐藏、jsdom 没布局）返回 null，由调用方换下一种锚点。 */
+function anchorOfRect(rect: any) {
+  const width = Number(rect && rect.width) || 0
+  const height = Number(rect && rect.height) || 0
+  if (!width && !height) return null
+  const viewHeight = (typeof window !== 'undefined' && Number(window.innerHeight)) || 0
+  const gap = Number(SUGGEST_APPEARANCE && SUGGEST_APPEARANCE.gapAboveCapsule) || 0
+  return { left: Math.round((Number(rect.left) || 0) + width / 2), bottom: Math.round(viewHeight - (Number(rect.top) || 0)) + gap }
+}
+
 /**
- * 量气泡锚点：优先拿状态胶囊（探针节点最近的 .dsws-capsule）的屏幕矩形，算出气泡底边的
- * 「距视口底边」坐标；拿不到胶囊、或量出来宽高都是 0（jsdom、被隐藏、收起态没有胶囊祖先）时，
- * 退回视口中央靠下的一点。返回 { left, bottom }，单位都是 CSS 像素。
+ * 量气泡锚点：优先输入框（用户拍板把锚点改到输入框——折叠不折叠它都在，横向对准输入框中心，
+ * 收起胶囊后不再偏左）；找不到输入框再退回状态胶囊（探针节点最近的 .dsws-capsule）；
+ * 都量不到才用视口中央靠下的一点。返回 { left, bottom }，单位是 CSS 像素。
+ *
+ * 这个函数先定下整组选项框的位置，动效再按定好的布局量小泡的起落点（位置 effect 排在动效
+ * effect 之前）。输入框高度变化时由 ResizeObserver 重新量，整组跟着输入框走。
  */
 export const suggestAnchorOf = function (probeEl: any) {
   const viewWidth = (typeof window !== 'undefined' && Number(window.innerWidth)) || 0
   const fallback = { left: Math.round(viewWidth / 2), bottom: 120 }
   try {
+    const input = suggestInputOf()
+    const fromInput = (input && typeof input.getBoundingClientRect === 'function') ? anchorOfRect(input.getBoundingClientRect()) : null
+    if (fromInput) return fromInput
+  } catch (eAnchorInput) {}
+  try {
     if (!probeEl || typeof probeEl.closest !== 'function') return fallback
     const capsule = probeEl.closest('.dsws-capsule')
     if (!capsule || typeof capsule.getBoundingClientRect !== 'function') return fallback
-    const rect = capsule.getBoundingClientRect()
-    if (!rect) return fallback
-    const width = Number(rect.width) || 0
-    const height = Number(rect.height) || 0
-    if (!width && !height) return fallback
-    const viewHeight = (typeof window !== 'undefined' && Number(window.innerHeight)) || 0
-    const gap = Number(SUGGEST_APPEARANCE && SUGGEST_APPEARANCE.gapAboveCapsule) || 0
-    return {
-      left: Math.round((Number(rect.left) || 0) + width / 2),
-      bottom: Math.round(viewHeight - (Number(rect.top) || 0)) + gap,
-    }
+    return anchorOfRect(capsule.getBoundingClientRect()) || fallback
   } catch (eAnchor) { return fallback }
+}
+
+/** 浮层内容：打了分的先放一颗分数泡（例如 9.5），下面是理由正文；没打分的只有理由。
+ *  印数字不画进度条：模型给的是「谁更该先做」的相对判断，画条会让人以为它是可校准的刻度。 */
+export const popBodyOf = function (item: any, index: number) {
+  const reason = (item && typeof item.reason === 'string') ? item.reason : ''
+  const priority = (item && typeof item.priority === 'number' && Number.isFinite(item.priority)) ? item.priority : null
+  const nodes: any[] = []
+  if (priority !== null) nodes.push(React.createElement('span', { key: 'suggest-score-' + index, className: 'dsws-sugg-score' }, String(priority)))
+  nodes.push(React.createElement('span', { key: 'suggest-reason-' + index, className: 'dsws-sugg-reason' }, reason))
+  return nodes
 }
 
 /**
@@ -113,18 +158,27 @@ export const SuggestBubble = function (props: any) {
   const evenSharePx = items.length ? Math.floor((groupMaxWidthPx - pillGapPx * (items.length - 1)) / items.length) : 0
   const pillCapPx = (evenSharePx > 0 ? Math.min(singleMaxWidthPx, evenSharePx) : singleMaxWidthPx) || singleMaxWidthPx
 
-  // 位置：挂载后先量一次；视口变化（窗口缩放、页面滚动）再量。都是 DOM 监听，卸载即摘。
+  // 位置：先定框位（挂载量一次，视口变化与输入框高度变化再量）。本 effect 排在动效 effect 之前。
   React.useEffect(function () {
     if (!items.length) return undefined
     function measure() {
       try { setPos(suggestAnchorOf(probeRef.current)) } catch (eMeasure) {}
     }
     measure()
+    let ro: any = null
+    try {
+      const anchorEl = suggestInputOf()
+      if (anchorEl && typeof ResizeObserver !== 'undefined') {
+        ro = new ResizeObserver(function () { measure() })
+        if (ro && typeof ro.observe === 'function') ro.observe(anchorEl)
+      }
+    } catch (eRO) {}
     if (typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('resize', measure)
       window.addEventListener('scroll', measure, true)
     }
     return function () {
+      try { if (ro && typeof ro.disconnect === 'function') ro.disconnect() } catch (eROD) {}
       if (typeof window !== 'undefined' && window.removeEventListener) {
         window.removeEventListener('resize', measure)
         window.removeEventListener('scroll', measure, true)
@@ -212,7 +266,8 @@ export const SuggestBubble = function (props: any) {
     // 读屏念「简介 提示词」；没有简介的旧事件只念提示词。
     const spoken = intro ? intro + ' ' + prompt : prompt
     // 选项框上只印简介（#1451 后续拍板）：提示词不进按钮，点选时才原样填进输入框；
-    // 没有简介的旧事件退回只印提示词。理由收进框正上方的浮层，进出由外层负责显隐。
+    // 没有简介的旧事件退回只印提示词。理由收进框正上方的浮层，打了分的在理由上方再加一颗
+    // 分数泡（例如 9.5），让人一眼看出这条有多优先；进出由外层负责显隐。
     const label = intro
       ? React.createElement('span', { key: 'suggest-intro-' + index, className: 'dsws-sugg-intro' }, intro)
       : prompt
@@ -248,7 +303,7 @@ export const SuggestBubble = function (props: any) {
       id: popId,
       className: 'dsws-sugg-pop',
       role: 'tooltip',
-    }, reason)] : button)
+    }, popBodyOf(item, index))] : button)
   }
 
   if (!items.length) return null
