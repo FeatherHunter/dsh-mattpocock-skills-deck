@@ -253,6 +253,52 @@ console.log('\n== 四、取单票三档与探测找不到地图 ==')
   if (probeLines.length) checkShape(probeLines[0], '探测那一行')
 }
 
+console.log('\n== 四之二、读取端认得旧布局与退化身份（#1488）：兼容与退化各留一行 ==')
+{
+  // 旧版工作区根 issues/：票照常读出，留一条 legacy-root 说明「走的是兼容路径」，
+  // 排查「为什么这张票不在 .scratch 下」时一眼能看到。
+  const legacyWs = fs.mkdtempSync(path.join(tmpRoot, 'ws-legacy-'))
+  fs.mkdirSync(path.join(legacyWs, 'issues'), { recursive: true })
+  fs.writeFileSync(path.join(legacyWs, 'issues', '01-old.md'), '# 旧票\n\nStatus: ready-for-agent\n', 'utf8')
+  const LEGACY_REPO = { backend: 'markdown', refId: '', name: '', url: '' }
+
+  const legacyListCtx = makeCtx(legacyWs)
+  const legacyRows = await listIssues(legacyListCtx, LEGACY_REPO, {})
+  check(legacyRows.ok && legacyRows.data.length === 1, '旧版根目录票 list 照常读出（1 行）→ 实得 ' + (legacyRows.ok ? legacyRows.data.length : '失败') + ' 行')
+  const legacyListLines = degraded(legacyListCtx)
+  check(legacyListLines.length === 1 && String(legacyListLines[0].fields.reason) === 'list:legacy-root',
+    'list 落一行 read.degraded（list:legacy-root）→ ' + legacyListLines.map(lineText).join(' / '))
+  if (legacyListLines.length) checkShape(legacyListLines[0], '旧根目录票那一行（list）')
+
+  const legacyGetCtx = makeCtx(legacyWs)
+  const legacyGot = await getIssue(legacyGetCtx, LEGACY_REPO, '01')
+  check(!!legacyGot.ok, '旧版根目录票 get 照常读出 → ' + (legacyGot.ok ? '成功' : '失败'))
+  const legacyGetLines = degraded(legacyGetCtx)
+  check(legacyGetLines.length === 1 && String(legacyGetLines[0].fields.reason) === 'get:legacy-root',
+    'get 落一行 read.degraded（get:legacy-root）→ ' + legacyGetLines.map(lineText).join(' / '))
+  if (legacyGetLines.length) checkShape(legacyGetLines[0], '旧根目录票那一行（get）')
+
+  // 同一目录里重复编号：显示退化成「目录/编号-文件名」，读得出来，留 dup-number 日志。
+  const dupWs = fs.mkdtempSync(path.join(tmpRoot, 'ws-dup-'))
+  writeEffort(dupWs, 'demo', [['01-one.md', 'ready-for-agent'], ['01-two.md', 'ready-for-agent']])
+
+  const dupListCtx = makeCtx(dupWs)
+  const dupRows = await listIssues(dupListCtx, REPO, {})
+  check(dupRows.ok, '重复编号时 list 不抛错、照常成功')
+  const dupListLines = degraded(dupListCtx)
+  check(dupListLines.length === 1 && String(dupListLines[0].fields.reason) === 'list:dup-number',
+    'list 只落一行 read.degraded（list:dup-number，同趟不按文件数刷屏）→ ' + dupListLines.map(lineText).join(' / '))
+  if (dupListLines.length) checkShape(dupListLines[0], '重复编号那一行（list）')
+
+  const dupGetCtx = makeCtx(dupWs)
+  const dupGot = await getIssue(dupGetCtx, REPO, 'demo/01-one')
+  check(!!dupGot.ok && String((dupGot.data as { title?: string }).title) === '01-one.md', '退化身份照常读得回（key 是「目录/编号-文件名」）→ ' + (dupGot.ok ? String((dupGot.data as { title?: string }).title) : '失败'))
+  const dupGetLines = degraded(dupGetCtx)
+  check(dupGetLines.length === 1 && String(dupGetLines[0].fields.reason) === 'get:dup-number',
+    'get 落一行 read.degraded（get:dup-number）→ ' + dupGetLines.map(lineText).join(' / '))
+  if (dupGetLines.length) checkShape(dupGetLines[0], '重复编号那一行（get）')
+}
+
 console.log('\n== 五、连目录都列不出来（不是「这里没有」）：四条读路各留一行 ==')
 {
   const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-e-'))

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T22:04:22.202Z",
+  "generatedAt": "2026-10-24T22:04:47.211Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 367,
-  "gateCount": 367,
-  "attributedGates": 327,
+  "chainLength": 368,
+  "gateCount": 368,
+  "attributedGates": 328,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
@@ -3163,6 +3163,24 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1488-read-mixed-layout.ts",
+      "file": "tests/verify-1488-read-mixed-layout.ts",
+      "guards": [
+        "docs/agents",
+        "docs/agents/issue-tracker.md",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -8693,6 +8711,7 @@
       "node tests/verify-1433-snapshot-layout-file.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1449-layout-single-source.ts",
+      "node tests/verify-1488-read-mixed-layout.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -10018,6 +10037,7 @@
       "node tests/verify-1486-md-create-layout.ts",
       "node tests/verify-1487-map-create.ts",
       "node tests/verify-1487-map-plan.ts",
+      "node tests/verify-1488-read-mixed-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",

@@ -105,7 +105,8 @@ export async function listIssuesPage(ctx: OpContext, repo: RepoWithPath, filter:
     }
     const wanted = labelsOf(filter)
     const narrow = narrowStateOf(filter)
-    let tickets = rows.filter(function (r) { return r && r.type !== ISSUE_TYPE.MAP })
+    // 分页只切票：容器行（地图 map.md / 规格 spec.md，见 #1488）不进页。
+    let tickets = rows.filter(function (r) { return r && r.type !== ISSUE_TYPE.MAP && r.type !== ISSUE_TYPE.SPEC })
     if (wanted.length) tickets = tickets.filter(function (r) { return hasAllLabels(r, wanted) })
     if (narrow) tickets = tickets.filter(function (r) { return narrow === STATE.CLOSED ? r.state === STATE.CLOSED : r.state !== STATE.CLOSED })
     const sorted = tickets.slice().sort(byCreatedAtDesc)
