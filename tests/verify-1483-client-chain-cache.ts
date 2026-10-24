@@ -11,6 +11,9 @@
 //   C 旧条目没有会话号 → 也补问一次（不知道是谁量的，按可能不同处理）
 //   D 同一会话同一把键只补问一次（面板轮询不反复触发）
 //   E 没有缓存时正常发请求：带会话号，落缓存时记下产出会话号
+//   G 交替会话：共享条目被另一个会话回写后，本会话再命中要按新产出者再补问一次（守卫不能只认本会话）
+//   H 补问绕开在途搭车：同键上已经挂着别的会话的一趟请求时，补问仍要自己发一次（否则写进别人的会话状态）
+//   I 拿不到会话号的调用方不补问：只秒显共享快照、不发请求（#669「打开检查页不联网」的契约靠这里保住）
 //
 // 运行：node tests/verify-1483-client-chain-cache.ts
 // 门禁归属: src/refresh/rooms/client/probe-chain-subscription.ts, src/refresh/rooms/client/snapshot-cache-store.ts
@@ -48,6 +51,8 @@ function makeWorld(): AnyObj {
     chainSource: 'background',
     tag: tag,
   })
+  // H 用：挂住 host.call，让同一个键上先有一趟请求在飞。
+  const hang: AnyObj = { promise: null }
   const sandbox: AnyObj = {
     promptLang: () => 'zh',
     wsKeyOf: (cwd: string) => String(cwd || ''),
@@ -62,6 +67,7 @@ function makeWorld(): AnyObj {
     host: {
       call: (method: string, args: AnyObj) => {
         requests.push({ method: method, args: args })
+        if (hang.promise) return hang.promise
         return Promise.resolve(replyFor('fresh-' + requests.length))
       },
     },
@@ -79,7 +85,7 @@ function makeWorld(): AnyObj {
   }
   vm.createContext(sandbox)
   vm.runInContext(asSnippet(readSource('src/refresh/rooms/client/probe-chain-subscription.ts')) + '\nglobalThis.loadChain = loadChain;', sandbox)
-  return { entries, requests, setCalls, keyOf, loadChain: (sandbox as AnyObj).loadChain, replyFor }
+  return { entries, requests, setCalls, keyOf, loadChain: (sandbox as AnyObj).loadChain, replyFor, hang }
 }
 
 async function main(): Promise<void> {
@@ -119,6 +125,44 @@ async function main(): Promise<void> {
     ok(w.requests.length === 1, 'D 同一会话同一把键只补问一次', w.requests.length)
   }
 
+  // G. 交替会话：条目被 s2 回写后，s1 再命中也必须补问（守卫按产出者记，不只看本会话）
+  {
+    const w = makeWorld()
+    w.entries.set(w.keyOf('/ws', 'markdown', 'zh'), { snapshot: oldSnap('old'), ts: 1, sessionId: 's1' })
+    const st1 = mkState('s1')
+    const st2 = mkState('s2')
+    await w.loadChain(st1, false, 'enter-workspace')
+    await w.loadChain(st2, false, 'enter-workspace')
+    await flush()
+    ok(w.requests.length === 1, 'G s2 跨会话命中后补问一次', w.requests.length)
+    ok(w.entries.get(w.keyOf('/ws', 'markdown', 'zh')).sessionId === 's2', 'G 共享条目的产出者变成 s2')
+    // s1 再命中：这次条目产出者是 s2，虽然 s1 之前补问过（守卫键里的产出者变了），必须再补问一次
+    await w.loadChain(st1, false, 'enter-workspace')
+    await flush()
+    ok(w.requests.length === 2, 'G 产出者换人后 s1 再补问一次（不会永久停在别人的判定上）', w.requests.length)
+    ok(w.requests[1].args.sessionId === 's1', 'G 第二次补问带的是 s1', w.requests[1].args.sessionId)
+    ok(w.entries.get(w.keyOf('/ws', 'markdown', 'zh')).sessionId === 's1', 'G 共享条目产出者回到 s1')
+  }
+
+  // H. 补问绕开在途搭车：同键上挂着别人那趟请求时，补问仍要自己发一次
+  {
+    const w = makeWorld()
+    w.entries.set(w.keyOf('/ws', 'markdown', 'zh'), { snapshot: oldSnap('old'), ts: 1, sessionId: 's1' })
+    w.hang.promise = new Promise((resolve) => { w.hang.release = resolve })
+    const st1 = mkState('s1')
+    const st2 = mkState('s2')
+    // 先让 s2 跨会话命中（不 await：命中那一步是同步完成的，补问已经排进微任务）
+    const p2 = w.loadChain(st2, false, 'enter-workspace')
+    // 紧接着把缓存条目删掉，并让 s1 发一趟没有缓存可走的请求 —— 同键上从此挂着一趟在飞的请求
+    w.entries.delete(w.keyOf('/ws', 'markdown', 'zh'))
+    const p1 = w.loadChain(st1, false, 'enter-workspace')
+    await flush()
+    ok(w.requests.length === 2, 'H 补问没有被在途请求吞掉（自己又发了一次）', w.requests.length)
+    ok(w.requests[1] && w.requests[1].args.sessionId === 's2', 'H 补问请求带的是 s2 的会话号', w.requests[1] && w.requests[1].args.sessionId)
+    w.hang.release(w.replyFor('fresh-h'))
+    await Promise.all([p1, p2, flush()])
+  }
+
   // C. 旧条目没有会话号：也要补问一次
   {
     const w = makeWorld()
@@ -140,6 +184,17 @@ async function main(): Promise<void> {
     const lastSet = w.setCalls[w.setCalls.length - 1] || {}
     ok(lastSet.sessionId === 's4', 'E 落缓存时记下产出会话号', lastSet.sessionId)
     ok(st.chainSnapshot && st.chainSnapshot.fullSnapshot === undefined, 'E 会话状态装的是 fullSnapshot 那一份')
+  }
+
+  // I. 调用方没有会话号：只秒显共享快照，不补问（否则 #669「打开检查页不联网」当场破）
+  {
+    const w = makeWorld()
+    w.entries.set(w.keyOf('/ws', 'markdown', 'zh'), { snapshot: oldSnap('shared'), ts: 1, sessionId: 's1' })
+    const st: AnyObj = { cwd: '/ws', selection: { backendId: 'markdown' } }
+    const got = await w.loadChain(st, false, 'enter-workspace')
+    await flush()
+    ok(w.requests.length === 0, 'I 没有会话号时命中缓存不发请求', w.requests.length)
+    ok(got === w.entries.get(w.keyOf('/ws', 'markdown', 'zh')).snapshot && st.chainSnapshot === got, 'I 没有会话号时照旧秒显共享快照')
   }
 
   console.log(failed ? '\n存在失败' : '\n全部通过')

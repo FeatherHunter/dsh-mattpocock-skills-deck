@@ -8,7 +8,9 @@ import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } f
 import { ghAuthVerdict, probeChainEnv, repoAccessVerdict } from './chain-env-map.js'
 import type { OpenSessionReply } from './chain-env-map.js'
 // #1483：「判定 → 步骤行 / 快照」三件套搬到 chain-step-rows.ts，正常求值与缓存命中重算共用同一套口径；行为逐字保留。
+// 九个形状（判定表、步骤行、单段与拼接快照）也从那里取：两处各写一份时，形状一改就会漂移（审阅指出过）。
 import { assembleFullSnapshot, enrichSnap, stepEvalParallel } from './chain-step-rows.js'
+import type { ChainSnapView, EvalMap, FullSnapView, PredicateResultView, ResolvedMap, ShowView, SnapStepView, SnapStepsView, StepView } from './chain-step-rows.js'
 
 // ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
 // 为什么逐条写在这里：本文件的依赖对象是 src/host/index.ts 里现拼的接线（转制后编译器看得见，形状以各文件的类型为准），
@@ -45,51 +47,8 @@ type CaughtError = { message?: unknown }
 // ── 只读会话的能力面、环境档位表与预检探针已搬到 chain-env-map.ts（#1444）──────────────────
 // 那边写清了为什么拆、档位怎么查、两个谓词怎么分派；本文件只留编排（退避、搭车、快照、缓存、日志）。
 
-/** 一轮求值按检查项 id 汇总的判定：resolveAll 给判定对象，toPredicateResults 给状态串，两路都收。 */
-type PredicateResultView = { status: 'pass' | 'fail' | 'pending'; detail?: string; hint?: string }
-type EvalMap = Record<string, PredicateResultView | 'pass' | 'fail' | null | undefined>
-/** 判定对象那一份（富化步骤用的 detail/hint 只在这一路里）。 */
-type ResolvedMap = Record<string, PredicateResultView | undefined>
-
-/** 展示数据（共享层 Show 的几格；本文件只读 fallback/title/i18nKey/desc/hint）。 */
-type ShowView = { i18nKey?: unknown; title?: unknown; desc?: unknown; fallback?: unknown; hint?: unknown; level?: unknown; params?: unknown }
-
-/**
- * 求值后单步（与共享层 StepSnapshot 同形）。id 写成可缺是照实收：契约里它本来就可选
- *（「未提供时回退用 check 串」）。正文里按 id 查表的两处写着 `as string`——那是给编译器看的，
- * 运行期原样按键查，查不到就当没有。
- */
-type StepView = { id?: string; check?: unknown; status?: string; show?: ShowView | null; actions?: unknown[]; isApplicable?: boolean; blockedBy?: string | null; isCurrent?: boolean; isBlocking?: boolean }
-
-/**
- * 富化（把谓词结果的 detail/hint 并进步骤 show）与拼接视图都按最小形状读快照：只要求「有一串步骤」，
- * 步骤按三格读——id（拿来查判定表）、status（算 done/current）、show（合 detail/hint），其余格子原样带回去。
- * 为什么不直接用整份 ChainSnapView：拼接出来的那一份没有 failedIndex（拼接层不判「第几个失败」），
- * 而富化对它碰不到的格子本来就不该提要求。
- */
-type SnapStepView = { id?: string; status?: string; show?: ShowView | null }
-type SnapStepsView = { steps: SnapStepView[] }
-
-/** 拼接视图：两段链的步骤按清单排序后合成的一份视图，除步骤外还带计数与版本（消费侧只读）。 */
-type FullSnapView = SnapStepsView & { currentIndex: number | null; doneCount: number; applicableCount: number; totalCount: number; chainState: string; version: string }
-
 /** 后端段这一包：链、判定、快照与校验错（快照会过一遍富化，所以按富化认的最小形状装；errors 原样转给界面）。 */
 type BackendChainPack = { chain: CheckItem[]; resolved: ResolvedMap; snapshot: SnapStepsView | null; errors: unknown }
-
-/** 本文件自己拼的链快照：比共享层 ChainSnapshot 多出「算完再补挂」的那三格（补挂前是缺的）。 */
-type ChainSnapView = {
-  steps: StepView[]
-  currentIndex: number | null
-  failedIndex: number
-  doneCount: number
-  applicableCount: number
-  totalCount: number
-  chainState: 'allDone' | 'hasCurrent' | 'pending'
-  version: string
-  isComplete?: boolean
-  hasBlockingFailure?: boolean
-  blockingCheck?: string | null
-}
 
 /** 选择结论：本文件只读 backendId 与 source 两格（显式空是权威结论，见正文注释）。 */
 type Selection = { backendId?: string | null; source?: string }
@@ -193,9 +152,39 @@ export function createDetectChain(deps: DetectChainDeps) {
     return { policy: policy, sessionId: sessionId }
   }
 
+  // #1483：把「没有自己真算、而是拿了别人算好的回包」按当前会话补算一次，返回副本与重算项数。
+  //   两条路会拿到别人的回包：退避缓存回上一份（上一份可能是别的会话求的）、同钥匙在途搭车
+  //   （搭上的是别的会话正在跑的那一轮）。两条都只可能是「依赖会话许可的那几行」不对，其余行
+  //   照旧沿用——这也是这份回包还值得共享的理由。
+  //   失败静默降级回原回包：拿到旧视图好过把整条链打成失败，下一轮自然会按本会话真算一次。
+  async function patchReplyForSession(reply: unknown, chainCwd: string, chainLang: string, chainArgs: any) {
+    let out: unknown = reply
+    let patched = 0
+    try {
+      const anyReply: any = out
+      const items = (anyReply && anyReply.backendChain && Array.isArray(anyReply.backendChain.chain)) ? anyReply.backendChain.chain : null
+      // 先扫一遍再决定要不要动态加载：没有会话相关项时这一趟只花一次数组遍历，不加载模块、不解析沙箱政策。
+      //   patchCachedReplyForSession 自己还会再扫一遍（它是独立入口，不能假定调用方扫过），这里是有意的重复。
+      const hasScoped = !!(items && items.some(function (it: any) { return it && it.sessionScoped === true }))
+      if (hasScoped) {
+        const patchMod = await import('./chain-session-patch.js')
+        const sbInfo = await resolveSessionPolicy(chainCwd, chainArgs && chainArgs.sessionId)
+        const patchedOne = await patchMod.patchCachedReplyForSession(out, { platform: await getPlatform(), cwd: chainCwd, lang: chainLang, backendId: (chainArgs && chainArgs.backendId) || null, sandboxPolicy: sbInfo.policy, sessionId: sbInfo.sessionId, onError: function (msg: string) { try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch-item', errorHash: hash8('patch-item:' + msg) }) } catch (eLog) {} } })
+        out = patchedOne.reply
+        patched = patchedOne.patchedCount
+      }
+    } catch (ePatch) {
+      // 失败不抛给调用方（宁可先给旧视图），但要留一行：否则日志里只剩「这一趟明明命中了缓存、
+      //   只读会话却还是看到可写」，查不出是没重算还是重算失败。
+      try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch', errorHash: hash8('patch:' + String((ePatch && (ePatch as any).message) || ePatch)) }) } catch (eLog) {}
+    }
+    return { reply: out, patched: patched }
+  }
+
   // #709（T5）：退避与全绿缓存整段交给 kernel 的纯函数裁定（薄壳 src/refresh/rooms/host/chain-backoff.js，
   // 数字真源是 host-budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
-  // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
+  // 触发只由几路事件带起来（#1483 起客户端在跨会话命中共享缓存后也会补问一次），宿主侧一个自续定时器都没有；
+  //   人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
   async function handleDetect(args: ChainArgs) {
       const _rawDetectCwd = (args && args.cwd) || ''; if (!String(_rawDetectCwd).trim()) return { ok: true, handle: { cwd: '' }, selection: null, repoHandle: { cwd: '', refId: '' }, explicit: { raw: null, parsed: { explicitBackendId: null } }, preflight: null, skillProbes: null, at: Date.now(), workspaceNotReady: true }; const cwd = await canonicalKey(_rawDetectCwd) // #1003 空目录闸：没目录不冒充
       const force = !!(args && args.force)
@@ -228,7 +217,7 @@ export function createDetectChain(deps: DetectChainDeps) {
       try{
         const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
         // #709（T5）：退避与全绿缓存这一段由纯函数裁定。人亲手点「重新检查」（trigger='user-recheck'）
-        // 永不降档，无论退到第几档都照做；其余三种事件按退避判，挡下的那一次直接回上一份快照。
+        // 永不降档，无论退到第几档都照做；其余各路事件按退避判，挡下的那一次直接回上一份快照。
         // 接线没给退避模块（或它取不到）时按「取不到」处理、照旧求值：可选的加速件不该把整条链打成「链失败」（src/host/repoKeys.js 里同一处依赖也是先判有没有这个函数）。
         const backoff = (typeof getChainBackoff === 'function') ? await getChainBackoff().catch(function () { return null }) : null
         const nowMs = Date.now()
@@ -241,27 +230,17 @@ export function createDetectChain(deps: DetectChainDeps) {
           //   只读会话看到别的会话量出的「可写」。
           //   这里按当前会话重算那几行，返回改好的副本；缓存本体一个字不动（别的会话还要照它秒显）。
           //   重算失败静默降级回原回包：缓存命中本来就允许旧视图，不能因此把整条链打成失败。
-          let cachedReply: unknown = v.cached
-          let patched = 0
-          try {
-            const cachedAny: any = cachedReply
-            const cachedItems = (cachedAny && cachedAny.backendChain && Array.isArray(cachedAny.backendChain.chain)) ? cachedAny.backendChain.chain : null
-            const hasScoped = !!(cachedItems && cachedItems.some(function (it: any) { return it && it.sessionScoped === true }))
-            if (hasScoped) {
-              const patchMod = await import('./chain-session-patch.js')
-              const sbInfo = await resolveSessionPolicy(cwd, args && args.sessionId)
-              const patchedOne = await patchMod.patchCachedReplyForSession(cachedReply, { platform: await getPlatform(), cwd: cwd, lang: chainLang, backendId: (args && args.backendId) || null, sandboxPolicy: sbInfo.policy, sessionId: sbInfo.sessionId })
-              cachedReply = patchedOne.reply
-              patched = patchedOne.patchedCount
-            }
-          } catch (ePatch) {}
-          try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, deferred: true, reason: v.reason, waitMs: v.waitMs, patched: patched } }) } catch (eL) {}
-          return cachedReply
+          //   重算那几行放在 patchReplyForSession 里，与下面「在途搭车」那条路共用同一处。
+          const patchedCache = await patchReplyForSession(v.cached, cwd, chainLang, args)
+          try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, deferred: true, reason: v.reason, waitMs: v.waitMs, patched: patchedCache.patched } }) } catch (eL) {}
+          return patchedCache.reply
         }
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
         // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份；先回来的写缓存，后到的拿同一份；强制不参与合并
         const chainDedupKey = cacheKey + '|' + (force ? '1' : '0')
-        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingRide } }
+        // #1483：搭车拿到的是「另一轮求值」的结果，那一轮用的是发起那一轮的会话许可。凡是有依赖会话许可的项，
+        //   先按本会话补算再交给调用方；不然只读会话搭上可写会话的车，会先看到别人的「可写」。
+        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; const rideReply = await ongoingRide; return (await patchReplyForSession(rideReply, cwd, chainLang, args)).reply } }
         const chainPending = (async function () {
         const platform = await getPlatform()
         // #1444：这次求值的环境预检探针（一次求值只开一次会话、只问一次 preflight；见 createChainEnvProbe）。

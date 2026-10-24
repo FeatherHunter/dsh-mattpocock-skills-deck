@@ -89,7 +89,10 @@ export const CHAIN_EVENT_REASONS: Record<string, string> = {
   userRecheck: 'user-recheck',
   actionDone: 'action-done',
   writeDone: 'write-done',
-  setupPending: 'setup-pending'
+  setupPending: 'setup-pending',
+  // #1483：跨会话命中共享缓存后，本会话在后台补问一次宿主时带的原因。它不是「人叫起来的事件」，
+  //   但同样经 chain.flow.reason 落进日志，所以照枚举登记——日志里不许出现没登记的字面量。
+  crossSessionRevalidate: 'cross-session-revalidate'
 };
 /**
  * 初始化那一步还需不需要重算：链快照里有 tracker:initialized 这一行、且它还不是 done 时为真。
@@ -137,13 +140,17 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
   //   ——宿主自己按退避裁定，命中缓存时会按本会话重算依赖沙箱许可的那几行。
   const _skipLocalCache: boolean = !!(opts && opts.skipLocalCache);
   if (!force) {
-    const inflight: any = _chainInflightByCwd.get(norm);
+    // #1483：跨会话补问必须自己发一次。在途表里挂的可能是别的会话那一趟，搭车只会拿到别人的回包、
+    //   写进别人的会话状态，本会话这一行永远纠正不过来，而补问守卫已经置位（审阅 c2）。
+    const inflight: any = _skipLocalCache ? null : _chainInflightByCwd.get(norm);
     if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(norm) }); } catch (eL) {}; return inflight; }
     // 链共享缓存命中即秒显（#324 新会话首见即秒显；#653 起按工作区键，子目录会话秒显根会话的链）
     // #1483：缓存条目记着「这份是哪个会话求出来的」。同一个会话照旧秒显、不再联网；
     //   不同会话（含旧版本没记会话号的条目）先把旧快照显示出来，再在后台补问一次宿主——
     //   宿主命中缓存时会按本会话重算 md:scratchWritable 这类依赖沙箱许可的行，回来后替换本地这一份。
-    //   同一会话同一把键只补问一次（chainRevalidatedKey），面板轮询不会反复触发。
+    //   守卫按「本会话 + 这份条目的产出会话」记（chainRevalidatedKey）：同一个产出者只补问一次，
+    //   产出者换人（另一个会话又回写了共享条目）就再补问一次。反例（审阅 c1）：只按本会话记守卫，
+    //   两个会话交替命中时 B 会一直显示 A 的行，且因为守卫已置位不再纠正。
     // 反例：跨会话命中直接回旧快照不补问——只读会话会一直看到别的会话量出的「可写」。
     if (!_skipLocalCache) {
       try {
@@ -160,12 +167,21 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
           try {
             const producedBy: string = String((entry && entry.sessionId) || '');
             const mySession: string = String(st.sessionId || '');
-            const revalidateKey: string = norm + '@' + mySession;
-            if (producedBy !== mySession && st.chainRevalidatedKey !== revalidateKey) {
+            // 旧版本落的条目没记产出会话号：分不清是谁算的，按「不同会话」处理，补问一次。
+            const isLegacy: boolean = !entry || entry.sessionId === undefined || entry.sessionId === null;
+            // 没有会话号就不补问：宿主只能按工作区求值，补问拿不到任何本会话的信息，只会白跑一趟；
+            //   而且拿不到会话上下文的调用方（老客户端、测试）本来就读的是共享快照，#669「打开检查页
+            //   不联网」那条契约也靠这里保住。有了会话号才需要纠正「这一行是谁量的」。
+            const revalidateKey: string = norm + '@' + mySession + '@' + producedBy;
+            if (mySession && (isLegacy || producedBy !== mySession) && st.chainRevalidatedKey !== revalidateKey) {
               st.chainRevalidatedKey = revalidateKey;
               const stAtAsk: any = st;
               Promise.resolve().then(function (): any {
                 return loadChain(stAtAsk, false, 'cross-session-revalidate', { skipLocalCache: true });
+              }).then(function (snap: any): void {
+                // 补问没拿到新快照（宿主异常、被竞态守卫丢掉）就放开守卫，面板下一次轮询再试；
+                //   不放开的话，这一次失败会让本会话一直停在别人量出来的那一行。
+                if (!snap) { try { if (stAtAsk.chainRevalidatedKey === revalidateKey) stAtAsk.chainRevalidatedKey = ''; } catch (eClr) {} }
               }).catch(function (): void {});
             }
           } catch (eRv) {}
@@ -238,7 +254,7 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
       try { if (typeof setCachedChain === 'function') setCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain, snap, String(st.sessionId || '')); } catch (eSet) {}
       emit(st);
       // #709（T5）：这里从前会「只要链没全绿就安排 8 秒后再 force 一次」。现在不排任何定时器：
-      // 下一次重算由四种事件带起来，该不该真算由宿主按退避裁定。
+      // 下一次重算由那几路事件带起来，该不该真算由宿主按退避裁定。
       return snap;
     }
     try { log('warn', 'chain.derive.error', { stepId: 'chain.snapshot', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-derive-empty'), 120, 'error')) }); } catch (eL) {}
@@ -248,7 +264,7 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
     // #1363 诊断：异常也要在 chain.flow 上落一行，否则日志里只剩请求没有回包，看不出是「没回来」还是「回来了但丢弃」。
     try { log('info', 'chain.flow', Object.assign({ side: 'reply', outcome: 'error', ageMs: Date.now() - chainT0 }, _chainFlowBase)); } catch (eFl3) {}
     // #709（T5）：这里从前也会排一次 8 秒后的重试。同样退役——宿主异常不该自己给自己续命，
-    // 等四种事件里的下一个到来时自然再试一次。
+    // 等下一路事件到来时自然再试一次。
     return null;
   }).finally(function (): void {
     try { _chainInflightByCwd.delete(norm); } catch (e) {}

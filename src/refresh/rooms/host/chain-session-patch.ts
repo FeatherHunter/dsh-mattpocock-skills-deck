@@ -25,18 +25,15 @@ export type SessionPatchContext = {
   backendId?: string | null
   sandboxPolicy?: unknown
   sessionId?: string
+  /**
+   * 某一项重算失败时的回告出口（可选）。失败本身不抛给调用方——按 pending 落行是设计，
+   * 但诊断日志里要留一行，否则事后分不清「没触发重算」与「重算失败」。
+   */
+  onError?: (message: string) => void
 }
 
 type BackendChainView = { chain?: CheckItem[]; resolved?: ResolvedMap; snapshot?: SnapStepsView | null; errors?: unknown } | null | undefined
 type CachedReplyView = { backendChain?: BackendChainView; fullSnapshot?: FullSnapView | null; [key: string]: unknown }
-
-/** 判定对象的 status → stepEvalParallel 认的状态串（与 predicateCore.toPredicateResults 同口径）。 */
-function statusOf(v: PredicateResultView | undefined): 'pass' | 'fail' | null {
-  const status = v && v.status
-  if (status === 'pass') return 'pass'
-  if (status === 'fail') return 'fail'
-  return null
-}
 
 /**
  * 重算一条会话相关检查项。
@@ -55,6 +52,7 @@ async function evalSessionScoped(item: CheckItem, ctx: SessionPatchContext): Pro
     return { status: 'pending', detail: '谓词没有返回可用的结论' }
   } catch (e) {
     const msg = String((e && (e as { message?: unknown }).message) || e)
+    try { if (typeof ctx.onError === 'function') ctx.onError(msg) } catch (eLog) {}
     return { status: 'pending', detail: msg.slice(0, 200) }
   }
 }
@@ -69,6 +67,9 @@ async function evalSessionScoped(item: CheckItem, ctx: SessionPatchContext): Pro
 export async function patchCachedReplyForSession(reply: unknown, ctx: SessionPatchContext): Promise<{ reply: unknown; patchedCount: number }> {
   const cached = reply as CachedReplyView | null | undefined
   if (!cached || typeof cached !== 'object') return { reply: reply, patchedCount: 0 }
+  // 扫描范围只有后端段：带 sessionScoped 标记的检查项目前都在后端段（md:scratchWritable）。
+  //   以后通用段（cached.chain）若有项标了 sessionScoped，这里必须一起扩展——否则缓存命中时
+  //   那一行会沿用别的会话的判定；正常求值那一路不受影响（ctx 本来就带着当前会话的沙箱许可）。
   const backend = cached.backendChain
   const chain = (backend && Array.isArray(backend.chain)) ? backend.chain : null
   if (!chain || !chain.length) return { reply: reply, patchedCount: 0 }
@@ -88,16 +89,21 @@ export async function patchCachedReplyForSession(reply: unknown, ctx: SessionPat
 
   // 缓存里的判定原样沿用，只把这次重算的那几项换掉。
   const mergedResolved: ResolvedMap = Object.assign({}, (backend && backend.resolved) || {})
-  const mergedEval: EvalMap = {}
-  for (const item of chain) {
-    const id = item.id ? String(item.id) : ''
-    if (!id) continue
-    mergedEval[id] = scopedIds[id] ? statusOf(fresh[id]) : statusOf(mergedResolved[id])
-    if (scopedIds[id]) {
-      const r = fresh[id]
-      if (r) mergedResolved[id] = r
-    }
+  for (const id of Object.keys(fresh)) {
+    const r = fresh[id]
+    if (r) mergedResolved[id] = r
   }
+  // 状态串由谓词核心折叠（与正常求值同一处口径）；本模块只交代「哪些 id 的判定变了」。
+  //   为什么不自己写一份 status 映射：两份三态折叠一旦口径不同，就会出现「resolved 说 pass、
+  //   快照行说 pending」这种自相矛盾的视图（审阅指出过这个重复）。
+  const predCore: any = await import('../../../host/tracker/predicateCore.js')
+  const cachedEval: EvalMap = (typeof predCore.toPredicateResults === 'function')
+    ? predCore.toPredicateResults(mergedResolved as any)
+    : {}
+  const freshEval: EvalMap = (typeof predCore.toPredicateResults === 'function')
+    ? predCore.toPredicateResults(fresh as any)
+    : {}
+  const mergedEval: EvalMap = Object.assign({}, cachedEval, freshEval)
   const backendSnap = enrichSnap(stepEvalParallel(chain, mergedEval), mergedResolved)
   const nextBackend = Object.assign({}, backend, { resolved: mergedResolved, snapshot: backendSnap })
   const nextReply: CachedReplyView = Object.assign({}, cached, { backendChain: nextBackend })

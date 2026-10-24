@@ -10,6 +10,8 @@
 //   C 只读会话的回包里，同一行的 detail 是「被沙箱拦住」而不是「目录不可写」（别把沙箱限制误报成权限问题）
 //   D 再换回可写会话 → 又是 done（重算不串会话）
 //   E chain.cache.hit 记了 patched=1（这次命中确实按本会话重算了一项）
+//   F 两会话并发首挂：后到的那次搭前一次的车（没有缓存命中可走），拿到回包后同样按自己的会话重算
+//     ——只读会话看到 pending、先到的可写会话仍是 done；搭车这件事本身仍被记了一次（dedup）
 //
 // 运行：node --import ./scripts/ts-hook.mts tests/verify-1483-chain-session-cache.ts
 // 门禁归属: src/refresh/rooms/host/check-chain-evaluation.ts, src/refresh/rooms/host/chain-session-patch.ts, src/refresh/rooms/host/chain-step-rows.ts, src/shared/tracker/check-catalog-dirs.ts, src/shared/tracker/check-catalog-views.ts, src/shared/tracker/chain-types.ts
@@ -55,8 +57,13 @@ async function main(): Promise<void> {
   const cachedBefore = JSON.stringify(cachedReply)
 
   const logHits: AnyObj[] = []
+  // F 用：把第一次求值的 getPlatform 卡住，好让第二次请求在「第一轮还没跑完」时进来搭车。
+  const platformGate: AnyObj = { promise: null, release: null }
+  let dedupMode = false
   const backoff = {
-    verdict: async () => ({ needed: false, reason: 'all-green', waitMs: 60000, cached: cachedReply }),
+    verdict: async () => (dedupMode
+      ? { needed: true, reason: 'due', waitMs: 0, cached: null }
+      : { needed: false, reason: 'all-green', waitMs: 60000, cached: cachedReply }),
     note: async () => ({}),
   }
 
@@ -83,7 +90,7 @@ async function main(): Promise<void> {
     DEFAULT_CWD: '/ws',
     resetGhCache: () => undefined,
     getDetectionService: async () => ({ detect: async () => ({ selection: { backendId: 'markdown' }, explicit: null }) }),
-    getPlatform: async () => fakePlatform,
+    getPlatform: async () => (platformGate.promise ? platformGate.promise : fakePlatform),
     getTrackerRegistry: async () => ({ modules: () => [] }),
     getRepoKey: async () => null,
     timer: { timeout: () => new Promise(() => undefined) },
@@ -139,6 +146,25 @@ async function main(): Promise<void> {
   // E. 日志：每次命中都记 patched=1（有一项按本会话重算过）
   ok(logHits.length >= 3, 'E 三次命中都落了 chain.cache.hit', logHits.length)
   ok(logHits.every((h: AnyObj) => h.patched === 1), 'E chain.cache.hit 记 patched=1', JSON.stringify(logHits.map((h: AnyObj) => h.patched)))
+
+  // F. 并发首挂：没有缓存可命中，后到的第二次请求搭前一次的车；搭车拿到的回包必须按本会话重算
+  dedupMode = true
+  platformGate.promise = new Promise((resolve) => { platformGate.release = resolve })
+  const firstReply = detect.handleChain({ cwd: '/ws', backendId: 'markdown', sessionId: 'writable-session', lang: 'zh' } as any)
+  // 等第一轮把车停进搭车表（此时它卡在 getPlatform 上，车还没跑完）
+  for (let i = 0; i < 200 && detect.rideStats().inflight < 1; i++) await new Promise((r) => setTimeout(r, 5))
+  ok(detect.rideStats().inflight >= 1, 'F 第一轮已停进搭车表（并发请求能搭上车）')
+  const secondReply = detect.handleChain({ cwd: '/ws', backendId: 'markdown', sessionId: 'readonly-session', lang: 'zh' } as any)
+  await new Promise((r) => setTimeout(r, 20))
+  platformGate.promise = null
+  platformGate.release(fakePlatform)
+  const [first, second] = await Promise.all([firstReply, secondReply]) as AnyObj[]
+  ok(detect.rideStats().merged >= 1, 'F 第二次请求确实搭了车（没有另起一轮求值）', JSON.stringify(detect.rideStats()))
+  ok(((first.backendChain.resolved['md:scratchWritable'] || {}).status) === 'pass', 'F 先到的可写会话仍是 pass')
+  ok(((second.backendChain.resolved['md:scratchWritable'] || {}).status) === 'pending', 'F 搭车的只读会话按自己许可重算成 pending（实得 ' + ((second.backendChain.resolved['md:scratchWritable'] || {}).status) + '）')
+  ok((stepOf(second.backendChain.snapshot, 'md:scratchWritable') || {}).status === 'pending', 'F 搭车回包的 backendChain.snapshot 也变 pending')
+  ok((stepOf(second.fullSnapshot, 'md:scratchWritable') || {}).status === 'pending', 'F 搭车回包的 fullSnapshot 也变 pending')
+  ok(first !== second, 'F 两次回包是两个对象（搭车那次拿到的是重算后的副本）')
 
   assert.equal(failed, false)
   console.log(failed ? '\n存在失败' : '\n全部通过')
