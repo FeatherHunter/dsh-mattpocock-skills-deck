@@ -73,8 +73,8 @@ declare function settingsDebugDocLooksReal(...args: any[]): any;
 declare function viewFlagScheduleWrite(...args: any[]): any;
 declare const process: any;
     // 旧键登记表：本模块管的名字 → 旧 localStorage 键名，以及旧表里那一把键是按哪条路径记的。
-    //   「按哪条路径记」不能省：横幅折叠按会话所选目录记（读写走 src/client/kernel/store-prefs.ts 里的
-    //   writeTableEntry / mergeTableFromStorage，键是 keyOf(cwd)），
+    //   「按哪条路径记」不能省：横幅折叠按会话所选目录记（读写在 src/client/kernel/store-prefs.ts 的
+    //   bannerFoldByCwd，键是 keyOf(cwd)），
     //   红文件夹标志按工作区根记（SubworkspaceMark.js 第 138–157 行，键是 subwsMarkCmpKey(root)）。
     //   照原样读，行为才与改动前一致。
     const VIEW_FLAG_LEGACY: any = {
@@ -209,7 +209,7 @@ declare const process: any;
       return false
     }
     // 写旧表：只在这一条路接不下这一次改动时才走（写文件失败、文件只读、或认不出工作区根）。
-    //   置上就是那把键记 1，取消就是把它删掉（与 src/client/kernel/store-prefs.ts 里 writeTableEntry 同一种做法）；
+    //   置上就是那把键记 1，取消就是把它删掉（与 src/client/kernel/store-prefs.ts 的横幅折叠表同一种做法）；
     //   表里别的键原样保留，所以只动这一次涉及的那一条。
     //   写旧表本身失败时补一行 storage.fail（既有事件名，字段只有 key 与 op 两个，与全库其余位置一致），
     //   不再一口吞掉：兜不住这件事要在日志里看见，不然排查时只剩「用户点了、什么都没发生」。
