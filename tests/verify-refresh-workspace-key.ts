@@ -130,13 +130,21 @@ async function makeHost() {
   })
 
   const ledger = ledgerMod.createLedger({ now: () => clock })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const realGate = gateMod.createGate({ ledger: ledger, now: () => clock })
   const seen = []   // 每一次过闸：带了哪把钥匙、什么种类、闸怎么判的
   const gate = {
     send: async (req, perform) => {
       const out = await realGate.send(req, perform)
       seen.push({ key: String((req && req.workspaceKey) || ''), kind: String((req && req.kind) || ''), source: String((req && req.source) || ''), verdict: out && out.verdict, reason: out && out.reason, sent: !!(out && out.sent) })
+      return out
+    },
+    // #1444：链求值那一笔改由闸上的 noteChainEval 产生（调用方不再自己拼发送）；这里照样把过闸带的钥匙记下来。
+    noteChainEval: async (req) => {
+      const out = await realGate.noteChainEval(req)
+      seen.push({ key: String((req && req.workspaceKey) || ''), kind: 'chain', source: String((req && req.source) || ''), verdict: out && out.verdict, reason: out && out.reason, sent: !!(out && out.sent) })
       return out
     },
     decideFor: (req) => realGate.decideFor(req),
@@ -233,15 +241,20 @@ async function main() {
   check(chainSends.length === 1 && chainSends[0].key === K, '链那一笔记账带的钥匙 = 活跃集合那把（实得 ' + (chainSends[0] && chainSends[0].key) + '，应为 ' + K + '）')
   check(chainSends.length === 1 && chainSends[0].sent === true && chainSends[0].verdict === 'allow', '链那一笔在同一格上被放行（' + (chainSends[0] && (chainSends[0].verdict + '/' + chainSends[0].reason)) + '）')
 
-  // ③ 九个 deck_* 工具里的一次调用过闸（同一个闸、同一把钥匙）
+  // ③ 九个 deck_* 工具里的一次调用带的也是同一把钥匙（#1442 起离网后端不再过闸）
+  //    #1442 把「选后端、过闸」从九个工具搬进了 Tracker 会话：markdown 是离网后端、没有额度可言，
+  //    连额度探针都跳过，所以「工具调用过闸 1 笔」这条旧判据在新架构下结构性为 0（不是漏记）。
+  //    这里改成钉工具回执里那份工作区键：它正是工具开会话、读账本、将来走管线准入时用的那一把；
+  //    工具若自己另算一套（比如拿目录原文），这条会立刻红。
   const table = await host.wiring.deckToolsForHost()
   check(!!(table && table.tools && table.tools.deck_context), '九个工具在宿主装配形状下装起来了（reason=' + JSON.stringify(table && table.reason) + '）')
   const exec = { agent: { session: { id: 's-724', cwd: s.canon } } }
   const ctxOut = await table.tools.deck_context.run(exec, {})
   check(!!(ctxOut && ctxOut.status === 'ok'), 'deck_context 真跑通一次（status=' + (ctxOut && ctxOut.status) + '）')
   const toolSends = host.seen.filter((x) => x.source === 'tool.call')
-  check(toolSends.length >= 1, '这次工具调用过了闸（实得 ' + toolSends.length + ' 笔）')
-  check(toolSends.length >= 1 && toolSends.every((x) => x.key === K), '工具调用带的钥匙也是同一把（' + JSON.stringify(toolSends.map((x) => x.key)) + '，应为 ' + K + '）')
+  check(toolSends.length === 0, '离网后端的工具调用不再经过闸的发送口（实得 ' + toolSends.length + ' 笔；#1442 起准入搬进 Tracker 管线）')
+  const toolKey = (ctxOut && ctxOut.workspace && ctxOut.workspace.key) || ''
+  check(toolKey === K, '工具回执里的工作区键也是同一把（' + JSON.stringify(toolKey) + '，应为 ' + K + '）')
 
   // 全部过闸的钥匙只有这一把 —— 「同一个工作区根在闸里只许有一格」
   const keys = Array.from(new Set(host.seen.map((x) => x.key)))

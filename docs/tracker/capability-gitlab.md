@@ -30,7 +30,7 @@
 | listSubIssues | 明确提供功能 | `sub-issues.ts`，读票正文顶部的 `Part of #<地图>` 声明行（**不是远端认的层级子条目**，见下面的实话）：有这一行就是子票，没有就不是，不猜、不按 links 方向推断；翻页扫仓，拿不全就整体失败 |
 | initProject | 明确提供功能 | `init-project.ts`，`glab repo create` + git 初始化 |
 | ensureLabelColorsFile | 明确不支持 | 这条能力承诺的是「在工作区放一份用户可以手改、**改了就生效**的标签配色文件」。GitLab 这一家的颜色真源是远端仓库的标签，工作区里那份文件没有任何读者，手改也不会影响颜色——放一份改了不算数的文件只会误导人，属于形态不合。要读颜色用 `listLabels`，要改颜色用 `setLabelColors`。理由与 GitHub 那家同一条，见 `capability-github.md` 的变更段。 |
-| readBudget | 当前不支持、未来会开发 | 规格 1439 新增（读缓存里的剩余额度，只读不花）；房间实现随会话迁移后续票落地，承接 #1439。实现之前调它拿到的是注册表补的「不支持」桩。 |
+| readBudget | 明确提供功能 | 规格 1439 新增、#1446 落地：`budget.ts` 经 `glab api --include` 读响应头里的 `RateLimit-Limit` / `RateLimit-Remaining`，只读不花；量不到时回「读数未知」并带原因（没装 glab 记 not-measured，请求失败或响应头缺数记 unavailable），不回 0、不抛。 |
 
 ## 定位口（3 条全部提供）
 

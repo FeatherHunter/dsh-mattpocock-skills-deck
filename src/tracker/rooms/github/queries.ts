@@ -15,24 +15,47 @@
 
 import { PAGINATION } from '../../contract/pagination.js'
 
+// 评论节点的字段清单：列表与单票共用一份，改这里两处一起变，不会一处多取、一处少取。
+// 这个形状与 normalizeComments 读的字段一一对应（src/tracker/rooms/github/normalize.ts 的 normalizeComments）。
+const COMMENT_NODE_FIELDS = 'id author{login avatarUrl __typename ... on User{name} ... on Organization{name}} authorAssociation body createdAt updatedAt lastEditedAt'
+
+/**
+ * 一条评论连接（comments 字段）。
+ *
+ * 为什么按参数拼：单票详情默认只要 50 条（与列表同一份字段清单），而评论「加载更多」要按调用方
+ * 这一趟要的条数取、还要带着游标一页页翻（#1444）。默认不带 after、不带 pageInfo，拼出来的文本
+ * 与迁移前逐字相同，列表查询因此一行不变。
+ */
+function commentsField(first: number, opts?: { after?: boolean; pageInfo?: boolean }): string {
+  const after = opts && opts.after ? ', after:$after' : ''
+  const pageInfo = opts && opts.pageInfo ? ' pageInfo{hasNextPage endCursor}' : ''
+  return `comments(first:${first}${after}){nodes{${COMMENT_NODE_FIELDS}}${pageInfo}}`
+}
+
+/** 单票字段清单：core 与能力字段来源固定，评论那一栏由调用方给（列表给 50 条、没有分页信息）。 */
+function issueFragmentFields(comments: string): string[] {
+  return [
+    'number', // keySource only → normalize String(number) → Issue.key（不产 number 字段）
+    'title',
+    'state',
+    'body',
+    'url',
+    'createdAt',
+    'updatedAt',
+    'closedAt',
+    'author{login avatarUrl __typename ... on User{name} ... on Organization{name}}',
+    'assignees(first:50){nodes{login name avatarUrl __typename}}',
+    'labels(first:50){nodes{name color description}}',
+    'milestone{title description state dueOn}',
+    comments,
+    'parent{number}',
+    'blockedBy(first:50){nodes{number title state}}',
+  ]
+}
+
 // 单票必需字段（core + 能力字段来源）。`number` 作 keySource 注释明确不外泄。
-export const ISSUE_FRAGMENT = [
-  'number', // keySource only → normalize String(number) → Issue.key（不产 number 字段）
-  'title',
-  'state',
-  'body',
-  'url',
-  'createdAt',
-  'updatedAt',
-  'closedAt',
-  'author{login avatarUrl __typename ... on User{name} ... on Organization{name}}',
-  'assignees(first:50){nodes{login name avatarUrl __typename}}',
-  'labels(first:50){nodes{name color description}}',
-  'milestone{title description state dueOn}',
-  'comments(first:50){nodes{id author{login avatarUrl __typename ... on User{name} ... on Organization{name}} authorAssociation body createdAt updatedAt lastEditedAt}}',
-  'parent{number}',
-  'blockedBy(first:50){nodes{number title state}}',
-].join(' ')
+// 评论条数从共享分页表取默认值（50）：与列表的 comments 一栏同数，默认路径的查询文本保持不变。
+export const ISSUE_FRAGMENT = issueFragmentFields(commentsField(PAGINATION.github.limitDefault)).join(' ')
 
 // GraphQL list 查询（批量取；filter 在内存完成）
 export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String){
@@ -50,6 +73,24 @@ export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
     issue(number:$number){ ${ISSUE_FRAGMENT} }
   }
 }`
+
+/**
+ * 单票查询，评论按这一趟要的条数取（#1444 评论「加载更多」）。
+ *
+ * 为什么单开一个拼查询的出口：GetOpts.comments.first 是调用方这一次要的条数，房间不能把
+ * comments(first:50) 写死再在内存里截（那样要 100 条也只有 50 条）。这里只改 comments 一栏，
+ * 其余字段与 GET_QUERY 完全同源；带 pageInfo 是为了让房间知道还有没有下一页。
+ * withAfter 为 true 时声明 $after 变量并用游标接着翻，false 时查询文本里不出现 after。
+ */
+export function getIssueQuery(commentsFirst: number, withAfter: boolean): string {
+  const vars = withAfter ? ',$after:String' : ''
+  const comments = commentsField(commentsFirst, { after: withAfter, pageInfo: true })
+  return `query($owner:String!,$name:String!,$number:Int!${vars}){
+  repository(owner:$owner,name:$name){
+    issue(number:$number){ ${issueFragmentFields(comments).join(' ')} }
+  }
+}`
+}
 
 // 依赖投影查询（#1304）：一次取齐正向与反向阻塞边，标题与状态随行回来，不再逐张再读。
 // 为什么不并进 ISSUE_FRAGMENT：列表查询不需要反向边（每行多付一整条连接的钱），
@@ -275,4 +316,4 @@ export function issueNodeIdsQuery(keys: string[]): string {
 
 // 兼容旧命名（#132 登记旧片段迁移）：保留但指向新 fragment
 export const GITHUB_ISSUE_FIELDS = ISSUE_FRAGMENT
-export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY, ADD_BLOCKED_BY_MUTATION, REMOVE_BLOCKED_BY_MUTATION, issueNodeIdsQuery }
+export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, getIssueQuery, COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY, ADD_BLOCKED_BY_MUTATION, REMOVE_BLOCKED_BY_MUTATION, issueNodeIdsQuery }

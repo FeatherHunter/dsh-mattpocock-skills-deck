@@ -59,9 +59,11 @@ type RefreshDeps = {
   getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<RepoKey> | RepoKey; readDiskCache(repo: unknown): unknown; writeDiskCache(repo: unknown, snap: unknown): unknown
   adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; resetGhCache(): unknown; getGhPath(): string | null; getGhLastError(): unknown; errText(e: unknown): string
   send?: ((scope: unknown, run: () => unknown) => Promise<{ result: unknown }>) | null
+  // #1446：接线处注入的额度读数口（按后端 id 取）；没接就照旧不传，快照形状与今天一致。
+  budgetReadout?: ((backendId: string) => any) | null
 }
 export function createSessionRefresh(deps: RefreshDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout } = deps
   // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
   // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
   // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
@@ -126,7 +128,10 @@ export function createSessionRefresh(deps: RefreshDeps) {
           // #927：刷新这一路的每条命令也过闸（分类同上：人的动作那一档，只记账、不降档）；没给 send 时照旧直发。
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
           const { createSnapshotComposer } = await import('../../../host/tracker/snapshot.js')
-          const composer: Composer = createSnapshotComposer(reg, { snapshotTtl: SNAPSHOT_TTL_MS })
+          // #1446：额度读数口接上了才传这一格；没接就不传，composer 保持今天的形状（refresh 里没有 backend）。
+          const composerOpts: { snapshotTtl: number; budgetReadout?: (backendId: string) => any } = { snapshotTtl: SNAPSHOT_TTL_MS }
+          if (typeof budgetReadout === 'function') composerOpts.budgetReadout = budgetReadout
+          const composer: Composer = createSnapshotComposer(reg, composerOpts)
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
                     const inner = upcaseSnapStates(res.snapshot)
@@ -292,7 +297,10 @@ export function createSessionRefresh(deps: RefreshDeps) {
         void 0;
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
-        const composer2: Composer = createComposer2(reg2, { snapshotTtl: SNAPSHOT_TTL_MS })
+        // #1446：回退路径也把额度读数带上，否则面板在回退那一趟看不到后端额度状态（主路径见上方的 composerOpts）。
+        const composer2Opts2: { snapshotTtl: number; budgetReadout?: (b: string) => any } = { snapshotTtl: SNAPSHOT_TTL_MS }
+        if (typeof budgetReadout === 'function') composer2Opts2.budgetReadout = budgetReadout
+        const composer2: Composer = createComposer2(reg2, composer2Opts2)
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
                   const inner2 = upcaseSnapStates(res2.snapshot)

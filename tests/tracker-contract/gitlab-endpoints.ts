@@ -54,6 +54,13 @@ export interface GitlabEndpointSpec {
  */
 export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
   {
+    id: 'version-read',
+    method: 'GET',
+    shape: 'version',
+    request: 'version',
+    note: 'readGitlabBudget：读一次剩余额度（版本接口不依赖具体项目，响应头里带着 RateLimit-Limit 与 RateLimit-Remaining）',
+  },
+  {
     id: 'project-get',
     method: 'GET',
     shape: 'projects/{}',

@@ -110,13 +110,14 @@ if (preexisting.length) {
 
     // 负控成立的前提是「这些文件确实进了图」——正控已经证明了这一点（新文件被抓到），
     // 所以负控探针没出现在 FAIL 行里，才算真的没被误伤，而不是没被看见。
-    // 再加一条计数判据把这件事钉死：探针在场时本规则的违规数必须正好是存量 10 条 + 正控这 1 条。
-    // 多了说明某个负控探针也被算进来了（判域写宽了）；少了说明正控没进图（这条门禁在空转）。
+    // 再加一条计数判据把这件事钉死：探针在场时本规则的违规数必须正好是存量 11 条 + 正控这 1 条。
+    // 存量从 10 涨到 11 是 #1445 的既定变化：写会话装配多了一条 open-tracker → pipeline 的同层引用，
+    // 已记进 same-layer-baseline.json；除此之外的增减仍然说明判域写宽（多了）或门禁空转（少了）。
     const countLine = lines.find((l) => l.includes('图上违规合计'))
     const trackerCount = countLine ? Number((countLine.match(/same-layer-import-tracker (\d+) 条/) || [])[1] || -1) : -1
     check(
-      trackerCount === 11,
-      '计数判据：探针在场时 same-layer-import-tracker 必须正好报 11 条（存量 10 + 正控 1），实际 ' + trackerCount +
+      trackerCount === 12,
+      '计数判据：探针在场时 same-layer-import-tracker 必须正好报 12 条（存量 11 + 正控 1），实际 ' + trackerCount +
         (countLine ? '；实际那行：' + countLine.trim() : '；实际没有「图上违规合计」这一行'),
     )
 

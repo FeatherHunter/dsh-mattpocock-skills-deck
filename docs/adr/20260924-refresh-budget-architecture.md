@@ -91,6 +91,8 @@
 
 三个后端不是同一套额度形状。把它收在一处（`src/refresh/kernel/backend-quota-model.ts`，原 `src/shared/refresh/src/backend-quota.ts`，产物在 `.build/refresh/kernel/`），闸与账本按后端取，比在三处各写一段「如果是 GitHub 就……」可靠。
 
+> 2026-10-23 修订（规格 #1439，收口见 #1448）：上面这张静态表已**退役并删除**。口径改由每个后端在注册时自己声明（形状在 `src/tracker/contract/budget-model.ts`，三内置后端在各自房间的 `index.ts` 里），闸与账本从注册表取到声明后注入，不再读静态表——两份真源一旦漂移，闸与账本就会各按各的算。
+
 | 后端 | 口径 | 有几个桶 | 点数制 | 出站计费 |
 |---|---|---|---|---|
 | GitHub | 两个互相独立的桶 | REST 桶 + GraphQL 桶，各一份额度、互不折算 | 有（GraphQL 数点） | 计 |
@@ -130,6 +132,6 @@
   这一条的权威依据是 #1023 的定案评论与规格单 #1099；本 ADR 与它们冲突时以它们为准。
 - 2026-10-23 v2 定版（#1430 收口，只同步落点、不改任何一条不变量的判据语义）。§2 六个「怎么判」只换落点：闸 `src/host/refresh/gate.js` → `src/refresh/rooms/host/refresh-gate.ts`；预算单价的旧产物名 `budget.js` 在 I3 留原文备查、现指 `src/refresh/kernel/host-budget.ts`；退避 `shared/refresh/backoff.ts` → `src/refresh/kernel/failure-backoff.ts`，断言落在 `tests/verify-998-half-open.ts`；凡提到测试文件名的 `.js` 一律同步成 `.ts`（树上已无手写 `.js`）。§3 重写：纯逻辑与契约的新家、产物与发布包镜像、构建脚本落点，并增补「目录与命名」一款（文件名说清拥有什么替谁做决定、房只认契约、外面不深引房与登记，机器判据是分层四条）。§4–§6 的路径已由 #1425 在正文同步，本次只补原名备查（`policy.ts` / `backoff.ts` / `tool-cost.ts` / `page-budget.ts` 的旧名在正文各留一处，`tests/verify-refresh-adr.ts` 认这些字串）。§7 的缺口（I3 另一半没有落地）原样保留。
 - 2026-10-23 补记（只记现状、不改上面任何一条不变量）。#1425 把上面几节那批纯逻辑与契约搬进 `src/refresh/`（内核 `kernel/` 14 份、契约 `contract/` 6 份，改名对照见规格 #1419 的目标地图）：
-  - §4 那句「只有一处物理真源」今天指 `src/refresh/kernel/host-budget.ts`（正文已同步）；§5 的 `backend-quota.ts` 今天是 `src/refresh/kernel/backend-quota-model.ts`，§6 的 `page-budget.ts` 今天是 `src/refresh/kernel/page-allowance.ts`，`policy.ts` / `backoff.ts` / `tool-cost.ts` 今天是同一目录下的 `admission-policy.ts` / `failure-backoff.ts` / `tool-call-budget.ts`。
+  - §4 那句「只有一处物理真源」今天指 `src/refresh/kernel/host-budget.ts`（正文已同步）；§5 的 `backend-quota.ts` 今天是 `src/tracker/contract/budget-model.ts`（口径形状）加上各房间 `index.ts` 里的声明——原 `src/refresh/kernel/backend-quota-model.ts` 已随 #1448 删除，§6 的 `page-budget.ts` 今天是 `src/refresh/kernel/page-allowance.ts`，`policy.ts` / `backoff.ts` / `tool-cost.ts` 今天是同一目录下的 `admission-policy.ts` / `failure-backoff.ts` / `tool-call-budget.ts`。
   - 产物不住源码树了：转译产物在 `.build/refresh/`（与 `src/refresh/` 镜像，`scripts/build.mts` 的 refresh-ts 段写），发布包镜像在 `package/refresh/`；上面正文里「转译成 `src/shared/refresh/*.js`」「提交进仓库」是搬家前的形态，读的时候以这一条为准。
   - 这一条的权威依据是 #1425 的提交与规格单 #1419；本 ADR 与它们冲突时以它们为准。

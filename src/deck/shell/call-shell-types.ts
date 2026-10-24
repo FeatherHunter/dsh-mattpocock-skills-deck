@@ -283,15 +283,11 @@ export interface CallCtx {
   [key: string]: unknown;
 }
 
-/** 壳对外交出的能力：九个工具只用这些。 */
+/** 壳对外交出的能力：九个工具只用这些（选后端与调用两格 #1443 已删，见 tracker-session.ts 的 openDeckSession / callDeckSession）。 */
 export interface DeckShell {
   limits: DeckLimits;
   estimateFor(tool: string, args?: unknown): CostEstimate;
-  pickBackend(exec: unknown, s: unknown): Promise<PickResult>;
   repoOf(pick: PickSuccess, s: unknown): DeckRepo;
-  call(meta: CallMeta, work: (ctx: CallCtx) => unknown): Promise<DeckEnvelope>;
   unsupported(tool: string, reason: string, text: string, extra?: UnknownRecord): DeckEnvelope;
   envelope(tool: string, status: string, extra?: UnknownRecord): DeckEnvelope;
-  hash8(text: unknown): string;
-  fire(method: string, ms: number, ok: boolean, errorHash?: string): void;
 }

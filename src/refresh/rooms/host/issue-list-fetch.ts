@@ -1,323 +1,229 @@
 /**
- * src/refresh/rooms/host/issue-list-fetch.ts —— 列表与地图降级拉取（来源：src/refresh/rooms/host/issue-list-fetch.js，H2 #446 从 host/index.js 246–455/475–488/491–536 搬出，纯结构、行为零变化；本次只加类型标注与注释，逻辑一行未动）。
+ * src/refresh/rooms/host/issue-list-fetch.ts —— 列表与地图取数（来源：host/index.js 246–455，H2 #446 搬出）。
  *
- * 为什么要有它（一句话）：面板列表要的全量票、地图票、轻量索引与配额耗尽时的降级通道原来都挤在宿主入口里，
+ * 为什么要有它（一句话）：面板列表要的全量票、地图票与轻量索引原来都挤在宿主入口里，
  * 搬到这里之后改分页策略、改索引口径、改缓存有效性的人只动这一份，不碰入口。
  *
- * 三条不能改的约定（改之前先看原来文件头那三行与调用点 index.js）：
- * 1. 由 index.js 动态引用加载；getRepoKey/runGh/setCache 与三个索引小函数显式注入；本文件只动态引用原来那两份索引模块，不新增静态引用。
- * 2. 全量拉取是三级 fallback（gh api 分页 → 手动逐页 → gh issue list），顺序与原来完全一致，调换任何一级都会让旧票在弱网下丢失。
- * 3. 水印与基线唯一的推进口是 commitIssueIndex，只在变化真的并进列表之后（或探测回来说没变）调它，提前推会把变化挤出扫描窗口。
+ * #1444（规格 1439 的 A2 第一批）把三条读路径从「调用方直调 gh」改成「经 Tracker 只读会话调能力」：
+ *   列表 → session.list；地图票 → session.list（带 wayfinder:map 与 open 两个筛）；
+ *   索引 → session.listPage 翻到底（ListFilter 没有 since，不能把窗口交给房间）。
+ * 因此删掉了原来的三级 gh 兜底（gh api --paginate → 手动逐页 → gh issue list）与地图详情的
+ * REST 通道：GraphQL→REST 的降级已收进 GitHub 房间，宿主再留一条就是第二真源。
+ *
+ * 两条不能改的约定：
+ * 1. 对外回包形状不变（snapshot / delta / host API 三处只认形状）：issues 行仍是
+ *    { number, title, state:'OPEN'|'CLOSED', labels:[{name,color}], assignees:[login], author, updatedAt, createdAt }。
+ * 2. 水印与基线唯一的推进口是 commitIssueIndex，只在变化真的并进列表之后（或探测回来说没变）调它；
+ *    本文件一行都不许自己推水印。
+ *
+ * 失败时保留旧行为：开会话失败或能力失败，回 { ok:false, error:{kind,error} }，不抛、不假装成功。
  */
+import type { OpContext } from '../../../tracker/contract/contexts.js'
+import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
+import type { PageResult } from '../../../tracker/contract/results.js'
+import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
+
+interface RepoKey { owner: string; name: string }
+
+/** 索引翻页的硬上限：200 条一页、最多 100 页（两万条）。超过就如实失败，不静默截断。 */
+const INDEX_PAGE_LIMIT = 200
+const INDEX_MAX_PAGES = 100
+
+/** 失败信封：旧路这里装的是 gh 回包，形状取 kind + error 两格；上层只读 ok 与 error。 */
+function fail(kind: string, message: any): any {
+  return { ok: false, error: { kind: kind, error: String(message == null ? '' : message) } }
+}
+
+/** 会话失败统一收成 env（与旧路的失败形状一致，上层照旧降级回缓存）。 */
+function sessionFail(reason: string, detail?: any): any {
+  const tail = detail == null || detail === '' ? '' : ('：' + String(detail))
+  return fail('env', '只读会话不可用（' + reason + '）' + tail)
+}
+
+/** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是 GitHub 房间认的 'owner/name'。 */
+function repoRefOf(repo: RepoKey | null, backendId: string): RepositoryRef | null {
+  if (!repo || !repo.owner || !repo.name) return null
+  const refId = String(repo.owner) + '/' + String(repo.name)
+  return { backend: backendId as any, refId: refId, name: refId, url: 'https://github.com/' + refId }
+}
+
+/** 契约票 → 列表行（旧 gh 形状）。拉取请求行额外带 isPullRequest/mergedAt，界面靠它分流。 */
+function rowOf(issue: Issue): any {
+  const row: any = {
+    number: Number(issue.key),
+    title: issue.title,
+    state: (issue.state === 'closed' ? 'CLOSED' : 'OPEN'),
+    assignees: (issue.assignees || []).map(function (a: any): any { return a.login }),
+    labels: (issue.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } }),
+    author: issue.author ? { login: issue.author.login, name: (issue.author.name || ''), avatarUrl: (issue.author.avatarUrl || '') } : undefined,
+    updatedAt: issue.updatedAt,
+    createdAt: issue.createdAt,
+  }
+  // 旧 fetchIssues 只取工单（REST 里 select(.pull_request == null)）；会话的 list 两张表都给，
+  // 所以拉取请求必须带上这个标记，否则它会被当成普通工单混进列表。
+  if (issue.isPullRequest === true) { row.isPullRequest = true; row.mergedAt = issue.mergedAt || null }
+  return row
+}
+
+/** 按更新时间倒序（旧路的排序口径，调用方依赖）。排序键取字符串，缺值当空串。 */
+function sortRows(rows: any[]): any[] {
+  rows.sort(function (a: any, b: any): number { return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')) })
+  return rows
+}
+
 export function createIssueList(deps: any): any {
-  const { getRepoKey, runGh, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, readDiskCache, logCtx } = deps as any
+  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, readDiskCache, logCtx } = deps as any
+
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
   let probeSampleN: number = 0
-    async function fetchMaps(cwd: any): Promise<any> {
-      // #44 T2-fix（map#37）：显式 --repo 绕过 gh 在 Fork 上的多远程推断（upstream 优先）
-      const repo: any = await getRepoKey(cwd)
-      const argsMap: string[] = ['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt']
-      if (repo) argsMap.push('--repo', repo.owner + '/' + repo.name)
-      const r: any = await runGh(argsMap, cwd)
-      if (!r.ok) return { ok: false, error: r }
-      try { return { ok: true, maps: JSON.parse(r.text) } } catch (e: any) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
-    }
 
-    // 手动分页兜底：gh api --paginate 在本机偶发 unexpected EOF 时，按页拉取避免单页失败拖垮全量
-    // 首选 --paginate 成功即走快路径；失败则按 page=1..N 逐页拉，单页失败若有 text 则解析该页部分数据，否则中断
-    // 该路径在 4c6508c 的 100 截断基础上补全全量，避免 100 截断导致旧票丢失（回归风险）
-    async function fetchAllIssuesManual(cwd: any, repo: any): Promise<any> {
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'missing repo' } };
-      let all: any[] = [];
-      for (let page: number = 1; page <= 10; page++) {
-        const url: string = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100&page=' + page;
-        const r: any = await runGh(['api', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}'], cwd);
-        const raw: any = r && (r.ok ? r.text : (r.text || ''));
-        if (!raw || !String(raw).trim()) { if (page === 1) return { ok: false, error: r }; break; }
-        try {
-          const txt: string = String(raw).trim();
-          let arr: any[] = [];
-          if (txt.startsWith('[')) { try { arr = JSON.parse(txt); } catch {} }
-          if (!arr.length && txt) {
-            const lines: string[] = txt.split('\n').filter(function(s){return s.trim();});
-            for (let i: number=0;i<lines.length;i++) { try { const o: any=JSON.parse(lines[i]); if(o && typeof o.number==='number') arr.push(o); } catch(e){} }
-            if (!arr.length) { try { arr = JSON.parse('['+lines.join(',')+']'); } catch(e){} }
-          }
-          if (!arr.length) { if (page===1) return { ok:false, error: r }; break; }
-          const issues: any = arr.map(function(x: any){ return { number:x.number, title:x.title, state:(String(x.state).toLowerCase()==='closed'?'CLOSED':'OPEN'), assignees:(x.assignees||[]).map(function(a: any){return a.login;}), labels:(x.labels||[]).map(function(l: any){return {name:l.name,color:l.color||''};}), author:(x.user&&x.user.login)?{login:x.user.login,name:(x.user.name||''),avatarUrl:(x.user.avatar_url||'')}:undefined, updatedAt:x.updated_at, createdAt:x.created_at }; });
-          all = all.concat(issues);
-          if (arr.length < 100) break;
-        } catch (e) { if (page===1) return { ok:false, error: r }; break; }
-        if (!r.ok) break;
-      }
-      if (all.length) { all.sort(function(a: any,b: any){ return String(b.updatedAt).localeCompare(String(a.updatedAt)); }); return { ok:true, issues: all }; }
-      return { ok:false, error:{kind:'empty', error:'manual paginate empty'} };
-    }
-    async function fetchAllIndexManual(cwd: any, repo: any): Promise<any> {
-      if (!repo) return { ok:false, error:{kind:'env', error:'missing repo'} };
-      let idx: Record<string, string> = {};
-      for (let page: number=1; page<=10; page++) {
-        const url: string = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100&page=' + page;
-        const r: any = await runGh(['api', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd);
-        const raw: any = r && (r.ok ? r.text : (r.text||''));
-        if (!raw || !String(raw).trim()) { if(page===1) return {ok:false, error:r}; break; }
-        try {
-          const txt: string = String(raw).trim();
-          let arr: any[] = [];
-          if (txt.startsWith('[')) { try{ arr=JSON.parse(txt);}catch{} }
-          if (!arr.length && txt) {
-            const lines: string[] = txt.split('\n').filter(Boolean);
-            for(let i: number=0;i<lines.length;i++){ try{ const o: any=JSON.parse(lines[i]); if(o&&o.number!=null) arr.push(o);}catch(e){} }
-            if(!arr.length){ try{ arr=JSON.parse('['+lines.join(',')+']');}catch(e){} }
-          }
-          if (!arr.length) { if(page===1) return {ok:false, error:r}; break; }
-          for(let i: number=0;i<arr.length;i++){ const it: any=arr[i]; if(it&&it.number!=null) { idx[String(it.number)] = String(it.state||'').toUpperCase() + '|' + String(it.updatedAt||''); } }
-          if (arr.length < 100) break;
-        } catch(e){ if(page===1) return {ok:false, error:r}; break; }
-        if (!r.ok) break;
-      }
-      if (Object.keys(idx).length) return { ok:true, repo:repo, index:idx, count:Object.keys(idx).length };
-      return { ok:false, error:{kind:'empty', error:'manual index empty'} };
-    }
-    // 全部 issue（open + closed，Client 列表 open 常显、底部「已关闭」折叠行），
-    // 按 updatedAt 倒序；labels 带 name + color（GitHub 配置色）；state 区分 open/closed；
-    // v18：assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
-    async function fetchIssues(cwd: any): Promise<any> {
-      const fetchT0: number = Date.now()
-      // #374/#375：--limit 500 覆盖仓库全量，并带出 createdAt；为取 author.avatarUrl 改用 gh api（gh issue list 的 author 不含 avatarUrl，见 b7442da 后用户反馈“未显示真人头像”）
-      //   gh api repos/.../issues?state=all&per_page=100 --paginate 直接给出 user.avatar_url，零额外 user 查询
-      // #44 T2-fix：显式 --repo 绕过多远程推断
-      const repo2: any = await getRepoKey(cwd)
-      // 优先 gh api（带 avatar）
-      if (repo2) {
-        const apiUrl: string = 'repos/' + repo2.owner + '/' + repo2.name + '/issues?state=all&per_page=100'
-        const r2: any = await runGh(['api', '--paginate', apiUrl, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}'], cwd)
-        if (r2.ok) {
-          try {
-            const text: string = String(r2.text || '').trim()
-            // --jq 输出为 JSON Lines（每行一个对象），非数组；兼容数组与单对象两种
-            let arr: any[] = []
-            if (text.startsWith('[')) arr = JSON.parse(text)
-            else if (text) {
-              const lines: string[] = text.split('\n').filter(function(s){return s.trim()})
-              for (let i: number=0;i<lines.length;i++) { try{ const o: any=JSON.parse(lines[i]); if(o && typeof o.number==='number') arr.push(o)}catch(e){} }
-              if (!arr.length) { try{ arr = JSON.parse('['+lines.join(',')+']')}catch(e){} }
-            }
-            const issues: any = arr.map(function (x: any) {
-              return {
-                number: x.number,
-                title: x.title,
-                state: (String(x.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN'),
-                assignees: (x.assignees || []).map(function (a: any) { return a.login }),
-                labels: (x.labels || []).map(function (l: any) { return { name: l.name, color: l.color || '' } }),
-                author: (x.user && x.user.login) ? { login: x.user.login, name: (x.user.name || ''), avatarUrl: (x.user.avatar_url || '') } : undefined,
-                updatedAt: x.updated_at,
-                createdAt: x.created_at,
-              }
-            })
-            issues.sort(function (a: any, b: any) { return String(b.updatedAt).localeCompare(String(a.updatedAt)) })
-            if (issues.length) return { ok: true, issues: issues }
-          } catch (e) { /* fall through to gh issue list */ }
-        }
-      }
-      // 手动分页兜底：--paginate 失败时按页拉取全量，避免 100 截断丢失旧票
-      if (repo2) {
-        try {
-          const manual: any = await fetchAllIssuesManual(cwd, repo2);
-          if (manual.ok && manual.issues && manual.issues.length) { try { if (logCtx) logCtx.fire('info', 'issues.fallback', { from: 'gh-api-paginate', to: 'manual-paginate', reason: 'paginate-failed' }) } catch (eL) {}; return manual; }
-        } catch (e) {}
-      }
-      // 回退：gh issue list（无 avatar，仅 login；UI 将回退为 person SVG）
-      // 修复 unexpected EOF：500 在部分网络下触发 GraphQL 大查询 EOF，回退改用 100 并重试一次
-      const tryList: any = async function(limit: any): Promise<any> {
-        const a: string[] = ['issue', 'list', '--state', 'all', '--limit', String(limit), '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt']
-        if (repo2) a.push('--repo', repo2.owner + '/' + repo2.name)
-        return runGh(a, cwd)
-      }
-      try { if (logCtx) { logCtx.fire('info', 'issues.fallback', { from: 'gh-api', to: 'gh-issue-list', reason: 'paginate-failed' }); logCtx.fire('info', 'fallback.chain', { in: 'gh-api-paginate', out: 'gh-issue-list', latencyMs: Date.now() - fetchT0 }) } } catch (eL) {}
-      let r: any = await tryList(100)
-      if (!r.ok && String(r.error||'').toLowerCase().includes('unexpected eof')) {
-        r = await tryList(100)
-      }
-      if (!r.ok) {
-        // 500 回退已不可靠，改用 open 100 再 all 100 的分段拉取（open 100 必含 414 这类新 open 票）
-        const rOpen: any = await runGh(['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt', '--repo', repo2.owner + '/' + repo2.name], cwd)
-        if (rOpen.ok) r = rOpen
-      }
-      if (!r.ok) return { ok: false, error: r }
-      try {
-        const all: any = JSON.parse(r.text)
-        const issues: any = all.map(function (x: any) {
-          return {
-            number: x.number,
-            title: x.title,
-            state: x.state,
-            assignees: (x.assignees || []).map(function (a: any) { return a.login }),
-            labels: (x.labels || []).map(function (l: any) { return { name: l.name, color: l.color || '' } }),
-            author: (x.author && x.author.login) ? { login: x.author.login, name: (x.author.name || ''), avatarUrl: (x.author.avatarUrl || x.author.avatar_url || '') } : undefined,
-            updatedAt: x.updatedAt,
-            createdAt: x.createdAt,
-          }
-        })
-        issues.sort(function (a: any, b: any) { return String(b.updatedAt).localeCompare(String(a.updatedAt)) })
-        return { ok: true, issues: issues }
-      } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
-    }
-
-    // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
-    // 增量扫描（本轮新增）：传入 sinceIso 即只问「该时刻之后有变动的票」，实测同一仓库
-    //   全量 585 条约 7 秒，最近 1 天只有 24 条约 1.2 秒；state=all 与 since 合用后已关闭的票
-    //   照样返回，所以「关闭/删除检测」不会因此瞎掉。窗口起点与水印的判断在 shared/tracker/indexWindow.js。
-    async function fetchIssueIndex(cwd: any, sinceIso: any): Promise<any> {
-      const idxT0: number = Date.now()
-      const repo: any = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
-      const url: string = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100' + (sinceIso ? '&since=' + encodeURIComponent(sinceIso) : '')
-      const r: any = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
-      // 优先解析 gh api 的输出，即使 r.ok===false 但 text 中已有部分数据（如 414/415 在前两页已返回，仅第3页 unexpected EOF 导致 exit 1），也尝试解析，避免因单页网络抖动就判 unknown 回旧
-      const tryParseIndex: any = function(text: any): any {
-        try {
-          const index: Record<string, string> = {}
-          const lines: string[] = String(text || '').split(/\r?\n/).filter(Boolean)
-          lines.forEach(function (line) {
-            try { const item: any = JSON.parse(line); if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '') } catch {}
-          })
-          if (Object.keys(index).length) return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
-        } catch {}
-        return null
-      }
-      if (r && r.text) {
-        const parsed: any = tryParseIndex(r.text)
-        if (parsed) return parsed
-      }
-      if (!r.ok) {
-        // 手动分页兜底：优先按页拉全量索引，避免 100 截断丢失旧票（如删除检测）
-        try {
-          const manualIdx: any = await fetchAllIndexManual(cwd, repo);
-          if (manualIdx.ok && manualIdx.index && Object.keys(manualIdx.index).length) { try { if (logCtx) logCtx.fire('info', 'issues.fallback', { from: 'gh-api-paginate', to: 'manual-paginate', reason: 'paginate-failed' }) } catch (eL) {}; return manualIdx; }
-        } catch (e) {}
-        // 回退：gh api 整体失败时，用 gh issue list 全量兜底（与 fetchIssues 同策略），确保外部建票 60s 内可被发现
-        // 500 在部分网络下触发 unexpected EOF，改用 100 并重试
-        try { if (logCtx) { logCtx.fire('info', 'issues.fallback', { from: 'gh-api', to: 'gh-issue-list', reason: 'paginate-failed' }); logCtx.fire('info', 'fallback.chain', { in: 'gh-api-paginate', out: 'gh-issue-list', latencyMs: Date.now() - idxT0 }) } } catch (eL) {}
-        let fallback: any = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
-        if (!fallback.ok && String(fallback.error||'').toLowerCase().includes('unexpected eof')) {
-          fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
-        }
-        if (!fallback.ok) {
-          fallback = await runGh(['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
-        }
-        const fbParsed: any = fallback && fallback.text ? tryParseIndex(fallback.text.replace(/\[|\]/g, '').split('},').join('}\n')) : null
-        // 更稳妥的 fallback 解析：直接 JSON 数组
-        try {
-          if (fallback && fallback.ok && fallback.text) {
-            const arr: any = JSON.parse(fallback.text)
-            if (Array.isArray(arr) && arr.length) {
-              const idx: Record<string, string> = {}
-              arr.forEach(function(it: any){ if(it && it.number!=null) idx[String(it.number)] = String(it.state||'').toUpperCase() + '|' + String(it.updatedAt||'') })
-              if (Object.keys(idx).length) return { ok: true, repo: repo, index: idx, count: Object.keys(idx).length }
-            }
-          }
-        } catch {}
-        return { ok: false, error: r }
-      }
-      try {
-        const index: Record<string, string> = {}
-        const lines: string[] = String(r.text || '').split(/\r?\n/).filter(Boolean)
-        lines.forEach(function (line) {
-          const item: any = JSON.parse(line)
-          if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
-        })
-        return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
-      } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
-    }
-    // ── 索引扫描入口（#1429）：窗口扫描与水印推进住同目录 issue-index-scan.ts（createIssueIndexScan，
-    //   内含唯一一份窗口状态，不另起第二份）；这里只留同名转交字段（index.ts / probe-handler / 单测写法不变），
-    //   仍走动态 import（宿主侧禁止静态引入新文件 D7，与既有范式一致）。
-    let _idxScanP: any = null
-    function _idxScan(): Promise<any> {
-      if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
-        return m.createIssueIndexScan({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
+  /**
+   * 开一趟只读会话跑 fn：开会话失败、解析仓库失败、fn 抛错都收成这条路的失败信封。
+   * 为什么把仓库坐标在这里拼：会话只认 RepositoryRef，而宿主注入的 getRepoKey 给的是 owner/name；
+   * 两处拼法只留这一份，列表、地图、索引三条路就不会各拼一个不一样的 refId。
+   */
+  async function withReadSession(cwd: any, fn: (session: TrackerSession, repo: RepositoryRef, ctx: OpContext) => Promise<any>): Promise<any> {
+    if (typeof deps.openSession !== 'function') return sessionFail('没有注入 openSession')
+    let opened: any = null
+    try { opened = await Promise.resolve(deps.openSession(cwd)) } catch (e: any) { return sessionFail('开会话时抛错', (e && e.message) || e) }
+    if (!opened || opened.ok !== true || typeof opened.call !== 'function') return sessionFail(String((opened && opened.reason) || 'open-failed'), opened && opened.detail)
+    let repo: RepoKey | null = null
+    try { repo = await Promise.resolve(getRepoKey(cwd)) } catch (e: any) { return sessionFail('解析仓库坐标失败', (e && e.message) || e) }
+    const ref = repoRefOf(repo, String(opened.backendId || ''))
+    if (!ref) return fail('env', '无法解析 owner/repo')
+    try {
+      return await opened.call(async function (session: TrackerSession, ctx: OpContext): Promise<any> {
+        return fn(session, ref, ctx)
       })
-      return _idxScanP
+    } catch (e: any) {
+      return sessionFail('取数时抛错', (e && e.message) || e)
     }
-    // 尾参 opts 标成可选：原 .js 里 cacheSnapshotIsCurrent 只传 cwd 一个实参（见下面 cacheSnapshotIsCurrent），少传在运行时就是 undefined，原样透传给扫描入口；标成必选 tsc 会报 2554，改成 `?` 不产生任何运行时代码。
-    async function fetchIssueIndexWindowed(cwd: any, opts?: any): Promise<any> {
-      try { const sc: any = await _idxScan(); return await sc.fetchIssueIndexWindowed(cwd, opts) } catch (e: any) { return { ok: false, error: { kind: 'env', error: String((e && e.message) || e) } } }
-    }
-    /** 水印与基线唯一的推进口：只在「变化真的并进列表之后」（或探测回来说没变）调它。 */
-    async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any): Promise<any> {
-      try { const sc: any = await _idxScan(); return await sc.commitIssueIndex(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
-    }
-    // ---- 原 index.js 475–488：缓存有效性判断与快照落盘收纳 ----
-    const cacheSnapshotIsCurrent: any = async function (snap: any, cwd: any): Promise<any> {
-      try {
-        const remote: any = await fetchIssueIndexWindowed(cwd)
-        if (!remote.ok) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'panelSync.eval', function (): any { return { repoKeyHash: hash8(String(cwd || '')), baseline: String((snap && (snap.version || snap.generatedMs)) || ''), dirty: true, failures: 1 } }) } catch (eL) {}; return null }
-        const before: any = issueIndexFromSnapshot(snap)
-        const changed: any = issueIndexChanged(before, remote.index)
-        const current: boolean = !changed
-        // #723（T19c）第 E 件：水印（与基线）只在「变化真的并进列表之后」才推进。这一条路只回答
-        // 「缓存还算不算当前」，变了就说明这次结果**还没**并进任何列表 —— 此时推水印会把那条变化
-        // 挤出扫描窗口（静默漏报）。没变则相反：列表与远端一致，推过去是安全的。
-        if (current) { try { await commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index) } catch (eC) { /* 推不动就保持原样，下次重扫一遍，不丢数据 */ } }        try { if (logCtx && logCtx.isEnabled('debug') && changed && ((++probeSampleN % 100) === 0)) logCtx.fire('debug', 'probe.eval', function (): any { return { repoKeyHash: hash8(remote.repo ? (remote.repo.owner + '/' + remote.repo.name) : String(cwd || '')), count: remote.count || Object.keys(remote.index || {}).length, changed: true } }) } catch (eL) {}
-        try { if (logCtx && logCtx.isEnabled('debug') && changed) logCtx.fire('debug', 'panelSync.eval', function (): any { return { repoKeyHash: hash8(remote.repo ? (remote.repo.owner + '/' + remote.repo.name) : String(cwd || '')), baseline: String((snap && (snap.version || snap.generatedMs)) || ''), dirty: true, failures: 0 } }) } catch (eL) {}
-        if (current) rememberIssueIndex(remote.repo, remote.index)
-        return current
-      } catch (e) { return null }
-    }
-    const adoptSnapshot: any = function (snap: any, cwd: any): any {
-      setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd })
-      if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
-      return snap
-    }
-    // ---- 原 index.js 491–536：配额耗尽时地图详情 REST 降级通道 ----
-    // v1.5 B5（配额止血 · 第一性原理）：GraphQL 配额耗尽时的 REST 降级通道 ——
-    //   GraphQL 按复杂度计点（5000 点/h，aliases 大查询一次可数百点），REST 按请求计次
-    //   （5000 次/h，与复杂度无关）。配额耗尽时 GraphQL 全挂，REST 仍可用 → 面板不空白。
-    //   逐 map：issue 详情 + sub_issues + 每子票 blocked_by（client 只消费 blockedBy，
-    //   blocking 不组装省一半请求）；输出与 GraphQL 同构的 { 'm<i>': {...} }，下游 mapTicket 零改动。
-    async function fetchMapsDetailREST(numbers: any, cwd: any): Promise<any> {
-      try { if (logCtx) logCtx.fire('warn', 'graphql.fallback', { scope: '地图', reason: 'quota-exhausted' }) } catch (eL) {}
-      const repo: any = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
-      if (!numbers || !numbers.length) return { ok: true, issues: {} }
-      const issues: Record<string, any> = {}
-      for (let i: number = 0; i < numbers.length; i++) {
-        const n: any = numbers[i]
-        try {
-          const d: any = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
-          if (!d.ok) { issues['m' + i] = null; continue }
-          const m: any = JSON.parse(d.text)
-          const sub: any = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/sub_issues?per_page=100'], cwd)
-          const subs: any = sub.ok ? (JSON.parse(sub.text) || []) : []
-          const nodes: any[] = []
-          for (let k: number = 0; k < subs.length; k++) {
-            const s: any = subs[k]
-            let blockedBy: any[] = []
-            try {
-              const bb: any = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + s.number + '/dependencies/blocked_by'], cwd)
-              if (bb.ok) blockedBy = (JSON.parse(bb.text) || []).map(function (x: any) { return x.number })
-            } catch (e2) { /* 依赖查询失败该票 blockedBy 置空，不阻塞整体 */ }
-            nodes.push({
-              number: s.number, title: s.title, state: (s.state === 'closed' ? 'CLOSED' : 'OPEN'),
-              body: s.body || '', url: s.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + s.number),
-              labels: { nodes: (s.labels || []).map(function (l: any) { return { name: l.name } }) },
-              assignees: { nodes: (s.assignees || []).map(function (a: any) { return { login: a.login } }) },
-              author: (s.user && s.user.login) ? { login: s.user.login, name: (s.user.name || ''), avatarUrl: (s.user.avatar_url || '') } : undefined,
-              blockedBy: { nodes: blockedBy.map(function (b: any) { return { number: b } }) },
-            })
-          }
-          issues['m' + i] = {
-            number: m.number, title: m.title, state: (m.state === 'closed' ? 'CLOSED' : 'OPEN'),
-            body: m.body || '', url: m.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + m.number),
-            labels: { nodes: (m.labels || []).map(function (l: any) { return { name: l.name } }) },
-            author: (m.user && m.user.login) ? { login: m.user.login, name: (m.user.name || ''), avatarUrl: (m.user.avatar_url || '') } : undefined,
-            subIssues: { totalCount: nodes.length, nodes: nodes },
-          }
-        } catch (e) { issues['m' + i] = null }
+  }
+
+  /** 地图票：只要带 wayfinder:map 且未关闭的票（旧 gh issue list 的两条筛，原样保留）。 */
+  async function fetchMaps(cwd: any): Promise<any> {
+    return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      const r: any = await session.list(ref, { labels: ['wayfinder:map'], state: 'open' }, ctx)
+      if (!r || r.ok !== true) {
+        const err = (r && r.error) || {}
+        return fail(String(err.kind || 'network'), err.message || '地图票读取失败')
       }
-      return { ok: true, issues: issues, fallback: 'rest' }
-    }
-  return { fetchMaps, fetchAllIssuesManual, fetchAllIndexManual, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot, fetchMapsDetailREST }
+      // 与列表同一条口径：拉取请求不算地图（旧 gh issue list 本来就不返回 PR）。
+      const maps = (r.data || []).filter(function (x: any): boolean { return !!x && x.isPullRequest !== true }).map(function (x: Issue): any {
+        return {
+          number: Number(x.key), title: x.title, body: x.body || '',
+          labels: (x.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } }),
+          assignees: (x.assignees || []).map(function (a: any): any { return { login: a.login } }),
+          state: 'OPEN', updatedAt: x.updatedAt,
+        }
+      })
+      return { ok: true, maps: maps }
+    })
+  }
+
+  // 全部票（open + closed，Client 列表 open 常显、底部「已关闭」折叠行），按 updatedAt 倒序；
+  // labels 带 name + color；assignees 带出（状态栏「占用」按列表口径：已认领 + 被阻塞）。
+  async function fetchIssues(cwd: any): Promise<any> {
+    return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      const r: any = await session.list(ref, undefined, ctx)
+      if (!r || r.ok !== true) {
+        const err = (r && r.error) || {}
+        return fail(String(err.kind || 'network'), err.message || '列表读取失败')
+      }
+      // 旧 REST 的 jq 是 select(.pull_request == null)：拉取请求从来不进快照。
+      // 会话的 list 两张表都给，这里必须显式滤掉 —— 否则快照索引里有 PR、而 fetchIssueIndex
+      // 走的 listPage 只翻 repository.issues，每轮探测都会把 PR 当成「被删掉的票」→ 整池重建。
+      const rows = (r.data || []).filter(function (x: any): boolean { return !!x && x.isPullRequest !== true }).map(rowOf)
+      return { ok: true, issues: sortRows(rows) }
+    })
+  }
+
+  // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
+  // 为什么改成 listPage 翻到底：ListFilter 没有 since，会话的 list 又在 500 条处截断；
+  // 只翻一页会把老票当成「被删除」，所以这里按 PageResult.nextCursor 翻到没有下一页为止，
+  // 拿齐全量后再按 updatedAt 与窗口起点比对 —— 窗口状态机与水印提交时机一行不动（在 issue-index-scan.ts）。
+  async function fetchIssueIndex(cwd: any, sinceIso: any): Promise<any> {
+    return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      if (typeof session.listPage !== 'function') return fail('unsupported', '该后端的会话不支持 listPage，索引无法翻页取全量')
+      const sinceMs = sinceIso ? Date.parse(String(sinceIso)) : NaN
+      const useSince = Number.isFinite(sinceMs)
+      const index: Record<string, string> = {}
+      let cursor: string | undefined = undefined
+      let pages = 0
+      while (true) {
+        pages += 1
+        if (pages > INDEX_MAX_PAGES) return fail('truncated', '索引翻页超过 ' + INDEX_MAX_PAGES + ' 页，拒绝用不完整的索引推进水印')
+        const opts: any = { limit: INDEX_PAGE_LIMIT }
+        if (cursor) opts.cursor = cursor
+        let page: any = null
+        try { page = await session.listPage(ref, {}, opts, ctx) } catch (e: any) { return fail('network', (e && e.message) || e) }
+        if (!page || page.ok !== true) {
+          const err = (page && page.error) || {}
+          return fail(String(err.kind || 'network'), err.message || '索引读取失败')
+        }
+        const data: PageResult = page.data || { items: [], nextCursor: null, total: 0 }
+        const items: Issue[] = Array.isArray(data.items) ? data.items : []
+        for (let i = 0; i < items.length; i++) {
+          const it: any = items[i]
+          if (!it || it.key == null) continue
+          const key = String(it.key)
+          // 窗口比对：since 之后动过的票才进这一趟的索引（与旧 gh api 的 since 参数同义）。
+          if (useSince) {
+            const t = Date.parse(String(it.updatedAt || ''))
+            if (Number.isFinite(t) && t < sinceMs) continue
+          }
+          index[key] = String(it.state || '').toUpperCase() + '|' + String(it.updatedAt || '')
+        }
+        const next = data.nextCursor || null
+        if (!next) break
+        if (next === cursor) return fail('parse', '索引翻页游标没有前进，拒绝死循环')
+        cursor = next
+      }
+      return { ok: true, repo: { owner: ref.refId.split('/')[0], name: ref.refId.slice(ref.refId.indexOf('/') + 1) }, index: index, count: Object.keys(index).length }
+    })
+  }
+
+  // ── 索引扫描入口（#1429）：窗口扫描与水印推进住同目录 issue-index-scan.ts（createIssueIndexScan，
+  //   内含唯一一份窗口状态，不另起第二份）；这里只留同名转交字段（index.ts / probe-handler / 单测写法不变），
+  //   仍走动态 import（宿主侧禁止静态引入新文件 D7，与既有范式一致）。
+  let _idxScanP: any = null
+  function _idxScan(): Promise<any> {
+    if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
+      return m.createIssueIndexScan({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
+    })
+    return _idxScanP
+  }
+  // 尾参 opts 标成可选：原 .js 里 cacheSnapshotIsCurrent 只传 cwd 一个实参，少传在运行时就是 undefined，原样透传。
+  async function fetchIssueIndexWindowed(cwd: any, opts?: any): Promise<any> {
+    try { const sc: any = await _idxScan(); return await sc.fetchIssueIndexWindowed(cwd, opts) } catch (e: any) { return { ok: false, error: { kind: 'env', error: String((e && e.message) || e) } } }
+  }
+  /** 水印与基线唯一的推进口：只在「变化真的并进列表之后」（或探测回来说没变）调它。 */
+  async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any): Promise<any> {
+    try { const sc: any = await _idxScan(); return await sc.commitIssueIndex(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
+  }
+  // ---- 原 index.js 475–488：缓存有效性判断与快照落盘收纳 ----
+  const cacheSnapshotIsCurrent: any = async function (snap: any, cwd: any): Promise<any> {
+    try {
+      const remote: any = await fetchIssueIndexWindowed(cwd)
+      if (!remote.ok) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'panelSync.eval', function (): any { return { repoKeyHash: hash8(String(cwd || '')), baseline: String((snap && (snap.version || snap.generatedMs)) || ''), dirty: true, failures: 1 } }) } catch (eL) {}; return null }
+      const before: any = issueIndexFromSnapshot(snap)
+      const changed: any = issueIndexChanged(before, remote.index)
+      const current: boolean = !changed
+      // #723（T19c）第 E 件：水印（与基线）只在「变化真的并进列表之后」才推进。这一条路只回答
+      // 「缓存还算不算当前」，变了就说明这次结果**还没**并进任何列表 —— 此时推水印会把那条变化
+      // 挤出扫描窗口（静默漏报）。没变则相反：列表与远端一致，推过去是安全的。
+      if (current) { try { await commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index) } catch (eC) { /* 推不动就保持原样，下次重扫一遍，不丢数据 */ } }        try { if (logCtx && logCtx.isEnabled('debug') && changed && ((++probeSampleN % 100) === 0)) logCtx.fire('debug', 'probe.eval', function (): any { return { repoKeyHash: hash8(remote.repo ? (remote.repo.owner + '/' + remote.repo.name) : String(cwd || '')), count: remote.count || Object.keys(remote.index || {}).length, changed: true } }) } catch (eL) {}
+      try { if (logCtx && logCtx.isEnabled('debug') && changed) logCtx.fire('debug', 'panelSync.eval', function (): any { return { repoKeyHash: hash8(remote.repo ? (remote.repo.owner + '/' + remote.repo.name) : String(cwd || '')), baseline: String((snap && (snap.version || snap.generatedMs)) || ''), dirty: true, failures: 0 } }) } catch (eL) {}
+      if (current) rememberIssueIndex(remote.repo, remote.index)
+      return current
+    } catch (e) { return null }
+  }
+  const adoptSnapshot: any = function (snap: any, cwd: any): any {
+    setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd })
+    if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
+    return snap
+  }
+  // 旧的两个手工分页兜底与地图详情 REST 通道已删（#1444）：它们直调 gh，且房间内部已有同样的降级。
+  return { fetchMaps, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot }
 }

@@ -16,7 +16,8 @@
  *   D. （#710 新增的运行期用例）**别的工作区的事件到达之后**：真把一条别的会话的写命令喂给
  *      src/refresh/rooms/host/write-event-subscription.ts，断言它被工作区白名单拦住、而且没有留下任何痕迹
  *      —— 不调闸、不记日志、不写内存表、不产生任何判定结果。同时用一条「自己工作区」的正向用例
- *      证明拦住不是因为整条路都不动，并证明取数只从闸里走（把闸摘掉时一次都不发）。
+ *      证明拦住不是因为整条路都不动，并证明写事件自 #1445 起不再过闸：取数直接交给管线，
+ *      闸即使递进来了也一次都不被调用；接线没给取数函数时只判定、不取数。
  *
  * 用法：
  *   node tests/verify-deck-event-gate.ts                    # 扫整个仓库（默认扫描根 = 本脚本所在目录的上一级）
@@ -270,6 +271,8 @@ if (!argv.includes('--skip-runtime')) {
   const gateCalls = []
   const fetched = []
   const logLines = []
+  // 假闸留着不删：它在这里的作用从「取数必须从它里面走」变成「递给它也不会被调用」。
+  // 一旦有人把过闸那一层接回来，gateCalls 就会从 0 变成 1，下面几条断言立刻红。
   const gate = {
     send: async (req, perform) => {
       gateCalls.push({ source: req.source, kind: req.kind, steps: req.plan.length })
@@ -282,7 +285,8 @@ if (!argv.includes('--skip-runtime')) {
   const writeLines = () => logLines.filter((l) => l.event === 'write.event')
   const deps = {
     gate: gate, logCtx: logCtx, now: () => clock,
-    fetch: async (step) => { fetched.push(step.action); return { requests: 1, points: 0 } },
+    // 取数记录整份 meta（不只 action）：钥匙那条断言要看它递出去的是不是白名单那一把。
+    fetch: async (step, meta) => { fetched.push({ action: step.action, meta: meta }); return { requests: 1, points: 0 } },
   }
 
   try {
@@ -292,7 +296,8 @@ if (!argv.includes('--skip-runtime')) {
     deps.canonicalKey = (cwd) => wk.canonicalWorkspaceKey(cwd, { getPlatform: async () => platform, getFs: () => fsSvc, logCtx: logCtx })
     const { createWriteEvents } = await import(pathToFileURL(path.join(REPO, 'src', 'refresh', 'rooms', 'host', 'write-event-subscription.ts')).href)
     const own = createWriteEvents(deps)
-    check(String(await own.allowRoot('D:\\mine')).length > 0, '先把 d:\\mine 加进白名单（宿主接线时按当前服务的工作区调它）')
+    const mineKey = String(await own.allowRoot('D:\\mine'))
+    check(mineKey.length > 0, '先把 d:\\mine 加进白名单（宿主接线时按当前服务的工作区调它）')
 
     // ---- 反例：别的工作区的会话里，一条成功的写命令到达 ----
     const logsBefore = writeLines().length
@@ -316,9 +321,13 @@ if (!argv.includes('--skip-runtime')) {
     )
     check(!!mine && mine.tier === 'write-confirmed' && mine.ticket === '12' && mine.action === 'patch-now',
       '自己工作区的写命令：判成确定写、票号 12、立刻补那一行（实得 ' + JSON.stringify(mine) + '）')
-    check(gateCalls.length === 1 && gateCalls[0].source === 'event.write' && gateCalls[0].kind === 'patch',
-      '取数一律过闸，且闸那一侧看得出这是事件触发的一档（实得 ' + JSON.stringify(gateCalls[0] || null) + '）')
-    check(fetched.length === 1 && fetched[0] === 'patch-now', '真取数发生在闸里面（闸放行之后才调 fetch）')
+    check(gateCalls.length === 0, '写事件不再过闸（deps 里给了闸，它的 send 一次都没被调用；实得 ' + gateCalls.length + ' 次）',
+      '闸被调到了 = #1445 去掉的那层又被接回来了')
+    check(fetched.length === 1 && fetched[0].action === 'patch-now' && fetched[0].meta.source === 'event.write' && fetched[0].meta.kind === 'patch',
+      '真取数直接交给管线（step.action=' + (fetched[0] && fetched[0].action) + '、meta.source=' + (fetched[0] && fetched[0].meta.source) + '、meta.kind=' + (fetched[0] && fetched[0].meta.kind) + '）')
+    check(fetched.length === 1 && fetched[0].meta.workspaceKey === mineKey,
+      '交给管线的钥匙就是白名单那一把（白名单=' + mineKey + '、递出=' + (fetched[0] && fetched[0].meta.workspaceKey) + '）',
+      '两把钥匙不同 = 管线认不出这是哪个工作区')
     check(own.debugState().knownSessions === 1, '自己工作区的会话进了白名单表（子目录会话按工作区根算同一个）')
     check(writeLines().length === logsBefore + 1 && writeLines()[logsBefore].event === 'write.event', '事件触发那一档单独记了一行日志（write.event）')
     const LOG_FIELDS = ['keyHash', 'shape', 'tool', 'tier', 'reason', 'action', 'hasTicket', 'cycle', 'result', 'waitedMs']
@@ -327,7 +336,7 @@ if (!argv.includes('--skip-runtime')) {
     check(!JSON.stringify(logLines).includes('gh issue close') && !JSON.stringify(logLines).includes('packages'),
       '日志里没有命令原文、也没有路径原文')
     const credited = own.stats().event
-    check(credited.requests === 1 && credited.points === 0, '事件触发那一档的花费单列记着（实得 ' + JSON.stringify(credited) + '）')
+    check(credited.requests === 0 && credited.points === 0, '花费两格如实记 0（实得 ' + JSON.stringify(credited) + '）—— 读路径不记账是 #1444 的裁决，真实用量归 #1446')
 
     // ---- 同一工作区 10 秒合并窗口 ----
     clock += 1000
@@ -335,20 +344,20 @@ if (!argv.includes('--skip-runtime')) {
       { agent: { session: { id: 's-mine-2', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue close 13' } },
       { isError: false, value: { exitCode: 0 } }
     )
-    check(!!second && second.coalesced === true && gateCalls.length === 1, '同一工作区 10 秒内第二次写：并进上一次（不再取数）')
+    check(!!second && second.coalesced === true && fetched.length === 1, '同一工作区 10 秒内第二次写：并进上一次（不再取数）')
     clock += 10001
     await own.onToolResult(
       { agent: { session: { id: 's-mine-2', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue close 14' } },
       { isError: false, value: { exitCode: 0 } }
     )
-    check(gateCalls.length === 2, '过了 10 秒合并窗口之后才允许再取一次（实得闸调用 ' + gateCalls.length + ' 次）')
+    check(fetched.length === 2, '过了 10 秒合并窗口之后才允许再取一次（实得取数 ' + fetched.length + ' 次）')
 
     // ---- 只认成功 + 调用刚开始不做任何事 ----
-    const before = gateCalls.length
+    const before = fetched.length
     await own.onToolResult({ agent: { session: { id: 's-mine', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue close 99' } }, { isError: false, value: { exitCode: 1 } })
     const callPhase = own.onSessionEvent({ id: 's-mine', header: { cwd: 'D:\\mine' } }, { type: 'tool/call', data: { name: 'pwsh', arguments: '{"command":"gh issue close 98"}' } })
     await callPhase
-    check(gateCalls.length === before, '失败的命令与「调用刚开始」的形态：一次取数都不发')
+    check(fetched.length === before, '失败的命令与「调用刚开始」的形态：一次取数都不发')
 
     // ---- 会话事件那条补充订阅路：命令行是 JSON 串也能判 ----
     clock += 10001
@@ -358,13 +367,14 @@ if (!argv.includes('--skip-runtime')) {
     )
     check(!!viaSession && viaSession.tier === 'write-confirmed' && viaSession.ticket === '21', '会话事件那条路（ptc 内层派发的收尾）照样判得出票号 21')
 
-    // ---- 没有闸时一次都不发（I1：写事件触发的取数必须过闸，没有第二条路） ----
-    const noGateFetches = []
-    const noGate = createWriteEvents(Object.assign({}, deps, { gate: null, fetch: async (step) => { noGateFetches.push(step.action); return { requests: 1, points: 0 } } }))
-    await noGate.allowRoot('D:\\mine')
-    const blocked = await noGate.onToolResult({ agent: { session: { id: 's-x', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue close 31' } }, { isError: false, value: { exitCode: 0 } })
-    check(!!blocked && blocked.gated === false && noGateFetches.length === 0 && noGate.stats().noGate === 1,
-      '把闸摘掉时：只判定、不取数（绝不绕过闸自己发请求）')
+    // ---- 接线没给取数函数时：只判定、不取数（诚实降级，绝不自己另找一条路把请求发出去） ----
+    // #1445 起这一格的守卫从「有没有闸」换成「有没有取数函数」—— 闸不再参与，能决定发不发请求的只剩 fetch。
+    const noFetchFetches = []
+    const noFetch = createWriteEvents(Object.assign({}, deps, { fetch: null, gate: { send: async () => { noFetchFetches.push('gate'); return { sent: true } } } }))
+    await noFetch.allowRoot('D:\\mine')
+    const blocked = await noFetch.onToolResult({ agent: { session: { id: 's-x', header: { cwd: 'D:\\mine' } } }, name: 'pwsh', arguments: { command: 'gh issue close 31' } }, { isError: false, value: { exitCode: 0 } })
+    check(!!blocked && blocked.fetched === false && !blocked.coalesced && noFetchFetches.length === 0 && noFetch.stats().noFetch === 1,
+      '把取数函数摘掉时：只判定、不取数（回包说 fetched=false，闸也没被拿来兜底；实得 ' + JSON.stringify(blocked) + '）')
 
     // ---- 静态隐私断言：这个文件本身没有任何落盘出口，也没有把参数交给日志 ----
     const src = fs.readFileSync(path.join(REPO, 'src', 'refresh', 'rooms', 'host', 'write-event-subscription.ts'), 'utf8')

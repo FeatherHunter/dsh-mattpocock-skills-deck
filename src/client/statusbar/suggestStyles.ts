@@ -19,11 +19,16 @@ export const SUGGEST_STYLE_TEXT: string = [
   // 选项行：居中横排，窄栏自动换行；每颗按钮自己收宽度，不把整行撑出视口。
   '.dsws-sugg-row{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:' + SUGGEST_APPEARANCE.pillGapPx + 'px;max-width:100%;pointer-events:none}',
   // 选项药丸：C 版玻璃质感（渐变底、内高光、细描边、文字投影）；超长提示词单行省略。
-  '.dsws-sugg-pill{position:relative;pointer-events:auto;box-sizing:border-box;max-width:' + SUGGEST_APPEARANCE.pillMaxWidthPx + 'px;font:inherit;font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:' + SUGGEST_APPEARANCE.pillLineHeight + ';padding:' + SUGGEST_APPEARANCE.pillPadY + 'px ' + SUGGEST_APPEARANCE.pillPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.pillRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.pillBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';text-shadow:' + SUGGEST_APPEARANCE.pillTextShadow + ';cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .14s ease,border-color .14s ease,box-shadow .14s ease}',
+  // 里面按横排两段摆：简介不压缩、提示词吃掉剩下的宽度并单行省略（#1451），所以这里用 inline-flex。
+  '.dsws-sugg-pill{position:relative;pointer-events:auto;box-sizing:border-box;display:inline-flex;align-items:center;gap:' + SUGGEST_APPEARANCE.pillIntroGapPx + 'px;max-width:' + SUGGEST_APPEARANCE.pillMaxWidthPx + 'px;font:inherit;font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:' + SUGGEST_APPEARANCE.pillLineHeight + ';padding:' + SUGGEST_APPEARANCE.pillPadY + 'px ' + SUGGEST_APPEARANCE.pillPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.pillRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.pillBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';text-shadow:' + SUGGEST_APPEARANCE.pillTextShadow + ';cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .14s ease,border-color .14s ease,box-shadow .14s ease}',
   // 左上角那团柔光：C 版药丸的「玻璃反光」，不参与布局、不吃事件。
   '.dsws-sugg-pill::before{content:"";position:absolute;left:4%;top:0;width:56%;height:50%;border-radius:50%;pointer-events:none;background:radial-gradient(ellipse 62% 58% at 34% 28%,rgba(255,255,255,.20),transparent 72%)}',
   '.dsws-sugg-pill:hover{border-color:' + SUGGEST_APPEARANCE.pillHoverBorder + ';box-shadow:' + SUGGEST_APPEARANCE.pillHoverShadow + '}',
   '.dsws-sugg-pill:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
+  // 简介这段：说清这一步做什么，加粗、不参与压缩，宽度不够时先截提示词。
+  '.dsws-sugg-intro{flex:none;font-weight:600;letter-spacing:.01em}',
+  // 提示词这段：吃掉简介剩下的宽度，超长单行省略；min-width:0 是 flex 子项能缩的必要条件。
+  '.dsws-sugg-cmd{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.86}',
   // 斜杠命令与普通提示词字面区分（原型 C 版同一处做法）。
   '.dsws-sugg-pill.cmd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}',
   // 关闭按钮行：整行居中；按钮平时半透明，悬停或聚焦才实。
@@ -33,9 +38,8 @@ export const SUGGEST_STYLE_TEXT: string = [
   '.dsws-sugg-close:focus-visible{opacity:1;outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
   // 小泡：绝对定位于整组之内，落在选项行下面一层（z-index 1），由引擎逐颗安排出发与落点。
   '.dsws-sugg-bub{position:absolute;z-index:1;left:0;top:0;border-radius:50%;pointer-events:none;background:' + SUGGEST_APPEARANCE.bubbleBg + ';border:1px solid ' + SUGGEST_APPEARANCE.bubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.bubbleGlow + ';opacity:0;will-change:transform,opacity}',
-  // 选中一条后的退场：整组轻轻上移淡出；关闭与覆盖走更短的淡出。
-  '@keyframes dsws-sugg-pick{to{opacity:0;transform:translateY(-6px) scale(.985)}}',
-  '.dsws-sugg-layer.dsws-sugg-picking{animation:dsws-sugg-pick ' + SUGGEST_APPEARANCE.pickMs + 'ms ease-in forwards}',
+  // 关闭与第二组覆盖的退场：整组淡出；选中一条的退场不再走整组 CSS 动画，
+  // 改由引擎按每颗胶囊的位置生成小泡向上飘走（见 suggestEngine 的 playOut('pick')）。
   '@keyframes dsws-sugg-fade{to{opacity:0}}',
   '.dsws-sugg-layer.dsws-sugg-fading{animation:dsws-sugg-fade ' + SUGGEST_APPEARANCE.fadeMs + 'ms ease-in forwards}',
   // 读屏专用播报节点：视觉上不占位，只让读屏软件念出「有几条建议」。
@@ -44,6 +48,6 @@ export const SUGGEST_STYLE_TEXT: string = [
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill{background:' + SUGGEST_APPEARANCE.lightPillBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + ';text-shadow:none}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill:hover{border-color:' + SUGGEST_APPEARANCE.lightPillHoverBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillHoverShadow + '}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-bub{background:' + SUGGEST_APPEARANCE.lightBubbleBg + ';border-color:' + SUGGEST_APPEARANCE.lightBubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightBubbleGlow + '}',
-  // 系统要求减少动效：去掉过渡与退场动画（小泡由引擎直接跳过）。
-  '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close{transition:none}.dsws-sugg-layer.dsws-sugg-picking,.dsws-sugg-layer.dsws-sugg-fading{animation-duration:1ms}}',
+  // 系统要求减少动效：去掉过渡与淡出动画（小泡由引擎直接跳过）。
+  '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close{transition:none}.dsws-sugg-layer.dsws-sugg-fading{animation-duration:1ms}}',
 ].join('\n')

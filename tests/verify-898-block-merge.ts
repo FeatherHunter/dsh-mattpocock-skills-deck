@@ -129,7 +129,12 @@ async function main() {
     // select 这一格是兜底识别（工作区文件缺席时才会问它）；#1138 起「这个工作区选过了」只剩
     // 工作区文件一份记录，所以下面用 chooseWorkspace 给本夹具那个固定工作区（execOf 的缺省 cwd）
     // 记一笔 —— 就是给这个工作区一份写着 backendId 的文件，判定出口第一层读到它才会放行写用途。
-    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker }
+    const registry = {
+      select: async () => ({ backendId: 'stub', source: 'test' }),
+      get: () => tracker,
+      // #1439：开会话要按后端编号取预算声明（预算必填），旧桩只给了选与取，这里补上离网口径。
+      modules: () => [{ id: 'stub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false } }],
+    }
     chooseWorkspace('C:/fake-ws', 'stub')
     return Object.assign({
       gate: stubGate(), registry: registry, budget: budget,

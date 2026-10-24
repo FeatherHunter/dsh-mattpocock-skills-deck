@@ -12,8 +12,9 @@
 //   ② 真走兜底那一趟自己落一行按需事件 detection.fallback（为什么走这一步、拿到什么、花了多久），不再借
 //      detection.detect 的名字；调试开关关着时一行都不落；没有日志出口时不抛。
 //   ③ 另外两条直调点把日志出口递进了判定出口：wf.selection（src/host/workspaceCwd.ts）与 deck 工具壳
-//      （src/deck/shell/call-shell.ts）。这两处补的是「同一件事没被记录到」这个洞。驱动它们要装配整条宿主链
-//      （另有门禁在跑那些行为），这里只钉「递了没有」这一件事，用的是定点文本断言。
+//      （#1442 起这条路从 src/deck/shell/call-shell.ts 搬到了 src/deck/tools/tracker-session.ts，
+//      出口调用与工具执行共用装配层递进来的同一个日志出口 d.log）。这两处补的是「同一件事没被记录到」这个洞。
+//      驱动它们要装配整条宿主链（另有门禁在跑那些行为），这里只钉「递了没有」这一件事，用的是定点文本断言。
 //
 // 用法（手工跑要自己挂装载钩子；npm test / verify:parallel / verify-all / test:smoke 四个入口自动挂）：
 //   node --import ./scripts/ts-hook.mts tests/verify-detection-log-reach.ts
@@ -158,8 +159,13 @@ async function main() {
   {
     const cwdSrc = fs.readFileSync(path.join(ROOT, 'src/host/workspaceCwd.ts'), 'utf8')
     check(/caller: 'wf\.selection', logCtx: logCtx/.test(cwdSrc), "wf.selection 那条出口调用递了 logCtx（caller: 'wf.selection', logCtx: logCtx）")
-    const shellSrc = fs.readFileSync(path.join(ROOT, 'src/deck/shell/call-shell.ts'), 'utf8')
-    check(/readDeclarationId: d\.readDeclarationId[\s\S]{0,400}?logCtx: log,/.test(shellSrc), 'deck 工具壳那条出口调用递了 logCtx（logCtx: log，与它记 host.call 的是同一个出口）')
+    // #1442 起 deck 工具壳不再自己拼后端、自己过闸，选后端这一步搬进了 Tracker 会话的开场（src/deck/tools/
+    // tracker-session.ts 的 openDeckSession）。原来这里查的是 call-shell.ts 里的局部别名 log；搬过之后出口调用的
+    // logCtx 直接取依赖袋里的 d.log，也就是装配点（src/refresh/registry/deck-tool-bridge.ts）递进来的那一个日志
+    // 出口——工具执行与判定出口因此共用同一份日志，不再各拿各的。断言仍钉同一件事：出口调用确实递了日志出口，
+    // 而且递的不是随手新造的一份。
+    const sessionSrc = fs.readFileSync(path.join(ROOT, 'src/deck/tools/tracker-session.ts'), 'utf8')
+    check(/readDeclarationId: d\.readDeclarationId[\s\S]{0,400}?logCtx: d\.log,/.test(sessionSrc), 'deck 工具壳那条出口调用递了 logCtx（logCtx: d.log，就是装配层递进来、工具自己也在用的那个日志出口）')
     const lifeSrc = fs.readFileSync(path.join(ROOT, 'src/host/sessionLifecycle.ts'), 'utf8')
     check(lifeSrc.indexOf("'detection.detect'") === -1, '早快照不再发与出口同名的常驻结论线（detection.detect 在文件里已消失）')
     check(lifeSrc.indexOf("'detection.fallback'") !== -1, '早快照的兜底改用自己那个名字（detection.fallback）')

@@ -2,9 +2,6 @@
 // 以后谁改它：改工作区路径归一、后端绑定选择、工作区配置文件落盘（#957 首绑人选与保护自动两写）的人。标签配色两条电话（#627）已搬到 ./workspaceLabelColors.js，改那两条去那边。预估约 200 行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；改色叶子经本文件动态加载（单向，基线有记录），工作区文件纯函数经静态引用（跨层允许）；目录取法调 shared 共用函数（#730）。
 import { resolveSessionCwd } from '../shared/session-cwd.js'
-// #1115：opCtxFor 那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
-// 类型与实现在同一行 import：有效行门禁的上限（350）压在这份文件上，合并写法是为了守住它。
-import { hostTimers, type HostTimerService } from '../refresh/contract/host-timer-ports.js'
 import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL, WORKSPACE_FILE_LEGACY_REL, isWorkspaceLayout } from '../deck/shell/workspace-anchor.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
@@ -36,7 +33,12 @@ type ChoiceStore = { rememberWorkspace(cwd: unknown, backendId: unknown): Promis
 type DecisionOutlet = { decideBackend(cwd: string, opts: unknown): Promise<any>; selectionFromOutlet?(o: unknown, describe: (id: string) => unknown): unknown }
 type DetExec = (cmd: any, args: any, opts: any, via: any) => Promise<any> // 只转交不读：真签名唯一在平台通道 detectionExec（platformChannel.ts），这里写 any 透传；写 typeof 查值会多出一条同层边
 type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
-type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | null>; getTrackerRegistry(): Promise<Registry | null>; getWorkspaceStore(): Promise<WorkspaceStore>; getChoiceStore(): Promise<ChoiceStore | null>; getDecisionFn(): Promise<any>; getDetectionService?: unknown; canonicalKey(raw: string): Promise<string>; setCache(v: unknown): void; logCtx: LogCtx; timer: HostTimerService; detectionExec: DetExec }
+type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | null>; getTrackerRegistry(): Promise<Registry | null>; getWorkspaceStore(): Promise<WorkspaceStore>; getChoiceStore(): Promise<ChoiceStore | null>; getDecisionFn(): Promise<any>; getDetectionService?: unknown; canonicalKey(raw: string): Promise<string>; setCache(v: unknown): void; logCtx: LogCtx; timer?: any; detectionExec: DetExec; openSession?: (cwd: string, opts?: any) => Promise<any> }
+// timer 为什么还留着这个字段：装配点（src/host/index.ts）现在仍然把宿主计时器服务传进来，
+// 本文件自己不再用它——#1445 起上下文由会话组装，会话的公共上下文自带 timers（hostTimers 那一份）。
+// 字段留着是为了不改装配点的调用形状；等装配点一并收掉这个参数，这里再删。
+// openSession 为什么可选：装配点可以暂时没接上（真实宿主由 Lead 接线），缺席时配色文件这一步按环境问题如实失败，
+// 而不是退回直调房间——绕过会话会把写权限与调用记账一起绕过去。
 /**
  * 组装工作区路径归一、后端绑定选择、布局记忆与标签配色电话（#449 / #652 / #683 / #957 / #1003 / #1074 / #1138）。
  *
@@ -48,7 +50,7 @@ type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | n
  * 反例：若 `handleBind` 在工作区只读或沙箱拒绝写入 `docs/agents/workspace.json` 时只写了本机记忆 `~/.dsh/mattskillsdeck/choices.json` 就返回 `ok: true`，界面会欺骗用户显示「已切换」，而下一轮判定不读本机记忆，刷新后又跳回旧后端。
  */
 export function createWorkspaceCwd(deps: Deps) {
-  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, getDetectionService, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
+  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, getDetectionService, canonicalKey, setCache, logCtx, openSession } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
   // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
   // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
@@ -68,16 +70,26 @@ export function createWorkspaceCwd(deps: Deps) {
   //   真正要用这份文件的时候（打开改色弹窗）会再试一次，那时按写失败分档如实报「写不进去」。
   async function placeLabelColorsFile(cwd: string, backendId: string, args?: WfArgs) {
     if (!backendId) return { ok: true, skipped: 'not-markdown' }
+    // #1445：这一步改走写会话。以前这里自己查注册表（reg.get）、自己 describe 仓库引用、自己拼上下文；
+    // 现在这三件事都由会话回包给出，写路径上的预算与记账也才真正经过会话。后端做不做这件事仍然问后端自己：
+    // 不实现的后端在会话里会回 unsupported，下面照旧按「它不愿意放这份文件」跳过。
+    if (typeof openSession !== 'function') return { ok: false, error: { kind: 'env', message: '插件还没有装配「开会话」这个出口（内部叫 openSession），所以这次没能把标签配色文件放进这个工作区，这个工作区里现在可能还没有这份文件。请把这条提示原文报告给插件维护者。' } }
     try {
-      const reg = await getTrackerRegistry()
-      if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，这次没能看清要不要放配色文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
-      const tracker = reg.get(backendId)
-      if (!tracker || typeof tracker.ensureLabelColorsFile !== 'function') return { ok: true, skipped: 'backend-wants-no-file' }
-      const platform = await getPlatform()
-      let ref = null
-      try { ref = reg.describe({ cwd: cwd }, backendId) } catch (e) { ref = { backend: backendId, refId: '', name: '', url: '' } }
       const sb = resolveSandboxPolicy(args || null, cwd)
-      const placed = await tracker.ensureLabelColorsFile(ref, opCtxFor(cwd, platform, ref, 'wf.bind', new AbortController().signal, sb.policy, sb.sessionId)) as unknown as { ok?: unknown; placed?: unknown; reason?: unknown; error?: { kind?: unknown; message?: unknown } }
+      let opened: any = null
+      try { opened = await openSession(cwd, { write: true, resolveSelection: function () { return { backendId: backendId } } }) } catch (eO) {
+        return { ok: false, error: { kind: 'env', message: '插件没能把标签配色文件放进这个工作区（打开写会话这一步出错），所以这个工作区里现在可能还没有这份文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
+      }
+      if (!opened || opened.ok !== true || typeof opened.call !== 'function') {
+        const reason = String((opened && opened.reason) || '未说明原因')
+        return { ok: false, error: { kind: 'env', message: '插件没能把标签配色文件放进这个工作区（没能打开写会话，原因：' + reason + '），所以这个工作区里现在可能还没有这份文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
+      }
+      // 会话的公共上下文有意不带沙箱政策与会话号，而 markdown 后端写文件要看政策（研究 #614/#624），
+      // #1305 门禁也断言这一步必须带本次会话号；这里补的是本文件已经算好的那一份，不另造政策算法。
+      const placed = await opened.call(function (session: any, octx: any) {
+        const callCtx: any = Object.assign({}, octx, { sandboxPolicy: sb.policy, sessionId: sb.sessionId || '', refId: (opened.repoRef && opened.repoRef.refId) || '' })
+        return session.ensureLabelColorsFile(opened.repoRef, callCtx)
+      }) as { ok?: unknown; placed?: unknown; reason?: unknown; error?: { kind?: unknown; message?: unknown } }
       if (placed && placed.ok === true) return { ok: true, placed: placed.placed === true, reason: placed.reason || '' }
       // 后端如实回了「这件事我不做」：它的颜色存在别处，没有本地文件可放 —— 这是跳过，不是失败。
       if (placed && placed.error && placed.error.kind === 'unsupported') return { ok: true, skipped: 'backend-wants-no-file' }
@@ -257,8 +269,9 @@ export function createWorkspaceCwd(deps: Deps) {
     } catch (e) { return { ok: false, error: String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e) } }
   }
   // #957 拆分：改色两条电话住自包含叶子（./workspaceLabelColors.js），本文件只做装配与日志包装（动态加载、单向，同一出口、同一信封、同一 loggedPhone）。
+  // #1445：叶子里的两条电话改走会话，装配这里改成把「开会话」这一口传下去（原来传的是本文件的 opCtxFor）。
   let _labelColorsP: Promise<any> | null = null
-  function labelColorsPhones(): Promise<any> { if (!_labelColorsP) _labelColorsP = import('./workspaceLabelColors.js').then(function (m: any) { return m.createWorkspaceLabelColors({ normCwd: normCwd, getTrackerRegistry: getTrackerRegistry, getPlatform: getPlatform, opCtxFor: opCtxFor, resolveSandboxPolicy: resolveSandboxPolicy, getDecisionFn: getDecisionFn, getDetectionService: getDetectionService }) }); return _labelColorsP }
+  function labelColorsPhones(): Promise<any> { if (!_labelColorsP) _labelColorsP = import('./workspaceLabelColors.js').then(function (m: any) { return m.createWorkspaceLabelColors({ normCwd: normCwd, getTrackerRegistry: getTrackerRegistry, getPlatform: getPlatform, openSession: openSession, resolveSandboxPolicy: resolveSandboxPolicy, getDecisionFn: getDecisionFn, getDetectionService: getDetectionService }) }); return _labelColorsP }
   async function handleListLabels(args: WfArgs) { const p = await labelColorsPhones(); return p.handleListLabels(args) }
   async function handleSetLabelColors(args: WfArgs) { const p = await labelColorsPhones(); return p.handleSetLabelColors(args) }
   function msgOf(e: any) { return String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e) }
@@ -371,27 +384,6 @@ export function createWorkspaceCwd(deps: Deps) {
     } catch (eM) {
       try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.migrate', kind: 'bind', errorHash: hash8(msgOf(eM)), cwdHash: hash8(String(key)) }) } catch (eL) {}
       return { ok: false, error: { kind: 'env', message: msgOf(eM).slice(0, 120) } }
-    }
-  }
-  function opCtxFor(cwd: string, platform: Platform | null, repoRef: { refId?: string } | null, caller: string, signal: AbortSignal, sandboxPolicy: unknown, sessionId: string) {
-    return {
-      cwd: cwd,
-      refId: (repoRef && repoRef.refId) || '',
-      signal: signal,
-      platform: platform as unknown as import('../tracker/contract/contexts.js').BackendPlatform,
-      fs: ctx.get('fs'),
-      caller: caller,
-      outbound: undefined as unknown as import('../tracker/contract/outbound.js').OutboundControl,
-      // 写文件要用的「本次调用的政策」（会话政策）：由沙箱政策服务按会话算，这里只传不算。
-      // 后端把它当写方法的第 5 个参数交给 DSH 的文件服务 —— 不传就等于用部署默认政策，
-      // 而部署默认可写根是 DSH 进程所在目录，不是用户工作区，所以往工作区写必然被拒（研究 #614/#624）。
-      sandboxPolicy: sandboxPolicy,
-      // 这份政策是按哪个会话算的（给日志与排查用；拿不到会话时是空串）。
-      sessionId: sessionId || '',
-      timers: hostTimers(timer) as unknown as { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout },
-      exec: function (cmd: any, args: any, opts: any) { return detectionExec(cmd, args, opts, 'label-colors') },
-      logEvent: function (level: string, event: string, fields: unknown) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
-      isEnabled: function (level: string) { try { return (logCtx && typeof logCtx.isEnabled === 'function') ? logCtx.isEnabled(level) === true : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },
     }
   }
   // ── 会话政策：写用户工作区时那条正规口子的两半（研究 #624）────────────────────

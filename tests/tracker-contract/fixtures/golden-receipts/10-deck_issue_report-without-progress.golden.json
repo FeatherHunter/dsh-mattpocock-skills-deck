@@ -5,10 +5,12 @@
   },
   "cost": {
     "actual": {
-      "points": 0,
-      "remaining": 1750,
-      "requests": 0,
-      "tier": "green"
+      "backendId": "markdown",
+      "budgetKind": "off-network",
+      "offNetwork": true,
+      "points": 3,
+      "readKnown": true,
+      "requests": 1
     },
     "estimated": {
       "perShard": 1,
@@ -17,7 +19,8 @@
       "shards": 1,
       "text": "这次 deck_issue_report 预计花 6 点、3 条出站请求，在硬顶之内。",
       "withinCallCap": true
-    }
+    },
+    "note": "本后端不需要额度（离网口径）。"
   },
   "data": {
     "backendId": "markdown",

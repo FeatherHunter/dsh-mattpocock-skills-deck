@@ -13,6 +13,8 @@ import type { RepositoryRef } from '../../contract/entities.js';
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../kernel/preflight.js'
 import { ghClient, rememberOutbound } from './client.js'
+// #1446：用量统一在操作表外层附到成功信封上，不在二十六条操作里各写一遍。
+import { attachOpUsage } from './op-usage.js'
 import type { OutboundControl } from '../../contract/outbound.js'
 import { ghPreflight } from './preflight.js'
 import { listIssues, getIssue } from './issues.js'
@@ -23,6 +25,7 @@ import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from 
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
 import { readRepoPermissions } from './repo-permissions.js'
+import { readGithubBudget } from './budget.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { setParent, getDependencies, setBlockedBy } from './graph.js'
 import { initProject } from './init-project.js'
@@ -106,7 +109,8 @@ export function createGithubBackend(ctx: OpContext) {
   rememberOutbound((ctx as unknown as { outbound?: OutboundControl } | null)?.outbound)
   // 可选：预解析 ghPath 无副作用，此处不做
   void ghClient(ctx)
-  return {
+  // 先按形状装配，再在操作表外层统一包一层用量：包的是同一个对象，成员集合与形状断言都不变。
+  const backend = {
     id: 'github',
     preflight: (handle, opCtx) => ghPreflight(handle, opCtx || ctx),
     list: (repo, filter, opCtx) => listIssues(repo, filter, opCtx || ctx),
@@ -173,6 +177,7 @@ export function createGithubBackend(ctx: OpContext) {
     //   2026-10-14 起它是契约操作（`Tracker.getRepoPermissions`）：deck_context 的能力位与失败归因
     //   两边都要用它，所以它不再是「GitHub 独有的旁路」。
     //   问不出来（网络、仓库不存在）如实回 ok:false，调用方按「未知」处理，不捏造。
+    readBudget: (opCtx) => readGithubBudget(opCtx || ctx),
     getRepoPermissions: async (repo, opCtx) => {
       const c = ghClient(opCtx || ctx)
       const refId = repo && typeof repo.refId === 'string' ? repo.refId.trim() : ''
@@ -185,4 +190,5 @@ export function createGithubBackend(ctx: OpContext) {
       return { ok: true, data: perms }
     },
   } satisfies GithubBackendShape
+  return attachOpUsage(backend)
 }

@@ -63,7 +63,9 @@ async function main() {
   // refId 用相对路径（与 verify-deck-tools.js 同口径），绝对路径会让 issuesDir 拼出双前缀。
   const handleA = { cwd: rootAPosix, refId: '.scratch/demo' }
   chooseWorkspace(rootAPosix, 'markdown')
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
 
   const deps = {
     gate: gate, registry: registry, budget: budget,

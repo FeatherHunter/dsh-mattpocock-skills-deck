@@ -59,8 +59,7 @@ interface PatchDeps {
   windowRules?: any
   probeIndex?: (cwd: string, sinceIso: string) => any
   getRepoKey?: (cwd: string) => any
-  runGh?: (args: string[], cwd: string) => any
-  send?: (req: any, perform: () => Promise<any>) => any
+  openSession?: (cwd: string, opts?: any) => any
   decide?: (req: any) => any
   now?: () => number
   hash8?: (s: string) => string
@@ -78,9 +77,7 @@ export const DELTA_FIELD = 'delta'
  *   indexOfSnapshot(snap) → 从快照里取出「列表手上那份索引」（注入 indexWindow.indexFromSnapshot）
  *   windowRules → src/refresh/kernel/index-window-rules.js 那个模块（scanWindow / seedFromSnapshot）
  *   probeIndex(cwd, sinceIso) → 只问窗口内的变化，回 { ok, index } 或 { ok:false, error }
- *   getRepoKey(cwd) / runGh(args, cwd) → 取那几条薄查询用的两件工具
- *   send(req, perform) → 可选。给了就由它去发（生产里是闸的 send：先裁决、再记账）；
- *                        没给就直接 perform（门禁里用假传输层时走这条）
+ *   getRepoKey(cwd) → 拼仓库坐标（owner/name）；openSession(cwd) → 取那几条薄查询用的只读会话
  *   decide(req) → 可选。只问一句「这一笔现在放不放行」，用来先判探查要不要发（生产里是闸的 decideFor）
  *   now / hash8 / logCtx / maxRows → 时间、短散列、日志出口与「一次最多补几行」
  */
@@ -255,7 +252,7 @@ export function createPatch(deps?: PatchDeps | null): any {
     if (plan.changed.length > maxRows) { stats.rebuildNeeded += 1; fire('rebuild', 'too-many-rows', { keyHash: keyHash, changed: plan.changed.length, pending: st.pending.length }); return { mode: 'rebuild', reason: 'too-many-rows', changed: plan.changed.length } }
     // ⑧ 取那几条薄的（取数三件套在 ./thin-row-fetch.js，依赖由这里注入）。
     const startedGeneration = st.generation
-    const got: any = await fetchThinRows({ host: d, stats: stats, wsKeyOf: wsKeyOf }, cwd, repo, plan.changed)
+    const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats }, cwd, repo, plan.changed)
     if (!got.ok) {
       const pending = await rememberPending(cwd, snap, got.keys || plan.changed, got.reason)
       if (got.outcome === 'deferred') stats.deferred += 1; else stats.failed += 1

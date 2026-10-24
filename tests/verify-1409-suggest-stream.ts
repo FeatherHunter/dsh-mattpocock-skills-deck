@@ -166,6 +166,7 @@ async function main() {
   check(facts.SUGGEST_TOOL_NAME === tool.SUGGEST_TOOL_NAME, '工具名两侧一致')
   check(facts.SUGGEST_MIN_ITEMS === tool.MIN_ITEMS && facts.SUGGEST_MIN_ITEMS === 2, '最少条数两侧一致且为 2')
   check(facts.SUGGEST_MAX_ITEMS === tool.MAX_ITEMS && facts.SUGGEST_MAX_ITEMS === 4, '最多条数两侧一致且为 4')
+  check(facts.SUGGEST_INTRO_MAX_CHARS === tool.INTRO_MAX_CHARS && facts.SUGGEST_INTRO_MAX_CHARS === 10, '简介上限两侧一致且为 10')
   check(facts.SUGGEST_PROMPT_MAX_CHARS === tool.PROMPT_MAX_CHARS && facts.SUGGEST_PROMPT_MAX_CHARS === 500, '提示词上限两侧一致且为 500')
   check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 200, '理由上限两侧一致且为 200')
   // 气泡叶子在本地再钳一次条数（构建时是同一闭包里的常量，不能跨文件 import），所以读源码把第四个 4
@@ -201,7 +202,7 @@ async function main() {
     { prompt: '/b', reason: 'r2' },
   ] }))
   check(parsedExtra.ok === true && parsedExtra.items[0].prompt === '/a' && parsedExtra.items[0].reason === 'r1', '两侧空白 trim 掉、多余键不往下传')
-  check(Object.keys(parsedExtra.items[0]).join(',') === 'prompt,reason', '每个条目只留 prompt 与 reason 两格')
+  check(Object.keys(parsedExtra.items[0]).join(',') === 'intro,prompt,reason', '每个条目只留 intro、prompt 与 reason 三格')
   check(facts.suggestItemsOf(null).ok === false && facts.suggestItemsOf(null).reason === 'bad-json', '参数既不是字符串也不是对象时判 bad-json')
   check(facts.suggestItemsOf(42).reason === 'bad-json', '参数是数字等其它类型时判 bad-json')
   check(facts.suggestItemsOf({}).reason === 'bad-shape', '参数是对象但没有 items 时判 bad-shape（PTC 坏形状走这条路）')
@@ -236,6 +237,18 @@ async function main() {
   check(parsedClipped.items[0].reason.length === 200 && parsedClipped.items[0].reason.slice(-1) === '…', '理由截到 200 个码点以内并补省略号')
   const parsedNoReason = facts.suggestItemsOf(JSON.stringify({ items: [{ prompt: '/a' }, { prompt: '/b' }] }))
   check(parsedNoReason.ok === true && parsedNoReason.items[0].reason === '', '缺理由的条目按空理由收（不因少一句解释丢掉整条提示词）')
+  // #1451 起每条多带一句十字以内的简介；旧事件里没有这一格，按空串收，界面只显示提示词。
+  const parsedIntro = facts.suggestItemsOf(JSON.stringify({ items: [
+    { intro: ' 拆票 ', prompt: '/to-tickets', reason: 'r' },
+    { prompt: '/no-intro', reason: 'r2' },
+  ] }))
+  check(parsedIntro.ok === true && parsedIntro.items[0].intro === '拆票' && parsedIntro.items[1].intro === '', '简介 trim 后保留；缺简介的旧事件按空串收')
+  const parsedIntroLong = facts.suggestItemsOf(JSON.stringify({ items: [
+    { intro: '简'.repeat(30), prompt: '/a', reason: 'r' },
+    { prompt: '/b', reason: 'r2' },
+  ] }))
+  check(parsedIntroLong.ok === true && parsedIntroLong.clipped === 1 && parsedIntroLong.items[0].intro.length === 10 && parsedIntroLong.items[0].intro.slice(-1) === '…',
+    '超长简介截到 10 个码点并补省略号，只算「被截断一条」')
 
   // ── 6. 事件识别：只认 durable 的调用事件（tool/call 与 tool/ptc-dispatch-start）与 turn/start、turn/end ──
   const foundCall = facts.suggestEventOf(callEvent('call_A', 3, GOOD_ARGS))
@@ -588,9 +601,9 @@ async function main() {
   check(factsSrc.indexOf("'suggest_next_steps'") >= 0, '界面侧工具名是字面量（不靠运行时拼）')
   check(factsSrc.indexOf("'tool/ptc-dispatch-start'") >= 0 && factsSrc.indexOf("'turn-start'") >= 0, '事件识别里显式包含 PTC 派发与 turn/start（两种预设都要认）')
   check(streamSrc.indexOf("'turn-start'") >= 0, '订阅层处理 turn/start（PTC 调用靠它补轮次）')
-  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 200/.test(factsSrc), '界面侧四个上下限常量是字面量')
+  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_INTRO_MAX_CHARS = 10/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 200/.test(factsSrc), '界面侧五个上下限常量是字面量')
   const toolSrc = fs.readFileSync(path.join(ROOT, 'src/deck/tools/suggest-next-steps.ts'), 'utf8')
-  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 200/.test(toolSrc), '工具侧四个上下限常量是字面量（两边数字由上面的导入比对钉住）')
+  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /INTRO_MAX_CHARS = 10/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 200/.test(toolSrc), '工具侧五个上下限常量是字面量（两边数字由上面的导入比对钉住）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   printGateResult('verify-1409-suggest-stream', total, failed ? 1 : 0)

@@ -35,14 +35,17 @@ async function main() {
 
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
+  // #1446 起账本按「后端 + 桶」记账：这一扇只验一个两桶后端，先按口径建桶再落读数。
+  const BACKEND = 'github'
+  ledger.ensureBackend(BACKEND, { kind: 'two-buckets' })
   const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS }, graphql: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS } }, clock)
+  ledger.syncServer(BACKEND, { rest: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS }, graphql: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS } }, clock)
 
   const HOUR_MS = budget.HOUR_MS
   // 到了门槛之后要等多久才放探针：退避序列里「第 n 次失败」那一档，再加一整轮之后额外等的那一段。
   // 这个算式就是 policy.js 的 nextAttemptDelayMs + limits.failureHalfOpenDelayMs，测试这边照同一口径拼。
   const waitFor = (n) => CHAIN_BACKOFF_MS[Math.min(n - 1, CHAIN_BACKOFF_MS.length - 1)] + FAILURE_HALF_OPEN_DELAY_MS
-  const send = (key, kind, perform) => gate.send({ source: 'tool.call', kind: kind || 'probe', workspaceKey: key, plan: [{ phase: 'op' }] }, perform)
+  const send = (key, kind, perform) => gate.send({ source: 'tool.call', kind: kind || 'probe', workspaceKey: key, plan: [{ phase: 'op' }], backendId: BACKEND }, perform)
   const failOnce = (key, kind) => send(key, kind, () => { throw new Error('模拟一次真失败') }).then(() => false, () => true)
 
   // ---------- ① 先复现故障：走到门槛就锁住 ----------

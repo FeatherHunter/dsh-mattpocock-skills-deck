@@ -14,13 +14,8 @@
 //   取到后注入：deps.makeCreateErrorClassifier 与 deps.KIND_UNKNOWN。
 import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../tracker/kernel/workspace-ownership.js'
 
-interface RepoKey { owner: string; name: string }
-
-/** gh 命令的返回信封（宿主注入的 runGh 产出的形状）。 */
-interface GhReply { ok: boolean; text: string; error?: unknown; kind?: string }
-
-/** git 命令的返回信封（宿主注入的 execProc 产出的形状）：本文件只用到 ok 与 error。 */
-interface ExecReply { ok: boolean; error?: unknown; text?: string }
+/** git 命令的返回信封（宿主注入的 execProc 产出的形状）：ok/text/error 三样本文件都读，退出码可缺（缺了按 ok 推）。 */
+interface ExecReply { ok: boolean; error?: unknown; text?: string; code?: number }
 
 /** 工作区可用性探测的结果：ok 为真时可能带 notRepoYet（这个目录还没建仓）；为假时带分类与原话。 */
 type UsableResult =
@@ -32,22 +27,37 @@ interface InitPublishArgs { cwd?: string; name?: unknown; visibility?: unknown }
 /** 重试推送的入参（半成功时由前端从 initPublish 结果带出）。 */
 interface RetryPushArgs { cwd?: string; name?: unknown; repoUrl?: unknown; owner?: unknown }
 
+/** 写会话的执行器：房间起外部命令时用它（形状与 src/refresh/rooms/host/session-opener.ts 的 SessionExec 一致）。 */
+type SessionExec = (cmd: string, args: string[], opts?: { cwd?: string; timeout?: number; signal?: AbortSignal }) => Promise<unknown>
+
+/**
+ * 开会话的结果（成功那一份只列本文件用到的成员；失败那一份只要 ok 与 reason）。
+ *
+ * 为什么只列用到的：这份类型是本文件对「写会话」的全部要求，写全了会把宿主的接线细节
+ * 抄进宿主另一份文件里，两边一改就得同步改类型。call 的参数类型也用 any —— 会话能力
+ * 的形状属于契约层（TrackerSession），本文件不该再声明一遍。
+ */
+type SessionOpened =
+  | { ok: true; backendId?: string; canWrite?: boolean; repoRef?: { backend?: string; refId?: string; name?: string; url?: string } | null; budget?: unknown; call: (fn: (session: any, ctx: any) => Promise<any>) => Promise<any> }
+  | { ok: false; reason?: string; detail?: unknown }
+
+/** 写会话的开启函数：由宿主在接线处注入，本文件不碰注册表、不选后端。 */
+type OpenSessionFn = (cwd: unknown, opts?: { write?: boolean; exec?: SessionExec }) => Promise<SessionOpened>
+
 /** 接线处注入的依赖（形状按本文件实际用到的部分写）。 */
 interface Deps {
   DEFAULT_CWD: string
   resolveGit(): Promise<string | null>
-  resolveGh(): Promise<string | null>
-  getGhLastError(): string | null | undefined
-  runGh(args: string[], cwd: string): Promise<GhReply>
   execProc(argv: string[], cwd: string, phase: string): Promise<ExecReply>
   canonicalKey(cwd: string): Promise<string | null> | string | null
-  getRepoKey(cwd: string): Promise<RepoKey | null> | RepoKey | null
   repoKeys: Record<string, unknown>
   repoRoots: Record<string, unknown>
   setCache(entry: { ts: number; snapshot: unknown; error: unknown; cwd: string | null }): unknown
   logCtx?: { fire(level: string, event: string, fields?: unknown): void } | null
   makeCreateErrorClassifier(deps: { isOwnership: (text: string) => boolean }): (errText: unknown, kind?: unknown) => string
   KIND_UNKNOWN: string
+  /** 写会话的开启函数（票 #1445）。缺省时建仓回环境失败、不抛：本文件不自己调注册表兜底。 */
+  openSession?: OpenSessionFn | null
 }
 
 /** 从任意结果信封里取一句错误指纹原料（原写法 `res.error.message || res.error || res.errorKind` 的类型安全版）。 */
@@ -58,7 +68,8 @@ function errFingerprint(v: unknown): string {
 }
 
 export function createPublishFlow(deps: Deps) {
-  const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache, logCtx, makeCreateErrorClassifier, KIND_UNKNOWN } = deps
+  // 只取真正用到的字段：gh 的解析与调用自 #1445 起都由房间负责，宿主这边不再持有 gh 相关依赖。
+  const { DEFAULT_CWD, resolveGit, execProc, canonicalKey, repoKeys, repoRoots, setCache, logCtx, makeCreateErrorClassifier, KIND_UNKNOWN, openSession } = deps
   // #606：本文件里的外部命令全是 git，都属于「初始化仓库 / 推送」这条链，统一打上链名再往下传，
   //   这样日志里的 exec.run 行就能答出「这条命令是发布链起的」。
   const gitExec = function (argv: string[], cwd: string) { return execProc(argv, cwd, 'publish') }
@@ -139,14 +150,69 @@ export function createPublishFlow(deps: Deps) {
     //   不许把「没修好」说成「已修复」。
     return { ok: false, kind: 'git-ownership', text: second.text, triedRepair: true }
   }
+  // ============ 写会话的执行器（#1445）============
+  // 房间起外部命令时要的是「{ code, stdout, stderr }」，宿主这份 execProc 给的是「{ ok, text, error }」。
+  //   不转这一道不行：房间的兼容层只把 stderr 当失败原文，转丢了 stderr，git 的属主/磁盘这些档位就全成了空串。
+  // 为什么把宿主的 execProc 交给会话（openSession 的 opts.exec）：refresh 给会话默认配的执行器是
+  //   detectionExec，gh 命令按探活档超时；建仓要推一个大仓，必须走宿主这条带自己超时与名额的执行器。
+  //   opts.timeout 这里不转：超时口径归宿主执行器，房间给的数只对它自己起的进程有意义。
+  function sessionExecOf(outerCwd: string): SessionExec {
+    return async function (cmd: string, argv: string[], opts?: { cwd?: string }) {
+      const o = opts || {}
+      const r = await execProc([cmd].concat(Array.isArray(argv) ? argv : []), o.cwd || outerCwd, 'publish')
+      const code = typeof r.code === 'number' ? r.code : (r.ok ? 0 : 1)
+      return { code: code, stdout: r.ok ? String(r.text || '') : '', stderr: r.ok ? '' : String(r.error || '') }
+    }
+  }
+
+  // no-gh 那条安装提示由宿主给（面板文案归宿主）。房间自己那份措辞更旧，不拿它换掉界面上已经在用的这一份。
+  //   这是「同一段文案两处各存一份」的已知重复：改文案时两处一起看，房间那份不在本票范围。
+  const NO_GH_PROMPT = '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 `gh --version`；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装：Windows → `winget install --id GitHub.cli`; macOS → `brew install gh`; Linux → `sudo apt install gh`;\n3. 安装后验证：重开终端使 PATH 生效，`gh --version` 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。'
+
+  // 失败回包的映射（#1445）：房间的档位名与宿主原来的 errorKind 是同一套（no-git / no-gh / not-logged-in /
+  //   already-exists / network / permission / git-ownership / unknown），所以档位原样透传，界面那边的分支不用改。
+  // 半成功契约（#420/#426）要保住：远端仓库建起来了、只是推送没完成时，前端要拿到 repoUrl 才能给「重试推送」。
+  //   房间在 already-exists 那一档会自己带 repoUrl；推失败那一档它只有 git 的失败原文（不带 URL）——
+  //   可那时 set-url 已经把新远端写进了本地仓库，回读一次 origin 就能把这格补回来。
+  async function publishFailure(r: unknown, name: string, cwd: string, git: string) {
+    const rr = r as { error?: { kind?: unknown; message?: unknown; repoUrl?: unknown } } | null | undefined
+    const e = (rr && rr.error) || {}
+    const kind = String(e.kind || KIND_UNKNOWN)
+    const message = String(e.message || '')
+    let repoUrl = e.repoUrl ? String(e.repoUrl) : ''
+    if (!repoUrl && kind !== 'already-exists') {
+      try {
+        const ro = await gitExec([git, 'remote', 'get-url', 'origin'], cwd)
+        const originUrl = ro.ok ? String(ro.text || '').trim() : ''
+        if (originUrl && originUrl.indexOf('/' + name) >= 0) repoUrl = originUrl.replace(/\.git$/, '')
+      } catch (e2) { /* 读不到远端就按「没有半成功」处理，不编造 URL */ }
+    }
+    const owner = repoUrl ? (repoUrl.split('/')[3] || '') : ''
+    const out: {
+      ok: false; errorKind: string; error: string; repoUrl?: string
+      repo?: { owner: string; name: string }; halfCreated: boolean; prompt?: string
+    } = {
+      ok: false,
+      errorKind: kind,
+      error: message,
+      repoUrl: repoUrl || undefined,
+      repo: repoUrl ? { owner: owner, name: name } : undefined,
+      // 半成功 =「我们刚创建成功但推送未完成」；already-exists 是仓库原本已存在（只给去查看，不给重试推送）。
+      halfCreated: (kind !== 'already-exists') && !!repoUrl,
+    }
+    if (kind === 'no-gh') out.prompt = NO_GH_PROMPT
+    return out
+  }
+
   // ============ 红卡建仓发布（T1 #34 · 无仓库时一键建仓发布）============
   // 输入：{ cwd, name, visibility }（visibility = 'public' | 'private'，默认 private）
-  // 流程：#994 工作区 git 可用性探测（属主不一致则补 safe.directory 重试一次）→ git/gh/auth 前置 →
-  //   git init(若已是 git 则跳过) → git add . → git commit --allow-empty（含 user.* 兜底）→
-  //   gh repo create --source=. --push（或 --remote origin 已存在时走 set-url + push 分支）
+  // #1445 起流程：#994 工作区 git 可用性探测（属主不一致则补 safe.directory 重试一次）→ 开一个写会话 →
+  //   把建仓整步交给 GitHub 房的 initProject（gh 解析、登录态、git init/add/commit、repo create、push 全在里面）→
+  //   按房间回包映射成败。为什么宿主还留着 bad-name 与 git 前置：这两件不碰 gh、也不该等开会话才回答，
+  //   而属主自愈改的是用户机器上的全局配置，是面板这条路的既有行为，换路不能丢。
   // 返回：{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
-  // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission / git-ownership / unknown
-  //   （#993：兜底从 permission 改成 unknown，「属主不一致」单独成 git-ownership 一档）
+  // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission / git-ownership / unknown / env
+  //   （#993：兜底从 permission 改成 unknown，「属主不一致」单独成 git-ownership 一档；#1445 起 env 表示写会话没接上）
   async function handleInitPublish(args?: InitPublishArgs | null) {
     const cwd = (args && args.cwd) || DEFAULT_CWD
     const name = args && args.name ? String(args.name).trim() : ''
@@ -155,127 +221,49 @@ export function createPublishFlow(deps: Deps) {
     if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
       return { ok: false, errorKind: 'bad-name', error: '仓库名仅支持字母/数字/._- 且 ≤100：' + name }
     }
-    const visFlag = visibility === 'public' ? '--public' : '--private'
-    // 前置探测：git / gh / auth（失败快返，避免已改动工作区）
+    // 前置：git 可执行 + 工作区 git 可用性（#994）。失败快返，一步都不改这个目录。
     const git = await resolveGit()
     if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
-    const gh = await resolveGh()
-    if (!gh) return { ok: false, errorKind: 'no-gh', error: getGhLastError() || '未找到 gh（请安装 https://cli.github.com/）', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 `gh --version`；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装：Windows → `winget install --id GitHub.cli`; macOS → `brew install gh`; Linux → `sudo apt install gh`;\n3. 安装后验证：重开终端使 PATH 生效，`gh --version` 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' }
-    const authR = await runGh(['auth', 'status'], cwd)
-    if (!authR.ok) {
-      const t = String(authR.error || '').toLowerCase()
-      if (authR.kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) {
-        return { ok: false, errorKind: 'network', error: authR.error }
-      }
-      return { ok: false, errorKind: 'not-logged-in', error: authR.error }
-    }
-    // 取当前登录用户（用于 already-exists 时拼 repoUrl 与成功后 owner 兜底）
-    let currentUser = ''
-    try {
-      const u = await runGh(['api', 'user', '-q', '.login'], cwd)
-      if (u.ok) currentUser = u.text.trim()
-    } catch (e) { /* 忽略 */ }
-    // 0. #994：动手改工作区之前的可用性关卡（属主不一致在这一步就被拦下并试着自愈，
-    //    不会等到 git add 才炸；失败时这一步没有改动过这个目录）。
     const usable = await preflightWorkspaceGit(git, cwd)
     if (!usable.ok) return gitFail(usable.text, cwd)
-    // 1. git init（若已是 git 仓库则跳过；含 getRepoRoot 探测 + 清缓存）
+    // #1445：建仓整步交给写会话。宿主没接 openSession 时如实回环境失败 —— 不自己调注册表、
+    //   也不偷偷退回直调 gh 的老路（那条路正是这一票要拆掉的）。
+    if (typeof openSession !== 'function') {
+      return { ok: false, errorKind: 'env', error: '写会话没接上（宿主没有注入 openSession），这次建仓没有开始。' }
+    }
+    const opened = await openSession(cwd, { write: true, exec: sessionExecOf(cwd) })
+    if (!opened || !opened.ok) {
+      const why = (opened && opened.reason) ? String(opened.reason) : 'unknown'
+      return { ok: false, errorKind: 'env', error: '写会话没开起来（' + why + '），这次建仓没有开始。' }
+    }
+    // 房间的入口是 initProject(handle, input, ctx)：ctx 由会话的 call 交过来（工作目录、平台、出站面都在里面），
+    //   本文件不自己拼上下文，也不往实参里塞别的键 —— 房间读的是它自己拿到的那一份。
+    let r: unknown = null
     try {
-      if (!usable.notRepoYet) {
-        // 探针已经证明这个目录在工作树里，git init 这一步不必再跑。
-      } else {
-        const initR = await gitExec([git, 'init'], cwd)
-        if (!initR.ok) return gitFail(initR.error, cwd)
-        // 失效 repoRoots 缓存（规整钥匙与写入侧同形，删除才删得中）
-        const rk1 = await canonicalKey(cwd || DEFAULT_CWD)
-        if (rk1 && repoRoots[rk1] !== undefined) delete repoRoots[rk1]
-      }
+      r = await opened.call(function (session: any, ctx: any) {
+        return session.initProject({ cwd: cwd }, { name: name, visibility: visibility }, ctx)
+      })
     } catch (e) {
-      const initR = await gitExec([git, 'init'], cwd)
-      if (!initR.ok) return gitFail(initR.error, cwd)
-      const rk2 = await canonicalKey(cwd || DEFAULT_CWD)
-      if (rk2 && repoRoots[rk2] !== undefined) delete repoRoots[rk2]
+      const eb = e as { message?: unknown } | null
+      const msg = String((eb && eb.message) || e).slice(0, 200)
+      return { ok: false, errorKind: 'env', error: '写会话调用失败：' + msg }
     }
-    // 2. git add .
-    const addR = await gitExec([git, 'add', '.'], cwd)
-    if (!addR.ok) return gitFail(addR.error, cwd)
-    // 3. git commit --allow-empty（含 identity 缺失兜底）
-    let commitR = await gitExec([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
-    if (!commitR.ok) {
-      const low = String(commitR.error || '').toLowerCase()
-      if (/please tell me who you are|user\.name|user\.email|author identity unknown|unable to auto-detect email/.test(low)) {
-        await gitExec([git, 'config', 'user.email', 'dsh@local'], cwd)
-        await gitExec([git, 'config', 'user.name', 'DSH User'], cwd)
-        commitR = await gitExec([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
-      }
-      if (!commitR.ok) return gitFail(commitR.error, cwd)
-    }
-    // 4. 探测 remote origin 是否已存在（决定 gh 调用分支）
-    let hasOrigin = false
-    try {
-      const ro = await gitExec([git, 'remote', 'get-url', 'origin'], cwd)
-      hasOrigin = !!ro.ok
-    } catch (e) { hasOrigin = false }
-    // 5. gh repo create
-    if (!hasOrigin) {
-      const cr = await runGh(['repo', 'create', name, visFlag, '--source=.', '--push'], cwd)
-      if (!cr.ok) {
-        const kind = classifyCreateError(cr.error, cr.kind)
-        // #420/#426 半成功契约：gh 失败时仍保留 stdout，可解析出仓库地址（或 already-exists 且已知用户）→ 回带 repoUrl/repo/halfCreated
-        const mUrl = String(cr.text || '').match(/https:\/\/github\.com\/[^\s\/]+\/[^\s\/]+/)
-        const repoUrl = mUrl ? mUrl[0] : ((kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined)
-        const owner = currentUser || (mUrl ? (mUrl[0].split('/')[3] || '') : '')
-        // 半成功 = 「我们刚创建成功但推送未完成」；already-exists 是仓库原本已存在（只给去查看，不给重试推送）
-        const halfCreated = (kind !== 'already-exists') && !!repoUrl
-        return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl, repo: repoUrl ? { owner: owner, name: name } : undefined, halfCreated: halfCreated }
-      }
-    } else {
-      // origin 已存在：先创建远程仓库（不带 --source），再 set-url + push
-      const cr2 = await runGh(['repo', 'create', name, visFlag], cwd)
-      if (!cr2.ok) {
-        const kind = classifyCreateError(cr2.error, cr2.kind)
-        const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
-        return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl, repo: repoUrl ? { owner: currentUser || '', name: name } : undefined }
-      }
-      // 解析新建仓库 URL（gh 输出含 https://github.com/owner/name）
-      let remoteUrl = ''
-      if (currentUser) remoteUrl = 'https://github.com/' + currentUser + '/' + name + '.git'
-      else {
-        const m = String(cr2.text || '').match(/https:\/\/github\.com\/[^\s\/]+\/[^\s\/]+/)
-        if (m) remoteUrl = m[0] + '.git'
-      }
-      if (remoteUrl) {
-        await gitExec([git, 'remote', 'set-url', 'origin', remoteUrl], cwd)
-      }
-      const pushR = await gitExec([git, 'push', '-u', 'origin', 'HEAD'], cwd)
-      if (!pushR.ok) {
-        const gf = gitFail(pushR.error, cwd)
-        // #420/#426 半成功：远端仓库已创建、仅本地推送失败 → 回带 repoUrl/repo/halfCreated，前端展示链接与重试入口
-        const repoUrl = remoteUrl ? remoteUrl.replace(/\.git$/, '') : (currentUser ? ('https://github.com/' + currentUser + '/' + name) : undefined)
-        const owner = currentUser || (repoUrl ? (repoUrl.split('/')[3] || '') : '')
-        return { ok: false, errorKind: gf.errorKind, error: gf.error, repoUrl: repoUrl, repo: repoUrl ? { owner: owner, name: name } : undefined, halfCreated: !!repoUrl }
-      }
-    }
-    // #696 只清自己根那条（建仓改了这一个工作区的身份，别的根不动）；头部 owner/repo 靠这一次失效立即出现
+    if (!r || !(r as { ok?: boolean }).ok) return publishFailure(r, name, cwd, git)
+    // 成功：仓库身份取会话回包的 repoRef（房间按 getRepoKey → currentUser 的顺序定 owner），
+    //   不再由宿主用 getRepoKey 重解析、也不再兜一次 gh api user —— 那两步是旧实现自己的解析链，房间已经做过。
+    const ref = ((r as { data?: { refId?: unknown; name?: unknown; url?: unknown } }).data) || {}
+    const refId = String(ref.refId || ref.name || name)
+    const slash = refId.indexOf('/')
+    const owner = slash > 0 ? refId.slice(0, slash) : ''
+    const repoName = slash > 0 ? refId.slice(slash + 1) : refId
+    // #696 只清自己根那条（建仓改了这一个工作区的身份，别的根不动）；钥匙先规整，删才删得中。
     const rk3 = await canonicalKey(cwd || DEFAULT_CWD)
     try { setCache({ ts: 0, snapshot: null, error: null, cwd: rk3 }) } catch (eCache) { /* 缓存失效兜底 */ }
     if (rk3 && repoKeys[rk3] !== undefined) delete repoKeys[rk3]
     if (rk3 && repoRoots[rk3] !== undefined) delete repoRoots[rk3]
-    // 优先用 getRepoKey 重解析（parseGithubRepo），兜底用 currentUser
-    let owner = currentUser
-    try {
-      const rk = await getRepoKey(cwd)
-      if (rk && rk.owner) owner = rk.owner
-      else if (rk && rk.name) owner = owner || ''
-    } catch (e) { /* 兜底 */ }
-    // 若 getRepoKey 仍取不到但有 currentUser，则以 currentUser 为准
-    if (!owner) {
-      try {
-        const u2 = await runGh(['api', 'user', '-q', '.login'], cwd)
-        if (u2.ok) owner = u2.text.trim()
-      } catch (e2) { /* 忽略 */ }
-    }
-    return { ok: true, repo: { owner: owner, name: name }, repoUrl: owner ? ('https://github.com/' + owner + '/' + name) : '' }
+    // URL 以房间给的那份为准；拿不到 owner 时沿用旧口径给空串（没有 owner 拼出来的地址是错的）。
+    const repoUrl = owner ? (String(ref.url || '') || ('https://github.com/' + owner + '/' + repoName)) : ''
+    return { ok: true, repo: { owner: owner, name: repoName }, repoUrl: repoUrl }
   }
 
   // ============ 重试推送（#420/#426 定版：仅推送，不动建仓）============

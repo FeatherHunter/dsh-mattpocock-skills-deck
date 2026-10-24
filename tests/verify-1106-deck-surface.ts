@@ -13,7 +13,7 @@
 //   二、信封表：回执只有两种形状 —— 走到选后端之后的 14 格、还没走到之前的 6 格；三态取值；
 //       失败时的原因码只能是八个之一（#1195 起超时与抛错分家，多了 backend-timeout）；失败永远是值不是异常（稀奇古怪的参数形状也回值）；
 //       记账数不上信封。
-//   三、点数表：每一支调用在闸上记多少条、多少点。
+//   三、点数表：每一支调用自己报多少条、多少点（回执 cost.actual，旧壳删掉后闸上不再记账）。
 //   四、越界：工具层不许出现直连外面的写法（起进程、联网、读环境、读写文件、动态求值）。
 //   五、缺省与钳制：参数不传时是多少、传过头时收到多少。这两件事在代码里只是两个数字，形状比对看不见，
 //       所以单靠表一抓不住（实测把列票的 50 改成 30、上限 200 改成 500，旧版门禁全绿放行）；
@@ -92,37 +92,44 @@ const ENVELOPE_PRE_GATE = ['cost', 'ok', 'reason', 'status', 'text', 'tool']
 const REASONS = ['no-session-context', 'ai-tool-refused', 'no-backend', 'gate-defer', 'backend-threw', 'backend-timeout', 'backend-unsupported', 'bad-args']
 const STATUSES = ['ok', 'partial', 'unsupported']
 
-/** 表三 · 点数表：工具自己报的那一笔（不含选后端那固定 1 条 0 点）。 */
-type PointsRow = { label: string, tool: string, args: Record<string, unknown>, own: [number, number] | 'est', select: boolean }
+/**
+ * 表三 · 点数表：这一支调用自己报了多少条、多少点（回执 cost.actual 那一格）。
+ * #1443 删掉旧调用壳之后，闸上不再累加用量（闸的发送接口整段没了），所以这里不能再去读
+ * gate.stats().claimed —— 那一格永远是 0。工具仍然把本次用量交给接线层，由它填进回执的 cost.actual；
+ * 接线层要是漏接，这一格就会是 0/0（本门禁正是靠这张表抓过这种形状，见下面 spentOf 的排查提示）。
+ * 旧表里还有一条「选后端固定记 1 条 0 点」，那笔是旧壳探沙箱时真发出去的一次请求；
+ * 现在选后端只读本地认领、不出站，这 1 条不再存在，所以每行的期望值比旧表少 1 条。
+ */
+type PointsRow = { label: string, tool: string, args: Record<string, unknown>, own: [number, number] | 'est' }
 const POINTS: PointsRow[] = [
-  { label: '工作区概况：成功', tool: 'deck_context', args: {}, own: [3, 2], select: true },
-  { label: '建票：缺标题（还没走到选后端）', tool: 'deck_issue_create', args: {}, own: [0, 0], select: false },
-  { label: '建票：成功、没有父子边', tool: 'deck_issue_create', args: { title: '点数表甲票', kind: 'issue' }, own: [2, 4], select: true },
-  { label: '建票：成功、带父子边', tool: 'deck_issue_create', args: { title: '点数表乙票', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '00' }, own: [4, 8], select: true },
-  { label: '读票：缺票号（还没走到选后端）', tool: 'deck_issue_get', args: {}, own: [0, 0], select: false },
-  { label: '读票：这张票读不回来', tool: 'deck_issue_get', args: { key: '999999' }, own: [1, 3], select: true },
-  { label: '读票：成功、跳反向边', tool: 'deck_issue_get', args: { key: '01', blocking: false }, own: [1, 3], select: true },
-  { label: '读票：成功、读全量关系（缺省）', tool: 'deck_issue_get', args: { key: '01' }, own: [2, 6], select: true },
-  { label: '列票：成功（回多少行都一样）', tool: 'deck_issue_list', args: {}, own: [2, 5], select: true },
-  { label: '看地图：成功、薄行也一样', tool: 'deck_map_snapshot', args: { key: '00', detail: 'thin' }, own: [2, 5], select: true },
-  { label: '看地图：这张地图读不回来', tool: 'deck_map_snapshot', args: { key: '999999' }, own: [1, 3], select: true },
-  { label: '建图：缺标题（还没走到选后端）', tool: 'deck_map_plan_create', args: {}, own: [0, 0], select: false },
+  { label: '工作区概况：成功', tool: 'deck_context', args: {}, own: [3, 2] },
+  { label: '建票：缺标题（还没走到选后端）', tool: 'deck_issue_create', args: {}, own: [0, 0] },
+  { label: '建票：成功、没有父子边', tool: 'deck_issue_create', args: { title: '点数表甲票', kind: 'issue' }, own: [2, 4] },
+  { label: '建票：成功、带父子边', tool: 'deck_issue_create', args: { title: '点数表乙票', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '00' }, own: [4, 8] },
+  { label: '读票：缺票号（还没走到选后端）', tool: 'deck_issue_get', args: {}, own: [0, 0] },
+  { label: '读票：这张票读不回来', tool: 'deck_issue_get', args: { key: '999999' }, own: [1, 3] },
+  { label: '读票：成功、跳反向边', tool: 'deck_issue_get', args: { key: '01', blocking: false }, own: [1, 3] },
+  { label: '读票：成功、读全量关系（缺省）', tool: 'deck_issue_get', args: { key: '01' }, own: [2, 6] },
+  { label: '列票：成功（回多少行都一样）', tool: 'deck_issue_list', args: {}, own: [2, 5] },
+  { label: '看地图：成功、薄行也一样', tool: 'deck_map_snapshot', args: { key: '00', detail: 'thin' }, own: [2, 5] },
+  { label: '看地图：这张地图读不回来', tool: 'deck_map_snapshot', args: { key: '999999' }, own: [1, 3] },
+  { label: '建图：缺标题（还没走到选后端）', tool: 'deck_map_plan_create', args: {}, own: [0, 0] },
   {
-    label: '建图：成功（按估算：3 张票 + 2 条边）', tool: 'deck_map_plan_create', select: true, own: 'est',
+    label: '建图：成功（按估算：3 张票 + 2 条边）', tool: 'deck_map_plan_create', own: 'est',
     args: { planId: 'points-plan', title: '点数表地图', children: [{ key: 'a1', title: '子一', kind: 'issue' }, { key: 'a2', title: '子二', kind: 'issue' }], edges: [{ from: 'a2', to: 'a1', type: 'blocked-by' }] },
   },
   // 计划标识会原样当幂等键写进票面，字符集由后端定：中文会被后端挡下。
   // 这一支顺带钉住这条边界，以及它记账的价（1 条 / 4 点）。
-  { label: '建图：计划标识带中文（后端挡下）', tool: 'deck_map_plan_create', args: { planId: '点数表图', title: '点数表地图', children: [{ key: 'c1', title: '子一', kind: 'issue' }] }, own: [1, 4], select: true },
-  { label: '连边：两个都没给（还没走到选后端）', tool: 'deck_map_link', args: {}, own: [0, 0], select: false },
-  { label: '连边：挂父子（按估算：1 条边 + 读一次）', tool: 'deck_map_link', args: { key: '02', parentKey: '00' }, own: 'est', select: true },
-  { label: '连边：清空阻塞（按估算：没有边 + 读一次）', tool: 'deck_map_link', args: { key: '02', blockedBy: [] }, own: 'est', select: true },
-  { label: '改票：缺票号（还没走到选后端）', tool: 'deck_issue_patch', args: {}, own: [0, 0], select: false },
-  { label: '改票：成功（按估算：改一次 + 读一次）', tool: 'deck_issue_patch', args: { key: '02', comment: '点数表：改一下' }, own: 'est', select: true },
-  { label: '上报：缺票号（还没走到选后端）', tool: 'deck_issue_report', args: {}, own: [0, 0], select: false },
-  { label: '上报：成功', tool: 'deck_issue_report', args: { key: '02' }, own: [1, 3], select: true },
-  { label: '上报：带已退役的 progress（还没走到选后端）', tool: 'deck_issue_report', args: { key: '02', progress: 50 }, own: [0, 0], select: false },
-  { label: '上报：这张票不存在（同价）', tool: 'deck_issue_report', args: { key: '999999' }, own: [1, 3], select: true },
+  { label: '建图：计划标识带中文（后端挡下）', tool: 'deck_map_plan_create', args: { planId: '点数表图', title: '点数表地图', children: [{ key: 'c1', title: '子一', kind: 'issue' }] }, own: [1, 4] },
+  { label: '连边：两个都没给（还没走到选后端）', tool: 'deck_map_link', args: {}, own: [0, 0] },
+  { label: '连边：挂父子（按估算：1 条边 + 读一次）', tool: 'deck_map_link', args: { key: '02', parentKey: '00' }, own: 'est' },
+  { label: '连边：清空阻塞（按估算：没有边 + 读一次）', tool: 'deck_map_link', args: { key: '02', blockedBy: [] }, own: 'est' },
+  { label: '改票：缺票号（还没走到选后端）', tool: 'deck_issue_patch', args: {}, own: [0, 0] },
+  { label: '改票：成功（按估算：改一次 + 读一次）', tool: 'deck_issue_patch', args: { key: '02', comment: '点数表：改一下' }, own: 'est' },
+  { label: '上报：缺票号（还没走到选后端）', tool: 'deck_issue_report', args: {}, own: [0, 0] },
+  { label: '上报：成功', tool: 'deck_issue_report', args: { key: '02' }, own: [1, 3] },
+  { label: '上报：带已退役的 progress（还没走到选后端）', tool: 'deck_issue_report', args: { key: '02', progress: 50 }, own: [0, 0] },
+  { label: '上报：这张票不存在（同价）', tool: 'deck_issue_report', args: { key: '999999' }, own: [1, 3] },
 ]
 
 /**
@@ -215,7 +222,9 @@ async function main() {
   // #1138：把「用户选过 markdown」写进夹具账本（等价于工作区文件里那一行）。原来这里是
   // registry.bind(handle, 'markdown')，绑定层已随 #1138 整段删掉。
   chooseWorkspace(ws.rootPosix, 'markdown')
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id: string) { return t.get(String(id)) || null }, save(id: string, s: unknown) { t.set(String(id), s) } } })()
   // #1261：工作路线用同一份真实现（临时家目录 + 固定时钟），上报回执的在办表形状由下面「二b」钉死。
   const workRouteMod = await imp('src/deck/shell/work-path-bindings.ts') as { createWorkRouteBindings: (io: unknown) => { note: (i: unknown) => Promise<unknown>, read: (i: unknown) => unknown } }
@@ -243,7 +252,15 @@ async function main() {
   const tools: Record<string, any> = {}
   for (const [file, factory, name] of TOOL_FILES) tools[name] = (await imp(file))[factory](deps)
 
-  const claimedNow = () => ({ requests: gate.stats().claimed.requests, points: gate.stats().claimed.points })
+  // 一支调用报了多少条 / 多少点：读回执的 cost.actual 那一格。
+  // #1443 删掉旧调用壳之后，闸的发送接口整段没了，闸上那份累计（gate.stats().claimed）永远是 0，
+  // 再读它只会读到 0/0；工具仍把本次用量交回来，由新接线层放进 cost.actual，与旧表逐行一一对应。
+  // 排查提示：这一格恒为 0/0 而状态正常时，先看接线层（src/deck/tools/tracker-session.ts 的
+  // callDeckSession）有没有把工具交回来的 claimed 接到回执上 —— 接丢了就是这里这种形状。
+  const spentOf = (r: any) => {
+    const a = r && r.cost && r.cost.actual
+    return { requests: a ? (Number(a.requests) || 0) : 0, points: a ? (Number(a.points) || 0) : 0 }
+  }
   const run = async (name: string, args: unknown) => {
     let r: any = null
     let threw = ''
@@ -339,7 +356,16 @@ async function main() {
     check(Object.prototype.hasOwnProperty.call(r, 'claimed') === false, name + ' 记账数不上信封（回执里没有 claimed）')
     check(!!(r && r.cost && r.cost.estimated && typeof r.cost.estimated.points === 'number' && typeof r.cost.estimated.requests === 'number'),
       name + ' 带回调用前的估算（' + JSON.stringify(r && r.cost && r.cost.estimated) + '）')
-    check(!!(r && r.cost && r.cost.actual && typeof r.cost.actual.remaining === 'number'), name + ' 带回调用后的真实花费一格（' + JSON.stringify(r && r.cost && r.cost.actual) + '）')
+    // #1446 起真实花费回执先带四格事实（哪个后端、什么预算口径、读数知道不知道、离不离网）；
+    // remaining 与 tier 只在「读数已知且这个后端有额度」时才出现 —— 离网与未知不许出现假 0 与假档位。
+    const actual = r && r.cost && r.cost.actual
+    check(!!actual && typeof actual.backendId === 'string' && typeof actual.budgetKind === 'string'
+      && typeof actual.readKnown === 'boolean' && typeof actual.offNetwork === 'boolean',
+      name + ' 带回调用后的四格事实（' + JSON.stringify(actual) + '）')
+    check(!!actual && (actual.readKnown === true && actual.offNetwork !== true
+      ? (typeof actual.remaining === 'number' && typeof actual.tier === 'string')
+      : (!('remaining' in actual) && !('tier' in actual) && !!(r.cost && typeof r.cost.note === 'string'))),
+      name + ' 只有读数已知且有额度才带水位，未知与离网改用一句人话（' + JSON.stringify(actual) + '）')
   }
   {
     // 二b、在办表（#1261 起步、#1262 铺满）：写工具成功收口才有 data.workRoute，失败调用没有这一格；原始会话 id 不进回执。
@@ -436,9 +462,7 @@ async function main() {
   {
     // 二e、建票时带 blockedBy（#1299）：票建成后把这批票写成它的原生依赖边；票照建，边写后读回逐条报。
     // 这一段走真实的本地 Markdown 房：边会落到票文件的 `Blocked by:` 行上，再读一次票就能看见。
-    const before = claimedNow()
     const made = await run('deck_issue_create', { title: '带阻塞边的新票', kind: 'issue', blockedBy: ['01', '#01'] })
-    const after = claimedNow()
     const key = String((made.r && made.r.data && made.r.data.ticket && made.r.data.ticket.key) || '')
     check(!made.threw && made.r && made.r.status === 'ok' && !!key,
       '带阻塞边：票建成、回 ok（实得 ' + (made.threw || (made.r && made.r.status)) + '）')
@@ -450,9 +474,10 @@ async function main() {
     const gotBlocked = (rels && Array.isArray(rels.blockedBy) ? rels.blockedBy : []).map((x: { key?: unknown } | string) => String(x && typeof x === 'object' && 'key' in x ? x.key : x).replace(/^0+(?=\d)/, ''))
     check(!!got.r && got.r.status === 'ok' && gotBlocked.join(',') === '1',
       '带阻塞边：读回来票面上挂着这条阻塞边（实得 ' + JSON.stringify(rels && rels.blockedBy) + '）')
-    const spent = { requests: after.requests - before.requests, points: after.points - before.points }
-    check(spent.requests === 6 && spent.points === 10,
-      '带阻塞边：这一笔记 6 条 / 10 点（实得 ' + spent.requests + ' / ' + spent.points + '）')
+    // 价目：建票本身 2 条 / 4 点 + 写一条阻塞边并读回 3 条 / 6 点 = 5 条 / 10 点（旧表多算 1 条选后端，理由见表三注释）。
+    const spent = spentOf(made.r)
+    check(spent.requests === 5 && spent.points === 10,
+      '带阻塞边：这一支报 5 条 / 10 点（实得 ' + spent.requests + ' / ' + spent.points + '）')
   }
   {
     // 失败那一侧：还没走到选后端就失败的回执是 6 格；走到之后的失败回执是 14 格。别的形状一律算破。
@@ -492,22 +517,21 @@ async function main() {
   }
 
   // ── 三、点数表 ──
-  console.log('— 三、点数表：每一支调用在闸上记多少条、多少点')
+  console.log('— 三、点数表：每一支调用自己报多少条、多少点')
   {
     const limits = { maxPointsPerCall: 600, maxRequestsPerCall: 400, maxPointsPerHour: 2000, maxRequestsPerHour: 1500, maxChildTicketsPerCall: 60, usedPointsThisHour: 0, usedRequestsThisHour: 0 }
     for (const row of POINTS) {
-      const before = claimedNow()
       const { r, threw } = await run(row.tool, row.args)
-      const after = claimedNow()
-      const delta = { requests: after.requests - before.requests, points: after.points - before.points }
+      // 「这一支花了多少」读回执的 cost.actual：还没走到选后端就失败的那几支，回执里没有这一格，按 0/0 算。
+      const got = spentOf(r)
       let own: [number, number]
       if (row.own === 'est') {
         const est = toolCost.estimateToolCost(toolCost.toolCostInputFrom(row.tool, row.args), limits)
         own = [est.requests, est.points]
       } else own = row.own
-      const want = { requests: own[0] + (row.select ? 1 : 0), points: own[1] }
-      const ok = !threw && delta.requests === want.requests && delta.points === want.points
-      check(ok, row.label + '：这一笔记 ' + want.requests + ' 条 / ' + want.points + ' 点（实得 ' + delta.requests + ' / ' + delta.points + (threw ? '，抛了 ' + threw : '，状态 ' + (r && r.status)) + '）')
+      const want = { requests: own[0], points: own[1] }
+      const ok = !threw && got.requests === want.requests && got.points === want.points
+      check(ok, row.label + '：这一支报 ' + want.requests + ' 条 / ' + want.points + ' 点（实得 ' + got.requests + ' / ' + got.points + (threw ? '，抛了 ' + threw : '，状态 ' + (r && r.status)) + '）')
     }
   }
   {
@@ -526,20 +550,19 @@ async function main() {
     // #1138：换成「这个工作区选了这个后端」的唯一写法 —— 往夹具账本里改一笔（原来这里是 registry.bind）。
     chooseWorkspace(ws.rootPosix, 'refuse-1106')
     try {
-      const before = claimedNow()
       const listed = await run('deck_issue_list', { state: 'open' })
-      const afterList = claimedNow()
+      const listSpent = spentOf(listed.r)
       check(listed.r && listed.r.status === 'unsupported' && listed.r.reason === 'backend-unsupported',
         '后端说做不到：列表这一支回 unsupported + backend-unsupported（实得 ' + (listed.r && listed.r.status) + '/' + (listed.r && listed.r.reason) + '）')
-      check(afterList.requests - before.requests === 2 && afterList.points - before.points === 3,
-        '后端说做不到：列表这一笔记 2 条 / 3 点（实得 ' + (afterList.requests - before.requests) + ' / ' + (afterList.points - before.points) + '）')
-      const beforeCreate = claimedNow()
+      // 价目：这一次只发了取列表的 1 次请求（1 条 / 3 点）；旧表那多出来的 1 条是选后端时的探沙箱请求，已随旧壳删掉。
+      check(listSpent.requests === 1 && listSpent.points === 3,
+        '后端说做不到：列表这一支报 1 条 / 3 点（实得 ' + listSpent.requests + ' / ' + listSpent.points + '）')
       const created = await run('deck_issue_create', { title: '后端说建不成的那一张', kind: 'issue' })
-      const afterCreate = claimedNow()
+      const createSpent = spentOf(created.r)
       check(created.r && created.r.status === 'unsupported' && created.r.reason === 'backend-unsupported',
         '后端说做不到：建票这一支回 unsupported + backend-unsupported（实得 ' + (created.r && created.r.status) + '/' + (created.r && created.r.reason) + '）')
-      check(afterCreate.requests - beforeCreate.requests === 2 && afterCreate.points - beforeCreate.points === 4,
-        '后端说做不到：建票这一笔记 2 条 / 4 点（实得 ' + (afterCreate.requests - beforeCreate.requests) + ' / ' + (afterCreate.points - beforeCreate.points) + '）')
+      check(createSpent.requests === 1 && createSpent.points === 4,
+        '后端说做不到：建票这一支报 1 条 / 4 点（实得 ' + createSpent.requests + ' / ' + createSpent.points + '）')
     } finally { dispose.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
   }
 
@@ -547,18 +570,19 @@ async function main() {
     // 同一份计划标识同时在两次执行里跑：先到的那次上锁，后到的那次在碰后端之前就被挡下，一分钱不记。
     // 这一支写着「计划标识正被别的执行占用」，平常跑不出来，所以这里并发叫两次把它逼出来。
     const raceArgs = { planId: 'race-plan', title: '并发地图', children: [{ key: 'r1', title: '唯一子票', kind: 'issue' }] }
-    const before = claimedNow()
     const [one, two] = await Promise.all([run('deck_map_plan_create', raceArgs), run('deck_map_plan_create', raceArgs)])
-    const after = claimedNow()
     const refused = [one, two].filter((x) => !x.threw && x.r && x.r.status === 'unsupported' && x.r.reason === 'backend-unsupported')
     const succeeded = [one, two].filter((x) => !x.threw && x.r && x.r.status === 'ok')
-    const delta = { requests: after.requests - before.requests, points: after.points - before.points }
+    // 做成的那一笔自己报的价：1 张地图 + 1 张子票 + 1 条父子边 = 7 条 / 13 点；被挡下的那笔在碰后端之前就停了，
+    // 回执里没有 cost.actual（只有估算），所以一分钱都不该报。
+    const spent = spentOf(succeeded[0] && succeeded[0].r)
+    const refusedSpent = spentOf(refused[0] && refused[0].r)
     check(refused.length === 1 && succeeded.length === 1,
       '同一个计划标识并发叫两次：恰好一次被挡下、一次做成（挡下 ' + refused.length + ' 次、做成 ' + succeeded.length + ' 次）')
     check(refused.length === 1 && refused[0].r && Object.keys(refused[0].r).length === ENVELOPE_PRE_GATE.length,
       '被挡下的那一次回的是「还没走到选后端」的那种形状（' + (refused[0] && refused[0].r ? Object.keys(refused[0].r).length : '?') + ' 格）')
-    check(delta.requests === 8 && delta.points === 13,
-      '并发这一次只记做成的那一笔（1 张地图 + 1 张子票 + 1 条父子边 + 选后端 1 条 = 8 条 / 13 点），被挡下的不记（实得 ' + delta.requests + ' 条 / ' + delta.points + ' 点）')
+    check(spent.requests === 7 && spent.points === 13 && refusedSpent.requests === 0 && refusedSpent.points === 0,
+      '并发这一次只报做成的那一笔（1 张地图 + 1 张子票 + 1 条父子边 = 7 条 / 13 点），被挡下的那笔不报（做成 ' + spent.requests + ' 条 / ' + spent.points + ' 点，被挡下 ' + refusedSpent.requests + ' 条 / ' + refusedSpent.points + ' 点）')
   }
 
   // ── 四、越界判据 ──
@@ -611,8 +635,11 @@ async function main() {
     // 判据没有放宽：仍然是一张精确名单，多一份少一份都判红，只是名单本身随拆分更新了一次。
     // 2026-10 #1406 又加了一份 suggest-next-steps.ts：它是建议工具（不进九个追踪器工具的装配顺序表，
     // 单独登记），但同样住在工具层，所以照样进这张名单、照样受同一套边界约束。
-    const EXPECTED_FILES = ['context.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'suggest-next-steps.ts', 'tool-order.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具这十四份（实际 ' + names.join(',') + '）')
+    // 2026-10 #1442 再加一份 tracker-session.ts：九个工具不再走旧调用壳（call-shell.ts），改成在这里
+    // 开一个 Tracker 会话、把工具的工作闭包交给它跑。它住在工具层，也照样受下面这套扫描约束，
+    // 所以一并列进这张名单 —— 名单仍然是精确名单，多一份少一份都判红。
+    const EXPECTED_FILES = ['context.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层这十五份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
     let sawTimer = 0
@@ -632,7 +659,7 @@ async function main() {
     }
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '十四份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
+      : '十五份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处），这套判据不是空转')
   }
 

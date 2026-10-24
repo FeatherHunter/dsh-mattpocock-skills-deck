@@ -33,6 +33,9 @@ import { listLabels, setLabelColors } from './labels-ops.js'
 import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
 import { listSubIssues } from './sub-issues.js'
 import { initProject } from './init-project.js'
+// #1446：读额度读数与「每次 glab 调用记一条请求」的用量信封。
+import { readGitlabBudget } from './budget.js'
+import { attachGlabOpUsage } from './client.js'
 import type { PartiallyProvidedCapability, ProvidedCapability } from '../../contract/capability-answer.js'
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
@@ -243,7 +246,8 @@ export const links = {
  * 仓库坐标 `./repo.ts`。接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
  */
 export function createGitlabBackend(ctx: BackendContext) {
-  return {
+  // 先按形状装配，再在操作表外层统一包一层用量：包的是同一个对象，成员集合与形状断言都不变。
+  const backend = {
     id: 'gitlab',
     describe: (handle) => describe(handle, 'gitlab'),
     issueAddress: (ref, key) => issueAddress(ref, key),
@@ -274,7 +278,10 @@ export function createGitlabBackend(ctx: BackendContext) {
     // 它回答的是「挂在这张地图上的票」；人手工加的 relates_to 关联不参与归属判定。详见 ./sub-issues.ts 文件头。
     listSubIssues: (repo, mapKey, opts, opCtx) => listSubIssues(repo, mapKey, opts, opCtx || ctx),
     initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx),
+    // 读额度：GitLab 只按请求计数，读数固定是 requests-only；坏路一律回「读数未知」，不抛。
+    readBudget: (opCtx) => readGitlabBudget(opCtx || ctx),
   } satisfies GitlabBackendShape
+  return attachGlabOpUsage(backend)
 }
 
 /** 修复契约注入文案（GitLab 后端，双语单源；供 fixes 引用，host 组装时解析）。 */

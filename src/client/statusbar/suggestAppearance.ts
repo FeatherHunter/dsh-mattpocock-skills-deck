@@ -31,6 +31,8 @@ export const SUGGEST_APPEARANCE = {
   pillPadX: 12,
   pillGapPx: 6,
   pillMaxWidthPx: 360,
+  /** 一颗选项里「简介」与「提示词」之间的间距（#1451 加了简介这一格）。 */
+  pillIntroGapPx: 6,
   /** 选项行与关闭按钮行之间的间距。 */
   groupGapPx: 7,
   closeRowMarginTopPx: 10,
@@ -40,19 +42,21 @@ export const SUGGEST_APPEARANCE = {
   closePadX: 10,
   closeIdleOpacity: 0.6,
 
-  // —— 小泡与动效（原型 C 版定稿的数值，口径与规格 #1397 一致）——
+  // —— 小泡与动效（#1397 定稿原型 C 版，经 #1451 按「出场面要看清、整体约 2 秒」重定）——
   /** 每颗选项配几颗小泡：每 bubblePxPerPill 像素一颗，最少 bubbleMinPerPill 颗。 */
   bubblePxPerPill: 20,
   bubbleMinPerPill: 4,
   /** 一行选项都没量到宽度时，整组退回这么多颗（正常路径量得到宽度，用不到）。 */
   bubbleFallbackCount: 8,
-  /** 小泡直径：bubbleSizeMin 到 bubbleSizeMin + bubbleSizeRange 之间随机。 */
-  bubbleSizeMin: 3.5,
-  bubbleSizeRange: 6,
-  /** 每颗小泡的出发延迟上限、飞行时长区间（毫秒）。 */
-  bubbleDelayMaxMs: 360,
-  bubbleTravelMinMs: 320,
-  bubbleTravelMaxMs: 660,
+  /** 小泡直径：bubbleSizeMin 到 bubbleSizeMin + bubbleSizeRange 之间随机。
+   *  #1451 按「出场的小泡太小、看不清」放大五成：3.5~9.5 → 5.25~14.25。 */
+  bubbleSizeMin: 5.25,
+  bubbleSizeRange: 9,
+  /** 每颗小泡的出发延迟上限、飞行时长区间（毫秒）。
+   *  #1451 把出场整体拉到约 2 秒：最慢一颗 560 出发 + 1030 飞行，再把清尾 400 算上共 1990 毫秒。 */
+  bubbleDelayMaxMs: 560,
+  bubbleTravelMinMs: 500,
+  bubbleTravelMaxMs: 1030,
   /** 出发地：八成从关闭按钮下方，两成从对话区（组底边下方）游离过来。 */
   bubbleFromButtonRatio: 0.8,
   bubbleButtonSpreadPx: 90,
@@ -73,10 +77,24 @@ export const SUGGEST_APPEARANCE = {
   rowOpacitySpan: 0.96,
   rowOpacityCurve: 0.8,
   closeRevealCurve: 2,
-  /** 全部小泡落完后，再等这么久就把小泡节点清掉。 */
-  bubbleCleanupDelayMs: 260,
-  /** 选中一条后整组退场的时长；关闭与第二组覆盖用另一档。 */
-  pickMs: 280,
+  /** 全部小泡落完后，再等这么久就把小泡节点清掉（#1451 从 260 提到 400，给「约 2 秒」留出收尾）。 */
+  bubbleCleanupDelayMs: 400,
+  /** 选中一条后的退场：整组选项胶囊化作小泡向上飘走，关闭按钮同时消失（#1451 用户拍板）。
+   *  每颗胶囊按宽度分 pickBubblePxPerPill 像素一颗，至少 pickBubbleMinPerPill、至多 pickBubbleMaxPerPill 颗。 */
+  pickBubblePxPerPill: 60,
+  pickBubbleMinPerPill: 2,
+  pickBubbleMaxPerPill: 5,
+  /** 这批退场小泡的出发延迟上限、飞行时长区间（毫秒）：整体不到 0.6 秒，比出场短得多。 */
+  pickBubbleDelayMaxMs: 70,
+  pickBubbleTravelMinMs: 400,
+  pickBubbleTravelMaxMs: 500,
+  /** 向上飘多远（比胶囊顶边再高这么多像素）与横向摆动幅度。 */
+  pickBubbleRiseMinPx: 70,
+  pickBubbleRiseMaxPx: 130,
+  pickBubbleSwayPx: 10,
+  /** 全部退场小泡飘完后，再留这么久才真的收起整组（免得最后一颗还没淡出就被卸载）。 */
+  pickBubbleTailMs: 60,
+  /** 关闭与第二组覆盖用的整组淡出时长（毫秒）。 */
   fadeMs: 170,
   /** 小泡飞行的五条速度曲线（随机挑一条）。 */
   easeList: ['ease-out', 'ease-in-out', 'cubic-bezier(.25,.6,.3,1)', 'cubic-bezier(.4,0,.6,1)', 'cubic-bezier(.2,.7,.35,1.1)'],

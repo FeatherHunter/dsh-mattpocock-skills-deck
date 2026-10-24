@@ -67,6 +67,8 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
    * deck 那一格由调用方按它的数据结构现拼，这一层只知道本文件真读到的那两个字段（见 DeckLike），
    * 所以在返回对象里按 DeckLike 收一下：运行时原样透传，转译产物与标注前逐字节相同。
    */
+  // refresh 整块原样透传：四个旧格子的语义不变，#1446 新加的 backend（这个后端的额度读数）
+  // 也跟着这块一起走 —— 这一层不拆字段、不补默认值，少一个字段是「不知道」，不能替它填 0。
   function buildSnap(o: SnapInput): SnapLike {
     const snap = {
       ok: true,

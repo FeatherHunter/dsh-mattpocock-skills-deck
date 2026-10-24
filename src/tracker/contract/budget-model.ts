@@ -99,6 +99,12 @@ export interface AccountInput {
   budget: BackendBudgetModel
   /** 房间原样回的结果（成功失败都递：失败那次花没花，由记账实现按口径定）。 */
   result: unknown
+  /**
+   * 这次调用落在哪个后端上（账本的键的一半，见规格 1439 第 8 节「账本以『后端 id 加桶名』为键」）。
+   * 可选：老调用方不开会话就没有后端可言，记账实现读到缺席时按「未知后端」只记请求数，
+   * 不许编一个后端编号出来（#1446 加）。
+   */
+  backendId?: string
 }
 
 /**

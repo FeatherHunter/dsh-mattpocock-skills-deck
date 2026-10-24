@@ -25,7 +25,9 @@ function stubGateLedger(budget, gateMod, ledgerMod) {
   const clock = { now: 1700000000000 }
   const ledger = ledgerMod.createLedger({ now: () => clock.now })
   const gate = gateMod.createGate({ ledger: ledger, now: () => clock.now })
-  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock.now + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock.now + 3600000 } }, clock.now)
+  // #1446 账本按后端分键：读数落在这一个后端的桶里，换后端不许混账。
+  ledger.ensureBackend('github', { kind: 'two-buckets' })
+  ledger.syncServer('github', { rest: { limit: 5000, remaining: 5000, reset: clock.now + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock.now + 3600000 } }, clock.now)
   return { gate: gate, ledger: ledger, clock: clock }
 }
 
@@ -34,6 +36,8 @@ function stubRegistry(pickRefId, tracker) {
     select: async () => ({ backendId: 'stub', source: 'explicit', ref: { backend: 'stub', refId: pickRefId, name: pickRefId, url: '' }, pending: false }),
     get: () => tracker,
     has: () => true,
+    // #1439：开会话要按后端编号取预算声明（预算必填），旧桩只给了选与取，这里补上离网口径。
+    modules: () => [{ id: 'stub', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false } }],
     describe: () => ({ backend: 'stub', refId: pickRefId, name: pickRefId, url: '' }),
   }
 }

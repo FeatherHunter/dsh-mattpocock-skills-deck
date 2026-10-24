@@ -28,12 +28,140 @@ import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js
 import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
 import * as budget from '../kernel/host-budget.js'
 import * as toolCost from '../kernel/tool-call-budget.js'
+import { decideByBudget } from '../kernel/budget-admission.js'
+import type { BudgetLimits } from '../kernel/budget-admission.js'
+import type { BackendBudgetModel, BudgetReading } from '../../tracker/contract/budget-model.js'
 
 
 /** 未知形状的对象（接线递进来的依赖包先按这形接住，用到哪格验哪格，不猜）。 */
 type UnknownRecord = Record<string, unknown>;
+
+/** 账本一桶的视图（#1446 定稿形状；这里只声明桥用到的几格，避免把账本类型带进登记层）。 */
+interface LedgerView { allowance?: number; remaining?: number | null; reserve?: number; synced?: boolean }
+/** 桥要用到的账本两口：按后端取一桶，以及总览（没有可显式指认的后端时，用它认唯一的那个）。 */
+interface LedgerLike {
+  view?: (backendId: string, bucket: string) => LedgerView
+  snapshot?: () => { buckets?: Record<string, LedgerView> }
+}
+
+/** 读数里的数字可能缺格（旧缓存或手写夹具）：缺格按 0 算，与账本的兜底口径一致。 */
+function numOf(value: unknown): number { return (typeof value === 'number' && isFinite(value)) ? value : 0 }
 /** 装配依赖包：九个工具工厂要的全部依赖，由宿主接线方现取现传（与门禁里直接喂给工厂的那一份同形）。 */
 export interface HostToolDeps { gate?: unknown; registry?: unknown; budget?: unknown; estimate?: unknown; costInputFrom?: unknown; handleFor?: unknown; backendCtx?: unknown; invalidate?: unknown }
+
+/**
+ * 配出 Tracker 会话要的三件（#1442，读缓存、裁决、记账各一件）。
+ * 读数按后端的口径给形状（#1446）：离网后端如实报「这一口径不支持读数」，只计请求的后端
+ * 给 requests 桶，双桶后端要求 rest 与 graphql 两个桶都同步过；认不出后端、或该桶还没同步过，
+ * 一律报未知，不拿 0 冒充。裁决交给 budget-admission 里的纯函数：硬顶先行、离网与未知放行、
+ * 只计请求看 requests 余量、双桶逐桶看写保底。本文件只负责把「哪个后端、哪个桶」交给账本，
+ * 不自己写额度数字；记账按口径分桶，离网恒记零花。
+ *
+ * 为什么导出：门禁 tests/verify-deck-tools-matrix.ts 要判断「每一条远端命令发出去的时候，
+ * 是不是正处在一次经裁决放行、还没记账的操作里」。它需要的就是装配层这一份裁决与记账
+ * （而不是在门禁里另抄一份口径），所以这里把这一份原样交出去；宿主装配仍只用本文件里这一个实例。
+ */
+export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: (backendId?: unknown) => unknown; admit: (input: unknown) => Promise<unknown>; account: (input: unknown) => Promise<void> } {
+  // 账本视图里总额度叫 allowance（不是 limit）：这里按 allowance 取，裁决的写保底才算得对。
+  const ledger = (base.ledger || null) as LedgerLike | null;
+
+  // 额度算式从宿主那一份注入：本文件只负责把「哪个后端、哪个桶」交给账本，不自己写数字。
+  const limits: BudgetLimits = {
+    pluginShareOfRemaining: budget.PLUGIN_SHARE_OF_REMAINING,
+    hourlyAllowance: budget.hourlyAllowance,
+    writeReserve: budget.writeReserve,
+    tierFor: budget.tierFor,
+  };
+
+  /**
+   * 接受方传来的后端编号优先；桥自己的入参次之；最后才看账本总览 —— 账本里只有一个后端时，
+   * 它的账就是这一趟的账，认它不会把两个后端的额度混在一起。都认不出来就回空串：
+   * 空串意味着「读数未知」，裁决会如实放行，而不是拿零冒充。
+   */
+  const backendIdOf = function (explicit?: unknown): string {
+    if (typeof explicit === 'string' && explicit.trim()) return explicit.trim();
+    const declared = base.backendId;
+    if (typeof declared === 'string' && declared.trim()) return declared.trim();
+    if (typeof declared === 'function') {
+      try {
+        const value = (declared as () => unknown)();
+        if (typeof value === 'string' && value.trim()) return value.trim();
+      } catch { /* 取不到就按未知处理，不抛 */ }
+    }
+    try {
+      if (ledger && typeof ledger.snapshot === 'function') {
+        const snapshot = ledger.snapshot() || {};
+        const ids: string[] = [];
+        for (const key of Object.keys((snapshot && snapshot.buckets) || {})) {
+          const cut = key.indexOf('/');
+          const id = cut > 0 ? key.slice(0, cut) : '';
+          if (id && ids.indexOf(id) < 0) ids.push(id);
+        }
+        if (ids.length === 1) return ids[0];
+      }
+    } catch { /* 总览读不出来就当没有可认的后端 */ }
+    return '';
+  };
+
+  /** 注册表里这个后端的口径声明；桥没拿到注册表或没有这一条时回 null，由读数形状兜底。 */
+  const modelOf = function (backendId: string): BackendBudgetModel | null {
+    if (!backendId) return null;
+    try {
+      const registry = base.registry as { modules?: () => Array<{ id?: unknown; budget?: unknown }> } | undefined;
+      if (!registry || typeof registry.modules !== 'function') return null;
+      const found = registry.modules().filter(function (m) { return m && m.id === backendId; })[0];
+      const model = found && found.budget as BackendBudgetModel | undefined;
+      return model && typeof model.kind === 'string' ? model : null;
+    } catch { return null; }
+  };
+
+  const viewOf = function (backendId: string, bucket: string): LedgerView | null {
+    try {
+      return ledger && typeof ledger.view === 'function' ? (ledger.view(backendId, bucket) || null) : null;
+    } catch { return null; }
+  };
+
+  const getCachedReading = function (backendId?: unknown): unknown {
+    if (!ledger || typeof ledger.view !== 'function') return { known: false, reason: 'not-measured' };
+    const id = backendIdOf(backendId);
+    if (!id) return { known: false, reason: 'not-measured' };
+    const model = modelOf(id);
+    // 离网后端本来就不花额度：这是「读数已知且明确不需要额度」，与「还没量出来」「不支持读数」都不是一回事
+    // （规格第 7 节要求未知、离网、耗尽三件事分开说），所以回 known:true 的离网读数，不混进未知那一支。
+    if (model && model.kind === 'off-network') return { known: true, kind: 'off-network' };
+    const requests = viewOf(id, 'requests');
+    const rest = viewOf(id, 'rest');
+    const graphql = viewOf(id, 'graphql');
+    const wantRequests = model ? model.kind === 'requests-only' : !!(requests && requests.synced === true);
+    if (wantRequests) {
+      if (!requests || requests.synced !== true) return { known: false, reason: 'not-measured' };
+      return { known: true, kind: 'requests-only', requests: { remaining: numOf(requests.remaining), limit: numOf(requests.allowance) } };
+    }
+    // 两桶要两个桶都同步过才给读数：只同步了一桶时报未知，不拿另一桶的 0 冒充。
+    if (!rest || !graphql || rest.synced !== true || graphql.synced !== true) return { known: false, reason: 'not-measured' };
+    return {
+      known: true, kind: 'two-buckets',
+      buckets: {
+        rest: { remaining: numOf(rest.remaining), limit: numOf(rest.allowance) },
+        graphql: { remaining: numOf(graphql.remaining), limit: numOf(graphql.allowance) },
+      },
+    };
+  };
+
+  const admit = async function (input: unknown): Promise<unknown> {
+    const rec = (input || {}) as UnknownRecord;
+    // 口径与读数都按契约形状接：桥不知道后端细节，裁决也不认后端名字。
+    const decision = decideByBudget({
+      op: String(rec.op || ''),
+      budget: (rec.budget || { kind: 'unknown', countsRequests: false, countsPoints: false, independentBuckets: false }) as BackendBudgetModel,
+      reading: (rec.reading || { known: false, reason: 'not-measured' }) as BudgetReading,
+      canWrite: rec.canWrite !== false,
+    }, limits);
+    return decision;
+  };
+  const account = async function (): Promise<void> { /* 各操作真实用量 1443 才进账本，本票只保证账上不记假数。 */ };
+  return { getCachedReading: getCachedReading, admit: admit, account: account };
+}
 
 /** 声明文件读取的等待上限（毫秒）：挂住的文件服务不能卡住选后端，超时按缺席跳过。数值与位置全冻（#1030 Q4），真源见中央 YAML。 */
 export const DECK_ASSEMBLY_TIMEOUT_MS = CENTRAL_DECK_ASSEMBLY_TIMEOUT_MS
@@ -79,7 +207,16 @@ export function createDeckToolsForHost(toolDeps: unknown): unknown {
   }
   const createTools = createDeckTools as (factories: unknown, deps: unknown) => unknown;
   const decideBackendFn = (decideBackend as unknown) || null;
-  return createTools(DECK_TOOL_FACTORIES, { toolDeps: Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn }) })
+  // #1442：Tracker 会话要的三件（读缓存、裁决、记账）由装配层配齐，九个工具只管调会话，不自己找闸与账本。
+  // 调用方已经配好的不动（门禁直调工厂时自带桩，本层不覆盖）；1443 才接真正的分桶读数缓存，
+  // 本票的读缓存先从账本即时读（同步过就有数，没同步过就诚实报未知，未知不拦事）。
+  const ports = buildTrackerPorts(base);
+  // 装配后的依赖包换一个名字：与入参同名叫 toolDeps 时是重复声明（TS2300，宿主与刷新两份配置各报一次）。
+  const mergedDeps = Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn });
+  if (typeof mergedDeps.getCachedReading !== 'function') mergedDeps.getCachedReading = ports.getCachedReading;
+  if (typeof mergedDeps.admit !== 'function') mergedDeps.admit = ports.admit;
+  if (typeof mergedDeps.account !== 'function') mergedDeps.account = ports.account;
+  return createTools(DECK_TOOL_FACTORIES, { toolDeps: mergedDeps })
 }
 
 
@@ -174,6 +311,7 @@ export function createDeckToolBridge(deps: any): any {
         try { workRouteBindings = await loadWorkRouteBindings() } catch (eW: any) {}
         const built: any = createDeckToolsForHost({
           gate: gate,
+          ledger: ledger,
           registry: registry,
           budget: budget,
           estimate: toolCost.estimateToolCost,

@@ -78,29 +78,31 @@ async function main() {
   check(itemsSpec && itemsSpec.type === 'array', 'items 是数组')
   check(String(itemsSpec.description || '').indexOf('2~4') >= 0, 'items 的说明写明 2~4 条')
   check(itemsSpec.items && itemsSpec.items.type === 'object', 'items 的每一项是对象')
+  const introSpec = itemsSpec.items.properties && itemsSpec.items.properties.intro
   const promptSpec = itemsSpec.items.properties && itemsSpec.items.properties.prompt
   const reasonSpec = itemsSpec.items.properties && itemsSpec.items.properties.reason
+  check(introSpec && introSpec.type === 'string' && String(introSpec.description || '').indexOf('10') >= 0, 'intro 是十字以内的简介（说明里带上限 10）')
   check(promptSpec && promptSpec.type === 'string' && String(promptSpec.description || '').indexOf('/to-tickets') >= 0, 'prompt 是可执行提示词（说明里带例子）')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
-  check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'prompt,reason', '每条必须同时给 prompt 与 reason')
+  check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason', '每条必须同时给 intro、prompt 与 reason')
   check(itemsSpec.items.additionalProperties === false, '每条不收未知字段')
   // 注册表只接受受支持的 JSON Schema 子集（没有 minItems / maxItems），2~4 的约束由代码钳制，
   // 所以这里反过来钉住：参数模式里不许出现这两个关键字，否则真机注册会被拒。
   check(JSON.stringify(def.parameters).indexOf('minItems') < 0 && JSON.stringify(def.parameters).indexOf('maxItems') < 0,
     '参数模式不带 minItems / maxItems（注册表子集不支持，约束由代码钳制）')
   check(tool.MIN_ITEMS === 2 && tool.MAX_ITEMS === 4, '上下限常量是 2 与 4')
-  check(tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 200, '单项文本上限是 500 与 200 个码点')
+  check(tool.INTRO_MAX_CHARS === 10 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 200, '单项文本上限是 10、500 与 200 个码点')
 
   // ── 2. 参数校验与钳制：纯函数结论（不经过回执壳，先把规矩钉死） ──
   const resolve = tool.resolveSuggestItems
-  const two = [{ prompt: '/to-tickets', reason: '把规格拆成实施票' }, { prompt: '继续实现', reason: '接着做下一票' }]
+  const two = [{ intro: '拆票', prompt: '/to-tickets', reason: '把规格拆成实施票' }, { intro: '接着做', prompt: '继续实现', reason: '接着做下一票' }]
   const r2 = resolve({ items: two })
   check(r2.accepted === true && r2.reason === '', '两条合法建议被接受')
-  check(r2.items.length === 2 && r2.items[0].prompt === '/to-tickets' && r2.items[1].reason === '接着做下一票', '条目内容原样保留')
+  check(r2.items.length === 2 && r2.items[0].intro === '拆票' && r2.items[0].prompt === '/to-tickets' && r2.items[1].reason === '接着做下一票', '条目内容原样保留')
   check(r2.counts.received === 2 && r2.counts.returned === 2 && r2.counts.clipped === 0, '两条的计数如实')
-  const r3 = resolve({ items: two.concat([{ prompt: '第三条', reason: '理由三' }]) })
+  const r3 = resolve({ items: two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三' }]) })
   check(r3.accepted === true && r3.counts.returned === 3, '三条合法建议被接受')
-  const r4 = resolve({ items: two.concat([{ prompt: '第三条', reason: '理由三' }, { prompt: '第四条', reason: '理由四' }]) })
+  const r4 = resolve({ items: two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三' }, { intro: '四步', prompt: '第四条', reason: '理由四' }]) })
   check(r4.accepted === true && r4.counts.returned === 4, '四条合法建议被接受')
   const r0 = resolve({ items: [] })
   check(r0.accepted === false && r0.reason === 'bad-args' && r0.counts.received === 0, '零条建议整次拒绝')
@@ -111,34 +113,38 @@ async function main() {
   check(rNoArray.accepted === false && rNoArray.notes.indexOf('bad-items:not-array') >= 0, 'items 不是数组时拒绝')
   const rNoArg = resolve(null)
   check(rNoArg.accepted === false && rNoArg.reason === 'bad-args', '参数整个为空时拒绝')
-  const rMissingPrompt = resolve({ items: [{ prompt: '', reason: '理由' }, two[1]] })
+  const rMissingPrompt = resolve({ items: [{ intro: '简介', prompt: '', reason: '理由' }, two[1]] })
   check(rMissingPrompt.accepted === false && rMissingPrompt.notes.indexOf('bad-item:1') >= 0, '第一条缺提示词时整次拒绝')
-  const rMissingReason = resolve({ items: [two[0], { prompt: '下一步', reason: '   ' }] })
+  const rMissingReason = resolve({ items: [two[0], { intro: '下一步', prompt: '下一步', reason: '   ' }] })
   check(rMissingReason.accepted === false && rMissingReason.notes.indexOf('bad-item:2') >= 0, '第二条理由为空时整次拒绝')
+  const rMissingIntro = resolve({ items: [two[0], { prompt: '下一步', reason: '理由' }] })
+  check(rMissingIntro.accepted === false && rMissingIntro.notes.indexOf('bad-item:2') >= 0, '第二条缺简介时整次拒绝')
   const rFlatEntry = resolve({ items: [two[0], 'not-an-object'] })
   check(rFlatEntry.accepted === false && rFlatEntry.notes.indexOf('bad-item:2') >= 0, '条目不是对象时整次拒绝')
-  const five = two.concat([{ prompt: '第三条', reason: '理由三' }, { prompt: '第四条', reason: '理由四' }, { prompt: '第五条', reason: '理由五' }])
+  const five = two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三' }, { intro: '四步', prompt: '第四条', reason: '理由四' }, { intro: '五步', prompt: '第五条', reason: '理由五' }])
   const r5 = resolve({ items: five })
   check(r5.accepted === true && r5.items.length === 4, '多于四条截到四条')
   check(r5.items[0].prompt === '/to-tickets' && r5.items[3].prompt === '第四条', '截断保留前四条且保序')
   check(r5.counts.received === 5 && r5.counts.returned === 4 && r5.notes.indexOf('trimmed:5→4') >= 0, '截断的条数如实记下')
-  const r9 = resolve({ items: Array.from({ length: 9 }, (_, i) => ({ prompt: '提示' + i, reason: '理由' + i })) })
+  const r9 = resolve({ items: Array.from({ length: 9 }, (_, i) => ({ intro: '第' + i + '步', prompt: '提示' + i, reason: '理由' + i })) })
   check(r9.accepted === true && r9.items.length === 4 && r9.items[0].prompt === '提示0', '九条也只留前四条')
   const longPrompt = '长'.repeat(600)
   const longReason = '理由'.repeat(200)
-  const rLong = resolve({ items: [{ prompt: longPrompt, reason: longReason }, two[1]] })
+  const longIntro = '简'.repeat(30)
+  const rLong = resolve({ items: [{ intro: longIntro, prompt: longPrompt, reason: longReason }, two[1]] })
   check(rLong.accepted === true, '单项超长不报错、仍然接受')
+  check(Array.from(rLong.items[0].intro).length === 10 && rLong.items[0].intro.slice(-1) === '…', '超长简介截到 10 个码点并补省略号')
   check(Array.from(rLong.items[0].prompt).length === 500 && rLong.items[0].prompt.slice(-1) === '…', '超长提示词截到 500 个码点并补省略号')
   check(Array.from(rLong.items[0].reason).length === 200 && rLong.items[0].reason.slice(-1) === '…', '超长理由截到 200 个码点并补省略号')
   check(rLong.counts.clipped === 1 && rLong.notes.indexOf('clipped:1') >= 0, '被截断的条数如实记下')
   const emoji = '😀'.repeat(600)
-  const rEmoji = resolve({ items: [{ prompt: emoji, reason: '表情' }, two[1]] })
+  const rEmoji = resolve({ items: [{ intro: '表情', prompt: emoji, reason: '表情' }, two[1]] })
   check(rEmoji.accepted === true && Array.from(rEmoji.items[0].prompt).length === 500 && rEmoji.items[0].prompt.slice(-1) === '…',
     '按码点截断，不切坏 emoji（代理对完整）')
-  const boundary = resolve({ items: [{ prompt: 'a'.repeat(500), reason: 'b'.repeat(200) }, two[1]] })
+  const boundary = resolve({ items: [{ intro: '简介', prompt: 'a'.repeat(500), reason: 'b'.repeat(200) }, two[1]] })
   check(boundary.accepted === true && boundary.counts.clipped === 0, '正好卡在上限的文本不截断')
-  const trimmed = resolve({ items: [{ prompt: '  /to-tickets  ', reason: '  理由  ' }, two[1]] })
-  check(trimmed.items[0].prompt === '/to-tickets' && trimmed.items[0].reason === '理由', '首尾空白被去掉')
+  const trimmed = resolve({ items: [{ intro: '  简介  ', prompt: '  /to-tickets  ', reason: '  理由  ' }, two[1]] })
+  check(trimmed.items[0].intro === '简介' && trimmed.items[0].prompt === '/to-tickets' && trimmed.items[0].reason === '理由', '首尾空白被去掉')
 
   // ── 3. run 的成功回执：统一回执壳、会话、耗时、结论 ──
   const okLog = makeLog()
@@ -178,7 +184,7 @@ async function main() {
 
   const clipLog = makeLog()
   const clipRunner = tool.createSuggestNextSteps({ log: clipLog.log, now: fakeClock(0) })
-  const clipEnv = await clipRunner.run(EXEC, { items: [{ prompt: longPrompt, reason: longReason }, two[1]] })
+  const clipEnv = await clipRunner.run(EXEC, { items: [{ intro: longIntro, prompt: longPrompt, reason: longReason }, two[1]] })
   check(clipEnv.ok === true && clipEnv.notes.indexOf('clipped:1') >= 0, '截断信息也带回执的 notes')
   check(clipLog.fired[0] && clipLog.fired[0].fields.reason === 'items=2;returned=2;clipped=1', '截断的条数进日志 reason')
 
@@ -191,7 +197,7 @@ async function main() {
   check(badEnv.data === undefined, '拒绝回执不带建议清单')
   check(badEnv.workspace && badEnv.workspace.sessionId === 'sess-7', '拒绝回执仍带会话（界面与日志能对上）')
   check(badLog.fired.length === 1 && badLog.fired[0].fields.ok === false && badLog.fired[0].fields.reason === 'bad-args:1', '拒绝也落既有事件，ok 为假、条数在 reason')
-  const badMissing = await badRunner.run(EXEC, { items: [two[0], { prompt: '下一步', reason: '' }] })
+  const badMissing = await badRunner.run(EXEC, { items: [two[0], { intro: '下一步', prompt: '下一步', reason: '' }] })
   check(badMissing.ok === false && String(badMissing.text).indexOf('第 2 条') >= 0, '条目缺理由时拒绝并指出第几条')
   const noSessionLog = makeLog()
   const noSessionRunner = tool.createSuggestNextSteps({ log: noSessionLog.log, now: fakeClock(0) })

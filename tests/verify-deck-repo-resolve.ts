@@ -67,7 +67,14 @@ function sess(cwd: string): any {
 async function main() {
   console.log('仓库标识补全门禁（#758：空才补，不逐后端写分支）')
 
-  const shell = await imp('src/deck/shell/call-shell.ts')
+  const sessionMod = await imp('src/deck/tools/tracker-session.ts')
+  const EST = { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' }
+  const GH_BUDGET = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true }
+  const MD_BUDGET = { kind: 'requests-only', countsRequests: true, countsPoints: false, independentBuckets: false }
+  // #1443 起打开会话要读注册表的预算声明（openTracker 按它建会话）：这几个桩注册表只为选后端与补全而造，
+  // 在这里统一补上两份预算声明，桩本身的 select / describe / get 一字不动。
+  const withModules = (reg) => Object.assign({ modules: () => [{ id: 'github', budget: GH_BUDGET }, { id: 'markdown', budget: MD_BUDGET }] }, reg)
+  const openedOf = (reg, gate) => sessionMod.openDeckSession({ deps: baseShellDeps(Object.assign({ registry: withModules(reg) }, gate ? { gate: gate } : {})), exec: { agent: { session: { cwd: '/ws' } } }, session: sess('/ws'), estimate: EST, tool: 'test', kind: 'op' })
 
   // ── 1. 空标识补上，有标识不动 ──
   // 这个夹具的工作区根是 /ws，所有用例都在它上面跑：先记一份「用户选的是 github」
@@ -88,8 +95,7 @@ async function main() {
       }
     },
   }
-  const sh1 = shell.createDeckShell(baseShellDeps({ registry: withCap }))
-  const p1 = await sh1.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
+  const p1 = await openedOf(withCap)
   check(p1 && p1.ok === true && p1.ref && p1.ref.refId === 'acme/box', '空标识补成 owner/name')
   check(p1 && p1.ref && p1.ref.url === 'https://github.com/acme/box', '补上同时给出仓库地址')
   check(resolveCalls === 1, '补全只调一次')
@@ -104,8 +110,7 @@ async function main() {
       return { getRepoKey: async function () { throw new Error('不该调到这里') } }
     },
   }
-  const sh2 = shell.createDeckShell(baseShellDeps({ registry: keepRef }))
-  const p2 = await sh2.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
+  const p2 = await openedOf(keepRef)
   check(p2 && p2.ok === true && p2.ref && p2.ref.refId === 'keep/me', '有标识不动，不调补全')
 
   // ── 2. 没能力的后端跳过，下游照旧 ──
@@ -117,8 +122,7 @@ async function main() {
     describe: function () { return { backend: 'markdown', refId: '', name: 'ws', url: '' } },
     get: function () { return {} },
   }
-  const sh3 = shell.createDeckShell(baseShellDeps({ registry: noCap }))
-  const p3 = await sh3.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
+  const p3 = await openedOf(noCap)
   check(p3 && p3.ok === true && p3.ref && p3.ref.refId === '', '没能力的后端跳过，空着交下去（下游诚实失败）')
 
   // ── 3. 补全失败、超时、被闸推迟，都诚实 ──
@@ -129,8 +133,7 @@ async function main() {
     describe: function () { return { backend: 'github', refId: '', name: 'ws', url: '' } },
     get: function () { return { getRepoKey: async function () { return null } } },
   }
-  const sh4 = shell.createDeckShell(baseShellDeps({ registry: failResolve }))
-  const p4 = await sh4.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
+  const p4 = await openedOf(failResolve)
   check(p4 && p4.ok === true && p4.ref.refId === '', '解析不出空着交下去，不抛')
   const throwResolve = {
     has: function () { return true },
@@ -138,8 +141,7 @@ async function main() {
     describe: function () { return { backend: 'github', refId: '', name: 'ws', url: '' } },
     get: function () { return { getRepoKey: async function () { throw new Error('炸了') } } },
   }
-  const sh5 = shell.createDeckShell(baseShellDeps({ registry: throwResolve }))
-  const p5 = await sh5.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
+  const p5 = await openedOf(throwResolve)
   check(p5 && p5.ok === true, '补全抛错吞掉，选后端本身不受影响')
   const hangResolve = {
     has: function () { return true },
@@ -147,9 +149,8 @@ async function main() {
     describe: function () { return { backend: 'github', refId: '', name: 'ws', url: '' } },
     get: function () { return { getRepoKey: function () { return new Promise(function () {}) } } },
   }
-  const sh6 = shell.createDeckShell(baseShellDeps({ registry: hangResolve }))
   const t0 = Date.now()
-  const p6 = await sh6.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
+  const p6 = await openedOf(hangResolve)
   check(p6 && p6.ok === true && (Date.now() - t0) < 5000, '补全 hang 住有时限兜底（测试配 50ms）')
   const deferGate = {
     send: async function (req: any, perform: any): Promise<any> {
@@ -166,19 +167,23 @@ async function main() {
     describe: function () { return { backend: 'github', refId: '', name: 'ws', url: '' } },
     get: function () { return { getRepoKey: async function () { deferResolveCalls += 1; return { owner: 'a', name: 'b' } } } },
   }
-  const sh7 = shell.createDeckShell(baseShellDeps({ gate: deferGate, registry: deferReg }))
-  const p7 = await sh7.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
-  check(p7 && p7.ok === true && p7.ref.refId === '' && deferResolveCalls === 0, '补全被闸推迟就不补（尊重裁决，空着交下去）')
+  // #1443 起补全不再走闸的发送接口：新路的仓库标识补全是「房间直调 getRepoKey 与等待口的竞速」，不再经过
+  // gate.send 的读探针，所以发送口的推迟（defer）拦不住它；裁决只看 admitAiTool（这里放行），放行就补全。
+  const p7 = await openedOf(deferReg, deferGate)
+  check(p7 && p7.ok === true && p7.ref.refId === 'a/b' && deferResolveCalls === 1, '新路补全不经发送口：admitAiTool 放行就竞速补全（defer 只活在旧路的发送接口里）')
 
   // ── 4. 补全走闸（读探针一格，可归因）──
+  // #1443 起选后端不再调闸的发送接口：读探针（quota.read / resolve）随旧路退役，裁决走 admitAiTool 两笔
+  // （打开会话前的余量探针与整单的批量裁决）。记账仍在管线里，不丢笔数。
   const kinds: unknown[] = []
+  let admitCalls = 0
   const recordGate = {
     send: async function (req: any, perform: any): Promise<any> { kinds.push(req && req.kind); await perform(); return { sent: true, requests: 1, points: 0 } },
-    admitAiTool: function () { return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
+    admitAiTool: function () { admitCalls += 1; return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
   }
-  const sh8 = shell.createDeckShell(baseShellDeps({ gate: recordGate, registry: withCap }))
-  await sh8.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
-  check(kinds.join(',') === 'probe,probe', '选后端与补全各走一次读探针（两笔都记账）')
+  await openedOf(withCap, recordGate)
+  check(kinds.join(',') === '', '选后端与补全都不再走闸的发送接口（读探针已退役）')
+  check(admitCalls === 2, '裁决走 admitAiTool 两笔（余量探针与整单批量，实得 ' + admitCalls + ' 笔）')
 
   // ── 5. 真房间把口子开出来（github created 后端带 getRepoKey）──
   const backendMod = await imp('src/tracker/rooms/github/backend.ts')

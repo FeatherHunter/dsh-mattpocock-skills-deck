@@ -1,91 +1,115 @@
 // src/refresh/rooms/host/thin-row-fetch.ts —— 行级增量的取数三件套（#1255 从 patch.ts 拆出）
 //
 // 为什么单列：取数（发请求、拼行）与合并（水印、待办、世代）是两件事。
-// 取数这边只认三样：发请求的宿主句柄、计数表、工作区标识，全由调用方以参数注入；
+// 取数这边只认两样：开只读会话的装配口、计数表，全由调用方以参数注入；
 // 合并那边的状态（快照、水印、待办）一件都不碰。调用方（row-patch.ts 的 run）只认回包形状：
-//   回 { ok:true, rows, queries }，或 { ok:false, outcome:'deferred'|'dropped'|'failed', keys }。
+//   回 { ok:true, rows, queries }，或 { ok:false, outcome:'failed', keys, reason }。
 // 本文件不 import 宿主其它模块，免得接出环（row-patch.ts 头注释里的那条分工仍在）。
 //
-// 口径（从 patch.ts 原样搬来，行为一字未动）：
-//   · 一条薄查询：只问这一张票的行数据（一条出站请求），字段与全量取数那份同形，
-//     免得并进列表之后同一行有两种形状（界面在两种形状之间摇摆是最难查的一类错）；
-//   · 一条没取到就整批不并（定稿第十一章点名的那个静默漏报）：只并进去一半、却把水印推走，
-//     剩下那几条变化就再也发现不了了；
-//   · 这是 REST 那一路（每张票一条 `gh api repos/.../issues/N`），桶明确写 rest：
-//     闸的 BUCKET_OF_KIND 把 kind=patch 归在 graphql（那是「一条带别名的薄查询」那种实现）——
-//     本实现走的是每票一条 REST，如实报 rest 才不会把「几条请求」记成「几点」（两桶互不折算）。
+// #1444（规格 1439 的 A2 第一批）：这一条从「每票直调 gh api」改成「同一趟只读会话里逐票 get」。
+// 三条口径：
+//   1. 读路径不花额度：会话的读裁决一律放行、记账空实现（见 session-opener.ts 文件头），
+//      所以这里不再经过出站闸，也就没有「发送被推迟/丢弃」那两种结局；
+//      取不到就只有失败的结局，调用方照旧记待办、水印不动。
+//   2. 一票一次 get，字段由房间归一，不再拼 REST 的 --jq 参数；行的形状仍与全量取数那份同形，
+//      免得并进列表之后同一行有两种形状（界面在两种形状之间摇摆是最难查的一类错）。
+//   3. 一条没取到就整批不并（定稿第十一章点名的那个静默漏报）：只并进去一半、却把水印推走，
+//      剩下那几条变化就再也发现不了了。
+//
+// 失败形状保持旧样：开会话失败或任何一票取不到，回 { ok:false, outcome:'failed', keys, reason }，
+// 不抛、不假装成功；row-patch 那边据此把这几条记进待办，等下一趟整池或下一次增量。
+import type { OpContext } from '../../../tracker/contract/contexts.js'
+import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
+import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 
 /**
- * 取数要用的三样：发请求的宿主句柄（runGh/send，原样透传调用语义）、
- * 计数表（门禁与现场排查都读它）、工作区标识。全部由 patch.ts 接线处传入。
+ * 取数要用的两样：开只读会话的装配口（宿主接线注入 openSessionFor）、
+ * 计数表（门禁与现场排查都读它）。全部由 patch.ts 接线处传入。
  */
 export interface ThinFetchEnv {
-  host: { runGh: (args: string[], cwd: string) => any; send?: (req: any, perform: () => Promise<any>) => any }
+  openSession: (cwd: any, opts?: any) => Promise<any>
   stats: { thinQueries: number }
-  wsKeyOf: (cwd: string) => string
 }
 
-/**
- * 一条薄查询：只问这一张票的行数据（一条出站请求）。字段与全量取数那份同形，
- * 免得并进列表之后同一行有两种形状（界面在两种形状之间摇摆是最难查的一类错）。
- */
-function thinArgs(repo: any, number: any): string[] {
-  return ['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + number,
-    '--jq', '{number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}']
-}
+/** 本文件认的仓库坐标：宿主 getRepoKey 交出来的那两格。 */
+interface RepoKey { owner: string; name: string }
 
-/** 把一条薄查询的回包转成列表里那一行的形状（与 src/refresh/rooms/host/issue-list-fetch.js 的 fetchIssues 同口径）。 */
-function rowOf(x: any): any {
-  return {
-    number: x.number,
-    title: x.title,
-    state: (String(x.state).toLowerCase() === 'closed' ? 'CLOSED' : 'OPEN'),
-    assignees: (x.assignees || []).map(function (a: any): any { return a.login }),
-    labels: (x.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } }),
-    author: (x.user && x.user.login) ? { login: x.user.login, name: (x.user.name || ''), avatarUrl: x.user.avatar_url || '' } : undefined,
-    updatedAt: x.updated_at,
-    createdAt: x.created_at,
+/** 会话回包的失败来源（TrackerError）：kind 是判档、message 是原话。 */
+interface SessionError { kind?: string; message?: string }
+
+/** 一票的取数结局：拿到行，或一条失败原因（整批据此不并）。 */
+interface OneResult { k: any; row?: any; bad?: { outcome: string; reason: string } }
+
+/** 把会话交回来的契约票转成列表里那一行的形状（与 issue-list-fetch.ts 的 fetchIssues 同口径）。 */
+function rowOf(issue: Issue): any {
+  const labels = (issue.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } })
+  const assignees = (issue.assignees || []).map(function (a: any): any { return a.login })
+  const row: any = {
+    number: Number(issue.key),
+    title: issue.title,
+    state: (issue.state === 'closed' ? 'CLOSED' : 'OPEN'),
+    assignees: assignees,
+    labels: labels,
+    author: issue.author ? { login: issue.author.login, name: (issue.author.name || ''), avatarUrl: (issue.author.avatarUrl || '') } : undefined,
+    updatedAt: issue.updatedAt,
+    createdAt: issue.createdAt,
   }
+  // 拉取请求行必须带这个标记：客户端 isTicketRow 只把 isPullRequest 为真的行挡在工单列表之外。
+  if (issue.isPullRequest === true) { row.isPullRequest = true; row.mergedAt = issue.mergedAt || null }
+  return row
+}
+
+/** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是 GitHub 房间认的 'owner/name'。 */
+function repoRefOf(repo: RepoKey | null, backendId: string): RepositoryRef | null {
+  if (!repo || !repo.owner || !repo.name) return null
+  const refId = String(repo.owner) + '/' + String(repo.name)
+  return { backend: backendId as any, refId: refId, name: refId, url: 'https://github.com/' + refId }
+}
+
+/** 开会话失败时整批都算没取到；理由写成能定位的一句话，不把会话结局名藏起来。 */
+function sessionFailure(keys: any, reason: string): any {
+  return { ok: false, outcome: 'failed', keys: (keys || []).slice(), reason: reason }
 }
 
 /**
- * 取那几条：一条一请求，多条同时发（闸那边不再排队，见 gate.js）。
- * 回 { ok:true, rows, queries }，或 { ok:false, outcome:'deferred'|'dropped'|'failed', keys }。
- *
- * 一条没取到就整批不并 —— 这是本文件最要紧的一条判断：只并进去一半、却把水印推走，
- * 剩下那几条变化就再也发现不了了（正是定稿第十一章点名的那个静默漏报）。
- * 并行只管取数，并不并由同一条判断决定：有任何一条没取到，整批都不并、水印不动。
+ * 取那几条：一趟只读会话里一票一次 get，多条同时发。
+ * 回 { ok:true, rows, queries }，或 { ok:false, outcome:'failed', keys, reason }。
  */
 export async function fetchThinRows(env: ThinFetchEnv, cwd: any, repo: any, keys: any): Promise<any> {
-  // 一次薄查询的计数进这一条路的账（门禁与现场排查读 stats.thinQueries）。
-  const one = async (k: any): Promise<any> => {
-    let captured: any = null
-    const perform = async function (): Promise<any> {
-      env.stats.thinQueries += 1
-      captured = await Promise.resolve(env.host.runGh(thinArgs(repo, k), cwd))
-      return captured && captured.report ? captured.report : { requests: 1, points: 0 }
-    }
-    if (typeof env.host.send === 'function') {
-      const sent: any = await Promise.resolve(env.host.send({ source: 'patch.apply', kind: 'patch', bucket: 'rest', workspaceKey: env.wsKeyOf(cwd) }, perform))
-      if (!sent || sent.sent !== true) return { k: k, bad: { outcome: sent && sent.verdict === 'defer' ? 'deferred' : 'dropped', reason: (sent && sent.reason) || 'deferred' } }
-    } else {
-      await perform()
-    }
-    const r: any = await Promise.resolve(captured)
-    if (!r || r.ok !== true || !r.text) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-failed' } }
-    let parsed: any = null
-    try { parsed = JSON.parse(r.text) } catch (e: any) { parsed = null }
-    if (!parsed || parsed.number === undefined || parsed.number === null) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-parse' } }
-    return { k: k, row: rowOf(parsed) }
+  const list: any[] = Array.isArray(keys) ? keys : []
+  if (!list.length) return { ok: true, rows: [], queries: 0 }
+  if (!env || typeof env.openSession !== 'function') return sessionFailure(list, 'read-session-unavailable')
+  let opened: any = null
+  try { opened = await Promise.resolve(env.openSession(cwd)) } catch (e: any) { return sessionFailure(list, 'read-session-threw') }
+  if (!opened || opened.ok !== true || typeof opened.call !== 'function') {
+    return sessionFailure(list, 'read-session-unavailable:' + String((opened && opened.reason) || 'open-failed'))
   }
-  const got: any[] = await Promise.all(keys.map(one))
-  const rows: any[] = new Array(keys.length)
+  const ref = repoRefOf(repo as RepoKey, String(opened.backendId || ''))
+  if (!ref) return sessionFailure(list, 'repo-key-missing')
+  let got: OneResult[] = []
+  try {
+    got = await opened.call(async function (session: TrackerSession, ctx: OpContext): Promise<OneResult[]> {
+      return Promise.all(list.map(async function (k: any): Promise<OneResult> {
+        // 一次薄查询的计数进这一条路的账（门禁与现场排查读 stats.thinQueries）。
+        env.stats.thinQueries += 1
+        let r: any = null
+        try { r = await session.get(ref as RepositoryRef, String(k), undefined, ctx) } catch (e: any) { r = null }
+        if (!r || r.ok !== true || !r.data) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-failed' } }
+        const row = rowOf(r.data)
+        if (!Number.isFinite(row.number)) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-parse' } }
+        return { k: k, row: row }
+      }))
+    })
+  } catch (e: any) {
+    return sessionFailure(list, 'thin-query-threw')
+  }
+  const rows: any[] = new Array(list.length)
   const failedKeys: any[] = []
   let firstBad: any = null
   for (let i = 0; i < got.length; i++) {
-    if (got[i].bad) { failedKeys.push(keys[i]); if (!firstBad) firstBad = got[i].bad }
+    if (got[i].bad) { failedKeys.push(list[i]); if (!firstBad) firstBad = got[i].bad }
     else rows[i] = got[i].row
   }
   if (firstBad) return { ok: false, outcome: firstBad.outcome, keys: failedKeys, reason: firstBad.reason }
-  return { ok: true, rows: rows, queries: keys.length }
+  return { ok: true, rows: rows, queries: list.length }
 }

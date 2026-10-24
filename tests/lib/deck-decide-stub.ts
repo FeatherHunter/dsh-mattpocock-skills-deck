@@ -3,8 +3,8 @@
  *
  * 为什么门禁必须给这个依赖
  *   2026-10-11 起（提交 24a4bf33，#1003 单出口），工具壳把「这个工作区用哪个后端」整段交给装配方
- *   递进来的判定出口（`src/deck/shell/call-shell.ts:250-270`）：拿不到它就直接回三态 unsupported
- *   （原因码 backend-threw、散列 missing-decideBackend），一句话都不往后做。
+ *   递进来的判定出口（`src/deck/tools/tracker-session.ts` 的 openDeckSession 那一步）：拿不到它就直接回三态 unsupported
+ *   （原因码 backend-threw），一句话都不往后做。
  *   生产装配总是给（`src/refresh/registry/deck-tool-bridge.ts` 的 `decideBackend`），
  *   而门禁夹具各有各的依赖对象、当初没给，于是十几条夹具里工具全回「判定出口这次没装上」——
  *   夹具红着，红的却不是它要守的那件事。这个文件把桩收在一处，供各夹具共用。
