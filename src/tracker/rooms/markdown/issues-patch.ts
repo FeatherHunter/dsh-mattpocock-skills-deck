@@ -19,7 +19,9 @@ import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 // #1277：文件头里父注释的插入位置要认得类型标记行 —— 标记紧跟在幂等锚后面，父注释排在标记之后。
 import { markerKindOnLine } from '../../../shared/issue-file/src/marker.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
-import { replaceOrInsertField } from './issues-status.js'
+import { replaceOrInsertField, rewriteTicketText } from './issues-status.js'
+// #1489：原文布局的字段原语（隐藏注释、裸字段行、票种类判定），见 original-fields.ts。
+import { removeBareField, replaceBareField, ticketFormOf, upsertHiddenComment } from './original-fields.js'
 // #1174：写阻塞边之前的全图环检（契约明写「环检是写路径的一部分，不许省」）。
 // #922：票文件的读—改—写按文件排队，见 write-queue.js。
 import { checkExpectedUpdatedAt, cycleVerdictFor } from './write-guards.js'
@@ -277,26 +279,32 @@ export async function setAssigneesIssue(ctx: OpContext,repo: RepoWithPath | null
 }
 async function setAssigneesInner(ctx: OpContext,repo: RepoWithPath | null,key: string,assignees: AssigneeInput[],opts?: SetOpts,trail?: WriteTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
-  const colorMap=await loadPaintColorMap(ctx)
-  const r=await resolveTarget(ctx,repo,norm,'write')
-  if(!r.ok)return{ok:false,error:r.error}
   // 认领人**原样落盘**（#1174 决策 12）：以前只按「给没给」写一个 claimed/ready 状态，谁认领的没有地方放，
-  // 回读只能给一个 `@me` 占位符 —— 调用方看到的名字，既不是自己给的那个、也不是本地用户名。
-  // 现在把名字写进 `Assignees:` 那一行；取消认领（给空数组、或根本没给）写一行空的，
-  // 读回来是「明确没人认领」，与「这份文件没记下是谁」（老票、没有这一行）区分开。
-  // 认领与否仍然写进 `Status:` —— 全房判开/关、判 frontier 都按那一行，不能改它的含义。
+  // 回读只能给一个 @me 占位符 —— 调用方看到的名字，既不是自己给的那个、也不是本地用户名。
   const names=Array.isArray(assignees)?assignees.map(loginOfAssignee).filter(Boolean):[]
-  const statusLine=names.length?'Status: claimed':'Status: ready-for-agent'
-  const assigneeLine=names.length?'Assignees: '+names.join(', '):'Assignees:'
-  const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+  // #1489：原文布局里认领人只写文件头隐藏注释 DSH-ASSIGNEES（原文没有 Assignees 行），可见状态行按票种类决定——
+  //  · 实施票的 **Status:** 原文只有 ready-for-agent/resolved 两档，认领不改它（写 claimed 读回来也认不出这个值）；
+  //  · 地图子票的裸 Status 原文两档就是 claimed/resolved：派了人写 claimed，撤空则删掉这一行回到「没人派」。
+  // 旧布局（没有原文标记的老文件）继续写可见 Status + Assignees 行，行为与 #1489 之前一字不差。
+  const res=await rewriteTicketText(ctx,repo,norm,function(txt,target){
+    if(target.container||ticketFormOf(txt)!=='legacy'){
+      const hidden=names.length?names.join(', '):null
+      if(target.container)return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
+      if(ticketFormOf(txt)==='map-ticket'){
+        let out=upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
+        if(names.length) out=replaceBareField(out,'Status','claimed')
+        else if(/^[ \t]*Status[ \t]*[:：][ \t]*claimed[ \t]*$/im.test(out)) out=removeBareField(out,'Status')
+        return out
+      }
+      // 实施票：只动隐藏注释，可见加粗状态行原样留着（认领不是原文里的一种状态）。
+      return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
+    }
+    const statusLine=names.length?'Status: claimed':'Status: ready-for-agent'
+    const assigneeLine=names.length?'Assignees: '+names.join(', '):'Assignees:'
     return insertFieldAfter(replaceOrInsertField(txt,'Status',statusLine),'Status',assigneeLine)
-  },opts,trail)
+  },trail,opts)
   if(!res.ok)return{ok:false,error:res.error}
-  try{
-    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId,url:r.path})
-    applyLabelColors(iss, colorMap)
-    return{ok:true,data:iss}
-  }catch(e){return failFromError(e,ctx,'改这张票的认领人时出错')}
+  return res
 }
 /** 改父子的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1060，事件 `edge.write`）。 */
 export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,parentKey: string | null,opts?: SetOpts): Promise<{ ok: true; data: Issue } | PatchFailure>{
@@ -416,17 +424,17 @@ export async function setLabelsIssue(ctx: OpContext,repo: RepoWithPath | null,ke
 }
 async function setLabelsInner(ctx: OpContext,repo: RepoWithPath | null,key: string,labels: LabelInput[],opts?: SetOpts,trail?: WriteTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
-  const colorMap=await loadPaintColorMap(ctx)
   // #634：与 patch.labels 同口径——落盘的标签名先剥掉外层成对引号/反引号
   const names=Array.isArray(labels)? labels.map(l=> stripLabelDecoration(typeof l==='string'? l : (l&&typeof l.name==='string'? l.name:String(l)))).filter(Boolean) : []
-  const r=await resolveTarget(ctx,repo,norm,'write')
-  if(!r.ok)return{ok:false,error:r.error}
-  const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
-  const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)},opts,trail)
+  // #1489：原文布局没有可见 Labels 行，标签写文件头隐藏注释 DSH-LABELS；旧布局继续写可见 Labels 行不变。
+  // 手写文件里人自己补过可见 Labels 行时两处一起改：解析以可见行为准，只改隐藏注释会读回旧值。
+  const res=await rewriteTicketText(ctx,repo,norm,function(txt,target){
+    const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
+    if(!target.container&&ticketFormOf(txt)==='legacy')return replaceOrInsertField(txt,'Labels',line)
+    let out=upsertHiddenComment(txt,'DSH-LABELS',names.length?names.join(', '):null)
+    if(/^[ \t]*(?:\*\*)?Labels(?:\*\*)?[ \t]*[:：]/im.test(out)) out=replaceOrInsertField(out,'Labels',line)
+    return out
+  },trail,opts)
   if(!res.ok)return{ok:false,error:res.error}
-  try{
-    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})
-    applyLabelColors(iss, colorMap)
-    return{ok:true,data:iss}
-  }catch(e){return failFromError(e,ctx,'改这张票的标签时出错')}
+  return res
 }

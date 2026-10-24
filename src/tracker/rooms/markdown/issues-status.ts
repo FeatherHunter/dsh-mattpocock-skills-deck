@@ -18,9 +18,11 @@ import { getPlat, resolveIssueFile, resolveMapFile, resolveSpecFile } from './is
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
-import type { CloseOpts } from '../../contract/inputs.js'
+import type { CloseOpts, SetOpts } from '../../contract/inputs.js'
 // #922：票文件的读—改—写按文件排队（关门/重开也是「读整份、改一行、整份写回」），见 write-queue.js。
 import { withFileWriter } from './write-queue.js'
+// #922/#1489：改认领人/标签这类 set* 调用可能带「上次看到的修改时间」，写前要在队内先核一次。
+import { checkExpectedUpdatedAt } from './write-guards.js'
 // #1489：原文布局（加粗字段行 / 裸字段行 / 隐藏注释）的读写原语，见 original-fields.ts。
 import {
   appendSectionBlock,
@@ -132,6 +134,7 @@ export async function rewriteTicketText(
   key: string,
   apply: (before: string, target: WriteTarget) => string,
   trail?: WriteTrail,
+  opts?: SetOpts,
 ): Promise<{ ok: true; data: Issue } | StatusFailure> {
   const norm = String(key).padStart(2, '0')
   const loc = await locateWriteTarget(ctx, repo, norm)
@@ -140,6 +143,9 @@ export async function rewriteTicketText(
   const colorMap = await loadPaintColorMap(ctx)
   return withFileWriter(ctx, repo, target.path, async function () {
     try {
+      // 写前版本校验必须在队里、在读到这份文件之前（#1174 决策 9），与 issues-patch.ts 的老路径同口径。
+      const guard = await checkExpectedUpdatedAt(ctx, target.path, opts)
+      if (!guard.ok) return guard
       const before = await readTextFile(ctx, target.path)
       const txt = apply(before, target)
       if (txt !== before) {
