@@ -30,6 +30,16 @@ export type SessionPatchContext = {
    * 但诊断日志里要留一行，否则事后分不清「没触发重算」与「重算失败」。
    */
   onError?: (message: string) => void
+  /**
+   * 整趟补算的预算（毫秒，可选）。正常求值的每个谓词都有 PREDICATE_TIMEOUT_MS 那一档兜底；
+   * 补算这一路原来直接 await，工作区在网络盘上、写探测挂住时，缓存命中这条本该纯内存返回的路会被无限拖住。
+   * 这是整趟的总预算，不按检查项个数累加（项多时不能等成 N 倍）；超时的那几项按 pending 落行
+   * （诚实的「没量出来」），不沿用缓存里别的会话的判定。
+   * 两个都给才生效：只给 timeoutMs 而没有注入定时器时不设预算（宁可慢，也不假装超时）。
+   */
+  timeoutMs?: number
+  /** 注入的定时器（宿主传 deps.timer.timeout）；测试可注入假钟，与正常求值的注入口一致。 */
+  timeout?: (ms: number) => Promise<unknown>
 }
 
 type BackendChainView = { chain?: CheckItem[]; resolved?: ResolvedMap; snapshot?: SnapStepsView | null; errors?: unknown } | null | undefined
@@ -40,6 +50,10 @@ type CachedReplyView = { backendChain?: BackendChainView; fullSnapshot?: FullSna
  *
  * 为什么动态导入谓词执行器：本文件会被宿主入口在缓存命中时动态加载，静态再拉一条边没有好处；
  *   而且 predicatePrimitives 与 check-chain-evaluation 同属宿主层，库内约定优先在调用点取。
+ * 单项失败（执行器缺失、谓词抛错、预算超时）一律按 pending 落行、绝不沿用缓存里别的会话的判定；
+ *   这种失败**不**给回包打 sessionPatchFailed：那一行是诚实的「没量出来」，不是别人的结论，
+ *   客户端把它记成本会话产出也不会传错（别的会话看到的是 pending，不是假的 done）。
+ *   只有整趟补算做不下去（比如取不到平台、连副本都拼不出来）才需要外层打标记。
  * 反例：重算失败时返回缓存里那一份判定——那正是要修的病（把别的会话的结论当本会话的）。
  */
 async function evalSessionScoped(item: CheckItem, ctx: SessionPatchContext): Promise<PredicateResultView> {
@@ -47,6 +61,8 @@ async function evalSessionScoped(item: CheckItem, ctx: SessionPatchContext): Pro
     if (!item || !item.check || typeof item.check !== 'object') return { status: 'pending', detail: '会话相关检查项没有可重算的谓词描述' }
     const primMod: any = await import('../../../host/tracker/predicatePrimitives.js')
     if (typeof primMod.execPrimitive !== 'function') return { status: 'pending', detail: '谓词执行器不可用，按未确认处理' }
+    // 这一项自己不再套超时：整趟预算由 patchCachedReplyForSession 统一管（一枚定时器、总时长有上限），
+    //   所以这里的 promise 允许挂住，外面那一层到点会把它按 pending 落行。
     const r: any = await primMod.execPrimitive(item.check, ctx)
     if (r && typeof r === 'object' && (r.status === 'pass' || r.status === 'fail' || r.status === 'pending')) return r
     return { status: 'pending', detail: '谓词没有返回可用的结论' }
@@ -58,7 +74,63 @@ async function evalSessionScoped(item: CheckItem, ctx: SessionPatchContext): Pro
 }
 
 /**
+ * 补算超时时那一行显示的说明文案。
+ *
+ * 为什么按界面语言分中英：这一行会直接显示在检查页的步骤描述里，中文界面不该出现英文整句。
+ *   宿主里已有先例（src/host/tracker/predicateFileProbes.ts 的写探测说明就是这样分语言的）；
+ *   正常求值那一路的超时说明目前只有英文（predicateCore.ts:86/110），那是既有口径，不在这里冒充一致。
+ * 为什么不写具体毫秒数：预算是实现细节（PREDICATE_TIMEOUT_MS 由 config 注入），不该出现在界面文案里。
+ */
+function timeoutDetail(ctx: SessionPatchContext): string {
+  return ctx.lang === 'en'
+    ? 're-check timed out, treated as unknown for now'
+    : '按本会话重算超时，先按未确认处理'
+}
+
+/** 整趟预算到点的标记。谓词结果对象只有 status/detail 两格，不会撞上这个键。 */
+type PatchTimeout = { __patchTimedOut: true }
+
+/**
+ * 跑完整趟补算，最多花 ctx.timeoutMs 毫秒（#1492）。
+ *
+ * 为什么需要：正常求值经 predicateCore 的 withTimeout 兜底；补算这条路没有那层壳，
+ *   工作区在网络盘上写探测挂住时，缓存命中会一直等下去。
+ * 为什么整趟一枚定时器、不按项比赛跑：宿主 timer 端口是 Promise 形态、外部撤不掉定时器
+ *   （src/refresh/contract/host-timer-ports.ts 写明），按项开会在命中路径上留下一串活定时器；
+ *   而且总时长该有上限，不能项数一多就等成 N 倍。
+ * 为什么不能直接复用 predicateCore.withTimeout：那是注册表内部的闭包，绑死全局 setTimeout、没有注入口；
+ *   这里必须走宿主注入的 timer，测试才能用假钟。
+ * 超时后 partial 结果一律丢掉：按 pending 重铺全部会话相关行，比保留一半新一半旧的视图更诚实。
+ */
+async function patchWithBudget(scoped: CheckItem[], ctx: SessionPatchContext): Promise<{ fresh: ResolvedMap; timedOut: boolean }> {
+  const fresh: ResolvedMap = {}
+  // 逐项串行：会话相关行目前只有一项（写探测），串行读起来最直白；将来变多也仍受同一笔总预算约束。
+  // evalSessionScoped 自己吞掉所有异常、绝不 reject，所以这里不接 catch 也不会留下未处理拒绝。
+  const runAll: Promise<ResolvedMap> = (async function (): Promise<ResolvedMap> {
+    for (const item of scoped) {
+      if (!item.id) continue
+      fresh[String(item.id)] = await evalSessionScoped(item, ctx)
+    }
+    return fresh
+  })()
+  const ms = Number(ctx.timeoutMs || 0)
+  if (!(ms > 0) || typeof ctx.timeout !== 'function') return { fresh: await runAll, timedOut: false }
+  const budgetP: Promise<PatchTimeout> = Promise.resolve().then(function () { return ctx.timeout!(ms) }).then(function () { return { __patchTimedOut: true } as PatchTimeout })
+  const raced: any = await Promise.race([runAll, budgetP])
+  if (raced && raced.__patchTimedOut === true) {
+    try { if (typeof ctx.onError === 'function') ctx.onError(timeoutDetail(ctx)) } catch (eLog) {}
+    return { fresh: fresh, timedOut: true }
+  }
+  return { fresh: raced as ResolvedMap, timedOut: false }
+}
+
+/**
  * 按当前会话重算缓存回包里依赖会话许可的行，返回改好的副本。
+ *
+ * 副本的深浅：顶层一定是新对象；backendChain / snapshot / fullSnapshot 也是新对象（本函数自己拼的），
+ *   所以调用方拿到后原地改这些嵌套字段不会污染缓存。真正的反例是调用方只做顶层 Object.assign
+ *   ——那与缓存条目共用嵌套对象，谁原地改一下就把缓存改了（外层打 sessionPatchFailed 时是这么复制的，
+ *   但那条路由本函数原样交出的回包，不会原地改，见 check-chain-evaluation.ts 里那段注释）。
  *
  * @param reply 退避缓存交回的上一份完整回包（可能只是快照、没有后端段）
  * @param ctx 当前会话的平台、工作区、语言与沙箱许可
@@ -78,11 +150,14 @@ export async function patchCachedReplyForSession(reply: unknown, ctx: SessionPat
 
   const scopedIds: Record<string, true> = {}
   scoped.forEach(function (it: CheckItem) { if (it.id) scopedIds[String(it.id)] = true })
-  // 逐项重算；每一项单独兜底，一项失败不影响其它项，也绝不把异常抛给调用方。
-  const fresh: ResolvedMap = {}
-  for (const item of scoped) {
-    if (!item.id) continue
-    fresh[String(item.id)] = await evalSessionScoped(item, ctx)
+  // 重算；每一项单独兜底，一项失败不影响其它项，也绝不把异常抛给调用方。
+  // 超时的话，整批会话相关行按 pending 重铺（partial 结果丢掉，见 patchWithBudget）。
+  const budget = await patchWithBudget(scoped, ctx)
+  let fresh: ResolvedMap = budget.fresh
+  if (budget.timedOut) {
+    fresh = {}
+    const msg = timeoutDetail(ctx)
+    for (const item of scoped) { if (item.id) fresh[String(item.id)] = { status: 'pending', detail: msg } }
   }
   const patchedCount = Object.keys(fresh).length
   if (!patchedCount) return { reply: reply, patchedCount: 0 }

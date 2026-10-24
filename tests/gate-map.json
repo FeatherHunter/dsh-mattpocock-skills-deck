@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T17:11:22.854Z",
+  "generatedAt": "2026-10-24T18:28:15.356Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 363,
   "gateCount": 363,
@@ -3089,7 +3089,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 4 条"
+      "reason": "归属来自：静态 import 说明符 4 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1483-client-chain-cache.ts",
