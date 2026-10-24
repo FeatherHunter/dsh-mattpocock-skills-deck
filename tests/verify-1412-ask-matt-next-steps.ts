@@ -77,6 +77,8 @@ function sectionProblems(section) {
   if (text.indexOf('200') < 0) problems.push('没写理由上限 200')
   if (text.indexOf('少于 2 条') < 0) problems.push('没写少于 2 条会拒绝')
   if (text.indexOf('超过 4 条') < 0) problems.push('没写超过 4 条会截断')
+  if (text.indexOf('priority') < 0) problems.push('没写推荐优先级 priority')
+  if (text.indexOf('0 到 10') < 0) problems.push('没写优先级的 0 到 10 分')
   if (text.indexOf('/retro') >= 0) problems.push('不该再提已退役的 /retro')
   return problems
 }
@@ -142,6 +144,10 @@ async function main() {
   check(section.indexOf('reason 不超过 ' + tool.REASON_MAX_CHARS + ' 字符') >= 0, '规则节写的是 reason 不超过 ' + tool.REASON_MAX_CHARS + ' 字符')
   check(section.indexOf('少于 ' + tool.MIN_ITEMS + ' 条') >= 0, '规则节写的是少于 ' + tool.MIN_ITEMS + ' 条会整次拒绝')
   check(section.indexOf('超过 ' + tool.MAX_ITEMS + ' 条') >= 0, '规则节写的是超过 ' + tool.MAX_ITEMS + ' 条只留前 ' + tool.MAX_ITEMS + ' 条')
+  check(tool.PRIORITY_MIN === 0 && tool.PRIORITY_MAX === 10, '#1406 的优先级常量是 0~10')
+  check(section.indexOf('priority') >= 0 && section.indexOf(tool.PRIORITY_MIN + ' 到 ' + tool.PRIORITY_MAX) >= 0,
+    '规则节写的是 priority（' + tool.PRIORITY_MIN + ' 到 ' + tool.PRIORITY_MAX + ' 分，与工具常量同源）')
+  check(section.indexOf('没打分') >= 0 && section.indexOf('最后') >= 0, '规则节写清没打分的排在最后（拿不准就别硬打分）')
 
   console.log('\n-- 3) 上游 SKILL.md 一个字节都没变 --')
   const rawAsk = fs.readFileSync(path.join(ROOT, ASK_MATT_SKILL_FILE), 'utf8')
@@ -213,6 +219,8 @@ async function main() {
   check(sectionProblems(section.replace('500', '800')).length > 0, '负向自检：提示词上限写错时判据必须红')
   check(sectionProblems(section.replace('intro 不超过 10 个字', 'intro 不超过 20 个字')).length > 0, '负向自检：简介上限写错时判据必须红')
   check(sectionProblems(section + '\n/retro').length > 0, '负向自检：规则节又提 /retro 时判据必须红')
+check(sectionProblems(section.split('priority').join('优先级')).length > 0, '负向自检：规则节里不写 priority 这个名字时判据必须红')
+check(sectionProblems(section.split('0 到 10').join('随便几分')).length > 0, '负向自检：优先级区间写错时判据必须红')
   check(!appendedExactly(askBody, section, askBody), '负向自检：正文没拼规则节时追加判据必须红')
   check(!appendedExactly(askBody, section, askBody + '\n\n' + section + section), '负向自检：规则节拼了两遍时追加判据必须红')
 

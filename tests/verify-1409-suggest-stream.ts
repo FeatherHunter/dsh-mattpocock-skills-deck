@@ -169,6 +169,8 @@ async function main() {
   check(facts.SUGGEST_INTRO_MAX_CHARS === tool.INTRO_MAX_CHARS && facts.SUGGEST_INTRO_MAX_CHARS === 10, '简介上限两侧一致且为 10')
   check(facts.SUGGEST_PROMPT_MAX_CHARS === tool.PROMPT_MAX_CHARS && facts.SUGGEST_PROMPT_MAX_CHARS === 500, '提示词上限两侧一致且为 500')
   check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 200, '理由上限两侧一致且为 200')
+  check(facts.SUGGEST_PRIORITY_MIN === tool.PRIORITY_MIN && facts.SUGGEST_PRIORITY_MIN === 0, '优先级下限两侧一致且为 0')
+  check(facts.SUGGEST_PRIORITY_MAX === tool.PRIORITY_MAX && facts.SUGGEST_PRIORITY_MAX === 10, '优先级上限两侧一致且为 10')
   // 气泡叶子在本地再钳一次条数（构建时是同一闭包里的常量，不能跨文件 import），所以读源码把第四个 4
   // 与工具上限连起来：以后谁只改一处，这条就红，不用靠人记得同步。
   const bubbleSource = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestBubble.ts'), 'utf8')
@@ -202,7 +204,7 @@ async function main() {
     { prompt: '/b', reason: 'r2' },
   ] }))
   check(parsedExtra.ok === true && parsedExtra.items[0].prompt === '/a' && parsedExtra.items[0].reason === 'r1', '两侧空白 trim 掉、多余键不往下传')
-  check(Object.keys(parsedExtra.items[0]).join(',') === 'intro,prompt,reason', '每个条目只留 intro、prompt 与 reason 三格')
+  check(Object.keys(parsedExtra.items[0]).join(',') === 'intro,prompt,reason,priority', '每个条目只留简介、提示词、理由与优先级四格')
   check(facts.suggestItemsOf(null).ok === false && facts.suggestItemsOf(null).reason === 'bad-json', '参数既不是字符串也不是对象时判 bad-json')
   check(facts.suggestItemsOf(42).reason === 'bad-json', '参数是数字等其它类型时判 bad-json')
   check(facts.suggestItemsOf({}).reason === 'bad-shape', '参数是对象但没有 items 时判 bad-shape（PTC 坏形状走这条路）')
@@ -243,6 +245,44 @@ async function main() {
     { prompt: '/no-intro', reason: 'r2' },
   ] }))
   check(parsedIntro.ok === true && parsedIntro.items[0].intro === '拆票' && parsedIntro.items[1].intro === '', '简介 trim 后保留；缺简介的旧事件按空串收')
+  // #1451 后续：每条可以带一个 0~10 的推荐优先级，界面按分从高到低往左排；没打分的排最后。
+  const parsedScore = facts.suggestItemsOf(JSON.stringify({ items: [
+    { prompt: '/low', reason: 'r1', priority: 3 },
+    { prompt: '/high', reason: 'r2', priority: 9.5 },
+    { prompt: '/zero', reason: 'r3', priority: 0 },
+  ] }))
+  check(parsedScore.ok === true && parsedScore.items.map(function (it: any) { return it.prompt }).join(',') === '/high,/low,/zero',
+    '打了分的按分从高到低排（9.5 在 3 与 0 前面）')
+  const parsedNullLast = facts.suggestItemsOf(JSON.stringify({ items: [
+    { prompt: '/nope', reason: 'r1' },
+    { prompt: '/scored', reason: 'r2', priority: 2 },
+  ] }))
+  check(parsedNullLast.ok === true && parsedNullLast.items[0].prompt === '/scored' && parsedNullLast.items[0].priority === 2,
+    '没打分的排在打了分的后面')
+  check(parsedNullLast.items[1].priority === null, '没打分记成 null（与 0 分区分：0 是最后再做，null 是不知道）')
+  const parsedClamp = facts.suggestItemsOf(JSON.stringify({ items: [
+    { prompt: '/over', reason: 'r1', priority: 15 },
+    { prompt: '/under', reason: 'r2', priority: -5 },
+    { prompt: '/nan', reason: 'r3', priority: 'nine' },
+    { prompt: '/mid', reason: 'r4', priority: 4.26 },
+  ] }))
+  check(parsedClamp.ok === true, '优先级超范围或不是数字都不拒绝整次建议')
+  const clampByPrompt = function (prompt: string) {
+    const found = parsedClamp.items.filter(function (it: any) { return it.prompt === prompt })[0]
+    return found ? found.priority : 'missing'
+  }
+  check(clampByPrompt('/over') === 10 && clampByPrompt('/under') === 0, '优先级钳到 0~10')
+  check(clampByPrompt('/nan') === null, '不是数字的优先级当没打分')
+  check(clampByPrompt('/mid') === 4.3, '优先级留一位小数（4.26 记成 4.3）')
+  const parsedScoreTrim = facts.suggestItemsOf(JSON.stringify({ items: [
+    { prompt: '/a', reason: 'r', priority: 1 },
+    { prompt: '/b', reason: 'r', priority: 9 },
+    { prompt: '/c', reason: 'r', priority: 5 },
+    { prompt: '/d', reason: 'r' },
+    { prompt: '/e', reason: 'r', priority: 8 },
+  ] }))
+  check(parsedScoreTrim.items.length === 4 && parsedScoreTrim.items.map(function (it: any) { return it.prompt }).join(',') === '/b,/e,/c,/a',
+    '多于四条时按分从高到低留前四条（截掉的是没打分的那条）')
   const parsedIntroLong = facts.suggestItemsOf(JSON.stringify({ items: [
     { intro: '简'.repeat(30), prompt: '/a', reason: 'r' },
     { prompt: '/b', reason: 'r2' },
