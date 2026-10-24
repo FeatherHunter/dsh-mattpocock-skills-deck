@@ -29,7 +29,7 @@ type Platform = import('./platform/index.js').Platform
 type Registry = ReturnType<typeof import('../tracker/registry/core.js').createRegistry>
 type FsSvc = { resolve(rel: string, opts?: unknown): Promise<any>; readText(t: unknown): Promise<string>; writeText(t: unknown, text: string, a?: unknown, b?: unknown, policy?: unknown): Promise<unknown>; mkdir(dir: string, opts?: unknown): Promise<unknown> }
 type WorkspaceStore = { invalidate(h: unknown): unknown }
-type ChoiceStore = { rememberWorkspace(cwd: unknown, backendId: unknown): Promise<any>; rememberLayout(cwd: unknown, want: unknown): Promise<any>; getWorkspace(key: unknown): Promise<any>; getLayout(cwd: unknown): Promise<any> }
+type ChoiceStore = { rememberWorkspace(cwd: unknown, backendId: unknown): Promise<any>; getWorkspace(key: unknown): Promise<any> }
 type DecisionOutlet = { decideBackend(cwd: string, opts: unknown): Promise<any>; selectionFromOutlet?(o: unknown, describe: (id: string) => unknown): unknown }
 type DetExec = (cmd: any, args: any, opts: any, via: any) => Promise<any> // 只转交不读：真签名唯一在平台通道 detectionExec（platformChannel.ts），这里写 any 透传；写 typeof 查值会多出一条同层边
 type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
@@ -152,19 +152,22 @@ export function createWorkspaceCwd(deps: Deps) {
       return { ok: false, error: msg }
     }
   }
-  // #1003 拍板：布局是「这个仓库的域文档布局是单上下文还是多上下文」的选择，属于这份工作区文件——写进去、也从它读回；本机记忆只在文件里还没有后端记录时兜底（老工作区过渡用）。
+  // #1003 拍板：布局是「这个仓库的域文档布局是单上下文还是多上下文」的选择，属于这份工作区文件——写进去、也从它读回。
+  // #1449 起布局只有这一处真源：读只读文件，写只写文件；写不进去就如实说这次选择没生效，不再往本机记忆里放一份备份。
   async function handleSetupLayout(args: WfArgs) {
     const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''; if (!raw) { const v0 = args ? args.layout : undefined; return v0 == null ? { ok: true, cwd: '', layout: null, pickedAt: 0 } : { ok: false, cwd: '', error: 'not-stored' } }
-    const cwd = await normCwd(raw); const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null; const v = args ? args.layout : undefined
+    const cwd = await normCwd(raw); const v = args ? args.layout : undefined
     const plat = await getPlatform().catch(function () { return null }); let f: FsSvc | null = ((plat && plat.fs) as FsSvc | null) || null; if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) { f = null } }
     const usable = !!(f && typeof f.resolve === 'function' && typeof f.readText === 'function' && typeof f.writeText === 'function'); let target = null; let rec = null
     if (usable && f) { /* usable 已含 f 非空，写出来只是过类型检查 */ try { target = await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }); rec = parseWorkspaceFile(await f.readText(target)) } catch (eR) {} }
     if (v == null) {
-      if (rec && isWorkspaceLayout(rec.layout)) return { ok: true, cwd: cwd, layout: rec.layout, pickedAt: 0 }
-      const r = (cs && typeof cs.getLayout === 'function') ? await cs.getLayout(cwd).catch(function () { return null }) : null
-      return (r && r.found === true) ? { ok: true, cwd: cwd, layout: r.layout, pickedAt: r.pickedAt } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 }
+      // 读：文件里有就按文件说，没有就是「还没答过」；本机记忆不再参与（#1449）。
+      return (rec && isWorkspaceLayout(rec.layout)) ? { ok: true, cwd: cwd, layout: rec.layout, pickedAt: 0 } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 }
     }
-    const want = String(v).toLowerCase(); let why = usable ? 'no-record' : 'no-channel'
+    const want = String(v).toLowerCase()
+    // 不认识的取值当场拒绝，不往下写：写进文件才是真错（文件是唯一真源，写错了没有第二处可以纠正）。
+    if (!isWorkspaceLayout(want)) return { ok: false, cwd: cwd, error: 'not-stored' }
+    let why = usable ? 'no-record' : 'no-channel'
     if (rec && rec.backendId) { try {
         const text = stringifyWorkspaceFile({ backendId: rec.backendId, pickedAt: rec.pickedAt, source: rec.source, layout: want }); const pp = plat && plat.path
         if (pp && typeof pp.dirname === 'function' && typeof f!.mkdir === 'function') { try { await f!.mkdir(pp.dirname(target), { recursive: true }) } catch (eM) {} } /* f 为空时原来直接抛（外层接住报失败），! 只过检查，不改这条路 */
@@ -172,9 +175,10 @@ export function createWorkspaceCwd(deps: Deps) {
         try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}; try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
         why = 'written'
       } catch (e) { why = fileWriteReasonOf(e) } }
-    const w = (cs && typeof cs.rememberLayout === 'function') ? await cs.rememberLayout(cwd, want).catch(function () { return null }) : null
-    if (why === 'written') return { ok: true, cwd: cwd, layout: want, pickedAt: (w && w.pickedAt) || 0, workspaceFile: 'written' }
-    return (w && w.ok === true) ? { ok: false, cwd: cwd, layout: want, pickedAt: w.pickedAt, workspaceFile: why, error: '布局这次只记在了本机，没能写进这个工作区里的配置文件（' + (why === 'no-record' ? '文件里还没有选定后端，布局要先有后端记录才能写' : bindFailAdviceOf(why)) + '），所以换机器或清掉本机记忆后，打开这张卡还会再问一次。' } : { ok: false, cwd: cwd, error: 'not-stored' }
+    if (why === 'written') return { ok: true, cwd: cwd, layout: want, pickedAt: Date.now(), workspaceFile: 'written' }
+    // 写不进文件就是这次选择没生效：如实说原因，不退回本机记忆顶替（#1449 拍板）。
+    const _advice = why === 'no-record' ? '文件里还没有选定后端，布局要先有后端记录才能写' : (why === 'no-channel' ? '这次没拿到可用的文件通道' : bindFailAdviceOf(why))
+    return { ok: false, cwd: cwd, layout: want, workspaceFile: why, error: '这次没能把布局写进这个工作区里的配置文件（' + _advice + '），所以这次选择没有生效。' }
   }
   // #1138：这一条答的是「哪些工作区已经选过后端，各选的是谁」。
   //   以前它读的是注册表里那份进程内副本（`reg.allBindings()`），重启就没、别的窗口也看不见；
@@ -282,7 +286,7 @@ export function createWorkspaceCwd(deps: Deps) {
   //   调用方（handleBind）现在先自己判这两件事并当场回失败，所以早退整段删掉 ——
   //   留着的话，写不进去会被上层当成「跳过」而不是「失败」，又回到「以为选了其实没选」。
   //   日志沿用既有事件（不新增事件、不新增字段）：成功记常驻 host.call，失败记常驻 host.call.fail。
-  async function writeWorkspaceRecord(cwd: string, backendId: string, args: WfArgs, via?: string, layout?: unknown) {
+  async function writeWorkspaceRecord(cwd: string, backendId: string, args: WfArgs, via?: string) {
     const _via = (via === 'migrate') ? 'migrate' : 'bind';
     const _method = (_via === 'migrate') ? 'wf.bind.migrate' : 'wf.bind.workspaceFile';
     const _t0 = Date.now();
@@ -313,8 +317,8 @@ export function createWorkspaceCwd(deps: Deps) {
           if (parsed && isWorkspaceLayout(parsed.layout)) existedLayout = parsed.layout;
         }
       } catch (eR) {}
-      // 布局保留旧值（覆盖写不丢用户已选的域文档布局结论；迁移那条由调用方把记忆里的布局递进来，递了就听递的）。
-      const _layout = isWorkspaceLayout(layout) ? layout : existedLayout;
+      // 布局保留旧值：覆盖写后端选择时不丢用户已选的域文档布局结论（#1449 起布局只存在于这份文件里，所以更不能丢）。
+      const _layout = existedLayout;
       const text = stringifyWorkspaceFile({ backendId: backendId, pickedAt: Date.now(), source: _source, layout: (_layout === null || _layout === undefined) ? undefined : _layout })
       const target2 = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
       try {
@@ -338,7 +342,7 @@ export function createWorkspaceCwd(deps: Deps) {
   // #1003 老用户迁移：文件缺席 + 本机记忆有 → 把记忆写进工作区文件，写成功才算迁移成。
   //   人话：老工作区从没建过那份文件（本机记忆替它答了上万次），先把选择落到文件，
   //   文件一旦建好判定就优先读文件，记忆那条自动失效（老文件本身保留备查，不删）。
-  //   来源记 migrated（切核后核认），域文档布局把记忆里的那份一起搬过去（没有就不写，不丢也不造）。
+  //   来源记 migrated（切核后核认）；#1449 起布局只认工作区文件，迁移只搬后端选择，不搬布局。
   //   节流：每个工作区每进程只试一次（Set），不在探测热路径上试（只在选择电话里后台捎带一次，
   //   不挡回包）；失败留痕（host.call.fail 一行）可重试（下次进程再试，Set 是进程内的）。
   const migratedAttempted = new Set()
@@ -364,19 +368,11 @@ export function createWorkspaceCwd(deps: Deps) {
       const got = await cs.getWorkspace(key).catch(function () { return null })
       if (!got || got.found !== true || !got.backendId || typeof got.backendId !== 'string' || !got.backendId.trim()) return { ok: true, skipped: 'no-memory' }
       const backendId = String(got.backendId).trim()
-      // 域文档布局一起搬：记忆里有就带上，没有就不带（核缺席整段省略，不丢也不造）。
-      let memLayout = null
-      try {
-        if (cs && typeof cs.getLayout === 'function') {
-          const gotL = await cs.getLayout(key).catch(function () { return null })
-          if (gotL && gotL.found === true && isWorkspaceLayout(gotL.layout)) memLayout = gotL.layout
-        }
-      } catch (eGL) {}
       try {
         const reg = await getTrackerRegistry().catch(function () { return null })
         if (!reg || typeof reg.has !== 'function' || !reg.has(backendId)) return { ok: true, skipped: 'unregistered' }
       } catch (eG2) { return { ok: true, skipped: 'registry-unavailable' } }
-      const out = await writeWorkspaceRecord(key, backendId, args, 'migrate', memLayout)
+      const out = await writeWorkspaceRecord(key, backendId, args, 'migrate')
       // 迁移是状态变化：写成了记一行结论（含耗时与工作区散列），写不成记失败行（含原因档），跳过的不记（常态，不刷屏）。
       if (out && out.ok === true) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: 'wf.bind.migrate', latencyMs: Date.now() - _migT0, ok: true, kind: 'bind', cwdHash: hash8(String(key)) }) } catch (eL0) {} return { ok: true, migrated: true, reason: out.reason || 'created' } }
       try { if (logCtx && typeof logCtx.fire === 'function') { const _mr = (out && out.error && (out.error as any).reason) || 'other'; logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.migrate', kind: 'bind', errorHash: hash8(_mr + ':' + msgOf((out && out.error) || 'migrate-failed').slice(0, 80)), cwdHash: hash8(String(key)), errorKind: _mr }) } } catch (eL1) {}

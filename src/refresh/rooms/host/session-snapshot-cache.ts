@@ -6,7 +6,7 @@
 import { createSnapshotEnvelope } from '../../../host/snapshotEnvelope.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../../../tracker/ui-description.js'
-// #1433：布局的唯一真源是工作区文件，快照读文件认格式与 workspaceCwd 走同一处（跨层引用，不算同层互引）。
+// #1433/#1449：布局的唯一真源是工作区文件，快照读文件认格式与 workspaceCwd 走同一处（跨层引用，不算同层互引）；本机记忆那层已经删了。
 import { parseWorkspaceFile, WORKSPACE_FILE_REL, isWorkspaceLayout } from '../../../deck/shell/workspace-anchor.js'
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
 import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
@@ -41,7 +41,6 @@ type Reply = { ok?: unknown; [k: string]: unknown }
 type CachedSnap = { selection?: Sel | null; setupLayout?: Layout | null; generatedMs?: number; fromCache?: boolean; backendModules?: unknown }
 // 记住的布局答案（#683）：layout 是选的哪一种，pickedAt 是什么时候选的。
 type Layout = { layout: unknown; pickedAt: unknown }
-type ChoiceStore = { getLayout(cwd: unknown): Promise<{ found?: unknown; layout?: unknown; pickedAt?: unknown } | null> | { found?: unknown; layout?: unknown; pickedAt?: unknown } | null; [k: string]: unknown }
 type LogCtx = { fire(level: string, event: string, payload?: unknown): void; isEnabled(name: string): boolean }
 type Platform = { ident?: unknown }
 // 捕获到的异常上只认 fail.kind（取数失败的种类），别处不读异常其余字段。
@@ -54,7 +53,6 @@ type SnapshotDeps = {
   upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
   getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<RepoKey> | RepoKey; readDiskCache(repo: unknown): Promise<CachedSnap | null> | CachedSnap | null; writeDiskCache(repo: unknown, snap: unknown): unknown
   adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; getGhPath(): string | null; getGhLastError(): unknown; errText(e: unknown): string
-  getChoiceStore?(): Promise<ChoiceStore> | ChoiceStore
   send?: ((scope: unknown, run: () => unknown) => Promise<{ result: unknown }>) | null
   // #1446：接线处注入的额度读数口（按后端 id 取）；没接就照旧不传，快照形状与今天一致。
   budgetReadout?: ((backendId: string) => any) | null
@@ -65,7 +63,7 @@ type SnapshotDeps = {
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionSnapshot(deps: SnapshotDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore, envelope, send, budgetReadout, openSession } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession } = deps
   // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
   // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
   // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
@@ -89,14 +87,14 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   // #653 快照多带 workspaceRoot（即开头算出的 cwd，已锚到工作区根）；客户端靠它按根分桶并渲染归属提示，自己算不出根故由宿主带过去。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #683（F1 · ADR 的 R6）：快照里带上记住的布局答案（同 R4 那条路：落后的那扇窗不靠它就永远停在老答案上）。
-  // #1433：读的顺序与 wf.setupLayout 同一条（先工作区文件、再本机记忆）——此前只读记忆，手改文件后快照永远答老答案。
+  // #1433 起重播工作区文件；#1449 起这里是唯一读法——文件里没有就是「还没答过」，本机记忆不再参与。
   async function readSetupLayoutOf(cwd: string) {
     try {
       const plat = await Promise.resolve(getPlatform()).catch(function () { return null }); let f: any = (plat && (plat as any).fs) || null
       if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) {} }
       if (f && typeof f.resolve === 'function' && typeof f.readText === 'function') { try { const rec = parseWorkspaceFile(await f.readText(await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }))); if (rec && isWorkspaceLayout(rec.layout)) return { layout: rec.layout, pickedAt: 0 } } catch (eR) {} }
     } catch (e) {}
-    try { const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore() : null; if (!cs || typeof cs.getLayout !== 'function') return null; const r = await cs.getLayout(cwd); return (r && r.found === true) ? { layout: r.layout, pickedAt: r.pickedAt } : null } catch (e) { return null }
+    return null
   }
   let snapSampleN = 0
   let _sharedInflightP: Promise<typeof import('../../../host/snapshotInflight.js')> | null = null // #729：本地表已撤，改用与刷新路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）
@@ -126,7 +124,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         const sameBackend = String((s.selection && s.selection.backendId) || '') === String(_selEarly.backendId)
         const sameLayout = String((s.setupLayout && s.setupLayout.layout) || '') === String((_layEarly && _layEarly.layout) || '')
         if (sameBackend && prevRev === nowRev && sameLayout) return s
-        const cp = Object.assign({}, s, { selection: _selEarly, rev: nowRev }); cp.setupLayout = _layEarly; return cp // #1433：布局以这一轮为准（含空：文件与记忆都没有时不留缓存里那份旧答案）
+        const cp = Object.assign({}, s, { selection: _selEarly, rev: nowRev }); cp.setupLayout = _layEarly; return cp // #1433：布局以这一轮为准（含空：文件里没有时不留缓存里那份旧答案）
       }
       try { if (logCtx) logCtx.fire('info', 'snapshot.request', { cwdHash: hash8(cwd), backend: String((_selEarly && _selEarly.backendId) || ''), force: isForce }) } catch (eL) {}
       const cachedEntry = getCache(cwd)
@@ -180,7 +178,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           //   不是失败，回包照样要自含解释这张表所需的全部信息，不能指望调用现场再补根。
           if (res.notModified === true || res.status === 304) {
             const _pair: { selection?: Sel | null; rev?: unknown; setupLayout?: Layout | null } = (_selEarly && _selEarly.backendId) ? { selection: _selEarly, rev: (Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0) } : {}
-            if (_layEarly) _pair.setupLayout = _layEarly
+            // #1449：布局无条件带上（含 null）—— 客户端删掉浏览器那份布局表以后，只能靠这条回包清空旧答案。
+            _pair.setupLayout = _layEarly
             return Object.assign({ ok: true, workspaceRoot: cwd, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: now }, _pair)
           }
                     const inner = upcaseSnapStates(res.snapshot)

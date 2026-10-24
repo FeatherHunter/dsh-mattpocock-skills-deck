@@ -6,7 +6,7 @@
 //   B 同场景电话带上会话号 → 写得进，标签配色文件那一步也拿得到政策；
 //   C 只有一个活会话、电话不带 → 旧行为不变（仍然成功，向后兼容）；
 //   D/E/F 零会话、不存在的会话号、只有子代理会话 → 一律不写、不借用别人的许可；
-//   G 布局电话带会话号写得进，不带时如实回「只记在本机」；H 旧选择迁移带会话号能落进文件；
+//   G 布局电话带会话号写得进，不带时如实回「这次选择没有生效」（#1449 起不再留本机备份）；H 旧选择迁移带会话号能落进文件；
 //   I host.start 启动头带上这一份插件的版本号，读不到就不写这一格。
 const path = require('path')
 const fs = require('fs')
@@ -81,7 +81,7 @@ async function main() {
         return { ok: true, backendId: backendId, repoRef: ref, budget: {}, canWrite: canWrite, call: (fn: any) => fn(Object.assign({}, tracker, { backendId: backendId, budget: {}, canWrite: canWrite }), baseCtx) }
       },
       getWorkspaceStore: async () => ({ invalidate: () => {} }),
-      getChoiceStore: async () => ({ rememberWorkspace: async () => ({ ok: true, rev: 1 }), rememberLayout: async () => ({ ok: true, pickedAt: 5 }), getWorkspace: async () => memoryRec, getLayout: async () => ({ found: false }) }),
+      getChoiceStore: async () => ({ rememberWorkspace: async () => ({ ok: true, rev: 1 }), getWorkspace: async () => memoryRec }),
       getDecisionFn: async () => null,
       canonicalKey: async (raw: string) => raw,
       setCache: () => {},
@@ -144,7 +144,7 @@ async function main() {
     const r2 = await h.api.handleBind({ cwd: dir, backendId: 'github', sessionId: 'a1' })
     check(r2.ok === true, 'F（对照）调用方明确指定那个会话号时就按它算，不拦（拦的是「宿主自己猜」）', JSON.stringify({ ok: r2.ok }))
   }
-  // G：布局电话 —— 带会话号写得进；不带时如实回「只记在本机」，不谎报成功
+  // G：布局电话 —— 带会话号写得进；不带时如实回「这次选择没有生效」，不留本机备份
   {
     const dir = mkTemp()
     const h = mkApi(dir, [session('s1', dir), session('s2', dir)])
@@ -153,7 +153,8 @@ async function main() {
     const body = fs.readFileSync(wsFile(dir), 'utf8')
     check(g1.ok === true && g1.workspaceFile === 'written' && /layout: multi/.test(body), 'G 布局电话带会话号：写进工作区文件', JSON.stringify(g1))
     const g2 = await h.api.handleSetupLayout({ cwd: dir, layout: 'single' })
-    check(g2.ok === false && g2.workspaceFile === 'no-permit' && /本机/.test(String(g2.error)), 'G 不带会话号写不进时如实回失败：说清只记在本机、换机器会再问一次', JSON.stringify(g2))
+    check(g2.ok === false && g2.workspaceFile === 'no-permit' && /没有生效/.test(String(g2.error)), 'G 不带会话号写不进时如实回失败：说清这次选择没有生效（#1449 起不留本机备份）', JSON.stringify(g2))
+    check(/layout: multi/.test(fs.readFileSync(wsFile(dir), 'utf8')), 'G 失败那一次没有改动文件里原有的布局答案')
   }
   // H：旧选择迁移（wf.selection 捎带）—— 带会话号才落得进文件
   {

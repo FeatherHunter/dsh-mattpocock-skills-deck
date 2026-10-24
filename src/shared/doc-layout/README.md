@@ -18,7 +18,8 @@ GLOSSARY.md）与 `multi`（多上下文，子项目各一份 GLOSSARY.md，根�
 - 构建产物：`.build/shared/doc-layout/layouts.js`，由 `node scripts/build.mts` 逐文件转译生成，
   **不进版本库、不要手改**。构建按「目录里有 `tsconfig.json`」自动认域，不需要在别处登记。
 - 消费方三处：
-  - 宿主选择记忆 `src/host/choiceStore.ts`：普通相对 import，导出自己的 `LAYOUT_VALUES` 供读写校验；
+  - 宿主选择记忆 `src/host/choiceStore.ts`：普通相对 import，只用来校验文件里遗留的布局记录
+    （#1449 起布局的唯一真源是工作区文件，这份记忆不再读写布局）；
   - 工作区配置文件核 `src/shared/config-store/src/workspace.ts`：核不 import 本域（同层互引禁令），
     由调用方（`src/host/configStore.ts`、`src/deck/shell/workspace-anchor.ts`）把
     `DOC_LAYOUT_VALUES` 作为参数传进 `parseWorkspace` / `parseWorkspaceText` / `stringifyWorkspace`；
@@ -30,5 +31,6 @@ GLOSSARY.md）与 `multi`（多上下文，子项目各一份 GLOSSARY.md，根�
 
 ## 门禁
 
-- `tests/verify-683-choice-store.ts` 末尾钉住选择记忆导出的 `LAYOUT_VALUES` 仍是这两种取值，
-  本域被改坏时这扇门禁会红（文件头的「门禁归属」注释指向本目录）。
+- `tests/verify-1449-layout-single-source.ts` 钉住布局只有工作区文件一处真源（快照与注入都读它，
+  浏览器与本机记忆都不再存布局）；本域被改坏时这扇门禁与 `tests/verify-683-choice-store.ts` 会红
+  （文件头的「门禁归属」注释指向本目录）。

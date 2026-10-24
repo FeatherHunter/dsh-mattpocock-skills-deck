@@ -218,7 +218,17 @@ import type { SetupLayoutValue } from '../statusbar/StatusBackend.js'
       const t = String(v == null ? '' : v).toLowerCase()
       return ((DOC_LAYOUT_VALUES as readonly string[]).indexOf(t) >= 0) ? (t as SetupLayoutValue) : null
     }
-    export const readSetupLayout = function (st: PromptState | null | undefined): SetupLayoutValue | null { try { return normalizeSetupLayout(st && st.setupLayout) || normalizeSetupLayout((typeof getCachedSetupLayout === 'function') ? getCachedSetupLayout(st && st.cwd) : null) } catch (e) { return null } } // 2026-09-21：会话里没答过就沿用这个工作区记住过的那一份（按工作区持久化，见 store-prefs.js；两份都过一遍取值校验，不认识的取值一律当没答过）
+    // #1449：读的顺序只有两处——本次会话里刚选的那一下，和快照从工作区文件读回来的那一份
+    //   （快照里是 { layout, pickedAt } 对象）；浏览器按工作区存的那份表已经删了，不再读。
+    export const readSetupLayout = function (st: PromptState | null | undefined): SetupLayoutValue | null {
+      try {
+        const own = normalizeSetupLayout(st && st.setupLayout)
+        if (own) return own
+        const snap: any = st && st.snapshot
+        const raw: any = snap && snap.setupLayout
+        return normalizeSetupLayout(raw && typeof raw === 'object' ? raw.layout : raw)
+      } catch (e) { return null }
+    }
     // 纯函数：modules = wf.registry modules 数组（元素可带 setupPrompt 键表）；dictOverride 供单测直喂 locale 字典（单测不依赖闭包 L）
     // layout 是用户这次选的布局（'single' / 'multi'）；没选过一律按缺省 single 填 —— 这条是兜底，
     //   正常路径由注入决策函数先把用户拦在卡上（见 setupOrRepoPrompt 的 'setup-card' 那一档）。
@@ -464,7 +474,7 @@ type PromptState = {
   cwd?: string
   setupLayout?: unknown
   selection?: { backendId?: unknown } | null
-  snapshot?: { selection?: { backendId?: unknown } } | null
+  snapshot?: { selection?: { backendId?: unknown }; setupLayout?: unknown } | null
   backendModules?: BackendModule[]
   chainSnapshot?: { steps?: ChainStep[] } | null
   pendingSetupAfterPublish?: boolean
@@ -515,7 +525,6 @@ declare const DOC_LAYOUT_VALUES: readonly ('single' | 'multi')[]
 declare function currentBackendId(...args: any[]): any
 declare function declaredLangPick(...args: any[]): any
 declare function backendPromptFrom(...args: any[]): any
-declare function getCachedSetupLayout(cwd?: string | null): unknown
 declare function getCachedSelection(cwd: unknown): { backendId?: unknown } | null | undefined
 declare function chainSteps(st: unknown): ChainStep[]
 declare function guideStepsFor(backendId: unknown): ChainStep[] | null | undefined

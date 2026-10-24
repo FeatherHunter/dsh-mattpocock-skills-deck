@@ -44,7 +44,7 @@ function promptDataSplice(): string {
 
 // —— 取真源：prompts.js 是内核模块（每行行首 export），去掉 export 后在闭包里求值 ——
 //   闭包里的几样同名依赖用替身顶上：inject 记下注入的文本，emit 只当「界面重绘一次」。
-function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCachedSetupLayout?: (cwd: string) => string | null }) {
+function loadPrompts(localeDict: LocalePair, guide: any) {
   // #698：注入决策那一段（injectSetupDecision / setupBlockedByGuide 的调用方）搬去了 kernel/prompts-setup.js，
   //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。两份真源都已经是 .ts，
   //   要当函数体求值，所以都走 spliceableJs（与构建同一份转译口径，行首 export 已去掉）。
@@ -61,9 +61,7 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
   const injected: string[] = []
   const emitted: any[] = []
   const logged: Array<{ level: string; event: string; fields: Record<string, any> }> = []
-  // getCachedSetupLayout 在生产里由 kernel/store-prefs.js 声明、与 prompts.js 拼进同一个闭包；
-  //   沙箱里默认给一个「什么都没记住」的替身（等价于旧行为），要量「按工作区记住」那一档时由调用方换掉它。
-  const cached = (cachedLayout && typeof cachedLayout.getCachedSetupLayout === 'function') ? cachedLayout.getCachedSetupLayout : function () { return null }
+  // #1449：布局不再走浏览器本地表（getCachedSetupLayout 已从内核闭包里撤掉），所以这里也不再顶替身。
   // moduleMetaOf 不由 prompts.js 提供：它在真正的产物里由另一个内核模块（kernel/builtin-backends.js）声明，
   //   与 prompts.js 拼回同一个闭包后直接可用。沙箱里必须自己顶一个替身，否则按后端查声明数据那几处
   //   在本门禁里永远拿不到东西，测出来的就不是真行为了。
@@ -74,7 +72,7 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
   }
   const tail = '\n;return { PROMPTS: PROMPTS, setupRunParamsFrom: setupRunParamsFrom, setupRunPrompt: setupRunPrompt, setupOrRepoPrompt: setupOrRepoPrompt, injectSetupDecision: injectSetupDecision, setupBlockedByGuide: setupBlockedByGuide, setupRunTextForClick: setupRunTextForClick, consumePendingSetup: consumePendingSetup, readSetupLayout: readSetupLayout, normalizeSetupLayout: normalizeSetupLayout, SETUP_LAYOUT_TEXT_KEYS: SETUP_LAYOUT_TEXT_KEYS }'
   // 把剥掉行首 export 的内核源码整份当函数体造函数（原来那种按文本构造函数的写法），参数名在这儿显式列出，所以走 compileFn。
-  const factory = compileFn(['inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout', 'DOC_LAYOUT_VALUES'], body + tail)
+  const factory = compileFn(['inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'DOC_LAYOUT_VALUES'], body + tail)
   const mod = factory(
     function (st: any, text: any) { injected.push(String(text)) },
     function (st: any) { emitted.push(st) },
@@ -84,7 +82,6 @@ function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCac
     moduleMetaOf,
     guide.guideStepsFor,
     guide.guideStepDone,
-    cached,
     ['single', 'multi']
   )
   return { mod: mod, injected: injected, emitted: emitted, logged: logged }
@@ -303,22 +300,25 @@ async function main() {
     const kB = mod.injectSetupDecision(stB, 'github', { allowCard: true })
     ok(kB === 'setup', '检查页/切换那条路（不传 askLayout）：布局已答 → 直接注入（实得 ' + kB + '）')
     ok(injected.length === nB + 1 && injected[injected.length - 1] === textOf('github', 'single', 'zh'), '那条路注入的全文与金样逐字相同（还是那句已答的结论）')
-    // ③ 按工作区记住：会话里没答过时，读这个工作区记住过的那一份（同一个工作区换个会话不该再问一遍）。
-    const remembered: Record<string, string> = { '/w/demo': 'multi' }
-    const withCache = loadPrompts(L, G, { getCachedSetupLayout: function (cwd: string) { return remembered[String(cwd || '')] || null } })
+    // ③ #1449：工作区那份答案现在只从快照回包来（浏览器本地表已删）；会话本次选择优先。
     const stC = stateOf({ backend: 'github' }) // 本次会话没答过
-    ok(withCache.mod.readSetupLayout(stC) === 'multi', '会话里没答过 → 读到这个工作区记住的那一份（multi）')
-    ok(withCache.mod.injectSetupDecision(stC, 'github', { allowCard: true }) === 'setup', '记住过之后，检查页/切换那条路直接用记住的那份注入（不再问）')
-    ok(withCache.injected[withCache.injected.length - 1].indexOf(L.zh['setup.layout.multi']) >= 0, '注入的就是记住的那一份（多上下文那一句）')
-    const stD = stateOf({ backend: 'github', layout: 'single' }) // 本次会话答过 single，工作区记住的是 multi
-    ok(withCache.mod.readSetupLayout(stD) === 'single', '会话里答过 → 本次会话那一份优先于记住的那一份（当场改的立刻生效）')
-    const stE = stateOf({ backend: 'github' }) // 工作区没记住过 + 会话没答过
-    const none = loadPrompts(L, G, { getCachedSetupLayout: function () { return null } })
-    ok(none.mod.readSetupLayout(stE) === null, '既没答过、也没记住过 → 仍然算没答过（照旧先问）')
-    ok(none.mod.injectSetupDecision(stE, 'github', { allowCard: true }) === 'askLayout', '没答过的那一档照旧先弹卡')
-    // ④ 记住的那一份不认识时不许当答案用（按未选定处理，免得把垃圾值写进注入文本）
-    const junk = loadPrompts(L, G, { getCachedSetupLayout: function () { return 'nonsense' } })
-    ok(junk.mod.readSetupLayout({ cwd: '/w/demo', selection: { backendId: 'github' } }) === null, '记住的值不认识时按未选定处理（不认识的取值不参与填空）')
+    stC.snapshot = { setupLayout: { layout: 'multi', pickedAt: 0 } }
+    ok(mod.readSetupLayout(stC) === 'multi', '会话里没答过 → 读到快照回包里的那一份（multi）')
+    ok(mod.injectSetupDecision(stC, 'github', { allowCard: true }) === 'setup', '记住过之后，检查页/切换那条路直接用快照那份注入（不再问）')
+    ok(injected[injected.length - 1].indexOf(L.zh['setup.layout.multi']) >= 0, '注入的就是那份（多上下文那一句）')
+    const stC2 = stateOf({ backend: 'github' })
+    stC2.snapshot = { setupLayout: 'multi' } // 兼容裸字符串形态的回包
+    ok(mod.readSetupLayout(stC2) === 'multi', '快照里是裸字符串时也认（兼容老回包）')
+    const stD = stateOf({ backend: 'github', layout: 'single' }) // 本次会话答过 single，工作区那份是 multi
+    stD.snapshot = { setupLayout: { layout: 'multi', pickedAt: 0 } }
+    ok(mod.readSetupLayout(stD) === 'single', '会话里答过 → 本次会话那一份优先于快照那份（当场改的立刻生效）')
+    const stE = stateOf({ backend: 'github' }) // 快照没带布局 + 会话没答过
+    ok(mod.readSetupLayout(stE) === null, '既没答过、快照里也没有 → 仍然算没答过（照旧先问）')
+    ok(mod.injectSetupDecision(stE, 'github', { allowCard: true }) === 'askLayout', '没答过的那一档照旧先弹卡')
+    // ④ 那份值不认识时不许当答案用（按未选定处理，免得把垃圾值写进注入文本）
+    const stJunk = stateOf({ backend: 'github' })
+    stJunk.snapshot = { setupLayout: { layout: 'nonsense' } }
+    ok(mod.readSetupLayout(stJunk) === null, '快照里的值不认识时按未选定处理（不认识的取值不参与填空）')
   }
 
   console.log('== #664 · 本地 Markdown 没有「先建仓库」这一步：缺仓库也直接注入（与改造前一致）==')
