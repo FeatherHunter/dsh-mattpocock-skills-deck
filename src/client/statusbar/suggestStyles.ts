@@ -29,8 +29,9 @@ export const SUGGEST_STYLE_TEXT: string = [
   '.dsws-sugg-intro{font-weight:600;letter-spacing:.01em}',
   // 选项框的定位壳：给悬停浮层当锚点（浮层按「框顶边正上方」摆，不跟鼠标走）。
   '.dsws-sugg-pill-wrap{position:relative;display:inline-flex;pointer-events:auto}',
-  // 悬停浮层：平时透明，悬停或聚焦时在框正上方浮现；内容是推荐理由（打了分的在第一行开头先印一颗分数泡）；不吃鼠标事件所以不闪烁。
-  '.dsws-sugg-pop{position:absolute;bottom:calc(100% + ' + SUGGEST_APPEARANCE.popGapPx + 'px);left:50%;transform:translateX(-50%) translateY(3px);width:max-content;max-width:' + SUGGEST_APPEARANCE.popMaxWidthPx + 'px;padding:' + SUGGEST_APPEARANCE.popPadY + 'px ' + SUGGEST_APPEARANCE.popPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.popRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.pillBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:1.5;text-align:left;white-space:normal;opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;z-index:3;display:block;backdrop-filter:blur(' + SUGGEST_APPEARANCE.popBlurPx + 'px) saturate(1.2);-webkit-backdrop-filter:blur(' + SUGGEST_APPEARANCE.popBlurPx + 'px) saturate(1.2)}',
+  // 悬停浮层：平时透明，悬停或聚焦时在框正上方浮现；内容是推荐理由（打了分的在第一行开头先印一颗分数泡）；
+  // 底色比选项框淡一档（popBg/lightPopBg），两层玻璃贴在一起也分得清；不吃鼠标事件所以不闪烁。
+  '.dsws-sugg-pop{position:absolute;bottom:calc(100% + ' + SUGGEST_APPEARANCE.popGapPx + 'px);left:50%;transform:translateX(-50%) translateY(3px);width:max-content;max-width:' + SUGGEST_APPEARANCE.popMaxWidthPx + 'px;padding:' + SUGGEST_APPEARANCE.popPadY + 'px ' + SUGGEST_APPEARANCE.popPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.popRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.popBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:1.5;text-align:left;white-space:normal;opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;z-index:3;display:block;backdrop-filter:blur(' + SUGGEST_APPEARANCE.popBlurPx + 'px) saturate(1.2);-webkit-backdrop-filter:blur(' + SUGGEST_APPEARANCE.popBlurPx + 'px) saturate(1.2)}',
   '.dsws-sugg-pill-wrap.dsws-sugg-show-pop .dsws-sugg-pop{opacity:1;transform:translateX(-50%) translateY(0)}',
   // 浮层里的分数泡：把模型打的分（比如 9.5）做成一颗小气泡，贴在第一行开头，用户一眼看到这条有多优先。
   '.dsws-sugg-score{display:inline-block;margin-right:' + SUGGEST_APPEARANCE.scoreGapPx + 'px;padding:0 8px;border-radius:99px;border:1px solid ' + SUGGEST_APPEARANCE.pillHoverBorder + ';background:rgba(150,190,255,.16);font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:1.5;font-weight:600}',
@@ -53,7 +54,7 @@ export const SUGGEST_STYLE_TEXT: string = [
   // 亮色主题：玻璃质感换成浅底半透明，去掉深色文字投影（深色主题保持 C 版原样）。
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill{background:' + SUGGEST_APPEARANCE.lightPillBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + ';text-shadow:none}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill:hover{border-color:' + SUGGEST_APPEARANCE.lightPillHoverBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillHoverShadow + '}',
-  'body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + SUGGEST_APPEARANCE.lightPillBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + '}',
+  'body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + SUGGEST_APPEARANCE.lightPopBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + '}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-bub{background:' + SUGGEST_APPEARANCE.lightBubbleBg + ';border-color:' + SUGGEST_APPEARANCE.lightBubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightBubbleGlow + '}',
   // 系统要求减少动效：去掉过渡与淡出动画（小泡由引擎直接跳过）。
   '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close,.dsws-sugg-pop{transition:none}.dsws-sugg-layer.dsws-sugg-fading{animation-duration:1ms}}',
