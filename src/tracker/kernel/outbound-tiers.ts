@@ -181,16 +181,25 @@ export interface OutboundGateLike {
   noteOutboundCorrection?(fields: { requests: number; points: number }): void
 }
 
+/** GraphQL 一笔在还不知道真实 cost 之前的估算点数（#1482）：先按 1 点报闸，成功后再补差额。 */
+const GRAPHQL_ESTIMATE_POINTS = 1
+
 /**
- * 整条 argv 里去掉第一段程序名，只留 gh 的子命令与参数（#1482）。
+ * 拿到 gh 的子命令参数：各条出站路径传进来的 argv 形状不一样 ——
+ * 宿主进程出口拿到的是整条 ['gh','api','graphql',...]，gh 客户端与旧装配的 runGh
+ * 传进来的已经是剥好程序名的 ['api','graphql',...]。
  *
- * 调用方拿到的往往是 ['gh','api','graphql',...]，也可能是带目录的 gh.exe 路径；
- * 判 GraphQL 与报账要的却是 ['api','graphql',...]。这里只做「去掉第一段」这一件事，
- * 把两个出口的剥法收到一处 —— 从前两处各写一遍，容易一处没剥干净就判不中。
+ * 所以只在第一段确实像 gh 可执行文件（gh / gh.exe，带目录也算）时才剥；其它形状原样返回。
+ * 为什么不能无条件剥第一段（#1482 复审）：已经剥过的参数再剥一次会把 api 当成程序名吃掉，
+ * 于是 api graphql 判不成 GraphQL，账本又把 GraphQL 记成一条 REST 请求 ——
+ * 正是这张票要修的症状，只是换了一条路复发。
  */
 export function ghArgsOf(argv: unknown): string[] {
   const parts = partsOf(argv)
-  return parts.length > 0 ? parts.slice(1) : []
+  if (parts.length === 0) return []
+  // 真机上第一段可能是 'C:\Program Files\GitHub CLI\gh.exe' 这样的完整路径，只取文件名再比。
+  const head = String(parts[0] || '').replace(/^.*[\\/]/, '')
+  return /^gh(\.exe)?$/i.test(head) ? parts.slice(1) : parts
 }
 
 /**
@@ -199,7 +208,7 @@ export function ghArgsOf(argv: unknown): string[] {
  */
 export function ghOutboundEntryOf(args: unknown): { requests: number; points: number } {
   const isGraphql = isGraphqlGhArgs(args)
-  return { requests: isGraphql ? 0 : 1, points: isGraphql ? 1 : 0 }
+  return { requests: isGraphql ? 0 : 1, points: isGraphql ? GRAPHQL_ESTIMATE_POINTS : 0 }
 }
 
 /**
@@ -209,7 +218,7 @@ export function ghOutboundEntryOf(args: unknown): { requests: number; points: nu
 export function graphqlCorrectionOf(args: unknown, stdout: unknown): { requests: number; points: number } | null {
   if (!isGraphqlGhArgs(args)) return null
   const cost = graphqlCostOf(stdout)
-  return cost > 1 ? { requests: 0, points: cost - 1 } : null
+  return cost > GRAPHQL_ESTIMATE_POINTS ? { requests: 0, points: cost - GRAPHQL_ESTIMATE_POINTS } : null
 }
 
 /**
@@ -222,7 +231,7 @@ export function graphqlCorrectionOf(args: unknown, stdout: unknown): { requests:
 export function ghPointNoteOf(args: unknown, stdout?: unknown): { points: number; pointSource: string } {
   if (!isGraphqlGhArgs(args)) return { points: 0, pointSource: '' }
   const cost = graphqlCostOf(stdout)
-  return cost > 0 ? { points: cost, pointSource: 'server' } : { points: 1, pointSource: 'estimate' }
+  return cost > 0 ? { points: cost, pointSource: 'server' } : { points: GRAPHQL_ESTIMATE_POINTS, pointSource: 'estimate' }
 }
 
 /** 起进程前先报一笔（I1）：口径见 ghOutboundEntryOf。 */
