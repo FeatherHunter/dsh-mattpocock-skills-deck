@@ -241,9 +241,12 @@ export const chainStep = (st: any, id: any): any => chainSteps(st).find(function
 export const chainStepStatus = (st: any, id: any): string => { const s: any = chainStep(st, id); return s ? s.status : 'pending'; };
 export const chainStepOk = (st: any, id: any): boolean => chainStepStatus(st, id) === 'done';
 export const chainStepBad = (st: any, id: any): boolean => { const sts: string = chainStepStatus(st, id); return sts === 'current' || sts === 'fail'; };
-// #229 计数口径：pending（诚实未知/未接入）不渲染置灰计入、不计入分子分母
-export const readyCount = (st: any): number => { const cs: any[] = chainSteps(st).filter(function (s: any): boolean { return s.status !== 'pending'; }); return cs.length ? cs.filter(function (s: any): boolean { return s.status === 'done'; }).length : -1; };
-export const envTotal = (st: any): number => { const cs: any[] = chainSteps(st).filter(function (s: any): boolean { return s.status !== 'pending'; }); return cs.length; };
+// #1463 计数口径：pending（还没拿到确定结论）计入分母、不计入分子 ——
+//   它是「还没确认」不是「已经通过」。#229 原先把它开除出分母，于是 8 步 done + 1 步 pending
+//   会显示成 8/8 全绿，与同一份快照上 pending 那一步的黄条自相矛盾（截图就是这个形状）。
+//   全绿只在全部 done 时出现（n === t 的判定不动）；fail/current 照旧计入分母、不计入分子；空快照仍是 --。
+export const readyCount = (st: any): number => { const cs: any[] = chainSteps(st); return cs.length ? cs.filter(function (s: any): boolean { return s.status === 'done'; }).length : -1; };
+export const envTotal = (st: any): number => { return chainSteps(st).length; };
 // v14-22：返回纯数字串（'6/9' / '--/9'），由状态栏 num() 固定宽度渲染；分母 = 非待定步数（动态）
 export const envLabel = (st: any): string => { const n: number = readyCount(st); const t: number = envTotal(st); if (t <= 0) return '--'; return n < 0 ? '--/' + t : n + '/' + t; };
 export const setupCheck = (st: any): any => chainStep(st, 'tracker:initialized');

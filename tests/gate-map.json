@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T08:40:18.590Z",
+  "generatedAt": "2026-10-24T09:14:53.001Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 353,
-  "gateCount": 353,
-  "attributedGates": 314,
+  "chainLength": 356,
+  "gateCount": 356,
+  "attributedGates": 317,
   "unattributedGates": 39,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 14,
@@ -2877,6 +2877,59 @@
       "completionRecord": true,
       "expectedAssertions": 27,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1463-banner-recheck.ts",
+      "file": "tests/verify-1463-banner-recheck.ts",
+      "guards": [
+        "src/client/statusbar/bannerChain.ts",
+        "src/shared/tracker/guide-steps.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/statusbar",
+        "src/shared/tracker",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1463-env-counts-pending.ts",
+      "file": "tests/verify-1463-env-counts-pending.ts",
+      "guards": [
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/client",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
+    },
+    {
+      "step": "node tests/verify-1465-detail-refid.ts",
+      "file": "tests/verify-1465-detail-refid.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -8829,6 +8882,7 @@
       "node tests/verify-1411-suggest-bubble.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1438-banner-recheck-button.ts",
+      "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -9265,6 +9319,7 @@
       "node tests/verify-1363-first-run-recovery.ts",
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1436-own-work-route.ts",
+      "node tests/verify-1463-env-counts-pending.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-chain-after-pick.ts",
@@ -9319,6 +9374,7 @@
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-1454-ledger-single-entry.ts",
+      "node tests/verify-1465-detail-refid.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -9466,6 +9522,7 @@
       "node tests/verify-chain.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1438-banner-recheck-button.ts",
+      "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -9814,6 +9871,8 @@
       "node tests/verify-1438-banner-recheck-button.ts",
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1463-banner-recheck.ts",
+      "node tests/verify-1463-env-counts-pending.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
