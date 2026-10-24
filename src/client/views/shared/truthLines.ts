@@ -69,7 +69,8 @@ const TRUTH_MINUTE_MS = 60000
  *   · `agoKey`/`agoParams` 是控件默认画的那一句相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）；
  *   · `time` 是精确时刻（'22:41'），调用方把它拼进悬停提示那一句（那条 truth.updatedTip，
  *     完整说法只在悬停时出现，版面上不出现「上次更新」四个字）；
- *   · `tone` 是新鲜度那三档（fresh / yellow / red），调用方据此上色 —— 颜色由调用方定，这里不带颜色。
+ *   · `tone` 是新鲜度那三档（fresh / yellow / red），调用方据此上色；三档颜色共用的那一份映射见下面的
+ *     freshnessToneColor（2026-10-24 起把面板与状态栏这两处调用方的上色口径收成一份）。
  * 没有取数时刻（还没拿到快照）时返回 null：调用方那时一个时间的字都不画，而不是画一个猜的。
  */
 export const truthFreshnessBox = function (st: any, nowMs: any) {
@@ -88,6 +89,14 @@ export const truthFreshnessBox = function (st: any, nowMs: any) {
     agoParams: agoKey === 'truth.updatedJustNow' ? {} : { n: n },
     time: line.params.time,
   }
+}
+/**
+ * 新鲜度三档对应的显示色（2026-10-24 加）：右侧面板头部那个小时间标签与状态栏胶囊上的时刻共用这一份映射，
+ * 免得两处各写一遍、以后改色只改到一处。颜色取宿主设计系统的别名变量，取不到时退回同义兜底色。
+ * 只返回一个颜色字符串，不碰 React；「现在是哪一档」仍只由 truthFreshnessBox 的 tone 决定。
+ */
+export const freshnessToneColor = function (tone: any) {
+  return tone === 'red' ? 'var(--dsw-alias-state-error-primary,#f87171)' : (tone === 'yellow' ? 'var(--dsw-alias-state-warning-primary,#f59e0b)' : 'var(--dsw-alias-label-caption,#8b8b95)')
 }
 // ── 额度读数那一句（#1446）──
 // 后端是哪一种额度形态，只看 refresh.backend.budgetKind（'two-buckets' / 'requests' / 'none' / 'unknown'）：

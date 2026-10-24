@@ -21,6 +21,7 @@ declare function compute(...args: any[]): any;
 declare function findGroupByIdentity(...args: any[]): any;
 declare function firstBackendIdOf(...args: any[]): any;
 declare function flash(...args: any[]): any;
+declare function freshnessToneColor(...args: any[]): any;
 declare function headFoldLadderOf(...args: any[]): any;
 declare function headFoldStateAt(...args: any[]): any;
 declare function Ic(props?: any): any;
@@ -310,7 +311,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             h('span', { 'data-head-refresh-text': 1, style: { whiteSpace: 'nowrap' } }, headNow ? headNow.refresh : tr('list.refresh'))])),
           // 时间标签：版面上那句相对时间按阶梯逐字变短（3 分钟前 → 3 分钟 → 3 分 → …，一个字都不许整块消失），
           //   上色沿用原来那条状态行的口径（灰 / 黄 / 红）。
-          headBox ? h(Tip, { content: headTip }, h('span', { 'data-head-updated': 1, style: { flex: 'none', fontSize: 11, whiteSpace: 'nowrap', color: headBox.tone === 'red' ? 'var(--dsw-alias-state-error-primary,#f87171)' : (headBox.tone === 'yellow' ? 'var(--dsw-alias-state-warning-primary,#f59e0b)' : 'var(--dsw-alias-label-caption,#8b8b95)') } },
+          headBox ? h(Tip, { content: headTip }, h('span', { 'data-head-updated': 1, style: { flex: 'none', fontSize: 11, whiteSpace: 'nowrap', color: freshnessToneColor(headBox.tone) } },
             h('span', { 'data-updated-ago': 1, style: { fontVariantNumeric: 'tabular-nums' } }, headNow ? headNow.time : headAgo))) : null,
         ]),
         // #155 Q5：Pending / MultiHit 黄条（提示不阻断）

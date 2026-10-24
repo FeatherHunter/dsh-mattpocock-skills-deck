@@ -37,7 +37,6 @@ declare const diffSnapshots: any;
 declare const flash: any;
 declare const tr: any;
 declare const scheduleFlashClear: any;
-declare const setCachedSetupLayout: any;
 declare const lcApplySavedColorsOnInstall: any;
 declare const applySnapshotSelection: any;
 declare const setCachedSnapshot: any;
@@ -131,6 +130,8 @@ export const _installLateSnapshotSelection = function (st: any, snap: any, reqNo
     mine.done = true;
     let changed: boolean = false;
     if (snap.selection !== undefined && typeof mergeSelection === 'function') { try { if (mergeSelection(st, snap.selection)) changed = true; } catch (eSel) {} }
+    // #1449：迟到回包也把布局合并进会话手上那份快照（宿主无条件带 setupLayout，含 null）。
+    if (snap.setupLayout !== undefined) { try { st.snapshot = Object.assign({}, st.snapshot || {}, { setupLayout: snap.setupLayout }); changed = true; } catch (eSL) {} }
     // #1373：迟到的 304 同样可能捎着更新的工作路线读数 —— 只补 selection 的老路会把它丢掉，
     //   胶囊就还是空的。判据与正常那一路共用 adoptWorkRouteTableIfNewer，换上才记 changed（会 emit）。
     try { if (typeof adoptWorkRouteTableIfNewer === 'function' && adoptWorkRouteTableIfNewer(st, snap)) changed = true } catch (eWrLate) {}
@@ -144,7 +145,8 @@ export const _installLateSnapshotSelection = function (st: any, snap: any, reqNo
   } catch (eLate) { return false; }
 };
 // #1009：装一份「真的拿到了」的快照。正常那一路与迟到那一路共用这一处 ——
-//   两处各写一遍的话，判据（缓存优先落表、补标签颜色、回填布局、清错误态）迟早长岔。
+//   两处各写一遍的话，判据（缓存优先落表、补标签颜色、清错误态）迟早长岔。
+// #1449：布局不再单独回填浏览器表——它就是快照里的一个字段，读的地方直接读 st.snapshot.setupLayout。
 // 装与不装由调用方判（_snapRespStale / _snapRequestKeyWas）；本函数只管装，返回 true = 装上了。
 export const _snapInstallBody = function (st: any, snap: any): boolean {
   try {
@@ -161,7 +163,6 @@ export const _snapInstallBody = function (st: any, snap: any): boolean {
     if (_df.removed.length) flash(st, tr('panel.diffRemoved', { n: _df.removed.length }), 'info');
     scheduleFlashClear(st);
     st.snapshot = snap;
-    try { if (snap.setupLayout && typeof setCachedSetupLayout === 'function') setCachedSetupLayout(st.cwd, snap.setupLayout); } catch (eSL) {} // #683（F1 · R6）：宿主记住的布局回填本地（两壳各答一样时按时刻仲裁，本地刚点的那一下不会被顶回去）
     // #635：这份快照如果是「保存前就发出去、保存后才回来」的那一次刷新拿回来的，它不知道刚改过的
     // 标签颜色，装进来就会把面板倒回旧色。装进来之后先按那次保存确认过的色值补一遍，
     // 补的规则与记录都住在 views/labels/labelColorPatch.js（比那份记录旧才补，新的就作废记录）。

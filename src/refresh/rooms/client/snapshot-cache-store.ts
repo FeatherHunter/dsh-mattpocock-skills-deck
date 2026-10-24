@@ -8,7 +8,6 @@
  * 反例：不要在这里决定行该怎么画（那是 store-derived.ts 的事），也不要在这里存人的偏好（那是 store-prefs.ts 的事）。
  */
 declare function keyOf(...args: any[]): any;
-declare function migrateCachedChoiceToKey(...args: any[]): any;
 declare const DEFAULT_PANEL_H: number;
 declare const listPrefs: any;
 declare function isEnabled(...args: any[]): any;
@@ -89,8 +88,6 @@ export const rememberWorkspaceRoot = function (selected: any, root: any): void {
     const rk: any = (typeof keyOf === 'function') ? keyOf(root) : String(root || '')
     if (sk && rk) workspaceRootByCwd[sk] = rk
     if (rk) workspaceRootByCwd[rk] = rk
-    // #683（F1 · ADR 的 R7d）：工作区根是**后来才**认出来的 —— 原先那份选择与布局按「会话所选目录」那把键存着，而从此读写都改走根键，老键那条就此没人再看（界面会一边说 Markdown、另一边说「还没有设置」）。认到根的这一刻把它搬过去；根键上已经有了就不动它。
-    if (sk && rk && sk !== rk) { try { if (typeof migrateCachedChoiceToKey === 'function') migrateCachedChoiceToKey(sk, rk) } catch (eMv) {} }
   } catch (e) {}
 }
 // 分桶用的钥匙：给所选目录，回工作区根；认不出（宿主还没回过话）就回所选目录本身。

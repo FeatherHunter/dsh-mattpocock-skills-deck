@@ -89,7 +89,8 @@ async function loadBackends(): Promise<{ github: BackendPick; markdown: BackendP
     gitlab: { id: 'gitlab', label: 'GitLab', setupPrompt: null, prompts: null, capabilities: {} },
   }
 }
-// 沙箱账本：跨组累积（injected/forms/logged/bound/layoutMemory），组顺序不许重排，重排会改计数。
+// 沙箱账本：跨组累积（injected/forms/logged/bound），组顺序不许重排，重排会改计数。
+// #1449：布局不再按工作区写浏览器本地表，账本里那本 layoutMemory 一并撤掉；新会话的布局只从快照回包来。
 interface ChainSeen {
   injected: string[]
   logged: Array<{ level: string; event: string; fields: Record<string, any> }>
@@ -97,7 +98,6 @@ interface ChainSeen {
   flashed: string[]
   bound: any[]
   gateOpened: number
-  layoutMemory: Record<string, string>
 }
 // #1292：提示词数据（PROMPTS 那张表与词表默认值）的真身搬进了 config/prompts/ 下的 YAML，
 //   客户端里那几张表由 scripts/generate-prompt-config.mts 现场生成到 src/client/kernel/prompt-data.ts，
@@ -120,7 +120,6 @@ async function loadChain(locale: LocalePair, backends: { github: BackendPick; ma
     flashed: [],       // 界面上闪过的话
     bound: [],         // 打给宿主的电话
     gateOpened: 0,     // 开过几次选后端窗
-    layoutMemory: {},  // 按工作区记住的域文档布局（store-prefs.js 那两张函数的替身账本，2026-09-21 维护者拍板「记住」）
   }
   const backendMetaOf = function (st: any, bid: any) {
     const list = (st && Array.isArray(st.backendModules)) ? st.backendModules : []
@@ -186,10 +185,8 @@ async function loadChain(locale: LocalePair, backends: { github: BackendPick; ma
     labelOf: function (id: any) { return String(id) },
     firstBackendIdOf: function () { return 'github' },
     setCachedSelection: function (cwd: any, sel: any) { seen.bound.push({ cwd: cwd, selection: sel, kind: 'cache' }) },
-    // 「按工作区记住的域文档布局」两张函数的替身：真身住在 kernel/store-prefs.js（那两张函数只管读写与校验，
-    //   取值合法性由它们自己把关），本门禁量的是 StatusBackend 与 prompts.js 有没有照着用。
-    getCachedSetupLayout: function (cwd: any) { return seen.layoutMemory[String(cwd || '')] || null },
-    setCachedSetupLayout: function (cwd: any, v: any) { const s = String(v == null ? '' : v).toLowerCase(); if (s === 'single' || s === 'multi') seen.layoutMemory[String(cwd || '')] = s },
+    // #1449：布局不再走浏览器本地表，那两个替身（getCachedSetupLayout / setCachedSetupLayout）一并撤掉；
+    //   工作区那份答案只从快照回包（st.snapshot.setupLayout）来，会话本次选择住 st.setupLayout。
     setPresentationMap: function () {},
     flash: function (st: any, text: any) { seen.flashed.push(String(text)) },
     loadSnapshot: function () {},
@@ -419,23 +416,24 @@ async function main() {
   ok(fullText.indexOf('/setup-matt-pocock-skills') === 0, '注入的全文以那条命令开头')
   ok(fullText.indexOf('本次已选后端：GitHub。') >= 0, '全文里带着「本次已选后端：GitHub。」')
   ok(fullText.indexOf('single-context') >= 0, '全文里带着用户这次选的布局结论（single-context）')
-  ok(seen.layoutMemory[stFull.cwd] === 'single', '卡上确认的那一项按工作区记住了（下一个会话直接用，不再问流程外的第二遍）')
+  ok(stFull.setupLayout === 'single', '卡上确认的那一项只记在本次会话里（不再写浏览器本地表；工作区那份真源由宿主写文件、随快照回包）')
   const foundRetired = RETIRED_TAIL.filter(function (frag) { return fullText.indexOf(frag) >= 0 })
   ok(foundTailOk(foundRetired), '全文里没有那段被删掉的重复与告诫' + (foundRetired.length ? '（多出：' + foundRetired.join('、') + '）' : ''))
-  // 换个会话（同一工作区、本次会话没答过）：记住的那一份被直接用上，注入的仍是同一句结论
+  // 换个会话（同一工作区、本次会话没答过）：宿主快照回包里带着工作区文件里那份答案，直接用它，注入的仍是同一句结论
   const stNext = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })
-  ok(mod.readSetupLayout(stNext) === 'single', '同一个工作区的新会话：读到记住的那一份（single）')
+  stNext.snapshot = { setupLayout: { layout: 'single', pickedAt: 0 } }
+  ok(mod.readSetupLayout(stNext) === 'single', '同一个工作区的新会话：读到快照回包里的那份答案（single）')
   // 卡上「换一个选项」必须当场生效（2026-09-25 真机上报：记住过答案之后，卡上另一个选项点不动 ——
   //   原因是卡片预选读的是「记住的那一份」并且排在用户刚点的那一下前面，于是刚点的立刻被按回去）。
   const stEdit = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })
   stEdit.cwd = '/w/pick-edit'
-  seen.layoutMemory['/w/pick-edit'] = 'single' // 这个工作区之前答过 single
+  stEdit.snapshot = { setupLayout: { layout: 'single', pickedAt: 0 } } // 这个工作区之前答过 single（快照回包带着它）
   stEdit.setupLayoutCardOpen = true            // 卡开着
-  ok(mod.layoutSelectionOf(stEdit) === 'single', '卡刚打开：预选的是这个工作区记住的那一项（single）')
+  ok(mod.layoutSelectionOf(stEdit) === 'single', '卡刚打开：预选的是快照里那一项（single）')
   stEdit.setupPickLayout = 'multi'             // 用户在卡上点了另一个选项
   ok(mod.layoutSelectionOf(stEdit) === 'multi', '用户在卡上点了另一项 → 当场就选成那一项（记住的那份不许把它按回去）')
   mod.applyStatusSetupLayout(stEdit, mod.layoutSelectionOf(stEdit)) // 卡上「确认并继续」
-  ok(stEdit.setupLayout === 'multi' && seen.layoutMemory['/w/pick-edit'] === 'multi', '卡上确认 → 会话与记住的那份都改成用户刚选的那一项（multi）')
+  ok(stEdit.setupLayout === 'multi', '卡上确认 → 会话里改成用户刚选的那一项（multi；工作区文件由宿主去写，下一份快照再回来）')
   const textEdited = mod.setupOrRepoPrompt(stEdit, 'github').text || ''
   ok(textEdited.indexOf('multi-context') >= 0, '注入的全文跟着换成「多上下文」那一句结论（不是记住的旧答案）')
   // 反证：把「卡片开着时以卡上刚点的那一下为准」这一段从待求值的文本里拆掉，上面三条必须当场变红
@@ -506,13 +504,13 @@ async function main() {
     const brokenChain = await loadChain(locale, backends, { text: brokenText })
     const stBroken = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })
     stBroken.cwd = '/w/pick-edit'
-    brokenChain.seen.layoutMemory['/w/pick-edit'] = 'single'
+    stBroken.snapshot = { setupLayout: { layout: 'single', pickedAt: 0 } }
     stBroken.setupLayoutCardOpen = true
     stBroken.setupPickLayout = 'multi'
     ok(brokenChain.mod.layoutSelectionOf(stBroken) !== 'multi', '反证成立：拆掉之后，卡上刚点的另一项被记住的那份按了回去（实得 ' + brokenChain.mod.layoutSelectionOf(stBroken) + '）—— 正是真机上报的「点不动」')
   }
   const nNext = seen.injected.length
-  ok(mod.injectSetupDecision(stNext, 'github', { allowCard: true }) === 'setup', '新会话里检查页/切换那条路直接用记住的那份注入（不再问）')
+  ok(mod.injectSetupDecision(stNext, 'github', { allowCard: true }) === 'setup', '新会话里检查页/切换那条路直接用快照那份注入（不再问）')
   ok(seen.injected.length === nNext + 1 && seen.injected[seen.injected.length - 1].indexOf('single-context') >= 0, '新会话注入的也是同一句布局结论（single-context）')
 
   console.log('== 第 6 组：反向场景 —— 已经建好仓库、已经初始化过的目录：这几段都不出现、不重复注入 ==')
@@ -522,11 +520,11 @@ async function main() {
   const readyClick = clickAndCount(stReady)
   ok(readyClick.out === null && readyClick.logs.length === 0, '链全绿时没有横幅可点（也就没有日志、没有弹窗）')
   // 反向再加一道：即使有入口硬要在这里走一次决策，它也不往会话里写字。
-  //   注意：这里要的是「这个工作区从没答过、也没记住过」那一档 —— 上一个 block 已经把 /w/fresh-demo 的
-  //   答案按工作区记下了，所以这一档换一个从没出现过的目录来量（否则量到的是「记住过就照记住的来」）。
+  //   注意：这里要的是「这个工作区从没答过、快照里也没有」那一档 —— 上一组已经把答案记进了快照，
+  //   所以这一档换一个从没出现过的目录来量（否则量到的是「快照里有就照快照的来」）。
   const stReady2 = stateOf(chainOf(STEP_CHAIN.ready), { backend: 'github', backends: backends })
   stReady2.cwd = '/w/never-answered'
-  ok(mod.readSetupLayout(stReady2) === null, '反向：这个目录从没答过也没记住过（确实是「未选定」那一档）')
+  ok(mod.readSetupLayout(stReady2) === null, '反向：这个目录从没答过、快照里也没有（确实是「未选定」那一档）')
   const readyDecision = mod.injectSetupDecision(stReady2, 'github', { allowCard: true })
   ok(readyDecision === 'askLayout', '反向：硬走一次决策，返回的是「先问」（实得 ' + readyDecision + '），不是自动注入')
   ok(stReady2.setupLayoutCardOpen === true, '反向：这一步开的是那张卡（等用户回答，不是自动写字）')

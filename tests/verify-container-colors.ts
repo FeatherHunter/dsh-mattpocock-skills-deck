@@ -76,9 +76,9 @@ const STATUS_EXCEPTIONS = [
     reason: '仓库未识别提示 chip 的警告色：这里要提醒人「这个仓库没认出来」，用的是 triage 警示橙。',
   },
   {
-    file: 'src/client/panel/Dock.ts',
-    segment: "headBox.tone === 'yellow'",
-    reason: '头部更新时间「黄」档的 CSS 变量兜底：时间已经旧了的提示，颜色是状态提示黄。',
+    file: 'src/client/views/shared/truthLines.ts',
+    segment: "tone === 'yellow'",
+    reason: '新鲜度三档的显示色（面板头部时间标签与状态栏胶囊上的时刻共用这一份映射）：数据「旧了」的提示色，不是容器空态橙；2026-10-24 从 Dock.ts 收进这里成为唯一一份。',
   },
   {
     file: 'src/client/panel/Dock.ts',
@@ -432,8 +432,10 @@ const STATUS_EXCEPTIONS = [
 ]
 // 今天全仓两色落点（不含中央色表）的登记数：新增或删除一处同值点都要同时改白名单与这里，
 // 让「又抄了一份」或「白名单漏了一处」在 diff 里直接看得见。
+// 2026-10-24：新鲜度三档的显示色从 Dock.ts 收进 views/shared/truthLines.ts（面板与状态栏共用一份），
+//   同值点总数不变（85），落点文件从 32 变成 33。
 const STATUS_REPO_HITS = 85
-const STATUS_REPO_FILES = 32
+const STATUS_REPO_FILES = 33
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
   'src/client/floating/SkillFloatList.ts',

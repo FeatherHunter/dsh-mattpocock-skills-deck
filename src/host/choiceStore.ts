@@ -3,6 +3,9 @@
  *
  * 为什么要有它（一句话）：用户选的后端只写在浏览器 localStorage 里，而 localStorage 按访问地址隔离 —— 换端口、换壳、换机器就整份失忆；宿主侧那条绑定只是进程内存，重启即丢，于是「既没有 .git 也没有锚文件」的目录每次都重新问一遍。这里存的就是那份跨重启、跨访问地址的记录（下面叫 H；规则全文与每条的理由见 docs/adr/20260921-persist-user-choice-host-side.md，这里不重复）。
  *
+ * #1449 起布局答案不再存这里：布局的唯一真源是工作区里的配置文件（docs/agents/workspace.yaml），
+ * 这里不再提供布局的读写口。文件里遗留的 layouts 栏只为把老数据原样带过去，不删、不再当答案读。
+ *
  * 三条硬约束（改这个文件之前先看这三条）：
  *  1. 文件的家是 <用户主目录>/.dsh/mattskillsdeck/choices.json。**不许**改用 repoKeys.js 的 getCacheDir() ——
  *     那是 <DSH 进程启动目录>/.dsh-mattskillsdeck-cache，跟着进程启动目录跑（等于一半的记忆留在原地）。
@@ -22,7 +25,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 // @ts-expect-error
 import { join } from 'node:path'
-// 布局取值的唯一真源（#1342）：下面那份 LAYOUT_VALUES 从它拷一份给读写校验用，本文件不再自己写字面量。
+// 布局取值的唯一真源（#1342）：文件里遗留的布局记录仍按这份名单校验，但布局读写（#1449）已经搬走，不再对外提供。
 import { DOC_LAYOUT_VALUES } from '../shared/doc-layout/src/layouts.js'
 // 布局取值的类型也从真源取（#1342）：本文件不再手写 'single' | 'multi' 这份联合。
 import type { DocLayoutValue } from '../shared/doc-layout/src/layouts.js'
@@ -34,9 +37,8 @@ import type { DocLayoutValue } from '../shared/doc-layout/src/layouts.js'
 //   1. 落盘文档（ChoicesDoc）是这份文件的契约 —— version 只认 CHOICES_VERSION 写下的那一个数字，
 //      写错版本的文件整份不认（见 cleanChoices）。类型直接写成 typeof CHOICES_VERSION，以后改版本号
 //      时类型跟着走，不会出现「类型说 1、常量说 2」的第二真相。
-//   2. 布局取值原来在两处各写一遍字面量（读校验 cleanLayoutEntry 与写校验 rememberLayout）；收成一个
-//      共用联合 LayoutValue，以后加第三种取值只改一处，另一处不会继续拒收。2026-10-21（#1342）起
-//      取值名单本身也收到唯一真源 src/shared/doc-layout，本文件只消费（见下面 LAYOUT_VALUES）。
+//   2. 文件里遗留的布局记录（老版本写下的）仍要用同一份取值名单校验：名单的唯一真源是
+//      src/shared/doc-layout（#1342），本文件只消费；布局读写本身在 #1449 搬去了工作区文件，不再对外提供。
 //   3. 从外面进来的东西（工作区键、后端名、布局取值、文件里读出的 JSON）一律按 unknown 收，收窄发生在
 //      typeof 与 Array.isArray 判断里 —— 类型不替代那些运行时判断（缺了判断就写进文件才是真正的错）。
 // ---------------------------------------------------------------------------
@@ -75,7 +77,6 @@ export interface ChoiceStoreDeps {
   now?: () => number
   isKnownBackend?: (backendId: string) => boolean | Promise<boolean>
   maxWorkspaces?: number
-  maxLayouts?: number
   maxFileBytes?: number
   homeDir?: string
   getHome?: () => string | null | Promise<string | null>
@@ -102,15 +103,6 @@ export interface WorkspaceRead {
   pickedAt?: number
 }
 
-/** 读布局答案的结果（与后端记录同一套 found 语义，命中那条同样不带 reason）。 */
-export interface LayoutRead {
-  ok: boolean
-  found: boolean
-  reason?: string
-  layout?: LayoutValue
-  pickedAt?: number
-}
-
 /** 写后端记录的结果：ok 时 rev 是宿主新发的修订号，evicted 是这次淘汰掉的条数。 */
 export interface RememberWorkspaceResult {
   ok: boolean
@@ -120,21 +112,11 @@ export interface RememberWorkspaceResult {
   evicted?: number
 }
 
-/** 写布局答案的结果（与写后端同一套 ok/reason 语义，只是没有修订号）。 */
-export interface RememberLayoutResult {
-  ok: boolean
-  reason: string
-  layout?: LayoutValue
-  pickedAt?: number
-}
-
-/** store 的五口加文件位置：读它的是两处（绑定写入与判定读取），实例全进程只有一份（见 platformChannel）。 */
+/** store 的四口加文件位置：读它的是两处（绑定写入与判定读取），实例全进程只有一份（见 platformChannel）。 */
 export interface ChoiceStore {
   read(): Promise<DiskRead>
   getWorkspace(canonicalKey: unknown): Promise<WorkspaceRead>
-  getLayout(canonicalKey: unknown): Promise<LayoutRead>
   rememberWorkspace(canonicalKey: unknown, backendId: unknown): Promise<RememberWorkspaceResult>
-  rememberLayout(canonicalKey: unknown, layout: unknown): Promise<RememberLayoutResult>
   filePath(): Promise<string>
 }
 
@@ -152,12 +134,9 @@ export const CHOICES_FILE_NAME = 'choices.json'
 // 文件形状的版本号。写在文件里的这一位不认的（更高的、或根本没有的）当「这次读不到」处理： 宁可这一轮不用记忆，也不拿一份来路不明的文件去猜（降级方向是安全的，见 ADR 的 R5c）。
 export const CHOICES_VERSION = 1
 // 布局答案的取值只有这两种（根目录一份 GLOSSARY.md / 子项目各一份加一份 GLOSSARY-MAP.md）。
-// 名单本身不在这里写：唯一真源是 src/shared/doc-layout/src/layouts.ts（#1342），这里按原类型
-// 导出一份可变副本，供本文件的读写校验与测试读；加第三种取值只改真源一处。
-export const LAYOUT_VALUES: LayoutValue[] = [...DOC_LAYOUT_VALUES]
+// 名单本身不在这里写：唯一真源是 src/shared/doc-layout/src/layouts.ts（#1342），本文件只拿它校验老数据。
 // 上限（ADR 的 R8）：条数与文件体积。超过就按 pickedAt 从最旧的开始丢，只影响最旧的那些工作区。
 export const DEFAULT_MAX_WORKSPACES = 200
-export const DEFAULT_MAX_LAYOUTS = 200
 export const DEFAULT_MAX_FILE_BYTES = 512 * 1024
 
 // 键的散列形态：sha256 取前 24 位十六进制（与 updateStore.js 的短指纹同一个取法）。
@@ -208,7 +187,7 @@ function cleanWorkspaceEntry(raw: unknown): WorkspaceEntry | null {
 function cleanLayoutEntry(raw: unknown): LayoutEntry | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const r = raw as { layout?: unknown; pickedAt?: unknown }
-  if (typeof r.layout !== 'string' || LAYOUT_VALUES.indexOf(r.layout as LayoutValue) < 0) return null
+  if (typeof r.layout !== 'string' || DOC_LAYOUT_VALUES.indexOf(r.layout as LayoutValue) < 0) return null
   if (!finiteNumber(r.pickedAt)) return null
   return { layout: r.layout as LayoutValue, pickedAt: r.pickedAt }
 }
@@ -252,7 +231,6 @@ export function createChoiceStore(deps?: ChoiceStoreDeps): ChoiceStore {
   // 注册表守卫（ADR 的 R5b）：只有注册表认得的后端才许写进来。没给守卫时按「谁都不认得」处理 —— 宁可写不进去（面板会如实说不成），也不许在最关键的那道判据缺失时默认放行。
   const isKnownBackend = input.isKnownBackend
   const maxWorkspaces = Number.isInteger(input.maxWorkspaces) && (input.maxWorkspaces as number) > 0 ? (input.maxWorkspaces as number) : DEFAULT_MAX_WORKSPACES
-  const maxLayouts = Number.isInteger(input.maxLayouts) && (input.maxLayouts as number) > 0 ? (input.maxLayouts as number) : DEFAULT_MAX_LAYOUTS
   const maxFileBytes = Number.isInteger(input.maxFileBytes) && (input.maxFileBytes as number) > 0 ? (input.maxFileBytes as number) : DEFAULT_MAX_FILE_BYTES
   const homeDirFixed = input.homeDir ? String(input.homeDir) : null
   const getHome = typeof input.getHome === 'function' ? input.getHome : null
@@ -355,19 +333,17 @@ export function createChoiceStore(deps?: ChoiceStoreDeps): ChoiceStore {
     let guard = 0
     while (JSON.stringify(data, null, 2).length + 1 > maxFileBytes && guard < 100000) {
       guard += 1
-      let victim = oldestKey(data.workspaces, protectKey)
-      if (victim) { delete data.workspaces[victim]; dropped += 1; continue }
-      victim = oldestKey(data.layouts, protectKey)
+      const victim = oldestKey(data.workspaces, protectKey)
       if (!victim) break
-      delete data.layouts[victim]
+      delete data.workspaces[victim]
       dropped += 1
     }
     return dropped
   }
   function boundAll(data: ChoicesDoc, protectKey: string): number {
+    // 只淘汰后端记录：布局那栏是历史数据，不删（#1449）。
     let dropped = 0
     dropped += boundCount(data.workspaces, maxWorkspaces, protectKey)
-    dropped += boundCount(data.layouts, maxLayouts, null)
     dropped += boundBytes(data, protectKey)
     return dropped
   }
@@ -376,7 +352,7 @@ export function createChoiceStore(deps?: ChoiceStoreDeps): ChoiceStore {
   let lastBadReason = ''
   function fireRead(keyHash: string, outcome: 'hit' | 'miss'): void { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'choiceStore.read', { keyHash: keyHash, outcome: outcome }) } catch (eL) {} }
 
-  /** 这一次到底读到了什么（给排查与门禁用；正常读取走下面两个 get）。 */
+  /** 这一次到底读到了什么（给排查与门禁用；正常读取走下面的 getWorkspace）。 */
   async function read(): Promise<DiskRead> {
     return readFromDisk()
   }
@@ -391,18 +367,6 @@ export function createChoiceStore(deps?: ChoiceStoreDeps): ChoiceStore {
     if (!rec) { fireRead(key, 'miss'); return { ok: true, found: false, reason: 'miss' } }
     fireRead(key, 'hit')
     return { ok: true, found: true, backendId: rec.backendId, rev: rec.rev, pickedAt: rec.pickedAt }
-  }
-
-  /** 按工作区键读一条布局答案。没记过就是 found=false。 */
-  async function getLayout(canonicalKey: unknown): Promise<LayoutRead> {
-    const key = storeKeyOf(canonicalKey)
-    if (!key) return { ok: false, found: false, reason: 'no-key' }
-    const cur = await readFromDisk()
-    if (cur.unreadable) return { ok: false, found: false, reason: cur.reason }
-    const rec = cur.data.layouts[key]
-    if (!rec) { fireRead(key, 'miss'); return { ok: true, found: false, reason: 'miss' } }
-    fireRead(key, 'hit')
-    return { ok: true, found: true, layout: rec.layout, pickedAt: rec.pickedAt }
   }
 
   /**
@@ -440,34 +404,10 @@ export function createChoiceStore(deps?: ChoiceStoreDeps): ChoiceStore {
     })
   }
 
-  /** 记住布局答案（单上下文 / 多上下文那两种）。形状与后端记录同一套，只是没有修订号。 */
-  async function rememberLayout(canonicalKey: unknown, layout: unknown): Promise<RememberLayoutResult> {
-    return serial(async function () {
-      const key = storeKeyOf(canonicalKey)
-      if (!key || !canonicalKey) return { ok: false, reason: 'no-key' }
-      if (LAYOUT_VALUES.indexOf(layout as LayoutValue) < 0) return { ok: false, reason: 'reject-layout' }
-      const cur = await readFromDisk()
-      if (cur.unreadable) return { ok: false, reason: cur.reason }
-      const data = cur.data
-      const pickedAt = nowFn()
-      data.layouts[key] = { layout: layout as LayoutValue, pickedAt: pickedAt }
-      const droppedL = boundAll(data, key)
-      try { if (droppedL > 0 && logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'choiceStore.evict', { count: droppedL, max: maxLayouts }) } catch (eL) {}
-      const w = await writeToDisk(data)
-      if (!w.ok) {
-        try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'choiceStore.write.fail', { keyHash: key, reason: w.reason }) } catch (eL) {}
-        return { ok: false, reason: w.reason }
-      }
-      return { ok: true, reason: '', layout: layout as LayoutValue, pickedAt: pickedAt }
-    })
-  }
-
   return {
     read: read,
     getWorkspace: getWorkspace,
-    getLayout: getLayout,
     rememberWorkspace: rememberWorkspace,
-    rememberLayout: rememberLayout,
     filePath: async function (): Promise<string> { const p = await resolvePaths(); return p ? p.file : '' },
   }
 }

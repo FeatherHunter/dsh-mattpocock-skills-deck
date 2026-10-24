@@ -4,7 +4,7 @@
  *
  * 覆盖：
  *  - 特性 A：lastProbeAtByCwd/getProbeAt/touchProbeAt 在场；快照校验（ok/304）与 wf.probe 完成即走针；
- *    状态栏 timeStr 优先取上次探测时间（数据不变也走针）
+ *    状态栏常驻时刻取快照的取数时刻（与右侧面板头部同源；2026-10-24 起探测时间不再画在胶囊上）
  *  - 特性 B：IndexedDB 磁盘层（dsws-cache/snapshots，不可用环境静默降级）；setCachedSnapshot 写穿透（内存+磁盘）；
  *    loadSnapshot 内存未命中先查磁盘，命中秒显（不出现可见加载态）且照常发起网络校验
  *  - 双产物一致：client.js 与 package/lib/client.js 均含上述接线
@@ -35,6 +35,10 @@ function read(rel: string): string {
 }
 const has = (src: string, needle: string, name: string, label: string): void => {
   (src.indexOf(needle) >= 0 || squashed(src).indexOf(squash(needle)) >= 0) ? ok(name + ' ' + label) : bad(name + ' ' + label)
+}
+// 反向断言：那一段代码必须已经不在产物里（用于锁住「换掉一条旧路径」的语义变更，防止它被顺手改回来）。
+const hasNot = (src: string, needle: string, name: string, label: string): void => {
+  (src.indexOf(needle) < 0 && squashed(src).indexOf(squash(needle)) < 0) ? ok(name + ' ' + label) : bad(name + ' ' + label)
 }
 // 「这一段代码还在产物里」怎么认（#1251 之后产物形状变了，判据本身没放宽）：
 //   产物是 esbuild 拼出来的（同名 .js 就是构建产物），与手写真源有两处系统性差异 ——
@@ -67,10 +71,11 @@ for (const [name, src] of targets) {
   // #653 口径变更（本门禁同步改）：走针广播与探测时间的键从「所选目录的归一键」升级为「工作区根键」，
   // 于是同一个仓库里的子目录会话与根会话共用一条上次探测时间、一起随广播重渲染。
   has(src, 'wsKeyOf(shared.cwd) === k) emit(shared)', name, 'shared 走针广播（按工作区键）')
-  has(src, 'getProbeAt(s.cwd)', name, '状态栏读探测时间')
-  has(src, 'timeOfMs(_probeMs)', name, '状态栏格式化探测时间')
-  has(src, 'const timeOfMs', name, 'timeOfMs 在场')
-}
+  // 2026-10-24 语义变更（本门禁同步改）：胶囊常驻时刻改为与右侧面板同源的「快照取数时刻」；
+  //   上次探测时间只用于新鲜度判断与磁盘条目恢复，不再画在界面上。改回优先探测时间会让两块时间再次互相矛盾。
+  has(src, 'timeOf(s.snapshot)', name, '状态栏时刻取快照取数时刻（与面板同源）')
+  hasNot(src, 'getProbeAt(s.cwd)', name, '状态栏不再读探测时间')
+  hasNot(src, 'timeOfMs(_probeMs)', name, '状态栏不再格式化探测时间')}
 
 console.log('\n2) 特性 B：IndexedDB 磁盘层 + 写穿透')
 for (const [name, src] of targets) {
