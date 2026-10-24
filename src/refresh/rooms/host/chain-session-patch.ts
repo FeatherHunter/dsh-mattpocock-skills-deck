@@ -125,43 +125,21 @@ async function patchWithBudget(scoped: CheckItem[], ctx: SessionPatchContext): P
 }
 
 /**
- * 按当前会话重算缓存回包里依赖会话许可的行，返回改好的副本。
+ * 把重算得到的判定换进缓存回包的副本里，返回新回包。
  *
- * 副本的深浅：顶层一定是新对象；backendChain / snapshot / fullSnapshot 也是新对象（本函数自己拼的），
- *   所以调用方拿到后原地改这些嵌套字段不会污染缓存。真正的反例是调用方只做顶层 Object.assign
- *   ——那与缓存条目共用嵌套对象，谁原地改一下就把缓存改了（外层打 sessionPatchFailed 时是这么复制的，
- *   但那条路由本函数原样交出的回包，不会原地改，见 check-chain-evaluation.ts 里那段注释）。
+ * 副本的深浅（说清楚，免得调用方误以为可以随便改）：顶层、backendChain、backendChain.snapshot、
+ *   fullSnapshot 都是本函数新拼的对象；但 fullSnapshot.steps 里**非会话相关**的那几行还是缓存里的原对象，
+ *   所以整份副本里没有任何一行允许原地改——要改只能再复制一层。反例：拿这份回包的 steps 原地改某个字段，
+ *   下一个会话读缓存就会看到被改过的值（缓存本体没换，但行对象是同一批）。
  *
- * @param reply 退避缓存交回的上一份完整回包（可能只是快照、没有后端段）
- * @param ctx 当前会话的平台、工作区、语言与沙箱许可
- * @returns reply 是可直接回给客户端的副本（没有会话相关项时就是原对象），patchedCount 是这次重算的项数
+ * @param cached 缓存里的完整回包
+ * @param backend 缓存里的后端段（提供 resolved 与 chain）
+ * @param chain 后端链的检查项列表（决定行序）
+ * @param scopedIds 这次重算了哪些 id（决定 fullSnapshot 里换哪几行）
+ * @param fresh 这次重算得到的判定
+ * @returns 可直接回给客户端的新回包
  */
-export async function patchCachedReplyForSession(reply: unknown, ctx: SessionPatchContext): Promise<{ reply: unknown; patchedCount: number }> {
-  const cached = reply as CachedReplyView | null | undefined
-  if (!cached || typeof cached !== 'object') return { reply: reply, patchedCount: 0 }
-  // 扫描范围只有后端段：带 sessionScoped 标记的检查项目前都在后端段（md:scratchWritable）。
-  //   以后通用段（cached.chain）若有项标了 sessionScoped，这里必须一起扩展——否则缓存命中时
-  //   那一行会沿用别的会话的判定；正常求值那一路不受影响（ctx 本来就带着当前会话的沙箱许可）。
-  const backend = cached.backendChain
-  const chain = (backend && Array.isArray(backend.chain)) ? backend.chain : null
-  if (!chain || !chain.length) return { reply: reply, patchedCount: 0 }
-  const scoped = chain.filter(function (it: CheckItem) { return it && (it as any).sessionScoped === true })
-  if (!scoped.length) return { reply: reply, patchedCount: 0 }
-
-  const scopedIds: Record<string, true> = {}
-  scoped.forEach(function (it: CheckItem) { if (it.id) scopedIds[String(it.id)] = true })
-  // 重算；每一项单独兜底，一项失败不影响其它项，也绝不把异常抛给调用方。
-  // 超时的话，整批会话相关行按 pending 重铺（partial 结果丢掉，见 patchWithBudget）。
-  const budget = await patchWithBudget(scoped, ctx)
-  let fresh: ResolvedMap = budget.fresh
-  if (budget.timedOut) {
-    fresh = {}
-    const msg = timeoutDetail(ctx)
-    for (const item of scoped) { if (item.id) fresh[String(item.id)] = { status: 'pending', detail: msg } }
-  }
-  const patchedCount = Object.keys(fresh).length
-  if (!patchedCount) return { reply: reply, patchedCount: 0 }
-
+async function applyFreshResolved(cached: CachedReplyView, backend: BackendChainView, chain: CheckItem[], scopedIds: Record<string, true>, fresh: ResolvedMap): Promise<CachedReplyView> {
   // 缓存里的判定原样沿用，只把这次重算的那几项换掉。
   const mergedResolved: ResolvedMap = Object.assign({}, (backend && backend.resolved) || {})
   for (const id of Object.keys(fresh)) {
@@ -194,5 +172,80 @@ export async function patchCachedReplyForSession(reply: unknown, ctx: SessionPat
     })
     nextReply.fullSnapshot = Object.assign({}, full, assembleFullSnapshot(nextSteps))
   }
+  return nextReply
+}
+
+/** 哪些检查项带会话相关标记（只扫后端段）。缓存回包里没有后端段时返回 null。 */
+function scopedOf(reply: unknown): { cached: CachedReplyView; backend: BackendChainView; chain: CheckItem[]; scoped: CheckItem[] } | null {
+  const cached = reply as CachedReplyView | null | undefined
+  if (!cached || typeof cached !== 'object') return null
+  // 扫描范围只有后端段：带 sessionScoped 标记的检查项目前都在后端段（md:scratchWritable）。
+  //   以后通用段（cached.chain）若有项标了 sessionScoped，这里必须一起扩展——否则缓存命中时
+  //   那一行会沿用别的会话的判定；正常求值那一路不受影响（ctx 本来就带着当前会话的沙箱许可）。
+  const backend = cached.backendChain
+  const chain = (backend && Array.isArray(backend.chain)) ? backend.chain : null
+  if (!chain || !chain.length) return null
+  const scoped = chain.filter(function (it: CheckItem) { return it && (it as any).sessionScoped === true })
+  if (!scoped.length) return null
+  return { cached: cached, backend: backend, chain: chain, scoped: scoped }
+}
+
+/** 把 check 列表里带会话相关标记的 id 收成一张表（决定 fullSnapshot 里换哪几行）。 */
+function idsOf(scoped: CheckItem[]): Record<string, true> {
+  const ids: Record<string, true> = {}
+  scoped.forEach(function (it: CheckItem) { if (it.id) ids[String(it.id)] = true })
+  return ids
+}
+
+/**
+ * 按当前会话重算缓存回包里依赖会话许可的行，返回改好的副本。
+ *
+ * 副本的深浅见 applyFreshResolved 的说明：整份副本不许原地改（非会话行仍与缓存共用对象）。
+ *
+ * @param reply 退避缓存交回的上一份完整回包（可能只是快照、没有后端段）
+ * @param ctx 当前会话的平台、工作区、语言与沙箱许可
+ * @returns reply 是可直接回给客户端的副本（没有会话相关项时就是原对象），patchedCount 是这次重算的项数
+ */
+export async function patchCachedReplyForSession(reply: unknown, ctx: SessionPatchContext): Promise<{ reply: unknown; patchedCount: number }> {
+  const found = scopedOf(reply)
+  if (!found) return { reply: reply, patchedCount: 0 }
+  // 重算；每一项单独兜底，一项失败不影响其它项，也绝不把异常抛给调用方。
+  // 超时的话，整批会话相关行按 pending 重铺（partial 结果丢掉，见 patchWithBudget）。
+  const budget = await patchWithBudget(found.scoped, ctx)
+  let fresh: ResolvedMap = budget.fresh
+  if (budget.timedOut) {
+    fresh = {}
+    const msg = timeoutDetail(ctx)
+    for (const item of found.scoped) { if (item.id) fresh[String(item.id)] = { status: 'pending', detail: msg } }
+  }
+  const patchedCount = Object.keys(fresh).length
+  if (!patchedCount) return { reply: reply, patchedCount: 0 }
+  const nextReply = await applyFreshResolved(found.cached, found.backend, found.chain, idsOf(found.scoped), fresh)
+  return { reply: nextReply, patchedCount: patchedCount }
+}
+
+/**
+ * 整趟补算做不下去时的退路：不碰平台、不重算，只把会话相关行改成「未确认」，其余照旧。
+ *
+ * 为什么需要（#1492 复核）：补算外层失败时（取不到平台、模块加载失败、连沙箱许可都解析不下来），
+ *   原来的做法是原样回缓存那一份——只读会话会短暂看到别的会话量出的「可写」。
+ *   「无法确认」比「显示别人的结论」诚实；这一步只依赖缓存里已有的链与行，不需要平台能力。
+ *   仍然由外层打 sessionPatchFailed（客户端据此不写共享缓存），理由不变：这份回包不是本会话量出来的。
+ *
+ * @param reply 缓存里的完整回包
+ * @param ctx 只用到界面语言（决定文案），平台与许可一律不碰
+ * @returns 会话相关行落成 pending 的副本；没有会话相关项时原样返回
+ */
+export async function markSessionScopedUnconfirmed(reply: unknown, ctx: SessionPatchContext): Promise<{ reply: unknown; patchedCount: number }> {
+  const found = scopedOf(reply)
+  if (!found) return { reply: reply, patchedCount: 0 }
+  const detail = ctx.lang === 'en'
+    ? 'this session could not re-check it, treated as unknown for now'
+    : '没能按本会话重算，先按未确认处理'
+  const fresh: ResolvedMap = {}
+  for (const item of found.scoped) { if (item.id) fresh[String(item.id)] = { status: 'pending', detail: detail } }
+  const patchedCount = Object.keys(fresh).length
+  if (!patchedCount) return { reply: reply, patchedCount: 0 }
+  const nextReply = await applyFreshResolved(found.cached, found.backend, found.chain, idsOf(found.scoped), fresh)
   return { reply: nextReply, patchedCount: patchedCount }
 }
