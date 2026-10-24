@@ -79,7 +79,10 @@ export function ticketFormOf(text: string): TicketForm {
   const head = raw.split('\n').slice(0, fieldEnd(raw)).join('\n')
   if (BOLD_FIELD_RE.test(head)) return 'impl-ticket'
   if (/^##[ \t]+Question[ \t]*$/im.test(raw)) return 'map-ticket'
-  if (new RegExp('^[ \\t]*' + namePattern('Type') + '[ \\t]*[:：]', 'im').test(raw)) return 'map-ticket'
+  // 手写地图子票的特征是「# NN: 标题」+ 裸 Type 行（issue-tracker-local.md:26）。只看裸 Type 行会误伤旧布局：
+  // 旧布局的票文件同样写 `Type: task`，但标题形状是 `# <标题>`、没有编号前缀，所以两个条件都要满足。
+  const bareType = new RegExp('^[ \\t]*' + namePattern('Type') + '[ \\t]*[:：][ \\t]*(research|prototype|grilling|task)\\s*$', 'im').test(raw)
+  if (bareType && /^#[ \\t]*\d{1,3}[ \\t]*:/.test(raw)) return 'map-ticket'
   if (hiddenCommentOf(raw, 'DSH-FORMAT').found) return 'impl-ticket'
   return 'legacy'
 }

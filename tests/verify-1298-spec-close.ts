@@ -237,7 +237,9 @@ async function main() {
     check(r1.ok === true && r1.status === 'ok', '实施票 A 可以照常关闭（实得 ' + (r1 && r1.status) + '）')
     check((r1.items || []).some((i) => i.step === 'comment' && i.status === 'ok') && (r1.items || []).some((i) => i.step === 'close' && i.status === 'ok'), '实施票 A：评论与关闭两步都成了 ' + JSON.stringify(r1.items))
     check((await stateOf(implA, SPEC_FEATURE)) === 'closed', '实施票 A 读回来是 closed（实得 ' + (await stateOf(implA, SPEC_FEATURE)) + '）')
-    check(ticketTextOf(implA).indexOf('Status: resolved') >= 0, '实施票 A 的文件里落了关闭状态（Status: resolved）')
+    // #1489 起实施票按原文布局把状态写成加粗的 `**Status:** resolved`，判据从「有裸 Status: resolved 这一行」放宽到
+    // 「状态行（加粗或裸）的值是 resolved」——原来数的那件事没变（没有放宽到「文件里随便出现 resolved」）。
+    check(/^[ \t]*(?:\*\*)?Status[ \t]*[:：][ \t]*(?:\*\*)?[ \t]*resolved[ \t]*$/m.test(ticketTextOf(implA)), '实施票 A 的文件里落了关闭状态（Status: resolved）')
 
     const r2 = await callTool('deck_issue_patch', { key: implB, feature: SPEC_FEATURE, comment: '实施票 B 核对通过：复现步骤已走一遍。', close: true })
     check(r2.ok === true && (await stateOf(implB, SPEC_FEATURE)) === 'closed', '实施票 B 也关掉了（实得 ' + (r2 && r2.status) + ' / ' + (await stateOf(implB, SPEC_FEATURE)) + '）')

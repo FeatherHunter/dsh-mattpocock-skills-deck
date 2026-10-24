@@ -27,8 +27,9 @@
       "comment"
     ],
     "ticket": {
+      "assignees": [],
       "blockedBy": [],
-      "body": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n**Status:** ready-for-agent\n\n## 进度\n\n## Comments\n\n### local — <TIME>\n金标准评论\n\n",
+      "body": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n**Status:** ready-for-agent\n\n## Comments\n\n### local — <TIME>\n金标准评论\n\n## 进度\n",
       "closedAt": null,
       "comments": [
         {

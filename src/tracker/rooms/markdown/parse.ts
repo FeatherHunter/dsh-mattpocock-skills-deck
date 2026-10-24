@@ -3,6 +3,8 @@ import type { Issue } from '../../contract/entities.js'
 import type { IssueType, State } from '../../contract/identity.js'
 // #1277：对象类型唯一真源是文件头那行隐藏标记（ADR 2.5），本地房读票时认它。
 import { markerKindInHeader } from '../../../shared/issue-file/src/marker.js'
+// #1489：文件头隐藏注释的「有这一行 / 没有这一行」要分开（空名单 ≠ 没记下来），用原文布局那层的读法。
+import { hiddenCommentOf } from './original-fields.js'
 
 // parseMd 的元数据：调用方（读路径各处）已知的票身份，不从正文里读；
 // 契约 Issue 的核心字段多由此补齐（key/effortId/parentKey/时间/url）。
@@ -75,7 +77,8 @@ export function isWholeIssueBody(body: unknown): boolean {
   const t = typeof body === 'string' ? body : ''
   if (/^\s*#\s+\S/m.test(t)) return true
   if (/^\s*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/m.test(t)) return true
-  if (/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/im.test(t)) return true
+  // #1489：原文实施票模板的字段行是加粗的（**Status:** ...），整份判据也要认，否则读回原样写回会被当片段。
+  if (/^\s*(?:\*\*)?(Status|Type|Blocked\s+by|Labels)(?:\*\*)?\s*[:\uFF1A]/im.test(t)) return true
   if (/^\s*##\s*(Comments|Answer)\s*$/im.test(t)) return true
   return false
 }
@@ -202,9 +205,11 @@ export function assigneesFromFile(text: unknown): { found: boolean; value: Array
   const m = /^[ \t]*Assignees[ \t]*[:\uFF1A][ \t]*(.*)$/im.exec(raw)
   if (!m) {
     // #1486：新布局的认领人写在 DSH-ASSIGNEES 隐藏注释里；有这一行就按它读。
-    const hidden = hiddenHeaderValue(raw, 'DSH-ASSIGNEES')
-    if (!hidden) return { found: false, value: [] }
-    const names = splitHiddenList(hidden)
+    // #1489：读「有没有这一行」而不是「值空不空」：`<!-- DSH-ASSIGNEES:  -->` 是插件写下的
+    //   明确空名单（解除认领后留的痕迹），与根本没有这一行（这份文件没记下是谁）不是一回事。
+    const hidden = hiddenCommentOf(raw, 'DSH-ASSIGNEES')
+    if (!hidden.found) return { found: false, value: [] }
+    const names = splitHiddenList(hidden.value)
     return { found: true, value: names.map((login) => ({ login: login, kind: 'user' as const })) }
   }
   const names = String(m[1] || '').split(/[,\uFF0C]+/).map((s) => s.trim()).filter(Boolean)
@@ -222,7 +227,9 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   // 标题、正文、评论骨架仍然按整份原文读 —— 那几处要的就是原文。
   const field = stripFencedCode(raw)
   // #1486：新布局把状态写在 DSH-STATUS 隐藏注释里；可见的 Status: 行优先（老文件与人工改过的票都还有）。
-  const statusRaw = (/^\s*Status\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(field)?.[1]?.trim() || '')
+  // #1489：原文实施票可见状态行是加粗写法（**Status:** resolved）；字段名两侧的 ** 都当装饰剥掉，
+  //   值仍是冒号后面那一段（值前面可能还有一个收尾的 **，一并跳过）。可见行依旧优先于隐藏注释。
+  const statusRaw = (/^\s*(?:\*\*)?Status(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*([^\n]+)/im.exec(field)?.[1]?.trim() || '')
     || hiddenHeaderValue(raw, 'DSH-STATUS')
   const statusNorm = statusRaw.toLowerCase().replace(/\s+/g, '-')
   const closedSet = new Set(['resolved', 'completed', 'closed', 'done'])
@@ -235,12 +242,13 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     const first = raw.split('\n').find((l) => l.trim().length > 0) || ''
     return first.replace(/^#+\s*/, '').trim()
   })()
-  const typeRaw = (/^\s*Type\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(field)?.[1]?.trim().toLowerCase() || '')
+  // #1489：地图子票的 Type 行是裸写法；加粗包法是实施票/手写模板的通用写法，这里一并认。
+  const typeRaw = (/^\s*(?:\*\*)?Type(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*([^\n]+)/im.exec(field)?.[1]?.trim().toLowerCase() || '')
   let customFields
   if (typeRaw) {
     customFields = [{ name: 'Type', value: typeRaw, type: 'single', options: ['research', 'prototype', 'grilling', 'task'] }]
   }
-  const blockedRaw = (/^\s*Blocked\s+by\s*[:\uFF1A][ \t]*(.+)$/im.exec(field)?.[1]?.trim() || '')
+  const blockedRaw = (/^\s*(?:\*\*)?Blocked\s+by(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*(.+)$/im.exec(field)?.[1]?.trim() || '')
     || splitHiddenList(hiddenHeaderValue(raw, 'DSH-BLOCKED-BY')).join(', ')
   let blockedBy = []
   if (blockedRaw) {
@@ -260,7 +268,7 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   // #634：每段先经 stripLabelDecoration 剥掉外层成对引号/反引号（照抄文档代码写法写进来的那层），
   //   剥完全空的段一样按「非法段丢弃」处理，与原来的空段口径一致。
   let labels = []
-  const labelsMatch = /^\s*Labels?\s*[:\uFF1A][ \t]*([^\n]*)/im.exec(field)
+  const labelsMatch = /^\s*(?:\*\*)?Labels?(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*([^\n]*)/im.exec(field)
   if (labelsMatch) {
     const rawNames = labelsMatch[1] || ''
     // 逗号（含全角）分隔，仅名字

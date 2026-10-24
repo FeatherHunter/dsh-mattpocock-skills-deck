@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T22:04:47.211Z",
+  "generatedAt": "2026-10-24T23:10:51.825Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 368,
-  "gateCount": 368,
-  "attributedGates": 328,
+  "chainLength": 370,
+  "gateCount": 370,
+  "attributedGates": 330,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 580,
+  "graphFileCount": 581,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3181,6 +3181,36 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1489-original-fields.ts",
+      "file": "tests/verify-1489-original-fields.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/original-fields.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1489-status-write.ts",
+      "file": "tests/verify-1489-status-write.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10038,6 +10068,8 @@
       "node tests/verify-1487-map-create.ts",
       "node tests/verify-1487-map-plan.ts",
       "node tests/verify-1488-read-mixed-layout.ts",
+      "node tests/verify-1489-original-fields.ts",
+      "node tests/verify-1489-status-write.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -10299,9 +10331,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 601,
+    "fileCount": 602,
     "dirCount": 74,
-    "coveredFileCount": 601,
+    "coveredFileCount": 602,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -10890,6 +10922,7 @@
       "src/tracker/rooms/markdown/label-colors.ts",
       "src/tracker/rooms/markdown/map-render.ts",
       "src/tracker/rooms/markdown/normalize.ts",
+      "src/tracker/rooms/markdown/original-fields.ts",
       "src/tracker/rooms/markdown/page.ts",
       "src/tracker/rooms/markdown/parse.ts",
       "src/tracker/rooms/markdown/patch-body.ts",

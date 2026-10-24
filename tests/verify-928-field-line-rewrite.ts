@@ -107,11 +107,14 @@ const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok 
   const key = created.data.key || '01'
   const closed = await tracker.close(REF, key, { reason: 'duplicate' }, ctx)
   check(closed.ok === true, '⑤ 带原因关票成功（实得 ' + JSON.stringify(closed && closed.error || 'ok') + '）')
-  check(String(files.get(file)).includes('Close reason: duplicate'), '⑤ 票面上写下了 Close reason 那一行（实得 ' + JSON.stringify(String(files.get(file)).split('\n').slice(0, 9)) + '）')
+  // #1489：新布局的普通票按原文布局关闭时，关闭原因写成 ## Comments 下的一条评论，不再写可见的 Close reason 行。
+  // 这里守的仍是「原因写下来了、改完正文还在」，两种落盘方式都算，所以用同一个「原因在哪」的判定。
+  const closeReasonLanded = (text) => text.includes('Close reason: duplicate') || (text.split('## Comments')[1] || '').includes('duplicate')
+  check(closeReasonLanded(String(files.get(file))), '⑤ 票面上写下了关闭原因（实得 ' + JSON.stringify(String(files.get(file)).split('\n').slice(0, 12)) + '）')
   const updated = await tracker.update(REF, key, { body: '换一段正文。' }, ctx)
   check(updated.ok === true, '⑤ 改正文成功（实得 ' + JSON.stringify(updated && updated.error || 'ok') + '）')
   const finalText = String(files.get(file))
-  check(finalText.includes('Close reason: duplicate'), '⑤ 改过正文之后，Close reason 那一行还在（#1174 复核 P1-1，实得 ' + JSON.stringify(finalText.split('\n').slice(0, 9)) + '）')
+  check(closeReasonLanded(finalText), '⑤ 改过正文之后，关闭原因还在（#1174 复核 P1-1，实得 ' + JSON.stringify(finalText.split('\n').slice(0, 12)) + '）')
   check(hasLabels(finalText) && finalText.includes('Blocked by: #02'), '⑤ 认领人与阻塞边两行也没被这次改正文弄丢')
 }
 

@@ -12,6 +12,9 @@ import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile, resolveSpecFile } from './issues-locate.js'
+// #1489：原文布局把评论追加到 ## Comments 段的末尾（issue-tracker-local.md:11），不再往段首插；
+// 旧布局保持原样（既有门禁钉着那套位置）。
+import { appendSectionBlock, ticketFormOf } from './original-fields.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Comment } from '../../contract/entities.js'
 // #922：写评论同样是「读整份 → 在内存里改 → 整份写回」，要排在该票文件的单写者队列里，见 write-queue.js。
@@ -36,6 +39,11 @@ async function locateForWrite(ctx: OpContext, repo: RepoWithPath | null, norm: s
   return resolveIssueFile(ctx, repo, norm, { mode: 'write' })
 }
 
+/** 一条评论的文本块：`### <actor> — <ISO 时间>` 加正文。
+ *  关票时追加的关闭原因也用这同一个块（见 issues-status.ts），两处格式不许各写一份。 */
+export function commentBlockOf(actor: string, body: string, iso: string): string {
+  return '### ' + actor + ' \u2014 ' + iso + '\n' + String(body || '').trim() + '\n'
+}
 export async function listComments(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true,data:Comment[]}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
   const r=await locateForWrite(ctx,repo,norm)
@@ -63,7 +71,16 @@ async function addCommentInner(ctx: OpContext,repo: RepoWithPath | null,key: str
       const nowIso=new Date().toISOString()
       // actor 与 sandboxPolicy 不在契约 OpContext 上（宿主按会话透传的扩展键）：经视图读，不拓签名。
       const actor=String((ctx&&(ctx as {actor?: unknown}).actor)||'local')
-      const block='### '+actor+' \u2014 '+nowIso+'\n'+String(body||'').trim()+'\n'
+      const block=commentBlockOf(actor,String(body||''),nowIso)
+      // #1489：原文布局（实施票、地图子票、插件建的新文件）往 ## Comments 段末尾追加；
+      // 旧布局保留「插在段首」的既有行为，不改它的位置。
+      if(ticketFormOf(txt)!=='legacy'){
+        const next=appendSectionBlock(txt,'Comments',block)
+        await publishTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+        noteFileWritten(trail)
+        const comment: Comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
+        return{ok:true,data:comment}
+      }
       const re=/^\s*##\s*Comments\s*$/im
       const m=re.exec(txt)
       if(m){
