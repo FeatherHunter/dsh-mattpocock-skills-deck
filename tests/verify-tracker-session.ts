@@ -14,6 +14,10 @@
  *   五、读预算特权：它只读缓存不花额度，所以不走裁决也不记账，直达房间。
  *   六、选后端只看本地：无后端、多命中、未决、工作区没就绪各回各的可区分结果，全程不抛异常。
  *
+ * 票 1457 补的两条端到端断言（规格 #1439 核对时发现原来只断了弱形状）：
+ *   · 缺预算声明的模块经 createRegistry().register 注册时真的当场抛错，理由点名预算；
+ *   · 离网后端经会话调用后，真账本上这一笔的金额是 0，而且每个已有桶的计数都是 0——断的是钱，不是记账口被叫了几次。
+ *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-tracker-session.ts
  */
 import { OPERATIONS, CAPABILITIES } from '../src/tracker/contract/operations-catalog.ts'
@@ -24,6 +28,8 @@ import { openTracker } from '../src/tracker/session/open-tracker.ts'
 import type { OpenTrackerOptions } from '../src/tracker/session/open-tracker.ts'
 import { createRegistry } from '../src/tracker/registry/core.ts'
 import { validateMod } from '../src/tracker/registry/shape.ts'
+import { createLedger } from '../src/refresh/rooms/host/quota-ledger.ts'
+import { createAccountPort } from '../src/refresh/kernel/backend-accounting.ts'
 import type { BackendModule } from '../src/tracker/contract/backend-module.ts'
 import type { OpContext, RepoHandle } from '../src/tracker/contract/contexts.ts'
 import type { Selection } from '../src/tracker/contract/results.ts'
@@ -64,6 +70,23 @@ const fakeModule = {
   matches: () => true,
 } satisfies BackendModule
 
+// —— 假后端离网：声明里就没有额度这回事；房间却在回包里自报了用量（4 条 / 3 点）。
+// 自报用量是故意的：离网这一笔账面必须是 0，但「0」不能是因为房间里根本没花，得是记账口径认了离网才记 0。
+const offBudget: BackendBudgetModel = {
+  kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false,
+}
+const offModule = {
+  id: 'fake-off',
+  label: 'Fake Off',
+  budget: offBudget,
+  create: () => ({
+    list: async () => { roomCalls.push('off-list'); return { ok: true, data: { tag: 'off-list' }, usage: { requests: 4, points: 3 } } },
+    close: async () => { roomCalls.push('off-close'); return { ok: true, data: { tag: 'off-close' } } },
+    readBudget: async () => { roomCalls.push('off-readBudget'); return { ok: true, data: offNetworkReading } },
+  }),
+  matches: () => true,
+} satisfies BackendModule
+
 // —— 参考裁决：把规格定的三态分流逐字实现，未知与离网放行、已知耗尽推迟、硬顶始终生效 ——
 const WRITE_OPS = ['create', 'close', 'reopen', 'comment', 'update', 'setLabels', 'setAssignees',
   'setParent', 'setBlockedBy', 'setLabelColors', 'ensureLabelColorsFile', 'initProject']
@@ -93,9 +116,10 @@ const referenceAccount = async (input: { op: string; result: unknown }) => {
 }
 
 const HANDLE: RepoHandle = { cwd: 'D:/fake-workspace' }
-function openWith(over: Partial<OpenTrackerOptions> & { canWrite?: boolean }): ReturnType<typeof openTracker> {
+function openWith(over: Partial<OpenTrackerOptions> & { canWrite?: boolean },
+  mod: BackendModule = fakeModule): ReturnType<typeof openTracker> {
   const registry = createRegistry()
-  registry.register(fakeModule)
+  registry.register(mod)
   return openTracker(HANDLE, {
     registry,
     getCachedReading: () => currentReading,
@@ -148,6 +172,16 @@ async function main(): Promise<void> {
     validateMod({ id: 'neg', label: 'neg', create: () => ({}), matches: () => false, budget: { kind: 'two-buckets', countsRequests: 'yes' as unknown as boolean, countsPoints: true, independentBuckets: true } })
   } catch (e) { badFlagReason = String((e as Error).message || '') }
   check(badFlagReason.indexOf('countsRequests') >= 0, '预算开关写错被拒绝且理由点名那一格 → ' + JSON.stringify(badFlagReason))
+  // 端到端：不是只调校验函数，而是走注册表真正注册一次——拒绝必须发生在进注册表之前，
+  // 理由带 budget 这两个字，方便装配方一眼看出缺的是口径声明而不是 id / create 之类。
+  const registryNeg = createRegistry()
+  let registerReason = ''
+  try {
+    registryNeg.register({ id: 'neg', label: 'neg', create: () => ({}), matches: () => false } as never)
+  } catch (e) { registerReason = String((e as Error).message || '') }
+  check(registerReason.indexOf('budget') >= 0,
+    '缺预算的模块经注册表注册时当场抛错且理由点名预算 → ' + JSON.stringify(registerReason))
+  check(registryNeg.modules().length === 0, '注册失败的模块没有留在注册表里（不留半截）')
 
   console.log('== 三、会话形状：编号预算写权限与 26 条能力 ==')
   currentReading = fullBuckets
@@ -173,12 +207,37 @@ async function main(): Promise<void> {
     (listed as { ok: boolean; data?: { tag?: string } }).data?.tag === 'room-list',
     '分发原样透传（房间的结果原样回到调用方）')
   check(accountCalls.length === 1 && accountCalls[0].op === 'list', '成功调用记一笔账（记的是这一条操作）')
-  // 离网：放行，且记账那一侧看到的是零花费（本来就没花）。
+  // 离网后端：放行；房间自报的用量（4 条 / 3 点）也不许进账本。这里把真账本与真记账口接进会话，
+  // 断的是「账本上这一笔的金额是 0」，而不是「记账口被叫了一次」。
   roomCalls.length = 0; accountCalls.length = 0; admitCalls.length = 0
   currentReading = offNetworkReading
-  const listedOff = await s1.session.list({} as never, {} as OpContext)
+  const offLedger = createLedger({ now: () => 1700000000000 })
+  // 账本里先给这个后端留着两个桶（换口径前的遗留）：记账口若没有在「离网」这一支提前返回，
+  // 这笔 4 条 / 3 点就会落进桶里，下面的 0 立刻变红。没有桶时记账会当场抛、被管线收成诊断，
+  // 账面仍然看着是 0，断不出这个错。
+  offLedger.ensureBackend('fake-off', { kind: 'two-buckets' })
+  const offAccount = createAccountPort({ ledger: offLedger, account: 'ai-tool' })
+  const sOff = await openWith({
+    account: async (input) => { accountCalls.push({ op: input.op, result: input.result }); await offAccount(input) },
+  }, offModule)
+  if (!sOff.ok) { check(false, '离网后端的会话没打开'); return }
+  const listedOff = await sOff.session.list({} as never, {} as OpContext)
   check((listedOff as { ok: boolean }).ok === true, '离网放行（不花额度的后端不拦读操作）')
   check(accountCalls.length === 1, '离网调用也记一笔（账本不断档，只是零花费）')
+  const offUsage = (listedOff as { usage?: { requests?: number; points?: number } }).usage
+  check(!!offUsage && offUsage.requests === 4 && offUsage.points === 3,
+    '离网房间确实自报了用量（账面为 0 不是因为没用量）→ ' + JSON.stringify(offUsage))
+  const offSpent = offLedger.hourOf('ai-tool', 'fake-off')
+  check(offSpent.requests === 0 && offSpent.points === 0,
+    '离网后端调用后账本金额为 0（实得 ' + JSON.stringify(offSpent) + '）')
+  const offSnap = offLedger.snapshot()
+  const offRows = Object.keys(offSnap.byAccount['ai-tool'])
+    .filter((k) => k.indexOf('fake-off') >= 0)
+    .map((k) => offSnap.byAccount['ai-tool'][k] as { requests: number; points: number })
+  check(offRows.length > 0 && offRows.every((row) => row.requests === 0 && row.points === 0),
+    '离网后端在账本里每个已有的桶都记 0（实得 ' + JSON.stringify(offRows) + '）')
+  check(offSnap.total.requests === 0 && offSnap.total.points === 0,
+    '账本总量没有被这笔离网调用推动（实得 ' + JSON.stringify(offSnap.total) + '）')
   // 未知：没量出来不等于耗尽，照样放行。
   roomCalls.length = 0; accountCalls.length = 0
   currentReading = unknownReading
