@@ -31,7 +31,8 @@ function makeWorkspace() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kind-two-layer-'))
   const dir = path.join(root, '.scratch', 'demo')
   fs.mkdirSync(path.join(dir, 'issues'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'map.md'), '# 演示地图\n\nStatus: ready-for-agent\n\n## Destination\n\n把演示做完\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n', 'utf8')
+  // 这里不再预写 map.md：这一段要用 deck_issue_create 建一张地图（handle 的 refId 指着 demo），
+  // 原文布局一个目录只允许一份 map.md；预写的占位会让建图如实拒绝（旧扁平布局地图是普通编号票，才不冲突）。
   const plat = {
     path: path.posix,
     fs: {
@@ -45,7 +46,7 @@ function makeWorkspace() {
   }
   const rootPosix = root.replace(/\\/g, '/')
   return {
-    root, rootPosix, issuesDir: path.join(dir, 'issues'),
+    root, rootPosix, issuesDir: path.join(dir, 'issues'), mapFile: path.join(dir, 'map.md'),
     ctx: { platform: plat, fs: plat.fs, cwd: rootPosix, get(name: string) { return name === 'fs' ? plat.fs : undefined } },
     cleanup() { try { fs.rmSync(root, { recursive: true, force: true }) } catch (e) {} },
   }
@@ -138,9 +139,11 @@ async function main() {
   const mapRes = await create({ title: '两层地图', kind: 'map' })
   const mapKey = mapRes && mapRes.data && mapRes.data.ticket ? String(mapRes.data.ticket.key) : ''
   if (mapKey) {
-    const text = fileOf(mapKey)
+    // 原文布局里地图是 demo/map.md 的容器（不在 issues/ 里），按路径读；标签也从可见 Labels 行
+    // 改成隐藏注释 DSH-LABELS（#1486 起落盘改成隐藏注释，可见行不再写）。
+    const text = fs.readFileSync(ws.mapFile, 'utf8')
     check(mapRes.data.ticket.type === 'map', 'map 读回来契约类型是 map（实得 ' + mapRes.data.ticket.type + '）')
-    check(/^Labels: .*wayfinder:map/m.test(text), 'map 的 Labels 行带 wayfinder:map')
+    check(/<!-- DSH-LABELS: .*wayfinder:map -->/m.test(text), 'map 的 DSH-LABELS 注释带 wayfinder:map')
     check(!/DSH-ISSUE-KIND/.test(text), 'map 不写正文文件头标记')
     check(typeLines(text).length === 0, 'map 不写 Type 行（尤其没有 Type: map）')
     check(hasProgress(text), 'map 的正文补了 ## 进度')
@@ -165,10 +168,10 @@ async function main() {
     const ticket = mapTicketRes.data.ticket
     check(ticket.type === 'issue', 'map-ticket 的契约类型是 issue（实得 ' + ticket.type + '）')
     check(/^Type: research$/m.test(text), 'map-ticket 的 Type 行是去前缀的 research（实得 ' + JSON.stringify(typeLines(text)) + '）')
-    check(/^Labels: .*wayfinder:research/m.test(text), 'map-ticket 的 Labels 行带选中的 wayfinder:research')
+    check(/<!-- DSH-LABELS: .*wayfinder:research -->/m.test(text), 'map-ticket 的 DSH-LABELS 注释带选中的 wayfinder:research')
     check((text.match(/wayfinder:[a-z]+/g) || []).length === 1, 'map-ticket 的类型标签只有一枚，不补第二枚')
     check(!/DSH-ISSUE-KIND/.test(text), 'map-ticket 不写正文文件头标记')
-    check(/<!-- parentKey: 00 -->/.test(text), 'map-ticket 的文件头写父票 00')
+    check(/<!-- DSH-PARENT: 00 -->/.test(text), 'map-ticket 的文件头写父票 00')
     check(String(ticket.parentKey || '') === '00', 'map-ticket 读回来父票是 00（实得 ' + ticket.parentKey + '）')
     check(hasProgress(text), 'map-ticket 的正文补了 ## 进度')
   }
@@ -219,7 +222,9 @@ async function main() {
   // ── 三、读回：新地图票与地图工单 ──
   console.log('— 三、读回：带 wayfinder:map 标签的新地图票仍读成地图，地图工单读得到父票')
   if (mapKey) {
-    const got = await run('deck_issue_get', { key: mapKey, blocking: false })
+    // 这一跑里地图（demo/map.md，00）与规格（另一个目录的 spec.md，也是 00）票号都是 00，
+    // 读地图要点名它所在的 effort，否则裸 00 会先命中规格（原文布局的容器票号都从 00 起）。
+    const got = await run('deck_issue_get', { key: mapKey, effort: 'demo', blocking: false })
     const issue = got.r && got.r.data ? (got.r.data.issue || got.r.data.ticket) : null
     check(got.r && got.r.status === 'ok' && issue && issue.type === 'map', '新的地图票读回来仍是 map（实得 ' + (issue && issue.type) + '）')
     check(issue && (issue.parentKey === null || issue.parentKey === undefined), '新的地图票没有父票（实得 ' + (issue && issue.parentKey) + '）')

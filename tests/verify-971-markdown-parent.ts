@@ -94,7 +94,10 @@ async function main() {
   })
   check(plan && plan.status === 'ok', '扁平建图整体成功（实得 ' + (plan && plan.status) + '，边 ' + JSON.stringify((plan.items || []).filter((i) => i.role === 'edge').map((i) => i.status)) + '）')
   const mapKey = String((plan.data && plan.data.mapKey) || '')
-  check(mapKey && mapKey !== '00', '扁平地图不是 00 号（实得 ' + mapKey + '，与工单一致）')
+  // 旧断言写的是「扁平地图不是 00 号」：那时地图是 issues/ 里的一张普通编号票，00 只是老扁平读法的
+  // 约定票号。原文布局里地图固定落在 <effort>/map.md、编号就是 00（与规格容器同款），所以这里
+  // 改成断言原文布局事实；地图与工单可以同为 00，靠目录与类型区分。
+  check(mapKey === '00', '原文布局地图固定 00 号，落在 <effort>/map.md（实得 ' + mapKey + '）')
   check(plan.data && plan.data.counts && plan.data.counts.ok === true && plan.data.counts.actual === 3, '逐项校验对得上（计划 3 实际 ' + ((plan.data && plan.data.counts && plan.data.counts.actual) || '?') + '）')
 
   // ② 逐张读回与文件顶注释一致，地图自身为空。

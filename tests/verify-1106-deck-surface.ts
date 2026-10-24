@@ -116,7 +116,7 @@ const POINTS: PointsRow[] = [
   { label: '建图：缺标题（还没走到选后端）', tool: 'deck_map_plan_create', args: {}, own: [0, 0] },
   {
     label: '建图：成功（按估算：3 张票 + 2 条边）', tool: 'deck_map_plan_create', own: 'est',
-    args: { planId: 'points-plan', title: '点数表地图', children: [{ key: 'a1', title: '子一', kind: 'issue' }, { key: 'a2', title: '子二', kind: 'issue' }], edges: [{ from: 'a2', to: 'a1', type: 'blocked-by' }] },
+    args: { planId: 'points-plan', title: '点数表地图', effort: 'points-plan', children: [{ key: 'a1', title: '子一', kind: 'issue' }, { key: 'a2', title: '子二', kind: 'issue' }], edges: [{ from: 'a2', to: 'a1', type: 'blocked-by' }] },
   },
   // 计划标识会原样当幂等键写进票面，字符集由后端定：中文会被后端挡下。
   // 这一支顺带钉住这条边界，以及它记账的价（1 条 / 4 点）。
@@ -181,6 +181,8 @@ function makeWorkspace() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-surface-'))
   const dir = path.join(root, '.scratch', 'demo')
   fs.mkdirSync(path.join(dir, 'issues'), { recursive: true })
+  // 这份手写 map.md 是给「建地图子票（parentKey 00）」「看地图 00」那几支用的；原文布局一个目录
+  // 只允许一份 map.md，所以要用 deck_map_plan_create 建图的几支各自点名独立 effort，不挤在这里。
   fs.writeFileSync(path.join(dir, 'map.md'), '# 演示地图\n\nStatus: ready-for-agent\n\n## Destination\n\n把演示做完\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n', 'utf8')
   const plat = {
     path: path.posix,
@@ -343,7 +345,7 @@ async function main() {
     ['deck_map_snapshot', { key: '00' }],
     ['deck_issue_list', { state: 'open' }],
     ['deck_issue_create', { title: '信封表丙票', kind: 'issue' }],
-    ['deck_map_plan_create', { planId: 'surface-plan', title: '信封表地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
+    ['deck_map_plan_create', { planId: 'surface-plan', title: '信封表地图', effort: 'surface-plan', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
     ['deck_map_link', { key: '02', parentKey: '00' }],
     ['deck_issue_patch', { key: '02', comment: '信封表：改一下' }],
     ['deck_issue_report', { key: '02' }],
@@ -569,7 +571,7 @@ async function main() {
   {
     // 同一份计划标识同时在两次执行里跑：先到的那次上锁，后到的那次在碰后端之前就被挡下，一分钱不记。
     // 这一支写着「计划标识正被别的执行占用」，平常跑不出来，所以这里并发叫两次把它逼出来。
-    const raceArgs = { planId: 'race-plan', title: '并发地图', children: [{ key: 'r1', title: '唯一子票', kind: 'issue' }] }
+    const raceArgs = { planId: 'race-plan', title: '并发地图', effort: 'race-plan', children: [{ key: 'r1', title: '唯一子票', kind: 'issue' }] }
     const [one, two] = await Promise.all([run('deck_map_plan_create', raceArgs), run('deck_map_plan_create', raceArgs)])
     const refused = [one, two].filter((x) => !x.threw && x.r && x.r.status === 'unsupported' && x.r.reason === 'backend-unsupported')
     const succeeded = [one, two].filter((x) => !x.threw && x.r && x.r.status === 'ok')
