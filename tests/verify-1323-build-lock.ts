@@ -140,6 +140,18 @@ async function driverMain(driverArgs: string[]): Promise<void> {
   const waitOverride: string = get('--waitMs')
   const opts: any = { repoRoot, cacheDir: dir }
   if (waitOverride) opts.testOnlyOverrideTimes = { waitMs: Number(waitOverride) }
+  if (mode === 'pulse-taken-over') {
+    const lock: any = mod.acquireBuildLock(opts)
+    process.on('exit', () => { try { mod.releaseBuildLock(lock) } catch { /* 退出兜底里不抛 */ } })
+    // 模拟「另一个构建把我当成死锁接管了」：锁文件直接换成另一个 pid/主机/token。
+    fs.writeFileSync(path.join(dir, 'dsh-build.lock'), JSON.stringify({
+      pid: 12345, host: 'taker-host', startedAt: Date.now(), heartbeatAt: Date.now(), token: 'taker-token',
+    }), 'utf8')
+    const ok: boolean = mod.pulseBuildLock(lock)
+    console.log('DRIVER pulse=' + String(ok))
+    console.log('DRIVER pulseFailure=' + String(lock.lastPulseFailure || ''))
+    return
+  }
   if (mode === 'hold' || mode === 'hold-then-throw' || mode === 'try-once') {
     let lock: any = null
     try {
@@ -208,6 +220,21 @@ async function testMain(): Promise<void> {
     check(firstHit !== -1 && acquirePos !== -1 && firstHit < acquirePos, '缓存命中先查、没命中才拿锁（命中退出的那条路不碰锁）', '拿锁又跑到第一次缓存检查前面去了，命中也要白排队')
     check(lastHit !== -1 && lastHit > acquirePos, '拿锁成功后再复核一次缓存（排队时别人可能已构建完）', '拿锁后的复核被删掉的话，排队等完只能重复构建')
     check(exitHook !== -1 && exitHook > acquirePos, '退出兜底挂在拿锁之后（命中退出的那条路没拿锁）', '兜底挂到拿锁前面去了，命中退出会去释放一把没拿过的锁')
+    // 只查代码顺序管不住文档：有人把这五份说明改回「命中也要拿锁」，代码没动、上面三条不会亮红，
+    // 下一个人就会照着文档把代码也改回去。所以每份说明的关键短语也钉住。
+    // 将来要改写这几句，改完同步改这里的短语——这是有意为之的钉子，不是漏跑。
+    const sites: Array<{ file: string; phrase: string }> = [
+      { file: 'scripts/build.mts', phrase: '命中直接退出的那条路不碰锁' },
+      { file: 'scripts/build.mts', phrase: '这条路不拿锁' },
+      { file: 'scripts/lib/build-lock.mts', phrase: '缓存命中直接退出的那条路不碰锁' },
+      { file: 'docs/design/1323-build-mutex.md', phrase: '缓存命中的路径不拿锁' },
+      { file: 'docs/agents/verification.md', phrase: '缓存命中直接退出的那条路不碰锁' },
+      { file: 'docs/agents/parallel-sessions.md', phrase: '缓存命中的构建不拿锁' },
+    ]
+    for (const site of sites) {
+      const text: string = fs.readFileSync(path.join(ROOT, site.file), 'utf8')
+      check(text.includes(site.phrase), '说法还在：' + site.file + ' 仍写着「' + site.phrase + '」', '这处改回旧说法的话，下一个人会照着文档把代码也改回去；只改措辞就同步改本条门禁里的短语')
+    }
 
     // —— 第①条：争锁串行 ——
     const dir1: string = path.join(tmpRoot, 'contend')
@@ -244,6 +271,16 @@ async function testMain(): Promise<void> {
     check(taker.status === 0 && taker.stdout.includes('DRIVER ACQUIRED'), '死锁（进程不在了、心跳停了）能被改名接管', '退出码 ' + String(taker.status) + '；输出：' + (taker.stdout + taker.stderr).slice(-300))
     check(taker.stdout.includes('上一把锁已经没人管了'), '接管走的是「改名旧锁再建」那一路（日志如实说了）', taker.stdout.slice(-300))
     // try-once 拿到就放：锁文件已经不在了，文件里的新主人信息由持锁时的那次改名保证（改名是原子操作，输的人会改名失败回去重等）。
+
+    // —— 锁被接管时，心跳检查要说清接管者是谁（构建停下时的报错要能直接指向接管者，而不是只说「没了或被接管」） ——
+    const dir6: string = path.join(tmpRoot, 'pulse-taken')
+    fs.mkdirSync(dir6, { recursive: true })
+    const taken: DriverResult = runDriver(['--repoRoot=' + ROOT, '--dir=' + dir6, '--mode=pulse-taken-over'])
+    const pulseOut: string = taken.stdout + taken.stderr
+    check(driverValue(pulseOut, 'pulse') === 'false', '锁被接管时 pulse 返回假（调用方据此停下构建）', pulseOut.slice(-400))
+    const pulseFailure: string = driverValue(pulseOut, 'pulseFailure')
+    check(pulseFailure.includes('12345') && pulseFailure.includes('taker-host'),
+      'pulse 的失败原因写清接管者 pid 与主机（不用翻别的日志就能找到是谁接管了）', pulseFailure || pulseOut.slice(-400))
 
     // —— 第④条：超时错误含 pid 与锁路径 ——
     const dir4: string = path.join(tmpRoot, 'timeout')
