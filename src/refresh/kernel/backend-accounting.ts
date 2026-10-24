@@ -90,6 +90,21 @@ export function spendsOfAccount(input: AccountInput): AccountSpend[] {
 }
 
 /**
+ * 把后端声明的预算模型收成记账口认识的四格（#1439）。认不出的口径按未知处理：只记请求数。
+ * 为什么补这一层：面板与强制刷新那一路由闸把用量交过来时，闸只报「谁、哪个后端、几条请求、几个点」，
+ * 预算口径要由装配处补齐；补齐规则与上面 spendsOfAccount 的分桶规则收在同一份文件里，
+ * 免得两边各写一套默认值，把「不认识的口径」一半算成两桶、一半算成未知。
+ */
+export function normalizeBudgetDeclaration(model: unknown): Record<string, unknown> {
+  const raw = (model && typeof model === 'object') ? model as Record<string, unknown> : {}
+  const kind = String(raw.kind || 'unknown')
+  if (kind !== 'two-buckets' && kind !== 'requests-only' && kind !== 'off-network' && kind !== 'unknown') {
+    return { kind: 'unknown', countsRequests: true, countsPoints: false, independentBuckets: false }
+  }
+  return { kind: kind, countsRequests: raw.countsRequests === true, countsPoints: raw.countsPoints === true, independentBuckets: raw.independentBuckets === true }
+}
+
+/**
  * 账本接口里记账口用到的那两条。这里只声明形状、不 import 账本模块：本文件是纯换算层，
  * 账本（src/refresh/rooms/host/quota-ledger.ts）由装配方递进来；两处不互相依赖。
  */

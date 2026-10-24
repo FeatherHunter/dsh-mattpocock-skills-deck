@@ -1,15 +1,16 @@
 // src/refresh/rooms/host/refresh-gate.js —— 刷新机制的唯一出口闸（#706 T2 第二批）
 //
 // 依据：定稿第三章「三层 + 一道闸」与第四章第 01 件。它只回答一句：这一笔去 GitHub 的调用，
-// 现在放行、降级，还是推迟？账本只有操作管线的 account 一处写（#1454），闸只读账、不写账。
+// 现在放行、降级，还是推迟？账本只有操作管线的 account 一处写（#1454），闸自己不写账；
+// 面板与强制刷新不经过操作管线，它们的真实用量由闸经同一个 account 口交出去（#1439）。
 // 裁决本身一行都不在这里 —— 它调 kernel
 // 那份纯函数产物 admission-policy.js（第一批的成果），数字全部从 host-budget.js 取好注入。所以本文件里没有一条裁决规则、
 // 没有一个额度数字，这两个 import 就是「只许复用、不许再写一份」的落地方式。
 //
 // 守住五件事（票面点名的五条硬要求，逐条对应下面一段代码）：
 //   1. **唯一出口**：分类（人的动作 / 生命周期 / 后台 / AI 工具）、裁决、推迟队列三件事都在这里做。
-//      真实用量不在这里记账：从 #1454 起账本只有操作管线的 account 一条写入口，闸只把自己
-//      实测到的真发条数记进 stats.accounted 做对账。
+//      真实用量不直接写账本：从 #1454 起账本只有操作管线的 account 一条写入口；闸把自己实测到的
+//      真发条数交给同一个 account 口（#1439，面板与强制刷新这条路），并留在 stats.accounted 做对账。
 //      静态扫描门禁（tests/verify-gh-gateway.js）扫整个 src，要求每一个能起 gh 进程的调用点都登记在册。
 //   2. **记账单位是真实出站 HTTP 请求数**：调用方报几条、传输层真发几条，两个数各自记账并当场对账；
 //      分页、重试、兜底链、扇出都要算进去，所以闸不认「逻辑上一次调用」这个说法。
@@ -142,11 +143,16 @@ interface LogCtx {
   fire(level: string, event: string, fields: unknown): void
 }
 
+/** 交一笔真实用量给记账口（面板/强制刷新不经过操作管线）：闸只按形状调，不 import 账本实现、自己不写账。 */
+type AccountSink = (op: string, backendId: string, requests: number, points: number) => unknown
+
 /** 建一道闸的依赖：只有账本必给（缺了下面那条判断当场抛），时钟缺了用系统时钟，日志缺了不记。 */
 interface GateDeps {
   ledger?: LedgerShape; logCtx?: LogCtx | null; now?: () => number; hash8?: (value: unknown) => string; budget?: unknown
   /** 后端 → 额度口径。生产用静态表；测试桩与将来的自定义后端从这里注入，闸不自己猜口径。 */
   budgetModelOf?: (backendId: string) => unknown
+  /** 类别 → 记账口（#1439）。面板与强制刷新不经过操作管线，真实用量由闸经这里交出去；不接就不记，行为与 #1454 后一致。 */
+  accountFor?: (category: string) => AccountSink | null
 }
 
 /** 工作区状态能从外面改的那一格（现在只有「在不在用」）。 */
@@ -263,6 +269,7 @@ export function createGate(deps?: GateDeps) {
   const hash8 = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
   const limits = policyLimits(opts.budget)
   const budgetModelOf = typeof opts.budgetModelOf === 'function' ? opts.budgetModelOf : function (): unknown { return { kind: 'unknown' } }
+  const accountFor = typeof opts.accountFor === 'function' ? opts.accountFor : null
 
   /**
    * 把一次归一后的请求翻译成「哪个后端的哪一桶、有没有额度、读数知不知道」。
@@ -388,7 +395,10 @@ export function createGate(deps?: GateDeps) {
     // 这一份只留在 stats.accounted 里对账，不写账本 —— 账本只有操作管线的 account 一条写入口（#1454）。
     stats.accounted.requests += actual.requests
     stats.accounted.points += actual.points
-    // 回执里的水位与档位读这一桶当下的账：本步的花费由管线记账后反映出来，
+    // #1439：这一笔的真实用量交给记账口（面板与强制刷新不经过操作管线，只有这里能把它们记进账本）。
+    // 失败那一笔也记：发出去就是已经花掉的额度（I6）；记账口自己会按后端口径决定记哪一桶、离网记 0。
+    if (accountFor) { try { const acct = accountFor(req.category); if (acct) await acct(req.kind, req.backendId, actual.requests, actual.points) } catch (eAcc) {} }
+    // 回执里的水位与档位读这一桶当下的账：本步花费先经上面的记账口落账，再读这一桶的当下值。
     // 闸不再「本步花完立刻改账本」，所以这里读到的不是「本步之后」的精确值，而是最近一次记账后的值。
     // 未知与离网在账本里没有桶，直接给空账（remaining / tier 都是 null），不去账本上读。
     const after: LedgerView = slot.hasQuota ? ledger.view(req.backendId, slot.bucket) : EMPTY_VIEW

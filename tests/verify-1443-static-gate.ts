@@ -5,10 +5,12 @@
 // #1444/#1445 又把刷新后台的读写路径全部搬进会话。删了不等于不会长回来 —— 本门禁用文本扫描守住四条：
 //   1. deck 壳的旧路标识一个不留；
 //   2. 额度同步桥与刷新运行时不再直调 gh；
-//   3. A2 未迁路径清单清零：全仓没有一处直接调 gh。仓库定位的 gh repo view 曾经是「唯一例外」（#1443 的
-//      传输持有者名单），#1453 起它搬进会话的 getRepoKey 能力：会话建立之后才问、问的时候先过裁决再按
-//      后端口径记账，所以宿主这一层只剩本地证据，例外表今天为空。真要再留一处，必须写清文件、理由与
-//      出处文档（见 TRANSPORT_EXCEPTIONS）；下面的顺序断言核对的是仓库身份确实在会话建立之后才补。
+//   3. A2 未迁路径清单清零：房间的传输出口之外，调用方不再直调 gh。仓库定位的 gh repo view 曾经是
+//      「唯一例外」（#1443 的传输持有者名单），#1453 起它搬进会话的 getRepoKey 能力：会话建立之后才问、
+//      问的时候先过裁决再按后端口径记账，所以宿主这一层只剩本地证据，例外表今天为空。真要再留一处
+//      runGh，必须写清文件、理由与出处文档（见 TRANSPORT_EXCEPTIONS）；下面的顺序断言核对的是仓库身份
+//      确实在会话建立之后才补。「房间之外没有直连 gh」还有两份旁证：verify-gh-gateway 静态扫 exec('gh')
+//      并按角色登记传输持有者，本文件 G 段核对面板与 deck 的取数改走了会话、不再向注册表取实例。
 //   4. 注册表选择只剩新路一处，deck / 刷新 / 宿主都不再深引房间实现。
 const path = require('path')
 const fs = require('node:fs')
@@ -181,6 +183,30 @@ async function main() {
     const got = countRunGhCalls(stripComments(s[0]))
     check(got === 0, '自检：' + s[1] + '不算调用（应得 0）→ 实得 ' + got)
   }
+  // —— G. 面板与 deck 的取数改走会话（#1439 A2）：不再向注册表取实例，用量经闸交给唯一记账口 ——
+  // 为什么放在这扇门禁：A2 的收口不只是「删了调用点」，还要看**现在是谁在取数**。注册表取实例
+  // （registry.get / reg.get）会让面板绕开会话与闸、拿到房间实现，这是这扇门禁第 4 条守的那类泄漏；
+  // 会话门面则每次取数都过操作管线。面板两处电话与 deck 补仓库身份各有一条静态断言。
+  const snapshotCache = stripComments(fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/session-snapshot-cache.ts'), 'utf8'))
+  const refreshSchedule = stripComments(fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/session-refresh-schedule.ts'), 'utf8'))
+  const countOf = function (hay: string, needle: string): number { return hay.split(needle).length - 1 }
+  check(countOf(snapshotCache, '{ openSession: openSession }') === 2,
+    'wf.snapshot 的主路径与回退路径都把会话口交给快照编排器（实得 ' + countOf(snapshotCache, '{ openSession: openSession }') + ' 处）')
+  check(snapshotCache.indexOf('const tracker = reg.get(') < 0 && snapshotCache.indexOf('const tracker2 = reg2.get(') < 0,
+    'wf.snapshot 不再向注册表取实例（两处 composer 前面都没有实例存在性检查）')
+  check(refreshSchedule.indexOf('composerOpts.openSession = openSession') >= 0 && refreshSchedule.indexOf('composer2Opts2.openSession = openSession') >= 0,
+    'wf.refresh（强制刷新）的主路径与回退路径也把会话口交给编排器')
+  check(refreshSchedule.indexOf('const tracker = reg.get(') < 0 && refreshSchedule.indexOf('const tracker2 = reg2.get(') < 0,
+    'wf.refresh 不再向注册表取实例（后端不认识时由编排器的会话门面报不可达）')
+  const hostIndex = stripComments(fs.readFileSync(path.join(ROOT, 'src/host/index.ts'), 'utf8'))
+  check(countOf(hostIndex, 'openSession: function (cwd') === 2,
+    '宿主把 refresh wiring 的会话口分别交给 wf.snapshot 与 wf.refresh 两处电话（实得 ' + countOf(hostIndex, 'openSession: function (cwd') + ' 处）')
+  const snapComposer = stripComments(fs.readFileSync(path.join(ROOT, 'src/host/tracker/snapshot.ts'), 'utf8'))
+  check(snapComposer.indexOf('const trackerFor') >= 0 && snapComposer.indexOf('opened.call(') >= 0 && countOf(snapComposer, 'registry.get(') === 1,
+    '编排器接了会话口就经 opened.call 调会话操作，会话这层用不上时回落注册表取实例（全文件 registry.get 恰好一处，实得 ' + countOf(snapComposer, 'registry.get(') + ' 处）')
+  const deckSession = stripComments(fs.readFileSync(path.join(ROOT, 'src/deck/tools/tracker-session.ts'), 'utf8'))
+  check(deckSession.indexOf('registry.get(') < 0 && deckSession.indexOf('sessionAny.getRepoKey') >= 0,
+    'deck 补仓库身份改问已开会话的 getRepoKey 能力（不再向注册表取实例）')
   console.log(failed ? ('\n' + total + ' 条断言，失败') : ('\n' + total + ' 条断言，全部通过')); process.exit(failed ? 1 : 0)
 }
 

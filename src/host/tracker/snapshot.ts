@@ -94,6 +94,9 @@ interface SnapshotComposerOpts {
   logCtx?: { fire: (...args: any[]) => unknown; isEnabled: (...args: any[]) => boolean }
   // 读某个后端当前的额度读数；拿不到就回 null（或干脆不接这个口子）。抛错按拿不到处理，不许打断快照重建。
   budgetReadout?: (backendId: string) => BudgetReadout | BudgetReadoutEnvelope | null | undefined | Promise<BudgetReadout | BudgetReadoutEnvelope | null | undefined>
+  // #1439 A2：生产路径经 Tracker 会话取数（操作过闸、记账，房间实例不外泄给面板）。
+  // 不接这一格的调用方（门禁单测、老调用点）仍按注册表取实例，形状与今天一致。
+  openSession?: (cwd: string, o?: { write?: boolean }) => Promise<any>
 }
 
 // 读数里的数字只认「非负整数」：额度是条数，出现小数、负数或 NaN 说明上游给的东西不是读数，
@@ -187,13 +190,34 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
     }
   }
 
+  // #1439 A2：取数的门面。生产接了 openSession 就经 Tracker 会话调操作（过闸、记账、房间实例不外泄）；
+  // 没接（门禁单测、老调用点）或会话这一层开不起来（宿主装配还没就绪）时回落到注册表取实例，形状与今天一致：
+  // 面板取数不能因为会话没接好就整份快照失败（#927 可用性优先）。门面故意不提供 snapshotFast：
+  // 快路径不是契约操作，会话路径退回普通 list，结果正确、只是少一趟捷径。
+  const instanceOf = (backendId: string): any => {
+    try { return registry.get(backendId) } catch (e) { return null }
+  }
+  const trackerFor = async (backendId: string, ctx: any): Promise<any> => {
+    const open = opts && opts.openSession
+    if (typeof open !== 'function') return instanceOf(backendId)
+    const cwd = (ctx && typeof ctx.cwd === 'string') ? ctx.cwd : ''
+    let opened: any = null
+    try { opened = await open(cwd, { write: false }) } catch (e) { opened = null }
+    if (!opened || opened.ok !== true || typeof opened.call !== 'function' || String(opened.backendId) !== String(backendId)) return instanceOf(backendId)
+    return {
+      list: (ref: any) => opened.call((s: any, c: any) => s.list(ref, {}, c)),
+      counts: (ref: any) => opened.call((s: any, c: any) => s.counts(ref, {}, c)),
+      getDependencies: (ref: any, key: any, o: any) => opened.call((s: any, c: any) => s.getDependencies(ref, key, o || {}, c)),
+    }
+  }
+
   return {
     // 宿主编排 composeSnapshot（非 op）：list 全量 → 组装 maps/tickets/未挂图票 → deck 派生 → 缓存。
     // o.force=true 绕过缓存。失败返回 {ok:false,error}（不抛）。
     async composeSnapshot(backendId: string, ref: RepositoryRef, ctx: any = {}, o: ComposeOpts = {}): Promise<any> {
-      const tracker = registry.get(backendId)
+      const tracker = await trackerFor(backendId, ctx)
       if (!tracker) {
-        return { ok: false, error: { kind: (ERROR_KIND as any).UNSUPPORTED, message: `backend '${backendId}' not registered (composition aborted)` } }
+        return { ok: false, error: { kind: (ERROR_KIND as any).UNSUPPORTED, message: `backend '${backendId}' not reachable (composition aborted)` } }
       }
       const sk = snapKeyOf(backendId, ref)
       const cachedEntry = snapCache.get(sk);
@@ -284,9 +308,9 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       if (fresh(depsCache.get(dk), depsTtl)) {
         return { ok: true, data: depsCache.get(dk).data, cached: true }
       }
-      const tracker = registry.get(backendId)
+      const tracker = await trackerFor(backendId, ctx)
       if (!tracker) {
-        return { ok: false, error: { kind: (ERROR_KIND as any).UNSUPPORTED, message: `backend '${backendId}' not registered` } }
+        return { ok: false, error: { kind: (ERROR_KIND as any).UNSUPPORTED, message: `backend '${backendId}' not reachable` } }
       }
       const res = await tracker.getDependencies(ref, key, {}, ctx)
       if (res && res.ok === true) depsCache.set(dk, { data: res.data, at: Date.now() })
