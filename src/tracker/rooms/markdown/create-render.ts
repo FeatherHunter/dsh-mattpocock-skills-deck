@@ -13,7 +13,7 @@
 //   3. 幂等键写成 DSH-IDEMPOTENCY-KEY 隐藏注释；建票时间写成 DSH-CREATED，供复用与排序。
 import { stripLabelDecoration, loginOfAssignee } from './parse.js'
 import { markerKindAtStart, markerKindInHeader, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
-import { anchorLineFor } from '../../../refresh/contract/idempotency-keys.js'
+import { MD_FORMAT } from './format/generated.js'
 import type { CreateInput, LabelInput } from '../../contract/inputs.js'
 
 /** 本文件负责的四种对象。map 与 map-ticket 仍由 issues-create.ts 的旧路径处理。 */
@@ -70,6 +70,66 @@ export function originalKindOf(input: CreateInput): OriginalKind | null {
   return 'issue'
 }
 
+/**
+ * 原文模板里与建票有关的字段。模板文字只从 generated.ts 的 MD_FORMAT 取，
+ * 代码里不再抄一份标题形状与字段行；模板改了这里自动跟着改。
+ */
+interface ObjectShape {
+  'title-shape': string
+  sections?: readonly string[]
+  fields?: readonly { label: string; 'line-shape': string }[]
+  acceptance?: string
+  status?: { 'visible-line'?: boolean; 'hidden-comment'?: string; default?: string }
+  reuse?: string
+}
+
+const OBJECT_KEY_OF_KIND: Record<OriginalKind, string> = {
+  spec: 'spec',
+  'spec-ticket': 'implementation-ticket',
+  issue: 'plain-issue',
+  bug: 'plain-issue',
+}
+
+/** 普通票按原文的 `reuse` 指到实施票模板；其余对象直接取自己那一份。 */
+function objectShapeOf(kind: OriginalKind): ObjectShape {
+  const objects = MD_FORMAT.objects as unknown as Record<string, ObjectShape>
+  const first = objects[OBJECT_KEY_OF_KIND[kind]]
+  if (first && first.reuse && objects[first.reuse]) return objects[first.reuse]
+  return first
+}
+
+/** 把标题形状里的占位符按顺序换成实际值：`# <NN>: <票标题>` → `# 01: 标题`。 */
+function shapeTitle(shape: string, values: string[]): string {
+  let at = 0
+  return String(shape || '').replace(/<[^>]*>/g, () => (at < values.length ? values[at++] : ''))
+}
+
+/** 字段行只抄模板里的「标签 + 冒号」前缀，值由这次建票的内容填。 */
+function fieldLine(shape: string, value: string): string {
+  const text = String(shape || '')
+  const at = text.indexOf('<')
+  return (at >= 0 ? text.slice(0, at) : text) + value
+}
+
+/** 隐藏注释模板里的值位是 `<>`，不是注释自己的 `<!--`；值位可能写成 `<>[, <>]`，整段换成一个值。 */
+function commentFromShape(shape: string, value: string): string {
+  const text = String(shape || '')
+  const re = /<(?!\!)[^<>]*>/g
+  let first = -1
+  let end = -1
+  let m = re.exec(text)
+  while (m) {
+    if (first < 0) first = m.index
+    end = m.index + m[0].length
+    m = re.exec(text)
+  }
+  if (first < 0) return text
+  // 列表模板写成 `<>[, <>]`：中间的 `[` 已在待换区间里，末尾的 `]` 也要一起换掉。
+  if (text.charAt(end) === ']') end += 1
+  return text.slice(0, first) + value + text.slice(end)
+}
+
+
 /** 标签归一：字符串与 {name} 两种写法都收，剥掉照抄文档时带上的引号，去重后保持原顺序。 */
 export function labelsOf(input: CreateView): string[] {
   const raw: unknown = Array.isArray(input.labels) ? input.labels : input.Labels
@@ -111,12 +171,6 @@ function blockedKeysOf(input: CreateView): string[] {
   return []
 }
 
-/** 一行隐藏注释；值里出现换行或注释收尾符时宁可不写，免得把文件头写坏。 */
-function commentLine(name: string, value: string): string {
-  const clean = String(value == null ? '' : value).replace(/\r?\n/g, ' ').replace(/-->/g, '-- >').trim()
-  return clean ? '<!-- ' + name + ': ' + clean + ' -->' : ''
-}
-
 /**
  * 隐藏注释区块。顺序与 scope 以 format/original-skills.yaml 的 hidden-comments 表为准：
  *   所有文件 → DSH-FORMAT、DSH-IDEMPOTENCY-KEY、DSH-CREATED；
@@ -133,39 +187,29 @@ function renderHeader(kind: OriginalKind, opts: {
   idempotencyKey: string
   createdAt: string
 }): string {
+  const entries = (MD_FORMAT['hidden-comments'].entries as unknown as Array<{ name: string; line: string; scope: readonly string[] }>)
+  const objectKey = OBJECT_KEY_OF_KIND[kind]
+  const values: Record<string, string> = {
+    'DSH-STATUS': opts.status,
+    'DSH-PARENT': opts.parentKey,
+    'DSH-ASSIGNEES': opts.assignees.join(', '),
+    'DSH-LABELS': opts.labels.join(', '),
+    'DSH-BLOCKED-BY': opts.blocked.join(', '),
+    'DSH-IDEMPOTENCY-KEY': opts.idempotencyKey,
+    'DSH-CREATED': opts.createdAt,
+  }
   const lines: string[] = []
-  const format = commentLine('DSH-FORMAT', 'md-v1')
-  if (format) lines.push(format)
-  if (kind === 'spec') {
-    const status = commentLine('DSH-STATUS', opts.status || 'ready-for-agent')
-    if (status) lines.push(status)
+  for (const entry of entries) {
+    const inScope = entry.scope.indexOf('all-files') >= 0 || entry.scope.indexOf(objectKey) >= 0
+    if (!inScope) continue
+    const value = String(values[entry.name] || '').replace(/\r?\n/g, ' ').replace(/-->/g, '-- >').trim()
+    // 静态行（例如 DSH-FORMAT 的 `md-v1`）没有值位，模板本身就是完整一行。
+    if (!/<(?!\!)[^<>]*>/.test(entry.line)) { lines.push(entry.line); continue }
+    if (!value) continue
+    lines.push(commentFromShape(entry.line, value))
   }
-  if (kind !== 'spec' && opts.parentKey) {
-    const parent = commentLine('DSH-PARENT', opts.parentKey)
-    if (parent) lines.push(parent)
-  }
-  if (opts.assignees.length) {
-    const assignees = commentLine('DSH-ASSIGNEES', opts.assignees.join(', '))
-    if (assignees) lines.push(assignees)
-  }
-  if (opts.labels.length) {
-    const labels = commentLine('DSH-LABELS', opts.labels.join(', '))
-    if (labels) lines.push(labels)
-  }
-  if (kind !== 'spec' && opts.blocked.length) {
-    const blocked = commentLine('DSH-BLOCKED-BY', opts.blocked.join(', '))
-    if (blocked) lines.push(blocked)
-  }
-  if (opts.idempotencyKey) {
-    const anchor = anchorLineFor(opts.idempotencyKey).trim()
-    if (anchor) lines.push(anchor)
-  }
-  const created = commentLine('DSH-CREATED', opts.createdAt)
-  if (created) lines.push(created)
   return lines.join('\n') + (lines.length ? '\n' : '')
 }
-
-/** 从正文里取一个可见字段行的值（`**What to build:** ...` 或 `What to build: ...`）。 */
 function fieldValue(body: string, label: string): string {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const re = new RegExp('^[ \\t]*\\*\\*' + escaped + ':\\*\\*[ \\t]*(.*)$', 'im')
@@ -174,10 +218,10 @@ function fieldValue(body: string, label: string): string {
 }
 
 /** 从正文里取状态行；没有 `**Status:**` 时认老的 `Status:` 行。 */
-function statusValue(body: string): string {
-  const bold = fieldValue(body, 'Status')
+function statusValue(body: string, label: string): string {
+  const bold = fieldValue(body, label)
   if (bold) return bold
-  const m = /^[ \t]*Status[ \t]*[:：][ \t]*([^\n]+)/im.exec(body)
+  const m = new RegExp('^[ \\t]*' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[ \\t]*[:：][ \\t]*([^\\n]+)', 'im').exec(body)
   return m ? String(m[1] || '').trim() : ''
 }
 
@@ -206,17 +250,20 @@ function firstHeadingOutsideFence(body: string): number {
 }
 
 /** 把实施票正文拆成原文模板要的三行字段 + 验收项 + 其余正文。 */
-function ticketParts(body: string, hasExplicitWhat: boolean): { what: string; blocked: string; status: string; acceptance: string; rest: string } {
-  const what = fieldValue(body, 'What to build')
-  const blocked = fieldValue(body, 'Blocked by')
-  const status = statusValue(body)
+function ticketParts(body: string, hasExplicitWhat: boolean, labels: string[]): { what: string; blocked: string; status: string; acceptance: string; rest: string } {
+  const what = fieldValue(body, labels[0] || '')
+  const blocked = fieldValue(body, labels[1] || '')
+  const status = statusValue(body, labels[2] || '')
   const lines = body.split('\n')
   const acceptance: string[] = []
   const rest: string[] = []
+  const labelAlt = labels.map((one) => one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  const boldRe = new RegExp('^[ \\t]*\\*\\*(?:' + labelAlt + '):\\*\\*', 'i')
+  const plainRe = new RegExp('^[ \\t]*(?:' + labelAlt + ')[ \\t]*[:：]', 'i')
   for (const line of lines) {
     if (/^[ \t]*[-*][ \t]+\[[ xX]\][ \t]?/.test(line)) { acceptance.push(line.trim()); continue }
-    if (/^[ \t]*\*\*(?:What to build|Blocked by|Status):\*\*/i.test(line)) continue
-    if (/^[ \t]*(?:What to build|Blocked by|Status)[ \t]*[:：]/i.test(line)) continue
+    if (boldRe.test(line)) continue
+    if (plainRe.test(line)) continue
     rest.push(line)
   }
   return {
@@ -240,10 +287,11 @@ export function renderSpec(input: CreateView, opts: {
   labels: string[]
   assignees: string[]
 }): string {
+  const shape = objectShapeOf('spec')
   const title = cleanTitle(String(input.title || ''))
   const body = cleanBody(input.body ? String(input.body) : '')
   const header = renderHeader('spec', {
-    status: String(input.status || 'ready-for-agent'),
+    status: String(input.status || (shape.status && shape.status.default) || ''),
     parentKey: '',
     assignees: opts.assignees,
     labels: opts.labels,
@@ -251,7 +299,7 @@ export function renderSpec(input: CreateView, opts: {
     idempotencyKey: opts.idempotencyKey,
     createdAt: opts.createdAt,
   })
-  return header + '# ' + title + '\n' + (body ? '\n' + body + '\n' : '\n')
+  return header + shapeTitle(shape['title-shape'], [title]) + '\n' + (body ? '\n' + body + '\n' : '\n')
 }
 
 /** 把一份实施票/普通票渲染成原文形状：`# NN: 标题`、三行字段、验收项。 */
@@ -263,17 +311,20 @@ export function renderTicket(kind: OriginalKind, input: CreateView, opts: {
   assignees: string[]
   parentKey: string
 }): string {
+  const shape = objectShapeOf(kind)
+  const fields = shape.fields || []
+  const fieldLabels = fields.map((field) => field.label)
   const title = cleanTitle(String(input.title || ''))
   const rawBody = cleanBody(input.body ? String(input.body) : '')
   // 原文模板里 `**What to build:**` 是字段行，但很多调用方只给一段话，后面再跟 `## 进度` 这类区块。
   // 没有字段行时把第一个二级标题之前的那段话当作 What to build，后面的区块原样留在票尾；
   // 否则整段（含 `## 进度` 标题）会被塞进字段行同一行，读回来就找不到进度区了。
-  const explicitWhat = !!fieldValue(rawBody, 'What to build')
+  const explicitWhat = !!fieldValue(rawBody, fieldLabels[0] || '')
   const splitAt = explicitWhat ? -1 : firstHeadingOutsideFence(rawBody)
   const body = splitAt >= 0
-    ? '**What to build:** ' + rawBody.slice(0, splitAt).trim() + '\n\n' + rawBody.slice(splitAt)
+    ? fieldLine(fields[0]['line-shape'], rawBody.slice(0, splitAt).trim()) + '\n\n' + rawBody.slice(splitAt)
     : rawBody
-  const parts = ticketParts(body, explicitWhat || splitAt >= 0)
+  const parts = ticketParts(body, explicitWhat || splitAt >= 0, fieldLabels)
   const blocked = parts.blocked || (blockedKeysOf(input).length ? blockedKeysOf(input).map((k: string) => '#' + k).join(', ') : 'None (can start immediately)')
   const header = renderHeader(kind, {
     status: '',
@@ -284,14 +335,13 @@ export function renderTicket(kind: OriginalKind, input: CreateView, opts: {
     idempotencyKey: opts.idempotencyKey,
     createdAt: opts.createdAt,
   })
+  const values = [parts.what, blocked, parts.status || String(input.status || (shape.status && shape.status.default) || '')]
   const lines: string[] = []
-  lines.push('# ' + opts.number + ': ' + title)
-  lines.push('')
-  lines.push('**What to build:** ' + parts.what)
-  lines.push('')
-  lines.push('**Blocked by:** ' + blocked)
-  lines.push('')
-  lines.push('**Status:** ' + (parts.status || String(input.status || 'ready-for-agent')))
+  lines.push(shapeTitle(shape['title-shape'], [opts.number, title]))
+  fields.forEach((field, at) => {
+    lines.push('')
+    lines.push(fieldLine(field['line-shape'], values[at] || ''))
+  })
   if (parts.acceptance) {
     lines.push('')
     lines.push(parts.acceptance)

@@ -17,6 +17,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createIssue } from '../src/tracker/rooms/markdown/issues.ts'
+import { renderSpec, renderTicket } from '../src/tracker/rooms/markdown/create-render.ts'
 import { MD_FORMAT } from '../src/tracker/rooms/markdown/format/generated.ts'
 
 let checks = 0
@@ -258,6 +259,28 @@ async function main(): Promise<void> {
     check(/feature|规格/.test(message), '④ 错误信息是一句人话说清要先选目录：' + message)
   }
   check(!fs.existsSync(path.join(tmp2, '.scratch', '没给目录的实施票')), '④ 拒绝时不落到按标题猜的目录')
+
+  // —— ⑥ 模板文字必须从 MD_FORMAT 渲染，不能再手写一份：运行时改掉配置里的标题/字段形状，
+  //       渲染结果必须跟着变；不跟着变就说明代码又抄了一份模板，和 YAML 分叉了。——
+  const specObject = (MD_FORMAT as unknown as { objects: Record<string, Record<string, unknown>> }).objects.spec
+  const specTitleShape = String(specObject['title-shape'])
+  specObject['title-shape'] = '# 模板哨兵: <spec 标题>'
+  try {
+    const probe = renderSpec({ title: '哨兵标题', body: '' }, { createdAt: '2026-01-01T00:00:00.000Z', idempotencyKey: 'probe', labels: [], assignees: [] })
+    check(probe.indexOf('# 模板哨兵: 哨兵标题') >= 0, '⑥ 规格标题从 MD_FORMAT 渲染（改配置，输出跟着变）')
+  } finally {
+    specObject['title-shape'] = specTitleShape
+  }
+  const plainObject = (MD_FORMAT as unknown as { objects: Record<string, Record<string, unknown>> }).objects['implementation-ticket']
+  const plainFields = plainObject.fields as Array<Record<string, unknown>>
+  const plainFirstShape = String(plainFields[0]['line-shape'])
+  plainFields[0]['line-shape'] = '**模板哨兵:** <>'
+  try {
+    const probe = renderTicket('issue', { title: '哨兵票', body: '' }, { number: '09', createdAt: '2026-01-01T00:00:00.000Z', idempotencyKey: 'probe', labels: [], assignees: [], parentKey: '' })
+    check(probe.indexOf('**模板哨兵:**') >= 0, '⑥ 普通票字段行从 MD_FORMAT 渲染（改配置，输出跟着变）')
+  } finally {
+    plainFields[0]['line-shape'] = plainFirstShape
+  }
 
   console.log('\n' + (failures.length === 0 ? 'PASS' : 'FAIL') + ' verify-1486-md-create-layout: ' + checks + ' checks, ' + failures.length + ' failed')
   if (failures.length) {
