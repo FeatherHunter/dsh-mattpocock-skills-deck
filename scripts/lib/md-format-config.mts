@@ -380,15 +380,14 @@ export function readMdFormatConfig(root: string): Record<string, any> {
 /** 按映射生成 generated.ts 全文。生成物只包含数据，不含逻辑；消费方静态 import 它。 */
 export function renderMdFormatData(cfg: Record<string, any>): string {
   const lines: string[] = []
+  // 文件头只留两行：生成物有 350 有效行的硬顶（tests/verify-file-granularity.ts），
+  // 所以「为什么读生成物而不是运行时读 YAML」这条理由写在这里，不写进产物。
   lines.push('// generated.ts —— Markdown 后端「随包原文 ↔ 本插件」格式映射的生成源码（#1480 T1）。')
-  lines.push('//')
-  lines.push('// 人手不改：本文件由 scripts/generate-md-format-config.mts 按')
-  lines.push('// ' + MD_FORMAT_REL + ' 写出；改映射请改那份 YAML 再跑生成器。')
-  lines.push('// 生成物不入库：真源只有 YAML 一份，改了 YAML 忘跑生成器由 tests/verify-md-format-config.ts 判红。')
-  lines.push('// 为什么读生成物而不是运行时读 YAML：与时间参数、提示词、界面词表同一条纪律，')
-  lines.push('// 宿主与客户端吃同一份构建期快照，两边不会悄悄分叉。')
+  lines.push('// 人手不改：由 scripts/generate-md-format-config.mts 按 ' + MD_FORMAT_REL + ' 写出；生成物不入库，改了 YAML 忘跑生成器由 verify-md-format-config 判红。')
   lines.push('')
-  lines.push('export const MD_FORMAT = ' + JSON.stringify(cfg, null, 2) + ' as const;')
+  // 紧凑成一行：生成物按「有效行」受 tests/verify-file-granularity.ts 的 350 行硬顶约束，
+  // 缩进展开的 JSON 会把这份纯数据顶出上限。生成物人手不改，可读性让给真源 YAML。
+  lines.push('export const MD_FORMAT = ' + JSON.stringify(cfg) + ' as const;')
   lines.push('')
   lines.push('export type MdFormat = typeof MD_FORMAT;')
   return lines.join('\n')
