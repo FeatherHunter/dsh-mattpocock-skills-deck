@@ -21,13 +21,15 @@
 // 读数口径：开/关/各状态票数与探测时刻，由读数叶子提供。
 declare function bugCount(...args: any[]): any;
 declare function deckCountsOf(...args: any[]): any;
+declare function freshnessToneColor(...args: any[]): any;
 declare function frontierCount(...args: any[]): any;
-declare function getProbeAt(...args: any[]): any;
+declare function h(...args: any[]): any;
 declare function occCount(...args: any[]): any;
 declare function readyCount(...args: any[]): any;
 declare function timeOf(...args: any[]): any;
-declare function timeOfMs(...args: any[]): any;
+declare function tr(...args: any[]): any;
 declare function triageCount(...args: any[]): any;
+declare function truthFreshnessBox(...args: any[]): any;
 
 export const checksumsOf = function (s: any) {
   // v18-30：可接/占用 = 列表 open issue 口径（与面板列表一致）
@@ -39,8 +41,22 @@ export const checksumsOf = function (s: any) {
   const bugN = bugCount(s)
   const triageN = triageCount(s)
   const n = readyCount(s)
-  // #327 特性 A：优先显示「上次探测时间」（数据不变也走针）；无探测记录回落快照生成时间/链加载时间
-  const _probeMs = (s.cwd && typeof getProbeAt === 'function') ? getProbeAt(s.cwd) : 0
-  const timeStr = (_probeMs && typeof timeOfMs === 'function' ? timeOfMs(_probeMs) : '') || timeOf(s.snapshot) || (s.chainLoadedAt ? s.chainLoadedAt.slice(5, 16) : '') || '-- --:--'
-  return { fr: fr, bugN: bugN, triageN: triageN, n: n, timeStr: timeStr }
+  // 2026-10-24 维护者定：胶囊上常驻的这个时刻，与右侧面板头部那条「N 分钟前」是同一个来源 ——
+  //   都取快照的取数时刻（snapshot.generatedMs），格式仍是 MM-DD HH:MM。
+  //   从前这里优先「上次探测时间」（#327 特性 A：数据不变也走针），但两块时间并排显示后，一个报取数时刻、
+  //   一个报检查回话的时刻，用户看到的就是「面板说 1 小时前、胶囊说刚刚」这种互相矛盾。
+  //   探测时刻仍由 getProbeAt/touchProbeAt 维护（新鲜度判断与磁盘条目恢复要用），只是不再画在这里。
+  const timeStr = timeOf(s.snapshot) || (s.chainLoadedAt ? s.chainLoadedAt.slice(5, 16) : '') || '-- --:--'
+  // 2026-10-24 维护者定：那颗时刻的颜色与右侧面板头部同一套三档（fresh / yellow / red），
+  //   颜色值只住 views/shared/truthLines.ts 的 freshnessToneColor 一处，这里不另抄一份；
+  //   悬停提示也在这一步备好：第一行「刚刚 / N 分钟前 / N 小时前 / N 天前」、第二行「点一下重新检查」。
+  //   相对说法是在鼠标放上去那一刻才算的（HoverTip 每次渲染会调用 content 函数），所以不需要定时重绘。
+  const freshBox = (typeof truthFreshnessBox === 'function') ? truthFreshnessBox(s, Date.now()) : null
+  const freshColor = freshBox ? freshnessToneColor(freshBox.tone) : ''
+  const tipOf = function () {
+    const b = (typeof truthFreshnessBox === 'function') ? truthFreshnessBox(s, Date.now()) : null
+    const ago = b ? tr(b.agoKey, b.agoParams) : ''
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [ago ? h('div', null, ago) : null, h('div', null, tr('nav.refreshTip'))])
+  }
+  return { fr: fr, bugN: bugN, triageN: triageN, n: n, timeStr: timeStr, freshColor: freshColor, tipOf: tipOf }
 }
