@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>不在 config/prompts YAML 中的注入提示词一览</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 960px; margin: 32px auto; padding: 0 20px; color: #1f2328; line-height: 1.7; }
+  h1 { font-size: 24px; border-bottom: 2px solid #0969da; padding-bottom: 8px; }
+  h2 { font-size: 19px; margin-top: 40px; border-left: 4px solid #0969da; padding-left: 10px; }
+  h3 { font-size: 16px; margin-top: 28px; }
+  .meta { color: #57606a; font-size: 13px; }
+  .src { font-family: Consolas, monospace; font-size: 12.5px; color: #57606a; background: #f6f8fa; padding: 2px 6px; border-radius: 4px; }
+  pre { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 8px; padding: 12px 14px; white-space: pre-wrap; word-break: break-word; font-size: 13.5px; }
+  .lang { display: inline-block; font-size: 12px; font-weight: 700; background: #ddf4ff; color: #0550ae; border-radius: 4px; padding: 0 8px; margin: 10px 0 4px; }
+  .note { background: #fff8c5; border: 1px solid #d4a017; border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+  nav { background: #f6f8fa; border-radius: 8px; padding: 12px 18px; font-size: 14px; }
+  nav a { color: #0969da; text-decoration: none; }
+  nav li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<h1>不在 config/prompts YAML 中的注入提示词一览</h1>
+<p class="meta">统计口径：只收“会注入到 AI 会话输入框”的纯提示词；27 个 <code>SKILL.md</code> 技能正文已排除。中央 YAML（<code>config/prompts/*.yaml</code>）里的 setupRun / switchAlign / newWayfinder / tpl.* 等不在这里。</p>
+<div class="note">结论：两类。① 后端声明（各房 <code>index.ts</code> 的 <code>prompts</code> 对象，跟具体后端绑定，故意不进中央 YAML）；② 代码里写死的整段原话（连后端声明都没走）。下面逐条贴原文。</div>
+<nav>
+<strong>目录</strong>
+<ol>
+<li><a href="#github">GitHub 后端声明</a></li>
+<li><a href="#gitlab">GitLab 后端声明</a></li>
+<li><a href="#markdown">本地 Markdown 后端声明</a></li>
+<li><a href="#hardcoded">代码里写死的整段原话</a></li>
+<li><a href="#structural">拼接结构（前缀 / 后缀，非独立提示词）</a></li>
+</ol>
+</nav>
+
+<h2 id="github">1. GitHub 后端声明 <span class="src">src/tracker/rooms/github/index.ts:127</span></h2>
+<p class="meta">commandVocabulary：{ cli: gh, cliBrand: GitHub } —— 模板里的 {cli} / {cliBrand} 由此格填。</p>
+
+<h3>cliInstall（“安装指引”按钮、“命令行工具已安装”横幅注入的都是这一条）</h3>
+<span class="src">fixes gh:installed → prompt: 'cliInstall'；guide-steps MISSING.installCli</span>
+<div><span class="lang">中文</span><pre>/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/</pre></div>
+<div><span class="lang">英文</span><pre>/wizard help the user install the gh CLI — official page: https://cli.github.com/</pre></div>
+
+<h3>ghAuthLogin（“登录指引”按钮注入）</h3>
+<span class="src">fixes gh:authed → prompt: 'ghAuthLogin'；guide-steps MISSING.ghAuthLogin</span>
+<div><span class="lang">中文</span><pre>/wizard 辅助用户完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。</pre></div>
+<div><span class="lang">英文</span><pre>Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.</pre></div>
+
+<h3>ensureLabels（补标签指引用，不走按钮，是工具链路里的正文）</h3>
+<span class="src">prompts.ensureLabels；标签名单由 src/tracker/contract/canonical-labels.ts 拼入</span>
+<div><span class="lang">中文</span><pre>请为当前仓库补全缺失的核心标签（共 N 个）：
+
+必备标签：{名单，以 canonical-labels.yaml 为准}
+
+步骤：
+- [ ] 先看现在有哪些标签：调 deck_context 拿当前后端与仓库，票上带了哪些标签用 deck_issue_get 读
+- [ ] 缺哪个补哪个：调 deck_issue_patch 并把缺的标签名放进 addLabels —— 它按当前后端自己的方式打标签，已经有的不会重复建，成没成逐条回报
+- [ ] 补完再调一次 deck_context 核对标签已齐
+
+色值/描述以 src/tracker/contract/canonical-labels.ts 为唯一清单。
+
+只读仓库补不上标签（建标签要 push，给票打标要 triage 及以上）：先 fork 到自己名下，再把工作区 origin 指向 fork；插件只认 origin，不代改配置。</pre></div>
+<div><span class="lang">英文</span><pre>Please complete the missing canonical labels (N total):
+
+Required labels: {list}
+
+Steps:
+- [ ] See what labels exist now: call deck_context for the current backend and repo; read which labels a ticket carries with deck_issue_get
+- [ ] Add whatever is missing: call deck_issue_patch with the missing names in addLabels — it applies labels the way the current backend does, never creates duplicates, and reports each one
+- [ ] Re-check with deck_context until the labels are complete
+
+Colors/descriptions are single-sourced in src/tracker/contract/canonical-labels.ts.
+
+A read-only repo cannot take labels (creating labels needs push, labeling tickets needs triage or higher): fork it to your own account first, then point the workspace origin at the fork. The plugin only reads origin and never rewrites your config.</pre></div>
+
+<h3>subIssue（以 {subIssue} 占位符填进中央模板，不是独立按钮）</h3>
+<div><span class="lang">中文</span><pre>建边用 deck_map_link：父子边传 parentKey（把这张子票挂到那张地图下），阻塞边传 blockedBy（数组里放阻塞它的那几张票号）；工具自己按本后端的方式落下去，并逐条回报这条边落在哪一列。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致（deck_map_link 的逐条明细里带着每一条边的读回落点与证据原话）。判「落上了」只看写后读回：读回里看不到这条边就不算落上；读不回来时如实说没确认，绝不报成已经挂上。</pre></div>
+<div><span class="lang">英文</span><pre>Wire edges with deck_map_link: pass parentKey for the parent-child edge (attach this child under that map) and blockedBy for blocking edges (the numbers of the tickets blocking it); the tool lands each edge the way this backend does and reports, per edge, which column it landed in. Then read the map back with deck_map_snapshot and confirm the child count matches the plan (deck_map_link returns, per edge, the read-back landing and its evidence). Landing is only claimed when the read-back taken after the write shows the edge; when that read-back cannot be taken the tool says plainly that the edge is unconfirmed, never that it landed.</pre></div>
+
+<h3>healthCheck（以 {subject} 占位符填进中央 healthCheck 总纲）</h3>
+<div><span class="lang">中文</span><pre>**这条后端查数与动手都走工具**（总纲里的三条口径在这里不变）。
+
+查数：用 deck_context 拿当前后端与仓库；用 deck_map_snapshot 逐张读地图的子票清单（出现在任何一张清单里的都不算游离）。
+
+建边：用 deck_map_link 的 parentKey 把票挂到选中的地图下（原生子议题边与它的读回校验都由工具负责）。{subIssue}
+
+阻塞关系：用 deck_map_link 的 blockedBy 传阻塞它的那张票的票号；工具按本后端的方式落下去，并在返回值里说清落在哪一列（判落上只看写后读回，读不回来就说没确认，不报成已挂上）。
+
+报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。</pre></div>
+<div><span class="lang">英文</span><pre>**On this backend, counting and acting both go through the tools** (the three rules from the general section stay as they are).
+
+Counting: use deck_context for the current backend and repo; read each map's child list with deck_map_snapshot (anything appearing in any list is not orphaned).
+
+Attaching: use deck_map_link with parentKey to attach a ticket under the chosen map (the tool owns the native sub-ticket edge and its read-back check). {subIssue}
+
+Blocking: use deck_map_link with blockedBy, passing the numbers of the tickets that block it; the tool lands the edge the way this backend does and says which column it used (landing is only claimed when the read-back after the write shows the edge; when it cannot be read back the tool says it is unconfirmed rather than claiming it landed).
+
+Group the report by label and suggestion type, but the health check always covers every open ticket and does not follow the current panel filters.</pre></div>
+
+<h3>repoAccessFix（声明了但当前没有按钮引用，仓库不可读的修复走两步建仓向导）</h3>
+<div><span class="lang">中文</span><pre>当前仓库读不通（工具报「取不到这个仓库」）。顺序要求：若仓库尚未创建，先走「创建并发布」完成建仓推送，再重查；请按序排查：
+1. 存在性：这个目录还没有远端仓库时，先点「创建并发布」（面板上那个两步向导会把仓库建好并推上去）；
+2. 登录与权限：看环境检查里「已登录 GitHub」那一行的状态；私有仓库需要当前登录的账号有权限（权限不足与「找不到」在服务端都可能是 404）；
+3. 网络与代理：看环境检查里网络那一类结果，按它的提示处理。
+排查修复后请用户点「重新检查」。</pre></div>
+<div><span class="lang">英文</span><pre>The repository is not readable right now (the tools report that they cannot reach it). Ordering rule: if the repo does not exist yet, run "Create &amp; publish" to create and push it, then re-check; investigate in order:
+1. Existence: when this directory has no remote repo yet, click "Create &amp; publish" (the two-step wizard creates the repo and pushes it);
+2. Login and permissions: check the status of the "Signed in to GitHub" row; a private repo needs access for the signed-in account (no access and "not found" can both come back as 404);
+3. Network and proxy: check the network row in the environment check and follow what it says.
+After fixing, ask the user to re-check.</pre></div>
+
+<h2 id="gitlab">2. GitLab 后端声明 <span class="src">src/tracker/rooms/gitlab/index.ts:281</span></h2>
+<p class="meta">commandVocabulary：{ cli: glab, cliBrand: GitLab }</p>
+
+<h3>glabInstallFix（“安装指引”按钮）</h3>
+<div><span class="lang">中文</span><pre>请为 DSH 安装 GitLab CLI（glab）：
+1. 先检查：终端执行 glab --version；
+2. 无 glab 则按 OS 安装：Windows → winget install --id GitLab.gitlab-cli（或 scoop install glab）；macOS → brew install glab；Linux → 按 gitlab.com/gitlab-org/cli 官方方式安装；
+3. 安装完成后请用户点「重查」。</pre></div>
+<div><span class="lang">英文</span><pre>Install the GitLab CLI (glab) for DSH:
+1. Check first: glab --version;
+2. If missing, install per OS: Windows → winget install --id GitLab.gitlab-cli (or scoop install glab); macOS → brew install glab; Linux → follow gitlab.com/gitlab-org/cli official install;
+3. After install, ask the user to re-check.</pre></div>
+
+<h3>glabLoginFix（“登录指引”按钮）</h3>
+<div><span class="lang">中文</span><pre>请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后 glab auth status 验证；然后请用户点「重查」。</pre></div>
+<div><span class="lang">英文</span><pre>Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify with glab auth status; then ask the user to re-check.</pre></div>
+
+<h3>glabRepoFix（“修复指引”按钮）</h3>
+<div><span class="lang">中文</span><pre>当前工作区未解析出 GitLab 仓库（glab 无法定位 owner/project）。请先向用户确认意图：
+A. 本地项目（不需要 GitLab）→ 切换到「本地 Markdown」后端；
+B. 确实要用 GitLab → 核对 remote 指向（git remote get-url origin / glab config），或 glab repo create 创建并关联；
+完成后请用户点「重查」。</pre></div>
+<div><span class="lang">英文</span><pre>No GitLab repository resolved for the current workspace. Confirm intent: A. local project → switch to "Local Markdown"; B. GitLab really wanted → verify the remote (git remote get-url origin / glab config), or create/associate via glab repo create; then ask the user to re-check.</pre></div>
+
+<h3>subIssue（以 {subIssue} 填进中央模板）</h3>
+<div><span class="lang">中文</span><pre>建边用 deck_map_link：父子边传 parentKey、阻塞边传 blockedBy。要注意本后端的能力边界 —— 父子边不走接口，落在票正文顶部的 Part of #&lt;地图&gt; 声明行（读回走契约的父子列）。GitLab 平台本身有原生父子层级，但它在 work items 那条路上（入口是界面与 GraphQL），本房不走那条；要远端认的层级得另开一票换成 GraphQL。阻塞边走原生 is_blocked_by：有能力就真写、写后读回核对；免费档拿不到原生能力时，工具回落到正文首行的那行降级写法。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致。</pre></div>
+<div><span class="lang">英文</span><pre>Wire edges with deck_map_link: parentKey for the parent-child edge, blockedBy for blocking edges. Mind this backend's limit — the parent-child edge does not go through the API; it lands as a Part of #&lt;map&gt; declaration line at the top of the ticket body (read back through the contract parent column). GitLab itself does have a native parent-child hierarchy, but it lives on the work-items path (reached through the UI and GraphQL), which this backend does not use; a remotely-recognised hierarchy would be a new capability on GraphQL. Blocking edges use native is_blocked_by: written for real with read-back verification when capable; on the free tier without native capability the tool falls back to the first line of the body. Then read the map back with deck_map_snapshot and confirm the child count matches the plan.</pre></div>
+
+<h3>healthCheck（以 {subject} 填进中央 healthCheck 总纲）</h3>
+<div><span class="lang">中文</span><pre>**游离的开放票**在这条后端上的落地口径：这张票**没有关闭**、**自己不是地图**、**不在任何地图的子票里** —— 与另一条远端后端同一套（两个后端的票仓结构本来就是同一套：地图 + 子议题 + 阻塞边）。
+
+**动手时只做两件结构动作**，都走工具：
+1. 建边，把票挂到合适的地图下：deck_map_link 的 parentKey；
+2. 为人点过头的票开一张新地图：deck_map_plan_create 先写最小的 Destination 草稿。
+
+**本后端做不到的地方，如实写出来**：父子边落在票正文顶部的 Part of #&lt;地图&gt; 声明行（原生层级在 work items 那条路上，本房不走），解析率也还没用真仓库量过 —— 动手之前先量一次，量与不出来的原因都写进报告，**不要硬来**。
+
+**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不删评论、不改源码、不发版、不提交。
+
+报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。</pre></div>
+<div><span class="lang">英文</span><pre>**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as the other remote backend (both backends share one ticket-store shape: maps + sub-tickets + blocking edges).
+
+**When acting, only two structural actions**, both through the tools:
+1. Wire the edge that attaches the ticket under a suitable map: deck_map_link with parentKey;
+2. Open a new map for a ticket the human has nodded on: deck_map_plan_create, writing only the minimal Destination draft.
+
+**State plainly what this backend cannot do**: the parent-child edge lands as a Part of #&lt;map&gt; declaration line at the top of the ticket body (the native hierarchy lives on the work-items path, which this backend does not use); its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.
+
+**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.</pre></div>
+
+<h2 id="markdown">3. 本地 Markdown 后端声明 <span class="src">src/tracker/rooms/markdown/index.ts:326</span></h2>
+<p class="meta">commandVocabulary：{ cliBrand: 本地 Markdown }（没有 cli，模板里 {cli} 回落为“当前后端的命令行”）</p>
+
+<h3>wayfinderMapBuild（“执行 wayfinder 构造地图”按钮）</h3>
+<div><span class="lang">中文</span><pre>/wayfinder (请输入任务需求)</pre></div>
+<div><span class="lang">英文</span><pre>/wayfinder (enter the task requirement)</pre></div>
+
+<h3>subIssue（以 {subIssue} 填进中央模板）</h3>
+<div><span class="lang">中文</span><pre>在本仓库的 map 文件里，按已有写法在任务清单逐条引用这些子票，并把清单条目数与 map 的子票数对齐一致</pre></div>
+<div><span class="lang">英文</span><pre>add each sub-ticket to the task list inside the map file the way this repo already writes it, and keep the task-list entry count equal to the map sub-ticket count</pre></div>
+
+<h3>healthCheck（以 {subject} 填进中央 healthCheck 总纲）</h3>
+<div><span class="lang">中文</span><pre>**本后端的票就是工作区里的文件**（每个工作单元一个目录，地图写在 map.md 里、每张票写成一个文件），所以「游离」必须落到文件上。**查两条文件级判据**：
+1. 票文件存在，却没有被任何 map.md 的清单引用 —— 游离在外；
+2. map.md 的清单里列了某张票，但对应的文件不存在 —— 断链。
+
+**一条 AI 判断照同一套口径一起带上**：对每一张判一句「这张是不是明确可以单张票处理掉的」；是的话也可以不管，只登记一行。
+
+**三种结论**（挂在某张地图下 / 建议自立成一张新地图 / 建议留在原地 + 一句话理由）都只进建议清单，等人点头才动手。
+
+**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不改源码、不提交。
+
+体检的范围是这个工作区里的全部票文件，不跟随面板当前的筛选。</pre></div>
+<div><span class="lang">英文</span><pre>**On this backend a ticket is a file in this workspace** (one directory per work unit, the map written as map.md and each ticket as a file), so "orphaned" has to land on files. **Check two file-level criteria**:
+1. a ticket file exists but no map.md list references it — it is floating outside;
+2. a map.md list references a ticket whose file does not exist — a broken link.
+
+**One AI judgement on the same rules**: for each ticket, judge with one sentence — "is this clearly something a single ticket can finish?" If yes, you may also leave it alone and just log one line.
+
+**All three conclusions** (attach under a map / suggest a new map of its own / suggest leaving it where it is + a one-sentence reason) only go into the suggestion list — act only after the human nods.
+
+**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, change source code, or commit.
+
+The health check covers every ticket file in this workspace and does not follow the current panel filters.</pre></div>
+
+<h2 id="hardcoded">4. 代码里写死的整段原话 <span class="src">不走任何注册表，直接注入</span></h2>
+
+<h3>建仓失败时的装 gh 长文（宿主直接回 prompt 字段）</h3>
+<span class="src">src/host/publishFlow.ts:163（建仓流程）；src/tracker/rooms/github/init-project.ts:197（同义复述，措辞差几个标点）</span>
+<div><span class="lang">publishFlow 版</span><pre>请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：
+
+1. 先检查：终端执行 `gh --version`；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；
+2. 无 gh 则按 OS 安装：Windows → `winget install --id GitHub.cli`; macOS → `brew install gh`; Linux → `sudo apt install gh`;
+3. 安装后验证：重开终端使 PATH 生效，`gh --version` 输出版本号；
+4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；
+5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。</pre></div>
+<div><span class="lang">init-project 版</span><pre>请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：
+
+1. 先检查：终端执行 gh --version;
+2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh;
+3. 安装后验证：gh --version;
+4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重新检查」按钮或重启 DSH Desktop；
+5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。</pre></div>
+
+<h2 id="structural">5. 拼接结构（前缀 / 后缀，非独立提示词）</h2>
+<span class="src">src/client/kernel/router.ts:200,207</span>
+<div><span class="lang">前缀（写死在拼接处，契约锁着两个换行）</span><pre>/wayfinder &lt;票链接&gt;\n\n + 正文 …</pre></div>
+<div><span class="lang">后缀 requirementPrefix（真源 config/copy/word.yaml:14，非提示词 YAML）</span><pre>中文：需求描述：
+英文：Requirement: </pre></div>
+<p class="meta">实际注入形如：<code>newWayfinderPrompt(st) + '\n\n' + 需求描述：</code>。另附：切换确认窗那行 <code>DEFAULT_SWITCH_PROMPT_ZH = 现有 issues 保留在原后端，切换后不可见，切回可见</code>（<span class="src">store-switch.ts:103</span>）只显示在窗里，不注入会话，这里不计入。</p>
+
+</body>
+</html>
