@@ -209,7 +209,9 @@ const dswsCapsuleFbLast = { key: '' }
 export const logStatusFallback = function (st: any, sid: any) {
   try {
     if (!st) return
-    const view = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
+    // #1440：计数也按界面实际显示的那一份算（与胶囊展开列表同一条选路），否则同一张表在两处说两个数。
+    const pick = (typeof capsuleOwnRoutePick === 'function') ? capsuleOwnRoutePick(st) : null
+    const view = (pick && pick.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null)
     const rows = (view && Array.isArray(view.rows)) ? view.rows : null
     const tableRows = rows ? rows.length : -1
     let ownRows = -1
@@ -395,7 +397,11 @@ export const SessionChainCapsule = function (props: any) {
   // 单子从旧到新往下排：最新那一条沉底，离鼠标最近；在办表已经按时间倒序，这里翻一面。
   // 版面上那个号（下面那个 text span）挂在让位表第 12 号：宽度不够时它也逐字让（最后几位才让），
   //   让位机直接往纯文本元素里写字，这里两处（版面号、环境计数都是纯文本）都是安全的。
-  const tableView = (typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null
+  // #1440：展开列表与主胶囊、面板同一条选路 —— 本机只读读数优先，快照兜底。只读快照的话，
+  //   304 回包里挂的那张坏表会把「别的会话还有几张在办」也算成 0，标题栏跟着少报。
+  const listPick = (typeof capsuleOwnRoutePick === 'function') ? capsuleOwnRoutePick(st) : null
+  const listedView = (listPick && listPick.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null)
+  const tableView = listedView
   const allRows = (tableView && Array.isArray(tableView.rows)) ? tableView.rows : []
   const otherRows = allRows.filter(function (r: any) { return r && r.currentSession !== true })
   const otherSet: any = {}

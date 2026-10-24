@@ -173,10 +173,15 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
           if (!res.ok) { const _e1: Error & { fail?: unknown } = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
           // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
+          // #1440：304 回包必须带上工作区根（与下面重建分支的 workspaceRoot: cwd 同一个值）。
+          //   后面挂工作路线表那一步（withWorkRouteTable → work-route-readout）只认 reply.workspaceRoot，
+          //   拿不到根就挂一张 {ok:false, reason:'host.work-route.no-workspace'} 的坏表；客户端在本地
+          //   没表时又会照收，于是面板一直显示「读不出来」、自己不会好。304 是「内容没变」的合法结果，
+          //   不是失败，回包照样要自含解释这张表所需的全部信息，不能指望调用现场再补根。
           if (res.notModified === true || res.status === 304) {
             const _pair: { selection?: Sel | null; rev?: unknown; setupLayout?: Layout | null } = (_selEarly && _selEarly.backendId) ? { selection: _selEarly, rev: (Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0) } : {}
             if (_layEarly) _pair.setupLayout = _layEarly
-            return Object.assign({ ok: true, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: now }, _pair)
+            return Object.assign({ ok: true, workspaceRoot: cwd, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: now }, _pair)
           }
                     const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
