@@ -22,12 +22,12 @@
  * 不开整套读写路径。本文件的开会话也复用它——读数仍然直达房间，不裁决不记账。
  */
 import { openTracker } from '../../../tracker/session/open-tracker.js'
-import { spendsOfAccount } from '../../kernel/backend-accounting.js'
+import { createAccountPort } from '../../kernel/backend-accounting.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 import type { SelectionResolver } from '../../../tracker/session/open-tracker.js'
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { OpContext } from '../../../tracker/contract/contexts.js'
-import type { AdmitPort, AccountPort } from '../../../tracker/contract/budget-model.js'
+import type { AdmitPort } from '../../../tracker/contract/budget-model.js'
 import { buildTrackerPorts } from '../../registry/deck-tool-bridge.js'
 
 /** 起一个进程的出口（发布时用宿主那套 execProc，超时按写操作那一档算，不用探测档）。 */
@@ -96,35 +96,15 @@ const readAdmit: AdmitPort = function (): { allowed: true; reason: string } {
   return { allowed: true, reason: 'read-path' }
 }
 
-/** 记账口缺席时的空实现：没有账本可写就什么也不记（门禁与单测里常见，生产由桥注入真实现）。 */
-const emptyAccount: AccountPort = function (): void {}
-
-/**
- * 记一笔（#1446）：真正的换算是纯函数（backend-accounting.ts），这里只负责把几笔交给账本。
- * 账本是装配方经实时器给的，本文件只知道「有个 spend 可调」，不解释后端口径。
- */
-function realAccount(deps: SessionOpenerDeps): AccountPort {
-  return function (input: any): void {
-    const ledger: any = deps.ledger
-    if (!ledger || typeof ledger.spend !== 'function') return
-    const spends = spendsOfAccount(input)
-    const backendId: string = input && typeof input.backendId === 'string' ? input.backendId : ''
-    if (!backendId) return // 没有后端编号就没有账本上的格，宁可少记也不编一格出来
-    for (const spend of spends) {
-      ledger.spend({ account: 'plugin', backendId: backendId, bucket: spend.bucket, kind: input.op, requests: spend.requests, points: spend.points })
-    }
-  }
-}
-
 /**
  * 造开会话的函数。返回的函数永远回值、不抛：注册表没就绪、目录为空、会话开不成，
  * 都收成带结局名的失败形状，调用方照旧走降级（回旧缓存或如实失败）。
  */
 export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opts?: OpenSessionOptions) => Promise<OpenSessionResult> {
   const ports = buildTrackerPorts({ ledger: deps.ledger })
-  // #1446：刷新这条路自己换算记账（换算是纯函数，见 kernel/backend-accounting.ts）；
-  // 桥里那份账号是 deck 工具那条路的，与本文件这份不共用（两条路的 caller 不同，账要分开记）。
-  const accountPort: AccountPort = realAccount(deps)
+  // #1454：刷新这条路径记 'plugin' 档；换算与写账都收在 createAccountPort 里，全仓只有那一处
+  // ledger.spend。桥里那份账号记 'ai-tool'，与本文件这份档位不同（两条路的 caller 不同，账要分开记）。
+  const accountPort = createAccountPort({ ledger: deps.ledger, account: 'plugin' })
   const logCtx = deps.logCtx || null
   function openFail(reason: string, detail?: string): SessionFailure {
     try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('debug', 'read.session', { ok: false, reason: reason }) } catch (eL: any) {}

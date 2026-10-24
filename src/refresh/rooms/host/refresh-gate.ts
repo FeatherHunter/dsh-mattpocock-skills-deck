@@ -1,12 +1,15 @@
 // src/refresh/rooms/host/refresh-gate.js —— 刷新机制的唯一出口闸（#706 T2 第二批）
 //
 // 依据：定稿第三章「三层 + 一道闸」与第四章第 01 件。它只回答一句：这一笔去 GitHub 的调用，
-// 现在放行、降级，还是推迟？放行之后再记一笔真实花费。裁决本身一行都不在这里 —— 它调 kernel
+// 现在放行、降级，还是推迟？账本只有操作管线的 account 一处写（#1454），闸只读账、不写账。
+// 裁决本身一行都不在这里 —— 它调 kernel
 // 那份纯函数产物 admission-policy.js（第一批的成果），数字全部从 host-budget.js 取好注入。所以本文件里没有一条裁决规则、
 // 没有一个额度数字，这两个 import 就是「只许复用、不许再写一份」的落地方式。
 //
 // 守住五件事（票面点名的五条硬要求，逐条对应下面一段代码）：
-//   1. **唯一出口**：分类（人的动作 / 生命周期 / 后台 / AI 工具）、记账、裁决、推迟队列四件事都在这里做。
+//   1. **唯一出口**：分类（人的动作 / 生命周期 / 后台 / AI 工具）、裁决、推迟队列三件事都在这里做。
+//      真实用量不在这里记账：从 #1454 起账本只有操作管线的 account 一条写入口，闸只把自己
+//      实测到的真发条数记进 stats.accounted 做对账。
 //      静态扫描门禁（tests/verify-gh-gateway.js）扫整个 src，要求每一个能起 gh 进程的调用点都登记在册。
 //   2. **记账单位是真实出站 HTTP 请求数**：调用方报几条、传输层真发几条，两个数各自记账并当场对账；
 //      分页、重试、兜底链、扇出都要算进去，所以闸不认「逻辑上一次调用」这个说法。
@@ -116,13 +119,9 @@ interface LedgerView {
   synced?: boolean
 }
 
-/** 记一笔真实花费时交给账本的东西：后端与桶必给，条数与点数是 num() 归一过的数字。 */
-interface LedgerSpendEntry { account: string; backendId: string; bucket: string; kind?: string; requests?: number; points?: number }
-
-/** 闸实际用到账本的五条：多一条也不用，少一条接线时就当场抛。 */
+/** 闸实际用到账本的四条：多一条也不用，少一条接线时就当场抛。 */
 interface LedgerShape {
   view(backendId: string, bucketName: string): LedgerView
-  spend(entry: LedgerSpendEntry): { remaining: number | null; tier: string | null }
   noteRateLimited(backendId: string, bucketName: string, seconds: unknown, at: number): { bucket: string; until: number }
   hourOf(accountName: string, backendId: string): Counters
   syncDue(backendId: string, at?: unknown): boolean
@@ -155,9 +154,6 @@ interface WorkspacePatch { active?: unknown }
 
 /** 四个类别（谁在做事）。与 admission-policy.js 的 RequestCategory 同一套取值。 */
 export const GATE_CATEGORIES: readonly string[] = ['user-action', 'lifecycle', 'background', 'ai-tool']
-
-/** 类别 → 记哪一档账。插件自己的刷新（后台与生命周期）记一档，人的动作与 AI 工具各记一档。 */
-export const ACCOUNT_OF_CATEGORY: Readonly<Record<string, string>> = { 'user-action': 'user-action', 'lifecycle': 'plugin', 'background': 'plugin', 'ai-tool': 'ai-tool' }
 
 /**
  * 调用点 → 类别。分类是本闸的第一件事：以后新加一个取数功能，先在这里给它一个身份，
@@ -251,15 +247,16 @@ function shortHash(s: unknown): string {
 /**
  * 建一道闸。deps: { ledger, logCtx?, now?, hash8? }。
  * ledger 是本目录的账本（quota-ledger.js）—— 两个文件不互相 import：宿主接线的时候把它们拼起来，
- * 闸只按形状用它（view / spend / noteRateLimited / hourOf / syncDue）。
+ * 闸只按形状用它（view / noteRateLimited / hourOf / syncDue）。闸不写账本：真实用量只由
+ * 操作管线的 account 一处记账（#1454），闸读的是那一桶当下的账。
  */
 export function createGate(deps?: GateDeps) {
   const opts = deps || {}
   // 账本在这里断言成整本形状：紧接着那条判断仍原样在运行时把不合格的账本当掉（接线出错就当场抛），
   // 断言只为让下面那些内层函数里的读法成立 —— TS 不把这里 const 的收窄带进内层函数，运行时不多不少一行。
   const ledger = opts.ledger as LedgerShape
-  if (!ledger || typeof ledger.view !== 'function' || typeof ledger.spend !== 'function') {
-    throw new Error('闸要一本账：deps.ledger 缺 view / spend 这两条')
+  if (!ledger || typeof ledger.view !== 'function') {
+    throw new Error('闸要一本账：deps.ledger 缺 view 这一条')
   }
   const now = typeof opts.now === 'function' ? opts.now : Date.now
   const logCtx = opts.logCtx || null
@@ -369,7 +366,8 @@ export function createGate(deps?: GateDeps) {
 
   /**
    * 真发一步：这一步实际发出去的条数由这一步的计数器归属（并发的另一步记在它自己的计数器上）。
-   * 失败也照样记账 —— 发出去的那几条就是已经花掉的额度，账不许因为失败就不记（I6）。
+   * 失败那一笔也照样把真发条数记进闸自己的对账累计（stats.accounted）—— 发出去就是已经花掉的额度（I6）；
+   * 但账本不在这里写：真实用量由操作管线的 account 一处记账（#1454）。
    */
   async function runStep(req: NormalizedReq, step: unknown, perform: StepPerform, slot: QuotaSlot): Promise<StepOutcome> {
     let actual = { requests: 0, points: 0 }
@@ -386,14 +384,14 @@ export function createGate(deps?: GateDeps) {
       stats.claimed.points += reported.points
       if (reported.requests !== actual.requests || reported.points !== actual.points) stats.mismatch += 1
     }
-    // 账记的是真发出去的那几条（传输层说了算），不是调用方报的数；报到哪儿去由账本按档与桶分开记。
+    // 闸自己对的账：真发出去的那几条（传输层说了算），不是调用方报的数。
+    // 这一份只留在 stats.accounted 里对账，不写账本 —— 账本只有操作管线的 account 一条写入口（#1454）。
     stats.accounted.requests += actual.requests
     stats.accounted.points += actual.points
-    const account = ACCOUNT_OF_CATEGORY[req.category] || 'plugin'
-    // 只给有额度的后端记账：未知与离网在账本里没有桶，去记会当场抛；它们本来就不知道该扣哪一桶，也不扣。
-    const after = slot.hasQuota
-      ? ledger.spend({ account: account, backendId: req.backendId, bucket: slot.bucket, kind: req.kind, requests: actual.requests, points: actual.points })
-      : { remaining: null, tier: null }
+    // 回执里的水位与档位读这一桶当下的账：本步的花费由管线记账后反映出来，
+    // 闸不再「本步花完立刻改账本」，所以这里读到的不是「本步之后」的精确值，而是最近一次记账后的值。
+    // 未知与离网在账本里没有桶，直接给空账（remaining / tier 都是 null），不去账本上读。
+    const after: LedgerView = slot.hasQuota ? ledger.view(req.backendId, slot.bucket) : EMPTY_VIEW
     if (failure) {
       // 一次真失败：计数加一，窗口从此刻重开（窗口长短的判据在 src/refresh/kernel/failure-window.ts）。
       const next = failureWindow.recordFailure({ failures: wsState(req.workspaceKey).failuresSinceSuccess, windowStartedAt: 0 }, now())
