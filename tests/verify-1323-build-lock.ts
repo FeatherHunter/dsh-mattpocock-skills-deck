@@ -1,5 +1,7 @@
 // tests/verify-1323-build-lock.ts —— #1365 同工作区构建互斥文件锁（#1323 方案甲）的门禁
-// 门禁归属: scripts/lib/build-lock.mts（锁本身）与 scripts/build.mts 里的接线（拿锁/复核/释放/兜底/人工闸）
+// 门禁归属: scripts/lib/build-lock.mts
+// 门禁归属: scripts/build.mts
+// 上面两行各守一处：锁本身的模块，与构建主流程里的接线（拿锁/复核/释放/兜底/人工闸）。
 //
 // 要守的事（票 #1365 的验收判据）：
 //   ① 争锁串行：两个进程同时要锁，只有一个能进去，另一个排队等，前面放锁后面才能拿到；
@@ -198,6 +200,14 @@ async function testMain(): Promise<void> {
     for (const token of ['acquireBuildLock', 'releaseBuildLock', 'pulseBuildLock', '--break-stale-lock']) {
       check(buildSrc.includes(token), 'scripts/build.mts 里接了 ' + token, '接线被删掉的话锁模块再对也等于没有')
     }
+    // —— #1393 第 1 项的防倒退：命中先查、没命中才拿锁，拿锁后再复核一次，兜底跟在拿锁之后 ——
+    const firstHit: number = buildSrc.indexOf('tryBuildCacheHit(args)')
+    const acquirePos: number = buildSrc.indexOf('acquireBuildLock(')
+    const lastHit: number = buildSrc.lastIndexOf('tryBuildCacheHit(args)')
+    const exitHook: number = buildSrc.indexOf("process.on('exit'")
+    check(firstHit !== -1 && acquirePos !== -1 && firstHit < acquirePos, '缓存命中先查、没命中才拿锁（命中退出的那条路不碰锁）', '拿锁又跑到第一次缓存检查前面去了，命中也要白排队')
+    check(lastHit !== -1 && lastHit > acquirePos, '拿锁成功后再复核一次缓存（排队时别人可能已构建完）', '拿锁后的复核被删掉的话，排队等完只能重复构建')
+    check(exitHook !== -1 && exitHook > acquirePos, '退出兜底挂在拿锁之后（命中退出的那条路没拿锁）', '兜底挂到拿锁前面去了，命中退出会去释放一把没拿过的锁')
 
     // —— 第①条：争锁串行 ——
     const dir1: string = path.join(tmpRoot, 'contend')
@@ -249,6 +259,8 @@ async function testMain(): Promise<void> {
     const timeoutOut: string = timeout.stdout + timeout.stderr
     check(timeoutOut.includes(String(process.pid)), '超时报错里写清持锁 pid（知道去看哪个进程）', timeoutOut.slice(-300))
     check(timeoutOut.includes(dir4), '超时报错里写清锁文件在哪（知道去看哪个目录）', timeoutOut.slice(-300))
+    check(timeoutOut.includes('开始等') && timeoutOut.includes('已等约'), '超时报错里写清什么时候开始等、已经等了多久', timeoutOut.slice(-300))
+    check(timeoutOut.includes('拿锁时间'), '超时报错里写清持锁人是什么时候拿的锁', timeoutOut.slice(-300))
     const desc4: DriverResult = runDriver(['--repoRoot=' + ROOT, '--dir=' + dir4, '--mode=describe'])
     check(desc4.stdout.includes('被持有'), '活锁的 describe 说的是「被持有」（不是无人接管）', desc4.stdout.slice(-200))
 

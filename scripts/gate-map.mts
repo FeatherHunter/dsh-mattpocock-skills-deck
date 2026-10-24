@@ -101,6 +101,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1411-suggest-appearance': 149,
   // 2026-10-24 #1456：账号认领写路径新开闸（假会话钉住只经写会话认领、并集不撤别人等）；27 条是单跑实测得出的。
   'verify-1456-handoff-claim-write': 27,
+  // 2026-10-24 #1451 后续：建议气泡按会话保留（切走再切回放回原组、关掉的不复活、缓存有上限、
+  // 不落盘不加定时器）；31 条是单跑实测得出的。
+  'verify-1451-suggest-session-keep': 31,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

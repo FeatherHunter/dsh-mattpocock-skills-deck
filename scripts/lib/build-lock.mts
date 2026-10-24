@@ -69,6 +69,10 @@ export interface BuildLock {
   waitedMs: number
   /** 已经释放过就为真：重复调 releaseBuildLock 不会再碰文件。 */
   released: boolean
+  /** 拿锁成功的那一刻（Date.now()）：释放日志里算「持有多久」。 */
+  acquiredAt: number
+  /** 这把锁是不是接管来的：等锁时把陈旧锁改名接管、或带人工闸接管旧锁，释放日志里如实说。 */
+  tookOver: boolean
   /** 加载时读到的三档时间：日志里报「等了多久、最多等多久」用同一份，不各说各的。 */
   times: BuildLockTimes
 }
@@ -260,11 +264,12 @@ export function acquireBuildLock(opts: AcquireBuildLockOptions): BuildLock {
     token: randomBytes(8).toString('hex'),
   }
   // 人工闸 --break-stale-lock：拿锁前先看一眼，有旧锁就改名接管（改名失败说明锁已经没了，直接进正常流程）。
+  let tookOver = false
   if (opts.breakStale) {
     const prev: { info: BuildLockInfo | null; corrupt: boolean } = readLockInfo(lockPath)
     if (prev.info !== null || prev.corrupt) {
       console.log('[build] 构建锁：带了 --break-stale-lock，旧锁不管死活都接管（' + describeLock(prev) + '）')
-      takeoverLock(lockPath)
+      if (takeoverLock(lockPath)) tookOver = true
     }
   }
   const start: number = Date.now()
@@ -274,7 +279,7 @@ export function acquireBuildLock(opts: AcquireBuildLockOptions): BuildLock {
     try {
       writeFileSync(lockPath, JSON.stringify(me), { flag: 'wx', encoding: 'utf8' })
       const waitedMs: number = Date.now() - start
-      const lock: BuildLock = { cacheDir: opts.cacheDir, lockPath, token: me.token, waitedMs, released: false, times }
+      const lock: BuildLock = { cacheDir: opts.cacheDir, lockPath, token: me.token, waitedMs, released: false, acquiredAt: Date.now(), tookOver, times }
       startHeartbeat(lock, lockPath)
       if (waitedMs > 0) {
         console.log('[build] 构建锁：拿到锁了（排队约 ' + Math.round(waitedMs / 1000) + ' 秒），先复核一次缓存再决定要不要真构建')
@@ -293,7 +298,10 @@ export function acquireBuildLock(opts: AcquireBuildLockOptions): BuildLock {
       // 接管先改名再建，不删了再建：删建之间有空隙，两个等锁的人会同时认为「没锁了」各建各的；
       // 改名是原子操作，只有一个人能改走，改输的人收到 ENOENT 回去重等（锁还在，只是换了个名）。
       console.log('[build] 构建锁：上一把锁已经没人管了（' + describeLock(seen) + '），改名接管')
-      if (takeoverLock(lockPath)) continue
+      if (takeoverLock(lockPath)) {
+        tookOver = true
+        continue
+      }
       continue
     }
     if (seen.info !== null && !announced) {
@@ -302,8 +310,11 @@ export function acquireBuildLock(opts: AcquireBuildLockOptions): BuildLock {
         + '这次在后面排队等它（最多等约 ' + Math.round(times.waitMs / 60000) + ' 分钟）')
     }
     if (Date.now() >= deadline) {
-      const holder: string = seen.info !== null ? 'pid ' + seen.info.pid + '（主机 ' + seen.info.host + '）' : '未知进程'
-      throw new Error('[build] 构建锁：等了约 ' + Math.round(times.waitMs / 60000) + ' 分钟还是没拿到锁'
+      const waitedMin: number = Math.round((Date.now() - start) / 60000)
+      const holder: string = seen.info !== null
+        ? 'pid ' + seen.info.pid + '（主机 ' + seen.info.host + '，拿锁时间 ' + new Date(seen.info.startedAt).toISOString() + '）'
+        : '未知进程'
+      throw new Error('[build] 构建锁：从 ' + new Date(start).toISOString() + ' 开始等、已等约 ' + waitedMin + ' 分钟还是没拿到锁'
         + '（持锁 ' + holder + '，锁文件 ' + lockPath + '）：这次不等了，直接报错退出；'
         + '持锁进程可能卡住或死了但心跳还在，先去看那台机器上的进程，再决定要不要带 --break-stale-lock 重跑')
     }
@@ -367,10 +378,16 @@ export function releaseBuildLock(lock: BuildLock): void {
   stopHeartbeat(lock)
   if (lock.released) return
   lock.released = true
+  const heldS: number = Math.max(0, Math.round((Date.now() - lock.acquiredAt) / 1000))
+  const who: string = 'pid ' + process.pid + '（主机 ' + hostname() + '）'
+  const taken: string = lock.tookOver ? '，这把锁是接管来的' : ''
   try {
     const seen: { info: BuildLockInfo | null; corrupt: boolean } = readLockInfo(lock.lockPath)
     if (seen.info !== null && seen.info.token === lock.token) {
       rmSync(lock.lockPath, { force: true })
+      console.log('[build] 构建锁：' + who + '释放了锁（持有约 ' + heldS + ' 秒' + taken + '）')
+    } else {
+      console.log('[build] 构建锁：' + who + '释放时锁已是别人的（被接管走或文件没了），不动别人的文件（持有约 ' + heldS + ' 秒' + taken + '）')
     }
   } catch {
     // 释放时删不掉（权限、文件系统）：进程退出了锁就没人续心跳，等锁的人按陈旧接管，不在这里报错。

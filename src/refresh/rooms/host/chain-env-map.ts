@@ -172,6 +172,19 @@ export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string): ChainE
     }
     try { return { ok: true, value: await reply.call(fn) } } catch (e) { return { ok: false, reason: String((e && (e as CaughtError).message) || e) } }
   }
+  /**
+   * 房间要的这一次操作上下文：平台、起进程口、日志口与出站闸全在会话交来的那一份里。
+   *
+   * 为什么必须把会话交来的 ctx 原样带上：房间的 preflight 第一关就是读 opCtx.platform.resolveExecutable
+   * （src/tracker/rooms/github/preflight.ts 的第 1 关），getCurrentUser 也要经 opCtx 起 gh。只给 { cwd }
+   * 时房间会立刻按环境失败收场（'gh not found: platform.resolveExecutable unavailable'），而记日志用的
+   * opCtx.logEvent 同样不在，连一行失败日志都落不下来 —— 现象就是链上两项永远 pending、日志里查不到原因。
+   * cwd 用本次求值的目录覆盖，是因为房间会拿它当 gh 的工作目录。
+   */
+  function opCtxOf(ctx: unknown, cwdStr: string): Record<string, unknown> {
+    const base = (ctx && typeof ctx === 'object') ? (ctx as Record<string, unknown>) : {}
+    return Object.assign({}, base, { cwd: cwdStr })
+  }
   /** 本地解析仓库 refId（getRepoKey 只读本地 git 配置，不起进程）；解析不到就空着，交给房间自己回 not-found。 */
   function repoRefOnce(): Promise<string> {
     if (!repoRef) repoRef = (async function () { try { const rk = await getRepoKey(probeCwd); return (rk && rk.owner && rk.name) ? rk.owner + '/' + rk.name : '' } catch (e) { return '' } })()
@@ -184,7 +197,8 @@ export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string): ChainE
       const refId = await repoRefOnce()
       const handle: ChainRepoHandle = { cwd: probeCwd, backend: 'github' }
       if (refId) handle.refId = refId
-      const r = await callSession(function (session) { return session.preflight(handle, { cwd: probeCwd }) })
+      // 第二格是这一次的操作上下文（见 opCtxOf 的注释）：只给 { cwd } 会让房间找不到 gh。
+      const r = await callSession(function (session, ctx) { return session.preflight(handle, opCtxOf(ctx, probeCwd)) })
       if (!r.ok) return { stage: 'none', message: r.reason }
       const res = r.value
       if (res && res.ok === true) return { stage: 'pass' }
@@ -198,8 +212,9 @@ export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string): ChainE
     if (viewer) return viewer
     viewer = (async function () {
       const refId = await repoRefOnce()
-      const r = await callSession(function (session) {
-        return session.getCurrentUser({ backend: 'github', refId: refId, name: refId, url: '' }, { cwd: probeCwd })
+      const r = await callSession(function (session, ctx) {
+        // 与 preflight 同一份上下文（见 opCtxOf 的注释）：取登录名同样要经 opCtx 起 gh。
+        return session.getCurrentUser({ backend: 'github', refId: refId, name: refId, url: '' }, opCtxOf(ctx, probeCwd))
       })
       if (!r.ok) return { ok: false }
       const res = r.value
