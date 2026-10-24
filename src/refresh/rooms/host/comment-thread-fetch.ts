@@ -57,10 +57,11 @@ interface CommentThreadsDeps {
  * 什么约定不能改：返回对象的五个字段名是调用点按名取的，改名调用点就拿不到。
  */
 export function createCommentThreads(deps: CommentThreadsDeps): any {
-  // 只取本文还有读者的几格：写路径改走会话之后，getPlatform / ctx / timer / getRepoKey / DEFAULT_CWD
+  // 只取本文还有读者的几格：读写路径都改走会话之后，getPlatform / ctx / timer / getRepoKey / DEFAULT_CWD
   // 在这里已经没有调用点；字段仍留在接口上，是因为宿主接线 src/host/index.ts 照样按这些名字注入。
   // #1456 第 3 条：runGh 连注入带字段一起删了——它连读者都没有，留着只会让人以为读路径还直调 gh。
-  const { normCwd, getTrackerRegistry, errText, execProc, setCache } = deps as any
+  // #1465：读路径不再调注册表 describe，getTrackerRegistry 也不再解构（接口保留，宿主照旧注入）。
+  const { normCwd, errText, execProc, setCache } = deps as any
   // #1444：读路径只认只读会话（deps.openSession）。会话由宿主按目录选好后端，本文件不再自己分发、
   // 也不再直调 gh；开不成时如实失败，让上层照旧降级用缓存。
   async function openReadSession(cwd: any): Promise<any> {
@@ -79,13 +80,12 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     if (r && r.ok === false) return r
     return { ok: false, error: { kind: 'network', message: '只读会话没有交回单票数据' } }
   }
-  // 仓库引用（只给读路径用）：让注册表按目录与后端解析（describe 是房间的同步定位口，不花额度也不进管线），
-  // 解析不出时退回旧兜底形状。写路径不再走这里 —— 身份由写会话回包直接给。
-  async function repoRefFor(cwd: any, backendId: any): Promise<any> {
-    let repoRef: any = null
-    try { repoRef = (await getTrackerRegistry()).describe({ cwd: cwd }, backendId) } catch (eDesc: any) {}
-    if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-    return repoRef
+  // #1465：读路径的仓库引用直接用只读会话回包（opened.repoRef），不再调注册表 describe。
+  // 为什么：describe 是房间的同步定位口，对 GitHub 工作区只给目录时交回空 refId（丢 owner），
+  // 房间 get 就报 refId missing；会话装配口已经过三级定位把 owner/name 补齐（与写路径同一份），
+  // 复制一份再挂 effortId（会话回包与判定结论是同一个对象，就地改会把范围带到别的调用上）。
+  function readRepoRefOf(opened: any): any {
+    return opened && opened.repoRef ? Object.assign({}, opened.repoRef) : null
   }
   // #1445：写路径只认写会话（deps.openSession 带 write:true）。选后端、问写权限（写入一律过裁决）、
   // 记账与解析仓库引用全由会话负责；本文件不再自己拼 opCtx、不再调注册表 select/describe，也不直调房间。
@@ -130,7 +130,9 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // 读路径只认会话（#1444）：会话开成之后，后端选择、读额度与记账都由它兜住，本文件不再自己分发。
       const opened: any = await openReadSession(cwd)
       if (!opened || opened.ok !== true) return readSessionFailure(opened)
-      const repoRef: any = await repoRefFor(cwd, opened.backendId)
+      // #1465：仓库引用直接用只读会话回包（与写路径同一份），不再调 describe。
+      const repoRef: any = readRepoRefOf(opened)
+      if (!repoRef || !repoRef.refId) return { ok: false, error: { kind: 'not-found', message: '无法解析目标仓库（refId missing）' } }
       // effort 维度：effort 是寻址范围，客户端带上来就放进 ref（不带 = 全仓库，单 effort 后端行为不变）
       if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
       const key: string = String(n).padStart(2, '0')
@@ -187,7 +189,9 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // 首屏 50；加载更多把 first 抬到「已加载 + 50」，到 200 为止。每次都从 0 取到 first，
       // 用整段替换房间交回的评论（契约的 Issue.comments 是数组，没有游标字段），再只交新增的一段。
       const want: number = Math.min(loaded + COMMENTS_PAGE, COMMENTS_MAX)
-      const repoRef: any = await repoRefFor(cwd, opened.backendId)
+      // #1465：同详情，评论读路径也用只读会话回包（与写路径同一份）。
+      const repoRef: any = readRepoRefOf(opened)
+      if (!repoRef || !repoRef.refId) return { ok: false, error: { kind: 'not-found', message: '无法解析目标仓库（refId missing）' } }
       // effort 维度：评论也按 effort 寻址（不带 = 全仓库；多 effort 同号时后端会诚实报 conflict）
       if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
       const key: string = String(n).padStart(2, '0')
