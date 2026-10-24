@@ -18,8 +18,8 @@ import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { getPlat, listEfforts, findIssueFileInEffort, getScratchRoot } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
-// #1486：规格与实施票/普通票的原文形状落盘（spec.md、issues/NN-slug.md）另住一件，
-// 本文件只在开头分流，旧的 map / map-ticket 路径原样保留到 #1487。
+// #1486/#1487：规格、实施票、普通票、探索地图与地图子票的原文形状落盘（spec.md、map.md、
+// issues/NN-slug.md）另住一件，本文件只在开头分流；旧路径只留给没有原文依据的输入。
 import { originalKindOf } from './create-render.js'
 import { createInOriginalLayout } from './create-layout.js'
 // #712/#922：建票取号的「读目录 → 取号 → 落盘」排队，与写票文件、配色文件共用 write-queue.js 那一份实现。
@@ -296,8 +296,8 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
   if(keyCheck&&!keyCheck.ok)return failAs(ERROR_KIND.PARSE,'idempotencyKey 不能用：'+keyCheck.reason,String(input.idempotencyKey))
   const idemKey=keyCheck?keyCheck.key:''
   try{
-    // #1486：规格容器（spec.md）与实施票/普通票（issues/NN-slug.md）走原文布局；
-    // 地图与探索地图子票（map / map-ticket）仍走下面的旧路径，#1487 再迁。
+    // #1486/#1487：规格、实施票/普通票、探索地图（map.md）与地图子票（issues/NN-slug.md）
+    // 都走原文布局；下面的旧路径只留给没有原文依据的输入（例如不认识的 Type 行）。
     const originalKind=originalKindOf(input)
     if(originalKind){
       const placement=await createInOriginalLayout(ctx,repo,input,originalKind,idemKey)
@@ -310,14 +310,15 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
       let mtime=new Date().toISOString()
       const stMtime=st&&(st as {mtime?: unknown}).mtime
       if(stMtime){try{mtime=new Date(stMtime as string).toISOString()}catch{}}
-      // 规格是顶层容器，没有父票；实施票的父票恒为同目录的 00；普通票有就写、没有就是根级。
+      // 规格与地图是顶层容器，没有父票；实施票与地图子票的父票恒为同目录的 00；
+      // 普通票有就写、没有就是根级。
       const wantedParent=(input.parentKey!==undefined&&input.parentKey!==null)?String(input.parentKey).trim():''
-      const fallbackParent=originalKind==='spec'
+      const fallbackParent=(originalKind==='spec'||originalKind==='map')
         ?null
-        :(originalKind==='spec-ticket'
+        :(originalKind==='spec-ticket'||originalKind==='map-ticket'
           ?'00'
           :(wantedParent?(/^\d+$/.test(wantedParent)?wantedParent.padStart(2,'0'):wantedParent):null))
-      const iss=parseMd(content,{key:placement.key,parentKey:fallbackParent,isMap:false,effortId:placement.effortId,createdAt:placement.createdAt,updatedAt:mtime,url:placement.path,kind:originalKind==='spec'?'spec':'issue'})
+      const iss=parseMd(content,{key:placement.key,parentKey:fallbackParent,isMap:originalKind==='map',effortId:placement.effortId,createdAt:placement.createdAt,updatedAt:mtime,url:placement.path,kind:originalKind==='spec'?'spec':(originalKind==='map'?'map':'issue')})
       applyLabelColors(iss,colorMap)
       return{ok:true,data:iss}
     }

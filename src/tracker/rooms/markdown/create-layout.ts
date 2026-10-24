@@ -1,7 +1,8 @@
 // create-layout.ts —— Markdown 后端「按原文形状落盘」的目录选择与写盘（#1486，父票 #1480）。
 //
 // 建什么形状的正文由 create-render.ts 负责；本文件只负责：
-//   1. 选中目录：给了 feature 就用它；没给就按标题生成目录名，占用时追加 -2、-3 后缀。
+//   1. 选中目录：给了 feature/effort 就用它；没给就按标题生成目录名，占用时追加 -2、-3 后缀。
+//      地图落 .scratch/<effort>/map.md（容器，编号 00）；地图子票落同一目录 issues/ 下的编号文件。
 //   2. 在同一把工作区写锁里回查幂等键、重新列目录取号、写文件，保证并发不丢号不重号。
 //   3. 返回最终路径、编号与目录名，让人话回执说清落在哪里。
 import { parseMd, slugify } from './parse.js'
@@ -16,7 +17,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { CreateInput } from '../../contract/inputs.js'
-import { nowIso, viewOf, labelsOf, assigneesOf, renderSpec, renderTicket } from './create-render.js'
+import { nowIso, viewOf, labelsOf, assigneesOf, renderSpec, renderTicket, renderMap, renderWayfinderChild } from './create-render.js'
 import type { CreateView, OriginalKind, LayoutFailure } from './create-render.js'
 
 /** 本地仓库引用：path 是本地后端的自有约定；mdScene 记调用方用的是 feature 还是 effort。 */
@@ -66,6 +67,15 @@ async function generatedFeatureDir(ctx: OpContext, title: string, idempotencyKey
     if (state.names.indexOf('spec.md') >= 0) {
       const text = await readTextFile(ctx, specPath)
       if (idempotencyKey && idempotencyKeyOf(text) === idempotencyKey && kind === 'spec') {
+        return { ok: true, root: dir, dirName: name }
+      }
+    }
+    // 地图是 effort 目录的顶层容器（map.md，编号 00），与规格同款：
+    // 同一幂等键重复建同一张地图时要复用这个目录，不能因为 map.md 已存在就换 -2 目录。
+    const mapPath = plat.join(dir, 'map.md')
+    if (state.names.indexOf('map.md') >= 0) {
+      const text = await readTextFile(ctx, mapPath)
+      if (idempotencyKey && idempotencyKeyOf(text) === idempotencyKey && kind === 'map') {
         return { ok: true, root: dir, dirName: name }
       }
     }
@@ -140,6 +150,14 @@ async function resolveTarget(ctx: OpContext, repo: RepoWithPath, kind: OriginalK
     return { ok: true, root: generated.root, dirName: generated.dirName, explicit: false }
   }
 
+  // 地图没给 effort：同样按标题建自己的目录（成为 .scratch/<slug>/map.md），不沿用唯一那个已有容器。
+  // 一个 effort 目录只能有一张 map.md，沿用已有目录会撞上那里的地图；「单容器自动回落」只适用于票。
+  if (kind === 'map') {
+    const generated = await generatedFeatureDir(ctx, title, idempotencyKey, kind)
+    if (!generated.ok) return generated
+    return { ok: true, root: generated.root, dirName: generated.dirName, explicit: false }
+  }
+
   // 实施票没给 feature：规格目录必须唯一，猜错会把票挂到别人的规格下。
   // 要在「单容器自动回落」之前判断：地图目录不是规格目录，拿地图目录去建实施票会找不到父规格。
   if (kind === 'spec-ticket') {
@@ -150,6 +168,21 @@ async function resolveTarget(ctx: OpContext, repo: RepoWithPath, kind: OriginalK
       return failAs(ERROR_KIND.NOTFOUND, '实施票必须挂在规格票下：这个工作区里还没有 spec.md。先建规格，或者用 feature 指定规格所在的目录。', '')
     }
     return failAs(ERROR_KIND.CONFLICT, '这个工作区里有 ' + found.dirs.length + ' 个规格目录（' + found.dirs.map((d) => d.dirName).join('、') + '），没法判断实施票该落哪一个：请用 feature 指定目录名。', JSON.stringify(found.dirs.map((d) => d.dirName)))
+  }
+
+  // 地图子票没给 effort：必须挂在某张地图下，就落在那张 map.md 所在的目录（与普通票挂地图同一口径）。
+  // 要在「单容器自动回落」之前判断：回落拿到的可能是规格目录，那里没有 map.md。
+  if (kind === 'map-ticket') {
+    const map = await resolveMapFile(ctx, repo, { mode: 'read' })
+    if (!map.ok) {
+      if (map.error.kind === ERROR_KIND.NOTFOUND) {
+        return failAs(ERROR_KIND.NOTFOUND, '地图子票必须挂在一张探索地图下：这个工作区里还没有 map.md。先建地图，或者用 effort 指定地图所在的目录。', '')
+      }
+      return { ok: false, error: map.error }
+    }
+    const parts = map.path.split(/[\\/]/).filter(Boolean)
+    const parentDir = parts.length >= 2 ? parts[parts.length - 2] : ''
+    return { ok: true, root: map.path.replace(/[\\/][^\\/]+$/, ''), dirName: parentDir, explicit: true }
   }
 
   // 没有点名目录、但工作区里只有一个已有容器时，沿用旧口径自动落那一个目录：
@@ -229,6 +262,23 @@ async function requireSpec(ctx: OpContext, root: string): Promise<{ ok: true; pa
   return { ok: true, path: specPath, text: text }
 }
 
+/** 找目标目录里的 map.md，并核对它确实是地图容器（新文件没有旧标记，靠文件名与位置判断）。 */
+async function requireMap(ctx: OpContext, root: string): Promise<{ ok: true; path: string; text: string } | LayoutFailure> {
+  const plat = getPlat(ctx)
+  const mapPath = plat.join(root, 'map.md')
+  let text = ''
+  try { text = await readTextFile(ctx, mapPath) } catch {
+    return failAs(ERROR_KIND.NOTFOUND, '地图子票必须挂在一张探索地图下：目录「' + root + '」里没有 map.md。先在那个目录建地图，或者用 effort 指定地图所在的目录。', mapPath)
+  }
+  if (!text.trim()) return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 map.md 是空的，没法确认它是不是地图：这次没建地图子票。', mapPath)
+  // 老文件可能还带 DSH-ISSUE-KIND；写着别的类型就拒绝，避免把子票挂到规格或普通票下面。
+  const marked = markerKindInHeader(text)
+  if (marked && marked !== 'map') {
+    return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 map.md 写着「' + marked + '」标记，不是地图容器：这次没建地图子票。', mapPath)
+  }
+  return { ok: true, path: mapPath, text: text }
+}
+
 /** 一次建票的完整落盘：锁内选目录、回查幂等键、取号、写文件。 */
 export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath | null, input: CreateInput, kind: OriginalKind, idempotencyKey: string): Promise<LayoutPlacement | LayoutFailure> {
   const plat = getPlat(ctx)
@@ -271,6 +321,26 @@ export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath 
       return { ok: true, path: specPath, key: '00', effortId: dirName, reused: false, kind: kind, createdAt: createdAt }
     }
 
+    // 探索地图：一个目录一份 map.md，编号 00。状态只进隐藏注释，正文是原文的五段。
+    // 与规格同一套复用/防覆盖规则：同幂等键复用盘上那份，键不同就拒绝覆盖。
+    if (kind === 'map') {
+      const mapPath = plat.join(root, 'map.md')
+      const anchor = await findAnchor(ctx, root, idempotencyKey)
+      if (anchor.ok && anchor.hit && anchor.hit.name === 'map.md') {
+        const text = await readTextFile(ctx, anchor.hit.path)
+        return { ok: true, path: anchor.hit.path, key: '00', effortId: dirName, reused: true, kind: kind, createdAt: createdOf(text, createdAt) }
+      }
+      if (!anchor.ok) return anchor
+      const occupied = await dirOccupied(ctx, root)
+      if (!occupied.ok) return occupied
+      if (occupied.names.indexOf('map.md') >= 0) {
+        return failAs(ERROR_KIND.CONFLICT, '目录「' + dirName + '」里已经有一份 map.md（不是这次这个幂等键建的）：这次没建，免得覆盖它。换一个 effort，或先用新目录。', mapPath)
+      }
+      const text = renderMap(view, { createdAt: createdAt, idempotencyKey: idempotencyKey, labels: labels, assignees: assignees })
+      await publishTextFile(ctx, mapPath, text, ctx && (ctx as { sandboxPolicy?: unknown }).sandboxPolicy)
+      return { ok: true, path: mapPath, key: '00', effortId: dirName, reused: false, kind: kind, createdAt: createdAt }
+    }
+
     // 实施票：父票只能是本次目录里的规格（00）。没给父票也按 00 处理，原文靠目录表达父子。
     if (kind === 'spec-ticket') {
       if (parentKey && parentKey !== '00') {
@@ -278,6 +348,15 @@ export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath 
       }
       const spec = await requireSpec(ctx, root)
       if (!spec.ok) return spec
+    }
+
+    // 地图子票：父票只能是同一目录的地图（00）；目录里必须有 map.md，否则不知道挂哪张地图。
+    if (kind === 'map-ticket') {
+      if (parentKey && parentKey !== '00') {
+        return failAs(ERROR_KIND.PARSE, '地图子票的父票要填 00（一个目录里只有一张地图容器），收到的是「' + parentKey + '」：这次没建。', parentKey)
+      }
+      const map = await requireMap(ctx, root)
+      if (!map.ok) return map
     }
 
     const issuesDir = plat.join(root, 'issues')
@@ -295,14 +374,23 @@ export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath 
     const key = numbered.number
     const fileName = key + '-' + slugify(title) + '.md'
     const finalPath = plat.join(issuesDir, fileName)
-    const text = renderTicket(kind, view, {
-      number: key,
-      createdAt: createdAt,
-      idempotencyKey: idempotencyKey,
-      labels: labels,
-      assignees: assignees,
-      parentKey: kind === 'spec-ticket' ? '00' : parentKey,
-    })
+    const text = kind === 'map-ticket'
+      ? renderWayfinderChild(view, {
+          number: key,
+          createdAt: createdAt,
+          idempotencyKey: idempotencyKey,
+          labels: labels,
+          assignees: assignees,
+          parentKey: '00',
+        })
+      : renderTicket(kind, view, {
+          number: key,
+          createdAt: createdAt,
+          idempotencyKey: idempotencyKey,
+          labels: labels,
+          assignees: assignees,
+          parentKey: kind === 'spec-ticket' ? '00' : parentKey,
+        })
     await publishTextFile(ctx, finalPath, text, ctx && (ctx as { sandboxPolicy?: unknown }).sandboxPolicy)
     return { ok: true, path: finalPath, key: key, effortId: dirName, reused: false, kind: kind, createdAt: createdAt }
   })

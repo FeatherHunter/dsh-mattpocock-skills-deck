@@ -8,7 +8,7 @@ import { publishTextFile } from './write.js'
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
-import { resolveIssueFile, resolveMapFile, resolveSpecFile } from './issues-locate.js'
+import { getPlat, resolveIssueFile, resolveMapFile, resolveSpecFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
@@ -110,6 +110,63 @@ async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,st
     }catch(e){return failFromError(e,ctx,'改这张票的状态时出错')}
   })
 }
+/** 从子票正文的 ## Answer 段取第一条内容当「决策」；没有就交回调用方给的关闭原因。 */
+function answerGist(ticket: Issue): string {
+  const body=ticket&&typeof ticket.body==='string'?ticket.body:''
+  const at=body.search(/^##\s*Answer\s*$/m)
+  if(at<0)return''
+  for(const raw of body.slice(at).split('\n').slice(1)){
+    if(/^##\s/.test(raw))break
+    const line=raw.trim().replace(/^[-*]\s+/,'').trim()
+    if(line)return line.length>120?line.slice(0,120)+'…':line
+  }
+  return''
+}
+/** 地图子票完成时，按原文往同一目录 map.md 的 Decisions so far 追加一条指针（#1487 验收③）。
+ *
+ *  判据只看「票文件同目录有没有 map.md」：原文地图子票就住在 map.md 同目录的 issues/ 下，
+ *  手写的、没有插件注释的文件同样适用，不靠隐藏注释判断身份。
+ *  指针一行是 `- [标题](issues/NN-slug.md): 一句话决策`：决策优先取子票 ## Answer 的第一条内容，
+ *  没有就取这次关闭原因，再没有才用标题 —— 原文要求这里记的是「已经定下来的事」，不能留空。
+ *  写入失败整个吞掉：票已经关成功，指针只是地图上的索引；写不进去不该把关闭报成失败，
+ *  重开再关时会重新补上，不会留下半截状态。 */
+async function appendMapDecisionPointer(ctx: OpContext,repo: RepoWithPath | null,ticket: Issue,reason: string,trail?: WriteTrail): Promise<void>{
+  const url=ticket&&ticket.url?String(ticket.url):''
+  if(!url)return
+  const plat=getPlat(ctx)
+  const mapPath=plat.join(plat.dirname(plat.dirname(url)),'map.md')
+  // 同目录没有 map.md 就是普通票目录：不是地图子票，什么都不做。
+  try{ await readTextFile(ctx,mapPath) }catch{ return }
+  // basename 在平台接口上是可选成员（有的宿主只给 path 的少数方法），自己按两种分隔符取末段最稳。
+  const fileName=String(url).split(/[\\/]/).filter(Boolean).pop()||''
+  const link='issues/'+fileName
+  const title=String(ticket.title||'').trim().replace(/^\d{1,3}:\s*/,'')||String(ticket.key||'')
+  try{
+    await withFileWriter(ctx,repo,mapPath,async function(){
+      let before: string
+      try{ before=await readTextFile(ctx,mapPath) }catch{ return }
+      // 同一张子票在地图上只留一条指针：重复关闭、重开后再关都不再追加。
+      if(before.indexOf(']('+link+')')>=0)return
+      const gist=answerGist(ticket)||reason||title
+      const line='- ['+title+']('+link+'): '+gist
+      const lines=before.split('\n')
+      const start=lines.findIndex(function(one: string){ return /^##\s*Decisions so far\s*$/.test(one) })
+      // 手写地图可能没有这一段（原文五段之一，但人可能改了标题）：找不到就不硬加，
+      // 宁可少一条索引，也不改坏别人的文件。
+      if(start<0)return
+      let end=start+1
+      while(end<lines.length&&!/^##\s/.test(lines[end]))end+=1
+      // 段尾去掉空行再插：指针要长在 Decisions so far 的最后一条后面，不能插在下个标题的空白里。
+      let at=end
+      while(at>start+1&&lines[at-1].trim()==='')at-=1
+      lines.splice(at,0,line)
+      const after=lines.join('\n')
+      if(after===before)return
+      await publishTextFile(ctx,mapPath,after,ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      noteFileWritten(trail)
+    })
+  }catch{ /* 地图指针是附加索引，关票已经成功：写不进去不该把关闭报成失败。 */ }
+}
 export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,opts?: CloseOpts): Promise<{ok:true;data:Issue}|StatusFailure>{
   // 调用方给了原因就原样记下来（契约说这是开放字符串，不在这里分支：插件只认得 completed 与 duplicate，
   // GitHub 那边还会有 not_planned，照原样展示即可）；没给就一个字节都不写这一行，
@@ -118,6 +175,7 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
   const t0=Date.now()
   const trail=beginWriteTrail()
   const r=await setStatus(ctx,repo,key,'Status: resolved',reason?'Close reason: '+reason:undefined,trail)
+  if(r.ok)await appendMapDecisionPointer(ctx,repo,r.data,reason,trail)
   emitIssueWrite(ctx,'close',trail,r,t0)
   return r
 }
