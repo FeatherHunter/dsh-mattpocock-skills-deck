@@ -1,6 +1,8 @@
 const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // verify-t1-getrepokey.ts — #41 T1 修复验证：getRepoKey 显式解析 origin
 // 多远程下（旧实现 → `gh repo view` 命中 upstream；新实现 → `git remote get-url origin` 命中 Fork）
+// #1453 起宿主这一层只剩本地证据：origin 与 .git/config 都答不上来时回 null，不再起 gh repo view ——
+// 那一级搬进会话的 getRepoKey 能力（开会话之后先裁决再记账），所以场景 4 的口径跟着改成 null。
 // 用法：node tests/verify-t1-getrepokey.ts
 // 依赖：node + 本机 git（PATH）。不依赖 gh（gh 走 mock，可控返回 upstream 模拟 gh 旧 bug）
 //
@@ -195,13 +197,15 @@ async function main() {
   const snap3 = await h3('snapshot', { cwd: sshDir })
   expect('场景3 · snapshot.repo 命中 SSH Fork', snap3.repo && snap3.repo.owner === 'SSHOwner' && snap3.repo.name === 'SSHRepo', JSON.stringify(snap3.repo))
 
-  // ============ 场景 4：origin 缺失（仅 upstream）→ Tier 1/2 失败 → Tier 3 gh mock 返回 upstream ============
-  console.log('--- 场景 4：origin 缺失 → 降级到 gh mock ---')
+  // ============ 场景 4：origin 缺失（仅 upstream）→ 两级本地证据都答不上来 → repo=null，且不起 gh（#1453） ============
+  console.log('--- 场景 4：origin 缺失 → 只读本地证据，repo=null ---')
   const noOriginDir = await setupGitRepo([{ name: 'upstream', url: 'https://github.com/OnlyUpstream/OnlyUpstreamRepo.git' }])
   const h4 = await loadPlugin({ subprocess, timer, fs: fsSvc, skills: makeSkills() })
   ghCalls.length = 0
   const snap4 = await h4('snapshot', { cwd: noOriginDir })
-  expect('场景4 · snapshot.repo 降级到 gh mock（upstream）', snap4.repo && snap4.repo.owner === 'upstream-org' && snap4.repo.name === 'upstream-repo', JSON.stringify(snap4.repo))
+  // 为什么不再是 upstream：从前这一级退到 `gh repo view`（mock 回 upstream-org/upstream-repo），那是出站、会花额度；
+  // #1453 把那一级搬进会话能力，只在开会话之后才问。宿主这一层只读本地证据，答不上来就如实回 null。
+  expect('场景4 · 只有 upstream 时 snapshot.repo 为 null（宿主不再起 gh 兜底）', snap4.repo === null, JSON.stringify(snap4.repo))
 
   // ============ 场景 5：缓存按 cwd 隔离 — Tier 1 命中后 repoKeys[cwd] 缓存 ============
   console.log('--- 场景 5：同 cwd 第二次 → repoKeys 缓存命中 ---')
@@ -220,7 +224,7 @@ async function main() {
   expect('场景6 · cwd 在子目录里，snapshot.repo 仍命中 Fork（工作区身份归到仓库根）', snap6.repo && snap6.repo.owner === 'ForkOwner' && snap6.repo.name === 'ForkRepo', JSON.stringify(snap6.repo))
   expect('场景6 · 回包里带着工作区根，且就是仓库根这一条（客户端靠它分桶）', snap6.workspaceRoot && path.resolve(snap6.workspaceRoot).toLowerCase() === path.resolve(forkDir).toLowerCase(), String(snap6.workspaceRoot))
 
-  // ============ 场景 7：非 Git 目录 → repo=null（Tier 3 gh 也 fail：mock 在非 git dir 返回 exit 128） ============
+  // ============ 场景 7：非 Git 目录 → repo=null（本地证据读不到，也不起 gh —— #1453 起宿主没有 gh 那一级） ============
   console.log('--- 场景 7：非 git 目录 → repo=null ---')
   const tmpDir = fsx.mkdtempSync(path.join(os.tmpdir(), 't1-nongit-'))
   const h7 = await loadPlugin({ subprocess, timer, fs: fsSvc, skills: makeSkills() })

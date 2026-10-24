@@ -14,16 +14,20 @@ import { ghClient } from './client.js'
 // 记日志那层壳在内核一份（#1182 第 3 件）。
 import { guardEmit } from '../../kernel/log-emit.js'
 import type { OpContext } from '../../contract/contexts.js';
+import type { OpUsage } from '../../contract/results.js';
 import type { RepositoryRef } from '../../contract/entities.js';
 import type { BackendId } from '../../contract/identity.js';
 import type { RepoHandle } from '../../contract/contexts.js';
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
-/** 解析出的仓库坐标：拥有者与仓库名，解析不出就回 null 而不是抛。 */
+/** 解析出的仓库坐标：拥有者与仓库名，解析不出就回 null 而不是抛。
+ *  `usage` 只在真的起过 gh 的那一级出现（#1453）：定位口没有成功信封，用量就挂在裸值上，
+ *  交给会话管线按后端预算模型记账；只读本地证据的两级不带这一格（它们没有出站）。 */
 export interface RepoKey {
   owner: string;
   name: string;
+  usage?: OpUsage;
 }
 
 // ============ 仓库定位：parseGithubRepo（从 host 迁移，语义不变） ============
@@ -170,7 +174,16 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
     if (rr && rr.ok) {
       const s = (rr.data.stdout || '').trim()
       const idx = s.indexOf('/')
-      if (idx > 0) { emitRepoTier(ctx, 3, true, t0); return { owner: s.slice(0, idx), name: s.slice(idx+1) } }
+      if (idx > 0) {
+        emitRepoTier(ctx, 3, true, t0)
+        // #1453：这一级真的起了一次 gh，用量必须随回包交给记账侧；客户端自己数着每一次出站
+        // （client.ts 的 reportOutbound），这里原样读走，不另做前后相减。
+        return {
+          owner: s.slice(0, idx),
+          name: s.slice(idx + 1),
+          usage: { requests: c.usage.requests, points: c.usage.points },
+        }
+      }
     }
   } catch (e) {}
   emitRepoTier(ctx, 3, false, t0)

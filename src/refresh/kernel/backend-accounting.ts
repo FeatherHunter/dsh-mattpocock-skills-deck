@@ -41,12 +41,18 @@ function nonNegInt(value: unknown): number {
 
 /**
  * 从房间回包里读出实际用量（没有就回 null，调用方据此打一行「这次没数」的诊断，不写假数）。
- * 只认成功信封上的 usage：失败信封没有用量可言，失败那次花没花由调用方按口径决定记零。
+ *
+ * 两种回包都认：
+ *  - 成功信封（`ok: true`）上的 usage —— 23 条操作都走这个形状。
+ *  - 定位口的裸值（没有 `ok`，例如 `getRepoKey` 回 `{ owner, name, usage }`）—— 契约规定定位口
+ *    没有成功信封，答案本身就是名字或者空；它真起了 gh 时用量只能挂在同一个对象上（#1453）。
+ * 显式失败（`ok: false`）一律不记：失败信封没有「做成了」可言，房间不该在失败时附用量，
+ * 真附了也不替它编一笔账；失败那次花没花由调用方按口径决定记零。
  */
 export function usageOfResult(result: unknown): OpUsage | null {
   if (!result || typeof result !== 'object') return null
   const r = result as Record<string, unknown>
-  if (r.ok !== true) return null
+  if (r.ok === false) return null
   const usage = r.usage
   if (!usage || typeof usage !== 'object') return null
   const u = usage as Record<string, unknown>

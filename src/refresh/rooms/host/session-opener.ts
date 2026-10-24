@@ -14,8 +14,9 @@
  *     与「花了多少要记下来」是两件事，前者是裁决，后者是量账；1439 之前读路径不记账才让账本越走越偏。
  *     开会话时顺手调一次 ensureBackend：账本按后端建模，桶要先建出来，写第一笔时才不会因为桶缺席当场炸。
  *  3. 仓库身份随会话一起交出去（openTracker 回包里的 repoRef）：写操作要一个 RepositoryRef，
- *     判定出口没带时在这里用 describe 补一次；GitHub 仍缺 refId 时按旧的评论写路径同一条三级解析
- *     退到 getRepoKey（git remote → .git/config → gh repo view）。调用方不再自己问注册表。
+ *     判定出口没带时在这里用 describe 补一次；GitHub 仍缺 refId 时问**会话自己的 getRepoKey 能力**，
+ *     由它先过裁决、再按后端口径记账（#1453，规格 1439 第 5 节：gh repo view 那一级是出站，
+ *     必须放在会话建立之后、走操作管线）。宿主那一份 getRepoKey 只读本地证据，这里不用它兜底。
  *
  * 与 1443 的额度同步读数（refresh-runtime 的 readSessionBudget）的关系：那一处只读一条 readBudget、
  * 不开整套读写路径。本文件的开会话也复用它——读数仍然直达房间，不裁决不记账。
@@ -40,8 +41,6 @@ export interface SessionOpenerDeps {
   ledger: unknown
   /** 后端上下文：这一次调用的平台、文件、计时器、起进程、日志、出站控制面。 */
   backendCtx: () => Record<string, unknown>
-  /** 仓库身份的最后一道解析（判定出口与 describe 都补不出 refId 时才问它；没有就如实交 null）。 */
-  getRepoKey?: (cwd: string) => Promise<{ owner?: string; name?: string } | null>
   /** 日志口（只用于开会话失败时的诊断，事件名 read.session）。 */
   logCtx?: { fire?: (level: unknown, event: unknown, fields: unknown) => void } | null
   /**
@@ -111,7 +110,13 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
     try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('debug', 'read.session', { ok: false, reason: reason }) } catch (eL: any) {}
     return { ok: false, reason: reason, detail: detail }
   }
-  /** 补出仓库身份：判定出口带的先用；缺 refId 时问 describe；GitHub 再退到 getRepoKey 的三级解析。 */
+  /**
+   * 补出仓库身份：判定出口带的先用；缺 refId 时问 describe；GitHub 仍缺就问会话的 getRepoKey。
+   * 为什么最后一步必须问会话而不是宿主（#1453）：仓库定位的 gh 那一级是出站，规格 1439 第 5 节
+   * 要求它放在会话建立之后、作为操作先过裁决再记账。会话的 getRepoKey 已经接在 Tracker 操作管线上
+   * （open-tracker 把除 describe/issueAddress 之外的能力都包进 runPipelineOp），直接调它就得到同一条路；
+   * 那一笔的用量由房间在回包上自报（OpUsage），账本才按后端的两桶口径记得到。
+   */
   async function resolveRepoRef(cwdStr: string, backendId: string, session: TrackerSession, fromSelection: RepositoryRef | null): Promise<RepositoryRef | null> {
     let ref: RepositoryRef | null = (fromSelection && fromSelection.refId) ? fromSelection : null
     if (!ref) {
@@ -120,20 +125,24 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         if (described) ref = Object.assign({}, described) as RepositoryRef
       } catch (eD: any) { ref = null }
     }
-    const needRefId: boolean = !ref || !(ref as any).refId
-    if (needRefId && backendId === 'github' && typeof deps.getRepoKey === 'function') {
-      // 与旧评论写路径同一条三级解析：GitHub 的判定出口不一定带 refId，缺它时后端无法定位仓库。
-      try {
-        const key: any = await deps.getRepoKey(cwdStr)
-        if (key && key.owner && key.name) {
-          const merged: any = Object.assign({}, ref || {})
-          merged.refId = key.owner + '/' + key.name
-          merged.name = merged.refId
-          merged.url = 'https://github.com/' + merged.refId
-          return merged as RepositoryRef
-        }
-      } catch (eK: any) {}
-    }
+    if (ref && (ref as any).refId) return ref
+    if (backendId !== 'github' || typeof (session as any).getRepoKey !== 'function') return ref
+    // GitHub 的判定出口不一定带 refId，缺它时后端无法定位仓库；这一问可能起 gh，所以先过裁决、再记账。
+    let base: Record<string, unknown> = {}
+    try { base = deps.backendCtx() || {} } catch (eB: any) { base = {} }
+    try {
+      // 第一格是仓库路径（契约 getRepoKey(cwd, ctx) 的 cwd 是字符串，房间的三级探测都拿它当工作目录）；
+      // 第二格是操作上下文：会话管线只负责裁决与记账，真正起 git/gh 时房间还是要 platform/exec/fs。
+      const located: any = await (session as any).getRepoKey(cwdStr, Object.assign({}, base, { cwd: cwdStr, caller: 'refresh' }))
+      // 房间回的是裸值（契约：{ owner, name } 或 null，用量挂在同一个对象上）；只有管线拒绝时才带 ok:false。
+      if (located && located.ok !== false && located.owner && located.name) {
+        const merged: any = Object.assign({}, ref || {})
+        merged.refId = String(located.owner) + '/' + String(located.name)
+        merged.name = merged.refId
+        merged.url = 'https://github.com/' + merged.refId
+        return merged as RepositoryRef
+      }
+    } catch (eK: any) {}
     return ref
   }
   return async function openSession(cwd: unknown, opts?: OpenSessionOptions): Promise<OpenSessionResult> {

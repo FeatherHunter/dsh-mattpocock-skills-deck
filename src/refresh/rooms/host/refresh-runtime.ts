@@ -168,7 +168,8 @@ export function createRefreshWiring(deps: any): any {
   // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（读、写共用这一份）。
   // 为什么在接线里造而不是让取数文件自己造：闸、账本、后端上下文与注册表都在本文件手里，
   // 各取数文件自己去接就会接出第二本账、第二套活跃集合（#723 抓过的那类「接上了却各走各的」）。
-  // 写会话多给两格：getRepoKey 补仓库身份（发布与写回都用得到），调用方还可另给 exec。
+  // 仓库身份不在这里注入：缺 refId 时开会话那一侧会问会话自己的 getRepoKey 能力（#1453，
+  // 仓库定位的 gh 那一级是出站，要过裁决与记账）；调用方还可另给 exec（发布与写回时 git 要跑宿主那一套）。
   // #1446：账本按后端建模，开会话时把「这个后端按什么口径花钱」交给账本建桶（幂等）；
   // 同时记下最近一次会话的后端编号，额度同步与面板回执按它分格（这两处拿不到 cwd 里的后端）。
   let currentBackendId = ''
@@ -176,7 +177,6 @@ export function createRefreshWiring(deps: any): any {
     getTrackerRegistry: function (): any { return (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null },
     ledger: ledger,
     backendCtx: syncBackendCtxOf,
-    getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
     logCtx: logCtx,
     ensureBackend: function (backendId: any, budget: any): void {
       try { if (ledger && typeof ledger.ensureBackend === 'function') ledger.ensureBackend(String(backendId), budget) } catch (eEn: any) {}

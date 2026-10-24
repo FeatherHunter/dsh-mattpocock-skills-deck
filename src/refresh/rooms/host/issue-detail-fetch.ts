@@ -121,7 +121,9 @@ export function createIssueDetail(deps: Deps) {
     let repo: RepoKey | null = null
     try { repo = await Promise.resolve(getRepoKey(cwd)) } catch (e: any) { return sessionFail('解析仓库坐标失败', (e && e.message) || e) }
     const ref = repoRefOf(repo, String(opened.backendId || ''))
-    if (!ref) return fail('env', '无法解析 owner/repo（git remote 或 gh repo view 失败）')
+    // #1453：宿主这一份 getRepoKey 只读本地证据（git remote、.git/config），不再起 gh —— 所以失败原因里
+    // 不再写 gh repo view；需要 gh 那一级时由会话的 getRepoKey 能力去问（它过裁决与记账）。
+    if (!ref) return fail('env', '无法解析 owner/repo（本地 git 证据里没有 GitHub origin，也没有可用的 .git/config）')
     try {
       return await opened.call(async function (session: TrackerSession, ctx: OpContext): Promise<any> {
         return fn(session, ref, ctx)
