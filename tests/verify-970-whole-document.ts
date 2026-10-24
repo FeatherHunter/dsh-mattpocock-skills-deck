@@ -62,7 +62,9 @@ const anchor = anchorLineFor('verify-970-seed').trim()
   check(h1(after) === 1, '① 盘上只有一个一级标题（原来是两个，实得 ' + h1(after) + '）')
   check(anchors(after) === 1, '① 盘上只有一个锚标记（原来是两个，实得 ' + anchors(after) + '）')
   check(after.includes('新正文'), '① 新内容保留')
-  check(/^\s*Status\s*:/im.test(after) && after.includes('Labels: bug'), '① 盘上原有的状态与标签行补回来了')
+  // #1486：新布局字段写成 `**Status:**`、标签进隐藏注释，两种写法都认，守的仍是「原字段不被整份替换吃掉」。
+  const hasLabels = after.includes('Labels: bug') || after.includes('DSH-LABELS: bug')
+  check(/^\s*(?:\*\*)?Status(?:\*\*)?\s*:/im.test(after) && hasLabels, '① 盘上原有的状态与标签行补回来了')
 }
 
 // ── ② 带状态整份：仍整份替换，行为不变 ──
@@ -78,7 +80,7 @@ const anchor = anchorLineFor('verify-970-seed').trim()
   const r = await tracker.update(REF, key, { body: '## 进度\n\n做了一些事\n' }, ctx)
   const after = fileOf()
   check(r.ok === true && h1(after) === 1, '③ 片段插入后仍单标题')
-  check(after.includes('做了一些事') && after.includes('Labels: bug'), '③ 片段内容落盘、原标签行还在')
+  check(after.includes('做了一些事') && (after.includes('Labels: bug') || after.includes('DSH-LABELS: bug')), '③ 片段内容落盘、原标签行还在')
 }
 
 // ── ④ 本门禁已挂进验证链（#1125 起问规划函数，不再读 package.json 长串）──

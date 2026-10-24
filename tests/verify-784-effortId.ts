@@ -119,7 +119,7 @@ async function main(): Promise<void> {
   const sA = await tools.deck_map_snapshot.run(exec, { key: '00', effort: 'alpha' })
   const sB = await tools.deck_map_snapshot.run(exec, { key: '00', feature: 'beta' })
   check(sA.status === 'ok' && sA.data.children.length === 1 && String(sA.data.children[0].title).includes('Alpha'), '快照 effort=alpha 只有 Alpha 的子票')
-  check(sB.status === 'ok' && sB.data.children.length === 1 && String(sB.data.children[0].title).includes('Beta'), '快照 feature=beta 只有 Beta 的子票')
+  check(sB.status === 'ok' && sB.data.children.length === 1 && String(sB.data.children[0].title).includes('Beta'), '快照 feature=beta 只有 Beta 的子票（实得 ' + JSON.stringify((sB.data && sB.data.children || []).map((c: any) => c.title)) + '；' + String(sB.text || '').slice(0, 160) + '）')
 
   // 列表：带 alpha 只回 alpha 的行
   const lA = await tools.deck_issue_list.run(exec, { state: 'all', feature: 'alpha' })
@@ -127,13 +127,13 @@ async function main(): Promise<void> {
   const l0 = await tools.deck_issue_list.run(exec, { state: 'all' })
   check(l0.status === 'ok' && l0.data.total >= 4, '列表不带时两份一起（' + l0.data.total + ' 行，与今天一致）')
 
-  // 建票：带 beta 建到 beta；不带时今天仍照旧冲突（多 effort 下不猜目录，留给 #1480 T3 改成按标题定目录）。
+  // 建票：带 beta 建到 beta；不带时 #1486 起按标题生成目录，不再猜现有 effort。
   const cB = await tools.deck_issue_create.run(exec, { title: 'Beta 新票', kind: 'issue', feature: 'beta' })
   check(cB.status === 'ok' && cB.data.ticket.effortId === 'beta', '建票 feature=beta 落在 beta（key=' + (cB.data.ticket && cB.data.ticket.key) + '）')
   const cBoth = await tools.deck_issue_create.run(exec, { title: '两参数新票', kind: 'issue', feature: 'beta', effort: 'beta' })
   check(cBoth.ok === false && String(cBoth.text || cBoth.message || '').includes('只能填一个'), '建票两个参数同时给 → bad-args，不落盘')
   const c0 = await tools.deck_issue_create.run(exec, { title: '不带 scope 的新票', kind: 'issue' })
-  check(c0.ok === false, '建票不带时照旧失败（conflict，与今天一致）：' + String(c0.text).slice(0, 80))
+  check(c0.status === 'ok' && String(c0.text || '').includes('.scratch/不带-scope-的新票/issues/'), '建票不带 scope 时按标题生成目录并如实回报（' + String(c0.text || '').slice(0, 80) + '）')
 
   // 改票：带 beta 改 beta 的 01
   const pB = await tools.deck_issue_patch.run(exec, { key: '01', effort: 'beta', comment: '784 T2 验收' })

@@ -431,7 +431,11 @@ export async function run() {
       // 所以这里断言的是「盘上确实多了这一张」以及中文标题不再变成 untitled，不去钉更多文件名细节。
       await assert('真实 markdown：盘上多出一张票文件（编号 01、中文标题保留）', files1.length === 1 && /^01-.+\.md$/.test(files1[0]) && files1[0] !== '01-untitled.md', JSON.stringify(files1))
       await assert('真实 markdown：把票文件直接读出来，锚就在文件里（回查读的是文件，不是内存）', idempotencyKeyOf(text1) === key, '文件开头是 ' + JSON.stringify(text1.slice(0, 80)))
-      await assert('真实 markdown：锚是文件的第一行（手改正文的人看得见它）', text1.split('\n')[0] === anchorLineFor(key).trim(), JSON.stringify(text1.split('\n')[0]))
+      // #1486：新布局的文件头第一行是 DSH-FORMAT，锚仍在第一个一级标题之前，只是不再抢占第一行。
+      const lines1 = text1.split('\n')
+      const anchorAt = lines1.indexOf(anchorLineFor(key).trim())
+      const titleAt = lines1.findIndex((l) => /^#[ \t]+\S/.test(l))
+      await assert('真实 markdown：锚在第一个一级标题之前（手改正文的人看得见它）', anchorAt >= 0 && anchorAt < titleAt, JSON.stringify(lines1.slice(0, 6)))
 
       // 第二次：全新实例（模拟进程重启），同一个锚
       const r2 = await markdownCreate(fx, { title: '第一张票', body: '正文在这里', idempotencyKey: key })

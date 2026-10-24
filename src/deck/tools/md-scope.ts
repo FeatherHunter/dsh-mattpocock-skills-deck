@@ -85,10 +85,13 @@ export function readMdScope(a: Record<string, unknown>): MdScope {
  */
 // repo 的类型写成 effortId?: unknown：工具壳里的 DeckRepo 把 effortId 声明成 unknown（它还要被
 // 各种后端读，不在这里收窄），这里只负责把它填成校验过的字符串，所以入参要比 DeckRepo 宽。
-export function applyMdScope(repo: { effortId?: unknown }, a: Record<string, unknown>): MdScope {
+export function applyMdScope(repo: { effortId?: unknown; mdScene?: unknown }, a: Record<string, unknown>): MdScope {
   const got = readMdScope(a)
   if (!got.ok) return got
   if (got.effortId) repo.effortId = got.effortId
+  // #1486：后端读 00 号时要分清这次说的是 feature（找 spec.md）还是 effort（找 map.md）；
+  // 只把目录名传下去不够，两套原文用同一个 00 指两种容器。
+  repo.mdScene = got.scene
   return got
 }
 

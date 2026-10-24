@@ -125,11 +125,14 @@ console.log('== ① 多 effort：地图各自只挂本 effort 的票 ==')
   check(cr.ok && cr.data.key === '02', `beta 内编号取 max+1 = 02（实际 ${cr.ok ? cr.data.key : 'err'}）`)
   check(fs.existsSync(path.join(tmp, '.scratch', 'beta', 'issues', '02-beta-new.md')), '文件落在 beta/issues 下')
   check(!fs.existsSync(path.join(tmp, '.scratch', 'alpha', 'issues', '02-beta-new.md')), '没有落到 alpha 下')
+  // #1486：没给目录时按标题生成目录，不再拿「现有 effort 多于一个」当错误；回执里带最终目录名。
   const crNo = await createIssue(ctx, repo, { title: 'No Effort' })
-  check(crNo.ok === false && crNo.error && crNo.error.kind === 'conflict', `无 effortId 建票返回 conflict（实际 ${crNo.ok ? 'ok' : crNo.error.kind}）`)
-  // 指了一个不存在的 effort：必须诚实失败，绝不能落到根目录（否则票写进面板永远看不见的地方）
+  check(crNo.ok === true && crNo.data.effortId === 'no-effort', `无 effortId 建票按标题生成目录（实际 ${crNo.ok ? crNo.data.effortId : crNo.error.kind}）`)
+  check(fs.existsSync(path.join(tmp, '.scratch', 'no-effort', 'issues', '01-no-effort.md')), '没给目录的票落在按标题生成的目录里')
+  // 指了一个还不存在的目录：显式目录名就是建票位置，目录不存在就建（#1486 的落盘规则），不再报 not-found。
   const crBad = await createIssue(ctx, { ...repo, effortId: 'typo-effort' }, { title: 'Typo Effort' })
-  check(crBad.ok === false && crBad.error && crBad.error.kind === 'not-found', `effortId 不存在时建票返回 not-found（实际 ${crBad.ok ? 'ok' : crBad.error.kind}）`)
+  check(crBad.ok === true && crBad.data.effortId === 'typo-effort', `effortId 指向新目录时按该目录建（实际 ${crBad.ok ? crBad.data.effortId : crBad.error.kind}）`)
+  check(fs.existsSync(path.join(tmp, '.scratch', 'typo-effort', 'issues', '01-typo-effort.md')), '显式目录不存在时建目录，不落到根目录')
   check(!fs.existsSync(path.join(tmp, '.scratch', 'issues')), '没有落到根目录 .scratch/issues（不猜位置）')
 
   fs.rmSync(tmp, { recursive: true, force: true })

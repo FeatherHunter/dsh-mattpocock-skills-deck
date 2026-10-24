@@ -29,16 +29,22 @@ export function looksLikeWholeDocument(body: unknown): boolean{
 export function fieldLinesOf(text: unknown): string[]{
   const out: string[]=[]
   const lines=String(text||'').split('\n')
-  for(const l of lines){ if(/^\s*(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)\s*[:\uFF1A]/i.test(l)) out.push(l.replace(/\s+$/,'')) }
+  // #1486：新布局把字段写成 `**Status:**` 这种加粗形式；两种写法算同一行，整份替换时才不会丢。
+  for(const l of lines){ if(/^\s*(?:\*\*)?(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)(?:\*\*)?\s*[:\uFF1A]/i.test(l)) out.push(l.replace(/\s+$/,'')) }
   return out
 }
-function fieldNameOf(line: string): string{ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
-/** 这一行是不是文件头注释（幂等锚 / 类型标记 / parentKey / created）：补一级标题、插类型标记时都要跳过它们。
- *  标记那一种交给共享包的整行判据认，这里不重复写标记语法；其余三种是本地房自己的文件头格式。 */
+function fieldNameOf(line: string): string{ return String(line).replace(/\*/g,'').split(/[:\uFF1A]/)[0].trim().toLowerCase() }
+/** 新布局（#1486）写进文件头的隐藏注释：DSH-FORMAT 以下的插件字段。整份改正文时这些行不在正文里，必须从盘上搬回。 */
+const HIDDEN_FIELD_RE=/^[ \t]*<!--[ \t]*(DSH-FORMAT|DSH-STATUS|DSH-PARENT|DSH-ASSIGNEES|DSH-LABELS|DSH-BLOCKED-BY)[ \t]*:/
+function hiddenFieldsOf(text: unknown): string[]{
+  return String(text||'').split('\n').filter(function(l){ return HIDDEN_FIELD_RE.test(l) }).map(function(l){ return l.replace(/\s+$/,'') })
+}
+function hiddenFieldNameOf(line: string): string{ const m=HIDDEN_FIELD_RE.exec(String(line)); return m?m[1]:'' }
+/** 这一行是不是插件自己的文件头注释：新布局的 DSH-* 与旧布局的幂等锚/父票/建票时间。 */
 function isFileHeaderCommentLine(line: unknown): boolean{
   const text=String(line||'')
   if(markerKindOnLine(text)) return true
-  return /^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|parentKey|created)[ \t]*:/.test(text)
+  return /^[ \t]*<!--[ \t]*(DSH-[A-Z0-9-]+|parentKey|created)[ \t]*:/.test(text)
 }
 /** 取文本里第一条合法类型标记行（去掉首尾空白）；没有就回空串。整份替换时用它把盘上的标记搬回。 */
 function firstMarkerLine(text: unknown): string{
@@ -92,13 +98,33 @@ export function checkNoWorseForPatch(oldText: string, newText: string): string{
 export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown): string{
   let incoming=String(incomingRaw||'')
   incoming=stripMarkerLines(incoming)
-  incoming=incoming.replace(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*\r?\n?/gim, '')
-  const diskAnchor=(String(diskText||'').match(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*$/m)||[])[0]
-  if(diskAnchor) incoming=String(diskAnchor).trim()+'\n'+incoming.replace(/^\s*/, '')
+  // #1486：新布局的文件头按原文顺序写（DSH-FORMAT 在最前），幂等锚不再固定在第一行。
+  // 整份改写时如果递进来的正文已经带着锚，就**原地换成盘上那一行**，不再把它搬到最前 ——
+  // 否则每改一次正文，文件头顺序都会变，读回来的「进度区以外逐字未动」也跟着判红。
+  const newFormat=/<!--\s*DSH-FORMAT\s*:/.test(String(diskText||''))
+  const anchorRe=/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*$/m
+  const diskAnchor=(String(diskText||'').match(anchorRe)||[])[0]
+  const incomingAnchor=(incoming.match(anchorRe)||[])[0]
+  if(diskAnchor&&incomingAnchor) incoming=incoming.replace(anchorRe,String(diskAnchor).trim())
+  else if(diskAnchor){
+    incoming=incoming.replace(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*\r?\n?/gim, '')
+    incoming=String(diskAnchor).trim()+'\n'+incoming.replace(/^\s*/, '')
+  }
   // created 那行（#1174 决策 10）与锚同理：递进来的正文里没有，就把盘上那一行搬回来。
   // 不搬的话，一次「改正文」会让建票时间掉回文件修改时间，翻页顺序也跟着变（决策 11）。
   const diskCreated=(String(diskText||'').match(/^[ \t]*<!--[ \t]*created[ \t]*:.*?-->[ \t]*$/m)||[])[0]
   if(diskCreated&&!/<!--[ \t]*created[ \t]*:/.test(incoming)) incoming=String(diskCreated).trim()+'\n'+incoming
+  // #1486：新布局的状态、父票、认领人、标签、阻塞边都在文件头隐藏注释里；整份改正文时递进来的正文没有这些行，
+  // 不搬回来就会被一次「改正文」整段抹掉。按字段名去重，只补缺的，原有行一律不动。
+  const haveHidden=hiddenFieldsOf(incoming).map(hiddenFieldNameOf)
+  const keepHidden=hiddenFieldsOf(diskText).filter(function(l){ return haveHidden.indexOf(hiddenFieldNameOf(l))<0 })
+  if(keepHidden.length){
+    const lines=incoming.split('\n')
+    let at=0
+    while(at<lines.length&&isFileHeaderCommentLine(lines[at])) at++
+    lines.splice(at,0,...keepHidden)
+    incoming=lines.join('\n')
+  }
   const h1count=(incoming.match(/^#[ \t]+\S.*/gm)||[]).length
   if(h1count===0){
     const diskH1=(String(diskText||'').match(/^#[ \t]+.*$/m)||[])[0]
@@ -123,7 +149,9 @@ export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown):
     else incoming=incoming.replace(/\s*$/, '')+'\n\n'+keep.join('\n')+'\n'
   }
   const names=['Comments', 'Answer']
-  for(const name of names){
+  // #1486：新布局的正文按原文模板写，模板里没有 Comments/Answer 骨架；别人按原文写的文件也没有。
+  // 这里只对老格式文件补骨架 —— 新文件补上去，就等于每次改正文都往原文里多塞两块模板没有的区。
+  if(!newFormat)for(const name of names){
     const hasRe=new RegExp('^##\\s*'+name+'\\s*$', 'm')
     if(!hasRe.test(incoming)){
       const diskSec=sectionOf(diskText, name)
@@ -147,4 +175,72 @@ export function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown):
     incoming=lines.join('\n')
   }
   return incoming
+}
+
+/** 新布局整份正文里的「正文最前」区被共享层放到标题前时，把它搬回字段行之后、正文之前。
+ *
+ *  #1486 的本地票传上来是整份文件：文件头注释 + 一级标题 + 字段行 + 正文。共享层定位原话区时
+ *  只知道「正文」，没有 `## 目的` 就把原话区放在正文最前，于是整份文件里跑到标题前面去了 ——
+ *  读父注释、读字段都跟着坏。这里只搬「标题之前、又不是注释」的那一块，语义仍是「正文最前」。 */
+export function moveLeadingSectionBelowTitle(text: string): string {
+  const lines = String(text || '').split('\n')
+  const h1 = lines.findIndex((l) => /^#[ \t]+\S/.test(l))
+  if (h1 < 0) return text
+  const pre = lines.slice(0, h1)
+  const isComment = (l: string) => /^[ \t]*<!--.*-->[ \t]*$/.test(l)
+  const prose = pre.filter((l) => l.trim() !== '' && !isComment(l))
+  if (prose.length === 0) return text
+  let end = h1 + 1
+  while (end < lines.length) {
+    const l = lines[end]
+    if (l.trim() === '' || /^\*\*[^*]+:\*\*/.test(l) || /^(Status|Type|Blocked\s+by|Labels|Assignees|Close\s+reason)\s*[:\uFF1A]/i.test(l)) { end++; continue }
+    break
+  }
+  const head = pre.filter(isComment)
+  return head.concat(lines.slice(h1, end), [''], prose, lines.slice(end)).join('\n')
+}
+
+/** 把文件顶的父票注释换成新的值，没有这一行就插一行（#971）。
+ *
+ *  为什么要单独抽出来：改父在本地后端就是改这一行注释，不动文件位置。
+ *  幂等锚那一行（DSH-IDEMPOTENCY-KEY）在最前，父注释紧跟在它后面；
+ *  没有锚的文件直接插在最前。解除父子（null）写成明确的 null 字样，
+ *  这样以后读回来是“没有父票”，而不会回落到老默认值 00。 */
+export function upsertParentComment(text: string, want: unknown): string {
+  const line = want === null ? '<!-- parentKey: null -->' : '<!-- parentKey: ' + String(want) + ' -->'
+  const raw = String(text || '')
+  // 只动文件头的注释：正文里举例写同样的写法不算数（读也只认文件头，这里只换文件头）。
+  const { head, rest } = headOf(raw)
+  const re = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->[ \t]*\r?\n?/im
+  if (re.test(head)) return head.replace(re, line + '\n') + rest
+  const lines = head.split('\n')
+  let at = 0
+  if (lines.length && /^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0])) at = 1
+  // #1277：类型标记行紧跟在幂等锚之后（建票落盘顺序：锚 → 标记 → 父注释 → created）。
+  // 父注释要插在标记之后；不跳过标记的话，补父会把 parentKey 排到标记前面，文件头顺序与建票时不一致。
+  while (at < lines.length && markerKindOnLine(lines[at])) at++
+  lines.splice(at, 0, line)
+  return lines.join('\n') + rest
+}
+/** 文件头那一截（第一个标题之前）与其余部分：父注释只认这一段，正文里举例写同样的写法不算数。 */
+function headOf(raw: string): { head: string; rest: string } {
+  const h1 = /^#+\s+/m.exec(raw)
+  const headEnd = h1 ? h1.index : raw.split('\n').slice(0, 10).join('\n').length
+  return { head: raw.slice(0, headEnd), rest: raw.slice(headEnd) }
+}
+/** 这份文本里**明写着**父注释没有（有 `<!-- parentKey: ... -->` 那一行才算）。
+ *
+ *  为什么要分「明写」与「没写」：这一房没写父注释的票读回来落在默认父票（地图 '00'）上，
+ *  那是结构给的默认值，不是盘上真记着的一条边。结论线要报「这一趟撤下来几条边」，
+ *  就不能把这条默认值算成撤了一条 —— 绝大多数「挂到某张票上」的票本来就没写过父注释（#1060 定下的口径）。 */
+export function hasExplicitParentComment(txt: string): boolean {
+  return /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->/im.test(headOf(String(txt || '')).head)
+}
+export function normParentKey(v: unknown): string | null {
+  if (v === undefined || v === null) return null
+  const t = String(v).trim()
+  if (!t) return null
+  if (/^null$/i.test(t) || /^none$/i.test(t) || t === '-') return null
+  if (/^\d+$/.test(t)) return t.padStart(2, '0')
+  return t
 }

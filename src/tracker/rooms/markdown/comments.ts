@@ -11,14 +11,15 @@ import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js
 import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { resolveIssueFile } from './issues-locate.js'
+import { resolveIssueFile, resolveSpecFile } from './issues-locate.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Comment } from '../../contract/entities.js'
 // #922：写评论同样是「读整份 → 在内存里改 → 整份写回」，要排在该票文件的单写者队列里，见 write-queue.js。
 import { withFileWriter } from './write-queue.js'
 
 // 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
-type RepoWithPath = RepositoryRef & { path?: string }
+// mdScene 同理：feature 场景下 00 号指的是 spec.md，不是 map.md（#1486）。
+type RepoWithPath = RepositoryRef & { path?: string; mdScene?: string }
 
 // 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带）。
 interface CommentsFailure {
@@ -26,9 +27,18 @@ interface CommentsFailure {
   error: { kind: string; message: string; raw: string }
 }
 
+/** 找这次评论要落的文件：#1486 起 feature 场景的 00 号是 spec.md（顶层规格容器），
+ *  其余编号仍是 `<feature>/issues/NN-*.md`。两套原文都用同一个 00，只靠编号区分不出来。 */
+async function locateForWrite(ctx: OpContext, repo: RepoWithPath | null, norm: string) {
+  if (norm === '00' && repo && String(repo.mdScene || '') === 'feature') {
+    return resolveSpecFile(ctx, repo, { mode: 'write' })
+  }
+  return resolveIssueFile(ctx, repo, norm, { mode: 'write' })
+}
+
 export async function listComments(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true,data:Comment[]}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
-  const r=await resolveIssueFile(ctx,repo,norm,{mode:'read'})
+  const r=await locateForWrite(ctx,repo,norm)
   if(!r.ok)return{ok:false,error:r.error}
   try{const txt=await readTextFile(ctx,r.path);const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId});return{ok:true,data:iss.comments||[]}}catch(e){return failFromError(e,ctx,'读这张票的评论时出错')}
 }
@@ -43,7 +53,7 @@ export async function addComment(ctx: OpContext,repo: RepoWithPath | null,key: s
 }
 async function addCommentInner(ctx: OpContext,repo: RepoWithPath | null,key: string,body: string,trail: WriteTrail): Promise<{ok:true,data:Comment}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
-  const r=await resolveIssueFile(ctx,repo,norm,{mode:'write'})
+  const r=await locateForWrite(ctx,repo,norm)
   if(!r.ok)return{ok:false,error:r.error}
   // 读—改—写整段排在该票文件的队列里（#922）：不排队的话，同一张票上「发评论」与「关门」并发时，
   // 后写的那一路会把前一路的改动整份抹掉（评论没了，或状态被抹回 ready-for-agent）。

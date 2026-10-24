@@ -90,12 +90,14 @@ const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok 
   const path = created.ok ? created.data.path || (created.data && created.data.finalPath) : ''
   const file = Array.from(files.keys()).filter((k) => k.includes('/issues/'))[0]
   const before = String(files.get(file))
-  check(before.includes('Labels: needs-triage'), '④ 建出来的票面上有 Labels 行（实得 ' + JSON.stringify(before.split('\n').slice(0, 8)) + '）')
+  // #1486：新布局把标签写进隐藏注释，不再写可见的 Labels 行；断言两种写法都认，守的仍是「改一行不丢另一行」。
+  const hasLabels = (text: string) => text.includes('Labels: needs-triage') || text.includes('DSH-LABELS: needs-triage')
+  check(hasLabels(before), '④ 建出来的票面上有 Labels 行（实得 ' + JSON.stringify(before.split('\n').slice(0, 8)) + '）')
   const blocked = await tracker.setBlockedBy(REF, created.data.key || '01', ['02'], {}, ctx)
   check(blocked.ok === true, '④ 补阻塞边成功（实得 ' + JSON.stringify(blocked && blocked.error || 'ok') + '）')
   const after = String(files.get(file))
   check(after.includes('Blocked by: #02'), '④ 阻塞边写进去了')
-  check(after.includes('Labels: needs-triage'), '④ 补阻塞边之后，票面上的 Labels 行还在（#928 的数据丢失面，实得 ' + JSON.stringify(after.split('\n').slice(0, 8)) + '）')
+  check(hasLabels(after), '④ 补阻塞边之后，票面上的 Labels 行还在（#928 的数据丢失面，实得 ' + JSON.stringify(after.split('\n').slice(0, 8)) + '）')
 
   // ── ⑤ 同一张票上再走一遍「事后补的行会不会被下一次改正文吃掉」：带原因关票 → 改一次正文 → 原因那一行还在 ──
   // 这是 #1174 复核 P1-1 实测出来的场景，也是第 ③ 条改判据的由来。
@@ -110,7 +112,7 @@ const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok 
   check(updated.ok === true, '⑤ 改正文成功（实得 ' + JSON.stringify(updated && updated.error || 'ok') + '）')
   const finalText = String(files.get(file))
   check(finalText.includes('Close reason: duplicate'), '⑤ 改过正文之后，Close reason 那一行还在（#1174 复核 P1-1，实得 ' + JSON.stringify(finalText.split('\n').slice(0, 9)) + '）')
-  check(finalText.includes('Labels: needs-triage') && finalText.includes('Blocked by: #02'), '⑤ 认领人与阻塞边两行也没被这次改正文弄丢')
+  check(hasLabels(finalText) && finalText.includes('Blocked by: #02'), '⑤ 认领人与阻塞边两行也没被这次改正文弄丢')
 }
 
 console.log(failed ? '\n存在失败 — verify-928-field-line-rewrite 未通过' : '\n全部通过 — 字段行改写只动同一行（' + total + ' 项断言）')

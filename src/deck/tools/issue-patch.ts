@@ -28,7 +28,7 @@ import type { ProgressEntry } from '../../shared/issue-file/src/progress.js'
 import { progressEntryFromArg, stampNow } from '../../shared/issue-file/src/progress-tool.js'
 import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-words.js'
 import { originalWordsFromArg } from '../../shared/issue-file/src/original-words-tool.js'
-import { planBodyWrite } from '../shell/body-write.js'
+import { planBodyWrite, moveLeadingSectionBelowTitle } from '../shell/body-write.js'
 import type { BodyWritePlan } from '../shell/body-write.js'
 import { textWriteVerify } from '../shell/text-write-verify.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
@@ -359,6 +359,9 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
                 const planned = planBodyWrite(beforeBase, progressEntry, originalWords, PROGRESS_BODY_LIMIT, !explicitBody)
                 if (planned.plan === null) bodyProblem = planned.problem
                 else bodyPlan = planned.plan
+                // #1486：本地票传上来的是整份文件；原话区被共享规则放到标题前时搬回字段行之后，
+                // 否则标题前会多出一段 H2，父注释与字段行都跟着读不到（写后核对也会差一截）。
+                if (bodyPlan && bodyPlan.originalWords) bodyPlan.next = moveLeadingSectionBelowTitle(bodyPlan.next)
               }
               // 幂等：同一段原话 + 同一出处已经在正文里，且这次没有别的正文改动，就不重写正文（只记账）。
               if (bodyProblem === null && bodyPlan !== null && bodyPlan.skipped && !explicitBody && typeof a.title !== 'string') {

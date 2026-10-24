@@ -123,21 +123,22 @@ async function main(): Promise<void> {
   })
   check(!!(createdSpec && createdSpec.ok), '建规格票成功', createdSpec && createdSpec.error)
   check(!!(createdSpec && createdSpec.ok && createdSpec.data.type === 'spec'), '建票回包按标记读回 spec', createdSpec && createdSpec.ok && createdSpec.data.type)
-  const specFileName = fs.readdirSync(issuesDir).find((f: string) => /^\d+-/.test(f) && fs.readFileSync(path.join(issuesDir, f), 'utf8').indexOf('spec-1277-a') >= 0)
-  check(!!specFileName, '规格票落成 issues/NN-slug.md', fs.readdirSync(issuesDir))
+  // #1486：规格不再占 issues/NN，固定落在 <feature>/spec.md，编号是容器 00。
+  const specPath = path.join(tmp, '.scratch', 'demo', 'spec.md')
+  check(fs.existsSync(specPath), '规格票落成 spec.md', fs.existsSync(specPath))
   let specText = ''
-  if (specFileName) {
-    specText = fs.readFileSync(path.join(issuesDir, specFileName), 'utf8')
+  if (fs.existsSync(specPath)) {
+    specText = fs.readFileSync(specPath, 'utf8')
     const lines = specText.split('\n')
-    check(/^<!-- DSH-IDEMPOTENCY-KEY:/.test(lines[0]) && /^<!-- DSH-ISSUE-KIND: spec -->$/.test(lines[1]), '文件头顺序：幂等锚之后紧跟标记', lines.slice(0, 4))
-    check(/^<!-- created: /.test(lines[2]) && lines.slice(0, 6).every((l: string) => !/^<!--\s*parentKey:/.test(l)), '规格不写父注释，标记之后紧跟建票时间', lines.slice(0, 4))
+    check(/^<!-- DSH-FORMAT: /.test(lines[0]) && /^<!-- DSH-STATUS: /.test(lines[1]), '文件头：格式之后紧跟状态', lines.slice(0, 4))
+    check(lines.slice(0, 6).every((l: string) => !/^<!--\s*(?:parentKey|DSH-ISSUE-KIND)/.test(l)), '规格不写父注释、也不再写旧类型标记', lines.slice(0, 6))
     check(!/^\s*Type\s*[:\uFF1A]/.test(specText), '规格票不写 Type: spec 行')
-    check((specText.match(/DSH-ISSUE-KIND/g) || []).length === 1, '文件里只有一条标记')
+    check((specText.match(/DSH-ISSUE-KIND/g) || []).length === 0, '新布局文件里没有旧类型标记')
   }
 
-  const specKey = specFileName ? (specFileName.match(/^(\d+)-/) || [])[1] : '02'
+  const specKey = '00'
   const createdTicket = await createIssue(ctx, repo, {
-    title: '第一张实施票', body: '要构建什么：先把标记读起来。', status: 'ready-for-agent',
+    title: '第一张实施票', body: '**What to build:** 先把标记读起来。', status: 'ready-for-agent',
     type: 'ticket', parentKey: specKey, labels: ['ready-for-agent'], idempotencyKey: 'ticket-1277-a',
   })
   check(!!(createdTicket && createdTicket.ok), '建实施票成功', createdTicket && createdTicket.error)
@@ -145,22 +146,32 @@ async function main(): Promise<void> {
   const ticketFileName = fs.readdirSync(issuesDir).find((f: string) => /^\d+-/.test(f) && fs.readFileSync(path.join(issuesDir, f), 'utf8').indexOf('ticket-1277-a') >= 0)
   if (ticketFileName) {
     const ticketText = fs.readFileSync(path.join(issuesDir, ticketFileName), 'utf8')
-    check(/<!-- DSH-ISSUE-KIND: ticket -->/.test(ticketText), '实施票文件头写 ticket 标记')
+    check(/<!-- DSH-PARENT: 00 -->/.test(ticketText), '实施票文件头用 DSH-PARENT 写父票')
   }
 
-  // 实施票的父必须是规格票（ADR 2.1、#1280 验收②）：三种坏形状都要当场失败、盘上不落票。
+  // 实施票的父必须是规格票（ADR 2.1、#1280 验收②）：没写父时落在同目录唯一规格的 00 下；
+  // 父号不是 00、或者目录里只有探索地图没有规格，都要当场失败、盘上不落票。
+  const noParent = await createIssue(ctx, repo, {
+    title: '没写父票的实施票', body: '**What to build:** 同目录只有一份规格，父就是 00。', status: 'ready-for-agent',
+    type: 'ticket', labels: ['ready-for-agent'], idempotencyKey: 'ticket-1277-noparent',
+  })
+  check(!!(noParent && noParent.ok && noParent.data.parentKey === '00'), '没写父票的实施票落在同目录唯一规格的 00 下', noParent && (noParent.ok ? noParent.data.parentKey : noParent.error.message))
+  const mapOnlyDir = path.join(tmp, '.scratch', 'maponly')
+  fs.mkdirSync(mapOnlyDir, { recursive: true })
+  fs.writeFileSync(path.join(mapOnlyDir, 'map.md'), '# 只有地图\n\nStatus: ready-for-agent\n\n## Destination\n\n演示\n', 'utf8')
+  const mapOnlyRepo = { backend: 'markdown', refId: '.scratch/maponly', name: 'maponly', url: '', effortId: 'maponly', mdScene: 'effort' }
   const badTickets = [
     await createIssue(ctx, repo, {
-      title: '没有父票的实施票', body: '要构建什么：不该建出来。', status: 'ready-for-agent',
-      type: 'ticket', labels: ['ready-for-agent'], idempotencyKey: 'ticket-1277-noparent',
+      title: '父号不是 00 的实施票', body: '**What to build:** 不该建出来。', status: 'ready-for-agent',
+      type: 'ticket', parentKey: '99', labels: ['ready-for-agent'], idempotencyKey: 'ticket-1277-badparent',
     }),
-    await createIssue(ctx, repo, {
-      title: '挂探索地图的实施票', body: '要构建什么：不该建出来。', status: 'ready-for-agent',
+    await createIssue(ctx, mapOnlyRepo, {
+      title: '挂探索地图的实施票', body: '**What to build:** 不该建出来。', status: 'ready-for-agent',
       type: 'ticket', parentKey: '00', labels: ['ready-for-agent'], idempotencyKey: 'ticket-1277-map',
     }),
   ]
-  check(badTickets.every((r: any) => r && r.ok === false), '缺父票 / 父票是探索地图的实施票都建不出来', badTickets.map((r: any) => r && (r.ok === false ? r.error.message : 'ok')))
-  check(badTickets.some((r: any) => r && r.ok === false && String(r.error.message || '').indexOf('规格票') >= 0), '失败原因说清父必须是规格票', badTickets.map((r: any) => r && (r.ok === false ? r.error.message : '')))
+  check(badTickets.every((r: any) => r && r.ok === false), '父号不是 00 / 目录里没有规格的实施票都建不出来', badTickets.map((r: any) => r && (r.ok === false ? r.error.message : 'ok')))
+  check(badTickets.some((r: any) => r && r.ok === false && String(r.error.message || '').indexOf('规格') >= 0), '失败原因说清父必须是规格票', badTickets.map((r: any) => r && (r.ok === false ? r.error.message : '')))
 
   // 父注释插入顺序（ADR 2.5 第三处落点）：补父时 parentKey 必须排在锚与已有标记之后。
   // 规格是与地图同级的顶层容器、不能有父票，所以这里改用一张普通票（issue）验证插入顺序：
@@ -172,28 +183,33 @@ async function main(): Promise<void> {
   check(!!(createdOrder && createdOrder.ok), '建一张不带父注释的普通票', createdOrder && createdOrder.error)
   if (createdOrder && createdOrder.ok) {
     const { setParentIssue } = await import('../src/tracker/rooms/markdown/issues.ts')
-    const orderParent = createdSpec.ok ? createdSpec.data.key : '01'
+    const orderParent = createdTicket && createdTicket.ok ? createdTicket.data.key : '01'
     const moved = await setParentIssue(ctx, repo, createdOrder.data.key, orderParent)
     check(!!(moved && moved.ok), '给普通票补父注释成功', moved && moved.ok ? undefined : (moved as any).error)
     check(!!(moved && moved.ok && moved.data.parentKey === orderParent), '补上的父号读回来是新的值', moved && moved.ok ? moved.data.parentKey : undefined)
     const orderFileName = fs.readdirSync(issuesDir).find((f: string) => /^\d+-/.test(f) && fs.readFileSync(path.join(issuesDir, f), 'utf8').indexOf('issue-1277-order') >= 0)
     if (orderFileName) {
       const orderLines = fs.readFileSync(path.join(issuesDir, orderFileName), 'utf8').split('\n')
-      check(/^<!-- DSH-IDEMPOTENCY-KEY:/.test(orderLines[0]) && new RegExp('parentKey: ' + orderParent).test(orderLines[1]) && /^<!-- created: /.test(orderLines[2]),
-        '补父注释后文件头顺序是 锚 → 父注释 → 建票时间', orderLines.slice(0, 4))
+      const h1At = orderLines.findIndex((l: string) => /^#\s+/.test(l))
+      const parentAt = orderLines.findIndex((l: string) => new RegExp('^<!-- parentKey: ' + orderParent + ' -->').test(l))
+      const anchorAt = orderLines.findIndex((l: string) => /^<!-- DSH-IDEMPOTENCY-KEY:/.test(l))
+      check(parentAt >= 0 && parentAt < h1At && anchorAt >= 0 && anchorAt < h1At,
+        '补父注释后父行与幂等锚都在第一个一级标题之前', orderLines.slice(0, 6))
     }
   }
 
   const bodyWithMarker = '<!-- DSH-ISSUE-KIND: spec -->\n\n## 问题陈述\n\n正文里也带着标记。'
-  const createdDup = await createIssue(ctx, repo, {
+  const dupRepo = { backend: 'markdown', refId: '.scratch/dupdir', name: 'dupdir', url: '', effortId: 'dupdir', mdScene: 'feature' }
+  const createdDup = await createIssue(ctx, dupRepo, {
     title: '带旧标记的正文', body: bodyWithMarker, status: 'ready-for-agent',
     type: 'spec', parentKey: null, idempotencyKey: 'spec-1277-b',
   })
   check(!!(createdDup && createdDup.ok), '带标记的正文能建票', createdDup && createdDup.error)
-  const dupFileName = fs.readdirSync(issuesDir).find((f: string) => /^\d+-/.test(f) && fs.readFileSync(path.join(issuesDir, f), 'utf8').indexOf('spec-1277-b') >= 0)
-  if (dupFileName) {
-    const dupText = fs.readFileSync(path.join(issuesDir, dupFileName), 'utf8')
-    check((dupText.match(/DSH-ISSUE-KIND/g) || []).length === 1, '正文里重复的标记被剥掉、只留文件头一条', (dupText.match(/DSH-ISSUE-KIND/g) || []).length)
+  const dupPath = path.join(tmp, '.scratch', 'dupdir', 'spec.md')
+  if (fs.existsSync(dupPath)) {
+    const dupText = fs.readFileSync(dupPath, 'utf8')
+    check((dupText.match(/DSH-ISSUE-KIND/g) || []).length === 0, '正文里的旧标记被剥掉、文件里一条都不留', (dupText.match(/DSH-ISSUE-KIND/g) || []).length)
+    check(dupText.indexOf('正文里也带着标记。') >= 0, '剥标记时正文内容不丢', dupText.slice(0, 200))
   }
 
   const createdPlain = await createIssue(ctx, repo, {
@@ -206,14 +222,14 @@ async function main(): Promise<void> {
     check(!/^\s*Type\s*[:\uFF1A]/m.test(plainText), '普通票不写 Type 行（位置值不再落成正文类型行）')
   }
 
-  const createdChinese = await createIssue(ctx, repo, {
-    title: '中文标题的规格票', body: '## 问题陈述\n\n中文标题也要有像样的文件名。', status: 'ready-for-agent',
+  const zhRepo = { backend: 'markdown', refId: '', name: 'zh-ws', url: '', mdScene: 'feature' }
+  const createdChinese = await createIssue(ctx, zhRepo, {
+    title: '中文标题的规格票', body: '## 问题陈述\n\n中文标题也要有像样的目录名。', status: 'ready-for-agent',
     type: 'spec', parentKey: null, idempotencyKey: 'spec-1277-zh',
   })
   check(!!(createdChinese && createdChinese.ok), '中文标题能建规格票', createdChinese && createdChinese.error)
-  const zhFileName = fs.readdirSync(issuesDir).find((f: string) => /^\d+-/.test(f) && fs.readFileSync(path.join(issuesDir, f), 'utf8').indexOf('spec-1277-zh') >= 0)
-  check(!!zhFileName && /^\d+-中文标题的规格票\.md$/.test(String(zhFileName)),
-    '中文标题保留中文、不落成 NN-untitled.md（#1280 验收）', zhFileName)
+  const zhDir = path.join(tmp, '.scratch', '中文标题的规格票')
+  check(fs.existsSync(path.join(zhDir, 'spec.md')), '中文标题生成中文目录名、规格仍叫 spec.md', fs.existsSync(zhDir) ? fs.readdirSync(zhDir) : [])
 
   console.log('\n== ④ 整份替换正文：盘上的标记搬回、丢标记判坏 ==')
   {
@@ -233,9 +249,10 @@ async function main(): Promise<void> {
       '## Answer',
       '',
     ].join('\n')
-    const merged = mergeWholeBodyForPatch(wholeIncoming, specText)
+    // #1486 起新文件不再写旧类型标记；这一段继续用老文件 fixture 守「老文件整份替换时标记搬回」的兼容行为。
+    const merged = mergeWholeBodyForPatch(wholeIncoming, SPEC_FILE)
     check(merged.indexOf('<!-- DSH-ISSUE-KIND: spec -->') >= 0, '整份替换后盘上的标记被搬回')
-    check(checkNoWorseForPatch(specText, merged) === '', '搬回标记后的正文通过核对', checkNoWorseForPatch(specText, merged))
+    check(checkNoWorseForPatch(SPEC_FILE, merged) === '', '搬回标记后的正文通过核对', checkNoWorseForPatch(SPEC_FILE, merged))
     check(parseMd(merged, { key: '02', parentKey: null, isMap: false }).type === 'spec', '整份替换后读回来还是 spec')
     const bad = checkNoWorseForPatch('<!-- DSH-ISSUE-KIND: spec -->\n# 标题\n\nStatus: open\nBlocked by:\nLabels:\n', '# 标题\n\nStatus: open\nBlocked by:\nLabels:\n')
     check(bad === '类型标记丢了', '整份替换丢掉标记会被核对判坏', bad)

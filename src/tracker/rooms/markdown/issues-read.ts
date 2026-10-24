@@ -9,7 +9,7 @@ import { mdPath, issuesDir } from './path.js'
 import { failAs, failFromError, kindFromError, rawFromError, rawTextOf } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { idOfParts } from '../../kernel/identity-keys.js'
-import { getPlat, listEfforts, resolveIssueFile, resolveMapFile, loadIssueFromFile, scopeOf } from './issues-locate.js'
+import { getPlat, getScratchRoot, listEfforts, resolveIssueFile, resolveMapFile, resolveSpecFile, loadIssueFromFile, scopeOf } from './issues-locate.js'
 import { emitReadDegraded } from './read-log.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
@@ -19,7 +19,7 @@ import type { RepositoryRef } from '../../contract/entities.js'
 
 // 本地票仓引用：契约 RepositoryRef 之外，旧调用与测试夹具会用 path 直接当仓库根，
 // 故在此补一个可选 path（path.ts 的 RepoWithPath 同款，各文件自包含、不跨文件引用）。
-type RepoWithPath = RepositoryRef & { path?: string }
+type RepoWithPath = RepositoryRef & { path?: string; mdScene?: string }
 // 枚举与列举的过滤器：契约 ListFilter 加上本房的 effort 寻址（counts/page 把 effortId 放在过滤器里透传，见 counts.ts）。
 type RowFilter = ListFilter & { effortId?: string | null }
 // 枚举选项：今天只有「票文件读不动时收不收集」一个开关（list 静默跳过，counts 收集后整体失败）。
@@ -150,16 +150,20 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
 
   // 一、按工作单元逐个列举；scope 给出时只看那一个工作单元
   const efforts = await listEfforts(ctx)
+  // #1486：规格目录（只有 spec.md、没有 map.md）不在 listEfforts 里；调用方点了这个目录就直接补进来，
+  // 否则会掉进下面的夹具兜底，把 repo.refId 指向的另一个目录的票当成本次范围（跨目录串票）。
+  if (scope !== undefined && !efforts.some(function (e) { return e.effortId === scope })) {
+    const root = await getScratchRoot(ctx)
+    efforts.push({ effortId: scope, dir: plat.join(root, scope) })
+  }
   for (const e of efforts) {
     if (scope !== undefined && e.effortId !== scope) continue
     await pushMapRow(plat.join(e.dir, 'map.md'), e.effortId, true)
     await collectTicketsIn(plat.join(e.dir, 'issues'), e.effortId, true)
   }
-  // 二、夹具形态兜底（repo.refId 直接当仓库根、没有 .scratch）：仅在全局一个都没找到时走。
-  // 这一支不记日志（#1058 复核）：走到这里有两种情形——主形态确实一份都没有（那这次读是完整的，
-  // 不是降级），或者主形态在、只是读不动（那上面已经各记了一行）。再贴一条「走了夹具兜底形态」，
-  // 在后一种情形下是假的，在前一种情形下是拿日志当心跳。
-  if (rows.length === 0) {
+  // 二、夹具形态兜底（repo.refId 直接当仓库根、没有 .scratch）：仅在没点目录、且全局一个都没找到时走。
+  // #1486：点了 feature/effort 就只认那个目录；再退回 refId 会把另一个目录的票当成本次范围（跨目录串票）。
+  if (rows.length === 0 && scope === undefined) {
     await pushMapRow(mdPath(repo, 'map', undefined, ctx), scope || '', true)
     await collectTicketsIn(issuesDir(repo, ctx), scope || '', true)
     // 第三种夹具形态：repo.path 直接当仓库根（地图与 issues/ 都在它下面）。
@@ -309,6 +313,29 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
     try{ return await run() }catch(e){ emitReadDegraded(ctx,'get','get:fs-fail',Date.now()-t0); throw e }
   }
   if(norm==='00'){
+    // #1486：新布局的 00 是 `<feature>/spec.md`，旧布局的 00 是探索地图 map.md。
+    // 调用方用 feature 参数时 mdScene='feature'，这时只认 spec，找不到就如实说没有规格，
+    // 不能悄悄回落去读同目录的 map.md（那会把实施票挂到探索地图上）。
+    const scene=String(repo&&repo.mdScene||'')
+    let specError: { kind: string; message: string; raw: string } | null = null
+    if(scene!=='effort'){
+      const sp=await located(function(){ return resolveSpecFile(ctx,repo,{effortId: scope, mode:'read'}) })
+      if(sp.ok){
+        try{
+          const txt=await readTextFile(ctx,sp.path)
+          const st=await statFile(ctx,sp.path)
+          let mtime=''
+          const s=st as Record<string, unknown> | null
+          if(s&&s.mtime){try{mtime=new Date(s.mtime as string | number | Date).toISOString()}catch{}}
+          const iss=parseMd(txt,{key:norm,parentKey:null,isMap:false,effortId:sp.effortId,createdAt:mtime,updatedAt:mtime,url:sp.path,kind:'spec'})
+          applyLabelColors(iss, colorMap)
+          return{ok:true,data:sliceComments(iss,opts)}
+        }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这个工作单元的规格文件时出错')}
+      }
+      // 规格文件不存在时继续往下试地图：feature 参数也可能指向一个只有 map.md 的探索目录，
+      // 那里没有规格是正常的，不能因此连地图一起判成读不到。真正有规格但读/解析失败的分支已经在上面返回。
+      specError = sp.error || null
+    }
     const r=await located(function(){ return resolveMapFile(ctx,repo,{effortId: scope, mode:'read'}) })
     if(r.ok){
       try{
@@ -323,7 +350,9 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
         return{ok:true,data:sliceComments(iss,opts)}
       }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}
     }
-    degraded(r.error&&r.error.kind);return{ok:false,error:r.error}
+    // 两边都没有时，feature 场景优先报规格那一句（调用方问的是规格），其余场景仍报地图。
+    const lastError = (scene==='feature' && specError) ? specError : r.error
+    degraded(lastError&&lastError.kind);return{ok:false,error:lastError}
   }
   const r=await located(function(){ return resolveIssueFile(ctx,repo,norm,{effortId: scope, mode:'read'}) })
   if(r.ok){

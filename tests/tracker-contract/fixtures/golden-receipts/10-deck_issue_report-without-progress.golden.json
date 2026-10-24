@@ -28,7 +28,7 @@
     "key": "1",
     "note": "金标准上报（不带进度）",
     "state": "open",
-    "title": "金标准演示票",
+    "title": "01: 金标准演示票",
     "url": "<ROOT>/.scratch/demo/issues/01-金标准演示票.md",
     "workRoute": {
       "at": "<TIME>",
@@ -69,7 +69,7 @@
     "url": ""
   },
   "status": "ok",
-  "text": "票 1 已上报（金标准演示票）：金标准上报（不带进度）。在办表见回执 data.workRoute。",
+  "text": "票 1 已上报（01: 金标准演示票）：金标准上报（不带进度）。在办表见回执 data.workRoute。",
   "tool": "deck_issue_report",
   "touched": [],
   "workspace": {

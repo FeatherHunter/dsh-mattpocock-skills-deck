@@ -106,14 +106,16 @@ async function main() {
   }
   const countFiles = () => fs.readdirSync(ws.issuesDir).length
   const typeLines = (text: string) => (text.match(/^Type[：:].*$/gm) || [])
-  // Labels 行按后端写的分隔符拆开，交给共享位置表判断「哪一枚是类型标签」，不在门禁里再抄一份类型标签清单。
+  // #1486：新布局把标签与父票写进隐藏注释，不再写可见的 Labels 行与 parentKey 注释。
   const labelsOf = (text: string): string[] => {
-    const line = (text.match(/^Labels[：:].*$/m) || [''])[0] || ''
-    return line.replace(/^Labels[：:]\s*/, '').split(/\s*[,，]\s*/).map((s) => s.trim()).filter(Boolean)
+    const visible = (text.match(/^Labels[：:].*$/m) || [''])[0] || ''
+    const hidden = (text.match(/^<!--\s*DSH-LABELS[：:]\s*(.*?)\s*-->/m) || [])[1] || ''
+    const line = visible || hidden
+    return line.replace(/^(Labels[：:]|<!--\s*DSH-LABELS[：:])\s*/, '').replace(/\s*-->\s*$/, '').split(/\s*[,，]\s*/).map((s) => s.trim()).filter(Boolean)
   }
   const typeLabelCount = (text: string) => labelsOf(text).filter((n) => kindRules.isTypeLabel(n)).length
   const hasProgress = (text: string) => /^##\s*进度\s*$/m.test(text)
-  const parentComment = (key: string) => new RegExp('^<!-- parentKey: ' + key + ' -->', 'm')
+  const parentComment = (key: string) => new RegExp('^<!-- (?:parentKey|DSH-PARENT): ' + key + ' -->', 'm')
 
   // ── 一、正例：一次建出混合骨架 ──
   console.log('— 一、正例：地图 + 四种地图工单 + 缺陷票 + 普通票，一次建成')

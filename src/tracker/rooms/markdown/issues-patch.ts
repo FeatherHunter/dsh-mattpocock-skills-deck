@@ -6,7 +6,7 @@ import { readTextFile } from './read.js'
 import { publishTextFile } from './write.js'
 // #1059：整份正文的合并与「写坏没有」的核对搬到了 patch-body.ts（纯文本函数，与写盘无关）；
 // 那一路补上结论线之后这份文件越过了 350 有效行的上限，抽出去才回到线内。
-import { looksLikeWholeDocument, fieldLinesOf, checkNoWorseForPatch, mergeWholeBodyForPatch } from './patch-body.js'
+import { looksLikeWholeDocument, fieldLinesOf, checkNoWorseForPatch, mergeWholeBodyForPatch, moveLeadingSectionBelowTitle, upsertParentComment, hasExplicitParentComment, normParentKey } from './patch-body.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
@@ -100,7 +100,7 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
     if(patch&&typeof patch.body==='string'){
       if(isWholeIssueBody(patch.body)){
         // 整份正文：读回给的是整份文件，写回也按整份合并（锚与标题保住、字段与骨架搬回），不再猜它是片段。
-        txt=mergeWholeBodyForPatch(patch.body, fnOldText);changed=true
+        txt=moveLeadingSectionBelowTitle(mergeWholeBodyForPatch(patch.body, fnOldText));changed=true
       }else{
         const lines=txt.split('\n')
         const titleIdx=lines.findIndex(l=>/^#+\s+/.test(l))
@@ -297,50 +297,6 @@ async function setAssigneesInner(ctx: OpContext,repo: RepoWithPath | null,key: s
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的认领人时出错')}
-}
-/** 把文件顶的父票注释换成新的值，没有这一行就插一行（#971）。
- *
- *  为什么要单独抽出来：改父在本地后端就是改这一行注释，不动文件位置。
- *  幂等锚那一行（DSH-IDEMPOTENCY-KEY）在最前，父注释紧跟在它后面；
- *  没有锚的文件直接插在最前。解除父子（null）写成明确的 null 字样，
- *  这样以后读回来是“没有父票”，而不会回落到老默认值 00。 */
-function upsertParentComment(text: string, want: unknown): string {
-  const line = want === null ? '<!-- parentKey: null -->' : '<!-- parentKey: ' + String(want) + ' -->'
-  const raw = String(text || '')
-  // 只动文件头的注释：正文里举例写同样的写法不算数（读也只认文件头，这里只换文件头）。
-  const { head, rest } = headOf(raw)
-  const re = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->[ \t]*\r?\n?/im
-  if (re.test(head)) return head.replace(re, line + '\n') + rest
-  const lines = head.split('\n')
-  let at = 0
-  if (lines.length && /^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0])) at = 1
-  // #1277：类型标记行紧跟在幂等锚之后（建票落盘顺序：锚 → 标记 → 父注释 → created）。
-  // 父注释要插在标记之后；不跳过标记的话，补父会把 parentKey 排到标记前面，文件头顺序与建票时不一致。
-  while (at < lines.length && markerKindOnLine(lines[at])) at++
-  lines.splice(at, 0, line)
-  return lines.join('\n') + rest
-}
-/** 文件头那一截（第一个标题之前）与其余部分：父注释只认这一段，正文里举例写同样的写法不算数。 */
-function headOf(raw: string): { head: string; rest: string } {
-  const h1 = /^#+\s+/m.exec(raw)
-  const headEnd = h1 ? h1.index : raw.split('\n').slice(0, 10).join('\n').length
-  return { head: raw.slice(0, headEnd), rest: raw.slice(headEnd) }
-}
-/** 这份文本里**明写着**父注释没有（有 `<!-- parentKey: ... -->` 那一行才算）。
- *
- *  为什么要分「明写」与「没写」：这一房没写父注释的票读回来落在默认父票（地图 '00'）上，
- *  那是结构给的默认值，不是盘上真记着的一条边。结论线要报「这一趟撤下来几条边」，
- *  就不能把这条默认值算成撤了一条 —— 绝大多数「挂到某张票上」的票本来就没写过父注释（#1060 定下的口径）。 */
-function hasExplicitParentComment(txt: string): boolean {
-  return /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->/im.test(headOf(String(txt || '')).head)
-}
-function normParentKey(v: unknown): string | null {
-  if (v === undefined || v === null) return null
-  const t = String(v).trim()
-  if (!t) return null
-  if (/^null$/i.test(t) || /^none$/i.test(t) || t === '-') return null
-  if (/^\d+$/.test(t)) return t.padStart(2, '0')
-  return t
 }
 /** 改父子的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1060，事件 `edge.write`）。 */
 export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,parentKey: string | null,opts?: SetOpts): Promise<{ ok: true; data: Issue } | PatchFailure>{

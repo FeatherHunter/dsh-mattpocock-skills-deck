@@ -27,9 +27,8 @@
       "comment"
     ],
     "ticket": {
-      "assignees": [],
       "blockedBy": [],
-      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nBlocked by:\nLabels:\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+      "body": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n**Status:** ready-for-agent\n\n## 进度\n\n## Comments\n\n### local — <TIME>\n金标准评论\n\n",
       "closedAt": null,
       "comments": [
         {
@@ -46,10 +45,10 @@
       "effortId": "demo",
       "key": "01",
       "labels": [],
-      "parentKey": "00",
+      "parentKey": null,
       "reason": "",
       "state": "open",
-      "title": "金标准演示票",
+      "title": "01: 金标准演示票",
       "type": "issue",
       "updatedAt": "<TIME>",
       "url": "<ROOT>/.scratch/demo/issues/01-金标准演示票.md"

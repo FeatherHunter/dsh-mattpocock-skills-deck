@@ -15,6 +15,9 @@ export interface ParseMeta {
   createdAt?: string
   updatedAt?: string
   url?: string
+  // #1486：调用方已经知道这张文件是规格还是普通票（文件名 spec.md / 旧标记 / 建票上下文）。
+  // 新布局不再写 DSH-ISSUE-KIND，读侧就靠这一格把「规格」这一身份带进来。
+  kind?: string
 }
 
 // 标题转文件名后缀。保留各语言的字母与数字：中文标题过去会被整串删光、只剩 `untitled`
@@ -94,7 +97,7 @@ export function parentKeyFromFile(text: unknown): { found: boolean; value: strin
   // 没有标题的坏文件退化成只看前 10 行，照样够到文件头。
   const h1 = /^#+\s+/m.exec(raw)
   const head = h1 ? raw.slice(0, h1.index) : String(raw).split('\n').slice(0, 10).join('\n')
-  const m = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*(.*?)-->/im.exec(head)
+  const m = /^[ \t]*<!--[ \t]*(?:parentKey|DSH-PARENT)[ \t]*:[ \t]*(.*?)-->/im.exec(head)
   if (!m) return { found: false, value: null }
   const v = String(m[1] || '').trim()
   if (!v) return { found: true, value: null }
@@ -119,10 +122,29 @@ export function createdStampFromFile(text: unknown): { found: boolean; value: st
   const raw = String(text || '')
   const h1 = /^#+\s+/m.exec(raw)
   const head = h1 ? raw.slice(0, h1.index) : String(raw).split('\n').slice(0, 10).join('\n')
-  const m = /^[ \t]*<!--[ \t]*created[ \t]*:[ \t]*(.*?)-->/im.exec(head)
+  const m = /^[ \t]*<!--[ \t]*(?:created|DSH-CREATED)[ \t]*:[ \t]*(.*?)-->/im.exec(head)
   if (!m) return { found: false, value: '' }
   const v = String(m[1] || '').trim()
   return v ? { found: true, value: v } : { found: false, value: '' }
+}
+
+/** 读文件头里某一条隐藏注释的值（#1486）。
+ *
+ *  新布局把状态、父票、标签、认领人、阻塞边都写进 `<!-- DSH-XXX: ... -->`，可见正文里不再出现这些行。
+ *  只认第一个一级标题之前的那几行：正文里举例写同样的注释不算数，理由与 parentKeyFromFile 相同。
+ *  返回值里只保留这一行本身，不跨行 —— 一行一条是 YAML 里定死的形状。 */
+export function hiddenHeaderValue(text: unknown, name: string): string {
+  const raw = String(text || '')
+  const h1 = /^#+\s+/m.exec(raw)
+  const head = h1 ? raw.slice(0, h1.index) : raw.split('\n').slice(0, 16).join('\n')
+  const escaped = String(name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp('^[ \\t]*<!--[ \\t]*' + escaped + '[ \\t]*:[ \\t]*(.*?)-->', 'im').exec(head)
+  return m ? String(m[1] || '').trim() : ''
+}
+
+/** 把隐藏注释里的名单拆成若干段：逗号、全角逗号、顿号都算分隔。 */
+function splitHiddenList(value: string): string[] {
+  return String(value || '').split(/[,\uFF0C\u3001]+/).map((one) => one.trim()).filter(Boolean)
 }
 
 /** 把正文里的围栏代码块整段抹掉，只留下「票面」本身。
@@ -178,7 +200,13 @@ export function loginOfAssignee(a: unknown): string {
 export function assigneesFromFile(text: unknown): { found: boolean; value: Array<{ login: string; kind: 'user' }> } {
   const raw = stripFencedCode(text)
   const m = /^[ \t]*Assignees[ \t]*[:\uFF1A][ \t]*(.*)$/im.exec(raw)
-  if (!m) return { found: false, value: [] }
+  if (!m) {
+    // #1486：新布局的认领人写在 DSH-ASSIGNEES 隐藏注释里；有这一行就按它读。
+    const hidden = hiddenHeaderValue(raw, 'DSH-ASSIGNEES')
+    if (!hidden) return { found: false, value: [] }
+    const names = splitHiddenList(hidden)
+    return { found: true, value: names.map((login) => ({ login: login, kind: 'user' as const })) }
+  }
   const names = String(m[1] || '').split(/[,\uFF0C]+/).map((s) => s.trim()).filter(Boolean)
   return { found: true, value: names.map((login) => ({ login: login, kind: 'user' as const })) }
 }
@@ -193,7 +221,9 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   // 字段行只在「票面」上找，围栏代码块里的举例不算（#1174 复核 P1-3，见 stripFencedCode）。
   // 标题、正文、评论骨架仍然按整份原文读 —— 那几处要的就是原文。
   const field = stripFencedCode(raw)
+  // #1486：新布局把状态写在 DSH-STATUS 隐藏注释里；可见的 Status: 行优先（老文件与人工改过的票都还有）。
   const statusRaw = (/^\s*Status\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(field)?.[1]?.trim() || '')
+    || hiddenHeaderValue(raw, 'DSH-STATUS')
   const statusNorm = statusRaw.toLowerCase().replace(/\s+/g, '-')
   const closedSet = new Set(['resolved', 'completed', 'closed', 'done'])
   const state = (closedSet.has(statusNorm) ? STATE.CLOSED : STATE.OPEN) as State
@@ -211,6 +241,7 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     customFields = [{ name: 'Type', value: typeRaw, type: 'single', options: ['research', 'prototype', 'grilling', 'task'] }]
   }
   const blockedRaw = (/^\s*Blocked\s+by\s*[:\uFF1A][ \t]*(.+)$/im.exec(field)?.[1]?.trim() || '')
+    || splitHiddenList(hiddenHeaderValue(raw, 'DSH-BLOCKED-BY')).join(', ')
   let blockedBy = []
   if (blockedRaw) {
     const parts = blockedRaw.split(/[,,\s]+/).map((s) => s.trim()).filter(Boolean)
@@ -241,8 +272,11 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
       labels.push({ name, color: '', description: '' })
     }
   } else {
-    // 缺行按空（不抛、空数组）
-    labels = []
+    // 新布局把标签写在 DSH-LABELS 隐藏注释里；没有这一行才按空（不抛、空数组）。
+    for (const name of splitHiddenList(hiddenHeaderValue(raw, 'DSH-LABELS'))) {
+      const clean = stripLabelDecoration(name)
+      if (clean) labels.push({ name: clean, color: '', description: '' })
+    }
   }
   let comments = []
   const cmAnchor = /^\s*##\s*Comments\s*$/im
@@ -291,12 +325,15 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   //   然后才看 wayfinder:map 标签：新建的地图票不再写 Type: map，只带这一枚标签，不认它就会读成普通票；
   //   最后才是老的形状判据（map.md 本身、或老文件里的 Type: map），保证老数据照旧读得对。
   const markedKind = markerKindInHeader(raw)
+  const metaKind = String((meta && meta.kind) || '').trim().toLowerCase()
   const hasMapLabel = labels.some((one: { name?: unknown }) => String((one && one.name) || '').trim().toLowerCase() === 'wayfinder:map')
-  const type = (markedKind === 'spec'
-    ? ISSUE_TYPE.SPEC
-    : (markedKind === 'ticket'
-      ? ISSUE_TYPE.ISSUE
-      : (((meta && meta.isMap) || hasMapLabel || typeRaw === 'map') ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE))) as IssueType
+  let type: IssueType
+  if (metaKind === 'spec') type = ISSUE_TYPE.SPEC
+  else if (metaKind === 'map') type = ISSUE_TYPE.MAP
+  else if (markedKind === 'spec') type = ISSUE_TYPE.SPEC
+  else if (markedKind === 'ticket') type = ISSUE_TYPE.ISSUE
+  else if ((meta && meta.isMap) || hasMapLabel || typeRaw === 'map') type = ISSUE_TYPE.MAP
+  else type = ISSUE_TYPE.ISSUE
   // #971：父子关系以文件顶注释为准，有注释就用注释，没有注释的老文件才回落。
   // 地图文件本身没有父票（恒为空）；计划里用票文件冒充的地图（正文写着 Type: map、却没有父注释）同样视作没有父票。
   // #1403：规格是顶层容器，盘中没写父注释就是没有父票 —— 本地房老数据里规格可能落在默认 00（根地图）下，
@@ -305,6 +342,9 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   const fileParent = parentKeyFromFile(raw)
   let parentKey = null
   if (meta && meta.isMap) {
+    parentKey = null
+  } else if (metaKind === 'spec' || metaKind === 'map') {
+    // #1486：新布局的规格/地图文件由调用方用 meta.kind 指明，顶层容器没有父票。
     parentKey = null
   } else if (fileParent.found) {
     parentKey = fileParent.value

@@ -11,7 +11,7 @@
 //  - 没给（undefined）→ 全仓库找；命中多个 effort 时，**读**按目录顺序回落（保住聊天里 `#01` 链接），
 //    **写**返回 conflict 诚实失败，绝不猜（猜错文件是数据损坏，不是显示问题）。
 //  - 根级 `.scratch/map.md` 这种扁平历史布局算作 effortId = ''（空串）。
-import { parseMd } from './parse.js'
+import { parseMd, parentKeyFromFile } from './parse.js'
 import { readTextFile, listDirOrThrow, statFile, exists } from './read.js'
 import { issuesDir } from './path.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -29,7 +29,7 @@ declare const process: { cwd(): string; platform: string } | undefined
 
 // 本地票仓引用：契约 RepositoryRef 之外，旧调用与测试夹具会用 path 直接当仓库根，
 // 故在此补一个可选 path（path.ts 的 RepoWithPath 同款，各文件自包含、不跨文件引用）。
-type RepoWithPath = RepositoryRef & { path?: string }
+type RepoWithPath = RepositoryRef & { path?: string; mdScene?: string }
 // 定位口的寻址选项：effortId 定范围（null 表显式全仓库），mode 区分读写（写多命中即 conflict）。
 interface LocateOpts {
   effortId?: string | null
@@ -92,6 +92,12 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
   const scope=scopeOf(repo, o)
   const hits: FileHit[]=[]
   const efforts=await listEfforts(ctx)
+  // #1486：规格目录（<feature>/spec.md，没有 map.md）也要能按编号读回实施票。
+  // listEfforts 只认地图文件，这里把调用方点名的目录直接补进来，不必等 #1487 把规格并进 effort。
+  if(scope!==undefined && !efforts.some(function(e){ return e.effortId===scope })){
+    const root=await getScratchRoot(ctx)
+    efforts.unshift({ effortId: scope, dir: plat.join(root, scope) })
+  }
   for(const e of efforts){
     if(scope!==undefined && e.effortId!==scope) continue
     const idir=plat.join(e.dir,'issues')
@@ -153,6 +159,40 @@ export async function resolveMapFile(ctx: OpContext, repo: RepoWithPath | null, 
   if(hits.length>1 && o.mode==='write') return conflict('00', hits)
   return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
 }
+/** 按 effort 范围找规格文件（`<feature>/spec.md`）。#1486 起规格是「00 号容器」的另一种形状：
+ *
+ *  旧布局里 00 是探索地图（map.md），新布局里一个 feature 目录也可以只有 spec.md。
+ *  调用方用 `mdScene` 说明自己说的是哪套词汇（feature 找 spec、effort 找 map）；没说明时先找 spec、
+ *  找不到再回落 map，保证老工作区的 `#00` 链接照旧打开地图。
+ *
+ *  未给范围且多命中时，读按目录顺序取第一个、写报 conflict —— 与 resolveMapFile 同一口径。 */
+export async function resolveSpecFile(ctx: OpContext, repo: RepoWithPath | null, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string } | { ok: false; error: { kind: string; message: string; raw: string } }> {
+  const plat=getPlat(ctx)
+  const scope=scopeOf(repo, o)
+  const scratch=await getScratchRoot(ctx)
+  const hits: FileHit[]=[]
+  if(scope!==undefined){
+    const p=plat.join(scratch, scope, 'spec.md')
+    try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:scope }) }catch{}
+  } else {
+    // 根级扁平布局（repo.path / refId 直接当仓库根）也要认。
+    try{ const p=plat.join(issuesDir(repo,ctx),'..','spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'' }) }catch{}
+    if(!hits.length && repo && repo.path){
+      try{ const p=plat.join(repo.path,'spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'' }) }catch{}
+    }
+    if(!hits.length){
+      const entries=await listDirOrThrow(ctx, scratch)
+      const names=entries.filter(function(e: string){ return e && !e.startsWith('.') }).sort()
+      for(const e of names){
+        const p=plat.join(scratch,e,'spec.md')
+        try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:String(e) }) }catch{}
+      }
+    }
+  }
+  if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'spec.md not-found', rawJson({ effortId: scope===undefined?null:scope }))
+  if(hits.length>1 && o.mode==='write') return conflict('00', hits)
+  return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
+}
 /** 兼容旧接口：全局按编号找（读语义，取第一个命中）。新代码请用 resolveIssueFile。 */
 export async function findIssueFileGlobal(ctx: OpContext, key: string): Promise<string | null> {
   const r=await resolveIssueFile(ctx, null, key, { mode:'read' })
@@ -189,9 +229,17 @@ export async function loadIssueFromFile(ctx: OpContext, repo: RepoWithPath | nul
   const km=/^(\d+)-/.exec(base)
   const key=km?km[1].padStart(2,'0'):String(metaExtra.key||'00').padStart(2,'0')
   const parentKey=metaExtra.parentKey!==undefined?metaExtra.parentKey:null
+  // #1486：老布局的票没有父注释时，调用方按 effort 补 parentKey='00'（地图子票的旧约定）。
+  // 新布局（文件头有 DSH-FORMAT）必须只认文件里的 DSH-PARENT：同一目录里普通票不是规格的子票，
+  // 再按调用方补 00 会把普通票算成规格子票，收口核对就会多数一张、关不掉规格。
+  const newLayout=/<!--[ \t]*DSH-FORMAT[ \t]*:/i.test(txt)
+  const fileParent=parentKeyFromFile(txt)
+  const effectiveParent=newLayout?(fileParent.found?fileParent.value:null):parentKey
   const isMap=!!metaExtra.isMap
   const effortId=metaExtra.effortId!==undefined?metaExtra.effortId:''
   // 地址（#1142）：这张票的地址就是刚读的这个文件的路径。读文件这一层是唯一同时知道「是哪张票」与
   // 「它在盘上叫什么名字」的地方，所以在这里把它交给 parseMd；上层（列举、读单张、分页）不必各自再算一遍。
-  return parseMd(txt,{key,parentKey,isMap,effortId,createdAt:mtime,updatedAt:mtime,url:fullPath})
+  // #1486：新布局不再写 DSH-ISSUE-KIND，文件名就是身份线索：spec.md 是规格容器。
+  const kind=base.toLowerCase()==='spec.md'?'spec':''
+  return parseMd(txt,{key,parentKey:effectiveParent,isMap,effortId,createdAt:mtime,updatedAt:mtime,url:fullPath,kind})
 }

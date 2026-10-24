@@ -45,3 +45,20 @@ export const definition = {
     additionalProperties: false,
   },
 }
+
+/** 回执里那句「落在哪儿」（#1486）：本地后端的 url 就是票文件路径，远端是 http(s) 链接。
+ *
+ *  为什么要单说这一句：新布局把规格放进 `<feature>/spec.md`、把票放进 `<feature>/issues/NN-slug.md`，
+ *  编号按目录各自从 01 起。AI 只看「票 01 建好了」会以为全仓库只有这一张 01；说清目录与编号，
+ *  下一步查票、补边、报告才不会找错文件。远端后端的 url 是链接，没有本地路径可说，返回空串。 */
+export function landingNote(issue: Record<string, unknown> | null | undefined): string {
+  const url = String((issue && issue.url) || '')
+  if (!url || /^[a-z][a-z0-9+.-]*:\/\//i.test(url)) return ''
+  const file = url.split(/[\\/]/).pop() || ''
+  const effort = String((issue && issue.effortId) || '')
+  const isSpec = String((issue && issue.type) || '') === 'spec' || file === 'spec.md'
+  if (isSpec) {
+    return '落在 ' + (effort ? '.scratch/' + effort + '/spec.md' : file) + '（容器编号 00）。'
+  }
+  return '落在 ' + (effort ? '.scratch/' + effort + '/issues/' : '') + file + '（编号 ' + String((issue && issue.key) || '') + '）。'
+}

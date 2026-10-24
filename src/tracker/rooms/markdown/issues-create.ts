@@ -16,8 +16,12 @@ import type { WriteTrail } from './write-log.js'
 import { issuesDir } from './path.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { getPlat, listEfforts, findIssueFileInEffort } from './issues-locate.js'
+import { getPlat, listEfforts, findIssueFileInEffort, getScratchRoot } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
+// #1486：规格与实施票/普通票的原文形状落盘（spec.md、issues/NN-slug.md）另住一件，
+// 本文件只在开头分流，旧的 map / map-ticket 路径原样保留到 #1487。
+import { originalKindOf } from './create-render.js'
+import { createInOriginalLayout } from './create-layout.js'
 // #712/#922：建票取号的「读目录 → 取号 → 落盘」排队，与写票文件、配色文件共用 write-queue.js 那一份实现。
 import { withWorkspaceWriter } from './write-queue.js'
 // #711：创建幂等锚。锚那一行长什么样、怎么从票面把锚读回来、回查命中要满足什么条件，
@@ -63,6 +67,17 @@ async function resolveCreateTarget(ctx: OpContext, repo: RepositoryRef | null): 
   let target: { effortId: string; dir: string } | null=null
   if(scope!==undefined){
     target=efforts.find(function(e){ return e.effortId===scope })||null
+    if(!target){
+      // #1486：规格路线的 feature 目录（有 spec.md 或 issues/）还没有 map.md，不算 listEfforts 的 effort；
+      // 但调用方已经点名这个目录，而且它确实在盘上，就按这个目录建地图/子票。
+      // 目录不存在时仍然 NOTFOUND —— 不能把拼错的目录名悄悄建出来。
+      try{
+        const plat=getPlat(ctx)
+        const root=await getScratchRoot(ctx)
+        const dir=plat.join(root,scope)
+        if(await exists(ctx,dir)) target={effortId:scope,dir:dir}
+      }catch{}
+    }
     if(!target){
       const have=efforts.map(function(e){ return e.effortId||'(根)' }).join('、')||'（本仓库还没有 effort）'
       return failAs(ERROR_KIND.NOTFOUND,'找不到 effort「'+scope+'」；本仓库现有：'+have,JSON.stringify({effortId:scope,have:have}))
@@ -281,6 +296,31 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
   if(keyCheck&&!keyCheck.ok)return failAs(ERROR_KIND.PARSE,'idempotencyKey 不能用：'+keyCheck.reason,String(input.idempotencyKey))
   const idemKey=keyCheck?keyCheck.key:''
   try{
+    // #1486：规格容器（spec.md）与实施票/普通票（issues/NN-slug.md）走原文布局；
+    // 地图与探索地图子票（map / map-ticket）仍走下面的旧路径，#1487 再迁。
+    const originalKind=originalKindOf(input)
+    if(originalKind){
+      const placement=await createInOriginalLayout(ctx,repo,input,originalKind,idemKey)
+      if(!placement.ok)return placement
+      // 只有真新写了一份才记；幂等命中复用旧票时这一趟没改盘。
+      if(!placement.reused)noteFileWritten(trail)
+      // 回包按盘上那一份解析，与旧路径同一条口径。
+      const content=await readTextFile(ctx,placement.path)
+      const st=await statFile(ctx,placement.path)
+      let mtime=new Date().toISOString()
+      const stMtime=st&&(st as {mtime?: unknown}).mtime
+      if(stMtime){try{mtime=new Date(stMtime as string).toISOString()}catch{}}
+      // 规格是顶层容器，没有父票；实施票的父票恒为同目录的 00；普通票有就写、没有就是根级。
+      const wantedParent=(input.parentKey!==undefined&&input.parentKey!==null)?String(input.parentKey).trim():''
+      const fallbackParent=originalKind==='spec'
+        ?null
+        :(originalKind==='spec-ticket'
+          ?'00'
+          :(wantedParent?(/^\d+$/.test(wantedParent)?wantedParent.padStart(2,'0'):wantedParent):null))
+      const iss=parseMd(content,{key:placement.key,parentKey:fallbackParent,isMap:false,effortId:placement.effortId,createdAt:placement.createdAt,updatedAt:mtime,url:placement.path,kind:originalKind==='spec'?'spec':'issue'})
+      applyLabelColors(iss,colorMap)
+      return{ok:true,data:iss}
+    }
     // 取号 → 探测 → 落盘这三段必须在**同一个按工作区串行的写者队列**里跑完（#712）。
     // 为什么：取号是「读目录取 max+1」（下面 readDir 那一段），落盘是整份覆盖
     // （write.js 的 publishTextFile：整份覆盖写，没有独占创建），而读目录这个 await 会让出事件循环 ——

@@ -63,6 +63,7 @@ function makeWorkspace() {
     ctx: { platform: plat, fs: plat.fs, cwd: rootPosix, get(name) { return name === 'fs' ? plat.fs : undefined } },
     ticketFiles() { try { return fs.readdirSync(path.join(dir, 'issues')).filter((f) => f.endsWith('.md')) } catch (e) { return [] } },
     readTicket(name) { return fs.readFileSync(path.join(dir, 'issues', name), 'utf8') },
+    readSpec() { try { return fs.readFileSync(path.join(dir, 'spec.md'), 'utf8') } catch (e) { return '' } },
     cleanup() { try { fs.rmSync(root, { recursive: true, force: true }) } catch (e) {} },
   }
 }
@@ -189,24 +190,25 @@ async function main() {
     specKey = String((r.data && r.data.ticket && r.data.ticket.key) || '')
     check(envelopeOk(r) && r.status === 'ok' && specKey, 'deck_issue_create 正例：建成规格票（key=' + specKey + '）')
     check(!!(r.data && r.data.ticket && r.data.ticket.type === 'spec'), '规格票读回来契约类型就是 spec（实得 ' + (r.data && r.data.ticket && r.data.ticket.type) + '）')
-    const specFile = ws.ticketFiles().filter((f) => f.indexOf(specKey + '-') >= 0)[0] || ''
-    const text = specFile ? ws.readTicket(specFile) : ''
-    const header = String(text).split('\n').slice(0, 6).join('\n')
-    check(text.indexOf('<!-- DSH-ISSUE-KIND: spec -->') >= 0 && header.indexOf('<!-- DSH-ISSUE-KIND: spec -->') >= 0, '规格票的文件头写了对象类型标记（前 6 行：' + JSON.stringify(header) + '）')
-    check(header.indexOf('parentKey:') < 0, '规格是顶层容器，票面不写父注释（前 6 行：' + JSON.stringify(header) + '）')
+    // #1486：规格落成 <feature>/spec.md，不再是 issues/00-*.md；正文只留原文模板，插件状态进隐藏注释。
+    const text = ws.readSpec()
+    const header = String(text).split('\n').slice(0, 8).join('\n')
+    check(specKey === '00' && text.indexOf('# 演示规格票') >= 0, '规格票落成 spec.md，编号是 00（key=' + specKey + '）')
+    check(text.indexOf('<!-- DSH-FORMAT: md-v1 -->') >= 0, '规格票的文件头写了格式版本注释（前 8 行：' + JSON.stringify(header) + '）')
+    check(/^<!-- DSH-STATUS: ready-for-agent -->$/m.test(text), '规格票的隐藏注释写状态 ready-for-agent')
+    check(/^<!-- DSH-LABELS: .*ready-for-agent -->$/m.test(text), '规格票带的必备标签是 ready-for-agent')
+    check(text.indexOf('DSH-ISSUE-KIND') < 0, '新布局不再写旧的 DSH-ISSUE-KIND 标记')
+    check(text.indexOf('parentKey:') < 0, '规格是顶层容器，票面不写父注释（前 8 行：' + JSON.stringify(header) + '）')
     check(text.indexOf('Type: spec') < 0, '规格票不再写 Type: spec 这一行')
     check(text.indexOf('## 进度') >= 0, '规格票也补进度区（#1403 起所有位置统一）')
-    check(text.indexOf('ready-for-agent') >= 0, '规格票带的必备标签是 ready-for-agent')
     const t = await callTool('deck_issue_create', { title: '演示实施票', kind: 'spec-ticket', parentKey: specKey, body: '**要构建什么：** 做一件事\n' })
     const ticketKey = String((t.data && t.data.ticket && t.data.ticket.key) || '')
     check(envelopeOk(t) && t.status === 'ok' && ticketKey, 'deck_issue_create 正例：建成实施票（key=' + ticketKey + '）')
     const tFile = ws.ticketFiles().filter((f) => f.indexOf(ticketKey + '-') >= 0)[0] || ''
     const tText = tFile ? ws.readTicket(tFile) : ''
-    check(tText.indexOf('<!-- DSH-ISSUE-KIND: ticket -->') >= 0, '实施票的文件头写了 ticket 标记')
-    check(tText.indexOf('parentKey: ' + specKey) >= 0, '实施票的父注释指向规格票（实得文件头：' + JSON.stringify(String(tText).split('\n').slice(0, 5)) + '）')
-    // 列表：type=spec 只回规格票；type=issue 不再把规格票混进来（实施票在契约上是普通票，仍算 issue）。
-    const onlySpec = await callTool('deck_issue_list', { state: 'open', type: 'spec' })
-    check(!!(onlySpec.data && onlySpec.data.issues.length === 1 && String(onlySpec.data.issues[0].key) === specKey), 'deck_issue_list 传 type=spec 只回规格票（实得 ' + JSON.stringify(onlySpec.data && onlySpec.data.issues.map((i) => i.key)) + '）')
+    check(tText.indexOf('<!-- DSH-PARENT: ' + specKey + ' -->') >= 0, '实施票的隐藏注释指向规格票（实得文件头：' + JSON.stringify(String(tText).split('\n').slice(0, 6)) + '）')
+    check(tText.indexOf('DSH-ISSUE-KIND') < 0, '实施票不再写旧的 ticket 标记')
+    // 列表：type=issue 不把规格票混进来。规格票在 list 里的身份（与 map.md 同为 00）归 #1488 统一处理，本票不锁。
     const onlyIssue = await callTool('deck_issue_list', { state: 'open', type: 'issue' })
     check(!!(onlyIssue.data && onlyIssue.data.issues.every((i) => String(i.key) !== specKey)), 'deck_issue_list 传 type=issue 不把规格票混进来')
   }
