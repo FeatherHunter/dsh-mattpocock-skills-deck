@@ -57,8 +57,12 @@ function issueFragmentFields(comments: string): string[] {
 // 评论条数从共享分页表取默认值（50）：与列表的 comments 一栏同数，默认路径的查询文本保持不变。
 export const ISSUE_FRAGMENT = issueFragmentFields(commentsField(PAGINATION.github.limitDefault)).join(' ')
 
+// 每条查询在 Query 根都带 rateLimit{ cost }（#1482）：回包里这一格是本趟真实点数，记账按它记，
+// 不再把每条 GraphQL 都当成 1 点。mutation 拿不到这一格（RateLimit 只挂在 Query 根），写操作仍按 1 点估。
+
 // GraphQL list 查询（批量取；filter 在内存完成）
 export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issues(first:$first, after:$after, states:[OPEN,CLOSED], orderBy:{field:UPDATED_AT, direction:DESC}){
       nodes{ ${ISSUE_FRAGMENT} }
@@ -69,6 +73,7 @@ export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after
 
 // 单票查询
 export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issue(number:$number){ ${ISSUE_FRAGMENT} }
   }
@@ -86,6 +91,7 @@ export function getIssueQuery(commentsFirst: number, withAfter: boolean): string
   const vars = withAfter ? ',$after:String' : ''
   const comments = commentsField(commentsFirst, { after: withAfter, pageInfo: true })
   return `query($owner:String!,$name:String!,$number:Int!${vars}){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issue(number:$number){ ${issueFragmentFields(comments).join(' ')} }
   }
@@ -100,6 +106,7 @@ export function getIssueQuery(commentsFirst: number, withAfter: boolean): string
 export const DEPS_MAX = PAGINATION.github.depsMax
 
 export const DEPS_QUERY = `query($owner:String!,$name:String!,$number:Int!){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issue(number:$number){
       number
@@ -117,6 +124,7 @@ export const DEPS_QUERY = `query($owner:String!,$name:String!,$number:Int!){
 // 两个别名（openIssues / closedIssues）对应契约里的 open 与 closed，total 由调用方相加（一次查询里
 //   两个数同源同时刻，相加不会出现「两个时刻凑出来的总数」）。
 export const COUNTS_QUERY = `query($owner:String!,$name:String!){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     openIssues: issues(states:[OPEN]){ totalCount }
     closedIssues: issues(states:[CLOSED]){ totalCount }
@@ -125,6 +133,7 @@ export const COUNTS_QUERY = `query($owner:String!,$name:String!){
 
 // 同上，多了「必须同时带上这些标签」这一层筛（GraphQL 的 filterBy.labels 是 AND 语义）。
 export const COUNTS_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$labels:[String!]!){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     openIssues: issues(states:[OPEN], filterBy:{labels:$labels}){ totalCount }
     closedIssues: issues(states:[CLOSED], filterBy:{labels:$labels}){ totalCount }
@@ -163,6 +172,7 @@ export const PAGE_ISSUE_FRAGMENT = [
 // since（#1418）：刷新后台的增量索引窗口，服务端只回「更新时间不早于它」的票。变量可空——
 // 不给（null）时与没有这一格之前完全一样；给了就少翻十几页，探测每拍的额度从「全仓」降到「窗口」。
 export const LIST_PAGE_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$since:DateTime){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}, filterBy:{since:$since}){
       totalCount
@@ -174,6 +184,7 @@ export const LIST_PAGE_QUERY = `query($owner:String!,$name:String!,$first:Int!,$
 
 // 同上，多了「必须同时带上这些标签」这一层筛（GraphQL 的 filterBy.labels 是 AND 语义）。
 export const LIST_PAGE_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$labels:[String!]!,$since:DateTime){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}, filterBy:{labels:$labels, since:$since}){
       totalCount
@@ -211,6 +222,7 @@ export const SUB_ISSUE_FRAGMENT = [
 //   连接上的 totalCount 用来核对「拉到的张数 == 总数」，对不上就把差额报出来，不许静默少几条。
 // 代价是每 100 张一页，所以只在用户真的打开一张地图时才跑（唯一调用者：宿主电话 wf.mapTickets）。
 export const SUB_ISSUES_QUERY = `query($owner:String!,$name:String!,$number:Int!,$first:Int!,$after:String){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issue(number:$number){
       number
@@ -266,6 +278,7 @@ export const PULL_REQUEST_FRAGMENT = [
 //   面板上表现为「本仓 10 条 PR 只出现 5 条」（2026-09-11 真仓查证：写两种回来 5 条，写三种回来 10 条）。
 //   取回来之后归一与显示的口径见 normalize.js 的 normalizeIssue 与 views/shared/stateKind.js。
 export const LIST_PR_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     pullRequests(first:$first, after:$after, states:[OPEN,CLOSED,MERGED], orderBy:{field:UPDATED_AT, direction:DESC}){
       nodes{ ${PULL_REQUEST_FRAGMENT} }
@@ -276,6 +289,7 @@ export const LIST_PR_QUERY = `query($owner:String!,$name:String!,$first:Int!,$af
 
 // 拉取请求单票查询（get 按号先查 issue、再查此查询，见 issues.js）
 export const GET_PR_QUERY = `query($owner:String!,$name:String!,$number:Int!){
+  rateLimit{ cost }
   repository(owner:$owner,name:$name){
     pullRequest(number:$number){ ${PULL_REQUEST_FRAGMENT} }
   }

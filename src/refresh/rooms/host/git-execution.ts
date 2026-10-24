@@ -14,7 +14,7 @@
 // 需要 `gh repo view` 的那一级属于出站，已经从这里删掉；它改由会话的 getRepoKey 能力在开会话之后
 // 走 Tracker 操作管线（先裁决、再按后端口径记账），见 src/refresh/rooms/host/session-opener.ts。
 // 所以「选哪个后端」这一层永远不会起 gh，也不会花额度。
-import { timeoutForGhArgs, isWriteGhArgs } from '../../../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, isGraphqlGhArgs } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
 import { createGhExecution } from './gh-execution.js'
 // #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
@@ -159,13 +159,19 @@ export function createRepoKeys(deps: RepoKeysDeps) {
     try { g = (typeof getGate === 'function') ? getGate() : gate } catch (e) { g = null }
     return (g && typeof g.noteOutbound === 'function') ? g : null
   }
-  function reportOutbound(args?: string[]) {
+  function reportOutbound(argv?: string[]) {
     try {
       const g = gateOf()
       if (!g) return
-      // GraphQL 那一桶按点数计（一条 gh api graphql 命令算一点），REST 那一桶按请求条数计，两桶互不折算。
-      const isGraphql = (String(args && args[0]) === 'api' && String(args && args[1] || '').indexOf('graphql') >= 0)
-      g.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
+      // #1482：报闸传进来的是整条 argv（第一段是程序名，可能是带目录的 gh.exe），先剥掉程序名再判 GraphQL。
+      // 这一路（旧面板写路径）不做事后按 rateLimit.cost 补差，点数按 1 估：它与真实点数可能差几倍，
+      // 但 #1453 起 gh 出站随会话走 Tracker 房间，这条路今天已不是主路，不为此再加一个补差口。
+      const head = Array.isArray(argv) && argv.length > 0 ? progName(argv[0]) : ''
+      const args = /^gh(\.exe)?$/i.test(head) ? argv!.slice(1) : (argv || [])
+      // GraphQL 那一桶按点数计（一条 gh api graphql 命令算一点），REST 那一桶按请求条数计，两桶互不折算；
+      // GraphQL 不占 REST 请求条数（#1482）。
+      const isGraphql = isGraphqlGhArgs(args)
+      g.noteOutbound({ requests: isGraphql ? 0 : 1, points: isGraphql ? 1 : 0 })
     } catch (e) { /* 报账失败不许影响已经起来的这一条命令 */ }
   }
 

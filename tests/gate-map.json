@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T16:37:34.699Z",
+  "generatedAt": "2026-10-24T16:42:21.569Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 362,
-  "gateCount": 362,
-  "attributedGates": 322,
+  "chainLength": 363,
+  "gateCount": 363,
+  "attributedGates": 323,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 573,
+  "graphFileCount": 574,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -604,6 +604,7 @@
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/issue-file/src/marker.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
@@ -619,6 +620,7 @@
         "src/refresh/registry",
         "src/refresh/rooms/host",
         "src/shared/issue-file/src",
+        "src/tracker/kernel",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
@@ -630,7 +632,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 20 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 20 条"
     },
     {
       "step": "node tests/verify-deck-tools-row-zero-dep.ts",
@@ -3045,6 +3047,32 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1482-graphql-accounting.ts",
+      "file": "tests/verify-1482-graphql-accounting.ts",
+      "guards": [
+        "src/host/platformChannel.ts",
+        "src/refresh/kernel/step-pricing.ts",
+        "src/refresh/kernel/transport-ledger.ts",
+        "src/refresh/rooms/host/git-execution.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
+        "src/tracker/rooms/github/client.ts",
+        "src/tracker/rooms/github/queries.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/tracker/kernel",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-1483-chain-session-cache.ts",
@@ -9270,6 +9298,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1456-handoff-claim-write.ts",
+      "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -9409,6 +9438,7 @@
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1454-ledger-single-entry.ts",
+      "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -9523,6 +9553,7 @@
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-1465-detail-refid.ts",
       "node tests/verify-1472-write-event-fetch.ts",
+      "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1483-chain-session-cache.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
@@ -9757,6 +9788,7 @@
       "node tests/verify-issue297.ts"
     ],
     "src/tracker/kernel": [
+      "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-no-mixed-session.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1182-log-emit-single-source.ts",
@@ -9765,6 +9797,7 @@
       "node tests/verify-1286-list.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
+      "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -9832,6 +9865,7 @@
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1444-comments.ts",
       "node tests/verify-1453-repo-locate-via-session.ts",
+      "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -10155,9 +10189,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 593,
+    "fileCount": 594,
     "dirCount": 73,
-    "coveredFileCount": 593,
+    "coveredFileCount": 594,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 55,
@@ -10488,6 +10522,7 @@
       "src/refresh/kernel/snapshot-diff.ts",
       "src/refresh/kernel/step-pricing.ts",
       "src/refresh/kernel/tool-call-budget.ts",
+      "src/refresh/kernel/transport-ledger.ts",
       "src/refresh/kernel/write-event-detection.ts",
       "src/refresh/registry/.gitkeep",
       "src/refresh/registry/deck-tool-bridge.ts",

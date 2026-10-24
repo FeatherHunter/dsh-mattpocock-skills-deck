@@ -169,7 +169,9 @@ function mkGate() {
   await panelExec('gh', ['api', 'repos/o/r/issues'], { cwd: '.' })
   await panelExec('gh', ['api', 'graphql'], { cwd: '.' })
   const st = gate.stats()
-  check(st.accounted.requests === 2 && st.transport.requests === 2, '⑧ 面板那一路过闸之后：闸记的 2 条 == 传输层真发的 2 条（实得 ' + JSON.stringify(st.accounted) + ' / ' + JSON.stringify(st.transport) + '）')
+  // #1482：GraphQL 不占 REST 请求条数。这一笔面板走了两条命令 —— 一条真 REST、一条 GraphQL，
+  // 所以真发出去的 REST 请求只有 1 条；GraphQL 只按点数记（这里回包读不到 cost，沿用 1 点估算）。
+  check(st.accounted.requests === 1 && st.transport.requests === 1, '⑧ 面板那一路过闸之后：闸记的 1 条真 REST == 传输层真发的 1 条（GraphQL 不算 REST 请求；实得 ' + JSON.stringify(st.accounted) + ' / ' + JSON.stringify(st.transport) + '）')
   check(st.accounted.points === 1 && st.transport.points === 1, '⑧ GraphQL 那一条按点数记（1 点）')
   check(gate.escaped().requests === 0 && gate.escaped().points === 0, '⑧ 绕闸条数为 0（面板那一路不再算绕闸）')
   check(st.mismatch === 0, '⑧ 面板那一路没报数，所以不算「对不上」')

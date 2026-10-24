@@ -6,7 +6,7 @@
 // #1161：内置房间清单从前写在本文件里（三段 try 各 import 一间房），现在只认装配点
 //   src/tracker/registry/builtins.ts —— 宿主侧不再认识任何具体房间（规则 rooms-imported-only-by-assembly）。
 import type { HostTimerService } from '../refresh/contract/host-timer-ports.js'
-import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, reportGhOutbound, noteGhGraphqlCorrection } from '../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from '../refresh/rooms/host/outbound-admission.js'
 // #1159：给房间的那份后端上下文要挂上出站控制面（实现见 outbound-control.ts，只做转发）。
 import { createOutboundControl } from '../refresh/rooms/host/outbound-control.js'
@@ -31,7 +31,11 @@ import { STATUS_CACHE_MS, PROC_GRACE_MS } from '../shared/time-config/src/values
 /** 日志出口（宿主注入）：fire 落一行，isEnabled 决定要不要落。 */
 interface LogCtx { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean }
 /** 出站闸（宿主注入）：闸可能比本通道晚一步就位，所以每次现问一次（见 gateOf）。 */
-interface OutboundGate { noteOutbound(fields: { requests: number; points: number }): void }
+interface OutboundGate {
+  noteOutbound(fields: { requests: number; points: number }): void
+  /** 事后补报差额（#1482）：GraphQL 拿到回包里的真实点数后，把比 1 点大的部分补进闸；闸没这一口时跳过。 */
+  noteOutboundCorrection?(fields: { requests: number; points: number }): void
+}
 /** 子进程句柄（宿主 subprocess.spawn 的产出）：本文件用到终止、完成承诺与两段收集缓冲。 */
 interface SpawnHandle {
   terminate(): void
@@ -337,6 +341,9 @@ export function createPlatformChannel(deps: Deps) {
       const deIsGlab = /^glab(\.exe)?$/i.test(cmdBase)
       const deIsOutbound = deIsGh || deIsGlab
       const deBucket = (deIsGh && isWriteGhArgs(args)) ? 'write' : 'read'
+      // 报闸的实例留到事后再用一次（#1482）：真实点数在回包里，起进程前只够按 1 点估。
+      // 报闸与补差的口径住在 tracker/kernel/outbound-tiers.ts，这个文件只留「拿到闸、调用两次」。
+      let deGate: OutboundGate | null = null
       let deRelease: (() => void) | null = null
       if (deIsOutbound) {
         try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined }) }
@@ -348,18 +355,7 @@ export function createPlatformChannel(deps: Deps) {
       // （tracker 三个房间与快照那几路都走它），起的是 gh / glab / git 三条命令；gh 与 glab 是真出站，
       // git 只读远端地址，但都是「起了一个进程」，一起报才能保证账上的条数与真起的命令数一一对应。
       // #965：这一块在拿名额之后 —— 排队等待不算这一笔，取消排队的不进账。
-      try {
-        const g = gateOf()
-        if (g) {
-          // #927 复核发现：GraphQL 那一路要看第二段（`gh api graphql …` 的第一段是 api），
-          // 原来只看第一段，于是面板与工具那一路的 GraphQL 调用被当成 REST 记（点数记成 0）。
-          // 口径与 repoKeys.js 里那一处对齐。
-          const a0 = String((args && args[0]) || '')
-          const a1 = String((args && args[1]) || '')
-          const isGraphql = a0.indexOf('graphql') >= 0 || (a0 === 'api' && a1.indexOf('graphql') >= 0)
-          g.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
-        }
-      } catch (eR) { /* 报账失败不许影响已经起来的这一条命令 */ }
+      try { deGate = reportGhOutbound(gateOf(), args) } catch (eR) { /* 报账失败不许影响已经起来的这一条命令 */ }
       let handle: SpawnHandle
       try {
         handle = subprocess.spawn({
@@ -398,6 +394,9 @@ export function createPlatformChannel(deps: Deps) {
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (execT0 && logCtx!.isEnabled('debug')) logCtx!.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
       if (deIsOutbound) { try { if (deRelease) deRelease() } catch {} }
+      // #1482：GraphQL 的真实点数只有拿到回包才知道，成功之后在这里补差；补差口径住 outbound-tiers.ts。
+      // 这条通道本身就是起进程的那一层，补差只补这一层；房间的 client.ts 那是另一条报账路，两边不重叠。
+      noteGhGraphqlCorrection(deGate, args, outcome && outcome.exitCode, out.text)
       return { stdout: out.text || '', stderr: err.text || '', code: outcome.exitCode }
     }
     async function getDetectionService(): Promise<DetectionService> {
