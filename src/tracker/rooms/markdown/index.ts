@@ -266,14 +266,13 @@ export function createMarkdownBackend(ctx: OpContext) {
         const repo=handle&&handle.backend?(handle as RepositoryRef):describe(handle,'markdown')
         const mapP=mdPath(repo,'map',undefined,c)
         if(await exists(c,mapP))return{ok:true}
-        // #1488：点名了 refId 的规格目录（只有 spec.md 或 issues/）也要通过预检。
+        // #1488：旧版工作区根 issues/ 与根级 spec.md 也要通过预检（#1486 之前的落点，只读兼容）。
+        // 用 cwd 直接拼，不走 mdPath：混合平台适配器下绝对路径判定可能与宿主路径形态不一致。
         const plat0=getPlat(c)
-        try{
-          const specP=mdPath(repo,'spec',undefined,c)
-          if(await exists(c,specP))return{ok:true}
-          const issueDir=plat0.join(plat0.dirname(mapP),'issues')
-          if(await exists(c,issueDir))return{ok:true}
-        }catch{}
+        if(cwd){
+          if(await exists(c,plat0.join(cwd,'issues')))return{ok:true}
+          if(await exists(c,plat0.join(cwd,'spec.md')))return{ok:true}
+        }
         const plat2=getPlat(c)
         const cwd2=(handle&&handle.cwd)||(c&&c.cwd)||''
         if(cwd2){

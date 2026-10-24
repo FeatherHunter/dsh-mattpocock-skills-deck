@@ -152,10 +152,13 @@ export interface TicketFile {
   degenerate: boolean
 }
 
-/** 目录里这两个名字是容器文件，不是票：map.md 是探索地图，spec.md 是规格（原文写法，大小写不敏感）。 */
-function isContainerFileName(file: string): boolean {
+/** 票目录里这几个名字不是票：map.md 是探索地图、spec.md 是规格（容器文件，大小写不敏感）；
+ *  notes.md 是旧布局里约定俗成的说明文件（#688 起不算票）。除它们之外的 .md 都当票读——这是
+ *  #1488 验收④「文件名里没有编号的手写文件也要有个确定的显示」的落点：没编号的票不丢弃，
+ *  退化成文件名本身；只有这三个约定名字继续排除。 */
+function isNonTicketFileName(file: string): boolean {
   const n=file.toLowerCase()
-  return n==='map.md' || n==='spec.md'
+  return n==='map.md' || n==='spec.md' || n==='notes.md'
 }
 
 /**
@@ -167,7 +170,7 @@ function isContainerFileName(file: string): boolean {
 export function ticketEntriesOf(ctx: OpContext, idir: string, names: string[]): TicketFile[] {
   const plat=getPlat(ctx)
   const md=names.filter(function(f: string){
-    return !!f && !f.startsWith('.') && f.toLowerCase().endsWith('.md') && !isContainerFileName(f)
+    return !!f && !f.startsWith('.') && f.toLowerCase().endsWith('.md') && !isNonTicketFileName(f)
   })
   const counts: Record<string, number>={}
   for(const f of md){

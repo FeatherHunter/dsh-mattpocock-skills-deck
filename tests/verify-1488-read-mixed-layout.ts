@@ -121,6 +121,119 @@ async function main() {
     check(degradations(ctx).length === 0, '① 干净的新布局读取一行降级日志都不记（' + degradations(ctx).length + '）')
   }
 
+  console.log('== ② 三个以上目录、同号票并存：列表与单票读取按目录区分，不互相串 ==')
+  {
+    const root = fs.mkdtempSync(path.join(tmpRoot, 'multi-'))
+    // alpha 是探索地图目录（map.md），beta 是规格目录（spec.md），gamma 只有票目录（issues/），
+    // 三种工作单元混在一个工作区里，且每个目录都有 01 号票 —— 这正是按目录区分身份的验收形态。
+    fs.mkdirSync(path.join(root, '.scratch', 'alpha', 'issues'), { recursive: true })
+    fs.writeFileSync(path.join(root, '.scratch', 'alpha', 'map.md'), '# 阿尔法地图\n\nStatus: ready-for-agent\n\n## Destination\n\n夹具\n', 'utf8')
+    writeTicket(path.join(root, '.scratch', 'alpha', 'issues'), '01-alpha-one.md', '阿尔法的第一张票')
+    writeSpec(path.join(root, '.scratch', 'beta'), '贝塔规格')
+    writeTicket(path.join(root, '.scratch', 'beta', 'issues'), '01-beta-one.md', '贝塔的第一张票')
+    writeTicket(path.join(root, '.scratch', 'gamma', 'issues'), '01-gamma-one.md', '伽马的第一张票')
+    const ctx = makeCtx(root)
+    const be = createMarkdownBackend(ctx as never)
+
+    const listed = await be.list(REPO as never, {} as never, ctx as never)
+    check(listed.ok === true, '② 混合布局列表成功')
+    const rows = listed.ok ? (listed.data as Array<Record<string, unknown>>) : []
+    const tickets = rows.filter(function (r) { return r.type !== 'map' && r.type !== 'spec' })
+    check(tickets.length === 3, '② 三个目录的票都列出来（' + tickets.length + '）')
+    const byEffort: Record<string, string> = {}
+    for (const t of tickets) {
+      const key = String(t.effortId)
+      check(t.key === '01', '② 目录 ' + key + ' 的同号票 key 仍是 01（目录身份由 effortId 区分）')
+      byEffort[key] = String(t.title)
+    }
+    check(byEffort['alpha'] === '阿尔法的第一张票' && byEffort['beta'] === '贝塔的第一张票' && byEffort['gamma'] === '伽马的第一张票', '② 三行标题各自对应自己的目录，不互相串（' + JSON.stringify(byEffort) + '）')
+    check(rows.filter(function (r) { return r.type === 'spec' }).length === 1, '② 规格目录的 spec 容器行也在（只该有一行）')
+
+    for (const [effort, title] of [['alpha', '阿尔法的第一张票'], ['beta', '贝塔的第一张票'], ['gamma', '伽马的第一张票']] as Array<[string, string]>) {
+      const got = await be.get(REPO as never, '01', { effortId: effort } as never, ctx as never)
+      check(got.ok === true && got.data.title === title && got.data.effortId === effort, '② get(01, effortId=' + effort + ') 读回本目录的票（' + (got.ok ? got.data.title + '/' + got.data.effortId : '失败') + '）')
+    }
+    const scoped = await be.list(REPO as never, { effortId: 'beta' } as never, ctx as never)
+    const scopedRows = scoped.ok ? (scoped.data as Array<Record<string, unknown>>) : []
+    check(scoped.ok === true && scopedRows.every(function (r) { return r.effortId === 'beta' }), '② 列表按 effortId 收窄时只剩 beta 的行（' + scopedRows.length + ' 行）')
+    check(scopedRows.some(function (r) { return r.type === 'spec' }) && scopedRows.some(function (r) { return r.key === '01' }), '② 收窄后的 beta 仍同时有规格行与 01 号票行')
+  }
+
+  console.log('== ③ 工作区根 issues/ 的旧票：可列出、可读、可改，读取时留兼容日志 ==')
+  {
+    const root = fs.mkdtempSync(path.join(tmpRoot, 'legacy-'))
+    // #1486 之前没给工作单元时，建票落到工作区根 issues/；这些票还在原地，必须原样可用。
+    writeTicket(path.join(root, 'issues'), '01-legacy-root.md', '旧版根目录的票')
+    const ctx = makeCtx(root)
+    const be = createMarkdownBackend(ctx as never)
+
+    const pre = await be.preflight({ cwd: root, refId: '' } as never, ctx as never)
+    check(pre.ok === true, '③ 只有工作区根 issues/ 的旧工作区预检通过')
+
+    const listed = await be.list(REPO as never, {} as never, ctx as never)
+    const rows = listed.ok ? (listed.data as Array<Record<string, unknown>>) : []
+    const legacyRow = rows.filter(function (r) { return r.key === '01' })
+    check(listed.ok === true && legacyRow.length === 1 && legacyRow[0].title === '旧版根目录的票', '③ 旧票照常列出来（' + (listed.ok ? rows.length : '失败') + ' 行）')
+    const listLogs = degradations(ctx).filter(function (e) { return e.fields.reason === 'list:legacy-root' })
+    check(listLogs.length === 1, '③ 列出旧票时留下一条 list:legacy-root 兼容日志（' + listLogs.length + '）')
+
+    const got = await be.get(REPO as never, '01', {} as never, ctx as never)
+    check(got.ok === true && got.data.title === '旧版根目录的票', '③ 旧票按编号读得到')
+    const getLogs = degradations(ctx).filter(function (e) { return e.fields.reason === 'get:legacy-root' })
+    check(getLogs.length === 1, '③ 读取旧票时留下一条 get:legacy-root 兼容日志（' + getLogs.length + '）')
+
+    const updated = await be.update(REPO as never, '01', { title: '旧票改过的标题' } as never, ctx as never)
+    check(updated.ok === true, '③ 旧票可改（update 成功）')
+    const onDisk = fs.readFileSync(path.join(root, 'issues', '01-legacy-root.md'), 'utf8')
+    check(onDisk.includes('旧票改过的标题'), '③ 改动落回工作区根 issues/ 的原文件（不迁移、不新建到 .scratch 下）')
+    check(!fs.existsSync(path.join(root, '.scratch', 'issues', '01-legacy-root.md')), '③ 没有把旧票复制或迁移到 .scratch 下')
+  }
+
+  console.log('== ④ 重复编号与非规范文件名：退化显示规则固定、打日志、不抛错 ==')
+  {
+    const root = fs.mkdtempSync(path.join(tmpRoot, 'degenerate-'))
+    const issues = path.join(root, '.scratch', 'buy-coffee', 'issues')
+    writeSpec(path.join(root, '.scratch', 'buy-coffee'), '买咖啡积分')
+    // 两个 01：不自作主张改号，显示退化成「目录/01-文件名」；一个没有编号的手写文件：
+    // 显示退化成「目录/文件名」；notes.md 是约定俗成的说明文件，不算票。
+    writeTicket(issues, '01-one.md', '第一张重复号票')
+    writeTicket(issues, '01-two.md', '第二张重复号票')
+    writeTicket(issues, '修复登录.md', '手写的修复登录票')
+    fs.writeFileSync(path.join(issues, 'notes.md'), '# 说明\n\n这不是票\n', 'utf8')
+    const ctx = makeCtx(root)
+    const be = createMarkdownBackend(ctx as never)
+
+    const listed = await be.list(REPO as never, {} as never, ctx as never)
+    check(listed.ok === true, '④ 有重复编号与无编号文件时列表不抛错，照常成功')
+    const rows = listed.ok ? (listed.data as Array<Record<string, unknown>>) : []
+    const ticketRows = rows.filter(function (r) { return r.type !== 'map' && r.type !== 'spec' })
+    check(ticketRows.length === 3, '④ 两张重复号票加一张手写票，共 3 行；notes.md 不算票（' + ticketRows.length + '）')
+    const keys = ticketRows.map(function (r) { return String(r.key) })
+    check(keys.indexOf('buy-coffee/01-one') >= 0 && keys.indexOf('buy-coffee/01-two') >= 0, '④ 重复编号显示成「目录/编号-文件名」（' + JSON.stringify(keys) + '）')
+    check(keys.indexOf('buy-coffee/修复登录') >= 0, '④ 没有编号的手写文件显示成「目录/文件名」（' + JSON.stringify(keys) + '）')
+    check(ticketRows.every(function (r) { return r.effortId === 'buy-coffee' }), '④ 退化行仍带工作单元 effortId，界面能按目录分组')
+
+    const listLogs = degradations(ctx).filter(function (e) { return e.fields.reason === 'list:dup-number' })
+    check(listLogs.length === 1, '④ 列出退化身份时只留一条 list:dup-number 日志（' + listLogs.length + '）')
+
+    const got = await be.get(REPO as never, 'buy-coffee/01-one', { effortId: 'buy-coffee' } as never, ctx as never)
+    check(got.ok === true && got.data.title === '第一张重复号票', '④ 退化身份可以直接按 key 读回（内部寻址一起退化）')
+    const gotWritten = await be.get(REPO as never, 'buy-coffee/修复登录', {} as never, ctx as never)
+    check(gotWritten.ok === true && gotWritten.data.title === '手写的修复登录票', '④ 手写票按「目录/文件名」也读得到（不带 effortId 也行）')
+    const getLogs = degradations(ctx).filter(function (e) { return e.fields.reason === 'get:dup-number' })
+    check(getLogs.length >= 1, '④ 读退化身份时留下 get:dup-number 日志（' + getLogs.length + '）')
+
+    // 旧聊天链接 #01 仍要能打开其中一张（读语义按目录顺序回落），不能因为编号重复就失效。
+    const oldLink = await be.get(REPO as never, '01', { effortId: 'buy-coffee' } as never, ctx as never)
+    check(oldLink.ok === true, '④ 旧链接 #01 仍能读回一张票（不因编号重复而失败）')
+
+    const counts = await be.counts(REPO as never, {} as never, ctx as never)
+    check(counts.ok === true && counts.data.total === 3, '④ 计数把退化身份的票都算上（' + (counts.ok ? counts.data.total : '失败') + '）')
+
+    // 同一趟 list 里只留一条 dup 日志：数一遍本文件的总行数，避免多张退化票刷出多条。
+    check(degradations(ctx).length <= 8, '④ 退化日志没有按文件数刷屏（本段累计 ' + degradations(ctx).length + ' 条）')
+  }
+
   fs.rmSync(tmpRoot, { recursive: true, force: true })
   console.log(failed ? '\nFAILED' : '\nALL PASS')
   process.exitCode = failed ? 1 : 0
