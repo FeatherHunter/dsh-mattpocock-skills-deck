@@ -198,7 +198,9 @@ const ALLOWED = {
   // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
   //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，
   //   按「允许字段就是能记的全部字段」的口径把它从白名单里去掉（落点：src/refresh/rooms/host/check-chain-evaluation.ts）。
-  'chain.cache.hit': ['keyHash', 'lang', 'deferred', 'reason', 'waitMs'],
+  // 2026-10-25（#1483）：多记一个 patched —— 这次缓存命中里按当前会话重算了几项（0 表示没有会话相关项）。
+  //   看这一格能立刻分清「只读会话显示可写」是没触发重算，还是重算后仍拿到旧结论。
+  'chain.cache.hit': ['keyHash', 'lang', 'deferred', 'reason', 'waitMs', 'patched'],
   'chain.predicate': ['id', 'status', 'latencyMs'],
   'skill.probe': ['name', 'level', 'via'],
   'skill.pending.cap': ['name', 'attempts', 'max'],

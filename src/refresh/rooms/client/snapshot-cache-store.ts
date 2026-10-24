@@ -205,10 +205,17 @@ export const diskGetSnapshot = function (k: any): any {
 }
 // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言；#529 加语言维：中英快照分开存；#653：这里的「工作区键」走 wsKeyOf 锚到工作区根）
 export const CHAIN_CWD_LRU_MAX: number = 20
-export const chainByCwd: any = new Map() // Map<工作区键+'|'+backendId+'|'+lang, {snapshot, ts}>
+// 条目的形状：{snapshot, ts, sessionId?}。sessionId 记「这份快照是哪个会话求出来的」——#1483 起用来
+//   判断别的会话读到它时要不要按自己的沙箱许可补问一次宿主（见 probe-chain-subscription.ts 的 loadChain）。
+//   旧版本落下的条目没有这一格，按「不知道是谁量的」处理：同样会补问一次，补问后写回带会话号的新条目。
+export const chainByCwd: any = new Map() // Map<工作区键+'|'+backendId+'|'+lang, {snapshot, ts, sessionId?}>
 export const getChainCacheKey = function(cwd: any, backendId: any, lang: any): string{ try{ return wsKeyOf(cwd) + '|' + String(backendId||'') + '|' + String(lang||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||'')+'|'+String(lang||''); } }
 export const getCachedChain = function(cwd: any, backendId: any, lang: any): any{ try{ const k: any=getChainCacheKey(cwd, backendId, lang); const e: any=chainByCwd.get(k); return e?e.snapshot:null; }catch(e){ return null; } }
-export const setCachedChain = function(cwd: any, backendId: any, lang: any, snap: any): void{ if(!cwd||!snap) return; try{ const k: any=getChainCacheKey(cwd, backendId, lang); const ent: any={snapshot:snap, ts:Date.now()}; if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first: any=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
+// #1483：读整条缓存记录（含产出会话号），供链加载判断「这份要不要按本会话补问宿主」。返回的是条目本体，
+//   不要原地改它（别的会话可能正拿着同一条）；没有条目时返回 null。
+export const getCachedChainEntry = function(cwd: any, backendId: any, lang: any): any{ try{ const k: any=getChainCacheKey(cwd, backendId, lang); const e: any=chainByCwd.get(k); return e||null; }catch(e){ return null; } }
+// #1483：第 5 个参数记产出会话号；只传 4 个参数的老调用点行为不变（条目不带 sessionId）。
+export const setCachedChain = function(cwd: any, backendId: any, lang: any, snap: any, sessionId?: any): void{ if(!cwd||!snap) return; try{ const k: any=getChainCacheKey(cwd, backendId, lang); const ent: any={snapshot:snap, ts:Date.now()}; if(sessionId !== undefined && sessionId !== null) ent.sessionId = String(sessionId); if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first: any=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
 // 水合守卫：刚点的那一下不被旧缓存盖掉（#1003 接替 userPicked 标记；只看时间，不落盘）。
 export const justPicked = function (st: any, c: any): boolean {
   try {

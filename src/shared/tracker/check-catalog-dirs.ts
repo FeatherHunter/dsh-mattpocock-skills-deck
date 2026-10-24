@@ -48,6 +48,7 @@ const PRIMITIVE_KIND = Object.freeze({
  * @property {string[]} backends 适用后端（generic 为 ['github','markdown','gitlab']，backend 为子集）
  * @property {CatalogCheck} check 谓词描述（primitive/backend/preflight）
  * @property {string} origin 盘点来源（文件:行号或 inventory 类别）
+ * @property {boolean} [sessionScoped] 结果是否取决于当前会话的沙箱许可（例：md:scratchWritable 的写探测）；#1483
  */
 
 // 目录项的静态形态：与上面的 @typedef 同口径，类型注解用，运行时不存在。
@@ -59,6 +60,7 @@ type CatalogItem = {
   backends: string[]
   check: CatalogCheck
   origin: string
+  sessionScoped?: boolean
 }
 
 /** 通用检查目录（与后端无关，所有后端都要问，恒适用，无 na）。 */
@@ -196,6 +198,9 @@ export const MARKDOWN_CATALOG: readonly CatalogItem[] = Object.freeze([
     backends: ['markdown'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.DIR_WRITABLE, path: '.scratch' },
     origin: 'backends/markdown/preflight.js / inventory 类别 8 / research 2026-08-29',
+    // #1483：这一项量的是「当前会话能不能往 .scratch 写」——同一工作区的只读会话与可写会话答案不同，
+    //   所以链快照缓存命中时要按当前会话重算，不能沿用别的会话量出的结论。
+    sessionScoped: true,
   },
   {
     id: 'md:parseOk',

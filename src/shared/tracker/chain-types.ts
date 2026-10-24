@@ -209,6 +209,8 @@ export type Action = {
  * @property {{show: Show|null, actions: Action[]}} onFail 未通过时的展示与动作
  * @property {string} [label] 人读标签（可选，仅调试/日志）
  * @property {string} [group] 可选分组（'gate'|'env' 等，供编排链分段用；不驱动求值）
+ * @property {boolean} [sessionScoped] 这一项的结果是否取决于「当前是哪个会话」（例：写探测读会话的沙箱许可）；
+ *   置 true 的项在链快照缓存命中时会被按当前会话重算，不沿用缓存里别的会话的结论（#1483）
  */
 export type CheckItem = {
   id?: string
@@ -217,6 +219,7 @@ export type CheckItem = {
   onFail: { show: Show | null; actions: Action[] }
   label?: string
   group?: string
+  sessionScoped?: boolean
 }
 
 /**

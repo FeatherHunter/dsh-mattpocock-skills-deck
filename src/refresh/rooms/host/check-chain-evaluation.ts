@@ -7,6 +7,10 @@ import { getChainRide } from './chain-coalescing.js'   // #964 小账本住共�
 import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../../../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
 import { ghAuthVerdict, probeChainEnv, repoAccessVerdict } from './chain-env-map.js'
 import type { OpenSessionReply } from './chain-env-map.js'
+// #1483：「判定 → 步骤行 / 快照」三件套搬到 chain-step-rows.ts，正常求值与缓存命中重算共用同一套口径；行为逐字保留。
+// 九个形状（判定表、步骤行、单段与拼接快照）也从那里取：两处各写一份时，形状一改就会漂移（审阅指出过）。
+import { assembleFullSnapshot, enrichSnap, stepEvalParallel } from './chain-step-rows.js'
+import type { ChainSnapView, EvalMap, FullSnapView, PredicateResultView, ResolvedMap, ShowView, SnapStepView, SnapStepsView, StepView } from './chain-step-rows.js'
 
 // ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
 // 为什么逐条写在这里：本文件的依赖对象是 src/host/index.ts 里现拼的接线（转制后编译器看得见，形状以各文件的类型为准），
@@ -43,51 +47,8 @@ type CaughtError = { message?: unknown }
 // ── 只读会话的能力面、环境档位表与预检探针已搬到 chain-env-map.ts（#1444）──────────────────
 // 那边写清了为什么拆、档位怎么查、两个谓词怎么分派；本文件只留编排（退避、搭车、快照、缓存、日志）。
 
-/** 一轮求值按检查项 id 汇总的判定：resolveAll 给判定对象，toPredicateResults 给状态串，两路都收。 */
-type PredicateResultView = { status: 'pass' | 'fail' | 'pending'; detail?: string; hint?: string }
-type EvalMap = Record<string, PredicateResultView | 'pass' | 'fail' | null | undefined>
-/** 判定对象那一份（富化步骤用的 detail/hint 只在这一路里）。 */
-type ResolvedMap = Record<string, PredicateResultView | undefined>
-
-/** 展示数据（共享层 Show 的几格；本文件只读 fallback/title/i18nKey/desc/hint）。 */
-type ShowView = { i18nKey?: unknown; title?: unknown; desc?: unknown; fallback?: unknown; hint?: unknown; level?: unknown; params?: unknown }
-
-/**
- * 求值后单步（与共享层 StepSnapshot 同形）。id 写成可缺是照实收：契约里它本来就可选
- *（「未提供时回退用 check 串」）。正文里按 id 查表的两处写着 `as string`——那是给编译器看的，
- * 运行期原样按键查，查不到就当没有。
- */
-type StepView = { id?: string; check?: unknown; status?: string; show?: ShowView | null; actions?: unknown[]; isApplicable?: boolean; blockedBy?: string | null; isCurrent?: boolean; isBlocking?: boolean }
-
-/**
- * 富化（把谓词结果的 detail/hint 并进步骤 show）与拼接视图都按最小形状读快照：只要求「有一串步骤」，
- * 步骤按三格读——id（拿来查判定表）、status（算 done/current）、show（合 detail/hint），其余格子原样带回去。
- * 为什么不直接用整份 ChainSnapView：拼接出来的那一份没有 failedIndex（拼接层不判「第几个失败」），
- * 而富化对它碰不到的格子本来就不该提要求。
- */
-type SnapStepView = { id?: string; status?: string; show?: ShowView | null }
-type SnapStepsView = { steps: SnapStepView[] }
-
-/** 拼接视图：两段链的步骤按清单排序后合成的一份视图，除步骤外还带计数与版本（消费侧只读）。 */
-type FullSnapView = SnapStepsView & { currentIndex: number | null; doneCount: number; applicableCount: number; totalCount: number; chainState: string; version: string }
-
 /** 后端段这一包：链、判定、快照与校验错（快照会过一遍富化，所以按富化认的最小形状装；errors 原样转给界面）。 */
 type BackendChainPack = { chain: CheckItem[]; resolved: ResolvedMap; snapshot: SnapStepsView | null; errors: unknown }
-
-/** 本文件自己拼的链快照：比共享层 ChainSnapshot 多出「算完再补挂」的那三格（补挂前是缺的）。 */
-type ChainSnapView = {
-  steps: StepView[]
-  currentIndex: number | null
-  failedIndex: number
-  doneCount: number
-  applicableCount: number
-  totalCount: number
-  chainState: 'allDone' | 'hasCurrent' | 'pending'
-  version: string
-  isComplete?: boolean
-  hasBlockingFailure?: boolean
-  blockingCheck?: string | null
-}
 
 /** 选择结论：本文件只读 backendId 与 source 两格（显式空是权威结论，见正文注释）。 */
 type Selection = { backendId?: string | null; source?: string }
@@ -176,9 +137,54 @@ export function createDetectChain(deps: DetectChainDeps) {
   // 这里只把接线给的两条能力交进去，调用点（const envProbe = createChainEnvProbe(cwd)）形状不变。
   const createChainEnvProbe = (probeCwd: string) => probeChainEnv({ getRepoKey: getRepoKey, openSession: openSession }, probeCwd)
 
+  // #1483：把「按当前会话解析沙箱许可」收成一处。正常求值与缓存命中后的重算都用这一处解析：
+  //   缺省会话号（空串）与「接线没给 sandboxPolicyFor」都不算错，照旧返回空政策，让谓词按平台默认量。
+  //   解析失败也不抛：宁可把那一行落成 pending（诚实未知），也不能让整条链因为量不到许可以失败收场。
+  async function resolveSessionPolicy(chainCwd: string, sessionIdIn: unknown) {
+    let policy: unknown = undefined
+    let sessionId = String(sessionIdIn || '')
+    try {
+      if (typeof sandboxPolicyFor === 'function') {
+        const sb = await sandboxPolicyFor({ cwd: chainCwd, sessionId: sessionId })
+        if (sb && typeof sb === 'object') { policy = sb.policy; if (sb.sessionId) sessionId = String(sb.sessionId) }
+      }
+    } catch (eSb) {}
+    return { policy: policy, sessionId: sessionId }
+  }
+
+  // #1483：把「没有自己真算、而是拿了别人算好的回包」按当前会话补算一次，返回副本与重算项数。
+  //   两条路会拿到别人的回包：退避缓存回上一份（上一份可能是别的会话求的）、同钥匙在途搭车
+  //   （搭上的是别的会话正在跑的那一轮）。两条都只可能是「依赖会话许可的那几行」不对，其余行
+  //   照旧沿用——这也是这份回包还值得共享的理由。
+  //   失败静默降级回原回包：拿到旧视图好过把整条链打成失败，下一轮自然会按本会话真算一次。
+  async function patchReplyForSession(reply: unknown, chainCwd: string, chainLang: string, chainArgs: any) {
+    let out: unknown = reply
+    let patched = 0
+    try {
+      const anyReply: any = out
+      const items = (anyReply && anyReply.backendChain && Array.isArray(anyReply.backendChain.chain)) ? anyReply.backendChain.chain : null
+      // 先扫一遍再决定要不要动态加载：没有会话相关项时这一趟只花一次数组遍历，不加载模块、不解析沙箱政策。
+      //   patchCachedReplyForSession 自己还会再扫一遍（它是独立入口，不能假定调用方扫过），这里是有意的重复。
+      const hasScoped = !!(items && items.some(function (it: any) { return it && it.sessionScoped === true }))
+      if (hasScoped) {
+        const patchMod = await import('./chain-session-patch.js')
+        const sbInfo = await resolveSessionPolicy(chainCwd, chainArgs && chainArgs.sessionId)
+        const patchedOne = await patchMod.patchCachedReplyForSession(out, { platform: await getPlatform(), cwd: chainCwd, lang: chainLang, backendId: (chainArgs && chainArgs.backendId) || null, sandboxPolicy: sbInfo.policy, sessionId: sbInfo.sessionId, onError: function (msg: string) { try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch-item', errorHash: hash8('patch-item:' + msg) }) } catch (eLog) {} } })
+        out = patchedOne.reply
+        patched = patchedOne.patchedCount
+      }
+    } catch (ePatch) {
+      // 失败不抛给调用方（宁可先给旧视图），但要留一行：否则日志里只剩「这一趟明明命中了缓存、
+      //   只读会话却还是看到可写」，查不出是没重算还是重算失败。
+      try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-session-patch', errorHash: hash8('patch:' + String((ePatch && (ePatch as any).message) || ePatch)) }) } catch (eLog) {}
+    }
+    return { reply: out, patched: patched }
+  }
+
   // #709（T5）：退避与全绿缓存整段交给 kernel 的纯函数裁定（薄壳 src/refresh/rooms/host/chain-backoff.js，
   // 数字真源是 host-budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
-  // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
+  // 触发只由几路事件带起来（#1483 起客户端在跨会话命中共享缓存后也会补问一次），宿主侧一个自续定时器都没有；
+  //   人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
   async function handleDetect(args: ChainArgs) {
       const _rawDetectCwd = (args && args.cwd) || ''; if (!String(_rawDetectCwd).trim()) return { ok: true, handle: { cwd: '' }, selection: null, repoHandle: { cwd: '', refId: '' }, explicit: { raw: null, parsed: { explicitBackendId: null } }, preflight: null, skillProbes: null, at: Date.now(), workspaceNotReady: true }; const cwd = await canonicalKey(_rawDetectCwd) // #1003 空目录闸：没目录不冒充
       const force = !!(args && args.force)
@@ -211,7 +217,7 @@ export function createDetectChain(deps: DetectChainDeps) {
       try{
         const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
         // #709（T5）：退避与全绿缓存这一段由纯函数裁定。人亲手点「重新检查」（trigger='user-recheck'）
-        // 永不降档，无论退到第几档都照做；其余三种事件按退避判，挡下的那一次直接回上一份快照。
+        // 永不降档，无论退到第几档都照做；其余各路事件按退避判，挡下的那一次直接回上一份快照。
         // 接线没给退避模块（或它取不到）时按「取不到」处理、照旧求值：可选的加速件不该把整条链打成「链失败」（src/host/repoKeys.js 里同一处依赖也是先判有没有这个函数）。
         const backoff = (typeof getChainBackoff === 'function') ? await getChainBackoff().catch(function () { return null }) : null
         const nowMs = Date.now()
@@ -219,13 +225,22 @@ export function createDetectChain(deps: DetectChainDeps) {
           ? await backoff.verdict(cacheKey, nowMs, { trigger: trigger })
           : { needed: true, reason: 'backoff-unavailable', waitMs: 0, cached: null }
         if (!v.needed) {
-          try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, deferred: true, reason: v.reason, waitMs: v.waitMs } }) } catch (eL) {}
-          return v.cached
+          // #1483：链快照的退避缓存按「工作区 + 后端 + 语言」共享，但 md:scratchWritable 这一类检查项的
+          //   结果取决于当前会话的沙箱许可（只读会话量出来是 pending，可写会话是 done）。直接回缓存会让
+          //   只读会话看到别的会话量出的「可写」。
+          //   这里按当前会话重算那几行，返回改好的副本；缓存本体一个字不动（别的会话还要照它秒显）。
+          //   重算失败静默降级回原回包：缓存命中本来就允许旧视图，不能因此把整条链打成失败。
+          //   重算那几行放在 patchReplyForSession 里，与下面「在途搭车」那条路共用同一处。
+          const patchedCache = await patchReplyForSession(v.cached, cwd, chainLang, args)
+          try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, deferred: true, reason: v.reason, waitMs: v.waitMs, patched: patchedCache.patched } }) } catch (eL) {}
+          return patchedCache.reply
         }
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
         // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份；先回来的写缓存，后到的拿同一份；强制不参与合并
         const chainDedupKey = cacheKey + '|' + (force ? '1' : '0')
-        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingRide } }
+        // #1483：搭车拿到的是「另一轮求值」的结果，那一轮用的是发起那一轮的会话许可。凡是有依赖会话许可的项，
+        //   先按本会话补算再交给调用方；不然只读会话搭上可写会话的车，会先看到别人的「可写」。
+        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; const rideReply = await ongoingRide; return (await patchReplyForSession(rideReply, cwd, chainLang, args)).reply } }
         const chainPending = (async function () {
         const platform = await getPlatform()
         // #1444：这次求值的环境预检探针（一次求值只开一次会话、只问一次 preflight；见 createChainEnvProbe）。
@@ -267,7 +282,8 @@ export function createDetectChain(deps: DetectChainDeps) {
         const expConsistent = (selConsistent && selConsistent.backendId)
           ? selConsistent.backendId
           : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
-        let chainPolicy = undefined; let chainSessionId = String((args && args.sessionId) || ''); try { if (typeof sandboxPolicyFor === 'function') { const sb = await sandboxPolicyFor({ cwd: cwd, sessionId: chainSessionId }); if (sb && typeof sb === 'object') { chainPolicy = sb.policy; if (sb.sessionId) chainSessionId = String(sb.sessionId) } } } catch (eSb) {}
+        const sbInfo = await resolveSessionPolicy(cwd, args && args.sessionId)
+        const chainPolicy = sbInfo.policy; const chainSessionId = sbInfo.sessionId
         const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, sandboxPolicy: chainPolicy, sessionId: chainSessionId, skillProbe: async function (skillName: string) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && (e as CaughtError).message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx: PredicateCtx) {
@@ -308,38 +324,6 @@ export function createDetectChain(deps: DetectChainDeps) {
         //   evaluateChain 的串行被阻塞语义会把「已算出但前置未过」的判定（技能缺失红牌、gh 未装提示）吞成 pending；
         //   此为 #281 红牌契约与 #229「pending=诚实未知」的不诚实表达。改为：所有步骤保留自身判定（全貌诊断），
         //   链只表达「首个未通过步 = 当前引导步」（currentIndex），引导与诊断合二为一。
-        const stepEvalParallel = function (items: CheckItem[], resolved: EvalMap) {
-          try {
-            const rMap = resolved || {}
-            const steps = (items || []).map(function (it) {
-              const rd = rMap[it.id as string]
-              const isPass = rd === 'pass'
-              const isFail = rd === 'fail'
-              const status = isPass ? 'done' : (isFail ? (((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length)) ? 'current' : 'fail') : 'pending')
-              // 2026-08-28 实机复核修正（用户反馈：pending 行仍显示修复指引与「未登录」提示——误导）：
-              //   pending（诚实未知）只保留检查项名称，不带 onFail 修复文案（hint）与修复动作（actions 已按 isFail 过滤）；
-              //   fail/current 才展示修复指引。修复文案只随真实失败出现。
-              const _pendingShow = (function () { const bb: ShowView = (it.onFail && it.onFail.show) || {}; const oo: ShowView = {}; if (bb.fallback != null) oo.fallback = bb.fallback; if (bb.title != null) oo.title = bb.title; if (bb.i18nKey != null) oo.i18nKey = bb.i18nKey; return oo })()
-              const show = isPass ? ((it.onPass && it.onPass.show) || null) : (isFail ? ((it.onFail && it.onFail.show) || null) : _pendingShow)
-              const actions = isFail && it.onFail && Array.isArray(it.onFail.actions) ? it.onFail.actions : []
-              return { id: it.id, check: it.check, status: status, show: show, actions: actions, isApplicable: true, blockedBy: null, isCurrent: false, isBlocking: status !== 'done' }
-            })
-            const firstNotDone = steps.findIndex(function (s) { return s.status !== 'done' })
-            const allDone = firstNotDone < 0
-            const snapshot: ChainSnapView = {
-              steps: steps,
-              currentIndex: allDone ? null : firstNotDone,
-              failedIndex: firstNotDone,
-              doneCount: steps.filter(function (s) { return s.status === 'done' }).length,
-              applicableCount: steps.length,
-              totalCount: steps.length,
-              chainState: allDone ? 'allDone' : (steps[firstNotDone].status === 'pending' ? 'pending' : 'hasCurrent'),
-              version: '1',
-            }
-            if (allDone) { snapshot.isComplete = true } else { snapshot.isComplete = false; snapshot.hasBlockingFailure = steps[firstNotDone].status !== 'pending'; snapshot.blockingCheck = steps[firstNotDone].id }
-            return snapshot
-          } catch (e) { return null }
-        }
         const genPredResults = predMod.toPredicateResults ? predMod.toPredicateResults(chainAndSnap.resolved || {}) : (chainAndSnap.resolved || {})
         const genericSnapRaw = stepEvalParallel(genMod.getGenericChain ? genMod.getGenericChain(kind) : (chainAndSnap.chain || []), genPredResults)
         let backendChain: BackendChainPack | null = null
@@ -410,32 +394,9 @@ export function createDetectChain(deps: DetectChainDeps) {
               allSteps = guideMod.orderStepsByGuide(guideMod.guideStepsFor(backendId || null), allStepsRaw) as StepView[]   // 清单那一份把入参与产物都写成宽松的 Object（JSDoc 只记形状不记字段），这里按步骤形状收回来——运行期原样用
             }
           } catch (eG) {}
-          const firstNotDone = allSteps.findIndex(function (s) { return s.status !== 'done' })
-          const allDone = firstNotDone < 0
-          fullSnapshot = {
-            steps: allSteps,
-            currentIndex: allDone ? null : firstNotDone,
-            doneCount: allSteps.filter(function (s) { return s.status === 'done' }).length,
-            applicableCount: allSteps.length,
-            totalCount: allSteps.length,
-            chainState: allDone ? 'allDone' : (allSteps[firstNotDone].status === 'pending' ? 'pending' : 'hasCurrent'),
-            version: '1',
-          } as FullSnapView   // 计数那几格与链快照同形；这一份是拼接视图，按 FullSnapView 收（转的是类型，值一个字没动）
+          fullSnapshot = assembleFullSnapshot(allSteps as SnapStepView[])   // 计数口径与单段快照同一处（chain-step-rows.ts）；这一份是拼接视图，没有 failedIndex
         } catch (e) { fullSnapshot = chainAndSnap.snapshot; fullChain = chainAndSnap.chain }
-        // #284：富化链快照——谓词结果的 detail/hint 合并进步骤 show（红牌分拣文案经链到达 UI）
-        const enrichSnap = function (snap: SnapStepsView | null, resolvedMap: ResolvedMap | null) {
-          try {
-            if (!snap || !Array.isArray(snap.steps) || !resolvedMap) return snap
-            const rMap = resolvedMap || {}
-            const steps = snap.steps.map(function (s) {
-              const rd = rMap[s.id as string] || null
-              if (!rd || (!rd.detail && !rd.hint)) return s
-              const base: ShowView = s.show || {}
-              return Object.assign({}, s, { show: Object.assign({}, base, rd.detail ? { desc: base.desc || rd.detail } : {}, rd.hint ? { hint: base.hint || rd.hint } : {}) })
-            })
-            return Object.assign({}, snap, { steps: steps })
-          } catch (e) { return snap }
-        }
+        // #284：富化链快照——谓词结果的 detail/hint 合并进步骤 show（红牌分拣文案经链到达 UI）；实现见 chain-step-rows.ts。
         const allResolved = Object.assign({}, chainAndSnap.resolved || {}, (backendChain && backendChain.resolved) || {})
         try {
           if (logCtx && logCtx.isEnabled('debug')) {

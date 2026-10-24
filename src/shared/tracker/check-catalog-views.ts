@@ -59,6 +59,7 @@ type ViewCheckItem = {
   onFail: { show: ViewShow | null; actions: ViewAction[] }
   label?: string
   group?: string
+  sessionScoped?: boolean
 }
 /** 动作类型枚举（v1 六种，契约层唯一真源；2026-08-28 新增 wizard 向导）。 */
 const ACTION_TYPE = Object.freeze({
@@ -191,6 +192,8 @@ type CatalogItemInput = {
   label: string
   scope: string
   check: ViewCheck
+  /** 结果是否取决于当前会话（#1483）；转换函数原样带出，不在这里判语义。 */
+  sessionScoped?: boolean
 }
 
 /**
@@ -214,6 +217,8 @@ export function catalogItemToCheckItem(catalogItem: CatalogItemInput): ViewCheck
     onFail: { show: { i18nKey: 'check.' + catalogItem.id + '.fail', fallback: catalogItem.label, level: 'bad' }, actions: [{ type: ACTION_TYPE.REFRESH, target: 'chain' }] },
     label: catalogItem.label,
     group: catalogItem.scope === 'generic' ? 'env' : 'backend',
+    // #1483：目录项声明「结果取决于当前会话」时原样带出；没声明的项不出这个字段（保持旧产出的形状）。
+    ...(catalogItem.sessionScoped === true ? { sessionScoped: true } : {}),
   }
 }
 
