@@ -5,8 +5,10 @@
 // #1444/#1445 又把刷新后台的读写路径全部搬进会话。删了不等于不会长回来 —— 本门禁用文本扫描守住四条：
 //   1. deck 壳的旧路标识一个不留；
 //   2. 额度同步桥与刷新运行时不再直调 gh；
-//   3. A2 未迁路径清单清零：全仓只剩一个「传输持有者」直接调 gh（git-execution.ts 的 gh repo view），
-//      它调用在选后端之前、迁进会话会形成循环依赖，所以保留并逐条钉住，不许第二处长出来；
+//   3. A2 未迁路径清单清零：全仓没有一处直接调 gh。仓库定位的 gh repo view 曾经是「唯一例外」（#1443 的
+//      传输持有者名单），#1453 起它搬进会话的 getRepoKey 能力：会话建立之后才问、问的时候先过裁决再按
+//      后端口径记账，所以宿主这一层只剩本地证据，例外表今天为空。真要再留一处，必须写清文件、理由与
+//      出处文档（见 TRANSPORT_EXCEPTIONS）；下面的顺序断言核对的是仓库身份确实在会话建立之后才补。
 //   4. 注册表选择只剩新路一处，deck / 刷新 / 宿主都不再深引房间实现。
 const path = require('path')
 const fs = require('node:fs')
@@ -17,11 +19,12 @@ let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // A2 未迁路径清零（#1445 收口）：名单必须是空的 —— 归位之后没有「还没迁的调用方」。
-// 这不是放宽也不是缩水：真有一个文件还在调用方直调 gh，下面「传输持有者」那一条会当场红。
+// 这不是放宽也不是缩水：真有一个文件还在调用方直调 gh，下面「调用点清单」那一条会当场红。
 const A2_UNMIGRATED = []
-// 传输持有者：唯一允许直接起 gh 的文件（它调用发生在选后端之前，迁进会话会形成循环依赖；
-// gh-execution.ts 只是这层执行的实现体，不含调用点，由「调用点清单」一并钉住）。
-const TRANSPORT_HOLDERS = ['src/refresh/rooms/host/git-execution.ts']
+// 直接调 gh 的例外（#1453 起不再是「名单放行」）：真要留一处，必须写清是哪一处、为什么留、出处在哪份文档，
+// 三条缺一条就判红 —— 例外必须能被人追溯，不能只靠一张名字表放过去。今天一条都没有：仓库定位的
+// gh repo view 已经搬进会话能力（见 src/tracker/rooms/github/repo.ts 与 src/refresh/rooms/host/session-opener.ts）。
+const TRANSPORT_EXCEPTIONS: Array<{ file: string; reason: string; doc: string }> = []
 // 只算真正的调用点（await/赋值/返回 之后紧跟 runGh(），不算接口声明、传参与注释里的名字。
 const RUNGH_CALL = /(?:await\s+|=\s*|return\s+|=>\s*)runGh\(/g
 // 注册表选择的唯一合法调用点（新路自动识别，旧壳已删）：
@@ -62,26 +65,45 @@ async function main() {
   check(bridge.indexOf('.send(') < 0 && bridge.indexOf('quota-read') < 0, '桥不再经闸打免费读数（无 send/quota-read，读数走会话管线）')
   check(bridge.indexOf('parseRateLimit') < 0, '桥里旧解析已搬走（两桶解析住房间 budget.ts）')
   check(bridge.indexOf('readBudget') >= 0 && bridge.indexOf('sync-cooldown') >= 0 && bridge.indexOf('sync-empty') >= 0, '桥的新路在（经 readBudget 读数，失败仍退避）')
-  // —— C. A2 收口：允许名单清零，全仓只剩一个传输持有者 ——
+  // —— C. A2 收口：全仓没有一处直调 gh；例外必须带理由、出处与顺序断言（#1453） ——
   const allTs = listTs(path.join(ROOT, 'src'))
-  const callSites = []
+  const callSites: Array<{ file: string; count: number }> = []
   for (const abs of allTs) {
     const rel = relOf(abs)
     const n = runGhCallsOf(rel)
     if (n > 0) callSites.push({ file: rel, count: n })
   }
   const siteFiles = callSites.map(function (s) { return s.file }).sort()
-  check(JSON.stringify(siteFiles) === JSON.stringify(TRANSPORT_HOLDERS.slice().sort()),
-    '直接调 gh 的只剩传输持有者这一个文件' + (siteFiles.length ? '（实得：' + siteFiles.join('、') + '）' : ''))
-  const holderCalls = callSites.filter(function (s) { return s.file === TRANSPORT_HOLDERS[0] })[0]
-  check(!!holderCalls && holderCalls.count === 1, '传输持有者只许一处调用，且是 Tier3 取仓库名那一次（实得 ' + (holderCalls ? holderCalls.count : 0) + ' 处）')
-  {
-    const holderSrc = fs.readFileSync(path.join(ROOT, TRANSPORT_HOLDERS[0]), 'utf8')
-    // 允许名单里的这一处必须是 gh repo view（读仓库名），不是任意 gh 命令 —— 换命令等于换了保留理由。
-    check(/runGh\(\['repo',\s*'view'/.test(holderSrc), '传输持有者的这一次是 gh repo view（取仓库名，选后端之前那一步）')
-    check(!/from\s+['"][^'"]*tracker\/rooms/.test(holderSrc), '传输持有者不 import 房间实现（保留它的理由是选后端之前的纯读，不是房内调用）')
+  const exceptionFiles = TRANSPORT_EXCEPTIONS.map(function (x) { return x.file }).sort()
+  check(JSON.stringify(siteFiles) === JSON.stringify(exceptionFiles),
+    '直调 gh 的调用点只剩例外表里写明的那些（实得：' + (siteFiles.length ? siteFiles.join('、') : '零处') + '）')
+  // 例外表本身的门槛：文件在、理由够一句话、出处文档能打开；缺一项就红（不是靠名单放行）。
+  let exceptionShapeOk = true
+  for (const x of TRANSPORT_EXCEPTIONS) {
+    if (!x.file || !fs.existsSync(path.join(ROOT, x.file))) exceptionShapeOk = false
+    if (!x.reason || x.reason.length < 10) exceptionShapeOk = false
+    if (!x.doc || !fs.existsSync(path.join(ROOT, x.doc))) exceptionShapeOk = false
   }
+  check(exceptionShapeOk, '例外表每一项都写了文件、理由（至少一句）与存得上的出处文档（' + TRANSPORT_EXCEPTIONS.length + ' 条）')
   check(A2_UNMIGRATED.length === 0, 'A2 未迁路径清单已清零（归位之后不该再有名字）')
+
+  // #1453：宿主这一层只读本地证据（git remote、.git/config），gh 那一级已经删掉。
+  const hostGit = stripComments(fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8'))
+  check(hostGit.indexOf("'repo', 'view'") < 0 && hostGit.indexOf('gh repo view') < 0,
+    '宿主的仓库定位只剩本地证据（git-execution 不再跑 gh repo view）')
+
+  // 顺序断言：先开会话，之后才补仓库身份；补的时候问会话能力，不问宿主那一份。
+  const opener = stripComments(fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/session-opener.ts'), 'utf8'))
+  const openAt = opener.indexOf('await openTracker(')
+  const refAt = opener.indexOf('await resolveRepoRef(')
+  check(openAt >= 0 && refAt > openAt, '仓库身份在会话建立之后才补（openTracker 先于 resolveRepoRef）')
+  check(opener.indexOf('(session as any).getRepoKey') >= 0,
+    '补仓库身份问的是会话的 getRepoKey 能力（走操作管线：先裁决、再按后端口径记账）')
+  check(opener.indexOf('deps.getRepoKey') < 0, '不再退回宿主那一份 getRepoKey（那份只读本地证据，起 gh 的那一级已删）')
+  // 那一级要真的住在房间里：能力和实现分家时，这条会先红，提醒把调用点搬回去。
+  const roomRepo = stripComments(fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/repo.ts'), 'utf8'))
+  check(roomRepo.indexOf('getRepoKey') >= 0 && roomRepo.indexOf("'repo', 'view'") >= 0,
+    'gh repo view 这一级住在 GitHub 房间的 getRepoKey 里（会话能力，出站前过闸）')
   const runtime = stripComments(fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/refresh-runtime.ts'), 'utf8'))
   const quotaSeg = runtime.split('function quotaSyncOf')[1].split('function ensureDeckReading')[0]
   check(quotaSeg.indexOf('readBudget') >= 0 && quotaSeg.indexOf('runGh') < 0, '额度同步接线已改道（quotaSyncOf 经 readBudget，不再递 runGh）')

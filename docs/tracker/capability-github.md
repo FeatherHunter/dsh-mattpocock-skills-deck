@@ -36,12 +36,13 @@
 
 | 能力 | 登记 | 依据 |
 |---|---|---|
-| getRepoKey | 明确提供功能 | `repo.ts`（三层兜底：git remote → 配置 → gh 视图），宿主快照与工具壳多处在用 |
+| getRepoKey | 明确提供功能 | `repo.ts`（三层兜底：git remote → 配置 → gh 视图；真起 gh 的那一级在回包上自报 usage，交给会话管线记账）。房间这一份由会话补身份与工具壳在用；宿主快照另有一份只读本地证据的解析（`src/refresh/rooms/host/git-execution.ts`） |
 | describe | 明确提供功能 | `repo.ts`，注册表识别链产出身份靠它 |
 | issueAddress | 明确提供功能 | `repo.ts`，远端票网址 |
 
 ## 变更
 
+- 2026-10-24（#1453）：定位口 `getRepoKey` 的 gh 那一级只在会话内走。刷新后台开会话时缺 refId，改问会话自己的 `getRepoKey` 能力（先过裁决、再按后端口径记账）；宿主那一份（`src/refresh/rooms/host/git-execution.ts`）只读 git remote 与 .git/config，答不上来就回 null，不再起 gh。房间真起 gh 时把这一笔用量（requests / points）挂在裸值回包上自报，账本按后端的两桶口径记得到；只读本地证据答上来的调用不带用量，也就不记账。
 - 2026-10-23（规格 #1439、#1443 落地）：新增第 26 条能力 `readBudget`，登记为「明确提供功能」——房间自己读 gh（`budget.ts`：成功回 REST 与 GraphQL 两桶，读不到时回未知并带原因，不回 0、不抛）。本表按新的总数与档位订正导语与表头：名录 26 条 = 23 条操作 + 3 条定位口，GitHub 25 条真提供、1 条按设计明确不支持；今天名录上唯一要靠注册表补桩的只剩 `ensureLabelColorsFile`。
 - 2026-10-14：`ensureLabelColorsFile` 由「当前不支持、未来会开发」改判成「明确不支持」。
 

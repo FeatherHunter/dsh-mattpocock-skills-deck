@@ -3,11 +3,17 @@
 // 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；本文件不引用其他新文件。
 // 显式传参编辑：共享状态归 index.js 持有——ghPath/ghLastError 经存取器读写，repoKeys/repoRoots 按引用共享，cache 重赋值改 setCache；resetGhCache 的 _workspaceStore 直访改 clearWorkspaceStore（状态归 platformChannel）。行为与搬前一致。
 //
-// #723（T19）闸接进取数层：这里是唯一的进程出口（全仓绝大多数 GitHub 出站都从 runGh / execProc 出去），
+// #723（T19）闸接进取数层：宿主这一层的进程出口（本地 git 探测与仓库缓存由 execProc 出去；gh 出站
+// 自 #1453 起随会话走 Tracker 房间，本文件保留 runGh 只为兼容旧装配，仓里已经没有它的调用点），
 // 所以**每一笔真实出站都在起进程之前报给闸一次**（gate.noteOutbound）—— 这是不变量 I1「对 GitHub 的每一次
-// 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
+// 调用都必须经过闸」在宿主这一层的落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
+//
+// #1453（规格 1439 第 5 节）：仓库定位分两层——宿主这一份只读本地证据（git remote、.git/config），
+// 需要 `gh repo view` 的那一级属于出站，已经从这里删掉；它改由会话的 getRepoKey 能力在开会话之后
+// 走 Tracker 操作管线（先裁决、再按后端口径记账），见 src/refresh/rooms/host/session-opener.ts。
+// 所以「选哪个后端」这一层永远不会起 gh，也不会花额度。
 import { timeoutForGhArgs, isWriteGhArgs } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
 import { createGhExecution } from './gh-execution.js'
@@ -329,7 +335,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       // v1.5 T11（map#37 · #38 R1 + #40 R2 输入）：
       //   多远程下 gh 必选 upstream（context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)），
       //   无参 `gh repo view` 永远返回原作者。改为：显式 `git remote get-url origin` + parseGithubRepo 首选，
-//   失败再 .git/config 直读，兜底才用 gh repo view（与 getRepoKey 方案同源）。
+      //   失败再 .git/config 直读；两级都是本地证据，不起进程（gh 那一级见文件头 #1453 那一段）。
       const root = await getRepoRoot(key)
       const execCwd = root || key
       // Tier 1：git remote get-url origin + parseGithubRepo（SSH/HTTPS 都由 parseRegex 覆盖）
@@ -353,15 +359,12 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           }
         } catch (e) { /* 落 Tier 3 */ }
       }
-      // Tier 3：gh repo view 兜底（非 GitHub 仓库 / 边缘情况；保持向后兼容）
-      const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], execCwd)
-      if (!r.ok) { try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 3, ok: false, latencyMs: Date.now() - rkT0 }) } catch (eL) {}; return null }
-      const s = r.text.trim()
-      const i = s.indexOf('/')
-      if (i <= 0) return null
-      repoKeys[key] = { owner: s.slice(0, i), name: s.slice(i + 1) }
-      try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 3, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}
-      return repoKeys[key]
+      // 两级本地证据都没答上来：如实回 null（#1453）。这里不再退到 gh repo view——那一级是出站，
+      // 会花额度，必须放在会话建立之后、由会话的 getRepoKey 能力过裁决与记账（规格 1439 第 5 节）。
+      // 调用方按 null 走降级；需要 GitHub 仓库身份的地方会先去开会话，由会话补出 refId。
+      // 这里不另记一行日志：本地证据读不到是正常结局（不是出站失败），而会话那一侧的房间
+      // 会把它自己的 tier 结果记进 repo.resolve.tier，排查时看那一条更准。
+      return null
     }
   // #723（T19）：TIMEOUT_MS 一并交出去，供还读它的老调用方兜底；分档由出站两路按命令认，不再两处各写一份。
   return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey, TIMEOUT_MS }

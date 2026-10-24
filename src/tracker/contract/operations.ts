@@ -41,6 +41,7 @@ import type {
   IssueListResult,
   LabelColorsFilePlacement,
   OpResult,
+  OpUsage,
   PageResult,
   PreflightResult,
   RepoPermissions,
@@ -310,8 +311,12 @@ export interface Tracker {
    * （#1174 决策 2、11②：这里以前写「本地 Markdown 后端没有这条」，与下面那句
    * 「定位口没有『我不支持』这种答案」自相矛盾；注册表也确实不替定位口补桩，
    * 照旧写法登记会让实例上根本没有这个方法、调用方一调就抛类型错误。）
+   *
+   * `usage` 是可选的第四格（#1453）：GitHub 的后端在本地证据（git remote、.git/config）答不上来时
+   * 会起一次 gh 问远端，那一笔是真实出站，房间按契约把用量挂在裸值上交出去，会话管线据此记账。
+   * 只读本地证据就答上来的调用不带这一格 —— 没有出站，就不该有账。
    */
-  getRepoKey(cwd: string, ctx: OpContext): Promise<{ owner: string; name: string } | null>
+  getRepoKey(cwd: string, ctx: OpContext): Promise<{ owner: string; name: string; usage?: OpUsage } | null>
 
   /**
    * 产出仓库身份。
