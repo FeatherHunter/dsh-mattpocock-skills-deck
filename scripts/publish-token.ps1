@@ -1,4 +1,4 @@
-# dsh-mattpocock-skills-deck token 全自动发布（Windows，无人值守）。
+﻿# dsh-mattpocock-skills-deck token 全自动发布（Windows，无人值守）。
 #
 # 与旧 scripts\publish-all-window.ps1 共存：旧走 schtasks 交互窗口＋人浏览器 2FA；
 # 本走环境变量 token，全程无需人点，Agent 可直接驱动。
