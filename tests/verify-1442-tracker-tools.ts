@@ -4,6 +4,11 @@
 // 本地 Markdown 工作区被永久推迟。本票要求九个工具不再调用注册表的选择接口、不再自己调闸，
 // 只通过 openTracker 会话调用能力；离网后端放行、账本记 0、回执写明不需要额度。
 // 本文件经 planGates 目录约定自动进链，不用在 gate-map 登记。
+//
+// 票 1457 在这扇门禁上补两条端到端断言（原来只断了单次硬顶与离网账本，没断这两处）：
+//   · 本小时两档硬顶已经用满时，会话调用与九个工具调用都被挡，且闸的理由代号能分出是「每小时」还是「单次」；
+//   · 额度读数未知（known:false, reason:'unavailable'）时九个工具照样成功，回执四条事实写 readKnown:false、
+//     不带 remaining / tier，成本说明写明「读数还没同步上来」。
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -95,6 +100,7 @@ async function main() {
   const budgetMod = await imp('src/refresh/kernel/host-budget.js');
   const { chooseWorkspace, makeDecideStub } = await imp('tests/lib/deck-decide-stub.js');
   const workRouteMod = await imp('src/deck/shell/work-path-bindings.js');
+  const trackerSessionMod = await imp('src/deck/tools/tracker-session.js');
   void budgetMod;
 
   const ws = makeWorkspace();
@@ -139,10 +145,12 @@ async function main() {
   const planStore = (() => { const t = new Map(); return { durable: true, load(id: string) { return t.get(String(id)) || null; }, save(id: string, s: unknown) { t.set(String(id), s); } }; })();
 
   /** 建一个世界：真闸 + 真账本 + 真注册表 + 可数 select + 测试本地裁决记账三件套。 */
-  async function buildWorld(backendId: string, reading: unknown, extraModules: any[] = []) {
+  async function buildWorld(backendId: string, reading: unknown, extraModules: any[] = [], ledgerKind = '') {
     const ledger = ledgerMod.createLedger({ now: () => clock });
     // #1446 起账本按「后端 + 桶」记账：先把这个后端的口径建出来，读数才有桶可落。
-    const readingKind = (reading && (reading as any).kind) || 'off-network';
+    // 读数未知时它身上没有 kind，但后端自己的口径仍是两桶——这时由调用方用 ledgerKind 明说，
+    // 否则账本会把一个双桶后端当成离网（没有桶），记账口一写就抛。
+    const readingKind = ledgerKind || (reading && (reading as any).kind) || 'off-network';
     ledger.ensureBackend(backendId, { kind: readingKind });
     // 生产里 ensureReading 在选后端前把账本煨热：这里同做法，有读数就先同步进账本。
     if (reading && (reading as any).known === true && (reading as any).buckets && (reading as any).buckets.rest) {
@@ -185,7 +193,7 @@ async function main() {
     for (const [file, factory, name] of TOOL_FILES) tools[name] = (await imp(file))[factory](deps);
     const exec = { agent: { session: { id: 's-1442', cwd: ws.rootPosix } } };
     return {
-      tools, gate, ledger,
+      tools, gate, ledger, deps,
       selectCount: () => selectCount,
       claimed: () => ({ requests: gate.stats().claimed.requests, points: gate.stats().claimed.points }),
       hour: () => ledger.hourOf('ai-tool', backendId),
@@ -274,6 +282,84 @@ async function main() {
     const nb = await buildWorld('markdown', OFFLINE_READING);
     const { r, threw } = await nb.run('deck_context', {});
     check(!threw && !!r && r.status === 'ok', '判定出口缺席的反例由 tests/verify-deck-tools.ts 覆盖，这里只确认正常路（实得 ' + (threw || (r && r.status)) + '）');
+  }
+
+  // ── 五、本小时两档硬顶用满：会话与九个工具都被挡，档位可辨认（#1457） ──
+  {
+    const w = await buildWorld('gh-stub-1442', DUAL_SYNCED, [ghStubModule]);
+    // 造「本小时已经用满」的账本：点数顶到每小时 2000 点。只填点数、请求数留 0，
+    // 让选后端前那支「0 点 / 1 条」的探针照常通过，真正拦人的是随后按这次用量做的裁决。
+    w.ledger.spend({ account: 'ai-tool', backendId: 'gh-stub-1442', bucket: 'graphql', requests: 0, points: 2000 });
+    const hourCap = w.gate.admitAiTool({ points: 1, requests: 0 }, { backendId: 'gh-stub-1442', bucket: 'graphql' });
+    check(!!hourCap && hourCap.admitted === false && hourCap.reason === 'ai-tool-over-hour-cap',
+      '本小时用满后闸按每小时档拒绝（理由代号点名每小时）→ ' + JSON.stringify(hourCap && { admitted: hourCap.admitted, reason: hourCap.reason }));
+    const callCap = w.gate.admitAiTool({ points: 601, requests: 0 }, { backendId: 'gh-stub-1442', bucket: 'graphql' });
+    check(!!callCap && callCap.admitted === false && callCap.reason === 'ai-tool-over-call-cap',
+      '单次超量仍报单次档（两档不会混成同一句话）→ ' + JSON.stringify(callCap && { admitted: callCap.admitted, reason: callCap.reason }));
+    // 会话级：直接开一次会话。估算那一侧按「这一笔没超」给，避免先被预估拦住——这里要断的是闸。
+    const opened = await trackerSessionMod.openDeckSession({
+      deps: w.deps, exec: {},
+      session: { cwd: ws.rootPosix, workspaceKey: '' },
+      estimate: { points: 4, requests: 3, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' },
+      tool: 'deck_issue_list', kind: 'read',
+    });
+    check(opened.ok === false && opened.reason === 'ai-tool-refused',
+      '会话级：本小时用满后不放行（实得 ' + JSON.stringify({ ok: opened.ok, reason: opened.reason }) + '）');
+    check(!opened.ok && String(opened.text || '').indexOf('本小时 AI 工具已用 2000 点') >= 0
+      && String(opened.text || '').indexOf('每小时 2000 点 / 1500 条') >= 0,
+      '会话级拒绝文案点名本小时已用多少、每小时硬顶是多少（实得 ' + JSON.stringify(!opened.ok && opened.text) + '）');
+    // 九工具级：同一笔下，九个工具一个也放不出去，而且都不花额度。
+    const before = w.hour() as { requests: number; points: number };
+    const calls: Array<[string, unknown]> = [
+      ['deck_context', {}],
+      ['deck_issue_get', { key: '01' }],
+      ['deck_map_snapshot', { key: '00' }],
+      ['deck_issue_list', { state: 'open' }],
+      ['deck_issue_create', { title: '1457 丙票', kind: 'issue' }],
+      ['deck_map_plan_create', { planId: 'p1457', title: '1457 地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
+      ['deck_map_link', { key: '02', parentKey: '00' }],
+      ['deck_issue_patch', { key: '02', comment: '1457：改一下' }],
+      ['deck_issue_report', { key: '02' }],
+    ];
+    for (const [name, args] of calls) {
+      const { r, threw } = await w.run(name, args);
+      check(!threw && !!r && r.status === 'unsupported' && r.reason === 'ai-tool-refused' && String(r.text || '').indexOf('硬顶') >= 0,
+        name + ' 本小时用满后被挡在会话之外（实得 ' + (threw ? threw : JSON.stringify({ status: r && r.status, reason: r && r.reason })) + '）');
+    }
+    const after = w.hour() as { requests: number; points: number };
+    check(after.requests === before.requests && after.points === before.points,
+      '被挡的九次调用没花额度（账本本小时前后一致：' + JSON.stringify({ before, after }) + '）');
+  }
+
+  // ── 六、额度读数未知：九个工具照样成功，回执如实写「还没同步上来」（#1457） ──
+  {
+    // 后端口径是双桶（账本也按双桶建桶），读数这一格还没同步上来：known:false / unavailable。
+    const w = await buildWorld('gh-stub-1442', { known: false, reason: 'unavailable' }, [ghStubModule], 'two-buckets');
+    await w.run('deck_issue_create', { title: '1457 未知甲票', kind: 'issue', body: '正文' });
+    await w.run('deck_issue_create', { title: '1457 未知乙票', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '00' });
+    const calls: Array<[string, unknown]> = [
+      ['deck_context', {}],
+      ['deck_issue_get', { key: '01' }],
+      ['deck_map_snapshot', { key: '00' }],
+      ['deck_issue_list', { state: 'open' }],
+      ['deck_issue_create', { title: '1457 未知丙票', kind: 'issue' }],
+      ['deck_map_plan_create', { planId: 'p1457-unknown', title: '1457 未知地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
+      ['deck_map_link', { key: '02', parentKey: '00' }],
+      ['deck_issue_patch', { key: '02', comment: '1457：未知读数下改一下' }],
+      ['deck_issue_report', { key: '02' }],
+    ];
+    for (const [name, args] of calls) {
+      const { r, threw } = await w.run(name, args);
+      const actual = r && r.cost && r.cost.actual;
+      check(!threw && !!r && r.status === 'ok',
+        name + ' 读数未知时照样成功（实得 ' + (threw ? threw : JSON.stringify({ status: r && r.status, reason: r && r.reason })) + '）');
+      check(!!actual && actual.readKnown === false && actual.offNetwork === false && actual.budgetKind === 'two-buckets',
+        name + ' 回执四条事实写明读数未知（实得 ' + JSON.stringify(actual) + '）');
+      check(!!actual && actual.remaining === undefined && actual.tier === undefined,
+        name + ' 读数未知时不带 remaining / tier（实得 ' + JSON.stringify(actual) + '）');
+      check(!!r && !!r.cost && String(r.cost.note || '').indexOf('读数还没同步上来') >= 0,
+        name + ' 成本说明写明读数还没同步上来（实得 ' + JSON.stringify(r && r.cost && r.cost.note) + '）');
+    }
   }
 
   ws.cleanup();
