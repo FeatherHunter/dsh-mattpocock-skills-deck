@@ -133,6 +133,16 @@ async function edgeLanding() {
   const parent = e.classifyEdgeLanding('parent', '7', { issue: { body: 'x', parentKey: '7' } })
   check(parent.kind === 'contract', '父子边：只报到契约的父子列，不硬猜原生层级')
 
+  // #1421：给了 from 就在回执里点名双方与方向；没给 from 时逐字保留老文案（老调用方不受影响）。
+  const dirNative = e.classifyEdgeLanding('block', '3', { issue: { body: '没有引用', parentKey: '' }, dependencies: { blockedBy: [{ key: '3' }] } }, '4')
+  check(dirNative.kind === native.kind && dirNative.text.indexOf('票 #4 的 blockedBy 里有 #3') > 0 && dirNative.text.indexOf('也就是 #4 被 #3 阻塞') > 0,
+    '阻塞边：给了 from 就点名「谁的 blockedBy 里加了谁、谁被谁阻塞」：' + dirNative.text)
+  const dirParent = e.classifyEdgeLanding('parent', '7', { issue: { body: 'x', parentKey: '7' } }, '4')
+  check(dirParent.kind === 'contract' && dirParent.text.indexOf('票 #4 的父票是 #7') > 0,
+    '父子边：给了 from 就点名「谁的父票是谁」：' + dirParent.text)
+  check(native.text.indexOf('#4') < 0 && parent.text.indexOf('票 #') < 0,
+    '没给 from 时老文案的原句不变（不点名票号）')
+
   // 三态判据（#790）：只有写后读回的结构字段能确认一条边落上了；没读到就说没确认。
   check(e.edgeVerdict('parent', '7', { issue: { parentKey: '7' } }) === 'landed', '读回里 parentKey = 目标 → 落上')
   check(e.edgeVerdict('parent', '7', { issue: { parentKey: '', body: '这一张归属 #7' } }) === 'not-landed', '读回来了、没有这条父子 → 没落上（正文提到也不算）')

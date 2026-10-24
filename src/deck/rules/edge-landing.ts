@@ -167,10 +167,14 @@ export function bodyRefersTo(body: unknown, key: unknown): boolean {
  *
  * 返回的 `ok` 只表示「判出来了」，未知也回 true（有证据可判这件事）；这条边到底有没有落上，
  * 由调用方按读回的 parentKey / blockedBy 是否等于目标另外判（#790 的教训）。
+ *
+ * 第四个形参 from 是「这条边写进的那张票」（#1421）：有值时正文里点名双方与方向，回执能自证；
+ * 没值时退回不点名的老文案，老调用方的文案逐字不变。
  */
-export function classifyEdgeLanding(op: string, target: unknown, after: unknown): { kind: string; ok: boolean; text: string } {
+export function classifyEdgeLanding(op: string, target: unknown, after: unknown, from?: unknown): { kind: string; ok: boolean; text: string } {
   const a = obj(after)
   const want = str(target)
+  const owner = (from === undefined || from === null) ? '' : str(from)
   const issueObj = (a.issue !== undefined && a.issue !== null) ? obj(a.issue) : null
   const rel = relationsOf(issueObj || a, a.dependencies)
   // 「没读回来」与「读回来了、没有」是两件事，不许混成一句「说不好」：
@@ -193,14 +197,28 @@ export function classifyEdgeLanding(op: string, target: unknown, after: unknown)
   const bodyHas = bodyRefersTo(body, want)
   if (op === 'block') {
     const inField = rel.blockedBy.indexOf(want) >= 0
-    if (inField && !bodyHas) return { kind: 'native', ok: true, text: '写后读回：结构字段里有这条依赖、正文里没有那一行（后端把它放在自己的原生边上）' }
-    if (inField && bodyHas) return { kind: 'body-line', ok: true, text: '写后读回：结构字段里有这条依赖，正文里也写着指向 #' + want + ' 的一行（这是把关系写进正文的那种落法）' }
+    if (inField && !bodyHas) return { kind: 'native', ok: true, text: owner
+      ? '写后读回：票 #' + owner + ' 的 blockedBy 里有 #' + want + '，也就是 #' + owner + ' 被 #' + want + ' 阻塞；后端的结构字段里有这条依赖、正文里没有那一行（后端把它放在自己的原生边上）'
+      : '写后读回：结构字段里有这条依赖、正文里没有那一行（后端把它放在自己的原生边上）' }
+    if (inField && bodyHas) return { kind: 'body-line', ok: true, text: owner
+      ? '写后读回：票 #' + owner + ' 的 blockedBy 里有 #' + want + '，也就是 #' + owner + ' 被 #' + want + ' 阻塞；正文里也写着指向 #' + want + ' 的一行（这是把关系写进正文的那种落法）'
+      : '写后读回：结构字段里有这条依赖，正文里也写着指向 #' + want + ' 的一行（这是把关系写进正文的那种落法）' }
     // 字段里没有、正文里有：正文里出现票号只是「作者写了这行字」，不是「这条边在盘上」的证据（#790）。
-    if (!inField && bodyHas) return { kind: 'missing', ok: true, text: '写后读回：结构字段里没有这条依赖（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）' }
-    return { kind: 'missing', ok: true, text: '写后读回：结构字段与正文里都没找到指向 #' + want + ' 的这条依赖' }
+    if (!inField && bodyHas) return { kind: 'missing', ok: true, text: owner
+      ? '写后读回：票 #' + owner + ' 的 blockedBy 里没有 #' + want + '（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）'
+      : '写后读回：结构字段里没有这条依赖（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）' }
+    return { kind: 'missing', ok: true, text: owner
+      ? '写后读回：票 #' + owner + ' 的 blockedBy 里没有 #' + want + '，正文里也没找到指向 #' + want + ' 的一行'
+      : '写后读回：结构字段与正文里都没找到指向 #' + want + ' 的这条依赖' }
   }
-  if (rel.parentKey === want) return { kind: 'contract', ok: true, text: '写后读回：票的 parentKey = ' + want + '（契约把父子放在这一列，分不出原生层级还是平级链接）' }
+  if (rel.parentKey === want) return { kind: 'contract', ok: true, text: owner
+    ? '写后读回：票 #' + owner + ' 的父票是 #' + want + '（契约把父子放在 parentKey 这一列，分不出原生层级还是平级链接）'
+    : '写后读回：票的 parentKey = ' + want + '（契约把父子放在这一列，分不出原生层级还是平级链接）' }
   // 父子边同理：正文里写「归属 #78」不是这条边落上的证据（#790 里正是这一条把没挂上的边报成了挂上）。
-  if (bodyHas) return { kind: 'missing', ok: true, text: '写后读回：结构字段里没有这条父子关系（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）' }
-  return { kind: 'missing', ok: true, text: '写后读回：结构字段与正文里都没找到这条父子关系' }
+  if (bodyHas) return { kind: 'missing', ok: true, text: owner
+    ? '写后读回：票 #' + owner + ' 的父票不是 #' + want + '（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）'
+    : '写后读回：结构字段里没有这条父子关系（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）' }
+  return { kind: 'missing', ok: true, text: owner
+    ? '写后读回：票 #' + owner + ' 上没有父票 #' + want + '，正文里也没找到指向它的一行'
+    : '写后读回：结构字段与正文里都没找到这条父子关系' }
 }
