@@ -82,6 +82,7 @@ async function main() {
   const promptSpec = itemsSpec.items.properties && itemsSpec.items.properties.prompt
   const reasonSpec = itemsSpec.items.properties && itemsSpec.items.properties.reason
   check(introSpec && introSpec.type === 'string' && String(introSpec.description || '').indexOf('10') >= 0, 'intro 是十字以内的简介（说明里带上限 10）')
+  check(String(introSpec.description || '').indexOf('只显示') >= 0, 'intro 说明写清选项框只显示简介（提示词点选才填）')
   check(promptSpec && promptSpec.type === 'string' && String(promptSpec.description || '').indexOf('/to-tickets') >= 0, 'prompt 是可执行提示词（说明里带例子）')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason', '每条必须同时给 intro、prompt 与 reason')
