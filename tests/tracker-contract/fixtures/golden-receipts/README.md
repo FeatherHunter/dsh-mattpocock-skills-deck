@@ -20,8 +20,9 @@ node tests/verify-golden-receipts.ts --update   # 重建基准（只在有意改
   调用顺序本身就是基准的一部分（写操作有先后）：
   context → issue_create（建「金标准演示票」）→ issue_list →
   issue_get（key 01）→ map_snapshot（key 00 底图）→
-  map_plan_create（planId golden-1，建「金标准地图」+ 两张子票）→
-  map_link（04 blockedBy 03）→ issue_patch（加一条评论）。
+  map_plan_create（planId golden-1，建「金标准地图」+ 两张子票；原文布局下地图是 00，
+  子票编号接着已有的 01 号票往下排成 02/03）→
+  map_link（03 blockedBy 02）→ issue_patch（加一条评论）。
 - `09-deck_issue_report-retired-progress.golden.json`：
   上报带已退役的 `progress` 时那份拒绝回执：`bad-args`，不选后端、不花点数、不写盘。
 - `10-deck_issue_report-without-progress.golden.json`：
@@ -33,6 +34,8 @@ node tests/verify-golden-receipts.ts --update   # 重建基准（只在有意改
 ## 确定性设计（基准为什么可复现）
 
 - 固定工作区：每次运行新建临时目录，底图 `map.md` 内容固定（标题「金标准底图」）。
+  原文布局下一个目录只允许一份 `map.md`：底图先让 05 快照量完，建图场景开始前撤掉，
+  再由建图工具写出自己的 `map.md`（旧扁平布局把地图放成 issues/ 里的普通票，不必撤）。
 - 固定会话：`session id = s-golden`（幂等锚由会话 + 标题 + 标签算出，会话固定锚就固定；会话号出现在回执里但每次都一样，故不归一化）。
 - 固定时钟：`now = 1700000000000`（幂等锚的时间窗口号固定）。
 - 固定配额账本：同步 5000 点剩余额度，本地后端零花费，`cost.actual` 每次一样。
