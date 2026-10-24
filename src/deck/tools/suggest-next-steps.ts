@@ -42,23 +42,26 @@ export const INTRO_MAX_CHARS = 10
 export const PROMPT_MAX_CHARS = 500
 export const REASON_MAX_CHARS = 200
 
-/** 工具定义：名字、一句话介绍、参数模式。参数形状是本票冻结的契约，界面票照它读。 */
+/** 工具定义：名字、一句话介绍、参数模式。参数形状是本票冻结的契约，界面票照它读。
+ *  行为规则为什么写在说明里（#1412 反向后）：模型侧规则必须住在模型真能看到的地方。原先这节规则被
+ *  拼在 /ask-matt 的返回正文末尾（读技能时追加），维护者 2026-10-24 认为风险太高、要求撤掉；规则内容
+ *  于是搬进下面这几段说明，跟工具定义一起注册，模型在调用前就能读到。 */
 export const definition = {
   name: SUGGEST_TOOL_NAME,
-  description: '在回复末尾推荐 2~4 条下一步提示词，界面会显示成气泡；优先从技能角度推荐，每条提示词开头写这一步对应的 /xxxx 技能；只在有明确下一步时调用。',
+  description: '在回复末尾推荐 2~4 条下一步提示词，界面会显示成可点的气泡，点一下填进输入框、不会替你发送；只在有明确下一步时调用，活没干完、在等用户回答或只是礼貌收尾时都不调用；每条 prompt 开头尽量写这一步对应的 /xxxx 技能指令，优先从技能角度推荐。',
   parameters: {
     type: 'object',
     properties: {
       items: {
         type: 'array',
-        description: '要推荐的下一步提示词，2~4 项；这条工具优先从技能角度推荐，每条的 prompt 开头尽量写对应的技能指令（/xxxx）；多于 4 项时只保留前 4 项，少于 2 项会被拒绝。',
+        description: '要推荐的下一步，2~4 项，按「现在最该先做」从前往后排；多于 4 项时按优先级留下前 4 项，少于 2 项整次拒绝；每条的 prompt 开头先写对应的 /xxxx 技能指令（例如 /to-tickets、/diagnose、/research），确实没有合适技能时才写普通提示词。',
         items: {
           type: 'object',
           properties: {
             intro: { type: 'string', description: '简介：一句话说清这一步做什么，不超过 10 个字；选项框上只显示这一句，完整提示词点选后才填进输入框。' },
-            prompt: { type: 'string', description: '可以直接执行的下一步提示词，开头尽量写这一步对应的技能指令（/xxxx，例如 /to-tickets）：这个工具优先从技能角度推荐，点选后直接进入那个技能的流程。' },
-            reason: { type: 'string', description: '一句话说明为什么建议这一步。' },
-            priority: { type: 'number', description: '推荐优先级：0 到 10 的数字，分越高越建议先做，界面按分从高到低往左排；拿不准就别给，没给的统一排在最后。' },
+            prompt: { type: 'string', description: '可以直接执行的下一步提示词，开头尽量写这一步对应的技能指令（/xxxx，例如 /to-tickets）：点选后直接进入那个技能的流程；把票号、路径、分支名这类具体对象写进去，不要写「继续推进」这种没有具体对象的话。' },
+            reason: { type: 'string', description: '一句话说清为什么现在做它——卡在哪、做完能解锁什么、不做会怎样；不要复述提示词，不要写空泛评价。' },
+            priority: { type: 'number', description: '推荐优先级：0 到 10 的数字，分越高越建议先做，界面按分从高到低往左排；现在不做会卡住的打 9 到 10，顺手做的打 6 到 8；拿不准就别给，没给的统一排在最后。' },
           },
           required: ['intro', 'prompt', 'reason'],
           additionalProperties: false,
