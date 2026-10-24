@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T11:19:48.987Z",
+  "generatedAt": "2026-10-24T11:28:06.442Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 357,
   "gateCount": 357,
@@ -2169,20 +2169,25 @@
         "src/client/kernel/work-route-own.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/views/shared/workRouteTable.ts",
+        "src/host/snapshotEnvelope.ts",
         "src/refresh/rooms/client/probe-scope-selection.ts",
-        "src/refresh/rooms/client/snapshot-sync.ts"
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/work-route-readout.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
-        "src/refresh/rooms/client"
+        "src/host",
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-1385-howto.ts",
@@ -9141,6 +9146,7 @@
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1305-session-permit.ts",
+      "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-1433-snapshot-layout-file.ts",
       "node tests/verify-1436-own-work-route.ts",
@@ -9376,6 +9382,7 @@
       "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1304-deps-native.ts",
       "node tests/verify-1363-first-run-recovery.ts",
+      "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1392-disposed-timer.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-1433-snapshot-layout-file.ts",
