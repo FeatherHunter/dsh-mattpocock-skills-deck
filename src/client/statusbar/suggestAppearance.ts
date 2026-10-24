@@ -42,6 +42,8 @@ export const SUGGEST_APPEARANCE = {
   popPadX: 10,
   /** 悬停浮层的背景模糊半径（与药丸同一套磨砂）。 */
   popBlurPx: 10,
+  /** 浮层里评分泡与后面理由正文的间距：评分贴在第一行开头，跟字之间留一点空，别贴死。 */
+  scoreGapPx: 6,
   /** 选项行与关闭按钮行之间的间距。 */
   groupGapPx: 7,
   closeRowMarginTopPx: 10,
