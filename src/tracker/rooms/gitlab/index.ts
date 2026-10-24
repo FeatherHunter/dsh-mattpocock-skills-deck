@@ -42,7 +42,7 @@ import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_FALLBACK_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
-// —— GitLab 交出来的成员：24 条能力 + id（21 条操作 + describe/issueAddress/getRepoKey 三条定位口）——
+// —— GitLab 交出来的成员：25 条能力 + id（22 条操作 + describe/issueAddress/getRepoKey 三条定位口）——
 // 这份集合不再手写，从本房的登记数据推出来：「明确提供功能」的名字才是实例成员；登记里那 1 条
 // 「明确不支持」（ensureLabelColorsFile）因此不会出现在这里（它由注册表按名录补桩）。
 // 为什么集合与形状住在房间文件里（而不是判定文件）：判定收在 src/tracker/capability-assertions.ts，

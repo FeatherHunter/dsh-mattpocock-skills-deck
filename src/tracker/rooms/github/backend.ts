@@ -37,7 +37,7 @@ import type { GITHUB_CAPABILITY_REGISTER } from './capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
-// —— GitHub 交出来的成员：24 条能力 + id ——
+// —— GitHub 交出来的成员：25 条能力 + id（22 条操作 + 3 条定位口）——
 // 这份集合不再手写：它从本房的登记数据（./capability-register.ts）推出来 —— 「明确提供功能」的那些
 // 名字，就是这个实例上应当出现的成员。登记里把一条改成「不支持」，这里少一格，工厂还留着就编译红；
 // 登记里加一条「提供」，这里多一格，工厂没实现也编译红。成员集合与分类的唯一真源因此是登记数据，

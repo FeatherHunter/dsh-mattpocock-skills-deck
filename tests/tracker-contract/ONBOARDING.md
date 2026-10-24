@@ -22,7 +22,7 @@
     label: 'My Backend',        // UI 微标/显示名
     create: createMyBackend,    // (ctx: BackendContext) => Partial<Tracker>
     matches: myMatches,         // (handle: RepoHandle, ctx: OpContext) => boolean
-    budget: myBudget,           // 花额度的口径声明（规格 1439 起必填，缺了注册表拒绝；见 src/tracker/session/budget.ts）
+    budget: myBudget,           // 花额度的口径声明（规格 1439 起必填，缺了注册表拒绝；形状真源见 `src/tracker/contract/budget-model.ts`）
   }
   ```
 
@@ -70,12 +70,14 @@ export const myBudget = {
 `readBudget` 是操作名录里的第 23 条（整套能力名录的第 26 条）。它只回答事实，不裁决、不记账、不抛；三种结果都必须诚实：
 
 ```ts
-// 读到了：已知的额度口径与剩余
-{ ok: true, reading: { known: true, kind: 'requests-only', requests: { limit: 600, remaining: 590 } } }
+// 读到了：已知的额度口径与剩余（GitHub 是两个互相独立的桶）
+{ ok: true, data: { known: true, kind: 'two-buckets', buckets: { rest: { limit, remaining }, graphql: { limit, remaining } } } }
+// 读到了：只有一个按次数计的额度（GitLab）
+{ ok: true, data: { known: true, kind: 'requests-only', requests: { limit: 600, remaining: 590 } } }
 // 读不到：未知，必须带原因，不许拿 0 冒充
-{ ok: true, reading: { known: false, reason: 'not-measured' | 'unavailable' | 'unsupported' } }
+{ ok: true, data: { known: false, reason: 'not-measured' | 'unavailable' | 'unsupported' } }
 // 离网后端：不需要额度
-{ ok: true, reading: { known: true, kind: 'off-network' } }
+{ ok: true, data: { known: true, kind: 'off-network' } }
 ```
 
 - 三个 reason 的分工：`not-measured` 是还没测到（例如命令不在本机）；`unavailable` 是测到了但这次取不到（鉴权失败、网络错误、解析失败）；`unsupported` 是这个后端根本没有这项能力。

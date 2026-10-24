@@ -19,14 +19,14 @@
 **决定一 · 后端操作只有一条入口：Tracker 会话。**
 
 - 会话由 `openTracker(仓库句柄, 选项)` 一次建立、一次只绑定一个后端；返回值只可能是两种：`{ ok: true, session }` 或 `{ ok: false, reason, detail }`，reason 是四种可区分的情况之一：没有可用后端（no-backend）、同时命中多个（multi-match）、选择还没做完（pending）、工作区还没就绪（workspace-not-ready）。**这个函数永远不抛异常**，失败如实回值。
-- 会话上挂着全部 26 条能力：23 条操作（其中 24 条异步调用统一走操作管线，`readBudget` 直达不裁决不记账）与 `describe`、`issueAddress` 两条同步直通。
+- 会话上挂着全部 26 条能力：23 条操作 + 3 条定位口（`getRepoKey`、`describe`、`issueAddress`）。23 条操作都异步回值，其中 22 条统一走操作管线；第 23 条 `readBudget` 直达房间，不裁决也不记账。3 条定位口里 `getRepoKey` 异步直通，`describe` 与 `issueAddress` 同步直通。
 - 调用方（deck 工具、刷新读路径、刷新写路径、宿主发布、面板）不再自己选后端、不再自己过闸、不再拿 backendId 写准入分支、不再直接 import 房间实现。选后端发生在会话内部，**选后端本身不消耗额度**——这是事故 1 的直接修复。
 
 **决定二 · 预算模型由后端自己声明，缺声明就注册不进来。**
 
 - 每个后端模块必交五件套（描述、能力清单、操作表、装配、预算声明），其中预算声明 `budget` 是必填项。缺了它，注册表在注册时当场拒绝，并在错误信息里点名缺的是哪一格。
 - 预算声明的形状是 `{ kind, countsRequests, countsPoints, independentBuckets }`，kind 四选一：两桶（two-buckets）、只计请求数（requests-only）、离网（off-network）、未知（unknown）。三个内置后端已各自声明：GitHub 两桶、GitLab 只计请求数、本地 Markdown 离网。
-- 新增第 26 条能力 `readBudget`，三种读数：读到了（`known: true`，带该模型的量）、没测到（`known: false, reason: 'not-measured'`）、这后端不支持（`known: false, reason: 'unsupported'`）。读数只被查询、不被裁决也不记账；读不到时绝不拿 0 冒充。
+- 新增第 26 条能力 `readBudget`，四种读数：读到两个桶（`known: true, kind: 'two-buckets'`，带 REST 与 GraphQL 两桶各自的剩余与限额）、读到一个请求桶（`known: true, kind: 'requests-only'`）、离网（`known: true, kind: 'off-network'`，这个后端不需要额度）、读不到（`known: false`，理由三选一：`not-measured` 还没测到、`unavailable` 暂时取不到、`unsupported` 这个后端不支持）。读数只被查询、不被裁决也不记账；读不到时绝不拿 0 冒充。
 - 算式只读声明、不读后端编号：35% 保底与两桶档位只对声明为两桶的后端成立；只计请求数的后端只看请求条数；离网后端不建额度桶、不记账；未知模型只记发出去几条请求，不编造点数额度与剩余量。
 
 **决定三 · 闸与账本都是操作管线里的拦截器，只有一处。**

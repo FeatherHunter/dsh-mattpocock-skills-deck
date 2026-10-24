@@ -9,7 +9,7 @@
  * （`#1062`）本轮把那 10 条逐条落地：9 条真做（`counts`、`listPage`、`listLabels`、
  * `setLabelColors`、`getCurrentUser`、`getRepoPermissions`、`listSubIssues`、`getRepoKey`、
  * `initProject`），1 条判定为形态不合（`ensureLabelColorsFile`，往下看第 2 条）。
- * 今天这一家与 GitHub 那家一样，是 **24 条真提供、1 条明确不支持**。
+ * 今天这一家与 GitHub 那家一样，是 **25 条真提供、1 条明确不支持**。
  *
  * ── 与谁是一对 ──────────────────────────────────────────────────────────────────
  *   - 给人读的表：`docs/tracker/capability-gitlab.md`（视图，门禁逐条比对，两边不许打架）
