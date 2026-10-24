@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T15:03:30.798Z",
+  "generatedAt": "2026-10-24T15:50:02.951Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 359,
-  "gateCount": 359,
-  "attributedGates": 319,
+  "chainLength": 360,
+  "gateCount": 360,
+  "attributedGates": 320,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
@@ -268,6 +268,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-chain-session.ts",
+      "file": "tests/verify-chain-session.ts",
+      "guards": [
+        "src/client/kernel/store-switch.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/refresh/rooms/client"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-chain.ts",
@@ -8863,6 +8880,7 @@
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
+      "node tests/verify-chain-session.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1115-timer-handle.ts",
@@ -9400,6 +9418,7 @@
     "src/refresh/rooms": [],
     "src/refresh/rooms/client": [
       "node tests/verify-chain-env-e2e.ts",
+      "node tests/verify-chain-session.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1305-client-session.ts",
