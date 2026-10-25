@@ -207,7 +207,7 @@ export const pixelOpenDetail = function (st: PixelStore | null | undefined, name
     mdEn: null,
     mdZh: null,
     shortDesc: use,
-    // 正文默认英文原文；随包若带中文译文（SKILL.zh.md），弹窗上那颗「中文」按钮就能切过去。
+    // 正文默认英文原文；随包若带中文译文（兄弟目录 bundled-skills-zh 下的同名文件），弹窗上那颗「中文」按钮就能切过去。
     bodyLang: 'en',
     phase: 'loading',
     phaseText: tr('sd.fetch'),

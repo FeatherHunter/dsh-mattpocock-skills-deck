@@ -1,11 +1,14 @@
 /**
- * src/host/skillDoc.ts —— 技能原文直读（来源：src/host/skillDoc.js，issue #1247 转写，本次只加类型标注与注释，逻辑一行未动）。
+ * src/host/skillDoc.ts —— 技能原文直读（来源：src/host/skillDoc.js，issue #1247 转写）。
  *
  * 为什么要有它（一句话）：详情页读本地原文的电话 skill.readDoc；只读随包原文目录，中文译文有就一起回。
+ * #1521 起中文译文搬到了兄弟目录 package/bundled-skills-zh/（与 package/bundled-skills/ 同级的镜像树）。
+ * 原因：上游同步脚本每次会整目录重建 bundled-skills，译文放在里面会被抹掉。
  *
  * 三条不能改的约定（改之前先看原 skillDoc.js 头注释与调用点 index.ts）：
- * 1. 行为零变化：逻辑逐行对应，只加类型标注与中文注释，不改任何运行时语义；相对导入保留 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
- * 2. 只写可剥离 TypeScript：不新增运行时语法（禁用 enum 与构造函数参数属性），类型一律 import type 或内联标注，转译后与原 .js 逐行同义。
+ * 1. 英文原文的定位与返回值口径不变：仍然只认 <root>/<name>/SKILL.md，读不到回 {ok:false,missing:true}。
+ *    译文路径由找到的原文文件推出（<root> 的兄弟目录 <root>-zh/<name>/SKILL.md），译文缺失仍是 mdZh=null。
+ * 2. 只写可剥离 TypeScript：不新增运行时语法（禁用 enum 与构造函数参数属性），类型一律 import type 或内联标注。
  * 3. 不新增任何 import 边：只给已有引用加类型，不引入新模块依赖；Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接，不装 @types/node。
  *
  * #1522 起多认一个文件参数（2026-10-25 人拍板方案 C）：
@@ -58,7 +61,7 @@ type ReadDocResult = {
 // 只读随包原文目录：技能名只认字母数字与 - _（防跨目录），只拼 <dir>/<name>/SKILL.md，
 // 读不到、非法名、超长一律回 {ok:false, missing:true}。
 // 成功时把该文件的绝对路径一并回给界面：弹窗上那颗「复制路径」要复制的就是它（2026-10-10 人拍板）。
-// 中文译文包（同目录的 SKILL.zh.md）有就一起回：弹窗上的「中文」按钮据此出现，没有译文就不出现。
+// 中文译文（兄弟目录 bundled-skills-zh 下的同名文件）有就一起回：弹窗上的「中文」按钮据此出现，没有译文就不出现。
 // 英文原文照旧必回；译文缺失、读不动、超长都只是「没有译文」，不影响英文那一份。
 // 注意分寸：路径可以给界面显示与复制，但**日志里永远不写路径原文**（日志纪律另有其要求，两件事不冲突）。
 export function createSkillDoc(deps?: any): any {
@@ -151,7 +154,12 @@ export function createSkillDoc(deps?: any): any {
       const file = pathMod.join(dir, name, 'SKILL.md')
       try {
         const st = fsSync.statSync(file)
-        if (st && st.isFile()) return file
+        if (st && st.isFile()) {
+          // 译文取随包根的兄弟目录 bundled-skills-zh（<root>-zh/<name>/SKILL.md），按技能名镜像。
+          // 不能和原文同目录：同步脚本每次整目录重建 bundled-skills，同目录的译文会被一起删掉。
+          const zhRoot = pathMod.join(pathMod.dirname(dir), 'bundled-skills-zh')
+          return { file: file, zhFile: pathMod.join(zhRoot, name, 'SKILL.md') }
+        }
       } catch {}
     }
     return null
@@ -357,8 +365,9 @@ export function createSkillDoc(deps?: any): any {
     const name = args && args.name
     if (!validName(name)) return { ok: false, missing: true }
     try {
-      const file = await findCardPath(name)
-      if (!file) return { ok: false, missing: true }
+      const found = await findCardPath(name)
+      if (!found) return { ok: false, missing: true }
+      const file = found.file
       // @ts-expect-error —— Node 内建模块的动态引用：类型声明随 @types/node 缺席，运行时一定存在（纯类型层面）。
       const fsp: any = await import('node:fs/promises')
       const raw = await (fsp.default || fsp).readFile(file, 'utf8')
@@ -368,10 +377,9 @@ export function createSkillDoc(deps?: any): any {
       let mdZh: any = null
       let pathZh: any = null
       try {
-        const zhFile = file.replace(/SKILL\.md$/, 'SKILL.zh.md')
-        const rawZh = await (fsp.default || fsp).readFile(zhFile, 'utf8')
+        const rawZh = await (fsp.default || fsp).readFile(found.zhFile, 'utf8')
         const z = stripFrontmatter(rawZh)
-        if (z && z.trim() && z.length <= MAX_BYTES) { mdZh = z; pathZh = zhFile }
+        if (z && z.trim() && z.length <= MAX_BYTES) { mdZh = z; pathZh = found.zhFile }
       } catch {}
       // 可点名单一并回给界面：正文里写到的随包 md 文件名按它判断能不能点。
       let refs: any = null

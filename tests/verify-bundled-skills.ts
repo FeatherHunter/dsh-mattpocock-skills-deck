@@ -11,8 +11,8 @@
  *  1) package/bundled-skills 存在且含 27 个子目录，每个含有效 SKILL.md（frontmatter name: 与目录名一致，含 description）
  *  2) LICENSE 存在且含 Copyright (c) 2026 Matt Pocock
  *  3) VERSION 存在且等于 v1.3.1
- *  4) package/package.json:files 含 bundled-skills（漏发硬卡）
- *  5) 增量体积：npm pack --dry-run 的 unpacked size 差值 ≤ 5MB（阈值硬卡，需显式改阈豁免）；空 bundled 期跳过
+ *  4) package/package.json:files 含 bundled-skills 与 bundled-skills-zh（漏发硬卡；#1521 起中文译文单放兄弟目录 bundled-skills-zh）
+ *  5) 增量体积：bundled-skills 与 bundled-skills-zh 合计 ≤ 5MB（阈值硬卡，需显式改阈豁免）；空 bundled 期跳过
  *
  * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-bundled-skills.ts
  * 退出码 0 = 通过；1 = 失败
@@ -121,6 +121,11 @@ if (existsSync(PKG_JSON)) {
     if (!files.includes('bundled-skills') && existsSync(BUNDLED_DIR)) {
       console.log('[hint] 请在 package/package.json 的 files 中追加 "bundled-skills"')
     }
+    // #1521：中文译文单放在兄弟目录 bundled-skills-zh，必须一起发进 npm 包，否则装完没有中文可看。
+    check(files.includes('bundled-skills-zh'), 'package/package.json:files 含 bundled-skills-zh')
+    if (!files.includes('bundled-skills-zh')) {
+      console.log('[hint] 请在 package/package.json 的 files 中追加 "bundled-skills-zh"')
+    }
   } catch (e) {
     check(false, 'package/package.json 解析失败：' + e.message)
   }
@@ -144,8 +149,12 @@ try {
     }
   }
   walk(BUNDLED_DIR)
-  console.log(`[info] bundled 目录实际占用 ${(total/1024/1024).toFixed(2)} MB（阈值 ${(THRESHOLD_BYTES/1024/1024).toFixed(0)} MB）`)
-  check(total <= THRESHOLD_BYTES, `bundled 增量 ≤ 5MB（当前 ${(total/1024/1024).toFixed(2)} MB）`)
+  // #1521：中文译文树与原文树一起计入体积（译文同样随包发布，不能悄悄把包撑大）。
+  const ZH_DIR: string = path.join(ROOT, 'package/bundled-skills-zh')
+  if (existsSync(ZH_DIR)) walk(ZH_DIR)
+  else check(false, 'package/bundled-skills-zh 缺失（#1521 起中文译文必须随包发布）')
+  console.log(`[info] bundled 原文+中文译文目录合计占用 ${(total/1024/1024).toFixed(2)} MB（阈值 ${(THRESHOLD_BYTES/1024/1024).toFixed(0)} MB）`)
+  check(total <= THRESHOLD_BYTES, `随包原文+中文译文合计 ≤ 5MB（当前 ${(total/1024/1024).toFixed(2)} MB）`)
   if (total > THRESHOLD_BYTES) {
     console.log('[hint] 超阈需显式改 tests/verify-bundled-skills.ts 的 THRESHOLD_BYTES 并说明理由')
   }
@@ -167,11 +176,16 @@ try {
       console.log(`[info] npm pack unpacked size ${m[0].trim()} (${(bytes/1024/1024).toFixed(2)} MB)`)
       // 仅告警，不硬卡总量（总量含其他资源）；增量已由目录大小硬卡
     }
-    // 检查 tarball 内容是否含 bundled
+    // 检查 tarball 内容是否含 bundled（原文与中文译文两棵树都要在）
     if (out.includes('bundled-skills/')) {
       check(true, 'npm pack --dry-run 列出 bundled-skills')
     } else {
       check(false, 'npm pack --dry-run 未列出 bundled-skills（可能被 .npmignore 或 files 漏配）')
+    }
+    if (out.includes('bundled-skills-zh/')) {
+      check(true, 'npm pack --dry-run 列出 bundled-skills-zh')
+    } else {
+      check(false, 'npm pack --dry-run 未列出 bundled-skills-zh（中文译文没进包，用户看不到中文）')
     }
   } else {
     note('npm pack --dry-run 探测跳过（npm 不可用或超时）')
