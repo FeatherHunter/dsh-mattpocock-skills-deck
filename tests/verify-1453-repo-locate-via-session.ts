@@ -67,7 +67,7 @@ function roomCtx(exec: (cmd: string, args: string[], opts?: any) => Promise<any>
       env: { get: (): undefined => undefined, has: (): boolean => false },
     },
     exec,
-    outbound: { acquire: async (): Promise<() => void> => function release(): void {}, isCancelled: (): boolean => false, noteWrite: (): void => {} },
+    outbound: { acquire: async (): Promise<() => void> => function release(): void {}, isCancelled: (): boolean => false, noteWrite: (): void => {}, reportTransportFailure: (): void => {}, reportSuccess: (): void => {} },
     logEvent: (): void => {},
     isEnabled: (): boolean => false,
     gate: null,

@@ -112,6 +112,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'WRITE_TIMEOUT_MS', gen: 'OUTBOUND_WRITE_TIMEOUT_MS', key: 'outboundWriteMs' },
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'PROBE_TIMEOUT_MS', gen: 'OUTBOUND_PROBE_TIMEOUT_MS', key: 'outboundProbeMs' },
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'TRANSPORT_COOLDOWN_MS', gen: 'OUTBOUND_TRANSPORT_COOLDOWN_MS', key: 'outboundTransportCooldownMs' },
+  // #1007 复核补的排队上限：代码里只夹排队段（gh-queue-race.ts），起进程之后的等待仍按本档超时。
+  { file: 'src/refresh/rooms/host/gh-queue-race.ts', access: 'GH_QUEUE_WAIT_TIMEOUT_MS', gen: 'GH_QUEUE_WAIT_TIMEOUT_MS', key: 'ghQueueWaitTimeoutMs' },
   { file: 'src/tracker/registry/core.ts', access: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs' },
   { file: 'src/tracker/rooms/github/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
   // —— 共享层：整份转出（budget）与直接引用 ——
@@ -331,6 +334,11 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/deck/rules/anchor.ts', name: 'windowMs', reason: '透传变量，缺省接 ANCHOR_WINDOW_MS（已登记）' },
   { file: 'src/deck/tools/map-link.ts', name: 'lockTimeoutMs', reason: '透传变量，缺省走 DEFAULT_KEY_LOCK_TIMEOUT_MS（已登记，见 write-mutex.ts:86）' },
   { file: 'src/refresh/registry/quota-sync-bridge.ts', name: 'cooldownMs', reason: '透传变量，缺省走 QUOTA_SYNC_COOLDOWN_MS（已登记）' },
+  // #1007：通路冷却的窗口长度与状态字段（派生值，不是第二份可调参数）。
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'cooldownMs', reason: '冷却窗口长度：缺省取已登记的 outboundTransportCooldownMs，测试可传短值；不是第二份参数' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'cooldown', reason: '每只桶的冷却状态记录（到点时刻、上次原因、连续失败数），不是可调时长' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'remainingMs', reason: '算出来的剩余冷却（到点时刻减当前时刻），不是输入参数' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'remainingMs', reason: '算出来的剩余冷却（拼回话文案用），不是输入参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
   { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 hostTimeoutMs 装进来）' },
