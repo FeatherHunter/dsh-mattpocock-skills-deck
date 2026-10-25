@@ -18,6 +18,9 @@ import { markerKindAtStart, markerKindInHeader, stripMarkerLines } from '../../.
 import { MD_FORMAT } from './format/generated.js'
 // #1500 S5：类型词与 wayfinder 标签正则都只从 YAML 真源读（field-values.ts 唯一派生点）。
 import { MAP_TICKET_TYPES, WAYFINDER_LABEL_RE } from './format/field-values.js'
+// 「哪一行算围栏、哪一行算二级标题」统一从 markdown-scan.ts 取：模板判据（template-guard.ts）也要判同一件事，
+// 两处各写一份正则会各说各话。
+import { isFenceLine, isHeadingTwoLine } from './markdown-scan.js'
 import type { CreateInput, LabelInput } from '../../contract/inputs.js'
 
 /** 本文件负责的六种对象。规格与实施票/普通票先落（#1486）；探索地图与地图子票本票接上（#1487）。 */
@@ -311,8 +314,8 @@ function firstHeadingOutsideFence(body: string): number {
   let offset = 0
   let inFence = false
   for (const line of String(body || '').split('\n')) {
-    if (/^[ \t]*(```|~~~)/.test(line)) inFence = !inFence
-    else if (!inFence && /^##\s/.test(line)) return offset
+    if (isFenceLine(line)) inFence = !inFence
+    else if (!inFence && isHeadingTwoLine(line)) return offset
     offset += line.length + 1
   }
   return -1

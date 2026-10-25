@@ -117,13 +117,12 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
     // 标题后置 = 同传时以后一步的标题参数为准；只传一边时行为不变。
     const newTitle=(patch&&typeof patch.title==='string')?patch.title.trim():''
     if(patch&&typeof patch.body==='string'){
+      // #1509/#1506 复核：整份替换与片段插入都是往正文区写字，判据与拒绝语只这一处，只拦其中一条等于留旁门。
+      // 判的是递进来的这一段正文，不是合并后的全文：存量文件里已有的远端段不归这次写负责。
+      // 拒绝时在合并与写盘之前退回，盘上一个字节都不动，原文原样退回调用方（不归一化、不丢信息）。
+      // 盘上这份文件的形状来自刚读到的 fnOldText：真读不出来时读文件那一步已经失败，走不到这里。
+      const refusal=remoteTemplateRefusalForLocalFile(r.container,ticketFormOf(fnOldText),remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body))
       if(isWholeIssueBody(patch.body)){
-        // #1509：整份正文替换是「另一条写文件的路」，和新建票共用 template-guard 的同一份判据与拒绝语。
-        // 只拦这一条路：只改状态、只加评论、只改标题都不进这个分支，不能被误拦。
-        // 拒绝时在合并与写盘之前就退回去，盘上一个字节都不动，原文原样退回调用方（不归一化、不丢信息）。
-        // 盘上这份文件的形状来自刚读到的 fnOldText，不另做「读不出来就猜一个」的兼容分支：
-        // 真读不出来时读文件那一步已经失败，走不到这里。
-        const refusal=remoteTemplateRefusalForLocalFile(r.container,ticketFormOf(fnOldText),remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body))
         // 整份正文：读回给的是整份文件，写回也按整份合并（锚与标题保住、字段与骨架搬回），不再猜它是片段。
         txt=moveLeadingSectionBelowTitle(mergeWholeBodyForPatch(patch.body, fnOldText));changed=true
       }else{

@@ -433,6 +433,22 @@ async function main(): Promise<void> {
   check(keyOf(fresh) === '02', '回归：新票按顺序落在 02：' + keyOf(fresh))
   check(readText(legacyPath) === legacyText, '回归：旧票文件一个字节都没动')
 
+  // ══ ⑦ 容器（规格）不受四段判据管：同一份四段正文写给规格，照常建得出来 ══
+  // 这是「哪些形状受管」的外部证据：#1510 那扇门禁用纯函数钉分派表本身，这里走真正的建票入口，
+  // 有人把 spec 加进受管清单，规格就建不出来了，这条会红。
+  const containerTmp = tmpDir('md-1507-container-')
+  const containerCtx = mkctx(containerTmp)
+  const specBody = '## Problem Statement\n\n规格正文。\n\n' + REMOTE_FOUR
+  const specMade = await create(containerCtx, repoOf(), {
+    title: '容器豁免规格',
+    body: specBody,
+    type: 'spec',
+    idempotencyKey: 'container-1507-a',
+  })
+  check(!!(specMade && (specMade as { ok?: boolean }).ok), '⑦ 规格正文里出现远端四段也照常建：' + JSON.stringify(failOf(specMade)))
+  const specFile = readText(path.join(containerTmp, '.scratch', '容器豁免规格', 'spec.md'))
+  check(specFile.indexOf('## Parent') >= 0, '⑦ 规格正文里那份四段原样留着（容器不做模板判据）')
+
   // ══ 汇总 ══
   console.log('')
   if (failures.length) {

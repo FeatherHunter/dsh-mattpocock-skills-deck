@@ -360,6 +360,32 @@ async function main(): Promise<void> {
   check(mapFail.message.indexOf('**What to build:**') < 0, '① 地图子票报错不照搬实施票的字段模板')
   check(readText(mapFile) === mapBefore, '① 地图子票被拒后文件一个字节都没变')
 
+  // ══ ⑥ 片段改写同样要过判据：去掉一级标题当片段递进来，也不能把远端四段写进正文区 ══
+  // 这条是 #1506 两轴评审点出来的「只做一半」：判据原先只在整份替换分支里，同一份内容去掉
+  // `# 01:` 标题当片段递进来就能写进票里。两条路都是往正文区写字，必须只有一份判据。
+  const fragTmp = tmpDir('md-1509-fragment-')
+  const fragCtx = mkctx(fragTmp)
+  const fragRepo = repoOf('片段改写', 'feature')
+  const fragMade = await create(fragCtx, fragRepo, {
+    title: '片段也要拦',
+    body: LOCAL_BODY,
+    type: 'issue',
+    parentKey: '00',
+    idempotencyKey: 'upd-1509-fragment',
+  })
+  check(okOf(fragMade), '⑥ 前置：这张票建得成：' + JSON.stringify(failOf(fragMade)))
+  const fragKey = keyOf(fragMade)
+  const fragFile = path.join(fragTmp, '.scratch', '片段改写', 'issues', '01-片段也要拦.md')
+  const fragBefore = readText(fragFile)
+  const fragFragment = REMOTE_FOUR
+  const fragRejected = await update(fragCtx, fragRepo, fragKey, { body: fragFragment })
+  check(!okOf(fragRejected), '⑥ 片段里带远端四段同样被拒（不因为没写标题就绕过去）')
+  check(failOf(fragRejected).message === remoteTemplateRefusalFor('issue', remoteTemplateSections(fragFragment)), '⑥ 片段被拒的文案与整份替换逐字相同')
+  check(readText(fragFile) === fragBefore, '⑥ 片段被拒后文件一个字节都没变')
+  const fragOk = await update(fragCtx, fragRepo, fragKey, { body: '片段补一句：验收前先跑门禁。' })
+  check(okOf(fragOk), '⑥ 干净的片段照常能写进去：' + JSON.stringify(failOf(fragOk)))
+  check(bodyOf(await readBack(fragCtx, fragRepo, fragKey)).indexOf('验收前先跑门禁') >= 0, '⑥ 干净的片段确实落进了正文')
+
   // ══ 汇总 ══
   console.log('')
   if (failures.length) {

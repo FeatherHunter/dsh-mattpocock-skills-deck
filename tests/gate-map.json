@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T10:39:01.756Z",
+  "generatedAt": "2026-10-25T10:51:39.373Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 381,
   "gateCount": 381,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 585,
+  "graphFileCount": 586,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -10605,9 +10605,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 606,
+    "fileCount": 607,
     "dirCount": 74,
-    "coveredFileCount": 606,
+    "coveredFileCount": 607,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11198,6 +11198,7 @@
       "src/tracker/rooms/markdown/label-colors-palette.ts",
       "src/tracker/rooms/markdown/label-colors.ts",
       "src/tracker/rooms/markdown/map-render.ts",
+      "src/tracker/rooms/markdown/markdown-scan.ts",
       "src/tracker/rooms/markdown/normalize.ts",
       "src/tracker/rooms/markdown/original-fields.ts",
       "src/tracker/rooms/markdown/page.ts",
