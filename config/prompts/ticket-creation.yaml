@@ -1,8 +1,8 @@
 newBugWayfinder:
-  version: 14
+  version: 15
   placeholders:
     - repo
-  use: "「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版 · v10 #1268 加调查节先查后问） · v12 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
+  use: "「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版 · v10 #1268 加调查节先查后问） · v12 #1407 加 suggest_next_steps 提醒、删 /retro 提醒 · v15 #1460 建单前查重：扫全可见 BUG 单、候选交报告人确认、正文固定写查重记录"
   zh: |-
     /wayfinder
     请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。
@@ -19,13 +19,26 @@ newBugWayfinder:
     - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
-    ## 查历史
-    - [ ] 从实际抽 2 到 3 个关键词，按当前后端方式搜已打开与已关闭的单子（优先 deck_ 工具），初筛看前 20 条标题，疑似点开正文
-    - [ ] 撞到疑似再用 /research 深查，结论写回新单正文
-    - [ ] 新增则建；重复则复用不重建，写明原单号与理由；回归则注明原单号；拿不准则新建并关联疑似单标待确认；默认关联不关闭
+    ## 查重
+    - [ ] 收齐「实际」后，扫一遍工具能看见的全部 BUG 单：先调 deck_issue_list（state=open、labels=['bug']、limit=200）一次取全，再调一次（state=closed、labels=['bug']、limit=200）一次取全；看返回的编号、标题、标签和更新时间，不要只看前几条。
+    - [ ] 这两次是全扫，不要用关键词搜索代替：同一个问题可能用完全不同的说法描述，关键词会漏。
+    - [ ] 标题像的再调 deck_issue_get 看正文；工具回执说清单可能不全时，把这句记下来。
+    - [ ] 有命中时不要自己先下结论：把最多 3 张候选（编号、标题、像在哪里）列给报告人，问一句「这些是不是同一个问题」，等到回答再决定。
+    - [ ] 报告人确认是同一问题、旧单还开着：不建新单，在旧单下评论补充这次的现象和复现步骤；旧单不关闭。
+    - [ ] 报告人确认是同一问题、旧单已关闭：按回归处理，建新单并在正文写明「回归：原单 #编号」，关联旧单。
+    - [ ] 报告人确认不是，或没有命中：建新单，正文写明看过的候选和报告人的回答。
+    - [ ] 报告人不确定：把旧单链接发给报告人再看一眼；仍不能判断时按新建处理并关联候选、标 needs-info。
+    - [ ] 两次扫描与查重记录是建单的前置条件：缺任何一步，先补完再建单；工具本身报错时，把错误写进查重记录再建单。
+
+    ## 查重记录
+    - [ ] 新单正文固定加一节「## 查重记录」，没有命中也要写；按实际查重过程填，不要编造。
+    - [ ] 扫描：查了哪些状态与标签、各拿到多少张；工具说清单可能不全，就写在这里。
+    - [ ] 命中：候选的编号与标题；没有就写「无」。
+    - [ ] 报告人确认：报告人怎么回答的。
+    - [ ] 结论：新建 / 关联哪张旧单 / 按回归新建。
 
     ## 自查
-    - [ ] 逐项核对无遗漏；历史结论已写进正文；结束前写明真实状态
+    - [ ] 逐项核对无遗漏；查重记录已写进正文（或已在旧单评论）；结束前写明真实状态
 
     ## 工具
     - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
@@ -47,13 +60,26 @@ newBugWayfinder:
     - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
-    ## Check history
-    - [ ] Take 2-3 keywords from actual, search open and closed tickets the current backend way (prefer deck_ tools), scan top 20 titles first, open the body on suspicion
-    - [ ] On suspicion dig with /research, write the conclusion back into the new ticket body
-    - [ ] New → file; duplicate → reuse without refiling, write original number with reason; regression → note original number; unsure → file and link the suspected ticket as pending; default link, never close
+    ## Check for duplicates
+    - [ ] Once "Actual" is filled in, scan every BUG ticket the tools can see: call deck_issue_list (state=open, labels=['bug'], limit=200) to take them all, then call it again (state=closed, labels=['bug'], limit=200) to take them all. Read the returned key, title, labels and updated time; do not look only at the first few.
+    - [ ] These two calls are full scans; do not replace them with keyword search — the same problem can be described in completely different words, and keywords will miss it.
+    - [ ] Open the body with deck_issue_get only when a title looks similar. If the tool says the list may be incomplete, keep that sentence.
+    - [ ] When something looks similar, do not decide on your own: show the reporter up to 3 candidates (key, title, why it looks similar) and ask "are these the same problem"; wait for the answer before deciding.
+    - [ ] The reporter confirms the same problem and the old ticket is still open: do NOT file a new ticket; comment on the old ticket with this report's symptom and reproduction steps; do not close the old ticket.
+    - [ ] The reporter confirms the same problem but the old ticket is closed: treat it as a regression, file a new ticket, write "Regression of #key" into the body, and link the old ticket.
+    - [ ] The reporter says it is not the same, or nothing matched: file a new ticket and write the candidates you looked at and the reporter's answer into the body.
+    - [ ] The reporter is unsure: send the old ticket link for a look; if it is still undecidable, file and link the candidates, label needs-info.
+    - [ ] The two scans and the duplicate-check record are prerequisites for filing: finish any missing step before filing; if the tool itself errors, write the error into the duplicate-check record and then file.
+
+    ## Duplicate check record
+    - [ ] Always add a "## Duplicate check record" section to the new ticket body, even when nothing matched; fill it from the actual check, never fabricate.
+    - [ ] Scanned: which states and labels you looked at, and how many tickets each returned; if the tool says the list may be incomplete, write that here.
+    - [ ] Hits: candidate keys and titles; write "none" when nothing matched.
+    - [ ] Reporter confirmed: what the reporter answered.
+    - [ ] Conclusion: new ticket / linked to which old ticket / filed as a regression.
 
     ## Self-check
-    - [ ] Check every box with no gaps; history written into the body; true state written before finishing
+    - [ ] Check every box with no gaps; duplicate-check record written into the body (or already commented on the old ticket); true state written before finishing
 
     ## Tools
     - [ ] Prefer the deck_ tools for issue operations

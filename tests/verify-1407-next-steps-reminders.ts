@@ -47,7 +47,7 @@ const TARGETS = {
     'tpl.supplement': 7,
     'tpl.takeover': 10,
   },
-  'ticket-creation': { newBugWayfinder: 14, newSpec: 4, newWayfinder: 23 },
+  'ticket-creation': { newBugWayfinder: 15, newSpec: 4, newWayfinder: 23 },
   'map-advancement': {
     complete: 16,
     fixate: 11,
