@@ -1,4 +1,4 @@
-// template-guard.ts —— 新建一张票时，正文不能带远端跟踪器的四段模板（#1507，父规格 #1506）。
+// template-guard.ts —— 建票与整份改写正文时，正文不能带远端跟踪器的四段模板（#1507 建票、#1509 改写，父规格 #1506）。
 //
 // 为什么要有这一件：本地 Markdown 后端按随包原文（to-tickets、wayfinder）的形状落盘。
 // 人从 GitHub / Linear 复制过来的正文常带着远端那套二级标题：
@@ -17,6 +17,7 @@
 // 本文件是纯计算：只收正文文本，不读写文件、不看时钟。
 
 import type { OriginalKind } from './create-render.js'
+import type { TicketForm } from './original-fields.js'
 
 /** 远端四段模板的段落名，按远端原文的大小写写一次；比对时两边都转小写。 */
 const REMOTE_SECTIONS: readonly string[] = ['Parent', 'What to build', 'Acceptance criteria', 'Blocked by']
@@ -54,7 +55,7 @@ export function remoteTemplateSections(body: unknown): string[] {
 }
 
 /**
- * 给这次新建请求的拒绝语；这种物件不受这条判据管（规格、地图）或没发现违规段落时返回空串。
+ * 给这次请求的拒绝语（新建与整份改写共用）；这种物件不受这条判据管（规格、地图）或没发现违规段落时返回空串。
  *
  * 拒绝语固定两句话：第一句说错在哪几段（原文的段名，带 `##` 前缀，人能直接对照自己的正文），
  * 第二句说本地模板长什么样。地图子票的本地形状与实施票不同，所以单独一句，免得给错模板。
@@ -72,4 +73,30 @@ export function remoteTemplateRefusalFor(kind: OriginalKind, sections: readonly 
   return '正文里有远端跟踪器的模板段落' + quoted + '，本地 Markdown 票不收这种写法。'
     + '本地票要写成「# NN: 标题」，下面依次写「**What to build:** …」「**Blocked by:** …」「**Status:** …」，验收项写成「- [ ] …」；'
     + '如果这些段只是写在 ``` 代码块里举例，不算错。'
+}
+
+/**
+ * 整份正文替换（#1509）该说哪一套本地模板：按盘上这张票的形状挑，分派规则也只放在本文件。
+ *
+ * 为什么要多这一个入口：新建时「这张票是什么」来自请求参数（originalKindOf），改写时来自盘上那份文件
+ * （00 号容器的 spec/map，或票文件自己的 TicketForm）。两条路的输入不同，但「哪类文件配哪段话」
+ * 是同一件事；让改写路径自己 if/else 挑文案，就等于在写路径里又抄了一份对应关系。
+ *
+ * 分派口径（与 #1506 的实现决策一致）：
+ *  - 规格（spec）与地图（map）是容器，正文模板本来就是另外几段，不受这条判据管，返回空串；
+ *  - 地图子票（原文问句形态）用问句模板那一句：`# NN: 问题` + `Type:` 行 + 一段 `## Question`；
+ *  - 其余票（实施票、普通票、旧布局票）用本地票模板那一句：`# NN: 标题` + 三条加粗字段行 + `- [ ]`。
+ *    旧布局票也走这一句：它没有另一套本地模板，重写时正好把人引到现在这一套；这里不猜兼容。
+ */
+export function remoteTemplateRefusalForLocalFile(
+  container: 'spec' | 'map' | null | undefined,
+  form: TicketForm,
+  sections: readonly string[],
+): string {
+  if (!sections.length) return ''
+  // 容器不算「一张票」，交给同一个函数按它自己的档位判（spec/map 在那里返回空串），
+  // 这样「哪些形状受管」也只有一处判断。
+  if (container === 'spec') return remoteTemplateRefusalFor('spec', sections)
+  if (container === 'map') return remoteTemplateRefusalFor('map', sections)
+  return remoteTemplateRefusalFor(form === 'map-ticket' ? 'map-ticket' : 'issue', sections)
 }

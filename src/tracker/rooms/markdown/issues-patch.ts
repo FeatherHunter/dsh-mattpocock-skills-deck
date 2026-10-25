@@ -13,6 +13,9 @@ import type { WriteTrail } from './write-log.js'
 // #1060：关系与边那一族的结论线（事件 `edge.write` / `edge.cycle`，与 GitHub 房同一个名字、同一套字段）。
 import { beginEdgeTrail, emitEdgeWrite } from './edge-log.js'
 import type { EdgeTrail } from './edge-log.js'
+// #1509：整份正文替换与新建票共用「正文里不能带远端四段模板」的同一份判据与同一套拒绝语，
+// 判据与文案都住在 template-guard.ts，这里只调用，不另抄一份段名或正则。
+import { remoteTemplateRefusalForLocalFile, remoteTemplateSections } from './template-guard.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { locateContainerFile, resolveIssueFile, resolveMapFile } from './issues-locate.js'
@@ -66,7 +69,7 @@ async function resolveTarget(ctx: OpContext,repo: RepoWithPath | null,norm: stri
  *  两路并发改同一张票时会一起读到同一份旧内容，各自改各自的，后写的那一路把先写的那一路的改动整份抹掉
  *  —— 两路都回成功，盘上却少了一半改动。队按文件分：批量补边一次要改很多张票，
  *  它们是不同的文件、彼此不冲突，仍然可以同时做（#919 的并发改造就是照这个口径放宽的）。 */
-async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined | Promise<string | undefined>, opts?: SetOpts, trail?: WriteTrail, onWritten?: () => void): Promise<{ ok: true; txt: string } | PatchFailure>{
+async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined | PatchFailure | Promise<string | undefined | PatchFailure>, opts?: SetOpts, trail?: WriteTrail, onWritten?: () => void): Promise<{ ok: true; txt: string } | PatchFailure>{
   return withFileWriter(ctx,repo,r.path,async function(){
     try{
       // 写前版本校验必须在队里、在读到这份文件之前（#1174 决策 9）：队外先比一次再进队，
@@ -74,7 +77,10 @@ async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: Resolv
       const guard=await checkExpectedUpdatedAt(ctx,r.path,opts)
       if(!guard.ok)return guard
       let txt=await readTextFile(ctx,r.path)
-      const out=await fn(txt)
+      const out=await fn(txt);if(out&&typeof out==='object')return out
+      // fn 也可以直接把失败退回来（#1509 的整份正文判据就是这么报的）：
+      // 不走下面的写盘，也不经过 catch 的 failFromError —— 那一层会拿通用的「读—改—写这张票的文件时出错」
+      // 顶掉判据写好的那句人话。失败对象已经带着档位、话术与原文，原样往上传即可。
       const next=typeof out==='string'?out:txt
       if(next!==txt){
         // #1182：整份覆盖写走原子发布（同目录临时文件 + 改名；没有改名原语时退回整份直写）——
@@ -112,6 +118,12 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
     const newTitle=(patch&&typeof patch.title==='string')?patch.title.trim():''
     if(patch&&typeof patch.body==='string'){
       if(isWholeIssueBody(patch.body)){
+        // #1509：整份正文替换是「另一条写文件的路」，和新建票共用 template-guard 的同一份判据与拒绝语。
+        // 只拦这一条路：只改状态、只加评论、只改标题都不进这个分支，不能被误拦。
+        // 拒绝时在合并与写盘之前就退回去，盘上一个字节都不动，原文原样退回调用方（不归一化、不丢信息）。
+        // 盘上这份文件的形状来自刚读到的 fnOldText，不另做「读不出来就猜一个」的兼容分支：
+        // 真读不出来时读文件那一步已经失败，走不到这里。
+        const refusal=remoteTemplateRefusalForLocalFile(r.container,ticketFormOf(fnOldText),remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body))
         // 整份正文：读回给的是整份文件，写回也按整份合并（锚与标题保住、字段与骨架搬回），不再猜它是片段。
         txt=moveLeadingSectionBelowTitle(mergeWholeBodyForPatch(patch.body, fnOldText));changed=true
       }else{
