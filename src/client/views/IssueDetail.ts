@@ -305,15 +305,20 @@ export const IssueDetail = function (props: any): any {
       const subTotal = (src.subIssues && typeof src.subIssues.totalCount === 'number') ? src.subIssues.totalCount : subNodes.length
       const blockedNodes = (src.blockedBy && src.blockedBy.nodes) ? src.blockedBy.nodes : []
       // #693 评论也只认详情那次取数：快照那一行可能不带评论，拿它当「没有评论」会说错话。
-      const commentsSource = detail ? detail.comments : undefined
-      const commentsNodes = (commentsSource && commentsSource.nodes) ? commentsSource.nodes : []
+      // #1519：详情回包里的评论只有一种形状 —— GraphQL 连接 {nodes, pageInfo}。宿主
+      // src/refresh/rooms/host/comment-thread-fetch.ts 的 handleIssueDetail 与旧路 issue-detail-fetch.ts
+      // 都按这个形状交回来。界面这边不再兼容数组：多留一条数组分支，只会让「宿主换了形状」这种错
+      // 在界面被悄悄兜住、然后显示成「评论 (0)」——那正是 #1519 之前的样子。
+      const rawComments = detail ? detail.comments : undefined
+      // 同一条判据只算一次：形状对不对（是不是连接）既决定画不画评论列表，也决定显不显示输入框。
+      // 名字沿用 rawComments：门禁 tests/verify-issue-comment.ts 会从构建产物里按这个名字切出判据求值。
+      let canComment = !!rawComments && Array.isArray(rawComments.nodes)
+      const commentsNodes = canComment ? rawComments.nodes : []
       const isStale = !detail && !!snapIssue
       // ======== #255 · 评论输入区（GitHub 单点 · MISSING 零分支）========
       // 显隐以能力字段有无判：comments 存在即渲染（EMPTY=[] 渲染、MISSING=省略 不渲染），
-      // 零后端身份分支。数组形状（契约 Comment[]）与 GraphQL 形状（{nodes,pageInfo}）双兼容。
-      // #693：这个「能力字段」同样只看详情带回来的那一份（commentsSource），不看快照那一行。
-      const rawComments = commentsSource
-      let canComment = !!rawComments && (Array.isArray(rawComments) ? true : !!(typeof rawComments === 'object' && Array.isArray(rawComments.nodes)))
+      // 零后端身份分支。形状只认 GraphQL 连接一种，理由同上（#1519）。
+      // #693：这个「能力字段」同样只看详情带回来的那一份（rawComments），不看快照那一行。
       // #506 首版只读：拉取请求详情只看评论列表，不给输入框（快照与详情任一来源标为拉取请求即只读；评审合并展示留后续，#507 再验）。
       const fromPullRequest = (src && src.isPullRequest === true) || (snapIssue && snapIssue.isPullRequest === true)
       if (fromPullRequest) canComment = false

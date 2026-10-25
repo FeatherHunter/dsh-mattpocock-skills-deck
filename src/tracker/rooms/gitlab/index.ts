@@ -22,6 +22,8 @@ import type { RepositoryRef } from '../../contract/entities.js'
 import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
 import { glabPreflight } from './preflight.js'
 import { emitReadDegraded } from './read-log.js'
+// #1533：认领只看 `.git/config` 里的远端地址，不扫整份文本（分支名带 gitlab 不再误认领）。
+import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
@@ -111,8 +113,8 @@ async function readWorkspaceFile(fs: MarkerFs, cwd: string, rel: string): Promis
 /**
  * GitLab matches：启发式 boolean —— 这个工作区是不是 GitLab 仓库。
  *
- * 依次看三处，任何一处写着 gitlab 就认：
- *   1. `.git/config` 里的远端地址；
+ * 依次看三处，任何一处指向 gitlab 就认（#1533：判据是「指向」，不是「文本里出现过这个词」）：
+ *   1. `.git/config` 里记下的远端地址（只看 `[remote ...]` 段的 `url`，分支名等其它文字不看）；
  *   2. `docs/agents/issue-tracker.md` 里声明的后端；
  *   3. 兜底真问一次 `git remote get-url origin`（best-effort，2 秒）。
  * 三处都不认，或者线索不够，一律回 false —— 「不确定就当不是」是既定口径，不是故障。
@@ -149,10 +151,10 @@ async function matches(
       emitReadDegraded(ctx, 'matches', 'matches:fs-unavailable', Date.now() - startedAt)
       return false
     }
-    // 1) .git/config 是否含 gitlab
+    // 1) .git/config 里记下的远端地址是否指向 gitlab（只看 [remote ...] 段，#1533）
     const cfg = await readWorkspaceFile(fs, cwd, '.git/config')
     if (cfg === null) emitReadDegraded(ctx, 'matches', 'matches:git-config', Date.now() - startedAt)
-    else if (/gitlab/i.test(cfg)) return true
+    else if (remoteUrlsOfGitConfig(cfg).some((u) => /gitlab/i.test(u))) return true
     // 2) issue-tracker.md 是否声明 gitlab
     const doc = await readWorkspaceFile(fs, cwd, 'docs/agents/issue-tracker.md')
     if (doc === null) emitReadDegraded(ctx, 'matches', 'matches:tracker-doc', Date.now() - startedAt)

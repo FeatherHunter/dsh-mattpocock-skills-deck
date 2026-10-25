@@ -1,7 +1,9 @@
 // verify-issue-comment.ts — #255 四缝验证：契约缝 + 集成差异冒烟（宿主透传冒烟见 smoke-comment-passthrough）
-// - 契约缝：canComment 显隐谓词对三形状（MISSING / EMPTY 数组 / EMPTY nodes）的行为断言（从构建产物提取真源表达式求值）
+// - 契约缝：canComment 显隐谓词对「MISSING / 空连接 / 有节点 / nodes 不是数组的回包」几种形状的行为断言（从构建产物提取真源表达式求值）
+//   #1519 起详情回包里的评论只有 GraphQL 连接一种形状（宿主 comment-thread-fetch.ts 负责把房间契约的数组装成连接），
+//   谓词也只认这一种：数组不再算「有评论能力」——之前为兼容数组留的那条分支，正是评论区永远显示 0 条的原因之一。
 // - 集成差异冒烟：diffSnapshots 对「纯评论变化（updatedAt bump）」产出行闪烁——根票（孤儿票）补口 + 子票元组扩展
-// 用法: node tests/verify-issue-comment.ts
+// 用法: node --import ./scripts/ts-hook.mts tests/verify-issue-comment.ts
 // 2026-10-17 先修（三处，判据一条没放宽）：
 //   ① 谓词锚原来要求那行以「)」加换行结尾，而产物今天以「);」结尾（构建把整句收成一行加一个分号），
 //      锚于是匹配不上、谓词那一条恒假。改成容忍行尾分号。
@@ -21,21 +23,24 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
 
 // —— 契约缝 A：显隐谓词行为（从构建产物提取真源比较式直接求值，杜绝测试私有副本漂移）
+// 两种写法都认：旧版谓词把整截比较式包在括号里（!!rawComments && (...）），#1519 收成一句
+// Array.isArray(rawComments.nodes) 之后产物里没有那层括号了；锚都留着，改回哪种写法都不会让这条恒假。
 const predM = pcli.match(/canComment = !!rawComments && \(([\s\S]+?)\);?\s*\r?\n/)
+  || pcli.match(/canComment = !!rawComments && (Array\.isArray\(rawComments\.nodes\));?\s*\r?\n/)
 let predOk = false
 if (predM) {
   try {
-    // 内部表达式原样求值（含 typeof / Array.isArray），不做任何改写
     // 产物里那截比较式原样求值（含 typeof / Array.isArray），改走共用入口 compileFn，不做任何改写。
     const evaluator = compileFn(['rawComments'], '"use strict"; return !!rawComments && (' + predM[1] + ')')
     const hidden = evaluator(undefined) === false                       // MISSING：字段省略 → 不渲染
-    const emptyArr = evaluator([]) === true                             // EMPTY：契约 Comment[] 空 → 渲染
-    const emptyNodes = evaluator({ nodes: [], pageInfo: {} }) === true  // EMPTY：GraphQL 形状空 → 渲染
-    const notArrNodes = evaluator({ nodes: null }) === false            // 异形（nodes 非数组）→ 不渲染
-    predOk = hidden && emptyArr && emptyNodes && notArrNodes
+    const emptyNodes = evaluator({ nodes: [], pageInfo: {} }) === true  // EMPTY：GraphQL 连接空 → 渲染
+    const withNodes = evaluator({ nodes: [{ body: 'x' }], pageInfo: {} }) === true // 有评论 → 渲染
+    const arrayShape = evaluator([]) === false                          // #1519：数组不再算「有评论能力」→ 不渲染
+    const notArrNodes = evaluator({ nodes: null }) === false            // nodes 不是数组的回包 → 不渲染
+    predOk = hidden && emptyNodes && withNodes && arrayShape && notArrNodes
   } catch (e) { predOk = false }
 }
-check(predOk, '谓词行为：MISSING 隐 / EMPTY([]) 显 / EMPTY(nodes) 显 / 异形隐')
+check(predOk, '谓词行为：MISSING 隐 / 空连接显 / 有节点显 / 数组回包隐 / nodes 非数组隐')
 
 // ============ 集成差异冒烟：从产物提取 diffSnapshots 真源求值 ============
 // 右界按「花括号配平扫到函数体闭合」算，不再拿后面的注释当尾巴：
