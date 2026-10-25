@@ -3,7 +3,7 @@
 // 这张票的验收 ①②③ 都建立在同一件事上：原文规定「哪些信息放可见行、放文件的哪个位置」，
 // 插件自己需要而原文没有的信息（认领人、标签、幂等键、创建时间、父子与阻塞边）放文件头的隐藏注释。
 // 这个文件直接测那层原语：形状判定、隐藏注释的存在与空值区分、加粗字段行与裸字段行的原地替换/删除、
-// 段落尾部追加与进度区搬家。门禁只调这些纯函数，不碰磁盘。
+// 段落尾部追加。门禁只调这些纯函数，不碰磁盘。（#1500 S6 起进度区搬家函数已删，不再测它。）
 import {
   ticketFormOf,
   hiddenCommentOf,
@@ -14,7 +14,6 @@ import {
   replaceBareField,
   removeBareField,
   appendSectionBlock,
-  relocateProgressToEnd,
 } from '../src/tracker/rooms/markdown/original-fields.ts'
 
 let failed = false
@@ -170,22 +169,7 @@ console.log('段落尾部追加：原文说评论追加文件底部；没有段�
   has(after, '- 进度：10%（2026-10-25T00:00+08:00）：刚开工', '进度内容原样保留')
 }
 
-console.log('进度区搬家：把整段挪到文件末尾，内容一字不改')
-{
-  const progressInMiddle = ['# 01: x', '', '**Status:** ready-for-agent', '', '## 进度', '', '- 进度：10%（2026-10-25T00:00+08:00）：刚开工', '', '## Comments', '', '### local — t', '', '反馈', ''].join('\n')
-  const after = relocateProgressToEnd(progressInMiddle)
-  const pIdx = after.indexOf('## 进度')
-  const cIdx = after.indexOf('## Comments')
-  check(pIdx > cIdx, '整段进度被挪到文件末尾')
-  has(after, '- 进度：10%（2026-10-25T00:00+08:00）：刚开工', '进度内容一字不改')
-  has(after, '### local — t\n\n反馈', '评论段内容一字不改')
-  eq(after.split('## 进度').length, 2, '进度区只有一份')
-}
-{
-  const alreadyLast = '# 01: x\n\n**Status:** ready-for-agent\n\n## 进度\n\n- 进度：10%：刚开工\n'
-  eq(relocateProgressToEnd(alreadyLast), alreadyLast, '进度区本来就在末尾时一个字都不改（避免无谓写盘）')
-  eq(relocateProgressToEnd('# 01: x\n\n没有进度区\n'), '# 01: x\n\n没有进度区\n', '没有进度区时原样返回')
-}
+// #1500 S6：relocateProgressToEnd 死代码已删，对应的搬家用例一并删除（appendSectionBlock 的进度区行为仍由上面的用例覆盖）。
 
 if (failed) {
   console.log('\nFAILED')

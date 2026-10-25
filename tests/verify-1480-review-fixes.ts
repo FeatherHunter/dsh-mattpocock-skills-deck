@@ -308,11 +308,14 @@ const tmpC = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1480-fixes-c-'))
 try {
   const ctxC = makeCtx(tmpC)
   const beC: any = createMarkdownBackend(ctxC as never)
-  // 旧路径（没有原文依据的 Type 行）以前会回落到 issuesDir()；现在必须如实失败。
+  // #1500 S4 起旧路径已删：无 typeLine 的四值（这里的 task）按普通票走原文布局，
+  // 与普通票同路按标题新建 feature 目录并成功；「旧位置兜底」（工作区根 issues/）仍不存在，由下面的断言守。
   const oldPathCreate: any = await beC.create(repoOf(), { title: '没给目录的旧路径票', type: 'task' }, ctxC)
-  check(oldPathCreate.ok === false, 'C 空工作区不带 feature 建旧路径票失败')
-  check(oldPathCreate.ok === false && String(oldPathCreate.error.kind) === 'not-found', 'C 失败档位是 not-found')
-  check(oldPathCreate.ok === false && /feature/.test(String(oldPathCreate.error.message)) && /规格/.test(String(oldPathCreate.error.message)), 'C 失败话术说清要先给 feature 目录或先建规格：' + (oldPathCreate.ok ? '' : oldPathCreate.error.message))
+  check(oldPathCreate.ok === true, 'C 无 typeLine 的 task 按普通票走原文布局建成功')
+  if (oldPathCreate.ok === true) {
+    const oldUrl = String(oldPathCreate.data.url || '').replace(/\\/g, '/')
+    check(oldUrl.includes('/.scratch/') && oldUrl.includes('/issues/'), 'C task 票落在 .scratch/<目录>/issues/ 原文位置：' + oldUrl)
+  }
   // 普通票走原文布局（new layout）会按标题新建 feature 目录，这是 #1486 定的落点；
   // 但同样不许落旧位置：工作区根 issues/ 与 .scratch/issues/ 都不该出现。
   const plainCreate: any = await beC.create(repoOf(), { title: '没给目录的普通票', type: 'issue' }, ctxC)

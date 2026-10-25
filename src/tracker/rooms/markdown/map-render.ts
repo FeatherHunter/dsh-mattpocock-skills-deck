@@ -9,7 +9,9 @@
 //
 // 不能改的约定：地图正文五段标题逐字按原文，缺段补齐；地图没有可见一级标题（原文模板就是如此），
 // 标题值写进文件头 DSH-TITLE 注释；子票标题是 `# NN: <问句>`，正文只有一段 Question。
-import { MAP_TICKET_TYPES, objectShapeOf, shapeTitle, fieldLine, renderHeader, cleanBody, cleanTitle, labelsOf, assigneesOf, blockedKeysOf } from './create-render.js'
+import { objectShapeOf, shapeTitle, fieldLine, renderHeader, cleanBody, cleanTitle, labelsOf, assigneesOf, blockedKeysOf } from './create-render.js'
+// #1500 S5：类型词与标签正则直引 YAML 真源的唯一派生点，不再经 create-render 转手。
+import { MAP_TICKET_TYPES, WAYFINDER_LABEL_RE } from './format/field-values.js'
 import type { CreateView } from './create-render.js'
 
 /** 正则转义：标题文字来自模板，可能含 `.` 等字符，直接拼进正则会误匹配。 */
@@ -66,12 +68,12 @@ export function renderMap(input: CreateView, opts: {
   return header + '\n' + body.replace(/\s+$/, '') + '\n'
 }
 
-/** 地图子票的类型词：调用方可能放在 typeLine、wayfinder 标签或老写法的 type 里，三处都收。 */
+/** 地图子票的类型词：调用方可能放在 typeLine、wayfinder 标签或老写法的 type 里，三处都收（类型词只从 YAML 真源读）。 */
 function wayfinderTypeOf(input: CreateView): string {
   const explicit = String(input.typeLine || '').trim().toLowerCase()
   if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return explicit
   for (const label of labelsOf(input)) {
-    const m = /^wayfinder:(research|prototype|grilling|task)$/.exec(label)
+    const m = WAYFINDER_LABEL_RE.exec(label)
     if (m) return m[1]
   }
   const raw = String(input.kind || input.type || input.Type || '').trim().toLowerCase()

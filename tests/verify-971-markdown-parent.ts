@@ -146,8 +146,10 @@ async function main() {
   void b2
   const { listIssues: listB } = await imp('src/tracker/rooms/markdown/issues-read.ts')
   const listed00 = await listB(ctxB, repoB, { parentKey: '00' })
-  // b2 没有显式父，回落到 00，所以 00 下应有 2 张。
-  check(listed00.ok === true && listed00.data && listed00.data.filter((r) => String(r.parentKey) === '00').length === 2, '单根布局按 00 列出 2 张子票（回归通过）')
+  // #1500 S4 起 type:'task' 也走原文布局：b2 建出来是新形状文件，没有 DSH-PARENT。
+  // #1486 定死新布局只认文件里的父边（没有就是根级 null），不再按老约定补 00
+  // （补了会把普通票算成容器子票，收口核对多数一张）。所以 00 下只有显式挂 00 的 b1。
+  check(listed00.ok === true && listed00.data && listed00.data.filter((r) => String(r.parentKey) === '00').length === 1, '单根布局按 00 列出显式挂 00 的子票（回归通过）')
 
   // —— 不存在的父仍如实失败（跨目录与缺失都算做不到，不假装成功） ——
   const { setParentIssue } = await imp('src/tracker/rooms/markdown/issues-patch.ts')
@@ -160,7 +162,8 @@ async function main() {
   // —— 加固：正文里举例写同样的注释不算数，只认文件头 ——
   const evil = await createIssue(ctxB, repoB, { title: '正文举例', type: 'task', body: '下面是写法举例：\n<!-- parentKey: 99 -->\n不要当真。' })
   const gotEvil = await getB(ctxB, repoB, String((evil.data && evil.data.key) || ''), {})
-  check(gotEvil.ok === true && String((gotEvil.data && gotEvil.data.parentKey) || '') === '00', '正文里的举例注释不劫持归属（实得 ' + ((gotEvil.data && gotEvil.data.parentKey) || '空') + '，应回落 00）')
+  // #1500：正文里的举例注释照旧不算数（99 没有劫持归属）；新形状没有父边就是根级，不再回落 00（同上 #1486）。
+  check(gotEvil.ok === true && String((gotEvil.data && gotEvil.data.parentKey) || '') === '', '正文里的举例注释不劫持归属（实得 ' + ((gotEvil.data && gotEvil.data.parentKey) || '空') + '，应为根级空）')
   // —— 加固：整份替换改正文不许弄丢父 ——
   const kidKey = String((b1.data && b1.data.key) || '01')
   const whole = '# 单根子票一\n\n全新的正文，没有父注释，没有字段行。'

@@ -292,25 +292,3 @@ export function isSupportedDshFormat(text: unknown): boolean {
   return (SUPPORTED_DSH_FORMATS as readonly string[]).includes(v)
 }
 
-/** 把 `## 进度` 区整段搬到文件末尾。
- *  为什么：共享进度机制（src/shared/issue-file/src/progress.ts）为 GitHub 后端设计，把进度区插在
- *  第一个字段行或 Comments/Answer 段之前；原文对本地文件只说「评论追加到文件底部」，插件自己追加的
- *  进度应该长在最后，读者按时间顺序翻下来正好看到最新进度。
- *  这里只搬位置、不改内容，也不改共享机制本身（GitHub 行为零变化）。
- *  已经在末尾或没有进度区就原样返回，调用方据此判断要不要写盘。 */
-export function relocateProgressToEnd(text: string): string {
-  const raw = String(text || '')
-  const lines = raw.split('\n')
-  const start = sectionHeadingIndex(lines, '进度')
-  if (start < 0) return raw
-  const end = anySectionIndex(lines, start + 1)
-  if (end >= lines.length) return raw
-  const section = lines.slice(start, end)
-  while (section.length > 1 && section[section.length - 1].trim() === '') section.pop()
-  // 其余正文保持原顺序，去掉末尾空行后再把进度段接在最后。
-  const rest = lines.slice(0, start).concat(lines.slice(end))
-  while (rest.length && rest[rest.length - 1].trim() === '') rest.pop()
-  const out = rest.concat(['', ...section])
-  if (raw.endsWith('\n')) out.push('')
-  return out.join('\n')
-}

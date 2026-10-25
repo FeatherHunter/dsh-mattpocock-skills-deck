@@ -33,6 +33,12 @@ import {
   ticketFormOf,
   upsertHiddenComment,
 } from './original-fields.js'
+// #1500 S5：子票状态词（claimed / resolved）只从 YAML 真源读；旧布局分支的字面量保持冻结（见下）。
+import {
+  WAYFINDER_STATUS_CLAIMED,
+  WAYFINDER_STATUS_RESOLVED,
+  regexAlt,
+} from './format/field-values.js'
 import { commentBlockOf } from './comments.js'
 
 // 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
@@ -87,9 +93,12 @@ function statusValueOf(statusLine: string): string {
   const m = /^[ \t]*(?:\*\*)?Status(?:\*\*)?[ \t]*[:：][ \t]*(.*)$/i.exec(String(statusLine))
   return String(m ? m[1] : statusLine).trim()
 }
-/** 容器的状态值只认注释里的三档（YAML 的 DSH-STATUS 约定：closed / ready-for-agent / open）。 */
+/** 容器的状态值只认注释里的三档（YAML 的 DSH-STATUS 约定：closed / ready-for-agent / open）。
+ *  落成 closed 的那一档，一半认子票的「做完了」（取值只从 YAML 真源读），一半认容器自己的 closed；
+ *  后两档是 triage 角色与容器自己的 open，原文没有给它们取值表，继续写死在这里。 */
+const CLOSED_STATUS_RE = new RegExp(regexAlt([WAYFINDER_STATUS_RESOLVED]) + '|closed', 'i')
 function containerStatusValue(statusLine: string): string {
-  if (/resolved|closed/i.test(statusLine)) return 'closed'
+  if (CLOSED_STATUS_RE.test(statusLine)) return 'closed'
   if (/ready-for-agent|open/i.test(statusLine)) return 'ready-for-agent'
   return 'open'
 }
@@ -172,7 +181,7 @@ async function setStatus(ctx: OpContext, repo: RepoWithPath | null, key: string,
     if (form === 'impl-ticket') return replaceBoldField(txt, 'Status', value)
     if (form === 'map-ticket') {
       if (/^(ready-for-agent|open)$/i.test(value)) {
-        return hasAssigneeRecord(txt) ? replaceBareField(txt, 'Status', 'claimed') : removeBareField(txt, 'Status')
+        return hasAssigneeRecord(txt) ? replaceBareField(txt, 'Status', WAYFINDER_STATUS_CLAIMED) : removeBareField(txt, 'Status')
       }
       return replaceBareField(txt, 'Status', value)
     }
@@ -256,18 +265,18 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
   const trail=beginWriteTrail()
   const norm=String(key).padStart(2,'0')
   const r=await rewriteTicketText(ctx,repo,key,function(txt,target){
-    if(target.container)return upsertHiddenComment(txt,'DSH-STATUS',containerStatusValue('Status: resolved'))
+    if(target.container)return upsertHiddenComment(txt,'DSH-STATUS',containerStatusValue('Status: ' + WAYFINDER_STATUS_RESOLVED))
     const form=ticketFormOf(txt)
     if(form==='impl-ticket'){
       // 实施票完成：只改可见的加粗状态行；原因作为一条评论追加在文件底部（原文 issue-tracker-local.md:10-11），
       // 不写 ## Answer —— 原文只要求探索地图子票把答案写进 ## Answer（同文件 :30）。
-      let out=replaceBoldField(txt,'Status','resolved')
+      let out=replaceBoldField(txt,'Status',WAYFINDER_STATUS_RESOLVED)
       if(reason)out=appendClosingComment(ctx,out,reason,norm)
       return out
     }
     if(form==='map-ticket'){
       // 地图子票完成：答案写进 ## Answer、状态改 resolved；指针由下面 appendMapDecisionPointer 追加。
-      let out=replaceBareField(txt,'Status','resolved')
+      let out=replaceBareField(txt,'Status',WAYFINDER_STATUS_RESOLVED)
       if(reason)out=appendSectionBlock(out,'Answer',reason)
       return out
     }

@@ -16,6 +16,8 @@
 import { stripLabelDecoration, loginOfAssignee } from './parse.js'
 import { markerKindAtStart, markerKindInHeader, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
 import { MD_FORMAT } from './format/generated.js'
+// #1500 S5：类型词与 wayfinder 标签正则都只从 YAML 真源读（field-values.ts 唯一派生点）。
+import { MAP_TICKET_TYPES, WAYFINDER_LABEL_RE } from './format/field-values.js'
 import type { CreateInput, LabelInput } from '../../contract/inputs.js'
 
 /** 本文件负责的六种对象。规格与实施票/普通票先落（#1486）；探索地图与地图子票本票接上（#1487）。 */
@@ -56,33 +58,32 @@ function markerKindOf(input: CreateInput): 'spec' | 'ticket' | '' {
   return inHeader === 'spec' || inHeader === 'ticket' ? inHeader : ''
 }
 
-/** 判断这次该不该走原文布局。map / map-ticket 明确留给旧路径（#1487）。 */
-export function originalKindOf(input: CreateInput): OriginalKind | null {
+/** 判断这次按原文六种形状里的哪一种落盘：返回不会是空（#1500 S4 起旧分支已删，没有「不认识就走旧路」这一档）。 */
+export function originalKindOf(input: CreateInput): OriginalKind {
   const v = viewOf(input)
   const explicit = String(v.kind || v.type || v.Type || '').trim().toLowerCase()
   const typeLine = String(v.typeLine || '').toLowerCase()
   const marker = markerKindOf(input)
-  // 地图工单在原文里靠一行 `Type: research|prototype|grilling|task` 记类型，但它和普通票的契约自定
+  // 地图子票在原文里靠一行 `Type: research|prototype|grilling|task` 记类型，但它和普通票的契约自定
   // 字段 type（G4 契约里普通票也能传 type: 'task'）在字符串上分不开，只能认专用通道 typeLine
-  // （deck 工具为地图子票单独传这个字段，其余位置传空串）。把 type 里的四值也当子票会误伤普通票：
-  // 一张 type 为 task 的 ordinary issue 会被渲染成地图子票形状（标题带编号、正文变 Question），
-  // verify-markdown-backend 的回环①就是这么抓到的。
-  if (typeLine) return MAP_TICKET_TYPES.indexOf(typeLine) >= 0 ? 'map-ticket' : null
+  // （deck 工具为地图子票单独传这个字段，其余位置传空串）。专用通道里写了未知的值，说明调用方
+  // 既不是子票也不是已知类型，一律按普通票走新布局（#1500 S4：旧分支已删，不再回旧路）。
+  if (typeLine) return MAP_TICKET_TYPES.indexOf(typeLine) >= 0 ? 'map-ticket' : 'issue'
   if (explicit === 'spec' || marker === 'spec') return 'spec'
   if (explicit === 'spec-ticket' || explicit === 'ticket' || marker === 'ticket') return 'spec-ticket'
   if (explicit === 'bug') return 'bug'
   // 原文的探索地图是顶层容器：正好占一个目录里的 map.md（与规格同款，key 为 00）。
   if (explicit === 'map') return 'map'
-  // 契约里的自定义 type 写成这四个值的老写法仍交回旧路径（#1486 起就如此）：普通票的 type 字段
-  // 可以随手写 'task'，与地图子票的类型词同名，没有专用通道时不能据此改渲染形状。
-  if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return null
+  // 契约里没有这四个值的位置：普通票的 type 可以随手写 'task'，与地图子票的类型词同名，
+  // 没有专用通道时不能据此改渲染形状，一律按普通票走新布局（#1500 S4：旧分支已删，不再回旧路）。
+  if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return 'issue'
   // 调用方明说了这是普通票（契约 kind/type = issue）时，顺带带的 wayfinder 标签只是一枚标签：
   // #1413 的夹具就有一条「普通票 + wayfinder:research」的输入，它要按普通票写、不能有 Type 行；
   // 地图子票由 deck 工具单独传 typeLine 认出来，不靠标签猜。
   if (explicit === 'issue' || explicit === 'plain-issue') return 'issue'
   // 调用点只给了一枚 wayfinder:<类型> 标签、没给 typeLine 时也认成地图子票：
-  // 那枚标签是原文给子票定的类型标记，别的对象不会带它。
-  if (labelsOf(v).some((label) => /^wayfinder:(research|prototype|grilling|task)$/.test(label))) return 'map-ticket'
+  // 那枚标签是原文给子票定的类型标记，别的对象不会带它（类型词的取值只从 YAML 真源读）。
+  if (labelsOf(v).some((label) => WAYFINDER_LABEL_RE.test(label))) return 'map-ticket'
   return 'issue'
 }
 
@@ -106,9 +107,6 @@ export interface ObjectShape {
   /** 地图子票标题下要写的裸行：Type / Status / Blocked by；值位只出现在 line-shape 里。 */
   'top-lines'?: readonly { label: string; values?: readonly string[]; 'line-shape'?: string }[]
 }
-
-/** 原文 Type 行的四个值：地图子票的类型词（issue-tracker-local「Type: 行记 research / prototype / grilling / task」）。 */
-export const MAP_TICKET_TYPES = ['research', 'prototype', 'grilling', 'task']
 
 const OBJECT_KEY_OF_KIND: Record<OriginalKind, string> = {
   spec: 'spec',

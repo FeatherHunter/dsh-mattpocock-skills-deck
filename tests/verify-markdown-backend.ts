@@ -74,19 +74,19 @@ console.log('\n== ② 回环测试（同一文件集镜像） ==')
   // 确保 .scratch/demo 存在
   fs.mkdirSync(path.join(tmp, '.scratch', 'demo', 'issues'), { recursive: true })
   fs.writeFileSync(path.join(tmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')
-  // deck 创建票
+  // deck 创建票（#1500 S4 起普通票也走原文布局：type: 'task' 不再写 Type 行，见 create-render 的 typeLine 通道说明）
   const created = await createIssue(ctx, repo, { title: 'Deck Created Ticket', body: 'Body from deck', status: 'ready-for-agent', type: 'task' })
   check(created.ok && created.data.title === 'Deck Created Ticket', '回环① deck create → file exists')
   if (created.ok) {
     const fileList = fs.readdirSync(path.join(tmp, '.scratch', 'demo', 'issues'))
     check(fileList.some((f) => f.startsWith('02-') || f.startsWith('01-')), `回环① fileList ${fileList.join(',')}`)
-    // 技能集可读：原文保留 Status/Type/Blocked by 格式
+    // 技能集可读：普通票按 implementation-ticket 模板落盘（加粗三行字段，无 Type 行、无 Comments 骨架）
     const createdFile = fileList.find((f) => f.includes('deck-created'))
     if (createdFile) {
       const txt = fs.readFileSync(path.join(tmp, '.scratch', 'demo', 'issues', createdFile), 'utf8')
-      check(txt.includes('Status: ready-for-agent'), '回环① 技能集可读：含 Status 行')
-      check(txt.includes('Type: task'), '回环① 技能集可读：含 Type 行')
-      check(txt.includes('## Comments'), '回环① 含 ## Comments 段')
+      check(txt.includes('**Status:** ready-for-agent'), '回环① 技能集可读：含 Status 行')
+      check(txt.includes('**What to build:** Body from deck'), '回环① 技能集可读：含 What to build 行')
+      check(!/^\s*Type\s*[:：]/m.test(txt), '回环① 普通票不写 Type 行（type: task 只是调用方的旧写法）')
     }
   }
 
@@ -395,14 +395,21 @@ console.log('\n== #1174 复核订正闸：五处对不上的输入 ==')
   const rgKey = rgMade.ok ? String(rgMade.data.key) : '01'
 
   // P1-1：关票原因是后写上去的一行，不许被下一次「改正文」吃掉。
+  // #1500 S4 起普通票也走原文布局：原因按原文（issue-tracker-local.md:10-11）追加成一条评论，
+  // 不再写 Close reason 行（见 verify-1489-status-write 第一段）；原因文本在评论里可读回，机器 reason 回落 completed。
   const rgClosed = await rgClose(rgCtx, rgRepo, rgKey, { reason: 'duplicate' })
-  check(rgClosed.ok && rgClosed.data && rgClosed.data.reason === 'duplicate',
-    '前提：关票时给的原因原样读回（实得 ' + JSON.stringify(rgClosed.ok ? rgClosed.data.reason : rgClosed.error) + '）')
+  check(rgClosed.ok && rgClosed.data && rgClosed.data.state === 'closed',
+    '前提：关票成功且状态读回 closed（实得 ' + JSON.stringify(rgClosed.ok ? rgClosed.data.state : rgClosed.error) + '）')
+  const rgClosedGet = await rgGet(rgCtx, rgRepo, rgKey)
+  const rgClosedBodies = rgClosedGet.ok ? (rgClosedGet.data.comments || []).map((c) => String(c.body || '')) : []
+  check(rgClosedGet.ok && rgClosedBodies.indexOf('duplicate') >= 0,
+    '前提：关票原因作为评论可读回（实得 ' + JSON.stringify(rgClosedBodies) + '）')
   const rgPatched = await rgUpdate(rgCtx, rgRepo, rgKey, { body: '换一段正文' })
   check(rgPatched.ok, '前提：改正文这一步本身成功（实得 ' + JSON.stringify(rgPatched.ok ? 'ok' : rgPatched.error) + '）')
   const rgAfterPatch = await rgGet(rgCtx, rgRepo, rgKey)
-  check(rgAfterPatch.ok && rgAfterPatch.data.reason === 'duplicate',
-    'P1-1 改正文之后关票原因还在（旧写法会被整行吃掉、退回 completed；实得 ' + JSON.stringify(rgAfterPatch.ok ? rgAfterPatch.data.reason : rgAfterPatch.error) + '）')
+  const rgAfterBodies = rgAfterPatch.ok ? (rgAfterPatch.data.comments || []).map((c) => String(c.body || '')) : []
+  check(rgAfterPatch.ok && rgAfterBodies.indexOf('duplicate') >= 0,
+    'P1-1 改正文之后关票原因还在评论里（实得 ' + JSON.stringify(rgAfterPatch.ok ? rgAfterBodies : rgAfterPatch.error) + '）')
 
   // P1-2：契约里里程碑的形状是 {name}，校验只读 title 就会把契约自己的形状放过去。
   const rgMsName = await rgUpdate(rgCtx, rgRepo, rgKey, { milestone: { name: 'v1' } })
@@ -430,13 +437,15 @@ console.log('\n== #1174 复核订正闸：五处对不上的输入 ==')
   await rgComment(rgCtx, rgRepo, rgKey, '第三条评论')
   const rgAll = await rgGet(rgCtx, rgRepo, rgKey)
   const rgAllN = rgAll.ok ? (rgAll.data.comments || []).length : -1
-  check(rgAllN === 3, '前提：不给选项时评论一条不少（实得 ' + rgAllN + '）')
+  // #1500：关票原因本身占一条评论，所以是 3 条新增 + 1 条原因 = 4。
+  check(rgAllN === 4, '前提：不给选项时评论一条不少（3 条新增 + 1 条关票原因，实得 ' + rgAllN + '）')
   const rgFirst = await rgGet(rgCtx, rgRepo, rgKey, { comments: { first: 1 } })
   const rgFirstN = rgFirst.ok ? (rgFirst.data.comments || []).length : -1
   check(rgFirstN === 1, 'P2 说只要前 1 条就给 1 条（旧写法照给 3 条；实得 ' + rgFirstN + '）')
   const rgAfterOne = await rgGet(rgCtx, rgRepo, rgKey, { comments: { first: 1, after: '1' } })
   const rgSecondBody = rgAfterOne.ok ? String((rgAfterOne.data.comments || [])[0] && rgAfterOne.data.comments[0].body || '') : ''
-  check(rgAfterOne.ok && (rgAfterOne.data.comments || []).length === 1 && rgSecondBody.indexOf('第二条') >= 0,
+  // #1500：第 1 条是关票原因评论，游标 1 跳过它，从第 2 条（第一条新增评论）接着给。
+  check(rgAfterOne.ok && (rgAfterOne.data.comments || []).length === 1 && rgSecondBody.indexOf('第一条') >= 0,
     'P2 游标 1 表示从第 2 条接着给（旧写法从第 1 条重来；实得 ' + JSON.stringify(rgSecondBody) + '）')
 
   // P2：列票读不出来时不许回一个偏少的清单（与上面根因闸的计数、翻页同一件事的第三个出口）。

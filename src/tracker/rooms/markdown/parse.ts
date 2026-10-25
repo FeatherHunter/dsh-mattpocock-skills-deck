@@ -245,13 +245,13 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   // 上一行断言的原因：STATE 是冻住的对象字面量（vocabulary.ts），成员类型被拓宽成 string；
   // 运行时这里必为两态之一，转成契约的 State 字面量联合只为过类型，值不变。下同（type 一处）。
   // 标题读取顺序（#1480 两轴评审修）：
-  //   ① 可见一级标题 —— 旧 deck 文件与手写原文模板都还有它，旧读法一个字节不变；
+  //   ① 可见一级标题 —— 旧 deck 文件与手写原文模板都还有它，旧读法一个字节不变；新布局 `# NN: 标题` 在下面剥掉编号前缀（#1500，与写侧 cleanTitle 同一个口径）；
   //   ② 文件头 DSH-TITLE 隐藏注释 —— 新布局的规格与地图没有可见一级标题，标题值只在这里；
   //   ③ 降级：容器（规格/地图）先用目录名（effortId）、没有再用文件名去 .md；其余票先文件名、
   //      再首个非空且不是注释的行。降级不报错，也绝不把「## Problem Statement」这类段名当标题。
   const title = (() => {
     const h1 = /^#[ \t]+(.+)$/m.exec(raw)
-    if (h1) return h1[1].trim()
+    if (h1) return h1[1].trim().replace(/^\d{1,3}:[ \t]*/, '')
     const hiddenTitle = hiddenHeaderValue(raw, 'DSH-TITLE')
     if (hiddenTitle) return hiddenTitle
     const fileBase = fileBaseTitle(meta && meta.url)

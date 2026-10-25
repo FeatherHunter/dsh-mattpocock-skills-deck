@@ -20,6 +20,8 @@ import { locateContainerFile, resolveIssueFile, resolveMapFile } from './issues-
 import { markerKindOnLine } from '../../../shared/issue-file/src/marker.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField, rewriteTicketText } from './issues-status.js'
+// #1500 S5：原文 map-ticket 分支的状态词只从 YAML 真源读；旧布局分支的字面量保持冻结。
+import { WAYFINDER_STATUS_CLAIMED, regexAlt } from './format/field-values.js'
 // #1489：原文布局的字段原语（隐藏注释、裸字段行、票种类判定），见 original-fields.ts。
 import { hiddenCommentOf, removeBareField, replaceBareField, replaceBoldField, ticketFormOf, upsertHiddenComment } from './original-fields.js'
 // #1174：写阻塞边之前的全图环检（契约明写「环检是写路径的一部分，不许省」）。
@@ -320,8 +322,8 @@ async function setAssigneesInner(ctx: OpContext,repo: RepoWithPath | null,key: s
       if(target.container)return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
       if(ticketFormOf(txt)==='map-ticket'){
         let out=upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
-        if(names.length) out=replaceBareField(out,'Status','claimed')
-        else if(/^[ \t]*Status[ \t]*[:：][ \t]*claimed[ \t]*$/im.test(out)) out=removeBareField(out,'Status')
+        if(names.length) out=replaceBareField(out,'Status',WAYFINDER_STATUS_CLAIMED)
+        else if(new RegExp('^[ \\t]*Status[ \\t]*[:：][ \\t]*' + regexAlt([WAYFINDER_STATUS_CLAIMED]) + '[ \\t]*$', 'im').test(out)) out=removeBareField(out,'Status')
         return out
       }
       // 实施票：只动隐藏注释，可见加粗状态行原样留着（认领不是原文里的一种状态）。
