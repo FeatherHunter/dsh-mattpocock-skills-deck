@@ -64,6 +64,7 @@
     "matrix-full.ts",
     "matrix-smoke.ts",
     "measure-967-outbound.ts",
+    "seed-1460-dedup-drill.ts",
     "star-history.mts",
     "sync-matt-skills.mts",
     "t3-extract.mts",
