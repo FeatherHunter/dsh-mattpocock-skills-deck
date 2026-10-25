@@ -8,7 +8,7 @@
 import { openTracker } from '../../tracker/session/open-tracker.js'
 import type { TrackerSession } from '../../tracker/session/open-tracker.js'
 import { selectionFromOutlet } from '../../tracker/detection/backendDecision.js'
-import { tierFor, writeReserve } from '../../refresh/kernel/host-budget.js'
+import { tierFor, aiToolFloor } from '../../refresh/kernel/host-budget.js'
 import { recordWorkRoute } from '../shell/work-path-record.js'
 import { DECK_STATUS, DECK_TOOL_KIND, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { withInFlightLease } from '../shell/in-flight-lease.js'
@@ -87,8 +87,9 @@ async function fallbackAdmit(input: UnknownRecord): Promise<UnknownRecord> {
     else if (model.independentBuckets) levels.push((buckets.rest || {}) as { remaining: number; limit: number }, (buckets.graphql || {}) as { remaining: number; limit: number });
     else levels.push((buckets.graphql || {}) as { remaining: number; limit: number });
   }
+  // #1527：保底线改成服务端上限的 5%（以前是本桶份额的 30%），文案照实报服务端剩余与保底，不让人猜。
   for (const level of levels) {
-    if (num(level.remaining) <= writeReserve(num(level.limit))) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: '额度见底：剩余额度不够了，这次先不执行。' };
+    if (num(level.remaining) <= aiToolFloor(num(level.limit))) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: '额度见底：服务端还剩 ' + num(level.remaining) + '（上限 ' + num(level.limit) + '，保底 ' + aiToolFloor(num(level.limit)) + '），这次先不执行。' };
   }
   return { allowed: true, reason: 'sufficient' };
 }
@@ -153,7 +154,7 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   //   评论与阻塞边两条路任一），而开会话前的预检只回答「这一笔值不值得试」——真正的按操作拦截
   //   在每次操作过管线时做（见 src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
   //   所以预检按族逐个试：一族因为额度见底被拒就换另一族再问一次，两族都见底才拒。
-  //   不自己拿两族的 remaining 绝对值相比：两族的尺子不一样（保底各按本桶额度的 30%），
+  //   不自己拿两族的 remaining 绝对值相比：两族的尺子不一样（保底各按服务端上限的 5%，#1527），
   //   余量判断一律交给闸按各桶自己的保底线算。硬顶（单次 / 每小时）与桶无关，被硬顶拒就不再换桶。
   const probeBuckets: string[] = str(model.kind) === 'requests-only'
     ? ['requests']

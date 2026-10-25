@@ -115,12 +115,19 @@ function scenarios(api) {
       },
     },
     {
-      id: '④ 剩余额度到保底线时先拒 AI 那一档（绝不挤掉插件刷新与人的动作）',
+      id: '④ 花完这一笔会跌破服务端上限 5% 的保底线时先拒 AI 那一档（绝不挤掉插件刷新与人的动作）',
       run() {
-        const atReserve = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 }, broke, limits)
-        const justAbove = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 },
-          { allowance: allowance, used: 0, remaining: reserve + 1, reserve: reserve }, limits)
-        return atReserve.admitted === false && atReserve.reason === 'ai-tool-below-remaining' && justAbove.admitted === true
+        // #1527：保底线按服务端上限的 5% 算（5000 点 → 250 点），判据是「花完这一笔之后是否仍高于保底」。
+        const serverLimit = 5000
+        const floor = budget.aiToolFloor(serverLimit)
+        const view = { allowance: serverLimit, used: serverLimit - floor, remaining: floor + 1, reserve: 0, floor: floor, limit: serverLimit, bucket: 'graphql' }
+        const atFloor = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 }, view, limits)
+        const aboveCost = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 },
+          Object.assign({}, view, { remaining: floor + 2 }), limits)
+        // 没带 floor/limit 的老调用方退回 reserve（30%）口径，行为不变。
+        const legacy = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 }, broke, limits)
+        return atFloor.admitted === false && atFloor.reason === 'ai-tool-below-remaining' &&
+          aboveCost.admitted === true && legacy.admitted === false && legacy.reason === 'ai-tool-below-remaining'
       },
     },
     {
@@ -205,7 +212,7 @@ async function main() {
     { name: '永远放行（后台超出不推迟）', api: Object.assign({}, real, { decide: function () { return { verdict: 'allow', reason: 'background-fits' } } }) },
     { name: '连人的动作也降档', api: Object.assign({}, real, { decide: function (i) { return i.category === 'user-action' ? { verdict: 'defer', reason: 'background-tier-red' } : policy.decide(i) } }) },
     { name: 'AI 工具超顶静默放行', api: Object.assign({}, real, { aiToolAdmission: function (c) { return { admitted: true, reason: 'ai-tool-within-caps', points: c.points, requests: c.requests } } }) },
-    { name: 'AI 工具不看剩余额度保底线', api: Object.assign({}, real, { aiToolAdmission: function (c, h, q, l) { return q.remaining <= q.reserve ? { admitted: true, reason: 'ai-tool-within-caps', points: c.points, requests: c.requests } : policy.aiToolAdmission(c, h, q, l) } }) },
+    { name: 'AI 工具不看剩余额度保底线', api: Object.assign({}, real, { aiToolAdmission: function (c, h, q, l) { const floor = (typeof q.floor === 'number') ? q.floor : q.reserve; return (q.remaining - c.points) <= floor ? { admitted: true, reason: 'ai-tool-within-caps', points: c.points, requests: c.requests } : policy.aiToolAdmission(c, h, q, l) } }) },
   ]
   for (const b of broken) {
     const caught = failuresOf(b.api)

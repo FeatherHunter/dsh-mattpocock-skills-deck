@@ -129,6 +129,8 @@ interface LedgerView {
   synced?: boolean
   /** 服务端说这一桶什么时候恢复（毫秒 epoch；#1418 加的，见底文案用它写「约 HH:MM 恢复」）。 */
   resetAt?: number
+  /** 服务端读数里的上限与服务端剩余（#1527：AI 工具的保底按上限的 5% 算，不按插件份额算）。 */
+  serverLimit?: number; serverRemaining?: number | null
 }
 
 /** 闸实际用到账本的四条：多一条也不用，少一条接线时就当场抛。 */
@@ -146,7 +148,7 @@ interface LedgerShape {
 interface QuotaSlot { facts: { backendId: string; budgetKind: string; readKnown: boolean; offNetwork: boolean }; view: LedgerView; hasQuota: boolean; bucket: string }
 
 /** 没建桶、或建了但还没读到读数时的那份空账：remaining 与 tier 是 null，不拿 0 与绿档冒充。 */
-const EMPTY_VIEW: LedgerView = { bucket: '', allowance: 0, used: 0, remaining: null, reserve: 0, tier: null, resetAt: 0 }
+const EMPTY_VIEW: LedgerView = { bucket: '', allowance: 0, used: 0, remaining: null, reserve: 0, tier: null, resetAt: 0, serverLimit: 0, serverRemaining: null }
 
 /** 宿主日志出口（与 src/host 其余文件同一形状）：先问开关，关着连字段对象都不组装。 */
 interface LogCtx {
@@ -534,21 +536,19 @@ export function createGate(deps?: GateDeps) {
   function admitAiTool(call: AiToolCall, req?: GateRequest) {
     const r = normalize(Object.assign({ source: 'tool.call' }, req, { category: 'ai-tool' }))
     const slot = slotOf(r)
-    const q = slot.view
     const hour = ledger.hourOf('ai-tool', r.backendId)
-    const a = aiToolAdmission({ points: num(call.points), requests: num(call.requests) }, hour, policyQuotaOf(slot), limits)
+    const aiQuota = budget.aiToolQuotaOf(slot.view, slot.facts.readKnown, slot.hasQuota, slot.bucket)
+    const a = aiToolAdmission({ points: num(call.points), requests: num(call.requests) }, hour, aiQuota, limits)
     const children = num(call.childTickets)
     const plan = children > 0 ? budget.shardPlan(children) : { shards: 1, perShard: budget.AI_TOOL_SHARD_SIZE }
     fireDecide(r, a.admitted ? 'allow' : 'reject', a.reason, slot)
     if (!a.admitted) fireSkipped(r.workspaceKey, 'tool-batch', a.reason, deferred.size)
-    // 拒绝文案只收数字，空账（remaining 为 null）按 0 说，避免把 null 写进给人看的句子里。
-    const shown = Object.assign({}, q, { remaining: q.remaining == null ? 0 : q.remaining })
-    const level = slot.facts.readKnown && slot.hasQuota && q.remaining != null ? { remaining: q.remaining } : {}
-    // #1418：见底那一档的拒绝文案要说出缺的是哪一种额度、大概什么时候恢复。
-    //   额度短名与单位按这一桶给（GraphQL 按点算，REST 请求与请求桶按条算）；恢复时刻读不到就写 0，文案里不出现。
-    const named = Object.assign({}, a, { familyLabel: familyLabelOf(slot.bucket), resetAt: typeof q.resetAt === 'number' ? q.resetAt : 0, unit: slot.bucket === 'graphql' ? '点' : '条' })
+    const level = slot.facts.readKnown && slot.hasQuota && slot.view.remaining != null ? { remaining: aiQuota.remaining } : {}
+    // #1418 / #1527：见底文案要说出缺哪一种额度、服务端还剩多少、保底多少、这一笔花完还剩多少、还有几分钟恢复。
+    //   短名、单位与分钟数都由 refusal-messages 从 bucket / resetAt / now 推，闸这边把原料交过去就行。
+    const named = Object.assign({}, a, { bucket: slot.bucket, resetAt: num(slot.view.resetAt), now: now(), floor: aiQuota.floor, limit: aiQuota.limit, serverRemaining: aiQuota.remaining })
     return Object.assign({ admitted: a.admitted, reason: a.reason, points: a.points, requests: a.requests,
-      shards: plan.shards, perShard: plan.perShard, text: a.admitted ? '' : refusalTextRef(named, shown, hour, plan, limits) }, slot.facts, level)
+      shards: plan.shards, perShard: plan.perShard, text: a.admitted ? '' : refusalTextRef(named, hour, plan, limits) }, slot.facts, level)
   }
 
   /** 某个桶现在的降档安排（探测节拍、对账节拍、最短重建间隔），数值全部来自 budget.js。 */

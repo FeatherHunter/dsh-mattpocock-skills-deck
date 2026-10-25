@@ -118,6 +118,16 @@ export interface LedgerBucketView {
   syncedAt: number
   /** 服务端给的恢复时刻（毫秒 epoch）；没读到就是 0（#1418：文案要写清等多久）。 */
   resetAt: number
+  /**
+   * 服务端读数里的上限（#1527）：保底按它算（服务端上限的 5%），不按插件份额算。
+   * 没读到读数时是 0；有读数时就是读数里的 limit 原值（REST 5000 条、GraphQL 5000 点）。
+   */
+  serverLimit: number
+  /**
+   * 服务端读数换成「扣掉本插件自上次同步以来花掉的」之后的剩余（#1527）。
+   * 没读到读数时是 null（不知道，不拿 0 冒充）。它是「花完这一笔还剩多少」的起点。
+   */
+  serverRemaining: number | null
   synced: boolean
 }
 
@@ -352,7 +362,7 @@ export function createLedger(deps?: LedgerDeps) {
 
   /** 一份「还没量到」的账：#1446 定稿形状，remaining/tier 用 null 表示「不知道」，不拿 0 冒充。 */
   function emptyView(): LedgerBucketView {
-    return { allowance: 0, used: 0, remaining: null, reserve: 0, tier: null, rateLimited: false, syncedAt: 0, resetAt: 0, synced: false }
+    return { allowance: 0, used: 0, remaining: null, reserve: 0, tier: null, rateLimited: false, syncedAt: 0, resetAt: 0, serverLimit: 0, serverRemaining: null, synced: false }
   }
 
   // 页数实测账已搬至 ./repo-page-accounting.js（#1255）：键的维度不一样（按仓库，不按后端 × 桶），
@@ -370,6 +380,9 @@ export function createLedger(deps?: LedgerDeps) {
     if (!b || !b.reading) return emptyView()
     const rateLimited = b.rateLimitedUntil > now()
     const remainder = lowerBound(b)
+    // #1527：AI 工具的保底按服务端真实剩余判，不看插件 35% 份额的账本下界。
+    //   剩余要把「本插件自上次同步以来花掉的」扣掉（spentSinceSync），否则同步后的那一分钟会高估。
+    const serverRemaining = b.reading ? Math.max(0, b.reading.remaining - b.spentSinceSync) : null
     return {
       allowance: b.allowance,
       used: b.used,
@@ -383,6 +396,8 @@ export function createLedger(deps?: LedgerDeps) {
       syncedAt: b.syncedAt,
       // #1418：把服务端给的恢复时刻带到闸与界面，见底文案才能写出「约 HH:MM 恢复」。
       resetAt: b.resetAt,
+      serverLimit: b.reading ? b.reading.limit : 0,
+      serverRemaining: serverRemaining,
       synced: true,
     }
   }

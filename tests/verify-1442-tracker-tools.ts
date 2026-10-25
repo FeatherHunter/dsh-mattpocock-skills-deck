@@ -308,7 +308,7 @@ async function main() {
     check(opened.ok === false && opened.reason === 'ai-tool-refused',
       '会话级：本小时用满后不放行（实得 ' + JSON.stringify({ ok: opened.ok, reason: opened.reason }) + '）');
     check(!opened.ok && String(opened.text || '').indexOf('本小时 AI 工具已用 2000 点') >= 0
-      && String(opened.text || '').indexOf('每小时 2000 点 / 1500 条') >= 0,
+      && String(opened.text || '').indexOf('每小时上限是 2000 点 / 1500 条') >= 0,
       '会话级拒绝文案点名本小时已用多少、每小时硬顶是多少（实得 ' + JSON.stringify(!opened.ok && opened.text) + '）');
     // 九工具级：同一笔下，九个工具一个也放不出去，而且都不花额度。
     const before = w.hour() as { requests: number; points: number };

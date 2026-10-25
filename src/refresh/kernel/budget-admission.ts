@@ -12,20 +12,21 @@
 import type { BackendBudgetModel, BudgetReading, BucketLevel } from '../../tracker/contract/budget-model.js'
 
 /**
- * 调用方注入的四个额度算式与常量。
+ * 调用方注入的额度算式与常量。
  *
  * 为什么要注入而不是在本文件 import：一旦 import 进来，裁决文件里就出现了具体数字，
- * 门禁再也分不清「裁决逻辑」与「额度政策」。四个字段今天只用到 writeReserve；
- * 另外三个是读数换算那一侧要用的（两桶读数按 remaining 换算每小时额度、按 used/allowance
- * 算档位），留着这一份接口是为了让换轨之后的调用方只有一处需要接线。
+ * 门禁再也分不清「裁决逻辑」与「额度政策」。本文件的保底判据用 aiToolFloor（服务端上限的 5%）；
+ * writeReserve 仍由账本与后台刷新那一侧用，接口留在这里是为了让换轨之后的调用方只有一处接线。
  */
 export interface BudgetLimits {
   /** 插件只拿服务端剩余额度的这一份，其余留给同一个账号下的其它工具。 */
   pluginShareOfRemaining: number
   /** 把服务端剩余换算成插件这一小时能花的额度（两桶读数用）。 */
   hourlyAllowance: (remaining: number) => number
-  /** 一个桶的额度里留给写操作的那一份；剩余不多于它时，自动刷新与 AI 工具让路。 */
+  /** 一个桶的额度里留给写操作的那一份；后台刷新的读让路看它。 */
   writeReserve: (allowance: number) => number
+  /** AI 工具的保底线（host-budget.ts 的 aiToolFloor）：服务端上限的 5%，花到它上面就拒。 */
+  aiToolFloor: (limit: number) => number
   /** 按已用比例算档位（绿 / 黄 / 红），只在两桶口径下有实际意义。 */
   tierFor: (usedRatio: number) => string
 }
@@ -40,6 +41,13 @@ export interface BudgetAdmitInput {
   reading: BudgetReading
   /** 写权限就绪没有；没就绪时写操作直接拒绝，不看读数。 */
   canWrite: boolean
+  /**
+   * 这一笔预计花多少点、多少条出站请求（可选）。
+   * 给了就按「花完这一笔之后还剩多少」判保底，没给按 0 算（只判「现在就低于保底」）——
+   * 逐操作的管线裁决拿不到成本，开会话前的预检有成本，两处共用这一个纯函数（#1527）。
+   */
+  points?: number
+  requests?: number
 }
 
 /**
@@ -174,12 +182,21 @@ function remainingTextOf(family: string, level: BucketLevel): string {
   return '还剩 ' + left + (family === 'graphql' ? ' 点' : ' 条')
 }
 
-/** 把「还剩多少 + 约几点恢复」拼进括号里；两样都没有就回空串。 */
-function levelDetailText(family: string, level: BucketLevel): string {
+/**
+ * 「服务端还剩多少、上限多少、保底多少」这一段公用说明（#1527 起拒绝文案要说清这四个数）。
+ *
+ * 给了这一笔的成本就再说「花完只剩多少」——这正是拒与不拒的判据本身，人一眼能核对。
+ * 恢复时刻读不到就不写（resetClockText 回空串），绝不编一个时刻。
+ */
+function quotaDetailText(family: string, level: BucketLevel, cost: number, floor: number): string {
+  const unit = family === 'graphql' ? '点' : '条'
+  const left = level && typeof level.remaining === 'number' && isFinite(level.remaining) ? level.remaining : 0
+  const limit = level && typeof level.limit === 'number' && isFinite(level.limit) ? level.limit : 0
+  const parts = ['服务端还剩 ' + left + ' ' + unit + '（上限 ' + limit + '，保底 ' + floor + '）']
+  if (cost > 0) parts.push('这一笔预计花 ' + cost + ' ' + unit + '，花完只剩 ' + Math.max(0, left - cost) + ' ' + unit)
   const clock = resetClockText(level && level.resetAt)
-  const parts = [remainingTextOf(family, level)]
   if (clock) parts.push(clock)
-  return '（' + parts.join('，') + '）'
+  return parts.join('；')
 }
 
 /**
@@ -188,25 +205,25 @@ function levelDetailText(family: string, level: BucketLevel): string {
  * 用「REST 请求额度」「GraphQL 点数额度」这样的完整说法，不用「族」「桶」这类账本内部叫法：
  * 第一次读这句话的人（用户与 AI）要能直接判断出「等多久、等的是哪一种额度」。
  */
-export function exhaustedMessage(family: string, level: BucketLevel | null): string {
+export function exhaustedMessage(family: string, level: BucketLevel | null, cost?: number, floor?: number): string {
   const lv = level || { remaining: 0, limit: 0 }
-  return '额度见底：' + familyLabelOf(family) + '额度不够了' + levelDetailText(family, lv) + '，这次先不执行。'
+  const c = typeof cost === 'number' && isFinite(cost) ? cost : 0
+  const f = typeof floor === 'number' && isFinite(floor) ? floor : 0
+  return '额度见底：' + familyLabelOf(family) + '额度不够了（' + quotaDetailText(family, lv, c, f) + '），这次先不执行。'
 }
 
 /**
  * 两条路都见底时的一句话（评论 / 阻塞边）：两种额度都点名，各自还剩多少。
  * 恢复时刻取两族里「先恢复的那一个」—— 只要有一族恢复就能重试，写最晚的那个会让人白等。
  */
-function exhaustedAnyMessage(families: string[], levels: BucketLevel[]): string {
+function exhaustedAnyMessage(families: string[], levels: BucketLevel[], costs?: number[], floors?: number[]): string {
   const names = families.map(function (f: string): string { return familyLabelOf(f) }).join('与')
-  const left = families.map(function (f: string, i: number): string { return remainingTextOf(f, levels[i]) }).join('、')
-  let earliest = 0
-  for (let i = 0; i < levels.length; i++) {
-    const at = Number(levels[i] && levels[i].resetAt) || 0
-    if (at > 0 && (earliest === 0 || at < earliest)) earliest = at
-  }
-  const clock = resetClockText(earliest)
-  return '额度见底：' + names + '两种额度都不够了（' + left + (clock ? '，最早' + clock : '') + '），这次先不执行。'
+  const detail = families.map(function (f: string, i: number): string {
+    const c = costs && typeof costs[i] === 'number' && isFinite(costs[i]) ? costs[i] : 0
+    const fl = floors && typeof floors[i] === 'number' && isFinite(floors[i]) ? floors[i] : 0
+    return quotaDetailText(f, levels[i], c, fl)
+  }).join('；')
+  return '额度见底：' + names + '两种额度都不够了（' + detail + '），这次先不执行。'
 }
 
 /** 硬顶的原话：桥、门禁与给人看的说明共用这一句，不各写各的。 */
@@ -231,6 +248,11 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
   const budget = (input && input.budget) || ({ kind: 'unknown', countsRequests: false, countsPoints: false, independentBuckets: false } as BackendBudgetModel)
   const reading = (input && input.reading) || ({ known: false, reason: 'not-measured' } as BudgetReading)
   const op = String((input && input.op) || '')
+  // 这一笔的成本：逐操作的管线裁决拿不到（只按「现在还剩多少」判），开会话前的预检拿得到。
+  const pointsCost = numOf(input && input.points)
+  const requestsCost = numOf(input && input.requests)
+  /** 这一族按点数还是条数计价：GraphQL 数点，REST 与请求桶数条。 */
+  const costOfFamily = function (family: string): number { return family === 'graphql' ? pointsCost : requestsCost }
 
   // a. 写权限是硬顶：没就绪时不看读数，也不管这个后端还剩多少额度。
   if (input && input.canWrite === false && isWriteOp(op)) {
@@ -249,11 +271,13 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
 
   // d. 只计请求的口径：请求额度是硬值，只看它还有没有剩余（>0 就放行），
   //    不套两桶的 35% 写保底，也不算档位 —— 请求桶根本没有「留给写操作」这一份。
+  // #1527：保底判据换成「花完这一笔之后仍高于服务端上限的 5%」；以前是「剩余 > 0 就放行」。
   if (budget.independentBuckets !== true) {
     const requests = requestsLevelOf(reading)
     if (!requests) return { allowed: true, reason: 'reading-unknown' }
-    if (requests.remaining > 0) return { allowed: true, reason: 'requests-available' }
-    return { allowed: false, kind: 'rate-limit', reason: 'requests-exhausted', message: '这次调用的请求额度已经用完，先不执行。' }
+    const floor = limits.aiToolFloor(requests.limit)
+    if (requests.remaining - requestsCost > floor) return { allowed: true, reason: 'requests-available' }
+    return { allowed: false, kind: 'rate-limit', reason: 'requests-exhausted', message: exhaustedMessage('requests', requests, requestsCost, floor) }
   }
 
   // e. 两桶独立口径：只按这次调用真正会花的那几族判断（#1418）。
@@ -266,21 +290,26 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
     const families = familiesOfOp(op)
     for (let i = 0; i < families.all.length; i++) {
       const level = levelOfFamily(families.all[i])
-      if (level.remaining <= limits.writeReserve(level.limit)) {
-        return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage(families.all[i], level) }
+      const cost = costOfFamily(families.all[i])
+      const floor = limits.aiToolFloor(level.limit)
+      if (level.remaining - cost <= floor) {
+        return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage(families.all[i], level, cost, floor) }
       }
     }
     if (families.anyOf.length) {
       const levels = families.anyOf.map(levelOfFamily)
-      const blocked = levels.every(function (level: BucketLevel): boolean { return level.remaining <= limits.writeReserve(level.limit) })
-      if (blocked) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedAnyMessage(families.anyOf, levels) }
+      const costs = families.anyOf.map(costOfFamily)
+      const floors = levels.map(function (level: BucketLevel): number { return limits.aiToolFloor(level.limit) })
+      const blocked = levels.every(function (level: BucketLevel, i: number): boolean { return level.remaining - costs[i] <= floors[i] })
+      if (blocked) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedAnyMessage(families.anyOf, levels, costs, floors) }
     }
     return { allowed: true, reason: 'sufficient' }
   }
-  // 两桶口径却只拿到「只计请求」的读数（旧缓存）：只剩请求桶可看，按它判（行为与改动前一致）。
+  // 两桶口径却只拿到「只计请求」的读数（旧缓存）：只剩请求桶可看，按它判。
   for (const level of bucketLevelsOf(reading)) {
-    if (level.remaining <= limits.writeReserve(level.limit)) {
-      return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage('rest', level) }
+    const floor = limits.aiToolFloor(level.limit)
+    if (level.remaining - requestsCost <= floor) {
+      return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage('rest', level, requestsCost, floor) }
     }
   }
   return { allowed: true, reason: 'sufficient' }
@@ -304,6 +333,11 @@ function bucketLevelsOf(reading: BudgetReading): BucketLevel[] {
   if (reading.kind === 'two-buckets') return [levelOf(reading.buckets.rest), levelOf(reading.buckets.graphql)]
   if (reading.kind === 'requests-only') return [levelOf(reading.requests)]
   return []
+}
+
+/** 任意报数：不是有限数就当 0（这一笔成本缺省时用它，与闸的 num 同口径）。 */
+function numOf(v: unknown): number {
+  return (typeof v === 'number' && isFinite(v)) ? v : 0
 }
 
 /** 读数里的数字可能缺格（旧缓存或手写夹具）：缺格按 0 算，与桥原来的兜底口径一致；resetAt 原样带出（#1418）。 */

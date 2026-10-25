@@ -86,6 +86,24 @@ export interface QuotaView {
   remaining: number
   /** 这里留给「写」的保底额度：读用不掉它，读要花到它头上就得让路。 */
   reserve: number
+  /**
+   * AI 工具的保底线（点数或条数）：这一笔花下去如果剩余会掉到它以下就拒绝。
+   *
+   * 由闸按服务端上限与 host-budget.ts 的 aiToolFloor(limit) 算好传进来；不传时退回 reserve
+   *（旧的 30% 写保底），保证还没接这一格的老调用方行为不变。它只给 AI 工具用，
+   * decide() 里读让路那一条看的仍是 reserve（#1527）。
+   */
+  floor?: number
+  /** 这一桶的服务端上限（保底按它算，不是按插件份额算）。 */
+  limit?: number
+  /** 这一桶是按点数还是按条数计价：graphql 是点，rest 与 requests 是条。AI 工具按它对成本。 */
+  bucket?: string
+  /**
+   * 这是不是一份真读数。false 表示闸根本没拿到读数（剩 1 点只是放行占位），
+   * 这时不能拿「剩余 − 这一笔」去比保底，否则会把「不知道」误判成「见底」。
+   * 不传时按「已知」处理，保持还没接这一格的老调用方行为不变。
+   */
+  known?: boolean
 }
 
 /** 工作区当前的状态。三样都不是「程度」，而是三种不同的信号。 */
@@ -300,6 +318,8 @@ export interface AiToolAdmission {
   /** 这一笔要花多少点、多少条真实出站请求（拒绝时也要如实说）。 */
   points: number
   requests: number
+  /** 放行了但有话要说（例如这一小时越过提醒线）：调用方要把这些句子带进回执给人看。 */
+  warnings: string[]
 }
 
 /**
@@ -314,15 +334,22 @@ export function aiToolAdmission(call: AiToolCall, hour: HourSpend, quota: QuotaV
   const requests = call.requests
   const base = { points: points, requests: requests }
   if (!(points <= limits.aiToolMaxPointsPerCall) || !(requests <= limits.aiToolMaxRequestsPerCall)) {
-    return { admitted: false, reason: 'ai-tool-over-call-cap', ...base }
+    return { admitted: false, reason: 'ai-tool-over-call-cap', warnings: [], ...base }
   }
   if (!(hour.points + points <= limits.aiToolMaxPointsPerHour) || !(hour.requests + requests <= limits.aiToolMaxRequestsPerHour)) {
-    return { admitted: false, reason: 'ai-tool-over-hour-cap', ...base }
+    return { admitted: false, reason: 'ai-tool-over-hour-cap', warnings: [], ...base }
   }
-  if (quota.remaining <= quota.reserve) {
-    return { admitted: false, reason: 'ai-tool-below-remaining', ...base }
+  // 读数未知：不知道就不能拦（未知不是 0）。占位的「剩 1 点」不能拿去减成本，否则 1 − 7 < 0
+  //   会被算成见底；#1435 就是因为把没读数当成耗尽，本地无额度的后端被永久推迟。
+  if (quota.known === false) return { admitted: true, reason: 'ai-tool-within-caps', warnings: [], ...base }
+  // #1527：剩下的钱够不够「花完这一笔之后仍高于保底线」。保底线按服务端上限的 5% 算；
+  //   成本按这一桶的计价单位算（GraphQL 数点、REST 与请求桶数条），不是两样都扣。
+  const floor = typeof quota.floor === 'number' ? quota.floor : quota.reserve
+  const cost = quota.bucket === 'graphql' ? points : requests
+  if (quota.remaining - cost <= floor) {
+    return { admitted: false, reason: 'ai-tool-below-remaining', warnings: [], ...base }
   }
-  return { admitted: true, reason: 'ai-tool-within-caps', ...base }
+  return { admitted: true, reason: 'ai-tool-within-caps', warnings: [], ...base }
 }
 
 // ---------- 八、退避与节拍（调用方按这两个函数安排下一次） ----------

@@ -6,7 +6,7 @@
 //   1. GitLab 读数三态：有 RateLimit 响应头 → 已知请求桶；无头 → 未知（unavailable）；
 //      请求失败 → 未知（unavailable）；本机没装 glab → 未知（not-measured）。一律成功信封、不抛。
 //   2. 裁决纯函数 decideByBudget 的分支顺序：硬顶 → 离网 → 未知 → 只计请求 → 两桶保底；
-//      并证明 35% 保底只对两桶口径生效，只计请求的口径连问都不问 writeReserve。
+//      并证明保底判据（#1527 起是服务端上限的 5%）对两种口径都用，只是读数未知时不问。
 const path = require('path')
 const { pathToFileURL } = require('url')
 
@@ -45,11 +45,12 @@ const twoReading = function (restRemaining, graphqlRemaining) {
 }
 const requestsReading = function (remaining) { return { known: true, kind: 'requests-only', requests: { remaining: remaining, limit: 600 } } }
 const UNKNOWN = { known: false, reason: 'not-measured' }
-// 保底按 35% 算：上限 1000 → 350。测试里显式注入，纯函数自己不写这个数字。
+// #1527：AI 工具的保底线按服务端上限的 5% 算 —— 上限 1000 → 50，上限 600 → 30。测试里显式注入，纯函数自己不写这个数字。
 const limits = {
   pluginShareOfRemaining: 0.45,
   hourlyAllowance: function (n) { return n },
   writeReserve: function (allowance) { return Math.round(allowance * 0.35) },
+  aiToolFloor: function (limit) { return Math.floor(limit * 0.05) },
   tierFor: function () { return 'test-tier' },
 }
 
@@ -114,38 +115,39 @@ async function main() {
   const unknown = decide({ op: 'list', budget: TWO, reading: UNKNOWN, canWrite: true }, limits)
   check(unknown.allowed === true && unknown.reason === 'reading-unknown', '读数未知放行，理由「读数未知」，不套剩余≤保底')
 
-  const reqOk = decide({ op: 'list', budget: REQUESTS, reading: requestsReading(1), canWrite: true }, limits)
-  check(reqOk.allowed === true && reqOk.reason === 'requests-available', '只计请求：还剩 1 条就放行（请求额度可用）')
+  const reqOk = decide({ op: 'list', budget: REQUESTS, reading: requestsReading(31), canWrite: true }, limits)
+  check(reqOk.allowed === true && reqOk.reason === 'requests-available', '只计请求：还剩 31 条就放行（高于保底 30）')
   const reqGone = decide({ op: 'comment', budget: REQUESTS, reading: requestsReading(0), canWrite: true }, limits)
   check(reqGone.allowed === false && reqGone.kind === 'rate-limit' && reqGone.reason === 'requests-exhausted', '只计请求：剩余 0 条就推迟（请求额度用尽）')
 
   // #1418：两桶不是「任一桶见底就全停」—— 读只花 GraphQL 点数、写只花 REST 请求，各族只看自己那一桶。
-  const restLowRead = decide({ op: 'list', budget: TWO, reading: twoReading(350, 900), canWrite: true }, limits)
+  const restLowRead = decide({ op: 'list', budget: TWO, reading: twoReading(40, 900), canWrite: true }, limits)
   check(restLowRead.allowed === true && restLowRead.reason === 'sufficient', '#1418：REST 见底时读操作照常放行（读花 GraphQL 点数，不看 REST 桶）')
-  const restLowWrite = decide({ op: 'create', budget: TWO, reading: twoReading(350, 900), canWrite: true }, limits)
+  const restLowWrite = decide({ op: 'create', budget: TWO, reading: twoReading(40, 900), canWrite: true }, limits)
   check(restLowWrite.allowed === false && restLowWrite.kind === 'rate-limit' && restLowWrite.reason === 'exhausted', '两桶：写操作遇到 REST 桶降到写保底就推迟（额度见底）')
   check(String(restLowWrite.message || '').indexOf('REST 请求') >= 0, '#1418：见底文案点名是哪一族（REST 请求）：' + String(restLowWrite.message || ''))
-  const graphqlLowRead = decide({ op: 'get', budget: TWO, reading: twoReading(900, 350), canWrite: true }, limits)
+  const graphqlLowRead = decide({ op: 'get', budget: TWO, reading: twoReading(900, 40), canWrite: true }, limits)
   check(graphqlLowRead.allowed === false && graphqlLowRead.reason === 'exhausted', '两桶：读操作遇到 GraphQL 桶降到写保底就推迟')
   check(String(graphqlLowRead.message || '').indexOf('GraphQL 点数') >= 0, '#1418：见底文案点名 GraphQL 点数：' + String(graphqlLowRead.message || ''))
   // 恢复时刻：读数带 resetAt 时文案写「约 HH:MM 恢复」，没带就不写（不编时刻）。
-  const withReset = { known: true, kind: 'two-buckets', buckets: { rest: { remaining: 350, limit: 1000, resetAt: 1761390000000 }, graphql: { remaining: 900, limit: 1000 } } }
+  const withReset = { known: true, kind: 'two-buckets', buckets: { rest: { remaining: 40, limit: 1000, resetAt: 1761390000000 }, graphql: { remaining: 900, limit: 1000 } } }
   const withResetMsg = String(decide({ op: 'create', budget: TWO, reading: withReset, canWrite: true }, limits).message || '')
   check(/约 \d\d:\d\d 恢复/.test(withResetMsg), '#1418：读数带恢复时刻时文案写出「约 HH:MM 恢复」：' + withResetMsg)
   check(String(restLowWrite.message || '').indexOf('恢复') < 0, '#1418：读数没带恢复时刻时文案不编时刻：' + String(restLowWrite.message || ''))
-  const twoHigh = decide({ op: 'list', budget: TWO, reading: twoReading(351, 351), canWrite: true }, limits)
+  const twoHigh = decide({ op: 'list', budget: TWO, reading: twoReading(60, 60), canWrite: true }, limits)
   check(twoHigh.allowed === true && twoHigh.reason === 'sufficient', '两桶：两桶都在保底之上就放行（额度充足）')
 
-  // 「35% 保底只对 independentBuckets」：同一份低剩余读数，换口径就不该问 writeReserve。
-  let reserveCalls = 0
-  const spied = Object.assign({}, limits, { writeReserve: function (allowance) { reserveCalls += 1; return Math.round(allowance * 0.35) } })
+  // 「5% 保底对两种口径都生效」：只计请求与两桶都要问 aiToolFloor，唯独读数未知时不能问（未知不是 0）。
+  let floorCalls = 0
+  const spied = Object.assign({}, limits, { aiToolFloor: function (limit) { floorCalls += 1; return Math.floor(limit * 0.05) } })
   decide({ op: 'list', budget: REQUESTS, reading: requestsReading(100), canWrite: true }, spied)
-  check(reserveCalls === 0, '只计请求的口径不调用 writeReserve（不套 35% 保底）')
+  check(floorCalls > 0, '只计请求的口径也调用 aiToolFloor（#1527：请求额度同样留 5% 保底）')
+  floorCalls = 0
   decide({ op: 'list', budget: TWO, reading: twoReading(100, 900), canWrite: true }, spied)
-  check(reserveCalls > 0, '两桶口径才调用 writeReserve（保底只对 independentBuckets 生效）')
-  let unknownReserveCalls = 0
-  decide({ op: 'list', budget: TWO, reading: UNKNOWN, canWrite: true }, Object.assign({}, limits, { writeReserve: function () { unknownReserveCalls += 1; return 350 } }))
-  check(unknownReserveCalls === 0, '读数未知时不调用 writeReserve（未知不是 0）')
+  check(floorCalls > 0, '两桶口径调用 aiToolFloor（保底按服务端上限 5% 判）')
+  let unknownFloorCalls = 0
+  decide({ op: 'list', budget: TWO, reading: UNKNOWN, canWrite: true }, Object.assign({}, limits, { aiToolFloor: function () { unknownFloorCalls += 1; return 50 } }))
+  check(unknownFloorCalls === 0, '读数未知时不调用 aiToolFloor（未知不是 0）')
 
   console.log(failed ? ('\n' + total + ' 条断言，失败') : ('\n' + total + ' 条断言，全部通过')); process.exit(failed ? 1 : 0)
 }
