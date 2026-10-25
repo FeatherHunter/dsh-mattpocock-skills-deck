@@ -35,6 +35,7 @@
     "refresh",
     "cordis.patch.yml",
     "bundled-skills",
+    "bundled-skills-zh",
     "scripts/",
     "CHANGELOG.md"
   ],

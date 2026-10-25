@@ -10,10 +10,10 @@
  * 再与 tests/bundled-skills-upstream-hashes.json（同步时从上游 tag 生成）比对。
  * 归一化只为抹掉 Windows 检出换行差异；语义差一个字就会判红。
  *
- * 允许的例外（不在基线里，不判红）：
- *  - 各技能目录下的 SKILL.zh.md：本地简体中文译文包，上游没有，不是原文。
- *    注意：scripts/sync-matt-skills.mts 下次同步会整目录重建，译文包会被抹掉，
- *    译文应尽快搬出 bundled-skills 或教会同步脚本保留它们。
+ * 本目录只放上游原文：scripts/sync-matt-skills.mts 同步时会整目录重建
+ * package/bundled-skills，本地新增的文件（包括译文）会被抹掉，所以中文译文放在
+ * 兄弟目录 package/bundled-skills-zh（#1521）。目录里一旦出现 SKILL.zh.md 这类
+ * 非上游文件就判红，提示把它移到兄弟目录，而不是留在会被重建的地方。
  *
  * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-bundled-skills-upstream.ts
  * 退出码 0 = 通过；1 = 失败
@@ -78,13 +78,18 @@ for (const rel of Object.keys(files).sort()) {
 if (!bad.length) pass('上游原文 ' + okCount + ' 个文件一字一致')
 else note('不一致 ' + bad.length + ' 个：' + bad.join('、'))
 
-// 本地译文包清点（允许存在，只提示风险）
-let zhCount = 0
+// 本目录只放上游原文（#1521）：旧译文 SKILL.zh.md 留在技能目录里会被下次同步抹掉，
+// 现在中文译文统一放兄弟目录 package/bundled-skills-zh，这里出现任何 SKILL.zh.md 都判红。
+const leftovers: string[] = []
 for (const d of readdirSync(BUNDLED_DIR, { withFileTypes: true })) {
   if (!d.isDirectory()) continue
-  if (existsSync(path.join(BUNDLED_DIR, d.name, 'SKILL.zh.md'))) zhCount++
+  if (existsSync(path.join(BUNDLED_DIR, d.name, 'SKILL.zh.md'))) leftovers.push(d.name)
 }
-note('本地译文包 SKILL.zh.md 共 ' + zhCount + ' 个（上游没有，允许存在；但下次同步整目录重建会抹掉它们，见头注释）')
+if (leftovers.length) {
+  fail('发现 ' + leftovers.length + ' 个留在原文目录里的 SKILL.zh.md（' + leftovers.sort().join('、') + '）：本目录只放上游原文，中文译文放兄弟目录 package/bundled-skills-zh/<技能名>/SKILL.md，请移走')
+} else {
+  pass('原文目录里没有残留 SKILL.zh.md（译文都在兄弟目录 bundled-skills-zh）')
+}
 
 console.log('\n=== verify-bundled-skills-upstream ===')
 if (failures) { console.log('FAIL ' + failures + ' 项'); process.exit(1) }
