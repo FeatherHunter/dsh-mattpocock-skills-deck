@@ -418,3 +418,17 @@ export function renderMdFormatData(cfg: Record<string, any>): string {
   lines.push('export type MdFormat = typeof MD_FORMAT;')
   return lines.join('\n')
 }
+
+/**
+ * 判断盘上生成物是不是当前真源算出来的那一份。生成器 --check 与门禁共用这一条判据，
+ * 两边口径不许分叉：门禁要演练「生成物过期会判红」，演练的必须是生成器真正用的那条判断。
+ *
+ * 返回空数组表示一致；不一致返回一句能直接照着做的原因。current 为 null 表示生成物根本不在
+ * （全新检出、还没跑过构建）：生成器的约定是现场生成一次再判过，不让人凭空先红一次，
+ * 所以这里也返回空数组，由调用方决定要不要补生成。
+ */
+export function judgeGeneratedFreshness(expected: string, current: string | null): string[] {
+  if (current === null) return []
+  if (current === expected) return []
+  return ['生成源码与 ' + MD_FORMAT_REL + ' 对不上：请跑 node scripts/generate-md-format-config.mts 重算后再提交']
+}

@@ -15,6 +15,7 @@
 //   ④ 坏数据演练：在内存里造八类坏映射（不写盘，跑完就丢），确认校验器每一项都真的会报错——
 //      校验器变哑了，②③的绿就没有意义。
 //   ⑤ 生成物与真源一致：内存渲染结果与盘上生成物逐字相等；生成物当模块载入后与 YAML 解析结果深层相等。
+//      同一节还演练「生成物过期会判红」：判据与生成器 --check 共用 judgeGeneratedFreshness，改一个字必须报出来。
 //
 // 跑法（在插件根目录执行）：
 //   node --import ./scripts/ts-hook.mts tests/verify-md-format-config.ts
@@ -30,6 +31,7 @@ import {
   MD_FORMAT_OUT_REL,
   MD_FORMAT_REL,
   UPSTREAM_HASH_REL,
+  judgeGeneratedFreshness,
   readMdFormatConfig,
   readMdFormatText,
   renderMdFormatData,
@@ -164,6 +166,13 @@ async function main(): Promise<void> {
   const onDisk: string = textOf(MD_FORMAT_OUT_REL)
   check(onDisk.length > 0, '⑤ 生成物不存在：' + MD_FORMAT_OUT_REL + '（跑 node scripts/generate-md-format-config.mts）')
   check(onDisk === rendered, '⑤ 生成物与 ' + MD_FORMAT_REL + ' 不一致：跑 node scripts/generate-md-format-config.mts 重算')
+  // 生成物过期演练（#1484 验收：现场演练「生成物过期」会判红）。判据与生成器 --check 共用
+  // judgeGeneratedFreshness，演练的就是生成器真正用的那条判断；只在内存里改字符串，不在盘上改写
+  // 生成物——全链 8 路并发时改盘上文件会干扰别的门禁，中途被打断还会留下过期产物。
+  const staleText: string = rendered.replace('export const MD_FORMAT', 'export const MD_FORMAT_STALE')
+  check(judgeGeneratedFreshness(rendered, staleText).length > 0, '⑤ 生成物过期演练没有被判据抓到：判据变哑了')
+  check(judgeGeneratedFreshness(rendered, rendered).length === 0, '⑤ 生成物新鲜时判据不该报错')
+  check(judgeGeneratedFreshness(rendered, null).length === 0, '⑤ 生成物缺失不该判红：全新检出由生成器现场生成')
   try {
     const mod: any = await import(pathToFileURL(path.join(ROOT, MD_FORMAT_OUT_REL)).href)
     check(JSON.stringify(mod.MD_FORMAT) === JSON.stringify(cfg), '⑤ 生成物载入后的常量与 YAML 解析结果不相等')
@@ -177,7 +186,7 @@ async function main(): Promise<void> {
     console.log('FAIL verify-md-format-config：' + failures.length + ' 项不通过（共 ' + checks + ' 项判据）')
     process.exit(1)
   }
-  console.log('PASS verify-md-format-config：' + checks + ' 项判据全过（生成新鲜度 / 映射自校验 / 原文锚点 / 坏数据演练 / 生成物一致）')
+  console.log('PASS verify-md-format-config：' + checks + ' 项判据全过（生成新鲜度 / 映射自校验 / 原文锚点 / 坏数据演练 / 生成物一致 / 生成物过期演练）')
 }
 
 main().catch((err: unknown) => {

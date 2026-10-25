@@ -21,6 +21,7 @@ import url from 'node:url'
 import {
   MD_FORMAT_OUT_REL,
   MD_FORMAT_REL,
+  judgeGeneratedFreshness,
   readMdFormatConfig,
   readMdFormatText,
   renderMdFormatData,
@@ -53,8 +54,10 @@ function main(): void {
       console.log('PASS 生成源码不在，已按 ' + MD_FORMAT_REL + ' 现场生成')
       return
     }
-    if (current !== text) {
-      console.log('FAIL 生成源码与 ' + MD_FORMAT_REL + ' 对不上：请跑 node scripts/generate-md-format-config.mts 重算后再提交')
+    // 新鲜度判据只有一份实现（judgeGeneratedFreshness）：门禁演练的就是这里用的那条判断。
+    const problems: string[] = judgeGeneratedFreshness(text, current)
+    if (problems.length > 0) {
+      for (const problem of problems) console.log('FAIL ' + problem)
       process.exit(1)
     }
     console.log('PASS 生成源码与 ' + MD_FORMAT_REL + ' 一致')
