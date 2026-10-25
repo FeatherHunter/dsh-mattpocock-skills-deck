@@ -237,8 +237,7 @@ export function createMarkdownBackend(ctx: OpContext) {
         //   看到的短证据、结论、耗时。pass / fail / pending 都记：只记失败线时，事后分不清「这一项量过、
         //   是 pending」与「这一项根本没跑到」。真正的失败结论另由下面常驻的 read.degraded 落一条。
         for(let i=0;i<rows.length;i+=1){
-          const row=rows[i]
-          emitPreflightCheck(c,i+1,row.result.status,String(row.result.evidence||''),cwd,row.latencyMs)
+          emitPreflightCheck(c,i+1,rows[i],cwd)
         }
         const failed=rows.filter(row=>row.result.status==='fail')
         if(failed.length===0)return{ok:true}
@@ -246,9 +245,10 @@ export function createMarkdownBackend(ctx: OpContext) {
         const first=failed[0]
         const lang=c&&(c as {lang?:string}).lang
         const message='预检没过：'+workspaceCheckLabel(first.id,lang)+'。'+String(first.result.detail||'')
-        // 失败结论沿用已登记的 preflight:fs-fail：三项里有 fail，说明这个工作区的文件系统这条线不通，
-        //   与「还没建地图」是两回事；三项各自的证据与耗时在上面 preflight.check 那三行里。
-        emitReadDegraded(c,'preflight','preflight:fs-fail',Date.now()-startedAt)
+        // 失败结论记 preflight:check-fail：三项都量过了，是工作区状态不过（目录读不出、写不进、容器版本认不得）。
+        //   与「预检中途抛异常」的 preflight:fs-fail 分开：后者这一趟根本没跑完，前者是跑完了、结论不过。
+        //   三项各自的证据与耗时在上面 preflight.check 那几行里。
+        emitReadDegraded(c,'preflight','preflight:check-fail',Date.now()-startedAt)
         return failAs(ERROR_KIND.ENV,message,rawJson(rows)) as PreflightResult
       }catch(e){
         // 档位按本步语义定：预检问的是「这个工作区能不能用本地 Markdown 当票仓」，

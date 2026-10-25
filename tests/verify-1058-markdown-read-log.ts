@@ -369,6 +369,19 @@ console.log('\n== 六、预检中途出错：探测这一关自己炸了，也�
   if (lines.length) checkShape(lines[0], '预检出错那一行')
 }
 
+console.log('\n== 六之二、预检三项量完、结论不过：落一行 preflight:check-fail ==')
+{
+  const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-f2-'))
+  writeEffort(ws, 'demo', [['01-open-a.md', 'ready-for-agent']])
+  // 让 .scratch 列不出来：三项里第一项是自己量完、结论「不过」，这与「预检自己折断」是两回事。
+  const ctx = makeCtx(ws, [], ['.scratch'])
+  const backend = createMarkdownBackend(ctx)
+  const probe = await backend.preflight({ cwd: ws } as never, ctx as never)
+  const lines = degraded(ctx)
+  check(!probe.ok && String(lines[0] && lines[0].fields.reason) === 'preflight:check-fail',
+    '三项里有一项不过 → 如实失败，落一行 preflight:check-fail → ' + (lines.map(lineText).join(' / ') || '一行都没有'))
+  if (lines.length) checkShape(lines[0], '三项不过那一行')
+}
 console.log('\n== 七、反向断言：一次故障只留一条线 ==')
 {
   // 地图与票文件都读不动：主形态一条线都读不出来，于是房间里还会再试一次夹具形态，

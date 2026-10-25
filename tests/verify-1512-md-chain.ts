@@ -21,9 +21,12 @@
  *   ④ .scratch/<名>/map.md 没有 DSH 头、正文乱 → 三项通过：手写旧文件按 md-v1 认，读得动就是读得动
  *   ⑤ 同一目录同时有 map.md 与 spec.md        → 三项通过：双容器不在本票判定范围内
  *   ⑥ 仓库根有旧布局 issues/01-*.md          → 三项通过：旧布局不在本票判定范围内（它另有一条兼容路径）
- * 另外两条把「预检与链一致」反过来钉：
+ * 再把「预检与链一致」反过来钉（量不出来的那一侧与失败那一侧都要钉住）：
  *   ⑦ 只读会话：写探测被沙箱拦住 → md:scratchWritable = pending（诚实未知，不是 fail），预检仍通过
  *   ⑧ 写探测被拒（权限不足）      → md:scratchWritable = fail，预检不通过且点名「本地数据目录能不能写」
+ *   ⑨ .scratch 列不出来            → md:workspace = fail：读不出工作区不能谎报「空工作区」，容器判据也 fail，预检点名「本地工作区能不能读」
+ *   ⑩ 容器文件写了不支持的版本号   → md:containersReadable = fail：md-v2 认不得，不能静默按 v1 读，预检点名「本地地图与规格文件能不能读」
+ *   ⑪ 容器文件读不出来             → md:containersReadable = fail：权限坏掉要说读不出，不能当成没有容器文件，预检点名同一项
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1512-md-chain.ts
  * 门禁归属: src/tracker/rooms/markdown/workspace-checks.ts
@@ -80,6 +83,8 @@ const ISSUE_TEXT = '# 01-first\n\nStatus: ready-for-agent\n\n## Body\n\n夹具�
 type FsTrouble = {
   /** 列这些目录时抛 EACCES（造「读不出工作区」）。 */
   unreadableDirs?: string[]
+  /** 读这些路径时抛 EACCES（造「容器文件读不出来」）。 */
+  readDenied?: string[]
   /** 写这些路径（含其下级）时抛 EACCES（造「目录不可写」）。 */
   writeDenied?: string[]
   /** 只读会话的写探测抛沙箱拒信（造「被沙箱拦住」）。 */
@@ -105,7 +110,9 @@ function makePlatform(trouble: FsTrouble = {}): AnyObj {
       return cwd ? path.posix.join(cwd, raw) : raw
     },
     async readText(t: unknown): Promise<string> {
-      return fs.readFileSync(String(t), 'utf8')
+      const p = String(t)
+      if (underAny(trouble.readDenied || [], p)) throw deniedError('open', p, 'EACCES')
+      return fs.readFileSync(p, 'utf8')
     },
     async listDir(t: unknown): Promise<string[]> {
       const p = String(t)
@@ -266,7 +273,7 @@ async function main(): Promise<void> {
       const resolved = await assertAllPass('场景②', ws)
       const root = path.posix.join(ws, '.scratch')
       ok(detailOf(resolved, 'md:workspace').indexOf('找到 1 个工作单元') >= 0 && detailOf(resolved, 'md:workspace').indexOf('demo（规格）') >= 0, '场景②：工作区判据认出 1 个工作单元、类型是规格', detailOf(resolved, 'md:workspace'))
-      ok(detailOf(resolved, 'md:scratchWritable').indexOf('在 ' + root + ' 里写了一个探针文件并已删掉') >= 0, '场景②：写判据在 .scratch 里真写过探针', detailOf(resolved, 'md:scratchWritable'))
+      ok(detailOf(resolved, 'md:scratchWritable').indexOf(root) >= 0 && detailOf(resolved, 'md:scratchWritable').indexOf('可写') >= 0, '场景②：写判据在 .scratch 里真写过探针并给出可写结论（只钉路径与结论这类事实，不钉整句文案）', detailOf(resolved, 'md:scratchWritable'))
       ok(detailOf(resolved, 'md:containersReadable').indexOf('读到 1 个容器文件') >= 0 && detailOf(resolved, 'md:containersReadable').indexOf(path.posix.join(root, 'demo', 'spec.md')) >= 0, '场景②：容器判据读到那张 spec.md', detailOf(resolved, 'md:containersReadable'))
       ok(!fs.existsSync(path.posix.join(root, '.dsh-write-probe')), '场景②：写探针用完已删掉（不在工作区留垃圾）')
     }
@@ -349,6 +356,62 @@ async function main(): Promise<void> {
       const message = pf.probe && pf.probe.error ? String(pf.probe.error.message) : ''
       ok(message.indexOf('预检没过：本地数据目录能不能写') >= 0, '场景⑧：预检那句话点名失败的是「本地数据目录能不能写」→ ' + message.slice(0, 160))
       ok(message.indexOf('EACCES') >= 0, '场景⑧：失败证据里带着错误原文（EACCES）', message.slice(0, 300))
+    }
+
+    console.log('\n== 九、.scratch 列不出来：md:workspace 判 fail，不能谎报空工作区 ==')
+    {
+      const ws = newWs('c9-unreadable-')
+      writeTextAt(ws, '.scratch/demo/spec.md', SPEC_TEXT)
+      const scratchRoot = path.posix.join(ws, '.scratch')
+      currentPlatform = makePlatform({ unreadableDirs: [scratchRoot] })
+      const reply = await chainRun(ws)
+      assertMdShape('场景⑨', reply)
+      const resolved: AnyObj = (reply.backendChain || {}).resolved || {}
+      ok((resolved['md:workspace'] || {}).status === 'fail', '场景⑨：md:workspace 判 fail（列不出来不是空工作区）→ 实得 ' + (resolved['md:workspace'] || {}).status, detailOf(resolved, 'md:workspace'))
+      ok(detailOf(resolved, 'md:workspace').indexOf('读不出工作区目录 ' + scratchRoot) >= 0, '场景⑨：证据点名读不出的那个路径', detailOf(resolved, 'md:workspace'))
+      ok(detailOf(resolved, 'md:workspace').indexOf('空工作区') < 0, '场景⑨：读不出来不能当空工作区', detailOf(resolved, 'md:workspace'))
+      ok((resolved['md:containersReadable'] || {}).status === 'fail', '场景⑨：容器判据也 fail（同一个目录列不出来）→ 实得 ' + (resolved['md:containersReadable'] || {}).status, detailOf(resolved, 'md:containersReadable'))
+      const pf = await preflightRun(ws)
+      ok(pf.probe.ok === false, '场景⑨：房间预检不通过（与链上那两项 fail 一致）')
+      const message = String((pf.probe.error && pf.probe.error.message) || '')
+      ok(message.indexOf('预检没过：本地工作区能不能读') >= 0, '场景⑨：预检点名「本地工作区能不能读」→ ' + message.slice(0, 160))
+    }
+
+    console.log('\n== 十、容器文件的版本号认不得：md:containersReadable 判 fail ==')
+    {
+      // 没写版本行的手写文件按 md-v1 认（场景④），这里换成写了版本号、但写的是插件认不得的版本：
+      //   这时不能静默当 md-v1 读——容器判据要如实说「版本不是 md-v1」。
+      const ws = newWs('c10-bad-format-')
+      writeTextAt(ws, '.scratch/demo/map.md', '<!-- DSH-FORMAT: md-v2 -->\n\n# demo 地图\n')
+      currentPlatform = makePlatform()
+      const reply = await chainRun(ws)
+      assertMdShape('场景⑩', reply)
+      const resolved: AnyObj = (reply.backendChain || {}).resolved || {}
+      ok((resolved['md:workspace'] || {}).status === 'pass', '场景⑩：工作区判据仍是 pass')
+      ok((resolved['md:containersReadable'] || {}).status === 'fail', '场景⑩：容器判据判 fail（md-v2 认不得）→ 实得 ' + (resolved['md:containersReadable'] || {}).status, detailOf(resolved, 'md:containersReadable'))
+      ok(detailOf(resolved, 'md:containersReadable').indexOf('声明了不支持的格式 md-v2') >= 0 && detailOf(resolved, 'md:containersReadable').indexOf('只支持 md-v1') >= 0, '场景⑩：证据说清文件声明的是 md-v2、插件只支持 md-v1', detailOf(resolved, 'md:containersReadable'))
+      const pf = await preflightRun(ws)
+      ok(pf.probe.ok === false, '场景⑩：房间预检不通过')
+      const message = String((pf.probe.error && pf.probe.error.message) || '')
+      ok(message.indexOf('预检没过：本地地图与规格文件能不能读') >= 0, '场景⑩：预检点名「本地地图与规格文件能不能读」→ ' + message.slice(0, 160))
+    }
+
+    console.log('\n== 十一、容器文件读不出来：点名那个文件，不能当成没有容器文件 ==')
+    {
+      const ws = newWs('c11-readfail-')
+      writeTextAt(ws, '.scratch/demo/map.md', SPEC_TEXT)
+      const mapPath = path.posix.join(ws, '.scratch/demo/map.md')
+      currentPlatform = makePlatform({ readDenied: [mapPath] })
+      const reply = await chainRun(ws)
+      assertMdShape('场景⑪', reply)
+      const resolved: AnyObj = (reply.backendChain || {}).resolved || {}
+      ok((resolved['md:workspace'] || {}).status === 'pass', '场景⑪：工作区判据只列目录、不读文件，仍是 pass')
+      ok((resolved['md:containersReadable'] || {}).status === 'fail', '场景⑪：容器判据判 fail（读不出文件不能说成没有容器文件）→ 实得 ' + (resolved['md:containersReadable'] || {}).status, detailOf(resolved, 'md:containersReadable'))
+      ok(detailOf(resolved, 'md:containersReadable').indexOf('读不出容器文件 ' + mapPath) >= 0, '场景⑪：证据点名读不出的那个文件', detailOf(resolved, 'md:containersReadable'))
+      const pf = await preflightRun(ws)
+      ok(pf.probe.ok === false, '场景⑪：房间预检不通过')
+      const message = String((pf.probe.error && pf.probe.error.message) || '')
+      ok(message.indexOf('预检没过：本地地图与规格文件能不能读') >= 0, '场景⑪：预检点名「本地地图与规格文件能不能读」→ ' + message.slice(0, 160))
     }
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true })

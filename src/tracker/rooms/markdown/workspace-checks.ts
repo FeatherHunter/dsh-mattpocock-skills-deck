@@ -415,6 +415,9 @@ const CHECK_ORDER: ReadonlyArray<WorkspaceCheckId> = Object.freeze(['md:workspac
  *
  * 为什么判据模块自己带名字：房间 preflight 失败时要用人话说清「哪一项没过」，
  *   而检查目录里那套 label 属于宿主检查链的展示层，房间不该去 import 它；两处各写一份又会走样。
+ * 与检查目录行标题（`config/copy/word.yaml` 的 `check.md:*`，例如「本地工作区可读取」）不是同一句话：
+ *   那边是状态中性的行标题（pass 与 fail 同一句，全仓既有约定），这里是接在「预检没过：」后面的一句问句；
+ *   两种句子各自读得通，不能互换——把行标题塞进失败句会读成「预检没过：本地工作区可读取」。
  */
 const CHECK_LABELS: Readonly<Record<WorkspaceCheckId, { zh: string; en: string }>> = Object.freeze({
   'md:workspace': { zh: '本地工作区能不能读', en: 'whether the local workspace can be read' },
