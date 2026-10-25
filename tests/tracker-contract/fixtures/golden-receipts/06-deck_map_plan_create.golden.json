@@ -24,8 +24,8 @@
   },
   "data": {
     "builtKeys": [
-      "03",
-      "04"
+      "02",
+      "03"
     ],
     "counts": {
       "actual": 3,
@@ -35,7 +35,7 @@
     },
     "durable": true,
     "edges": [],
-    "mapKey": "02",
+    "mapKey": "00",
     "nextCall": null,
     "planId": "golden-1",
     "restKeys": [],
@@ -57,12 +57,12 @@
         {
           "actionAt": "<TIME>",
           "sessionLabel": "会话 1d9b81",
-          "ticketKey": "3"
+          "ticketKey": "2"
         },
         {
           "actionAt": "<TIME>",
           "sessionLabel": "会话 1d9b81",
-          "ticketKey": "4"
+          "ticketKey": "3"
         }
       ],
       "staleCount": 0,
@@ -71,20 +71,20 @@
   },
   "items": [
     {
-      "key": "02",
+      "key": "00",
       "role": "map",
       "status": "ok",
       "title": "金标准地图"
     },
     {
-      "key": "03",
+      "key": "02",
       "planKey": "a1",
       "role": "child",
       "status": "ok",
       "title": "金子票一"
     },
     {
-      "key": "04",
+      "key": "03",
       "planKey": "a2",
       "role": "child",
       "status": "ok",
@@ -93,7 +93,7 @@
   ],
   "notes": [
     "建后读回核对通过：地图五节与 ## 进度齐；2 张子票的父票、类型标签、## 进度与 Type 行都对。",
-    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#2、#3）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
   ],
   "ok": true,
   "readBack": null,
@@ -108,9 +108,9 @@
   "text": "计划 golden-1：这一片建了 2 张子票（共计划 2 张），建成 0 条边。",
   "tool": "deck_map_plan_create",
   "touched": [
+    "00",
     "02",
-    "03",
-    "04"
+    "03"
   ],
   "workspace": {
     "key": "<WSKEY>",

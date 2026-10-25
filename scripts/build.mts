@@ -1764,6 +1764,14 @@ guardBuildLock(buildLock, '构建开始')
     throw new Error('界面词表配置生成失败（config/copy/ + config/languages.yaml → locale-data.ts）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
   }
 }
+{
+  // #1480 T1：Markdown 后端的「随包原文 ↔ 本插件」格式映射（src/tracker/rooms/markdown/format/
+  // original-skills.yaml）同样走生成器：先落 generated.ts，下面域构建的类型检查才看得见这份常量。
+  const r: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-md-format-config.mts')], { encoding: 'utf8' })
+  if (r.status !== 0) {
+    throw new Error('Markdown 格式映射生成失败（format/original-skills.yaml → generated.ts）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
+  }
+}
 for (const domain of findDomains()) {
   buildDomain(domain, { handWritten: HAND_WRITTEN_IN_DOMAINS[domain] || [] })
 }

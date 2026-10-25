@@ -140,12 +140,39 @@ async function main() {
     if (typeof mod[factory] !== 'function') { check(false, file + ' 导出 ' + factory); continue }
     tools[name] = mod[factory](deps)
   }
-  const callTool = async (name, args) => tools[name].run(exec, args || {})
+  const SPEC_FEATURE = '演示规格'
+  const EMPTY_SPEC_FEATURE = '空规格'
+  const callTool = async (name, args) => {
+    const a = Object.assign({}, args || {})
+    // #1486：规格与实施票是同一套 feature 目录；不给 feature 时 00 号与地图的 00 号分不开。
+    // 这份门禁只关心规格，所以把默认 feature 注进去；空规格单独点名它自己的目录。
+    if (SPEC_FEATURE && (a.key === '00' || a.kind === 'spec-ticket') && !a.feature) a.feature = SPEC_FEATURE
+    return tools[name].run(exec, a)
+  }
   const envelopeOk = (r) => r && typeof r === 'object' && typeof r.ok === 'boolean' && ['ok', 'partial', 'unsupported'].indexOf(r.status) >= 0
-  const ticketFileOf = (key) => ws.ticketFiles().filter((f) => f.indexOf(key + '-') === 0)[0] || ''
-  const ticketTextOf = (key) => { const f = ticketFileOf(key); return f ? ws.readTicket(f) : '' }
-  const stateOf = async (key) => {
-    const r = await callTool('deck_issue_get', { key: key })
+  const ticketFileOf = (key) => {
+    const direct = ws.ticketFiles().filter((f) => f.indexOf(key + '-') === 0)[0]
+    if (direct) return path.join(ws.issuesDir, direct)
+    // #1486：实施票落在规格自己的 feature 目录里，不再固定在 .scratch/demo/issues。
+    const walk = (dir) => {
+      let entries = []
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return '' }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) { const hit = walk(full); if (hit) return hit }
+        else if (entry.name.endsWith('.md') && entry.name.indexOf(key + '-') === 0) return full
+      }
+      return ''
+    }
+    return walk(path.join(ws.root, '.scratch'))
+  }
+  const specTextOf = (feature) => { try { return fs.readFileSync(path.join(ws.root, '.scratch', feature, 'spec.md'), 'utf8') } catch (e) { return '' } }
+  const ticketTextOf = (key) => {
+    if (key === '00') return specTextOf(SPEC_FEATURE)
+    const f = ticketFileOf(key); return f ? fs.readFileSync(f, 'utf8') : ''
+  }
+  const stateOf = async (key, feature) => {
+    const r = await callTool('deck_issue_get', feature ? { key: key, feature: feature } : { key: key })
     const t = (r.data || {}).ticket || {}
     return String(t.state || '')
   }
@@ -161,7 +188,7 @@ async function main() {
     check(noParent.ok === false && noParent.reason === 'bad-args', '① 负向：kind=spec-ticket 不带 parentKey → bad-args，不落盘（实得 ' + (noParent && noParent.reason) + '）')
 
     // 规格是与探索地图同级的顶层容器（#1403）：建规格不传 parentKey，也不挂到任何地图下。
-    const s = await callTool('deck_issue_create', { title: '演示规格：收口核对', kind: 'spec', body: '## 问题陈述\n\n验证关规格的三道闸。\n' })
+    const s = await callTool('deck_issue_create', { title: '演示规格：收口核对', kind: 'spec', feature: SPEC_FEATURE, body: '## 问题陈述\n\n验证关规格的三道闸。\n' })
     specKey = String((s.data && s.data.ticket && s.data.ticket.key) || '')
     check(envelopeOk(s) && s.status === 'ok' && specKey, '造票：规格建成了（key=' + specKey + '）')
     check(!!(s.data && s.data.ticket && s.data.ticket.type === 'spec'), '规格读回来契约类型就是 spec（实得 ' + (s.data && s.data.ticket && s.data.ticket.type) + '）')
@@ -174,15 +201,15 @@ async function main() {
     implB = String((b.data && b.data.ticket && b.data.ticket.key) || '')
     check(implA && implB && implA !== implB, '造票：两张实施票建成了（' + implA + '、' + implB + '）')
     const aText = ticketTextOf(implA)
-    check(aText.indexOf('<!-- DSH-ISSUE-KIND: ticket -->') >= 0, '① 实施票的文件头写了对象类型标记 ticket')
-    check(aText.indexOf('parentKey: ' + specKey) >= 0, '① 实施票的父注释指向那张规格（文件头：' + JSON.stringify(aText.split('\n').slice(0, 4)) + '）')
+    check(aText.indexOf('DSH-PARENT: ' + specKey) >= 0, '① 实施票的父注释指向那张规格（文件头：' + JSON.stringify(aText.split('\n').slice(0, 4)) + '）')
+    check(aText.indexOf('DSH-ISSUE-KIND') < 0, '① 新布局不再写 DSH-ISSUE-KIND，父票只认 DSH-PARENT')
     check(aText.indexOf('ready-for-agent') >= 0 && aText.indexOf('wayfinder:') < 0, '③ 实施票的必备标签只有 ready-for-agent，不带 wayfinder: 系列')
 
-    const p = await callTool('deck_issue_create', { title: '普通票：与规格无关', kind: 'issue', body: '普通正文\n' })
+    const p = await callTool('deck_issue_create', { title: '普通票：与规格无关', kind: 'issue', feature: SPEC_FEATURE, body: '普通正文\n' })
     plainKey = String((p.data && p.data.ticket && p.data.ticket.key) || '')
     check(envelopeOk(p) && p.status === 'ok' && plainKey, '造票：普通票建成了（key=' + plainKey + '）')
 
-    const e = await callTool('deck_issue_create', { title: '空规格：还没有实施票', kind: 'spec', body: '## 问题陈述\n\n还没有拆实施票。\n' })
+    const e = await callTool('deck_issue_create', { title: '空规格：还没有实施票', kind: 'spec', feature: EMPTY_SPEC_FEATURE, body: '## 问题陈述\n\n还没有拆实施票。\n' })
     emptySpecKey = String((e.data && e.data.ticket && e.data.ticket.key) || '')
     check(envelopeOk(e) && e.status === 'ok' && emptySpecKey, '造票：空规格建成了（key=' + emptySpecKey + '）')
   }
@@ -206,14 +233,16 @@ async function main() {
 
   // ── 实施票是普通票：一张一张关掉，不受规格闸影响（⑤ 的另一面） ──
   {
-    const r1 = await callTool('deck_issue_patch', { key: implA, comment: '实施票 A 核对通过：单测与全链都绿。', close: true })
+    const r1 = await callTool('deck_issue_patch', { key: implA, feature: SPEC_FEATURE, comment: '实施票 A 核对通过：单测与全链都绿。', close: true })
     check(r1.ok === true && r1.status === 'ok', '实施票 A 可以照常关闭（实得 ' + (r1 && r1.status) + '）')
     check((r1.items || []).some((i) => i.step === 'comment' && i.status === 'ok') && (r1.items || []).some((i) => i.step === 'close' && i.status === 'ok'), '实施票 A：评论与关闭两步都成了 ' + JSON.stringify(r1.items))
-    check((await stateOf(implA)) === 'closed', '实施票 A 读回来是 closed（实得 ' + (await stateOf(implA)) + '）')
-    check(ticketTextOf(implA).indexOf('Status: resolved') >= 0, '实施票 A 的文件里落了关闭状态（Status: resolved）')
+    check((await stateOf(implA, SPEC_FEATURE)) === 'closed', '实施票 A 读回来是 closed（实得 ' + (await stateOf(implA, SPEC_FEATURE)) + '）')
+    // #1489 起实施票按原文布局把状态写成加粗的 `**Status:** resolved`，判据从「有裸 Status: resolved 这一行」放宽到
+    // 「状态行（加粗或裸）的值是 resolved」——原来数的那件事没变（没有放宽到「文件里随便出现 resolved」）。
+    check(/^[ \t]*(?:\*\*)?Status[ \t]*[:：][ \t]*(?:\*\*)?[ \t]*resolved[ \t]*$/m.test(ticketTextOf(implA)), '实施票 A 的文件里落了关闭状态（Status: resolved）')
 
-    const r2 = await callTool('deck_issue_patch', { key: implB, comment: '实施票 B 核对通过：复现步骤已走一遍。', close: true })
-    check(r2.ok === true && (await stateOf(implB)) === 'closed', '实施票 B 也关掉了（实得 ' + (r2 && r2.status) + ' / ' + (await stateOf(implB)) + '）')
+    const r2 = await callTool('deck_issue_patch', { key: implB, feature: SPEC_FEATURE, comment: '实施票 B 核对通过：复现步骤已走一遍。', close: true })
+    check(r2.ok === true && (await stateOf(implB, SPEC_FEATURE)) === 'closed', '实施票 B 也关掉了（实得 ' + (r2 && r2.status) + ' / ' + (await stateOf(implB, SPEC_FEATURE)) + '）')
   }
 
   // ── ⑤⑦ 子票都关了，但没带核对评论：仍然不许关 ──
@@ -227,10 +256,10 @@ async function main() {
 
   // ── ⑤ 还没有实施票的规格：不许按完成态关 ──
   {
-    const r = await callTool('deck_issue_patch', { key: emptySpecKey, comment: '核对：没有实施票', close: true })
+    const r = await callTool('deck_issue_patch', { key: emptySpecKey, feature: EMPTY_SPEC_FEATURE, comment: '核对：没有实施票', close: true })
     check(envelopeOk(r) && r.ok === false && r.reason === 'ai-tool-refused', '⑤ 空规格（没有实施票）不许关（实得 ' + (r && r.reason) + '）')
     check(!!(r.data && r.data.rule === 'spec-close-no-children'), '⑤ 规则码是 spec-close-no-children（实得 ' + JSON.stringify(r.data) + '）')
-    check((await stateOf(emptySpecKey)) !== 'closed', '⑤ 空规格仍是 open')
+    check((await stateOf(emptySpecKey, EMPTY_SPEC_FEATURE)) !== 'closed', '⑤ 空规格仍是 open')
   }
 
   // ── ⑤⑦ 收口核对通过：同一次调用里带核对评论 + close:true → 关得成 ──
@@ -240,7 +269,7 @@ async function main() {
     check(envelopeOk(r) && r.ok === true && r.status === 'ok', '⑤ 子票全关 + 带核对评论 → 关规格成功（实得 ' + (r && r.status) + '）')
     check((r.items || []).some((i) => i.step === 'comment' && i.status === 'ok') && (r.items || []).some((i) => i.step === 'close' && i.status === 'ok'), '⑦ 评论先发、再关，两步都记成 ok：' + JSON.stringify(r.items))
     check((await stateOf(specKey)) === 'closed', '⑤ 规格读回来是 closed（实得 ' + (await stateOf(specKey)) + '）')
-    check(ticketTextOf(specKey).indexOf('Status: resolved') >= 0, '⑤ 规格文件里落了关闭状态（Status: resolved）')
+    check(ticketTextOf(specKey).indexOf('DSH-STATUS: closed') >= 0, '⑤ 规格文件里落了关闭状态（隐藏注释 DSH-STATUS: closed）')
     check(ticketTextOf(specKey).indexOf(comment) >= 0, '⑦ 那条逐张核对结论真的留在了规格票面里')
   }
 
@@ -255,9 +284,9 @@ async function main() {
 
   // ── 非规格票关闭照旧成功：规格闸只认规格 ──
   {
-    const r = await callTool('deck_issue_patch', { key: plainKey, comment: '普通票收尾：与规格无关。', close: true })
+    const r = await callTool('deck_issue_patch', { key: plainKey, feature: SPEC_FEATURE, comment: '普通票收尾：与规格无关。', close: true })
     check(envelopeOk(r) && r.ok === true && r.status === 'ok', '普通票（非规格）关闭不受规格闸影响（实得 ' + (r && r.status) + '）')
-    check((await stateOf(plainKey)) === 'closed', '普通票读回来是 closed')
+    check((await stateOf(plainKey, SPEC_FEATURE)) === 'closed', '普通票读回来是 closed')
   }
 
   // ── ⑤ 静态扫描：src/deck 下只有 issue-patch.ts 一处调 close/reopen，没有「顺手关」的旁路 ──

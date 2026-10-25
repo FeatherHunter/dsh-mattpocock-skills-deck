@@ -32,7 +32,8 @@ function makeWorkspace() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 't3-map-plan-'))
   const dir = path.join(root, '.scratch', 'demo')
   fs.mkdirSync(path.join(dir, 'issues'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'map.md'), '# 演示地图\n\nStatus: ready-for-agent\n\n## Destination\n\n把演示做完\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n', 'utf8')
+  // 这里不再预写 map.md：原文布局一个目录只允许一份 map.md，而这一段正要用 deck_map_plan_create
+  // 在 demo 里建地图骨架；预写的那份会让建图如实拒绝（旧扁平布局把 map 当普通编号票，所以以前不冲突）。
   const plat = {
     path: path.posix,
     fs: {
@@ -46,7 +47,7 @@ function makeWorkspace() {
   }
   const rootPosix = root.replace(/\\/g, '/')
   return {
-    root, rootPosix, issuesDir: path.join(dir, 'issues'),
+    root, rootPosix, issuesDir: path.join(dir, 'issues'), mapFile: path.join(dir, 'map.md'),
     ctx: { platform: plat, fs: plat.fs, cwd: rootPosix, get(name: string) { return name === 'fs' ? plat.fs : undefined } },
     cleanup() { try { fs.rmSync(root, { recursive: true, force: true }) } catch (e) {} },
   }
@@ -105,15 +106,19 @@ async function main() {
     return fs.readFileSync(path.join(ws.issuesDir, names[0]), 'utf8')
   }
   const countFiles = () => fs.readdirSync(ws.issuesDir).length
+  // 地图是 <effort>/map.md 的容器，不在 issues/ 里，按路径单独读。
+  const mapText = () => fs.readFileSync(ws.mapFile, 'utf8')
   const typeLines = (text: string) => (text.match(/^Type[：:].*$/gm) || [])
-  // Labels 行按后端写的分隔符拆开，交给共享位置表判断「哪一枚是类型标签」，不在门禁里再抄一份类型标签清单。
+  // #1486：新布局把标签与父票写进隐藏注释，不再写可见的 Labels 行与 parentKey 注释。
   const labelsOf = (text: string): string[] => {
-    const line = (text.match(/^Labels[：:].*$/m) || [''])[0] || ''
-    return line.replace(/^Labels[：:]\s*/, '').split(/\s*[,，]\s*/).map((s) => s.trim()).filter(Boolean)
+    const visible = (text.match(/^Labels[：:].*$/m) || [''])[0] || ''
+    const hidden = (text.match(/^<!--\s*DSH-LABELS[：:]\s*(.*?)\s*-->/m) || [])[1] || ''
+    const line = visible || hidden
+    return line.replace(/^(Labels[：:]|<!--\s*DSH-LABELS[：:])\s*/, '').replace(/\s*-->\s*$/, '').split(/\s*[,，]\s*/).map((s) => s.trim()).filter(Boolean)
   }
   const typeLabelCount = (text: string) => labelsOf(text).filter((n) => kindRules.isTypeLabel(n)).length
   const hasProgress = (text: string) => /^##\s*进度\s*$/m.test(text)
-  const parentComment = (key: string) => new RegExp('^<!-- parentKey: ' + key + ' -->', 'm')
+  const parentComment = (key: string) => new RegExp('^<!-- (?:parentKey|DSH-PARENT): ' + key + ' -->', 'm')
 
   // ── 一、正例：一次建出混合骨架 ──
   console.log('— 一、正例：地图 + 四种地图工单 + 缺陷票 + 普通票，一次建成')
@@ -149,7 +154,7 @@ async function main() {
   // ── 二、盘上：地图与六张子票 ──
   console.log('— 二、盘上：地图五节与 ## 进度；子票父票、类型标签、Type 行按位置表')
   if (mapKey) {
-    const text = fileOf(mapKey)
+    const text = mapText()
     const heads = ['## Destination', '## Notes', '## Decisions so far', '## Not yet specified', '## Out of scope']
     const positions = heads.map((h) => text.indexOf(h))
     check(positions.every((i) => i >= 0), '地图五节都在（缺的：' + heads.filter((h, i) => positions[i] < 0).join('、') + '）')

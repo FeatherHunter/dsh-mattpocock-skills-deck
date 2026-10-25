@@ -13,6 +13,7 @@
 // 限时（#895）：整包活包一层调用上下文——剩余额度不够就停发新调用（部分成功+游标），
 // 每一次远端调用单独钳制，超时只坏自己那一项；同计划标识并发第二跑直接拒绝。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { MD_SCOPE_CREATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
@@ -74,7 +75,7 @@ export const definition = {
       },
       labels: { type: 'array', items: { type: 'string' } },
       workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_CREATE,
     },
     required: ['title', 'children'],
     additionalProperties: false,
@@ -262,9 +263,9 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     ACTIVE_PLANS.set(planId, 1)
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_map_plan_create', kind: 'write' })
     if (!pick.ok) { ACTIVE_PLANS.delete(planId); return shell.unsupported('deck_map_plan_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } }) }
-    const repo = shell.repoOf(pick, s)
-    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
-    if (effortId) repo.effortId = effortId
+    // 拒绝前先放掉 planId：这一步还没真正开工，但刚才已经把它占住（同一个计划不许并发）。
+    const repo = shell.repoOf(pick, s), scope = applyMdScope(repo, a)
+    if (!scope.ok) { ACTIVE_PLANS.delete(planId); return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } }) }
 
     // d.planStore 在依赖袋里是 unknown（装配层塞进来的运行时对象，形状由 plan-cursor.ts 定）：读取各按
     // 纯类型断言收口 —— 读的还是同一格 d.planStore，取值表达式一字不动；形状不对就退到下面现建的文件游标。
@@ -312,7 +313,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       const state: PlanState = { planId: planId, mapKey: prev.mapKey || '', keys: Object.assign({}, prev.keys), edges: Array.isArray(prev.edges) ? prev.edges.slice() : [], done: Array.isArray(prev.done) ? prev.done.slice() : [] }
       const items = []
       const notes = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (usingAutoPlanId) notes.push('这次没传 planId，用了自动计划标识（' + planId.slice(0, 80) + '）：重试时必须显式传回这个 planId，否则会被当成新计划建重复票；想建第二张内容相同的计划时，必须显式传一个不同的 planId，否则会被当成重试而复用旧票。')
       const storeDurable = store.durable !== false
       if (!storeDurable) notes.push('这次的中间态只记在本进程的内存里（没有注入落盘的存储器）：进程重启后重跑同一个 planId 会重新建票。')

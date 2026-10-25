@@ -8,6 +8,7 @@
 // 在内存里再筛一遍 —— GitHub 房的列表查询本来就是批量取回内存筛（见 backends/github/queries.js
 // 的 LIST_QUERY 注释），三后端行为一致，不逐后端写分支。顺序沿用后端原序，不重排。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
@@ -43,7 +44,7 @@ export const definition = {
       assignee: { type: 'string', description: '只留认领含此人的行，缺省不过滤' },
       query: { type: 'string', description: '标题与正文的子串过滤，缺省不过滤' },
       limit: { type: 'number', description: '最多回几行，缺省 50，上限 200' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_LOCATE,
     },
     required: [],
     additionalProperties: false,
@@ -143,8 +144,8 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_list', kind: 'read' })
     if (!pick.ok) return shell.unsupported('deck_issue_list', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
-    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
-    if (effortId) repo.effortId = effortId
+    const scope = applyMdScope(repo, a)
+    if (!scope.ok) return shell.unsupported('deck_issue_list', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
 
     // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。
     let sandbox: unknown = null
@@ -230,7 +231,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       if (wantAssignee) cond.push('assignee=' + String(a.assignee).trim())
       if (wantQuery) cond.push('query=' + String(a.query).trim().slice(0, 40))
       const notes = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (backendFallback) notes.push('后端主路这次用不了，走的是 REST 降级通道：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
       else if (backendTruncated) notes.push('后端这次只翻到自己的上限就停了（工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
       if (truncated) notes.push('只回前 ' + sliced.length + ' 行（共 ' + total + ' 行符合）：收窄过滤或调大 limit 再取一次。')

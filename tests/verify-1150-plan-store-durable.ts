@@ -85,8 +85,9 @@ function strictWorkspace(opts) {
     root: root,
     rootPosix: rootPosix,
     ctx: { platform: plat, fs: fsSvc, cwd: rootPosix, get(name) { return name === 'fs' ? fsSvc : undefined } },
-    /** 盘上现在有哪些票文件（本地 Markdown 后端：票就是文件）。 */
-    ticketFiles() { try { return fs.readdirSync(path.join(dir, 'issues')).filter((f) => f.endsWith('.md')) } catch (e) { return [] } },
+    /** 盘上现在有哪些票文件（本地 Markdown 后端：票就是文件）。不传 effort 时看夹具预置的 demo 目录；
+     * 计划点名 effort 之后，地图容器落 <effort>/map.md、子票落 <effort>/issues/，要按那个目录数。 */
+    ticketFiles(effort) { const where = typeof effort === 'string' && effort ? path.join(root, '.scratch', effort) : dir; try { return fs.readdirSync(path.join(where, 'issues')).filter((f) => f.endsWith('.md')) } catch (e) { return [] } },
     /** 计划游标目录：一个工作区一个目录，一个计划一个小 JSON。 */
     cursorDir() { return path.join(root, '.dsh-mattskillsdeck-cache', 'deck-plans') },
     cursorFiles() { try { return fs.readdirSync(this.cursorDir()).filter((f) => f.indexOf('deck-plan-') === 0) } catch (e) { return [] } },
@@ -181,17 +182,22 @@ async function main() {
 
   const exec = { agent: { session: { id: 's-1150', cwd: ws.rootPosix } } }
   const children = [{ key: 'c1', title: '子票一', kind: 'issue' }, { key: 'c2', title: '子票二', kind: 'issue' }]
-  const ticketsBefore = ws.ticketFiles().length
+  const ticketsBefore = ws.ticketFiles('plan-store-1150').length
 
   // ── 第一段：建到一半（那条边的落点不存在，所以这一跑不会是「全成」，中间态必须留在盘上） ──
+  // 给计划点名一个独立 effort：原文布局里一个目录只允许一份 map.md，夹具预置的 demo 地图是给
+  // 「有 map.md 的工作区」那类夹具用的，计划不能和它挤同一目录（会如实拒绝建图，测不到续跑语义）。
   const plan1 = await first.table.tools.deck_map_plan_create.run(exec, {
-    planId: 'plan-store-1150', title: '计划存储演示地图', children: children, edges: [{ from: 'c1', to: '没有这张票' }],
+    planId: 'plan-store-1150', title: '计划存储演示地图', effort: 'plan-store-1150', children: children, edges: [{ from: 'c1', to: '没有这张票' }],
   })
   check(plan1 && plan1.data && plan1.data.durable === true, '第一跑回执说这次是落盘的（durable=' + (plan1 && plan1.data && plan1.data.durable) + '）')
   check(!!(plan1 && plan1.data && plan1.data.mapKey), '第一跑建出了地图票（mapKey=' + (plan1 && plan1.data && plan1.data.mapKey) + '）')
   check(plan1 && plan1.status !== 'ok', '第一跑如实报了「没全成」（status=' + (plan1 && plan1.status) + '，那条边的落点不存在）：这才是「建到一半」的现场')
   const built1 = (plan1 && plan1.data && Array.isArray(plan1.data.builtKeys)) ? plan1.data.builtKeys.length : -1
-  check(ws.ticketFiles().length === ticketsBefore + 3, '地图票与两张子票真的落到了盘上（票文件 ' + ticketsBefore + ' → ' + ws.ticketFiles().length + '，回执 builtKeys ' + built1 + ' 条）')
+  // 原文布局里地图是 <effort>/map.md 的容器（不进 issues/），所以票文件只多两张子票；
+  // 地图本身另外按 map.md 是否存在来核，判据没有放宽，只是把落点改成了原文布局。
+  const planMapFile = path.join(ws.root, '.scratch', 'plan-store-1150', 'map.md')
+  check(ws.ticketFiles('plan-store-1150').length === ticketsBefore + 2 && fs.existsSync(planMapFile), '两张子票落进 issues/、地图落在同目录 map.md（票文件 ' + ticketsBefore + ' → ' + ws.ticketFiles('plan-store-1150').length + '，回执 builtKeys ' + built1 + ' 条，map.md ' + (fs.existsSync(planMapFile) ? '在' : '不在') + '）')
 
   const cursors1 = ws.cursorFiles()
   check(cursors1.length === 1, '盘上留下了一个计划游标文件：' + JSON.stringify(cursors1))
@@ -203,12 +209,12 @@ async function main() {
   // ── 第二段：换一套全新装配（等价于进程重启）带同一个计划标识接着建 ──
   const second = await assemble(ws, logs)
   const plan2 = await second.table.tools.deck_map_plan_create.run(exec, {
-    planId: 'plan-store-1150', title: '计划存储演示地图', children: children,
+    planId: 'plan-store-1150', title: '计划存储演示地图', effort: 'plan-store-1150', children: children,
   })
   check(plan2 && plan2.status === 'ok', '续跑这一跑全成了（status=' + (plan2 && plan2.status) + '，notes=' + JSON.stringify(plan2 && plan2.notes) + '）')
   check(plan2 && plan2.data && plan2.data.mapKey === plan1.data.mapKey, '地图票没有重建，还是同一张（' + (plan2 && plan2.data && plan2.data.mapKey) + '）')
   check(!!(plan2 && plan2.notes && plan2.notes.some((n) => String(n).indexOf('上次已经建好了') >= 0)), '回执里那句「地图票上次已经建好了」来自盘上读回来的游标（第二套装配进程内存里是空的）')
-  check(ws.ticketFiles().length === ticketsBefore + 3, '续跑没有重复建票（票文件仍是 ' + ws.ticketFiles().length + ' 个）')
+  check(ws.ticketFiles('plan-store-1150').length === ticketsBefore + 2, '续跑没有重复建票（票文件仍是 ' + ws.ticketFiles('plan-store-1150').length + ' 个）')
   check(!!(plan2 && plan2.data && plan2.data.skippedKeys && plan2.data.skippedKeys.length === 2), '两张子票都被认出来跳过了：' + JSON.stringify(plan2 && plan2.data && plan2.data.skippedKeys))
   const cursors2 = ws.cursorFiles()
   check(cursors2.length === 1 && ws.cursorText(cursors2[0]) === '', '整张图建成之后游标被清掉（写成空文件，读回来就是「没有」）')
@@ -231,15 +237,15 @@ async function main() {
   const own1 = await toolLevel(ws4)
   const ownExec = { agent: { session: { id: 's-1150c', cwd: ws4.rootPosix } } }
   const ownPlan1 = await own1.tool.run(ownExec, {
-    planId: 'plan-store-1150-own', title: '计划存储演示地图',
+    planId: 'plan-store-1150-own', title: '计划存储演示地图', effort: 'plan-store-1150-own',
     children: [{ key: 'e1', title: '子票一', kind: 'issue' }, { key: 'e2', title: '子票二', kind: 'issue' }], edges: [{ from: 'e1', to: '没有这张票' }],
   })
   check(ownPlan1 && ownPlan1.data && ownPlan1.data.durable === true, '工具自建读写那条路也真落盘（durable=' + (ownPlan1 && ownPlan1.data && ownPlan1.data.durable) + '）')
   check(ws4.cursorFiles().length === 1, '工具自建读写把游标写到了盘上：' + JSON.stringify(ws4.cursorFiles()))
   const own2 = await toolLevel(ws4)
-  const ownPlan2 = await own2.tool.run(ownExec, { planId: 'plan-store-1150-own', title: '计划存储演示地图', children: [{ key: 'e1', title: '子票一', kind: 'issue' }, { key: 'e2', title: '子票二', kind: 'issue' }] })
+  const ownPlan2 = await own2.tool.run(ownExec, { planId: 'plan-store-1150-own', title: '计划存储演示地图', effort: 'plan-store-1150-own', children: [{ key: 'e1', title: '子票一', kind: 'issue' }, { key: 'e2', title: '子票二', kind: 'issue' }] })
   check(ownPlan2 && ownPlan2.status === 'ok' && !!(ownPlan2.notes && ownPlan2.notes.some((n) => String(n).indexOf('上次已经建好了') >= 0)), '换一套新装配后，工具自建读写也能靠盘上游标接着建（status=' + (ownPlan2 && ownPlan2.status) + '，notes=' + JSON.stringify(ownPlan2 && ownPlan2.notes) + '）')
-  check(ws4.ticketFiles().length === 3, '续跑没有重复建票（票文件 ' + ws4.ticketFiles().length + ' 个）')
+  check(ws4.ticketFiles('plan-store-1150-own').length === 2 && fs.existsSync(path.join(ws4.root, '.scratch', 'plan-store-1150-own', 'map.md')), '续跑没有重复建票（票文件 ' + ws4.ticketFiles('plan-store-1150-own').length + ' 个，map.md ' + (fs.existsSync(path.join(ws4.root, '.scratch', 'plan-store-1150-own', 'map.md')) ? '在' : '不在') + '）')
 
   // ── 第五段：工具自建读写碰上「没有 resolve」的实现时，同样只许说没落盘 ──
   const ws5 = strictWorkspace({ withoutResolve: true })

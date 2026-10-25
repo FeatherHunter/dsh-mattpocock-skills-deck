@@ -114,11 +114,11 @@ async function main() {
   const wordsOf = (res: any): any[] => (res && res.data && res.data.ticket && res.data.ticket.originalWords) || []
 
   // ═══ ① 建票带一条刁钻原话，再读回来逐字相同 ═══
-  const created = await createTool.run(execA, { title: '原话读回票', kind: 'issue', body: '## 目的\n\n把原话读回来。\n', originalWords: e1 })
+  const created = await createTool.run(execA, { title: '原话读回票', kind: 'issue', feature: '原话读回票', body: '## 目的\n\n把原话读回来。\n', originalWords: e1 })
   check(!!created && created.status === 'ok', '建票带原话回 ok（实得 ' + String(created && created.status) + '，说明 ' + String((created && created.text) || '').slice(0, 160) + '）')
   const cKey = String((created.data && created.data.ticket && created.data.ticket.key) || '')
   check(!!cKey, '拿到建出来的票号（实得 ' + cKey + '）')
-  const g1 = await getTool.run(execA, { key: cKey })
+  const g1 = await getTool.run(execA, { key: cKey, feature: '原话读回票' })
   const w1 = wordsOf(g1)
   check(w1.length === 1, '读工具读回一条原话（实得 ' + w1.length + ' 条）')
   check(w1[0] && JSON.stringify(w1[0].text) === JSON.stringify(TRICKY),
@@ -132,11 +132,11 @@ async function main() {
     '看起来像出处的原话行被包在引用块里，不会被误当出处')
 
   // ═══ ② 再追加两条：recordedAt 从出处里认，顺序不乱 ═══
-  const p2 = await patchTool.run(execA, { key: cKey, originalWords: e2 })
+  const p2 = await patchTool.run(execA, { key: cKey, feature: '原话读回票', originalWords: e2 })
   check(!!p2 && p2.status === 'ok', '追加第二条原话回 ok（实得 ' + String(p2 && p2.status) + '）')
-  const p3 = await patchTool.run(execA, { key: cKey, originalWords: e3 })
+  const p3 = await patchTool.run(execA, { key: cKey, feature: '原话读回票', originalWords: e3 })
   check(!!p3 && p3.status === 'ok', '追加第三条原话回 ok（实得 ' + String(p3 && p3.status) + '）')
-  const g2 = await getTool.run(execA, { key: cKey })
+  const g2 = await getTool.run(execA, { key: cKey, feature: '原话读回票' })
   const w2 = wordsOf(g2)
   check(w2.length === 3, '读回三条原话（实得 ' + w2.length + ' 条）')
   check(w2[1] && w2[1].recordedAt === '2026-10-21T22:05+08:00', '第二条的 recordedAt 从出处里认出并原样带出（实得 ' + String(w2[1] && w2[1].recordedAt) + '）')
@@ -145,39 +145,43 @@ async function main() {
     '追加后面的原话不会改到前面的原话（第一条仍逐字相同）')
 
   // ═══ ③ section='维护者原话' 直接取整区原文 ═══
-  const gs = await getTool.run(execA, { key: cKey, section: '维护者原话' })
+  const gs = await getTool.run(execA, { key: cKey, feature: '原话读回票', section: '维护者原话' })
   const section = (gs.data && gs.data.section) || null
   check(!!section && String(section.name).indexOf('维护者原话') >= 0, 'section 参数按标题找到原话区（实得 ' + JSON.stringify(section && section.name) + '）')
   check(String(section.text).indexOf('出处：' + e1.source) >= 0 && String(section.text).indexOf('> ' + TRICKY_LINES[2]) >= 0,
     'section 原文里出处行与引用块都在（引用块的 > 前缀原样，不替读的人剥掉）')
 
   // ═══ ⑥ 重复提交同一段原话 + 同一出处：幂等跳过，读回来仍是一条 ═══
-  const again = await patchTool.run(execA, { key: cKey, originalWords: e2 })
+  const again = await patchTool.run(execA, { key: cKey, feature: '原话读回票', originalWords: e2 })
   const againItem = ((again && again.items) || []).find((i: any) => i.step === 'text') || {}
   check(!!again && again.status === 'ok' && againItem.skipped === true, '重复提交时幂等跳过、不再写一遍正文（实得 skipped=' + String(againItem.skipped) + '）')
-  const g3 = await getTool.run(execA, { key: cKey })
+  const g3 = await getTool.run(execA, { key: cKey, feature: '原话读回票' })
   check(wordsOf(g3).length === 3, '幂等跳过之后读回来仍只有三条（实得 ' + wordsOf(g3).length + ' 条）')
+  // #1486：票号只在同一个 feature 目录里唯一；这张票建在显式给的 feature 目录里，
+  // 后面建地图与子票时沿用它，不然跨目录会出现多个 01，按票号读写就分不清是哪一张。
+  const featureName = '原话读回票'
 
   // ═══ ④ 地图快照 full 行同一份、thin 行不带 ═══
   const plan = await planTool.run(execA, {
-    planId: '1092-roundtrip-01', title: '原话读回地图',
+    planId: '1092-roundtrip-01', title: '原话读回地图', feature: featureName,
     children: [{ key: 'c1', title: '原话读回子票', kind: 'issue' }],
     edges: [{ from: 'c1', to: '@map', type: 'parent' }],
   })
-  check(plan && plan.status === 'ok', '建地图加子票整体成功（实得 ' + String(plan && plan.status) + '）')
+  check(plan && plan.status === 'ok', '建地图加子票整体成功（实得 ' + String(plan && plan.status) + '；' + String(plan && plan.text).slice(0, 200) + '）')
   const mapKey = String((plan.data && plan.data.mapKey) || '')
   const childKey = String(((plan.data && plan.data.builtKeys) || []).find((k: string) => String(k) !== mapKey) || '')
   check(!!mapKey && !!childKey, '地图与子票票号都拿到了（地图 ' + mapKey + '，子票 ' + childKey + '）')
-  const childWrite = await patchTool.run(execA, { key: childKey, originalWords: e1 })
-  check(childWrite && childWrite.status === 'ok', '给子票写一条原话回 ok（实得 ' + String(childWrite && childWrite.status) + '）')
-  const childGet = await getTool.run(execA, { key: childKey })
+  // #1486：票号只在同一个 feature 目录里唯一，跨目录会出现多个 01；读写都用这次显式给的 feature 指路。
+  const childWrite = await patchTool.run(execA, { key: childKey, feature: featureName, originalWords: e1 })
+  check(childWrite && childWrite.status === 'ok', '给子票写一条原话回 ok（实得 ' + String(childWrite && childWrite.status) + '；' + String(childWrite && childWrite.text).slice(0, 180) + '；' + JSON.stringify((childWrite && childWrite.items) || []).slice(0, 300) + '）')
+  const childGet = await getTool.run(execA, { key: childKey, feature: featureName })
   const childWords = wordsOf(childGet)
-  const snap = await snapTool.run(execA, { key: mapKey })
+  const snap = await snapTool.run(execA, { key: mapKey, feature: featureName })
   const rows = (snap.data && snap.data.children) || []
   const row = rows.find((r: any) => String(r.key) === childKey)
   check(!!row && JSON.stringify(row.originalWords) === JSON.stringify(childWords),
     '快照 full 行的原话与 deck_issue_get 读回逐项相同（实得 ' + JSON.stringify(row && row.originalWords) + '）')
-  const thin = await snapTool.run(execA, { key: mapKey, detail: 'thin' })
+  const thin = await snapTool.run(execA, { key: mapKey, feature: featureName, detail: 'thin' })
   const thinRow = ((thin.data && thin.data.children) || []).find((r: any) => String(r.key) === childKey)
   check(!!thinRow && thinRow.originalWords === undefined, '薄行不带原话字段（守住回包大小，要原话逐张读 get）')
 

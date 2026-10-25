@@ -6,6 +6,7 @@
 // 五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）用共享层的
 // parseMapBody 解析，同样是单源。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { childrenOf } from '../shell/edge-landing.js'
@@ -50,7 +51,7 @@ export const definition = {
       key: { type: 'string', description: '地图那张票的票号' },
       frontierOnly: { type: 'boolean', description: '只回可接的子票（未关闭、未认领、阻塞已满足），缺省回全部' },
       detail: { type: 'string', enum: ['full', 'thin'], description: '子票行要多细。缺省 full：每行带正文进度（回包大，票多时被截断）。thin：只要键、标题、状态、标签、认领、阻塞（回包小、清单不断；统计与进度表照算不变；要正文用 deck_issue_get 逐张取）。' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_LOCATE,
     },
     required: ['key'],
     additionalProperties: false,
@@ -97,7 +98,7 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
 
   /**
    * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
-   * 参数先当「未知」再逐项收口（key / effortId / frontierOnly / detail 各收一次），回执形状由壳统一渲染。
+   * 参数先当「未知」再逐项收口（key / effort / feature / frontierOnly / detail 各收一次），回执形状由壳统一渲染。
    * exec 上只声明本文件真正会读的那个字段（取消信号），其余字段一律不碰、照旧整只交给壳，
    * 所以下面取 signal 的地方不必写一串断言。
    */
@@ -116,8 +117,8 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_map_snapshot', kind: 'read' })
     if (!pick.ok) return shell.unsupported('deck_map_snapshot', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
-    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
-    if (effortId) repo.effortId = effortId
+    const scope = applyMdScope(repo, a)
+    if (!scope.ok) return shell.unsupported('deck_map_snapshot', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
 
     // exec 的形状由 DSH 给（会话壳那批还没标类型，见 #1040），三处 exec.signal 各按纯类型断言收口：
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
@@ -149,7 +150,7 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       const picked = childrenOf(listed, key)
       const children = picked.children
       const notes = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (!kids || kids.ok !== true) notes.push('子票没取全（后端原话：' + String((kids && kids.error && kids.error.message) || '').slice(0, 200) + '）：下面的进度是手上这几张票算出来的，偏乐观。')
       if (picked.note) notes.push(picked.note)
       // 进度统计走共享层同一份投影：把它当成只有这一张地图的 deck 来算。

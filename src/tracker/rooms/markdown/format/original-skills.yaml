@@ -1,0 +1,254 @@
+# ============================================================================
+# Markdown 后端「随包原文 ↔ 本插件」的格式映射（唯一真源）
+#
+# 为什么有这个文件（#1480）：
+#   本地 Markdown 后端的磁盘格式来自 Matt Pocock 的随包技能原文（package/bundled-skills/，
+#   上游 mattpocock/skills 的 v1.3.1），不是本插件发明的。原文要求的目录、标题、字段行，
+#   与本插件额外加的隐藏注释、编号寻址、幂等标记之间的对应关系，只在这里写一遍；
+#   生成器把它写成 src/tracker/rooms/markdown/format/generated.ts，代码读生成物，
+#   运行时不再读 YAML——这样两边不会悄悄分叉，改了 YAML 忘跑生成器会被门禁判红。
+#
+# 三条不能改的约定：
+#   1. 可见正文只放原文要求的标题、字段行与正文；本插件自己的信息一律写进 HTML 注释。
+#   2. 原文没有单独规定形态的文件（普通 issue、规格状态）沿用最接近的原文文件形态，
+#      不另造一套模板；沿用的理由写在 objects 与 enhancements 的 note/why 里。
+#   3. 本插件额外加的每一样东西，都必须在 hidden-comments 或 enhancements 里登记它的理由。
+#
+# 改动步骤见文件末尾 upgrade.checklist。对不上时跑：
+#   node --import ./scripts/ts-hook.mts tests/verify-md-format-config.ts
+# ============================================================================
+version: 1
+
+upstream:
+  repo: mattpocock/skills
+  pin: v1.3.1
+  hash-manifest: tests/bundled-skills-upstream-hashes.json
+  verify-gate: tests/verify-bundled-skills-upstream.ts
+
+# 映射引用的随包原文。objects 的 anchors 与 hidden-comments 的 line 都要能在这些文件里
+# 找到对应字样；找不到说明原文变了或映射写错了，门禁会判红。
+sources:
+  issue-tracker-local:
+    file: package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md
+    role: 本地 Markdown 跟踪器：目录布局、Status 行、Comments、Wayfinding operations
+  to-spec:
+    file: package/bundled-skills/to-spec/SKILL.md
+    role: 规格正文的七段模板与发布要求
+  to-tickets:
+    file: package/bundled-skills/to-tickets/SKILL.md
+    role: 实施票的本地文件模板、从 01 编号、阻塞边、发布形态
+  wayfinder:
+    file: package/bundled-skills/wayfinder/SKILL.md
+    role: 探索地图正文五段、子票问句、类型与状态、认领/阻塞/解决
+
+layout:
+  root: .scratch
+  # 规格与实施票所在目录：原文 issue-tracker-local.md 的「一个 feature 一个目录」。
+  feature-dir: <feature-slug>
+  # 探索地图所在目录：原文 Wayfinding operations 用的词是 effort，物理上是同一层。
+  effort-dir: <effort>
+  spec-file: spec.md
+  map-file: map.md
+  issues-dir: issues
+  ticket-file: <NN>-<slug>.md
+  numbering:
+    # 原文：numbered from 01，每个目录各自从 01 开始，按依赖顺序（阻塞者在前）。
+    first: 1
+    digits: 2
+    scope: per-directory
+    dependency-order: true
+
+objects:
+  spec:
+    kind: spec
+    path: .scratch/<feature-slug>/spec.md
+    source: [issue-tracker-local, to-spec]
+    # 原文模板（to-spec/SKILL.md 第 23 行起）从「## Problem Statement」直接开始，没有一级标题。
+    # 标题只写进文件头的 DSH-TITLE 隐藏注释：本地文件要能显示与改名，但不许往可见正文里多写一行。
+    title-comment: DSH-TITLE
+    sections:
+      - Problem Statement
+      - Solution
+      - User Stories
+      - Implementation Decisions
+      - Testing Decisions
+      - Out of Scope
+      - Further Notes
+    user-story-shape: "1. As an <actor>, I want a <feature>, so that <benefit>"
+    status:
+      visible-line: false
+      hidden-comment: DSH-STATUS
+      default: ready-for-agent
+    anchors:
+      - .scratch/<feature-slug>/spec.md
+    note: 七段标题逐字照 to-spec；规格本身没有状态行，状态是本插件扩展项（见 hidden-comments 的 DSH-STATUS）。
+
+  map:
+    kind: map
+    path: .scratch/<effort>/map.md
+    source: [issue-tracker-local, wayfinder]
+    # 原文模板（wayfinder/SKILL.md 第 31-53 行）从「## Destination」直接开始，没有一级标题。
+    # 标题只写进文件头的 DSH-TITLE 隐藏注释，理由同 spec。
+    title-comment: DSH-TITLE
+    sections:
+      - Destination
+      - Notes
+      - Decisions so far
+      - Not yet specified
+      - Out of scope
+    status:
+      visible-line: false
+      hidden-comment: DSH-STATUS
+      default: ready-for-agent
+    anchors:
+      - .scratch/<effort>/map.md
+    note: '地图正文五段逐字照 wayfinder；子票的问句放在子票正文的 ## Question 下（见 wayfinder-child）。'
+
+  implementation-ticket:
+    kind: spec-ticket
+    path: .scratch/<feature-slug>/issues/<NN>-<slug>.md
+    source: [issue-tracker-local, to-tickets]
+    title-shape: "# <NN>: <票标题>"
+    fields:
+      - label: What to build
+        line-shape: "**What to build:** <从用户视角能看到的端到端行为>"
+      - label: Blocked by
+        line-shape: "**Blocked by:** <编号或标题，或 None (can start immediately)>"
+      - label: Status
+        line-shape: "**Status:** <状态词>"
+    acceptance: "- [ ] <验收项>"
+    status:
+      visible-line: true
+      default: ready-for-agent
+    anchors:
+      - .scratch/<feature-slug>/issues/<NN>-<slug>.md
+      - "**What to build:**"
+      - "**Blocked by:**"
+      - "**Status:** ready-for-agent"
+      - "- [ ] Acceptance criterion 1"
+    note: '用 to-tickets 的「Local files」模板（不是真 tracker 的 ## Parent 四段模板）。'
+
+  wayfinder-child:
+    kind: map-ticket
+    path: .scratch/<effort>/issues/<NN>-<slug>.md
+    source: [issue-tracker-local, wayfinder]
+    title-shape: "# <NN>: <问句标题>"
+    body-section: Question
+    top-lines:
+      - label: Type
+        values: [research, prototype, grilling, task]
+      - label: Status
+        values: [claimed, resolved]
+      - label: Blocked by
+        line-shape: "Blocked by: <NN>, <NN>"
+    resolve:
+      answer-section: Answer
+      append-map-decision-pointer: true
+    anchors:
+      - .scratch/<effort>/issues/NN-<slug>.md
+      - "## Question"
+      - "Blocked by: NN, NN"
+      - "## Answer"
+    note: '子票的问题在正文 ## Question 下；认领改 Status、解决追加 ## Answer 并把指针写回 map.md 的 Decisions so far（T6 落地）。'
+
+  plain-issue:
+    kind: issue
+    path: .scratch/<feature-slug>/issues/<NN>-<slug>.md
+    source: [issue-tracker-local]
+    reuse: implementation-ticket
+    anchors:
+      - .scratch/<feature-slug>/issues/<NN>-<slug>.md
+      - <feature-slug>
+    note: 原文没有给「普通 issue」单列模板，implementation issues 就是 issues/ 下的一票一文件；因此沿用实施票模板，目录名按标题生成或在建票时显式给出。
+
+# 状态词。原文把 triage 状态（issue-tracker-local.md 第 10 行指向 triage-labels.md）
+# 与 wayfinder 的 claimed/resolved 分开写；映射保持这两个集合不混用。
+status:
+  triage-roles: [needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix]
+  wayfinder: [claimed, resolved]
+
+# 本插件写出的 HTML 注释。每一条都必须写清「为什么加」，一行一条，放在第一个可见标题之前
+# （规格与地图没有一级标题，第一个可见标题就是它们正文的第一个段标题）。
+# 读取时：没有 DSH-FORMAT 的文件按纯原文解析，缺的插件信息当未知，不报错（见 reading）。
+hidden-comments:
+  placement: before-first-section
+  one-per-line: true
+  entries:
+    - name: DSH-FORMAT
+      line: "<!-- DSH-FORMAT: md-v1 -->"
+      scope: [all-files]
+      why: 第一眼看出这份文件由本插件写过以及当时的格式版本；原文文件没有它时按纯原文降级读取。
+    - name: DSH-TITLE
+      line: "<!-- DSH-TITLE: <标题文本> -->"
+      scope: [spec, map]
+      why: 原文的规格与地图模板都没有标题行（标题在 tracker 的 issue 上）；本地文件要能显示标题、也要能改名，所以放文件头这一行注释里，不污染可见正文。
+    - name: DSH-STATUS
+      line: "<!-- DSH-STATUS: <状态词> -->"
+      scope: [spec, map]
+      why: 原文只给 issue 文件规定可见 Status 行，规格与地图没有；插件要保留 triage/wayfinder 状态又不改可见正文。
+    - name: DSH-PARENT
+      line: "<!-- DSH-PARENT: <容器编号> -->"
+      scope: [implementation-ticket, wayfinder-child, plain-issue]
+      why: 原文靠目录表达父子；插件要显式父子边才能在跨目录校验与面板里不猜。
+    - name: DSH-ASSIGNEES
+      line: "<!-- DSH-ASSIGNEES: <名字>[, <名字>] -->"
+      scope: [spec, map, implementation-ticket, wayfinder-child, plain-issue]
+      why: 原文认领只把 Status 改成 claimed，不记认领人；插件需要保留多端认领信息。
+    - name: DSH-LABELS
+      line: "<!-- DSH-LABELS: <标签>[, <标签>] -->"
+      scope: [spec, map, implementation-ticket, wayfinder-child, plain-issue]
+      why: 本地 markdown 没有标签机制；wayfinder 类型与 triage 角色要保留，又不能写进可见正文。
+    - name: DSH-BLOCKED-BY
+      line: "<!-- DSH-BLOCKED-BY: <NN>[, <NN>] -->"
+      scope: [implementation-ticket, wayfinder-child, plain-issue]
+      why: 可见的 Blocked by 行是给人读的一句话；插件要稳定解析编号，单列一份机器可读的。
+    - name: DSH-IDEMPOTENCY-KEY
+      line: "<!-- DSH-IDEMPOTENCY-KEY: <键> -->"
+      scope: [all-files]
+      why: 建票重试不会写出第二份文件（#711 的幂等锚沿用到这里）。
+    - name: DSH-CREATED
+      line: "<!-- DSH-CREATED: <ISO-8601 时间> -->"
+      scope: [all-files]
+      why: 原文文件不带创建时间；面板排序、历史复盘与迁移判断要用，而它不属于原文正文。
+
+# 读取规则：兼容两种文件——本插件写的（有 DSH 注释）与别人按原文手写的（没有）。
+reading:
+  format-detection:
+    - with-marker: 文件头有 DSH-FORMAT 的，按本映射连同增强一起解析。
+    - original-only: 没有 DSH-FORMAT 的，只按原文形态解析；缺的插件信息按未知处理，不报错。
+  layout-discovery:
+    - spec-feature: .scratch 下含 spec.md 或 issues/ 的目录算一个 feature 目录（规格路线）。
+    - wayfinder-effort: .scratch 下含 map.md 的目录算一个探索地图目录（wayfinder 路线）。
+    - legacy-flat: .scratch/map.md + .scratch/issues/ 的旧扁平布局只读兼容，不再写入。
+  fallbacks:
+    - parent-by-directory: 没有 DSH-PARENT 时按所在目录判断父容器（目录里的 spec.md 或 map.md）。
+    - plain-when-unknown: 编号或父容器识别不了时按普通票读，不抛错。
+    - duplicate-number: 同一目录编号重复时不自作主张改号；显示退化为「编号-文件名」，并记 read.degraded 日志（reason 是 list:dup-number 或 get:dup-number）。
+
+# 本插件额外加的、原文没有的行为。每一条都要说清「加了什么、为什么、为什么不选别的做法」。
+enhancements:
+  - id: visible-status-resolved
+    what: 实施票与普通票做完时，把可见的 `**Status:**` 改成 resolved。
+    why: 原文只规定 triage 角色与 wayfinder 的 claimed/resolved，没有定义「做完」的写法；本地 tracker 里 resolved 已是既有用词（issue-tracker-local.md 第 30 行），沿用而不是另造一个词。
+    alternatives: 关闭就删票（破坏原文一票一文件）；只写隐藏状态（可见 Status 行是原文给读者看的，藏起来读者就看不到了）。
+  - id: progress-section
+    what: 在票文件末尾追加 `## 进度` 区块，按时间倒序记录百分比与说明。
+    why: GitHub 后端已有同一套进度追加机制（src/shared/issue-file/src/progress.ts，#1090/#1403）；Markdown 后端沿用，两个后端行为一致，面板与工具不用分叉。
+    alternatives: 只存插件状态文件（用户翻文件时看不到进度）；改成隐藏注释（进度是给人看的，藏起来违背它存在的意义）。
+  - id: numbering-display-fallback
+    what: 同一目录出现重复编号或没有编号的文件时，显示成「目录/编号-文件名」，内部寻址也退化为该串。
+    why: 原文保证「一目录从 01 连续编号」，但别人手写的文件可能不符合；读取不能因此报错，显示要能区分。
+    alternatives: 自动改号（偷偷改别人的文件，不可接受）；直接报错（读一张旧工作区就失败，不可接受）。
+
+# 原文升级的检查清单。pin 变化时照这个顺序做，并在 pin-history 追加一条。
+upgrade:
+  schema-version: md-v1
+  pin-history:
+    - pin: v1.3.1
+      recorded-at: 2026-10-24
+      note: 首次建立映射，以随包原文逐字为准。
+  checklist:
+    - 先跑 node --import ./scripts/ts-hook.mts tests/verify-md-format-config.ts，看哪些原文锚点对不上。
+    - 只改这份 YAML 与生成器，然后跑 node scripts/generate-md-format-config.mts 重算生成物。
+    - 在 pin-history 追加一条并写清变化原因；删除对象或字段必须同时在 docs/adr/ 里说明。
+    - 升级检测日志还没落地：YAML 版本识别与事件名由 #1499 承接（日志纪律见 AGENTS.md「日志埋点纪律」）。

@@ -27,9 +27,9 @@
     "jobs": [
       {
         "blockedBy": [
-          "03"
+          "02"
         ],
-        "key": "04"
+        "key": "03"
       }
     ],
     "requested": 1,
@@ -45,12 +45,12 @@
         {
           "actionAt": "<TIME>",
           "sessionLabel": "会话 1d9b81",
-          "ticketKey": "3"
+          "ticketKey": "2"
         },
         {
           "actionAt": "<TIME>",
           "sessionLabel": "会话 1d9b81",
-          "ticketKey": "4"
+          "ticketKey": "3"
         }
       ],
       "staleCount": 0,
@@ -59,18 +59,18 @@
   },
   "items": [
     {
-      "evidence": "写后读回：票 #04 的 blockedBy 里有 #03，也就是 #04 被 #03 阻塞；正文里也写着指向 #03 的一行（这是把关系写进正文的那种落法）",
-      "key": "04",
+      "evidence": "写后读回：票 #03 的 blockedBy 里有 #02，也就是 #03 被 #02 阻塞；正文里也写着指向 #02 的一行（这是把关系写进正文的那种落法）",
+      "key": "03",
       "landing": "正文行",
       "ok": true,
       "op": "block",
       "role": "edge",
       "status": "ok",
-      "target": "03"
+      "target": "02"
     }
   ],
   "notes": [
-    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#2、#3）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
   ],
   "ok": true,
   "readBack": null,
@@ -85,7 +85,7 @@
   "text": "这次要补 1 条边，建成 1 条。",
   "tool": "deck_map_link",
   "touched": [
-    "04"
+    "03"
   ],
   "workspace": {
     "key": "<WSKEY>",

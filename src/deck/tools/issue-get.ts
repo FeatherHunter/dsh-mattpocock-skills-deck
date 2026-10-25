@@ -4,6 +4,7 @@
 // 「优先读宿主已有快照」落在实现上是：宿主把快照缓存（snapshot.js 的 get/getDependencies）通过
 // deps.readThrough 注进来时先用它，没注入就现读；两条路的返回值形状一样，调用方看不出区别。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { EDGE_LANDING, relationsOf } from '../shell/edge-landing.js'
@@ -90,7 +91,7 @@ export const definition = {
       comments: { type: 'number', description: '最多带回几条评论，缺省 50' },
       section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回全文前 2000 字' },
       blocking: { type: 'boolean', description: '要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系，一次查询就取回反向边，阻塞者的标题与状态随行回来。关掉只读单票本身，跳过一次反向边查询，快；反向边记空并注记，要就再调一次。' },
-      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
+      ...MD_SCOPE_LOCATE,
     },
     required: ['key'],
     additionalProperties: false,
@@ -151,7 +152,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
 
   /**
    * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
-   * 参数先当「未知」再逐项收口（key / effortId / comments 下面各收一次），回执形状由壳统一渲染。
+   * 参数先当「未知」再逐项收口（key / effort / feature / comments 下面各收一次），回执形状由壳统一渲染。
    */
   async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
     // 预算起算点：入口前耗时（会话归一、选后端、探沙箱）也要算进预算（#1195）。
@@ -168,8 +169,8 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_get', kind: 'read' })
     if (!pick.ok) return shell.unsupported('deck_issue_get', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
-    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
-    if (effortId) repo.effortId = effortId
+    const scope = applyMdScope(repo, a)
+    if (!scope.ok) return shell.unsupported('deck_issue_get', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
     const first = Math.max(0, Math.min(200, Number(a.comments) > 0 ? Math.floor(Number(a.comments)) : 50))
     // 反向边缺省要：只有显式传 false 才跳过。缺席、true、其它值一律全量，老调用方形状不动。
     const wantBlocking = a.blocking !== false
@@ -219,7 +220,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       const rel = relationsOf(issue, dependencies)
       if (!wantBlocking) rel.blocking = []
       const notes = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (!wantBlocking) notes.push('反向阻塞边这次没取（blocking=false，跳过一次反向边查询）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。')
       if (dep && dep.ok !== true) notes.push('阻塞边这次没读到（后端原话：' + String((dep.error && dep.error.message) || '').slice(0, 200) + '）：上面只列了票自己带的那些。')
       // 反向边全不全由读路径自己交代（原生连接截断、或退回整仓反推）：这里原样带给调用方，

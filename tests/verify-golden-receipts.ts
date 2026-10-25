@@ -81,8 +81,9 @@ const CALLS: GoldenCall[] = [
   { file: '04-deck_issue_get.golden.json', tool: 'deck_issue_get', args: { key: '01', blocking: false } },
   { file: '05-deck_map_snapshot.golden.json', tool: 'deck_map_snapshot', args: { key: '00' } },
   { file: '06-deck_map_plan_create.golden.json', tool: 'deck_map_plan_create', args: { planId: 'golden-1', title: '金标准地图', children: [{ key: 'a1', title: '金子票一', kind: 'issue' }, { key: 'a2', title: '金子票二', kind: 'issue' }], edges: [] } },
-  // link 的两张子票 key 依赖 plan 的结果（固定为 04 blockedBy 03）。
-  { file: '07-deck_map_link.golden.json', tool: 'deck_map_link', args: { key: '04', blockedBy: ['03'] } },
+  // link 的两张子票 key 依赖 plan 的结果。原文布局下地图固定是 00（落在 demo/map.md），
+  // 子票编号接着 demo 里已有的 01 号票往下排，固定为 03 blockedBy 02。
+  { file: '07-deck_map_link.golden.json', tool: 'deck_map_link', args: { key: '03', blockedBy: ['02'] } },
   { file: '08-deck_issue_patch.golden.json', tool: 'deck_issue_patch', args: { key: '01', comment: '金标准评论' } },
   // #1352：上报的 progress 已退役——带这个键一律 bad-args，且不选后端、不花点数、不写盘。
   // 这份基准钉住拒绝回执的形状与措辞；上报的快乐路径由第 10 份守。
@@ -253,6 +254,10 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   // 按 CALLS 的顺序依次调用（写操作有先后，顺序即基准的一部分）。
   const raw: Record<string, unknown> = {}
   for (const c of CALLS) {
+    // 原文布局下一个目录只允许一份 map.md：这份夹具的底图先让 05 快照（它排在建图之前）
+    // 量完，建图前必须把底图撤掉，否则建图会如实拒绝「目录里已经有一份 map.md」。
+    // 旧扁平布局把地图放成 issues/ 里的普通编号票，底图与建图能挤在同一目录，所以以前不需要这一步。
+    if (c.tool === 'deck_map_plan_create') rmSync(join(dir, 'map.md'), { force: true })
     raw[c.id || c.tool] = await tools[c.tool].run(exec, c.args)
   }
   // 工作区钥匙由根算出来，读出来再归一（根变它就变，但归一后稳定）。

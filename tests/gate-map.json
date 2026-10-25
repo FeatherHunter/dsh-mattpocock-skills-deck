@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T18:54:55.533Z",
+  "generatedAt": "2026-10-25T02:07:25.420Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 363,
-  "gateCount": 363,
-  "attributedGates": 323,
+  "chainLength": 376,
+  "gateCount": 376,
+  "attributedGates": 336,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 574,
+  "graphFileCount": 581,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3047,6 +3047,30 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
+      "step": "node tests/verify-1480-review-fixes.ts",
+      "file": "tests/verify-1480-review-fixes.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/comments.ts",
+        "src/tracker/rooms/markdown/create-render.ts",
+        "src/tracker/rooms/markdown/issues-create.ts",
+        "src/tracker/rooms/markdown/issues-locate.ts",
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues-status.ts",
+        "src/tracker/rooms/markdown/map-render.ts",
+        "src/tracker/rooms/markdown/original-fields.ts",
+        "src/tracker/rooms/markdown/parse.ts",
+        "src/tracker/rooms/markdown/patch-body.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 10 条）"
+    },
+    {
       "step": "node tests/verify-1482-graphql-accounting.ts",
       "file": "tests/verify-1482-graphql-accounting.ts",
       "guards": [
@@ -3105,6 +3129,208 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
+    },
+    {
+      "step": "node tests/verify-1486-md-create-layout.ts",
+      "file": "tests/verify-1486-md-create-layout.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/create-layout.ts",
+        "src/tracker/rooms/markdown/format/generated.ts",
+        "src/tracker/rooms/markdown/issues-create.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown",
+        "src/tracker/rooms/markdown/format"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1487-map-create.ts",
+      "file": "tests/verify-1487-map-create.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/create-layout.ts",
+        "src/tracker/rooms/markdown/create-render.ts",
+        "src/tracker/rooms/markdown/format/generated.ts",
+        "src/tracker/rooms/markdown/issues-create.ts",
+        "src/tracker/rooms/markdown/issues-status.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown",
+        "src/tracker/rooms/markdown/format"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1487-map-plan.ts",
+      "file": "tests/verify-1487-map-plan.ts",
+      "guards": [
+        "src/deck/tools/map-plan-create.ts",
+        "src/deck/tools/map-plan-readback.ts",
+        "src/deck/tools/map-snapshot.ts",
+        "src/tracker/rooms/markdown/create-layout.ts",
+        "src/tracker/rooms/markdown/issues-create.ts"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1488-read-mixed-layout.ts",
+      "file": "tests/verify-1488-read-mixed-layout.ts",
+      "guards": [
+        "docs/agents",
+        "docs/agents/issue-tracker.md",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1489-claim-labels.ts",
+      "file": "tests/verify-1489-claim-labels.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条"
+    },
+    {
+      "step": "node tests/verify-1489-edges.ts",
+      "file": "tests/verify-1489-edges.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条"
+    },
+    {
+      "step": "node tests/verify-1489-original-fields.ts",
+      "file": "tests/verify-1489-original-fields.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/original-fields.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1489-progress.ts",
+      "file": "tests/verify-1489-progress.ts",
+      "guards": [
+        "src/deck/shell/body-write.ts",
+        "src/deck/shell/minimal-spec.ts",
+        "src/shared/issue-file/src/progress-tool.ts",
+        "src/shared/issue-file/src/progress.ts",
+        "src/tracker/rooms/markdown/comments.ts",
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/shared/issue-file/src",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 7 条"
+    },
+    {
+      "step": "node tests/verify-1489-status-write.ts",
+      "file": "tests/verify-1489-status-write.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1490-declaration-file.ts",
+      "file": "tests/verify-1490-declaration-file.ts",
+      "guards": [
+        "config/copy/panel.yaml",
+        "package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "package/bundled-skills/setup-matt-pocock-skills",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1490-four-objects.ts",
+      "file": "tests/verify-1490-four-objects.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/tracker/rooms/markdown/create-layout.ts",
+        "src/tracker/rooms/markdown/create-render.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues-read.ts",
+        "src/tracker/rooms/markdown/issues-status.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -4243,6 +4469,7 @@
       "step": "node tests/verify-784-effortId.ts",
       "file": "tests/verify-784-effortId.ts",
       "guards": [
+        "src/deck/tools/context.ts",
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/issue-list.ts",
@@ -4271,7 +4498,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-786-focus-end.ts",
@@ -8483,6 +8710,28 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
+      "step": "node tests/verify-md-format-config.ts",
+      "file": "tests/verify-md-format-config.ts",
+      "guards": [
+        "scripts/generate-md-format-config.mts",
+        "scripts/lib/md-format-config.mts",
+        "src/tracker/rooms/markdown/format/generated.ts",
+        "src/tracker/rooms/markdown/format/original-skills.yaml",
+        "tests/bundled-skills-upstream-hashes.json"
+      ],
+      "dirs": [
+        "scripts",
+        "scripts/lib",
+        "src/tracker/rooms/markdown/format",
+        "tests"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
       "step": "node tests/verify-readme-sync.ts",
       "file": "tests/verify-readme-sync.ts",
       "guards": [
@@ -8580,7 +8829,8 @@
       "node tests/verify-locale-config.ts"
     ],
     "config/copy": [
-      "node tests/verify-1297-entry.ts"
+      "node tests/verify-1297-entry.ts",
+      "node tests/verify-1490-declaration-file.ts"
     ],
     "config/prompts": [
       "node tests/verify-1298-spec-close.ts",
@@ -8612,6 +8862,7 @@
       "node tests/verify-1433-snapshot-layout-file.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1449-layout-single-source.ts",
+      "node tests/verify-1488-read-mixed-layout.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -8669,6 +8920,9 @@
     ],
     "package/bundled-skills/ask-matt": [
       "node tests/verify-1412-ask-matt-next-steps.ts"
+    ],
+    "package/bundled-skills/setup-matt-pocock-skills": [
+      "node tests/verify-1490-declaration-file.ts"
     ],
     "package/deck": [
       "node tests/verify-build-artifacts.ts"
@@ -8813,6 +9067,7 @@
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.ts",
+      "node tests/verify-md-format-config.ts",
       "node tests/verify-star-history.ts",
       "node tests/verify-thanks-table.ts"
     ],
@@ -8884,7 +9139,8 @@
       "node tests/verify-visible-truth.ts",
       "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.ts",
-      "node tests/verify-1327-freshness-content.ts"
+      "node tests/verify-1327-freshness-content.ts",
+      "node tests/verify-md-format-config.ts"
     ],
     "src": [
       "node tests/verify-build-artifacts.ts",
@@ -9214,6 +9470,7 @@
       "node tests/verify-1298-spec-close.ts",
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1443-static-gate.ts",
+      "node tests/verify-1489-progress.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -9254,6 +9511,7 @@
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-receipts.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1487-map-plan.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -9382,6 +9640,7 @@
       "node tests/verify-1439-panel-accounting.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1490-four-objects.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
@@ -9639,7 +9898,8 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1091-original-words.ts",
       "node tests/verify-1092-original-words-roundtrip.ts",
-      "node tests/verify-1277-md-spec-container.ts"
+      "node tests/verify-1277-md-spec-container.ts",
+      "node tests/verify-1489-progress.ts"
     ],
     "src/shared/label-color": [],
     "src/shared/label-color/src": [
@@ -9931,6 +10191,18 @@
       "node tests/verify-1403-kind-two-layer.ts",
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1480-review-fixes.ts",
+      "node tests/verify-1486-md-create-layout.ts",
+      "node tests/verify-1487-map-create.ts",
+      "node tests/verify-1487-map-plan.ts",
+      "node tests/verify-1488-read-mixed-layout.ts",
+      "node tests/verify-1489-claim-labels.ts",
+      "node tests/verify-1489-edges.ts",
+      "node tests/verify-1489-original-fields.ts",
+      "node tests/verify-1489-progress.ts",
+      "node tests/verify-1489-status-write.ts",
+      "node tests/verify-1490-declaration-file.ts",
+      "node tests/verify-1490-four-objects.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -9953,6 +10225,11 @@
       "node tests/verify-multi-effort.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-tracker-session.ts"
+    ],
+    "src/tracker/rooms/markdown/format": [
+      "node tests/verify-1486-md-create-layout.ts",
+      "node tests/verify-1487-map-create.ts",
+      "node tests/verify-md-format-config.ts"
     ],
     "src/tracker/session": [
       "node tests/verify-1443-github-readbudget.ts",
@@ -9994,7 +10271,8 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-wire-subissues-script.ts",
-      "node tests/verify-wizard-exit-609.ts"
+      "node tests/verify-wizard-exit-609.ts",
+      "node tests/verify-md-format-config.ts"
     ],
     "tests/fixtures": [
       "node tests/verify-error-rule-samples.ts"
@@ -10186,12 +10464,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 594,
-    "dirCount": 73,
-    "coveredFileCount": 594,
+    "fileCount": 602,
+    "dirCount": 74,
+    "coveredFileCount": 602,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 55,
+    "dedicatedDirCount": 56,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -10436,6 +10714,7 @@
       "src/deck/tools/map-plan-readback.ts",
       "src/deck/tools/map-plan-resume.ts",
       "src/deck/tools/map-snapshot.ts",
+      "src/deck/tools/md-scope.ts",
       "src/deck/tools/suggest-next-steps.ts",
       "src/deck/tools/tool-order.ts",
       "src/deck/tools/tracker-session.ts",
@@ -10592,6 +10871,7 @@
       "src/shared/doc-layout/tsconfig.json",
       "src/shared/feedback-map.ts",
       "src/shared/issue-file/README.md",
+      "src/shared/issue-file/src/body-layout.ts",
       "src/shared/issue-file/src/marker.ts",
       "src/shared/issue-file/src/original-words-tool.ts",
       "src/shared/issue-file/src/original-words.ts",
@@ -10753,8 +11033,12 @@
       "src/tracker/rooms/markdown/capability-register.ts",
       "src/tracker/rooms/markdown/comments.ts",
       "src/tracker/rooms/markdown/counts.ts",
+      "src/tracker/rooms/markdown/create-layout.ts",
+      "src/tracker/rooms/markdown/create-render.ts",
       "src/tracker/rooms/markdown/edge-log.ts",
       "src/tracker/rooms/markdown/error-fail.ts",
+      "src/tracker/rooms/markdown/format/generated.ts",
+      "src/tracker/rooms/markdown/format/original-skills.yaml",
       "src/tracker/rooms/markdown/graph.ts",
       "src/tracker/rooms/markdown/index.ts",
       "src/tracker/rooms/markdown/issues-create.ts",
@@ -10769,7 +11053,9 @@
       "src/tracker/rooms/markdown/label-colors-paint.ts",
       "src/tracker/rooms/markdown/label-colors-palette.ts",
       "src/tracker/rooms/markdown/label-colors.ts",
+      "src/tracker/rooms/markdown/map-render.ts",
       "src/tracker/rooms/markdown/normalize.ts",
+      "src/tracker/rooms/markdown/original-fields.ts",
       "src/tracker/rooms/markdown/page.ts",
       "src/tracker/rooms/markdown/parse.ts",
       "src/tracker/rooms/markdown/patch-body.ts",
@@ -10861,6 +11147,7 @@
       "src/tracker/rooms/github",
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
+      "src/tracker/rooms/markdown/format",
       "src/tracker/session"
     ],
     "dedicatedDirs": [
@@ -10918,6 +11205,7 @@
       "src/tracker/rooms/github",
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
+      "src/tracker/rooms/markdown/format",
       "src/tracker/session"
     ],
     "dirsWithoutDedicated": [
@@ -10983,7 +11271,7 @@
       },
       {
         "path": "src/shared/issue-file",
-        "fileCount": 7
+        "fileCount": 8
       },
       {
         "path": "src/shared/label-color",

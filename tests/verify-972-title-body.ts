@@ -47,6 +47,8 @@ function freshWorld() {
 const REF = { backend: 'markdown', refId: '/ws', name: 'ws', url: '' }
 const tracker = markdownModule.create({})
 const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) => k.includes('/issues/'))[0]))
+// #1486：新布局的标题行带票号、标签进隐藏注释；两种写法都认，守的仍是「改标题不吃正文、改正文不吃标签」。
+const hasLabels = (text: string) => text.includes('Labels: bug') || text.includes('DSH-LABELS: bug')
 
 // —— ① 本缺陷：同传新标题加含旧标题的状态正文，新标题必须落盘 ——
 {
@@ -54,9 +56,8 @@ const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) =
   const created = await tracker.create(REF, { title: '\u65e7\u6807\u9898', labels: ['bug'], status: 'ready-for-agent', idempotencyKey: 'verify-972-1' }, ctx)
   check(created.ok === true, '\u2460 \u5efa\u7968\u6210\u529f')
   const key = String(created.data.key)
-  const cur = await tracker.get(REF, key, {}, ctx)
-  const wholeWithOldTitle = String(cur.data.body)
-  check(wholeWithOldTitle.includes('# \u65e7\u6807\u9898'), '\u2460 \u6574\u4efd\u6b63\u6587\u91cc\u4fdd\u7559\u65e7\u6807\u9898\uff08\u524d\u63d0\u6210\u7acb\uff09')
+  const wholeWithOldTitle = fileOf(files)
+  check(wholeWithOldTitle.includes('\u65e7\u6807\u9898'), '\u2460 \u6574\u4efd\u6b63\u6587\u91cc\u4fdd\u7559\u65e7\u6807\u9898\uff08\u524d\u63d0\u6210\u7acb\uff09')
   const r = await tracker.update(REF, key, { title: '\u65b0\u6807\u9898', body: wholeWithOldTitle }, ctx)
   const after = fileOf(files)
   check(r.ok === true, '\u2460 \u8fd4\u56de\u6210\u529f')
@@ -72,7 +73,7 @@ const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) =
   const r = await tracker.update(REF, key, { title: '\u53ea\u6539\u6807\u9898' }, ctx)
   const after = fileOf(files)
   check(r.ok === true && firstH1(after) === '# \u53ea\u6539\u6807\u9898', '\u2461 \u53ea\u4f20\u6807\u9898\u65f6\u65b0\u6807\u9898\u843d\u76d8')
-  check(after.includes('Labels: bug'), '\u2461 \u6807\u7b7e\u884c\u4fdd\u7559')
+  check(hasLabels(after), '\u2461 \u6807\u7b7e\u884c\u4fdd\u7559')
 }
 
 // —— ③ 只传正文：标题跟正文走（行为不变） ——
@@ -80,8 +81,7 @@ const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) =
   const { files, ctx } = freshWorld()
   const created = await tracker.create(REF, { title: '\u65e7\u6807\u9898', labels: ['bug'], status: 'ready-for-agent', idempotencyKey: 'verify-972-3' }, ctx)
   const key = String(created.data.key)
-  const cur = await tracker.get(REF, key, {}, ctx)
-  const next = String(cur.data.body).replace('# \u65e7\u6807\u9898', '# \u6b63\u6587\u91cc\u7684\u6807\u9898')
+  const next = fileOf(files).replace(/^# .*\u65e7\u6807\u9898.*$/m, '# \u6b63\u6587\u91cc\u7684\u6807\u9898')
   const r = await tracker.update(REF, key, { body: next }, ctx)
   const after = fileOf(files)
   check(r.ok === true && firstH1(after) === '# \u6b63\u6587\u91cc\u7684\u6807\u9898', '\u2462 \u53ea\u4f20\u6b63\u6587\u65f6\u6807\u9898\u8ddf\u6b63\u6587\u8d70')
@@ -95,7 +95,7 @@ const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) =
   const r = await tracker.update(REF, key, { title: '\u7247\u6bb5\u540c\u4f20\u6807\u9898', body: '## \u8fdb\u5ea6\n\n\u505a\u4e86\u4e00\u4e9b\u4e8b\n' }, ctx)
   const after = fileOf(files)
   check(r.ok === true && firstH1(after) === '# \u7247\u6bb5\u540c\u4f20\u6807\u9898', '\u2463 \u7247\u6bb5\u540c\u4f20\u65f6\u6807\u9898\u751f\u6548')
-  check(after.includes('\u505a\u4e86\u4e00\u4e9b\u4e8b') && after.includes('Labels: bug'), '\u2463 \u7247\u6bb5\u5185\u5bb9\u843d\u76d8\u3001\u539f\u6807\u7b7e\u884c\u8fd8\u5728')
+  check(after.includes('\u505a\u4e86\u4e00\u4e9b\u4e8b') && hasLabels(after), '\u2463 \u7247\u6bb5\u5185\u5bb9\u843d\u76d8\u3001\u539f\u6807\u7b7e\u884c\u8fd8\u5728')
 }
 
 // —— ⑤ 本门禁已挂进验证链（#1125 起问规划函数，不再读 package.json 长串） ——

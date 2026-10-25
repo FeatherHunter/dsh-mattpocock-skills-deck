@@ -352,11 +352,15 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 ### 7.2 本地 Markdown 房间：最后是工作区里的票文件
 
-**票文件在哪**：`src/tracker/rooms/markdown/path.ts:40-62`（`mdPath`）
+**票文件在哪**：`src/tracker/rooms/markdown/path.ts:40-62`（`mdPath`）与 `:71-86`（按工作单元取目录）
 
-- 地图：`<工作区根>/.scratch/map.md`（:49、:56）
-- 单票：`<工作区根>/.scratch/issues/<键>.md`（:50、:57-60；文件名规则在 :31-36——纯数字键补成 `NN-untitled.md`，:36）
-- 带 effort 范围时一律落到 `<cwd>/.scratch/<effortId>/` 下面（:69-81 的注释与 `effortIssuePath`，:81）
+- 规格：`<工作区根>/.scratch/<feature-slug>/spec.md`（:48、:55）
+- 探索地图：`<工作区根>/.scratch/<effort>/map.md`（:49、:56；带 effort 范围的走 `effortMapPath` :78-80）
+- 实施票、地图子票、普通票：`<工作区根>/.scratch/<effort>/issues/<NN>-<slug>.md`（:50、:57-60；文件名规则在 :31-39——纯数字键补成 `NN-untitled.md`，:36）
+- `effortId` 就是 feature / effort 目录名：规格与实施票在同一个 feature 目录下，父子关系靠这个目录层级；没传 effortId 时才落工作区根 `.scratch/`（:69-77 的注释）。工作区根 `.scratch/map.md` / `.scratch/issues/<键>.md` 与更早的根 `issues/` 是只读兼容的旧布局，新写入不再落那里（ADR 20261025-markdown-format-original）。
+- 规格与探索地图的原文模板没有标题行，所以这两类文件没有可见一级标题：标题写在文件头的 `<!-- DSH-TITLE: ... -->` 注释里，正文第一行直接是模板第一个段标题（规格是 `## Problem Statement`，地图是 `## Destination`）。读标题先认可见一级标题（兼容旧 deck 文件与手写文件），没有就认 `DSH-TITLE`，再没有就按目录名降级。00 号的读取与写入用同一套顺序：没给 `mdScene`（`feature` 表规格、`effort` 表地图）时先找规格、找不到再找地图；以前写侧不带 `mdScene` 就一律当地图，于是不带 feature 参数读到的规格关不掉、也可能被当成地图改。
+- 旧布局的写保护：票文件命中工作区根 `issues/` 或 `.scratch/issues/` 时，列表、读取、快照照常，写入（改状态、关闭、改正文、评论、认领、标签）如实失败并说明「旧布局的票只读，迁移另行处理」，同时记一条 `issue.write` 失败日志（原因 `fail:unsupported`）。`.scratch/<feature>/issues/` 下的原文布局新票不算旧布局，读写都照常。
+- 建票兜底：仓库里没有 feature 目录、调用方也没点名 `featureSlug`/`effortId` 时，没有原文布局依据的旧路径如实失败、一个字节不落盘，不再回落到工作区根 `issues/` 或 `.scratch/issues/`。
 
 **读**（`src/tracker/rooms/markdown/`）
 

@@ -66,7 +66,7 @@ export const READ_DEGRADED_OPS = Object.freeze([
  * 这一趟为什么算「没读成」。格式是「操作名:这一步」，冒号后是短枚举，取值如下：
  *  - `no-map`          : 三个候选位置都没找到 map.md（探测那一关没过）
  *  - `ticket-read-fail`: 某张票文件读不动（权限不足 / 读到时已被删 / 被锁住）
- *  - `map-read-fail`   : 地图文件读不动，这一趟没有地图容器行
+ *  - `map-read-fail`   : 容器文件（map.md，或 #1488 起的 spec.md）读不动，这一趟没有那个容器行
  *  - `read-fail`       : 有文件读不动，整条操作如实失败（拒绝回一个偏小的数）：票文件与地图文件都在这一档
  *  - `fs-fail`         : 其余读写故障，整条操作如实失败：目录列不出来、定位这一路抛上来、探测中途出错，
  *                        以及取单票时「不是找不到、也不是编号撞车」的那些档位
@@ -122,6 +122,16 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'get:notfound',
   'get:read-fail',
   'get:fs-fail',
+  // #1488 兼容与退化（都是「读成功、路径不常规」，不是故障；结果照常返回）：
+  //  - `legacy-root` : 这张票来自旧版工作区根 `<cwd>/issues/`（#1486 之前的落点）。读到它的目的是排查
+  //                    「为什么这张票不在 .scratch 下」以及「新版发现口是不是漏了这个目录」。
+  //  - `dup-number`  : 目录里编号重复（两个 01-*.md）或文件名没有编号，这张票用的是退化身份
+  //                    （`目录/编号-文件名`）。读到它的目的是把「界面上这个怪名字是从哪来的」对上盘面。
+  //  两件事都只在 list 与 get 两条读路径上记；counts / listPage 只是同一份枚举的消费者，记了反而重复。
+  'list:legacy-root',
+  'get:legacy-root',
+  'list:dup-number',
+  'get:dup-number',
 ] as const)
 
 /** 只读上下文里那点最小形状：契约上下文自带 `logEvent` 与 `opId`，这里不另定义上下文。 */

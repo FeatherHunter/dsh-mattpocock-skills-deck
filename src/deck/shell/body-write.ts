@@ -87,3 +87,7 @@ export function bodyWriteFields(plan: BodyWritePlan): string[] {
   if (plan.originalWords) fields.push('originalWords')
   return fields
 }
+
+/** #1486：整份正文里的「正文最前」区跑到了标题前时，搬回标题与字段行之后。
+ *  实现在 shared/issue-file，本地 Markdown 后端改整份正文时用的是同一份；这里只转给 issue-patch 用。 */
+export { moveLeadingSectionBelowTitle } from '../../shared/issue-file/src/body-layout.js'

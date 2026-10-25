@@ -25,21 +25,21 @@
   "data": {
     "comments": [],
     "dependenciesRaw": null,
-    "excerpt": "<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nBlocked by:\nLabels:\n\n## Comments\n\n\n## Answer\n\n",
+    "excerpt": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n**Status:** ready-for-agent\n\n## 进度\n",
     "landings": {
       "blockedBy": "说不好（这次没读回来，别当它已经建好）",
       "caveat": "这两个落点是从契约返回的字段读出来的；要精确知道这个后端把父子放在原生层级还是平级链接，看返回里本次写操作留下的 evidence（deck_map_link 会写）。",
-      "parent": "契约的父子列（分不出是原生层级还是平级链接，别把它当成原生层级）"
+      "parent": "说不好（这次没读回来，别当它已经建好）"
     },
     "relations": {
       "blockedBy": [],
       "blocking": [],
-      "parentKey": "00"
+      "parentKey": ""
     },
     "section": null,
     "ticket": {
       "assignees": [],
-      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nBlocked by:\nLabels:\n\n## Comments\n\n\n## Answer\n\n",
+      "body": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n**Status:** ready-for-agent\n\n## 进度\n",
       "closedAt": "",
       "key": "01",
       "labels": [],
@@ -51,7 +51,7 @@
         "updatedAt": null
       },
       "state": "open",
-      "title": "金标准演示票",
+      "title": "01: 金标准演示票",
       "type": "issue",
       "updatedAt": "<TIME>",
       "url": "<ROOT>/.scratch/demo/issues/01-金标准演示票.md"
@@ -71,7 +71,7 @@
     "url": ""
   },
   "status": "ok",
-  "text": "票 01 读回来了：状态 open，父票 00，被阻塞 0 条，阻塞别人未取（blocking=false）。",
+  "text": "票 01 读回来了：状态 open，父票 （没有），被阻塞 0 条，阻塞别人未取（blocking=false）。",
   "tool": "deck_issue_get",
   "touched": [],
   "workspace": {

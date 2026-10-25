@@ -31,7 +31,8 @@ function makeWorkspace() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kind-two-layer-'))
   const dir = path.join(root, '.scratch', 'demo')
   fs.mkdirSync(path.join(dir, 'issues'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'map.md'), '# 演示地图\n\nStatus: ready-for-agent\n\n## Destination\n\n把演示做完\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n', 'utf8')
+  // 这里不再预写 map.md：这一段要用 deck_issue_create 建一张地图（handle 的 refId 指着 demo），
+  // 原文布局一个目录只允许一份 map.md；预写的占位会让建图如实拒绝（旧扁平布局地图是普通编号票，才不冲突）。
   const plat = {
     path: path.posix,
     fs: {
@@ -45,7 +46,7 @@ function makeWorkspace() {
   }
   const rootPosix = root.replace(/\\/g, '/')
   return {
-    root, rootPosix, issuesDir: path.join(dir, 'issues'),
+    root, rootPosix, issuesDir: path.join(dir, 'issues'), mapFile: path.join(dir, 'map.md'),
     ctx: { platform: plat, fs: plat.fs, cwd: rootPosix, get(name: string) { return name === 'fs' ? plat.fs : undefined } },
     cleanup() { try { fs.rmSync(root, { recursive: true, force: true }) } catch (e) {} },
   }
@@ -102,10 +103,32 @@ async function main() {
     check(!threw && r && r.status === 'ok', '建票成功：' + String(args.kind) + (args.label ? '（' + String(args.label) + '）' : '') + (threw ? '，抛了 ' + threw : r && r.status !== 'ok' ? '，实得 ' + r.status + ' ' + JSON.stringify(r.text || r.data || {}).slice(0, 220) : ''))
     return r
   }
+  const findUnderScratch = (pred: (full: string, name: string) => boolean): string[] => {
+    const out: string[] = []
+    const walk = (dir: string) => {
+      let entries: fs.Dirent[] = []
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return }
+      for (const e of entries) {
+        const full = path.join(dir, e.name)
+        if (e.isDirectory()) walk(full)
+        else if (pred(full, e.name)) out.push(full)
+      }
+    }
+    walk(path.join(ws.root, '.scratch'))
+    return out
+  }
   const fileOf = (key: string): string => {
     const names = fs.readdirSync(ws.issuesDir).filter((n) => n.startsWith(key + '-'))
-    if (names.length !== 1) throw new Error('票 ' + key + ' 的文件找到 ' + names.length + ' 个')
-    return fs.readFileSync(path.join(ws.issuesDir, names[0]), 'utf8')
+    if (names.length === 1) return fs.readFileSync(path.join(ws.issuesDir, names[0]), 'utf8')
+    // #1486：没有 feature 参数时目录按标题生成，票不再全落在同一个 issues/ 下；按编号在 .scratch 下递归找。
+    const found = findUnderScratch((_full, name) => name.startsWith(key + '-') && name.endsWith('.md'))
+    if (found.length === 1) return fs.readFileSync(found[0], 'utf8')
+    throw new Error('票 ' + key + ' 的文件找到 ' + (names.length || found.length) + ' 个')
+  }
+  const specFileText = (): string => {
+    const found = findUnderScratch((_full, name) => name === 'spec.md')
+    if (found.length !== 1) throw new Error('规格文件找到 ' + found.length + ' 个')
+    return fs.readFileSync(found[0], 'utf8')
   }
   const typeLines = (text: string) => (text.match(/^Type[：:].*$/gm) || [])
   const labelsLine = (text: string) => ((text.match(/^Labels[：:].*$/m) || [''])[0] || '').trim()
@@ -116,9 +139,11 @@ async function main() {
   const mapRes = await create({ title: '两层地图', kind: 'map' })
   const mapKey = mapRes && mapRes.data && mapRes.data.ticket ? String(mapRes.data.ticket.key) : ''
   if (mapKey) {
-    const text = fileOf(mapKey)
+    // 原文布局里地图是 demo/map.md 的容器（不在 issues/ 里），按路径读；标签也从可见 Labels 行
+    // 改成隐藏注释 DSH-LABELS（#1486 起落盘改成隐藏注释，可见行不再写）。
+    const text = fs.readFileSync(ws.mapFile, 'utf8')
     check(mapRes.data.ticket.type === 'map', 'map 读回来契约类型是 map（实得 ' + mapRes.data.ticket.type + '）')
-    check(/^Labels: .*wayfinder:map/m.test(text), 'map 的 Labels 行带 wayfinder:map')
+    check(/<!-- DSH-LABELS: .*wayfinder:map -->/m.test(text), 'map 的 DSH-LABELS 注释带 wayfinder:map')
     check(!/DSH-ISSUE-KIND/.test(text), 'map 不写正文文件头标记')
     check(typeLines(text).length === 0, 'map 不写 Type 行（尤其没有 Type: map）')
     check(hasProgress(text), 'map 的正文补了 ## 进度')
@@ -128,10 +153,11 @@ async function main() {
   const specRes = await create({ title: '两层规格', kind: 'spec' })
   const specKey = specRes && specRes.data && specRes.data.ticket ? String(specRes.data.ticket.key) : ''
   if (specKey) {
-    const text = fileOf(specKey)
+    const text = specFileText()
     check(specRes.data.ticket.type === 'spec', 'spec 读回来契约类型是 spec（实得 ' + specRes.data.ticket.type + '）')
-    check(/<!-- DSH-ISSUE-KIND: spec -->/.test(text), 'spec 的正文文件头写 spec 标记')
-    check(/^Labels: .*ready-for-agent/m.test(text), 'spec 的 Labels 行带 ready-for-agent')
+    check(/<!-- DSH-STATUS: ready-for-agent -->/.test(text), 'spec 的隐藏注释写状态与必备标签')
+    check(/^<!-- DSH-LABELS: .*ready-for-agent -->$/m.test(text), 'spec 的 DSH-LABELS 带 ready-for-agent')
+    check(!/DSH-ISSUE-KIND/.test(text), '新布局的 spec 不再写旧类型标记')
     check(typeLines(text).length === 0, 'spec 不写 Type 行')
     check(hasProgress(text), 'spec 也补了 ## 进度（#1403 起所有位置都补）')
   }
@@ -142,10 +168,10 @@ async function main() {
     const ticket = mapTicketRes.data.ticket
     check(ticket.type === 'issue', 'map-ticket 的契约类型是 issue（实得 ' + ticket.type + '）')
     check(/^Type: research$/m.test(text), 'map-ticket 的 Type 行是去前缀的 research（实得 ' + JSON.stringify(typeLines(text)) + '）')
-    check(/^Labels: .*wayfinder:research/m.test(text), 'map-ticket 的 Labels 行带选中的 wayfinder:research')
+    check(/<!-- DSH-LABELS: .*wayfinder:research -->/m.test(text), 'map-ticket 的 DSH-LABELS 注释带选中的 wayfinder:research')
     check((text.match(/wayfinder:[a-z]+/g) || []).length === 1, 'map-ticket 的类型标签只有一枚，不补第二枚')
     check(!/DSH-ISSUE-KIND/.test(text), 'map-ticket 不写正文文件头标记')
-    check(/<!-- parentKey: 00 -->/.test(text), 'map-ticket 的文件头写父票 00')
+    check(/<!-- DSH-PARENT: 00 -->/.test(text), 'map-ticket 的文件头写父票 00')
     check(String(ticket.parentKey || '') === '00', 'map-ticket 读回来父票是 00（实得 ' + ticket.parentKey + '）')
     check(hasProgress(text), 'map-ticket 的正文补了 ## 进度')
   }
@@ -154,25 +180,24 @@ async function main() {
     const ticket = specTicketRes.data.ticket
     const text = fileOf(String(ticket.key))
     check(ticket.type === 'issue', 'spec-ticket 的契约类型是 issue（实得 ' + ticket.type + '）')
-    check(/<!-- DSH-ISSUE-KIND: ticket -->/.test(text), 'spec-ticket 的正文文件头写 ticket 标记')
-    check(/^Labels: .*ready-for-agent/m.test(text), 'spec-ticket 的 Labels 行带 ready-for-agent')
+    check(/<!-- DSH-PARENT: 00 -->/.test(text), 'spec-ticket 的隐藏注释写父票 00')
+    check(/^<!-- DSH-LABELS: .*ready-for-agent -->$/m.test(text), 'spec-ticket 的 DSH-LABELS 带 ready-for-agent')
     check(typeLines(text).length === 0, 'spec-ticket 不写 Type 行')
-    check(new RegExp('^<!-- parentKey: ' + specKey + ' -->', 'm').test(text), 'spec-ticket 的文件头写父票 ' + specKey)
     check(hasProgress(text), 'spec-ticket 也补了 ## 进度')
   }
   const bugRes = await create({ title: '两层缺陷票', kind: 'bug' })
   if (bugRes && bugRes.data && bugRes.data.ticket) {
     const text = fileOf(String(bugRes.data.ticket.key))
-    check(/^Labels: .*bug.*needs-triage/m.test(labelsLine(text)), 'bug 的 Labels 行带 bug 与 needs-triage（实得 ' + labelsLine(text) + '）')
+    check(/^<!-- DSH-LABELS: .*bug.*needs-triage -->$/m.test(text), 'bug 的 DSH-LABELS 带 bug 与 needs-triage（实得 ' + labelsLine(text) + '）')
     check(typeLines(text).length === 0, 'bug 不写 Type 行')
-    check(!/DSH-ISSUE-KIND/.test(text), 'bug 不写正文文件头标记')
+    check(!/DSH-ISSUE-KIND/.test(text), 'bug 不写旧类型标记')
     check(hasProgress(text), 'bug 的正文补了 ## 进度')
   }
   const issueRes = await create({ title: '两层兜底票', kind: 'issue', labels: ['wayfinder:map', 'bug', 'ready-for-agent'] })
   if (issueRes && issueRes.data && issueRes.data.ticket) {
     const text = fileOf(String(issueRes.data.ticket.key))
-    const line = labelsLine(text)
-    check(line === 'Labels: wayfinder:map, bug, ready-for-agent', 'issue 兜底原样落盘任何标签（实得 ' + line + '）')
+    const line = ((text.match(/^<!-- DSH-LABELS: .* -->$/m) || [''])[0] || '').trim()
+    check(line === '<!-- DSH-LABELS: wayfinder:map, bug, ready-for-agent -->', 'issue 兜底原样落盘任何标签（实得 ' + line + '）')
     check(typeLines(text).length === 0, 'issue 不写 Type 行')
     check(hasProgress(text), 'issue 的正文补了 ## 进度')
   }
@@ -197,7 +222,9 @@ async function main() {
   // ── 三、读回：新地图票与地图工单 ──
   console.log('— 三、读回：带 wayfinder:map 标签的新地图票仍读成地图，地图工单读得到父票')
   if (mapKey) {
-    const got = await run('deck_issue_get', { key: mapKey, blocking: false })
+    // 这一跑里地图（demo/map.md，00）与规格（另一个目录的 spec.md，也是 00）票号都是 00，
+    // 读地图要点名它所在的 effort，否则裸 00 会先命中规格（原文布局的容器票号都从 00 起）。
+    const got = await run('deck_issue_get', { key: mapKey, effort: 'demo', blocking: false })
     const issue = got.r && got.r.data ? (got.r.data.issue || got.r.data.ticket) : null
     check(got.r && got.r.status === 'ok' && issue && issue.type === 'map', '新的地图票读回来仍是 map（实得 ' + (issue && issue.type) + '）')
     check(issue && (issue.parentKey === null || issue.parentKey === undefined), '新的地图票没有父票（实得 ' + (issue && issue.parentKey) + '）')
@@ -234,7 +261,8 @@ async function main() {
 
   // ── 四、拒绝例：全部在碰后端之前挡下 ──
   console.log('— 四、拒绝例：缺 kind、旧值、label 误用、父票错配，文案点明合法值与迁移路径')
-  const filesBefore = fs.readdirSync(ws.issuesDir).length
+  const countFiles = (): number => findUnderScratch((_full, name) => name.endsWith('.md')).length
+  const filesBefore = countFiles()
   const refusals: Array<[string, Record<string, unknown>, RegExp]> = [
     ['缺 kind', { title: '没写位置' }, /kind/],
     ['旧值 task', { title: '旧值任务', kind: 'task' }, /map-ticket|issue/],
@@ -251,24 +279,29 @@ async function main() {
     ['spec-ticket 在 labels 带类型标签', { title: '实施塞类型', kind: 'spec-ticket', parentKey: '00', labels: ['wayfinder:task'] }, /类型标签由 kind/],
     ['父票不存在', { title: '父不存在', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '999999' }, /999999|找不到|不存在/],
     ['地图工单的父不是地图', { title: '父错配地图', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '01' }, /地图|探索地图/],
-    ['实施票的父不是规格', { title: '父错配规格', kind: 'spec-ticket', parentKey: '00' }, /规格/],
+    ['实施票的父不是规格', { title: '父错配规格', kind: 'spec-ticket', parentKey: '01' }, /规格/],
   ]
-  // 先造两张用于「父票错配」的票：一张普通票（01）、一张规格（specKey 已在上面建好）。
-  const plain = await create({ title: '普通票：给错配用', kind: 'issue' })
+  // 先造两张用于「父票错配」的票：一张在 map 目录里的普通票，一张在 spec 目录里的普通票。
+  // #1486 起没有 feature 的普通票会按标题另起目录，父票号在别的目录里读不到；错配用例要落在同一个容器目录里。
+  const plain = await create({ title: '普通票：给错配用', kind: 'issue', effort: 'demo' })
   const plainKey = plain && plain.data && plain.data.ticket ? String(plain.data.ticket.key) : ''
-  const filesAfterSetup = fs.readdirSync(ws.issuesDir).length
+  const specFeature = specRes && specRes.data && specRes.data.ticket ? String(specRes.data.ticket.effortId || '') : ''
+  const wrongParent = specFeature ? await create({ title: '规格目录里的普通票', kind: 'issue', feature: specFeature }) : null
+  const wrongKey = wrongParent && wrongParent.data && wrongParent.data.ticket ? String(wrongParent.data.ticket.key) : ''
+  const filesAfterSetup = countFiles()
   let seen = 0
   for (const [name, args0, want] of refusals) {
     const args: Record<string, unknown> = Object.assign({}, args0)
-    if (String(args.parentKey) === '01') args.parentKey = plainKey || '999999'
+    if (String(args.parentKey) === '01') args.parentKey = (name === '实施票的父不是规格' ? wrongKey : plainKey) || '999999'
+    if (name === '实施票的父不是规格' && specFeature) args.feature = specFeature
     const { r, threw } = await run('deck_issue_create', args)
     seen += 1
     const ok = !threw && r && r.status === 'unsupported' && r.reason === 'bad-args' && want.test(String(r.text || ''))
     check(ok, '拒绝：' + name + (ok ? '' : '（实得 ' + (threw || (r && (r.status + '/' + r.reason + ' ' + String(r.text || '').slice(0, 180)))) + '）'))
   }
   check(seen === refusals.length, '拒绝例都跑过了（' + seen + ' 条）')
-  check(fs.readdirSync(ws.issuesDir).length === filesAfterSetup, '拒绝例一张票都没建（盘上仍是 ' + filesAfterSetup + ' 张）')
-  check(filesAfterSetup - filesBefore === 1, '错配用例前只多建了一张普通票（' + filesBefore + ' → ' + filesAfterSetup + '）')
+  check(countFiles() === filesAfterSetup, '拒绝例一张票都没建（盘上仍是 ' + filesAfterSetup + ' 张）')
+  check(filesAfterSetup - filesBefore === 2, '错配用例前只多建了两张普通票（' + filesBefore + ' → ' + filesAfterSetup + '）')
 
   ws.cleanup()
   console.log('共 ' + total + ' 项' + (failed ? '，有失败' : '，全部通过'))

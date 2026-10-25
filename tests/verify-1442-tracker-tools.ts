@@ -45,6 +45,8 @@ function makeWorkspace() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-1442-'));
   const dir = path.join(root, '.scratch', 'demo');
   fs.mkdirSync(path.join(dir, 'issues'), { recursive: true });
+  // 这份手写 map.md 留给「地图子票 parentKey 00 / 看地图 00」那几支；原文布局一个目录只允许一份
+  // map.md，所以后面用 deck_map_plan_create 建图的几支各自点名独立 effort，不挤在 demo 里。
   fs.writeFileSync(path.join(dir, 'map.md'), '# 演示地图\n\nStatus: ready-for-agent\n\n## Destination\n\n把演示做完\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n', 'utf8');
   const plat = {
     path: path.posix,
@@ -219,7 +221,7 @@ async function main() {
       ['deck_map_snapshot', { key: '00' }],
       ['deck_issue_list', { state: 'open' }],
       ['deck_issue_create', { title: '1442 丙票', kind: 'issue' }],
-      ['deck_map_plan_create', { planId: 'p1442', title: '1442 地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
+      ['deck_map_plan_create', { planId: 'p1442', title: '1442 地图', effort: 'p1442', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
       ['deck_map_link', { key: '02', parentKey: '00' }],
       ['deck_issue_patch', { key: '02', comment: '1442：改一下' }],
       ['deck_issue_report', { key: '02' }],
@@ -272,7 +274,7 @@ async function main() {
     const w = await buildWorld('markdown', OFFLINE_READING);
     const kids = [];
     for (let i = 0; i < 400; i++) kids.push({ key: 'k' + i, title: '超顶' + i, kind: 'issue' });
-    const over = await w.run('deck_map_plan_create', { planId: 'p1442-over', title: '超顶地图', children: kids });
+    const over = await w.run('deck_map_plan_create', { planId: 'p1442-over', title: '超顶地图', effort: 'p1442-over', children: kids });
     check(!over.threw && !!over.r && over.r.status === 'unsupported' && over.r.reason === 'ai-tool-refused' && String(over.r.text || '').indexOf('硬顶') >= 0,
       '超单次硬顶仍是 ai-tool-refused 且带硬顶二字（实得 ' + (over.threw || JSON.stringify({ status: over.r && over.r.status, reason: over.r && over.r.reason })) + '）');
     const wb = await buildWorld('boom-1442', OFFLINE_READING, [boomModule]);
@@ -316,7 +318,7 @@ async function main() {
       ['deck_map_snapshot', { key: '00' }],
       ['deck_issue_list', { state: 'open' }],
       ['deck_issue_create', { title: '1457 丙票', kind: 'issue' }],
-      ['deck_map_plan_create', { planId: 'p1457', title: '1457 地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
+      ['deck_map_plan_create', { planId: 'p1457', title: '1457 地图', effort: 'p1457', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
       ['deck_map_link', { key: '02', parentKey: '00' }],
       ['deck_issue_patch', { key: '02', comment: '1457：改一下' }],
       ['deck_issue_report', { key: '02' }],
@@ -343,7 +345,7 @@ async function main() {
       ['deck_map_snapshot', { key: '00' }],
       ['deck_issue_list', { state: 'open' }],
       ['deck_issue_create', { title: '1457 未知丙票', kind: 'issue' }],
-      ['deck_map_plan_create', { planId: 'p1457-unknown', title: '1457 未知地图', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
+      ['deck_map_plan_create', { planId: 'p1457-unknown', title: '1457 未知地图', effort: 'p1457-unknown', children: [{ key: 'b1', title: '子一', kind: 'issue' }] }],
       ['deck_map_link', { key: '02', parentKey: '00' }],
       ['deck_issue_patch', { key: '02', comment: '1457：未知读数下改一下' }],
       ['deck_issue_report', { key: '02' }],

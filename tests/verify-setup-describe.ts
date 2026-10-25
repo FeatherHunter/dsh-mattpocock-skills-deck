@@ -6,6 +6,8 @@
 //      #791（2026-09-30）：末尾那节「## 工具」撤掉 —— #779 给全部模板补工具节时把本条也补上了，
 //      可这份金样从头到尾没有工具节（初始化全程不碰 issue，那两行在这里空转），两边打架期间本门禁
 //      一直是红的（18 条「全文与金样逐字相同」全红）。撤掉后本条恢复为「金样即全文」的唯一尺。
+//      #1490（规格 #1480）：markdown 那条金样已改成「把随包本地模板逐字复制过去」——
+//      模板是格式与位置的唯一真源，deck 工具只负责执行落盘，不再改写模板里的做法。
 //   3) 占位符解析与工作区状态无关（全新 / 已 init 同值——等价判据）
 //   4) 后端确有声明（BackendModule.setupPrompt 四键）+ host wf.registry 转发 setupPrompt
 //   5) client 零残留门禁：无 setupTrackerLine/Choice/BackendNote 代码引用；UI 手工拼装 promptText('setupRun',{ 残留 =
@@ -40,13 +42,13 @@ const EMDASH = String.fromCharCode(0x2014)  // —
 const G = {
   zh: {
     github: { trackerLine: '本仓库为 GitHub ' + ARROW + ' 提议 GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\n本次已选后端：GitHub。' },
-    markdown: { trackerLine: '本仓库为本地文件 ' + ARROW + ' 提议 Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\n本次已选后端：Markdown ' + EMDASH + ' 先以技能自带的本地模板（issue-tracker-local.md）为起点生成 docs/agents/issue-tracker.md，再把模板里三段旧做法改成 deck 工具口径：规格不是 .scratch/<feature-slug>/spec.md 文件，而是一张票（kind=spec，是顶层容器，不挂地图、不传 parentKey）；实施票用 deck_issue_create 建（kind=spec-ticket，parentKey 填规格票号），编号与文件头标记由工具写，不要手写 .scratch/<feature-slug>/issues/ 下的文件；认领与状态用 deck_issue_patch 改，不要手改 Status/Assignees 行。生成完读回这份文档，核对这三段都是 deck 口径。' },
+    markdown: { trackerLine: '本仓库为本地文件 ' + ARROW + ' 提议 Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\n本次已选后端：Markdown ' + EMDASH + ' 生成 docs/agents/issue-tracker.md 时，把技能自带的本地模板（issue-tracker-local.md）逐字复制过去，模板里每一句做法说明都保持原样，不改写、不省略、不追加；仓库里票与规格的文件格式和位置，一律以这份模板为唯一依据。建票、认领、改状态这些动作仍然用 deck 工具执行，但它们写出来的文件要与模板完全一致。生成完读回这份文档，逐句核对与模板逐字相同。' },
     gitlab: { trackerLine: '本仓库为 GitLab ' + ARROW + ' 提议 GitLab Issues', trackerChoice: 'GitLab Issues', backendNote: '\n\n本次已选后端：GitLab ' + EMDASH + ' 请按 GitLab 模板生成 docs/agents/issue-tracker.md' },
     default: { trackerLine: '本仓库为 GitHub ' + ARROW + ' 提议 GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\n本次未指定后端，已按默认 GitHub 初始化；可在设置页随时切换' },
   },
   en: {
     github: { trackerLine: 'this repo is on GitHub ' + ARROW + ' propose GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\nSelected backend: GitHub.' },
-    markdown: { trackerLine: 'this repo uses local files ' + ARROW + ' propose Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\nSelected backend: Markdown ' + EMDASH + ' start from the skill\'s bundled local template (issue-tracker-local.md) to generate docs/agents/issue-tracker.md, then rewrite three legacy passages in deck-tool terms: the spec is not a .scratch/<feature-slug>/spec.md file but a ticket (kind=spec, a top-level container, not attached to a map and given no parentKey); create implementation tickets with deck_issue_create (kind=spec-ticket, with the spec number in parentKey; numbers and header markers are written by the tool — do not hand-write files under .scratch/<feature-slug>/issues/); claim and update status with deck_issue_patch instead of hand-editing the Status/Assignees lines. Read the generated file back and check these three passages are in deck-tool terms.' },
+    markdown: { trackerLine: 'this repo uses local files ' + ARROW + ' propose Local markdown', trackerChoice: 'Local markdown', backendNote: '\n\nSelected backend: Markdown ' + EMDASH + ' when generating docs/agents/issue-tracker.md, copy the skill\'s bundled local template (issue-tracker-local.md) over verbatim: keep every instruction in it exactly as written, without rewriting, omitting, or adding anything; the file format and location of specs and issues in this repo follow that template as the single source of truth. Creating tickets, claiming them, and updating status still run through the deck tools, but the files those tools write must match the template exactly. After generating the document, read it back and check sentence by sentence that it matches the template word for word.' },
     gitlab: { trackerLine: 'this repo is on GitLab ' + ARROW + ' propose GitLab Issues', trackerChoice: 'GitLab Issues', backendNote: '\n\nSelected backend: GitLab ' + EMDASH + ' please generate docs/agents/issue-tracker.md from the GitLab template.' },
     default: { trackerLine: 'this repo is on GitHub ' + ARROW + ' propose GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '\n\nNo backend explicitly selected, defaulting to GitHub; you can switch anytime in Settings ' + ARROW + ' Backend.' },
   },
@@ -209,18 +211,20 @@ async function main() {
     }
   }
   check((L.zh['setup.markdown.labelReqs'] || '') === '' && (L.en['setup.markdown.labelReqs'] || '') === '', 'markdown labelReqs 为空（Markdown 不要求标签齐全）')
-  // #1384（规格 #1382）：本地后端 setup 后端说明改写成 deck 工具口径 ——
-  //   以技能自带的本地模板为起点，但三段旧做法必须改写，不许再让人照抄模板。
+  // #1490（规格 #1480）：本地后端 setup 说明回到「把随包原文逐字复制过去」——
+  //   模板里的每一句做法就是格式与位置的唯一真源，初始化时不许再改写；
+  //   deck 的建票、改状态工具只负责按模板执行落盘，不是另一套口径。
   for (const lang of ['zh', 'en']) {
     const note = L[lang]['setup.markdown.backendNote'] || ''
-    check(note.indexOf('deck_issue_create') >= 0, lang + ' 本地后端说明点名用 deck_issue_create 建实施票（#1384）')
-    check(note.indexOf('deck_issue_patch') >= 0, lang + ' 本地后端说明点名用 deck_issue_patch 认领与改票（#1384）')
-    check(note.indexOf(lang === 'zh' ? '不要手写' : 'do not hand-write') >= 0, lang + ' 本地后端说明要求不要手写票文件（#1384）')
-    check(note.indexOf(lang === 'zh' ? '按本地 Markdown 模板生成' : 'from the local Markdown template') < 0, lang + ' 本地后端说明不再让人照抄旧模板（#1384）')
-    // #1416：两层词表落地后，本地后端说明必须说新值 —— 规格是顶层容器、实施票是 spec-ticket；旧值一处不留。
-    check(note.indexOf('kind=spec-ticket') >= 0, lang + ' 本地后端说明说清实施票 kind=spec-ticket（#1416）')
-    check(note.indexOf('kind=ticket') < 0, lang + ' 本地后端说明不再出现旧的 kind=ticket（#1416）')
-    check(note.indexOf(lang === 'zh' ? '不挂地图' : 'not attached to a map') >= 0, lang + ' 本地后端说明说清规格是顶层容器（#1416）')
+    const isZh = lang === 'zh'
+    check(note.indexOf('issue-tracker-local.md') >= 0, lang + ' 本地后端说明点名随包本地模板 issue-tracker-local.md（#1490）')
+    check(note.indexOf(isZh ? '逐字复制' : 'verbatim') >= 0, lang + ' 本地后端说明要求把模板逐字复制过去（#1490）')
+    check(note.indexOf(isZh ? '唯一依据' : 'single source of truth') >= 0, lang + ' 本地后端说明声明模板是文件格式与位置的唯一依据（#1490）')
+    // 旧口径整段消失：不许再教「把三段旧做法改成 deck 工具口径」，也不许再禁止手写票文件。
+    check(note.indexOf(isZh ? '三段' : 'three legacy passages') < 0, lang + ' 本地后端说明不再出现「三段旧做法」的改写指令（#1490）')
+    check(note.indexOf(isZh ? '不要手写' : 'do not hand-write') < 0, lang + ' 本地后端说明不再禁止手写票文件（#1490）')
+    check(note.indexOf('deck_issue_create') < 0 && note.indexOf('deck_issue_patch') < 0, lang + ' 本地后端说明不再逐条改写建票与改状态的工具口径（#1490）')
+    check(note.indexOf('kind=spec') < 0 && note.indexOf('kind=spec-ticket') < 0, lang + ' 本地后端说明不再出现 kind= 票类型旧口径（#1490）')
   }
   // #1384：本票只改 markdown 这一条，其它三条后端说明逐字不变 ——
   //   这里用写死的字面再钉一次（不用上面的 EMDASH / ARROW 常量拼，免得自己跟自己比），改词条时手滑会当场红。

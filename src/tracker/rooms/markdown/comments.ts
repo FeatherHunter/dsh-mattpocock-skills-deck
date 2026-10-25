@@ -11,14 +11,18 @@ import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js
 import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { resolveIssueFile } from './issues-locate.js'
+import { resolveIssueFile, resolveSpecFile } from './issues-locate.js'
+// #1489：原文布局把评论追加到 ## Comments 段的末尾（issue-tracker-local.md:11），不再往段首插；
+// 旧布局保持原样（既有门禁钉着那套位置）。
+import { appendSectionBlock, ticketFormOf } from './original-fields.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Comment } from '../../contract/entities.js'
 // #922：写评论同样是「读整份 → 在内存里改 → 整份写回」，要排在该票文件的单写者队列里，见 write-queue.js。
 import { withFileWriter } from './write-queue.js'
 
 // 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
-type RepoWithPath = RepositoryRef & { path?: string }
+// mdScene 同理：feature 场景下 00 号指的是 spec.md，不是 map.md（#1486）。
+type RepoWithPath = RepositoryRef & { path?: string; mdScene?: string }
 
 // 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带）。
 interface CommentsFailure {
@@ -26,9 +30,32 @@ interface CommentsFailure {
   error: { kind: string; message: string; raw: string }
 }
 
+/** 找这次评论要落的文件：#1486 起 feature 场景的 00 号是 spec.md（顶层规格容器），
+ *  其余编号仍是 `<feature>/issues/NN-*.md`。两套原文都用同一个 00，只靠编号区分不出来。 */
+async function locateForWrite(ctx: OpContext, repo: RepoWithPath | null, norm: string) {
+  if (norm === '00' && repo && String(repo.mdScene || '') === 'feature') {
+    return resolveSpecFile(ctx, repo, { mode: 'write' })
+  }
+  return resolveIssueFile(ctx, repo, norm, { mode: 'write' })
+}
+
+/** 找这次要读评论的文件：与写侧同一套寻址，但按读模式找 ——
+ *  旧布局的票只读（#1488 验收③）：评论能读、能列，写评论由写侧如实失败。 */
+async function locateForRead(ctx: OpContext, repo: RepoWithPath | null, norm: string) {
+  if (norm === '00' && repo && String(repo.mdScene || '') === 'feature') {
+    return resolveSpecFile(ctx, repo, { mode: 'read' })
+  }
+  return resolveIssueFile(ctx, repo, norm, { mode: 'read' })
+}
+
+/** 一条评论的文本块：`### <actor> — <ISO 时间>` 加正文。
+ *  关票时追加的关闭原因也用这同一个块（见 issues-status.ts），两处格式不许各写一份。 */
+export function commentBlockOf(actor: string, body: string, iso: string): string {
+  return '### ' + actor + ' \u2014 ' + iso + '\n' + String(body || '').trim() + '\n'
+}
 export async function listComments(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true,data:Comment[]}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
-  const r=await resolveIssueFile(ctx,repo,norm,{mode:'read'})
+  const r=await locateForRead(ctx,repo,norm)
   if(!r.ok)return{ok:false,error:r.error}
   try{const txt=await readTextFile(ctx,r.path);const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId});return{ok:true,data:iss.comments||[]}}catch(e){return failFromError(e,ctx,'读这张票的评论时出错')}
 }
@@ -43,7 +70,7 @@ export async function addComment(ctx: OpContext,repo: RepoWithPath | null,key: s
 }
 async function addCommentInner(ctx: OpContext,repo: RepoWithPath | null,key: string,body: string,trail: WriteTrail): Promise<{ok:true,data:Comment}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
-  const r=await resolveIssueFile(ctx,repo,norm,{mode:'write'})
+  const r=await locateForWrite(ctx,repo,norm)
   if(!r.ok)return{ok:false,error:r.error}
   // 读—改—写整段排在该票文件的队列里（#922）：不排队的话，同一张票上「发评论」与「关门」并发时，
   // 后写的那一路会把前一路的改动整份抹掉（评论没了，或状态被抹回 ready-for-agent）。
@@ -53,7 +80,16 @@ async function addCommentInner(ctx: OpContext,repo: RepoWithPath | null,key: str
       const nowIso=new Date().toISOString()
       // actor 与 sandboxPolicy 不在契约 OpContext 上（宿主按会话透传的扩展键）：经视图读，不拓签名。
       const actor=String((ctx&&(ctx as {actor?: unknown}).actor)||'local')
-      const block='### '+actor+' \u2014 '+nowIso+'\n'+String(body||'').trim()+'\n'
+      const block=commentBlockOf(actor,String(body||''),nowIso)
+      // #1489：原文布局（实施票、地图子票、插件建的新文件）往 ## Comments 段末尾追加；
+      // 旧布局保留「插在段首」的既有行为，不改它的位置。
+      if(ticketFormOf(txt)!=='legacy'){
+        const next=appendSectionBlock(txt,'Comments',block)
+        await publishTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+        noteFileWritten(trail)
+        const comment: Comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
+        return{ok:true,data:comment}
+      }
       const re=/^\s*##\s*Comments\s*$/im
       const m=re.exec(txt)
       if(m){

@@ -15,6 +15,7 @@
 //
 // 返回值就是**写后的真状态**（契约 create 回的那张票），AI 不必再读一次确认。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
@@ -41,7 +42,7 @@ import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-c
 import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // 工具定义（唯一事实）搬去了同目录的 issue-create-parts.ts：只为把本文件压回 350 行有效行以内，
 // 参数表、枚举值与描述文案一字未改（模型看到的工具面与拆之前完全一致）。
-import { definition } from './issue-create-parts.js'
+import { definition, landingNote } from './issue-create-parts.js'
 
 /** 落点证据函数的收口形状：第四个形参（额外字段）按可选算，其余与调用处传的三个实参一致。 */
 type EdgeEvidenceFn = (op: unknown, target: unknown, evidence: unknown, extra?: unknown) => Record<string, unknown>
@@ -133,8 +134,15 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_create', kind: 'write' })
     if (!pick.ok) return shell.unsupported('deck_issue_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
-    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
-    if (effortId) repo.effortId = effortId
+    const scope = applyMdScope(repo, a)
+    if (!scope.ok) return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
+    // #1486：两套原文都用 00 号指容器，只靠目录名分不出这次要 map.md 还是 spec.md。
+    // 调用方没显式给 effort/feature 时按位置值补一个读侧场景：地图与地图子票看 map.md，
+    // 规格与实施票看 spec.md；普通票不猜（父票由调用方给具体票号）。
+    if (!repo.mdScene) {
+      if (kind === 'map' || kind === 'map-ticket') repo.mdScene = 'effort'
+      else if (kind === 'spec' || kind === 'spec-ticket') repo.mdScene = 'feature'
+    }
 
     // 标签按位置表补：地图工单补的是 label 那一枚，规格与实施票补 ready-for-agent，普通票一枚都不补。
     const ensured = ensureLabels(argued.labels, kind, argued.label)
@@ -231,7 +239,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       if (rel) input.parentKey = rel
       if (Array.isArray(a.assignees) && a.assignees.length) input.assignees = a.assignees
       const created = await t.create(repo, input, opCtx)
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (body.added.length) notes.push('我替你补了正文区块：' + body.added.join('、'))
       if (!a.idempotencyKey) notes.push('这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。')
       // 执行层失败原样抛给壳（走 backend-threw，可重试）；后端诚实失败才走下面的部分成功。
@@ -251,6 +259,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         }
       }
       const issue = created.data || {}
+      const where = landingNote(issue)
       // #992：标签没挂上（后端在票上记了 labelError）不再报“补了”——按结果说话。
       //   幂等锚的取值保持不动（改它会动去重语义，另议）。
       const labelFailed = !!(issue && issue.labelError)
@@ -363,7 +372,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + edgeHead + '：' + why
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + edgeHead + '：' + why
               + (labelFailed ? '标签也没挂上：' + labelWhy : '')
               + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : '')
               + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
@@ -384,7 +393,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。标签没挂上：' + labelWhy
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + '标签没挂上：' + labelWhy
               + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : '')
               + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
@@ -403,7 +412,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。阻塞边没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + '阻塞边没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed
               + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
@@ -420,7 +429,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。维护者原话没核对上：' + originalProblem,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + '维护者原话没核对上：' + originalProblem,
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
             notes: notes,
@@ -433,7 +442,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         value: {
           status: DECK_STATUS.OK,
           workRouteDetail: a.workRouteDetail,
-          text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + (rel ? '（父票 ' + rel + '）' : '') + '。返回值就是写后的真状态，不必再读一次。'
+          text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + (rel ? '（父票 ' + rel + '）' : '') + '。' + where + '返回值就是写后的真状态，不必再读一次。'
             + (blockWant.length ? '阻塞边已按写后读回逐条核对（见 items）：' + blockWant.join('、') + '。' : ''),
           data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
           items: items,

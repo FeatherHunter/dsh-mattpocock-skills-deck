@@ -29,7 +29,7 @@
     "ticket": {
       "assignees": [],
       "blockedBy": [],
-      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\nStatus: ready-for-agent\nBlocked by:\nLabels:\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+      "body": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n**Status:** ready-for-agent\n\n## Comments\n\n### local — <TIME>\n金标准评论\n\n## 进度\n",
       "closedAt": null,
       "comments": [
         {
@@ -46,10 +46,10 @@
       "effortId": "demo",
       "key": "01",
       "labels": [],
-      "parentKey": "00",
+      "parentKey": null,
       "reason": "",
       "state": "open",
-      "title": "金标准演示票",
+      "title": "01: 金标准演示票",
       "type": "issue",
       "updatedAt": "<TIME>",
       "url": "<ROOT>/.scratch/demo/issues/01-金标准演示票.md"
@@ -66,12 +66,12 @@
         {
           "actionAt": "<TIME>",
           "sessionLabel": "会话 1d9b81",
-          "ticketKey": "3"
+          "ticketKey": "2"
         },
         {
           "actionAt": "<TIME>",
           "sessionLabel": "会话 1d9b81",
-          "ticketKey": "4"
+          "ticketKey": "3"
         }
       ],
       "staleCount": 0,
@@ -86,7 +86,7 @@
     }
   ],
   "notes": [
-    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#3、#4）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
+    "工作路线摘要 · 本工作区在办 3 条（最近 3 条：#1、#2、#3）；这次只带核心字段（票号、会话、时间），要标题与动作传 workRouteDetail: standard"
   ],
   "ok": true,
   "readBack": {

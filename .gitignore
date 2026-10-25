@@ -63,6 +63,11 @@ _research/
 # 按 config/copy/ 下的十份族 YAML 与 config/languages.yaml 现场写出的，文案只在 YAML 里有一份，不入库。
 # 全新检出上它不在，generate --check 会现场生成一次（见 scripts/generate-locale-config.mts 头注释）。
 /src/client/kernel/locale-data.ts
+# #1480 Markdown 后端格式映射同理：src/tracker/rooms/markdown/format/generated.ts 是
+# scripts/generate-md-format-config.mts 按 format/original-skills.yaml 现场写出的，
+# 原文与本插件写法的对应关系只在 YAML 里有一份，不入库。
+# 全新检出上它不在，generate --check 会现场生成一次（见生成器头注释）。
+/src/tracker/rooms/markdown/format/generated.ts
 # 共享层产物的唯一落点：仓库根的 .build/shared/ 下（2026-10-19 第三阶段）。
 #   src/shared/<域>/src/*.ts        → .build/shared/<域>/<名>.js     （域产物，由 scripts/lib/transpile-domains.mts 写）
 #   src/shared 下其余 .ts（散文件） → .build/shared/<相对路径>.js      （由 scripts/build.mts 的 shared-ts 段写）

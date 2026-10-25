@@ -1,5 +1,7 @@
 # 本地 Markdown 后端的规格容器（#1277）
 
+> **2026-10-25 说明（#1480）**：本文记录的「规格作为 `issues/` 里一张票、靠文件头对象类型标记认容器」这个方向，已经被 #1480 纠正回来。本地 Markdown 后端写出的文件格式与位置，以随包 Matt 技能原文 `package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md`（pin v1.3.1）为唯一真源：规格是 `.scratch/<feature-slug>/spec.md`，实施票、地图子票与普通票是 `.scratch/<effort>/issues/<NN>-<slug>.md`。本文只保留作历史设计记录，当前口径见 `docs/adr/20261025-markdown-format-original.md`。
+
 这份文档记本地 Markdown 后端怎么支持「规格作为容器」这件改造：做什么、分成哪两半、票面文件长什么样、
 快照怎么组装、旧的票怎么兼容、哪些视图先兜住、哪些刻意不做。上游定版见
 `docs/adr/20261020-object-kind-identification.md`（#1275）与地图 #1274；视觉那一半见

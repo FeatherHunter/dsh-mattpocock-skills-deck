@@ -93,7 +93,12 @@ export async function readbackMapPlan(args: MapPlanReadbackArgs): Promise<MapPla
   // 幂等锚还会多出 parentKey 与 created 两行注释、正文里有 Status/Labels/Type 字段行；远端房这两行
   // 文件头注释不会落进正文（父边走原生边），正文也就没有 Type 行可核。这里按读回数据的形状判断，
   // 不按后端身份分支 —— 工具层不许拿后端 id 做判断（verify-deck-tools 的静态扫描就查这个）。
-  const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:parentKey|created)\s*:/m.test(text)
+  // #1487 起本地后端写的是随包原文布局，文件头注释换成 DSH-FORMAT / DSH-PARENT / DSH-CREATED
+  // 三条隐藏注释；只认老写法（parentKey / created 裸名字）会让原文布局的子票永远跳过 Type 行核对，
+  // 回执里那句「核对通过」就成了没核过的假话。老写法保留：旧布局的票仍要能读回核对。
+  // 注意不能把 DSH-IDEMPOTENCY-KEY 算进判据：远端后端也把这个幂等锚注释写进正文，算进来会把远端票
+  // 误判成「整份原文文件」，去核它根本没有的 Type 行，回执就变成误报失败（#1487 提交时踩过这一脚）。
+  const looksLikeWholeFile = (text: string): boolean => /^\s*<!--\s*(?:parentKey|created|DSH-FORMAT|DSH-PARENT|DSH-CREATED)\s*:/m.test(text)
   let checkedTypeLine = false
   for (const ch of children) {
     const planKey = String(ch.key)
