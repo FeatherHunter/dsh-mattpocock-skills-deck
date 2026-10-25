@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T20:03:32.333Z",
+  "generatedAt": "2026-10-25T20:19:13.728Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 387,
-  "gateCount": 387,
-  "attributedGates": 347,
+  "chainLength": 390,
+  "gateCount": 390,
+  "attributedGates": 350,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
@@ -1634,6 +1634,28 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-1187-gitlab-chain-predicates.ts",
+      "file": "tests/verify-1187-gitlab-chain-predicates.ts",
+      "guards": [
+        "src/refresh/rooms/host/chain-env-map.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/shared/tracker/check-catalog-dirs.ts",
+        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/rooms/gitlab/preflight.ts",
+        "src/tracker/rooms/gitlab/repo.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/shared/tracker",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
       "step": "node tests/verify-1195-budget-start.ts",
       "file": "tests/verify-1195-budget-start.ts",
       "guards": [
@@ -2492,6 +2514,24 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 1 条"
+    },
+    {
+      "step": "node tests/verify-1434-workspace-legacy-cleanup.ts",
+      "file": "tests/verify-1434-workspace-legacy-cleanup.ts",
+      "guards": [
+        "docs/agents",
+        "docs/agents/workspace.yaml",
+        "src/host/workspaceCwd.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1436-own-work-route.ts",
@@ -3487,6 +3527,32 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1519-detail-comments.ts",
+      "file": "tests/verify-1519-detail-comments.ts",
+      "guards": [
+        "src/client/kernel/ctx.ts",
+        "src/client/kernel/link.ts",
+        "src/client/kernel/ticket-label.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/IssueDetailComments.ts",
+        "src/client/views/shared/md.ts",
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/tracker/kernel/identity-keys.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views",
+        "src/client/views/shared",
+        "src/refresh/rooms/host",
+        "src/tracker/kernel"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1522-skill-md-refs.ts",
@@ -9126,6 +9192,7 @@
       "node tests/verify-1130-gitlab-marker-read.ts",
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1433-snapshot-layout-file.ts",
+      "node tests/verify-1434-workspace-legacy-cleanup.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1488-read-mixed-layout.ts",
@@ -9492,6 +9559,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1511-ticket-label.ts",
+      "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -9615,6 +9683,7 @@
       "node tests/verify-1295-dual-panel.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1511-ticket-label.ts",
+      "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -9685,6 +9754,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1511-ticket-label.ts",
+      "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -9838,6 +9908,7 @@
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
       "node tests/verify-1418-probe-cost-and-failure.ts",
+      "node tests/verify-1434-workspace-legacy-cleanup.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1439-panel-accounting.ts",
       "node tests/verify-1443-static-gate.ts",
@@ -10079,6 +10150,7 @@
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1150-plan-store-durable.ts",
+      "node tests/verify-1187-gitlab-chain-predicates.ts",
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
       "node tests/verify-1291-closed-map-open-children.ts",
@@ -10109,6 +10181,7 @@
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1483-chain-session-cache.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -10255,6 +10328,7 @@
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-chain.ts",
       "node tests/verify-deck-slots.ts",
+      "node tests/verify-1187-gitlab-chain-predicates.ts",
       "node tests/verify-1438-banner-recheck-button.ts",
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-1483-chain-session-cache.ts",
@@ -10356,6 +10430,7 @@
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-1482-graphql-accounting.ts",
+      "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -10462,6 +10537,7 @@
       "node tests/verify-no-mixed-session.ts",
       "node tests/verify-1130-gitlab-marker-read.ts",
       "node tests/verify-1179-gitlab-endpoint-coverage.ts",
+      "node tests/verify-1187-gitlab-chain-predicates.ts",
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1446-gitlab-budget.ts",
       "node tests/verify-1446-static-gate.ts",

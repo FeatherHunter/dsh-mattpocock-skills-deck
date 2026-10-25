@@ -61,9 +61,9 @@ const fsSvc = { readFileSync: () => '', writeFileSync: () => {}, existsSync: () 
 const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
 const platformSvc = { getHome: async () => '', path: { join: (...a) => a.join('/') }, // #1138 之后：绑定工作区要真的把选择写进工作区文件，所以文件通道得是完整形状
 // （`src/host/workspaceCwd.js` 要求 resolve / readText / writeText 三件齐全，缺一件就如实回 no-channel）。
-// 这里给的是内存桩：读回空串（本来就没有那份文件）、写入什么都不做，够这条冒烟演完「绑定→读标签→改配色」。
-// 除 .git/config 回一份带 origin 的配置（#1445 之后开会话要读它认仓库）外，其余读回空串、写入什么都不做。
-fs: { mkdir: async () => {}, resolve: async (k, o) => (/^(?:[A-Za-z]:[\\/]|\/)/.test(String(k)) ? String(k) : pathMod.join((o && o.cwd) ? String(o.cwd) : '', String(k))), readText: async (f) => (/[\\/]\.git[\\/]config$/.test(String(f)) ? GIT_CONFIG : (() => { throw enoent(String(f)) })()), writeText: async () => {} }, resolveExecutable: async (name) => String(name), env: { get: () => undefined } }
+// 这里给的是内存桩：写入进内存表、读回先查内存表（没有那份文件就报 ENOENT），删从内存表删；除 .git/config 回一份带 origin 的配置（#1445 之后开会话要读它认仓库）外，其余文件本来就没有。
+// #1434 起写完要读回比对，「写入什么都不做」的桩会让读回对不上而报写失败，所以这只桩必须把写进去的东西原样读回来。
+fs: (() => { const mem: Record<string, string> = {}; return { mkdir: async () => {}, resolve: async (k, o) => (/^(?:[A-Za-z]:[\\/]|\/)/.test(String(k)) ? String(k) : pathMod.join((o && o.cwd) ? String(o.cwd) : '', String(k))), readText: async (f) => { const k = String(f); if (k in mem) return mem[k]; if (/[\\/]\.git[\\/]config$/.test(k)) return GIT_CONFIG; throw enoent(k) }, writeText: async (f, c) => { mem[String(f)] = String(c) }, rm: async (f) => { delete mem[String(f)] } } })(), resolveExecutable: async (name) => String(name), env: { get: () => undefined } }
 const services = {
   subprocess, timer, fs: fsSvc, platform: platformSvc,
   connection: { fetch: { register: (r) => { route = r; return () => {} } } },
