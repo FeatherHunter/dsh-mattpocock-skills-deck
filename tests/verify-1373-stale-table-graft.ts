@@ -34,9 +34,6 @@
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
 import { SNAP_WAIT_MS } from '../src/shared/time-config/values.js'
-// #1518：胶囊判据现在问内核 container-view.ts 的 containerKindOf（容器身份唯一真源）。本门禁按模块单独加载视图叶子，
-//   构建闭包里才有的名字这里补上真身 —— 不另抄一份判定，否则门禁会跟着实现一起漂。
-;(globalThis as any).containerKindOf = (await import('../src/client/kernel/container-view.js')).containerKindOf
 // #1440 D：真宿主 + 真信封 + 真读数口那一趟要用的五个模块（不伪造回包，绕开信封的旧用例不算数）。
 import { createSnapshotEnvelope } from '../src/host/snapshotEnvelope.js'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
