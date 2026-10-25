@@ -1,5 +1,5 @@
 // tests/verify-1385-howto.ts —— #1385：deck_context 的用法说明按后端分支，本地后端追加建票契约
-// 门禁归属: src/deck/tools/context.ts, src/deck/tools/issue-create.ts, src/deck/tools/issue-patch.ts
+// 门禁归属: src/deck/tools/context.ts, src/deck/tools/issue-create.ts, src/deck/tools/issue-patch.ts, src/deck/tools/issue-patch-definition.ts
 // 验证（每条都能被删掉/改坏而变红）：
 //   1) 本地后端（markdown）的 howto 含建票契约关键词：文件格式与位置以随包技能原文为唯一依据
 //      （规格 spec.md、探索地图 map.md、票在 issues/<NN>-<slug>.md），六种 kind 与 parentKey / blockedBy、

@@ -641,8 +641,10 @@ async function main() {
     // 开一个 Tracker 会话、把工具的工作闭包交给它跑。它住在工具层，也照样受下面这套扫描约束，
     // 所以一并列进这张名单 —— 名单仍然是精确名单，多一份少一份都判红。
     // 2026-10 #1480 T2 又加一份 md-scope.ts：八个工具的 effort / feature 两参数口径与目录名校验。
-    const EXPECTED_FILES = ['context.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope 这十六份（实际 ' + names.join(',') + '）')
+    // 2026-10 #1495 给 deck_issue_patch 加关闭原因后，issue-patch.ts 的有效行到了 359（门禁判红），
+    // 把它的工具定义搬成 issue-patch-definition.ts；它同样只是工具层的一份数据文件，进这张精确名单。
+    const EXPECTED_FILES = ['context.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 这十七份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
     let sawTimer = 0
@@ -662,7 +664,7 @@ async function main() {
     }
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '十六份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
+      : '十七份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处），这套判据不是空转')
   }
 
