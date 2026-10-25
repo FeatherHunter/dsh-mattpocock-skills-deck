@@ -385,7 +385,15 @@ const ALLOWED = {
   'chain.cache.write': ['keyHash', 'allGreen', 'doneCount', 'step', 'progressed'],
   'chain.event': ['reason'],
   'naming.guard.event': ['reason'],
-  'chain.preflight.reuse': ['cwdHash', 'checks', 'reused', 'userAction'],
+  // 2026-10-26 #1475 给上面那行增补 latencyMs：一次求值从起点到预检收尾的总耗时（毫秒），
+  //   与 gh.exec 各条命令的 latencyMs 对齐着看，能分清慢在单条命令还是慢在整趟。
+  'chain.preflight.reuse': ['cwdHash', 'checks', 'reused', 'userAction', 'latencyMs'],
+  // 2026-10-26 #1475 新增一条常驻告警事件（附录 1.4 节 #132 chain.predicate.timeout）：检测链一次求值里，
+  //   外层等待预算先到点（phase=budget）或被放弃的内层谓词后来还是回了话（phase=late）时各记一行。
+  //   为什么是告警级：这两种形状说明预算不够或慢网下结论晚到，排障的人不会先打开调试开关才来查。
+  //   字段只取名字与数字：id 是检查项 id（如 gh:authed）、budgetMs 是这次赔进去的预算、status 是结论枚举、
+  //   latencyMs 是本次求值从起点到这一行的时间；不记命令原文、不记任何返回值。
+  'chain.predicate.timeout': ['id', 'phase', 'budgetMs', 'status', 'latencyMs'],
   // 2026-09-25 #724 新增一条常驻事件（附录 1.4 节 #88 `host.dispatch.empty`）：处理函数回话了、回话里却没有
   //   可用内容 —— 分发这一层唯一看得见这种形状的地方。三个键都是短的：哪条电话（method）、哪一种形状
   //   （shape：no-value / null-value / no-error，也就是缺的是哪一个键）、服务这一份的版本（version，

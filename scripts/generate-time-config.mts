@@ -129,6 +129,9 @@ const KEYS: Array<[string, string, string]> = [
   ['ghVersionProbeMs', 'GH_VERSION_PROBE_MS', 'timeouts'],
   // —— 检测链里的谓词超时（对抗式自查补登记：原来写在 option 对象里，名字是裸 timeout，两边都看不见）——
   ['predicateTimeoutMs', 'PREDICATE_TIMEOUT_MS', 'timeouts'],
+  // —— 检测链外层比内层串行最坏多留的余量（#1475：外层 = 内层最坏 + 余量，
+  //    内层最坏由 src/tracker/rooms/github/preflight.ts 的 ghPreflightWorstCaseMs() 按出站档位现算）——
+  ['predicateMarginMs', 'PREDICATE_MARGIN_MS', 'timeouts'],
   ['predicateFallbackTimeoutMs', 'PREDICATE_FALLBACK_TIMEOUT_MS', 'timeouts'],
   // —— 检测链里预取 gh 登录名的一次性竞速超时（detectChain.ts 的 timer.timeout(2500)，单源头改造时收拢）——
   ['ghLoginPrefetchMs', 'GH_LOGIN_PREFETCH_MS', 'timeouts'],
