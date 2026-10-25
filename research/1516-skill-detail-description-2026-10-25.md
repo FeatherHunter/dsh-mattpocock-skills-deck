@@ -44,7 +44,17 @@ grill-me → grilling；grill-with-docs → grilling、domain-modeling；improve
 - 可选改动：①详情页头行加一行描述（复用界面词表，中英跟随语言）；②把双引号技能名也做成可点入口（13 处，规则与现有反引号入口同一套）。
 - 做不做、描述取哪份，见票面「待拍板的问题」。
 
-## 7. 来源链接
+## 7. 附：维护者新需求「随包 md 都配中文译文、正文里同名文件可点」（2026-10-25 核对）
+
+本轮维护者追加两条要求：①随包提供的每个 md 都配一份中文译文（给人看，AI 不用）；②技能详情页正文里，凡是出现与随包 md 相同的文件名，都能点开看该文件原文，并支持中英文切换，体验与现在的技能详情一致。
+
+- 现状清点：随包 md 共 78 个 = 27 个 `SKILL.md` + 27 个 `SKILL.zh.md`（27 篇技能都已有中文译文）+ `README.md` + 23 个附加 md（清单见 `package/bundled-skills/`，如 `triage/AGENT-BRIEF.md`、`tdd/mocking.md`、`domain-modeling/ADR-FORMAT.md`）。缺译文的是这 23 个附加文件；其中 `pr/CREDITS.md` 与 `teach/GLOSSARY-FORMAT.md` 在正文里根本没被点名。
+- 正文点名情况：27 篇正文里出现的 md 文件名共 33 个，但多数是「使用者自己仓库里的文件」（`GLOSSARY.md`、`AGENTS.md`、`CONTRIBUTING.md` 等），真正随包的约 20 个。重名一个：`GLOSSARY-FORMAT.md` 在 `domain-modeling` 与 `teach` 各一份，只写文件名时分不清指向哪份。
+- 关键风险（先解决再翻译）：同步脚本 `scripts/sync-matt-skills.mts:178-182` 先 `rmSync` 整个 `package/bundled-skills`，再按上游逐目录复制（`:194`）；上游没有 `SKILL.zh.md`，所以下一次 `pnpm run sync:matt` 会把 27 份译文全删。门禁 `tests/verify-bundled-skills-upstream.ts:85-87` 已写明这一点（「允许存在；但下次同步整目录重建会抹掉它们」）。做新功能前要把译文搬到重建目录之外，或改同步脚本保留/合并译文。
+- 宿主取原文只认 `SKILL.md`：`src/host/skillDoc.ts:89-111` 用 `<name>/SKILL.md` 拼路径，译文按 `SKILL.zh.md` 同目录取。要读任意 md，得给读原文接口加一个文件参数、白名单（只允许随包目录内的 md）并保留越界防护。
+- 翻译量与取舍：23 个附加 md 里有 20 个被正文点名、2 个没被点名；翻译全部 23 个即可让「所有随包 md 都有译文」成立，不翻那 2 个也不影响可点入口。
+
+## 8. 来源链接
 
 - https://api.github.com/repos/mattpocock/skills/tags
 - https://api.github.com/repos/mattpocock/skills/commits?sha=main&per_page=30
