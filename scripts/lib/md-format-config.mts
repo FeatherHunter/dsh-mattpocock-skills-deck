@@ -223,7 +223,15 @@ export function validateMdFormatConfig(doc: unknown): string[] {
       }
       if (obj.acceptance !== undefined && !isNonEmptyString(obj.acceptance)) fail(problems, where + '.acceptance 必须是非空字符串')
       if (obj['body-section'] !== undefined && !isNonEmptyString(obj['body-section'])) fail(problems, where + '.body-section 必须是非空字符串')
-      if (obj.note !== undefined && !isNonEmptyString(obj.note)) fail(problems, where + '.note 必须是非空字符串')
+      if (obj.note !== undefined) {
+        if (!isNonEmptyString(obj.note)) {
+          fail(problems, where + '.note 必须是非空字符串')
+        } else if (obj.note.trim().length < 10 || !obj.note.trim().endsWith('。')) {
+          // 裸标量里出现「空格 + #」时 YAML 会把 # 之后当注释吃掉，note 只剩半句；
+          // 这类残句在解析结果里不再以句号结尾，用这条判据把「真源被悄悄截断」拦在生成之前。
+          fail(problems, where + '.note 必须是完整的一句话（至少 10 个字、以句号结尾）；含「 #」的裸标量要加引号')
+        }
+      }
     }
     // 五类对象都引用同一份 issue-tracker-local，至少要在那边有锚点；这里不重复查引用计数。
   }

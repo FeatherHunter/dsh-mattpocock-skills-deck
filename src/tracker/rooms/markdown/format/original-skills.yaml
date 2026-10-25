@@ -102,7 +102,7 @@ objects:
       default: ready-for-agent
     anchors:
       - .scratch/<effort>/map.md
-    note: 地图正文五段逐字照 wayfinder；子票的问句放在子票正文的 ## Question 下（见 wayfinder-child）。
+    note: '地图正文五段逐字照 wayfinder；子票的问句放在子票正文的 ## Question 下（见 wayfinder-child）。'
 
   implementation-ticket:
     kind: spec-ticket
@@ -126,7 +126,7 @@ objects:
       - "**Blocked by:**"
       - "**Status:** ready-for-agent"
       - "- [ ] Acceptance criterion 1"
-    note: 用 to-tickets 的「Local files」模板（不是真 tracker 的 ## Parent 四段模板）。
+    note: '用 to-tickets 的「Local files」模板（不是真 tracker 的 ## Parent 四段模板）。'
 
   wayfinder-child:
     kind: map-ticket
@@ -149,7 +149,7 @@ objects:
       - "## Question"
       - "Blocked by: NN, NN"
       - "## Answer"
-    note: 子票的问题在正文 ## Question 下；认领改 Status、解决追加 ## Answer 并把指针写回 map.md 的 Decisions so far（T6 落地）。
+    note: '子票的问题在正文 ## Question 下；认领改 Status、解决追加 ## Answer 并把指针写回 map.md 的 Decisions so far（T6 落地）。'
 
   plain-issue:
     kind: issue
@@ -223,7 +223,7 @@ reading:
   fallbacks:
     - parent-by-directory: 没有 DSH-PARENT 时按所在目录判断父容器（目录里的 spec.md 或 map.md）。
     - plain-when-unknown: 编号或父容器识别不了时按普通票读，不抛错。
-    - duplicate-number: 同一目录编号重复时不自作主张改号；显示退化为「编号-文件名」，并记 md:dup-number 日志。
+    - duplicate-number: 同一目录编号重复时不自作主张改号；显示退化为「编号-文件名」，并记 read.degraded 日志（reason 是 list:dup-number 或 get:dup-number）。
 
 # 本插件额外加的、原文没有的行为。每一条都要说清「加了什么、为什么、为什么不选别的做法」。
 enhancements:
@@ -251,4 +251,4 @@ upgrade:
     - 先跑 node --import ./scripts/ts-hook.mts tests/verify-md-format-config.ts，看哪些原文锚点对不上。
     - 只改这份 YAML 与生成器，然后跑 node scripts/generate-md-format-config.mts 重算生成物。
     - 在 pin-history 追加一条并写清变化原因；删除对象或字段必须同时在 docs/adr/ 里说明。
-    - 升级检测日志走 md:format.version 事件（日志纪律见 AGENTS.md「日志埋点纪律」）。
+    - 升级检测日志还没落地：YAML 版本识别与事件名由 #1499 承接（日志纪律见 AGENTS.md「日志埋点纪律」）。

@@ -153,6 +153,8 @@ async function main(): Promise<void> {
     // 这条演练守的就是「有人把 title-shape 加回规格」时校验器立刻判红。
     { name: '规格又写回可见一级标题', mutate: (d) => { d.objects.spec['title-shape'] = '# <spec 标题>' } },
     { name: '地图标题注释指向不存在的隐藏注释', mutate: (d) => { d.objects.map['title-comment'] = 'DSH-NO-SUCH-TITLE' } },
+    // 裸标量里的「 #」会被 YAML 当注释截断，note 只剩半句；校验器必须把这种残句判出来。
+    { name: 'note 被 YAML 注释截断', mutate: (d) => { d.objects.map.note = '地图正文五段逐字照 wayfinder；子票的问句放在子票正文的' } },
   ]
   for (const drill of drills) {
     const copy: Record<string, any> = JSON.parse(JSON.stringify(cfg))
