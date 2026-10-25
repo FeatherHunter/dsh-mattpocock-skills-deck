@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T20:16:14.040Z",
+  "generatedAt": "2026-10-25T20:27:45.175Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 389,
-  "gateCount": 389,
-  "attributedGates": 349,
+  "chainLength": 390,
+  "gateCount": 390,
+  "attributedGates": 350,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 587,
+  "graphFileCount": 589,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -996,6 +996,33 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 1 条"
+    },
+    {
+      "step": "node tests/verify-1007-transport-cooldown.ts",
+      "file": "tests/verify-1007-transport-cooldown.ts",
+      "guards": [
+        "config/timeouts.yaml",
+        "src/host/platformChannel.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
+        "src/refresh/rooms/host/gh-queue-race.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
+        "src/shared/time-config/src/values.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
+        "src/tracker/rooms/github/client.ts"
+      ],
+      "dirs": [
+        "config",
+        "src/host",
+        "src/refresh/rooms/host",
+        "src/shared/time-config/src",
+        "src/tracker/kernel",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1039-rules-pure.ts",
@@ -5162,6 +5189,7 @@
       "file": "tests/verify-916-ghauth-crosscheck.ts",
       "guards": [
         "src/refresh/rooms/host/chain-env-map.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/tracker/guide-steps.ts",
         "src/tracker/rooms/github/preflight.ts"
@@ -5175,7 +5203,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 4 条"
+      "reason": "归属来自：静态 import 说明符 5 条"
     },
     {
       "step": "node tests/verify-916-ghauth-unknown-banner.ts",
@@ -6475,6 +6503,7 @@
         "src/tracker/contract/results.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/error-rules.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/kernel/preflight.ts",
         "src/tracker/rooms/github/fallback-reason.ts",
         "src/tracker/rooms/github/init-project-error-kinds.ts",
@@ -6494,7 +6523,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 17 条"
+      "reason": "归属来自：源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-event-budget.ts",
@@ -6668,6 +6697,7 @@
       "guards": [
         "docs/agents/workspace.yaml",
         "src/host/workspaceCwd.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
@@ -6689,7 +6719,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-github-rest-fallback.ts",
@@ -9136,6 +9166,7 @@
   "byDir": {
     ".": [],
     "config": [
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-prompt-config.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-locale-config.ts"
@@ -9880,6 +9911,7 @@
       "node tests/verify-1003-no-cwd-masquerade.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-workspace-write-robust.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
@@ -10120,6 +10152,7 @@
       "node tests/verify-1003-no-cwd-masquerade.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-1082-work-route-table.ts",
@@ -10259,6 +10292,7 @@
     "src/shared/time-config": [],
     "src/shared/time-config/src": [
       "node tests/verify-deck-no-hang.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1522-skill-md-refs.ts",
@@ -10401,6 +10435,7 @@
     ],
     "src/tracker/kernel": [
       "node tests/verify-no-mixed-session.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1182-log-emit-single-source.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -10469,6 +10504,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-1286-snapshot.ts",
@@ -10832,9 +10868,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 608,
+    "fileCount": 610,
     "dirCount": 74,
-    "coveredFileCount": 608,
+    "coveredFileCount": 610,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11193,6 +11229,8 @@
       "src/refresh/rooms/host/check-chain-evaluation.ts",
       "src/refresh/rooms/host/comment-thread-fetch.ts",
       "src/refresh/rooms/host/gh-execution.ts",
+      "src/refresh/rooms/host/gh-queue-race.ts",
+      "src/refresh/rooms/host/gh-run-report.ts",
       "src/refresh/rooms/host/git-execution.ts",
       "src/refresh/rooms/host/host-attention.ts",
       "src/refresh/rooms/host/issue-detail-fetch.ts",
@@ -11625,7 +11663,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 45
+        "fileCount": 47
       },
       {
         "path": "src/shared/command-cleanup",
