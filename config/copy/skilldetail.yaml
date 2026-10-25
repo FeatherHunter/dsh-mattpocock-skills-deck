@@ -37,6 +37,9 @@ zh:
   sd.toZh: 中文
   sd.toEn: EN
   sd.openLink: 原图链接
+  sd.fileFormat: 这是格式说明：正文里写的是 {name}，随包提供的是它的格式模板 {file}。
+  sd.fileProject: 这是技能在你的项目里创建或维护的文件，插件没有随包提供它的原文：{file}
+  sd.fileChoose: 这个文件在随包里对应多份模板，先选一份：
 en:
   sd.listTitle: ■ Skills
   sd.detailBtn: Details
@@ -64,3 +67,6 @@ en:
   sd.toZh: 中文
   sd.toEn: EN
   sd.openLink: Open link
+  sd.fileFormat: "This is format guidance: the body refers to {name}; the bundled format template is {file}."
+  sd.fileProject: "This file is created or maintained by the skill in your project; the plugin does not bundle its text: {file}"
+  sd.fileChoose: "This file maps to several bundled templates; pick one:"

@@ -27,13 +27,13 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   const st = p.st || null
   // 正文里能点开的技能名（2026-10-10 人拍板）：只有随包真有的那些做成入口，别的原样当代码。
   // 认两种写法：`/grill-with-docs`（带斜杠）与 `grilling`（不带），名字必须整个对上。
-  const skillSet = (function (): any {
-    const names = p.skillNames
+  const nameSet = function (names: any): any {
     if (!names || !names.length) return null
     const s: Record<string, boolean> = {}
     for (let i = 0; i < names.length; i++) s[String(names[i])] = true
     return s
-  })()
+  }
+  const skillSet = nameSet(p.skillNames)
   const skillRefOf = function (code: string): string | null {
     if (!skillSet || typeof p.onSkill !== 'function') return null
     const text = String(code || '').trim()
@@ -48,6 +48,51 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   let linkN = 0
   let imgN = 0
   let skillN = 0
+  // #1522：正文里写到的随包 md 文件名也能点开看原文。名单由宿主在读正文时一并给回
+  // （p.mdRefs），渲染器只把「名单里真有的文件名」做成入口；对不上就原样画文字，
+  // 不给名字造一个没有原文的入口。点开动作在外层（p.onMdFile），这里只负责认名字。
+  const mdRefSet = typeof p.onMdFile === 'function' ? nameSet(p.mdRefs) : null
+  let mdN = 0
+  const mdRefOf = function (text: string, isUrl?: boolean): string | null {
+    let t = String(text == null ? '' : text).trim()
+    if (!isUrl && t.length > 1 && t.charAt(0) === '`' && t.charAt(t.length - 1) === '`') t = t.slice(1, t.length - 1)
+    if (isUrl && (!t || /^https?:/i.test(t) || t.charAt(0) === '#')) return null
+    if (t.indexOf('./') === 0) t = t.slice(2)
+    // 带目录的写法：相对链接不认（票面只把 ./X.md、X.md 这种指向随包文件本身的算入口）；
+    // 行内代码只认项目文档惯例的 docs/agents/<文件名>，其余（./src/billing/GLOSSARY.md 这类示例路径、
+    // package/bundled-skills/<name>/SKILL.md 这类占位符）按票面边界「不做纯占位符与示例文本的入口」不画。
+    const pathRef = /^docs\/agents\/([A-Za-z0-9][A-Za-z0-9._-]*\.md)$/.exec(t)
+    if (t.indexOf('/') >= 0) { if (isUrl || !pathRef) return null; t = pathRef[1] }
+    if (!mdRefSet || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(t)) return null
+    return mdRefSet[t] ? t : null
+  }
+  const mdRefNode = function (label: string, ref: string): any {
+    // 观感沿用技能名的可点代码（pixel-skillref 只给 code 定过样式），不新增颜色。
+    // 接线（#1335 界面反馈）：文件名入口也是按钮，按压档与定位名跟技能引用同一类。
+    return h('code', { key: key(), className: 'pixel-skillref', role: 'button', tabIndex: 0, 'data-press': 'button', 'data-log': 'sd.md.file.' + (mdN += 1),
+      onClick: function () { try { (p.onMdFile as (n: string) => void)(ref) } catch (e) { /* 忽略 */ } } }, label)
+  }
+  // 把一段普通文字按「文件名」切开：只认前后都是自然词边界的整名，避免把长单词里的一段当文件名。
+  const mdRefNodes = function (text: string): any[] {
+    const s = String(text == null ? '' : text)
+    const out: any[] = []
+    if (!mdRefSet || !s) { out.push(s); return out }
+    const re = /[A-Za-z0-9][A-Za-z0-9._-]*\.md/g
+    let last = 0
+    let m: RegExpExecArray | null = null
+    while ((m = re.exec(s)) !== null) {
+      const name = m[0]
+      const end = m.index + name.length
+      const before = m.index > 0 ? s.charAt(m.index - 1) : ''
+      const after = end < s.length ? s.charAt(end) : ''
+      if ((before && /[A-Za-z0-9_.\/-]/.test(before)) || (after && /[A-Za-z0-9_\/-]/.test(after)) || !mdRefSet[name]) continue
+      if (m.index > last) out.push(s.slice(last, m.index))
+      out.push(mdRefNode(name, name))
+      last = end
+    }
+    if (last < s.length) out.push(s.slice(last))
+    return out
+  }
   const openImg = function (src: string, alt: string): void {
     if (!st || !src) return
     st.pixelImgOverlay = { src: src, alt: String(alt || '').slice(0, 200) }
@@ -64,9 +109,7 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   // 强调收口的两条细节：** 与 __ 要成对整串；单个 * 只认"孤立的星"收口，
   // 这样 *a **b** c* 反向嵌套也能正确（否则会被切成三段各自的斜体）。
   // 下划线守词边界：_x_ 认，snake_case 不认。
-  const pxInline = function (text: string, inLink: boolean): any[] {
-    return pxInlineWith(text, inLink, [])
-  }
+  const pxInline = function (text: string, inLink: boolean): any[] { return pxInlineWith(text, inLink, []) }
   const pxInlineWith = function (text: string, inLink: boolean, atoms: any[]): any[] {
     const mark = function (node: any): string {
       atoms.push(node)
@@ -91,6 +134,11 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
       }
       return -1
     }
+    // 普通文字里的随包 md 文件名（#1522）：识别靠名单；链接标签里不认（标签本身已有入口）。
+    const pushText = function (target: any[], s: string): void {
+      if (!mdRefSet || inLink) { target.push(s); return }
+      mdRefNodes(s).forEach(function (x: any) { target.push(x) })
+    }
     const expand = function (nodes: any[]): any[] {
       const out: any[] = []
       nodes.forEach(function (n: any) {
@@ -99,12 +147,12 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
         let last = 0
         let m: RegExpExecArray | null = null
         while ((m = re.exec(n)) !== null) {
-          if (m.index > last) out.push(n.slice(last, m.index))
+          if (m.index > last) pushText(out, n.slice(last, m.index))
           const atom = atoms[parseInt(m[1], 10)]
           if (atom !== undefined) out.push(atom)
           last = m.index + m[0].length
         }
-        if (last < n.length) out.push(n.slice(last))
+        if (last < n.length) pushText(out, n.slice(last))
       })
       return out
     }
@@ -141,6 +189,8 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     let rest = String(text == null ? '' : text)
     // ① 代码跨度：原子，最高优先级
     rest = rest.replace(/`([^`]+)`/g, function (all: string, code: string) {
+      const fileRef = mdRefOf(code)
+      if (fileRef) return mark(mdRefNode(code, fileRef))
       const ref = skillRefOf(code)
       if (ref) {
         skillN += 1
@@ -180,7 +230,18 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     })
     // ④ 链接：只认 http(s)；标签递归解析，共用同一张原子表（标签里的代码才找得回自己那条）
     rest = rest.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, function (all: string, label: string, url: string) {
-      if (!/^https?:/i.test(url)) return label
+      if (!/^https?:/i.test(url)) {
+        // #1522：随包 md 的相对链接（./X.md 或 X.md）也做成入口；别的相对地址维持原样文字。
+        const fileRef = mdRefOf(url, true)
+        if (fileRef) {
+          // 标签里的行内代码在前面已经被抽成原子，这里不能再套一层按钮；遇到这种情况
+          // 退回用文件名当标签（链接指向的就是这个文件，人看得出来点的是哪一份）。
+          const plain = /^`([^`]*)`$/.exec(label)
+          const text = (plain ? plain[1] : label).indexOf('\u0002A') >= 0 ? fileRef : (plain ? plain[1] : label)
+          return mark(mdRefNode(text, fileRef))
+        }
+        return label
+      }
       linkN += 1
       return mark(h('a', {
         key: key(),
@@ -255,7 +316,10 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
       i += 1
       while (i < lines.length && lines[i].trim().indexOf('```') !== 0) { codeLines.push(lines[i]); i += 1 }
       if (i < lines.length) i += 1
-      nodes.push(h('pre', { key: key() }, h('code', null, codeLines.join('\n'))))
+      // 代码块里的随包 md 文件名（#1522）：树状图与示例命令里常写文件名，同样做成入口。
+      const codeNodes: any[] = []
+      for (let ci = 0; ci < codeLines.length; ci++) { if (ci > 0) codeNodes.push('\n'); mdRefNodes(codeLines[ci]).forEach(function (x: any) { codeNodes.push(x) }) }
+      nodes.push(h('pre', { key: key() }, h('code', null, codeNodes)))
       continue
     }
     const hm = /^(#{1,6})\s+(.+)$/.exec(trim)

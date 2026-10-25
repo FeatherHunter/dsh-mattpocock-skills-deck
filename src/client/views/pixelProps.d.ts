@@ -71,6 +71,10 @@ export interface PixelMarkdownProps {
   onSkill?: ((name: string) => void) | null;
   /** 哪些名字算技能：只有随包真有的那些做成入口，别的一律原样当代码。 */
   skillNames?: string[] | null;
+  /** 正文里可点开的随包 md 文件名名单（#1522）：由宿主读正文时给回，只有名单里的名字做成入口。 */
+  mdRefs?: string[] | null;
+  /** 点开正文里写到的随包 md 文件（#1522）：参数是文件名（不带目录）。 */
+  onMdFile?: ((name: string) => void) | null;
 }
 export interface PixelHeading {
   level: number;
@@ -111,6 +115,18 @@ export interface PixelDetailState {
   pathZh?: string | null;
   copied?: boolean;
   showSkel?: boolean;
+  /** 这一层是什么（#1522）：缺省/空串＝技能正文；file/format＝随包 md 原文；project＝技能在项目里维护的文件说明；choose＝多份模板待选。 */
+  kind?: 'skill' | 'file' | 'format' | 'project' | 'choose';
+  /** kind=file/format 时打开的文件名（不带目录）。 */
+  file?: string | null;
+  /** 这一层归属的技能目录（#1522）：同名文件优先在这个技能目录里找。 */
+  skill?: string | null;
+  /** 宿主给回的可点 md 文件名名单（#1522），正文渲染时用它判断哪些名字能点。 */
+  refs?: string[] | null;
+  /** kind=choose 时可选的随包模板（#1522）。 */
+  options?: { file: string; skill: string }[] | null;
+  /** 这一层的名字对应的是格式模板（#1522 方案 C）：选完模板后仍按「格式说明」画，标题保留点进来的名字。 */
+  format?: boolean;
 }
 export interface PixelStore {
   pixelDetail?: PixelDetailState | null;
