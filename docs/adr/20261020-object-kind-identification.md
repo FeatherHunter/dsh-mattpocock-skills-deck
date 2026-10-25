@@ -69,7 +69,7 @@
 
 triage 五角色标签不参与判定。第 3 步只认三种专属形状：
 
-- **地图**：`Destination` / `Notes` / `Decisions so far` / `Not yet specified` / `Out of scope` 五节全在（`src/deck/rules/minimal-spec.ts:32-34`；wayfinder 技能模板中英两版同名，见 `package/bundled-skills/wayfinder/SKILL.md:32-50` 与 `package/bundled-skills/wayfinder/SKILL.zh.md:32-50`）。
+- **地图**：`Destination` / `Notes` / `Decisions so far` / `Not yet specified` / `Out of scope` 五节全在（`src/deck/rules/minimal-spec.ts:32-34`；wayfinder 技能模板中英两版同名，见 `package/bundled-skills/wayfinder/SKILL.md:32-50` 与 `package/bundled-skills-zh/wayfinder/SKILL.md:32-50`）。
 - **规格**：to-spec 七节全在（英文 Problem Statement、Solution、User Stories、Implementation Decisions、Testing Decisions、Out of Scope、Further Notes；中文 问题陈述、解决方案、用户故事、实现决策、测试决策、不在范围内、补充说明）。
 - **实施票**：to-tickets 议题模板四节全在（英文 Parent、What to build、Acceptance criteria、Blocked by；中文 父议题、要构建什么、验收判据、被谁阻塞），外加本地文件模板那种写法（一级标题 + 三条加粗行 + 验收复选框；英文加粗行是 **What to build:** / **Blocked by:** / **Status:**，中文是 **要构建什么：** / **被谁阻塞：** / **状态：**）。
 
@@ -81,7 +81,7 @@ wayfinder 技能产出的四种票（调研票、原型票、讨论票、任务�
 
 形状不齐**不是**第十种类型：这类票的对象类型仍取九值之一（没有专属形状完整命中就按普通票算），另外提示缺哪几节。
 
-节名清单只从技能模板取（`package/bundled-skills/to-spec/SKILL.md` 与 `SKILL.zh.md`、`to-tickets/SKILL.md` 与 `SKILL.zh.md`），识别器不另抄一份；实现走生成器（照 #1278 定的 config/ 下 YAML 单一真源 + 生成器套路），并有门禁保证模板改了清单会重生成。
+节名清单只从技能模板取（`package/bundled-skills/to-spec/SKILL.md` 与 `package/bundled-skills-zh/to-spec/SKILL.md`、`package/bundled-skills/to-tickets/SKILL.md` 与 `package/bundled-skills-zh/to-tickets/SKILL.md`），识别器不另抄一份；实现走生成器（照 #1278 定的 config/ 下 YAML 单一真源 + 生成器套路），并有门禁保证模板改了清单会重生成。
 
 ### 2.4 没有「没认出来」这一档
 

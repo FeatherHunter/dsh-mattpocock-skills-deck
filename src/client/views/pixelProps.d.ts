@@ -107,7 +107,7 @@ export interface PixelDetailState {
   dshLang?: string;
   copyText?: string | null;
   docPath?: string | null;
-  /** 中文译文包（SKILL.zh.md）的绝对路径；没有译文时为空。 */
+  /** 中文译文（兄弟目录 bundled-skills-zh 下同名文件）的绝对路径；没有译文时为空。 */
   pathZh?: string | null;
   copied?: boolean;
   showSkel?: boolean;
