@@ -213,7 +213,7 @@ console.log('\n== 三、翻页游标两档：这个游标跟现在这份数据�
   if (staleLines.length) checkShape(staleLines[0], '游标越界那一行')
 }
 
-console.log('\n== 四、取单票三档与探测找不到地图 ==')
+console.log('\n== 四、取单票三档与空工作区探测 ==')
 {
   const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-d-'))
   writeEffort(ws, 'demo', [['01-open-a.md', 'ready-for-agent'], ['02-broken.md', 'ready-for-agent']])
@@ -246,11 +246,11 @@ console.log('\n== 四、取单票三档与探测找不到地图 ==')
   const probeCtx = makeCtx(emptyWs)
   const backend = createMarkdownBackend(probeCtx)
   const probe = await backend.preflight({ cwd: emptyWs } as never, probeCtx as never)
-  check(!probe.ok, '空工作区探测 → 照旧回「找不到地图文件」→ ' + (probe.ok ? '竟然成功了' : '失败'))
+  // #1513：空工作区算通过（新工作区还没建任何工作单元是正常起点，不该被判成「这个工作区不能用本地 Markdown」）。
+  // 与检查链同一条判据：md:workspace 在「.scratch 读完什么都没有」时给 pass，不再是「找不到地图文件」。
+  check(probe.ok, '空工作区探测 → 通过（空工作区不算失败）→ ' + (probe.ok ? '通过' : '竟然失败了'))
   const probeLines = degraded(probeCtx)
-  check(probeLines.length === 1 && String(probeLines[0].fields.reason) === 'preflight:no-map',
-    '落一行 read.degraded（preflight:no-map）→ ' + probeLines.map(lineText).join(' / '))
-  if (probeLines.length) checkShape(probeLines[0], '探测那一行')
+  check(probeLines.length === 0, '空工作区探测一行 read.degraded 都不记 → 实得 ' + probeLines.length + ' 行')
 }
 
 console.log('\n== 四之二、读取端认得旧布局与退化身份（#1488）：兼容与退化各留一行 ==')
@@ -369,6 +369,19 @@ console.log('\n== 六、预检中途出错：探测这一关自己炸了，也�
   if (lines.length) checkShape(lines[0], '预检出错那一行')
 }
 
+console.log('\n== 六之二、预检三项量完、结论不过：落一行 preflight:check-fail ==')
+{
+  const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-f2-'))
+  writeEffort(ws, 'demo', [['01-open-a.md', 'ready-for-agent']])
+  // 让 .scratch 列不出来：三项里第一项是自己量完、结论「不过」，这与「预检自己折断」是两回事。
+  const ctx = makeCtx(ws, [], ['.scratch'])
+  const backend = createMarkdownBackend(ctx)
+  const probe = await backend.preflight({ cwd: ws } as never, ctx as never)
+  const lines = degraded(ctx)
+  check(!probe.ok && String(lines[0] && lines[0].fields.reason) === 'preflight:check-fail',
+    '三项里有一项不过 → 如实失败，落一行 preflight:check-fail → ' + (lines.map(lineText).join(' / ') || '一行都没有'))
+  if (lines.length) checkShape(lines[0], '三项不过那一行')
+}
 console.log('\n== 七、反向断言：一次故障只留一条线 ==')
 {
   // 地图与票文件都读不动：主形态一条线都读不出来，于是房间里还会再试一次夹具形态，

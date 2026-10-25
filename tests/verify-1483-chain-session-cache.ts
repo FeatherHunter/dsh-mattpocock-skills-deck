@@ -37,7 +37,7 @@ const ok = (cond: boolean, msg: string, detail?: unknown): void => {
 }
 
 async function main(): Promise<void> {
-  // 用真实的 markdown 后端目录搭出后端链：md:scratchWritable 带 sessionScoped，md:parseOk 不带。
+  // 用真实的 markdown 后端目录搭出后端链：md:scratchWritable 带 sessionScoped，另外两项不带。
   const chain: AnyObj[] = catalogFor('markdown')
     .filter((c: AnyObj) => c.scope === 'backend' && c.id !== 'gh:labels')
     .map((c: AnyObj) => catalogItemToCheckItem(c as any) as AnyObj)
@@ -113,7 +113,16 @@ async function main(): Promise<void> {
     // I 用：fastTimeout 时 5ms 就判超时；其余场景永不触发（与真实接线「定时器只用来兜超时」同形）。
     timer: { timeout: (ms: number) => (fastTimeout ? new Promise((resolve) => setTimeout(resolve, 5)) : new Promise(() => undefined)) },
     probeSkill: async () => ({ ok: false, level: 'pending' }),
-    mdParseOkPredicate: async () => ({ status: 'pass' }),
+    // #1513：本地 Markdown 那三项已拆成三个 backend 谓词，写探测本体搬到房间的共用判据里。
+    // 这一道门禁关心的是「缓存命中时按本会话重算」这条路径，所以 scratchWritable 直接调真判据
+    //（真判据才会真的去写探针，writeCalls 才数得准）；另外两项给固定结论，本文件不测它们。
+    mdPredicate: async (platform: AnyObj, cwd: string, lang: string, checkId: string, sandboxPolicy: unknown) => {
+      if (String(checkId) === 'scratchWritable' || String(checkId) === 'md:scratchWritable') {
+        const { checkScratchWritable } = await import('../src/tracker/rooms/markdown/workspace-checks.js')
+        return checkScratchWritable({ platform: platform as never, cwd: cwd, lang: lang, sandboxPolicy: sandboxPolicy } as never)
+      }
+      return { status: 'pass', detail: 'fake' }
+    },
     getChainCache: () => null,
     setChainCache: () => undefined,
     getChainBackoff: async () => backoff,
@@ -154,7 +163,7 @@ async function main(): Promise<void> {
   ok((stepOf(readonlyReply.backendChain.snapshot, 'md:scratchWritable') || {}).status === 'pending', 'B 只读会话：backendChain.snapshot 里变 pending')
   ok((stepOf(readonlyReply.fullSnapshot, 'md:scratchWritable') || {}).status === 'pending', 'B 只读会话：fullSnapshot 里变 pending')
   ok(/沙箱|sandbox/i.test(String(roResolved.detail || '')), 'C 只读会话：detail 说的是被沙箱拦住，不是目录不可写', roResolved.detail)
-  ok((stepOf(readonlyReply.fullSnapshot, 'md:parseOk') || {}).status === 'done', 'B 非会话相关项沿用缓存判定（md:parseOk 仍是 done）')
+  ok((stepOf(readonlyReply.fullSnapshot, 'md:containersReadable') || {}).status === 'done', 'B 非会话相关项沿用缓存判定（md:containersReadable 仍是 done）')
 
   // D. 换回可写会话：又是 done（重算不串会话），缓存仍未被改
   const writableAgain = await detect.handleChain({ cwd: '/ws', backendId: 'markdown', sessionId: 'writable-session', lang: 'zh' } as any) as AnyObj

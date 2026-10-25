@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T15:25:06.464Z",
+  "generatedAt": "2026-10-25T16:45:18.008Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 382,
-  "gateCount": 382,
-  "attributedGates": 342,
+  "chainLength": 385,
+  "gateCount": 385,
+  "attributedGates": 345,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 586,
+  "graphFileCount": 587,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3111,17 +3111,19 @@
         "src/refresh/rooms/host/chain-step-rows.ts",
         "src/refresh/rooms/host/check-chain-evaluation.ts",
         "src/shared/tracker/check-catalog-dirs.ts",
-        "src/shared/tracker/check-catalog-views.ts"
+        "src/shared/tracker/check-catalog-views.ts",
+        "src/tracker/rooms/markdown/workspace-checks.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/shared/tracker"
+        "src/shared/tracker",
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 4 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1483-client-chain-cache.ts",
@@ -3445,6 +3447,60 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
+      "step": "node tests/verify-1512-md-chain.ts",
+      "file": "tests/verify-1512-md-chain.ts",
+      "guards": [
+        "src/host/remotePredicates.ts",
+        "src/shared/tracker/check-catalog-dirs.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/rooms/markdown/workspace-checks.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/shared/tracker",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1522-skill-md-refs.ts",
+      "file": "tests/verify-1522-skill-md-refs.ts",
+      "guards": [
+        "docs/agents/domain.md",
+        "src/client/views/pixel/PixelBanner.ts",
+        "src/client/views/pixel/PixelBtn.ts",
+        "src/client/views/pixel/PixelNum.ts",
+        "src/client/views/pixel/PixelSeal.ts",
+        "src/client/views/pixel/PixelSkeleton.ts",
+        "src/client/views/pixel/PixelStateIcon.ts",
+        "src/client/views/pixel/PixelStatusLine.ts",
+        "src/client/views/skillDetail/PixelContents.ts",
+        "src/client/views/skillDetail/PixelMarkdown.ts",
+        "src/client/views/skillDetail/PixelSkillDetailModal.ts",
+        "src/client/views/skillDetail/PixelSkillOps.ts",
+        "src/host/skillDoc.ts",
+        "src/shared/time-config/src/values.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/client/views/pixel",
+        "src/client/views/skillDetail",
+        "src/host",
+        "src/shared/time-config/src",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -5765,23 +5821,48 @@
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
+      "step": "node tests/verify-bundled-skills-zh.ts",
+      "file": "tests/verify-bundled-skills-zh.ts",
+      "guards": [
+        "package/bundled-skills",
+        "package/bundled-skills-zh",
+        "package/package.json",
+        "scripts/sync-matt-skills.mts",
+        "src/host/skillDoc.ts"
+      ],
+      "dirs": [
+        "package",
+        "package/bundled-skills",
+        "package/bundled-skills-zh",
+        "scripts",
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
+    },
+    {
       "step": "node tests/verify-bundled-skills.ts",
       "file": "tests/verify-bundled-skills.ts",
       "guards": [
         "package/bundled-skills",
+        "package/bundled-skills-zh",
         "package/package.json",
         "src/shared/matt-skills.ts"
       ],
       "dirs": [
         "package",
         "package/bundled-skills",
+        "package/bundled-skills-zh",
         "src/shared"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-cap-fold-browser.ts",
@@ -6204,17 +6285,19 @@
         "src/host/tracker/predicateCore.ts",
         "src/shared/tracker/chain-types.ts",
         "src/shared/tracker/chain-validate.ts",
-        "src/shared/tracker/check-catalog-dirs.ts"
+        "src/shared/tracker/check-catalog-dirs.ts",
+        "src/tracker/rooms/markdown/workspace-checks.ts"
       ],
       "dirs": [
         "src/host/tracker",
-        "src/shared/tracker"
+        "src/shared/tracker",
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条"
     },
     {
       "step": "node tests/verify-error-normalize-log.ts",
@@ -8152,6 +8235,7 @@
       "step": "node tests/verify-skill-detail-stack.ts",
       "file": "tests/verify-skill-detail-stack.ts",
       "guards": [
+        "package/bundled-skills",
         "src/client/views/pixel/PixelBanner.ts",
         "src/client/views/pixel/PixelBtn.ts",
         "src/client/views/pixel/PixelSeal.ts",
@@ -8168,6 +8252,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "package/bundled-skills",
         "src/client/views/pixel",
         "src/client/views/skillDetail",
         "src/shared/time-config/src",
@@ -8177,7 +8262,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-snapshot-cache-first.ts",
@@ -9004,6 +9089,7 @@
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1488-read-mixed-layout.ts",
+      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -9040,6 +9126,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-bundled-discovery.ts",
+      "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-bundled-skills.ts",
       "node tests/verify-config-store-package.ts",
       "node tests/verify-ctx.ts",
@@ -9057,6 +9144,12 @@
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-bundled-discovery.ts",
       "node tests/verify-bundled-skills-upstream.ts",
+      "node tests/verify-bundled-skills-zh.ts",
+      "node tests/verify-bundled-skills.ts",
+      "node tests/verify-skill-detail-stack.ts"
+    ],
+    "package/bundled-skills-zh": [
+      "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-bundled-skills.ts"
     ],
     "package/bundled-skills/ask-matt": [
@@ -9190,6 +9283,7 @@
       "node tests/verify-1411-suggest-appearance.ts",
       "node tests/verify-1411-suggest-bubble.ts",
       "node tests/verify-640-dock-width-browser.ts",
+      "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue-body-script.ts",
@@ -9529,6 +9623,7 @@
       "node tests/verify-map-detail-v2.ts"
     ],
     "src/client/views/pixel": [
+      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-ui-feedback.ts"
     ],
@@ -9562,6 +9657,7 @@
       "node tests/verify-visible-truth.ts"
     ],
     "src/client/views/skillDetail": [
+      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-ui-feedback.ts"
     ],
@@ -9708,6 +9804,8 @@
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1456-handoff-claim-write.ts",
       "node tests/verify-1482-graphql-accounting.ts",
+      "node tests/verify-1512-md-chain.ts",
+      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -9734,6 +9832,7 @@
       "node tests/verify-963-log-order.ts",
       "node tests/verify-968-skill-ondemand.ts",
       "node tests/verify-bundled-discovery.ts",
+      "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-config-store-comments.ts",
       "node tests/verify-config-store-core.ts",
       "node tests/verify-config-store-migration.ts",
@@ -10068,6 +10167,7 @@
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -10116,6 +10216,7 @@
       "node tests/verify-1438-banner-recheck-button.ts",
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-1483-chain-session-cache.ts",
+      "node tests/verify-1512-md-chain.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -10352,6 +10453,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1480-review-fixes.ts",
+      "node tests/verify-1483-chain-session-cache.ts",
       "node tests/verify-1486-md-create-layout.ts",
       "node tests/verify-1487-map-create.ts",
       "node tests/verify-1487-map-plan.ts",
@@ -10367,6 +10469,7 @@
       "node tests/verify-1507-create-strict.ts",
       "node tests/verify-1509-update-strict.ts",
       "node tests/verify-1510-guard-dispatch.ts",
+      "node tests/verify-1512-md-chain.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -10380,6 +10483,7 @@
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-972-title-body.ts",
       "node tests/verify-capability-register.ts",
+      "node tests/verify-dirwritable.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-golden-receipts.ts",
@@ -10498,6 +10602,7 @@
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-1463-env-counts-pending.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -10629,9 +10734,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 607,
+    "fileCount": 608,
     "dirCount": 74,
-    "coveredFileCount": 607,
+    "coveredFileCount": 608,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11232,6 +11337,7 @@
       "src/tracker/rooms/markdown/read-log.ts",
       "src/tracker/rooms/markdown/read.ts",
       "src/tracker/rooms/markdown/template-guard.ts",
+      "src/tracker/rooms/markdown/workspace-checks.ts",
       "src/tracker/rooms/markdown/write-guards.ts",
       "src/tracker/rooms/markdown/write-log.ts",
       "src/tracker/rooms/markdown/write-queue.ts",

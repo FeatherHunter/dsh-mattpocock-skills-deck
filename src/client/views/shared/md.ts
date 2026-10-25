@@ -268,6 +268,78 @@ export     const mdToHtml = function (md: any, opts: any) {
           return h('li', { key: 'li' + ii }, inlineWith(it.text, 't' + ii))
         })))
       }
+      // 表格（#1524）：Markdown 表格写法的块级实现——表头行、分隔行、数据行三部分。新增这一路仍然
+      // 遵守白名单：只构造表格元素与文本，不拼 HTML 字符串、不解析原始 HTML；单元格文字走 inlineWith，
+      // 粗体、链接、图片等行内写法照旧生效。只有「当前行带竖线 + 下一行是合法分隔行 + 两者列数一致」
+      // 才成表，防止把普通段落误判成表格；数据行遇到空行、或不带竖线的行就结束，避免吞掉后面的段落。
+      const tableHasPipe = function (line: any) {
+        const s = String(line == null ? '' : line)
+        for (let ci = 0; ci < s.length; ci++) if (s.charAt(ci) === '|' && s.charAt(ci - 1) !== '\\') return true
+        return false
+      }
+      // 切单元格：行首行尾的竖线只是边界写法，不算一个空单元格；反斜杠转义的竖线留在单元格文字里
+      const tableCells = function (line: any) {
+        let t = String(line == null ? '' : line).trim()
+        if (t.charAt(0) === '|') t = t.slice(1)
+        if (t.charAt(t.length - 1) === '|' && t.charAt(t.length - 2) !== '\\') t = t.slice(0, -1)
+        const cells: any[] = []
+        let cur = ''
+        for (let ci = 0; ci < t.length; ci++) {
+          const ch = t.charAt(ci)
+          if (ch === '\\' && t.charAt(ci + 1) === '|') { cur += '|'; ci++; continue }
+          if (ch === '|') { cells.push(cur.trim()); cur = ''; continue }
+          cur += ch
+        }
+        cells.push(cur.trim())
+        return cells
+      }
+      const tableAlign = function (cell: any) {
+        const s = String(cell == null ? '' : cell).trim()
+        if (/^:-+:$/.test(s)) return 'center'
+        if (/^:-+$/.test(s)) return 'left'
+        if (/^-+:$/.test(s)) return 'right'
+        return null
+      }
+      // 分隔行：每格都必须是 ---、:--、--: 或 :-: 这样的写法；不是分隔行时返回 null。
+      // 返回切好的格子本身，调用方比较表头与分隔行列数时不用再把同一行切一遍。
+      const tableDelimCells = function (line: any) {
+        if (!tableHasPipe(line)) return null
+        const cells = tableCells(line)
+        for (let ci = 0; ci < cells.length; ci++) if (!/^:?-+:?$/.test(cells[ci])) return null
+        return cells
+      }
+      // 画表格：headCells 是表头行切好的格子，delimCells 是分隔行切好的格子（每列对齐从这里的冒号来），
+      // rowLines 是已经收好的数据行。列数一律按表头：多出来的单元格丢掉，缺的补空格子。
+      const pushTable = function (headCells: any[], delimCells: any[], rowLines: any[]) {
+        const aligns = delimCells.map(tableAlign)
+        const cols = headCells.length
+        const cellStyle = function (align: any, isHead: any) {
+          const st: any = { border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', padding: '4px 8px', verticalAlign: 'top' }
+          if (align) st.textAlign = align
+          if (isHead) { st.fontWeight = 700; st.background = 'var(--dsw-alias-markdown-code-block,rgba(255,255,255,.06))' }
+          return st
+        }
+        const mkCells = function (cells: any[], tag: any, keyBase: any, isHead: any) {
+          const out: any[] = []
+          for (let ci = 0; ci < cols; ci++) {
+            out.push(h(tag, { key: keyBase + 'c' + ci, style: cellStyle(aligns[ci], isHead) }, inlineWith(cells[ci] == null ? '' : cells[ci], keyBase + 'c' + ci)))
+          }
+          return out
+        }
+        const tkey = 'tb' + (k++)
+        const tableChildren: any[] = [h('thead', { key: tkey + 'thead' }, [h('tr', { key: tkey + 'th' }, mkCells(headCells, 'th', tkey + 'th', true))])]
+        if (rowLines.length) {
+          const bodyRows: any[] = []
+          for (let ri = 0; ri < rowLines.length; ri++) {
+            bodyRows.push(h('tr', { key: tkey + 'r' + ri }, mkCells(tableCells(rowLines[ri]), 'td', tkey + 'r' + ri, false)))
+          }
+          tableChildren.push(h('tbody', { key: tkey + 'tbody' }, bodyRows))
+        }
+        // 宽表不撑破右侧面板：外层负责横向滚动，表格本身按内容收缩、最多占满一行
+        nodes.push(h('div', { key: tkey + 'wrap', style: { overflowX: 'auto', margin: '4px 0' } }, [
+          h('table', { key: tkey, style: { borderCollapse: 'collapse', width: '100%', fontSize: 11, lineHeight: 1.5 } }, tableChildren),
+        ]))
+      }
       while (i < lines.length) {
         const line = lines[i]
         const trim = line.trim()
@@ -296,6 +368,23 @@ export     const mdToHtml = function (md: any, opts: any) {
         if (hr) { nodes.push(h('hr', { key: 'hr' + (k++), style: { border: 'none', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', margin: '4px 0' } })); i++; continue }
         const q = /^>\s?(.*)$/.exec(trim)
         if (q) { nodes.push(h('blockquote', { key: 'bq' + (k++), style: { margin: '2px 0', paddingLeft: 8, borderLeft: '3px solid var(--dsw-alias-border-l1,#2a2d35)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, inlineWith(q[1], 'q' + k))); i++; continue }
+        // 表格（#1524）：当前行作表头、下一行作分隔行，两者列数一致才成表；数据行到空行或不带竖线的行为止。
+        // 表头与分隔行在这里各切一次后传给 pushTable，避免同一行切成两遍。
+        const headCells = i + 1 < lines.length && tableHasPipe(line) ? tableCells(line) : null
+        const delimCells = i + 1 < lines.length ? tableDelimCells(lines[i + 1]) : null
+        if (headCells && delimCells && headCells.length === delimCells.length) {
+          const rowLines: any[] = []
+          let ri = i + 2
+          while (ri < lines.length) {
+            const rt = lines[ri].trim()
+            if (rt === '' || !tableHasPipe(rt)) break
+            rowLines.push(lines[ri])
+            ri++
+          }
+          pushTable(headCells, delimCells, rowLines)
+          i = ri
+          continue
+        }
         // 列表（连续行归组）— 支持 - / * / 1. 有序 + 任务列表
         const listItems: any[] = []
         let j = i

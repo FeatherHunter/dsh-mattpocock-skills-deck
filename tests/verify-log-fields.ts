@@ -1,6 +1,6 @@
 // verify-log-fields.ts —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.ts，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 124 事件（2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 125 事件（2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
 // 2026-10-21 第二轮逐票复核（map 1010 的 1000–1300 段）没有新增事件，只给四条既有事件补判定字段：
 //   常驻 #5 gh.exec 增补 cmd（哪条 gh 子命令，例如 issue:create；从前只有 argv0='gh'，分不出查登录态还是改票）、
 //   常驻 #6 gh.timeout 增补 layer（room-tier 房内自己掐表 / host-clamp 宿主外包钳制）、
@@ -70,6 +70,16 @@ const ALLOWED = {
   //   latencyMs 这一项花了多久、opId 这一行属于宿主哪一趟操作（#1052 续补）。发射口在
   //   src/tracker/rooms/github/read-log.ts 的 emitPreflightGatePass。
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
+  // 2026-10-25（#1514）按需 #131 `preflight.check`：Markdown 房间预检的三项环境判据（md:workspace /
+  //   md:scratchWritable / md:containersReadable）各落一行，pass / fail / pending 都记 —— 只记 fail 的话，
+  //   读日志时分不清「量过、结论是 pending」与「根本没跑到这一项」。六个键：gate 第几项（1 起，照判据固定
+  //   顺序）、status 这一项的结论（pass / fail / pending）、evidence 短机器证据（形如 units=3 / probe=.scratch /
+  //   sbx-deny / containers=0 / error=ENOENT；不含路径原文，绝对路径与完整错误原文只在 detail 里给界面）、
+  //   cwdHash 工作区根短散列（8 位，不记路径原文）、latencyMs 这一项自己花了多久、opId 属于宿主哪一趟操作。
+  //   为什么不并进常驻 #109 preflight.gate：那条 gate 是 GitHub 三项门禁、reason 过了一律写 ok，装不下别的房
+  //   的判据与证据；为什么不常驻：预检每次识别与刷新都跑，三项常驻就是每拍三行心跳，失败结论另有常驻 #108
+  //   read.degraded 承担。发射口在 src/tracker/rooms/markdown/read-log.ts 的 emitPreflightCheck。
+  'preflight.check': ['gate', 'status', 'evidence', 'cwdHash', 'latencyMs', 'opId'],
   // 2026-10-21（#1007/#1224 复核）常驻 #6 gh.timeout 增补一格 layer：这次超时是谁掐的表——
   //   room-tier 是 GitHub 房自己按档位掐的（房间这一层），host-clamp 是宿主外包的一层钳制。
   //   为什么要分开：房内掐表后宿主仍可能再掐一次，只看到一条超时区分不了是档位设小了还是外层兜底被触发。

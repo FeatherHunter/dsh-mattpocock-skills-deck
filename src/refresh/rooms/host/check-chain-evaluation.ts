@@ -18,6 +18,8 @@ import type { ChainSnapView, EvalMap, FullSnapView, PredicateResultView, Resolve
 // 标注只给编译器看，运行期形状一个字没改——产物逐字节比对是这条约定的验收办法。
 // 共享层的形状按「类型引用」取：那些文件是 JS + JSDoc，这种写法与他们自己的 JSDoc 一致。
 type CheckItem = import('../../../shared/tracker/chain-types.js').CheckItem
+// 谓词注册回调收到的「检查描述」最小形状（#1513 按其中 id 分派三项 Markdown 判据）。
+type Check = import('../../../shared/tracker/chain-types.js').Check
 type Platform = import('../../../host/platform/index.js').Platform
 // 谓词上下文这一格不在上面那排「按类型引用取」里：predicatePrimitives.js 与本文件同属 host 层，
 //   同层互引门禁只放行在册的存量边（tests/same-layer-baseline.json 只许减不许增），所以就地声明。
@@ -84,7 +86,8 @@ type DetectChainDeps = {
   getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>
   timer: { timeout(ms: number): Promise<unknown> }
   probeSkill(skillName: string, lang: string, cwd: string): Promise<unknown>
-  mdParseOkPredicate(platform: unknown, cwd: string, lang: string): Promise<PredicateResultView>
+  /** 本地 Markdown 三项判据的取用口（#1513）：按检查项 id 调同一份房间判据，sandboxPolicy 供写探测用。 */
+  mdPredicate(platform: unknown, cwd: string, lang: string, checkId: string, sandboxPolicy?: unknown): Promise<PredicateResultView>
   /** 解构出来但本文件没用到（接线给全了，这两格留给别处读）：只声明它们存在。 */
   DEFAULT_CWD: unknown; getChainCache: unknown
   setChainCache(entry: unknown): void
@@ -116,7 +119,7 @@ type DetectChainDeps = {
  * 反例：若把插件挂载时的自动链求值也当成 `user-recheck` 身份送进退避器，每次重渲染都会击穿退避窗口并发起外部 `gh` 子进程调用，瞬间耗尽配额。
  */
 export function createDetectChain(deps: DetectChainDeps) {
-  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, sandboxPolicyFor, openSession } = deps
+  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, timer, probeSkill, mdPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, sandboxPolicyFor, openSession } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   const chainInflight = getChainRide({ now: (deps && deps.now) || undefined }) // #696搭车表用进程单例（写信号由出站路记进来）；测试注钟时建隔离新账
@@ -354,9 +357,23 @@ export function createDetectChain(deps: DetectChainDeps) {
             return ghAuthVerdict(await envProbe.preflightOnce(), zh)
           } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
         }) } catch (e) {}
-        try { registry.register('backend:markdown:parseOk', async function (check, pctx) {
-          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd, chainLang) } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
-        }) } catch (e) {}
+        // #1513：本地 Markdown 从「一项地图可读」拆成三项固定判据（工作区 / 本地数据目录可写 / 容器可读）。
+        //   三项共用房间那一份实现，这里只按检查项 id 分派；写探测要当前会话的沙箱写许可，所以把
+        //   pctx.sandboxPolicy（没有就退回本次链求值的 chainPolicy）一路传下去。
+        try {
+          // 谓词注册表传进来的就是这个检查项自己的 check 描述（带 id），这里只读 id 分派三项判据。
+          const mdPred = async function (check: Check, pctx: PredicateCtx): Promise<PredicateResultView> {
+            const checkId = String((check && check['id']) || '')
+            // 写探测要当前会话的沙箱写许可：pctx 上那一格是宿主在契约之外透传的，这里按最小形状读出来；
+            //   没带就退回本次链求值的 chainPolicy（两者是同一个来源，只是调用路径不同）。
+            const policyCtx = pctx as (PredicateCtx & { sandboxPolicy?: unknown }) | undefined
+            const policy = policyCtx && policyCtx.sandboxPolicy !== undefined ? policyCtx.sandboxPolicy : chainPolicy
+            try { return await mdPredicate(platform, (pctx && pctx.cwd) || cwd, chainLang, checkId, policy) } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
+          }
+          registry.register('backend:markdown:workspace', mdPred)
+          registry.register('backend:markdown:scratchWritable', mdPred)
+          registry.register('backend:markdown:containersReadable', mdPred)
+        } catch (e) {}
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
         // #284 修订（对抗式审查 2026-08-28）：链上检查项【逐项独立求值】——

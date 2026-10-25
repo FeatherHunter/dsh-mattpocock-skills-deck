@@ -1,20 +1,28 @@
-// src/host/remotePredicates.ts —— H3 #447 从 host/index.js 242-309 搬出，纯结构、行为零变化。
-// 2026-10-14（#1161）从 .js 转成 .ts：只加类型标注与注释，逻辑一行未动。
-// 以后谁改它：改本地关卡地图谓词或候选规则的人。预估约80行，超 350 打回。
-// 接线：由 index.ts 动态 import 加载；本文件除装配点（src/tracker/registry/builtins.ts）外不引其他新文件。
+// src/host/remotePredicates.ts —— 宿主检查链里本地 Markdown 那三项判据的取用口（#447 搬出，#1513 拆成三项）。
+//
+// 这份文件只做一件事：把「链上要算哪一项本地 Markdown 判据」翻译成对房间判据的一次调用，
+// 判据本体在 src/tracker/rooms/markdown/workspace-checks.ts（房间 preflight 也调同一份，票面硬条件）。
+// 本文件除装配点（src/tracker/registry/builtins.ts）外不引其他新文件。
+//
+// 什么约定不能改：
+//   1. 判据本体必须经装配点 loadMarkdownHostExtras() 获取，不得直接深引 src/tracker/rooms/markdown/*。
+//   2. 三项判据的输入只给「宿主手里真有的四格」：platform、cwd、lang、sandboxPolicy。判据内部自己拼
+//      最小的房间上下文；宿主不伪造 PredicateContext，也不替判据做路径判断。
+//   3. 判据抛错一律收成 pending（诚实未知），不冒充 fail：宿主这一层量不出结论时，界面该看到「没量出来」。
+//   4. 给用户看的 detail 由判据按 lang 出中文或英文；这一层只截长度（界面一行放不下整段证据）。
 
 /** 谓词结果：status 三态 + 一句给人看的 detail（沿用搬出前的形状，不改）。 */
 type PredicateResult = { status: 'pass' | 'fail' | 'pending'; detail: string }
 
-/** 平台抽象里本文件用到的那几件（宿主注入；形状按实际调用点收窄，不用 any）。 */
-type PlatformFs = {
-  resolve(rel: string, opts?: { cwd?: string }): Promise<unknown>
-  readText(target: unknown): Promise<string>
-  listDir?(target: unknown): Promise<unknown[]>
-  exists?(target: unknown): Promise<unknown>
-  lstat?(target: unknown): Promise<unknown>
+/** 检查项 id（带 md: 前缀的目录 id，或链上用的短 id）到 MarkdownHostExtras 里那个成员的映射。 */
+const CHECK_NAME_OF: Record<string, 'checkWorkspace' | 'checkScratchWritable' | 'checkContainersReadable'> = {
+  'md:workspace': 'checkWorkspace',
+  'md:scratchWritable': 'checkScratchWritable',
+  'md:containersReadable': 'checkContainersReadable',
+  workspace: 'checkWorkspace',
+  scratchWritable: 'checkScratchWritable',
+  containersReadable: 'checkContainersReadable',
 }
-type Platform = { fs: PlatformFs; path: { dirname(p: string): string; basename(p: string): string } }
 
 /** 从捕获到的任意值里取一句错误原文（原写法 `String((e && e.message) || e)` 的类型安全版本）。 */
 function errText(e: unknown): string {
@@ -23,89 +31,56 @@ function errText(e: unknown): string {
 }
 
 /**
- * 组装本地 Markdown 后端在检查链中使用的地图可解析谓词与候选路径扫描器（#284 / #447 / #1161 / #1170）。
+ * 组装本地 Markdown 后端在检查链中使用的三项判据取用口（#284 / #447 / #1161 / #1170 / #1513）。
  *
- * 为什么：检查链需要判断当前工作区的本地 Markdown 关卡地图是否已经初始化且格式可解析，而地图可能放在根目录 `.scratch/map.md` 或各子目录 `.scratch/<name>/map.md`；把候选枚举、存在性探测与解析校验聚合成无状态工厂，供 `detectChain.ts` 按需调用。
- * 什么约定不能改：
- *   1. `mdMapCandidates` 返回的候选列表只能存工作区相对路径字符串（如 `'.scratch/map.md'`），绝不能把 `platform.fs.resolve` 返回的目标对象传给 `platform.path.join`（`resolve` 返回的是平台目标对象而非字符串，直接拼接会抛 `TypeError`）。
- *   2. `mdParseOkPredicate` 给用户看的 `detail` 文案必须按 `lang`（`'zh'` / `'en'`）返回平实人话；只要有一个候选地图解析通过即返回 `status: 'pass'`，全部候选缺失或全部解析抛错才返回 `status: 'fail'`。
- *   3. Markdown 解析器 `parseMd` 必须经装配点 `loadMarkdownHostExtras()` 获取，不得直接深引 `src/tracker/rooms/markdown/*`。
- * 反例：若 `mdParseOkPredicate` 只检查根目录 `.scratch/map.md` 而不扫描 `.scratch/<子目录>/map.md`，在多图谱布局下即使子目录地图完好无损，检查链也会一直误报「尚未生成关卡地图」。
+ * 为什么：检查链要逐项问「这个工作区有没有工作单元、本地数据目录写不写得进去、地图与规格读不读得动」。
+ *   三项的判定细节（怎么发现工作单元、沙箱写许可怎么试、容器版本怎么认）全在房间里；宿主只按 id 分派。
+ * 反例：如果宿主在这里另写一套「找 map.md」的规则，房间 preflight 与链上三项就会各判各的——
+ *   同一个工作区可能房间说能用、链上三项说不行（或反过来），排查时没人分得清哪一份是真的。
+ * 返回：mdPredicate（按 id 调一项判据）与 fileExistsChainRel（工作区相对路径存在性，别的调用方也在用）。
  */
 export function createRemotePredicates() {
-    // #284：markdown 后端谓词：本地图谱可解析（解析件经装配点从 markdown 房公开面取，见下方调用处）
-    // 2026-08-28 修复：本函数与 fileExistsChainRel 曾被误嵌套在 parseGithubRepo 函数体内，
-    //   作用域外（wf.chain 谓词注册处）不可见 → 运行时 ReferenceError「mdParseOkPredicate is not defined」。
-    async function mdParseOkPredicate(platform: Platform, cwd: string, lang: string): Promise<PredicateResult> {
-      try {
-        // 2026-08-29 修复（用户实证：图谱落在 .scratch/<图谱名>/map.md；原只查根 .scratch/map.md 必然误报 missing）：
-        //   与 backends/markdown matches() 数据模型同构——候选 = 根谱 .scratch/map.md + 各子谱 .scratch/*/map.md；
-        //   全部缺失 = 图谱未初始化（fail，指引先做 Markdown 初始化）；存在但解析抛错 = 格式损坏（fail，附错误原文）。
-        //   用户可见 detail 一律人话（无黑话：目录叫「本地数据目录」、文件叫「关卡地图」、.scratch/map.md 只括注）。
-        const zh = lang === 'zh'
-        const cands = await mdMapCandidates(platform, cwd)
-        if (cands.length === 0) {
-          return { status: 'fail', detail: zh ? '尚未生成关卡地图（先执行本地 Markdown 初始化）' : 'No map file yet — run Local Markdown setup first' }
-        }
-        // #1161：宿主不再直接深引房间实现（规则 rooms-imported-only-by-assembly）。
-        // #1170：装配点不再从房间公开面转出，改由装配点自己取出这一件交给宿主（loadMarkdownHostExtras）。
-        const { loadMarkdownHostExtras } = await import('../tracker/registry/builtins.js')
-        const mdExtras = await loadMarkdownHostExtras()
-        // 只当「文本进、结果出」的函数用：这一层不关心解析结果的形状（meta 由房间自己解释）。
-        //   注：这里不再给 parseMd 另写一套宽签名——房间的签名就是契约，自己写一份宽签名等于把
-        //   房间的接口在宿主侧又抄一遍（#1161 要消灭的正是这种第二份口径）。
-        const parseMd = mdExtras.parseMd
-        if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
-        let lastErr = ''
-        for (const rel of cands) {
-          try {
-            // target-shaped 配对：readText 必须 receive resolve 的返回值（2026-08-29 实机修复：曾直接 readText(字符串) 且对 resolve 输出做 join 致 TypeError）
-            const tgt = await platform.fs.resolve(rel, { cwd: cwd })
-            const text = await platform.fs.readText(tgt)
-            parseMd(String(text || ''), {})
-            const dir = platform.path.dirname(rel)
-            const slug = dir === '.scratch' ? 'root' : platform.path.basename(dir)
-            return { status: 'pass', detail: zh ? ('关卡地图已就绪（' + slug + '）') : ('local map parses OK (' + slug + ')') }
-          } catch (e) {
-            lastErr = errText(e).slice(0, 200)
-          }
-        }
-        return { status: 'fail', detail: zh ? ('关卡地图无法解析：' + lastErr) : ('local map parse failed: ' + lastErr) }
-      } catch (e) { return { status: 'fail', detail: (lang === 'zh' ? '关卡地图检查出错：' : 'local map check failed: ') + errText(e).slice(0, 200) } }
+  /**
+   * 按检查项 id 算一项本地 Markdown 判据。
+   *
+   * checkId 收目录 id（'md:workspace'）或短 id（'workspace'）；未登记的 id 回 pending —— 链上出现
+   * 一个本文件不认识的本地检查项时，诚实说「没登记这一项」，而不是猜一个 pass。
+   */
+  async function mdPredicate(platform: unknown, cwd: string, lang: string, checkId: string, sandboxPolicy?: unknown): Promise<PredicateResult> {
+    const key = String(checkId || '')
+    try {
+      const name = CHECK_NAME_OF[key]
+      if (!name) return { status: 'pending', detail: 'markdown workspace check is not registered: ' + key }
+      // #1161/#1170：宿主不深引房间实现，判据本体经装配点交出来。
+      const { loadMarkdownHostExtras } = await import('../tracker/registry/builtins.js')
+      const mdExtras = await loadMarkdownHostExtras()
+      const fn = mdExtras[name]
+      if (typeof fn !== 'function') return { status: 'pending', detail: 'markdown workspace check is not exported: ' + key }
+      const r = await fn({ platform: platform, cwd: cwd, lang: lang, sandboxPolicy: sandboxPolicy })
+      const status = r && (r.status === 'pass' || r.status === 'fail' || r.status === 'pending') ? r.status : 'pending'
+      const detail = String((r && r.detail) || '').slice(0, 600)
+      return { status: status, detail: detail }
+    } catch (e) {
+      return { status: 'pending', detail: errText(e).slice(0, 600) }
     }
-    /** 关卡地图候选（与 matches() 数据模型同构）：根地图 .scratch/map.md + 各关子目录 .scratch/<name>/map.md。
-     * 2026-08-29 实机修复：候选存【相对路径字符串】（供 dirname/basename 与 display），存在性经
-     *   fileExistsChainRel(相对路径) 判定；绝不做 platform.path.join(resolve输出)（resolve 返回 target 对象，join 必 TypeError）。 */
-    async function mdMapCandidates(platform: Platform, cwd: string): Promise<string[]> {
-      const out: string[] = []
-      try {
-        if (!platform || !platform.fs || typeof platform.fs.resolve !== 'function') return out
-        let dirT: unknown = null
-        try { dirT = await platform.fs.resolve('.scratch', { cwd: cwd }) } catch (eR) { return out }
-        if (await fileExistsChainRel(platform, cwd, '.scratch/map.md')) out.push('.scratch/map.md')
-        if (typeof platform.fs.listDir === 'function') {
-          try {
-            const entries = await platform.fs.listDir(dirT)
-            for (const e of entries) {
-              const name = typeof e === 'string' ? e : String((e as { name?: unknown } | null | undefined)?.name || '')
-              if (!name || name.startsWith('.')) continue
-              const candRel = '.scratch/' + name + '/map.md'
-              if (await fileExistsChainRel(platform, cwd, candRel)) out.push(candRel)
-            }
-          } catch (eL) {}
-        }
-      } catch (e) {}
-      return out
-    }
-    async function fileExistsChainRel(platform: Platform, cwd: string, rel: string): Promise<boolean | null> {
-      try {
-        if (!platform || !platform.fs || typeof platform.fs.resolve !== 'function') return null
-        const abs = await platform.fs.resolve(rel, { cwd: cwd })
-        if (typeof platform.fs.exists === 'function') return (await platform.fs.exists(abs)) === true
-        if (typeof platform.fs.readText === 'function') { try { await platform.fs.readText(abs); return true } catch { return false } }
-        if (typeof platform.fs.lstat === 'function') { try { const info = await platform.fs.lstat(abs); return !!info } catch { return false } }
-        return null
-      } catch (e) { return false }
-    }
-    return { mdParseOkPredicate, mdMapCandidates, fileExistsChainRel }
+  }
+
+  /** 工作区相对路径是否存在：resolve → exists / readText / lstat 依次尝试；没有可用能力时回 null（不知道）。 */
+  async function fileExistsChainRel(platform: { fs?: Record<string, unknown> } | null | undefined, cwd: string, rel: string): Promise<boolean | null> {
+    try {
+      if (!platform || !platform.fs || typeof platform.fs.resolve !== 'function') return null
+      const fs = platform.fs as {
+        resolve(p: string, o?: { cwd?: string }): Promise<unknown>
+        exists?(t: unknown): Promise<unknown>
+        readText?(t: unknown): Promise<unknown>
+        lstat?(t: unknown): Promise<unknown>
+      }
+      const abs = await fs.resolve(rel, { cwd: cwd })
+      if (typeof fs.exists === 'function') return (await fs.exists(abs)) === true
+      if (typeof fs.readText === 'function') { try { await fs.readText(abs); return true } catch { return false } }
+      if (typeof fs.lstat === 'function') { try { const info = await fs.lstat(abs); return !!info } catch { return false } }
+      return null
+    } catch (e) { return false }
+  }
+  return { mdPredicate, fileExistsChainRel }
 }

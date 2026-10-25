@@ -1,15 +1,19 @@
 // tests/verify-skill-detail-stack.ts —— 详情栈的门禁（2026-10-10 人拍板：详情里点开另一篇就压一层，最多三层）
 // 用法：在插件根目录执行 node tests/verify-skill-detail-stack.ts，可独立运行（jsdom + 真实 React，不联网）。
 //
-// 守五件事：
+// 守六件事：
 //   1) 压栈与栈顶别名：打开一篇是一层，st.pixelDetail 恒等于栈顶（外面原来的读法不用改）。
-//   2) 从详情里点开另一篇：正文里写到的、随包真有的技能名（`/grill-with-docs`）做成可点入口，点一下压一层；
-//      当前这一篇自己的名字不做入口；外层没接 onOpenSkill 时一个假入口都不做（反证）。
+//   2) 从详情里点开另一篇：正文里写到的、随包真有的技能名（`/grill-with-docs`、`grilling`，以及双引号写的
+//      "grilling"，#1520）做成可点入口，点一下压一层；双引号只让引号里的名字可点、引号本身原样留着，
+//      不是技能名的引号文字不许变成入口；当前这一篇自己的名字不做入口；
+//      外层没接 onOpenSkill 时一个假入口都不做（反证）。
 //   3) 三层上限：开第四层时把**最深**那层挤掉，栈深恒不超过三。
 //   4) 关一层回到上一层，关完回列表；被挤掉那层迟到的读数不许再动界面。
 //   5) 浅色皮肤（#1378）：像素家族的深色令牌原样住在 :root，浅色只在宿主没挂深色标记时
 //      于 .pixel-tab 上换一组浅色纸面便签令牌（原型里选定的纸面底、卡片白、深色描边、深绿强调），装饰色全部走 --pixel-* 令牌；色值写错、
 //      深色值被挪进浅色选择器、装饰色写回裸值都会在最后一段报红。
+//   6) 真实语料盘点（#1520）：随包 27 篇正文里用双引号写出来的技能名，逐行用真渲染器画一遍，
+//      每一处都必须是可点入口；同一行里不是技能名的引号文字一处入口都不许做（名单以随包目录为准，不在这里手抄）。
 //
 // 反证：把 onOpenSkill 摘掉，「没有可点入口」必须成立；改坏压栈或挤掉逻辑，前两段会红。
 //   浅色那一段另有两组内存反例（删掉浅色覆盖 / 改错一个浅色令牌），必须同样报红。
@@ -18,6 +22,8 @@ import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
 import { act } from 'react'
 import vm from 'node:vm'
+import fs from 'node:fs'
+import path from 'node:path'
 // 2026-10-19（#1301 批C）：下面这十片像素叶子以前按 .js 路径读原文、只删行首 export 就拼进 vm 求值；
 //   这一类同名 .js 是构建产物，这一阶段已经删掉，按那个路径读会 ENOENT。改走共用取源入口的 spliceableJs：
 //   它按构建唯一口径把 .ts 真源转成可直接拼接的 JavaScript（中央时间 import 行与行首 export 都已处理），
@@ -60,7 +66,7 @@ const files = [
 ]
 let lib = 'const SKILL_SKELETON_DELAY_MS = ' + JSON.stringify(SKILL_SKELETON_DELAY_MS) + ';\n'
 for (const f of files) lib += splice(f) + '\n'
-lib += ';globalThis.__o = { PixelSkillDetailModal, pixelOpenDetail, pixelCloseDetail, pixelRetryDetail };'
+lib += ';globalThis.__o = { PixelSkillDetailModal, PixelMarkdown, pixelOpenDetail, pixelCloseDetail, pixelRetryDetail };'
 vm.runInContext(lib, ctx)
 const Comp = ctx.__o.PixelSkillDetailModal
 const { pixelOpenDetail, pixelCloseDetail } = ctx.__o
@@ -72,7 +78,7 @@ const root = ReactDOMClient.createRoot(container)
 const pending = {}
 ctx.host = { call: function (method, args) { return new Promise(function (resolve) { pending[args.name] = resolve }) } }
 const store = { pixelDetailStack: [] }
-const render = async () => { await act(async () => { root.render(React.createElement(Comp, { st: store, full: true, onRetry: () => {}, onOpenSkill: (n) => pixelOpenDetail(store, n, null), skillNames: ['grill-me', 'grill-with-docs', 'tdd', 'prototype'] })); await new Promise((r) => setTimeout(r, 20)) }) }
+const render = async () => { await act(async () => { root.render(React.createElement(Comp, { st: store, full: true, onRetry: () => {}, onOpenSkill: (n) => pixelOpenDetail(store, n, null), skillNames: ['grill-me', 'grill-with-docs', 'tdd', 'prototype', 'grilling', 'domain-modeling', 'research', 'codebase-design'] })); await new Promise((r) => setTimeout(r, 20)) }) }
 const html = () => container.innerHTML
 const stack = () => store.pixelDetailStack
 const top = () => stack()[stack().length - 1]
@@ -95,6 +101,35 @@ await act(async () => { el.dispatchEvent(new dom.window.MouseEvent('click', { bu
 await render()
 check(stack().length === 2 && top().name === 'grill-with-docs', '点正文里的技能名：又压一层（' + names() + '）')
 check(html().includes('sd.stack'), '两层起显示层号（第 {n} 层 / 共 {m} 层）')
+
+// #1520：双引号写出来的技能名也要能点（引号本身原样留在正文里，只让引号里的名字成入口）。
+// 先把这一层（grill-with-docs）正在读的正文换成带双引号的版本，再验「能点的点开是那一篇」与「普通引号文字不许变成入口」。
+const quotedMd = '# grill-with-docs\n\n先用 `/grill-with-docs` 过一遍，接着可以进 "grilling"；'
+  + '要补词表就进 "domain-modeling"。\n\n'
+  + '注意这两句只是普通引号文字，不许变成入口："the interface is the test surface"、'
+  + '"one adapter = hypothetical seam, two = real"；长得像但不是技能名的 "grill" 也不许。'
+const midResolve = pending['grill-with-docs']
+delete pending['grill-with-docs']
+if (midResolve) midResolve({ ok: true, md: quotedMd, path: 'C:/x/grill-with-docs/SKILL.md' })
+await render()
+const quotedRefs = Array.from(container.querySelectorAll('code.pixel-skillref')).map((el) => el.textContent)
+check(quotedRefs.indexOf('grilling') >= 0, '双引号写的 "grilling" 做成可点入口（实得 ' + JSON.stringify(quotedRefs) + '）')
+check(quotedRefs.indexOf('domain-modeling') >= 0, '双引号写的 "domain-modeling" 做成可点入口（实得 ' + JSON.stringify(quotedRefs) + '）')
+check(quotedRefs.indexOf('the interface is the test surface') < 0 && quotedRefs.indexOf('grill') < 0, '不是技能名的引号文字与近形 "grill" 没做成入口（实得 ' + JSON.stringify(quotedRefs) + '）')
+const grillEl = Array.from(container.querySelectorAll('code.pixel-skillref')).find((x) => x.textContent === 'grilling')
+const prevText = grillEl && grillEl.previousSibling ? String(grillEl.previousSibling.textContent || '') : ''
+const nextText = grillEl && grillEl.nextSibling ? String(grillEl.nextSibling.textContent || '') : ''
+check(!!grillEl && prevText.slice(-1) === '"' && nextText.charAt(0) === '"', '双引号原样留在名字两侧（前 ' + JSON.stringify(prevText.slice(-3)) + ' 后 ' + JSON.stringify(nextText.slice(0, 3)) + '）')
+check(!!grillEl && String(container.textContent || '').indexOf('"grilling"') >= 0, '界面上的原文仍是 "grilling"（引号没被吃掉）')
+if (grillEl) await act(async () => { grillEl.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); await new Promise((r) => setTimeout(r, 20)) })
+await render()
+check(stack().length === 3 && top().name === 'grilling', '点双引号里的技能名：压一层到 grilling（' + names() + '）')
+const grillLayer = pending['grilling']
+delete pending['grilling']
+if (grillLayer) grillLayer({ ok: true, md: '# grilling\n\n正文', path: 'C:/x/grilling/SKILL.md' })
+await render()
+pixelCloseDetail(store); await render()
+check(stack().length === 2 && top().name === 'grill-with-docs', '关掉 grilling 那层：回到 grill-with-docs（' + names() + '）')
 
 await open('tdd')
 check(stack().length === 3 && names() === 'grill-me>grill-with-docs>tdd', '第三层：' + names())
@@ -124,10 +159,84 @@ check(store.pixelDetail === null, '栈空了：pixelDetail 也是 null')
 // 反证：外层没接 onOpenSkill 时，正文里的技能名不该做成入口（否则点了没反应，等于假入口）
 const bare = { pixelDetailStack: [] }
 pixelOpenDetail(bare, 'grill-me', null)
-await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs'] })); await new Promise((r) => setTimeout(r, 20)) })
-if (pending['grill-me']) { const r = pending['grill-me']; delete pending['grill-me']; r({ ok: true, md: '用 `/grill-with-docs` 打磨设计文档', path: 'C:/x/a.md' }) }
-await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs'] })); await new Promise((r) => setTimeout(r, 20)) })
-check(container.querySelectorAll('code.pixel-skillref').length === 0, '反证：没接 onOpenSkill 时不做假入口')
+await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs', 'grilling'] })); await new Promise((r) => setTimeout(r, 20)) })
+if (pending['grill-me']) { const r = pending['grill-me']; delete pending['grill-me']; r({ ok: true, md: '用 `/grill-with-docs` 与 "grilling" 打磨设计文档', path: 'C:/x/a.md' }) }
+await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs', 'grilling'] })); await new Promise((r) => setTimeout(r, 20)) })
+check(container.querySelectorAll('code.pixel-skillref').length === 0, '反证：没接 onOpenSkill 时不做假入口（反引号与双引号两种写法都不做）')
+
+// #1520 的真实语料盘点：随包技能正文里，用直双引号写出来的技能名现在也要能点。
+// 做法不靠人肉抄清单：扫 package/bundled-skills 下每篇 SKILL.md / SKILL.zh.md 的每一行，找出
+// 行内所有「整个名字正好是某个随包技能名」的引号写法，逐行用真渲染器画一遍，断言每一处都成了入口；
+// 再拿两句确定不是技能名的引号文字（中英文都有）画一遍，断言一处入口都不做。
+let repoRoot = process.cwd()
+for (let i = 0; i < 6 && !fs.existsSync(path.join(repoRoot, 'package', 'bundled-skills')); i++) repoRoot = path.dirname(repoRoot)
+check(fs.existsSync(path.join(repoRoot, 'package', 'bundled-skills')), '找得到随包技能目录（' + repoRoot + '）')
+const bundledRoot = path.join(repoRoot, 'package', 'bundled-skills')
+const bundledNames = fs.readdirSync(bundledRoot).filter((d) => fs.existsSync(path.join(bundledRoot, d, 'SKILL.md')))
+const bundledSet = {}
+for (const n of bundledNames) bundledSet[n] = true
+const renderLine = async function (md) {
+  const box = dom.window.document.createElement('div')
+  dom.window.document.body.appendChild(box)
+  const r = ReactDOMClient.createRoot(box)
+  await act(async () => {
+    r.render(React.createElement(ctx.__o.PixelMarkdown, { md: md, lang: 'zh', st: null, onSkill: () => {}, skillNames: bundledNames }))
+    await new Promise((res) => setTimeout(res, 0))
+  })
+  const refs = Array.from(box.querySelectorAll('code.pixel-skillref')).map((el) => el.textContent)
+  const text = String(box.textContent || '')
+  const alt = Array.from(box.querySelectorAll('img')).map((el) => String(el.getAttribute('alt') || ''))
+  r.unmount(); box.remove()
+  return { refs: refs, text: text, alt: alt }
+}
+// 这里按「技能名字符集」自己扫一遍正文（与渲染器里那条规则同一个字符集，故意各写一份）：
+// 门禁要独立判断「原文里有几处这样的写法」和「渲染结果里有几颗入口」，两边都自己算，才不是拿实现证实现。
+const QUOTED_NAME = /"([A-Za-z0-9][A-Za-z0-9_-]*)"/g
+let quotedTotal = 0
+const quotedBad = []
+// hitSkillDirs：至少有一处双引号技能名的技能目录（SKILL.md 那一份），用来在报错信息里说清分布。
+const hitSkillDirs = {}
+for (const d of bundledNames) {
+  for (const f of ['SKILL.md', 'SKILL.zh.md']) {
+    const abs = path.join(bundledRoot, d, f)
+    if (!fs.existsSync(abs)) continue
+    const lines = fs.readFileSync(abs, 'utf8').split(/\r?\n/)
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li]
+      const wanted = []
+      let m = null
+      QUOTED_NAME.lastIndex = 0
+      while ((m = QUOTED_NAME.exec(line)) !== null) if (bundledSet[m[1]]) wanted.push(m[1])
+      if (!wanted.length) continue
+      quotedTotal += wanted.length
+      if (f === 'SKILL.md') hitSkillDirs[d] = true
+      const got = (await renderLine(line)).refs
+      for (const name of wanted) if (got.indexOf(name) < 0) quotedBad.push(d + '/' + f + ':' + (li + 1) + ' 的 ' + name)
+    }
+  }
+}
+check(quotedTotal > 0, '真实语料里确实有双引号写出来的技能名（实得 ' + quotedTotal + ' 处，分布在 ' + Object.keys(hitSkillDirs).length + ' 篇 SKILL.md：' + Object.keys(hitSkillDirs).join('、') + '；票面 2026-10-25 记的是 13 处，这里不钉死数字，随包正文升版也不该因为数量变了就红）')
+check(quotedBad.length === 0, '真实语料里每一处双引号技能名都做成了入口' + (quotedBad.length ? '；没做成：' + quotedBad.slice(0, 5).join('；') : ''))
+const ordinaryLines = [
+  '注意这两句只是普通引号文字："the interface is the test surface" 与 "one adapter = hypothetical seam, two = real"。',
+  '接口就是测试面：正文里写 "接口就是测试面" 时不该出现可点样式；"grill" 也不算技能名。',
+]
+let ordinaryRefs = 0
+for (const one of ordinaryLines) ordinaryRefs += (await renderLine(one)).refs.length
+check(ordinaryRefs === 0, '普通引号文字与近形文字一处入口都不做（实得 ' + ordinaryRefs + ' 处）')
+// 图片的 alt 与 title 也可能带引号文字：双引号技能名那一遍排在图片与链接之后，
+// 这时候整段图片已经被换成原子了，里面的引号文字不该再单独变成入口，也不该把原子占位符漏进界面。
+const imageCases = [
+  '![说明](https://example.com/a.png "grilling")',
+  '!["grilling"](https://example.com/b.png)',
+]
+const imageProblems = []
+for (const one of imageCases) {
+  const out = await renderLine(one)
+  if (out.refs.length !== 0) imageProblems.push(one + ' 出现了入口 ' + JSON.stringify(out.refs))
+  if (out.text.indexOf('\u0002') >= 0 || out.alt.join('|').indexOf('\u0002') >= 0) imageProblems.push(one + ' 把原子占位符漏进了界面')
+}
+check(imageProblems.length === 0, '图片的 alt 与 title 里的引号文字不会被当成技能名' + (imageProblems.length ? '：' + imageProblems.join('；') : ''))
 
 // ==== 浅色皮肤（#1378）：像素家族——深色原值不动，浅色换成浅色纸面便签（原型里选定的纸面底、卡片白、深色描边、深绿强调） ====
 // 判据只看样式文本本身，不看渲染：色值写错、深色值被挪进浅色选择器、装饰色又写回裸值，都会报红。

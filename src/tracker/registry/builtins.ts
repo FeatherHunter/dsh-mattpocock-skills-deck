@@ -112,12 +112,30 @@ export async function loadGithubHostExtras(): Promise<GithubHostExtras> {
 export type MarkdownHostExtras = {
   /** 本地图谱解析：一张票在盘上长什么样、字段怎么读，只有 Markdown 房这一层知道。 */
   parseMd: typeof import('../rooms/markdown/parse.js').parseMd
+  /**
+   * 检查链三项判据（#1513）：md:workspace / md:scratchWritable / md:containersReadable。
+   *
+   * 为什么经装配点交给宿主，而不是让宿主自己拼：这三项是房间对工作区的理解（工作单元怎么发现、
+   * 沙箱写许可怎么试、容器文件版本怎么认），宿主只该拿结论。房间 preflight 与宿主检查链共用这同三份
+   * 实现（票面硬条件），所以这里转出的就是那三份函数本体，不是再包一层。
+   */
+  checkWorkspace: typeof import('../rooms/markdown/workspace-checks.js').checkWorkspace
+  checkScratchWritable: typeof import('../rooms/markdown/workspace-checks.js').checkScratchWritable
+  checkContainersReadable: typeof import('../rooms/markdown/workspace-checks.js').checkContainersReadable
 }
 
-/** 取出 Markdown 房那一件宿主实现。 */
+/** 取出 Markdown 房那几件宿主实现（同一个房间第二次调用命中模块缓存，不会重复求值）。 */
 export async function loadMarkdownHostExtras(): Promise<MarkdownHostExtras> {
-  const mod = await import('../rooms/markdown/parse.js')
-  return { parseMd: mod.parseMd }
+  const [mod, checks] = await Promise.all([
+    import('../rooms/markdown/parse.js'),
+    import('../rooms/markdown/workspace-checks.js'),
+  ])
+  return {
+    parseMd: mod.parseMd,
+    checkWorkspace: checks.checkWorkspace,
+    checkScratchWritable: checks.checkScratchWritable,
+    checkContainersReadable: checks.checkContainersReadable,
+  }
 }
 
 // ── 房间形状的类型出口（#1161）────────────────────────────────────────────────────────

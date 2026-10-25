@@ -202,7 +202,7 @@ async function main (): Promise<void> {
       runGh: async () => ({ ok: false, kind: 'network', error: 'net' }),
       timer: { timeout: (ms: number) => new Promise((r) => setTimeout(r, ms)) },
       probeSkill: async () => { await new Promise((r) => setTimeout(r, 60)); return { ok: false, level: 'bad', detail: 'x', hint: '', repo: null } },
-      mdParseOkPredicate: async () => ({ status: 'pending', detail: 'x' }),
+      mdPredicate: async () => ({ status: 'pending', detail: 'x' }),
       getChainCache: chainTable.getChainCache, setChainCache: chainTable.setChainCache,
       logCtx: { fire: (level: unknown, event: unknown, fields: any) => { chainFires.push({ level: level, event: event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled: () => true },
     })

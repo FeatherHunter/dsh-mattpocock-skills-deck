@@ -101,8 +101,8 @@ async function main() {
   const mdOrdered = guide.orderStepsByGuide(guide.guideStepsFor('markdown'), chainStepsOf('markdown'))
   assert.deepStrictEqual(idOf(mdOrdered), [
     'tracker:initialized', 'skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt',
-    'env:home', 'md:scratchWritable', 'md:parseOk',
-  ], '本地 Markdown 是同一件事：清单上的通用步骤上移，其余照旧（目录里那两项后端项按各自那一段的先后接在后面）')
+    'env:home', 'md:workspace', 'md:scratchWritable', 'md:containersReadable',
+  ], '本地 Markdown 是同一件事：清单上的通用步骤上移，其余照旧（目录里那三项后端项按各自那一段的先后接在后面）')
   assert.strictEqual(mdOrdered.length, catalog.catalogFor('markdown').length, 'Markdown：一行不多、一行不少')
 
   const glOrdered = guide.orderStepsByGuide(guide.guideStepsFor('gitlab'), chainStepsOf('gitlab'))

@@ -81,7 +81,7 @@ async function makeChain(opts) {
     getRepoKey: async () => ({ owner: 'acme', name: 'demo' }),
     timer: { timeout: (ms) => new Promise((r) => setTimeout(r, ms)) },
     probeSkill: async () => ({ ok: true, level: 'ok', detail: 'fake' }),
-    mdParseOkPredicate: async () => ({ status: 'pass', detail: 'fake' }),
+    mdPredicate: async () => ({ status: 'pass', detail: 'fake' }),
     getChainCache: () => null,
     setChainCache: () => {},
     getChainBackoff: o.backoff || (async () => ({ verdict: async () => ({ needed: true, reason: 'test-always-due', waitMs: 0, cached: null }), note: async () => ({}) })),

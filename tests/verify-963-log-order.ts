@@ -48,7 +48,7 @@ async function makeChain(spy: ReturnType<typeof makeSpy>, o?: any) {
     runGh: async () => ({ ok: false, kind: 'network', error: 'net' }),
     timer: { timeout: (ms) => new Promise((r) => setTimeout(r, ms)), setTimeout: (fn, ms) => setTimeout(fn, ms) },
     probeSkill: async () => ({ ok: false, level: 'bad', detail: 'x', hint: '' }),
-    mdParseOkPredicate: async () => ({ status: 'pending', detail: 'x' }),
+    mdPredicate: async () => ({ status: 'pending', detail: 'x' }),
     getChainCache: () => null, setChainCache: () => {},
     getChainBackoff: async () => ({ verdict: async () => ({ needed: true, reason: 'test-always-due', waitMs: 0, cached: null }), note: async () => ({}) }),
     logCtx: spy.ctx });
