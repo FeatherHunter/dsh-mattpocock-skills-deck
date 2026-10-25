@@ -546,7 +546,7 @@ export function createGate(deps?: GateDeps) {
     const level = slot.facts.readKnown && slot.hasQuota && slot.view.remaining != null ? { remaining: aiQuota.remaining } : {}
     // #1418 / #1527：见底文案要说出缺哪一种额度、服务端还剩多少、保底多少、这一笔花完还剩多少、还有几分钟恢复。
     //   短名、单位与分钟数都由 refusal-messages 从 bucket / resetAt / now 推，闸这边把原料交过去就行。
-    const named = Object.assign({}, a, { bucket: slot.bucket, resetAt: num(slot.view.resetAt), now: now(), floor: aiQuota.floor, limit: aiQuota.limit, serverRemaining: aiQuota.remaining })
+    const named = Object.assign({}, a, { bucket: slot.bucket, resetAt: num(slot.view.resetAt), now: now(), floor: aiQuota.floor, limit: aiQuota.limit, serverRemaining: aiQuota.remaining, known: aiQuota.known })
     // #1527：警告要随回执带出去（例如每小时提醒线越线），人在回执里就能看见。
     return Object.assign({ admitted: a.admitted, reason: a.reason, points: a.points, requests: a.requests,
       shards: plan.shards, perShard: plan.perShard, warnings: a.warnings, text: a.admitted ? '' : refusalTextRef(named, hour, plan, limits) }, slot.facts, level)
