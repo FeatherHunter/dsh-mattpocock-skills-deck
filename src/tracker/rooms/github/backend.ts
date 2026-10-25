@@ -17,6 +17,8 @@ import { ghClient, rememberOutbound } from './client.js'
 import { attachOpUsage } from './op-usage.js'
 import type { OutboundControl } from '../../contract/outbound.js'
 import { ghPreflight } from './preflight.js'
+// #1533：认领只看 `.git/config` 里的远端地址，不扫整份文本（分支名带 github 不再误认领）。
+import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
 import { listIssues, getIssue } from './issues.js'
 import { countIssues } from './counts.js'
 import { listIssuesPage } from './page.js'
@@ -56,7 +58,8 @@ export type GithubBackendShape = { [K in GithubBackendMembers]: Tracker[K] }
 
 /**
  * Registry 身份：matches(handle, ctx) → boolean
- * 启发式：handle.refId 含 '/' → 视为 github（显式绑定）；否则检查 cwd 下 .git/config 是否含 github.com
+ * 启发式：handle.refId 含 '/' → 视为 github（显式绑定）；否则检查 cwd 下 .git/config 里记下的
+ * 远端地址是否指向 github.com（只看 `[remote ...]` 段的 `url`，其它文字不看，#1533）
  * 不抛错；不确定一律 false + diagnostics 由 registry 调用方日志（此处只返回 boolean）
  */
 // 为什么标成操作上下文而不是后端上下文：本函数读 ctx.cwd（工作区目录），而后端上下文里没有这一格（它是操作上下文加的）；
@@ -76,7 +79,7 @@ export async function githubMatches(handle: RepoHandle, ctx: OpContext): Promise
       try {
         const t = await fs.resolve('.git/config', { cwd })
         const txt = await fs.readText(t)
-        if (typeof txt === 'string' && /github\.com/i.test(txt)) return true
+        if (typeof txt === 'string' && remoteUrlsOfGitConfig(txt).some((u) => /github\.com/i.test(u))) return true
       } catch {}
     }
     // 回落：尝试 git remote get-url origin（经 ctx.exec）
