@@ -19,17 +19,26 @@
 //      改文案或改档位要同步 tests/verify-chain-env-e2e.ts 的期望。
 
 // ── 会话的能力面（#1415 起宿主侧有真实现，见 session-opener.ts；这里只写调用方依赖的形状）──
-// 规格第 9 节：除 readBudget 外不新增能力、不改参数。所以这里只声明真用到的两条读能力；
-// 多一个字段就是扩契约，宁可另立一票。
+// 规格第 9 节：除 readBudget 外不新增能力、不改参数。所以这里只声明真用到的几条读能力。
+// #1187 加了第三条 getRepoKey —— 它是 Tracker 本来就有的定位口（不是新能力）：GitHub 的仓库身份
+// 能由宿主自己从本地 git 配置读出来，GitLab 这类后端只有房间知道怎么认（本地 git 配置 →
+// `glab repo view` 兜底），所以必须经会话问它；不声明这一条，GitLab 的「仓库可达」那一行
+// 就永远没有 refId 可核对，只能显示一句「暂时确认不了」。
 type ChainReadError = { kind?: string; message?: string; raw?: string }
 /** 房间 preflight 的入参（RepoHandle 的子集：本文件只给得出目录、仓库 refId 与后端 id）。 */
 type ChainRepoHandle = { cwd?: string; refId?: string; backend?: string }
 /** 房间 getCurrentUser 的入参（RepositoryRef 的子集：房间真正读的是 opCtx.cwd，这几格按契约给全）。 */
 type ChainRepoRef = { backend: string; refId: string; name: string; url: string }
-/** 只读会话：本文件只用这两条读能力。 */
+/** 只读会话：本文件只用这几条读能力。 */
 type ChainReadSession = {
   preflight(handle: ChainRepoHandle, ctx: unknown): Promise<{ ok: boolean; error?: ChainReadError | null }>
   getCurrentUser(repo: ChainRepoRef, ctx: unknown): Promise<{ ok: boolean; data?: { login?: string } | null; error?: ChainReadError | null }>
+  /**
+   * 从工作区目录解析仓库身份（owner/name）；解析不出来回 null，不抛。
+   * 可选：仓库身份由宿主自己认得清的后端（GitHub）不填这一格，走 probeChainEnv 交进来的 getRepoKey；
+   * GitLab 这类后端必须由房间回答 —— 本地 git 配置里是 gitlab 地址时，宿主那份只认 github 的解析器读不出来。
+   */
+  getRepoKey?(cwd: string, ctx: unknown): Promise<{ owner?: string; name?: string } | null>
 }
 /** 开会话成功那一份：call(fn) 把会话与这一次的 opCtx 交给能力函数（形状见 session-opener.ts）。 */
 type OpenedChainSession = { ok: true; backendId?: string; call<T>(fn: (session: ChainReadSession, ctx: unknown) => Promise<T>): Promise<T> }
@@ -40,7 +49,17 @@ export type OpenSessionReply = OpenedChainSession | { ok: false; reason?: string
  * 环境那一关的结论：pass 三关全过；none 会话没接上（接线缺省或开不出来）；
  * 其余三种是停在哪一关——gh 可执行没找到 / 登录态问不出来 / 仓库不可达。
  */
-type ChainEnvProbeReply = { stage: 'pass' | 'none' | 'gh' | 'auth' | 'repo'; kind?: string; message?: string }
+type ChainEnvProbeReply = {
+  stage: 'pass' | 'none' | 'gh' | 'auth' | 'repo'
+  kind?: string
+  message?: string
+  /**
+   * 这一次 preflight 实际拿去核对仓库的那个 refId（空串 = 本地认不出仓库身份）。
+   * 为什么要把身份带回来：「仓库可达」这一项要区分「接口调通了」与「根本没仓库可核对」——
+   * 没有 refId 时房间会跳过第三关直接回成功，不能据此说仓库可达。
+   */
+  refId?: string
+}
 
 /**
  * preflight 的失败档位 → 这一次求值停在哪一关（写死的对照表，#1444）。
@@ -75,7 +94,7 @@ type CaughtError = { message?: unknown }
 type ChainPredicateVerdict = { status: 'pass' | 'fail' | 'pending'; detail?: string; hint?: string }
 /** 探针要的两条能力：由调用方从接线里取出来递进来，本文件不自己去找依赖。 */
 type ChainEnvProbeDeps = {
-  /** 读本地 git 配置里的 GitHub 仓库（owner/name）；只读本地，不起进程。 */
+  /** 读本地 git 配置里的 GitHub 仓库（owner/name）；只读本地，不起进程。非 GitHub 后端不走它。 */
   getRepoKey(cwd: string): Promise<{ owner?: string; name?: string } | null>
   /** 开一次 Tracker 只读会话；缺省时探针诚实回「会话没接上」，其余各步照旧求值。 */
   openSession?: (cwd: string, opts?: unknown) => Promise<OpenSessionReply>
@@ -135,20 +154,83 @@ export function ghAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredica
   return { status: 'pending', detail: zh ? '读会话还没接上，暂时无法确认登录状态' : 'read session not available; login state unknown' }
 }
 
+// ── GitLab 的两行（#1187）：与上面两个谓词同构，只换后端与话术 ───────────────────────────
+/**
+ * 判断一段错误原文像不像网络或环境故障（而不是「凭据确实失效」）。
+ *
+ * 为什么 GitLab 这一路要自己看原文：房间预检的第二关（glab auth status）按「这一步问的是登录了没有」
+ * 把一切失败都归 auth 档（src/tracker/rooms/gitlab/preflight.ts 文件头写了这条约定），起进程失败
+ * 与本地超时也在其中。直接拿 auth 档判 fail，就会把一次网络不通说成人没登录。这里只排除两种
+ * 确定不是「凭据失效」的原文：网络类与「命令找不到」类；其余仍按 auth 判 fail。
+ */
+function looksLikeTransportFailure(message?: string): boolean {
+  const text = String(message || '')
+  return /network|timeout|timed out|econnrefused|econnreset|etimedout|enotfound|dns|proxy|socket|tls|connection|command not found|is not recognized|enoent|service unavailable|502|503|504/i.test(text)
+}
+
+/**
+ * 「GitLab 仓库可达」这一项的判定（第三关）。
+ *
+ * 与 GitHub 那行同一套口径：只有「确定仓库不存在或无权限」（kind=not-found）才判 fail；
+ * 未登录、网络异常、以及读会话没接上，一律 pending（诚实未知）。
+ * GitLab 多一条诚实：本地认不出仓库地址时房间会跳过第三关直接回成功（没有 refId 可核对），
+ * 此时不能顺水推舟说「可达」，按 pending 说明原因。
+ */
+export function glabRepoAccessVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredicateVerdict {
+  if (pr.stage === 'pass') {
+    if (pr.refId) return { status: 'pass', detail: zh ? 'GitLab 接口访问正常' : 'gitlab.com api 200' }
+    return { status: 'pending', detail: zh ? '暂时无法确认仓库可访问（本地认不出 GitLab 仓库地址）' : 'repo ref unknown locally; GitLab repo reachability unknown' }
+  }
+  if (pr.stage === 'gh') return { status: 'pending', detail: zh ? '暂时无法确认仓库可访问（没找到 glab 可执行）' : 'glab executable not found; repo reachability unknown' }
+  if (pr.stage === 'repo') {
+    if (pr.kind === 'not-found') return { status: 'fail', detail: zh ? 'GitLab 上访问不到该仓库（可能还没创建，或你没有权限）' : 'API 404: repo not found (may not exist or no access)' }
+    return { status: 'pending', detail: zh ? '暂时无法确认仓库可访问（网络或登录态未知）' : 'GitLab repo reachability unknown (network or auth unknown)' }
+  }
+  if (pr.stage === 'auth') return { status: 'pending', detail: zh ? '暂时无法确认仓库可访问（网络或登录态未知）' : 'GitLab repo reachability unknown (network or auth unknown)' }
+  return { status: 'pending', detail: zh ? '读会话还没接上，暂时无法确认仓库可访问' : 'read session not available; repo reachability unknown' }
+}
+
+/**
+ * 「glab 已登录」这一项的判定（前两关）。
+ *
+ * 与 GitHub 那行同一套口径：只有明确「未登录」（kind=auth）才判 fail 并展示登录指引，
+ * 网络抖动归 pending（诚实未知）。区别在于 GitLab 房间把起进程失败也归在 auth 档，
+ * 所以这里要用 looksLikeTransportFailure 把网络类与「命令找不到」类原文退回 pending。
+ */
+export function glabAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredicateVerdict {
+  if (pr.stage === 'pass') return { status: 'pass', detail: zh ? '已登录' : 'Logged in' }
+  if (pr.stage === 'gh') return { status: 'pending', detail: zh ? '暂时无法确认登录状态（没找到 glab 可执行）' : 'glab executable not found; login state unknown' }
+  if (pr.stage === 'repo') return { status: 'pass', detail: zh ? '已登录（仓库可达性由下一项判断）' : 'logged in (repo reachability is checked by the next item)' }
+  if (pr.stage === 'auth') {
+    const kind = pr.kind || 'exit'
+    if (kind === 'network' || looksLikeTransportFailure(pr.message)) return { status: 'pending', detail: zh ? '网络异常，暂时无法确认 glab 登录状态' : 'glab auth status transport failure; login state unknown' }
+    if (kind === 'auth') return { status: 'fail', detail: zh ? 'glab 登录状态已失效（重新执行 glab auth login）' : 'glab credential invalid or not logged in: re-authenticate (glab auth login)' }
+    return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'glab auth status failed (' + kind + '); login state unknown' }
+  }
+  return { status: 'pending', detail: zh ? '读会话还没接上，暂时无法确认登录状态' : 'read session not available; login state unknown' }
+}
+
 // ── 一次求值只问一次环境的那只探针（#1444）────────────────────────────────────────
+/** 探针可选设置：这次求值问哪个后端的环境（缺省 github，老调用方的行为不变）。 */
+type ChainEnvProbeOptions = { backendId?: string }
+
 /**
  * #1444：一次求值的环境预检探针（登录态、仓库可达、当前登录用户名三件事都收在这里）。
  *
- * 为什么只开一个：这三件事问的是同一个工作区的同一份环境；会话的一次 preflight 已经把「找 gh →
- * gh auth status → api repos/o/n」三关走完，再问一遍只是多花一条 REST。所以探针在这一次求值里
- * 只开一次会话、只问一次 preflight，两个谓词与取登录名共用最后一份结果；求值结束探针即丢弃，
+ * 为什么只开一个：这三件事问的是同一个工作区的同一份环境；会话的一次 preflight 已经把「找命令行 →
+ * 登录态 → 仓库可达」三关走完，再问一遍只是多花一条 REST。所以探针在这一次求值里只开一次会话、
+ * 只问一次 preflight，两个谓词与取登录名共用最后一份结果；求值结束探针即丢弃，
  * 失败结果绝不跨次缓存（下一次求值重新问）。
+ *
+ * 问的是哪个后端的环境由调用方在第三参给（缺省 github）：GitHub 的仓库身份宿主自己能读，
+ * GitLab 的必须问会话能力（见 repoRefOnce 的注释）。
  *
  * 失败形状：开会话失败、能力失败、能力抛异常，一律收成「诚实未知」的档位交给调用方，
  * 绝不把异常抛给上层 —— 上层要照旧降级回缓存，而不是整条链变成 host.call.fail。
  */
-export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string): ChainEnvProbe {
+export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string, opts?: ChainEnvProbeOptions): ChainEnvProbe {
   const { getRepoKey, openSession } = deps
+  const backend = (opts && typeof opts.backendId === 'string' && opts.backendId) ? opts.backendId : 'github'
   let opened: Promise<OpenSessionReply> | null = null
   let preflight: Promise<ChainEnvProbeReply> | null = null
   let viewer: Promise<{ ok: boolean; login?: string }> | null = null
@@ -185,9 +267,29 @@ export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string): ChainE
     const base = (ctx && typeof ctx === 'object') ? (ctx as Record<string, unknown>) : {}
     return Object.assign({}, base, { cwd: cwdStr })
   }
-  /** 本地解析仓库 refId（getRepoKey 只读本地 git 配置，不起进程）；解析不到就空着，交给房间自己回 not-found。 */
+  /**
+   * 本次求值用来核对仓库的 refId（owner/name 形状，与会话 getRepoKey 的返回同形）；解析不到就空着，
+   * 让谓词如实说「暂时确认不了」。
+   *
+   * 为什么按后端分两路：GitHub 的仓库身份宿主自己能读（deps.getRepoKey 只读本地 git 配置、不起进程）；
+   * GitLab 的宿主读不出来 —— 它只认 GitHub 形状的地址，纯 GitLab 工作区会拿到空。房间才知道怎么认
+   * （git remote → .git/config → glab repo view 三层），所以非 GitHub 后端经会话 getRepoKey 问房间；
+   * 走会话也就是过操作管线的裁决与记账（与 #1453 同一口径）。
+   */
   function repoRefOnce(): Promise<string> {
-    if (!repoRef) repoRef = (async function () { try { const rk = await getRepoKey(probeCwd); return (rk && rk.owner && rk.name) ? rk.owner + '/' + rk.name : '' } catch (e) { return '' } })()
+    if (!repoRef) repoRef = (async function () {
+      if (backend !== 'github') {
+        const r = await callSession(async function (session, ctx) {
+          const ask = session.getRepoKey
+          if (typeof ask !== 'function') return null
+          return ask.call(session, probeCwd, opCtxOf(ctx, probeCwd))
+        })
+        if (!r.ok) return ''
+        const rk = r.value
+        return (rk && rk.owner && rk.name) ? rk.owner + '/' + rk.name : ''
+      }
+      try { const rk = await getRepoKey(probeCwd); return (rk && rk.owner && rk.name) ? rk.owner + '/' + rk.name : '' } catch (e) { return '' }
+    })()
     return repoRef
   }
   function preflightOnce(): Promise<ChainEnvProbeReply> {
@@ -195,16 +297,17 @@ export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string): ChainE
     asked += 1
     preflight = (async function (): Promise<ChainEnvProbeReply> {
       const refId = await repoRefOnce()
-      const handle: ChainRepoHandle = { cwd: probeCwd, backend: 'github' }
+      const handle: ChainRepoHandle = { cwd: probeCwd, backend: backend }
       if (refId) handle.refId = refId
-      // 第二格是这一次的操作上下文（见 opCtxOf 的注释）：只给 { cwd } 会让房间找不到 gh。
+      // 第二格是这一次的操作上下文（见 opCtxOf 的注释）：只给 { cwd } 会让房间找不到命令行工具。
       const r = await callSession(function (session, ctx) { return session.preflight(handle, opCtxOf(ctx, probeCwd)) })
-      if (!r.ok) return { stage: 'none', message: r.reason }
+      if (!r.ok) return { stage: 'none', message: r.reason, refId: refId }
       const res = r.value
-      if (res && res.ok === true) return { stage: 'pass' }
+      if (res && res.ok === true) return { stage: 'pass', refId: refId }
       const error = (res && res.error) || {}
       const kind = String(error.kind || '')
-      return { stage: chainEnvStageOf(kind), kind: kind || 'unknown', message: String(error.message || '') }
+      // refId 一起带回去：GitLab 的「仓库可达」要据此区分「确实没有」与「本地认不出、没核对」。
+      return { stage: chainEnvStageOf(kind), kind: kind || 'unknown', message: String(error.message || ''), refId: refId }
     })()
     return preflight
   }
