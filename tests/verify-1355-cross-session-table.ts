@@ -40,6 +40,9 @@ import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
 // 中央时间真值：快照等待只住 config/*.yaml，这里读同一份导出，不在测试里写第二份数字。
 import { SNAP_WAIT_MS } from '../src/shared/time-config/values.js'
+// #1518：胶囊判据现在问内核 container-view.ts 的 containerKindOf（容器身份唯一真源）。本门禁按模块单独加载视图叶子，
+//   构建闭包里才有的名字这里补上真身 —— 不另抄一份判定，否则门禁会跟着实现一起漂。
+;(globalThis as any).containerKindOf = (await import('../src/client/kernel/container-view.js')).containerKindOf
 
 let failed = false
 let total = 0

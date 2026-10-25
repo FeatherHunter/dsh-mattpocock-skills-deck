@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T14:26:20.303Z",
+  "generatedAt": "2026-10-25T15:03:25.887Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 382,
   "gateCount": 382,
@@ -230,6 +230,7 @@
       "step": "node tests/verify-chain-capsule.ts",
       "file": "tests/verify-chain-capsule.ts",
       "guards": [
+        "src/client/kernel/container-view.ts",
         "src/client/kernel/ticket-label.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/statusbar/capFold.ts",
@@ -247,7 +248,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-chain-env-e2e.ts",
@@ -4975,6 +4976,7 @@
       "step": "node tests/verify-907-chain-titles.ts",
       "file": "tests/verify-907-chain-titles.ts",
       "guards": [
+        "src/client/kernel/container-view.ts",
         "src/client/kernel/ticket-label.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/views/shared/workRouteTable.ts",
@@ -4995,7 +4997,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-908-progress-replace.ts",
