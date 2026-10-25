@@ -30,6 +30,10 @@ declare function pixelDocHeadings(md?: string): PixelHeading[];
 declare const PIXEL_STACK_MAX: number;
 /** 点「复制链接」之后「已复制」标记停留多久（拼进闭包的中央常量，值在 config/ttl.yaml 的 skillDetailCopiedFlashMs）。 */
 declare const SKILL_DETAIL_COPIED_FLASH_MS: number;
+/** 从正文里点开随包 md 文件（#1522）：由取数叶子实现 —— 压一层新详情再取那一份原文。 */
+declare function pixelOpenFileRef(st: PixelStore | null | undefined, ref: string): void;
+/** 多份随包模板里选一份（#1522）：由取数叶子实现 —— 把当前这层换成选中的那份原文。 */
+declare function pixelPickFileOption(st: PixelStore | null | undefined, opt: { file: string; skill: string }): void;
 /** 关一层：弹掉栈顶，露出来的就是上一层（栈空了就回到列表）。人拍板 2026-10-10。 */
 export const pixelCloseDetail = function (s: PixelStore | null | undefined): void {
   if (!s) return
@@ -134,8 +138,49 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
   const icon = d.phase === 'loading' ? 'loading' : d.phase === 'ready' ? 'ok' : d.phase === 'error' ? (d.isMissing ? 'warn' : 'err') : 'idle'
   const frame = d.phase === 'ready' ? 'pixel-f-ok' : d.phase === 'error' && !d.isMissing ? 'pixel-f-err pixel-shake' : ''
   let body: any = null
+  // #1522：正文里点开的随包 md 详情分四种画法 —— 项目里维护的文件只给说明，
+  // 多份模板先让人选一份，格式模板先注明这是格式说明，其余按普通原文画正文（中英切换与技能正文同一套）。
+  const mdBody = function (key: string): any {
+    return h(PixelMarkdown, {
+      key: key,
+      md: md,
+      lang: lang,
+      st: s,
+      onSkill: p.onOpenSkill || null,
+      skillNames: p.skillNames || null,
+      mdRefs: d.refs || null,
+      onMdFile: function (name: string) { pixelOpenFileRef(s, name) },
+    })
+  }
   if (d.phase === 'loading' && d.showSkel) body = h(PixelSkeleton, { key: 'b', lines: 3 })
-  else if (d.phase === 'ready') body = h(PixelMarkdown, { key: 'b', md: md, lang: lang, st: s, onSkill: p.onOpenSkill || null, skillNames: p.skillNames || null })
+  else if (d.phase === 'ready' && d.kind === 'project') {
+    body = h('div', { key: 'b', className: 'pixel-doc', 'data-lang': lang }, [
+      h('p', { key: 'n' }, tr('sd.fileProject', { file: String(d.name || '') })),
+    ])
+  }
+  else if (d.phase === 'ready' && d.kind === 'choose') {
+    body = h('div', { key: 'b', className: 'pixel-doc', 'data-lang': lang }, [
+      h('p', { key: 't' }, tr('sd.fileChoose')),
+      ...(d.options || []).map(function (opt: { file: string; skill: string }, i: number) {
+        return h(PixelBtn, {
+          key: 'o' + i,
+          'data-press': 'button',
+          'data-log': 'sd.detail.pick.' + (i + 1),
+          onClick: function () { pixelPickFileOption(s, opt) },
+        }, opt.file + (opt.skill ? ' · ' + opt.skill : ''))
+      }),
+    ])
+  }
+  else if (d.phase === 'ready') {
+    if (d.kind === 'format') {
+      body = h('div', { key: 'b' }, [
+        h('p', { key: 'fmt', className: 'pixel-doc' }, tr('sd.fileFormat', { name: String(d.name || ''), file: String(d.file || '') })),
+        mdBody('md'),
+      ])
+    } else {
+      body = mdBody('b')
+    }
+  }
   else if (d.phase === 'error' && d.isMissing) {
     body = h('div', { key: 'b', className: 'pixel-doc', 'data-lang': lang }, [
       h('p', { key: 't' }, [h(PixelStateIcon, { key: 'i', kind: 'warn' }), h('b', { key: 'x' }, tr('sd.miss'))]),
