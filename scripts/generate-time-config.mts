@@ -179,6 +179,9 @@ const KEYS: Array<[string, string, string]> = [
   ['skillSkeletonDelayMs', 'SKILL_SKELETON_DELAY_MS', 'intervals'],
   // —— 构建互斥锁的心跳间隔（#1365）：持锁期间证明还活着 ——
   ['buildLockHeartbeatMs', 'BUILD_LOCK_HEARTBEAT_MS', 'intervals'],
+  // —— 宿主出站排队段的日志节流（#1101）：等多久才记一行、同一只桶最短多久记一次 ——
+  ['laneLongWaitLogMs', 'LANE_LONG_WAIT_LOG_MS', 'intervals'],
+  ['laneWaitLogIntervalMs', 'LANE_WAIT_LOG_INTERVAL_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],
@@ -225,8 +228,20 @@ const KEYS: Array<[string, string, string]> = [
   ['skillDetailCopiedFlashMs', 'SKILL_DETAIL_COPIED_FLASH_MS', 'ttl'],
   // —— 构建互斥锁的陈旧判定有效期（#1365）：超期无心跳就接管 ——
   ['buildLockStaleMs', 'BUILD_LOCK_STALE_MS', 'ttl'],
+  // —— 工作路线回执的三个时间窗（#1259）：在办 / 现办 / 撞单 ——
+  ['workRouteInProgressWindowMs', 'WORK_ROUTE_IN_PROGRESS_WINDOW_MS', 'ttl'],
+  ['workRouteActiveWindowMs', 'WORK_ROUTE_ACTIVE_WINDOW_MS', 'ttl'],
+  ['workRouteCollisionWindowMs', 'WORK_ROUTE_COLLISION_WINDOW_MS', 'ttl'],
+  // —— 会话链缓存与工作路线存档共用的保留期：30 天（两条存档形状同一套口径）——
+  ['chainKeepMs', 'CHAIN_KEEP_MS', 'ttl'],
+  // —— 写事件补丁的短存（超过就先丢掉，那一趟已经无关了）——
+  ['writePatchTtlMs', 'WRITE_PATCH_TTL_MS', 'ttl'],
+  // —— 视野模型上报的去重窗（同一签名在这段时间内只处理一次）——
+  ['attentionReportDedupeMs', 'ATTENTION_REPORT_DEDUPE_MS', 'ttl'],
   // —— backoff：退避序列 ——
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
+  // —— 「下一步建议」选项行的客户端重试退避：两档 ——
+  ['ownRouteRetryMs', 'OWN_ROUTE_RETRY_MS', 'backoff'],
   // —— 初始化等待那一路的等待封顶（#1363）：超过多久必真算一次 ——
   ['chainSetupPendingCapMs', 'CHAIN_SETUP_PENDING_CAP_MS', 'timeouts'],
 ]

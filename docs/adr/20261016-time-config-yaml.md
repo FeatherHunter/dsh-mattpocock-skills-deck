@@ -19,13 +19,16 @@
 
 | 文件 | 管什么 | 键数 |
 | --- | --- | --- |
-| `config/timeouts.yaml` | 单次等待的上限，到点没回来就按失败或放弃处理 | 69 |
-| `config/intervals.yaml` | 节拍间隔、一次性延时，以及末尾的退避序列 `chainBackoffMs` | 33 |
-| `config/ttl.yaml` | 有效期，一份数据或一次判断过多久算过期 | 38 |
+| `config/timeouts.yaml` | 单次等待的上限，到点没回来就按失败或放弃处理 | 74 |
+| `config/intervals.yaml` | 节拍间隔、一次性延时，以及末尾的退避序列（`chainBackoffMs`、`ownRouteRetryMs`） | 39 |
+| `config/ttl.yaml` | 有效期，一份数据或一次判断过多久算过期 | 48 |
 
-三份合计 140 个键（第二轮 133 键 + 对抗式审查补的四个 + 单源头改造中新门禁扫出来的三个，
-见 §2.2 末段）。后加的三个是 `draftRefocusRetryMs`（120，`api-io.ts` 回填草稿后补焦点的重试延时）、
-`ghLoginPrefetchMs`（2500）与 `predicateLogSampleMs`（15000）。
+三份合计 161 个键（数字随每次加键变化，以 `scripts/generate-time-config.mts` 的 KEYS 表为准）。
+2026-10-26 门禁重新入链时又补了 9 个键：工作路线回执的三个时间窗（`workRouteInProgressWindowMs`、
+`workRouteActiveWindowMs`、`workRouteCollisionWindowMs`）、存档保留期 `chainKeepMs`、写事件补丁的
+`writePatchTtlMs`、视野模型上报去重窗 `attentionReportDedupeMs`、出站排队段的两档日志节流
+（`laneLongWaitLogMs`、`laneWaitLogIntervalMs`），以及客户端的两档重试退避 `ownRouteRetryMs`。
+它们此前都是源码里的裸数字——门禁当时不在链上，没人看见。
 
 单位一律毫秒。唯一一处单位换算在 `src/host/gitCredentialExec.js`：git 的 `http.lowSpeedTime` 只认秒，那里把 `gitLowSpeedTimeoutMs`（20000）除以 1000，除法本身由门禁锁在中央键上（派生行右边引用已登记的生成常量才放行），因为改错单位就是真故障。每个键住哪份文件由 `scripts/generate-time-config.mjs` 的 KEYS 表第三列（分组）决定：
 分组 `timeouts` → timeouts.yaml，`intervals` 与 `backoff` → intervals.yaml，`ttl` → ttl.yaml。
@@ -111,6 +114,9 @@
 - 界面那三处「SYNC 缺席时的兜底」不算第二份数字：兜底值取自拼进闭包的中央常量（`probe-auto.js` 三处），正常路径取 `sync.js` 里那份已锁的值；另有三个文件会退回同一个数字，那是为了让门禁能把它们当普通模块 import 跑起来，理由与锁法见 §4 末段。
 - `scripts/**` 下的开发脚本（例如 `scripts/browser-host.mjs` 的保活间隔）、`tests/**`、`examples/**`、`docs/prototype/**` 与临时目录（`.scratch/`、`.r1047tmp/` 一类）不进范围：它们不是产品运行时行为，改了不影响插件。
 - 样式类时长（CSS 与样式字符串里的 `.12s`、`2.4s`、`300ms`，界面动画与过渡在用）不是“不收”，而是**另有一份**：它们的单位是 CSS 时间字符串，判红只能是“动画观感不对”，与“毫秒超时”不是一个验收口径，混进这三份文件会让门禁的每条规则都要分情况讨论。那一件事单独立了票 **#1236**，逐条清单在 `research/1236-style-durations.md`（42 处、8 个文件，去重后 19 个时长档位）。
+  在 #1236 落地之前，界面动画时长只许住在外观旋钮文件 `src/client/statusbar/suggestAppearance.ts`
+  （#1411 定的“气泡所有看得见的数字集中一处”），由门禁的 **STYLE 表**逐行锁死“文件 + 片段 + 理由”。
+  STYLE 表不是永久豁免：#1236 落地后应逐行删掉，改用那份样式配置。
 
 ## 6. 与 #1069（tuning.ts）的关系
 
@@ -124,7 +130,10 @@
 
 `tests/verify-time-config.ts` 六节（第零节是链位置，前五节是实质）：
 
-0. **链位置**：本门禁必须挂在 `scripts/verify-stages.json` 里（改了链却没带上自己，等于没看门）。
+0. **链位置**：本门禁不许躺在 `scripts/verify-stages.json` 的排除表里（被排除 = 今天不跑，等于没看门）。
+   2026-10-26 之前这一节数的是“文件原文里有没有本文件路径”，而排除表那条记录同样含这个路径——
+   判据被自己的排除记录骗过，门禁在排除表里躺了十天、自己一直报“已挂进验证链”，58 处违例没人看见。
+   现在改成按排除表点名判断：不在排除表里，规划器就会把它排进默认段。
 1. **生成新鲜度**：`generate-time-config.mjs --check` 必须过（生成物与三份 YAML 一致）。
 2. **真引用**：REFERENCES 表逐行断言“调用方拿到的就是中央那一份，不是抄的数字”——
    模块导出的比值（数字）或比引用（数组）；只在内部用、不导出的名字（`import { X }` 裸用、
@@ -135,10 +144,11 @@
    拼进闭包的共享文件（`budget.ts`、`sync.js`、`naming-tracking.js`）也在同一张表里：
    它们的 import 行会被剥掉，声明只能由 timeConfig 片段给。
 4. **无字面量**：时间味的位置上不许出现数字。五种藏法——声明挂数字、属性挂数字、对象里藏数字、
-   定时器参数位、缺省回落位；0 与 -1 一律放行（“还没有”哨兵，不是时长）。PERMANENT 表是唯一出口，
-   逐行锁死“文件 + 片段”（改了数字、改了写法都判红；片段从源码里消失也判红，表不许留空头支票）。
+   定时器参数位、缺省回落位；0 与 -1 一律放行（“还没有”哨兵，不是时长）。唯一出口是两张表：
+   **PERMANENT**（行为时间）与 **STYLE**（样式类时长，见 §5）；两表都逐行锁死“文件 + 片段”
+   （改了数字、改了写法都判红；片段从源码里消失也判红，表不许留空头支票）。
 5. **覆盖率**：扫描全部 `src/**/*.ts` 与 `.js`，新冒出来的时间名字必须先登记——
-   已在 REFERENCES/CLIENTS/PERMANENT 里出现的自动认得；声明右边引用已登记的生成常量
+   已在 REFERENCES/CLIENTS/PERMANENT/STYLE 里出现的自动认得；声明右边引用已登记的生成常量
    （派生、透传、别名）自动放行；剩下的必须在 EXEMPTS 里写明理由。
 
 配套：

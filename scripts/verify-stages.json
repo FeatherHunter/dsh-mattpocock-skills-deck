@@ -94,11 +94,6 @@
       "ticket": "#1227"
     },
     {
-      "file": "tests/verify-time-config.ts",
-      "reason": "隔离待查：3 处覆盖告警（wiring.ts 新常量未登记），登记或豁免后再进链",
-      "ticket": "#1215"
-    },
-    {
       "file": "tests/verify-504-github-pr.ts",
       "reason": "隔离待查：雾证据与坏节点行为失败，先定是回归还是门禁过期再进链",
       "ticket": "#1227"

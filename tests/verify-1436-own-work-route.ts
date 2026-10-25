@@ -174,6 +174,10 @@ const loadOwnModule = function (): any {
       return id
     },
     clearTimeout: function (id: any): void { if (id) id.cleared = true },
+    // 闭包拼接时这个名字由 timeConfig 片段提供（config/intervals.yaml 的 ownRouteRetryMs）；
+    // 门禁求值的是剥掉 import 行之后的源码，所以这里按拼进 client.js 的那份值补进作用域。
+    // 值必须与 config/intervals.yaml 一致；改那边的话，下面 B3 的 1.2 秒 / 2.5 秒断言也要一起改。
+    OWN_ROUTE_RETRY_MS: [1200, 2500],
   }
   const mod: any = loadSpliced('src/client/kernel/work-route-own.js',
     ['loadOwnWorkRoute', 'ownWorkRouteSlotOf', 'ownWorkRouteKeyOf', 'snapshotRequestPlan'], scope)

@@ -29,6 +29,7 @@
 
 import { TUNING } from '../../contract/tuning-parameters.js'
 import { TRANSPORT_COOLDOWN_MS } from '../../../tracker/kernel/outbound-tiers.js'
+import { LANE_LONG_WAIT_LOG_MS, LANE_WAIT_LOG_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
 
 // 取值住共用调参表（真源 src/refresh/contract/tuning-parameters.ts），这里只留缺表回落的缺省值（与今天一致）。
 export const READ_BUCKET_MAX = TUNING.readBucketMax ?? 64
@@ -38,8 +39,7 @@ export const WRITE_BUCKET_MAX = TUNING.writeBucketMax ?? 16
 //   为什么要有：调试开关默认关着，2026-10-21 那种「64 个名额全满、队尾排到 338 位、等 15 秒」的风暴
 //   在普通用户的日志里一行都不留 —— 事后只能看到一串耗时十几秒的 gh.exec，分不出慢在命令还是慢在门口。
 //   为什么要节流：风暴期间每秒都有放行，逐条记一天就是几十万行的垃圾；同桶五分钟最多一行足够定性。
-const LANE_LONG_WAIT_MS = 3000
-const LANE_WAIT_LOG_INTERVAL_MS = 5 * 60 * 1000
+//   这两个值住 config/intervals.yaml（laneLongWaitLogMs / laneWaitLogIntervalMs），这里不许写第二份数字。
 
 // 准入桶：读与写两只桶，配额与统计都按桶隔离，跨桶不抢名额。
 type GhBucket = 'read' | 'write'
@@ -232,7 +232,7 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
           // #1101：常驻一行「门口确实憋过」的轨迹。信息和调试两档各管一件事：
           //   调试那行是逐条明细（排一次记一次，用来画分布）；这一行只说「这段时间这只桶憋过」，
           //   三秒起记、同桶五分钟最多一条，风暴一天也只有几百行，不用开调试也查得到。
-          if (laneLogCtx && typeof laneLogCtx.fire === 'function' && waitedMs >= LANE_LONG_WAIT_MS && now - lastWaitLogAt[bucket] >= LANE_WAIT_LOG_INTERVAL_MS) {
+          if (laneLogCtx && typeof laneLogCtx.fire === 'function' && waitedMs >= LANE_LONG_WAIT_LOG_MS && now - lastWaitLogAt[bucket] >= LANE_WAIT_LOG_INTERVAL_MS) {
             lastWaitLogAt[bucket] = now
             laneLogCtx.fire('info', 'gh.lane.wait', { bucket: bucket, waitedMs: waitedMs, inflight: running[bucket], max: maxOf[bucket], queued: queues[bucket].length })
           }
