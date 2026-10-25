@@ -106,217 +106,222 @@
   },
   {
     "date": "2026-09-10",
-    "total": 58,
-    "daily": 5
+    "total": 57,
+    "daily": 4
   },
   {
     "date": "2026-09-12",
-    "total": 59,
+    "total": 58,
     "daily": 1
   },
   {
     "date": "2026-09-13",
-    "total": 62,
+    "total": 61,
     "daily": 3
   },
   {
     "date": "2026-09-14",
-    "total": 63,
+    "total": 62,
     "daily": 1
   },
   {
     "date": "2026-09-15",
-    "total": 65,
+    "total": 64,
     "daily": 2
   },
   {
     "date": "2026-09-16",
-    "total": 70,
+    "total": 69,
     "daily": 5
   },
   {
     "date": "2026-09-17",
-    "total": 71,
+    "total": 70,
     "daily": 1
   },
   {
     "date": "2026-09-19",
-    "total": 72,
+    "total": 71,
     "daily": 1
   },
   {
     "date": "2026-09-20",
-    "total": 73,
+    "total": 72,
     "daily": 1
   },
   {
     "date": "2026-09-21",
-    "total": 74,
+    "total": 73,
     "daily": 1
   },
   {
     "date": "2026-09-22",
-    "total": 75,
+    "total": 74,
     "daily": 1
   },
   {
     "date": "2026-09-23",
-    "total": 77,
+    "total": 76,
     "daily": 2
   },
   {
     "date": "2026-09-24",
-    "total": 81,
+    "total": 80,
     "daily": 4
   },
   {
     "date": "2026-09-25",
-    "total": 82,
+    "total": 81,
     "daily": 1
   },
   {
     "date": "2026-09-26",
-    "total": 84,
+    "total": 83,
     "daily": 2
   },
   {
     "date": "2026-09-27",
-    "total": 85,
+    "total": 84,
     "daily": 1
   },
   {
     "date": "2026-09-28",
-    "total": 87,
+    "total": 86,
     "daily": 2
   },
   {
     "date": "2026-09-29",
-    "total": 94,
+    "total": 93,
     "daily": 7
   },
   {
     "date": "2026-09-30",
-    "total": 95,
+    "total": 94,
     "daily": 1
   },
   {
     "date": "2026-10-01",
-    "total": 98,
+    "total": 97,
     "daily": 3
   },
   {
     "date": "2026-10-02",
-    "total": 99,
+    "total": 98,
     "daily": 1
   },
   {
     "date": "2026-10-03",
-    "total": 103,
+    "total": 102,
     "daily": 4
   },
   {
     "date": "2026-10-04",
-    "total": 104,
+    "total": 103,
     "daily": 1
   },
   {
     "date": "2026-10-05",
-    "total": 105,
+    "total": 104,
     "daily": 1
   },
   {
     "date": "2026-10-06",
-    "total": 109,
+    "total": 108,
     "daily": 4
   },
   {
     "date": "2026-10-07",
-    "total": 111,
+    "total": 110,
     "daily": 2
   },
   {
     "date": "2026-10-08",
-    "total": 118,
+    "total": 117,
     "daily": 7
   },
   {
     "date": "2026-10-09",
-    "total": 120,
+    "total": 119,
     "daily": 2
   },
   {
     "date": "2026-10-10",
-    "total": 126,
+    "total": 125,
     "daily": 6
   },
   {
     "date": "2026-10-11",
-    "total": 131,
+    "total": 130,
     "daily": 5
   },
   {
     "date": "2026-10-12",
-    "total": 138,
+    "total": 137,
     "daily": 7
   },
   {
     "date": "2026-10-13",
-    "total": 142,
+    "total": 141,
     "daily": 4
   },
   {
     "date": "2026-10-14",
-    "total": 145,
+    "total": 144,
     "daily": 3
   },
   {
     "date": "2026-10-15",
-    "total": 149,
+    "total": 148,
     "daily": 4
   },
   {
     "date": "2026-10-16",
-    "total": 154,
+    "total": 153,
     "daily": 5
   },
   {
     "date": "2026-10-17",
-    "total": 158,
+    "total": 157,
     "daily": 4
   },
   {
     "date": "2026-10-18",
-    "total": 164,
-    "daily": 6
+    "total": 162,
+    "daily": 5
   },
   {
     "date": "2026-10-19",
-    "total": 176,
+    "total": 174,
     "daily": 12
   },
   {
     "date": "2026-10-20",
-    "total": 180,
+    "total": 178,
     "daily": 4
   },
   {
     "date": "2026-10-21",
-    "total": 189,
+    "total": 187,
     "daily": 9
   },
   {
     "date": "2026-10-22",
-    "total": 203,
+    "total": 201,
     "daily": 14
   },
   {
     "date": "2026-10-23",
-    "total": 217,
+    "total": 215,
     "daily": 14
   },
   {
     "date": "2026-10-24",
-    "total": 219,
-    "daily": 2
+    "total": 223,
+    "daily": 8
+  },
+  {
+    "date": "2026-10-25",
+    "total": 226,
+    "daily": 3
   }
 ]
