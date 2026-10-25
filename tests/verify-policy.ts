@@ -1,8 +1,9 @@
 // verify-policy.ts —— #706（T2）第一批：闸的裁决纯函数单测
 // 用法：在插件根目录执行 node tests/verify-policy.ts，可独立运行。
 //
-// 断言文字：裁决四条底线——① 人亲手做的动作永不降档；② AI 工具超单次/每小时硬顶必须被拒，
-// 绝不静默放行；③ 后台类超出即推迟（不是失败）；④ 剩余额度到保底线时先拒 AI 那一档。
+// 断言文字：裁决四条底线——① 人亲手做的动作永不降档；② AI 工具超单次硬顶必须被拒，绝不静默放行，
+// 越过每小时的提醒线则照常放行并把话写进 warnings（#1527）；③ 后台类超出即推迟（不是失败）；
+// ④ 剩余额度到保底线时先拒 AI 那一档。
 // 另断言三档降级顺序（先降「别处变化」的灵敏度，再降后台对账的频率，最后才动本地写入的即时性），
 // 且四个档位的数值全部等于 budget.js 的常量本身（证明数字只有一个来源，没有在 policy.js 里重写一份）。
 // 最后带一层「断言装置自检」：把裁决改坏成四种错法，同一套断言必须判红——门禁自己有牙齿。
@@ -75,12 +76,17 @@ function scenarios(api) {
       },
     },
     {
-      id: '②c AI 工具把这一小时的累计顶过去必须被拒（点数与请求数各一条）',
+      id: '②c 越过每小时提醒线照常放行，但 warnings 要把用了多少、线在哪、服务端还剩多少说清（点数与请求数各一条）',
       run() {
         const overPoints = api.aiToolAdmission({ points: 2, requests: 1 }, { points: limits.aiToolMaxPointsPerHour - 1, requests: 0 }, plenty, limits)
         const overRequests = api.aiToolAdmission({ points: 2, requests: 1 }, { points: 0, requests: limits.aiToolMaxRequestsPerHour }, plenty, limits)
-        return overPoints.admitted === false && overPoints.reason === 'ai-tool-over-hour-cap' &&
-          overRequests.admitted === false && overRequests.reason === 'ai-tool-over-hour-cap'
+        const p = overPoints.admitted === true && overPoints.reason === 'ai-tool-over-hour-soft' && overPoints.warnings.length === 1
+        const q = overRequests.admitted === true && overRequests.reason === 'ai-tool-over-hour-soft' && overRequests.warnings.length === 1
+        return p && q &&
+          overPoints.warnings[0].indexOf(String(limits.aiToolMaxPointsPerHour) + ' 点') >= 0 &&
+          overPoints.warnings[0].indexOf(String(limits.aiToolMaxRequestsPerHour) + ' 条') >= 0 &&
+          // #1527：提醒里必须带服务端这一桶还剩多少，人才能判断「快见底」还是「还宽裕」。
+          overPoints.warnings[0].indexOf('服务端这一桶还剩 ' + plenty.remaining + ' 条') >= 0
       },
     },
     {
@@ -90,6 +96,17 @@ function scenarios(api) {
           { points: limits.aiToolMaxPointsPerCall, requests: limits.aiToolMaxRequestsPerCall },
           { points: 0, requests: 0 }, plenty, limits)
         return r.admitted === true && r.reason === 'ai-tool-within-caps'
+      },
+    },
+    {
+      id: '②e 越过提醒线的那一笔如果会把额度花到保底线以下，仍然按「额度见底」拒绝（提醒不替代保底判定）',
+      run() {
+        const serverLimit = 5000
+        const floor = budget.aiToolFloor(serverLimit)
+        const tight = { allowance: serverLimit, used: serverLimit - floor - 1, remaining: floor + 1, reserve: 0, floor: floor, limit: serverLimit, bucket: 'graphql' }
+        const r = api.aiToolAdmission({ points: 1, requests: 0 }, { points: limits.aiToolMaxPointsPerHour, requests: 0 }, tight, limits)
+        return r.admitted === false && r.reason === 'ai-tool-below-remaining' &&
+          Array.isArray(r.warnings) && r.warnings.length === 1
       },
     },
     {
@@ -115,12 +132,19 @@ function scenarios(api) {
       },
     },
     {
-      id: '④ 剩余额度到保底线时先拒 AI 那一档（绝不挤掉插件刷新与人的动作）',
+      id: '④ 花完这一笔会跌破服务端上限 5% 的保底线时先拒 AI 那一档（绝不挤掉插件刷新与人的动作）',
       run() {
-        const atReserve = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 }, broke, limits)
-        const justAbove = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 },
-          { allowance: allowance, used: 0, remaining: reserve + 1, reserve: reserve }, limits)
-        return atReserve.admitted === false && atReserve.reason === 'ai-tool-below-remaining' && justAbove.admitted === true
+        // #1527：保底线按服务端上限的 5% 算（5000 点 → 250 点），判据是「花完这一笔之后是否仍高于保底」。
+        const serverLimit = 5000
+        const floor = budget.aiToolFloor(serverLimit)
+        const view = { allowance: serverLimit, used: serverLimit - floor, remaining: floor + 1, reserve: 0, floor: floor, limit: serverLimit, bucket: 'graphql' }
+        const atFloor = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 }, view, limits)
+        const aboveCost = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 },
+          Object.assign({}, view, { remaining: floor + 2 }), limits)
+        // 没带 floor/limit 的老调用方退回 reserve（30%）口径，行为不变。
+        const legacy = api.aiToolAdmission({ points: 1, requests: 1 }, { points: 0, requests: 0 }, broke, limits)
+        return atFloor.admitted === false && atFloor.reason === 'ai-tool-below-remaining' &&
+          aboveCost.admitted === true && legacy.admitted === false && legacy.reason === 'ai-tool-below-remaining'
       },
     },
     {
@@ -205,7 +229,7 @@ async function main() {
     { name: '永远放行（后台超出不推迟）', api: Object.assign({}, real, { decide: function () { return { verdict: 'allow', reason: 'background-fits' } } }) },
     { name: '连人的动作也降档', api: Object.assign({}, real, { decide: function (i) { return i.category === 'user-action' ? { verdict: 'defer', reason: 'background-tier-red' } : policy.decide(i) } }) },
     { name: 'AI 工具超顶静默放行', api: Object.assign({}, real, { aiToolAdmission: function (c) { return { admitted: true, reason: 'ai-tool-within-caps', points: c.points, requests: c.requests } } }) },
-    { name: 'AI 工具不看剩余额度保底线', api: Object.assign({}, real, { aiToolAdmission: function (c, h, q, l) { return q.remaining <= q.reserve ? { admitted: true, reason: 'ai-tool-within-caps', points: c.points, requests: c.requests } : policy.aiToolAdmission(c, h, q, l) } }) },
+    { name: 'AI 工具不看剩余额度保底线', api: Object.assign({}, real, { aiToolAdmission: function (c, h, q, l) { const floor = (typeof q.floor === 'number') ? q.floor : q.reserve; return (q.remaining - c.points) <= floor ? { admitted: true, reason: 'ai-tool-within-caps', points: c.points, requests: c.requests } : policy.aiToolAdmission(c, h, q, l) } }) },
   ]
   for (const b of broken) {
     const caught = failuresOf(b.api)

@@ -79,6 +79,31 @@ export function limitsFromBudget(b: unknown): DeckLimits {
   }
 }
 
+/**
+ * 拼回执里 cost 那一格：估算（这次预计多少）、实际（后端记的账与四格事实），
+ * 外加闸放行时带的提醒与读数说明（#1527）。
+ *
+ * 为什么放在壳里：这是「工具返回长什么样」的一部分，形状归 call-shell-types，拼法归这里；
+ * tracker-session 是接线层，只把四样现成的料递进来，不再自己拼一份。
+ * 提醒同时留在 warnings 里给机器读、拼进 note 里给人读；没有提醒时这两格都不出现，
+ * 回执形状与 #1446 时一致（旧装配不传 admit 也不会多出空数组或空串）。
+ */
+export function receiptCost(estimate: unknown, actual: unknown, admit: unknown, quotaNote: unknown): UnknownRecord {
+  const est = (estimate || {}) as UnknownRecord
+  const cost: UnknownRecord = {
+    estimated: { points: num(est.points), requests: num(est.requests), withinCallCap: est.withinCallCap, shards: est.shards, perShard: est.perShard, text: str(est.text) },
+    actual: (actual || {}) as UnknownRecord,
+  }
+  const a = (admit && typeof admit === 'object') ? admit as UnknownRecord : {}
+  const warns = Array.isArray(a.warnings) ? a.warnings : []
+  if (warns.length > 0) cost.warnings = warns
+  const notes = warns.map(str).filter(function (s) { return s.length > 0 })
+  const first = str(quotaNote)
+  if (first) notes.unshift(first)
+  if (notes.length > 0) cost.note = notes.join('；')
+  return cost
+}
+
 // 会话目录取法只有 session-workdir.ts 一份（九个工具全走它的 Async 版）；本文件曾有的同步复件已删，免得两份分叉。
 // 边的落点判定与逐项证据（landingOf / classifyEdgeLanding / childrenOf / statusOfItems）住在同目录的 rules/ 里：
 // 纯规则侧不许引宿主侧（门禁 deck-rules-stay-pure），所以那边自带一份最小的字符串工具函数，

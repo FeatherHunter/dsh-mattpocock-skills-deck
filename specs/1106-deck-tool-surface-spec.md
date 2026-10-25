@@ -57,7 +57,7 @@
 - `status`：三态之一，`ok`（做成了）/ `partial`（一批里有的成、有的没成，逐项列在 `items` 里）/ `unsupported`（没做成，原因写在 `reason` 里）。**没有第四种状态**：被闸挡下、没后端、后端抛错，都是 `unsupported` 加一个原因码。
 - `ok`：就是「`status` 是不是 `ok`」，跟着三态走。
 - `reason`：成功时是空串；失败时取下面七个码之一。
-  `no-session-context`（会话取不到工作区）· `ai-tool-refused`（超了单次或每小时硬顶）· `no-backend`（这个工作区没有定下后端）· `gate-defer`（被闸推迟）· `backend-threw`（后端实现抛错，已被拦下）· `backend-unsupported`（后端说做不到 / 这张票读不回来）· `bad-args`（参数不对，请按参数说明重调）
+  `no-session-context`（会话取不到工作区）· `ai-tool-refused`（超了单次硬顶，或花完这一笔会跌破服务端剩余 5% 保底；每小时顶只是回执提醒，不算拒绝，见 #1527）· `no-backend`（这个工作区没有定下后端）· `gate-defer`（被闸推迟）· `backend-threw`（后端实现抛错，已被拦下）· `backend-unsupported`（后端说做不到 / 这张票读不回来）· `bad-args`（参数不对，请按参数说明重调）
 - `text`：给人看的一句话。`data` / `items` / `notes` / `readBack` / `touched`：工具自己的数据、逐项明细、我替你做了什么、写后读回、这次动到的票。缺就是 `null` 或空数组，不省略这一格。
 - `cost.estimated`：调用前的估算（点数、条数、硬顶判断、分片建议）。`cost.actual`：闸真正记下来的花费（谁绕开闸发请求，这个数就不动）。
 

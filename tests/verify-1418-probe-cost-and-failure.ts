@@ -617,70 +617,71 @@ const partC = async function (): Promise<void> {
     pluginShareOfRemaining: 0.35,
     hourlyAllowance: function (n: number): number { return n },
     writeReserve: function (a: number): number { return Math.floor(a * 0.3) },
+    // #1527：AI 工具的保底线按服务端上限的 5% 算。
+    aiToolFloor: function (n: number): number { return Math.floor(n * 0.05) },
     tierFor: function (): string { return 'green' },
   }
   const twoE: any = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true }
   const readingE = function (rest: number, graphql: number, restResetAt?: number): any {
     return { known: true, kind: 'two-buckets', buckets: {
-      rest: { remaining: rest, limit: 1750, resetAt: restResetAt },
-      graphql: { remaining: graphql, limit: 1750 },
+      rest: { remaining: rest, limit: 5000, resetAt: restResetAt },
+      graphql: { remaining: graphql, limit: 5000 },
     } }
   }
-  // 1750 的写保底是 525：rest 500 见底、graphql 1400 充足。
-  const restDeadRead: any = decideByBudget({ op: 'list', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  // #1527：上限 5000 的保底是 250（服务端上限的 5%）；200 见底、1400 充足。
+  const restDeadRead: any = decideByBudget({ op: 'list', budget: twoE, reading: readingE(200, 1400), canWrite: true }, limitsE)
   check(restDeadRead.allowed === true, 'E、REST 见底时读操作照常放行（读只花 GraphQL 点数，不再整轮误停）', restDeadRead.reason)
-  const restDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(500, 1400, 1790000000000), canWrite: true }, limitsE)
+  const restDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(200, 1400, 1790000000000), canWrite: true }, limitsE)
   check(restDeadWrite.allowed === false && String(restDeadWrite.message || '').indexOf('REST 请求') >= 0,
     'E、写操作被 REST 桶拦下，文案点名 REST 请求：' + String(restDeadWrite.message || ''))
   check(/约 \d\d:\d\d 恢复/.test(String(restDeadWrite.message || '')),
     'E、见底文案写出恢复时刻：' + String(restDeadWrite.message || ''))
-  const graphqlDeadRead: any = decideByBudget({ op: 'get', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  const graphqlDeadRead: any = decideByBudget({ op: 'get', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)
   check(graphqlDeadRead.allowed === false && String(graphqlDeadRead.message || '').indexOf('GraphQL 点数') >= 0,
     'E、读操作被 GraphQL 桶拦下，文案点名 GraphQL 点数：' + String(graphqlDeadRead.message || ''))
   // 建票不只花 REST：写之前必跑幂等锚回查（gh search issues / gh issue list，都是 GraphQL），
   // 所以 GraphQL 见底时建票会卡在回查上，闸必须在放行前就拦住（复核第二轮补）。
-  const graphqlDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  const graphqlDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)
   check(graphqlDeadWrite.allowed === false && String(graphqlDeadWrite.message || '').indexOf('GraphQL 点数') >= 0,
     'E、GraphQL 见底时建票被拦下并点名 GraphQL 点数（建前锚回查走 GraphQL）', graphqlDeadWrite.reason + '/' + String(graphqlDeadWrite.message || ''))
   // #1418 P1 复核 c1：写操作的通道按真实出站算 —— 改票 / 关票 / 标签 / 认领走 gh issue edit（GraphQL），
   //   REST 见底时它们照做；评论、阻塞边还有退路，只有两条路都见底才拦。
-  const restDeadEdit: any = decideByBudget({ op: 'update', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  const restDeadEdit: any = decideByBudget({ op: 'update', budget: twoE, reading: readingE(200, 1400), canWrite: true }, limitsE)
   check(restDeadEdit.allowed === true, 'E、REST 见底时改票照常放行（gh issue edit 内部发 GraphQL）', restDeadEdit.reason)
-  const restDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  const restDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(200, 1400), canWrite: true }, limitsE)
   check(restDeadComment.allowed === true, 'E、REST 见底时评论照常放行（还能回落 gh issue comment 的 GraphQL 通道）', restDeadComment.reason)
-  const graphqlDeadEdit: any = decideByBudget({ op: 'update', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  const graphqlDeadEdit: any = decideByBudget({ op: 'update', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)
   check(graphqlDeadEdit.allowed === false && String(graphqlDeadEdit.message || '').indexOf('GraphQL 点数') >= 0,
     'E、改票只走 GraphQL：GraphQL 见底时拦下并点名 GraphQL 点数', graphqlDeadEdit.message)
-  const bothDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(500, 500), canWrite: true }, limitsE)
+  const bothDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(200, 200), canWrite: true }, limitsE)
   check(bothDeadComment.allowed === false && String(bothDeadComment.message || '').indexOf('两种额度都不够') >= 0,
     'E、两条通道都见底的评论拦下并如实说两种额度都不够', bothDeadComment.message)
   // 父子边：REST 退路只在老版本 gh 不认 --parent 时才走（graph.ts 的 unknown-flag 分支），配额耗尽不会换路，
   // 所以它是 GraphQL-only —— GraphQL 见底时 REST 再有余也得拦（复核第二轮补）。
-  const restDeadLink: any = decideByBudget({ op: 'setParent', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  const restDeadLink: any = decideByBudget({ op: 'setParent', budget: twoE, reading: readingE(200, 1400), canWrite: true }, limitsE)
   check(restDeadLink.allowed === true, 'E、REST 见底时父子边照常放行（前置读与写都在 GraphQL 上）', restDeadLink.reason)
-  const graphqlDeadLink: any = decideByBudget({ op: 'setParent', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  const graphqlDeadLink: any = decideByBudget({ op: 'setParent', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)
   check(graphqlDeadLink.allowed === false && String(graphqlDeadLink.message || '').indexOf('GraphQL 点数') >= 0,
     'E、GraphQL 见底时父子边被拦下（REST 退路不会因配额耗尽而换路）', graphqlDeadLink.reason + '/' + String(graphqlDeadLink.message || ''))
   // 评论：REST 主路失败会无条件回落 gh issue comment（GraphQL），所以 REST 见底、GraphQL 有余时照做。
-  const graphqlDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  const graphqlDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)
   check(graphqlDeadComment.allowed === true, 'E、GraphQL 见底时评论照常放行（先走 REST 主路）', graphqlDeadComment.reason)
   // 见底文案要写出还剩多少（与闸的拒绝文案同一个口径：额度 + 剩余 + 恢复时刻）。
   check(String(restDeadWrite.message || '').indexOf('还剩') >= 0,
     'E、见底文案写出还剩多少：' + String(restDeadWrite.message || ''))
-  const unknownFam: any = decideByBudget({ op: 'switch-backend', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  const unknownFam: any = decideByBudget({ op: 'switch-backend', budget: twoE, reading: readingE(200, 1400), canWrite: true }, limitsE)
   check(unknownFam.allowed === false, 'E、族不明的操作保守按两族都看（REST 见底就推迟）', unknownFam.reason)
-  const noResetMsg: string = String(decideByBudget({ op: 'create', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE).message || '')
+  const noResetMsg: string = String(decideByBudget({ op: 'create', budget: twoE, reading: readingE(200, 1400), canWrite: true }, limitsE).message || '')
   check(noResetMsg.indexOf('恢复') < 0, 'E、读数没带恢复时刻时文案不编时刻：' + noResetMsg)
 
   // E6. 闸自己那条拒绝文案（不是裁决那一句）：见底时要写出缺的是哪一种额度、什么时候恢复、还剩多少。
   const refusal: string = refusalTextRef(
-    { reason: 'ai-tool-below-remaining', points: 5, requests: 3, familyLabel: 'REST 请求', resetAt: 1790000000000, unit: '条' },
-    { remaining: 12 },
+    { reason: 'ai-tool-below-remaining', points: 5, requests: 3, bucket: 'rest', resetAt: 1790000000000, now: 1790000000000 - 120000, floor: 250, limit: 5000, serverRemaining: 12 },
     { points: 0, requests: 0 },
     { shards: 2, perShard: 5 },
-    { aiToolMaxPointsPerCall: 100, aiToolMaxRequestsPerCall: 100, aiToolMaxPointsPerHour: 1000, aiToolMaxRequestsPerHour: 1000 },
+    { aiToolMaxPointsPerCall: 100, aiToolMaxRequestsPerCall: 100 },
   )
-  check(refusal.indexOf('REST 请求额度不够了') >= 0 && /约 [0-9][0-9]:[0-9][0-9] 恢复/.test(refusal) && refusal.indexOf('还剩 12 条') >= 0,
+  check(refusal.indexOf('REST 请求') >= 0 && /约 [0-9][0-9]:[0-9][0-9] 恢复/.test(refusal) && refusal.indexOf('服务端还剩 12 条') >= 0,
     'E、闸拒绝文案点名缺的额度、恢复时刻与剩余量：' + refusal)
 }
 

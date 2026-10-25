@@ -27,6 +27,8 @@ const LIMITS = {
   pluginShareOfRemaining: 0.45,
   hourlyAllowance: function (n) { return n },
   writeReserve: function (allowance) { return Math.round(allowance * 0.35) },
+  // #1527：AI 工具的保底线按服务端上限的 5% 算。
+  aiToolFloor: function (limit) { return Math.floor(limit * 0.05) },
   tierFor: function () { return 'test-tier' },
 }
 const REF = { backend: 'gitlab', refId: 'group/proj', name: 'group/proj', url: 'https://gitlab.com/group/proj' }
@@ -204,7 +206,7 @@ async function main() {
     h.state.reading = { known: true, kind: 'requests-only', requests: { remaining: 0, limit: 600 } }
     const exhausted = await opened.session.comment(REF, '5', '这条不该发出去')
     check(exhausted && exhausted.ok === false && exhausted.error && exhausted.error.kind === 'rate-limit', '请求额度真见底时推迟（rate-limit）')
-    check(exhausted && exhausted.error && /请求额度已经用完/.test(exhausted.error.message), '推迟文案说清是请求额度用完')
+    check(exhausted && exhausted.error && /请求次数额度不够了/.test(exhausted.error.message), '推迟文案说清是请求额度不够（#1527 新口径：还剩多少、保底多少）')
     check(ledger.view('gitlab', 'requests').used === usedBefore, '被推迟的调用不记账（没发生的事不记）')
     const callsBeforeHard = glab.box.calls
     const readOnly = await opener.openTracker({ cwd: '/ws-test-1447' }, {

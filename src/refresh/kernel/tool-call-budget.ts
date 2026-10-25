@@ -74,7 +74,7 @@ export interface ToolCostEstimate {
   withinCallCap: boolean
   /** 超在哪一项：空串 = 没超；'points' / 'requests' / 'both' / 'unknown'。 */
   overCallCap: string
-  /** 加上本小时已用之后会不会超每小时硬顶。 */
+  /** 加上本小时已用之后会不会越过每小时提醒线（越过只提醒、不拒绝，#1527）。 */
   withinHourCap: boolean
   /** 建议分几片（不用分片时是 1）。片数由「一次最多建多少张子票」推出来，不是另写一个数。 */
   shards: number
@@ -143,12 +143,14 @@ export function estimateToolCost(input: ToolCostInput, limits: ToolCostLimits): 
     reads: reads,
     points: points,
     requests: requests,
-    withinCallCap: withinCallCap && withinHourCap,
-    overCallCap: withinCallCap ? (withinHourCap ? '' : 'hour') : overCallCap,
+    // #1527：withinCallCap 只回答「这一笔本身超没超单次硬顶」。每小时那条线已经降为提醒，
+    //   调用方不能再拿它当拒绝理由；越过提醒线的话由 text 说清楚，回执里另有 warnings。
+    withinCallCap: withinCallCap,
+    overCallCap: overCallCap,
     withinHourCap: withinHourCap,
     shards: shards,
     perShard: perShard,
-    text: estimateText(input.tool, points, requests, withinCallCap && withinHourCap, overCallCap, withinHourCap, shards, perShard, tickets),
+    text: estimateText(input.tool, points, requests, withinCallCap, overCallCap, withinHourCap, shards, perShard, tickets),
   }
 }
 
@@ -156,12 +158,14 @@ export function estimateToolCost(input: ToolCostInput, limits: ToolCostLimits): 
 function estimateText(tool: string, points: number, requests: number, ok: boolean, over: string, hourOk: boolean, shards: number, perShard: number, tickets: number): string {
   const head = '这次 ' + tool + ' 预计花 ' + points + ' 点、' + requests + ' 条出站请求'
   if (!ok) {
-    const which = over === 'points' ? '点数超了单次硬顶' : over === 'requests' ? '出站请求条数超了单次硬顶' : over === 'hour' ? '加上本小时已用，超了每小时硬顶' : '同时超了点数与请求数两条单次硬顶'
+    const which = over === 'points' ? '点数超了单次硬顶' : over === 'requests' ? '出站请求条数超了单次硬顶' : '同时超了点数与请求数两条单次硬顶'
     const tail = tickets > 0 ? '。建议分 ' + shards + ' 次调用，每片不超过 ' + perShard + ' 张票' : '。请把这一笔拆小之后再调'
     return head + '，' + which + tail + '。'
   }
   if (tickets > 0 && shards > 1) return head + '，在硬顶之内；不过这次要建 ' + tickets + ' 张票，建议分 ' + shards + ' 片、每片 ' + perShard + ' 张。'
-  if (!hourOk) return head + '，单次没超顶，但本小时 AI 工具已经快用满了（每小时硬顶见 deck_context 的返回值）。'
+  // #1527：每小时线降到警告之后，这里不再说「快用满了」这种像拒绝的话，而是把事实与后果说清：
+  //   这次照常执行，但这一小时的总量已经越过提醒线，接下来要省着点用。
+  if (!hourOk) return head + '，单次没超顶；但加上本小时已用，这一小时越过了 AI 工具的提醒线：这次照常执行，接下来请把大调用拆小。'
   return head + '，在硬顶之内。'
 }
 

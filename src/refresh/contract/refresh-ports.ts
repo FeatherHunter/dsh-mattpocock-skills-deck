@@ -7,7 +7,7 @@
  * 插口由核心定，跑腿的活全在外面。
  *
  * 这里明确不写的两样东西（免得后来人到处找）：
- * 1. 数字。探测几秒、每小时能花多少点、AI 工具那一档的两组硬顶——唯一真源是 host-budget.ts，
+ * 1. 数字。探测几秒、每小时能花多少点、AI 工具那一档的单次硬顶与每小时提醒线——唯一真源是 host-budget.ts，
  *    本文件一个数字都不抄，避免同一个额度写在两处。
  * 2. 裁决规则与原因代号表。什么情况下放行、什么时候降级、什么时候推迟，归 admission-policy.ts（后面的票）；
  *    这里只留 reason 这个字段，不抄一张取值表。
@@ -24,8 +24,8 @@
  * - 'user-action'：人在界面上亲手做的（点刷新、点开票、翻页、发评论、改标签、建票）。
  *   永远是放行——人的动作不该被算法拦住，红档也照做。
  * - 'ai-tool'：AI 通过我们提供的那批工具发起的调用。单列一档：不享受「永不降档」，
- *   也不按「后台超出即推迟」处理，而是有自己的单次与每小时硬顶（数字见 host-budget.ts），
- *   超顶直接拒绝并明说用了多少、顶在哪。
+ *   也不按「后台超出即推迟」处理；单次硬顶与「花完这一笔会跌破服务端剩余 5% 保底」会拒绝并明说
+ *   用了多少、顶在哪，而每小时顶只是回执里的一句提醒（#1527；数字见 host-budget.ts）。
  * - 'lifecycle'：生命周期动作，典型是「切进一个工作区」的那一次。额度够就放行；
  *   不够时降级为「只出缓存 + 只探测不重建」，界面照样毫秒级铺满。
  * - 'background'：后台的定时活（变化探测、检查链、命名守护）。额度不够就推迟，不该失败——
@@ -72,8 +72,8 @@ export interface VerdictResult {
  * 工具调用前的花费预估，同时也是「这一笔要不要分片」的建议。
  *
  * 批量工具（建地图、批量建票、批量建边）在真正动手之前先算一次，把这份结果写进返回：
- * 超顶就当场拒绝并说清用了多少，绝不先花后说。字段本身是数字与判断，怎么算归 tool-call-budget.ts，
- * 允许的上限与分片大小归 host-budget.ts。
+ * 超单次硬顶就当场拒绝并说清用了多少，绝不先花后说；越过每小时提醒线照常执行，把提醒写进返回（#1527）。
+ * 字段本身是数字与判断，怎么算归 tool-call-budget.ts，允许的上限与分片大小归 host-budget.ts。
  */
 export interface ToolCostEstimate {
   /** 预计花掉的 GraphQL 点数。 */
@@ -82,7 +82,7 @@ export interface ToolCostEstimate {
   requests: number
   /** 点数与请求数都在单次硬顶之内（上限见 host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_CALL 与 AI_TOOL_MAX_REQUESTS_PER_CALL）。 */
   callWithinCaps: boolean
-  /** 把这一笔算进本小时的累计之后，仍在每小时硬顶之内（上限见 host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR 与 AI_TOOL_MAX_REQUESTS_PER_HOUR）。 */
+  /** 把这一笔算进本小时的累计之后，仍在每小时提醒线之内（越过只提醒、不拒绝，#1527；上限见 host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR 与 AI_TOOL_MAX_REQUESTS_PER_HOUR）。 */
   hourWithinCaps: boolean
   /** 建议分成几次调用；不用分片时是 1（算法见 host-budget.ts 的 shardPlan）。 */
   shards: number

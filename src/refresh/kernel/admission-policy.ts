@@ -63,9 +63,9 @@ export interface PolicyLimits {
   aiToolMaxPointsPerCall: number
   /** AI 工具单次请求数硬顶（host-budget.ts 的 AI_TOOL_MAX_REQUESTS_PER_CALL）。 */
   aiToolMaxRequestsPerCall: number
-  /** AI 工具每小时点数硬顶（host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR）。 */
+  /** AI 工具每小时点数提醒线（host-budget.ts 的 AI_TOOL_MAX_POINTS_PER_HOUR）：越过只提醒、不拒绝（#1527）。 */
   aiToolMaxPointsPerHour: number
-  /** AI 工具每小时请求数硬顶（host-budget.ts 的 AI_TOOL_MAX_REQUESTS_PER_HOUR）。 */
+  /** AI 工具每小时请求数提醒线（host-budget.ts 的 AI_TOOL_MAX_REQUESTS_PER_HOUR）：口径同上（#1527）。 */
   aiToolMaxRequestsPerHour: number
   /** 失败退避序列（host-budget.ts 的 CHAIN_BACKOFF_MS；有进展就回到第一档）。 */
   failureBackoffMs: readonly number[]
@@ -86,6 +86,24 @@ export interface QuotaView {
   remaining: number
   /** 这里留给「写」的保底额度：读用不掉它，读要花到它头上就得让路。 */
   reserve: number
+  /**
+   * AI 工具的保底线（点数或条数）：这一笔花下去如果剩余会掉到它以下就拒绝。
+   *
+   * 由闸按服务端上限与 host-budget.ts 的 aiToolFloor(limit) 算好传进来；不传时退回 reserve
+   *（旧的 30% 写保底），保证还没接这一格的老调用方行为不变。它只给 AI 工具用，
+   * decide() 里读让路那一条看的仍是 reserve（#1527）。
+   */
+  floor?: number
+  /** 这一桶的服务端上限（保底按它算，不是按插件份额算）。 */
+  limit?: number
+  /** 这一桶是按点数还是按条数计价：graphql 是点，rest 与 requests 是条。AI 工具按它对成本。 */
+  bucket?: string
+  /**
+   * 这是不是一份真读数。false 表示闸根本没拿到读数（剩 1 点只是放行占位），
+   * 这时不能拿「剩余 − 这一笔」去比保底，否则会把「不知道」误判成「见底」。
+   * 不传时按「已知」处理，保持还没接这一格的老调用方行为不变。
+   */
+  known?: boolean
 }
 
 /** 工作区当前的状态。三样都不是「程度」，而是三种不同的信号。 */
@@ -152,7 +170,10 @@ export const REASONS: Readonly<Record<string, string>> = {
   'lifecycle-cache-only': '切进工作区那一次：额度不够，降级为只出缓存加只探测不重建',
   'ai-tool-within-caps': 'AI 工具调用：单次与每小时的硬顶都还够',
   'ai-tool-over-call-cap': 'AI 工具调用超了单次硬顶：拒绝，并说明用了多少、顶在哪',
+  // #1527 起每小时顶降为提醒，现在会出现的是下面的 ai-tool-over-hour-soft；这一条不再产生，
+  // 留着只为让历史日志仍读得懂（代号是稳定接口，只许加，不删也不改字面）。
   'ai-tool-over-hour-cap': 'AI 工具这一小时超了硬顶：拒绝，并说明用了多少、顶在哪',
+  'ai-tool-over-hour-soft': 'AI 工具这一小时越过了提醒线：照常放行，回执里说明用了多少、提醒线在哪',
   'ai-tool-below-remaining': '剩余额度已到保底线：先拒 AI 工具，绝不挤掉插件刷新与人的动作',
 }
 
@@ -300,10 +321,12 @@ export interface AiToolAdmission {
   /** 这一笔要花多少点、多少条真实出站请求（拒绝时也要如实说）。 */
   points: number
   requests: number
+  /** 放行了但有话要说（例如这一小时越过提醒线）：调用方要把这些句子带进回执给人看。 */
+  warnings: string[]
 }
 
 /**
- * AI 工具那一档的准入：单次硬顶 + 每小时硬顶 + 剩余额度保底线，三样都过才放行。
+ * AI 工具那一档的准入：单次硬顶与剩余额度保底线是「拒绝」，每小时顶是「提醒」，三样算完才给结论。
  *
  * 为什么不把它并进 decide()：AI 工具超顶的结论是「拒绝」，而 refresh-ports.ts 里那三种结论
  * 都不是失败（放行 / 降级 / 推迟）。拒绝是第四种东西，所以它单独一条路：闸先问准入，
@@ -314,15 +337,53 @@ export function aiToolAdmission(call: AiToolCall, hour: HourSpend, quota: QuotaV
   const requests = call.requests
   const base = { points: points, requests: requests }
   if (!(points <= limits.aiToolMaxPointsPerCall) || !(requests <= limits.aiToolMaxRequestsPerCall)) {
-    return { admitted: false, reason: 'ai-tool-over-call-cap', ...base }
+    return { admitted: false, reason: 'ai-tool-over-call-cap', warnings: [], ...base }
   }
+  // #1527：每小时这条线从「拒绝」降为「提醒」。人定了规矩——只要服务端还有余量就允许用，
+  //   每小时顶只是插件自己的自律线；越过它说明这一小时用量很大，把话写进回执让人看见即可。
+  //   提醒不能代替下面两道判定：单次硬顶已经在上面判过，剩余保底这里照样要判——
+  //   「这一小时用得多」与「这一笔会挤掉刷新与人的动作」是两件事，后者必须拦。
+  const warnings: string[] = []
   if (!(hour.points + points <= limits.aiToolMaxPointsPerHour) || !(hour.requests + requests <= limits.aiToolMaxRequestsPerHour)) {
-    return { admitted: false, reason: 'ai-tool-over-hour-cap', ...base }
+    warnings.push(overHourNotice(hour.points + points, hour.requests + requests, quota, limits))
   }
-  if (quota.remaining <= quota.reserve) {
-    return { admitted: false, reason: 'ai-tool-below-remaining', ...base }
+  const capsReason: ReasonCode = warnings.length > 0 ? 'ai-tool-over-hour-soft' : 'ai-tool-within-caps'
+  // 读数未知：不知道就不能拦（未知不是 0）。占位的「剩 1 点」不能拿去减成本，否则 1 − 7 < 0
+  //   会被算成见底；#1435 就是因为把没读数当成耗尽，本地无额度的后端被永久推迟。
+  if (quota.known === false) return { admitted: true, reason: capsReason, warnings: warnings, ...base }
+  // #1527：剩下的钱够不够「花完这一笔之后仍高于保底线」。保底线按服务端上限的 5% 算；
+  //   成本按这一桶的计价单位算（GraphQL 数点、REST 与请求桶数条），不是两样都扣。
+  const floor = typeof quota.floor === 'number' ? quota.floor : quota.reserve
+  const cost = quota.bucket === 'graphql' ? points : requests
+  if (quota.remaining - cost <= floor) {
+    return { admitted: false, reason: 'ai-tool-below-remaining', warnings: warnings, ...base }
   }
-  return { admitted: true, reason: 'ai-tool-within-caps', ...base }
+  return { admitted: true, reason: capsReason, warnings: warnings, ...base }
+}
+
+/**
+ * 越过每小时提醒线时写进回执的那句话：已用多少、提醒线在哪、服务端这一桶还剩多少。
+ *
+ * 为什么必须带服务端剩余：提醒线只是插件给自己的自律线。人看到「越线了」之后要判断还能不能
+ * 继续用，唯一有意义的数是「服务端还剩多少」；只报已用与提醒线，人分不清「快见底」和「还宽裕」。
+ * 读数未知时如实说「暂时说不出还剩多少」，不拿占位的 1 点冒充读数（#1435 的坑）。
+ */
+function overHourNotice(points: number, requests: number, quota: QuotaView, limits: PolicyLimits): string {
+  const used = '这一小时 AI 工具已用到 ' + points + ' 点、' + requests + ' 条'
+  const line = '越过了插件给自己设的提醒线（每小时 ' + limits.aiToolMaxPointsPerHour + ' 点 / '
+    + limits.aiToolMaxRequestsPerHour + ' 条）：这次照常放行'
+  let rest = ''
+  if (quota.known === false) {
+    rest = '；额度读数还没同步上来，暂时说不出服务端还剩多少'
+  } else {
+    const unit = quota.bucket === 'graphql' ? '点' : '条'
+    rest = '；服务端这一桶还剩 ' + quota.remaining + ' ' + unit
+    if (typeof quota.limit === 'number' && quota.limit > 0) {
+      const floor = typeof quota.floor === 'number' ? quota.floor : quota.reserve
+      rest += '（上限 ' + quota.limit + '，保底 ' + floor + '）'
+    }
+  }
+  return used + '，' + line + rest + '。接下来请把大调用拆小。'
 }
 
 // ---------- 八、退避与节拍（调用方按这两个函数安排下一次） ----------

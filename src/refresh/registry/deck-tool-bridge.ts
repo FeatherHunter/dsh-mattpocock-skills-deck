@@ -38,7 +38,7 @@ import type { AccountInput, BackendBudgetModel, BudgetReading } from '../../trac
 type UnknownRecord = Record<string, unknown>;
 
 /** 账本一桶的视图（#1446 定稿形状；这里只声明桥用到的几格，避免把账本类型带进登记层）。 */
-interface LedgerView { allowance?: number; remaining?: number | null; reserve?: number; resetAt?: number; synced?: boolean }
+interface LedgerView { allowance?: number; remaining?: number | null; reserve?: number; resetAt?: number; synced?: boolean; serverLimit?: number; serverRemaining?: number | null }
 /** 桥要用到的账本两口：按后端取一桶，以及总览（没有可显式指认的后端时，用它认唯一的那个）。 */
 interface LedgerLike {
   view?: (backendId: string, bucket: string) => LedgerView
@@ -73,6 +73,8 @@ export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: (bac
     hourlyAllowance: budget.hourlyAllowance,
     writeReserve: budget.writeReserve,
     tierFor: budget.tierFor,
+    // #1527：AI 工具这一档的保底按服务端上限的 5% 算（不是插件份额的 30% 写保底）。
+    aiToolFloor: budget.aiToolFloor,
   };
 
   /**
@@ -123,6 +125,18 @@ export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: (bac
     } catch { return null; }
   };
 
+  /**
+   * 一族读数的形状（#1527）：数字取服务端真实读数，不取插件份额。
+   *   - limit 用服务端上限（5000 点/条）算保底；读数缺上限才退回账本份额（旧缓存夹具）。
+   *   - remaining 用「服务端剩余 − 本插件自同步以来花掉的」，花完这一笔还剩多少由它推。
+   * 只改 AI 工具这条路；后台刷新仍读账本份额（policyQuotaOf），两边各自按自己的口径自律。
+   */
+  const levelOf = function (v: LedgerView) {
+    const serverLimit = numOf(v.serverLimit)
+    const serverRemaining = (typeof v.serverRemaining === 'number' && isFinite(v.serverRemaining)) ? v.serverRemaining : numOf(v.remaining)
+    return { remaining: serverRemaining, limit: serverLimit > 0 ? serverLimit : numOf(v.allowance), resetAt: numOf(v.resetAt) };
+  };
+
   const getCachedReading = function (backendId?: unknown): unknown {
     if (!ledger || typeof ledger.view !== 'function') return { known: false, reason: 'not-measured' };
     const id = backendIdOf(backendId);
@@ -137,17 +151,11 @@ export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: (bac
     const wantRequests = model ? model.kind === 'requests-only' : !!(requests && requests.synced === true);
     if (wantRequests) {
       if (!requests || requests.synced !== true) return { known: false, reason: 'not-measured' };
-      return { known: true, kind: 'requests-only', requests: { remaining: numOf(requests.remaining), limit: numOf(requests.allowance), resetAt: numOf(requests.resetAt) } };
+      return { known: true, kind: 'requests-only', requests: levelOf(requests) };
     }
     // 两桶要两个桶都同步过才给读数：只同步了一桶时报未知，不拿另一桶的 0 冒充。
     if (!rest || !graphql || rest.synced !== true || graphql.synced !== true) return { known: false, reason: 'not-measured' };
-    return {
-      known: true, kind: 'two-buckets',
-      buckets: {
-        rest: { remaining: numOf(rest.remaining), limit: numOf(rest.allowance), resetAt: numOf(rest.resetAt) },
-        graphql: { remaining: numOf(graphql.remaining), limit: numOf(graphql.allowance), resetAt: numOf(graphql.resetAt) },
-      },
-    };
+    return { known: true, kind: 'two-buckets', buckets: { rest: levelOf(rest), graphql: levelOf(graphql) } };
   };
 
   const admit = async function (input: unknown): Promise<unknown> {
@@ -158,6 +166,9 @@ export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: (bac
       budget: (rec.budget || { kind: 'unknown', countsRequests: false, countsPoints: false, independentBuckets: false }) as BackendBudgetModel,
       reading: (rec.reading || { known: false, reason: 'not-measured' }) as BudgetReading,
       canWrite: rec.canWrite !== false,
+      // #1527：把这一笔的预计花费交给裁决，「花完还剩多少」才判得准。
+      points: numOf(rec.points),
+      requests: numOf(rec.requests),
     }, limits);
     return decision;
   };

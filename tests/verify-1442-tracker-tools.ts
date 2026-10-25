@@ -6,7 +6,7 @@
 // 本文件经 planGates 目录约定自动进链，不用在 gate-map 登记。
 //
 // 票 1457 在这扇门禁上补两条端到端断言（原来只断了单次硬顶与离网账本，没断这两处）：
-//   · 本小时两档硬顶已经用满时，会话调用与九个工具调用都被挡，且闸的理由代号能分出是「每小时」还是「单次」；
+//   · 本小时越过提醒线时照常放行、回执带 warnings，单次硬顶仍被拒（#1527 把每小时顶降为警告）；
 //   · 额度读数未知（known:false, reason:'unavailable'）时九个工具照样成功，回执四条事实写 readKnown:false、
 //     不带 remaining / tier，成本说明写明「读数还没同步上来」。
 import * as fs from 'fs';
@@ -162,7 +162,9 @@ async function main() {
         graphql: { limit: buckets.graphql.limit, remaining: buckets.graphql.remaining, reset: clock + 3600000 },
       }, clock);
     }
-    const gate = gateMod.createGate({ ledger, now: () => clock });
+    // 闸与生产一样要能问出「这个后端按什么口径花钱」：不注入 budgetModelOf 时闸一律按「未知」算，
+    // 读数就永远进不了 AI 工具那一档的保底判定（#1527 的提醒里也就说不出服务端还剩多少）。
+    const gate = gateMod.createGate({ ledger, now: () => clock, budgetModelOf: () => ({ kind: readingKind }) });
     const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 });
     registry.register(markdownModule);
     for (const m of extraModules) registry.register(m);
@@ -286,32 +288,32 @@ async function main() {
     check(!threw && !!r && r.status === 'ok', '判定出口缺席的反例由 tests/verify-deck-tools.ts 覆盖，这里只确认正常路（实得 ' + (threw || (r && r.status)) + '）');
   }
 
-  // ── 五、本小时两档硬顶用满：会话与九个工具都被挡，档位可辨认（#1457） ──
+  // ── 五、越过每小时提醒线：照常放行，回执里带一句提醒（#1457 原断拒绝，#1527 起降为警告） ──
   {
     const w = await buildWorld('gh-stub-1442', DUAL_SYNCED, [ghStubModule]);
-    // 造「本小时已经用满」的账本：点数顶到每小时 2000 点。只填点数、请求数留 0，
-    // 让选后端前那支「0 点 / 1 条」的探针照常通过，真正拦人的是随后按这次用量做的裁决。
+    // 造「本小时已经用满 2000 点」的账本。只填点数、请求数留 0，让后面「0 点 / 1 条」的探针照常通过；
+    // 真正要断的是：越过提醒线时闸仍放行，并把「用了多少、线在哪」放进 warnings。
     w.ledger.spend({ account: 'ai-tool', backendId: 'gh-stub-1442', bucket: 'graphql', requests: 0, points: 2000 });
     const hourCap = w.gate.admitAiTool({ points: 1, requests: 0 }, { backendId: 'gh-stub-1442', bucket: 'graphql' });
-    check(!!hourCap && hourCap.admitted === false && hourCap.reason === 'ai-tool-over-hour-cap',
-      '本小时用满后闸按每小时档拒绝（理由代号点名每小时）→ ' + JSON.stringify(hourCap && { admitted: hourCap.admitted, reason: hourCap.reason }));
+    check(!!hourCap && hourCap.admitted === true && hourCap.reason === 'ai-tool-over-hour-soft'
+      && Array.isArray(hourCap.warnings) && hourCap.warnings.length === 1
+      && String(hourCap.warnings[0]).indexOf('2000 点') >= 0 && String(hourCap.warnings[0]).indexOf('1500 条') >= 0
+      // #1527：提醒要带服务端这一桶还剩多少（这里的读数来自 DUAL_SYNCED 那份桩）。
+      && String(hourCap.warnings[0]).indexOf('服务端这一桶还剩') >= 0,
+      '越过每小时提醒线时照常放行，warnings 说清提醒线在哪、服务端还剩多少（实得 ' + JSON.stringify(hourCap && { admitted: hourCap.admitted, reason: hourCap.reason, warnings: hourCap.warnings }) + '）');
     const callCap = w.gate.admitAiTool({ points: 601, requests: 0 }, { backendId: 'gh-stub-1442', bucket: 'graphql' });
     check(!!callCap && callCap.admitted === false && callCap.reason === 'ai-tool-over-call-cap',
-      '单次超量仍报单次档（两档不会混成同一句话）→ ' + JSON.stringify(callCap && { admitted: callCap.admitted, reason: callCap.reason }));
-    // 会话级：直接开一次会话。估算那一侧按「这一笔没超」给，避免先被预估拦住——这里要断的是闸。
+      '单次超量仍被拒，且报的是单次档（单次硬顶没有被降成警告）→ ' + JSON.stringify(callCap && { admitted: callCap.admitted, reason: callCap.reason }));
+    // 会话级：本小时已越线，但会话照开，提醒挂在 admit.warnings 上（回执把这一段带出去）。
     const opened = await trackerSessionMod.openDeckSession({
       deps: w.deps, exec: {},
       session: { cwd: ws.rootPosix, workspaceKey: '' },
       estimate: { points: 4, requests: 3, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' },
       tool: 'deck_issue_list', kind: 'read',
     });
-    check(opened.ok === false && opened.reason === 'ai-tool-refused',
-      '会话级：本小时用满后不放行（实得 ' + JSON.stringify({ ok: opened.ok, reason: opened.reason }) + '）');
-    check(!opened.ok && String(opened.text || '').indexOf('本小时 AI 工具已用 2000 点') >= 0
-      && String(opened.text || '').indexOf('每小时 2000 点 / 1500 条') >= 0,
-      '会话级拒绝文案点名本小时已用多少、每小时硬顶是多少（实得 ' + JSON.stringify(!opened.ok && opened.text) + '）');
-    // 九工具级：同一笔下，九个工具一个也放不出去，而且都不花额度。
-    const before = w.hour() as { requests: number; points: number };
+    check(opened.ok === true && Array.isArray(opened.admit && opened.admit.warnings) && opened.admit.warnings.length === 1,
+      '会话级：越过提醒线照常放行，admit.warnings 带着提醒（实得 ' + JSON.stringify({ ok: opened.ok, warnings: opened.admit && opened.admit.warnings }) + '）');
+    // 九工具级：同一笔下九个工具都放行；至少读那只的回执里能看见 cost.warnings。
     const calls: Array<[string, unknown]> = [
       ['deck_context', {}],
       ['deck_issue_get', { key: '01' }],
@@ -325,12 +327,16 @@ async function main() {
     ];
     for (const [name, args] of calls) {
       const { r, threw } = await w.run(name, args);
-      check(!threw && !!r && r.status === 'unsupported' && r.reason === 'ai-tool-refused' && String(r.text || '').indexOf('硬顶') >= 0,
-        name + ' 本小时用满后被挡在会话之外（实得 ' + (threw ? threw : JSON.stringify({ status: r && r.status, reason: r && r.reason })) + '）');
+      check(!threw && !!r && r.status === 'ok',
+        name + ' 越过提醒线后照常成功（实得 ' + (threw ? threw : JSON.stringify({ status: r && r.status, reason: r && r.reason })) + '）');
+      if (name === 'deck_issue_list') {
+        check(!!r && !!r.cost && Array.isArray(r.cost.warnings) && r.cost.warnings.length === 1 && String(r.cost.warnings[0]).indexOf('提醒线') >= 0,
+          '读票回执的 cost.warnings 带着那句提醒（实得 ' + JSON.stringify(r && r.cost && r.cost.warnings) + '）');
+        // #1527 票面第 5 条点名 cost.note：人先读 note，提醒也要写进那一格。
+        check(!!r && !!r.cost && typeof r.cost.note === 'string' && r.cost.note.indexOf('提醒线') >= 0,
+          '读票回执的 cost.note 也写着那句提醒（实得 ' + JSON.stringify(r && r.cost && r.cost.note) + '）');
+      }
     }
-    const after = w.hour() as { requests: number; points: number };
-    check(after.requests === before.requests && after.points === before.points,
-      '被挡的九次调用没花额度（账本本小时前后一致：' + JSON.stringify({ before, after }) + '）');
   }
 
   // ── 六、额度读数未知：九个工具照样成功，回执如实写「还没同步上来」（#1457） ──

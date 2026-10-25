@@ -128,7 +128,7 @@ export const MAX_ACTIVE_WORKSPACES = 2
  */
 export const MAX_PAGES = 10
 
-// ---------- 五、AI 工具那一档的硬顶 ----------
+// ---------- 五、AI 工具那一档的硬顶与提醒线 ----------
 
 /** 一次 AI 工具调用最多花多少点：600。 */
 export const AI_TOOL_MAX_POINTS_PER_CALL = 600
@@ -136,10 +136,15 @@ export const AI_TOOL_MAX_POINTS_PER_CALL = 600
 /** 一次 AI 工具调用最多发出多少条出站请求：400。 */
 export const AI_TOOL_MAX_REQUESTS_PER_CALL = 400
 
-/** AI 工具每小时最多花多少点：2000。 */
+/**
+ * AI 工具每小时的提醒线（点数）：2000。
+ *
+ * 越过它只提醒、不拒绝（#1527）：真正该拦的是单次硬顶（防一次调用失控）与服务端剩余保底
+ * （防挤掉刷新与人的动作）。这一条是插件给自己的自律线，人看到提醒后自己决定要不要收手。
+ */
 export const AI_TOOL_MAX_POINTS_PER_HOUR = 2_000
 
-/** AI 工具每小时最多发出多少条出站请求：1500。 */
+/** AI 工具每小时的提醒线（请求条数）：1500。口径同上面那条点数提醒线（#1527）。 */
 export const AI_TOOL_MAX_REQUESTS_PER_HOUR = 1_500
 
 /** 一次工具调用最多建多少张子票：60。要建更多就先分片，不许一笔下去建几百张。 */
@@ -147,6 +152,15 @@ export const AI_TOOL_MAX_CHILD_TICKETS_PER_CALL = 60
 
 /** 分片之后每一片最多建多少张：一片就是一次调用，所以它等于上面那个上限。 */
 export const AI_TOOL_SHARD_SIZE = AI_TOOL_MAX_CHILD_TICKETS_PER_CALL
+
+/**
+ * AI 工具那一档的保底比例：5%。
+ *
+ * 这是「最后一点余额」：AI 工具要把这一笔记在账上之后，剩余额度仍高于保底线才放行；
+ * 低于保底线就拒绝，并说清缺多少、什么时候恢复。它只约束 AI 工具，不约束插件自己的后台
+ * 刷新与人在界面上的动作 —— 那两类按各自的档位走，不看这一格（#1527）。
+ */
+export const AI_TOOL_FLOOR_SHARE = 0.05
 
 // ---------- 六、算式 ----------
 
@@ -173,10 +187,59 @@ export function writeReserve(allowancePoints: number): number {
 }
 
 /**
+ * AI 工具的保底线（点数或条数）：服务端上限的 5%，向下取整；上限 5000 时是 250。
+ *
+ * 为什么按服务端上限算、不按插件 35% 份额算：这一格回答的是「GitHub 那边还剩多少」，
+ * 不是「插件账本这一小时给自己留了多少」。按份额算会把「服务端还剩 3669 点」误判成见底（#1527）。
+ * 取整改往下取：宁可早一点拒绝，也不要放行一笔之后发现已经踩到线下。
+ */
+export function aiToolFloor(limit: number): number {
+  const n = (typeof limit === 'number' && isFinite(limit)) ? limit : 0
+  return Math.max(0, Math.floor(n * AI_TOOL_FLOOR_SHARE))
+}
+
+/**
  * 用掉了多少：已用 ÷ 可用额度。
  * 额度是 0（或读不到额度）时返回 1，也就是「按用满处理」——那种情况下档位必然是红，
  * 这正是想要的兜底方向：读不到就少花，不是多花。
  */
+
+/**
+ * 账本一桶的视图里，AI 工具准入要的那几格（#1527）。只声明用到的那几格，
+ * 避免把账本放在宿主层的类型带进 kernel（账本与闸靠形状对接，不互相 import）。
+ */
+export interface ServerQuotaView {
+  /** 插件账本这一小时给自己分的额度（旧口径的兜底，读数缺上限时才用）。 */
+  allowance: number
+  used: number
+  /** 账本保守下界；没读数时是 null。 */
+  remaining: number | null
+  reserve: number
+  /** 服务端读数里的上限（5000 点 / 5000 条）。 */
+  serverLimit?: number
+  /** 服务端读数扣掉本插件已花之后还剩多少；没读数时是 null。 */
+  serverRemaining?: number | null
+}
+
+/**
+ * 把账本视图折成 AI 工具准入用的那一份（#1527）：回答「GitHub 那边还剩多少」，不回答「插件份额还剩多少」。
+ *
+ * 为什么不复用 policyQuotaOf 那一份：后台刷新按插件 35% 份额自律是对的，AI 工具这一档如果也用份额，
+ * 就会出现「服务端还剩 3669 点、账本只剩 204 点，于是人被自己的账本拦下」（#1527 的原始现场）。
+ * 未知读数时给一份放行的占位（remaining 1、保底 0），与原来「不知道就放行」方向一致。
+ * 这里的数字一律取整到整数：remaining 已由账本算好，floor 由 aiToolFloor 向下取整，不再二次加工。
+ */
+export function aiToolQuotaOf(view: ServerQuotaView, readKnown: boolean, hasQuota: boolean, bucket: string): {
+  allowance: number; used: number; remaining: number; reserve: number; floor: number; limit: number; bucket: string; known: boolean
+} {
+  // 未知读数给的是「放行占位」，不是真的还剩 1 点：known:false 让准入闸跳过「花完这一笔还剩多少」
+  // 那一步（1 减成本永远是负数，拿它去比保底会把「不知道」误判成「见底」，这正是 #1435 的坑）。
+  if (!readKnown || !hasQuota || view.remaining == null) return { allowance: 0, used: 0, remaining: 1, reserve: 0, floor: 0, limit: 0, bucket: bucket, known: false }
+  const limit = (typeof view.serverLimit === 'number' && isFinite(view.serverLimit) && view.serverLimit > 0) ? view.serverLimit : view.allowance
+  const serverSide = (typeof view.serverRemaining === 'number' && isFinite(view.serverRemaining)) ? view.serverRemaining : view.remaining
+  return { allowance: view.allowance, used: view.used, remaining: serverSide, reserve: view.reserve, floor: aiToolFloor(limit), limit: limit, bucket: bucket, known: true }
+}
+
 export function usedRatio(usedPoints: number, allowancePoints: number): number {
   if (!(allowancePoints > 0)) return 1
   return usedPoints / allowancePoints
@@ -207,13 +270,9 @@ export function aiToolCallWithinCaps(points: number, requests: number): boolean 
   return points <= AI_TOOL_MAX_POINTS_PER_CALL && requests <= AI_TOOL_MAX_REQUESTS_PER_CALL
 }
 
-/**
- * 加上这一笔之后，这一小时是不是还在 AI 工具的每小时硬顶之内。
- * 调用方传的是「本小时已用 + 这一笔」的累计值，不是这一笔本身。
- */
-export function aiToolHourWithinCaps(points: number, requests: number): boolean {
-  return points <= AI_TOOL_MAX_POINTS_PER_HOUR && requests <= AI_TOOL_MAX_REQUESTS_PER_HOUR
-}
+// 这里原来有一个 aiToolHourWithinCaps，随 #1527 一起删了：每小时顶从「拒绝」降成「提醒」之后，
+// 它没有任何调用方（判定在 admission-policy.ts 里按提醒写、不再作为拒绝依据），
+// 留着会让人以为还有一道每小时硬顶在拦。要恢复硬顶行为，改 admission-policy 的那段判定，不要只恢复这个函数。
 
 // ---------- 七、单价与同步节拍（#706 第二批补全） ----------
 
