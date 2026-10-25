@@ -132,12 +132,14 @@ declare function closeFormModal(...args: any[]): any;
             startRepoSync(st)
             runRepoSyncRecheck(st)
           } else {
-            const code: string = (res && res.errorKind) ? String(res.errorKind).toLowerCase() : 'network'
+            // #999：拿不到档位就留空，不再借 'network' 顶上——客户端不猜档位（ADR 20261014 第 7 条）。
+            const code: string = (res && res.errorKind) ? String(res.errorKind).toLowerCase() : ''
             m.fail = { kind: 'half-created', code: code, text: resolveFailText(st, 'half-created', code, String((res && res.error) || '')), link: repoUrl || null, repo: repo, halfCreated: true }
           }
         } catch (e) {
           m.pending = false
-          const code: string = (e && ((e as any).code || (e as any).errorKind)) ? String((e as any).code || (e as any).kind || (e as any).errorKind).toLowerCase() : 'network'
+          // #999：同上：异常里也没带档位就留空，别把「不知道」写成「网络」。
+          const code: string = (e && ((e as any).code || (e as any).errorKind)) ? String((e as any).code || (e as any).kind || (e as any).errorKind).toLowerCase() : ''
           m.fail = { kind: 'half-created', code: code, text: resolveFailText(st, 'half-created', code, String((e && (e as any).message) || e)), link: repoUrl || null, repo: repo, halfCreated: true }
         }
         try { if (typeof emit === 'function') emit(st) } catch(_){}

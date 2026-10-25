@@ -48,7 +48,7 @@ const READ_CALL_FILES = [
  */
 const TAG_SPEC: Record<string, { branches: string[]; opsWithNoNeed?: number; whyNoNeed?: string }> = {
   preflight: {
-    branches: ['auth', 'repo-view', 'api'],
+    branches: ['auth', 'auth-crosscheck', 'repo-view', 'api'],
     whyNoNeed: '第一项门禁失败时连进程都不起（没有仓库标识可探），所以失败那一路日志里没有它自己的行；第三项门禁（能连上接口）这一笔 via 写 preflight.api，于是「走到第三项、这一项过没过」在日志里直接读得出来。',
   },
   list: { branches: ['gql', 'rest', 'pr'] },

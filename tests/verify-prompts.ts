@@ -1508,6 +1508,7 @@ const contractChecksInner = function (reg, src) {
   // #1269：12 条会话收尾类提示词各加一条 /retro 提醒，版本底线跟着抬高（名单与断言见下面 fixate 之后的 #1269 块）
   // #1407：20 个注入模板各加一行 suggest_next_steps 提醒、删掉 /retro 提醒行，版本底线整体抬高；
   //   原来没有旧底线的 newSpec / healthCheck / specComplete / specExecute / specSplit 五条也一并登记进来。
+  // #1461：newBugWayfinder v14 → v15（删查历史、加查重与查重记录两节），版本底线跟着抬到 15。
   const V_MIN = {
     // #1281：map 子票统一入口（讨论/研究/原型/执行）与完成、修复、接手三条模板重写，版本底线同步抬高；
     //   写规格入口与规格三态、实施票是新增条目，不设旧底线。
@@ -1515,7 +1516,7 @@ const contractChecksInner = function (reg, src) {
     // #1212 恢复：诊断 v14→v16、接手 v6→v7，补回 #1281 删掉的调查节、诊断边界与收尾两条，版本底线同步抬高。
     mapExecute: 20, complete: 16, fixate: 11, 'tpl.diagnose': 19, 'tpl.fix': 17, 'tpl.discuss': 19,
     'tpl.research': 13, 'tpl.prototype': 13, 'tpl.takeover': 10, 'tpl.supplement': 7, 'tpl.execute': 19, mapInspect: 12, newWayfinder: 23,
-    newBugWayfinder: 14, newSpec: 4, healthCheck: 5, specComplete: 6, specExecute: 5, specSplit: 5,
+    newBugWayfinder: 15, newSpec: 4, healthCheck: 5, specComplete: 6, specExecute: 5, specSplit: 5,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -2302,10 +2303,14 @@ const selfDigest = function () {
 //   本文件内容变了，自摘要跟着重算。
 // #1514：Markdown 房间删掉 wayfinderMapBuild 提示词（「执行 wayfinder 构造地图」按钮不再成立），
 //   受保护清单与 markdown 两处计数跟着改，自摘要按新内容重算（豁免登记表与 payload 夹具没动）。
+// #1461：newBugWayfinder v14 → v15 —— 删「## 查历史」，插「## 查重」「## 查重记录」两节
+//   （两次全扫参数、最多 3 张候选交报告人确认、四类出口、查重记录四行与建单前置条件），中英文对应；
+//   版本底线 14 → 15（规格 #1460 写 12→13，但基线已是 v14，只许升不许降）。
+//   config/prompts/ticket-creation.yaml 与 tests/verify-bug-entry.ts 都改了；本文件只动版本底线与自摘要。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '008bef691e9bcc72fb6e4a436326140152729c70e7b231b3b868ca47cefb9114',
+  'tests/verify-prompts.ts': 'b19916b38ef09eb2443fa78beec286d85e19a31fc568775e5916fcb89c0dc696',
 }
 // ---- LOCK-END ----
 

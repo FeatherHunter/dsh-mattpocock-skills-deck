@@ -7,6 +7,13 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+# 同一分支只留最新的一条排队：main 上推送很密，verify 一轮要跑三个系统，
+# 没有这一条时旧运行会一直堆在队列里，越堆越久（#1186 的直接原因之一）。
+# PR 用 refs/pull/<编号>/merge 作分组键，互不打断。
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     name: verify (${{ matrix.os }})

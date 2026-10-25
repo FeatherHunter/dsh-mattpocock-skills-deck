@@ -6,7 +6,8 @@
  * 定版依据：#138 §1.5 + 契约 preflight 签名 + #129 平台三底座
  * - 签名：(handle: RepoHandle, ctx: OpContext) => Promise<PreflightResult>
  *   handle: {cwd?, refId?}；ctx: BackendContext（含 platform/exec/timers/fs/log）+ cwd/signal/refId
- * - 三项检查顺序：1) gh 可执行 → env；2) 登录态 → auth；3) 仓库可达 → not-found/auth/network/rate-limit
+ * - 三项检查顺序：1) gh 可执行 → env；2) 登录态 → auth（auth status 判成 auth 时再用 gh api user 核对一次，
+ *   免得把「连不上」认成「没登录」）；3) 仓库可达 → not-found/auth/network/rate-limit
  * - 不检查：labels/subIssue/depGraph 等能力；不返回 capabilities 布尔表（旧 BackendStatus 已删）
  * - 错误归一全经 ghVerdictOf（判档表在 src/tracker/kernel/error-rules.ts）
  */
@@ -16,6 +17,7 @@ import type { OpContext, RepoHandle } from '../../contract/contexts.js';
 import type { PreflightResult } from '../../contract/results.js';
 import { rawText } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
+import type { GhExecResult } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { emitPreflightGatePass, emitReadDegraded } from './read-log.js'
 
@@ -39,6 +41,26 @@ function repoFromRefId(refId: string | null): { owner: string; name: string } | 
   const idx = refId.indexOf('/')
   if (idx <= 0) return null
   return { owner: refId.slice(0, idx), name: refId.slice(idx + 1) }
+}
+
+/**
+ * #916：拿一次 `gh api user` 核对「到底是不是真的没登录」。
+ *
+ * 只在 `gh auth status` 判成 auth 时才调。为什么非核对不可：auth status 会先读本地 hosts.yml、再拿令牌
+ * 去问接口，连不上时它把「问不到」写成「令牌无效」—— 2026-10-25 在本机把 HTTPS_PROXY 指到一个没人听的
+ * 端口，它照样打印「Failed to log in … the token … is invalid … To re-authenticate, run: gh auth refresh」，
+ * 与凭据真失效时一字不差，原文里一个网络字样都没有（样本见门禁 tests/verify-916-ghauth-crosscheck.ts）。
+ * 只看这些字样，网络抖动就会被判成「确定没登录」，界面随之弹出登录指引、要人重走一遍浏览器授权。
+ *
+ * `gh api user` 必须真的走到接口：成功即登录可用；失败时原文要么是连接错误、要么是 401 / 退出码 4，
+ * 前者归网络档、后者归 auth 档，两种情形就此分开。
+ *
+ * 这里只负责发那一笔并原样交回，不自己判档：判档出口只有 ghVerdictOf 一处（client 层归一），
+ * 调用方拿着同一份结果决定第 2 关过不过。execGh 抛出来的异常也不在这里吞 —— 调用方的 catch 会按
+ * 同一套判档表归一。
+ */
+async function crosscheckGhAuth(c: ReturnType<typeof ghClient>, cwd: string | undefined): Promise<GhExecResult> {
+  return c.execGh(['api', 'user'], { cwd, via: 'preflight.auth-crosscheck' })
 }
 
 // #195 曾经在这里挂着一整段「怎么装 gh」的长文（按系统分平台列命令），交给界面直接注入。
@@ -93,10 +115,22 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
     const c = ghClient(opCtx)
     const r = await c.execGh(['auth', 'status'], { cwd, via: 'preflight.auth' })
     if (!r.ok) {
-      // 非 0 就把 client 层归一好的那一份失败原样交出去：档位、话术与原文都在里面，
-      // 这里不再自己判第二遍（原来那三个分支最后返回的都是同一份 r.error）。
-      emitReadDegraded(opCtx, 'preflight', 'preflight:auth', Date.now() - t1)
-      return { ok: false, error: r.error }
+      // 非 0 先别急着交出去：判成 auth 的那一路可能是「连不上」冒充的（见 crosscheckGhAuth 上面的说明）。
+      // 再拿 gh api user 核对一次，核对成功就说明登录可用，第 2 关照过；核对失败则交出核对那一份 ——
+      // 它若仍是 auth（401 / 退出码 4）就是真的没登录，若是网络/超时等档位，链上会判「暂时确认不了」。
+      // 只在 auth 档核对：网络/超时本来就直接判 pending，离线时不该再多白等一个读档超时。
+      let error = r.error
+      let confirmedUsable = false
+      if (r.error.kind === ERROR_KIND.AUTH) {
+        const verified = await crosscheckGhAuth(c, cwd)
+        confirmedUsable = verified.ok
+        if (!verified.ok) error = verified.error
+      }
+      if (!confirmedUsable) {
+        emitReadDegraded(opCtx, 'preflight', 'preflight:auth', Date.now() - t1)
+        return { ok: false, error }
+      }
+      // 核对通过：auth status 那一笔只是网络带来的假象，登录态按已确认处理，继续第 3 关。
     }
   } catch (e) {
     const verdict = ghVerdictOf(e, opCtx)

@@ -7,6 +7,8 @@
 //   常驻 #26 host.call 增补 reason（deck.quotaSync 同步失败、或 #1355 缺本会话工作路线表补拉时带原因码）、
 //   按需 #76 refresh.decide 与 #77 refresh.skipped 在失败窗口里增补五个归因键（连续几次、窗口起点、最近一次类别与种类）。
 //   事件总数仍 119，字段键数增加；字段含义见下面各行的中文注释与附录 1.4/1.5 对照表。
+// 2026-10-25（#1008 落地）：既有 failureStreak 含义不改，另开一格 failureTrail 记「攒到门槛的最多前三笔」
+//   （每条「类别:种类」、按发生顺序用 > 连接、成功归零时清空、第 4 笔起不追加）；事件总数仍 124，字段键加一。
 // 2026-10-24（#1444 收口，1445 起写会话也共用）：新增按需 #130 read.session（刷新后台开会话开不成的结局名一行；
 //   成功不记，避免每趟刷新刷噪音）。字段说明见下面 read.session 一行与附录 1.5。
 // 2026-10-21（#1101 排查）再给 #5 gh.exec 与 #6 gh.timeout 补归因格，并新增常驻 #125 gh.lane.wait
@@ -331,11 +333,14 @@ const ALLOWED = {
   // 2026-10-21（#1008/#1218 复核）按需 #76 refresh.decide 与 #77 refresh.skipped 在「这个工作区还处在
   //   连续失败窗口里」时增补五个归因键，窗口外一个都不带（正常时段的这两行与从前一字不差）：
   //   failuresSinceSuccess 连续失败几次、backoffWindowStartedAt 这串从什么时候开始、lastFailureCategory 最近一次
-  //   是哪一类、lastFailureKind 最近一次是什么种类、failureStreak 连续第几次。
+  //   是哪一类、lastFailureKind 最近一次是什么种类、failureStreak 最近一笔失败是连续第几次（数字）。
   //   为什么要有：从前只记「推迟了」与推迟原因，回答不了「这 3 次是谁攒的」——同一窗口里可能既有登录失败又有网络失败。
-  //   五个值都来自闸自己的记忆（src/refresh/rooms/host/refresh-gate.ts 的 WorkspaceState），不查账本、不联网。
-  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak'],
-  'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak'],
+  //   2026-10-25（#1008 落地）再增补第六格 failureTrail：把这串里攒到门槛的最多前三笔记下来，每条「类别:种类」，
+  //   按发生顺序用 > 连接（旧到新），成功归零时清空，第 4 笔起不追加（可能是半开探针失败，也可能是窗口里放行的
+  //   读额度 / 人的动作失败）。既有五格含义不改——日志纪律要求事件名与字段含义稳定，改含义要发新事件。
+  //   六格都来自闸自己的记忆（src/refresh/rooms/host/refresh-gate.ts 的 WorkspaceState），不查账本、不联网。
+  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak', 'failureTrail'],
+  'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak', 'failureTrail'],
   // 2026-09-23 #708（T4 第三批）新增一条按需事件（附录 1.5 节 #82）：一次行级增量跑完之后的结论 ——
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
   //   真发出去几条薄查询、水印推没推、待办里现在几条。只记短散列、枚举与数字，不记路径与命令原文。

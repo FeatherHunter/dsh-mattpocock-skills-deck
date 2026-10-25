@@ -22,6 +22,9 @@ import { sourcePath, spliceableJs } from './lib/source-text.ts'
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+// #1518：容器身份（探索地图 / 规格 / 普通票）的判据真源住在 kernel/container-view.ts。本门禁按模块单独加载视图叶子，
+//   构建闭包里才有的名字这里也要补真身 —— 不另抄一份判定，否则门禁会跟着实现一起漂。
+const realContainerKindOf = (await import('../src/client/kernel/container-view.js')).containerKindOf
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // 门禁要从生成物里拿导出（例如界面词表 L_PAGES）时用它：按仓库相对路径动态导入，与别的门禁同一写法。
@@ -57,7 +60,7 @@ const tableLeaf = (function () {
 function loadCap(deps) {
   const src = spliceableJs(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
   const factory = compileFn(
-    ['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'pushNav', 'findMapByIdentity', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableOf', 'emit'],
+    ['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'pushNav', 'findMapByIdentity', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableOf', 'emit', 'containerKindOf'],
     src + '\nreturn { sessionChainCapsuleOf, SessionChainCapsule }')
   const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
   const React = deps.React || {
@@ -81,7 +84,8 @@ function loadCap(deps) {
     deps.workRouteActionKeyOf || tableLeaf.workRouteActionKeyOf,
     deps.workRouteTableClock || tableLeaf.workRouteTableClock,
     deps.workRouteTableOf || tableLeaf.workRouteTableOf,
-    deps.emit || function () {})
+    deps.emit || function () {},
+    deps.containerKindOf === null ? null : (deps.containerKindOf || realContainerKindOf))
 }
 
 // 拼一份在办表的新形状：读数只带票号/动作/时刻/会话归属，标题由胶囊按快照补。
@@ -233,27 +237,37 @@ console.log('D) 同一份读数：胶囊与面板在办表读同一格')
   check(cap.state === 'ok' && cap.list.length === tview.rows.length && cap.entry.ticketKey === tview.rows[0].ticketKey, '胶囊挑的那一条就是表里第一行，条数一致')
   check(tableLeaf.WORK_ROUTE_TABLE_FIELD === 'workRouteTable', '两处认的是同一个字段名')
 }
-console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#780）')
+console.log('E) 容器那一条（地图与规格）：认身份换图标，文字通道仍留号（#780 / #1518）')
 {
   // 【已删除】原先这里读 LEAF 的源码文本断言地图图标，断言对象是源码文本的写法，撤掉；
   //   版面是不是地图图标由下面真渲染的图标与号徽章读数守。
-  // 就近表认身份只看归一过的 type='map'（#780，不读标签；旧叶子同口径，#1271 原样搬运）：
-  //   地图本票不在就近表里（旧叶子只收 issues / 图内票 / 瘦身行），这里地图身份走 issues 里 type='map' 的行。
+  // 容器身份统一问 kernel/container-view.ts 的 containerKindOf（#1518 起本文件只调用，不再自己比 type）：
+  //   探索地图（type='map'）与规格（type='spec'）都算容器；普通票不是容器。
   const st = { snapshot: {
     issues: [
       { key: '40', number: 40, title: '某地图', state: 'open', type: 'map' },
       { key: '780', number: 780, title: '普通票', state: 'open', type: 'issue' },
+      { key: '1460', number: 1460, title: '规格容器', state: 'open', type: 'spec' },
+    ],
+    // 真实的规格容器与探索地图一样坐在 snapshot.maps 里：点开去向不能只看「找不找得到地图对象」。
+    maps: [
+      { key: '40', number: 40, tickets: [] },
+      { key: '1460', number: 1460, tickets: [] },
     ],
     workRouteTable: tableFor([
       entryOf('40', { title: '', actionAt: new Date(Date.now() - 3600000).toISOString() }),
       entryOf('780', { title: '', actionAt: new Date(Date.now() - 7200000).toISOString() }),
+      entryOf('1460', { title: '', actionAt: new Date(Date.now() - 10800000).toISOString() }),
     ]),
   } }
   const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
   const icons = []
+  const nav: any[] = []
   const built = loadCap({
     React: { createElement: h, useContext: function () { return { h: h } }, useRef: function (v) { return { current: v } }, useState: function () { return [null, function () {}] } },
     Ic: function (props) { icons.push(props && props.n); return { t: 'Ic', p: props || {}, c: [] } },
+    pushNav: function (_st: any, kind: any, num: any) { nav.push({ kind: kind, num: num }) },
+    findMapByIdentity: function (list: any, n: any) { let hit: any = null; (Array.isArray(list) ? list : []).forEach(function (m: any) { if (!hit && m && String(m.key) === String(n)) hit = m }); return hit },
   })
   const shut = built.SessionChainCapsule({ st: st, sid: 's1' })
   const flat = []
@@ -288,11 +302,12 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
       ;(n.c || []).forEach(walkRows)
     }
   })(open)
-  check(rowNodes.length === 2, '单子里两行都在')
+  check(rowNodes.length === 3, '单子里三行都在（地图 / 普通票 / 规格容器）')
   const rowOf = function (key) { return rowNodes.filter(function (r) { return String(r.p['aria-label'] || '').indexOf('#' + key) >= 0 })[0] || null }
   const mapRow = rowOf('40')
   const plainRow = rowOf('780')
-  check(!!mapRow && !!plainRow, '单子里认得出哪一行是地图、哪一行是普通票')
+  const specRow = rowOf('1460')
+  check(!!mapRow && !!plainRow && !!specRow, '单子里认得出哪一行是地图、哪一行是普通票、哪一行是规格容器')
   const pillOf = function (row) {
     let hit = null
     ;(function find(n) {
@@ -326,10 +341,96 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
   }
   const mapPill = mapRow ? pillOf(mapRow) : null
   const plainPill = plainRow ? pillOf(plainRow) : null
+  const specPill = specRow ? pillOf(specRow) : null
   check(!!mapPill && hasIcon(mapPill, 'map') && textsIn(mapPill).indexOf('40') >= 0, '单子里地图那行的号徽章是「地图图标 + 裸号」')
   check(!!plainPill && textsIn(plainPill).indexOf('#780') >= 0, '单子里普通票那行的号徽章仍是 #780')
+  check(!!specPill && hasIcon(specPill, 'map') && textsIn(specPill).indexOf('1460') >= 0, '#1518 单子里规格容器那行的号徽章也是「地图图标 + 裸号」')
   check(!!mapRow && String(mapRow.p['aria-label']).indexOf('#40') >= 0 && String(mapRow.p['aria-label']).indexOf('type.map') >= 0, '地图那行的无障碍名里仍是 #40 且带上类型词')
   check(!!plainRow && String(plainRow.p['aria-label']).indexOf('type.map') < 0, '普通票那行不冒充地图')
+  check(!!specRow && String(specRow.p['aria-label']).indexOf('#1460') >= 0 && String(specRow.p['aria-label']).indexOf('type.spec') >= 0, '#1518 规格容器那行的无障碍名里仍是 #1460 且带上「规格」类型词')
+  check(!!specRow && String(specRow.p['aria-label']).indexOf('type.map') < 0, '#1518 规格容器那行不冒充探索地图（类型词不是「地图」）')
+  // #1518 交付说明点名的风险：画成容器之后点开去向不能错位。规格即使和地图一样躺在 snapshot.maps 里，
+  //   也仍落票详情那条路（严格只认 'map' 才压地图栈）；探索地图与普通票两条老路各自不动。
+  const clickRow = function (row: any) { row.p.onClick({ stopPropagation: function () {} }) }
+  nav.length = 0
+  clickRow(specRow)
+  check(nav.length === 1 && nav[0].kind === 'issue' && nav[0].num === 1460, '#1518 点开规格行仍落票详情（snapshot.maps 里有同号地图对象也不误压地图栈；实得 ' + JSON.stringify(nav) + '）')
+  nav.length = 0
+  clickRow(mapRow)
+  check(nav.length === 1 && nav[0].kind === 'map' && nav[0].num === 40, '#1518 点开探索地图行仍进地图详情页（实得 ' + JSON.stringify(nav) + '）')
+  nav.length = 0
+  clickRow(plainRow)
+  check(nav.length === 1 && nav[0].kind === 'issue' && nav[0].num === 780, '#1518 点开普通票行仍落票详情（实得 ' + JSON.stringify(nav) + '）')
+  // #1518：同一票号出现在两个工作目录时，行上的种类与标题按（工作单元，票号）认，不再撞成别目录那张票。
+  const twinSt: any = { snapshot: {
+    issues: [
+      { key: '5', number: 5, title: 'A 目录的规格', state: 'open', type: 'spec', effortId: 'dirA' },
+      { key: '5', number: 5, title: 'B 目录的普通票', state: 'open', type: 'issue', effortId: 'dirB' },
+    ],
+    workRouteTable: tableFor([
+      entryOf('5', { title: '', effortId: 'dirB', actionAt: new Date(Date.now() - 3600000).toISOString() }),
+      entryOf('5', { title: '', effortId: 'dirA', actionAt: new Date(Date.now() - 7200000).toISOString() }),
+    ]),
+  } }
+  const twin = loadCap({}).sessionChainCapsuleOf(twinSt, 's1')
+  const twinOf = function (eff: string) { return (twin.list || []).filter(function (r: any) { return r.effortId === eff })[0] || null }
+  const twinB = twinOf('dirB')
+  const twinA = twinOf('dirA')
+  check(!!twinB && twinB.containerKind === '' && twinB.ticketTitle === 'B 目录的普通票', '#1518 同号两目录：B 目录那行认得自己的普通票身份（实得 ' + JSON.stringify({ kind: twinB && twinB.containerKind, title: twinB && twinB.ticketTitle }) + '）')
+  check(!!twinA && twinA.containerKind === 'spec' && twinA.ticketTitle === 'A 目录的规格', '#1518 同号两目录：A 目录那行认得自己的规格身份（实得 ' + JSON.stringify({ kind: twinA && twinA.containerKind, title: twinA && twinA.ticketTitle }) + '）')
+  // #1518：判据里每一行都带着容器种类（空串 / 'map' / 'spec'），版面与文字通道都读它，不再各处自己比 type。
+  const kinds = loadCap({}).sessionChainCapsuleOf(st, 's1')
+  const kindOfKey = function (key) { const hit = (kinds.list || []).filter(function (r) { return r.ticketKey === key })[0]; return hit ? hit.containerKind : '?' }
+  check(!!kinds.entry && kinds.entry.containerKind === 'map', '#1518 判据：地图那一条带着容器种类 map（实得 ' + JSON.stringify(kinds.entry && kinds.entry.containerKind) + '）')
+  check(kindOfKey('1460') === 'spec' && kindOfKey('780') === '', '#1518 判据：规格容器带 spec、普通票带空串（实得 ' + JSON.stringify(kindOfKey('1460')) + ' / ' + JSON.stringify(kindOfKey('780')) + '）')
+  // #1518：规格容器进主胶囊时同样换图标、文字通道补「规格」类型词（与悬停单子那条读的是同一个判据）。
+  const specOnly: any = { snapshot: {
+    issues: [{ key: '1460', number: 1460, title: '规格容器', state: 'open', type: 'spec' }],
+    workRouteTable: tableFor([entryOf('1460', { title: '' })]),
+  } }
+  const specIcons: any[] = []
+  const builtSpec = loadCap({ Ic: function (props) { specIcons.push(props && props.n); return { t: 'Ic', p: props || {}, c: [] } } })
+  const specShut = builtSpec.SessionChainCapsule({ st: specOnly, sid: 's1' })
+  const specFlat: any[] = []
+  ;(function walk2(n) {
+    if (n === null || n === undefined) return
+    if (typeof n === 'string') { specFlat.push(n); return }
+    if (Array.isArray(n)) { n.forEach(walk2); return }
+    if (typeof n === 'object') { (n.c || []).forEach(walk2) }
+  })(specShut)
+  let specAria = ''
+  ;(function findAria(n) {
+    if (!n || specAria) return
+    if (Array.isArray(n)) { n.forEach(findAria); return }
+    if (typeof n !== 'object') return
+    if (n.p && typeof n.p['aria-label'] === 'string' && n.p['aria-label'].indexOf('chainView.capsuleDoing') >= 0) { specAria = n.p['aria-label']; return }
+    ;(n.c || []).forEach(findAria)
+  })(specShut)
+  check(specFlat.indexOf('1460') >= 0 && specFlat.indexOf('#1460') < 0, '#1518 主胶囊里规格容器是裸号 1460（# 已换成地图图标）')
+  check(specIcons.indexOf('map') >= 0, '#1518 主胶囊里规格容器那一条也画地图图标（与地图同形）')
+  check(specAria.indexOf('#1460') >= 0 && specAria.indexOf('type.spec') >= 0, '#1518 主胶囊的无障碍名里仍是 #1460 且带上「规格」类型词（实得 ' + JSON.stringify(specAria) + '）')
+  // #1518：门禁按模块单独加载本文件时，内核 containerKindOf 不在作用域里（构建闭包里才带进来）。
+  //   守卫要退回同一口径的退化判定 —— 规格仍按容器画，而不是整条胶囊抛错或退化成普通票。
+  const fbIcons: any[] = []
+  const fbBuilt = loadCap({ containerKindOf: null, Ic: function (props: any) { fbIcons.push(props && props.n); return { t: 'Ic', p: props || {}, c: [] } } })
+  const fbShut = fbBuilt.SessionChainCapsule({ st: specOnly, sid: 's1' })
+  const fbFlat: any[] = []
+  ;(function walkFb(n: any) {
+    if (n === null || n === undefined) return
+    if (typeof n === 'string') { fbFlat.push(n); return }
+    if (Array.isArray(n)) { n.forEach(walkFb); return }
+    if (typeof n === 'object') { (n.c || []).forEach(walkFb) }
+  })(fbShut)
+  let fbAria = ''
+  ;(function findFb(n: any) {
+    if (!n || fbAria) return
+    if (Array.isArray(n)) { n.forEach(findFb); return }
+    if (typeof n !== 'object') return
+    if (n.p && typeof n.p['aria-label'] === 'string' && n.p['aria-label'].indexOf('chainView.capsuleDoing') >= 0) { fbAria = n.p['aria-label']; return }
+    ;(n.c || []).forEach(findFb)
+  })(fbShut)
+  check(fbFlat.indexOf('1460') >= 0 && fbFlat.indexOf('#1460') < 0, '#1518 内核不在时规格仍按容器画（退化判定回 spec，版面上是裸号 1460）')
+  check(fbIcons.indexOf('map') >= 0 && fbAria.indexOf('type.spec') >= 0, '#1518 内核不在时规格仍画地图图标、文字通道仍带「规格」类型词（退化判定与内核同口径）')
 }
 
 console.log('F) #1404 表头单行：左右两簇、四段词条、两枚分隔线与尺寸契约')
