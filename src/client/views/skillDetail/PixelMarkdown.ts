@@ -3,8 +3,12 @@
  * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
  * 拼回 src/client/index.ts 的 `// ==== leaf:pixelMarkdown (spliced by build) ====` 标记处。
  * 用法：PixelMarkdown({md, lang, st, onSkill, skillNames})；pixelDocHeadings(md) 纯函数抽标题给目录用。
- * onSkill 与 skillNames 都给了的时候，正文里写到的**随包真有的技能名**（`/grill-with-docs` 或 `grilling`）
- * 才做成可点的入口，点了压一层新的详情（2026-10-10 人拍板）；没给或名字对不上就原样当代码画。
+ * onSkill 与 skillNames 都给了的时候，正文里写到的**随包真有的技能名**才做成可点的入口，点了压一层新的
+ * 详情（2026-10-10 人拍板）。认两种写法：反引号写的 `/grill-with-docs` 或 `grilling`，以及直双引号写的
+ * "grilling"（#1520）；双引号写法只把引号里的名字做成入口，引号本身原样留在正文里。双引号这一种只认同一行内、
+ * 引号里文字 1~64 字、整个名字对上的写法（真实技能名最长十几个字符，64 字上限只为挡住一整段话被误当成名字）；
+ * 不在名单里、跨行、超长的引号文字都原样当普通文字画。
+ * 没给技能名单与 onSkill、或名字对不上时就都原样当文字画。
  * 白名单与 views/shared/md.js 对齐（标题/分割线/引用/列表/任务列表/代码块/加粗/斜体/
  * 行内代码/删除线/链接/图片），只有两处不同：①列表支持缩进嵌套（生产渲染器会拍平，
  * 详情页要忠于原文，见 887 票面记录）；②画出来的全是 pixel- 类，由 pxSkillStyles 着色，
@@ -53,14 +57,32 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     st.pixelImgOverlay = { src: src, alt: String(alt || '').slice(0, 200) }
     try { if (typeof emit === 'function') emit(st) } catch (e) { /* 画布外自测时没有 emit */ }
   }
+  // 正文里写到的技能名做成可点入口的那颗棋子：反引号写法与双引号写法（#1520）共用这一份，
+  // 保证两种写法点下去是同一件事（压一层新详情），同屏定位名也还用同一个 sd.md.skill. 前缀。
+  const skillEntry = function (ref: string, label: string): any {
+    skillN += 1
+    return h('code', {
+      key: key(),
+      className: 'pixel-skillref',
+      role: 'button',
+      tabIndex: 0,
+      // 接线（#1335 界面反馈）：正文里写到的技能名是一个能点的入口（role=button），
+      // 按下要有按压反馈；定位名只带编号，日志里能认出点的是第几个技能引用。
+      'data-press': 'button',
+      'data-log': 'sd.md.skill.' + skillN,
+      onClick: function () { try { (p.onSkill as (n: string) => void)(ref) } catch (e) { /* 忽略 */ } },
+    }, label)
+  }
   // ---- 行内解析（2026-10-10 按 27 篇真实原文的组合重做）----
   // 盘点自 package/bundled-skills 的 27 篇 SKILL.md，真实出现的组合有：
   //   **`code`** 42 处（粗体里包代码）、**a *b* c** 14 处（粗体里再套斜体）、
   //   **a _b_ c** 25 处（粗体里套下划线强调）、[`code`](url) 3 处（链接标签本身是代码）、
   //   **[label](url)** 1 处（粗体包链接）；另有上百处代码跨度里带 *（glob 之类），
   //   那些星号必须原样，绝不能被当成强调标记。
-  // 次序：①代码跨度抽成原子（里面字符不再参与解析）；②反斜杠转义出原样字符；③图片；
-  // ④链接（标签递归，共用同一张原子表）；⑤剩下文字上递归解析强调；⑥原子填回（填回要下探到新建节点的子节点里，否则占位符会露在界面上）。
+  // 次序：①代码跨度抽成原子（里面字符不再参与解析）；②反斜杠转义出原样字符；
+  // ③图片；④链接（标签递归，共用同一张原子表）；
+  // ⑤双引号里写出来的技能名做成入口（#1520，引号本身原样留着；放在图片与链接之后，免得图片 alt/title 与链接地址里的引号文字被改写）；
+  // ⑥剩下文字上递归解析强调；⑦原子填回（填回要下探到新建节点的子节点里，否则占位符会露在界面上）。
   // 强调收口的两条细节：** 与 __ 要成对整串；单个 * 只认"孤立的星"收口，
   // 这样 *a **b** c* 反向嵌套也能正确（否则会被切成三段各自的斜体）。
   // 下划线守词边界：_x_ 认，snake_case 不认。
@@ -142,20 +164,7 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     // ① 代码跨度：原子，最高优先级
     rest = rest.replace(/`([^`]+)`/g, function (all: string, code: string) {
       const ref = skillRefOf(code)
-      if (ref) {
-        skillN += 1
-        return mark(h('code', {
-          key: key(),
-          className: 'pixel-skillref',
-          role: 'button',
-          tabIndex: 0,
-          // 接线（#1335 界面反馈）：正文里写到的技能名是一个能点的入口（role=button），
-          // 按下要有按压反馈；定位名只带编号，日志里能认出点的是第几个技能引用。
-          'data-press': 'button',
-          'data-log': 'sd.md.skill.' + skillN,
-          onClick: function () { try { (p.onSkill as (n: string) => void)(ref) } catch (e) { /* 忽略 */ } },
-        }, code))
-      }
+      if (ref) return mark(skillEntry(ref, code))
       return mark(h('code', { key: key() }, code))
     })
     // ② 反斜杠转义：\* 这类写法要出原样的字符，且不得再参与强调与链接解析（原文里 0 处，属边角，
@@ -191,6 +200,19 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
         'data-press': 'link',
         'data-log': 'sd.md.link.' + linkN,
       }, pxInlineWith(label, true, atoms)))
+    })
+    // ⑤ 双引号写出来的技能名（#1520）：随包正文里有技能名是用直双引号写的（例如 "grilling"），
+    //   引号本身原样留在正文里，只把「整个名字正好是某个随包技能名」的那段引号内容做成与反引号写法相同的入口。
+    //   判断标准就一条：引号里的文字去掉首尾空白、去掉开头可选的 / 之后，整个名字必须出现在本次渲染拿到的技能名单里；
+    //   "the interface is the test surface" 这类普通引号文字、以及 "grill" 这种只是长得像技能名的文字都原样保留。
+    //   两条可观察的边界：引号必须落在同一行内（正文里没有跨行引用的写法），引号里的文字最多 64 字
+    //   （真实技能名最长十几个字符，这个上限只为挡住「一整段话恰好以引号开头结尾」被误当成名字，不是内容规则）。
+    //   (?<!\\) 挡住前面带反斜杠的引号：反斜杠转义该由第②步处理，而 " 不在第②步的转义字符集里，这里必须自己排掉。
+    //   放在图片与链接之后：图片的 alt 与 title、链接地址里若碰巧有引号文字，此时已经被整段换成原子，不会再被当成技能名。
+    rest = rest.replace(/(?<!\\)"([^"\n]{1,64})"/g, function (all: string, inner: string) {
+      const ref = skillRefOf(inner)
+      if (!ref) return all
+      return '"' + mark(skillEntry(ref, inner)) + '"'
     })
     return expand(emphasisOf(rest))
   }

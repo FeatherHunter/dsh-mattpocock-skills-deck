@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T14:26:20.303Z",
+  "generatedAt": "2026-10-25T15:19:54.669Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 382,
   "gateCount": 382,
@@ -8151,6 +8151,7 @@
       "step": "node tests/verify-skill-detail-stack.ts",
       "file": "tests/verify-skill-detail-stack.ts",
       "guards": [
+        "package/bundled-skills",
         "src/client/views/pixel/PixelBanner.ts",
         "src/client/views/pixel/PixelBtn.ts",
         "src/client/views/pixel/PixelSeal.ts",
@@ -8167,6 +8168,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "package/bundled-skills",
         "src/client/views/pixel",
         "src/client/views/skillDetail",
         "src/shared/time-config/src",
@@ -8176,7 +8178,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-snapshot-cache-first.ts",
@@ -9056,7 +9058,8 @@
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-bundled-discovery.ts",
       "node tests/verify-bundled-skills-upstream.ts",
-      "node tests/verify-bundled-skills.ts"
+      "node tests/verify-bundled-skills.ts",
+      "node tests/verify-skill-detail-stack.ts"
     ],
     "package/bundled-skills/ask-matt": [
       "node tests/verify-1412-ask-matt-next-steps.ts"
