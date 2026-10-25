@@ -187,28 +187,44 @@ export const GITLAB_CATALOG: readonly CatalogItem[] = Object.freeze([
   },
 ])
 
-/** Markdown 后端检查目录（仅 markdown 适用）。 */
-// 2026-08-29 修正（research 实锤）：md:scratchWritable 原用 FILE_EXISTS 只判「存在」、从不测「可写」,
-//   标签与检测条件不符；改为 DIR_WRITABLE（写探测原语，谓词只读纪律的唯一例外——验证性写、写完清理）。
+/** Markdown 后端检查目录（仅 markdown 适用）。
+ *
+ * #1513 起固定三项、顺序固定（workspace → scratchWritable → containersReadable）：
+ *   1. md:workspace —— 有工作单元或空工作区算通过，.scratch 读不出来算失败；
+ *   2. md:scratchWritable —— .scratch 可写（或没有 .scratch 但仓库根可写）算通过；沙箱拦写探测算 pending；
+ *   3. md:containersReadable —— 没有容器文件，或容器都读得动且版本 md-v1 算通过。
+ * 三项都是后端谓词：判据本体在 src/tracker/rooms/markdown/workspace-checks.ts，房间 preflight 与宿主检查链
+ *   共用同一份实现（票面硬条件：不许各写一套）。md:parseOk 已拆掉，不再有「只找 map.md」这一项。
+ * 历史：2026-08-29 曾把 md:scratchWritable 从「只判存在」改成写探测；写探测行为保留，只是位置从 primitive
+ *   搬到了房间的共用判据里（沙箱拦截的判定口径不变）。
+ */
 export const MARKDOWN_CATALOG: readonly CatalogItem[] = Object.freeze([
+  {
+    id: 'md:workspace',
+    label: '本地工作区可读取',
+    scope: 'backend',
+    backends: ['markdown'],
+    check: { kind: 'backend', id: 'workspace', backendId: 'markdown' },
+    origin: 'backends/markdown/preflight.js / research 2026-08-29 / #1513',
+  },
   {
     id: 'md:scratchWritable',
     label: '本地数据目录可读写',
     scope: 'backend',
     backends: ['markdown'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.DIR_WRITABLE, path: '.scratch' },
+    check: { kind: 'backend', id: 'scratchWritable', backendId: 'markdown' },
     origin: 'backends/markdown/preflight.js / inventory 类别 8 / research 2026-08-29',
-    // #1483：这一项量的是「当前会话能不能往 .scratch 写」——同一工作区的只读会话与可写会话答案不同，
-    //   所以链快照缓存命中时要按当前会话重算，不能沿用别的会话量出的结论。
+    // #1483：这一项量的是「当前会话能不能往写」——同一工作区的只读会话与可写会话答案不同，
+    //   所以链快照缓存命中时要按当前会话重算，不能沿用别的会话量出的结论（#1513 改成后端谓词后仍保留）。
     sessionScoped: true,
   },
   {
-    id: 'md:parseOk',
-    label: '本地关卡地图可读取',
+    id: 'md:containersReadable',
+    label: '本地地图与规格可读取',
     scope: 'backend',
     backends: ['markdown'],
-    check: { kind: 'backend', id: 'parseOk', backendId: 'markdown' },
-    origin: 'backends/markdown/parse.js',
+    check: { kind: 'backend', id: 'containersReadable', backendId: 'markdown' },
+    origin: 'backends/markdown/parse.js / #1488 容器发现 / #1513',
   },
 ])
 
@@ -251,7 +267,7 @@ export function catalogFor(backendId: 'github' | 'markdown' | 'gitlab' | null | 
 }
 
 /**
- * 14 项必迁映射（inventory 类别 8 → 本目录 id），供下游 227-231 直接消费。
+ * 必迁映射（inventory 类别 8 → 本目录 id），供下游 227-231 直接消费。
  */
 export const MIGRATION_MAP = Object.freeze({
   'skill:wayfinder': 'GENERIC_CATALOG[0]',
@@ -266,8 +282,9 @@ export const MIGRATION_MAP = Object.freeze({
   'glab:installed': 'GITLAB_CATALOG[0]',
   'glab:authed': 'GITLAB_CATALOG[1]',
   'glab:repoAccess': 'GITLAB_CATALOG[2]',
-  'md:scratchWritable': 'MARKDOWN_CATALOG[0]',
-  'md:parseOk': 'MARKDOWN_CATALOG[1]',
+  'md:workspace': 'MARKDOWN_CATALOG[0]',
+  'md:scratchWritable': 'MARKDOWN_CATALOG[1]',
+  'md:containersReadable': 'MARKDOWN_CATALOG[2]',
 })
 
 export const CATALOG_VERSION = 1

@@ -73,7 +73,7 @@ async function makeChain(opts?: any) {
     runGh: async () => ({ ok: false, kind: 'network', error: 'net' }),
     timer: { timeout: (ms) => new Promise((r) => setTimeout(r, ms)) },
     probeSkill: async () => ({ ok: false, level: 'bad', detail: 'x', hint: '', repo: null }),
-    mdParseOkPredicate: async () => ({ status: 'pending', detail: 'x' }),
+    mdPredicate: async () => ({ status: 'pending', detail: 'x' }),
     getChainCache: table.getChainCache,
     setChainCache: table.setChainCache,
     getChainBackoff: async () => ({

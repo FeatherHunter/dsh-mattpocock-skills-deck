@@ -10,7 +10,8 @@
  *   D2 writeText 抛错 → fail（目录不可写）
  *   D3 目标不存在（fs 无该目录）→ fail
  *   D4 fs 无 writeText 能力 → 回退存在性判定，pass 时 detail 如实注明「未验证可写」
- *   D5 声明层：catalogFor('markdown').md:scratchWritable 的 check 已切换为 dirWritable
+ *   D5 声明层：catalogFor('markdown').md:scratchWritable 是 markdown 后端的 backend 谓词；
+ *      判据行为（.scratch 在就探 .scratch、不在就探仓库根，绝不创建 .scratch）由共用判据自己保证（#1513）
  *   D6 契约层 validateCheckItem 对 dirWritable 形状校验通过（非空 path）
  *
  * 运行：node tests/verify-dirwritable.ts（已接入 npm run verify）
@@ -34,7 +35,7 @@ async function main() {
 
   const runProbe = async (platform, cwd, lang) => {
     const reg = createPredicateRegistry({ timeout: 2000 })
-    const chain = [{ id: 'md:scratchWritable', check: { kind: 'primitive', primitive: 'dirWritable', path: '.scratch' } }]
+    const chain = [{ id: 'md:scratchWritable', check: { kind: 'primitive', primitive: PRIMITIVE_KIND.DIR_WRITABLE, path: '.scratch' } }]
     const resolved = await reg.resolveAll(chain, { platform, backendId: 'markdown', cwd: cwd || '/ws', ...(lang ? { lang } : {}) })
     return resolved['md:scratchWritable']
   }
@@ -114,14 +115,55 @@ async function main() {
     check(r2.status === 'fail', 'D4 无写能力+不存在 → fail（不误报可写）', r2.detail)
   }
 
-  // D5：声明层切换（markdown 目录项已用 dirWritable）
+  // D5：声明层 —— #1513 起这一行不再是 primitive：写探测搬进 markdown 房间的共用判据，
+  // 检查链与房间预检用同一份实现；catalog 只留「这是哪个后端、哪个判据」的接线。
   {
     const item = catalogFor('markdown').find((c) => c.id === 'md:scratchWritable')
     check(!!item, 'D5 markdown 目录含 md:scratchWritable')
-    check(item && item.check && item.check.primitive === PRIMITIVE_KIND.DIR_WRITABLE, 'D5 md:scratchWritable 已切换为 dirWritable 原语', JSON.stringify(item && item.check))
-    check(item && item.check && item.check.path === '.scratch', 'D5 探测目标为 .scratch')
+    check(item && item.check && item.check.kind === 'backend' && item.check.id === 'scratchWritable' && item.check.backendId === 'markdown',
+      'D5 md:scratchWritable 已是 markdown 后端的 backend 谓词（与房间预检共用一套判据）', JSON.stringify(item && item.check))
+    check(item && item.sessionScoped === true, 'D5 仍是会话相关行（#1483 的按会话重算路径不变）')
     const gh = catalogFor('github').find((c) => c.id === 'md:scratchWritable')
     check(!gh, 'D5 github 目录不含 md:scratchWritable（后端物理隔离）')
+  }
+
+  // D5b：判据行为 —— 有 .scratch 就只在 .scratch 里写探针；没有 .scratch 就探仓库根，
+  // 两条路都不许「顺手创建 .scratch」（#1483 的既有行为，换成 backend 谓词后必须原样保留）。
+  {
+    const { checkScratchWritable } = await import('../src/tracker/rooms/markdown/workspace-checks.js')
+
+    const mkPlatform = ({ scratchExists }) => {
+      const written = []
+      const cleaned = []
+      const platform = {
+        path: { join: (...a) => a.join('/') },
+        env: { get: () => undefined, has: () => false },
+        fs: {
+          resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
+          lstat: async (p) => (p === '/ws/.scratch' ? (scratchExists ? { isDirectory: () => true } : null) : null),
+          readText: async () => { throw new Error('ENOENT') },
+          writeText: async (p) => { if (p !== '/ws/.scratch/.dsh-write-probe' && p !== '/ws/.dsh-write-probe') throw new Error('unexpected probe path: ' + p); written.push(p) },
+          unlink: async (p) => { cleaned.push(p) },
+        },
+      }
+      return { platform, written, cleaned }
+    }
+
+    const withScratch = mkPlatform({ scratchExists: true })
+    const r1 = await checkScratchWritable({ platform: withScratch.platform, cwd: '/ws' })
+    check(r1.status === 'pass', 'D5b .scratch 存在且可写 → pass', r1.detail)
+    check(withScratch.written.length === 1 && withScratch.written[0] === '/ws/.scratch/.dsh-write-probe',
+      'D5b .scratch 存在时探针写在 .scratch 里', JSON.stringify(withScratch.written))
+    check(withScratch.cleaned.length === 1 && withScratch.cleaned[0] === '/ws/.scratch/.dsh-write-probe',
+      'D5b 探针写完全部清理', JSON.stringify(withScratch.cleaned))
+
+    const noScratch = mkPlatform({ scratchExists: false })
+    const r2 = await checkScratchWritable({ platform: noScratch.platform, cwd: '/ws' })
+    check(r2.status === 'pass', 'D5b 没有 .scratch 但仓库根可写 → pass', r2.detail)
+    check(noScratch.written.length === 1 && noScratch.written[0] === '/ws/.dsh-write-probe',
+      'D5b 没有 .scratch 时探针写在仓库根（不碰 .scratch）', JSON.stringify(noScratch.written))
+    check(!noScratch.written.some((p) => String(p).indexOf('/.scratch') >= 0),
+      'D5b 没有 .scratch 时绝不顺手创建它（探针路径不含 .scratch）', JSON.stringify(noScratch.written))
   }
 
   // D6：契约形状校验通过

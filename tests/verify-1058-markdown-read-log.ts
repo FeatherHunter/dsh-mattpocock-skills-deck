@@ -213,7 +213,7 @@ console.log('\n== 三、翻页游标两档：这个游标跟现在这份数据�
   if (staleLines.length) checkShape(staleLines[0], '游标越界那一行')
 }
 
-console.log('\n== 四、取单票三档与探测找不到地图 ==')
+console.log('\n== 四、取单票三档与空工作区探测 ==')
 {
   const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-d-'))
   writeEffort(ws, 'demo', [['01-open-a.md', 'ready-for-agent'], ['02-broken.md', 'ready-for-agent']])
@@ -246,11 +246,11 @@ console.log('\n== 四、取单票三档与探测找不到地图 ==')
   const probeCtx = makeCtx(emptyWs)
   const backend = createMarkdownBackend(probeCtx)
   const probe = await backend.preflight({ cwd: emptyWs } as never, probeCtx as never)
-  check(!probe.ok, '空工作区探测 → 照旧回「找不到地图文件」→ ' + (probe.ok ? '竟然成功了' : '失败'))
+  // #1513：空工作区算通过（新工作区还没建任何工作单元是正常起点，不该被判成「这个工作区不能用本地 Markdown」）。
+  // 与检查链同一条判据：md:workspace 在「.scratch 读完什么都没有」时给 pass，不再是「找不到地图文件」。
+  check(probe.ok, '空工作区探测 → 通过（空工作区不算失败）→ ' + (probe.ok ? '通过' : '竟然失败了'))
   const probeLines = degraded(probeCtx)
-  check(probeLines.length === 1 && String(probeLines[0].fields.reason) === 'preflight:no-map',
-    '落一行 read.degraded（preflight:no-map）→ ' + probeLines.map(lineText).join(' / '))
-  if (probeLines.length) checkShape(probeLines[0], '探测那一行')
+  check(probeLines.length === 0, '空工作区探测一行 read.degraded 都不记 → 实得 ' + probeLines.length + ' 行')
 }
 
 console.log('\n== 四之二、读取端认得旧布局与退化身份（#1488）：兼容与退化各留一行 ==')

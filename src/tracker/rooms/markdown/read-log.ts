@@ -105,7 +105,8 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'matches:fs-unavailable',
   'matches:tracker-doc',
   'matches:unknown',
-  'preflight:no-map',
+  // #1513：预检改用与检查链同一套三项判据后，不再有「只因为没找到 map.md 就退化」这条；
+  //   三项里有 fail 时记的是 preflight:fs-fail（文件系统这条线不通），空工作区不算失败、不记。
   'preflight:fs-fail',
   'list:ticket-read-fail',
   'list:map-read-fail',

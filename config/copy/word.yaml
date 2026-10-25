@@ -157,10 +157,12 @@ zh:
   check.glab:authed.fail: glab 已登录
   check.glab:repoAccess.pass: GitLab 仓库可达
   check.glab:repoAccess.fail: GitLab 仓库可达
+  check.md:workspace.pass: 本地工作区可读取
+  check.md:workspace.fail: 本地工作区可读取
   check.md:scratchWritable.pass: 本地数据目录可读写
   check.md:scratchWritable.fail: 本地数据目录可读写
-  check.md:parseOk.pass: 本地关卡地图可读取
-  check.md:parseOk.fail: 本地关卡地图可读取
+  check.md:containersReadable.pass: 本地地图与规格可读取
+  check.md:containersReadable.fail: 本地地图与规格可读取
   progress.todo: 未动工
   progress.doing: 进行中 {n}%
   progress.confirm: 95% · 待确认
@@ -365,10 +367,12 @@ en:
   check.glab:authed.fail: Signed in to glab
   check.glab:repoAccess.pass: GitLab repo is reachable
   check.glab:repoAccess.fail: GitLab repo is reachable
+  check.md:workspace.pass: Local workspace is readable
+  check.md:workspace.fail: Local workspace is readable
   check.md:scratchWritable.pass: Local data dir is writable
   check.md:scratchWritable.fail: Local data dir is writable
-  check.md:parseOk.pass: Local level map is readable
-  check.md:parseOk.fail: Local level map is readable
+  check.md:containersReadable.pass: Local map and spec files are readable
+  check.md:containersReadable.fail: Local map and spec files are readable
   progress.todo: Not started
   progress.doing: In progress {n}%
   progress.confirm: 95% · confirming

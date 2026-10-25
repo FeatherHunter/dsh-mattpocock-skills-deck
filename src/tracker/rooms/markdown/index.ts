@@ -5,8 +5,9 @@ import type { OpContext, RepoHandle } from '../../contract/contexts.js'
 import type { Actor } from '../../contract/identity.js'
 import type { OpResult, PreflightResult, Counts, PageResult, Dependencies, RepoPermissions, SubIssueList, LabelColorsFilePlacement, LabelColorBatchResult } from '../../contract/results.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { mdPath } from './path.js'
-import { readTextFile, listDir, exists } from './read.js'
+import { readTextFile, exists } from './read.js'
+// #1513：本地 Markdown 的预检判据与检查链上的三项是同一份实现（票面硬条件：不许各写一套）。
+import { runWorkspaceChecks, workspaceCheckLabel } from './workspace-checks.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { countIssues } from './counts.js'
 import { listIssuesPage } from './page.js'
@@ -15,7 +16,7 @@ import { addComment } from './comments.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { ensureLabelColors } from './label-colors.js'
 import { useBuiltinLabelColors } from './label-colors-palette.js'
-import { failAs } from './error-fail.js'
+import { failAs, rawJson } from './error-fail.js'
 import { emitReadDegraded } from './read-log.js'
 // #1446：本地房的读额度是一条纯回答（离网口径），实现在 ./budget.ts。
 import { readMarkdownBudget } from './budget.js'
@@ -219,56 +220,29 @@ export function createMarkdownBackend(ctx: OpContext) {
       const c=opCtx||ctx
       const startedAt=Date.now()
       try{
-        const plat=getPlat(c)
+        // #1513：预检不再自己去找 map.md / spec.md / issues（#1488 那套散落的探测），改成调用检查链上
+        //   同样三项判据的共用实现（./workspace-checks.ts）：md:workspace、md:scratchWritable、
+        //   md:containersReadable。票面硬条件：房间预检与链上三项必须同一套判据，不许各写一套。
+        // 返回口径（#1512 D0）：三项都没有 fail 就通过——空工作区、量不出来的 pending 都算通过；
+        //   有 fail 才不通过，并把「哪一项没过 + 判据记下的证据」合成一句人话。
         const cwd=(handle&&handle.cwd)||(c&&c.cwd)||''
-        // 检查全局 .scratch 下是否有任意 map.md 或 docs 声明
-        if(cwd){
-          const root=plat.join(cwd,'.scratch')
-          try{
-            const fs=c&&c.platform?c.platform.fs:(c&&c.fs)||(c&&typeof c.get==='function'?c.get('fs'):null)
-            let entries: unknown[]=[]
-            if(fs&&typeof fs.resolve==='function'&&typeof fs.listDir==='function'){try{const t=await fs.resolve(root);entries=await fs.listDir(t)}catch{}}
-            else if(fs&&typeof fs.readdir==='function'){try{entries=await fs.readdir(root)}catch{}}
-            for(const e of entries){
-              // 同 matches 里那一处：`as string` 只收类型视野，运行时还是原值。
-              const name=(typeof e==='string'?e:(e&&(e as Record<string, unknown>).name)||'') as string
-              if(!name||name.startsWith('.'))continue
-              const dir=plat.join(root,name)
-              // #1488：工作单元的容器有三种线索——探索地图 map.md、规格 spec.md、只有票的 issues/。
-              // 只认 map.md 时，只含 spec.md 的规格目录会被判成「没有地图」，预检恒 not-found（#1476）。
-              if(await exists(c,plat.join(dir,'map.md'))) return{ok:true}
-              if(await exists(c,plat.join(dir,'spec.md'))) return{ok:true}
-              if(await exists(c,plat.join(dir,'issues'))) return{ok:true}
-            }
-            if(await exists(c,plat.join(root,'map.md'))) return{ok:true}
-            // 根级扁平布局的另外两种形态（#1488）：规格或票目录直接放在 .scratch 下。
-            if(await exists(c,plat.join(root,'spec.md'))) return{ok:true}
-            if(await exists(c,plat.join(root,'issues'))) return{ok:true}
-          }catch{}
-        }
-        // 带 backend 的 handle 被当成「已选定后端的引用」用（refId 即路径，见 matches）；
-        // 契约的 RepositoryRef 要求 refId 等键齐全，断言只收类型视野，运行时还是原来那个对象。
-        const repo=handle&&handle.backend?(handle as RepositoryRef):describe(handle,'markdown')
-        const mapP=mdPath(repo,'map',undefined,c)
-        if(await exists(c,mapP))return{ok:true}
-        // #1488：旧版工作区根 issues/ 与根级 spec.md 也要通过预检（#1486 之前的落点，只读兼容）。
-        // 用 cwd 直接拼，不走 mdPath：混合平台适配器下绝对路径判定可能与宿主路径形态不一致。
-        const plat0=getPlat(c)
-        if(cwd){
-          if(await exists(c,plat0.join(cwd,'issues')))return{ok:true}
-          if(await exists(c,plat0.join(cwd,'spec.md')))return{ok:true}
-        }
-        const plat2=getPlat(c)
-        const cwd2=(handle&&handle.cwd)||(c&&c.cwd)||''
-        if(cwd2){
-          const root=plat2.join(cwd2,'.scratch')
-          if(await exists(c,plat2.join(root,'map.md')))return{ok:true}
-        }
-        // 原文给空串：预检只是没找到地图文件，没有任何命令或文件读过它（这条结论本地就能定）。
-        // 记一行（#1058）：探测没过是「这个工作区不能用本地 Markdown 当票仓」的唯一一句解释，
-        // 不记的话事后只看得到「后端没选上」，看不出是走到这一步才没过的。
-        emitReadDegraded(c,'preflight','preflight:no-map',Date.now()-startedAt)
-        return failAs(ERROR_KIND.NOTFOUND,'markdown map.md not-found','') as PreflightResult
+        const rows=await runWorkspaceChecks({
+          // 房间侧的平台对象在 c.platform（带 fs/path）上；拿不到时把 ctx 本身交出去（它也有 fs/path）。
+          platform: (c&&(c as unknown as {platform?:unknown}).platform)||c,
+          cwd: cwd,
+          lang: c&&(c as {lang?:string}).lang,
+          sandboxPolicy: c&&(c as {sandboxPolicy?:unknown}).sandboxPolicy,
+        })
+        const failed=rows.filter(row=>row.result.status==='fail')
+        if(failed.length===0)return{ok:true}
+        // 失败那句人话：先说哪一项没过，再把判据自己写下的证据原样接上（路径、错误码都在这段证据里）。
+        const first=failed[0]
+        const lang=c&&(c as {lang?:string}).lang
+        const message='预检没过：'+workspaceCheckLabel(first.id,lang)+'。'+String(first.result.detail||'')
+        // 日志沿用已登记的 preflight:fs-fail（本票不新增事件、不改事件表）：三项里有 fail，
+        //   说明这个工作区的文件系统这条线不通，与「还没建地图」是两回事。
+        emitReadDegraded(c,'preflight','preflight:fs-fail',Date.now()-startedAt)
+        return failAs(ERROR_KIND.ENV,message,rawJson(rows)) as PreflightResult
       }catch(e){
         // 档位按本步语义定：预检问的是「这个工作区能不能用本地 Markdown 当票仓」，
         // 中途任何意外都归环境档（这不是一次真的读写调用，判成网络档会让人去查错方向）。
@@ -373,17 +347,16 @@ export const prompts = {
 }
 
 /** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。
- * 2026-08-29 用户定版：
- *  - md:scratchWritable 不提供修复指引（后端无法修复目录存在/权限问题——行 fail 仅如实展示，无按钮）；
- *  - md:parseOk 的修复指引 = 注入 wayfinder 技能构造关卡地图（地图缺失才失败，唯一真实修复路径是生成地图）。 */
+ * #1513 起本地 Markdown 只有一条修复合约：md:scratchWritable —— 数据目录写不进去，人能做的是换一个可写的会话
+ *   或去查目录权限，然后重查；后端自己修不了这件事。其余两项（工作区读不出来、容器版本不支持）同样不是
+ *   后端能补的，如实展示、不挂任何动作；「执行 wayfinder 构造地图」那个按钮归 #1514 删，这里不再引用它的提示词。 */
 export const fixes = Object.freeze({
-  'md:parseOk': {
+  'md:scratchWritable': {
     hint: {
-      zh: '本项目的关卡地图还没生成。点「执行 wayfinder 构造地图」让 AI 用 wayfinder 技能生成地图，完成后重查。',
-      en: 'The local track map has not been created yet. Use "Build map with wayfinder" to have AI generate the map via the wayfinder skill, then re-check.',
+      zh: '本地数据目录写不进去。换一个可写的会话再试，或检查这个目录的权限，然后重查。',
+      en: 'The local data directory cannot be written. Retry in a writable session or check the directory permissions, then re-check.',
     },
     actions: [
-      { type: 'inject-prompt', prompt: 'wayfinderMapBuild', label: { zh: '执行 wayfinder 构造地图', en: 'Build map with wayfinder' } },
       { type: 'refresh', target: 'chain' },
     ],
   },

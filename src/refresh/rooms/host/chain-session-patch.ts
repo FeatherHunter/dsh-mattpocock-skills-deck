@@ -59,6 +59,21 @@ type CachedReplyView = { backendChain?: BackendChainView; fullSnapshot?: FullSna
 async function evalSessionScoped(item: CheckItem, ctx: SessionPatchContext): Promise<PredicateResultView> {
   try {
     if (!item || !item.check || typeof item.check !== 'object') return { status: 'pending', detail: '会话相关检查项没有可重算的谓词描述' }
+    const check = item.check as { kind?: unknown; id?: unknown; backendId?: unknown }
+    // #1513 起本地 Markdown 的会话相关项是后端谓词（md:scratchWritable 由 primitive 改成 backend 谓词）。
+    // 为什么复用宿主取用口 mdPredicate、而不是在这一层直连房间：宿主不许深引房间内部；mdPredicate 内部
+    //   经装配点 builtins.loadMarkdownHostExtras() 取判据本体，与链上求值、房间 preflight 是同一份实现。
+    if (check.kind === 'backend') {
+      const backendId = String(check.backendId || ctx.backendId || '')
+      if (backendId !== 'markdown') return { status: 'pending', detail: '这个后端还没有会话相关谓词的重算入口' }
+      const remote = await remotePredicates()
+      if (!remote || typeof remote.mdPredicate !== 'function') return { status: 'pending', detail: '谓词执行器不可用，按未确认处理' }
+      // 这一项自己不再套超时：整趟预算由 patchCachedReplyForSession 统一管（一枚定时器、总时长有上限），
+      //   所以这里的 promise 允许挂住，外面那一层到点会把它按 pending 落行。
+      const rb: any = await remote.mdPredicate(ctx.platform, ctx.cwd, ctx.lang, String(check.id || item.id || ''), ctx.sandboxPolicy)
+      if (rb && typeof rb === 'object' && (rb.status === 'pass' || rb.status === 'fail' || rb.status === 'pending')) return rb
+      return { status: 'pending', detail: '谓词没有返回可用的结论' }
+    }
     const primMod: any = await import('../../../host/tracker/predicatePrimitives.js')
     if (typeof primMod.execPrimitive !== 'function') return { status: 'pending', detail: '谓词执行器不可用，按未确认处理' }
     // 这一项自己不再套超时：整趟预算由 patchCachedReplyForSession 统一管（一枚定时器、总时长有上限），
@@ -87,6 +102,13 @@ function timeoutDetail(ctx: SessionPatchContext): string {
     : '按本会话重算超时，先按未确认处理'
 }
 
+// 宿主 Markdown 判据取用口的懒加载单例（#1513）：会话补算是缓存命中路径，只在真的遇到后端谓词时才加载。
+let _remotePredP: Promise<any> | null = null
+function remotePredicates(): Promise<any> {
+  if (!_remotePredP) _remotePredP = import('../../../host/remotePredicates.js').then(function (m: any) { return m.createRemotePredicates() })
+  return _remotePredP
+}
+
 /** 整趟预算到点的标记。谓词结果对象只有 status/detail 两格，不会撞上这个键。 */
 type PatchTimeout = { __patchTimedOut: true }
 
@@ -104,7 +126,7 @@ type PatchTimeout = { __patchTimedOut: true }
  */
 async function patchWithBudget(scoped: CheckItem[], ctx: SessionPatchContext): Promise<{ fresh: ResolvedMap; timedOut: boolean }> {
   const fresh: ResolvedMap = {}
-  // 逐项串行：会话相关行目前只有一项（写探测），串行读起来最直白；将来变多也仍受同一笔总预算约束。
+  // 逐项串行：会话相关行目前只有一项（md:scratchWritable 的写探测），串行读起来最直白；将来变多也仍受同一笔总预算约束。
   // evalSessionScoped 自己吞掉所有异常、绝不 reject，所以这里不接 catch 也不会留下未处理拒绝。
   const runAll: Promise<ResolvedMap> = (async function (): Promise<ResolvedMap> {
     for (const item of scoped) {

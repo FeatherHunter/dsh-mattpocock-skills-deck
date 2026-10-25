@@ -209,7 +209,7 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
       }),
       timer: { timeout: (ms) => new Promise((r) => setTimeout(() => r(null), ms)), setTimeout: (fn, ms) => setTimeout(fn, ms) },
       probeSkill: async () => ({ ok: true, level: 'ok', detail: 'fake' }),
-      mdParseOkPredicate: async () => ({ status: 'pass', detail: 'fake' }),
+      mdPredicate: async () => ({ status: 'pass', detail: 'fake' }),
       getChainCache: () => null, setChainCache: () => {},
       getChainBackoff: async () => ({ verdict: async () => ({ needed: true, reason: 'due', waitMs: 0, cached: null }), note: async () => {} }),
       logCtx: null,

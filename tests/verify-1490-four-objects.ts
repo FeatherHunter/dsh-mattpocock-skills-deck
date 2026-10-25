@@ -67,6 +67,9 @@ function makeCtx(cwd: string): Ctx {
       async resolve(p: string) { return p },
       async readText(t: string) { return fs.readFileSync(t, 'utf8') },
       async writeText(t: string, c: string) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+      // 真实平台的写探测会先写一个临时探针再删掉；这里补上删除能力，否则探针文件会留在工作区里，
+      // 「跑完只读检查后所有文件逐字节未变」的断言就会把探针算成改动（#1513 起 preflight 也跑写探测）。
+      async unlink(t: string) { try { fs.unlinkSync(t) } catch {} },
       async lstat(t: string) { try { return fs.statSync(t) } catch { return null } },
       async listDir(t: string) { try { return fs.readdirSync(t) } catch { return [] } },
       async stat(t: string) { try { return fs.statSync(t) } catch { return null } },

@@ -194,7 +194,7 @@ async function makeHost() {
     },
     timer: { timeout: (ms) => new Promise((r) => setTimeout(() => r(null), Math.min(ms, 5))), setTimeout: (fn, ms) => setTimeout(fn, ms) },
     probeSkill: async () => ({ ok: true, level: 'ok', detail: 'fake' }),
-    mdParseOkPredicate: async () => ({ status: 'pass', detail: 'fake' }),
+    mdPredicate: async () => ({ status: 'pass', detail: 'fake' }),
     getChainCache: () => null,
     setChainCache: () => {},
     getChainBackoff: async () => ({ verdict: async () => ({ needed: true, reason: 'due', waitMs: 0, cached: null }), note: async () => {} }),
