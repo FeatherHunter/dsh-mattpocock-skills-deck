@@ -66,7 +66,13 @@ grill-me → grilling；grill-with-docs → grilling、domain-modeling；improve
   - 本机安装的插件（`C:\Users\辰辰洋洋\.dsh\profiles\desktop\node_modules\dsh-mattpocock-skills-deck`，版本 1.9.0-beta.18）全部 487 个文件里没有这 12 个名字。
   - 正文里的用法是让 AI 在实际项目里创建或维护这些文件：`setup-matt-pocock-skills/SKILL.md:24` 问目标仓库根目录有没有 `AGENTS.md`/`CLAUDE.md`；`teach/MISSION-FORMAT.md:1-3` 写明 `MISSION.md` 放在工作区根目录；`code-review/SKILL.md:36` 说 `CONTRIBUTING.md`/`CODING_STANDARDS.md` 是仓库里记录代码规范的文档；`domain-modeling/SKILL.md:74` 的 ADR 示例里 `0001`/`0002` 只是目录树里的文件名。
   - 结论：这 12 个不是「随包给 AI 参考的文件」，插件包里没有它们的原文；能随包提供的是它们的格式模板。它们要不要做可点、点击后显示什么，见 #1522 的待拍板。
-## 9. 来源链接
+## 9. 再补正（2026-10-25 晚）：六个名字里只有 `issue-tracker.md` 有模板可参照
+
+维护者追问「这六个名字随技能确定都没有吗」。复核范围比上次更宽：`package/bundled-skills`、整个 `package` 目录、本机安装的 1.9.0-beta.18 插件包、上游 v1.3.1 与 main 的 `skills/` 目录，都查过文件级同名匹配。结论：`AGENTS.md`、`CLAUDE.md`、`CONTRIBUTING.md`、`CODING_STANDARDS.md`、`NOTES.md`、`issue-tracker.md` 这六个名字在任何随包位置都没有同名文件。
+
+唯一要补正的是 `issue-tracker.md`：它不是完全没有可参照的随包内容。`setup-matt-pocock-skills` 用 `issue-tracker-github.md`、`issue-tracker-gitlab.md`、`issue-tracker-local.md` 三份模板之一，去目标仓库写 `docs/agents/issue-tracker.md`。所以 #1522 按方案 C 处理时，点开 `issue-tracker.md` 先让使用者从三份模板里选一份；其余五个没有模板，点开显示一句说明。
+
+## 10. 来源链接
 
 - https://api.github.com/repos/mattpocock/skills/tags
 - https://api.github.com/repos/mattpocock/skills/commits?sha=main&per_page=30
