@@ -62,6 +62,9 @@
    esbuild 会给其中一个起别名（`X2 as X`），域转译当场失败。要值的调用方直接从 time-config 引，
    不要经 `budget.js` / `write-ticket.js` / `naming-tracking.js` 倒一手——改造中这三处的转出
    行已全部删除，调用方（宿主、测试）各自直连中央。
+   例外：同一个文件先 `import { X }`、再在本地 `export { X }`（如 `chain-pruning.ts` 把
+   `CHAIN_KEEP_MS` 转出给 deck 侧的两个调用方）不在禁区——它只有一个 import、没有 `export … from`，
+   esbuild 不会起第二个名字。以后要新增这种转出，先在这里补一行理由；能用「调用方直连中央」代替时优先直连。
 4. **域产物跨目录引用减一层**：域构建把 `<域>/src/*.ts` 转译到域表层时，跨出源码目录的相对引用
    要重算（`rebaseEscapingImports`），否则产物里的 `../../time-config/values.js` 在运行时指到
    `src/time-config/` 那个不存在的地方去——门禁第二节与运行时会一起倒下。
@@ -79,7 +82,7 @@
 同一天还做了两处加固（对抗式审查的第二轮）：
 
 - 门禁在第二节之前先看域根的 `src/shared/time-config/values.js` 在不在（构建产物、不入库）。新克隆或刚清理过产物时，它现在直说“生成物不在，先跑一次 `node scripts/build.mjs`，这不是值不一致”，不再抛看不懂的 `Cannot find module`。
-- 生成器在某个值越过 JavaScript 定时器能表达的上限（`2147483647` 毫秒，约 24.8 天）时发告警：这类数只有做大小比较（有效期、窗口）才安全，直接当延时会被运行时折成 1 毫秒。今天的 `inFlightKeepAliveMs` 正好等于上限，是刻意的“永不”。
+- 生成器在某个值越过 JavaScript 定时器能表达的上限（`2147483647` 毫秒，约 24.8 天）时发告警：这类数只有做大小比较（有效期、窗口）才安全，直接当延时会被运行时折成 1 毫秒。今天合法的越线取值有三处：`inFlightKeepAliveMs` 正好等于上限，是刻意的“永不”；`chainKeepMs` 与 `workRouteInProgressWindowMs` 是 30 天保留期，只做大小比较。生成器按一份「只做比较」的允许清单放行这三处，清单外的新键才告警——别把合法的窗口值抄成延时。
 
 补的四个键分别是 `predicateTimeoutMs`（15000，`src/host/detectChain.ts` 传给谓词表的单谓词超时）、`predicateFallbackTimeoutMs`（3000，`src/host/tracker/predicateCore.js` 不传时的兜底）、`tipShowDelayMs`（500）与 `tipHideDelayMs`（160）（`src/client/views/primitives/Tip.js` 的悬停提示）。前三类写法（裸 `timeout:`、`? opts.timeout : 3000`、`delay: { show, hide }`）原来的时间味判据都认不出，所以调查脚本与门禁一起漏掉了它们；判据这次补上了整词时间名、秒/分钟/小时/天单位，以及“时间味的键挂一个对象”这第三种藏法。
 
@@ -114,9 +117,10 @@
 - 界面那三处「SYNC 缺席时的兜底」不算第二份数字：兜底值取自拼进闭包的中央常量（`probe-auto.js` 三处），正常路径取 `sync.js` 里那份已锁的值；另有三个文件会退回同一个数字，那是为了让门禁能把它们当普通模块 import 跑起来，理由与锁法见 §4 末段。
 - `scripts/**` 下的开发脚本（例如 `scripts/browser-host.mjs` 的保活间隔）、`tests/**`、`examples/**`、`docs/prototype/**` 与临时目录（`.scratch/`、`.r1047tmp/` 一类）不进范围：它们不是产品运行时行为，改了不影响插件。
 - 样式类时长（CSS 与样式字符串里的 `.12s`、`2.4s`、`300ms`，界面动画与过渡在用）不是“不收”，而是**另有一份**：它们的单位是 CSS 时间字符串，判红只能是“动画观感不对”，与“毫秒超时”不是一个验收口径，混进这三份文件会让门禁的每条规则都要分情况讨论。那一件事单独立了票 **#1236**，逐条清单在 `research/1236-style-durations.md`（42 处、8 个文件，去重后 19 个时长档位）。
-  在 #1236 落地之前，界面动画时长只许住在外观旋钮文件 `src/client/statusbar/suggestAppearance.ts`
-  （#1411 定的“气泡所有看得见的数字集中一处”），由门禁的 **STYLE 表**逐行锁死“文件 + 片段 + 理由”。
-  STYLE 表不是永久豁免：#1236 落地后应逐行删掉，改用那份样式配置。
+  在 #1236 落地之前，**以毫秒数字写在 TypeScript 里、本门禁看得见的那一类**动画时长只许住在「下一步建议」
+  气泡的外观旋钮文件 `src/client/statusbar/suggestAppearance.ts`（#1411 定的“气泡所有看得见的数字集中一处”），
+  由门禁的 **STYLE 表**逐行锁死“文件 + 片段 + 理由”。其余写在 CSS 与样式字符串里的 42 处时长本门禁看不见，
+  照旧归 #1236。STYLE 表不是永久豁免：#1236 落地后应逐行删掉，改用那份样式配置。
 
 ## 6. 与 #1069（tuning.ts）的关系
 

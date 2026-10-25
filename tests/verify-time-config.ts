@@ -15,7 +15,7 @@
 //   旧版锁的是“两份数字相等”（IMPORT 表的 literal 行 + TEXT 表的片段行）：源码里写一份数字，
 //   门禁核对它等于 YAML。改造后源码里不再有第二份数字，所以这两张表整个删掉，换成：
 //   ② 的引用相等断言（REFERENCES 表：模块拿到的就是生成的那一份，不是抄的），
-//   ④ 的无字面量扫描（数字出现在时间味的位置就判红，唯一的出口是 PERMANENT 表）。
+//   ④ 的无字面量扫描（数字出现在时间味的位置就判红，出口是 PERMANENT 表与样式类的 STYLE 表）。
 //   以后加一个时间参数的动作是：YAML 里加键 → 文件里 import 生成常量 → REFERENCES 里加一行。
 //   删一行同理。四张表（REFERENCES / CLIENTS / PERMANENT / STYLE）与 EXEMPTS 的行数只许增不许减式的维护：
 //   加参数加行，删参数删行，不许为了让门禁变绿而删行（那等于把参数放回源码里写数字）。
@@ -44,6 +44,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL, fileURLToPath } from 'node:url'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TIME_CONFIG_JS = '../src/shared/time-config/src/values.js'
@@ -455,7 +456,7 @@ const EXEMPTS: ExemptRow[] = [
   // —— 2026-10-26 门禁重新入链时补的定性：覆盖率扫描之前没跑，这些名字一直没人登记 ——
   // 读钟时刻与测量值：值由 Date.now() 或调用方时钟算出来，调 YAML 改不了它。
   { file: 'src/client/statusbar/SessionChainCapsule.ts', name: 'nowMs', reason: '读钟时刻（渲染这一帧时的 Date.now()），不是可调参数' },
-  { file: 'src/client/views/shared/workRouteTable.ts', name: 'nowMs', reason: '函数参数：调用方传进来的读钟时刻，不是可调参数' },
+  { file: 'src/client/views/shared/workRouteTable.ts', name: 'nowMs', reason: '读钟时刻：Date.now() 算出来的“现在”，只用来把时间差折成人话，不是可调参数' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'rkWaitedMs', reason: '测量用局部变量：排队段从开始等到现在过了多久，不是可调参数' },
   { file: 'src/refresh/rooms/host/issue-list-fetch.ts', name: 'sinceMs', reason: '由调用方给的起点时刻算出来的时间戳，不是可调参数' },
   { file: 'src/refresh/rooms/host/write-event-subscription.ts', name: 'waitedMs', reason: '算出来的等待时长（现在减上次动作时刻），不是输入参数' },
@@ -521,14 +522,13 @@ function countOccurrences(haystack: string, needle: string): number {
 
 async function main(): Promise<void> {
   // —— 第零节：本门禁在验证链上有位置（改了链却没带上自己，等于没看门） ——
-  // 旧写法是直接数 verify-stages.json 的原文里有没有本文件路径——但排除表里的那条记录也含这个路径，
-  // 于是「被排除出链」同样会被误判成「在链上」。2026-10-26 复核时真撞上了：本门禁在排除表里躺了十天，
-  // 自己却一直报「已挂进验证链」，58 处违例也没人看见。现在按排除表点名判断——
-  // 规划器会把「不在排除表里」的测试排进默认段，所以「不在排除表里」才是真的在链上。
-  const stages = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'verify-stages.json'), 'utf8')) as { exclude?: Array<{ file?: string }> }
-  check(Array.isArray(stages.exclude), '读到了 scripts/verify-stages.json 的排除表')
-  const selfExcluded = stages.exclude!.some((e) => e && e.file === 'tests/verify-time-config.ts')
-  check(!selfExcluded, '本门禁没有被写进 scripts/verify-stages.json 的排除表（被排除 = 今天不跑，等于没看门）')
+  // 判据问规划函数（scripts/lib/discover-gates.ts 的 isGatePlanned），不自己解析排除表：
+  // 旧写法数的是 verify-stages.json 原文里有没有本文件路径——但排除表那条记录同样含这个路径，
+  // 于是「被排除出链」被误判成「在链上」。2026-10-26 复核时真撞上了：本门禁在排除表里躺了十天，
+  // 自己却一直报「已挂进验证链」，58 处违例没人看见。isGatePlanned 回答的正是「今天跑不跑」，
+  // 与三个执行器读的是同一份规划函数；另外 tests/verify-1125-gate-coverage.ts 也点名断言本文件在规划里，
+  // 两道一起才堵住「再被静默排除」。
+  check(isGatePlanned(ROOT, 'tests/verify-time-config.ts'), '本门禁在规划里（没有被排除表挡住；被排除 = 今天不跑，等于没看门）')
 
   // —— 第一节：生成新鲜度（调了 YAML 忘跑生成器，在这里判红） ——
   const gen = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-time-config.mts'), '--check'], { encoding: 'utf8' })
@@ -634,6 +634,19 @@ async function main(): Promise<void> {
     if (!styleByFile.has(row.file)) styleByFile.set(row.file, [])
     styleByFile.get(row.file)!.push(row.snippet)
   }
+  // 表的健全性：STYLE 表只许指向外观旋钮文件——否则它会变成任意源码的万能出口。
+  // 三张逐行登记的表（PERMANENT / STYLE / EXEMPTS）每一行都必须写明理由；理由空白就是漏登记的参数。
+  const STYLE_ONLY_FILE = 'src/client/statusbar/suggestAppearance.ts'
+  for (const row of STYLE_DURATIONS) {
+    check(row.file === STYLE_ONLY_FILE, 'STYLE 表只指向外观旋钮文件 ' + STYLE_ONLY_FILE + '（这一行指向 ' + row.file + '；要放宽先改本门禁的约定与 ADR）')
+    check(row.reason.trim().length > 0, 'STYLE 行写明了理由（' + row.file + '：“' + row.snippet + '”）')
+  }
+  for (const row of PERMANENT) {
+    check(row.reason.trim().length > 0, 'PERMANENT 行写明了理由（' + row.file + '：“' + row.snippet + '”）')
+  }
+  for (const row of EXEMPTS) {
+    check(row.reason.trim().length > 0, 'EXEMPTS 行写明了理由（' + row.file + ' 的 ' + row.name + '）')
+  }
   // 五种数字藏法：声明挂数字、属性挂数字、对象里藏数字、定时器参数位、缺省回落位。
   // 前三种沿用覆盖率扫描的正则（只认“值是数字”的）；后两种是单源头改造新加的
   // （以前“缺席回落同一个数字”是合法写法，现在回落本身就是第二份数字）。
@@ -720,12 +733,31 @@ async function main(): Promise<void> {
         ? '（' + where + ' 表已认领）'
         : '——源码里不许写时间数字：入 YAML 走 import，或收入 PERMANENT / STYLE 并写明理由'))
     }
-    // 两张表的片段自身也要存在，否则表就是空头支票。
-    for (const s of allowed) {
-      check(countOccurrences(raws, s) > 0, file + ' 的 PERMANENT 片段还在源码里（“' + s + '”）：表与源码必须同步增减')
+  }
+
+  // 两张表的片段自身也要存在，否则这两张表就是空头支票。
+  // 这段放在扫描循环之外：文件当次没有命中（#1236 把样式时长搬走、写法改了）、甚至文件被删了，
+  // 都要在这里判红。放进循环会被上面的 if (hits.length === 0) continue 整段跳过，等于没查。
+  const tablePairs: Array<[string, Map<string, string[]>]> = [['PERMANENT', permanentByFile], ['STYLE', styleByFile]]
+  const tableFiles = new Map<string, Array<{ table: string; snippets: string[] }>>()
+  for (const pair of tablePairs) {
+    for (const [file, snippets] of pair[1]) {
+      if (!tableFiles.has(file)) tableFiles.set(file, [])
+      tableFiles.get(file)!.push({ table: pair[0], snippets: snippets })
     }
-    for (const s of styleAllowed) {
-      check(countOccurrences(raws, s) > 0, file + ' 的 STYLE 片段还在源码里（“' + s + '”）：表与源码必须同步增减')
+  }
+  for (const [file, entries] of tableFiles) {
+    let raws = ''
+    try {
+      raws = fs.readFileSync(path.join(ROOT, file), 'utf8')
+    } catch (e) {
+      check(false, file + ' 读不到：' + entries.map((t) => t.table).join(' / ') + ' 表里的片段无从核对（文件被删或路径写错）')
+      continue
+    }
+    for (const entry of entries) {
+      for (const s of entry.snippets) {
+        check(countOccurrences(raws, s) > 0, file + ' 的 ' + entry.table + ' 片段还在源码里（“' + s + '”）：表与源码必须同步增减')
+      }
     }
   }
 

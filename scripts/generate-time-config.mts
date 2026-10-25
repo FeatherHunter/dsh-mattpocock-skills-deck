@@ -50,10 +50,17 @@ const FILE_OF_GROUP: Record<string, string> = {
 const ARRAY_GROUP: string = 'backoff'
 /**
  * JavaScript 定时器能表达的延时上限（2^31-1 毫秒，约 24.8 天）。比它大的数交给 setTimeout / setInterval
- * 会被运行时折成 1 毫秒——「等于不超时」会悄悄变成「立刻超时」。今天没有键越过这条线
- * （inFlightKeepAliveMs 正好等于上限，是刻意的「永不」），这条常数只用来在下面发一句告警。
+ * 会被运行时折成 1 毫秒——「等于不超时」会悄悄变成「立刻超时」。所以越线本身不报错、只告警，
+ * 但合法的越线值必须逐个写进下面的允许清单（只做大小比较的那几个窗口与保留期）。
  */
 const JS_TIMER_MAX_MS: number = 2147483647
+/**
+ * 允许越过 JS_TIMER_MAX_MS 的键：它们只做大小比较（窗口、保留期），永远不会交给 setTimeout。
+ * 目前三处：inFlightKeepAliveMs（正好等于上限，刻意的「永不」）、chainKeepMs 与
+ * workRouteInProgressWindowMs（30 天保留期，只和「多久以前」比大小）。
+ * 新增越线键时先想清楚它会不会当延用；会的话就别越线，而不是往这张清单里加。
+ */
+const COMPARE_ONLY_KEYS: Set<string> = new Set(['inFlightKeepAliveMs', 'chainKeepMs', 'workRouteInProgressWindowMs'])
 /** [yaml键, 生成的常量名, 分组] */
 const KEYS: Array<[string, string, string]> = [
   // —— timeouts：单次等待的上限 ——
@@ -317,7 +324,9 @@ function load(docs: Array<{ rel: string; doc: any }>): { values: Record<string, 
     provided.add(key)
     // 越过定时器上限只告警、不报错：TTL 与窗口一类只做大小比较，超出上限是合法的；
     // 但若这个键会直接当延时用，运行时会把大数折成 1 毫秒，行为会从「永不超时」翻成「立刻超时」。
-    if (v > JS_TIMER_MAX_MS) {
+    // 合法的越线值写在 COMPARE_ONLY_KEYS 里（每一处都要在注释里说清为什么只做比较），
+    // 清单外的新键越线才告警——免得调参的人把 30 天保留期顺手当延时用。
+    if (v > JS_TIMER_MAX_MS && !COMPARE_ONLY_KEYS.has(key)) {
       warnings.push(
         '越过定时器上限：' + FILE_OF_GROUP[group] + ' 的 ' + group + '.' + key + ' = ' + v + '，大于 JavaScript 定时器能表达的 ' + JS_TIMER_MAX_MS + ' 毫秒；只做大小比较（TTL、窗口）才安全，直接当延时会变成 1 毫秒',
       )
