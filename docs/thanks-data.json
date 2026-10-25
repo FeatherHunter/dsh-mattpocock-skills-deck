@@ -1,6 +1,18 @@
 {
   "_说明": "致谢表的数据源（scripts/update-thanks.mts 唯一读写）。authors 的键是 GitHub 登录名；issues/prs/discussions 存 {n, at}（编号与它诞生的时间，时间一律 UTC 的 ISO，渲染时按编号升序）；comments 存 {n, thread, at}，同一人在同一串下只记一次（留言几次都只算一次参与）；lastActive 是此人全部事项里最晚的时间，门禁会重算核对。cursors 是已扫描到的最大编号：issues 含 PR（两处共用一套编号），discussions 单独一套；脚本只看比游标新的，老的不再碰，合并进来后把游标推到实际看到的最大值，绝不回退。手工补漏直接改这份文件，再跑 node scripts/update-thanks.mts --render-only 只重画表格不联网。",
   "authors": {
+    "654970": {
+      "issues": [
+        {
+          "n": 1481,
+          "at": "2026-10-24T14:30:44Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-24T14:30:44Z"
+    },
     "21967201": {
       "comments": [],
       "discussions": [],
@@ -75,6 +87,18 @@
       "lastActive": "2026-10-09T11:27:58Z",
       "prs": []
     },
+    "ACGNnsj": {
+      "issues": [
+        {
+          "n": 1498,
+          "at": "2026-10-25T04:48:16Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-25T04:48:16Z"
+    },
     "Drayee": {
       "comments": [],
       "discussions": [],
@@ -86,6 +110,30 @@
       ],
       "lastActive": "2026-10-12T22:59:17Z",
       "prs": []
+    },
+    "GuanpengLu": {
+      "issues": [],
+      "prs": [
+        {
+          "n": 1478,
+          "at": "2026-10-24T13:50:39Z"
+        }
+      ],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-24T13:50:39Z"
+    },
+    "Lichxier": {
+      "issues": [
+        {
+          "n": 1435,
+          "at": "2026-10-23T08:43:11Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-23T08:43:11Z"
     },
     "SKADI0718": {
       "comments": [],
@@ -225,6 +273,18 @@
         }
       ]
     },
+    "firewfly": {
+      "issues": [
+        {
+          "n": 1392,
+          "at": "2026-10-22T10:13:40Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-22T10:13:40Z"
+    },
     "fishke22": {
       "comments": [],
       "discussions": [],
@@ -304,6 +364,30 @@
       "issues": [],
       "lastActive": "2026-10-20T03:22:12Z",
       "prs": []
+    },
+    "mdc707": {
+      "issues": [],
+      "prs": [],
+      "discussions": [
+        {
+          "n": 1394,
+          "at": "2026-10-22T12:33:10Z"
+        }
+      ],
+      "comments": [],
+      "lastActive": "2026-10-22T12:33:10Z"
+    },
+    "nolifeking0916": {
+      "issues": [
+        {
+          "n": 1504,
+          "at": "2026-10-25T05:58:16Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-25T05:58:16Z"
     },
     "pioneerAlone": {
       "comments": [],
@@ -409,6 +493,22 @@
       "lastActive": "2026-09-03T07:37:55Z",
       "prs": []
     },
+    "xingmulee": {
+      "issues": [
+        {
+          "n": 1422,
+          "at": "2026-10-23T04:55:10Z"
+        },
+        {
+          "n": 1421,
+          "at": "2026-10-23T04:54:52Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-23T04:55:10Z"
+    },
     "zerocodefast": {
       "comments": [],
       "discussions": [],
@@ -449,10 +549,22 @@
       ],
       "lastActive": "2026-10-19T18:40:51Z",
       "prs": []
+    },
+    "zyf0625-990": {
+      "issues": [
+        {
+          "n": 1476,
+          "at": "2026-10-24T12:46:41Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-24T12:46:41Z"
     }
   },
   "cursors": {
-    "discussions": 1301,
-    "issues": 1381
+    "discussions": 1394,
+    "issues": 1504
   }
 }
