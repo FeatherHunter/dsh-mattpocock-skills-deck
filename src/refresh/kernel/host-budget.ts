@@ -128,7 +128,7 @@ export const MAX_ACTIVE_WORKSPACES = 2
  */
 export const MAX_PAGES = 10
 
-// ---------- 五、AI 工具那一档的硬顶 ----------
+// ---------- 五、AI 工具那一档的硬顶与提醒线 ----------
 
 /** 一次 AI 工具调用最多花多少点：600。 */
 export const AI_TOOL_MAX_POINTS_PER_CALL = 600
@@ -136,10 +136,15 @@ export const AI_TOOL_MAX_POINTS_PER_CALL = 600
 /** 一次 AI 工具调用最多发出多少条出站请求：400。 */
 export const AI_TOOL_MAX_REQUESTS_PER_CALL = 400
 
-/** AI 工具每小时最多花多少点：2000。 */
+/**
+ * AI 工具每小时的提醒线（点数）：2000。
+ *
+ * 越过它只提醒、不拒绝（#1527）：真正该拦的是单次硬顶（防一次调用失控）与服务端剩余保底
+ * （防挤掉刷新与人的动作）。这一条是插件给自己的自律线，人看到提醒后自己决定要不要收手。
+ */
 export const AI_TOOL_MAX_POINTS_PER_HOUR = 2_000
 
-/** AI 工具每小时最多发出多少条出站请求：1500。 */
+/** AI 工具每小时的提醒线（请求条数）：1500。口径同上面那条点数提醒线（#1527）。 */
 export const AI_TOOL_MAX_REQUESTS_PER_HOUR = 1_500
 
 /** 一次工具调用最多建多少张子票：60。要建更多就先分片，不许一笔下去建几百张。 */
@@ -265,13 +270,9 @@ export function aiToolCallWithinCaps(points: number, requests: number): boolean 
   return points <= AI_TOOL_MAX_POINTS_PER_CALL && requests <= AI_TOOL_MAX_REQUESTS_PER_CALL
 }
 
-/**
- * 加上这一笔之后，这一小时是不是还在 AI 工具的每小时硬顶之内。
- * 调用方传的是「本小时已用 + 这一笔」的累计值，不是这一笔本身。
- */
-export function aiToolHourWithinCaps(points: number, requests: number): boolean {
-  return points <= AI_TOOL_MAX_POINTS_PER_HOUR && requests <= AI_TOOL_MAX_REQUESTS_PER_HOUR
-}
+// 这里原来有一个 aiToolHourWithinCaps，随 #1527 一起删了：每小时顶从「拒绝」降成「提醒」之后，
+// 它没有任何调用方（判定在 admission-policy.ts 里按提醒写、不再作为拒绝依据），
+// 留着会让人以为还有一道每小时硬顶在拦。要恢复硬顶行为，改 admission-policy 的那段判定，不要只恢复这个函数。
 
 // ---------- 七、单价与同步节拍（#706 第二批补全） ----------
 

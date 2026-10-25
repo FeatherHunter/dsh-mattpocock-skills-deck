@@ -679,7 +679,7 @@ const partC = async function (): Promise<void> {
     { reason: 'ai-tool-below-remaining', points: 5, requests: 3, bucket: 'rest', resetAt: 1790000000000, now: 1790000000000 - 120000, floor: 250, limit: 5000, serverRemaining: 12 },
     { points: 0, requests: 0 },
     { shards: 2, perShard: 5 },
-    { aiToolMaxPointsPerCall: 100, aiToolMaxRequestsPerCall: 100, aiToolMaxPointsPerHour: 1000, aiToolMaxRequestsPerHour: 1000 },
+    { aiToolMaxPointsPerCall: 100, aiToolMaxRequestsPerCall: 100 },
   )
   check(refusal.indexOf('REST 请求') >= 0 && /约 [0-9][0-9]:[0-9][0-9] 恢复/.test(refusal) && refusal.indexOf('服务端还剩 12 条') >= 0,
     'E、闸拒绝文案点名缺的额度、恢复时刻与剩余量：' + refusal)

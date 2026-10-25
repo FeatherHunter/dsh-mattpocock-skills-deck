@@ -9,12 +9,13 @@
 // （resetClockText 把恢复时刻写成「约 HH:MM 恢复」，familyLabelOf 把桶名写成「REST 请求」「GraphQL 点数」），
 // 这样这句话与裁决那一句是同一份格式、同一份短名表，不在两处各抄一份。
 //
-// 三种拒绝必须分得开（票面硬要求；#1527 加了第三种）：
+// 两种拒绝必须分得开（票面硬要求）：
 //   ①「这一笔太大」——超过了插件给自己设的单次硬顶，是自限，不是别人抢了额度；
-//   ②「这一小时攒太多」——加上本小时已用超过了每小时硬顶，同样是自限；
-//   ③「额度被别人用掉了」——AI 工具这一笔花下去会低于保底线（服务端上限的 5%），
+//   ②「额度被别人用掉了」——AI 工具这一笔花下去会低于保底线（服务端上限的 5%），
 //     这时先拒 AI 工具写入，绝不挤掉插件刷新与人的动作；文案要说清服务端还剩多少、保底多少、
 //     这一笔花完还剩多少、大概还有几分钟恢复（#1418 起的口径，#1527 补齐数字）。
+// 每小时顶从 #1527 起只是提醒、不再是拒绝（提醒写在回执的 cost.warnings 与 cost.note 里，
+// 由内核 admission-policy 拼），所以这里没有它的文案，也不要再加回来。
 
 import { familyLabelOf, resetClockText } from '../../kernel/budget-admission.js'
 
@@ -40,12 +41,10 @@ type RefusalArgs = {
 type RefusalHourSpend = { points: number; requests: number }
 /** 建议分几片、每片最多几张票（只有建票类工具才有意义）。 */
 type RefusalPlan = { shards: number; perShard: number }
-/** 两道硬顶的数字（由调用方从 budget.js 取好传进来）。 */
+/** 单次硬顶的两个数字（由调用方从 host-budget.js 取好传进来）。 */
 type RefusalLimits = {
   aiToolMaxPointsPerCall: number
   aiToolMaxRequestsPerCall: number
-  aiToolMaxPointsPerHour: number
-  aiToolMaxRequestsPerHour: number
 }
 
 /** 拼出那句拒绝文案：先分辨是哪一种拒，再按那一种该说的话说全。 */
@@ -59,7 +58,6 @@ export function refusalTextRef(a: RefusalArgs, hour: RefusalHourSpend, plan: Ref
     resetInMinutes: resetAt > 0 ? Math.max(0, Math.floor((resetAt - numOf(a.now, 0)) / 60000)) : 0,
   })
   if (named.reason === 'ai-tool-over-call-cap') return callCapText(named, plan, limits)
-  if (named.reason === 'ai-tool-over-hour-cap') return hourCapText(named, hour, limits)
   return floorText(named, hour)
 }
 
@@ -81,16 +79,8 @@ function callCapText(a: RefusalArgs, plan: RefusalPlan, limits: RefusalLimits): 
     (over.length ? '（' + over.join('、') + '）' : '') + '。额度没被别人用掉，是这一笔太大。' + split
 }
 
-/** ② 每小时硬顶：把「本小时已用 + 这一笔」摆出来，读者自己就能核对是哪里顶住了。 */
-function hourCapText(a: RefusalArgs, hour: RefusalHourSpend, limits: RefusalLimits): string {
-  return '这次调用加上本小时已用，超过了插件给自己设的每小时硬顶：本小时 AI 工具已用 ' + hour.points + ' 点、' +
-    hour.requests + ' 条，这一笔预计花 ' + a.points + ' 点、' + a.requests + ' 条，每小时上限是 ' +
-    limits.aiToolMaxPointsPerHour + ' 点 / ' + limits.aiToolMaxRequestsPerHour + ' 条。额度没被别人用掉，' +
-    '是这一小时攒太多了；等下一个整点后再试，或把这一笔拆小。'
-}
-
 /**
- * ③ 额度不够：说清哪一族、服务端还剩多少、上限与保底各是多少、这一笔花完还剩多少、还有多久恢复。
+ * ② 额度不够：说清哪一族、服务端还剩多少、上限与保底各是多少、这一笔花完还剩多少、还有多久恢复。
  *
  * 这些数字一个都不能省：以前只说「剩余额度已到保底线」，人只能猜是哪儿没额度和为什么被拒，
  * 结果把「服务端还剩 3669 点」误当成「插件额度不够」（#1527 的原始现场）。

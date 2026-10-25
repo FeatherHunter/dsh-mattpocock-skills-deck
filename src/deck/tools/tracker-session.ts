@@ -10,7 +10,7 @@ import type { TrackerSession } from '../../tracker/session/open-tracker.js'
 import { selectionFromOutlet } from '../../tracker/detection/backendDecision.js'
 import { tierFor, aiToolFloor } from '../../refresh/kernel/host-budget.js'
 import { recordWorkRoute } from '../shell/work-path-record.js'
-import { DECK_STATUS, DECK_TOOL_KIND, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { DECK_STATUS, DECK_TOOL_KIND, REFUSAL_REASONS, receiptCost } from '../shell/call-shell.js'
 import { withInFlightLease } from '../shell/in-flight-lease.js'
 
 /** 未知形状的记录（依赖袋与会话壳都没标类型，用到哪格验哪格，不猜）。 */
@@ -155,7 +155,8 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   //   在每次操作过管线时做（见 src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
   //   所以预检按族逐个试：一族因为额度见底被拒就换另一族再问一次，两族都见底才拒。
   //   不自己拿两族的 remaining 绝对值相比：两族的尺子不一样（保底各按服务端上限的 5%，#1527），
-  //   余量判断一律交给闸按各桶自己的保底线算。硬顶（单次 / 每小时）与桶无关，被硬顶拒就不再换桶。
+  //   余量判断一律交给闸按各桶自己的保底线算。单次硬顶与桶无关，被它拒就不再换桶；
+  //   每小时那条线 #1527 起只是提醒（放行并带一段 warnings），不会让换桶循环多问一次。
   const probeBuckets: string[] = str(model.kind) === 'requests-only'
     ? ['requests']
     : (readCall ? ['graphql'] : ['rest', 'graphql']);
@@ -165,7 +166,7 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   let admit: UnknownRecord = {};
   if (offline) {
     // 离网后端没有额度可言：剩余额度探针在这里没有意义（无读数的 0 不能当成耗尽，见 #1435），
-    // 所以只认调用前估算那两道硬顶（单次与每小时），档位与人话都沿用估算那一句（含硬顶二字）。
+    // 所以只认调用前估算的单次硬顶；每小时提醒线越线时照常执行，提醒句留在估算 text 里（#1527）。
     if (est.withinCallCap === false) return { ok: false, reason: REFUSAL_REASONS.OVER_CAP, text: str(est.text) || '这次调用超过了插件给 AI 工具设的硬顶，我没有动手。' };
     admit = { admitted: true, points: admitVolumes.points, requests: admitVolumes.requests, childTickets: admitVolumes.childTickets, reason: 'off-network' };
   } else {
@@ -428,11 +429,10 @@ export async function callDeckSession(req: DeckCallRequest, work: (ctx: unknown)
     { requests: num((claimed as UnknownRecord).requests), points: num((claimed as UnknownRecord).points) },
     quota.actual,
   );
-  const cost: UnknownRecord = {
-    estimated: { points: num(est.points), requests: num(est.requests), withinCallCap: est.withinCallCap, shards: est.shards, perShard: est.perShard, text: str(est.text) },
-    actual: actual,
-  };
-  if (quota.note) cost.note = quota.note;
+  // #1527：闸放行时带的提醒（例如这一小时越过了 AI 工具提醒线）要出现在回执里——人翻回执就能看见
+  //   「花得多、该收手」，不用去日志里翻；票面第 5 条点名 cost.note，提醒也写进那一格。拼法在壳里
+  //   （call-shell.ts 的 receiptCost）：这里是接线层，只递料，不各拼一份。没提醒时两格都不出现。
+  const cost = receiptCost(est, actual, opened.admit, quota.note)
   const out = envelope(tool, DECK_STATUS.OK, {
     workspace: { root: str(s.cwd), key: str(s.workspaceKey) },
     backend: { id: backendId, source: opened.source },

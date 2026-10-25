@@ -1,8 +1,9 @@
 // verify-policy.ts —— #706（T2）第一批：闸的裁决纯函数单测
 // 用法：在插件根目录执行 node tests/verify-policy.ts，可独立运行。
 //
-// 断言文字：裁决四条底线——① 人亲手做的动作永不降档；② AI 工具超单次/每小时硬顶必须被拒，
-// 绝不静默放行；③ 后台类超出即推迟（不是失败）；④ 剩余额度到保底线时先拒 AI 那一档。
+// 断言文字：裁决四条底线——① 人亲手做的动作永不降档；② AI 工具超单次硬顶必须被拒，绝不静默放行，
+// 越过每小时的提醒线则照常放行并把话写进 warnings（#1527）；③ 后台类超出即推迟（不是失败）；
+// ④ 剩余额度到保底线时先拒 AI 那一档。
 // 另断言三档降级顺序（先降「别处变化」的灵敏度，再降后台对账的频率，最后才动本地写入的即时性），
 // 且四个档位的数值全部等于 budget.js 的常量本身（证明数字只有一个来源，没有在 policy.js 里重写一份）。
 // 最后带一层「断言装置自检」：把裁决改坏成四种错法，同一套断言必须判红——门禁自己有牙齿。
@@ -75,12 +76,17 @@ function scenarios(api) {
       },
     },
     {
-      id: '②c AI 工具把这一小时的累计顶过去必须被拒（点数与请求数各一条）',
+      id: '②c 越过每小时提醒线照常放行，但 warnings 要把用了多少、线在哪、服务端还剩多少说清（点数与请求数各一条）',
       run() {
         const overPoints = api.aiToolAdmission({ points: 2, requests: 1 }, { points: limits.aiToolMaxPointsPerHour - 1, requests: 0 }, plenty, limits)
         const overRequests = api.aiToolAdmission({ points: 2, requests: 1 }, { points: 0, requests: limits.aiToolMaxRequestsPerHour }, plenty, limits)
-        return overPoints.admitted === false && overPoints.reason === 'ai-tool-over-hour-cap' &&
-          overRequests.admitted === false && overRequests.reason === 'ai-tool-over-hour-cap'
+        const p = overPoints.admitted === true && overPoints.reason === 'ai-tool-over-hour-soft' && overPoints.warnings.length === 1
+        const q = overRequests.admitted === true && overRequests.reason === 'ai-tool-over-hour-soft' && overRequests.warnings.length === 1
+        return p && q &&
+          overPoints.warnings[0].indexOf(String(limits.aiToolMaxPointsPerHour) + ' 点') >= 0 &&
+          overPoints.warnings[0].indexOf(String(limits.aiToolMaxRequestsPerHour) + ' 条') >= 0 &&
+          // #1527：提醒里必须带服务端这一桶还剩多少，人才能判断「快见底」还是「还宽裕」。
+          overPoints.warnings[0].indexOf('服务端这一桶还剩 ' + plenty.remaining + ' 条') >= 0
       },
     },
     {
@@ -90,6 +96,17 @@ function scenarios(api) {
           { points: limits.aiToolMaxPointsPerCall, requests: limits.aiToolMaxRequestsPerCall },
           { points: 0, requests: 0 }, plenty, limits)
         return r.admitted === true && r.reason === 'ai-tool-within-caps'
+      },
+    },
+    {
+      id: '②e 越过提醒线的那一笔如果会把额度花到保底线以下，仍然按「额度见底」拒绝（提醒不替代保底判定）',
+      run() {
+        const serverLimit = 5000
+        const floor = budget.aiToolFloor(serverLimit)
+        const tight = { allowance: serverLimit, used: serverLimit - floor - 1, remaining: floor + 1, reserve: 0, floor: floor, limit: serverLimit, bucket: 'graphql' }
+        const r = api.aiToolAdmission({ points: 1, requests: 0 }, { points: limits.aiToolMaxPointsPerHour, requests: 0 }, tight, limits)
+        return r.admitted === false && r.reason === 'ai-tool-below-remaining' &&
+          Array.isArray(r.warnings) && r.warnings.length === 1
       },
     },
     {

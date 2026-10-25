@@ -506,7 +506,7 @@ export function createLedger(deps?: LedgerDeps) {
     return { requests: c.requests, points: c.points }
   }
 
-  /** 这一档在这个后端的所有桶加起来花了多少（AI 工具那两组硬顶不分桶，要的就是这个数）。 */
+  /** 这一档在这个后端的所有桶加起来花了多少（AI 工具的单次硬顶与每小时提醒线都不分桶，要的就是这个数）。 */
   function hourOf(accountName: string, backendId: string) {
     rollHour()
     const a = accountOf(accountName)
