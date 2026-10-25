@@ -15,7 +15,7 @@ import { beginEdgeTrail, emitEdgeWrite } from './edge-log.js'
 import type { EdgeTrail } from './edge-log.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
+import { locateContainerFile, resolveIssueFile, resolveMapFile } from './issues-locate.js'
 // #1277：文件头里父注释的插入位置要认得类型标记行 —— 标记紧跟在幂等锚后面，父注释排在标记之后。
 import { markerKindOnLine } from '../../../shared/issue-file/src/marker.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
@@ -31,13 +31,17 @@ import type { RepositoryRef, Issue } from '../../contract/entities.js'
 import type { UpdatePatch, LabelInput, AssigneeInput, SetOpts } from '../../contract/inputs.js'
 
 // 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
-type RepoWithPath = RepositoryRef & { path?: string }
+// mdScene 也是本地后端自己的约定：'feature' 表这次操作的是规格，'effort' 表是地图；00 号票
+// 要按它决定找 spec 还是 map（与读取侧 getIssue 同一判据，顺序收在 issues-locate 的 locateContainerFile）。
+type RepoWithPath = RepositoryRef & { path?: string; mdScene?: string }
 
 // 定位到的目标文件（resolveIssueFile/resolveMapFile 的成功侧）：读改写三步都认它。
 interface ResolvedTarget {
   ok: true
   path: string
   effortId: string
+  /** 00 号容器的形状（规格 / 地图）：读回时按它给 parseMd 递 isMap/kind，别把规格当地图解析。 */
+  container?: 'spec' | 'map'
 }
 
 // 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带）。
@@ -47,8 +51,13 @@ interface PatchFailure {
 }
 
 async function resolveTarget(ctx: OpContext,repo: RepoWithPath | null,norm: string,mode: string): Promise<ResolvedTarget | PatchFailure>{
-  if(norm==='00') return resolveMapFile(ctx,repo,{mode})
-  return resolveIssueFile(ctx,repo,norm,{mode})
+  // 00 号的顺序（与读取侧 getIssue 相同）收在 issues-locate 一处，关闭与改正文共用同一份判据（#1480 两轴评审）。
+  if(norm==='00'){
+    const c=await locateContainerFile(ctx,repo,mode)
+    return c.ok?{ok:true,path:c.path,effortId:c.effortId,container:c.container}:{ok:false,error:c.error}
+  }
+  const r=await resolveIssueFile(ctx,repo,norm,{mode})
+  return r.ok?{ok:true,path:r.path,effortId:r.effortId}:{ok:false,error:r.error}
 }
 /** 读一份票文件、在内存里改、再整份写回去。
  *  这三步必须排在该文件的单写者队列里跑完（#922）：中间那一次读会让出事件循环，
@@ -105,15 +114,27 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
         txt=moveLeadingSectionBelowTitle(mergeWholeBodyForPatch(patch.body, fnOldText));changed=true
       }else{
         const lines=txt.split('\n')
-        const titleIdx=lines.findIndex(l=>/^#+\s+/.test(l))
-        let insertAt=titleIdx>=0?titleIdx+1:0
+        // #1480：插图点先认可见一级标题（票形）；规格与地图没有一级标题，正文第一行就是段标题「## ...」，
+        // 那时插在第一个可见标题之前 —— 也就是文件头注释之后、正文之前。一个标题都没有的文件，
+        // 插在最后一条文件头隐藏注释之后；绝不许插到第 0 行把正文顶到文件头注释前面。
+        const titleIdx=lines.findIndex(l=>/^#[ \t]+\S/.test(l))
+        let insertAt=titleIdx>=0?titleIdx+1:(function(){
+          const firstSection=lines.findIndex(l=>/^##[ \t]+\S/.test(l))
+          if(firstSection>=0)return firstSection
+          let afterComments=0
+          for(let i=0;i<lines.length;i++) if(/^[ \t]*<!--[ \t]*DSH-[A-Z0-9-]+[ \t]*:/.test(lines[i])) afterComments=i+1
+          return afterComments
+        })()
         while(insertAt<lines.length&&lines[insertAt].trim()==='')insertAt++
         // 正文区的范围是「标题之后」到「第一条字段行之前」。字段名要认全（含 Assignees 与 Close reason）：
         // 漏一个，那一条就会被划进正文区、被这次改写整行丢掉（#1174 复核 P1-1）。
         // #1489：原文布局的票把字段写成加粗的一行（名字前一对星号、冒号后一对星号），
         // 这同样是字段行；不认它，正文区会一直划到文件尾，改正文时把 Comments 等区块整段吞掉。
         let fieldIdx=lines.findIndex((l,i)=>i>=insertAt&&/^\s*(?:\*\*)?(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)(?:\*\*)?\s*[:\uFF1A]/i.test(l))
-        if(fieldIdx<0)fieldIdx=lines.length
+        // #1480：找不到字段行时分两种情形。有可见一级标题（票形）保持原语义：标题之后到文件尾都是正文区，
+        // 这次改写整段替换掉。没有一级标题（规格与地图的正文由模板段组成）时只做插入：`after` 从插入点原样
+        // 接回，段标题与既有正文一个都不动 —— 否则一次片段改写会把 ## Problem Statement 以下全部删掉。
+        if(fieldIdx<0)fieldIdx=titleIdx>=0?lines.length:insertAt
         const before=lines.slice(0,insertAt).join('\n')
         const after=lines.slice(fieldIdx).join('\n')
         const bodyBlock=String(patch.body).trim()
@@ -122,9 +143,15 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
       }
     }
     if(newTitle){
-      if(/^#+\s+.*$/m.test(txt))txt=txt.replace(/^#+\s+.*$/m,'# '+newTitle)
-      else txt='# '+newTitle+'\n\n'+txt
-      changed=true
+      // #1480：00 号容器（规格 / 地图）没有可见一级标题，标题值只在文件头 DSH-TITLE 注释里：
+      // 改名就改那一行，绝不插回一行「# 标题」，也不去动正文段标题。旧 deck 文件若还留着可见
+      // 一级标题，顺手把它一起换掉，免得读路径先认一级标题、改完名字看起来没变。
+      if(norm==='00'){
+        txt=upsertHiddenComment(txt,'DSH-TITLE',newTitle)
+        if(/^#[ \t]+\S.*$/m.test(txt))txt=txt.replace(/^#[ \t]+\S.*$/m,'# '+newTitle)
+        changed=true
+      }else if(/^#[ \t]+\S.*$/m.test(txt)){ txt=txt.replace(/^#[ \t]+\S.*$/m,'# '+newTitle); changed=true }
+      else{ txt='# '+newTitle+'\n\n'+txt; changed=true }
     }
     // #1174：里程碑以前是被**静默丢掉**的 —— 调用方递进来、照样回成功，它以为写上了。
     // 本地票文件里没有放里程碑的地方，所以如实回「不支持」，而不是假装成功。
@@ -174,7 +201,7 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
   },opts,trail)
   if(!res.ok)return{ok:false,error:res.error}
   try{
-    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})
+    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: r.container==='map',kind: r.container==='spec'?'spec':undefined,effortId:r.effortId,url:r.path})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的字段时出错')}

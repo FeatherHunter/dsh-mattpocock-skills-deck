@@ -13,7 +13,6 @@ import { publishTextFile, ensureDir } from './write.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
-import { issuesDir } from './path.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { getPlat, listEfforts, findIssueFileInEffort, getScratchRoot } from './issues-locate.js'
@@ -87,7 +86,14 @@ async function resolveCreateTarget(ctx: OpContext, repo: RepositoryRef | null): 
   }else if(efforts.length>1){
     return failAs(ERROR_KIND.CONFLICT,'本仓库有 '+efforts.length+' 个 effort（'+efforts.map(function(e){return e.effortId||'(根)'}).join('、')+'），新建票据必须指定 effortId',JSON.stringify(efforts.map(function(e){return e.effortId||'(根)'})))
   }
-  return{ok:true,effortId:target?target.effortId:'',idir:target?getPlat(ctx).join(target.dir,'issues'):issuesDir(repo,ctx)}
+  // #1480 两轴评审修（#1486 验收「旧行为（落工作区根 issues/）不再出现」的残留路径）：
+  // 仓库里一个 effort 都没有、调用方也没点名目录时，以前会回落到 issuesDir()（工作区根或 .scratch/issues/ 的
+  // 旧位置）——那正是旧布局的落点，新布局不往里写。这里如实失败，一个字节都不落盘。
+  if(!target){
+    const have=efforts.map(function(e){ return e.effortId||'(根)' }).join('、')||'（本仓库还没有 feature 目录）'
+    return failAs(ERROR_KIND.NOTFOUND,'本仓库还没有 feature 目录；新建票据要先给 featureSlug/effortId，或先建规格（spec）。现有：'+have,JSON.stringify({have:have}))
+  }
+  return{ok:true,effortId:target.effortId,idir:getPlat(ctx).join(target.dir,'issues')}
 }
 
 /** 票面正文（落盘内容）。单独抽出来是因为落盘要在写者队列里做、回包还要按同一份内容解析，

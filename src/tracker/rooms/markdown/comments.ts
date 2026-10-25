@@ -39,6 +39,15 @@ async function locateForWrite(ctx: OpContext, repo: RepoWithPath | null, norm: s
   return resolveIssueFile(ctx, repo, norm, { mode: 'write' })
 }
 
+/** 找这次要读评论的文件：与写侧同一套寻址，但按读模式找 ——
+ *  旧布局的票只读（#1488 验收③）：评论能读、能列，写评论由写侧如实失败。 */
+async function locateForRead(ctx: OpContext, repo: RepoWithPath | null, norm: string) {
+  if (norm === '00' && repo && String(repo.mdScene || '') === 'feature') {
+    return resolveSpecFile(ctx, repo, { mode: 'read' })
+  }
+  return resolveIssueFile(ctx, repo, norm, { mode: 'read' })
+}
+
 /** 一条评论的文本块：`### <actor> — <ISO 时间>` 加正文。
  *  关票时追加的关闭原因也用这同一个块（见 issues-status.ts），两处格式不许各写一份。 */
 export function commentBlockOf(actor: string, body: string, iso: string): string {
@@ -46,7 +55,7 @@ export function commentBlockOf(actor: string, body: string, iso: string): string
 }
 export async function listComments(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true,data:Comment[]}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
-  const r=await locateForWrite(ctx,repo,norm)
+  const r=await locateForRead(ctx,repo,norm)
   if(!r.ok)return{ok:false,error:r.error}
   try{const txt=await readTextFile(ctx,r.path);const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId});return{ok:true,data:iss.comments||[]}}catch(e){return failFromError(e,ctx,'读这张票的评论时出错')}
 }

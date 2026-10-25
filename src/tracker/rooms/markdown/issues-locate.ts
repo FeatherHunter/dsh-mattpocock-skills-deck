@@ -57,6 +57,19 @@ export function getCwd(ctx: OpContext): string {
 export async function getScratchRoot(ctx: OpContext): Promise<string> {
   return getPlat(ctx).join(getCwd(ctx),'.scratch')
 }
+/** 这个目录是不是旧布局的扁平票目录：工作区根 `<cwd>/issues` 或 `<cwd>/.scratch/issues`。
+ *
+ *  旧布局只读兼容（#1488 验收③：旧版工作区根 issues/ 的票仍可读、只读、不迁移）：票还在原地、读得到、
+ *  列得出，但写路径一律如实失败（状态/关闭/改正文/评论/认领/标签都经 resolveIssueFile 的写模式）。
+ *  判据只看路径层次，不看文件形状：`.scratch/<feature>/issues/` 是原文布局的新位置，不算旧布局。 */
+export function isLegacyTicketDir(ctx: OpContext, dirPath: string): boolean {
+  const plat = getPlat(ctx)
+  const norm = function (p: string): string { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() }
+  const want = norm(dirPath)
+  if (!want) return false
+  const cwd = getCwd(ctx)
+  return want === norm(plat.join(cwd, 'issues')) || want === norm(plat.join(cwd, '.scratch', 'issues'))
+}
 /** 列出本仓库的全部 effort（顺序稳定：根级扁平布局优先，其余按目录名排序）。返回 [{effortId, dir}]。 */
 export async function listEfforts(ctx: OpContext): Promise<{ effortId: string; dir: string }[]> {
   const plat=getPlat(ctx)
@@ -317,7 +330,7 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
         const m=/^(\d+)-/.exec(f)
         if(!m) continue
         if(m[1].padStart(2,'0')!==norm) continue
-        hits.push({ path: plat.join(idir,f), effortId: scope!==undefined?scope:'', key:norm, legacy:false, parentKey:'00', degenerate:false })
+        hits.push({ path: plat.join(idir,f), effortId: scope!==undefined?scope:'', key:norm, legacy:isLegacyTicketDir(ctx,idir), parentKey:'00', degenerate:false })
       }
       if(hits.length) break
     }
@@ -327,6 +340,11 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
   if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'issue '+norm+' not-found', rawJson({ key:norm, effortId: scope===undefined?null:scope, efforts: seenEfforts, fallbackDirs: cands }))
   if(hits.length>1 && o.mode==='write') return conflict(norm, hits)
   const hit=hits[0]
+  // #1480 两轴评审修（#1488 验收③「旧布局只读兼容、不迁移」）：读路径一个字节不变，写路径在这里如实失败。
+  // 拦在定位这一层，是因为状态、关闭、改正文、评论、认领、标签全都经 resolveIssueFile 的写模式找文件。
+  if(o.mode==='write' && (hit.legacy || isLegacyTicketDir(ctx, plat.dirname(hit.path)))) {
+    return failAs(ERROR_KIND.UNSUPPORTED, '旧布局的票只读：'+hit.path+' 落在旧版工作区根或「.scratch」的 issues/ 扁平目录里，本次一个字都没写；迁移另行处理', rawJson({key:norm,path:hit.path,legacy:true}))
+  }
   return { ok:true, path:hit.path, effortId:hit.effortId, key:hit.key, legacy:!!hit.legacy, parentKey:hit.parentKey, degenerate:!!hit.degenerate }
 }
 /** 按 effort 范围找地图文件（map.md）。未给范围且多命中时，读取第一个、写报 conflict。 */
@@ -386,6 +404,26 @@ export async function resolveSpecFile(ctx: OpContext, repo: RepoWithPath | null,
   if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'spec.md not-found', rawJson({ effortId: scope===undefined?null:scope }))
   if(hits.length>1 && o.mode==='write') return conflict('00', hits)
   return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
+}
+/** 00 号容器（规格或地图）的定位：读取侧与写入侧共用同一顺序（#1480 两轴评审确认的偏差收口）。
+ *
+ *  读取侧不带范围时先找 spec、再找 map；写入侧以前不带 mdScene 就一律当 map，于是
+ *  「不带 feature 参数读到的规格」关不掉、或被当成地图改。顺序收在这一处，两边不再各抄一遍：
+ *   · mdScene==='effort' 只认地图；mdScene==='feature' 只认规格；
+ *   · 没给：先找规格（按 mode），成功即规格；再找地图，成功即地图；
+ *   · 都失败：按读取侧优先级报错（点明 feature 就报规格的错，否则报地图的错）。
+ *  调用方靠 container 决定读回时给 parseMd 递 isMap/kind。 */
+export async function locateContainerFile(ctx: OpContext, repo: RepoWithPath | null, mode: string): Promise<{ ok: true; path: string; effortId: string; container: 'spec' | 'map' } | { ok: false; error: { kind: string; message: string; raw: string } }> {
+  const scene = String(repo && repo.mdScene || '')
+  let specError: { kind: string; message: string; raw: string } | null = null
+  if (scene !== 'effort') {
+    const spec = await resolveSpecFile(ctx, repo, { mode })
+    if (spec.ok) return { ok: true, path: spec.path, effortId: spec.effortId, container: 'spec' }
+    specError = spec.error || null
+  }
+  const map = await resolveMapFile(ctx, repo, { mode })
+  if (map.ok) return { ok: true, path: map.path, effortId: map.effortId, container: 'map' }
+  return { ok: false, error: (scene === 'feature' && specError) ? specError : map.error }
 }
 /** 兼容旧接口：全局按编号找（读语义，取第一个命中）。新代码请用 resolveIssueFile。 */
 export async function findIssueFileGlobal(ctx: OpContext, key: string): Promise<string | null> {

@@ -14,7 +14,7 @@ import { publishTextFile } from './write.js'
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
-import { getPlat, resolveIssueFile, resolveMapFile, resolveSpecFile } from './issues-locate.js'
+import { getPlat, locateContainerFile, resolveIssueFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
@@ -100,16 +100,18 @@ function hasAssigneeRecord(text: string): boolean {
   if (hidden.found && hidden.value.trim()) return true
   return /^[ \t]*Assignees[ \t]*[:：][ \t]*\S/m.test(text)
 }
-/** 定位这次要写的文件，并说清它是不是 00 号容器。 */
+/** 定位这次要写的文件，并说清它是不是 00 号容器。
+ *  00 号的顺序与读取侧 getIssue 相同，收在 issues-locate 的 locateContainerFile 一处（#1480 两轴评审）。 */
 async function locateWriteTarget(ctx: OpContext, repo: RepoWithPath | null, key: string): Promise<{ ok: true; data: WriteTarget } | StatusFailure> {
   const norm = String(key).padStart(2, '0')
-  const isSpec = norm === '00' && !!repo && String(repo.mdScene || '') === 'feature'
-  const isMap = norm === '00' && !isSpec
-  const r = isSpec
-    ? await resolveSpecFile(ctx, repo, { mode: 'write' })
-    : (isMap ? await resolveMapFile(ctx, repo, { mode: 'write' }) : await resolveIssueFile(ctx, repo, norm, { mode: 'write' }))
+  if (norm === '00') {
+    const r = await locateContainerFile(ctx, repo, 'write')
+    if (!r.ok) return { ok: false, error: r.error }
+    return { ok: true, data: { path: r.path, effortId: r.effortId, container: r.container } }
+  }
+  const r = await resolveIssueFile(ctx, repo, norm, { mode: 'write' })
   if (!r.ok) return { ok: false, error: r.error }
-  return { ok: true, data: { path: r.path, effortId: r.effortId, container: isSpec ? 'spec' : (isMap ? 'map' : null) } }
+  return { ok: true, data: { path: r.path, effortId: r.effortId, container: null } }
 }
 /** 读回的元数据：容器的父票固定 null，普通票的父票由目录结构兜底成 00（与旧读法一致）。 */
 function metaOf(norm: string, target: WriteTarget) {
