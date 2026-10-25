@@ -34,6 +34,8 @@ type RefusalArgs = {
   limit?: number
   /** 服务端读数扣掉本插件已花之后的剩余。 */
   serverRemaining?: number
+  /** 这份读数可不可用（闸给的 aiQuota.known）；未知时文案不报剩余，免得拿占位的 1 当读数。 */
+  known?: boolean
   /** 内部推导出来的三格（由 bucket / resetAt / now 算，调用方不传）。 */
   familyLabel?: string; unit?: string; resetInMinutes?: number
 }
@@ -74,9 +76,14 @@ function callCapText(a: RefusalArgs, plan: RefusalPlan, limits: RefusalLimits): 
   const split = plan.shards > 1
     ? '这次要建 ' + plan.shards * plan.perShard + ' 张以内的票，建议分 ' + plan.shards + ' 次调用，每片不超过 ' + plan.perShard + ' 张票。'
     : '把这一笔拆小再试（例如分批建票、或改完一处再改下一处）。'
+  // #1527 决定三：单次硬顶的拒绝也要报服务端还剩多少——人要知道「不是没额度了」，
+  //   AI 才知道该等额度恢复还是该把这一笔拆小。读数未知时不报，不拿占位的数字冒充读数（#1435）。
+  const rest = (a.known !== false && typeof a.serverRemaining === 'number' && isFinite(a.serverRemaining))
+    ? '服务端这一桶还剩 ' + a.serverRemaining + ' ' + (a.unit === '条' ? '条' : '点') + '。'
+    : ''
   return '这次调用超过了插件给自己设的单次硬顶：这一笔预计花 ' + a.points + ' 点、' + a.requests +
     ' 条出站请求，单次上限是 ' + limits.aiToolMaxPointsPerCall + ' 点 / ' + limits.aiToolMaxRequestsPerCall + ' 条' +
-    (over.length ? '（' + over.join('、') + '）' : '') + '。额度没被别人用掉，是这一笔太大。' + split
+    (over.length ? '（' + over.join('、') + '）' : '') + '。额度没被别人用掉，是这一笔太大。' + rest + split
 }
 
 /**

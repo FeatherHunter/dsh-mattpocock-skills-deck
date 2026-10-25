@@ -302,8 +302,10 @@ async function main() {
       && String(hourCap.warnings[0]).indexOf('服务端这一桶还剩') >= 0,
       '越过每小时提醒线时照常放行，warnings 说清提醒线在哪、服务端还剩多少（实得 ' + JSON.stringify(hourCap && { admitted: hourCap.admitted, reason: hourCap.reason, warnings: hourCap.warnings }) + '）');
     const callCap = w.gate.admitAiTool({ points: 601, requests: 0 }, { backendId: 'gh-stub-1442', bucket: 'graphql' });
-    check(!!callCap && callCap.admitted === false && callCap.reason === 'ai-tool-over-call-cap',
-      '单次超量仍被拒，且报的是单次档（单次硬顶没有被降成警告）→ ' + JSON.stringify(callCap && { admitted: callCap.admitted, reason: callCap.reason }));
+    check(!!callCap && callCap.admitted === false && callCap.reason === 'ai-tool-over-call-cap'
+      // #1527 决定三：单次硬顶拒绝必须报出服务端还剩多少，否则 AI 会以为「没额度了」而不是「这一笔太大」。
+      && String(callCap.text).indexOf('服务端这一桶还剩') >= 0,
+      '单次超量仍被拒，报的是单次档、文案说明服务端还剩多少（实得 ' + JSON.stringify(callCap && { admitted: callCap.admitted, reason: callCap.reason, text: callCap.text }) + '）');
     // 会话级：本小时已越线，但会话照开，提醒挂在 admit.warnings 上（回执把这一段带出去）。
     const opened = await trackerSessionMod.openDeckSession({
       deps: w.deps, exec: {},
