@@ -8,6 +8,9 @@
 //
 // 搬出来还有一个现实原因：issue-create.ts 的有效行已经贴着文件粒度门禁的 350 行上限，这一段进不去。
 import { DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import type { TransportResult } from '../shell/backend-transport.js'
+// 回查阶段的取值从契约的同一张表里取，不在这里另写一遍字面量：改名时编译器能顺着常量找到每一处。
+import { TRACKER_ERROR_STAGE } from '../../tracker/contract/results.js'
 
 /**
  * 把「后端诚实失败」这一支收成回执值：后端原话（截 300）、错误档与错误原文照抄，
@@ -17,15 +20,14 @@ import { DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
  * @param explicitKey 调用方有没有自带幂等键；有就说「同一个幂等键」，没有才说「同一个 5 分钟窗口」
  * @param notes 走到这一步已经攒下的提示，原样放进回执，不改顺序、不改内容
  */
-export function backendCreateFailure(created: unknown, explicitKey: unknown, notes: string[]): { value: Record<string, unknown>; claimed: { requests: number; points: number } } {
-  const err = (created && (created as Record<string, unknown>).error) as Record<string, unknown> | undefined
+export function backendCreateFailure(created: TransportResult, explicitKey: boolean, notes: string[]): { value: Record<string, unknown>; claimed: { requests: number; points: number } } {
+  const err = created && created.error
   const msg = String((err && err.message) || '后端没给出原因').slice(0, 300)
-  let retryAdvice = ''
-  if (String((err && err.stage) || '') === 'anchor-lookup') {
-    retryAdvice = explicitKey
-      ? ' 这次卡在建票前的按锚回查上，所以票没建。原样重试即可：重试带的是同一个幂等键，会先按它回查，命中就复用那张票，不会多建一张。'
-      : ' 这次卡在建票前的按锚回查上，所以票没建。原样重试即可（标题和标签都别改）：只要还在同一个 5 分钟窗口内，重试算出的还是同一个锚，会先按锚回查，命中就复用那张票，不会多建一张。'
-  }
+  // 只有「回查没做成」这一档有确定可做的下一步；别的失败重试未必有用，不追加任何建议。
+  const lookupFailed = !!err && err.stage === TRACKER_ERROR_STAGE.ANCHOR_LOOKUP
+  const retryAdvice = lookupFailed
+    ? ' 原样重试即可：重试带的是' + (explicitKey ? '同一个幂等键' : '同一个 5 分钟窗口内算出的同一个锚（标题和标签都别改）') + '，会先按它回查，命中就复用那张票，不会多建一张。'
+    : ''
   return {
     value: { status: DECK_STATUS.UNSUPPORTED, reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED, text: '这张票没建成（后端原话：' + msg + '）。' + retryAdvice, data: { error: { kind: String((err && err.kind) || ''), message: msg } }, notes: notes },
     claimed: { requests: 1, points: 4 },

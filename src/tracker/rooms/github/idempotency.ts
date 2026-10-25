@@ -30,6 +30,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { ErrorKind } from '../../contract/identity.js';
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js';
 import type { TrackerError } from '../../contract/results.js';
 import { ghClient } from './client.js'
 import { ghVerdictOf } from './errors.js'
@@ -118,7 +119,7 @@ function createdMs(raw: unknown): number | null {
  *  #1171：这句话只陈述事实（回查没做成、这一次没有建票），不推荐调用面上不存在的做法 ——
  *  「换用不带锚的创建」是工具那一层做不到的动作。能做什么由调用方补；stage 让它认得出这一档。 */
 function lookupFailure(kind: ErrorKind, message: unknown, raw: unknown): { ok: false; error: TrackerError } {
-  return { ok: false, error: { kind: kind || ERROR_KIND.UNSUPPORTED, message: '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票。', raw: String(raw == null ? '' : raw).slice(0, 2000), stage: 'anchor-lookup' } }
+  return { ok: false, error: { kind: kind || ERROR_KIND.UNSUPPORTED, message: '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票。', raw: String(raw == null ? '' : raw).slice(0, 2000), stage: TRACKER_ERROR_STAGE.ANCHOR_LOOKUP } }
 }
 
 /** 回查最大的一个隐患，写在最显眼的地方：列表接口默认按更新时间倒序（这是 GitHub 的接口约定），

@@ -24,6 +24,7 @@ import type { AnchorCandidate, AnchorMatch } from '../../../refresh/contract/ide
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { ErrorKind } from '../../contract/identity.js'
 import type { Issue, RepositoryRef } from '../../contract/entities.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import type { OpResult, TrackerError } from '../../contract/results.js'
 import { glabClient } from './client.js'
 import { classifyGlabError, hintFor } from './errors.js'
@@ -114,7 +115,7 @@ function lookupFailure(
       kind: (verdict && verdict.kind) || (ERROR_KIND.UNSUPPORTED as ErrorKind),
       message: hintFor(verdict, native),
       raw: String(raw || ''),
-      stage: 'anchor-lookup',
+      stage: TRACKER_ERROR_STAGE.ANCHOR_LOOKUP,
     },
   }
 }

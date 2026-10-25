@@ -254,7 +254,8 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       const createdTransport = transportMessage(created as TransportResult)
       if (createdTransport) throw new Error(createdTransport)
       // #1171：后端诚实失败的整支收在同目录 issue-create-failure.ts，只为把本文件压回 350 有效行以内。
-      if (!created || created.ok !== true) return backendCreateFailure(created, a.idempotencyKey, notes)
+      // explicitKey 只传「有没有自带键」这一位布尔：回执话术只需要知道该说「同一个幂等键」还是「同一个 5 分钟窗口」。
+      if (!created || created.ok !== true) return backendCreateFailure(created as TransportResult, !!a.idempotencyKey, notes)
       const issue = created.data || {}
       const where = landingNote(issue)
       // #992：标签没挂上（后端在票上记了 labelError）不再报“补了”——按结果说话。
