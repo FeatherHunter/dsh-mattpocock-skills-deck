@@ -102,6 +102,8 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   const d = (req.deps || {}) as UnknownRecord;
   const s = (req.session || {}) as UnknownRecord;
   const est = (req.estimate || {}) as UnknownRecord;
+  // #1418：这次工具是读还是写 —— 两桶后端按它选族（读花 GraphQL 点数、写花 REST 请求）。
+  const readCall = str(req.kind) === 'read';
   const registry = (d.registry || {}) as UnknownRecord;
   const gate = (d.gate || {}) as UnknownRecord;
   const cwd = str(s.cwd);
@@ -146,7 +148,9 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   const offline = str(model.kind) === 'off-network';
   // #1446：闸按后端模型选桶（只计请求的后端只有 requests 这一桶），并且告诉闸「这是哪个后端」——
   // 不传 backendId 时闸只能按未知后端算，两桶保底与分桶读数就落不到这个后端头上。
-  const bucketFor = str(model.kind) === 'requests-only' ? 'requests' : 'graphql';
+  // #1418：两桶后端按「读还是写」选族。以前一律拿 graphql 桶去探，写工具在 REST 见底时探针还放行，
+  //   真正该拦的是写；而读工具在 GraphQL 见底时也该按 GraphQL 说理，不再两族混着说「一个桶」。
+  const bucketFor = str(model.kind) === 'requests-only' ? 'requests' : (readCall ? 'graphql' : 'rest');
   const admitVolumes = { points: num(est.points), requests: num(est.requests), childTickets: num(est.tickets) };
   let admit: UnknownRecord;
   if (offline) {

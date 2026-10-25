@@ -668,6 +668,10 @@ const partE = async function (store: any): Promise<void> {
       setupPendingOf: function (): any { return false },
       attentionVisible: function (): boolean { return true },
       attentionStoreOf: function (): any { return null },
+      // #1418 P1：探测范围与降档搬到 client-attention-heartbeat.ts 了（本门禁不测那两件事，
+      //   桩放进 scope 就行）：这里只探主会话那一个工作区，回复记一笔空账。
+      probeTargetNow: function (): any { return norm(opts.shared && opts.shared.cwd) },
+      noteProbeReply: noop,
       namingGuardianEvent: noop,
       applySnapshotSelection: noop,
       flash: noop,

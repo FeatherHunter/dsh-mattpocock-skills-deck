@@ -6,7 +6,7 @@
 // 于是探测自那天 16:15 起每一拍都失败。更糟的是客户端那一侧只留了一行日志就 return ——
 // 面板看起来和「没有变化」一模一样，用户只会觉得刷新坏了、却看不到任何原因。
 //
-// 本门禁量三组事：
+// 本门禁量五组事：
 //   A. 发给远端的 first 一定不超过连接上限（界面仍可以要 200 行，那是分页契约的口径）；
 //      since 窗口真的进了 argv 与查询文本（服务端只回更新过的票，稳态不用整仓翻页）；
 //      实测那句拒绝原文归「不支持」档 —— 重试无用，不许被兜底说成网络问题让人等一会儿再试。
@@ -15,6 +15,8 @@
 //   C. 探测失败要看得见：本组会话进入 err 且带原因、旧快照不被丢弃；同样的失败不重复渲染；
 //      恢复那一拍撤掉标记；别的失败（取数 / 配额）不被探测成功抹掉；别的会话不被误伤。
 //   D. 失败判档要能读出来（核心日志）：宿主回包带 errorKind；客户端那行 host.call.fail 写出 errorKind。
+//   E. P1 起探测只跟「人正在看的那个工作区」：不再逐个轮询所有工作区；连续无变化时后台拍逐级拉长；
+//      两桶裁决按族分开（REST 见底只停写、GraphQL 见底只停读），见底文案点名族与恢复时刻。
 //
 // 判据不是「源码里出现过某段字符串」，而是把真源码加载起来喂输入，看它发出什么命令、改出什么状态。
 //
@@ -24,6 +26,7 @@
 // 门禁归属: src/refresh/rooms/host/issue-list-fetch.ts
 // 门禁归属: src/refresh/rooms/client/refresh-timer.ts
 // 门禁归属: src/refresh/rooms/host/probe-handler.ts
+// 门禁归属: src/refresh/kernel/budget-admission.ts
 // 门禁归属: src/tracker/rooms/github/read-log.ts
 // 门禁归属: src/host/namingGuardian.ts
 //
@@ -41,6 +44,7 @@ import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from '../src/tracker/roo
 import { ghVerdictOf } from '../src/tracker/rooms/github/errors.js'
 import { createIssueList } from '../src/refresh/rooms/host/issue-list-fetch.js'
 import { createProbeHandler } from '../src/refresh/rooms/host/probe-handler.js'
+import { decideByBudget } from '../src/refresh/kernel/budget-admission.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -326,7 +330,10 @@ const partC = async function (): Promise<void> {
       SYNC_FALLBACK_PROBE_MS: 60000, SYNC_FOCUS_PROBE_MIN_MS: 60000,
       SYNC_SNAP_FRESH_MS: 60000, PROBE_AUTO_WAIT_MS: 50,
       host: { call: function (method: any, params: any): any { hostCalls.push({ method: method, params: params }); return opts.hostCall(method, params) } },
-      _attentionPlan: { intervalMs: 0 },
+      // attention 那一份真源码要的中央时间参数（构建里由闭包另一片提供，这里当参数塞进去）。
+      ATTENTION_EXPIRY_MS: 90000, ATTENTION_HEARTBEAT_MS: 20000,
+      getCachedSnapshot: function (): any { return null },
+      sessionStorage: undefined,
       shared: opts.shared, stores: opts.stores,
       wsKeyOf: norm, keyOf: norm,
       log: typeof opts.log === 'function' ? opts.log : noop,
@@ -338,7 +345,8 @@ const partC = async function (): Promise<void> {
       scheduleFlashClear: noop,
       loadSnapshot: function (): any { return Promise.resolve() },
       isEnabled: function (): boolean { return false },
-      timer: { timeout: function (fn: any, ms: number): any { return setTimeout(fn, ms) } },
+      // 计时器两格都给：timeout 给 scheduleActionProbe，interval 给降档日志里的 timerOk（P1 起要看这一格）。
+      timer: { timeout: function (fn: any, ms: number): any { return setTimeout(fn, ms) }, interval: function (fn: any, ms: number): any { return setTimeout(fn, ms) } },
       document: undefined, window: undefined,
       hydrateFromCache: function (): boolean { return false },
       snapshotWithoutWorkRoute: own.snapshotWithoutWorkRoute,
@@ -346,14 +354,18 @@ const partC = async function (): Promise<void> {
       chainEventRefresh: function (): any { return Promise.resolve(null) },
       loadChain: function (): any { return Promise.resolve(null) },
       setupPendingOf: function (): boolean { return false },
-      attentionVisible: function (): boolean { return true },
-      attentionStoreOf: function (): any { return null },
       namingGuardianEvent: noop,
       applySnapshotSelection: noop,
       flash: noop,
       tr: function (k: any): string { return String(k) },
     }
-    const mod = loadSpliced('src/refresh/rooms/client/refresh-timer.js', ['probeNow'], scope)
+    // #1418 P1：探测范围与降档搬到了注意力那一片（refresh-timer 已贴 350 有效行上限），
+    //   两片拼进同一个闭包再求值，跟构建里拼进界面闭包是同一个形态。
+    const paramNames = Object.keys(scope)
+    const js = spliceableJs('src/refresh/rooms/client/client-attention-heartbeat.js') + '\n'
+      + spliceableJs('src/refresh/rooms/client/refresh-timer.js')
+    const fn = compileFn(paramNames, js + '\nreturn { probeNow: probeNow, _probeBackoff: _probeBackoff, _attentionPlan: _attentionPlan }')
+    const mod = fn.apply(null, paramNames.map(function (k: string): any { return scope[k] }))
     return { mod: mod, emits: emits, hostCalls: hostCalls }
   }
 
@@ -377,10 +389,11 @@ const partC = async function (): Promise<void> {
   check(!!shared1.snapFail && shared1.snapFail.kind === 'probe-failed', 'C、失败标记写明是探测这一路留下的（不是取数/配额）', shared1.snapFail && shared1.snapFail.kind)
   check(!!shared1.snapshot && shared1.snapshot.version === 'v1', 'C、失败不清掉旧快照（有旧数据的人不该看到整屏错误）')
   check(stOther.snapMode === 'real' && !stOther.snapError, 'C、别的工作区的会话不被误伤', stOther.snapMode)
-  check(p1.hostCalls.length === 2, 'C、每个工作区各探一次（不是每个会话各发一条请求）', p1.hostCalls.length)
-  const probed = p1.hostCalls.map(function (c: any): string { return norm(c.params && c.params.cwd) }).sort().join('|')
-  check(probed === 'd:/ws-other|d:/ws1418', 'C、同工作区的两个会话只占一条探测、另一个工作区自己一条', probed)
-  check(p1.emits.length === 2, 'C、首次失败给两个会话各发一次状态变化', p1.emits.length)
+  // #1418 P1：一拍只探「人正在看的那个工作区」，不再把每个工作区的 cwd 都轮询一遍。
+  check(p1.hostCalls.length === 1, 'C、一拍只发一条探测（P1：不再逐个轮询所有工作区）', p1.hostCalls.length)
+  const probed = p1.hostCalls.map(function (c: any): string { return norm(c.params && c.params.cwd) }).join('|')
+  check(probed === 'd:/ws1418', 'C、探的是当前工作区，同工作区的两个会话只占一条探测', probed)
+  check(p1.emits.length === 2, 'C、首次失败给同工作区的两个会话各发一次状态变化', p1.emits.length)
 
   // C2. 同样的失败再来一拍：状态没变，不重复渲染（失败每 5 秒一次，面板不能跟着闪）。
   const afterFirst: number = p1.emits.length
@@ -512,6 +525,96 @@ const partC = async function (): Promise<void> {
   const failRowE: any = loggedD.filter(function (l: any): boolean { return l.event === 'host.call.fail' })[1]
   check(!!failRowE && failRowE.fields.errorKind === 'exception',
     'D、宿主调用被拒时日志写 exception（这一档不用人去猜）', failRowE && failRowE.fields && failRowE.fields.errorKind)
+
+  // -------------------------------------------------------------------------------------------
+  // E（#1418 P1）：探测范围收到「人正在看的那个工作区」；连续无变化降档；按族裁决与见底文案
+  // -------------------------------------------------------------------------------------------
+  console.log('#1418 E. P1：只探当前工作区、无变化降档、按族裁决（REST 见底不停读）与恢复时刻')
+
+  // E1. 焦点在 wsB：只探 wsB，wsA 的会话不被轮询，也不会被 wsB 的一拍误发状态变化。
+  const sharedA: any = { cwd: 'D:\\wsA', sessionId: 'sess-A', snapshot: baseSnap(), snapMode: 'real' }
+  const stB: any = { cwd: 'D:\\wsB', sessionId: 'sess-B', snapshot: baseSnap(), snapMode: 'real' }
+  const pE1 = makeProbe({
+    shared: sharedA, stores: { stB: stB },
+    hostCall: function (): any { return Promise.resolve({ ok: true, changed: false }) },
+  })
+  pE1.mod._attentionPlan.root = 'D:\\wsB'
+  pE1.mod.probeNow(false, { background: true })
+  await tick(); await tick()
+  const probedE1: string = pE1.hostCalls.map(function (c: any): string { return norm(c.params && c.params.cwd) }).join('|')
+  check(pE1.hostCalls.length === 1 && probedE1 === 'd:/wsb', 'E、焦点在 wsB 时只探 wsB（不轮询 wsA）', probedE1)
+  check(pE1.emits.length === 0, 'E、没被探的 wsA 会话不会被误发状态变化', pE1.emits.length)
+
+  // E2. 后台拍连续无变化：逐级拉长间隔；还没到间隔时直接跳过，一个请求都不发。
+  const logsE2: any[] = []
+  const pE2 = makeProbe({
+    shared: sharedA, stores: { stB: stB },
+    hostCall: function (): any { return Promise.resolve({ ok: true, changed: false }) },
+    log: function (level: string, event: string, fields: any): void { logsE2.push({ level: level, event: event, fields: fields }) },
+  })
+  pE2.mod.probeNow(false, { background: true })
+  await tick(); await tick()
+  check(pE2.mod._probeBackoff.step === 1, 'E、后台拍探成且没变化：退避加一级', pE2.mod._probeBackoff.step)
+  const callsAfterFirst: number = pE2.hostCalls.length
+  pE2.mod.probeNow(false, { background: true })
+  await tick(); await tick()
+  check(pE2.hostCalls.length === callsAfterFirst, 'E、还没到退避间隔的后台拍直接跳过（不再发请求）', pE2.hostCalls.length - callsAfterFirst)
+  pE2.mod._probeBackoff.lastAt = 0
+  pE2.mod.probeNow(false, { background: true })
+  await tick(); await tick()
+  check(pE2.mod._probeBackoff.step === 2, 'E、再过一拍仍无变化：退避加到第二级（间隔翻倍）', pE2.mod._probeBackoff.step)
+  const backoffRow: any = logsE2.filter(function (l: any): boolean { return l.event === 'probe.loop' && l.fields && l.fields.reason === 'backoff' }).pop()
+  check(!!backoffRow && backoffRow.fields.intervalMs === 120000, 'E、降档日志写出拉长后的间隔（120000 毫秒）', backoffRow && backoffRow.fields && backoffRow.fields.intervalMs)
+  check(!!backoffRow && backoffRow.fields.visible === true && backoffRow.fields.timerOk === true,
+    'E、降档日志带可见与计时器两格（沿用 probe.loop 既有字段，不加新字段）', backoffRow && JSON.stringify(backoffRow.fields))
+
+  // E3. 探到变化的那一拍把退避清零：下一拍立刻回到原节奏，不让人等分钟级。
+  let changedE3: boolean = false
+  const pE3 = makeProbe({
+    shared: sharedA, stores: { stB: stB },
+    hostCall: function (): any { return Promise.resolve({ ok: true, changed: changedE3 }) },
+  })
+  pE3.mod._attentionPlan.root = 'D:\\wsB'
+  pE3.mod.probeNow(false, { background: true })
+  await tick(); await tick()
+  check(pE3.mod._probeBackoff.step === 1, 'E、先探成一次没变化（退避到一级）', pE3.mod._probeBackoff.step)
+  changedE3 = true
+  pE3.mod._probeBackoff.lastAt = 0
+  pE3.mod.probeNow(false, { background: true })
+  await tick(); await tick()
+  check(pE3.mod._probeBackoff.step === 0, 'E、探到变化的那一拍退避清零（下一拍回到原节奏）', pE3.mod._probeBackoff.step)
+
+  // E5. 按族裁决：REST 见底只停写、GraphQL 见底只停读；文案点名族与恢复时刻；族不明的操作两族都看。
+  const limitsE: any = {
+    pluginShareOfRemaining: 0.35,
+    hourlyAllowance: function (n: number): number { return n },
+    writeReserve: function (a: number): number { return Math.floor(a * 0.3) },
+    tierFor: function (): string { return 'green' },
+  }
+  const twoE: any = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true }
+  const readingE = function (rest: number, graphql: number, restResetAt?: number): any {
+    return { known: true, kind: 'two-buckets', buckets: {
+      rest: { remaining: rest, limit: 1750, resetAt: restResetAt },
+      graphql: { remaining: graphql, limit: 1750 },
+    } }
+  }
+  // 1750 的写保底是 525：rest 500 见底、graphql 1400 充足。
+  const restDeadRead: any = decideByBudget({ op: 'list', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  check(restDeadRead.allowed === true, 'E、REST 见底时读操作照常放行（读只花 GraphQL 点数，不再整轮误停）', restDeadRead.reason)
+  const restDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(500, 1400, 1790000000000), canWrite: true }, limitsE)
+  check(restDeadWrite.allowed === false && String(restDeadWrite.message || '').indexOf('REST 请求') >= 0,
+    'E、写操作被 REST 桶拦下，文案点名 REST 请求：' + String(restDeadWrite.message || ''))
+  check(/约 \d\d:\d\d 恢复/.test(String(restDeadWrite.message || '')),
+    'E、见底文案写出恢复时刻：' + String(restDeadWrite.message || ''))
+  const graphqlDeadRead: any = decideByBudget({ op: 'get', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  check(graphqlDeadRead.allowed === false && String(graphqlDeadRead.message || '').indexOf('GraphQL 点数') >= 0,
+    'E、读操作被 GraphQL 桶拦下，文案点名 GraphQL 点数：' + String(graphqlDeadRead.message || ''))
+  const graphqlDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  check(graphqlDeadWrite.allowed === true, 'E、GraphQL 见底时写操作照常放行（写只花 REST 请求）', graphqlDeadWrite.reason)
+  const unknownFam: any = decideByBudget({ op: 'switch-backend', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  check(unknownFam.allowed === false, 'E、族不明的操作保守按两族都看（REST 见底就推迟）', unknownFam.reason)
+  const noResetMsg: string = String(decideByBudget({ op: 'create', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE).message || '')
+  check(noResetMsg.indexOf('恢复') < 0, 'E、读数没带恢复时刻时文案不编时刻：' + noResetMsg)
 }
 
 async function main(): Promise<void> {

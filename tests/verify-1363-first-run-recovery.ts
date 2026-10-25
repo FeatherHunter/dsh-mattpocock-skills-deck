@@ -166,6 +166,10 @@ const partC = async function (): Promise<void> {
       setupPendingOf: function (): boolean { return true },
       attentionVisible: function (): boolean { return true },
       attentionStoreOf: function (): any { return { cwd: 'D:\\ws1363', chainSnapshot: null } },
+      // #1418 P1：探测范围与降档搬到 client-attention-heartbeat.ts 了（本门禁只量节拍接线，
+      //   这两件事给桩就行）：探主会话那个目录，回复不记账。
+      probeTargetNow: function (): any { return 'D:\\ws1363' },
+      noteProbeReply: noop,
       namingGuardianEvent: noop,
       applySnapshotSelection: noop,
       flash: noop,

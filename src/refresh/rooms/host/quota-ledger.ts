@@ -116,6 +116,8 @@ export interface LedgerBucketView {
   tier: QuotaTier | null
   rateLimited: boolean
   syncedAt: number
+  /** 服务端给的恢复时刻（毫秒 epoch）；没读到就是 0（#1418：文案要写清等多久）。 */
+  resetAt: number
   synced: boolean
 }
 
@@ -350,7 +352,7 @@ export function createLedger(deps?: LedgerDeps) {
 
   /** 一份「还没量到」的账：#1446 定稿形状，remaining/tier 用 null 表示「不知道」，不拿 0 冒充。 */
   function emptyView(): LedgerBucketView {
-    return { allowance: 0, used: 0, remaining: null, reserve: 0, tier: null, rateLimited: false, syncedAt: 0, synced: false }
+    return { allowance: 0, used: 0, remaining: null, reserve: 0, tier: null, rateLimited: false, syncedAt: 0, resetAt: 0, synced: false }
   }
 
   // 页数实测账已搬至 ./repo-page-accounting.js（#1255）：键的维度不一样（按仓库，不按后端 × 桶），
@@ -379,6 +381,8 @@ export function createLedger(deps?: LedgerDeps) {
       tier: b.allowance > 0 ? (rateLimited ? 'red' : tierFor(usedRatio(b.used, b.allowance))) : null,
       rateLimited: rateLimited,
       syncedAt: b.syncedAt,
+      // #1418：把服务端给的恢复时刻带到闸与界面，见底文案才能写出「约 HH:MM 恢复」。
+      resetAt: b.resetAt,
       synced: true,
     }
   }

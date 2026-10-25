@@ -38,7 +38,7 @@ import type { AccountInput, BackendBudgetModel, BudgetReading } from '../../trac
 type UnknownRecord = Record<string, unknown>;
 
 /** 账本一桶的视图（#1446 定稿形状；这里只声明桥用到的几格，避免把账本类型带进登记层）。 */
-interface LedgerView { allowance?: number; remaining?: number | null; reserve?: number; synced?: boolean }
+interface LedgerView { allowance?: number; remaining?: number | null; reserve?: number; resetAt?: number; synced?: boolean }
 /** 桥要用到的账本两口：按后端取一桶，以及总览（没有可显式指认的后端时，用它认唯一的那个）。 */
 interface LedgerLike {
   view?: (backendId: string, bucket: string) => LedgerView
@@ -137,15 +137,15 @@ export function buildTrackerPorts(base: UnknownRecord): { getCachedReading: (bac
     const wantRequests = model ? model.kind === 'requests-only' : !!(requests && requests.synced === true);
     if (wantRequests) {
       if (!requests || requests.synced !== true) return { known: false, reason: 'not-measured' };
-      return { known: true, kind: 'requests-only', requests: { remaining: numOf(requests.remaining), limit: numOf(requests.allowance) } };
+      return { known: true, kind: 'requests-only', requests: { remaining: numOf(requests.remaining), limit: numOf(requests.allowance), resetAt: numOf(requests.resetAt) } };
     }
     // 两桶要两个桶都同步过才给读数：只同步了一桶时报未知，不拿另一桶的 0 冒充。
     if (!rest || !graphql || rest.synced !== true || graphql.synced !== true) return { known: false, reason: 'not-measured' };
     return {
       known: true, kind: 'two-buckets',
       buckets: {
-        rest: { remaining: numOf(rest.remaining), limit: numOf(rest.allowance) },
-        graphql: { remaining: numOf(graphql.remaining), limit: numOf(graphql.allowance) },
+        rest: { remaining: numOf(rest.remaining), limit: numOf(rest.allowance), resetAt: numOf(rest.resetAt) },
+        graphql: { remaining: numOf(graphql.remaining), limit: numOf(graphql.allowance), resetAt: numOf(graphql.resetAt) },
       },
     };
   };

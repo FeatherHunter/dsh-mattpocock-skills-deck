@@ -9,7 +9,7 @@
 // 写保底与档位换算全部由调用方注入。这样同一个算式在刷新闸、宿主账本与门禁里是同一份逻辑，
 // 而数字只有 host-budget.ts 一处真源（同一件事不写两遍）。
 
-import type { BackendBudgetModel, BudgetReading } from '../../tracker/contract/budget-model.js'
+import type { BackendBudgetModel, BudgetReading, BucketLevel } from '../../tracker/contract/budget-model.js'
 
 /**
  * 调用方注入的四个额度算式与常量。
@@ -91,6 +91,46 @@ export function isWriteOp(op: string): boolean {
   return WRITE_OPS.indexOf(op) >= 0
 }
 
+/**
+ * 两桶后端里「读」那一族的能力名（GitHub：读全走 GraphQL 点数，写才走 REST 请求）。
+ *
+ * 名单留在本文件与 WRITE_OPS 作伴：两族名单必须各自完整，漏一条就会把这一条当「族不明」，
+ * 退化成两族都看（旧行为），只是保守一点，不会放行不该放行的调用。
+ */
+const GRAPHQL_READ_OPS: readonly string[] = ['list', 'get', 'listPage', 'getDependencies', 'listSubIssues', 'listLabels', 'counts']
+
+/**
+ * 这次调用会花哪一族的额度（#1418）。
+ *
+ * 两桶后端的两桶不是「两桶都要满足」：读操作只花 GraphQL 点数，写操作只花 REST 请求。
+ * 只拿这次真正要花的那一族去比写保底，另一族见底不该停这一条 —— 这正是 #1418 要修掉的
+ * 「REST 见面底连读也不让做」的误停。名单外的操作（切换后端、探测这一类）保守按两族都看。
+ */
+export function familiesOfOp(op: string): string[] {
+  if (isWriteOp(op)) return ['rest']
+  if (GRAPHQL_READ_OPS.indexOf(op) >= 0) return ['graphql']
+  return ['rest', 'graphql']
+}
+
+/** 族名的中文短名：给人看的文案里用它，日志与门禁代号仍是 rest / graphql。 */
+const FAMILY_LABEL: Record<string, string> = { rest: 'REST 请求', graphql: 'GraphQL 点数' }
+
+/** 把服务端给的恢复时刻写成「约 HH:MM」；读数没带这一格就不写，绝不编一个。 */
+function resetHintOf(level: BucketLevel | null): string {
+  const at = level && typeof level.resetAt === 'number' && isFinite(level.resetAt) ? level.resetAt : 0
+  if (!(at > 0)) return ''
+  const d = new Date(at)
+  return '（约 ' + ('0' + String(d.getHours())).slice(-2) + ':' + ('0' + String(d.getMinutes())).slice(-2) + ' 恢复）'
+}
+
+/**
+ * 额度见底时给人看的那一句话（#1418）：说清是哪一族见底、大概什么时候恢复。
+ * 为什么点名族：两桶后端的两族花的是两种额度，只说「一个桶」人分不清是请求还是点数，也不知道等多久。
+ */
+export function exhaustedMessage(family: string, level: BucketLevel | null): string {
+  return '额度见底：' + (FAMILY_LABEL[family] || family) + '这一族已经降到保底' + resetHintOf(level) + '，这次先不执行。'
+}
+
 /** 硬顶的原话：桥、门禁与给人看的说明共用这一句，不各写各的。 */
 export const HARD_CAP_MESSAGE = '硬顶：这次调用没有写权限，写操作直接拒绝。'
 
@@ -137,18 +177,30 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
     return { allowed: false, kind: 'rate-limit', reason: 'requests-exhausted', message: '这次调用的请求额度已经用完，先不执行。' }
   }
 
-  // e. 两桶独立口径：逐桶看剩余是否已经降到写保底，任意一桶见底就推迟。
-  const levels = bucketLevelsOf(reading)
-  for (const level of levels) {
+  // e. 两桶独立口径：只按这次调用真正要花的那一族判断（#1418）。
+  //    读走 GraphQL、写走 REST；哪一族见底就只停依赖那一族的操作，另一族见底不再连累这一条。
+  if (reading.kind === 'two-buckets') {
+    const restLevel = levelOf(reading.buckets.rest)
+    const graphqlLevel = levelOf(reading.buckets.graphql)
+    for (const family of familiesOfOp(op)) {
+      const level = family === 'graphql' ? graphqlLevel : restLevel
+      if (level.remaining <= limits.writeReserve(level.limit)) {
+        return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage(family, level) }
+      }
+    }
+    return { allowed: true, reason: 'sufficient' }
+  }
+  // 两桶口径却只拿到「只计请求」的读数（旧缓存）：只剩请求桶可看，按它判（行为与改动前一致）。
+  for (const level of bucketLevelsOf(reading)) {
     if (level.remaining <= limits.writeReserve(level.limit)) {
-      return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: '额度的一个桶已经见底，这次先不执行。' }
+      return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage('rest', level) }
     }
   }
   return { allowed: true, reason: 'sufficient' }
 }
 
 /** 从读数里取请求桶；两桶读数没有 requests 这一格时返回 null（交给调用方按读数未知处理）。 */
-function requestsLevelOf(reading: BudgetReading): { remaining: number; limit: number } | null {
+function requestsLevelOf(reading: BudgetReading): BucketLevel | null {
   if (reading.known === false) return null
   if (reading.kind === 'requests-only') return levelOf(reading.requests)
   if (reading.kind === 'two-buckets') {
@@ -160,16 +212,17 @@ function requestsLevelOf(reading: BudgetReading): { remaining: number; limit: nu
 }
 
 /** 从读数里取两桶；沿用的旧行为是两桶口径只认 rest 与 graphql 两格。 */
-function bucketLevelsOf(reading: BudgetReading): Array<{ remaining: number; limit: number }> {
+function bucketLevelsOf(reading: BudgetReading): BucketLevel[] {
   if (reading.known === false) return []
   if (reading.kind === 'two-buckets') return [levelOf(reading.buckets.rest), levelOf(reading.buckets.graphql)]
   if (reading.kind === 'requests-only') return [levelOf(reading.requests)]
   return []
 }
 
-/** 读数里的数字可能缺格（旧缓存或手写夹具）：缺格按 0 算，与桥原来的兜底口径一致。 */
-function levelOf(level: { remaining: number; limit: number } | undefined | null): { remaining: number; limit: number } {
+/** 读数里的数字可能缺格（旧缓存或手写夹具）：缺格按 0 算，与桥原来的兜底口径一致；resetAt 原样带出（#1418）。 */
+function levelOf(level: BucketLevel | undefined | null): BucketLevel {
   const remaining = level && typeof level.remaining === 'number' && isFinite(level.remaining) ? level.remaining : 0
   const limit = level && typeof level.limit === 'number' && isFinite(level.limit) ? level.limit : 0
-  return { remaining: remaining, limit: limit }
+  const resetAt = level && typeof level.resetAt === 'number' && isFinite(level.resetAt) ? level.resetAt : 0
+  return { remaining: remaining, limit: limit, resetAt: resetAt }
 }

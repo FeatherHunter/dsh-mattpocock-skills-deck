@@ -35,6 +35,7 @@ declare const document: any;
 declare const window: any;
 declare const timer: any;
 declare const SYNC: any;
+declare const PROBE_MS: number;
 /** 这个窗口的身份：sessionStorage 里现造一个，造不出来就退回内存里那一个（绝不退回空串）。 */
 export let _attentionWindowId: string = '';
 export const attentionWindowId = function (): string {
@@ -236,4 +237,55 @@ export const stopAttentionSignals = function (): void {
     }
   } catch (e2) {}
   try { shared._beatTimer = null; } catch (e3) {}
+};
+
+// ── #1418 P1：探测范围与降档 ─────────────────────────────────────────────────────────────
+// 为什么要住在这一片：探测范围本来就是「人正在看哪个工作区」的推论，视野模型（_attentionPlan.root、
+//   shared/stores 的 cwd）都在这里；放回 refresh-timer 会把那份文件顶过每文件 350 有效行的上限。
+// 两条规矩（对应票面「只探面板可见仓库」「连续无变化退避」）：
+//   ① probeTargetNow：只回一个工作区目录（宿主按目录认仓库），后台节拍按降档间隔跳过时回空串；
+//   ② noteProbeReply：探成且没变化才加一级退避，有变化 / 变了没并进去 / 人回到前台都清零。
+// 反例：不要拿「某个会话的 cwd 不在 _attentionPlan.root 下」当理由去探第二个工作区 —— 那就是 3 工作区
+//   每拍 3 条探测、一小时烧掉两千多点 GraphQL、把 deck 工具整轮停掉的那条路（#1418 实测）。
+export const _probeBackoff: { step: number; lastAt: number; lastCwd: string } = { step: 0, lastAt: 0, lastCwd: '' };
+const BACKOFF_FACTORS: number[] = [1, 1, 2, 5, 10];
+export const backoffGap = function (): number {
+  const i: number = Math.min(Number(_probeBackoff.step) || 0, BACKOFF_FACTORS.length - 1);
+  return Math.max(1, Number(PROBE_MS) || 0) * BACKOFF_FACTORS[i];
+};
+const logProbeBackoff = function (): void {
+  try { log('info', 'probe.loop', { reason: 'backoff', intervalMs: Math.round(backoffGap()), visible: attentionVisible(), timerOk: !!(timer && typeof timer.interval === 'function') }); } catch (eLog) {}
+};
+export const resetProbeBackoff = function (): void {
+  if (_probeBackoff.step === 0) return;
+  _probeBackoff.step = 0;
+  logProbeBackoff();
+};
+/**
+ * 这一拍该探哪个工作区。三种回话必须分开（漏了就会把「降档跳过」当成「还没有目录」去冷启动）：
+ *   null —— 后台节拍还在降档间隔里，这一拍整个跳过（连 wf.cwd 都不问）；
+ *   ''   —— 真的还没有可分组的目录（store 还没水合），调用方去补 cwd 再问一次；
+ *   目录 —— 这一拍就探它。
+ */
+export const probeTargetNow = function (background: boolean): any {
+  if (!background) resetProbeBackoff();
+  const root: string = String(_attentionPlan.root || '');
+  const all: string[] = [];
+  if (shared && shared.cwd) all.push(String(shared.cwd));
+  try { Object.keys(stores || {}).forEach(function (k: string): void { const c: any = stores[k] && stores[k].cwd; if (c) all.push(String(c)); }); } catch (eStores) {}
+  let target: string = root || all[0] || '';
+  if (root) { for (let i: number = 0; i < all.length; i++) { try { if (all[i] === root || wsKeyOf(all[i]) === wsKeyOf(root)) { target = all[i]; break; } } catch (eSame) {} } }
+  if (!target) return '';
+  if (_probeBackoff.lastCwd && _probeBackoff.lastCwd !== target) resetProbeBackoff();
+  _probeBackoff.lastCwd = target;
+  if (background && _probeBackoff.lastAt && (Date.now() - _probeBackoff.lastAt) < backoffGap()) return null;
+  _probeBackoff.lastAt = Date.now();
+  return target;
+};
+/** 记一拍探测的结局：探成且没变化加一级；有变化 / 变了没并进去 / 前台拍都清零。 */
+export const noteProbeReply = function (res: any, background: boolean): void {
+  if (!background) { resetProbeBackoff(); return; }
+  if (!res || res.ok !== true) return;
+  if (res.changed === true || res.mode === 'deferred' || res.mode === 'failed' || res.mode === 'stale-dropped') { resetProbeBackoff(); return; }
+  if (_probeBackoff.step < BACKOFF_FACTORS.length - 1) { _probeBackoff.step += 1; logProbeBackoff(); }
 };
