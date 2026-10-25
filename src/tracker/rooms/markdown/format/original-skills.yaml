@@ -251,4 +251,4 @@ upgrade:
     - 先跑 node --import ./scripts/ts-hook.mts tests/verify-md-format-config.ts，看哪些原文锚点对不上。
     - 只改这份 YAML 与生成器，然后跑 node scripts/generate-md-format-config.mts 重算生成物。
     - 在 pin-history 追加一条并写清变化原因；删除对象或字段必须同时在 docs/adr/ 里说明。
-    - 升级检测日志还没落地：YAML 版本识别与事件名由 #1499 承接（日志纪律见 AGENTS.md「日志埋点纪律」）。
+    - 升级检测日志已落地（#1499）：读路径认 DSH-FORMAT 版本，不认得记 read.degraded 的 list:bad-format / get:bad-format（落点见 issues-read.ts）；支持新版本时先把 SUPPORTED_DSH_FORMATS 与取值表一起加，再把解析口径一起升级。

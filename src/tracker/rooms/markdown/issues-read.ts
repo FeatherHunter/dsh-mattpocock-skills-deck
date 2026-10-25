@@ -12,6 +12,7 @@ import { idOfParts } from '../../kernel/identity-keys.js'
 import { getPlat, getScratchRoot, listWorkUnits, listTicketFiles, ticketKey, workUnitKindOf, loadIssueFromFile, resolveIssueFile, resolveMapFile, resolveSpecFile, scopeOf } from './issues-locate.js'
 import type { WorkUnit } from './issues-locate.js'
 import { emitReadDegraded } from './read-log.js'
+import { isSupportedDshFormat } from './original-fields.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { Issue } from '../../contract/entities.js'
@@ -91,10 +92,21 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     const m = /^(\d+)-/.exec(tf.file)
     return !!(m && filter.keys.includes(m[1].padStart(2, '0')))
   }
+  /** 版本号不认得就留一条线（#1499）：文件头写了 DSH-FORMAT，但版本不在 SUPPORTED_DSH_FORMATS 里。
+   *
+   *  为什么要记：读路径今天只能按 `md-v1` 解析，不认得的版本也会按旧口径读出一个结果 ——
+   *  不记这一行，事后就分不清「按新格式读对了」还是「按旧格式误读了」。记日志不改变读的结果。
+   *  只在 list 这条路上记（counts / listPage 只是同一份枚举的消费者，记了反而重复）；
+   *  没有版本号的不算坏（旧布局的老文件本来就没有这一行，按旧口径读是既有行为）。 */
+  const noteBadFormat = function (txt: unknown): void {
+    if (op !== 'list') return
+    try { if (!isSupportedDshFormat(txt)) degraded('bad-format') } catch {}
+  }
   /** 地图容器行：列举要它，数票不要它。读不动时照旧静默（理由见上面的函数注释）。 */
   const pushMapRow = async function (mapPath: string, effortId: string, withTime: boolean): Promise<void> {
     try {
       const txt = await readTextFile(ctx, mapPath)
+      noteBadFormat(txt)
       const extra: { createdAt?: string; updatedAt?: string } = {}
       if (withTime) {
         const st = await statFile(ctx, mapPath)
@@ -112,7 +124,13 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
    *  key 是这张票对外的完整身份串（#1488：正常票是两位编号，退化票是 `目录/编号-文件名`）；
    *  parentKey 只在这个工作单元真有容器（map.md / spec.md）时给 '00'，普通票目录按目录判父容器（null）。 */
   const pushTicketRow = async function (fullPath: string, key: string, effortId: string, parentKey: string | null): Promise<void> {
-    try { rows.push(await loadIssueFromFile(ctx, repo, fullPath, { key, parentKey, isMap: false, effortId })) }
+    try {
+      const loaded = await loadIssueFromFile(ctx, repo, fullPath, { key, parentKey, isMap: false, effortId })
+      // 版本号检查要看原文：loadIssueFromFile 只回解析后对象，这里为检查再读一次原文。
+      // 读不到就当没这回事（读失败那条线已经由 ticket-read-fail / 调用方失败负责），不额外记。
+      try { noteBadFormat(await readTextFile(ctx, fullPath)) } catch {}
+      rows.push(loaded)
+    }
     catch (err) {
       // 开了收集的（counts / listPage）不在这里记：调用方会把整条操作判失败，那时再记一行，
       // 一次故障只留一条线，不会同一件事记两遍。
@@ -123,7 +141,11 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
   /** 规格容器行（#1488）：只含 spec.md 的目录也要在列表里有一行「00 号规格」。
    *  读法与单票读取同一口径（loadIssueFromFile 把 spec.md 认成 kind=spec，并带文件时间）。 */
   const pushSpecRow = async function (specPath: string, effortId: string): Promise<void> {
-    try { rows.push(await loadIssueFromFile(ctx, repo, specPath, { key: '00', parentKey: null, isMap: false, effortId })) }
+    try {
+      const loaded = await loadIssueFromFile(ctx, repo, specPath, { key: '00', parentKey: null, isMap: false, effortId })
+      try { noteBadFormat(await readTextFile(ctx, specPath)) } catch {}
+      rows.push(loaded)
+    }
     catch { degraded('map-read-fail') }
   }
   /** 把某个 issues/ 目录下的票文件逐个读成行（文件名规则与列举一致：编号加短横开头的 .md 才算票）。
@@ -345,6 +367,7 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
           const s=st as Record<string, unknown> | null
           if(s&&s.mtime){try{mtime=new Date(s.mtime as string | number | Date).toISOString()}catch{}}
           const iss=parseMd(txt,{key:norm,parentKey:null,isMap:false,effortId:sp.effortId,createdAt:mtime,updatedAt:mtime,url:sp.path,kind:'spec'})
+          try { if (!isSupportedDshFormat(txt)) emitReadDegraded(ctx,'get','get:bad-format',Date.now()-t0) } catch {}
           applyLabelColors(iss, colorMap)
           return{ok:true,data:sliceComments(iss,opts)}
         }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这个工作单元的规格文件时出错')}
@@ -363,6 +386,7 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
         const s=st as Record<string, unknown> | null
         if(s&&s.mtime){try{mtime=new Date(s.mtime as string | number | Date).toISOString()}catch{}}
         const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime,url:r.path})
+        try { if (!isSupportedDshFormat(txt)) emitReadDegraded(ctx,'get','get:bad-format',Date.now()-t0) } catch {}
         applyLabelColors(iss, colorMap)
         return{ok:true,data:sliceComments(iss,opts)}
       }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}
@@ -378,6 +402,7 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
     if(r.degenerate) emitReadDegraded(ctx,'get','get:dup-number',Date.now()-t0)
     try{
       const iss=await loadIssueFromFile(ctx,repo,r.path,{key:r.key,parentKey:r.parentKey,isMap:false,effortId:r.effortId})
+      try { if (!isSupportedDshFormat(await readTextFile(ctx,r.path))) emitReadDegraded(ctx,'get','get:bad-format',Date.now()-t0) } catch {}
       applyLabelColors(iss, colorMap)
       return{ok:true,data:sliceComments(iss,opts)}
     }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这张票的文件时出错')}

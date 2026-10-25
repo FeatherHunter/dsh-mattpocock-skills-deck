@@ -31,11 +31,14 @@ export type HiddenName =
   | 'DSH-IDEMPOTENCY-KEY'
   | 'DSH-CREATED'
 
+import { IMPL_TICKET_FIELD_LABELS, WAYFINDER_TOP_LINE_LABELS, MAP_TICKET_TYPES, regexAlt } from './format/field-values.js'
+
 const HIDDEN_LINE_RE = /^[ \t]*<!--[ \t]*(DSH-[A-Z0-9-]+)[ \t]*:[ \t]*(.*?)[ \t]*-->[ \t]*$/i
 const H1_RE = /^#[ \t]+\S/
 const H2_RE = /^##[ \t]+\S/
-const BOLD_FIELD_RE = /^[ \t]*\*\*(What to build|Blocked by|Status)[ \t]*[:：][ \t]*\*\*/m
-const BARE_FIELD_RE = /^[ \t]*(Type|Status|Blocked by)[ \t]*[:：]/
+// 字段行认哪几个名只从 YAML 真源读（field-values.ts）：上游改模板加字段，这里自动跟上，不再手抄第二份。
+const BOLD_FIELD_RE = new RegExp('^[ \\t]*\\*\\*(' + regexAlt(IMPL_TICKET_FIELD_LABELS) + ')[ \\t]*[:：][ \\t]*\\*\\*', 'm')
+const BARE_FIELD_RE = new RegExp('^[ \\t]*(' + regexAlt(WAYFINDER_TOP_LINE_LABELS) + ')[ \\t]*[:：]')
 
 /** 段标题行：完全匹配 `## <title>`，前后不许有别的内容（认段只用这一种写法）。 */
 function sectionHeadingIndex(lines: string[], title: string): number {
@@ -95,7 +98,8 @@ export function ticketFormOf(text: string): TicketForm {
   if (/^##[ \t]+Question[ \t]*$/im.test(raw)) return 'map-ticket'
   // 手写地图子票的特征是「# NN: 标题」+ 裸 Type 行（issue-tracker-local.md:26）。只看裸 Type 行会误伤旧布局：
   // 旧布局的票文件同样写 `Type: task`，但标题形状是 `# <标题>`、没有编号前缀，所以两个条件都要满足。
-  const bareType = new RegExp('^[ \\t]*' + namePattern('Type') + '[ \\t]*[:：][ \\t]*(research|prototype|grilling|task)\\s*$', 'im').test(raw)
+  // 类型词的取值只从 YAML 真源读（与创建侧同一份）。
+  const bareType = new RegExp('^[ \\t]*' + namePattern('Type') + '[ \\t]*[:：][ \\t]*(' + regexAlt(MAP_TICKET_TYPES) + ')\\s*$', 'im').test(raw)
   if (bareType && /^#[ \\t]*\d{1,3}[ \\t]*:/.test(raw)) return 'map-ticket'
   if (hiddenCommentOf(raw, 'DSH-FORMAT').found) return 'impl-ticket'
   return 'legacy'
@@ -257,6 +261,35 @@ export function appendSectionBlock(text: string, title: string, block: string): 
   while (at > 0 && lines[at - 1].trim() === '') at -= 1
   lines.splice(at, 0, '', '## ' + title, '', ...blockLines)
   return lines.join('\n')
+}
+
+/** 本插件当前认得的 DSH-FORMAT 版本（#1499）。
+ *
+ *  为什么只有一个值：`src/tracker/rooms/markdown/format/original-skills.yaml` 的
+ *  `upgrade.schema-version` 今天就是 `md-v1`，生成物 `format/generated.ts` 的同一格也是它。
+ *  文件头里写着别的版本号（例如手写了一个 `md-v2`）时，读路径今天只能按 `md-v1` 的口径解析 ——
+ *  不认得的那一行不能静默当成认得，必须在日志里留一条线（见 issues-read.ts 的 `bad-format` 两档）。
+ *  支持新版本时先把这个表与取值表一起加，再把解析口径一起升级，不要只改一边。 */
+export const SUPPORTED_DSH_FORMATS = Object.freeze(['md-v1'] as const)
+
+/** 读文件头里的 DSH-FORMAT 版本（#1499）：有这一行就返回值（去掉首尾空白），没有就回空串。
+ *
+ *  只看有没有这一行，不判形状：`ticketFormOf` 已经用同一行的「有没有」认原文布局，
+ *  这里只把值拿出来给调用方比对。不认得的值由调用方记 `bad-format`，这里不抛错。 */
+export function dshFormatOf(text: unknown): string {
+  const got = hiddenCommentOf(String(text || ''), 'DSH-FORMAT')
+  if (!got.found) return ''
+  return String(got.value || '').trim()
+}
+
+/** 这个文件的 DSH-FORMAT 版本认不认得（#1499）。
+ *
+ *  没有这一行的不算坏：旧布局的老文件本来就没有版本号，按旧口径读是既有行为（照旧，不记日志）。
+ *  只有「写了版本号、但不在 SUPPORTED_DSH_FORMATS 里」才算坏，需要调用方留一条 `bad-format`。 */
+export function isSupportedDshFormat(text: unknown): boolean {
+  const v = dshFormatOf(text)
+  if (!v) return true
+  return (SUPPORTED_DSH_FORMATS as readonly string[]).includes(v)
 }
 
 /** 把 `## 进度` 区整段搬到文件末尾。

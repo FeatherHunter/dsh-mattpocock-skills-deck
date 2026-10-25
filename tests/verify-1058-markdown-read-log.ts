@@ -297,6 +297,29 @@ console.log('\n== 四之二、读取端认得旧布局与退化身份（#1488）
   check(dupGetLines.length === 1 && String(dupGetLines[0].fields.reason) === 'get:dup-number',
     'get 落一行 read.degraded（get:dup-number）→ ' + dupGetLines.map(lineText).join(' / '))
   if (dupGetLines.length) checkShape(dupGetLines[0], '重复编号那一行（get）')
+
+  // 版本号不认得（#1499）：文件头写了 DSH-FORMAT: md-v2，但本插件只认 md-v1。
+  // 读路径按旧口径照常读出结果，只多留一行 bad-format —— 事后分得清「按新格式读对了」还是「按旧格式误读了」。
+  const badWs = fs.mkdtempSync(path.join(tmpRoot, 'ws-badfmt-'))
+  writeEffort(badWs, 'demo', [['01-ok.md', 'ready-for-agent']])
+  fs.writeFileSync(path.join(badWs, '.scratch', 'demo', 'issues', '02-bad.md'),
+    '<!-- DSH-FORMAT: md-v2 -->\n# 02-bad.md\n\nStatus: ready-for-agent\n\n## Body\n\n坏版本号\n', 'utf8')
+
+  const badListCtx = makeCtx(badWs)
+  const badRows = await listIssues(badListCtx, REPO, {})
+  check(badRows.ok && badRows.data.length === 3, '坏版本号 list 照常读出（地图 + 2 票 = 3 行，结果不变）→ 实得 ' + (badRows.ok ? badRows.data.length : '失败') + ' 行')
+  const badListLines = degraded(badListCtx)
+  check(badListLines.length === 1 && String(badListLines[0].fields.reason) === 'list:bad-format',
+    'list 落一行 read.degraded（list:bad-format，同趟不按文件数刷屏）→ ' + badListLines.map(lineText).join(' / '))
+  if (badListLines.length) checkShape(badListLines[0], '坏版本号那一行（list）')
+
+  const badGetCtx = makeCtx(badWs)
+  const badGot = await getIssue(badGetCtx, REPO, '02')
+  check(!!badGot.ok, '坏版本号 get 照常读出 → ' + (badGot.ok ? '成功' : '失败'))
+  const badGetLines = degraded(badGetCtx)
+  check(badGetLines.length === 1 && String(badGetLines[0].fields.reason) === 'get:bad-format',
+    'get 落一行 read.degraded（get:bad-format）→ ' + badGetLines.map(lineText).join(' / '))
+  if (badGetLines.length) checkShape(badGetLines[0], '坏版本号那一行（get）')
 }
 
 console.log('\n== 五、连目录都列不出来（不是「这里没有」）：四条读路各留一行 ==')

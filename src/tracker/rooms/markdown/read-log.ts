@@ -132,6 +132,13 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'get:legacy-root',
   'list:dup-number',
   'get:dup-number',
+  // #1499 版本号不认得（都是「读成功、但按旧口径解析」，不是故障；结果照常返回）：
+  //  - `bad-format` : 文件头写了 DSH-FORMAT，但版本号不在 SUPPORTED_DSH_FORMATS 里
+  //                    （例如手写的 `md-v2`）。读路径今天只能按 `md-v1` 解析，
+  //                    不记这一行，事后就分不清「按新格式读对了」还是「按旧格式误读了」。
+  //  两件事都只在 list 与 get 两条读路径上记；counts / listPage 只是同一份枚举的消费者，记了反而重复。
+  'list:bad-format',
+  'get:bad-format',
 ] as const)
 
 /** 只读上下文里那点最小形状：契约上下文自带 `logEvent` 与 `opId`，这里不另定义上下文。 */
