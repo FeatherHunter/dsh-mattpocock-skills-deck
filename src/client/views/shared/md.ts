@@ -268,6 +268,76 @@ export     const mdToHtml = function (md: any, opts: any) {
           return h('li', { key: 'li' + ii }, inlineWith(it.text, 't' + ii))
         })))
       }
+      // 表格（#1524）：GFM 基础表格。块级分派新增这一路仍然遵守白名单：只构造表格元素与文本，
+      // 不拼 HTML 字符串、不解析原始 HTML；单元格文字走 inlineWith，粗体、链接、图片等行内写法照旧生效。
+      // 只有「表头行 + 下一行是合法分隔行 + 两者列数一致」才成表，防止把普通段落误判成表格；
+      // 数据行遇到空行、或不带竖线的行就结束，避免把表格后面的普通段落吞进来。
+      const tableHasPipe = function (line: any) {
+        const s = String(line == null ? '' : line)
+        for (let ci = 0; ci < s.length; ci++) if (s.charAt(ci) === '|' && s.charAt(ci - 1) !== '\\') return true
+        return false
+      }
+      // 切单元格：行首行尾的竖线只是边界写法，不算一个空单元格；反斜杠转义的竖线留在单元格文字里
+      const tableCells = function (line: any) {
+        let t = String(line == null ? '' : line).trim()
+        if (t.charAt(0) === '|') t = t.slice(1)
+        if (t.charAt(t.length - 1) === '|' && t.charAt(t.length - 2) !== '\\') t = t.slice(0, -1)
+        const cells: any[] = []
+        let cur = ''
+        for (let ci = 0; ci < t.length; ci++) {
+          const ch = t.charAt(ci)
+          if (ch === '\\' && t.charAt(ci + 1) === '|') { cur += '|'; ci++; continue }
+          if (ch === '|') { cells.push(cur.trim()); cur = ''; continue }
+          cur += ch
+        }
+        cells.push(cur.trim())
+        return cells
+      }
+      const tableAlign = function (cell: any) {
+        const s = String(cell == null ? '' : cell).trim()
+        if (/^:-+:$/.test(s)) return 'center'
+        if (/^:-+$/.test(s)) return 'left'
+        if (/^-+:$/.test(s)) return 'right'
+        return null
+      }
+      const isTableDelim = function (line: any) {
+        if (!tableHasPipe(line)) return false
+        const cells = tableCells(line)
+        if (!cells.length) return false
+        for (let ci = 0; ci < cells.length; ci++) if (!/^:?-+:?$/.test(cells[ci])) return false
+        return true
+      }
+      const pushTable = function (headLine: any, delimLine: any, rowLines: any[]) {
+        const head = tableCells(headLine)
+        const aligns = tableCells(delimLine).map(tableAlign)
+        const cols = head.length
+        const cellStyle = function (align: any, isHead: any) {
+          const st: any = { border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', padding: '4px 8px', verticalAlign: 'top' }
+          if (align) st.textAlign = align
+          if (isHead) { st.fontWeight = 700; st.background = 'var(--dsw-alias-markdown-code-block,rgba(255,255,255,.06))' }
+          return st
+        }
+        const mkCells = function (cells: any[], tag: any, keyBase: any) {
+          const out: any[] = []
+          for (let ci = 0; ci < cols; ci++) {
+            out.push(h(tag, { key: keyBase + 'c' + ci, style: cellStyle(aligns[ci], tag === 'th') }, inlineWith(cells[ci] == null ? '' : cells[ci], keyBase + 'c' + ci)))
+          }
+          return out
+        }
+        const tkey = 'tb' + (k++)
+        const tableChildren: any[] = [h('thead', { key: tkey + 'thead' }, [h('tr', { key: tkey + 'th' }, mkCells(head, 'th', tkey + 'th'))])]
+        if (rowLines.length) {
+          const bodyRows: any[] = []
+          for (let ri = 0; ri < rowLines.length; ri++) {
+            bodyRows.push(h('tr', { key: tkey + 'r' + ri }, mkCells(tableCells(rowLines[ri]), 'td', tkey + 'r' + ri)))
+          }
+          tableChildren.push(h('tbody', { key: tkey + 'tbody' }, bodyRows))
+        }
+        // 宽表不撑破右侧面板：外层负责横向滚动，表格本身按内容收缩、最多占满一行
+        nodes.push(h('div', { key: tkey + 'wrap', style: { overflowX: 'auto', margin: '4px 0' } }, [
+          h('table', { key: tkey, style: { borderCollapse: 'collapse', width: '100%', fontSize: 11, lineHeight: 1.5 } }, tableChildren),
+        ]))
+      }
       while (i < lines.length) {
         const line = lines[i]
         const trim = line.trim()
@@ -296,6 +366,20 @@ export     const mdToHtml = function (md: any, opts: any) {
         if (hr) { nodes.push(h('hr', { key: 'hr' + (k++), style: { border: 'none', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', margin: '4px 0' } })); i++; continue }
         const q = /^>\s?(.*)$/.exec(trim)
         if (q) { nodes.push(h('blockquote', { key: 'bq' + (k++), style: { margin: '2px 0', paddingLeft: 8, borderLeft: '3px solid var(--dsw-alias-border-l1,#2a2d35)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, inlineWith(q[1], 'q' + k))); i++; continue }
+        // 表格（#1524）：当前行作表头、下一行作分隔行，两者列数一致才成表；数据行到空行或不带竖线的行为止
+        if (i + 1 < lines.length && tableHasPipe(line) && isTableDelim(lines[i + 1]) && tableCells(line).length === tableCells(lines[i + 1]).length) {
+          const rowLines: any[] = []
+          let ri = i + 2
+          while (ri < lines.length) {
+            const rt = lines[ri].trim()
+            if (rt === '' || !tableHasPipe(rt)) break
+            rowLines.push(lines[ri])
+            ri++
+          }
+          pushTable(line, lines[i + 1], rowLines)
+          i = ri
+          continue
+        }
         // 列表（连续行归组）— 支持 - / * / 1. 有序 + 任务列表
         const listItems: any[] = []
         let j = i

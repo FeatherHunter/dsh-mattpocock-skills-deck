@@ -80,6 +80,42 @@ const run = (src: string, md: unknown) => {
 }
 const rCli = (md) => run(mdCli, md)
 const rPkg = (md) => run(mdPkg, md)
+// 结构级断言要读到 style（上面那个字符串化桩会把 style 丢掉），所以另起一个保留属性的桩，跑同一段渲染器。
+const structH = (tag: string, props: any, children: any): any => ({
+  tag: tag,
+  props: props || {},
+  children: Array.isArray(children) ? children.filter(function (c) { return c != null }) : (children == null ? [] : [children]),
+})
+const stubTipStruct = (props: any, children: any) => structH('span', { 'data-tip': (props && props.content) || '' }, children)
+const treeOf = (src: string, md: string): any[] => {
+  const fn = compileFn(['h', 'Tip'], src + '\nreturn { mdToHtml }')
+  const out = fn(structH, stubTipStruct).mdToHtml(md)
+  return Array.isArray(out) ? out : [out]
+}
+const rCliTree = (md: string) => treeOf(mdCli, md)
+const rPkgTree = (md: string) => treeOf(mdPkg, md)
+// 按标签名收集节点：表头单元格、行、单元格数量都靠它数
+const findAll = (node: any, tag: string): any[] => {
+  const out: any[] = []
+  const walk = (n: any) => {
+    if (n == null) return
+    if (Array.isArray(n)) { n.forEach(walk); return }
+    if (typeof n !== 'object') return
+    if (n.tag === tag) out.push(n)
+    const kids = n.children || []
+    kids.forEach(walk)
+  }
+  walk(node)
+  return out
+}
+// 把一棵节点树里的文字接起来，用于确认分隔行没有变成可见文字
+const textOf = (node: any): string => {
+  if (node == null) return ''
+  if (typeof node === 'string') return node
+  if (Array.isArray(node)) return node.map(textOf).join('')
+  const kids = node.children || []
+  return kids.map(textOf).join('')
+}
 
 // 链接：中段链接（回归：占位符 \u0001L0\u0001 泄漏）与行首链接
 //   #1335 界面反馈给 markdown 链接挂了按压形状与点击日志标识（data-press / data-log），开标签上
@@ -117,6 +153,73 @@ check(!rCli('<img src="javascript:alert(1)" alt="x" />').includes('<img'), '图�
 check(!rCli('<img src="data:text/html;base64,PHNjcmlwdD4=" alt="x" />').includes('<img'), '图片标签 data 地址不产 img')
 check(rCli('[![说明](https://github.com/user-attachments/assets/a.png)](https://github.com/a)').includes('<a href="https://github.com/a"'), '包在链接里的图片保持外层跳转')
 check(!rCli('看图 ![说明](https://a.png) 尾').includes('\u0001'), '图片占位符无泄漏')
+
+// ── 表格（#1524）：GFM 基础表格走白名单元素，安全边界照旧 ──
+const tableSample = '| 行 | 票号 | 标题（截断） | 时间 |\n| --- | --- | --- | --- |\n| 1 | #1461 | BUG 建单提示词升到 v13 | 20:58 |\n| 2 | #1460 | 规格：新增 BUG 建单前查重 | 20:59 |\n| 3 | #1462 | 端到端验收 | 20:59 |'
+const tableCli = findAll(rCliTree(tableSample), 'table')
+const tablePkg = findAll(rPkgTree(tableSample), 'table')
+check(tableCli.length === 1 && tablePkg.length === 1, 'client 与 package 都把表格渲染成 <table>')
+if (tableCli.length === 1) {
+  const th = findAll(tableCli[0], 'th')
+  const body = findAll(tableCli[0], 'tbody')
+  const trs = body.length === 1 ? findAll(body[0], 'tr') : []
+  check(th.length === 4, '表头按表头行的列数画成 4 个 th')
+  check(trs.length === 3, '三条数据行都进了 tbody')
+  check(trs.length === 3 && findAll(trs[0], 'td').length === 4, '数据行每行 4 个 td')
+  check(!textOf(tableCli[0]).includes('---'), '分隔行不产生可见文字')
+  check(!textOf(tableCli[0]).includes('|'), '竖线不再当正文显示')
+}
+check(rCli(tableSample).includes('<table>') && rCli(tableSample).includes('<thead>') && rCli(tableSample).includes('<tbody>'), 'client 表格含 table/thead/tbody')
+check(!rCli(tableSample).includes('<div>| 行'), '表格行不再退化成带竖线的段落')
+
+// 对齐：分隔行里的冒号映射成 text-align，没写冒号的列保持默认（不挂 text-align）
+const alignTree = rCliTree('| 左 | 中 | 右 | 默认 |\n| :--- | :---: | ---: | --- |\n| a | b | c | d |')
+const alignTable = findAll(alignTree, 'table')
+if (alignTable.length === 1) {
+  const th = findAll(alignTable[0], 'th')
+  const tds = findAll(alignTable[0], 'td')
+  check(th[0] && th[0].props.style.textAlign === 'left' && th[3] && th[3].props.style.textAlign === undefined, '左对齐列与默认列的表头样式')
+  check(th[1] && th[1].props.style.textAlign === 'center', '居中列的表头 text-align:center')
+  check(th[2] && th[2].props.style.textAlign === 'right', '右对齐列的表头 text-align:right')
+  check(tds[0] && tds[0].props.style.textAlign === 'left' && tds[1] && tds[1].props.style.textAlign === 'center', '数据单元格与表头用同一套对齐')
+}
+
+// 单元格内的行内写法照旧生效
+const inlineTable = rCli('| **粗** | `code` |\n| --- | --- |\n| [A](https://a.com) | ~~删~~ |')
+check(inlineTable.includes('<strong>粗</strong>') && inlineTable.includes('<code>code</code>'), '单元格里的加粗与行内代码')
+check(inlineTable.includes('href="https://a.com"'), '单元格里的链接仍渲染为外链')
+
+// 单元格里的竖线用反斜杠转义，不能把一行切成多格
+const escapedTree = rCliTree('| 甲 | 乙 |\n| --- | --- |\n| a \\| b | c |')
+const escapedTable = findAll(escapedTree, 'table')
+if (escapedTable.length === 1) {
+  const tds = findAll(findAll(escapedTable[0], 'tbody')[0], 'td')
+  check(tds.length === 2 && textOf(tds[0]) === 'a | b' && textOf(tds[1]) === 'c', '转义竖线留在单元格文字里')
+}
+
+// 只有一行带竖线的文字、下一行不是合法分隔行：不算表格，按普通段落显示
+const noTable = rCli('这一行不是表头\n| 行 | 票号 |')
+check(!noTable.includes('<table>'), '缺合法分隔行时不误判成表格')
+check(noTable.includes('| 行 | 票号 |'), '误判保护后原文仍原样显示')
+
+// 列数不齐：多出来的单元格丢掉，缺的补空单元格
+const raggedTree = rCliTree('| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 | 3 |\n| 只有一个 |')
+const raggedTable = findAll(raggedTree, 'table')
+if (raggedTable.length === 1) {
+  const trs = findAll(findAll(raggedTable[0], 'tbody')[0], 'tr')
+  const first = findAll(trs[0], 'td')
+  const second = findAll(trs[1], 'td')
+  check(first.length === 2 && textOf(first[1]) === '2', '多出来的单元格丢掉')
+  check(second.length === 2 && textOf(second[1]) === '', '缺的单元格补空')
+}
+
+// 宽表用横向滚动的外壳包住，表格本身不撑破面板
+const wrap = findAll(alignTree, 'div').filter(function (n) { return n.props.style && n.props.style.overflowX === 'auto' })
+check(wrap.length === 1, '宽表外壳 overflow-x:auto')
+
+// 防注入：表格单元格里的原始 HTML 当文字，不构造标签
+const rawHtmlTree = rCliTree('| <b>x</b> | y |\n| --- | --- |\n| 1 | 2 |')
+check(textOf(rawHtmlTree).includes('<b>x</b>') && findAll(rawHtmlTree, 'b').length === 0, '表格单元格里的原始 HTML 不解析')
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')
