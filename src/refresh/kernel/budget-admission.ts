@@ -92,43 +92,102 @@ export function isWriteOp(op: string): boolean {
 }
 
 /**
- * 两桶后端里「读」那一族的能力名（GitHub：读全走 GraphQL 点数，写才走 REST 请求）。
+ * 两桶后端里「读」那几条（GitHub：读全走 GraphQL 点数：探测、列表、单票、翻页、子票、标签清单、计数）。
  *
- * 名单留在本文件与 WRITE_OPS 作伴：两族名单必须各自完整，漏一条就会把这一条当「族不明」，
- * 退化成两族都看（旧行为），只是保守一点，不会放行不该放行的调用。
+ * 名单留在本文件与三份写名单作伴：漏一条就会把这一条当「族不明」，退化成两族都看（旧行为），
+ * 只是保守一点，不会放行不该放行的调用。
  */
 const GRAPHQL_READ_OPS: readonly string[] = ['list', 'get', 'listPage', 'getDependencies', 'listSubIssues', 'listLabels', 'counts']
 
 /**
- * 这次调用会花哪一族的额度（#1418）。
+ * 写操作按真实出站通道分三份名单（#1418 P1 复核；2026-10-25 用 GH_DEBUG=api 实测 gh CLI 的请求落点）。
  *
- * 两桶后端的两桶不是「两桶都要满足」：读操作只花 GraphQL 点数，写操作只花 REST 请求。
- * 只拿这次真正要花的那一族去比写保底，另一族见底不该停这一条 —— 这正是 #1418 要修掉的
- * 「REST 见面底连读也不让做」的误停。名单外的操作（切换后端、探测这一类）保守按两族都看。
+ * 为什么不是「写都花 REST 请求」：GitHub 的 REST 与 GraphQL 是两套互不相通的额度。
+ * gh issue edit / gh issue close / gh issue reopen / gh issue comment 这几条子命令内部发的都是
+ * POST /graphql（只花 GraphQL 点数）；真正只走 REST 的写操作只有建票一条：房间直接发
+ * gh api repos/.../issues（gh issue create 不认 --json，见 issues-write.ts 的主路注释）。
+ * 按真实出站通道判，REST 见底时改票、关票这些仍然做得了 —— 这正是票面要求的
+ * 「只停真正依赖已见底那一族的操作」。
  */
-export function familiesOfOp(op: string): string[] {
-  if (isWriteOp(op)) return ['rest']
-  if (GRAPHQL_READ_OPS.indexOf(op) >= 0) return ['graphql']
-  return ['rest', 'graphql']
-}
+const REST_WRITE_OPS: readonly string[] = ['create']
 
-/** 族名的中文短名：给人看的文案里用它，日志与门禁代号仍是 rest / graphql。 */
-const FAMILY_LABEL: Record<string, string> = { rest: 'REST 请求', graphql: 'GraphQL 点数' }
+/** 只有 GraphQL 一条路的写操作：这几条子命令没有 REST 退路，只能看 GraphQL 点数。 */
+const GRAPHQL_WRITE_OPS: readonly string[] = ['update', 'setLabels', 'setAssignees', 'close', 'reopen']
 
-/** 把服务端给的恢复时刻写成「约 HH:MM」；读数没带这一格就不写，绝不编一个。 */
-function resetHintOf(level: BucketLevel | null): string {
-  const at = level && typeof level.resetAt === 'number' && isFinite(level.resetAt) ? level.resetAt : 0
-  if (!(at > 0)) return ''
-  const d = new Date(at)
-  return '（约 ' + ('0' + String(d.getHours())).slice(-2) + ':' + ('0' + String(d.getMinutes())).slice(-2) + ' 恢复）'
+/**
+ * 两条路都走的写操作，只要还剩一条路就能做，两族都见底才拦：
+ *   - 评论先发 REST POST，失败回落 gh issue comment（GraphQL，见 comments.ts）；
+ *   - 父子边先走 gh issue edit --parent（GraphQL），老版本回落 api .../sub_issues（REST，见 graph.ts）；
+ *   - 阻塞边先走 GraphQL mutation，失败回落 REST（见 blocked-by-write.ts 的 route 结论）。
+ */
+const DUAL_WRITE_OPS: readonly string[] = ['comment', 'setParent', 'setBlockedBy']
+
+/** 这次调用依赖哪几族额度：all 是缺一不可的，anyOf 是两条通道任走一条即可（见 DUAL_WRITE_OPS）。 */
+export interface OpFamilyChoice {
+  /** 少了任何一族就做不成的额度。名单外的操作（切换后端、探测这一类）按两族都看，与改动前一样保守。 */
+  all: string[]
+  /** 有退路的那几族：只有全部见底才拦。 */
+  anyOf: string[]
 }
 
 /**
- * 额度见底时给人看的那一句话（#1418）：说清是哪一族见底、大概什么时候恢复。
- * 为什么点名族：两桶后端的两族花的是两种额度，只说「一个桶」人分不清是请求还是点数，也不知道等多久。
+ * 这次调用会花哪几族额度（#1418）。
+ *
+ * 判定只认「这一次真正会出站的通道」，不认「写/读」这个大方向：读操作全走 GraphQL 点数；
+ * 写操作里建票只有 REST 一条路，改票 / 标签 / 认领 / 关票 / 重开只有 GraphQL 一条路，
+ * 评论、父子边、阻塞边两条路都走。
+ */
+export function familiesOfOp(op: string): OpFamilyChoice {
+  if (REST_WRITE_OPS.indexOf(op) >= 0) return { all: ['rest'], anyOf: [] }
+  if (GRAPHQL_WRITE_OPS.indexOf(op) >= 0) return { all: ['graphql'], anyOf: [] }
+  if (DUAL_WRITE_OPS.indexOf(op) >= 0) return { all: [], anyOf: ['rest', 'graphql'] }
+  if (GRAPHQL_READ_OPS.indexOf(op) >= 0) return { all: ['graphql'], anyOf: [] }
+  return { all: ['rest', 'graphql'], anyOf: [] }
+}
+
+/** 额度的中文短名：给人看的文案里用它，日志与门禁代号仍是 rest / graphql / requests。 */
+const FAMILY_LABEL: Record<string, string> = { rest: 'REST 请求', graphql: 'GraphQL 点数', requests: '请求次数' }
+
+/** 把额度短名交出去（闸的拒绝文案要按桶点名，不能只写「一个桶」）。 */
+export function familyLabelOf(family: string): string {
+  return FAMILY_LABEL[family] || family
+}
+
+/** 把服务端给的恢复时刻写成「约 HH:MM」；没给（或不是个数）就回空串，绝不编一个。 */
+function resetHintAt(at: unknown): string {
+  const ms = typeof at === 'number' && isFinite(at) ? at : 0
+  if (!(ms > 0)) return ''
+  const d = new Date(ms)
+  return '（约 ' + ('0' + String(d.getHours())).slice(-2) + ':' + ('0' + String(d.getMinutes())).slice(-2) + ' 恢复）'
+}
+
+/** 从一个桶的水位里取恢复时刻那一句；读数没带这一格就不写。 */
+function resetHintOf(level: BucketLevel | null): string {
+  return resetHintAt(level && level.resetAt)
+}
+
+/**
+ * 额度见底时给人看的那一句话（#1418）：说清是哪种额度见底、大概什么时候恢复。
+ *
+ * 用「REST 请求额度」「GraphQL 点数额度」这样的完整说法，不用「族」「桶」这类账本内部叫法：
+ * 第一次读这句话的人（用户与 AI）要能直接判断出「等多久、等的是哪一种额度」。
  */
 export function exhaustedMessage(family: string, level: BucketLevel | null): string {
-  return '额度见底：' + (FAMILY_LABEL[family] || family) + '这一族已经降到保底' + resetHintOf(level) + '，这次先不执行。'
+  return '额度见底：' + familyLabelOf(family) + '额度不够了' + resetHintOf(level) + '，这次先不执行。'
+}
+
+/**
+ * 两条路都见底时的一句话（评论 / 父子边 / 阻塞边）：两种额度都点名。
+ * 恢复时刻取两族里「先恢复的那一个」—— 只要有一族恢复就能重试，写最晚的那个会让人白等。
+ */
+function exhaustedAnyMessage(families: string[], levels: BucketLevel[]): string {
+  const names = families.map(function (f: string): string { return familyLabelOf(f) }).join('与')
+  let earliest = 0
+  for (let i = 0; i < levels.length; i++) {
+    const at = Number(levels[i] && levels[i].resetAt) || 0
+    if (at > 0 && (earliest === 0 || at < earliest)) earliest = at
+  }
+  return '额度见底：' + names + '两种额度都不够了' + resetHintAt(earliest) + '，这次先不执行。'
 }
 
 /** 硬顶的原话：桥、门禁与给人看的说明共用这一句，不各写各的。 */
@@ -142,7 +201,8 @@ export const HARD_CAP_MESSAGE = '硬顶：这次调用没有写权限，写操�
  *  b. 离网后端（口径或读数任一说离网）：本来就不花额度，直接放行；
  *  c. 读数未知：放行并如实标「读数未知」—— 未知不是 0，绝不套「剩余≤保底」；
  *  d. 只计请求的口径：只看请求桶还有没有剩余，不套 35% 保底、不看档位；
- *  e. 两桶独立口径：逐桶看剩余是否已经降到写保底，是就推迟（现状行为）。
+ *  e. 两桶独立口径：按这次真正会花的那几族判断（#1418）——缺一不可的清单逐族看，
+ *     有退路的清单只在两族都见底时才拦。
  *
  * 为什么把 b 放在 c 前面：离网后端的读数本来就可能缺席，若先判未知就会把「离网免额度」
  * 说成「读数未知」，理由与事实不符。为什么把 c 放在 d/e 前面：读数未知时 remaining 没有值，
@@ -177,16 +237,24 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
     return { allowed: false, kind: 'rate-limit', reason: 'requests-exhausted', message: '这次调用的请求额度已经用完，先不执行。' }
   }
 
-  // e. 两桶独立口径：只按这次调用真正要花的那一族判断（#1418）。
-  //    读走 GraphQL、写走 REST；哪一族见底就只停依赖那一族的操作，另一族见底不再连累这一条。
+  // e. 两桶独立口径：只按这次调用真正会花的那几族判断（#1418）。
+  //    缺一不可的清单（all）逐族看剩余；有退路的清单（anyOf）只在全部见底时才拦。
+  //    这样 REST 见底时改票 / 关票照做、GraphQL 见底时读操作才停，另一族见底不再连累这一条。
   if (reading.kind === 'two-buckets') {
     const restLevel = levelOf(reading.buckets.rest)
     const graphqlLevel = levelOf(reading.buckets.graphql)
-    for (const family of familiesOfOp(op)) {
-      const level = family === 'graphql' ? graphqlLevel : restLevel
+    const levelOfFamily = function (family: string): BucketLevel { return family === 'graphql' ? graphqlLevel : restLevel }
+    const families = familiesOfOp(op)
+    for (let i = 0; i < families.all.length; i++) {
+      const level = levelOfFamily(families.all[i])
       if (level.remaining <= limits.writeReserve(level.limit)) {
-        return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage(family, level) }
+        return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedMessage(families.all[i], level) }
       }
+    }
+    if (families.anyOf.length) {
+      const levels = families.anyOf.map(levelOfFamily)
+      const blocked = levels.every(function (level: BucketLevel): boolean { return level.remaining <= limits.writeReserve(level.limit) })
+      if (blocked) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedAnyMessage(families.anyOf, levels) }
     }
     return { allowed: true, reason: 'sufficient' }
   }

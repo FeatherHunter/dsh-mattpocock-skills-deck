@@ -94,7 +94,7 @@ export interface WorkspaceState {
   active: boolean
   /** 连续失败了几次（成功一次归零）。 */
   failuresSinceSuccess?: number
-  /** 这一轮撞过限流，含二级限流的 Retry-After。 */
+  /** 这一轮撞过限流（服务端回的 Retry-After 秒数决定停到什么时候）。 */
   rateLimited?: boolean
   /**
    * 到了门槛之后，「这一笔可不可以放进来试一次」的结论。
@@ -140,7 +140,7 @@ export const REASONS: Readonly<Record<string, string>> = {
   'quota-read-free': '读服务端剩余额度：这个接口不扣配额，永远放行',
   'user-action-always': '人在界面上亲手做的动作：永不降档，红档也照做',
   'user-action-rate-limited': '撞上限流时人亲手做的动作：照样做，但界面要说清是额度被别人用掉了',
-  'rate-limited': '撞上限流（含二级限流的 Retry-After）：这一轮停，等闸的档位恢复',
+  'rate-limited': '撞上限流：这一轮先停，等额度恢复再试',
   'failure-backoff': '连续失败到了退避门槛：拉开间隔再试，成功一次立刻归零',
   'failure-half-open': '连续失败退避了一大轮：放这一笔进来试一次，成了解锁、不成按下一档接着等',
   'background-fits': '后台档：额度够，按节拍跑',

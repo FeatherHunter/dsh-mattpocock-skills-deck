@@ -12,8 +12,8 @@
 //   ②「额度被别人用掉了」——剩余额度已到保底线，会话里别的 GitHub 调用把额度吃掉了，
 //     这时先拒 AI 工具写入，绝不挤掉插件刷新与人的动作。
 
-/** 准入结论：哪一种拒、这次要花多少。 */
-type RefusalArgs = { reason: string; points: number; requests: number }
+/** 准入结论：哪一种拒、这次要花多少；见底时带上「缺的是哪一种额度、什么时候恢复」（#1418）。 */
+type RefusalArgs = { reason: string; points: number; requests: number; familyLabel?: string; resetAt?: number; unit?: string }
 /** 这一桶现在的账：只用到「还剩多少点」。 */
 type RefusalQuota = { remaining: number }
 /** 本小时 AI 工具已经花掉多少。 */
@@ -39,10 +39,22 @@ export function refusalTextRef(
   const cap = (a.reason === 'ai-tool-over-call-cap' || a.reason === 'ai-tool-over-hour-cap')
   const head = cap
     ? '这次调用超过了插件给 AI 工具设的自己那道硬顶（额度没被别人用掉，是这一笔太大或这一小时攒太多了）'
-    : '剩余额度已经到保底线，额度是被别人用掉的（会话里别的 GitHub 调用先花了）：先拒 AI 工具写入'
+    : '剩余额度已经不够了，额度是被别人用掉的（会话里别的 GitHub 调用先花了）：先拒 AI 工具写入'
+  // #1418：见底那一档要如实说清「缺的是哪一种额度、大概什么时候恢复」。
+  //   恢复时刻由调用方从账本读数里取好传进来；读不到就不写，绝不编一个时刻。
+  const family = (!cap && a.familyLabel) ? '这次要花的 ' + a.familyLabel + '额度不够了' + resetHint(a.resetAt) + '；' : ''
+  const unit = a.unit === '条' ? '条' : '点'
   return head + '。这次预计花 ' + a.points + ' 点、' + a.requests + ' 条出站请求；本小时 AI 工具已用 ' +
-    hour.points + ' 点、' + hour.requests + ' 条；这一桶现在还剩 ' + q.remaining + ' 点。建议分 ' +
+    hour.points + ' 点、' + hour.requests + ' 条；' + family + '现在还剩 ' + q.remaining + ' ' + unit + '。建议分 ' +
     plan.shards + ' 次调用，每片不超过 ' + plan.perShard + ' 张票（单次硬顶 ' + limits.aiToolMaxPointsPerCall + ' 点 / ' +
     limits.aiToolMaxRequestsPerCall + ' 条，每小时 ' + limits.aiToolMaxPointsPerHour + ' 点 / ' +
     limits.aiToolMaxRequestsPerHour + ' 条）。'
+}
+
+/** 把恢复时刻写成「约 HH:MM」；调用方没带（或不是个数）就回空串，绝不编一个。 */
+function resetHint(at: unknown): string {
+  const ms = typeof at === 'number' && isFinite(at) ? at : 0
+  if (!(ms > 0)) return ''
+  const d = new Date(ms)
+  return '（约 ' + ('0' + String(d.getHours())).slice(-2) + ':' + ('0' + String(d.getMinutes())).slice(-2) + ' 恢复）'
 }

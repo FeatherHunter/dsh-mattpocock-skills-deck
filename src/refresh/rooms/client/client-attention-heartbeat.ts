@@ -243,32 +243,40 @@ export const stopAttentionSignals = function (): void {
 // 为什么要住在这一片：探测范围本来就是「人正在看哪个工作区」的推论，视野模型（_attentionPlan.root、
 //   shared/stores 的 cwd）都在这里；放回 refresh-timer 会把那份文件顶过每文件 350 有效行的上限。
 // 两条规矩（对应票面「只探面板可见仓库」「连续无变化退避」）：
-//   ① probeTargetNow：只回一个工作区目录（宿主按目录认仓库），后台节拍按降档间隔跳过时回空串；
+//   ① probeTargetNow：只回一个工作区目录（宿主按目录认仓库），后台节拍还在降档间隔里时回 null；
 //   ② noteProbeReply：探成且没变化才加一级退避，有变化 / 变了没并进去 / 人回到前台都清零。
+// 退避的基数按「这一拍的正常间隔」走（#1418 P1 复核补）：后台定时器 60 秒一拍；面板开着、宿主说
+//   我在活跃集合里时是 5 秒一拍。活跃拍不跟着退避，人盯着面板看的时候就会一直每 5 秒烧一次，
+//   而票面要降的正是这一段。两处各按自己的基数拉长；换工作区或人回到前台立刻回到原节奏。
 // 反例：不要拿「某个会话的 cwd 不在 _attentionPlan.root 下」当理由去探第二个工作区 —— 那就是 3 工作区
 //   每拍 3 条探测、一小时烧掉两千多点 GraphQL、把 deck 工具整轮停掉的那条路（#1418 实测）。
-export const _probeBackoff: { step: number; lastAt: number; lastCwd: string } = { step: 0, lastAt: 0, lastCwd: '' };
+export const _probeBackoff: { step: number; lastAt: number; lastCwd: string; base: number } = { step: 0, lastAt: 0, lastCwd: '', base: 0 };
 const BACKOFF_FACTORS: number[] = [1, 1, 2, 5, 10];
-export const backoffGap = function (): number {
+/** 这一档退避该等多久：基数（这一拍的正常间隔）× 档位倍数；调用方没给基数就用上一次记下的，最后退回 PROBE_MS。 */
+export const backoffGap = function (baseMs?: number): number {
+  const base: number = Math.max(1, Number(baseMs) || Number(_probeBackoff.base) || Number(PROBE_MS) || 0);
   const i: number = Math.min(Number(_probeBackoff.step) || 0, BACKOFF_FACTORS.length - 1);
-  return Math.max(1, Number(PROBE_MS) || 0) * BACKOFF_FACTORS[i];
+  return base * BACKOFF_FACTORS[i];
 };
-const logProbeBackoff = function (): void {
-  try { log('info', 'probe.loop', { reason: 'backoff', intervalMs: Math.round(backoffGap()), visible: attentionVisible(), timerOk: !!(timer && typeof timer.interval === 'function') }); } catch (eLog) {}
+/** 记一行降档日志：reason 区分「升上去」与「复位」，只在档位变化那一刻记，不逐拍刷。 */
+const logProbeBackoff = function (reason: string): void {
+  try { log('info', 'probe.loop', { reason: reason, intervalMs: Math.round(backoffGap()), visible: attentionVisible(), timerOk: !!(timer && typeof timer.interval === 'function') }); } catch (eLog) {}
 };
 export const resetProbeBackoff = function (): void {
   if (_probeBackoff.step === 0) return;
   _probeBackoff.step = 0;
-  logProbeBackoff();
+  logProbeBackoff('backoff-reset');
 };
 /**
  * 这一拍该探哪个工作区。三种回话必须分开（漏了就会把「降档跳过」当成「还没有目录」去冷启动）：
  *   null —— 后台节拍还在降档间隔里，这一拍整个跳过（连 wf.cwd 都不问）；
  *   ''   —— 真的还没有可分组的目录（store 还没水合），调用方去补 cwd 再问一次；
  *   目录 —— 这一拍就探它。
+ * baseMs 是调用方这一拍的正常间隔（后台定时器 60 秒、活跃拍 5 秒）：只有后台拍才记它，前景拍一律复位。
  */
-export const probeTargetNow = function (background: boolean): any {
+export const probeTargetNow = function (background: boolean, baseMs?: number): any {
   if (!background) resetProbeBackoff();
+  else if (typeof baseMs === 'number' && isFinite(baseMs) && baseMs > 0) _probeBackoff.base = Math.round(baseMs);
   const root: string = String(_attentionPlan.root || '');
   const all: string[] = [];
   if (shared && shared.cwd) all.push(String(shared.cwd));
@@ -287,5 +295,5 @@ export const noteProbeReply = function (res: any, background: boolean): void {
   if (!background) { resetProbeBackoff(); return; }
   if (!res || res.ok !== true) return;
   if (res.changed === true || res.mode === 'deferred' || res.mode === 'failed' || res.mode === 'stale-dropped') { resetProbeBackoff(); return; }
-  if (_probeBackoff.step < BACKOFF_FACTORS.length - 1) { _probeBackoff.step += 1; logProbeBackoff(); }
+  if (_probeBackoff.step < BACKOFF_FACTORS.length - 1) { _probeBackoff.step += 1; logProbeBackoff('backoff'); }
 };

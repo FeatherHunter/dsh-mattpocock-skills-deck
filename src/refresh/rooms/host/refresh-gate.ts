@@ -23,6 +23,8 @@
 // 二级限流（Retry-After）也是降档信号：noteRetryAfter() 一次就把所在桶按红档处理（主桶没用完也降档），并把那个工作区标成撞限流。
 // #998：连续失败到门槛之后由 failure-window.js 那台状态机放一笔探针进来试（细节见那个文件）。
 import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../kernel/admission-policy.js'
+// #1418：见底文案要点名「缺的是哪一种额度」。短名只在 budget-admission.ts 写一份，闸这边引用，不另抄一张表。
+import { familyLabelOf } from '../../kernel/budget-admission.js'
 import type { PolicyInput } from '../../kernel/admission-policy.js'
 // 说明符指向真源后，policy 的精确类型第一次被 tsc 看见（从前读转译产物，类型已被剥掉）。
 // 本文件的本地接口刻意只记「形状」（类别、种类、档位都是 string）：查表与兜底那两条分支
@@ -119,6 +121,8 @@ interface LedgerView {
   tier: string | null
   /** 这一格有没有同步过读数（「同步过」与「读数知道了」是两件事：#1446 判 readKnown 要先看它）。 */
   synced?: boolean
+  /** 服务端说这一桶什么时候恢复（毫秒 epoch；#1418 加的，见底文案用它写「约 HH:MM 恢复」）。 */
+  resetAt?: number
 }
 
 /** 闸实际用到账本的四条：多一条也不用，少一条接线时就当场抛。 */
@@ -136,7 +140,7 @@ interface LedgerShape {
 interface QuotaSlot { facts: { backendId: string; budgetKind: string; readKnown: boolean; offNetwork: boolean }; view: LedgerView; hasQuota: boolean; bucket: string }
 
 /** 没建桶、或建了但还没读到读数时的那份空账：remaining 与 tier 是 null，不拿 0 与绿档冒充。 */
-const EMPTY_VIEW: LedgerView = { bucket: '', allowance: 0, used: 0, remaining: null, reserve: 0, tier: null }
+const EMPTY_VIEW: LedgerView = { bucket: '', allowance: 0, used: 0, remaining: null, reserve: 0, tier: null, resetAt: 0 }
 
 /** 宿主日志出口（与 src/host 其余文件同一形状）：先问开关，关着连字段对象都不组装。 */
 interface LogCtx {
@@ -527,8 +531,11 @@ export function createGate(deps?: GateDeps) {
     // 拒绝文案只收数字，空账（remaining 为 null）按 0 说，避免把 null 写进给人看的句子里。
     const shown = Object.assign({}, q, { remaining: q.remaining == null ? 0 : q.remaining })
     const level = slot.facts.readKnown && slot.hasQuota && q.remaining != null ? { remaining: q.remaining } : {}
+    // #1418：见底那一档的拒绝文案要说出缺的是哪一种额度、大概什么时候恢复。
+    //   额度短名与单位按这一桶给（GraphQL 按点算，REST 请求与请求桶按条算）；恢复时刻读不到就写 0，文案里不出现。
+    const named = Object.assign({}, a, { familyLabel: familyLabelOf(slot.bucket), resetAt: typeof q.resetAt === 'number' ? q.resetAt : 0, unit: slot.bucket === 'graphql' ? '点' : '条' })
     return Object.assign({ admitted: a.admitted, reason: a.reason, points: a.points, requests: a.requests,
-      shards: plan.shards, perShard: plan.perShard, text: a.admitted ? '' : refusalTextRef(a, shown, hour, plan, limits) }, slot.facts, level)
+      shards: plan.shards, perShard: plan.perShard, text: a.admitted ? '' : refusalTextRef(named, shown, hour, plan, limits) }, slot.facts, level)
   }
 
   /** 某个桶现在的降档安排（探测节拍、对账节拍、最短重建间隔），数值全部来自 budget.js。 */

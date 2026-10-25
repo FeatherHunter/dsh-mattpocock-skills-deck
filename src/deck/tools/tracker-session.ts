@@ -88,7 +88,7 @@ async function fallbackAdmit(input: UnknownRecord): Promise<UnknownRecord> {
     else levels.push((buckets.graphql || {}) as { remaining: number; limit: number });
   }
   for (const level of levels) {
-    if (num(level.remaining) <= writeReserve(num(level.limit))) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: '额度的一个桶已经见底，这次先不执行。' };
+    if (num(level.remaining) <= writeReserve(num(level.limit))) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: '额度见底：剩余额度不够了，这次先不执行。' };
   }
   return { allowed: true, reason: 'sufficient' };
 }
@@ -148,9 +148,21 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   const offline = str(model.kind) === 'off-network';
   // #1446：闸按后端模型选桶（只计请求的后端只有 requests 这一桶），并且告诉闸「这是哪个后端」——
   // 不传 backendId 时闸只能按未知后端算，两桶保底与分桶读数就落不到这个后端头上。
-  // #1418：两桶后端按「读还是写」选族。以前一律拿 graphql 桶去探，写工具在 REST 见底时探针还放行，
-  //   真正该拦的是写；而读工具在 GraphQL 见底时也该按 GraphQL 说理，不再两族混着说「一个桶」。
-  const bucketFor = str(model.kind) === 'requests-only' ? 'requests' : (readCall ? 'graphql' : 'rest');
+  // #1418：两桶后端按这次调用真正要花的额度选桶。读工具只看 GraphQL 点数；写工具的通道不止一族
+  //   （建票只有 REST 请求；改票 / 关票是 GraphQL 点数；评论与父子边、阻塞边两条路都能走），
+  //   所以这里先按读数里余量更多的那一族做预检 —— 预检只回答「这一笔值得试试吗」，不许让一族见底
+  //   把另一族还能做的写挡在门外。每一次操作真正花哪一族，会在它过管线时按操作名再判一次
+  //   （src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
+  let bucketFor: string = str(model.kind) === 'requests-only' ? 'requests' : (readCall ? 'graphql' : 'rest');
+  if (!readCall && str(model.kind) === 'two-buckets') {
+    try {
+      const rd: UnknownRecord = (typeof d.getCachedReading === 'function') ? ((await d.getCachedReading()) as UnknownRecord) : {};
+      const buckets: UnknownRecord = (rd && rd.known === true && rd.kind === 'two-buckets' && rd.buckets) ? (rd.buckets as UnknownRecord) : {};
+      const restLeft: number = num((buckets.rest as UnknownRecord | undefined) && (buckets.rest as UnknownRecord).remaining);
+      const graphqlLeft: number = num((buckets.graphql as UnknownRecord | undefined) && (buckets.graphql as UnknownRecord).remaining);
+      bucketFor = graphqlLeft > restLeft ? 'graphql' : 'rest';
+    } catch { /* 读数取不到就按 rest 预检（保守）；真正的按族拦截在操作过管线时做。 */ }
+  }
   const admitVolumes = { points: num(est.points), requests: num(est.requests), childTickets: num(est.tickets) };
   let admit: UnknownRecord;
   if (offline) {

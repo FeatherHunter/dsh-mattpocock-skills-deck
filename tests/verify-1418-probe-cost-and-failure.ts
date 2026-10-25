@@ -15,8 +15,9 @@
 //   C. 探测失败要看得见：本组会话进入 err 且带原因、旧快照不被丢弃；同样的失败不重复渲染；
 //      恢复那一拍撤掉标记；别的失败（取数 / 配额）不被探测成功抹掉；别的会话不被误伤。
 //   D. 失败判档要能读出来（核心日志）：宿主回包带 errorKind；客户端那行 host.call.fail 写出 errorKind。
-//   E. P1 起探测只跟「人正在看的那个工作区」：不再逐个轮询所有工作区；连续无变化时后台拍逐级拉长；
-//      两桶裁决按族分开（REST 见底只停写、GraphQL 见底只停读），见底文案点名族与恢复时刻。
+//   E. P1 起探测只跟「人正在看的那个工作区」：不再逐个轮询所有工作区；连续无变化时后台拍与活跃拍
+//      各按自己的正常间隔逐级拉长；两桶裁决按真实出站通道分（REST 见底只停建票这类，GraphQL 见底
+//      只停读与改票／关票这类），见底文案点名缺的是哪种额度、大概什么时候恢复。
 //
 // 判据不是「源码里出现过某段字符串」，而是把真源码加载起来喂输入，看它发出什么命令、改出什么状态。
 //
@@ -45,6 +46,7 @@ import { ghVerdictOf } from '../src/tracker/rooms/github/errors.js'
 import { createIssueList } from '../src/refresh/rooms/host/issue-list-fetch.js'
 import { createProbeHandler } from '../src/refresh/rooms/host/probe-handler.js'
 import { decideByBudget } from '../src/refresh/kernel/budget-admission.js'
+import { refusalTextRef } from '../src/refresh/rooms/host/refusal-messages.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -568,11 +570,31 @@ const partC = async function (): Promise<void> {
   check(!!backoffRow && backoffRow.fields.visible === true && backoffRow.fields.timerOk === true,
     'E、降档日志带可见与计时器两格（沿用 probe.loop 既有字段，不加新字段）', backoffRow && JSON.stringify(backoffRow.fields))
 
+  // E2b. 面板开着时的活跃拍（宿主给的 5 秒档）也要退避，但按 5 秒的基数拉长：
+  //   不许一闲下来就直接跳到 60 秒档，否则「有变化 5 秒内发现」这条就保不住了。
+  const logsE2b: any[] = []
+  const pE2b = makeProbe({
+    shared: sharedA, stores: { stB: stB },
+    hostCall: function (): any { return Promise.resolve({ ok: true, changed: false }) },
+    log: function (level: string, event: string, fields: any): void { logsE2b.push({ level: level, event: event, fields: fields }) },
+  })
+  pE2b.mod.probeNow(false, { background: true, baseMs: 5000 })
+  await tick(); await tick()
+  check(pE2b.mod._probeBackoff.step === 1, 'E、活跃拍探成且没变化：同样退避加一级', pE2b.mod._probeBackoff.step)
+  pE2b.mod._probeBackoff.lastAt = 0
+  pE2b.mod.probeNow(false, { background: true, baseMs: 5000 })
+  await tick(); await tick()
+  const activeBackoff: any = logsE2b.filter(function (l: any): boolean { return l.event === 'probe.loop' && l.fields && l.fields.reason === 'backoff' }).pop()
+  check(!!activeBackoff && activeBackoff.fields.intervalMs === 10000,
+    'E、活跃拍的退避按 5 秒基数算（第二档 10000 毫秒）', activeBackoff && activeBackoff.fields && activeBackoff.fields.intervalMs)
+
   // E3. 探到变化的那一拍把退避清零：下一拍立刻回到原节奏，不让人等分钟级。
   let changedE3: boolean = false
+  const logsE3: any[] = []
   const pE3 = makeProbe({
     shared: sharedA, stores: { stB: stB },
     hostCall: function (): any { return Promise.resolve({ ok: true, changed: changedE3 }) },
+    log: function (level: string, event: string, fields: any): void { logsE3.push({ level: level, event: event, fields: fields }) },
   })
   pE3.mod._attentionPlan.root = 'D:\\wsB'
   pE3.mod.probeNow(false, { background: true })
@@ -583,6 +605,9 @@ const partC = async function (): Promise<void> {
   pE3.mod.probeNow(false, { background: true })
   await tick(); await tick()
   check(pE3.mod._probeBackoff.step === 0, 'E、探到变化的那一拍退避清零（下一拍回到原节奏）', pE3.mod._probeBackoff.step)
+  const resetRow: any = logsE3.filter(function (l: any): boolean { return l.event === 'probe.loop' && l.fields && l.fields.reason === 'backoff-reset' }).pop()
+  check(!!resetRow && resetRow.fields.intervalMs === 60000,
+    'E、复位那一行写 backoff-reset 并回到原节奏（60000 毫秒）', resetRow && resetRow.fields && resetRow.fields.intervalMs)
 
   // E5. 按族裁决：REST 见底只停写、GraphQL 见底只停读；文案点名族与恢复时刻；族不明的操作两族都看。
   const limitsE: any = {
@@ -610,11 +635,34 @@ const partC = async function (): Promise<void> {
   check(graphqlDeadRead.allowed === false && String(graphqlDeadRead.message || '').indexOf('GraphQL 点数') >= 0,
     'E、读操作被 GraphQL 桶拦下，文案点名 GraphQL 点数：' + String(graphqlDeadRead.message || ''))
   const graphqlDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
-  check(graphqlDeadWrite.allowed === true, 'E、GraphQL 见底时写操作照常放行（写只花 REST 请求）', graphqlDeadWrite.reason)
+  check(graphqlDeadWrite.allowed === true, 'E、GraphQL 见底时建票照常放行（建票只花 REST 请求）', graphqlDeadWrite.reason)
+  // #1418 P1 复核 c1：写操作的通道按真实出站算 —— 改票 / 关票 / 标签 / 认领走 gh issue edit（GraphQL），
+  //   REST 见底时它们照做；评论、父子边、阻塞边还有退路，只有两条路都见底才拦。
+  const restDeadEdit: any = decideByBudget({ op: 'update', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  check(restDeadEdit.allowed === true, 'E、REST 见底时改票照常放行（gh issue edit 内部发 GraphQL）', restDeadEdit.reason)
+  const restDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
+  check(restDeadComment.allowed === true, 'E、REST 见底时评论照常放行（还能回落 gh issue comment 的 GraphQL 通道）', restDeadComment.reason)
+  const graphqlDeadEdit: any = decideByBudget({ op: 'update', budget: twoE, reading: readingE(1400, 500), canWrite: true }, limitsE)
+  check(graphqlDeadEdit.allowed === false && String(graphqlDeadEdit.message || '').indexOf('GraphQL 点数') >= 0,
+    'E、改票只走 GraphQL：GraphQL 见底时拦下并点名 GraphQL 点数', graphqlDeadEdit.message)
+  const bothDeadComment: any = decideByBudget({ op: 'comment', budget: twoE, reading: readingE(500, 500), canWrite: true }, limitsE)
+  check(bothDeadComment.allowed === false && String(bothDeadComment.message || '').indexOf('两种额度都不够') >= 0,
+    'E、两条通道都见底的评论拦下并如实说两种额度都不够', bothDeadComment.message)
   const unknownFam: any = decideByBudget({ op: 'switch-backend', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE)
   check(unknownFam.allowed === false, 'E、族不明的操作保守按两族都看（REST 见底就推迟）', unknownFam.reason)
   const noResetMsg: string = String(decideByBudget({ op: 'create', budget: twoE, reading: readingE(500, 1400), canWrite: true }, limitsE).message || '')
   check(noResetMsg.indexOf('恢复') < 0, 'E、读数没带恢复时刻时文案不编时刻：' + noResetMsg)
+
+  // E6. 闸自己那条拒绝文案（不是裁决那一句）：见底时要写出缺的是哪一种额度、什么时候恢复、还剩多少。
+  const refusal: string = refusalTextRef(
+    { reason: 'ai-tool-below-remaining', points: 5, requests: 3, familyLabel: 'REST 请求', resetAt: 1790000000000, unit: '条' },
+    { remaining: 12 },
+    { points: 0, requests: 0 },
+    { shards: 2, perShard: 5 },
+    { aiToolMaxPointsPerCall: 100, aiToolMaxRequestsPerCall: 100, aiToolMaxPointsPerHour: 1000, aiToolMaxRequestsPerHour: 1000 },
+  )
+  check(refusal.indexOf('REST 请求额度不够了') >= 0 && /约 [0-9][0-9]:[0-9][0-9] 恢复/.test(refusal) && refusal.indexOf('还剩 12 条') >= 0,
+    'E、闸拒绝文案点名缺的额度、恢复时刻与剩余量：' + refusal)
 }
 
 async function main(): Promise<void> {
