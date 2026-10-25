@@ -60,7 +60,7 @@ async function main() {
   const missing = await budget.readGithubBudget(makeCtx(ghMissingExec, ghMissingResolve))
   check(missing && missing.ok === true && missing.data && missing.data.known === false && missing.data.reason === 'not-measured', 'gh 缺失回读数未知（not-measured），装进成功信封')
   const denied = await budget.readGithubBudget(makeCtx(notLoggedInExec, ghPresentResolve))
-  check(denied && denied.ok === true && denied.data && denied.data.known === false && denied.data.reason === 'unavailable', '未登录回读数未知（unavailable），装进成功信封')
+  check(denied && denied.ok === true && denied.data && denied.data.known === false && denied.data.reason === 'not-measured', '未登录回读数未知（not-measured：机器没准备好，不是临时取不到），装进成功信封')
   const netFail = await budget.readGithubBudget(makeCtx(networkFailExec, ghPresentResolve))
   check(netFail && netFail.ok === true && netFail.data && netFail.data.known === false && netFail.data.reason === 'unavailable', '网络失败回读数未知（unavailable），装进成功信封')
   const okReading = await budget.readGithubBudget(makeCtx(successExec, ghPresentResolve))

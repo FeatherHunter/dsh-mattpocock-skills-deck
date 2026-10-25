@@ -249,7 +249,7 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
 // ---------- 八、面板的额度读数（#1446）----------
 // 面板不推算后端类型，只读宿主写下的 refresh.backend；这一节量的是「四种后端各说各的话、未知时不吓人」。
 ;(function checkBudgetNotices() {
-  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown', 'truth.budgetUnknownModel'].forEach(function (k) {
+  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown', 'truth.budgetUnknownModel', 'truth.budgetSyncFailedHard', 'truth.budgetSyncFailedSoft', 'truth.budgetStaleSyncFailedHard', 'truth.budgetStaleSyncFailedSoft'].forEach(function (k) {
     if (!zh[k]) fail('zh 缺词条 ' + k)
     if (!en[k]) fail('en 缺词条 ' + k)
   })
@@ -295,6 +295,72 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (unknownModelText.indexOf('未知') < 0) fail('预算模型未知那句要自己说出「未知」：' + JSON.stringify(unknownModelText))
   if (/\d/.test(unknownModelText)) fail('预算模型未知时整行不许出现数字（尤其不许把 0 念出来）：' + JSON.stringify(unknownModelText))
   if (unknownModel[0] && (unknownModel[0].tone === 'red' || unknownModel[0].tone === 'yellow')) fail('预算模型未知时不许上红/黄档：' + JSON.stringify(unknownModel[0]))
+  // 后台同步失败（#1006）：读数未知时要把「为什么还没同步」说出来，不能永远只有一句「还没同步上来」。
+  // hard = 这台机器上的命令行工具没准备好（要人处理，黄档）；soft = 刚才没连上服务（等它自己重试，绿档）。
+  const hardSync = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: false, offNetwork: false, reason: 'not-measured',
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'hard' },
+  }))
+  if (keysOf(hardSync).join(',') !== 'truth.budgetSyncFailedHard') fail('环境没准备好时应当说 truth.budgetSyncFailedHard，实得：' + JSON.stringify(keysOf(hardSync)))
+  const hardSyncText = textOf(hardSync[0] || {})
+  if (hardSyncText.indexOf('还没同步上来') < 0 || hardSyncText.indexOf('没准备好') < 0) fail('hard 那句要同时说出「还没同步上来」与「命令行工具没准备好」：' + JSON.stringify(hardSyncText))
+  if (hardSyncText.indexOf('重试') < 0) fail('hard 那句要说清后台会继续重试：' + JSON.stringify(hardSyncText))
+  if (hardSyncText.indexOf('要人检查') < 0) fail('hard 那句要说清「等人去处理」（不是只要重试就好）：' + JSON.stringify(hardSyncText))
+  if (/\d/.test(hardSyncText)) fail('hard 那句不许出现数字（尤其不许把 0 念出来）：' + JSON.stringify(hardSyncText))
+  if (hardSyncText.indexOf('用完') >= 0 || hardSyncText.indexOf('耗尽') >= 0) fail('hard 那句不许把「不知道」说成「用完了 / 耗尽」：' + JSON.stringify(hardSyncText))
+  if (hardSync[0] && hardSync[0].tone !== 'yellow') fail('环境没准备好要人处理，应是黄档：' + JSON.stringify(hardSync[0]))
+  const softSync = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: false, offNetwork: false, reason: 'not-measured',
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'soft' },
+  }))
+  if (keysOf(softSync).join(',') !== 'truth.budgetSyncFailedSoft') fail('刚才没连上时应当说 truth.budgetSyncFailedSoft，实得：' + JSON.stringify(keysOf(softSync)))
+  const softSyncText = textOf(softSync[0] || {})
+  if (softSyncText.indexOf('还没同步上来') < 0 || softSyncText.indexOf('没连上') < 0) fail('soft 那句要同时说出「还没同步上来」与「刚才没连上」：' + JSON.stringify(softSyncText))
+  if (softSyncText.indexOf('重试') < 0) fail('soft 那句要说清后台会继续重试：' + JSON.stringify(softSyncText))
+  if (/\d/.test(softSyncText)) fail('soft 那句不许出现数字：' + JSON.stringify(softSyncText))
+  if (softSync[0] && softSync[0].tone !== 'fresh') fail('刚才没连上是等它自己重试，应是绿档：' + JSON.stringify(softSync[0]))
+  if (softSyncText === hardSyncText) fail('两种失败不能是同一句话（环境没准备好 ≠ 刚才没连上）')
+  // 有旧读数时失败也要说得出来（#1006 复核）：数字照念，后面补一句它可能不是最新的 + 原因。
+  //   只加在这个分支、且只认两种已知类别；没有 sync 或形状不对时不许凭空补一句。
+  const staleHard = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 60, limit: 60 } },
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'hard' },
+  }))
+  if (keysOf(staleHard).join(',') !== 'truth.budgetGraphql,truth.budgetRest,truth.budgetStaleSyncFailedHard') fail('有旧读数且后台同步硬失败时，应念数字再补 truth.budgetStaleSyncFailedHard，实得：' + JSON.stringify(keysOf(staleHard)))
+  const staleHardText = textOf(staleHard[2] || {})
+  if (staleHardText.indexOf('不是最新') < 0 || staleHardText.indexOf('没准备好') < 0 || staleHardText.indexOf('再试') < 0) fail('有旧读数的 hard 失败句要说清「数字可能不是最新」「工具没准备好」「之后会再试」：' + JSON.stringify(staleHardText))
+  if (/\d/.test(staleHardText)) fail('有旧读数的 hard 失败句不许出现数字（数字只在读数那一行）：' + JSON.stringify(staleHardText))
+  if (staleHard[0] && textOf(staleHard[0]).indexOf('4200') < 0) fail('补了失败句之后旧数字仍要照念：' + JSON.stringify(staleHard[0]))
+  if (staleHard[2] && staleHard[2].tone !== 'yellow') fail('有旧读数的 hard 失败要人处理，应是黄档：' + JSON.stringify(staleHard[2]))
+  const staleSoft = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-rest', budgetKind: 'requests', readKnown: true, offNetwork: false,
+    requests: { remaining: 3000, limit: 5000 },
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'soft' },
+  }))
+  if (keysOf(staleSoft).join(',') !== 'truth.budgetRequests,truth.budgetStaleSyncFailedSoft') fail('有旧读数且后台同步软失败时，应念数字再补 truth.budgetStaleSyncFailedSoft，实得：' + JSON.stringify(keysOf(staleSoft)))
+  const staleSoftText = textOf(staleSoft[1] || {})
+  if (staleSoftText.indexOf('不是最新') < 0 || staleSoftText.indexOf('没连上') < 0 || staleSoftText.indexOf('重试') < 0) fail('有旧读数的 soft 失败句要说清「数字可能不是最新」「刚才没连上」「会继续重试」：' + JSON.stringify(staleSoftText))
+  if (staleSoft[1] && staleSoft[1].tone !== 'fresh') fail('有旧读数的 soft 失败是等它自己好，应是绿档：' + JSON.stringify(staleSoft[1]))
+  // 真耗尽时数字就是此刻事实：只说 failQuota，不再补「可能不是最新」。
+  const staleExhausted = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 0, limit: 5000 }, rest: { remaining: 0, limit: 60 } },
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'hard' },
+  }))
+  if (keysOf(staleExhausted).join(',') !== 'truth.failQuota') fail('真耗尽时只说 failQuota，不再补「数字可能不是最新」，实得：' + JSON.stringify(keysOf(staleExhausted)))
+  // 模型未知仍第一优先：记事本里有失败也不能把「模型不知道」改口成「同步失败」。
+  const modelWithSync = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported',
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'hard' },
+  }))
+  if (keysOf(modelWithSync).join(',') !== 'truth.budgetUnknownModel') fail('模型未知要压过后台同步失败（仍说 truth.budgetUnknownModel），实得：' + JSON.stringify(keysOf(modelWithSync)))
+  // 形状不对的 sync（绕过宿主校验直接喂）不许猜类别：仍说中性的「还没同步上来」。
+  const bogusSync = truth.budgetNoticeLines(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: false, offNetwork: false,
+    sync: { lastFailAt: 0, lastFailKind: 'fatal' },
+  }))
+  if (keysOf(bogusSync).join(',') !== 'truth.budgetUnknown') fail('形状不对的 sync 不猜类别，应说 truth.budgetUnknown，实得：' + JSON.stringify(keysOf(bogusSync)))
   // 面板那一行真的把额度句并进去了
   const panel = truth.truthNoticeLines(withBackend({
     id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
@@ -315,5 +381,5 @@ console.log('  PASS T3 两句有读取点（自动刷新已暂停 / 未在刷新
 console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round(PROBE_INTERVAL_YELLOW_MS / 60000) + ' 分钟）')
 console.log('  PASS 推迟说「有更新，已推后」；写入窗口内/外判得对，那批词条中英两面都在')
 console.log('  PASS 降级标记到得了界面：上游真降级时回包带 \'rest\'、没降级时是 null')
-console.log('  PASS 面板额度读数按后端声明说话（两桶 / 仅请求 / 离网 / 未知），未知时不出现 0 与红档')
+console.log('  PASS 面板额度读数按后端声明说话（两桶 / 仅请求 / 离网 / 未知），未知时不出现 0 与红档；后台同步失败按 hard / soft 说清原因（读数未知说有旧读数都说得出来），模型未知仍优先')
 console.log('\n全部通过')

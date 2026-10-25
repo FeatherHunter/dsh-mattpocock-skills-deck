@@ -68,11 +68,21 @@ interface SnapshotComposerRegistry {
 // 但「模型未知」（后端声明 unknown，或声明了本版不认识的口径）不是「没有读数」：#1455 起它是合法的
 // 一档，必须原样送到界面 —— 旧的白名单少了这个词，未知模型会被整格丢掉，面板静默得像「没有额度这回事」。
 // 字段只增不改：四个旧格子的语义、取值与次序一字不动，老客户端读不到 backend 也不会受影响。
+// 后台同步失败（#1006）是同一个 backend 里的可选一格 sync：读数未知时界面靠它把「为什么还没同步」说出来；
+// 它坏掉时只丢 sync，绝不动读数本身的格子（不因为解释不清就把整格读数一起扔掉）。
 export type RefreshBudgetKind = 'two-buckets' | 'requests' | 'none' | 'unknown'
 export type RefreshBudgetReason = 'not-measured' | 'unavailable' | 'unsupported'
 export interface RefreshBudgetBucket {
   remaining: number
   limit: number
+}
+// 后台同步最近一次失败的结论（#1006 期望⑤）：读数为「还没同步上来」时，界面靠它说清是哪一种失败。
+// 只在 backendBudgetOf 里收敛形状；形状不全就整块丢掉 —— 编一个类别（或编一个时刻）比不说更坏。
+// 为什么不直接复用 refresh 房间里那份同名形状：这里是宿主给客户端回包的传输边界（跨层、会被序列化），
+// 宿主层不许引用 refresh 房间的模块；两端各自校验一次，宁可多一份声明，也不让一个类型把两层绑在一起。
+export interface RefreshBackendSync {
+  lastFailAt: number
+  lastFailKind: 'hard' | 'soft'
 }
 export interface RefreshBackendBudget {
   id: string
@@ -82,6 +92,7 @@ export interface RefreshBackendBudget {
   buckets?: { rest?: RefreshBudgetBucket; graphql?: RefreshBudgetBucket }
   requests?: RefreshBudgetBucket
   reason?: RefreshBudgetReason
+  sync?: RefreshBackendSync
 }
 // 生产者可以只回读数本身，也可以回 {ok, readout} 这层包装（与 workRouteTableReadout 同一种口子）；
 // 只回 null 表示「这一趟拿不到」，编排器保持旧形状。
@@ -112,6 +123,14 @@ function budgetBucketOf(v: any): RefreshBudgetBucket | null {
   if (!isBudgetCount(v.remaining) || !isBudgetCount(v.limit)) return null
   return { remaining: v.remaining, limit: v.limit }
 }
+// 后台同步失败结论只认两种类别、且时刻必须是有限正数：界面拿它决定说「环境没准备好」还是「刚才没连上」，
+// 编一个类别比不说更坏 —— 形状不对就整块丢掉，界面退回中性的「还没同步上来」（#1006）。
+function backendSyncFailureOf(v: any): RefreshBackendSync | null {
+  if (!v || typeof v !== 'object') return null
+  if (typeof v.lastFailAt !== 'number' || !isFinite(v.lastFailAt) || v.lastFailAt <= 0) return null
+  if (v.lastFailKind !== 'hard' && v.lastFailKind !== 'soft') return null
+  return { lastFailAt: v.lastFailAt, lastFailKind: v.lastFailKind }
+}
 // 把生产者给的东西收敛成客户端认识的那一格；认不出来就回 null（编排器据此不写 backend）。
 function backendBudgetOf(backendId: string, raw: any): RefreshBackendBudget | null {
   const r = (raw && typeof raw === 'object' && raw.ok === true && raw.readout && typeof raw.readout === 'object') ? raw.readout : raw
@@ -133,6 +152,8 @@ function backendBudgetOf(backendId: string, raw: any): RefreshBackendBudget | nu
   const requests = budgetBucketOf(r.requests)
   if (requests) out.requests = requests
   if (r.reason === 'not-measured' || r.reason === 'unavailable' || r.reason === 'unsupported') out.reason = r.reason
+  const sync = backendSyncFailureOf(r.sync)
+  if (sync) out.sync = sync
   return out
 }
 

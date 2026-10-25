@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T18:18:53.175Z",
+  "generatedAt": "2026-10-25T18:50:57.670Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 387,
   "gateCount": 387,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 587,
+  "graphFileCount": 588,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -2790,6 +2790,7 @@
         "src/host/tracker/snapshot.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/rooms/host/budget-state.ts",
+        "src/refresh/rooms/host/quota-sync-status.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -2809,7 +2810,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 6 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1446-receipts.ts",
@@ -10776,9 +10777,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 608,
+    "fileCount": 609,
     "dirCount": 74,
-    "coveredFileCount": 608,
+    "coveredFileCount": 609,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11147,6 +11148,7 @@
       "src/refresh/rooms/host/patch-wiring.ts",
       "src/refresh/rooms/host/probe-handler.ts",
       "src/refresh/rooms/host/quota-ledger.ts",
+      "src/refresh/rooms/host/quota-sync-status.ts",
       "src/refresh/rooms/host/refresh-assembly.ts",
       "src/refresh/rooms/host/refresh-gate.ts",
       "src/refresh/rooms/host/refresh-runtime.ts",
@@ -11569,7 +11571,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 45
+        "fileCount": 46
       },
       {
         "path": "src/shared/command-cleanup",
