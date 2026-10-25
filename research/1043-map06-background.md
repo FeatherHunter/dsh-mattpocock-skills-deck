@@ -1,5 +1,7 @@
 # 地图06背景调查：选择与裁决的做法（为 #1043 讨论准备的讲课笔记）
 
+> 文件名说明（2026-10-26 补记）：本文写于注册表的文件改用短名之前，正文里引用的 `registryCore.ts`、`registryShape.ts`、`registryViews.ts` 是当时的文件名；今天的真名分别是 `src/tracker/registry/core.ts`、`src/tracker/registry/shape.ts`、`src/tracker/registry/views.ts`，正文里引用的行号也停在旧文件上，不再对应今天的代码。本文是历史记录，按本仓「历史记录不改写」的规矩保持原样。
+
 - 调研日期：2026-10-13。
 - 调研人：AI 后台调研。
 - 调研对象：地图06讨论票 #1043 背后的选择与裁决做法，本笔记只认下面一手来源里的原文，不转述二手解读。

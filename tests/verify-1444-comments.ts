@@ -7,6 +7,9 @@
  * 行为约定变了三处（首屏经会话、加载更多抬高 first、超过 200 截断），这三处没有任何既有门禁覆盖；
  * 写评论从「自己拼 opCtx + 注册表 select/describe + 房间 comment」迁到写会话之后，失败档与执行口也换了来源，同样没有既有门禁覆盖。
  *
+ * #1519 起追加一条形状判据：详情回包里的 comments 必须是 {nodes, pageInfo} 连接（修前这里是数组透传，
+ * 界面读 comments.nodes 读不到，评论区永远「评论 (0)」）。数组形状在这一层就不再算预期。
+ *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1444-comments.ts
  */
 import { resolve, dirname } from 'node:path'
@@ -156,7 +159,12 @@ openCalls = 0
 sessionCalls.length = 0
 const detail = await handlers.handleIssueDetail({ number: 5, cwd: CWD, effortId: 1001 })
 check(detail && detail.ok === true, '详情：经会话 get 成功')
-check(detail && detail.issue && Array.isArray(detail.issue.comments) && detail.issue.comments.length === 50, '详情：带回首屏 50 条评论（got ' + (detail && detail.issue && detail.issue.comments && detail.issue.comments.length) + '）')
+// #1519：详情回包里的评论必须是 GraphQL 连接 {nodes, pageInfo}，不能把房间契约的数组原样透传给界面
+// （界面只读 comments.nodes，数组透传时评论区永远显示「评论 (0)」）。
+check(detail && detail.issue && detail.issue.comments && !Array.isArray(detail.issue.comments) && Array.isArray(detail.issue.comments.nodes) && detail.issue.comments.nodes.length === 50, '详情：评论按 {nodes, pageInfo} 连接交回、带回首屏 50 条（got ' + (detail && detail.issue && detail.issue.comments && detail.issue.comments.nodes && detail.issue.comments.nodes.length) + '）')
+check(detail && detail.issue && detail.issue.comments && detail.issue.comments.pageInfo && detail.issue.comments.pageInfo.hasNextPage === true && detail.issue.comments.pageInfo.endCursor === '50', '详情：分页信息按首屏 50 条推出 hasNextPage=true、endCursor=50')
+// 形状对了但字段掉了同样是坏的：作者、时间、正文都必须在，界面才画得出每一条评论。
+check(detail && detail.issue && detail.issue.comments && detail.issue.comments.nodes[0] && detail.issue.comments.nodes[0].author && detail.issue.comments.nodes[0].author.login === 'u1' && detail.issue.comments.nodes[0].body === 'body 1' && detail.issue.comments.nodes[0].createdAt === '2026-10-01T00:00:00Z', '详情：首条评论的作者、正文与时间都带回来了')
 check(openCalls === 1 && sessionCalls.length === 1, '详情：openSession 与 session.get 各一次')
 check(sessionCalls[0] && sessionCalls[0].repoRef && sessionCalls[0].repoRef.refId === 'o/r', '详情：仓库引用经注册表 describe 解析（refId=o/r）')
 check(sessionCalls[0] && sessionCalls[0].repoRef && sessionCalls[0].repoRef.effortId === '1001', '详情：effortId 放进仓库引用')

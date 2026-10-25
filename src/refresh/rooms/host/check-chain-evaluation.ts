@@ -5,7 +5,7 @@ import { refreshSourceOf } from '../../contract/trigger-classification.js'
 import { workspaceKeyOf } from '../../contract/workspace-keys.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './chain-coalescing.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../../../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
-import { ghAuthVerdict, probeChainEnv, repoAccessVerdict } from './chain-env-map.js'
+import { ghAuthVerdict, glabAuthVerdict, glabRepoAccessVerdict, probeChainEnv, repoAccessVerdict } from './chain-env-map.js'
 import type { OpenSessionReply } from './chain-env-map.js'
 // #1483：「判定 → 步骤行 / 快照」三件套搬到 chain-step-rows.ts，正常求值与缓存命中重算共用同一套口径；行为逐字保留。
 // 九个形状（判定表、步骤行、单段与拼接快照）也从那里取：两处各写一份时，形状一改就会漂移（审阅指出过）。
@@ -137,8 +137,10 @@ export function createDetectChain(deps: DetectChainDeps) {
   }
 
   // #1444：环境预检探针（会话、preflight、登录名各只问一次）搬到 chain-env-map.ts 的 probeChainEnv；
-  // 这里只把接线给的两条能力交进去，调用点（const envProbe = createChainEnvProbe(cwd)）形状不变。
-  const createChainEnvProbe = (probeCwd: string) => probeChainEnv({ getRepoKey: getRepoKey, openSession: openSession }, probeCwd)
+  // 这里只把接线给的两条能力交进去。
+  // #1187：探针必须等 detect 定下后端才建——GitLab 的仓库身份要经会话 getRepoKey 问房间（宿主那份只认 GitHub），
+  // 而探针把 refId 缓存进这一次求值，先建再定后端就会拿 GitHub 的空结果去问 GitLab。
+  const createChainEnvProbe = (probeCwd: string, backendId: string | null | undefined) => probeChainEnv({ getRepoKey: getRepoKey, openSession: openSession }, probeCwd, { backendId: backendId || 'github' })
 
   // #1483：把「按当前会话解析沙箱许可」收成一处。正常求值与缓存命中后的重算都用这一处解析：
   //   缺省会话号（空串）与「接线没给 sandboxPolicyFor」都不算错，照旧返回空政策，让谓词按平台默认量。
@@ -288,9 +290,6 @@ export function createDetectChain(deps: DetectChainDeps) {
         //   这两行是告警级、总是落盘，不受调试开关约束，所以不把它挂在开关后面（一轮一次 Date.now 不算开销）。
         const evalT0 = Date.now()
         const platform = await getPlatform()
-        // #1444：这次求值的环境预检探针（一次求值只开一次会话、只问一次 preflight；见 createChainEnvProbe）。
-        //   登录态与仓库可达两行、以及修复合约里的当前登录用户名，全都从这一份里取。
-        const envProbe = createChainEnvProbe(cwd)
         // 用户显式选择经写入口直达文件（落盘 + 清缓存），本轮即读到，不再经上报参数。
         // #1444：探测级联不再借一条自己拼的 gh 执行器 —— 后端识别按房间自己的路走；
         //   登录态与仓库可达两行由下面两个谓词问 envProbe（同一次预检结果，各只真问一次）。
@@ -309,6 +308,10 @@ export function createDetectChain(deps: DetectChainDeps) {
         } else {
           backendId = (args && args.backendId) || null
         }
+        // #1444：这次求值的环境预检探针（一次求值只开一次会话、只问一次 preflight；见 createChainEnvProbe）。
+        //   登录态与仓库可达两行、以及修复合约里的当前登录用户名，全都从这一份里取。
+        // #1187：放在这里而不是更前——后端的结论上面才定下来，GitLab 需要它才能问对仓库身份。
+        const envProbe = createChainEnvProbe(cwd, backendId)
         const genMod = await import('../../../host/tracker/generic.js')
         const predMod = await import('../../../host/tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
         // #1475 预算对齐：这次求值的外层等待 = 60 秒（config/timeouts.yaml 的 predicateTimeoutMs），
@@ -394,6 +397,26 @@ export function createDetectChain(deps: DetectChainDeps) {
           registry.register('backend:markdown:scratchWritable', mdPred)
           registry.register('backend:markdown:containersReadable', mdPred)
         } catch (e) {}
+        // #1187：GitLab 后端的两行。目录项要的键是 glab:authed → preflight:glabAuth、glab:repoAccess →
+        //   backend:gitlab:repoAccess；从前全仓一条都没注册，注册表便把这两行如实回成
+        //   「predicate not registered: …」的 pending —— 界面看到的是一句英文内部串，永远查不出结论。
+        // 判定与话术在 chain-env-map.ts 的 glabAuthVerdict / glabRepoAccessVerdict（那边写清了为什么不能
+        //   拿 glabPreflight 的 auth 档直接判未登录：房间把起进程失败与网络超时也归在 auth 档）。
+        try { registry.register('preflight:glabAuth', async function (check, pctx: PredicateCtx) {
+          try {
+            const zh = (pctx && pctx.lang) !== 'en'
+            // 前两关：glab 找没找到、登录态是什么；一次 preflight 的结果两个谓词共用。
+            return glabAuthVerdict(await envProbe.preflightOnce(), zh)
+          } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
+        }) } catch (e) {}
+        try { registry.register('backend:gitlab:repoAccess', async function (check, pctx: PredicateCtx) {
+          try {
+            const zh = (pctx && pctx.lang) !== 'en'
+            // 第三关：拿会话认出来的仓库地址去问 GitLab 接口；没认出地址时房间会跳过这一关回成功，
+            //   谓词按 pending 说明「暂时确认不了」，不冒充可达。
+            return glabRepoAccessVerdict(await envProbe.preflightOnce(), zh)
+          } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
+        }) } catch (e) {}
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
         // #284 修订（对抗式审查 2026-08-28）：链上检查项【逐项独立求值】——

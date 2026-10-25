@@ -282,6 +282,7 @@ export function createWorkspaceCwd(deps: Deps) {
   // #1003 唯一写入口（#1138 起是真正唯一的一份）：用户在任何能选后端的地方点确认，都走这一处写工作区文件。
   //   旧规则“文件已在就不覆盖”已废：唯一真源意味着用户明确选择时必须能覆盖它，否则换后端永远换不动。
   //   这里只做一件事：把「谁选的、什么时候、来源」写进文件；**写成或写不成如实回**，没有第三条路。
+  //   #1434 起多第二件事：写成功且读回一致后顺手删老文件（删不掉只记一条日志，主流程照回成功）。
   //   #1138 之前这里有三个 `ok:true + skipped` 的早退（后端名为空、后端没注册、注册表问不到）：
   //   调用方（handleBind）现在先自己判这两件事并当场回失败，所以早退整段删掉 ——
   //   留着的话，写不进去会被上层当成「跳过」而不是「失败」，又回到「以为选了其实没选」。
@@ -329,9 +330,13 @@ export function createWorkspaceCwd(deps: Deps) {
       try { await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) } catch (eW1) { const pp2 = await getPlatform().then(function (p: any) { return (p && p.path) || null }).catch(function () { return null }); if (pp2 && typeof pp2.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(pp2.dirname(target2), { recursive: true }) } catch (eM2) {} }; await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) }
       // 成功是状态变化的结论线：记工作区散列，方便与客户端那一行 wf.bind 对上（路径原文不记，只记散列）。
       try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: _method, latencyMs: Date.now() - _t0, ok: true, kind: 'bind', cwdHash: hash8(String(cwd)) }) } catch (eL) {}
+      // #1434：先读回比对，读到的与刚写进去的不一致等于这次没写成，如实回失败（不删老文件）。
+      let back: string | null = null; try { back = await fsSvc.readText(target2) } catch (eB) { back = null }; if (back === null || String(back) !== text) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('read-back'), cwdHash: hash8(String(cwd)), errorKind: 'read-back-mismatch' }) } catch (eL) {}; return { ok: false, error: { kind: 'env', reason: 'read-back-mismatch', message: '写完之后重新读这份文件，读到的内容与刚写进去的不一致，这次选择没有生效。' } } }
+      // #1434：读回一致后顺手删老文件（best-effort）：文件本来就不在算删掉；删不掉只记一条日志，主流程照回成功。
+      let legacyDeleted = false; try { if (typeof (fsSvc as any).rm === 'function') { await (fsSvc as any).rm(await fsSvc.resolve(WORKSPACE_FILE_LEGACY_REL, { cwd: cwd }), { force: true }); legacyDeleted = true } } catch (eR) { legacyDeleted = /ENOENT|FS_NOT_FOUND|not found/i.test(String((eR as any).code || (eR as any).message || eR)) }; if (!legacyDeleted) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('legacy-rm'), cwdHash: hash8(String(cwd)), errorKind: 'legacy-delete-failed' }) } catch (eL) {} }
       try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}
       try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
-      return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created' }
+      return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created', legacyDeleted: legacyDeleted, warnings: legacyDeleted ? [] : ['legacy-delete-failed：老文件（' + WORKSPACE_FILE_LEGACY_REL + '）没能删掉，它还在，但已经没用了，可以手动删掉。'] }
     } catch (eW) {
       // 写失败是本次切换没生效的唯一判据：记四档原因码与工作区散列，错误散列里带上有无会话政策，方便分组比对。
       // 有无政策的区分意义：没政策多半是没找到归属会话（退回部署默认政策被拒），有政策仍被拒多半是会话只读或目录真不可写。
