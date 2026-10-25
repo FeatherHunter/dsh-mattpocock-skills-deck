@@ -14,7 +14,7 @@
 - 随包只需关注上游的两个目录（engineering 与 productivity）。按 blob 逐个比对 v1.3.1 与 main：两边同为 81 个文件，0 增 0 删，15 个改了内容，分别是：
   - engineering：ask-matt/SKILL.md、code-review/SKILL.md、diagnosing-bugs/SKILL.md、implement/SKILL.md、setup-matt-pocock-skills/SKILL.md 与同目录的 issue-tracker-github.md / issue-tracker-gitlab.md / triage-labels.md、tdd/SKILL.md、to-tickets/SKILL.md、wayfinder/SKILL.md、wizard/template.sh；
   - productivity：grilling/SKILL.md、handoff/SKILL.md、teach/SKILL.md。
-  - 另有一处只是目录挪动：grill-me 从 engineering 挪到 productivity（engineering 下的旧路径已 404）。
+  - 目录没有挪动：grill-me 在 v1.3.1 与 main 都放在 productivity 下；两版 engineering 都是 20 个技能目录、productivity 都是 7 个。
 - grill-me / grill-with-docs 的 SKILL.md 不在上面 15 个文件里，main 上两篇正文仍是 `Call the Skill tool with "grilling".` 与 `Call the Skill tool twice, for "grilling" and "domain-modeling".`，frontmatter 的 description 也与 v1.3.1 一字不差。来源（main）：https://github.com/mattpocock/skills/blob/main/skills/productivity/grill-me/SKILL.md 与 https://github.com/mattpocock/skills/blob/main/skills/engineering/grill-with-docs/SKILL.md 。
 - 结论：把随包技能升到 v1.3.1 或升到 main，都不会改变这两页的观感。上游真正改过的是 grilling 的措辞之类别的内容。
 
@@ -49,12 +49,24 @@ grill-me → grilling；grill-with-docs → grilling、domain-modeling；improve
 本轮维护者追加两条要求：①随包提供的每个 md 都配一份中文译文（给人看，AI 不用）；②技能详情页正文里，凡是出现与随包 md 相同的文件名，都能点开看该文件原文，并支持中英文切换，体验与现在的技能详情一致。
 
 - 现状清点：随包 md 共 78 个 = 27 个 `SKILL.md` + 27 个 `SKILL.zh.md`（27 篇技能都已有中文译文）+ `README.md` + 23 个附加 md（清单见 `package/bundled-skills/`，如 `triage/AGENT-BRIEF.md`、`tdd/mocking.md`、`domain-modeling/ADR-FORMAT.md`）。缺译文的是这 23 个附加文件；其中 `pr/CREDITS.md` 与 `teach/GLOSSARY-FORMAT.md` 在正文里根本没被点名。
-- 正文点名情况：27 篇正文里出现的 md 文件名共 33 个，但多数是「使用者自己仓库里的文件」（`GLOSSARY.md`、`AGENTS.md`、`CONTRIBUTING.md` 等），真正随包的约 20 个。重名一个：`GLOSSARY-FORMAT.md` 在 `domain-modeling` 与 `teach` 各一份，只写文件名时分不清指向哪份。
+- 正文点名情况按写法分开算（2026-10-25 晚全量核对）：反引号写成行内代码的名字共 33 种，其中与随包文件同名的只有 4 种（`SKILL.md`、`SKILL-MECHANICS.md`、`docs/agents/domain.md`、`docs/agents/triage-labels.md`）；写成相对链接的名字共 26 种，其中 23 种指向随包真实文件，3 种是示例路径。上一版把两类混在一起数成「33 个、约 20 个随包」，不准确，详见第 8 节。重名一个：`GLOSSARY-FORMAT.md` 在 `domain-modeling` 与 `teach` 各一份，只写文件名时分不清指向哪份。
 - 关键风险（先解决再翻译）：同步脚本 `scripts/sync-matt-skills.mts:178-182` 先 `rmSync` 整个 `package/bundled-skills`，再按上游逐目录复制（`:194`）；上游没有 `SKILL.zh.md`，所以下一次 `pnpm run sync:matt` 会把 27 份译文全删。门禁 `tests/verify-bundled-skills-upstream.ts:85-87` 已写明这一点（「允许存在；但下次同步整目录重建会抹掉它们」）。做新功能前要把译文搬到重建目录之外，或改同步脚本保留/合并译文。
 - 宿主取原文只认 `SKILL.md`：`src/host/skillDoc.ts:89-111` 用 `<name>/SKILL.md` 拼路径，译文按 `SKILL.zh.md` 同目录取。要读任意 md，得给读原文接口加一个文件参数、白名单（只允许随包目录内的 md）并保留越界防护。
 - 翻译量与取舍：23 个附加 md 里有 20 个被正文点名、2 个没被点名；翻译全部 23 个即可让「所有随包 md 都有译文」成立，不翻那 2 个也不影响可点入口。
 
-## 8. 来源链接
+## 8. 补正（2026-10-25 晚）：正文里 md 文件名的两种写法与十二个非随包名字
+
+上一节把「正文里出现的 md 文件名」混在一起数，结论不准确。按写法分开核对（`package/bundled-skills` 全部英文正文，2026-10-25）：
+
+- **反引号写成行内代码的名字**：共 33 种写法。其中与随包文件同名、能直接找到原文的只有 4 种：`SKILL.md`（27 篇都有）、`SKILL-MECHANICS.md`（writing-for-agents）、`docs/agents/domain.md`（对应 setup-matt-pocock-skills/domain.md）、`docs/agents/triage-labels.md`（对应 setup-matt-pocock-skills/triage-labels.md）。其余 27 种是占位符（`<NN>-<slug>.md`、`*.md`）、示例（`dark-mode.md`、`graphql-api.md`、`plugin-system.md`）和实际项目里的文件（`GLOSSARY.md`、`AGENTS.md` 等）。
+- **写成相对链接的名字**：共 26 种，其中 23 种指向随包真实文件（`ADR-FORMAT.md`、`GLOSSARY-FORMAT.md`、`LEARNING-RECORD-FORMAT.md`、`MISSION-FORMAT.md`、`RESOURCES-FORMAT.md`、`domain.md`、`issue-tracker-github.md`、`issue-tracker-gitlab.md`、`issue-tracker-local.md`、`triage-labels.md`、`AGENT-BRIEF.md`、`DEEPENING.md`、`DESIGN-IT-TWICE.md`、`HTML-REPORT.md`、`LOGIC.md`、`OUT-OF-SCOPE.md`、`PHASE-BOUNDARIES.md`、`SKILL-MECHANICS.md`、`SKILL.md`、`UI.md`、`mocking.md`、`tests.md`），3 种是示例路径（`./src/billing/GLOSSARY.md` 等）。`src/client/views/skillDetail/PixelMarkdown.ts:182-183` 对非 http(s) 链接只显示标签文字，所以这批随包文件现在「正文里看得到、点不了」。
+- **十二个非随包名字**（`GLOSSARY.md`、`AGENTS.md`、`CLAUDE.md`、`CONTRIBUTING.md`、`CODING_STANDARDS.md`、`MISSION.md`、`RESOURCES.md`、`NOTES.md`、`GLOSSARY-MAP.md`、`issue-tracker.md`、`0001-event-sourced-orders.md`、`0002-postgres-for-write-model.md`）逐文件核实（2026-10-25）：
+  - 上游 v1.3.1 的 `skills/` 目录共 81 个文件（engineering 20 个技能目录 + productivity 7 个技能目录），没有任何同名文件；随包的同类文件只有 `*-FORMAT.md`、`issue-tracker-*.md` 这类格式说明。
+  - 上游仓库根目录有 `AGENTS.md`、`CLAUDE.md`、`GLOSSARY.md`，但它们是上游项目自己的文件，不在 `skills/` 里，也没有随技能同步进插件。
+  - 本机安装的插件（`C:\Users\辰辰洋洋\.dsh\profiles\desktop\node_modules\dsh-mattpocock-skills-deck`，版本 1.9.0-beta.18）全部 487 个文件里没有这 12 个名字。
+  - 正文里的用法是让 AI 在实际项目里创建或维护这些文件：`setup-matt-pocock-skills/SKILL.md:24` 问目标仓库根目录有没有 `AGENTS.md`/`CLAUDE.md`；`teach/MISSION-FORMAT.md:1-3` 写明 `MISSION.md` 放在工作区根目录；`code-review/SKILL.md:36` 说 `CONTRIBUTING.md`/`CODING_STANDARDS.md` 是仓库里记录代码规范的文档；`domain-modeling/SKILL.md:74` 的 ADR 示例里 `0001`/`0002` 只是目录树里的文件名。
+  - 结论：这 12 个不是「随包给 AI 参考的文件」，插件包里没有它们的原文；能随包提供的是它们的格式模板。它们要不要做可点、点击后显示什么，见 #1522 的待拍板。
+## 9. 来源链接
 
 - https://api.github.com/repos/mattpocock/skills/tags
 - https://api.github.com/repos/mattpocock/skills/commits?sha=main&per_page=30
