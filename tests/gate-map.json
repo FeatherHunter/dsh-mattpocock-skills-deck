@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T17:00:17.461Z",
+  "generatedAt": "2026-10-25T17:35:45.901Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 385,
-  "gateCount": 385,
-  "attributedGates": 345,
+  "chainLength": 386,
+  "gateCount": 386,
+  "attributedGates": 346,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 15,
+  "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 587,
@@ -3501,6 +3501,26 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 12 条"
+    },
+    {
+      "step": "node tests/verify-1526-suggest-replay-restore.ts",
+      "file": "tests/verify-1526-suggest-replay-restore.ts",
+      "guards": [
+        "src/client/statusbar/suggestAppearance.ts",
+        "src/client/statusbar/suggestBubble.ts",
+        "src/client/statusbar/suggestFacts.ts",
+        "src/client/statusbar/suggestStream.ts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "src/client/statusbar",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 51,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -9544,6 +9564,7 @@
       "node tests/verify-1451-suggest-session-keep.ts",
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-1511-ticket-label.ts",
+      "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -10603,6 +10624,7 @@
       "node tests/verify-1463-env-counts-pending.ts",
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1522-skill-md-refs.ts",
+      "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
