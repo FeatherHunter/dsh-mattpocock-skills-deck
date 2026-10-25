@@ -43,6 +43,8 @@ declare function setActiveIssue(...args: any[]): any;
 declare function setActiveMap(...args: any[]): any;
 declare function showPop(...args: any[]): any;
 declare function truthWriteWindowOpen(...args: any[]): any;
+// #1511：编号徽标写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用、不另拼一遍。
+declare function ticketLabelOf(...args: any[]): any;
 declare const COPY_FLASH_MS: any;
 declare const CONTAINER_ACCENT: any;
 declare const CONTAINER_CHIP_CLASS: any;
@@ -334,7 +336,8 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
             isContainer ? h('span', { className: 'dsws-chip ' + chipClassOf(kind) + ' ' + containerMarkerClass, style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr(chipLabelKeyOf(kind)))]) : null,
             // effort 维度：一个仓库多个 effort 时，每行标出它属于哪个 effort（同号票靠这一眼区分）
             (multiEffort && effortOf(x)) ? h(Tip, { content: effortOf(x) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(x), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(x))) : null,
-            h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
+            // #1511：编号带上目录（#买咖啡积分/01）；容器同样是「#目录/00」。
+            h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, ticketLabelOf(x.key != null ? x.key : x.number, effortOf(x))),
             // #715：写入窗口期给这一行加一枚极轻的「更新中」标记 —— 不改状态、不改布局：
             //   只是编号下面多一小片虚边框的字，窗口一过（host-budget.ts 的 PATCH_MERGE_WINDOW_MS）自己就不画了。
             //   事实来源：写入成功那一处记下的时刻（kernel/api-io.js 的 markRowWrite → st.writeAt）。

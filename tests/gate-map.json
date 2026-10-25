@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T07:58:33.222Z",
+  "generatedAt": "2026-10-25T09:59:51.469Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 377,
-  "gateCount": 377,
-  "attributedGates": 337,
+  "chainLength": 378,
+  "gateCount": 378,
+  "attributedGates": 338,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 583,
+  "graphFileCount": 584,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -230,6 +230,7 @@
       "step": "node tests/verify-chain-capsule.ts",
       "file": "tests/verify-chain-capsule.ts",
       "guards": [
+        "src/client/kernel/ticket-label.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/statusbar/capFold.ts",
         "src/client/views/shared/workRouteTable.ts",
@@ -237,6 +238,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
         "tests/lib"
@@ -245,7 +247,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-chain-env-e2e.ts",
@@ -1414,6 +1416,7 @@
       "guards": [
         "src/client/kernel/ctx.ts",
         "src/client/kernel/link.ts",
+        "src/client/kernel/ticket-label.ts",
         "src/client/views/IssueDetail.ts",
         "src/client/views/IssueDetailComments.ts",
         "src/tracker/kernel/identity-keys.ts"
@@ -1427,7 +1430,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条"
     },
     {
       "step": "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -1877,6 +1880,7 @@
         "src/client/kernel/container-view.ts",
         "src/client/kernel/ctx.ts",
         "src/client/kernel/link.ts",
+        "src/client/kernel/ticket-label.ts",
         "src/client/views/ListTab.ts",
         "src/client/views/ListTabRow.ts",
         "src/client/views/listFilterRow.ts",
@@ -1893,7 +1897,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 8 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1286-snapshot.ts",
@@ -2023,6 +2027,7 @@
         "src/client/kernel/container-view.ts",
         "src/client/kernel/ctx.ts",
         "src/client/kernel/link.ts",
+        "src/client/kernel/ticket-label.ts",
         "src/client/views/ListTab.ts",
         "src/client/views/ListTabRow.ts",
         "src/client/views/feedback/feedback-styles.ts",
@@ -2041,7 +2046,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 8 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-1304-deps-native.ts",
@@ -3366,6 +3371,30 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
     },
     {
+      "step": "node tests/verify-1511-ticket-label.ts",
+      "file": "tests/verify-1511-ticket-label.ts",
+      "guards": [
+        "src/client/kernel/ticket-label.ts",
+        "src/client/statusbar/SessionChainCapsule.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/ListTabRow.ts",
+        "src/client/views/shared/workRouteTable.ts",
+        "src/deck/shell/work-path-readout.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views",
+        "src/client/views/shared",
+        "src/deck/shell"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -3573,6 +3602,7 @@
       "file": "tests/verify-599-merged-pr.ts",
       "guards": [
         "package/lib/client.js",
+        "src/client/kernel/ticket-label.ts",
         "src/client/views/IssueDetail.ts",
         "src/client/views/PrTab.ts",
         "src/client/views/shared/stateKind.ts",
@@ -3583,6 +3613,7 @@
       ],
       "dirs": [
         "package/lib",
+        "src/client/kernel",
         "src/client/views",
         "src/client/views/shared",
         "src/refresh/rooms/host",
@@ -3593,7 +3624,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-626-type-chip.ts",
@@ -4264,12 +4295,14 @@
       "guards": [
         "package/lib/client.js",
         "scripts/lib/discover-gates.ts",
+        "src/client/kernel/ticket-label.ts",
         "src/client/views/shared/stateKind.ts",
         "tests/verify-693-detail-fallback-honesty.ts"
       ],
       "dirs": [
         "package/lib",
         "scripts/lib",
+        "src/client/kernel",
         "src/client/views/shared",
         "tests"
       ],
@@ -4277,7 +4310,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-696-shared-cache.ts",
@@ -4891,6 +4924,7 @@
       "step": "node tests/verify-907-chain-titles.ts",
       "file": "tests/verify-907-chain-titles.ts",
       "guards": [
+        "src/client/kernel/ticket-label.ts",
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/host/snapshotEnvelope.ts",
@@ -4899,6 +4933,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "src/client/kernel",
         "src/client/statusbar",
         "src/client/views/shared",
         "src/host",
@@ -4909,7 +4944,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-908-progress-replace.ts",
@@ -7232,6 +7267,7 @@
       "guards": [
         "scripts/lib/transpile-unit.mts",
         "src/client/kernel/store-derived.ts",
+        "src/client/kernel/ticket-label.ts",
         "src/client/views/ListTabRow.ts",
         "src/host/tracker/snapshot.ts",
         "src/tracker/kernel/identity-keys.ts",
@@ -7252,7 +7288,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 2 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-multi-effort.ts",
@@ -9229,6 +9265,7 @@
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
+      "node tests/verify-chain-capsule.ts",
       "node tests/verify-chain-session.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-tools-matrix.ts",
@@ -9249,8 +9286,10 @@
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1449-layout-single-source.ts",
+      "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
+      "node tests/verify-599-merged-pr.ts",
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -9267,8 +9306,10 @@
       "node tests/verify-686-accept.ts",
       "node tests/verify-689-counts-ui.ts",
       "node tests/verify-690-closed-pages.ts",
+      "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-786-focus-end.ts",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
@@ -9336,6 +9377,7 @@
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1451-suggest-session-keep.ts",
       "node tests/verify-1463-banner-recheck.ts",
+      "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -9366,6 +9408,7 @@
       "node tests/verify-1286-list.ts",
       "node tests/verify-1295-dual-panel.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
+      "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -9434,6 +9477,7 @@
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -9505,6 +9549,7 @@
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1489-progress.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -10505,9 +10550,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 604,
+    "fileCount": 605,
     "dirCount": 74,
-    "coveredFileCount": 604,
+    "coveredFileCount": 605,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -10558,6 +10603,7 @@
       "src/client/kernel/store-switch.ts",
       "src/client/kernel/styles.ts",
       "src/client/kernel/tabsfold.ts",
+      "src/client/kernel/ticket-label.ts",
       "src/client/kernel/ui-feedback.ts",
       "src/client/kernel/work-route-own.ts",
       "src/client/panel/Dock.ts",

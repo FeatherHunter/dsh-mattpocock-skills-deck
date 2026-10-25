@@ -32,7 +32,9 @@ const SUMMARY_CLIP = 3;
 const CORE_CLIP = 20;
 
 export interface WorkPathReadoutEntry {
-  ticketKey: string;
+  ticketKey: string
+  /** #1511：这一笔属于哪个工作目录（本地 Markdown 后端才有）。面板首列靠它把票号写成「#目录/编号」。 */
+  effortId?: string;
   title: string;
   sessionLabel: string;
   action: string;
@@ -100,6 +102,7 @@ interface FlatRow {
   session: string;
   label: string;
   ticketKey: string;
+  effortId?: string;
   title: string;
   action: string;
   actionAt: number;
@@ -125,6 +128,7 @@ export function buildWorkPathReadout(
           session: w.session,
           label: typeof w.label === 'string' ? w.label : '',
           ticketKey: e.ticketKey,
+          effortId: typeof (e as { effortId?: unknown }).effortId === 'string' ? String((e as { effortId?: unknown }).effortId) : undefined,
           title: typeof e.title === 'string' ? e.title : '',
           action: typeof e.action === 'string' ? e.action : '',
           actionAt: e.actionAt,
@@ -151,6 +155,8 @@ export function buildWorkPathReadout(
       currentSession: r.session === sessionId,
       source: r.source,
     };
+    // #1511：目录原样带到回显表上；老存档没有这一格，就不写（缺席 = 单工作单元）。
+    if (typeof r.effortId === 'string' && r.effortId !== '') entry.effortId = r.effortId;
     return entry;
   });
   const staleCount = entries.filter(function (e) { return !e.active; }).length;
@@ -240,6 +246,8 @@ export function projectWorkPathReadout(readout: WorkPathReadout, detail: WorkPat
       currentSession: e.currentSession,
       source: e.source,
     };
+    // #1511：投影（core / standard 两档）都要把目录带出去，否则面板拿到的读数里没有它。
+    if (typeof e.effortId === 'string' && e.effortId !== '') entry.effortId = e.effortId;
     return entry;
   });
   if (Array.isArray(readout.collisions) && readout.collisions.length > 0) view.collisions = readout.collisions;

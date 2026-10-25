@@ -58,6 +58,10 @@ const { IssueDetail } = await import('../src/client/views/IssueDetail.js')
 globalThis.DswsCtx = DswsCtx
 // 同叶调用走真实现（构建把两叶拼进同一闭包，这里同构接线；桩它就测不到真行为）
 globalThis.renderIssueDetailComments = renderIssueDetailComments
+// #1511：编号写成「#目录/编号」的规则住在 kernel/ticket-label.ts；叶子单独加载时闭包里没有这个名字，
+// 这里接真实现（同构接线，不抄一份假规则，否则门禁会跟着实现一起漂）。
+const { ticketLabelOf } = await import('../src/client/kernel/ticket-label.js')
+globalThis.ticketLabelOf = ticketLabelOf
 
 let failures = 0
 let total = 0

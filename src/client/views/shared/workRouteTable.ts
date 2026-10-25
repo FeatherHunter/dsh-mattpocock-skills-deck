@@ -48,6 +48,8 @@ declare function h(...args: any[]): any;
 // #1436：只读电话那条链（同闭包更早的片段提供）—— 用户点「重试」时重读本机记录。
 // #1436：首帧只读那条链（同闭包更早的片段提供）—— 取当前会话那一格。
 declare function ownWorkRouteSlotOf(...args: any[]): any;
+// #1511：首列票号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用。
+declare function ticketLabelOf(...args: any[]): any;
 
 /** 快照里这个字段的名字；宿主读数模块用的是同一个名字。 */
 export const WORK_ROUTE_TABLE_FIELD = 'workRouteTable'
@@ -119,6 +121,8 @@ const workRouteIsCut = function (el: any): boolean {
 /** 一条能画出来的工作条目；形状不对的格子整格丢掉，宁可少显示也不显示错的。 */
 export interface WorkRouteTableRow {
   ticketKey: string
+  /** #1511：这一条属于哪个工作目录（本地 Markdown 后端才有；单工作单元后端省略）。首列票号靠它带上目录。 */
+  effortId?: string
   title: string
   sessionLabel: string
   action: string
@@ -171,6 +175,8 @@ export const workRouteTableViewOf = function (raw: any): WorkRouteTableView {
       currentSession: e.currentSession === true,
     }
     if (typeof e.progress === 'number' && isFinite(e.progress)) row.progress = e.progress
+    // #1511：目录缺席、空串都按「单工作单元」处理（此时首列只写 #编号），与身份算法同一条口径。
+    if (typeof e.effortId === 'string' && e.effortId !== '') row.effortId = e.effortId
     rows.push(row)
   }
   const staleCount = typeof readout.staleCount === 'number' ? readout.staleCount : rows.filter(function (r) { return !r.active }).length
@@ -264,7 +270,7 @@ export const WorkRouteRow = ({ r, nowMs }: any) => {
     'data-work-route-active': r.active ? 1 : 0,
     style: { display: 'grid', gridTemplateColumns: WORK_ROUTE_TABLE_CELLS, gap: 6, alignItems: 'center', padding: '3px 0', borderTop: '1px solid rgba(255,255,255,.045)' },
   }, [
-    h('span', { style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, '#' + r.ticketKey),
+    h('span', { style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, ticketLabelOf(r.ticketKey, r.effortId)),
     h('span', { style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
     h('span', { style: Object.assign({ display: 'inline-flex', alignItems: 'center', gap: 4 }, workRouteCellStyle) }, [
       h('span', { key: 's', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),

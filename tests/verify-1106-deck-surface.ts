@@ -34,6 +34,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 // chooseWorkspace 顶替工作区文件、用真人选出口的夹具 makeDecideStub 顶替生产出口：工具读到的
 // 就还是「这个工作区用户亲手选过 markdown」，写用途才会放行；中途换后端也照旧换一笔账。
 import { chooseWorkspace, makeDecideStub } from './lib/deck-decide-stub.js'
+// #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
+// 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
+;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -384,7 +387,9 @@ async function main() {
     const wr = got.r && got.r.data && got.r.data.workRoute
     check(!got.threw && got.r && got.r.status === 'ok' && !!wr, '上报成功回执带 data.workRoute（实得 ' + (got.threw || (got.r && got.r.status)) + '）')
     const keys = wr && wr.entries && wr.entries[0] ? Object.keys(wr.entries[0]).sort().join(',') : ''
-    check(keys === 'action,actionAt,active,currentSession,sessionLabel,source,ticketKey,title', '在办表每条正好八格（实得 ' + keys + '）')
+    // #1511：standard 档多了 effortId 一格（面板首列要把票号写成「#目录/编号」，目录得从回执读出来）。
+    // 其余八格不变；core 档仍只三格 —— 这一句就是「字段集合不会悄悄变」的锁。
+    check(keys === 'action,actionAt,active,currentSession,effortId,sessionLabel,source,ticketKey,title', '在办表每条正好九格（实得 ' + keys + '）')
     const legacy = await run('deck_issue_report', { key: '01', workRouteDetail: 'full' })
     const legacyWr = legacy.r && legacy.r.data && legacy.r.data.workRoute
     check(!legacy.threw && !!legacyWr && legacyWr.detail === 'standard', '老调用传 full（#1352 已退役的档位）按 standard 处理（实得 ' + JSON.stringify(legacyWr && legacyWr.detail) + '）')

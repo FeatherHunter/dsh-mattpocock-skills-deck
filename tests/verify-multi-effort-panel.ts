@@ -25,6 +25,9 @@ import { spliceableJs } from './lib/source-text.ts'
 // 身份函数是全标注 TypeScript，沙箱跑裸 JS：转译口径取仓库唯一那一份
 // （scripts/lib/transpile-unit.mts，手法照 tests/verify-deck-tools-row-zero-dep.ts）。
 import esbuild from 'esbuild'
+// #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
+// 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
+;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
 
 const ROOT = resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false

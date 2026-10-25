@@ -45,6 +45,8 @@ declare function scheduleStatusClose(...args: any[]): any;
 declare function workRouteActionKeyOf(...args: any[]): any;
 declare function workRouteTableClock(...args: any[]): any;
 declare function workRouteTableOf(...args: any[]): any;
+// #1511：编号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用（文字通道与徽标共用同一条）。
+declare function ticketLabelOf(...args: any[]): any;
 // 值引用的组件与字段名（弹层、悬停提示）。
 declare const PortalOverlay: any;
 declare const Tip: any;
@@ -267,11 +269,12 @@ function chainLater(st: any, closeRef: any) {
 }
 
 /**
- * #780：号怎么写 —— 地图写裸号（`#` 那个位置让给地图图标），普通票写 `#号`。
+ * #780：号怎么写 —— 地图写裸号（`#` 那个位置让给地图图标），普通票写 `#目录/编号`（#1511：本地 Markdown
+ *   后端每个目录各自从 01 编号，不写目录就分不清是哪一张；目录为空时就是 `#编号`）。
  *   规则只写这一处：版面上那一段与悬停单子里每一行的徽章都读它，免得两处各写一遍、日后走岔。
  *   注意这只是**版面**的写法；文字通道（无障碍名与悬停提示）一律仍写 `#号`，见 spoken 与单子里的 line。
  */
-const chainKeyTextOf = function (isMap: any, key: any) { return isMap === true ? String(key) : '#' + String(key) }
+const chainKeyTextOf = function (isMap: any, key: any, effortId: any) { return isMap === true ? String(key) : ticketLabelOf(key, effortId) }
 /**
  * #780：地图那一条的那枚图标（普通票没有这一枚；段首那枚图钉不在这里）。
  *   它必须是号那个元素的**兄弟节点** —— 收字机器往挂让位号的元素里写 textContent，塞进去会被抹掉。
@@ -411,11 +414,11 @@ export const SessionChainCapsule = function (props: any) {
   const headTime = (typeof workRouteTableClock === 'function') ? workRouteTableClock(e && e.atIso, nowMs) : ''
   const displayed = view.list.slice().reverse()
   const eIsMap = e.isMap === true
-  const text = chainKeyTextOf(eIsMap, e.ticketKey)
+  const text = chainKeyTextOf(eIsMap, e.ticketKey, e.effortId)
   const eState = e.ticketState === 'CLOSED' ? 'CLOSED' : (e.ticketState === 'OPEN' ? 'OPEN' : '')
   const eStateWord = eState === 'OPEN' ? tr('list.state.open') : (eState === 'CLOSED' ? tr('list.state.closed') : '')
   const eColor = eState === 'OPEN' ? '#58a6ff' : (eState === 'CLOSED' ? '#8b949e' : 'var(--dsw-alias-label-primary,#e6edf3)')
-  const spoken = tr('chainView.capsuleDoing') + ' ' + (eIsMap ? tr('type.map') + ' ' : '') + '#' + e.ticketKey + (e.ticketTitle ? ' ' + e.ticketTitle : ' ' + tr('chainView.titleMissing')) + (eStateWord ? ' ' + eStateWord : '')
+  const spoken = tr('chainView.capsuleDoing') + ' ' + (eIsMap ? tr('type.map') + ' ' : '') + ticketLabelOf(e.ticketKey, e.effortId) + (e.ticketTitle ? ' ' + e.ticketTitle : ' ' + tr('chainView.titleMissing')) + (eStateWord ? ' ' + eStateWord : '')
   const openRow = function (row: any) {
     return function (ev: any) {
       if (ev && ev.stopPropagation) ev.stopPropagation()
@@ -450,7 +453,7 @@ export const SessionChainCapsule = function (props: any) {
       const rowTime = (typeof workRouteTableClock === 'function') ? workRouteTableClock(r.atIso, nowMs) : ''
       const rowStale = capsuleStaleOf(r.at, nowMs)
       const staleWord = rowStale ? tr('chainView.capsuleStale') : ''
-      const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (rowTime ? ' ' + rowTime : '') + (staleWord ? ' ' + staleWord : '') + (rStateWord ? ' ' + rStateWord : '')
+      const line = (rIsMap ? tr('type.map') + ' ' : '') + ticketLabelOf(r.ticketKey, r.effortId) + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (rowTime ? ' ' + rowTime : '') + (staleWord ? ' ' + staleWord : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
         className: 'dsws-chainmenu-row dsws-hov' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
@@ -474,8 +477,8 @@ export const SessionChainCapsule = function (props: any) {
       }, [
         // #780：地图那行的号徽章是「地图图标 + 裸号」，普通票那行仍是 `#号`
         h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rIsMap
-          ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [chainMapIconOf(rIsMap, 11), h('span', null, chainKeyTextOf(rIsMap, r.ticketKey))])
-          : chainKeyTextOf(rIsMap, r.ticketKey)),
+          ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [chainMapIconOf(rIsMap, 11), h('span', null, chainKeyTextOf(rIsMap, r.ticketKey, r.effortId))])
+          : chainKeyTextOf(rIsMap, r.ticketKey, r.effortId)),
         // #907：查不到标题就留白（一个字都不写），不再拿票号顶上 —— 那会让同一行出现两遍同一个号；
         //   「标题未取到」那句话只在文字通道里（上面 spoken 与 line 两处无障碍名）。
         h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle),

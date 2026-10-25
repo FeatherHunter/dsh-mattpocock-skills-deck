@@ -24,6 +24,9 @@ const { compileFn } = require('./lib/eval-probe.js')
 // 按 .js 路径直接读会读到真源旁边那份构建产物，产物不在盘上时还会 ENOENT 崩。
 // sourceText 摘名字（要保住 export 关键字），spliceableJs 出可直接求值的文本，两条都先解析到同名 .ts。
 const { sourceText, spliceableJs } = require('./lib/source-text.js')
+// #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本单独加载视图叶子，
+// 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
+;(globalThis as any).ticketLabelOf = require('../src/client/kernel/ticket-label.js').ticketLabelOf
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false

@@ -508,6 +508,8 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   { name: 'rowActions', file: 'src/client/kernel/row-actions.ts' },
   // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源。
   { name: 'containerView', file: 'src/client/kernel/container-view.ts' },
+  // #1511：面板上「#目录/编号」的显示写法单一真源（列表行、在办表、会话链、详情页头部共用）。
+  { name: 'ticketLabel', file: 'src/client/kernel/ticket-label.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'apiNaming', file: 'src/client/kernel/api-naming.ts' },
