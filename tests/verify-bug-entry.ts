@@ -13,6 +13,10 @@
 //  10) hover 反馈（v3 UX）：bugMenuHover 状态 + onMouseEnter/Leave + 条件红染色
 //  11) v4 #63：字段集 = 实际→期望→复现步骤→环境信息（4 项括号单行），顺序实际→期望，无悬行例行，zh/en 分离
 //  12) v5 #475：标签要求 = bug 必带+未诊断带 needs-triage，分远端原生/本地标签行，中英文一致
+//  13) v15 #1461：删「## 查历史」，插「## 查重」（两次全扫 state=open/closed + labels=['bug'] + limit=200、
+//      一次取全、不用关键词代替、命中最多 3 张候选交报告人确认、四类出口、前置条件与工具报错例外）与
+//      「## 查重记录」（扫描 / 命中 / 报告人确认 / 结论四行，没命中写「无」，清单可能不全要写下来），
+//      中英文对应；版本锁 v15。
 // 2026-10-19（#1301 批C）：默认目标里混着 .js 说明符（router.js、StatusBar.js……），它们今天住在同名 .ts 里，
 //   旁边那份 .js 构建产物这一阶段已经删掉，按 .js 路径直接 fs.readFileSync 会 ENOENT。取源改走共用入口
 //   sourceText：问 .js 时同名 .ts 优先，问到哪份读哪份的原文；.ts 说明符原样透传。
@@ -87,7 +91,9 @@ const check = function (list) {
     const use = entry.use
     const zh = entry.zh
     const en = entry.en
-    if (ver < 8) problems.push('newBugWayfinder 版本异常 v' + ver + '（v7 #882 应 ≥8）')
+    // v15 #1461：版本锁死（不再用 ≥ 下限）。注入面靠 version 判断该劝哪些步骤；版本落后说明跑的是旧提示词，
+    //   门禁必须红，否则「查重没生效」会被误当成产品行为。
+    if (ver !== 15) problems.push('newBugWayfinder 版本应锁 v15（#1461 建单前查重；实际 v' + ver + '，低于 15 说明注入的还是旧提示词）')
     if (!use) problems.push('newBugWayfinder 缺 use')
     const ph = entry.placeholders || []
     if (ph.join(',') !== 'repo') problems.push('newBugWayfinder 占位符应为 ["repo"]，实际 ' + JSON.stringify(ph))
@@ -107,21 +113,79 @@ const check = function (list) {
     if (en.indexOf('native labels') < 0) problems.push('newBugWayfinder en 缺 native labels 写法（v5 #475）')
     if (en.indexOf('add a Labels line') < 0) problems.push('newBugWayfinder en 缺 Labels line 写法（v5 #475）')
     if (en.indexOf('Labels: bug, needs-triage') < 0) problems.push('newBugWayfinder en 缺标签行示例 Labels: bug, needs-triage（v5 #475）')
-    // v7 #882：压薄终稿四节清单（澄清 / 查历史 / 自查 / 工具，中英文一起）
-    if (zh.indexOf('## 澄清') < 0) problems.push('newBugWayfinder zh 缺“## 澄清”（v7 #882）')
-    if (zh.indexOf('## 查历史') < 0) problems.push('newBugWayfinder zh 缺“## 查历史”（v7 #882）')
-    if (zh.indexOf('## 自查') < 0) problems.push('newBugWayfinder zh 缺“## 自查”（v7 #882）')
-    if (zh.indexOf('/research') < 0) problems.push('newBugWayfinder zh 缺 /research 深查（v7 #882）')
-    if (zh.indexOf('前 20 条标题') < 0) problems.push('newBugWayfinder zh 缺初筛定量“前 20 条标题”（v7 #882）')
-    if (zh.indexOf('回归则注明原单号') < 0) problems.push('newBugWayfinder zh 缺回归处理（v7 #882）')
-    if (zh.indexOf('拿不准') < 0) problems.push('newBugWayfinder zh 缺拿不准出路（v7 #882）')
-    if (zh.indexOf('默认关联不关闭') < 0) problems.push('newBugWayfinder zh 缺默认动作（v7 #882）')
-    if (en.indexOf('## Clarify') < 0) problems.push('newBugWayfinder en 缺 "## Clarify"（v7 #882）')
-    if (en.indexOf('## Check history') < 0) problems.push('newBugWayfinder en 缺 "## Check history"（v7 #882）')
-    if (en.indexOf('## Self-check') < 0) problems.push('newBugWayfinder en 缺 "## Self-check"（v7 #882）')
-    if (en.indexOf('/research') < 0) problems.push('newBugWayfinder en 缺 "/research"（v7 #882）')
-    if (en.indexOf('top 20 titles') < 0) problems.push('newBugWayfinder en 缺 "top 20 titles"（v7 #882）')
-    if (en.indexOf('default link, never close') < 0) problems.push('newBugWayfinder en 缺默认动作（v7 #882）')
+    // v15 #1461：旧的「## 查历史」整节删掉，换成「## 查重」（步骤）与「## 查重记录」（票面写法）两节。
+    //   为什么逐句锁：这一扇是提示词注入面的唯一自动防线，模板被改薄、两节顺序放错或参数漏写，会话就少做一步查重，
+    //   而两次全扫与查重记录是建单的前置条件（规格 #1460 实现决策 3/4）。下面按「会话实际会读到的话术」分五组锁：
+    //   ① 章节结构与顺序；② 两次全扫的参数；③ 命中交报告人确认；④ 四类出口；⑤ 查重记录写法与前置条件。
+    // ① 章节结构与顺序：六节（澄清 / 调查 / 查重 / 查重记录 / 自查 / 工具），查重两节夹在调查与自查之间。
+    if (zh.indexOf('## 澄清') < 0) problems.push('newBugWayfinder zh 缺“## 澄清”（v15 #1461 保留澄清节）')
+    if (zh.indexOf('## 调查') < 0) problems.push('newBugWayfinder zh 缺“## 调查”（v15 #1461 保留调查节）')
+    if (zh.indexOf('## 查重') < 0) problems.push('newBugWayfinder zh 缺“## 查重”一节（v15 #1461：建单前扫全可见 BUG 单）')
+    if (zh.indexOf('## 查重记录') < 0) problems.push('newBugWayfinder zh 缺“## 查重记录”一节（v15 #1461：新单正文固定留痕）')
+    if (zh.indexOf('## 自查') < 0) problems.push('newBugWayfinder zh 缺“## 自查”（v15 #1461 保留自查节）')
+    if (zh.indexOf('## 工具') < 0) problems.push('newBugWayfinder zh 缺“## 工具”（v15 #1461 保留工具节）')
+    if (zh.indexOf('/research') < 0) problems.push('newBugWayfinder zh 缺 /research 深查（调查节原样保留）')
+    const orderZhOk = zh.indexOf('## 调查') < zh.indexOf('## 查重') && zh.indexOf('## 查重') < zh.indexOf('## 查重记录') && zh.indexOf('## 查重记录') < zh.indexOf('## 自查')
+    if (!orderZhOk) problems.push('newBugWayfinder zh 章节顺序应为 调查 → 查重 → 查重记录 → 自查（v15 #1461：查重在调查之后、自查之前）')
+    // 旧一节必须彻底退场：留着「查历史」会让会话按旧办法抽关键词搜前 20 条，正好是这次要修掉的漏检来源。
+    if (zh.indexOf('## 查历史') >= 0) problems.push('newBugWayfinder zh 仍含已删除的“## 查历史”（v15 #1461 换成查重两节）')
+    if (zh.indexOf('前 20 条标题') >= 0) problems.push('newBugWayfinder zh 仍含旧初筛定量“前 20 条标题”（v15 #1461 改为两次全扫一次取全）')
+    // ② 两次全扫的参数：状态、标签、上限、一次取全，一个都不许省；并明确不许用关键词搜索代替。
+    if (zh.indexOf("state=open、labels=['bug']、limit=200") < 0) problems.push('newBugWayfinder zh 缺 open 全扫参数 state=open、labels=[\'bug\']、limit=200（v15 #1461）')
+    if (zh.indexOf("state=closed、labels=['bug']、limit=200") < 0) problems.push('newBugWayfinder zh 缺 closed 全扫参数 state=closed、labels=[\'bug\']、limit=200（v15 #1461）')
+    const takeAllZh = (zh.match(/一次取全/g) || []).length
+    if (takeAllZh < 2) problems.push('newBugWayfinder zh 两次扫描都要写明“一次取全”（实际出现 ' + takeAllZh + ' 次；v15 #1461）')
+    if (zh.indexOf('不要用关键词搜索代替') < 0) problems.push('newBugWayfinder zh 缺“不要用关键词搜索代替”（v15 #1461：换说法描述的问题关键词会漏）')
+    if (zh.indexOf('标题像的再调 deck_issue_get 看正文') < 0) problems.push('newBugWayfinder zh 缺“标题像的再调 deck_issue_get 看正文”（v15 #1461）')
+    if (zh.indexOf('清单可能不全') < 0) problems.push('newBugWayfinder zh 缺清单可能不全时要记下来的说法（v15 #1461：limit 上限与抽样误差）')
+    // ③ 命中时交报告人确认：最多 3 张候选、问一句、等到回答再决定（不许自己先判同源不同症）。
+    if (zh.indexOf('最多 3 张候选') < 0) problems.push('newBugWayfinder zh 缺“最多 3 张候选”（v15 #1461：注意力预算）')
+    if (zh.indexOf('这些是不是同一个问题') < 0) problems.push('newBugWayfinder zh 缺要问报告人的那句“这些是不是同一个问题”（v15 #1461）')
+    if (zh.indexOf('等到回答再决定') < 0) problems.push('newBugWayfinder zh 缺“等到回答再决定”（v15 #1461：不许自己先下结论）')
+    // ④ 四类出口：旧单还开着不建新单、旧单已关闭按回归、不是或没命中照常建、不确定标 needs-info；工具报错是唯一例外。
+    if (zh.indexOf('不建新单') < 0 || zh.indexOf('在旧单下评论') < 0 || zh.indexOf('旧单不关闭') < 0) problems.push('newBugWayfinder zh 缺“旧单还开着→不建新单、在旧单下评论、旧单不关闭”出口（v15 #1461）')
+    if (zh.indexOf('按回归处理') < 0 || zh.indexOf('「回归：原单 #编号」') < 0 || zh.indexOf('关联旧单') < 0) problems.push('newBugWayfinder zh 缺“旧单已关闭→按回归建单、写明「回归：原单 #编号」、关联旧单”出口（v15 #1461）')
+    if (zh.indexOf('报告人确认不是，或没有命中') < 0) problems.push('newBugWayfinder zh 缺“报告人确认不是，或没有命中”出口（v15 #1461）')
+    if (zh.indexOf('看过的候选和报告人的回答') < 0) problems.push('newBugWayfinder zh 缺“正文写明看过的候选和报告人的回答”（v15 #1461）')
+    if (zh.indexOf('报告人不确定') < 0 || zh.indexOf('标 needs-info') < 0) problems.push('newBugWayfinder zh 缺“报告人不确定→再给对方看一眼、仍不能判断按新建处理并标 needs-info”出口（v15 #1461）')
+    // ⑤ 查重记录：固定四行（扫描 / 命中 / 报告人确认 / 结论），没命中写「无」，不许编造；写完才能建单。
+    if (zh.indexOf('没有命中也要写') < 0) problems.push('newBugWayfinder zh 缺“没有命中也要写”查重记录（v15 #1461）')
+    ;['扫描：', '命中：', '报告人确认：', '结论：'].forEach(function (k) { if (zh.indexOf(k) < 0) problems.push('newBugWayfinder zh 查重记录缺第 ' + k + ' 行（v15 #1461 固定四行）') })
+    if (zh.indexOf('没有就写「无」') < 0) problems.push('newBugWayfinder zh 查重记录缺“没有就写「无」”（v15 #1461：留空会被当成没查）')
+    if (zh.indexOf('两次扫描与查重记录是建单的前置条件') < 0) problems.push('newBugWayfinder zh 缺“两次扫描与查重记录是建单的前置条件”（v15 #1461）')
+    if (zh.indexOf('工具本身报错时，把错误写进查重记录再建单') < 0) problems.push('newBugWayfinder zh 缺工具报错例外（v15 #1461：后端一挂也要能报 BUG，错误写进记录再建单）')
+    // 英文版与中文一一对应：同样的六节顺序、同样参数与四类出口，英文短语也要锁（注入按当前语言只出一份）。
+    if (en.indexOf('## Clarify') < 0) problems.push('newBugWayfinder en 缺 "## Clarify"')
+    if (en.indexOf('## Investigate') < 0) problems.push('newBugWayfinder en 缺 "## Investigate"（调查节原样保留）')
+    if (en.indexOf('## Check for duplicates') < 0) problems.push('newBugWayfinder en 缺 "## Check for duplicates"（v15 #1461）')
+    if (en.indexOf('## Duplicate check record') < 0) problems.push('newBugWayfinder en 缺 "## Duplicate check record"（v15 #1461）')
+    if (en.indexOf('## Self-check') < 0) problems.push('newBugWayfinder en 缺 "## Self-check"')
+    if (en.indexOf('## Tools') < 0) problems.push('newBugWayfinder en 缺 "## Tools"')
+    if (en.indexOf('/research') < 0) problems.push('newBugWayfinder en 缺 "/research"')
+    const orderEnOk = en.indexOf('## Investigate') < en.indexOf('## Check for duplicates') && en.indexOf('## Check for duplicates') < en.indexOf('## Duplicate check record') && en.indexOf('## Duplicate check record') < en.indexOf('## Self-check')
+    if (!orderEnOk) problems.push('newBugWayfinder en 章节顺序应为 Investigate → Check for duplicates → Duplicate check record → Self-check（v15 #1461）')
+    if (en.indexOf('## Check history') >= 0) problems.push('newBugWayfinder en 仍含已删除的 "## Check history"（v15 #1461）')
+    if (en.indexOf('top 20 titles') >= 0) problems.push('newBugWayfinder en 仍含旧初筛定量 "top 20 titles"（v15 #1461 改为两次全扫）')
+    if (en.indexOf("state=open, labels=['bug'], limit=200") < 0) problems.push('newBugWayfinder en 缺 open 全扫参数 state=open, labels=[\'bug\'], limit=200（v15 #1461）')
+    if (en.indexOf("state=closed, labels=['bug'], limit=200") < 0) problems.push('newBugWayfinder en 缺 closed 全扫参数 state=closed, labels=[\'bug\'], limit=200（v15 #1461）')
+    const takeAllEn = (en.match(/take them all/g) || []).length
+    if (takeAllEn < 2) problems.push('newBugWayfinder en 两次扫描都要写明 "take them all"（实际出现 ' + takeAllEn + ' 次；v15 #1461）')
+    if (en.indexOf('do not replace them with keyword search') < 0) problems.push('newBugWayfinder en 缺 "do not replace them with keyword search"（v15 #1461）')
+    if (en.indexOf('deck_issue_get only when a title looks similar') < 0) problems.push('newBugWayfinder en 缺 "deck_issue_get only when a title looks similar"（v15 #1461）')
+    if (en.indexOf('may be incomplete') < 0) problems.push('newBugWayfinder en 缺清单可能不全时记下来的说法（v15 #1461）')
+    if (en.indexOf('up to 3 candidates') < 0) problems.push('newBugWayfinder en 缺 "up to 3 candidates"（v15 #1461）')
+    if (en.indexOf('are these the same problem') < 0) problems.push('newBugWayfinder en 缺 "are these the same problem"（v15 #1461）')
+    if (en.indexOf('do NOT file a new ticket') < 0 || en.indexOf('comment on the old ticket') < 0 || en.indexOf('do not close the old ticket') < 0) problems.push('newBugWayfinder en 缺“旧单还开着→不建新单、在旧单下评论、旧单不关闭”出口（v15 #1461）')
+    if (en.indexOf('treat it as a regression') < 0 || en.indexOf('Regression of #key') < 0 || en.indexOf('link the old ticket') < 0) problems.push('newBugWayfinder en 缺“旧单已关闭→按回归建单、写明 Regression of #key、关联旧单”出口（v15 #1461）')
+    if (en.indexOf('not the same, or nothing matched') < 0) problems.push('newBugWayfinder en 缺 "not the same, or nothing matched" 出口（v15 #1461）')
+    if (en.indexOf("reporter's answer") < 0) problems.push('newBugWayfinder en 缺“正文写明候选与报告人回答”的表达（v15 #1461）')
+    if (en.indexOf('The reporter is unsure') < 0 || en.indexOf('label needs-info') < 0) problems.push('newBugWayfinder en 缺“报告人不确定→标 needs-info”出口（v15 #1461）')
+    if (en.indexOf('even when nothing matched') < 0) problems.push('newBugWayfinder en 缺 "even when nothing matched" 也要写查重记录（v15 #1461）')
+    ;['Scanned:', 'Hits:', 'Reporter confirmed:', 'Conclusion:'].forEach(function (k) { if (en.indexOf(k) < 0) problems.push('newBugWayfinder en 查重记录缺第 ' + k + ' 行（v15 #1461 固定四行）') })
+    if (en.indexOf('write "none" when nothing matched') < 0) problems.push('newBugWayfinder en 查重记录缺 "write \"none\" when nothing matched"（v15 #1461）')
+    if (en.indexOf('prerequisites for filing') < 0) problems.push('newBugWayfinder en 缺 "prerequisites for filing"（v15 #1461：两次扫描与查重记录是建单前置条件）')
+    if (en.indexOf('if the tool itself errors, write the error into the duplicate-check record') < 0) problems.push('newBugWayfinder en 缺工具报错例外（v15 #1461）')
+    if (en.indexOf('default link, never close') >= 0) problems.push('newBugWayfinder en 仍含旧默认动作 "default link, never close"（v15 #1461 改为四类出口）')
     // v4 去内部规则：不应含旧的展开式流程说明
     if (zh.indexOf('先澄清') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“先澄清”（v4 已去）')
     if (zh.indexOf('判断分类') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“判断分类”（v4 已去）')
@@ -173,6 +237,9 @@ const check = function (list) {
     const LEGACY_ZH = ['背景：', '场景：', '现象：', '期望行为：', '实际行为：', '影响范围：']
     const legacyIn = LEGACY_ZH.filter(function (f) { return fieldsBody.indexOf(f) >= 0 })
     if (legacyIn.length) problems.push('NEW_BUG_FIELDS_BODY 残留 v2 旧字段：' + legacyIn.join(' / '))
+    // v15 #1461：查重记录不是报告人填的字段，不许混进四项片段——片段只放「实际 / 期望 / 复现 / 环境」，
+    //   留痕由会话按「## 查重记录」写进正文；混进来会变成让报告人填「扫描了哪些状态」。
+    if (fieldsBody.indexOf('查重记录') >= 0) problems.push('newBugFields 片段不应含「查重记录」（v15 #1461：留痕由会话写正文，不是报告人填的四项字段）')
     // #1292：从前那行正文是源码里的转义字符串字面量（\n 是反斜杠加 n 两个字符），YAML 块标量解码后是真换行，
     //   所以这条「旧形态悬行」判据改成按真换行找（源码里写出来就是换行符加两个空格加“例：”）。
     if (fieldsBody.indexOf('\n  例：') >= 0) problems.push('NEW_BUG_FIELDS_BODY 仍含旧形态悬行（换行 + 两空格 + “例：”，v4 已改为括号单行）')
@@ -202,6 +269,8 @@ const check = function (list) {
     const LEGACY_EN = ['Background:', 'Scenario:', 'Phenomenon:', 'Expected Behavior:', 'Actual Behavior:', 'Impact:']
     const legacyEnIn = LEGACY_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) >= 0 })
     if (legacyEnIn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 v2 旧字段：' + legacyEnIn.join(' / '))
+    // v15 #1461：同 zh 一侧，英文片段也不许混入查重记录。
+    if (fieldsBodyEn.indexOf('Duplicate check record') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 不应含 "Duplicate check record"（v15 #1461）')
     // #1292：同 zh 那一侧，YAML 解码后是真换行，所以这条「旧形态悬行」判据按真换行找。
     if (fieldsBodyEn.indexOf('\n  e.g.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧形态悬行（换行 + 两空格 + “e.g.”，v4 已改为括号单行）')
     const missingBrEn = BRACKET_LINE_EN.filter(function (g) { return fieldsBodyEn.indexOf(g) < 0 })
@@ -285,7 +354,7 @@ const check = function (list) {
   ]
   hoverChecks.forEach(function (c) { if (!c.re.test(src)) problems.push('hover 反馈缺：' + c.name) })
   if (problems.length) { console.log('  FAIL', label, problems.join('；')); failed = true }
-  else console.log('  PASS', label, '（newBugWayfinder v' + (entry ? entry.version : '?') + ' · 实际→期望括号单行 · v5 标签要求 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
+  else console.log('  PASS', label, '（newBugWayfinder v' + (entry ? entry.version : '?') + ' · 实际→期望括号单行 · v5 标签要求 · v15 建单前查重 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
 }
 console.log('P1: 新增BUG入口契约（issue #4/#63 v4 · 实际→期望括号单行 + locale 切换 · v5 #475 标签要求）')
 targets.forEach(check)
