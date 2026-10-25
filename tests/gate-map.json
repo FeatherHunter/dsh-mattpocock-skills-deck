@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T18:51:27.373Z",
+  "generatedAt": "2026-10-25T20:18:09.211Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 388,
-  "gateCount": 388,
-  "attributedGates": 348,
+  "chainLength": 389,
+  "gateCount": 389,
+  "attributedGates": 349,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 587,
+  "graphFileCount": 588,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3561,6 +3561,25 @@
       "completionRecord": true,
       "expectedAssertions": 51,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1533-git-remote-claim.ts",
+      "file": "tests/verify-1533-git-remote-claim.ts",
+      "guards": [
+        "src/tracker/kernel/git-remote.ts",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab"
+      ],
+      "dirs": [
+        "src/tracker/kernel",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10379,6 +10398,7 @@
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-1482-graphql-accounting.ts",
+      "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -10448,6 +10468,7 @@
       "node tests/verify-1444-comments.ts",
       "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-1482-graphql-accounting.ts",
+      "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -10490,6 +10511,7 @@
       "node tests/verify-1446-gitlab-budget.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
+      "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
@@ -10801,9 +10823,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 608,
+    "fileCount": 609,
     "dirCount": 74,
-    "coveredFileCount": 608,
+    "coveredFileCount": 609,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11296,6 +11318,7 @@
       "src/tracker/index.ts",
       "src/tracker/kernel/README.md",
       "src/tracker/kernel/error-rules.ts",
+      "src/tracker/kernel/git-remote.ts",
       "src/tracker/kernel/identity-keys.ts",
       "src/tracker/kernel/log-emit.ts",
       "src/tracker/kernel/outbound-tiers.ts",
