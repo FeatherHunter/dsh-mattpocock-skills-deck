@@ -205,7 +205,8 @@ async function main() {
   const rows = capState.list || []
   const row101 = rows.filter(function (r) { return r.ticketKey === '101' })[0]
   check(!!row101 && row101.ticketTitle === '子票甲', '已关闭地图的子票那一行查到了标题（实得 ' + JSON.stringify(row101 && row101.ticketTitle) + '）')
-  check(!!row101 && row101.ticketState === 'CLOSED' && row101.isMap === false, '状态与「不是地图」也一起查到了（实得 ' + JSON.stringify({ state: row101 && row101.ticketState, isMap: row101 && row101.isMap }) + '）')
+  // #1518：行上带的是容器身份（containerKind，空串＝普通票），不再是一个「是不是地图」的布尔值。
+  check(!!row101 && row101.ticketState === 'CLOSED' && row101.containerKind === '', '状态与「不是容器」也一起查到了（实得 ' + JSON.stringify({ state: row101 && row101.ticketState, containerKind: row101 && row101.containerKind }) + '）')
   const row999 = rows.filter(function (r) { return r.ticketKey === '999' })[0]
   check(!!row999 && row999.ticketTitle === '', '哪儿都没有的票号仍是空标题，不凭空编一个（实得 ' + JSON.stringify(row999 && row999.ticketTitle) + '）')
 

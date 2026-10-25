@@ -29,7 +29,6 @@
 //   node --import ./scripts/ts-hook.mts tests/verify-1436-own-work-route.ts
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
-
 let failed = false
 let total = 0
 const check = function (ok: any, msg: string): void {

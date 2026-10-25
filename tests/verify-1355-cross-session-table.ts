@@ -40,7 +40,6 @@ import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
 // 中央时间真值：快照等待只住 config/*.yaml，这里读同一份导出，不在测试里写第二份数字。
 import { SNAP_WAIT_MS } from '../src/shared/time-config/values.js'
-
 let failed = false
 let total = 0
 const check = function (ok: any, msg: string): void {
