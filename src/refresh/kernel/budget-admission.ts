@@ -100,27 +100,31 @@ export function isWriteOp(op: string): boolean {
 const GRAPHQL_READ_OPS: readonly string[] = ['list', 'get', 'listPage', 'getDependencies', 'listSubIssues', 'listLabels', 'counts']
 
 /**
- * 写操作按真实出站通道分三份名单（#1418 P1 复核；2026-10-25 用 GH_DEBUG=api 实测 gh CLI 的请求落点）。
+ * 写操作按真实出站通道分四份名单（#1418 P1 复核；2026-10-25 用 GH_DEBUG=api 实测 gh CLI 的请求落点，
+ * 复核第二轮又核对了「一次操作里的前置读」）。
  *
- * 为什么不是「写都花 REST 请求」：GitHub 的 REST 与 GraphQL 是两套互不相通的额度。
- * gh issue edit / gh issue close / gh issue reopen / gh issue comment 这几条子命令内部发的都是
- * POST /graphql（只花 GraphQL 点数）；真正只走 REST 的写操作只有建票一条：房间直接发
- * gh api repos/.../issues（gh issue create 不认 --json，见 issues-write.ts 的主路注释）。
- * 按真实出站通道判，REST 见底时改票、关票这些仍然做得了 —— 这正是票面要求的
- * 「只停真正依赖已见底那一族的操作」。
+ * 为什么不能只看「最后那条写命令」：一次操作里除了写还要先读。建票就是典型 —— 写那一步是
+ * REST（房间直接发 gh api repos/.../issues，gh issue create 不认 --json），但建之前必跑幂等锚回查：
+ * gh search issues 与 gh issue list 都是 GraphQL（见 idempotency.ts 的快路 / 慢路）。
+ * 所以建票同时依赖两族额度；只按 REST 判会让「GraphQL 已见底」时放行、随后建票必然失败。
+ * 反过来，改票 / 关票 / 父子边的前置读与写都在 GraphQL 上，REST 见底时它们照做 —— 这正是
+ * 票面要求的「只停真正依赖已见底那一族的操作」。
  */
-const REST_WRITE_OPS: readonly string[] = ['create']
-
-/** 只有 GraphQL 一条路的写操作：这几条子命令没有 REST 退路，只能看 GraphQL 点数。 */
-const GRAPHQL_WRITE_OPS: readonly string[] = ['update', 'setLabels', 'setAssignees', 'close', 'reopen']
+const BOTH_WRITE_OPS: readonly string[] = ['create']
 
 /**
- * 两条路都走的写操作，只要还剩一条路就能做，两族都见底才拦：
- *   - 评论先发 REST POST，失败回落 gh issue comment（GraphQL，见 comments.ts）；
- *   - 父子边先走 gh issue edit --parent（GraphQL），老版本回落 api .../sub_issues（REST，见 graph.ts）；
- *   - 阻塞边先走 GraphQL mutation，失败回落 REST（见 blocked-by-write.ts 的 route 结论）。
+ * 只有 GraphQL 一条路的写操作（含前置读）：gh issue edit / close / reopen 这几条子命令内部发
+ * POST /graphql；setParent 的 REST 退路只在「老版本 gh 不认 --parent」时才走（graph.ts 的
+ * isUnknownFlag 分支），额度耗尽不会换路，所以它也只看 GraphQL。
  */
-const DUAL_WRITE_OPS: readonly string[] = ['comment', 'setParent', 'setBlockedBy']
+const GRAPHQL_WRITE_OPS: readonly string[] = ['update', 'setLabels', 'setAssignees', 'setParent', 'close', 'reopen']
+
+/**
+ * 有退路的写操作：第一条通道失败会真的换另一条重发，只要还剩一条路就能做，两族都见底才拦。
+ *   - 评论先发 REST POST，失败无条件回落 gh issue comment（GraphQL，见 comments.ts）；
+ *   - 阻塞边先走 GraphQL mutation，id 查询或写失败会回落 REST（见 blocked-by-write.ts）。
+ */
+const DUAL_WRITE_OPS: readonly string[] = ['comment', 'setBlockedBy']
 
 /** 这次调用依赖哪几族额度：all 是缺一不可的，anyOf 是两条通道任走一条即可（见 DUAL_WRITE_OPS）。 */
 export interface OpFamilyChoice {
@@ -134,11 +138,11 @@ export interface OpFamilyChoice {
  * 这次调用会花哪几族额度（#1418）。
  *
  * 判定只认「这一次真正会出站的通道」，不认「写/读」这个大方向：读操作全走 GraphQL 点数；
- * 写操作里建票只有 REST 一条路，改票 / 标签 / 认领 / 关票 / 重开只有 GraphQL 一条路，
- * 评论、父子边、阻塞边两条路都走。
+ * 写操作里建票两族都要（写 REST、建前回查 GraphQL），改票 / 标签 / 认领 / 关票 / 重开 / 父子边
+ * 只有 GraphQL 一条路，评论与阻塞边两条路都走。
  */
 export function familiesOfOp(op: string): OpFamilyChoice {
-  if (REST_WRITE_OPS.indexOf(op) >= 0) return { all: ['rest'], anyOf: [] }
+  if (BOTH_WRITE_OPS.indexOf(op) >= 0) return { all: ['rest', 'graphql'], anyOf: [] }
   if (GRAPHQL_WRITE_OPS.indexOf(op) >= 0) return { all: ['graphql'], anyOf: [] }
   if (DUAL_WRITE_OPS.indexOf(op) >= 0) return { all: [], anyOf: ['rest', 'graphql'] }
   if (GRAPHQL_READ_OPS.indexOf(op) >= 0) return { all: ['graphql'], anyOf: [] }
@@ -153,41 +157,56 @@ export function familyLabelOf(family: string): string {
   return FAMILY_LABEL[family] || family
 }
 
-/** 把服务端给的恢复时刻写成「约 HH:MM」；没给（或不是个数）就回空串，绝不编一个。 */
-function resetHintAt(at: unknown): string {
+/**
+ * 把服务端给的恢复时刻写成「约 HH:MM 恢复」；没给（或不是个数）就回空串，绝不编一个。
+ * 导出给闸的拒绝文案（refusal-messages.ts）共用：同一句话只写一份，两处不各写一套格式。
+ */
+export function resetClockText(at: unknown): string {
   const ms = typeof at === 'number' && isFinite(at) ? at : 0
   if (!(ms > 0)) return ''
   const d = new Date(ms)
-  return '（约 ' + ('0' + String(d.getHours())).slice(-2) + ':' + ('0' + String(d.getMinutes())).slice(-2) + ' 恢复）'
+  return '约 ' + ('0' + String(d.getHours())).slice(-2) + ':' + ('0' + String(d.getMinutes())).slice(-2) + ' 恢复'
 }
 
-/** 从一个桶的水位里取恢复时刻那一句；读数没带这一格就不写。 */
-function resetHintOf(level: BucketLevel | null): string {
-  return resetHintAt(level && level.resetAt)
+/** 一个桶现在还剩多少（单位按额度给：GraphQL 按点、请求按条）。 */
+function remainingTextOf(family: string, level: BucketLevel): string {
+  const left = level && typeof level.remaining === 'number' ? level.remaining : 0
+  return '还剩 ' + left + (family === 'graphql' ? ' 点' : ' 条')
+}
+
+/** 把「还剩多少 + 约几点恢复」拼进括号里；两样都没有就回空串。 */
+function levelDetailText(family: string, level: BucketLevel): string {
+  const clock = resetClockText(level && level.resetAt)
+  const parts = [remainingTextOf(family, level)]
+  if (clock) parts.push(clock)
+  return '（' + parts.join('，') + '）'
 }
 
 /**
- * 额度见底时给人看的那一句话（#1418）：说清是哪种额度见底、大概什么时候恢复。
+ * 额度见底时给人看的那一句话（#1418）：说清是哪种额度见底、还剩多少、大概什么时候恢复。
  *
  * 用「REST 请求额度」「GraphQL 点数额度」这样的完整说法，不用「族」「桶」这类账本内部叫法：
  * 第一次读这句话的人（用户与 AI）要能直接判断出「等多久、等的是哪一种额度」。
  */
 export function exhaustedMessage(family: string, level: BucketLevel | null): string {
-  return '额度见底：' + familyLabelOf(family) + '额度不够了' + resetHintOf(level) + '，这次先不执行。'
+  const lv = level || { remaining: 0, limit: 0 }
+  return '额度见底：' + familyLabelOf(family) + '额度不够了' + levelDetailText(family, lv) + '，这次先不执行。'
 }
 
 /**
- * 两条路都见底时的一句话（评论 / 父子边 / 阻塞边）：两种额度都点名。
+ * 两条路都见底时的一句话（评论 / 阻塞边）：两种额度都点名，各自还剩多少。
  * 恢复时刻取两族里「先恢复的那一个」—— 只要有一族恢复就能重试，写最晚的那个会让人白等。
  */
 function exhaustedAnyMessage(families: string[], levels: BucketLevel[]): string {
   const names = families.map(function (f: string): string { return familyLabelOf(f) }).join('与')
+  const left = families.map(function (f: string, i: number): string { return remainingTextOf(f, levels[i]) }).join('、')
   let earliest = 0
   for (let i = 0; i < levels.length; i++) {
     const at = Number(levels[i] && levels[i].resetAt) || 0
     if (at > 0 && (earliest === 0 || at < earliest)) earliest = at
   }
-  return '额度见底：' + names + '两种额度都不够了' + resetHintAt(earliest) + '，这次先不执行。'
+  const clock = resetClockText(earliest)
+  return '额度见底：' + names + '两种额度都不够了（' + left + (clock ? '，最早' + clock : '') + '），这次先不执行。'
 }
 
 /** 硬顶的原话：桥、门禁与给人看的说明共用这一句，不各写各的。 */

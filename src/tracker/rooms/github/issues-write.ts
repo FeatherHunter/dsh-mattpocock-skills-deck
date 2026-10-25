@@ -425,10 +425,10 @@ async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: As
       if (cur.data.updatedAt !== opts.expectedUpdatedAt) return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur.data.updatedAt})`, cur.data.updatedAt)
     }
     const c = ghClient(ctx)
-    // REST 整集替换：gh api PATCH repos/.../issues/<n> {assignees: [login...]}
-    // gh CLI 暂无 assignees 整集 API，直接用 gh api
+    // 认领走 gh issue edit 的 --add-assignee / --remove-assignee（#1418 复核：这条子命令内部发 /graphql，
+    // 不是 REST 整集替换）；它是增量接口，所以先用下面这次 getIssue 读当前认领、算差集再逐条发。
     const logins = wanted.map((a) => a.login)
-    // 先读当前 assignees 做 diff（gh issue edit --add-assignee/--remove-assignee 为增量，需 diff）
+    // 先读当前 assignees 做 diff（读走 getIssue 的 GraphQL 查询，与写同族）
     const curRes = await getIssue(repo, k, {}, ctx)
     // 为什么敢断言 assignees 非空：同上，归一后的票 assignees 恒为数组（取不到也给 []），读到缺这一格就抛、与原来一致。
     const curLogins = curRes.ok ? curRes.data.assignees!.map((a) => a.login) : []

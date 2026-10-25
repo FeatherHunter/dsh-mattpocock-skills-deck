@@ -5,12 +5,15 @@
 // 给同样的输入永远同样的输出，不读时钟、不碰账本、不看工作区状态。
 //
 // 住共享层而不是宿主层：宿主层文件之间不许互相引用（tests/verify-dependency-rules.ts），
-// 宿主引用共享层是允许的方向，所以只能放这里。本文件零 import。
+// 宿主引用共享层是允许的方向，所以只能放这里。本文件只有一个 import：内核里那个纯格式化函数
+// （resetClockText，把恢复时刻写成「约 HH:MM 恢复」），这样这句话与裁决那一句是同一份格式。
 //
 // 两种拒绝必须分得开（票面硬要求）：
 //   ①「我花超了」——超过插件自己给工具设的单次或每小时硬顶，是自限，不是别人抢了额度；
 //   ②「额度被别人用掉了」——剩余额度已到保底线，会话里别的 GitHub 调用把额度吃掉了，
 //     这时先拒 AI 工具写入，绝不挤掉插件刷新与人的动作。
+
+import { resetClockText } from '../../kernel/budget-admission.js'
 
 /** 准入结论：哪一种拒、这次要花多少；见底时带上「缺的是哪一种额度、什么时候恢复」（#1418）。 */
 type RefusalArgs = { reason: string; points: number; requests: number; familyLabel?: string; resetAt?: number; unit?: string }
@@ -51,10 +54,8 @@ export function refusalTextRef(
     limits.aiToolMaxRequestsPerHour + ' 条）。'
 }
 
-/** 把恢复时刻写成「约 HH:MM」；调用方没带（或不是个数）就回空串，绝不编一个。 */
+/** 把恢复时刻套上括号（共用内核那份格式化）；调用方没带（或不是个数）就回空串，绝不编一个。 */
 function resetHint(at: unknown): string {
-  const ms = typeof at === 'number' && isFinite(at) ? at : 0
-  if (!(ms > 0)) return ''
-  const d = new Date(ms)
-  return '（约 ' + ('0' + String(d.getHours())).slice(-2) + ':' + ('0' + String(d.getMinutes())).slice(-2) + ' 恢复）'
+  const clock = resetClockText(at)
+  return clock ? '（' + clock + '）' : ''
 }

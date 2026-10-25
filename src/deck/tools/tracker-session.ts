@@ -102,7 +102,8 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   const d = (req.deps || {}) as UnknownRecord;
   const s = (req.session || {}) as UnknownRecord;
   const est = (req.estimate || {}) as UnknownRecord;
-  // #1418：这次工具是读还是写 —— 两桶后端按它选族（读花 GraphQL 点数、写花 REST 请求）。
+  // #1418：读/写只决定会话预检先试哪一族；真正按哪一族拦住某一次操作，由那次操作过管线时
+  //   按操作名判（见 src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
   const readCall = str(req.kind) === 'read';
   const registry = (d.registry || {}) as UnknownRecord;
   const gate = (d.gate || {}) as UnknownRecord;
@@ -148,23 +149,19 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   const offline = str(model.kind) === 'off-network';
   // #1446：闸按后端模型选桶（只计请求的后端只有 requests 这一桶），并且告诉闸「这是哪个后端」——
   // 不传 backendId 时闸只能按未知后端算，两桶保底与分桶读数就落不到这个后端头上。
-  // #1418：两桶后端按这次调用真正要花的额度选桶。读工具只看 GraphQL 点数；写工具的通道不止一族
-  //   （建票只有 REST 请求；改票 / 关票是 GraphQL 点数；评论与父子边、阻塞边两条路都能走），
-  //   所以这里先按读数里余量更多的那一族做预检 —— 预检只回答「这一笔值得试试吗」，不许让一族见底
-  //   把另一族还能做的写挡在门外。每一次操作真正花哪一族，会在它过管线时按操作名再判一次
-  //   （src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
-  let bucketFor: string = str(model.kind) === 'requests-only' ? 'requests' : (readCall ? 'graphql' : 'rest');
-  if (!readCall && str(model.kind) === 'two-buckets') {
-    try {
-      const rd: UnknownRecord = (typeof d.getCachedReading === 'function') ? ((await d.getCachedReading()) as UnknownRecord) : {};
-      const buckets: UnknownRecord = (rd && rd.known === true && rd.kind === 'two-buckets' && rd.buckets) ? (rd.buckets as UnknownRecord) : {};
-      const restLeft: number = num((buckets.rest as UnknownRecord | undefined) && (buckets.rest as UnknownRecord).remaining);
-      const graphqlLeft: number = num((buckets.graphql as UnknownRecord | undefined) && (buckets.graphql as UnknownRecord).remaining);
-      bucketFor = graphqlLeft > restLeft ? 'graphql' : 'rest';
-    } catch { /* 读数取不到就按 rest 预检（保守）；真正的按族拦截在操作过管线时做。 */ }
-  }
+  // #1418：两桶后端里一个工具可能碰两族额度（建票 REST + 建前幂等锚回查 GraphQL、改票只有 GraphQL、
+  //   评论与阻塞边两条路任一），而开会话前的预检只回答「这一笔值不值得试」——真正的按操作拦截
+  //   在每次操作过管线时做（见 src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
+  //   所以预检按族逐个试：一族因为额度见底被拒就换另一族再问一次，两族都见底才拒。
+  //   不自己拿两族的 remaining 绝对值相比：两族的尺子不一样（保底各按本桶额度的 30%），
+  //   余量判断一律交给闸按各桶自己的保底线算。硬顶（单次 / 每小时）与桶无关，被硬顶拒就不再换桶。
+  const probeBuckets: string[] = str(model.kind) === 'requests-only'
+    ? ['requests']
+    : (readCall ? ['graphql'] : ['rest', 'graphql']);
   const admitVolumes = { points: num(est.points), requests: num(est.requests), childTickets: num(est.tickets) };
-  let admit: UnknownRecord;
+  // 先给空对象再按分支覆盖：后面的成功回执要读它，而编译器分不清「循环里已赋值」与「没走到那一支」。
+  // 真正走到成功回执时它一定是被赋过值的那一份（两族都见底的分支在下面直接 return）。
+  let admit: UnknownRecord = {};
   if (offline) {
     // 离网后端没有额度可言：剩余额度探针在这里没有意义（无读数的 0 不能当成耗尽，见 #1435），
     // 所以只认调用前估算那两道硬顶（单次与每小时），档位与人话都沿用估算那一句（含硬顶二字）。
@@ -172,15 +169,35 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
     admit = { admitted: true, points: admitVolumes.points, requests: admitVolumes.requests, childTickets: admitVolumes.childTickets, reason: 'off-network' };
   } else {
     if (typeof gate.admitAiTool !== 'function') return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '额度闸这次没装上，我没往下做。' };
-    let probe: UnknownRecord;
-    try {
-      probe = (await gate.admitAiTool({ points: 0, requests: 1, childTickets: 0 }, { workspaceKey: s.workspaceKey, bucket: bucketFor, backendId: backendId })) as UnknownRecord;
-    } catch { return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。' }; }
-    if (!probe || probe.admitted !== true) return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(probe && (probe.detail || probe.reason || probe.text)) + '），先不做。' };
-    try {
-      admit = (await gate.admitAiTool(admitVolumes, { workspaceKey: s.workspaceKey, kind: 'tool-batch', bucket: bucketFor, backendId: backendId })) as UnknownRecord;
-    } catch { return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。' }; }
-    if (!admit || admit.admitted !== true) return { ok: false, reason: REFUSAL_REASONS.OVER_CAP, text: str(admit && admit.text) || '这次调用超过了插件给 AI 工具设的硬顶，我没有动手。' };
+    let lastText: string = '';
+    let lastReason: string = '';
+    let failedAt: string = '';
+    let passed: boolean = false;
+    for (let i: number = 0; i < probeBuckets.length && !passed; i++) {
+      const bucket: string = probeBuckets[i];
+      let probe: UnknownRecord;
+      try {
+        probe = (await gate.admitAiTool({ points: 0, requests: 1, childTickets: 0 }, { workspaceKey: s.workspaceKey, bucket: bucket, backendId: backendId })) as UnknownRecord;
+      } catch { return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。' }; }
+      if (!probe || probe.admitted !== true) {
+        lastText = str(probe && probe.text); lastReason = str(probe && probe.reason); failedAt = 'probe';
+        if (lastReason === 'ai-tool-below-remaining') continue;
+        break;
+      }
+      let volumesOk: UnknownRecord;
+      try {
+        volumesOk = (await gate.admitAiTool(admitVolumes, { workspaceKey: s.workspaceKey, kind: 'tool-batch', bucket: bucket, backendId: backendId })) as UnknownRecord;
+      } catch { return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。' }; }
+      if (volumesOk && volumesOk.admitted === true) { admit = volumesOk; passed = true; break; }
+      lastText = str(volumesOk && volumesOk.text); lastReason = str(volumesOk && volumesOk.reason); failedAt = 'admit';
+      if (lastReason === 'ai-tool-below-remaining') continue;
+      break;
+    }
+    if (!passed) {
+      // 文案取闸给的 text（见底时会写「哪种额度 / 约几点恢复 / 还剩多少」），没有才退回原因代号。
+      if (failedAt === 'admit') return { ok: false, reason: REFUSAL_REASONS.OVER_CAP, text: lastText || '这次调用超过了插件给 AI 工具设的硬顶，我没有动手。' };
+      return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + (lastText || lastReason || '额度不够了') + '），先不做。' };
+    }
   }
   const getCachedReading = (typeof d.getCachedReading === 'function') ? d.getCachedReading as () => unknown : async function (): Promise<unknown> { return { known: false, reason: 'not-measured' }; };
   const admitPort = (typeof d.admit === 'function') ? d.admit as (input: unknown) => Promise<unknown> : fallbackAdmit;
