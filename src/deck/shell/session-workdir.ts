@@ -1,7 +1,7 @@
 // src/deck/shell/session-workdir.ts —— 会话目录归一（#934 工作区钥匙单源；#1040 转 TypeScript）
 //
-// 住共享层（src/deck/shell/），九个工具直接引用它；本树内部只有一处导入——进程存活租约
-// （#1157，等归一这段算一场没结算的活）；其余最小工具自带一份，不引同层别的文件。
+// 住共享层（src/deck/shell/），九个工具直接引用它；本树内部只有一处导入——等待竞速
+// （capped-wait.ts，#1114 第二批；它自己再扣进程存活租约 #1157）；其余最小工具自带一份，不引同层别的文件。
 // 归一出口 canonicalKey 由宿主注入（归一加锚根只有那一份实现）；缺席时沿用原始目录（旧门禁兼容）。
 // 归一在场却算不出规范根时如实失败，不凑钥匙——超时、抛错、空结果走同一条路，不新增语义。
 //
@@ -12,7 +12,7 @@
 // 从 exec 的哪一格取到的目录，排错用），ok 为假那支带机器码 reason 与给 AI 看的 text。
 // 调用方按 ok 分两支之后，各自的字段才是可用的——这是本文件给出去的唯一契约。
 
-import { withInFlightLease } from './in-flight-lease.js'
+import { withCap } from './capped-wait.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { CANONICAL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
@@ -55,9 +55,6 @@ export interface SessionContextSuccess {
 /** 两种结论合一：调用方先看 ok，再看各自那支的字段。 */
 export type SessionContextResult = SessionContextSuccess | SessionContextFailure;
 
-/** 竞速结论：原样带回，或如实失败（超时与抛错不区分，走同一条老路）。 */
-type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: boolean };
-
 function str(v: unknown): string { return (typeof v === 'string') ? v : '' }
 function hash8(t: unknown): string {
   let h = 5381
@@ -69,43 +66,13 @@ function hash8(t: unknown): string {
 const NO_SESSION = 'no-session-context'
 // 归一等待上限（毫秒）：对手是挂住的文件服务。
 
-// 缺省等待口：真定时器。到点或被喊停都清掉定时器；定时器一律 unref（#1114 的实测教训）——
-// 一个只负责「到点提醒」的定时器不该成为进程活下去的理由。
-// 生产就靠它；测试注入 sleep 之后这一行不会被走到。
-function realSleep(ms: number): Promise<unknown> {
-  return new Promise(function (resolve) {
-    let timer: ReturnType<typeof setTimeout> | null = null
-    let done = false
-    const finish = function (): void {
-      if (done) return
-      done = true
-      if (timer !== null) { try { clearTimeout(timer) } catch (e) {} timer = null }
-      resolve(null)
-    }
-    try {
-      timer = setTimeout(finish, ms)
-      const t = timer as unknown as { unref?: () => void }
-      if (t && typeof t.unref === 'function') { try { t.unref() } catch (e) {} }
-    } catch (e) { finish() }
-  })
-}
-
 /** 算不出规范根时的同一句回执：三处调用点（超时、抛错、空结果）逐字同形，收成一个。 */
 function canonicalFailure(sessionId: string): SessionContextFailure {
   return { ok: false, reason: NO_SESSION, sessionId: sessionId, text: '这次没能把工作区目录归一到工作区根，所以我不动任何票。' }
 }
 
-/** 给一个承诺加竞速上限：到点如实失败，不抛（与「算不出就失败」同一条纪律）。 */
-function withCap<T>(promise: Promise<T>, ms: number, sleep: (ms: number) => Promise<unknown>): Promise<CapResult<T>> {
-  // #1157：归一还没出结果就算一场活，先扣一份存活租约。这里的等待口 unref 过（#1114），
-  // 文件服务真挂住时唯一活着的东西就是这笔等待；没有租约进程会带着这场竞速收摊，归一永远不结算。
-  return withInFlightLease(function () {
-    return Promise.race([
-      Promise.resolve(promise).then(function (v: T): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
-      sleep(ms).then(function (): CapResult<T> { return { ok: false, timedOut: true } }),
-    ])
-  })
-}
+// 竞速实现见 ./capped-wait.ts（#1114 第二批）：到点如实失败、不抛，无论谁赢都清掉等待定时器，
+// 并自己扣一份进程存活租约（#1157）——文件服务真挂住时，唯一活着的东西就是这笔等待。
 
 /**
  * 从 exec 里取会话目录（同步版，不归一）。取法只有一份：按优先级挨个格子看，
@@ -149,8 +116,8 @@ export async function sessionContextOfAsync(exec: unknown, deps?: SessionWorkdir
   // 收成 const 之后闭包里直接调，不必再写一个只为让编译器安静的断言。
   const canonicalKey = (typeof d.canonicalKey === 'function') ? (d.canonicalKey as (cwd: string) => unknown) : null
   if (!canonicalKey) return base
-  // 等待口：deps.sleep 缺席就用真定时器（生产默认），与 now 的缺席回退同款。
-  const sleep = (typeof d.sleep === 'function') ? d.sleep : realSleep
+  // 等待口：deps.sleep 只给测试注入假时钟；缺席就由 ./capped-wait.js 用真定时器（生产默认）。
+  const sleep = (typeof d.sleep === 'function') ? d.sleep : undefined
   let canon: unknown = ''
   try {
     // 调用递延进 promise 链：同步抛错也变成拒绝，走下面同一条如实失败路，

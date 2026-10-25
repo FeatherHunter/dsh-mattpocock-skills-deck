@@ -12,21 +12,15 @@ import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforce
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { withCap } from '../shell/capped-wait.js'
 // #1090：进度区的结构化读回（{percent,note,updatedAt,entries}）与写侧共用同一份解析。
 // #1092：维护者原话区的结构化读回（{text,source,recordedAt}）同样与该区的写侧共用同一份解析。
 import { parseOriginalWords, parseProgressDetail } from '../../tracker/body-parse.js'
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
-type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
-// 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
-function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
-  return Promise.race([
-    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
-    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
-  ])
-}
+// 沙箱许可等待上限见 ../shell/capped-wait.ts（#1114 第二批）：到点就交卷并清掉等待定时器；
+// 超时按缺席走老路（不限权），与既有 catch null 同形。
 // 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走逐项的 BACKEND_UNSUPPORTED。钳制只管超时，不改判。
 // 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的

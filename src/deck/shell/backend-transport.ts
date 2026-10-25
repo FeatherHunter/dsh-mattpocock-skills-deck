@@ -1,7 +1,7 @@
 /**
  * src/deck/shell/backend-transport.ts —— deck 写工具共用的「执行层失败」收口（#1091 从两个写工具抽出）
  *
- * 为什么单独一份：issue-patch.ts 与 issue-create.ts 里这段按原样各写了一份（numOpt、withCap、
+ * 为什么单独一份：issue-patch.ts 与 issue-create.ts 里这段按原样各写了一份（numOpt、
  * TRANSPORT_KINDS、transportMessage、must、timeoutMessage）。#1091 给两个工具加维护者原话参数时，
  * issue-patch.ts 的有效行已经贴到 350 的上限（tests/verify-file-granularity.ts 判红），
  * 这段逐字相同的代码正好搬出来：两份文件同时腾出行数，以后改一处也不会漏改另一处。
@@ -20,19 +20,10 @@ export function numOpt(v: unknown): number | undefined {
   return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined
 }
 
-/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
-export type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
-
-/**
- * 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
- * 两个工具原来各写一份；判据一字不差，只是上限的毫秒数由调用方传（住中央 YAML 的那份值）。
- */
-export function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
-  return Promise.race([
-    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
-    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
-  ])
-}
+// 等待竞速的实现搬去了 src/deck/shell/capped-wait.ts（#1114 第二批：到点就清等待定时器，
+// 不再把进程留在事件循环里）。两个写工具仍旧从这里导入，导出面不变。
+export { withCap } from './capped-wait.js'
+export type { CapResult } from './capped-wait.js'
 
 /** 执行层失败与后端诚实失败的分界：只有这几种 kind 算「执行层没回来」。 */
 const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']

@@ -11,7 +11,7 @@ import { selectionFromOutlet } from '../../tracker/detection/backendDecision.js'
 import { tierFor, aiToolFloor } from '../../refresh/kernel/host-budget.js'
 import { recordWorkRoute } from '../shell/work-path-record.js'
 import { DECK_STATUS, DECK_TOOL_KIND, REFUSAL_REASONS, receiptCost } from '../shell/call-shell.js'
-import { withInFlightLease } from '../shell/in-flight-lease.js'
+import { withCap } from '../shell/capped-wait.js'
 
 /** 未知形状的记录（依赖袋与会话壳都没标类型，用到哪格验哪格，不猜）。 */
 type UnknownRecord = Record<string, unknown>;
@@ -231,14 +231,10 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
       const keyFn = sessionAny.getRepoKey as ((cwd: string, ctx: unknown) => Promise<unknown>) | undefined;
       if (typeof keyFn === 'function') {
         const cap = (typeof d.resolveTimeoutMs === 'number' && (d.resolveTimeoutMs as number) > 0) ? Math.floor(d.resolveTimeoutMs as number) : 8000;
-        const sleepFn = (typeof d.sleep === 'function') ? d.sleep as (ms: number) => Promise<unknown> : function (ms: number): Promise<unknown> { return new Promise(function (resolve) { setTimeout(function () { resolve(null); }, ms); }); };
-        const keyed = await withInFlightLease(function () {
-          return Promise.race([
-            Promise.resolve(keyFn.call(sessionAny, cwd, Object.assign({}, backendCtxNow(d), { cwd: cwd, caller: DECK_TOOL_KIND }))),
-            sleepFn(cap).then(function () { return null; }, function () { return null; }),
-          ]);
-        });
-        const kRec = (keyed || null) as UnknownRecord | null;
+        // 竞速实现见 ../shell/capped-wait.ts（#1114 第二批）：到点就清等待定时器；超时与对方抛错
+        // 都回「没等到」，与原来 sleepFn 赢下竞速回 null 同形。
+        const keyed = await withCap(Promise.resolve().then(function () { return keyFn.call(sessionAny, cwd, Object.assign({}, backendCtxNow(d), { cwd: cwd, caller: DECK_TOOL_KIND })); }), cap, (typeof d.sleep === 'function') ? d.sleep as (ms: number) => Promise<unknown> : undefined);
+        const kRec = ((keyed.ok === true) ? keyed.value : null) as UnknownRecord | null;
         if (kRec && typeof kRec.owner === 'string' && kRec.owner && typeof kRec.name === 'string' && kRec.name) {
           const refId = kRec.owner + '/' + kRec.name;
           ref = { backend: backendId, refId: refId, name: refId, url: 'https://github.com/' + refId };

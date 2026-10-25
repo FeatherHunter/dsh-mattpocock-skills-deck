@@ -29,6 +29,7 @@ import * as budget from '../../refresh/kernel/host-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS, DECK_STORE_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { withCap } from '../shell/capped-wait.js'
 
 export const definition = {
   name: 'deck_map_plan_create',
@@ -90,10 +91,8 @@ const CHILD_KINDS = ['map-ticket', 'bug', 'issue']
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
-type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
-// 等待竞速：沙箱超时按缺席走老路；游标读超时按空游标（锚预检与幂等键仍是去重权威，不多出票），写超时吞掉。
-function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> { return Promise.race([Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }), new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) })]) }
+// 等待竞速见 ../shell/capped-wait.ts（#1114 第二批：到点就清等待定时器）：沙箱超时按缺席走老路；
+// 游标读超时按空游标（锚预检与幂等键仍是去重权威，不多出票），写超时吞掉。
 
 /**
  * 宿主的文件读写能力：每样都可能缺（缺了就不落盘），下面用它之前都先判过一次类型。
