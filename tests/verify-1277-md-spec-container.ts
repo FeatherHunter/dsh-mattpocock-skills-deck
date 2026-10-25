@@ -114,7 +114,8 @@ async function main(): Promise<void> {
   const ctx = mkCtx(tmp)
   const issuesDir = path.join(tmp, '.scratch', 'demo', 'issues')
   fs.mkdirSync(issuesDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')
+  // 一个功能一个目录：demo/ 是本节规格票的归属目录，不再预写 map.md（只测建规格与建实施票）；
+  // “只有地图没有规格”的拒绝例由下面的 maponly/ 目录覆盖。
   const { createIssue } = await import('../src/tracker/rooms/markdown/issues.ts')
 
   const createdSpec = await createIssue(ctx, repo, {

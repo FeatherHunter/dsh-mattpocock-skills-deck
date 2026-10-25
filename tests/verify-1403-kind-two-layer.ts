@@ -117,6 +117,13 @@ async function main() {
     walk(path.join(ws.root, '.scratch'))
     return out
   }
+  // 票号只在同一个目录内唯一：规格搬出 demo/ 后，实施票的 key 会和 demo/issues/ 里的票撞号，
+  // 不能再用只看 demo/issues/ 的 fileOf，必须点名规格所在的目录去读。
+  const fileOfIn = (key: string, dir: string): string => {
+    const names = fs.readdirSync(dir).filter((n) => n.startsWith(key + '-'))
+    if (names.length !== 1) throw new Error('票 ' + key + ' 在 ' + dir + ' 找到 ' + names.length + ' 个')
+    return fs.readFileSync(path.join(dir, names[0]), 'utf8')
+  }
   const fileOf = (key: string): string => {
     const names = fs.readdirSync(ws.issuesDir).filter((n) => n.startsWith(key + '-'))
     if (names.length === 1) return fs.readFileSync(path.join(ws.issuesDir, names[0]), 'utf8')
@@ -150,8 +157,10 @@ async function main() {
     const order = ['## Destination', '## Notes', '## Decisions so far', '## Not yet specified', '## Out of scope'].map((h) => text.indexOf(h))
     check(order.every((i) => i >= 0) && text.indexOf('## 进度') > Math.max.apply(null, order), 'map 的五节在前、## 进度在五节之后')
   }
-  const specRes = await create({ title: '两层规格', kind: 'spec' })
+  const specRes = await create({ title: '两层规格', kind: 'spec', feature: 'two-layer-spec' })
   const specKey = specRes && specRes.data && specRes.data.ticket ? String(specRes.data.ticket.key) : ''
+  // 一个功能一个目录：地图已经落在 demo/，规格必须另起目录；实施票用同一个 feature 回到规格身边。
+  const specFeature = specRes && specRes.data && specRes.data.ticket ? String(specRes.data.ticket.effortId || '') : ''
   if (specKey) {
     const text = specFileText()
     check(specRes.data.ticket.type === 'spec', 'spec 读回来契约类型是 spec（实得 ' + specRes.data.ticket.type + '）')
@@ -175,10 +184,12 @@ async function main() {
     check(String(ticket.parentKey || '') === '00', 'map-ticket 读回来父票是 00（实得 ' + ticket.parentKey + '）')
     check(hasProgress(text), 'map-ticket 的正文补了 ## 进度')
   }
-  const specTicketRes = specKey ? await create({ title: '规格下的实施票', kind: 'spec-ticket', parentKey: specKey }) : null
+  const specTicketRes = specKey ? await create({ title: '规格下的实施票', kind: 'spec-ticket', parentKey: specKey, feature: specFeature }) : null
   if (specTicketRes && specTicketRes.data && specTicketRes.data.ticket) {
     const ticket = specTicketRes.data.ticket
-    const text = fileOf(String(ticket.key))
+    const text = specFeature
+      ? fileOfIn(String(ticket.key), path.join(ws.root, '.scratch', specFeature, 'issues'))
+      : fileOf(String(ticket.key))
     check(ticket.type === 'issue', 'spec-ticket 的契约类型是 issue（实得 ' + ticket.type + '）')
     check(/<!-- DSH-PARENT: 00 -->/.test(text), 'spec-ticket 的隐藏注释写父票 00')
     check(/^<!-- DSH-LABELS: .*ready-for-agent -->$/m.test(text), 'spec-ticket 的 DSH-LABELS 带 ready-for-agent')
@@ -285,7 +296,7 @@ async function main() {
   // #1486 起没有 feature 的普通票会按标题另起目录，父票号在别的目录里读不到；错配用例要落在同一个容器目录里。
   const plain = await create({ title: '普通票：给错配用', kind: 'issue', effort: 'demo' })
   const plainKey = plain && plain.data && plain.data.ticket ? String(plain.data.ticket.key) : ''
-  const specFeature = specRes && specRes.data && specRes.data.ticket ? String(specRes.data.ticket.effortId || '') : ''
+  // specFeature 在建规格时已取出（见上），这里直接复用。
   const wrongParent = specFeature ? await create({ title: '规格目录里的普通票', kind: 'issue', feature: specFeature }) : null
   const wrongKey = wrongParent && wrongParent.data && wrongParent.data.ticket ? String(wrongParent.data.ticket.key) : ''
   const filesAfterSetup = countFiles()

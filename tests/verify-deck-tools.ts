@@ -63,7 +63,7 @@ function makeWorkspace() {
     ctx: { platform: plat, fs: plat.fs, cwd: rootPosix, get(name) { return name === 'fs' ? plat.fs : undefined } },
     ticketFiles(effortId) { try { return fs.readdirSync(effortId ? path.join(root, '.scratch', effortId, 'issues') : path.join(dir, 'issues')).filter((f) => f.endsWith('.md')) } catch (e) { return [] } },
     readTicket(name, effortId) { return fs.readFileSync(effortId ? path.join(root, '.scratch', effortId, 'issues', name) : path.join(dir, 'issues', name), 'utf8') },
-    readSpec() { try { return fs.readFileSync(path.join(dir, 'spec.md'), 'utf8') } catch (e) { return '' } },
+    readSpec(effortId) { try { return fs.readFileSync(path.join(root, '.scratch', effortId || 'demo', 'spec.md'), 'utf8') } catch (e) { return '' } },
     cleanup() { try { fs.rmSync(root, { recursive: true, force: true }) } catch (e) {} },
   }
 }
@@ -171,13 +171,13 @@ async function main() {
   let createdKey = ''
   let planMapKey713 = ''
   {
-    const r = await callTool('deck_issue_create', { title: '第一张演示票', kind: 'issue', body: '正文在这里' })
+    const r = await callTool('deck_issue_create', { title: '第一张演示票', kind: 'issue', feature: 'demo-spec', body: '正文在这里' })
     createdKey = String((r.data && r.data.ticket && r.data.ticket.key) || '')
     check(envelopeOk(r) && r.status === 'ok' && createdKey, 'deck_issue_create 正例：建成了（key=' + createdKey + '）')
     check(r.items.length === 0 && !(r.notes || []).some((n) => n.indexOf('必备标签') >= 0), 'deck_issue_create 对普通票不硬塞类型标签（notes：' + JSON.stringify(r.notes) + '）')
-    const files = ws.ticketFiles()
+    const files = ws.ticketFiles('demo-spec')
     check(files.length === 1, 'deck_issue_create 真的落到了盘上的票文件（' + files.join('、') + '）')
-    const text = files.length ? ws.readTicket(files[0]) : ''
+    const text = files.length ? ws.readTicket(files[0], 'demo-spec') : ''
     check(text.indexOf('wayfinder:') < 0, '普通票（issue）不带 wayfinder: 系列标签')
     check(text.indexOf('## 进度') >= 0, '进度区写进了票文件')
   }
@@ -186,12 +186,14 @@ async function main() {
   let specKey = ''
   {
     // 规格是与探索地图同级的顶层容器（#1403）：建规格不传 parentKey。
-    const r = await callTool('deck_issue_create', { title: '演示规格票', kind: 'spec', body: '## 问题陈述\n\n规格正文\n' })
+    // 一个目录只许一种容器：demo/ 里已经有演示地图 map.md，规格另起 demo-spec/ 目录，
+    // 不能和地图挤在同一个目录里（建规格撞上 map.md 会被拒绝，见下面那条负向）。
+    const r = await callTool('deck_issue_create', { title: '演示规格票', kind: 'spec', feature: 'demo-spec', body: '## 问题陈述\n\n规格正文\n' })
     specKey = String((r.data && r.data.ticket && r.data.ticket.key) || '')
     check(envelopeOk(r) && r.status === 'ok' && specKey, 'deck_issue_create 正例：建成规格票（key=' + specKey + '）')
     check(!!(r.data && r.data.ticket && r.data.ticket.type === 'spec'), '规格票读回来契约类型就是 spec（实得 ' + (r.data && r.data.ticket && r.data.ticket.type) + '）')
     // #1486：规格落成 <feature>/spec.md，不再是 issues/00-*.md；正文只留原文模板，插件状态进隐藏注释。
-    const text = ws.readSpec()
+    const text = ws.readSpec('demo-spec')
     const header = String(text).split('\n').slice(0, 8).join('\n')
     // #1480：规格没有可见一级标题，标题值放在文件头 DSH-TITLE 注释里。
     check(specKey === '00' && /^<!-- DSH-TITLE: 演示规格票 -->$/m.test(text) && !/^#[ \t]+\S/m.test(text), '规格票落成 spec.md，编号是 00，标题在 DSH-TITLE 注释里（key=' + specKey + '）')
@@ -202,13 +204,22 @@ async function main() {
     check(text.indexOf('parentKey:') < 0, '规格是顶层容器，票面不写父注释（前 8 行：' + JSON.stringify(header) + '）')
     check(text.indexOf('Type: spec') < 0, '规格票不再写 Type: spec 这一行')
     check(text.indexOf('## 进度') >= 0, '规格票也补进度区（#1403 起所有位置统一）')
-    const t = await callTool('deck_issue_create', { title: '演示实施票', kind: 'spec-ticket', parentKey: specKey, body: '**要构建什么：** 做一件事\n' })
+    const t = await callTool('deck_issue_create', { title: '演示实施票', kind: 'spec-ticket', feature: 'demo-spec', parentKey: specKey, body: '**要构建什么：** 做一件事\n' })
     const ticketKey = String((t.data && t.data.ticket && t.data.ticket.key) || '')
     check(envelopeOk(t) && t.status === 'ok' && ticketKey, 'deck_issue_create 正例：建成实施票（key=' + ticketKey + '）')
-    const tFile = ws.ticketFiles().filter((f) => f.indexOf(ticketKey + '-') >= 0)[0] || ''
-    const tText = tFile ? ws.readTicket(tFile) : ''
+    const tFile = ws.ticketFiles('demo-spec').filter((f) => f.indexOf(ticketKey + '-') >= 0)[0] || ''
+    const tText = tFile ? ws.readTicket(tFile, 'demo-spec') : ''
     check(tText.indexOf('<!-- DSH-PARENT: ' + specKey + ' -->') >= 0, '实施票的隐藏注释指向规格票（实得文件头：' + JSON.stringify(String(tText).split('\n').slice(0, 6)) + '）')
     check(tText.indexOf('DSH-ISSUE-KIND') < 0, '实施票不再写旧的 ticket 标记')
+    // 一个目录只许一种容器：点名已有地图的 demo/ 目录建规格，这次不建、指到新目录，盘上不许多出 spec.md。
+    {
+      const clash = await callTool('deck_issue_create', { title: '硬闯地图目录', kind: 'spec', feature: 'demo', body: '## 问题陈述\n\n硬闯。\n' })
+      const clashText = String((clash && clash.text) || '')
+      check(!!(clash && clash.ok === false && clash.status === 'unsupported'), '建规格撞上地图目录被拒绝（实得 ' + (clash && clash.status) + '）')
+      check(clashText.indexOf('一种容器') >= 0 && clashText.indexOf('map.md') >= 0, '拒绝说清一个目录只能放一种容器、对方是 map.md')
+      check(clashText.indexOf('新目录') >= 0, '拒绝指到新目录')
+      check(ws.readSpec('demo') === '', '拒绝后地图目录里没有多出 spec.md（零副作用）')
+    }
     // 列表：type=issue 不把规格票混进来。规格票在 list 里的身份（与 map.md 同为 00）归 #1488 统一处理，本票不锁。
     const onlyIssue = await callTool('deck_issue_list', { state: 'open', type: 'issue' })
     check(!!(onlyIssue.data && onlyIssue.data.issues.every((i) => String(i.key) !== specKey)), 'deck_issue_list 传 type=issue 不把规格票混进来')

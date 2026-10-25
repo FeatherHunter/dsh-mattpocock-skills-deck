@@ -35,6 +35,22 @@ export interface LayoutPlacement {
   createdAt: string
 }
 
+/** 对方容器的文件名（一个功能一个目录的判据，建两处与初始化一处共用这一份）。
+ *
+ *  为什么一个目录只许一种容器：原文 issue-tracker-local.md 只给了两种目录形状——
+ *  规格住 `.scratch/<feature-slug>/spec.md`（一个特性一个目录），探索地图住
+ *  `.scratch/<effort>/map.md`；物理上是同一层，没有“规格和地图住同一目录”这种形状。
+ *  同一个目录同时放 spec.md 和 map.md，后面读票、按编号取号、关票收口都会分不清这次说的
+ *  00 号是哪一个容器，所以写入端直接拦住，不留这种目录。
+ *
+ *  建规格时对方是 map.md，建地图时对方是 spec.md；票（实施票、地图子票、普通票）本来就可以
+ *  和容器住同一个目录，没有对方容器，返回空。 */
+function counterpartFile(kind: OriginalKind): string | null {
+  if (kind === 'spec') return 'map.md'
+  if (kind === 'map') return 'spec.md'
+  return null
+}
+
 async function dirOccupied(ctx: OpContext, dir: string): Promise<{ ok: true; occupied: boolean; names: string[] } | LayoutFailure> {
   const plat = getPlat(ctx)
   const listed = await listDir(ctx, dir)
@@ -63,6 +79,11 @@ async function generatedFeatureDir(ctx: OpContext, title: string, idempotencyKey
     const state = await dirOccupied(ctx, dir)
     if (!state.ok) return state
     if (!state.occupied) return { ok: true, root: dir, dirName: name }
+    // 初始化一处的拦点（与建规格、建地图两处共用 counterpartFile 判据）：初始化新目录时，
+    // 对方容器所在的目录不能复用，直接试下一个 -2/-3（这就是“指到新目录”）。
+    // 票不受这一条限制：票本来就可以和容器住在同一个目录里，counterpartFile 只对两种容器返回文件名。
+    const other = counterpartFile(kind)
+    if (other && state.names.indexOf(other) >= 0) continue
     // 已占用：如果里面已经有同一个幂等键的票，就复用这个目录（重复创建不能因撞名又多一份）。
     const specPath = plat.join(dir, 'spec.md')
     if (state.names.indexOf('spec.md') >= 0) {
@@ -317,6 +338,11 @@ export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath 
         // 按标题生成的目录在占用时已经换成 -2/-3 了；走到这里说明是显式目录，同上拒绝。
         return failAs(ERROR_KIND.CONFLICT, '目录「' + dirName + '」里已经有一份 spec.md（不是这次这个幂等键建的）：这次没建，免得覆盖它。', specPath)
       }
+      // 建规格处的拦点（与建地图、初始化共用 counterpartFile 判据）：点名的目录里已经有探索地图，
+      // 再把规格写进去会造出双容器目录。调用方点名的是这个目录，不擅自换地方，直接拒绝并指到新目录。
+      if (occupied.names.indexOf('map.md') >= 0) {
+        return failAs(ERROR_KIND.CONFLICT, '目录「' + dirName + '」里已经有一份探索地图（map.md）：一个目录只能放一种容器，这次没建规格，免得和地图挤在一个目录里。换一个 feature（例如「' + dirName + '-2」），或先用新目录。', specPath)
+      }
       const text = renderSpec(view, { createdAt: createdAt, idempotencyKey: idempotencyKey, labels: labels, assignees: assignees })
       await publishTextFile(ctx, specPath, text, ctx && (ctx as { sandboxPolicy?: unknown }).sandboxPolicy)
       return { ok: true, path: specPath, key: '00', effortId: dirName, reused: false, kind: kind, createdAt: createdAt }
@@ -336,6 +362,11 @@ export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath 
       if (!occupied.ok) return occupied
       if (occupied.names.indexOf('map.md') >= 0) {
         return failAs(ERROR_KIND.CONFLICT, '目录「' + dirName + '」里已经有一份 map.md（不是这次这个幂等键建的）：这次没建，免得覆盖它。换一个 effort，或先用新目录。', mapPath)
+      }
+      // 建地图处的拦点（与建规格、初始化共用 counterpartFile 判据）：点名的目录里已经有规格，
+      // 再把地图写进去会造出双容器目录。调用方点名的是这个目录，不擅自换地方，直接拒绝并指到新目录。
+      if (occupied.names.indexOf('spec.md') >= 0) {
+        return failAs(ERROR_KIND.CONFLICT, '目录「' + dirName + '」里已经有一份规格（spec.md）：一个目录只能放一种容器，这次没建地图，免得和规格挤在一个目录里。换一个 effort（例如「' + dirName + '-2」），或先用新目录。', mapPath)
       }
       const text = renderMap(view, { createdAt: createdAt, idempotencyKey: idempotencyKey, labels: labels, assignees: assignees })
       await publishTextFile(ctx, mapPath, text, ctx && (ctx as { sandboxPolicy?: unknown }).sandboxPolicy)
