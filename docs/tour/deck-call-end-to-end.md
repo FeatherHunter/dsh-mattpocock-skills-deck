@@ -723,7 +723,7 @@ run                  src/deck/tools/issue-report.ts:121-207
 
 **已知没写到的（留给下一版）**
 
-- 第三座房间 GitLab 只写了门面与最底层（`gitlab/index.ts:245-357` 的操作映射、`src/tracker/rooms/gitlab/client.ts:108` 的 `execGlab('glab', args, …)`），没有逐工具走一遍。它不在 #1094 点名的三座底层里（gh 进程、Markdown 文件、快照）。
+- 第三座房间 GitLab 只写了门面与最底层（`gitlab/index.ts:245-357` 的操作映射、`src/tracker/rooms/gitlab/client.ts:168` 的 `execGlab('glab', args, …)`），没有逐工具走一遍。它不在 #1094 点名的三座底层里（gh 进程、Markdown 文件、快照）。
 - 宿主电话 `wf.deckExec` 只写到它自己的六种回法为止；行模块拿到结果之后怎么渲染给 AI，没展开。
 - 快照与面板之间的那条读路（`src/host/sessionSnapshot.ts` / `src/host/sessionRefresh.ts` / `src/host/mapTickets.js`）只指了入口，没逐层展开。
 - 源码里个别名字与注释跟现状有出入（早年“七个工具”时期的叫法在搬家后多已消失，旧举例不再逐条列举）。这份文档按**代码实际行为**写，不按那些注释写；要不要改注释是另一件事。
