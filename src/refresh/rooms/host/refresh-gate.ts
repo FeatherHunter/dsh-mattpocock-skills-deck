@@ -73,11 +73,17 @@ interface NormalizedReq {
 /** 一个工作区被闸记住的状态（与账本无关，纯粹是本闸自己的记忆）。 */
 interface WorkspaceState {
   active: boolean; failuresSinceSuccess: number; rateLimitedUntil: number; backoffWindowStartedAt: number
-  // #1008/#1218 复核补的三格：这个窗口里「最近一次失败是谁、什么种类、连续第几次」。
+  // #1008 补的失败归因：这个失败窗口里「最近一笔真失败是谁」，以及「把连续失败数攒到门槛的最多前三笔分别是谁」。
   // 为什么必须有：从前日志只记「推迟了」与推迟原因，回答不了票面那句「这 3 次是谁攒的」——
-  // 同一个窗口里可能既有登录失败又有网络失败，归因丢了就分不清该修哪条路。
-  // 只在失败时写入、成功时清空，纯记忆，不参与任何裁决（裁决只看 failuresSinceSuccess 与窗口起点）。
-  lastFailure: { category: string; kind: string; streak: number } | null
+  // 同一个窗口里可能既有登录失败又有网络失败，归因丢了就分不清该修哪条路；只留最近一笔也不够，
+  // 验收要的是「不必再翻别的行就能读出这 3 次分别是谁」。
+  // 只在真失败时写入、真成功时清空，纯记忆，不参与任何裁决（裁决只看 failuresSinceSuccess 与窗口起点）。
+  // lastFailure.streak 保留原来「最近一笔是连续第几次」的含义（日志里的 failureStreak 因此一个字节没改）；
+  // failureTrail 另开一格存这几次分别是谁，每条写成 `类别:种类`，按发生顺序用 `>` 连接（旧到新）。
+  // 只记窗口里的前三笔（= 门槛笔数）：第 4 笔起可能是半开探针自己又失败，也可能是窗口里照常放行的
+  // quota-read / user-action 失败，都不追加，只更新最近一笔，免得把真正攒到门槛的那三笔挤出窗口。
+  // 两格都只存闸自己的枚举原文，不含路径、命令、响应正文。
+  lastFailure: { category: string; kind: string; streak: number } | null; failureTrail: string[]
 }
 
 /** 推迟队列里的一条：同一工作区只留最后一次（后来的覆盖先来的，覆盖次数计入 coalesced）。 */
@@ -321,7 +327,7 @@ export function createGate(deps?: GateDeps) {
 
   function wsState(key: string): WorkspaceState {
     let s = workspaces.get(key)
-    if (!s) { s = { active: false, failuresSinceSuccess: 0, rateLimitedUntil: 0, backoffWindowStartedAt: 0, lastFailure: null }; workspaces.set(key, s) }
+    if (!s) { s = { active: false, failuresSinceSuccess: 0, rateLimitedUntil: 0, backoffWindowStartedAt: 0, lastFailure: null, failureTrail: [] }; workspaces.set(key, s) }
     return s
   }
 
@@ -330,12 +336,18 @@ export function createGate(deps?: GateDeps) {
     return { active: !!s.active, failuresSinceSuccess: s.failuresSinceSuccess, rateLimited: s.rateLimitedUntil > now(), backoffWindowStartedAt: s.backoffWindowStartedAt }
   }
 
-  // #1008/#1218 复核补的失败归因：窗口里最近一次失败是谁（类别、种类、连续第几次），
-  // 只在失败窗口内写入、成功时清空，纯记忆不参与裁决；窗口外回 null，日志对象因此不多长字段，
-  // 正常时段的 refresh.decide 与从前一字不差。三个值都来自本闸自己的记忆，不查账本、不联网。
-  function failureAttribution(key: string) { const s = wsState(key); return (s.failuresSinceSuccess > 0 && s.lastFailure) ? { failuresSinceSuccess: s.failuresSinceSuccess, backoffWindowStartedAt: s.backoffWindowStartedAt, lastFailureCategory: s.lastFailure.category, lastFailureKind: s.lastFailure.kind, failureStreak: s.lastFailure.streak } : null }
-  function rememberFailure(key: string, category: string, kind: string, streak: number) { wsState(key).lastFailure = { category: category, kind: kind, streak: streak } }
-  function forgetFailure(key: string) { const s = wsState(key); s.failuresSinceSuccess = 0; s.lastFailure = null }
+  // #1008 补的失败归因：窗口里「攒到门槛的前三笔分别是谁」（failureTrail），加「最近一笔真失败是谁」。
+  // 只在失败窗口内带出、成功时清空，纯记忆不参与裁决；窗口外回 null，日志对象因此不多长字段，
+  // 正常时段的 refresh.decide 与从前一字不差。六个值都来自本闸自己的记忆，不查账本、不联网。
+  // failureStreak 保持原来那格「最近一笔是连续第几次」不变；这 3 次分别是谁由新开的 failureTrail 回答——
+  // 既有字段的含义不改（日志纪律：事件名与字段含义稳定），新轨迹登记在 tests/verify-log-fields.ts 与附录 #76/#77。
+  function failureAttribution(key: string) { const s = wsState(key); return (s.failuresSinceSuccess > 0 && s.lastFailure) ? { failuresSinceSuccess: s.failuresSinceSuccess, backoffWindowStartedAt: s.backoffWindowStartedAt, lastFailureCategory: s.lastFailure.category, lastFailureKind: s.lastFailure.kind, failureStreak: s.lastFailure.streak, failureTrail: s.failureTrail.join('>') } : null }
+  function rememberFailure(key: string, category: string, kind: string, failuresAfter: number) {
+    const s = wsState(key); s.lastFailure = { category: category, kind: kind, streak: failuresAfter }
+    // 窗口里的前三笔（= 门槛笔数）按发生顺序记进轨迹；第 4 笔起不追加（可能是半开探针失败，也可能是窗口里照常放行的 quota-read / user-action 失败），只更新最近一笔。
+    if (failuresAfter <= FAILURE_DEFER_AT) s.failureTrail.push(category + ':' + kind)
+  }
+  function forgetFailure(key: string) { const s = wsState(key); s.failuresSinceSuccess = 0; s.lastFailure = null; s.failureTrail = [] }
 
   /** 裁决的输入：类别 + 种类 + 桶的档位与账 + 工作区状态。slot 可由调用方传入，避免同一笔请求算两遍。 */
   function inputFor(req: NormalizedReq, slot?: QuotaSlot) {
@@ -353,11 +365,11 @@ export function createGate(deps?: GateDeps) {
   }
 
   // 账本三个事件之一（按需级 P1）：这一笔的结论与原因。外层先判调试开关，关着连字段对象都不组装。
-  // #1008/#1218：失败窗口里再补五个归因键（窗口外自动不加，正常时段的这一行与从前一字不差）。
+  // #1008/#1218：失败窗口里再补六个归因键（窗口外自动不加，正常时段的这一行与从前一字不差）。
   function fireDecide(req: NormalizedReq, verdict: string, reason: string, slot: QuotaSlot) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', Object.assign({ category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: slot.facts.readKnown ? policyTierOf(slot) : '', cycle: req.cycle, keyHash: hash8(req.workspaceKey), backendId: slot.facts.backendId, budgetKind: slot.facts.budgetKind, readKnown: slot.facts.readKnown, offNetwork: slot.facts.offNetwork }, failureAttribution(req.workspaceKey) || {})) } catch (eL) {} }
 
   // 账本三个事件之一（按需级 P1）：被跳过的那些（后台档被推迟、额度不足、过期丢弃）。
-  // #1008/#1218：同样只在失败窗口里补五个归因键。
+  // #1008/#1218：同样只在失败窗口里补六个归因键。
   function fireSkipped(key: string, kind: string, reason: string, pending: number) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.skipped', Object.assign({ keyHash: hash8(key), kind: kind, reason: reason, pending: pending }, failureAttribution(key) || {})) } catch (eL) {} }
 
   /** 只看结论不发送（界面与门禁都要能用同一套裁决问一句）。 */
@@ -413,7 +425,8 @@ export function createGate(deps?: GateDeps) {
       const failed = wsState(req.workspaceKey)
       failed.failuresSinceSuccess = next.failures
       failed.backoffWindowStartedAt = next.windowStartedAt
-      // #1008/#1218：把「最近这一次失败是谁」记进本工作区，下一次裁决与跳过落日志时带出去。
+      // #1008：把「最近这一次失败是谁」记进本工作区，并把攒到门槛的前三笔追加进 failureTrail；
+      // 下一次裁决与跳过落日志时带出去，回答「这个工作区的这 3 次是谁攒的」。
       rememberFailure(req.workspaceKey, req.category, req.kind, next.failures)
       throw failure
     }
