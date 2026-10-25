@@ -84,15 +84,23 @@ function listFiles(dir: string): string[] {
   try { return fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort() } catch { return [] }
 }
 
-/** 第一个一级标题之前的所有 DSH 隐藏注释行；顺序原样保留。 */
+/** 第一个可见标题之前的所有 DSH 隐藏注释行；顺序原样保留。
+ *  地图按原文模板不写一级标题，第一个可见标题就是正文第一个段标题（## Destination），
+ *  所以这里遇到一级或二级标题都算正文开始。 */
 function headerComments(text: string): string[] {
   const lines = text.split('\n')
   const out: string[] = []
   for (const line of lines) {
-    if (/^#\s+/.test(line)) break
+    if (/^#{1,2}\s+/.test(line)) break
     if (/^\s*<!--\s*DSH-[A-Z-]+:/.test(line)) out.push(line.trim())
   }
   return out
+}
+
+/** 第一个可见标题（一级或二级）的字符位置；没有就返回 -1。 */
+function firstHeadingIndex(text: string): number {
+  const m = /^#{1,2}[ \t]+\S.*$/m.exec(text)
+  return m ? m.index : -1
 }
 
 /** 一段正文在某个二级标题下的内容（不含标题本身，到下一个二级标题为止）。 */
@@ -134,7 +142,9 @@ async function main(): Promise<void> {
 
   const mapText = readText(mapPath)
   check(mapText.startsWith('<!-- DSH-FORMAT: md-v1 -->'), '② 地图文件第一行是 DSH-FORMAT')
-  check(/^# 探索地图甲$/m.test(mapText), '② 地图标题按原文形状 # <地图标题>')
+  check(!/^#[ \t]+\S/m.test(mapText), '② 地图不写可见一级标题（原文模板没有标题行，标题在 DSH-TITLE 里）')
+  check(headerComments(mapText).indexOf('<!-- DSH-TITLE: 探索地图甲 -->') >= 0, '② 地图标题写进 DSH-TITLE 隐藏注释')
+  check(firstHeadingIndex(mapText) > mapText.indexOf('<!-- DSH-TITLE: 探索地图甲 -->'), '② 地图的 DSH-TITLE 在正文第一个段标题之前')
   // 五段标题逐字按原文，而且按原文顺序出现。
   const headingOrder = MAP_SECTION_TITLES.map((title) => mapText.indexOf('## ' + title))
   check(headingOrder.every((at) => at >= 0), '② 地图正文五段标题逐字齐：' + JSON.stringify(headingOrder))
@@ -147,7 +157,8 @@ async function main(): Promise<void> {
   check(mapHeader.indexOf('<!-- DSH-STATUS: ready-for-agent -->') >= 0, '② 地图状态写进 DSH-STATUS')
   check(mapHeader.indexOf('<!-- DSH-LABELS: wayfinder:map -->') >= 0, '② 地图标签写进 DSH-LABELS')
   check(mapHeader.some((l) => /^<!-- DSH-IDEMPOTENCY-KEY: map-1487-a -->$/.test(l)), '② 地图幂等键写进隐藏注释')
-  check(mapHeader.every((l) => mapText.indexOf(l) < mapText.indexOf('# 探索地图甲')), '② 地图隐藏注释都在第一个一级标题之前')
+  const mapBodyStart = firstHeadingIndex(mapText)
+  check(mapBodyStart >= 0 && mapHeader.every((l) => mapText.indexOf(l) < mapBodyStart), '② 地图隐藏注释都在第一个可见标题（正文段标题）之前')
   check(!/DSH-PARENT/.test(mapText), '② 地图不写 DSH-PARENT')
 
   // 同一幂等键重复建同一条地图：不重复生成目录，仍回 00。
@@ -277,14 +288,18 @@ async function main(): Promise<void> {
 
   // ══ 第五段：模板文字必须从 MD_FORMAT 渲染，不能手写一份 ══
   const objects = (MD_FORMAT as unknown as { objects: Record<string, Record<string, unknown>> }).objects
-  const mapObject = objects.map
-  const mapTitleShape = String(mapObject['title-shape'])
-  mapObject['title-shape'] = '# 地图模板哨兵: <地图标题>'
-  try {
-    const probe = renderMap({ title: '哨兵地图', body: '' }, { createdAt: '2026-01-01T00:00:00.000Z', idempotencyKey: 'probe', labels: [], assignees: [] })
-    check(probe.indexOf('# 地图模板哨兵: 哨兵地图') >= 0, '⑤ 地图标题从 MD_FORMAT 渲染（改配置，输出跟着变）')
-  } finally {
-    mapObject['title-shape'] = mapTitleShape
+  const hiddenEntries = (MD_FORMAT as unknown as { 'hidden-comments': { entries: Array<Record<string, unknown>> } })['hidden-comments'].entries
+  const mapTitleEntry = hiddenEntries.find((entry) => entry.name === 'DSH-TITLE')
+  check(!!mapTitleEntry, '⑤ YAML 里登记了 DSH-TITLE 隐藏注释')
+  if (mapTitleEntry) {
+    const mapTitleLine = String(mapTitleEntry.line)
+    mapTitleEntry.line = '<!-- DSH-TITLE: 地图模板哨兵: <> -->'
+    try {
+      const probe = renderMap({ title: '哨兵地图', body: '' }, { createdAt: '2026-01-01T00:00:00.000Z', idempotencyKey: 'probe', labels: [], assignees: [] })
+      check(probe.indexOf('<!-- DSH-TITLE: 地图模板哨兵: 哨兵地图 -->') >= 0, '⑤ 地图标题注释从 MD_FORMAT 渲染（改配置，输出跟着变）')
+    } finally {
+      mapTitleEntry.line = mapTitleLine
+    }
   }
   const childObject = objects['wayfinder-child']
   const bodySection = String(childObject['body-section'])

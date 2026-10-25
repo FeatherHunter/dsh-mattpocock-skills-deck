@@ -485,8 +485,9 @@ async function main() {
           const lines = specText.split('\n')
           check(specFile === 'spec.md' && specText.indexOf('双轨规格票') >= 0 && specText.indexOf('untitled') < 0,
             '[' + lane.id + '] 双轨 B 规格票落成 spec.md、标题在正文里：' + specFile)
-          check((lines[0] || '') === '<!-- DSH-FORMAT: md-v1 -->' && /^<!-- DSH-STATUS: /.test(lines[1] || '') && lines.slice(0, 8).some((l) => /^<!-- DSH-IDEMPOTENCY-KEY: /.test(l)) && lines.slice(0, 10).every((l) => !/^<!--\s*(?:parentKey|DSH-PARENT):/.test(l)),
-            '[' + lane.id + '] 双轨 B 规格票文件头是隐藏注释（格式 → 状态 → 标签 → 锚）、无父注释：' + JSON.stringify(lines.slice(0, 6)))
+          // #1480：规格没有可见一级标题，文件头在格式之后先写 DSH-TITLE，再写状态。
+          check((lines[0] || '') === '<!-- DSH-FORMAT: md-v1 -->' && /^<!-- DSH-TITLE: .*双轨规格票/.test(lines[1] || '') && /^<!-- DSH-STATUS: /.test(lines[2] || '') && lines.slice(0, 8).some((l) => /^<!-- DSH-IDEMPOTENCY-KEY: /.test(l)) && lines.slice(0, 10).every((l) => !/^<!--\s*(?:parentKey|DSH-PARENT):/.test(l)),
+            '[' + lane.id + '] 双轨 B 规格票文件头是隐藏注释（格式 → 标题 → 状态 → 标签 → 锚）、无父注释：' + JSON.stringify(lines.slice(0, 6)))
           check(specText.indexOf('Type: spec') < 0 && specText.indexOf('DSH-ISSUE-KIND') < 0,
             '[' + lane.id + '] 双轨 B 规格票不再写 Type: spec 与旧类型标记')
         } else {

@@ -9,7 +9,7 @@
  * 本门禁逐条钉票面验收（编号照 #1488）：
  *  ① 只含 spec.md 的目录能被识别，并把规格与实施票列出来；
  *  ② 三个以上目录、同号票并存时，列表与单票读取都按目录区分，不互相串；
- *  ③ 工作区根 issues/ 的旧票仍可列出、可读、可改，读取时留下兼容日志；
+ *  ③ 工作区根 issues/ 的旧票仍可列出、可读，读取时留下兼容日志；旧布局只读，写路径如实拒绝（#1480 两轴评审）；
  *  ④ 重复编号与非规范文件名有确定的退化显示规则并打日志，不抛错；
  *  ⑤ 环境预检、计数、分页等读路径在混合布局下都正常。
  *
@@ -167,7 +167,7 @@ async function main() {
     check(scopedRows.some(function (r) { return r.type === 'spec' }) && scopedRows.some(function (r) { return r.key === '01' }), '② 收窄后的 beta 仍同时有规格行与 01 号票行')
   }
 
-  console.log('== ③ 工作区根 issues/ 的旧票：可列出、可读、可改，读取时留兼容日志 ==')
+  console.log('== ③ 工作区根 issues/ 的旧票：可列出、可读，写路径如实拒绝，读取时留兼容日志 ==')
   {
     const root = fs.mkdtempSync(path.join(tmpRoot, 'legacy-'))
     // #1486 之前没给工作单元时，建票落到工作区根 issues/；这些票还在原地，必须原样可用。
@@ -190,10 +190,13 @@ async function main() {
     const getLogs = degradations(ctx).filter(function (e) { return e.fields.reason === 'get:legacy-root' })
     check(getLogs.length === 1, '③ 读取旧票时留下一条 get:legacy-root 兼容日志（' + getLogs.length + '）')
 
+    // #1480 两轴评审：旧布局只读。规格 #1488 只要求「仍可读、不迁移」，写路径必须如实失败。
+    const beforeDisk = fs.readFileSync(path.join(root, 'issues', '01-legacy-root.md'), 'utf8')
     const updated = await be.update(REPO as never, '01', { title: '旧票改过的标题' } as never, ctx as never)
-    check(updated.ok === true, '③ 旧票可改（update 成功）')
+    check(updated.ok === false && updated.error.kind === 'unsupported', '③ 旧票不能改：update 如实失败（' + (updated.ok ? '竟然成功' : updated.error.kind) + '）')
+    check(!updated.ok && /旧布局/.test(updated.error.message) && /只读/.test(updated.error.message), '③ 失败话说清旧布局的票只读，迁移另行处理（' + (updated.ok ? '' : updated.error.message) + '）')
     const onDisk = fs.readFileSync(path.join(root, 'issues', '01-legacy-root.md'), 'utf8')
-    check(onDisk.includes('旧票改过的标题'), '③ 改动落回工作区根 issues/ 的原文件（不迁移、不新建到 .scratch 下）')
+    check(onDisk === beforeDisk && !onDisk.includes('旧票改过的标题'), '③ 拒绝后旧票文件逐字节未变（不迁移、不新建到 .scratch 下）')
     check(!fs.existsSync(path.join(root, '.scratch', 'issues', '01-legacy-root.md')), '③ 没有把旧票复制或迁移到 .scratch 下')
   }
 

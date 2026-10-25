@@ -130,7 +130,8 @@ async function main(): Promise<void> {
   if (fs.existsSync(specPath)) {
     specText = fs.readFileSync(specPath, 'utf8')
     const lines = specText.split('\n')
-    check(/^<!-- DSH-FORMAT: /.test(lines[0]) && /^<!-- DSH-STATUS: /.test(lines[1]), '文件头：格式之后紧跟状态', lines.slice(0, 4))
+    // #1480：规格没有可见一级标题，标题值放在 DSH-TITLE 注释里；它固定排在 DSH-FORMAT 之后、DSH-STATUS 之前。
+    check(/^<!-- DSH-FORMAT: /.test(lines[0]) && /^<!-- DSH-TITLE: 实施地图规格 -->$/.test(lines[1]) && /^<!-- DSH-STATUS: /.test(lines[2]), '文件头：格式、标题、状态依次排列', lines.slice(0, 4))
     check(lines.slice(0, 6).every((l: string) => !/^<!--\s*(?:parentKey|DSH-ISSUE-KIND)/.test(l)), '规格不写父注释、也不再写旧类型标记', lines.slice(0, 6))
     check(!/^\s*Type\s*[:\uFF1A]/.test(specText), '规格票不写 Type: spec 行')
     check((specText.match(/DSH-ISSUE-KIND/g) || []).length === 0, '新布局文件里没有旧类型标记')

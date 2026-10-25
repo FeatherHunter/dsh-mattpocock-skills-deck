@@ -193,7 +193,8 @@ async function main() {
     // #1486：规格落成 <feature>/spec.md，不再是 issues/00-*.md；正文只留原文模板，插件状态进隐藏注释。
     const text = ws.readSpec()
     const header = String(text).split('\n').slice(0, 8).join('\n')
-    check(specKey === '00' && text.indexOf('# 演示规格票') >= 0, '规格票落成 spec.md，编号是 00（key=' + specKey + '）')
+    // #1480：规格没有可见一级标题，标题值放在文件头 DSH-TITLE 注释里。
+    check(specKey === '00' && /^<!-- DSH-TITLE: 演示规格票 -->$/m.test(text) && !/^#[ \t]+\S/m.test(text), '规格票落成 spec.md，编号是 00，标题在 DSH-TITLE 注释里（key=' + specKey + '）')
     check(text.indexOf('<!-- DSH-FORMAT: md-v1 -->') >= 0, '规格票的文件头写了格式版本注释（前 8 行：' + JSON.stringify(header) + '）')
     check(/^<!-- DSH-STATUS: ready-for-agent -->$/m.test(text), '规格票的隐藏注释写状态 ready-for-agent')
     check(/^<!-- DSH-LABELS: .*ready-for-agent -->$/m.test(text), '规格票带的必备标签是 ready-for-agent')

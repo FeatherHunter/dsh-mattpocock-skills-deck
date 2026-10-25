@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T00:38:32.357Z",
+  "generatedAt": "2026-10-25T02:07:25.420Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 375,
-  "gateCount": 375,
-  "attributedGates": 335,
+  "chainLength": 376,
+  "gateCount": 376,
+  "attributedGates": 336,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
@@ -3045,6 +3045,30 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1480-review-fixes.ts",
+      "file": "tests/verify-1480-review-fixes.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/comments.ts",
+        "src/tracker/rooms/markdown/create-render.ts",
+        "src/tracker/rooms/markdown/issues-create.ts",
+        "src/tracker/rooms/markdown/issues-locate.ts",
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues-status.ts",
+        "src/tracker/rooms/markdown/map-render.ts",
+        "src/tracker/rooms/markdown/original-fields.ts",
+        "src/tracker/rooms/markdown/parse.ts",
+        "src/tracker/rooms/markdown/patch-body.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 10 条）"
     },
     {
       "step": "node tests/verify-1482-graphql-accounting.ts",
@@ -10167,6 +10191,7 @@
       "node tests/verify-1403-kind-two-layer.ts",
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1446-static-gate.ts",
+      "node tests/verify-1480-review-fixes.ts",
       "node tests/verify-1486-md-create-layout.ts",
       "node tests/verify-1487-map-create.ts",
       "node tests/verify-1487-map-plan.ts",

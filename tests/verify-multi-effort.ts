@@ -12,7 +12,7 @@
  *  ③ 给第二个 effort 的票写评论只改第二个 effort 的文件；
  *  ④ 不带 effortId 的写操作在多 effort 同号时诚实报 conflict，绝不猜文件；
  *  ⑤ 建票落在指定 effort 内并按该 effort 取号（每个 effort 从 01 起）；
- *  ⑥ 单 effort / 扁平布局（.scratch/map.md）行为不变（effortId 为空串，老路径照走）。
+ *  ⑥ 单 effort / 扁平布局（.scratch/map.md）读取行为不变（effortId 为空串）；旧版扁平 issues/ 只读，写路径如实失败（#1480 两轴评审）。
  *
  * 运行：node tests/verify-multi-effort.ts
  */
@@ -149,9 +149,12 @@ console.log('== ⑥ 单 effort / 扁平布局行为不变 ==')
   check(lr.ok && lr.data.every((x) => x.effortId === ''), '扁平布局 effortId 为空串（EMPTY，不是 MISSING）')
   const g = await getIssue(ctx, repo, '01', {})
   check(g.ok && g.data.title === 'Flat First', `无 effort 也能读（实际 ${g.ok ? g.data.title : 'err'}）`)
+  // #1480 两轴评审：旧版工作区根 / .scratch 的扁平 issues/ 只读 —— 读照旧，写一律如实失败。
+  const flatBefore = fs.readFileSync(path.join(tmp, '.scratch', 'issues', '01-ticket.md'), 'utf8')
   const cm = await addComment(ctx, repo, '01', '扁平布局评论')
-  check(cm.ok === true, '无 effort 的写操作在单 effort 仓库照常成功')
-  check(fs.readFileSync(path.join(tmp, '.scratch', 'issues', '01-ticket.md'), 'utf8').includes('扁平布局评论'), '评论落在扁平布局文件里')
+  check(cm.ok === false && cm.error.kind === 'unsupported', '扁平布局的票不能写：addComment 如实失败（' + (cm.ok ? '竟然成功' : cm.error.kind) + '）')
+  check(!cm.ok && /旧布局/.test(cm.error.message) && /只读/.test(cm.error.message), '失败话说清旧布局的票只读，迁移另行处理')
+  check(fs.readFileSync(path.join(tmp, '.scratch', 'issues', '01-ticket.md'), 'utf8') === flatBefore, '拒绝后扁平布局文件逐字节未变')
 
   console.log('== 身份函数自检 ==')
   check(idOf({ effortId: 'a', key: '01' }) !== idOf({ effortId: 'b', key: '01' }), '不同 effort 的同号票身份不同')

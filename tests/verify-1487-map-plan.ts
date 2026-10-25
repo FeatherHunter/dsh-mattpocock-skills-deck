@@ -108,7 +108,8 @@ async function main() {
   check(fs.existsSync(mapPath), '盘上有 .scratch/plan-effort/map.md（路径 ' + mapPath + '）')
   check(!fs.existsSync(path.join(effortDir, '01-map.md')), '旧扁平布局的 01-map.md 不再出现')
   const mapText = fs.existsSync(mapPath) ? fs.readFileSync(mapPath, 'utf8') : ''
-  check(mapText.indexOf('# 探索地图乙') >= 0, '地图正文有一级标题：' + JSON.stringify(mapText.slice(0, 80)))
+  check(!/^#[ \t]+\S/m.test(mapText), '地图不写可见一级标题（原文模板没有标题行）：' + JSON.stringify(mapText.slice(0, 80)))
+  check(mapText.indexOf('<!-- DSH-TITLE: 探索地图乙 -->') >= 0, '地图标题写进 DSH-TITLE 隐藏注释：' + JSON.stringify(mapText.slice(0, 200)))
   check(mapText.indexOf('## Destination') >= 0 && mapText.indexOf('## Notes') >= 0 && mapText.indexOf('## Decisions so far') >= 0 && mapText.indexOf('## Not yet specified') >= 0 && mapText.indexOf('## Out of scope') >= 0, '地图五区块齐（原文模板）')
   check(mapText.indexOf('## 进度') >= 0, '地图有 ## 进度（原文件末尾追加）')
   check(/<!--\s*DSH-STATUS\s*:/.test(mapText), '地图的状态写在隐藏注释里，没有可见 Status 行：' + JSON.stringify(mapText.split('\n').slice(0, 8)))

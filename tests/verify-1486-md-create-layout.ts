@@ -76,29 +76,34 @@ function listFiles(dir: string): string[] {
   try { return fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort() } catch { return [] }
 }
 
-/** 第一个一级标题之前的所有 DSH 隐藏注释行；顺序原样保留。 */
+/** 第一个可见标题之前的所有 DSH 隐藏注释行；顺序原样保留。
+ *  规格与地图按原文模板不写一级标题，它们的第一个可见标题就是正文第一个段标题（## …），
+ *  所以这里遇到一级或二级标题都算正文开始。 */
 function headerComments(text: string): string[] {
   const lines = text.split('\n')
   const out: string[] = []
   for (const line of lines) {
-    if (/^#\s+/.test(line)) break
+    if (/^#{1,2}\s+/.test(line)) break
     if (/^\s*<!--\s*DSH-[A-Z-]+:/.test(line)) out.push(line.trim())
   }
   return out
 }
 
-function h1IndexOf(text: string): number {
-  return text.split('\n').findIndex((line) => /^#\s+/.test(line))
+/** 第一个可见标题（一级或二级）的字符位置；没有就返回 -1。 */
+function firstHeadingIndex(text: string): number {
+  const m = /^#{1,2}[ \t]+\S.*$/m.exec(text)
+  return m ? m.index : -1
 }
 
-function commentsBeforeH1(text: string): boolean {
+/** 隐藏注释是否都在第一个可见标题之前；规格/地图没有一级标题，因此按第一个段标题算。 */
+function commentsBeforeFirstHeading(text: string): boolean {
   const lines = text.split('\n')
-  const h1 = lines.findIndex((line) => /^#\s+/.test(line))
-  if (h1 < 0) return false
+  const first = lines.findIndex((line) => /^#{1,2}\s+/.test(line))
+  if (first < 0) return false
   let seen = false
   for (let i = 0; i < lines.length; i += 1) {
     const isComment = /^\s*<!--\s*DSH-[A-Z-]+:/.test(lines[i])
-    if (isComment && i > h1) return false
+    if (isComment && i > first) return false
     if (isComment) seen = true
   }
   return seen
@@ -129,10 +134,11 @@ async function main(): Promise<void> {
 
   const specText = readText(specPath)
   check(specText.startsWith('<!-- DSH-FORMAT: md-v1 -->'), '③ 规格文件第一行是 DSH-FORMAT')
-  check(commentsBeforeH1(specText), '③ 规格的隐藏注释都在第一个一级标题之前')
+  check(commentsBeforeFirstHeading(specText), '③ 规格的隐藏注释都在第一个可见标题之前（规格没有一级标题，按正文第一个段标题算）')
   const specHeader = headerComments(specText)
-  check(specHeader.length === 5, '③ 规格隐藏注释一行一条，共 5 条：' + JSON.stringify(specHeader))
+  check(specHeader.length === 6, '③ 规格隐藏注释一行一条，共 6 条：' + JSON.stringify(specHeader))
   check(specHeader[0] === '<!-- DSH-FORMAT: md-v1 -->', '③ 第一条是 DSH-FORMAT')
+  check(specHeader.indexOf('<!-- DSH-TITLE: 买咖啡积分 -->') >= 0, '③ 规格标题写进 DSH-TITLE 隐藏注释')
   check(specHeader.indexOf('<!-- DSH-STATUS: ready-for-agent -->') >= 0, '③ 规格状态写进 DSH-STATUS')
   check(specHeader.indexOf('<!-- DSH-LABELS: ready-for-agent -->') >= 0, '③ 规格标签写进 DSH-LABELS')
   check(specHeader.some((l) => /^<!-- DSH-IDEMPOTENCY-KEY: spec-1486-a -->$/.test(l)), '③ 幂等键写进隐藏注释')
@@ -141,7 +147,10 @@ async function main(): Promise<void> {
   check(!/^\s*Status\s*[:\uFF1A]/m.test(specText), '③ 规格正文没有可见 Status 行')
   check(!/##\s*Comments/.test(specText), '③ 规格正文没有旧的 Comments 骨架')
   check(!/<!--\s*created\s*:/.test(specText), '③ 规格正文没有旧的 created 注释')
-  check(/^# 买咖啡积分$/m.test(specText), '③ 一级标题是规格标题')
+  check(!/^#[ \t]+\S/m.test(specText), '③ 规格不写可见一级标题（原文模板没有标题行，标题在 DSH-TITLE 里）')
+  const specFirstHeading = /^#{1,2}[ \t]+\S.*$/m.exec(specText)
+  check(!!specFirstHeading && specFirstHeading[0].trim() === '## Problem Statement', '③ 规格正文第一个可见标题就是原文模板的 Problem Statement：' + (specFirstHeading ? specFirstHeading[0].trim() : '（没有标题）'))
+  check(firstHeadingIndex(specText) > specText.indexOf('<!-- DSH-TITLE: 买咖啡积分 -->'), '③ 规格的 DSH-TITLE 在正文第一个段标题之前')
   check(/## Problem Statement/.test(specText) && /## Solution/.test(specText), '③ 原文段落保留')
   check(specText.indexOf('用户想用积分买咖啡。') > specText.indexOf('## Problem Statement'), '③ 段落正文保留')
 
@@ -184,7 +193,7 @@ async function main(): Promise<void> {
   check(ticketHeader.length === 5, '③ 实施票隐藏注释共 5 条：' + JSON.stringify(ticketHeader))
   check(ticketHeader.indexOf('<!-- DSH-PARENT: 00 -->') >= 0, '③ 实施票父票写进 DSH-PARENT')
   check(ticketHeader.indexOf('<!-- DSH-STATUS: ready-for-agent -->') < 0, '③ 实施票不写隐藏状态（可见 Status 行就是状态）')
-  check(commentsBeforeH1(ticketText), '③ 实施票隐藏注释都在一级标题之前')
+  check(commentsBeforeFirstHeading(ticketText), '③ 实施票隐藏注释都在一级标题之前')
 
   const ticketAgain = await create(ctx, featureRepo, {
     title: '第一步',
@@ -262,14 +271,18 @@ async function main(): Promise<void> {
 
   // —— ⑥ 模板文字必须从 MD_FORMAT 渲染，不能再手写一份：运行时改掉配置里的标题/字段形状，
   //       渲染结果必须跟着变；不跟着变就说明代码又抄了一份模板，和 YAML 分叉了。——
-  const specObject = (MD_FORMAT as unknown as { objects: Record<string, Record<string, unknown>> }).objects.spec
-  const specTitleShape = String(specObject['title-shape'])
-  specObject['title-shape'] = '# 模板哨兵: <spec 标题>'
-  try {
-    const probe = renderSpec({ title: '哨兵标题', body: '' }, { createdAt: '2026-01-01T00:00:00.000Z', idempotencyKey: 'probe', labels: [], assignees: [] })
-    check(probe.indexOf('# 模板哨兵: 哨兵标题') >= 0, '⑥ 规格标题从 MD_FORMAT 渲染（改配置，输出跟着变）')
-  } finally {
-    specObject['title-shape'] = specTitleShape
+  const hiddenEntries = (MD_FORMAT as unknown as { 'hidden-comments': { entries: Array<Record<string, unknown>> } })['hidden-comments'].entries
+  const specTitleEntry = hiddenEntries.find((entry) => entry.name === 'DSH-TITLE')
+  check(!!specTitleEntry, '⑥ YAML 里登记了 DSH-TITLE 隐藏注释')
+  if (specTitleEntry) {
+    const specTitleLine = String(specTitleEntry.line)
+    specTitleEntry.line = '<!-- DSH-TITLE: 模板哨兵: <> -->'
+    try {
+      const probe = renderSpec({ title: '哨兵标题', body: '' }, { createdAt: '2026-01-01T00:00:00.000Z', idempotencyKey: 'probe', labels: [], assignees: [] })
+      check(probe.indexOf('<!-- DSH-TITLE: 模板哨兵: 哨兵标题 -->') >= 0, '⑥ 规格标题注释从 MD_FORMAT 渲染（改配置，输出跟着变）')
+    } finally {
+      specTitleEntry.line = specTitleLine
+    }
   }
   const plainObject = (MD_FORMAT as unknown as { objects: Record<string, Record<string, unknown>> }).objects['implementation-ticket']
   const plainFields = plainObject.fields as Array<Record<string, unknown>>

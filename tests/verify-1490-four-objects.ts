@@ -108,11 +108,13 @@ function sectionBody(text: string, heading: string): string {
   }
   return out.join('\n')
 }
-/** H1 之前的所有插件隐藏注释行（#1480 允许 deck 写的信息只能出现在这里）。 */
+/** 第一个可见标题之前的所有插件隐藏注释行（#1480 允许 deck 写的信息只能出现在这里）。
+ *  规格与地图按原文模板不写一级标题，它们的第一个可见标题就是正文第一个段标题（## …），
+ *  所以这里遇到一级或二级标题都算正文开始。 */
 function headerComments(text: string): string[] {
   const out: string[] = []
   for (const line of text.split('\n')) {
-    if (/^#\s/.test(line)) break
+    if (/^#{1,2}\s/.test(line)) break
     if (/^\s*<!--\s*DSH-[A-Z-]+:/.test(line)) out.push(line.trim())
   }
   return out
@@ -186,8 +188,10 @@ try {
   const specInitial = readText(specPath)
   eq(h2s(specInitial), ['Problem Statement', 'Solution', 'User Stories', 'Implementation Decisions', 'Testing Decisions', 'Out of Scope', 'Further Notes'], '规格文件按原文七段写')
   check(specInitial.split('\n')[0] === '<!-- DSH-FORMAT: md-v1 -->', '规格文件第一行是插件格式隐藏注释')
-  check(headerComments(specInitial).length >= 4, '规格的插件信息都以 H1 前的隐藏注释给出')
-  check(specInitial.indexOf('<!-- DSH-FORMAT') < specInitial.indexOf('# 积分兑换'), '规格标题在隐藏注释之后')
+  check(headerComments(specInitial).length >= 6, '规格的插件信息都以第一个可见标题前的隐藏注释给出：' + JSON.stringify(headerComments(specInitial)))
+  check(!/^#[ \t]+\S/m.test(specInitial), '规格不写可见一级标题（原文模板没有标题行）')
+  check(headerComments(specInitial).some((l) => l === '<!-- DSH-TITLE: 积分兑换 -->'), '规格标题写进 DSH-TITLE 隐藏注释')
+  check(specInitial.indexOf('<!-- DSH-FORMAT') < specInitial.indexOf('## Problem Statement'), '规格隐藏注释在正文第一个段标题之前')
   check(!specInitial.includes('DSH-ISSUE-KIND'), '新写规格不再写 #1486 之前的对象类型标记')
   check(!/^Status:/m.test(specInitial), '规格没有可见 Status 行（状态只放隐藏注释）')
   eq(fs.readdirSync(path.join(tmp1, '.scratch', '积分兑换')).sort(), ['spec.md'], '规格先单独落在 feature 目录，没有多造空目录')
@@ -214,6 +218,9 @@ try {
   eq(h2s(mapInitial), ['Destination', 'Notes', 'Decisions so far', 'Not yet specified', 'Out of scope'], '探索地图按原文五段写')
   check(sectionBody(mapInitial, 'Destination').includes('先把现成方案摸清楚。'), '探索地图正文落在 Destination 段')
   check(!/^Status:/m.test(mapInitial), '探索地图没有可见 Status 行')
+  check(!/^#[ \t]+\S/m.test(mapInitial), '探索地图不写可见一级标题（原文模板没有标题行）')
+  check(headerComments(mapInitial).some((l) => l === '<!-- DSH-TITLE: 探索地图乙 -->'), '探索地图标题写进 DSH-TITLE 隐藏注释')
+  check(mapInitial.indexOf('<!-- DSH-TITLE') < mapInitial.indexOf('## Destination'), '探索地图隐藏注释在正文第一个段标题之前')
   eq(fs.readdirSync(path.join(tmp1, '.scratch', 'effort-a')).sort(), ['map.md'], '探索地图先单独落在 effort 目录，没有多造空目录')
 
   const gotMap: any = await be.get(effortRepo, '00', {}, ctx)

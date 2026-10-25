@@ -147,6 +147,10 @@ async function main(): Promise<void> {
     { name: '顶层有未知键', mutate: (d) => { d['unknown-key'] = 1 } },
     { name: 'pin 格式不对', mutate: (d) => { d.upstream.pin = '1.3.1' } },
     { name: 'reuse 指向不存在的对象', mutate: (d) => { d.objects.map.reuse = 'not-a-real-key' } },
+    // #1480：规格与地图的原文模板没有标题行，落盘也不许再写可见一级标题；标题只能进 DSH-TITLE。
+    // 这条演练守的就是「有人把 title-shape 加回规格」时校验器立刻判红。
+    { name: '规格又写回可见一级标题', mutate: (d) => { d.objects.spec['title-shape'] = '# <spec 标题>' } },
+    { name: '地图标题注释指向不存在的隐藏注释', mutate: (d) => { d.objects.map['title-comment'] = 'DSH-NO-SUCH-TITLE' } },
   ]
   for (const drill of drills) {
     const copy: Record<string, any> = JSON.parse(JSON.stringify(cfg))
