@@ -114,9 +114,11 @@ function createdMs(raw: unknown): number | null {
 
 /** 回查失败时的一句话（原因沿用既有分类，说得清是哪条路出的问题）。
  *  档位由调用方给：这几处「回查没做成」的原因是房内当场就知道的事实（地址不合法、翻不完、
- *  正文读不出来），不是从文本猜出来的；原文段一律带上手里那个值，人才能自己核对。 */
+ *  正文读不出来），不是从文本猜出来的；原文段一律带上手里那个值，人才能自己核对。
+ *  #1171：这句话只陈述事实（回查没做成、这一次没有建票），不推荐调用面上不存在的做法 ——
+ *  「换用不带锚的创建」是工具那一层做不到的动作。能做什么由调用方补；stage 让它认得出这一档。 */
 function lookupFailure(kind: ErrorKind, message: unknown, raw: unknown): { ok: false; error: TrackerError } {
-  return { ok: false, error: { kind: kind || ERROR_KIND.UNSUPPORTED, message: '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票 —— 请先修好回查，或者换用不带锚的创建。', raw: String(raw == null ? '' : raw).slice(0, 2000) } }
+  return { ok: false, error: { kind: kind || ERROR_KIND.UNSUPPORTED, message: '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票。', raw: String(raw == null ? '' : raw).slice(0, 2000), stage: 'anchor-lookup' } }
 }
 
 /** 回查最大的一个隐患，写在最显眼的地方：列表接口默认按更新时间倒序（这是 GitHub 的接口约定），

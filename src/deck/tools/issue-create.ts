@@ -43,6 +43,8 @@ import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time
 // 工具定义（唯一事实）搬去了同目录的 issue-create-parts.ts：只为把本文件压回 350 行有效行以内，
 // 参数表、枚举值与描述文案一字未改（模型看到的工具面与拆之前完全一致）。
 import { definition, landingNote } from './issue-create-parts.js'
+// #1171：后端诚实失败的整支（原话 + 锚回查失败时那句原样重试）搬去同目录，见文件头注释。
+import { backendCreateFailure } from './issue-create-failure.js'
 
 /** 落点证据函数的收口形状：第四个形参（额外字段）按可选算，其余与调用处传的三个实参一致。 */
 type EdgeEvidenceFn = (op: unknown, target: unknown, evidence: unknown, extra?: unknown) => Record<string, unknown>
@@ -251,13 +253,8 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       }
       const createdTransport = transportMessage(created as TransportResult)
       if (createdTransport) throw new Error(createdTransport)
-      if (!created || created.ok !== true) {
-        const msg = String((created && created.error && created.error.message) || '后端没给出原因').slice(0, 300)
-        return {
-          value: { status: DECK_STATUS.UNSUPPORTED, reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED, text: '这张票没建成（后端原话：' + msg + '）。', data: { error: { kind: String((created && created.error && created.error.kind) || ''), message: msg } }, notes: notes },
-          claimed: { requests: 1, points: 4 },
-        }
-      }
+      // #1171：后端诚实失败的整支收在同目录 issue-create-failure.ts，只为把本文件压回 350 有效行以内。
+      if (!created || created.ok !== true) return backendCreateFailure(created, a.idempotencyKey, notes)
       const issue = created.data || {}
       const where = landingNote(issue)
       // #992：标签没挂上（后端在票上记了 labelError）不再报“补了”——按结果说话。

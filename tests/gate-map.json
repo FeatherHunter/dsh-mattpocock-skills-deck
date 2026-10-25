@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T17:35:45.901Z",
+  "generatedAt": "2026-10-25T18:38:12.793Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 386,
   "gateCount": 386,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 587,
+  "graphFileCount": 588,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -10756,9 +10756,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 608,
+    "fileCount": 609,
     "dirCount": 74,
-    "coveredFileCount": 608,
+    "coveredFileCount": 609,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -10996,6 +10996,7 @@
       "src/deck/shell/workspace-anchor.ts",
       "src/deck/shell/write-mutex.ts",
       "src/deck/tools/context.ts",
+      "src/deck/tools/issue-create-failure.ts",
       "src/deck/tools/issue-create-parts.ts",
       "src/deck/tools/issue-create.ts",
       "src/deck/tools/issue-get.ts",

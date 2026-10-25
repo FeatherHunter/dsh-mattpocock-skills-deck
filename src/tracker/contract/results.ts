@@ -32,10 +32,25 @@ import type { Issue, IssueRef, RepositoryRef } from './entities.js'
  *   由它统一做多路合并、凭据遮蔽与头尾截断；决策见
  *   `docs/adr/20261014-error-classification-single-source.md`。
  */
+/**
+ * 失败发生在链路哪一段（可选，给机器读，**不是错误档位**；#1171 加）。
+ *
+ * 今天只有一个取值 `'anchor-lookup'`：建票前按幂等锚回查时没能做成，后端一个写动作都没发出、
+ * 票没建。带上它的失败，`message` 只陈述事实；「调用方还能做什么」只有调用方那一层知道
+ * （例：deck 的建票工具看到它会补「原样重试即可」并说清为什么安全）。
+ * 不传 = 普通失败，调用方不额外推荐做法 —— 别的原因（权限、参数……）原样重试未必有用。
+ */
+export type TrackerErrorStage = 'anchor-lookup'
+
 export interface TrackerError {
   kind: ErrorKind
   message: string
   raw: string
+  /**
+   * 这次失败发生在链路哪一段（可选）。只在「这一段有确定的下一步」时才填；
+   * 填它不改变 `kind` 与 `raw` 的含义，三段式仍是必填的三段。
+   */
+  stage?: TrackerErrorStage
 }
 
 /**

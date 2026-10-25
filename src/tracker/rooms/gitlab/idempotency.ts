@@ -93,6 +93,9 @@ function toCandidate(raw: unknown): AnchorCandidate | null {
  * 档位与话术由调用方给的判档结果决定：兜底判出来的（`fallback` 为真）与「不支持」两档
  * 换成通用提示，其余用这里拼的这句有上下文的话。
  *
+ * #1171：本家这句话只陈述事实（回查没做成、这一次没有建票），不推荐调用面上不存在的做法
+ * （「换用不带锚的创建」是工具那一层做不到的动作）。能做什么由调用方补；`stage` 让它认得出这一档。
+ *
  * @param verdict `classifyGlabError` 的结果
  * @param message 本家那句话
  * @param raw 两条路各自的原文
@@ -103,7 +106,7 @@ function lookupFailure(
   raw: string,
 ): { ok: false; error: TrackerError } {
   const native =
-    '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票 —— 请先修好回查，或者换用不带锚的创建。'
+    '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票。'
   // 档位兜底也走 ERROR_KIND 常量：这条兜底只在判档结果缺失时才用得上，含义是「本家不敢断定」。
   return {
     ok: false,
@@ -111,6 +114,7 @@ function lookupFailure(
       kind: (verdict && verdict.kind) || (ERROR_KIND.UNSUPPORTED as ErrorKind),
       message: hintFor(verdict, native),
       raw: String(raw || ''),
+      stage: 'anchor-lookup',
     },
   }
 }
