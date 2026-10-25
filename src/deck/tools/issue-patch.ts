@@ -82,6 +82,7 @@ export const definition = {
         additionalProperties: false,
       },
       close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
+      closeReason: { type: 'string', description: '关闭原因：和 close:true 一起用，告诉后端这次为什么关。地图子票的原因写进正文的 Answer 段，还会在地图的 Decisions so far 里补一条指针；实施票的原因按原文追加成一条评论；旧布局票写 Close reason 行；规格与地图容器只记状态，原因忽略。只带 closeReason、不带 close:true 时整笔拒绝，一个字都不动。' },
       workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       ...MD_SCOPE_LOCATE,
     },
@@ -144,6 +145,14 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       assignees: Array.isArray(a.assignees),
       text: typeof a.title === 'string' || typeof a.body === 'string' || (a.progress !== undefined && a.progress !== null) || (a.originalWords !== undefined && a.originalWords !== null),
       state: typeof a.close === 'boolean',
+    }
+    // #1495：关闭原因单独成参，不复用 comment：comment 是讨论，closeReason 是结论；地图子票要进 Answer、实施票要进评论，两边不能混。只带原因不带关票时拒写，免得原因没地方落。
+    const rawCloseReason = typeof a.closeReason === 'string' ? a.closeReason.trim() : ''
+    if (a.closeReason !== undefined && a.closeReason !== null && typeof a.closeReason !== 'string') {
+      return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '关闭原因要写成一段文字：closeReason 只能是字符串，和 close:true 一起用。这次一个字都没动。', { cost: { estimated: est } })
+    }
+    if (rawCloseReason !== '' && a.close !== true) {
+      return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '只带关闭原因、没说关票：closeReason 必须和 close:true 一起用，单独带它不知道要关哪一张。这次一个字都没动。', { cost: { estimated: est } })
     }
     if (!wants.comment && !wants.labels && !wants.assignees && !wants.text && !wants.state) {
       return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '这次没说清要改什么：至少点名一件（comment / addLabels / removeLabels / assignees / title / body / progress / originalWords / close）。', { cost: { estimated: est } })
@@ -406,7 +415,8 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
           items.push({ key: key, step: 'close', status: 'failed', reason: '收口核对评论没发出去：按规矩规格不能在没有这条评论的情况下关闭，这一步这次没做。先补发评论（同一次调用里带上 comment）再关。' })
         } else if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
         else {
-          const rawState = a.close === true ? await t.close(repo, key, {}, opCtx) : await t.reopen(repo, key, opCtx)
+          const closeOpts = rawCloseReason !== '' ? { reason: rawCloseReason } : {}
+          const rawState = a.close === true ? await t.close(repo, key, closeOpts, opCtx) : await t.reopen(repo, key, opCtx)
           const stateTimeout = timeoutMessage(rawState as unknown as TransportResult)
           if (stateTimeout) return timeoutReply(stateTimeout)
           const r = must(rawState)
