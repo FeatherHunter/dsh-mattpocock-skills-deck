@@ -37,8 +37,10 @@ export function fieldLinesOf(text: unknown): string[]{
   return out
 }
 function fieldNameOf(line: string): string{ return String(line).replace(/\*/g,'').split(/[:\uFF1A]/)[0].trim().toLowerCase() }
-/** 新布局（#1486）写进文件头的隐藏注释：DSH-FORMAT 以下的插件字段。整份改正文时这些行不在正文里，必须从盘上搬回。 */
-const HIDDEN_FIELD_RE=/^[ \t]*<!--[ \t]*(DSH-FORMAT|DSH-STATUS|DSH-PARENT|DSH-ASSIGNEES|DSH-LABELS|DSH-BLOCKED-BY)[ \t]*:/
+/** 新布局（#1486）写进文件头的隐藏注释：DSH-FORMAT 以下的插件字段。整份改正文时这些行不在正文里，必须从盘上搬回。
+ *  #1480：DSH-TITLE 也在名单里 —— 规格与地图没有可见一级标题，标题只存在这一行；
+ *  不搬的话一次「整份改正文」就把标题降级成目录名，改标题时人也就再也改不了自己的标题。 */
+const HIDDEN_FIELD_RE=/^[ \t]*<!--[ \t]*(DSH-FORMAT|DSH-TITLE|DSH-STATUS|DSH-PARENT|DSH-ASSIGNEES|DSH-LABELS|DSH-BLOCKED-BY)[ \t]*:/
 function hiddenFieldsOf(text: unknown): string[]{
   return String(text||'').split('\n').filter(function(l){ return HIDDEN_FIELD_RE.test(l) }).map(function(l){ return l.replace(/\s+$/,'') })
 }

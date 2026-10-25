@@ -142,7 +142,7 @@ export function validateMdFormatConfig(doc: unknown): string[] {
         fail(problems, where + ' 必须是一个对象')
         continue
       }
-      const allowed: string[] = ['kind', 'path', 'source', 'title-shape', 'sections', 'fields', 'top-lines', 'body-section', 'resolve', 'acceptance', 'status', 'anchors', 'reuse', 'note', 'user-story-shape']
+      const allowed: string[] = ['kind', 'path', 'source', 'title-shape', 'title-comment', 'sections', 'fields', 'top-lines', 'body-section', 'resolve', 'acceptance', 'status', 'anchors', 'reuse', 'note', 'user-story-shape']
       checkUnknownKeys(problems, where, obj, allowed)
       if (!ALLOWED_KINDS.includes(obj.kind)) fail(problems, where + '.kind 必须是 ' + ALLOWED_KINDS.join(' / ') + ' 之一')
       if (!isNonEmptyString(obj.path) || !obj.path.startsWith('.scratch/')) fail(problems, where + '.path 必须是 .scratch/ 下的路径')
@@ -193,11 +193,24 @@ export function validateMdFormatConfig(doc: unknown): string[] {
           }
         }
       }
-      if (obj.titleShape !== undefined || obj['title-shape'] !== undefined) {
-        const titleShape: unknown = obj['title-shape']
-        if (typeof titleShape !== 'string' || !titleShape.startsWith('# ')) {
-          fail(problems, where + '.title-shape 必须是「# 标题」形状的字符串')
+      // 规格与地图的原文模板没有标题行（标题在 tracker 的 issue 上）：它们的标题只能写进文件头的
+      // DSH-TITLE 隐藏注释，不许往可见正文里写一级标题。其余票形仍按原文写「# NN: 标题」。
+      const titleShape: unknown = obj['title-shape']
+      const titleComment: unknown = obj['title-comment']
+      if (key === 'spec' || key === 'map') {
+        if (titleShape !== undefined) {
+          fail(problems, where + ' 是规格/地图容器，原文模板没有标题行：去掉 title-shape，标题改用 title-comment 指向的隐藏注释')
         }
+        if (titleComment !== 'DSH-TITLE') {
+          fail(problems, where + '.title-comment 必须是 DSH-TITLE（规格与地图的标题写在文件头隐藏注释里）')
+        }
+      } else if (obj.reuse === undefined) {
+        if (typeof titleShape !== 'string' || !titleShape.startsWith('# ')) {
+          fail(problems, where + '.title-shape 必须是「# 标题」形状的字符串（标题可见的票形都要有）')
+        }
+        if (titleComment !== undefined) fail(problems, where + '.title-comment 只给规格与地图用；票形按原文写可见一级标题（title-shape）')
+      } else if (titleShape !== undefined && (typeof titleShape !== 'string' || !titleShape.startsWith('# '))) {
+        fail(problems, where + '.title-shape 必须是「# 标题」形状的字符串')
       }
       if (obj.status !== undefined) {
         if (!isObject(obj.status)) {
@@ -233,12 +246,13 @@ export function validateMdFormatConfig(doc: unknown): string[] {
 
   // ---- hidden-comments：插件自己的隐藏信息 ----
   const commentNames: string[] = []
+  const commentScopes: Record<string, string[]> = {}
   if (!isObject(cfg['hidden-comments'])) {
     fail(problems, 'hidden-comments 必须是一个对象（placement / one-per-line / entries）')
   } else {
     const hc: Record<string, any> = cfg['hidden-comments'] as Record<string, any>
     checkUnknownKeys(problems, 'hidden-comments', hc, ['placement', 'one-per-line', 'entries'])
-    if (hc.placement !== 'before-first-h1') fail(problems, 'hidden-comments.placement 必须是 before-first-h1')
+    if (hc.placement !== 'before-first-section') fail(problems, 'hidden-comments.placement 必须是 before-first-section（第一个可见标题之前；规格与地图没有一级标题，第一个可见标题就是段标题）')
     if (hc['one-per-line'] !== true) fail(problems, 'hidden-comments.one-per-line 必须是 true')
     if (!Array.isArray(hc.entries) || hc.entries.length === 0) {
       fail(problems, 'hidden-comments.entries 必须是非空数组')
@@ -255,6 +269,7 @@ export function validateMdFormatConfig(doc: unknown): string[] {
         } else {
           if (commentNames.includes(entry.name)) fail(problems, 'hidden-comments 里「' + entry.name + '」写了两次；一个名字只能定义一次')
           commentNames.push(entry.name)
+          if (Array.isArray(entry.scope)) commentScopes[entry.name] = entry.scope.filter((x: unknown) => typeof x === 'string')
         }
         if (!isNonEmptyString(entry.line) || !entry.line.startsWith('<!-- ') || !entry.line.endsWith(' -->')) {
           fail(problems, where + '.line 必须是 <!-- ... --> 形式的整行')
@@ -284,6 +299,17 @@ export function validateMdFormatConfig(doc: unknown): string[] {
       if (isObject(obj.status) && isNonEmptyString(obj.status['hidden-comment'])) {
         if (!commentNames.includes(obj.status['hidden-comment'])) {
           fail(problems, 'objects.' + key + '.status.hidden-comment 引用了未定义的隐藏注释「' + obj.status['hidden-comment'] + '」')
+        }
+      }
+      if (isNonEmptyString(obj['title-comment'])) {
+        const titleName: string = obj['title-comment']
+        if (!commentNames.includes(titleName)) {
+          fail(problems, 'objects.' + key + '.title-comment 引用了未定义的隐藏注释「' + titleName + '」')
+        } else {
+          const titleScope: string[] = commentScopes[titleName] || []
+          if (!titleScope.includes('all-files') && !titleScope.includes(key)) {
+            fail(problems, 'objects.' + key + '.title-comment 指向的「' + titleName + '」没有覆盖这个对象（scope 要含 all-files 或 ' + key + '）')
+          }
         }
       }
       if (isObject(obj.status) && isNonEmptyString(obj.status.default)) {

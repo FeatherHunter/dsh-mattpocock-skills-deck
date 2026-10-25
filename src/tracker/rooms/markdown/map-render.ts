@@ -7,8 +7,8 @@
 //   本文件            只放地图容器与地图子票的渲染，复用上面那些通用件，不另抄一份；
 // 两边仍共用 format/generated.ts 里的同一份模板真值（MD_FORMAT），模板改了这里自动跟着改。
 //
-// 不能改的约定：地图正文五段标题逐字按原文，缺段补齐；子票标题是 `# NN: <问句>`，
-// 正文只有一段 Question。
+// 不能改的约定：地图正文五段标题逐字按原文，缺段补齐；地图没有可见一级标题（原文模板就是如此），
+// 标题值写进文件头 DSH-TITLE 注释；子票标题是 `# NN: <问句>`，正文只有一段 Question。
 import { MAP_TICKET_TYPES, objectShapeOf, shapeTitle, fieldLine, renderHeader, cleanBody, cleanTitle, labelsOf, assigneesOf, blockedKeysOf } from './create-render.js'
 import type { CreateView } from './create-render.js'
 
@@ -40,8 +40,9 @@ function ensureMapSections(body: string, titles: readonly string[]): string {
 }
 
 /**
- * 把一张探索地图渲染成原文形状：`# <地图标题>` + 五段正文。
- * 地图是容器（与规格同款，编号 00），状态只写进文件头隐藏注释，正文里不出现 Status 行。
+ * 把一张探索地图渲染成原文形状：文件头隐藏注释 + 五段正文。
+ * 地图是容器（与规格同款，编号 00）：标题与状态都只写进文件头隐藏注释，正文里既不出现一级标题、
+ * 也不出现 Status 行；正文第一行就是原文模板的第一个段标题「## Destination」。
  */
 export function renderMap(input: CreateView, opts: {
   createdAt: string
@@ -60,8 +61,9 @@ export function renderMap(input: CreateView, opts: {
     blocked: [],
     idempotencyKey: opts.idempotencyKey,
     createdAt: opts.createdAt,
+    title: title,
   })
-  return header + shapeTitle(shape['title-shape'], [title]) + '\n' + (body ? '\n' + body + '\n' : '\n')
+  return header + '\n' + body.replace(/\s+$/, '') + '\n'
 }
 
 /** 地图子票的类型词：调用方可能放在 typeLine、wayfinder 标签或老写法的 type 里，三处都收。 */
@@ -103,7 +105,7 @@ export function renderWayfinderChild(input: CreateView, opts: {
     Status: status,
     'Blocked by': blocked.join(', '),
   }
-  const lines: string[] = [shapeTitle(shape['title-shape'], [opts.number, title])]
+  const lines: string[] = [shapeTitle(shape['title-shape'] || '', [opts.number, title])]
   for (const topLine of topLines) {
     const value = String(values[topLine.label] || '')
     if (!value) continue

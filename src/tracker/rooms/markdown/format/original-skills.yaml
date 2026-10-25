@@ -63,7 +63,9 @@ objects:
     kind: spec
     path: .scratch/<feature-slug>/spec.md
     source: [issue-tracker-local, to-spec]
-    title-shape: "# <spec 标题>"
+    # 原文模板（to-spec/SKILL.md 第 23 行起）从「## Problem Statement」直接开始，没有一级标题。
+    # 标题只写进文件头的 DSH-TITLE 隐藏注释：本地文件要能显示与改名，但不许往可见正文里多写一行。
+    title-comment: DSH-TITLE
     sections:
       - Problem Statement
       - Solution
@@ -85,7 +87,9 @@ objects:
     kind: map
     path: .scratch/<effort>/map.md
     source: [issue-tracker-local, wayfinder]
-    title-shape: "# <地图标题>"
+    # 原文模板（wayfinder/SKILL.md 第 31-53 行）从「## Destination」直接开始，没有一级标题。
+    # 标题只写进文件头的 DSH-TITLE 隐藏注释，理由同 spec。
+    title-comment: DSH-TITLE
     sections:
       - Destination
       - Notes
@@ -163,16 +167,21 @@ status:
   triage-roles: [needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix]
   wayfinder: [claimed, resolved]
 
-# 本插件写出的 HTML 注释。每一条都必须写清「为什么加」，一行一条，放在第一个一级标题之前。
+# 本插件写出的 HTML 注释。每一条都必须写清「为什么加」，一行一条，放在第一个可见标题之前
+# （规格与地图没有一级标题，第一个可见标题就是它们正文的第一个段标题）。
 # 读取时：没有 DSH-FORMAT 的文件按纯原文解析，缺的插件信息当未知，不报错（见 reading）。
 hidden-comments:
-  placement: before-first-h1
+  placement: before-first-section
   one-per-line: true
   entries:
     - name: DSH-FORMAT
       line: "<!-- DSH-FORMAT: md-v1 -->"
       scope: [all-files]
       why: 第一眼看出这份文件由本插件写过以及当时的格式版本；原文文件没有它时按纯原文降级读取。
+    - name: DSH-TITLE
+      line: "<!-- DSH-TITLE: <标题文本> -->"
+      scope: [spec, map]
+      why: 原文的规格与地图模板都没有标题行（标题在 tracker 的 issue 上）；本地文件要能显示标题、也要能改名，所以放文件头这一行注释里，不污染可见正文。
     - name: DSH-STATUS
       line: "<!-- DSH-STATUS: <状态词> -->"
       scope: [spec, map]

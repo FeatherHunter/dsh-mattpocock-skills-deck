@@ -3,8 +3,9 @@
 // 为什么单独一个模块（#1489）：同一个 Markdown 后端要同时伺候两种文件。
 //  1. 原文布局：技能自己建的文件，可见正文严格照原文模板 —— 实施票的状态是加粗的 `**Status:**` 行，
 //     地图子票是裸的 `Type:` / `Status:` / `Blocked by:` 行，容器（规格、探索地图）正文里没有状态行。
-//     插件需要而原文没有的信息（认领人、标签、幂等键、创建时间、父子与阻塞边）一律放在文件头第一条
-//     一级标题之前的 HTML 注释里，一行一条。
+//     插件需要而原文没有的信息（认领人、标签、幂等键、创建时间、父子与阻塞边、容器标题）一律放在
+//     文件头（第一个可见标题之前）的 HTML 注释里，一行一条。规格与地图没有一级标题，
+//     它们的第一个可见标题就是正文的第一个段标题（「## Problem Statement」/「## Destination」）。
 //  2. 旧布局：本票之前建的文件，可见行是裸的 `Status:` / `Assignees:` 行。旧文件的行为一个字都不能变
 //     （既有门禁钉着），所以这里只提供原文布局用的原语，旧行为仍走 issues-status.ts 里的 replaceOrInsertField。
 //
@@ -21,6 +22,7 @@ export type TicketForm = 'impl-ticket' | 'map-ticket' | 'legacy'
 /** 文件头隐藏注释的名称（原文没有这些信息，插件自己加的）。 */
 export type HiddenName =
   | 'DSH-FORMAT'
+  | 'DSH-TITLE'
   | 'DSH-STATUS'
   | 'DSH-PARENT'
   | 'DSH-ASSIGNEES'
@@ -47,11 +49,23 @@ function anySectionIndex(lines: string[], from: number): number {
   return lines.length
 }
 
-/** 文件头范围：第一条一级标题之前。隐藏注释只写在这里（与 parse.ts 的 hiddenHeaderValue 同一口径）。 */
+/** 文件头范围：第一个可见标题之前。隐藏注释只写在这里（与 parse.ts 的 hiddenHeaderValue 同一口径）。
+ *  先认一级标题（旧 deck 文件与票形都有），没有一级标题再认第一个二级标题 —— 规格与地图的原文模板
+ *  没有标题行，正文第一个段标题就是「## Problem Statement」/「## Destination」；不这样兜底的话，
+ *  无一级标题的文件会被当成「整份都是文件头」，正文里的同名注释就会被误读成文件头信息。 */
 function headerEnd(text: string): number {
   const lines = text.split('\n')
   for (let i = 0; i < lines.length; i++) if (H1_RE.test(lines[i])) return i
+  for (let i = 0; i < lines.length; i++) if (H2_RE.test(lines[i])) return i
   return lines.length
+}
+
+/** 文件头之后的第一行：第一个可见标题（一级优先，其次二级）的下一行；都没有就是第 0 行。
+ *  新补的字段行落在文件头与正文之间，不落在正文里（无一级标题时也一样）。 */
+function afterHeaderLine(lines: string[]): number {
+  for (let i = 0; i < lines.length; i++) if (H1_RE.test(lines[i])) return i + 1
+  for (let i = 0; i < lines.length; i++) if (H2_RE.test(lines[i])) return i + 1
+  return 0
 }
 
 /** 字段行范围：第一个二级标题之前。评论/回答段里的同款文字是内容，不能当字段改。 */
@@ -101,7 +115,7 @@ export function hiddenCommentOf(text: string, name: string): { found: boolean; v
 
 /** 改文件头隐藏注释：已有就整行换；没有就补在最后一条隐藏注释后面。
  *  value 为 null 就删掉这一行（空名单的行可以留着，删行表示「恢复成原文没有的样子」，由调用方选）。
- *  新补的行一定落在第一条一级标题之前：原文的可见正文从标题开始，插件信息不能混进正文。 */
+ *  新补的行一定落在第一个可见标题之前：原文的可见正文从标题开始，插件信息不能混进正文。 */
 export function upsertHiddenComment(text: string, name: string, value: string | null): string {
   const raw = String(text || '')
   const lines = raw.split('\n')
@@ -121,7 +135,7 @@ export function upsertHiddenComment(text: string, name: string, value: string | 
     return lines.join('\n')
   }
   if (line === '') return raw
-  // 补行位置：最后一条隐藏注释后面；文件里一条都没有就补在第一行（也就是第一条一级标题之前）。
+  // 补行位置：最后一条隐藏注释后面；文件里一条都没有就补在第一行（也就是第一个可见标题之前）。
   let at = 0
   for (let i = 0; i < end; i++) if (HIDDEN_LINE_RE.test(lines[i])) at = i + 1
   lines.splice(at, 0, line)
@@ -156,10 +170,7 @@ export function replaceBoldField(text: string, name: string, value: string): str
   }
   let last = -1
   for (let i = 0; i < end; i++) if (BOLD_FIELD_RE.test(lines[i])) last = i
-  let at = last >= 0 ? last + 1 : (function () {
-    for (let i = 0; i < lines.length; i++) if (H1_RE.test(lines[i])) return i + 1
-    return 0
-  })()
+  let at = last >= 0 ? last + 1 : afterHeaderLine(lines)
   // 字段之间原文是一行空行：插在空行后面，不贴着上一行写。
   if (at < lines.length && lines[at].trim() === '') at += 1
   lines.splice(at, 0, '**' + name + ':** ' + String(value).trim())
@@ -193,10 +204,7 @@ export function replaceBareField(text: string, name: string, value: string): str
   }
   let last = -1
   for (let i = 0; i < end; i++) if (BARE_FIELD_RE.test(lines[i])) last = i
-  let at = last >= 0 ? last + 1 : (function () {
-    for (let i = 0; i < lines.length; i++) if (H1_RE.test(lines[i])) return i + 1
-    return 0
-  })()
+  let at = last >= 0 ? last + 1 : afterHeaderLine(lines)
   if (at < lines.length && lines[at].trim() === '') at += 1
   lines.splice(at, 0, name + ': ' + String(value).trim())
   return lines.join('\n')

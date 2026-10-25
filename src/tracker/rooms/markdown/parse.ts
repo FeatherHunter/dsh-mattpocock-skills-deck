@@ -120,7 +120,8 @@ export function parentKeyFromFile(text: unknown): { found: boolean; value: strin
  *  继续回落到文件修改时间，与今天的行为一模一样 —— 不回填，因为回填等于拿「第一次被写的时间」假装成
  *  「建票的时间」，那是编一个数出来。
  *
- *  只认文件头（标题之前的那几行），理由与 parentKeyFromFile 相同：正文里举例写同样的注释不算数。 */
+ *  只认文件头（第一个可见标题之前的那几行），理由与 parentKeyFromFile 相同：正文里举例写同样的注释不算数。
+ *  这里用 /^#+\s+/ 截头，一级与二级都算标题：#1480 之后规格与地图没有一级标题，第一个可见标题是段标题「## ...」。 */
 export function createdStampFromFile(text: unknown): { found: boolean; value: string } {
   const raw = String(text || '')
   const h1 = /^#+\s+/m.exec(raw)
@@ -134,7 +135,8 @@ export function createdStampFromFile(text: unknown): { found: boolean; value: st
 /** 读文件头里某一条隐藏注释的值（#1486）。
  *
  *  新布局把状态、父票、标签、认领人、阻塞边都写进 `<!-- DSH-XXX: ... -->`，可见正文里不再出现这些行。
- *  只认第一个一级标题之前的那几行：正文里举例写同样的注释不算数，理由与 parentKeyFromFile 相同。
+ *  只认第一个可见标题之前的那几行：正文里举例写同样的注释不算数，理由与 parentKeyFromFile 相同。
+ *  截头用 /^#+\s+/：规格与地图没有一级标题，第一个可见标题是正文第一个段标题「## ...」，注释头仍只到它为止。
  *  返回值里只保留这一行本身，不跨行 —— 一行一条是 YAML 里定死的形状。 */
 export function hiddenHeaderValue(text: unknown, name: string): string {
   const raw = String(text || '')
@@ -216,6 +218,12 @@ export function assigneesFromFile(text: unknown): { found: boolean; value: Array
   return { found: true, value: names.map((login) => ({ login: login, kind: 'user' as const })) }
 }
 
+/** 从读路径给的本地路径里取文件名、去掉 .md 扩展名：标题降级时用它，不去猜目录名。 */
+function fileBaseTitle(url: unknown): string {
+  const base = String(url || '').split(/[\\/]/).pop() || ''
+  return base.replace(/\.[Mm][Dd]$/, '').trim()
+}
+
 export function parseMd(text: unknown, meta: ParseMeta): Issue {
   const raw = String(text || '')
   // 2026-10-10 修（#991 实测带回来的读路径缺陷）：冒号后面原来写的是 \s*，而 \s 含换行 —— 字段值为空的
@@ -236,11 +244,23 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   const state = (closedSet.has(statusNorm) ? STATE.CLOSED : STATE.OPEN) as State
   // 上一行断言的原因：STATE 是冻住的对象字面量（vocabulary.ts），成员类型被拓宽成 string；
   // 运行时这里必为两态之一，转成契约的 State 字面量联合只为过类型，值不变。下同（type 一处）。
+  // 标题读取顺序（#1480 两轴评审修）：
+  //   ① 可见一级标题 —— 旧 deck 文件与手写原文模板都还有它，旧读法一个字节不变；
+  //   ② 文件头 DSH-TITLE 隐藏注释 —— 新布局的规格与地图没有可见一级标题，标题值只在这里；
+  //   ③ 降级：容器（规格/地图）先用目录名（effortId）、没有再用文件名去 .md；其余票先文件名、
+  //      再首个非空且不是注释的行。降级不报错，也绝不把「## Problem Statement」这类段名当标题。
   const title = (() => {
-    const m = /^#+\s+(.+)$/m.exec(raw)
-    if (m) return m[1].trim()
-    const first = raw.split('\n').find((l) => l.trim().length > 0) || ''
-    return first.replace(/^#+\s*/, '').trim()
+    const h1 = /^#[ \t]+(.+)$/m.exec(raw)
+    if (h1) return h1[1].trim()
+    const hiddenTitle = hiddenHeaderValue(raw, 'DSH-TITLE')
+    if (hiddenTitle) return hiddenTitle
+    const fileBase = fileBaseTitle(meta && meta.url)
+    if ((meta && meta.kind === 'spec') || (meta && meta.isMap)) {
+      return String((meta && meta.effortId) || '').trim() || fileBase || 'untitled'
+    }
+    if (fileBase) return fileBase
+    const first = raw.split('\n').map((l) => l.trim()).find((l) => l.length > 0 && !/^<!--/.test(l)) || ''
+    return first.replace(/^#+\s*/, '').trim() || 'untitled'
   })()
   // #1489：地图子票的 Type 行是裸写法；加粗包法是实施票/手写模板的通用写法，这里一并认。
   const typeRaw = (/^\s*(?:\*\*)?Type(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*([^\n]+)/im.exec(field)?.[1]?.trim().toLowerCase() || '')

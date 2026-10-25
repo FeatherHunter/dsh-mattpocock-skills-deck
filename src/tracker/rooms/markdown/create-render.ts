@@ -92,7 +92,10 @@ export function originalKindOf(input: CreateInput): OriginalKind | null {
  */
 // 下面这些通用件同时被 map-render.ts 复用（同一渲染管线的内部件），导出只是给同目录的实现文件用。
 export interface ObjectShape {
-  'title-shape': string
+  /** 可见一级标题形状：只有票形（实施票、地图子票）有；规格与地图的原文模板没有标题行。 */
+  'title-shape'?: string
+  /** 规格与地图的标题落在哪条文件头隐藏注释里（原文模板没有标题行，标题是 tracker 的 issue 上的）。 */
+  'title-comment'?: string
   sections?: readonly string[]
   fields?: readonly { label: string; 'line-shape': string }[]
   acceptance?: string
@@ -200,7 +203,7 @@ export function blockedKeysOf(input: CreateView): string[] {
 /**
  * 隐藏注释区块。顺序与 scope 以 format/original-skills.yaml 的 hidden-comments 表为准：
  *   所有文件 → DSH-FORMAT、DSH-IDEMPOTENCY-KEY、DSH-CREATED；
- *   规格/地图 → DSH-STATUS；
+ *   规格/地图 → DSH-TITLE（标题）、DSH-STATUS；
  *   实施票/子票/普通票 → DSH-PARENT、DSH-BLOCKED-BY；
  *   所有文件 → DSH-ASSIGNEES、DSH-LABELS（有值才写）。
  */
@@ -212,10 +215,13 @@ export function renderHeader(kind: OriginalKind, opts: {
   blocked: string[]
   idempotencyKey: string
   createdAt: string
+  /** 规格与地图的标题：写进 DSH-TITLE 隐藏注释，不写可见一级标题。票形不传。 */
+  title?: string
 }): string {
   const entries = (MD_FORMAT['hidden-comments'].entries as unknown as Array<{ name: string; line: string; scope: readonly string[] }>)
   const objectKey = OBJECT_KEY_OF_KIND[kind]
   const values: Record<string, string> = {
+    'DSH-TITLE': opts.title || '',
     'DSH-STATUS': opts.status,
     'DSH-PARENT': opts.parentKey,
     'DSH-ASSIGNEES': opts.assignees.join(', '),
@@ -301,12 +307,24 @@ function ticketParts(body: string, hasExplicitWhat: boolean, labels: string[]): 
   }
 }
 
+/** 规格正文从原文第一个段标题开始：调用方只给一段话时，先套上「## Problem Statement」，
+ *  这样正文第一行就是模板的第一个段标题（原文没有一级标题，见文件头与 ADR 20261025）。 */
+function ensureSpecSections(body: string, titles: readonly string[]): string {
+  const out = String(body || '')
+  if (!titles.length) return out
+  if (/^##[ \t]+\S/m.test(out)) return out
+  return '## ' + titles[0] + '\n' + (out ? '\n' + out : '')
+}
 /** 标题去掉调用方可能已经带上的 `NN: ` 前缀，避免落成 `# 01: 01: 标题`。 */
 export function cleanTitle(title: string): string {
   return String(title || '').trim().replace(/^\d{1,3}:\s*/, '')
 }
 
-/** 把一份规格渲染成原文形状：一级标题 + 正文（正文里的插件注释已剥掉）。 */
+/** 把一份规格渲染成原文形状：文件头隐藏注释 + 正文（正文里的插件注释已剥掉）。
+ *
+ *  原文模板（to-spec/SKILL.md 第 23 行起）从「## Problem Statement」直接开始，没有一级标题；
+ *  标题值写进文件头的 DSH-TITLE 注释。读取时先认一级标题（旧文件）、再认 DSH-TITLE、最后按目录名降级，
+ *  所以这里少写一行可见标题不会让旧读者或新读者读错。 */
 export function renderSpec(input: CreateView, opts: {
   createdAt: string
   idempotencyKey: string
@@ -315,7 +333,7 @@ export function renderSpec(input: CreateView, opts: {
 }): string {
   const shape = objectShapeOf('spec')
   const title = cleanTitle(String(input.title || ''))
-  const body = cleanBody(input.body ? String(input.body) : '')
+  const body = ensureSpecSections(cleanBody(input.body ? String(input.body) : ''), shape.sections || [])
   const header = renderHeader('spec', {
     status: String(input.status || (shape.status && shape.status.default) || ''),
     parentKey: '',
@@ -324,8 +342,9 @@ export function renderSpec(input: CreateView, opts: {
     blocked: [],
     idempotencyKey: opts.idempotencyKey,
     createdAt: opts.createdAt,
+    title: title,
   })
-  return header + shapeTitle(shape['title-shape'], [title]) + '\n' + (body ? '\n' + body + '\n' : '\n')
+  return header + '\n' + body.replace(/\s+$/, '') + '\n'
 }
 
 /** 把一份实施票/普通票渲染成原文形状：`# NN: 标题`、三行字段、验收项。 */
@@ -363,7 +382,7 @@ export function renderTicket(kind: OriginalKind, input: CreateView, opts: {
   })
   const values = [parts.what, blocked, parts.status || String(input.status || (shape.status && shape.status.default) || '')]
   const lines: string[] = []
-  lines.push(shapeTitle(shape['title-shape'], [opts.number, title]))
+  lines.push(shapeTitle(shape['title-shape'] || '', [opts.number, title]))
   fields.forEach((field, at) => {
     lines.push('')
     lines.push(fieldLine(field['line-shape'], values[at] || ''))
