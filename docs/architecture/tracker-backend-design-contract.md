@@ -46,10 +46,10 @@ OS 底座（darwin / win32 / linux）
 
 - **唯一真源**：随包技能 `package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md`（pin v1.3.1，逐字内容与哈希清单由 `tests/verify-bundled-skills-upstream.ts` 守住）。deck 只是执行层——写出来的文件必须与技能照原文写出来的文件长得一样；格式有疑问时以原文为准（ADR 20261025-markdown-format-original）。
 - **四类对象的位置**：规格 `.scratch/<feature-slug>/spec.md`（正文七节：问题陈述、解决方案、用户故事、实现决策、测试决策、不在范围内、补充说明）；探索地图 `.scratch/<effort>/map.md`（正文五节：Destination、Notes、Decisions so far、Not yet specified、Out of scope）；实施票、地图子票与普通票都是 `.scratch/<effort>/issues/<NN>-<slug>.md`，一票一文件，NN 从 01 起两位补零、充当 ticket ID（如 `/implement 03`）；地图子票完成时在票里追加 `## Answer`，并往同一张地图的 `## Decisions so far` 追加一条指针。
-- **不是** YAML frontmatter、**不是** `docs/maps/`、**不是**纯 `<number>.md`。工作区根 `.scratch/map.md` / `.scratch/issues/<键>.md` 与更早的根 `issues/` 是旧布局，只读兼容（能列、能读、能改、能完成），新写入不再落那里。
+- **不是** YAML frontmatter、**不是** `docs/maps/`、**不是**纯 `<number>.md`。工作区根 `.scratch/map.md` / `.scratch/issues/<键>.md` 与更早的根 `issues/` 是旧布局，只读兼容：列表、读取、快照照常，写路径（改状态、关闭、改正文、评论、认领、标签）命中工作区根 `issues/` 或 `.scratch/issues/` 时如实失败并说明「旧布局的票只读，迁移另行处理」，新写入不再落那里；`.scratch/<feature>/issues/` 下的原文布局新票不算旧布局。
 - 状态/类型/依赖用**行内字段**：`Status:`（claimed/resolved/ready-for-agent）、`Type:`（research/prototype/grilling/task）、`Blocked by:`；会话追加 `## Comments`，解答写 `## Answer`。
 - **标签**用 `Labels:` 行（逗号分隔）：分诊角色与 wayfinder 标签挂在这里；对象类型语义优先用 `Status:` / `Type:` 表达。父子靠 `.scratch/<effort>/` 目录层级：实施票与规格在同一 feature 目录下，父子关系另用文件头 `<!-- parentKey: NN -->` 隐藏注释记一份。
-- **插件自己的信息只放隐藏注释**：格式版本、幂等键、创建时间、父票、标签、状态、认领人写在第一个一级标题之前的隐藏 HTML 注释里（`<!-- DSH-... -->`），不占可见字段；#1486 起不再写对象类型标记 `<!-- DSH-ISSUE-KIND: ... -->`，但读取仍认旧工作区里的它。按原文手写的文件缺这些注释时降级推断，不报错。
+- **插件自己的信息只放隐藏注释**：格式版本、标题、幂等键、创建时间、父票、标签、状态、认领人写在文件头（第一个可见标题之前）的隐藏 HTML 注释里（`<!-- DSH-... -->`），不占可见字段；#1486 起不再写对象类型标记 `<!-- DSH-ISSUE-KIND: ... -->`，但读取仍认旧工作区里的它。规格与探索地图的原文模板没有标题行，所以这两类文件不写可见一级标题，标题存在文件头的 `<!-- DSH-TITLE: ... -->` 注释里，正文第一行直接是模板第一个段标题；读标题先认可见一级标题（兼容旧文件与手写文件）、没有就认 `DSH-TITLE`、再没有就按目录名降级，不拿 `##` 段名当标题、也不因为缺标题报错。按原文手写的文件缺这些注释时降级推断，不报错。
 
 ## 6. 图表语义（wayfinder 决定树）
 
