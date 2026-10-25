@@ -16,7 +16,8 @@
 //   ⑤ 推迟过的那些调用一笔都不许往计数上加（推迟不等于失败）；
 //   ⑥ 没接这一格的地方（没给时刻 / 没给窗口起点）行为与从前完全一样：一律推迟；
 //   ⑦ 人的动作与「读额度」这两档不受影响（它们的判定排在连续失败前面）；
-//   ⑧ 工作区视图如实带出「窗口起点」（面板与门禁读的就是它）。
+//   ⑧ 工作区视图如实带出「窗口起点」（面板与门禁读的就是它）；
+//   ⑨ 失败窗口的归因：裁决行与跳过行能直接读出「这 3 次是谁攒的」，成功一次后整组消失（#1008）。
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS } = require('../src/shared/time-config/values.js')
@@ -163,6 +164,75 @@ async function main() {
 
   // ---------- ⑧ 工作区视图如实带出窗口起点 ----------
   check(typeof gate.workspaceView(ws2).backoffWindowStartedAt === 'number', '工作区视图带出 backoffWindowStartedAt（门禁与面板读的就是它）')
+
+  // ---------- ⑨ 失败窗口的归因日志：一张裁决行要能读出「这 3 次是谁攒的」（#1008） ----------
+  // 单独起一道闸，接一个假的日志出口把 refresh.decide / refresh.skipped 的字段抓下来；上面那道真闸与此处的
+  // 判定、计数、半开行为完全隔开，一个字都不动。票面要的是「不用再去翻别的行就能读出这 3 次是谁」，
+  // 所以这里逐字断言新开的 failureTrail，而不只是「有归因字段」——只记最近一笔也能让字段非空，但那不满足验收。
+  // failureStreak 保留原来「最近一笔是连续第几次」的含义（日志纪律：既有字段含义不改），这 3 次是谁由 failureTrail 回答。
+  const rows: Array<{ event: string; fields: Record<string, unknown> }> = []
+  const fakeLog = {
+    isEnabled: (level: string) => level === 'debug',
+    fire: (_level: string, event: string, fields: unknown) => { rows.push({ event: event, fields: fields as Record<string, unknown> }) },
+  }
+  const logGate = gateMod.createGate({ ledger: ledger, now: () => clock, logCtx: fakeLog })
+  const wsLog = 'ws-attribution'
+  logGate.setWorkspace(wsLog, { active: true })
+  const lastRow = (event: string) => {
+    const hits = rows.filter((row) => row.event === event)
+    return hits[hits.length - 1] || { event: '', fields: {} as Record<string, unknown> }
+  }
+  const attributionText = (row: { event: string; fields: Record<string, unknown> }) => {
+    const f = row.fields
+    return 'failuresSinceSuccess=' + String(f.failuresSinceSuccess) + ' windowStartedAt=' + String(f.backoffWindowStartedAt)
+      + ' lastFailure=' + String(f.lastFailureCategory) + ':' + String(f.lastFailureKind) + ' failureStreak=' + String(f.failureStreak) + ' failureTrail=' + String(f.failureTrail)
+  }
+  // 三笔故意跨类别：票面说同一窗口里可能既有登录 / 网络这类后台失败，也有人的动作失败；两类都要能在串里区分出来。
+  const failLogged = (source: string, kind: string) => logGate.send({ source: source, kind: kind, workspaceKey: wsLog, plan: [{ phase: 'op' }] }, () => { throw new Error('模拟一次真失败') }).then(() => false, () => true)
+  check(await failLogged('probe.tick', 'probe') === true, '归因用例：第一笔真失败（类别 background、种类 probe）')
+  check(await failLogged('panel.write', 'write') === true, '归因用例：第二笔真失败是人的动作（类别 user-action、种类 write）')
+  check(await failLogged('probe.tick', 'detail') === true, '归因用例：第三笔真失败（类别 background、种类 detail）')
+  // 第三笔自己的裁决发生在它失败之前：那时窗口里还只有前两笔，归因应如实带出这两笔（不是等攒满才记）。
+  const thirdRow = lastRow('refresh.decide')
+  check(thirdRow.fields.failuresSinceSuccess === 2 && thirdRow.fields.failureStreak === 2 && thirdRow.fields.failureTrail === 'background:probe>user-action:write', '归因用例：窗口里的每一行都带出「到目前为止是谁攒的」（实得 ' + attributionText(thirdRow) + '）')
+  const deferLogged = await logGate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: wsLog, plan: [{ phase: 'op' }], backendId: BACKEND }, () => { throw new Error('不该真跑') })
+  check(deferLogged.sent === false && deferLogged.reason === 'failure-backoff', '归因用例：第 4 笔被退避挡住（实得 ' + deferLogged.reason + '）')
+  const decideRow = lastRow('refresh.decide')
+  const skippedRow = lastRow('refresh.skipped')
+  check(decideRow.event === 'refresh.decide', '归因用例：被推迟那笔落了 refresh.decide 行')
+  check(skippedRow.event === 'refresh.skipped', '归因用例：被推迟那笔落了 refresh.skipped 行')
+  // 裁决与跳过两条行都该带全：一张行就能回答「这 3 次是谁攒的」，不必再翻别的行。
+  for (const one of [{ name: '裁决行', fields: decideRow.fields }, { name: '跳过行', fields: skippedRow.fields }]) {
+    const f = one.fields
+    check(f.failuresSinceSuccess === 3, one.name + '：连续失败次数是 3（实得 ' + String(f.failuresSinceSuccess) + '）')
+    check(typeof f.backoffWindowStartedAt === 'number' && (f.backoffWindowStartedAt as number) > 0, one.name + '：窗口起点是个大于 0 的数字（实得 ' + String(f.backoffWindowStartedAt) + '）')
+    check(f.lastFailureCategory === 'background' && f.lastFailureKind === 'detail', one.name + '：上一笔真失败是 background:detail（实得 ' + String(f.lastFailureCategory) + ':' + String(f.lastFailureKind) + '）')
+    check(f.failureStreak === 3, one.name + '：failureStreak 仍是原来那格「连续第几次」，含义没改（实得 ' + String(f.failureStreak) + '）')
+    check(f.failureTrail === 'background:probe>user-action:write>background:detail', one.name + '：窗口前三笔按发生顺序串成一格，两种类别都分得清（实得 ' + String(f.failureTrail) + '）')
+  }
+  // 第 4 笔真失败不一定是探针：窗口里照常放行的读额度 / 人的动作也可能真失败。它们只更新「最近一笔」，不挤进前三笔轨迹。
+  const fourthFailed = await logGate.send({ source: 'quota.sync', kind: 'quota-read', workspaceKey: wsLog, plan: [{ phase: 'rate-limit' }] }, () => { throw new Error('模拟窗口里的一次读额度失败') }).then(() => false, () => true)
+  check(fourthFailed === true, '归因用例：窗口里的读额度照样放进去跑，这一笔真失败了')
+  const lateDefer = await logGate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: wsLog, plan: [{ phase: 'op' }], backendId: BACKEND }, () => { throw new Error('不该真跑') })
+  check(lateDefer.sent === false && lateDefer.reason === 'failure-backoff', '归因用例：第 4 笔失败之后后台档继续退避（实得 ' + lateDefer.reason + '）')
+  const fourthRow = lastRow('refresh.decide').fields
+  check(fourthRow.failuresSinceSuccess === 4 && fourthRow.failureStreak === 4, '第 4 笔真失败：连续失败次数与 failureStreak 如实变成 4（实得 ' + String(fourthRow.failuresSinceSuccess) + ' / ' + String(fourthRow.failureStreak) + '）')
+  check(fourthRow.lastFailureKind === 'quota-read', '第 4 笔真失败：「上一笔真失败」换成这一次（实得 ' + String(fourthRow.lastFailureCategory) + ':' + String(fourthRow.lastFailureKind) + '）')
+  check(fourthRow.failureTrail === 'background:probe>user-action:write>background:detail', '第 4 笔真失败：前三笔轨迹不被挤出（实得 ' + String(fourthRow.failureTrail) + '）')
+  // 成功一次之后归因整组消失：下一轮窗口从零开始，不把上一轮的归因带过去。
+  clock += waitFor(4)
+  const loggedProbe = await logGate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: wsLog, plan: [{ phase: 'op' }], backendId: BACKEND }, () => ({ requests: 1, points: 0 }))
+  check(loggedProbe.sent === true, '归因用例：退避走完一轮后放进的探针真跑了')
+  const afterProbe = await logGate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: wsLog, plan: [{ phase: 'op' }], backendId: BACKEND }, () => ({ requests: 1, points: 0 }))
+  check(afterProbe.sent === true, '归因用例：成功归零之后正常调用照常放行')
+  const clearedRow = lastRow('refresh.decide')
+  check(clearedRow.fields.failuresSinceSuccess === undefined && clearedRow.fields.failureStreak === undefined && clearedRow.fields.failureTrail === undefined, '成功之后下一笔的裁决行不再带归因（实得 ' + attributionText(clearedRow) + '）')
+  // 调试开关关着：一条日志都不许发（票面验收：高频路径守开关；字段对象都不该组装，更不该落一行）。
+  let quietFires = 0
+  const quietGate = gateMod.createGate({ ledger: ledger, now: () => clock, logCtx: { isEnabled: () => false, fire: () => { quietFires += 1 } } })
+  quietGate.setWorkspace('ws-log-off', { active: true })
+  await quietGate.send({ source: 'panel.write', kind: 'write', workspaceKey: 'ws-log-off', plan: [{ phase: 'op' }] }, () => ({ requests: 1, points: 0 }))
+  check(quietFires === 0, '调试开关关着：一条日志都没发（实得 ' + quietFires + ' 条）')
 
   console.log('')
   if (failed) { console.log('有断言没通过 — 闸的连续失败出口门禁判红（' + total + ' 项）'); process.exit(1) }
