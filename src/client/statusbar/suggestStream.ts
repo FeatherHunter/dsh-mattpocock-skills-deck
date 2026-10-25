@@ -10,7 +10,9 @@
 //     会改引用计数、把会话生命周期攥在插件手里，那是宿主的事。
 //   - 不新增常驻定时器、不订阅会话列表：等「整轮结束」靠 turn/end 事件，不靠计时器猜。
 //   - 拿不到事件流就安静不做，只留一条能指路的调试日志；整条路任何一步失败都吞掉，不影响界面。
-//   - 只处理 append 增量：replace 是历史重放（打开旧会话时会把已有事件重放一遍），不冒泡。
+//   - 增量通路只处理 append：replace 是历史重放（打开旧会话时会把已有事件重放一遍），不当新调用冒泡。
+//     例外是 #1526（规格 #1525）的「补出」：挂载后按会话缓存为空时，只读一次快照，在历史重放里
+//     找最后一条所在轮已收尾的建议补出一组；这是补历史，不是把重放当增量交付。
 //
 // 契约（与仓库其它叶子文件同一套，见 scripts/build.mts 里的叶子清单）：
 //   模块真源是 ESM 导出，构建时剥掉行首 export 拼进 apply 闭包；运行时不许跨文件 import，
@@ -34,6 +36,39 @@ const SUGGEST_SEEN_LIMIT = 500
  */
 const SUGGEST_GROUP_KEEP_LIMIT = 32
 const suggestGroupsBySid: any = new Map()
+
+/**
+ * 按会话记下「用户在本进程里点走或关掉过这个会话的建议组」（#1526，规格 #1525）。
+ * 为什么要单独留一份：用户关掉之后缓存被清空，下次切回这个会话时「缓存为空」这个条件又会成立，
+ * 补出逻辑会把历史重放里的那组建议再补一遍 —— 那等于用户关不掉它。所以关掉时留一个标记，
+ * 补出前先看它；这个会话之后又有新建议正常交付时把标记清掉（新建议理应能冒）。
+ * 与建议组缓存一样只在内存里、不落盘；超过上限删最早记入的那一个，防会话开得极多时无界。
+ */
+const suggestDismissedBySid: any = new Set()
+
+/** 记下某个会话的关闭标记（重复关同一个会话只刷新到队尾；超上限删最早记入的）。 */
+const suggestMarkDismissed = function (sid: string) {
+  if (!sid) return
+  suggestDismissedBySid.delete(sid)
+  suggestDismissedBySid.add(sid)
+  while (suggestDismissedBySid.size > SUGGEST_GROUP_KEEP_LIMIT) {
+    const oldest = suggestDismissedBySid.values().next()
+    if (oldest.done) break
+    suggestDismissedBySid.delete(oldest.value)
+  }
+}
+
+/** 这个会话在本进程里被用户关掉过没有：补出前查它，是真的关过就不补。 */
+export const suggestSessionWasDismissed = function (sid: string) {
+  if (!sid) return false
+  return suggestDismissedBySid.has(sid)
+}
+
+/** 这个会话来了新一组建议并正常上屏：关闭标记失效，之后切回来照常按缓存显示。 */
+export const suggestSessionClearDismissed = function (sid: string) {
+  if (!sid) return
+  suggestDismissedBySid.delete(sid)
+}
 
 /**
  * 记下某个会话当前该显示的那一组建议（#1451 后续：建议气泡按会话保留）。
@@ -60,10 +95,14 @@ export const suggestGroupRecall = function (sid: string) {
   return suggestGroupsBySid.has(sid) ? suggestGroupsBySid.get(sid) : null
 }
 
-/** 忘掉某个会话留下的建议：用户点走一条或关掉整组时调用，之后切走再切回也不再冒出来。 */
+/**
+ * 忘掉某个会话留下的建议：用户点走一条或关掉整组时调用，之后切走再切回也不再冒出来。
+ * 同时记下关闭标记：缓存清空后「切回来」会满足补出条件，没有这个标记那组建议会被从历史重放里再补一遍。
+ */
 export const suggestGroupForget = function (sid: string) {
   if (!sid) return
   suggestGroupsBySid.delete(sid)
+  suggestMarkDismissed(sid)
 }
 
 /**
@@ -77,9 +116,14 @@ export const createSuggestStream = function (options: any) {
   const sessions = opts.sessions
   const sid = (typeof opts.sid === 'string') ? opts.sid : ''
   const onReady = (typeof opts.onReady === 'function') ? opts.onReady : null
+  // 要不要从历史重放里补出最后一组建议（#1526）：上层在按会话缓存为空时才传 true，
+  // 缓存里已有这一组时不补，避免同一组建议出现两次。默认 false，保持 #1409 的取数契约不变。
+  const restoreReplay = opts.restoreReplay === true
   const sidHash = suggestHash(sid)
 
   let disposed = false
+  // 事件流是否真的订阅上了：没订上时不补历史（#1409 的契约是「拿不到事件流就安静不做」）。
+  let bound = false
   let stop: any = null
   let binding: any = null
   let pending: any = null
@@ -117,10 +161,31 @@ export const createSuggestStream = function (options: any) {
     } catch (eLogReady) {}
   }
 
+  /**
+   * 把这个调用编号记进「已经认过」的集合：返回 false 表示这次是重复到达（同一编号再出现一次）。
+   * 补出（restoreFromReplay）与增量通路（takeEvent）共用一份去重：补出过的调用再从增量到达时
+   * 不能再交付第二遍。#1411 的「同一条内容再来一次也算新组」指的是两次不同的调用，不是同一编号。
+   */
+  function markSeen(callId: string) {
+    if (seenCalls[callId] === true) return false
+    seenCalls[callId] = true
+    seenCount += 1
+    if (seenCount > SUGGEST_SEEN_LIMIT) {
+      for (const key in seenCalls) delete seenCalls[key]
+      seenCount = 0
+      seenCalls[callId] = true
+      seenCount = 1
+    }
+    return true
+  }
+
   /** 把一批建议交给上层：先清 pending 再回调，回调里抛错也不影响订阅通道。 */
   function deliver(outcome: string, callTurn: any, callId: string, items: any[]) {
     pending = null
     logReady(outcome, callId, callTurn, items.length)
+    // 一组新建议正常交付（增量通路送来并上屏）之后，这个会话「关过」的标记就该失效：
+    // 用户后来关掉的组不该挡住更晚的新建议，切回来时也要能按缓存把新组找回来。
+    if (outcome === 'delivered' || outcome === 'already-ended') suggestSessionClearDismissed(sid)
     try { if (onReady) onReady(items) } catch (eDeliver) {}
   }
 
@@ -146,17 +211,9 @@ export const createSuggestStream = function (options: any) {
     const callId = info.callId
     // 原生 tool/call 自带轮次；PTC 的派发事件没有，用当前轮次补上；都补不出来就记 null，等 turn/end 收尾。
     const callTurn = (info.turn === null || info.turn === undefined) ? currentTurn : info.turn
-    if (seenCalls[callId] === true) {
+    if (!markSeen(callId)) {
       logCall('dup', callId, callTurn, 0, 0, '')
       return
-    }
-    seenCalls[callId] = true
-    seenCount += 1
-    if (seenCount > SUGGEST_SEEN_LIMIT) {
-      for (const key in seenCalls) delete seenCalls[key]
-      seenCount = 0
-      seenCalls[callId] = true
-      seenCount = 1
     }
     const parsed = suggestItemsOf(info.argumentsValue)
     if (!parsed.ok) {
@@ -188,6 +245,68 @@ export const createSuggestStream = function (options: any) {
     }
   }
 
+  /**
+   * 补出：切回一个在后台跑完了一轮的会话时，那组建议从没上过屏，按会话缓存也是空的
+   * （取数层只认 append 增量，历史重放不会当新调用交付）。这里只读一次事件流快照，在历史重放
+   * 里从尾向前找最后一条「所在轮已收尾」的建议调用，走既有交付函数补出一组；更早的一律不补。
+   * 尾部那一轮还没收尾时不补出来，改为收下等增量通路送来 turn/end 再正常交付 —— 否则这一组
+   * 在挂载前就已到达的调用会永远没人交付。
+   * 任何一步失败都安静吞掉，只留能指路的调试日志；读快照只读一次，不保持订阅、不加定时器。
+   */
+  function restoreFromReplay() {
+    if (!restoreReplay || disposed || !sid || !bound) return
+    if (!binding || !binding.eventSource || typeof binding.eventSource.getSnapshot !== 'function') return
+    // 用户在本进程里点走或关掉过这个会话的组：历史重放里就算还有，也不补（#1525 认可的边界）。
+    if (suggestSessionWasDismissed(sid)) return
+    let snapshot: any = null
+    try { snapshot = binding.eventSource.getSnapshot() } catch (eSnapshot) { logBind('error', 'restore-snapshot'); return }
+    try {
+      const change = snapshot && snapshot.change
+      // 只认历史重放。挂载时快照若不是 replace（例如空会话的初始快照），说明没有历史可补。
+      if (!change || change.kind !== 'replace') return
+      const entries = Array.isArray(change.entries) ? change.entries : []
+      if (!entries.length) return
+      let lastCall: any = null
+      let endedTurn: any = null
+      let openTurn: any = null
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i]
+        const info = suggestEventOf(entry && entry.event)
+        if (!info) continue
+        if (info.kind === 'turn-start') { openTurn = info.turn; continue }
+        if (info.kind === 'turn-end') {
+          endedTurn = info.turn
+          openTurn = null
+          // PTC 调用不带轮次，挂在它前面的那一轮上；这一轮的 turn/end 到了就算收尾。
+          if (lastCall && !lastCall.closed && (lastCall.turn === null || lastCall.turn <= info.turn)) lastCall.closed = true
+          continue
+        }
+        const callTurn = (info.turn === null || info.turn === undefined) ? openTurn : info.turn
+        lastCall = { callId: info.callId, argumentsValue: info.argumentsValue, turn: callTurn, closed: false }
+      }
+      // 把内部轮次状态对齐到历史末尾，之后增量事件照常判断「这轮结束没有」。
+      lastEndedTurn = endedTurn
+      currentTurn = openTurn
+      if (!lastCall) return
+      if (!markSeen(lastCall.callId)) return
+      const parsed = suggestItemsOf(lastCall.argumentsValue)
+      if (!parsed.ok) {
+        logCall(parsed.reason === 'bad-shape' ? 'bad-shape' : 'bad-args', lastCall.callId, lastCall.turn, 0, 0, parsed.reason)
+        return
+      }
+      logCall('seen', lastCall.callId, lastCall.turn, parsed.items.length, parsed.clipped, '')
+      if (lastCall.closed) {
+        deliver('restored', lastCall.turn, lastCall.callId, parsed.items)
+        return
+      }
+      // 尾部这一轮还没收尾：收下等增量通路的 turn/end（同一套 pending 状态，不另立字段）。
+      pending = { turn: lastCall.turn, callId: lastCall.callId, items: parsed.items }
+      logReady('queued', lastCall.callId, lastCall.turn, parsed.items.length)
+    } catch (eRestore) {
+      logBind('error', 'restore-scan')
+    }
+  }
+
   /** 借事件流：任何一步拿不到就记一条指路日志后安静返回（界面不做任何事）。 */
   function start() {
     if (!sessions || typeof sessions.binding !== 'function') { logBind('no-service', ''); return }
@@ -200,6 +319,7 @@ export const createSuggestStream = function (options: any) {
       return
     }
     try { stop = source.subscribe(onChange) } catch (eSub) { stop = null; logBind('error', 'subscribe'); return }
+    bound = true
     logBind('bound', '')
   }
 
@@ -219,6 +339,8 @@ export const createSuggestStream = function (options: any) {
   }
 
   start()
+  // 订阅成功后才读快照：先借上事件流，补完历史之后到达的增量不会漏。
+  restoreFromReplay()
   return { dispose: dispose }
 }
 
@@ -227,8 +349,9 @@ export const createSuggestStream = function (options: any) {
  * 为什么做成组件而不是写进 StatusBar：StatusBar.ts 已经贴着单文件 350 有效行的粒度红线，
  * 在那里加 useEffect 会超线；这里挂一个组件，状态栏只需要在已有行里加一个子节点。
  * sid 变化（切会话）时 React 会先跑上一轮的清理再建新流 —— 旧订阅退掉、新会话重新借；
- * 新会话只显示它自己留下的那一组建议（切回来时从按会话的缓存里取回，见 suggestGroupRecall），
- * 绝不把上一个会话的建议留在当前会话上；用户显式点走或关掉的组会从缓存里删掉，不再复活。
+ * 新会话只显示它自己留下的那一组建议（切回来时从按会话的缓存里取回，见 suggestGroupRecall）；
+ * 缓存里没有时再从历史重放里补出最后一组（#1526）—— 后台跑完、当时没在看的那组建议也能补上；
+ * 绝不把上一个会话的建议留在当前会话上；用户显式点走或关掉的组会从缓存里删掉，本次运行内不再补出。
  * 本组件自身不读会话、不 retain：取数只走 createSuggestStream 里那条只读订阅。
  */
 export const SuggestStreamMount = function (props: any) {
@@ -253,10 +376,13 @@ export const SuggestStreamMount = function (props: any) {
       sessionsSvc = (cx && cx.ctx && typeof cx.ctx.get === 'function') ? cx.ctx.get('sessions') : null
     } catch (eSvc) { sessionsSvc = null }
     // 换会话时换成这个会话自己留下的那一组：旧会话的建议不能留在新会话上，但切回来要能找回来。
-    setGroup(suggestGroupRecall(sid))
+    const cached = suggestGroupRecall(sid)
+    setGroup(cached)
     const stream = createSuggestStream({
       sessions: sessionsSvc,
       sid: sid,
+      // 缓存里已经有这一组就不补；缓存为空才从历史重放里补出最后一组（#1526，规格 #1525）。
+      restoreReplay: !cached,
       onReady: function (items: any) {
         if (!alive) return
         seqRef.current = seqRef.current + 1
