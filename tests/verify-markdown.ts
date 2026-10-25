@@ -1,6 +1,8 @@
 // verify-markdown.ts — dsh-waystation v1.5 T17：markdown 白名单渲染契约校验
 // 用法: node --import ./scripts/ts-hook.mts tests/verify-markdown.ts（在插件根目录；2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，27 条断言一条没动，读 client.js 的相对路径与 eval-probe 的 .js 说明符都保持原样。）
-// 覆盖：行为级渲染（从两份产物里原文切出渲染器，用 stub h() 执行它，验证输出结构与防注入边界）。
+// 覆盖：行为级渲染（从两份产物里原文切出渲染器，用 stub h() 执行它，验证输出结构与防注入边界）；
+// 表格（#1524 起）：表头/分隔行/数据行画成 table/thead/tbody，列数按表头、冒号对齐、单元格转义竖线、
+// 宽表外壳横向滚动、单元格里的原始 HTML 不解析。
 // 原来还有一批「源码里出现了哪些字」的存在性检查，已按维护者口径删掉。
 const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
@@ -117,6 +119,14 @@ const textOf = (node: any): string => {
   return kids.map(textOf).join('')
 }
 
+// 表格断言专用查找：必须正好找到一张表；找不到或找到多张当场算失败，返回的占位节点让后续断言
+// 继续跑完并亮红，而不是整组被 if 包住静默跳过（门禁假绿的坑，2026-10-25 标准轴审查发现）。
+const onlyTable = (tree: any[], label: string): any => {
+  const found = findAll(tree, 'table')
+  check(found.length === 1, label + '：应恰好渲染成 1 个 <table>')
+  return found.length === 1 ? found[0] : { tag: 'table', props: {}, children: [] }
+}
+
 // 链接：中段链接（回归：占位符 \u0001L0\u0001 泄漏）与行首链接
 //   #1335 界面反馈给 markdown 链接挂了按压形状与点击日志标识（data-press / data-log），开标签上
 //   因此多了属性；判据改成「开标签前缀 + 链接文字与闭合标签」两段认，仍然要求它渲染成外链 <a>
@@ -154,35 +164,30 @@ check(!rCli('<img src="data:text/html;base64,PHNjcmlwdD4=" alt="x" />').includes
 check(rCli('[![说明](https://github.com/user-attachments/assets/a.png)](https://github.com/a)').includes('<a href="https://github.com/a"'), '包在链接里的图片保持外层跳转')
 check(!rCli('看图 ![说明](https://a.png) 尾').includes('\u0001'), '图片占位符无泄漏')
 
-// ── 表格（#1524）：GFM 基础表格走白名单元素，安全边界照旧 ──
+// ── 表格（#1524）：Markdown 表格写法走白名单元素，安全边界照旧 ──
 const tableSample = '| 行 | 票号 | 标题（截断） | 时间 |\n| --- | --- | --- | --- |\n| 1 | #1461 | BUG 建单提示词升到 v13 | 20:58 |\n| 2 | #1460 | 规格：新增 BUG 建单前查重 | 20:59 |\n| 3 | #1462 | 端到端验收 | 20:59 |'
-const tableCli = findAll(rCliTree(tableSample), 'table')
-const tablePkg = findAll(rPkgTree(tableSample), 'table')
-check(tableCli.length === 1 && tablePkg.length === 1, 'client 与 package 都把表格渲染成 <table>')
-if (tableCli.length === 1) {
-  const th = findAll(tableCli[0], 'th')
-  const body = findAll(tableCli[0], 'tbody')
-  const trs = body.length === 1 ? findAll(body[0], 'tr') : []
-  check(th.length === 4, '表头按表头行的列数画成 4 个 th')
-  check(trs.length === 3, '三条数据行都进了 tbody')
-  check(trs.length === 3 && findAll(trs[0], 'td').length === 4, '数据行每行 4 个 td')
-  check(!textOf(tableCli[0]).includes('---'), '分隔行不产生可见文字')
-  check(!textOf(tableCli[0]).includes('|'), '竖线不再当正文显示')
-}
+const tableCli = onlyTable(rCliTree(tableSample), 'client 基础表格')
+const tablePkg = onlyTable(rPkgTree(tableSample), 'package 基础表格')
+const th = findAll(tableCli, 'th')
+const body = findAll(tableCli, 'tbody')
+const trs = body.length ? findAll(body[0], 'tr') : []
+check(th.length === 4, '表头按表头行的列数画成 4 个 th')
+check(trs.length === 3, '三条数据行都进了 tbody')
+check(trs.length === 3 && findAll(trs[0], 'td').length === 4, '数据行每行 4 个 td')
+check(!textOf(tableCli).includes('---'), '分隔行不产生可见文字')
+check(!textOf(tableCli).includes('|'), '竖线不再当正文显示')
 check(rCli(tableSample).includes('<table>') && rCli(tableSample).includes('<thead>') && rCli(tableSample).includes('<tbody>'), 'client 表格含 table/thead/tbody')
 check(!rCli(tableSample).includes('<div>| 行'), '表格行不再退化成带竖线的段落')
 
 // 对齐：分隔行里的冒号映射成 text-align，没写冒号的列保持默认（不挂 text-align）
 const alignTree = rCliTree('| 左 | 中 | 右 | 默认 |\n| :--- | :---: | ---: | --- |\n| a | b | c | d |')
-const alignTable = findAll(alignTree, 'table')
-if (alignTable.length === 1) {
-  const th = findAll(alignTable[0], 'th')
-  const tds = findAll(alignTable[0], 'td')
-  check(th[0] && th[0].props.style.textAlign === 'left' && th[3] && th[3].props.style.textAlign === undefined, '左对齐列与默认列的表头样式')
-  check(th[1] && th[1].props.style.textAlign === 'center', '居中列的表头 text-align:center')
-  check(th[2] && th[2].props.style.textAlign === 'right', '右对齐列的表头 text-align:right')
-  check(tds[0] && tds[0].props.style.textAlign === 'left' && tds[1] && tds[1].props.style.textAlign === 'center', '数据单元格与表头用同一套对齐')
-}
+const alignTable = onlyTable(alignTree, '对齐表格')
+const alignTh = findAll(alignTable, 'th')
+const alignTd = findAll(alignTable, 'td')
+check(alignTh[0] && alignTh[0].props.style.textAlign === 'left' && alignTh[3] && alignTh[3].props.style.textAlign === undefined, '左对齐列与默认列的表头样式')
+check(alignTh[1] && alignTh[1].props.style.textAlign === 'center', '居中列的表头 text-align:center')
+check(alignTh[2] && alignTh[2].props.style.textAlign === 'right', '右对齐列的表头 text-align:right')
+check(alignTd[0] && alignTd[0].props.style.textAlign === 'left' && alignTd[1] && alignTd[1].props.style.textAlign === 'center', '数据单元格与表头用同一套对齐')
 
 // 单元格内的行内写法照旧生效
 const inlineTable = rCli('| **粗** | `code` |\n| --- | --- |\n| [A](https://a.com) | ~~删~~ |')
@@ -190,12 +195,9 @@ check(inlineTable.includes('<strong>粗</strong>') && inlineTable.includes('<cod
 check(inlineTable.includes('href="https://a.com"'), '单元格里的链接仍渲染为外链')
 
 // 单元格里的竖线用反斜杠转义，不能把一行切成多格
-const escapedTree = rCliTree('| 甲 | 乙 |\n| --- | --- |\n| a \\| b | c |')
-const escapedTable = findAll(escapedTree, 'table')
-if (escapedTable.length === 1) {
-  const tds = findAll(findAll(escapedTable[0], 'tbody')[0], 'td')
-  check(tds.length === 2 && textOf(tds[0]) === 'a | b' && textOf(tds[1]) === 'c', '转义竖线留在单元格文字里')
-}
+const escapedTable = onlyTable(rCliTree('| 甲 | 乙 |\n| --- | --- |\n| a \\| b | c |'), '转义竖线表格')
+const escapedTds = findAll(findAll(escapedTable, 'tbody')[0], 'td')
+check(escapedTds.length === 2 && textOf(escapedTds[0]) === 'a | b' && textOf(escapedTds[1]) === 'c', '转义竖线留在单元格文字里')
 
 // 只有一行带竖线的文字、下一行不是合法分隔行：不算表格，按普通段落显示
 const noTable = rCli('这一行不是表头\n| 行 | 票号 |')
@@ -203,15 +205,12 @@ check(!noTable.includes('<table>'), '缺合法分隔行时不误判成表格')
 check(noTable.includes('| 行 | 票号 |'), '误判保护后原文仍原样显示')
 
 // 列数不齐：多出来的单元格丢掉，缺的补空单元格
-const raggedTree = rCliTree('| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 | 3 |\n| 只有一个 |')
-const raggedTable = findAll(raggedTree, 'table')
-if (raggedTable.length === 1) {
-  const trs = findAll(findAll(raggedTable[0], 'tbody')[0], 'tr')
-  const first = findAll(trs[0], 'td')
-  const second = findAll(trs[1], 'td')
-  check(first.length === 2 && textOf(first[1]) === '2', '多出来的单元格丢掉')
-  check(second.length === 2 && textOf(second[1]) === '', '缺的单元格补空')
-}
+const raggedTable = onlyTable(rCliTree('| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 | 3 |\n| 只有一个 |'), '列数不齐表格')
+const raggedTrs = findAll(findAll(raggedTable, 'tbody')[0], 'tr')
+const raggedFirst = findAll(raggedTrs[0], 'td')
+const raggedSecond = findAll(raggedTrs[1], 'td')
+check(raggedFirst.length === 2 && textOf(raggedFirst[1]) === '2', '多出来的单元格丢掉')
+check(raggedSecond.length === 2 && textOf(raggedSecond[1]) === '', '缺的单元格补空')
 
 // 宽表用横向滚动的外壳包住，表格本身不撑破面板
 const wrap = findAll(alignTree, 'div').filter(function (n) { return n.props.style && n.props.style.overflowX === 'auto' })
