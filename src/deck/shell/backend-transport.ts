@@ -21,9 +21,9 @@ export function numOpt(v: unknown): number | undefined {
 }
 
 // 等待竞速的实现搬去了 src/deck/shell/capped-wait.ts（#1114 第二批：到点就清等待定时器，
-// 不再把进程留在事件循环里）。两个写工具仍旧从这里导入，导出面不变。
+// 不再把进程留在事件循环里）。两个写工具仍旧从这里导入 withCap；CapResult 只有 withCap 自己用，
+// 不再从这里转出（复核发现全仓没有消费者，多一个导出面就多一处要维护的承诺）。
 export { withCap } from './capped-wait.js'
-export type { CapResult } from './capped-wait.js'
 
 /** 执行层失败与后端诚实失败的分界：只有这几种 kind 算「执行层没回来」。 */
 const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']

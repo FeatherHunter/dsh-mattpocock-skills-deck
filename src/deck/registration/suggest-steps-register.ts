@@ -12,6 +12,7 @@
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw } from './register-options.js'
 import { createSuggestNextSteps, definition } from '../tools/suggest-next-steps.js'
 import { REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js'
+import { sleepOnce } from '../shell/capped-wait.js'
 import { hash8 } from '../../refresh/contract/workspace-keys.js'
 
 /** 外层递进来的东西（工具服务、上下文、日志）形状都不由本文件定，逐格验，不猜。 */
@@ -122,9 +123,9 @@ export function registerSuggestNextSteps(toolsSvc: unknown, deps?: SuggestRegist
   }
 }
 
-/** 等一会儿：只给登记重试用，缺省真定时器。 */
+/** 等一会儿：只给登记重试用。定时器由 capped-wait 统一 unref 并在到点后清掉（#1114 第二批）。 */
 function sleep(ms: number): Promise<void> {
-  return new Promise<void>(function (resolve) { setTimeout(resolve, ms) })
+  return sleepOnce(ms)
 }
 
 /**
