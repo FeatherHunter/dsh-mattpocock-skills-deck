@@ -66,6 +66,16 @@ const capsuleTicketKeyOf = function (v: any) {
 };
 
 /**
+ * 一行是哪种容器：探索地图回 'map'、规格回 'spec'、普通票回空串（#1518）。
+ * 判定口径归内核 kernel/container-view.ts 的 containerKindOf（唯一真源，认 type 也认 wayfinder:map 标签）。
+ * 门禁会把本文件单独取出来求值，那时闭包里没有内核那件东西：先问「在不在」，不在就退回本文件内同一口径的
+ * 退化判定（顺序与 ListTabRow.ts 里那份相同），不让整条胶囊因为少一件东西就抛错。
+ */
+const capsuleKindOf = function (x: any) {
+  if (typeof containerKindOf === 'function') return containerKindOf(x) || ''
+  return !x ? '' : (x.type === 'spec' ? 'spec' : ((x.type === 'map' || (Array.isArray(x.labels) && x.labels.some(function (l: any) { return (typeof l === 'string') ? l === 'wayfinder:map' : !!(l && l.name === 'wayfinder:map') }))) ? 'map' : '')) }
+
+/**
  * 号码 → 标题、工作单元与状态（只从已拿到的快照里查；旧链 sessionChainView.js 那一套，
  * #1271 起搬到这里 —— 那份叶子已删，标题就近查只剩胶囊用）。
  * 字段叫 ticketTitle 是为避开原生 title 提示（见 verify-no-title）。containerKind 问 kernel/container-view.ts 的
@@ -84,10 +94,12 @@ const capsuleTitlesOf = function (st: any) {
     const eff = (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId)
     const id = eff + '\0' + n
     const rs = (x.state === null || x.state === undefined) ? '' : String(x.state).toUpperCase()
-    // #1518：状态栏这张胶囊也认容器身份 —— 探索地图与规格都算容器，判定只问内核 containerKindOf，本文件不再自己比 type。
+    // #1518：状态栏这张胶囊也认容器身份 —— 探索地图与规格都算容器，判定只问内核 containerKindOf（唯一真源），
+    //   本文件不再自己比 type；门禁单文件求值时内核不在，就退回 capsuleKindOf 里同一口径的退化判定。
     //   版面上规格与探索地图同形（地图图标 + 裸号），区别只在文字通道的类型词（地图 / 规格）；点开去向保持原样：
-    //   探索地图进地图详情页，规格仍走票详情那条路（原 #1286 的选择）。
-    const row = { ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title), effortId: eff, ticketState: rs === 'CLOSED' ? 'CLOSED' : (rs === 'OPEN' ? 'OPEN' : ''), containerKind: containerKindOf(x) || '' }
+    //   探索地图进地图详情页，规格仍走票详情那条路。这一条**推翻了原先「规格就当普通票画」的刻意选择** —— 当时
+    //   #1286 只定了列表页与详情页的视觉，状态栏这一处没有纳入，本票按报告人的要求把它改了回来。
+    const row = { ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title), effortId: eff, ticketState: rs === 'CLOSED' ? 'CLOSED' : (rs === 'OPEN' ? 'OPEN' : ''), containerKind: capsuleKindOf(x) }
     if (!byId[id]) byId[id] = row
     if (!byNumber[n]) byNumber[n] = row
   }
@@ -119,7 +131,10 @@ const capsuleTitleFor = function (titles: any, ticketKey: any, effortId: any) {
 const capsuleRowOf = function (titles: any, e: any) {
   const key = capsuleTicketKeyOf(e ? e.ticketKey : '')
   if (!key) return null
-  const known = capsuleTitleFor(titles, key, '')
+  // #1518：同一票号可能出现在两个工作目录里，身份格是（工作单元，票号）。读数带了工作单元就按它查，
+  //   不再写死空串去撞 byNumber —— 撞错会把别目录那张票的种类、标题与点开目标一起认错。
+  const eEff = (e && e.effortId !== null && e.effortId !== undefined) ? String(e.effortId) : ''
+  const known = (titles && titles.byId && titles.byId[eEff + '\0' + key]) || (eEff ? null : capsuleTitleFor(titles, key, ''))
   const action = (e && e.action !== null && e.action !== undefined) ? String(e.action) : ''
   let actionKey = ''
   try { actionKey = (typeof workRouteActionKeyOf === 'function') ? String(workRouteActionKeyOf(action) || '') : '' } catch (eKey) { actionKey = '' }
@@ -278,12 +293,14 @@ function chainLater(st: any, closeRef: any) {
  *   规则只写这一处：版面上那一段与悬停单子里每一行的徽章都读它，免得两处各写一遍、日后走岔。
  *   注意这只是**版面**的写法；文字通道（无障碍名与悬停提示）一律仍写 `#号`，见 spoken 与单子里的 line。
  */
-const chainKeyTextOf = function (kind: any, key: any, effortId: any) { return kind ? String(key) : ticketLabelOf(key, effortId) }
+const chainKeyTextOf = function (kind: any, key: any, effortId: any) { return (kind === 'map' || kind === 'spec') ? String(key) : ticketLabelOf(key, effortId) }
 /**
  * #780：容器那一条的那枚图标（探索地图与规格同形；普通票没有这一枚；段首那枚图钉不在这里）。
  *   它必须是号那个元素的**兄弟节点** —— 收字机器往挂让位号的元素里写 textContent，塞进去会被抹掉。
  */
-const chainMapIconOf = function (kind: any, size: any) { return kind ? Ic({ n: 'map', size: size }) : null }
+const chainContainerIconOf = function (kind: any, size: any) { return (kind === 'map' || kind === 'spec') ? Ic({ n: 'map', size: size }) : null }
+/** 文字通道里的类型词（「地图 」/「规格 」/ 空串，末尾自带一个空格）：主胶囊与悬停单子共用这一处，不各写一遍三元。 */
+const chainTypeWordOf = function (kind: any) { return kind === 'map' ? tr('type.map') + ' ' : (kind === 'spec' ? tr('type.spec') + ' ' : '') }
 
 // #1263: header plus row time helpers. Leaf discipline: no new runtime import, words via tr only.
 // Row time and header time reuse the work-route table's clock (same-day HH:mm, cross-day MM-DD HH:mm).
@@ -346,11 +363,11 @@ const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any,
   const captionColor = 'var(--dsws-label-caption,#8b8b95)'
   // 数字比说明文字亮一档：说明文字用 caption 灰，数字用 secondary（主题回退值见两处 var 的兜底）。
   const numStyle = { fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' }
-  const title = h('span', { key: 'title', style: { flex: 'none', fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, tr('chainView.capsuleHeaderTitle'))
-  const own = h('span', { key: 'own', style: { flex: 'none', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOwn'), { n: ownCount }, numStyle))
-  const innerSep = chainSeparatorOf(h, 'sepInner', 7, 15, 0.62)
-  const time = h('span', { key: 'time', style: { flex: 'none', color: captionColor } }, tr('chainView.readAtFull', { time: headTime }))
-  const left = h('span', { key: 'ownSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', whiteSpace: 'nowrap' } }, [title, own, innerSep, time])
+  const left = h('span', { key: 'ownSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', whiteSpace: 'nowrap' } }, [
+    h('span', { key: 'title', style: { flex: 'none', fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, tr('chainView.capsuleHeaderTitle')),
+    h('span', { key: 'own', style: { flex: 'none', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOwn'), { n: ownCount }, numStyle)),
+    chainSeparatorOf(h, 'sepInner', 7, 15, 0.62),
+    h('span', { key: 'time', style: { flex: 'none', color: captionColor } }, tr('chainView.readAtFull', { time: headTime }))])
   // 右簇靠自动外边距推到行尾：marginLeft:'auto' 吸收两簇之间的空白，容器上的 justifyContent:'space-between'
   //   只是原先的写法、留着无害；空间不足时 flex-shrink 收窄，里面的文字仍以省略号收尾。
   const others = otherCount > 0
@@ -406,11 +423,8 @@ export const SessionChainCapsule = function (props: any) {
   //   让位机直接往纯文本元素里写字，这里两处（版面号、环境计数都是纯文本）都是安全的。
   // #1440：展开列表与主胶囊、面板同一条选路 —— 本机只读读数优先，快照兜底。只读快照的话，
   //   304 回包里挂的那张坏表会把「别的会话还有几张在办」也算成 0，标题栏跟着少报。
-  const listPick = (typeof capsuleOwnRoutePick === 'function') ? capsuleOwnRoutePick(st) : null
-  const listedView = (listPick && listPick.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null)
-  const tableView = listedView
-  const allRows = (tableView && Array.isArray(tableView.rows)) ? tableView.rows : []
-  const otherRows = allRows.filter(function (r: any) { return r && r.currentSession !== true })
+  const listedView = (function (lk: any) { return (lk && lk.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null) })((typeof capsuleOwnRoutePick === 'function') ? capsuleOwnRoutePick(st) : null)
+  const otherRows = ((listedView && Array.isArray(listedView.rows)) ? listedView.rows : []).filter(function (r: any) { return r && r.currentSession !== true })
   const otherSet: any = {}
   for (let oi = 0; oi < otherRows.length; oi++) { const k = String((otherRows[oi] && otherRows[oi].sessionLabel) || ''); if (k) otherSet[k] = true }
   const otherCount = Object.keys(otherSet).length
@@ -418,11 +432,10 @@ export const SessionChainCapsule = function (props: any) {
   const headTime = (typeof workRouteTableClock === 'function') ? workRouteTableClock(e && e.atIso, nowMs) : ''
   const displayed = view.list.slice().reverse()
   const eKind = e.containerKind || ''
-  const text = chainKeyTextOf(eKind, e.ticketKey, e.effortId)
   const eState = e.ticketState === 'CLOSED' ? 'CLOSED' : (e.ticketState === 'OPEN' ? 'OPEN' : '')
   const eStateWord = eState === 'OPEN' ? tr('list.state.open') : (eState === 'CLOSED' ? tr('list.state.closed') : '')
   const eColor = eState === 'OPEN' ? '#58a6ff' : (eState === 'CLOSED' ? '#8b949e' : 'var(--dsw-alias-label-primary,#e6edf3)')
-  const spoken = tr('chainView.capsuleDoing') + ' ' + (eKind === 'map' ? tr('type.map') + ' ' : (eKind === 'spec' ? tr('type.spec') + ' ' : '')) + ticketLabelOf(e.ticketKey, e.effortId) + (e.ticketTitle ? ' ' + e.ticketTitle : ' ' + tr('chainView.titleMissing')) + (eStateWord ? ' ' + eStateWord : '')
+  const spoken = tr('chainView.capsuleDoing') + ' ' + chainTypeWordOf(eKind) + ticketLabelOf(e.ticketKey, e.effortId) + (e.ticketTitle ? ' ' + e.ticketTitle : ' ' + tr('chainView.titleMissing')) + (eStateWord ? ' ' + eStateWord : '')
   const openRow = function (row: any) {
     return function (ev: any) {
       if (ev && ev.stopPropagation) ev.stopPropagation()
@@ -457,7 +470,7 @@ export const SessionChainCapsule = function (props: any) {
       const rowTime = (typeof workRouteTableClock === 'function') ? workRouteTableClock(r.atIso, nowMs) : ''
       const rowStale = capsuleStaleOf(r.at, nowMs)
       const staleWord = rowStale ? tr('chainView.capsuleStale') : ''
-      const line = (rKind === 'map' ? tr('type.map') + ' ' : (rKind === 'spec' ? tr('type.spec') + ' ' : '')) + ticketLabelOf(r.ticketKey, r.effortId) + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (rowTime ? ' ' + rowTime : '') + (staleWord ? ' ' + staleWord : '') + (rStateWord ? ' ' + rStateWord : '')
+      const line = chainTypeWordOf(rKind) + ticketLabelOf(r.ticketKey, r.effortId) + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (rowTime ? ' ' + rowTime : '') + (staleWord ? ' ' + staleWord : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
         className: 'dsws-chainmenu-row dsws-hov' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
@@ -481,7 +494,7 @@ export const SessionChainCapsule = function (props: any) {
       }, [
         // #780 / #1518：容器（探索地图与规格）那行的号徽章是「地图图标 + 裸号」，普通票那行仍是 `#号`
         h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rKind
-          ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [chainMapIconOf(rKind, 11), h('span', null, chainKeyTextOf(rKind, r.ticketKey, r.effortId))])
+          ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [chainContainerIconOf(rKind, 11), h('span', null, chainKeyTextOf(rKind, r.ticketKey, r.effortId))])
           : chainKeyTextOf(rKind, r.ticketKey, r.effortId)),
         // #907：查不到标题就留白（一个字都不写），不再拿票号顶上 —— 那会让同一行出现两遍同一个号；
         //   「标题未取到」那句话只在文字通道里（上面 spoken 与 line 两处无障碍名）。
@@ -514,7 +527,7 @@ export const SessionChainCapsule = function (props: any) {
       //   原因不是环画错了——环（悬停的内画描边与键盘焦点 outline）一直是跟着元素自己的边界形状走的，
       //   这一颗原先没写圆角，所以环四四方方。补一个轻微圆角（4px，与菜单项、折叠条一致），环自然跟着变圆。
       style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer', borderRadius: 4 },
-    }, [Ic({ n: 'pin', size: 12 }), chainMapIconOf(eKind, 12), h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text)]),
+    }, [Ic({ n: 'pin', size: 12 }), chainContainerIconOf(eKind, 12), h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, chainKeyTextOf(eKind, e.ticketKey, e.effortId))]),
     menu,
   ])
 }
