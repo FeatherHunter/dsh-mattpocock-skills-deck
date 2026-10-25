@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T10:51:39.373Z",
+  "generatedAt": "2026-10-25T14:26:20.303Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 381,
-  "gateCount": 381,
-  "attributedGates": 341,
+  "chainLength": 382,
+  "gateCount": 382,
+  "attributedGates": 342,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
@@ -5015,6 +5015,26 @@
       "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
+      "step": "node tests/verify-916-ghauth-crosscheck.ts",
+      "file": "tests/verify-916-ghauth-crosscheck.ts",
+      "guards": [
+        "src/refresh/rooms/host/chain-env-map.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/shared/tracker/guide-steps.ts",
+        "src/tracker/rooms/github/preflight.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/shared/tracker",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 4 条"
+    },
+    {
       "step": "node tests/verify-916-ghauth-unknown-banner.ts",
       "file": "tests/verify-916-ghauth-unknown-banner.ts",
       "guards": [
@@ -9964,6 +9984,7 @@
       "node tests/verify-847-stall-watch.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-895-github-memo.ts",
+      "node tests/verify-916-ghauth-crosscheck.ts",
       "node tests/verify-927-gate-injection.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-934-935-invariants.ts",
@@ -10100,6 +10121,7 @@
       "node tests/verify-668-guide-steps-single-source.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-698-switch-asks-layout.ts",
+      "node tests/verify-916-ghauth-crosscheck.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-968-skill-ondemand.ts",
       "node tests/verify-dirwritable.ts",
@@ -10268,6 +10290,7 @@
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-github-memo.ts",
+      "node tests/verify-916-ghauth-crosscheck.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
