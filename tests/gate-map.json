@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T10:27:26.894Z",
+  "generatedAt": "2026-10-25T10:39:01.756Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 380,
-  "gateCount": 380,
-  "attributedGates": 340,
+  "chainLength": 381,
+  "gateCount": 381,
+  "attributedGates": 341,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
@@ -3394,6 +3394,22 @@
       "file": "tests/verify-1509-update-strict.ts",
       "guards": [
         "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/template-guard.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1510-guard-dispatch.ts",
+      "file": "tests/verify-1510-guard-dispatch.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/create-render.ts",
         "src/tracker/rooms/markdown/template-guard.ts"
       ],
       "dirs": [
@@ -10326,6 +10342,7 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1507-create-strict.ts",
       "node tests/verify-1509-update-strict.ts",
+      "node tests/verify-1510-guard-dispatch.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
