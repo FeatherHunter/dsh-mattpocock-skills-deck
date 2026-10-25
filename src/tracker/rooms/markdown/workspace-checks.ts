@@ -28,10 +28,18 @@ export type WorkspaceCheckId = 'md:workspace' | 'md:scratchWritable' | 'md:conta
 
 export type WorkspaceCheckStatus = 'pass' | 'fail' | 'pending'
 
-/** 一项判据的结论：status 三档，detail 是给人看的证据（什么路径、看到了什么、为什么这么判）。 */
+/**
+ * 一项判据的结论：status 三档，detail 是给人看的证据（什么路径、看到了什么、为什么这么判）。
+ *
+ * evidence 是给日志用的短机器证据（#1514）：detail 里带绝对路径与完整错误原文，适合进界面，
+ *   不适合一行行写进诊断日志；evidence 只留「看结论就知道该去查什么」的一小截（例如 units=3、
+ *   probe=.scratch、sbx-deny、containers=0、error=ENOENT），绝不放路径原文。没给就是这一项没有
+ *   适合记的短证据，日志里记空串。
+ */
 export interface WorkspaceCheckResult {
   status: WorkspaceCheckStatus
   detail: string
+  evidence?: string
 }
 
 /**
@@ -155,6 +163,7 @@ export async function checkWorkspace(deps: WorkspaceCheckDeps): Promise<Workspac
     if (!units || units.length === 0) {
       return {
         status: 'pass',
+        evidence: 'units=0',
         detail: pick(deps,
           '空工作区：' + root + ' 里还没有任何工作单元（没有 map.md / spec.md / issues/），可以从这里开始建票、建图',
           'empty workspace: no work units under ' + root + ' yet (no map.md / spec.md / issues/); tickets and maps can start from here'),
@@ -164,6 +173,7 @@ export async function checkWorkspace(deps: WorkspaceCheckDeps): Promise<Workspac
     const more = units.length > 8 ? pick(deps, ' 等 ' + units.length + ' 个', ' and ' + (units.length - 8) + ' more') : ''
     return {
       status: 'pass',
+      evidence: 'units=' + units.length,
       detail: pick(deps,
         '找到 ' + units.length + ' 个工作单元：' + shown + more,
         'found ' + units.length + ' work unit(s): ' + shown + more),
@@ -172,6 +182,7 @@ export async function checkWorkspace(deps: WorkspaceCheckDeps): Promise<Workspac
     const evidence = errorTextOf(e)
     return {
       status: 'fail',
+      evidence: 'error=' + (errorCodeOf(e) || 'unknown'),
       detail: pick(deps,
         '读不出工作区目录 ' + root + '：' + evidence,
         'cannot read the workspace dir ' + root + ': ' + evidence),
@@ -213,6 +224,7 @@ export async function checkScratchWritable(deps: WorkspaceCheckDeps): Promise<Wo
   if (!fs || typeof fs.resolve !== 'function' || typeof fs.writeText !== 'function') {
     return {
       status: 'pending',
+      evidence: 'no-fs',
       detail: pick(deps,
         '量不出本地数据目录是否可写：这次调用没有可用的文件服务',
         'cannot measure writability: no file service is available for this call'),
@@ -229,6 +241,7 @@ export async function checkScratchWritable(deps: WorkspaceCheckDeps): Promise<Wo
     await cleanupProbe(fs, target, probePath)
     return {
       status: 'pass',
+      evidence: scratchExists ? 'probe=.scratch' : 'probe=repo-root',
       detail: scratchExists
         ? pick(deps,
           '在 ' + scratchRoot + ' 里写了一个探针文件并已删掉：本地数据目录可写',
@@ -241,6 +254,7 @@ export async function checkScratchWritable(deps: WorkspaceCheckDeps): Promise<Wo
     if (isSandboxDeny(e)) {
       return {
         status: 'pending',
+        evidence: 'sbx-deny',
         detail: pick(deps,
           '插件的文件服务被沙箱拦住，量不出 ' + probeDir + ' 是否可写（目录本身是否存在不受影响；请按沙箱限制排查，别按目录权限排查）',
           'the plugin file service was blocked by the sandbox, so writability of ' + probeDir + ' cannot be measured (the dir itself may well exist; check the sandbox limits, not dir permissions)'),
@@ -249,6 +263,7 @@ export async function checkScratchWritable(deps: WorkspaceCheckDeps): Promise<Wo
     const evidence = errorTextOf(e)
     return {
       status: 'fail',
+      evidence: scratchExists ? 'write-fail:.scratch' : 'write-fail:repo-root',
       detail: scratchExists
         ? pick(deps,
           '本地数据目录 ' + scratchRoot + ' 写不进去（试过在它里面写探针文件）：' + evidence,
@@ -343,10 +358,10 @@ export async function checkContainersReadable(deps: WorkspaceCheckDeps): Promise
     collected = await collectContainers(ctx)
   } catch (e) {
     const evidence = errorTextOf(e)
-    return { status: 'fail', detail: pick(deps, '列容器文件时出错：' + evidence, 'failed while listing container files: ' + evidence) }
+    return { status: 'fail', evidence: 'error=' + (errorCodeOf(e) || 'unknown'), detail: pick(deps, '列容器文件时出错：' + evidence, 'failed while listing container files: ' + evidence) }
   }
   if (!collected.ok) {
-    return { status: 'fail', detail: en ? collected.detailEn : collected.detailZh }
+    return { status: 'fail', evidence: 'list-fail', detail: en ? collected.detailEn : collected.detailZh }
   }
   const files = collected.files
   if (!files.length) {
@@ -354,6 +369,7 @@ export async function checkContainersReadable(deps: WorkspaceCheckDeps): Promise
     const root = plat.join(getCwd(ctx), '.scratch')
     return {
       status: 'pass',
+      evidence: 'containers=0',
       detail: pick(deps, '没有容器文件（' + root + ' 里还没有 map.md / spec.md）', 'no container files yet (no map.md / spec.md under ' + root + ')'),
     }
   }
@@ -365,6 +381,7 @@ export async function checkContainersReadable(deps: WorkspaceCheckDeps): Promise
       const evidence = errorTextOf(e)
       return {
         status: 'fail',
+        evidence: 'read-fail',
         detail: pick(deps, '读不出容器文件 ' + filePath + '：' + evidence, 'cannot read the container file ' + filePath + ': ' + evidence),
       }
     }
@@ -373,6 +390,7 @@ export async function checkContainersReadable(deps: WorkspaceCheckDeps): Promise
       const supported = SUPPORTED_DSH_FORMATS.join(' / ')
       return {
         status: 'fail',
+        evidence: 'bad-format',
         detail: pick(deps,
           '容器文件 ' + filePath + ' 声明了不支持的格式 ' + fmt + '（这台插件只支持 ' + supported + '）',
           'the container file ' + filePath + ' declares an unsupported format ' + fmt + ' (this plugin supports ' + supported + ' only)'),
@@ -382,6 +400,7 @@ export async function checkContainersReadable(deps: WorkspaceCheckDeps): Promise
   const shown = files.slice(0, 8).join('、')
   return {
     status: 'pass',
+    evidence: 'containers=' + files.length,
     detail: pick(deps,
       '读到 ' + files.length + ' 个容器文件，都读得动、格式版本是 md-v1：' + shown,
       files.length + ' container file(s) are readable and all are md-v1: ' + shown),
@@ -418,16 +437,27 @@ export function workspaceCheckOf(id: string): WorkspaceCheckFn | null {
   return null
 }
 
+/** 一项判据跑完交回的形状：id、结论，以及这一项自己花了多久（毫秒，给日志用）。 */
+export interface WorkspaceCheckRow {
+  id: WorkspaceCheckId
+  result: WorkspaceCheckResult
+  latencyMs: number
+}
+
 /**
- * 房间 preflight 用的汇总：按固定顺序跑完三项，把每项结论原样交回。
+ * 房间 preflight 用的汇总：按固定顺序跑完三项，把每项结论原样交回，并各带一项自己的耗时。
  *
  * 只做「跑」和「交回」，怎么把结论收成 preflight 的一句话由房间决定（#1513 起房间不再自己找 map.md）。
+ * 为什么在这里记耗时（#1514）：三项各有自己的边界日志，日志要回答「这一项慢在哪」；耗时只能在这一层量，
+ *   再往下传到具体判据里，判据本身反倒要为日志背一笔不相关的账。
  */
-export async function runWorkspaceChecks(deps: WorkspaceCheckDeps): Promise<Array<{ id: WorkspaceCheckId; result: WorkspaceCheckResult }>> {
-  const out: Array<{ id: WorkspaceCheckId; result: WorkspaceCheckResult }> = []
+export async function runWorkspaceChecks(deps: WorkspaceCheckDeps): Promise<WorkspaceCheckRow[]> {
+  const out: WorkspaceCheckRow[] = []
   for (const id of CHECK_ORDER) {
     const fn = workspaceCheckOf(id) as WorkspaceCheckFn
-    out.push({ id: id, result: await fn(deps) })
+    const startedAt = Date.now()
+    const result = await fn(deps)
+    out.push({ id: id, result: result, latencyMs: Date.now() - startedAt })
   }
   return out
 }

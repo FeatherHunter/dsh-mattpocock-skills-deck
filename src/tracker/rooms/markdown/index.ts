@@ -17,7 +17,7 @@ import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { ensureLabelColors } from './label-colors.js'
 import { useBuiltinLabelColors } from './label-colors-palette.js'
 import { failAs, rawJson } from './error-fail.js'
-import { emitReadDegraded } from './read-log.js'
+import { emitPreflightCheck, emitReadDegraded } from './read-log.js'
 // #1446：本地房的读额度是一条纯回答（离网口径），实现在 ./budget.ts。
 import { readMarkdownBudget } from './budget.js'
 // node:path 无类型声明（与 path.ts 同款）：压住这一行，拿到的 nodePath 按 any 用。
@@ -233,14 +233,21 @@ export function createMarkdownBackend(ctx: OpContext) {
           lang: c&&(c as {lang?:string}).lang,
           sandboxPolicy: c&&(c as {sandboxPolicy?:unknown}).sandboxPolicy,
         })
+        // #1514：三项判据各落一行按需日志（preflight.check）——起点输入（工作区根的散列）、这一项自己
+        //   看到的短证据、结论、耗时。pass / fail / pending 都记：只记失败线时，事后分不清「这一项量过、
+        //   是 pending」与「这一项根本没跑到」。真正的失败结论另由下面常驻的 read.degraded 落一条。
+        for(let i=0;i<rows.length;i+=1){
+          const row=rows[i]
+          emitPreflightCheck(c,i+1,row.result.status,String(row.result.evidence||''),cwd,row.latencyMs)
+        }
         const failed=rows.filter(row=>row.result.status==='fail')
         if(failed.length===0)return{ok:true}
         // 失败那句人话：先说哪一项没过，再把判据自己写下的证据原样接上（路径、错误码都在这段证据里）。
         const first=failed[0]
         const lang=c&&(c as {lang?:string}).lang
         const message='预检没过：'+workspaceCheckLabel(first.id,lang)+'。'+String(first.result.detail||'')
-        // 日志沿用已登记的 preflight:fs-fail（本票不新增事件、不改事件表）：三项里有 fail，
-        //   说明这个工作区的文件系统这条线不通，与「还没建地图」是两回事。
+        // 失败结论沿用已登记的 preflight:fs-fail：三项里有 fail，说明这个工作区的文件系统这条线不通，
+        //   与「还没建地图」是两回事；三项各自的证据与耗时在上面 preflight.check 那三行里。
         emitReadDegraded(c,'preflight','preflight:fs-fail',Date.now()-startedAt)
         return failAs(ERROR_KIND.ENV,message,rawJson(rows)) as PreflightResult
       }catch(e){
@@ -324,11 +331,9 @@ export const prompts = {
   // #716：本地 Markdown 后端没有自己的命令行工具（票就是工作区里的文件），所以只声明站点名字；
   //   {cli} 那一格留空，渲染时回落中性说法「当前后端的命令行」—— 提示词里绝不写死别的后端的命令名。
   commandVocabulary: { cliBrand: '本地 Markdown' },
-  // 2026-08-29 定版（用户）：注入只放 /wayfinder 命令与需求占位，规则由技能自身负责，不加解释。
-  wayfinderMapBuild: {
-    zh: '/wayfinder (请输入任务需求)',
-    en: '/wayfinder (enter the task requirement)',
-  },
+  // #1514：原来这里还有一条 wayfinderMapBuild（「执行 wayfinder 构造地图」按钮的注入提示词）。三项判据改成
+  //   一起量工作区之后，「预检没过 → 执行 wayfinder 构造地图」这个修复动作不再成立：判据问的是工作区与容器
+  //   文件读不读得动，不是「还没建地图」；那条提示词因此整条删掉，不再对外提供。
   subIssue: {
     // 2026-09 修正：旧文案让 agent 执行 setParent(map.key) / list({parentKey})，但宿主侧没有这些 agent tool，
     //   随包分发的也只有两个 GitHub 专用脚本 —— 照做不到。改成这个后端真的能做的动作：在 map 文件的任务清单里引用子票。
@@ -349,7 +354,8 @@ export const prompts = {
 /** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。
  * #1513 起本地 Markdown 只有一条修复合约：md:scratchWritable —— 数据目录写不进去，人能做的是换一个可写的会话
  *   或去查目录权限，然后重查；后端自己修不了这件事。其余两项（工作区读不出来、容器版本不支持）同样不是
- *   后端能补的，如实展示、不挂任何动作；「执行 wayfinder 构造地图」那个按钮归 #1514 删，这里不再引用它的提示词。 */
+ *   后端能补的，如实展示、不挂任何动作。#1514 删掉了「执行 wayfinder 构造地图」那个按钮（连同它的提示词）：
+ *   三项判据不再把「还没建地图」当失败，这个修复动作对着错误的因果指路。 */
 export const fixes = Object.freeze({
   'md:scratchWritable': {
     hint: {

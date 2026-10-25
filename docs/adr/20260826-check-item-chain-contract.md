@@ -114,6 +114,10 @@ type Check =
   - GitHub：`gh:installed / gh:authed / gh:repoAccess / gh:labels`；
   - GitLab：`glab:installed / glab:authed / glab:repoAccess`；
   - Markdown：`md:scratchWritable / md:parseOk`。
+    - 2026-10-25 补注（#1512 的 #1513/#1514 两张实施票）：Markdown 侧的目录已改成三项
+      `md:workspace / md:scratchWritable / md:containersReadable`，判据本体在
+      `src/tracker/rooms/markdown/workspace-checks.ts`，房间预检与宿主检查链共用同一份实现；
+      `md:parseOk` 已拆掉。上面这一行是当时的记录，结论不改，只补这一句说明现在是什么。
 - **迁移映射**：14 项必迁已在 `check-catalog.js MIGRATION_MAP` 逐条对齐，供下游 227-231 直接消费。
 
 ---

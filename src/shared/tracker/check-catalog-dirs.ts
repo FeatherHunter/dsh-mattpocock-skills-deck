@@ -194,7 +194,8 @@ export const GITLAB_CATALOG: readonly CatalogItem[] = Object.freeze([
  *   2. md:scratchWritable —— .scratch 可写（或没有 .scratch 但仓库根可写）算通过；沙箱拦写探测算 pending；
  *   3. md:containersReadable —— 没有容器文件，或容器都读得动且版本 md-v1 算通过。
  * 三项都是后端谓词：判据本体在 src/tracker/rooms/markdown/workspace-checks.ts，房间 preflight 与宿主检查链
- *   共用同一份实现（票面硬条件：不许各写一套）。md:parseOk 已拆掉，不再有「只找 map.md」这一项。
+ *   共用同一份实现（票面硬条件：不许各写一套）。从前那条「只找 map.md」的判据已经拆掉（#1513），
+ *   它的职责并进了上面三项：空工作区与容器文件由第一、三项分别量，不再单独判「有没有地图文件」。
  * 历史：2026-08-29 曾把 md:scratchWritable 从「只判存在」改成写探测；写探测行为保留，只是位置从 primitive
  *   搬到了房间的共用判据里（沙箱拦截的判定口径不变）。
  */

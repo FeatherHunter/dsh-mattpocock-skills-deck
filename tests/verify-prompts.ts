@@ -94,7 +94,9 @@ const EXPECT_REGISTRY_ENTRIES = 27 // 注册表条目数（#1281：新增 newSpe
 // #716：三个后端各加一条 commandVocabulary（自己的命令行名与站点名字，供模板里的 {cli} / {cliBrand} 填空），
 //   9/7/5。
 // #725：三后端各自的 prompts.bodyFormat 整节删除 —— 键数各减 1：9/7/5 → 8/6/4。
-const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 4 }
+// #1514：markdown 的 wayfinderMapBuild 整条删除（「执行 wayfinder 构造地图」按钮的注入提示词不再成立），
+//   键数 4 → 3；github / gitlab 不受影响，仍是 8 / 6。
+const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 3 }
 // S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
 // 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
 // #684：github +2（healthCheck 的 zh/en）、gitlab +2、markdown +2。
@@ -104,7 +106,8 @@ const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 4 }
 // #993/#994（2026-10-10）：github 的 prompts.errorKinds 新增两档 —— 'git-ownership' 与 'unknown'（各一条 zh/en
 //   短文案，外加两行解释注释也是字符串字面量），44 → 50。这两档是「创建并发布」失败时给用户看的文案，
 //   修法提示与原文另走界面那两条路，不放这里，所以只加两条短句。
-const EXPECT_BACKEND_LITERALS = { github: 50, gitlab: 12, markdown: 7 }
+// #1514：markdown 的 wayfinderMapBuild（zh/en 两条短句）整条删除，字面量 markdown 7 → 5；github / gitlab 不动。
+const EXPECT_BACKEND_LITERALS = { github: 50, gitlab: 12, markdown: 5 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，此后很长一段时间 src/host 全树一个
 //   *_PROMPT 常量都没有（本行原为 0）。#839 起有一个真的了：src/refresh/rooms/host/gh-execution.js 的
 //   GIT_TERMINAL_PROMPT: '0'（非交互环境那一条固定前缀）。门禁口径是「≥ 这个数」，合法新增不判红，
@@ -129,7 +132,7 @@ const PROTECTED = [
   'backend:github#ensureLabels', 'backend:github#repoAccessFix',
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue',
   'backend:gitlab#healthCheck', 'backend:gitlab#commandVocabulary',
-  'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue',
+  'backend:markdown#subIssue',
   'backend:markdown#healthCheck', 'backend:markdown#commandVocabulary',
 ]
 // 必须受判定（kind 只许是 scope）的 6 条：它们登记「不属首批」，但门禁仍然判它们
@@ -2297,10 +2300,12 @@ const selfDigest = function () {
 // #1407：20 个注入模板各加一行 suggest_next_steps 提醒、删掉 17 处 /retro 提醒行 ——
 //   版本底线整体抬高；原来「17 条名单逐条判在场」的 #1269 块改成「17 条逐条判缺席 + 全量兜底」；
 //   本文件内容变了，自摘要跟着重算。
+// #1514：Markdown 房间删掉 wayfinderMapBuild 提示词（「执行 wayfinder 构造地图」按钮不再成立），
+//   受保护清单与 markdown 两处计数跟着改，自摘要按新内容重算（豁免登记表与 payload 夹具没动）。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'ccaf2eab643bd239ea49ecbcd27ad310eff8a14081d647e3e4ba643e11d79864',
+  'tests/verify-prompts.ts': '008bef691e9bcc72fb6e4a436326140152729c70e7b231b3b868ca47cefb9114',
 }
 // ---- LOCK-END ----
 

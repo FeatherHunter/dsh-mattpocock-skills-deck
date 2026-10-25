@@ -41,7 +41,9 @@
  */
 
 import type { OpContext } from '../../contract/contexts.js'
-import { guardEmit, ms } from '../../kernel/log-emit.js'
+import { debugOn, guardEmit, ms } from '../../kernel/log-emit.js'
+// 工作区根只记散列、不记原文：散列实现与宿主、闸那一侧共用同一份（抄一份就会有一天两边算出两把钥匙）。
+import { hash8 } from '../../../refresh/contract/workspace-keys.js'
 
 /**
  * 会报降级的读操作。只列本房读路径真会报降级的几条；写路径（#1059）与关系边（#1060）不在本片范围。
@@ -167,4 +169,49 @@ export function emitReadDegraded(ctx: LoggerCtx | null | undefined, op: string, 
   })
 }
 
-export default { emitReadDegraded, READ_DEGRADED_OPS, READ_DEGRADED_REASONS }
+/**
+ * 记一行「预检三项判据各自看到了什么、各花了多久」（`preflight.check`，调试级、按需，#1514）。
+ *
+ * 什么时候调：房间 preflight 跑完三项判据后，**每一项各一行**（pass / fail / pending 都记）。
+ * 为什么是按需的调试级而不是常驻告警：预检每次识别、每次刷新都会跑，三项都记常驻就是每一拍三行
+ *   心跳（重复心跳属于日志垃圾）；真正的失败结论已经由常驻的 `read.degraded`（`preflight:fs-fail`）
+ *   落了一条，打开调试开关的人才需要看「三项分别看到了什么证据、慢在哪一项」。
+ * 字段含义：
+ *   - gate     第几项（1 起，照三项的固定顺序）
+ *   - status   这一项的结论（pass / fail / pending）
+ *   - evidence 这一项的短机器证据（取 WorkspaceCheckResult.evidence，没有就记空串；
+ *              形如 units=3 / probe=.scratch / sbx-deny / containers=0 / error=ENOENT，绝不含路径原文）
+ *   - cwdHash  起点输入：这一趟量的是哪个工作区根，只记 8 位散列，不记路径原文
+ *   - latencyMs 这一项自己花了多久
+ *   - opId     这一行属于宿主哪一趟操作
+ * 与 `preflight.gate` 分开的原因：那一条的 gate 是 GitHub 三项门禁的编号、过了的 reason 一律写 'ok'，
+ *   字段里装不下别的房的判据与证据；改它的含义等于就地改事件，照 #489 附录的规矩必须另立一条。
+ *
+ * @param ctx 单次调用上下文（没有就静默跳过：预检结果不许因为日志而变）
+ * @param gate 第几项判据（1 起）
+ * @param status 这一项的结论
+ * @param evidence 这一项的短机器证据（可空）
+ * @param cwd 这一趟的工作区根（只记散列）
+ * @param latencyMs 这一项花了多久（毫秒）
+ */
+export function emitPreflightCheck(
+  ctx: LoggerCtx | null | undefined,
+  gate: number,
+  status: string,
+  evidence: string,
+  cwd: unknown,
+  latencyMs: unknown,
+): void {
+  guardEmit(ctx, (c) => {
+    c.logEvent('debug', 'preflight.check', {
+      gate: Number(gate) || 0,
+      status: String(status || ''),
+      evidence: String(evidence || ''),
+      cwdHash: hash8(String(cwd || '')),
+      latencyMs: ms(latencyMs),
+      opId: String(c.opId || ''),
+    })
+  }, () => debugOn(ctx))
+}
+
+export default { emitReadDegraded, emitPreflightCheck, READ_DEGRADED_OPS, READ_DEGRADED_REASONS }
