@@ -77,8 +77,12 @@ function makeRealSubprocess(log) {
   return {
     spawn(spec) {
       log.spawns.push(spec)
+      // POSIX 上让 git 当进程组组长：terminate() 才能用「杀整个进程组」把 git 的孙进程
+      // （git-remote-http 助手、GIT_SSH_COMMAND 起的假 ssh）一起清掉。Windows 不开 detached
+      // （会另开控制台，且本来就用 taskkill /T 拆整棵树）。
       const child = cp.spawn(spec.argv[0], spec.argv.slice(1), {
         cwd: spec.cwd, env: buildEnv(spec.env), windowsHide: true,
+        detached: process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
       })
       const out = makeCollector(spec.stdio.stdout.maxBytes)
@@ -92,8 +96,15 @@ function makeRealSubprocess(log) {
         terminate() {
           log.terminations += 1
           try {
-            if (process.platform === 'win32') cp.spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true })
-            else child.kill('SIGKILL')
+            if (process.platform === 'win32') {
+              cp.spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true })
+            } else if (child.pid) {
+              // 杀整个进程组（spawn 时 detached 让 git 当组长）。POSIX 上 child.kill('SIGKILL')
+              // 只杀 git 本身，git-remote-http 助手与假 ssh 会被留下并一直占着黑洞服务器的连接，
+              // 让 startServer 的 close() 永远等不到连接结束——2026-10-23 起 CI 上
+              // verify-839 卡满 6 小时作业超时就是这个原因。
+              process.kill(-child.pid, 'SIGKILL')
+            }
           } catch (e) {}
         },
       }
@@ -105,6 +116,10 @@ function makeRealSubprocess(log) {
 const GOOD = 'Basic ' + Buffer.from('u839:p839').toString('base64')
 function startServer(behavior) {
   const seen = []
+  // 记下每条连接：黑洞档位里 git 会把连接一直挂着（服务器永不回包），强杀进程时如果
+  // 有孙进程漏杀，它手上的连接会让 server.close() 等不到连接结束。这里在 close 时先
+  // 把还活着的连接 destroy 掉，保证 close 一定 resolve——它只是清场，不改变判据。
+  const sockets = new Set()
   const server = http.createServer((req, res) => {
     const auth = req.headers.authorization || ''
     seen.push({ auth: auth === GOOD, path: req.url })
@@ -115,10 +130,21 @@ function startServer(behavior) {
     res.writeHead(200, { 'Content-Type': 'application/x-git-upload-pack-advertisement' })
     res.end('001e# service=git-upload-pack\n00000000')
   })
+  server.on('connection', function (socket) {
+    sockets.add(socket)
+    socket.on('close', function () { sockets.delete(socket) })
+  })
   return new Promise(function (resolve) {
     server.listen(0, '127.0.0.1', function () {
       const port = server.address().port
-      resolve({ url: 'http://127.0.0.1:' + port + '/repo.git', seen: seen, close: () => new Promise((r) => server.close(r)) })
+      resolve({
+        url: 'http://127.0.0.1:' + port + '/repo.git',
+        seen: seen,
+        close: () => new Promise((r) => {
+          for (const socket of sockets) socket.destroy()
+          server.close(function () { r(null) })
+        }),
+      })
     })
   })
 }
@@ -129,8 +155,18 @@ function makeLab() {
   const sshJs = path.join(dir, 'fake-ssh.mjs')
   const pidFile = path.join(dir, 'fake-ssh.pid')
   fs.writeFileSync(sshJs, "import { writeFileSync } from 'node:fs'\nwriteFileSync(" + JSON.stringify(pidFile) + ", String(process.pid))\nsetTimeout(function () { process.exit(1) }, 30000)\n", 'utf8')
-  const sshCmd = path.join(dir, 'fake-ssh.cmd')
-  fs.writeFileSync(sshCmd, '@echo off\r\n"' + process.execPath + '" "' + sshJs + '" %*\r\n', 'utf8')
+  // GIT_SSH_COMMAND 的落点按平台分开：Windows 写 .cmd（git 经 sh 起它，.cmd 能被 cmd 解释）；
+  // POSIX 必须是带执行位的 sh 脚本——.cmd 在 Linux / macOS 上既没有可执行位、内容也不是
+  // sh 语法。修好黑洞的 close 之后 ⑦ 段才第一次真正在 POSIX 上跑到，所以这里必须按平台分。
+  let sshCmd
+  if (process.platform === 'win32') {
+    sshCmd = path.join(dir, 'fake-ssh.cmd')
+    fs.writeFileSync(sshCmd, '@echo off\r\n"' + process.execPath + '" "' + sshJs + '" %*\r\n', 'utf8')
+  } else {
+    sshCmd = path.join(dir, 'fake-ssh.sh')
+    fs.writeFileSync(sshCmd, '#!/bin/sh\nexec "' + process.execPath + '" "' + sshJs + '" "$@"\n', 'utf8')
+    fs.chmodSync(sshCmd, 0o755)
+  }
   return { dir: dir, sshCmd: slash(sshCmd), sshPidFile: pidFile, helperSnippet: '!f() { echo username=u839; echo password=p839; }; f' }
 }
 
