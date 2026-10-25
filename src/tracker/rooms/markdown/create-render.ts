@@ -199,6 +199,45 @@ export function blockedKeysOf(input: CreateView): string[] {
 }
 
 /**
+ * 可见 `**Blocked by:**` 行与隐藏 `DSH-BLOCKED-BY` 必须是同一批票号（#1507）。
+ *
+ * 可见行只写编号或标题，不写 `#`：本地模板要求「列编号或标题」，井号是远端跟踪器的引用写法，
+ * 写进本地票会让人以为这一行要按远端规则解析。隐藏字段只收能当机器边用的纯数字；
+ * 标题（人能读、但没法当键）只留在可见行，不塞进隐藏字段，免得读侧把一句话当成票号。
+ *
+ * 取值顺序与老行为一致：调用方给了 blockedBy 就以它为准（数组形态已补足两位编号）；
+ * 否则用正文里抄来的那一行，逐段去掉 `#` 后落盘——两行说的是同一件事，读的人不用对照两份。
+ */
+function blockedPair(input: CreateView, fromBody: string): { visible: string; hidden: string[] } {
+  const keys = blockedKeysOf(input)
+  if (keys.length) return { visible: keys.join(', '), hidden: keys }
+  const text = String(fromBody || '').trim()
+  // 没给阻塞边也没有正文那行时，可见行写原文的这句话；隐藏字段整行不写（「没有」就是没有）。
+  if (!text) return { visible: 'None (can start immediately)', hidden: [] }
+  const parts = text.split(/[,，]/).map((one) => one.trim().replace(/^#/, '').trim()).filter(Boolean)
+  // 正文那行只剩一个 `#` 或只有逗号时，逐段取完是空的：按「没写」处理，不让可见行留一个空值。
+  if (!parts.length) return { visible: 'None (can start immediately)', hidden: [] }
+  return { visible: parts.join(', '), hidden: parts.filter((one) => /^\d+$/.test(one)) }
+}
+
+/**
+ * 状态值的唯一来源（#1507）。顺序：正文里写的 > 调用方给的 > 模板默认值。
+ *
+ * 为什么要兜到默认值：读侧（parse.ts）把「没有状态」读成 open，也就是未开始；一张刚建出来的票
+ * 不该一出生就是「未开始」。调用方给空白串（''、纯空格、换行）与没给是同一件事——空白的
+ * `**Status:**` 行读回来仍然等于没有状态。默认值的事实来源是 format/original-skills.yaml 的
+ * status.default（实施票与普通票是可见行里的 ready-for-agent，规格与地图是隐藏注释里的同一个值），
+ * 这里不另写一份字面量，YAML 改了这里跟着变。
+ */
+export function statusFor(shape: ObjectShape, input: CreateView, fromBody: string): string {
+  const bodyStatus = String(fromBody || '').trim()
+  if (bodyStatus) return bodyStatus
+  const given = String(input.status == null ? '' : input.status).trim()
+  if (given) return given
+  return String((shape.status && shape.status.default) || '').trim()
+}
+
+/**
  * 隐藏注释区块。顺序与 scope 以 format/original-skills.yaml 的 hidden-comments 表为准：
  *   所有文件 → DSH-FORMAT、DSH-IDEMPOTENCY-KEY、DSH-CREATED；
  *   规格/地图 → DSH-TITLE（标题）、DSH-STATUS；
@@ -333,7 +372,7 @@ export function renderSpec(input: CreateView, opts: {
   const title = cleanTitle(String(input.title || ''))
   const body = ensureSpecSections(cleanBody(input.body ? String(input.body) : ''), shape.sections || [])
   const header = renderHeader('spec', {
-    status: String(input.status || (shape.status && shape.status.default) || ''),
+    status: statusFor(shape, input, ''),
     parentKey: '',
     assignees: opts.assignees,
     labels: opts.labels,
@@ -368,17 +407,19 @@ export function renderTicket(kind: OriginalKind, input: CreateView, opts: {
     ? fieldLine(fields[0]['line-shape'], rawBody.slice(0, splitAt).trim()) + '\n\n' + rawBody.slice(splitAt)
     : rawBody
   const parts = ticketParts(body, explicitWhat || splitAt >= 0, fieldLabels)
-  const blocked = parts.blocked || (blockedKeysOf(input).length ? blockedKeysOf(input).map((k: string) => '#' + k).join(', ') : 'None (can start immediately)')
+  // #1507：可见阻塞行与隐藏字段从同一份取值派生，两行不会再一个带 #、一个不带。
+  const blocked = blockedPair(input, parts.blocked)
   const header = renderHeader(kind, {
     status: '',
     parentKey: opts.parentKey,
     assignees: opts.assignees,
     labels: opts.labels,
-    blocked: blockedKeysOf(input),
+    // 隐藏字段只写能当机器边用的编号，与可见行是同一批值。
+    blocked: blocked.hidden,
     idempotencyKey: opts.idempotencyKey,
     createdAt: opts.createdAt,
   })
-  const values = [parts.what, blocked, parts.status || String(input.status || (shape.status && shape.status.default) || '')]
+  const values = [parts.what, blocked.visible, statusFor(shape, input, parts.status)]
   const lines: string[] = []
   lines.push(shapeTitle(shape['title-shape'] || '', [opts.number, title]))
   fields.forEach((field, at) => {

@@ -20,6 +20,8 @@ import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 // 本文件只做入口（标题与锚键格式检查）与回包解析，不拼正文、不取号、不落盘。
 import { originalKindOf } from './create-render.js'
 import { createInOriginalLayout } from './create-layout.js'
+// #1507：新建时拒绝远端四段模板（判据与拒绝语在 template-guard.ts，与 #1509 的整份改写共用一件）。
+import { remoteTemplateRefusalFor, remoteTemplateSections } from './template-guard.js'
 // #712/#922：取号落盘的写者队列住在 create-layout.ts 那一侧（与写票文件、配色文件共用同一份实现）。
 
 // #711：创建幂等锚。锚的形状与回查判据全在刷新核心的产物里（唯一一处判据），本文件只做键格式检查，
@@ -61,6 +63,13 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
   try{
     // #1486/#1487：六种票全部走原文布局（#1500 S4 起 originalKindOf 不再回空，旧的自拼分支已删）。
     const originalKind=originalKindOf(input)
+    // #1507：正文里出现远端四段模板（不在代码围栏里）就当场拒绝，不落盘、不做归一化。
+    // 放在落盘之前：拒得掉的请求不该先在磁盘上留半张票，也不该先占掉一个编号。
+    const offending=remoteTemplateSections(input.body)
+    if(offending.length){
+      const message=remoteTemplateRefusalFor(originalKind,offending)
+      if(message)return failAs(ERROR_KIND.PARSE,message,String(input.body==null?'':input.body))
+    }
     const placement=await createInOriginalLayout(ctx,repo,input,originalKind,idemKey)
     if(!placement.ok)return placement
     // 只有真新写了一份才记；幂等命中复用旧票时这一趟没改盘。

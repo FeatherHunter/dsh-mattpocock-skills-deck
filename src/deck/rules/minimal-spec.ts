@@ -102,7 +102,9 @@ export function ensureBody(body: unknown, kind: string): { body: string; added: 
   if (rule && rule.mapBlocks) {
     const missing = missingMapBlocks(text)
     if (missing.length) {
-      if (!out.trim()) out = '<!-- 这张地图的正文由 deck_map_plan_create 建骨架时补上 -->'
+      // #1507：不再给空地图正文塞那句「这张地图的正文由 deck_map_plan_create 建骨架时补上」。
+      // 维护者拍板这句没有实际价值：它没登记进原文模板，写在正文最前面，读原始正文的人会把它
+      // 当成地图内容；空正文直接以补出来的第一个区块标题开头就够了，下面循环会把缺的段补齐。
       out = out.replace(/\s*$/, '') + '\n' + missing.map((t) => '\n## ' + t + '\n').join('')
       for (const t of missing) added.push('## ' + t)
     }

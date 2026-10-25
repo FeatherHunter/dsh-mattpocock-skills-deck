@@ -9,7 +9,7 @@
 //
 // 不能改的约定：地图正文五段标题逐字按原文，缺段补齐；地图没有可见一级标题（原文模板就是如此），
 // 标题值写进文件头 DSH-TITLE 注释；子票标题是 `# NN: <问句>`，正文只有一段 Question。
-import { objectShapeOf, shapeTitle, fieldLine, renderHeader, cleanBody, cleanTitle, labelsOf, assigneesOf, blockedKeysOf } from './create-render.js'
+import { objectShapeOf, shapeTitle, fieldLine, renderHeader, cleanBody, cleanTitle, labelsOf, assigneesOf, blockedKeysOf, statusFor } from './create-render.js'
 // #1500 S5：类型词与标签正则直引 YAML 真源的唯一派生点，不再经 create-render 转手。
 import { MAP_TICKET_TYPES, WAYFINDER_LABEL_RE } from './format/field-values.js'
 import type { CreateView } from './create-render.js'
@@ -56,7 +56,9 @@ export function renderMap(input: CreateView, opts: {
   const title = cleanTitle(String(input.title || ''))
   const body = ensureMapSections(cleanBody(input.body ? String(input.body) : ''), shape.sections || [])
   const header = renderHeader('map', {
-    status: String(input.status || (shape.status && shape.status.default) || ''),
+    // 与建票同一个状态来源：正文没有、调用方也没给（或只给空白）时落模板默认值，
+    // 不让一张新地图带着空的 DSH-STATUS 出生（读侧会把它当未开始）。
+    status: statusFor(shape, input, ''),
     parentKey: '',
     assignees: opts.assignees,
     labels: opts.labels,

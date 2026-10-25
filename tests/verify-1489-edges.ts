@@ -98,7 +98,8 @@ async function main(): Promise<void> {
   await create(ctx, featureRepo, { title: '第二步', body: '**What to build:** 用户能看到第二步。', type: 'issue', parentKey: '00', idempotencyKey: 'impl-1489-e2' })
   const implPath = path.join(tmp, '.scratch', '买咖啡积分', 'issues', '01-第一步.md')
   const created = readText(implPath)
-  check(/^\*\*Blocked by:\*\* #02$/m.test(created), '前置：建票时可见阻塞行是加粗写法：' + JSON.stringify(created.split('\n').filter((l) => /Blocked by/.test(l))))
+  // #1507：新建票的可见阻塞行只写编号（不带 #）；改写路径仍把新值写成 #NN（#1509 收口）。
+  check(/^\*\*Blocked by:\*\* 02$/m.test(created), '前置：建票时可见阻塞行是加粗写法、只写编号：' + JSON.stringify(created.split('\n').filter((l) => /Blocked by/.test(l))))
   check(headerComments(created).indexOf('<!-- DSH-BLOCKED-BY: 02 -->') >= 0, '前置：建票时阻塞边写进隐藏注释')
 
   const changed = await setBlockedByIssue(ctx as never, featureRepo as never, '01', ['03'] as never, {} as never)
