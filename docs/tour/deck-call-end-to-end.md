@@ -352,11 +352,12 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 ### 7.2 本地 Markdown 房间：最后是工作区里的票文件
 
-**票文件在哪**：`src/tracker/rooms/markdown/path.ts:40-62`（`mdPath`）
+**票文件在哪**：`src/tracker/rooms/markdown/path.ts:40-62`（`mdPath`）与 `:71-86`（按工作单元取目录）
 
-- 地图：`<工作区根>/.scratch/map.md`（:49、:56）
-- 单票：`<工作区根>/.scratch/issues/<键>.md`（:50、:57-60；文件名规则在 :31-36——纯数字键补成 `NN-untitled.md`，:36）
-- 带 effort 范围时一律落到 `<cwd>/.scratch/<effortId>/` 下面（:69-81 的注释与 `effortIssuePath`，:81）
+- 规格：`<工作区根>/.scratch/<feature-slug>/spec.md`（:48、:55）
+- 探索地图：`<工作区根>/.scratch/<effort>/map.md`（:49、:56；带 effort 范围的走 `effortMapPath` :78-80）
+- 实施票、地图子票、普通票：`<工作区根>/.scratch/<effort>/issues/<NN>-<slug>.md`（:50、:57-60；文件名规则在 :31-39——纯数字键补成 `NN-untitled.md`，:36）
+- `effortId` 就是 feature / effort 目录名：规格与实施票在同一个 feature 目录下，父子关系靠这个目录层级；没传 effortId 时才落工作区根 `.scratch/`（:69-77 的注释）。工作区根 `.scratch/map.md` / `.scratch/issues/<键>.md` 与更早的根 `issues/` 是只读兼容的旧布局，新写入不再落那里（ADR 20261025-markdown-format-original）。
 
 **读**（`src/tracker/rooms/markdown/`）
 

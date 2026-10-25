@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-24T23:45:33.194Z",
+  "generatedAt": "2026-10-25T00:38:32.357Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 373,
-  "gateCount": 373,
-  "attributedGates": 333,
+  "chainLength": 375,
+  "gateCount": 375,
+  "attributedGates": 335,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 15,
@@ -3266,6 +3266,47 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1490-declaration-file.ts",
+      "file": "tests/verify-1490-declaration-file.ts",
+      "guards": [
+        "config/copy/panel.yaml",
+        "package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "package/bundled-skills/setup-matt-pocock-skills",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1490-four-objects.ts",
+      "file": "tests/verify-1490-four-objects.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/tracker/rooms/markdown/create-layout.ts",
+        "src/tracker/rooms/markdown/create-render.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues-read.ts",
+        "src/tracker/rooms/markdown/issues-status.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -8764,7 +8805,8 @@
       "node tests/verify-locale-config.ts"
     ],
     "config/copy": [
-      "node tests/verify-1297-entry.ts"
+      "node tests/verify-1297-entry.ts",
+      "node tests/verify-1490-declaration-file.ts"
     ],
     "config/prompts": [
       "node tests/verify-1298-spec-close.ts",
@@ -8854,6 +8896,9 @@
     ],
     "package/bundled-skills/ask-matt": [
       "node tests/verify-1412-ask-matt-next-steps.ts"
+    ],
+    "package/bundled-skills/setup-matt-pocock-skills": [
+      "node tests/verify-1490-declaration-file.ts"
     ],
     "package/deck": [
       "node tests/verify-build-artifacts.ts"
@@ -9571,6 +9616,7 @@
       "node tests/verify-1439-panel-accounting.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1490-four-objects.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
@@ -10130,6 +10176,8 @@
       "node tests/verify-1489-original-fields.ts",
       "node tests/verify-1489-progress.ts",
       "node tests/verify-1489-status-write.ts",
+      "node tests/verify-1490-declaration-file.ts",
+      "node tests/verify-1490-four-objects.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",

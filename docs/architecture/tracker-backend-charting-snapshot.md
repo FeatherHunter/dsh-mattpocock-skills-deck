@@ -44,6 +44,7 @@
 - 第一方后端 = **GitHub + GitLab + Local Markdown（`.scratch/`）**；其余（Jira/Linear/Gitea/Azure DevOps/自建）走 **Other 自由散文**逃生舱；官方政策「主流才一等，小众/新 tracker 属 out-of-scope」（先例：`#99` 加 dex 被拒，dex 3 个月大、300 star）。
 - **本地 markdown 真实格式**（纠正此前误猜的 frontmatter / `docs/maps/`）：
   - （2026-10-20 更新，见 #1277 设计文档 `docs/design/1277-md-spec-container.md`：spec 现在也是 `issues/` 里的一张规格票、文件头带对象类型标记与 `parentKey` 注释；标签用 `Labels:` 行。下面这一段保留当时核验到的原始形态作背景。）
+  - （2026-10-25 更正，#1480：上面这条 #1277 更新已被纠正——规格重新是独立文件 `.scratch/<feature-slug>/spec.md`，实施票、地图子票与普通票在 `.scratch/<effort>/issues/<NN>-<slug>.md`，文件格式与位置以随包技能原文 `issue-tracker-local.md`（pin v1.3.1）为唯一真源。完整裁决见 `docs/adr/20261025-markdown-format-original.md`；本快照只作历史记录。）
   - effort 一目录：`.scratch/<feature-slug>/`，spec = `.scratch/<feature-slug>/spec.md`，map = `.scratch/<effort>/map.md`。
   - 每票一文件：`.scratch/<feature-slug>/issues/<NN>-<slug>.md`（NN 两位零填充、充当 ID，如 `/implement 03`）。
   - 状态/类型为**行内字段**：`Status:`（claimed/resolved/ready-for-agent）、`Type:`（research/prototype/grilling/task）、`Blocked by:`；会话追加 `## Comments`，解答写 `## Answer`。

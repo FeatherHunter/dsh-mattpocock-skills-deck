@@ -10,7 +10,7 @@
 
 | 能力 | 登记 | 依据 |
 |---|---|---|
-| preflight | 明确提供功能 | 工厂内联实现（查 `.scratch/map.md` 或文档声明），识别链在用 |
+| preflight | 明确提供功能 | 工厂内联实现（查 `.scratch/<目录>/` 下的 `map.md` / `spec.md` / `issues`，再查 `.scratch` 根、工作区根 `issues/` 与 `spec.md`，或文档声明；后几处是旧布局只读兼容），识别链在用 |
 | list | 明确提供功能 | `issues-read.ts`，读票文件列票；按标签筛与拉取请求筛都真按它收窄 |
 | get | 明确提供功能 | `issues-read.ts`。评论分页两项都认：`opts.comments.first` 截前几条、`after` 从第几条之后接着给（本地游标就是「已经给过几条」这个序号，因为本地评论没有稳定标识可当游标） |
 | getDependencies | 做了但没做到位 | `graph.ts`，读票文件里的阻塞行 + 反向聚合。差在批量键：`opts.keys` 想一次问多个编号，而契约的返回形状只装得下一个，此时如实回「不支持」，请逐个编号调用 |
@@ -20,7 +20,7 @@
 | comment | 明确提供功能 | `comments.ts` |
 | update | 做了但没做到位 | `issues-patch.ts`，改标题、正文、标签。差在里程碑与「类型」以外的自定义字段：本地票文件里没有放它们的地方，传了就如实回「不支持」，不再静默丢掉然后回一句成功 |
 | setLabels | 明确提供功能 | `issues-patch.ts`；写前版本校验（`opts.expectedUpdatedAt`）真比对 |
-| setAssignees | 明确提供功能 | `issues-patch.ts`；认领人原样写入票面的 `Assignees:` 行、原样读回，不再用 `@me` 占位 |
+| setAssignees | 明确提供功能 | `issues-patch.ts`；认领人原样写入文件头隐藏注释 `<!-- DSH-ASSIGNEES: ... -->`、原样读回（旧布局票面的 `Assignees:` 行也认），不再用 `@me` 占位 |
 | setParent | 做了但没做到位 | `issues-patch.ts`，改造地图清单引用。差在跨工作单元的父：本地是「目录即父子」，跨目录等于要搬文件，此时如实回「不支持」（这条限制从做出来那天就在） |
 | setBlockedBy | 明确提供功能 | `issues-patch.ts`；自环与全图成环都在落盘前拦住（成环时一个字都不写） |
 | listLabels | 明确提供功能 | `label-colors-ops.ts`，文件缺失时顺手补默认配色文件 |
