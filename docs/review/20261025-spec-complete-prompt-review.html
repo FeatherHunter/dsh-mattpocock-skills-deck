@@ -194,6 +194,18 @@
     <span class="stat">合并 <b>1</b></span>
   </div>
 
+  <div style="margin:18px 0 0;padding:14px 16px;border-left:4px solid #2e7d32;background:#f2f8f3;border-radius:6px;line-height:1.75;font-size:14px">
+    <b>已落地（2026-10-26，提交 4d91c618）。</b>最终落地的版本是讨论中的 v3.2，现文在
+    <code>config/prompts/map-advancement.yaml</code> 的 specComplete（version 7）。它与本页 v1 评审稿的差别：
+    <ol style="margin:8px 0 0;padding-left:22px">
+      <li>开头改为四条断言：规格承诺真的实现、改动已在长期分支、在写下的提交上检查全绿、遗留都已处置；</li>
+      <li>一、二节补上「确认后端与写权限」「回到规格正文逐条核对用户故事」「合并冲突=对应票没落地」；</li>
+      <li>三、四节按「仓库用 PR/MR / 直接推送 / 没有版本库」三种交付结局收束，关闭只经 deck_issue_patch；</li>
+      <li>句子里不再出现 gh / glab 这类具体命令（门禁 R1：模板层不许写跟踪器命令）；</li>
+      <li>「## 工具」节从 20 个模板里的重复正文收进 <code>config/prompts/shared-sections.yaml</code>，单处定义、读取时展开。</li>
+    </ol>
+  </div>
+
   <details class="original">
     <summary>展开原提示词全文（zh 段，yaml 303–340 行）</summary>
     <pre>这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。先核对，再决定能不能关。关规格是向以后的人保证：这批改动已经在仓库长期保留的那条分支上、在你写下的提交上可复现地全绿、遗留都已处置——不只是子票都关了。
