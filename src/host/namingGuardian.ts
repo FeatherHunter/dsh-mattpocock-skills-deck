@@ -36,11 +36,11 @@ type WfArgs = any;
 // 值由 tests/verify-time-config.ts 看守一致。
 import { NAMING_FALLBACK_INTERVAL_MS as NAMING_FALLBACK_MS, NAMING_PERSIST_DEBOUNCE_MS, NAMING_SWEEP_SOON_MS } from '../shared/time-config/src/values.js'
 
-// 索引翻页的页数上限（#1445）：50 页、每页最多 100 条（#1418：GitHub issues 连接的单页上限），
-// 五十页就是五千条，正常仓库远到不了。
-// 为什么要有上限：游标万一坏掉会一直翻下去，把一次事件结算变成一个死循环；翻满就整轮放弃，
-// 由调用方按「这一轮没读到」跳过 —— 基线不推进，下一轮再试，不会把不完整的索引当成全量。
-const NAMING_INDEX_MAX_PAGES = 50, NAMING_INDEX_PAGE_LIMIT = 100
+// 索引翻页的页数上限（#1445）：50 页、每页 50 条（页大小与契约 github.listPageSize 同数），
+// 五十页就是两千五百条，正常仓库远到不了。
+// 为什么页是 50 不是连接上限 100：带全字段的单查询约 3 秒被对端掐连接（2026-10-26 真机实测），
+// 连接上限 100 仍是硬顶（#1418：要 200 会被整页拒绝），页大小只许比它小、不许大。
+const NAMING_INDEX_MAX_PAGES = 50, NAMING_INDEX_PAGE_LIMIT = 50
 // 单页条数（#1418）：房间自己会把 first 再夹到连接上限，这里给准数，不在两处各写一个「看着像」的值。
 // 与上一行合成一句声明：本文件在「只许减不许增」的冻结清单里（verify-file-granularity），不许多占一行。
 // 自由变量 getTitle 的存在性声明（原 .js 里它是未声明的自由引用，运行时靠 typeof 守卫：

@@ -29,6 +29,8 @@ async function main() {
   const { createOutboundControl } = await imp('src/refresh/rooms/host/outbound-control.ts')
 
   const sink = []
+  const listPageMod = await imp('src/tracker/contract/pagination.ts')
+  const fullPageMark = 'first=' + listPageMod.PAGINATION.github.listPageSize
   const gh = transports.makeScriptedGh(sink)
   const argvCount = { n: 0 }
   const ghCtxBase = {
@@ -58,7 +60,7 @@ async function main() {
   {
     const ctx = memoCtx()
     const before = argvCount.n
-    const fullLists = () => sink.slice(before).filter((l) => l.indexOf('first=100') >= 0).length
+    const fullLists = () => sink.slice(before).filter((l) => l.indexOf(fullPageMark) >= 0).length
     const r1 = await tracker.setBlockedBy(repo, ids[0], [ids[1]], {}, ctx)
     check(r1.ok === true, '第一次补边成功')
     const listsAfterFirst = fullLists()
@@ -66,7 +68,7 @@ async function main() {
     const mark = argvCount.n
     const r2 = await tracker.setBlockedBy(repo, ids[2], [ids[3]], {}, ctx)
     check(r2.ok === true, '第二次补边成功')
-    const listsAfterSecond = sink.slice(mark).filter((l) => l.indexOf('first=100') >= 0).length
+    const listsAfterSecond = sink.slice(mark).filter((l) => l.indexOf(fullPageMark) >= 0).length
     check(listsAfterSecond === 0, '第二次零整仓拉取（实 ' + listsAfterSecond + ' 条，定向重读脏票）')
     check(argvCount.n - mark < mark - before, '第二次出站少于第一次（' + (argvCount.n - mark) + ' < ' + (mark - before) + '）')
   }

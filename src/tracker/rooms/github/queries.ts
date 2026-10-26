@@ -32,7 +32,7 @@ function commentsField(first: number, opts?: { after?: boolean; pageInfo?: boole
   return `comments(first:${first}${after}){nodes{${COMMENT_NODE_FIELDS}}${pageInfo}}`
 }
 
-/** 单票字段清单：core 与能力字段来源固定，评论那一栏由调用方给（列表给 50 条、没有分页信息）。 */
+/** 单票字段清单：core 与能力字段来源固定，评论那一栏由调用方给（单票给条数、没有分页信息）。 */
 function issueFragmentFields(comments: string): string[] {
   return [
     'number', // keySource only → normalize String(number) → Issue.key（不产 number 字段）
@@ -54,8 +54,15 @@ function issueFragmentFields(comments: string): string[] {
 }
 
 // 单票必需字段（core + 能力字段来源）。`number` 作 keySource 注释明确不外泄。
-// 评论条数从共享分页表取默认值（50）：与列表的 comments 一栏同数，默认路径的查询文本保持不变。
+// 评论条数从共享分页表取默认值（50）：单票详情默认 50 条，默认路径的查询文本保持不变。
 export const ISSUE_FRAGMENT = issueFragmentFields(commentsField(PAGINATION.github.limitDefault)).join(' ')
+
+// 列表专用片段：与 ISSUE_FRAGMENT 同源、唯独不带 comments。
+// 为什么单列：列表一行画不到评论（点开单票详情走 GET_QUERY 另取；REST 降级回包里本来就没有评论体），
+// 而「页 100 × 每票 50 条评论」的单查询会被对端约 3 秒掐断（真机实测：全字段 100 页三次全灭 EOF，
+// 全字段 50 页约 2.7 秒贴线，去评论 50 页 1.43 秒）。页大小一并压到 50（PAGINATION.github.listPageSize），
+// 把单查询耗时压回 1.5 秒线以内。GET_QUERY 与 SUB_ISSUES_QUERY 不动（单票便宜、地图子票按需取）。
+export const LIST_ISSUE_FRAGMENT = issueFragmentFields('').filter(function (f) { return f !== '' }).join(' ')
 
 // 每条查询在 Query 根都带 rateLimit{ cost }（#1482）：回包里这一格是本趟真实点数，记账按它记，
 // 不再把每条 GraphQL 都当成 1 点。mutation 拿不到这一格（RateLimit 只挂在 Query 根），写操作仍按 1 点估。
@@ -65,7 +72,7 @@ export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after
   rateLimit{ cost }
   repository(owner:$owner,name:$name){
     issues(first:$first, after:$after, states:[OPEN,CLOSED], orderBy:{field:UPDATED_AT, direction:DESC}){
-      nodes{ ${ISSUE_FRAGMENT} }
+      nodes{ ${LIST_ISSUE_FRAGMENT} }
       pageInfo{ hasNextPage endCursor }
     }
   }

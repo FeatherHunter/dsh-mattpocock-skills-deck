@@ -32,8 +32,15 @@ export const PAGINATION = {
     // 分页契约：一页默认 50 张，要多了按 200 封顶（contract/results.ts 的「分页契约」，各后端同一套口径）。
     limitDefault: 50,
     limitMax: 200,
-    // 整仓列表那条 GraphQL 路径一页取多少张（issues / pullRequests 两条连接都是 100）。
-    listPageSize: 100,
+    // 整仓列表那条 GraphQL 路径一页取多少张（issues / pullRequests 两条连接都是它）。
+    // 为什么是 50 不是连接上限 100：列表单查询带全字段时对端约 3 秒掐连接（真机实测：
+    // 全字段 100 页三次全灭 EOF、全字段 50 页约 2.7 秒贴线）；配合列表去评论，50 页回到 1.4 秒，余量充足。
+    listPageSize: 50,
+    // 单票评论一页取多少条（GET 那条单票查询及其翻页）：单票 × 评论数是小查询，
+    // 不受整仓列表那条「页 × 评论」交叉放大的三秒掐线影响，所以保持连接上限 100。
+    // 为什么不与 listPageSize 共用一格：两处受的约束不同（交叉放大 vs 单票直查），
+    // 共用一格就是把列表的保命数压到评论头上，改一处会误伤另一处。
+    commentPageSize: 100,
     // REST 兜底通道一页取多少条（GitHub REST 的 per_page 上限就是 100）、最多翻几页（安全上限，防远端异常时死翻）。
     restPageSize: 100,
     restMaxPages: 10,

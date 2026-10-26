@@ -37,7 +37,8 @@ const EXPECTED = {
   github: {
     limitDefault: 50,
     limitMax: 200,
-    listPageSize: 100,
+    listPageSize: 50,
+    commentPageSize: 100,
     restPageSize: 100,
     restMaxPages: 10,
     subIssuesPageSize: 100,

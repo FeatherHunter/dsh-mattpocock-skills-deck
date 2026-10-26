@@ -136,7 +136,7 @@ const partA = async function (): Promise<void> {
   check(LIST_PAGE_QUERY_WITH_LABELS.indexOf('$since:DateTime') >= 0 && LIST_PAGE_QUERY_WITH_LABELS.indexOf('labels:$labels, since:$since') >= 0,
     'A、带标签筛的那条查询同样带 since 窗口（两条路不能一条有、一条没有）')
 
-  // A1. 界面按分页契约要 200 行，发给远端的 first 必须是连接上限 100。
+  // A1. 界面按分页契约要 200 行，发给远端的 first 必须是契约页大小（连接上限是硬顶，页大小只许比它小）。
   calls.length = 0
   let r: any = await listIssuesPage(repo, undefined, { limit: PAGINATION.github.limitMax }, ctx)
   check(r && r.ok === true, 'A、limit=200 的那一页取数仍按正常回包返回', r && r.error && r.error.message)
@@ -209,8 +209,8 @@ const partA = async function (): Promise<void> {
   check(pageSrc.indexOf('PAGINATION.github.listPageSize') >= 0, 'A、单页上限取自契约分页表（listPageSize）')
 
   // A8. 远端说「一次要多了」时的分页降级：换更小的 first 重发、记住这个上限、下一拍直接按学到的上限发。
-  //     这一组必须放在 A 组最后：学到上限之后进程内会一直按它发，前面的 A1–A4 都假定起点是 100。
-  const rejectPayload = JSON.stringify({ errors: [{ type: 'EXCESSIVE_PAGINATION', message: 'Requesting 100 records on the `issues` connection exceeds the `first` limit of 50 records.' }] })
+  //     这一组必须放在 A 组最后：学到上限之后进程内会一直按它发，前面的 A1–A4 都假定起点是契约页大小。
+  const rejectPayload = JSON.stringify({ errors: [{ type: 'EXCESSIVE_PAGINATION', message: 'Requesting 50 records on the `issues` connection exceeds the `first` limit of 25 records.' }] })
   execQueue = [
     { stdout: rejectPayload, stderr: '', code: 0 },
     { stdout: pageJson({ items: [], next: null, total: 0 }), stderr: '', code: 0 },
@@ -221,14 +221,14 @@ const partA = async function (): Promise<void> {
   check(calls.length === 2, 'A、降级只重发一次（不是撞到同一条错就无限重试）', calls.length)
   const degradeArgs0: string[] = calls.length > 0 ? calls[0].args : []
   const degradeArgs1: string[] = calls.length > 1 ? calls[1].args : []
-  check(argValueOf(degradeArgs0, 'first') === '100' && argValueOf(degradeArgs1, 'first') === '50',
-    'A、第一次发 100、第二次按远端说的上限 50 重发', argValueOf(degradeArgs0, 'first') + '→' + argValueOf(degradeArgs1, 'first'))
+  check(argValueOf(degradeArgs0, 'first') === '50' && argValueOf(degradeArgs1, 'first') === '25',
+    'A、第一次发 50、第二次按远端说的上限 25 重发', argValueOf(degradeArgs0, 'first') + '→' + argValueOf(degradeArgs1, 'first'))
 
-  // 学到上限之后：新的一次调用一开始就发 50，不再拿 100 去撞一次。
+  // 学到上限之后：新的一次调用一开始就发 25，不再拿 50 去撞一次。
   calls.length = 0
   r = await listIssuesPage(repo, undefined, { limit: 200 }, ctx)
   const learnedArgs: string[] = calls.length ? calls[0].args : []
-  check(calls.length === 1 && argValueOf(learnedArgs, 'first') === '50',
+  check(calls.length === 1 && argValueOf(learnedArgs, 'first') === '25',
     'A、这一页失败过一次之后，下一拍直接用学到的上限（不再重撞）', argValueOf(learnedArgs, 'first') + '/' + calls.length)
 
   // 降级这一趟必须落一行 read.degraded：reason、判档、前后条数四样都要读得出来。
@@ -236,8 +236,8 @@ const partA = async function (): Promise<void> {
   check(!!degradeRow, 'A、换页大小这一趟落了 read.degraded（listPage:page-size）')
   check(!!degradeRow && degradeRow.fields.kind === ERROR_KIND.UNSUPPORTED,
     'A、降级那行的判档写出 unsupported（重试无用、要换页大小）', degradeRow && degradeRow.fields && degradeRow.fields.kind)
-  check(!!degradeRow && degradeRow.fields.limitBefore === 100 && degradeRow.fields.limitAfter === 50,
-    'A、降级那行写出前后单页条数 100→50', degradeRow && degradeRow.fields && (degradeRow.fields.limitBefore + '→' + degradeRow.fields.limitAfter))
+  check(!!degradeRow && degradeRow.fields.limitBefore === 50 && degradeRow.fields.limitAfter === 25,
+    'A、降级那行写出前后单页条数 50→25', degradeRow && degradeRow.fields && (degradeRow.fields.limitBefore + '→' + degradeRow.fields.limitAfter))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -294,11 +294,11 @@ const partB = async function (): Promise<void> {
   check(!!seen[0] && !!seen[0].opts && seen[0].opts.limit === PAGINATION.github.listPageSize,
     'B、没有窗口时单页条数仍是契约值')
 
-  // 命名守护的另一条索引扫描是同一个禁区的第二个入口：它现在也按 100 一页翻。
-  // 那个函数要整套宿主依赖才能装配，这里只钉住单页条数这一个常量与它的取值，不让它悄悄改回 200。
+  // 命名守护的另一条索引扫描是同一个禁区的第二个入口：它现在也按契约页大小一页翻。
+  // 那个函数要整套宿主依赖才能装配，这里只钉住单页条数这一个常量与它的取值，不让它悄悄改回连接上限。
   const namingSrc = sourceText('src/host/namingGuardian.ts')
   check(namingSrc.indexOf('NAMING_INDEX_PAGE_LIMIT = ' + PAGINATION.github.listPageSize) >= 0,
-    'B、命名守护的索引扫描按连接上限 100 一页（常量取自契约值）')
+    'B、命名守护的索引扫描按契约页大小一页（常量与契约同数）')
   check(namingSrc.indexOf('NAMING_INDEX_PAGE_LIMIT') >= 0 && namingSrc.indexOf('limit: 200') < 0,
     'B、命名守护不再向会话要 200 一页')
 }

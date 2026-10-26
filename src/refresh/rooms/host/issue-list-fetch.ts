@@ -22,16 +22,17 @@ import type { OpContext } from '../../../tracker/contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { PageResult } from '../../../tracker/contract/results.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
+import { PAGINATION } from '../../../tracker/contract/pagination.js'
 
 interface RepoKey { owner: string; name: string }
 
 /**
- * 索引翻页的硬上限：100 条一页、最多 100 页（一万条）。超过就如实失败，不静默截断。
- * 为什么是 100：GitHub 的 issues 连接自己只肯给 100 条一页，要 200 会被整页拒绝
- * （#1418：2026-10-24 实测 EXCESSIVE_PAGINATION，探测自那天 16:15 起全部失败）。
- * 这个数跟随契约的分页表 src/tracker/contract/pagination.ts 的 github.listPageSize。
+ * 索引翻页的硬上限：页大小跟随契约 github.listPageSize（一页 50），最多 100 页（五千条）。
+ * 超过就如实失败，不静默截断。
+ * 为什么是 50 不是连接上限 100：带全字段的单查询约 3 秒被对端掐连接（2026-10-26 真机实测），
+ * 50 页回到 1.4 秒；连接上限 100 仍是硬顶（#1418：要 200 会被整页拒绝），页大小只许比它小。
  */
-const INDEX_PAGE_LIMIT = 100
+const INDEX_PAGE_LIMIT = PAGINATION.github.listPageSize
 const INDEX_MAX_PAGES = 100
 
 /** 失败信封：旧路这里装的是 gh 回包，形状取 kind + error 两格；上层只读 ok 与 error。 */

@@ -39,6 +39,7 @@ import { githubModule } from '../../../src/tracker/rooms/github/index.js'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.js'
 import { unsupportedAnswerCheck } from './labels.js'
 import { createOutboundControl } from '../../../src/refresh/rooms/host/outbound-control.js'
+import { PAGINATION } from '../../../src/tracker/contract/pagination.js'
 import type { BackendContext, OpContext } from '../../../src/tracker/contract/contexts.js'
 import type { BackendModule } from '../../../src/tracker/contract/backend-module.js'
 import type { RepositoryRef } from '../../../src/tracker/contract/entities.js'
@@ -488,10 +489,12 @@ export async function run(): Promise<PageAssertResult[]> {
     await assert('后端说没有下一页时，nextCursor 给 null', rCursor.ok && rCursor.data.nextCursor === null, JSON.stringify(rCursor.data && rCursor.data.nextCursor))
 
     // #1418：契约的上限 200 是「界面一次最多要多少行」；GitHub 的 issues / pullRequests 两条连接
-    //   自己只肯给 100 条一页，问多了整页拒绝（EXCESSIVE_PAGINATION）—— 所以发给远端的 first 按连接上限收。
-    //   这与 GitLab 房「999 → per_page 100」是同一个处置：契约上限归契约，远端硬上限归房间。
+    //   自己只肯给 100 条一页，问多了整页拒绝（EXCESSIVE_PAGINATION）—— 连接上限是硬顶；
+    //   2026-10-26 起页大小再按三秒掐线压到契约的 listPageSize（50）：发给远端的 first 按它收，
+    //   只许比连接上限小、不许大。这与 GitLab 房「999 → per_page 100」是同一个处置：
+    //   契约上限归契约，远端硬上限归房间，保命压档归契约页大小。
     await gh.listPage(ref('github'), { state: 'closed' }, { cursor: '', limit: 999 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
-    await assert('limit 超上限按连线上限处理（999 → 100，不报错）', /first=100/.test(lastArgs), lastArgs.slice(0, 160))
+    await assert('limit 超上限按契约页大小处理（999 → ' + PAGINATION.github.listPageSize + '，不报错）', new RegExp('first=' + PAGINATION.github.listPageSize + '(?![0-9])').test(lastArgs), lastArgs.slice(0, 160))
     await gh.listPage(ref('github'), { state: 'closed' }, { cursor: '', limit: 0 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
     await assert('limit 不合法按缺省 50 处理', /first=50/.test(lastArgs), lastArgs.slice(0, 160))
 

@@ -24,10 +24,11 @@ import type { ghClient } from './client.js'
 import { getIssueQuery } from './queries.js'
 
 /**
- * 评论一页最多多少条：GraphQL 的 comments 连接一页上限，与整仓列表一页同一个数，
- * 所以共用共享分页表里的那一格，不另写一个字面量。
+ * 评论一页最多多少条：取共享分页表里的评论格（commentPageSize），不与整仓列表共用一格。
+ * 为什么分开：评论翻页是「一张票 × 一页评论」的小查询，不受列表「一页票 × 每票评论」
+ * 交叉放大的三秒掐线影响；列表保命压到 50 时评论仍保持连接上限 100。
  */
-export const COMMENTS_PAGE_MAX = PAGINATION.github.listPageSize
+export const COMMENTS_PAGE_MAX = PAGINATION.github.commentPageSize
 
 /**
  * 这一趟要多少条评论：没带 comments.first 回 null（沿用旧查询 GET_QUERY，评论 first:50）；
