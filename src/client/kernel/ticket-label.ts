@@ -122,8 +122,13 @@ export function workRouteFirstColWidthOf(rows: unknown): string {
   if (widest <= 136) return '136px'
   return '192px'
 }
-/** 六列模板：首列按行内容自适应（上），动作三列沿用 #1287 的定宽；标题与会话两列吃富余，
- * 保底 150px / 104px（11px 字号下标题至少放下 13 个汉字 —— 10 个字一定完整，会话约 9 个字）。 */
+/** 六列模板：首列按行内容自适应（上），动作三列沿用 #1287 的定宽；
+ * 标题与会话两列**每列都给了上限**（#1553 维护者定的口径）：内容长就把这一列撑宽，撑到上限为止，
+ * 到顶后不再变宽，多出来的字走省略号，整行悬停提示里给全文。上限是这么算的（11px 字号）：
+ *   · 标题保底 150px / 上限 320px —— 10 个汉字一定完整，最多放到约 29 个汉字；
+ *   · 会话保底 104px / 上限 200px —— 约 9 个字保底，最多放到约 18 个汉字。
+ * 为什么必须封顶：面板拉宽时四个固定列不会跟着长，只有这两列吃富余；不封顶的话标题会一路撑满，
+ * 六列比例失衡（#1553 之前 1.7fr 就是这个毛病）。封顶后多出来的空间留在行尾，不再挤占别的列。 */
 export function workRouteCellsFor(rows: unknown): string {
-  return workRouteFirstColWidthOf(rows) + ' minmax(150px, 1.7fr) minmax(104px, 1fr) 48px 36px 36px'
+  return workRouteFirstColWidthOf(rows) + ' minmax(150px, 320px) minmax(104px, 200px) 48px 36px 36px'
 }
