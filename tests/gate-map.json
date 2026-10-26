@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T04:57:31.397Z",
+  "generatedAt": "2026-10-26T05:01:39.867Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 394,
   "gateCount": 394,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 593,
+  "graphFileCount": 594,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -11125,9 +11125,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 614,
+    "fileCount": 615,
     "dirCount": 74,
-    "coveredFileCount": 614,
+    "coveredFileCount": 615,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11643,6 +11643,7 @@
       "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/checks.ts",
       "src/tracker/rooms/github/client.ts",
+      "src/tracker/rooms/github/close-reason.ts",
       "src/tracker/rooms/github/comment-paging.ts",
       "src/tracker/rooms/github/comments.ts",
       "src/tracker/rooms/github/counts.ts",

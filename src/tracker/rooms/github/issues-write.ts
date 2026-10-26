@@ -14,9 +14,9 @@ import type { AssigneeInput, CloseOpts, CreateInput, SetOpts, UpdatePatch } from
 import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
-import { addComment } from './comments.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
+import { planCloseReason } from './close-reason.js'
 import { rosterUpsert } from './roster.js'
 import type { MemoContext } from './roster.js';
 import { getIssue, parseRepo, repoId } from './issues.js'
@@ -228,28 +228,11 @@ async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts
     const c = ghClient(ctx)
     // gh issue close 不认 --json：先关，再用 view 取回
     const args = ['issue', 'close', k, '--repo', `${parsed.owner}/${parsed.name}`]
-    // #1532：gh issue close --reason 只认三个固定值（completed / not planned / duplicate），
-    // 自由文本原样塞进去必失败。固定值归一后直通；自由文本先原样发一条评论留痕，再用 completed 关票。
-    // 契约里关闭原因仍是开放字符串（不改类型），这里只决定它在 GitHub 后端怎么落。
-    const rawReason = opts && typeof opts.reason === 'string' ? opts.reason.trim() : ''
-    const folded = rawReason.toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
-    let enumReason: string | null = null
-    if (folded === 'completed') enumReason = 'completed'
-    else if (folded === 'duplicate') enumReason = 'duplicate'
-    else if (folded === 'not planned') enumReason = 'not planned'
-    if (enumReason) {
-      args.push('--reason', enumReason)
-    } else if (rawReason) {
-      // 自由文本：先评论留痕（原样，一个字不改），再用放行值关票。评论没发出去就不关，
-      // 免得原因静默丢失（调用方会看到 close 这一步失败，而不是票关了原因没了）。
-      const cr = await addComment(repo, k, rawReason, ctx)
-      if (!cr.ok) {
-        const kind = (cr.error && cr.error.kind) || ERROR_KIND.NETWORK
-        const msg = String((cr.error && cr.error.message) || '没给出原因').slice(0, 300)
-        return fail(kind, 'close: 关闭原因评论没发出去，这次没关票（原因没地方落，不敢静默丢掉）：' + msg, cr.error)
-      }
-      args.push('--reason', 'completed')
-    }
+    // #1532：关闭原因怎么落到 GitHub 后端（固定值直通、自由文本先评论再关），在 ./close-reason.js 里决定。
+    const reasonPlan = await planCloseReason(repo, k, opts, ctx)
+    if (!reasonPlan.ok) return reasonPlan
+    args.push(...reasonPlan.data.args)
+    const rawReason = reasonPlan.data.raw
     // 从这一步起真会发出写命令：走的是 gh issue 子命令（cli）。
     trail.route = 'cli'
     trail.written += 1
