@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T05:01:16.524Z",
+  "generatedAt": "2026-10-26T05:05:13.128Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 394,
   "gateCount": 394,
