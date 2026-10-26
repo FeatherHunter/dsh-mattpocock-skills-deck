@@ -100,7 +100,11 @@ async function main() {
   const manyNow: any = await store2.readSnapshot({ rootKey: 'ws-1083-retain', sessionId: 'sess-many' })
   check(manyNow && manyNow.workers[0].entries.length === 25, '同一会话连写 25 张：一条不裁（没有 20 条上限，实得 ' + (manyNow ? manyNow.workers[0].entries.length : '?') + ' 条）')
   check(chainMod.CHAIN_SESSION_CAP === undefined, '共享纯逻辑里 CHAIN_SESSION_CAP 已删除（旧上限不再存在）')
-  check(pruneMod.CHAIN_KEEP_MS === 30 * DAY && pruneMod.CHAIN_MAX_BYTES === MB2, '共享纯逻辑换成 30 天保留期与 2MB 两条线')
+  // 保留期现在是中央配置（config/ttl.yaml 的 chainKeepMs）：断言它等于中央值，再锁一句今天就是 30 天。
+  // 没有第二份手抄副本——改 YAML 之后要连 31 天这个场景一起想，报错会指到中央键。
+  const timeMod: any = await imp('src/shared/time-config/values.js')
+  check(pruneMod.CHAIN_KEEP_MS === timeMod.CHAIN_KEEP_MS && timeMod.CHAIN_KEEP_MS === 30 * DAY && pruneMod.CHAIN_MAX_BYTES === MB2,
+    '共享纯逻辑的保留期取中央配置 chainKeepMs（今天 30 天；改 config/ttl.yaml 时连本节 31 天场景一起改）与 2MB 两条线')
   clock2 = T0 + 31 * DAY
   const prunedNote: any = await store2.note({ rootKey: 'ws-1083-retain', sessionId: 'sess-many', backend: 'markdown', ticketKey: '2099', action: 'report', source: 'reported' })
   const afterPrune: any = await store2.readSnapshot({ rootKey: 'ws-1083-retain', sessionId: 'sess-many' })

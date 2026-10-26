@@ -47,7 +47,8 @@ function __patternSources(st: any) {
 }
 export const issueUrlFor = (st: any, key: any, effortId?: any): any => {
   // 优先用后端现算的 url（markdown 的盘符路径已在快照 issues[].url 中）；回退到模板渲染（github）
-  const n = String(key || '').trim()
+  // 0 是容器行（key 00）的合法编号，不能当空：这里不能用 ||，否则 0 会被压成空串直接回空。
+  const n = (key === undefined || key === null) ? '' : String(key).trim()
   if (!n) return ''
   // 快照直取：若当前快照中该 key 已有 url（markdown 文件路径），直接用，避免模板为空时回空。
   // effort 维度：编号在仓库内不再唯一，给了 effortId 就按 (effort, 编号) 精确取，否则退回第一个命中（旧行为）。

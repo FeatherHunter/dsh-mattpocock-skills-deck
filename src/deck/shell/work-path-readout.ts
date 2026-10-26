@@ -5,12 +5,14 @@
 // 盘只在存储里碰，钟只由调用方（工具壳）传进来，所以同样的快照在任何时候算
 // 出来都是同一个结果，门禁可以用固定时钟钉死。
 //
-// 三个口径（真源见 #1259，改一个就要同步改票面与门禁）：
-//   在办 = 30 天内动过；现办（active）= 24 小时内动过；撞单 = 当前会话写过的票，
+// 三个口径（真源见 #1259 与 GLOSSARY「在办与陈旧」，改一个就要同步改票面、门禁与 config）：
+//   保留期 = 30 天内动过（超过 30 天的条目不进表）；在办（active）= 24 小时内动过；
+//   超过 24 小时、未满 30 天的条目标成陈旧；撞单 = 当前会话写过的票，
 //   在前后 30 分钟内被另一个会话也记过。撞单行给的是「另一个会话」：票号、它的会话标识、
 //   它记的时间——当前会话自己不出现在撞单行里（它就是收到回执的这一方，报自己等于没提示）。
 //   判断按「与当前会话某一笔的间隔」算，不按最早—最晚总跨度：A=0、B=20、C=35 分钟时，
 //   B 与 C 只差 15 分钟，该报；总跨度从 A 到 C 是 35 分钟，按跨度会把整票漏掉。
+//   （三个窗口的数值不写在这里，真源是 config/ttl.yaml 的 workRoute*WindowMs 三个键。）
 //
 // #1303 起在这里多一层「按档投影」：工具成功回执默认只带 core（票号、会话、时间，最多 20 条），
 // standard 再加标题、动作、来源与是否本会话；直接读出口（面板、诊断）也默认 standard，不受回执缺省影响。
@@ -21,12 +23,11 @@
 // 按 standard 处理，不退回 core 把标题与动作丢掉。
 
 import { chainSessionShardId } from '../../refresh/kernel/refresh-chain.js';
+import { WORK_ROUTE_IN_PROGRESS_WINDOW_MS, WORK_ROUTE_ACTIVE_WINDOW_MS, WORK_ROUTE_COLLISION_WINDOW_MS } from '../../shared/time-config/src/values.js';
 import type { WorkPathLedger } from './work-path-store.js';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const ACTIVE_WINDOW_MS = DAY_MS;
-const ROUTE_WINDOW_MS = 30 * DAY_MS;
-const COLLISION_WINDOW_MS = 30 * 60 * 1000;
+// 三个时间窗的真源在 config/ttl.yaml（workRoute*WindowMs 三个键），这里不许再写第二份数字：
+// 调窗口只改 YAML、跑一遍生成器，回执里的在办 / 现办 / 撞单三档一起变。
 const SUMMARY_CLIP = 3;
 /** core 档最多带几条：再往前的条目留给 standard / full 按需取，默认回执别把几十条整表塞进来。 */
 const CORE_CLIP = 20;
@@ -123,7 +124,7 @@ export function buildWorkPathReadout(
         if (!e || typeof e !== 'object' || typeof e.ticketKey !== 'string' || e.ticketKey === '') continue;
         if (typeof e.actionAt !== 'number') continue;
         const age = at - e.actionAt;
-        if (age < 0 || age > ROUTE_WINDOW_MS) continue;
+        if (age < 0 || age > WORK_ROUTE_IN_PROGRESS_WINDOW_MS) continue;
         rows.push({
           session: w.session,
           label: typeof w.label === 'string' ? w.label : '',
@@ -151,7 +152,7 @@ export function buildWorkPathReadout(
       sessionLabel: workPathSessionLabel(r.label, r.session),
       action: r.action,
       actionAt: new Date(r.actionAt).toISOString(),
-      active: at - r.actionAt <= ACTIVE_WINDOW_MS,
+      active: at - r.actionAt <= WORK_ROUTE_ACTIVE_WINDOW_MS,
       currentSession: r.session === sessionId,
       source: r.source,
     };
@@ -191,7 +192,7 @@ export function buildWorkPathReadout(
           if (gap < bestGap) { bestGap = gap; best = row; }
         }
       }
-      if (!best || bestGap > COLLISION_WINDOW_MS) continue;
+      if (!best || bestGap > WORK_ROUTE_COLLISION_WINDOW_MS) continue;
       collisions.push({
         ticketKey: ticketKey,
         sessionLabel: workPathSessionLabel(best.label, otherSession),

@@ -1,6 +1,6 @@
 // verify-log-fields.ts —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.ts，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 125 事件（2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 127 事件（2026-10-26 #1007 新增常驻 #132 gh.transport：通路失败后的冷却三件事（设上 / 挡回 / 清零），字段只有 decision / bucket / reason / remainingMs / failStreak / cmd，命令只记短标签、不记原文；2026-10-26 #1475 新增常驻 #133 chain.predicate.timeout：检测链一次求值里外层等待预算先到点、被放弃的内层谓词后来回话各记一行，字段只有 id / phase / budgetMs / status / latencyMs；2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
 // 2026-10-21 第二轮逐票复核（map 1010 的 1000–1300 段）没有新增事件，只给四条既有事件补判定字段：
 //   常驻 #5 gh.exec 增补 cmd（哪条 gh 子命令，例如 issue:create；从前只有 argv0='gh'，分不出查登录态还是改票）、
 //   常驻 #6 gh.timeout 增补 layer（room-tier 房内自己掐表 / host-clamp 宿主外包钳制）、
@@ -388,7 +388,7 @@ const ALLOWED = {
   // 2026-10-26 #1475 给上面那行增补 latencyMs：一次求值从起点到预检收尾的总耗时（毫秒），
   //   与 gh.exec 各条命令的 latencyMs 对齐着看，能分清慢在单条命令还是慢在整趟。
   'chain.preflight.reuse': ['cwdHash', 'checks', 'reused', 'userAction', 'latencyMs'],
-  // 2026-10-26 #1475 新增一条常驻告警事件（附录 1.4 节 #132 chain.predicate.timeout）：检测链一次求值里，
+  // 2026-10-26 #1475 新增一条常驻告警事件（附录 1.4 节 #133 chain.predicate.timeout；事件号原定 #132，合入时让给先合入 main 的 #1007 gh.transport）：检测链一次求值里，
   //   外层等待预算先到点（phase=budget）或被放弃的内层谓词后来还是回了话（phase=late）时各记一行。
   //   为什么是告警级：这两种形状说明预算不够或慢网下结论晚到，排障的人不会先打开调试开关才来查。
   //   字段只取名字与数字：id 是检查项 id（如 gh:authed）、budgetMs 是这次赔进去的预算、status 是结论枚举、
@@ -454,6 +454,13 @@ const ALLOWED = {
   //   最多一行。与上面那条调试档的 gh.lane.saturated 同一处发射点：那条是逐条明细，这条是常驻摘要。
   //   为什么要有：调试开关默认关着，名额排满的风暴在普通用户日志里一行都不留。
   'gh.lane.wait': ['bucket', 'waitedMs', 'inflight', 'max', 'queued'],
+  // 2026-10-26（#1007）常驻 #132 gh.transport：通路失败后的冷却三件事（设上 / 挡回 / 清零）各一行。
+  //   字段只有 decision（枚举 cooldown-set 设上冷却 / reject-cooling 冷却窗口里被挡回 / cooldown-cleared
+  //   拿到退出码后清零）、bucket（read 读 / write 写）、reason（timeout / killed / spawn-failed）、
+  //   remainingMs 冷却还剩多少毫秒、failStreak 连续第几次通路失败、cmd 哪条 gh 命令（短标签，不记命令原文）。
+  //   为什么要有：一次超时之后同一只桶在冷却窗口里不再起进程，日志里要能读出「这条命令是被冷却挡回的」，
+  //   而不是又一条普通超时；防的是「失败必退避、不许重复赔满超时」这件事退回去。
+  'gh.transport': ['decision', 'bucket', 'reason', 'remainingMs', 'failStreak', 'cmd'],
   // 2026-10-21 map 1010 逐票复核（#891/#995/#916/#917）：状态栏黄条出现、消失或换文案时边沿记一行。
   // 2026-10-22（#1363）：黄条「该出没出、该消没消」的判定依据补齐 —— reason 为什么这么判（枚举）、
   //   decideStep 判定落在哪一步、backendId 当时选定的后端、steps 快照里实际有几行、wsHash 与 sidHash

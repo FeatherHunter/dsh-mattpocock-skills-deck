@@ -50,10 +50,17 @@ const FILE_OF_GROUP: Record<string, string> = {
 const ARRAY_GROUP: string = 'backoff'
 /**
  * JavaScript 定时器能表达的延时上限（2^31-1 毫秒，约 24.8 天）。比它大的数交给 setTimeout / setInterval
- * 会被运行时折成 1 毫秒——「等于不超时」会悄悄变成「立刻超时」。今天没有键越过这条线
- * （inFlightKeepAliveMs 正好等于上限，是刻意的「永不」），这条常数只用来在下面发一句告警。
+ * 会被运行时折成 1 毫秒——「等于不超时」会悄悄变成「立刻超时」。所以越线本身不报错、只告警，
+ * 但合法的越线值必须逐个写进下面的允许清单（只做大小比较的那几个窗口与保留期）。
  */
 const JS_TIMER_MAX_MS: number = 2147483647
+/**
+ * 允许越过 JS_TIMER_MAX_MS 的键：它们只做大小比较（窗口、保留期），永远不会交给 setTimeout。
+ * 目前三处：inFlightKeepAliveMs（正好等于上限，刻意的「永不」）、chainKeepMs 与
+ * workRouteInProgressWindowMs（30 天保留期，只和「多久以前」比大小）。
+ * 新增越线键时先想清楚它会不会当延用；会的话就别越线，而不是往这张清单里加。
+ */
+const COMPARE_ONLY_KEYS: Set<string> = new Set(['inFlightKeepAliveMs', 'chainKeepMs', 'workRouteInProgressWindowMs'])
 /** [yaml键, 生成的常量名, 分组] */
 const KEYS: Array<[string, string, string]> = [
   // —— timeouts：单次等待的上限 ——
@@ -64,6 +71,8 @@ const KEYS: Array<[string, string, string]> = [
   ['outboundWriteMs', 'OUTBOUND_WRITE_TIMEOUT_MS', 'timeouts'],
   ['outboundProbeMs', 'OUTBOUND_PROBE_TIMEOUT_MS', 'timeouts'],
   ['outboundDefaultMs', 'OUTBOUND_DEFAULT_TIMEOUT_MS', 'timeouts'],
+  ['outboundTransportCooldownMs', 'OUTBOUND_TRANSPORT_COOLDOWN_MS', 'timeouts'],
+  ['ghQueueWaitTimeoutMs', 'GH_QUEUE_WAIT_TIMEOUT_MS', 'timeouts'],
   ['githubClientTimeoutMs', 'GITHUB_CLIENT_TIMEOUT_MS', 'timeouts'],
   ['githubProbeMs', 'GITHUB_PROBE_TIMEOUT_MS', 'timeouts'],
   ['gitProbeMs', 'GIT_PROBE_TIMEOUT_MS', 'timeouts'],
@@ -180,6 +189,9 @@ const KEYS: Array<[string, string, string]> = [
   ['skillSkeletonDelayMs', 'SKILL_SKELETON_DELAY_MS', 'intervals'],
   // —— 构建互斥锁的心跳间隔（#1365）：持锁期间证明还活着 ——
   ['buildLockHeartbeatMs', 'BUILD_LOCK_HEARTBEAT_MS', 'intervals'],
+  // —— 宿主出站排队段的日志节流（#1101）：等多久才记一行、同一只桶最短多久记一次 ——
+  ['laneLongWaitLogMs', 'LANE_LONG_WAIT_LOG_MS', 'intervals'],
+  ['laneWaitLogIntervalMs', 'LANE_WAIT_LOG_INTERVAL_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],
@@ -226,8 +238,20 @@ const KEYS: Array<[string, string, string]> = [
   ['skillDetailCopiedFlashMs', 'SKILL_DETAIL_COPIED_FLASH_MS', 'ttl'],
   // —— 构建互斥锁的陈旧判定有效期（#1365）：超期无心跳就接管 ——
   ['buildLockStaleMs', 'BUILD_LOCK_STALE_MS', 'ttl'],
+  // —— 工作路线回执的三个时间窗（#1259）：在办 / 现办 / 撞单 ——
+  ['workRouteInProgressWindowMs', 'WORK_ROUTE_IN_PROGRESS_WINDOW_MS', 'ttl'],
+  ['workRouteActiveWindowMs', 'WORK_ROUTE_ACTIVE_WINDOW_MS', 'ttl'],
+  ['workRouteCollisionWindowMs', 'WORK_ROUTE_COLLISION_WINDOW_MS', 'ttl'],
+  // —— 会话链缓存与工作路线存档共用的保留期：30 天（两条存档形状同一套口径）——
+  ['chainKeepMs', 'CHAIN_KEEP_MS', 'ttl'],
+  // —— 写事件补丁的短存（超过就先丢掉，那一趟已经无关了）——
+  ['writePatchTtlMs', 'WRITE_PATCH_TTL_MS', 'ttl'],
+  // —— 视野模型上报的去重窗（同一签名在这段时间内只处理一次）——
+  ['attentionReportDedupeMs', 'ATTENTION_REPORT_DEDUPE_MS', 'ttl'],
   // —— backoff：退避序列 ——
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
+  // —— 「下一步建议」选项行的客户端重试退避：两档 ——
+  ['ownRouteRetryMs', 'OWN_ROUTE_RETRY_MS', 'backoff'],
   // —— 初始化等待那一路的等待封顶（#1363）：超过多久必真算一次 ——
   ['chainSetupPendingCapMs', 'CHAIN_SETUP_PENDING_CAP_MS', 'timeouts'],
 ]
@@ -303,7 +327,9 @@ function load(docs: Array<{ rel: string; doc: any }>): { values: Record<string, 
     provided.add(key)
     // 越过定时器上限只告警、不报错：TTL 与窗口一类只做大小比较，超出上限是合法的；
     // 但若这个键会直接当延时用，运行时会把大数折成 1 毫秒，行为会从「永不超时」翻成「立刻超时」。
-    if (v > JS_TIMER_MAX_MS) {
+    // 合法的越线值写在 COMPARE_ONLY_KEYS 里（每一处都要在注释里说清为什么只做比较），
+    // 清单外的新键越线才告警——免得调参的人把 30 天保留期顺手当延时用。
+    if (v > JS_TIMER_MAX_MS && !COMPARE_ONLY_KEYS.has(key)) {
       warnings.push(
         '越过定时器上限：' + FILE_OF_GROUP[group] + ' 的 ' + group + '.' + key + ' = ' + v + '，大于 JavaScript 定时器能表达的 ' + JS_TIMER_MAX_MS + ' 毫秒；只做大小比较（TTL、窗口）才安全，直接当延时会变成 1 毫秒',
       )

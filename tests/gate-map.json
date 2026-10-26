@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-25T20:26:04.299Z",
+  "generatedAt": "2026-10-26T04:44:38.792Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 391,
-  "gateCount": 391,
-  "attributedGates": 351,
+  "chainLength": 394,
+  "gateCount": 394,
+  "attributedGates": 354,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 588,
+  "graphFileCount": 591,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -998,6 +998,33 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-1007-transport-cooldown.ts",
+      "file": "tests/verify-1007-transport-cooldown.ts",
+      "guards": [
+        "config/timeouts.yaml",
+        "src/host/platformChannel.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
+        "src/refresh/rooms/host/gh-queue-race.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
+        "src/shared/time-config/src/values.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
+        "src/tracker/rooms/github/client.ts"
+      ],
+      "dirs": [
+        "config",
+        "src/host",
+        "src/refresh/rooms/host",
+        "src/shared/time-config/src",
+        "src/tracker/kernel",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；源码里的路径字面量 5 条"
+    },
+    {
       "step": "node tests/verify-1039-rules-pure.ts",
       "file": "tests/verify-1039-rules-pure.ts",
       "guards": [
@@ -1344,7 +1371,8 @@
         "scripts",
         "scripts/lib/discover-gates.ts",
         "scripts/verify-stages.json",
-        "tests"
+        "tests",
+        "tests/verify-time-config.ts"
       ],
       "dirs": [
         "scripts",
@@ -3616,6 +3644,21 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
+      "step": "node tests/verify-1532-github-close-reason.ts",
+      "file": "tests/verify-1532-github-close-reason.ts",
+      "guards": [
+        "src/tracker/rooms/github/issues-write.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1533-git-remote-claim.ts",
       "file": "tests/verify-1533-git-remote-claim.ts",
       "guards": [
@@ -5208,6 +5251,7 @@
       "file": "tests/verify-916-ghauth-crosscheck.ts",
       "guards": [
         "src/refresh/rooms/host/chain-env-map.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/tracker/guide-steps.ts",
         "src/tracker/rooms/github/preflight.ts"
@@ -5221,7 +5265,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 4 条"
+      "reason": "归属来自：静态 import 说明符 5 条"
     },
     {
       "step": "node tests/verify-916-ghauth-unknown-banner.ts",
@@ -6521,6 +6565,7 @@
         "src/tracker/contract/results.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/error-rules.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/kernel/preflight.ts",
         "src/tracker/rooms/github/fallback-reason.ts",
         "src/tracker/rooms/github/init-project-error-kinds.ts",
@@ -6540,7 +6585,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 17 条"
+      "reason": "归属来自：源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-event-budget.ts",
@@ -6714,6 +6759,7 @@
       "guards": [
         "docs/agents/workspace.yaml",
         "src/host/workspaceCwd.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
@@ -6735,7 +6781,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-github-rest-fallback.ts",
@@ -8577,6 +8623,156 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
     },
     {
+      "step": "node tests/verify-time-config.ts",
+      "file": "tests/verify-time-config.ts",
+      "guards": [
+        "scripts/build.mts",
+        "scripts/generate-time-config.mts",
+        "scripts/lib/discover-gates.ts",
+        "src/client/floating/SkillFloatList.ts",
+        "src/client/kernel/api-handoff.ts",
+        "src/client/kernel/api-io.ts",
+        "src/client/kernel/log.ts",
+        "src/client/kernel/router.ts",
+        "src/client/kernel/settings-debug.ts",
+        "src/client/kernel/settings-view-write.ts",
+        "src/client/kernel/slotRenderer-modal-view.ts",
+        "src/client/kernel/slotRenderer-queue.ts",
+        "src/client/kernel/store-prefs.ts",
+        "src/client/kernel/store-switch.ts",
+        "src/client/kernel/work-route-own.ts",
+        "src/client/panelAssembly.ts",
+        "src/client/statusbar/SessionChainCapsule.ts",
+        "src/client/statusbar/StatusLogMenu.ts",
+        "src/client/statusbar/StatusMenus.ts",
+        "src/client/statusbar/checksums.ts",
+        "src/client/statusbar/suggestAppearance.ts",
+        "src/client/statusbar/suggestEngine.ts",
+        "src/client/statusbar/suggestTimeline.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/IssueDetailComments.ts",
+        "src/client/views/ListTabRow.ts",
+        "src/client/views/labels/LabelColorDialog.ts",
+        "src/client/views/primitives/Tip.ts",
+        "src/client/views/shared/truthLines.ts",
+        "src/client/views/shared/workRouteTable.ts",
+        "src/client/views/skillDetail/PixelSkillDetailModal.ts",
+        "src/client/views/skillDetail/PixelSkillOps.ts",
+        "src/client/views/versionControl/vcBlocks.ts",
+        "src/client/views/versionControl/vcText.ts",
+        "src/deck/registration/register-options.ts",
+        "src/deck/registration/suggest-steps-register.ts",
+        "src/deck/rules/anchor.ts",
+        "src/deck/shell/plan-cursor.ts",
+        "src/deck/shell/session-workdir.ts",
+        "src/deck/shell/table-cell.ts",
+        "src/deck/shell/work-path-readout.ts",
+        "src/deck/shell/write-mutex.ts",
+        "src/deck/tools/map-link.ts",
+        "src/host/logStore.ts",
+        "src/host/namingGuardian.ts",
+        "src/host/platform/namingSummary.ts",
+        "src/host/platformChannel.ts",
+        "src/host/skillProbe.ts",
+        "src/host/skillProbeCache.ts",
+        "src/host/tracker/predicateCore.ts",
+        "src/host/tracker/snapshot.ts",
+        "src/host/versionControl.ts",
+        "src/host/versionControlCheck.ts",
+        "src/host/versionControlWrite.ts",
+        "src/host/workspaceKey.ts",
+        "src/refresh/contract/tuning-parameters.ts",
+        "src/refresh/kernel/admission-policy.ts",
+        "src/refresh/kernel/attention-model.ts",
+        "src/refresh/kernel/chain-pruning.ts",
+        "src/refresh/kernel/failure-backoff.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/index-window-rules.ts",
+        "src/refresh/kernel/write-event-detection.ts",
+        "src/refresh/registry/deck-tool-bridge.ts",
+        "src/refresh/registry/quota-sync-bridge.ts",
+        "src/refresh/rooms/client/client-attention-heartbeat.ts",
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
+        "src/refresh/rooms/client/snapshot-sync-helpers.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/host/chain-backoff.ts",
+        "src/refresh/rooms/host/chain-coalescing.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
+        "src/refresh/rooms/host/gh-queue-race.ts",
+        "src/refresh/rooms/host/host-attention.ts",
+        "src/refresh/rooms/host/issue-index-scan.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/refusal-messages.ts",
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
+        "src/refresh/rooms/host/write-event-fetch.ts",
+        "src/refresh/rooms/host/write-event-subscription.ts",
+        "src/shared/naming-tracking.ts",
+        "src/shared/time-config/src/values.ts",
+        "src/shared/tracker/sync.ts",
+        "src/shared/version-control/src/parse-log.ts",
+        "src/shared/version-control/src/write-ticket.ts",
+        "src/tracker/detection/backendDecision.ts",
+        "src/tracker/detection/detectionService.ts",
+        "src/tracker/detection/workspaceStore.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/github/client.ts",
+        "src/tracker/rooms/github/idempotency.ts",
+        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/gitlab/client.ts",
+        "tests/verify-time-config.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "scripts/lib",
+        "src/client",
+        "src/client/floating",
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views",
+        "src/client/views/labels",
+        "src/client/views/primitives",
+        "src/client/views/shared",
+        "src/client/views/skillDetail",
+        "src/client/views/versionControl",
+        "src/deck/registration",
+        "src/deck/rules",
+        "src/deck/shell",
+        "src/deck/tools",
+        "src/host",
+        "src/host/platform",
+        "src/host/tracker",
+        "src/refresh/contract",
+        "src/refresh/kernel",
+        "src/refresh/registry",
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host",
+        "src/shared",
+        "src/shared/time-config/src",
+        "src/shared/tracker",
+        "src/shared/version-control/src",
+        "src/tracker/detection",
+        "src/tracker/kernel",
+        "src/tracker/registry",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "tests"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 100 条"
+    },
+    {
       "step": "node tests/verify-tracker-contract.ts",
       "file": "tests/verify-tracker-contract.ts",
       "guards": [
@@ -9182,6 +9378,7 @@
   "byDir": {
     ".": [],
     "config": [
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-prompt-config.ts",
       "node tests/verify-prompts.ts",
@@ -9432,6 +9629,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-typecheck.mts",
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-wire-subissues-script.ts",
@@ -9503,6 +9701,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-visible-truth.ts",
@@ -9554,6 +9753,7 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-locale-config.ts"
     ],
@@ -9561,7 +9761,8 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
       "node tests/verify-hovertip.ts",
-      "node tests/verify-reuse.ts"
+      "node tests/verify-reuse.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
@@ -9642,6 +9843,7 @@
       "node tests/verify-setup-describe.ts",
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-workspace-file-note.ts",
       "node tests/verify-locale-completeness.ts",
@@ -9695,6 +9897,7 @@
       "node tests/verify-cap-fold.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-subdir-first-frame.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views": [
@@ -9732,6 +9935,7 @@
       "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-view.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-update-panel.ts"
     ],
@@ -9754,6 +9958,7 @@
     "src/client/views/labels": [
       "node tests/verify-leaves.ts",
       "node tests/verify-label-color-core.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/mapDetailV2": [
@@ -9767,7 +9972,8 @@
     "src/client/views/primitives": [
       "node tests/verify-no-title.ts",
       "node tests/verify-hovertip.ts",
-      "node tests/verify-reuse.ts"
+      "node tests/verify-reuse.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/client/views/shared": [
       "node tests/verify-leaves.ts",
@@ -9791,12 +9997,14 @@
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-reuse.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-visible-truth.ts"
     ],
     "src/client/views/skillDetail": [
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-skill-detail-stack.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/versionControl": [
@@ -9808,6 +10016,7 @@
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
       "node tests/verify-container-colors.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts"
     ],
     "src/deck": [
@@ -9827,7 +10036,8 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-895-bulk-deadline.ts",
-      "node tests/verify-suggest-next-steps.ts"
+      "node tests/verify-suggest-next-steps.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/deck/rules": [
       "node tests/verify-dependency-rules.ts",
@@ -9836,7 +10046,8 @@
       "node tests/verify-1403-kind-two-layer.ts",
       "node tests/verify-1413-map-plan-two-layer.ts",
       "node tests/verify-1507-create-strict.ts",
-      "node tests/verify-suggest-next-steps.ts"
+      "node tests/verify-suggest-next-steps.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.ts",
@@ -9866,7 +10077,8 @@
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.ts",
-      "node tests/verify-golden-receipts.ts"
+      "node tests/verify-golden-receipts.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/deck/tools": [
       "node tests/verify-deck-no-hang.ts",
@@ -9913,7 +10125,8 @@
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-detection-log-reach.ts",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-suggest-next-steps.ts"
+      "node tests/verify-suggest-next-steps.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/host": [
       "node tests/verify-build-artifacts.ts",
@@ -9927,6 +10140,7 @@
       "node tests/verify-1003-no-cwd-masquerade.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-workspace-write-robust.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
@@ -10000,6 +10214,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-update-panel.ts",
@@ -10010,7 +10225,8 @@
       "node tests/verify-497-slash.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-naming-guardian.ts",
-      "node tests/verify-platform-contract.ts"
+      "node tests/verify-platform-contract.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/host/platform/darwin": [
       "node tests/verify-497-slash.ts",
@@ -10040,7 +10256,8 @@
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-multi-effort.ts"
+      "node tests/verify-multi-effort.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/refresh": [
       "node tests/verify-build-artifacts.ts",
@@ -10055,7 +10272,8 @@
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-refresh-workspace-key.ts",
-      "node tests/verify-suggest-next-steps.ts"
+      "node tests/verify-suggest-next-steps.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/refresh/kernel": [
       "node tests/verify-deck-no-hang.ts",
@@ -10116,6 +10334,7 @@
       "node tests/verify-index-window.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-tracker-session.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts"
@@ -10128,7 +10347,8 @@
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1454-ledger-single-entry.ts",
-      "node tests/verify-927-gate-injection.ts"
+      "node tests/verify-927-gate-injection.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/refresh/rooms": [],
     "src/refresh/rooms/client": [
@@ -10156,7 +10376,8 @@
       "node tests/verify-error-single-source.ts",
       "node tests/verify-log-client.ts",
       "node tests/verify-panel-workspace-isolation.ts",
-      "node tests/verify-subdir-first-frame.ts"
+      "node tests/verify-subdir-first-frame.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/refresh/rooms/host": [
       "node tests/verify-deck-event-gate.ts",
@@ -10168,6 +10389,7 @@
       "node tests/verify-1003-no-cwd-masquerade.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-1082-work-route-table.ts",
@@ -10261,6 +10483,7 @@
       "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-t1-getrepokey.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-tracker-session.ts",
       "node tests/verify-ui-description-single-source.ts"
     ],
@@ -10282,6 +10505,7 @@
       "node tests/verify-naming-e2e.ts",
       "node tests/verify-naming-guardian.ts",
       "node tests/verify-session-title.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-locale-completeness.ts"
     ],
     "src/shared/command-cleanup": [],
@@ -10308,6 +10532,7 @@
     "src/shared/time-config": [],
     "src/shared/time-config/src": [
       "node tests/verify-deck-no-hang.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1475-predicate-budget.ts",
@@ -10350,6 +10575,7 @@
       "node tests/verify-setup-describe.ts",
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-subdir-first-frame.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts"
     ],
@@ -10374,7 +10600,8 @@
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-issue232-sync.ts",
-      "node tests/verify-subdir-first-frame.ts"
+      "node tests/verify-subdir-first-frame.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/shared/ui": [
       "node tests/verify-deck-slots.ts"
@@ -10389,6 +10616,7 @@
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-976-pull-dirty-warn.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-version-control-rules.ts"
     ],
     "src/tracker": [
@@ -10447,10 +10675,12 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-github-label-colors.ts",
-      "node tests/verify-issue297.ts"
+      "node tests/verify-issue297.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/tracker/kernel": [
       "node tests/verify-no-mixed-session.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1182-log-emit-single-source.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -10471,7 +10701,8 @@
       "node tests/verify-issue-comment.ts",
       "node tests/verify-map-drill.ts",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-multi-effort.ts"
+      "node tests/verify-multi-effort.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/tracker/registry": [
       "node tests/verify-deck-tools-matrix.ts",
@@ -10506,6 +10737,7 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue297.ts",
       "node tests/verify-refresh-workspace-key.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts"
     ],
@@ -10521,6 +10753,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.ts",
+      "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-1286-snapshot.ts",
@@ -10532,6 +10765,7 @@
       "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1482-graphql-accounting.ts",
+      "node tests/verify-1532-github-close-reason.ts",
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -10561,6 +10795,7 @@
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-t1-initpublish.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts"
     ],
@@ -10583,6 +10818,7 @@
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-gitlab-single-write.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts",
       "node tests/verify-ui-description-single-source.ts"
@@ -10689,6 +10925,7 @@
       "node tests/verify-prompts.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-settings-debug.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.ts",
@@ -10887,9 +11124,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 609,
+    "fileCount": 612,
     "dirCount": 74,
-    "coveredFileCount": 609,
+    "coveredFileCount": 612,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11127,6 +11364,7 @@
       "src/deck/shell/workspace-anchor.ts",
       "src/deck/shell/write-mutex.ts",
       "src/deck/tools/context.ts",
+      "src/deck/tools/issue-create-failure.ts",
       "src/deck/tools/issue-create-parts.ts",
       "src/deck/tools/issue-create.ts",
       "src/deck/tools/issue-get.ts",
@@ -11248,6 +11486,8 @@
       "src/refresh/rooms/host/check-chain-evaluation.ts",
       "src/refresh/rooms/host/comment-thread-fetch.ts",
       "src/refresh/rooms/host/gh-execution.ts",
+      "src/refresh/rooms/host/gh-queue-race.ts",
+      "src/refresh/rooms/host/gh-run-report.ts",
       "src/refresh/rooms/host/git-execution.ts",
       "src/refresh/rooms/host/host-attention.ts",
       "src/refresh/rooms/host/issue-detail-fetch.ts",
@@ -11681,7 +11921,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 45
+        "fileCount": 47
       },
       {
         "path": "src/shared/command-cleanup",

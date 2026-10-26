@@ -27,6 +27,8 @@
  * （rebuild / failed / stale-dropped），这里不重复记、更不假装补过。
  */
 
+import { WRITE_PATCH_TTL_MS } from '../../../shared/time-config/src/values.js'
+
 /** 装配这一格要的依赖：拿行级增量的入口、短散列、目录归一。 */
 export interface WriteEventFetchDeps {
   patchOf: () => any
@@ -36,8 +38,8 @@ export interface WriteEventFetchDeps {
   now?: () => number
 }
 
-/** 暂存补丁最多留多久：写事件之后探针通常在几秒内就到，超过这个时限说明这一趟已经无关了。 */
-const PATCH_TTL_MS = 15000
+/** 暂存补丁最多留多久：真源 config/ttl.yaml 的 writePatchTtlMs；这里不写第二份数字。 */
+const PATCH_TTL_MS = WRITE_PATCH_TTL_MS
 
 /**
  * 造出写事件取数那一格。回四件：

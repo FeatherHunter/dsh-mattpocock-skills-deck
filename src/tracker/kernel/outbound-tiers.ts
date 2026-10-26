@@ -19,7 +19,7 @@
 
 // 四档时长住中央 YAML（config/timeouts.yaml 的 outbound* 四键）：这里只留同名别名，
 // 调时间改 YAML，不改这里。值由 tests/verify-time-config.ts 看守一致。
-import { OUTBOUND_READ_TIMEOUT_MS, OUTBOUND_WRITE_TIMEOUT_MS, OUTBOUND_PROBE_TIMEOUT_MS, OUTBOUND_DEFAULT_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { OUTBOUND_READ_TIMEOUT_MS, OUTBOUND_WRITE_TIMEOUT_MS, OUTBOUND_PROBE_TIMEOUT_MS, OUTBOUND_DEFAULT_TIMEOUT_MS, OUTBOUND_TRANSPORT_COOLDOWN_MS } from '../../shared/time-config/src/values.js'
 
 export const READ_TIMEOUT_MS = OUTBOUND_READ_TIMEOUT_MS
 export const WRITE_TIMEOUT_MS = OUTBOUND_WRITE_TIMEOUT_MS
@@ -27,6 +27,8 @@ export const PROBE_TIMEOUT_MS = OUTBOUND_PROBE_TIMEOUT_MS
 
 /** 拿不到档位时的旧默认：沿用历史 30000，不静默变快。 */
 export const DEFAULT_TIMEOUT_MS = OUTBOUND_DEFAULT_TIMEOUT_MS
+/** 通路失败之后的冷却窗口（#1007）：一次 transport 级失败之后，同一只桶这段时间内不再起进程。 */
+export const TRANSPORT_COOLDOWN_MS = OUTBOUND_TRANSPORT_COOLDOWN_MS
 
 /**
  * 参数归一成字符串数组：非数组按空数组处理，空位按空串处理。
@@ -249,3 +251,146 @@ export function noteGhGraphqlCorrection(gate: OutboundGateLike | null, args: str
     if (corr && typeof gate.noteOutboundCorrection === 'function') gate.noteOutboundCorrection(corr)
   } catch (e) {}
 }
+
+// ---------------------------------------------------------------------------
+// 出站通路失败的冷却（#1007）：一次 transport 级失败之后，同一只桶在冷却窗口里不再起进程。
+//
+// 为什么把判定放在这里：房间不许 import 宿主模块（契约见 src/tracker/contract/outbound.ts），
+// 但房间要认出「这次拿名额被冷却窗口挡回来了」、要分清失败是超时、被杀还是进程没起来。
+// 这三件事都是纯判定，放 kernel 两边都能用；冷却状态本身仍只放在准入闸一处，不另起第二道闸。
+// ---------------------------------------------------------------------------
+
+/** 一次 transport 级失败是哪种：命令到点没回话、被中途杀掉、进程根本没起来。 */
+export type OutboundTransportReason = 'timeout' | 'killed' | 'spawn-failed'
+
+/**
+ * 冷却错误码：准入闸在冷却窗口里拒绝拿名额时，错误对象带这个 code。
+ * 调用方据此返回「到 GitHub 的通路现在不通，先别重试」，与「排队时被取消」「普通失败」分开。
+ */
+export const OUTBOUND_COOLDOWN_CODE = 'admission-cooldown'
+
+/** 冷却错误上能读出的信息：哪只桶、还剩多久、上一次为什么失败、连续失败了几次。 */
+export interface OutboundCooldownInfo {
+  bucket: string
+  remainingMs: number
+  reason: string
+  failStreak: number
+}
+
+/**
+ * 从错误对象上读冷却信息；不是冷却错误就回 null。
+ * 类型说明：错误值形状不可控，只按键读取，不改变运行时对象。
+ */
+export function outboundCooldownOf(err: unknown): OutboundCooldownInfo | null {
+  if (!err || (err as { code?: unknown }).code !== OUTBOUND_COOLDOWN_CODE) return null
+  const e = err as { bucket?: unknown; remainingMs?: unknown; reason?: unknown; failStreak?: unknown }
+  const bucket = String(e.bucket == null ? '' : e.bucket)
+  const reason = String(e.reason == null ? '' : e.reason)
+  const remainingMs = typeof e.remainingMs === 'number' && isFinite(e.remainingMs) ? e.remainingMs : 0
+  const failStreak = typeof e.failStreak === 'number' && isFinite(e.failStreak) ? e.failStreak : 0
+  return { bucket, remainingMs: Math.max(0, Math.floor(remainingMs)), reason, failStreak: Math.max(0, Math.floor(failStreak)) }
+}
+
+/**
+ * 从失败文本里认 transport 级失败的类别；认不出回空串（调用方不设冷却）。
+ * 顺序有意义：超时优先认；「被杀」其次；「起不来」最后 —— 三类都可能出现在同一条错误里，
+ * 先命中的那一类才是这次真正让命令停下的原因。
+ */
+export function transportFailureReasonOf(text: unknown): OutboundTransportReason | '' {
+  const t = String(text == null ? '' : text).toLowerCase()
+  if (!t) return ''
+  if (/timeout|timed out|超时/.test(t)) return 'timeout'
+  if (/killed|terminated|signal|sigterm|sigkill|被杀|中止/.test(t)) return 'killed'
+  if (/spawn|enoent|not found|no such file|eacces|起不来|没起来/.test(t)) return 'spawn-failed'
+  return ''
+}
+
+/**
+ * 把 transport 失败类别翻译成回话里的中文说法；认不出回空串（调用方不硬凑一个词）。
+ * 回话里为什么要说类别：#1007 的期望是「人一眼看出这次是超时、被杀还是进程根本没起来」，
+ * 只说「通路失败」会被读成同一个故障反复出现，判不出该修网络、修代理还是修命令本身。
+ */
+export function transportFailureReasonLabel(reason: unknown): string {
+  const r = String(reason == null ? '' : reason)
+  if (r === 'timeout') return '超时'
+  if (r === 'killed') return '被杀'
+  if (r === 'spawn-failed') return '进程没起来'
+  return ''
+}
+
+/**
+ * 读写两档各自该给的后续动作（#1007 期望第五条）：读没拿到数据可以直接重试；
+ * 写没法确认到底成没成，先核对票面现状再决定怎么续做，不直接重放。
+ * 为什么写死在这里：房内到点、房内通路冷却、宿主 runGh 排队与平台通道，四个出口说的是同一件事，
+ * 同一张票从不同入口进来必须得到同一条建议；各处各拼一句迟早会有一处写成相反的意思。
+ */
+export function outboundFollowUpAdvice(bucket: unknown): string {
+  return String(bucket == null ? '' : bucket) === 'write'
+    ? '这一笔写操作没有确认结果，先核对票面现状再决定怎么续做，不要直接重放。'
+    : '这一笔读操作没有拿到数据，可以直接重试。'
+}
+
+// ---------------------------------------------------------------------------
+// 结局回话与上报的共用口径（#1007）：宿主平台通道与房间客户端都要说同一句话。
+//
+// 为什么也放在这里：这两件事要用上面那三样判定（冷却信息、失败类别），而且不许在宿主层
+// 新建「宿主 -> 刷新房」或「宿主文件互引」的方向边（tests/verify-dependency-rules.ts 守着）。
+// 准入桶按参数传进来，既不用 import 具体闸，也不改变「冷却状态只在准入闸一处」这条约定。
+// ---------------------------------------------------------------------------
+
+/** 上报结局只需要准入桶上这两样本事；传具体闸、宿主或房间哪一侧的实现都行。 */
+export interface OutboundTransportLane {
+  reportTransportFailure(request: { bucket: string; reason: OutboundTransportReason; cmd: string }): void
+  reportSuccess(request: { bucket: string }): void
+}
+
+/**
+ * 冷却窗口里拿名额被拒时给人的那句话；不是冷却拒绝（例如排队取消）返回空串，调用方照旧走原来的回话。
+ * 说清四件事：是哪条命令、这一笔没起进程、上次是哪一类失败、还剩多久；不复述命令原文，也不带路径。
+ * 冷却是连续失败计数带来的，所以把「第几次」也说出来，人一眼能看出这是同一笔故障的延续；
+ * 最后接上读写各自的后续动作（outboundFollowUpAdvice），四个出口共用这一句，措辞不会分叉。
+ */
+export function ghCooldownReply(err: unknown, cmd: string): string {
+  const cool = outboundCooldownOf(err)
+  if (!cool) return ''
+  const remainSec = Math.max(1, Math.round(cool.remainingMs / 1000))
+  const reasonLabel = transportFailureReasonLabel(cool.reason)
+  return '到 GitHub 的通路现在不通：命令 ' + (cmd || 'gh') + ' 没有起进程（上一笔连续第 ' + cool.failStreak + ' 次' + (reasonLabel ? reasonLabel + '失败' : '通路失败') + '，冷却还剩约 ' + remainSec + ' 秒）。这一笔没有执行。' + outboundFollowUpAdvice(cool.bucket)
+}
+
+/** 进程根本没起来也是 transport 级失败（spawn-failed）：同一只桶进入冷却，随后调用立刻回「通路不通」。 */
+export function reportGhSpawnFailure(lane: OutboundTransportLane, bucket: string, cmd: string): void {
+  try { lane.reportTransportFailure({ bucket: bucket, reason: 'spawn-failed', cmd: cmd }) } catch (eR) {}
+}
+
+/** 一趟平台 exec 结束时的上报参数：桶名、短标签、结局，以及用来辨认失败类别的两段原文。 */
+export interface OutboundTransportOutcomeInfo {
+  bucket: string
+  cmd: string
+  outcome: { exitCode?: number; signal?: string } | null | undefined
+  stdout: string
+  stderr: string
+}
+
+/**
+ * 这一趟的结局回写给同一只准入桶（宿主平台 exec 与房间 client 共用同一套口径）：
+ * 到点（signal=timeout）设冷却；拿到真实退出码（非零也算）清零；主动取消（signal=aborted）不动；
+ * 其余拿不到退出码的按输出与信号认出类别，认得出才设冷却。
+ */
+export function reportGhOutcome(lane: OutboundTransportLane, info: OutboundTransportOutcomeInfo): void {
+  try {
+    const code = info.outcome && info.outcome.exitCode
+    const signal = String((info.outcome && info.outcome.signal) || '')
+    if (signal === 'timeout') {
+      lane.reportTransportFailure({ bucket: info.bucket, reason: 'timeout', cmd: info.cmd })
+    } else if (signal !== 'aborted') {
+      if (typeof code === 'number' && code !== -1) {
+        lane.reportSuccess({ bucket: info.bucket })
+      } else {
+        const reason = transportFailureReasonOf(info.stdout + ' ' + info.stderr + ' ' + signal)
+        if (reason) lane.reportTransportFailure({ bucket: info.bucket, reason: reason, cmd: info.cmd })
+      }
+    }
+  } catch (eR) {}
+}
+
