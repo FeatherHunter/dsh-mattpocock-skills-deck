@@ -43,7 +43,7 @@ function startWait(ms: number): PendingWait {
   let timer: ReturnType<typeof setTimeout> | null = null
   let done = false
   let wake: (() => void) | null = null
-  const wait = new Promise<void>(function (resolve) {
+  const settled = new Promise<void>(function (resolve) {
     wake = function (): void { resolve() }
     try {
       timer = setTimeout(function () { finish() }, ms)
@@ -59,7 +59,7 @@ function startWait(ms: number): PendingWait {
     wake = null
     if (w) { try { w() } catch (e) { /* 结算函数不会抛；抛了也不该盖住调用方要的结果 */ } }
   }
-  return { wait: wait, cancel: finish }
+  return { wait: settled, cancel: finish }
 }
 
 /** 等一会儿：到点自己结算。定时器 unref，不替进程决定什么时候能退出；不参与竞速，所以不需要 cancel。 */

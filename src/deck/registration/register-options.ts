@@ -465,14 +465,12 @@ export function hookDeckAgentTools(ctx: unknown, getTable: unknown, loadDefineTo
   // deck 工具永不注册。表就绪后再进服务等待。
   function table(left: number): Promise<unknown> {
     return Promise.resolve().then(function () { return typeof getTable === 'function' ? (getTable as () => Promise<unknown>)() : null }).then(function (built: unknown) {
-      const builtObj = built as { tools?: unknown } | null;
-      if (builtObj && builtObj.tools) return built
+      if (built && (built as { tools?: unknown }).tools) return built
       if (left > 0) return sleepOnce(waitMs).then(function () { return table(left - 1) })
       return null
     }).catch(function () { return null })
   }
-  try {
-    // 整条重试链圈进存活租约（#1534 复核结论）：表与工具服务都可能晚几轮就绪，两个等待之间
+  // 整条重试链圈进存活租约（#1534 复核结论）：表与工具服务都可能晚几轮就绪，两个等待之间
     // 只剩 unref 的等待定时器；不拿租约的话进程会在第一次等待里静默收摊（退出码仍是 0），
     // 注册永不发生 —— 这是「等待定时器不拥有进程存活」在注册这条路上的落点。
     withInFlightLease(function (): Promise<unknown> {
@@ -483,8 +481,7 @@ export function hookDeckAgentTools(ctx: unknown, getTable: unknown, loadDefineTo
           const svc = toolsSvcOf() as ToolsService | null;
           if (!svc || typeof svc.register !== 'function') {
             if (left > 0) return sleepOnce(waitMs).then(function () { return attempt(left - 1) })
-            tell({ ok: false, reason: 'no-tools-service' })
-            return null
+            tell({ ok: false, reason: 'no-tools-service' }); return null
           }
           return Promise.resolve(typeof loadDefineTool === 'function' ? (loadDefineTool as () => Promise<unknown>)() : null).then(function (m: unknown) {
             const loaded = m as UnknownRecord | null;
@@ -501,6 +498,5 @@ export function hookDeckAgentTools(ctx: unknown, getTable: unknown, loadDefineTo
         }
         return attempt(retries)
       }).catch(function () {})
-    }).catch(function () {})
-  } catch (e0) {}
+  }).catch(function () {})
 }
