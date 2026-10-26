@@ -70,6 +70,8 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 
 动到 `tests/**`、`scripts/**`、`docs/**` 或任何 `*.md` 时，挑选规则会判「必须全链」，这是故意的，不是 bug。档位怎么选、各档测不出什么、读一扇两千行门禁怎么省上下文，都见 `docs/agents/verification.md`。
 
+2026-10-26 起，远端不再承担验证裁决职责（#1542，下掉了 `.github/workflows/verify.yml`，推送 main 与开 PR 都不再自动跑验证）。本地验证是唯一的裁决口径，规则写死三条：本地跑链必须用 Node 24.15 及以上版本（在 Node 22 上跑链本身就是 #1523 记录的装载故障，会出现大量与代码内容无关的失败）；`npm run verify:parallel` 是唯一的裁决入口，提交前与推送前每次都要跑它；合并前要求除登记在案的已知红之外，全链真红为 0（已知红在各自的票里登记，例如 #1541 跟踪的那几道）。来龙去脉见 `docs/adr/20261026-cancel-ci-verify.md`。
+
 ### 测试怎么直接加载 .ts（Node 下限与装包守卫）
 
 旧测试与旧源码是「按单元分批」从 `.js` 转成 `.ts` 的：一个文件改名之后，引用它的地方仍然写着 `./x.js`。`scripts/ts-hook.mts` 就是这件事的装载钩子——它把这类说明符改指同目录下的同名 `.ts`；同名 `.ts` 不存在时原样交给 Node，所以没迁移的文件行为与今天完全一样。用法是把钩子挂在要跑的脚本前面：
@@ -78,9 +80,9 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 node --import ./scripts/ts-hook.mts tests/你的测试.ts
 ```
 
-`npm test`（经 `scripts/verify-chain.ts`）、`npm run verify:parallel`（经 `scripts/verify-parallel.mts`）、`node scripts/verify-all.mts`（CI 的 `.github/workflows/verify.yml` 跑的就是它，逐道跑完再汇总）三个入口跑测试时都会自动挂上这个钩子，写测试的人不用自己加；`npm run test:smoke`（六条冒烟）从 #1178 起也走 `scripts/verify-chain.ts`（`--script smoke` 读 `package.json` 的 `scripts.smoke` 那串清单），钩子判定跟着那一条路走。同一个判定分散在这三处加上链执行器这一处，改一处必须全改——漏掉哪个入口，哪个入口里的 `.ts` 迁移就会跟别处表现不一样，典型症状是「本机 `npm test` 全绿、CI 红」。
+`npm test`（经 `scripts/verify-chain.ts`）、`npm run verify:parallel`（经 `scripts/verify-parallel.mts`）、`node scripts/verify-all.mts`（逐道跑完再汇总）三个入口跑测试时都会自动挂上这个钩子，写测试的人不用自己加；`npm run test:smoke`（六条冒烟）从 #1178 起也走 `scripts/verify-chain.ts`（`--script smoke` 读 `package.json` 的 `scripts.smoke` 那串清单），钩子判定跟着那一条路走。同一个判定分散在这三处加上链执行器这一处，改一处必须全改——漏掉哪个入口，哪个入口里的 `.ts` 迁移就会跟别处表现不一样，典型症状是不同入口结论对不上（例如本机 `npm test` 全绿、另一个入口红）。远端的 `verify` 工作流已在 2026-10-26 下掉（#1542），推送与开 PR 不再触发它，上面三个都是本地入口。
 
-**Node 下限怎么来的**：钩子用的是同步的 `module.registerHooks()`，它同时管 ESM 的 `import` 与 CommonJS 的 `require`；异步的 `module.register()` 管不到 `require`，替代不了它。同步的 `registerHooks()` 从 Node 22.15 才有，这是这条线的起点——但 22.15 不等于能跑：钩子开着的时候测试加载的是 `.ts` 源码，而 Node 默认开启 TypeScript 类型剥离要到 22.18，再往上还有依赖自己的硬线（`jsdom` 声明 `^22.22.2 || ^24.15.0 || >=26.0.0`，8 个用例在用它）。所以根 `package.json` 的 `engines.node` 写的是 `"^22.22.2 || ^24.15.0 || >=26.0.0"`：22 线要 22.22.2 及以上，24 线要 24.15 及以上，26 及以上任意（23、25 是短命版本线，不单独支持）。这个范围是从最严的那个依赖抄来的，依赖一升要跟着复核；写窄了人会卡在「根项目通过、依赖拒绝」的信息里。
+**Node 下限怎么来的**：钩子用的是同步的 `module.registerHooks()`，它同时管 ESM 的 `import` 与 CommonJS 的 `require`；异步的 `module.register()` 管不到 `require`，替代不了它。同步的 `registerHooks()` 从 Node 22.15 才有，这是这条线的起点——但 22.15 不等于能跑：钩子开着的时候测试加载的是 `.ts` 源码，而 Node 默认开启 TypeScript 类型剥离要到 22.18，再往上还有依赖自己的硬线（`jsdom` 声明 `^22.22.2 || ^24.15.0 || >=26.0.0`，8 个用例在用它）。所以根 `package.json` 的 `engines.node` 写的是 `"^22.22.2 || ^24.15.0 || >=26.0.0"`：22 线要 22.22.2 及以上，24 线要 24.15 及以上，26 及以上任意（23、25 是短命版本线，不单独支持）。这个范围是从最严的那个依赖抄来的，依赖一升要跟着复核；写窄了人会卡在「根项目通过、依赖拒绝」的信息里。本地跑验证链的版本要求比这里更严：必须用 Node 24.15 及以上版本，在 Node 22 上跑链会撞上 #1523 记录的装载故障，结论没有参考价值，详见上面跑门禁一节与 #1542 的决定。
 
 **装包守卫分两处，缺一个就漏一半人**：用 npm 的人靠 `.npmrc` 的 `engine-strict=true`；用 pnpm 的人靠 `pnpm-workspace.yaml` 的 `engineStrict: true`——实测 pnpm 不认 `.npmrc` 里的 `engine-strict`（只打一条警告就继续装，退出码 0），只有 `pnpm-workspace.yaml` 那一处是硬拦截（退出码 1）。两处都会连整棵依赖树一起查。钩子自己还做一次能力检测：Node 太旧时抛出能指路的一句话，而不是难懂的 `TypeError`。
 
