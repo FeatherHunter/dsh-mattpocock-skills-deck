@@ -1,7 +1,7 @@
-// 由 dsh-plugin-update@0.18.38 的集成工具生成，人手不改。
+// 由 dsh-plugin-update@0.18.39 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/shared/config.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/shared/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var CHECK_FALLBACK_PHONE_ACTION = "updateCheckFallback";
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
@@ -36,7 +36,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/shared/commands.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/shared/commands.js
 var MANUAL_SUPPRESSING_REASONS = ["source-install", "unknown-profile", "dev-source"];
 function manualCommandSuppressedBy(reason) {
   return reason !== null && reason !== void 0 && MANUAL_SUPPRESSING_REASONS.includes(reason);
@@ -165,7 +165,7 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${spec} --registry=${source}`;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/queue/model.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/queue/model.js
 var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 var QUEUE_INTENT_STALE_MS = 3e4;
 function emptyQueueState() {
@@ -321,7 +321,7 @@ function derivedRequestId(state, viewerPluginId) {
   return mine[0].requestId;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/batch/model.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/batch/model.js
 var BATCH_SESSION_VERSION = 1;
 function isTerminalPhase(phase) {
   return phase === "done" || phase === "failed" || phase === "skipped" || phase === "current";
@@ -489,7 +489,7 @@ function resumeBatchSession(session, now) {
   return changed ? { ...session, entries, updatedAt: at } : session;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/judgment.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/judgment.js
 function updateError(code) {
   return Object.assign(new Error(code), { code });
 }
@@ -574,7 +574,7 @@ function compareReleaseVersions2(a, b) {
   return 0;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/shared/codes.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/shared/codes.js
 var BLOCKED_REASONS = [
   "unknown-profile",
   "channel-mismatch",
@@ -603,17 +603,17 @@ var STABLE_CODES = [...BLOCKED_REASONS, ...PHONE_FAILURE_CODES, INTERNAL_CODE];
 var CORE_ERROR_CODES = [...PHONE_FAILURE_CODES, ...BLOCKED_REASONS];
 var BATCH_REPLY_CODES = [...CORE_ERROR_CODES, CROSS_SCOPE_CODE];
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/failure.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/failure.js
 var INSTALL_FAIL_CODES = [...CORE_ERROR_CODES, INTERNAL_CODE, UNSUPPORTED_CODE, "none"];
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/fetch.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/fetch.js
 var MAX_METADATA_BYTES = 256 * 1024;
 var MAX_PACKUMENT_BYTES = 4 * 1024 * 1024;
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/service.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/service.js
 var CONFIRMATION_TTL_MS = 10 * 6e4;
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/shared/lang.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/shared/lang.js
 function normalizeLangTag(tag) {
   if (typeof tag !== "string") return "zh";
   const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -624,7 +624,7 @@ function normalizeLangTag(tag) {
   return "zh";
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/changelog/parse.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/changelog/parse.js
 var CHANGELOG_FILENAME = "CHANGELOG.md";
 var CHANGELOG_NEUTRAL_HINT = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E";
 var CHANGELOG_NEUTRAL_LINE = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002";
@@ -1155,7 +1155,7 @@ function escapeChangelogHtml(text) {
   return String(text ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/i18n/dictionary.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/i18n/dictionary.js
 var BILINGUAL_STRINGS = {
   "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
   "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
@@ -1349,6 +1349,8 @@ var BILINGUAL_STRINGS = {
   "panel.error.no-failure": { en: "No failure: copying diagnostics gives the current state snapshot.", zh: "\u6682\u65E0\u5931\u8D25\uFF1A\u6B64\u65F6\u590D\u5236\u8BCA\u65AD\u63D0\u4F9B\u7684\u662F\u5F53\u524D\u72B6\u6001\u5FEB\u7167\u3002", draft: true },
   "panel.error.log-hint": { en: "Check logs: {dir} (one directory per plugin, no overlap). Read them with {cmd}; filter by plugin ID {pluginId} for events {e1}, {e2}, {e3}.", zh: "\u8BF7\u67E5\u770B\u65E5\u5FD7\uFF1A{dir}\uFF08\u4E00\u4E2A\u63D2\u4EF6\u4E00\u68F5\u76EE\u5F55\uFF0C\u4E92\u4E0D\u8986\u76D6\uFF09\u3002\u4E00\u6761\u547D\u4EE4\u770B\uFF1A{cmd}\uFF1B\u6309\u63D2\u4EF6\u6807\u8BC6 {pluginId} \u7B5B\u9009 {e1}\u3001{e2}\u3001{e3} \u4E8B\u4EF6\u3002", draft: true },
   "panel.error.log-follow": { en: "Match the request/check IDs above in {eFail}; baseline timing in {eCall}, execution result in {eExec}.", zh: "\u51ED\u4E0A\u65B9\u8BF7\u6C42\uFF0F\u68C0\u67E5\u7F16\u53F7\u5728 {eFail} \u4E2D\u5339\u914D\uFF1B\u57FA\u7EBF\u8017\u65F6\u8BF7\u67E5\u770B {eCall}\uFF0C\u6267\u884C\u7ED3\u679C\u8BF7\u67E5\u770B {eExec}\u3002", draft: true },
+  // #245：已结算的旧失败只留一条中性历史行——说清“那次失败”与“现在在跑什么”，不带任何报错口气。
+  "panel.history.failure-settled": { en: "An earlier attempt failed ({code}); target version {version} or newer is running.", zh: "\u4E0A\u6B21\u5C1D\u8BD5\u5931\u8D25\uFF08{code}\uFF09\uFF1B\u76EE\u6807\u7248\u672C {version} \u6216\u66F4\u65B0\u7248\u672C\u6B63\u5728\u8FD0\u884C\u3002", draft: true },
   // #212 日志健康（面板日志区与复制诊断共用的唯一措辞源）：机读码（self/external/pending/off、
   // contract 四态、三个原因码）全部走具名槽传值，模板本身不含 ASCII —— 中文只存这里，机读真值不译。
   "panel.loghealth.line": { en: "Log: {text}", zh: "\u65E5\u5FD7\uFF1A{text}", draft: true },
@@ -1585,7 +1587,7 @@ var BILINGUAL_STRINGS = {
   "install-button.action.installed": { en: "Installed", zh: "\u5DF2\u5B89\u88C5", draft: true }
 };
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/i18n/text.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/i18n/text.js
 function formatTemplate(template, values) {
   const vals = values ?? {};
   return String(template).replace(/\{([A-Za-z0-9_]+)\}/g, (_, name) => {
@@ -1605,7 +1607,7 @@ function updCopyText(key, lang, values) {
   return formatTemplate(l === "en" ? e.en : e.zh, values);
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/core/changelog/render-model.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/core/changelog/render-model.js
 var MD_URL_MAX = 2048;
 var MD_MAX_DEPTH = 2;
 function isHttpUrl(u) {
@@ -2106,7 +2108,7 @@ ${note}${blocks.join("\n")}
   }
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.18.38/node_modules/dsh-plugin-update/dist/panel/client.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.39/node_modules/dsh-plugin-update/dist/panel/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS

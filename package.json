@@ -1,6 +1,6 @@
 {
   "name": "dsh-mattpocock-skills-deck",
-  "version": "1.9.0-beta.19",
+  "version": "1.9.0-beta.21",
   "repository": {
     "type": "git",
     "url": "https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
@@ -12,7 +12,7 @@
   "scripts": {
     "build": "node scripts/build.mts",
     "typecheck": "node scripts/generate-locale-config.mts --check && node scripts/generate-prompt-config.mts --check && node scripts/generate-time-config.mts --check && node scripts/generate-md-format-config.mts --check && node scripts/typecheck.mts",
-    "update:latest": "pnpm update dsh-plugin-update@^0.18.38 && node scripts/derive-update-from-package.mts && node scripts/build.mts",
+    "update:latest": "pnpm update dsh-plugin-update@^0.18.39 && node scripts/derive-update-from-package.mts && node scripts/build.mts",
     "prepare": "node scripts/build.mts",
     "test": "npm run typecheck && node scripts/build.mts && node scripts/verify-chain.ts && npm run test:smoke",
     "smoke": "node --import ./scripts/ts-hook.mts tests/smoke-client.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-host-dispatch.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-naming-persistence.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts",
@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "dsh-log": "^0.4.1",
-    "dsh-plugin-update": "^0.18.38",
+    "dsh-plugin-update": "^0.18.39",
     "ws": "^8.22.0",
     "yaml": "^2.9.1"
   },

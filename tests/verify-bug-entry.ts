@@ -51,15 +51,22 @@ const DEFAULT_SOURCES = [
 ]
 const targets = files.length ? [files] : [DEFAULT_SOURCES]
 let failed = false
-// v7 #882：4 字段通用选填版（顺序：实际 → 期望 → 复现 → 环境）括号单行形态，历史调查归 AI 不进填空，环境通用不点名产品
-const FIELDS_ZH = ['实际（现象；影响范围）：', '期望（预期；与实际差异）：', '复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：', '环境信息（OS 版本 + 软件版本 + 运行环境）：']
-const FIELDS_EN = ['Actual (symptom; impact):', 'Expected (expectation; diff from actual):', 'Reproduction (preconditions and scenario + numbered steps; flaky → frequency):', 'Environment (OS version + software version + runtime):']
+// v7 #882：4 字段引导语（顺序：实际 → 期望 → 复现 → 环境），括号单行形态，历史调查归 AI 不进填空，环境通用不点名产品。
+// 括号内的话只是提示，不是必填项——文案改成「知道多少写多少、答不全照常建单」，判据跟着换。
+const FIELDS_ZH = ['实际（看到了什么现象；知道影响范围就一并写上）：', '期望（原本预期是什么样；和实际看到的差异写清楚）：', '复现步骤（能说清前置条件和场景就先写，再按编号步骤写；只是偶发的话写下大概频率）：', '环境信息（知道的话写上 OS 版本、软件版本、运行环境）：']
+const FIELDS_EN = ['Actual (the symptom; add the impact if you know it):', 'Expected (your expectation, plus the diff from actual):', 'Reproduction (preconditions and scenario if you can, then numbered steps; if it is flaky, note how often):', 'Environment (OS version, software version and runtime, as much as you know):']
 // v4：括号内说明即指引，无独立例行；仍需校验说明关键字在场（防文案丢失）
 const DESC_ZH = ['现象', '影响范围', '预期', '差异', '前置条件', '编号步骤', '偶发', 'OS 版本', '软件版本', '运行环境']
 const DESC_EN = ['symptom', 'impact', 'expectation', 'diff from actual', 'preconditions and scenario', 'numbered steps', 'flaky', 'OS version', 'software version', 'runtime']
 // v4 形态守护：括号单行，每字段为 “字段名（说明）：” 单行，字段间用 \n 分隔，无 “\n  例：” 悬行
-const BRACKET_LINE_ZH = ['实际（现象；影响范围）：', '期望（预期；与实际差异）：', '复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：', '环境信息（OS 版本 + 软件版本 + 运行环境）：']
-const BRACKET_LINE_EN = ['Actual (symptom; impact):', 'Expected (expectation; diff from actual):', 'Reproduction (preconditions and scenario + numbered steps; flaky → frequency):', 'Environment (OS version + software version + runtime):']
+const BRACKET_LINE_ZH = ['实际（看到了什么现象；知道影响范围就一并写上）：', '期望（原本预期是什么样；和实际看到的差异写清楚）：', '复现步骤（能说清前置条件和场景就先写，再按编号步骤写；只是偶发的话写下大概频率）：', '环境信息（知道的话写上 OS 版本、软件版本、运行环境）：']
+const BRACKET_LINE_EN = ['Actual (the symptom; add the impact if you know it):', 'Expected (your expectation, plus the diff from actual):', 'Reproduction (preconditions and scenario if you can, then numbered steps; if it is flaky, note how often):', 'Environment (OS version, software version and runtime, as much as you know):']
+// 头一句必须明确「这四项是提示、不是必答」，并交代「答不全也照常建单、缺的标 needs-info」；
+//   旧口径「均为必填 / 先回问报告人补齐」不许回潮，否则会话又会逼报告人逐项填满。
+const HINT_HEAD_ZH = '不是四道必答题'
+const HINT_RULE_ZH = '只答出一部分时照常建单，缺的地方标 needs-info'
+const HINT_HEAD_EN = 'they are not four questions that must be answered'
+const HINT_RULE_EN = 'still file the ticket and label the missing parts needs-info'
 // #1292：原来那条「从源码里抠注册表条目」的正则（RE_ENTRY，2026-10-17 改的引号无关形状）已经删掉 ——
 //   注册表的真源搬进了 config/prompts/ 下的 YAML，源码里不再有那段字面量，正则一条也抠不到（那样会静默漏判）。
 //   现在改从共享读取核读 YAML，拿到的是解码好的正文（也不用再处理源码里的转义）。
@@ -229,8 +236,8 @@ const check = function (list) {
     if (zh.indexOf('先建单') >= 0) problems.push('newBugWayfinder zh 仍含「先建单」引导（#107 已改：空表单先追问、不建单）')
     if (en.indexOf('file first') >= 0) problems.push('newBugWayfinder en 仍含 "file first" 引导（#107 已改：空表单先追问、不建单）')
   }
-  // 1.5) 四项引导语：newBugFields 片段的 zh / en 两份正文（zh 4 字段必填括号单行，头带“以下四项均为必填”；
-  //   en 对称，头带 “The four fields below are required”）—— v7 #882 + #107 改必填。
+  // 1.5) 四项引导语：newBugFields 片段的 zh / en 两份正文（zh 4 字段括号单行，头一句说清「是提示、不是必答」；
+  //   en 对称）—— v7 #882 起括号单行，v15 #1461 起与查重记录分家，这次又从「必填」改成「提示」。
   // #1292：正文真身搬进了 config/prompts/ticket-creation.yaml 的 newBugFields 片段（zh / en 两份）；
   //   src/client/kernel/prompts.ts 里那个常量现在只是「按语言链从片段取这一段」的取用口，源码里不再有那段字面量。
   //   判据拆成两半，两半都查（比从前多查一样，条数不减）：一半查片段数据在不在、正文齐不齐；
@@ -268,10 +275,14 @@ const check = function (list) {
     if (missingInline.length) problems.push('NEW_BUG_FIELDS_BODY 缺 zh 说明关键字：' + missingInline.join(' / '))
     // v4 分离守护：zh 不应混入英文短语（防止中英混排回潮）
     if (fieldsBody.indexOf('What should happen') >= 0 || fieldsBody.indexOf('What actually happened') >= 0) problems.push('NEW_BUG_FIELDS_BODY 混入英文 inline（v4 zh 只中文说明）')
-    // v7 形态守护：括号单行，末尾以 环境信息（OS 版本 + 软件版本 + 运行环境）：收尾；头带必填提示（#107 由“以下选填。”改为“以下四项均为必填”）
-    if (!fieldsBody.endsWith('环境信息（OS 版本 + 软件版本 + 运行环境）：')) problems.push('NEW_BUG_FIELDS_BODY 末尾非通用环境收尾（v7 #882）')
-    if (fieldsBody.indexOf('以下四项均为必填') < 0) problems.push('NEW_BUG_FIELDS_BODY 缺必填头“以下四项均为必填”（#107）')
-    if (fieldsBody.indexOf('以下选填。') >= 0) problems.push('NEW_BUG_FIELDS_BODY 仍含旧选填头“以下选填。”（#107 已改必填）')
+    // v7 形态守护：括号单行，末尾以环境行收尾（这次环境行也改成「知道的话写上 …」的提示语气）
+    if (!fieldsBody.endsWith(FIELDS_ZH[3])) problems.push('NEW_BUG_FIELDS_BODY 末尾非通用环境收尾（v7 #882）')
+    // 头一句要读作提示而不是强制；答不全照常建单（缺的标 needs-info），不许再要求报告人「补齐」。
+    if (fieldsBody.indexOf(HINT_HEAD_ZH) < 0) problems.push('NEW_BUG_FIELDS_BODY 缺「四项是提示、不是必答」的头一句')
+    if (fieldsBody.indexOf(HINT_RULE_ZH) < 0) problems.push('NEW_BUG_FIELDS_BODY 缺「答不全照常建单、缺项标 needs-info」的说明')
+    if (fieldsBody.indexOf('均为必填') >= 0) problems.push('NEW_BUG_FIELDS_BODY 又写成「均为必填」（四项是提示，写了会把报告人逼成逐项填表）')
+    if (fieldsBody.indexOf('先回问报告人补齐') >= 0) problems.push('NEW_BUG_FIELDS_BODY 仍要求报告人「补齐」四项（现在改成答多少算多少）')
+    if (fieldsBody.indexOf('以下选填。') >= 0) problems.push('NEW_BUG_FIELDS_BODY 仍含旧选填头“以下选填。”（现在的文案是提示语气，这条只禁旧的选填头）')
     if (fieldsBody.indexOf('浏览器 + 插件版本') >= 0) problems.push('NEW_BUG_FIELDS_BODY 残留 DSH 专用环境写法（v7 已通用化）')
     // 括号单行完整性
     const missingBrZh = BRACKET_LINE_ZH.filter(function (g) { return fieldsBody.indexOf(g) < 0 })
@@ -296,9 +307,12 @@ const check = function (list) {
     if (fieldsBodyEn.indexOf('\n  e.g.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧形态悬行（换行 + 两空格 + “e.g.”，v4 已改为括号单行）')
     const missingBrEn = BRACKET_LINE_EN.filter(function (g) { return fieldsBodyEn.indexOf(g) < 0 })
     if (missingBrEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺括号单行：' + missingBrEn.join(' / '))
-    if (!fieldsBodyEn.endsWith('Environment (OS version + software version + runtime):')) problems.push('NEW_BUG_FIELDS_BODY_EN 末尾非通用环境收尾（v7 #882）')
-    if (fieldsBodyEn.indexOf('The four fields below are required') < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺必填头 "The four fields below are required"（#107）')
-    if (fieldsBodyEn.indexOf('Optional below.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧选填头 "Optional below."（#107 已改必填）')
+    if (!fieldsBodyEn.endsWith(FIELDS_EN[3])) problems.push('NEW_BUG_FIELDS_BODY_EN 末尾非通用环境收尾（v7 #882）')
+    // 与中文一侧对称，头一句要读作提示而不是强制；答不全照常建单，缺的标 needs-info。
+    if (fieldsBodyEn.indexOf(HINT_HEAD_EN) < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺「四项是提示、不是必答」的头一句')
+    if (fieldsBodyEn.indexOf(HINT_RULE_EN) < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺「答不全照常建单、缺项标 needs-info」的说明')
+    if (fieldsBodyEn.indexOf('four fields below are required') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 又写成 "four fields below are required"（四项是提示，不是必答）')
+    if (fieldsBodyEn.indexOf('Optional below.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧选填头 "Optional below."（现在的文案是提示语气，这条只禁旧的选填头）')
     if (fieldsBodyEn.indexOf('browser + plugin version') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 DSH 专用环境写法（v7 已通用化）')
   }
   // 取用口：prompts.ts 里的 NEW_BUG_FIELDS_BODY 必须从片段取正文（不是自己又抄一份）。
@@ -357,7 +371,7 @@ const check = function (list) {
   }
   // 7) 文本拼接：#1294 起 newBugWayfinderText = promptText('newBugWayfinder', {...}) + NEW_BUG_FIELDS_BODY()，
   //   语言不再靠 promptLang() 三元切换（那 9 处硬写已清零），正文由语言链在 newBugFields 片段里挑；
-  //   「提示词正文 + 四项必填字段」两段必须拼在一起，且 newBugFields 自带开头两个换行（隔一个空白行）的契约不变。
+  //   「提示词正文 + 四项引导语」两段必须拼在一起，且 newBugFields 自带开头两个换行（隔一个空白行）的契约不变。
   // 2026-10-19（#1301 批C）：取源换成 .ts 真源后函数签名带类型标注，锚点容忍类型标注，判据本身没变。
   const builderMatch = /newBugWayfinderText\s*=\s*\(st(?::[^)]*)?\)\s*(?::\s*[^=]+)?=>\s*promptText\(\s*['"]newBugWayfinder['"]\s*,\s*\{[^}]*\}\s*\)\s*\+\s*NEW_BUG_FIELDS_BODY\(\)/.test(src)
   if (!builderMatch) problems.push('newBugWayfinderText 拼接未含 promptText(\'newBugWayfinder\', …) + NEW_BUG_FIELDS_BODY()')

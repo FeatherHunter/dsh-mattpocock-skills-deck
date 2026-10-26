@@ -150,6 +150,22 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       }
       // 将 key 归一为字符串
       if (iss && iss.key != null) iss.key = String(iss.key)
+      // 评论：房间契约交回的是 Comment[] 数组，而详情页只认 GraphQL 连接形状 {nodes, pageInfo}
+      // （旧路 src/refresh/rooms/host/issue-detail-fetch.ts 的 detailOf 一直这么给）。#1444 换成经会话 get 之后
+      // 这里把数组原样透传，界面读 comments.nodes 读不到，任意票的评论区都显示「评论 (0)」——#1519 的根因。
+      // 所以在这一层把数组装回连接：每条评论的映射与旧路逐字一致（旧路的 detailOf 也只收窄这五个字段）。
+      // hasNextPage 只能按「取满一页」推：这一趟沿用房间默认首屏（GitHub 房默认 COMMENTS_PAGE = 50 条），
+      // 条数够一页就认为可能还有下一页；endCursor 用已取条数（旧 REST 路就是这么给的；
+      // 「加载更多」另走 fetchIssueComments，不靠这个游标翻详情）。
+      const comments: any = (iss.comments || []).map(function (c: any): any {
+        return {
+          author: { login: (c.author && c.author.login) || '' },
+          authorAssociation: c.authorAssociation || '',
+          body: c.body || '',
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+        }
+      })
       // 详情需要包含 comments / blockedBy 等，markdown 的 get 已包含
       return { ok: true, issue: {
         number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
@@ -164,7 +180,7 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
         author: iss.author,
         labels: { nodes: (iss.labels || []).map(function(l: any){ return { name: l.name, color: l.color || '' } }) },
         assignees: { nodes: (iss.assignees || []).map(function(a: any){ return typeof a === 'string' ? { login: a } : a }) },
-        comments: iss.comments || { nodes: [] },
+        comments: { nodes: comments, pageInfo: { hasNextPage: comments.length >= COMMENTS_PAGE, endCursor: String(comments.length) } },
         subIssues: iss.subIssues || { totalCount: 0, nodes: [] },
         blockedBy: { nodes: (iss.blockedBy || []).map(function(b: any){ if (typeof b === 'number') return { number: b }; if (b && b.key != null) { const nn = parseInt(b.key,10); return { number: isNaN(nn) ? b.key : nn, title: b.title||'', state: b.state==='closed'?'CLOSED':'OPEN' }; } return b; }) },
         blocking: { nodes: [] },

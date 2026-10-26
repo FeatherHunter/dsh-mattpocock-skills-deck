@@ -36,7 +36,35 @@ export interface TrackerError {
   kind: ErrorKind
   message: string
   raw: string
+  /**
+   * 这次失败发生在链路哪一段（可选）。只在「这一段有确定的下一步」时才填；
+   * 填它不改变 `kind` 与 `raw` 的含义，三段式仍是必填的三段。
+   */
+  stage?: TrackerErrorStage
 }
+
+/**
+ * 失败发生在链路哪一段（可选，给机器读，**不是错误档位**；#1171 加）。
+ *
+ * 取值表 `TRACKER_ERROR_STAGE` 是唯一真源：房间写它、调用方比对它也走这一份，
+ * 别再把 `'anchor-lookup'` 写成裸字面量 —— 改名时编译器能顺着常量找到每一处。
+ * 今天只有一个取值：建票前按幂等锚回查时没能做成，后端一个写动作都没发出、票没建。
+ * 带上它的失败，`message` 只陈述事实；「调用方还能做什么」只有调用方那一层知道
+ * （例：deck 的建票工具看到它会补「原样重试即可」并说清为什么安全）。
+ * 不传 = 普通失败，调用方不额外推荐做法 —— 别的原因（权限、参数……）原样重试未必有用。
+ *
+ * 覆盖范围只有远端两间房（GitHub、GitLab）。本地 markdown 后端按锚回查失败时**不填**它：
+ * 那里失败的是「读本机票文件读不出来」（`src/tracker/rooms/markdown/create-layout.ts:246`），
+ * 原样重试不会让一个读不出来的文件变好，工具层不该对人许这个愿。本地这张通道以后要补，
+ * 应当带上同一个常量，并想清楚本地回查失败时重试到底能改变什么。
+ */
+export const TRACKER_ERROR_STAGE = Object.freeze({
+  /** 建票前按幂等锚回查时没能做成：票没建，原样重试是安全的。 */
+  ANCHOR_LOOKUP: 'anchor-lookup',
+})
+
+/** 链路阶段的取值类型；从 `TRACKER_ERROR_STAGE` 推出来，保证类型与运行时常量不会写成两个值。 */
+export type TrackerErrorStage = (typeof TRACKER_ERROR_STAGE)[keyof typeof TRACKER_ERROR_STAGE]
 
 /**
  * 统一返回形状：一次调用要么成功带数据，要么失败带原因，没有第三种。

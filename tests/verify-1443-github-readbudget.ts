@@ -19,7 +19,7 @@ function rateLimitText(restRemaining, gqlRemaining) {
 
 // 房内 gh 客户端要的三件执行桩：平台解析、起进程、出站控制面，缺一件房内按环境失败。
 function makeCtx(execFn, resolveFn) {
-  const outbound = { acquire: async function () { return function release() {} }, isCancelled: function () { return false }, noteWrite: function () {} }
+  const outbound = { acquire: async function () { return function release() {} }, isCancelled: function () { return false }, noteWrite: function () {}, reportTransportFailure: function () {}, reportSuccess: function () {} }
   return { cwd: '/ws-test-1443', signal: undefined,
     platform: { resolveExecutable: resolveFn,
       path: { join: function () { return Array.prototype.join.call(arguments, '/') }, sep: '/', isAbsolute: function (p) { return String(p).charAt(0) === '/' }, dirname: function (p) { const i = String(p).lastIndexOf('/'); return i > 0 ? String(p).slice(0, i) : '/' } },

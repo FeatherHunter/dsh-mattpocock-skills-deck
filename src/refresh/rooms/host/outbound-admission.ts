@@ -20,9 +20,16 @@
  * 时熔断，好过让机器被进程吃光。真正让名额不会被长期占住的是房内自己那只表
  * （读 12 秒 / 写 30 秒 / 探活 15 秒，含排队段，见 backends/github/client.js）。
  * 终值仍以测量回填（#967 测量 / #966 收口）为准。
+ *
+ * #1007 起本道门还管**通路失败后的冷却**：一次 transport 级失败（超时、被杀、进程根本没起来）
+ * 之后，同一只桶在冷却窗口里不再起新进程，拿名额直接抛出带 `admission-cooldown` 标记的错误，
+ * 调用方据此立刻回「到 GitHub 的通路现在不通，先别重试」，而不是各自再赔满一次超时。
+ * 任何一条命令跑完拿到退出码（退出码非零也算）就说明通路是通的，冷却立刻清零。
  */
 
 import { TUNING } from '../../contract/tuning-parameters.js'
+import { TRANSPORT_COOLDOWN_MS } from '../../../tracker/kernel/outbound-tiers.js'
+import { LANE_LONG_WAIT_LOG_MS, LANE_WAIT_LOG_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
 
 // 取值住共用调参表（真源 src/refresh/contract/tuning-parameters.ts），这里只留缺表回落的缺省值（与今天一致）。
 export const READ_BUCKET_MAX = TUNING.readBucketMax ?? 64
@@ -32,8 +39,7 @@ export const WRITE_BUCKET_MAX = TUNING.writeBucketMax ?? 16
 //   为什么要有：调试开关默认关着，2026-10-21 那种「64 个名额全满、队尾排到 338 位、等 15 秒」的风暴
 //   在普通用户的日志里一行都不留 —— 事后只能看到一串耗时十几秒的 gh.exec，分不出慢在命令还是慢在门口。
 //   为什么要节流：风暴期间每秒都有放行，逐条记一天就是几十万行的垃圾；同桶五分钟最多一行足够定性。
-const LANE_LONG_WAIT_MS = 3000
-const LANE_WAIT_LOG_INTERVAL_MS = 5 * 60 * 1000
+//   这两个值住 config/intervals.yaml（laneLongWaitLogMs / laneWaitLogIntervalMs），这里不许写第二份数字。
 
 // 准入桶：读与写两只桶，配额与统计都按桶隔离，跨桶不抢名额。
 type GhBucket = 'read' | 'write'
@@ -49,10 +55,12 @@ interface GhWaiter {
 interface GhAdmissionOpts {
   readMax?: number
   writeMax?: number
+  cooldownMs?: number
 }
 interface GhAcquireArgs {
   bucket?: string
   signal?: AbortSignal | null
+  cmd?: string
 }
 interface GhLaneOpts {
   bucket?: string
@@ -60,6 +68,9 @@ interface GhLaneOpts {
 }
 // 取消错误的形状：标准 Error 上加两个标记，调用方靠它们认出取消而非失败。
 type AdmissionCancelledError = Error & { code: string; admissionCancelled: boolean }
+// 冷却错误的形状：标准 Error 上带 code 与「哪只桶、还剩多久、上次为什么失败、连续失败几次」。
+// 调用方用 kernel 的 OUTBOUND_COOLDOWN_CODE / outboundCooldownOf 识别，不靠错误文本。
+type AdmissionCooldownError = Error & { code: string; bucket: string; remainingMs: number; reason: string; failStreak: number }
 // 日志出口（#960 复核）：可选注入；没注入时本文件照旧不写任何日志，准入行为一字不变。
 interface GhLogCtxLike {
   fire(level: string, event: string, fields: Record<string, unknown>): void
@@ -89,6 +100,20 @@ function cancelledError(): AdmissionCancelledError {
 }
 
 /**
+ * 冷却错误的标记与载荷：调用方认出「通路不通」之后要能立刻回人话，还说得出还剩多久、上次为什么失败。
+ * 数字只用于日志与回话，不用于任何裁决。
+ */
+function cooldownError(info: { bucket: GhBucket; remainingMs: number; reason: string; failStreak: number }): AdmissionCooldownError {
+  const e = new Error('gh admission: transport cooling down') as AdmissionCooldownError
+  e.code = 'admission-cooldown'
+  e.bucket = info.bucket
+  e.remainingMs = Math.max(0, Math.floor(info.remainingMs))
+  e.reason = info.reason
+  e.failStreak = Math.max(0, Math.floor(info.failStreak))
+  return e
+}
+
+/**
  * 建一道准入。opts: { readMax, writeMax }。
  * 用法：const release = await lane.acquire({ bucket: 'read'|'write', signal }); try { … } finally { release() }。
  * 排队期间 signal 中止 → acquire 抛取消错误（不占名额、不记失败，调用方按取消返回）。
@@ -102,6 +127,16 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
   }
   const running: Record<GhBucket, number> = { read: 0, write: 0 }
   const queues: Record<GhBucket, GhWaiter[]> = { read: [], write: [] }
+  // 通路冷却的窗口长度：能被测试用 cooldownMs 缩短，缺省用中央时间参数里的 30 秒。
+  const cooldownMs: number = (typeof o.cooldownMs === 'number' && o.cooldownMs > 0) ? Math.floor(o.cooldownMs) : TRANSPORT_COOLDOWN_MS
+  // 每只桶各记一份冷却：到什么时候、上次为什么失败、连续失败几次、失败的是哪条命令（短标签，仅日志）。
+  // failStreak 只在「跑完拿到退出码」时清零；窗口过期不自动清，好让日志看得出这是一串连续失败。
+  // rejectLogged 是「这一轮冷却里已经记过一笔被挡回的轨迹」，用来给高频拒绝做节流：
+  // 冷却期间面板会连续调很多次，逐次记 gh.transport 就是风暴日志，头一笔已经足够说明问题。
+  const cooldown: Record<GhBucket, { until: number; reason: string; failStreak: number; cmd: string; rejectLogged: boolean }> = {
+    read: { until: 0, reason: '', failStreak: 0, cmd: '', rejectLogged: false },
+    write: { until: 0, reason: '', failStreak: 0, cmd: '', rejectLogged: false },
+  }
   const stats = {
     read: { peak: 0, waited: 0, done: 0 },
     write: { peak: 0, waited: 0, done: 0 },
@@ -112,6 +147,20 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
 
   // 桶名归一：不是写桶一律按读桶算，调用方传错也不炸。
   function normBucket(b: unknown): GhBucket { return b === 'write' ? 'write' : 'read' }
+
+  // 命令短标签归一：只留日志里指认用的短标签，去掉空白并截短；空就是没给。
+  // 为什么截短：这个字段要进日志白名单，宁可不全，也不能让一整条命令原文从参数里漏进去。
+  function normCmd(c: unknown): string {
+    const s = String(c == null ? '' : c).replace(/\s+/g, ' ').trim()
+    return s.length > 40 ? s.slice(0, 40) : s
+  }
+
+  /** 常驻事件 gh.transport：冷却设上、被冷却挡回、冷却清零三件事各一行，只在真正发生时记。 */
+  function logTransport(fields: Record<string, unknown>): void {
+    try {
+      if (laneLogCtx && typeof laneLogCtx.fire === 'function') laneLogCtx.fire('info', 'gh.transport', fields)
+    } catch (eL) {}
+  }
 
   // 泵：有空名额就放行队首；已 settle 或已中止的只记取消不占名额。
   function pump(bucket: GhBucket): void {
@@ -139,6 +188,25 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
     const bucket: GhBucket = normBucket(a.bucket)
     const signal: AbortSignal | null = a.signal || null
     if (signal && signal.aborted === true) return Promise.reject(cancelledError())
+    // #1007：这只桶刚有过 transport 级失败、冷却窗口还没过 —— 不起进程，立刻拒，并说清还剩多久。
+    // 放在排队之前判：冷却期间不该再往队里塞人，否则又多一个等着赔超时的。
+    // 只有设过冷却（until 非零）才读一次钟：正常路径一条命令都不多读时钟，这与日志纪律里
+    // 「开关关着时日志点连时钟都不读」是同一个意思 —— 准入判断不该为不会发生的冷却白读一次时间。
+    const cool = cooldown[bucket]
+    if (cool.until !== 0) {
+      const now = Date.now()
+      if (cool.until > now) {
+        const info = { bucket: bucket, remainingMs: cool.until - now, reason: cool.reason, failStreak: cool.failStreak }
+        // 同一轮冷却只记第一笔被挡回的调用：面板会连续调很多次，逐次记就是风暴日志。
+        if (!cool.rejectLogged) {
+          cool.rejectLogged = true
+          logTransport({ decision: 'reject-cooling', bucket: bucket, reason: cool.reason, remainingMs: info.remainingMs, failStreak: cool.failStreak, cmd: normCmd(a.cmd) })
+        }
+        return Promise.reject(cooldownError(info))
+      }
+      // 窗口已经过期：把到期时刻清零，下次拿名额不再读钟；连续失败次数留着，等拿到退出码再清。
+      cool.until = 0
+    }
     if (running[bucket] < maxOf[bucket]) {
       running[bucket] += 1
       if (running[bucket] > stats[bucket].peak) stats[bucket].peak = running[bucket]
@@ -164,7 +232,7 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
           // #1101：常驻一行「门口确实憋过」的轨迹。信息和调试两档各管一件事：
           //   调试那行是逐条明细（排一次记一次，用来画分布）；这一行只说「这段时间这只桶憋过」，
           //   三秒起记、同桶五分钟最多一条，风暴一天也只有几百行，不用开调试也查得到。
-          if (laneLogCtx && typeof laneLogCtx.fire === 'function' && waitedMs >= LANE_LONG_WAIT_MS && now - lastWaitLogAt[bucket] >= LANE_WAIT_LOG_INTERVAL_MS) {
+          if (laneLogCtx && typeof laneLogCtx.fire === 'function' && waitedMs >= LANE_LONG_WAIT_LOG_MS && now - lastWaitLogAt[bucket] >= LANE_WAIT_LOG_INTERVAL_MS) {
             lastWaitLogAt[bucket] = now
             laneLogCtx.fire('info', 'gh.lane.wait', { bucket: bucket, waitedMs: waitedMs, inflight: running[bucket], max: maxOf[bucket], queued: queues[bucket].length })
           }
@@ -212,6 +280,45 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
     }
   }
 
+  /**
+   * 一次 transport 级失败：给同一只桶设（或续）冷却窗口，并把已经排在队里的同桶等待者一并立刻拒掉。
+   * 为什么连排队的一起拒：它们等的正是这条不通的路，留它们在队里只会各自再赔满一次分档超时。
+   * 排队者没起过进程，按「通路不通」拒，不记取消。
+   */
+  function reportTransportFailure(failure: { bucket?: string; reason?: string; cmd?: string } | null | undefined): void {
+    const f = failure || {}
+    const bucket: GhBucket = normBucket(f.bucket)
+    const reason = String(f.reason == null ? '' : f.reason).slice(0, 40)
+    const cmd = normCmd(f.cmd)
+    const prev = cooldown[bucket]
+    const failStreak = prev.failStreak + 1
+    cooldown[bucket] = { until: Date.now() + cooldownMs, reason: reason, failStreak: failStreak, cmd: cmd, rejectLogged: false }
+    logTransport({ decision: 'cooldown-set', bucket: bucket, reason: reason, remainingMs: cooldownMs, failStreak: failStreak, cmd: cmd })
+    const q = queues[bucket]
+    while (q.length > 0) {
+      const waiter = q.shift()
+      if (!waiter || waiter.settled) continue
+      waiter.settled = true
+      try {
+        // 类型说明：排进队时取消函数一定已补上，非空断言只过类型检查。
+        waiter.reject!(cooldownError({ bucket: bucket, remainingMs: cooldownMs, reason: reason, failStreak: failStreak }))
+      } catch (eR) {}
+    }
+    pump(bucket)
+  }
+
+  /**
+   * 一条命令跑完、拿到了退出码：通路是通的，冷却立刻清零，不必等窗口自己过期。
+   * 没有冷却也没有连续失败时什么也不做（不记日志）—— 正常路径一条命令不多出一个事件。
+   */
+  function reportSuccess(req: { bucket?: string } | null | undefined): void {
+    const bucket: GhBucket = normBucket(req && req.bucket)
+    const prev = cooldown[bucket]
+    if (prev.until === 0 && prev.failStreak === 0) return
+    cooldown[bucket] = { until: 0, reason: '', failStreak: 0, cmd: '', rejectLogged: false }
+    logTransport({ decision: 'cooldown-cleared', bucket: bucket, reason: prev.reason, remainingMs: 0, failStreak: prev.failStreak, cmd: prev.cmd })
+  }
+
   /** 快照：只读统计，调用方看排队与峰值用，不参与准入判断。 */
   function snapshot() {
     return {
@@ -225,7 +332,13 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
     }
   }
 
-  return { acquire: acquire, snapshot: snapshot, limits: function (): { readMax: number; writeMax: number } { return { readMax: maxOf.read, writeMax: maxOf.write } } }
+  return {
+    acquire: acquire,
+    reportTransportFailure: reportTransportFailure,
+    reportSuccess: reportSuccess,
+    snapshot: snapshot,
+    limits: function (): { readMax: number; writeMax: number } { return { readMax: maxOf.read, writeMax: maxOf.write } },
+  }
 }
 
 // 进程内默认的一道准入单例：三条出站路共用同一口径，类型随创建函数走。

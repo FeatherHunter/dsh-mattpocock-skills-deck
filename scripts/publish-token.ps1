@@ -1,4 +1,4 @@
-﻿# dsh-mattpocock-skills-deck token 全自动发布（Windows，无人值守）。
+# dsh-mattpocock-skills-deck token 全自动发布（Windows，无人值守）。
 #
 # 与旧 scripts\publish-all-window.ps1 共存：旧走 schtasks 交互窗口＋人浏览器 2FA；
 # 本走环境变量 token，全程无需人点，Agent 可直接驱动。
@@ -23,6 +23,10 @@
 #                包的存储不按 tag 分目录，latest 指到哪，别人装的就是哪一版。
 #                本脚本带预发布闸：Tag 不是 latest 时，版本号必须是 X.Y.Z-beta.N 这样的预发布号，
 #                否则拒绝（否则一个正式号会被永久压在测试标签下，转正还得再抬号）。
+#                注（2026-10-26）：本插件的「检查更新」与 dshmarket 都只读 npm 的 latest 标签——
+#                更新包（dsh-plugin-update）的 prerelease 通道只放宽版本形态，取新版仍走 /latest。
+#                只发 -Tag beta 时面板与市场不会提示新版；要让默认用户拿到，发布后再补一次：
+#                  npm dist-tag add dsh-mattpocock-skills-deck@<版本> latest --registry=https://registry.npmjs.org/
 #
 # 快协议（受理≠可见，两者解耦）：publish exit 0（+包名@版本回执）或 E409 previously-staged
 # 即证明 registry 收下，此时记 DONE（附 STAGED-待可见），不再盲等；可见性只一次采样，

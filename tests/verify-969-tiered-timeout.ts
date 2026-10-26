@@ -173,7 +173,7 @@ if (tiers) {
 // —— 六、房内自己掐表（#1007）：排队段也算进这只表，且与「调用方取消」分得开 ——
 {
   const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
-  const { getGhLane } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
+  const { getGhLane, resetGhLaneForTest } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
 
   // 执行器卡住、连取消都不理：promise 永不落地。房内不能因此被无限拖住。
@@ -197,6 +197,10 @@ if (tiers) {
   check(r1 && r1.error && r1.error.timedOut === true && r1.error.cancelled !== true, '六、这一笔按「超时」交回，不混进「被取消」', JSON.stringify(r1 && r1.error))
   check(took < 2000, '六、到点就返回（不等外层钳制）', '实耗 ' + took + 'ms')
   check(events.some((e) => e.event === 'gh.timeout' && e.fields && e.fields.timeoutMs === 150), '六、房内到点记一行超时告警（gh.timeout 带本档毫秒）')
+
+  // #1007：上面这一笔是真的起过进程之后到点的，房内会顺手把读档放进 30 秒冷却；
+  // 下一节要占满名额，先换一只干净的闸，否则第一条 acquire 就会被冷却拒掉，测的就不是排队了。
+  try { resetGhLaneForTest() } catch (eReset) {}
 
   // ② 名额被占满：排队段也算进这只表（旧实现会一路排到外层钳制才结束）
   const lane = getGhLane()
