@@ -349,7 +349,7 @@ export function createPlatformChannel(deps: Deps) {
       let deGate: OutboundGate | null = null
       let deRelease: (() => void) | null = null
       if (deIsOutbound) {
-        try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined, cmd: deIsGh ? deCmd : undefined }) }
+        try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined, cmd: deIsGh ? deCmd : undefined, service: deIsGh ? 'github' : 'gitlab' }) }
         catch (eDeQ) {
           // #1007：冷却窗口里的拒绝不是「排队取消」，要如实说成「通路不通」，否则调用方会以为只是排队被人喊停。
           const deCoolText = ghCooldownReply(eDeQ, deCmd || cmdBase || 'gh')

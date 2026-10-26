@@ -34,6 +34,14 @@
 export type OutboundBucket = 'read' | 'write' | 'probe'
 
 /**
+ * 出站通路：冷却按「通路 + 读写档」各记一份（#1007 复核）。
+ * 名额（并发上限）是三条路共用的一套，但通路是分开的三条 —— GitHub 的故障不许把去 GitLab / git 的调用
+ * 一起挡掉，反之亦然。房间与宿主通道在拿名额、上报结局时把这条路名带上；缺省按 github 处理
+ * （现有绝大多数出站是 gh）。
+ */
+export type OutboundService = 'github' | 'gitlab' | 'git'
+
+/**
  * 出站控制面（宿主实现，房间只读形状）。
  *
  * `acquire` 回的是一个**放行函数**而不是句柄对象：这是仓里名额闸本来的用法
@@ -46,7 +54,7 @@ export interface OutboundControl {
    * 等待期间 `signal` 中止 → 抛「排队时被取消」的错误（不占名额、不记失败），
    * 由 `isCancelled` 认出来，调用方按取消返回、可以重试。
    */
-  acquire(req: { bucket: OutboundBucket; signal?: AbortSignal; cmd?: string }): Promise<() => void>
+  acquire(req: { bucket: OutboundBucket; signal?: AbortSignal; cmd?: string; service?: OutboundService }): Promise<() => void>
 
   /** 这个错误是不是「出站准入等待中被取消」。只有闸自己说得清，房间不猜。 */
   isCancelled(err: unknown): boolean
@@ -60,11 +68,11 @@ export interface OutboundControl {
    * 只用于日志里指认是哪条命令没跑成，不许传命令原文。
    * 这个上报只影响之后的调用，不改变本次回执。
    */
-  reportTransportFailure(failure: { bucket: OutboundBucket; reason: string; cmd?: string }): void
+  reportTransportFailure(failure: { bucket: OutboundBucket; reason: string; cmd?: string; service?: OutboundService }): void
 
   /**
    * 上报「这条命令跑完了，拿到了退出码」：冷却窗口立刻清零，不必等窗口自己过期。
    * 退出码非零也算通路通（命令跑到了、有回话），调用方照常按失败处理这一条命令。
    */
-  reportSuccess(req: { bucket: OutboundBucket }): void
+  reportSuccess(req: { bucket: OutboundBucket; service?: OutboundService }): void
 }

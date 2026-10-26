@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T05:42:13.927Z",
+  "generatedAt": "2026-10-26T07:56:06.387Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 397,
-  "gateCount": 397,
-  "attributedGates": 356,
+  "chainLength": 398,
+  "gateCount": 398,
+  "attributedGates": 357,
   "unattributedGates": 41,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
@@ -1003,9 +1003,12 @@
       "guards": [
         "config/timeouts.yaml",
         "src/host/platformChannel.ts",
+        "src/host/versionControl.ts",
         "src/refresh/rooms/host/gh-execution.ts",
         "src/refresh/rooms/host/gh-queue-race.ts",
+        "src/refresh/rooms/host/git-execution.ts",
         "src/refresh/rooms/host/outbound-admission.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/rooms/github/client.ts"
@@ -1022,7 +1025,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1039-rules-pure.ts",
@@ -3718,6 +3721,21 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1537-blocked-ref-title.ts",
+      "file": "tests/verify-1537-blocked-ref-title.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues-read.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1545-workroute-row-nav.ts",
@@ -10919,6 +10937,7 @@
       "node tests/verify-1509-update-strict.ts",
       "node tests/verify-1510-guard-dispatch.ts",
       "node tests/verify-1512-md-chain.ts",
+      "node tests/verify-1537-blocked-ref-title.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",

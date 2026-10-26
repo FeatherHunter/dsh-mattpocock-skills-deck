@@ -186,9 +186,11 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       const xpArgs = Array.isArray(argv) ? argv.slice(1) : []
       const xpBucket = (xpIsGh && isWriteGhArgs(xpArgs)) ? 'write' : 'read'
       // 出站才拿名额（不传取消信号，拿不到只会等不会抛）；git 本地命令直行。
+      // #1007 复核：gh 与 glab 共用同一套名额，但通路各是一条 —— 拿名额时带上服务名，
+      // 才不会让 GitHub 的冷却把 glab 的调用一起挡住（git 本地命令不进口这道闸）。
       let xpRelease = null
       // #1392：归还包成幂等，下面每条退出路径都调 xpReleaseSlot()；git 本地命令没有名额，它是空转。
-      if (xpIsOutbound) xpRelease = await getGhLane().acquire({ bucket: xpBucket })
+      if (xpIsOutbound) xpRelease = await getGhLane().acquire({ bucket: xpBucket, service: xpIsGh ? 'github' : 'gitlab' })
       const xpReleaseSlot = onceRelease(xpRelease)
       // #723（T19）：这一笔真实出站先报给闸（I1）。这条路的调用方是 git / glab / gh 三条，
       // 其中 gh 与 glab 是真实出站；git 只读远端地址、不起 HTTP 请求，但它是同一个进程出口，

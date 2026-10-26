@@ -166,7 +166,8 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
           updatedAt: c.updatedAt,
         }
       })
-      // 详情需要包含 comments / blockedBy 等，markdown 的 get 已包含
+      // 详情需要包含 comments / blockedBy 等：markdown 的 get 在读时回填引用标题（#1537），
+      // 界面拿到的就是带标题的形状，这里只做连接包装、不再补标题。
       return { ok: true, issue: {
         number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
         effortId: iss.effortId !== undefined && iss.effortId !== null ? String(iss.effortId) : '',

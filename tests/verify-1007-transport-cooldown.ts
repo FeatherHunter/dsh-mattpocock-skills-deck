@@ -110,6 +110,46 @@ async function main(): Promise<void> {
   }
   transportEvents.length = 0
 
+  // —— 一·B、冷却按「服务 + 读写档」分开（#1007 复核）：GitHub 的通路故障不许挡住 GitLab / git ——
+  {
+    const lane = createGhAdmission({ readMax: 1, writeMax: 1, cooldownMs: 60000 })
+    lane.reportTransportFailure({ bucket: 'read', reason: 'timeout', cmd: 'issue:list', service: 'github' })
+    const ghBlocked: any = await lane.acquire({ bucket: 'read' }).then(() => null, (e: any) => e)
+    check(!!outboundCooldownOf(ghBlocked), '一·B、GitHub 的通路失败只挡 GitHub（缺省服务按 github 算）', JSON.stringify(outboundCooldownOf(ghBlocked)))
+    const glab = await lane.acquire({ bucket: 'read', service: 'gitlab' })
+    check(typeof glab === 'function', '一·B、同一只读桶里，GitLab 的调用不被 GitHub 的冷却挡住')
+    glab()
+    const git = await lane.acquire({ bucket: 'read', service: 'git' })
+    check(typeof git === 'function', '一·B、git 的调用也不被 GitHub 的冷却挡住')
+    git()
+    const writeOk = await lane.acquire({ bucket: 'write' })
+    check(typeof writeOk === 'function', '一·B、GitHub 的读档冷却不跨到写档（服务与档位各记各的）')
+    writeOk()
+
+    // 别的服务成功清零时，不能把 GitHub 的冷却一起清掉。
+    lane.reportSuccess({ bucket: 'read', service: 'gitlab' })
+    const ghStill: any = await lane.acquire({ bucket: 'read' }).then(() => null, (e: any) => e)
+    check(!!outboundCooldownOf(ghStill), '一·B、GitLab 的成功不清 GitHub 的冷却（两条路各清各的）')
+    lane.reportSuccess({ bucket: 'read' })
+    const ghOk = await lane.acquire({ bucket: 'read' })
+    check(typeof ghOk === 'function', '一·B、GitHub 自己的成功只清自己那条冷却')
+    ghOk()
+
+    // 冷却设上时只拒绝同一条通路上排队的：另一条路的排队者不该被掀掉。
+    const lane2 = createGhAdmission({ readMax: 1, writeMax: 1, cooldownMs: 60000 })
+    const held = await lane2.acquire({ bucket: 'read' })
+    const glabWaiter = lane2.acquire({ bucket: 'read', service: 'gitlab' })
+    const ghWaiter: any = lane2.acquire({ bucket: 'read' }).then(() => null, (e: any) => e)
+    lane2.reportTransportFailure({ bucket: 'read', reason: 'killed', cmd: 'issue:get', service: 'github' })
+    const ghWaiterErr = await ghWaiter
+    check(!!outboundCooldownOf(ghWaiterErr), '一·B、冷却设上时同一条通路上排队的调用立刻被拒（不等分档超时）')
+    held()
+    const glabRelease = await glabWaiter
+    check(typeof glabRelease === 'function', '一·B、另一条通路上排队的调用不被这条路的故障一起掀掉')
+    glabRelease()
+  }
+  transportEvents.length = 0
+
   // —— 二、房内掐表 + 冷却快速失败：读档 ——
   {
     const lane = createGhAdmission({ readMax: 2, writeMax: 1, cooldownMs: 60000 })
@@ -190,6 +230,14 @@ async function main(): Promise<void> {
     check(/ghQueueWaitTimeoutMs:\s*3000/.test(yamlSrc), '五、排队上限在 config/timeouts.yaml 里有一处定义（3000 毫秒）', '')
     const qrSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/gh-queue-race.ts'), 'utf8')
     check(/queueTimeoutForTier/.test(qrSrc) && /GH_QUEUE_WAIT_TIMEOUT_MS/.test(qrSrc) && /queueTimeoutForTier/.test(ghExecSrc), '五、排队上限来自中央配置，宿主 runGh 的排队段用它掐表', '')
+    // #1007 复核：三条出站通道拿名额时都要报服务名，GitHub 的通路故障才不会挡住 GitLab 与 git。
+    check(/service:\s*deIsGh\s*\?\s*'github'\s*:\s*'gitlab'/.test(platSrc), '五、平台通道按 gh / glab 分别报服务名（GitHub 冷却不挡 glab）', '')
+    const gitExecSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
+    check(/service:\s*xpIsGh\s*\?\s*'github'\s*:\s*'gitlab'/.test(gitExecSrc), '五、adhoc 执行通道按 gh / glab 分别报服务名（GitHub 冷却不挡 glab）', '')
+    const vcSrc = fs.readFileSync(path.join(ROOT, 'src/host/versionControl.ts'), 'utf8')
+    check(/withGhLane\(\{[^}]*service:\s*'git'/.test(vcSrc), '五、本地 git 命令拿名额时报 service=git（GitHub 冷却不挡 git）', '')
+    const ctlSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/outbound-control.ts'), 'utf8')
+    check((ctlSrc.match(/service/g) || []).length >= 3, '五、出站控制面把调用方报的服务名原样转给准入闸', '')
   }
 
   // —— 六、排队上限只夹排队段；计时器先赢时晚到的名额必须归还（#1007 复核指出的泄漏）——

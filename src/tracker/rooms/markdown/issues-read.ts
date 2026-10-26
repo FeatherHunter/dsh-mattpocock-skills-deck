@@ -330,6 +330,40 @@ function sliceComments(iss: Issue, opts: GetIssueOpts): Issue {
   return {...iss,comments:all.slice(start,start+first)}
 }
 
+/** 单票读取补引用标题与状态（#1537）：`Blocked by` 行只存 key，标题与状态要在读时按被引文件回填。
+ *
+ *  为什么单拎一小段：list 那一步用整批索引一次补完（上面那段「A: 回填」），单票读取没有那批行，
+ *  就按被引票逐张读文件补 —— 读法与 graph.ts 的依赖查询同一条（引用只在本票所属 effort 内解析，
+ *  '00' 指本 effort 的地图）。读不到的目标原样保留（编号在、标题空、状态不动），整条 get 不因此失败。 */
+async function hydrateBlockedByRefs(ctx: OpContext, repo: RepoWithPath, iss: Issue): Promise<void> {
+  if (!iss || !Array.isArray(iss.blockedBy) || !iss.blockedBy.length) return
+  const effortId = String((iss as { effortId?: unknown }).effortId || '')
+  for (const ref of iss.blockedBy) {
+    try {
+      if (!ref || ref.title) continue
+      const rk = ref.key ? String(ref.key).padStart(2, '0') : ''
+      if (!rk) continue
+      if (rk === '00') {
+        const mr = await resolveMapFile(ctx, repo, { effortId, mode: 'read' })
+        if (!mr.ok) continue
+        try {
+          const target = parseMd(await readTextFile(ctx, mr.path), { key: '00', parentKey: null, isMap: true, effortId })
+          ref.title = target.title || ''
+          ref.state = target.state || ref.state
+        } catch {}
+        continue
+      }
+      const tr = await resolveIssueFile(ctx, repo, rk, { effortId, mode: 'read' })
+      if (!tr.ok) continue
+      try {
+        const target = parseMd(await readTextFile(ctx, tr.path), { key: rk, parentKey: '00', isMap: false, effortId })
+        ref.title = target.title || ''
+        ref.state = target.state || ref.state
+      } catch {}
+    } catch {}
+  }
+}
+
 export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, opts: GetIssueOpts = {}): Promise<{ ok: true; data: Issue } | { ok: false; error: { kind: string; message: string; raw: string } }> {
   const t0=Date.now()
   /** 按定位这一路的结果挑 reason（找不到 / 其余读写故障），只影响日志那行，不碰结果。
@@ -369,6 +403,7 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
           const iss=parseMd(txt,{key:norm,parentKey:null,isMap:false,effortId:sp.effortId,createdAt:mtime,updatedAt:mtime,url:sp.path,kind:'spec'})
           try { if (!isSupportedDshFormat(txt)) emitReadDegraded(ctx,'get','get:bad-format',Date.now()-t0) } catch {}
           applyLabelColors(iss, colorMap)
+          await hydrateBlockedByRefs(ctx, repo, iss)
           return{ok:true,data:sliceComments(iss,opts)}
         }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这个工作单元的规格文件时出错')}
       }
@@ -388,6 +423,7 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
         const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime,url:r.path})
         try { if (!isSupportedDshFormat(txt)) emitReadDegraded(ctx,'get','get:bad-format',Date.now()-t0) } catch {}
         applyLabelColors(iss, colorMap)
+        await hydrateBlockedByRefs(ctx, repo, iss)
         return{ok:true,data:sliceComments(iss,opts)}
       }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}
     }
@@ -404,6 +440,7 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
       const iss=await loadIssueFromFile(ctx,repo,r.path,{key:r.key,parentKey:r.parentKey,isMap:false,effortId:r.effortId})
       try { if (!isSupportedDshFormat(await readTextFile(ctx,r.path))) emitReadDegraded(ctx,'get','get:bad-format',Date.now()-t0) } catch {}
       applyLabelColors(iss, colorMap)
+      await hydrateBlockedByRefs(ctx, repo, iss)
       return{ok:true,data:sliceComments(iss,opts)}
     }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这张票的文件时出错')}
   }

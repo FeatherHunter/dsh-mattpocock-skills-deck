@@ -104,7 +104,9 @@ export function createVersionControl(deps: any): any {
     const limit: any = (opts && opts.stdoutLimit) ? opts.stdoutLimit : STDOUT_LIMIT
     const budget: any = (opts && opts.timeoutMs) ? opts.timeoutMs : timeoutMs
     // #965：git 只读与 gh 共用同一道（读桶），满了排队等；排队被取消按取消返回，不算失败。名额由包装器拿与放。
-    return withGhLane({ bucket: 'read', signal: (opts && opts.signal) || undefined }, async function (): Promise<any> {
+    // #1007 复核：git 的回话与冷却跟 GitHub 的通路分开记 —— 拿名额时报 service='git'，
+    // 这样 GitHub 那条通路冷却时，本地的 git 命令照常能跑。
+    return withGhLane({ bucket: 'read', signal: (opts && opts.signal) || undefined, service: 'git' }, async function (): Promise<any> {
     reportOutbound()
     let handle: any
     try {
