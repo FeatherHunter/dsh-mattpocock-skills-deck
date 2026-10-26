@@ -469,6 +469,9 @@ window.__CAPSULE__ = async function () {
   try {
     window.__RDOM__.createRoot(host).render(React.createElement(capsuleComp.c, props))
   } catch (e) { thrown = String((e && e.message) || e) }
+  // 横幅默认收起后（22b484a6 起），新挂载只画展开按钮：先等按钮出现、点展开，再等胶囊（首帧异步提交，点早了按钮还没画出来）。
+  await window.__WAIT__(() => !!host.querySelector('.dsws-capsule') || !!document.querySelector('[data-log="status.banner.expand"]'), 5000)
+  try { const eb = document.querySelector('[data-log="status.banner.expand"]'); if (eb && !host.querySelector('.dsws-capsule')) eb.click() } catch (eExpand) {}
   const arrived = await window.__WAIT__(() => !!host.querySelector('.dsws-capsule'), 5000)
   // 等这一档真的定下来（连续三次读到同一个档号）再读 —— 新口径下品牌那串字随宽度来，
   //   不等定档就量，量到的可能是挂载那一帧还没排完档的样子。

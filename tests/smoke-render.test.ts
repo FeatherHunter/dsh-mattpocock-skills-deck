@@ -154,7 +154,30 @@ if (StatusBarComp) {
     useSessions: () => null,
     inputActions: null,
   }
-  await renderAndCheck(StatusBarComp, statusBarProps, ['dsws-capsule'], 'StatusBar')
+  // 横幅默认收起后，新挂载只画展开按钮：先点展开再断言胶囊（与 669 门禁同一路，不是多判一次）。
+  const sbContainer = window.document.createElement('div')
+  window.document.body.appendChild(sbContainer)
+  let sbRoot = null
+  try {
+    await act(async () => {
+      sbRoot = ReactDOMClient.createRoot(sbContainer)
+      sbRoot.render(React.createElement(StatusBarComp, statusBarProps))
+      await new Promise(r => setTimeout(r, 20))
+    })
+    const sbExpand = sbContainer.querySelector('[data-log="status.banner.expand"]')
+    if (sbExpand && !sbContainer.innerHTML.includes('dsws-capsule')) {
+      await act(async () => {
+        sbExpand.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+        await new Promise(r => setTimeout(r, 50))
+      })
+    }
+    check(sbContainer.innerHTML.includes('dsws-capsule'), 'StatusBar 渲染含 dsws-capsule')
+  } catch (e) {
+    check(false, `StatusBar 渲染异常: ${e.message} ${e.stack && e.stack.split('\n')[0]}`)
+  } finally {
+    try { if (sbRoot) sbRoot.unmount() } catch (e) {}
+    try { if (sbContainer.parentNode) sbContainer.parentNode.removeChild(sbContainer) } catch (e) {}
+  }
   // 额外校验：seg 是否出现在渲染输出（状态段未因空数据崩溃即视为通过）
   // 不强制 dsws-seg 因空 snapshot 可能无 seg，但 capsule 必须在
 } else {

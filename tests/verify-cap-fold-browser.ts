@@ -148,6 +148,9 @@ window.__MOUNT__ = async function (o) {
   )
   let thrown = null
   try { window.__RDOM__.createRoot(slot).render(React.createElement(capsuleComp.c, props)) } catch (e) { thrown = String((e && e.message) || e) }
+  // 横幅默认收起后（22b484a6 起），新挂载只画展开按钮：先等按钮出现、点展开，再等胶囊（首帧异步提交，点早了按钮还没画出来）。
+  await window.__WAIT__(() => !!slot.querySelector('.dsws-capsule') || !!document.querySelector('[data-log="status.banner.expand"]'), 8000)
+  try { const eb = document.querySelector('[data-log="status.banner.expand"]'); if (eb && !slot.querySelector('.dsws-capsule')) eb.click() } catch (eExpand) {}
   const arrived = await window.__WAIT__(() => !!slot.querySelector('.dsws-capsule'), 8000)
   if (opt.settle !== false) await window.__SETTLE__()
   return { ok: !!slot.querySelector('.dsws-capsule'), arrived: arrived, thrown: thrown }

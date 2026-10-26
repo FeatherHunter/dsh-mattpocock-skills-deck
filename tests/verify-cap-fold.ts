@@ -444,6 +444,9 @@ window.__MOUNT__ = async function (w) {
   try {
     window.__RDOM__.createRoot(host).render(React.createElement(capsuleComp.c, props))
   } catch (e) { thrown = String((e && e.message) || e) }
+  // 横幅默认收起后（22b484a6 起），新挂载只画展开按钮：先等按钮出现、点展开，再等胶囊（首帧异步提交，点早了按钮还没画出来）。
+  await window.__WAIT__(() => !!host.querySelector('.dsws-capsule') || !!document.querySelector('[data-log="status.banner.expand"]'), 8000)
+  try { const eb = document.querySelector('[data-log="status.banner.expand"]'); if (eb && !host.querySelector('.dsws-capsule')) eb.click() } catch (eExpand) {}
   const arrived = await window.__WAIT__(() => !!host.querySelector('.dsws-capsule'), 8000)
   // 首帧的「读取中」转圈撤掉前胶囊会少约 18px，等它撤干净再开始量宽度，否则扫描跨过这一瞬间会看到假回退。
   await window.__WAIT__(() => !document.querySelector('.dsws-capsule-chain-loading'), 8000)

@@ -227,6 +227,8 @@ export const StatusBar = (props: any) => {
   useStatusMenus(s, { bugAnchorRef: bugAnchorRef, backendAnchorRef: backendAnchorRef, bugCloseRef: bugCloseRef, backendCloseRef: backendCloseRef, takeAnchorRef: takeAnchorRef, takeCloseRef: takeCloseRef })
   // 胶囊阶梯机（#725）：判据在 statusbar/capFold.js，机器在 statusbar/capFoldMachine.js，这里只留接线。
   //   这两张表（每一段完整那串字 / 机器上一次写下的那串字）必须跨调用带着走，所以挂在 ref 上。
+  // 横幅收起态的判定放在折叠接线之前：下面那条挂观察器的副作用依赖它（展开时重挂），放后面会报先用后声明。
+  const deckFolded = isBannerFolded(s.cwd)
   const foldKeep = React.useRef({ full: {}, written: {} })
   // #725 真机回归补的一条：观察器盯的是**元素**，而胶囊这个元素是会换代的（功能区先收起、再展开时
   //   React 会新造一个；旧那个已经被摘下来，它的尺寸从此不会再变、观察器也就再不会响）。于是
@@ -269,7 +271,10 @@ export const StatusBar = (props: any) => {
       try { roParent.disconnect() } catch(e){}
       window.removeEventListener('resize', scheduleFold)
     }
-  }, [])
+    // 横幅默认收起后，首帧可能没有胶囊（foldRef 为空，上面那段观察器挂不上）：用户点展开时胶囊是后造出来的，
+    //   旧元素上挂着的观察器不会自己挪过去，元素尺寸再变也不会重算档位。所以横幅收起/展开一变就重走一遍上面这段，
+    //   让观察器跟到当前这个胶囊元素上；收起时胶囊不在，上面那段照旧挂不上，不多做事。
+  }, [deckFolded])
   // 2026-09-24（#725）：原先这里还挂着一个 2 秒轮询（setInterval → applyFold），本票把它去掉了。
   //   它当时兜的是「字被换掉了、但尺寸没有变，观察器不会响」这一种：React 重渲染时会把收短过的那串字
   //   换回完整的一串（时间串一直在变），那一刻胶囊可能当场溢出。这件事现在由下面这条副作用接管 ——
@@ -316,8 +321,7 @@ export const StatusBar = (props: any) => {
       dswsBannerLast.at = now
     } catch (e) {}
   }, [_bannerLogKey])
-  // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认收起，用户点过展开才展开，按工作区记住。
-  const deckFolded = isBannerFolded(s.cwd)
+  // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认收起，用户点过展开才展开，按工作区记住（判定见上面折叠接线之前）。
   const foldBanner = function () { try { setBannerFolded(s.cwd, true) } catch (e) {} }
   const expandBanner = function () { try { setBannerFolded(s.cwd, false) } catch (e) {} }
   // 收放按钮：胶囊最右侧的“∨”图标（无文字，技能入口之后）；收起态为带文字的小按钮（悬停与无障碍文案保留全称）。

@@ -79,7 +79,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-deck-no-hang': 19,
   'verify-log-selfmon': 27,
   // 2026-10-23 #1432：调试日志开关只认 settings.yaml 一处真源（静态面查代码里只剩一处读写，行为面查开关来源按设置文件四个状态回值）；37 条是单跑实测得出的。
-  'verify-log-switch-single-source': 37,
+  // 2026-10-26 #1143：旧日志实现退役，删掉读已删 logStore.ts 的两条断言（剩 35 条，单跑实测）。
+  'verify-log-switch-single-source': 35,
   'verify-settings-templates': 65,
   'verify-settings-view': 215,
   'verify-1158-completion-evidence': 50,
