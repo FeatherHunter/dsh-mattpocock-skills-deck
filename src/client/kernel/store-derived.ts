@@ -41,6 +41,13 @@ export const findMapByIdentity = function (maps: any, num: any, effortId: any): 
     if (exact) return exact
     const anyEffort: boolean = list.some(function (m: any): any { return m && effortOf(m) !== '' })
     if (anyEffort) return null
+    // #1548：旧快照里地图 number 是数字 0 而票号是 '00'（新快照补了 key 身份，走上面的精确命中，不到这里）。
+    // 数字 0 与字符串 '00' 指同一张容器，按纯数字比一次再回空——只认数字相等，不猜第一张，不碰普通票行。
+    const wantNum: number = Number(num)
+    if (Number.isFinite(wantNum)) {
+      const byNum: any = list.find(function (m: any): any { return m && Number(m.number) === wantNum }) || null
+      if (byNum) return byNum
+    }
     return list.find(function (m: any): any { return m && (m.number === num || String(m.number) === String(num) || (m.key != null && String(m.key).padStart(2, '0') === k)) }) || null
   } catch (e) { return null }
 }

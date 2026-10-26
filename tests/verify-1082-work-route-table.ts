@@ -282,7 +282,9 @@ async function main() {
   const tracks = String(leaf.WORK_ROUTE_TABLE_CELLS || '').match(/minmax\([^)]*\)|\S+/g) || []
   const pxOf = (t: any) => { const m = String(t || '').match(/^(\d+)px$/); return m ? Number(m[1]) : -1 }
   check(tracks.length === 6, '列宽模板是六列（实得 ' + tracks.length + ' 轨）')
-  check(tracks[0] === '40px' && tracks[3] === '48px' && tracks[4] === '36px' && tracks[5] === '36px', '票号、动作、动作时间、是否在办这四列定宽：面板拉宽时它们不变')
+  // #1548：首列 40px→128px —— 本地后端容器行首列是「#目录名/00」整串，40px 下被挤成纵向半截字；
+  // 定宽的性质没变（还是固定像素，面板拉宽时它不变，富余宽度照旧归标题与会话），只是定宽值变了。
+  check(tracks[0] === '128px' && tracks[3] === '48px' && tracks[4] === '36px' && tracks[5] === '36px', '票号、动作、动作时间、是否在办这四列定宽：面板拉宽时它们不变')
   check(pxOf(tracks[4]) < 72 && pxOf(tracks[5]) < 48, '「动作时间」与「是否在办」两列比改版前窄（72→36、48→36），省下的宽度让给标题与会话')
   check(tracks[1].indexOf('fr') > 0 && tracks[2].indexOf('fr') > 0, '标题与会话两列按比例吃掉全部富余宽度（票标题与会话名先长出来，不被挤成省略号）')
   const gridNodes = findAll(treeOk, (n: any) => n.props && n.props.style && typeof n.props.style.gridTemplateColumns === 'string')

@@ -231,7 +231,10 @@ export const workRouteNavOf = function (st: any, r: WorkRouteTableRow): any {
  * 现在这四列收窄（动作时间那列还改写缩写，见 workRouteTableStamp），省下的宽度全给了那两列。
  * 表头与数据行是两个 grid，必须用同一份模板（列宽要逐字对齐），所以把它导出来给两边共用。
  */
-export const WORK_ROUTE_TABLE_CELLS = '40px minmax(110px, 1.7fr) minmax(80px, 1fr) 48px 36px 36px'
+/* #1548：首列从 40px 放到 128px —— 本地后端容器行的编号是「#目录名/00」整串（例如 #demo/00），
+ * 40px 下它被挤成纵向半截字；128px 按 11px 字号能完整放下约 17 个字符
+ * （仓里最长的 .scratch 目录名就是 17 个字符），普通「#1548」这类短编号不受影响。 */
+export const WORK_ROUTE_TABLE_CELLS = '128px minmax(110px, 1.7fr) minmax(80px, 1fr) 48px 36px 36px'
 
 const workRouteCellStyle = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as any
 

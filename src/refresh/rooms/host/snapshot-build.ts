@@ -362,10 +362,22 @@ export function createSnapshotBuilder(deps: SnapshotDeps) {
    * 逐张地图取子票并组装：单张失败只降级这一张，票数与层级照写。
    * 入参是契约 Issue（不是摊平后的列表行）：地图正文、url、标签名字只在原始票上，摊平行照旧不带宽字段。
    */
+  /** 快照里算容器的判据，与客户端 containerKindOf 同一条口径：规格认 type，探索认 type 或标签。
+   * 规格没有自己的标签（带 wayfinder:map 会被认成探索），只按 type 进表；#1548 前只认标签，规格 00 行进不了表。 */
+  function isContainerMeta(it: any): boolean {
+    if (!it) return false
+    if (it.type === 'spec' || it.type === 'map') return true
+    return ((it && it.labels) || []).some(function (l: any) { return l && l.name === 'wayfinder:map' })
+  }
+  /** 容器表行要带的身份：客户端按 (effortId, key) 找容器、按 type/labels 认种类，缺了就只能回落普通票。
+   * 契约里 key/effortId/type 是核心字段（永远存在），这里只是原样透传，不另算。 */
+  function containerIdentity(m: any): any {
+    return { key: m.key, effortId: (m.effortId !== undefined && m.effortId !== null) ? String(m.effortId) : '', type: m.type }
+  }
   async function mapsOf(issues: any[], repoRef: any, session: any, opCtx: any): Promise<any[]> {
     const maps: any[] = []
     const metas = issues.filter(function (it: any) {
-      return String(it && it.state).toLowerCase() === 'open' && ((it && it.labels) || []).some(function (l: any) { return l && l.name === 'wayfinder:map' })
+      return String(it && it.state).toLowerCase() === 'open' && isContainerMeta(it)
     })
     for (let i = 0; i < metas.length; i++) {
       const m: any = metas[i]
@@ -373,7 +385,7 @@ export function createSnapshotBuilder(deps: SnapshotDeps) {
       const got = await readOne(session, opCtx, 'listSubIssues', [repoRef, String(num), undefined])
       if (!got.ok) {
         // 迁移前 GraphQL 单个别名拿不到详情时就是这一格降级形状（tickets 空、stats 全零），照旧。
-        maps.push({ number: num, title: m.title, state: 'OPEN', error: got.error, tickets: [], stats: { total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0 } })
+        maps.push(Object.assign({ number: num, title: m.title, state: 'OPEN', error: got.error, tickets: [], stats: { total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0 } }, containerIdentity(m)))
         continue
       }
       const items = (got.data && got.data.items) || []
@@ -383,12 +395,12 @@ export function createSnapshotBuilder(deps: SnapshotDeps) {
       // v1.4（T1 #442）：每张票挂 level（DAG 最长路径深度），client 渲染漏斗分层直接取。
       const lv = computeLevels(tickets)
       tickets.forEach(function (t: any) { t.level = lv.byNumber[t.number] })
-      maps.push({
+      maps.push(Object.assign({
         number: num, title: m.title, state: upper(m.state), url: m.url,
         labels: (m.labels || []).map(function (l: any) { return l.name }),
         destination: bp.destination, notes: bp.notes, decisions: bp.decisions, fog: bp.fog, outOfScope: bp.outOfScope,
         tickets: tickets, stats: groupTickets(tickets),
-      })
+      }, containerIdentity(m)))
     }
     return maps
   }
