@@ -28,8 +28,8 @@ export { withCap } from './capped-wait.js'
 /** 执行层失败与后端诚实失败的分界：只有这几种 kind 算「执行层没回来」。 */
 const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
 
-/** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口。 */
-export type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
+/** 后端回包在契约层还没建模：这里只按两个写工具真正会读的那几个字段收口（kind / message / stage）。 */
+export type TransportResult = { error?: { kind?: string; message?: unknown; stage?: string } } | null | undefined
 
 /** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
 export function transportMessage(result: TransportResult): string | null {

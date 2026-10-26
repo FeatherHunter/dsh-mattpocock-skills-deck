@@ -65,3 +65,6 @@
 - 不动契约目录的结构与名录（那是地图 02 的范围）；本次只在 `TrackerError` 上加一个字段。
 - 不改 `docs/adr/20261012-backend-decision-two-classes.md`（那条管「结论是谁给的、谁有权写」，本条管「失败怎么归类与交代」），也不改 `docs/adr/20260921-tracker-choice-precedence.md`（判定顺序）。
 - 与 #1109（把兜底等待从 3 秒放到 30 秒）互不依赖，只是同批。
+- #1171 在 `TrackerError` 上再加一个**可选**字段 `stage`（取值见 `results.ts` 的 `TrackerErrorStage`，
+  今天只有「建票前的锚回查」一档）：它只标「失败发生在链路哪一段」，给调用方补可行的下一步用；
+  `kind`/`message`/`raw` 三段式与「raw 必填」都不变，现有构造点不传就还是旧形状。

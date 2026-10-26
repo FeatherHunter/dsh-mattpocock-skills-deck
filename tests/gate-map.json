@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T03:36:25.422Z",
+  "generatedAt": "2026-10-26T04:25:16.529Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 393,
-  "gateCount": 393,
-  "attributedGates": 353,
+  "chainLength": 394,
+  "gateCount": 394,
+  "attributedGates": 354,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 591,
+  "graphFileCount": 592,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3635,6 +3635,21 @@
       "completionRecord": true,
       "expectedAssertions": 51,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1532-github-close-reason.ts",
+      "file": "tests/verify-1532-github-close-reason.ts",
+      "guards": [
+        "src/tracker/rooms/github/issues-write.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1533-git-remote-claim.ts",
@@ -10738,6 +10753,7 @@
       "node tests/verify-1444-comments.ts",
       "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-1482-graphql-accounting.ts",
+      "node tests/verify-1532-github-close-reason.ts",
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -11097,9 +11113,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 612,
+    "fileCount": 613,
     "dirCount": 74,
-    "coveredFileCount": 612,
+    "coveredFileCount": 613,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11338,6 +11354,7 @@
       "src/deck/shell/workspace-anchor.ts",
       "src/deck/shell/write-mutex.ts",
       "src/deck/tools/context.ts",
+      "src/deck/tools/issue-create-failure.ts",
       "src/deck/tools/issue-create-parts.ts",
       "src/deck/tools/issue-create.ts",
       "src/deck/tools/issue-get.ts",

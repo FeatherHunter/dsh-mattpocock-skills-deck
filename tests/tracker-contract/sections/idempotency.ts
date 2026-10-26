@@ -41,6 +41,8 @@ import {
   idempotencyKeyOf,
   matchAnchor,
   isAnchorHit,
+  describeAnchorFailure,
+  anchorUnsupported,
 } from '../../../src/refresh/contract/idempotency-keys.js'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)
@@ -364,6 +366,13 @@ export async function run() {
     await assert('✗ probe: 带换行的键被逮（不许写坏正文）', checkIdempotencyKey('a\nb').ok === false, JSON.stringify(checkIdempotencyKey('a\nb')))
     await assert('✗ probe: 超长键被逮（不许截断成别的键）', checkIdempotencyKey('x'.repeat(201)).ok === false, '超长键被放过了')
     await assert('✗ probe: 注释收尾符写进键里被逮', checkIdempotencyKey('a-->b').ok === false, '带 --> 的键被放过了')
+
+    // #1171：回查没做成那一档的话只陈述事实 —— 后端不知道调用面上有没有「不带锚的创建」这个入口，
+    // 所以不替调用方开药方（那句「换用不带锚的创建」是工具做不到的动作）；能做什么由调用方那一层补。
+    const failureText = describeAnchorFailure(anchorUnsupported('搜索接口报错（探针脚本）'))
+    await assert('回查失败的话只陈述事实：没有建票、不是已经建过，不再推荐调用面没有的「不带锚的创建」',
+      failureText.indexOf('没有建票') >= 0 && failureText.indexOf('已经建过') >= 0 && failureText.indexOf('不带锚') < 0,
+      failureText)
   }
 
   // ── 二、命中判据：四种不命中（纯逻辑，含 ✗ probe 反证）──
@@ -503,6 +512,11 @@ export async function run() {
     const ctxBad = remoteCtx(ghBad)
     const rBad = await t.create(GH_REPO, { title: '拿不准的一张', idempotencyKey: 'gh-uncertain' }, ctxBad)
     await assert('真实 github：两条回查路都没跑通 → 如实失败、一张票都不建', rBad.ok === false && KNOWN_KINDS.includes(rBad.error.kind) && /回查/.test(rBad.error.message) && ghBad.created.length === 0, JSON.stringify(rBad).slice(0, 300))
+    // #1171：这一档的失败要能被调用方认出来（stage=anchor-lookup），调用方才知道「票没建、可以原样重试」。
+    await assert('真实 github：回查没做成这一档带 stage=anchor-lookup', rBad.ok === false && rBad.error.stage === 'anchor-lookup', JSON.stringify(rBad && rBad.error).slice(0, 300))
+    await assert('真实 github：回查失败的话只说事实（没有建票），不再出现「不带锚的创建」这种调用面没有的动作',
+      rBad.ok === false && rBad.error.message.indexOf('没有建票') >= 0 && rBad.error.message.indexOf('不带锚') < 0,
+      String(rBad.ok === false ? rBad.error.message : rBad).slice(0, 300))
 
     // 幂等键当场检查
     const rBadKey = await t.create(GH_REPO, { title: '坏键', idempotencyKey: 'bad key with space' }, ctx)
@@ -538,6 +552,11 @@ export async function run() {
     const ctxBad = remoteCtx(glBad)
     const rBad = await t.create(GL_REPO, { title: '拿不准的一张', idempotencyKey: 'gl-uncertain' }, ctxBad)
     await assert('真实 gitlab：两条回查路都没跑通 → 如实失败、一张票都不建', rBad.ok === false && KNOWN_KINDS.includes(rBad.error.kind) && glBad.created.length === 0, JSON.stringify(rBad).slice(0, 300))
+    // #1171：与 github 同一档，调用方靠 stage 认出「回查没做成」而不是别的失败。
+    await assert('真实 gitlab：回查没做成这一档带 stage=anchor-lookup', rBad.ok === false && rBad.error.stage === 'anchor-lookup', JSON.stringify(rBad && rBad.error).slice(0, 300))
+    await assert('真实 gitlab：回查失败的提示里不再出现「不带锚的创建」这种调用面没有的动作',
+      rBad.ok === false && rBad.error.message.indexOf('不带锚') < 0,
+      String(rBad.ok === false ? rBad.error.message : rBad).slice(0, 300))
     d.dispose()
   }
 

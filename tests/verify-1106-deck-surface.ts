@@ -571,6 +571,42 @@ async function main() {
         '后端说做不到：建票这一支回 unsupported + backend-unsupported（实得 ' + (created.r && created.r.status) + '/' + (created.r && created.r.reason) + '）')
       check(createSpent.requests === 1 && createSpent.points === 4,
         '后端说做不到：建票这一支报 1 条 / 4 点（实得 ' + createSpent.requests + ' / ' + createSpent.points + '）')
+      // #1171 的反例：这不是回查那一档（失败对象没有 stage），工具不许猜「原样重试」——
+      // 别的原因（权限、参数……）原样重试未必有用，瞎给退路比不给更误导人。
+      const plainText = String((created.r && created.r.text) || '')
+      check(plainText.indexOf('原样重试') < 0,
+        '普通后端失败（没有 stage）不追加「原样重试」：不是回查那一档，工具不猜下一步（实得 ' + plainText + '）')
+    } finally { dispose.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
+  }
+
+  {
+    // #1171：后端只陈述事实（回查没做成、这次没建票），「接下来能做什么」由工具层补。
+    // 这一档的失败对象带 stage=anchor-lookup；工具据此补「原样重试」并说清为什么安全 ——
+    // 自动锚在同一 5 分钟窗口内算出同一个锚，显式键更是同一个键，重试会先按锚回查、命中就复用。
+    const lookupFail = (message: string) => ({
+      id: 'lookup-fail-1171', label: '回查没做成的后端', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
+      create: () => ({
+        id: 'lookup-fail-1171',
+        async create() { return { ok: false, error: { kind: 'unsupported', message, raw: '门禁探针原文', stage: 'anchor-lookup' } } },
+      }),
+    })
+    const dispose = registry.register(lookupFail('带锚创建的回查没能做成：搜索接口报错（门禁探针）。这一次没有建票。'))
+    chooseWorkspace(ws.rootPosix, 'lookup-fail-1171')
+    try {
+      const auto = await run('deck_issue_create', { title: '回查没做成的一张', kind: 'issue' })
+      const autoText = String((auto.r && auto.r.text) || '')
+      check(!auto.threw && auto.r && auto.r.status === 'unsupported' && auto.r.reason === 'backend-unsupported',
+        '#1171 回查没做成：工具仍回 unsupported + backend-unsupported（实得 ' + (auto.threw || ((auto.r && auto.r.status) + '/' + (auto.r && auto.r.reason))) + '）')
+      check(autoText.indexOf('原样重试') >= 0 && autoText.indexOf('同一个 5 分钟窗口') >= 0 && autoText.indexOf('不会多建') >= 0,
+        '#1171 回查没做成（自动锚）：工具给出「原样重试」并说清同一窗口、不会多建（实得 ' + autoText + '）')
+      check(autoText.indexOf('带锚创建的回查没能做成') >= 0 && autoText.indexOf('没有建票') >= 0,
+        '#1171 回查没做成：后端原话原样转出，事实没被工具吞掉（实得 ' + autoText + '）')
+
+      const explicit = await run('deck_issue_create', { title: '回查没做成的一张', kind: 'issue', idempotencyKey: 'probe-1171-key' })
+      const explicitText = String((explicit.r && explicit.r.text) || '')
+      check(explicitText.indexOf('原样重试') >= 0 && explicitText.indexOf('同一个幂等键') >= 0 && explicitText.indexOf('5 分钟窗口') < 0,
+        '#1171 回查没做成（显式锚）：重试安全理由说的是同一个幂等键，不套自动锚的窗口说法（实得 ' + explicitText + '）')
     } finally { dispose.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
   }
 
@@ -680,8 +716,10 @@ async function main() {
     // 2026-10 #1480 T2 又加一份 md-scope.ts：八个工具的 effort / feature 两参数口径与目录名校验。
     // 2026-10 #1495 给 deck_issue_patch 加关闭原因后，issue-patch.ts 的有效行到了 359（门禁判红），
     // 把它的工具定义搬成 issue-patch-definition.ts；它同样只是工具层的一份数据文件，进这张精确名单。
-    const EXPECTED_FILES = ['context.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 这十七份（实际 ' + names.join(',') + '）')
+    // 2026-10 #1171 又把「后端诚实失败」整支搬成 issue-create-failure.ts（issue-create.ts 撞回 350 行
+    // 上限）；这一支只在建票本工具里用，不是独立工具，但同样住在工具层、同样受下面这套扫描约束。
+    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 + 建票失败回执 这十八份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
     let toolTimer = 0
@@ -697,7 +735,7 @@ async function main() {
       : '工具层又出现了自己写的超时定时器（' + toolTimer + ' 处），等待竞速应当收进 capped-wait.ts 一处')
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '工具层十七份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
+      : '十八份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处，钳制这一处落在 capped-wait.ts 里），这套判据不是空转')
   }
 
