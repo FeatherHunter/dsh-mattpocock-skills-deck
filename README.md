@@ -29,10 +29,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.9.0-beta.21）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.21 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.9.0-beta.22）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.22 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.21 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.22 --registry https://registry.npmjs.org
 ```
 
 > **用 GitHub 后端前的权限前提**：插件替你改 ISSUE，用的是本机 `gh` 已登录账号的权限——建标签、改票需要仓库的 `push` 权限；改指派、流转标签需要 `triage` 权限。账号在该仓库只有 `只读` 权限时，插件会把仓库如实标成只读：改票、打标签与标签流转不可用，浏览与刷新照常。
