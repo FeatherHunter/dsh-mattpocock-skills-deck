@@ -67,7 +67,7 @@ declare const tr: any;
 export const PROBE_MS: number = ((typeof SYNC === 'object' && SYNC && SYNC.FALLBACK_PROBE_MS) || (typeof SYNC_FALLBACK_PROBE_MS !== 'undefined' ? SYNC_FALLBACK_PROBE_MS : 0));
 export const FOCUS_PROBE_MIN_MS: number = ((typeof SYNC === 'object' && SYNC && SYNC.FOCUS_PROBE_MIN_MS) || (typeof SYNC_FOCUS_PROBE_MIN_MS !== 'undefined' ? SYNC_FOCUS_PROBE_MIN_MS : 0));
 export let lastFocusProbe: number = 0;
-// v1.5 T10 R9（Q4 拍板 · DESIGN.md 12.2）：关键动作后延迟探测 —— 完成/执行/交接后面板尽快反映 GitHub 变化；
+// v1.5 T10 R9（Q4 拍板 · docs/archive/DESIGN.md 12.2）：关键动作后延迟探测 —— 完成/执行/交接后面板尽快反映 GitHub 变化；
 //   防抖（一次只排一个）+ 探测本身 1 次轻量 REST，配额安全
 export let _actionProbePending: boolean = false;
 // #1418：同一个工作区里的会话（shared 加上 cwd 归一后同键的 store）收成一串 ——

@@ -48,7 +48,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
   }
   // v1.5 R2（#2 MVP）：probe 改用 `since` 时间戳探测全 issue 增量（地图 + 子票 + 其他），
   //   1 次 REST 调用覆盖全仓库变化。原实现 `labels=wayfinder:map` 仅匹配地图本身，
-  //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（DESIGN.md §5.2）都是子票，
+  //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（docs/archive/DESIGN.md §5.2）都是子票，
   //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
   //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
   async function handleProbe(args: any): Promise<any> {

@@ -122,7 +122,7 @@ async function main() {
   // 值一律不碰：往上下文里放一个假秘密与一个数字，探针回包里不许出现它们。
   // 键名叫 secretValue 而不是 secret：集中扫描器把「secret 后面紧跟冒号再加一段引号文本」
   // 一律判成硬编码密钥，而这里放的分明是「不许泄漏」的假值，属于它的误报（见 #824 与
-  // research/827-recommendations.html）。键名换个说法就不触发，测的东西一点没变。
+  // docs/archive/decisions/827-recommendations.html）。键名换个说法就不触发，测的东西一点没变。
   const secretOut = JSON.parse(await probe.execute({}, { agent: { session: { cwd: '/ws' } } }).catch(function () { return '{}' }))
   const leakCtx = { tools: {}, profileContext: { marker: 'LEAK-ME-999', num: 987654 } }
   const rowSvc2 = { registered: [], register: function (t) { this.registered.push(t); return function () {} } }

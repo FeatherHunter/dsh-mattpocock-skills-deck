@@ -42,7 +42,7 @@
  * v13：cwd 权威反查（wf.cwd）+ sessionId 变化重探测。v12：repoKey 按 cwd 缓存 /
  * 失败不兜假数据 / 三视图收敛 / 沉淀=注入快照模板。
  * v11：label 颜色 = GitHub 配置色。v10：cwd 关联 / 标签视图 / 圆形技能环。
- * v9：DESIGN.md §12.2 Round 3 定稿 1A-7A 落实。
+ * v9：docs/archive/DESIGN.md §12.2 Round 3 定稿 1A-7A 落实（原 docs/DESIGN.md 已归档）。
  * 本文件内容 = cordis_define 的 code.client（纯 JS 函数体，返回 Cordis Plugin）。
  */
 
