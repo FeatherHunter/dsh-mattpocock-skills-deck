@@ -114,3 +114,9 @@ GitLab 后端今天能力不全；「迁移」「清空」两个选项今天**�
 7. **日志点**（`research/489-appendix.md` 第 1 章那条按需的记录）：不新增事件，只把已有的 `inject.decision` 扩一个取值 —— 已初始化那一档注入 `switchAlign` 时记一条（`prompt: 'switchAlign'` / `kind: 'align'` / `layout: 'unset'`）；未初始化那一档本来就经过决策器、它自己会记。真机出现「切完什么指令都没给」时，这是唯一能回看的轨迹。
    > **2026-09-22 按 #698 补**：切换这条路从这一票起会分成「先开卡问布局 / 直接对齐后端 / 多给一条布局对齐 / 什么都没给」四种，而原来那一行看不出「在等你答卡」与「卡根本没渲染出来」的区别。新增一条按需轨迹 `logSwitchSettle`（沿用同一个事件名 `inject.decision`，落点在 `src/client/kernel/prompts-setup.js`：`prompt: 'switchSettle'`，`kind` 取 `align` / `align-layout`，`layout` 记这次是哪种结论；外层先判调试开关）。**级别仍按需**，等维护者拍板要不要转常驻（见 #698 票面那道待答问题）。
 8. **门禁**（`tests/verify-669-choice-precedence.js`，进 `npm run verify` 链）：甲两组（带标记的选择压过锚；不带标记时锚照旧说话）、两条路一致、场景分流四组（已初始化注入对齐指令／未初始化且就绪走决策器／未初始化且没就绪时提示条不许说「按提示完成初始化」）、弹窗三处；每条都配「把实现做坏就必须变红」的反证。`not-ready` 那一档的判据取的是 `prompts.js` 里 `setupBlockedByGuide` 的**真身**，不是另写一份。
+
+## 6. 2026-10-26 补记（#1555）：开会话也走这同一份顺序
+
+第 5 节落地时只把“面板、快照、链、工具”接到了统一判定。刷新后台的详情与评论在 #1444 之后改经“只读会话”取数，而开会话那一步直接问注册表各家 matches，没有把这份顺序带过去。于是：工作区文件或声明文件已经定了后端（面板上的芯片也是它），只要有两家同时举手，详情与评论就判 multi-match、整批读不到（#1555 的真机现场）。
+
+修法：开会话的装配口 `src/refresh/rooms/host/session-opener.ts` 在没有显式选择时先问统一判定（新增 `src/refresh/rooms/host/session-decision.ts`），判定层缺席或抛错才退回裸问注册表；判定自己带 multi-hit 时照旧交回 `openTracker` 拒绝。这样“这个工作区用哪个后端”在所有取数路径上都只有一份答案，与本文件第 2 节的排序一致。回归门禁：`tests/verify-1555-session-uses-decision.ts`。

@@ -93,3 +93,9 @@
 - 删的是 `src/deck/shell/call-shell.ts` 里 `pickBackend` 按 `canWrite !== true` 拒绝的那一支：判定出口给出哪个后端，壳就用哪个，声明文件与自动识别来的结论同样放行。
 - 没删的有三处：判定出口照旧如实标出来源与写权限（`canWrite` / `reason: 'needs-generate'` 还在，排查看日志结论线）；多命中或未决、连后端都没有这两支拒绝还在；改色电话（`src/host/workspaceLabelColors.js`）的写用途还留着同一道门。
 - 「人选 / 程序自己认」这个分类本身不动：工作区配置文件仍然是人选的唯一真源，面板照旧从它读选择。
+
+## 10. 2026-10-26 补记（#1555）：声明仍是 matches 的输入，但只认“声明形状”
+
+第 2 节说第 2、3 层同类、声明文件同时也是 matches 的输入；这一条不变。改的是 matches 读它的口径：GitLab 的 matches 以前拿整篇 `docs/agents/issue-tracker.md` 做 `/gitlab/i` 扫描，正文里提一句 GitLab 就被当成“声明用 GitLab”；真机上它与 markdown 同时举手，详情与评论读不到（#1555）。
+
+现在 GitLab 的 matches 用判定层同一个 `parseIssueTracker` 解析声明文件，只认高置信的 `# Issue tracker: GitLab` 标题行；低置信的正文兜底留给判定层（判定层本来就排在自动识别之前）。解析器从 `src/tracker/detection/` 搬进 `src/tracker/kernel/`（房间只许引内核与契约），detection 旧路径留成转出口。回归门禁：`tests/verify-1555-gitlab-claim-declaration.ts`。
