@@ -286,6 +286,9 @@ export function createDetectChain(deps: DetectChainDeps) {
         //   先按本会话补算再交给调用方；不然只读会话搭上可写会话的车，会先看到别人的「可写」。
         if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return { reply: await ongoingRide, forCurrentSession: false } } }
         const chainPending = (async function () {
+        // #1475：一次求值只读一次钟，给下面告警级「外层先到点 / 内层迟到回话」两行算本次求值的总耗时。
+        //   这两行是告警级、总是落盘，不受调试开关约束，所以不把它挂在开关后面（一轮一次 Date.now 不算开销）。
+        const evalT0 = Date.now()
         const platform = await getPlatform()
         // 用户显式选择经写入口直达文件（落盘 + 清缓存），本轮即读到，不再经上报参数。
         // #1444：探测级联不再借一条自己拼的 gh 执行器 —— 后端识别按房间自己的路走；
@@ -311,12 +314,29 @@ export function createDetectChain(deps: DetectChainDeps) {
         const envProbe = createChainEnvProbe(cwd, backendId)
         const genMod = await import('../../../host/tracker/generic.js')
         const predMod = await import('../../../host/tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
-        // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
-        //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
-        //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
-        // 2026-10-16 全量收拢：这个 15 秒现在住在 config/timeouts.yaml 的 predicateTimeoutMs，
-        //   改时间改那一份；谓词表不传 timeout 时的 3 秒兜底是另一档（predicateFallbackTimeoutMs），由门禁锁住。
-        const registry = predMod.createPredicateRegistry({ timeout: PREDICATE_TIMEOUT_MS })
+        // #1475 预算对齐：这次求值的外层等待 = 60 秒（config/timeouts.yaml 的 predicateTimeoutMs），
+        //   算式是「内层串行最坏 + 余量」：一次环境预检串行问几条真实网络命令，最坏那条路是
+        //   「查登录 15 秒 → 核对登录 15 秒 → 读仓库短名 12 秒 → 读仓库可达 12 秒」合计 54 秒，再加 6 秒余量；
+        //   核对通过不会提前返回（那只说明登录可用，仓库可达还要查），缺仓库短名时才多一条读仓库短名。
+        //   内层最坏不写在这里，由 preflight.ts 的 ghPreflightWorstCaseMs() 按出站档位现算，
+        //   门禁 tests/verify-1475-predicate-budget.ts 断言这个 60 秒确实盖得住它并留有余量。
+        //   旧口径（2026-08-28 的 3 秒 → 15 秒）已作废：15 秒比内层最坏还短，慢网下必然外层先断、结论被丢掉。
+        //   谓词表不传 timeout 时的兜底是另一档（predicateFallbackTimeoutMs = 10 秒），不参与这次对齐。
+        // 两个回调只记边界轨迹（外层预算先到点 / 内层迟到回话），不改任何谓词结论；
+        //   到点仍判「暂时确认不了」（pending），不冒充登录失效、也不冒充缺 gh。
+        const registry = predMod.createPredicateRegistry({
+          timeout: PREDICATE_TIMEOUT_MS,
+          onBudgetHit: function (id: string, info: { budgetMs: number }) {
+            try {
+              if (logCtx) logCtx.fire('warn', 'chain.predicate.timeout', { id: String(id), phase: 'budget', budgetMs: info.budgetMs, status: 'pending', latencyMs: Date.now() - evalT0 })
+            } catch (eH) {}
+          },
+          onLateSettle: function (id: string, info: { status: string; budgetMs: number }) {
+            try {
+              if (logCtx) logCtx.fire('warn', 'chain.predicate.timeout', { id: String(id), phase: 'late', budgetMs: info.budgetMs, status: String(info.status), latencyMs: Date.now() - evalT0 })
+            } catch (eL) {}
+          }
+        })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
         // #284 一致性修复（2026-08-28）：客户端显式绑定（backendId）优先——主锚与绑定不一致的过渡态（如锚=GitHub 版、
         //   用户已绑 markdown）链不得两面矛盾（后端段 markdown、开门段 explicit:github）；selection/explicit 归一为绑定侧。
@@ -506,14 +526,14 @@ export function createDetectChain(deps: DetectChainDeps) {
         await noteChainEval(chainSource, workspaceKeyOf(cwd))
         // #709（T5 补）这次求值的环境预检收尾：真问了几次、复用省掉了几次。按需级（debug，外层先判
         // 开关，关着连字段对象都不组装；按 docs/design/335-logging-contract.md 第 3 章判定），
-        // 每次求值只落一行，只记工作区短指纹与计数，不记命令原文、不记路径原文、不记任何返回值。
+        // 每次求值只落一行，只记工作区短指纹、计数与这次求值的总耗时，不记命令原文、不记路径原文、不记任何返回值。
         // #1444 起 preflight 改问会话，计数含义照旧：#1444 的探针把「真问了一次 preflight」记成 asked，
         // 第二个谓词搭这一份记成 reused；事件名与字段一个字没改（附录第 1 章条数不动）。
         try {
           // 判断与落点同一行（tests/verify-log-guards.js 的口径：关着开关时连字段对象都不组装）：
           // 这里原来把判断写成上一行的 if 大括号，判断本身一个字没减，只是搬到同一行。
           if (logCtx && logCtx.isEnabled('debug') && envProbe) logCtx.fire('debug', 'chain.preflight.reuse', function () {
-            return { cwdHash: hash8(cwd), checks: envProbe.asked(), reused: envProbe.reused(), userAction: trigger === 'user-recheck' }
+            return { cwdHash: hash8(cwd), checks: envProbe.asked(), reused: envProbe.reused(), userAction: trigger === 'user-recheck', latencyMs: Date.now() - evalT0 }
           })
         } catch (eL) {}
         return result

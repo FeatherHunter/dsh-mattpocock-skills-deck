@@ -22,8 +22,22 @@ import type { PredicateContext, PredicateFn, PredicateResult } from './predicate
 export type { PredicateContext, PredicateResult }
 
 // 注册表选项：只认单个谓词超时一格，不传按中央时间配置的回退值走。
+// 两个可选回调只用来记「外层预算先到」与「内层迟到回话」这一对边界轨迹，不参与结果判定：
+// 回调里抛什么都吞掉，谓词结论与超时文案一个字都不受它影响。耗时毫秒数由调用方按求值起点自己算，
+// 这里不读时钟（调试开关关着时也不产生时钟调用）。
+interface PredicateBudgetHit {
+  budgetMs: number
+}
+interface PredicateLateSettle {
+  status: string
+  // 这一格与 onBudgetHit 的预算同值：迟到回话这一行要能自己说清「赔进去的是多少预算」，
+  // 不必由调用方另建一张表把预算存下来再回带。
+  budgetMs: number
+}
 interface PredicateRegistryOptions {
   timeout?: number
+  onBudgetHit?: (id: string, info: PredicateBudgetHit) => void
+  onLateSettle?: (id: string, info: PredicateLateSettle) => void
 }
 
 // 超时标记：竞速输掉的那一路带这一格，正常谓词结果里没有这一格，运行时按有无区分。
@@ -33,6 +47,13 @@ interface TimeoutMarker {
 
 // 竞速结果：正常谓词结果与超时标记二选一，运行时按有无超时格区分。
 type RacedResult = PredicateResult | TimeoutMarker
+
+// 谓词结论只认这三个值，其它形状（含迟到回话里畸形的结果）一律按 pending 记，与 resolveAll 的归一规则一致。
+function predicateStatusOf(r: unknown): PredicateResult['status'] {
+  const eb = r as { status?: unknown } | null | undefined
+  const s = eb && eb.status
+  return s === 'pass' || s === 'fail' || s === 'pending' ? s : 'pending'
+}
 
 // 注册表对外形状：注册、判重与整链求值三件，另带只读拷贝的调试口。
 export interface PredicateRegistry {
@@ -57,11 +78,27 @@ export function createPredicateRegistry(opts: PredicateRegistryOptions = {}): Pr
 
   function has(key: string): boolean { return map.has(key) }
 
-  function withTimeout(promise: Promise<PredicateResult>, ms: number): Promise<RacedResult> {
+  // 单个谓词与自己的等待预算赛跑。预算先到点那一刻按两条轨迹上报（不改变返回结果）：
+  //   1) onBudgetHit：外层先到点，记下当时赔进去的预算是多少；
+  //   2) onLateSettle：被放弃的那条 promise 后来还是回了话（或抛了错），把真实结论如实记下来，
+  //      这样日志里能说清「哪一层先到点、丢掉了什么结论」，而不是只剩一句超时。
+  // 竞速本身一个字没改：先到点仍判 pending（暂时确认不了），不抛、不冒充登录失效或缺 gh。
+  function withTimeout(promise: Promise<PredicateResult>, ms: number, id: string): Promise<RacedResult> {
     let t: ReturnType<typeof setTimeout> | undefined
     const timer = new Promise<TimeoutMarker>((resolve) => { t = setTimeout(() => resolve({ __timeout: true }), ms) })
     // 非空断言只过编译器：定时器句柄在竞速开始前已同步赋值，运行时原样清掉该句柄。
-    return Promise.race([promise, timer]).finally(() => clearTimeout(t as ReturnType<typeof setTimeout>))
+    const raced = Promise.race([promise, timer]).finally(() => clearTimeout(t as ReturnType<typeof setTimeout>))
+    // 第二个参数吞掉「原 promise 先抛了」这一路：那种情况由 resolveAll 的 catch 兜成 pending，没有迟到结论可记。
+    raced.then(function (value) {
+      if (!(value as TimeoutMarker).__timeout) return
+      try { if (opts.onBudgetHit) opts.onBudgetHit(id, { budgetMs: ms }) } catch (eH) {}
+      promise.then(function (late) {
+        try { if (opts.onLateSettle) opts.onLateSettle(id, { status: predicateStatusOf(late), budgetMs: ms }) } catch (eL) {}
+      }, function () {
+        try { if (opts.onLateSettle) opts.onLateSettle(id, { status: 'pending', budgetMs: ms }) } catch (eL) {}
+      })
+    }, function () {})
+    return raced
   }
 
   // 解析整条链的所有谓词（并行 + 超时按 pending）。
@@ -82,7 +119,7 @@ export function createPredicateRegistry(opts: PredicateRegistryOptions = {}): Pr
         let r: PredicateResult
         const checkObj = check as Check
         if (checkObj.kind === 'primitive') {
-          const raced = await withTimeout(execPrimitive(checkObj, ctx), timeout)
+          const raced = await withTimeout(execPrimitive(checkObj, ctx), timeout, id)
           if (raced && (raced as TimeoutMarker).__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms (probe hung or network slow; re-check later)')
           else r = raced as PredicateResult
         } else if (checkObj.kind === 'backend' || checkObj.kind === 'preflight') {
@@ -106,16 +143,15 @@ export function createPredicateRegistry(opts: PredicateRegistryOptions = {}): Pr
             // 未注册 = 对当前宿主/后端不适用 → pending（2026-08-27 起删 na，行不存在而非标 na，不误判 fail）
             r = makeResult('pending', 'predicate not registered: ' + (checkId || ''))
           } else {
-            const raced = await withTimeout(fn(checkObj, ctx), timeout)
+            const raced = await withTimeout(fn(checkObj, ctx), timeout, id)
             if (raced && (raced as TimeoutMarker).__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms (probe hung or network slow; re-check later)')
             else r = raced as PredicateResult
           }
         } else {
           r = makeResult('pending', 'unknown check.kind: ' + String(checkObj.kind))
         }
-        // 归一化 status
-        const s = r && r.status
-        if (s !== 'pass' && s !== 'fail' && s !== 'pending') r.status = 'pending' // 2026-08-27 起无 na
+        // 归一化 status：与 predicateStatusOf 同一套规则（2026-08-27 起无 na），两处只留一份判断。
+        r.status = predicateStatusOf(r)
         out[id] = r
       } catch (e) {
         const caught = e as { message?: unknown } | null | undefined

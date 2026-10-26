@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T04:58:48.176Z",
+  "generatedAt": "2026-10-26T05:01:39.867Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 393,
-  "gateCount": 393,
-  "attributedGates": 353,
+  "chainLength": 394,
+  "gateCount": 394,
+  "attributedGates": 354,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
@@ -3122,6 +3122,33 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1475-predicate-budget.ts",
+      "file": "tests/verify-1475-predicate-budget.ts",
+      "guards": [
+        "config/timeouts.yaml",
+        "src/host/tracker/predicateCore.ts",
+        "src/refresh/rooms/host/chain-env-map.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/shared/time-config/src/values.ts",
+        "src/tracker/kernel/outbound-tiers.ts",
+        "src/tracker/rooms/github/preflight.ts"
+      ],
+      "dirs": [
+        "config",
+        "src/host/tracker",
+        "src/refresh/rooms/host",
+        "src/shared/time-config/src",
+        "src/tracker/kernel",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 7 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-1480-review-fixes.ts",
@@ -9353,6 +9380,7 @@
     ".": [],
     "config": [
       "node tests/verify-1007-transport-cooldown.ts",
+      "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-prompt-config.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-locale-config.ts"
@@ -10220,6 +10248,7 @@
       "node tests/verify-1439-panel-accounting.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1490-four-objects.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -10399,6 +10428,7 @@
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-1465-detail-refid.ts",
       "node tests/verify-1472-write-event-fetch.ts",
+      "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1483-chain-session-cache.ts",
       "node tests/verify-1495-deck-close-reason.ts",
@@ -10506,6 +10536,7 @@
       "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1245-plan-resume.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -10658,6 +10689,7 @@
       "node tests/verify-1286-list.ts",
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
+      "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1533-git-remote-claim.ts",
@@ -10732,6 +10764,7 @@
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1444-comments.ts",
       "node tests/verify-1453-repo-locate-via-session.ts",
+      "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1532-github-close-reason.ts",
       "node tests/verify-1533-git-remote-claim.ts",
