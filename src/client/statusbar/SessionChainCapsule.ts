@@ -59,11 +59,16 @@ const capsuleAtMsOf = function (v: any) {
   return isFinite(t) && t > 0 ? Math.floor(t) : 0
 };
 
-/** 票键的形状检查：只收纯数字串（与旧链同一条口径）。 */
-const capsuleTicketKeyOf = function (v: any) {
+/** 票键的形状检查：只收纯数字串（与旧链同一条口径）。
+ * 第二个参数传真值时补零到两位再回：同一容器号的两种写法（快照里数字 0、读数里字串 '00'）
+ * 认成同一把钥匙（#1553：快照经 numOf 把 '00' 转成数字 0，读数存档里是字串 '00'，两边不归一
+ * 就互相找不到，00 行认不出容器、点开也没去向）。普通票不受影响（'5' 与 '05' 本来就是同一张票）。 */
+const capsuleTicketKeyOf = function (v: any, pad?: any) {
   const t = v === null || v === undefined ? '' : String(v).trim()
-  return /^\d{1,10}$/.test(t) ? t : ''
+  return !/^\d{1,10}$/.test(t) ? '' : (pad ? t.padStart(2, '0') : t)
 };
+
+
 
 /**
  * 一行是哪种容器：探索地图回 'map'、规格回 'spec'、普通票回空串（#1518）。
@@ -89,15 +94,15 @@ const capsuleTitlesOf = function (st: any) {
   if (!snap) return { byId: byId, byNumber: byNumber }
   const put = function (x: any) {
     if (!x || typeof x !== 'object') return
-    const n = capsuleTicketKeyOf(x.number)
+    const n = capsuleTicketKeyOf(x.number, true)
     if (!n) return
     const eff = (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId)
     const id = eff + '\0' + n
     const rs = (x.state === null || x.state === undefined) ? '' : String(x.state).toUpperCase()
     // #1518：状态栏这张胶囊也认容器身份 —— 探索地图与规格都算容器，判定只问内核 containerKindOf（唯一真源），
     //   本文件不再自己比 type；门禁单文件求值时内核不在，就退回 capsuleKindOf 里同一口径的退化判定。
-    //   版面上规格与探索地图同形（地图图标 + 裸号），区别只在文字通道的类型词（地图 / 规格）；点开去向保持原样：
-    //   探索地图进地图详情页，规格仍走票详情那条路。这一条**推翻了原先「规格就当普通票画」的刻意选择** —— 当时
+    //   版面上规格与探索地图同形（地图图标 + 完整编号，#1553 起不再写裸号），区别只在文字通道的类型词（地图 / 规格）；
+    //   点开去向：探索地图与规格都进容器详情页（#1553 推翻 #1518「规格仍走票详情」的保留口径）。这一条**推翻了原先「规格就当普通票画」的刻意选择** —— 当时
     //   #1286 只定了列表页与详情页的视觉，状态栏这一处没有纳入，本票按报告人的要求把它改了回来。
     const row = { ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title), effortId: eff, ticketState: rs === 'CLOSED' ? 'CLOSED' : (rs === 'OPEN' ? 'OPEN' : ''), containerKind: capsuleKindOf(x) }
     if (!byId[id]) byId[id] = row
@@ -134,7 +139,7 @@ const capsuleRowOf = function (titles: any, e: any) {
   // #1518：同一票号可能出现在两个工作目录里，身份格是（工作单元，票号）。读数带了工作单元就按它查，
   //   不再写死空串去撞 byNumber —— 撞错会把别目录那张票的种类、标题与点开目标一起认错。
   const eEff = (e && e.effortId !== null && e.effortId !== undefined) ? String(e.effortId) : ''
-  const known = (titles && titles.byId && titles.byId[eEff + '\0' + key]) || (eEff ? null : capsuleTitleFor(titles, key, ''))
+  const known = (titles && titles.byId && titles.byId[eEff + '\0' + capsuleTicketKeyOf(key, true)]) || (eEff ? null : capsuleTitleFor(titles, capsuleTicketKeyOf(key, true), ''))
   const action = (e && e.action !== null && e.action !== undefined) ? String(e.action) : ''
   let actionKey = ''
   try { actionKey = (typeof workRouteActionKeyOf === 'function') ? String(workRouteActionKeyOf(action) || '') : '' } catch (eKey) { actionKey = '' }
@@ -153,19 +158,25 @@ const capsuleRowOf = function (titles: any, e: any) {
 };
 
 /**
- * 点一行跳到那张票：切回列表页再进详情（用读数记下的票号）。**探索地图**进地图详情页，
- * 须同时满足是地图与按票身份找得到地图对象，否则回落普通票（#780 那条护栏：
- * 面板找不到地图对象时会画成列表页，而导航栈却说在地图页）。
- * 规格容器是容器但不是地图：点子不改去向，仍按普通票走票详情（#1518 保持原行为）。
+ * 点一行跳到那张票：切回列表页再进详情（用读数记下的票号）。容器（探索地图与规格）进容器详情页，
+ * 须同时满足认得出种类与按票身份找得到容器对象，否则回落普通票（#780 那条护栏：
+ * 面板找不到容器对象时会画成列表页，而导航栈却说在地图页）。
+ * #1553 起规格与地图同路（与面板 workRouteNavOf 同口径：pushNav 只认 map / issue 两档，
+ * 规格容器压 map 栈，进的是同一张容器详情页）；#1518「规格仍按普通票走票详情」的保留口径被本单推翻。
+ * 票号按字串认（capsuleTicketKeyOf 只收 1–10 位数字，容器 00 合法）：不再先转数字——
+ * 转数字会把 00 变成 0 撞上 early return，点 00 行永远到不了跳转（#1554 合入本单的发现）。
  */
 const capsuleOpenTicket = function (st: any, entry: any) {
   if (!st || !entry) return
-  const n = Number(entry.ticketKey)
-  if (!isFinite(n) || n <= 0) return
+  // 票号按字串认：非法钥匙兜成 'x'（转数字得 NaN，直接拦下）；容器 00 转成 0，走下面的种类放行。
+  const n = Number(capsuleTicketKeyOf(entry.ticketKey) || 'x')
+  // 普通票没有 00 号：0 只放行给容器（地图 / 规格），普通票仍按老样子要求大于 0。
+  if (!isFinite(n) || (n === 0 && entry.containerKind !== 'map' && entry.containerKind !== 'spec')) return
   try { st.tab = 'list' } catch (e) { /* 状态写不进去也不影响这一跳 */ }
   const eid = (entry.effortId === null || entry.effortId === undefined) ? '' : String(entry.effortId)
   let map = null
-  if (entry.containerKind === 'map' && typeof findMapByIdentity === 'function') {
+  // #1553：地图与规格都按容器找对象（与面板 workRouteNavOf 同口径：spec 也认容器，找得到压 map 栈）。
+  if ((entry.containerKind === 'map' || entry.containerKind === 'spec') && typeof findMapByIdentity === 'function') {
     try {
       const list = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
       if (eid) {
@@ -288,12 +299,14 @@ function chainLater(st: any, closeRef: any) {
 }
 
 /**
- * #780：号怎么写 —— 容器（探索地图与规格，见 #1518）写裸号（`#` 那个位置让给地图图标），普通票写 `#目录/编号`
- *   （#1511：本地 Markdown 后端每个目录各自从 01 编号，不写目录就分不清是哪一张；目录为空时就是 `#编号`）。
+ * #780 / #1553：号怎么写 —— 所有行一律写完整编号（#1511 那份写法：`#目录/编号`，目录为空就是 `#编号`）。
+ *   #1553 之前容器行只写裸号（`#` 的位置让给地图图标），本地后端每个目录各自从 00 编号，
+ *   不写目录就分不清是哪一张，所以改成跟票列表同一行字；地图图标照旧画在徽章里
+ *   （它是号的兄弟节点、不是号字本身，见下），图标只管认种类，不管认身份。
  *   规则只写这一处：版面上那一段与悬停单子里每一行的徽章都读它，免得两处各写一遍、日后走岔。
- *   注意这只是**版面**的写法；文字通道（无障碍名与悬停提示）一律仍写 `#号`，见 spoken 与单子里的 line。
+ *   文字通道（无障碍名与悬停提示）本来就读同一份 ticketLabelOf（见 spoken 与单子里的 line），现在三处同字。
  */
-const chainKeyTextOf = function (kind: any, key: any, effortId: any) { return (kind === 'map' || kind === 'spec') ? String(key) : ticketLabelOf(key, effortId) }
+const chainKeyTextOf = function (kind: any, key: any, effortId: any) { return ticketLabelOf(key, effortId) }
 /**
  * #780：容器那一条的那枚图标（探索地图与规格同形；普通票没有这一枚；段首那枚图钉不在这里）。
  *   它必须是号那个元素的**兄弟节点** —— 收字机器往挂让位号的元素里写 textContent，塞进去会被抹掉。
@@ -391,12 +404,13 @@ const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any,
  * 单子里列出当前会话的全部记录（从旧到新往下排，最新沉底离鼠标最近，行内不用 · 分隔，
  * 号与动作做成徽章），点某一行进那张票的详情。
  *
- * #780 / #1518：那一条是**容器**（探索地图或规格）时，号前面的 `#` 换成地图图标（读起来是「图钉 + 地图图标 + 40」），
- *   普通票仍是「图钉 + #号」；悬停单子里每行的号徽章同样处理。两条硬约束：
+ * #780 / #1518 / #1553：那一条是**容器**（探索地图或规格）时，号徽章是「地图图标 + 完整编号」
+ *   （读起来是「图钉 + 地图图标 + #目录/00」，与票列表同一行字；#1553 之前这里只写裸号），
+ *   普通票是「图钉 + #号」；悬停单子里每行的号徽章同样处理。两条硬约束：
  *     ① 图标必须是那个号的**兄弟节点**，不许放进号里面 —— 那台按宽度收字的机器是往挂着让位号的那个
  *        元素里写 textContent 的，赋值会清掉该元素的全部子节点，图标塞进去就会被反复抹掉又装回来
  *        （一闪一闪）。本文件里那个号仍是恰好一处让位号。
- *     ② 版面上换了图标，**文字通道仍写 `#号`**（无障碍名与悬停提示），并在里面补上类型词
+ *     ② 版面上加了图标，字仍是完整编号，**文字通道与版面同字**（无障碍名与悬停提示），并在里面补上类型词
  *        「地图」或「规格」（词条 type.map / type.spec）—— 图标对读屏与复制文字的人是不存在的，不能只靠它说话。
  */
 export const SessionChainCapsule = function (props: any) {
@@ -492,7 +506,7 @@ export const SessionChainCapsule = function (props: any) {
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         },
       }, [
-        // #780 / #1518：容器（探索地图与规格）那行的号徽章是「地图图标 + 裸号」，普通票那行仍是 `#号`
+        // #780 / #1518 / #1553：容器（探索地图与规格）那行的号徽章是「地图图标 + 完整编号」，普通票那行仍是 `#号`
         h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rKind
           ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [chainContainerIconOf(rKind, 11), h('span', null, chainKeyTextOf(rKind, r.ticketKey, r.effortId))])
           : chainKeyTextOf(rKind, r.ticketKey, r.effortId)),

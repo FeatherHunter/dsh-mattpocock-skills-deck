@@ -151,7 +151,7 @@ console.log('B) 版面纪律：真渲染出来的版面上没有内部行话与�
     if (Array.isArray(n)) { n.forEach(walk); return }
     if (typeof n === 'object') { (n.c || []).forEach(walk) }
   })(shut)
-  // 版面那个号：普通票写成 #号，地图写成裸号（# 换成了地图图标，见 E 节）。
+  // 版面那个号：普通票与容器都写完整编号（#1553 起容器不再写裸号，见 E 节）。
   const faces = flat.filter(function (s) { return /^#?\d{1,10}$/.test(s) })
   check(faces.length === 1 && faces[0] === '#951', '单子没打开时版面只有一个号（标题再长也不上版面）')
   check(flat.some(function (s) { return s.indexOf('dsws-chainmenu') >= 0 }) === false, '单子没打开时版面上没有单子节点')
@@ -277,7 +277,7 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
     if (Array.isArray(n)) { n.forEach(walk); return }
     if (typeof n === 'object') { (n.c || []).forEach(walk) }
   })(shut)
-  check(flat.indexOf('40') >= 0 && flat.indexOf('#40') < 0, '地图那一条版面上是裸号 40（# 已换成地图图标）')
+  check(flat.indexOf('#40') >= 0, '#1553 地图那一条版面上是完整编号 #40（地图图标仍在，见下一条）')
   check(icons.indexOf('map') >= 0 && icons.indexOf('pin') >= 0, '地图那一条同时有图钉与地图图标')
   const foldSlots = []
   ;(function collect(n) {
@@ -342,9 +342,9 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
   const mapPill = mapRow ? pillOf(mapRow) : null
   const plainPill = plainRow ? pillOf(plainRow) : null
   const specPill = specRow ? pillOf(specRow) : null
-  check(!!mapPill && hasIcon(mapPill, 'map') && textsIn(mapPill).indexOf('40') >= 0, '单子里地图那行的号徽章是「地图图标 + 裸号」')
+  check(!!mapPill && hasIcon(mapPill, 'map') && textsIn(mapPill).indexOf('#40') >= 0, '#1553 单子里地图那行的号徽章是「地图图标 + 完整编号 #40」')
   check(!!plainPill && textsIn(plainPill).indexOf('#780') >= 0, '单子里普通票那行的号徽章仍是 #780')
-  check(!!specPill && hasIcon(specPill, 'map') && textsIn(specPill).indexOf('1460') >= 0, '#1518 单子里规格容器那行的号徽章也是「地图图标 + 裸号」')
+  check(!!specPill && hasIcon(specPill, 'map') && textsIn(specPill).indexOf('#1460') >= 0, '#1553 单子里规格容器那行的号徽章也是「地图图标 + 完整编号 #1460」')
   check(!!mapRow && String(mapRow.p['aria-label']).indexOf('#40') >= 0 && String(mapRow.p['aria-label']).indexOf('type.map') >= 0, '地图那行的无障碍名里仍是 #40 且带上类型词')
   check(!!plainRow && String(plainRow.p['aria-label']).indexOf('type.map') < 0, '普通票那行不冒充地图')
   check(!!specRow && String(specRow.p['aria-label']).indexOf('#1460') >= 0 && String(specRow.p['aria-label']).indexOf('type.spec') >= 0, '#1518 规格容器那行的无障碍名里仍是 #1460 且带上「规格」类型词')
@@ -354,7 +354,7 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
   const clickRow = function (row: any) { row.p.onClick({ stopPropagation: function () {} }) }
   nav.length = 0
   clickRow(specRow)
-  check(nav.length === 1 && nav[0].kind === 'issue' && nav[0].num === 1460, '#1518 点开规格行仍落票详情（snapshot.maps 里有同号地图对象也不误压地图栈；实得 ' + JSON.stringify(nav) + '）')
+  check(nav.length === 1 && nav[0].kind === 'map' && nav[0].num === 1460, '#1553 点开规格行进容器详情（与面板 workRouteNavOf 同口径：spec 压 map 栈；#1518 的票详情口径已推翻；实得 ' + JSON.stringify(nav) + '）')
   nav.length = 0
   clickRow(mapRow)
   check(nav.length === 1 && nav[0].kind === 'map' && nav[0].num === 40, '#1518 点开探索地图行仍进地图详情页（实得 ' + JSON.stringify(nav) + '）')
@@ -406,7 +406,7 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
     if (n.p && typeof n.p['aria-label'] === 'string' && n.p['aria-label'].indexOf('chainView.capsuleDoing') >= 0) { specAria = n.p['aria-label']; return }
     ;(n.c || []).forEach(findAria)
   })(specShut)
-  check(specFlat.indexOf('1460') >= 0 && specFlat.indexOf('#1460') < 0, '#1518 主胶囊里规格容器是裸号 1460（# 已换成地图图标）')
+  check(specFlat.indexOf('#1460') >= 0, '#1553 主胶囊里规格容器是完整编号 #1460（地图图标仍在，见下一条）')
   check(specIcons.indexOf('map') >= 0, '#1518 主胶囊里规格容器那一条也画地图图标（与地图同形）')
   check(specAria.indexOf('#1460') >= 0 && specAria.indexOf('type.spec') >= 0, '#1518 主胶囊的无障碍名里仍是 #1460 且带上「规格」类型词（实得 ' + JSON.stringify(specAria) + '）')
   // #1518：门禁按模块单独加载本文件时，内核 containerKindOf 不在作用域里（构建闭包里才带进来）。
@@ -429,8 +429,79 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
     if (n.p && typeof n.p['aria-label'] === 'string' && n.p['aria-label'].indexOf('chainView.capsuleDoing') >= 0) { fbAria = n.p['aria-label']; return }
     ;(n.c || []).forEach(findFb)
   })(fbShut)
-  check(fbFlat.indexOf('1460') >= 0 && fbFlat.indexOf('#1460') < 0, '#1518 内核不在时规格仍按容器画（退化判定回 spec，版面上是裸号 1460）')
+  check(fbFlat.indexOf('#1460') >= 0, '#1553 内核不在时规格仍按容器画（退化判定回 spec，版面上是完整编号 #1460）')
   check(fbIcons.indexOf('map') >= 0 && fbAria.indexOf('type.spec') >= 0, '#1518 内核不在时规格仍画地图图标、文字通道仍带「规格」类型词（退化判定与内核同口径）')
+}
+
+console.log('G) #1553 容器 00 行：完整编号可点，不再静默没反应')
+{
+  // 本地后端每个目录的容器编号都是 00：徽章要写 `#目录/00` 完整形式，点了要进容器详情。
+  // 回归点有两处：① chainKeyTextOf 曾对容器回裸号；② capsuleOpenTicket 把票号转数字，
+  //   Number('00') = 0 撞上 n <= 0 的 early return，跳转代码到不了（面板照常打开，看着像点了没换内容）。
+  const nowIso = new Date(Date.now() - 3600000).toISOString()
+  // 快照形状按生产快照如实写：numOf 把容器 '00' 转成数字 0（读数存档里仍是字串 '00'），
+  //   就近表靠 capsuleNumOf 把两边归一，两种写法都要认得出。
+  const st00: any = { snapshot: {
+    issues: [
+      { key: '00', number: 0, title: '某目录的地图', state: 'open', type: 'map', effortId: 'demo' },
+      { key: '00', number: '00', title: '某目录的规格', state: 'open', type: 'spec', effortId: 'demo2' },
+    ],
+    maps: [
+      { key: '00', number: 0, tickets: [], effortId: 'demo' },
+      { key: '00', number: '00', tickets: [], effortId: 'demo2' },
+    ],
+    workRouteTable: tableFor([
+      entryOf('00', { title: '', effortId: 'demo', actionAt: nowIso }),
+      entryOf('00', { title: '', effortId: 'demo2', actionAt: nowIso }),
+    ]),
+  } }
+  const h = function (t: any, p: any) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
+  const nav00: any[] = []
+  const built00 = loadCap({
+    React: { createElement: h, useContext: function () { return { h: h } }, useRef: function (v: any) { return { current: v } }, useState: function () { return [null, function () {}] } },
+    pushNav: function (_st: any, kind: any, num: any) { nav00.push({ kind: kind, num: num }) },
+    // 真实现按（工作单元，编号）精确命中，新老快照另有数字兜底；这里照抄可比行为：编号按补零两位比。
+    findMapByIdentity: function (list: any, n: any, eid: any) {
+      let hit: any = null
+      ;(Array.isArray(list) ? list : []).forEach(function (m: any) {
+        if (!hit && m && String(m.key).padStart(2, '0') === String(n).padStart(2, '0') && String(m.effortId || '') === String(eid || '')) hit = m
+      })
+      return hit
+    },
+  })
+  st00.chainMenuOpen = true
+  st00.chainMenuPos = { left: 1, bottom: 2 }
+  const open00 = built00.SessionChainCapsule({ st: st00, sid: 's1' })
+  const rowNodes00: any[] = []
+  ;(function walkRows(n: any) {
+    if (n === null || n === undefined) return
+    if (Array.isArray(n)) { n.forEach(walkRows); return }
+    if (typeof n === 'object' && n.overlay) { (n.children || []).forEach(walkRows); return }
+    if (typeof n === 'object') {
+      if (n.p && typeof n.p.className === 'string' && n.p.className.indexOf('dsws-chainmenu-row') >= 0) { rowNodes00.push(n); return }
+      ;(n.c || []).forEach(walkRows)
+    }
+  })(open00)
+  check(rowNodes00.length === 2, '#1553 单子里两行 00 都在（地图 / 规格各一行）')
+  const pillTexts00 = function (row: any) {
+    const out: any[] = []
+    ;(function inner(m: any) {
+      if (typeof m === 'string') { out.push(m); return }
+      if (Array.isArray(m)) { m.forEach(inner); return }
+      if (m && typeof m === 'object') (m.c || []).forEach(inner)
+    })(row)
+    return out
+  }
+  const mapRow00 = rowNodes00.filter(function (r: any) { return String(r.p['aria-label'] || '').indexOf('#demo/00') >= 0 })[0] || null
+  const specRow00 = rowNodes00.filter(function (r: any) { return String(r.p['aria-label'] || '').indexOf('#demo2/00') >= 0 })[0] || null
+  check(!!mapRow00 && pillTexts00(mapRow00).indexOf('#demo/00') >= 0, '#1553 地图 00 行徽章写完整编号 #demo/00（实得 ' + JSON.stringify(pillTexts00(mapRow00)) + '）')
+  check(!!specRow00 && pillTexts00(specRow00).indexOf('#demo2/00') >= 0, '#1553 规格 00 行徽章写完整编号 #demo2/00（实得 ' + JSON.stringify(pillTexts00(specRow00)) + '）')
+  nav00.length = 0
+  mapRow00.p.onClick({ stopPropagation: function () {} })
+  check(nav00.length === 1 && nav00[0].kind === 'map' && nav00[0].num === 0, '#1553 点地图 00 进容器详情，不再静默没反应（实得 ' + JSON.stringify(nav00) + '）')
+  nav00.length = 0
+  specRow00.p.onClick({ stopPropagation: function () {} })
+  check(nav00.length === 1 && nav00[0].kind === 'map' && nav00[0].num === 0, '#1553 点规格 00 进容器详情，不再静默没反应（实得 ' + JSON.stringify(nav00) + '）')
 }
 
 console.log('F) #1404 表头单行：左右两簇、四段词条、两枚分隔线与尺寸契约')
