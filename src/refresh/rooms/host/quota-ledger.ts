@@ -457,6 +457,10 @@ export function createLedger(deps?: LedgerDeps) {
       if (!r) continue
       const b = buckets.get(bucketKey(id, key))
       if (!b) continue
+      // #1006：同步挪到后台之后，一次慢读数可能晚于快读数才回来；这个桶已经有读数、而这次读数的
+      // 取数时刻不比桶里记的新时跳过它——否则旧读数会盖掉新读数。跳过就是 reading / allowance /
+      // syncedAt / resetAt / spentSinceSync 一个都不动，也不进 applied；桶里还没有读数时（第一次）照常接受。
+      if (b.reading && t <= b.syncedAt) continue
       b.reading = { limit: num(r.limit), remaining: num(r.remaining) }
       // 两桶按 35% 规则换算（算式在 host-budget.ts）；requests 桶直接用服务端给的 limit，
       // 不打折：请求额度是硬值，再打一次折等于凭空压掉可用量，不是保守而是记错。
