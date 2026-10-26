@@ -22,10 +22,7 @@ tpl.diagnose:
     - [ ] 结束前把这张票的真实状态写进正文；结尾用提问格式收尾：有待维护者拍板的事，有几个就问几个，写成❓ Q1、Q2、Q3，逐个给推荐答案（➡️），等回复再动。
     - [ ] 说明回复后你准备执行什么标签动作；没有待拍板的问题时，写明这张票已转到哪个终态。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /triage
     {url}
@@ -45,10 +42,7 @@ tpl.diagnose:
     - [ ] Before finishing, write the true state of this ticket into its body; end with the question format: list every decision the maintainer must make as ❓ Q1, Q2, Q3, each with a recommended answer (➡️), and wait for the reply before acting.
     - [ ] State what label action you will take once the reply comes; if there is nothing to decide, state clearly which terminal state this ticket has been moved to.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 tpl.discuss:
   version: 19
   placeholders:
@@ -68,10 +62,7 @@ tpl.discuss:
 
     ## 收尾
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     {url}
@@ -86,10 +77,7 @@ tpl.discuss:
 
     ## Wrap-up
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 tpl.execute:
   version: 19
   placeholders:
@@ -109,10 +97,7 @@ tpl.execute:
 
     ## 收尾
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     {url}
@@ -127,10 +112,7 @@ tpl.execute:
 
     ## Wrap-up
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 tpl.fix:
   version: 17
   placeholders:
@@ -151,10 +133,7 @@ tpl.fix:
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；做完了就关闭，没做完写明缺什么。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /implement
     {url}
@@ -170,10 +149,7 @@ tpl.fix:
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; close it when done, state what is missing when not.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 tpl.handoff1:
   version: 5
   placeholders:
@@ -234,10 +210,7 @@ tpl.implement:
     - [ ] 结束前把这张票的真实状态写进正文；做完了就关闭，没做完写明缺什么。
     - [ ] 如果这张票属于某张规格 issue，且它是最后一张实施 issue，提醒用户回到规格详情点「完成」做收口核对。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /implement
     {url}
@@ -253,10 +226,7 @@ tpl.implement:
     - [ ] Before finishing, write the true state of this ticket into its body; close it when done, state what is missing when not.
     - [ ] If this ticket belongs to a spec issue and it is the last implementation issue, remind the user to go back to the spec detail and click "Complete" for the wrap-up check.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 tpl.prototype:
   version: 13
   placeholders:
@@ -276,10 +246,7 @@ tpl.prototype:
 
     ## 收尾
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     {url}
@@ -294,10 +261,7 @@ tpl.prototype:
 
     ## Wrap-up
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 tpl.research:
   version: 13
   placeholders:
@@ -317,10 +281,7 @@ tpl.research:
 
     ## 收尾
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     {url}
@@ -335,12 +296,9 @@ tpl.research:
 
     ## Wrap-up
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 tpl.supplement:
-  version: 7
+  version: 8
   placeholders:
     - url
   use: "动作按钮「补充」（needs-info 票）· 清单式 · v5 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
@@ -350,10 +308,7 @@ tpl.supplement:
 
     这个 issue 缺关键信息，需要你来补充（遵循 wayfinder 技能规则）：
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
 
     ## 读全
     - [ ] 读全该 issue（正文、评论、标签、认领、阻塞关系）
@@ -384,10 +339,7 @@ tpl.supplement:
 
     This issue is missing key information — you need to fill the gap (follow the wayfinder skill rules):
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report handled and in-progress issue numbers promptly with the deck_issue_report tool
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 
     ## Read the whole issue
     - [ ] Read the whole issue (body, comments, labels, claim, blocking relationships)
@@ -441,10 +393,7 @@ tpl.takeover:
     ## 收尾
     - [ ] 结束前把这张票的真实状态与下一步写进正文。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     {url}
@@ -469,7 +418,4 @@ tpl.takeover:
     ## Wrap-up
     - [ ] Before finishing, write the true state and next step of this ticket into its body.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}

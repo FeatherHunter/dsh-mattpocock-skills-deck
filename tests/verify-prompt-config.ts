@@ -405,7 +405,7 @@ console.log('提示词配置门禁（真源 config/prompts/ 与 config/languages
 let config: PromptConfig | null = null
 try {
   config = readPromptConfig(ROOT)
-  check(true, '读得到 config/prompts/ 下的五份 YAML（模板与片段同住）与 config/languages.yaml')
+  check(true, '读得到 config/prompts/ 下的五份族 YAML（模板与片段同住）、公共小节 YAML（shared-sections.yaml，读取时展开）与 config/languages.yaml')
 } catch (e) {
   check(false, '读不到 config/ 下的提示词 YAML：' + (e as Error).message + ' —— 真源缺文件时先看 config/prompts/ 下那几份还在不在')
 }

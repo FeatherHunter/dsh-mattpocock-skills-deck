@@ -29,10 +29,7 @@ complete:
     - [ ] 结束前把这次核对与交接的结论写进 map 正文；状态与实际不符（漏关 / 误开）就据实写清楚。
     - [ ] 关闭前确认 map 上有一条总结评论（结论与交接结果），没有就补上；关闭后把结果告诉用户。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     {url}
@@ -57,10 +54,7 @@ complete:
     - [ ] Before finishing, write the conclusion of this check and handoff into the map body; where the recorded state does not match reality (missed close / erroneous close), say so plainly.
     - [ ] Before closing, make sure the map has a summary comment (the conclusion and handoff result); add one if missing, and tell the user the result afterwards.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 fixate:
   version: 11
   placeholders: []
@@ -88,10 +82,7 @@ fixate:
     - [ ] 无 ticket 也无 map → 写入对齐记录文件，并告诉我完整路径；建图/建票时由接手会话搬入对应 ticket
     - [ ] 属 map 层面的条目（如目的地/雾区调整）→ 照写进所选位置，条目末尾标注「map 层面，随建图搬入」
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     This phase wraps up here. Pause progress and run the "alignment & consolidation" pass, from first principles:
 
@@ -115,10 +106,7 @@ fixate:
     - [ ] If no ticket and no map → write the alignment note and tell me the full path; when a map/ticket is created, the taking-over session migrates it into the corresponding ticket
     - [ ] Map-level items (e.g. Destination/Fog adjustments) → still write them in the chosen place, and mark the item "map-level, migrate when the map is built"
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 healthCheck:
   version: 5
   placeholders:
@@ -162,10 +150,7 @@ healthCheck:
 
     {subject}
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     ## Health check (put orphaned open tickets where they belong)
 
@@ -204,10 +189,7 @@ healthCheck:
 
     {subject}
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 mapExecute:
   version: 20
   placeholders: []
@@ -217,19 +199,13 @@ mapExecute:
 
     ## 收尾
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     Please advance this map with the wayfinder skill.
 
     ## Wrap-up
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 mapInspect:
   version: 12
   placeholders:
@@ -261,10 +237,7 @@ mapInspect:
     - [ ] 结束前把这张票的真实状态写进正文
     - [ ] 校验子议题数与面板计数一致，且不再为 0/0
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     ## Target map
     - No: #{n}
@@ -288,95 +261,85 @@ mapInspect:
     - [ ] Before finishing, write the true state of this ticket into its body
     - [ ] Verify sub-issue count matches the panel count and is no longer 0/0
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 specComplete:
-  version: 6
-  placeholders:
-    - url
-    - closed
-    - total
-  use: 规格容器 · 完成态「完成」按钮：先认这次是怎么做的，把改动交付到仓库长期分支（没有版本库则以当前工作区为准），逐张核对后按边界关闭规格，不提供旁路（#1281、#1350）
+  version: 7
+  placeholders: [url, closed, total]
+  use: '规格容器 · 完成态「完成」按钮：先认这次是怎么做的，把改动交付到仓库长期分支（没有版本库则以当前工作区为准），逐条核对用户故事与逐票证据后按边界关闭规格；关闭只经 deck_issue_patch，没有「顺手关」的旁路，重开只能由人做（#1281、#1350）'
   zh: |-
-    这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。先核对，再决定能不能关。关规格是向以后的人保证：这批改动已经在仓库长期保留的那条分支上、在你写下的提交上可复现地全绿、遗留都已处置——不只是子票都关了。
 
-    ## 一、先认这次是怎么做的
-    - [ ] 读仓库自己的说明（例如 AGENTS.md、docs/agents 下的约定）和近期同类规格的收尾记录，认这次属于哪种做法：每张实施票分别用 /implement 实现；直接对这张规格跑过 /implement-spec（会产出集成分支，可能还有草稿 PR）；这个工作区没有版本库。
-    - [ ] 找到这次的分支、工作区副本和提交：散在多处的改动先合到同一条分支再往下核对；找不到、或改动只在临时目录里，先问用户改动在哪，不要假定已经交付。
-    - [ ] 确认要交出去的代码：每张实施票的改动是不是都已合进同一条长期分支（通常是 main，以仓库自己的叫法为准）。走 PR 的仓库，只认已合并且提交落在长期分支；草稿、待评审、合进别的分支都不算。实施票当初在集成分支上验完就关，是正常做法；规格不一样，要等集成分支也进了长期分支（本仓库的惯例是与 main 同一提交）才算交付完成。
-    - [ ] 读不到分支或 PR 状态时，判不了就不关，把情况交回用户。
+    这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。这只是触发条件，不是完成证据。
 
-    ## 二、核对（三种做法都要做）
-    - [ ] 逐张打开实施 issue，对照验收判据看代码、测试或运行结果，确认真的做到；只看关闭状态和票面自述不算数。
-    - [ ] 在最终交给仓库的那份代码上跑仓库规定的测试、类型检查和构建，记下分支名与提交号。在没含这些改动的主分支、有未提交改动的树、或别人的分支上跑出的绿不算数。
-    - [ ] 多张票改同一模块或接口时，合起来再核一遍：各自绿不等于一起绿。
-    - [ ] 收干净实施过程留下的临时物：实施工作区副本、已合并的临时分支、未提交改动、临时文件。没合并的分支不要删，把里面独有的提交列给用户。
-    - [ ] 规格正文与评论里的「待定」「后续再说」逐条处置：这次做完；转成新票并写下票号；用户确认不做。只把字眼找出来不算处置。
+    你的产出只有两样：一段收尾评论、一次关闭。评论要能让没参加这次会话的人独立复核下面四件事；缺任何一件，都不关闭：
+    ① 规格承诺的内容真的实现：逐条用户故事都有对应的实现或测试，以「不做」「重复」削减的已经用户确认；
+    ② 这批改动已经进入仓库长期保留的那条分支：合并提交、压缩提交都算；没有远端时以本地长期分支为准，没有版本库时以当前工作区为准；
+    ③ 在评论写下的那个提交上，仓库检查可复现地全绿；
+    ④ 遗留都已处置：待定事项、未提交改动、临时工作区与临时文件、未合并分支里的独有提交。
+    没有把握就不关：误关之后只能由人手动纠正。做不到上面任何一条，就把缺口、下一步和由谁做交给用户。
 
-    ## 三、把改动交给仓库（没有版本库就跳过这一节）
-    - [ ] 按仓库自己的落地方式走，不要为了关票硬造 PR：用 PR 合入的仓库，没有 PR 就建（标题用一句中文说清这次交付了什么，引用规格与实施票），草稿改成可评审；正文用 /pr 技能写（Summary / Evidence / Merge Danger），写清逐票结论与检查证据。/pr 只写正文，不建 PR、不合并 PR。
-    - [ ] 等 PR 合入长期分支后再关；只建了 PR、只改成可评审都不算。需要人合并就停下来，把 PR 链接和结论交给用户，并说明合入后再点「完成」。这是等待，不是失败；未经用户当场授权不要替人合并。
-    - [ ] 不用 PR 的仓库（本仓库的常态）：把这条分支合入长期分支并推送，确认长期分支包含这次的全部提交。PR 不是结案方式；只有长期分支里真的有了这些提交，才算交付完成。
-    - [ ] 改动还没提交就先提交并推送，只提交这次动过的路径，提交信息按仓库规范写清改了什么、为什么。
-    - [ ] 合入后拉回长期分支的最新提交，在上面重跑第二遍检查：合入会带进交叉影响，合入前的绿不能当结论。
-    - [ ] 不要让合并 PR 的关闭引用替你把票关掉（有的后端会按关键词自动关）；票一律走 deck_issue_patch 的核对评论后关闭。
-    - [ ] 长期分支还没含改动、PR 没合、只合了一部分：不关闭，写清差哪条与下一步，不要为这件事重开实施票。
+    ## 一、取证据
+    - [ ] 确定这批改动在哪：分支、工作区副本、提交。改动散在几处的，合到同一条分支再核对；合并时出现冲突，就是对应票没有真正落地，查清再解，不凭猜测。
+    - [ ] 确认当前后端与仓库：本地 Markdown（markdown）/ github / gitlab、仓库地址、写权限；再读仓库说明与近期同类规格的收尾记录，确定交付惯例（用 PR/MR 还是直接推送）、仓库说明指定的平台工具与远端是否可用。后端报告写权限为只读时，评论与关闭都写不进去：不关闭，交回用户。
+    - [ ] 找不到改动、或改动只在临时目录里：问用户，不假定已交付；读不到分支或 PR/MR 状态：不关闭，交回用户。
 
-    ## 四、没有版本库的工作区
-    - [ ] 没有分支、提交历史和 PR 可做：以当前工作区为要交出去的代码，确认改动确实在这里（不是只在临时目录或子代理的副本里），检查照跑。
-    - [ ] 关闭评论注明「本工作区没有版本库，以上结论以当前工作区文件为准」，并写清检查命令与结果、改了哪些文件。
+    ## 二、核对
+    - [ ] 逐张打开实施 issue，对照验收判据看代码、测试或运行结果；只看关闭状态和票面自述不算数。
+    - [ ] 回到规格正文逐条核对最终代码：每条用户故事都有实现或测试；以「不做」「重复」关闭的票，说明规格承诺如何被满足或缩减，并经用户确认；规格正文没有验收标准的，以实施票判据之和为准，并在评论里写明这个口径。逐票通过不等于规格通过。
+    - [ ] 在最终要交付的那份代码上跑仓库规定的检查，记下分支名与提交号；在没含这些改动的主分支、有未提交改动的树、别人的分支上跑出的结果不算数。多张票改同一模块或接口的，合起来再核一次。
+    - [ ] 处置遗留：规格正文与评论里的「待定」「后续再说」逐条处理（这次做完、转新票记下票号、用户确认不做），结果写回规格正文原处；未提交改动确认归属，不属于这次的交给用户；实施工作区副本、已合并的临时分支、临时文件清理掉，未合并的分支保留并把独有的提交列给用户；丢弃任何改动前先征得同意。
+    - [ ] 发现遗漏、未完成，或判据缺失、写错：不关闭，把缺什么、影响哪条规格承诺告诉用户，与用户商量重开相关实施 issue、新建 issue 承接、或确认缩减范围；按用户决定执行并记下票号。不替用户编造确认，不自行放宽判据。
 
-    ## 五、关闭规格（核对与交付都通过之后）
-    - [ ] 全部通过 → 在同一次 deck_issue_patch 调用里带 comment 和 close:true：评论写清逐票核对结论、这次是怎么做的、分支名与提交号（或 PR 合并提交、没有版本库的说明）、跑了哪些检查与结果、遗留项的新票号；工具会先发评论再关，缺评论或还有实施 issue 没关都会被挡下来。
-    - [ ] 有任何一条没通过 → 不关闭：改动还没交出去就说卡在哪一步、下一步由谁做（如「等 PR #N 合并」）；验收没做到就说缺什么、建议重开哪张实施 issue 或补一张。
-    - [ ] 没有「实施 issue 都关了顺手关」的旁路：关规格只有上面这一条路，先核对、再带核对评论关。
-    - [ ] 人随时可以重开这张规格；重开只能由人在后端做，AI 的工具面上只允许关、不允许重开。
+    ## 三、交付
+    - [ ] 仓库用 PR/MR 交付：有 PR/MR 就核对状态，没有就建，草稿改为可评审；标题用一句话说清交付了什么、引用规格与实施票，正文用 /pr 技能写。等合入长期分支后再继续；需要人合并就停下，把链接与结论交给用户，说明合并后再关闭。未经用户当场授权，不替人合并。
+    - [ ] 仓库直接推送，或后端是本地 Markdown（deck 这一侧不知道代码平台），或改动本来就在长期分支的主工作区、没有独立工作树：确认这次改动都已提交、已在长期分支上；还没提交的，只提交这次动过的路径并推送，提交信息按仓库规范写；没有远端时以本地长期分支为交付，并在评论里注明未推送。仓库说明要求 PR/MR 的，按上一条用仓库说明指定的平台工具。
+    - [ ] 没有版本库的工作区：没有分支、提交和 PR 可做，以当前工作区文件为交付物，确认改动确实在这里，检查照跑。
+    - [ ] 交付尚未完成（PR/MR 没合、分支没进长期分支、没有权限、只合了一部分）：不关闭，写清差哪条、下一步由谁做。交付未完成不重开实施票。
+    - [ ] 合入后拉回长期分支的最新提交，在上面重跑一遍检查；这次失败同样按缺口交回用户。合入会带进交叉影响，合入前的绿不能当结论。
+    - [ ] PR/MR 正文和提交信息里不写 Closes #<规格号> 这类自动关闭关键词；这张规格的关闭只经 deck_issue_patch。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    ## 四、关闭
+    - [ ] 四件事都成立：用一次 deck_issue_patch 调用同时带 comment 与 close:true。评论按能照着重核的格式写：逐票一行写查了什么（文件、测试名、命令）；逐条用户故事写实现或测试证据；交付证明（分支名与提交号，或 PR/MR 的合并提交与合入提交，或没有版本库的文件清单）；检查命令与结果；遗留事项的新票号。不写「已核对、通过」这类空泛结论。
+    - [ ] 关闭前自检：评论里的提交就是跑检查的那棵树，检查结果来自本次会话而不是记忆；对不上就回到核对或交付。
+    - [ ] 任何一件不成立：不关闭，按缺口类型写清卡在哪、下一步由谁做。
+
+    {{shared:sharedTools}}
   en: |-
-    All implementation issues under this spec issue ({url}) are closed ({closed}/{total}). Verify first, then decide whether it can be closed. Closing the spec promises future readers that this batch is already on the repository's long-lived branch, is reproducibly green on the commit you record, and has no unhandled leftovers — not merely that all sub-issues are closed.
 
-    ## 1. Identify how this work was done
-    - [ ] Read the repository's own instructions (for example AGENTS.md and the conventions under docs/agents) and how recent comparable specs were wrapped up, then identify which shape this is: each implementation issue was implemented separately with /implement; /implement-spec was run on this spec (it creates an integration branch, possibly with a draft PR); this workspace has no version control.
-    - [ ] Locate this run's branches, worktrees and commits: if the changes are scattered, merge them into one branch before going further; if you cannot find them, or they exist only in a temporary directory, ask the user where the work is — do not assume it has been delivered.
-    - [ ] Confirm the code being handed over: is every implementation issue's change merged into the same long-lived branch (usually main; use the repository's own name)? Where the repository delivers through PRs, only a merged PR whose commits are on the long-lived branch counts; a draft, a PR awaiting review, or a PR merged into another branch does not. Implementation issues were correctly closed once merged into the integration branch; the spec is different — it counts only after that branch also lands on the long-lived branch (in this repository, the convention is being at the same commit as main).
-    - [ ] If you cannot read the branch or PR state, you cannot judge — do not close; hand the situation back to the user.
+    This spec issue ({url}) has all its implementation issues closed ({closed}/{total}). That is only the trigger, not proof of completion.
 
-    ## 2. Verify (in all three shapes)
-    - [ ] Open each implementation issue and check its acceptance criteria against code, tests or run results; a closed status and the ticket's own claim do not count.
-    - [ ] Run the repository's tests, type checks and build on the exact code being handed to the repository, and record the branch name and commit. A green run on a mainline without these changes, on a tree with uncommitted changes, or on someone else's branch does not count.
-    - [ ] When several tickets touch the same module or interface, verify them together: green separately does not mean green together.
-    - [ ] Clean up temporary artifacts from the implementation: implementer worktrees, merged temporary branches, uncommitted changes, temporary files. Do not delete unmerged branches — list the commits unique to them for the user.
-    - [ ] Handle every "TBD" / "revisit later" in the spec body and comments: do it now, or turn it into a new ticket and record its number, or get the user's explicit decision not to do it. Finding the words alone is not handling them.
+    You produce exactly two things: one closing comment and one close. The comment must let someone who was not in this session independently re-check the four things below; if any one is missing, do not close:
+    (1) What the spec promised is really implemented: every user story has corresponding implementation or tests; any reduction as "will not do" or "duplicate" has been confirmed by the user.
+    (2) These changes are already on the branch the repo keeps long-term: merge commits and squash commits both count; when there is no remote, judge by the local long-lived branch; when there is no version control, judge by the current workspace.
+    (3) On the commit written in the comment, the repo checks pass reproducibly.
+    (4) All leftovers are handled: open questions, uncommitted changes, temporary worktrees and temp files, and unique commits on unmerged branches.
+    If you are not sure, do not close: a wrong close can only be corrected by a human. If any of the above does not hold, hand the gap, the next step and who does it to the user.
 
-    ## 3. Hand the change to the repository (skip this section when there is no version control)
-    - [ ] Follow the repository's own way of landing changes, and do not fabricate a PR just to close the ticket: where the repository delivers through PRs, create the PR if there is none (title says in one Chinese sentence what this delivers and references the spec and implementation issues), turn a draft into one ready for review; write the body with the /pr skill (Summary / Evidence / Merge Danger), including per-ticket verdicts and check evidence. /pr only writes the body — it does not create or merge a PR.
-    - [ ] Close only after the PR is merged into the long-lived branch; merely opening a PR or marking it ready does not count. When a human merge is needed, stop and hand the PR link and verdicts to the user, and say they can click "Complete" after the merge. This is a wait, not a failure; do not merge on the user's behalf without their explicit go-ahead in this session.
-    - [ ] Where the repository does not deliver through PRs (the norm in this repository): merge this branch into the long-lived branch and push, then confirm the long-lived branch contains all commits from this run. A PR is not how work is closed; delivery is done only when those commits are really on the long-lived branch.
-    - [ ] If the changes are not committed yet, commit and push them first; stage only the paths this run touched, and write the commit message per the repository's convention, saying what changed and why.
-    - [ ] After the merge, pull the long-lived branch's latest commit and run the checks again on it: the merge can bring cross-effects, so a green run from before the merge is not the conclusion.
-    - [ ] Do not let a PR's closing references close tickets for you (some backends auto-close on keywords); tickets are closed only through deck_issue_patch's verification comment.
-    - [ ] If the long-lived branch does not yet contain the changes, the PR is not merged, or only part was merged: do not close; state exactly what is missing and the next step, and do not reopen implementation issues for this.
+    ## 1. Gather evidence
+    - [ ] Determine where these changes are: the branch, the workspace copy, the commits. If the changes are scattered, merge them onto one branch and verify there; a merge conflict means the corresponding ticket did not really land — investigate before resolving, never resolve on guesswork.
+    - [ ] Confirm the current backend and repo: local Markdown (markdown) / github / gitlab, the repo address, and write permission; then read the repo instructions and the closing records of recent similar spec issues to determine the delivery convention (PR/MR or direct push), the matching platform tools the repo instructions name and whether the remote is available. If the backend reports read-only write permission, comments and closes cannot be written: do not close, hand back to the user.
+    - [ ] If you cannot find the changes, or they exist only in a temporary directory: ask the user; do not assume they were delivered. If the branch or PR/MR status cannot be read: do not close, hand back to the user.
 
-    ## 4. Workspace with no version control
-    - [ ] There is no branch, commit history or PR to use: treat the current workspace as the code being handed over, confirm the changes are really there (not only in a temporary directory or a subagent's copy), and run the checks there.
-    - [ ] In the close comment, state "this workspace has no version control; the verdicts above are based on the files in the current workspace", and include the check commands, results, and which files changed.
+    ## 2. Verify
+    - [ ] Open each implementation issue and check code, tests or run results against its acceptance criteria; a closed state and the issue body do not count.
+    - [ ] Go back to the spec body and verify the final code item by item: every user story has implementation or tests; for tickets closed as "will not do" or "duplicate", explain how the spec promise is met or reduced, and get user confirmation; if the spec body has no acceptance criteria, use the sum of the implementation-ticket criteria and state that convention in the comment. Per-ticket passes do not mean the spec passes.
+    - [ ] Run the checks the repo defines on the code you are actually delivering, and record the branch name and commit; results from a main branch without these changes, a tree with uncommitted changes, or someone else's branch do not count. When several tickets touch the same module or interface, verify them together once more.
+    - [ ] Handle leftovers: process every "to decide" and "later" in the spec body and comments one by one (do it now, turn it into a new ticket and record its key, or the user confirms it is not done), and write the result back where it appears in the spec body; confirm the ownership of uncommitted changes and hand unrelated ones to the user; clean up implementation worktrees, merged temporary branches and temp files, keep unmerged branches and list their unique commits to the user; get consent before discarding any change.
+    - [ ] If you find omissions, unfinished work, or missing or wrong criteria: do not close; tell the user what is missing and which spec promise is affected, and discuss whether to reopen the relevant implementation issue, create a new issue to carry it, or confirm a reduced scope; follow the user's decision and record the ticket keys. Do not invent user confirmation and do not loosen criteria on your own.
 
-    ## 5. Close the spec (only after verification and delivery both pass)
-    - [ ] All checks pass → in the same deck_issue_patch call pass comment and close:true: the comment states the per-ticket verdicts, which shape this run was, the branch name and commit (or the PR's merge commit, or the no-version-control note), which checks ran with what results, and the new ticket numbers for leftovers; the tool leaves the comment first, then closes, and a missing comment or any implementation issue still open blocks the close.
-    - [ ] Any check fails → do not close: if the change has not been handed over, say where it stopped and who does the next step (e.g. "waiting for PR #N to merge"); if acceptance is not met, say what is missing and suggest reopening that implementation issue or adding one.
-    - [ ] There is no "all sub-issues are closed, so close it" side path: closing the spec only goes through the line above — verify first, then close with the verification comment.
-    - [ ] The human can reopen this spec at any time; reopening is a human-only action in the backend — the AI tool surface can close but not reopen.
+    ## 3. Deliver
+    - [ ] If the repo delivers through PR/MR: check its state if a PR/MR exists, otherwise create one and turn the draft into reviewable; use one sentence in the title to say what was delivered and reference the spec and the implementation tickets, and write the body with the /pr skill. Continue only after it is merged into the long-lived branch; if a human has to merge, stop and hand the link and the conclusion to the user, saying you will close after the merge. Do not merge for the user without their explicit authorization in this session.
+    - [ ] If the repo pushes directly, or the backend is local Markdown (deck cannot see the code platform), or the changes already live in the main worktree of the long-lived branch with no separate worktree: confirm every change is committed and on the long-lived branch; for anything not yet committed, commit only the paths this work touched and push, following the repo commit convention; when there is no remote, the local long-lived branch is the delivery, and note in the comment that it was not pushed. If the repo instructions require PR/MR, follow the previous item with the platform tool the instructions name.
+    - [ ] If the workspace has no version control: there is no branch, commit or PR, so take the current workspace as the deliverable, confirm the changes are really here, and run the checks.
+    - [ ] If delivery is not complete (PR/MR not merged, branch not on the long-lived branch, no permission, only part merged): do not close; state exactly what is missing and who does the next step. Incomplete delivery does not reopen implementation tickets.
+    - [ ] After merging, pull the latest long-lived branch and rerun the checks on it; if they fail, hand it back to the user as a gap. A merge brings cross-effects, so pre-merge green is not a conclusion.
+    - [ ] Do not put auto-close keywords such as Closes #<spec> in PR/MR bodies or commit messages; closing this spec goes only through deck_issue_patch.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    ## 4. Close
+    - [ ] All four things hold: make one deck_issue_patch call carrying both comment and close:true. Write the comment in a format others can re-check: one line per ticket saying what you checked (files, test names, commands); one line per user story with implementation or test evidence; delivery proof (branch name and commit, or the PR/MR merge and landing commits, or the file list when there is no version control); the check commands and results; the new ticket keys for leftovers. Do not write vague conclusions such as "checked, passed".
+    - [ ] Self-check before closing: the commit in the comment is the tree the checks ran on, and the results come from this session, not from memory; if they do not match, go back to verification or delivery.
+    - [ ] If any item does not hold: do not close; state where you are stuck and who does the next step, according to the type of gap.
+
+    {{shared:sharedTools}}
 specExecute:
   version: 5
   placeholders:
@@ -399,10 +362,7 @@ specExecute:
     - [ ] 每完成一张实施 issue，如实更新它的状态与正文。
     - [ ] 全部实施 issue 关闭后，提醒用户点规格详情页的「完成」按钮做收口核对（不是自动关闭）。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /implement-spec
     {url}
@@ -420,10 +380,7 @@ specExecute:
     - [ ] After each implementation issue is done, update its state and body truthfully.
     - [ ] When all implementation issues are closed, remind the user to click "Complete" in the spec detail for the wrap-up check (not an automatic close).
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 specSplit:
   version: 5
   placeholders:
@@ -445,10 +402,7 @@ specSplit:
     - [ ] 把「已拆成 N 张实施 issue」写进这张规格 issue 的正文，方便下次打开知道进度。
     - [ ] 提醒用户：之后在规格详情里点「执行」逐票推进；全部实施 issue 关闭后点「完成」做收口核对。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /to-tickets
     {url}
@@ -465,7 +419,4 @@ specSplit:
     - [ ] Write "split into N implementation issues" into this spec issue’s body so the next session can see the progress.
     - [ ] Remind the user: push tickets one by one with the "Execute" button in the spec detail; when all implementation issues are closed, click "Complete" for the wrap-up check.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}

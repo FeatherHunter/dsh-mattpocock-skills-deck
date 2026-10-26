@@ -1,7 +1,8 @@
 /**
  * scripts/lib/prompt-config.mts —— 提示词 YAML 配置的共享加载与校验核（#1292 立）。
  *
- * 提示词的真源搬到 config/prompts/ 下的五份 YAML 与 config/languages.yaml（语言清单）之后，
+ * 提示词的真源搬到 config/prompts/ 下的五份族 YAML、一份跨族公共小节 YAML（shared-sections.yaml）
+ * 与 config/languages.yaml（语言清单）之后，
  * 生成器（scripts/generate-prompt-config.mts）与门禁（tests/verify-prompt-config.ts）都要读同一份 YAML、
  * 按同一份清单核键。把加载与校验口集中到这一处，两边不会再各写一份 ——
  * 写两份就是「改了 YAML 的键名、忘了同步更新某一边」这种悄悄失效的温床。
@@ -17,8 +18,14 @@
  *   · PROMPT_FRAGMENT_IDS —— 三处片段 id（newBugFields / newWayfinderWiring / vocabularyDefaults）。
  *     模板一份字面量有版本号与 placeholders 两类元字段，片段只装 zh/en 两份 —— 不是模板，
  *     分类不同。门禁与生成器都按片段口径核（zh/en 必含，占位符用法单独看）。
+ *   · PROMPT_SHARED_SECTION_IDS —— 跨族公共小节（今天只有 sharedTools：「## 工具」那三条）。
+ *     它不属于任何一族，单独住在 config/prompts/shared-sections.yaml；模板正文里写
+ *     {{shared:sharedTools}}，readPromptConfig 展开时把对应语言的正文整段换进去。
+ *     这样「## 工具」只写一遍、20 个模板都引用它，不会再出现改一处漏其余的情况。
  *   · readPromptYamls —— 读五份提示词 YAML 与一份语言清单，返回结构化对象。
  *     YAML 真读不到 / 解析失败 / 顶层形状不对一律报错（不静默返回空）。
+ *   · readSharedSections + expandSharedSections —— 读公共小节 YAML，并在读配置时把模板里的
+ *     {{shared:<id>}} 标记展开成正文；标记不展开就进提示词比缺一段更难查，所以两处都当场抛错。
  *   · validatePromptData —— 照 PROMPT_TEMPLATE_IDS / PROMPT_FRAGMENT_IDS 核 YAML 字段：
  *     zh/en 必含且非空、占位符声明必须用全（声明但未用、用但未声明都红）、
  *     use 字段只许在模板条目上出现、元字段齐全。
@@ -110,10 +117,12 @@ export interface TemplateShape {
   en: string
 }
 
-/** 加载后的全套结构：五份模板族（三处片段按注入时机住在对应族里）+ 一份语言清单。 */
+/** 加载后的全套结构：五份模板族（三处片段按注入时机住在对应族里）+ 跨族公共小节 + 一份语言清单。
+ *  templates 里的正文是展开后的：模板里写 {{shared:sharedTools}} 的地方，读出来已经是那一节的中英正文。 */
 export interface PromptConfig {
   templates: Record<PromptFamily, Record<string, TemplateShape>>
   fragments: Record<string, FragmentShape>
+  sharedSections: Record<string, SharedSectionShape>
   languages: LanguageConfig
 }
 
@@ -205,6 +214,108 @@ export const PROMPT_YAML_PATHS: ReadonlyArray<string> = [
 ]
 
 // ---------------------------------------------------------------------------
+// 跨族公共小节
+// ---------------------------------------------------------------------------
+
+/** 跨族公共小节 YAML 的路径（以 repoRoot 为根的相对路径）。
+ *  它不在 PROMPT_YAML_PATHS 里：那份清单是「五份族文件 + 语言清单」，族按注入时机分；
+ *  公共小节不属于任何时机，只属于「多处共用」，所以单独一份、单独一条读取路径。 */
+export const PROMPT_SHARED_SECTIONS_REL = 'config/prompts/shared-sections.yaml'
+
+/** 公共小节 id 清单。新增一节时改这一处，YAML 顶层键必须与它逐项相等。 */
+export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools']
+
+/** 一个公共小节的形状：只装 zh/en 两份正文，没有版本号与占位符（它不是一条模板）。 */
+export interface SharedSectionShape {
+  zh: string
+  en: string
+}
+
+/** 模板正文里引用公共小节的标记：`{{shared:<id>}}`。
+ *  写成双花括号加冒号是故意的——占位符校验认的是 `{x}`（`/\{(\w+)\}/`），
+ *  两者不同形，标记不会被误当成占位符，也不会因为占位符双向校验而红。 */
+const SHARED_MARKER_RE = /\{\{shared:([A-Za-z0-9_-]+)\}\}/g
+
+/**
+ * 读公共小节 YAML：顶层键必须与 PROMPT_SHARED_SECTION_IDS 逐项相等，每节 zh/en 非空。
+ * 读不到 / 解析错 / 多键少键 / 空正文一律抛错——公共小节缺一节，20 个模板会同时缺一段话，
+ * 这种故障不能静默放行。
+ */
+export function readSharedSections(repoRoot: string): Record<string, SharedSectionShape> {
+  const abs = path.join(repoRoot, PROMPT_SHARED_SECTIONS_REL)
+  let text: string
+  try {
+    text = fs.readFileSync(abs, 'utf8')
+  } catch {
+    throw new Error('读不到 ' + PROMPT_SHARED_SECTIONS_REL + '：跨族公共小节缺一不可')
+  }
+  const doc = yaml.parse(text) as unknown
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+    throw new Error(PROMPT_SHARED_SECTIONS_REL + ' 顶层必须是对象（顶层键 = 公共小节 id）')
+  }
+  const table = doc as Record<string, unknown>
+  const known = new Set(PROMPT_SHARED_SECTION_IDS)
+  for (const id of Object.keys(table)) {
+    if (!known.has(id)) {
+      throw new Error(
+        PROMPT_SHARED_SECTIONS_REL + ' 里有登记外的公共小节：' + id + '（清单在 PROMPT_SHARED_SECTION_IDS；想加就把那张表也补上）',
+      )
+    }
+  }
+  const out: Record<string, SharedSectionShape> = {}
+  for (const id of PROMPT_SHARED_SECTION_IDS) {
+    const entry = table[id] as Record<string, unknown> | undefined
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error(PROMPT_SHARED_SECTIONS_REL + ' 缺公共小节：' + id + '（清单与 YAML 必须逐项相等）')
+    }
+    const zh = String(entry.zh ?? '')
+    const en = String(entry.en ?? '')
+    if (!zh.trim()) throw new Error('公共小节 ' + id + ' 缺 zh 正文（' + PROMPT_SHARED_SECTIONS_REL + '）')
+    if (!en.trim()) throw new Error('公共小节 ' + id + ' 缺 en 正文（' + PROMPT_SHARED_SECTIONS_REL + '）')
+    out[id] = { zh, en }
+  }
+  return out
+}
+
+/**
+ * 把模板正文里的 `{{shared:<id>}}` 展开成对应语言的公共小节正文。
+ *
+ * 展开放在读取这一层（readPromptConfig 里）：生成物、门禁、单文件探针拿到的都是展开后的完整正文，
+ * 不需要各自再实现一遍替换；生成器的产物形状也就不用变。
+ * 引用未登记的 id、或展开后仍残留标记，都当场抛错——半截正文进了提示词，比缺一段更难查。
+ */
+export function expandSharedSections(
+  templates: Record<PromptFamily, Record<string, TemplateShape>>,
+  sharedSections: Record<string, SharedSectionShape>,
+): Record<PromptFamily, Record<string, TemplateShape>> {
+  const expandOne = (templateId: string, body: string, lang: 'zh' | 'en'): string => {
+    // 全局正则有 lastIndex 状态，每次展开前复位，免得跨模板、跨语言互相影响。
+    SHARED_MARKER_RE.lastIndex = 0
+    const replaced = body.replace(SHARED_MARKER_RE, function (_whole: string, sectionId: string): string {
+      const section = sharedSections[sectionId]
+      if (!section) {
+        throw new Error(
+          '模板 ' + templateId + ' 引用了未登记的公共小节：' + sectionId + '（见 PROMPT_SHARED_SECTION_IDS 与 ' + PROMPT_SHARED_SECTIONS_REL + '）',
+        )
+      }
+      return section[lang]
+    })
+    if (replaced.indexOf('{{shared:') >= 0) {
+      throw new Error('模板 ' + templateId + ' 的 ' + lang + ' 正文里还有没展开完的公共小节标记（形状应是 {{shared:名字}}）')
+    }
+    return replaced
+  }
+  const out = {} as Record<PromptFamily, Record<string, TemplateShape>>
+  for (const fam of PROMPT_FAMILIES) {
+    out[fam] = {}
+    for (const [id, tpl] of Object.entries(templates[fam])) {
+      out[fam][id] = { ...tpl, zh: expandOne(id, tpl.zh, 'zh'), en: expandOne(id, tpl.en, 'en') }
+    }
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
 // 读 YAML
 // ---------------------------------------------------------------------------
 
@@ -281,13 +392,15 @@ export function readLanguageYaml(repoRoot: string): LanguageConfig {
 }
 
 /**
- * 一次性读全部：五份模板族 YAML（片段与模板同住）+ 一份语言清单。任一缺失都抛。
+ * 一次性读全部：五份模板族 YAML（片段与模板同住）+ 一份公共小节 YAML + 一份语言清单。任一缺失都抛。
  * 这条是生成器与门禁的共用入口 —— 不各写一份。
+ * 模板里的 {{shared:<id>}} 在这里展开：调用方拿到的 templates 一律是展开后的完整正文。
  */
 export function readPromptConfig(repoRoot: string): PromptConfig {
   const { templates, fragments } = readPromptYamls(repoRoot)
+  const sharedSections = readSharedSections(repoRoot)
   const languages = readLanguageYaml(repoRoot)
-  return { templates, fragments, languages }
+  return { templates: expandSharedSections(templates, sharedSections), fragments, sharedSections, languages }
 }
 
 // ---------------------------------------------------------------------------

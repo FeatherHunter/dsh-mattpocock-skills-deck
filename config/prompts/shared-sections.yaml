@@ -1,0 +1,16 @@
+# 跨族公共小节（#1298 收尾提示词落地时立）：只写一遍、被多个族的提示词模板引用的正文字句。
+# 模板正文里写 {{shared:sharedTools}}，scripts/lib/prompt-config.mts 在 readPromptConfig 里展开成对应语言的正文。
+# 为什么不放进那五份族 YAML：族的划分是「这条提示词什么时候被注入」，公共小节不属于任何时机，
+# 它只属于「好几处共用同一段话」这一件事；混进族文件会让「按注入时机分族」这条规矩失真。
+# 新增一节：在下面加一条（每个 id 只装 zh/en 两份正文），同时把 PROMPT_SHARED_SECTION_IDS 补上。
+sharedTools:
+  zh: |-
+    ## 工具
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+  en: |-
+    ## Tools
+    - [ ] Prefer the deck_ tools for issue operations
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.

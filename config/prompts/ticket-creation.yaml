@@ -40,10 +40,7 @@ newBugWayfinder:
     ## 自查
     - [ ] 逐项核对无遗漏；查重记录已写进正文（或已在旧单评论）；结束前写明真实状态
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     Please help me file a new BUG ticket (follow the wayfinder skill rules).
@@ -81,10 +78,7 @@ newBugWayfinder:
     ## Self-check
     - [ ] Check every box with no gaps; duplicate-check record written into the body (or already commented on the old ticket); true state written before finishing
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 newSpec:
   version: 4
   placeholders:
@@ -105,10 +99,7 @@ newSpec:
     - [ ] 讨论结束、结论对齐后，提醒用户手动执行一次 /to-spec，把结论生成规格 issue。
     - [ ] 在规格 issue 生成后，再提醒用户手动执行一次 /to-tickets，把规格 issue 拆成实施 issue。
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /grill-with-docs
     Help me discuss a requirement (strictly follow the grill-with-docs skill rules).
@@ -124,10 +115,7 @@ newSpec:
     - [ ] Once the discussion is settled and the conclusion is aligned, remind the user to manually run /to-spec once to turn the conclusion into a spec issue.
     - [ ] After the spec issue is created, remind the user to manually run /to-tickets once to split the spec issue into implementation issues.
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 newWayfinder:
   version: 23
   placeholders:
@@ -146,10 +134,7 @@ newWayfinder:
 
     ## 收尾
 
-    ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
-    - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
+    {{shared:sharedTools}}
   en: |-
     /wayfinder
     Please handle a requirement (strictly follow the wayfinder skill rules).
@@ -163,10 +148,7 @@ newWayfinder:
 
     ## Wrap-up
 
-    ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
-    - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+    {{shared:sharedTools}}
 
 # ============================================================
 # 这一段是「片段」：不是一条完整模板，而是模板里替换进去的一段话。

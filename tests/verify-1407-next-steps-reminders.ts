@@ -54,7 +54,7 @@ const TARGETS = {
     healthCheck: 5,
     mapExecute: 20,
     mapInspect: 12,
-    specComplete: 6,
+    specComplete: 7,
     specExecute: 5,
     specSplit: 5,
   },

@@ -347,7 +347,9 @@ async function main() {
     check(block.indexOf('旁路') >= 0 && block.indexOf('重开') >= 0, '⑤ specComplete 写清没有「顺手关」的旁路、重开只由人做')
     const sv = /version:\s*(\d+)/.exec(block.slice(0, 200))
     check(sv !== null && Number(sv[1]) >= 3, '⑤ specComplete 版本升到 3（补交付边界后必须同步升版）')
-    ;['长期分支', 'PR', '没有版本库', '提交号', '等待'].forEach(function (word) {
+    // v7（v3.2 收尾提示词）：把「等待」从判据里去掉——新正文不再把等人合并写成「等待」，
+    // 改成「需要人合并就停下」，其余交付边界词照旧逐条锁住。
+    ;['长期分支', 'PR', '没有版本库', '提交号'].forEach(function (word) {
       check(block.indexOf(word) >= 0, '⑤ specComplete v3 写清交付边界：含「' + word + '」')
     })
     check(block.indexOf('long-lived branch') >= 0 && block.indexOf('no version control') >= 0, '⑤ specComplete v3 英文同步写清长期分支与无版本库两种收尾')
