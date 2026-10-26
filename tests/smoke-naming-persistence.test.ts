@@ -48,6 +48,8 @@ function makeFakeRegistry() {
     },
   }
   return {
+    // #1555：判定出口按注册表契约问 has；伪造表要照契约补上，否则“装没装”一问就判没装。
+    has: (id) => String(id) === 'github',
     select: async () => ({ backendId: 'github', source: 'explicit', canWrite: true, reason: '测试注入：显式选过 GitHub', ref: ref }),
     describe: () => ref,
     get: (id) => (String(id) === 'github' ? room : null),

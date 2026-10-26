@@ -237,6 +237,8 @@ function makeFakeRegistry(initProject, subprocess) {
     },
   }
   return {
+    // #1555：判定出口按注册表契约问 has（这个伪造表以前漏了这一格，开工前先问“装没装”时会把它当成没装）。
+    has: function (id) { return id === 'github' },
     select: async function () { return { backendId: 'github', source: 'explicit', canWrite: true, reason: '测试注入：工作区文件里人显式选过 GitHub' } },
     describe: function () { return github.describe() },
     get: function (id) { return id === 'github' ? github : undefined },

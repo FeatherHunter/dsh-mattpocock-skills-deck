@@ -208,9 +208,9 @@ export function createRefreshWiring(deps: any): any {
     ledger: ledger,
     backendCtx: syncBackendCtxOf,
     logCtx: logCtx,
-    ensureBackend: function (backendId: any, budget: any): void {
-      try { if (ledger && typeof ledger.ensureBackend === 'function') ledger.ensureBackend(String(backendId), budget) } catch (eEn: any) {}
-    },
+    // #1555：开会话默认选后端时先问统一判定（只有一份答案）；判定层不可用时 session-opener 退回裸问注册表。
+    getDecisionFn: function (): any { return (typeof d.getDecisionFn === 'function') ? d.getDecisionFn() : null },
+    ensureBackend: function (backendId: any, budget: any): void { try { if (ledger && typeof ledger.ensureBackend === 'function') ledger.ensureBackend(String(backendId), budget) } catch (eEn: any) {} },
   })
   const openSession = async function (cwd: any, opts?: any): Promise<any> {
     // 会话上下文里的 platform 必须是对象而不是 Promise（见 syncBackendCtxOf 上面那段）：先在异步入口等它就绪。

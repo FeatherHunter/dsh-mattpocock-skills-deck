@@ -18,10 +18,17 @@
  *     由它先过裁决、再按后端口径记账（#1453，规格 1439 第 5 节：gh repo view 那一级是出站，
  *     必须放在会话建立之后、走操作管线）。宿主那一份 getRepoKey 只读本地证据，这里不用它兜底。
  *
+ * 第 4 条（#1555 补）：调用方没有显式给选择时，本文件先问统一判定（deps.decideSelection，\
+ * 工作区文件 > 声明文件 > 自动识别）再开会话；判定层缺席或抛错才退回裸问注册表（#1444 之前的行为）。
+ * 为什么不能像 #1444 那样直接裸问：裸问只看各家 matches，会把「已经定了后端、又有两家同时举手」的
+ * 工作区判成 multi-match；详情与评论于是整批读不到（#1555 的真机现场）。判定自己带着 multiHit 时
+ * 原样交回，由 openTracker 拒绝 —— 这一层不替人挑赢家。
+ *
  * 与 1443 的额度同步读数（refresh-runtime 的 readSessionBudget）的关系：那一处只读一条 readBudget、
  * 不开整套读写路径。本文件的开会话也复用它——读数仍然直达房间，不裁决不记账。
  */
 import { openTracker } from '../../../tracker/session/open-tracker.js'
+import { createSessionDecisionResolver } from './session-decision.js'
 import { createAccountPort } from '../../kernel/backend-accounting.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 import type { SelectionResolver } from '../../../tracker/session/open-tracker.js'
@@ -49,6 +56,14 @@ export interface SessionOpenerDeps {
    * 装配方（refresh-runtime）手里才有账本实例。缺省不调：门禁与单测里不注入就保持旧行为。
    */
   ensureBackend?: (backendId: string, budget: unknown) => void
+  /**
+   * #1555：没有显式选择时，先问统一判定要这次会话的后端。
+   * 回 null 表示判定层这一趟给不出结论（没接线、抛错），本文件退回裸问注册表（#1444 之前的行为）。
+   * 判定自己带着 multiHit 时原样交回，由 openTracker 拒绝 —— 不在这一层替人挑。
+   */
+  decideSelection?: (cwd: string) => Promise<DecidedSelection | null>
+  /** #1555：装配方交来的统一判定函数（refresh-runtime 递 host 的那一份）；给了就在这里现造 decideSelection。 */
+  getDecisionFn?: () => any
 }
 
 /** 一层会话：会话本身、这一次的仓库身份、以及「这个会话能不能写」的结论。 */
@@ -91,6 +106,15 @@ export interface OpenSessionOptions {
   exec?: SessionExec
 }
 
+/** 判定层交回来的选择：开会话只读这五格（与契约 Selection 同形；ref 可空）。 */
+interface DecidedSelection {
+  backendId: string | null
+  source?: string
+  ref?: RepositoryRef | null
+  multiHit?: string[]
+  pending?: true
+}
+
 /** 读操作的裁决口：一律放行（见文件头第 1 条）。 */
 const readAdmit: AdmitPort = function (): { allowed: true; reason: string } {
   return { allowed: true, reason: 'read-path' }
@@ -106,6 +130,8 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
   // ledger.spend。桥里那份账号记 'ai-tool'，与本文件这份档位不同（两条路的 caller 不同，账要分开记）。
   const accountPort = createAccountPort({ ledger: deps.ledger, account: 'plugin' })
   const logCtx = deps.logCtx || null
+  // #1555：没显式给选择时先问统一判定；装配方给判定函数就现造一个，门禁也可以直接递 decideSelection。
+  const decideSelection = (typeof deps.decideSelection === 'function') ? deps.decideSelection : ((typeof deps.getDecisionFn === 'function') ? createSessionDecisionResolver({ getDecisionFn: deps.getDecisionFn, getTrackerRegistry: deps.getTrackerRegistry, backendCtx: deps.backendCtx }) : null)
   function openFail(reason: string, detail?: string): SessionFailure {
     try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('debug', 'read.session', { ok: false, reason: reason }) } catch (eL: any) {}
     return { ok: false, reason: reason, detail: detail }
@@ -159,6 +185,22 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
     // 选后端仍然只经 openTracker（宿主与刷新机制不许自己调注册表选择）；调用方显式给了选择就尊重它的那份。
     let matchCtx: Partial<OpContext> = {}
     try { matchCtx = (deps.backendCtx() || {}) as Partial<OpContext> } catch (eB: any) { matchCtx = {} }
+    // #1555：没有显式选择时，先问统一判定（只有一份答案）；判定层这一趟给不出结论，才退回裸问注册表。
+    // 为什么不是「判定与裸问都走一遍」：同一个问题只能有一份答案，两套答法正是这次故障的来源。
+    const explicitResolve: SelectionResolver | null = (opts && typeof opts.resolveSelection === 'function') ? opts.resolveSelection : null
+    let resolveSelection: SelectionResolver | null = explicitResolve
+    if (!explicitResolve && typeof decideSelection === 'function') {
+      resolveSelection = async function (handle: any, ctx: any): Promise<any> {
+        let decided: any = null
+        try { decided = await decideSelection(String((handle && handle.cwd) || cwdStr)) } catch (eDS: any) { decided = null }
+        if (decided) return decided
+        // 判定层这一次给不出结论（没接线、抛错）：退回改动前的行为 —— 裸问注册表；后端上下文仍用同一份 matchCtx。
+        let reg: any = null
+        try { reg = await deps.getTrackerRegistry() } catch (eRG: any) { reg = null }
+        if (!reg || typeof reg.select !== 'function') return null
+        return reg.select(handle, Object.assign({}, matchCtx, ctx))
+      }
+    }
     const write: boolean = !!(opts && opts.write === true)
     try {
       const opened: any = await openTracker({ cwd: cwdStr }, {
@@ -171,9 +213,9 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         ...(write
           ? { canWriteFromSelection: true, canWriteReason: '写会话的写权限由判定出口回答（取不到就是没就绪，不默认放开）' }
           : { canWriteReason: '读会话只读：读路径今天从不因额度推迟，所以裁决一律放行' }),
-        // 调用方显式给了选择就尊重它那份（快照复用判定结论、面板按已核验的后端取数），
-        // 没给才把后端上下文当匹配条件交给缺省选择器。
-        ...((opts && typeof opts.resolveSelection === 'function') ? { resolveSelection: opts.resolveSelection } : { matchContext: matchCtx }),
+        // 调用方显式给了选择就尊重它那份（快照复用判定结论、面板按已核验的后端取数）；
+        // 没给则先按统一判定（判定层不可用时退回裸问注册表，见上面 resolveSelection 的那段）。
+        ...(resolveSelection ? { resolveSelection: resolveSelection } : { matchContext: matchCtx }),
       })
       if (!opened || opened.ok !== true) {
         return openFail(String((opened && opened.reason) || 'open-failed'), String((opened && opened.detail) || ''))

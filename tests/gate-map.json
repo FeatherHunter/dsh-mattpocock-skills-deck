@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T12:51:45.288Z",
+  "generatedAt": "2026-10-26T16:07:18.297Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 399,
-  "gateCount": 399,
-  "attributedGates": 356,
+  "chainLength": 401,
+  "gateCount": 401,
+  "attributedGates": 358,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 592,
+  "graphFileCount": 594,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3772,6 +3772,39 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1555-gitlab-claim-declaration.ts",
+      "file": "tests/verify-1555-gitlab-claim-declaration.ts",
+      "guards": [
+        "src/tracker/kernel/issue-tracker-declaration.ts",
+        "src/tracker/rooms/gitlab"
+      ],
+      "dirs": [
+        "src/tracker/kernel",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1555-session-uses-decision.ts",
+      "file": "tests/verify-1555-session-uses-decision.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/session-opener.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10499,6 +10532,7 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1548-map-row-nav.ts",
+      "node tests/verify-1555-session-uses-decision.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -10757,6 +10791,7 @@
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1533-git-remote-claim.ts",
+      "node tests/verify-1555-gitlab-claim-declaration.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -10876,6 +10911,7 @@
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1533-git-remote-claim.ts",
+      "node tests/verify-1555-gitlab-claim-declaration.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
@@ -11190,9 +11226,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 613,
+    "fileCount": 615,
     "dirCount": 74,
-    "coveredFileCount": 613,
+    "coveredFileCount": 615,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11570,6 +11606,7 @@
       "src/refresh/rooms/host/refusal-messages.ts",
       "src/refresh/rooms/host/repo-page-accounting.ts",
       "src/refresh/rooms/host/row-patch.ts",
+      "src/refresh/rooms/host/session-decision.ts",
       "src/refresh/rooms/host/session-opener.ts",
       "src/refresh/rooms/host/session-refresh-schedule.ts",
       "src/refresh/rooms/host/session-snapshot-cache.ts",
@@ -11690,6 +11727,7 @@
       "src/tracker/kernel/error-rules.ts",
       "src/tracker/kernel/git-remote.ts",
       "src/tracker/kernel/identity-keys.ts",
+      "src/tracker/kernel/issue-tracker-declaration.ts",
       "src/tracker/kernel/log-emit.ts",
       "src/tracker/kernel/outbound-tiers.ts",
       "src/tracker/kernel/preflight.ts",
@@ -11988,7 +12026,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 48
+        "fileCount": 49
       },
       {
         "path": "src/shared/command-cleanup",

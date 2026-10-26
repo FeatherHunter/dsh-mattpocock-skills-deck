@@ -24,6 +24,9 @@ import { glabPreflight } from './preflight.js'
 import { emitReadDegraded } from './read-log.js'
 // #1533：认领只看 `.git/config` 里的远端地址，不扫整份文本（分支名带 gitlab 不再误认领）。
 import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
+// #1555：声明文件用判定层同一套解析器，只认「声明」不认「正文里提了一句」。
+// 旧的整篇 /gitlab/i 扫描会把 GitHub / Local Markdown 的工作区也拉进多命中，详情与评论因此读不到。
+import { normalizeTrackerText, parseIssueTracker } from '../../kernel/issue-tracker-declaration.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
@@ -113,11 +116,13 @@ async function readWorkspaceFile(fs: MarkerFs, cwd: string, rel: string): Promis
 /**
  * GitLab matches：启发式 boolean —— 这个工作区是不是 GitLab 仓库。
  *
- * 依次看三处，任何一处指向 gitlab 就认（#1533：判据是「指向」，不是「文本里出现过这个词」）：
- *   1. `.git/config` 里记下的远端地址（只看 `[remote ...]` 段的 `url`，分支名等其它文字不看）；
- *   2. `docs/agents/issue-tracker.md` 里声明的后端；
- *   3. 兜底真问一次 `git remote get-url origin`（best-effort，2 秒）。
- * 三处都不认，或者线索不够，一律回 false —— 「不确定就当不是」是既定口径，不是故障。
+ * 依次看四处，任何一处指向 gitlab 就认（#1533：判据是「指向」，不是「文本里出现过这个词」）：
+ *   1. `handle.refId` 显式带 gitlab；
+ *   2. `.git/config` 里记下的远端地址（只看 `[remote ...]` 段的 `url`，分支名等其它文字不看）；
+ *   3. `docs/agents/issue-tracker.md` 里**明写的声明**：与判定层共用 parseIssueTracker，只认
+ *      `# Issue tracker: GitLab` 这种高置信标题行；正文里提到 GitLab 不算声明（#1555）；
+ *   4. 兜底真问一次 `git remote get-url origin`（best-effort，2 秒）。
+ * 四处都不认，或者线索不够，一律回 false —— 「不确定就当不是」是既定口径，不是故障。
  *
  * #1130：这一趟的失败原因必须能从房里报出来（走本房的 `read-log.ts`，事件名沿用全仓登记的
  * `read.degraded`），不能像从前那样被空 catch 吞掉、外面只剩一句「没认出来」。
@@ -155,10 +160,16 @@ async function matches(
     const cfg = await readWorkspaceFile(fs, cwd, '.git/config')
     if (cfg === null) emitReadDegraded(ctx, 'matches', 'matches:git-config', Date.now() - startedAt)
     else if (remoteUrlsOfGitConfig(cfg).some((u) => /gitlab/i.test(u))) return true
-    // 2) issue-tracker.md 是否声明 gitlab
+    // 2) issue-tracker.md 声明的是不是 GitLab：用判定层那套 parseIssueTracker，只认高置信标题行（#1555）。
+    //    旧写法在整篇文本里找 /gitlab/i —— 正文里提一句「GitLab 的 MR 不参与分诊」也会被算成 GitLab 工作区；
+    //    真机上它与 markdown 同时举手，详情/评论开会话判 multi-match，整批子票读不到。
+    //    低置信的正文兜底留给判定层（声明层排在自动识别之前，不需要认领再猜一遍）。
     const doc = await readWorkspaceFile(fs, cwd, 'docs/agents/issue-tracker.md')
     if (doc === null) emitReadDegraded(ctx, 'matches', 'matches:tracker-doc', Date.now() - startedAt)
-    else if (/gitlab/i.test(doc)) return true
+    else {
+      const parsed = parseIssueTracker(normalizeTrackerText(doc))
+      if (parsed && parsed.confidence === 'high' && parsed.explicitBackendId === 'gitlab') return true
+    }
     // 3) exec git remote 兜底（best-effort，2s）
     const exec = ctx && ctx.exec
     if (exec) {

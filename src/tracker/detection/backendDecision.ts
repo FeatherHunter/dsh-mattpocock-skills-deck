@@ -316,7 +316,12 @@ export interface DecideBackendDeps extends FileLayerDeps, DeclarationLayerDeps {
   caller?: string
   signal?: AbortSignal
   autodetect?: (handle: RepoHandle, ctx: unknown) => Promise<Selection | null>
-  skipAutodetect?: boolean
+  skipAutodetect?: boolean; autodetectContext?: Record<string, unknown>
+  // 上一行的 autodetectContext（#1555）：调用方手里可能有匹配要用的现场能力（例如宿主的起进程出口 exec
+  // 与 timers），这些能力不属于判定层自己的依赖。它的键先铺进自动识别的 ctx，下面几格
+  // （cwd / platform / fs / caller / signal）再覆盖 —— 所以补充项只能补能力，改不了这一次的目录与调用名。
+  // 为什么不让调用方自带 autodetect 钩子：宿主与刷新机制里只有 openTracker 能调注册表选择
+  // （#1443 的静态门禁），由判定出口自己跑自动识别，选后端的入口就还是那一个。
   logCtx?: DecisionLogCtx | null
   /**
    * 证据范围（#1048 收口补做）：`decisive` 只要一个结论（默认，与今天逐格一致）；
@@ -973,11 +978,11 @@ async function collectEvidence(cwd: string, deps: DecideBackendDeps, scope: Evid
     if (typeof deps.autodetect === 'function') {
       // 可选钩子：调用方把自己的自动识别包一层再交进来（例如工具壳把配额闸包在外面，
       // 行为与直接调注册表一致，只多记账）。不传钩子时直调注册表，其余三路走这一条。
-      const ctx = { cwd, platform: deps.platform || null, fs: deps.fs || null, caller: deps.caller || 'backend-decision', signal: deps.signal };
+      const ctx = Object.assign({}, (deps.autodetectContext && typeof deps.autodetectContext === 'object') ? deps.autodetectContext : {}, { cwd, platform: deps.platform || null, fs: deps.fs || null, caller: deps.caller || 'backend-decision', signal: deps.signal });
       sel = await deps.autodetect(handle, ctx);
       ran = true;
     } else if (registry && typeof registry.select === 'function') {
-      const ctx = { cwd, platform: deps.platform || null, fs: deps.fs || null, caller: deps.caller || 'backend-decision', signal: deps.signal };
+      const ctx = Object.assign({}, (deps.autodetectContext && typeof deps.autodetectContext === 'object') ? deps.autodetectContext : {}, { cwd, platform: deps.platform || null, fs: deps.fs || null, caller: deps.caller || 'backend-decision', signal: deps.signal });
       sel = await registry.select(handle, ctx);
       ran = true;
     }

@@ -34,6 +34,8 @@ const badTracker = { id: 'gitlab-x', describe: () => ({ backend: 'gitlab-x', ref
 const githubBudget = { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true }
 const offNetworkBudget = { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }
 const fakeRegistry = {
+  // #1555：判定出口按注册表契约问 has；伪造表要照契约补上，否则“装没装”一问就判没装。
+  has: (id) => id === 'github' || id === 'gitlab-x',
   // canWrite:true = 用户在这个工作区里显式选过后端；写会话要拿它过写权限硬顶。
   select: async () => ({ backendId: 'github', source: 'explicit', canWrite: true, reason: '工作区文件里人显式选过' }),
   describe: (_handle, backendId) => ({ backend: backendId, refId: 'FeatherHunter/dsh-mattpocock-skills-deck', name: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck' }),
