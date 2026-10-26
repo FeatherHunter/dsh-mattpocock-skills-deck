@@ -236,7 +236,7 @@ export const workRouteNavOf = function (st: any, r: WorkRouteTableRow): any {
  * 这里只管用：WorkRouteTable 用算出来的那一份同时画表头与每一行（对齐不变），行内容未知时用默认。 */
 declare function workRouteCellsFor(rows: any): string
 /** 行内容未知时的默认模板（全短编号那一档）；表头与数据行都要显式传算好的那一份。 */
-export const WORK_ROUTE_TABLE_CELLS = '56px minmax(110px, 1.7fr) minmax(80px, 1fr) 48px 36px 36px'
+export const WORK_ROUTE_TABLE_CELLS = '56px minmax(150px, 1.7fr) minmax(104px, 1fr) 48px 36px 36px'
 
 const workRouteCellStyle = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as any
 
@@ -380,8 +380,9 @@ export const WorkRouteTable = ({ st, onNavigate }: any) => {
   ])
 }
 
-/** 浮层的最小宽度：六列最少要放下这么多像素，再窄就出现横向滚动。 */
-const WORK_ROUTE_POPOVER_MIN_WIDTH = 520
+/** 浮层的最小宽度：标题保底 150px、会话保底 104px，加上首列最宽那一档，至少要 680 才不挤出横向滚动。
+ * 弹窗是咱们自己画的，窄了只会把标题和会话压成省略号 —— 宁可一开始就给够。面板更宽时浮层跟面板同宽（下）。 */
+const WORK_ROUTE_POPOVER_MIN_WIDTH = 680
 
 /**
  * 面板头部那一行右端的「在办表」入口（#1285）。

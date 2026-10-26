@@ -78,7 +78,8 @@ export function workRouteFirstColWidthOf(rows: unknown): string {
   if (widest <= 136) return '136px'
   return '192px'
 }
-/** 六列模板：首列按行内容自适应（上），其余五列沿用 #1287 的定宽与比例。 */
+/** 六列模板：首列按行内容自适应（上），动作三列沿用 #1287 的定宽；标题与会话两列吃富余，
+ * 保底 150px / 104px（11px 字号下标题至少放下 13 个汉字 —— 10 个字一定完整，会话约 9 个字）。 */
 export function workRouteCellsFor(rows: unknown): string {
-  return workRouteFirstColWidthOf(rows) + ' minmax(110px, 1.7fr) minmax(80px, 1fr) 48px 36px 36px'
+  return workRouteFirstColWidthOf(rows) + ' minmax(150px, 1.7fr) minmax(104px, 1fr) 48px 36px 36px'
 }

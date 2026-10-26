@@ -293,6 +293,7 @@ async function main() {
   check(workRouteCellsFor([{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021' }]).split(' ')[0] === '192px', '自适应：32 字超长目录封顶 192px（再长走省略号+悬停，不无限撑）')
   check(pxOf(tracks[4]) < 72 && pxOf(tracks[5]) < 48, '「动作时间」与「是否在办」两列比改版前窄（72→36、48→36），省下的宽度让给标题与会话')
   check(tracks[1].indexOf('fr') > 0 && tracks[2].indexOf('fr') > 0, '标题与会话两列按比例吃掉全部富余宽度（票标题与会话名先长出来，不被挤成省略号）')
+  check(tracks[1] === 'minmax(150px, 1.7fr)' && tracks[2] === 'minmax(104px, 1fr)', '标题保底 150px（11px 字号下 10 个汉字一定完整）、会话保底 104px：实得 ' + tracks[1] + ' / ' + tracks[2])
   const gridNodes = findAll(treeOk, (n: any) => n.props && n.props.style && typeof n.props.style.gridTemplateColumns === 'string')
   const gridTemplates: string[] = []
   gridNodes.forEach((n: any) => { if (gridTemplates.indexOf(n.props.style.gridTemplateColumns) < 0) gridTemplates.push(n.props.style.gridTemplateColumns) })
