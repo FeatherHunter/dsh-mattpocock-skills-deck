@@ -57,11 +57,8 @@ export const DECK_TOOL_FILES = Object.freeze([
 const _assertNineFiles: 9 = DECK_TOOL_FILES.length;
 
 /** 等待竞速共用（deck 侧自带：挂住的文件服务不能卡住选后端；超时按缺席跳过，调用方诚实报错）。
- * 用它的有三处：桥里的声明文件读取（src/refresh/registry/deck-tool-bridge.ts）、宿主运行时的保读数与文件读、
- * deck 工具文件各自的竞速；单测直验它（tests/verify-deck-no-hang.ts ⑧）。 */
-export function withCap(promise: unknown, ms: number): Promise<{ ok: boolean; value?: unknown; timedOut?: boolean }> {
-  return Promise.race([
-    Promise.resolve(promise).then(function (v: unknown) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise<{ ok: boolean; timedOut: boolean }>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
-  ])
-}
+ * 用它的有两处运行时代码：桥里的声明文件读取（src/refresh/registry/deck-tool-bridge.ts）、
+ * 宿主运行时的保读数与文件读（src/refresh/rooms/host/refresh-runtime.ts）；单测直验它
+ * （tests/verify-deck-no-hang.ts ⑧）。
+ * 实现搬进 src/deck/shell/capped-wait.ts（#1114 第二批）：到点就清等待定时器，不再把进程留在事件循环里。 */
+export { withCap } from '../shell/capped-wait.js'

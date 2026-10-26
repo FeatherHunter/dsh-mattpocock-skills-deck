@@ -1,14 +1,19 @@
 // src/deck/registration/register-options.ts —— 九个 deck_* 工具向 agent 注册的那一步（#741）
 // （旧 src/shared/deck-tools/agent-register.js，#1019 机械搬家只挪位置不改行为。）
 // 九个工具的实现与宿主装配都在，agent 列表却看不见，因为从没人调过注册。
-// 住共享层因为两边都要用（宿主接线与 agent 行模块），四层各自内部禁互引；唯一的例外是只读
-// 纯数据的中央时间参数目录（时间数字的真源，不含逻辑，见本文件顶部那一行 import）。
+// 住共享层因为两边都要用（宿主接线与 agent 行模块），四层各自内部禁互引；本文件只引三样：
+// 只读纯数据的中央时间参数目录（时间数字的真源）、壳层的等待口 sleepOnce（#1114 第二批：
+// 注册重试的等待定时器要 unref 并在到点后清掉，不能把宿主在最后一次调用之后多留几秒），
+// 以及壳层的存活租约 withInFlightLease（#1534 复核补的回归）：等待定时器不拥有进程存活，
+// 整条重试链必须显式扣着租约，否则只剩这笔 unref 等待时进程会带着退出码 0 静默收摊、工具永不注册。
 // defineTool 由调用方传（生产是工具包，门禁用仓库开发依赖里的真实现）；传不进来走退路。
 // 日志沿用既有事件不新增（调用走 host.call，注册结果见 makeDeckRegisterReport，#1030 Q6）。
 // 招牌（本文件交出去的名字）与后厨（装配拼出的实现表）必须同源：
 // 名字顺序的真源在装配清单与行数组（实际九个），注释里的“七个”是旧话，已按 #1030 Q1 改齐。
 // 时间数字不住这里：只引用纯数据的中央时间参数目录，不引用别的逻辑层。
 import { TOOL_TIMEOUT_MS, REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js';
+import { sleepOnce } from '../shell/capped-wait.js';
+import { withInFlightLease } from '../shell/in-flight-lease.js';
 
 /** 未知形状的对象（参数模式、定义、表都先按这形接住，守卫函数再逐格验，不猜）。 */
 type UnknownRecord = Record<string, unknown>;
@@ -454,42 +459,44 @@ export function hookDeckAgentTools(ctx: unknown, getTable: unknown, loadDefineTo
   function toolsSvcOf(): unknown {
     try { const carrier = ctx as UnknownRecord & { get?: (key: string) => unknown } | null; return (carrier && (carrier.tools || (typeof carrier.get === 'function' && carrier.get('tools')))) || null } catch (eS) { return null }
   }
-  function later(ms: number): Promise<void> { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+  // 注册重试的等待直接走 capped-wait 的 sleepOnce（#1114 第二批）：定时器统一 unref 并在到点后清掉；
+  // 这里不再自己写裸 setTimeout —— 每轮两秒、最多五轮的等待会把宿主在最后一次调用后多留最多 10 秒。
   // 取表也重试（2026-09-26）：启动时后端注册表/平台可能还没就绪，旧代码取一次失败就认了，
   // deck 工具永不注册。表就绪后再进服务等待。
   function table(left: number): Promise<unknown> {
     return Promise.resolve().then(function () { return typeof getTable === 'function' ? (getTable as () => Promise<unknown>)() : null }).then(function (built: unknown) {
-      const builtObj = built as { tools?: unknown } | null;
-      if (builtObj && builtObj.tools) return built
-      if (left > 0) return later(waitMs).then(function () { return table(left - 1) })
+      if (built && (built as { tools?: unknown }).tools) return built
+      if (left > 0) return sleepOnce(waitMs).then(function () { return table(left - 1) })
       return null
     }).catch(function () { return null })
   }
-  try {
-    table(retries).then(function (built: unknown) {
-      const builtObj = built as { tools?: unknown } | null;
-      if (!builtObj || !builtObj.tools) { tell({ ok: false, reason: 'no-table' }); return null }
-      function attempt(left: number): Promise<unknown> | null {
-        const svc = toolsSvcOf() as ToolsService | null;
-        if (!svc || typeof svc.register !== 'function') {
-          if (left > 0) return later(waitMs).then(function () { return attempt(left - 1) })
-          tell({ ok: false, reason: 'no-tools-service' })
-          return null
+  // 整条重试链圈进存活租约（#1534 复核结论）：表与工具服务都可能晚几轮就绪，两个等待之间
+    // 只剩 unref 的等待定时器；不拿租约的话进程会在第一次等待里静默收摊（退出码仍是 0），
+    // 注册永不发生 —— 这是「等待定时器不拥有进程存活」在注册这条路上的落点。
+    withInFlightLease(function (): Promise<unknown> {
+      return table(retries).then(function (built: unknown) {
+        const builtObj = built as { tools?: unknown } | null;
+        if (!builtObj || !builtObj.tools) { tell({ ok: false, reason: 'no-table' }); return null }
+        function attempt(left: number): Promise<unknown> | null {
+          const svc = toolsSvcOf() as ToolsService | null;
+          if (!svc || typeof svc.register !== 'function') {
+            if (left > 0) return sleepOnce(waitMs).then(function () { return attempt(left - 1) })
+            tell({ ok: false, reason: 'no-tools-service' }); return null
+          }
+          return Promise.resolve(typeof loadDefineTool === 'function' ? (loadDefineTool as () => Promise<unknown>)() : null).then(function (m: unknown) {
+            const loaded = m as UnknownRecord | null;
+            const defineTool = loaded && typeof loaded.defineTool === 'function' ? (loaded.defineTool as DefineToolFn) : null
+            let res: RegisterResult | null = null
+            try { res = registerDeckAgentTools(svc, built, defineTool) as unknown as RegisterResult | null } catch (eR) { res = null }
+            return Promise.resolve(res).then(function (r: RegisterResult | null) {
+              if (!r) { tell({ ok: false, reason: 'register-threw' }); return null }
+              if (r.missing && r.missing.length) { tell({ ok: false, reason: String(r.reason || 'register-failed') }); return r }
+              if (r.registered && r.registered.length) { tell({ ok: true, ms: Date.now() - t0 }); return r }
+              return null
+            })
+          }).catch(function () { return null })
         }
-        return Promise.resolve(typeof loadDefineTool === 'function' ? (loadDefineTool as () => Promise<unknown>)() : null).then(function (m: unknown) {
-          const loaded = m as UnknownRecord | null;
-          const defineTool = loaded && typeof loaded.defineTool === 'function' ? (loaded.defineTool as DefineToolFn) : null
-          let res: RegisterResult | null = null
-          try { res = registerDeckAgentTools(svc, built, defineTool) as unknown as RegisterResult | null } catch (eR) { res = null }
-          return Promise.resolve(res).then(function (r: RegisterResult | null) {
-            if (!r) { tell({ ok: false, reason: 'register-threw' }); return null }
-            if (r.missing && r.missing.length) { tell({ ok: false, reason: String(r.reason || 'register-failed') }); return r }
-            if (r.registered && r.registered.length) { tell({ ok: true, ms: Date.now() - t0 }); return r }
-            return null
-          })
-        }).catch(function () { return null })
-      }
-      return attempt(retries)
-    }).catch(function () {})
-  } catch (e0) {}
+        return attempt(retries)
+      }).catch(function () {})
+  }).catch(function () {})
 }

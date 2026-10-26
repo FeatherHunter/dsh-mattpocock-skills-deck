@@ -1,5 +1,6 @@
 // tests/verify-1106-deck-surface.ts —— #1106：九个 deck 工具对外的样子（参数表 / 信封表 / 点数表）
 // 门禁归属: src/deck/tools
+// 门禁归属: src/deck/shell/capped-wait.ts
 // 门禁归属: src/deck/shell/call-shell.ts
 // 门禁归属: src/refresh/kernel/tool-call-budget.ts
 //
@@ -699,11 +700,16 @@ async function main() {
       check(p.re.test(p.hit), '越界写法表里这条真的会命中：' + p.label + '（' + p.hit + '）')
       check(!p.re.test(p.miss), '越界写法表里这条不误伤正常写法：' + p.label + '（' + p.miss + '）')
     }
-    // 时间这一类单独判，不能一禁了之：票面的可动清单里，超时钳制与「测试里可换的时钟缺省」是点过名允许的，
-    // 九份工具都各写了一份。真正要拦的是拿它们去读真实时间做业务判断。所以规则是「栏行 + 同行必须还有另一半」：
+    // 时间这一类单独判，不能一禁了之：票面的可动清单里，超时钳制与「测试里可换的时钟缺省」是点过名允许的。
+    // 工具层各写了一份时钟缺省；超时钳制原本九份工具各写一份，2026-10 #1114 第二批把它们全收进了
+    // src/deck/shell/capped-wait.ts 一处（由它清定时器、扣进程存活租约）。真正要拦的是拿它们去读真实时间
+    // 做业务判断。所以规则是「栏行 + 同行必须还有另一半」：
     //   时钟缺省：这一行出现 Date.now / new Date 时，同行必须写着 typeof d.now === 'function'；
     //   超时钳制：这一行出现 setTimeout 时，同行必须写着 Promise（那支超时竞赛）。
-    // 判每一行而不是整份文件，是因为这两件事本来就写在同一行里，按行判才能同时抓住两种情形。
+    // 判每一行而不是整份文件，是因为工具层这两件事本来就写在同一行里，按行判才能同时抓住两种情形。
+    // 下面分两段扫：工具层只允许时钟缺省（谁再自己写超时定时器就判红），等待竞速那一份壳层文件
+    // 不按行套这两条形状（它的 setTimeout 与 clearTimeout 本来就分在几行里），改用整份文件的
+    // 三件事判据；sawTimer 仍要从它身上取，这张表必须在真实代码里被走到，否则就是空转。
     const ALLOWED: Array<{ label: string, line: RegExp, mustAlso: RegExp, hit: string, miss: string }> = [
       {
         label: '时钟缺省', line: /Date\.now|new\s+Date\s*\(/, mustAlso: /typeof d\.now === 'function'/,
@@ -719,6 +725,32 @@ async function main() {
       check(!(a.line.test(a.miss) && !a.mustAlso.test(a.miss)), '允许形状表：' + a.label + ' 的正常写法不误伤（' + a.miss + '）')
     }
     const dir = path.join(ROOT, 'src', 'deck', 'tools')
+    // 扫描一份源码：工具层连「直连外面」的写法一起拦；壳层等待件是等待定时器唯一允许的住处，
+    // 整份文件里必须同时找得到「起定时器、撤定时器、把句柄 unref 掉」三件事，才算一份真正的
+    // 等待实现，而不是随手写的一枚裸定时器。两处扫同一套表，抽成一个函数，免得以后改表只改到一半。
+    const scanSource = function (name: string, text: string, scope: 'tool' | 'wait'): void {
+      const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+      if (scope === 'wait') {
+        const hasTimer = /setTimeout\s*\(/.test(code)
+        const hasClear = /clearTimeout\s*\(/.test(code)
+        const hasUnref = /\.unref\s*\(/.test(code)
+        if (hasTimer) sawTimer += 1
+        if (!hasTimer || !hasClear || !hasUnref) bad.push(name + '：等待件的三件事不齐（起定时器 ' + hasTimer + '、撤定时器 ' + hasClear + '、unref ' + hasUnref + '）')
+        return
+      }
+      for (const line of code.split('\n')) {
+        for (const p of PATTERNS) if (p.re.test(line)) bad.push(name + '：' + p.label + '（' + line.trim().slice(0, 60) + '）')
+        for (const a of ALLOWED) {
+          if (!a.line.test(line)) continue
+          if (a.label === '时钟缺省') sawClock += 1
+          else {
+            sawTimer += 1
+            toolTimer += 1
+          }
+          if (!a.mustAlso.test(line)) bad.push(name + '：' + a.label + '写成了不许的样子（' + line.trim().slice(0, 80) + '）')
+        }
+      }
+    }
     const names = fs.readdirSync(dir).filter((n) => n.endsWith('.ts')).sort()
     // 工具层本来只有十份：九份工具 + 顺序表的宿主侧门面。门面（tool-order.ts）只转发一行，
     // 本体在 src/deck/rules/tool-order.ts，跟装表住同一层。多一份少一份都该有人看一眼。
@@ -743,25 +775,21 @@ async function main() {
     check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 这十九份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
+    let toolTimer = 0
     let sawTimer = 0
-    for (const name of names) {
-      const text = fs.readFileSync(path.join(dir, name), 'utf8')
-      // 注释里会讲清为什么不许用这些写法，所以先把注释剔掉再扫。
-      const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
-      for (const line of code.split('\n')) {
-        for (const p of PATTERNS) if (p.re.test(line)) bad.push(name + '：' + p.label + '（' + line.trim().slice(0, 60) + '）')
-        for (const a of ALLOWED) {
-          if (!a.line.test(line)) continue
-          if (a.label === '时钟缺省') sawClock += 1
-          else sawTimer += 1
-          if (!a.mustAlso.test(line)) bad.push(name + '：' + a.label + '写成了不许的样子（' + line.trim().slice(0, 80) + '）')
-        }
-      }
-    }
+    for (const name of names) scanSource(name, fs.readFileSync(path.join(dir, name), 'utf8'), 'tool')
+    // 等待竞速只有一处：壳层的 capped-wait.ts。工具层不再各写一份 withCap，所以「超时钳制」这条
+    // 允许形状的计数器只能从它身上取；它自身另按「起定时器、撤定时器、unref」三件事整份核一遍。
+    const WAIT_FILES = ['capped-wait.ts']
+    const shellDir = path.join(ROOT, 'src', 'deck', 'shell')
+    for (const name of WAIT_FILES) scanSource(name, fs.readFileSync(path.join(shellDir, name), 'utf8'), 'wait')
+    check(toolTimer === 0, toolTimer === 0
+      ? '工具层不再自己写超时定时器：等待竞速统一收在壳层 capped-wait.ts 一处（#1114 第二批）'
+      : '工具层又出现了自己写的超时定时器（' + toolTimer + ' 处），等待竞速应当收进 capped-wait.ts 一处')
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '十八份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
-    check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处），这套判据不是空转')
+      : '十八份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
+    check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处，钳制这一处落在 capped-wait.ts 里），这套判据不是空转')
   }
 
   // ── 五、缺省与钳制 ──
@@ -831,10 +859,13 @@ async function main() {
   try { fs.rmSync(workPathHome, { recursive: true, force: true }) } catch (e) {}
   ws.cleanup()
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
-  // 显式收工，同 tests/verify-deck-tools.js 与金标准回执那两扇。原因是本门禁真的走调用链：
-  // 主逻辑 215 毫秒就跑完，之后进程还挂着几个「超时钳制」留下的定时器，最晚的约 60 秒才到 ——
-  // 不写这一句，门禁会白等一分钟（量过：整进程 60.3 秒）。
-  process.exit(failed ? 1 : 0)
+  // 失败时按门禁的通用写法 process.exit(1) 收工（docs/agents/verification.md 第五节「失败 process.exit(1)」）。
+  // 成功时不调 process.exit，让进程自然退出 —— 这是 #1114 第二批留下的一只眼睛：
+  // #1114 之前这句是必需的硬收工。本门禁真的走调用链，主逻辑 215 毫秒就跑完，之后进程还挂着
+  // 几个「超时钳制」留下的定时器，最晚的约 60 秒才到（量过：整进程 60.3 秒）。现在等待定时器
+  // 落地即清、并扣上进程存活租约，自然退出实测约 0.8 秒；将来再出现同类泄漏，门禁会表现为
+  // 「退不出去」，比静默多等一分钟更容易被发现。
+  if (failed) process.exit(1)
 }
 
 main().catch((e) => { console.error('  FAIL 异常：' + ((e && e.stack) || e)); process.exit(1) })
