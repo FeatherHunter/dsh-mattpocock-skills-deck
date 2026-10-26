@@ -40,8 +40,8 @@ export function ticketLabelOf(key: unknown, effortId: unknown): string {
   return '#' + effort + '/' + id
 }
 
-/** B 方案共用的上限宽度：`#目录/编号` 这一颗控件在任何一处都不许超过它（#1553 的 192px 首列仍装得下）。 */
-export const TICKET_LABEL_MAX_WIDTH = '180px'
+/** B 方案共用的上限宽度：`#目录/编号` 这一颗控件在任何一处都不许超过它（#1553 的 192px 首列仍装得下；取 136px 是因为 11px 字下最长的那批目录（`#wayfinder-capability-test/00` 内容约 150px）必须能碰到线，否则看着和没改一样）。 */
+export const TICKET_LABEL_MAX_WIDTH = '136px'
 
 /** 同一串编号拆成两段：目录前缀（含 `#` 与结尾的 `/`）与绝不缩小的编号尾巴。 */
 export interface TicketLabelParts {

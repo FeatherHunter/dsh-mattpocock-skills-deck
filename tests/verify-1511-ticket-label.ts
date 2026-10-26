@@ -56,10 +56,11 @@ async function main(): Promise<void> {
 
   // ── 一点五、B 方案的分段写法：目录前缀可省略、编号尾巴绝不缩小 ──────────────────
   // 同一串编号只在这里拆一次：前缀（含 `#` 与结尾的 `/`）走省略号那一段，编号尾巴（`flex: none`）
-  // 永远完整显示；上限宽度同样只在这里定一个值（`180px`），五处显示点都读它。
+  // 永远完整显示；上限宽度同样只在这里定一个值（`136px`），五处显示点都读它。
+  // 取 136px 的原因：11px 字下 `#wayfinder-capability-test/00` 内容约 150px，上限 180px 时它碰不到线看着和没改一样。
   check(typeof mod.ticketLabelPartsOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelPartsOf')
   check(typeof mod.ticketLabelNodesOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelNodesOf')
-  check(mod.TICKET_LABEL_MAX_WIDTH === '180px', '上限宽度是 180px（#1553 的 192px 首列仍装得下）')
+  check(mod.TICKET_LABEL_MAX_WIDTH === '136px', '上限宽度是 136px（#1553 的 192px 首列仍装得下、最长的那批目录能碰到线）')
   const parts = mod.ticketLabelPartsOf
   const p1 = parts('01', DIR)
   check(p1.full === '#' + DIR + '/01' && p1.prefix === '#' + DIR + '/' && p1.number === '01', '正常票拆成 #目录/ + 01')
@@ -100,7 +101,7 @@ async function main(): Promise<void> {
   for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts', 'src/client/views/MapDetailHead.ts', 'src/client/views/shared/workRouteTable.ts', 'src/client/statusbar/SessionChainCapsule.ts']) {
     const src = sourceText(file)
     check(src.indexOf('ticketLabelNodesOf(') >= 0, file + ' 用两段子节点画徽标（目录可省略、编号绝不缩小）')
-    check(src.indexOf('TICKET_LABEL_MAX_WIDTH') >= 0 || src.indexOf('180px') >= 0, file + ' 给了上限宽度（180px 或那份常量）')
+    check(src.indexOf('TICKET_LABEL_MAX_WIDTH') >= 0 || src.indexOf('136px') >= 0, file + ' 给了上限宽度（136px 或那份常量）')
   }
   for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts', 'src/client/views/MapDetailHead.ts']) {
     const src = sourceText(file)
