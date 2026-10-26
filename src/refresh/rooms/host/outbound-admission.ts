@@ -22,9 +22,11 @@
  * 终值仍以测量回填（#967 测量 / #966 收口）为准。
  *
  * #1007 起本道门还管**通路失败后的冷却**：一次 transport 级失败（超时、被杀、进程根本没起来）
- * 之后，同一只桶在冷却窗口里不再起新进程，拿名额直接抛出带 `admission-cooldown` 标记的错误，
+ * 之后，同一条通路、同一只桶在冷却窗口里不再起新进程，拿名额直接抛出带 `admission-cooldown` 标记的错误，
  * 调用方据此立刻回「到 GitHub 的通路现在不通，先别重试」，而不是各自再赔满一次超时。
  * 任何一条命令跑完拿到退出码（退出码非零也算）就说明通路是通的，冷却立刻清零。
+ * 冷却按「服务 + 读写档」各记一份：gh 与 glab 共用这一道准入闸（名额与上限是一套），
+ * 但两者的通路是两条 —— GitLab 的故障不许把去 GitHub 的调用一起挡掉，反之亦然（#1007 复核）。
  */
 
 import { TUNING } from '../../contract/tuning-parameters.js'
@@ -43,6 +45,23 @@ const LANE_WAIT_LOG_INTERVAL_MS = 5 * 60 * 1000
 
 // 准入桶：读与写两只桶，配额与统计都按桶隔离，跨桶不抢名额。
 type GhBucket = 'read' | 'write'
+// 通路归属：冷却按「服务 + 读写档」分开记。今天只有 github 这一条会设冷却；gitlab 与 git
+// 只是共用同一套名额（名副其实的「同一道闸、不同的路」），它们的调用不该被 GitHub 的冷却挡住。
+type GhService = 'github' | 'gitlab' | 'git'
+// 服务名归一：没给就当 github（现有绝大多数调用是 gh）；glab 与 git 由调用方显式传。
+function normService(s: unknown): GhService {
+  const v = String(s == null ? '' : s).trim().toLowerCase()
+  return v === 'gitlab' ? 'gitlab' : (v === 'git' ? 'git' : 'github')
+}
+// 一条通路上的一次冷却：到什么时候、上次为什么失败、连续失败几次、失败的是哪条命令（短标签，仅日志）、
+// 这一轮是否已经记过被挡回的那一行（节流用）。
+interface GhCoolState {
+  until: number
+  reason: string
+  failStreak: number
+  cmd: string
+  rejectLogged: boolean
+}
 // 排队等待者的形状：创建时放行与取消函数先空着，随后立即补上真正的函数。
 interface GhWaiter {
   settled: boolean
@@ -50,6 +69,7 @@ interface GhWaiter {
   resolve: (() => void) | null
   reject: ((e: unknown) => void) | null
   bucket: GhBucket
+  service: GhService
 }
 // 准入选项与拿名额参数的形状：调用方没给就用缺省桶与缺省配额。
 interface GhAdmissionOpts {
@@ -61,10 +81,12 @@ interface GhAcquireArgs {
   bucket?: string
   signal?: AbortSignal | null
   cmd?: string
+  service?: string
 }
 interface GhLaneOpts {
   bucket?: string
   signal?: AbortSignal | null | undefined
+  service?: string
 }
 // 取消错误的形状：标准 Error 上加两个标记，调用方靠它们认出取消而非失败。
 type AdmissionCancelledError = Error & { code: string; admissionCancelled: boolean }
