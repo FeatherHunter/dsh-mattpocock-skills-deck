@@ -292,8 +292,19 @@ async function main() {
   check(workRouteCellsFor([{ ticketKey: '00', effortId: 'demo' }]).split(' ')[0] === '96px', '自适应：「#demo/00」这类放宽到 96px，目录不缩写')
   check(workRouteCellsFor([{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021' }]).split(' ')[0] === '192px', '自适应：32 字超长目录封顶 192px（再长走省略号+悬停，不无限撑）')
   check(pxOf(tracks[4]) < 72 && pxOf(tracks[5]) < 48, '「动作时间」与「是否在办」两列比改版前窄（72→36、48→36），省下的宽度让给标题与会话')
-  check(tracks[1].indexOf('fr') > 0 && tracks[2].indexOf('fr') > 0, '标题与会话两列按比例吃掉全部富余宽度（票标题与会话名先长出来，不被挤成省略号）')
-  check(tracks[1] === 'minmax(150px, 1.7fr)' && tracks[2] === 'minmax(104px, 1fr)', '标题保底 150px（11px 字号下 10 个汉字一定完整）、会话保底 104px：实得 ' + tracks[1] + ' / ' + tracks[2])
+  // #1553 维护者口径：六列每一列都设计最大宽度，内容自适应变宽、到上限不再变宽。
+  // 标题 150~320px（10 个汉字保底，约 29 个字到顶）、会话 104~200px（约 9 字保底、18 字到顶）。
+  check(tracks[1] === 'minmax(150px, 320px)' && tracks[2] === 'minmax(104px, 200px)', '标题保底 150 上限 320、会话保底 104 上限 200：实得 ' + tracks[1] + ' / ' + tracks[2])
+  const capOf = (t: any) => { const m = String(t || '').match(/^minmax\((\d+)px, (\d+)px\)$/); return m ? { lo: Number(m[1]), hi: Number(m[2]) } : null }
+  const titleCap = capOf(tracks[1]); const sessionCap = capOf(tracks[2])
+  check(!!titleCap && titleCap.lo < titleCap.hi, '标题列有下限也有上限（不是 fr：fr 会跟着窗口无限长）')
+  check(!!titleCap && titleCap.hi >= 300 && titleCap.hi <= 360, '标题上限落在 300~360px 之间（11px 字号约 27~33 个汉字，够看又不会吃掉整行）：实得 ' + (titleCap ? titleCap.hi : 'n/a'))
+  check(!!sessionCap && sessionCap.hi >= 160 && sessionCap.hi <= 240, '会话上限落在 160~240px 之间（约 15~22 个汉字）：实得 ' + (sessionCap ? sessionCap.hi : 'n/a'))
+  check(workRouteCellsFor([{ ticketKey: '101', title: 'x'.repeat(200) }]) === leaf.WORK_ROUTE_TABLE_CELLS, '列宽只由票号档位与两个上限决定：标题再长也不会把模板撑大（同一份模板，对齐不变）')
+  // 会话名在格子里必须能真被压窄：外层 flex 的子项默认 min-width:auto 不肯缩，
+  // 不给 minWidth:0 的话上限到了也只是被裁掉、出不来省略号（用户就看不到「还有下文」）。
+  const sessionCells = findAll(treeOk, (n: any) => n.props && n.props.style && typeof n.props.style.overflow === 'string' && n.props.style.textOverflow === 'ellipsis')
+  check(sessionCells.some((n: any) => n.props.style.minWidth === 0), '会话格里那个能省略的子项带 minWidth:0（上限到了真出省略号，不是硬裁）')
   const gridNodes = findAll(treeOk, (n: any) => n.props && n.props.style && typeof n.props.style.gridTemplateColumns === 'string')
   const gridTemplates: string[] = []
   gridNodes.forEach((n: any) => { if (gridTemplates.indexOf(n.props.style.gridTemplateColumns) < 0) gridTemplates.push(n.props.style.gridTemplateColumns) })

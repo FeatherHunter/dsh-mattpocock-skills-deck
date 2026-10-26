@@ -225,7 +225,8 @@ export const workRouteNavOf = function (st: any, r: WorkRouteTableRow): any {
 
 /**
  * 六列的列宽模板：票号、动作、动作时间、是否在办这四列按格子里的内容定固定宽度；
- * 标题与会话两列吃掉全部富余宽度 —— 面板拉宽时先让这两列长出来，票标题和会话名才显示得全。
+ * 标题与会话两列各有保底与上限（#1553）：内容长就撑宽、到上限止步，面板拉宽时也不会无限长。
+ * 上限之外多出来的宽度留在行尾，不再从别的列里抢 —— 六列比例因此稳定。
  * 反例（#1287 以前的写法）：那四列各留着一大片空白（「动作时间」72 像素里只写着 27 像素的时分，
  * 「是否在办」48 像素里只写着 22 像素的「在办」），票标题和会话名被挤成省略号；
  * 现在这四列收窄（动作时间那列还改写缩写，见 workRouteTableStamp），省下的宽度全给了那两列。
@@ -236,7 +237,7 @@ export const workRouteNavOf = function (st: any, r: WorkRouteTableRow): any {
  * 这里只管用：WorkRouteTable 用算出来的那一份同时画表头与每一行（对齐不变），行内容未知时用默认。 */
 declare function workRouteCellsFor(rows: any): string
 /** 行内容未知时的默认模板（全短编号那一档）；表头与数据行都要显式传算好的那一份。 */
-export const WORK_ROUTE_TABLE_CELLS = '56px minmax(150px, 1.7fr) minmax(104px, 1fr) 48px 36px 36px'
+export const WORK_ROUTE_TABLE_CELLS = '56px minmax(150px, 320px) minmax(104px, 200px) 48px 36px 36px'
 
 const workRouteCellStyle = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as any
 
@@ -327,7 +328,7 @@ export const WorkRouteRow = ({ r, nowMs, st, onNavigate, cells }: any) => {
     h('span', { ref: numberRef, style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, fullLabel),
     h('span', { style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
     h('span', { style: Object.assign({ display: 'inline-flex', alignItems: 'center', gap: 4 }, workRouteCellStyle) }, [
-      h('span', { key: 's', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),
+      h('span', { key: 's', style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),
       r.currentSession ? h('span', { key: 'me', style: { flex: 'none', fontSize: 9, border: '1px solid rgba(88,166,255,.5)', color: '#58a6ff', borderRadius: 4, padding: '0 3px', lineHeight: 1.5 } }, tr('workRouteTable.thisSession')) : null,
     ]),
     h('span', { ref: actionRef, style: workRouteCellStyle }, actionText),
