@@ -108,13 +108,14 @@ export interface SuggestDeps {
 }
 
 /**
- * 按 Unicode 码点截断文本：没超长原样返回；超长切到上限以内并在末尾补一个省略号。
+ * 按 Unicode 码点截断文本：没超长原样返回；超长保留前上限个码点，并在末尾另加一个省略号。
+ * 维护者在 #1540 定下这个口径：简介超过 10 个字时前 10 个字都要显示，省略号是超长标记，不占 10 个字的名额。
  * 为什么不用 slice：UTF-16 单元切在代理对中间会切出半个字符，界面显示成乱码。
  */
 export function clipText(text: string, max: number): { text: string; clipped: boolean } {
   const chars = Array.from(text)
   if (chars.length <= max) return { text: text, clipped: false }
-  return { text: chars.slice(0, Math.max(1, max - 1)).join('') + '…', clipped: true }
+  return { text: chars.slice(0, Math.max(1, max)).join('') + '…', clipped: true }
 }
 
 /** 把任意一格按字符串收：不是字符串就当空串（后面按「缺」处理）。 */

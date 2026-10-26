@@ -37,8 +37,8 @@ export const suggestHash = function (text: any) {
 }
 
 /**
- * 按 Unicode 码点截断：没超长原样返回；超长切到上限以内并在末尾补一个省略号。
- * 与工具侧 clipText 同形 —— 界面显示的文本长度不能比工具回执里承认的还长。
+ * 按 Unicode 码点截断：没超长原样返回；超长保留前上限个码点，并在末尾另加一个省略号。
+ * 与工具侧 clipText 同形（#1540 口径：前上限个码点保留，省略号另加） —— 界面显示的文本长度不能比工具回执里承认的还长。
  */
 export const suggestClipText = function (text: any, max: any) {
   const value = typeof text === 'string' ? text : ''
@@ -46,7 +46,7 @@ export const suggestClipText = function (text: any, max: any) {
   if (!Number.isFinite(limit) || limit <= 0) return { text: '', clipped: value.length > 0 }
   const chars = Array.from(value)
   if (chars.length <= limit) return { text: value, clipped: false }
-  return { text: chars.slice(0, Math.max(1, limit - 1)).join('') + '…', clipped: true }
+  return { text: chars.slice(0, Math.max(1, limit)).join('') + '…', clipped: true }
 }
 
 /**
