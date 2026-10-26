@@ -322,31 +322,22 @@ export default {
     let _settingsP: Promise<any> | null = null; function _settings(): Promise<any> { if (!_settingsP) _settingsP = (async function(){ const sm = await import('./settingsPhones.js'); const cm = await import('./configStore.js'); return sm.createSettingsPhones({ getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, readLocalSettings: cm.readLocalSettings, writeLocalSettings: cm.writeLocalSettings, logCtx: logCtx }) })(); return _settingsP } // 本机设置叶子懒加载器：第一次用时才动态引入，之后复用同一份实例。
     harness.handle('wf.getSettings', async function (args: WfArgs) { const h = await _settings(); return h.handleGetSettings(args) }); harness.handle('wf.setSettings', async function (args: WfArgs) { const h = await _settings(); return h.handleSetSettings(args) }) // 读与写两句合一行：两条电话共用同一个懒加载器。
 
-    // ---- #490 host 日志底座 + #564 切日志包：优先走包派生（./logFromPackage.js），失败回退旧实现（旧文件留而不搬） ----
-    let _logP: Promise<any> | null = null
+    // ---- #490 底座 + #564 切包 + #1374 进程单例：全进程一份（globalThis 唯一一份），服务活委托跟当前装配走 ----
     function _log(): Promise<any> {
-      if (!_logP) _logP = (async function () {
-        // #1432：调试日志开关只有本机设置文件一处真源。宿主这边把 settingsPhones 的读写两格包成日志包认识的
-        //   switchSource 递下去：包不再自己存开关文件，开机读哪一格、拨开关写哪一格都由设置文件说话。
-        //   读不到这个方法时 switchSource 留空，日志包与旧实现按原来的方式工作（回退路径不至于打不开）。
-        let switchSource: any = null
-        try {
-          const s: any = await _settings()
-          if (s && typeof s.readDebugSwitchEnabled === 'function') {
-            switchSource = { get: function () { return s.readDebugSwitchEnabled() }, set: function (on: any) { return (typeof s.writeDebugSwitchEnabled === 'function') ? s.writeDebugSwitchEnabled(on) : null } }
-          }
-        } catch (eSettings) {}
-        const src = switchSource
-        try {
-          const adapter = await import('./logFromPackage.js')
-          const _rc: any = await import('./rpcChannel.js')
-          return await adapter.createLogFromPackage({ fs: fs, timer: timer, getCacheDir: function (...args: any[]) { return getCacheDir.apply(null, args) }, getPlatform: function (...args: any[]) { return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, pluginVersion: _rc.readServingPackageVersion(), switchSource: src })
-        } catch (ePkg) {
-          const mod = await import('./logStore.js')
-          return mod.createLogStore({ fs: fs, timer: timer, getCacheDir: function (...args: any[]) { return getCacheDir.apply(null, args) }, getPlatform: function (...args: any[]) { return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, switchSource: src })
-        }
-      })()
-      return _logP
+      const g: any = globalThis as any, K = '__dsh_mattskillsdeck_host_log__';
+      if (!g[K]) g[K] = { p: null, hd: false, svc: null };
+      const H = g[K];
+      H.svc = { fs: fs, timer: timer, gc: function (...a: any[]) { return getCacheDir.apply(null, a) }, gp: function (...a: any[]) { return getPlatform.apply(null, a) }, st: _settings, cwd: DEFAULT_CWD };
+      if (H.p) return H.p;
+      H.p = (async function () {
+        const fsL: any = {}; ['resolve','readText','writeText','mkdir','processPath','listDir','unlink','lstat','stat','exists'].forEach(function (m: string) { Object.defineProperty(fsL, m, { configurable: true, get: function () { const f = H.svc.fs; return (f && typeof f[m] === 'function') ? function (...a: any[]) { return f[m].apply(f, a) } : undefined } }) });
+        const tmL: any = {}; ['timeout','interval'].forEach(function (m: string) { Object.defineProperty(tmL, m, { configurable: true, get: function () { const t = H.svc.timer; return (t && typeof t[m] === 'function') ? function (...a: any[]) { return t[m].apply(t, a) } : undefined } }) });
+        const gcL = function (...a: any[]) { return H.svc.gc.apply(null, a) }, gpL = function (...a: any[]) { return H.svc.gp.apply(null, a) };
+        const ss = { get: function () { return H.svc.st().then(function (s: any) { return s.readDebugSwitchEnabled() }) }, set: function (on: any) { return H.svc.st().then(function (s: any) { return typeof s.writeDebugSwitchEnabled === 'function' ? s.writeDebugSwitchEnabled(on) : null }) } };
+        try { const ad = await import('./logFromPackage.js'); const rc: any = await import('./rpcChannel.js'); return await ad.createLogFromPackage({ fs: fsL, timer: tmL, getCacheDir: gcL, getPlatform: gpL, DEFAULT_CWD: H.svc.cwd, pluginVersion: rc.readServingPackageVersion(), switchSource: ss }) } catch (eP) { const md = await import('./logStore.js'); return md.createLogStore({ fs: fsL, timer: tmL, getCacheDir: gcL, getPlatform: gpL, DEFAULT_CWD: H.svc.cwd, switchSource: ss }) }
+      })();
+      const cur = H.p; cur.catch(function () { if (H.p === cur) H.p = null });
+      return H.p;
     }
     harness.handle('wf.logBatch', async function (args: WfArgs) { const h = await _log(); return h.handleLogBatch(args) })
     harness.handle('wf.logExport', async function (args: WfArgs) { const h = await _log(); return h.handleLogExport(args) })
@@ -354,7 +345,7 @@ export default {
     harness.handle('wf.logGetSwitch', async function (args: WfArgs) { const h = await _log(); return h.handleLogGetSwitch(args) })
     harness.handle('wf.logSetSwitch', async function (args: WfArgs) { const h = await _log(); return h.handleLogSetSwitch(args) })
     // 启动链 import 失败静默（#499 红队 C2）：日志库没加载出来时管道尚未就绪、无处可记；首次命中由分发异常行 #46 在调用方记。
-    _log().then(function (h: any){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} }).catch(function(){})
+    _log().then(function (h: any){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} const H2 = (globalThis as any)['__dsh_mattskillsdeck_host_log__']; if (!H2 || !H2.hd) { if (H2) H2.hd = true; try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} } }).catch(function(){})
     // ---- #873 薄接线：更新能力只走已安装的更新包（updateFromPackage.js），旧实现与回退分支已删；包缺失直接抛错，不静默降级。
     let _updateP: Promise<any> | null = null
     function _update(): Promise<any> { if (!_updateP) _updateP = (async function(){ const args = { logCtx: logCtx, ctx: ctx }; const migrated = await import('./updateFromPackage.js'); return migrated.createUpdatePhoneHandlers(args) })(); return _updateP }
