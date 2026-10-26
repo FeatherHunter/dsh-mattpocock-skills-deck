@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T05:34:21.067Z",
+  "generatedAt": "2026-10-26T05:42:13.927Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 396,
-  "gateCount": 396,
-  "attributedGates": 355,
+  "chainLength": 397,
+  "gateCount": 397,
+  "attributedGates": 356,
   "unattributedGates": 41,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 594,
+  "graphFileCount": 595,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1295,6 +1295,7 @@
       "file": "tests/verify-1106-deck-surface.ts",
       "guards": [
         "src/deck/shell/call-shell.ts",
+        "src/deck/shell/capped-wait.ts",
         "src/deck/tools",
         "src/refresh/kernel/tool-call-budget.ts"
       ],
@@ -1307,7 +1308,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-1109-matches-timeout.ts",
@@ -1329,6 +1330,25 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1114-timer-exit.ts",
+      "file": "tests/verify-1114-timer-exit.ts",
+      "guards": [
+        "src/deck/registration/register-options.ts",
+        "src/deck/registration/suggest-steps-register.ts",
+        "src/deck/shell/capped-wait.ts",
+        "src/deck/shell/in-flight-lease.ts"
+      ],
+      "dirs": [
+        "src/deck/registration",
+        "src/deck/shell"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-1115-timer-handle.ts",
@@ -1513,21 +1533,21 @@
       "file": "tests/verify-1157-in-flight-lease.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "scripts/ts-hook.mts",
         "src/deck/shell/in-flight-lease.ts",
+        "tests/lib/child-probe.ts",
         "tests/verify-1157-in-flight-lease.ts"
       ],
       "dirs": [
-        "scripts",
         "scripts/lib",
         "src/deck/shell",
-        "tests"
+        "tests",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1158-completion-evidence.ts",
@@ -9641,7 +9661,6 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1125-gate-coverage.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
-      "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-1297-entry.ts",
@@ -10074,6 +10093,7 @@
       "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1114-timer-exit.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-suggest-next-steps.ts",
@@ -10098,6 +10118,7 @@
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1083-work-path-persist.ts",
       "node tests/verify-1106-deck-surface.ts",
+      "node tests/verify-1114-timer-exit.ts",
       "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-1245-plan-resume.ts",
@@ -11010,6 +11031,7 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-1150-plan-store-durable.ts",
+      "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
@@ -11164,9 +11186,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 615,
+    "fileCount": 616,
     "dirCount": 74,
-    "coveredFileCount": 615,
+    "coveredFileCount": 616,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11386,6 +11408,7 @@
       "src/deck/shell/call-memo.ts",
       "src/deck/shell/call-shell-types.ts",
       "src/deck/shell/call-shell.ts",
+      "src/deck/shell/capped-wait.ts",
       "src/deck/shell/edge-landing.ts",
       "src/deck/shell/in-flight-lease.ts",
       "src/deck/shell/minimal-spec.ts",

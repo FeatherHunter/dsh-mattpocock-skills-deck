@@ -18,17 +18,15 @@
 //
 // 为什么子进程的输出必须写文件、绝不能走管道：管道本身是一个被引用的 Socket，它会替子进程吊住
 // 事件循环，于是「提前收摊」永远不会发生，本门禁会变成一条恒绿的空门禁。同理子进程的 stdio 一律丢掉。
-import { spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import * as leaseModule from '../src/deck/shell/in-flight-lease.js'
 import { inFlightLeaseSnapshot, withInFlightLease } from '../src/deck/shell/in-flight-lease.js'
+import { ROOT, lineOf, runChildScenario, show } from './lib/child-probe.ts'
 import { planGates } from '../scripts/lib/discover-gates.ts'
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SELF_REL = 'tests/verify-1157-in-flight-lease.ts'
 
 /** 父进程起子进程时用的两个环境变量：跑哪个场景、进度写到哪。 */
@@ -107,20 +105,9 @@ function runChild(mode: ChildMode, out: string): void {
   })
 }
 
-/** 父进程那一半：起一个子进程跑一个场景，把它写下的进度读回来。 */
-function runScenario(mode: ChildMode, tmpDir: string): { status: number | null; text: string; wallMs: number } {
-  const out = join(tmpDir, mode + '.log')
-  writeFileSync(out, '')
-  const started = Date.now()
-  const run = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', SELF_REL], {
-    cwd: ROOT,
-    env: { ...process.env, [ENV_MODE]: mode, [ENV_OUT]: out },
-    // stdio 一律丢掉：管道会替子进程吊住事件循环，把要观测的「提前收摊」抹掉（见文件头）。
-    stdio: 'ignore',
-    timeout: 60_000,
-  })
-  const text = existsSync(out) ? readFileSync(out, 'utf8') : ''
-  return { status: run.status, text: text, wallMs: Date.now() - started }
+/** 父进程那一半：起一个子进程跑一个场景，把它写下的进度读回来（骨架在 tests/lib/child-probe.ts）。 */
+function runScenario(mode: ChildMode, tmpDir: string) {
+  return runChildScenario({ selfRel: SELF_REL, mode: mode, tmpDir: tmpDir, envMode: ENV_MODE, envOut: ENV_OUT })
 }
 
 let failed = 0
@@ -129,18 +116,6 @@ const check = (ok: boolean, msg: string): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg)
   if (!ok) failed = true
-}
-
-/** 把子进程写下的进度整理成一眼能看的样子，判红时好定位。 */
-const show = (text: string): string => {
-  const lines = text.split(/\r?\n/).filter(Boolean)
-  return lines.length ? lines.join(' ／ ') : '（子进程什么都没写）'
-}
-
-/** 从子进程写下的进度里取一行；取不到回空串。 */
-const lineOf = (text: string, name: string): string => {
-  const hit = text.split(/\r?\n/).find((l) => l.startsWith(name + ' '))
-  return hit ? hit.slice(name.length + 1).trim() : ''
 }
 
 /** 把 SNAP-xxx 那一行的 JSON 读成账目；读不出（或形状不对）时回 null，由断言如实判红。 */

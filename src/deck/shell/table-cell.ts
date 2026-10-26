@@ -6,13 +6,13 @@
 // 若两边真不在同一进程（旧桌面那种），这一格永远是空的，行按原路退回，
 // 一行老行为都不变。
 //
-// 本树内部只有一处导入：进程存活租约（#1157，等表装好这段算一场没结算的活）；其余最小工具自带一份，不引同层别的文件。
+// 本树内部只有一处导入：等待竞速 capped-wait.ts（#1114 第二批；它内部再扣进程存活租约 #1157——等表装好这段算一场没结算的活）。
 // 状态只有三种：empty（宿主还没放）、pending（放了还没装好）、ready（装好了）。
 // pid 只在进程内比对，永不外发（探针只报比对结果的布尔值）。
 // 另附一小段闸口径迹：壳把每次裁决的机器码（阶段、结论、原因枚举）记在这里，
 // 探针读走，线上卡在哪一段一眼可见。正文与路径一律不记。
 
-import { withInFlightLease } from './in-flight-lease.js'
+import { withCap } from './capped-wait.js'
 
 /** 格子的三种状态：宿主还没放、放了还没装好、装好了。 */
 type CellState = 'empty' | 'pending' | 'ready';
@@ -79,26 +79,8 @@ export function peekDeckTable(): { state: CellState; sameProcess: boolean } | nu
   } catch (e) { return null }
 }
 
-// 缺省等待口：真定时器。到点或被喊停都清掉定时器；定时器一律 unref（#1114 的实测教训）——
-// 一个只负责「到点提醒」的定时器不该成为进程活下去的理由。
-// 只有这里碰全局时钟，注入 sleep 之后就绕开了它。
-function realSleep(ms: number): Promise<unknown> {
-  return new Promise(function (resolve) {
-    let timer: ReturnType<typeof setTimeout> | null = null
-    let done = false
-    const finish = function (): void {
-      if (done) return
-      done = true
-      if (timer !== null) { try { clearTimeout(timer) } catch (e) {} timer = null }
-      resolve(null)
-    }
-    try {
-      timer = setTimeout(finish, ms)
-      const t = timer as unknown as { unref?: () => void }
-      if (t && typeof t.unref === 'function') { try { t.unref() } catch (e) {} }
-    } catch (e) { finish() }
-  })
-}
+// 缺省等待口搬去了 ./capped-wait.js（#1114 第二批）：到点或被喊停都清定时器、定时器 unref；
+// 整场竞速还扣一份进程存活租约（#1157）。本文件不再自己碰全局时钟。
 
 /**
  * 等表装好：超时就回空，调用方按原路退回，不抛。
@@ -106,21 +88,18 @@ function realSleep(ms: number): Promise<unknown> {
  * 类型参数 T 给调用方点名「等到的表长什么样」用；不点名时按未知形状交回，
  * 因为这一格只负责把宿主放的东西原样递过去，不替调用方决定表的结构。
  */
-export function awaitDeckTable<T = unknown>(timeoutMs?: number, opts?: DeckTableWaitOpts): Promise<T | null> {
+export async function awaitDeckTable<T = unknown>(timeoutMs?: number, opts?: DeckTableWaitOpts): Promise<T | null> {
   try {
     const peek = peekDeckTable()
     if (!peek) return Promise.resolve(null)
     const o = opts || {}
-    const sleep = (typeof o.sleep === 'function') ? o.sleep : realSleep
+    const sleep = (typeof o.sleep === 'function') ? o.sleep : undefined
     const cap = (typeof timeoutMs === 'number' && timeoutMs > 0) ? Math.floor(timeoutMs) : 25000
-    // #1157：这家竞速还没结算，先扣一份存活租约。等待口是 unref 过的（#1114），宿主一直没装表时
+    // #1157：这家竞速还没结算，withCap 内部先扣一份存活租约。等待口是 unref 过的，宿主一直没装表时
     // 唯一活着的东西就是这笔等待；没有租约进程会带着它收摊，调用方永远等不到「没有表」这个结论。
-    return withInFlightLease(function () {
-      return Promise.race([
-        Promise.resolve(cell.promise).then(function (t: unknown) { return (t as T) || null }, function () { return null }),
-        sleep(cap).then(function () { return null }, function () { return null }),
-      ])
-    })
+    // #1114 第二批：等待定时器由 capped-wait 在「等到 / 超时 / 等待口抛错」三条路都清掉。
+    const waited = await withCap<unknown>(Promise.resolve(cell.promise).then(function (t: unknown) { return (t as T) || null }, function () { return null }), cap, sleep)
+    return waited.ok === true ? (waited.value as T | null) : null
   } catch (e) { return Promise.resolve(null) }
 }
 

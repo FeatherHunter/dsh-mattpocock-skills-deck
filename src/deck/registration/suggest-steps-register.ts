@@ -12,6 +12,8 @@
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw } from './register-options.js'
 import { createSuggestNextSteps, definition } from '../tools/suggest-next-steps.js'
 import { REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js'
+import { sleepOnce } from '../shell/capped-wait.js'
+import { withInFlightLease } from '../shell/in-flight-lease.js'
 import { hash8 } from '../../refresh/contract/workspace-keys.js'
 
 /** 外层递进来的东西（工具服务、上下文、日志）形状都不由本文件定，逐格验，不猜。 */
@@ -122,33 +124,38 @@ export function registerSuggestNextSteps(toolsSvc: unknown, deps?: SuggestRegist
   }
 }
 
-/** 等一会儿：只给登记重试用，缺省真定时器。 */
+/** 等一会儿：只给登记重试用。定时器由 capped-wait 统一 unref 并在到点后清掉（#1114 第二批）。 */
 function sleep(ms: number): Promise<void> {
-  return new Promise<void>(function (resolve) { setTimeout(resolve, ms) })
+  return sleepOnce(ms)
 }
 
 /**
  * 宿主接线用的登记钩子：先把工具服务等出来（行顺序不保证），再注册建议工具。
  * 成功与失败都落一行轨迹（传了日志才落）；绝不抛，也不阻塞调用方。
+ * 整条「等工具服务再注册」的链扣着存活租约（#1534 复核结论）：中间几次等待都走 unref 的
+ * sleepOnce，不拿租约时事件循环里只剩这笔等待，进程会在第一次等待里带着退出码 0 静默收摊，
+ * 建议工具就永远不会登记 —— 等待定时器不拥有进程存活，有活在跑时显式拿租约（ADR 20261014）。
  */
-export async function hookSuggestNextSteps(ctx: unknown, deps?: SuggestRegisterDeps, opts?: { retries?: number; waitMs?: number }): Promise<SuggestRegisterResult> {
+export function hookSuggestNextSteps(ctx: unknown, deps?: SuggestRegisterDeps, opts?: { retries?: number; waitMs?: number }): Promise<SuggestRegisterResult> {
   const d = (deps || {}) as SuggestRegisterDeps
   const o = (opts || {}) as UnknownRecord
   const retries = typeof o.retries === 'number' ? o.retries : SUGGEST_REGISTER_RETRIES
   const waitMs = typeof o.waitMs === 'number' ? o.waitMs : SUGGEST_REGISTER_WAIT_MS
   const t0 = typeof d.now === 'function' ? d.now() : Date.now()
-  let service: ToolsServiceLike | null = null
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    service = toolsServiceOf(ctx)
-    if (service) break
-    if (attempt < retries) await sleep(waitMs)
-  }
-  const now: () => number = typeof d.now === 'function' ? d.now : Date.now
-  if (!service) {
-    fireRegisterLog(d.log || null, now() - t0, false, 'no-tools-service')
-    return { registered: false, reason: 'no-tools-service' }
-  }
-  const result = registerSuggestNextSteps(service, d)
-  fireRegisterLog(d.log || null, now() - t0, result.registered, result.reason)
-  return result
+  return withInFlightLease(async function (): Promise<SuggestRegisterResult> {
+    let service: ToolsServiceLike | null = null
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      service = toolsServiceOf(ctx)
+      if (service) break
+      if (attempt < retries) await sleep(waitMs)
+    }
+    const now: () => number = typeof d.now === 'function' ? d.now : Date.now
+    if (!service) {
+      fireRegisterLog(d.log || null, now() - t0, false, 'no-tools-service')
+      return { registered: false, reason: 'no-tools-service' }
+    }
+    const result = registerSuggestNextSteps(service, d)
+    fireRegisterLog(d.log || null, now() - t0, result.registered, result.reason)
+    return result
+  })
 }
