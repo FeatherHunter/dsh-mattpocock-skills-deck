@@ -34,7 +34,9 @@ import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText, sourcePath } from './lib/source-text.ts'
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
+// #1553 的首列自适应三件套同样住在那一份里，一并补上。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+;(globalThis as any).workRouteCellsFor = (await import('../src/client/kernel/ticket-label.js')).workRouteCellsFor
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -282,9 +284,13 @@ async function main() {
   const tracks = String(leaf.WORK_ROUTE_TABLE_CELLS || '').match(/minmax\([^)]*\)|\S+/g) || []
   const pxOf = (t: any) => { const m = String(t || '').match(/^(\d+)px$/); return m ? Number(m[1]) : -1 }
   check(tracks.length === 6, '列宽模板是六列（实得 ' + tracks.length + ' 轨）')
-  // #1548：首列 40px→128px —— 本地后端容器行首列是「#目录名/00」整串，40px 下被挤成纵向半截字；
-  // 定宽的性质没变（还是固定像素，面板拉宽时它不变，富余宽度照旧归标题与会话），只是定宽值变了。
-  check(tracks[0] === '128px' && tracks[3] === '48px' && tracks[4] === '36px' && tracks[5] === '36px', '票号、动作、动作时间、是否在办这四列定宽：面板拉宽时它们不变')
+  // #1553：首列不再定死（#1548 的 128px 在全短编号时太宽，白占标题与会话的位置）。
+  // 默认模板是全短编号那一档 56px；有长编号时表组件用 workRouteCellsFor(行) 算出更宽的那一份，
+  // 表头与每一行仍共用算出来的同一份（对齐要求不变，见下）。
+  check(tracks[0] === '56px' && tracks[3] === '48px' && tracks[4] === '36px' && tracks[5] === '36px', '默认模板：票号 56px，动作、动作时间、是否在办定宽不变')
+  check(workRouteCellsFor([{ ticketKey: '101' }]).split(' ')[0] === '56px', '自适应：短编号行仍是 56px')
+  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'demo' }]).split(' ')[0] === '96px', '自适应：「#demo/00」这类放宽到 96px，目录不缩写')
+  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021' }]).split(' ')[0] === '192px', '自适应：32 字超长目录封顶 192px（再长走省略号+悬停，不无限撑）')
   check(pxOf(tracks[4]) < 72 && pxOf(tracks[5]) < 48, '「动作时间」与「是否在办」两列比改版前窄（72→36、48→36），省下的宽度让给标题与会话')
   check(tracks[1].indexOf('fr') > 0 && tracks[2].indexOf('fr') > 0, '标题与会话两列按比例吃掉全部富余宽度（票标题与会话名先长出来，不被挤成省略号）')
   const gridNodes = findAll(treeOk, (n: any) => n.props && n.props.style && typeof n.props.style.gridTemplateColumns === 'string')

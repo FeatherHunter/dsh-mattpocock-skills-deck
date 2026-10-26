@@ -39,3 +39,46 @@ export function ticketLabelOf(key: unknown, effortId: unknown): string {
   if (effort === '' || id.indexOf('/') >= 0) return '#' + id
   return '#' + effort + '/' + id
 }
+
+/** 在办表里一行要带的行形状（估宽只读这两段，其余不管）。 */
+export interface WorkRouteWidthRow {
+  /** 后端的票号（容器行是 00 这类）。 */
+  readonly ticketKey?: unknown
+  /** 工作单元（本地后端是 `.scratch/` 下的目录名）；单工作单元后端是空串。 */
+  readonly effortId?: unknown
+}
+
+/* 在办表首列按本表实际行自适应（#1553，#1548 定宽 128px 的后继）：
+ * #1548 修完首列是定死的 128px —— 全是「#1548」这类短编号时白白占掉 70 多像素，标题和会话反而被挤。
+ * 现在按本表所有行里最长的编号估宽分档：短编号收窄，长编号才放宽，目录名永远不缩写。
+ * 估宽直接调上面那份真写法（同一份形状，想 drift 都 drift 不了）：11px 字号下 ASCII 按 7px、
+ * 中文等非 ASCII 按 11px，另加 12px 格子内边距；分档 snap 到 56 / 96 / 136 / 192 四档封顶 ——
+ * 超过 192px 的超长目录仍走省略号，完整编号在悬停提示里补（见 workRouteTable.ts 的 tipContent）。
+ * （#1548 注释里“最长 17 个字符”写错了：仓里 .scratch 目录名最长 32 个字符，定宽 128px 本来也放不下。） */
+/** 这一行编号按真写法拼出来之后占多宽（像素，估算）。凡例：('#101','') → 40；('00','demo') → 68。 */
+export function workRouteLabelWidthOf(key: unknown, effortId: unknown): number {
+  const label = ticketLabelOf(key, effortId)
+  let w = 12
+  for (let i = 0; i < label.length; i++) w += label.charCodeAt(i) <= 127 ? 7 : 11
+  return w
+}
+/** 本表首列取哪一档：所有行里最宽的那个编号决定，全表共用（表头与数据行仍是同一份模板，对齐不变）。 */
+export function workRouteFirstColWidthOf(rows: unknown): string {
+  let widest = 0
+  try {
+    const list = Array.isArray(rows) ? rows : []
+    for (const r of list) {
+      const row = (r || {}) as WorkRouteWidthRow
+      const w = workRouteLabelWidthOf(row.ticketKey, row.effortId)
+      if (w > widest) widest = w
+    }
+  } catch { /* 行形状不对就按最窄处理，不把表撑坏。 */ }
+  if (widest <= 56) return '56px'
+  if (widest <= 96) return '96px'
+  if (widest <= 136) return '136px'
+  return '192px'
+}
+/** 六列模板：首列按行内容自适应（上），其余五列沿用 #1287 的定宽与比例。 */
+export function workRouteCellsFor(rows: unknown): string {
+  return workRouteFirstColWidthOf(rows) + ' minmax(110px, 1.7fr) minmax(80px, 1fr) 48px 36px 36px'
+}

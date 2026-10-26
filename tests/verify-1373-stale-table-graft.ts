@@ -40,6 +40,8 @@ import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
 import { createWorkRouteTableReadout } from '../src/refresh/rooms/host/work-route-readout.js'
 import { createSessionSnapshot } from '../src/refresh/rooms/host/session-snapshot-cache.js'
 import { workspaceKeyOf } from '../src/refresh/contract/workspace-keys.js'
+// #1553：在办表首列按行自适应 —— 表体一跑就要调它，叶子单测里按 1082 的做法补真身（不另抄规则）。
+import { workRouteCellsFor } from '../src/client/kernel/ticket-label.js'
 
 let failed = false
 let total = 0
@@ -96,6 +98,7 @@ const loadUiLeaves = function (extra?: Record<string, any>, capsuleExtra?: Recor
     Tip: function (p: any, c: any): any { return { type: 'Tip', props: p || {}, children: c === undefined ? [] : [c] } },
     tr: tr,
     h: function (): any { return {} },
+    workRouteCellsFor: workRouteCellsFor,
   }
   const table: any = loadLeaf('src/client/views/shared/workRouteTable.js', Object.assign({}, tableDeps, extra || null))
   const capsuleDeps: any = {

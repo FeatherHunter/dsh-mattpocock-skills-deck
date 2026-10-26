@@ -231,16 +231,18 @@ export const workRouteNavOf = function (st: any, r: WorkRouteTableRow): any {
  * 现在这四列收窄（动作时间那列还改写缩写，见 workRouteTableStamp），省下的宽度全给了那两列。
  * 表头与数据行是两个 grid，必须用同一份模板（列宽要逐字对齐），所以把它导出来给两边共用。
  */
-/* #1548：首列从 40px 放到 128px —— 本地后端容器行的编号是「#目录名/00」整串（例如 #demo/00），
- * 40px 下它被挤成纵向半截字；128px 按 11px 字号能完整放下约 17 个字符
- * （仓里最长的 .scratch 目录名就是 17 个字符），普通「#1548」这类短编号不受影响。 */
-export const WORK_ROUTE_TABLE_CELLS = '128px minmax(110px, 1.7fr) minmax(80px, 1fr) 48px 36px 36px'
+/* 首列按本表实际行自适应（#1553）：短编号 56px，长编号按内容分档放宽（目录不缩写），超长封顶 192px。
+ * 分几档、怎么估宽，收在 ticket-label.ts 那一份里（估宽直接调真写法，形状想跑偏都跑偏不了）；
+ * 这里只管用：WorkRouteTable 用算出来的那一份同时画表头与每一行（对齐不变），行内容未知时用默认。 */
+declare function workRouteCellsFor(rows: any): string
+/** 行内容未知时的默认模板（全短编号那一档）；表头与数据行都要显式传算好的那一份。 */
+export const WORK_ROUTE_TABLE_CELLS = '56px minmax(110px, 1.7fr) minmax(80px, 1fr) 48px 36px 36px'
 
 const workRouteCellStyle = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as any
 
-const workRouteHeadRow = function (h: any, tr: any) {
-  const cells = ['ticket', 'title', 'session', 'action', 'time', 'state']
-  return h('div', { 'data-work-route-head': 1, style: { display: 'grid', gridTemplateColumns: WORK_ROUTE_TABLE_CELLS, gap: 6, padding: '0 0 4px', fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, cells.map(function (c) {
+const workRouteHeadRow = function (h: any, tr: any, cells?: any) {
+  const names = ['ticket', 'title', 'session', 'action', 'time', 'state']
+  return h('div', { 'data-work-route-head': 1, style: { display: 'grid', gridTemplateColumns: typeof cells === 'string' && cells !== '' ? cells : WORK_ROUTE_TABLE_CELLS, gap: 6, padding: '0 0 4px', fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, names.map(function (c) {
     return h('span', { key: c, style: { whiteSpace: 'nowrap' } }, tr('workRouteTable.col.' + c))
   }))
 }
@@ -272,16 +274,19 @@ const workRouteTipGroup = function (h: any, icon: string, text: string, key: str
  * 才知道动作词有没有被省略号截掉（workRouteIsCut）。
  * 反例（#1287 以前的写法）：提示只挂在标题那一格、只写标题 —— 会话名被截掉时没人说得清是谁在办这张票。
  */
-export const WorkRouteRow = ({ r, nowMs, st, onNavigate }: any) => {
+export const WorkRouteRow = ({ r, nowMs, st, onNavigate, cells }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const actionRef = React.useRef(null)
+  const numberRef = React.useRef(null)
   const actionWord = workRouteActionKeyOf(r.action)
   const actionText = actionWord ? tr(actionWord) : r.action
   const fullAt = workRouteTableClock(r.actionAt, nowMs) || r.actionAt
   const shortAt = workRouteTableStamp(r.actionAt, nowMs) || r.actionAt
+  const fullLabel = ticketLabelOf(r.ticketKey, r.effortId)
   const tipContent = function () {
     const extras: string[] = []
+    if (fullLabel && workRouteIsCut(numberRef.current)) extras.push(fullLabel)
     if (actionText && workRouteIsCut(actionRef.current)) extras.push(actionText)
     if (shortAt !== fullAt) extras.push(fullAt)
     return h('div', { 'data-work-route-tip': 1, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, maxWidth: 496 } }, [
@@ -304,7 +309,7 @@ export const WorkRouteRow = ({ r, nowMs, st, onNavigate }: any) => {
   const rowProps: any = {
     'data-work-route-row': 1,
     'data-work-route-active': r.active ? 1 : 0,
-    style: { display: 'grid', gridTemplateColumns: WORK_ROUTE_TABLE_CELLS, gap: 6, alignItems: 'center', padding: '3px 0', borderTop: '1px solid rgba(255,255,255,.045)', cursor: nav ? 'pointer' : undefined },
+    style: { display: 'grid', gridTemplateColumns: typeof cells === 'string' && cells !== '' ? cells : WORK_ROUTE_TABLE_CELLS, gap: 6, alignItems: 'center', padding: '3px 0', borderTop: '1px solid rgba(255,255,255,.045)', cursor: nav ? 'pointer' : undefined },
   }
   if (nav) {
     rowProps.tabIndex = 0
@@ -319,7 +324,7 @@ export const WorkRouteRow = ({ r, nowMs, st, onNavigate }: any) => {
     }
   }
   const row = h('div', rowProps, [
-    h('span', { style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, ticketLabelOf(r.ticketKey, r.effortId)),
+    h('span', { ref: numberRef, style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, fullLabel),
     h('span', { style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
     h('span', { style: Object.assign({ display: 'inline-flex', alignItems: 'center', gap: 4 }, workRouteCellStyle) }, [
       h('span', { key: 's', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),
@@ -364,12 +369,14 @@ export const WorkRouteTable = ({ st, onNavigate }: any) => {
       h('div', { 'data-work-route-empty': 1, style: { color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('workRouteTable.empty')),
     ])
   }
+  // 首列按本表实际行自适应（#1553）：表头与每一行用算出来的同一份模板，对齐要求不变。
+  const cells = workRouteCellsFor(view.rows)
   const rows = view.rows.map(function (r: WorkRouteTableRow) {
-    return h(WorkRouteRow, { key: r.ticketKey + ':' + r.sessionLabel + ':' + r.actionAt, r: r, nowMs: nowMs, st: st, onNavigate: onNavigate })
+    return h(WorkRouteRow, { key: r.ticketKey + ':' + r.sessionLabel + ':' + r.actionAt, r: r, nowMs: nowMs, st: st, onNavigate: onNavigate, cells: cells })
   })
   return h('section', { 'data-work-route-table': 'ok', style: boxStyle }, [
     titleRow,
-    h('div', { style: { overflowX: 'auto' } }, [workRouteHeadRow(h, tr), h('div', { key: 'rows' }, rows)]),
+    h('div', { style: { overflowX: 'auto' } }, [workRouteHeadRow(h, tr, cells), h('div', { key: 'rows' }, rows)]),
   ])
 }
 
