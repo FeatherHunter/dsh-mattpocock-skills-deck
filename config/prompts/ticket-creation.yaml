@@ -175,26 +175,29 @@ newWayfinder:
 #   两者的清单与形状校验在 scripts/lib/prompt-config.mts 的 PROMPT_TEMPLATE_IDS / PROMPT_FRAGMENT_IDS。
 # ============================================================
 
-# newBugFields：bug 建单时那四项必填引导语（中文一份、英文一份）。
+# newBugFields：bug 建单时那四项引导语（中文一份、英文一份）。
+#   括号里的话是帮报告人把情况说清楚的提示，不是必填项；四项答不全也照常建单（缺的标 needs-info）。
 newBugFields:
   zh: |-
     
 
-    以下四项均为必填；四项全空时不要建单，先回问报告人补齐。
+    下面四项是帮报告人把情况说清楚的提示，不是四道必答题：知道多少写多少，说不清的可以空着。
+    四项全空时先回问报告人，不要替他编；只答出一部分时照常建单，缺的地方标 needs-info。
 
-    实际（现象；影响范围）：
-    期望（预期；与实际差异）：
-    复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：
-    环境信息（OS 版本 + 软件版本 + 运行环境）：
+    实际（看到了什么现象；知道影响范围就一并写上）：
+    期望（原本预期是什么样；和实际看到的差异写清楚）：
+    复现步骤（能说清前置条件和场景就先写，再按编号步骤写；只是偶发的话写下大概频率）：
+    环境信息（知道的话写上 OS 版本、软件版本、运行环境）：
   en: |-
     
 
-    The four fields below are required; if all four are empty, do not file — ask the reporter to complete them first.
+    The four items below are hints to help the reporter describe the problem clearly — they are not four questions that must be answered: write whatever is known and leave the rest blank.
+    If all four are empty, ask the reporter first instead of guessing. If only some are answered, still file the ticket and label the missing parts needs-info.
 
-    Actual (symptom; impact):
-    Expected (expectation; diff from actual):
-    Reproduction (preconditions and scenario + numbered steps; flaky → frequency):
-    Environment (OS version + software version + runtime):
+    Actual (the symptom; add the impact if you know it):
+    Expected (your expectation, plus the diff from actual):
+    Reproduction (preconditions and scenario if you can, then numbered steps; if it is flaky, note how often):
+    Environment (OS version, software version and runtime, as much as you know):
 
 # newWayfinderWiring：建单时默认的父子议题接线说法（中文一份、英文一份）。
 newWayfinderWiring:
