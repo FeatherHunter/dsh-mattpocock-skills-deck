@@ -19,7 +19,7 @@ import { parseOriginalWords, parseProgressDetail } from '../../tracker/body-pars
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-// 沙箱许可等待上限见 ../shell/capped-wait.ts（#1114 第二批）：到点就交卷并清掉等待定时器；
+// 沙箱许可等待上限见 ../shell/capped-wait.ts（#1114 第二批）：到点就按「没等到」处理并清掉等待定时器；
 // 超时按缺席走老路（不限权），与既有 catch null 同形。
 // 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走逐项的 BACKEND_UNSUPPORTED。钳制只管超时，不改判。

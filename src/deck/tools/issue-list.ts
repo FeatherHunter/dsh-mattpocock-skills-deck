@@ -73,7 +73,7 @@ function labelNames(list: unknown): string[] { return namesOf(list, (l) => l.nam
 /** 认领人名字：对象形态取 login，取不到记空串（namesOf 会把它滤掉）。 */
 function assigneeNames(list: unknown): string[] { return namesOf(list, (a) => (a && a.login) || '') }
 
-// 沙箱许可等待上限见 ../shell/capped-wait.ts（#1114 第二批）：到点就交卷并清掉等待定时器；
+// 沙箱许可等待上限见 ../shell/capped-wait.ts（#1114 第二批）：到点就按「没等到」处理并清掉等待定时器；
 // 超时按缺席走老路（不限权），与既有 catch null 同形。
 
 /** 这一行是不是地图：后端回的 type 认地图、或带 isMap 标记、或戴着 wayfinder:map 标签都算。 */
