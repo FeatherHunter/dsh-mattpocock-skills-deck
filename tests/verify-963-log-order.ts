@@ -190,7 +190,10 @@ async function main() {
   //   这一趟里 S4 的探活超时走的是宿主钳制那一路；宿主 runGh 到点后会把结局回报给准入桶（gh-run-report.ts），
   //   按「到点算 transport 级失败」设冷却，所以这里出现 decision=cooldown-set、reason=timeout 是预期产物，
   //   S4 之后紧接着的那一笔正靠这条冷却立刻回「通路不通」。这里登记的是本图允许出现的事件集合，不是放宽断言。
-  const known = ['detection.detect', 'detection.step', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'gh.transport', 'gh.lane.saturated', 'error.normalize', 'read.degraded', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
+  // 'chain.predicate.timeout' 是 2026-10-26 #1475 新增的常驻事件：检测链一次求值里，外层等待预算先到点、
+  //   被放弃的内层谓词后来还是回了话时各记一行；事件号原定 #132，合入时让给先合入 main 的 #1007 gh.transport。
+  //   这里同样只是登记本图允许出现的事件集合，不是放宽断言。
+  const known = ['detection.detect', 'detection.step', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'gh.transport', 'gh.lane.saturated', 'error.normalize', 'read.degraded', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read', 'chain.predicate.timeout'];
     const unknown = [...allEvents].filter((e) => !known.includes(e));
     console.log('  事件集合：' + [...allEvents].sort().join(', '));
     must(unknown.length === 0, '无新增事件名', unknown.join(',')); }
