@@ -16,6 +16,9 @@
 // 门禁归属: src/client/kernel/ticket-label.ts
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 //
+// 依赖：playwright（含 chromium）—— 全部判据都是真浏览器量出来的几何。这一行也让 fast 档按
+// 「门禁正文里出现 playwright」认出本门禁是真浏览器门禁并跳过它（脚本见 scripts/verify-parallel.mts 的 isBrowserStep）。
+//
 // 用法（在插件根目录）：
 //   node --import ./scripts/ts-hook.mts tests/verify-1565-workroute-first-col-browser.ts
 // 要跳过真浏览器门禁用 npm run verify:fast（那一档不含本门禁）。
@@ -171,6 +174,8 @@ async function main(): Promise<void> {
   check(o.tracks[0] - o.badgeWidth >= 55, '反证 改前格子比徽标宽出约 56px（实得 ' + f(o.tracks[0] - o.badgeWidth) + 'px）：本门禁量得出这个毛病')
 
   // ── G2：同一面板宽度下，标题列变宽、长标题可见字符变多 ──
+  // 边界：面板越宽，两列按余量一起长；等到标题列到 320px 上限（面板很宽时），省下的空间按 #1553 的口径留在行尾，
+  // 那时新旧两边都停在上限、可见字符相同。本门禁取浮层最小宽度，也就是浮层不主动变宽时的常态宽度。
   check(n.tracks[1] >= o.tracks[1] + 20, 'G2 同一面板宽度下标题列变宽（改前 ' + f(o.tracks[1]) + 'px → 现在 ' + f(n.tracks[1]) + 'px）')
   check(n.titleVisible > o.titleVisible, 'G2 长标题可见字符变多（改前 ' + o.titleVisible + ' 个 → 现在 ' + n.titleVisible + ' 个；全宽 ' + f(n.titleFullWidth) + 'px）')
   check(n.tracks[1] > 150 && n.tracks[1] <= 320, 'G2 标题列仍落在 150~320px 的上限区间里（实得 ' + f(n.tracks[1]) + 'px）')

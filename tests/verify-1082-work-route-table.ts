@@ -324,6 +324,16 @@ async function main() {
   // #1565：首列票号控件真的带着上限宽度（与分档封顶同一个数）；几何效果（格子不再白留）由 verify-1565 真浏览器门禁量。
   const badgeCaps = findAll(treeOk, (n: any) => n.props && n.props.style && n.props.style.maxWidth === TICKET_LABEL_MAX_WIDTH)
   check(badgeCaps.length >= 2, '首列票号控件带 maxWidth = 徽标上限（两行各一处，实得 ' + badgeCaps.length + ' 处）')
+  // #1565：长目录那一行必须把算出来的模板真的传给表头与每一行。只测 workRouteCellsFor 本身测不到接线 ——
+  // 要是表组件退回默认模板（56px），那个函数仍然是对的，这扇门禁会假绿。
+  const longReadout = {
+    at: okReadout.at,
+    staleCount: 0,
+    entries: [{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021', title: '长目录容器', sessionLabel: '会话 丙', action: 'report', actionAt: okReadout.at, active: true, currentSession: false }],
+  }
+  const longTree = leaf.WorkRouteTable({ st: { snapshot: { workRouteTable: { ok: true, readout: longReadout } } } })
+  const longGrids = findAll(longTree, (n: any) => n.props && n.props.style && typeof n.props.style.gridTemplateColumns === 'string')
+  check(longGrids.length >= 2 && longGrids.every((n: any) => String(n.props.style.gridTemplateColumns).split(' ')[0] === TICKET_LABEL_MAX_WIDTH), '长目录行的表头与数据行都拿到算出来的首列 ' + TICKET_LABEL_MAX_WIDTH + '（不是退回默认 56px；实得 ' + longGrids.length + ' 个 grid）')
 
   const okSt = { snapshot: { workRouteTable: { ok: true, readout: okReadout } } }
   const openPos = { right: 12, top: 100, width: 520, maxHeight: 400 }

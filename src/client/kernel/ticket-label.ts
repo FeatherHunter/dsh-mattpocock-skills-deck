@@ -82,9 +82,9 @@ export function ticketLabelPartsOf(key: unknown, effortId: unknown): TicketLabel
 /**
  * 同一颗 `#目录/编号` 控件的两段子节点：目录前缀可省略、编号尾巴绝不缩小。
  *
- * 为什么收在这里：四处显示点（列表行、详情页头、在办表首列、状态栏胶囊）都要同一套「目录末尾变省略号」
- * 的写法，散在各处迟早长岔；这里只拼两段 span，外层的上限宽度与悬停仍由调用方按原样写（Tip 的 content
- * 与无障碍名都用上面的完整写法，不另起一串）。
+ * 为什么收在这里：五处显示点（列表行、详情页头、地图详情头、在办表首列、状态栏胶囊）都要同一套
+ * 「目录末尾变省略号」的写法，散在各处迟早长岔；这里只拼两段 span，外层的上限宽度与悬停仍由调用方
+ * 按原样写（Tip 的 content 与无障碍名都用上面的完整写法，不另起一串）。
  */
 export const ticketLabelNodesOf = function (h: any, key: unknown, effortId: unknown): any[] {
   const p = ticketLabelPartsOf(key, effortId)
@@ -107,7 +107,7 @@ export interface WorkRouteWidthRow {
  * #1548 修完首列是定死的 128px —— 全是「#1548」这类短编号时白白占掉 70 多像素，标题和会话反而被挤。
  * 现在按本表所有行里最长的编号估宽分档：短编号收窄，长编号才放宽，目录名尽量不缩写。
  * 估宽直接调上面那份真写法（同一份形状，想 drift 都 drift 不了）：11px 字号下 ASCII 按 7px、
- * 中文等非 ASCII 按 11px，另加 12px 格子内边距；分档 snap 到 56 / 96 / 136 三档。
+ * 中文等非 ASCII 按 11px，另加 12px 估宽余量（宁可估宽一点，也别让真字被截）；分档 snap 到 56 / 96 / 136 三档。
  * 最宽那一档**就是徽标上限**（`TICKET_LABEL_MAX_WIDTH_PX`，同一个数推出来，见上）：
  * 超过上限的目录仍走省略号，完整编号在悬停提示里补（见 workRouteTable.ts 的 tipContent）。
  * 反例（#1565 之前）：分档封顶另写着 192px，徽标只到 136px —— 走到最宽一档时格子白留 56px，
@@ -137,7 +137,7 @@ export function workRouteFirstColWidthOf(rows: unknown): string {
   for (const tier of WORK_ROUTE_FIRST_COL_TIERS_PX) {
     if (widest <= tier) return tier + 'px'
   }
-  // 正常走不到这里（最后一档就是徽标上限）：留一条兜底，档位表将来被改坏也不会把格子撑过徽标。
+  // 超过最后一档（编号估宽比徽标上限还长）就落在徽标上限：长目录走的正是这一条，超出部分由徽标自己的省略号收尾。
   return TICKET_LABEL_MAX_WIDTH
 }
 /** 六列模板：首列按行内容自适应（上），动作三列沿用 #1287 的定宽；
