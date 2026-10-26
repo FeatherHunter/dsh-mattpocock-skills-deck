@@ -59,10 +59,11 @@ export const IssueDetail = function (props: any): any {
       const issueEffort = (navTop0 && navTop0.kind === 'issue') ? ((navTop0.effortId !== undefined && navTop0.effortId !== null) ? String(navTop0.effortId) : '') : (st.activeEffortId ? String(st.activeEffortId) : '')
       const repoStrLocal = repoStr(st)
       const colorOf = (typeof buildColorOf === 'function') ? buildColorOf(st) : {}
-      if (!issueNumber) return null
+      // 本地容器的编号是 0（key 00），是合法坐标：只拦缺席、空串与非数字，不拦 0。
+      if (issueNumber === undefined || issueNumber === null || issueNumber === '' || Number.isNaN(Number(issueNumber))) return null
       // 触发拉取（缓存命中则同步回 real，不多发请求；force 重试由按钮控制）
       React.useEffect(function () {
-        if (!issueNumber) return
+        if (issueNumber === undefined || issueNumber === null || issueNumber === '' || Number.isNaN(Number(issueNumber))) return
         if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { effortId: issueEffort })
       }, [issueNumber, issueEffort, st.cwd])
       // #255 提交确认闪烁定时清除（类 rowFlash 同语义，防堆积；置于 early-return 之前保 hooks 顺序恒定）

@@ -229,8 +229,9 @@
     //   TTL 60s 命中即用，miss 走 host.call('wf.issueDetail')；错误形状与 fetchMapsDetail 对齐
     //   {ok, error:{kind, message, raw}}，kind 收八档（见上面 dswsNormalizeError）
     export const fetchIssueDetail = function (st: any, n: any, opts: any) {
-      const num = Number(n)
-      if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number', raw: '' } })
+      // 本地容器的编号是 0（key 00），是合法坐标：缺席与空串先归一成 NaN，再拦非数字与负数，不拦 0。
+      const num = Number((n === undefined || n === null || String(n).trim() === '') ? NaN : n)
+      if (isNaN(num) || num < 0) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number', raw: '' } })
       // 详情这条通路上的四个失败出口做的是同样四件事：记成 err 态、清掉详情、通知重画、把失败交回调用方。
       // 收成一处，四个出口各自只写「是什么错」。上面「编号不是数」那一支故意不走这里：那时还没碰过状态。
       const failDetail = function (err: any) { st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st); return { ok: false, error: err } }
@@ -297,8 +298,9 @@
     // T5 #10 · 评论分页加载与节流错误态（首 50 同 fetchIssueDetail，加载更多 → fetchIssueComments(n, after) 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）
     // 契约：st.issueDetail.comments.nodes 首 50，st.issueCommentsMoreLoading 布尔，st.issueCommentsFailCount 计数，st.issueCommentsHasMore 布尔（pageInfo.hasNextPage）
     export const fetchIssueComments = function (st: any, n: any, after: any, opts: any) {
-      const num = Number(n)
-      if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number', raw: '' } })
+      // 本地容器的编号是 0（key 00），是合法坐标：缺席与空串先归一成 NaN，再拦非数字与负数，不拦 0。
+      const num = Number((n === undefined || n === null || String(n).trim() === '') ? NaN : n)
+      if (isNaN(num) || num < 0) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number', raw: '' } })
       // 客户端本地的前置态（上一页还在路上，别重复发）：不是后端失败，所以没有原文。
       // 'throttle' 是客户端自己的「忙」标记，不是契约八档里的取值——调用方只看 ok，没有人认这个值；
       // 留在这里是为了与旧回包形状一致（#1111 只收口「按 message 猜档位」，不重做这条本地态）。
@@ -361,8 +363,9 @@
     // 推进序列由视图编排 —— 成功后清空输入、fetchIssueDetail(force) 击穿详情缓存重取、probeNow 静默快照刷新，
     // 全程无乐观插入（新评论必须来自服务端重取的证据）。
     export const submitIssueComment = function (st: any, n: any, body: any, opts: any) {
-      const num = Number(n)
-      if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number', raw: '' } })
+      // 本地容器的编号是 0（key 00），是合法坐标：缺席与空串先归一成 NaN，再拦非数字与负数，不拦 0。
+      const num = Number((n === undefined || n === null || String(n).trim() === '') ? NaN : n)
+      if (isNaN(num) || num < 0) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number', raw: '' } })
       const text = String(body == null ? '' : body)
       if (!text.trim()) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'comment body required', raw: '' } })
       if (typeof host === 'undefined' || typeof host.call !== 'function') {

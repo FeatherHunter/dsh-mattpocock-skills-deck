@@ -115,9 +115,12 @@ export function MapDetailV2Page(props: any): any {
   // 点标题看地图自己的档案：压入这张地图的 issue 详情页（地图在 GitHub 上就是一条 issue，
   // 全文、已定决策、评论都在那一页）。与子票卡的 enterSubDetail 走同一个导航栈，返回逐级弹回。
   // 编号取不到时不动作：宁可不跳，也不要压一个打不开的页面。
+  // 本地容器的编号是 0（key 00），是合法坐标：只拦缺席、空串、非数字与负数，不拦 0。
   const openArchive = function () {
-    const n = Number(m && m.number)
-    if (!isFinite(n) || n <= 0) return
+    const raw = m && (m.number !== undefined && m.number !== null ? m.number : m.key)
+    if (raw === undefined || raw === null || String(raw).trim() === '') return
+    const n = Number(raw)
+    if (!isFinite(n) || n < 0) return
     if (typeof pushNav === 'function') pushNav(st, 'issue', n, effortOf(m))
   }
 

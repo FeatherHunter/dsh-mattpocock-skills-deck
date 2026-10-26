@@ -125,7 +125,8 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     const _rawDetailCwd: string = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
     if (!_rawDetailCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
     const cwd: any = await normCwd(_rawDetailCwd)
-    if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+    // 本地容器的编号是 0（key 00），是合法坐标：只拦缺席、空串与非数字，不拦 0。
+    if (n === undefined || n === null || String(n).trim() === '' || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     try {
       // 读路径只认会话（#1444）：会话开成之后，后端选择、读额度与记账都由它兜住，本文件不再自己分发。
       const opened: any = await openReadSession(cwd)
@@ -195,7 +196,8 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     const _rawCommentsCwd: string = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
     if (!_rawCommentsCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
     const cwd: any = await normCwd(_rawCommentsCwd)
-    if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+    // 本地容器的编号是 0（key 00），是合法坐标：只拦缺席、空串与非数字，不拦 0。
+    if (n === undefined || n === null || String(n).trim() === '' || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     try {
       // 同详情：读评论也只经只读会话；会话开不成时诚实失败，让上层照旧用缓存。
       const opened: any = await openReadSession(cwd)
@@ -235,7 +237,8 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     const _rawCommentCwd: string = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
     if (!_rawCommentCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
     const cwd: any = await normCwd(_rawCommentCwd)
-    if (!n || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+    // 本地容器的编号是 0（key 00），是合法坐标：只拦缺席、空串与非数字，不拦 0。
+    if (n === undefined || n === null || String(n).trim() === '' || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     if (typeof body !== 'string' || !body.trim()) return { ok: false, error: { kind: 'parse', message: '评论内容为空' } }
     try {
       // #1445：写入只经写会话。上一版在这里自己选后端、拼 opCtx、补 refId、直调房间 comment，
