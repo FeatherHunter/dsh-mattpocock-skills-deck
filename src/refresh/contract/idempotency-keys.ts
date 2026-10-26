@@ -213,10 +213,12 @@ export function isAnchorUnsupported(m: AnchorMatch | null | undefined): boolean 
   return !!(m && m.status === 'unsupported')
 }
 
-/** 回查失败时给调用方看的那句话：说清是哪一种不成立，以及插件没有因此多建票。 */
+/** 回查失败时给调用方看的那句话：说清是哪一种不成立，以及插件没有因此多建票。
+ *  #1171：只陈述事实，不推荐调用面上不存在的做法 —— 「换用不带锚的创建」是工具那一层做不到的
+ *  动作（工具恒自动生成锚，没有不带锚的入口）。能做什么由调用方补。 */
 export function describeAnchorFailure(m: AnchorMatch): string {
   const why = m && typeof m.reason === 'string' && m.reason ? m.reason : '回查没有做成'
-  return '这次带锚创建没能做成回查，所以没有建票：' + why + '。这不是「已经建过」的意思 —— 请换用不带锚的创建，或者先把锚回查这一条修好再来。'
+  return '这次带锚创建没能做成回查，所以没有建票：' + why + '。这不是「已经建过」的意思。'
 }
 
 // 这里原来有一行 `export const IDEMPOTENCY_SOURCE = 'src/shared/refresh/src/idempotency.ts'`。#719 把它删掉：
