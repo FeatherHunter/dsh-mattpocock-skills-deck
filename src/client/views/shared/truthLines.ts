@@ -110,6 +110,11 @@ export const freshnessToneColor = function (tone: any) {
 //   4. **模型未知也要说话（#1455）**：后端声明 unknown、或声明了本版不认识的口径时，说「额度未知：
 //      这个后端没有可用的预算模型」。不许静默 —— 静默会被读成「这个后端没有额度这回事」，
 //      与「不知道」是两句话；也不许拿读到的旧数字冒充 —— 模型不知道，数字就无从解释。
+//   5. **失败也要说得清（#1006）**：读数未知时，若宿主记下了后台同步最近一次失败的类别，就按类别
+//      分别说「环境没准备好，要人处理（hard）」或「刚才没连上，等它自己重试（soft）」；说不出类别时
+//      仍说中性的「还没同步上来」。两句都不许出现数字、不许把「不知道」说成「用完了」。
+//      读数已经有旧数字时也一样（#1006 复核补）：数字照念，但后面补一句「可能不是最新的 + 为什么」，
+//      不许让失败只留在日志里 —— 成功一次之后再失败，面板若永远只显示旧数字，人就看不出它已经不灵了。
 const BUDGET_TONE_BY_TIER: any = { green: 'fresh', yellow: 'yellow', red: 'red' }
 // 面板认识、且能念出数字（或明确说「没有额度」）的三种口径；不在这份名单里的都按「模型未知」处理。
 // 这份词表与宿主 src/host/tracker/snapshot.ts 的 BUDGET_KINDS 是同一套词：那边放行 'unknown' 是为了
@@ -133,7 +138,23 @@ export const budgetNoticeLines = function (refresh: any): any[] {
   const backend = refresh && refresh.backend
   if (!backend || typeof backend !== 'object') return []
   if (backend.offNetwork === true) return [{ key: 'truth.budgetOffNetwork', params: {}, tone: 'fresh', kind: 'budget' }]
-  const unknown = function (): any[] { return [{ key: 'truth.budgetUnknown', params: {}, tone: 'fresh', kind: 'budget' }] }
+  // 读数未知时说什么：后台同步报过失败（#1006）就按类别补一句原因，否则仍说中性的「还没同步上来」。
+  // 只认两种已知类别：形状不对的 sync 不猜 —— 猜错类别比不说话更坏（会说成另一种故障）。
+  const unknown = function (): any[] {
+    const sync = backend.sync
+    if (sync && sync.lastFailKind === 'hard') return [{ key: 'truth.budgetSyncFailedHard', params: {}, tone: 'yellow', kind: 'budget' }]
+    if (sync && sync.lastFailKind === 'soft') return [{ key: 'truth.budgetSyncFailedSoft', params: {}, tone: 'fresh', kind: 'budget' }]
+    return [{ key: 'truth.budgetUnknown', params: {}, tone: 'fresh', kind: 'budget' }]
+  }
+  // 有旧读数时最近一次同步失败也说一句（#1006 复核）：只认两种已知类别，形状不对不猜。
+  // 为什么数字照念：旧读数仍有参考价值，删掉数字会退化成「什么都没说」；但必须点明它可能过期。
+  // 真耗尽（failQuota）不加这一句 —— 那时数字本身就是这一刻的事实，不是旧账。
+  const staleAfterFail = function (): any[] {
+    const sync = backend.sync
+    if (sync && sync.lastFailKind === 'hard') return [{ key: 'truth.budgetStaleSyncFailedHard', params: {}, tone: 'yellow', kind: 'budget' }]
+    if (sync && sync.lastFailKind === 'soft') return [{ key: 'truth.budgetStaleSyncFailedSoft', params: {}, tone: 'fresh', kind: 'budget' }]
+    return []
+  }
   // 模型未知排在读数未知之前：连「这个后端的额度怎么算」都说不清时，「这次读没读到」是下一层的问题。
   // 两句说的是不同的事实 —— 一句是模型不知道（它可能永远说不清），一句是这次还没读到（等一等就有）。
   if (KNOWN_BUDGET_KINDS.indexOf(String(backend.budgetKind || '')) < 0) {
@@ -144,7 +165,7 @@ export const budgetNoticeLines = function (refresh: any): any[] {
     const requests = budgetBucketOf(backend.requests)
     if (!requests) return unknown()
     if (requests.remaining === 0) return [{ key: 'truth.failQuota', params: {}, tone: 'red', kind: 'fail' }]
-    return [budgetBucketLine('truth.budgetRequests', requests)]
+    return [budgetBucketLine('truth.budgetRequests', requests)].concat(staleAfterFail())
   }
   // 走到这里只剩 none：没有额度可念，就一个字都不说（离网已经在最上面说过「不需要额度」了）。
   if (backend.budgetKind !== 'two-buckets') return []
@@ -156,7 +177,7 @@ export const budgetNoticeLines = function (refresh: any): any[] {
   const lines: any[] = []
   if (graphql) lines.push(budgetBucketLine('truth.budgetGraphql', graphql))
   if (rest) lines.push(budgetBucketLine('truth.budgetRest', rest))
-  return lines
+  return lines.concat(staleAfterFail())
 }
 export const truthNoticeLines = function (st: any, nowMs: any) {
   // 这里标 any[]：lines 只在下面那个 push 闭包里被读写，闭包里的演化类型推不出来，标出来才让

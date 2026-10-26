@@ -130,11 +130,15 @@ function mkGate() {
       return { ok: true, data: { known: true, kind: 'two-buckets', buckets: { rest: { limit: 5000, remaining: 0 }, graphql: { limit: 5000, remaining: 5000 } } } }
     },
     syncDue: () => true,
-    syncServer: (readings) => ledger.syncServer(BACKEND, readings),
+    // #1006 起落账带「取数开始时刻」，账本靠它判断读数新旧。
+    syncServer: (readings, at) => ledger.syncServer(BACKEND, readings, at),
     logCtx: null,
   })
   const r = await sync.ensureReading('/ws', 'ws-panel')
-  check(r.ok === true && r.fresh === true, '⑦ 读数这条路照旧成功（实得 ' + JSON.stringify(r) + '）')
+  // #1006 起同步放后台：当次立即回 pending，不再让工具调用等这一趟（等人要看结果就 await r.sync）。
+  check(r.ok === true && r.pending === true && !!r.sync, '⑦ 读数这条路立刻回 pending、不在关键路径上等（实得 ' + JSON.stringify(r) + '）')
+  const settled = await r.sync
+  check(settled.ok === true && settled.fresh === true, '⑦ 后台那一趟读成并落账（实得 ' + JSON.stringify(settled) + '）')
   check(readCalls.length === 1 && readCalls[0] === '/ws', '⑦ 读一次预算、按这次调用的工作区目录读（实得 ' + JSON.stringify(readCalls) + '）')
   const restRemaining = ledger.view(BACKEND, 'rest').remaining
   const graphqlRemaining = ledger.view(BACKEND, 'graphql').remaining

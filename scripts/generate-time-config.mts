@@ -126,6 +126,8 @@ const KEYS: Array<[string, string, string]> = [
   ['inFlightKeepAliveMs', 'IN_FLIGHT_KEEP_ALIVE_MS', 'timeouts'],
   ['settingsDebugPushWaitMs', 'SETTINGS_DEBUG_PUSH_WAIT_MS', 'timeouts'],
   ['quotaSyncCooldownMs', 'QUOTA_SYNC_COOLDOWN_MS', 'timeouts'],
+  ['quotaSyncHardCooldownMs', 'QUOTA_SYNC_HARD_COOLDOWN_MS', 'timeouts'],
+  ['quotaSyncMaxCooldownMs', 'QUOTA_SYNC_MAX_COOLDOWN_MS', 'timeouts'],
   ['registerRetryWaitMs', 'REGISTER_RETRY_WAIT_MS', 'timeouts'],
   ['shellResolveMs', 'SHELL_RESOLVE_TIMEOUT_MS', 'timeouts'],
   ['namingSummaryTimeoutMs', 'NAMING_SUMMARY_TIMEOUT_MS', 'timeouts'],
