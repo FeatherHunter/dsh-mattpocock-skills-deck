@@ -201,5 +201,49 @@ function renderDetail(st) {
     '报错横幅本地票渲染的是跟踪器 ghost 按钮')
 }
 
+// C 部分：md 容器行 number=0（key 00）经 issueUrlFor 必须拿得到本地路径（交接 bug：0 被 || 当空）
+const MAP_ALPHA = 'D:\\ws\\.scratch\\alpha\\map.md'
+const T1_ALPHA = 'D:\\ws\\.scratch\\alpha\\issues\\01-ticket.md'
+function containerSt() {
+  return {
+    snapshot: {
+      issues: [
+        { number: 0, key: '00', title: 'Alpha Map', state: 'OPEN', labels: [], url: MAP_ALPHA, effortId: 'alpha' },
+        { number: 1, key: '01', title: 'Alpha first', state: 'OPEN', labels: [], url: T1_ALPHA, effortId: 'alpha' },
+      ],
+      maps: [],
+    },
+  }
+}
+// C1：容器行传 number=0（列表行实际传 x.number）必须返回 map.md 路径
+{
+  const st = containerSt()
+  const got = globalThis.issueUrlFor(st, 0, 'alpha')
+  check(got === MAP_ALPHA, 'md 容器行 number=0 能拿回 map.md 路径（不是空串）')
+}
+// C2：容器行传 key=00 同样返回 map.md（双写法一致）
+{
+  const st = containerSt()
+  const got = globalThis.issueUrlFor(st, '00', 'alpha')
+  check(got === MAP_ALPHA, 'md 容器行 key=00 能拿回 map.md 路径')
+}
+// C3：容器行 openIssueUrl 调宿主 wf.openPath（跳转不断在取址就停）
+{
+  hostCalls.length = 0; opened.length = 0
+  const st = containerSt()
+  const fakeHost = { call: (m, a) => { hostCalls.push([m, a]); return Promise.resolve({ ok: true }) } }
+  const ok = globalThis.openIssueUrl(st, 0, fakeHost, 'alpha')
+  check(ok === true, 'md 容器行 openIssueUrl 返回 true（取到地址并尝试打开）')
+  check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1] && hostCalls[0][1].path === MAP_ALPHA,
+    'md 容器行点击调宿主 wf.openPath 且 path 为 map.md')
+  check(opened.length === 0, 'md 容器行没走 window.open（文件路径不是网址）')
+}
+// C4：普通子票 number=1 不回归
+{
+  const st = containerSt()
+  const got = globalThis.issueUrlFor(st, 1, 'alpha')
+  check(got === T1_ALPHA, '普通子票 number=1 仍返回自己文件路径（回归不动）')
+}
+
 console.log(failures ? `\n#1145 门禁失败 ${failures} 项（共 ${total} 条）` : `\n#1145 门禁全部通过（共 ${total} 条）`)
 process.exit(failures ? 1 : 0)
