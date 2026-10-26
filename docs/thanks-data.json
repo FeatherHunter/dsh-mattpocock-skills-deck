@@ -135,6 +135,18 @@
       "comments": [],
       "lastActive": "2026-10-23T08:43:11Z"
     },
+    "Niefee": {
+      "issues": [
+        {
+          "n": 1516,
+          "at": "2026-10-25T12:15:45Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-25T12:15:45Z"
+    },
     "SKADI0718": {
       "comments": [],
       "discussions": [],
@@ -183,6 +195,18 @@
           "n": 287
         }
       ]
+    },
+    "TangSuann": {
+      "issues": [
+        {
+          "n": 1505,
+          "at": "2026-10-25T08:10:24Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-25T08:10:24Z"
     },
     "WDXXZH": {
       "comments": [],
@@ -565,6 +589,6 @@
   },
   "cursors": {
     "discussions": 1394,
-    "issues": 1504
+    "issues": 1547
   }
 }
