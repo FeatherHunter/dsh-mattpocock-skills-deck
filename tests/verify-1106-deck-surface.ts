@@ -610,6 +610,57 @@ async function main() {
   }
 
   {
+    // #1543：地图票没建成这一支也分两档。普通失败只转后端原话，不追加重试建议（重试未必有用）；
+    // 锚回查失败才补拿同一个计划标识原样重试，并说清幂等键为什么安全。
+    const refuseMap = (message: string) => ({
+      id: 'refuse-map-1543', label: '拒绝建地图的后端（#1543 门禁探针）', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
+      create: () => ({
+        id: 'refuse-map-1543',
+        async create() { return { ok: false, error: { kind: 'unsupported', message: message, raw: '门禁探针原文' } } },
+      }),
+    })
+    const dispose = registry.register(refuseMap('地图建票那一下被后端挡下（门禁探针）。'))
+    chooseWorkspace(ws.rootPosix, 'refuse-map-1543')
+    try {
+      const r = await run('deck_map_plan_create', { planId: 'map-fail-1543', title: '建图失败的那一张', children: [{ key: 'c1', title: '子一', kind: 'issue' }] })
+      const plainText = String((r.r && (r.r as { text?: unknown }).text) || '')
+      check(!r.threw && r.r && (r.r as { status?: unknown }).status === 'unsupported' && (r.r as { reason?: unknown }).reason === 'backend-unsupported',
+        '#1543 地图票普通失败：工具回 unsupported + backend-unsupported（实得 ' + (r.threw || (((r.r as { status?: unknown }) && (r.r as { status?: unknown }).status) + '/' + ((r.r as { reason?: unknown }) && (r.r as { reason?: unknown }).reason))) + '）')
+      check(plainText.indexOf('地图票没建成') >= 0 && plainText.indexOf('后面的子票与边都没动') >= 0 && plainText.indexOf('地图建票那一下被后端挡下') >= 0,
+        '#1543 地图票普通失败：后端原话原样转出，事实没被工具吞掉（实得 ' + plainText + '）')
+      check(plainText.indexOf('原样重试') < 0,
+        '#1543 地图票普通失败：不追加重试建议，重试未必有用（实得 ' + plainText + '）')
+    } finally { dispose.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
+  }
+
+  {
+    // #1543：锚回查失败那一档才补退路：拿同一个计划标识原样重试，并说清幂等键为什么安全。
+    const lookupFailMap = (message: string) => ({
+      id: 'lookup-fail-map-1543', label: '回查没做成的建地图后端（#1543 门禁探针）', matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
+      create: () => ({
+        id: 'lookup-fail-map-1543',
+        async create() { return { ok: false, error: { kind: 'unsupported', message: message, raw: '门禁探针原文', stage: 'anchor-lookup' } } },
+      }),
+    })
+    const dispose = registry.register(lookupFailMap('地图建票后的回查没能做成（门禁探针），这次没有建票。'))
+    chooseWorkspace(ws.rootPosix, 'lookup-fail-map-1543')
+    try {
+      const r = await run('deck_map_plan_create', { planId: 'map-lookup-1543', title: '回查没做成的地图', children: [{ key: 'c1', title: '子一', kind: 'issue' }] })
+      const plainText = String((r.r && (r.r as { text?: unknown }).text) || '')
+      check(!r.threw && r.r && (r.r as { status?: unknown }).status === 'unsupported' && (r.r as { reason?: unknown }).reason === 'backend-unsupported',
+        '#1543 地图票回查失败：工具仍回 unsupported + backend-unsupported（实得 ' + (r.threw || (((r.r as { status?: unknown }) && (r.r as { status?: unknown }).status) + '/' + ((r.r as { reason?: unknown }) && (r.r as { reason?: unknown }).reason))) + '）')
+      check(plainText.indexOf('地图票没建成') >= 0 && plainText.indexOf('地图建票后的回查没能做成') >= 0,
+        '#1543 地图票回查失败：后端原话原样转出，事实没被工具吞掉（实得 ' + plainText + '）')
+      check(plainText.indexOf('原样重试') >= 0 && plainText.indexOf('同一个计划标识') >= 0 && plainText.indexOf('不会多建') >= 0,
+        '#1543 地图票回查失败：工具给出「同一个计划标识原样重试」并说清不会多建（实得 ' + plainText + '）')
+      check(plainText.indexOf('deck-plan-map-lookup-1543-map') >= 0,
+        '#1543 地图票回查失败：安全理由说的是同一个幂等键，命中复用那张地图票（实得 ' + plainText + '）')
+    } finally { dispose.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
+  }
+
+  {
     // 同一份计划标识同时在两次执行里跑：先到的那次上锁，后到的那次在碰后端之前就被挡下，一分钱不记。
     // 这一支写着「计划标识正被别的执行占用」，平常跑不出来，所以这里并发叫两次把它逼出来。
     const raceArgs = { planId: 'race-plan', title: '并发地图', effort: 'race-plan', children: [{ key: 'r1', title: '唯一子票', kind: 'issue' }] }
@@ -686,8 +737,10 @@ async function main() {
     // 把它的工具定义搬成 issue-patch-definition.ts；它同样只是工具层的一份数据文件，进这张精确名单。
     // 2026-10 #1171 又把「后端诚实失败」整支搬成 issue-create-failure.ts（issue-create.ts 撞回 350 行
     // 上限）；这一支只在建票本工具里用，不是独立工具，但同样住在工具层、同样受下面这套扫描约束。
-    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 + 建票失败回执 这十八份（实际 ' + names.join(',') + '）')
+    // 2026-10 #1543 再把「地图票没建成」整支搬成 map-plan-create-failure.ts（map-plan-create.ts 撞回
+    // 文件粒度基线）；同样只在建图本工具里用，同样进这张精确名单。
+    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 这十九份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
     let sawTimer = 0
